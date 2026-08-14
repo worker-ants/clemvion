@@ -39,7 +39,11 @@ import {
   isInternalCtx,
 } from './interaction.guard';
 import { redactThreadForPublic } from '../../shared/conversation-thread/thread-renderer';
-import { deepRedactSecrets } from '../../shared/utils/sanitize-error-message';
+import {
+  deepRedactSecrets,
+  MAX_REDACT_DEPTH,
+} from '../../shared/utils/sanitize-error-message';
+import { stripExternalOnlyFields } from '../../shared/utils/strip-external-only-fields';
 
 const TERMINAL_STATUSES: ReadonlySet<ExecutionStatus> = new Set([
   ExecutionStatus.COMPLETED,
@@ -338,10 +342,17 @@ export class InteractionService {
         // EIA §R17 — nodeOutput 도 공개 표면. conversationConfig.message/messages
         // 등 자유 텍스트/구조화 필드의 secret 을 마스킹(값 패턴 + credential 키).
         // conversationThread·ai_message 와 동일 데이터가 여기로 우회 노출되던 갭 차단.
-        const out = deepRedactSecrets(nodeExec.outputData ?? {}) as Record<
-          string,
-          unknown
-        >;
+        // `deepRedactSecrets` 는 **값 마스킹**이지 필드 제거가 아니다 — 그것만으로는
+        // `meta.turnDebug[].llmCalls[]` 의 raw 프롬프트가 그대로 나간다. fanout 과 **같은
+        // 수준**으로 debug 필드를 제거한다 (`12_06_21` cross_spec CRITICAL 1, 테스트로 실증).
+        // 같은 `iext_*`/`itk_*` 토큰이 닿는 표면이므로 fanout 만 막는 것은 반쪽이었다.
+        const out = stripExternalOnlyFields(
+          deepRedactSecrets(nodeExec.outputData ?? {}) as Record<
+            string,
+            unknown
+          >,
+          MAX_REDACT_DEPTH,
+        );
         const meta = (out.meta ?? {}) as { interactionType?: string };
         const rawInteractionType = meta.interactionType ?? null;
         const interactionType =

@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { Observable, Subject } from 'rxjs';
 import { WebsocketGateway } from './websocket.gateway';
 import { ExecutionSeqAllocator } from './execution-seq-allocator.service';
+import { stripExternalOnlyFields } from '../../shared/utils/strip-external-only-fields';
 
 /**
  * 외부 SSE 어댑터 (P5) 및 NotificationDispatcher (P6) 가 구독하는 fan-out stream payload.
@@ -291,140 +292,16 @@ function sanitizeInner(value: object, depth: number): unknown {
 }
 
 /**
- * Debug-only payload fields that must NOT reach **external** fanout recipients
- * (external-interaction SSE / notification webhook / chat-channel outbound).
+ * 외부 fanout 으로 나가는 debug 전용 필드 제거는 **공유 유틸**이 담당한다 —
+ * `shared/utils/strip-external-only-fields`.
  *
- * `llmCalls` carries the raw LLM provider request/response (system prompt,
- * conversation history, tool definitions, user inputs) — an editor-only debug
- * surface. It is delivered solely on the authenticated, workspace-ownership
- * gated internal WS channel (`execution:{executionId}`), and stripped from the
- * fanout envelope so SSE token holders / channel end-users never receive it.
+ * 여기 두지 않는 이유: 같은 데이터에 출구가 둘 이상이다. fanout 만 막았더니 REST 스냅샷
+ * (`InteractionService.getStatus`)이 같은 `llmCalls` 를 그대로 돌려주고 있었다
+ * (`12_06_21` cross_spec CRITICAL 1). 처방을 한 곳에 두고 모든 외부 출구가 같은 것을 부른다.
  *
- * Strip 은 **깊이 무관**이다 — 어느 중첩 위치에 있든 제거한다.
- *
- * > **종전엔 top-level 전용(depth-1)이었고, 그 사이로 실제로 새고 있었다.**
- * > `execution.waiting_for_input` 이 raw payload 를 두 경로로 중첩해 실었다:
- * > `turnDebug.llmCalls.llmCalls[]`(`ai-turn-orchestrator.service.ts` turn1 스냅샷)와
- * > `nodeOutput.meta.turnDebug[].llmCalls[]`(`ai-conversation-helpers.ts` — 턴 **누적
- * > 전체**). 둘 다 depth-1 삭제를 그대로 통과해 SSE·webhook·chat-channel 수신자에게
- * > 도달했다(테스트로 실증). 기존 회귀 테스트는 최상위 `llmCalls` 만, 그것도
- * > `AI_MESSAGE` 에서만 봐서 이 표면을 열어 두고 있었다.
- * >
- * > 필드명 자체가 **문서화된 비밀 마커**이므로, 위치를 열거하는 대신 이름으로 막는다 —
- * > 새 중첩 위치가 생겨도 자동으로 보호된다.
- *
- * `EXTERNAL_STRIPPED_FIELDS` 에 새 필드를 추가할 때는 반드시 WS spec §4.4 과
- * {@link EiaAiMessageEvent} 주석을 함께 갱신한다.
- *
- * SoT: spec/5-system/6-websocket-protocol.md §4.4 `llmCalls[]` strip-only 결정
- * (+ EIA §6.5, chat-channel CCH-MP-01).
+ * 깊이 상한은 이 파일의 자매 sanitizer 와 같은 {@link MAX_SANITIZE_DEPTH} 를 넘긴다 —
+ * 상한 밖 서브트리는 `sanitizePayloadForWs` 가 이미 `[REDACTED_DEPTH]` 로 마스킹한 뒤다.
  */
-const EXTERNAL_STRIPPED_FIELDS = ['llmCalls'] as const;
-
-/**
- * Return the wire envelope with debug-only fields removed **at any depth**, for
- * publishing to the external fanout.
- *
- * Never mutates the input — the WS wire envelope keeps the full payload.
- * **Lazy** clone-on-write: nothing is allocated until a strip actually happens,
- * and any subtree with nothing to strip is returned by reference (so the common
- * path returns the original envelope identity).
- *
- * When adding a new entry to {@link EXTERNAL_STRIPPED_FIELDS}, update
- * WS spec §4.4 and the `EiaAiMessageEvent` JSDoc accordingly.
- */
-function stripExternalOnlyFields(
-  envelope: Record<string, unknown>,
-): Record<string, unknown> {
-  return stripDeep(envelope, 0) as Record<string, unknown>;
-}
-
-/**
- * 깊이 우선 lazy clone-on-write. 제거가 실제로 일어나기 전에는 **아무것도 할당하지
- * 않고**, 변경이 없으면 입력을 그대로 돌려준다. 형제 `sanitizeInner` 와 같은 패턴이다.
- *
- * > **초판은 매 레벨에서 `out = {}` 를 만들고 변경이 없으면 버렸다.** 최상위 반환값
- * > identity 는 보존됐지만 JSDoc 의 "할당 없음" 은 사실이 아니었고, 더 나쁘게는
- * > `out[k] = v` bracket 대입이 `k === '__proto__'` 일 때 **키를 own property 로 남기지
- * > 않고 프로토타입을 갈아치웠다**(CWE-1321). `JSON.parse` 결과에 그 키가 있으면 값이
- * > 조용히 사라지고, 값이 `null` 이면 `hasOwnProperty` 가 없는 객체가 되어 하류에서
- * > `TypeError` 로 죽을 수 있었다 (`10_32_27` security W1 — 재현 확인).
- * >
- * > **방어는 스프레드가 한다** — `{ ...obj }` 는 `CreateDataProperty` 라 own `__proto__` 를
- * > 그대로 옮기고, 그 own 데이터 속성이 상속 접근자를 가려 이후 대입이 안전해진다.
- * > 실측으로 확인했다: 스프레드 후에는 bracket 대입도 오염을 일으키지 않고, 빈 `{}` 에서만
- * > 일어난다. 아래 `Object.defineProperty` 는 그 위의 **중복 방어**로, `out` 생성 방식이
- * > 나중에 바뀌어도 접근자를 타지 않게 한다(회귀는 `__proto__` 테스트가 잡는다 —
- * > 스프레드를 `{}` 로 되돌리는 뮤턴트에서 RED 확인).
- *
- * 깊이 상한은 형제와 같은 {@link MAX_SANITIZE_DEPTH} 를 **같은 경계 연산자로** 쓴다.
- * 현재 호출부는 모두
- * `sanitizePayloadForWs` 를 먼저 거쳐 이미 유계지만, **호출 순서에 기대는 불변식**은
- * 함수 자신의 방어가 아니다 (`10_32_27` security W4). 상한을 넘으면 그 아래는 손대지
- * 않고 그대로 둔다 — strip 실패보다 조용한 데이터 손실이 더 나쁘기 때문이며, 상한 초과
- * 서브트리는 이미 `sanitizePayloadForWs` 가 `[REDACTED_DEPTH]` 로 마스킹한 뒤다.
- *
- * 순환 참조는 다루지 않는다 — 이 payload 는 직후 `JSON.stringify` 로 직렬화되므로 순환이
- * 있으면 어차피 거기서 `TypeError` 로 죽는다. 실패 시점이 앞당겨질 뿐 새 실패 모드가
- * 아니고, 방문 집합을 들고 다니는 비용만 는다.
- *
- * ## 비용 (실측)
- *
- * 이 payload 는 `sanitizePayloadForWs` 가 이미 한 번 완전 순회한다 — 즉 hot path 에서
- * 순회가 두 번이다 (`10_32_27` performance W2). 8턴 `turnDebugHistory` 를 담은 waiting
- * payload 로 A/B 했다(N=3000, emit 전체 시간):
- *
- * | | ms/emit |
- * |---|---|
- * | 옛 depth-1 strip | 0.0112 |
- * | 현행 재귀 strip | 0.0314 (**2.80배**, +20.2 µs) |
- *
- * 두 pass 를 하나로 합치지 않은 이유: `sanitizePayloadForWs` 는 **wire/fanout 분기 이전**에
- * 돌아 두 채널이 공유하는데, 내부 WS 채널은 `llmCalls` 를 받아야 한다. 합치려면 그 함수에
- * 채널 개념을 넣어야 하고, 그건 credential 마스킹(+`SANITIZE_CACHE` WeakMap, depth 캡)의
- * 의미를 건드린다 — 20 µs 를 아끼려고 마스킹 로직을 흔들 이유가 없다.
- */
-function stripDeep(value: unknown, depth: number): unknown {
-  // 경계 연산자를 형제와 **동일하게** 맞춘다(`>`, `>=` 아님). 종전 `>=` 는 형제보다 한
-  // 단계 얕게 멈춰, 리뷰어 넷이 "여기서 새는가" 로 갈리는 모호함을 만들었다
-  // (`11_02_16` CRITICAL 1). 실 파이프라인 깊이 sweep 으로 **누출은 없음**을 확인했지만
-  // (그 깊이의 값은 `sanitizePayloadForWs` 가 이미 `[REDACTED_DEPTH]` 로 치환한다),
-  // 어차피 무해하다면 형제와 어긋나 있을 이유가 없다.
-  if (depth > MAX_SANITIZE_DEPTH) return value;
-
-  if (Array.isArray(value)) {
-    let out: unknown[] | null = null;
-    for (let i = 0; i < value.length; i++) {
-      const s = stripDeep(value[i], depth + 1);
-      if (s !== value[i] && out === null) out = value.slice();
-      if (out !== null) out[i] = s;
-    }
-    return out ?? value;
-  }
-  if (value === null || typeof value !== 'object') return value;
-
-  const obj = value as Record<string, unknown>;
-  let out: Record<string, unknown> | null = null;
-  for (const [k, v] of Object.entries(obj)) {
-    if ((EXTERNAL_STRIPPED_FIELDS as readonly string[]).includes(k)) {
-      out ??= { ...obj };
-      delete out[k];
-      continue;
-    }
-    const s = stripDeep(v, depth + 1);
-    if (s !== v) {
-      out ??= { ...obj };
-      // bracket 대입 금지 — `__proto__` 면 접근자를 타 프로토타입을 갈아친다.
-      Object.defineProperty(out, k, {
-        value: s,
-        enumerable: true,
-        writable: true,
-        configurable: true,
-      });
-    }
-  }
-  return out ?? value;
-}
 
 /**
  * Knowledge Base 도메인 이벤트 — KB 이벤트의 **권위 정의**. frontend `useKbEvents`
@@ -574,7 +451,10 @@ export class WebsocketService {
     // 또한 fanout 은 외부 수신자(SSE 토큰 보유 채널 end-user 포함) 로 나가므로
     // debug 전용 llmCalls 를 strip 한다 (WS §4.4 strip-only 결정). wireEnvelope
     // 은 위에서 이미 broadcast 됐고 여기선 새 clone 을 strip 하므로 WS copy 불변.
-    const externalPayload = stripExternalOnlyFields(wireEnvelope);
+    const externalPayload = stripExternalOnlyFields(
+      wireEnvelope,
+      MAX_SANITIZE_DEPTH,
+    );
     const fanoutEnvelope = this.attachRoutingContext(
       executionId,
       externalPayload,
@@ -645,7 +525,10 @@ export class WebsocketService {
     this.gateway.broadcastToChannel(channel, eventType, wireEnvelope);
     // node 이벤트는 현재 llmCalls 를 포함하지 않으나, 미래 누출 경로를 차단하기 위해
     // emitExecutionEvent 와 동일하게 strip 적용 (방어심층화 — W-1/W-4).
-    const externalNodePayload = stripExternalOnlyFields(wireEnvelope);
+    const externalNodePayload = stripExternalOnlyFields(
+      wireEnvelope,
+      MAX_SANITIZE_DEPTH,
+    );
     const fanoutEnvelope = this.attachRoutingContext(
       executionId,
       externalNodePayload,

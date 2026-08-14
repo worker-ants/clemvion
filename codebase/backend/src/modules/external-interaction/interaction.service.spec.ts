@@ -610,6 +610,51 @@ describe('InteractionService.getStatus', () => {
     expect(ctx.conversationThread).toBeUndefined();
   });
 
+  /**
+   * **REST 스냅샷도 fanout 과 같은 수준으로 `llmCalls` 를 막아야 한다.**
+   *
+   * `stripDeep`(`websocket.service.ts`)은 SSE·webhook·chat-channel fanout 에서
+   * `llmCalls` 를 깊이 무관으로 지운다. 그런데 `getStatus` 는 **같은 `iext_*`/`itk_*`
+   * 토큰으로 접근하는 같은 데이터**를 `deepRedactSecrets` 만 거쳐 돌려준다 —
+   * 그건 **값 마스킹**이지 필드 제거가 아니라 `nodeOutput.meta.turnDebug[].llmCalls[]`
+   * 의 raw `requestPayload`(시스템 프롬프트·대화 이력)가 그대로 나간다
+   * (`12_06_21` cross_spec CRITICAL 1).
+   *
+   * fanout 쪽만 고치고 이 표면을 안 물은 것이 이 PR 의 처음 실수였다 — **같은 데이터의
+   * 다른 출구**를 세지 않았다.
+   */
+  it('waiting_for_input — nodeOutput 의 raw llmCalls 가 REST 응답에 실리지 않는다', async () => {
+    const { service, repo, nodeRepo } = makeMocks();
+    repo.findOne.mockResolvedValue(
+      makeExecution({ status: ExecutionStatus.WAITING_FOR_INPUT }),
+    );
+    nodeRepo.findOne.mockResolvedValue({
+      nodeId: 'n1',
+      node: { type: 'AI Agent' },
+      outputData: {
+        meta: {
+          interactionType: 'ai_conversation',
+          // WS §4.4:449 정본 shape — 영속된 outputData.meta 도 같은 구조다.
+          turnDebug: [
+            {
+              turnIndex: 0,
+              llmCalls: [
+                { requestPayload: { system: 'SECRET PROMPT VIA REST' } },
+              ],
+            },
+          ],
+        },
+        conversationConfig: { greeting: '안녕하세요' },
+      },
+    });
+
+    const r = await service.getStatus(IEXT_CTX);
+
+    expect(JSON.stringify(r)).not.toContain('SECRET PROMPT VIA REST');
+    // 대조군 — 정상 필드는 그대로 나가야 한다(통째로 날려서 통과하는 것 방지).
+    expect(JSON.stringify(r)).toContain('안녕하세요');
+  });
+
   it('waiting_for_input — 대기 NodeExecution 없으면 currentNode/context null', async () => {
     const { service, repo, nodeRepo } = makeMocks();
     repo.findOne.mockResolvedValue(

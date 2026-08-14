@@ -7,7 +7,11 @@ status: in-progress
 priority: P1
 spec_impact:
   - spec/5-system/14-external-interaction-api.md
-  - spec/5-system/1-data-model.md
+  # 루트 cross-cutting 문서다 — `spec/5-system/1-data-model.md` 는 실재하지 않는다.
+  # `09_38_17` 부터 세 라운드 연속 지적됐는데 본문은 옳게 쓰고 frontmatter 만 틀린 채였다.
+  - spec/1-data-model.md
+  # (3) blockquote 정정과 (7) SoT 확장이 이 문서의 Rationale·§4.4 를 함께 건드린다.
+  - spec/5-system/6-websocket-protocol.md
 ---
 
 ## Overview
@@ -49,11 +53,24 @@ spec_impact:
 
 ## 변경 제안
 
-### (1) §6.2 예시를 실측 shape 으로 재작성
+### (1) §6.2 — **봉투만** 맞춘다 (caveat 패턴 유지, 안쪽 재작성 철회)
 
 - §6.3/§6.4 와 동일하게 `payload:` 래퍼 + `// webhook 봉투 기준. SSE 는 payload 래퍼 없이
   안쪽 객체가 그대로 온다.` 주석
-- 안쪽을 위 실측 키로 교체. 표면별 분기(`buttonConfig` / `nodeOutput`)를 주석으로 표시
+- **안쪽 JSON(`node`/`interaction`/`context`)은 그대로 둔다.**
+
+> **초판은 "안쪽을 실측 키로 교체" 였다 — 철회한다.**
+> WS Rationale `### §4.4 wire 필드 caveat`(2026-07-14, PR #945)가 **§6.2 를 실례로 들어**
+> "직접 재작성 대신 caveat + 오너십 분리" 를 채택했고, 2026-08-13 에 `waiting_for_input`
+> 범위로 재확인했다. 근거도 적혀 있다 — 논리 nested 구조가 가독성상 유리하고, JSON 전체를
+> 실 wire 로 바꾸면 두 문서가 어긋난다.
+>
+> 즉 §6.2 의 `node`/`interaction`/`context` 는 **의도된 논리 표기**이고 실제 필드명은
+> 아래 blockquote 가 SoT 로 소유한다. 내가 그걸 "허구" 로 진단한 것이 틀렸다
+> (`09_38_17`·`12_06_21` rationale_continuity CRITICAL).
+>
+> **남는 진짜 결함은 둘뿐이다** — (a) 봉투 래퍼 누락(§6.3/§6.4 와 불일치), (b) 아래 (3)의
+> blockquote 오서술. 그 둘만 고친다.
 
 ### (2) `interaction` 블록 — 삭제하지 않고 **Planned** 로 표기
 
@@ -67,10 +84,20 @@ URL 예시는 `2-api-convention.md §1`(버전은 URL 경로에 미포함) 위�
 ### (3) "SSE 필드명 매핑" blockquote 정정
 
 현행은 `node.id → waitingNodeId` 처럼 **webhook↔SSE 필드명이 다르다**고 서술한다.
-실제로는 fanout 이 이름을 바꾸지 않으므로 **두 채널의 필드명은 같고, 다른 것은 봉투뿐**이다.
-→ 매핑 화살표를 걷어내고 "필드명은 채널 무관 동일, 봉투만 다르다(§채널별 봉투)" 로 정정.
-참조 구현(`channel-web-chat/src/lib/eia-events.ts` `parseWaitingForInput`)이 `ev.waitingNodeId`
-를 읽는 것과도 일치한다.
+실측: `notification-fanout.service.ts:134` 가 `payload: event.payload` 로 **변환 없이** 싣고,
+참조 구현(`channel-web-chat/src/lib/eia-events.ts` `parseWaitingForInput`)은 `ev.waitingNodeId`
+를 읽는다 → **두 채널의 필드명은 같고, 다른 것은 봉투뿐**이다.
+
+→ blockquote 를 "webhook↔SSE 매핑" 이 아니라 **"논리 표기(위 JSON) ↔ 실제 wire 필드명"**
+매핑으로 다시 쓴다. 화살표 자체는 유지된다 — 바뀌는 건 **화살표의 양변이 무엇이냐**다.
+이렇게 하면 caveat 패턴(논리 JSON + 실 wire caveat)이 그대로 살고, 오직 틀린 서술
+("채널에 따라 필드명이 다르다")만 걷힌다.
+
+> **형제 plan 과 충돌한다** (`12_06_21` plan_coherence W5).
+> [`spec-draft-eia-notification-payload-contract.md`](./spec-draft-eia-notification-payload-contract.md)
+> 가 어제 "§6.2 blockquote 에는 필드명 매핑만 남았다 — 필드명까지 달라지는 유일한 경우" 로
+> 완료 처리했는데, **그 전제가 실측으로 반증됐다.** 그 plan 에 반증 각주를 다는 것을 이
+> 작업의 일부로 포함한다.
 
 ### (4) `error.code` 를 옵셔널로 (§6.4 + 필드 집합 표)
 
