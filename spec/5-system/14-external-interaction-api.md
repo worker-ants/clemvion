@@ -569,7 +569,7 @@ Authorization: Bearer <expiring_iext_jwt>
 | 필드 | 이벤트 | 상태 | 비고 |
 |---|---|---|---|
 | `status` | 3종 | 구현됨 | `completed` \| `failed` \| `cancelled` |
-| `error` | `failed`, `cancelled`(시스템 취소 한정) | 구현됨 — **형태 불일치** | 목표는 `{code, message, nodeId, details?}` — **`code`·`nodeId` 는 `null` 일 수 있다**(§6.4 참조). **현행 일부 경로는 string** 을 넣는다 (`execution-engine.service.ts` · `retry-turn.service.ts` 의 `EXECUTION_FAILED` emit 일부 — 줄 번호는 리팩터마다 stale 해지므로 심볼로만 적는다). 수신자는 당분간 양쪽을 방어해야 한다 |
+| `error` | `failed`, `cancelled`(시스템 취소 한정) | 구현됨 | `{code, message, nodeId, details?}` — **`code`·`nodeId` 는 `null` 일 수 있다**(§6.4 참조). `failed` 는 **전 경로 object** 다 (2026-08-14, `toTerminalErrorPayload` 로 일원화 — 종전의 "일부 경로는 string" 캐비엇 해소). **`cancelled` 는 아직 `{code, message}` 를 손으로 만들어 `nodeId`/`details` 가 없다** |
 | `result.cancelledBy` | `cancelled` | 구현됨 — **경로 1곳 누락** | `retry-turn.service.ts` `failRetryExecution` 은 채우지 않는다 ([retry-turn-terminal-guard](../../plan/in-progress/retry-turn-terminal-guard.md) #2) |
 | `result.outputs` | `completed` | **미구현 (Planned)** | 데이터는 emit 직전 존재하나 payload 에 넣지 않는다 |
 | `durationMs` | 3종 | **미구현 (Planned)** | **`completed` 는 emit 직전에 계산돼 있으나 `cancelled` 계열은 계산·영속조차 하지 않는다** — 3종을 채우려면 취소 경로의 DB write 와 emit 시그니처를 함께 넓혀야 한다(비용이 `result.outputs` 와 다르다). **WS 계열 문서는 같은 값을 `duration` 으로 적는다** — 표기만 다르고 같은 값이다 (전역 개명은 별건) |

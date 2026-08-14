@@ -222,7 +222,15 @@ sentinel 경로(`ErrorPortFallbackError`/`ExecutionTimeLimitError`)뿐이다.
       §R17/WS §4.4 strip 범위. `--impl-done` `15_36_59` **BLOCK: NO**.
       → **이 plan 의 차단이 풀렸다.** 종결 payload 구현(`error` 객체화·`durationMs`·
       `result.outputs`)을 이제 착수할 수 있다
-- [ ] `--impl-prep` 재실행 BLOCK: NO
-- [ ] 구현 + 테스트
-- [ ] `/ai-review` + `/consistency-check --impl-done`
+- [x] `--impl-prep` 재실행 **BLOCK: NO** (`22_29_16`)
+- [x] 구현 + 테스트 (`6aa0699b8` + 리뷰 fix) — `error` 객체화 4곳 · `toTerminalErrorPayload`
+      15 tests · chat-channel 동반 3건 · 프런트엔드 소비자 갱신
+- [x] `/ai-review` `22_55_51` — **CRITICAL 1**(프런트엔드 미갱신) 포함, 조치 완료
+- [ ] `/consistency-check --impl-done`
 - [ ] 위 3개 plan 체크박스 동시 갱신
+
+> **CRITICAL 이 잡은 것**: 이 plan 의 "동반 필수" 목록이 **백엔드 소비자만** 셌다.
+> 같은 wire 이벤트를 내부 에디터 WS 채널이 소비하는데(`use-execution-events.ts`),
+> `data as { error?: string }` 는 **캐스팅이지 검증이 아니라** 타입체커가 침묵했고,
+> `{item.error}` 가 JSX child 로 렌더돼 React 가 던지는 경로였다.
+> **wire 형태를 바꿀 때 세어야 하는 것은 "백엔드 소비자" 가 아니라 "그 wire 를 읽는 전부" 다.**

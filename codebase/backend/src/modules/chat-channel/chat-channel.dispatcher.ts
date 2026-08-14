@@ -21,6 +21,7 @@ import {
   ChatChannelInternalEvent,
   EiaAiMessageEvent,
   EiaEvent,
+  EiaFailedEvent,
 } from './types';
 import { extractFormFields, extractFormTitle } from './shared/form-mode';
 import { PRESENTATION_NODE_TYPES } from '../../common/constants/presentation';
@@ -542,20 +543,15 @@ export function toChatChannelEvent(
       // 문자열의 최초 등장이 이 주석 자신이다). 인용한 라인 번호 두 개도 지금은 전혀 다른
       // 코드를 가리킨다. 없는 문서를 가리키는 포인터는 다음 사람의 조사를 낭비시킨다.
       const errorRaw = (event.payload as { error?: unknown }).error;
-      let error: {
-        code: string | null;
-        message: string;
-        nodeId?: string | null;
-        details?: unknown;
-      };
+      let error: EiaFailedEvent['error'];
       if (errorRaw && typeof errorRaw === 'object') {
         // §6.4 object shape (hot path).
         error = errorRaw as typeof error;
       } else if (typeof errorRaw === 'string') {
         // 레거시 문자열 — 위 주석 참조.
-        error = { code: null, message: errorRaw };
+        error = { code: null, message: errorRaw, nodeId: null };
       } else {
-        error = { code: null, message: 'unknown error' };
+        error = { code: null, message: 'unknown error', nodeId: null };
       }
       // `code: null` 은 [CCH-ERR-04] 가 `executionFailedInternal` 로 흡수한다.
       //

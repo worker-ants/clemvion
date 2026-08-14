@@ -4769,7 +4769,22 @@ describe('ExecutionEngineService', () => {
       expect(nodeQb.set).toHaveBeenCalledWith(
         expect.objectContaining({ status: NodeExecutionStatus.FAILED }),
       );
-      expect(emitSpy).toHaveBeenCalled();
+      // 종전엔 `toHaveBeenCalled()` 로 호출 여부만 봤다 — emit 의 `error` 값을 아무도
+      // 보고 있지 않아 뮤테이션에서 그 자리를 바꿔도 GREEN 이었다 (`22_55_51` testing W8).
+      // DB 에 쓴 것과 **같은 문구**가 나가는지가 이 변경의 요점이므로 값을 고정한다.
+      expect(emitSpy).toHaveBeenCalledWith(
+        'exec-stalled',
+        ExecutionEventType.EXECUTION_FAILED,
+        {
+          status: ExecutionStatus.FAILED,
+          error: {
+            code: 'WORKER_HEARTBEAT_TIMEOUT',
+            message:
+              'Execution failed: worker crash (stalled 재배달 attempts 소진)',
+            nodeId: null,
+          },
+        },
+      );
       emitSpy.mockRestore();
     });
 

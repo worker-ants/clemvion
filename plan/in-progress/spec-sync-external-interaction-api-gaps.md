@@ -126,6 +126,21 @@ checker 가 독립적으로** "인용이 가리키는 절이 오히려 반대를
 > `error` 객체화 PR 중이었다. 같은 PR 이 `durationMs` 를 "비용이 다르다" 는 이유로 떼어냈는데
 > 무관한 HMAC drift 를 끌어들이면 그 원칙과 어긋난다. **한 관심사 원칙은 내 편의로 굽히지 않는다.**
 
+## 종결 `error.message` 가 값-패턴 마스킹을 안 거친다 (2026-08-14 등재, `22_55_51` security W2)
+
+`error.message` 의 출처는 `error instanceof Error ? error.message : String(error)` — **임의
+내부 예외 메시지 원문**이다. WS fanout → SSE 외부 스트림 경로는 `sanitizePayloadForWs`
+(키-이름 기반)만 통과하므로 자유 텍스트 안의 토큰을 걸러내지 못한다. REST `getStatus` 는
+`stripAndRedact` 로 값-패턴까지 마스킹하므로 **두 표면이 비대칭**이다.
+
+- [ ] `toTerminalErrorPayload` 내부 또는 fanout 경계에서 `message`/`details` 에
+      `deepRedactSecrets` 적용 → REST 와 대칭
+
+> **왜 그 PR 에서 안 고쳤나**: 노출이 `error` 객체화로 **넓어지지 않았다** — 종전에도 같은
+> `errMessage` 문자열이 같은 fanout 을 탔다. 형태만 바뀌었지 내용과 경로는 동일하다.
+> 즉 선존 갭이고, `durationMs` 를 "비용이 다르다" 고 떼어낸 PR 이 이걸 끌어들이면 앞뒤가
+> 안 맞는다. **단, 이건 보안 항목이라 우선순위가 위 HMAC 문서 정정보다 높다.**
+
 ## 후속 (cross-cutting, 본 spec 밖)
 - [x] **Redis fixed-window rate-limiter INCR+EXPIRE 원자화** — `PublicWebhookQuotaService.incrWithWindow` 를 `INCR + EXPIRE ... NX` 단일 pipeline(매 요청)으로 교정해 TTL 유실 self-heal (fail-closed 잠금 창 제거). `ChatChannelRateLimiterService` 는 **이미** 동일 `INCR + EXPIRE NX` 단일 pipeline 패턴이라 무변경(점검 완료). `InteractionRateLimiterService`(item 5)는 Lua EVAL — 세 서비스 모두 원자/self-heal 확보. (PR #843 ai-review concurrency WARNING 후속, `task_fa5c5e84`.)
 

@@ -59,6 +59,9 @@ describe('toTerminalErrorPayload', () => {
   it.each([
     [42, '42'],
     [true, 'true'],
+    // bigint 분기는 뮤테이션에서 조건을 지워도 GREEN 이었다 (`22_55_51` testing W9) —
+    // 세 typeof 를 한 줄에 묶어 놓고 하나만 재고 있었다.
+    [BigInt(9), '9'],
   ])('스칼라 %p 는 message 로 문자열화한다', (input, expected) => {
     expect(toTerminalErrorPayload(input)).toEqual({
       code: null,

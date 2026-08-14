@@ -1,6 +1,12 @@
 /**
- * 종결 이벤트(`execution.failed` / 시스템 `execution.cancelled`)의 `error` 를
- * **EIA §6.4 wire 형태**로 정규화한다.
+ * `execution.failed` 의 `error` 를 **EIA §6.4 wire 형태**로 정규화한다.
+ *
+ * **현재 호출부는 `EXECUTION_FAILED` 4곳뿐이다.** 시스템 `execution.cancelled`
+ * (`emitCancellationEvent` + 호출 5곳)은 아직 `{code, message}` 를 손으로 만들고
+ * `nodeId`/`details` 가 없다 — spec §6 표는 둘을 같은 목표 형태로 규정하므로 통일이
+ * 맞지만, 취소 경로는 DB write 5곳을 함께 손봐야 해 `durationMs` 와 같은 비용 그룹이다
+ * (`eia-terminal-payload.md` 재판정 ③-c). **여기서 "cancelled 도 커버한다" 고 쓰면
+ * 문서한 보장이 구현보다 넓어진다** (`22_55_51` architecture W3).
  *
  * SoT: `spec/5-system/14-external-interaction-api.md` §6.4
  * (`{ code: "…"|null, message, nodeId: "uuid"|null, details? }`).

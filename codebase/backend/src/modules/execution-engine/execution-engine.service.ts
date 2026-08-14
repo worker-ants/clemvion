@@ -3294,7 +3294,9 @@ export class ExecutionEngineService
       .set({
         status: NodeExecutionStatus.FAILED,
         error: {
-          code: 'WORKER_HEARTBEAT_TIMEOUT',
+          // 부모와 같은 code — 위 `stalledError` 를 도입한 이유(손으로 반복하면 갈린다)가
+          // 30줄 아래에서 그대로 재현되고 있었다.
+          code: stalledError.code,
           message: 'Node failed: parent execution stalled (재배달 소진)',
         },
         finishedAt,

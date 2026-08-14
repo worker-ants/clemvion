@@ -252,13 +252,28 @@ export function useExecutionEvents({
 
   const handleExecutionFailed = useCallback(
     (data: unknown) => {
-      const payload = data as { error?: string };
+      // `error` 는 EIA §6.4 object(`{code, message, nodeId, details?}`)다. 종전엔
+      // `{ error?: string }` 으로 **캐스팅**만 해 뒀는데 캐스팅은 검증이 아니라서, 백엔드가
+      // object 로 바꿨을 때 타입체커가 아무 말도 하지 않았다. 그대로 두면 아래 스토어를
+      // 거쳐 `{item.error}` 가 JSX child 로 렌더돼 React 가 던진다
+      // ("Objects are not valid as a React child") — 진행 중 tool 호출이 있는 상태에서
+      // 실행이 실패하면 재현되는 흔한 경로다.
+      //
+      // 같은 파일 `node.failed` 핸들러가 이미 쓰는 관용구로 통일한다. 레거시 문자열
+      // (배포 경계에서 재생되는 이벤트)도 계속 받는다.
+      const payload = data as {
+        error?: string | { message?: string } | null;
+      };
+      const errorMessage =
+        typeof payload.error === "string"
+          ? payload.error
+          : payload.error?.message;
       // Flip dangling pending tool items so a backend crash mid-call doesn't
       // leave the timeline with a forever-spinner.
       flushPendingToolItemsAsError(
-        payload.error ?? "Execution failed before the tool completed",
+        errorMessage ?? "Execution failed before the tool completed",
       );
-      failExecution(payload.error);
+      failExecution(errorMessage);
     },
     [failExecution, flushPendingToolItemsAsError],
   );

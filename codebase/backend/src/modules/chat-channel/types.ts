@@ -399,6 +399,11 @@ export interface EiaFailedEvent extends EiaEventBase {
   error: {
     code: string | null;
     message: string;
+    // **optional 을 유지한다.** 리뷰어는 `toTerminalErrorPayload` 가 항상 채우니 `?` 를
+    // 빼라고 했는데(`22_55_51` maintainability W6), 이 타입은 **producer 가 아니라
+    // consumer 쪽 계약**이다 — 배포 경계에서 재생되는 레거시 이벤트와 dispatcher 의
+    // 문자열 흡수 경로는 `nodeId` 를 갖지 않는다. 필수로 만들면 타입이 현실보다 넓은
+    // 보장을 주장하게 되고, 실제로 13개 fixture 가 타입 오류를 냈다.
     nodeId?: string | null;
     details?: unknown;
   };
