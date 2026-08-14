@@ -100,6 +100,11 @@ function stripAndRedact(value: unknown): Record<string, unknown> | null {
   // **strip 을 먼저** — `deepRedactSecrets` 는 정규식 다중 패스 + JSON 파싱까지 하는데,
   // `llmCalls` 서브트리(대개 이 payload 에서 가장 큰 필드)는 어차피 통째로 버려진다.
   // 버릴 데이터에 비싼 연산을 선지불하지 않는다 (`14_30_35` performance W1).
+  //
+  // 실측(`16_44_37` W1): AI 대화 payload 809KB → strip 후 3.7KB. 순서만 뒤집으면
+  // (redact 먼저) **75~94% 더 든다**. 그리고 이 순서 덕에 strip 도입이 REST 를 느리게
+  // 만든 게 아니라 **12~16배 빠르게** 했다(809KB 기준 2.906ms → 0.235ms). 느려지는
+  // 것은 `llmCalls` 가 없는 payload 뿐이고(1.9배), 거기선 strip 이 순수 오버헤드다.
   // 결과는 순서 무관하다 — strip 은 값이 아니라 **키**로 판정하고, redact 는 키를
   // 만들거나 없애지 않는다. 그 동일성은 아래 spec 의 대조 테스트가 고정한다.
   return deepRedactSecrets(

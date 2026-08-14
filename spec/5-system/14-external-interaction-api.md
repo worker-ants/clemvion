@@ -660,7 +660,7 @@ header value   = "t={timestamp},v1={hex(signature)}"
       "type":            "form" | "carousel" | "table" | "chart" | "template" | "ai_agent" | "information_extractor",
       "interactionType": "form" | "buttons" | "ai_conversation"
     },
-    // interaction — **Planned (미구현)**. 아래 필드는 아직 wire 에 실리지 않는다
+    // interaction — **미구현 (Planned)**. 아래 필드는 아직 wire 에 실리지 않는다
     // (`expectedCommands` 포함 — 본 절이 이미 "현재 미구현 문서 필드" 로 명시). URL 은
     // 구현 시점 형태를 상대경로로 적는다 — 절대 URL·`/v1/` 버전 세그먼트는
     // [API 규약 §1](./2-api-convention.md) 위반이다. 실제 엔드포인트는 §5.1~§5.5 참조.
@@ -692,7 +692,7 @@ header value   = "t={timestamp},v1={hex(signature)}"
 > **이 절이 실제로 새던 자리다** — 2026-08-14 이전에는 fanout 이 최상위만 지워 중첩된
 > `turnDebug` 가 통과했다.
 
-> **`interaction` 블록은 Planned 다** — 위 4개 URL·`token`·`expiresAt`·`expectedCommands` 는
+> **`interaction` 블록은 미구현 (Planned) 이다** — 위 4개 URL·`token`·`expiresAt`·`expectedCommands` 는
 > 현재 어떤 emit 경로도 싣지 않는다. 설계 의도를 보존하되 "지금 오지 않는다" 를 명시한다
 > (`durationMs`/`result.outputs` 에 쓴 것과 같은 표기). 클라이언트는 §5 의 엔드포인트를
 > 직접 구성해야 한다.
@@ -706,7 +706,6 @@ header value   = "t={timestamp},v1={hex(signature)}"
 > (`notification-fanout.service.ts` 가 `payload: event.payload` 로 그대로 감싼다).
 > 위젯/SDK 는 어느 채널에서든 아래 오른쪽을 읽는다:
 > - `node.id` → **`waitingNodeId`** (평면; `submit_message` 의 `nodeId` 로 그대로 사용)
-> - `node.type` → **`waitingNodeType`** (평면)
 > - `node.interactionType` → **`interactionType`** (평면)
 > - `context.conversationConfig` → **`nodeOutput.conversationConfig`**
 > - `context.buttonConfig` → **`buttonConfig`** (평면)
@@ -714,8 +713,15 @@ header value   = "t={timestamp},v1={hex(signature)}"
 > - `context.conversationThread` → **`conversationThread`** (평면)
 > - (논리 표기에 없음) → **`status`**: 리터럴 `"waiting_for_input"` 이 평면으로 함께 실린다
 >
-> `waitingNodeLabel` · `nodeExecutionId` · `startedAt` 도 평면으로 실리지만 **WS 내부 부가
-> 식별자**라 [WS §4.4](./6-websocket-protocol.md#44-사용자-입력-대기-이벤트-상세-executionwaiting_for_input)
+> **`node.type` 은 외부 소비 매핑이 없다.** wire 에 `waitingNodeType` 이 평면으로 실리기는
+> 하지만 그것은 **WS 내부 부가 식별자**(에디터 타임라인 관측용)이고, 외부 클라이언트는
+> 노드 타입이 아니라 **`interactionType` 으로 분기한다** — 참조 구현 `parseWaitingForInput`
+> 이 `waitingNodeType` 을 읽지 않는 것이 그 근거다(실제 소비처는 내부 에디터 WS 채널의
+> `codebase/frontend/src/lib/websocket/use-execution-events.ts` 뿐).
+>
+> `waitingNodeType` · `waitingNodeLabel` · `nodeExecutionId` · `startedAt` 은 평면으로
+> 실리지만 위 이유로 **WS 내부 부가 식별자**라
+> [WS §4.4](./6-websocket-protocol.md#44-사용자-입력-대기-이벤트-상세-executionwaiting_for_input)
 > 가 소유한다 — 본 절은 외부 클라이언트 소비 필드만 다룬다(의도된 스코프 분리).
 >
 > 참조 구현(SoT): [`codebase/channel-web-chat/src/lib/eia-events.ts`](../../codebase/channel-web-chat/src/lib/eia-events.ts) `parseWaitingForInput`. ([WS §4.4](./6-websocket-protocol.md#44-사용자-입력-대기-이벤트-상세-executionwaiting_for_input) 의 논리 표기(`nodeId`)도 동일 wire 를 가리키며, 그 문서에 실제 wire 필드 caveat 를 명시함 — 본 blockquote 는 외부 클라이언트 소비 매핑의 SoT.)

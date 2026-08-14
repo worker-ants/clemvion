@@ -284,6 +284,28 @@ strip 결정의 SoT 는 WS §4.4 Rationale 의 `### ai_message.llmCalls[] 외부
       (참고: 같은 코드베이스가 `error` 문자열엔 `NODE_ERROR_MESSAGE_MAX_LEN=2000` 을 거는데
       `output` 엔 안 걸었다. 캡을 걸 줄 몰라서가 아니다.)
 
+      **REST `getStatus` 경로도 쟀다** (`16_44_37` performance W1 — WS 만 재고 REST 를
+      안 잰 것이 지적됐다. **"실측했다" 가 또 범위 안에서만 참이었다.** 정작 마지막에
+      바꾼 경로가 범위 밖이었다). before = `deepRedactSecrets` 단독, after = strip+redact:
+
+      | payload | before | after | 배율 |
+      |---|---|---|---|
+      | `llmCalls` 없음 24 KB | 0.29 ms | 0.55 ms | 1.90× |
+      | `llmCalls` 없음 252 KB | 2.97 ms | 5.72 ms | 1.93× |
+      | `llmCalls` 없음 2.6 MB | 31.1 ms | 59.3 ms | 1.91× |
+      | **AI 대화 20 KB** | 0.070 ms | 0.017 ms | **0.24×** |
+      | **AI 대화 202 KB** | 0.706 ms | 0.045 ms | **0.06×** |
+      | **AI 대화 809 KB** | 2.906 ms | 0.235 ms | **0.08×** |
+
+      **부호가 갈린다.** `llmCalls` 를 실제로 싣는 payload(=이 필드가 존재하는 유일한
+      경우)에서는 **12~16배 빨라졌다** — strip 이 809KB 를 3.7KB 로 줄인 뒤 정규식을
+      돌리기 때문이다. 느려지는 것은 `llmCalls` 가 **없는** payload 뿐이고 거기선 strip 이
+      순수 오버헤드다.
+
+      덤으로 `interaction.service.ts` JSDoc 의 순서 근거("버릴 서브트리에 비싼 정규식을
+      선지불하지 않는다")도 실증됐다 — strip 먼저 vs redact 먼저 **75~94% 절감**.
+      쓸 때는 추론이었는데 이제 숫자가 있다.
+
       **처분: 이번 PR 에서는 고치지 않는다.** 보안 수정(raw 프롬프트 유출)이 성능보다
       우선하고, 최적화를 여기 얹으면 리뷰 라운드가 한 번 더 늘면서 보안 수정의 착지가
       늦어진다. 대신 **숫자를 남겨** 다음 사람이 재측정 없이 판단하게 한다. 후속 후보:
