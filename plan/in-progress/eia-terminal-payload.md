@@ -39,15 +39,86 @@ spec_impact:
 |---|---|---|
 | `execution-engine.service.ts:659` (`failFirstSegmentSetup`) | 문자열 | `row.error = { message }` (`:629`) |
 | `execution-engine.service.ts:1084` (`emitCancelled`) | **객체** ✓ 손댈 것 없음 | — |
-| `execution-engine.service.ts:3301` (stalled 재배달 소진) | 문자열 리터럴 | **없음** — 새로 만들어야 |
+| `execution-engine.service.ts:3301` (`finalizeStalledExhausted`) | 문자열 리터럴 | ~~없음~~ → **있다** (재판정 ③) |
 | `execution-engine.service.ts:4862` (`finalizeFailedExecution`) | 문자열 | `savedExecution.error = { message, code? }` (`:4829`) |
 | `retry-turn.service.ts:963` | 문자열 | `execution.error = { message }` (`:937`) |
 
-**핵심**: 4곳 중 3곳은 **객체를 이미 만들어 DB 에 저장하고 있고 emit 만 그걸 버린다.**
-새로 계산할 것이 없어 작업이 작고 안전하다.
+**핵심**: 4곳 **전부** 객체를 이미 만들어 DB 에 저장하고 있고 emit 만 그걸 버린다
+(재판정 ③ 에서 3→4 로 정정). 새로 만들 객체는 **0개**다.
 
 > **교훈(재발)**: "실측했다" 가 또 프록시였다. 구문 형태(`{` 로 시작)로 타입 질문에
 > 답했다. 값의 **타입**을 물어야 했다.
+
+## 재판정 ③ (2026-08-14, `origin/main` `589914d6d` — #1169 머지 후)
+
+착수 직전 전제를 다시 실측했다. **세 군데가 틀렸고, 그중 하나는 이미 spec 본문에 전파됐다.**
+
+### ③-a stalled 경로에 객체가 "없다" — 거짓. 있다
+
+`execution-engine.service.ts:3263-3270` 이 DB 에 이미 객체를 쓴다:
+
+```ts
+error: { code: 'WORKER_HEARTBEAT_TIMEOUT',
+         message: 'Execution failed: worker crash (stalled 재배달 attempts 소진)' }
+```
+
+그런데 `:3302-3305` 의 emit 은 그 message 를 **손으로 다시 적는다** — 그 과정에서
+`attempts` 가 빠져 **DB 와 wire 의 문구가 이미 어긋나 있다**. 객체를 그대로 실으면
+이 불일치도 함께 사라진다.
+
+### ③-b "`code` 를 만드는 건 sentinel 뿐" — 거짓. 그리고 **spec 에 전파됐다**
+
+`WORKER_HEARTBEAT_TIMEOUT` 은 **조건 없이** 붙고(`:3266`·`:3289` 두 곳), cancelled 계열도
+`RESUME_*`·`EXECUTION_QUEUE_WAIT_TIMEOUT`·`WEBCHAT_IDLE_TIMEOUT` 을 만든다 — 뒤 셋은
+**같은 문서 §6.5 행동 계약 표가 직접 열거하는 코드**다.
+
+이 문장이 planner 턴을 거쳐 `14-external-interaction-api.md` §6.4 Rationale 로 들어갔다:
+
+> "종결 `error` 를 싣는 4개 지점 중 실제로 코드를 만드는 것은 sentinel 경로뿐"
+
+**결론(`code` nullable)은 그대로 서지만 근거가 사실과 다르다.** planner 턴으로 정정한다 —
+틀린 근거를 남겨 두면 다음 사람이 그걸 인용해 또 틀린다. (이번 브랜치가 정확히 그 경로였다:
+plan 의 오판 → planner 턴 → spec 본문.)
+
+### ③-c `durationMs` 를 "종결 3종" 에 채우는 것은 작지 않다
+
+plan 은 `error` 와 묶어 "새로 계산할 것이 없다" 고 했는데 **`durationMs` 는 다르다.**
+
+| 경로 | emit 시점 접근 |
+|---|---|
+| completed 6곳 | **전부 있다** — 직전 줄에서 계산 |
+| `finalizeFailedExecution` · `failRetryExecution` | 있다 |
+| `failFirstSegmentSetup` | 조건부 (`if (row.startedAt)` 안) |
+| `finalizeStalledExhausted` | **없다** — 엔티티 미로드 raw UPDATE, `durationMs` 계산·저장 안 함 |
+| `emitCancellationEvent` | **없다** — 시그니처에 없고, 호출 5곳 중 4곳은 `durationMs` 를 영속조차 안 함 |
+
+즉 §6 표의 *"데이터는 emit 직전 존재한다"* 도 **completed 에 대해서만 참**이다.
+cancel 계열에 채우려면 DB write 5곳 + `emitCancellationEvent` 시그니처를 넓혀야 한다.
+
+### ③-d `EiaFailedEvent` 가 #1169 이후 **새로** 어긋났다
+
+`chat-channel/types.ts:392-401` 은 `code: string`(non-nullable)·`nodeId?: string | null` 인데,
+#1169 이 spec §6.4 를 `code: … | null`·`nodeId: "uuid" | null` 로 바꿨다. `error` 객체화 시
+이 타입도 함께 고쳐야 한다. **plan 이 등재하지 않았던 항목**이다.
+
+### ③-e 부재 표현이 "키 생략" 이 아니라 **명시적 `null`** 로 확정됐다
+
+#1169 이 §6.4 를 그렇게 못박았는데, emit 후보인 4개 DB 객체는 **전부 키를 생략**한다.
+그대로 실으면 spec 위반이다 — **emit 시점에 `code: null`/`nodeId: null` 을 보충**해야 한다.
+plan 이 기대한 "그걸 싣기만 하면 된다" 보다 한 단계 더 있다.
+
+> `nodeId` 는 어느 경로도 `Execution.error` 에 쓰지 않으므로 전 경로 `null` 이 된다.
+> data-model 의 "최초 failed NodeExecution 의 에러 정보를 복사" 는 `nodeId` 에 한해
+> 구현이 없다. spec 상 `null` 은 합법이다.
+
+## 재판정 ③ 에 따른 범위 조정
+
+`error` 와 `durationMs` 는 **비용이 다르다**(③-c). 한 PR 로 묶으면 잘 이해된 `error` 정정이
+`durationMs` 의 cancel-경로 배관에 발목잡힌다. **나눈다**:
+
+- **이번 PR** — `error` 객체화 4곳 + `null` 정규화 + `types.ts` drift + dispatcher wrap 정리
+  + spec 근거 문장 정정(③-b). 하나의 관심사다
+- **다음** — `durationMs`(cancel 배관 포함) + `result.outputs`
 
 ## `nodeId` — 이미 답이 있었다 (해소)
 
@@ -94,16 +165,31 @@ sentinel 경로(`ErrorPortFallbackError`/`ExecutionTimeLimitError`)뿐이다.
 
 ## 범위 (사용자 결정: "둘 다 — 종결 payload 일괄 정리")
 
+> **범위가 재판정 ③ 으로 나뉘었다** — 아래 durationMs·result.outputs 는 **다음 PR 로 이연**.
+> 이번 PR 은 `error` 한 관심사다 (`22_29_16` plan_coherence W5).
+
+### 이번 PR
+
 - [ ] `error` 객체 형태 — **4곳** (`:659` · `:3301` · `:4862` · `retry-turn:963`).
-      `:1084` 은 이미 객체라 손대지 않는다
-- [ ] `durationMs` — 종결 3종
-- [ ] `result.outputs` — `completed`
+      `:1084` 은 이미 객체라 손대지 않는다. **4곳 전부 DB 객체가 이미 있다**(재판정 ③-a)
+- [ ] **`null` 정규화** — emit 시점에 `code: null`/`nodeId: null` 보충. DB 객체는 키를
+      생략하는데 §6.4 는 명시적 `null` 을 요구한다 (재판정 ③-e)
 - [ ] **동반 필수** (`07_44_12` plan_coherence W5, developer 권한 내):
   - `chat-channel.dispatcher.ts:535~568` — string/object back-compat wrap 이 **존재한 적 없는
     plan 이름**을 주석으로 가리킨다. `error` 가 전 경로 객체가 되면 이 wrap 의 존재 이유가
     바뀌므로 함께 정리
   - `chat-channel/types.ts:386~390` — `EiaCompletedEvent.result` 가 §6 이 "설계된 적 없다" 고
     명시한 `finalNodeId`/`finalPort` 를 **여전히 선언**한다(유령 타입 필드)
+  - **`chat-channel/types.ts:392~401`** — `EiaFailedEvent.error` 의 `code: string`(non-nullable)·
+    `nodeId?` 가 #1169 이 만든 §6.4 `| null` 계약과 어긋난다 (재판정 ③-d).
+    **재판정에서 "미등재" 라 적어 놓고 정작 이 체크리스트에 안 넣었다** (`22_29_16` W4) —
+    지적하는 것과 등재하는 것은 별개의 동작이다
+
+### 다음 PR (이연)
+
+- [ ] `durationMs` — 종결 3종. **취소 경로 배관 필요**(재판정 ③-c): `finalizeStalledExhausted`
+      raw UPDATE + `emitCancellationEvent` 시그니처 + 호출 5곳 중 4곳의 DB write
+- [ ] `result.outputs` — `completed`
 
 ## 차단 해제 조건
 

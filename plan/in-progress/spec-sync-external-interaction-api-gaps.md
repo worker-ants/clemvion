@@ -104,6 +104,28 @@ checker 가 독립적으로** "인용이 가리키는 절이 오히려 반대를
 > 읽으면 티켓이 못 본 형제 결함이 같이 나온다 — 이 저장소가 이미 등재한 "반증된 전제는 더 큰
 > 결함의 덮개다" 와 같은 형태다.
 
+## 폐지된 필드를 현재형으로 인용 (2026-08-14 등재, `22_29_16` cross_spec W1·W2)
+
+**문서가 자기모순이다.** 같은 파일 `:838` 은 inline 인증 필드가 *"폐지됐고"* 라 옳게 적는데,
+`EIA-NX-03`(`:57`)과 `R12`(`:1260`)는 `hmacAlgorithm` 을 *"trigger config 에 보관하되"* 라며
+**현재형**으로 인용한다.
+
+**실측**: `hmacAlgorithm` 은 `V066__trigger_config_strip_inline_auth.sql` 로 제거됐고
+`triggers.service.ts:634` 가 저장 시 스트립한다(`triggers.service.spec.ts:607` 이
+`not.toHaveProperty('hmacAlgorithm')` 로 고정). 현행 위치는 `AuthConfig.config.algorithm` 이며
+**소유자가 트리거가 아니라 자격증명 메타로 바뀌었다** — `12-webhook.md:167` 이 그 차이를 명시한다.
+
+- [ ] `EIA-NX-03`(`:57`)·`R12`(`:1260`)의 `hmacAlgorithm` 인용을 `AuthConfig.config.algorithm`
+      기준으로 재작성. 결론(inbound `sha256` vs outbound `hmac-sha256` prefix 분리)은 유지
+- [ ] §11 `execution.stop` 행에 WS §4.6 과 같은 `_(WS 명령 §4.2 won't-do)_` 주석 —
+      두 "권위 표" 가 어긋나 있다 (`22_29_16` cross_spec W2)
+- [ ] (선택·비차단) `2-api-convention.md §2.2` 에 `/api/external/*` 를 "별도 인증 family 를 쓰는
+      top-level 네임스페이스" 예외로 등재 (`22_29_16` convention_compliance W3)
+
+> **왜 여기 등재하고 그 자리에서 안 고쳤나**: 발견 시점이 `eia-terminal-payload` 의
+> `error` 객체화 PR 중이었다. 같은 PR 이 `durationMs` 를 "비용이 다르다" 는 이유로 떼어냈는데
+> 무관한 HMAC drift 를 끌어들이면 그 원칙과 어긋난다. **한 관심사 원칙은 내 편의로 굽히지 않는다.**
+
 ## 후속 (cross-cutting, 본 spec 밖)
 - [x] **Redis fixed-window rate-limiter INCR+EXPIRE 원자화** — `PublicWebhookQuotaService.incrWithWindow` 를 `INCR + EXPIRE ... NX` 단일 pipeline(매 요청)으로 교정해 TTL 유실 self-heal (fail-closed 잠금 창 제거). `ChatChannelRateLimiterService` 는 **이미** 동일 `INCR + EXPIRE NX` 단일 pipeline 패턴이라 무변경(점검 완료). `InteractionRateLimiterService`(item 5)는 Lua EVAL — 세 서비스 모두 원자/self-heal 확보. (PR #843 ai-review concurrency WARNING 후속, `task_fa5c5e84`.)
 

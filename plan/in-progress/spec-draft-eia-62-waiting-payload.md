@@ -120,6 +120,14 @@ URL 예시는 `2-api-convention.md §1`(버전은 URL 경로에 미포함) 위�
 실측: 종결 `error` 를 싣는 4개 지점 중 `code` 를 실제로 갖는 것은 `finalizeFailedExecution`
 의 sentinel 경로(`ErrorPortFallbackError`/`ExecutionTimeLimitError`)뿐이다.
 
+> **정정 (2026-08-14, [`eia-terminal-payload.md`](./eia-terminal-payload.md) 재판정 ③-b)**:
+> **위 실측이 틀렸다.** `WORKER_HEARTBEAT_TIMEOUT` 이 `finalizeStalledExhausted` 에서
+> **조건 없이** 붙고(`execution-engine.service.ts:3266`·`:3289`), 취소 계열도
+> `RESUME_*`·`EXECUTION_QUEUE_WAIT_TIMEOUT`·`WEBCHAT_IDLE_TIMEOUT` 을 만든다.
+> **결론(`code` nullable)은 그대로 서지만 근거가 사실과 다르다** — 이 문장이 planner 턴을
+> 거쳐 spec §6.4 Rationale 로 전파됐고 거기서도 정정했다 (`22_29_16` plan_coherence W6).
+> 반증된 전제를 남겨 두면 다음 사람이 재인용한다.
+
 일반 `catch` 에 fallback code 를 넣으면 **의미 없는 코드가 의미 있는 코드와 같은 자리에
 섞여** 수신자가 분기할 수 없다. "코드 없음" 은 부재로 전달하는 편이 정직하다.
 
