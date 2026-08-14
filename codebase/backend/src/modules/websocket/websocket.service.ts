@@ -300,9 +300,21 @@ function sanitizeInner(value: object, depth: number): unknown {
  * gated internal WS channel (`execution:{executionId}`), and stripped from the
  * fanout envelope so SSE token holders / channel end-users never receive it.
  *
- * Strip 은 **top-level 필드만** 수행한다 (depth-1 shallow delete). 중첩 객체 내부
- * 의 동명 필드는 strip 되지 않으므로, `EXTERNAL_STRIPPED_FIELDS` 에 새 필드를 추가
- * 할 때는 반드시 WS spec §4.4 과 {@link EiaAiMessageEvent} 주석을 함께 갱신한다.
+ * Strip 은 **깊이 무관**이다 — 어느 중첩 위치에 있든 제거한다.
+ *
+ * > **종전엔 top-level 전용(depth-1)이었고, 그 사이로 실제로 새고 있었다.**
+ * > `execution.waiting_for_input` 이 raw payload 를 두 경로로 중첩해 실었다:
+ * > `turnDebug.llmCalls.llmCalls[]`(`ai-turn-orchestrator.service.ts` turn1 스냅샷)와
+ * > `nodeOutput.meta.turnDebug[].llmCalls[]`(`ai-conversation-helpers.ts` — 턴 **누적
+ * > 전체**). 둘 다 depth-1 삭제를 그대로 통과해 SSE·webhook·chat-channel 수신자에게
+ * > 도달했다(테스트로 실증). 기존 회귀 테스트는 최상위 `llmCalls` 만, 그것도
+ * > `AI_MESSAGE` 에서만 봐서 이 표면을 열어 두고 있었다.
+ * >
+ * > 필드명 자체가 **문서화된 비밀 마커**이므로, 위치를 열거하는 대신 이름으로 막는다 —
+ * > 새 중첩 위치가 생겨도 자동으로 보호된다.
+ *
+ * `EXTERNAL_STRIPPED_FIELDS` 에 새 필드를 추가할 때는 반드시 WS spec §4.4 과
+ * {@link EiaAiMessageEvent} 주석을 함께 갱신한다.
  *
  * SoT: spec/5-system/6-websocket-protocol.md §4.4 `llmCalls[]` strip-only 결정
  * (+ EIA §6.5, chat-channel CCH-MP-01).
@@ -310,22 +322,55 @@ function sanitizeInner(value: object, depth: number): unknown {
 const EXTERNAL_STRIPPED_FIELDS = ['llmCalls'] as const;
 
 /**
- * Return a shallow clone of the wire envelope with debug-only fields removed,
- * for publishing to the external fanout. Returns the input unchanged when no
- * stripped field is present (no allocation on the common path). Never mutates
- * the input — the WS wire envelope keeps the full payload.
+ * Return the wire envelope with debug-only fields removed **at any depth**, for
+ * publishing to the external fanout.
  *
- * Top-level only — nested fields with the same name are not removed.
+ * Never mutates the input — the WS wire envelope keeps the full payload.
+ * Clone-on-write: a subtree with nothing to strip is returned by reference, so
+ * the common path (no stripped field anywhere) allocates nothing and returns
+ * the original envelope identity.
+ *
  * When adding a new entry to {@link EXTERNAL_STRIPPED_FIELDS}, update
  * WS spec §4.4 and the `EiaAiMessageEvent` JSDoc accordingly.
  */
 function stripExternalOnlyFields(
   envelope: Record<string, unknown>,
 ): Record<string, unknown> {
-  if (!EXTERNAL_STRIPPED_FIELDS.some((f) => f in envelope)) return envelope;
-  const clone = { ...envelope };
-  for (const f of EXTERNAL_STRIPPED_FIELDS) delete clone[f];
-  return clone;
+  return stripDeep(envelope) as Record<string, unknown>;
+}
+
+/**
+ * 깊이 우선 clone-on-write. 하위에서 제거가 일어난 경우에만 새 객체를 만들고,
+ * 그렇지 않으면 입력을 **그대로** 돌려준다(할당 없음).
+ *
+ * 순환 참조는 다루지 않는다 — 이 payload 는 직후 `JSON.stringify` 로 wire 에 실리므로
+ * 순환이 있으면 여기서 죽든 거기서 죽든 마찬가지고, 방문 집합을 들고 다니는 비용만 는다.
+ */
+function stripDeep(value: unknown): unknown {
+  if (Array.isArray(value)) {
+    let changed = false;
+    const out = value.map((v) => {
+      const s = stripDeep(v);
+      if (s !== v) changed = true;
+      return s;
+    });
+    return changed ? out : value;
+  }
+  if (value === null || typeof value !== 'object') return value;
+
+  const obj = value as Record<string, unknown>;
+  let changed = false;
+  const out: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(obj)) {
+    if ((EXTERNAL_STRIPPED_FIELDS as readonly string[]).includes(k)) {
+      changed = true;
+      continue;
+    }
+    const s = stripDeep(v);
+    if (s !== v) changed = true;
+    out[k] = s;
+  }
+  return changed ? out : value;
 }
 
 /**

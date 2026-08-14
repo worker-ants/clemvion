@@ -632,6 +632,108 @@ describe('WebsocketService', () => {
       expect(fanout.payload).not.toHaveProperty('llmCalls');
     });
 
+    /**
+     * **`waiting_for_input` 은 `llmCalls` 를 중첩해서 싣는다 — strip 은 최상위 전용이다.**
+     *
+     * `stripExternalOnlyFields` 는 `EXTERNAL_STRIPPED_FIELDS`(=`['llmCalls']`)를
+     * **depth-1 shallow delete** 한다(그 함수 JSDoc 이 명시). 그런데 AI turn1 의
+     * waiting emit 은 raw payload 를 최상위가 아니라 한 단계 아래에 넣는다
+     * (`ai-turn-orchestrator.service.ts:615`):
+     *
+     *     turnDebug: { llmCalls: turnDebugHistory[0], metadata }
+     *
+     * `turnDebugHistory[i]` 는 `{turnIndex, llmCalls: LlmCallRecord[], …}` 이고
+     * `LlmCallRecord` 는 `requestPayload`/`responsePayload` 를 갖는다
+     * (`ai-turn-executor.ts:2336` · `llm-tracing/llm-call-record.ts:19`).
+     *
+     * WS §4.4(`6-websocket-protocol.md:519`)는 이 raw payload 가
+     * **모든 외부 수신자**(EIA SSE · notification webhook · chat-channel)에서
+     * strip 된다고 선언한다. 아래는 그 선언을 실제 wire 로 검증한다.
+     *
+     * 기존 strip 테스트는 **최상위 `llmCalls`** 만, 그것도 `AI_MESSAGE` 에서만 봤다 —
+     * 이 경로는 아무도 보지 않았다.
+     */
+    it('waiting_for_input 의 중첩 turnDebug.llmCalls 도 외부 fanout 에 남으면 안 된다', async () => {
+      const eventP = nextFanoutEvent(service);
+      await service.emitExecutionEvent(
+        'exec-waiting-nested',
+        ExecutionEventType.EXECUTION_WAITING_FOR_INPUT,
+        {
+          status: 'waiting_for_input',
+          waitingNodeId: 'n-ai',
+          waitingNodeType: 'ai_agent',
+          interactionType: 'ai_conversation',
+          // 경로 2 — `buildConversationMetaFromResumeState:97` 이
+          // `turnDebug: state.turnDebugHistory` 로 **전체 히스토리**를 싣는다.
+          // WS §4.4:449 가 정의한 `nodeOutput.meta.turnDebug` 정본 shape.
+          nodeOutput: {
+            interactionType: 'ai_conversation',
+            meta: {
+              turnDebug: [
+                {
+                  turnIndex: 0,
+                  llmCalls: [{ requestPayload: { system: 'SECRET PROMPT B' } }],
+                  ragSources: [],
+                },
+              ],
+            },
+          },
+          // 경로 1 — ai-turn-orchestrator.service.ts:615 의 실제 shape 그대로
+          turnDebug: {
+            llmCalls: {
+              turnIndex: 0,
+              llmCalls: [
+                {
+                  requestPayload: { system: 'SECRET PROMPT A', messages: [] },
+                  responsePayload: { content: 'hi' },
+                  durationMs: 12,
+                },
+              ],
+              ragSources: [],
+            },
+            metadata: { model: 'claude', inputTokens: 10, outputTokens: 3 },
+          },
+        },
+      );
+      const fanout = await eventP;
+
+      // 외부 수신자에게 raw LLM 요청/응답이 **어떤 경로로도** 도달해서는 안 된다.
+      // 두 경로를 함께 본다 — 한쪽만 막으면 나머지가 남는다.
+      const wire = JSON.stringify(fanout.payload);
+      expect(wire).not.toContain('SECRET PROMPT A'); // top-level turnDebug
+      expect(wire).not.toContain('SECRET PROMPT B'); // nodeOutput.meta.turnDebug
+      // 비-debug 필드는 그대로 유지돼야 한다 (대조군 — 통째로 사라진 게 아님을 확인).
+      expect(fanout.payload.waitingNodeId).toBe('n-ai');
+      expect(fanout.payload.interactionType).toBe('ai_conversation');
+    });
+
+    /**
+     * 재귀 strip 의 비용 근거를 단언한다 — 제거할 게 없으면 **새 객체를 만들지 않고
+     * 입력을 그대로** 돌려준다(clone-on-write). 이게 깨지면 모든 실행 이벤트가
+     * payload 전체를 복제하게 되므로, 성능 주장이 주석에만 있으면 안 된다.
+     */
+    it('제거할 필드가 없으면 fanout payload 가 wire envelope 과 동일 객체다 (할당 없음)', async () => {
+      const eventP = nextFanoutEvent(service);
+      await service.emitExecutionEvent(
+        'exec-identity',
+        ExecutionEventType.EXECUTION_WAITING_FOR_INPUT,
+        {
+          status: 'waiting_for_input',
+          waitingNodeId: 'n-1',
+          nodeOutput: {
+            meta: { turnDebug: [{ turnIndex: 0, ragSources: [] }] },
+          },
+        },
+      );
+      const fanout = await eventP;
+      const wire = gateway.broadcastToChannel.mock.calls[0][2] as Record<
+        string,
+        unknown
+      >;
+      // attachRoutingContext 가 감싸기 전 동일성 — 중첩까지 복제되지 않았는지 본다.
+      expect(fanout.payload.nodeOutput).toBe(wire.nodeOutput);
+    });
+
     it('llmCalls 없는 이벤트는 그대로 fanout (no-op strip)', async () => {
       const eventP = nextFanoutEvent(service);
       await service.emitExecutionEvent(
