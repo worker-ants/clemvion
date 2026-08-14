@@ -277,8 +277,9 @@ REST 엔드포인트(§5)가 실재하므로 **만들 수 있는 것을 아직 �
 ## 체크리스트
 
 - [x] 실측 (4개 emit 직접 읽기 + fanout 변환 여부 + 참조 구현 소비 키)
-- [ ] `/consistency-check --spec` BLOCK: NO
-- [ ] spec 반영 — **7항목** `(1)`~`(7)`.
+- [x] `/consistency-check --spec` **BLOCK: NO** (`15_20_28`)
+- [x] spec 반영 — **7항목** `(1)`~`(7)` 전부 (커밋 `4b13ca5ae`).
+      `--impl-done` `15_36_59` 가 **BLOCK: NO** 로 확인 — 3라운드 연속 CRITICAL 이던 drift 해소.
       > 초판은 "6항목" 이라 적었다. (7)(§R17·WS §4.4 SoT 확장)을 나중에 추가하고 개수를
       > 안 고쳤다 — planner 가 개수만 보고 (7)을 누락할 수 있다 (`14_55_31` plan_coherence W3).
 - [ ] `eia-terminal-payload.md` 차단 해제 후 `--impl-prep` 재실행

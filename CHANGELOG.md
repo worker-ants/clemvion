@@ -28,7 +28,7 @@ strip 을 **깊이 무관**으로 바꿨다. 필드명 자체가 문서화된 �
 waiting `nodeOutput` · terminal `result` · terminal `error`.
 
 처방을 `shared/utils/strip-external-only-fields.ts` 로 올려 fanout·REST 가 같은 것을 부르게
-했고, REST 쪽 세 출구는 다시 한 헬퍼(`redactAndStrip`)로 묶었다 — **출구를 각자 조립하면
+했고, REST 쪽 세 출구는 다시 한 헬퍼(`stripAndRedact`)로 묶었다 — **출구를 각자 조립하면
 한 번에 하나씩만 고쳐진다**는 것이 이 결함이 세 라운드에 걸쳐 반복된 이유다.
 
 > 영향 범위: 두 경로로 나간 데이터는 **이미 전송된 것**이다. 외부 통합자가 저장했을 수

@@ -1053,7 +1053,7 @@ KB 임베딩 진행 상태는 **문서 단위 채널** 로 broadcast 한다 (`We
 - **결정**: echo 가 동일 발화의 기존 optimistic bubble 을 발견하면 새 항목을 append 하지 않고 기존 bubble 에 `receivedAt` 을 **stamp** 해 reconcile 한다(append 대신). 로컬 bubble 이 없는 경로(채널 텍스트 인바운드 등)에서만 append 한다.
 - **근거**: 발신자의 즉시 피드백(로컬 optimistic)과 WS echo 유실 내성을 보존하면서 중복만 제거한다. stamp 이후 `receivedAt` 은 재emit/재구독 dedup 키로 계속 동작하고, 최종 정합은 turn 종료 `ai_message` 스냅샷 REPLACE 가 보장한다(stamp 는 그 보조 선행 단계). frontend 구현 식별자는 [Conversation Thread §9.7.1](../conventions/conversation-thread.md#971-store-reset-정책-실행-lifecycle-별) 방침에 따라 본문에 노출하지 않는다.
 
-### `ai_message.llmCalls[]` 외부 수신자 strip (strip-only 결정)
+### `llmCalls` 외부 수신자 strip — 위치·이벤트·표면 무관 (strip-only 결정)
 
 본 항목은 직전의 "raw payload 운반 (v1, 마스킹 없음)" open item 을 사용자 결정(채널 실사용 + strip-only)으로 확정·대체한다.
 

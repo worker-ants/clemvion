@@ -233,8 +233,9 @@ DB(`trigger.workflowId`), 안쪽은 routing context — **출처가 다르다**.
       > 그 blockquote 가 서술하는 것은 **webhook↔SSE 필드명 차이가 아니라** "논리 표기 ↔
       > 실 wire 필드명" 이다(채널 무관 동일). ② §6.2 예시에 `payload:` 봉투 래퍼가
       > **여전히 빠져** 있어 §6.3/§6.4 와 불일치한다 — 이 항목이 닫히지 않은 잔여다.
-      > 상세·처방: [`spec-draft-eia-62-waiting-payload.md`](./spec-draft-eia-62-waiting-payload.md)
-      > 변경 제안 (1)·(3).
+      > **해소됨** (`4b13ca5ae`) — ① blockquote 를 "논리 표기 ↔ 실 wire" 로 다시 쓰고
+      > ② §6.2 에 `payload:` 봉투 래퍼를 넣었다. 상세:
+      > [`spec-draft-eia-62-waiting-payload.md`](./spec-draft-eia-62-waiting-payload.md) (1)·(3).
 - [x] §6.3~§6.5 축약 — `payload` 봉투 기준 예시로 교체, `finalNodeId`/`finalPort` 삭제,
       §6.5 의 행동 계약 서술은 도입부 포인터로
 - [x] WS §4.1 종결 3행 → 필드 열거 제거 + SoT 포인터 blockquote.

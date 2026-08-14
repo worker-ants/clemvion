@@ -131,7 +131,11 @@ sentinel 경로(`ErrorPortFallbackError`/`ExecutionTimeLimitError`)뿐이다.
 - [x] 착수 전 재판정 (원래 서술 2건 정정 — 계약위반 아님 / 4곳이지 5곳 아님)
 - [x] `--impl-prep` 실행 → **BLOCK: YES** (spec CRITICAL 1건, 권한 밖)
 - [x] `nodeId` 미해결 항목 해소 (spec 이 이미 nullable 선언)
-- [ ] **planner 턴** — §6.2 봉투 + data-model §2.14 + §6.2 URL + `error.code` 옵셔널
+- [x] **planner 턴 완료** (`4b13ca5ae`) — §6.2 봉투 래퍼 · `interaction` Planned 표기 ·
+      URL 상대경로 · blockquote 양변 교체 · `error.code` nullable · data-model §2.14 ·
+      §R17/WS §4.4 strip 범위. `--impl-done` `15_36_59` **BLOCK: NO**.
+      → **이 plan 의 차단이 풀렸다.** 종결 payload 구현(`error` 객체화·`durationMs`·
+      `result.outputs`)을 이제 착수할 수 있다
 - [ ] `--impl-prep` 재실행 BLOCK: NO
 - [ ] 구현 + 테스트
 - [ ] `/ai-review` + `/consistency-check --impl-done`

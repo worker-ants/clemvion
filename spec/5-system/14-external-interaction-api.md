@@ -469,7 +469,7 @@ Authorization: Bearer <iext_jwt | itk_token>
     "waitingNodeId":   "uuid",
     "conversationThread": { ... },  // 키 생략 가능 (present-when-available — 아래 참조).
                                     // [Spec WS §4.4.5] 와 동일. turns[].source 마커 누락 시
-                                    // [Conversation Thread §4.4.6 / §5.1](../conventions/conversation-thread.md) 의 폴백 ('live' 로 간주) 적용
+                                    // [WS §4.4.6](./6-websocket-protocol.md) / [Conversation Thread §5.1](../conventions/conversation-thread.md) 의 폴백 ('live' 로 간주) 적용
 
     // ↓ 아래 두 키 중 정확히 하나만 present (SSE waiting_for_input wire 와 동일)
     "buttonConfig": { "buttons": [ ... ], "nodeOutput": { ... } },  // interactionType=buttons + buttonConfig 복원 성공 시
@@ -567,7 +567,7 @@ Authorization: Bearer <expiring_iext_jwt>
 | 필드 | 이벤트 | 상태 | 비고 |
 |---|---|---|---|
 | `status` | 3종 | 구현됨 | `completed` \| `failed` \| `cancelled` |
-| `error` | `failed`, `cancelled`(시스템 취소 한정) | 구현됨 — **형태 불일치** | 목표는 `{code, message, nodeId, details?}`. **현행 일부 경로는 string** 을 넣는다 (`execution-engine.service.ts` · `retry-turn.service.ts` 의 `EXECUTION_FAILED` emit 일부 — 줄 번호는 리팩터마다 stale 해지므로 심볼로만 적는다). 수신자는 당분간 양쪽을 방어해야 한다 |
+| `error` | `failed`, `cancelled`(시스템 취소 한정) | 구현됨 — **형태 불일치** | 목표는 `{code, message, nodeId, details?}` — **`code`·`nodeId` 는 `null` 일 수 있다**(§6.4 참조). **현행 일부 경로는 string** 을 넣는다 (`execution-engine.service.ts` · `retry-turn.service.ts` 의 `EXECUTION_FAILED` emit 일부 — 줄 번호는 리팩터마다 stale 해지므로 심볼로만 적는다). 수신자는 당분간 양쪽을 방어해야 한다 |
 | `result.cancelledBy` | `cancelled` | 구현됨 — **경로 1곳 누락** | `retry-turn.service.ts` `failRetryExecution` 은 채우지 않는다 ([retry-turn-terminal-guard](../../plan/in-progress/retry-turn-terminal-guard.md) #2) |
 | `result.outputs` | `completed` | **미구현 (Planned)** | 데이터는 emit 직전 존재하나 payload 에 넣지 않는다 |
 | `durationMs` | 3종 | **미구현 (Planned)** | 위와 같음. **WS 계열 문서는 같은 값을 `duration` 으로 적는다** — 표기만 다르고 같은 값이다 (전역 개명은 별건) |
