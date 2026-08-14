@@ -246,10 +246,53 @@ strip 결정의 SoT 는 WS §4.4 Rationale 의 `### ai_message.llmCalls[] 외부
       (WeakMap)로 반복 emit 을 O(1) 로 줄이는데 `stripDeep` 엔 없다. 지금 붙이지 않는 이유:
       두 캐시의 무효화 시점이 갈려 "sanitize 는 적중, strip 은 미적중" 조합이 생기고 그걸
       덮는 테스트가 없다. **관측되면** 붙인다(현재 비용 +20.2 µs/emit).
-- [ ] **대용량 non-AI payload A/B** (`11_02_16` performance W3). A/B 를 AI 대화 payload 로만
-      쟀는데, 이 diff 는 `llmCalls` 를 가질 수 없는 **모든 node 이벤트**에도 strip 을 건다.
-      HTTP 응답 JSON 같은 대용량 `nodeOutput` 이 worst case 인데 측정 안 했다 —
-      **"실측했다" 는 측정한 범위 안에서만 참이다.**
+- [x] **대용량 non-AI payload A/B** (`11_02_16` performance W3 / `15_58_26` W1). **측정 완료.**
+      A/B 를 AI 대화 payload 로만 쟀던 것이 문제였다 — 이 diff 는 `llmCalls` 를 가질 수 없는
+      **모든 node 이벤트**에도 strip 을 건다. **"실측했다" 는 측정한 범위 안에서만 참이다.**
+
+      | payload | bytes | strip/emit | µs/KB |
+      |---|---|---|---|
+      | tiny | 449 | 0.0035 ms | 8.07 |
+      | small | 33 KB | 0.0907 ms | 2.83 |
+      | medium | 332 KB | 0.883 ms | 2.72 |
+      | large | 3.4 MB | 8.78 ms | 2.66 |
+      | huge | 13.7 MB | 35.5 ms | 2.66 |
+
+      **선형이다.** µs/KB 가 3자릿수 구간에서 2.66~2.83 으로 안정 — 숨은 이차항이 없다.
+      리뷰어가 우려한 이벤트 루프 점유는 크기에 **비례할 뿐** 폭발하지 않는다.
+
+      **그러나 절대량은 무시할 수 없다. 실 emit 경로 A/B (strip 라인 제거 뮤턴트 대조):**
+
+      | payload | strip 없음 | strip 있음 | 증분 | 배율 |
+      |---|---|---|---|---|
+      | 124 KB | 0.83 ms | 2.06 ms | +1.2 ms | 2.47× |
+      | 1.2 MB | 8.86 ms | 20.9 ms | +12 ms | 2.36× |
+      | 6.5 MB | 39.0 ms | 99.7 ms | **+61 ms** | 2.56× |
+
+      > **내 재구성이 두 번 반증됐다.** ① "이미 `sanitizePayloadForWs` 가 같은 트리를
+      > 순회하니 한계 비용은 순회 한 겹" 이라 재구성했는데, 실측은 **emit 경로 전체의
+      > 2.5배**였다. ② 그 전엔 비교 대상을 `JSON.stringify` 로 잡았는데(strip 이 8배)
+      > 그건 "새 비용 클래스인가" 라는 질문에 맞는 비교가 아니었다. **맞는 비교는 실제
+      > 경로의 before/after 뿐이고, 그건 뮤턴트로만 얻어진다.**
+
+      **상한은 없다** (조사 2건 수렴). `emitNodeEvent`→`sanitizePayloadForWs`→
+      `broadcastToChannel` 어디에도 바이트·배열 길이 상한이 없고(유일한 상한은 **깊이**
+      `MAX_SANITIZE_DEPTH=10`, 크기와 무관), 엔진 emit 호출부 4곳 전부 `outputData`/
+      `inputData` 를 무가공 탑재하며, 최대 생산자인 **DB 쿼리 rows** 와 **HTTP 응답 body**
+      가 무제한이다. 게다가 `ai-turn-executor.ts:2978` 주석이 *"outputData JSONB 가 수십
+      MB 까지 증가"* 한 **실제 이력**을 기록하고 있다 — 가정이 아니라 관측된 크기다.
+      (참고: 같은 코드베이스가 `error` 문자열엔 `NODE_ERROR_MESSAGE_MAX_LEN=2000` 을 거는데
+      `output` 엔 안 걸었다. 캡을 걸 줄 몰라서가 아니다.)
+
+      **처분: 이번 PR 에서는 고치지 않는다.** 보안 수정(raw 프롬프트 유출)이 성능보다
+      우선하고, 최적화를 여기 얹으면 리뷰 라운드가 한 번 더 늘면서 보안 수정의 착지가
+      늦어진다. 대신 **숫자를 남겨** 다음 사람이 재측정 없이 판단하게 한다. 후속 후보:
+      - `stripDeep` identity 캐시(위 항목) — 반복 emit 만 해결, 첫 emit 은 그대로
+      - **native 선판정** — 직렬화 문자열에 `llmCalls` 가 없으면 재귀를 통째로 건너뛴다.
+        `JSON.stringify` 가 strip 대비 ~8배 싸다는 실측이 있으므로 유망하지만, 직렬화
+        비용을 새로 내는 것이라 **순 이득인지 A/B 필요**(추측으로 넣지 말 것)
+      - 근본: emit payload 크기 상한. 위 캡 부재는 strip 과 무관하게 **이미 존재하던
+        문제**다(6.5MB 에서 strip 없이도 39ms). 별건으로 등재할 가치가 있다
 - [x] 배열 부분 clone-on-write 다원소 fixture (`11_02_16` testing INFO 11) — `7fa12301c`
 - [ ] **이미 유출된 데이터에 대한 사후 대응 — 운영 판단 필요.**
       CHANGELOG 에 *"이 경로로 나간 데이터는 이미 전송된 것"* 이라 적었으나 **어느 plan
