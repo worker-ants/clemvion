@@ -1,0 +1,29 @@
+# 테스트(Testing) 리뷰
+
+## 발견사항
+
+- **[WARNING]** REST 경로(`InteractionService.redactAndStrip`)는 WS fanout 경로와 **정확히 같은 종류의 위험**(strip 의 깊이 경계 연산자 `>` 와 자매 sanitizer 의 `>=` 가 다르다는 사실에 의존하는 안전성 논증)을 지니는데, WS 쪽에만 실행으로 검증된 깊이 경계 sweep·`__proto__` 합성 테스트가 있고 REST 쪽엔 없다
+  - 위치: `codebase/backend/src/modules/external-interaction/interaction.service.ts:95-96`(`redactAndStrip` — `deepRedactSecrets(stripExternalOnlyFields(value, MAX_REDACT_DEPTH))`, strip 이 **먼저**), 비교 대상 `codebase/backend/src/modules/websocket/websocket.service.ts:451-458`·`525-531`(`sanitizePayloadForWs` 가 **먼저** 돌고 그 다음 strip). 테스트: `codebase/backend/src/modules/external-interaction/interaction.service.spec.ts:626`(waiting, 고정 얕은 중첩)·`:668`(terminal it.each, 고정 얕은 중첩) vs `codebase/backend/src/modules/websocket/websocket.service.spec.ts` 의 깊이 `it.each([0, MAX_SANITIZE_DEPTH-5, …, MAX_SANITIZE_DEPTH+2])` sweep(같은 파일, `11_02_16` CRITICAL 1 조치로 추가됨) 및 별도 `__proto__` 합성 테스트.
+  - 상세: `strip-external-only-fields.ts`(`:31` JSDoc "경계 연산자는 이 함수가 `>` 로 고정한다 — 자매와 다를 수 있다")는 "안전의 근거는 연산자가 같다가 아니라 **자매가 그 깊이에서 이미 객체를 없앤다**"라고 명시적으로 적어 두었다. 이 논증은 WS 경로(`sanitizePayloadForWs` 가 **먼저** 돌아 깊은 서브트리를 `'[REDACTED_DEPTH]'` 로 collapse 한 **뒤에** strip 이 도는 순서)에 대해서만 리뷰어 4명이 갈려 실행 sweep 으로 확정한 바 있다(`11_02_16` RESOLUTION.md CRITICAL 1). REST 경로는 **순서가 반대**다 — `redactAndStrip` 은 strip 을 먼저 돌리고 `deepRedactSecrets`(경계 `>=`, `sanitize-error-message.ts:134`)를 **나중에** 돌린다. "자매가 먼저 collapse 해서 안전하다"는 원 논증을 그대로 적용할 수 없는 반대 순서인데도, REST 쪽에는 이 합성이 깊이 경계에서 실제로 안전한지 검증하는 테스트가 전혀 없다. 직접 실행해 확인한 결과(`stripExternalOnlyFields`+`deepRedactSecrets` 를 `redactAndStrip` 과 동일 순서로 합성해 depth 0/5/7/8/9/10/11/12 에서 마커 유출 여부를 sweep) 현재는 depth 10 이상에서 `deepRedactSecrets` 의 `depth >= MAX_REDACT_DEPTH` 가 서브트리 전체를 `'***'` 로 wholesale 치환하기 때문에 **누출 없음**을 확인했다(`__proto__` 합성도 별도로 실행 확인 — 오염 없음). 즉 지금 당장 실제 버그는 아니다. 그러나 이 안전성은 "strip 이 먼저 돌아도 redact 가 나중에 통째로 지운다"는, WS 쪽과는 다른 방향의 추론에 의존하며, 이 추론을 실행으로 고정하는 회귀 테스트가 REST 스펙 파일에 없다. `redactAndStrip`/`stripExternalOnlyFields`/`deepRedactSecrets` 셋 중 하나라도 순서·경계 연산자·상수값이 바뀌면(예: 성능 이유로 두 pass 를 합치거나, `MAX_REDACT_DEPTH` 를 조정하거나) 지금 테스트 스위트는 **전부 GREEN 을 유지한 채** 깊은 `llmCalls` 가 다시 새어나갈 수 있다 — 이 저장소가 이미 WS 경로에서 "리뷰어 넷이 갈린 자리를 실행으로 갈랐다"고 기록한 바로 그 위험 형태가 REST 쪽에서는 미검증 상태로 남아 있다.
+  - 제안: `interaction.service.spec.ts` 에 `websocket.service.spec.ts` 의 깊이 sweep 과 동형인 `it.each` 를 추가해 `redactAndStrip`(또는 `getStatus` 전체 경로)이 `MAX_REDACT_DEPTH` 경계 안팎에서 raw `llmCalls` 내용을 누출하지 않음을 실행으로 고정한다. 뮤테이션(`stripExternalOnlyFields` 를 no-op 으로 바꾸거나 `redactAndStrip` 의 호출 순서를 뒤집는 뮤턴트)에서 최소 하나의 depth 케이스가 RED 로 판별력을 갖는지도 함께 확인하는 편이 이 저장소의 기존 관례(판별력 실측 표)와 일관된다. `__proto__` 합성 케이스도 REST 쪽에 최소 1건 추가할 것을 권한다 — 현재는 `strip-external-only-fields.spec.ts`(유틸 단독)와 `websocket.service.spec.ts`(WS 합성)에만 있고 REST 합성(`redactAndStrip`)에는 없다.
+
+- **[INFO]** `redactAndStrip` 의 `null`/`undefined` 조기 반환 분기가 이번 diff 의 어떤 테스트로도 실행되지 않는다
+  - 위치: `codebase/backend/src/modules/external-interaction/interaction.service.ts:96`(`if (value === null || value === undefined) return null;`), 호출부 `:438`·`:442`(`result`/`error` — `redactAndStrip(execution.outputData)` 를 `?? {}` 없이 직접 반환값으로 사용)
+  - 상세: `interaction.service.spec.ts` 의 `makeExecution()` 기본값(`:87`)은 항상 `outputData: { foo: 'bar' }` 이고, terminal(`COMPLETED`/`FAILED`) 케이스를 검증하는 기존 테스트(`:498`·`:518`, 신규 `:668` it.each 포함)도 전부 non-null `outputData` 를 준다. 종전 코드는 `execution.outputData ?? null` 로 `undefined→null` 정규화를 호출부에서 직접 했는데, 지금은 이 정규화가 `redactAndStrip` 내부로 옮겨졌다. 이 분기를 실수로 지우거나(`value` 를 그대로 통과시키는 실수) 조건을 뒤집는 회귀가 나도, 현재 스위트는 `outputData: null` terminal 케이스를 하나도 요구하지 않으므로 잡히지 않는다. 실무 영향은 낮다 — TypeORM 의 nullable 컬럼은 보통 `null` 을 주지 `undefined` 를 주지 않고, `Record<string, unknown> | null` 반환 타입 계약 위반은 타입체커가 일부는 잡는다.
+  - 제안: `getStatus` COMPLETED/FAILED 케이스에 `outputData: null` fixture 를 하나씩 추가해 `result`/`error` 가 `null` 로 정상 반환되는지 확인하면 이 분기가 회귀 가드를 갖게 된다. 우선순위 낮음.
+
+## 확인했으나 문제 없음 (positive findings)
+
+- `strip-external-only-fields.spec.ts` — 승격된 공유 유틸 자체의 계약(참조 동일성·비변형·깊이 경계·배열 부분 clone-on-write·`__proto__` 안전·`deepRedactSecrets` 와의 순서 무관성)을 모두 직접·독립적으로 검증한다. `__proto__` fixture 가 값 **안에** strip 대상을 둬 대입 분기를 실제로 타도록 구성돼 있어(뮤테이션 판별력 확보), 이 저장소가 이전 라운드에서 겪은 "vacuous __proto__ 테스트" 재발을 피했다.
+- `websocket.service.spec.ts` 신규 깊이 sweep(`it.each([0, MAX_SANITIZE_DEPTH-5, …, MAX_SANITIZE_DEPTH+2])`) — 상수 상대값을 쓰고(리터럴 금지 관례 준수), 각 케이스의 판별력(strip 을 no-op 으로 만든 뮤턴트에서 어느 depth 가 실제로 RED 인지)을 JSDoc 에 명시해 "통과 = 방어됨" 으로 오독되지 않게 했다. 대조군(`__proto__` 값 보존, 내부 WS 채널 raw 유지) 도 각 테스트에 짝으로 존재한다.
+- `interaction.service.spec.ts` 신규 2건(waiting `:626`, terminal it.each `:668`) — 종전 라운드에서 지적된 "waiting 분기만 강화되고 terminal 분기가 비대칭으로 남았다"(REST 세 출구 중 하나만 고쳐짐)를 정확히 커버한다. terminal 은 `completed`/`failed` 를 `it.each` 로 대칭 검증하고, 두 테스트 모두 대조군(정상 필드 보존) 단언을 갖고 있어 "payload 를 통째로 날려도 통과" 하는 vacuous 형태가 아니다.
+- 새 시그니처 `stripExternalOnlyFields<T>(value: T, maxDepth: number): T` 로 바뀐 것에 대해, 두 프로덕션 호출부(`interaction.service.ts:376,438,442` → `MAX_REDACT_DEPTH`, `websocket.service.ts:451-458,525-531` → `MAX_SANITIZE_DEPTH`)가 각자의 자매 sanitizer 상수를 올바르게 짝지어 전달하고 있음을 코드로 확인했고, 이 페어링 자체가 각 파일의 depth 테스트로 실행 검증돼 있다.
+- Mock 구조(`nodeRepo.findOne` 반환값의 `nodeId`/`node.type`/`outputData` 필드)가 실제 `NodeExecution` 엔티티 필드명과 일치함을 대조 확인했고, `makeMocks()`/`makeExecution()` 이 매 테스트마다 새로 생성돼 테스트 간 격리도 유지된다.
+
+## 요약
+
+핵심 로직 변경(REST `getStatus` 세 출구에 `stripExternalOnlyFields`+`deepRedactSecrets` 합성을 대칭 적용) 자체는 이전 라운드에서 지적된 비대칭(waiting 만 막히고 terminal 이 새는 문제)을 정확히 겨냥한 회귀 테스트 2건으로 커버됐고, 대조군까지 갖춰 vacuous 하지 않다. 다만 REST 합성(`redactAndStrip`)은 WS 합성과 **호출 순서가 반대**(strip 먼저 → redact 나중)이면서도 깊이 경계 연산자 불일치(`>` vs `>=`)라는 동일 위험 형태를 안고 있는데, 이 위험을 실행으로 확정하는 sweep 테스트는 WS 쪽에만 있고 REST 쪽엔 없다. 직접 실행해 현재는 안전함을 확인했지만(depth 0~12 sweep·`__proto__` 합성 모두 누출/오염 없음), 이 안전성을 지키는 회귀 가드가 REST 스펙 파일에 없어 향후 순서·상수·경계 연산자 변경이 테스트 실패 없이 조용히 이 표면을 다시 열 수 있다. 부수적으로 `redactAndStrip` 의 null/undefined 조기 반환 분기도 현재 스위트로는 실행되지 않는다(영향 낮음).
+
+## 위험도
+
+MEDIUM

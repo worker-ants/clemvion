@@ -79,7 +79,10 @@ const STATUS_PROJECTION_COLUMNS = [
 ] satisfies (keyof Execution)[];
 
 /**
- * 공개 EIA 표면으로 나가는 `outputData` 정화 — **값 마스킹 + debug 필드 삭제**.
+ * 공개 EIA 표면으로 나가는 `outputData` 정화 — **debug 필드 삭제 + 값 마스킹**.
+ *
+ * 이름이 실행 순서와 같다(strip → redact). 초판은 `redactAndStrip` 이었는데 실제로는
+ * strip 이 먼저라 **이름이 순서를 거꾸로 읽히게** 했다 (`14_55_29` maintainability W3).
  *
  * `deepRedactSecrets` 는 secret-shape 값/키만 치환하므로 `llmCalls` 같은 **필드 자체**는
  * 남는다. 그래서 fanout 과 같은 `stripExternalOnlyFields` 를 함께 건다.
@@ -92,7 +95,7 @@ const STATUS_PROJECTION_COLUMNS = [
  * 깊이 상한은 자매 `deepRedactSecrets` 와 같은 {@link MAX_REDACT_DEPTH} — 그 밖은 이미
  * `'***'` 로 마스킹된 뒤라 더 볼 것이 없다.
  */
-function redactAndStrip(value: unknown): Record<string, unknown> | null {
+function stripAndRedact(value: unknown): Record<string, unknown> | null {
   if (value === null || value === undefined) return null;
   // **strip 을 먼저** — `deepRedactSecrets` 는 정규식 다중 패스 + JSON 파싱까지 하는데,
   // `llmCalls` 서브트리(대개 이 payload 에서 가장 큰 필드)는 어차피 통째로 버려진다.
@@ -373,7 +376,7 @@ export class InteractionService {
         // `meta.turnDebug[].llmCalls[]` 의 raw 프롬프트가 그대로 나간다. fanout 과 **같은
         // 수준**으로 debug 필드를 제거한다 (`12_06_21` cross_spec CRITICAL 1, 테스트로 실증).
         // 같은 `iext_*`/`itk_*` 토큰이 닿는 표면이므로 fanout 만 막는 것은 반쪽이었다.
-        const out = redactAndStrip(nodeExec.outputData) ?? {};
+        const out = stripAndRedact(nodeExec.outputData) ?? {};
         const meta = (out.meta ?? {}) as { interactionType?: string };
         const rawInteractionType = meta.interactionType ?? null;
         const interactionType =
@@ -435,11 +438,11 @@ export class InteractionService {
       // 다음 사람이 그 구조를 바꾸는 순간 조용히 열린다.
       result:
         execution.status === ExecutionStatus.COMPLETED
-          ? redactAndStrip(execution.outputData)
+          ? stripAndRedact(execution.outputData)
           : null,
       error:
         execution.status === ExecutionStatus.FAILED
-          ? redactAndStrip(execution.outputData)
+          ? stripAndRedact(execution.outputData)
           : null,
       seq: SSE_SEQ_PLACEHOLDER,
       updatedAt: (

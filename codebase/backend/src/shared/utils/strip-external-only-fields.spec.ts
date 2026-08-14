@@ -1,4 +1,4 @@
-import { deepRedactSecrets } from './sanitize-error-message';
+import { deepRedactSecrets, MAX_REDACT_DEPTH } from './sanitize-error-message';
 import { stripExternalOnlyFields } from './strip-external-only-fields';
 
 /**
@@ -98,7 +98,7 @@ describe('stripExternalOnlyFields', () => {
   });
 
   /**
-   * `redactAndStrip`(`interaction.service.ts`)이 **strip 을 먼저** 돌리는 근거 —
+   * `stripAndRedact`(`interaction.service.ts`)이 **strip 을 먼저** 돌리는 근거 —
    * 버릴 서브트리에 비싼 정규식을 선지불하지 않는다. 그 최적화는 **두 순서의 결과가
    * 같을 때만** 유효하므로 여기서 고정한다 (`14_30_35` performance W1).
    */
@@ -123,6 +123,51 @@ describe('stripExternalOnlyFields', () => {
     expect(JSON.stringify(stripFirst)).toContain('***');
     expect(JSON.stringify(stripFirst)).not.toContain('super-secret');
   });
+
+  /**
+   * **REST 경로(strip 먼저) 깊이 경계 sweep** (`14_55_29` testing/security/architecture W1).
+   *
+   * WS 경로에는 `websocket.service.spec.ts` 에 같은 sweep 이 있는데 REST 에는 없었다.
+   * 두 경로는 **순서가 반대**라(WS: redact→strip / REST: strip→redact) 한쪽 sweep 이
+   * 다른 쪽을 대신하지 못한다 — 순서·경계연산자·상수가 바뀌면 조용히 회귀한다.
+   *
+   * 실제 파이프라인 순서 그대로(`stripAndRedact` 와 동일) 태워, 어느 깊이에서도 raw
+   * 내용이 남지 않는지 본다. 깊이는 **상수 상대값**으로 — 리터럴로 박으면 상수가 바뀔 때
+   * 테스트는 통과하면서 판별력만 잃는다.
+   *
+   * **판별력 실측** (strip 을 no-op 으로 만든 뮤턴트에서 관측):
+   *
+   * | depth | strip 없이도 통과? |
+   * |---|---|
+   * | `0` · `MAX-5` | **아니오 (RED)** — strip 이 실제로 지킨다 |
+   * | `MAX-3` 이상 | 예 — `deepRedactSecrets` 가 먼저 `'***'` 로 collapse |
+   *
+   * WS sweep 은 `MAX-3` 까지 판별했는데 여기선 아니다 — 자매의 경계 연산자가 다르기
+   * 때문이다(`deepRedactSecrets` 는 `>=`, `sanitizePayloadForWs` 는 `>`). **한쪽 sweep 이
+   * 다른 쪽을 대신하지 못한다는 근거가 이 차이다.**
+   */
+  it.each([
+    0,
+    MAX_REDACT_DEPTH - 5,
+    MAX_REDACT_DEPTH - 3,
+    MAX_REDACT_DEPTH - 1,
+    MAX_REDACT_DEPTH,
+    MAX_REDACT_DEPTH + 1,
+  ])(
+    'REST 순서(strip→redact): depth %i 에서 raw 내용이 남지 않는다',
+    (depth) => {
+      const marker = `SECRET REST DEPTH ${depth}`;
+      let node: Record<string, unknown> = {
+        llmCalls: [{ requestPayload: { system: marker } }],
+      };
+      for (let i = 0; i < depth; i++) node = { nest: node };
+
+      const out = deepRedactSecrets(
+        stripExternalOnlyFields(node, MAX_REDACT_DEPTH),
+      );
+      expect(JSON.stringify(out)).not.toContain(marker);
+    },
+  );
 
   it('원시값·null 은 그대로 통과한다', () => {
     expect(stripExternalOnlyFields(null, DEEP)).toBeNull();

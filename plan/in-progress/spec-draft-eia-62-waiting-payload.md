@@ -1,5 +1,5 @@
 ---
-title: EIA §6.2 waiting_for_input 예시가 실제 wire 와 전혀 다르다 — 실측 shape 으로 재작성
+title: EIA §6.2 봉투 래퍼 누락 + blockquote 오서술 정정 (안쪽 JSON 은 caveat 패턴 유지)
 worktree: eia-r8-cache-scope-4ae434
 started: 2026-08-14
 owner: project-planner
@@ -17,9 +17,20 @@ spec_impact:
 ## Overview
 
 `--impl-prep` `07_44_12` 의 CRITICAL 로 발견. checker 는 "봉투(`payload` 래퍼) 누락" 을
-지적했는데, **직접 실측하니 안쪽 구조가 통째로 실제와 다르다.**
+지적했고, 실측해 보니 §6.2 예시의 안쪽 구조도 실제 wire 와 달랐다.
 
-이 이벤트는 **외부 통합자가 소비하는 표면**이다. 문서대로 파서를 짜면 동작하지 않는다.
+> **초판은 "안쪽이 통째로 허구이니 실측 shape 으로 재작성" 이라 결론냈고, 그건 틀렸다.**
+> WS Rationale 이 **§6.2 를 실례로 들어** "직접 재작성 대신 caveat" 를 이미 채택했다
+> (PR #945, 2026-08-13 재확인) — 안쪽 nested 표기는 **의도된 논리 표기**이고 실제 필드명은
+> 그 아래 blockquote 가 SoT 로 소유한다. 아래 (1) 에서 철회했다.
+>
+> **남는 진짜 결함은 둘**이다 — (a) 봉투 `payload:` 래퍼 누락(§6.3/§6.4 와 불일치),
+> (b) blockquote 가 "채널마다 필드명이 다르다" 고 잘못 서술(실측: 봉투만 다르다).
+> 이 문서의 범위는 그 둘이다. (`15_06_43` rationale_continuity W4 — title·Overview·
+> Rationale 이 철회된 초판 결론을 그대로 말하고 있었다.)
+
+이 이벤트는 **외부 통합자가 소비하는 표면**이다. 봉투를 틀리게 적어 두면 그대로 파서를
+짠 쪽이 실패한다.
 
 ## 실측 — waiting_for_input emit 4곳 전수 (소스 직접 읽음)
 
@@ -48,8 +59,12 @@ spec_impact:
 | `node: {id, type, interactionType}` | flat `waitingNodeId`·`waitingNodeType`·`interactionType` |
 | `interaction: {submitUrl, streamUrl, statusUrl, cancelUrl, token, expiresAt, expectedCommands}` | **코드 전체 0건** |
 | `context: {formConfig, buttonConfig, conversationConfig, conversationThread}` | flat `nodeOutput`·`buttonConfig`·`conversationThread` |
-| (언급 없음) | `waitingNodeLabel`·`nodeExecutionId`·`startedAt`·`turnDebug` |
+| (언급 없음 — **의도된 스코프 밖**) | `waitingNodeLabel`·`nodeExecutionId`·`startedAt` — WS §4.4 가 "내부 부가 식별자" 로 **소유**를 선언한 필드다(오너십 분리, `6-websocket-protocol.md:394,975`). EIA 문서가 다루지 않는 것이 정상 |
+| (언급 없음 — **진짜 gap**) | `turnDebug` — 어느 문서도 소유를 선언하지 않았다. 다만 이 draft 의 범위 밖(§처분 참조) |
 | `payload` 래퍼 없음 | 있음 (§6 도입부 normative 규칙대로) |
+
+> 초판은 위 둘을 한 행("(언급 없음)")으로 뭉쳤다. 성격이 정반대라 (3) 집행 시 **과대
+> 스코프로 오독**될 수 있다 (`15_06_43` naming_collision W1).
 
 ## 변경 제안
 
@@ -96,8 +111,9 @@ URL 예시는 `2-api-convention.md §1`(버전은 URL 경로에 미포함) 위�
 > **형제 plan 과 충돌한다** (`12_06_21` plan_coherence W5).
 > [`spec-draft-eia-notification-payload-contract.md`](./spec-draft-eia-notification-payload-contract.md)
 > 가 어제 "§6.2 blockquote 에는 필드명 매핑만 남았다 — 필드명까지 달라지는 유일한 경우" 로
-> 완료 처리했는데, **그 전제가 실측으로 반증됐다.** 그 plan 에 반증 각주를 다는 것을 이
-> 작업의 일부로 포함한다.
+> 완료 처리했는데, **그 전제가 실측으로 반증됐다.** 그 plan 에 반증 각주를 **달았다**
+> (커밋 `7fa12301c`). 초판은 "포함한다" 는 미래형이었는데, 그 시점엔 실제로 안 달려
+> 있었다 (`15_06_43` INFO 1).
 
 ### (4) `error.code` 를 옵셔널로 (§6.4 + 필드 집합 표)
 
@@ -106,6 +122,18 @@ URL 예시는 `2-api-convention.md §1`(버전은 URL 경로에 미포함) 위�
 
 일반 `catch` 에 fallback code 를 넣으면 **의미 없는 코드가 의미 있는 코드와 같은 자리에
 섞여** 수신자가 분기할 수 없다. "코드 없음" 은 부재로 전달하는 편이 정직하다.
+
+**부재 표현은 `null`** — 형제 필드 `nodeId` 가 이미 `"uuid" | null` 관례를 쓰므로 같은 자리에서
+표현이 갈리지 않게 한다 (`2-api-convention.md §5.4` 는 둘 중 하나를 **근거와 함께** 고르라고
+요구한다 — `15_06_43` convention_compliance W6).
+
+**파급 2곳** (`15_06_43` cross_spec W2 · rationale_continuity W5):
+- **(5) 의 편집 범위에 포함** — `1-data-model.md §2.14` "구조" 행이 `code` 를 항상 존재하는
+  것으로 서술한다. `{nodeId: "uuid"|null, code: "ERROR_CODE"|null, message, details?}` 로 함께
+  고칠 것. `eia-terminal-payload.md` 의 같은 행도 동시 정정
+- **`15-chat-channel.md` R-CC-15** — closed-enum 분류가 `error.code` 를 입력으로 받는다.
+  `code: null` 이 unknown-code fallback(`executionFailedInternal`)으로 안전 흡수되는지
+  **확인 후** 필요하면 R-CC-15 addendum. 확인 전에는 (4) 를 완료로 보지 말 것
 
 ### (5) `1-data-model.md` §2.14 — `Execution.error` 구조에 nullable `nodeId`
 
@@ -139,6 +167,11 @@ strip 결정의 SoT 는 WS §4.4 Rationale 의 `### ai_message.llmCalls[] 외부
   중이었음을 발견 → 깊이 무관 strip + `__proto__` 오염 방지(`81f2c60d6`·`5df89cda6`)"*
   (`11_02_18` INFO 1 — WARNING 1 과 함께 해소된다)
 - 코드 JSDoc 의 SoT 목록에도 EIA §6.2 추가
+- **§R17 재서술 시 열린 항목을 지우지 말 것** (`15_06_43` plan_coherence W9).
+  [`spec-sync-external-interaction-api-gaps.md`](./spec-sync-external-interaction-api-gaps.md)
+  가 `getStatus 일반 nodeOutput 키-allowlist (§R17 잔여)` 를 **미완료로 추적 중**이다.
+  이번 정정은 "`llmCalls` 는 삭제된다" 를 더하는 것이지 "일반 키 allowlist 가 생겼다" 가
+  아니다 — 그 불릿을 보존하고, 문구가 바뀌면 형제 트래커의 인용도 함께 갱신한다
 
 ## 🔴 조사 중 발견 — `turnDebug.llmCalls` 가 외부 fanout 으로 새는 것으로 보인다
 
@@ -188,7 +221,11 @@ strip 결정의 SoT 는 WS §4.4 Rationale 의 `### ai_message.llmCalls[] 외부
       > (c)(최상위 이름 추가)는 이름 충돌을 고착시킨다. 필드명이 이미 **문서화된 비밀
       > 마커**라 위치가 아니라 이름으로 막는 게 맞았다. 비용 우려는 clone-on-write 로
       > 상쇄했고 "공통 경로 할당 0" 을 테스트로 단언했다.
-- [ ] **이름 충돌은 이 커밋에 포함되지 않았다 — 별도 잔여.**
+- [x] **`turnDebug` 이름 충돌 — 이 draft 의 범위에서 제외로 확정** (`15_06_43` naming_collision
+      CRITICAL 1). (1)을 철회해 **§6.2 안쪽 JSON 을 건드리지 않으므로, 이 draft 가 만드는
+      어떤 spec 문장도 top-level `turnDebug` 를 문서화하지 않는다** — 충돌이 spec 에 고착될
+      경로가 없다. 아래 별건 항목으로 재등재해 카운트 밖으로 새지 않게 한다.
+- [ ] **[별건] `turnDebug` 이름 충돌 자체의 해소.**
       `turnDebug`(top-level object `{llmCalls, metadata}`) vs `nodeOutput.meta.turnDebug`
       (배열, WS §4.4:449 정본). 당초 "이 처방과 함께 정리" 라고 적었으나 strip 패치만
       landed 했다 (`10_32_29` plan_coherence W3).
@@ -229,13 +266,19 @@ strip 결정의 SoT 는 WS §4.4 Rationale 의 `### ai_message.llmCalls[] 외부
 REST 엔드포인트(§5)가 실재하므로 **만들 수 있는 것을 아직 안 만든 것**이다. 두 경우를
 같게 처리하면 "삭제된 약속" 의 의미가 흐려진다.
 
-**왜 예시를 실측으로 맞추나(문서에 코드를 맞추지 않고)**: 이 필드명들은 이미 프론트엔드·
+**왜 blockquote 를 실측에 맞추나(문서에 코드를 맞추지 않고)**: 이 필드명들은 이미 프론트엔드·
 위젯·참조 구현이 소비 중이다. 문서 쪽 이름으로 바꾸면 **동작하는 외부 계약을 깨는** 변경이
 되고, 그건 문서 오류를 고치는 비용보다 훨씬 크다.
+
+> **적용 범위는 blockquote 뿐이다.** 위 §6.2 의 논리 JSON 예시는 여기 해당하지 않는다 —
+> 그건 caveat 패턴의 "논리 표기" 쪽이고 (1) 에서 재작성을 철회했다. 초판 Rationale 은 이
+> 구분 없이 "예시" 라 적어 철회된 결론을 지지하는 것처럼 읽혔다 (`15_06_43` W4).
 
 ## 체크리스트
 
 - [x] 실측 (4개 emit 직접 읽기 + fanout 변환 여부 + 참조 구현 소비 키)
 - [ ] `/consistency-check --spec` BLOCK: NO
-- [ ] spec 반영 (6항목)
+- [ ] spec 반영 — **7항목** `(1)`~`(7)`.
+      > 초판은 "6항목" 이라 적었다. (7)(§R17·WS §4.4 SoT 확장)을 나중에 추가하고 개수를
+      > 안 고쳤다 — planner 가 개수만 보고 (7)을 누락할 수 있다 (`14_55_31` plan_coherence W3).
 - [ ] `eia-terminal-payload.md` 차단 해제 후 `--impl-prep` 재실행

@@ -36,8 +36,14 @@
  *
  * 실제 성질은 이렇다: 연산자는 이 함수가 항상 `>` 로 고정하고, 자매가 `>=` 로 한 단계
  * 먼저 멈추더라도 **그 경계에서 서브트리를 non-object 로 collapse**(`'[REDACTED_DEPTH]'`
- * / `'***'`)하기 때문에 이 함수가 거기 도달해도 볼 것이 없다. 즉 안전의 근거는 "연산자가
- * 같다" 가 아니라 "자매가 그 깊이에서 이미 객체를 없앤다" 다.
+ * / `'***'`)한다. 즉 안전의 근거는 "연산자가 같다" 가 아니라 **"그 깊이에서는 둘 중
+ * 하나가 객체를 없앤다"** 다.
+ *
+ * **순서와 무관하다** — 자매가 먼저 돌면 이 함수가 도달했을 때 이미 볼 것이 없고, 이 함수가
+ * 먼저 돌면(REST 의 `stripAndRedact`) 상한 밖 서브트리는 손대지 않은 채 남았다가 뒤이어
+ * 자매가 collapse 한다. 어느 쪽이든 그 깊이의 raw 내용은 나가지 않는다.
+ * (초판은 "자매가 **먼저** collapse 하니 안전" 이라 적어 **한쪽 순서만** 설명했는데, REST
+ * 호출부가 정확히 반대 순서였다 — `14_55_29` architecture/documentation W2.)
  *
  * ## 비용 (실측)
  *
@@ -66,10 +72,10 @@ export const EXTERNAL_STRIPPED_FIELDS = ['llmCalls'] as const;
 /**
  * `EXTERNAL_STRIPPED_FIELDS` 를 **어느 깊이에서든** 제거한 값을 돌려준다.
  *
- * @param maxDepth 이 깊이를 **초과**하면 그 아래는 손대지 않는다. 호출부의 자매
- *   sanitizer(예: `sanitizePayloadForWs` 의 `MAX_SANITIZE_DEPTH`, `deepRedactSecrets` 의
- *   `MAX_REDACT_DEPTH`)와 **같은 값·같은 경계 연산자**를 쓴다 — 상한 밖 서브트리는 그
- *   sanitizer 가 이미 마스킹한 뒤라 여기서 더 볼 것이 없다.
+ * @param maxDepth 이 깊이를 **초과**하면 그 아래는 손대지 않는다. 호출부는 자매
+ *   sanitizer(`sanitizePayloadForWs` 의 `MAX_SANITIZE_DEPTH`, `deepRedactSecrets` 의
+ *   `MAX_REDACT_DEPTH`)와 **같은 값**을 넘긴다. 경계 연산자·실행 순서에 대한 정확한
+ *   성질은 위 §"경계 연산자는 이 함수가 `>` 로 고정한다" 참조.
  */
 export function stripExternalOnlyFields<T>(value: T, maxDepth: number): T {
   return stripDeep(value, 0, maxDepth) as T;

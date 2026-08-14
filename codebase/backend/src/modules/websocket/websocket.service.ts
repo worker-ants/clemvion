@@ -291,17 +291,13 @@ function sanitizeInner(value: object, depth: number): unknown {
   return result ?? value;
 }
 
-/**
- * 외부 fanout 으로 나가는 debug 전용 필드 제거는 **공유 유틸**이 담당한다 —
- * `shared/utils/strip-external-only-fields`.
- *
- * 여기 두지 않는 이유: 같은 데이터에 출구가 둘 이상이다. fanout 만 막았더니 REST 스냅샷
- * (`InteractionService.getStatus`)이 같은 `llmCalls` 를 그대로 돌려주고 있었다
- * (`12_06_21` cross_spec CRITICAL 1). 처방을 한 곳에 두고 모든 외부 출구가 같은 것을 부른다.
- *
- * 깊이 상한은 이 파일의 자매 sanitizer 와 같은 {@link MAX_SANITIZE_DEPTH} 를 넘긴다 —
- * 상한 밖 서브트리는 `sanitizePayloadForWs` 가 이미 `[REDACTED_DEPTH]` 로 마스킹한 뒤다.
- */
+// 외부 fanout 의 debug 전용 필드 제거는 공유 유틸이 담당한다 —
+// `shared/utils/strip-external-only-fields`. 여기 두지 않는 이유(같은 데이터에 출구가 둘
+// 이상이다)와 깊이 상한 근거는 그 파일 JSDoc 참조. 이 파일의 호출부는 자매 sanitizer 와
+// 같은 `MAX_SANITIZE_DEPTH` 를 넘긴다.
+//
+// (블록 JSDoc 으로 두었더니 붙을 선언이 없어 **바로 아래 KB union 문서로 읽혔다** —
+//  `14_55_29` maintainability W4.)
 
 /**
  * Knowledge Base 도메인 이벤트 — KB 이벤트의 **권위 정의**. frontend `useKbEvents`
