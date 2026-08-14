@@ -170,11 +170,11 @@ sentinel 경로(`ErrorPortFallbackError`/`ExecutionTimeLimitError`)뿐이다.
 
 ### 이번 PR
 
-- [ ] `error` 객체 형태 — **4곳** (`:659` · `:3301` · `:4862` · `retry-turn:963`).
+- [x] `error` 객체 형태 — **4곳** (`:659` · `:3301` · `:4862` · `retry-turn:963`).
       `:1084` 은 이미 객체라 손대지 않는다. **4곳 전부 DB 객체가 이미 있다**(재판정 ③-a)
-- [ ] **`null` 정규화** — emit 시점에 `code: null`/`nodeId: null` 보충. DB 객체는 키를
+- [x] **`null` 정규화** — emit 시점에 `code: null`/`nodeId: null` 보충. DB 객체는 키를
       생략하는데 §6.4 는 명시적 `null` 을 요구한다 (재판정 ③-e)
-- [ ] **동반 필수** (`07_44_12` plan_coherence W5, developer 권한 내):
+- [x] **동반 필수** (`07_44_12` plan_coherence W5, developer 권한 내):
   - `chat-channel.dispatcher.ts:535~568` — string/object back-compat wrap 이 **존재한 적 없는
     plan 이름**을 주석으로 가리킨다. `error` 가 전 경로 객체가 되면 이 wrap 의 존재 이유가
     바뀌므로 함께 정리
@@ -190,6 +190,25 @@ sentinel 경로(`ErrorPortFallbackError`/`ExecutionTimeLimitError`)뿐이다.
 - [ ] `durationMs` — 종결 3종. **취소 경로 배관 필요**(재판정 ③-c): `finalizeStalledExhausted`
       raw UPDATE + `emitCancellationEvent` 시그니처 + 호출 5곳 중 4곳의 DB write
 - [ ] `result.outputs` — `completed`
+
+## ⚠️ 외부 구독자 breaking change — 운영 확인 필요 (`23_49_41` api_contract W4)
+
+`execution.failed` 의 `error` 가 string → object 로 바뀐다. 이 저장소는 URL 버전 세그먼트를
+쓰지 않으므로(`2-api-convention.md §1`) **버전 협상 수단이 없고 CHANGELOG 가 유일한 통지
+경로**다.
+
+**저장소에서는 활성 구독자 유무를 알 수 없다** — notification config 는 워크스페이스별 DB
+데이터이고 코드에는 없다. 이건 코드로 답할 수 없는 **운영 질문**이라 여기 남긴다.
+
+- [ ] 활성 outbound notification 구독자(트리거별 webhook URL)가 실제로 있는지 확인
+- [ ] 있다면: 문자열을 전제한 파서가 있는지, 과도기 dual-shape 이 필요한지 판단
+
+> **완화 요인**: 새 형태가 spec §6.4 의 **원래 목표 형태**와 일치한다. 즉 문서를 보고 짠
+> 통합자는 이미 object 를 기대하고 있었고, 깨지는 쪽은 "문서 대신 실제 wire 를 보고 짠"
+> 통합자다. spec 의 `status: partial` 도 계약이 아직 확정 전임을 알린다.
+>
+> **같은 성격의 항목이 하나 더 있다** — 직전 PR(#1169)의 "이미 유출된 `llmCalls` 데이터"
+> 도 운영 판단 대기 중이다. 둘 다 같은 워크스페이스 집합을 조회하면 답이 나온다.
 
 ## 차단 해제 조건
 

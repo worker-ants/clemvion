@@ -6907,10 +6907,19 @@ describe('ExecutionEngineService', () => {
           expect.stringContaining('ERROR_PORT_FALLBACK'),
         ]),
       );
+      // DB write 는 위에서 `ERROR_PORT_FALLBACK` 을 단언하는데 emit 은 `status` 만 보고
+      // 있었다 — **sentinel code 가 wire 까지 보존되는지**를 아무도 안 보고 있었다
+      // (`23_49_41` testing W1). 이 PR 의 요점이 "DB 와 wire 를 같은 값으로" 이므로 고정한다.
       expect(mockWebsocketService.emitExecutionEvent).toHaveBeenCalledWith(
         executionId,
         'execution.failed',
-        expect.objectContaining({ status: 'failed' }),
+        expect.objectContaining({
+          status: 'failed',
+          error: expect.objectContaining({
+            code: 'ERROR_PORT_FALLBACK',
+            nodeId: null,
+          }) as unknown,
+        }),
       );
       // 성공 종료 이벤트는 발사되지 않아야 한다.
       expect(mockWebsocketService.emitExecutionEvent).not.toHaveBeenCalledWith(

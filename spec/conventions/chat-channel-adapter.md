@@ -147,7 +147,7 @@ type EiaEvent =
   // 않는다 — 같은 계약을 두 곳에 적어 두었더니 실제로 어긋났고, 그 drift 를 고치는 것이
   // 이 축약의 목적이다. 봉투는 flat(WS 계열) 이고 result 중첩은 유지된다.
   | { type: "execution.completed";        /* EIA §6.3 */ executionId: string; triggerId: string; workflowId: string; status: "completed"; result?: { outputs?: unknown }; durationMs?: number; timestamp: string; seq: number }
-  | { type: "execution.failed";           /* EIA §6.4 */ executionId: string; triggerId: string; workflowId: string; status: "failed"; error: { code: string; message: string; nodeId: string | null; details?: unknown } | string; durationMs?: number; timestamp: string; seq: number }
+  | { type: "execution.failed";           /* EIA §6.4 */ executionId: string; triggerId: string; workflowId: string; status: "failed"; error: { code: string | null; message: string; nodeId: string | null; details?: unknown } | string; durationMs?: number; timestamp: string; seq: number }
   | { type: "execution.cancelled";        /* EIA §6.5 (cancelled) */ executionId: string; triggerId: string; workflowId: string; status: "cancelled"; result?: { cancelledBy?: "user" | "system" | "timeout" }; error?: { code: string; message?: string }; durationMs?: number; timestamp: string; seq: number };
 ```
 
