@@ -632,6 +632,232 @@ describe('WebsocketService', () => {
       expect(fanout.payload).not.toHaveProperty('llmCalls');
     });
 
+    /**
+     * **`waiting_for_input` 은 `llmCalls` 를 중첩해서 싣는다 — 종전 strip 은 최상위 전용이었다.**
+     *
+     * `stripExternalOnlyFields` 는 `EXTERNAL_STRIPPED_FIELDS`(=`['llmCalls']`)를
+     * **depth-1 shallow delete** 했었다. 그런데 AI turn1 의
+     * waiting emit 은 raw payload 를 최상위가 아니라 한 단계 아래에 넣는다
+     * (`ai-turn-orchestrator.service.ts:615`):
+     *
+     *     turnDebug: { llmCalls: turnDebugHistory[0], metadata }
+     *
+     * `turnDebugHistory[i]` 는 `{turnIndex, llmCalls: LlmCallRecord[], …}` 이고
+     * `LlmCallRecord` 는 `requestPayload`/`responsePayload` 를 갖는다
+     * (`ai-turn-executor.ts:2336` · `llm-tracing/llm-call-record.ts:19`).
+     *
+     * WS §4.4(`6-websocket-protocol.md:519`)는 이 raw payload 가
+     * **모든 외부 수신자**(EIA SSE · notification webhook · chat-channel)에서
+     * strip 된다고 선언한다. 아래는 그 선언을 실제 wire 로 검증한다.
+     *
+     * 기존 strip 테스트는 **최상위 `llmCalls`** 만, 그것도 `AI_MESSAGE` 에서만 봤다 —
+     * 이 경로는 아무도 보지 않았다.
+     */
+    it('waiting_for_input 의 중첩 turnDebug.llmCalls 도 외부 fanout 에 남으면 안 된다', async () => {
+      const eventP = nextFanoutEvent(service);
+      await service.emitExecutionEvent(
+        'exec-waiting-nested',
+        ExecutionEventType.EXECUTION_WAITING_FOR_INPUT,
+        {
+          status: 'waiting_for_input',
+          waitingNodeId: 'n-ai',
+          waitingNodeType: 'ai_agent',
+          interactionType: 'ai_conversation',
+          // 경로 2 — `buildConversationMetaFromResumeState:97` 이
+          // `turnDebug: state.turnDebugHistory` 로 **전체 히스토리**를 싣는다.
+          // WS §4.4:449 가 정의한 `nodeOutput.meta.turnDebug` 정본 shape.
+          nodeOutput: {
+            interactionType: 'ai_conversation',
+            meta: {
+              turnDebug: [
+                {
+                  turnIndex: 0,
+                  llmCalls: [{ requestPayload: { system: 'SECRET PROMPT B' } }],
+                  ragSources: [],
+                },
+              ],
+            },
+          },
+          // 경로 1 — ai-turn-orchestrator.service.ts:615 의 실제 shape 그대로
+          turnDebug: {
+            llmCalls: {
+              turnIndex: 0,
+              llmCalls: [
+                {
+                  requestPayload: { system: 'SECRET PROMPT A', messages: [] },
+                  responsePayload: { content: 'hi' },
+                  durationMs: 12,
+                },
+              ],
+              ragSources: [],
+            },
+            metadata: { model: 'claude', inputTokens: 10, outputTokens: 3 },
+          },
+        },
+      );
+      const fanout = await eventP;
+
+      // 외부 수신자에게 raw LLM 요청/응답이 **어떤 경로로도** 도달해서는 안 된다.
+      // 두 경로를 함께 본다 — 한쪽만 막으면 나머지가 남는다.
+      const fanoutJson = JSON.stringify(fanout.payload);
+      expect(fanoutJson).not.toContain('SECRET PROMPT A'); // top-level turnDebug
+      expect(fanoutJson).not.toContain('SECRET PROMPT B'); // nodeOutput.meta.turnDebug
+
+      // **대조군** — 인증된 에디터 WS 채널은 둘 다 그대로 받아야 한다. 이게 없으면
+      // "payload 를 통째로 날려서" 통과하는 구현도 GREEN 이 된다 (`10_32_27` testing W6:
+      // 같은 블록의 다른 strip 테스트는 전부 이 짝을 갖는데 이것만 빠져 있었다).
+      const wireJson = JSON.stringify(
+        gateway.broadcastToChannel.mock.calls[0][2],
+      );
+      expect(wireJson).toContain('SECRET PROMPT A');
+      expect(wireJson).toContain('SECRET PROMPT B');
+      // 비-debug 필드는 그대로 유지돼야 한다 (대조군 — 통째로 사라진 게 아님을 확인).
+      expect(fanout.payload.waitingNodeId).toBe('n-ai');
+      expect(fanout.payload.interactionType).toBe('ai_conversation');
+    });
+
+    /**
+     * 재귀 strip 의 비용 근거를 단언한다 — 제거할 게 없으면 **새 객체를 만들지 않고
+     * 입력을 그대로** 돌려준다(clone-on-write). 이게 깨지면 모든 실행 이벤트가
+     * payload 전체를 복제하게 되므로, 성능 주장이 주석에만 있으면 안 된다.
+     */
+    it('제거할 필드가 없으면 fanout payload 가 wire envelope 과 동일 객체다 (할당 없음)', async () => {
+      const eventP = nextFanoutEvent(service);
+      await service.emitExecutionEvent(
+        'exec-identity',
+        ExecutionEventType.EXECUTION_WAITING_FOR_INPUT,
+        {
+          status: 'waiting_for_input',
+          waitingNodeId: 'n-1',
+          nodeOutput: {
+            meta: { turnDebug: [{ turnIndex: 0, ragSources: [] }] },
+          },
+        },
+      );
+      const fanout = await eventP;
+      const wire = gateway.broadcastToChannel.mock.calls[0][2] as Record<
+        string,
+        unknown
+      >;
+      // envelope **자체**의 동일성 — 종전엔 자식(`nodeOutput`) 하나만 봐서 최상위에서
+      // 불필요한 재구성이 일어나는 회귀를 못 잡았다 (`10_32_27` testing W5).
+      expect(fanout.payload).toBe(wire);
+      // 중첩까지 복제되지 않았는지도 함께.
+      expect(fanout.payload.nodeOutput).toBe(wire.nodeOutput);
+    });
+
+    /**
+     * **strip 구현이 `__proto__` 를 만나도 안전해야 한다** (`10_32_27` security W1).
+     *
+     * 초판은 `out[k] = v` bracket 대입이라, `JSON.parse` 로 만들어진 own `__proto__`
+     * 키를 만나면 (a) 그 키를 own property 로 남기지 않아 **값이 조용히 사라지고**
+     * (b) 반환 객체의 프로토타입을 갈아쳐, 값이 `null` 이면 `hasOwnProperty` 조차 없는
+     * 객체가 되어 하류에서 `TypeError` 로 죽을 수 있었다(CWE-1321).
+     *
+     * **fixture 가 위험 지점을 통과해야 한다.** 첫 판에는 `__proto__` 값 안에 strip 대상이
+     * 없어서 `if (s !== v)` 대입 분기에 아예 들어가지 않았고, 뮤테이션(대입을 bracket 으로
+     * 되돌림)에서 **테스트가 살아남았다** — 판별력 0이었다. `__proto__` 의 **값 안에**
+     * `llmCalls` 를 넣어야 자식이 바뀌고, 그래야 `__proto__` 키로 대입이 일어난다.
+     */
+    it('payload 에 __proto__ 키가 있어도 값 손실·프로토타입 오염이 없다', async () => {
+      const eventP = nextFanoutEvent(service);
+      const hostile = JSON.parse(
+        // `__proto__` 의 값이 strip 으로 **바뀌어야** 대입 분기를 탄다.
+        '{"__proto__":{"polluted":true,"llmCalls":[{"requestPayload":{}}]},"keep":"ok"}',
+      ) as Record<string, unknown>;
+      await service.emitExecutionEvent(
+        'exec-proto',
+        ExecutionEventType.AI_MESSAGE,
+        { nested: hostile },
+      );
+      const fanout = await eventP;
+      const nested = (fanout.payload as Record<string, unknown>)
+        .nested as Record<string, unknown>;
+
+      // 비-strip 값은 살아 있다.
+      expect(nested.keep).toBe('ok');
+      // `__proto__` 는 own property 로 보존돼야 한다 — 사라지면 payload 손실이다.
+      expect(Object.prototype.hasOwnProperty.call(nested, '__proto__')).toBe(
+        true,
+      );
+      // 그 안의 strip 은 됐고, 나머지는 남았다.
+      const inner = Object.getOwnPropertyDescriptor(nested, '__proto__')
+        ?.value as Record<string, unknown>;
+      expect(inner).not.toHaveProperty('llmCalls');
+      expect(inner.polluted).toBe(true);
+      // 프로토타입이 갈리지 않았다 — 표준 메서드가 그대로 있어야 한다.
+      expect(Object.getPrototypeOf(nested)).toBe(Object.prototype);
+      expect(typeof nested.hasOwnProperty).toBe('function');
+      // 전역 오염도 없다.
+      expect(({} as Record<string, unknown>).polluted).toBeUndefined();
+    });
+
+    /**
+     * **깊이 경계 전수 — 리뷰어 결론이 갈렸던 자리다** (`11_02_16` CRITICAL 1).
+     *
+     * **종전에는** `stripDeep` 이 `depth >= MAX_SANITIZE_DEPTH` 에서 멈추고 형제
+     * `sanitizePayloadForWs` 는 `depth > MAX_SANITIZE_DEPTH` 에서 `'[REDACTED_DEPTH]'`
+     * 로 치환해 **경계 연산자가 어긋나 있었다**. testing reviewer 는 그 어긋남으로 depth 10
+     * 에서 누출이 재현된다 했고, security/side_effect/requirement 셋은 "값은 이미 redact 돼
+     * 필드명만 남는다" 고 반대 결론을 냈다.
+     *
+     * 아래 sweep 이 **누출 없음**을 확정했고, 같은 커밋에서 연산자를 형제와 같은 `>` 로
+     * 통일했다 — 지금 두 함수의 경계는 동일하다. 이 문단은 그 이력의 기록이다.
+     *
+     * **논증 대신 실제 파이프라인으로 훑었고, 결론은 "누출 없음" 이다** — 필드명이 남는
+     * 경우는 있어도 raw 내용은 어느 깊이에서도 나가지 않는다. testing 쪽 CRITICAL 은
+     * 파이프라인이 아니라 두 함수 로직을 **복제한 스크립트**의 산물이었다.
+     *
+     * **각 케이스의 판별력을 실측해 둔다** (strip 을 no-op 으로 만든 뮤턴트에서 관측):
+     *
+     * | depth | strip 없이도 통과? | 무엇을 지키나 |
+     * |---|---|---|
+     * | `0` · `MAX-5` · `MAX-3` | **아니오 (RED)** | `stripDeep` 이 실제로 지운다 |
+     * | `MAX-2` 이상 | 예 | 마커가 `MAX_SANITIZE_DEPTH` 밖이라 `sanitizePayloadForWs` 가 먼저 `[REDACTED_DEPTH]` 로 치환 |
+     *
+     * 전환점은 **`MAX-3` ↔ `MAX-2` 사이**다(둘 다 표본에 있다). 마커가 `llmCalls` 배열 안
+     * 두 단계 더 들어가 있어, 노드 깊이 `MAX-2` 부터 마커 자체가 상한 밖으로 나간다.
+     *
+     * 즉 깊은 쪽은 **누출 테스트로서는 판별력이 없다**. 그래도 남겨 두는 이유는 그것이
+     * 이 설계의 방어 구조 자체이기 때문이다 — 깊은 곳은 strip 이 아니라 sanitize 의 상한이
+     * 막는다. 나중에 그 상한이 사라지면 여기가 RED 로 알려준다.
+     *
+     * **깊이는 상수 상대값으로 쓴다.** 리터럴로 박으면 `MAX_SANITIZE_DEPTH` 가 바뀌었을 때
+     * 테스트는 계속 통과하면서 **경계 판별력만 조용히 잃는다**. 같은 파일 `:203` 의 자매
+     * 경계 테스트가 이미 그 관례를 명시해 뒀는데 초판이 어겼다 (`12_06_20` maintainability W2).
+     * 판별력 전환점(`MAX-3`)도 표본에 포함한다.
+     */
+    it.each([
+      0,
+      MAX_SANITIZE_DEPTH - 5,
+      MAX_SANITIZE_DEPTH - 3,
+      MAX_SANITIZE_DEPTH - 2,
+      MAX_SANITIZE_DEPTH - 1,
+      MAX_SANITIZE_DEPTH,
+      MAX_SANITIZE_DEPTH + 1,
+      MAX_SANITIZE_DEPTH + 2,
+    ])(
+      'depth %i 의 llmCalls raw 내용이 외부 fanout 에 남지 않는다',
+      async (depth) => {
+        const marker = `SECRET AT DEPTH ${depth}`;
+        // depth 만큼 중첩한 뒤 그 자리에 llmCalls 를 놓는다.
+        let node: Record<string, unknown> = {
+          llmCalls: [{ requestPayload: { system: marker } }],
+        };
+        for (let i = 0; i < depth; i++) node = { nest: node };
+
+        const eventP = nextFanoutEvent(service);
+        await service.emitExecutionEvent(
+          `exec-depth-${depth}`,
+          ExecutionEventType.AI_MESSAGE,
+          node,
+        );
+        const fanout = await eventP;
+
+        expect(JSON.stringify(fanout.payload)).not.toContain(marker);
+      },
+    );
+
     it('llmCalls 없는 이벤트는 그대로 fanout (no-op strip)', async () => {
       const eventP = nextFanoutEvent(service);
       await service.emitExecutionEvent(

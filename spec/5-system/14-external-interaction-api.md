@@ -5,6 +5,7 @@ pending_plans:
   - plan/in-progress/spec-sync-external-interaction-api-gaps.md
 code:
   - codebase/backend/src/modules/external-interaction/**
+  - codebase/backend/src/shared/utils/strip-external-only-fields.ts
   - codebase/backend/src/modules/hooks/hooks.service.ts
   - codebase/backend/src/modules/hooks/hooks.controller.ts
   - codebase/backend/src/modules/triggers/dto/interaction-config.dto.ts
@@ -469,7 +470,8 @@ Authorization: Bearer <iext_jwt | itk_token>
     "waitingNodeId":   "uuid",
     "conversationThread": { ... },  // 키 생략 가능 (present-when-available — 아래 참조).
                                     // [Spec WS §4.4.5] 와 동일. turns[].source 마커 누락 시
-                                    // [Conversation Thread §4.4.6 / §5.1](../conventions/conversation-thread.md) 의 폴백 ('live' 로 간주) 적용
+                                    // 폴백('live' 로 간주)의 SoT 는 [WS §4.4.6](./6-websocket-protocol.md#446-messagessource-마커).
+                                    // [Conversation Thread §5.1](../conventions/conversation-thread.md#51-messages-모드-매핑) 은 매핑 표 근거(폴백 문장 없음)
 
     // ↓ 아래 두 키 중 정확히 하나만 present (SSE waiting_for_input wire 와 동일)
     "buttonConfig": { "buttons": [ ... ], "nodeOutput": { ... } },  // interactionType=buttons + buttonConfig 복원 성공 시
@@ -567,7 +569,7 @@ Authorization: Bearer <expiring_iext_jwt>
 | 필드 | 이벤트 | 상태 | 비고 |
 |---|---|---|---|
 | `status` | 3종 | 구현됨 | `completed` \| `failed` \| `cancelled` |
-| `error` | `failed`, `cancelled`(시스템 취소 한정) | 구현됨 — **형태 불일치** | 목표는 `{code, message, nodeId, details?}`. **현행 일부 경로는 string** 을 넣는다 (`execution-engine.service.ts` · `retry-turn.service.ts` 의 `EXECUTION_FAILED` emit 일부 — 줄 번호는 리팩터마다 stale 해지므로 심볼로만 적는다). 수신자는 당분간 양쪽을 방어해야 한다 |
+| `error` | `failed`, `cancelled`(시스템 취소 한정) | 구현됨 — **형태 불일치** | 목표는 `{code, message, nodeId, details?}` — **`code`·`nodeId` 는 `null` 일 수 있다**(§6.4 참조). **현행 일부 경로는 string** 을 넣는다 (`execution-engine.service.ts` · `retry-turn.service.ts` 의 `EXECUTION_FAILED` emit 일부 — 줄 번호는 리팩터마다 stale 해지므로 심볼로만 적는다). 수신자는 당분간 양쪽을 방어해야 한다 |
 | `result.cancelledBy` | `cancelled` | 구현됨 — **경로 1곳 누락** | `retry-turn.service.ts` `failRetryExecution` 은 채우지 않는다 ([retry-turn-terminal-guard](../../plan/in-progress/retry-turn-terminal-guard.md) #2) |
 | `result.outputs` | `completed` | **미구현 (Planned)** | 데이터는 emit 직전 존재하나 payload 에 넣지 않는다 |
 | `durationMs` | 3종 | **미구현 (Planned)** | 위와 같음. **WS 계열 문서는 같은 값을 `duration` 으로 적는다** — 표기만 다르고 같은 값이다 (전역 개명은 별건) |
@@ -645,47 +647,83 @@ header value   = "t={timestamp},v1={hex(signature)}"
 ### 6.2 페이로드 — `execution.waiting_for_input`
 
 ```jsonc
+// webhook 봉투 기준. SSE 는 payload 래퍼 없이 안쪽 객체가 그대로 온다.
 {
   "type":        "execution.waiting_for_input",
   "executionId": "uuid",
   "triggerId":   "uuid",
   "workflowId":  "uuid",
-  "node": {
-    "id":              "uuid",
-    "type":            "form" | "carousel" | "table" | "chart" | "template" | "ai_agent" | "information_extractor",
-    "interactionType": "form" | "buttons" | "ai_conversation"
-  },
-  "interaction": {
-    "submitUrl":  "https://api.clemvion.ai/v1/executions/{id}/interact",
-    "streamUrl":  "https://api.clemvion.ai/v1/executions/{id}/stream",
-    "statusUrl":  "https://api.clemvion.ai/v1/executions/{id}",
-    "cancelUrl":  "https://api.clemvion.ai/v1/executions/{id}/cancel",
-    "token":      "iext_<jwt>",     // tokenStrategy=per_execution 일 때만. per_trigger 면 생략 (호출자가 이미 갖고 있음)
-    "expiresAt":  "ISO8601",
-    "expectedCommands": ["submit_form"]
-                     | ["click_button"]
-                     | ["submit_message", "end_conversation"]
-  },
-  "context": {
-    "formConfig":         { /* form 노드일 때 — [Spec WS §4.4] formConfig 와 동일 shape */ },
-    "buttonConfig":       { /* button 노드일 때 — [Spec WS §4.4] buttonConfig 와 동일 shape */ },
-    "conversationConfig": { /* AI multi turn 일 때 — [Spec WS §4.4] conversationConfig 와 동일 shape */ },
-    "conversationThread": { /* [Spec WS §4.4.5] 와 동일. optional. messages[].source 마커 누락 시 [Conversation Thread §4.4.6 / §5.1](../conventions/conversation-thread.md) 폴백 ('live' 로 간주) 적용 */ }
-  },
-  "timestamp": "ISO8601",
-  "seq":       42
+  "seq":         42,
+  "timestamp":   "ISO8601",
+  "payload": {
+    "node": {
+      "id":              "uuid",
+      "type":            "form" | "carousel" | "table" | "chart" | "template" | "ai_agent" | "information_extractor",
+      "interactionType": "form" | "buttons" | "ai_conversation"
+    },
+    // interaction — **미구현 (Planned)**. 아래 필드는 아직 wire 에 실리지 않는다
+    // (`expectedCommands` 포함 — 본 절이 이미 "현재 미구현 문서 필드" 로 명시). URL 은
+    // 구현 시점 형태를 상대경로로 적는다 — 절대 URL·`/v1/` 버전 세그먼트는
+    // [API 규약 §1](./2-api-convention.md) 위반이다. 실제 엔드포인트는 §5.1~§5.5 참조.
+    "interaction": {
+      "submitUrl":  "/api/external/executions/{id}/interact",
+      "streamUrl":  "/api/external/executions/{id}/stream",
+      "statusUrl":  "/api/external/executions/{id}",
+      "cancelUrl":  "/api/external/executions/{id}/cancel",
+      "token":      "iext_<jwt>",     // tokenStrategy=per_execution 일 때만. per_trigger 면 생략 (호출자가 이미 갖고 있음)
+      "expiresAt":  "ISO8601",
+      "expectedCommands": ["submit_form"]
+                       | ["click_button"]
+                       | ["submit_message", "end_conversation"]
+    },
+    "context": {
+      "formConfig":         { /* form 노드일 때 — [Spec WS §4.4] formConfig 와 동일 shape */ },
+      "buttonConfig":       { /* button 노드일 때 — [Spec WS §4.4] buttonConfig 와 동일 shape */ },
+      "conversationConfig": { /* AI multi turn 일 때 — [Spec WS §4.4] conversationConfig 와 동일 shape */ },
+      "conversationThread": { /* [Spec WS §4.4.5] 와 동일. optional. messages[].source 마커 누락 시 [WS §4.4.6](./6-websocket-protocol.md#446-messagessource-마커) 의 폴백('live' 로 간주) 적용 — [Conversation Thread §5.1](../conventions/conversation-thread.md#51-messages-모드-매핑) 은 매핑 표 근거이지 폴백 근거가 아니다 */ }
+    }
+  }
 }
 ```
 
-> **`waiting_for_input` 의 SSE 필드명 매핑**: 채널별 봉투 차이의 일반 규칙은
+> **debug 전용 필드는 이 표면으로 나가지 않는다** — `nodeOutput.meta.turnDebug[].llmCalls`
+> 등 raw LLM 요청/응답은 **필드명 기준·깊이 무관**으로 제거된다(§6.5 와 같은 정책,
+> [§R17](#r17-getstatus-의-currentnodecontext-실값-노출-null-placeholder-부분-번복--sse-역할-분담--outputdata-표면-제약-결정-2026-06-25-conversationthread-reload-노출-재조정-2026-07-09) ·
+> [WS §4.4](./6-websocket-protocol.md#44-사용자-입력-대기-이벤트-상세-executionwaiting_for_input)).
+> **이 절이 실제로 새던 자리다** — 2026-08-14 이전에는 fanout 이 최상위만 지워 중첩된
+> `turnDebug` 가 통과했다.
+
+> **`interaction` 블록은 미구현 (Planned) 이다** — 위 4개 URL·`token`·`expiresAt`·`expectedCommands` 는
+> 현재 어떤 emit 경로도 싣지 않는다. 설계 의도를 보존하되 "지금 오지 않는다" 를 명시한다
+> (`durationMs`/`result.outputs` 에 쓴 것과 같은 표기). 클라이언트는 §5 의 엔드포인트를
+> 직접 구성해야 한다.
+
+> **위 JSON 은 논리 구조 표기다 — 실제 wire 필드명은 아래가 SoT**: 채널별 봉투 차이는
 > [채널별 봉투](#채널별-봉투--셋이-서로-다르다-normative)가 소유한다. 본 이벤트는 그 위에
-> **필드명까지** 달라지는 유일한 경우라 아래 매핑을 따로 둔다 — 위젯/SDK 는 SSE 에서 아래를 읽어야 한다:
-> - `node.id` → **`waitingNodeId`** (최상위; `submit_message` 의 `nodeId` 로 그대로 사용)
-> - `node.interactionType` → **`interactionType`** (최상위)
+> **논리 표기와 실제 필드명이 다른** 경우라 아래 매핑을 따로 둔다.
+>
+> **필드명은 채널과 무관하게 동일하다** — webhook 도 SSE 도 아래 오른쪽 이름을 싣는다.
+> 두 채널의 차이는 **봉투(`payload` 래퍼 유무)뿐**이다. fanout 은 이름을 바꾸지 않는다
+> (`notification-fanout.service.ts` 가 `payload: event.payload` 로 그대로 감싼다).
+> 위젯/SDK 는 어느 채널에서든 아래 오른쪽을 읽는다:
+> - `node.id` → **`waitingNodeId`** (평면; `submit_message` 의 `nodeId` 로 그대로 사용)
+> - `node.interactionType` → **`interactionType`** (평면)
 > - `context.conversationConfig` → **`nodeOutput.conversationConfig`**
-> - `context.buttonConfig` → **`buttonConfig`** (최상위)
+> - `context.buttonConfig` → **`buttonConfig`** (평면)
 > - `context.formConfig` → **`nodeOutput.formConfig`** (없으면 `nodeOutput` 자체)
-> - `context.conversationThread` → **`conversationThread`** (최상위)
+> - `context.conversationThread` → **`conversationThread`** (평면)
+> - (논리 표기에 없음) → **`status`**: 리터럴 `"waiting_for_input"` 이 평면으로 함께 실린다
+>
+> **`node.type` 은 외부 소비 매핑이 없다.** wire 에 `waitingNodeType` 이 평면으로 실리기는
+> 하지만 그것은 **WS 내부 부가 식별자**(에디터 타임라인 관측용)이고, 외부 클라이언트는
+> 노드 타입이 아니라 **`interactionType` 으로 분기한다** — 참조 구현 `parseWaitingForInput`
+> 이 `waitingNodeType` 을 읽지 않는 것이 그 근거다(실제 소비처는 내부 에디터 WS 채널의
+> `codebase/frontend/src/lib/websocket/use-execution-events.ts` 뿐).
+>
+> `waitingNodeType` · `waitingNodeLabel` · `nodeExecutionId` · `startedAt` 은 평면으로
+> 실리지만 위 이유로 **WS 내부 부가 식별자**라
+> [WS §4.4](./6-websocket-protocol.md#44-사용자-입력-대기-이벤트-상세-executionwaiting_for_input)
+> 가 소유한다 — 본 절은 외부 클라이언트 소비 필드만 다룬다(의도된 스코프 분리).
 >
 > 참조 구현(SoT): [`codebase/channel-web-chat/src/lib/eia-events.ts`](../../codebase/channel-web-chat/src/lib/eia-events.ts) `parseWaitingForInput`. ([WS §4.4](./6-websocket-protocol.md#44-사용자-입력-대기-이벤트-상세-executionwaiting_for_input) 의 논리 표기(`nodeId`)도 동일 wire 를 가리키며, 그 문서에 실제 wire 필드 caveat 를 명시함 — 본 blockquote 는 외부 클라이언트 소비 매핑의 SoT.)
 
@@ -730,7 +768,7 @@ header value   = "t={timestamp},v1={hex(signature)}"
   "payload": {
     "status": "failed",
     "error": {
-      "code":    "EXECUTION_TIMEOUT" | "EXECUTION_TIME_LIMIT_EXCEEDED" | "MAX_ITERATIONS_EXCEEDED" | "CYCLE_DETECTED" | ... ,  // 엔진 수준 에러코드 — 정본은 spec/5-system/3-error-handling.md §1.4. EXECUTION_TIMEOUT=Code 노드 스크립트 타임아웃, EXECUTION_TIME_LIMIT_EXCEEDED=엔진 레벨 누적 active-running 타임아웃(§8). 노드 수준 실패는 `error.code` 에 노드 ErrorCode (예: LLM_TIMEOUT)
+      "code":    "EXECUTION_TIMEOUT" | "EXECUTION_TIME_LIMIT_EXCEEDED" | "MAX_ITERATIONS_EXCEEDED" | "CYCLE_DETECTED" | ... | null,  // 엔진 수준 에러코드 — 정본은 spec/5-system/3-error-handling.md §1.4. EXECUTION_TIMEOUT=Code 노드 스크립트 타임아웃, EXECUTION_TIME_LIMIT_EXCEEDED=엔진 레벨 누적 active-running 타임아웃(§8). 노드 수준 실패는 `error.code` 에 노드 ErrorCode (예: LLM_TIMEOUT)
       //         (노드 ErrorCode 정식 목록: codebase/backend/src/nodes/core/error-codes.ts)
       "message": "사람-가독 메시지",
       "nodeId":  "uuid" | null,
@@ -740,6 +778,15 @@ header value   = "t={timestamp},v1={hex(signature)}"
   }
 }
 ```
+
+> **`code` 는 `null` 일 수 있다** — 종결 `error` 를 싣는 4개 지점 중 실제로 코드를 만드는 것은
+> sentinel 경로(`ErrorPortFallbackError`/`ExecutionTimeLimitError`)뿐이고, 일반 `catch` 는
+> 분류 가능한 코드를 갖지 않는다. 억지 fallback 코드를 넣으면 **의미 없는 코드가 의미 있는
+> 코드와 같은 자리에 섞여** 수신자가 분기할 수 없으므로, "코드 없음" 을 부재로 전달한다.
+> 부재 표현은 형제 필드 `nodeId` 와 같은 **`null`**([API 규약 §5.4](./2-api-convention.md) —
+> 키 생략과 택일하되 근거를 남긴다). 수신자 측 처리는 이미 정의돼 있다 —
+> [chat-channel CCH-ERR-04](./15-chat-channel.md) 가 `error.code === null` 을
+> `executionFailedInternal` 로 fallback 한다.
 
 > **`error` 는 현행 일부 경로에서 string 이다** — 위 객체 형태가 목표이고, 수신자는 당분간
 > 양쪽을 방어해야 한다. 필드 집합 표의 `error` 행 참조.
@@ -1347,9 +1394,16 @@ present-when-available 이므로, REST 만 `null` 로 정규화하면 위젯의 
   `getStatus` 는 `nodeOutput.conversationConfig.{message,messages,presentations}` 로 위 ai_message·thread 와 **동일한
   AI 텍스트**를 실어 나른다. 이 표면이 마스킹을 우회하지 않도록, ai-turn-orchestrator 의 두 waiting emit 은
   conversationConfig 를 `deepRedactSecrets` 로 마스킹하고(에디터 전용 `turnDebug.llmCalls` 는 건드리지 않음),
-  `getStatus` 는 `nodeOutput` 전체 + terminal `result`(COMPLETED)/`error`(FAILED)의 `outputData` 를
-  `deepRedactSecrets` 로 마스킹한다(REST 는 sanitizePayloadForWs 미적용 경로라 필수). 마스킹은 secret-shape 만
-  치환(정상 결과 데이터는 copy-on-change 로 보존).
+  `getStatus` 는 세 출구(waiting `nodeOutput` · terminal `result`(COMPLETED) · terminal `error`(FAILED))
+  **전부**에 **값 마스킹 + 필드 삭제를 병행**한다 — `stripExternalOnlyFields`(debug 전용 필드를 **깊이 무관**
+  제거) 후 `deepRedactSecrets`(secret-shape 값/키 치환, 정상 결과 데이터는 copy-on-change 로 보존).
+  REST 는 `sanitizePayloadForWs` 미적용 경로라 둘 다 필수다.
+
+  > **값 마스킹만으로는 부족하다** — `deepRedactSecrets` 는 값/키 패턴을 치환할 뿐 `llmCalls`
+  > 같은 **필드 자체**는 남긴다. 2026-08-14 이전에는 이 표면에 마스킹만 걸려 있어
+  > `nodeOutput.meta.turnDebug[].llmCalls[].requestPayload`(시스템 프롬프트·대화 이력)가 세 출구
+  > 모두로 그대로 나갔다. WS fanout 과 **같은 필드 목록·같은 깊이 정책**을 공유하는 공용 유틸로
+  > 통일해 닫았다 ([WS §4.4](./6-websocket-protocol.md#44-사용자-입력-대기-이벤트-상세-executionwaiting_for_input)).
 - **`nodeOutput` 일반 키 allowlist (미구현·잔여)**: conversationConfig 이외의 `nodeOutput` 키 집합을 렌더 필수 메타로
   제한하는 런타임 allowlist 필터(SSE emit 은 sanitizePayloadForWs 의 credential-**키** 마스킹으로 부분 방어; author
   config 의 값-embedded secret 은 저위험 gap)는 위 값/키 기반 redaction 과 **별개**이며 여전히 후속 하드닝 항목이다.

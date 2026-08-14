@@ -39,7 +39,11 @@ import {
   isInternalCtx,
 } from './interaction.guard';
 import { redactThreadForPublic } from '../../shared/conversation-thread/thread-renderer';
-import { deepRedactSecrets } from '../../shared/utils/sanitize-error-message';
+import {
+  deepRedactSecrets,
+  MAX_REDACT_DEPTH,
+} from '../../shared/utils/sanitize-error-message';
+import { stripExternalOnlyFields } from '../../shared/utils/strip-external-only-fields';
 
 const TERMINAL_STATUSES: ReadonlySet<ExecutionStatus> = new Set([
   ExecutionStatus.COMPLETED,
@@ -75,6 +79,40 @@ const STATUS_PROJECTION_COLUMNS = [
 ] satisfies (keyof Execution)[];
 
 /**
+ * 공개 EIA 표면으로 나가는 `outputData` 정화 — **debug 필드 삭제 + 값 마스킹**.
+ *
+ * 이름이 실행 순서와 같다(strip → redact). 초판은 `redactAndStrip` 이었는데 실제로는
+ * strip 이 먼저라 **이름이 순서를 거꾸로 읽히게** 했다 (`14_55_29` maintainability W3).
+ *
+ * `deepRedactSecrets` 는 secret-shape 값/키만 치환하므로 `llmCalls` 같은 **필드 자체**는
+ * 남는다. 그래서 fanout 과 같은 `stripExternalOnlyFields` 를 함께 건다.
+ *
+ * **한 함수로 묶은 이유**: `getStatus` 의 세 출구(waiting `nodeOutput`, terminal `result`,
+ * terminal `error`)를 각자 조립했더니 **한 번에 하나씩만 고쳐졌다** — waiting 만 막고
+ * terminal 둘이 남아 다음 라운드에 CRITICAL 로 잡혔다(`14_30_36`). 출구가 같은 헬퍼를
+ * 부르면 한쪽만 고치는 일이 구조적으로 불가능해진다.
+ *
+ * 깊이 상한은 자매 `deepRedactSecrets` 와 같은 {@link MAX_REDACT_DEPTH} — 그 밖은 이미
+ * `'***'` 로 마스킹된 뒤라 더 볼 것이 없다.
+ */
+function stripAndRedact(value: unknown): Record<string, unknown> | null {
+  if (value === null || value === undefined) return null;
+  // **strip 을 먼저** — `deepRedactSecrets` 는 정규식 다중 패스 + JSON 파싱까지 하는데,
+  // `llmCalls` 서브트리(대개 이 payload 에서 가장 큰 필드)는 어차피 통째로 버려진다.
+  // 버릴 데이터에 비싼 연산을 선지불하지 않는다 (`14_30_35` performance W1).
+  //
+  // 실측(`16_44_37` W1): AI 대화 payload 809KB → strip 후 3.7KB. 순서만 뒤집으면
+  // (redact 먼저) **75~94% 더 든다**. 그리고 이 순서 덕에 strip 도입이 REST 를 느리게
+  // 만든 게 아니라 **12~16배 빠르게** 했다(809KB 기준 2.906ms → 0.235ms). 느려지는
+  // 것은 `llmCalls` 가 없는 payload 뿐이고(1.9배), 거기선 strip 이 순수 오버헤드다.
+  // 결과는 순서 무관하다 — strip 은 값이 아니라 **키**로 판정하고, redact 는 키를
+  // 만들거나 없애지 않는다. 그 동일성은 아래 spec 의 대조 테스트가 고정한다.
+  return deepRedactSecrets(
+    stripExternalOnlyFields(value, MAX_REDACT_DEPTH),
+  ) as Record<string, unknown>;
+}
+
+/**
  * [Spec EIA §5] — Inbound interaction REST endpoint 의 비즈니스 로직.
  *
  * 본 service 는 facade — 토큰 검증은 InteractionGuard 가 이미 통과시킨 상태에서 호출된다.
@@ -97,6 +135,7 @@ const STATUS_PROJECTION_COLUMNS = [
  * 이 409 `STATE_MISMATCH` 로 매핑한다. WS gateway 도 같은 chokepoint 를 지나므로 두 표면이
  * 자동으로 정합한다 (facade 원칙 §R5/§R10).
  */
+
 @Injectable()
 export class InteractionService {
   constructor(
@@ -338,10 +377,11 @@ export class InteractionService {
         // EIA §R17 — nodeOutput 도 공개 표면. conversationConfig.message/messages
         // 등 자유 텍스트/구조화 필드의 secret 을 마스킹(값 패턴 + credential 키).
         // conversationThread·ai_message 와 동일 데이터가 여기로 우회 노출되던 갭 차단.
-        const out = deepRedactSecrets(nodeExec.outputData ?? {}) as Record<
-          string,
-          unknown
-        >;
+        // `deepRedactSecrets` 는 **값 마스킹**이지 필드 제거가 아니다 — 그것만으로는
+        // `meta.turnDebug[].llmCalls[]` 의 raw 프롬프트가 그대로 나간다. fanout 과 **같은
+        // 수준**으로 debug 필드를 제거한다 (`12_06_21` cross_spec CRITICAL 1, 테스트로 실증).
+        // 같은 `iext_*`/`itk_*` 토큰이 닿는 표면이므로 fanout 만 막는 것은 반쪽이었다.
+        const out = stripAndRedact(nodeExec.outputData) ?? {};
         const meta = (out.meta ?? {}) as { interactionType?: string };
         const rawInteractionType = meta.interactionType ?? null;
         const interactionType =
@@ -392,21 +432,22 @@ export class InteractionService {
       status: execution.status as ExecutionStatusDto['status'],
       currentNode,
       context,
-      // EIA §R17 — terminal outputData(result/error)도 공개 표면. secret-shape 만
-      // 마스킹(정상 결과 데이터는 deepRedactSecrets 의 copy-on-change 로 보존).
+      // EIA §R17 — terminal outputData(result/error)도 공개 표면.
+      // 값 마스킹(`deepRedactSecrets`) + debug 필드 삭제(`stripExternalOnlyFields`)를
+      // **waiting 분기와 대칭으로** 건다.
+      //
+      // 종전엔 값 마스킹만 걸려 있었다. "`Execution.outputData` 는 구조상 `.meta` 를
+      // 못 가지니 우연히 안전" 이라는 관측이 있었지만 **문서화되지 않은 전제**였고,
+      // 실제로 `.meta.turnDebug[].llmCalls` 를 담은 outputData 를 주면 그대로 나갔다
+      // (`14_30_36` CRITICAL 1, 테스트로 실증). 같은 함수 안에서 방어가 비대칭이면
+      // 다음 사람이 그 구조를 바꾸는 순간 조용히 열린다.
       result:
         execution.status === ExecutionStatus.COMPLETED
-          ? (deepRedactSecrets(execution.outputData ?? null) as Record<
-              string,
-              unknown
-            > | null)
+          ? stripAndRedact(execution.outputData)
           : null,
       error:
         execution.status === ExecutionStatus.FAILED
-          ? (deepRedactSecrets(execution.outputData ?? null) as Record<
-              string,
-              unknown
-            > | null)
+          ? stripAndRedact(execution.outputData)
           : null,
       seq: SSE_SEQ_PLACEHOLDER,
       updatedAt: (

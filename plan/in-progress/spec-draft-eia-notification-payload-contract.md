@@ -227,6 +227,15 @@ DB(`trigger.workflowId`), 안쪽은 routing context — **출처가 다르다**.
       `### 6.1`~`### 6.6` **헤딩 문구 무변경** 확인 (grep 으로 6개 그대로)
 - [x] §6.2 blockquote — 일반 봉투 규칙은 도입부로, 남은 것은 `waiting_for_input` **고유
       필드명 매핑**뿐임을 명시
+      > **소급 정정 (2026-08-14)** — *"남은 것은 필드명 매핑뿐"* 이라는 전제가 실측으로
+      > 일부 반증됐다. ① `notification-fanout.service.ts:134` 가 `payload: event.payload` 로
+      > **변환 없이** 싣고 참조 구현(`eia-events.ts`)도 `waitingNodeId` 를 읽으므로,
+      > 그 blockquote 가 서술하는 것은 **webhook↔SSE 필드명 차이가 아니라** "논리 표기 ↔
+      > 실 wire 필드명" 이다(채널 무관 동일). ② §6.2 예시에 `payload:` 봉투 래퍼가
+      > **여전히 빠져** 있어 §6.3/§6.4 와 불일치한다 — 이 항목이 닫히지 않은 잔여다.
+      > **해소됨** (`4b13ca5ae`) — ① blockquote 를 "논리 표기 ↔ 실 wire" 로 다시 쓰고
+      > ② §6.2 에 `payload:` 봉투 래퍼를 넣었다. 상세:
+      > [`spec-draft-eia-62-waiting-payload.md`](./spec-draft-eia-62-waiting-payload.md) (1)·(3).
 - [x] §6.3~§6.5 축약 — `payload` 봉투 기준 예시로 교체, `finalNodeId`/`finalPort` 삭제,
       §6.5 의 행동 계약 서술은 도입부 포인터로
 - [x] WS §4.1 종결 3행 → 필드 열거 제거 + SoT 포인터 blockquote.

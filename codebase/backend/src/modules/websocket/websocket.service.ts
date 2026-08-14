@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { Observable, Subject } from 'rxjs';
 import { WebsocketGateway } from './websocket.gateway';
 import { ExecutionSeqAllocator } from './execution-seq-allocator.service';
+import { stripExternalOnlyFields } from '../../shared/utils/strip-external-only-fields';
 
 /**
  * 외부 SSE 어댑터 (P5) 및 NotificationDispatcher (P6) 가 구독하는 fan-out stream payload.
@@ -290,43 +291,13 @@ function sanitizeInner(value: object, depth: number): unknown {
   return result ?? value;
 }
 
-/**
- * Debug-only payload fields that must NOT reach **external** fanout recipients
- * (external-interaction SSE / notification webhook / chat-channel outbound).
- *
- * `llmCalls` carries the raw LLM provider request/response (system prompt,
- * conversation history, tool definitions, user inputs) — an editor-only debug
- * surface. It is delivered solely on the authenticated, workspace-ownership
- * gated internal WS channel (`execution:{executionId}`), and stripped from the
- * fanout envelope so SSE token holders / channel end-users never receive it.
- *
- * Strip 은 **top-level 필드만** 수행한다 (depth-1 shallow delete). 중첩 객체 내부
- * 의 동명 필드는 strip 되지 않으므로, `EXTERNAL_STRIPPED_FIELDS` 에 새 필드를 추가
- * 할 때는 반드시 WS spec §4.4 과 {@link EiaAiMessageEvent} 주석을 함께 갱신한다.
- *
- * SoT: spec/5-system/6-websocket-protocol.md §4.4 `llmCalls[]` strip-only 결정
- * (+ EIA §6.5, chat-channel CCH-MP-01).
- */
-const EXTERNAL_STRIPPED_FIELDS = ['llmCalls'] as const;
-
-/**
- * Return a shallow clone of the wire envelope with debug-only fields removed,
- * for publishing to the external fanout. Returns the input unchanged when no
- * stripped field is present (no allocation on the common path). Never mutates
- * the input — the WS wire envelope keeps the full payload.
- *
- * Top-level only — nested fields with the same name are not removed.
- * When adding a new entry to {@link EXTERNAL_STRIPPED_FIELDS}, update
- * WS spec §4.4 and the `EiaAiMessageEvent` JSDoc accordingly.
- */
-function stripExternalOnlyFields(
-  envelope: Record<string, unknown>,
-): Record<string, unknown> {
-  if (!EXTERNAL_STRIPPED_FIELDS.some((f) => f in envelope)) return envelope;
-  const clone = { ...envelope };
-  for (const f of EXTERNAL_STRIPPED_FIELDS) delete clone[f];
-  return clone;
-}
+// 외부 fanout 의 debug 전용 필드 제거는 공유 유틸이 담당한다 —
+// `shared/utils/strip-external-only-fields`. 여기 두지 않는 이유(같은 데이터에 출구가 둘
+// 이상이다)와 깊이 상한 근거는 그 파일 JSDoc 참조. 이 파일의 호출부는 자매 sanitizer 와
+// 같은 `MAX_SANITIZE_DEPTH` 를 넘긴다.
+//
+// (블록 JSDoc 으로 두었더니 붙을 선언이 없어 **바로 아래 KB union 문서로 읽혔다** —
+//  `14_55_29` maintainability W4.)
 
 /**
  * Knowledge Base 도메인 이벤트 — KB 이벤트의 **권위 정의**. frontend `useKbEvents`
@@ -476,7 +447,10 @@ export class WebsocketService {
     // 또한 fanout 은 외부 수신자(SSE 토큰 보유 채널 end-user 포함) 로 나가므로
     // debug 전용 llmCalls 를 strip 한다 (WS §4.4 strip-only 결정). wireEnvelope
     // 은 위에서 이미 broadcast 됐고 여기선 새 clone 을 strip 하므로 WS copy 불변.
-    const externalPayload = stripExternalOnlyFields(wireEnvelope);
+    const externalPayload = stripExternalOnlyFields(
+      wireEnvelope,
+      MAX_SANITIZE_DEPTH,
+    );
     const fanoutEnvelope = this.attachRoutingContext(
       executionId,
       externalPayload,
@@ -547,7 +521,10 @@ export class WebsocketService {
     this.gateway.broadcastToChannel(channel, eventType, wireEnvelope);
     // node 이벤트는 현재 llmCalls 를 포함하지 않으나, 미래 누출 경로를 차단하기 위해
     // emitExecutionEvent 와 동일하게 strip 적용 (방어심층화 — W-1/W-4).
-    const externalNodePayload = stripExternalOnlyFields(wireEnvelope);
+    const externalNodePayload = stripExternalOnlyFields(
+      wireEnvelope,
+      MAX_SANITIZE_DEPTH,
+    );
     const fanoutEnvelope = this.attachRoutingContext(
       executionId,
       externalNodePayload,

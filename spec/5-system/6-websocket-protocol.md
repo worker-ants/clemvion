@@ -6,6 +6,7 @@ pending_plans:
 code:
   - codebase/backend/src/modules/websocket/websocket.gateway.ts
   - codebase/backend/src/modules/websocket/websocket.service.ts
+  - codebase/backend/src/shared/utils/strip-external-only-fields.ts
   - codebase/backend/src/modules/websocket/execution-seq-allocator.service.ts
   - codebase/backend/src/modules/websocket/ws-error-codes.ts
   - codebase/backend/src/modules/external-interaction/sse-adapter.service.ts
@@ -516,7 +517,7 @@ socket.emit("unsubscribe", { channel: "execution:550e8400-e29b-41d4-a716-4466554
 | `durationMs` | number? | **턴 전체** 소요시간 (모든 LLM 호출 + tool 실행 합) |
 | `presentations` | PresentationPayload[]? | AI Agent 가 `render_*` 표현 도구 ([Spec AI Agent §4.1](../4-nodes/3-ai/1-ai-agent.md#41-presentation-tool-family-render_)) 를 호출한 turn 에서만 동봉. `ai_assistant` ConversationTurn 의 top-level `presentations[]` snapshot. type 정의의 단일 진실은 [Spec AI Agent §7.10](../4-nodes/3-ai/1-ai-agent.md#710-presentation-payload-render_-운반). 클라이언트가 chat UI 에서 텍스트와 함께 inline 렌더 |
 
-> **`llmCalls[].requestPayload` / `responsePayload` 는 raw 디버그 payload** 다 — LLM provider 와의 원본 요청/응답(시스템 프롬프트·대화 이력·tool 정의·사용자 입력 등 민감 데이터 포함 가능)을 운반하며, 에디터의 디버깅 타임라인(Response/Request/LLM Usage 탭) 같은 **개발자·에디터 surface** 전용이다. 따라서 `llmCalls` 는 **워크스페이스 인증·ownership 으로 게이트된 내부 WebSocket 채널(`execution:{executionId}`)에만 전달**되고, **모든 외부 fanout 수신자 — external-interaction SSE 스트림(`iext_*`/`itk_*` 토큰으로 인증), notification webhook, chat-channel 아웃바운드(텔레그램·web-chat 등) — 에서는 strip 된다.** 즉 채널 end-user 클라이언트는 최종 assistant 텍스트/`presentations` 만 받고 raw debug payload 는 받지 않는다. (strip 대상은 본 WS 이벤트 필드뿐이며, DB 영속 경로 `NodeExecution.output_data.meta.turnDebug[i].llmCalls` 및 그를 출처로 하는 실행 이력 디버그 패널은 영향 없다.) 설계 근거는 본 문서 ## Rationale 의 "`ai_message.llmCalls[]` 외부 수신자 strip" 항목 참조.
+> **`llmCalls[].requestPayload` / `responsePayload` 는 raw 디버그 payload** 다 — LLM provider 와의 원본 요청/응답(시스템 프롬프트·대화 이력·tool 정의·사용자 입력 등 민감 데이터 포함 가능)을 운반하며, 에디터의 디버깅 타임라인(Response/Request/LLM Usage 탭) 같은 **개발자·에디터 surface** 전용이다. 따라서 `llmCalls` 는 **워크스페이스 인증·ownership 으로 게이트된 내부 WebSocket 채널(`execution:{executionId}`)에만 전달**되고, **모든 외부 fanout 수신자 — external-interaction SSE 스트림(`iext_*`/`itk_*` 토큰으로 인증), notification webhook, chat-channel 아웃바운드(텔레그램·web-chat 등) — 에서는 strip 된다.** 즉 채널 end-user 클라이언트는 최종 assistant 텍스트/`presentations` 만 받고 raw debug payload 는 받지 않는다. (strip 대상은 **WS fanout 과 EIA REST `getStatus()` 양쪽**의 나가는 payload 이며, 필드명 기준으로 **어느 중첩 깊이에서든** 제거한다 — `ai_message` 에 한정되지 않는다. DB 영속 경로 `NodeExecution.output_data.meta.turnDebug[i].llmCalls` 및 그를 출처로 하는 실행 이력 디버그 패널은 영향 없다.) 설계 근거는 본 문서 ## Rationale 의 "`llmCalls` 외부 수신자 strip" 항목 참조.
 
 ```json
 {
@@ -1053,7 +1054,18 @@ KB 임베딩 진행 상태는 **문서 단위 채널** 로 broadcast 한다 (`We
 - **결정**: echo 가 동일 발화의 기존 optimistic bubble 을 발견하면 새 항목을 append 하지 않고 기존 bubble 에 `receivedAt` 을 **stamp** 해 reconcile 한다(append 대신). 로컬 bubble 이 없는 경로(채널 텍스트 인바운드 등)에서만 append 한다.
 - **근거**: 발신자의 즉시 피드백(로컬 optimistic)과 WS echo 유실 내성을 보존하면서 중복만 제거한다. stamp 이후 `receivedAt` 은 재emit/재구독 dedup 키로 계속 동작하고, 최종 정합은 turn 종료 `ai_message` 스냅샷 REPLACE 가 보장한다(stamp 는 그 보조 선행 단계). frontend 구현 식별자는 [Conversation Thread §9.7.1](../conventions/conversation-thread.md#971-store-reset-정책-실행-lifecycle-별) 방침에 따라 본문에 노출하지 않는다.
 
-### `ai_message.llmCalls[]` 외부 수신자 strip (strip-only 결정)
+### `llmCalls` 외부 수신자 strip — 위치·이벤트·표면 무관 (strip-only 결정)
+
+> **(2026-08-14 갱신)** 이 결정은 문서상 "모든 외부 수신자" 였으나 **구현이 그보다 좁았다.**
+> fanout 은 최상위 필드만 지웠고(depth-1) REST `getStatus` 는 값 마스킹만 걸려 있어,
+> `execution.waiting_for_input` 의 중첩 경로 두 곳
+> (`turnDebug.llmCalls` · `nodeOutput.meta.turnDebug[].llmCalls`)이 실제로 새고 있었다.
+> 필드명 기준 **깊이 무관** strip 으로 바꾸고 WS fanout·EIA REST 가 같은 공용 유틸을
+> 부르게 통일했다 (`81f2c60d6`·`5df89cda6`·`34e32e62f`·`7fa12301c`).
+>
+> 처방을 한 곳에 둔 이유: 같은 데이터에 **출구가 셋**(fanout · REST waiting · REST terminal)
+> 이었고, 출구를 각자 조립하면 한 번에 하나씩만 고쳐진다 — 실제로 세 라운드에 걸쳐
+> 하나씩 발견됐다.
 
 본 항목은 직전의 "raw payload 운반 (v1, 마스킹 없음)" open item 을 사용자 결정(채널 실사용 + strip-only)으로 확정·대체한다.
 
@@ -1061,7 +1073,7 @@ KB 임베딩 진행 상태는 **문서 단위 채널** 로 broadcast 한다 (`We
 
 `execution.ai_message` 는 (1) 워크스페이스 ownership 으로 게이트된 내부 WebSocket 채널과 (2) external-interaction SSE / notification webhook / chat-channel 아웃바운드로 분기되는 fanout 양쪽으로 전달된다. SSE 는 `iext_*`/`itk_*` interaction 토큰만으로 접근 가능하고(워크스페이스 체크 없음) 채널 end-user 클라이언트에 전달되므로, raw payload 를 그대로 흘리면 채널 사용자에게 노출된다.
 
-- **결정 (strip-only)**: `llmCalls` (및 그 안의 `requestPayload`/`responsePayload`) 는 **인증된 내부 WS 채널에만** 포함하고, **fanout(외부) 경로에서는 strip** 한다. 채널 end-user 는 최종 assistant 텍스트/`presentations` 만 받는다. strip 대상은 WS 이벤트 필드뿐이며 DB 영속(`meta.turnDebug[i].llmCalls`)·실행 이력 디버그 패널은 불변.
+- **결정 (strip-only)**: `llmCalls` (및 그 안의 `requestPayload`/`responsePayload`) 는 **인증된 내부 WS 채널에만** 포함하고, **fanout(외부) 경로에서는 strip** 한다. 채널 end-user 는 최종 assistant 텍스트/`presentations` 만 받는다. strip 대상은 **WS fanout + EIA REST `getStatus()`** 양쪽이며, 필드명 기준 **깊이 무관**이다. DB 영속(`meta.turnDebug[i].llmCalls`)·실행 이력 디버그 패널은 불변.
 - **근거**: debug raw payload 는 본질적으로 에디터 전용 관심사다. 외부/채널 수신자는 이를 필요로 하지 않으므로, 단일 fanout seam 에서 제거하면 최소 변경으로 노출을 닫으면서 에디터 디버그 패널은 그대로 유지된다.
 - **기각된 대안**: 값-레벨 마스킹은 에디터 디버깅 가치를 훼손하고 부분적이며, 워크스페이스 내 viewer/editor 역할 게이트는 별도 RBAC 확장이 필요해 본 결정 범위를 넘는다. 향후 멀티테넌트 viewer 요구가 명확해지면 재검토한다.
 

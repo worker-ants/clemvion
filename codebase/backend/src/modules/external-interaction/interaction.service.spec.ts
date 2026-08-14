@@ -610,6 +610,150 @@ describe('InteractionService.getStatus', () => {
     expect(ctx.conversationThread).toBeUndefined();
   });
 
+  /**
+   * **REST 스냅샷도 fanout 과 같은 수준으로 `llmCalls` 를 막아야 한다.**
+   *
+   * `stripExternalOnlyFields`(`shared/utils/strip-external-only-fields.ts`)는
+   * SSE·webhook·chat-channel fanout 에서 `llmCalls` 를 깊이 무관으로 지운다. 그런데
+   * `getStatus` 는 **같은 `iext_*`/`itk_*` 토큰으로 접근하는 같은 데이터**를
+   * `deepRedactSecrets` 만 거쳐 **돌려주고 있었다** — 그건 **값 마스킹**이지 필드 제거가
+   * 아니라 `nodeOutput.meta.turnDebug[].llmCalls[]` 의 raw `requestPayload`
+   * (시스템 프롬프트·대화 이력)가 그대로 나갔다 (`12_06_21` cross_spec CRITICAL 1).
+   *
+   * fanout 쪽만 고치고 이 표면을 안 물은 것이 이 PR 의 처음 실수였다 — **같은 데이터의
+   * 다른 출구**를 세지 않았다.
+   */
+  it('waiting_for_input — nodeOutput 의 raw llmCalls 가 REST 응답에 실리지 않는다', async () => {
+    const { service, repo, nodeRepo } = makeMocks();
+    repo.findOne.mockResolvedValue(
+      makeExecution({ status: ExecutionStatus.WAITING_FOR_INPUT }),
+    );
+    nodeRepo.findOne.mockResolvedValue({
+      nodeId: 'n1',
+      node: { type: 'AI Agent' },
+      outputData: {
+        meta: {
+          interactionType: 'ai_conversation',
+          // WS §4.4:449 정본 shape — 영속된 outputData.meta 도 같은 구조다.
+          turnDebug: [
+            {
+              turnIndex: 0,
+              llmCalls: [
+                { requestPayload: { system: 'SECRET PROMPT VIA REST' } },
+              ],
+            },
+          ],
+        },
+        conversationConfig: { greeting: '안녕하세요' },
+      },
+    });
+
+    const r = await service.getStatus(IEXT_CTX);
+
+    expect(JSON.stringify(r)).not.toContain('SECRET PROMPT VIA REST');
+    // 대조군 — 정상 필드는 그대로 나가야 한다(통째로 날려서 통과하는 것 방지).
+    expect(JSON.stringify(r)).toContain('안녕하세요');
+  });
+
+  /**
+   * **terminal 분기도 waiting 분기와 대칭이어야 한다** (`14_30_36` CRITICAL 1).
+   *
+   * 같은 함수 안에서 `nodeOutput`(waiting)만 strip 을 받고 `result`/`error`(terminal)는
+   * `deepRedactSecrets` 단독이었다. 체커는 "`Execution.outputData` 구조상 `.meta` 를
+   * 못 가져서 우연히 안전" 이라 했는데 그건 **문서화되지 않은 전제**다 — 전제가 참이든
+   * 아니든 방어를 비대칭으로 두면 다음 사람이 그 구조를 바꾸는 순간 조용히 열린다.
+   *
+   * AI Agent 가 마지막 노드인 워크플로가 종료되면 이 경로로 나간다.
+   */
+  it.each([
+    ['completed', ExecutionStatus.COMPLETED, 'result'],
+    ['failed', ExecutionStatus.FAILED, 'error'],
+  ])(
+    '%s — terminal outputData 의 raw llmCalls 도 REST 응답에 실리지 않는다',
+    async (_label, status, field) => {
+      const { service, repo } = makeMocks();
+      repo.findOne.mockResolvedValue(
+        makeExecution({
+          status,
+          outputData: {
+            answer: '최종 답변',
+            meta: {
+              turnDebug: [
+                {
+                  turnIndex: 0,
+                  llmCalls: [
+                    { requestPayload: { system: 'SECRET PROMPT TERMINAL' } },
+                  ],
+                },
+              ],
+            },
+          },
+        }),
+      );
+
+      const r = await service.getStatus(IEXT_CTX);
+
+      expect(JSON.stringify(r)).not.toContain('SECRET PROMPT TERMINAL');
+      // 대조군 — 정상 결과는 그대로 나가야 한다.
+      expect(JSON.stringify(r[field as 'result' | 'error'])).toContain(
+        '최종 답변',
+      );
+    },
+  );
+
+  /**
+   * `stripAndRedact` 의 **null 분기** 회귀 고정 (`15_58_26` testing W3).
+   *
+   * null 가드는 원래 호출부 3곳에 각각 있었는데 헬퍼 1곳으로 접었다. 두 컬럼 모두
+   * `nullable: true` 라 런타임에 실제로 null 이 온다. 동작 보존은 코드 추적으로만
+   * 확인됐고 이 경로를 태우는 테스트가 없었다 — 헬퍼가 `null` 대신 `{}` 를 돌려주면
+   * waiting 은 `?? {}` 가 삼켜 무증상이지만 terminal 은 `result: {}` 로 새어
+   * "결과 없음" 과 "빈 결과" 가 구분되지 않는다.
+   */
+  // 튜플 순서가 `[label, field, status]` 인 것은 의도다 — jest 의 it.each 타이틀은
+  // 남는 인자를 버리므로(`util.format` 과 다르다) `%s` 두 개는 **앞의 두 원소**를 받는다.
+  // 타이틀에 띄우고 싶은 것이 label 과 field 라 그 둘을 앞에 둔다.
+  it.each([
+    ['completed', 'result', ExecutionStatus.COMPLETED],
+    ['failed', 'error', ExecutionStatus.FAILED],
+  ])(
+    '%s — outputData 가 null 이면 %s 는 {} 가 아니라 null',
+    async (_label, field, status) => {
+      const { service, repo } = makeMocks();
+      repo.findOne.mockResolvedValue(
+        makeExecution({ status, outputData: null as never }),
+      );
+
+      const r = await service.getStatus(IEXT_CTX);
+
+      expect(r[field as 'result' | 'error']).toBeNull();
+    },
+  );
+
+  it('waiting_for_input — nodeOutput 이 null 이어도 context 조립이 깨지지 않는다', async () => {
+    const { service, repo, nodeRepo } = makeMocks();
+    repo.findOne.mockResolvedValue(
+      makeExecution({ status: ExecutionStatus.WAITING_FOR_INPUT }),
+    );
+    nodeRepo.findOne.mockResolvedValue({
+      nodeId: 'n1',
+      node: { type: 'Carousel' },
+      outputData: null,
+    });
+
+    const r = await service.getStatus(IEXT_CTX);
+
+    // `?? {}` 가 받아 준다 — 대기 노드 자체는 존재하므로 currentNode 는 살아 있다.
+    // `interactionType` 은 out.meta 가 비어 null 로 떨어지고, 그 때문에 `context` 는
+    // 조립되지 않는다(아래 단언이 그 결과를 고정한다) — 크래시 없이 graceful.
+    expect(r.currentNode).toEqual({
+      id: 'n1',
+      type: 'Carousel',
+      interactionType: null,
+    });
+    expect(r.context).toBeNull();
+  });
+
   it('waiting_for_input — 대기 NodeExecution 없으면 currentNode/context null', async () => {
     const { service, repo, nodeRepo } = makeMocks();
     repo.findOne.mockResolvedValue(
