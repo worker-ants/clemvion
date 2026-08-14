@@ -347,7 +347,7 @@ describe('toChatChannelEvent — execution.failed back-compat (string error wrap
     expect(eia.error.message).toBe('unknown error');
   });
 
-  it('payload.error 가 number → wrap (placeholder)', () => {
+  it('payload.error 가 number → 스칼라 문자열화 (placeholder 아님)', () => {
     const event: ExecutionChannelEvent = {
       ...baseEnvelope,
       payload: {
@@ -362,6 +362,10 @@ describe('toChatChannelEvent — execution.failed back-compat (string error wrap
     // §6.4 는 부재를 명시적 `null` 로 표현한다. 존재하지 않는 코드를 지어내면
     // unknown warn 로그가 유령 코드를 보고해 조사자를 헤매게 한다.
     expect(eia.error.code).toBeNull();
+    // **placeholder 가 아니다.** 공용 헬퍼로 통일한 뒤 스칼라는 문자열화된다 —
+    // 제목·주석이 "placeholder" 라 부르는 동안 실제 동작은 달랐고, `message` 를 단언하지
+    // 않아 그 차이가 드러나지 않았다 (`00_02_43` testing W2).
+    expect(eia.error.message).toBe('42');
   });
 });
 
