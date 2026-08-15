@@ -813,9 +813,12 @@ header value   = "t={timestamp},v1={hex(signature)}"
 > [`spec-sync-external-interaction-api-gaps.md`](../../plan/in-progress/spec-sync-external-interaction-api-gaps.md)
 > — 이 문서의 관행대로 **알려진 갭은 invariant 옆에 적는다**(R14·R17·§6.4 와 동형).
 >
-> `EXECUTION_QUEUE_WAIT_TIMEOUT` 경로의 값은 **큐 대기 시간**이다(실행 시간이 아니다) —
-> `started_at` 이 admission 이전 생성 시각이기 때문. §6 표의 "종결까지의 경과" 정의와는
-> 일관되나, 수신자가 실행 소요로 읽으면 오해할 수 있어 여기 명시한다.
+> **취소 경로의 값은 실행 시간이 아니라 대기 시간에 가깝다** — 셋 다 그렇다:
+> `EXECUTION_QUEUE_WAIT_TIMEOUT`(admission 이전부터의 큐 대기),
+> park 취소(**무기한** 대기), 공개 위젯 idle 회수(grace 기본 1시간).
+> `started_at` 이 실행 시작이 아니라 **생성 시각**이기 때문이다.
+> §6 표의 "종결까지의 경과" 정의와는 일관되나, 수신자가 실행 소요로 읽으면 오해할 수 있다.
+> 종전 캐비엇은 셋 중 하나만 명명했다 (`11_09_44` documentation W7).
 
 **`cancelledBy` 의 닫힌 union·`error.code` 매핑·user cancel 의 `error` 부재는
 [행동 계약](#executioncancelled-의-행동-계약-normative)이 소유한다** — 여기 다시 적지 않는다.

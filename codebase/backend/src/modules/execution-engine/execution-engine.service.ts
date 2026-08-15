@@ -1104,8 +1104,10 @@ export class ExecutionEngineService
       cancelledBy: 'user' | 'system' | 'timeout';
       error?: { code: string; message: string };
       /**
-       * EIA §6 — 종결 3종 전부에 실린다. 호출부가 값을 갖고 있으면 넘기고, raw UPDATE 로
-       * 취소해 엔티티가 없으면 생략한다(그 경로는 `null` 로 나간다).
+       * EIA §6 — 종결 3종 전부에 실린다. **호출부 4곳 모두 명시적으로 값을 넘긴다** —
+       * 엔티티 기로드 경로는 계산값을, raw UPDATE 경로는 `RETURNING` 으로 되받은 영속값을
+       * 넘긴다. 계산이 불가능하면 `null`(키는 유지). 종전 JSDoc 은 "엔티티가 없으면
+       * 생략한다" 고 적었는데 **어느 호출부도 생략하지 않는다** (`11_09_44` documentation W6).
        */
       durationMs?: number | null;
       logContext: string;

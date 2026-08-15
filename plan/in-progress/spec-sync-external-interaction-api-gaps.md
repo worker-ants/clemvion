@@ -208,6 +208,12 @@ T1 값을 DB 에 보존**하는데, in-memory `execution.durationMs` 는 갱신�
 재진입 시점 T2(더 큰 값)를 싣는다.** 희귀 레이스가 아니라 "retry-turn 처리 중 Stop" 이라는
 일반 흐름에서 결정적으로 발생한다.
 
+- [ ] **같은 처방이 필요한 자매 1곳** (`11_09_44` concurrency W1):
+      `finalizeCancelledExecution` 도 guarded UPDATE 가 0행이어도 emit 은 발행되므로
+      **DB 미영속 로컬 값이 wire 로 나갈 수 있다.** 근본 원인은 `updateExecutionStatus` 가
+      `RETURNING` 없이 boolean 만 돌려주는 것 — **둘을 함께 고쳐야 한다**
+- [ ] `markQueueWaitTimeout` 직접 호출 단위 테스트 (3라운드 이월). 이 경로만 값의 의미가
+      "큐 대기 시간" 이라 다른 4경로로 대체 증명되지 않는다 (`11_09_44` testing W4)
 - [ ] CANCELLED 분기에 `.returning(['duration_ms'])` 추가 → 실제 persist 값을 되읽어 emit
       전 갱신. 회귀 테스트는 **emit 값 자체**를 단언할 것(기존 테스트는 SQL 형태만 봐서 못 잡았다)
 

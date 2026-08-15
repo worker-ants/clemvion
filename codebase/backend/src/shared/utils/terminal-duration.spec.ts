@@ -1,4 +1,5 @@
 import {
+  PG_INT4_MAX,
   resolveTerminalDurationMs,
   TERMINAL_DURATION_MS_SQL,
   TERMINAL_FINISHED_AT_PARAM,
@@ -62,10 +63,28 @@ describe('resolveTerminalDurationMs', () => {
     ).toBeNull();
   });
 
-  it('durationMs 가 NaN/Infinity 면 계산으로 폴백한다', () => {
+  // **CRITICAL 회귀 고정** (`11_09_44`) — SQL 경로만 클램프하고 JS 를 빼 뒀었다.
+  // 둘 다 같은 `duration_ms INTEGER` 컬럼에 쓰므로 상한도 같아야 한다.
+  it('int4 상한을 넘으면 saturate 한다 — UPDATE 실패로 실행이 고착되지 않게', () => {
+    const started = new Date(0);
+    const finished = new Date(PG_INT4_MAX + 5000); // ≈24.8일 초과
+    expect(
+      resolveTerminalDurationMs({ startedAt: started, finishedAt: finished }),
+    ).toBe(PG_INT4_MAX);
+  });
+
+  it('SQL 쌍둥이와 같은 상한 상수를 쓴다', () => {
+    // 두 경로가 다른 숫자를 쓰면 한쪽만 고쳐지는 결함이 재발한다.
+    expect(TERMINAL_DURATION_MS_SQL).toContain(String(PG_INT4_MAX));
+  });
+
+  it.each([
+    ['NaN', Number.NaN],
+    ['Infinity', Number.POSITIVE_INFINITY],
+  ])('durationMs 가 %s 면 계산으로 폴백한다', (_label, bad) => {
     expect(
       resolveTerminalDurationMs({
-        durationMs: Number.NaN,
+        durationMs: bad,
         startedAt: started,
         finishedAt: finished,
       }),

@@ -25,6 +25,14 @@
  * @returns 밀리초. 알 수 없으면 **`null`** — `undefined` 를 돌려주면 JSON 직렬화에서
  *   키가 사라져 "필드가 없는 것" 과 "값을 모르는 것" 이 구분되지 않는다.
  */
+/**
+ * `duration_ms` 컬럼(`INTEGER`, int4)의 최대값 ≈ **24.8일**.
+ *
+ * JS 경로와 SQL 경로가 **같은 컬럼**에 쓰므로 상한도 같아야 한다. 한쪽만 클램프한 상태가
+ * 실제로 CRITICAL 로 잡혔다 — 그래서 상수를 하나만 둔다.
+ */
+export const PG_INT4_MAX = 2147483647;
+
 export function resolveTerminalDurationMs(row: {
   durationMs?: number | null;
   startedAt?: Date | null;
@@ -38,7 +46,13 @@ export function resolveTerminalDurationMs(row: {
   if (started === null || finished === null) return null;
   const span = finished - started;
   // 음수는 시계 역행·잘못된 fixture 의 신호다. 그대로 실으면 수신자의 산술이 깨진다.
-  return span >= 0 ? span : null;
+  if (span < 0) return null;
+  // **SQL 쌍둥이와 같은 상한**. 이 값은 `duration_ms INTEGER`(int4) 컬럼에 대입되므로
+  // 클램프가 없으면 24.8일 초과 시 UPDATE 가 `integer out of range` 로 실패하고 실행이
+  // 영구 고착된다 — 직전 라운드가 SQL 경로에서 잡은 CRITICAL 과 **같은 결함**이고,
+  // 그때 나는 SQL 만 고쳤다(`11_09_44` architecture CRITICAL). 폼·버튼·AI 대기에는
+  // 시간 기반 강제취소가 없어 24.8일 초과 후 **정상 완료**가 실제 도달 경로다.
+  return Math.min(span, PG_INT4_MAX);
 }
 
 function toMillis(v: Date | null | undefined): number | null {
@@ -86,7 +100,7 @@ export function toFiniteNumber(v: unknown): number | null {
  */
 export const TERMINAL_DURATION_MS_SQL =
   'CASE WHEN :terminalFinishedAt::timestamptz < started_at THEN NULL ' +
-  'ELSE LEAST(2147483647, (EXTRACT(EPOCH FROM (:terminalFinishedAt::timestamptz - started_at)) * 1000)::bigint)::int ' +
+  `ELSE LEAST(${PG_INT4_MAX}, (EXTRACT(EPOCH FROM (:terminalFinishedAt::timestamptz - started_at)) * 1000)::bigint)::int ` +
   'END';
 
 /** {@link TERMINAL_DURATION_MS_SQL} 이 기대하는 파라미터 이름. */
