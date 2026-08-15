@@ -3345,10 +3345,8 @@ export class ExecutionEngineService
       code: 'WORKER_HEARTBEAT_TIMEOUT',
       message: 'Execution failed: worker crash (stalled 재배달 attempts 소진)',
     };
-    // 자매 둘(`cancelParkedExecution`·`markWebChatIdleTimeout`)과 **동형으로** 단일
-    // 트랜잭션에 묶는다. 종전엔 이 함수만 두 UPDATE 가 각각 autocommit 이라, 첫 문장이
-    // 커밋된 뒤 둘째가 실패하면 자식 NodeExecution 이 **영구 `RUNNING`** 으로 잔류했다 —
-    // 자매 두 함수의 주석이 경고하는 바로 그 실패 모드이고, 셋 중 이 하나만 열려 있었다.
+    // 자매 둘과 동형인 단일 트랜잭션 — **근거는 위 JSDoc 참조**(같은 설명을 두 곳에 두면
+    // 한쪽만 갱신돼 모순된다).
     let stalledDurationMs: number | null = null;
     let finalized = false;
     await this.dataSource.transaction(async (manager) => {

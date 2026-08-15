@@ -4933,6 +4933,14 @@ describe('ExecutionEngineService', () => {
       expect(managerCqb).toHaveBeenCalledTimes(2);
       expect(execQb.update.mock.calls[0][0]).toBe(Execution);
       expect(nodeQb.update.mock.calls[0][0]).toBe(NodeExecution);
+      // 두 UPDATE 가 **같은 execution** 을 겨냥하는지 — 트랜잭션에 묶여도 대상이 어긋나면
+      // 원자성은 무의미하다.
+      expect(execQb.where).toHaveBeenCalledWith('id = :id', {
+        id: 'exec-stalled',
+      });
+      expect(nodeQb.where).toHaveBeenCalledWith('execution_id = :executionId', {
+        executionId: 'exec-stalled',
+      });
     });
 
     it('RUNNING 이면 failed + WORKER_HEARTBEAT_TIMEOUT 마킹 + 자식 cascade + EXECUTION_FAILED emit', async () => {
@@ -4958,6 +4966,12 @@ describe('ExecutionEngineService', () => {
       expect((setArg.error as { code: string }).code).toBe(
         'WORKER_HEARTBEAT_TIMEOUT',
       );
+      // 대상 식별 자체도 단언한다 — 지난 라운드에 **자식 cascade 의 WHERE 만** 하드닝하고
+      // 바로 위 Execution UPDATE 의 `id` 조건은 놓쳤다(`16_19_26` testing W1 이 뮤테이션으로
+      // 생존 실측). 오식별하면 엉뚱한 실행을 마킹하거나 진짜 stalled 를 조용히 no-op 시킨다.
+      expect(execQb.where).toHaveBeenCalledWith('id = :id', {
+        id: 'exec-stalled',
+      });
       expect(execQb.andWhere).toHaveBeenCalledWith('status = :running', {
         running: ExecutionStatus.RUNNING,
       });
