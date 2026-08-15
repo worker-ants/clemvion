@@ -41,6 +41,17 @@ import { PARK_RELEASED } from '../../shared/execution-resume/process-turn-result
 // 와 통합 테스트로 분업하는 관계다.
 // ────────────────────────────────────────────────────────────────────────────
 
+// 파사드는 `type`('completed'…)을 받고 wire enum 은 emitter 가 파생한다. 이 파일의
+// 단언들은 "어떤 종결 이벤트가 나갔나" 를 묻는 것이므로 되매핑해 기존 의미를 보존한다
+// (wire 형태 자체는 `execution-event-emitter.service.spec.ts` 가 고정한다).
+// **한 곳에만 둔다** — 두 describe 에 복제했더니 한쪽만 갱신될 위험이 지적됐다
+// (`17_54_32` maintainability W5).
+const TYPE_TO_EVENT = {
+  completed: ExecutionEventType.EXECUTION_COMPLETED,
+  failed: ExecutionEventType.EXECUTION_FAILED,
+  cancelled: ExecutionEventType.EXECUTION_CANCELLED,
+} as const;
+
 describe('RetryTurnService', () => {
   let service: RetryTurnService;
   let mockNodeExecutionRepo: Record<string, jest.Mock>;
@@ -782,14 +793,6 @@ describe('RetryTurnService', () => {
       expect(payload.input).not.toHaveProperty('_retryState');
     });
 
-    // 파사드는 `type`('completed'…)을 받고 wire enum 은 emitter 가 파생한다. 이 파일의
-    // 단언들은 "어떤 종결 이벤트가 나갔나" 를 묻는 것이므로, 되매핑해 기존 의미를 보존한다
-    // (wire 형태 자체는 `execution-event-emitter.service.spec.ts` 가 고정한다).
-    const TYPE_TO_EVENT = {
-      completed: ExecutionEventType.EXECUTION_COMPLETED,
-      failed: ExecutionEventType.EXECUTION_FAILED,
-      cancelled: ExecutionEventType.EXECUTION_CANCELLED,
-    } as const;
     const emittedTypesOuter = () =>
       (mockEventEmitter.emitTerminalExecution as jest.Mock).mock.calls.map(
         (c) =>
@@ -957,14 +960,6 @@ describe('RetryTurnService', () => {
       );
     });
 
-    // 파사드는 `type`('completed'…)을 받고 wire enum 은 emitter 가 파생한다. 이 파일의
-    // 단언들은 "어떤 종결 이벤트가 나갔나" 를 묻는 것이므로, 되매핑해 기존 의미를 보존한다
-    // (wire 형태 자체는 `execution-event-emitter.service.spec.ts` 가 고정한다).
-    const TYPE_TO_EVENT = {
-      completed: ExecutionEventType.EXECUTION_COMPLETED,
-      failed: ExecutionEventType.EXECUTION_FAILED,
-      cancelled: ExecutionEventType.EXECUTION_CANCELLED,
-    } as const;
     const emittedTypes = () =>
       (mockEventEmitter.emitTerminalExecution as jest.Mock).mock.calls.map(
         (c) =>

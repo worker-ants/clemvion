@@ -1,4 +1,7 @@
-import { ExecutionEventEmitter } from './execution-event-emitter.service';
+import {
+  ExecutionEventEmitter,
+  type TerminalEventPayload,
+} from './execution-event-emitter.service';
 import {
   ExecutionEventType,
   ExecutionRoutingContext,
@@ -25,6 +28,49 @@ describe('ExecutionEventEmitter', () => {
     emitter = new ExecutionEventEmitter(
       websocket as unknown as WebsocketService,
     );
+  });
+
+  // 이 파사드의 **존재 이유**를 회귀로 박제한다 — 필수 필드가 실제로 컴파일을 막는가.
+  //
+  // ⚠️ **강제하는 것은 jest 가 아니라 `tsc` 다.** 이 저장소의 jest 는 타입을 strip 하므로
+  // 아래 `it` 은 런타임에 사실상 no-op 이다(실측: `cancelledBy` 를 optional 로 완화해도
+  // jest 는 9/9 GREEN). 실제 가드는 **타입 래칫 게이트**(`scripts/check-backend-typecheck-
+  // ratchet.py`)다 — 같은 뮤턴트에서 `tsc` 진단이 199 → 204 로 늘어 게이트가 깨진다
+  // (미사용 `@ts-expect-error` 5건). 처음엔 "ts-jest 가 타입체크한다" 고 적었는데
+  // **틀렸고, 뮤테이션이 반증했다**.
+  //
+  // 손으로 확인한 뮤테이션은 그 순간에만 참이다. 저장소에 남는 건 이 선언들이다.
+  describe('TerminalEventPayload — 필수 필드가 컴파일을 막는다', () => {
+    it('타입 수준 계약 (런타임 no-op)', () => {
+      const reject: unknown[] = [
+        // durationMs 누락 — #1171 이 겪은 결함
+        // @ts-expect-error durationMs 는 3종 모두 필수다
+        { type: 'completed' } satisfies TerminalEventPayload,
+        // error 누락 — #1170 이 겪은 결함
+        // @ts-expect-error failed 는 error 가 필수다
+        { type: 'failed', durationMs: 1 } satisfies TerminalEventPayload,
+        // cancelledBy 누락 — retry-turn 이 겪던 결함
+        // @ts-expect-error cancelled 는 cancelledBy 가 필수다
+        { type: 'cancelled', durationMs: 1 } satisfies TerminalEventPayload,
+        // 닫힌 3값 union 을 넓히지 않는다 (§6.5).
+        // **지시문은 위반 속성 바로 위에** — 여러 줄 리터럴은 에러가 객체 시작 줄이 아니라
+        // 속성 줄에 보고된다(처음엔 객체 위에 뒀다가 `Unused '@ts-expect-error'` 로 반증).
+        {
+          type: 'cancelled',
+          durationMs: 1,
+          // @ts-expect-error cancelledBy 는 user|system|timeout 뿐이다
+          cancelledBy: 'admin',
+        } satisfies TerminalEventPayload,
+        // completed 에는 error 를 실을 수 없다 — 형태별 필드가 섞이지 않는다
+        {
+          type: 'completed',
+          durationMs: 1,
+          // @ts-expect-error completed variant 에 error 는 없다
+          error: null,
+        } satisfies TerminalEventPayload,
+      ];
+      expect(reject).toHaveLength(5);
+    });
   });
 
   // 종결 payload 의 **wire 형태**를 여기서 고정한다. 호출부는 `type` 만 고르고 이 파일이
@@ -55,6 +101,18 @@ describe('ExecutionEventEmitter', () => {
         ExecutionEventType.EXECUTION_FAILED,
         { status: 'failed', durationMs: null, error },
       );
+    });
+
+    it('failed — error 가 null 이어도 **키는 유지**한다 (§6.4 명시적 null)', async () => {
+      await emitter.emitTerminalExecution('e5', {
+        type: 'failed',
+        durationMs: 1,
+        error: null,
+      });
+      const wire = websocket.emitExecutionEvent.mock.calls[0][2] as object;
+      // 조건부 대입으로 잘못 리팩터되면 키가 사라진다 — `null` 과 부재는 다르다.
+      expect('error' in wire).toBe(true);
+      expect((wire as { error: unknown }).error).toBeNull();
     });
 
     it('cancelled — cancelledBy 는 result 안에 온다 (§6.5, 중첩을 펴지 않는다)', async () => {

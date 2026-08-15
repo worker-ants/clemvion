@@ -48,6 +48,23 @@ export type TerminalEventPayload =
       error?: { code: string; message: string };
     };
 
+/**
+ * 실행 엔진이 발행하는 도메인 이벤트의 단일 진입점.
+ *
+ * 옛 코드는 `ExecutionEngineService` 가 `WebsocketService.emitExecutionEvent` /
+ * `emitNodeEvent` 를 24곳에서 직접 호출했다. 이벤트 형식·라우팅을 한 서비스가
+ * 들고 있어 (a) 향후 이벤트 채널 다중화 (Sentry / OTel span event 등) 가 불가,
+ * (b) 엔진 unit test 가 websocket service 의 broadcastToChannel 까지 mock 해야
+ * 했다. 본 facade 가 그 책임을 분리한다 (C-6 strangle step 1).
+ *
+ * 본 facade 는 **현재로선** WebsocketService 로의 thin wrapper다. 향후 단계에서
+ * 비-WS 채널 (Sentry breadcrumb, OTel SpanEvent, 외부 observability 등) 을
+ * 추가할 때, 엔진 호출 사이트를 더 건드리지 않아도 되도록 진입점만 통일한다.
+ *
+ * **단, 종결 3종은 thin wrapper 가 아니다** — {@link emitTerminalExecution} 이
+ * `status`·이벤트명·`result` 중첩을 조립한다. 그 책임을 여기 둔 이유는 그 조립이
+ * 종전에 11 호출부에 흩어져 있었고 한 곳만 틀려도 아무도 못 잡았기 때문이다.
+ */
 @Injectable()
 export class ExecutionEventEmitter {
   constructor(

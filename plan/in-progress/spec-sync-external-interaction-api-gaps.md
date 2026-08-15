@@ -368,6 +368,19 @@ JS/SQL 클램프 비대칭 · vacuous mock 이 전부 같은 뿌리다.
 > 이 저장소의 기록된 교훈이 정확히 *"미룬 항목은 그 턴에 `plan/` 에 적어라"* 다.
 > **유예의 근거로 "등재했다" 를 인용할 때, 그 등재를 실측하지 않았다.**
 
+## `websocket.service` 가 값(enum)과 서비스를 함께 export 해 순환을 만든다 (2026-08-15 등재, `17_54_32` architecture W7)
+
+`ExecutionEventType` 같은 **런타임 값**이 서비스 구현 파일에서 export 돼,
+`websocket.service ↔ websocket.gateway ↔ execution-engine/retry-turn ↔ event-emitter`
+ES-module 순환 위에 놓인다. 생성자의 `forwardRef` 도 같은 이유다.
+
+**이건 이론이 아니다** — 종결 파사드가 `type`→enum 매핑을 **모듈 스코프 상수**로 두자
+모듈 평가 시점에 enum 이 `undefined` 여서 **72 suites 가 터졌다.** 호출 시점 지연 평가로
+우회했지만 근본 원인은 남았고, `tsc` 는 이 클래스를 못 잡는다.
+
+- [ ] `ExecutionEventType`·`NodeEventType` 등 런타임 값을 의존성-프리 모듈
+      (`websocket-events.types.ts` 등)로 추출해 순환을 **그래프 차원에서** 끊는다
+
 ## 종결 duration 관용구가 16곳에 손으로 복붙돼 있다 (2026-08-15 등재, `12_52_39` W5·W6)
 
 헬퍼(`resolveTerminalDurationMs`)를 도입해 **계산**은 한 곳으로 모았지만, 그것을 **적용하는**

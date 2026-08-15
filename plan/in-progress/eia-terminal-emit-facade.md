@@ -68,14 +68,14 @@ spec_impact:
 
 ## 설계
 
-`emitTerminalExecutionEvent(executionId, payload)` — **판별 union**
+`emitTerminalExecution(executionId, payload)` — **판별 union**
 (`TerminalEventPayload` — `TerminalErrorPayload` 를 **포함**하는 관계라 이름을 그와 한 단어
 차이로 두지 않는다, `17_20_28` naming W1):
 
 ```ts
 type TerminalEventPayload =
   | { type: 'completed'; durationMs: number | null }
-  | { type: 'failed';    durationMs: number | null; error: TerminalErrorPayload }
+  | { type: 'failed';    durationMs: number | null; error: TerminalErrorPayload | null }
   | { type: 'cancelled'; durationMs: number | null;
       cancelledBy: 'user' | 'system' | 'timeout';
       error?: { code: string; message: string } };
@@ -118,6 +118,18 @@ event-emitter ES-module 순환 위에 있어(생성자의 `forwardRef` 가 같�
 - `emitNode` (노드 이벤트) — 종결 계약과 다른 표면
 - 관용구 헬퍼 추출(`extractReturnedDurationMs` 등) — 별도 항목
 - 단일 emit 관문 · 실 DB e2e · lock order — 전부 정본 트래커 등재됨
+
+## `/ai-review` (`17_54_32`) 이 잡은 것 — CRITICAL 0 / WARNING 7
+
+가장 아픈 건 **내가 클래스 JSDoc 을 지운 것**이다(W4). 타입 JSDoc 을 클래스 위에 넣으면서
+기존 문서("C-6 strangle step 1" · 24곳 직접호출 이력 · 향후 비-WS 채널 노트)를 밀어냈고,
+원문이 저장소 어디에도 남지 않았다. `git show origin/main:` 으로 복구했다.
+
+**판별력 주장도 틀렸었다**(W6). `@ts-expect-error` 테스트를 넣고 *"ts-jest 가 타입체크한다"*
+고 주석에 적었는데, 뮤테이션이 반증했다 — **jest 는 타입을 strip 해 9/9 GREEN 이었다.**
+실제 강제 주체는 **타입 래칫 게이트**(`tsc`)다: 같은 뮤턴트에서 199 → 200. 주석을 정정했다.
+지시문 위치도 틀렸었다 — 여러 줄 리터럴은 에러가 **속성 줄**에 보고돼, 객체 위에 둔 2건이
+`Unused '@ts-expect-error'` 로 잡혔다(래칫 203).
 
 ## 체크리스트
 

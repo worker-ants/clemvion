@@ -1,5 +1,22 @@
 # Changelog
 
+## Unreleased — 종결 emit 타입 초크포인트 + retry-turn `cancelledBy` 누락
+
+`emitExecution(payload: unknown)` 이 종결 이벤트 형태를 강제하지 않아 필드 하나를 호출부마다
+손으로 스레딩해야 했다. 최근 연속 수정(`error` 문자열 · `durationMs` 전면 누락)이 전부 그
+형태다. **판별 union 파사드**(`emitTerminalExecution`)를 도입해 직접 호출 11곳을 이관했다 —
+`status`·이벤트명은 `type` 에서 파생하고, `durationMs`(3종)·`error`(failed)·
+`cancelledBy`(cancelled)는 **필수 필드**다.
+
+**⚠️ wire 변화 1건**: `retry-turn` 의 재진입 취소 경로(`failRetryExecution`)가 종전엔
+`result` 키 자체를 싣지 않았다. 이제 **`result.cancelledBy: "user"` 가 실린다.** 파사드의
+필수 필드가 이 누락을 컴파일 타임에 드러냈고(그 결함은 별도 plan 이 P2 로 추적 중이었다),
+EIA §6 이 요구하던 계약이 이제 이 경로에서도 충족된다.
+
+**수신자 영향**: `execution.cancelled` 구독자 중 **`result` 부재를 신호로 쓰던 코드**가
+있다면 영향을 받는다(저장소 내 소비자는 `result` 부재를 `{}` 로 방어해 무해). 값이 유실되던
+쪽이 정상화되는 방향이다.
+
 ## Unreleased — stalled 마감의 부분 커밋 (자식 NodeExecution 영구 RUNNING 잔류)
 
 `finalizeStalledExhausted`(BullMQ stalled 재배달 소진 → `WORKER_HEARTBEAT_TIMEOUT` 마감)가
