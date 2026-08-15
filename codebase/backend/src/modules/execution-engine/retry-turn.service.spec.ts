@@ -848,7 +848,11 @@ describe('RetryTurnService', () => {
       expect(mockEventEmitter.emitExecution).toHaveBeenCalledWith(
         EXEC,
         ExecutionEventType.EXECUTION_COMPLETED,
-        { status: ExecutionStatus.COMPLETED },
+        {
+          status: ExecutionStatus.COMPLETED,
+          // EIA §6 — durationMs 는 종결 3종에 실린다. 알 수 없으면 null.
+          durationMs: expect.any(Number) as unknown,
+        },
       );
     });
 
@@ -880,7 +884,11 @@ describe('RetryTurnService', () => {
       expect(mockEventEmitter.emitExecution).toHaveBeenCalledWith(
         EXEC,
         ExecutionEventType.EXECUTION_COMPLETED,
-        { status: ExecutionStatus.COMPLETED },
+        {
+          status: ExecutionStatus.COMPLETED,
+          // EIA §6 — durationMs 는 종결 3종에 실린다. 알 수 없으면 null.
+          durationMs: expect.any(Number) as unknown,
+        },
       );
     });
   });

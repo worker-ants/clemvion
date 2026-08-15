@@ -202,6 +202,7 @@ import {
 import { assertRowArray } from '../../common/utils/assert-row-array';
 import { updateReturningRows } from '../../common/utils/update-returning-rows';
 import { toTerminalErrorPayload } from '../../shared/utils/terminal-error-payload';
+import { resolveTerminalDurationMs } from '../../shared/utils/terminal-duration';
 
 interface ContainerBodyPlan {
   childIds: Set<string>;
@@ -2364,11 +2365,13 @@ export class ExecutionEngineService
         savedExecution.outputData =
           (context.nodeOutputCache[lastNodeId] as
             Record<string, unknown> | undefined) ?? {};
-        savedExecution.finishedAt = new Date();
-        savedExecution.durationMs =
-          savedExecution.finishedAt.getTime() -
-          savedExecution.startedAt.getTime();
       }
+      // **조건 밖**이다 — `outputData` 만 마지막 노드에 의존한다. 종전엔 셋 다 `if` 안에
+      // 있어서, 노드가 없는 그래프면 `finishedAt`/`durationMs` 가 비어 있는 채로 emit 됐다
+      // (`durationMs` 를 payload 에 실으면 `undefined` 가 wire 로 나가는 자리였다).
+      savedExecution.finishedAt = new Date();
+      savedExecution.durationMs =
+        resolveTerminalDurationMs(savedExecution) ?? savedExecution.durationMs;
       const completed = await this.updateExecutionStatus(
         savedExecution,
         ExecutionStatus.COMPLETED,
@@ -2377,7 +2380,10 @@ export class ExecutionEngineService
         await this.eventEmitter.emitExecution(
           executionId,
           ExecutionEventType.EXECUTION_COMPLETED,
-          { status: ExecutionStatus.COMPLETED },
+          {
+            status: ExecutionStatus.COMPLETED,
+            durationMs: resolveTerminalDurationMs(savedExecution),
+          },
         );
       }
     } catch (err: unknown) {
@@ -2544,7 +2550,10 @@ export class ExecutionEngineService
         await this.eventEmitter.emitExecution(
           executionId,
           ExecutionEventType.EXECUTION_COMPLETED,
-          { status: ExecutionStatus.COMPLETED },
+          {
+            status: ExecutionStatus.COMPLETED,
+            durationMs: resolveTerminalDurationMs(savedExecution),
+          },
         );
       }
     } catch (err: unknown) {
@@ -3472,11 +3481,13 @@ export class ExecutionEngineService
         savedExecution.outputData =
           (context.nodeOutputCache[lastNodeId] as
             Record<string, unknown> | undefined) ?? {};
-        savedExecution.finishedAt = new Date();
-        savedExecution.durationMs =
-          savedExecution.finishedAt.getTime() -
-          savedExecution.startedAt.getTime();
       }
+      // **조건 밖**이다 — `outputData` 만 마지막 노드에 의존한다. 종전엔 셋 다 `if` 안에
+      // 있어서, 노드가 없는 그래프면 `finishedAt`/`durationMs` 가 비어 있는 채로 emit 됐다
+      // (`durationMs` 를 payload 에 실으면 `undefined` 가 wire 로 나가는 자리였다).
+      savedExecution.finishedAt = new Date();
+      savedExecution.durationMs =
+        resolveTerminalDurationMs(savedExecution) ?? savedExecution.durationMs;
       const completed = await this.updateExecutionStatus(
         savedExecution,
         ExecutionStatus.COMPLETED,
@@ -3485,7 +3496,10 @@ export class ExecutionEngineService
         await this.eventEmitter.emitExecution(
           executionId,
           ExecutionEventType.EXECUTION_COMPLETED,
-          { status: ExecutionStatus.COMPLETED },
+          {
+            status: ExecutionStatus.COMPLETED,
+            durationMs: resolveTerminalDurationMs(savedExecution),
+          },
         );
       }
     } catch (err: unknown) {
@@ -4659,11 +4673,11 @@ export class ExecutionEngineService
         savedExecution.outputData =
           (context.nodeOutputCache[resultNodeId] as Record<string, unknown>) ??
           {};
-        savedExecution.finishedAt = new Date();
-        savedExecution.durationMs =
-          savedExecution.finishedAt.getTime() -
-          savedExecution.startedAt.getTime();
       }
+      // 위와 같은 이유로 조건 밖 (`outputData` 만 결과 노드에 의존한다).
+      savedExecution.finishedAt = new Date();
+      savedExecution.durationMs =
+        resolveTerminalDurationMs(savedExecution) ?? savedExecution.durationMs;
       const completed = await this.updateExecutionStatus(
         savedExecution,
         ExecutionStatus.COMPLETED,
@@ -4674,7 +4688,10 @@ export class ExecutionEngineService
         await this.eventEmitter.emitExecution(
           executionId,
           ExecutionEventType.EXECUTION_COMPLETED,
-          { status: ExecutionStatus.COMPLETED },
+          {
+            status: ExecutionStatus.COMPLETED,
+            durationMs: resolveTerminalDurationMs(savedExecution),
+          },
         );
       }
     } catch (err: unknown) {

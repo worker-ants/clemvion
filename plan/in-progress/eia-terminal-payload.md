@@ -11,6 +11,9 @@ spec_impact:
   # (`08_45_50` plan_coherence W3 — Gate C drift).
   - spec/conventions/chat-channel-adapter.md
   - spec/3-workflow-editor/3-execution.md
+  # 4번째. 직전 라운드가 이 누락을 지적해 3건을 추가했는데 그때 이것도 같은 표에 있었다
+  # (`09_00_27` plan_coherence W3) — "지적받은 것만 고치고 전수로 세지 않았다" 의 재발.
+  - spec/data-flow/3-execution.md
 ---
 
 > **워크트리 이름이 작업과 무관하다.** `eia-r8-cache-scope-4ae434` 는 재사용된 것이고

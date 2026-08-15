@@ -7026,7 +7026,11 @@ describe('ExecutionEngineService', () => {
       expect(mockWebsocketService.emitExecutionEvent).toHaveBeenCalledWith(
         executionId,
         'execution.completed',
-        expect.objectContaining({ status: 'completed' }),
+        expect.objectContaining({
+          status: 'completed',
+          // EIA §6 필드 집합 표가 `durationMs` 를 종결 3종에 약속한다.
+          durationMs: expect.any(Number) as unknown,
+        }),
       );
     });
 
@@ -7274,7 +7278,11 @@ describe('ExecutionEngineService', () => {
       expect(mockWebsocketService.emitExecutionEvent).toHaveBeenCalledWith(
         executionId,
         'execution.completed',
-        expect.objectContaining({ status: 'completed' }),
+        expect.objectContaining({
+          status: 'completed',
+          // EIA §6 필드 집합 표가 `durationMs` 를 종결 3종에 약속한다.
+          durationMs: expect.any(Number) as unknown,
+        }),
       );
     });
 
@@ -7418,7 +7426,11 @@ describe('ExecutionEngineService', () => {
       expect(mockWebsocketService.emitExecutionEvent).toHaveBeenCalledWith(
         executionId,
         'execution.completed',
-        expect.objectContaining({ status: 'completed' }),
+        expect.objectContaining({
+          status: 'completed',
+          // EIA §6 필드 집합 표가 `durationMs` 를 종결 3종에 약속한다.
+          durationMs: expect.any(Number) as unknown,
+        }),
       );
     });
 
@@ -7483,7 +7495,11 @@ describe('ExecutionEngineService', () => {
       expect(mockWebsocketService.emitExecutionEvent).toHaveBeenCalledWith(
         execB,
         'execution.completed',
-        expect.objectContaining({ status: 'completed' }),
+        expect.objectContaining({
+          status: 'completed',
+          // EIA §6 필드 집합 표가 `durationMs` 를 종결 3종에 약속한다.
+          durationMs: expect.any(Number) as unknown,
+        }),
       );
       // A 는 여전히 parked (durable DB WAITING, in-memory coroutine 없음).
       expect(statusById[execA]).toBe(ExecutionStatus.WAITING_FOR_INPUT);
@@ -7769,7 +7785,11 @@ describe('ExecutionEngineService', () => {
       expect(mockWebsocketService.emitExecutionEvent).toHaveBeenCalledWith(
         executionId,
         'execution.completed',
-        expect.objectContaining({ status: 'completed' }),
+        expect.objectContaining({
+          status: 'completed',
+          // EIA §6 필드 집합 표가 `durationMs` 를 종결 3종에 약속한다.
+          durationMs: expect.any(Number) as unknown,
+        }),
       );
       // form 노드의 NODE_COMPLETED 이벤트도 emit 됐어야 함.
       expect(mockWebsocketService.emitNodeEvent).toHaveBeenCalledWith(
@@ -8132,7 +8152,11 @@ describe('ExecutionEngineService', () => {
       expect(mockWebsocketService.emitExecutionEvent).toHaveBeenCalledWith(
         executionId,
         'execution.completed',
-        expect.objectContaining({ status: 'completed' }),
+        expect.objectContaining({
+          status: 'completed',
+          // EIA §6 필드 집합 표가 `durationMs` 를 종결 3종에 약속한다.
+          durationMs: expect.any(Number) as unknown,
+        }),
       );
     });
   });
