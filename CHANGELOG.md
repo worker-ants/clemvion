@@ -14,7 +14,7 @@
 - **retry-turn 재진입 중 Stop 시 DB 와 emit 의 `durationMs` 가 갈렸다.** CANCELLED 분기는
   `COALESCE(duration_ms, :new)` 로 먼저 커밋된 값을 의도적으로 보존하는데, **`COALESCE` 가
   어느 쪽을 골랐는지는 DB 만 안다.** `RETURNING` 으로 되받아 실제 영속값을 싣는다
-- **REST 재조회에 `durationMs` 추가** — push 계열만 싣고 `GET /executions/:id` 에는 필드가
+- **REST 재조회에 `durationMs` 추가** — push 계열만 싣고 `GET /api/external/executions/:id` 에는 필드가
   없어, **이벤트 유실 후 재조회로 복구하는** 클라이언트 패턴에서 값이 사라졌다. additive 이며
   breaking 아니다. 계산하지 않고 영속 컬럼을 그대로 싣는다
 

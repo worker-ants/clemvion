@@ -4990,6 +4990,13 @@ export class ExecutionEngineService
     // CRITICAL #1 — 형제 finalizeCancelledExecution 과 동일한 guarded 경로. DB 가
     // 이미 terminal(동시 Stop 이 CANCELLED 로 선점)이면 0행 매칭 → false 반환,
     // FAILED 로 재마킹하지 않는다.
+    //
+    // ⚠️ **`!persisted` 이후는 극성이 반대다.** 이쪽은 "FAILED 로 덮어쓰지 말라" 가
+    // 목적이라 **무조건 skip** 이 맞다. 형제는 반대로 0행이 "`stop()` 이 이미 마감했다"
+    // 를 뜻할 수 있고 `stop()` 은 RUNNING/PENDING 에서 emit 하지 않으므로, 재조회해
+    // **CANCELLED 면 발행**한다. 이 함수를 본떠 새 guarded 경로를 만들 때 무조건 skip 을
+    // 기본으로 가정하지 말 것 — 실제로 그렇게 복사해 사용자가 누른 Stop 이 무음이 됐다
+    // (2026-08-15, `13_58_27` W3).
     const persisted = await this.updateExecutionStatus(
       savedExecution,
       ExecutionStatus.FAILED,
