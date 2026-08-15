@@ -172,6 +172,23 @@ checker 가 독립적으로** "인용이 가리키는 절이 오히려 반대를
 - [ ] (INFO) `data-flow/15-external-interaction.md:119` 가 **정의되지 않은 `EIA-AU-09`** 참조
       (EIA §3.3 은 `01`~`08` 까지만 정의)
 
+## `durationMs` 후속 2건 (2026-08-15 등재, `09_58_24`)
+
+- [ ] **REST `GET /api/external/executions/:id` 에 `durationMs` 부재** (W4). push 계열
+      (webhook/SSE/WS)만 채워져 **"이벤트로 받으면 있는데 재조회하면 사라지는"** 비대칭이
+      생겼다. `ExecutionStatusDto` + `STATUS_PROJECTION_COLUMNS` 에 추가하거나, 의도적
+      제외라면 §5.3 에 사유를 적을 것. CHANGELOG 에 이미 고지했다.
+      > spec-consistency 라운드는 **spec-to-spec 대조만** 해서 이 갭을 못 잡았다 —
+      > 코드 표면 간 비대칭은 ai-review 만 본다.
+- [ ] **`TERMINAL_DURATION_MS_SQL` 이 실제 Postgres 에서 값 검증된 적이 없다** (W10).
+      단위 테스트는 문자열 `toContain` 뿐이고, 이 SQL 을 태우는 유일한 e2e
+      (`webchat-idle-reaper.e2e-spec.ts`)도 `duration_ms` 를 SELECT/assert 하지 않는다.
+      **부호·단위(초 vs ms)·클램프 오류를 잡을 안전망이 없다** — 이번 라운드가 클램프
+      부재를 리뷰로만 잡았다는 사실이 그 비용을 실증한다. e2e 에 `duration_ms >= 0`
+      sanity 단언 추가.
+- [ ] (저비용) `TERMINAL_DURATION_MS_SQL` 이 컬럼명 `started_at` 을 하드코딩 — 엔티티
+      메타데이터와 대조하는 assertion 을 다음 편집 때 (W7)
+
 ## 후속 (cross-cutting, 본 spec 밖)
 - [x] **Redis fixed-window rate-limiter INCR+EXPIRE 원자화** — `PublicWebhookQuotaService.incrWithWindow` 를 `INCR + EXPIRE ... NX` 단일 pipeline(매 요청)으로 교정해 TTL 유실 self-heal (fail-closed 잠금 창 제거). `ChatChannelRateLimiterService` 는 **이미** 동일 `INCR + EXPIRE NX` 단일 pipeline 패턴이라 무변경(점검 완료). `InteractionRateLimiterService`(item 5)는 Lua EVAL — 세 서비스 모두 원자/self-heal 확보. (PR #843 ai-review concurrency WARNING 후속, `task_fa5c5e84`.)
 
