@@ -114,6 +114,12 @@ push 계열(webhook/SSE/WS/chat-channel)은 싣는데 `GET /api/external/executi
       **W3 이 내 첫 수정을 반증했다** (stop() 무음 경로를 침묵시킴). RESOLUTION 참조
 - [x] TEST WORKFLOW 4스테이지 — lint / unit(백엔드 425·8727, 프런트 285 파일) /
       build / **e2e 276 passed** 전부 PASS
-- [ ] fix 이후 fresh `/ai-review` (코드가 리뷰보다 나중이라 게이트 1 미충족)
+- [x] `/ai-review` (`14_47_14`) **WARNING 2** — 자매 주석 극성 캐비엇 · nullable 가드 목록.
+      `bf0f86ca8` 로 조치, RESOLUTION 참조
+- [x] `/ai-review` (`15_00_41`) **WARNING 4** — 재조회 try/catch · `finishedAt` 되쓰기 단언 ·
+      규약문서 재정정 · 이 체크리스트. 전부 조치
+- [x] `--impl-done` (`15_01_13`) **BLOCK: YES → 해소** — `node-cancellation.md` 가
+      **되돌려진 중간 동작**을 서술하고 있었다(체커 3곳이 독립 지목). 근본 정정 완료
+- [ ] fix 이후 fresh `/ai-review` + `--impl-done` (코드가 리뷰보다 나중)
 - [ ] `--impl-done` BLOCK: NO
 - [ ] push 게이트 통과 → PR

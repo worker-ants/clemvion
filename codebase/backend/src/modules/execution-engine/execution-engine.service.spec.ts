@@ -1070,6 +1070,7 @@ describe('ExecutionEngineService', () => {
   // emit) 이 헬퍼가 유일한 알림 지점이다. 자매는 "FAILED 로 덮어쓰지 말라" 가 목적이라
   // 극성이 반대다.
   describe('finalizeCancelledExecution — 0행 매칭의 두 의미', () => {
+    const LIVE_FINISHED_AT = new Date('2026-08-15T02:03:04.000Z');
     const arrange = (liveStatus: ExecutionStatus | null) => {
       const eventEmitter = (
         service as unknown as { eventEmitter: { emitExecution: jest.Mock } }
@@ -1084,11 +1085,27 @@ describe('ExecutionEngineService', () => {
       mockExecutionRepo.findOneBy.mockResolvedValueOnce(
         liveStatus === null
           ? null
-          : { id: 'ex-cancel-preempted', status: liveStatus, durationMs: 777 },
+          : {
+              id: 'ex-cancel-preempted',
+              status: liveStatus,
+              durationMs: 777,
+              finishedAt: LIVE_FINISHED_AT,
+            },
       );
       return emitSpy;
     };
-    const saved = () => ({
+    // `finishedAt`/`durationMs` 는 **되쓰기 대상**이라 타입에 명시한다 — 추론에 맡기면
+    // 단언 줄에서 "속성이 없다" 로 떨어진다.
+    const saved = (): {
+      id: string;
+      status: ExecutionStatus;
+      workflowId: string;
+      executedBy: string;
+      parentExecutionId: null;
+      startedAt: Date;
+      finishedAt?: Date;
+      durationMs?: number;
+    } => ({
       id: 'ex-cancel-preempted',
       status: ExecutionStatus.RUNNING, // stale in-memory
       workflowId: 'wf',
@@ -1105,16 +1122,36 @@ describe('ExecutionEngineService', () => {
 
     it('(a) DB 가 이미 cancelled — stop() 이 마감한 정상 경로라 **emit 한다**', async () => {
       const emitSpy = arrange(ExecutionStatus.CANCELLED);
-      await run(saved());
+      const exec = saved();
+      await run(exec);
       expect(emitSpy).toHaveBeenCalled();
       // 값도 DB 정본으로 맞춘다 — wire 가 DB 와 같은 값을 말해야 한다.
       const payload = emitSpy.mock.calls[0][2] as { durationMs: number };
       expect(payload.durationMs).toBe(777);
+      // `finishedAt` 도 되쓰기 대상이다 — 종전엔 그 줄을 지워도 GREEN 이었다.
+      // 같은 PR 이 자매(`retry-turn`)에서 정확히 이 형태를 스스로 찾아 고쳐 놓고
+      // 형제 함수엔 적용하지 않았다 (`15_00_41` W2).
+      expect(exec.finishedAt).toEqual(LIVE_FINISHED_AT);
     });
 
     it('(b) DB 가 failed — 다른 종결자가 이겼으므로 cancelled 를 쏘지 않는다', async () => {
       const emitSpy = arrange(ExecutionStatus.FAILED);
       await run(saved());
+      expect(emitSpy).not.toHaveBeenCalled();
+    });
+
+    it('(d) 재조회가 throw 해도 호출자로 전파하지 않는다 — 호출부가 catch 안이다', async () => {
+      const eventEmitter = (
+        service as unknown as { eventEmitter: { emitExecution: jest.Mock } }
+      ).eventEmitter;
+      const emitSpy = jest
+        .spyOn(eventEmitter, 'emitExecution')
+        .mockResolvedValue(undefined);
+      mockExecutionRepo.query.mockResolvedValueOnce([]);
+      mockExecutionRepo.findOneBy.mockRejectedValueOnce(new Error('db down'));
+
+      // throw 가 새어 나가면 워커의 에러 핸들러 자체가 터진다.
+      await expect(run(saved())).resolves.toBeUndefined();
       expect(emitSpy).not.toHaveBeenCalled();
     });
 

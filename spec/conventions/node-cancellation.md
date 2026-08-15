@@ -195,7 +195,7 @@ if (upstream) {
 | §2.4 노드 경계 Execution-cancel 재확인 가드 (`assertExecutionNotCancelled`) | ✓ | `execution-engine.service.ts` — 선형 3곳(`runExecution`/`runNodeDispatchLoop`/`executeInline`) + 컨테이너(`executeContainerBody`, 아이템 경계, 250ms 스로틀)/Parallel(`executeParallelBranchBody`, 노드 경계) 반복 루프. mutation 검증 완료 |
 | §2.4 AI multi-turn **turn 경계** cancel 가드 | ✓ | `ai-turn-orchestrator.service.ts` — park 가 세그먼트를 끝내 노드 경계 가드에 닿지 않으므로 turn 마다 직접 관측. turn 실패를 `FAILED` 로 마감하는 try/catch **바깥**에 배치(안에 두면 취소가 실패로 오분류) |
 | §2.4 park↔resume 짝 전이 terminal 가드 | ✓ | `execution-engine.service.ts` — 짝 전이·`finalizeFailedExecution`·`failFirstSegmentSetup`·`executeSync` timeout 이 같은 트랜잭션에서 `SELECT … FOR UPDATE` 로 비-terminal 확인 후에만 쓰기. 선점 시 짝 `NodeExecution` 을 `cancelled` 마킹 후 `ExecutionCancelledError` 전파. mutation 6/6 검증 |
-| §2.4 top-level **취소 종결** 경로 terminal 가드 (`finalizeCancelledExecution`) | ✓ | `execution-engine.service.ts` — 조건부 UPDATE(`status IN (non-terminal)`)가 0행이면 **CANCELLED 재마킹·`EXECUTION_CANCELLED` emit 을 모두 skip**. 자매 `finalizeFailedExecution` 과 동형(2026-08-15 — 종전엔 반환을 읽지 않아 선점된 실행에도 emit 이 나갔다). 회귀 테스트로 고정 |
+| §2.4 top-level **취소 종결** 경로 terminal 가드 (`finalizeCancelledExecution`) | ✓ | `execution-engine.service.ts` — 조건부 UPDATE(`status IN (non-terminal)`)가 0행이면 **행을 재조회해 DB 실측으로 분기**한다: 이미 `CANCELLED` 면 **emit 한다**(`stop()` 은 RUNNING/PENDING 에서 이벤트를 쏘지 않으므로 여기가 유일한 알림 지점), 다른 종결자가 `FAILED`/`COMPLETED` 로 선점했으면 skip. 자매 `finalizeFailedExecution` 과 **진입점만 같고 `!persisted` 이후는 극성이 반대**다(그쪽은 무조건 skip — 목적이 "덮어쓰지 말라"). 회귀 테스트 3갈래(a/b/재조회 실패)로 고정 |
 | §2.4 retry 재진입 종결 경로 terminal 가드 | ✓ | `retry-turn.service.ts` — `completeRetryExecution`/`failRetryExecution` 이 공용 `finalizeGuarded` 로 **행을 재조회해 비-terminal 을 확인한 뒤** 전이한다. 선점이 관측되면(전이 불가 또는 조건부 UPDATE `affected=0`) **저장·종결 이벤트 emit 을 모두 skip**. 취소 시각 보존 메커니즘은 짝 전이 행과 다르다 — 아래 Rationale 참조. mutation 13/13 검증 |
 | Workflow 단위 timeout / graceful shutdown 의 **노드 abort** | — | 노드 abort 통합 미구현 (Planned). 단 **워크플로 시간 한도 자체는 PR2a 구현 완료** — active-running 누적 타임아웃 (`assertActiveTimeWithinLimit`, 노드 경계 판정, §2.3 / [execution-engine §8](../5-system/4-execution-engine.md#8-동시-실행-제한)) |
 
@@ -208,13 +208,23 @@ if (upstream) {
 
 - `execution-engine.service.ts` 의 `finalizeCancelledExecution` — **앱 레벨 `??` 병합**
   (in-memory 값이 비어 있을 때만 채운다). guarded UPDATE 가 이미 terminal 인 행에 **0행으로
-  매칭되고, 그 결과를 읽어 종결 이벤트 emit 을 skip 한다**.
+  매칭되면 행을 재조회해**, DB 가 `CANCELLED` 면 emit 하고 다른 terminal 이면 skip 한다.
 
-  > ~~이 문장은 종전에 *"guarded UPDATE 가 이미 terminal 인 행을 걸러낸다"* 였다.~~
-  > **(2026-08-15 정정)** 0행 매칭은 사실이었지만 **호출부가 그 반환을 읽지 않아** 실제로
-  > 걸러지는 것이 없었다 — 선점된 실행에도 `EXECUTION_CANCELLED` 가 나갔다. 같은 표의
-  > retry-turn 행은 *"emit 을 모두 skip"* 이라 정확히 적혀 있었는데, 이 행만 **보장을
-  > 구현보다 넓게** 서술하고 있었다. 구현을 자매와 동형으로 맞춰 문장을 참으로 만들었다.
+  > **이 항목은 2026-08-15 에 두 번 정정됐다. 두 번째가 첫 번째를 뒤집는다.**
+  >
+  > ~~① 원문: *"guarded UPDATE 가 이미 terminal 인 행을 걸러낸다"*~~ — 0행 매칭은 사실이었지만
+  > **호출부가 반환을 읽지 않아** 걸러지는 것이 없었다. 선점된 실행에도 `EXECUTION_CANCELLED`
+  > 가 나갔다.
+  >
+  > ~~② 1차 정정: *"그 결과를 읽어 emit 을 skip 한다 — 자매와 동형"*~~ — **이 처방이 틀렸다.**
+  > 자매를 그대로 복사해 0행이면 무조건 skip 하게 만들었더니, **사용자가 누른 Stop 이 외부에
+  > 무음이 됐다**. `stop()` 은 RUNNING/PENDING 경로에서 이벤트를 쏘지 않아(WAITING 만
+  > `cancelParkedExecution` 이 emit) 이 헬퍼가 **유일한 알림 지점**이기 때문이다.
+  >
+  > **③ 최종**: 0행은 두 가지를 뜻한다 — (a) `stop()` 이 이미 마감했다(=`CANCELLED`, **발행해야
+  > 한다**), (b) 다른 종결자가 이겼다(=`FAILED`/`COMPLETED`, skip). 그래서 *"썼는가"* 가 아니라
+  > **"DB 가 실제로 뭐라고 하는가"** 로 판정한다. 자매와는 **진입점만 같고 극성이 반대**다 —
+  > 이 표를 보고 새 guarded-cancel 경로를 만들 때 무조건 skip 을 기본으로 가정하지 말 것.
 - `retry-turn.service.ts` 의 `finalizeGuarded` — **SQL `COALESCE(col, :new)`**.
 
 후자를 택한 이유는 재조회(`SELECT`)와 `UPDATE` 사이의 창을 신뢰하지 않기 위함이다. UPDATE 문

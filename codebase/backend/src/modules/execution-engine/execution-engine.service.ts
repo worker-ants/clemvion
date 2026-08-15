@@ -4912,9 +4912,29 @@ export class ExecutionEngineService
       //      모순되는 사후 오시그널이다.
       //
       // 그래서 "썼는가" 가 아니라 **"DB 가 실제로 뭐라고 하는가"** 를 묻는다.
-      const live = await this.executionRepository.findOneBy({
-        id: savedExecution.id,
-      });
+      // 재조회 자체가 실패할 수 있다. 이 함수의 호출부는 **둘 다 catch 블록 안**이라
+      // (`runExecution` catch · `finalizeResumedExecutionOutcome`) 여기서 throw 하면
+      // **에러 핸들러가 터진다.** 형제 `emitCancellationEvent` 가 같은 이유로 자체
+      // try/catch 를 갖는다 — "emit 실패가 cancel 자체를 무효화하면 안 된다".
+      //
+      // 실패 시 **skip 한다**(발행하지 않는다). DB 를 읽지 못하면 이 PR 이 세운
+      // "wire 는 DB 가 말하는 것만 말한다" 를 지킬 수 없기 때문이다. 반대 선택(모르면
+      // 일단 발행)은 더 흔한 경우(a)를 맞히지만 (b)에서 DB 와 모순되는 이벤트를 낸다 —
+      // 관측 가능한 무음(warn)이 관측 불가능한 오시그널보다 낫다.
+      let live: Execution | null = null;
+      try {
+        live = await this.executionRepository.findOneBy({
+          id: savedExecution.id,
+        });
+      } catch (err) {
+        this.logger.warn(
+          `finalizeCancelledExecution(${savedExecution.id}) [${logContext}]: ` +
+            `선점 판정을 위한 재조회 실패 — EXECUTION_CANCELLED emit skip: ${
+              err instanceof Error ? err.message : String(err)
+            }`,
+        );
+        return;
+      }
       if (live?.status !== ExecutionStatus.CANCELLED) {
         this.logger.warn(
           `finalizeCancelledExecution(${savedExecution.id}) [${logContext}]: ` +

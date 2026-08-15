@@ -327,9 +327,15 @@ raw `.query()` 는 ORM 매핑을 타지 않아 행의 키가 **DB 그대로 snak
     - **영향 없음 — 9곳.** 반환값을 버리는 호출이라 shape 과 무관하다:
       `execution-engine.service.ts` 의 `driveResumeAwaited`(`:2268`) ·
       `driveCallStackResume`(`:2443`) · `executeSync`(`:4209`) · `runExecution`(`:4334`) ·
-      `finalizeCancelledExecution`(`:4781`), `button-interaction.service.ts` 2곳,
+      ~~`finalizeCancelledExecution`(`:4781`)~~, `button-interaction.service.ts` 2곳,
       `form-interaction.service.ts` 2곳. 그 밖에 `assertExecutionNotCancelled`(DB 재조회),
       `linkedNodeExec` 의 `FOR UPDATE` 잠금(SELECT)은 애초에 이 함수를 거치지 않는다.
+
+    > **세 번째 stale (2026-08-15, `15_01_13` plan_coherence W1).**
+    > `finalizeCancelledExecution` 이 "반환값을 버린다" 는 전제가 **깨졌다** —
+    > [`eia-db-wire-invariant`](./eia-db-wire-invariant.md) ①이 그 함수를 고쳐 이제
+    > `persisted` 를 읽고 분기한다(0행이면 재조회 후 조건부 emit). **영향 있음** 으로
+    > 재분류해야 한다. 이 표를 근거로 §2.4 caveat 를 집행하기 전에 재실측할 것.
 
     > **이 목록을 두 번 틀렸다** (`00_20_21` side_effect W2).
     > **1차** — "`executeSync` timeout·retry 재진입 종결" 처럼 **서술형 라벨**로 적었다.
