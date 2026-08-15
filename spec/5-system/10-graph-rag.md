@@ -549,7 +549,7 @@ LIMIT $5;        -- 회수 폭(recall): vectorSeedTopK + expandedChunkLimit. 최
 | `document:graph_retry` | `{ documentId, attempt: number, maxAttempts: number, error: string }` | 일시 오류 후 재시도 큐잉 직전 (in-flight 일시 오류 신호) |
 | `document:graph_failed` | `{ documentId, error: string }` | 재시도 모두 소진 또는 비재시도성 오류로 최종 실패 |
 
-> `document:graph_error` 이벤트는 **존재하지 않는다** — emit 경로가 없어 `websocket.service.ts` 의 `KbEventType` union 에서 #443 에서 제거됐다 (data-flow §2.5). in-flight 일시 오류는 `document:graph_retry`, 최종 실패는 `document:graph_failed` 로만 신호한다. (임베딩 쪽 `document:embedding_error` 는 대칭 자리에 union 선언만 남아 있으나 마찬가지로 미emit.)
+> `document:graph_error` 이벤트는 **존재하지 않는다** — emit 경로가 없어 `websocket-events.types.ts` 의 `KbEventType` union 에서 #443 에서 제거됐다 (data-flow §2.5). in-flight 일시 오류는 `document:graph_retry`, 최종 실패는 `document:graph_failed` 로만 신호한다. (임베딩 쪽 `document:embedding_error` 는 대칭 자리에 union 선언만 남아 있으나 마찬가지로 미emit.)
 
 ---
 

@@ -1,0 +1,12 @@
+{
+  "timestamp": "2026-08-15T23:28:47.430246",
+  "mode": "spec draft 검토 (--spec)",
+  "target_path": "plan/in-progress/spec-draft-ws-types-canonical-location.md",
+  "checkers": [
+    "cross_spec",
+    "rationale_continuity",
+    "convention_compliance",
+    "plan_coherence",
+    "naming_collision"
+  ]
+}

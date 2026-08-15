@@ -476,6 +476,8 @@ $loop.count = 10              $itemIndex = 1 ($itemIsFirst=false, $itemIsLast=�
   | **`ModuleRef.get(X, { strict: false })`** (런타임 지연 해석) | 순환 그래프상 본 서비스가 상대 모듈보다 **먼저 인스턴스화**돼 생성자 `@Optional` 주입이 **`undefined` 로 굳어버리는** 경우. `forwardRef` 로도 해소되지 않는 인스턴스화-순서 함정을 런타임 해석으로 우회. | `ExecutionEngineService → NotificationsService` (`getNotificationsService`, PR #841 — 미해소 시 `execution_failed` dispatch 가 조용히 no-op); `NotificationsService → WebsocketService` (`getWebsocket`) |
 
   `ExecutionEventEmitter` 는 발행 call-site 일원화를 위한 **동형 thin 래퍼**이지 본 절이 금지하는 외부 이벤트 sink **추상화 인터페이스**가 아니므로 단일 sink 정책의 예외가 아니다(§Rationale "C-1 god-class strangler-fig 분할"). 위 순환 자체를 이벤트 기반 디커플링 등으로 근본 축소하는 것은 별도 대규모 리팩터링 backlog 다 — 현재는 두 기법으로 봉인한 상태를 유지한다.
+
+  **축이 다른 세 번째 완화책** — 위 두 기법은 **DI 그래프**를 다루지만, 순환은 **모듈 그래프** 층위에서도 별개의 실패를 낸다. 두 층위는 실패 모드가 다르다: 위 표의 `forwardRef` 항목이 말하는 "ES-module 순환 봉인" 은 **DI 인스턴스화 순서** 문제이고, 여기서 말하는 것은 순환 위 모듈이 *모듈 평가 시점*에 다른 모듈의 값(enum 등)을 읽으면 아직 `undefined` 인 문제다. 후자는 값·타입 선언을 **의존성-프리 모듈**로 분리해 해소한다 (`codebase/backend/src/modules/websocket/websocket-events.types.ts` — 그 전엔 호출 시점 지연 평가로 우회했다). **DI 그래프·`forwardRef` 배치·단일 sink 정책은 이 조치로 바뀌지 않으며**, 바로 위 문단이 유예한 *"이벤트 기반 디커플링으로 순환을 근본 축소"* 도 **여전히 유예 상태**다 — 줄어든 것은 모듈 그래프이지 DI 그래프가 아니다.
 - **테스트 격리** — Spec 테스트에서는 `Partial<WebsocketService>` mock 으로 충분. 추상화 인터페이스를 위한 별도 noop 구현체 불필요.
 
 > 향후 외부 sink (Webhook 콜백, 텔레메트리 export 등) 가 실제로 추가될 때 본 결정을 재검토한다.

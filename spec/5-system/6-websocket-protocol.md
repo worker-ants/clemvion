@@ -737,7 +737,7 @@ provider tool 실행이 끝나면 (성공·실패 무관) 발송한다. `status`
 
 ### 4.3 KB 문서 이벤트 (Server → Client)
 
-채널: `kb:{documentId}` (KB ID 가 아니라 **문서 ID** 가 채널 키). payload 에는 `documentId`, `timestamp` (ISO 8601) 가 자동 첨부된다. backend 권위 정의는 `WebsocketService` 의 `KbEventType` union (11개 = embedding 6 + graph 5). frontend `useKbEvents` (`KB_EVENT_NAMES`) 가 이 union 과 1:1 로 구독한다.
+채널: `kb:{documentId}` (KB ID 가 아니라 **문서 ID** 가 채널 키). payload 에는 `documentId`, `timestamp` (ISO 8601) 가 자동 첨부된다. backend 권위 정의는 `websocket-events.types.ts` 의 `KbEventType` union (11개 = embedding 6 + graph 5). frontend `useKbEvents` (`KB_EVENT_NAMES`) 가 이 union 과 1:1 로 구독한다.
 
 **임베딩 이벤트 (6개):**
 
@@ -1031,7 +1031,7 @@ socket.emit("subscribe", { channel: "execution:550e8400..." });
 
 ### KB 채널 단위 전환 — `embedding:{knowledgeBaseId}` → `kb:{documentId}`
 
-KB 임베딩 진행 상태는 **문서 단위 채널** 로 broadcast 한다 (`WebsocketService.emitKbEvent` 의 `KbEventType` union, `kb:${documentId}` 채널). frontend `useKbEvents` 도 동일하게 문서별 구독한다.
+KB 임베딩 진행 상태는 **문서 단위 채널** 로 broadcast 한다 (`WebsocketService.emitKbEvent` 가 발행, union 정의는 `websocket-events.types.ts` 의 `KbEventType`, `kb:${documentId}` 채널). frontend `useKbEvents` 도 동일하게 문서별 구독한다.
 
 문서 단위 채널의 근거:
 - 문서별 독립 진행 상태 추적이 가능해 progress UI 가 문서마다 갱신.
