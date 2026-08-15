@@ -1,6 +1,6 @@
 import type { Response } from 'express';
 import { writeSseFrame } from './interaction-stream.controller';
-import type { ExecutionChannelEvent } from '../websocket/websocket.service';
+import type { ExecutionChannelEvent } from '../websocket/websocket-events.types';
 
 function fakeRes(): { res: Response; out: () => string } {
   const chunks: string[] = [];

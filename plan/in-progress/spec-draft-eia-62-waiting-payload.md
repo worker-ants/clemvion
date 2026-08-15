@@ -190,7 +190,7 @@ strip 결정의 SoT 는 WS §4.4 Rationale 의 `### ai_message.llmCalls[] 외부
 
 | # | 사실 | 위치 |
 |---|---|---|
-| 1 | 외부 fanout 은 `stripExternalOnlyFields(wireEnvelope)` 를 거친다 | `websocket.service.ts:479` |
+| 1 | 외부 fanout 은 `stripExternalOnlyFields(wireEnvelope)` 를 거친다 | `websocket.service.ts` `emitExecutionEvent`(외부 fanout 분기) |
 | 2 | 그 목록은 `['llmCalls']` **하나**이고 삭제는 **최상위 전용(depth-1 shallow)** — 주석이 *"중첩 객체 내부의 동명 필드는 strip 되지 않는다"* 고 명시 | `:310`, `:303-305` |
 | 3 | AI turn1 waiting emit 은 `turnDebug: { llmCalls: turnDebugHistory[0], metadata }` 로 **중첩**시킨다 | `ai-turn-orchestrator.service.ts:615-617` |
 | 4 | `turnDebugHistory[i]` 는 `{turnIndex, llmCalls, …}` 이고 `llmCalls` 는 `requestPayload?`/`responsePayload?` 를 갖는다 | `ai-turn-executor.ts:2336-2349`, `llm-tracing/llm-call-record.ts:19-20` |

@@ -7,10 +7,8 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Trigger } from '../triggers/entities/trigger.entity';
-import {
-  ExecutionChannelEvent,
-  WebsocketService,
-} from '../websocket/websocket.service';
+import { WebsocketService } from '../websocket/websocket.service';
+import { ExecutionChannelEvent } from '../websocket/websocket-events.types';
 import { NotificationDispatcher } from './notification-dispatcher.service';
 import { InteractionTokenService } from './interaction-token.service';
 

@@ -119,7 +119,7 @@ import {
   ChatChannelRoutingInfo,
   ExecutionEventType,
   NodeEventType,
-} from '../websocket/websocket.service';
+} from '../websocket/websocket-events.types';
 import { ExecutionEventEmitter } from './events/execution-event-emitter.service';
 import { PRESENTATION_NODE_TYPES } from '../../common/constants/presentation';
 import { GraphTraversalService } from './graph/graph-traversal.service';

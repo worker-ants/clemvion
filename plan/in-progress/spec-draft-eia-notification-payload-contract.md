@@ -49,7 +49,7 @@ pending_plans:
 > 결론했는데, 그중 fanout 갈래를 **소비자 둘이 서로 다르게** 변형한다. 생산자를 재고
 > 소비자를 안 잰 것 — 이 세션이 반복한 "한 지점 재고 일반화" 다.
 
-생산자 (`websocket.service.ts` `emitExecutionEvent` L453-489):
+생산자 (`websocket.service.ts` `emitExecutionEvent`): *(라인 번호 제거 — 리팩터마다 stale 해진다. 심볼로 고정, `18_53_27` W2)*
 
 - `wireEnvelope` = `{ executionId, ...payload필드, seq, timestamp }` — flat
 - `fanoutEnvelope` = `wireEnvelope` + routing context (`triggerId`/`workflowId`, L576-582)

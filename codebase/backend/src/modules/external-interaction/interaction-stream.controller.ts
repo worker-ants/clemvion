@@ -22,7 +22,7 @@ import { Public } from '../../common/decorators';
 import { InteractionGuard } from './interaction.guard';
 import type { RequestWithInteraction } from './interaction.guard';
 import { SseAdapter, SseSubscriber } from './sse-adapter.service';
-import type { ExecutionChannelEvent } from '../websocket/websocket.service';
+import type { ExecutionChannelEvent } from '../websocket/websocket-events.types';
 
 const HEARTBEAT_MS = 15_000;
 const MAX_CONCURRENT_SUBS_PER_EXEC = 3;

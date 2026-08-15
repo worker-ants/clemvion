@@ -21,7 +21,7 @@ import { ExecutionContextService } from './context/execution-context.service';
 import type { RetryState } from './utils/resume-state.schema';
 import { ExecutionEventEmitter } from './events/execution-event-emitter.service';
 import { GraphTraversalService } from './graph/graph-traversal.service';
-import { NodeEventType } from '../websocket/websocket.service';
+import { NodeEventType } from '../websocket/websocket-events.types';
 import { PARK_RELEASED } from '../../shared/execution-resume/process-turn-result';
 import { canTransition } from './state/state-machine';
 import {

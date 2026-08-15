@@ -55,7 +55,7 @@ import {
   ExecutionEventType,
   ToolCallCompletedPayload,
   ToolCallStartedPayload,
-} from '../../../modules/websocket/websocket.service';
+} from '../../../modules/websocket/websocket-events.types';
 import type {
   ConversationThread,
   ConversationTurnToolCall,

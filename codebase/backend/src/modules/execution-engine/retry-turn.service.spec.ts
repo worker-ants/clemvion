@@ -9,7 +9,7 @@ import { ExecutionStatus } from '../executions/entities/execution.entity';
 import {
   ExecutionEventType,
   NodeEventType,
-} from '../websocket/websocket.service';
+} from '../websocket/websocket-events.types';
 import { ExecutionCancelledError } from './workflow-errors';
 import { PARK_RELEASED } from '../../shared/execution-resume/process-turn-result';
 

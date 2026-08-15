@@ -46,10 +46,8 @@ import { ExpressionResolverService } from './expression/expression-resolver.serv
 import { ForEachExecutor } from './containers/foreach-executor';
 import { LoopExecutor } from './containers/loop-executor';
 import { ParallelExecutor } from './containers/parallel-executor';
-import {
-  WebsocketService,
-  ExecutionEventType,
-} from '../websocket/websocket.service';
+import { WebsocketService } from '../websocket/websocket.service';
+import { ExecutionEventType } from '../websocket/websocket-events.types';
 import { ExecutionEventEmitter } from './events/execution-event-emitter.service';
 import { GraphTraversalService } from './graph/graph-traversal.service';
 import { NodeHandlerDependenciesProvider } from './handlers/node-handler-dependencies.provider';
