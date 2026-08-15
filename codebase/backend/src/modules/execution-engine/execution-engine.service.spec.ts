@@ -4384,7 +4384,12 @@ describe('ExecutionEngineService', () => {
       where: jest.fn().mockReturnThis(),
       andWhere: jest.fn().mockReturnThis(),
       returning: jest.fn().mockReturnThis(),
-      execute: jest.fn().mockResolvedValue({ affected, raw: [] }),
+      // RETURNING 값을 실제로 돌려줘야 threading 이 테스트를 탄다 — 종전엔 `raw` 가
+      // 비어 있어 추출부를 통째로 깨는 뮤테이션도 GREEN 이었다 (`11_44_10` W1).
+      execute: jest.fn().mockResolvedValue({
+        affected,
+        raw: affected > 0 ? [{ id: 'e3', duration_ms: 600000 }] : [],
+      }),
     });
     const admit = (exec: unknown, input: unknown = {}) =>
       (
@@ -4550,6 +4555,9 @@ describe('ExecutionEngineService', () => {
           error: expect.objectContaining({
             code: 'EXECUTION_QUEUE_WAIT_TIMEOUT',
           }),
+          // RETURNING 값이 emit 까지 그대로 흐르는지 — 3라운드째 이월이던 마지막 경로다.
+          // 이 값의 의미는 "큐 대기 시간" 이라 다른 4경로로 대체 증명되지 않는다.
+          durationMs: 600000,
         }),
       );
       // 5분 cancel 로 단락 → cap 검사(workflow 조회) 이전 return.

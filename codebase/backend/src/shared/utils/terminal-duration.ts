@@ -17,7 +17,7 @@ export const PG_INT4_MAX = 2147483647;
  *
  * - 대부분은 emit 직전에 `durationMs` 를 계산해 엔티티에 얹는다
  * - `finalizeStalledExhausted` 는 **엔티티를 로드하지 않는** raw UPDATE 라 값이 없다
- * - `emitCancellationEvent` 호출부 4곳은 계산도 영속도 하지 않는다
+ * - `emitCancellationEvent` 호출부 5곳은 계산도 영속도 하지 않는다
  *
  * 이 갈래를 emit 지점마다 손으로 처리하면 한 곳씩 빠진다 — 이 저장소의 반복 형태이고,
  * 직전 PR(#1170)이 `error` 를 같은 이유로 헬퍼에 묶었다.

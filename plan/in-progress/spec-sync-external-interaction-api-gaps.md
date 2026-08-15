@@ -21,13 +21,15 @@ owner: planner
       없다. 소비처 0곳
 - [x] **`durationMs` emit** — **완료 (2026-08-15, `0f0050dea`+`0dce2a83f`)**. 종결 3종
       16 경로 전부. 엔티티 미로드 5곳은 UPDATE 문 안에서 SQL 계산 + `RETURNING`.
-      ~~(§6 도입부 필드 집합 표의 Planned 2행,~~
-      2026-08-13 등재) — 데이터는 emit **직전에 이미 존재**하는데 payload 에 넣지 않는다
-      (`execution-engine.service.ts` 의 `EXECUTION_COMPLETED` emit **4곳** + `retry-turn.service.ts`
-      **2곳** — 전부 `{ status }` 만 싣는다. 줄 번호는 리팩터마다 stale 해지므로 심볼로 고정한다).
-      spec 이 없는 필드를 약속하던 상태를 정리하며(§6 재작성) **문서 쪽을 실제에 맞췄고**,
-      이 항목은 그 반대 방향(구현을 문서에 맞추기)의 잔여분이다. 구현되면 필드 집합 표의
-      "미구현 (Planned)" 를 "구현됨" 으로 flip 한다.
+      필드 집합 표의 `durationMs` 행을 **"구현됨" 으로 flip 했다**(`0dce2a83f`).
+      > **아래는 2026-08-13 등재 시점 원문이다 — 전부 해소됐다.** 취소선을 절반만 쳐 둬서
+      > "아직 payload 에 안 실린다" 로 오독될 수 있었다 (`11_44_10` documentation W4).
+      >
+      > ~~데이터는 emit 직전에 이미 존재하는데 payload 에 넣지 않는다 —
+      > `EXECUTION_COMPLETED` emit 4곳 + `retry-turn` 2곳이 `{status}` 만 싣는다.~~
+      >
+      > 착수 시 세어 보니 **completed 만 6곳**이었고(원문은 4곳), 종결 3종 전체로는
+      > **16 경로**였다 — 등재 시점 추정이 실측보다 작았다.
 - [x] **`execution.failed` 의 `error` 를 객체로 통일** (§6 필드 집합 표 `error` 행,
       2026-08-13 등재 → **2026-08-14 완료**). emit 4곳을 `toTerminalErrorPayload` 로 일원화.
       > **"wrap 과 union 을 함께 제거한다" 는 원래 계획을 절반만 집행했다 — 의도적이다.**
