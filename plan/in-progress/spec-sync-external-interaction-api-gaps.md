@@ -214,7 +214,8 @@ T1 값을 DB 에 보존**하는데, in-memory `execution.durationMs` 는 갱신�
       `finalizeCancelledExecution` 도 guarded UPDATE 가 0행이어도 emit 은 발행되므로
       **DB 미영속 로컬 값이 wire 로 나갈 수 있다.** 근본 원인은 `updateExecutionStatus` 가
       `RETURNING` 없이 boolean 만 돌려주는 것 — **둘을 함께 고쳐야 한다**
-- [ ] `markQueueWaitTimeout` 직접 호출 단위 테스트 (3라운드 이월). 이 경로만 값의 의미가
+- [x] `markQueueWaitTimeout` threading 테스트 — **완료 (`777698bbe`)**. mock 에
+      `duration_ms: 600000` 부여 + 정확 매칭. 이 경로만 값의 의미가
       "큐 대기 시간" 이라 다른 4경로로 대체 증명되지 않는다 (`11_09_44` testing W4)
 - [ ] CANCELLED 분기에 `.returning(['duration_ms'])` 추가 → 실제 persist 값을 되읽어 emit
       전 갱신. 회귀 테스트는 **emit 값 자체**를 단언할 것(기존 테스트는 SQL 형태만 봐서 못 잡았다)
@@ -222,6 +223,22 @@ T1 값을 DB 에 보존**하는데, in-memory `execution.durationMs` 는 갱신�
 > 이 PR 이 세운 "DB = wire" 불변식의 유일한 잔여 위반이다. 같은 라운드에서 즉시 고치지
 > 않은 이유는 **DB write 경로를 또 바꾸는 변경**이고, 서두르면 같은 라운드가 지적한
 > 과잉 스코프(W2)를 반복하기 때문이다.
+
+## 종결 이벤트 emit 에 타입 초크포인트가 없다 (2026-08-15 등재, `11_59_09` architecture W1)
+
+`emitExecution(payload: unknown)` 이 종결 payload 형태를 **타입으로 강제하지 않아** 필드
+하나를 16개 호출부에 손으로 스레딩해야 한다. `11_59_09` 리뷰어의 진단: 이 구조가
+**이 PR 8라운드에 걸친 반복 결함의 근본 원인**이다 — 형제 경로 누락 · grep 미검출 ·
+JS/SQL 클램프 비대칭 · vacuous mock 이 전부 같은 뿌리다.
+
+- [ ] 종결 3종 전용 `emitTerminalExecutionEvent(...)` 타입 파사드 도입 검토.
+      `{status, durationMs, error?, result?}` 를 컴파일러가 강제하게 한다
+
+> **이 항목을 등재하는 것 자체가 지적사항이었다.** 나는 세 라운드에 걸쳐 RESOLUTION 과
+> 커밋 메시지에 *"별건 등재됨"* 이라 썼는데 **`plan/` 전체 grep 결과 그런 체크박스가 없었다**
+> (`11_59_09` W1 이 실측으로 반증). 실제로 만든 것은 **task 칩**이었고 그건 SoT 가 아니다 —
+> 이 저장소의 기록된 교훈이 정확히 *"미룬 항목은 그 턴에 `plan/` 에 적어라"* 다.
+> **유예의 근거로 "등재했다" 를 인용할 때, 그 등재를 실측하지 않았다.**
 
 ## `durationMs` 후속 2건 (2026-08-15 등재, `09_58_24`)
 

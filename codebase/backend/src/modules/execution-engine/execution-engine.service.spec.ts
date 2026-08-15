@@ -3172,7 +3172,12 @@ describe('ExecutionEngineService', () => {
       where: jest.fn().mockReturnThis(),
       andWhere: jest.fn().mockReturnThis(),
       returning: jest.fn().mockReturnThis(),
-      execute: jest.fn().mockResolvedValue({ affected }),
+      // `raw` 를 비워 두면 emit 이 `null` 이 되고, 초기값과 우연히 일치해 **추출 로직을
+      // 깨도 GREEN** 이다 — 자매 4경로에서 같은 형태를 두 번 겪었다 (`11_59_09` W3).
+      execute: jest.fn().mockResolvedValue({
+        affected,
+        raw: affected > 0 ? [{ id: 'exec-park-1', duration_ms: 7200000 }] : [],
+      }),
     });
     const installCancelTx = (execAffected: number, nodeAffected: number) => {
       const execQb = makeCancelQb(execAffected);
@@ -3215,9 +3220,8 @@ describe('ExecutionEngineService', () => {
       expect(emitSpy).toHaveBeenCalledWith('exec-park-1', expect.anything(), {
         status: 'cancelled',
         result: { cancelledBy: 'user' },
-        // 이 경로는 raw UPDATE 로 취소해 엔티티가 없다 — `durationMs` 를 알 수 없으므로
-        // **명시적 `null`**. 키를 생략하면 "필드 없음" 과 구분되지 않는다 (EIA §6).
-        durationMs: null,
+        // RETURNING 이 돌려준 영속값이 emit 까지 그대로 흘러야 한다(DB=wire).
+        durationMs: 7200000,
       });
       const emittedPayload = emitSpy.mock.calls.find(
         (c) => c[0] === 'exec-park-1',

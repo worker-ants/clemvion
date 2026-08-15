@@ -93,7 +93,11 @@ export class DashboardService {
         'success7d',
       )
       .addSelect(
-        'AVG(e.duration_ms) FILTER (WHERE e.started_at >= :sevenDaysAgo AND e.duration_ms IS NOT NULL)',
+        // `duration_ms IS NOT NULL` 만으로는 더 이상 충분하지 않다 — 종결 payload 작업
+        // 이전에는 취소·타임아웃 실행의 `duration_ms` 가 **비어 있어 자동으로 빠졌지만**,
+        // 이제 그 경로들도 값을 채운다. 그 값은 실행 시간이 아니라 **대기 경과 시간**이라
+        // (park 는 최대 24.8일) 상태로 거르지 않으면 평균이 통째로 망가진다.
+        'AVG(e.duration_ms) FILTER (WHERE e.started_at >= :sevenDaysAgo AND e.duration_ms IS NOT NULL AND e.status = :completedStatus)',
         'avg7d',
       )
       .where('w.workspace_id = :workspaceId', { workspaceId })
