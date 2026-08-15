@@ -80,7 +80,8 @@ function moduleSpecifiersOf(sf: ts.SourceFile): string[] {
     } else if (ts.isCallExpression(node)) {
       const isRequire =
         ts.isIdentifier(node.expression) && node.expression.text === 'require';
-      const isDynamicImport = node.expression.kind === ts.SyntaxKind.ImportKeyword;
+      const isDynamicImport =
+        node.expression.kind === ts.SyntaxKind.ImportKeyword;
       const [arg] = node.arguments;
       if ((isRequire || isDynamicImport) && arg && ts.isStringLiteral(arg)) {
         found.push(arg.text);
@@ -152,7 +153,9 @@ describe('websocket-events.types — ES-module 순환 재편입 방지 (#1174 �
           .filter((n) => n !== 'WebsocketService');
 
         if (valueImports.length) {
-          offenders.push(`${path.relative(SRC_ROOT, file)} → ${valueImports.join(', ')}`);
+          offenders.push(
+            `${path.relative(SRC_ROOT, file)} → ${valueImports.join(', ')}`,
+          );
         }
       }
     }

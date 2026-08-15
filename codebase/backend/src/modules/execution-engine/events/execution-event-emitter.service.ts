@@ -64,6 +64,9 @@ export type TerminalEventPayload =
  * **우회를 되돌린 이유는 그게 캐너리이기 때문이다.** 누군가 값 import 를 다시
  * `websocket.service` 로 되돌리거나 순환을 되살리면 이 상수가 즉시 `undefined` 를 읽어
  * 테스트가 대량으로 깨진다 — 조용히 되돌아가지 않는다.
+ *
+ * 다만 캐너리는 **터진 뒤에야** 말해 준다. 원인을 곧장 가리키는 쪽은
+ * `websocket/websocket-events.types.spec.ts` 다 — 순환 재편입을 정적으로 잡는다.
  */
 const TERMINAL_SHAPE = {
   completed: {
