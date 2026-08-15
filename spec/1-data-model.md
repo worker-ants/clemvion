@@ -466,7 +466,7 @@ Schedule은 Trigger의 서브타입이다. 양쪽의 라이프사이클과 상�
 | queued_at | Timestamp? | intake 큐 대기 진입 시각(`execute()` 의 `pending` INSERT 시점). §8 admission gate 의 큐 대기 5분 초과 판정 기준(`now - queued_at`) — [4-execution-engine §8](./5-system/4-execution-engine.md#8-동시-실행-제한). `started_at`(RUNNING 전이 시각)과 별개. **마이그레이션 V104(PR2b)** |
 | started_at | Timestamp | 실행 시작 시각 |
 | finished_at | Timestamp? | 실행 종료 시각 |
-| duration_ms | Integer? | 실행 소요 시간 (wall-clock, start→finish) |
+| duration_ms | Integer? | 실행 소요 시간 (wall-clock, start→finish). **취소·타임아웃 종결 경로에서는 실행 시간이 아니라 대기 경과 시간**이다 — [EIA §6.5](./5-system/14-external-interaction-api.md) 참조. 컬럼이 `INTEGER`(int4, ≈24.8일)라 쓰는 쪽은 상한 클램프가 필수다 |
 | active_running_ms | Integer | 누적 active-running 시간(ms). active 세그먼트(worker 가 노드를 전진시킨 구간)의 합 — `waiting_for_input` park 시간 제외. 기본 0. §8 active-running 타임아웃(`EXECUTION_TIME_LIMIT_EXCEEDED`)의 측정 기준 ([4-execution-engine §8](./5-system/4-execution-engine.md#8-동시-실행-제한)) |
 | input_data | JSONB? | 실행 입력 데이터 |
 | output_data | JSONB? | 실행 최종 출력 데이터 |
