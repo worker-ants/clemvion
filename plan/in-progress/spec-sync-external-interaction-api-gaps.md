@@ -225,14 +225,23 @@ T1 값을 DB 에 보존**하는데, in-memory `execution.durationMs` 는 갱신�
 재진입 시점 T2(더 큰 값)를 싣는다.** 희귀 레이스가 아니라 "retry-turn 처리 중 Stop" 이라는
 일반 흐름에서 결정적으로 발생한다.
 
-- [ ] **같은 처방이 필요한 자매 1곳** (`11_09_44` concurrency W1):
-      `finalizeCancelledExecution` 도 guarded UPDATE 가 0행이어도 emit 은 발행되므로
-      **DB 미영속 로컬 값이 wire 로 나갈 수 있다.** 근본 원인은 `updateExecutionStatus` 가
-      `RETURNING` 없이 boolean 만 돌려주는 것 — **둘을 함께 고쳐야 한다**
+- [x] **자매 1곳** — **완료**. `finalizeCancelledExecution` 이 guarded
+      UPDATE 가 0행이어도 emit 을 발행한다.
+      > **처방 정정 (2026-08-15 실측).** 이 항목은 근본 원인을 *"`updateExecutionStatus` 가
+      > `RETURNING` 없이 boolean 만 돌려주는 것"* 이라 적고 **둘을 함께 고쳐야 한다**고
+      > 했는데, **둘 다 틀렸다.** boolean 으로 충분하다 — 호출부가 **그걸 읽지 않을 뿐**이다.
+      > 바로 옆 자매 `finalizeFailedExecution` 은 같은 반환을 읽어 emit 을 skip 한다.
+      > 그리고 두 항목은 **독립**이다: 이쪽은 "반환을 읽어라", 아래 CANCELLED 분기는
+      > "`RETURNING` 을 추가하라" 로 처방이 다르다.
+      >
+      > 심각도도 한 칸 위다. "DB 미영속 로컬 값" 이 아니라 **DB 가 FAILED 인데 수신자는
+      > cancelled 를 받는다** — 이 저장소가 이미 세 번 CRITICAL 로 잡은 사후 오시그널이다.
+      > `finalizeFailedExecution` 의 주석이 *"형제와 동일한 guarded 경로"* 라고 **대칭을
+      > 주장하는데 절반만 참이다**.
 - [x] `markQueueWaitTimeout` threading 테스트 — **완료 (`777698bbe`)**. mock 에
       `duration_ms: 600000` 부여 + 정확 매칭. 이 경로만 값의 의미가
       "큐 대기 시간" 이라 다른 4경로로 대체 증명되지 않는다 (`11_09_44` testing W4)
-- [ ] CANCELLED 분기에 `.returning(['duration_ms'])` 추가 → 실제 persist 값을 되읽어 emit
+- [x] CANCELLED 분기에 `.returning(...)` — **완료**. 실제 persist 값을 되읽어 emit
       전 갱신. 회귀 테스트는 **emit 값 자체**를 단언할 것(기존 테스트는 SQL 형태만 봐서 못 잡았다)
 
 > 이 PR 이 세운 "DB = wire" 불변식의 유일한 잔여 위반이다. 같은 라운드에서 즉시 고치지
@@ -295,7 +304,7 @@ JS/SQL 클램프 비대칭 · vacuous mock 이 전부 같은 뿌리다.
 
 ## `durationMs` 후속 2건 (2026-08-15 등재, `09_58_24`)
 
-- [ ] **REST `GET /api/external/executions/:id` 에 `durationMs` 부재** (W4). push 계열
+- [x] **REST `GET /api/external/executions/:id` 에 `durationMs`** — **완료**. push 계열
       (webhook/SSE/WS)만 채워져 **"이벤트로 받으면 있는데 재조회하면 사라지는"** 비대칭이
       생겼다. `ExecutionStatusDto` + `STATUS_PROJECTION_COLUMNS` 에 추가하거나, 의도적
       제외라면 §5.3 에 사유를 적을 것. CHANGELOG 에 이미 고지했다.

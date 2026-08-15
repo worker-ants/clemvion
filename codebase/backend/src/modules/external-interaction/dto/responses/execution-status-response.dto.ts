@@ -113,6 +113,22 @@ export class ExecutionStatusDto {
   @ApiProperty({ enum: EIA_EXECUTION_STATUS_VALUES })
   status: ExecutionStatusLiteral;
 
+  /**
+   * 종결(`completed`/`failed`/`cancelled`) 실행의 밀리초 소요 시간. 종결 전에는 `null`
+   * (키 present — API 규약 §5.4). 종결 이벤트 payload 의 같은 이름 필드와 **같은 값**이다.
+   *
+   * ⚠️ 취소·타임아웃 종결 경로에서는 실행 시간이 아니라 **대기 경과 시간**이다
+   * (EIA §6.5 캐비엇).
+   */
+  @ApiPropertyOptional({
+    description:
+      '종결 실행의 소요 시간(ms). 종결 전에는 null. 취소·타임아웃 경로에서는 대기 경과 시간이다 (EIA §6.5).',
+    type: 'integer',
+    example: 4242,
+    nullable: true,
+  })
+  durationMs?: number | null;
+
   /** waiting_for_input 상태에서만 실값. 그 외에는 `null`. */
   @ApiPropertyOptional({
     description: 'waiting_for_input 상태에서만. 현재 입력 대기 중인 노드.',

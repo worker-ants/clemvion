@@ -4882,7 +4882,24 @@ export class ExecutionEngineService
     // 형태를 이 PR 이 completed 경로에서 실제로 겪었다.
     savedExecution.durationMs =
       resolveTerminalDurationMs(savedExecution) ?? savedExecution.durationMs;
-    await this.updateExecutionStatus(savedExecution, ExecutionStatus.CANCELLED);
+    // 자매 `finalizeFailedExecution` 과 **실제로** 동형으로 만든다. 둘 다 guarded UPDATE
+    // (`status IN (non-terminal)`)를 타지만 종전에는 **반환을 읽는 쪽이 하나뿐**이었다 —
+    // 자매의 주석이 "형제와 동일한 guarded 경로" 라고 대칭을 주장하는데 절반만 참이었다.
+    // 0행이면 다른 writer 가 이미 terminal 로 옮긴 것이다. 그대로 emit 하면 **DB 에 쓰이지
+    // 않은 종결 이벤트**가 나가고, 수신자는 DB 가 FAILED 인 실행에 cancelled 를 받는다
+    // (EIA §6 계약 위반). 이 저장소가 이미 세 번 CRITICAL 로 잡은 사후 오시그널이다.
+    const persisted = await this.updateExecutionStatus(
+      savedExecution,
+      ExecutionStatus.CANCELLED,
+    );
+    if (!persisted) {
+      this.logger.warn(
+        `finalizeCancelledExecution(${savedExecution.id}) [${logContext}]: ` +
+          `동시 writer 가 이미 terminal 로 선점 — CANCELLED 재마킹·` +
+          `EXECUTION_CANCELLED emit 을 모두 skip`,
+      );
+      return;
+    }
     await this.emitCancellationEvent(savedExecution.id, {
       cancelledBy: 'user',
       durationMs: resolveTerminalDurationMs(savedExecution),

@@ -482,6 +482,10 @@ Authorization: Bearer <iext_jwt | itk_token>
   } | null,
   "result":  { ... } | null,        // completed 시
   "error":   { ... } | null,        // failed 시
+  "durationMs": 4242 | null,        // 종결 시. **영속 컬럼을 그대로** 싣는다(재계산 아님) —
+                                    // 종결 이벤트 §6 의 같은 이름 필드와 같은 값이다.
+                                    // 종결 전에는 null (키는 present — §5.4 부재 표현).
+                                    // ⚠️ 취소·타임아웃 경로에서는 대기 경과 시간이다 (§6.5)
   "seq":     0,                     // 항상 0 placeholder — 실제 seq 는 SSE 가 권위 (위 콜아웃 참조)
   "updatedAt": "ISO8601"
 }
@@ -809,11 +813,11 @@ header value   = "t={timestamp},v1={hex(signature)}"
 > raw UPDATE 라 JS 에서 계산할 수 없다. UPDATE 문 안에서 SQL 로 계산하고 `RETURNING` 으로
 > 되받아 싣는다 — DB 와 wire 가 같은 값을 쓴다. 알 수 없으면 `null`.
 >
-> **알려진 예외 1건**: retry-turn 처리 중 사용자가 Stop 하면, DB 에는 `stop()` 이 커밋한
+> ~~**알려진 예외 1건**: retry-turn 처리 중 사용자가 Stop 하면, DB 에는 `stop()` 이 커밋한
 > 최초 시각 기준 값이 보존되는데 emit 은 **재진입 시점 값**(더 큼)을 싣는다. 희귀 레이스가
-> 아니라 결정적으로 발생한다. 추적:
-> [`spec-sync-external-interaction-api-gaps.md`](../../plan/in-progress/spec-sync-external-interaction-api-gaps.md)
-> — 이 문서의 관행대로 **알려진 갭은 invariant 옆에 적는다**(R14·R17·§6.4 와 동형).
+> 아니라 결정적으로 발생한다.~~ **(2026-08-15 해소)** — CANCELLED 분기의 `COALESCE` UPDATE 에
+> `RETURNING` 을 달아 **DB 가 실제로 고른 값**을 되읽어 emit 한다. `COALESCE` 가 어느 쪽을
+> 골랐는지는 DB 만 알기 때문에, 되받지 않으면 caller 는 로컬 값을 실을 수밖에 없었다.
 >
 > **취소 경로의 값은 실행 시간이 아니라 대기 시간에 가깝다** — 셋 다 그렇다:
 > `EXECUTION_QUEUE_WAIT_TIMEOUT`(admission 이전부터의 큐 대기),

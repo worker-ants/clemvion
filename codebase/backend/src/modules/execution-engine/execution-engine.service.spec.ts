@@ -1063,6 +1063,40 @@ describe('ExecutionEngineService', () => {
     });
   });
 
+  // 위 자매(`finalizeFailedExecution`)의 거울상. 두 함수는 같은 guarded UPDATE 를 쓰는데
+  // **반환값을 읽는 쪽은 하나뿐이었다** — 자매의 주석이 *"형제 finalizeCancelledExecution
+  // 과 동일한 guarded 경로"* 라고 대칭을 주장하지만 절반만 참이었다.
+  describe('finalizeCancelledExecution — 선점 시 사후 오시그널 금지', () => {
+    it('동시 writer 가 이미 terminal 로 선점(guarded UPDATE 0행) → EXECUTION_CANCELLED emit 을 skip', async () => {
+      const eventEmitter = (
+        service as unknown as { eventEmitter: { emitExecution: jest.Mock } }
+      ).eventEmitter;
+      const emitSpy = jest
+        .spyOn(eventEmitter, 'emitExecution')
+        .mockResolvedValue(undefined);
+      // 0행 = 다른 writer 가 먼저 terminal 로 옮겼다.
+      mockExecutionRepo.query.mockResolvedValueOnce([]);
+      const saved: Record<string, unknown> = {
+        id: 'ex-cancel-preempted',
+        status: ExecutionStatus.RUNNING, // stale in-memory — DB 는 이미 terminal.
+        workflowId: 'wf',
+        executedBy: 'owner',
+        parentExecutionId: null,
+        startedAt: new Date(),
+      };
+
+      await (
+        service as unknown as {
+          finalizeCancelledExecution: (e: unknown, c: string) => Promise<void>;
+        }
+      ).finalizeCancelledExecution(saved, 'test');
+
+      // DB 에 쓰이지 않은 종결 이벤트를 내보내면, 수신자는 DB 가 FAILED 인 실행에
+      // 대해 cancelled 를 받는다 — EIA §6 종결 계약 위반.
+      expect(emitSpy).not.toHaveBeenCalled();
+    });
+  });
+
   describe('getNotificationsService — ModuleRef 지연 해석 (버그 B 회귀 가드)', () => {
     // ExecutionEngineService 가 순환 그래프로 먼저 인스턴스화되면 생성자 @Optional
     // NotificationsService 가 undefined 로 남는다. getNotificationsService 는 그 경우
