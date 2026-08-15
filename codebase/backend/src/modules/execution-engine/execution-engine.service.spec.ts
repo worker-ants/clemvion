@@ -2982,7 +2982,12 @@ describe('ExecutionEngineService', () => {
       where: jest.fn().mockReturnThis(),
       andWhere: jest.fn().mockReturnThis(),
       returning: jest.fn().mockReturnThis(),
-      execute: jest.fn().mockResolvedValue({ affected }),
+      // `RETURNING duration_ms` 를 실제로 돌려줘야 threading 이 테스트를 탄다 —
+      // `raw` 를 비워 두면 emit 이 `null` 이라 단언이 vacuous 해진다.
+      execute: jest.fn().mockResolvedValue({
+        affected,
+        raw: affected > 0 ? [{ id: 'exec-idle', duration_ms: 3600000 }] : [],
+      }),
     });
     const installIdleTx = (execAffected: number, nodeAffected: number) => {
       const execQb = makeIdleQb(execAffected);
@@ -3057,6 +3062,9 @@ describe('ExecutionEngineService', () => {
         expect.objectContaining({
           result: { cancelledBy: 'timeout' },
           error: expect.objectContaining({ code: 'WEBCHAT_IDLE_TIMEOUT' }),
+          // RETURNING 값이 emit 까지 **그대로** 흐르는지 — 2라운드째 요청받고 미이행이던
+          // 단언이다. mock 이 주는 값과 정확히 같아야 한다(threading 검증).
+          durationMs: 3600000,
         }),
       );
       expect(releaseSpy).toHaveBeenCalledWith('exec-idle');

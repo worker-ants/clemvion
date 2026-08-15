@@ -1,4 +1,12 @@
 /**
+ * `duration_ms` 컬럼(`INTEGER`, int4)의 최대값 ≈ **24.8일**.
+ *
+ * JS 경로와 SQL 경로가 **같은 컬럼**에 쓰므로 상한도 같아야 한다. 한쪽만 클램프한 상태가
+ * 실제로 CRITICAL 로 잡혔다 — 그래서 상수를 하나만 둔다.
+ */
+export const PG_INT4_MAX = 2147483647;
+
+/**
  * 종결 이벤트(`completed`/`failed`/`cancelled`)의 `durationMs` 를 **한 곳에서** 결정한다.
  *
  * SoT: `spec/5-system/14-external-interaction-api.md` §6 필드 집합 표.
@@ -25,13 +33,6 @@
  * @returns 밀리초. 알 수 없으면 **`null`** — `undefined` 를 돌려주면 JSON 직렬화에서
  *   키가 사라져 "필드가 없는 것" 과 "값을 모르는 것" 이 구분되지 않는다.
  */
-/**
- * `duration_ms` 컬럼(`INTEGER`, int4)의 최대값 ≈ **24.8일**.
- *
- * JS 경로와 SQL 경로가 **같은 컬럼**에 쓰므로 상한도 같아야 한다. 한쪽만 클램프한 상태가
- * 실제로 CRITICAL 로 잡혔다 — 그래서 상수를 하나만 둔다.
- */
-export const PG_INT4_MAX = 2147483647;
 
 export function resolveTerminalDurationMs(row: {
   durationMs?: number | null;
