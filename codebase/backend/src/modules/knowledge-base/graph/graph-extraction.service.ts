@@ -8,7 +8,7 @@ import { KnowledgeBase } from '../entities/knowledge-base.entity';
 import { LlmService } from '../../llm/llm.service';
 import { sanitizeLlmErrorMessage } from '../../llm/utils/sanitize-error.util';
 import { WebsocketService } from '../../websocket/websocket.service';
-import { type KbEventType } from '../../websocket/websocket-events.types';
+import type { KbEventType } from '../../websocket/websocket-events.types';
 import {
   GRAPH_EXTRACTION_SYSTEM_PROMPT,
   GRAPH_EXTRACTION_JSON_SCHEMA,

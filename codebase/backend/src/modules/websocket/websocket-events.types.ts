@@ -209,8 +209,7 @@ export enum BackgroundRunEventType {
 /**
  * 사용자 알림 도메인 이벤트. 채널: `notifications:<userId>`.
  * 권위 정의: spec/5-system/6-websocket-protocol.md §4.4 (`notification.new`).
- */
-/**
+ *
  * ⚠️ **인앱 알림 벨 전용** — `triggers/dto/notification-config.dto.ts` 에 **같은 이름의
  * 다른 타입**이 있다(outbound webhook 구독 화이트리스트, `execution.*` 5값). 둘은 무관하다.
  *
@@ -235,15 +234,6 @@ export interface NotificationNewPayload {
   resourceType?: string | null;
   resourceId?: string | null;
 }
-
-/**
- * WARN #10 (Security) — credential-like 키를 가진 필드를 WS 이벤트 페이로드에서
- * 마스킹. 핸들러가 echo 하지 말아야 할 자격증명 (password, apiKey, token, secret,
- * credentials.access_token 등) 이 노드 output / meta 에 실수로 포함된 경우에
- * 대비한 defense-in-depth. 채널 구독자 전원에게 평문 노출되는 것을 차단.
- *
- * 키 이름 패턴 매칭 방식 — 값 자체의 entropy 분석은 false positive 가 너무 많음.
- */
 
 /**
  * Knowledge Base 도메인 이벤트 — KB 이벤트의 **권위 정의**. frontend `useKbEvents`

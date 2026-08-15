@@ -48,6 +48,14 @@ export type {
 // 아래는 **구현 세부**다 — 타입 모듈이 아니라 이 파일에 남는다.
 // (분리 시 함께 옮겼다가 클래스가 이들을 참조해 컴파일이 깨졌다. 타입 모듈은
 //  `export` 된 값·타입만 갖는다.)
+/**
+ * WARN #10 (Security) — credential-like 키를 가진 필드를 WS 이벤트 페이로드에서
+ * 마스킹. 핸들러가 echo 하지 말아야 할 자격증명 (password, apiKey, token, secret,
+ * credentials.access_token 등) 이 노드 output / meta 에 실수로 포함된 경우에
+ * 대비한 defense-in-depth. 채널 구독자 전원에게 평문 노출되는 것을 차단.
+ *
+ * 키 이름 패턴 매칭 방식 — 값 자체의 entropy 분석은 false positive 가 너무 많음.
+ */
 const CREDENTIAL_KEY_PATTERN =
   /^(password|passwd|pwd|api[_-]?key|secret|token|access[_-]?token|refresh[_-]?token|private[_-]?key|client[_-]?secret|authorization|cookie)$/i;
 

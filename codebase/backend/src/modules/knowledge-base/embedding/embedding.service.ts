@@ -9,7 +9,7 @@ import { LlmService } from '../../llm/llm.service';
 import { ModelConfigService } from '../../model-config/model-config.service';
 import { sanitizeLlmErrorMessage } from '../../llm/utils/sanitize-error.util';
 import { WebsocketService } from '../../websocket/websocket.service';
-import { type KbEventType } from '../../websocket/websocket-events.types';
+import type { KbEventType } from '../../websocket/websocket-events.types';
 import {
   parseDocument,
   parseDocumentSegments,

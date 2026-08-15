@@ -113,7 +113,7 @@ ES-module 순환 위에 있어서다. 생성자의 `forwardRef` 도 같은 이�
 
 - [x] `--impl-prep` (`18_53_27`) **BLOCK: NO** — WARNING 3 + INFO 1 전부 반영
 - [x] 자매 트래커 동시 갱신 (구현 커밋과 같은 턴)
-- [ ] TEST WORKFLOW 4스테이지
+- [x] TEST WORKFLOW 4스테이지 — lint / unit(백엔드 425·8737) / build / **e2e 276** 전부 PASS
 - [ ] `/ai-review` CRITICAL 0
 - [ ] `--impl-done` BLOCK: NO
 - [ ] push 게이트 통과 → PR

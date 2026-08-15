@@ -20,7 +20,7 @@ import {
 } from '../execution-engine/workflow-errors';
 import { ErrorCode } from '../../nodes/core/error-codes';
 import { ExecutionsService } from '../executions/executions.service';
-import { ExecutionEventType } from './websocket.service';
+import { ExecutionEventType } from './websocket-events.types';
 import { corsOriginCallback } from '../../common/utils/cors-origins';
 import { WsErrorCode } from './ws-error-codes';
 import { WsRateLimitGuard } from './ws-rate-limit.guard';
