@@ -41,6 +41,17 @@ import { PARK_RELEASED } from '../../shared/execution-resume/process-turn-result
 // 와 통합 테스트로 분업하는 관계다.
 // ────────────────────────────────────────────────────────────────────────────
 
+// 파사드는 `type`('completed'…)을 받고 wire enum 은 emitter 가 파생한다. 이 파일의
+// 단언들은 "어떤 종결 이벤트가 나갔나" 를 묻는 것이므로 되매핑해 기존 의미를 보존한다
+// (wire 형태 자체는 `execution-event-emitter.service.spec.ts` 가 고정한다).
+// **한 곳에만 둔다** — 두 describe 에 복제했더니 한쪽만 갱신될 위험이 지적됐다
+// (`17_54_32` maintainability W5).
+const TYPE_TO_EVENT = {
+  completed: ExecutionEventType.EXECUTION_COMPLETED,
+  failed: ExecutionEventType.EXECUTION_FAILED,
+  cancelled: ExecutionEventType.EXECUTION_CANCELLED,
+} as const;
+
 describe('RetryTurnService', () => {
   let service: RetryTurnService;
   let mockNodeExecutionRepo: Record<string, jest.Mock>;
@@ -92,6 +103,10 @@ describe('RetryTurnService', () => {
     };
     mockEventEmitter = {
       emitExecution: jest.fn().mockResolvedValue(undefined),
+      // 종결 3종은 이제 타입 파사드를 탄다. **wire 형태는 여기서 단언하지 않는다** —
+      // 그 책임은 `execution-event-emitter.service.spec.ts` 로 갔고, 이 파일은
+      // "서비스가 무엇을 의도했는가"(type + 필수 필드)만 본다.
+      emitTerminalExecution: jest.fn().mockResolvedValue(undefined),
       emitNode: jest.fn().mockResolvedValue(undefined),
     } as unknown as ExecutionEventEmitter;
     mockGraphTraversal = {
@@ -686,18 +701,19 @@ describe('RetryTurnService', () => {
         execution,
         ExecutionStatus.CANCELLED,
       );
-      const emitExecution = mockEventEmitter.emitExecution as jest.Mock;
+      const emitTerminal = mockEventEmitter.emitTerminalExecution as jest.Mock;
       // CANCELLED event emitted, FAILED never.
-      expect(emitExecution).toHaveBeenCalledWith(
-        EXEC,
-        ExecutionEventType.EXECUTION_CANCELLED,
-        {
-          status: ExecutionStatus.CANCELLED,
-          durationMs: expect.any(Number) as unknown,
-        },
+      expect(emitTerminal).toHaveBeenCalledWith(EXEC, {
+        type: 'cancelled',
+        durationMs: expect.any(Number) as unknown,
+        // 종전엔 이 필드가 **아예 없었다** (`retry-turn-terminal-guard` #2).
+        cancelledBy: 'user',
+      });
+      const emittedTypes = emitTerminal.mock.calls.map(
+        (c) => (c[1] as { type: string }).type,
       );
-      const emittedTypes = emitExecution.mock.calls.map((c) => c[1]);
-      expect(emittedTypes).not.toContain(ExecutionEventType.EXECUTION_FAILED);
+      expect(emittedTypes).not.toContain('failed');
+      expect(emittedTypes).toContain('cancelled');
       // graph traversal not entered on the cancel path.
       expect(mockDriver.runNodeDispatchLoop).not.toHaveBeenCalled();
       // ai-review W16 (2026-07-26) — WS emit 은 이미 isCancelled 일 때 error 를
@@ -721,11 +737,10 @@ describe('RetryTurnService', () => {
         execution,
         ExecutionStatus.FAILED,
       );
-      expect(mockEventEmitter.emitExecution).toHaveBeenCalledWith(
+      expect(mockEventEmitter.emitTerminalExecution).toHaveBeenCalledWith(
         EXEC,
-        ExecutionEventType.EXECUTION_FAILED,
         {
-          status: ExecutionStatus.FAILED,
+          type: 'failed',
           // EIA §6.4 — 부재는 키 생략이 아니라 **명시적 null**. DB 는 `{message}` 만 쓰므로
           // emit 시점에 `toTerminalErrorPayload` 가 채운다.
           error: { code: null, message: 'boom', nodeId: null },
@@ -748,7 +763,7 @@ describe('RetryTurnService', () => {
       expect(mockDriver.loadAndBuildGraph).not.toHaveBeenCalled();
       expect(mockDriver.runNodeDispatchLoop).not.toHaveBeenCalled();
       // re-park leaves Execution untouched here (handled by next continuation).
-      expect(mockEventEmitter.emitExecution).not.toHaveBeenCalled();
+      expect(mockEventEmitter.emitTerminalExecution).not.toHaveBeenCalled();
     });
 
     // W6 (ai-review 7R, `review/code/2026/07/30/11_41_20` #6) — claim 직후로
@@ -779,7 +794,10 @@ describe('RetryTurnService', () => {
     });
 
     const emittedTypesOuter = () =>
-      (mockEventEmitter.emitExecution as jest.Mock).mock.calls.map((c) => c[1]);
+      (mockEventEmitter.emitTerminalExecution as jest.Mock).mock.calls.map(
+        (c) =>
+          TYPE_TO_EVENT[(c[1] as { type: keyof typeof TYPE_TO_EVENT }).type],
+      );
 
     // 2026-07-27 ai-review CRITICAL#1 검증 — "자연 종결(happy-path) 경로가 신규
     // 가드를 우회해 stale `failed` 로 `FAILED→COMPLETED` 자기전이 throw 를 일으키고,
@@ -854,11 +872,10 @@ describe('RetryTurnService', () => {
         execution,
         ExecutionStatus.COMPLETED,
       );
-      expect(mockEventEmitter.emitExecution).toHaveBeenCalledWith(
+      expect(mockEventEmitter.emitTerminalExecution).toHaveBeenCalledWith(
         EXEC,
-        ExecutionEventType.EXECUTION_COMPLETED,
         {
-          status: ExecutionStatus.COMPLETED,
+          type: 'completed',
           // EIA §6 — durationMs 는 종결 3종에 실린다. 알 수 없으면 null.
           durationMs: expect.any(Number) as unknown,
         },
@@ -890,11 +907,10 @@ describe('RetryTurnService', () => {
         execution,
         ExecutionStatus.COMPLETED,
       );
-      expect(mockEventEmitter.emitExecution).toHaveBeenCalledWith(
+      expect(mockEventEmitter.emitTerminalExecution).toHaveBeenCalledWith(
         EXEC,
-        ExecutionEventType.EXECUTION_COMPLETED,
         {
-          status: ExecutionStatus.COMPLETED,
+          type: 'completed',
           // EIA §6 — durationMs 는 종결 3종에 실린다. 알 수 없으면 null.
           durationMs: expect.any(Number) as unknown,
         },
@@ -945,7 +961,10 @@ describe('RetryTurnService', () => {
     });
 
     const emittedTypes = () =>
-      (mockEventEmitter.emitExecution as jest.Mock).mock.calls.map((c) => c[1]);
+      (mockEventEmitter.emitTerminalExecution as jest.Mock).mock.calls.map(
+        (c) =>
+          TYPE_TO_EVENT[(c[1] as { type: keyof typeof TYPE_TO_EVENT }).type],
+      );
 
     it('completeRetryExecution: 선점되면 COMPLETED 로 덮어쓰지 않고 이벤트도 미발행', async () => {
       mockDriver.updateExecutionStatus.mockResolvedValueOnce(false);
@@ -1355,12 +1374,13 @@ describe('RetryTurnService', () => {
           new ExecutionCancelledError('cancelled'),
         );
 
-        const emitExecution = mockEventEmitter.emitExecution as jest.Mock;
-        const cancelCall = emitExecution.mock.calls.find(
-          (c) => c[1] === ExecutionEventType.EXECUTION_CANCELLED,
+        const emitTerminal =
+          mockEventEmitter.emitTerminalExecution as jest.Mock;
+        const cancelCall = emitTerminal.mock.calls.find(
+          (c) => (c[1] as { type: string }).type === 'cancelled',
         );
         expect(cancelCall).toBeDefined();
-        expect((cancelCall![2] as { durationMs: number }).durationMs).toBe(
+        expect((cancelCall![1] as { durationMs: number }).durationMs).toBe(
           PERSISTED_T1,
         );
         // 되받을 컬럼을 실제로 요청했는가 — 두 컬럼 모두 `COALESCE` 대상이다.

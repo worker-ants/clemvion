@@ -351,14 +351,65 @@ payload 값은 같으므로(둘 다 DB 정본을 읽는다) 수신자가 보는 
 **이 PR 8라운드에 걸친 반복 결함의 근본 원인**이다 — 형제 경로 누락 · grep 미검출 ·
 JS/SQL 클램프 비대칭 · vacuous mock 이 전부 같은 뿌리다.
 
-- [ ] 종결 3종 전용 `emitTerminalExecutionEvent(...)` 타입 파사드 도입 검토.
-      `{status, durationMs, error?, result?}` 를 컴파일러가 강제하게 한다
+- [x] 종결 3종 전용 타입 파사드 — **완료**
+      ([`eia-terminal-emit-facade`](./eia-terminal-emit-facade.md)).
+      `ExecutionEventEmitter.emitTerminalExecution(executionId, TerminalEventPayload)`.
+      직접 호출 **11곳 → 0곳**. `status`·이벤트명은 `type` 에서 파생하고,
+      `durationMs`(3종) · `error`(failed) · `cancelledBy`(cancelled)는 필수 필드다.
+      **판별력**: `cancelledBy` 제거 → `TS2345`, `durationMs` 제거 → `TS2345` —
+      이 세션이 실제로 겪은 두 결함이 **컴파일 타임에** 잡힌다
+
+> **"16 호출부" 는 부정확했다** (2026-08-15 정정). 그건 `durationMs` 를 **스레딩하는 경로**
+> 수다. `emitExecution` **직접 호출**은 11곳이고 나머지는 `emitCancellationEvent` 경유다.
 
 > **이 항목을 등재하는 것 자체가 지적사항이었다.** 나는 세 라운드에 걸쳐 RESOLUTION 과
 > 커밋 메시지에 *"별건 등재됨"* 이라 썼는데 **`plan/` 전체 grep 결과 그런 체크박스가 없었다**
 > (`11_59_09` W1 이 실측으로 반증). 실제로 만든 것은 **task 칩**이었고 그건 SoT 가 아니다 —
 > 이 저장소의 기록된 교훈이 정확히 *"미룬 항목은 그 턴에 `plan/` 에 적어라"* 다.
 > **유예의 근거로 "등재했다" 를 인용할 때, 그 등재를 실측하지 않았다.**
+
+## `cancelledBy` 가 실제 취소 주체를 모른다 (2026-08-15 등재, `18_29_21` W3·W7)
+
+`retry-turn` 재진입 취소는 `cancelledBy: 'user'` 를 **하드코딩**한다.
+`ExecutionCancelledError` 는 "DB 가 이미 CANCELLED" 를 관측했을 때 던져지므로 **누가
+취소했는지 알 수 없다** — 실제 원인이 timeout/system 이면 `cancelledBy` 와 `error` 부재가
+**함께** 틀린다. 자매 `finalizeCancelledExecution` 도 같은 근사를 쓴다.
+
+- [ ] DB 의 `error.code` 로 원인을 파생한다 (§6.5 표: `RESUME_*`→system,
+      `EXECUTION_QUEUE_WAIT_TIMEOUT`·`WEBCHAT_IDLE_TIMEOUT`→timeout, 없으면 user)
+- [ ] spec §6 표 비고에 "동시 시스템 취소 레이스에서 `'user'` 로 근사될 수 있음" 한 줄
+
+> **이 항목을 등재하는 것 자체가 지적사항이었다 — 그리고 다섯 번째다.**
+> 나는 `eia-terminal-emit-facade.md` 에 *"별도 항목으로 등재한다"* 고 **미래형으로** 써 놓고
+> 하지 않았다(`grep` 0건). 앞선 넷: "별건 등재됨" 3회(`11_59_09`) · 엔티티 nullability 주석
+> (`13_58_27`) · 실 DB e2e(`16_19_57`).
+>
+> **패턴이 분명하다** — 유예를 정당화할 때 "등재한다/했다" 를 쓰고, 그 문장을 쓰는 시점에
+> 실제로 등재하지 않는다. 체커가 *"이 세션 내에서 이미 한 차례 자백한 패턴의 재발"* 이라고
+> 적었다. **미래형으로 쓰지 말고 그 자리에서 등재할 것.**
+
+## `websocket.service` 가 값(enum)과 서비스를 함께 export 해 순환을 만든다 (2026-08-15 등재, `17_54_32` architecture W7)
+
+`ExecutionEventType` 같은 **런타임 값**이 서비스 구현 파일에서 export 돼,
+`websocket.service ↔ websocket.gateway ↔ execution-engine/retry-turn ↔ event-emitter`
+ES-module 순환 위에 놓인다. 생성자의 `forwardRef` 도 같은 이유다.
+
+**이건 이론이 아니다** — 종결 파사드가 `type`→enum 매핑을 **모듈 스코프 상수**로 두자
+모듈 평가 시점에 enum 이 `undefined` 여서 **72 suites 가 터졌다.** 호출 시점 지연 평가로
+우회했지만 근본 원인은 남았고, `tsc` 는 이 클래스를 못 잡는다.
+
+- [ ] `ExecutionEventType`·`NodeEventType` 등 런타임 값을 의존성-프리 모듈
+      (`websocket-events.types.ts` 등)로 추출해 순환을 **그래프 차원에서** 끊는다
+
+## `emitTerminalExecution` vs `emitTerminalExecutionMetrics` (2026-08-15 등재, `18_29_21` W8)
+
+접두어가 거의 같아 grep 오인 소지가 있다. **시그니처가 달라 컴파일 타임 오용은 불가**하고
+체커도 *"이름 변경은 불요"* 로 판정했다.
+
+- [ ] 양쪽 JSDoc 에 상호 참조 한 줄 ("Not to be confused with…")
+
+> 이번 PR 에서 안 한다 — codebase 편집이라 리뷰 신선도 게이트가 다시 열리는데,
+> **컴파일 타임 안전이 보장된 명명 근접**이라 그 비용에 값하지 않는다.
 
 ## 종결 duration 관용구가 16곳에 손으로 복붙돼 있다 (2026-08-15 등재, `12_52_39` W5·W6)
 

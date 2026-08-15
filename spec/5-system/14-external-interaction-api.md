@@ -7,6 +7,7 @@ code:
   - codebase/backend/src/modules/external-interaction/**
   - codebase/backend/src/shared/utils/strip-external-only-fields.ts
   - codebase/backend/src/shared/utils/terminal-duration.ts
+  - codebase/backend/src/modules/execution-engine/events/execution-event-emitter.service.ts
   - codebase/backend/src/shared/utils/terminal-error-payload.ts
   - codebase/backend/src/modules/hooks/hooks.service.ts
   - codebase/backend/src/modules/hooks/hooks.controller.ts
@@ -576,7 +577,7 @@ Authorization: Bearer <expiring_iext_jwt>
 |---|---|---|---|
 | `status` | 3종 | 구현됨 | `completed` \| `failed` \| `cancelled` |
 | `error` | `failed`, `cancelled`(시스템 취소 한정) | 구현됨 | `{code, message, nodeId, details?}` — **`code`·`nodeId` 는 `null` 일 수 있다**(§6.4 참조). `failed` 는 **전 경로 object** 다 (2026-08-14, `toTerminalErrorPayload` 로 일원화 — 종전의 "일부 경로는 string" 캐비엇 해소). **`cancelled` 는 아직 `{code, message}` 를 손으로 만들어 `nodeId`/`details` 가 없다** |
-| `result.cancelledBy` | `cancelled` | 구현됨 — **경로 1곳 누락** | `retry-turn.service.ts` `failRetryExecution` 은 채우지 않는다 ([retry-turn-terminal-guard](../../plan/in-progress/retry-turn-terminal-guard.md) #2) |
+| `result.cancelledBy` | `cancelled` | 구현됨 | ~~`retry-turn.service.ts` `failRetryExecution` 은 채우지 않는다~~ **(2026-08-15 해소)** — 종결 emit 타입 파사드가 `cancelledBy` 를 **필수 필드**로 만들어 그 경로를 컴파일 타임에 드러냈다. 이제 3종 payload 의 필수 필드는 타입이 강제한다 |
 | `result.outputs` | `completed` | **미구현 (Planned)** | 데이터는 emit 직전 존재하나 payload 에 넣지 않는다 |
 | `durationMs` | 3종 | 구현됨 | 밀리초. **알 수 없으면 `null`** (형제 `error.code` 와 같은 부재 표현). ~~`cancelled` 계열은 계산·영속조차 하지 않는다~~ **(2026-08-15 해소)** — 엔티티를 로드하지 않는 5경로는 UPDATE 문 안에서 SQL 로 계산하고 `RETURNING` 으로 되받아 싣는다(DB 와 wire 가 같은 값). `markQueueWaitTimeout` 의 값은 **큐 대기 시간**이다(`started_at` 이 admission 전 시각). **WS 계열 문서는 같은 값을 `duration` 으로 적는다** — 표기만 다르고 같은 값이다 (전역 개명은 별건) |
 

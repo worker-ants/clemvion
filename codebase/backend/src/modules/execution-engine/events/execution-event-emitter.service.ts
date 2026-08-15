@@ -5,6 +5,48 @@ import {
   NodeEventType,
   WebsocketService,
 } from '../../websocket/websocket.service';
+import { ExecutionStatus } from '../../executions/entities/execution.entity';
+import type { TerminalErrorPayload } from '../../../shared/utils/terminal-error-payload';
+
+/**
+ * 종결 이벤트(`completed`/`failed`/`cancelled`) payload 의 **판별 union**.
+ *
+ * SoT: `spec/5-system/14-external-interaction-api.md` §6 필드 집합 표 · §6.5 행동 계약.
+ *
+ * `TerminalErrorPayload`(에러 봉투)를 **포함하는** 관계다 — 이름을 한 단어 차이로 두면
+ * 둘을 혼동한다.
+ *
+ * ## 왜 union 인가 — 형태마다 필수 필드가 다르다
+ *
+ * `emitExecution(payload: unknown)` 은 아무것도 강제하지 않았다. 그래서 필드 하나를
+ * 호출부마다 손으로 스레딩해야 했고, **한 곳을 빠뜨려도 아무도 잡지 못했다** — 이 저장소가
+ * 최근 연속으로 겪은 결함이 전부 그 형태다:
+ *
+ * - `error` 를 네 emit 중 문자열로 실음 (#1170)
+ * - `durationMs` 를 16 경로 어디서도 안 실음 (#1171)
+ * - `cancelledBy` 를 retry-turn 경로에서만 누락 (본 PR 이 흡수)
+ *
+ * 각 variant 의 필수 필드가 그 셋을 **컴파일 타임에** 막는다.
+ */
+export type TerminalEventPayload =
+  | { type: 'completed'; durationMs: number | null }
+  | {
+      type: 'failed';
+      durationMs: number | null;
+      /** §6.4 — 객체다. 문자열을 실으면 타입이 거부한다. */
+      error: TerminalErrorPayload | null;
+    }
+  | {
+      type: 'cancelled';
+      durationMs: number | null;
+      /** §6.5 — **닫힌 3값 union**. 확장하지 않는다. */
+      cancelledBy: 'user' | 'system' | 'timeout';
+      /**
+       * §6.5 — 시스템/타임아웃 취소만 동행한다. **일반 user cancel 에는 키가 없다**
+       * (`null` 이 아니라 부재).
+       */
+      error?: { code: string; message: string };
+    };
 
 /**
  * 실행 엔진이 발행하는 도메인 이벤트의 단일 진입점.
@@ -18,6 +60,10 @@ import {
  * 본 facade 는 **현재로선** WebsocketService 로의 thin wrapper다. 향후 단계에서
  * 비-WS 채널 (Sentry breadcrumb, OTel SpanEvent, 외부 observability 등) 을
  * 추가할 때, 엔진 호출 사이트를 더 건드리지 않아도 되도록 진입점만 통일한다.
+ *
+ * **단, 종결 3종은 thin wrapper 가 아니다** — {@link emitTerminalExecution} 이
+ * `status`·이벤트명·`result` 중첩을 조립한다. 그 책임을 여기 둔 이유는 그 조립이
+ * 종전에 11 호출부에 흩어져 있었고 한 곳만 틀려도 아무도 못 잡았기 때문이다.
  */
 @Injectable()
 export class ExecutionEventEmitter {
@@ -44,6 +90,52 @@ export class ExecutionEventEmitter {
       eventType,
       payload,
     );
+  }
+
+  /**
+   * **종결 이벤트 전용** 발행 — `completed`/`failed`/`cancelled` 셋만.
+   * 그 외 execution 이벤트는 {@link emitExecution} 을 직접 부른다.
+   *
+   * 호출부는 `status` 와 이벤트 타입을 **적지 않는다** — `type` 에서 파생하므로 둘이
+   * 어긋날 수 없다. 종전엔 두 값을 손으로 맞췄고 그게 어긋나도 아무도 안 잡았다.
+   *
+   * @see TerminalEventPayload — 각 형태의 필수 필드와 그 근거(§6/§6.5).
+   */
+  async emitTerminalExecution(
+    executionId: string,
+    payload: TerminalEventPayload,
+  ): Promise<void> {
+    // **모듈 스코프에서 파생하지 않는다.** 이 파일은 ws.service↔gateway↔event-emitter
+    // ES-module 순환 위에 있어(생성자의 `forwardRef` 가 같은 이유), 모듈 평가 시점에
+    // `ExecutionEventType` 를 읽으면 아직 `undefined` 다 — 실제로 그렇게 만들었다가
+    // 72 suites 가 `Cannot read properties of undefined` 로 터졌다. 호출 시점에 읽는다.
+    const { eventType, status } = {
+      completed: {
+        eventType: ExecutionEventType.EXECUTION_COMPLETED,
+        status: ExecutionStatus.COMPLETED,
+      },
+      failed: {
+        eventType: ExecutionEventType.EXECUTION_FAILED,
+        status: ExecutionStatus.FAILED,
+      },
+      cancelled: {
+        eventType: ExecutionEventType.EXECUTION_CANCELLED,
+        status: ExecutionStatus.CANCELLED,
+      },
+    }[payload.type];
+    const wire: Record<string, unknown> = {
+      status,
+      durationMs: payload.durationMs,
+    };
+    if (payload.type === 'failed') {
+      wire.error = payload.error;
+    } else if (payload.type === 'cancelled') {
+      // §6.5 — `cancelledBy` 는 `result` 안에 온다(필드 집합 표의 중첩을 펴지 않는다).
+      wire.result = { cancelledBy: payload.cancelledBy };
+      // user cancel 은 키 자체가 없어야 한다 — `null` 로 채우면 계약 위반이다.
+      if (payload.error) wire.error = payload.error;
+    }
+    await this.emitExecution(executionId, eventType, wire);
   }
 
   /**
