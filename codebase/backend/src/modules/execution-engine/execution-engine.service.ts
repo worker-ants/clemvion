@@ -3322,6 +3322,17 @@ export class ExecutionEngineService
    * 경우(RUNNING 잔류)만 발동한다. 이 조건이 두 실패 경로를 자연 분기한다.
    * 자식 RUNNING NodeExecution 도 cascade 마감(유령 running 제거).
    *
+   * **두 UPDATE 는 단일 트랜잭션이다 (2026-08-15)** — 자매 {@link cancelParkedExecution} ·
+   * `markWebChatIdleTimeout` 과 동형이다. 종전엔 **이 함수만** 둘이 각각 autocommit 이라,
+   * 첫 문장이 커밋된 뒤 둘째가 실패하면 자식이 **영구 `RUNNING`** 으로 잔류했다 — 자매 두
+   * 함수의 주석이 경고하는 바로 그 실패 모드이고, 셋 중 이 하나만 열려 있었다.
+   * emit·cleanup 은 **커밋 이후** best-effort 로 실행한다(자매와 같은 순서).
+   *
+   * **함수 레벨 `try/catch` 는 의도적으로 없다** — 자매 둘과 다른 유일한 점이다. 유일
+   * 호출부(`ExecutionRunProcessor.onFailed`)가 `.catch()` 로 흡수하므로 최종 동작은
+   * 동등하고, 여기서 삼키면 트랜잭션 실패가 관측 불가능해진다. 이 계약은 회귀 테스트로
+   * 잠겨 있다(중간 실패 시 throw + 종결 이벤트 미발행).
+   *
    * ⚠️ **알려진 이론적 race(수용, §7.5 case B 각주와 동일 class)**: job 이 stalled 를
    * 소진해 failed→onFailed 되는 순간, **부팅 backstop `recoverStuckExecutions`** 가
    * 같은 stale RUNNING 을 re-claim 해 재구동 중일 수 있다. 그 경우 본 조건부 UPDATE
@@ -3339,55 +3350,65 @@ export class ExecutionEngineService
       code: 'WORKER_HEARTBEAT_TIMEOUT',
       message: 'Execution failed: worker crash (stalled 재배달 attempts 소진)',
     };
-    const result = await this.executionRepository
-      .createQueryBuilder()
-      .update(Execution)
-      .set({
-        status: ExecutionStatus.FAILED,
-        error: stalledError,
-        finishedAt,
-        // 이 경로는 **엔티티를 로드하지 않는다** — `started_at` 이 JS 쪽에 없다. 같은 문장
-        // 안에서 SQL 로 계산하고 `RETURNING` 으로 되받아 emit 에 싣는다. DB 와 wire 가
-        // **같은 값**을 쓰게 하려는 것이다 — 이 PR 이 `error` 에서 두 표현이 갈린 것을
-        // 고쳤고, 여기서 같은 실수를 반복하지 않는다.
-        // 음수(시계 역행)는 `NULL`, int4 상한은 saturate — 근거는 헬퍼 JSDoc 참조.
-        durationMs: () => TERMINAL_DURATION_MS_SQL,
-      })
-      .setParameter(TERMINAL_FINISHED_AT_PARAM, finishedAt)
-      .where('id = :id', { id: executionId })
-      .andWhere('status = :running', { running: ExecutionStatus.RUNNING })
-      .returning(['id', 'duration_ms'])
-      .execute();
-    if ((result.affected ?? 0) === 0) return; // 이미 terminal — no-op
-    // `raw` 는 드라이버 원본이라 컬럼명이 snake_case 다 (#1168 에서 배운 형태).
-    const stalledDurationMs =
-      toFiniteNumber(
-        (result.raw as Array<Record<string, unknown>> | undefined)?.[0]
-          ?.duration_ms,
-      ) ?? null;
+    // 자매 둘과 동형인 단일 트랜잭션 — **근거는 위 JSDoc 참조**(같은 설명을 두 곳에 두면
+    // 한쪽만 갱신돼 모순된다).
+    let stalledDurationMs: number | null = null;
+    let finalized = false;
+    await this.dataSource.transaction(async (manager) => {
+      const result = await manager
+        .createQueryBuilder()
+        .update(Execution)
+        .set({
+          status: ExecutionStatus.FAILED,
+          error: stalledError,
+          finishedAt,
+          // 이 경로는 **엔티티를 로드하지 않는다** — `started_at` 이 JS 쪽에 없다. 같은 문장
+          // 안에서 SQL 로 계산하고 `RETURNING` 으로 되받아 emit 에 싣는다. DB 와 wire 가
+          // **같은 값**을 쓰게 하려는 것이다.
+          // 음수(시계 역행)는 `NULL`, int4 상한은 saturate — 근거는 헬퍼 JSDoc 참조.
+          durationMs: () => TERMINAL_DURATION_MS_SQL,
+        })
+        .setParameter(TERMINAL_FINISHED_AT_PARAM, finishedAt)
+        .where('id = :id', { id: executionId })
+        .andWhere('status = :running', { running: ExecutionStatus.RUNNING })
+        .returning(['id', 'duration_ms'])
+        .execute();
+      if ((result.affected ?? 0) === 0) return; // 이미 terminal — no-op
+      // `raw` 는 드라이버 원본이라 컬럼명이 snake_case 다 (#1168 에서 배운 형태).
+      stalledDurationMs =
+        toFiniteNumber(
+          (result.raw as Array<Record<string, unknown>> | undefined)?.[0]
+            ?.duration_ms,
+        ) ?? null;
+
+      // 자식 RUNNING NodeExecution cascade 마감 (유령 running 제거 — 옛 recoverStuck
+      // Executions cascade 와 동일). Execution UPDATE 가 affected:1 이었으므로 여기까지
+      // 온 경우만 실행된다(멱등 안전).
+      await manager
+        .createQueryBuilder()
+        .update(NodeExecution)
+        .set({
+          status: NodeExecutionStatus.FAILED,
+          error: {
+            // 부모와 같은 code — 위 `stalledError` 상수를 도입한 이유(손으로 반복하면
+            // 갈린다)가 이 자리에서 그대로 재현되고 있었다. 거리를 줄 수로 적으면
+            // 코드가 움직일 때마다 틀린다.
+            code: stalledError.code,
+            message: 'Node failed: parent execution stalled (재배달 소진)',
+          },
+          finishedAt,
+        })
+        .where('execution_id = :executionId', { executionId })
+        .andWhere('status = :running', { running: NodeExecutionStatus.RUNNING })
+        .execute();
+      finalized = true;
+    });
+    if (!finalized) return;
 
     this.logger.warn(
       `[execution-run] stalled 소진 → Execution ${executionId} failed (WORKER_HEARTBEAT_TIMEOUT)`,
     );
-    // 자식 RUNNING NodeExecution cascade 마감 (유령 running 제거 — 옛 recoverStuck
-    // Executions cascade 와 동일).
-    await this.nodeExecutionRepository
-      .createQueryBuilder()
-      .update(NodeExecution)
-      .set({
-        status: NodeExecutionStatus.FAILED,
-        error: {
-          // 부모와 같은 code — 위 `stalledError` 를 도입한 이유(손으로 반복하면 갈린다)가
-          // 30줄 아래에서 그대로 재현되고 있었다.
-          code: stalledError.code,
-          message: 'Node failed: parent execution stalled (재배달 소진)',
-        },
-        finishedAt,
-      })
-      .where('execution_id = :executionId', { executionId })
-      .andWhere('status = :running', { running: NodeExecutionStatus.RUNNING })
-      .execute();
-
+    // 커밋 이후 best-effort 부수효과 — DB 상태는 이미 원자적으로 일관하다.
     this.finalizeRehydrationCleanup(executionId);
     await this.eventEmitter.emitExecution(
       executionId,

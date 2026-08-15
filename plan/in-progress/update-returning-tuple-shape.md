@@ -333,7 +333,7 @@ raw `.query()` 는 ORM 매핑을 타지 않아 행의 키가 **DB 그대로 snak
 
     > **세 번째 stale (2026-08-15, `15_01_13` plan_coherence W1).**
     > `finalizeCancelledExecution` 이 "반환값을 버린다" 는 전제가 **깨졌다** —
-    > [`eia-db-wire-invariant`](./eia-db-wire-invariant.md) ①이 그 함수를 고쳐 이제
+    > [`eia-db-wire-invariant`](../complete/eia-db-wire-invariant.md) ①이 그 함수를 고쳐 이제
     > `persisted` 를 읽고 분기한다(0행이면 재조회 후 조건부 emit). **영향 있음** 으로
     > 재분류해야 한다. 이 표를 근거로 §2.4 caveat 를 집행하기 전에 재실측할 것.
 

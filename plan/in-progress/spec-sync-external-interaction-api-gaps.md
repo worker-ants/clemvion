@@ -247,7 +247,7 @@ T1 값을 DB 에 보존**하는데, in-memory `execution.durationMs` 는 갱신�
 > ~~이 PR 이 세운 "DB = wire" 불변식의 유일한 잔여 위반이다. 같은 라운드에서 즉시 고치지
 > 않은 이유는 **DB write 경로를 또 바꾸는 변경**이고, 서두르면 같은 라운드가 지적한
 > 과잉 스코프(W2)를 반복하기 때문이다.~~ **(2026-08-15 해소)** —
-> [`eia-db-wire-invariant`](./eia-db-wire-invariant.md) 가 위 세 항목을 전부 닫았다.
+> [`eia-db-wire-invariant`](../complete/eia-db-wire-invariant.md) 가 위 세 항목을 전부 닫았다.
 >
 > **이 산문이 stale 로 남은 것 자체가 지적사항이었다** (`15_23_10` documentation W3).
 > 바로 위 체크박스 3개가 `[x]` 로 바뀌었는데 결론 문단은 미완료 전제를 그대로 유지했다 —
@@ -272,8 +272,11 @@ NodeExecution cascade 도 트랜잭션 경계도 건드린 라인이 **0건**이
 첫 UPDATE 가 커밋된 뒤 둘째가 실패(DB 오류·크래시)하면 자식 NodeExecution 이 **영구
 `RUNNING`** 으로 잔류한다 — 자매 두 함수의 docstring 이 경고하는 바로 그 실패 모드다.
 
-- [ ] `finalizeStalledExhausted` 의 두 UPDATE 를 `dataSource.transaction()` 으로 묶어
-      자매 두 함수와 같은 패턴으로 통일
+- [x] `finalizeStalledExhausted` 의 두 UPDATE 를 `dataSource.transaction()` 으로 묶어
+      자매 두 함수와 같은 패턴으로 통일 — **완료**
+      ([`eia-stalled-atomicity`](./eia-stalled-atomicity.md)). 트랜잭션 제거 뮤턴트에서
+      3/3 RED. 부수 발견: `affected=0` 테스트의 단언이 **항상 참**이 될 뻔했다(더 이상
+      쓰지 않는 repo mock 을 보고 있었다) — 실제 단언으로 교체
 
 > 이 저장소의 반복 형태(*"하드닝을 자매 함수 미적용"*)의 교과서적 사례다 — 셋 중 둘만
 > 닫혀 있다. **리뷰어가 직전 라운드의 자기 판정을 실측으로 정정해 찾아냈다.**
@@ -301,6 +304,45 @@ payload 값은 같으므로(둘 다 DB 정본을 읽는다) 수신자가 보는 
 > **이번 PR 에서 안 한 근거 (실측)**: 테스트 자체는 판별력이 있다 — `try/catch` 를 뺀
 > 뮤턴트에서 `(d)` 가 **RED** 다. 정정은 codebase 편집이라 리뷰 신선도 게이트가 다시 열리고,
 > 이 브랜치는 이미 5라운드를 돌았다. **동작 위험이 아니라 미래 stale 위험**이므로 별도 PR.
+
+## `finalizeStalledExhausted` 트랜잭션의 실 DB 롤백 검증이 없다 (2026-08-15 등재, `16_19_57` W1)
+
+원자화는 완료됐지만(`eia-stalled-atomicity`) **mock 은 롤백을 흉내내지 못한다.** 현재
+테스트가 보증하는 것은 *두 UPDATE 가 같은 트랜잭션 manager 를 탄다*는 전제까지다.
+
+- [ ] 실 DB e2e — 둘째 UPDATE(`NodeExecution` cascade)를 강제 실패시키고 첫째
+      (`Execution` → FAILED)가 **커밋되지 않았음**을 확인
+
+> **이 항목을 등재하는 것 자체가 지적사항이었다.** 나는 `eia-stalled-atomicity.md` 에
+> *"정본 트래커에 등재돼 있다"* 고 썼는데 **이 문서에 "실 DB"·"롤백" 문자열이 0건**이었고,
+> 내가 지목한 자매 plan(`retry-turn-terminal-guard.md` #4)은 **다른 함수**(`finalizeGuarded`)
+> 를 다룬다. `16_19_57` plan_coherence 가 실측으로 반증했다.
+>
+> **이 형태가 네 번째다** — "별건 등재됨" 3회(`11_59_09`) · 엔티티 nullability 주석
+> (`13_58_27` W9) · 그리고 이 건. **유예의 근거로 "등재했다" 를 쓸 때 그 등재를 열어서
+> 확인하라.** 세 번은 grep 이 반증했고 이번엔 문자열 카운트가 0이었다.
+
+## `claimResumeEntry` 만 두 테이블을 반대 순서로 잠근다 (2026-08-15 등재, `16_44_28` concurrency W1)
+
+**실측** (`.update(Entity)` 등장 순서):
+
+| 함수 | 잠금 순서 |
+|---|---|
+| `cancelParkedExecution` | Execution → NodeExecution |
+| `markWebChatIdleTimeout` | Execution → NodeExecution |
+| `finalizeStalledExhausted` | Execution → NodeExecution |
+| **`claimResumeEntry`** | **NodeExecution → Execution** |
+
+교차 함수 lock-order 역전이라 이론적 데드락 표면이다(다중 브랜치 실행에서 한쪽이 stalled
+소진 중, 다른 쪽이 동시에 재개될 때).
+
+- [ ] `claimResumeEntry` 의 순서를 자매 셋과 맞추거나, 맞출 수 없으면 그 이유를 JSDoc 에 명시
+- [ ] 자매 셋의 JSDoc 에 `claimResumeEntry` 와의 역전 가능성 한 줄
+
+> **선존이고 이 PR 이 만들지 않았다** — 자매 둘이 이미 `Execution → NodeExecution` 이었고
+> `claimResumeEntry` 만 반대였다. 이 PR 은 **세 번째를 같은 방향으로 맞춘 것**이라 자매 간
+> 일관성은 오히려 개선됐다. Postgres 가 데드락을 자동 검출하고, 이번에 추가한 실패-전파
+> 테스트가 hang·유령 상태가 없음을 잠근다 — 그래서 차단 사유가 아니다(리뷰어도 동의).
 
 ## 종결 이벤트 emit 에 타입 초크포인트가 없다 (2026-08-15 등재, `11_59_09` architecture W1)
 
