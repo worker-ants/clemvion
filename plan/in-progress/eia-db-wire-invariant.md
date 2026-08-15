@@ -112,8 +112,9 @@ push 계열(webhook/SSE/WS/chat-channel)은 싣는데 `GET /api/external/executi
 - [x] spec §5.3(REST 예시)·§6.5(취소선+해소) + `node-cancellation.md` 정정·매트릭스 행
 - [x] `/ai-review` (`13_58_27`) **CRITICAL 0 / WARNING 10** — 8건 조치, 2건 등재.
       **W3 이 내 첫 수정을 반증했다** (stop() 무음 경로를 침묵시킴). RESOLUTION 참조
-- [x] TEST WORKFLOW 4스테이지 — lint / unit(백엔드 425·8727, 프런트 285 파일) /
-      build / **e2e 276 passed** 전부 PASS
+- [x] TEST WORKFLOW 4스테이지 전부 PASS — **최종 커밋 기준 재실측**
+      (lint 0 · 백엔드 425 suites·8730 · 타입 199 · build · **e2e 276 passed**).
+      직전 측정은 3커밋 전 상태였다 — PR 의 정량 기록은 닫히는 시점의 값이어야 한다
 - [x] `/ai-review` (`14_47_14`) **WARNING 2** — 자매 주석 극성 캐비엇 · nullable 가드 목록.
       `bf0f86ca8` 로 조치, RESOLUTION 참조
 - [x] `/ai-review` (`15_00_41`) **WARNING 4** — 재조회 try/catch · `finishedAt` 되쓰기 단언 ·
