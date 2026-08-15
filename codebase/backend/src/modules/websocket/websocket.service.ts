@@ -131,8 +131,9 @@ function sanitizeInner(value: object, depth: number): unknown {
 // 이상이다)와 깊이 상한 근거는 그 파일 JSDoc 참조. 이 파일의 호출부는 자매 sanitizer 와
 // 같은 `MAX_SANITIZE_DEPTH` 를 넘긴다.
 //
-// (블록 JSDoc 으로 두었더니 붙을 선언이 없어 **바로 아래 KB union 문서로 읽혔다** —
-//  `14_55_29` maintainability W4.)
+// (블록 JSDoc 으로 두었더니 붙을 선언이 없어 **당시 뒤따르던 선언의 문서로 읽혔다** —
+//  `14_55_29` maintainability W4. 그래서 라인 주석이다. 그 선언이던 KB union 은 이후
+//  `websocket-events.types.ts` 로 옮겨졌으니 "바로 아래" 로 읽지 말 것.)
 
 /**
  * execution 채널의 종결 이벤트 — emit 후 seq counter 를 해제해 메모리 누수를 막는다.

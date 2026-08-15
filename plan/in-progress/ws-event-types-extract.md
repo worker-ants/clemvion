@@ -141,6 +141,24 @@ ES-module 순환 위에 있어서다. 생성자의 `forwardRef` 도 같은 이�
       | **M5 gateway import 를 결함 상태로 되돌림** | **RED** |
       | M6 allowlist 를 죽은 경로로 (예외가 공짜가 되는 경로) | RED |
 
+      **그리고 그 가드가 바로 그 실수를 저지르고 있었다** (`20_05_17` testing W2). 첫 판은
+      세 번째 테스트만 `ts.isImportDeclaration` 으로 좁혀 놨다 — 커밋 메시지에 "한 칸 좁게
+      잡는 것이 내 반복 실패 형태다" 라고 써 놓고 **같은 파일 안에서** 그걸 했다. 리뷰어가
+      `export { ExecutionEventType } from '…/websocket.service'` 프로브로 4/4 GREEN(미검출)을
+      실증했다. 세어 보니 누락은 그 하나가 아니라 **다섯 형태**였다:
+
+      | 뮤턴트 | 결과 |
+      |---|---|
+      | **M7 `export … from` (리뷰어 프로브)** | **RED** |
+      | M8 `export * from` | RED |
+      | M9 namespace import (`* as`) | RED |
+      | M10 side-effect import | RED |
+      | M11 `import x = require()` | RED |
+      | N1 `import type` — **통과가 정답**(음성 대조) | GREEN |
+
+      동적 `import()` 는 일부러 뺐다 — 지연 평가라 모듈 스코프 순서를 깨지 않는다. 타입 모듈
+      자신(첫 테스트)은 간선이 아예 없어야 하므로 거기선 센다. 비대칭은 의도다
+
 ## 체크리스트
 
 - [x] `--impl-prep` (`18_53_27`) **BLOCK: NO** — WARNING 3 + INFO 1 전부 반영
@@ -153,9 +171,43 @@ ES-module 순환 위에 있어서다. 생성자의 `forwardRef` 도 같은 이�
 
 ## 후속 (이 PR 범위 밖)
 
-- [ ] **planner 턴** — `spec/5-system/10-graph-rag.md:552` 가 `KbEventType` 정본 선언 위치를
-      아직 `websocket.service.ts` 로 서술한다. re-export 덕에 문장 자체는 참이지만 정본은
-      `websocket-events.types.ts` 로 옮겨졌다. spec 본문은 developer 권한 밖이라 별도 턴
-      (`19_27_37` INFO1 · `18_53_27` consistency 도 동일 항목을 자체 식별)
+### planner 턴 — 이동한 심볼의 "정본 위치" 서술 stale (전수)
+
+처음엔 `10-graph-rag.md:552` **한 줄만** 등재했다. `20_05_19` plan_coherence W1 이 그게
+사례 하나일 뿐이라고 지적했고, 실측하니 맞았다. **놓친 이유가 중요하다 — 같은 사실이 두 철자로
+쓰여 있었다**:
+
+| 철자 | 곳 |
+|---|---|
+| `` `websocket.service.ts` 의 `KbEventType` `` (파일 경로) | 1 |
+| `` `WebsocketService` 의 `KbEventType` `` (클래스명) | 4 |
+
+내 grep 은 `websocket.service` 였으니 **클래스명 표기 4곳을 통째로 못 봤다.** 이 저장소에 이미
+기록된 실패다 — 한 철자만 보면 다른 표현을 놓친다. 그래서 아래는 심볼(`KbEventType`) 기준 전수다.
+
+- [ ] `spec/5-system/10-graph-rag.md:552` — "`websocket.service.ts` 의 `KbEventType` union"
+- [ ] `spec/5-system/8-embedding-pipeline.md:276` — "backend 권위 정의는 `WebsocketService`"
+- [ ] `spec/5-system/6-websocket-protocol.md:740` — 동일 문구
+- [ ] `spec/5-system/6-websocket-protocol.md:1034` — **부분만 stale**. `WebsocketService.emitKbEvent`
+      는 여전히 맞다(메서드는 안 옮겼다). union 의 소재만 갱신 대상
+- [ ] `spec/data-flow/6-knowledge-base.md:288` — "`WebsocketService` 의 `KbEventType` union"
+- [ ] `spec/data-flow/0-overview.md:110` — "`websocket.service.ts` 헤더 주석, EIA §R10" 인용.
+      R10 문구는 `websocket-events.types.ts:26` 으로 이관됐다 (`20_05_19` cross_spec INFO1)
+
+> 제외 판정한 것도 적어 둔다 — `8-embedding-pipeline.md:285`·`:411`,
+> `data-flow/6-knowledge-base.md:416` 은 union 을 **언급만** 하거나 취소선 이력이라 위치 주장이
+> 아니다. re-export 가 살아 있으므로 위 문장들도 **거짓은 아니고**, 정본 소재만 낡았다.
+
+### 그 밖
+
+- [ ] **`NotificationEventType` 개명** — `triggers/dto/notification-config.dto.ts` 의 동명 타입과
+      충돌한다. 이번엔 disambiguation JSDoc 으로 막았고 그 주석에 "개명은 별도 항목" 이라고 썼는데,
+      **정작 그 항목을 만들지 않았다** (`20_05_19` naming INFO7 이 등재 여부 확인을 요구해 발각).
+      이 브랜치에서 반복된 "등재했다" 거짓의 또 한 사례라 여기 실제로 등재한다
+- [ ] `spec/3-workflow-editor/3-execution.md` frontmatter `code:` 에
+      `websocket-events.types.ts` 등재 — `NodeEventType` 을 인용하면서 자매 spec
+      (`6-websocket-protocol.md`)과 비대칭 (`20_05_19` cross_spec INFO2)
+- [ ] `spec/5-system/4-execution-engine.md` §4.4 Rationale 에 이번 추출로 **순환 참여자 집합이
+      축소**됐다는 후속 한 줄 (`20_05_19` rationale INFO4). 봉인 기법·단일 sink 정책 자체는 불변
 - [ ] `TerminalErrorPayload` 를 채우는 호출부의 `sanitizeErrorMessage` 경유 여부 전수 확인
       (`19_27_37` INFO2 — 기존 설계이고 이번 diff 와 무관)

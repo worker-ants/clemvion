@@ -8,7 +8,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Trigger } from '../triggers/entities/trigger.entity';
 import { WebsocketService } from '../websocket/websocket.service';
-import { ExecutionChannelEvent } from '../websocket/websocket-events.types';
+import type { ExecutionChannelEvent } from '../websocket/websocket-events.types';
 import { toTerminalErrorPayload } from '../../shared/utils/terminal-error-payload';
 import { ChannelAdapterRegistry } from './channel-adapter.registry';
 import { ChannelListenerRegistry } from './channel-listener.registry';

@@ -93,6 +93,69 @@ function moduleSpecifiersOf(sf: ts.SourceFile): string[] {
   return found;
 }
 
+/**
+ * 이 statement 가 `websocket.service` 로 **값 간선**을 만들면 그 설명을, 아니면 `null`.
+ *
+ * `20_05_17` testing W2 — 처음엔 `ts.isImportDeclaration` 만 순회했다. 그래서
+ * `export { ExecutionEventType } from './websocket.service'` 재유입을 **못 잡았고**,
+ * 리뷰어가 실제 프로브로 4/4 GREEN(미검출)을 재현해 보였다. 위 {@link moduleSpecifiersOf}
+ * 는 다섯 형태를 다 세는데 여기서만 한 형태로 좁혔던 것 — 같은 파일 안에서 같은 실수를 했다.
+ *
+ * 그래서 값 간선을 만드는 형태를 전부 센다:
+ * default · namespace(`* as`) · side-effect(`import '…'`) · named 값 · `export … from` ·
+ * `export * from` · `import x = require(…)`.
+ *
+ * **동적 `import()` 는 제외한다** — 지연 평가라 모듈 스코프 평가 순서를 깨지 않는다(이 가드가
+ * 막으려는 결함이 아니다). 반면 타입 모듈 자신(첫 테스트)은 간선이 **아예** 없어야 하므로
+ * 거기서는 동적 import 도 센다. 비대칭은 의도다.
+ */
+function valueEdgeToWebsocketService(st: ts.Statement): string | null {
+  const hits = (spec: ts.Expression | undefined): boolean =>
+    !!spec && ts.isStringLiteral(spec) && /websocket\.service$/.test(spec.text);
+
+  if (ts.isImportDeclaration(st) && hits(st.moduleSpecifier)) {
+    const clause = st.importClause;
+    if (!clause) return 'side-effect import';
+    if (clause.isTypeOnly) return null; // `import type { … }` 은 방출 시 사라진다
+    if (clause.name) return `default import ${clause.name.text}`;
+
+    const bindings = clause.namedBindings;
+    if (bindings && ts.isNamespaceImport(bindings)) {
+      return `namespace import * as ${bindings.name.text}`;
+    }
+    if (bindings && ts.isNamedImports(bindings)) {
+      const names = bindings.elements
+        .filter((el) => !el.isTypeOnly)
+        .map((el) => el.name.text)
+        .filter((n) => n !== 'WebsocketService');
+      return names.length ? names.join(', ') : null;
+    }
+    return null;
+  }
+
+  if (ts.isExportDeclaration(st) && hits(st.moduleSpecifier)) {
+    if (st.isTypeOnly) return null;
+    if (!st.exportClause) return 'export * from';
+    if (ts.isNamespaceExport(st.exportClause)) {
+      return `export * as ${st.exportClause.name.text} from`;
+    }
+    const names = st.exportClause.elements
+      .filter((el) => !el.isTypeOnly)
+      .map((el) => el.name.text);
+    return names.length ? `re-export ${names.join(', ')}` : null;
+  }
+
+  if (
+    ts.isImportEqualsDeclaration(st) &&
+    ts.isExternalModuleReference(st.moduleReference) &&
+    hits(st.moduleReference.expression)
+  ) {
+    return `import ${st.name.text} = require()`;
+  }
+
+  return null;
+}
+
 function allTsFiles(dir: string): string[] {
   const out: string[] = [];
   for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
@@ -128,7 +191,7 @@ describe('websocket-events.types — ES-module 순환 재편입 방지 (#1174 �
     expect([...EXPECTED_EXPORTS].filter((n) => !declared.has(n))).toEqual([]);
   });
 
-  it('enum 값을 `websocket.service` 경유로 가져오는 파일이 없다 (re-export facade 테스트 제외)', () => {
+  it('`websocket.service` 로의 값 간선이 없다 (re-export facade 테스트 제외)', () => {
     const offenders: string[] = [];
 
     for (const file of allTsFiles(SRC_ROOT)) {
@@ -137,26 +200,8 @@ describe('websocket-events.types — ES-module 순환 재편입 방지 (#1174 �
 
       const sf = parse(file);
       for (const st of sf.statements) {
-        if (!ts.isImportDeclaration(st)) continue;
-        if (!ts.isStringLiteral(st.moduleSpecifier)) continue;
-        if (!/websocket\.service$/.test(st.moduleSpecifier.text)) continue;
-
-        // `import type { … }` 은 방출 시 사라지므로 순환 간선을 만들지 않는다.
-        if (st.importClause?.isTypeOnly) continue;
-
-        const bindings = st.importClause?.namedBindings;
-        if (!bindings || !ts.isNamedImports(bindings)) continue;
-
-        const valueImports = bindings.elements
-          .filter((el) => !el.isTypeOnly)
-          .map((el) => el.name.text)
-          .filter((n) => n !== 'WebsocketService');
-
-        if (valueImports.length) {
-          offenders.push(
-            `${path.relative(SRC_ROOT, file)} → ${valueImports.join(', ')}`,
-          );
-        }
+        const edge = valueEdgeToWebsocketService(st);
+        if (edge) offenders.push(`${path.relative(SRC_ROOT, file)} → ${edge}`);
       }
     }
 

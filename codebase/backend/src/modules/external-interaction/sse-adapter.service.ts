@@ -5,7 +5,7 @@ import {
   OnModuleInit,
 } from '@nestjs/common';
 import { WebsocketService } from '../websocket/websocket.service';
-import { ExecutionChannelEvent } from '../websocket/websocket-events.types';
+import type { ExecutionChannelEvent } from '../websocket/websocket-events.types';
 
 const BUFFER_RETENTION_MS = 5 * 60 * 1000; // 5분 (Spec EIA §3.5 EIA-NF-03)
 const MAX_BUFFER_PER_EXEC = 1000; // 상한 — 폭발 방지
