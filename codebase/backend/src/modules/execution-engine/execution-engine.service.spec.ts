@@ -14989,6 +14989,9 @@ describe('ExecutionEngineService', () => {
           error: expect.objectContaining({
             code: 'RESUME_INCOMPATIBLE_STATE',
           }),
+          // 이 경로는 엔티티를 로드하지 않는다 — UPDATE 의 `RETURNING duration_ms` 가
+          // 돌려준 값이 emit 까지 그대로 흘러야 한다(DB=wire). mock 이 1234 를 준다.
+          durationMs: 1234,
         }),
       );
     });
@@ -16387,6 +16390,16 @@ describe('ExecutionEngineService', () => {
       expect(svcAny.finalizeRehydrationCleanup).toHaveBeenCalledWith(
         'exec-drive-1',
       );
+      // 이 경로의 `durationMs` emit 이 두 라운드째 미검증이었다 (`10_52_08` testing W1).
+      // 계산부·emit 부 모두 헬퍼 경유로 맞춰 뒀으나 그걸 고정하는 단언이 없었다.
+      const completedEmit = (
+        mockWebsocketService.emitExecutionEvent as jest.Mock
+      ).mock.calls.find((c: unknown[]) => c[1] === 'execution.completed');
+      expect(completedEmit).toBeDefined();
+      expect(
+        (completedEmit?.[2] as { durationMs?: number | null } | undefined)
+          ?.durationMs,
+      ).toEqual(expect.any(Number));
     });
 
     // ── CASE 2: 2-depth bubble-up + invoker output 주입 ──────────────
