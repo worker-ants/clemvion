@@ -754,8 +754,8 @@ header value   = "t={timestamp},v1={hex(signature)}"
   "timestamp":   "ISO8601",
   "payload": {
     "status": "completed",
-    "durationMs": 4242,
     // result.outputs — Planned (필드 집합 표 참조)
+    "durationMs": 4242
   }
 }
 ```
@@ -776,7 +776,7 @@ header value   = "t={timestamp},v1={hex(signature)}"
       "nodeId":  "uuid" | null,
       "details": { ... }    // 노드 타입별 상세
     },
-    "durationMs": 4242,
+    "durationMs": 4242
   }
 }
 ```

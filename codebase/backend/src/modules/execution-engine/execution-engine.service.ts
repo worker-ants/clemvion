@@ -2574,8 +2574,7 @@ export class ExecutionEngineService
         (topResult.output as Record<string, unknown> | undefined) ?? {};
       savedExecution.finishedAt = new Date();
       savedExecution.durationMs =
-        savedExecution.finishedAt.getTime() -
-        savedExecution.startedAt.getTime();
+        resolveTerminalDurationMs(savedExecution) ?? savedExecution.durationMs;
       // terminal 도달 — 중첩 호출 체인은 더 이상 재개 대상이 아니므로
       // resume_call_stack 을 비운다(park 시점 stale 값이 COMPLETED 행에 잔류하지
       // 않도록). guarded UPDATE 가 resume_call_stack 컬럼도 함께 쓴다. 다음 park 가
@@ -3349,7 +3348,7 @@ export class ExecutionEngineService
         // 안에서 SQL 로 계산하고 `RETURNING` 으로 되받아 emit 에 싣는다. DB 와 wire 가
         // **같은 값**을 쓰게 하려는 것이다 — 이 PR 이 `error` 에서 두 표현이 갈린 것을
         // 고쳤고, 여기서 같은 실수를 반복하지 않는다.
-        // `GREATEST(0, …)` — 시계 역행이 음수를 만들면 수신자의 산술이 깨진다.
+        // 음수(시계 역행)는 `NULL`, int4 상한은 saturate — 근거는 헬퍼 JSDoc 참조.
         durationMs: () => TERMINAL_DURATION_MS_SQL,
       })
       .setParameter(TERMINAL_FINISHED_AT_PARAM, finishedAt)
@@ -4832,7 +4831,7 @@ export class ExecutionEngineService
     if (errorEnvelope) nodeExecution.error = errorEnvelope;
     nodeExecution.finishedAt = new Date();
     nodeExecution.durationMs =
-      nodeExecution.finishedAt.getTime() - nodeExecution.startedAt.getTime();
+      resolveTerminalDurationMs(nodeExecution) ?? nodeExecution.durationMs;
     await this.nodeExecutionRepository.save(nodeExecution);
     await this.eventEmitter.emitNode(
       executionId,
@@ -6041,8 +6040,7 @@ export class ExecutionEngineService
         nodeExecution.outputData = (output as Record<string, unknown>) ?? {};
         nodeExecution.finishedAt = new Date();
         nodeExecution.durationMs =
-          nodeExecution.finishedAt.getTime() -
-          nodeExecution.startedAt.getTime();
+          resolveTerminalDurationMs(nodeExecution) ?? nodeExecution.durationMs;
         await this.nodeExecutionRepository.save(nodeExecution);
         await this.eventEmitter.emitNode(
           executionId,
@@ -6161,8 +6159,8 @@ export class ExecutionEngineService
           };
           nodeExecution.finishedAt = new Date();
           nodeExecution.durationMs =
-            nodeExecution.finishedAt.getTime() -
-            nodeExecution.startedAt.getTime();
+            resolveTerminalDurationMs(nodeExecution) ??
+            nodeExecution.durationMs;
           await this.nodeExecutionRepository.save(nodeExecution);
           await this.eventEmitter.emitNode(
             executionId,
@@ -6194,8 +6192,8 @@ export class ExecutionEngineService
             (result.output as Record<string, unknown>) ?? {};
           nodeExecution.finishedAt = new Date();
           nodeExecution.durationMs =
-            nodeExecution.finishedAt.getTime() -
-            nodeExecution.startedAt.getTime();
+            resolveTerminalDurationMs(nodeExecution) ??
+            nodeExecution.durationMs;
           await this.nodeExecutionRepository.save(nodeExecution);
           executedNodes.add(node.id);
           break;
@@ -6212,8 +6210,8 @@ export class ExecutionEngineService
           };
           nodeExecution.finishedAt = new Date();
           nodeExecution.durationMs =
-            nodeExecution.finishedAt.getTime() -
-            nodeExecution.startedAt.getTime();
+            resolveTerminalDurationMs(nodeExecution) ??
+            nodeExecution.durationMs;
           await this.nodeExecutionRepository.save(nodeExecution);
           executedNodes.add(node.id);
           break;
@@ -6226,8 +6224,8 @@ export class ExecutionEngineService
           };
           nodeExecution.finishedAt = new Date();
           nodeExecution.durationMs =
-            nodeExecution.finishedAt.getTime() -
-            nodeExecution.startedAt.getTime();
+            resolveTerminalDurationMs(nodeExecution) ??
+            nodeExecution.durationMs;
           await this.nodeExecutionRepository.save(nodeExecution);
           await this.eventEmitter.emitNode(
             executionId,
@@ -6302,7 +6300,7 @@ export class ExecutionEngineService
     };
     nodeExecution.finishedAt = new Date();
     nodeExecution.durationMs =
-      nodeExecution.finishedAt.getTime() - nodeExecution.startedAt.getTime();
+      resolveTerminalDurationMs(nodeExecution) ?? nodeExecution.durationMs;
     await this.nodeExecutionRepository.save(nodeExecution);
     await this.eventEmitter.emitNode(
       executionId,
@@ -7941,7 +7939,7 @@ export class ExecutionEngineService
         nodeExec.finishedAt = new Date();
         if (nodeExec.startedAt) {
           nodeExec.durationMs =
-            nodeExec.finishedAt.getTime() - nodeExec.startedAt.getTime();
+            resolveTerminalDurationMs(nodeExec) ?? nodeExec.durationMs;
         }
         await this.nodeExecutionRepository.save(nodeExec);
       }
