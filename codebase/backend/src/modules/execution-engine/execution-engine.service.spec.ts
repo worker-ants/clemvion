@@ -5019,6 +5019,38 @@ describe('ExecutionEngineService', () => {
       emitSpy.mockRestore();
     });
 
+    // 자매 `cancelParkedExecution`/`markWebChatIdleTimeout` 은 이 계약을 잠그는 전용
+    // 테스트를 갖는데 이 함수만 없었다 (`16_31_53` testing W1) — **또 자매 비대칭**이다.
+    //
+    // 이 함수는 함수 레벨 try/catch 가 없다(의도적 — 유일 호출부 `execution-run.processor`
+    // `onFailed` 의 `.catch()` 가 흡수한다). 그래서 트랜잭션이 실패하면 **그대로 던져야**
+    // 하고, 던지는 대신 삼키면 실패가 관측 불가능해진다. 그리고 커밋되지 않았으므로
+    // 종결 이벤트도 나가면 안 된다.
+    it('트랜잭션 중간 실패는 삼키지 않고 던진다 + 종결 이벤트도 안 나간다', async () => {
+      const { nodeQb } = installStalledTx(1);
+      nodeQb.execute = jest
+        .fn()
+        .mockRejectedValue(new Error('deadlock detected'));
+      const emitSpy = jest
+        .spyOn(
+          (
+            service as unknown as {
+              eventEmitter: {
+                emitExecution: (...a: unknown[]) => Promise<void>;
+              };
+            }
+          ).eventEmitter,
+          'emitExecution',
+        )
+        .mockResolvedValue(undefined);
+
+      await expect(
+        service.finalizeStalledExhausted('exec-stalled'),
+      ).rejects.toThrow('deadlock detected');
+      expect(emitSpy).not.toHaveBeenCalled();
+      emitSpy.mockRestore();
+    });
+
     it('이미 terminal (affected=0) 이면 no-op — cascade/emit 안 함', async () => {
       const { nodeQb, managerCqb } = installStalledTx(0);
       const emitSpy = jest

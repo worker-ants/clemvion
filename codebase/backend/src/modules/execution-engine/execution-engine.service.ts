@@ -3328,6 +3328,11 @@ export class ExecutionEngineService
    * 함수의 주석이 경고하는 바로 그 실패 모드이고, 셋 중 이 하나만 열려 있었다.
    * emit·cleanup 은 **커밋 이후** best-effort 로 실행한다(자매와 같은 순서).
    *
+   * **함수 레벨 `try/catch` 는 의도적으로 없다** — 자매 둘과 다른 유일한 점이다. 유일
+   * 호출부(`ExecutionRunProcessor.onFailed`)가 `.catch()` 로 흡수하므로 최종 동작은
+   * 동등하고, 여기서 삼키면 트랜잭션 실패가 관측 불가능해진다. 이 계약은 회귀 테스트로
+   * 잠겨 있다(중간 실패 시 throw + 종결 이벤트 미발행).
+   *
    * ⚠️ **알려진 이론적 race(수용, §7.5 case B 각주와 동일 class)**: job 이 stalled 를
    * 소진해 failed→onFailed 되는 순간, **부팅 backstop `recoverStuckExecutions`** 가
    * 같은 stale RUNNING 을 re-claim 해 재구동 중일 수 있다. 그 경우 본 조건부 UPDATE
