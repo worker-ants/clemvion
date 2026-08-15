@@ -64,7 +64,6 @@ describe('StatisticsService.getSummary', () => {
     service = moduleRef.get(StatisticsService);
   });
 
-
   // dashboard 쪽과 같은 이유의 가드 — 상세 배경은 `dashboard.service.spec.ts` 참조.
   // 이 파일은 집계가 **두 곳**(전체 요약 · 워크플로별)이라 둘 다 건다.
   it('avgDurationMs 집계 두 곳 모두 completed 만 센다 (대기 시간 오염 방지)', async () => {
