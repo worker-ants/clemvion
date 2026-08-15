@@ -78,8 +78,11 @@ spec_impact:
       `node-cancellation.md`(취소 전용 스코프)가 아니라 **`4-execution-engine.md` §7.1**
       (이 함수의 진짜 SoT)에 기록해야 했다. 문서 스코프를 말없이 넓힐 뻔했다
 - [x] 자매 트래커 동시 갱신 (구현 커밋과 같은 턴)
-- [x] TEST WORKFLOW 4스테이지 — lint / unit(백엔드 425·8730, 프런트 285 파일) /
-      build / **e2e 276 passed** 전부 PASS
+- [x] TEST WORKFLOW 4스테이지 전부 PASS — **최종 커밋(`a184edc00`) 기준 재실측**:
+      lint(16:56) / unit(16:57 — 백엔드 **425 suites·8731**, 프런트 285 파일) /
+      build(16:58) / **e2e 276 passed**(16:45).
+      직전 기록은 lint·unit 이 15:55 로 코드보다 오래돼 있었다 — 직접 명령으로는 매번
+      돌렸지만 **워크플로 스테이지 자체가 stale** 이었다
 - [x] `/ai-review` **CRITICAL 0** — 3라운드. `16_04_38`(W4) · `16_19_26`(W2) ·
       `16_31_53`(W1) 전부 조치. 각 세션 `RESOLUTION.md` 참조
 - [x] `--impl-done` (`16_32_26`) **BLOCK: NO** — 5 checker 중 4개 NONE,
