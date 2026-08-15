@@ -5,7 +5,7 @@ import {
 import { WebsocketService } from '../../websocket/websocket.service';
 import {
   ExecutionEventType,
-  ExecutionRoutingContext,
+  type ExecutionRoutingContext,
   NodeEventType,
 } from '../../websocket/websocket-events.types';
 

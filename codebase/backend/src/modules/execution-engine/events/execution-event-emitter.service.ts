@@ -2,7 +2,7 @@ import { forwardRef, Inject, Injectable } from '@nestjs/common';
 import { WebsocketService } from '../../websocket/websocket.service';
 import {
   ExecutionEventType,
-  ExecutionRoutingContext,
+  type ExecutionRoutingContext,
   NodeEventType,
 } from '../../websocket/websocket-events.types';
 import { ExecutionStatus } from '../../executions/entities/execution.entity';

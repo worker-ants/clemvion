@@ -116,7 +116,7 @@ import {
 } from '../../nodes/core/node-handler.interface';
 import { NODE_TYPES } from '../../nodes/core/node-types.constants';
 import {
-  ChatChannelRoutingInfo,
+  type ChatChannelRoutingInfo,
   ExecutionEventType,
   NodeEventType,
 } from '../websocket/websocket-events.types';

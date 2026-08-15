@@ -113,6 +113,19 @@ function valueEdgeToWebsocketService(st: ts.Statement): string | null {
   const hits = (spec: ts.Expression | undefined): boolean =>
     !!spec && ts.isStringLiteral(spec) && /websocket\.service$/.test(spec.text);
 
+  /**
+   * **원 export 식별자**. `{ A as B }` 에서 알고 싶은 건 로컬 이름 `B` 가 아니라 저쪽 모듈에서
+   * 무엇을 꺼냈는지(`A`)다.
+   *
+   * `20_27_08` testing W2 — 처음엔 `el.name.text`(로컬 바인딩)로 비교해 양쪽으로 틀렸다.
+   * 실측으로 둘 다 재현했다:
+   * - FP `import { WebsocketService as WS }` → 'WS' 라서 예외를 못 타고 오탐
+   * - **FN `import { ExecutionEventType as WebsocketService }` → 예외를 타서 미검출.**
+   *   이건 #1174 재발 그 자체인데 가드가 통과시켰다
+   */
+  const originalName = (el: ts.ImportSpecifier | ts.ExportSpecifier): string =>
+    (el.propertyName ?? el.name).text;
+
   if (ts.isImportDeclaration(st) && hits(st.moduleSpecifier)) {
     const clause = st.importClause;
     if (!clause) return 'side-effect import';
@@ -126,7 +139,7 @@ function valueEdgeToWebsocketService(st: ts.Statement): string | null {
     if (bindings && ts.isNamedImports(bindings)) {
       const names = bindings.elements
         .filter((el) => !el.isTypeOnly)
-        .map((el) => el.name.text)
+        .map(originalName)
         .filter((n) => n !== 'WebsocketService');
       return names.length ? names.join(', ') : null;
     }
@@ -139,9 +152,12 @@ function valueEdgeToWebsocketService(st: ts.Statement): string | null {
     if (ts.isNamespaceExport(st.exportClause)) {
       return `export * as ${st.exportClause.name.text} from`;
     }
+    // 여기엔 `WebsocketService` 예외가 **없다 — 비대칭은 의도다.** import 쪽 예외는
+    // "서비스를 주입하려면 클래스를 import 할 수밖에 없다" 는 DI 의 불가피함 때문이다.
+    // 재-수출은 불가피하지 않고, 오히려 제3 모듈에 우회 경로를 만들어 이 가드를 무력화한다.
     const names = st.exportClause.elements
       .filter((el) => !el.isTypeOnly)
-      .map((el) => el.name.text);
+      .map(originalName);
     return names.length ? `re-export ${names.join(', ')}` : null;
   }
 
@@ -210,5 +226,60 @@ describe('websocket-events.types — ES-module 순환 재편입 방지 (#1174 �
 
   it('facade 테스트가 실제로 존재한다 (allowlist 가 죽은 경로를 가리키면 예외가 공짜가 된다)', () => {
     expect(fs.existsSync(REEXPORT_FACADE_TEST)).toBe(true);
+  });
+
+  /**
+   * 위 세 번째 테스트의 판별 기준이 `isTypeOnly` 다. 타입 전용 심볼을 `type` 표시 없이
+   * import 하면 그 신호가 흐려진다 — 값 간선이 아닌데 값 간선처럼 보인다.
+   *
+   * 리뷰 두 라운드 연속(`20_05_17` W1 · `20_27_08` W1) 같은 지적이 나왔다. 두 번 다 지목된
+   * 곳만 고치면 세 번째가 온다. **인스턴스가 아니라 부류를 고정한다.**
+   *
+   * 무엇이 값이고 무엇이 타입인지는 하드코딩하지 않는다 — 타입 모듈을 파싱해서 얻는다.
+   * 그래야 새 선언이 추가돼도 목록을 손으로 맞출 필요가 없다.
+   */
+  it('타입 전용 심볼을 `type` 표시 없이 import 하는 곳이 없다', () => {
+    const typesSf = parse(TYPES_FILE);
+    const typeOnly = new Set<string>();
+    for (const st of typesSf.statements) {
+      if (ts.isInterfaceDeclaration(st) || ts.isTypeAliasDeclaration(st)) {
+        typeOnly.add(st.name.text);
+      }
+    }
+    // 공허 방지 — 하나도 못 모으면 아래 순회가 자동으로 통과한다.
+    expect(typeOnly.size).toBeGreaterThan(0);
+
+    const offenders: string[] = [];
+    for (const file of allTsFiles(SRC_ROOT)) {
+      const sf = parse(file);
+      for (const st of sf.statements) {
+        if (!ts.isImportDeclaration(st)) continue;
+        if (!ts.isStringLiteral(st.moduleSpecifier)) continue;
+        if (
+          !/websocket-events\.types$|websocket\.service$/.test(
+            st.moduleSpecifier.text,
+          )
+        ) {
+          continue;
+        }
+        const clause = st.importClause;
+        if (!clause || clause.isTypeOnly) continue;
+        const bindings = clause.namedBindings;
+        if (!bindings || !ts.isNamedImports(bindings)) continue;
+
+        const bare = bindings.elements
+          .filter((el) => !el.isTypeOnly)
+          .map((el) => (el.propertyName ?? el.name).text)
+          .filter((n) => typeOnly.has(n));
+
+        if (bare.length) {
+          offenders.push(
+            `${path.relative(SRC_ROOT, file)} → ${bare.join(', ')}`,
+          );
+        }
+      }
+    }
+
+    expect(offenders).toEqual([]);
   });
 });
