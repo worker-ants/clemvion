@@ -809,9 +809,10 @@ header value   = "t={timestamp},v1={hex(signature)}"
 >
 > `EXECUTION_QUEUE_WAIT_TIMEOUT` 경로의 값은 **큐 대기 시간**이다(실행 시간이 아니다) —
 > `started_at` 이 admission 이전 생성 시각이기 때문. §6 표의 "종결까지의 경과" 정의와는
-> 일관되나, 수신자가 실행 소요로 읽으면 오해할 수 있어 여기 명시한다. **`cancelledBy` 의 닫힌 union·`error.code` 매핑·
-user cancel 의 `error` 부재는 [행동 계약](#executioncancelled-의-행동-계약-normative)이
-소유한다** — 여기 다시 적지 않는다.
+> 일관되나, 수신자가 실행 소요로 읽으면 오해할 수 있어 여기 명시한다.
+
+**`cancelledBy` 의 닫힌 union·`error.code` 매핑·user cancel 의 `error` 부재는
+[행동 계약](#executioncancelled-의-행동-계약-normative)이 소유한다** — 여기 다시 적지 않는다.
 
 `execution.ai_message` 는 [Spec WS §4.4](./6-websocket-protocol.md#44-사용자-입력-대기-이벤트-상세-executionwaiting_for_input) 의 `execution.ai_message` payload 를 포함하며, 본 spec 의 표준 envelope (`triggerId` / `workflowId` / `timestamp` / `seq`) 만 추가로 wrap 한다. WS payload 의 `presentations?: PresentationPayload[]` 필드 (AI Agent `render_*` 표현 도구 호출 turn 에서만 동봉, [Spec AI Agent §7.10](../4-nodes/3-ai/1-ai-agent.md#710-presentation-payload-render_-운반)) 도 그대로 전달된다 — 외부 클라이언트 (SDK) 는 본 필드 존재 시 chat UI 에서 텍스트와 함께 inline 렌더 가능. **단, debug 전용 `llmCalls` 필드(raw LLM 요청/응답)는 [WS §4.4 `llmCalls[]` 노트의 strip-only 결정](./6-websocket-protocol.md#44-사용자-입력-대기-이벤트-상세-executionwaiting_for_input)에 따라 fanout seam 에서 제거되어 외부 수신자(본 SSE 스트림 포함)에는 전달되지 않는다 — 인증된 내부 WS(에디터) 채널 전용.**
 

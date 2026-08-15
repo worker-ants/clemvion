@@ -369,6 +369,52 @@ describe('toChatChannelEvent — execution.failed back-compat (string error wrap
   });
 });
 
+// `durationMs` wire 변환 (2026-08-15). CHANGELOG 가 breaking 으로 고지한 계약인데
+// 이 경계에 회귀 테스트가 없었다 (`10_34_51` testing W4). 세 상태를 각각 고정한다.
+describe('toChatChannelEvent — durationMs 전파', () => {
+  const mk = (status: 'completed' | 'failed' | 'cancelled', extra: object) =>
+    toChatChannelEvent({
+      executionId: 'exec-dur',
+      eventType: `execution.${status}`,
+      seq: 7,
+      payload: {
+        triggerId: 'trig-1',
+        workflowId: 'wf-1',
+        timestamp: '2026-08-15T00:00:00.000Z',
+        status,
+        ...extra,
+      },
+    } as unknown as ExecutionChannelEvent);
+
+  it.each([
+    ['completed', 4242],
+    ['failed', 0],
+    ['cancelled', 999],
+  ] as const)('%s — 숫자를 그대로 싣는다', (status, ms) => {
+    const eia = mk(status, {
+      durationMs: ms,
+      error: { code: null, message: 'x' },
+    });
+    expect((eia as { durationMs?: number | null } | null)?.durationMs).toBe(ms);
+  });
+
+  it('null 을 그대로 싣는다 — 값을 모르는 것과 필드 없음을 구분한다', () => {
+    const eia = mk('completed', { durationMs: null });
+    expect(
+      (eia as { durationMs?: number | null } | null)?.durationMs,
+    ).toBeNull();
+  });
+
+  it('레거시(키 부재) 이벤트도 깨지지 않는다', () => {
+    // 배포 경계에서 재생되는 이벤트에는 이 키가 없다.
+    const eia = mk('completed', {});
+    expect(eia).not.toBeNull();
+    expect(
+      (eia as { durationMs?: number | null } | null)?.durationMs,
+    ).toBeUndefined();
+  });
+});
+
 // §7.5 / 방안 D — execution.cancelled 의 payload.error (RESUME_*) 전파.
 // 채널 어댑터가 graceful 세션 만료 안내로 분기하려면 error.code 가 EIA 이벤트로
 // 전달돼야 한다. 일반 cancel (사용자 /cancel 등) 에는 error 미포함.

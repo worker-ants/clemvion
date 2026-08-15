@@ -172,6 +172,40 @@ checker 가 독립적으로** "인용이 가리키는 절이 오히려 반대를
 - [ ] (INFO) `data-flow/15-external-interaction.md:119` 가 **정의되지 않은 `EIA-AU-09`** 참조
       (EIA §3.3 은 `01`~`08` 까지만 정의)
 
+## ⚠️ `duration_ms` 에 "대기 시간" 이 섞여 집계를 오염시킨다 (2026-08-15 등재, `10_34_51` W3)
+
+이번 PR 이 처음으로 `duration_ms` 를 채우는 5경로 중 다수의 값은 **실행 시간이 아니라
+대기 시간**이다(위젯 idle-wait 는 기본 grace 만 1시간, park 취소는 무기한).
+
+**읽는 쪽이 status 필터 없이 평균을 낸다:**
+
+| 소비처 | 위험 |
+|---|---|
+| `dashboard.service.ts:96` `avgExecutionTime` | 오염 |
+| `statistics.service.ts:95,221` `avgDurationMs`(요약·Top workflows, **프론트 렌더**) | 오염 |
+| `frontend/.../executions/page.tsx:292` Duration 컬럼 | 대기 시간이 실행 시간으로 표시 |
+| `alerts-evaluator.service.ts` | **우연히 안전** — `status='completed'` 필터가 있다 |
+
+- [ ] 집계 쿼리에서 대기-시간 생성 경로를 제외(status / `error.code` 기준)하거나,
+      순수 실행시간과 wall-clock 대기시간을 **별도 필드로 분리**
+
+> **두 라운드가 이 영향을 못 봤다.** spec-to-spec 대조도, 코드 diff 리뷰도 "이 컬럼을
+> **읽는** 쪽" 까지 따라가지 않았다. 쓰기를 늘릴 때 읽는 쪽을 세는 것이 빠졌다.
+
+## retry-turn 재진입 시 DB 와 emit 의 `durationMs` 가 어긋난다 (2026-08-15 등재, `10_34_51` W1)
+
+`finalizeGuarded` 의 CANCELLED 분기는 `COALESCE(duration_ms, :new)` 로 **`stop()` 이 커밋한
+T1 값을 DB 에 보존**하는데, in-memory `execution.durationMs` 는 갱신되지 않아 **emit 은
+재진입 시점 T2(더 큰 값)를 싣는다.** 희귀 레이스가 아니라 "retry-turn 처리 중 Stop" 이라는
+일반 흐름에서 결정적으로 발생한다.
+
+- [ ] CANCELLED 분기에 `.returning(['duration_ms'])` 추가 → 실제 persist 값을 되읽어 emit
+      전 갱신. 회귀 테스트는 **emit 값 자체**를 단언할 것(기존 테스트는 SQL 형태만 봐서 못 잡았다)
+
+> 이 PR 이 세운 "DB = wire" 불변식의 유일한 잔여 위반이다. 같은 라운드에서 즉시 고치지
+> 않은 이유는 **DB write 경로를 또 바꾸는 변경**이고, 서두르면 같은 라운드가 지적한
+> 과잉 스코프(W2)를 반복하기 때문이다.
+
 ## `durationMs` 후속 2건 (2026-08-15 등재, `09_58_24`)
 
 - [ ] **REST `GET /api/external/executions/:id` 에 `durationMs` 부재** (W4). push 계열
