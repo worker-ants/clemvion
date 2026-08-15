@@ -711,7 +711,7 @@ export class RetryTurnService {
   ): Promise<void> {
     execution.finishedAt = new Date();
     execution.durationMs =
-      execution.finishedAt.getTime() - execution.startedAt.getTime();
+      resolveTerminalDurationMs(execution) ?? execution.durationMs;
     if (
       !(await this.finalizeGuarded(
         execution,
@@ -946,7 +946,7 @@ export class RetryTurnService {
     }
     execution.finishedAt = new Date();
     execution.durationMs =
-      execution.finishedAt.getTime() - execution.startedAt.getTime();
+      resolveTerminalDurationMs(execution) ?? execution.durationMs;
     // 2026-07-27 — `completeRetryExecution` 과 동일 이유의 guarded 전환. 특히 FAILED
     // 분기가 위험하다: 턴 진행 중 도착한 Stop 이 DB 를 `cancelled` 로 마감했는데 그
     // 턴이 (429/timeout 등으로) 자연 실패하면, 무가드 save 가 취소를 **FAILED 로

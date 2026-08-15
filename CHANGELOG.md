@@ -1,5 +1,25 @@
 # Changelog
 
+## Unreleased — 종결 이벤트에 `durationMs` (3종 전부)
+
+직전 항목이 *"`durationMs` 는 후속으로 분리했다"* 고 예고한 작업이다. `execution.completed`
+· `failed` · `cancelled` 가 이제 **밀리초 소요 시간**을 싣는다.
+
+- **알 수 없으면 `null`** (형제 `error.code` 와 같은 부재 표현). 키는 항상 존재한다
+- 엔티티를 로드하지 않는 5경로(park 취소 · 위젯 idle 취소 · 재개 실패 취소 · 큐 대기
+  타임아웃 · stalled 소진)는 **UPDATE 문 안에서 SQL 로 계산**하고 `RETURNING` 으로 되받아
+  싣는다 — DB 와 wire 가 같은 값을 쓴다
+- `EXECUTION_QUEUE_WAIT_TIMEOUT` 경로의 값은 **큐 대기 시간**이다(실행 시간이 아니다).
+  `started_at` 이 admission 이전 시각이기 때문이며 §6.5 에 명시했다
+- `duration_ms` 컬럼이 `INTEGER`(≈24.8일)라 SQL 식에 **int4 상한 클램프**를 넣었다.
+  없으면 오래 대기한 실행의 취소 UPDATE 가 통째로 실패해 그 실행이 영구 고착된다
+
+**수신자 영향**: 종결 3종 payload 에 필드가 하나 늘었다(제거·변경 아님). 기존 파서는
+무시하면 되고, 값을 읽을 때 `null` 을 방어해야 한다.
+
+**REST `GET /api/external/executions/:id` 에는 아직 없다** — push 계열(webhook/SSE/WS)만
+채워졌다. 재조회 시 사라지는 비대칭이라 후속으로 추적 중이다.
+
 ## Unreleased — 종결 `error` 를 문자열로 보내던 4곳 (EIA §6.4 object 로 일원화)
 
 `execution.failed` 의 `error` 가 spec §6.4 는 `{code, message, nodeId, details?}` 객체인데

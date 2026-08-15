@@ -69,11 +69,25 @@ export function toFiniteNumber(v: unknown): number | null {
  * 손으로 5곳에 반복하면 갈린다 — 이 브랜치가 `error` 메시지에서 실제로 겪은 형태다
  * (DB 는 "attempts 소진", emit 은 "소진" 이었다).
  *
- * `GREATEST(0, …)`: 시계 역행이 음수를 만들면 수신자의 산술이 깨진다.
+ * ## 두 가지 방어가 **필수**다 — 둘 다 실측으로 필요성이 드러났다
+ *
+ * 1. **`LEAST(2147483647, …)` 상한** — `duration_ms` 는 `INTEGER`(int4, 최대 ≈**24.8일**)다
+ *    (`V001__initial_schema.sql:223`). 클램프가 없으면 `::int` 캐스팅이
+ *    `integer out of range` 로 **UPDATE 문 전체를 실패시킨다.** 그런데 이 SQL 을 쓰는
+ *    5경로는 하필 **오래 대기한 실행**(park·공개 위젯 idle-wait)을 취소·마감하는 자리라
+ *    24.8일 초과가 정상 시나리오다. 실패는 catch 에 삼켜지고 실행은 그 상태에 **영구
+ *    고착**된다 — "값이 부정확" 보다 훨씬 나쁘다. **saturate 시키고 취소는 성공시킨다.**
+ * 2. **음수는 `NULL`** — 시계 역행 시 JS 경로({@link resolveTerminalDurationMs})가 `null` 을
+ *    돌려주므로 SQL 도 같은 sentinel 을 내야 한다. 종전엔 `GREATEST(0, …)` 로 **`0`** 을
+ *    내서, 같은 이상 상황에 수신자가 "알 수 없음" 과 "0ms 만에 끝남" 중 무엇을 받을지가
+ *    경로에 따라 갈렸다.
+ *
  * 바인딩할 파라미터 이름은 {@link TERMINAL_FINISHED_AT_PARAM}.
  */
 export const TERMINAL_DURATION_MS_SQL =
-  'GREATEST(0, (EXTRACT(EPOCH FROM (:terminalFinishedAt::timestamptz - started_at)) * 1000)::bigint)::int';
+  'CASE WHEN :terminalFinishedAt::timestamptz < started_at THEN NULL ' +
+  'ELSE LEAST(2147483647, (EXTRACT(EPOCH FROM (:terminalFinishedAt::timestamptz - started_at)) * 1000)::bigint)::int ' +
+  'END';
 
 /** {@link TERMINAL_DURATION_MS_SQL} 이 기대하는 파라미터 이름. */
 export const TERMINAL_FINISHED_AT_PARAM = 'terminalFinishedAt';

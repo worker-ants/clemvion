@@ -115,8 +115,20 @@ describe('TERMINAL_DURATION_MS_SQL', () => {
     );
   });
 
-  it('음수 방어와 started_at 참조를 포함한다', () => {
-    expect(TERMINAL_DURATION_MS_SQL).toContain('GREATEST(0');
+  it('started_at 을 참조한다', () => {
     expect(TERMINAL_DURATION_MS_SQL).toContain('started_at');
+  });
+
+  // `duration_ms` 는 INTEGER(int4, ≈24.8일). 클램프가 없으면 `::int` 캐스팅이
+  // `integer out of range` 로 **UPDATE 전체를 실패**시키고, 이 SQL 을 쓰는 5경로는 하필
+  // 오래 대기한 실행을 취소하는 자리다 — 실패가 catch 에 삼켜져 영구 고착된다.
+  it('int4 상한으로 클램프한다 (UPDATE 실패 대신 saturate)', () => {
+    expect(TERMINAL_DURATION_MS_SQL).toContain('LEAST(2147483647');
+  });
+
+  // JS 경로와 같은 sentinel — 같은 이상 상황에 경로마다 다른 신호를 내면 안 된다.
+  it('음수(시계 역행)는 NULL 로 낸다 — 0 이 아니다', () => {
+    expect(TERMINAL_DURATION_MS_SQL).toContain('THEN NULL');
+    expect(TERMINAL_DURATION_MS_SQL).not.toContain('GREATEST(0');
   });
 });

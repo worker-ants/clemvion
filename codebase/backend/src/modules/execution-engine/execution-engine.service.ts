@@ -636,7 +636,7 @@ export class ExecutionEngineService
       row.error = { message: errMessage };
       row.finishedAt = new Date();
       if (row.startedAt) {
-        row.durationMs = row.finishedAt.getTime() - row.startedAt.getTime();
+        row.durationMs = resolveTerminalDurationMs(row) ?? row.durationMs;
       }
       // ai-review WARNING #1 (2026-07-27, 7차 라운드) — 무가드 full-entity `save()`
       // 는 형제 종결 헬퍼(`finalizeFailedExecution`/`finalizeCancelledExecution`)가
@@ -4292,7 +4292,7 @@ export class ExecutionEngineService
         reloaded.finishedAt = new Date();
         if (reloaded.startedAt) {
           reloaded.durationMs =
-            reloaded.finishedAt.getTime() - reloaded.startedAt.getTime();
+            resolveTerminalDurationMs(reloaded) ?? reloaded.durationMs;
         }
         // ai-review WARNING #1 (2026-07-27, 7차 라운드) — 무가드 full-entity
         // `save()` 대신 형제 종결 헬퍼와 동일한 guarded `updateExecutionStatus`
@@ -4941,7 +4941,7 @@ export class ExecutionEngineService
     };
     savedExecution.finishedAt = new Date();
     savedExecution.durationMs =
-      savedExecution.finishedAt.getTime() - savedExecution.startedAt.getTime();
+      resolveTerminalDurationMs(savedExecution) ?? savedExecution.durationMs;
     // CRITICAL #1 — 형제 finalizeCancelledExecution 과 동일한 guarded 경로. DB 가
     // 이미 terminal(동시 Stop 이 CANCELLED 로 선점)이면 0행 매칭 → false 반환,
     // FAILED 로 재마킹하지 않는다.
