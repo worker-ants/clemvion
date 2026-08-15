@@ -19,7 +19,9 @@ owner: planner
       이름만 두고 shape·의미를 적은 문장이 0건이다. 채우면 외부 webhook 에 신규 데이터
       클래스가 열리는데(현재 `execution.completed` payload 는 `{status}` 하나) 크기 상한이
       없다. 소비처 0곳
-- [ ] **`durationMs` emit** (§6 도입부 필드 집합 표의 Planned 2행,
+- [x] **`durationMs` emit** — **완료 (2026-08-15, `0f0050dea`+`0dce2a83f`)**. 종결 3종
+      16 경로 전부. 엔티티 미로드 5곳은 UPDATE 문 안에서 SQL 계산 + `RETURNING`.
+      ~~(§6 도입부 필드 집합 표의 Planned 2행,~~
       2026-08-13 등재) — 데이터는 emit **직전에 이미 존재**하는데 payload 에 넣지 않는다
       (`execution-engine.service.ts` 의 `EXECUTION_COMPLETED` emit **4곳** + `retry-turn.service.ts`
       **2곳** — 전부 `{ status }` 만 싣는다. 줄 번호는 리팩터마다 stale 해지므로 심볼로 고정한다).

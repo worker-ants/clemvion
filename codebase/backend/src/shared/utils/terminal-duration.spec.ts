@@ -12,12 +12,18 @@ describe('resolveTerminalDurationMs', () => {
   it('이미 계산된 durationMs 를 그대로 쓴다 (재계산하지 않는다)', () => {
     // 재계산하면 DB 에 영속된 값과 wire 값이 갈릴 수 있다.
     expect(
-      resolveTerminalDurationMs({ durationMs: 999, startedAt: started, finishedAt: finished }),
+      resolveTerminalDurationMs({
+        durationMs: 999,
+        startedAt: started,
+        finishedAt: finished,
+      }),
     ).toBe(999);
   });
 
   it('durationMs 가 없으면 startedAt/finishedAt 으로 계산한다', () => {
-    expect(resolveTerminalDurationMs({ startedAt: started, finishedAt: finished })).toBe(4242);
+    expect(
+      resolveTerminalDurationMs({ startedAt: started, finishedAt: finished }),
+    ).toBe(4242);
   });
 
   // 이 PR 이 실제로 겪은 회귀 — 조건 블록 밖으로 옮긴 계산이 `startedAt.getTime()` 에서
@@ -43,7 +49,10 @@ describe('resolveTerminalDurationMs', () => {
 
   it('Invalid Date 는 null (NaN 을 wire 로 내보내지 않는다)', () => {
     expect(
-      resolveTerminalDurationMs({ startedAt: new Date('nope'), finishedAt: finished }),
+      resolveTerminalDurationMs({
+        startedAt: new Date('nope'),
+        finishedAt: finished,
+      }),
     ).toBeNull();
   });
 
@@ -66,7 +75,11 @@ describe('resolveTerminalDurationMs', () => {
   it('durationMs 0 은 유효한 값이다 (falsy 라고 버리지 않는다)', () => {
     // `??` 대신 `||` 를 쓰면 0 이 사라진다 — 순간 완료된 실행이 그 자리다.
     expect(
-      resolveTerminalDurationMs({ durationMs: 0, startedAt: started, finishedAt: finished }),
+      resolveTerminalDurationMs({
+        durationMs: 0,
+        startedAt: started,
+        finishedAt: finished,
+      }),
     ).toBe(0);
   });
 });
@@ -97,7 +110,9 @@ describe('toFiniteNumber', () => {
 describe('TERMINAL_DURATION_MS_SQL', () => {
   it('상수가 선언한 파라미터 이름을 실제로 쓴다', () => {
     // 둘이 어긋나면 런타임에 "파라미터 미바인딩" 으로만 드러난다 — 정적으로 묶는다.
-    expect(TERMINAL_DURATION_MS_SQL).toContain(`:${TERMINAL_FINISHED_AT_PARAM}`);
+    expect(TERMINAL_DURATION_MS_SQL).toContain(
+      `:${TERMINAL_FINISHED_AT_PARAM}`,
+    );
   });
 
   it('음수 방어와 started_at 참조를 포함한다', () => {

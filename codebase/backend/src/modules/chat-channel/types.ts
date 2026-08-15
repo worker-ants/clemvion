@@ -389,7 +389,12 @@ export interface EiaCompletedEvent extends EiaEventBase {
   // 엔진에 개념 자체가 없고(emit 0건) 소비처도 없었다. EIA §6 "삭제된 약속" 이 되살리지
   // 않기로 명시한다. 타입에만 남아 있으면 다음 사람이 "구현하면 되는 것" 으로 읽는다.
   result: { outputs?: unknown };
-  durationMs?: number;
+  // EIA §6 — producer 는 **항상** 이 키를 싣고, 값을 모르면 `null` 이다.
+  // **그런데 `?` 는 유지한다** — 이 타입은 producer 가 아니라 **consumer 계약**이고,
+  // 배포 경계에서 재생되는 레거시 이벤트에는 키가 없다. 필수로 만들면 타입이 현실보다
+  // 넓은 보장을 주장한다(실제로 29개 fixture 가 타입 오류를 냈다). 직전 PR 이
+  // `error.nodeId` 에서 내린 것과 같은 판단이다 (`09_58_31` cross_spec W1 — 미채택).
+  durationMs?: number | null;
 }
 
 export interface EiaFailedEvent extends EiaEventBase {
@@ -407,7 +412,12 @@ export interface EiaFailedEvent extends EiaEventBase {
     nodeId?: string | null;
     details?: unknown;
   };
-  durationMs?: number;
+  // EIA §6 — producer 는 **항상** 이 키를 싣고, 값을 모르면 `null` 이다.
+  // **그런데 `?` 는 유지한다** — 이 타입은 producer 가 아니라 **consumer 계약**이고,
+  // 배포 경계에서 재생되는 레거시 이벤트에는 키가 없다. 필수로 만들면 타입이 현실보다
+  // 넓은 보장을 주장한다(실제로 29개 fixture 가 타입 오류를 냈다). 직전 PR 이
+  // `error.nodeId` 에서 내린 것과 같은 판단이다 (`09_58_31` cross_spec W1 — 미채택).
+  durationMs?: number | null;
 }
 
 export interface EiaCancelledEvent extends EiaEventBase {
@@ -420,7 +430,12 @@ export interface EiaCancelledEvent extends EiaEventBase {
    * cancel 등 일반 취소에는 부재.
    */
   error?: { code: string; message?: string };
-  durationMs?: number;
+  // EIA §6 — producer 는 **항상** 이 키를 싣고, 값을 모르면 `null` 이다.
+  // **그런데 `?` 는 유지한다** — 이 타입은 producer 가 아니라 **consumer 계약**이고,
+  // 배포 경계에서 재생되는 레거시 이벤트에는 키가 없다. 필수로 만들면 타입이 현실보다
+  // 넓은 보장을 주장한다(실제로 29개 fixture 가 타입 오류를 냈다). 직전 PR 이
+  // `error.nodeId` 에서 내린 것과 같은 판단이다 (`09_58_31` cross_spec W1 — 미채택).
+  durationMs?: number | null;
 }
 
 /**

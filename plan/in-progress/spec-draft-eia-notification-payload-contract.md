@@ -105,7 +105,7 @@ DB(`trigger.workflowId`), 안쪽은 routing context — **출처가 다르다**.
 | `error` | 구현됨 | `{code, message, nodeId, details?}` — **`failed` 는 전 경로 object**(2026-08-14). `cancelled` 는 아직 `{code, message}` 만 |
 | `result.cancelledBy` | 구현됨(경로 1곳 누락) | `cancelled` 한정. `retry-turn.service.ts` `failRetryExecution` L956 은 emit 안 함 |
 | `result.outputs` | **미구현 (Planned)** | 데이터는 emit 직전 존재 |
-| `durationMs` | **미구현 (Planned)** | 데이터는 emit 직전 존재 |
+| `durationMs` | 구현됨 (2026-08-15) | 종결 3종 전부. 알 수 없으면 `null` |
 | ~~`finalNodeId`·`finalPort`·`nodeCount`·`failedNodeId`~~ | **삭제** | emit 로직 0건 — 엔진에 개념이 없다. 약속을 철회한다 (`chat-channel/types.ts:388` 의 미사용 타입 흔적은 후속에서 함께 정리) |
 
 ### (2) 봉투는 **세 갈래를 한 자리에** 적는다
@@ -184,7 +184,7 @@ DB(`trigger.workflowId`), 안쪽은 routing context — **출처가 다르다**.
 
 ## 후속 (developer)
 
-- [ ] emit 에 **`durationMs`** 채우기 — 종결 3종 전부. completed 6곳 + failed 4곳 +
+- [x] emit 에 **`durationMs`** 채우기 — **완료 (2026-08-15)**. 종결 3종 전부. completed 6곳 + failed 4곳 +
       cancelled 6곳(그중 5곳은 DB write·시그니처 확장 필요). → (1) 표의 `durationMs` Planned 해제
       (줄 번호로 적었다가 실측하니 4개 중 2개가 이미 어긋나 있었다 — 심볼로 고정)
 - [ ] emit 에 **`result.outputs`** 채우기 — **planner 턴 선행 필요.** spec 이 내용을 정의한
