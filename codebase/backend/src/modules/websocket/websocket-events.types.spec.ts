@@ -87,7 +87,10 @@ interface ModuleRef {
   form: 'import' | 'export' | 'import=require' | 'require' | 'dynamic-import';
   /** 모듈 평가 시점에 즉시 해석되는가. lazy 면 순환 평가 순서를 깨지 않는다. */
   eager: boolean;
-  /** 방출 후에도 남는 값 간선인가. 판정은 {@link leavesValueEdge} — 인라인 `type` 태그 포함. */
+  /**
+   * 방출 후에도 남는 값 간선인가. 판정은 {@link importLeavesValueEdge} /
+   * {@link exportLeavesValueEdge} — 인라인 `type` 태그와 default 바인딩까지 본다.
+   */
   value: boolean;
   /** 저쪽 모듈에서 꺼낸 **원** 식별자들. `*`/side-effect 는 빈 배열. */
   names: string[];
@@ -115,30 +118,45 @@ function originalName(el: ts.ImportSpecifier | ts.ExportSpecifier): string {
   return (el.propertyName ?? el.name).text;
 }
 
+/** 네임드 바인딩에서 **값으로 남는** 원 식별자들. import·export 가 공유한다. */
+function namedBindingValueNames(
+  named: ts.NamedImports | ts.NamedExports,
+): string[] {
+  return named.elements.filter((el) => !el.isTypeOnly).map(originalName);
+}
+
 /**
- * 방출 후에도 모듈 간선이 남는가.
+ * `import …` 이 방출 후에도 값 간선을 남기는가.
  *
- * `21_14_51` requirement W1 — 처음엔 **선언 레벨** `isTypeOnly` 만 봤다. 그래서
- * `import { type Foo } from '…'`(인라인 태그)이 "선언은 타입 전용이 아님 + 값 이름 0개" 가
- * 되어 **이름 없는 형태(side-effect/default/`* as`)와 구분되지 않았고**, 순수 타입 import 를
- * 값 간선으로 오탐했다. 무수정 프로브로 재현했다.
+ * ## 불리언을 세는 대신 **AST 형태를 소진**한다
  *
- * 더 나쁜 건 내 **음성 대조가 그 형태를 안 봤다**는 것이다 — N1 은 선언 레벨
- * `import type { … }` 만 확인했다. 뮤턴트를 넓히면서 대조군은 안 넓혔다.
+ * `21_14_51` 은 선언 레벨 `isTypeOnly` 만 봐서 인라인 `type` 을 오탐했고(FP), 그걸 고치며
+ * "네임드 바인딩 유무 + 값 이름 수" 로 갈랐더니 이번엔 `21_49_51` 이 **default 바인딩을
+ * 놓친 FN** 을 찾아냈다 — `import Def, { type Bar } from '…'` 가 "네임드 있음 + 값 이름 0" 이라
+ * 통과했다. **내 FP 수정이 새 FN 을 만든 것이다.**
  *
- * 그래서 세 상태를 갈라야 한다:
- * - 선언 전체가 타입 전용 → 간선 없음
- * - 네임드 바인딩이 **있는데** 값으로 남는 게 하나도 없음 → 간선 없음
- * - 네임드 바인딩이 **없음**(side-effect / default / `* as`) → 간선 있음
+ * 조건을 하나씩 덧대는 한 이 진자는 멈추지 않는다. `ImportClause` 는 부분이 **셋뿐**이므로
+ * (default `name` · `namedBindings` · 그리고 clause 자체의 부재) 전수로 소진할 수 있다.
+ * 아래는 그 세 부분을 빠짐없이 훑는다 — 새 경우가 생기려면 TS 문법이 바뀌어야 한다.
  */
-function leavesValueEdge(
-  declTypeOnly: boolean | undefined,
-  hasNamedBindings: boolean,
-  valueNameCount: number,
-): boolean {
-  if (declTypeOnly) return false;
-  if (hasNamedBindings) return valueNameCount > 0;
-  return true;
+function importLeavesValueEdge(clause: ts.ImportClause | undefined): boolean {
+  if (!clause) return true; // `import '…'` — side-effect 는 순수 값 간선
+  if (clause.isTypeOnly) return false; // `import type { … }`
+
+  if (clause.name) return true; // default 바인딩
+  const bindings = clause.namedBindings;
+  if (!bindings) return true; // 방어적 — 파서상 도달 불가
+  if (ts.isNamespaceImport(bindings)) return true; // `* as ns`
+  return namedBindingValueNames(bindings).length > 0; // 인라인 `type` 은 여기서 걸러진다
+}
+
+/** `export … from` 쪽. 형태가 셋(`*` · `* as ns` · 네임드)이라 역시 소진 가능하다. */
+function exportLeavesValueEdge(decl: ts.ExportDeclaration): boolean {
+  if (decl.isTypeOnly) return false;
+  const clause = decl.exportClause;
+  if (!clause) return true; // `export * from`
+  if (ts.isNamespaceExport(clause)) return true; // `export * as ns from`
+  return namedBindingValueNames(clause).length > 0;
 }
 
 /** 함수 안에 있으면 lazy — 모듈 평가 시점에 실행되지 않는다. */
@@ -158,18 +176,16 @@ function moduleRefs(sf: ts.SourceFile): ModuleRef[] {
       ts.isImportDeclaration(node) &&
       ts.isStringLiteral(node.moduleSpecifier)
     ) {
-      const clause = node.importClause;
-      const bindings = clause?.namedBindings;
-      const named = bindings && ts.isNamedImports(bindings) ? bindings : null;
-      const names = named
-        ? named.elements.filter((el) => !el.isTypeOnly).map(originalName)
-        : [];
+      const bindings = node.importClause?.namedBindings;
       refs.push({
         specifier: node.moduleSpecifier.text,
         form: 'import',
         eager: true,
-        value: leavesValueEdge(clause?.isTypeOnly, !!named, names.length),
-        names,
+        value: importLeavesValueEdge(node.importClause),
+        names:
+          bindings && ts.isNamedImports(bindings)
+            ? namedBindingValueNames(bindings)
+            : [],
       });
     } else if (
       ts.isExportDeclaration(node) &&
@@ -177,16 +193,15 @@ function moduleRefs(sf: ts.SourceFile): ModuleRef[] {
       ts.isStringLiteral(node.moduleSpecifier)
     ) {
       const clause = node.exportClause;
-      const named = clause && ts.isNamedExports(clause) ? clause : null;
-      const names = named
-        ? named.elements.filter((el) => !el.isTypeOnly).map(originalName)
-        : [];
       refs.push({
         specifier: node.moduleSpecifier.text,
         form: 'export',
         eager: true,
-        value: leavesValueEdge(node.isTypeOnly, !!named, names.length),
-        names,
+        value: exportLeavesValueEdge(node),
+        names:
+          clause && ts.isNamedExports(clause)
+            ? namedBindingValueNames(clause)
+            : [],
       });
     } else if (
       ts.isImportEqualsDeclaration(node) &&
@@ -272,19 +287,51 @@ describe('websocket-events.types — ES-module 순환 재편입 방지 (#1174 �
     expect(moduleRefs(sf).map((r) => `${r.form} ${r.specifier}`)).toEqual([]);
   });
 
-  it('값·타입 선언이 실제로 이 모듈에 있다 (딴 데로 옮기면 위 단언이 공허해진다)', () => {
+  it('값·타입 선언이 실제로 이 모듈에서 export 된다 (딴 데로 옮기면 위 단언이 공허해진다)', () => {
     const sf = parse(TYPES_FILE);
-    const declared = new Set<string>();
+    const exported = new Set<string>();
     for (const st of sf.statements) {
       if (
-        ts.isEnumDeclaration(st) ||
-        ts.isInterfaceDeclaration(st) ||
-        ts.isTypeAliasDeclaration(st)
+        !ts.isEnumDeclaration(st) &&
+        !ts.isInterfaceDeclaration(st) &&
+        !ts.isTypeAliasDeclaration(st)
       ) {
-        declared.add(st.name.text);
+        continue;
       }
+      // 선언 **존재**가 아니라 `export` 여부까지 본다 (`21_49_51` INFO4).
+      const isExported = ts
+        .getModifiers(st)
+        ?.some((m) => m.kind === ts.SyntaxKind.ExportKeyword);
+      if (isExported) exported.add(st.name.text);
     }
-    expect([...EXPECTED_EXPORTS].filter((n) => !declared.has(n))).toEqual([]);
+    expect([...EXPECTED_EXPORTS].filter((n) => !exported.has(n))).toEqual([]);
+  });
+
+  /**
+   * 세 번째 테스트의 `WebsocketService` 예외는 **네임드 바인딩**만 면제한다. 그 모듈에
+   * `export default` 가 생기면 `import Anything from '…/websocket.service'` 로 무엇이든
+   * 값으로 끌어올 수 있고, 그건 예외가 아니라 새 우회로다.
+   *
+   * 지금은 둘 다 default export 가 없다 — 그 **전제를 캐너리로 고정**한다
+   * (`21_49_51` testing W1 이 제안).
+   */
+  it('두 모듈 어디에도 `export default` 가 없다 (있으면 예외 판정의 전제가 무너진다)', () => {
+    for (const file of [
+      TYPES_FILE,
+      path.join(WS_DIR, 'websocket.service.ts'),
+    ]) {
+      const hasDefault = parse(file).statements.some(
+        (st) =>
+          ts.isExportAssignment(st) ||
+          ts
+            .getModifiers(st as ts.HasModifiers)
+            ?.some((m) => m.kind === ts.SyntaxKind.DefaultKeyword),
+      );
+      expect({ file: path.basename(file), hasDefault }).toEqual({
+        file: path.basename(file),
+        hasDefault: false,
+      });
+    }
   });
 
   it('`websocket.service` 로의 eager 값 간선이 없다 (re-export facade 테스트 제외)', () => {

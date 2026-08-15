@@ -232,19 +232,50 @@ ES-module 순환 위에 있어서다. 생성자의 `forwardRef` 도 같은 이�
       > (추가 뮤턴트 M19 타입모듈 `import type` · M20 값+타입 혼합,
       > 추가 대조 N6 인라인 · N7 인라인 여럿 · N8 `export type … from` · N9 `export { type … }`)
 
-## 수렴 판정 (5라운드)
+- [x] **6라운드(`21_49_51` W1) — 내 FP 수정이 새 FN 을 만들었다.**
+      `import Def, { type Bar } from '…'` 이 "네임드 있음 + 값 이름 0" 이라 통과했다(미검출).
+      5라운드에서 인라인 `type` 오탐을 고치며 도입한 판정이 default 바인딩을 안 봤기 때문이다.
 
-| 라운드 | 발견 |
-|---|---|
-| `19_27_37` | **제품 코드** — gateway 가 순환에서 안 빠졌다 |
-| `20_05_17` | 가드가 `export … from` 미검출 |
-| `20_27_08` | 가드가 별칭으로 예외 오판정 (FN) |
-| `20_50_49` | 가드가 `require()` 미검출 → **구조 통합** |
-| `21_14_51` | 가드가 인라인 `type` 오탐 (FP) → **대조군 확장** |
+      > **조건을 하나씩 덧대는 한 이 진자(FN↔FP)는 멈추지 않는다.** 그래서 이번엔 넓히지 않고
+      > **소진했다** — `ImportClause` 는 부분이 셋뿐이다(clause 부재 · default `name` ·
+      > `namedBindings`). 유한하므로 전수로 훑을 수 있고, 훑고 나면 새 경우가 생기려면 **TS 문법이
+      > 바뀌어야 한다.**
 
-제품 코드 결함은 1라운드가 마지막이고 이후 넷은 전부 가드 자신이다. 4라운드에서 열거를 하나로
-합친 뒤 5라운드 발견은 **미검출(FN)이 아니라 오탐(FP)** 으로 성격이 뒤집혔다 — 구조 통합이
-실제로 효과가 있었다는 신호다.
+      `importLeavesValueEdge` / `exportLeavesValueEdge` 로 소진. INFO1(두 분기 로직 중복)도 같이
+      닫혔다 — 공통부는 `namedBindingValueNames` 하나.
+
+      소진이 실제로 완전한지 **형태별 전수 뮤테이션 20 RED / 8 GREEN**:
+
+      | 축 | 뮤턴트 | 음성 대조 |
+      |---|---|---|
+      | `ImportClause` 전수 | clause 부재 · default 단독 · **default+전부type(M21)** · default+값named · default+namespace · namespace 단독 · 값named 단독 | 선언 `import type` · 인라인 단독 · 인라인 여럿 · `WebsocketService` 네임드 |
+      | `export … from` | `export *` · `export * as ns` · 값 named · `export { WebsocketService }` | `export type … from` · `export { type … }` |
+      | require/동적 | top-level require 구조분해 · `import = require` | 함수 안 require · 동적 import |
+      | 타입 모듈·표시 | 타입모듈 import · 타입모듈 함수 안 require · 타입 전용을 `type` 없이 | — |
+      | **새 캐너리** | 타입모듈 `export default` · 서비스 `export default` · `export` 키워드 제거 · allowlist 죽은 경로 | — |
+
+- [x] **`export default` 없음 전제를 캐너리로** (`21_49_51` W1 제안) — 세 번째 테스트의
+      `WebsocketService` 예외는 네임드 바인딩만 면제하므로, 대상 모듈에 default export 가 생기면
+      `import Anything from '…'` 이 새 우회로가 된다. 전제가 깨지면 즉시 RED
+- [x] **선언 "존재" 가 아니라 `export` 여부까지** (`21_49_51` INFO4) — `ts.getModifiers` 로 확인
+
+## 수렴 판정 (6라운드)
+
+| 라운드 | 발견 | 성격 |
+|---|---|---|
+| `19_27_37` | gateway 가 순환에서 안 빠졌다 | **제품 코드** |
+| `20_05_17` | 가드가 `export … from` 미검출 | 가드 FN |
+| `20_27_08` | 가드가 별칭으로 예외 오판정 | 가드 FN |
+| `20_50_49` | 가드가 `require()` 미검출 → **열거 통합** | 가드 FN |
+| `21_14_51` | 가드가 인라인 `type` 오탐 → **대조군 확장** | 가드 FP |
+| `21_49_51` | 가드가 default 바인딩 미인식 → **형태 소진** | 가드 FN (내 FP 수정의 부산물) |
+
+제품 코드 결함은 1라운드가 마지막이다. 이후 다섯은 전부 가드 자신이고, 세 번의 구조 조치
+(열거 통합 → 대조군 확장 → **형태 소진**)를 거쳤다.
+
+**이번 조치가 앞선 둘과 다른 점**: 앞의 둘은 커버리지를 *넓힌* 것이라 "또 뭔가 빠졌을 수 있다" 가
+남았지만, 이번은 **유한한 AST 형태를 전수로 소진**했다. 같은 축에서 더 나올 형태가 없다는 것이
+문법상 보장된다.
 
 가드 스위트를 이 PR 에 함께 넣는 것은 **사용자 명시 승인**을 받았다 (`21_14_51` INFO6 이
 정책 판단을 요구).
