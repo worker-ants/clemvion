@@ -239,6 +239,30 @@ T1 값을 DB 에 보존**하는데, in-memory `execution.durationMs` 는 갱신�
 > 않은 이유는 **DB write 경로를 또 바꾸는 변경**이고, 서두르면 같은 라운드가 지적한
 > 과잉 스코프(W2)를 반복하기 때문이다.
 
+## `finalizeStalledExhausted` 만 트랜잭션 밖이다 (2026-08-15 등재, `12_52_39` database W1)
+
+**선존 결함이고 이 PR 이 유발하지 않았다** — `git diff origin/main...HEAD` 에서 이 함수의
+NodeExecution cascade 도 트랜잭션 경계도 건드린 라인이 **0건**이다. 다만 이 PR 이 직접
+확장한 함수이고, 실측해 보니 **어느 트래커에도 없었다**.
+
+세 자매가 같은 2-테이블 쓰기(Execution UPDATE + NodeExecution cascade UPDATE)를 하는데
+둘만 원자적이다:
+
+| 함수 | 트랜잭션 | NodeExecution 쓰기 |
+|---|---|---|
+| `cancelParkedExecution` | **있음** | 있음 |
+| `markWebChatIdleTimeout` | **있음** | 있음 |
+| `finalizeStalledExhausted` | **없음** | 있음 |
+
+첫 UPDATE 가 커밋된 뒤 둘째가 실패(DB 오류·크래시)하면 자식 NodeExecution 이 **영구
+`RUNNING`** 으로 잔류한다 — 자매 두 함수의 docstring 이 경고하는 바로 그 실패 모드다.
+
+- [ ] `finalizeStalledExhausted` 의 두 UPDATE 를 `dataSource.transaction()` 으로 묶어
+      자매 두 함수와 같은 패턴으로 통일
+
+> 이 저장소의 반복 형태(*"하드닝을 자매 함수 미적용"*)의 교과서적 사례다 — 셋 중 둘만
+> 닫혀 있다. **리뷰어가 직전 라운드의 자기 판정을 실측으로 정정해 찾아냈다.**
+
 ## 종결 이벤트 emit 에 타입 초크포인트가 없다 (2026-08-15 등재, `11_59_09` architecture W1)
 
 `emitExecution(payload: unknown)` 이 종결 payload 형태를 **타입으로 강제하지 않아** 필드
@@ -254,6 +278,20 @@ JS/SQL 클램프 비대칭 · vacuous mock 이 전부 같은 뿌리다.
 > (`11_59_09` W1 이 실측으로 반증). 실제로 만든 것은 **task 칩**이었고 그건 SoT 가 아니다 —
 > 이 저장소의 기록된 교훈이 정확히 *"미룬 항목은 그 턴에 `plan/` 에 적어라"* 다.
 > **유예의 근거로 "등재했다" 를 인용할 때, 그 등재를 실측하지 않았다.**
+
+## 종결 duration 관용구가 16곳에 손으로 복붙돼 있다 (2026-08-15 등재, `12_52_39` W5·W6)
+
+헬퍼(`resolveTerminalDurationMs`)를 도입해 **계산**은 한 곳으로 모았지만, 그것을 **적용하는**
+관용구 자체는 여전히 분산돼 있다.
+
+- `RETURNING` 추출 `toFiniteNumber((result.raw as ...)?.[0]?.duration_ms) ?? null` — 5곳
+- 재계산 대입 `X.durationMs = resolveTerminalDurationMs(X) ?? X.durationMs;` — 11곳
+
+- [ ] `extractReturnedDurationMs(result)` / `applyResolvedDuration(entity)` 로 축소
+
+> **이번 PR 에서는 하지 않았다.** 이 브랜치에서 넓은 일괄 편집이 대상 밖 8곳을 조용히 바꿔
+> 전량 되돌린 전례가 있다. 16곳을 한 번에 건드리는 리팩터를 10라운드째 PR 끝에 넣는 것은
+> 그 사고를 반복하기 딱 좋은 자리다 — 별도 PR 에서 리뷰와 함께.
 
 ## `durationMs` 후속 2건 (2026-08-15 등재, `09_58_24`)
 
