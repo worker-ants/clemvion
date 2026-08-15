@@ -1461,6 +1461,13 @@ PR3 의 제어된 re-drive(부팅 backstop)로 멱등 재구동 메커니즘을 
 - **네이티브 stalled = 같은 jobId 재처리 → seq/re-enqueue 불요**: 당초 §9.2 스케치는 crash 재개를 `<executionId>:run:<seq>` re-enqueue 로 그렸으나, BullMQ 의 stalled 검출은 lock 만료된 **같은 job 을 그대로 재처리**한다(신규 enqueue 아님). 따라서 `exec:run:seq` 키는 PR4 에서도 미사용이고 jobId=executionId 가 유지된다 — 스케치 대비 순수 단순화. `runExecutionFromQueue` 는 재처리된 job 의 Execution 이 이미 `RUNNING` 임을 감지해 §7.5 case B 재구동으로 분기한다(PENDING=최초 실행, terminal=ack-discard 와 함께 3-way switch).
 - **`maxStalledCount=1` (bounded blast radius)**: `maxStalledCount>1` 은 poison/non-idempotent 세그먼트를 운영 중 무인 다회 재실행시켜 RUNNING-at-crash Integration 노드의 중복 side-effect 를 증폭한다. 1 로 두면 재배달은 정확히 1회, 소진 시 `onFailed → finalizeStalledExhausted` 가 `status='running'` 조건부로 `failed`+`WORKER_HEARTBEAT_TIMEOUT` dead-letter(setup-throw 경로는 이미 terminal 이라 affected=0 no-op). blast radius = 재배달 1회로 확정. 관측은 `ExecutionRunDlqMonitorService`(continuation DLQ 모니터 미러 — failed≥threshold 알람+cooldown).
 - **`recoverStuckExecutions` 은 은퇴하지 않는다 (backstop 병존)**: stalled 재배달은 **stall 된 job 이 존재할 때만** 동작한다. 전체 재시작(모든 워커 동시 종료 → 재배달할 살아있는 워커 없음)·Redis 비영속(job 자체 소실)·job 유실은 stalled job 이 없어 stalled 재배달로 커버 불가하다. 따라서 부팅 1회 스캔 backstop 을 유지한다. KB 파이프라인(`graph-extraction` stalled + `stuck-document-recovery` 부팅 backstop)도 동일하게 두 메커니즘을 병존시키는 선례다.
+- **dead-letter 마감의 원자성 (2026-08-15 정정)**: `finalizeStalledExhausted` 는 Execution
+  `FAILED` UPDATE 와 자식 RUNNING `NodeExecution` cascade UPDATE **둘**을 쓴다. PR4 도입
+  시점에는 이 둘이 각각 autocommit 이라 **부분 커밋 시 자식이 영구 `RUNNING` 으로 잔류**할 수
+  있었다(유령 running). 같은 2-테이블 쓰기를 하는 자매 `cancelParkedExecution` ·
+  `markWebChatIdleTimeout` 은 이미 `dataSource.transaction` 으로 원자화돼 있었고 **이 경로만
+  열려 있었다** — 자매 함수 주석이 경고하던 실패 모드가 이 함수에 그대로 남아 있었다.
+  단일 트랜잭션으로 통일했다(트랜잭션 안에서 두 UPDATE, 커밋 이후 emit).
 - **at-least-once 경계 = PR3 모델 계승**: 완료 노드는 skip(exactly-once), RUNNING-at-crash 노드는 재실행(at-least-once). Integration 노드의 재실행 멱등은 §7.3 대로 노드의 책임이다. PR4 는 이 경계를 바꾸지 않는다.
 - **Q2 defer — under-count 미해소**: 세그먼트-start 영속(active_running_ms 정밀 flush)은 migration 이 필요해 PR4 scope 에서 제외했다(§Rationale "Graceful Shutdown … under-count 허용"). PR4 는 마이그레이션 없이 기존 컬럼만 재사용한다.
 - **잔여 zombie race**: lock 만료 후 부활하는 zombie 워커는 stalled fencing 으로 완전히 배제되지 않으나, `maxStalledCount:1`(무한 재배달 없음) + per-node COMPLETED skip 으로 blast radius 가 bound 된다(§7.5 case B 각주). 현행 fail-path 도 동일 노출이라 신규 회귀 아님. 같은 class 의 narrow race 로, `finalizeStalledExhausted`(stalled 소진 dead-letter 마감)가 발동하는 순간 부팅 backstop `recoverStuckExecutions` 가 같은 stale RUNNING 을 re-claim 해 재구동 중이면 조건부 UPDATE(`WHERE status='running'`)가 정상 재구동을 `WORKER_HEARTBEAT_TIMEOUT` 로 잘못 마감할 수 있다("job stalled 소진 == 부팅 스캔" 이 겹치는 극히 좁은 창 한정, per-node skip 으로 완료 노드 보존). 완전 fencing 은 세그먼트-start/owner-token 영속(defer)에 의존한다.

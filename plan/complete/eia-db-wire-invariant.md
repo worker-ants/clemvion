@@ -121,6 +121,6 @@ push 계열(webhook/SSE/WS/chat-channel)은 싣는데 `GET /api/external/executi
       규약문서 재정정 · 이 체크리스트. 전부 조치
 - [x] `--impl-done` (`15_01_13`) **BLOCK: YES → 해소** — `node-cancellation.md` 가
       **되돌려진 중간 동작**을 서술하고 있었다(체커 3곳이 독립 지목). 근본 정정 완료
-- [ ] fix 이후 fresh `/ai-review` + `--impl-done` (코드가 리뷰보다 나중)
-- [ ] `--impl-done` BLOCK: NO
-- [ ] push 게이트 통과 → PR
+- [x] fix 이후 fresh `/ai-review` (`15_23_10`) **CRITICAL 0 / WARNING 3** — 2건 조치, 1건 등재
+- [x] `--impl-done` (`15_23_42`) **BLOCK: NO**
+- [x] push 게이트 통과 → **PR #1172 머지 완료** (`161bae56e`)
