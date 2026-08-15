@@ -660,6 +660,7 @@ export class ExecutionEngineService
         ExecutionEventType.EXECUTION_FAILED,
         {
           status: ExecutionStatus.FAILED,
+          durationMs: resolveTerminalDurationMs(row),
           // DB 에 방금 쓴 `row.error` 를 그대로 싣는다 — 문자열을 따로 만들면 두 표현이
           // 갈린다(stalled 경로가 실제로 그렇게 어긋나 있었다).
           error: toTerminalErrorPayload(row.error),
@@ -1082,6 +1083,11 @@ export class ExecutionEngineService
     opts: {
       cancelledBy: 'user' | 'system' | 'timeout';
       error?: { code: string; message: string };
+      /**
+       * EIA §6 — 종결 3종 전부에 실린다. 호출부가 값을 갖고 있으면 넘기고, raw UPDATE 로
+       * 취소해 엔티티가 없으면 생략한다(그 경로는 `null` 로 나간다).
+       */
+      durationMs?: number | null;
       logContext: string;
     },
   ): Promise<void> {
@@ -1093,6 +1099,8 @@ export class ExecutionEngineService
           status: ExecutionStatus.CANCELLED,
           result: { cancelledBy: opts.cancelledBy },
           ...(opts.error ? { error: opts.error } : {}),
+          // 값을 모르면 `null` — 키를 생략하면 "필드 없음" 과 구분되지 않는다.
+          durationMs: opts.durationMs ?? null,
         },
       );
     } catch (emitErr) {
@@ -4802,12 +4810,14 @@ export class ExecutionEngineService
     logContext: string,
   ): Promise<void> {
     savedExecution.finishedAt = savedExecution.finishedAt ?? new Date();
+    // 헬퍼 경유 — `startedAt` 이 없는 행에서 `.getTime()` 이 throw 해 종결 흐름을 깨뜨리던
+    // 형태를 이 PR 이 completed 경로에서 실제로 겪었다.
     savedExecution.durationMs =
-      savedExecution.durationMs ??
-      savedExecution.finishedAt.getTime() - savedExecution.startedAt.getTime();
+      resolveTerminalDurationMs(savedExecution) ?? savedExecution.durationMs;
     await this.updateExecutionStatus(savedExecution, ExecutionStatus.CANCELLED);
     await this.emitCancellationEvent(savedExecution.id, {
       cancelledBy: 'user',
+      durationMs: resolveTerminalDurationMs(savedExecution),
       logContext,
     });
   }
@@ -4886,6 +4896,7 @@ export class ExecutionEngineService
       ExecutionEventType.EXECUTION_FAILED,
       {
         status: ExecutionStatus.FAILED,
+        durationMs: resolveTerminalDurationMs(savedExecution),
         error: toTerminalErrorPayload(savedExecution.error),
       },
     );

@@ -968,6 +968,7 @@ export class RetryTurnService {
         : ExecutionEventType.EXECUTION_FAILED,
       {
         status: finalStatus,
+        durationMs: resolveTerminalDurationMs(execution),
         // 위에서 `execution.error` 에 쓴 객체를 그대로 싣는다.
         ...(!isCancelled
           ? { error: toTerminalErrorPayload(execution.error) }

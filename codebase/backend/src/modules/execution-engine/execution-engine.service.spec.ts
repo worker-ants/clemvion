@@ -3194,6 +3194,9 @@ describe('ExecutionEngineService', () => {
       expect(emitSpy).toHaveBeenCalledWith('exec-park-1', expect.anything(), {
         status: 'cancelled',
         result: { cancelledBy: 'user' },
+        // 이 경로는 raw UPDATE 로 취소해 엔티티가 없다 — `durationMs` 를 알 수 없으므로
+        // **명시적 `null`**. 키를 생략하면 "필드 없음" 과 구분되지 않는다 (EIA §6).
+        durationMs: null,
       });
       const emittedPayload = emitSpy.mock.calls.find(
         (c) => c[0] === 'exec-park-1',
