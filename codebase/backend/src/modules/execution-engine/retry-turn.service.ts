@@ -21,10 +21,7 @@ import { ExecutionContextService } from './context/execution-context.service';
 import type { RetryState } from './utils/resume-state.schema';
 import { ExecutionEventEmitter } from './events/execution-event-emitter.service';
 import { GraphTraversalService } from './graph/graph-traversal.service';
-import {
-  ExecutionEventType,
-  NodeEventType,
-} from '../websocket/websocket.service';
+import { NodeEventType } from '../websocket/websocket.service';
 import { PARK_RELEASED } from '../../shared/execution-resume/process-turn-result';
 import { canTransition } from './state/state-machine';
 import {
@@ -747,14 +744,10 @@ export class RetryTurnService {
     ) {
       return;
     }
-    await this.eventEmitter.emitExecution(
-      executionId,
-      ExecutionEventType.EXECUTION_COMPLETED,
-      {
-        status: ExecutionStatus.COMPLETED,
-        durationMs: resolveTerminalDurationMs(execution),
-      },
-    );
+    await this.eventEmitter.emitTerminalExecution(executionId, {
+      type: 'completed',
+      durationMs: resolveTerminalDurationMs(execution),
+    });
   }
 
   /**
@@ -924,14 +917,10 @@ export class RetryTurnService {
       ExecutionStatus.COMPLETED,
     );
     if (completed) {
-      await this.eventEmitter.emitExecution(
-        executionId,
-        ExecutionEventType.EXECUTION_COMPLETED,
-        {
-          status: ExecutionStatus.COMPLETED,
-          durationMs: resolveTerminalDurationMs(savedExecution),
-        },
-      );
+      await this.eventEmitter.emitTerminalExecution(executionId, {
+        type: 'completed',
+        durationMs: resolveTerminalDurationMs(savedExecution),
+      });
     }
   }
 
@@ -986,19 +975,31 @@ export class RetryTurnService {
     ) {
       return;
     }
-    await this.eventEmitter.emitExecution(
-      executionId,
-      isCancelled
-        ? ExecutionEventType.EXECUTION_CANCELLED
-        : ExecutionEventType.EXECUTION_FAILED,
-      {
-        status: finalStatus,
+    // 파사드가 형태별 필수 필드를 강제하므로 삼항으로 이벤트 타입만 고르던 형태를
+    // **두 갈래로 편다** — 그래야 `cancelledBy`(cancelled 전용)와 `error`(failed 전용)를
+    // 각자 자기 자리에 둘 수 있다.
+    if (isCancelled) {
+      await this.eventEmitter.emitTerminalExecution(executionId, {
+        type: 'cancelled',
+        durationMs: resolveTerminalDurationMs(execution),
+        // **이 값이 종전엔 아예 없었다** — `retry-turn-terminal-guard` #2 가 소유하던
+        // 결함을 파사드의 필수 필드가 컴파일 타임에 드러냈다.
+        //
+        // `'user'` 인 근거: `ExecutionCancelledError` 는 "DB 가 이미 CANCELLED" 를
+        // 관측했을 때 던져지므로 **누가 취소했는지는 알 수 없다**. 그러나 §6.5 가
+        // "시스템 취소는 `error` 동행 / user cancel 은 `error` 키 부재" 를 규정하고,
+        // 이 분기는 의도적으로 `error` 를 싣지 않는다(W16) — 그래서 `'user'` 가
+        // payload 자체와 자기정합적이고, 동일 트리거를 처리하는 자매
+        // `finalizeCancelledExecution` 도 같은 값을 쓴다.
+        cancelledBy: 'user',
+      });
+    } else {
+      await this.eventEmitter.emitTerminalExecution(executionId, {
+        type: 'failed',
         durationMs: resolveTerminalDurationMs(execution),
         // 위에서 `execution.error` 에 쓴 객체를 그대로 싣는다.
-        ...(!isCancelled
-          ? { error: toTerminalErrorPayload(execution.error) }
-          : {}),
-      },
-    );
+        error: toTerminalErrorPayload(execution.error),
+      });
+    }
   }
 }

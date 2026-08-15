@@ -351,8 +351,16 @@ payload 값은 같으므로(둘 다 DB 정본을 읽는다) 수신자가 보는 
 **이 PR 8라운드에 걸친 반복 결함의 근본 원인**이다 — 형제 경로 누락 · grep 미검출 ·
 JS/SQL 클램프 비대칭 · vacuous mock 이 전부 같은 뿌리다.
 
-- [ ] 종결 3종 전용 `emitTerminalExecutionEvent(...)` 타입 파사드 도입 검토.
-      `{status, durationMs, error?, result?}` 를 컴파일러가 강제하게 한다
+- [x] 종결 3종 전용 타입 파사드 — **완료**
+      ([`eia-terminal-emit-facade`](./eia-terminal-emit-facade.md)).
+      `ExecutionEventEmitter.emitTerminalExecution(executionId, TerminalEventPayload)`.
+      직접 호출 **11곳 → 0곳**. `status`·이벤트명은 `type` 에서 파생하고,
+      `durationMs`(3종) · `error`(failed) · `cancelledBy`(cancelled)는 필수 필드다.
+      **판별력**: `cancelledBy` 제거 → `TS2345`, `durationMs` 제거 → `TS2345` —
+      이 세션이 실제로 겪은 두 결함이 **컴파일 타임에** 잡힌다
+
+> **"16 호출부" 는 부정확했다** (2026-08-15 정정). 그건 `durationMs` 를 **스레딩하는 경로**
+> 수다. `emitExecution` **직접 호출**은 11곳이고 나머지는 `emitCancellationEvent` 경유다.
 
 > **이 항목을 등재하는 것 자체가 지적사항이었다.** 나는 세 라운드에 걸쳐 RESOLUTION 과
 > 커밋 메시지에 *"별건 등재됨"* 이라 썼는데 **`plan/` 전체 grep 결과 그런 체크박스가 없었다**

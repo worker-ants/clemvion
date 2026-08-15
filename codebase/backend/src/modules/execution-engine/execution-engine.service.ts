@@ -660,17 +660,13 @@ export class ExecutionEngineService
         );
         return;
       }
-      await this.eventEmitter.emitExecution(
-        executionId,
-        ExecutionEventType.EXECUTION_FAILED,
-        {
-          status: ExecutionStatus.FAILED,
-          durationMs: resolveTerminalDurationMs(row),
-          // DB 에 방금 쓴 `row.error` 를 그대로 싣는다 — 문자열을 따로 만들면 두 표현이
-          // 갈린다(stalled 경로가 실제로 그렇게 어긋나 있었다).
-          error: toTerminalErrorPayload(row.error),
-        },
-      );
+      await this.eventEmitter.emitTerminalExecution(executionId, {
+        type: 'failed',
+        durationMs: resolveTerminalDurationMs(row),
+        // DB 에 방금 쓴 `row.error` 를 그대로 싣는다 — 문자열을 따로 만들면 두 표현이
+        // 갈린다(stalled 경로가 실제로 그렇게 어긋나 있었다).
+        error: toTerminalErrorPayload(row.error),
+      });
     } catch (markErr) {
       this.logger.error(
         `failFirstSegmentSetup(${executionId}) best-effort 마킹 실패: ${
@@ -1114,17 +1110,14 @@ export class ExecutionEngineService
     },
   ): Promise<void> {
     try {
-      await this.eventEmitter.emitExecution(
-        executionId,
-        ExecutionEventType.EXECUTION_CANCELLED,
-        {
-          status: ExecutionStatus.CANCELLED,
-          result: { cancelledBy: opts.cancelledBy },
-          ...(opts.error ? { error: opts.error } : {}),
-          // 값을 모르면 `null` — 키를 생략하면 "필드 없음" 과 구분되지 않는다.
-          durationMs: opts.durationMs ?? null,
-        },
-      );
+      await this.eventEmitter.emitTerminalExecution(executionId, {
+        type: 'cancelled',
+        cancelledBy: opts.cancelledBy,
+        // 값을 모르면 `null` — 키를 생략하면 "필드 없음" 과 구분되지 않는다.
+        durationMs: opts.durationMs ?? null,
+        // `error` 는 있을 때만 — 파사드가 키 부재를 보존한다(§6.5 user cancel).
+        ...(opts.error ? { error: opts.error } : {}),
+      });
     } catch (emitErr) {
       this.logger.warn(
         `${opts.logContext}: EXECUTION_CANCELLED emit 실패 (cancel 은 DB 반영됨) — execution=${executionId}: ${
@@ -2418,14 +2411,10 @@ export class ExecutionEngineService
         ExecutionStatus.COMPLETED,
       );
       if (completed) {
-        await this.eventEmitter.emitExecution(
-          executionId,
-          ExecutionEventType.EXECUTION_COMPLETED,
-          {
-            status: ExecutionStatus.COMPLETED,
-            durationMs: resolveTerminalDurationMs(savedExecution),
-          },
-        );
+        await this.eventEmitter.emitTerminalExecution(executionId, {
+          type: 'completed',
+          durationMs: resolveTerminalDurationMs(savedExecution),
+        });
       }
     } catch (err: unknown) {
       // 본 메서드는 detached — 에러를 worker 로 전파할 수 없으므로 모두 in-band
@@ -2587,14 +2576,10 @@ export class ExecutionEngineService
         ExecutionStatus.COMPLETED,
       );
       if (completed) {
-        await this.eventEmitter.emitExecution(
-          executionId,
-          ExecutionEventType.EXECUTION_COMPLETED,
-          {
-            status: ExecutionStatus.COMPLETED,
-            durationMs: resolveTerminalDurationMs(savedExecution),
-          },
-        );
+        await this.eventEmitter.emitTerminalExecution(executionId, {
+          type: 'completed',
+          durationMs: resolveTerminalDurationMs(savedExecution),
+        });
       }
     } catch (err: unknown) {
       // detach 호출 — 에러를 worker 로 전파할 수 없어 in-band 단말 처리.
@@ -3410,16 +3395,12 @@ export class ExecutionEngineService
     );
     // 커밋 이후 best-effort 부수효과 — DB 상태는 이미 원자적으로 일관하다.
     this.finalizeRehydrationCleanup(executionId);
-    await this.eventEmitter.emitExecution(
-      executionId,
-      ExecutionEventType.EXECUTION_FAILED,
-      {
-        status: ExecutionStatus.FAILED,
-        error: toTerminalErrorPayload(stalledError),
-        // UPDATE 가 되돌려준 **영속된 값**. 다시 계산하지 않는다.
-        durationMs: stalledDurationMs,
-      },
-    );
+    await this.eventEmitter.emitTerminalExecution(executionId, {
+      type: 'failed',
+      error: toTerminalErrorPayload(stalledError),
+      // UPDATE 가 되돌려준 **영속된 값**. 다시 계산하지 않는다.
+      durationMs: stalledDurationMs,
+    });
   }
 
   /**
@@ -3590,14 +3571,10 @@ export class ExecutionEngineService
         ExecutionStatus.COMPLETED,
       );
       if (completed) {
-        await this.eventEmitter.emitExecution(
-          executionId,
-          ExecutionEventType.EXECUTION_COMPLETED,
-          {
-            status: ExecutionStatus.COMPLETED,
-            durationMs: resolveTerminalDurationMs(savedExecution),
-          },
-        );
+        await this.eventEmitter.emitTerminalExecution(executionId, {
+          type: 'completed',
+          durationMs: resolveTerminalDurationMs(savedExecution),
+        });
       }
     } catch (err: unknown) {
       // detached — 모든 예외를 in-band 단말 처리(BullMQ retry 대상 아님).
@@ -4782,14 +4759,10 @@ export class ExecutionEngineService
 
       // Emit after all DB writes are complete (terminal 선점 시 skip).
       if (completed) {
-        await this.eventEmitter.emitExecution(
-          executionId,
-          ExecutionEventType.EXECUTION_COMPLETED,
-          {
-            status: ExecutionStatus.COMPLETED,
-            durationMs: resolveTerminalDurationMs(savedExecution),
-          },
-        );
+        await this.eventEmitter.emitTerminalExecution(executionId, {
+          type: 'completed',
+          durationMs: resolveTerminalDurationMs(savedExecution),
+        });
       }
     } catch (err: unknown) {
       // exec-park D6 — 중첩 sub-workflow blocking 노드가 durable release park 했다.
@@ -5051,15 +5024,11 @@ export class ExecutionEngineService
       );
       return;
     }
-    await this.eventEmitter.emitExecution(
-      executionId,
-      ExecutionEventType.EXECUTION_FAILED,
-      {
-        status: ExecutionStatus.FAILED,
-        durationMs: resolveTerminalDurationMs(savedExecution),
-        error: toTerminalErrorPayload(savedExecution.error),
-      },
-    );
+    await this.eventEmitter.emitTerminalExecution(executionId, {
+      type: 'failed',
+      durationMs: resolveTerminalDurationMs(savedExecution),
+      error: toTerminalErrorPayload(savedExecution.error),
+    });
     // 실행 실패 알림 발사 — 초기/재개 세그먼트 어느 쪽으로 종결되든 top-level 실패는
     // execution_failed 를 발사해야 한다(재개 경로 종결이 일반적이라 누락 시 대부분의 실패가
     // 알림 없이 지나감, spec/data-flow/8-notifications.md §1.1, dispatch 는 best-effort).

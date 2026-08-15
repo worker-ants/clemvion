@@ -304,7 +304,11 @@ RESOLUTION: `review/code/2026/07/28/00_44_54/RESOLUTION.md`.
 
 ### 5R 신규 등재 후속
 
-- [ ] **W1(api_contract) — `EXECUTION_CANCELLED` payload 에 `cancelledBy` 누락.**
+- [x] **W1(api_contract) — `EXECUTION_CANCELLED` payload 에 `cancelledBy` 누락** — **완료**
+      ([`eia-terminal-emit-facade`](./eia-terminal-emit-facade.md)가 흡수). 타입 파사드가
+      `cancelledBy` 를 필수 필드로 만들자 **컴파일러가 이 결함을 드러냈다** — 그 자리가
+      이 리팩터의 가치를 가장 잘 보여준다. 값은 `'user'`(근거는 그 plan 참조).
+      ~~원문:~~
       spec §4.1 이 `'user'|'system'|'timeout'` 닫힌 union 을 필수로 요구하는데
       `failRetryExecution` 의 payload 는 `{ status }` 뿐이다. **pre-existing 확인** — 이 PR 은
       `status: execution.status` → `finalStatus` 만 바꿨고 `cancelledBy` 는 원래부터 없었다.
