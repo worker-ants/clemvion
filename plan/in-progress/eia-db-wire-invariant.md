@@ -110,6 +110,10 @@ push 계열(webhook/SSE/WS/chat-channel)은 싣는데 `GET /api/external/executi
 - [x] **자매 트래커 동시 갱신** — 3항목 `[x]` (이 커밋과 같은 턴)
 - [x] ①②③ 구현 + 회귀 테스트 (①② 뮤테이션 RED 확인, ③ 은 RED→GREEN)
 - [x] spec §5.3(REST 예시)·§6.5(취소선+해소) + `node-cancellation.md` 정정·매트릭스 행
-- [ ] `/ai-review` CRITICAL 0
+- [x] `/ai-review` (`13_58_27`) **CRITICAL 0 / WARNING 10** — 8건 조치, 2건 등재.
+      **W3 이 내 첫 수정을 반증했다** (stop() 무음 경로를 침묵시킴). RESOLUTION 참조
+- [x] TEST WORKFLOW 4스테이지 — lint / unit(백엔드 425·8727, 프런트 285 파일) /
+      build / **e2e 276 passed** 전부 PASS
+- [ ] fix 이후 fresh `/ai-review` (코드가 리뷰보다 나중이라 게이트 1 미충족)
 - [ ] `--impl-done` BLOCK: NO
 - [ ] push 게이트 통과 → PR
