@@ -86,7 +86,7 @@ export function toFiniteNumber(v: unknown): number | null {
  *
  * ## 두 가지 방어가 **필수**다 — 둘 다 실측으로 필요성이 드러났다
  *
- * 1. **`LEAST(2147483647, …)` 상한** — `duration_ms` 는 `INTEGER`(int4, 최대 ≈**24.8일**)다
+ * 1. **`LEAST({@link PG_INT4_MAX}, …)` 상한** — `duration_ms` 는 `INTEGER`(int4, 최대 ≈**24.8일**)다
  *    (`V001__initial_schema.sql:223`). 클램프가 없으면 `::int` 캐스팅이
  *    `integer out of range` 로 **UPDATE 문 전체를 실패시킨다.** 그런데 이 SQL 을 쓰는
  *    5경로는 하필 **오래 대기한 실행**(park·공개 위젯 idle-wait)을 취소·마감하는 자리라
