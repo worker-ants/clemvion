@@ -75,6 +75,7 @@ const STATUS_PROJECTION_COLUMNS = [
   'workflowId',
   'startedAt',
   'finishedAt',
+  'durationMs',
   'outputData',
 ] satisfies (keyof Execution)[];
 
@@ -430,6 +431,11 @@ export class InteractionService {
       id: execution.id,
       workflowId: execution.workflowId,
       status: execution.status as ExecutionStatusDto['status'],
+      // **영속값을 그대로** 싣는다 — 재계산하지 않는다. push 계열(webhook/SSE/WS)이
+      // 같은 컬럼값을 싣기 시작했으므로, 재조회가 다른 숫자를 말하면 "이벤트 유실 후
+      // 재조회로 복구" 패턴이 깨진다. 종결 전에는 컬럼이 NULL 이라 `null` (키는 존재 —
+      // API 규약 §5.4 의 부재 표현).
+      durationMs: execution.durationMs ?? null,
       currentNode,
       context,
       // EIA §R17 — terminal outputData(result/error)도 공개 표면.

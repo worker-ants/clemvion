@@ -4866,9 +4866,17 @@ export class ExecutionEngineService
    * 보존된다"가 실제로 성립하도록 한다. 값은 방어적으로 채워 둔다(레이스로 이 catch 가 최초
    * 관측자가 되는 극단 케이스 대비 — 그 경우에만 실제로 영속된다).
    *
-   * emit 은 반환값과 무관하게 항상 발행한다 — `stop()` 이 RUNNING/PENDING 경로에서는 이벤트를
-   * 쏘지 않으므로(WAITING 경로만 `cancelParkedExecution` 이 emit) 이 헬퍼가 유일한 알림 지점인
-   * 경우가 있다. `emitCancellationEvent` 로 통일해 `cancelledBy` 계약(W3)을 채운다.
+   * emit 조건 (2026-08-15 정정) — 종전엔 **반환값과 무관하게 항상** 발행했다. 그 근거는
+   * 여전히 유효하다: `stop()` 이 RUNNING/PENDING 경로에서는 이벤트를 쏘지 않으므로
+   * (WAITING 경로만 `cancelParkedExecution` 이 emit) 이 헬퍼가 **유일한 알림 지점**인
+   * 경우가 있다. 그러나 무조건 발행은 반대편 결함을 낳았다 — 다른 종결자가 FAILED 로
+   * 먼저 마감했어도 `cancelled` 를 쏴, DB 와 모순되는 사후 오시그널이 됐다.
+   *
+   * 그래서 **"썼는가" 가 아니라 "DB 가 실제로 뭐라고 하는가"** 로 판정한다. guarded UPDATE 가
+   * 0행이면 행을 재조회해 `CANCELLED` 일 때만 발행한다. 자매 `finalizeFailedExecution` 처럼
+   * 0행에서 무조건 skip 하면 **위 "유일한 알림 지점" 경로가 침묵한다** — 두 함수는 극성이
+   * 반대라 같은 가드를 복사하면 안 된다. `emitCancellationEvent` 로 통일해 `cancelledBy`
+   * 계약(W3)을 채우는 것은 그대로다.
    *
    * @param logContext — 호출자 식별용 (`emitCancellationEvent` 로그 태그). 두 호출자가 다른 값을
    *   전달하는 유일한 파라미터라 헬퍼 추출 전에는 이 한 값 차이 때문에 8줄 블록이 손으로 복제됐다.
@@ -4882,7 +4890,63 @@ export class ExecutionEngineService
     // 형태를 이 PR 이 completed 경로에서 실제로 겪었다.
     savedExecution.durationMs =
       resolveTerminalDurationMs(savedExecution) ?? savedExecution.durationMs;
-    await this.updateExecutionStatus(savedExecution, ExecutionStatus.CANCELLED);
+    // 자매 `finalizeFailedExecution` 과 **실제로** 동형으로 만든다. 둘 다 guarded UPDATE
+    // (`status IN (non-terminal)`)를 타지만 종전에는 **반환을 읽는 쪽이 하나뿐**이었다 —
+    // 자매의 주석이 "형제와 동일한 guarded 경로" 라고 대칭을 주장하는데 절반만 참이었다.
+    // 0행이면 다른 writer 가 이미 terminal 로 옮긴 것이다. 그대로 emit 하면 **DB 에 쓰이지
+    // 않은 종결 이벤트**가 나가고, 수신자는 DB 가 FAILED 인 실행에 cancelled 를 받는다
+    // (EIA §6 계약 위반). 이 저장소가 이미 세 번 CRITICAL 로 잡은 사후 오시그널이다.
+    const persisted = await this.updateExecutionStatus(
+      savedExecution,
+      ExecutionStatus.CANCELLED,
+    );
+    if (!persisted) {
+      // **0행은 두 가지를 뜻한다.** 자매 `finalizeFailedExecution` 처럼 무조건 skip 하면
+      // 안 된다 — 그쪽은 "FAILED 로 덮어쓰지 말라" 가 목적이라 극성이 반대다.
+      //
+      //  (a) DB 가 **이미 CANCELLED** — `stop()` 이 RUNNING/PENDING 을 마감한 정상 경로다.
+      //      `stop()` 은 그 경로에서 **이벤트를 쏘지 않으므로**(WAITING 만
+      //      `cancelParkedExecution` 이 emit) 여기가 **유일한 알림 지점**이다. skip 하면
+      //      사용자가 명시적으로 누른 취소가 외부 수신자에게 **영영 안 간다.**
+      //  (b) DB 가 FAILED/COMPLETED — 다른 종결자가 이겼다. `cancelled` 를 쏘면 DB 와
+      //      모순되는 사후 오시그널이다.
+      //
+      // 그래서 "썼는가" 가 아니라 **"DB 가 실제로 뭐라고 하는가"** 를 묻는다.
+      // 재조회 자체가 실패할 수 있다. 이 함수의 호출부는 **둘 다 catch 블록 안**이라
+      // (`runExecution` catch · `finalizeResumedExecutionOutcome`) 여기서 throw 하면
+      // **에러 핸들러가 터진다.** 형제 `emitCancellationEvent` 가 같은 이유로 자체
+      // try/catch 를 갖는다 — "emit 실패가 cancel 자체를 무효화하면 안 된다".
+      //
+      // 실패 시 **skip 한다**(발행하지 않는다). DB 를 읽지 못하면 이 PR 이 세운
+      // "wire 는 DB 가 말하는 것만 말한다" 를 지킬 수 없기 때문이다. 반대 선택(모르면
+      // 일단 발행)은 더 흔한 경우(a)를 맞히지만 (b)에서 DB 와 모순되는 이벤트를 낸다 —
+      // 관측 가능한 무음(warn)이 관측 불가능한 오시그널보다 낫다.
+      let live: Execution | null = null;
+      try {
+        live = await this.executionRepository.findOneBy({
+          id: savedExecution.id,
+        });
+      } catch (err) {
+        this.logger.warn(
+          `finalizeCancelledExecution(${savedExecution.id}) [${logContext}]: ` +
+            `선점 판정을 위한 재조회 실패 — EXECUTION_CANCELLED emit skip: ${
+              err instanceof Error ? err.message : String(err)
+            }`,
+        );
+        return;
+      }
+      if (live?.status !== ExecutionStatus.CANCELLED) {
+        this.logger.warn(
+          `finalizeCancelledExecution(${savedExecution.id}) [${logContext}]: ` +
+            `다른 종결자가 ${live?.status ?? '알 수 없음'} 으로 선점 — ` +
+            `EXECUTION_CANCELLED emit skip (DB 와 모순되는 사후 오시그널 방지)`,
+        );
+        return;
+      }
+      // (a) — DB 가 cancelled 다. 값은 DB 정본으로 맞춰 wire 와 일치시킨다.
+      savedExecution.durationMs = live.durationMs ?? savedExecution.durationMs;
+      savedExecution.finishedAt = live.finishedAt ?? savedExecution.finishedAt;
+    }
     await this.emitCancellationEvent(savedExecution.id, {
       cancelledBy: 'user',
       durationMs: resolveTerminalDurationMs(savedExecution),
@@ -4946,6 +5010,13 @@ export class ExecutionEngineService
     // CRITICAL #1 — 형제 finalizeCancelledExecution 과 동일한 guarded 경로. DB 가
     // 이미 terminal(동시 Stop 이 CANCELLED 로 선점)이면 0행 매칭 → false 반환,
     // FAILED 로 재마킹하지 않는다.
+    //
+    // ⚠️ **`!persisted` 이후는 극성이 반대다.** 이쪽은 "FAILED 로 덮어쓰지 말라" 가
+    // 목적이라 **무조건 skip** 이 맞다. 형제는 반대로 0행이 "`stop()` 이 이미 마감했다"
+    // 를 뜻할 수 있고 `stop()` 은 RUNNING/PENDING 에서 emit 하지 않으므로, 재조회해
+    // **CANCELLED 면 발행**한다. 이 함수를 본떠 새 guarded 경로를 만들 때 무조건 skip 을
+    // 기본으로 가정하지 말 것 — 실제로 그렇게 복사해 사용자가 누른 Stop 이 무음이 됐다
+    // (2026-08-15, `13_58_27` W3).
     const persisted = await this.updateExecutionStatus(
       savedExecution,
       ExecutionStatus.FAILED,

@@ -78,7 +78,13 @@ function makeExecution(
   overrides: Partial<Execution> = {},
 ): Pick<
   Execution,
-  'id' | 'status' | 'workflowId' | 'outputData' | 'startedAt' | 'finishedAt'
+  | 'id'
+  | 'status'
+  | 'workflowId'
+  | 'outputData'
+  | 'startedAt'
+  | 'finishedAt'
+  | 'durationMs'
 > {
   return {
     id: 'exec-1',
@@ -86,7 +92,12 @@ function makeExecution(
     workflowId: 'wf-1',
     outputData: { foo: 'bar' },
     startedAt: new Date('2026-05-21T00:00:00Z'),
+    // 엔티티는 `finishedAt: Date` / `durationMs: number` 로 선언하지만 두 컬럼 모두
+    // `nullable: true` 다 — 타입이 DB 를 정확히 말하지 않는다. 기존 `finishedAt` 관용구를
+    // 그대로 따른다. 엔티티 정정은 이 PR 범위 밖이고
+    // `plan/in-progress/eia-db-wire-invariant.md` §범위 밖 에 등재돼 있다.
     finishedAt: null as never,
+    durationMs: null as never,
     ...overrides,
   } as never;
 }
@@ -513,6 +524,44 @@ describe('InteractionService.getStatus', () => {
       seq: 0,
     });
     expect(typeof r.updatedAt).toBe('string');
+  });
+
+  // push 계열(webhook/SSE/WS)은 종결 시 `durationMs` 를 싣는데 REST 재조회에는 필드
+  // 자체가 없었다 — **이벤트 유실 후 재조회로 복구하는** 클라이언트 패턴에서 값이
+  // 사라진다. 계산하지 않고 **영속 컬럼을 그대로** 싣는다(DB = wire).
+  it('종결 실행은 영속된 durationMs 를 그대로 싣는다 (재계산하지 않는다)', async () => {
+    const { service, repo } = makeMocks();
+    repo.findOne.mockResolvedValue(
+      makeExecution({
+        status: ExecutionStatus.COMPLETED,
+        outputData: { final: 'value' },
+        // 타임스탬프로 재계산하면 다른 값이 나오는 fixture — 둘을 가른다.
+        startedAt: new Date('2026-08-15T00:00:00.000Z'),
+        finishedAt: new Date('2026-08-15T00:10:00.000Z'),
+        durationMs: 4242,
+      }),
+    );
+    const r = await service.getStatus(IEXT_CTX);
+    expect(r.durationMs).toBe(4242);
+  });
+
+  it('durationMs 0 을 null 로 뭉개지 않는다 (`??` 를 `||` 로 바꾸면 사라진다)', async () => {
+    const { service, repo } = makeMocks();
+    repo.findOne.mockResolvedValue(
+      makeExecution({ status: ExecutionStatus.COMPLETED, durationMs: 0 }),
+    );
+    const r = await service.getStatus(IEXT_CTX);
+    expect(r.durationMs).toBe(0);
+  });
+
+  it('아직 종결되지 않은 실행은 durationMs 가 null (키는 존재)', async () => {
+    const { service, repo } = makeMocks();
+    repo.findOne.mockResolvedValue(
+      makeExecution({ status: ExecutionStatus.RUNNING }),
+    );
+    const r = await service.getStatus(IEXT_CTX);
+    expect(r).toHaveProperty('durationMs');
+    expect(r.durationMs).toBeNull();
   });
 
   it('failed status 면 outputData 가 error 필드로', async () => {
@@ -993,6 +1042,9 @@ describe('InteractionService.getStatus — 컬럼 projection (2단계 조회)', 
     'workflowId',
     'startedAt',
     'finishedAt',
+    // 응답의 `durationMs` 는 **이 컬럼을 그대로** 싣는다(재계산 아님) — 빠지면
+    // 종결 실행의 값이 조용히 `null` 이 된다.
+    'durationMs',
     'outputData',
   ];
 

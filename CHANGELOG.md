@@ -1,5 +1,26 @@
 # Changelog
 
+## Unreleased — 종결 이벤트가 DB 와 다른 값을 말하던 곳들
+
+직전 항목이 세운 **"DB = wire"** 불변식에는 구멍이 셋 있었다. 하나는 값 불일치가 아니라
+**DB 에 쓰이지도 않은 이벤트를 발행**하는 것이었다.
+
+- **`finalizeCancelledExecution` 이 guarded UPDATE 의 결과를 읽지 않았다.** 이 함수는
+  `status IN (non-terminal)` 조건부 UPDATE 를 쓰는데, 동시 writer 가 이미 terminal 로
+  선점해 **0행 매칭이어도 `EXECUTION_CANCELLED` 를 그대로 발행**했다 — DB 는 FAILED 인데
+  수신자는 cancelled 를 받는다. 바로 옆 자매 `finalizeFailedExecution` 은 같은 반환을 읽어
+  emit 을 skip 하며, **그 자매의 주석이 "형제와 동일한 guarded 경로" 라고 대칭을 주장**하고
+  있었다. 절반만 참이었다
+- **retry-turn 재진입 중 Stop 시 DB 와 emit 의 `durationMs` 가 갈렸다.** CANCELLED 분기는
+  `COALESCE(duration_ms, :new)` 로 먼저 커밋된 값을 의도적으로 보존하는데, **`COALESCE` 가
+  어느 쪽을 골랐는지는 DB 만 안다.** `RETURNING` 으로 되받아 실제 영속값을 싣는다
+- **REST 재조회에 `durationMs` 추가** — push 계열만 싣고 `GET /api/external/executions/:id` 에는 필드가
+  없어, **이벤트 유실 후 재조회로 복구하는** 클라이언트 패턴에서 값이 사라졌다. additive 이며
+  breaking 아니다. 계산하지 않고 영속 컬럼을 그대로 싣는다
+
+**수신자 영향**: `execution.cancelled` 가 **덜** 발행될 수 있다 — 종전에 나가던 것 중
+"DB 에 반영되지 않은" 발행이 사라진다. 정상화이지 기능 축소가 아니다.
+
 ## Unreleased — 종결 이벤트에 `durationMs` (3종 전부)
 
 직전 항목이 *"`durationMs` 는 후속으로 분리했다"* 고 예고한 작업이다. `execution.completed`
@@ -19,8 +40,8 @@
 **수신자 영향**: 종결 3종 payload 에 필드가 하나 늘었다(제거·변경 아님). 기존 파서는
 무시하면 되고, 값을 읽을 때 `null` 을 방어해야 한다.
 
-**REST `GET /api/external/executions/:id` 에는 아직 없다** — push 계열(webhook/SSE/WS)만
-채워졌다. 재조회 시 사라지는 비대칭이라 후속으로 추적 중이다.
+~~**REST `GET /api/external/executions/:id` 에는 아직 없다** — push 계열(webhook/SSE/WS)만
+채워졌다. 재조회 시 사라지는 비대칭이라 후속으로 추적 중이다.~~ **(다음 항목에서 해소)**
 
 **⚠️ 대시보드·통계의 "평균 실행 시간" 숫자가 이동한다.** 세 집계가 종전에는
 `duration_ms IS NOT NULL` 로만 걸렀는데, 그건 방어가 아니라 **취소·타임아웃 경로가 이 컬럼을

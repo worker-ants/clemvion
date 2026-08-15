@@ -73,11 +73,16 @@ describe('RetryTurnService', () => {
       findOneBy: jest.fn().mockResolvedValue(null),
       save: jest.fn().mockImplementation((e: unknown) => Promise.resolve(e)),
       // 멱등 분기의 lifecycle 컬럼 guarded UPDATE 용 기본 mock.
+      // `setParameter`/`returning` 까지 갖춘 **완전한** 체인이다 — 프로덕션이 체인
+      // 메서드를 하나 추가할 때마다 불완전한 mock 은 TypeError 를 던지고, 그 호출이
+      // try/catch 안이면 **테스트가 조용히 vacuous 해진다**(#1171 에서 실제로 겪었다).
       createQueryBuilder: jest.fn(() => ({
         update: jest.fn().mockReturnThis(),
         set: jest.fn().mockReturnThis(),
         where: jest.fn().mockReturnThis(),
         andWhere: jest.fn().mockReturnThis(),
+        setParameter: jest.fn().mockReturnThis(),
+        returning: jest.fn().mockReturnThis(),
         execute: jest.fn().mockResolvedValue({ affected: 1 }),
       })),
     };
@@ -914,6 +919,7 @@ describe('RetryTurnService', () => {
     };
     const priv = () => service as unknown as FinalizeSubject;
     const EXEC_ID = 'exec-terminal-guard';
+    let returningSpy: jest.Mock;
     const mkExec = () => ({
       id: EXEC_ID,
       status: ExecutionStatus.RUNNING,
@@ -1245,6 +1251,7 @@ describe('RetryTurnService', () => {
           where: jest.fn().mockReturnThis(),
           andWhere: andWhereSpy,
           setParameter: setParameterSpy,
+          returning: jest.fn().mockReturnThis(),
           execute: jest.fn().mockResolvedValue({ affected: 1 }),
         }));
         // 이전 시도의 stale error 를 fixture 에 미리 채워 둔다 — 취소 종결에서
@@ -1295,6 +1302,77 @@ describe('RetryTurnService', () => {
         );
       });
 
+      // 위 테스트는 **SQL 형태만** 본다 — COALESCE 가 T1 을 보존하는지는 확인하지만
+      // 그 보존된 값이 **wire 로 나가는지**는 묻지 않는다. 실제로 나가지 않았다:
+      // caller 는 로컬 T2(재진입 시점 재계산값)를 emit 했다. "retry-turn 처리 중 Stop"
+      // 이라는 일반 흐름에서 **결정적으로** DB 와 emit 이 갈렸다.
+      it('emit 은 로컬 재계산값이 아니라 COALESCE 가 보존한 DB 값을 싣는다', async () => {
+        mockExecutionRepo.findOneBy.mockResolvedValue(
+          mkLiveExecution(ExecutionStatus.CANCELLED),
+        );
+        const PERSISTED_T1 = 1234;
+        const PERSISTED_FINISHED_AT = '2026-08-15T01:02:03.000Z';
+        // `returning` 을 스파이로 둔다 — mock 의 `raw` 는 실제 `.returning()` 호출과
+        // 무관하게 돌아오므로, **호출 자체를 단언하지 않으면** 그 줄을 지워도 GREEN 이다
+        // (즉 이 PR 이 고치는 결함으로 회귀해도 못 잡는다).
+        returningSpy = jest.fn().mockReturnThis();
+        mockExecutionRepo.createQueryBuilder = jest.fn(() => ({
+          update: jest.fn().mockReturnThis(),
+          set: jest.fn().mockReturnThis(),
+          where: jest.fn().mockReturnThis(),
+          andWhere: jest.fn().mockReturnThis(),
+          setParameter: jest.fn().mockReturnThis(),
+          returning: returningSpy,
+          // stop() 이 먼저 커밋한 T1 이 그대로 남아 있는 상태. pg 드라이버는 timestamptz
+          // 를 **문자열**로 주기도 하므로 그 형태로 준다(되쓰기의 string 분기를 태운다).
+          execute: jest.fn().mockResolvedValue({
+            affected: 1,
+            raw: [
+              {
+                id: EXEC_ID,
+                duration_ms: PERSISTED_T1,
+                finished_at: PERSISTED_FINISHED_AT,
+              },
+            ],
+          }),
+        }));
+        // 로컬은 재진입 시점이라 훨씬 큰 T2 가 된다 (startedAt 이 오래 전).
+        // `finishedAt` 은 되쓰기 **대상**이라 타입에 명시한다 — 추론에 맡기면
+        // `mkExec()` 에 없는 키라 단언 줄에서 타입 오류가 난다.
+        const execArg: {
+          id: string;
+          status: ExecutionStatus;
+          startedAt: Date;
+          finishedAt?: Date;
+        } = {
+          ...mkExec(),
+          startedAt: new Date(Date.now() - 600_000),
+        };
+
+        await priv().failRetryExecution(
+          execArg,
+          EXEC_ID,
+          new ExecutionCancelledError('cancelled'),
+        );
+
+        const emitExecution = mockEventEmitter.emitExecution as jest.Mock;
+        const cancelCall = emitExecution.mock.calls.find(
+          (c) => c[1] === ExecutionEventType.EXECUTION_CANCELLED,
+        );
+        expect(cancelCall).toBeDefined();
+        expect((cancelCall![2] as { durationMs: number }).durationMs).toBe(
+          PERSISTED_T1,
+        );
+        // 되받을 컬럼을 실제로 요청했는가 — 두 컬럼 모두 `COALESCE` 대상이다.
+        expect(returningSpy).toHaveBeenCalledWith([
+          'duration_ms',
+          'finished_at',
+        ]);
+        // `finished_at` 되쓰기도 고정한다. 종전엔 이 블록을 통째로 지워도 GREEN 이었다
+        // — 두 컬럼을 되쓰기로 해 놓고 한 컬럼만 단언했다.
+        expect(execArg.finishedAt).toEqual(new Date(PERSISTED_FINISHED_AT));
+      });
+
       it('guarded UPDATE 가 0행이면 (동시 재진입 선점) 취소 이벤트도 skip 한다', async () => {
         mockExecutionRepo.findOneBy.mockResolvedValue(
           mkLiveExecution(ExecutionStatus.CANCELLED),
@@ -1305,6 +1383,8 @@ describe('RetryTurnService', () => {
           where: jest.fn().mockReturnThis(),
           andWhere: jest.fn().mockReturnThis(),
           setParameter: jest.fn().mockReturnThis(),
+          returning: jest.fn().mockReturnThis(),
+          // 0행이므로 `raw` 는 의도적으로 없다 — 되쓰기 블록에 들어가지 않는 것이 정답.
           execute: jest.fn().mockResolvedValue({ affected: 0 }),
         }));
 

@@ -74,7 +74,7 @@ code:
 | EIA-IN-01 | `POST /api/external/executions/:executionId/interact` 로 인터랙션 명령을 제출한다 | 필수 |
 | EIA-IN-02 | 지원 명령: `submit_form`, `click_button`, `submit_message`, `end_conversation`, `cancel`. 앞 4종은 WebSocket §4.2 의 동일명 WS 명령과 의미 동일. `cancel` 은 실행 중단 **개념**만 공유하며 대응 WS 명령 `execution.stop` 은 §4.2 에서 비채택(won't-do)이라 실제 처리는 REST cancel (`POST /api/external/executions/:id/cancel`). **`retry_last_turn` 미포함** — 내부 UI 한정. 외부 노출 시 `per_execution` 토큰 권한 매트릭스 + Notification 흐름과의 정합 + retry 횟수 제한 정책이 별도 결정 필요 | 필수 |
 | EIA-IN-03 | `GET /api/external/executions/:executionId/stream` 는 Server-Sent Events 스트림. terminal 이벤트(`completed`/`failed`/`cancelled`) 발송 후 자동 종료 | 필수 |
-| EIA-IN-04 | `GET /api/external/executions/:executionId` 는 현재 상태 단발 조회 (status / currentNode / context / result|error / seq / updatedAt) | 필수 |
+| EIA-IN-04 | `GET /api/external/executions/:executionId` 는 현재 상태 단발 조회 (status / currentNode / context / result|error / durationMs / seq / updatedAt) | 필수 |
 | EIA-IN-05 | `POST /api/external/executions/:executionId/cancel` 는 명시적 취소 — `interact` 의 `command:"cancel"` 과 동치 (편의 alias) | 권장 |
 | EIA-IN-06 | 모든 inbound 요청은 §4 의 interaction token 으로 인증. **단 §3.3 EIA-AU-08 + §3.3.1 Implementation Note 의 in-process trusted caller 는 제외** — HTTP 표면을 거치지 않는 in-process 호출에 한정. HTTP guard 의 ctx 합성 시 `scope` 필드 set 금지 invariant 는 §3.3.1 참조 | 필수 |
 | EIA-IN-07 | SSE 스트림은 `id:` 필드에 execution 내 `seq` 를 적재. 재연결 시 `Last-Event-Id` 헤더로 누락분 5분 버퍼에서 재전송 (버퍼 내 재전송·만료/폐기 시 `execution.replay_unavailable` 신호 emit 모두 구현됨 — §5.2). **첫 연결 시 `?lastEventId=0` 을 명시하면 버퍼 내 seq≥1 이벤트 전체를 replay** — race window 로 놓친 이벤트를 시드 가능 (§5.3 getStatus 시드와 병용) | 필수 |
@@ -482,6 +482,10 @@ Authorization: Bearer <iext_jwt | itk_token>
   } | null,
   "result":  { ... } | null,        // completed 시
   "error":   { ... } | null,        // failed 시
+  "durationMs": 4242 | null,        // 종결 시. **영속 컬럼을 그대로** 싣는다(재계산 아님) —
+                                    // 종결 이벤트 §6 의 같은 이름 필드와 같은 값이다.
+                                    // 종결 전에는 null (키는 present — API 규약 §5.4 부재 표현).
+                                    // ⚠️ 취소·타임아웃 경로에서는 대기 경과 시간이다 (§6.5)
   "seq":     0,                     // 항상 0 placeholder — 실제 seq 는 SSE 가 권위 (위 콜아웃 참조)
   "updatedAt": "ISO8601"
 }
@@ -618,7 +622,7 @@ Authorization: Bearer <expiring_iext_jwt>
   | `timeout` | `WEBCHAT_IDLE_TIMEOUT` | 공개 위젯 idle-wait 회수 ([EIA-RL-07](#34-신뢰성일관성)) |
 
 - **일반 user cancel 에는 `error` 키가 없다** — `null` 이 아니라 **부재**다
-  ([§5.4 부재 표현 규약](#54-명시적-취소--post-apiexternalexecutionsexecutionidcancel)).
+  ([API 규약 §5.4 부재 표현](./2-api-convention.md#54-부재-표현--null-vs-키-생략)).
 
 ### 6.1 헤더
 
@@ -809,11 +813,27 @@ header value   = "t={timestamp},v1={hex(signature)}"
 > raw UPDATE 라 JS 에서 계산할 수 없다. UPDATE 문 안에서 SQL 로 계산하고 `RETURNING` 으로
 > 되받아 싣는다 — DB 와 wire 가 같은 값을 쓴다. 알 수 없으면 `null`.
 >
-> **알려진 예외 1건**: retry-turn 처리 중 사용자가 Stop 하면, DB 에는 `stop()` 이 커밋한
+> ~~**알려진 예외 1건**: retry-turn 처리 중 사용자가 Stop 하면, DB 에는 `stop()` 이 커밋한
 > 최초 시각 기준 값이 보존되는데 emit 은 **재진입 시점 값**(더 큼)을 싣는다. 희귀 레이스가
-> 아니라 결정적으로 발생한다. 추적:
+> 아니라 결정적으로 발생한다.~~ **(2026-08-15 해소)** — CANCELLED 분기의 `COALESCE` UPDATE 에
+> `RETURNING` 을 달아 **DB 가 실제로 고른 값**을 되읽어 emit 한다. `COALESCE` 가 어느 쪽을
+> 골랐는지는 DB 만 알기 때문에, 되받지 않으면 caller 는 로컬 값을 실을 수밖에 없었다.
+>
+> ⚠️ **중복 수신 가능**: 동일한 CANCELLED 전이를 여러 종결자가 각자 관측하면 각자
+> `execution.cancelled` 를 낸다 — **단일 emit 관문이 없다.** payload 값은 같으므로(모두 DB
+> 정본을 읽는다) 모순이 아니라 **중복**이다. 수신자는 `executionId` + 종결 여부로 멱등하게
+> 처리할 것. 추적:
+> [`spec-sync-external-interaction-api-gaps.md`](../../plan/in-progress/spec-sync-external-interaction-api-gaps.md).
+>
+> ⚠️ **검증 범위**: 이 메커니즘은 **mock 단위 테스트까지** 확인됐다. `COALESCE` 표현식이
+> 실제 Postgres 에서 어느 값을 고르는지는 아직 실 DB 로 밟지 않았다 —
+> [`retry-turn-terminal-guard`](../../plan/in-progress/retry-turn-terminal-guard.md) #4
+> (P2) 가 같은 경로를 이미 그 사유로 열어 두고 있다. **"해소" 는 배선의 해소이지
+> 실 DB 값 검증의 해소가 아니다.**
+> ~~추적:
 > [`spec-sync-external-interaction-api-gaps.md`](../../plan/in-progress/spec-sync-external-interaction-api-gaps.md)
-> — 이 문서의 관행대로 **알려진 갭은 invariant 옆에 적는다**(R14·R17·§6.4 와 동형).
+> — 이 문서의 관행대로 **알려진 갭은 invariant 옆에 적는다**(R14·R17·§6.4 와 동형).~~
+> (해소됨 — 상세 이력은 같은 링크에 남아 있다.)
 >
 > **취소 경로의 값은 실행 시간이 아니라 대기 시간에 가깝다** — 셋 다 그렇다:
 > `EXECUTION_QUEUE_WAIT_TIMEOUT`(admission 이전부터의 큐 대기),

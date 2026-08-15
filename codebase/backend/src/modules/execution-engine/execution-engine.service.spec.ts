@@ -1063,6 +1063,105 @@ describe('ExecutionEngineService', () => {
     });
   });
 
+  // **0행 매칭은 두 가지를 뜻한다** — 이 구분을 뭉개면 어느 쪽으로든 결함이 된다.
+  // 처음 이 가드를 넣을 때 자매 `finalizeFailedExecution` 을 그대로 흉내내 무조건 skip
+  // 했는데, 그러면 **사용자가 누른 Stop 이 외부에 영영 통지되지 않는다**: `stop()` 은
+  // RUNNING/PENDING 경로에서 이벤트를 쏘지 않아(WAITING 만 `cancelParkedExecution` 이
+  // emit) 이 헬퍼가 유일한 알림 지점이다. 자매는 "FAILED 로 덮어쓰지 말라" 가 목적이라
+  // 극성이 반대다.
+  describe('finalizeCancelledExecution — 0행 매칭의 두 의미', () => {
+    const LIVE_FINISHED_AT = new Date('2026-08-15T02:03:04.000Z');
+    const arrange = (liveStatus: ExecutionStatus | null) => {
+      const eventEmitter = (
+        service as unknown as { eventEmitter: { emitExecution: jest.Mock } }
+      ).eventEmitter;
+      const emitSpy = jest
+        .spyOn(eventEmitter, 'emitExecution')
+        .mockResolvedValue(undefined);
+      // guarded UPDATE 0행.
+      mockExecutionRepo.query.mockResolvedValueOnce([]);
+      // **DB 가 실제로 뭐라고 하는지**를 명시한다 — 기본 mock 에 기대면 통과 이유가
+      // 우연이 된다.
+      mockExecutionRepo.findOneBy.mockResolvedValueOnce(
+        liveStatus === null
+          ? null
+          : {
+              id: 'ex-cancel-preempted',
+              status: liveStatus,
+              durationMs: 777,
+              finishedAt: LIVE_FINISHED_AT,
+            },
+      );
+      return emitSpy;
+    };
+    // `finishedAt`/`durationMs` 는 **되쓰기 대상**이라 타입에 명시한다 — 추론에 맡기면
+    // 단언 줄에서 "속성이 없다" 로 떨어진다.
+    const saved = (): {
+      id: string;
+      status: ExecutionStatus;
+      workflowId: string;
+      executedBy: string;
+      parentExecutionId: null;
+      startedAt: Date;
+      finishedAt?: Date;
+      durationMs?: number;
+    } => ({
+      id: 'ex-cancel-preempted',
+      status: ExecutionStatus.RUNNING, // stale in-memory
+      workflowId: 'wf',
+      executedBy: 'owner',
+      parentExecutionId: null,
+      startedAt: new Date(),
+    });
+    const run = (e: unknown) =>
+      (
+        service as unknown as {
+          finalizeCancelledExecution: (x: unknown, c: string) => Promise<void>;
+        }
+      ).finalizeCancelledExecution(e, 'test');
+
+    it('(a) DB 가 이미 cancelled — stop() 이 마감한 정상 경로라 **emit 한다**', async () => {
+      const emitSpy = arrange(ExecutionStatus.CANCELLED);
+      const exec = saved();
+      await run(exec);
+      expect(emitSpy).toHaveBeenCalled();
+      // 값도 DB 정본으로 맞춘다 — wire 가 DB 와 같은 값을 말해야 한다.
+      const payload = emitSpy.mock.calls[0][2] as { durationMs: number };
+      expect(payload.durationMs).toBe(777);
+      // `finishedAt` 도 되쓰기 대상이다 — 종전엔 그 줄을 지워도 GREEN 이었다.
+      // 같은 PR 이 자매(`retry-turn`)에서 정확히 이 형태를 스스로 찾아 고쳐 놓고
+      // 형제 함수엔 적용하지 않았다 (`15_00_41` W2).
+      expect(exec.finishedAt).toEqual(LIVE_FINISHED_AT);
+    });
+
+    it('(b) DB 가 failed — 다른 종결자가 이겼으므로 cancelled 를 쏘지 않는다', async () => {
+      const emitSpy = arrange(ExecutionStatus.FAILED);
+      await run(saved());
+      expect(emitSpy).not.toHaveBeenCalled();
+    });
+
+    it('(d) 재조회가 throw 해도 호출자로 전파하지 않는다 — 호출부가 catch 안이다', async () => {
+      const eventEmitter = (
+        service as unknown as { eventEmitter: { emitExecution: jest.Mock } }
+      ).eventEmitter;
+      const emitSpy = jest
+        .spyOn(eventEmitter, 'emitExecution')
+        .mockResolvedValue(undefined);
+      mockExecutionRepo.query.mockResolvedValueOnce([]);
+      mockExecutionRepo.findOneBy.mockRejectedValueOnce(new Error('db down'));
+
+      // throw 가 새어 나가면 워커의 에러 핸들러 자체가 터진다.
+      await expect(run(saved())).resolves.toBeUndefined();
+      expect(emitSpy).not.toHaveBeenCalled();
+    });
+
+    it('(c) 행을 못 읽으면 쏘지 않는다 (fail-closed)', async () => {
+      const emitSpy = arrange(null);
+      await run(saved());
+      expect(emitSpy).not.toHaveBeenCalled();
+    });
+  });
+
   describe('getNotificationsService — ModuleRef 지연 해석 (버그 B 회귀 가드)', () => {
     // ExecutionEngineService 가 순환 그래프로 먼저 인스턴스화되면 생성자 @Optional
     // NotificationsService 가 undefined 로 남는다. getNotificationsService 는 그 경우

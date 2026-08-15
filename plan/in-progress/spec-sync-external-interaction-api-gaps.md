@@ -225,19 +225,34 @@ T1 값을 DB 에 보존**하는데, in-memory `execution.durationMs` 는 갱신�
 재진입 시점 T2(더 큰 값)를 싣는다.** 희귀 레이스가 아니라 "retry-turn 처리 중 Stop" 이라는
 일반 흐름에서 결정적으로 발생한다.
 
-- [ ] **같은 처방이 필요한 자매 1곳** (`11_09_44` concurrency W1):
-      `finalizeCancelledExecution` 도 guarded UPDATE 가 0행이어도 emit 은 발행되므로
-      **DB 미영속 로컬 값이 wire 로 나갈 수 있다.** 근본 원인은 `updateExecutionStatus` 가
-      `RETURNING` 없이 boolean 만 돌려주는 것 — **둘을 함께 고쳐야 한다**
+- [x] **자매 1곳** — **완료**. `finalizeCancelledExecution` 이 guarded
+      UPDATE 가 0행이어도 emit 을 발행한다.
+      > **처방 정정 (2026-08-15 실측).** 이 항목은 근본 원인을 *"`updateExecutionStatus` 가
+      > `RETURNING` 없이 boolean 만 돌려주는 것"* 이라 적고 **둘을 함께 고쳐야 한다**고
+      > 했는데, **둘 다 틀렸다.** boolean 으로 충분하다 — 호출부가 **그걸 읽지 않을 뿐**이다.
+      > 바로 옆 자매 `finalizeFailedExecution` 은 같은 반환을 읽어 emit 을 skip 한다.
+      > 그리고 두 항목은 **독립**이다: 이쪽은 "반환을 읽어라", 아래 CANCELLED 분기는
+      > "`RETURNING` 을 추가하라" 로 처방이 다르다.
+      >
+      > 심각도도 한 칸 위다. "DB 미영속 로컬 값" 이 아니라 **DB 가 FAILED 인데 수신자는
+      > cancelled 를 받는다** — 이 저장소가 이미 세 번 CRITICAL 로 잡은 사후 오시그널이다.
+      > `finalizeFailedExecution` 의 주석이 *"형제와 동일한 guarded 경로"* 라고 **대칭을
+      > 주장하는데 절반만 참이다**.
 - [x] `markQueueWaitTimeout` threading 테스트 — **완료 (`777698bbe`)**. mock 에
       `duration_ms: 600000` 부여 + 정확 매칭. 이 경로만 값의 의미가
       "큐 대기 시간" 이라 다른 4경로로 대체 증명되지 않는다 (`11_09_44` testing W4)
-- [ ] CANCELLED 분기에 `.returning(['duration_ms'])` 추가 → 실제 persist 값을 되읽어 emit
+- [x] CANCELLED 분기에 `.returning(...)` — **완료**. 실제 persist 값을 되읽어 emit
       전 갱신. 회귀 테스트는 **emit 값 자체**를 단언할 것(기존 테스트는 SQL 형태만 봐서 못 잡았다)
 
-> 이 PR 이 세운 "DB = wire" 불변식의 유일한 잔여 위반이다. 같은 라운드에서 즉시 고치지
+> ~~이 PR 이 세운 "DB = wire" 불변식의 유일한 잔여 위반이다. 같은 라운드에서 즉시 고치지
 > 않은 이유는 **DB write 경로를 또 바꾸는 변경**이고, 서두르면 같은 라운드가 지적한
-> 과잉 스코프(W2)를 반복하기 때문이다.
+> 과잉 스코프(W2)를 반복하기 때문이다.~~ **(2026-08-15 해소)** —
+> [`eia-db-wire-invariant`](./eia-db-wire-invariant.md) 가 위 세 항목을 전부 닫았다.
+>
+> **이 산문이 stale 로 남은 것 자체가 지적사항이었다** (`15_23_10` documentation W3).
+> 바로 위 체크박스 3개가 `[x]` 로 바뀌었는데 결론 문단은 미완료 전제를 그대로 유지했다 —
+> 같은 세션에서 **세 번째**다(§6.5 취소선 대신 삭제 · `node-cancellation.md` 되돌린 동작
+> 잔존 · 이 문단). **체크박스를 옮길 때 그 옆 산문을 같이 읽어라.**
 
 ## `finalizeStalledExhausted` 만 트랜잭션 밖이다 (2026-08-15 등재, `12_52_39` database W1)
 
@@ -262,6 +277,30 @@ NodeExecution cascade 도 트랜잭션 경계도 건드린 라인이 **0건**이
 
 > 이 저장소의 반복 형태(*"하드닝을 자매 함수 미적용"*)의 교과서적 사례다 — 셋 중 둘만
 > 닫혀 있다. **리뷰어가 직전 라운드의 자기 판정을 실측으로 정정해 찾아냈다.**
+
+## 동일 CANCELLED 전이에 독립 emit 이 여러 번 나갈 수 있다 (2026-08-15 등재, `15_23_10` concurrency W1)
+
+`finalizeCancelledExecution` 이 0행 후 재조회해 `CANCELLED` 면 발행하도록 고치면서 **"DB 와
+모순되는" 중복은 닫혔지만**, 여러 finalizer 가 같은 CANCELLED 전이를 각자 관측하면 각자
+독립적으로 `EXECUTION_CANCELLED` 를 낸다 — **단일 emit 관문이 없다.**
+
+payload 값은 같으므로(둘 다 DB 정본을 읽는다) 수신자가 보는 것은 **중복 이벤트**이지 모순은
+아니다. 리뷰어도 *"이번 diff 가 새로 만든 문제는 아니고"* · *"긴급도는 낮으나"* 로 명시했다.
+
+- [ ] execution 당 단일 finalizer 도달이 job/advisory lock 으로 보장되는지 **실측**하고,
+      보장되면 근거를 주석에, 아니면 EIA §6 에 "동일 전이에 최대 N개 독립 emit 가능,
+      payload 는 동일" 캐비엇 추가
+
+## 신규 테스트 `(d)` 가 공유 `arrange()` 를 우회한다 (2026-08-15 등재, `15_23_10` maintainability W2)
+
+재조회 throw 케이스를 넣으면서 `arrange()` 헬퍼가 `liveStatus` 만 받아 "reject" 를 표현하지
+못해 셋업을 손으로 복제했다. **이 PR 이 반복해서 지적당한 "불완전한 mock 셋업" 과 같은 결**이다.
+
+- [ ] `arrange({liveStatus} | {rejects})` 로 시그니처를 넓혀 `(d)` 도 헬퍼만 쓰게 한다
+
+> **이번 PR 에서 안 한 근거 (실측)**: 테스트 자체는 판별력이 있다 — `try/catch` 를 뺀
+> 뮤턴트에서 `(d)` 가 **RED** 다. 정정은 codebase 편집이라 리뷰 신선도 게이트가 다시 열리고,
+> 이 브랜치는 이미 5라운드를 돌았다. **동작 위험이 아니라 미래 stale 위험**이므로 별도 PR.
 
 ## 종결 이벤트 emit 에 타입 초크포인트가 없다 (2026-08-15 등재, `11_59_09` architecture W1)
 
@@ -295,7 +334,7 @@ JS/SQL 클램프 비대칭 · vacuous mock 이 전부 같은 뿌리다.
 
 ## `durationMs` 후속 2건 (2026-08-15 등재, `09_58_24`)
 
-- [ ] **REST `GET /api/external/executions/:id` 에 `durationMs` 부재** (W4). push 계열
+- [x] **REST `GET /api/external/executions/:id` 에 `durationMs`** — **완료**. push 계열
       (webhook/SSE/WS)만 채워져 **"이벤트로 받으면 있는데 재조회하면 사라지는"** 비대칭이
       생겼다. `ExecutionStatusDto` + `STATUS_PROJECTION_COLUMNS` 에 추가하거나, 의도적
       제외라면 §5.3 에 사유를 적을 것. CHANGELOG 에 이미 고지했다.

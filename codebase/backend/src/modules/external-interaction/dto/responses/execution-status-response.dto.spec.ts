@@ -119,7 +119,9 @@ describe('ExecutionStatusDto — OpenAPI 스키마 (EIA §5.3)', () => {
       },
     );
 
-    it.each([['result'], ['error']])(
+    // 이 가드는 **손으로 고른 목록만** 순회한다 — 새 nullable 필드를 여기 넣지 않으면
+    // 규약을 어겨도 조용히 통과한다. 목록 자체가 커버리지다.
+    it.each([['result'], ['error'], ['durationMs']])(
       '%s 는 null 을 쓰는 형제 필드다 — nullable 이다',
       (field) => {
         const schema = executionStatus.properties?.[field] as SchemaObject;

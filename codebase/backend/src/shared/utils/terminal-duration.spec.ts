@@ -4,6 +4,7 @@ import {
   TERMINAL_DURATION_MS_SQL,
   TERMINAL_FINISHED_AT_PARAM,
   toFiniteNumber,
+  toPersistedDate,
 } from './terminal-duration';
 
 describe('resolveTerminalDurationMs', () => {
@@ -123,6 +124,33 @@ describe('toFiniteNumber', () => {
     ['객체', {}],
   ])('%s 는 null', (_label, input) => {
     expect(toFiniteNumber(input)).toBeNull();
+  });
+});
+
+describe('toPersistedDate', () => {
+  // `toFiniteNumber` 의 자매. 드라이버가 timestamptz 를 Date 로도, 문자열로도 준다.
+  it('Date 를 그대로 통과시킨다', () => {
+    const d = new Date('2026-08-15T01:02:03.000Z');
+    expect(toPersistedDate(d)).toBe(d);
+  });
+
+  it('ISO 문자열을 Date 로 좁힌다', () => {
+    expect(toPersistedDate('2026-08-15T01:02:03.000Z')).toEqual(
+      new Date('2026-08-15T01:02:03.000Z'),
+    );
+  });
+
+  it.each([
+    ['null', null],
+    ['undefined', undefined],
+    ['빈 문자열', ''],
+    ['공백', '   '],
+    ['날짜 아닌 문자열', 'nope'],
+    ['Invalid Date', new Date('nope')],
+    ['숫자', 1755219723000],
+    ['객체', {}],
+  ])('%s 는 null', (_label, input) => {
+    expect(toPersistedDate(input)).toBeNull();
   });
 });
 

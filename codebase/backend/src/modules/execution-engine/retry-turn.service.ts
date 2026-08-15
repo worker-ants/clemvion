@@ -2,7 +2,11 @@ import { Inject, Injectable, Logger, forwardRef } from '@nestjs/common';
 import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
 import { DataSource, Repository } from 'typeorm';
 import { toTerminalErrorPayload } from '../../shared/utils/terminal-error-payload';
-import { resolveTerminalDurationMs } from '../../shared/utils/terminal-duration';
+import {
+  resolveTerminalDurationMs,
+  toFiniteNumber,
+  toPersistedDate,
+} from '../../shared/utils/terminal-duration';
 import {
   Execution,
   ExecutionStatus,
@@ -646,7 +650,28 @@ export class RetryTurnService {
           .andWhere('status = :status', { status: target })
           .setParameter('newFinishedAt', execution.finishedAt)
           .setParameter('newDurationMs', execution.durationMs)
+          // `COALESCE` 가 **어느 쪽을 골랐는지는 DB 만 안다** — 되받지 않으면 caller 가
+          // 로컬 T2 를 emit 해 "DB 는 T1, wire 는 T2" 가 된다. 희귀 레이스가 아니라
+          // "retry-turn 처리 중 Stop" 이라는 일반 흐름에서 결정적으로 갈렸다.
+          .returning(['duration_ms', 'finished_at'])
           .execute();
+        if ((result.affected ?? 0) > 0) {
+          // 영속값을 in-memory 에 되쓴다. 이후 emit 이 `resolveTerminalDurationMs`
+          // 를 부르면 이 값을 그대로 돌려주므로(첫 분기) wire 가 DB 와 일치한다.
+          const row = (
+            result.raw as Array<Record<string, unknown>> | undefined
+          )?.[0];
+          const persistedDuration = toFiniteNumber(row?.duration_ms);
+          if (persistedDuration !== null) {
+            execution.durationMs = persistedDuration;
+          }
+          // `finishedAt` 도 같은 COALESCE 대상이다. wire 에는 안 실리지만 반쪽만
+          // 되쓰면 in-memory 가 두 시각을 섞어 갖는다.
+          const persistedFinishedAt = toPersistedDate(row?.finished_at);
+          if (persistedFinishedAt !== null) {
+            execution.finishedAt = persistedFinishedAt;
+          }
+        }
         return (result.affected ?? 0) > 0;
       }
       const result = await this.executionRepository
