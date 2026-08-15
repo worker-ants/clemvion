@@ -807,6 +807,12 @@ header value   = "t={timestamp},v1={hex(signature)}"
 > raw UPDATE 라 JS 에서 계산할 수 없다. UPDATE 문 안에서 SQL 로 계산하고 `RETURNING` 으로
 > 되받아 싣는다 — DB 와 wire 가 같은 값을 쓴다. 알 수 없으면 `null`.
 >
+> **알려진 예외 1건**: retry-turn 처리 중 사용자가 Stop 하면, DB 에는 `stop()` 이 커밋한
+> 최초 시각 기준 값이 보존되는데 emit 은 **재진입 시점 값**(더 큼)을 싣는다. 희귀 레이스가
+> 아니라 결정적으로 발생한다. 추적:
+> [`spec-sync-external-interaction-api-gaps.md`](../../plan/in-progress/spec-sync-external-interaction-api-gaps.md)
+> — 이 문서의 관행대로 **알려진 갭은 invariant 옆에 적는다**(R14·R17·§6.4 와 동형).
+>
 > `EXECUTION_QUEUE_WAIT_TIMEOUT` 경로의 값은 **큐 대기 시간**이다(실행 시간이 아니다) —
 > `started_at` 이 admission 이전 생성 시각이기 때문. §6 표의 "종결까지의 경과" 정의와는
 > 일관되나, 수신자가 실행 소요로 읽으면 오해할 수 있어 여기 명시한다.

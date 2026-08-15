@@ -192,6 +192,15 @@ checker 가 독립적으로** "인용이 가리키는 절이 오히려 반대를
 > **두 라운드가 이 영향을 못 봤다.** spec-to-spec 대조도, 코드 diff 리뷰도 "이 컬럼을
 > **읽는** 쪽" 까지 따라가지 않았다. 쓰기를 늘릴 때 읽는 쪽을 세는 것이 빠졌다.
 
+## §8.2 HMAC 화이트리스트가 자기 문서와 모순 (2026-08-15 등재, `10_52_07` cross_spec W1)
+
+§8.2 는 *"`hmac-sha256` 만"* 이라 적는데 **같은 문서 §3.1 EIA-NX-03·R12**, `data-flow/15`,
+그리고 코드(`notification-signature.util.ts` `SupportedHmacAlgorithm`)는 전부
+**sha256 + sha512 둘 다** 화이트리스트다. 보안 섹션의 자기모순이라 우선순위가 높다.
+
+- [ ] §8.2 를 `hmac-sha256` / `hmac-sha512`(§R12) 로 정정. "v2 추가 시 `v2=` prefix" 문구는
+      secret rotation 표기와 구분해 재작성하거나 삭제
+
 ## retry-turn 재진입 시 DB 와 emit 의 `durationMs` 가 어긋난다 (2026-08-15 등재, `10_34_51` W1)
 
 `finalizeGuarded` 의 CANCELLED 분기는 `COALESCE(duration_ms, :new)` 로 **`stop()` 이 커밋한
