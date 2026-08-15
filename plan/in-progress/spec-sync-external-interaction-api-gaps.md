@@ -368,6 +368,26 @@ JS/SQL 클램프 비대칭 · vacuous mock 이 전부 같은 뿌리다.
 > 이 저장소의 기록된 교훈이 정확히 *"미룬 항목은 그 턴에 `plan/` 에 적어라"* 다.
 > **유예의 근거로 "등재했다" 를 인용할 때, 그 등재를 실측하지 않았다.**
 
+## `cancelledBy` 가 실제 취소 주체를 모른다 (2026-08-15 등재, `18_29_21` W3·W7)
+
+`retry-turn` 재진입 취소는 `cancelledBy: 'user'` 를 **하드코딩**한다.
+`ExecutionCancelledError` 는 "DB 가 이미 CANCELLED" 를 관측했을 때 던져지므로 **누가
+취소했는지 알 수 없다** — 실제 원인이 timeout/system 이면 `cancelledBy` 와 `error` 부재가
+**함께** 틀린다. 자매 `finalizeCancelledExecution` 도 같은 근사를 쓴다.
+
+- [ ] DB 의 `error.code` 로 원인을 파생한다 (§6.5 표: `RESUME_*`→system,
+      `EXECUTION_QUEUE_WAIT_TIMEOUT`·`WEBCHAT_IDLE_TIMEOUT`→timeout, 없으면 user)
+- [ ] spec §6 표 비고에 "동시 시스템 취소 레이스에서 `'user'` 로 근사될 수 있음" 한 줄
+
+> **이 항목을 등재하는 것 자체가 지적사항이었다 — 그리고 다섯 번째다.**
+> 나는 `eia-terminal-emit-facade.md` 에 *"별도 항목으로 등재한다"* 고 **미래형으로** 써 놓고
+> 하지 않았다(`grep` 0건). 앞선 넷: "별건 등재됨" 3회(`11_59_09`) · 엔티티 nullability 주석
+> (`13_58_27`) · 실 DB e2e(`16_19_57`).
+>
+> **패턴이 분명하다** — 유예를 정당화할 때 "등재한다/했다" 를 쓰고, 그 문장을 쓰는 시점에
+> 실제로 등재하지 않는다. 체커가 *"이 세션 내에서 이미 한 차례 자백한 패턴의 재발"* 이라고
+> 적었다. **미래형으로 쓰지 말고 그 자리에서 등재할 것.**
+
 ## `websocket.service` 가 값(enum)과 서비스를 함께 export 해 순환을 만든다 (2026-08-15 등재, `17_54_32` architecture W7)
 
 `ExecutionEventType` 같은 **런타임 값**이 서비스 구현 파일에서 export 돼,
@@ -380,6 +400,16 @@ ES-module 순환 위에 놓인다. 생성자의 `forwardRef` 도 같은 이유�
 
 - [ ] `ExecutionEventType`·`NodeEventType` 등 런타임 값을 의존성-프리 모듈
       (`websocket-events.types.ts` 등)로 추출해 순환을 **그래프 차원에서** 끊는다
+
+## `emitTerminalExecution` vs `emitTerminalExecutionMetrics` (2026-08-15 등재, `18_29_21` W8)
+
+접두어가 거의 같아 grep 오인 소지가 있다. **시그니처가 달라 컴파일 타임 오용은 불가**하고
+체커도 *"이름 변경은 불요"* 로 판정했다.
+
+- [ ] 양쪽 JSDoc 에 상호 참조 한 줄 ("Not to be confused with…")
+
+> 이번 PR 에서 안 한다 — codebase 편집이라 리뷰 신선도 게이트가 다시 열리는데,
+> **컴파일 타임 안전이 보장된 명명 근접**이라 그 비용에 값하지 않는다.
 
 ## 종결 duration 관용구가 16곳에 손으로 복붙돼 있다 (2026-08-15 등재, `12_52_39` W5·W6)
 

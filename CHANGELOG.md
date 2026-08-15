@@ -14,8 +14,13 @@
 EIA §6 이 요구하던 계약이 이제 이 경로에서도 충족된다.
 
 **수신자 영향**: `execution.cancelled` 구독자 중 **`result` 부재를 신호로 쓰던 코드**가
-있다면 영향을 받는다(저장소 내 소비자는 `result` 부재를 `{}` 로 방어해 무해). 값이 유실되던
-쪽이 정상화되는 방향이다.
+있다면 영향을 받는다. 값이 유실되던 쪽이 정상화되는 방향이고, 필드 **추가**이므로 breaking
+이 아니다.
+
+⚠️ **저장소 밖에도 도달한다.** 이 이벤트는 EIA outbound webhook(§3.3 EIA-NX-02 화이트리스트)과
+SSE 스트림(§5.2 `GET /api/external/executions/:id/stream`)으로 **외부 제3자 통합사**에게 같은
+payload 로 전달된다. 저장소 내 소비자(`chat-channel.dispatcher.ts`)는 `result` 부재를 `{}` 로
+방어해 무해하지만, **외부 통합사는 grep 할 수 없다** — 처음엔 저장소 안만 보고 "무해" 로 적었다.
 
 ## Unreleased — stalled 마감의 부분 커밋 (자식 NodeExecution 영구 RUNNING 잔류)
 

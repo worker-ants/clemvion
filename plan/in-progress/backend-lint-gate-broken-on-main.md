@@ -783,12 +783,12 @@ PR 을 막는다" 고 적은 것은 **부정확**했다 — 막던 것은 그중
       > 어느 쪽이든 이 항목 하나에 묶여 있고, 무엇보다 **지금 상태(문서가 거짓)가 최악**이다.
 
       </details>
-- [ ] **[developer] `failRetryExecution` 이 `cancelledBy` 를 안 채운다** (`14_18_42` cross_spec
-      WARNING 1). 같은 모듈의 다른 4개 취소 경로는 `emitCancellationEvent` 로 통일된 계약을
-      구현하는데 이 경로만 빠졌다.
-      > 이미 [`retry-turn-terminal-guard.md`](./retry-turn-terminal-guard.md) 에 P2 로 등재돼
-      > 있으나 미완료 — 이번 실측으로 재확인했다. developer 권한 내이므로 그 plan 항목을 집행하면
-      > 된다(여기엔 교차 참조만 남긴다).
+- [x] **[developer] `failRetryExecution` 이 `cancelledBy` 를 안 채운다** — **완료
+      (2026-08-15)**. [`eia-terminal-emit-facade`](./eia-terminal-emit-facade.md) 가
+      종결 emit 타입 파사드를 도입하며 `cancelledBy` 를 **필수 필드**로 만들었고, 그
+      순간 컴파일러가 이 경로를 드러냈다. `retry-turn-terminal-guard.md` #2 도 함께 종결.
+      > 원 지적(`14_18_42` cross_spec WARNING 1): 같은 모듈의 다른 4개 취소 경로는
+      > `emitCancellationEvent` 로 통일된 계약을 구현하는데 이 경로만 빠졌다.
 - [ ] **SoT 이관 시 앵커 전수 grep 을 절차로** (`12_48_37` 교훈). `#98-private-앱-...` 처럼
       **옮기는 절의 앵커 문자열을 저장소 전역 grep** 하는 것을 SoT 이관의 고정 절차로 삼는다.
       > 이 PR 하나에서 참조자 누락이 **세 번** 났다 — `2-navigation:1294`(코드 리뷰가 잡음) ·

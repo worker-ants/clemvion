@@ -7,6 +7,7 @@ code:
   - codebase/backend/src/modules/external-interaction/**
   - codebase/backend/src/shared/utils/strip-external-only-fields.ts
   - codebase/backend/src/shared/utils/terminal-duration.ts
+  - codebase/backend/src/modules/execution-engine/events/execution-event-emitter.service.ts
   - codebase/backend/src/shared/utils/terminal-error-payload.ts
   - codebase/backend/src/modules/hooks/hooks.service.ts
   - codebase/backend/src/modules/hooks/hooks.controller.ts
