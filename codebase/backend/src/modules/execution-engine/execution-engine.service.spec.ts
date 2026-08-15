@@ -289,8 +289,10 @@ describe('ExecutionEngineService', () => {
       createQueryBuilder: jest.fn(() => ({
         update: jest.fn().mockReturnThis(),
         set: jest.fn().mockReturnThis(),
+        setParameter: jest.fn().mockReturnThis(),
         where: jest.fn().mockReturnThis(),
         andWhere: jest.fn().mockReturnThis(),
+        returning: jest.fn().mockReturnThis(),
         execute: jest.fn().mockResolvedValue({ affected: 1, raw: [] }),
       })),
       // PR2b — admission advisory-lock 트랜잭션 기본 mock: query rows 1건 → admitted
@@ -379,6 +381,7 @@ describe('ExecutionEngineService', () => {
       addSelect: jest.fn().mockReturnThis(),
       where: jest.fn().mockReturnThis(),
       andWhere: jest.fn().mockReturnThis(),
+      returning: jest.fn().mockReturnThis(),
       orderBy: jest.fn().mockReturnThis(),
       getRawMany: jest.fn(() =>
         waitingQueryError
@@ -394,8 +397,10 @@ describe('ExecutionEngineService', () => {
 
     retryClaimQb = {
       set: jest.fn().mockReturnThis(),
+      setParameter: jest.fn().mockReturnThis(),
       where: jest.fn().mockReturnThis(),
       andWhere: jest.fn().mockReturnThis(),
+      returning: jest.fn().mockReturnThis(),
       execute: jest.fn().mockResolvedValue({ affected: 1 }),
     };
 
@@ -493,8 +498,10 @@ describe('ExecutionEngineService', () => {
                   createQueryBuilder: jest.fn(() => ({
                     update: jest.fn().mockReturnThis(),
                     set: jest.fn().mockReturnThis(),
+                    setParameter: jest.fn().mockReturnThis(),
                     where: jest.fn().mockReturnThis(),
                     andWhere: jest.fn().mockReturnThis(),
+                    returning: jest.fn().mockReturnThis(),
                     execute: jest.fn().mockResolvedValue({ affected: 1 }),
                   })),
                 };
@@ -1976,8 +1983,10 @@ describe('ExecutionEngineService', () => {
       const qb = {
         update: jest.fn().mockReturnThis(),
         set: jest.fn().mockReturnThis(),
+        setParameter: jest.fn().mockReturnThis(),
         where: jest.fn().mockReturnThis(),
         andWhere: jest.fn().mockReturnThis(),
+        returning: jest.fn().mockReturnThis(),
         execute: jest.fn().mockResolvedValue({ affected: 1 }),
       };
       mockNodeExecutionRepo.createQueryBuilder = jest.fn().mockReturnValue(qb);
@@ -2969,8 +2978,10 @@ describe('ExecutionEngineService', () => {
     const makeIdleQb = (affected: number) => ({
       update: jest.fn().mockReturnThis(),
       set: jest.fn().mockReturnThis(),
+      setParameter: jest.fn().mockReturnThis(),
       where: jest.fn().mockReturnThis(),
       andWhere: jest.fn().mockReturnThis(),
+      returning: jest.fn().mockReturnThis(),
       execute: jest.fn().mockResolvedValue({ affected }),
     });
     const installIdleTx = (execAffected: number, nodeAffected: number) => {
@@ -3149,8 +3160,10 @@ describe('ExecutionEngineService', () => {
     const makeCancelQb = (affected: number) => ({
       update: jest.fn().mockReturnThis(),
       set: jest.fn().mockReturnThis(),
+      setParameter: jest.fn().mockReturnThis(),
       where: jest.fn().mockReturnThis(),
       andWhere: jest.fn().mockReturnThis(),
+      returning: jest.fn().mockReturnThis(),
       execute: jest.fn().mockResolvedValue({ affected }),
     });
     const installCancelTx = (execAffected: number, nodeAffected: number) => {
@@ -3291,8 +3304,10 @@ describe('ExecutionEngineService', () => {
     const makeQb = (affected: number) => ({
       update: jest.fn().mockReturnThis(),
       set: jest.fn().mockReturnThis(),
+      setParameter: jest.fn().mockReturnThis(),
       where: jest.fn().mockReturnThis(),
       andWhere: jest.fn().mockReturnThis(),
+      returning: jest.fn().mockReturnThis(),
       execute: jest.fn().mockResolvedValue({ affected }),
     });
     const ds = () =>
@@ -3423,8 +3438,10 @@ describe('ExecutionEngineService', () => {
       const qb = {
         update: jest.fn().mockReturnThis(),
         set: jest.fn().mockReturnThis(),
+        setParameter: jest.fn().mockReturnThis(),
         where: jest.fn().mockReturnThis(),
         andWhere: jest.fn().mockReturnThis(),
+        returning: jest.fn().mockReturnThis(),
         execute: jest.fn().mockResolvedValue({ affected: 1 }),
       };
       mockNodeExecutionRepo.createQueryBuilder = jest.fn().mockReturnValue(qb);
@@ -4355,8 +4372,10 @@ describe('ExecutionEngineService', () => {
     const mkQb = (affected: number) => ({
       update: jest.fn().mockReturnThis(),
       set: jest.fn().mockReturnThis(),
+      setParameter: jest.fn().mockReturnThis(),
       where: jest.fn().mockReturnThis(),
       andWhere: jest.fn().mockReturnThis(),
+      returning: jest.fn().mockReturnThis(),
       execute: jest.fn().mockResolvedValue({ affected, raw: [] }),
     });
     const admit = (exec: unknown, input: unknown = {}) =>
@@ -4719,10 +4738,16 @@ describe('ExecutionEngineService', () => {
   // PR4 — stalled 소진 dead-letter 마감 (ExecutionRunProcessor.onFailed 호출).
   describe('finalizeStalledExhausted (PR4)', () => {
     const mkExecQb = (affected: number) => {
-      const execute = jest.fn().mockResolvedValue({ affected, raw: [] });
+      // `duration_ms` 는 SQL 로 계산해 RETURNING 으로 되받는다 — **snake_case** 로 온다
+      // (드라이버 원본이라 ORM 매핑을 안 탄다, #1168 에서 배운 형태).
+      const execute = jest.fn().mockResolvedValue({
+        affected,
+        raw: affected > 0 ? [{ id: 'exec-stalled', duration_ms: 4242 }] : [],
+      });
       const qb = {
         update: jest.fn().mockReturnThis(),
         set: jest.fn().mockReturnThis(),
+        setParameter: jest.fn().mockReturnThis(),
         where: jest.fn().mockReturnThis(),
         andWhere: jest.fn().mockReturnThis(),
         returning: jest.fn().mockReturnThis(),
@@ -4737,8 +4762,10 @@ describe('ExecutionEngineService', () => {
       const nodeQb = {
         update: jest.fn().mockReturnThis(),
         set: jest.fn().mockReturnThis(),
+        setParameter: jest.fn().mockReturnThis(),
         where: jest.fn().mockReturnThis(),
         andWhere: jest.fn().mockReturnThis(),
+        returning: jest.fn().mockReturnThis(),
         execute: jest.fn().mockResolvedValue({ affected: 1 }),
       };
       mockNodeExecutionRepo.createQueryBuilder = jest
@@ -4795,6 +4822,9 @@ describe('ExecutionEngineService', () => {
               'Execution failed: worker crash (stalled 재배달 attempts 소진)',
             nodeId: null,
           },
+          // **UPDATE 의 RETURNING 이 돌려준 값 그대로** — 이 경로는 엔티티를 로드하지
+          // 않으므로 JS 에서 다시 계산할 수 없고, 계산하면 DB 와 갈린다.
+          durationMs: 4242,
         },
       );
       emitSpy.mockRestore();
@@ -14747,14 +14777,20 @@ describe('ExecutionEngineService', () => {
         const chain = {
           update: jest.fn(),
           set: jest.fn(),
+          setParameter: jest.fn(),
           where: jest.fn(),
           andWhere: jest.fn(),
-          execute: jest.fn().mockResolvedValue({ affected: 1 }),
+          returning: jest.fn(),
+          execute: jest
+            .fn()
+            .mockResolvedValue({ affected: 1, raw: [{ duration_ms: 1234 }] }),
         };
         chain.update.mockReturnValue(chain);
         chain.set.mockReturnValue(chain);
+        chain.setParameter.mockReturnValue(chain);
         chain.where.mockReturnValue(chain);
         chain.andWhere.mockReturnValue(chain);
+        chain.returning.mockReturnValue(chain);
         return chain;
       };
       mockExecutionRepo.createQueryBuilder = jest
@@ -16244,14 +16280,20 @@ describe('ExecutionEngineService', () => {
         const chain = {
           update: jest.fn(),
           set: jest.fn(),
+          setParameter: jest.fn(),
           where: jest.fn(),
           andWhere: jest.fn(),
-          execute: jest.fn().mockResolvedValue({ affected: 1 }),
+          returning: jest.fn(),
+          execute: jest
+            .fn()
+            .mockResolvedValue({ affected: 1, raw: [{ duration_ms: 1234 }] }),
         };
         chain.update.mockReturnValue(chain);
         chain.set.mockReturnValue(chain);
+        chain.setParameter.mockReturnValue(chain);
         chain.where.mockReturnValue(chain);
         chain.andWhere.mockReturnValue(chain);
+        chain.returning.mockReturnValue(chain);
         return chain;
       };
 
@@ -16828,14 +16870,20 @@ describe('ExecutionEngineService', () => {
         const chain = {
           update: jest.fn(),
           set: jest.fn(),
+          setParameter: jest.fn(),
           where: jest.fn(),
           andWhere: jest.fn(),
-          execute: jest.fn().mockResolvedValue({ affected: 1 }),
+          returning: jest.fn(),
+          execute: jest
+            .fn()
+            .mockResolvedValue({ affected: 1, raw: [{ duration_ms: 1234 }] }),
         };
         chain.update.mockReturnValue(chain);
         chain.set.mockReturnValue(chain);
+        chain.setParameter.mockReturnValue(chain);
         chain.where.mockReturnValue(chain);
         chain.andWhere.mockReturnValue(chain);
+        chain.returning.mockReturnValue(chain);
         return chain;
       };
       mockExecutionRepo.createQueryBuilder = jest
@@ -17378,8 +17426,10 @@ describe('ExecutionEngineService', () => {
       const noopQb = {
         update: jest.fn().mockReturnThis(),
         set: jest.fn().mockReturnThis(),
+        setParameter: jest.fn().mockReturnThis(),
         where: jest.fn().mockReturnThis(),
         andWhere: jest.fn().mockReturnThis(),
+        returning: jest.fn().mockReturnThis(),
         execute: jest.fn().mockResolvedValue({ affected: 0 }),
       };
       // 이 replay turn 이 완결되면 finalizeAiNode(COMPLETED) 가 **같은**
@@ -18910,8 +18960,10 @@ describe('SUMMARY W3 / W5 / W6 / W7 보완 단위 테스트', () => {
         createQueryBuilder: jest.fn().mockReturnValue({
           update: jest.fn().mockReturnThis(),
           set: jest.fn().mockReturnThis(),
+          setParameter: jest.fn().mockReturnThis(),
           where: jest.fn().mockReturnThis(),
           andWhere: jest.fn().mockReturnThis(),
+          returning: jest.fn().mockReturnThis(),
           execute: jest.fn().mockResolvedValue({ affected: 0 }),
         }),
       };
@@ -19326,9 +19378,11 @@ describe('NF-OB-07 BusinessMetrics 동작 — emitTerminalExecutionMetrics / rec
         addSelect: jest.fn().mockReturnThis(),
         where: jest.fn().mockReturnThis(),
         andWhere: jest.fn().mockReturnThis(),
+        returning: jest.fn().mockReturnThis(),
         getMany: jest.fn().mockResolvedValue([]),
         update: jest.fn().mockReturnThis(),
         set: jest.fn().mockReturnThis(),
+        setParameter: jest.fn().mockReturnThis(),
         execute: jest.fn().mockResolvedValue({ affected: 0 }),
       }),
     };
@@ -19341,8 +19395,10 @@ describe('NF-OB-07 BusinessMetrics 동작 — emitTerminalExecutionMetrics / rec
       createQueryBuilder: jest.fn().mockReturnValue({
         update: jest.fn().mockReturnThis(),
         set: jest.fn().mockReturnThis(),
+        setParameter: jest.fn().mockReturnThis(),
         where: jest.fn().mockReturnThis(),
         andWhere: jest.fn().mockReturnThis(),
+        returning: jest.fn().mockReturnThis(),
         execute: jest.fn().mockResolvedValue({ affected: 0 }),
       }),
     };
@@ -19562,6 +19618,7 @@ describe('NF-OB-07 BusinessMetrics 동작 — emitTerminalExecutionMetrics / rec
         addSelect: jest.fn().mockReturnThis(),
         where: jest.fn().mockReturnThis(),
         andWhere: jest.fn().mockReturnThis(),
+        returning: jest.fn().mockReturnThis(),
         getMany: jest.fn().mockResolvedValue([
           {
             id: 'ne-1',
@@ -19582,6 +19639,7 @@ describe('NF-OB-07 BusinessMetrics 동작 — emitTerminalExecutionMetrics / rec
         addSelect: jest.fn().mockReturnThis(),
         where: jest.fn().mockReturnThis(),
         andWhere: jest.fn().mockReturnThis(),
+        returning: jest.fn().mockReturnThis(),
         getMany: jest.fn().mockResolvedValue([
           {
             id: 'ne-2',
@@ -19606,6 +19664,7 @@ describe('NF-OB-07 BusinessMetrics 동작 — emitTerminalExecutionMetrics / rec
         addSelect: jest.fn().mockReturnThis(),
         where: jest.fn().mockReturnThis(),
         andWhere: jest.fn().mockReturnThis(),
+        returning: jest.fn().mockReturnThis(),
         getMany: jest.fn().mockRejectedValue(new Error('db-error')),
       });
       await expect(
@@ -19621,6 +19680,7 @@ describe('NF-OB-07 BusinessMetrics 동작 — emitTerminalExecutionMetrics / rec
         addSelect: jest.fn().mockReturnThis(),
         where: jest.fn().mockReturnThis(),
         andWhere: jest.fn().mockReturnThis(),
+        returning: jest.fn().mockReturnThis(),
         getMany: jest.fn().mockResolvedValue([
           {
             id: 'ne-3',

@@ -46,3 +46,34 @@ function toMillis(v: Date | null | undefined): number | null {
   const t = v.getTime();
   return Number.isFinite(t) ? t : null;
 }
+
+/**
+ * `RETURNING` 원본 행에서 온 값을 밀리초 숫자로 좁힌다.
+ *
+ * pg 드라이버는 `bigint`/`numeric` 을 **문자열**로 준다. `::int` 캐스팅을 했더라도
+ * 드라이버·컬럼 타입 조합에 따라 형태가 갈리므로, 숫자로 좁히는 책임을 한 곳에 둔다.
+ */
+export function toFiniteNumber(v: unknown): number | null {
+  if (typeof v === 'number') return Number.isFinite(v) ? v : null;
+  if (typeof v === 'string' && v.trim() !== '') {
+    const n = Number(v);
+    return Number.isFinite(n) ? n : null;
+  }
+  return null;
+}
+
+/**
+ * 엔티티를 로드하지 않는 raw UPDATE 에서 `duration_ms` 를 **같은 문장 안에서** 계산하는
+ * SQL 식. `RETURNING` 으로 되받아 emit 에 실으면 DB 와 wire 가 같은 값을 쓴다.
+ *
+ * 손으로 5곳에 반복하면 갈린다 — 이 브랜치가 `error` 메시지에서 실제로 겪은 형태다
+ * (DB 는 "attempts 소진", emit 은 "소진" 이었다).
+ *
+ * `GREATEST(0, …)`: 시계 역행이 음수를 만들면 수신자의 산술이 깨진다.
+ * 바인딩할 파라미터 이름은 {@link TERMINAL_FINISHED_AT_PARAM}.
+ */
+export const TERMINAL_DURATION_MS_SQL =
+  'GREATEST(0, (EXTRACT(EPOCH FROM (:terminalFinishedAt::timestamptz - started_at)) * 1000)::bigint)::int';
+
+/** {@link TERMINAL_DURATION_MS_SQL} 이 기대하는 파라미터 이름. */
+export const TERMINAL_FINISHED_AT_PARAM = 'terminalFinishedAt';

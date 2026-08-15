@@ -202,7 +202,12 @@ import {
 import { assertRowArray } from '../../common/utils/assert-row-array';
 import { updateReturningRows } from '../../common/utils/update-returning-rows';
 import { toTerminalErrorPayload } from '../../shared/utils/terminal-error-payload';
-import { resolveTerminalDurationMs } from '../../shared/utils/terminal-duration';
+import {
+  resolveTerminalDurationMs,
+  TERMINAL_DURATION_MS_SQL,
+  TERMINAL_FINISHED_AT_PARAM,
+  toFiniteNumber,
+} from '../../shared/utils/terminal-duration';
 
 interface ContainerBodyPlan {
   childIds: Set<string>;
@@ -1018,16 +1023,30 @@ export class ExecutionEngineService
   private async cancelParkedExecution(executionId: string): Promise<void> {
     try {
       let cancelled = false;
+      let cancelledDurationMs: number | null = null;
+      const terminalFinishedAt = new Date();
       await this.dataSource.transaction(async (manager) => {
         const result = await manager
           .createQueryBuilder()
           .update(Execution)
-          .set({ status: ExecutionStatus.CANCELLED, finishedAt: new Date() })
+          .set({
+            status: ExecutionStatus.CANCELLED,
+            finishedAt: terminalFinishedAt,
+            // 엔티티 미로드 경로 — 같은 문장에서 계산하고 RETURNING 으로 되받는다.
+            durationMs: () => TERMINAL_DURATION_MS_SQL,
+          })
+          .setParameter(TERMINAL_FINISHED_AT_PARAM, terminalFinishedAt)
           .where('id = :id', { id: executionId })
           .andWhere('status = :waiting', {
             waiting: ExecutionStatus.WAITING_FOR_INPUT,
           })
+          .returning(['id', 'duration_ms'])
           .execute();
+        cancelledDurationMs =
+          toFiniteNumber(
+            (result.raw as Array<Record<string, unknown>> | undefined)?.[0]
+              ?.duration_ms,
+          ) ?? null;
         if ((result.affected ?? 0) === 0) {
           // 이미 terminal / 재개로 RUNNING — 멱등 no-op(cancelled=false 유지).
           return;
@@ -1056,6 +1075,7 @@ export class ExecutionEngineService
       // 멱등 정리한다.
       this.finalizeRehydrationCleanup(executionId);
       await this.emitCancellationEvent(executionId, {
+        durationMs: cancelledDurationMs,
         cancelledBy: 'user',
         logContext: 'cancelParkedExecution',
       });
@@ -1138,6 +1158,8 @@ export class ExecutionEngineService
       // (status=waiting_for_input 필터)에서도 재선정 안 돼 복구 경로가 없다 → 트랜잭션으로 원자화해
       // 롤백 시 execution 이 waiting 으로 남아 다음 tick 이 재시도하게 한다.
       let cancelled = false;
+      let cancelledDurationMs: number | null = null;
+      const terminalFinishedAt = new Date();
       await this.dataSource.transaction(async (manager) => {
         const result = await manager
           .createQueryBuilder()
@@ -1145,13 +1167,21 @@ export class ExecutionEngineService
           .set({
             status: ExecutionStatus.CANCELLED,
             error: { code, message },
-            finishedAt: new Date(),
+            finishedAt: terminalFinishedAt,
+            durationMs: () => TERMINAL_DURATION_MS_SQL,
           })
+          .setParameter(TERMINAL_FINISHED_AT_PARAM, terminalFinishedAt)
           .where('id = :id', { id: executionId })
           .andWhere('status = :waiting', {
             waiting: ExecutionStatus.WAITING_FOR_INPUT,
           })
+          .returning(['id', 'duration_ms'])
           .execute();
+        cancelledDurationMs =
+          toFiniteNumber(
+            (result.raw as Array<Record<string, unknown>> | undefined)?.[0]
+              ?.duration_ms,
+          ) ?? null;
         if ((result.affected ?? 0) === 0) {
           // 이미 terminal / 재개로 RUNNING — 멱등 no-op(cancelled=false 유지).
           return;
@@ -1176,6 +1206,7 @@ export class ExecutionEngineService
       // park 시 잔여 in-memory(context/resolver/llm 캐시) 멱등 정리.
       this.finalizeRehydrationCleanup(executionId);
       await this.emitCancellationEvent(executionId, {
+        durationMs: cancelledDurationMs,
         cancelledBy: 'timeout',
         error: { code, message },
         logContext: 'markWebChatIdleTimeout',
@@ -2784,6 +2815,7 @@ export class ExecutionEngineService
   ): Promise<void> {
     try {
       const message = ExecutionEngineService.resumeErrorMessage(code);
+      const terminalFinishedAt = new Date();
       const result = await this.executionRepository
         .createQueryBuilder()
         .update(Execution)
@@ -2793,8 +2825,10 @@ export class ExecutionEngineService
             code,
             message,
           },
-          finishedAt: new Date(),
+          finishedAt: terminalFinishedAt,
+          durationMs: () => TERMINAL_DURATION_MS_SQL,
         })
+        .setParameter(TERMINAL_FINISHED_AT_PARAM, terminalFinishedAt)
         .where('id = :id', { id: executionId })
         // WAITING_FOR_INPUT **및 RUNNING** 둘 다 cancel 대상. 호출처 중
         // `driveResumeAwaited` 의 RehydrationError 분기(ai_agent _resumeCheckpoint
@@ -2811,6 +2845,7 @@ export class ExecutionEngineService
             ExecutionStatus.RUNNING,
           ],
         })
+        .returning(['id', 'duration_ms'])
         .execute();
       // §7.5 / 방안 D — rehydration 실패로 cancelled 마킹 시 `EXECUTION_CANCELLED`
       // 를 emit 해 채널 어댑터(텔레그램 등)가 사용자에게 graceful "세션 만료 —
@@ -2822,6 +2857,11 @@ export class ExecutionEngineService
         // 않도록 헬퍼가 별도 try/catch 로 격리해 오해 소지 있는 "markExecutionCancelled
         // 실패" 로그를 방지한다 (cancel 은 이미 commit 됨).
         await this.emitCancellationEvent(executionId, {
+          durationMs:
+            toFiniteNumber(
+              (result.raw as Array<Record<string, unknown>> | undefined)?.[0]
+                ?.duration_ms,
+            ) ?? null,
           cancelledBy: 'system',
           error: { code, message },
           logContext: `markExecutionCancelled(${code})`,
@@ -2845,6 +2885,7 @@ export class ExecutionEngineService
   private async markQueueWaitTimeout(executionId: string): Promise<void> {
     const code = 'EXECUTION_QUEUE_WAIT_TIMEOUT';
     const message = 'Execution cancelled: queue wait time exceeded';
+    const terminalFinishedAt = new Date();
     try {
       const result = await this.executionRepository
         .createQueryBuilder()
@@ -2852,13 +2893,24 @@ export class ExecutionEngineService
         .set({
           status: ExecutionStatus.CANCELLED,
           error: { code, message },
-          finishedAt: new Date(),
+          finishedAt: terminalFinishedAt,
+          // 이 경로의 `durationMs` 는 **큐 대기 시간**이다(실행 시간이 아니다) —
+          // `started_at` 이 admission 전 생성 시각이라 그렇다. 의미가 다르지만 EIA §6 은
+          // "종결까지의 경과" 로 정의하므로 계약상 일관된다.
+          durationMs: () => TERMINAL_DURATION_MS_SQL,
         })
+        .setParameter(TERMINAL_FINISHED_AT_PARAM, terminalFinishedAt)
         .where('id = :id', { id: executionId })
         .andWhere('status = :pending', { pending: ExecutionStatus.PENDING })
+        .returning(['id', 'duration_ms'])
         .execute();
       if ((result.affected ?? 0) > 0) {
         await this.emitCancellationEvent(executionId, {
+          durationMs:
+            toFiniteNumber(
+              (result.raw as Array<Record<string, unknown>> | undefined)?.[0]
+                ?.duration_ms,
+            ) ?? null,
           cancelledBy: 'timeout',
           error: { code, message },
           logContext: 'markQueueWaitTimeout',
@@ -3293,12 +3345,25 @@ export class ExecutionEngineService
         status: ExecutionStatus.FAILED,
         error: stalledError,
         finishedAt,
+        // 이 경로는 **엔티티를 로드하지 않는다** — `started_at` 이 JS 쪽에 없다. 같은 문장
+        // 안에서 SQL 로 계산하고 `RETURNING` 으로 되받아 emit 에 싣는다. DB 와 wire 가
+        // **같은 값**을 쓰게 하려는 것이다 — 이 PR 이 `error` 에서 두 표현이 갈린 것을
+        // 고쳤고, 여기서 같은 실수를 반복하지 않는다.
+        // `GREATEST(0, …)` — 시계 역행이 음수를 만들면 수신자의 산술이 깨진다.
+        durationMs: () => TERMINAL_DURATION_MS_SQL,
       })
+      .setParameter(TERMINAL_FINISHED_AT_PARAM, finishedAt)
       .where('id = :id', { id: executionId })
       .andWhere('status = :running', { running: ExecutionStatus.RUNNING })
-      .returning('id')
+      .returning(['id', 'duration_ms'])
       .execute();
     if ((result.affected ?? 0) === 0) return; // 이미 terminal — no-op
+    // `raw` 는 드라이버 원본이라 컬럼명이 snake_case 다 (#1168 에서 배운 형태).
+    const stalledDurationMs =
+      toFiniteNumber(
+        (result.raw as Array<Record<string, unknown>> | undefined)?.[0]
+          ?.duration_ms,
+      ) ?? null;
 
     this.logger.warn(
       `[execution-run] stalled 소진 → Execution ${executionId} failed (WORKER_HEARTBEAT_TIMEOUT)`,
@@ -3329,6 +3394,8 @@ export class ExecutionEngineService
       {
         status: ExecutionStatus.FAILED,
         error: toTerminalErrorPayload(stalledError),
+        // UPDATE 가 되돌려준 **영속된 값**. 다시 계산하지 않는다.
+        durationMs: stalledDurationMs,
       },
     );
   }
