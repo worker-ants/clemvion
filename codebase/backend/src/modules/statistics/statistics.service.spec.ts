@@ -23,7 +23,7 @@ describe('StatisticsService.getSummary', () => {
     where = jest.fn().mockImplementation(() => qb);
     select = jest.fn().mockImplementation(() => qb);
     innerJoin = jest.fn().mockImplementation(() => qb);
-    const qb = {
+    const qb: Record<string, jest.Mock> = {
       innerJoin,
       select,
       where,
@@ -31,6 +31,11 @@ describe('StatisticsService.getSummary', () => {
       getRawOne,
       getCount,
     };
+    // getTopWorkflows 체인 (가산 — 기존 테스트는 이 키들을 쓰지 않는다)
+    for (const m of ['groupBy', 'addGroupBy', 'orderBy', 'limit']) {
+      qb[m] = jest.fn().mockImplementation(() => qb);
+    }
+    qb.getRawMany = jest.fn().mockResolvedValue([]);
     // getSummary 는 현재 구간(getRawOne) + 직전 구간(getCount) 2개의 QB 를 만든다.
     createQueryBuilder = jest.fn().mockReturnValue(qb);
 
@@ -57,6 +62,24 @@ describe('StatisticsService.getSummary', () => {
     }).compile();
 
     service = moduleRef.get(StatisticsService);
+  });
+
+  // dashboard 쪽과 같은 이유의 가드 — 상세 배경은 `dashboard.service.spec.ts` 참조.
+  // 이 파일은 집계가 **두 곳**(전체 요약 · 워크플로별)이라 둘 다 건다.
+  it('avgDurationMs 집계 두 곳 모두 completed 만 센다 (대기 시간 오염 방지)', async () => {
+    // 두 집계는 **서로 다른 메서드**에 있다. 하나만 부르면 나머지 한 곳의 필터가
+    // 지워져도 통과한다 — 처음 이 테스트를 호출 없이 써서 0건으로 실패했다.
+    await service.getSummary('ws-1', {} as never);
+    await service.getTopWorkflows('ws-1', {} as never);
+
+    const avgExprs = select.mock.calls
+      .flatMap(([cols]: [string[]]) => cols)
+      .filter((c: string) => c.includes('avgDurationMs'));
+
+    expect(avgExprs).toHaveLength(2);
+    for (const expr of avgExprs) {
+      expect(expr).toContain("e.status = 'completed'");
+    }
   });
 
   it('workflowId 미지정 — workspace 전체 집계, 쿼리 1회 실행', async () => {

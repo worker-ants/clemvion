@@ -289,8 +289,10 @@ describe('ExecutionEngineService', () => {
       createQueryBuilder: jest.fn(() => ({
         update: jest.fn().mockReturnThis(),
         set: jest.fn().mockReturnThis(),
+        setParameter: jest.fn().mockReturnThis(),
         where: jest.fn().mockReturnThis(),
         andWhere: jest.fn().mockReturnThis(),
+        returning: jest.fn().mockReturnThis(),
         execute: jest.fn().mockResolvedValue({ affected: 1, raw: [] }),
       })),
       // PR2b — admission advisory-lock 트랜잭션 기본 mock: query rows 1건 → admitted
@@ -379,6 +381,7 @@ describe('ExecutionEngineService', () => {
       addSelect: jest.fn().mockReturnThis(),
       where: jest.fn().mockReturnThis(),
       andWhere: jest.fn().mockReturnThis(),
+      returning: jest.fn().mockReturnThis(),
       orderBy: jest.fn().mockReturnThis(),
       getRawMany: jest.fn(() =>
         waitingQueryError
@@ -394,8 +397,10 @@ describe('ExecutionEngineService', () => {
 
     retryClaimQb = {
       set: jest.fn().mockReturnThis(),
+      setParameter: jest.fn().mockReturnThis(),
       where: jest.fn().mockReturnThis(),
       andWhere: jest.fn().mockReturnThis(),
+      returning: jest.fn().mockReturnThis(),
       execute: jest.fn().mockResolvedValue({ affected: 1 }),
     };
 
@@ -493,8 +498,10 @@ describe('ExecutionEngineService', () => {
                   createQueryBuilder: jest.fn(() => ({
                     update: jest.fn().mockReturnThis(),
                     set: jest.fn().mockReturnThis(),
+                    setParameter: jest.fn().mockReturnThis(),
                     where: jest.fn().mockReturnThis(),
                     andWhere: jest.fn().mockReturnThis(),
+                    returning: jest.fn().mockReturnThis(),
                     execute: jest.fn().mockResolvedValue({ affected: 1 }),
                   })),
                 };
@@ -1976,8 +1983,10 @@ describe('ExecutionEngineService', () => {
       const qb = {
         update: jest.fn().mockReturnThis(),
         set: jest.fn().mockReturnThis(),
+        setParameter: jest.fn().mockReturnThis(),
         where: jest.fn().mockReturnThis(),
         andWhere: jest.fn().mockReturnThis(),
+        returning: jest.fn().mockReturnThis(),
         execute: jest.fn().mockResolvedValue({ affected: 1 }),
       };
       mockNodeExecutionRepo.createQueryBuilder = jest.fn().mockReturnValue(qb);
@@ -2969,9 +2978,16 @@ describe('ExecutionEngineService', () => {
     const makeIdleQb = (affected: number) => ({
       update: jest.fn().mockReturnThis(),
       set: jest.fn().mockReturnThis(),
+      setParameter: jest.fn().mockReturnThis(),
       where: jest.fn().mockReturnThis(),
       andWhere: jest.fn().mockReturnThis(),
-      execute: jest.fn().mockResolvedValue({ affected }),
+      returning: jest.fn().mockReturnThis(),
+      // `RETURNING duration_ms` 를 실제로 돌려줘야 threading 이 테스트를 탄다 —
+      // `raw` 를 비워 두면 emit 이 `null` 이라 단언이 vacuous 해진다.
+      execute: jest.fn().mockResolvedValue({
+        affected,
+        raw: affected > 0 ? [{ id: 'exec-idle', duration_ms: 3600000 }] : [],
+      }),
     });
     const installIdleTx = (execAffected: number, nodeAffected: number) => {
       const execQb = makeIdleQb(execAffected);
@@ -3046,6 +3062,9 @@ describe('ExecutionEngineService', () => {
         expect.objectContaining({
           result: { cancelledBy: 'timeout' },
           error: expect.objectContaining({ code: 'WEBCHAT_IDLE_TIMEOUT' }),
+          // RETURNING 값이 emit 까지 **그대로** 흐르는지 — 2라운드째 요청받고 미이행이던
+          // 단언이다. mock 이 주는 값과 정확히 같아야 한다(threading 검증).
+          durationMs: 3600000,
         }),
       );
       expect(releaseSpy).toHaveBeenCalledWith('exec-idle');
@@ -3149,9 +3168,16 @@ describe('ExecutionEngineService', () => {
     const makeCancelQb = (affected: number) => ({
       update: jest.fn().mockReturnThis(),
       set: jest.fn().mockReturnThis(),
+      setParameter: jest.fn().mockReturnThis(),
       where: jest.fn().mockReturnThis(),
       andWhere: jest.fn().mockReturnThis(),
-      execute: jest.fn().mockResolvedValue({ affected }),
+      returning: jest.fn().mockReturnThis(),
+      // `raw` 를 비워 두면 emit 이 `null` 이 되고, 초기값과 우연히 일치해 **추출 로직을
+      // 깨도 GREEN** 이다 — 자매 4경로에서 같은 형태를 두 번 겪었다 (`11_59_09` W3).
+      execute: jest.fn().mockResolvedValue({
+        affected,
+        raw: affected > 0 ? [{ id: 'exec-park-1', duration_ms: 7200000 }] : [],
+      }),
     });
     const installCancelTx = (execAffected: number, nodeAffected: number) => {
       const execQb = makeCancelQb(execAffected);
@@ -3194,6 +3220,8 @@ describe('ExecutionEngineService', () => {
       expect(emitSpy).toHaveBeenCalledWith('exec-park-1', expect.anything(), {
         status: 'cancelled',
         result: { cancelledBy: 'user' },
+        // RETURNING 이 돌려준 영속값이 emit 까지 그대로 흘러야 한다(DB=wire).
+        durationMs: 7200000,
       });
       const emittedPayload = emitSpy.mock.calls.find(
         (c) => c[0] === 'exec-park-1',
@@ -3288,8 +3316,10 @@ describe('ExecutionEngineService', () => {
     const makeQb = (affected: number) => ({
       update: jest.fn().mockReturnThis(),
       set: jest.fn().mockReturnThis(),
+      setParameter: jest.fn().mockReturnThis(),
       where: jest.fn().mockReturnThis(),
       andWhere: jest.fn().mockReturnThis(),
+      returning: jest.fn().mockReturnThis(),
       execute: jest.fn().mockResolvedValue({ affected }),
     });
     const ds = () =>
@@ -3420,8 +3450,10 @@ describe('ExecutionEngineService', () => {
       const qb = {
         update: jest.fn().mockReturnThis(),
         set: jest.fn().mockReturnThis(),
+        setParameter: jest.fn().mockReturnThis(),
         where: jest.fn().mockReturnThis(),
         andWhere: jest.fn().mockReturnThis(),
+        returning: jest.fn().mockReturnThis(),
         execute: jest.fn().mockResolvedValue({ affected: 1 }),
       };
       mockNodeExecutionRepo.createQueryBuilder = jest.fn().mockReturnValue(qb);
@@ -4352,9 +4384,16 @@ describe('ExecutionEngineService', () => {
     const mkQb = (affected: number) => ({
       update: jest.fn().mockReturnThis(),
       set: jest.fn().mockReturnThis(),
+      setParameter: jest.fn().mockReturnThis(),
       where: jest.fn().mockReturnThis(),
       andWhere: jest.fn().mockReturnThis(),
-      execute: jest.fn().mockResolvedValue({ affected, raw: [] }),
+      returning: jest.fn().mockReturnThis(),
+      // RETURNING 값을 실제로 돌려줘야 threading 이 테스트를 탄다 — 종전엔 `raw` 가
+      // 비어 있어 추출부를 통째로 깨는 뮤테이션도 GREEN 이었다 (`11_44_10` W1).
+      execute: jest.fn().mockResolvedValue({
+        affected,
+        raw: affected > 0 ? [{ id: 'e3', duration_ms: 600000 }] : [],
+      }),
     });
     const admit = (exec: unknown, input: unknown = {}) =>
       (
@@ -4520,6 +4559,9 @@ describe('ExecutionEngineService', () => {
           error: expect.objectContaining({
             code: 'EXECUTION_QUEUE_WAIT_TIMEOUT',
           }),
+          // RETURNING 값이 emit 까지 그대로 흐르는지 — 3라운드째 이월이던 마지막 경로다.
+          // 이 값의 의미는 "큐 대기 시간" 이라 다른 4경로로 대체 증명되지 않는다.
+          durationMs: 600000,
         }),
       );
       // 5분 cancel 로 단락 → cap 검사(workflow 조회) 이전 return.
@@ -4716,10 +4758,16 @@ describe('ExecutionEngineService', () => {
   // PR4 — stalled 소진 dead-letter 마감 (ExecutionRunProcessor.onFailed 호출).
   describe('finalizeStalledExhausted (PR4)', () => {
     const mkExecQb = (affected: number) => {
-      const execute = jest.fn().mockResolvedValue({ affected, raw: [] });
+      // `duration_ms` 는 SQL 로 계산해 RETURNING 으로 되받는다 — **snake_case** 로 온다
+      // (드라이버 원본이라 ORM 매핑을 안 탄다, #1168 에서 배운 형태).
+      const execute = jest.fn().mockResolvedValue({
+        affected,
+        raw: affected > 0 ? [{ id: 'exec-stalled', duration_ms: 4242 }] : [],
+      });
       const qb = {
         update: jest.fn().mockReturnThis(),
         set: jest.fn().mockReturnThis(),
+        setParameter: jest.fn().mockReturnThis(),
         where: jest.fn().mockReturnThis(),
         andWhere: jest.fn().mockReturnThis(),
         returning: jest.fn().mockReturnThis(),
@@ -4734,8 +4782,10 @@ describe('ExecutionEngineService', () => {
       const nodeQb = {
         update: jest.fn().mockReturnThis(),
         set: jest.fn().mockReturnThis(),
+        setParameter: jest.fn().mockReturnThis(),
         where: jest.fn().mockReturnThis(),
         andWhere: jest.fn().mockReturnThis(),
+        returning: jest.fn().mockReturnThis(),
         execute: jest.fn().mockResolvedValue({ affected: 1 }),
       };
       mockNodeExecutionRepo.createQueryBuilder = jest
@@ -4792,6 +4842,9 @@ describe('ExecutionEngineService', () => {
               'Execution failed: worker crash (stalled 재배달 attempts 소진)',
             nodeId: null,
           },
+          // **UPDATE 의 RETURNING 이 돌려준 값 그대로** — 이 경로는 엔티티를 로드하지
+          // 않으므로 JS 에서 다시 계산할 수 없고, 계산하면 DB 와 갈린다.
+          durationMs: 4242,
         },
       );
       emitSpy.mockRestore();
@@ -7026,7 +7079,11 @@ describe('ExecutionEngineService', () => {
       expect(mockWebsocketService.emitExecutionEvent).toHaveBeenCalledWith(
         executionId,
         'execution.completed',
-        expect.objectContaining({ status: 'completed' }),
+        expect.objectContaining({
+          status: 'completed',
+          // EIA §6 필드 집합 표가 `durationMs` 를 종결 3종에 약속한다.
+          durationMs: expect.any(Number) as unknown,
+        }),
       );
     });
 
@@ -7274,7 +7331,11 @@ describe('ExecutionEngineService', () => {
       expect(mockWebsocketService.emitExecutionEvent).toHaveBeenCalledWith(
         executionId,
         'execution.completed',
-        expect.objectContaining({ status: 'completed' }),
+        expect.objectContaining({
+          status: 'completed',
+          // EIA §6 필드 집합 표가 `durationMs` 를 종결 3종에 약속한다.
+          durationMs: expect.any(Number) as unknown,
+        }),
       );
     });
 
@@ -7418,7 +7479,11 @@ describe('ExecutionEngineService', () => {
       expect(mockWebsocketService.emitExecutionEvent).toHaveBeenCalledWith(
         executionId,
         'execution.completed',
-        expect.objectContaining({ status: 'completed' }),
+        expect.objectContaining({
+          status: 'completed',
+          // EIA §6 필드 집합 표가 `durationMs` 를 종결 3종에 약속한다.
+          durationMs: expect.any(Number) as unknown,
+        }),
       );
     });
 
@@ -7483,7 +7548,11 @@ describe('ExecutionEngineService', () => {
       expect(mockWebsocketService.emitExecutionEvent).toHaveBeenCalledWith(
         execB,
         'execution.completed',
-        expect.objectContaining({ status: 'completed' }),
+        expect.objectContaining({
+          status: 'completed',
+          // EIA §6 필드 집합 표가 `durationMs` 를 종결 3종에 약속한다.
+          durationMs: expect.any(Number) as unknown,
+        }),
       );
       // A 는 여전히 parked (durable DB WAITING, in-memory coroutine 없음).
       expect(statusById[execA]).toBe(ExecutionStatus.WAITING_FOR_INPUT);
@@ -7769,7 +7838,11 @@ describe('ExecutionEngineService', () => {
       expect(mockWebsocketService.emitExecutionEvent).toHaveBeenCalledWith(
         executionId,
         'execution.completed',
-        expect.objectContaining({ status: 'completed' }),
+        expect.objectContaining({
+          status: 'completed',
+          // EIA §6 필드 집합 표가 `durationMs` 를 종결 3종에 약속한다.
+          durationMs: expect.any(Number) as unknown,
+        }),
       );
       // form 노드의 NODE_COMPLETED 이벤트도 emit 됐어야 함.
       expect(mockWebsocketService.emitNodeEvent).toHaveBeenCalledWith(
@@ -8132,7 +8205,11 @@ describe('ExecutionEngineService', () => {
       expect(mockWebsocketService.emitExecutionEvent).toHaveBeenCalledWith(
         executionId,
         'execution.completed',
-        expect.objectContaining({ status: 'completed' }),
+        expect.objectContaining({
+          status: 'completed',
+          // EIA §6 필드 집합 표가 `durationMs` 를 종결 3종에 약속한다.
+          durationMs: expect.any(Number) as unknown,
+        }),
       );
     });
   });
@@ -14720,14 +14797,20 @@ describe('ExecutionEngineService', () => {
         const chain = {
           update: jest.fn(),
           set: jest.fn(),
+          setParameter: jest.fn(),
           where: jest.fn(),
           andWhere: jest.fn(),
-          execute: jest.fn().mockResolvedValue({ affected: 1 }),
+          returning: jest.fn(),
+          execute: jest
+            .fn()
+            .mockResolvedValue({ affected: 1, raw: [{ duration_ms: 1234 }] }),
         };
         chain.update.mockReturnValue(chain);
         chain.set.mockReturnValue(chain);
+        chain.setParameter.mockReturnValue(chain);
         chain.where.mockReturnValue(chain);
         chain.andWhere.mockReturnValue(chain);
+        chain.returning.mockReturnValue(chain);
         return chain;
       };
       mockExecutionRepo.createQueryBuilder = jest
@@ -14926,6 +15009,9 @@ describe('ExecutionEngineService', () => {
           error: expect.objectContaining({
             code: 'RESUME_INCOMPATIBLE_STATE',
           }),
+          // 이 경로는 엔티티를 로드하지 않는다 — UPDATE 의 `RETURNING duration_ms` 가
+          // 돌려준 값이 emit 까지 그대로 흘러야 한다(DB=wire). mock 이 1234 를 준다.
+          durationMs: 1234,
         }),
       );
     });
@@ -14959,17 +15045,25 @@ describe('ExecutionEngineService', () => {
       mockExecutionRepo.createQueryBuilder = jest
         .fn()
         .mockImplementation(() => {
+          // `setParameter`/`returning` 이 빠지면 체인이 TypeError 를 던지고 함수를
+          // 감싼 try/catch 가 그걸 삼킨다 — 그러면 검증하려는 `affected > 0` 가드
+          // 분기 자체가 실행되지 않아 **가드를 통째로 지워도 GREEN** 이다.
+          // 실제로 그 상태였고, 이 PR 이 두 메서드를 추가하면서 만든 회귀다.
           const chain = {
             update: jest.fn(),
             set: jest.fn(),
+            setParameter: jest.fn(),
             where: jest.fn(),
             andWhere: jest.fn(),
+            returning: jest.fn(),
             execute: jest.fn().mockResolvedValue({ affected: 0 }),
           };
           chain.update.mockReturnValue(chain);
           chain.set.mockReturnValue(chain);
+          chain.setParameter.mockReturnValue(chain);
           chain.where.mockReturnValue(chain);
           chain.andWhere.mockReturnValue(chain);
+          chain.returning.mockReturnValue(chain);
           return chain;
         });
       mockWebsocketService.emitExecutionEvent.mockClear();
@@ -16217,14 +16311,20 @@ describe('ExecutionEngineService', () => {
         const chain = {
           update: jest.fn(),
           set: jest.fn(),
+          setParameter: jest.fn(),
           where: jest.fn(),
           andWhere: jest.fn(),
-          execute: jest.fn().mockResolvedValue({ affected: 1 }),
+          returning: jest.fn(),
+          execute: jest
+            .fn()
+            .mockResolvedValue({ affected: 1, raw: [{ duration_ms: 1234 }] }),
         };
         chain.update.mockReturnValue(chain);
         chain.set.mockReturnValue(chain);
+        chain.setParameter.mockReturnValue(chain);
         chain.where.mockReturnValue(chain);
         chain.andWhere.mockReturnValue(chain);
+        chain.returning.mockReturnValue(chain);
         return chain;
       };
 
@@ -16318,6 +16418,16 @@ describe('ExecutionEngineService', () => {
       expect(svcAny.finalizeRehydrationCleanup).toHaveBeenCalledWith(
         'exec-drive-1',
       );
+      // 이 경로의 `durationMs` emit 이 두 라운드째 미검증이었다 (`10_52_08` testing W1).
+      // 계산부·emit 부 모두 헬퍼 경유로 맞춰 뒀으나 그걸 고정하는 단언이 없었다.
+      const completedEmit = (
+        mockWebsocketService.emitExecutionEvent as jest.Mock
+      ).mock.calls.find((c: unknown[]) => c[1] === 'execution.completed');
+      expect(completedEmit).toBeDefined();
+      expect(
+        (completedEmit?.[2] as { durationMs?: number | null } | undefined)
+          ?.durationMs,
+      ).toEqual(expect.any(Number));
     });
 
     // ── CASE 2: 2-depth bubble-up + invoker output 주입 ──────────────
@@ -16801,14 +16911,20 @@ describe('ExecutionEngineService', () => {
         const chain = {
           update: jest.fn(),
           set: jest.fn(),
+          setParameter: jest.fn(),
           where: jest.fn(),
           andWhere: jest.fn(),
-          execute: jest.fn().mockResolvedValue({ affected: 1 }),
+          returning: jest.fn(),
+          execute: jest
+            .fn()
+            .mockResolvedValue({ affected: 1, raw: [{ duration_ms: 1234 }] }),
         };
         chain.update.mockReturnValue(chain);
         chain.set.mockReturnValue(chain);
+        chain.setParameter.mockReturnValue(chain);
         chain.where.mockReturnValue(chain);
         chain.andWhere.mockReturnValue(chain);
+        chain.returning.mockReturnValue(chain);
         return chain;
       };
       mockExecutionRepo.createQueryBuilder = jest
@@ -17351,8 +17467,10 @@ describe('ExecutionEngineService', () => {
       const noopQb = {
         update: jest.fn().mockReturnThis(),
         set: jest.fn().mockReturnThis(),
+        setParameter: jest.fn().mockReturnThis(),
         where: jest.fn().mockReturnThis(),
         andWhere: jest.fn().mockReturnThis(),
+        returning: jest.fn().mockReturnThis(),
         execute: jest.fn().mockResolvedValue({ affected: 0 }),
       };
       // 이 replay turn 이 완결되면 finalizeAiNode(COMPLETED) 가 **같은**
@@ -18883,8 +19001,10 @@ describe('SUMMARY W3 / W5 / W6 / W7 보완 단위 테스트', () => {
         createQueryBuilder: jest.fn().mockReturnValue({
           update: jest.fn().mockReturnThis(),
           set: jest.fn().mockReturnThis(),
+          setParameter: jest.fn().mockReturnThis(),
           where: jest.fn().mockReturnThis(),
           andWhere: jest.fn().mockReturnThis(),
+          returning: jest.fn().mockReturnThis(),
           execute: jest.fn().mockResolvedValue({ affected: 0 }),
         }),
       };
@@ -19299,9 +19419,11 @@ describe('NF-OB-07 BusinessMetrics 동작 — emitTerminalExecutionMetrics / rec
         addSelect: jest.fn().mockReturnThis(),
         where: jest.fn().mockReturnThis(),
         andWhere: jest.fn().mockReturnThis(),
+        returning: jest.fn().mockReturnThis(),
         getMany: jest.fn().mockResolvedValue([]),
         update: jest.fn().mockReturnThis(),
         set: jest.fn().mockReturnThis(),
+        setParameter: jest.fn().mockReturnThis(),
         execute: jest.fn().mockResolvedValue({ affected: 0 }),
       }),
     };
@@ -19314,8 +19436,10 @@ describe('NF-OB-07 BusinessMetrics 동작 — emitTerminalExecutionMetrics / rec
       createQueryBuilder: jest.fn().mockReturnValue({
         update: jest.fn().mockReturnThis(),
         set: jest.fn().mockReturnThis(),
+        setParameter: jest.fn().mockReturnThis(),
         where: jest.fn().mockReturnThis(),
         andWhere: jest.fn().mockReturnThis(),
+        returning: jest.fn().mockReturnThis(),
         execute: jest.fn().mockResolvedValue({ affected: 0 }),
       }),
     };
@@ -19535,6 +19659,7 @@ describe('NF-OB-07 BusinessMetrics 동작 — emitTerminalExecutionMetrics / rec
         addSelect: jest.fn().mockReturnThis(),
         where: jest.fn().mockReturnThis(),
         andWhere: jest.fn().mockReturnThis(),
+        returning: jest.fn().mockReturnThis(),
         getMany: jest.fn().mockResolvedValue([
           {
             id: 'ne-1',
@@ -19555,6 +19680,7 @@ describe('NF-OB-07 BusinessMetrics 동작 — emitTerminalExecutionMetrics / rec
         addSelect: jest.fn().mockReturnThis(),
         where: jest.fn().mockReturnThis(),
         andWhere: jest.fn().mockReturnThis(),
+        returning: jest.fn().mockReturnThis(),
         getMany: jest.fn().mockResolvedValue([
           {
             id: 'ne-2',
@@ -19579,6 +19705,7 @@ describe('NF-OB-07 BusinessMetrics 동작 — emitTerminalExecutionMetrics / rec
         addSelect: jest.fn().mockReturnThis(),
         where: jest.fn().mockReturnThis(),
         andWhere: jest.fn().mockReturnThis(),
+        returning: jest.fn().mockReturnThis(),
         getMany: jest.fn().mockRejectedValue(new Error('db-error')),
       });
       await expect(
@@ -19594,6 +19721,7 @@ describe('NF-OB-07 BusinessMetrics 동작 — emitTerminalExecutionMetrics / rec
         addSelect: jest.fn().mockReturnThis(),
         where: jest.fn().mockReturnThis(),
         andWhere: jest.fn().mockReturnThis(),
+        returning: jest.fn().mockReturnThis(),
         getMany: jest.fn().mockResolvedValue([
           {
             id: 'ne-3',

@@ -686,7 +686,10 @@ describe('RetryTurnService', () => {
       expect(emitExecution).toHaveBeenCalledWith(
         EXEC,
         ExecutionEventType.EXECUTION_CANCELLED,
-        { status: ExecutionStatus.CANCELLED },
+        {
+          status: ExecutionStatus.CANCELLED,
+          durationMs: expect.any(Number) as unknown,
+        },
       );
       const emittedTypes = emitExecution.mock.calls.map((c) => c[1]);
       expect(emittedTypes).not.toContain(ExecutionEventType.EXECUTION_FAILED);
@@ -721,6 +724,7 @@ describe('RetryTurnService', () => {
           // EIA §6.4 — 부재는 키 생략이 아니라 **명시적 null**. DB 는 `{message}` 만 쓰므로
           // emit 시점에 `toTerminalErrorPayload` 가 채운다.
           error: { code: null, message: 'boom', nodeId: null },
+          durationMs: expect.any(Number) as unknown,
         },
       );
       // ai-review W16 (2026-07-26) — 취소가 아닌 일반 실패는 기존과 동일하게
@@ -848,7 +852,11 @@ describe('RetryTurnService', () => {
       expect(mockEventEmitter.emitExecution).toHaveBeenCalledWith(
         EXEC,
         ExecutionEventType.EXECUTION_COMPLETED,
-        { status: ExecutionStatus.COMPLETED },
+        {
+          status: ExecutionStatus.COMPLETED,
+          // EIA §6 — durationMs 는 종결 3종에 실린다. 알 수 없으면 null.
+          durationMs: expect.any(Number) as unknown,
+        },
       );
     });
 
@@ -880,7 +888,11 @@ describe('RetryTurnService', () => {
       expect(mockEventEmitter.emitExecution).toHaveBeenCalledWith(
         EXEC,
         ExecutionEventType.EXECUTION_COMPLETED,
-        { status: ExecutionStatus.COMPLETED },
+        {
+          status: ExecutionStatus.COMPLETED,
+          // EIA §6 — durationMs 는 종결 3종에 실린다. 알 수 없으면 null.
+          durationMs: expect.any(Number) as unknown,
+        },
       );
     });
   });

@@ -156,6 +156,20 @@ code:
 
 > 본 절은 2026-06-03 spec-vs-code 동기화 시 코드 현실에 맞춰 정정한 항목의 근거다 (대안 비교형 ADR 이 아니라 code-sync 근거 기록).
 
+### 평균 실행 시간 = `status='completed'` 만 집계 (2026-08-15)
+
+`avgExecutionTime` 은 종전에 `duration_ms IS NOT NULL` 로만 걸렀다. 그 방어가 성립한 이유는
+필터가 아니라 **우연**이었다 — 취소·타임아웃 종결 경로가 이 컬럼을 비워 뒀기 때문에 자동으로
+빠졌다. EIA §6 종결 이벤트에 `durationMs` 를 싣기 시작하면서 그 5경로가 값을 채우므로,
+필터 없이는 park 취소(상한 24.8일)의 **대기 시간**이 평균에 들어간다.
+
+`completed` 만 남긴 이유: `finalizeStalledExhausted` 가 `FAILED` 라서 FAILED 도 오염된다.
+오염되지 않은 상태는 `completed` 하나뿐이다.
+
+**부수 효과 — 지표 정의가 좁아졌다.** 종전에 집계되던 **정상 실패**와 **stop 취소**의 실제
+소요 시간이 평균에서 빠진다. 사용자에게 보이는 숫자가 이동하므로 CHANGELOG 에 고지했다.
+같은 결정이 [통계](./7-statistics.md) 의 `avgDurationMs` 두 집계에도 적용된다.
+
 ### Success Rate 분모 = 7일 전체 실행 건수 (§3)
 
 성공률 분모는 `completed/(completed+failed)` 가 아니라 **status 무관 7일 내 전체 실행 건수**(running·pending·cancelled 포함)다 (`dashboard.service.ts`). 초기 spec 초안은 분모를 `completed+failed` 로 적었으나, 구현은 7일 전체를 분모로 둔다 — "최근 활동 대비 성공 비율" 이라는 카드 의미상 진행 중·취소 건도 분모에 포함하는 현 구현을 SoT 로 채택하고 spec 을 맞췄다. (분모를 `completed+failed` 로 바꾸려면 구현 변경이 필요 — 현 시점 미채택.)

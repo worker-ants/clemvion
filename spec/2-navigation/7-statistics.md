@@ -121,6 +121,13 @@ code:
 
 ## Rationale
 
+### R-0. `avgDurationMs` 는 `status='completed'` 만 집계 (2026-08-15)
+
+요약(§2)·워크플로우별(§2.4) 두 집계 모두 `completed` 로 한정한다. 근거는
+[대시보드 Rationale](./0-dashboard.md#rationale) 에 기록한 것과 동일하다 — EIA §6 종결
+이벤트가 취소·타임아웃 경로의 `duration_ms` 를 채우기 시작하면서 `IS NOT NULL` 만으로는
+**대기 시간**이 평균에 섞인다.
+
 ### R-1. LLM 사용량 API 를 `summary` / `timeseries` 두 endpoint 로 분리한 이유
 
 LLM 토큰 사용량 위젯(§2.5)은 집계 축이 다른 두 뷰를 가진다 — 표는 **프로바이더×모델** 축의 기간 합계(+추정 비용), 추이 차트는 **일자×프로바이더** 축의 시계열. 한 endpoint 로 합치면 (a) 한쪽 뷰만 갱신해도 다른 축의 전체 집계를 항상 다시 계산·전송하고, (b) 클라이언트가 한 응답을 두 축으로 재집계해야 한다. 축이 다른 집계는 endpoint 를 분리해 각 위젯이 독립적으로 fetch/캐시한다. 다른 차트들(`/executions`, `/errors`, `/top-workflows`)이 위젯별 endpoint 인 것과 같은 원칙.

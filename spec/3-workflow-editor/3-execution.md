@@ -305,8 +305,8 @@ Presentation 노드의 실행 결과는 **Run Results 드로어**(§10)와 설�
 | `execution.node.skipped` | executionId, nodeId | 노드 건너뜀 (분기 미선택 등) |
 | `execution.node.cancelled` | executionId, nodeId, error | 노드 취소 — 외부 `abortSignal`(AbortError)로 중단. 타임라인이 `running` 에 잔류하지 않도록 terminal 처리 ([실행 엔진 §1.2](../5-system/4-execution-engine.md#12-nodeexecution-상태)) |
 | `execution.completed` | executionId, status, duration | 실행 완료 |
-| `execution.failed` | executionId, error | 실행 실패 |
-| `execution.cancelled` | executionId | 실행 취소 |
+| `execution.failed` | executionId, error, duration | 실행 실패 |
+| `execution.cancelled` | executionId, result.cancelledBy, duration | 실행 취소 |
 | `execution.resumed` | executionId | 대기(`waiting_for_input`) 후 실행 재개 |
 | `execution.paused` _(계획·미구현)_ | executionId, nodeId | 브레이크포인트 도달 (브레이크포인트 기능 미구현 — §6 로드맵) |
 | `execution.waiting_for_input` | executionId, nodeId, nodeType, interactionType, formConfig?, buttonConfig?, conversationConfig? | Form 노드, 버튼 Presentation 노드, 또는 AI Agent Multi Turn 대화에서 사용자 입력 대기. `interactionType`: `form` / `buttons` / `ai_conversation`. 상세: [WS 프로토콜 §4.4](../5-system/6-websocket-protocol.md#44-사용자-입력-대기-이벤트-상세-executionwaiting_for_input) |

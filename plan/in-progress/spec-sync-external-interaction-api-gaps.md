@@ -10,13 +10,26 @@ owner: planner
 > 관련 spec: spec/5-system/14-external-interaction-api.md
 
 ## 미구현 항목
-- [ ] **종결 이벤트의 `result.outputs` · `durationMs` emit** (§6 도입부 필드 집합 표의 Planned 2행,
-      2026-08-13 등재) — 데이터는 emit **직전에 이미 존재**하는데 payload 에 넣지 않는다
-      (`execution-engine.service.ts` 의 `EXECUTION_COMPLETED` emit **4곳** + `retry-turn.service.ts`
-      **2곳** — 전부 `{ status }` 만 싣는다. 줄 번호는 리팩터마다 stale 해지므로 심볼로 고정한다).
-      spec 이 없는 필드를 약속하던 상태를 정리하며(§6 재작성) **문서 쪽을 실제에 맞췄고**,
-      이 항목은 그 반대 방향(구현을 문서에 맞추기)의 잔여분이다. 구현되면 필드 집합 표의
-      "미구현 (Planned)" 를 "구현됨" 으로 flip 한다.
+> **결합 항목을 둘로 쪼갰다** (`08_45_50` plan_coherence W4). 두 필드는 비용이 다르고
+> (`durationMs` 는 취소 경로 배관 5곳, `result.outputs` 는 **spec 이 내용을 정의한 적조차 없다**)
+> 착수 시점도 갈렸다. 한 체크박스로 두면 `durationMs` 완료 시 **통째로 닫히면서
+> `result.outputs` 가 조용히 사라진다** — 이 세션에서 이미 겪은 형태다.
+
+- [ ] **`result.outputs` emit** — **먼저 planner 턴에서 내용을 정의해야 한다.** spec 은
+      이름만 두고 shape·의미를 적은 문장이 0건이다. 채우면 외부 webhook 에 신규 데이터
+      클래스가 열리는데(현재 `execution.completed` payload 는 `{status}` 하나) 크기 상한이
+      없다. 소비처 0곳
+- [x] **`durationMs` emit** — **완료 (2026-08-15, `0f0050dea`+`0dce2a83f`)**. 종결 3종
+      16 경로 전부. 엔티티 미로드 5곳은 UPDATE 문 안에서 SQL 계산 + `RETURNING`.
+      필드 집합 표의 `durationMs` 행을 **"구현됨" 으로 flip 했다**(`0dce2a83f`).
+      > **아래는 2026-08-13 등재 시점 원문이다 — 전부 해소됐다.** 취소선을 절반만 쳐 둬서
+      > "아직 payload 에 안 실린다" 로 오독될 수 있었다 (`11_44_10` documentation W4).
+      >
+      > ~~데이터는 emit 직전에 이미 존재하는데 payload 에 넣지 않는다 —
+      > `EXECUTION_COMPLETED` emit 4곳 + `retry-turn` 2곳이 `{status}` 만 싣는다.~~
+      >
+      > 착수 시 세어 보니 **completed 만 6곳**이었고(원문은 4곳), 종결 3종 전체로는
+      > **16 경로**였다 — 등재 시점 추정이 실측보다 작았다.
 - [x] **`execution.failed` 의 `error` 를 객체로 통일** (§6 필드 집합 표 `error` 행,
       2026-08-13 등재 → **2026-08-14 완료**). emit 4곳을 `toTerminalErrorPayload` 로 일원화.
       > **"wrap 과 union 을 함께 제거한다" 는 원래 계획을 절반만 집행했다 — 의도적이다.**
@@ -143,6 +156,159 @@ checker 가 독립적으로** "인용이 가리키는 절이 오히려 반대를
 > `errMessage` 문자열이 같은 fanout 을 탔다. 형태만 바뀌었지 내용과 경로는 동일하다.
 > 즉 선존 갭이고, `durationMs` 를 "비용이 다르다" 고 떼어낸 PR 이 이걸 끌어들이면 앞뒤가
 > 안 맞는다. **단, 이건 보안 항목이라 우선순위가 위 HMAC 문서 정정보다 높다.**
+
+## 타 문서가 EIA 의 현재 형태를 못 따라간 서술 (2026-08-15 등재, `09_00_27` cross_spec)
+
+둘 다 **EIA 쪽이 이미 정합**인데 참조하는 문서가 옛 서술을 유지한 경우다 — 내 diff 밖이라
+등재만 한다.
+
+- [ ] **`15-chat-channel.md` §5.1(319행)·§8(507행)** — `InteractionRequestContext` 를
+      "단일 인터페이스 + optional `scope` 필드" 로 서술한다. EIA §3.3.1 은 이미
+      **discriminated union**(`External`/`Internal` 별도 인터페이스)으로 정의하고 코드도
+      그렇다. **체커가 "보안 민감(토큰-우회 타입)이라 우선도 있다" 고 표시했다** — 다만
+      문서 stale 이지 런타임 결함이 아님을 확인했다. EIA §3.3.1 을 SoT 로 가리키는 포인터로
+      대체하는 편이 재-drift 를 막는다
+- [ ] **EIA §5.1** 이 webhook §5.2 를 *"legacy `statusCode/errors` shape"* 라 서술 —
+      webhook 은 2026-06-28(`7e181ed8e`)에 이미 `{error:{code,message,details}}` 로
+      정합화됐다. 대비 문구가 유효기간을 넘겼다
+- [ ] (INFO) `data-flow/15-external-interaction.md:119` 가 **정의되지 않은 `EIA-AU-09`** 참조
+      (EIA §3.3 은 `01`~`08` 까지만 정의)
+
+## ⚠️ `duration_ms` 에 "대기 시간" 이 섞여 집계를 오염시킨다 (2026-08-15 등재, `10_34_51` W3)
+
+이번 PR 이 처음으로 `duration_ms` 를 채우는 5경로 중 다수의 값은 **실행 시간이 아니라
+대기 시간**이다(위젯 idle-wait 는 기본 grace 만 1시간, park 취소는 무기한).
+
+**읽는 쪽이 status 필터 없이 평균을 낸다:**
+
+| 소비처 | 상태 |
+|---|---|
+| `dashboard.service.ts` `avgExecutionTime` | **해소** (`f79792621`) — `status='completed'` 필터 |
+| `statistics.service.ts` `avgDurationMs` ×2 | **해소** (`f79792621`) — 두 자리 모두 |
+| `frontend/.../executions/page.tsx:292` 외 3곳 Duration 컬럼 | **잔여** — 아래 참조 |
+| `alerts-evaluator.service.ts` | **우연히 안전** — `status='completed'` 필터가 있다 |
+
+- [x] 집계 3자리에 status 필터 (`f79792621`). 자리별 뮤테이션으로 판별력 확인
+- [ ] **프런트엔드 Duration 컬럼 4곳** — 순진한 status 필터는 **오답**이다(아래 실측)
+- [ ] 순수 실행시간과 wall-clock 대기시간의 **필드 분리** — 위 항목의 유일한 정답
+
+### 프런트엔드는 status 로 못 가른다 (실측)
+
+`stop()` REST 취소도 `CANCELLED` 인데(`executions.service.ts` `stoppable: [RUNNING, PENDING]`)
+`RUNNING → CANCELLED` 의 duration 은 **진짜 실행 시간**이다. 프런트엔드는 직전 상태를 볼 수
+없으므로 `status === 'cancelled'` 로 지우면 **정상 동작을 깨뜨린다**.
+
+집계 쪽에서 `completed` 만 남긴 것이 맞는 이유도 여기 있다 — `finalizeStalledExhausted` 가
+`FAILED` 라서 FAILED 도 이 PR 로 오염된다. `completed` 만이 오염되지 않은 유일한 상태다.
+
+> **다만 그 필터는 지표 정의를 바꾼다.** 종전에 집계되던 **정상 실패**와 **stop 취소**의
+> 실제 duration 이 이제 평균에서 빠진다. 대시보드 숫자가 이동한다 — CHANGELOG 에 고지했다.
+
+임시 완화로 유저 가이드(`run-results.mdx` KO/EN)에 캐비엇을 넣었다. 근본 해결은 필드 분리다.
+
+> **두 라운드가 이 영향을 못 봤다.** spec-to-spec 대조도, 코드 diff 리뷰도 "이 컬럼을
+> **읽는** 쪽" 까지 따라가지 않았다. 쓰기를 늘릴 때 읽는 쪽을 세는 것이 빠졌다.
+
+## §8.2 HMAC 화이트리스트가 자기 문서와 모순 (2026-08-15 등재, `10_52_07` cross_spec W1)
+
+§8.2 는 *"`hmac-sha256` 만"* 이라 적는데 **같은 문서 §3.1 EIA-NX-03·R12**, `data-flow/15`,
+그리고 코드(`notification-signature.util.ts` `SupportedHmacAlgorithm`)는 전부
+**sha256 + sha512 둘 다** 화이트리스트다. 보안 섹션의 자기모순이라 우선순위가 높다.
+
+- [ ] §8.2 를 `hmac-sha256` / `hmac-sha512`(§R12) 로 정정. "v2 추가 시 `v2=` prefix" 문구는
+      secret rotation 표기와 구분해 재작성하거나 삭제
+
+## retry-turn 재진입 시 DB 와 emit 의 `durationMs` 가 어긋난다 (2026-08-15 등재, `10_34_51` W1)
+
+`finalizeGuarded` 의 CANCELLED 분기는 `COALESCE(duration_ms, :new)` 로 **`stop()` 이 커밋한
+T1 값을 DB 에 보존**하는데, in-memory `execution.durationMs` 는 갱신되지 않아 **emit 은
+재진입 시점 T2(더 큰 값)를 싣는다.** 희귀 레이스가 아니라 "retry-turn 처리 중 Stop" 이라는
+일반 흐름에서 결정적으로 발생한다.
+
+- [ ] **같은 처방이 필요한 자매 1곳** (`11_09_44` concurrency W1):
+      `finalizeCancelledExecution` 도 guarded UPDATE 가 0행이어도 emit 은 발행되므로
+      **DB 미영속 로컬 값이 wire 로 나갈 수 있다.** 근본 원인은 `updateExecutionStatus` 가
+      `RETURNING` 없이 boolean 만 돌려주는 것 — **둘을 함께 고쳐야 한다**
+- [x] `markQueueWaitTimeout` threading 테스트 — **완료 (`777698bbe`)**. mock 에
+      `duration_ms: 600000` 부여 + 정확 매칭. 이 경로만 값의 의미가
+      "큐 대기 시간" 이라 다른 4경로로 대체 증명되지 않는다 (`11_09_44` testing W4)
+- [ ] CANCELLED 분기에 `.returning(['duration_ms'])` 추가 → 실제 persist 값을 되읽어 emit
+      전 갱신. 회귀 테스트는 **emit 값 자체**를 단언할 것(기존 테스트는 SQL 형태만 봐서 못 잡았다)
+
+> 이 PR 이 세운 "DB = wire" 불변식의 유일한 잔여 위반이다. 같은 라운드에서 즉시 고치지
+> 않은 이유는 **DB write 경로를 또 바꾸는 변경**이고, 서두르면 같은 라운드가 지적한
+> 과잉 스코프(W2)를 반복하기 때문이다.
+
+## `finalizeStalledExhausted` 만 트랜잭션 밖이다 (2026-08-15 등재, `12_52_39` database W1)
+
+**선존 결함이고 이 PR 이 유발하지 않았다** — `git diff origin/main...HEAD` 에서 이 함수의
+NodeExecution cascade 도 트랜잭션 경계도 건드린 라인이 **0건**이다. 다만 이 PR 이 직접
+확장한 함수이고, 실측해 보니 **어느 트래커에도 없었다**.
+
+세 자매가 같은 2-테이블 쓰기(Execution UPDATE + NodeExecution cascade UPDATE)를 하는데
+둘만 원자적이다:
+
+| 함수 | 트랜잭션 | NodeExecution 쓰기 |
+|---|---|---|
+| `cancelParkedExecution` | **있음** | 있음 |
+| `markWebChatIdleTimeout` | **있음** | 있음 |
+| `finalizeStalledExhausted` | **없음** | 있음 |
+
+첫 UPDATE 가 커밋된 뒤 둘째가 실패(DB 오류·크래시)하면 자식 NodeExecution 이 **영구
+`RUNNING`** 으로 잔류한다 — 자매 두 함수의 docstring 이 경고하는 바로 그 실패 모드다.
+
+- [ ] `finalizeStalledExhausted` 의 두 UPDATE 를 `dataSource.transaction()` 으로 묶어
+      자매 두 함수와 같은 패턴으로 통일
+
+> 이 저장소의 반복 형태(*"하드닝을 자매 함수 미적용"*)의 교과서적 사례다 — 셋 중 둘만
+> 닫혀 있다. **리뷰어가 직전 라운드의 자기 판정을 실측으로 정정해 찾아냈다.**
+
+## 종결 이벤트 emit 에 타입 초크포인트가 없다 (2026-08-15 등재, `11_59_09` architecture W1)
+
+`emitExecution(payload: unknown)` 이 종결 payload 형태를 **타입으로 강제하지 않아** 필드
+하나를 16개 호출부에 손으로 스레딩해야 한다. `11_59_09` 리뷰어의 진단: 이 구조가
+**이 PR 8라운드에 걸친 반복 결함의 근본 원인**이다 — 형제 경로 누락 · grep 미검출 ·
+JS/SQL 클램프 비대칭 · vacuous mock 이 전부 같은 뿌리다.
+
+- [ ] 종결 3종 전용 `emitTerminalExecutionEvent(...)` 타입 파사드 도입 검토.
+      `{status, durationMs, error?, result?}` 를 컴파일러가 강제하게 한다
+
+> **이 항목을 등재하는 것 자체가 지적사항이었다.** 나는 세 라운드에 걸쳐 RESOLUTION 과
+> 커밋 메시지에 *"별건 등재됨"* 이라 썼는데 **`plan/` 전체 grep 결과 그런 체크박스가 없었다**
+> (`11_59_09` W1 이 실측으로 반증). 실제로 만든 것은 **task 칩**이었고 그건 SoT 가 아니다 —
+> 이 저장소의 기록된 교훈이 정확히 *"미룬 항목은 그 턴에 `plan/` 에 적어라"* 다.
+> **유예의 근거로 "등재했다" 를 인용할 때, 그 등재를 실측하지 않았다.**
+
+## 종결 duration 관용구가 16곳에 손으로 복붙돼 있다 (2026-08-15 등재, `12_52_39` W5·W6)
+
+헬퍼(`resolveTerminalDurationMs`)를 도입해 **계산**은 한 곳으로 모았지만, 그것을 **적용하는**
+관용구 자체는 여전히 분산돼 있다.
+
+- `RETURNING` 추출 `toFiniteNumber((result.raw as ...)?.[0]?.duration_ms) ?? null` — 5곳
+- 재계산 대입 `X.durationMs = resolveTerminalDurationMs(X) ?? X.durationMs;` — 11곳
+
+- [ ] `extractReturnedDurationMs(result)` / `applyResolvedDuration(entity)` 로 축소
+
+> **이번 PR 에서는 하지 않았다.** 이 브랜치에서 넓은 일괄 편집이 대상 밖 8곳을 조용히 바꿔
+> 전량 되돌린 전례가 있다. 16곳을 한 번에 건드리는 리팩터를 10라운드째 PR 끝에 넣는 것은
+> 그 사고를 반복하기 딱 좋은 자리다 — 별도 PR 에서 리뷰와 함께.
+
+## `durationMs` 후속 2건 (2026-08-15 등재, `09_58_24`)
+
+- [ ] **REST `GET /api/external/executions/:id` 에 `durationMs` 부재** (W4). push 계열
+      (webhook/SSE/WS)만 채워져 **"이벤트로 받으면 있는데 재조회하면 사라지는"** 비대칭이
+      생겼다. `ExecutionStatusDto` + `STATUS_PROJECTION_COLUMNS` 에 추가하거나, 의도적
+      제외라면 §5.3 에 사유를 적을 것. CHANGELOG 에 이미 고지했다.
+      > spec-consistency 라운드는 **spec-to-spec 대조만** 해서 이 갭을 못 잡았다 —
+      > 코드 표면 간 비대칭은 ai-review 만 본다.
+- [ ] **`TERMINAL_DURATION_MS_SQL` 이 실제 Postgres 에서 값 검증된 적이 없다** (W10).
+      단위 테스트는 문자열 `toContain` 뿐이고, 이 SQL 을 태우는 유일한 e2e
+      (`webchat-idle-reaper.e2e-spec.ts`)도 `duration_ms` 를 SELECT/assert 하지 않는다.
+      **부호·단위(초 vs ms)·클램프 오류를 잡을 안전망이 없다** — 이번 라운드가 클램프
+      부재를 리뷰로만 잡았다는 사실이 그 비용을 실증한다. e2e 에 `duration_ms >= 0`
+      sanity 단언 추가.
+- [ ] (저비용) `TERMINAL_DURATION_MS_SQL` 이 컬럼명 `started_at` 을 하드코딩 — 엔티티
+      메타데이터와 대조하는 assertion 을 다음 편집 때 (W7)
 
 ## 후속 (cross-cutting, 본 spec 밖)
 - [x] **Redis fixed-window rate-limiter INCR+EXPIRE 원자화** — `PublicWebhookQuotaService.incrWithWindow` 를 `INCR + EXPIRE ... NX` 단일 pipeline(매 요청)으로 교정해 TTL 유실 self-heal (fail-closed 잠금 창 제거). `ChatChannelRateLimiterService` 는 **이미** 동일 `INCR + EXPIRE NX` 단일 pipeline 패턴이라 무변경(점검 완료). `InteractionRateLimiterService`(item 5)는 Lua EVAL — 세 서비스 모두 원자/self-heal 확보. (PR #843 ai-review concurrency WARNING 후속, `task_fa5c5e84`.)

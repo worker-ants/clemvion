@@ -202,6 +202,12 @@ import {
 import { assertRowArray } from '../../common/utils/assert-row-array';
 import { updateReturningRows } from '../../common/utils/update-returning-rows';
 import { toTerminalErrorPayload } from '../../shared/utils/terminal-error-payload';
+import {
+  resolveTerminalDurationMs,
+  TERMINAL_DURATION_MS_SQL,
+  TERMINAL_FINISHED_AT_PARAM,
+  toFiniteNumber,
+} from '../../shared/utils/terminal-duration';
 
 interface ContainerBodyPlan {
   childIds: Set<string>;
@@ -630,7 +636,7 @@ export class ExecutionEngineService
       row.error = { message: errMessage };
       row.finishedAt = new Date();
       if (row.startedAt) {
-        row.durationMs = row.finishedAt.getTime() - row.startedAt.getTime();
+        row.durationMs = resolveTerminalDurationMs(row) ?? row.durationMs;
       }
       // ai-review WARNING #1 (2026-07-27, 7차 라운드) — 무가드 full-entity `save()`
       // 는 형제 종결 헬퍼(`finalizeFailedExecution`/`finalizeCancelledExecution`)가
@@ -659,6 +665,7 @@ export class ExecutionEngineService
         ExecutionEventType.EXECUTION_FAILED,
         {
           status: ExecutionStatus.FAILED,
+          durationMs: resolveTerminalDurationMs(row),
           // DB 에 방금 쓴 `row.error` 를 그대로 싣는다 — 문자열을 따로 만들면 두 표현이
           // 갈린다(stalled 경로가 실제로 그렇게 어긋나 있었다).
           error: toTerminalErrorPayload(row.error),
@@ -1016,16 +1023,30 @@ export class ExecutionEngineService
   private async cancelParkedExecution(executionId: string): Promise<void> {
     try {
       let cancelled = false;
+      let cancelledDurationMs: number | null = null;
+      const terminalFinishedAt = new Date();
       await this.dataSource.transaction(async (manager) => {
         const result = await manager
           .createQueryBuilder()
           .update(Execution)
-          .set({ status: ExecutionStatus.CANCELLED, finishedAt: new Date() })
+          .set({
+            status: ExecutionStatus.CANCELLED,
+            finishedAt: terminalFinishedAt,
+            // 엔티티 미로드 경로 — 같은 문장에서 계산하고 RETURNING 으로 되받는다.
+            durationMs: () => TERMINAL_DURATION_MS_SQL,
+          })
+          .setParameter(TERMINAL_FINISHED_AT_PARAM, terminalFinishedAt)
           .where('id = :id', { id: executionId })
           .andWhere('status = :waiting', {
             waiting: ExecutionStatus.WAITING_FOR_INPUT,
           })
+          .returning(['id', 'duration_ms'])
           .execute();
+        cancelledDurationMs =
+          toFiniteNumber(
+            (result.raw as Array<Record<string, unknown>> | undefined)?.[0]
+              ?.duration_ms,
+          ) ?? null;
         if ((result.affected ?? 0) === 0) {
           // 이미 terminal / 재개로 RUNNING — 멱등 no-op(cancelled=false 유지).
           return;
@@ -1054,6 +1075,7 @@ export class ExecutionEngineService
       // 멱등 정리한다.
       this.finalizeRehydrationCleanup(executionId);
       await this.emitCancellationEvent(executionId, {
+        durationMs: cancelledDurationMs,
         cancelledBy: 'user',
         logContext: 'cancelParkedExecution',
       });
@@ -1081,6 +1103,13 @@ export class ExecutionEngineService
     opts: {
       cancelledBy: 'user' | 'system' | 'timeout';
       error?: { code: string; message: string };
+      /**
+       * EIA §6 — 종결 3종 전부에 실린다. **호출부 5곳 모두 명시적으로 값을 넘긴다**(내가 4곳이라 적었다 — `11_29_02` W4) —
+       * 엔티티 기로드 경로는 계산값을, raw UPDATE 경로는 `RETURNING` 으로 되받은 영속값을
+       * 넘긴다. 계산이 불가능하면 `null`(키는 유지). 종전 JSDoc 은 "엔티티가 없으면
+       * 생략한다" 고 적었는데 **어느 호출부도 생략하지 않는다** (`11_09_44` documentation W6).
+       */
+      durationMs?: number | null;
       logContext: string;
     },
   ): Promise<void> {
@@ -1092,6 +1121,8 @@ export class ExecutionEngineService
           status: ExecutionStatus.CANCELLED,
           result: { cancelledBy: opts.cancelledBy },
           ...(opts.error ? { error: opts.error } : {}),
+          // 값을 모르면 `null` — 키를 생략하면 "필드 없음" 과 구분되지 않는다.
+          durationMs: opts.durationMs ?? null,
         },
       );
     } catch (emitErr) {
@@ -1129,6 +1160,8 @@ export class ExecutionEngineService
       // (status=waiting_for_input 필터)에서도 재선정 안 돼 복구 경로가 없다 → 트랜잭션으로 원자화해
       // 롤백 시 execution 이 waiting 으로 남아 다음 tick 이 재시도하게 한다.
       let cancelled = false;
+      let cancelledDurationMs: number | null = null;
+      const terminalFinishedAt = new Date();
       await this.dataSource.transaction(async (manager) => {
         const result = await manager
           .createQueryBuilder()
@@ -1136,13 +1169,21 @@ export class ExecutionEngineService
           .set({
             status: ExecutionStatus.CANCELLED,
             error: { code, message },
-            finishedAt: new Date(),
+            finishedAt: terminalFinishedAt,
+            durationMs: () => TERMINAL_DURATION_MS_SQL,
           })
+          .setParameter(TERMINAL_FINISHED_AT_PARAM, terminalFinishedAt)
           .where('id = :id', { id: executionId })
           .andWhere('status = :waiting', {
             waiting: ExecutionStatus.WAITING_FOR_INPUT,
           })
+          .returning(['id', 'duration_ms'])
           .execute();
+        cancelledDurationMs =
+          toFiniteNumber(
+            (result.raw as Array<Record<string, unknown>> | undefined)?.[0]
+              ?.duration_ms,
+          ) ?? null;
         if ((result.affected ?? 0) === 0) {
           // 이미 terminal / 재개로 RUNNING — 멱등 no-op(cancelled=false 유지).
           return;
@@ -1167,6 +1208,7 @@ export class ExecutionEngineService
       // park 시 잔여 in-memory(context/resolver/llm 캐시) 멱등 정리.
       this.finalizeRehydrationCleanup(executionId);
       await this.emitCancellationEvent(executionId, {
+        durationMs: cancelledDurationMs,
         cancelledBy: 'timeout',
         error: { code, message },
         logContext: 'markWebChatIdleTimeout',
@@ -2364,11 +2406,13 @@ export class ExecutionEngineService
         savedExecution.outputData =
           (context.nodeOutputCache[lastNodeId] as
             Record<string, unknown> | undefined) ?? {};
-        savedExecution.finishedAt = new Date();
-        savedExecution.durationMs =
-          savedExecution.finishedAt.getTime() -
-          savedExecution.startedAt.getTime();
       }
+      // **조건 밖**이다 — `outputData` 만 마지막 노드에 의존한다. 종전엔 셋 다 `if` 안에
+      // 있어서, 노드가 없는 그래프면 `finishedAt`/`durationMs` 가 비어 있는 채로 emit 됐다
+      // (`durationMs` 를 payload 에 실으면 `undefined` 가 wire 로 나가는 자리였다).
+      savedExecution.finishedAt = new Date();
+      savedExecution.durationMs =
+        resolveTerminalDurationMs(savedExecution) ?? savedExecution.durationMs;
       const completed = await this.updateExecutionStatus(
         savedExecution,
         ExecutionStatus.COMPLETED,
@@ -2377,7 +2421,10 @@ export class ExecutionEngineService
         await this.eventEmitter.emitExecution(
           executionId,
           ExecutionEventType.EXECUTION_COMPLETED,
-          { status: ExecutionStatus.COMPLETED },
+          {
+            status: ExecutionStatus.COMPLETED,
+            durationMs: resolveTerminalDurationMs(savedExecution),
+          },
         );
       }
     } catch (err: unknown) {
@@ -2529,8 +2576,7 @@ export class ExecutionEngineService
         (topResult.output as Record<string, unknown> | undefined) ?? {};
       savedExecution.finishedAt = new Date();
       savedExecution.durationMs =
-        savedExecution.finishedAt.getTime() -
-        savedExecution.startedAt.getTime();
+        resolveTerminalDurationMs(savedExecution) ?? savedExecution.durationMs;
       // terminal 도달 — 중첩 호출 체인은 더 이상 재개 대상이 아니므로
       // resume_call_stack 을 비운다(park 시점 stale 값이 COMPLETED 행에 잔류하지
       // 않도록). guarded UPDATE 가 resume_call_stack 컬럼도 함께 쓴다. 다음 park 가
@@ -2544,7 +2590,10 @@ export class ExecutionEngineService
         await this.eventEmitter.emitExecution(
           executionId,
           ExecutionEventType.EXECUTION_COMPLETED,
-          { status: ExecutionStatus.COMPLETED },
+          {
+            status: ExecutionStatus.COMPLETED,
+            durationMs: resolveTerminalDurationMs(savedExecution),
+          },
         );
       }
     } catch (err: unknown) {
@@ -2767,6 +2816,7 @@ export class ExecutionEngineService
   ): Promise<void> {
     try {
       const message = ExecutionEngineService.resumeErrorMessage(code);
+      const terminalFinishedAt = new Date();
       const result = await this.executionRepository
         .createQueryBuilder()
         .update(Execution)
@@ -2776,8 +2826,10 @@ export class ExecutionEngineService
             code,
             message,
           },
-          finishedAt: new Date(),
+          finishedAt: terminalFinishedAt,
+          durationMs: () => TERMINAL_DURATION_MS_SQL,
         })
+        .setParameter(TERMINAL_FINISHED_AT_PARAM, terminalFinishedAt)
         .where('id = :id', { id: executionId })
         // WAITING_FOR_INPUT **및 RUNNING** 둘 다 cancel 대상. 호출처 중
         // `driveResumeAwaited` 의 RehydrationError 분기(ai_agent _resumeCheckpoint
@@ -2794,6 +2846,7 @@ export class ExecutionEngineService
             ExecutionStatus.RUNNING,
           ],
         })
+        .returning(['id', 'duration_ms'])
         .execute();
       // §7.5 / 방안 D — rehydration 실패로 cancelled 마킹 시 `EXECUTION_CANCELLED`
       // 를 emit 해 채널 어댑터(텔레그램 등)가 사용자에게 graceful "세션 만료 —
@@ -2805,6 +2858,11 @@ export class ExecutionEngineService
         // 않도록 헬퍼가 별도 try/catch 로 격리해 오해 소지 있는 "markExecutionCancelled
         // 실패" 로그를 방지한다 (cancel 은 이미 commit 됨).
         await this.emitCancellationEvent(executionId, {
+          durationMs:
+            toFiniteNumber(
+              (result.raw as Array<Record<string, unknown>> | undefined)?.[0]
+                ?.duration_ms,
+            ) ?? null,
           cancelledBy: 'system',
           error: { code, message },
           logContext: `markExecutionCancelled(${code})`,
@@ -2828,6 +2886,7 @@ export class ExecutionEngineService
   private async markQueueWaitTimeout(executionId: string): Promise<void> {
     const code = 'EXECUTION_QUEUE_WAIT_TIMEOUT';
     const message = 'Execution cancelled: queue wait time exceeded';
+    const terminalFinishedAt = new Date();
     try {
       const result = await this.executionRepository
         .createQueryBuilder()
@@ -2835,13 +2894,24 @@ export class ExecutionEngineService
         .set({
           status: ExecutionStatus.CANCELLED,
           error: { code, message },
-          finishedAt: new Date(),
+          finishedAt: terminalFinishedAt,
+          // 이 경로의 `durationMs` 는 **큐 대기 시간**이다(실행 시간이 아니다) —
+          // `started_at` 이 admission 전 생성 시각이라 그렇다. 의미가 다르지만 EIA §6 은
+          // "종결까지의 경과" 로 정의하므로 계약상 일관된다.
+          durationMs: () => TERMINAL_DURATION_MS_SQL,
         })
+        .setParameter(TERMINAL_FINISHED_AT_PARAM, terminalFinishedAt)
         .where('id = :id', { id: executionId })
         .andWhere('status = :pending', { pending: ExecutionStatus.PENDING })
+        .returning(['id', 'duration_ms'])
         .execute();
       if ((result.affected ?? 0) > 0) {
         await this.emitCancellationEvent(executionId, {
+          durationMs:
+            toFiniteNumber(
+              (result.raw as Array<Record<string, unknown>> | undefined)?.[0]
+                ?.duration_ms,
+            ) ?? null,
           cancelledBy: 'timeout',
           error: { code, message },
           logContext: 'markQueueWaitTimeout',
@@ -3276,12 +3346,25 @@ export class ExecutionEngineService
         status: ExecutionStatus.FAILED,
         error: stalledError,
         finishedAt,
+        // 이 경로는 **엔티티를 로드하지 않는다** — `started_at` 이 JS 쪽에 없다. 같은 문장
+        // 안에서 SQL 로 계산하고 `RETURNING` 으로 되받아 emit 에 싣는다. DB 와 wire 가
+        // **같은 값**을 쓰게 하려는 것이다 — 이 PR 이 `error` 에서 두 표현이 갈린 것을
+        // 고쳤고, 여기서 같은 실수를 반복하지 않는다.
+        // 음수(시계 역행)는 `NULL`, int4 상한은 saturate — 근거는 헬퍼 JSDoc 참조.
+        durationMs: () => TERMINAL_DURATION_MS_SQL,
       })
+      .setParameter(TERMINAL_FINISHED_AT_PARAM, finishedAt)
       .where('id = :id', { id: executionId })
       .andWhere('status = :running', { running: ExecutionStatus.RUNNING })
-      .returning('id')
+      .returning(['id', 'duration_ms'])
       .execute();
     if ((result.affected ?? 0) === 0) return; // 이미 terminal — no-op
+    // `raw` 는 드라이버 원본이라 컬럼명이 snake_case 다 (#1168 에서 배운 형태).
+    const stalledDurationMs =
+      toFiniteNumber(
+        (result.raw as Array<Record<string, unknown>> | undefined)?.[0]
+          ?.duration_ms,
+      ) ?? null;
 
     this.logger.warn(
       `[execution-run] stalled 소진 → Execution ${executionId} failed (WORKER_HEARTBEAT_TIMEOUT)`,
@@ -3312,6 +3395,8 @@ export class ExecutionEngineService
       {
         status: ExecutionStatus.FAILED,
         error: toTerminalErrorPayload(stalledError),
+        // UPDATE 가 되돌려준 **영속된 값**. 다시 계산하지 않는다.
+        durationMs: stalledDurationMs,
       },
     );
   }
@@ -3472,11 +3557,13 @@ export class ExecutionEngineService
         savedExecution.outputData =
           (context.nodeOutputCache[lastNodeId] as
             Record<string, unknown> | undefined) ?? {};
-        savedExecution.finishedAt = new Date();
-        savedExecution.durationMs =
-          savedExecution.finishedAt.getTime() -
-          savedExecution.startedAt.getTime();
       }
+      // **조건 밖**이다 — `outputData` 만 마지막 노드에 의존한다. 종전엔 셋 다 `if` 안에
+      // 있어서, 노드가 없는 그래프면 `finishedAt`/`durationMs` 가 비어 있는 채로 emit 됐다
+      // (`durationMs` 를 payload 에 실으면 `undefined` 가 wire 로 나가는 자리였다).
+      savedExecution.finishedAt = new Date();
+      savedExecution.durationMs =
+        resolveTerminalDurationMs(savedExecution) ?? savedExecution.durationMs;
       const completed = await this.updateExecutionStatus(
         savedExecution,
         ExecutionStatus.COMPLETED,
@@ -3485,7 +3572,10 @@ export class ExecutionEngineService
         await this.eventEmitter.emitExecution(
           executionId,
           ExecutionEventType.EXECUTION_COMPLETED,
-          { status: ExecutionStatus.COMPLETED },
+          {
+            status: ExecutionStatus.COMPLETED,
+            durationMs: resolveTerminalDurationMs(savedExecution),
+          },
         );
       }
     } catch (err: unknown) {
@@ -4203,7 +4293,7 @@ export class ExecutionEngineService
         reloaded.finishedAt = new Date();
         if (reloaded.startedAt) {
           reloaded.durationMs =
-            reloaded.finishedAt.getTime() - reloaded.startedAt.getTime();
+            resolveTerminalDurationMs(reloaded) ?? reloaded.durationMs;
         }
         // ai-review WARNING #1 (2026-07-27, 7차 라운드) — 무가드 full-entity
         // `save()` 대신 형제 종결 헬퍼와 동일한 guarded `updateExecutionStatus`
@@ -4659,11 +4749,11 @@ export class ExecutionEngineService
         savedExecution.outputData =
           (context.nodeOutputCache[resultNodeId] as Record<string, unknown>) ??
           {};
-        savedExecution.finishedAt = new Date();
-        savedExecution.durationMs =
-          savedExecution.finishedAt.getTime() -
-          savedExecution.startedAt.getTime();
       }
+      // 위와 같은 이유로 조건 밖 (`outputData` 만 결과 노드에 의존한다).
+      savedExecution.finishedAt = new Date();
+      savedExecution.durationMs =
+        resolveTerminalDurationMs(savedExecution) ?? savedExecution.durationMs;
       const completed = await this.updateExecutionStatus(
         savedExecution,
         ExecutionStatus.COMPLETED,
@@ -4674,7 +4764,10 @@ export class ExecutionEngineService
         await this.eventEmitter.emitExecution(
           executionId,
           ExecutionEventType.EXECUTION_COMPLETED,
-          { status: ExecutionStatus.COMPLETED },
+          {
+            status: ExecutionStatus.COMPLETED,
+            durationMs: resolveTerminalDurationMs(savedExecution),
+          },
         );
       }
     } catch (err: unknown) {
@@ -4785,12 +4878,14 @@ export class ExecutionEngineService
     logContext: string,
   ): Promise<void> {
     savedExecution.finishedAt = savedExecution.finishedAt ?? new Date();
+    // 헬퍼 경유 — `startedAt` 이 없는 행에서 `.getTime()` 이 throw 해 종결 흐름을 깨뜨리던
+    // 형태를 이 PR 이 completed 경로에서 실제로 겪었다.
     savedExecution.durationMs =
-      savedExecution.durationMs ??
-      savedExecution.finishedAt.getTime() - savedExecution.startedAt.getTime();
+      resolveTerminalDurationMs(savedExecution) ?? savedExecution.durationMs;
     await this.updateExecutionStatus(savedExecution, ExecutionStatus.CANCELLED);
     await this.emitCancellationEvent(savedExecution.id, {
       cancelledBy: 'user',
+      durationMs: resolveTerminalDurationMs(savedExecution),
       logContext,
     });
   }
@@ -4847,7 +4942,7 @@ export class ExecutionEngineService
     };
     savedExecution.finishedAt = new Date();
     savedExecution.durationMs =
-      savedExecution.finishedAt.getTime() - savedExecution.startedAt.getTime();
+      resolveTerminalDurationMs(savedExecution) ?? savedExecution.durationMs;
     // CRITICAL #1 — 형제 finalizeCancelledExecution 과 동일한 guarded 경로. DB 가
     // 이미 terminal(동시 Stop 이 CANCELLED 로 선점)이면 0행 매칭 → false 반환,
     // FAILED 로 재마킹하지 않는다.
@@ -4869,6 +4964,7 @@ export class ExecutionEngineService
       ExecutionEventType.EXECUTION_FAILED,
       {
         status: ExecutionStatus.FAILED,
+        durationMs: resolveTerminalDurationMs(savedExecution),
         error: toTerminalErrorPayload(savedExecution.error),
       },
     );

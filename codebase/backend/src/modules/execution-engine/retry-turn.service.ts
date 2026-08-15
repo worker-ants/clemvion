@@ -2,6 +2,7 @@ import { Inject, Injectable, Logger, forwardRef } from '@nestjs/common';
 import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
 import { DataSource, Repository } from 'typeorm';
 import { toTerminalErrorPayload } from '../../shared/utils/terminal-error-payload';
+import { resolveTerminalDurationMs } from '../../shared/utils/terminal-duration';
 import {
   Execution,
   ExecutionStatus,
@@ -710,7 +711,7 @@ export class RetryTurnService {
   ): Promise<void> {
     execution.finishedAt = new Date();
     execution.durationMs =
-      execution.finishedAt.getTime() - execution.startedAt.getTime();
+      resolveTerminalDurationMs(execution) ?? execution.durationMs;
     if (
       !(await this.finalizeGuarded(
         execution,
@@ -724,7 +725,10 @@ export class RetryTurnService {
     await this.eventEmitter.emitExecution(
       executionId,
       ExecutionEventType.EXECUTION_COMPLETED,
-      { status: ExecutionStatus.COMPLETED },
+      {
+        status: ExecutionStatus.COMPLETED,
+        durationMs: resolveTerminalDurationMs(execution),
+      },
     );
   }
 
@@ -885,11 +889,11 @@ export class RetryTurnService {
       savedExecution.outputData =
         (context.nodeOutputCache[lastNodeId] as
           Record<string, unknown> | undefined) ?? {};
-      savedExecution.finishedAt = new Date();
-      savedExecution.durationMs =
-        savedExecution.finishedAt.getTime() -
-        savedExecution.startedAt.getTime();
     }
+    // 조건 밖 — `outputData` 만 마지막 노드에 의존한다 (engine 과 동일 처방).
+    savedExecution.finishedAt = new Date();
+    savedExecution.durationMs =
+      resolveTerminalDurationMs(savedExecution) ?? savedExecution.durationMs;
     const completed = await this.driver.updateExecutionStatus(
       savedExecution,
       ExecutionStatus.COMPLETED,
@@ -898,7 +902,10 @@ export class RetryTurnService {
       await this.eventEmitter.emitExecution(
         executionId,
         ExecutionEventType.EXECUTION_COMPLETED,
-        { status: ExecutionStatus.COMPLETED },
+        {
+          status: ExecutionStatus.COMPLETED,
+          durationMs: resolveTerminalDurationMs(savedExecution),
+        },
       );
     }
   }
@@ -939,7 +946,7 @@ export class RetryTurnService {
     }
     execution.finishedAt = new Date();
     execution.durationMs =
-      execution.finishedAt.getTime() - execution.startedAt.getTime();
+      resolveTerminalDurationMs(execution) ?? execution.durationMs;
     // 2026-07-27 — `completeRetryExecution` 과 동일 이유의 guarded 전환. 특히 FAILED
     // 분기가 위험하다: 턴 진행 중 도착한 Stop 이 DB 를 `cancelled` 로 마감했는데 그
     // 턴이 (429/timeout 등으로) 자연 실패하면, 무가드 save 가 취소를 **FAILED 로
@@ -961,6 +968,7 @@ export class RetryTurnService {
         : ExecutionEventType.EXECUTION_FAILED,
       {
         status: finalStatus,
+        durationMs: resolveTerminalDurationMs(execution),
         // 위에서 `execution.error` 에 쓴 객체를 그대로 싣는다.
         ...(!isCancelled
           ? { error: toTerminalErrorPayload(execution.error) }

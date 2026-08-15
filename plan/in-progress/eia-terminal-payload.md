@@ -7,10 +7,19 @@ status: in-progress
 priority: P2
 spec_impact:
   - spec/5-system/14-external-interaction-api.md
+  # 아래 둘은 재판정 ④ "spec 동반 변경(전수)" 표가 명시하는데 frontmatter 가 좁았다
+  # (`08_45_50` plan_coherence W3 — Gate C drift).
+  - spec/conventions/chat-channel-adapter.md
+  - spec/3-workflow-editor/3-execution.md
+  # 4번째. 직전 라운드가 이 누락을 지적해 3건을 추가했는데 그때 이것도 같은 표에 있었다
+  # (`09_00_27` plan_coherence W3) — "지적받은 것만 고치고 전수로 세지 않았다" 의 재발.
+  - spec/data-flow/3-execution.md
 ---
 
 > **워크트리 이름이 작업과 무관하다.** `eia-r8-cache-scope-4ae434` 는 재사용된 것이고
-> 실제 브랜치는 `claude/eia-terminal-payload` 다. 세션이 이 워크트리에 고정돼 있어
+> 실제 브랜치는 **작업마다 다르다** — `error` 객체화는 `claude/eia-terminal-payload`(#1170 머지),
+> `durationMs` 는 `claude/eia-terminal-payload-impl`→`claude/eia-terminal-duration-outputs`.
+> 이 plan 이 여러 PR 에 걸쳐 있어 브랜치명을 하나로 못 적는다 (`08_45_50` plan_coherence INFO 4). 세션이 이 워크트리에 고정돼 있어
 > 이동할 수 없었다 — [`update-returning-tuple-shape.md`](./update-returning-tuple-shape.md)
 > §후속에 등재한 harness 항목(프롬프트에 박히는 절대경로가 검토 대상을 오염시킴)의
 > **예고된 재발**이다. consistency 라운드에서 같은 오탐이 나오면 그 항목을 참조할 것.
@@ -187,9 +196,62 @@ sentinel 경로(`ErrorPortFallbackError`/`ExecutionTimeLimitError`)뿐이다.
 
 ### 다음 PR (이연)
 
-- [ ] `durationMs` — 종결 3종. **취소 경로 배관 필요**(재판정 ③-c): `finalizeStalledExhausted`
-      raw UPDATE + `emitCancellationEvent` 시그니처 + 호출 5곳 중 4곳의 DB write
-- [ ] `result.outputs` — `completed`
+- [x] `durationMs` — **종결 3종 전부 완료** (2026-08-15). 재판정 ④ 참조
+
+> **자매 트래커 미동기화가 이 plan 에서 네 번째다** (`09_58_31` plan_coherence W2).
+> 앞선 세 번의 회고를 이 문서에 써 놓고 또 반복했다. 이번엔 구현 커밋과 **같은 턴에**
+> 두 트래커를 함께 닫았다 — 회고를 쓰는 것과 그 회고가 가리키는 행동을 하는 것은 별개다.
+- [ ] ~~`result.outputs`~~ → **이번 PR 제외.** spec 이 이 필드의 **내용을 정의한 적이 없다**
+      (§6 표·§6.3 등 5곳 전부 "Planned" 표기뿐, shape·의미 문장 0건). 채우면 내가 계약을
+      발명하게 되고, 외부 webhook 에 **신규 데이터 클래스**가 열린다 — 현재
+      `execution.completed` webhook payload 는 `{status}` 하나뿐이고 `node.completed` 는
+      fanout 화이트리스트에 없다. 크기 상한도 없다(이 저장소에 809KB 실측 사례).
+      소비처는 0곳이라 서두를 이유도 없다. **planner 턴에서 내용을 정의한 뒤 별건**
+
+## 재판정 ④ (2026-08-15, `origin/main` `e3825cc2c` — #1170 머지 후)
+
+이연 사유가 **여전히 참**임을 실측으로 확인했다. 두 필드의 비용이 실제로 다르다.
+
+### `durationMs` — 종결 emit 16 경로 (emit 문 11개)
+
+| 상태 | 경로 | 계산·영속 | 이번 작업 |
+|---|---|---|---|
+| completed | 6곳 | **전부 O** | payload 한 줄 |
+| failed | 3곳 (`failFirstSegmentSetup`·`finalizeFailedExecution`·`failRetryExecution`) | O | payload 한 줄 |
+| failed | 1곳 (`finalizeStalledExhausted`) | **X** | raw UPDATE 에 계산 추가 + RETURNING 확장 |
+| cancelled | 2곳 (`finalizeCancelledExecution`·retry `isCancelled` arm) | O | payload 한 줄 |
+| cancelled | **4곳** (`emitCancellationEvent` 호출부 전부) | **X** | raw UPDATE SET + **헬퍼 시그니처** |
+
+> **③-c 를 한 군데 정정한다**: "취소 경로는 엔티티를 로드해야 해서 어렵다" 고 적었는데
+> **그렇지 않다.** `started_at` 은 `timestamptz` **non-nullable + DB default `NOW()`**
+> (`execution.entity.ts:56`)라 raw UPDATE 의 SET 절에서 SQL 로 계산할 수 있다.
+> `finalizeStalledExhausted` 는 `.returning('id')` 도 이미 있다. **비용은 여전히 다르지만
+> 내가 상상한 이유 때문은 아니었다** — 어려운 건 로드가 아니라 **손볼 지점이 5곳**이라는 것.
+
+### ⚠️ completed 4곳의 `undefined` 함정
+
+`driveResumeAwaited`·`driveStuckRedrive`·`runExecution`·`resumeGraphAfterRetry` 는
+`durationMs` 를 **`if (lastNodeId)` 블록 안에서** 계산하는데 emit 은 그 **밖**이다.
+노드 0개 그래프면 미계산 상태로 emit 된다 — payload 에 `savedExecution.durationMs` 를
+그냥 넣으면 **`undefined` 가 나갈 수 있는 자리**다. 실무상 도달이 어렵지만, 이 브랜치가
+반복해서 배운 것이 "도달 어려움" 을 근거로 방어를 빼면 나중에 그 자리에서 터진다는 것이다.
+
+### spec 동반 변경 (전수)
+
+| 위치 | 내용 |
+|---|---|
+| §6 표 `durationMs` 행 | `미구현 (Planned)` → `구현됨` |
+| `:698` | `interaction` Planned 노트가 **`durationMs` 를 Planned 표기의 선례로 인용** — 구현되면 무효 |
+| `:743` · `:756` · `:777` | §6.3/§6.4 본문·주석의 "Planned" |
+| §6.5 (cancelled) | `durationMs` 언급이 **없다** — 새로 적어야 |
+| `chat-channel-adapter.md:159-160` | *"현행 emit 은 `status` 만 … `durationMs` 는 Planned"* — 직접 반증됨 |
+| `3-execution.md:307` | 구식 나열 (`duration`). 바로 위 `:296` 이 "여기 적힌 것을 근거로 구현하지 말 것" caveat 를 이미 달아 둠 |
+| `spec/data-flow/3-execution.md:111` | 시퀀스 다이어그램이 **`cancelled` 에도 `duration_ms` 를 쓰는 것처럼** 세 상태를 한 UPDATE 로 뭉쳐 표기 — 지금은 EIA §6 표와 불일치이고, **이 PR 이 그걸 참으로 만든다** (`08_45_50` cross_spec W1) |
+| `chat-channel-adapter.md:367` | 렌더 매핑이 EIA 가 정의한 적 없는 **`result.outputs.summary`** 를 전제 — `result.outputs` shape 을 정의할 **후속 planner 턴**에서 함께 정리 (`08_45_50` cross_spec W2). 런타임 영향은 없다(항상 폴백) |
+
+> **Planned 캐비엇은 지우지 말고 "(해소)" 로 보존한다** (`08_45_50` rationale_continuity INFO 1).
+> §6.4 `error` 전환 때 실제로 그렇게 했다 — 캐비엇을 통째로 지우면 **왜 한동안 비어 있었는지**
+> 가 사라져, 다음 사람이 "원래 없던 필드" 로 오해한다.
 
 ## ⚠️ 외부 구독자 breaking change — 운영 확인 필요 (`23_49_41` api_contract W4)
 

@@ -15,6 +15,7 @@ import {
   NodeExecutionStatus,
 } from '../node-executions/entities/node-execution.entity';
 import { ExecutionNodeLog } from '../execution-engine/entities/execution-node-log.entity';
+import { resolveTerminalDurationMs } from '../../shared/utils/terminal-duration';
 import { Node, NodeCategory } from '../nodes/entities/node.entity';
 import { ExecutionEngineService } from '../execution-engine/execution-engine.service';
 import { NodeComponentRegistry } from '../../nodes/core/node-component.registry';
@@ -787,10 +788,16 @@ export class ExecutionsService {
     }
 
     const finishedAt = new Date();
-    const startedAtMs = execution.startedAt
-      ? new Date(execution.startedAt).getTime()
-      : finishedAt.getTime();
-    const durationMs = finishedAt.getTime() - startedAtMs;
+    // 무가드 뺄셈이던 자리다. `duration_ms` 는 INTEGER(int4, ≈24.8일)라 상한을
+    // 넘으면 UPDATE 전체가 `integer out of range` 로 실패하고 **stop 이 먹지 않는다** —
+    // 종결 이벤트 경로에서 CRITICAL 로 두 번 잡힌 것과 글자 그대로 같은 연산이라
+    // 같은 헬퍼를 쓴다. `?? 0` 은 startedAt 부재 시 0 이던 종전 동작을 보존한다
+    // (시계 역행도 음수 대신 0 으로 흡수된다).
+    const durationMs =
+      resolveTerminalDurationMs({
+        startedAt: execution.startedAt ? new Date(execution.startedAt) : null,
+        finishedAt,
+      }) ?? 0;
 
     const updateResult = await this.executionRepository
       .createQueryBuilder()

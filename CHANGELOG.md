@@ -1,5 +1,41 @@
 # Changelog
 
+## Unreleased — 종결 이벤트에 `durationMs` (3종 전부)
+
+직전 항목이 *"`durationMs` 는 후속으로 분리했다"* 고 예고한 작업이다. `execution.completed`
+· `failed` · `cancelled` 가 이제 **밀리초 소요 시간**을 싣는다.
+
+- **알 수 없으면 `null`** (형제 `error.code` 와 같은 부재 표현). 키는 항상 존재한다
+- 엔티티를 로드하지 않는 5경로(park 취소 · 위젯 idle 취소 · 재개 실패 취소 · 큐 대기
+  타임아웃 · stalled 소진)는 **UPDATE 문 안에서 SQL 로 계산**하고 `RETURNING` 으로 되받아
+  싣는다 — DB 와 wire 가 같은 값을 쓴다
+- `EXECUTION_QUEUE_WAIT_TIMEOUT` 경로의 값은 **큐 대기 시간**이다(실행 시간이 아니다).
+  `started_at` 이 admission 이전 시각이기 때문이며 §6.5 에 명시했다
+- `duration_ms` 컬럼이 `INTEGER`(≈24.8일)라 **JS·SQL 두 경로 모두**에 int4 상한 클램프를
+  넣었다(상수 `PG_INT4_MAX` 를 공유한다). 없으면 24.8일 넘게 대기한 실행의 종결 UPDATE 가
+  통째로 실패해 그 실행이 **영구 고착**된다 — 취소뿐 아니라 **정상 완료도** 대상이다
+  (폼·버튼·AI 대기에는 시간 기반 강제취소가 없다)
+
+**수신자 영향**: 종결 3종 payload 에 필드가 하나 늘었다(제거·변경 아님). 기존 파서는
+무시하면 되고, 값을 읽을 때 `null` 을 방어해야 한다.
+
+**REST `GET /api/external/executions/:id` 에는 아직 없다** — push 계열(webhook/SSE/WS)만
+채워졌다. 재조회 시 사라지는 비대칭이라 후속으로 추적 중이다.
+
+**⚠️ 대시보드·통계의 "평균 실행 시간" 숫자가 이동한다.** 세 집계가 종전에는
+`duration_ms IS NOT NULL` 로만 걸렀는데, 그건 방어가 아니라 **취소·타임아웃 경로가 이 컬럼을
+비워 뒀기 때문에 우연히 안전했던 것**이다. 이번 변경이 그 자리를 채우므로 세 곳에
+`status = 'completed'` 필터를 넣었다. 부수 효과로 **종전에 집계되던 정상 실패와 stop 취소의
+실제 소요 시간이 평균에서 빠진다** — 지표 정의가 "완료된 실행의 평균" 으로 좁아졌다.
+
+`completed` 만 남긴 이유는 `finalizeStalledExhausted` 가 `FAILED` 라서 FAILED 도 이번
+변경으로 오염되기 때문이다. 오염되지 않은 상태는 `completed` 하나뿐이다.
+
+**내부 UI 의 "소요 시간" 컬럼은 아직 대기 시간을 그대로 보여준다.** `stop()` 취소도
+`CANCELLED` 인데 그쪽 값은 진짜 실행 시간이라, 프런트엔드에서 status 로 거르면 정상 동작이
+깨진다 — 근본 해결은 필드 분리이고 후속으로 추적 중이다. 그 전까지 유저 가이드에
+캐비엇을 넣었다.
+
 ## Unreleased — 종결 `error` 를 문자열로 보내던 4곳 (EIA §6.4 object 로 일원화)
 
 `execution.failed` 의 `error` 가 spec §6.4 는 `{code, message, nodeId, details?}` 객체인데

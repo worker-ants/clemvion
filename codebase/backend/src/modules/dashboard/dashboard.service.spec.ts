@@ -68,6 +68,24 @@ describe('DashboardService.getSummary', () => {
     );
   };
 
+  // 이 PR 이 종결 경로 5곳(park 취소·위젯 idle·큐 대기 타임아웃 등)에서 `duration_ms` 를
+  // **새로 채우기 시작했다.** 그 값은 실행 시간이 아니라 **대기 경과 시간**이고, park 는
+  // 24.8일까지 간다. 종전에 이 집계가 안전했던 이유는 방어가 아니라 **우연**이었다 —
+  // 그 경로들이 컬럼을 비워 뒀기 때문에 `IS NOT NULL` 필터에 자동으로 걸러졌다.
+  //
+  // mock 이 SQL 을 실행하지 않으므로 이 테스트가 보증하는 것은 **집계식에 상태 조건이
+  // 들어 있다는 것뿐**이다(값이 맞는지가 아니다). 그래도 필터를 지우는 편집은 잡는다.
+  it('7일 평균 실행 시간 집계는 completed 만 센다 (대기 시간 오염 방지)', async () => {
+    setup({}, { total7d: 3, prev7d: 1, success7d: 2, avg7d: 1500 });
+    await service.getSummary('ws-1');
+
+    const avgSelect = execQB.addSelect.mock.calls.find(
+      ([, alias]) => alias === 'avg7d',
+    );
+    expect(avgSelect).toBeDefined();
+    expect(avgSelect![0]).toContain('e.status = :completedStatus');
+  });
+
   it('workflow 1 + execution 1 — 총 2회 왕복으로 모든 summary 필드를 산출한다', async () => {
     setup(
       { total: '5', active: '2' },

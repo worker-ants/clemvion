@@ -531,7 +531,8 @@ export function toChatChannelEvent(
         ...base,
         type: 'execution.completed',
         result: (event.payload as { result?: unknown }).result ?? {},
-        durationMs: (event.payload as { durationMs?: number }).durationMs,
+        durationMs: (event.payload as { durationMs?: number | null })
+          .durationMs,
       };
     }
     case 'execution.failed': {
@@ -568,7 +569,8 @@ export function toChatChannelEvent(
         ...base,
         type: 'execution.failed',
         error,
-        durationMs: (event.payload as { durationMs?: number }).durationMs,
+        durationMs: (event.payload as { durationMs?: number | null })
+          .durationMs,
       };
     }
     case 'execution.cancelled': {
@@ -584,7 +586,8 @@ export function toChatChannelEvent(
         type: 'execution.cancelled',
         result: (event.payload as { result?: unknown }).result ?? {},
         ...(error ? { error } : {}),
-        durationMs: (event.payload as { durationMs?: number }).durationMs,
+        durationMs: (event.payload as { durationMs?: number | null })
+          .durationMs,
       };
     }
     case 'execution.node.completed': {
