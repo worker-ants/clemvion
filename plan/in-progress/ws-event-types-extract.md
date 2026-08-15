@@ -288,8 +288,13 @@ ES-module 순환 위에 있어서다. 생성자의 `forwardRef` 도 같은 이�
 - [x] `/ai-review` **7라운드** — `19_27_37` → `20_05_17` → `20_27_08` → `20_50_49` →
       `21_14_51` → `21_49_51` → **`22_13_48` Critical 0 · Warning 0 (수렴)**.
       각 라운드 `RESOLUTION.md` 작성
-- [x] `--impl-done` (`20_05_19`) **BLOCK: NO** — plan_coherence W1 + naming INFO7 반영
+- [x] `--impl-done` — `20_05_19` **BLOCK: NO**(plan_coherence W1 + naming INFO7 반영) →
+      코드가 더 바뀌어 게이트가 재실행을 요구 → `22_27_21` **BLOCK: NO** (5 checker 전원 Critical 0)
 - [ ] push 게이트 통과 → PR
+- [ ] **`plan/complete/` 이동 시 `spec_impact` 갱신** (`22_27_21` plan_coherence INFO7) —
+      frontmatter 가 `none` 인데 실제로는 `spec/5-system/6-websocket-protocol.md` frontmatter
+      `code:` 1줄을 바꿨다. in-progress 단계는 Gate C 의무가 아니라 지금 차단 사유는 아니지만,
+      **완료 이동 시점에 실제 변경 파일 목록으로 갱신해야 Gate C 를 통과한다**
 
 ## 후속 (이 PR 범위 밖)
 
@@ -305,8 +310,15 @@ ES-module 순환 위에 있어서다. 생성자의 `forwardRef` 도 같은 이�
 | `` `WebsocketService` 의 `KbEventType` `` (클래스명) | 4 |
 
 내 grep 은 `websocket.service` 였으니 **클래스명 표기 4곳을 통째로 못 봤다.** 이 저장소에 이미
-기록된 실패다 — 한 철자만 보면 다른 표현을 놓친다. 그래서 아래는 심볼(`KbEventType`) 기준 전수다.
+기록된 실패다 — 한 철자만 보면 다른 표현을 놓친다.
 
+**그리고 심볼 기준으로 바꾼 뒤에도 좁았다** — `KbEventType` **한 심볼**만 훑었다.
+`22_27_21` cross_spec INFO2 가 `NodeEventType` 건을 짚어서 발각됐다. 이동한 **12 심볼 전체 ×
+두 철자**로 다시 세니 6곳이고, 내 옛 목록과 **구성이 달랐다**(`3-execution.md:657` 누락).
+아래가 그 전수 + R10 인용 1곳이다.
+
+- [ ] `spec/3-workflow-editor/3-execution.md:657` — `NodeEventType`.
+      **내가 빠뜨렸던 곳** (`22_27_21` INFO2). frontmatter `code:` 등재도 함께
 - [ ] `spec/5-system/10-graph-rag.md:552` — "`websocket.service.ts` 의 `KbEventType` union"
 - [ ] `spec/5-system/8-embedding-pipeline.md:276` — "backend 권위 정의는 `WebsocketService`"
 - [ ] `spec/5-system/6-websocket-protocol.md:740` — 동일 문구
@@ -314,7 +326,8 @@ ES-module 순환 위에 있어서다. 생성자의 `forwardRef` 도 같은 이�
       는 여전히 맞다(메서드는 안 옮겼다). union 의 소재만 갱신 대상
 - [ ] `spec/data-flow/6-knowledge-base.md:288` — "`WebsocketService` 의 `KbEventType` union"
 - [ ] `spec/data-flow/0-overview.md:110` — "`websocket.service.ts` 헤더 주석, EIA §R10" 인용.
-      R10 문구는 `websocket-events.types.ts:26` 으로 이관됐다 (`20_05_19` cross_spec INFO1)
+      R10 문구는 `websocket-events.types.ts:26` 으로 이관됐다 (`20_05_19` cross_spec INFO1).
+      심볼명이 없어 위 스캔에는 안 걸린다 — **별도 축이라 따로 적어 둔다**
 
 > 제외 판정한 것도 적어 둔다 — `8-embedding-pipeline.md:285`·`:411`,
 > `data-flow/6-knowledge-base.md:416` 은 union 을 **언급만** 하거나 취소선 이력이라 위치 주장이
