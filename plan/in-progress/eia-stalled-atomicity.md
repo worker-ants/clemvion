@@ -83,8 +83,11 @@ spec_impact:
       build(16:58) / **e2e 276 passed**(16:45).
       직전 기록은 lint·unit 이 15:55 로 코드보다 오래돼 있었다 — 직접 명령으로는 매번
       돌렸지만 **워크플로 스테이지 자체가 stale** 이었다
-- [x] `/ai-review` **CRITICAL 0** — 3라운드. `16_04_38`(W4) · `16_19_26`(W2) ·
-      `16_31_53`(W1) 전부 조치. 각 세션 `RESOLUTION.md` 참조
-- [x] `--impl-done` (`16_32_26`) **BLOCK: NO** — 5 checker 중 4개 NONE,
-      plan 체크리스트 hygiene WARNING 1건(이 항목)만
+- [x] `/ai-review` **CRITICAL 0** — **4라운드**. `16_04_38`(W4) · `16_19_26`(W2) ·
+      `16_31_53`(W1) · `16_44_28`(W2 — concurrency 선존 등재 + documentation 표 stale)
+      전부 조치. 각 세션 `RESOLUTION.md` 참조
+      > 이 줄이 "3라운드" 였다 (`16_55_29` INFO1) — 네 번째를 세지 않았다. **디렉토리를
+      > 세어 확인**했다(`review/code/2026/08/15/16_*` = 4개)
+- [x] `--impl-done` **BLOCK: NO** — `16_32_26`(WARNING 1) → `16_55_29`(**WARNING 0**,
+      INFO 만). 마지막 라운드가 *"이번 target 은 push 를 막을 사유가 없다"* 로 마감
 - [ ] push 게이트 통과 → PR
