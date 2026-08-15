@@ -94,6 +94,15 @@ push 계열(webhook/SSE/WS/chat-channel)은 싣는데 `GET /api/external/executi
 - 관용구 16곳 헬퍼 추출 — 별도 PR (넓은 일괄 편집이 대상 밖을 바꾼 전례)
 - 종결 emit 타입 파사드 — 위 둘의 구조적 원인, 별도 PR
 - 프런트엔드 Duration 컬럼 — **필드 분리가 유일한 정답** (status 로 못 가름)
+- **`finalizeGuarded` CANCELLED 분기의 중첩 5단 + QB mock 체인 15곳 중복**
+  (`13_58_27` maintainability W5·W7) — 정본 트래커의 *"관용구 16곳 헬퍼 추출"* 항목과 같은
+  뿌리다. **이번 PR 에서 안 한다**: 넓은 일괄 편집이 대상 밖 8곳을 조용히 바꿔 전량 되돌린
+  전례가 이 계열에 있다. W6(`toPersistedDate`)만 "파싱은 한 곳에" 원칙이라 함께 처리했다
+- **`Execution` 엔티티가 nullability 를 거짓말한다** — `finishedAt: Date` / `durationMs: number`
+  로 선언돼 있는데 두 컬럼 모두 `@Column({ nullable: true })` 다. 그래서 테스트가
+  `null as never` 관용구를 쓰고 서비스 코드가 `?? null` 을 덧붙인다. 정정하면 호출부가
+  넓게 흔들리므로 별도 PR (`13_58_27` documentation W9 — 이 주장을 **주석에만 쓰고 등재하지
+  않았던 것**이 지적이었다)
 
 ## 체크리스트
 

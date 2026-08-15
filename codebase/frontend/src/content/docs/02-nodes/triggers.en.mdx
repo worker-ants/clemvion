@@ -305,6 +305,7 @@ Last-Event-Id: 42         # on reconnect
 - A `: heartbeat` comment line is sent every 15 seconds to keep intermediate proxies from idle-closing the connection.
 - After a terminal event (`execution.completed` / `execution.failed` / `execution.cancelled`) the server closes the stream.
 - If the 5-minute buffer has expired, the server emits `execution.replay_unavailable` once — at that point, fall back to `GET /api/external/executions/:id` for the current state.
+  That response carries the **same `durationMs`** as the terminal event, so a missed terminal event doesn't lose the duration (`null` before the run finishes).
 - Concurrent SSE connections per execution are capped at 3 by default.
 
 Browser `EventSource` cannot send custom headers, so SSE additionally accepts a `?token=<jwt>` query parameter. Every other endpoint requires the `Authorization: Bearer` header.

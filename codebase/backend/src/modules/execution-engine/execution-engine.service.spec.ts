@@ -1063,36 +1063,64 @@ describe('ExecutionEngineService', () => {
     });
   });
 
-  // 위 자매(`finalizeFailedExecution`)의 거울상. 두 함수는 같은 guarded UPDATE 를 쓰는데
-  // **반환값을 읽는 쪽은 하나뿐이었다** — 자매의 주석이 *"형제 finalizeCancelledExecution
-  // 과 동일한 guarded 경로"* 라고 대칭을 주장하지만 절반만 참이었다.
-  describe('finalizeCancelledExecution — 선점 시 사후 오시그널 금지', () => {
-    it('동시 writer 가 이미 terminal 로 선점(guarded UPDATE 0행) → EXECUTION_CANCELLED emit 을 skip', async () => {
+  // **0행 매칭은 두 가지를 뜻한다** — 이 구분을 뭉개면 어느 쪽으로든 결함이 된다.
+  // 처음 이 가드를 넣을 때 자매 `finalizeFailedExecution` 을 그대로 흉내내 무조건 skip
+  // 했는데, 그러면 **사용자가 누른 Stop 이 외부에 영영 통지되지 않는다**: `stop()` 은
+  // RUNNING/PENDING 경로에서 이벤트를 쏘지 않아(WAITING 만 `cancelParkedExecution` 이
+  // emit) 이 헬퍼가 유일한 알림 지점이다. 자매는 "FAILED 로 덮어쓰지 말라" 가 목적이라
+  // 극성이 반대다.
+  describe('finalizeCancelledExecution — 0행 매칭의 두 의미', () => {
+    const arrange = (liveStatus: ExecutionStatus | null) => {
       const eventEmitter = (
         service as unknown as { eventEmitter: { emitExecution: jest.Mock } }
       ).eventEmitter;
       const emitSpy = jest
         .spyOn(eventEmitter, 'emitExecution')
         .mockResolvedValue(undefined);
-      // 0행 = 다른 writer 가 먼저 terminal 로 옮겼다.
+      // guarded UPDATE 0행.
       mockExecutionRepo.query.mockResolvedValueOnce([]);
-      const saved: Record<string, unknown> = {
-        id: 'ex-cancel-preempted',
-        status: ExecutionStatus.RUNNING, // stale in-memory — DB 는 이미 terminal.
-        workflowId: 'wf',
-        executedBy: 'owner',
-        parentExecutionId: null,
-        startedAt: new Date(),
-      };
-
-      await (
+      // **DB 가 실제로 뭐라고 하는지**를 명시한다 — 기본 mock 에 기대면 통과 이유가
+      // 우연이 된다.
+      mockExecutionRepo.findOneBy.mockResolvedValueOnce(
+        liveStatus === null
+          ? null
+          : { id: 'ex-cancel-preempted', status: liveStatus, durationMs: 777 },
+      );
+      return emitSpy;
+    };
+    const saved = () => ({
+      id: 'ex-cancel-preempted',
+      status: ExecutionStatus.RUNNING, // stale in-memory
+      workflowId: 'wf',
+      executedBy: 'owner',
+      parentExecutionId: null,
+      startedAt: new Date(),
+    });
+    const run = (e: unknown) =>
+      (
         service as unknown as {
-          finalizeCancelledExecution: (e: unknown, c: string) => Promise<void>;
+          finalizeCancelledExecution: (x: unknown, c: string) => Promise<void>;
         }
-      ).finalizeCancelledExecution(saved, 'test');
+      ).finalizeCancelledExecution(e, 'test');
 
-      // DB 에 쓰이지 않은 종결 이벤트를 내보내면, 수신자는 DB 가 FAILED 인 실행에
-      // 대해 cancelled 를 받는다 — EIA §6 종결 계약 위반.
+    it('(a) DB 가 이미 cancelled — stop() 이 마감한 정상 경로라 **emit 한다**', async () => {
+      const emitSpy = arrange(ExecutionStatus.CANCELLED);
+      await run(saved());
+      expect(emitSpy).toHaveBeenCalled();
+      // 값도 DB 정본으로 맞춘다 — wire 가 DB 와 같은 값을 말해야 한다.
+      const payload = emitSpy.mock.calls[0][2] as { durationMs: number };
+      expect(payload.durationMs).toBe(777);
+    });
+
+    it('(b) DB 가 failed — 다른 종결자가 이겼으므로 cancelled 를 쏘지 않는다', async () => {
+      const emitSpy = arrange(ExecutionStatus.FAILED);
+      await run(saved());
+      expect(emitSpy).not.toHaveBeenCalled();
+    });
+
+    it('(c) 행을 못 읽으면 쏘지 않는다 (fail-closed)', async () => {
+      const emitSpy = arrange(null);
+      await run(saved());
       expect(emitSpy).not.toHaveBeenCalled();
     });
   });

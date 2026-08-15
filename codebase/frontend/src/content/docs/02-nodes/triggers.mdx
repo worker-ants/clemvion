@@ -316,6 +316,7 @@ Last-Event-Id: 42         # 재연결 시
 - 15초마다 `: heartbeat` comment 라인을 보내요 — 중간 프록시의 idle timeout을 우회하려는 목적이에요.
 - terminal 이벤트(`execution.completed` / `execution.failed` / `execution.cancelled`) 발송 후 서버가 자동으로 연결을 끊어요.
 - 5분 버퍼가 만료된 경우 `execution.replay_unavailable` 이 한 번 발송돼요 — 그때는 `GET /api/external/executions/:id` 로 현재 상태를 다시 조회하세요.
+  이 재조회 응답에도 종결 이벤트와 **같은 `durationMs`** 가 들어 있어요 — 종결 이벤트를 놓쳤어도 소요 시간을 잃지 않아요 (종결 전에는 `null`).
 - execution 당 동시 SSE 연결은 기본 3개로 제한돼요.
 
 브라우저 EventSource API는 `Authorization` 헤더를 보낼 수 없으므로, SSE에 한해 `?token=<jwt>` 쿼리 파라미터도 받아요 (다른 endpoint는 항상 Bearer 헤더).

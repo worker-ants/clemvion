@@ -78,6 +78,24 @@ export function toFiniteNumber(v: unknown): number | null {
 }
 
 /**
+ * `RETURNING` 원본 행에서 온 timestamptz 를 `Date` 로 좁힌다.
+ *
+ * {@link toFiniteNumber} 의 자매다 — pg 드라이버는 `timestamptz` 를 `Date` 로 줄 때도,
+ * **문자열**로 줄 때도 있다. 자매 컬럼은 헬퍼에 위임하면서 이쪽만 호출부에서 인라인
+ * 분기하면 "파싱은 한 곳에" 가 깨진다 (`13_58_27` maintainability W6).
+ *
+ * @returns 파싱 가능한 시각. 그 외(널·빈값·Invalid Date)는 **`null`**.
+ */
+export function toPersistedDate(v: unknown): Date | null {
+  if (v instanceof Date) return Number.isFinite(v.getTime()) ? v : null;
+  if (typeof v === 'string' && v.trim() !== '') {
+    const d = new Date(v);
+    return Number.isFinite(d.getTime()) ? d : null;
+  }
+  return null;
+}
+
+/**
  * 엔티티를 로드하지 않는 raw UPDATE 에서 `duration_ms` 를 **같은 문장 안에서** 계산하는
  * SQL 식. `RETURNING` 으로 되받아 emit 에 실으면 DB 와 wire 가 같은 값을 쓴다.
  *

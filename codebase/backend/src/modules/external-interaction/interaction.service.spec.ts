@@ -94,7 +94,8 @@ function makeExecution(
     startedAt: new Date('2026-05-21T00:00:00Z'),
     // 엔티티는 `finishedAt: Date` / `durationMs: number` 로 선언하지만 두 컬럼 모두
     // `nullable: true` 다 — 타입이 DB 를 정확히 말하지 않는다. 기존 `finishedAt` 관용구를
-    // 그대로 따른다(엔티티 정정은 이 PR 범위 밖 — 트래커 등재).
+    // 그대로 따른다. 엔티티 정정은 이 PR 범위 밖이고
+    // `plan/in-progress/eia-db-wire-invariant.md` §범위 밖 에 등재돼 있다.
     finishedAt: null as never,
     durationMs: null as never,
     ...overrides,
@@ -542,6 +543,15 @@ describe('InteractionService.getStatus', () => {
     );
     const r = await service.getStatus(IEXT_CTX);
     expect(r.durationMs).toBe(4242);
+  });
+
+  it('durationMs 0 을 null 로 뭉개지 않는다 (`??` 를 `||` 로 바꾸면 사라진다)', async () => {
+    const { service, repo } = makeMocks();
+    repo.findOne.mockResolvedValue(
+      makeExecution({ status: ExecutionStatus.COMPLETED, durationMs: 0 }),
+    );
+    const r = await service.getStatus(IEXT_CTX);
+    expect(r.durationMs).toBe(0);
   });
 
   it('아직 종결되지 않은 실행은 durationMs 가 null (키는 존재)', async () => {

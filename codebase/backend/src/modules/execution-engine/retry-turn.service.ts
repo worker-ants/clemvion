@@ -5,6 +5,7 @@ import { toTerminalErrorPayload } from '../../shared/utils/terminal-error-payloa
 import {
   resolveTerminalDurationMs,
   toFiniteNumber,
+  toPersistedDate,
 } from '../../shared/utils/terminal-duration';
 import {
   Execution,
@@ -666,14 +667,9 @@ export class RetryTurnService {
           }
           // `finishedAt` 도 같은 COALESCE 대상이다. wire 에는 안 실리지만 반쪽만
           // 되쓰면 in-memory 가 두 시각을 섞어 갖는다.
-          const persistedFinishedAt = row?.finished_at;
-          if (persistedFinishedAt instanceof Date) {
+          const persistedFinishedAt = toPersistedDate(row?.finished_at);
+          if (persistedFinishedAt !== null) {
             execution.finishedAt = persistedFinishedAt;
-          } else if (typeof persistedFinishedAt === 'string') {
-            const parsed = new Date(persistedFinishedAt);
-            if (Number.isFinite(parsed.getTime())) {
-              execution.finishedAt = parsed;
-            }
           }
         }
         return (result.affected ?? 0) > 0;
