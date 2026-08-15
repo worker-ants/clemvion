@@ -272,8 +272,11 @@ NodeExecution cascade 도 트랜잭션 경계도 건드린 라인이 **0건**이
 첫 UPDATE 가 커밋된 뒤 둘째가 실패(DB 오류·크래시)하면 자식 NodeExecution 이 **영구
 `RUNNING`** 으로 잔류한다 — 자매 두 함수의 docstring 이 경고하는 바로 그 실패 모드다.
 
-- [ ] `finalizeStalledExhausted` 의 두 UPDATE 를 `dataSource.transaction()` 으로 묶어
-      자매 두 함수와 같은 패턴으로 통일
+- [x] `finalizeStalledExhausted` 의 두 UPDATE 를 `dataSource.transaction()` 으로 묶어
+      자매 두 함수와 같은 패턴으로 통일 — **완료**
+      ([`eia-stalled-atomicity`](./eia-stalled-atomicity.md)). 트랜잭션 제거 뮤턴트에서
+      3/3 RED. 부수 발견: `affected=0` 테스트의 단언이 **항상 참**이 될 뻔했다(더 이상
+      쓰지 않는 repo mock 을 보고 있었다) — 실제 단언으로 교체
 
 > 이 저장소의 반복 형태(*"하드닝을 자매 함수 미적용"*)의 교과서적 사례다 — 셋 중 둘만
 > 닫혀 있다. **리뷰어가 직전 라운드의 자기 판정을 실측으로 정정해 찾아냈다.**

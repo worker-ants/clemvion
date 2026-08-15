@@ -4874,10 +4874,10 @@ describe('ExecutionEngineService', () => {
       };
       return qb;
     };
-
-    it('RUNNING 이면 failed + WORKER_HEARTBEAT_TIMEOUT 마킹 + 자식 cascade + EXECUTION_FAILED emit', async () => {
-      const execQb = mkExecQb(1);
-      mockExecutionRepo.createQueryBuilder = jest.fn().mockReturnValue(execQb);
+    // 자매 `installCancelTx` 와 동형 — 두 UPDATE 가 **같은 트랜잭션 manager** 를 탄다.
+    // 트랜잭션 밖 repo 를 쓰면 즉시 터지도록 무장해, 다시 밖으로 나가는 회귀를 잡는다.
+    const installStalledTx = (execAffected: number) => {
+      const execQb = mkExecQb(execAffected);
       const nodeQb = {
         update: jest.fn().mockReturnThis(),
         set: jest.fn().mockReturnThis(),
@@ -4887,9 +4887,80 @@ describe('ExecutionEngineService', () => {
         returning: jest.fn().mockReturnThis(),
         execute: jest.fn().mockResolvedValue({ affected: 1 }),
       };
-      mockNodeExecutionRepo.createQueryBuilder = jest
-        .fn()
-        .mockReturnValue(nodeQb);
+      const qbs = [execQb, nodeQb];
+      const managerCqb = jest.fn(() => qbs.shift());
+      const txSpy = jest.fn(async (cb: (m: unknown) => Promise<unknown>) =>
+        cb({ createQueryBuilder: managerCqb }),
+      );
+      (
+        service as unknown as { dataSource: { transaction: jest.Mock } }
+      ).dataSource.transaction = txSpy;
+      mockExecutionRepo.createQueryBuilder = jest.fn(() => {
+        throw new Error('트랜잭션 밖 executionRepository 사용');
+      });
+      mockNodeExecutionRepo.createQueryBuilder = jest.fn(() => {
+        throw new Error('트랜잭션 밖 nodeExecutionRepository 사용');
+      });
+      return { execQb, nodeQb, txSpy, managerCqb };
+    };
+
+    // 자매 둘(`cancelParkedExecution`·`markWebChatIdleTimeout`)은 같은 2-테이블 쓰기를
+    // 이미 `dataSource.transaction` 으로 원자화했는데 이 함수만 밖에 있었다. 첫 UPDATE 가
+    // 커밋된 뒤 둘째가 실패하면 자식 NodeExecution 이 **영구 `RUNNING`** 으로 잔류한다 —
+    // 자매 두 함수의 주석이 경고하는 바로 그 실패 모드다.
+    //
+    // mock 은 롤백을 흉내내지 못한다. 이 테스트가 보증하는 것은 **두 UPDATE 가 같은
+    // 트랜잭션 manager 를 탄다**는 것까지다(원자성 자체가 아니라 그 전제).
+    it('Execution·NodeExecution 두 UPDATE 가 같은 트랜잭션 manager 를 탄다', async () => {
+      const execQb = mkExecQb(1);
+      const nodeQb = {
+        update: jest.fn().mockReturnThis(),
+        set: jest.fn().mockReturnThis(),
+        setParameter: jest.fn().mockReturnThis(),
+        where: jest.fn().mockReturnThis(),
+        andWhere: jest.fn().mockReturnThis(),
+        returning: jest.fn().mockReturnThis(),
+        execute: jest.fn().mockResolvedValue({ affected: 1 }),
+      };
+      const qbs = [execQb, nodeQb];
+      const managerCqb = jest.fn(() => qbs.shift());
+      const txSpy = jest.fn(async (cb: (m: unknown) => Promise<unknown>) =>
+        cb({ createQueryBuilder: managerCqb }),
+      );
+      (
+        service as unknown as { dataSource: { transaction: jest.Mock } }
+      ).dataSource.transaction = txSpy;
+      // 트랜잭션 **밖** 경로가 쓰이면 이 mock 들이 호출된다 — 호출되면 안 된다.
+      mockExecutionRepo.createQueryBuilder = jest.fn(() => {
+        throw new Error('트랜잭션 밖 executionRepository 사용');
+      });
+      mockNodeExecutionRepo.createQueryBuilder = jest.fn(() => {
+        throw new Error('트랜잭션 밖 nodeExecutionRepository 사용');
+      });
+      jest
+        .spyOn(
+          (
+            service as unknown as {
+              eventEmitter: {
+                emitExecution: (...a: unknown[]) => Promise<void>;
+              };
+            }
+          ).eventEmitter,
+          'emitExecution',
+        )
+        .mockResolvedValue(undefined);
+
+      await service.finalizeStalledExhausted('exec-stalled');
+
+      expect(txSpy).toHaveBeenCalledTimes(1);
+      // 같은 manager 로 두 번 — Execution → NodeExecution 순서.
+      expect(managerCqb).toHaveBeenCalledTimes(2);
+      expect(execQb.update.mock.calls[0][0]).toBe(Execution);
+      expect(nodeQb.update.mock.calls[0][0]).toBe(NodeExecution);
+    });
+
+    it('RUNNING 이면 failed + WORKER_HEARTBEAT_TIMEOUT 마킹 + 자식 cascade + EXECUTION_FAILED emit', async () => {
+      const { execQb, nodeQb } = installStalledTx(1);
       const emitSpy = jest
         .spyOn(
           (
@@ -4950,9 +5021,7 @@ describe('ExecutionEngineService', () => {
     });
 
     it('이미 terminal (affected=0) 이면 no-op — cascade/emit 안 함', async () => {
-      const execQb = mkExecQb(0);
-      mockExecutionRepo.createQueryBuilder = jest.fn().mockReturnValue(execQb);
-      mockNodeExecutionRepo.createQueryBuilder = jest.fn();
+      const { nodeQb, managerCqb } = installStalledTx(0);
       const emitSpy = jest
         .spyOn(
           (
@@ -4968,7 +5037,11 @@ describe('ExecutionEngineService', () => {
 
       await service.finalizeStalledExhausted('exec-already-terminal');
 
-      expect(mockNodeExecutionRepo.createQueryBuilder).not.toHaveBeenCalled();
+      // 트랜잭션 안에서 **Execution UPDATE 하나만** 만들어졌어야 한다 — 자식 cascade 는
+      // Execution 이 실제로 전이됐을 때만 돈다. 종전 단언(`mockNodeExecutionRepo.
+      // createQueryBuilder` 미호출)은 이제 그 repo 를 아예 안 쓰므로 **항상 참**이 된다.
+      expect(managerCqb).toHaveBeenCalledTimes(1);
+      expect(nodeQb.execute).not.toHaveBeenCalled();
       expect(emitSpy).not.toHaveBeenCalled();
       emitSpy.mockRestore();
     });
