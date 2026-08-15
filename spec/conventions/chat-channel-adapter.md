@@ -156,8 +156,9 @@ type EiaEvent =
 [행동 계약](../5-system/14-external-interaction-api.md#executioncancelled-의-행동-계약-normative) 이 SoT 다
 — 위 3 variant 는 그 SoT 를 **TypeScript 로 옮긴 것**이고, 어긋나면 EIA 쪽이 참이다([R3](#r3-eiaevent-를-별-타입으로-정의하지-않고-eia-spec-위임)).
 
-`result`·`durationMs` 가 optional 인 이유: 현행 emit 은 `status` 만(그리고 `cancelled` 는
-`cancelledBy` 까지) 채운다 — `outputs`·`durationMs` 는 Planned 다. `failed` 의 `error` 가
+`result` 가 optional 인 이유: 현행 emit 은 `status`(그리고 `cancelled` 는 `cancelledBy`)
+와 `durationMs` 를 채우고 **`outputs` 만 Planned** 다. `durationMs` 는 2026-08-15 에 종결
+3종 전부 구현됐다 — 알 수 없으면 `null` 이라 optional 표기는 유지한다. `failed` 의 `error` 가
 `| string` 을 안고 있는 이유는 **다르다** — emit 은 2026-08-14 부터 **전 경로 object** 이고
 (`toTerminalErrorPayload`), 그 union 은 **배포 경계에서 재생되는 레거시 이벤트**를 흡수하기
 위해 의도적으로 남겨 둔 것이다. 제거하면 그 창 동안 CCH-ERR-* 안내가 silent skip 된다.

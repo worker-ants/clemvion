@@ -572,7 +572,7 @@ Authorization: Bearer <expiring_iext_jwt>
 | `error` | `failed`, `cancelled`(시스템 취소 한정) | 구현됨 | `{code, message, nodeId, details?}` — **`code`·`nodeId` 는 `null` 일 수 있다**(§6.4 참조). `failed` 는 **전 경로 object** 다 (2026-08-14, `toTerminalErrorPayload` 로 일원화 — 종전의 "일부 경로는 string" 캐비엇 해소). **`cancelled` 는 아직 `{code, message}` 를 손으로 만들어 `nodeId`/`details` 가 없다** |
 | `result.cancelledBy` | `cancelled` | 구현됨 — **경로 1곳 누락** | `retry-turn.service.ts` `failRetryExecution` 은 채우지 않는다 ([retry-turn-terminal-guard](../../plan/in-progress/retry-turn-terminal-guard.md) #2) |
 | `result.outputs` | `completed` | **미구현 (Planned)** | 데이터는 emit 직전 존재하나 payload 에 넣지 않는다 |
-| `durationMs` | 3종 | **미구현 (Planned)** | **`completed` 는 emit 직전에 계산돼 있으나 `cancelled` 계열은 계산·영속조차 하지 않는다** — 3종을 채우려면 취소 경로의 DB write 와 emit 시그니처를 함께 넓혀야 한다(비용이 `result.outputs` 와 다르다). **WS 계열 문서는 같은 값을 `duration` 으로 적는다** — 표기만 다르고 같은 값이다 (전역 개명은 별건) |
+| `durationMs` | 3종 | 구현됨 | 밀리초. **알 수 없으면 `null`** (형제 `error.code` 와 같은 부재 표현). ~~`cancelled` 계열은 계산·영속조차 하지 않는다~~ **(2026-08-15 해소)** — 엔티티를 로드하지 않는 5경로는 UPDATE 문 안에서 SQL 로 계산하고 `RETURNING` 으로 되받아 싣는다(DB 와 wire 가 같은 값). `markQueueWaitTimeout` 의 값은 **큐 대기 시간**이다(`started_at` 이 admission 전 시각). **WS 계열 문서는 같은 값을 `duration` 으로 적는다** — 표기만 다르고 같은 값이다 (전역 개명은 별건) |
 
 > **삭제된 약속**: `finalNodeId` · `finalPort` · `nodeCount` · `failedNodeId` 는 **엔진에
 > 개념 자체가 없다**(emit 로직 0건). 미구현이 아니라 설계된 적이 없는 필드였고, 문서만
@@ -695,7 +695,7 @@ header value   = "t={timestamp},v1={hex(signature)}"
 
 > **`interaction` 블록은 미구현 (Planned) 이다** — 위 4개 URL·`token`·`expiresAt`·`expectedCommands` 는
 > 현재 어떤 emit 경로도 싣지 않는다. 설계 의도를 보존하되 "지금 오지 않는다" 를 명시한다
-> (`durationMs`/`result.outputs` 에 쓴 것과 같은 표기). 클라이언트는 §5 의 엔드포인트를
+> (`result.outputs` 에 쓴 것과 같은 표기 — `durationMs` 는 2026-08-15 구현돼 더는 선례가 아니다). 클라이언트는 §5 의 엔드포인트를
 > 직접 구성해야 한다.
 
 > **위 JSON 은 논리 구조 표기다 — 실제 wire 필드명은 아래가 SoT**: 채널별 봉투 차이는
@@ -740,7 +740,8 @@ header value   = "t={timestamp},v1={hex(signature)}"
 
 필드는 [종결 이벤트의 필드 집합](#종결-이벤트의-필드-집합-normative), 봉투는
 [채널별 봉투](#채널별-봉투--셋이-서로-다르다-normative)가 소유한다. 본 이벤트는 그중
-`status` 만 실제로 채워 보낸다 — `result.outputs` · `durationMs` 는 **Planned** 다.
+`status` 와 `durationMs` 를 채워 보낸다 — `result.outputs` 만 아직 **Planned** 다
+(`durationMs` 는 2026-08-15 구현, 종전의 "둘 다 Planned" 서술 해소).
 
 ```jsonc
 // webhook 봉투 기준. SSE 는 payload 래퍼 없이 안쪽 객체가 그대로 온다.
@@ -753,7 +754,8 @@ header value   = "t={timestamp},v1={hex(signature)}"
   "timestamp":   "ISO8601",
   "payload": {
     "status": "completed"
-    // result.outputs / durationMs — Planned (필드 집합 표 참조)
+    "durationMs": 4242,
+    // result.outputs — Planned (필드 집합 표 참조)
   }
 }
 ```
@@ -774,7 +776,7 @@ header value   = "t={timestamp},v1={hex(signature)}"
       "nodeId":  "uuid" | null,
       "details": { ... }    // 노드 타입별 상세
     }
-    // durationMs — Planned
+    "durationMs": 4242,
   }
 }
 ```
@@ -798,8 +800,16 @@ header value   = "t={timestamp},v1={hex(signature)}"
 
 ### 6.5 페이로드 — `execution.cancelled` / `execution.ai_message`
 
-`execution.cancelled` 는 §6.3 의 `payload` 자리에 `status` + `result.cancelledBy` 를 싣고,
-시스템 취소면 `error` 가 동행한다. **`cancelledBy` 의 닫힌 union·`error.code` 매핑·
+`execution.cancelled` 는 §6.3 의 `payload` 자리에 `status` + `result.cancelledBy` +
+**`durationMs`** 를 싣고, 시스템 취소면 `error` 가 동행한다.
+
+> **`durationMs` (2026-08-15 구현)** — 취소 경로 6곳 중 4곳은 **엔티티를 로드하지 않는**
+> raw UPDATE 라 JS 에서 계산할 수 없다. UPDATE 문 안에서 SQL 로 계산하고 `RETURNING` 으로
+> 되받아 싣는다 — DB 와 wire 가 같은 값을 쓴다. 알 수 없으면 `null`.
+>
+> `EXECUTION_QUEUE_WAIT_TIMEOUT` 경로의 값은 **큐 대기 시간**이다(실행 시간이 아니다) —
+> `started_at` 이 admission 이전 생성 시각이기 때문. §6 표의 "종결까지의 경과" 정의와는
+> 일관되나, 수신자가 실행 소요로 읽으면 오해할 수 있어 여기 명시한다. **`cancelledBy` 의 닫힌 union·`error.code` 매핑·
 user cancel 의 `error` 부재는 [행동 계약](#executioncancelled-의-행동-계약-normative)이
 소유한다** — 여기 다시 적지 않는다.
 
