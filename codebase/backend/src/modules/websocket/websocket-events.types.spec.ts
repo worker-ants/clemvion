@@ -69,7 +69,15 @@ const EXPECTED_EXPORTS = [
  */
 const REEXPORT_FACADE_TEST = path.join(WS_DIR, 'websocket.service.spec.ts');
 
+/** 순환 위의 모듈. 여기로 향하는 **eager 값** 간선이 #1174 를 되살린다. */
 const SERVICE_MODULE = /websocket\.service$/;
+
+/**
+ * 이벤트 값·타입이 **나오는** 경로 전부 — 타입 모듈과 그 re-export facade 둘 다.
+ *
+ * `websocket.service` 가 여기 함께 있는 건 오타가 아니다. facade 를 경유해도 같은 심볼을
+ * 꺼내므로 "타입 전용 심볼에 `type` 을 붙였는가" 규칙은 양쪽에 똑같이 적용돼야 한다.
+ */
 const EVENT_MODULES = /websocket-events\.types$|websocket\.service$/;
 
 /** 한 모듈 참조. {@link moduleRefs} 가 반환하는 유일한 형태다. */
@@ -79,7 +87,7 @@ interface ModuleRef {
   form: 'import' | 'export' | 'import=require' | 'require' | 'dynamic-import';
   /** 모듈 평가 시점에 즉시 해석되는가. lazy 면 순환 평가 순서를 깨지 않는다. */
   eager: boolean;
-  /** 방출 후에도 남는 값 간선인가 (`import type` / `export type` 은 false). */
+  /** 방출 후에도 남는 값 간선인가. 판정은 {@link leavesValueEdge} — 인라인 `type` 태그 포함. */
   value: boolean;
   /** 저쪽 모듈에서 꺼낸 **원** 식별자들. `*`/side-effect 는 빈 배열. */
   names: string[];
@@ -107,6 +115,32 @@ function originalName(el: ts.ImportSpecifier | ts.ExportSpecifier): string {
   return (el.propertyName ?? el.name).text;
 }
 
+/**
+ * 방출 후에도 모듈 간선이 남는가.
+ *
+ * `21_14_51` requirement W1 — 처음엔 **선언 레벨** `isTypeOnly` 만 봤다. 그래서
+ * `import { type Foo } from '…'`(인라인 태그)이 "선언은 타입 전용이 아님 + 값 이름 0개" 가
+ * 되어 **이름 없는 형태(side-effect/default/`* as`)와 구분되지 않았고**, 순수 타입 import 를
+ * 값 간선으로 오탐했다. 무수정 프로브로 재현했다.
+ *
+ * 더 나쁜 건 내 **음성 대조가 그 형태를 안 봤다**는 것이다 — N1 은 선언 레벨
+ * `import type { … }` 만 확인했다. 뮤턴트를 넓히면서 대조군은 안 넓혔다.
+ *
+ * 그래서 세 상태를 갈라야 한다:
+ * - 선언 전체가 타입 전용 → 간선 없음
+ * - 네임드 바인딩이 **있는데** 값으로 남는 게 하나도 없음 → 간선 없음
+ * - 네임드 바인딩이 **없음**(side-effect / default / `* as`) → 간선 있음
+ */
+function leavesValueEdge(
+  declTypeOnly: boolean | undefined,
+  hasNamedBindings: boolean,
+  valueNameCount: number,
+): boolean {
+  if (declTypeOnly) return false;
+  if (hasNamedBindings) return valueNameCount > 0;
+  return true;
+}
+
 /** 함수 안에 있으면 lazy — 모듈 평가 시점에 실행되지 않는다. */
 function insideFunction(node: ts.Node): boolean {
   for (let p = node.parent; p; p = p.parent) {
@@ -126,16 +160,15 @@ function moduleRefs(sf: ts.SourceFile): ModuleRef[] {
     ) {
       const clause = node.importClause;
       const bindings = clause?.namedBindings;
-      const names =
-        bindings && ts.isNamedImports(bindings)
-          ? bindings.elements.filter((el) => !el.isTypeOnly).map(originalName)
-          : [];
+      const named = bindings && ts.isNamedImports(bindings) ? bindings : null;
+      const names = named
+        ? named.elements.filter((el) => !el.isTypeOnly).map(originalName)
+        : [];
       refs.push({
         specifier: node.moduleSpecifier.text,
         form: 'import',
         eager: true,
-        // 이름 없는 형태(side-effect / default / `* as`)도 값 간선이다.
-        value: !clause?.isTypeOnly,
+        value: leavesValueEdge(clause?.isTypeOnly, !!named, names.length),
         names,
       });
     } else if (
@@ -144,15 +177,15 @@ function moduleRefs(sf: ts.SourceFile): ModuleRef[] {
       ts.isStringLiteral(node.moduleSpecifier)
     ) {
       const clause = node.exportClause;
-      const names =
-        clause && ts.isNamedExports(clause)
-          ? clause.elements.filter((el) => !el.isTypeOnly).map(originalName)
-          : [];
+      const named = clause && ts.isNamedExports(clause) ? clause : null;
+      const names = named
+        ? named.elements.filter((el) => !el.isTypeOnly).map(originalName)
+        : [];
       refs.push({
         specifier: node.moduleSpecifier.text,
         form: 'export',
         eager: true,
-        value: !node.isTypeOnly,
+        value: leavesValueEdge(node.isTypeOnly, !!named, names.length),
         names,
       });
     } else if (
