@@ -1099,7 +1099,7 @@ Hooks 진입점 (`/api/hooks/:endpointPath`) 은 `@Public()` 로 JWT 인증을 �
 - 기존 내부 WebSocket 채널 (`/ws`) 은 그대로 유지 — UI 는 이 경로를 계속 사용. 외부 API 추가가 WS 흐름을 변경하지 않는다.
 - Trigger 엔티티: 신규 컬럼 4개 (notification_health / notification_last_error / notification_secret_v2 / notification_rotated_at) 추가. config JSONB 는 누락 키 = 미사용 으로 해석 → 기존 트리거 영향 없음.
 - 새 API 는 모두 `/api/external/executions/:id/*` 경로로 신설 — 기존 `/api/executions/*` ([Spec 실행/디버깅 §10.x](../3-workflow-editor/3-execution.md), [Spec 실행 내역 §5](../2-navigation/14-execution-history.md)) 와 routing prefix·인증 family 모두 분리되어 충돌 불가. 분리 결정의 근거는 §R11.
-- Re-run API (`POST /api/v1/executions/:id/re-run`, [Spec Re-run](./13-replay-rerun.md)) 는 워크스페이스 JWT 전용. 외부 interaction token (`iext_*` / `itk_*`) 으로 Re-run 호출 불가. 외부 시스템이 Re-run 을 트리거하려면 별도 webhook 트리거를 추가하고 그 트리거 호출 시 발급된 새 execution 의 interaction token 을 사용해야 한다.
+- Re-run API (`POST /api/executions/:id/re-run`, [Spec Re-run](./13-replay-rerun.md)) 는 워크스페이스 JWT 전용. 외부 interaction token (`iext_*` / `itk_*`) 으로 Re-run 호출 불가. 외부 시스템이 Re-run 을 트리거하려면 별도 webhook 트리거를 추가하고 그 트리거 호출 시 발급된 새 execution 의 interaction token 을 사용해야 한다.
 
 ---
 

@@ -10,7 +10,16 @@ owner: planner
 > 관련 spec: spec/5-system/14-external-interaction-api.md
 
 ## 미구현 항목
-- [ ] **종결 이벤트의 `result.outputs` · `durationMs` emit** (§6 도입부 필드 집합 표의 Planned 2행,
+> **결합 항목을 둘로 쪼갰다** (`08_45_50` plan_coherence W4). 두 필드는 비용이 다르고
+> (`durationMs` 는 취소 경로 배관 5곳, `result.outputs` 는 **spec 이 내용을 정의한 적조차 없다**)
+> 착수 시점도 갈렸다. 한 체크박스로 두면 `durationMs` 완료 시 **통째로 닫히면서
+> `result.outputs` 가 조용히 사라진다** — 이 세션에서 이미 겪은 형태다.
+
+- [ ] **`result.outputs` emit** — **먼저 planner 턴에서 내용을 정의해야 한다.** spec 은
+      이름만 두고 shape·의미를 적은 문장이 0건이다. 채우면 외부 webhook 에 신규 데이터
+      클래스가 열리는데(현재 `execution.completed` payload 는 `{status}` 하나) 크기 상한이
+      없다. 소비처 0곳
+- [ ] **`durationMs` emit** (§6 도입부 필드 집합 표의 Planned 2행,
       2026-08-13 등재) — 데이터는 emit **직전에 이미 존재**하는데 payload 에 넣지 않는다
       (`execution-engine.service.ts` 의 `EXECUTION_COMPLETED` emit **4곳** + `retry-turn.service.ts`
       **2곳** — 전부 `{ status }` 만 싣는다. 줄 번호는 리팩터마다 stale 해지므로 심볼로 고정한다).

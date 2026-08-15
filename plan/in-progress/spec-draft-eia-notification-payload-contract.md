@@ -184,9 +184,12 @@ DB(`trigger.workflowId`), 안쪽은 routing context — **출처가 다르다**.
 
 ## 후속 (developer)
 
-- [ ] emit 에 `durationMs`·`result.outputs` 채우기 — `execution-engine.service.ts` 의
-      `EXECUTION_COMPLETED` emit **4곳** + `retry-turn.service.ts` **2곳** → (1) 표의 Planned 해제.
+- [ ] emit 에 **`durationMs`** 채우기 — 종결 3종 전부. completed 6곳 + failed 4곳 +
+      cancelled 6곳(그중 5곳은 DB write·시그니처 확장 필요). → (1) 표의 `durationMs` Planned 해제
       (줄 번호로 적었다가 실측하니 4개 중 2개가 이미 어긋나 있었다 — 심볼로 고정)
+- [ ] emit 에 **`result.outputs`** 채우기 — **planner 턴 선행 필요.** spec 이 내용을 정의한
+      적이 없다(이름만). 두 필드를 한 체크박스에 묶어 두면 `durationMs` 완료 시 통째로 닫힌다
+      (`08_45_50` plan_coherence W4)
 - [x] `execution.failed` 의 `error` 를 객체로 통일 — **완료 (2026-08-14)**,
       `toTerminalErrorPayload` 로 emit 4곳 일원화.
       **wrap 은 제거하지 않았다** — 레거시 큐 이벤트 흡수용으로 의도적 유지(자매 plan
