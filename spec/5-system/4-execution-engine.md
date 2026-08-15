@@ -1461,7 +1461,7 @@ PR3 의 제어된 re-drive(부팅 backstop)로 멱등 재구동 메커니즘을 
 - **네이티브 stalled = 같은 jobId 재처리 → seq/re-enqueue 불요**: 당초 §9.2 스케치는 crash 재개를 `<executionId>:run:<seq>` re-enqueue 로 그렸으나, BullMQ 의 stalled 검출은 lock 만료된 **같은 job 을 그대로 재처리**한다(신규 enqueue 아님). 따라서 `exec:run:seq` 키는 PR4 에서도 미사용이고 jobId=executionId 가 유지된다 — 스케치 대비 순수 단순화. `runExecutionFromQueue` 는 재처리된 job 의 Execution 이 이미 `RUNNING` 임을 감지해 §7.5 case B 재구동으로 분기한다(PENDING=최초 실행, terminal=ack-discard 와 함께 3-way switch).
 - **`maxStalledCount=1` (bounded blast radius)**: `maxStalledCount>1` 은 poison/non-idempotent 세그먼트를 운영 중 무인 다회 재실행시켜 RUNNING-at-crash Integration 노드의 중복 side-effect 를 증폭한다. 1 로 두면 재배달은 정확히 1회, 소진 시 `onFailed → finalizeStalledExhausted` 가 `status='running'` 조건부로 `failed`+`WORKER_HEARTBEAT_TIMEOUT` dead-letter(setup-throw 경로는 이미 terminal 이라 affected=0 no-op). blast radius = 재배달 1회로 확정. 관측은 `ExecutionRunDlqMonitorService`(continuation DLQ 모니터 미러 — failed≥threshold 알람+cooldown).
 - **`recoverStuckExecutions` 은 은퇴하지 않는다 (backstop 병존)**: stalled 재배달은 **stall 된 job 이 존재할 때만** 동작한다. 전체 재시작(모든 워커 동시 종료 → 재배달할 살아있는 워커 없음)·Redis 비영속(job 자체 소실)·job 유실은 stalled job 이 없어 stalled 재배달로 커버 불가하다. 따라서 부팅 1회 스캔 backstop 을 유지한다. KB 파이프라인(`graph-extraction` stalled + `stuck-document-recovery` 부팅 backstop)도 동일하게 두 메커니즘을 병존시키는 선례다.
-- **dead-letter 마감의 원자성 (2026-08-15 정정)**: `finalizeStalledExhausted` 는 Execution
+- **dead-letter 마감의 원자성 (2026-08-15 원자화)**: `finalizeStalledExhausted` 는 Execution
   `FAILED` UPDATE 와 자식 RUNNING `NodeExecution` cascade UPDATE **둘**을 쓴다. PR4 도입
   시점에는 이 둘이 각각 autocommit 이라 **부분 커밋 시 자식이 영구 `RUNNING` 으로 잔류**할 수
   있었다(유령 running). 같은 2-테이블 쓰기를 하는 자매 `cancelParkedExecution` ·

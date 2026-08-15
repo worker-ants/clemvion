@@ -74,6 +74,8 @@ spec_impact:
 - [x] 자매 트래커 동시 갱신 (구현 커밋과 같은 턴)
 - [x] TEST WORKFLOW 4스테이지 — lint / unit(백엔드 425·8730, 프런트 285 파일) /
       build / **e2e 276 passed** 전부 PASS
-- [ ] `/ai-review` CRITICAL 0
-- [ ] `--impl-done` BLOCK: NO
+- [x] `/ai-review` **CRITICAL 0** — 3라운드. `16_04_38`(W4) · `16_19_26`(W2) ·
+      `16_31_53`(W1) 전부 조치. 각 세션 `RESOLUTION.md` 참조
+- [x] `--impl-done` (`16_32_26`) **BLOCK: NO** — 5 checker 중 4개 NONE,
+      plan 체크리스트 hygiene WARNING 1건(이 항목)만
 - [ ] push 게이트 통과 → PR
