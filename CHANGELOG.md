@@ -22,6 +22,20 @@
 **REST `GET /api/external/executions/:id` 에는 아직 없다** — push 계열(webhook/SSE/WS)만
 채워졌다. 재조회 시 사라지는 비대칭이라 후속으로 추적 중이다.
 
+**⚠️ 대시보드·통계의 "평균 실행 시간" 숫자가 이동한다.** 세 집계가 종전에는
+`duration_ms IS NOT NULL` 로만 걸렀는데, 그건 방어가 아니라 **취소·타임아웃 경로가 이 컬럼을
+비워 뒀기 때문에 우연히 안전했던 것**이다. 이번 변경이 그 자리를 채우므로 세 곳에
+`status = 'completed'` 필터를 넣었다. 부수 효과로 **종전에 집계되던 정상 실패와 stop 취소의
+실제 소요 시간이 평균에서 빠진다** — 지표 정의가 "완료된 실행의 평균" 으로 좁아졌다.
+
+`completed` 만 남긴 이유는 `finalizeStalledExhausted` 가 `FAILED` 라서 FAILED 도 이번
+변경으로 오염되기 때문이다. 오염되지 않은 상태는 `completed` 하나뿐이다.
+
+**내부 UI 의 "소요 시간" 컬럼은 아직 대기 시간을 그대로 보여준다.** `stop()` 취소도
+`CANCELLED` 인데 그쪽 값은 진짜 실행 시간이라, 프런트엔드에서 status 로 거르면 정상 동작이
+깨진다 — 근본 해결은 필드 분리이고 후속으로 추적 중이다. 그 전까지 유저 가이드에
+캐비엇을 넣었다.
+
 ## Unreleased — 종결 `error` 를 문자열로 보내던 4곳 (EIA §6.4 object 로 일원화)
 
 `execution.failed` 의 `error` 가 spec §6.4 는 `{code, message, nodeId, details?}` 객체인데

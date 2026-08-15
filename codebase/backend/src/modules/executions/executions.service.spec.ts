@@ -6,6 +6,7 @@ import {
   SNAPSHOT_CACHE_MAX_ENTRIES,
 } from './executions.service';
 import { ExecutionStatus } from './entities/execution.entity';
+import { PG_INT4_MAX } from '../../shared/utils/terminal-duration';
 
 /**
  * 테스트용 entity-like 픽스처. `Partial<Execution>` 을 쓰면 nullable 컬럼 타입이 어긋나
@@ -763,6 +764,38 @@ describe('ExecutionsService', () => {
         code: 'EXECUTION_ENQUEUE_FAILED',
       });
       expect(engine.cancelWaitingExecution).toHaveBeenCalledWith('eW-503');
+    });
+  });
+
+  // `duration_ms` 는 INTEGER(int4, ≈24.8일). 종전엔 무가드 뺄셈이라 그 상한을 넘으면
+  // UPDATE 가 `integer out of range` 로 실패하고 **stop 이 먹지 않았다** — 종결 이벤트
+  // 경로에서 CRITICAL 로 두 번 잡힌 것과 같은 연산이 이 자매 경로에 남아 있었다.
+  describe('stop — duration int4 클램프', () => {
+    it('24.8일을 넘긴 RUNNING 실행을 stop 해도 int4 상한으로 saturate 한다', async () => {
+      const ancient = baseFake({
+        id: 'e-old',
+        status: ExecutionStatus.RUNNING,
+        startedAt: new Date(Date.now() - (PG_INT4_MAX + 86_400_000)),
+        finishedAt: null,
+        durationMs: null,
+      });
+      executionRepo.findOne
+        .mockResolvedValueOnce(ancient as unknown)
+        .mockResolvedValueOnce(ancient as unknown);
+
+      const set = jest.fn();
+      const qb: Record<string, jest.Mock> = { set };
+      qb.update = jest.fn().mockReturnValue(qb);
+      set.mockReturnValue(qb);
+      qb.where = jest.fn().mockReturnValue(qb);
+      qb.andWhere = jest.fn().mockReturnValue(qb);
+      qb.execute = jest.fn().mockResolvedValue({ affected: 1 });
+      executionRepo.createQueryBuilder.mockReturnValue(qb);
+
+      await service.stop('e-old');
+
+      const written = set.mock.calls[0][0] as { durationMs: number };
+      expect(written.durationMs).toBe(PG_INT4_MAX);
     });
   });
 

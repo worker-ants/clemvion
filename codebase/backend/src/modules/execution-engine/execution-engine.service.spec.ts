@@ -15045,17 +15045,25 @@ describe('ExecutionEngineService', () => {
       mockExecutionRepo.createQueryBuilder = jest
         .fn()
         .mockImplementation(() => {
+          // `setParameter`/`returning` 이 빠지면 체인이 TypeError 를 던지고 함수를
+          // 감싼 try/catch 가 그걸 삼킨다 — 그러면 검증하려는 `affected > 0` 가드
+          // 분기 자체가 실행되지 않아 **가드를 통째로 지워도 GREEN** 이다.
+          // 실제로 그 상태였고, 이 PR 이 두 메서드를 추가하면서 만든 회귀다.
           const chain = {
             update: jest.fn(),
             set: jest.fn(),
+            setParameter: jest.fn(),
             where: jest.fn(),
             andWhere: jest.fn(),
+            returning: jest.fn(),
             execute: jest.fn().mockResolvedValue({ affected: 0 }),
           };
           chain.update.mockReturnValue(chain);
           chain.set.mockReturnValue(chain);
+          chain.setParameter.mockReturnValue(chain);
           chain.where.mockReturnValue(chain);
           chain.andWhere.mockReturnValue(chain);
+          chain.returning.mockReturnValue(chain);
           return chain;
         });
       mockWebsocketService.emitExecutionEvent.mockClear();

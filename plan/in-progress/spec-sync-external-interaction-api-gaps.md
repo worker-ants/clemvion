@@ -181,15 +181,30 @@ checker 가 독립적으로** "인용이 가리키는 절이 오히려 반대를
 
 **읽는 쪽이 status 필터 없이 평균을 낸다:**
 
-| 소비처 | 위험 |
+| 소비처 | 상태 |
 |---|---|
-| `dashboard.service.ts:96` `avgExecutionTime` | 오염 |
-| `statistics.service.ts:95,221` `avgDurationMs`(요약·Top workflows, **프론트 렌더**) | 오염 |
-| `frontend/.../executions/page.tsx:292` Duration 컬럼 | 대기 시간이 실행 시간으로 표시 |
+| `dashboard.service.ts` `avgExecutionTime` | **해소** (`f79792621`) — `status='completed'` 필터 |
+| `statistics.service.ts` `avgDurationMs` ×2 | **해소** (`f79792621`) — 두 자리 모두 |
+| `frontend/.../executions/page.tsx:292` 외 3곳 Duration 컬럼 | **잔여** — 아래 참조 |
 | `alerts-evaluator.service.ts` | **우연히 안전** — `status='completed'` 필터가 있다 |
 
-- [ ] 집계 쿼리에서 대기-시간 생성 경로를 제외(status / `error.code` 기준)하거나,
-      순수 실행시간과 wall-clock 대기시간을 **별도 필드로 분리**
+- [x] 집계 3자리에 status 필터 (`f79792621`). 자리별 뮤테이션으로 판별력 확인
+- [ ] **프런트엔드 Duration 컬럼 4곳** — 순진한 status 필터는 **오답**이다(아래 실측)
+- [ ] 순수 실행시간과 wall-clock 대기시간의 **필드 분리** — 위 항목의 유일한 정답
+
+### 프런트엔드는 status 로 못 가른다 (실측)
+
+`stop()` REST 취소도 `CANCELLED` 인데(`executions.service.ts` `stoppable: [RUNNING, PENDING]`)
+`RUNNING → CANCELLED` 의 duration 은 **진짜 실행 시간**이다. 프런트엔드는 직전 상태를 볼 수
+없으므로 `status === 'cancelled'` 로 지우면 **정상 동작을 깨뜨린다**.
+
+집계 쪽에서 `completed` 만 남긴 것이 맞는 이유도 여기 있다 — `finalizeStalledExhausted` 가
+`FAILED` 라서 FAILED 도 이 PR 로 오염된다. `completed` 만이 오염되지 않은 유일한 상태다.
+
+> **다만 그 필터는 지표 정의를 바꾼다.** 종전에 집계되던 **정상 실패**와 **stop 취소**의
+> 실제 duration 이 이제 평균에서 빠진다. 대시보드 숫자가 이동한다 — CHANGELOG 에 고지했다.
+
+임시 완화로 유저 가이드(`run-results.mdx` KO/EN)에 캐비엇을 넣었다. 근본 해결은 필드 분리다.
 
 > **두 라운드가 이 영향을 못 봤다.** spec-to-spec 대조도, 코드 diff 리뷰도 "이 컬럼을
 > **읽는** 쪽" 까지 따라가지 않았다. 쓰기를 늘릴 때 읽는 쪽을 세는 것이 빠졌다.
