@@ -14,14 +14,31 @@ import * as ts from 'typescript';
  *
  * 해소책은 "값·타입을 아무것도 import 하지 않는 모듈로 옮긴다" 였다. 그런데 그 불변식은
  * **주석으로만 존재하면 조용히 깨진다** — 이 파일에 import 한 줄을 더하는 것은 컴파일도
- * 통과하고 기존 테스트도 전부 통과한다. 순환에 다시 편입됐다는 사실은 한참 뒤 엉뚱한
- * suite 가 대량으로 터질 때에야 드러난다.
+ * 통과하고 기존 테스트도 전부 통과한다.
  *
- * ## 무엇을 세는가 — `import` 한 줄만 보면 한 칸 좁다
+ * ## 간선을 세는 곳은 **하나뿐이다** — 그게 이 파일의 설계다
  *
- * 모듈 간선은 `import` 말고도 `export … from`(re-export) · `import x = require()` ·
- * 동적 `import()` · `require()` 로도 생긴다. 그래서 정규식이 아니라 **TypeScript 파서**로
- * 모든 module specifier 를 센다.
+ * 처음엔 열거가 두 벌이었다: 완전한 쪽과, 손으로 다시 짠 좁은 쪽. 그랬더니 리뷰가
+ * **네 라운드 연속** 좁은 쪽이 놓친 형태를 하나씩 찾아냈다 —
+ * `export … from`(`20_05_17`) → 별칭 오판정(`20_27_08`) → `require()`(`20_50_49`).
+ * 매번 그 한 형태만 덧대면 다섯 번째가 온다.
+ *
+ * 그래서 {@link moduleRefs} **하나**가 모든 형태를 반환하고, 각 테스트는 그 결과를
+ * **거르기만** 한다. 새 문법이 생겨도 고칠 곳은 한 곳이다.
+ *
+ * ## eager vs lazy — 무엇이 결함이고 무엇이 아닌가
+ *
+ * 이 가드가 막는 건 "모듈 평가 시점에 아직 안 채워진 값을 읽는 것" 이다. 따라서 판별 기준은
+ * **즉시 해석되는가**다:
+ *
+ * | 형태 | 판정 |
+ * |---|---|
+ * | `import` · `export … from` · `import x = require()` | eager |
+ * | top-level `require()` | eager |
+ * | 함수 본문 안 `require()` · 동적 `import()` | **lazy — 결함 아님** |
+ *
+ * lazy 를 결함으로 세면 정당한 지연 로드를 오탐한다(저장소에 선례가 있다).
+ * 단, **타입 모듈 자신**은 어떤 형태로도 간선이 없어야 하므로 거기서는 lazy 도 센다.
  */
 
 const WS_DIR = __dirname;
@@ -52,6 +69,22 @@ const EXPECTED_EXPORTS = [
  */
 const REEXPORT_FACADE_TEST = path.join(WS_DIR, 'websocket.service.spec.ts');
 
+const SERVICE_MODULE = /websocket\.service$/;
+const EVENT_MODULES = /websocket-events\.types$|websocket\.service$/;
+
+/** 한 모듈 참조. {@link moduleRefs} 가 반환하는 유일한 형태다. */
+interface ModuleRef {
+  specifier: string;
+  /** 문법 형태 — `WebsocketService` 예외를 어디에 적용할지 가른다. */
+  form: 'import' | 'export' | 'import=require' | 'require' | 'dynamic-import';
+  /** 모듈 평가 시점에 즉시 해석되는가. lazy 면 순환 평가 순서를 깨지 않는다. */
+  eager: boolean;
+  /** 방출 후에도 남는 값 간선인가 (`import type` / `export type` 은 false). */
+  value: boolean;
+  /** 저쪽 모듈에서 꺼낸 **원** 식별자들. `*`/side-effect 는 빈 배열. */
+  names: string[];
+}
+
 function parse(file: string): ts.SourceFile {
   return ts.createSourceFile(
     file,
@@ -61,115 +94,114 @@ function parse(file: string): ts.SourceFile {
   );
 }
 
-/** 정적·동적을 가리지 않고 이 파일이 참조하는 모든 module specifier. */
-function moduleSpecifiersOf(sf: ts.SourceFile): string[] {
-  const found: string[] = [];
+/**
+ * **원 export 식별자**. `{ A as B }` 에서 알고 싶은 건 로컬 이름 `B` 가 아니라 저쪽 모듈에서
+ * 무엇을 꺼냈는지(`A`)다.
+ *
+ * `20_27_08` testing W2 — 처음엔 로컬 바인딩으로 비교해 양쪽으로 틀렸다. 실측으로 둘 다 재현:
+ * - FP `import { WebsocketService as WS }` → 'WS' 라서 예외를 못 타고 오탐
+ * - **FN `import { ExecutionEventType as WebsocketService }` → 예외를 타서 미검출.**
+ *   이건 #1174 재발 그 자체인데 가드가 통과시켰다
+ */
+function originalName(el: ts.ImportSpecifier | ts.ExportSpecifier): string {
+  return (el.propertyName ?? el.name).text;
+}
+
+/** 함수 안에 있으면 lazy — 모듈 평가 시점에 실행되지 않는다. */
+function insideFunction(node: ts.Node): boolean {
+  for (let p = node.parent; p; p = p.parent) {
+    if (ts.isFunctionLike(p)) return true;
+  }
+  return false;
+}
+
+/** 이 파일이 참조하는 **모든** 모듈 — 문법 형태를 가리지 않는다. */
+function moduleRefs(sf: ts.SourceFile): ModuleRef[] {
+  const refs: ModuleRef[] = [];
+
   const visit = (node: ts.Node): void => {
     if (
-      (ts.isImportDeclaration(node) || ts.isExportDeclaration(node)) &&
+      ts.isImportDeclaration(node) &&
+      ts.isStringLiteral(node.moduleSpecifier)
+    ) {
+      const clause = node.importClause;
+      const bindings = clause?.namedBindings;
+      const names =
+        bindings && ts.isNamedImports(bindings)
+          ? bindings.elements.filter((el) => !el.isTypeOnly).map(originalName)
+          : [];
+      refs.push({
+        specifier: node.moduleSpecifier.text,
+        form: 'import',
+        eager: true,
+        // 이름 없는 형태(side-effect / default / `* as`)도 값 간선이다.
+        value: !clause?.isTypeOnly,
+        names,
+      });
+    } else if (
+      ts.isExportDeclaration(node) &&
       node.moduleSpecifier &&
       ts.isStringLiteral(node.moduleSpecifier)
     ) {
-      found.push(node.moduleSpecifier.text);
+      const clause = node.exportClause;
+      const names =
+        clause && ts.isNamedExports(clause)
+          ? clause.elements.filter((el) => !el.isTypeOnly).map(originalName)
+          : [];
+      refs.push({
+        specifier: node.moduleSpecifier.text,
+        form: 'export',
+        eager: true,
+        value: !node.isTypeOnly,
+        names,
+      });
     } else if (
       ts.isImportEqualsDeclaration(node) &&
       ts.isExternalModuleReference(node.moduleReference) &&
       ts.isStringLiteral(node.moduleReference.expression)
     ) {
-      found.push(node.moduleReference.expression.text);
+      refs.push({
+        specifier: node.moduleReference.expression.text,
+        form: 'import=require',
+        eager: true,
+        value: true,
+        names: [],
+      });
     } else if (ts.isCallExpression(node)) {
       const isRequire =
         ts.isIdentifier(node.expression) && node.expression.text === 'require';
-      const isDynamicImport =
-        node.expression.kind === ts.SyntaxKind.ImportKeyword;
+      const isDynamic = node.expression.kind === ts.SyntaxKind.ImportKeyword;
       const [arg] = node.arguments;
-      if ((isRequire || isDynamicImport) && arg && ts.isStringLiteral(arg)) {
-        found.push(arg.text);
+      if ((isRequire || isDynamic) && arg && ts.isStringLiteral(arg)) {
+        refs.push({
+          specifier: arg.text,
+          form: isRequire ? 'require' : 'dynamic-import',
+          // 동적 import 는 항상 lazy. require 는 top-level 일 때만 eager.
+          eager: isRequire && !insideFunction(node),
+          value: true,
+          names: destructuredKeys(node),
+        });
       }
     }
     ts.forEachChild(node, visit);
   };
+
   visit(sf);
-  return found;
+  return refs;
 }
 
 /**
- * 이 statement 가 `websocket.service` 로 **값 간선**을 만들면 그 설명을, 아니면 `null`.
- *
- * `20_05_17` testing W2 — 처음엔 `ts.isImportDeclaration` 만 순회했다. 그래서
- * `export { ExecutionEventType } from './websocket.service'` 재유입을 **못 잡았고**,
- * 리뷰어가 실제 프로브로 4/4 GREEN(미검출)을 재현해 보였다. 위 {@link moduleSpecifiersOf}
- * 는 다섯 형태를 다 세는데 여기서만 한 형태로 좁혔던 것 — 같은 파일 안에서 같은 실수를 했다.
- *
- * 그래서 값 간선을 만드는 형태를 전부 센다:
- * default · namespace(`* as`) · side-effect(`import '…'`) · named 값 · `export … from` ·
- * `export * from` · `import x = require(…)`.
- *
- * **동적 `import()` 는 제외한다** — 지연 평가라 모듈 스코프 평가 순서를 깨지 않는다(이 가드가
- * 막으려는 결함이 아니다). 반면 타입 모듈 자신(첫 테스트)은 간선이 **아예** 없어야 하므로
- * 거기서는 동적 import 도 센다. 비대칭은 의도다.
+ * `const { A: b } = require('…')` 에서 꺼낸 **프로퍼티 키**(`A`). 별칭이 아니라 키로 읽는 이유는
+ * import 쪽과 같다 — 이름을 바꿔 다는 것으로 예외를 타면 안 된다.
  */
-function valueEdgeToWebsocketService(st: ts.Statement): string | null {
-  const hits = (spec: ts.Expression | undefined): boolean =>
-    !!spec && ts.isStringLiteral(spec) && /websocket\.service$/.test(spec.text);
-
-  /**
-   * **원 export 식별자**. `{ A as B }` 에서 알고 싶은 건 로컬 이름 `B` 가 아니라 저쪽 모듈에서
-   * 무엇을 꺼냈는지(`A`)다.
-   *
-   * `20_27_08` testing W2 — 처음엔 `el.name.text`(로컬 바인딩)로 비교해 양쪽으로 틀렸다.
-   * 실측으로 둘 다 재현했다:
-   * - FP `import { WebsocketService as WS }` → 'WS' 라서 예외를 못 타고 오탐
-   * - **FN `import { ExecutionEventType as WebsocketService }` → 예외를 타서 미검출.**
-   *   이건 #1174 재발 그 자체인데 가드가 통과시켰다
-   */
-  const originalName = (el: ts.ImportSpecifier | ts.ExportSpecifier): string =>
-    (el.propertyName ?? el.name).text;
-
-  if (ts.isImportDeclaration(st) && hits(st.moduleSpecifier)) {
-    const clause = st.importClause;
-    if (!clause) return 'side-effect import';
-    if (clause.isTypeOnly) return null; // `import type { … }` 은 방출 시 사라진다
-    if (clause.name) return `default import ${clause.name.text}`;
-
-    const bindings = clause.namedBindings;
-    if (bindings && ts.isNamespaceImport(bindings)) {
-      return `namespace import * as ${bindings.name.text}`;
-    }
-    if (bindings && ts.isNamedImports(bindings)) {
-      const names = bindings.elements
-        .filter((el) => !el.isTypeOnly)
-        .map(originalName)
-        .filter((n) => n !== 'WebsocketService');
-      return names.length ? names.join(', ') : null;
-    }
-    return null;
-  }
-
-  if (ts.isExportDeclaration(st) && hits(st.moduleSpecifier)) {
-    if (st.isTypeOnly) return null;
-    if (!st.exportClause) return 'export * from';
-    if (ts.isNamespaceExport(st.exportClause)) {
-      return `export * as ${st.exportClause.name.text} from`;
-    }
-    // 여기엔 `WebsocketService` 예외가 **없다 — 비대칭은 의도다.** import 쪽 예외는
-    // "서비스를 주입하려면 클래스를 import 할 수밖에 없다" 는 DI 의 불가피함 때문이다.
-    // 재-수출은 불가피하지 않고, 오히려 제3 모듈에 우회 경로를 만들어 이 가드를 무력화한다.
-    const names = st.exportClause.elements
-      .filter((el) => !el.isTypeOnly)
-      .map(originalName);
-    return names.length ? `re-export ${names.join(', ')}` : null;
-  }
-
-  if (
-    ts.isImportEqualsDeclaration(st) &&
-    ts.isExternalModuleReference(st.moduleReference) &&
-    hits(st.moduleReference.expression)
-  ) {
-    return `import ${st.name.text} = require()`;
-  }
-
-  return null;
+function destructuredKeys(call: ts.CallExpression): string[] {
+  const decl = call.parent;
+  if (!decl || !ts.isVariableDeclaration(decl)) return [];
+  if (!ts.isObjectBindingPattern(decl.name)) return [];
+  return decl.name.elements
+    .map((el) => el.propertyName ?? el.name)
+    .filter(ts.isIdentifier)
+    .map((id) => id.text);
 }
 
 function allTsFiles(dir: string): string[] {
@@ -182,14 +214,29 @@ function allTsFiles(dir: string): string[] {
   return out;
 }
 
+/** 모든 소스 파일을 한 번만 파싱해 술어에 넘긴다 (테스트마다 재파싱하지 않는다). */
+function collectOffenders(
+  probe: (sf: ts.SourceFile, file: string) => string[],
+): string[] {
+  const offenders: string[] = [];
+  for (const file of allTsFiles(SRC_ROOT)) {
+    for (const hit of probe(parse(file), file)) {
+      offenders.push(`${path.relative(SRC_ROOT, file)} → ${hit}`);
+    }
+  }
+  return offenders;
+}
+
 describe('websocket-events.types — ES-module 순환 재편입 방지 (#1174 회귀 가드)', () => {
-  it('module specifier 를 하나도 갖지 않는다 (import / export-from / require / 동적 import 전부)', () => {
+  it('모듈 참조를 하나도 갖지 않는다 (eager·lazy 를 가리지 않고 전부)', () => {
     const sf = parse(TYPES_FILE);
 
     // 공허 방지 — 파일을 못 읽거나 빈 파일이면 "간선 0" 은 자동으로 참이 된다.
-    expect(sf.statements.length).toBeGreaterThan(EXPECTED_EXPORTS.length - 1);
+    expect(sf.statements.length).toBeGreaterThanOrEqual(
+      EXPECTED_EXPORTS.length,
+    );
 
-    expect(moduleSpecifiersOf(sf)).toEqual([]);
+    expect(moduleRefs(sf).map((r) => `${r.form} ${r.specifier}`)).toEqual([]);
   });
 
   it('값·타입 선언이 실제로 이 모듈에 있다 (딴 데로 옮기면 위 단언이 공허해진다)', () => {
@@ -207,19 +254,26 @@ describe('websocket-events.types — ES-module 순환 재편입 방지 (#1174 �
     expect([...EXPECTED_EXPORTS].filter((n) => !declared.has(n))).toEqual([]);
   });
 
-  it('`websocket.service` 로의 값 간선이 없다 (re-export facade 테스트 제외)', () => {
-    const offenders: string[] = [];
+  it('`websocket.service` 로의 eager 값 간선이 없다 (re-export facade 테스트 제외)', () => {
+    const offenders = collectOffenders((sf, file) => {
+      if (file === path.join(WS_DIR, 'websocket.service.ts')) return [];
+      if (file === REEXPORT_FACADE_TEST) return [];
 
-    for (const file of allTsFiles(SRC_ROOT)) {
-      if (file === path.join(WS_DIR, 'websocket.service.ts')) continue;
-      if (file === REEXPORT_FACADE_TEST) continue;
-
-      const sf = parse(file);
-      for (const st of sf.statements) {
-        const edge = valueEdgeToWebsocketService(st);
-        if (edge) offenders.push(`${path.relative(SRC_ROOT, file)} → ${edge}`);
-      }
-    }
+      return moduleRefs(sf)
+        .filter((r) => r.eager && r.value && SERVICE_MODULE.test(r.specifier))
+        .filter((r) => {
+          // 서비스를 **주입하려면** 클래스를 import 할 수밖에 없다 — DI 의 불가피함이다.
+          // 그래서 `import { WebsocketService }` 만 예외다.
+          //
+          // 재-수출(`export … from`)에는 그런 불가피함이 없다. 오히려 제3 모듈에 우회
+          // 경로를 만들어 이 가드를 무력화하므로 **일부러 예외를 두지 않았다.**
+          // 비대칭은 의도다.
+          if (r.form !== 'import') return true;
+          if (!r.names.length) return true; // side-effect / default / `* as`
+          return r.names.some((n) => n !== 'WebsocketService');
+        })
+        .map((r) => `${r.form} ${r.names.join(', ') || '(no names)'}`);
+    });
 
     expect(offenders).toEqual([]);
   });
@@ -229,14 +283,13 @@ describe('websocket-events.types — ES-module 순환 재편입 방지 (#1174 �
   });
 
   /**
-   * 위 세 번째 테스트의 판별 기준이 `isTypeOnly` 다. 타입 전용 심볼을 `type` 표시 없이
-   * import 하면 그 신호가 흐려진다 — 값 간선이 아닌데 값 간선처럼 보인다.
+   * 위 세 번째 테스트의 판별 기준이 `value`(= `isTypeOnly` 의 부정)다. 타입 전용 심볼을
+   * `type` 표시 없이 import 하면 그 신호가 흐려진다 — 값 간선이 아닌데 값 간선처럼 보인다.
    *
-   * 리뷰 두 라운드 연속(`20_05_17` W1 · `20_27_08` W1) 같은 지적이 나왔다. 두 번 다 지목된
-   * 곳만 고치면 세 번째가 온다. **인스턴스가 아니라 부류를 고정한다.**
+   * 리뷰 두 라운드 연속(`20_05_17` W1 · `20_27_08` W1) 같은 지적이 나왔다. 지목된 곳만
+   * 고치면 세 번째가 온다. **인스턴스가 아니라 부류를 고정한다.**
    *
    * 무엇이 값이고 무엇이 타입인지는 하드코딩하지 않는다 — 타입 모듈을 파싱해서 얻는다.
-   * 그래야 새 선언이 추가돼도 목록을 손으로 맞출 필요가 없다.
    */
   it('타입 전용 심볼을 `type` 표시 없이 import 하는 곳이 없다', () => {
     const typesSf = parse(TYPES_FILE);
@@ -249,36 +302,16 @@ describe('websocket-events.types — ES-module 순환 재편입 방지 (#1174 �
     // 공허 방지 — 하나도 못 모으면 아래 순회가 자동으로 통과한다.
     expect(typeOnly.size).toBeGreaterThan(0);
 
-    const offenders: string[] = [];
-    for (const file of allTsFiles(SRC_ROOT)) {
-      const sf = parse(file);
-      for (const st of sf.statements) {
-        if (!ts.isImportDeclaration(st)) continue;
-        if (!ts.isStringLiteral(st.moduleSpecifier)) continue;
-        if (
-          !/websocket-events\.types$|websocket\.service$/.test(
-            st.moduleSpecifier.text,
-          )
-        ) {
-          continue;
-        }
-        const clause = st.importClause;
-        if (!clause || clause.isTypeOnly) continue;
-        const bindings = clause.namedBindings;
-        if (!bindings || !ts.isNamedImports(bindings)) continue;
-
-        const bare = bindings.elements
-          .filter((el) => !el.isTypeOnly)
-          .map((el) => (el.propertyName ?? el.name).text)
-          .filter((n) => typeOnly.has(n));
-
-        if (bare.length) {
-          offenders.push(
-            `${path.relative(SRC_ROOT, file)} → ${bare.join(', ')}`,
-          );
-        }
-      }
-    }
+    const offenders = collectOffenders((sf) =>
+      moduleRefs(sf)
+        .filter(
+          (r) =>
+            r.form === 'import' && r.value && EVENT_MODULES.test(r.specifier),
+        )
+        .map((r) => r.names.filter((n) => typeOnly.has(n)))
+        .filter((bare) => bare.length)
+        .map((bare) => bare.join(', ')),
+    );
 
     expect(offenders).toEqual([]);
   });

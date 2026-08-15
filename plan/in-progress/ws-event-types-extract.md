@@ -66,7 +66,8 @@ ES-module 순환 위에 있어서다. 생성자의 `forwardRef` 도 같은 이�
 ## 조치
 
 - [x] `websocket-events.types.ts` 신설 — **import 0줄 · 구현 0개** (실측)
-- [x] `websocket.service.ts` re-export (값 4 + 타입 9)
+- [x] `websocket.service.ts` re-export — **값 4 + 타입 8** (`20_50_49` INFO7 이 "타입 9" 오기를
+      지적. 파서로 재측정해 정정)
 - [x] 타입만 쓰는 12곳 전환 — **그리고 그것만으로는 안 끊겼다.** 정작 버그가 났던
       `event-emitter` 는 `WebsocketService` 도 주입받아 내 규칙이 건너뛰었다.
       **둘 다 필요한 9곳의 import 를 갈라야** 했다
@@ -182,6 +183,37 @@ ES-module 순환 위에 있어서다. 생성자의 `forwardRef` 도 같은 이�
       파싱해서** 얻으므로 선언이 늘어도 손으로 맞출 필요가 없다.
       이건 스타일 문제가 아니다: 세 번째 테스트의 판별 기준이 `isTypeOnly` 라 표시가 빠지면
       **가드의 신호 자체가 흐려진다**
+
+- [x] **네 번째 재발에서 패치를 멈추고 구조를 고쳤다** (`20_50_49` W1). 이번엔 `require()`
+      미검출이었고, 리뷰어가 프로브로 5/5 GREEN 을 재현했다. 형태별로 세면
+      `export … from` → 별칭 → `require()` 로 **네 라운드 연속** 같은 실패 모드다.
+
+      원인은 그 형태들이 아니라 **열거가 두 벌이었다는 것**이다 — 완전한 `moduleSpecifiersOf`
+      와 손으로 다시 짠 좁은 `valueEdgeToWebsocketService`. 후자가 매 라운드 새 형태를 놓쳤다.
+      다섯 번째를 기다리지 않고 `moduleRefs` **하나**로 합쳤다. 각 테스트는 그 결과를 거르기만
+      한다.
+
+      동시에 **판별 기준을 형태 목록에서 의미로 바꿨다** — "즉시 해석되는가(eager)". 그래야
+      새 문법이 생겨도 답이 정해진다:
+
+      | 형태 | 판정 |
+      |---|---|
+      | `import` · `export … from` · `import x = require()` · **top-level `require()`** | eager |
+      | 함수 본문 안 `require()` · 동적 `import()` | **lazy — 결함 아님** |
+
+      lazy 를 결함으로 세면 정당한 지연 로드를 오탐한다(저장소에 선례가 있다).
+      단 타입 모듈 자신은 어떤 형태로도 간선이 없어야 하므로 거기서는 lazy 도 센다.
+
+      **재구성이 예전 커버리지를 깼는지 확인하려고 전 뮤턴트를 다시 돌렸다** — 17 RED / 5 GREEN:
+
+      | | 뮤턴트 |
+      |---|---|
+      | 타입 모듈 자신 | M1 import · M2 `export…from` · M3 동적 import · **M15 함수 안 require** |
+      | 선언 이동 | M4 개명 |
+      | 값 간선 | M7 `export…from` · M8 `export *` · M9 namespace · M10 side-effect · M11 `import=require` · M12 FN 별칭 · M13 별칭 세탁 재수출 · **M16 top-level require 구조분해** · **M17 require 별칭 세탁** · **M18 bare require** |
+      | 타입 표시 | M14 |
+      | allowlist | M6 |
+      | **음성 대조(GREEN 이 정답)** | N1 `import type` · N2 `WebsocketService` 별칭 · N3 인라인 type · **N4 함수 안 require** · **N5 동적 import** |
 
 ## 체크리스트
 
