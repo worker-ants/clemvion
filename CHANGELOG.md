@@ -1,5 +1,19 @@
 # Changelog
 
+## Unreleased — stalled 마감의 부분 커밋 (자식 NodeExecution 영구 RUNNING 잔류)
+
+`finalizeStalledExhausted`(BullMQ stalled 재배달 소진 → `WORKER_HEARTBEAT_TIMEOUT` 마감)가
+Execution UPDATE 와 자식 `NodeExecution` cascade UPDATE 를 **각각 autocommit** 으로 실행했다.
+첫 문장이 커밋된 뒤 둘째가 실패(DB 오류·크래시)하면 자식이 **영구 `RUNNING`** 으로 잔류한다 —
+유령 running 이다.
+
+같은 2-테이블 쓰기를 하는 자매 `cancelParkedExecution` · `markWebChatIdleTimeout` 은 이미
+`dataSource.transaction` 으로 원자화돼 있었고 **이 경로만 열려 있었다.** 자매의 패턴을 그대로
+따라 단일 트랜잭션으로 묶었다(트랜잭션 안에서 두 UPDATE, 커밋 이후 emit).
+
+**수신자 영향 없음** — 이벤트 payload·상태 전이·no-op 조건 모두 그대로다. 부분 커밋으로
+잔류하던 유령 `RUNNING` 노드가 더 이상 생기지 않는다.
+
 ## Unreleased — 종결 이벤트가 DB 와 다른 값을 말하던 곳들
 
 직전 항목이 세운 **"DB = wire"** 불변식에는 구멍이 셋 있었다. 하나는 값 불일치가 아니라

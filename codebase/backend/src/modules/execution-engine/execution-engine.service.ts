@@ -3322,6 +3322,12 @@ export class ExecutionEngineService
    * 경우(RUNNING 잔류)만 발동한다. 이 조건이 두 실패 경로를 자연 분기한다.
    * 자식 RUNNING NodeExecution 도 cascade 마감(유령 running 제거).
    *
+   * **두 UPDATE 는 단일 트랜잭션이다 (2026-08-15)** — 자매 {@link cancelParkedExecution} ·
+   * `markWebChatIdleTimeout` 과 동형이다. 종전엔 **이 함수만** 둘이 각각 autocommit 이라,
+   * 첫 문장이 커밋된 뒤 둘째가 실패하면 자식이 **영구 `RUNNING`** 으로 잔류했다 — 자매 두
+   * 함수의 주석이 경고하는 바로 그 실패 모드이고, 셋 중 이 하나만 열려 있었다.
+   * emit·cleanup 은 **커밋 이후** best-effort 로 실행한다(자매와 같은 순서).
+   *
    * ⚠️ **알려진 이론적 race(수용, §7.5 case B 각주와 동일 class)**: job 이 stalled 를
    * 소진해 failed→onFailed 되는 순간, **부팅 backstop `recoverStuckExecutions`** 가
    * 같은 stale RUNNING 을 re-claim 해 재구동 중일 수 있다. 그 경우 본 조건부 UPDATE
@@ -3381,8 +3387,9 @@ export class ExecutionEngineService
         .set({
           status: NodeExecutionStatus.FAILED,
           error: {
-            // 부모와 같은 code — 위 `stalledError` 를 도입한 이유(손으로 반복하면 갈린다)가
-            // 30줄 아래에서 그대로 재현되고 있었다.
+            // 부모와 같은 code — 위 `stalledError` 상수를 도입한 이유(손으로 반복하면
+            // 갈린다)가 이 자리에서 그대로 재현되고 있었다. 거리를 줄 수로 적으면
+            // 코드가 움직일 때마다 틀린다.
             code: stalledError.code,
             message: 'Node failed: parent execution stalled (재배달 소진)',
           },

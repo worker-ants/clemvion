@@ -4912,31 +4912,7 @@ describe('ExecutionEngineService', () => {
     // mock 은 롤백을 흉내내지 못한다. 이 테스트가 보증하는 것은 **두 UPDATE 가 같은
     // 트랜잭션 manager 를 탄다**는 것까지다(원자성 자체가 아니라 그 전제).
     it('Execution·NodeExecution 두 UPDATE 가 같은 트랜잭션 manager 를 탄다', async () => {
-      const execQb = mkExecQb(1);
-      const nodeQb = {
-        update: jest.fn().mockReturnThis(),
-        set: jest.fn().mockReturnThis(),
-        setParameter: jest.fn().mockReturnThis(),
-        where: jest.fn().mockReturnThis(),
-        andWhere: jest.fn().mockReturnThis(),
-        returning: jest.fn().mockReturnThis(),
-        execute: jest.fn().mockResolvedValue({ affected: 1 }),
-      };
-      const qbs = [execQb, nodeQb];
-      const managerCqb = jest.fn(() => qbs.shift());
-      const txSpy = jest.fn(async (cb: (m: unknown) => Promise<unknown>) =>
-        cb({ createQueryBuilder: managerCqb }),
-      );
-      (
-        service as unknown as { dataSource: { transaction: jest.Mock } }
-      ).dataSource.transaction = txSpy;
-      // 트랜잭션 **밖** 경로가 쓰이면 이 mock 들이 호출된다 — 호출되면 안 된다.
-      mockExecutionRepo.createQueryBuilder = jest.fn(() => {
-        throw new Error('트랜잭션 밖 executionRepository 사용');
-      });
-      mockNodeExecutionRepo.createQueryBuilder = jest.fn(() => {
-        throw new Error('트랜잭션 밖 nodeExecutionRepository 사용');
-      });
+      const { execQb, nodeQb, txSpy, managerCqb } = installStalledTx(1);
       jest
         .spyOn(
           (
@@ -4989,6 +4965,15 @@ describe('ExecutionEngineService', () => {
       // `status` 만 단언하면 `error.code` 를 바꿔도 GREEN 이다 — 뮤테이션으로 실측됐다
       // (`23_34_12` testing W1). **이 줄이야말로 "손으로 값을 반복하면 갈린다" 는 이번
       // 변경의 교훈이 재현된 자리**(부모 상수를 참조하도록 고친 곳)라 값을 고정한다.
+      // WHERE 가드도 단언한다 — 종전엔 `set` 만 봐서 **WHERE 값을 바꿔도 GREEN** 이었다
+      // (`16_04_38` testing W1 이 뮤테이션으로 실측). `execution_id` 범위를 잃으면 다른
+      // 실행의 노드를 마감하고, `status` 가드를 잃으면 이미 끝난 노드를 덮어쓴다.
+      expect(nodeQb.where).toHaveBeenCalledWith('execution_id = :executionId', {
+        executionId: 'exec-stalled',
+      });
+      expect(nodeQb.andWhere).toHaveBeenCalledWith('status = :running', {
+        running: NodeExecutionStatus.RUNNING,
+      });
       expect(nodeQb.set).toHaveBeenCalledWith(
         expect.objectContaining({
           status: NodeExecutionStatus.FAILED,
