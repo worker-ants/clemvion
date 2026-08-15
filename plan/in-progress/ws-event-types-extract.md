@@ -285,9 +285,10 @@ ES-module 순환 위에 있어서다. 생성자의 `forwardRef` 도 같은 이�
 - [x] `--impl-prep` (`18_53_27`) **BLOCK: NO** — WARNING 3 + INFO 1 전부 반영
 - [x] 자매 트래커 동시 갱신 (구현 커밋과 같은 턴)
 - [x] TEST WORKFLOW 4스테이지 — lint / unit(백엔드 425·8737) / build / **e2e 276** 전부 PASS
-- [x] `/ai-review` (`19_27_37`) **CRITICAL 0** · Warning 5 전부 반영 → `RESOLUTION.md`
-- [ ] fresh `/ai-review` (fix 이후)
-- [ ] `--impl-done` BLOCK: NO
+- [x] `/ai-review` **7라운드** — `19_27_37` → `20_05_17` → `20_27_08` → `20_50_49` →
+      `21_14_51` → `21_49_51` → **`22_13_48` Critical 0 · Warning 0 (수렴)**.
+      각 라운드 `RESOLUTION.md` 작성
+- [x] `--impl-done` (`20_05_19`) **BLOCK: NO** — plan_coherence W1 + naming INFO7 반영
 - [ ] push 게이트 통과 → PR
 
 ## 후속 (이 PR 범위 밖)
@@ -332,3 +333,15 @@ ES-module 순환 위에 있어서다. 생성자의 `forwardRef` 도 같은 이�
       축소**됐다는 후속 한 줄 (`20_05_19` rationale INFO4). 봉인 기법·단일 sink 정책 자체는 불변
 - [ ] `TerminalErrorPayload` 를 채우는 호출부의 `sanitizeErrorMessage` 경유 여부 전수 확인
       (`19_27_37` INFO2 — 기존 설계이고 이번 diff 와 무관)
+- [ ] **export-default 캐너리가 `export { X as default } from` 별칭을 못 본다**
+      (`22_13_48` INFO2). **방어는 완전하고 캐너리만 좁다** — 진짜 방어선인 세 번째 테스트가
+      `import D from '…'` 를 default 바인딩 값 간선으로 잡는다(형태별 뮤테이션 "default 단독"
+      RED 로 실증). 자기점검의 완전성만 남은 문제라 라운드를 하나 더 도는 값을 못 한다
+- [ ] `ts.getModifiers(st as ts.HasModifiers)` → `ts.canHaveModifiers(st)` 가드
+      (`22_13_48` INFO3 — 순수 스타일, 런타임 위험 없음)
+
+> **CHANGELOG 항목은 불필요하다 — 다만 근거를 정정한다** (`22_13_48` INFO1). 이전 리뷰
+> 3라운드가 "이 저장소는 `CHANGELOG.md` 를 쓰지 않는다" 를 근거로 써 왔는데 거짓이다
+> (1,137줄 활성, 선행 커밋 `8e0728a90` 도 갱신). 실측하면 `## Unreleased` **85건이 전부 행동
+> 변화**이고 순수 내부 리팩터 항목은 0건이다. 즉 불필요한 진짜 이유는 **이 PR 에 행동 변화가
+> 0** 이라서다. 결론이 맞다고 근거까지 맞은 건 아니었다.
