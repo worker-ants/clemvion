@@ -135,7 +135,11 @@ event-emitter ES-module 순환 위에 있어(생성자의 `forwardRef` 가 같�
 
 - [x] `--impl-prep` (`17_20_28`) **BLOCK: NO** — WARNING 4 중 2건 반영(#2 흡수·타입명), 2건은 선존 spec drift
 - [x] 자매 트래커 동시 갱신 (구현 커밋과 같은 턴)
-- [x] TEST WORKFLOW 4스테이지 — lint / unit(백엔드 425·8735) / build / **e2e 276** 전부 PASS
+- [x] TEST WORKFLOW 4스테이지 — **최종 커밋(`b7c22d922`) 기준 재실측**:
+      lint / unit(백엔드 425 suites·**8737**) / build / **e2e 276 passed** 전부 PASS
+      > 첫 e2e 시도는 **`no space left on device`** 로 실패했다 — 코드 실패가 아니라 Docker
+      > 빌드 캐시 39GB 였다. `docker builder prune -af` 후 통과. 백엔드 Jest 자체는 그
+      > 실패 실행에서도 276/276 이었고, 깨진 건 그 뒤 Playwright 러너 컨테이너 생성이다.
 - [ ] `/ai-review` CRITICAL 0
 - [ ] `--impl-done` BLOCK: NO
 - [ ] push 게이트 통과 → PR
