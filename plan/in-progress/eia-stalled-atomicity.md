@@ -54,10 +54,16 @@ spec_impact:
 
 ## 판별력 (뮤테이션)
 
-| 뮤턴트 | 결과 |
-|---|---|
-| `dataSource.transaction` 제거 (manager 직접 사용) | **RED 3/3** |
-| `affected=0` 조기 return 제거 | **RED 1** |
+> 이 표가 **라운드 1 시점에 멈춰 있었다** (`16_44_28` documentation W2) — 아래 체크리스트는
+> 3라운드 조치 완료를 정확히 적었는데 이 표만 2행이었다. 누적으로 갱신했다.
+
+| 뮤턴트 | 결과 | 라운드 |
+|---|---|---|
+| `dataSource.transaction` 제거 (manager 직접 사용) | **RED 3/3** | `16_04_38` 전 |
+| `affected=0` 조기 return 제거 | **RED 1** | `16_04_38` 전 |
+| cascade WHERE 가드 변조 (`:running`→`:waiting`) | **RED** | `16_04_38` W1 |
+| Execution `WHERE id` 변조 (`id`→`wrong`) | **RED 2** | `16_19_26` W1 |
+| 트랜잭션 예외 삼킴 (`try{}catch{return}`) | **RED** | `16_31_53` W1 |
 
 ## 범위 밖
 

@@ -322,6 +322,28 @@ payload 값은 같으므로(둘 다 DB 정본을 읽는다) 수신자가 보는 
 > (`13_58_27` W9) · 그리고 이 건. **유예의 근거로 "등재했다" 를 쓸 때 그 등재를 열어서
 > 확인하라.** 세 번은 grep 이 반증했고 이번엔 문자열 카운트가 0이었다.
 
+## `claimResumeEntry` 만 두 테이블을 반대 순서로 잠근다 (2026-08-15 등재, `16_44_28` concurrency W1)
+
+**실측** (`.update(Entity)` 등장 순서):
+
+| 함수 | 잠금 순서 |
+|---|---|
+| `cancelParkedExecution` | Execution → NodeExecution |
+| `markWebChatIdleTimeout` | Execution → NodeExecution |
+| `finalizeStalledExhausted` | Execution → NodeExecution |
+| **`claimResumeEntry`** | **NodeExecution → Execution** |
+
+교차 함수 lock-order 역전이라 이론적 데드락 표면이다(다중 브랜치 실행에서 한쪽이 stalled
+소진 중, 다른 쪽이 동시에 재개될 때).
+
+- [ ] `claimResumeEntry` 의 순서를 자매 셋과 맞추거나, 맞출 수 없으면 그 이유를 JSDoc 에 명시
+- [ ] 자매 셋의 JSDoc 에 `claimResumeEntry` 와의 역전 가능성 한 줄
+
+> **선존이고 이 PR 이 만들지 않았다** — 자매 둘이 이미 `Execution → NodeExecution` 이었고
+> `claimResumeEntry` 만 반대였다. 이 PR 은 **세 번째를 같은 방향으로 맞춘 것**이라 자매 간
+> 일관성은 오히려 개선됐다. Postgres 가 데드락을 자동 검출하고, 이번에 추가한 실패-전파
+> 테스트가 hang·유령 상태가 없음을 잠근다 — 그래서 차단 사유가 아니다(리뷰어도 동의).
+
 ## 종결 이벤트 emit 에 타입 초크포인트가 없다 (2026-08-15 등재, `11_59_09` architecture W1)
 
 `emitExecution(payload: unknown)` 이 종결 payload 형태를 **타입으로 강제하지 않아** 필드
