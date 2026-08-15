@@ -11,7 +11,7 @@ import {
 import { NodeExecutionStatus } from '../node-executions/entities/node-execution.entity';
 import { Node, NodeCategory } from '../nodes/entities/node.entity';
 import { NodeHandler } from '../../nodes/core/node-handler.interface';
-import { ExecutionEventType } from '../websocket/websocket.service';
+import { ExecutionEventType } from '../websocket/websocket-events.types';
 import {
   buildAiMessageDebugFromResumeState,
   buildConversationConfigFromOutput,

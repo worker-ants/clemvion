@@ -116,10 +116,10 @@ import {
 } from '../../nodes/core/node-handler.interface';
 import { NODE_TYPES } from '../../nodes/core/node-types.constants';
 import {
-  ChatChannelRoutingInfo,
+  type ChatChannelRoutingInfo,
   ExecutionEventType,
   NodeEventType,
-} from '../websocket/websocket.service';
+} from '../websocket/websocket-events.types';
 import { ExecutionEventEmitter } from './events/execution-event-emitter.service';
 import { PRESENTATION_NODE_TYPES } from '../../common/constants/presentation';
 import { GraphTraversalService } from './graph/graph-traversal.service';

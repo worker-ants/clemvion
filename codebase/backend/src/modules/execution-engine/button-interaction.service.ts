@@ -20,7 +20,7 @@ import { ExecutionEventEmitter } from './events/execution-event-emitter.service'
 import {
   ExecutionEventType,
   NodeEventType,
-} from '../websocket/websocket.service';
+} from '../websocket/websocket-events.types';
 import { redactThreadForPublic } from '../../shared/conversation-thread/thread-renderer';
 import {
   PARK_RELEASED,

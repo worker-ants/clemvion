@@ -4,7 +4,7 @@ import {
   ChatChannelDispatcher,
 } from './chat-channel.dispatcher';
 import { Logger } from '@nestjs/common';
-import type { ExecutionChannelEvent } from '../websocket/websocket.service';
+import type { ExecutionChannelEvent } from '../websocket/websocket-events.types';
 import type { ChannelMessage } from './types';
 
 /**

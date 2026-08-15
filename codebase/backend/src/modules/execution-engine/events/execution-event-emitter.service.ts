@@ -1,10 +1,10 @@
 import { forwardRef, Inject, Injectable } from '@nestjs/common';
+import { WebsocketService } from '../../websocket/websocket.service';
 import {
   ExecutionEventType,
-  ExecutionRoutingContext,
+  type ExecutionRoutingContext,
   NodeEventType,
-  WebsocketService,
-} from '../../websocket/websocket.service';
+} from '../../websocket/websocket-events.types';
 import { ExecutionStatus } from '../../executions/entities/execution.entity';
 import type { TerminalErrorPayload } from '../../../shared/utils/terminal-error-payload';
 
@@ -47,6 +47,41 @@ export type TerminalEventPayload =
        */
       error?: { code: string; message: string };
     };
+
+/**
+ * `type` → wire 이벤트명·`status`. 둘이 어긋날 수 없도록 한 곳에서만 파생한다.
+ *
+ * ## 이 상수가 **모듈 스코프**에 있다는 것 자체가 회귀 가드다
+ *
+ * #1174 는 이 파생을 모듈 스코프에 뒀다가 **72 suites 가
+ * `Cannot read properties of undefined` 로 터졌다** — 이 파일이 ES-module 순환 위에 있어
+ * 모듈 평가 시점에 `ExecutionEventType` 이 아직 `undefined` 였다. 그때는 호출 시점 지연
+ * 평가로 우회했다.
+ *
+ * 이제 enum 은 **의존성-프리 모듈**(`websocket-events.types.ts`)에서 오고, 이 파일은 그
+ * 모듈만 값으로 참조한다 — 순환에 참여하지 않으므로 모듈 스코프 평가가 안전하다.
+ *
+ * **우회를 되돌린 이유는 그게 캐너리이기 때문이다.** 누군가 값 import 를 다시
+ * `websocket.service` 로 되돌리거나 순환을 되살리면 이 상수가 즉시 `undefined` 를 읽어
+ * 테스트가 대량으로 깨진다 — 조용히 되돌아가지 않는다.
+ *
+ * 다만 캐너리는 **터진 뒤에야** 말해 준다. 원인을 곧장 가리키는 쪽은
+ * `websocket/websocket-events.types.spec.ts` 다 — 순환 재편입을 정적으로 잡는다.
+ */
+const TERMINAL_SHAPE = {
+  completed: {
+    eventType: ExecutionEventType.EXECUTION_COMPLETED,
+    status: ExecutionStatus.COMPLETED,
+  },
+  failed: {
+    eventType: ExecutionEventType.EXECUTION_FAILED,
+    status: ExecutionStatus.FAILED,
+  },
+  cancelled: {
+    eventType: ExecutionEventType.EXECUTION_CANCELLED,
+    status: ExecutionStatus.CANCELLED,
+  },
+} as const;
 
 /**
  * 실행 엔진이 발행하는 도메인 이벤트의 단일 진입점.
@@ -105,24 +140,7 @@ export class ExecutionEventEmitter {
     executionId: string,
     payload: TerminalEventPayload,
   ): Promise<void> {
-    // **모듈 스코프에서 파생하지 않는다.** 이 파일은 ws.service↔gateway↔event-emitter
-    // ES-module 순환 위에 있어(생성자의 `forwardRef` 가 같은 이유), 모듈 평가 시점에
-    // `ExecutionEventType` 를 읽으면 아직 `undefined` 다 — 실제로 그렇게 만들었다가
-    // 72 suites 가 `Cannot read properties of undefined` 로 터졌다. 호출 시점에 읽는다.
-    const { eventType, status } = {
-      completed: {
-        eventType: ExecutionEventType.EXECUTION_COMPLETED,
-        status: ExecutionStatus.COMPLETED,
-      },
-      failed: {
-        eventType: ExecutionEventType.EXECUTION_FAILED,
-        status: ExecutionStatus.FAILED,
-      },
-      cancelled: {
-        eventType: ExecutionEventType.EXECUTION_CANCELLED,
-        status: ExecutionStatus.CANCELLED,
-      },
-    }[payload.type];
+    const { eventType, status } = TERMINAL_SHAPE[payload.type];
     const wire: Record<string, unknown> = {
       status,
       durationMs: payload.durationMs,

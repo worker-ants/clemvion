@@ -53,9 +53,9 @@ import {
 } from '../shared/agent-memory-injection';
 import {
   ExecutionEventType,
-  ToolCallCompletedPayload,
-  ToolCallStartedPayload,
-} from '../../../modules/websocket/websocket.service';
+  type ToolCallCompletedPayload,
+  type ToolCallStartedPayload,
+} from '../../../modules/websocket/websocket-events.types';
 import type {
   ConversationThread,
   ConversationTurnToolCall,

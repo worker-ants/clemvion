@@ -2,10 +2,8 @@ import { Subject } from 'rxjs';
 import type { Response } from 'express';
 import { SseAdapter, SseSubscriber } from './sse-adapter.service';
 import { writeSseFrame } from './interaction-stream.controller';
-import type {
-  ExecutionChannelEvent,
-  WebsocketService,
-} from '../websocket/websocket.service';
+import type { WebsocketService } from '../websocket/websocket.service';
+import type { ExecutionChannelEvent } from '../websocket/websocket-events.types';
 
 function makeWs(): {
   ws: jest.Mocked<WebsocketService>;

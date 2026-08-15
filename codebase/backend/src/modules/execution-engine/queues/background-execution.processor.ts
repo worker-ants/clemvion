@@ -8,10 +8,8 @@ import {
 import { ExecutionEngineService } from '../execution-engine.service';
 import { NotificationsService } from '../../notifications/notifications.service';
 import { WorkspacesService } from '../../workspaces/workspaces.service';
-import {
-  BackgroundRunEventType,
-  WebsocketService,
-} from '../../websocket/websocket.service';
+import { WebsocketService } from '../../websocket/websocket.service';
+import { BackgroundRunEventType } from '../../websocket/websocket-events.types';
 // 에러 메시지 새니타이징은 top-level 실행 실패 경로(execution-engine.service)와 공유하는
 // 단일 util 로 둔다 — 한쪽만 적용돼 방어 심도가 갈리지 않도록 (security review 22_42_32).
 import { sanitizeErrorMessage } from '../sanitize-error-message';

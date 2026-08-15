@@ -1,7 +1,7 @@
 import { firstValueFrom, take, toArray } from 'rxjs';
 import {
   BackgroundRunEventType,
-  ExecutionChannelEvent,
+  type ExecutionChannelEvent,
   ExecutionEventType,
   MAX_SANITIZE_DEPTH,
   NodeEventType,

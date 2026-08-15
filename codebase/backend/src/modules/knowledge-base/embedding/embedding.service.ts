@@ -8,10 +8,8 @@ import { S3Service } from '../../../common/services/s3.service';
 import { LlmService } from '../../llm/llm.service';
 import { ModelConfigService } from '../../model-config/model-config.service';
 import { sanitizeLlmErrorMessage } from '../../llm/utils/sanitize-error.util';
-import {
-  WebsocketService,
-  type KbEventType,
-} from '../../websocket/websocket.service';
+import { WebsocketService } from '../../websocket/websocket.service';
+import type { KbEventType } from '../../websocket/websocket-events.types';
 import {
   parseDocument,
   parseDocumentSegments,

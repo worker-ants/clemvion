@@ -1,5 +1,5 @@
 import { NotificationFanout } from './notification-fanout.service';
-import type { ExecutionChannelEvent } from '../websocket/websocket.service';
+import type { ExecutionChannelEvent } from '../websocket/websocket-events.types';
 
 type Mock = jest.Mock;
 

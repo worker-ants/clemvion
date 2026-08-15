@@ -2,12 +2,12 @@ import {
   ExecutionEventEmitter,
   type TerminalEventPayload,
 } from './execution-event-emitter.service';
+import { WebsocketService } from '../../websocket/websocket.service';
 import {
   ExecutionEventType,
-  ExecutionRoutingContext,
+  type ExecutionRoutingContext,
   NodeEventType,
-  WebsocketService,
-} from '../../websocket/websocket.service';
+} from '../../websocket/websocket-events.types';
 
 describe('ExecutionEventEmitter', () => {
   let websocket: {
