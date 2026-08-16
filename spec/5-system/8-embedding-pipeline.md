@@ -273,7 +273,7 @@ KB 의 `rag_mode` 가 `graph` 면 `document-embedding` worker 가 임베딩을 �
 
 ## 8. WebSocket 알림
 
-채널 명명규약: `kb:${documentId}` (KB ID 가 아니라 **문서 ID** 가 채널 키). payload 에는 항상 `documentId`, `timestamp` (ISO 8601) 가 자동 첨부된다. backend 권위 정의는 `WebsocketService.emitKbEvent` (KbEventType union).
+채널 명명규약: `kb:${documentId}` (KB ID 가 아니라 **문서 ID** 가 채널 키). payload 에는 항상 `documentId`, `timestamp` (ISO 8601) 가 자동 첨부된다. backend emit 은 `WebsocketService.emitKbEvent`, union 권위 정의는 `websocket-events.types.ts` 의 `KbEventType`.
 
 ### 8.1 임베딩 이벤트
 

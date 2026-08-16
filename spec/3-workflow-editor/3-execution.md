@@ -8,6 +8,7 @@ code:
   - codebase/frontend/src/components/editor/canvas/workflow-canvas.tsx
   - codebase/backend/src/modules/websocket/websocket.gateway.ts
   - codebase/backend/src/modules/websocket/websocket.service.ts
+  - codebase/backend/src/modules/websocket/websocket-events.types.ts
   - codebase/backend/src/modules/workflows/workflows.controller.ts
   - codebase/backend/src/modules/executions/executions.controller.ts
   - codebase/backend/src/modules/workflow-test-datasets/**
@@ -654,7 +655,7 @@ Run Results 드로어와 우측 설정 패널은 동시에 표시될 수 있다.
 
 ### 10.13 노드 결과 수집
 
-WebSocket `execution.node.started`, `execution.node.completed`, `execution.node.failed`, `execution.node.skipped` 이벤트에 `nodeType`, `nodeLabel`, `output` 필드가 포함된다 (`NodeEventType` 의 `execution.node.*` prefix — `websocket.service.ts`). 클라이언트는 모든 노드 이벤트를 수신하여 타임라인에 추가한다. REST polling을 통해서도 node relation이 포함된 `NodeExecution` 데이터를 받아 동기화한다.
+WebSocket `execution.node.started`, `execution.node.completed`, `execution.node.failed`, `execution.node.skipped` 이벤트에 `nodeType`, `nodeLabel`, `output` 필드가 포함된다 (`NodeEventType` 의 `execution.node.*` prefix — `websocket-events.types.ts`). 클라이언트는 모든 노드 이벤트를 수신하여 타임라인에 추가한다. REST polling을 통해서도 node relation이 포함된 `NodeExecution` 데이터를 받아 동기화한다.
 
 ### 10.14 Re-run 진입점
 

@@ -285,7 +285,7 @@ KB 저장 **전에** 모델/ModelConfig (kind=embedding) 조합의 실제 vector
 ### 2.5 WebSocket
 
 채널은 모두 `kb:${documentId}` (KB ID 가 아니라 **문서 ID** 가 채널 키). 권위 정의는 backend
-`WebsocketService` 의 `KbEventType` union — **총 11개** (embedding 6 + graph 5.
+`websocket-events.types.ts` 의 `KbEventType` union — **총 11개** (embedding 6 + graph 5.
 `document:graph_error` 는 emit 경로가 없어 union 에서 제거됨 — #443).
 
 | Event | 발행 |

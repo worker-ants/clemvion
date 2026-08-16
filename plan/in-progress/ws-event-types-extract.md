@@ -317,15 +317,15 @@ ES-module 순환 위에 있어서다. 생성자의 `forwardRef` 도 같은 이�
 두 철자**로 다시 세니 6곳이고, 내 옛 목록과 **구성이 달랐다**(`3-execution.md:657` 누락).
 아래가 그 전수 + R10 인용 1곳이다.
 
-- [ ] `spec/3-workflow-editor/3-execution.md:657` — `NodeEventType`.
+- [x] `spec/3-workflow-editor/3-execution.md:657` — `NodeEventType`.
       **내가 빠뜨렸던 곳** (`22_27_21` INFO2). frontmatter `code:` 등재도 함께
-- [ ] `spec/5-system/10-graph-rag.md:552` — "`websocket.service.ts` 의 `KbEventType` union"
-- [ ] `spec/5-system/8-embedding-pipeline.md:276` — "backend 권위 정의는 `WebsocketService`"
-- [ ] `spec/5-system/6-websocket-protocol.md:740` — 동일 문구
-- [ ] `spec/5-system/6-websocket-protocol.md:1034` — **부분만 stale**. `WebsocketService.emitKbEvent`
+- [x] `spec/5-system/10-graph-rag.md:552` — "`websocket.service.ts` 의 `KbEventType` union"
+- [x] `spec/5-system/8-embedding-pipeline.md:276` — "backend 권위 정의는 `WebsocketService`"
+- [x] `spec/5-system/6-websocket-protocol.md:740` — 동일 문구
+- [x] `spec/5-system/6-websocket-protocol.md:1034` — **부분만 stale**. `WebsocketService.emitKbEvent`
       는 여전히 맞다(메서드는 안 옮겼다). union 의 소재만 갱신 대상
-- [ ] `spec/data-flow/6-knowledge-base.md:288` — "`WebsocketService` 의 `KbEventType` union"
-- [ ] `spec/data-flow/0-overview.md:110` — "`websocket.service.ts` 헤더 주석, EIA §R10" 인용.
+- [x] `spec/data-flow/6-knowledge-base.md:288` — "`WebsocketService` 의 `KbEventType` union"
+- [x] `spec/data-flow/0-overview.md:110` — "`websocket.service.ts` 헤더 주석, EIA §R10" 인용.
       R10 문구는 `websocket-events.types.ts:26` 으로 이관됐다 (`20_05_19` cross_spec INFO1).
       심볼명이 없어 위 스캔에는 안 걸린다 — **별도 축이라 따로 적어 둔다**
 
@@ -339,10 +339,10 @@ ES-module 순환 위에 있어서다. 생성자의 `forwardRef` 도 같은 이�
       충돌한다. 이번엔 disambiguation JSDoc 으로 막았고 그 주석에 "개명은 별도 항목" 이라고 썼는데,
       **정작 그 항목을 만들지 않았다** (`20_05_19` naming INFO7 이 등재 여부 확인을 요구해 발각).
       이 브랜치에서 반복된 "등재했다" 거짓의 또 한 사례라 여기 실제로 등재한다
-- [ ] `spec/3-workflow-editor/3-execution.md` frontmatter `code:` 에
+- [x] `spec/3-workflow-editor/3-execution.md` frontmatter `code:` 에
       `websocket-events.types.ts` 등재 — `NodeEventType` 을 인용하면서 자매 spec
       (`6-websocket-protocol.md`)과 비대칭 (`20_05_19` cross_spec INFO2)
-- [ ] `spec/5-system/4-execution-engine.md` §4.4 Rationale 에 이번 추출로 **순환 참여자 집합이
+- [x] `spec/5-system/4-execution-engine.md` §4.4 Rationale 에 이번 추출로 **순환 참여자 집합이
       축소**됐다는 후속 한 줄 (`20_05_19` rationale INFO4). 봉인 기법·단일 sink 정책 자체는 불변
 - [ ] `TerminalErrorPayload` 를 채우는 호출부의 `sanitizeErrorMessage` 경유 여부 전수 확인
       (`19_27_37` INFO2 — 기존 설계이고 이번 diff 와 무관)
