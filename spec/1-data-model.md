@@ -561,7 +561,7 @@ External Interaction API 의 `iext_*`(per_execution JWT) 발급 jti 를 영속 �
 | 복사 | Execution.error — 워크플로우 실행이 `failed` 상태로 전이될 때, **최초 failed NodeExecution**의 에러 정보를 복사 |
 | 구조 | `{ nodeId: "uuid" \| null, code: "ERROR_CODE" \| null, message: "에러 설명", details?: {...} }` — `nodeId` 는 노드 없는 엔진 인프라 실패(worker 크래시 등)에서, `code` 는 분류 가능한 코드가 없는 일반 `catch` 경로에서 `null` 이다. `details` 의 출처는 노드 핸들러 결과의 `output_data.error.details`([노드 출력 규약 §3.2](./conventions/node-output.md)) 이며, 아래 `NodeExecution.error` 표에는 열거돼 있지 않다. 억지 fallback 코드를 넣지 않는 이유는 [EIA §6.4](./5-system/14-external-interaction-api.md) 참조 |
 | 용도 | 실행 목록에서 Execution 단위로 에러 원인을 즉시 파악 가능 (NodeExecution 조회 없이) |
-| 응답 마스킹 | **열거된 읽기 경로에서만** 자격증명 값-패턴 마스킹을 거친다 — `ExecutionsService` 4곳(`findById`·`toExecutionDto`·`getChain`·`stop`) + `BackgroundRunsService` body 노드. DB 는 원문 보존. 위 "복사" 관계 때문에 **한쪽만 가리면 같은 문자열이 같은 응답에 병존해 방어가 우회**되므로 그 경로들에서는 반드시 함께 건다. ⚠️ **"이 두 컬럼은 어디서 나가든 마스킹된다" 로 읽으면 안 된다** — WS `execution.node.*` **emit** 등 별도 emit 계약 경로는 **미포함**이다. 전체 적용 범위·잔여 목록의 SoT 는 [EIA §R17](./5-system/14-external-interaction-api.md) "내부 읽기 경로" 불릿 |
+| 응답 마스킹 | **열거된 경로에서만** 자격증명 값-패턴 마스킹을 거친다. DB 는 원문 보존(egress-only). 위 "복사" 관계 때문에 **한쪽만 가리면 같은 문자열이 같은 응답에 병존해 방어가 우회**되므로, 거는 경로에서는 `Execution.error` 와 `NodeExecution.error` 를 반드시 함께 건다. ⚠️ **"어디서 나가든 마스킹된다" 로 읽으면 안 된다** — 적용 표면과 잔여 갭은 열거로만 정의된다. **표면 목록·개수를 여기 다시 적지 않는다**(그렇게 적어 둔 종전 서술이 표면이 늘면서 낡았다): SoT 는 [EIA §R17](./5-system/14-external-interaction-api.md) 의 "적용 범위는 총칭이 아니라 열거다" 항목이다. **2026-08-16 부터 WS `execution.node.*`/비-종결 `execution.*` **emit** 경로도 값-패턴 마스킹 대상**이다([WS §4.1](./5-system/6-websocket-protocol.md)) — 종전 이 자리는 emit 경로를 "미포함" 으로 단언했으나 더 이상 사실이 아니다 |
 
 ### 2.15 WorkflowVersion
 

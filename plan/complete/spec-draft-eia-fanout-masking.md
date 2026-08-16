@@ -4,11 +4,13 @@ started: 2026-08-16
 owner: project-planner
 status: applied
 spec_impact:
-  - spec/5-system/14-external-interaction-api.md
+  - spec/1-data-model.md
+  - spec/5-system/3-error-handling.md
   - spec/5-system/6-websocket-protocol.md
   - spec/5-system/12-webhook.md
+  - spec/5-system/13-replay-rerun.md
+  - spec/5-system/14-external-interaction-api.md
   - spec/5-system/15-chat-channel.md
-  - spec/5-system/3-error-handling.md
 ---
 
 # spec draft — WS emit 값-마스킹 + 내부 REST `outputData` (§R17 잔여 ① 종결·② 부분)
