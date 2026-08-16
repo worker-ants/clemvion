@@ -594,8 +594,21 @@ export class ExecutionsService {
             take: MAX_EXECUTION_PATH_ROWS,
           }),
         ]);
-        const reconciledNodeExecutions =
-          reconcilePreParkWaitingStatus(nodeExecutions);
+        // `NodeExecution.error` 도 같이 마스킹한다. **형제 필드로 우회되기 때문**이다 —
+        // `spec/1-data-model.md` §2.14 는 `Execution.error` 를 *"최초 failed
+        // NodeExecution 의 에러 정보를 **복사**"* 로 정의한다. 즉 위에서 마스킹한 값과
+        // **같은 문자열**이 이 배열 안에 원문으로 들어 있고, 둘이 같은 응답으로 나간다.
+        // 최상위만 가리면 방어가 아니라 방어처럼 보이는 것이 된다
+        // (`16_32_42` cross_spec CRITICAL).
+        const reconciledNodeExecutions = reconcilePreParkWaitingStatus(
+          nodeExecutions,
+        ).map(
+          (ne) =>
+            ({
+              ...ne,
+              error: redactStoredErrorForResponse(ne.error),
+            }) as NodeExecution,
+        );
         const executionPath = pathRows.map((r) => r.nodeId);
         // `take` 상한과 동일 길이로 돌아오면 그 이후의 로그가 잘렸을 수 있다.
         // UI 는 이 플래그로 배너를 띄우거나 후속 페이지 요청을 결정한다.

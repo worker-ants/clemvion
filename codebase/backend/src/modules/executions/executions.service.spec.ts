@@ -1001,6 +1001,61 @@ describe('ExecutionsService', () => {
       expect(row.error).toEqual(LEAKY);
     });
 
+    /**
+     * **형제 필드 우회** — 이 결함이 `--spec`(`16_32_42`) 에서 CRITICAL 로 잡혔다.
+     *
+     * `spec/1-data-model.md` §2.14 는 `Execution.error` 를 *"최초 failed NodeExecution 의
+     * 에러 정보를 **복사**"* 로 정의한다. 즉 최상위 `error` 를 마스킹해도 **같은 문자열**이
+     * `nodeExecutions[].error` 에 원문으로 남아 **같은 응답**으로 나간다 — 마스킹이
+     * 겨냥하는 바로 그 케이스(실행 실패)에서 방어가 통째로 우회된다.
+     */
+    it('⑤ findById — nodeExecutions[].error 도 마스킹 (형제 필드 우회 차단)', async () => {
+      const row = baseFake({ id: 'eM7', error: { ...LEAKY } });
+      executionRepo.createQueryBuilder.mockReturnValueOnce(
+        buildSingleQB(row) as unknown,
+      );
+      // §2.14 의 "복사" 관계 그대로 — 최상위와 **같은 값**이 노드 쪽에도 있다.
+      nodeExecutionRepo.find.mockResolvedValue([
+        { id: 'ne1', executionId: 'eM7', error: { ...LEAKY } },
+      ]);
+
+      const result = (await service.findById('eM7')) as unknown as {
+        error: Record<string, unknown>;
+        nodeExecutions: Array<{ error: Record<string, unknown> }>;
+      };
+      expect(result.error).toEqual(MASKED);
+      // 최상위만 가리고 여기가 원문이면 방어가 아니라 방어처럼 보이는 것이다.
+      expect(result.nodeExecutions[0].error).toEqual(MASKED);
+    });
+
+    it('⑤-b nodeExecutions 의 다른 필드는 보존한다 (마스킹이 행을 갈아끼우지 않는다)', async () => {
+      const row = baseFake({ id: 'eM8' });
+      executionRepo.createQueryBuilder.mockReturnValueOnce(
+        buildSingleQB(row) as unknown,
+      );
+      nodeExecutionRepo.find.mockResolvedValue([
+        {
+          id: 'ne9',
+          executionId: 'eM8',
+          nodeId: 'n9',
+          status: 'completed',
+          error: null,
+          outputData: { ok: true },
+        },
+      ]);
+
+      const result = (await service.findById('eM8')) as unknown as {
+        nodeExecutions: Array<Record<string, unknown>>;
+      };
+      expect(result.nodeExecutions[0]).toMatchObject({
+        id: 'ne9',
+        nodeId: 'n9',
+        status: 'completed',
+        outputData: { ok: true },
+        error: null,
+      });
+    });
+
     it('error 가 null 이면 null 그대로 (형태 변경 없음)', async () => {
       const row = baseFake({ id: 'eM6', error: null });
       executionRepo.createQueryBuilder.mockReturnValueOnce(
