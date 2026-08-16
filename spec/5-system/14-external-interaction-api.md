@@ -1485,8 +1485,9 @@ present-when-available 이므로, REST 만 `null` 로 정규화하면 위젯의 
     별건으로 분리했다.
   - **내부 읽기 경로도 같은 마스킹을 적용한다 (결정 2026-08-16)**: 같은 `Execution.error` 를 내부
     표면이 원문으로 말하던 비대칭을 해소했다. `shared/utils/redact-stored-error.ts` 의
-    `redactStoredErrorForResponse`(`deepRedactSecrets` 위임, **형태 보존**)를 `ExecutionsService` 의
-    독립 반환 경로 **4곳**(`findById` · `toExecutionDto` · `getChain` · `stop`)에 적용한다.
+    `redactStoredErrorForResponse`(`deepRedactSecrets` 위임, **형태 보존**)를 적용한다.
+    **적용 표면 목록은 아래 "적용 범위는 총칭이 아니라 열거다" 항목이 정본**이다 — 여기에
+    개수를 다시 적지 않는다(초판은 *"4곳"* 이라 적었는데 이후 여섯으로 늘며 낡았다).
     `POST /executions/:id/re-run` 과 WS `execution.snapshot` 은 `findById` 를 재사용하므로 함께 덮인다.
     - **이 마스킹은 [API 규약 §5.3](./2-api-convention.md#53-에러-응답) 의 HTTP 에러 envelope 비echo 원칙과 다른 레이어다** — 그쪽은 요청 실패 응답의
       메시지 구성 규칙이고, 여기는 **도메인 데이터(`Execution.error` 컬럼 값)** 의 egress 마스킹이며 자격증명 패턴만

@@ -2,10 +2,27 @@
 worktree: eia-masking-followups-3cd512
 started: 2026-08-16
 owner: project-planner
-status: draft
+status: applied
+spec_impact:
+  - spec/5-system/14-external-interaction-api.md
+  - spec/5-system/6-websocket-protocol.md
+  - spec/5-system/12-webhook.md
+  - spec/5-system/15-chat-channel.md
+  - spec/5-system/3-error-handling.md
 ---
 
-# spec draft — WS emit 값-마스킹 + 내부 REST 두 컬럼 (§R17 잔여 ①·② 종결)
+# spec draft — WS emit 값-마스킹 + 내부 REST `outputData` (§R17 잔여 ① 종결·② 부분)
+
+> ## ⚠️ 이 draft 는 **집행 완료**됐고, 아래 §1-b·§1-c·변경 3 은 **초안 시점 서술**이다
+>
+> **`inputData` 마스킹은 철회됐다** (`b05756d9e`). 두 게이트가 독립으로 CRITICAL 을 냈다 —
+> 그 컬럼은 표시 전용이 아니라 Re-run 모달·에디터 히스토리 로드가 **읽어서 재제출**하는
+> 값이라, 마스킹하면 리터럴 `'***'` 가 새 실행의 실제 입력이 된다.
+> **실제 spec 에 반영된 최종 결정은 §R17 "잔여 ②" 본문**이고, 이 문서의 해당 대목을
+> 근거로 재집행하면 해소된 CRITICAL 을 되살리게 된다 (`00_22_23` plan_coherence W3).
+>
+> 집행 후 추가된 것: `15-chat-channel.md` CCH-MP-06 캐비엇(마스킹 이후 값 "그대로") ·
+> `3-error-handling.md` §2.2 `nodeName`→`nodeLabel`.
 
 구현은 `1b8fd5cc7`·`fe6a54c80` 로 이미 머지 대기 중이고, 본 draft 는 **그 구현이 만든
 새 보안 불변식을 spec 에 등재**하는 것이다.

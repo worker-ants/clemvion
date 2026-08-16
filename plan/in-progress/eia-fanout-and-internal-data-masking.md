@@ -213,7 +213,9 @@ deepRedactSecrets({headers:{authorization:'[REDACTED]', cookie:'[REDACTED]', 'co
 - [x] A — 회귀 테스트 7개 (두 emit × wire·fanout 네 조합 + `llmCalls` 보존 + 마커 + 무손상)
 - [x] B — 여섯 표면 전부 (`toExecutionDto` · `toResponseExecution` · `nodeExecutions[]` ·
       `BackgroundRunsService`) — 트래커는 한 곳만 지목했었다
-- [x] B — 회귀 테스트 8개
+- [x] B — 회귀 테스트 **12개** (`executions.service.spec.ts` 의 `outputData` describe 10개 +
+      `background-runs.service.spec.ts` 2개). 초안은 8개라 적었는데 철회 라운드에서 캐너리가
+      늘었다 — **PR 이 닫히는 시점의 실측**으로 갱신했다(`00_23_57` documentation INFO-18)
 - [x] D — 정본 표 1곳(`toResponseExecution`) + 나머지 3곳은 참조로
 - [x] 성능 실측 — emit 당 추가 walk 1회의 비용
       > 8턴 `turnDebugHistory` waiting payload, N=3000, 같은 머신 A/B:

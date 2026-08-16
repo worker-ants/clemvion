@@ -272,6 +272,17 @@ checker 가 독립적으로** "인용이 가리키는 절이 오히려 반대를
       > 남는 노출은 트리거 파라미터 자유 텍스트뿐 — webhook 민감 헤더는 ingestion 이
       > 이미 `[REDACTED]` 로 가린다.
 
+- [ ] **`kb:<documentId>` · `background:run:<id>` WS 채널에도 값-패턴 마스킹 적용 검토**
+      (2026-08-17 등재, `00_23_57` security INFO-1). 두 채널의 구독 인가도 `execution:` 과
+      **같은 근거**(role 미검사, workspace 소유만 확인)인데 `maskWireEnvelope` 밖에 있다.
+      > 이번에 닫지 않은 이유: **외부 fanout 이 없다** — `executionEventSubject` 로 흐르지
+      > 않아 SSE/chat-channel 에 도달하지 않는다. 즉 이 PR 이 겨눈 "외부 누출" 표면이
+      > 아니다. 다만 population-parity 논리는 그대로 적용되므로 별건으로 남긴다.
+
+- [ ] **유저 가이드 Error 탭에도 마스킹 캐비엇** (2026-08-17 등재, `00_23_57` documentation
+      INFO-19). 이번엔 Output 탭만 반영했다 — `error` 도 #1179 이후 마스킹되므로 같은 캐비엇이
+      맞지만, 이 PR 의 변경 대상(`outputData`)에 범위를 맞춰 좁게 반영했다.
+
 - [ ] **WS 대기-재개 경로에도 같은 "마스킹된 값의 재사용" 이 있는지 점검** (2026-08-17 등재,
       `23_50_03` side_effect W2). 버튼 재개는 실측상 `resumeFromButtons` 가 로컬 UI 상태만
       정리하고 payload 를 재제출하지 않아 **현재는 무해**하다. 다만 위 CRITICAL 과 **같은

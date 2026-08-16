@@ -1359,12 +1359,19 @@ describe('ExecutionsService', () => {
     });
 
     /**
-     * **`inputData` 비대상을 네 표면에서 각각 고정한다** — CRITICAL 회귀 캐너리.
+     * **`inputData` 비대상을 이 파일의 다섯 표면에서 각각 고정한다** — CRITICAL 회귀 캐너리.
      *
-     * 위 ①·② 가 두 표면을 덮고, ⑥-b 가 `nodeExecutions[]` 를 덮는다. 여기서는 나머지
-     * 두 반환 경로(`getChain`·`stop`)를 겨눠 **네 표면 전부**를 고정한다 — `error` 때
-     * *"한 표면에서 호출을 지워도 스위트가 초록"* 이던 것과 같은 형태를 반대 방향
-     * (관문이 **붙는** 회귀)으로 막는다.
+     * 위 ①(`findById`)·②(`findByWorkflow`)가 둘, ⑥-b 가 `nodeExecutions[]` 로 셋째,
+     * 여기 ⑧·⑧-b 가 `getChain`·`stop` 으로 넷째·다섯째다. 여섯째 표면
+     * (`BackgroundRunsService`)은 `background-runs.service.spec.ts` 가 맡는다 —
+     * 표면 목록의 정본은 `ExecutionsService.toResponseExecution` 의 표다.
+     *
+     * `error` 때 *"한 표면에서 호출을 지워도 스위트가 초록"* 이던 것과 같은 형태를 반대
+     * 방향(관문이 **붙는** 회귀)으로 막는다.
+     *
+     * > 초판은 여기 *"네 표면"* 이라 적고 다섯을 나열했다 — 이 PR 이 없애려던 "흩어진
+     * > 수치" 결함이 새 주석에서 재발한 것이라(`00_23_57` documentation W1) 개수 대신
+     * > **각 표면을 이름으로** 적는다.
      */
     it('⑧ getChain·stop 도 `inputData` 를 원문으로 통과시킨다 (재제출 경로 보호)', async () => {
       const root = baseFake({ id: 'eD8', inputData: { ...LEAKY_IN } });

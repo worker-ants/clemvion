@@ -246,7 +246,7 @@ code:
     "code": "LLM_TIMEOUT",
     "message": "Node 'AI Agent' failed: LLM connection timeout",
     "nodeId": "uuid-of-node",
-    "nodeName": "AI Agent",
+    "nodeLabel": "AI Agent",
     "nodeType": "ai_agent",
     "executionId": "uuid-of-execution",
     "stack": "...",
@@ -254,6 +254,13 @@ code:
   }
 }
 ```
+
+> **`nodeLabel` 로 정정 (2026-08-17)**: 종전 예시는 `nodeName` 이었다. 엔진 emit 은 전수가
+> `nodeLabel: node.label ?? node.type` 이고 `nodeName` 을 쓰는 emit 은 코드베이스에 **0건**임을
+> 실측했다 — [WS §4.1](./6-websocket-protocol.md) 의 같은 drift 를 정정하며 이 예시도 함께 맞췄다.
+> 위 봉투는 노드 실행 실패를 REST 로 감싸는 형태이고, 노드 핸들러가 반환하는 표준
+> `output.error` shape(`code`/`message`/`details`)은
+> [node-output §3.2](../conventions/node-output.md#32-outputerror-표준-형태) 가 정본이다.
 
 ---
 
