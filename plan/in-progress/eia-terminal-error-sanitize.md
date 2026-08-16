@@ -155,6 +155,12 @@ masking** 이고, 자매 트래커
       `nodeOutput.conversationConfig` · terminal `result`/`error`)에 이번 egress 마스킹
       지점이 빠져 있다. `spec_impact: none` 의 근거는 *"계약 위반이 아니다"* 이지
       *"카탈로그 완전성이 유지된다"* 가 아니었다 — 지적이 맞다. spec 본문은 developer 권한 밖.
+      > ⚠️ **R17 3번째 불릿에 속지 말 것** (`11_26_51` W1). 거기 적힌 *"terminal
+      > `result`/`error`"* 의 `error` 는 `getStatus` 의 **`outputData` 기반**이라
+      > 이번에 마스킹한 `Execution.error` 와 **다른 컬럼**이다. 이름이 같아서 "이미
+      > 포괄됨" 으로 넘기기 쉽다 — 이 브랜치가 트래커의 "REST 와 대칭" 서술에서
+      > 이미 한 번 밟은 함정이다.
+
       **§6.4 필드 표에도 캐비엇이 필요하다** (`10_19_30` W1/W2): 외부 통합사가 보는 정본은
       CHANGELOG 가 아니라 §6.4 인데, 값 마스킹 사실이 거기 없다
 - [ ] `plan/in-progress/eia-terminal-emit-facade.md` 체크리스트가 미완료로 stale
