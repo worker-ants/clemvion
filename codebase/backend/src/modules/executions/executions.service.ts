@@ -37,6 +37,7 @@ import {
   type ExecutionTriggerSource,
 } from './utils/execution-trigger';
 import { loadParentWorkflowNames } from './utils/load-parent-workflow-names';
+import { redactStoredErrorForResponse } from '../../shared/utils/redact-stored-error';
 
 // execution_node_log 행 수 상한. ForEach 같은 컨테이너에서 행 수가 폭증하는 경우
 // 메모리 적재량을 묶어두기 위한 안전망 — UI timeline 은 정렬된 nodeId prefix 만
@@ -65,6 +66,33 @@ const RERUN_CHAIN_WALK_MAX = RERUN_CHAIN_DEPTH_LIMIT * 2;
 export const SNAPSHOT_CACHE_MAX_ENTRIES = 256;
 
 /**
+ * 응답으로 나가는 Execution — 엔티티와 **`error` 의 null 가능성만** 다르다.
+ *
+ * 엔티티는 `error: Record<string, unknown>` 로 `| null` 없이 선언돼 있지만, egress
+ * 마스킹 관문({@link ExecutionsService.toResponseExecution})은 값이 없을 때 정직하게
+ * `null` 을 돌려준다. 그 차이를 `as Execution` 로 덮으면 이후 소비자가 `.error` 를
+ * null-check 없이 만져도 컴파일러가 침묵한다 — 이 PR 이 고치는 결함 클래스(자매 표면
+ * 누락)를 타입이 잡아줄 기회를 줄이는 셈이라 명시 타입으로 남긴다.
+ */
+export type ResponseExecution = Omit<
+  Execution,
+  'error' | 'trigger' | 'executor'
+> & {
+  error: Record<string, unknown> | null;
+};
+
+/**
+ * 응답으로 나가는 NodeExecution — {@link ResponseExecution} 과 **같은 이유**로 존재한다.
+ *
+ * 자매를 하나만 고치는 것이 이 PR 이 고치는 결함 클래스 그 자체라, `Execution` 쪽만
+ * 좁히고 여기 `as NodeExecution` 를 남겨 두면 같은 실수를 한 함수 안에서 반복하게 된다
+ * (ai-review `17_35_49` maintainability W1).
+ */
+export type ResponseNodeExecution = Omit<NodeExecution, 'error'> & {
+  error: Record<string, unknown> | null;
+};
+
+/**
  * `findById` 응답 — 기존 entity 형태(websocket snapshot/frontend 호환)에
  * triggerSource/triggerLabel 두 필드를 추가한 shape. `executionPath` 는
  * `execution_node_log` 의 (execution_id, id) 정렬 결과로 채워진다 — entity
@@ -74,8 +102,8 @@ export const SNAPSHOT_CACHE_MAX_ENTRIES = 256;
  * 인 상황에서 추가 행이 잘렸을 수 있음을 알린다 — 프론트엔드 UI 가 "이 이후 일부
  * 로그가 표시되지 않습니다" 배너를 띄울 수 있도록.
  */
-export type ExecutionDetailWithTrigger = Execution & {
-  nodeExecutions: NodeExecution[];
+export type ExecutionDetailWithTrigger = ResponseExecution & {
+  nodeExecutions: ResponseNodeExecution[];
   triggerSource: ExecutionTriggerSource;
   triggerLabel: string | null;
   executionPath: string[];
@@ -504,7 +532,7 @@ export class ExecutionsService {
     executionId: string,
     workspaceId: string,
     user: JwtPayload,
-  ): Promise<Execution[]> {
+  ): Promise<ResponseExecution[]> {
     const exec = await this.executionRepository
       .createQueryBuilder('e')
       .leftJoinAndSelect('e.workflow', 'workflow')
@@ -533,7 +561,7 @@ export class ExecutionsService {
       .where('e.id = :rootId OR e.chainId = :rootId', { rootId })
       .orderBy('e.startedAt', 'ASC')
       .getMany();
-    return rows.map((e) => this.stripPrivateRelations(e));
+    return rows.map((e) => this.toResponseExecution(e));
   }
 
   async findById(id: string): Promise<ExecutionDetailWithTrigger> {
@@ -593,8 +621,27 @@ export class ExecutionsService {
             take: MAX_EXECUTION_PATH_ROWS,
           }),
         ]);
-        const reconciledNodeExecutions =
-          reconcilePreParkWaitingStatus(nodeExecutions);
+        // `NodeExecution.error` 도 같이 마스킹한다. **형제 필드로 우회되기 때문**이다 —
+        // `spec/1-data-model.md` §2.14 는 `Execution.error` 를 *"최초 failed
+        // NodeExecution 의 에러 정보를 **복사**"* 로 정의한다. 즉 위에서 마스킹한 값과
+        // **같은 문자열**이 이 배열 안에 원문으로 들어 있고, 둘이 같은 응답으로 나간다.
+        // 최상위만 가리면 방어가 아니라 방어처럼 보이는 것이 된다
+        // (`16_32_42` cross_spec CRITICAL).
+        //
+        // **copy-on-change 를 지킨다** — `error` 가 없는 행(정상 종료 행 = 절대다수)은
+        // 원본 참조를 그대로 돌려준다. 무조건 spread 하면 자매 함수
+        // `reconcilePreParkWaitingStatus` 가 지키는 관례를 이 배열 위에서만 깨고,
+        // 이 조회에는 `take` 상한이 없어(자매 `ExecutionNodeLog` 조회와 달리) 대규모
+        // ForEach 실행에서 불필요한 shallow-copy 가 행 수만큼 쌓인다. 게다가 진행 중
+        // 실행은 `writeSnapshotCache` 대상이 아니라 폴링·WS 재연결마다 재계산된다
+        // (`17_12_34` performance W1).
+        const reconciledNodeExecutions = reconcilePreParkWaitingStatus(
+          nodeExecutions,
+        ).map<ResponseNodeExecution>((ne) =>
+          ne.error == null
+            ? ne
+            : { ...ne, error: redactStoredErrorForResponse(ne.error) },
+        );
         const executionPath = pathRows.map((r) => r.nodeId);
         // `take` 상한과 동일 길이로 돌아오면 그 이후의 로그가 잘렸을 수 있다.
         // UI 는 이 플래그로 배너를 띄우거나 후속 페이지 요청을 결정한다.
@@ -613,7 +660,7 @@ export class ExecutionsService {
         // 응답 직전 trigger/executor 관계 객체를 제거 (User 등 민감 정보 누출
         // 방지).
         return {
-          ...this.stripPrivateRelations(execution),
+          ...this.toResponseExecution(execution),
           nodeExecutions: reconciledNodeExecutions,
           triggerSource: trigger.source,
           triggerLabel: trigger.label,
@@ -742,10 +789,41 @@ export class ExecutionsService {
   }
 
   /**
-   * 동시 stop 요청에 대한 TOCTOU 경쟁을 막기 위해, 최종 상태 전환은 단일 원자 UPDATE
-   * (status WHERE status IN [전이 가능 상태]) 로 수행한다.
+   * 실행 중지 — **응답 마스킹 관문**.
+   *
+   * > 동시성 계약(TOCTOU 방지 원자 UPDATE)은 본체 {@link ExecutionsService.stopInternal}
+   * > 의 JSDoc 에 있다. 리팩터로 로직이 그쪽으로 내려갔으므로 설명도 함께 옮겼다 —
+   * > 얇은 wrapper 에 남겨 두면 *"불변식이 여기 있다"* 로 잘못 읽힌다
+   * > (`17_35_49` documentation W2).
+   *
+   * **응답 마스킹은 여기 한 자리에서 건다.** `stopInternal` 은 `return` 문이 **셋**이고
+   * (waiting 경로 · `affected=0` 재조회 · 정상 재조회) 각각 `?? execution` 폴백을 가져
+   * 실제로 나갈 수 있는 객체는 **여섯 가지**다. 호출부마다 마스킹을 걸면 네 번째 반환이
+   * 추가될 때 조용히 빠진다 — 이 저장소가 *"자매 넷 중 하나만"* 으로 반복해 겪은 형태다.
+   * 함수를 하나 더 두어 **모든 반환이 같은 문을 통과**하게 한다.
+   *
+   * **반환 계약(2026-08-16 변경)**: 종전에는 재조회한 **엔티티 참조를 그대로** 돌려줬다 —
+   * `findById`/`getChain` 과 달리 strip 관문을 타지 않던 유일한 공개 경로였다. 이제
+   * `error` 가 마스킹된 **복사본**이고 타입이 {@link ResponseExecution} 이다.
+   * `trigger`/`executor` 는 이 경로의 `findOne` 이 `relations` 를 주지 않고 두 관계 모두
+   * `eager` 가 아니라 **애초에 로드되지 않으므로** 응답에서 사라지는 값은 없다(타입에서만
+   * 제거). 내부 소비자(`interaction.service.ts` · `hooks.service.ts`)는 반환값을 버리므로
+   * 영향은 HTTP 응답 표면 하나뿐이다.
    */
-  async stop(id: string): Promise<Execution> {
+  async stop(id: string): Promise<ResponseExecution> {
+    return this.toResponseExecution(await this.stopInternal(id));
+  }
+
+  /**
+   * {@link ExecutionsService.stop} 의 본체. 반환은 **마스킹 전** 엔티티다 — 감싸는 쪽이 관문이다.
+   *
+   * **동시성 계약**: 동시 stop 요청에 대한 TOCTOU 경쟁을 막기 위해, 최종 상태 전환은
+   * 단일 원자 UPDATE(`status WHERE status IN [전이 가능 상태]`)로 수행한다. `affected=0`
+   * 은 다른 요청이 먼저 전이시켰다는 뜻이라 최신 상태로 재조회해 돌려준다.
+   * `WAITING_FOR_INPUT` 은 별도 경로로, 엔진의 `cancelWaitingExecution` 이 continuation
+   * bus 로 fan-out 하며 enqueue 실패(`queued=false`)는 503 으로 surface 한다.
+   */
+  private async stopInternal(id: string): Promise<Execution> {
     const execution = await this.executionRepository.findOne({ where: { id } });
     if (!execution) {
       throw new NotFoundException({
@@ -859,7 +937,9 @@ export class ExecutionsService {
       durationMs: execution.durationMs ?? null,
       inputData: execution.inputData ?? null,
       outputData: execution.outputData ?? null,
-      error: execution.error ?? null,
+      // 목록 경로의 `error` 마스킹 자리. 나머지 세 표면은 `toResponseExecution` 이 덮는다
+      // (여기는 엔티티가 아니라 DTO 조립이라 그 관문을 지나지 않는다).
+      error: redactStoredErrorForResponse(execution.error),
       executedBy: execution.executedBy ?? null,
       parentExecutionId: execution.parentExecutionId ?? null,
       recursionDepth: execution.recursionDepth ?? 0,
@@ -877,12 +957,38 @@ export class ExecutionsService {
   }
 
   /**
-   * findById 응답 직전, 응답으로 노출하면 안 되는 관계 객체를 제거한다.
-   * (deriveExecutionTrigger 산출 후에는 더 이상 필요하지 않음)
+   * 응답 직전, **엔티티를 그대로 내보내면 안 되는 것**을 두 가지 처리한다:
+   *
+   * 1. 관계 객체 제거 — `trigger`/`executor` (User 등 민감 정보).
+   *    `deriveExecutionTrigger` 산출 후에는 더 이상 필요하지 않다.
+   * 2. `error` 컬럼 값 마스킹 — {@link redactStoredErrorForResponse}.
+   *
+   * ## 왜 둘을 한 함수에 묶나 — 표면이 넷인데 자매가 갈라진다
+   *
+   * 종전 이름은 `stripPrivateRelations` 였고 (1) 만 했다. 마스킹을 호출부마다 손으로
+   * 걸면 **한 곳씩 빠진다** — 이 저장소의 반복 실패 형태다. 실제로 이 결함을 등재한
+   * 트래커 항목도 `toExecutionDto` **한 줄만** 지목했는데, 실측하니 그건 목록 경로
+   * 전용이고 상세·chain·stop 이 각자 다른 자리에서 같은 컬럼을 싣고 있었다.
+   *
+   * 이 함수는 그중 **셋**(`findById` · `getChain` · `stop`)의 공통 관문이다. 넷째인
+   * `toExecutionDto` 는 엔티티가 아니라 DTO 를 조립하므로 거기서 직접 부른다.
+   *
+   * ## 반환 타입이 `Execution` 이 아닌 이유
+   *
+   * 엔티티는 `error: Record<string, unknown>` 로 **`| null` 없이** 선언돼 있는데
+   * {@link redactStoredErrorForResponse} 는 입력이 없으면 정직하게 `null` 을 돌려준다.
+   * 종전에는 `as Execution` 로 그 `null` 가능성을 캐스트 뒤에 지웠는데, 그러면 이후
+   * 이 결과를 다루는 코드가 `.error` 를 null-check 없이 만져도 컴파일러가 침묵한다 —
+   * *"자매 표면 하나를 빠뜨린다"* 는 이 PR 이 고치는 결함 클래스를 타입 시스템이
+   * 잡아줄 기회를 스스로 줄이는 셈이다 (`17_12_34` maintainability W1).
+   * 그래서 `error` 만 넓힌 명시 타입을 돌려주고 무단 단언을 제거한다.
    */
-  private stripPrivateRelations(execution: Execution): Execution {
+  private toResponseExecution(execution: Execution): ResponseExecution {
     const { trigger: _t, executor: _e, ...rest } = execution;
-    return rest as Execution;
+    return {
+      ...rest,
+      error: redactStoredErrorForResponse(rest.error),
+    };
   }
 
   /**

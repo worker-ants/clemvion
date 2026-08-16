@@ -9,7 +9,7 @@ code:
 
 > 관련 문서: [Spec Chat Channel §3.4](../5-system/15-chat-channel.md#34-신뢰성--보안) · [Spec EIA §7.1](../5-system/14-external-interaction-api.md#71-trigger-엔티티-확장) · [Spec Webhook §8](../5-system/12-webhook.md#8-보안-고려사항) · [Spec 데이터 모델](../1-data-model.md)
 
-본 컨벤션은 외부 provider 자격증명 (텔레그램 bot token, webhook secret_token, notification HMAC signing secret 등) 의 보관 추상화를 정의한다. 모든 도메인 모듈 (chat-channel / external-interaction / 향후 cafe24·OAuth 등) 은 본 convention 의 `SecretResolver` 를 경유해 secret 을 읽고 쓴다.
+본 컨벤션은 외부 provider 자격증명 (텔레그램 bot token, webhook secret_token, notification HMAC signing secret 등) 의 보관 추상화를 정의한다. 모든 도메인 모듈 (chat-channel / external-interaction / 향후 cafe24·OAuth 등) 은 본 convention 의 `SecretResolver` 를 경유해 secret 을 읽고 쓴다 — **[§1 하단의 필드 단위 명시적 비대상 예외](#1-uri-scheme)는 제외**하며, 그 예외는 각각 자기 근거를 갖는다 (다른 예외의 근거를 재사용하지 않는다).
 
 ---
 
@@ -38,6 +38,16 @@ secret://<scope>/<resourceId>/<name>
 `name` 안에 `.v2` 접미사는 [CCH-SE-04](../5-system/15-chat-channel.md#34-신뢰성--보안) / [EIA-NX-12](../5-system/14-external-interaction-api.md#31-outbound-notification-notification-webhook) 의 24h grace rotation 기간 동안 병행 보관용. primary 와 동일 자원의 변형이라는 의미를 keep.
 
 > **비대상 — `AuthConfig.config`**: `AuthConfig` ([Spec 데이터 모델 §2.17](../1-data-model.md#217-authconfig)) 의 자격증명은 `auth-configs` 모듈 자체의 컬럼 transformer (Integration `credentials` 와 동일 `ENCRYPTION_KEY`·AES-256-GCM) 가 직접 암복호화한다. 본 `secret://` URI scheme 의 통합 대상이 **아니다**. 응답 마스킹 정책의 단일 진실도 본 convention 이 아니라 [Spec 데이터 모델 §2.17.2](../1-data-model.md#2172-마스킹노출-정책) 다.
+
+> **비대상 — `Trigger.config.interaction.triggerToken`** (결정 2026-08-16): per-trigger interaction 토큰(`itk_*`)은 `Trigger.config` JSONB 에 **평문**으로 보관하며 `secret://` 통합 대상이 아니다.
+>
+> **위 `AuthConfig.config` 예외와 같은 종류가 아니다.** 그쪽은 *"다른 메커니즘으로 **동등하게 암호화**된다"* 가 근거지만, 이 필드는 **암호화 자체가 없다.** 근거를 따로 세운다 — (a) 요청마다 검증하는 **hot-path bearer 토큰**이라 `secret_store` 경유 시 매 요청 복호화 또는 별도 캐시 계층이 필요하다(**비용 근거이지 필요성 근거가 아니다** — 아래 반례 참조), (b) revoke 가 **값 교체(rotation)** 로 즉시 무효화되어 `secret_store` 의 버전 관리 이점이 작다, (c) 값 공간이 서버 발급 랜덤 hex(`itk_` + 32 bytes)로 닫혀 있고 발급 응답에 **1회만** 노출되므로, 사용자가 입력한 외부 서비스 자격증명과 위험 프로파일이 다르다 (유출 시 영향 범위가 해당 트리거 하나로 한정된다).
+>
+> **(a) 를 "평문이 필수" 로 읽으면 안 된다 — 반례가 있다**: 토큰을 **해시로 저장하고 해시끼리 `crypto.timingSafeEqual`** 로 비교하면 동일한 성능·타이밍 안전성을 얻는다(`17_12_34`·`18_14_50` security INFO 가 지적). 즉 평문 보관은 **불가피한 것이 아니라** 현행 구현의 선택이며, 이 예외를 지탱하는 실질 근거는 (c) 다. "해시 저장 + timing-safe 비교" 전환은 유효한 후속 개선안으로 열어 둔다.
+>
+> **이 블록을 "평문 보관 일반의 선례" 로 인용하면 안 된다** — (a)~(c) 를 함께 만족하지 않는 세 번째 필드가 같은 문단을 근거로 예외를 얻는 것이 이 등재의 실패 모드다.
+>
+> **같은 `Trigger.config` 안의 `notification.signing.secretRef` 는 `SecretResolver` 를 경유한다** — 한 객체 안의 이 비대칭은 의도된 것이고 위 (a)~(c) 가 그 사유다 (그쪽은 사용자 입력 HMAC secret 이라 (c) 를 만족하지 않는다). 표면 서술은 [EIA §7.1](../5-system/14-external-interaction-api.md) 이 SoT 다.
 
 ---
 

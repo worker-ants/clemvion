@@ -165,6 +165,92 @@ describe('BackgroundRunsService', () => {
       expect(result.nodeExecutions.nextCursor).toBeNull();
     });
 
+    /**
+     * 자매 표면 — `executions.service.ts` 의 읽기 경로와 같은 클래스다. 이 컨트롤러도
+     * `@Roles` 게이트 없이 워크스페이스 멤버 전원에게 열려 있고 같은
+     * `NodeExecution.error` 를 싣는다. 한쪽만 마스킹하면 *"자매 중 하나만"* 이 재현된다.
+     */
+    it('body nodeExecutions[].error 의 자격증명을 마스킹한다', async () => {
+      const bgNode = makeBgNodeExec();
+      const failed = makeBodyNodeExec({
+        id: 'body-leak',
+        status: NodeExecutionStatus.FAILED,
+        error: {
+          code: 'HTTP_ERROR',
+          message: 'auth failed: Bearer sk-live-abc123def456',
+        },
+      });
+
+      executionRepo.createQueryBuilder.mockReturnValueOnce(
+        buildOwnershipQB('ws-1'),
+      );
+      nodeExecutionRepo.createQueryBuilder
+        .mockReturnValueOnce(buildBgNodeExecQB(bgNode))
+        .mockReturnValueOnce(buildBodyPageQB([failed]))
+        .mockReturnValueOnce(
+          buildAggregateQB({
+            total: '1',
+            pending: '0',
+            running: '0',
+            completed: '0',
+            failed: '1',
+            skipped: '0',
+            waiting: '0',
+            latestFinished: null,
+          }),
+        );
+
+      const result = await service.getBackgroundRun(
+        'exec-1',
+        'bg-run-id',
+        baseQuery,
+        'ws-1',
+      );
+
+      expect(result.nodeExecutions.data[0]?.error).toEqual({
+        code: 'HTTP_ERROR',
+        message: 'auth failed: ***',
+      });
+    });
+
+    /**
+     * 자매 스위트(`executions.service.spec.ts`)에는 `error: null` 통과 케이스가 있는데
+     * 이쪽에는 없어 **대칭이 깨져 있었다**(`18_14_50` testing INFO). 마스킹이 `null` 을
+     * 엉뚱한 값(빈 객체 등)으로 바꾸는 회귀를 이 표면에서도 잡는다.
+     */
+    it('error 가 null 이면 null 그대로 통과시킨다 (형태 변경 없음)', async () => {
+      const bgNode = makeBgNodeExec();
+      const clean = makeBodyNodeExec({ id: 'body-clean', error: null });
+
+      executionRepo.createQueryBuilder.mockReturnValueOnce(
+        buildOwnershipQB('ws-1'),
+      );
+      nodeExecutionRepo.createQueryBuilder
+        .mockReturnValueOnce(buildBgNodeExecQB(bgNode))
+        .mockReturnValueOnce(buildBodyPageQB([clean]))
+        .mockReturnValueOnce(
+          buildAggregateQB({
+            total: '1',
+            pending: '0',
+            running: '0',
+            completed: '1',
+            failed: '0',
+            skipped: '0',
+            waiting: '0',
+            latestFinished: null,
+          }),
+        );
+
+      const result = await service.getBackgroundRun(
+        'exec-1',
+        'bg-run-id',
+        baseQuery,
+        'ws-1',
+      );
+
+      expect(result.nodeExecutions.data[0]?.error).toBeNull();
+    });
+
     it('returns completed status when all body nodes finished', async () => {
       const bgNode = makeBgNodeExec();
       const body1 = makeBodyNodeExec({ id: 'b1' });

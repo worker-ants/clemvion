@@ -305,7 +305,7 @@ RESOLUTION: `review/code/2026/07/28/00_44_54/RESOLUTION.md`.
 ### 5R 신규 등재 후속
 
 - [x] **W1(api_contract) — `EXECUTION_CANCELLED` payload 에 `cancelledBy` 누락** — **완료**
-      ([`eia-terminal-emit-facade`](./eia-terminal-emit-facade.md)가 흡수). 타입 파사드가
+      ([`eia-terminal-emit-facade`](../complete/eia-terminal-emit-facade.md)가 흡수). 타입 파사드가
       `cancelledBy` 를 필수 필드로 만들자 **컴파일러가 이 결함을 드러냈다** — 그 자리가
       이 리팩터의 가치를 가장 잘 보여준다. 값은 `'user'`(근거는 그 plan 참조).
       > **옛 서술(전문 보존, 전부 해소됨)** — ~~spec §4.1 이 `'user'|'system'|'timeout'` 닫힌
@@ -369,7 +369,7 @@ RESOLUTION: `review/code/2026/07/28/00_44_54/RESOLUTION.md`.
 | # | 항목 | 우선 | 근거 라운드 |
 |---|---|---|---|
 | 1 | `applyRetryLastTurn` 재진입 가드를 **원자 claim** 으로 전환 — **구현 완료** `b351731f0`. 단 claim **삽입 위치** 결함 2건(CRITICAL#1: "손상 판정" 이 claim 보다 앞에 있어 살아있는 delivery 오판·FAILED 오마킹, CRITICAL#2: claim 성공 후 not-found 분기의 stale full-entity `save()` 가 claim 이 지운 `_retryState` 를 TypeORM jsonb diff 로 부활)이 후속 ai-review 에서 발견돼 **6R 에서 수정 완료** | **P1 완료** | 1R W1 → 5R **CRITICAL 승격** → 코드화 `b351731f0` → 6R 결함 발견·수정 |
-| 2 | `EXECUTION_CANCELLED` payload 에 `cancelledBy` 추가 — **P2 완료** ([`eia-terminal-emit-facade`](./eia-terminal-emit-facade.md) 가 흡수, 2026-08-15). 처방이었던 `emitCancellationEvent` 재사용 대신 **타입 파사드가 `cancelledBy` 를 필수 필드로 만들어** 컴파일러가 이 경로를 드러냈다. spec 단언도 함께 이관. 계약 SoT 는 [EIA §6 행동 계약](../../spec/5-system/14-external-interaction-api.md#executioncancelled-의-행동-계약-normative) | **P2 완료** | 5R W1 (+ impl-done cross_spec 독립 확인) |
+| 2 | `EXECUTION_CANCELLED` payload 에 `cancelledBy` 추가 — **P2 완료** ([`eia-terminal-emit-facade`](../complete/eia-terminal-emit-facade.md) 가 흡수, 2026-08-15). 처방이었던 `emitCancellationEvent` 재사용 대신 **타입 파사드가 `cancelledBy` 를 필수 필드로 만들어** 컴파일러가 이 경로를 드러냈다. spec 단언도 함께 이관. 계약 SoT 는 [EIA §6 행동 계약](../../spec/5-system/14-external-interaction-api.md#executioncancelled-의-행동-계약-normative) | **P2 완료** | 5R W1 (+ impl-done cross_spec 독립 확인) |
 | 3 | atomic-consume SQL(JSONB `-` + `jsonb_exists`) 실 Postgres 검증 — unit·e2e 어느 계층에도 없음. **6R 이후 범위 확장**: `retryLastTurn` 의 원본 claim 뿐 아니라 `applyRetryLastTurn`/`claimSpawnedRetryRow` 의 2차 claim 도 동일 갭 — mock 이 SQL 조건을 평가하지 않아 실 DB 의 `jsonb_exists`/`status` 매칭 결과(동시 UPDATE 상황의 정확한 1/0 반환)를 검증하지 못한다 | P2 | 5R W6 → 6R W7 |
 | 4 | COALESCE 경로 실 DB e2e — 신규 패턴이고 현재 근거는 TypeORM 소스 정적 확인뿐 | P2 | 5R (RESOLUTION 한계 명시) |
 | 5 | `execution.error` 미클리어 — **성공(COMPLETED) 종결에서도** 옛 실패 메시지 재기록 가능 | P3 | 4R INFO 2 |

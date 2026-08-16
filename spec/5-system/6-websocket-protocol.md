@@ -8,6 +8,8 @@ code:
   - codebase/backend/src/modules/websocket/websocket.service.ts
   - codebase/backend/src/modules/websocket/websocket-events.types.ts
   - codebase/backend/src/shared/utils/strip-external-only-fields.ts
+  - codebase/backend/src/shared/utils/redact-stored-error.ts
+  - codebase/backend/src/modules/executions/executions.service.ts
   - codebase/backend/src/modules/websocket/execution-seq-allocator.service.ts
   - codebase/backend/src/modules/websocket/ws-error-codes.ts
   - codebase/backend/src/modules/external-interaction/sse-adapter.service.ts
@@ -179,7 +181,7 @@ socket.emit("unsubscribe", { channel: "execution:550e8400-e29b-41d4-a716-4466554
 | `execution.completed` | `{ executionId, …필드 집합, seq, timestamp }` | 실행 완료 |
 | `execution.failed` | `{ executionId, …필드 집합, seq, timestamp }` | 실행 실패 |
 | `execution.cancelled` | `{ executionId, …필드 집합, seq, timestamp }` | 실행 취소 |
-| `execution.snapshot` | `{ executionId, execution, timestamp }` | 재구독 시 1회성 현재 상태 스냅샷 (놓친 이벤트 복구). `execution` 은 `ExecutionsService.findById` 의 **Execution 전체 객체** (그 안에 `status` 와 `nodeExecutions[]` 등이 nest) — top-level 에 `status`/`nodeExecutions` 가 평면으로 있는 게 아니라 `payload.execution.*` 로 nest 된다. `ExecutionEventType.EXECUTION_SNAPSHOT`, §6.2 참조 |
+| `execution.snapshot` | `{ executionId, execution, timestamp }` | 재구독 시 1회성 현재 상태 스냅샷 (놓친 이벤트 복구). `execution` 은 `ExecutionsService.findById` 의 **Execution 전체 객체** (그 안에 `status` 와 `nodeExecutions[]` 등이 nest) — top-level 에 `status`/`nodeExecutions` 가 평면으로 있는 게 아니라 `payload.execution.*` 로 nest 된다. `ExecutionEventType.EXECUTION_SNAPSHOT`, §6.2 참조. **nest 된 `execution.error` 와 `execution.nodeExecutions[].error` 는 `findById` 의 마스킹 관문을 상속한다** — 값-패턴 자격증명 마스킹이 걸린 값이 실린다 (SoT: [EIA §R17](./14-external-interaction-api.md) "내부 읽기 경로" 불릿, 결정 2026-08-16). 같은 소켓의 `execution.node.*` **emit** 은 이 관문을 지나지 않아 아직 원문이다 |
 | `execution.paused` _(계획·미구현)_ | `{ executionId, nodeId, nodeName, reason }` | 브레이크포인트에서 일시 정지. 브레이크포인트 기능은 미구현 ([Spec 실행 §6 로드맵](../3-workflow-editor/3-execution.md#6-브레이크포인트-향후-로드맵--미구현)) |
 | `execution.node.started` | `{ executionId, nodeId, nodeExecutionId, nodeName, nodeType }` | 노드 실행 시작. `nodeExecutionId`는 `NodeExecution` 행의 PK로, 컨테이너 body 노드의 iter별 타임라인 row를 구분하는 식별자 |
 | `execution.node.completed` | `{ executionId, nodeId, nodeExecutionId, nodeName, output, duration }` | 노드 실행 완료. `output` 은 `NodeHandlerOutput` 의 `output` 필드 — `output.error` 가 set 된 경우 (예: AI Agent multi-turn 의 `port: 'error'` 종결) 도 포함 ([Spec AI Agent §7.9](../4-nodes/3-ai/1-ai-agent.md#79-multi-turn-모드--오류-error-포트)). `output.error.details.retryable` / `retryAfterSec` 표준 필드는 CONVENTIONS Principle 3.2.1 정의 |

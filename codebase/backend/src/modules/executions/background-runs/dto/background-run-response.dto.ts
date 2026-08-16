@@ -61,7 +61,8 @@ export class BackgroundRunNodeExecutionDto {
   outputData: Record<string, unknown> | null;
 
   @ApiPropertyOptional({
-    description: '에러 정보',
+    description:
+      '에러 정보. 자격증명으로 판별된 값은 마스킹되어 반환된다(DB 원문과 다를 수 있음) — 실행 상세의 `nodeExecutions[].error` 와 같은 관문. SoT: EIA §R17 "내부 읽기 경로" (spec/5-system/14-external-interaction-api.md)',
     type: 'object',
     additionalProperties: true,
   })

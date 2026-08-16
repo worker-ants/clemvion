@@ -151,7 +151,7 @@ checker 가 독립적으로** "인용이 가리키는 절이 오히려 반대를
 
 - [x] `toTerminalErrorPayload` 내부 또는 fanout 경계에서 `message`/`details` 에
       `deepRedactSecrets` 적용 → REST 와 대칭
-      — **해소** (2026-08-16, [`eia-terminal-error-sanitize.md`](./eia-terminal-error-sanitize.md)).
+      — **해소** (2026-08-16, [`eia-terminal-error-sanitize.md`](../complete/eia-terminal-error-sanitize.md)).
       등재된 두 후보 중 **`toTerminalErrorPayload` 내부**를 택했다: 호출부 5곳이 전부 emit 쪽
       (DB write 0)이라 새 종결 경로가 생겨도 구조적으로 빠질 수 없다.
 
@@ -177,17 +177,71 @@ checker 가 독립적으로** "인용이 가리키는 절이 오히려 반대를
       > **다른 컬럼**이다. 이름이 같아 "이미 포괄됨" 으로 넘기기 쉽다 — 이 트래커의
       > *"REST 와 대칭"* 서술이 같은 이유로 부정확했던 전례가 있다.
 
-- [ ] **내부 REST 와 WS 가 같은 `Execution.error` 에 다른 값을 말한다** (2026-08-16 등재,
+- [x] **내부 REST 와 WS 가 같은 `Execution.error` 에 다른 값을 말한다** (2026-08-16 등재,
       `11_36_45` I1). `executions.service.ts:862` 는 `error: execution.error ?? null` 로
       **원문**을 주고, WS/SSE/webhook 종결 이벤트는 이제 마스킹된 값을 준다.
       실측 확인함. 의도된 비대칭이면 R17 의 `llmCalls` 선례처럼 caveat 로 명시하고,
       아니면 REST 에도 적용을 검토한다 — **둘 중 하나를 고르는 것이 이 항목이다**
 
-- [ ] `interaction.triggerToken` 이 `SecretResolver` 미경유 · JSONB 평문 보관
+      > **결정됨 (2026-08-16, 사용자 택일): 내부 경로에도 마스킹한다.** 집행은
+      > [`eia-internal-rest-error-masking.md`](./eia-internal-rest-error-masking.md).
+      > **이 항목의 제목이 부정확했다** — 실측하니 갈리는 축은 REST↔WS 가 아니라
+      > **종결 emit ↔ 그 밖의 모든 읽기 경로**다. WS `execution.snapshot`
+      > (`websocket.gateway.ts:399` → `findById`)도 원문을 싣고 있었다. 위 `:862` 도
+      > **목록 경로 전용**이고 상세는 다른 함수다 — 독립 조치가 필요한 자리는 4곳이다
+
+- [x] `interaction.triggerToken` 이 `SecretResolver` 미경유 · JSONB 평문 보관
       (선존, `09_25_29`·`11_36_45` W2 재확인). `secret-store.md` Overview 의 "모든 도메인
       모듈은 SecretResolver 경유" 와 충돌. (a) `secret://triggers/{triggerId}/interaction-token`
       슬롯 이관 + 구현 plan 신설, 또는 (b) `secret-store.md §1` 비대상 절에 명시적 예외 등재 —
       **택일해서 근거를 Rationale 에 남긴다**
+
+      > **결정됨 (2026-08-16, 사용자 택일): (b) 명시적 예외 등재.** 집행은
+      > [`eia-internal-rest-error-masking.md`](./eia-internal-rest-error-masking.md) §D.
+      > 근거는 `AuthConfig.config` 문구를 **재사용하지 않는다** — 그쪽 예외는 "다른
+      > 메커니즘으로 동등 암호화" 이고 이 필드는 **암호화 자체가 없어** 예외의 종류가 다르다
+      > (`16_03_57` rationale/convention W2)
+
+- [x] **`NodeExecution.error` — 읽기 표면은 해소 (2026-08-16)**. 처음엔 *"다른 컬럼이라
+      범위 밖, 같은 클래스의 유출 가능성"* 으로 등재했는데 **그 판정이 틀렸다** —
+      `--spec`(`16_32_42`) cross_spec 이 **CRITICAL** 로 잡았고 실측이 맞았다.
+      `1-data-model.md` §2.14 가 `Execution.error` 를 *"최초 failed NodeExecution 의 에러
+      정보를 **복사**"* 로 정의하므로 **같은 값**이 같은 응답에 원문으로 병존했다 —
+      "유출 가능성" 이 아니라 **최상위 마스킹의 완전 우회**였다. 심각도를 격상해 기록한다.
+      → `findById` 의 `nodeExecutions[]` + 자매 `background-runs` body 노드에 마스킹 적용
+
+- [ ] **workflow-assistant LLM 도구가 `inputData`·`outputData`·`error` 세 필드를 더 약한 마스킹으로 내보낸다**
+      (2026-08-16 등재, `17_12_34` requirement W1). `explore-tools.service.ts:464`·`:484` 가
+      `maskSensitiveFields`(**키 이름** 기반)만 걸어 `error.message` 안의 `Bearer …` 를
+      통과시킨다 — 실측: 그 함수는 `typeof value !== 'object'` 면 그대로 반환한다.
+      > **단순 합성은 답이 아니다** (실측으로 반증). `redactStoredErrorForResponse` 를 겹쳐
+      > 봤더니 기존 테스트가 RED 였다 — `maskSensitiveFields` 는 자격증명 키를 `****9876`
+      > 으로 **접미 힌트를 남기는데**(어떤 키가 가려졌는지 식별용) 값-패턴 마스킹이 그걸
+      > `***` 로 덮는다. 두 마스킹 의미 중 이 표면에서 무엇이 우선인지가 **결정 항목**이다.
+      > 테스트를 내 변경에 맞춰 고치는 대신 되돌리고 여기 등재한다
+
+- [ ] **단일 관문 근거 서술이 소스 3곳에 흩어져 있다** (2026-08-16 등재,
+      `19_16_28` maintainability W1). `executions.service.ts:802` · `background-runs.service.ts:301`
+      · `executions.service.spec.ts:853` 이 각각 *"자매 넷 중 하나만"* 을 언급한다.
+      > **전제를 실측했다 — verbatim 복제는 아니다.** 공유되는 것은 저장소 공용 **관용구**
+      > (패턴 이름)이고 주변 서술은 지점마다 다르다(background-runs 는 `@Roles` 부재와
+      > `NodeExecution.error` 를, spec 파일은 표면별 단언 이유를 담는다). **다만 "넷" 이라는
+      > 수치가 세 곳에 흩어진 것은 실제 drift 위험**이다 — 표면이 다섯이 되면 세 곳이 갈린다.
+      > 정본 서술을 `toResponseExecution` 한 곳에 두고 나머지는 `{@link}` 참조로 바꾸는
+      > 정리를 후속으로 남긴다. **이 PR 에서 고치지 않는 이유**: 코드 주석 정리라 기능 위험이
+      > 0인데, 이 저장소의 게이트는 코드 편집마다 리뷰 라운드를 다시 요구한다 — 문서 서술
+      > 수준의 개선을 위해 전체 게이트를 한 바퀴 더 도는 것은 비용이 이익을 넘는다
+
+- [ ] **WS `execution.node.*` emit 의 `error` 는 여전히 원문이다** (2026-08-16 등재).
+      위 항목의 **잔여**다 — 읽기 표면이 아니라 별도 emit 계약이고(종결 emit 이
+      `toTerminalErrorPayload` 를 갖는 것과 같은 층), `6-websocket-protocol.md` 가 마스킹을
+      규정하지 않는다. 종결 emit 과 같은 처방(egress 초크포인트)을 적용할지 택일 필요
+
+- [ ] **내부 REST 의 `inputData`/`outputData` 도 원문이다** (2026-08-16 등재, 같은 근거).
+      `executions.service.ts:860`·`:861`. 외부 EIA `getStatus` 는 같은 `outputData` 에
+      `stripAndRedact` 를 거는데(`interaction.service.ts:452`) 내부 REST 는 걸지 않는다 —
+      `Execution.error` 와 **같은 형태의 비대칭**이 두 컬럼 더 남아 있다는 뜻이다.
+      blast radius 가 달라 별건으로 뗀다
 
 > **왜 그 PR 에서 안 고쳤나**: 노출이 `error` 객체화로 **넓어지지 않았다** — 종전에도 같은
 > `errMessage` 문자열이 같은 fanout 을 탔다. 형태만 바뀌었지 내용과 경로는 동일하다.
@@ -311,7 +365,7 @@ NodeExecution cascade 도 트랜잭션 경계도 건드린 라인이 **0건**이
 
 - [x] `finalizeStalledExhausted` 의 두 UPDATE 를 `dataSource.transaction()` 으로 묶어
       자매 두 함수와 같은 패턴으로 통일 — **완료**
-      ([`eia-stalled-atomicity`](./eia-stalled-atomicity.md)). 트랜잭션 제거 뮤턴트에서
+      ([`eia-stalled-atomicity`](../complete/eia-stalled-atomicity.md)). 트랜잭션 제거 뮤턴트에서
       3/3 RED. 부수 발견: `affected=0` 테스트의 단언이 **항상 참**이 될 뻔했다(더 이상
       쓰지 않는 repo mock 을 보고 있었다) — 실제 단언으로 교체
 
@@ -389,7 +443,7 @@ payload 값은 같으므로(둘 다 DB 정본을 읽는다) 수신자가 보는 
 JS/SQL 클램프 비대칭 · vacuous mock 이 전부 같은 뿌리다.
 
 - [x] 종결 3종 전용 타입 파사드 — **완료**
-      ([`eia-terminal-emit-facade`](./eia-terminal-emit-facade.md)).
+      ([`eia-terminal-emit-facade`](../complete/eia-terminal-emit-facade.md)).
       `ExecutionEventEmitter.emitTerminalExecution(executionId, TerminalEventPayload)`.
       직접 호출 **11곳 → 0곳**. `status`·이벤트명은 `type` 에서 파생하고,
       `durationMs`(3종) · `error`(failed) · `cancelledBy`(cancelled)는 필수 필드다.

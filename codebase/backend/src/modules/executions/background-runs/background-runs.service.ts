@@ -18,6 +18,7 @@ import {
   BackgroundRunStatus,
 } from './dto/background-run-response.dto';
 import { QueryBackgroundRunDto } from './dto/query-background-run.dto';
+import { redactStoredErrorForResponse } from '../../../shared/utils/redact-stored-error';
 
 const NODE_EXECUTIONS_DEFAULT_LIMIT = 50;
 const NODE_EXECUTIONS_MAX_LIMIT = 200;
@@ -295,7 +296,10 @@ export class BackgroundRunsService {
       durationMs: row.durationMs ?? null,
       inputData: row.inputData ?? null,
       outputData: row.outputData ?? null,
-      error: row.error ?? null,
+      // 자매 표면 — `executions.service.ts` 의 읽기 경로와 같은 클래스다. 이 컨트롤러도
+      // `@Roles` 게이트 없이 워크스페이스 멤버 전원에게 열려 있고 같은 `NodeExecution.error`
+      // 를 싣는다. 한쪽만 마스킹하면 *"자매 넷 중 하나만"* 이 그대로 재현된다.
+      error: redactStoredErrorForResponse(row.error),
     };
   }
 
