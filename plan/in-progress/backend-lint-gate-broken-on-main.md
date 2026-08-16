@@ -784,7 +784,7 @@ PR 을 막는다" 고 적은 것은 **부정확**했다 — 막던 것은 그중
 
       </details>
 - [x] **[developer] `failRetryExecution` 이 `cancelledBy` 를 안 채운다** — **완료
-      (2026-08-15)**. [`eia-terminal-emit-facade`](./eia-terminal-emit-facade.md) 가
+      (2026-08-15)**. [`eia-terminal-emit-facade`](../complete/eia-terminal-emit-facade.md) 가
       종결 emit 타입 파사드를 도입하며 `cancelledBy` 를 **필수 필드**로 만들었고, 그
       순간 컴파일러가 이 경로를 드러냈다. `retry-turn-terminal-guard.md` #2 도 함께 종결.
       > 원 지적(`14_18_42` cross_spec WARNING 1): 같은 모듈의 다른 4개 취소 경로는

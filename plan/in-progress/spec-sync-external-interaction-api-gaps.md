@@ -151,7 +151,7 @@ checker 가 독립적으로** "인용이 가리키는 절이 오히려 반대를
 
 - [x] `toTerminalErrorPayload` 내부 또는 fanout 경계에서 `message`/`details` 에
       `deepRedactSecrets` 적용 → REST 와 대칭
-      — **해소** (2026-08-16, [`eia-terminal-error-sanitize.md`](./eia-terminal-error-sanitize.md)).
+      — **해소** (2026-08-16, [`eia-terminal-error-sanitize.md`](../complete/eia-terminal-error-sanitize.md)).
       등재된 두 후보 중 **`toTerminalErrorPayload` 내부**를 택했다: 호출부 5곳이 전부 emit 쪽
       (DB write 0)이라 새 종결 경로가 생겨도 구조적으로 빠질 수 없다.
 
@@ -311,7 +311,7 @@ NodeExecution cascade 도 트랜잭션 경계도 건드린 라인이 **0건**이
 
 - [x] `finalizeStalledExhausted` 의 두 UPDATE 를 `dataSource.transaction()` 으로 묶어
       자매 두 함수와 같은 패턴으로 통일 — **완료**
-      ([`eia-stalled-atomicity`](./eia-stalled-atomicity.md)). 트랜잭션 제거 뮤턴트에서
+      ([`eia-stalled-atomicity`](../complete/eia-stalled-atomicity.md)). 트랜잭션 제거 뮤턴트에서
       3/3 RED. 부수 발견: `affected=0` 테스트의 단언이 **항상 참**이 될 뻔했다(더 이상
       쓰지 않는 repo mock 을 보고 있었다) — 실제 단언으로 교체
 
@@ -389,7 +389,7 @@ payload 값은 같으므로(둘 다 DB 정본을 읽는다) 수신자가 보는 
 JS/SQL 클램프 비대칭 · vacuous mock 이 전부 같은 뿌리다.
 
 - [x] 종결 3종 전용 타입 파사드 — **완료**
-      ([`eia-terminal-emit-facade`](./eia-terminal-emit-facade.md)).
+      ([`eia-terminal-emit-facade`](../complete/eia-terminal-emit-facade.md)).
       `ExecutionEventEmitter.emitTerminalExecution(executionId, TerminalEventPayload)`.
       직접 호출 **11곳 → 0곳**. `status`·이벤트명은 `type` 에서 파생하고,
       `durationMs`(3종) · `error`(failed) · `cancelledBy`(cancelled)는 필수 필드다.

@@ -290,7 +290,7 @@ ES-module 순환 위에 있어서다. 생성자의 `forwardRef` 도 같은 이�
       각 라운드 `RESOLUTION.md` 작성
 - [x] `--impl-done` — `20_05_19` **BLOCK: NO**(plan_coherence W1 + naming INFO7 반영) →
       코드가 더 바뀌어 게이트가 재실행을 요구 → `22_27_21` **BLOCK: NO** (5 checker 전원 Critical 0)
-- [ ] push 게이트 통과 → PR
+- [x] push 게이트 통과 → PR **#1175** (`c6dd5cb89`, 2026-08-15 머지)
 - [ ] **`plan/complete/` 이동 시 `spec_impact` 갱신** (`22_27_21` plan_coherence INFO7) —
       frontmatter 가 `none` 인데 실제로는 `spec/5-system/6-websocket-protocol.md` frontmatter
       `code:` 1줄을 바꿨다. in-progress 단계는 Gate C 의무가 아니라 지금 차단 사유는 아니지만,

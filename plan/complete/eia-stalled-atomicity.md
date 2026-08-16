@@ -11,7 +11,7 @@ spec_impact:
 
 ## 다른 plan 과의 관계
 
-정본 트래커는 [`spec-sync-external-interaction-api-gaps.md`](./spec-sync-external-interaction-api-gaps.md)
+정본 트래커는 [`spec-sync-external-interaction-api-gaps.md`](../in-progress/spec-sync-external-interaction-api-gaps.md)
 이고, 이 작업은 그 문서의 *"`finalizeStalledExhausted` 만 트랜잭션 밖이다"* 항목
 (2026-08-15 등재, `12_52_39` database W1) 을 집행한다. **구현 커밋과 같은 턴에 양쪽을 닫는다.**
 
@@ -90,4 +90,4 @@ spec_impact:
       > 세어 확인**했다(`review/code/2026/08/15/16_*` = 4개)
 - [x] `--impl-done` **BLOCK: NO** — `16_32_26`(WARNING 1) → `16_55_29`(**WARNING 0**,
       INFO 만). 마지막 라운드가 *"이번 target 은 push 를 막을 사유가 없다"* 로 마감
-- [ ] push 게이트 통과 → PR
+- [x] push 게이트 통과 → PR **#1173** (`f0b46311d`, 2026-08-15 머지)

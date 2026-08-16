@@ -3,7 +3,7 @@ title: spec draft — WS 이벤트 값·타입의 정본 위치 서술 정정 (7
 worktree: eia-r8-cache-scope-4ae434
 started: 2026-08-15
 owner: project-planner
-status: in-progress
+status: complete
 priority: P3
 pending_plans:
   - plan/in-progress/ws-event-types-extract.md
@@ -151,7 +151,7 @@ frontmatter `code:` 가 이미 "어느 코드가 이 spec 을 구현하나" 를 
 - [x] **선행 plan 닫기** — `ws-event-types-extract.md` §"후속" 의 **체크박스 9개**
       (`planner 턴` 7건 + `그 밖` 의 `3-execution.md` frontmatter `code:` · §4.4 Rationale 2건).
       뭉뚱그리지 말고 명시하라는 `23_38_46` plan_coherence INFO4 반영
-- [ ] push 게이트 통과 → PR
+- [x] push 게이트 통과 → PR **#1176** (`57917975c`, 2026-08-16 머지)
 
 ### `4-execution-engine.md` frontmatter `code:` 는 **일부러 안 건드린다**
 
@@ -164,7 +164,10 @@ ws client 뿐이고, **§4.4 가 통째로 `WebsocketService` 얘기인데도 ba
 
 ## 후속
 
-- [ ] `.claude/docs/plan-lifecycle.md §4` 에 **plan-레벨 `pending_plans:`**(선행/의존)를
+- [x] `.claude/docs/plan-lifecycle.md §4` 에 **plan-레벨 `pending_plans:`**(선행/의존)를
       spec-레벨 `pending_plans:`(책임 plan, `spec-impl-evidence.md §2.1`)와 구분해 문서화.
       `23_38_46` convention INFO3 — 금지 위반은 아니고 이미 자매 draft 도 같은 용법이지만,
       같은 키가 두 의미로 쓰이는 게 반복 관행이 됐다. harness 문서라 이 PR 범위 밖
+      → **해소(2026-08-16)**: §4 에 두 용법 대조표 추가. **실측으로 규모를 적었다** —
+      spec 레벨 17건 · plan 레벨 3건. 키를 나누지 않고 *선언 위치가 의미를 정한다* 로 닫았고,
+      plan 레벨에 build guard 가 **없다**는 사실(경로 오기·이동 후 stale 미검출)을 명시했다

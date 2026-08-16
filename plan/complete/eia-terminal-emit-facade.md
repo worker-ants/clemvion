@@ -11,14 +11,14 @@ spec_impact:
 
 ## 다른 plan 과의 관계
 
-정본 트래커는 [`spec-sync-external-interaction-api-gaps.md`](./spec-sync-external-interaction-api-gaps.md)
+정본 트래커는 [`spec-sync-external-interaction-api-gaps.md`](../in-progress/spec-sync-external-interaction-api-gaps.md)
 이고, 이 작업은 그 문서의 *"종결 이벤트 emit 에 타입 초크포인트가 없다"* 항목
 (2026-08-15 등재, `11_59_09` architecture W1) 을 집행한다. **구현 커밋과 같은 턴에 양쪽을 닫는다.**
 
 ### `retry-turn-terminal-guard.md` #2 를 흡수한다 (`17_20_28` plan_coherence W1)
 
 `retry-turn.service.ts:989` 의 CANCELLED 분기는 **`cancelledBy` 를 채우지 않는다** — 그
-결함은 [`retry-turn-terminal-guard`](./retry-turn-terminal-guard.md) #2(P2, 미해결)가
+결함은 [`retry-turn-terminal-guard`](../in-progress/retry-turn-terminal-guard.md) #2(P2, 미해결)가
 소유하고, spec §6 `result.cancelledBy` 행이 *"경로 1곳 누락"* 각주로 그쪽을 가리킨다.
 
 **파사드가 `cancelledBy` 를 필수 필드로 만들면 컴파일러가 그 결함을 드러낸다** — 이 리팩터의
@@ -36,7 +36,7 @@ spec_impact:
 > **정확도의 한계를 적어 둔다**: 실제 원인이 timeout/system 이었다면 `cancelledBy` 와 `error`
 > 부재가 **함께** 틀린다. 이는 자매와 공유하는 **선존 부정확성**이고 이 PR 이 만들지 않는다.
 > DB 의 `error.code` 로 원인을 파생하는 개선은
-> [정본 트래커에 등재했다](./spec-sync-external-interaction-api-gaps.md) —
+> [정본 트래커에 등재했다](../in-progress/spec-sync-external-interaction-api-gaps.md) —
 > **처음엔 "등재한다" 는 미래형으로만 써 두고 하지 않았고**(`18_29_21` W3·W7 이 실측 반증,
 > 이 형태가 다섯 번째다) 지적을 받고서야 실제로 등재했다.
 
@@ -143,6 +143,12 @@ event-emitter ES-module 순환 위에 있어(생성자의 `forwardRef` 가 같�
       > 첫 e2e 시도는 **`no space left on device`** 로 실패했다 — 코드 실패가 아니라 Docker
       > 빌드 캐시 39GB 였다. `docker builder prune -af` 후 통과. 백엔드 Jest 자체는 그
       > 실패 실행에서도 276/276 이었고, 깨진 건 그 뒤 Playwright 러너 컨테이너 생성이다.
-- [ ] `/ai-review` CRITICAL 0
-- [ ] `--impl-done` BLOCK: NO
-- [ ] push 게이트 통과 → PR
+- [x] `/ai-review` **CRITICAL 0** — `17_54_32`(WARNING 7) → `18_28_50`(**CRITICAL 0 · WARNING 1**,
+      reviewer 9명 전원 결과 확보). 각 세션 `RESOLUTION.md`
+- [x] `--impl-done` **BLOCK: NO** — `18_29_21`(Critical 0 · WARNING 8, 전부 비차단)
+- [x] push 게이트 통과 → PR **#1174** (`8e0728a90`, 2026-08-15 머지)
+
+> **이 세 줄은 2026-08-16 에 사후 정정됐다.** PR 이 머지된 뒤에도 `[ ]` 로 남아 있어
+> consistency 가 **3라운드 연속** stale 로 지적했다(마지막이 `eia-terminal-error-sanitize`
+> 세션 `10_19_31` plan_coherence INFO2). 게이트를 통과한 사실 자체는 PR 존재가 증명하지만,
+> plan 체크박스는 **실제 상태를 말해야 한다** — 세션 id 를 실측해 적었다.

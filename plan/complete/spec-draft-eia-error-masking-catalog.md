@@ -3,11 +3,11 @@ title: spec draft — EIA §R17 마스킹 카탈로그에 종결 `Execution.erro
 worktree: eia-r8-cache-scope-4ae434
 started: 2026-08-16
 owner: project-planner
-status: in-progress
+status: complete
 priority: P2
 pending_plans:
   - plan/in-progress/spec-sync-external-interaction-api-gaps.md
-  - plan/in-progress/eia-terminal-error-sanitize.md
+  - plan/complete/eia-terminal-error-sanitize.md
 spec_impact:
   - spec/5-system/14-external-interaction-api.md
 ---
@@ -96,7 +96,7 @@ spec 이 그 보안 불변식을 모른다** — §R17 "표면 제약(보안)" �
 - [x] **spec 반영 후 트래커 동기화** — W1 체크, **I1 은 의도적으로 열어 둠**
       `spec-sync-external-interaction-api-gaps.md` 의 **W1 은 체크**하고 **I1 은 열어 둔다**
       (이 PR 이 결정하지 않는다), `eia-terminal-error-sanitize.md` 후속 첫 항목도 체크
-- [ ] push 게이트 통과 → PR
+- [x] push 게이트 통과 → PR **#1178** (`b5e4dbb9c`, 2026-08-16 머지)
 
 ## 범위 밖
 

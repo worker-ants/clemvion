@@ -68,7 +68,7 @@ spec `14-external-interaction-api.md` §6.4 는 `error` 를 `{code, message, nod
 
 **(a) rationale W1 — 과거 결정을 근거 없이 뒤집고 있었다.** EIA §R17 의 원칙은 **egress-only
 masking** 이고, 자매 트래커
-[`spec-sync-external-interaction-api-gaps.md`](./spec-sync-external-interaction-api-gaps.md)
+[`spec-sync-external-interaction-api-gaps.md`](../in-progress/spec-sync-external-interaction-api-gaps.md)
 의 등재 항목(2026-08-14, `22_55_51` security W2)도 이미 처방을 적어 뒀다:
 
 > *"`toTerminalErrorPayload` 내부 또는 fanout 경계에서 `message`/`details` 에
@@ -163,9 +163,11 @@ masking** 이고, 자매 트래커
 
       **§6.4 필드 표에도 캐비엇이 필요하다** (`10_19_30` W1/W2): 외부 통합사가 보는 정본은
       CHANGELOG 가 아니라 §6.4 인데, 값 마스킹 사실이 거기 없다
-- [ ] `plan/in-progress/eia-terminal-emit-facade.md` 체크리스트가 미완료로 stale
+- [x] `plan/in-progress/eia-terminal-emit-facade.md` 체크리스트가 미완료로 stale
       (#1174 `8e0728a90` 로 이미 머지됨) → `[x]` 갱신 + `plan/complete/` 이동
       (`10_19_31` plan_coherence INFO2). 무관한 plan 이라 별도 턴
+      → **해소(2026-08-16)**: [`eia-terminal-emit-facade`](../complete/eia-terminal-emit-facade.md)
+      체크박스 3건 정정 + `complete/` 이동. 같은 턴에 같은 형태였던 자매 5건도 함께 처리했다
 
 ## 체크리스트
 
@@ -178,4 +180,4 @@ masking** 이고, 자매 트래커
       **W1 이 또 같은 뿌리였다**: 내가 좁힌 docstring 이 아직도 넓었다
       (`background-execution.processor` 는 결과를 WS 에도 싣는다)
 - [x] `--impl-done` (`10_19_31`) **BLOCK: NO** — §3.3→§3.1 인용 오류 정정, 나머지는 후속 등재
-- [ ] push 게이트 통과 → PR
+- [x] push 게이트 통과 → PR **#1177** (`107c8038f`, 2026-08-16 머지)

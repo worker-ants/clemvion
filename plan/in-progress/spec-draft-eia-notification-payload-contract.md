@@ -103,7 +103,7 @@ DB(`trigger.workflowId`), 안쪽은 routing context — **출처가 다르다**.
 |---|---|---|
 | `status` | 구현됨 | `completed` \| `failed` \| `cancelled` |
 | `error` | 구현됨 | `{code, message, nodeId, details?}` — **`failed` 는 전 경로 object**(2026-08-14). `cancelled` 는 아직 `{code, message}` 만 |
-| `result.cancelledBy` | **구현됨 (2026-08-15 전 경로)** | `cancelled` 한정. ~~`retry-turn.service.ts` `failRetryExecution` 은 emit 안 함~~ — 종결 emit 타입 파사드가 필수 필드로 만들어 해소([`eia-terminal-emit-facade`](./eia-terminal-emit-facade.md)) |
+| `result.cancelledBy` | **구현됨 (2026-08-15 전 경로)** | `cancelled` 한정. ~~`retry-turn.service.ts` `failRetryExecution` 은 emit 안 함~~ — 종결 emit 타입 파사드가 필수 필드로 만들어 해소([`eia-terminal-emit-facade`](../complete/eia-terminal-emit-facade.md)) |
 | `result.outputs` | **미구현 (Planned)** | 데이터는 emit 직전 존재 |
 | `durationMs` | 구현됨 (2026-08-15) | 종결 3종 전부. 알 수 없으면 `null` |
 | ~~`finalNodeId`·`finalPort`·`nodeCount`·`failedNodeId`~~ | **삭제** | emit 로직 0건 — 엔진에 개념이 없다. 약속을 철회한다 (`chat-channel/types.ts:388` 의 미사용 타입 흔적은 후속에서 함께 정리) |

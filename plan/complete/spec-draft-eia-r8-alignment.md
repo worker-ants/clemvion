@@ -3,7 +3,7 @@ title: spec draft — EIA §R8 캐시 대상 서술 정합 + fail-open 잔여 �
 worktree: eia-spec-r8-alignment-fff754
 started: 2026-08-12
 owner: project-planner
-status: in-progress
+status: complete
 priority: P3
 spec_impact:
   - spec/data-flow/15-external-interaction.md
