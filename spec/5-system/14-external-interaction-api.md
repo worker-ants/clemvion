@@ -9,6 +9,8 @@ code:
   - codebase/backend/src/shared/utils/terminal-duration.ts
   - codebase/backend/src/modules/execution-engine/events/execution-event-emitter.service.ts
   - codebase/backend/src/shared/utils/terminal-error-payload.ts
+  - codebase/backend/src/shared/utils/redact-stored-error.ts
+  - codebase/backend/src/modules/executions/executions.service.ts
   - codebase/backend/src/modules/hooks/hooks.service.ts
   - codebase/backend/src/modules/hooks/hooks.controller.ts
   - codebase/backend/src/modules/triggers/dto/interaction-config.dto.ts
@@ -907,7 +909,7 @@ ALTER TABLE trigger
 }
 ```
 
-> `config.notification.signing.secretRef` 의 plaintext 는 [`SecretResolver`](../conventions/secret-store.md) 가 관리하는 `secret_store` 테이블에 backend AES-256-GCM 으로 암호화되어 보관 (DB 는 ciphertext 만) — config JSONB 에는 ref 만. `notification_secret_v2` 컬럼도 동일하게 ref 만 보관 (rotation grace 기간). `config.interaction.triggerToken` 는 현재 JSONB 평문 (향후 secret store 통합 검토).
+> `config.notification.signing.secretRef` 의 plaintext 는 [`SecretResolver`](../conventions/secret-store.md) 가 관리하는 `secret_store` 테이블에 backend AES-256-GCM 으로 암호화되어 보관 (DB 는 ciphertext 만) — config JSONB 에는 ref 만. `notification_secret_v2` 컬럼도 동일하게 ref 만 보관 (rotation grace 기간). `config.interaction.triggerToken` 는 JSONB 평문으로 보관하며, 이는 [`secret-store.md §1`](../conventions/secret-store.md) 의 **명시적 비대상 예외**다 (결정 2026-08-16 — 근거는 그 문서). 종전 "향후 secret store 통합 검토" 서술은 의식적 예외로 결정된 이상 거짓이라 정정한다.
 
 ### 7.2 Execution 엔티티 확장
 
@@ -1481,10 +1483,32 @@ present-when-available 이므로, REST 만 `null` 로 정규화하면 위젯의 
     내부 호스트명·사설 IP·스택 프래그먼트는 통과**한다. 알림 경로 전용 `CONNECTION_STRING_PATTERN`/
     `STACK_TRACE_PATTERN` 을 공유 SoT 로 올리면 `deepRedactSecrets` 의 다른 소비자 전부가 영향받으므로
     별건으로 분리했다.
-  - **내부 REST 와의 비대칭은 미결이다**: `GET /api/executions/:id` 는 `Execution.error` **원문**을
-    반환하므로 같은 컬럼을 두 표면이 다른 값으로 말한다. 어느 쪽이 옳은지는 아직 정하지 않았다 —
-    [실행 내역 R-5](../2-navigation/14-execution-history.md) 가 그 엔드포인트의 안전성을 *"롤 게이팅이
-    아니라 서버 boundary masking parity 에 의존"* 으로 규정하므로, 결정 시 함께 검토할 재료다.
+  - **내부 읽기 경로도 같은 마스킹을 적용한다 (결정 2026-08-16)**: 같은 `Execution.error` 를 내부
+    표면이 원문으로 말하던 비대칭을 해소했다. `shared/utils/redact-stored-error.ts` 의
+    `redactStoredErrorForResponse`(`deepRedactSecrets` 위임, **형태 보존**)를 `ExecutionsService` 의
+    독립 반환 경로 **4곳**(`findById` · `toExecutionDto` · `getChain` · `stop`)에 적용한다.
+    `POST /executions/:id/re-run` 과 WS `execution.snapshot` 은 `findById` 를 재사용하므로 함께 덮인다.
+    - **갈리는 축은 REST↔WS 가 아니었다**: 종전 서술이 이 갭을 *"내부 REST vs WS"* 라 불렀는데,
+      실측하면 WS `execution.snapshot` 도 같은 원문을 싣고 있었다. 실제 축은 **종결 emit ↔ 그 밖의
+      모든 읽기 경로**다.
+    - **`nodeExecutions[].error` 도 함께 마스킹한다**: 데이터 모델 §2.14
+      ([1-data-model.md](../1-data-model.md)) 가 `Execution.error` 를 *"최초 failed NodeExecution 의
+      에러 정보를 **복사**"* 로 정의하므로, 최상위만 가리면 **같은 문자열이 같은 응답 안에 원문으로
+      병존**해 방어가 통째로 우회된다. 자매 표면인 `GET /executions/:id/background-runs/:id` 의 body
+      노드([12-background.md §8.2](../4-nodes/1-logic/12-background.md))도 같이 건다.
+    - **형태는 바꾸지 않는다**: `toTerminalErrorPayload`(§6.4 wire 형태로 정규화)를 재사용하지 않는다 —
+      내부 응답 계약(`Record<string, unknown> | null`)은 그대로 두고 **값만** 마스킹한다.
+    - **근거**: `GET /api/executions/:id` 에 `@Roles` 게이트가 없어 viewer 를 포함한 워크스페이스 멤버
+      전원이 조회하고, 프런트가 실패 배너에 `error.message` 를 그대로 렌더한다.
+      [실행 내역 R-5](../2-navigation/14-execution-history.md) 의 *"안전성은 롤 게이팅이 아니라 서버
+      boundary masking parity 에 의존"* 원칙과, 위 `execution.ai_message` 불릿(내부 WS·Chat Channel 도
+      마스킹 — 수용된 trade-off)의 선례가 같은 방향이다. **단 R-5 의 직접 대상은 Config 탭이라
+      `Execution.error` 를 이미 규정하고 있지는 않다** — 원칙을 원용한 것이지 기존 판정이 아니다.
+    - **DB 는 여전히 원문**(위 egress-only 원칙 불변). 서버 로그·사후 디버깅의 진실은 유지된다.
+    - **잔여(범위 밖)**: ① WS `execution.node.*` **emit** 경로의 `error` 는 여전히 원문이다 — 읽기
+      표면이 아니라 별도 emit 계약이고 [WS 프로토콜](./6-websocket-protocol.md)이 마스킹을 규정하지
+      않는다. ② `inputData`/`outputData` 는 **다른 컬럼**이라 포함되지 않는다 — 외부 `getStatus` 는
+      `stripAndRedact` 를 거는데 내부 REST 는 걸지 않아 같은 형태의 비대칭이 남아 있다.
 - **`nodeOutput` 일반 키 allowlist (미구현·잔여)**: conversationConfig 이외의 `nodeOutput` 키 집합을 렌더 필수 메타로
   제한하는 런타임 allowlist 필터(SSE emit 은 sanitizePayloadForWs 의 credential-**키** 마스킹으로 부분 방어; author
   config 의 값-embedded secret 은 저위험 gap)는 위 값/키 기반 redaction 과 **별개**이며 여전히 후속 하드닝 항목이다.

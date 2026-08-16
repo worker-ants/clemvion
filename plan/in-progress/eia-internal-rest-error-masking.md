@@ -10,6 +10,9 @@ pending_plans:
 spec_impact:
   - spec/5-system/14-external-interaction-api.md
   - spec/conventions/secret-store.md
+  - spec/2-navigation/14-execution-history.md
+  - spec/5-system/6-websocket-protocol.md
+  - spec/4-nodes/1-logic/12-background.md
 ---
 
 # 같은 `Execution.error` 를 표면마다 다르게 말한다 — 내부 경로에도 egress 마스킹
@@ -80,7 +83,9 @@ WS"* 라는 항목 제목 자체가 부정확했다 — 갈리는 축은 REST↔
 추가인지 불명확했다 (`16_03_57` naming INFO5).
 
 ```ts
-redactStoredErrorForResponse(err: Record<string, unknown> | null): Record<string, unknown> | null
+redactStoredErrorForResponse(
+  err: Record<string, unknown> | null | undefined,
+): Record<string, unknown> | null
 ```
 
 > **이름을 바꿨다** (`16_03_57` naming W1). 초안의 `redactExecutionErrorValue` 는 기존 예외
@@ -160,24 +165,35 @@ EIA spec `:910` 의 *"향후 secret store 통합 검토"* 문구도 함께 정�
 교체안:
 
 > - **내부 읽기 경로도 같은 마스킹을 적용한다 (결정 2026-08-16)**: 같은 `Execution.error` 를
->   내부 표면이 원문으로 말하던 비대칭을 해소했다. `redactExecutionErrorValue`(`deepRedactSecrets`
->   위임, **형태 보존**)를 `ExecutionsService` 의 독립 반환 경로 **4곳**(`findById` ·
->   `toExecutionDto` · `getChain` · `stop`)에 적용한다. `POST /executions/:id/re-run` 과 WS
->   `execution.snapshot` 은 `findById` 를 재사용하므로 함께 덮인다.
+>   내부 표면이 원문으로 말하던 비대칭을 해소했다. `redactStoredErrorForResponse`
+>   (`deepRedactSecrets` 위임, **형태 보존**)를 `ExecutionsService` 의 독립 반환 경로
+>   **4곳**(`findById` · `toExecutionDto` · `getChain` · `stop`)에 적용한다.
+>   `POST /executions/:id/re-run` 과 WS `execution.snapshot` 은 `findById` 를 재사용하므로
+>   함께 덮인다.
+>   - **`nodeExecutions[].error` 도 함께 마스킹한다** — 데이터 모델 §2.14
+>     (`spec/1-data-model.md`, 적용 시 `../1-data-model.md` 로 링크)
+>     가 `Execution.error` 를 *"최초 failed NodeExecution 의 에러 정보를 **복사**"* 로 정의하므로,
+>     최상위만 가리면 **같은 문자열이 같은 응답 안에 원문으로 병존**해 방어가 통째로 우회된다.
+>     자매 표면인 `GET /executions/:id/background-runs/:id` 의 body 노드도 같이 건다.
 >   - **갈리는 축은 REST↔WS 가 아니다** — 종전 서술이 이 항목을 *"내부 REST vs WS"* 라 불렀는데
 >     실측하면 WS `execution.snapshot`(`websocket.gateway.ts`)도 같은 원문을 싣고 있었다. 실제 축은
 >     **종결 emit ↔ 그 밖의 모든 읽기 경로**였다.
 >   - **형태는 바꾸지 않는다** — `toTerminalErrorPayload`(§6.4 wire 형태로 정규화)를 재사용하지
 >     않는다. 내부 응답 계약(`Record<string, unknown> | null`)은 그대로 두고 **값만** 마스킹한다.
 >   - **근거**: `GET /api/executions/:id` 에 `@Roles` 게이트가 없어 viewer 포함 전원이 조회하고,
->     프런트가 실패 배너에 `error.message` 를 그대로 렌더한다. [실행 내역 R-5]
->     (../2-navigation/14-execution-history.md) 의 *"안전성은 롤 게이팅이 아니라 서버 boundary
+>     프런트가 실패 배너에 `error.message` 를 그대로 렌더한다. 실행 내역 R-5
+>     (`spec/2-navigation/14-execution-history.md`, 적용 시 `../2-navigation/…` 로 링크)
+>     의 *"안전성은 롤 게이팅이 아니라 서버 boundary
 >     masking parity 에 의존"* 원칙과 §R17 `execution.ai_message` 불릿(내부 WS·Chat Channel 도
 >     마스킹 — 수용된 trade-off)의 선례가 같은 방향이다. **단 R-5 의 직접 대상은 Config 탭이며
 >     `Execution.error` 를 이미 규정하고 있지는 않다** — 원칙을 원용한 것이지 기존 판정이 아니다.
 >   - **DB 는 여전히 원문**(egress-only 원칙 불변). 서버 로그·사후 디버깅의 진실은 유지된다.
->   - **잔여(범위 밖, 실측 기록)**: `NodeExecution.error` 와 `inputData`/`outputData` 는 **다른
->     컬럼**이라 이번 결정에 포함되지 않는다 — 내부 REST 는 여전히 원문을 준다.
+>   - **잔여(범위 밖, 실측 기록)**: ① WS `execution.node.*` **emit** 경로의 `error` 는 여전히
+>     원문이다 — 읽기 표면이 아니라 별도 emit 계약이고 WS 프로토콜
+>     (`spec/5-system/6-websocket-protocol.md`, 적용 시 `./6-websocket-protocol.md` 로 링크)
+>     이 마스킹을 규정하지 않는다. ② `inputData`/`outputData` 는 **다른 컬럼**이라 포함되지
+>     않는다 — 외부 `getStatus` 는 `stripAndRedact` 를 거는데 내부 REST 는 걸지 않아 같은
+>     형태의 비대칭이 남아 있다. 둘 다 정본 트래커 등재.
 
 ### ② `secret-store.md §1` — `AuthConfig.config` 비대상 블록 **뒤**에 신설
 
@@ -234,16 +250,45 @@ EIA spec `:910` 의 *"향후 secret store 통합 검토"* 문구도 함께 정�
 - [x] 기존 단언 1건 교체 — `stop` 테스트의 `expect(result).toBe(afterCancel)` 는 관문이
       **복사본**을 돌려주면서 깨진다. 원래 의도(*"stale lookup 이 아니라 재조회 결과"*)를
       내용 비교 + stale 배제 단언으로 **등가 교체**했다(약화 아님)
-- [ ] planner 턴 ⓐ — §R17 I1 캐비엇 flip
-- [ ] planner 턴 ⓑ — `14-execution-history.md` 에 `Execution.error` 마스킹 정책 **별도 명시**
-      (`16_03_57` cross_spec W1-(b)). R-5 를 이 필드에 그대로 적용하면 오독이므로 그 경계를
-      그 문서 안에서 못박는다
-- [ ] planner 턴 ⓒ — `secret-store.md` 비대상 등재 + EIA `:910` 정정
+- [x] planner 턴 ⓐ — §R17 I1 캐비엇 flip (미결 선언 → 결정·범위·잔여 전부 명시)
+- [x] planner 턴 ⓑ — `14-execution-history.md` R-5 **위**에 대상 범위 캐비엇 추가
+      (`16_03_57` cross_spec W1-(b)). R-5 를 이 필드에 그대로 적용하면 *"error 도 write
+      시점에 마스킹된다"* 는 잘못된 결론이 나온다 — 그 경계를 그 문서 안에서 못박았다
+- [x] planner 턴 ⓒ — `secret-store.md` 비대상 등재(독립 근거 (a)(b)(c) + "선례로 인용 금지")
+      + Overview 절대 문구에 예외 caveat + EIA `:910` "향후 검토" 문구 정정
+- [x] planner 턴 ⓓ — `14-external-interaction-api.md` `code:` 에 `redact-stored-error.ts` ·
+      `executions.service.ts` 추가, `14-execution-history.md` `code:` 에도 전자 추가
+- [x] planner 턴 ⓔ — `6-websocket-protocol.md` `execution.snapshot` 행에 **관문 상속** 명시 +
+      같은 소켓의 `execution.node.*` emit 은 아직 원문이라는 대비까지
+- [x] planner 턴 ⓕ — `12-background.md` §8.2 `nodeExecutions.data` 행에 마스킹 교차 참조
 - [ ] 정본 트래커 **I1·D 닫기**
-- [ ] 정본 트래커 **신규 잔여 2건 등재** (`NodeExecution.error` · `inputData`/`outputData`)
-      — 위 항목과 **분리한다** (`16_03_57` plan_coherence W1). 한 체크박스로 묶여 있으면
-      I1·D 만 닫고 체크하는 순간 신규 등재가 조용히 "완료" 로 읽힌다. 이 트래커가 이미
-      5회 "미래형 등재 약속 후 미이행" 을 자백한 파일이다
+- [x] 정본 트래커 **신규 잔여 등재** — 위 항목과 **분리했다** (`16_03_57` plan_coherence W1).
+      한 체크박스로 묶여 있으면 I1·D 만 닫고 체크하는 순간 신규 등재가 조용히 "완료" 로
+      읽힌다. 이 트래커가 이미 5회 "미래형 등재 약속 후 미이행" 을 자백한 파일이다.
+      등재 실물: `NodeExecution.error`(→ 이번에 **해소**로 격상 정정) ·
+      WS `execution.node.*` emit(신규 잔여) · `inputData`/`outputData`
+
+## `16_32_42` **BLOCK: YES** — 내 "범위 밖" 판정이 틀렸다
+
+`--spec` 이 CRITICAL 2건으로 막았고 **둘 다 맞다.**
+
+**C1 (naming·convention)** — spec 에 실제 patch 될 초안 ① 텍스트에 폐기된 함수명
+`redactExecutionErrorValue` 가 남아 있었다. `## 설계` 절에서는 이름을 바꿔 놓고 **정작 spec 에
+들어갈 문장은 안 고쳤다** — 결정을 적어 두는 것과 그 결정이 산출물에 반영되는 것은 다르다.
+
+**C2 (cross_spec) — 이쪽이 본질이다.** 내가 `NodeExecution.error` 를 *"다른 컬럼이고
+`execution.node.*` 계약이 다르다"* 는 이유로 범위 밖에 뒀는데, **그 서술은 참이지만 결론이
+틀렸다.** [데이터 모델 §2.14](../../spec/1-data-model.md) 가 `Execution.error` 를 *"최초
+failed NodeExecution 의 에러 정보를 **복사**"* 로 못박는다 — **컬럼이 다른 것과 값이 같은
+것은 다른 문제**고 여기서 문제는 후자다. 마스킹이 겨냥하는 바로 그 케이스(실행 실패)에서
+같은 문자열이 같은 응답에 원문으로 병존해 방어가 통째로 우회됐다.
+
+> **내가 판단을 멈춘 지점이 문제였다** — "다른 컬럼" 까지 확인하고 §2.14 의 원본/복사 표를
+> 안 읽었다. 이 저장소의 *"방어의 정의를 한 칸 좁게 잡는다"* 가 정확히 이 형태다.
+
+조치: 마스킹을 `nodeExecutions[].error` 와 자매 표면(`background-runs`)까지 확장했고,
+잔여를 WS `execution.node.*` **emit** 경로로 좁혀 트래커 문구를 *"같은 클래스의 유출 가능성"*
+에서 **"동일 값의 복사 원본"** 으로 격상했다(심각도가 다르다).
 
 ## `16_03_57` W1-(c) 는 실측으로 닫았다 — 동반 갱신 **불요**
 

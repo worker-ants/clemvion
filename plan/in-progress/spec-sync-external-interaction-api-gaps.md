@@ -177,7 +177,7 @@ checker 가 독립적으로** "인용이 가리키는 절이 오히려 반대를
       > **다른 컬럼**이다. 이름이 같아 "이미 포괄됨" 으로 넘기기 쉽다 — 이 트래커의
       > *"REST 와 대칭"* 서술이 같은 이유로 부정확했던 전례가 있다.
 
-- [ ] **내부 REST 와 WS 가 같은 `Execution.error` 에 다른 값을 말한다** (2026-08-16 등재,
+- [x] **내부 REST 와 WS 가 같은 `Execution.error` 에 다른 값을 말한다** (2026-08-16 등재,
       `11_36_45` I1). `executions.service.ts:862` 는 `error: execution.error ?? null` 로
       **원문**을 주고, WS/SSE/webhook 종결 이벤트는 이제 마스킹된 값을 준다.
       실측 확인함. 의도된 비대칭이면 R17 의 `llmCalls` 선례처럼 caveat 로 명시하고,
@@ -190,7 +190,7 @@ checker 가 독립적으로** "인용이 가리키는 절이 오히려 반대를
       > (`websocket.gateway.ts:399` → `findById`)도 원문을 싣고 있었다. 위 `:862` 도
       > **목록 경로 전용**이고 상세는 다른 함수다 — 독립 조치가 필요한 자리는 4곳이다
 
-- [ ] `interaction.triggerToken` 이 `SecretResolver` 미경유 · JSONB 평문 보관
+- [x] `interaction.triggerToken` 이 `SecretResolver` 미경유 · JSONB 평문 보관
       (선존, `09_25_29`·`11_36_45` W2 재확인). `secret-store.md` Overview 의 "모든 도메인
       모듈은 SecretResolver 경유" 와 충돌. (a) `secret://triggers/{triggerId}/interaction-token`
       슬롯 이관 + 구현 plan 신설, 또는 (b) `secret-store.md §1` 비대상 절에 명시적 예외 등재 —
@@ -202,12 +202,18 @@ checker 가 독립적으로** "인용이 가리키는 절이 오히려 반대를
       > 메커니즘으로 동등 암호화" 이고 이 필드는 **암호화 자체가 없어** 예외의 종류가 다르다
       > (`16_03_57` rationale/convention W2)
 
-- [ ] **`NodeExecution.error` 는 내부 표면에서 여전히 원문이다** (2026-08-16 등재,
-      `16_03_57` plan_coherence W1 이 "선등재" 를 요구해 먼저 적는다). 위 `Execution.error`
-      결정의 **범위 밖**이다 — 다른 컬럼이고 `execution.node.*` 이벤트의 계약이 다르며,
-      프런트도 별도로 렌더한다(`executions/[executionId]/page.tsx:493` ·
-      `3-execution.md §10.6.1` 노드 상세 Error 탭). 노드 핸들러가 쓰는 raw 예외 메시지라
-      **같은 클래스의 유출 가능성이 있다**. 같은 결정을 적용할지 택일 필요
+- [x] **`NodeExecution.error` — 읽기 표면은 해소 (2026-08-16)**. 처음엔 *"다른 컬럼이라
+      범위 밖, 같은 클래스의 유출 가능성"* 으로 등재했는데 **그 판정이 틀렸다** —
+      `--spec`(`16_32_42`) cross_spec 이 **CRITICAL** 로 잡았고 실측이 맞았다.
+      `1-data-model.md` §2.14 가 `Execution.error` 를 *"최초 failed NodeExecution 의 에러
+      정보를 **복사**"* 로 정의하므로 **같은 값**이 같은 응답에 원문으로 병존했다 —
+      "유출 가능성" 이 아니라 **최상위 마스킹의 완전 우회**였다. 심각도를 격상해 기록한다.
+      → `findById` 의 `nodeExecutions[]` + 자매 `background-runs` body 노드에 마스킹 적용
+
+- [ ] **WS `execution.node.*` emit 의 `error` 는 여전히 원문이다** (2026-08-16 등재).
+      위 항목의 **잔여**다 — 읽기 표면이 아니라 별도 emit 계약이고(종결 emit 이
+      `toTerminalErrorPayload` 를 갖는 것과 같은 층), `6-websocket-protocol.md` 가 마스킹을
+      규정하지 않는다. 종결 emit 과 같은 처방(egress 초크포인트)을 적용할지 택일 필요
 
 - [ ] **내부 REST 의 `inputData`/`outputData` 도 원문이다** (2026-08-16 등재, 같은 근거).
       `executions.service.ts:860`·`:861`. 외부 EIA `getStatus` 는 같은 `outputData` 에
