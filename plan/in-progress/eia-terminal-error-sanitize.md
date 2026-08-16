@@ -167,6 +167,9 @@ masking** 이고, 자매 트래커
 - [x] TEST WORKFLOW 4스테이지 — lint / unit(backend 426·8752) / build / **e2e 276**
 - [x] `/ai-review` (`09_51_00`) **Critical 0** · Warning 10 처리 → `RESOLUTION.md`
 - [x] `/ai-review` (`10_19_30`) **Critical 0** · Warning 6 처리 → 같은 세션 `RESOLUTION.md`
-- [ ] fresh `/ai-review` (fix 이후)
+- [x] fresh `/ai-review` (`10_41_55`) **Critical 0 · Warning 2 — 수렴** → `RESOLUTION.md`
+- [x] 주석-only 편집 후 재리뷰 (`11_04_07`) — 게이트가 정확히 재트리거했다.
+      **W1 이 또 같은 뿌리였다**: 내가 좁힌 docstring 이 아직도 넓었다
+      (`background-execution.processor` 는 결과를 WS 에도 싣는다)
 - [x] `--impl-done` (`10_19_31`) **BLOCK: NO** — §3.3→§3.1 인용 오류 정정, 나머지는 후속 등재
 - [ ] push 게이트 통과 → PR

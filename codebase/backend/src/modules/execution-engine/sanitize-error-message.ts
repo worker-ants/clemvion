@@ -1,13 +1,24 @@
 /**
  * 실행 실패 에러 메시지를 **알림 표면**(인앱 알림 / 이메일)에 노출하기 전 정리한다.
  *
- * **적용 범위를 좁혀 적는다.** 종전 첫 줄은 "WS 이벤트 / 알림 / 이메일" 이라고 썼는데,
- * 호출부는 실측 **3곳뿐이고 전부 알림 조립 지점**이다
- * (`execution-engine.service` 실패 알림 · `background-execution.processor` · `schedule-runner`).
- * WS/SSE/webhook 종결 이벤트는 이 함수를 **거치지 않았다** — 문서한 보장이 구현보다 넓었다.
+ * **적용 범위를 좁혀 적는다.** 호출부는 실측 **3곳**이다:
  *
- * 그 종결 경로는 `shared/utils/terminal-error-payload.ts` 의 `toTerminalErrorPayload` 가
- * egress 초크포인트에서 `deepRedactSecrets` 로 마스킹한다(EIA §R17 egress-only 원칙).
+ * | 호출부 | 무엇에 쓰나 |
+ * |---|---|
+ * | `execution-engine.service` 실패 알림 | 알림 문구 |
+ * | `schedule-runner.service` | 알림 문구 |
+ * | `background-execution.processor` | 알림 문구 **+ 내부 WS 채널** `background:run:<id>` 의 `errorMessage` |
+ *
+ * 종전 첫 줄은 "WS 이벤트 / 알림 / 이메일" 이라고 썼다. 그건 **종결 3종**(`execution.failed`
+ * 등)을 보호한다는 뜻으로 읽혔는데 사실이 아니다 — 그 경로는 이 함수를 거치지 않고
+ * `shared/utils/terminal-error-payload.ts` 의 `toTerminalErrorPayload` 가 egress 초크포인트에서
+ * `deepRedactSecrets` 로 마스킹한다(EIA §R17 egress-only 원칙).
+ *
+ * **그 정정도 한 번 더 좁아야 했다** (`11_04_07` requirement W1): 고치면서 "3곳 전부 알림
+ * 조립" 이라고 썼는데 `background-execution.processor` 는 결과를 WS 에도 싣는다. 다만 그
+ * 채널은 `background:run:<id>` 로 **격리된 내부 채널**이고 SSE/webhook 으로 나가지 않는다 —
+ * 종결 3종의 외부 노출과는 다른 표면이다.
+ *
  * 두 경로가 쓰는 마스킹 SoT 는 `shared/utils/sanitize-error-message.ts` 로 같다.
  *
  * 길이 제한 + stack trace · connection string 패턴 제거 + **secret 토큰 마스킹**.
