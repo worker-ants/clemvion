@@ -13,6 +13,7 @@ spec_impact:
   - spec/2-navigation/14-execution-history.md
   - spec/5-system/6-websocket-protocol.md
   - spec/4-nodes/1-logic/12-background.md
+  - spec/1-data-model.md
 ---
 
 # 같은 `Execution.error` 를 표면마다 다르게 말한다 — 내부 경로에도 egress 마스킹
@@ -344,4 +345,10 @@ cancelled/waiting 노드의 Input/Output/**Error** 탭)이고, 거기 Error 탭�
       > `17_35_13` 은 최종 코드 커밋보다 앞서 게이트가 stale 로 판정한다 —
       > **게이트는 세션 디렉토리 시각 vs spec-linked 코드의 커밋 author date 를 비교**한다
       > (소스 실측). 그래서 코드를 동결한 뒤 두 게이트를 다시 열었다
+- [x] `/ai-review` **5라운드** (`18_33_52`, forced 7) — **CRITICAL 0 · WARNING 4** 전부 조치
+      → `RESOLUTION.md`. 코드 품질 둘(중복 헬퍼 · 리뷰 이력이 소스 주석에 박제)은 **내가
+      만든 것**이고, 수치 지적 하나는 **실측해 보니 내 값이 맞았다**(리뷰어 둘이 서로 다른
+      값을 냈고 둘 다 `grep` 으로 코드블록 예시까지 셌다) — 대신 **세는 방법을 문서에 박았다**
+- [x] `--impl-done` **재실행** (`18_33_59`) — **BLOCK: NO**, CRITICAL 0 · WARNING 2 조치
+      (§R17 잔여 ③ 을 세 필드로 열거 · `spec_impact` 에 `1-data-model.md` 추가)
 - [ ] push 게이트 통과 → PR

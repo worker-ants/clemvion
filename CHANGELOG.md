@@ -2,7 +2,8 @@
 
 ## Unreleased — 같은 `Execution.error` 를 표면마다 다른 값으로 말하고 있었다 (읽기 경로)
 
-위 항목이 **종결 emit 경로**에 값-마스킹을 넣었는데 **읽기 경로는 그대로 원문**이었다. 같은
+**#1177**(아래 항목 — CHANGELOG 는 최신이 위로 쌓인다)이 **종결 emit 경로**에 값-마스킹을
+넣었는데 **읽기 경로는 그대로 원문**이었다. 같은
 소켓에서 `execution.failed` 는 마스킹된 값을, `execution.snapshot` 은 원문을 보내고 있었다.
 `GET /api/executions/:id` 에는 `@Roles` 게이트가 없어 **viewer 포함 워크스페이스 멤버 전원**이
 조회하고, 프런트는 실패 배너에 `error.message` 를 그대로 렌더한다.

@@ -210,7 +210,7 @@ checker 가 독립적으로** "인용이 가리키는 절이 오히려 반대를
       "유출 가능성" 이 아니라 **최상위 마스킹의 완전 우회**였다. 심각도를 격상해 기록한다.
       → `findById` 의 `nodeExecutions[]` + 자매 `background-runs` body 노드에 마스킹 적용
 
-- [ ] **workflow-assistant LLM 도구가 같은 두 컬럼을 더 약한 마스킹으로 내보낸다**
+- [ ] **workflow-assistant LLM 도구가 `inputData`·`outputData`·`error` 세 필드를 더 약한 마스킹으로 내보낸다**
       (2026-08-16 등재, `17_12_34` requirement W1). `explore-tools.service.ts:464`·`:484` 가
       `maskSensitiveFields`(**키 이름** 기반)만 걸어 `error.message` 안의 `Bearer …` 를
       통과시킨다 — 실측: 그 함수는 `typeof value !== 'object'` 면 그대로 반환한다.

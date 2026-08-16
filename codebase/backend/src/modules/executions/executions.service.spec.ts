@@ -86,6 +86,19 @@ describe('ExecutionsService', () => {
     return qb;
   };
 
+  // `findById` 계열의 단건 조회 QueryBuilder 스텁. `buildListQB`/`buildParentNameQB`/
+  // `buildNodeCountQB` 와 같은 최상위 자리에 둔다 — 종전에는 두 describe 가 토씨 하나
+  // 다르지 않은 구현을 각자 선언해, 체인이 바뀌면 두 곳을 따로 고쳐야 했다.
+  const buildSingleQB = (row: FakeExec | null) => {
+    const qb: Record<string, jest.Mock> = {};
+    qb.leftJoinAndSelect = jest.fn().mockReturnValue(qb);
+    qb.leftJoin = jest.fn().mockReturnValue(qb);
+    qb.addSelect = jest.fn().mockReturnValue(qb);
+    qb.where = jest.fn().mockReturnValue(qb);
+    qb.getOne = jest.fn().mockResolvedValue(row);
+    return qb;
+  };
+
   // C-7: node_execution status 집계 (Nodes 열). loadNodeExecutionCounts 가
   // 호출하는 nodeExecutionRepository.createQueryBuilder 의 그룹 쿼리 mock.
   type NodeCountRow = {
@@ -393,16 +406,6 @@ describe('ExecutionsService', () => {
   // PR-B — findById 가 V035 의 execution_node_log 에서 (execution_id, id)
   // 정렬로 executionPath 를 채운다. 기존 list 응답은 N+1 회피로 빈 배열.
   describe('findById → execution_node_log 기반 executionPath 채움', () => {
-    const buildSingleQB = (row: FakeExec | null) => {
-      const qb: Record<string, jest.Mock> = {};
-      qb.leftJoinAndSelect = jest.fn().mockReturnValue(qb);
-      qb.leftJoin = jest.fn().mockReturnValue(qb);
-      qb.addSelect = jest.fn().mockReturnValue(qb);
-      qb.where = jest.fn().mockReturnValue(qb);
-      qb.getOne = jest.fn().mockResolvedValue(row);
-      return qb;
-    };
-
     it('executionNodeLogRepo.find 결과의 nodeId 배열을 executionPath 로 노출', async () => {
       const row = baseFake({ id: 'eF1' });
       executionRepo.createQueryBuilder.mockReturnValueOnce(
@@ -857,16 +860,6 @@ describe('ExecutionsService', () => {
       message: 'auth failed: Bearer sk-live-abc123def456',
     };
     const MASKED = { code: 'HTTP_ERROR', message: 'auth failed: ***' };
-
-    const buildSingleQB = (row: FakeExec | null) => {
-      const qb: Record<string, jest.Mock> = {};
-      qb.leftJoinAndSelect = jest.fn().mockReturnValue(qb);
-      qb.leftJoin = jest.fn().mockReturnValue(qb);
-      qb.addSelect = jest.fn().mockReturnValue(qb);
-      qb.where = jest.fn().mockReturnValue(qb);
-      qb.getOne = jest.fn().mockResolvedValue(row);
-      return qb;
-    };
 
     it('① findById — 상세 조회 (GET /executions/:id · WS execution.snapshot 공용)', async () => {
       const row = baseFake({ id: 'eM1', error: { ...LEAKY } });

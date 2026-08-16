@@ -1516,8 +1516,10 @@ present-when-available 이므로, REST 만 `null` 로 정규화하면 위젯의 
       표면이 아니라 별도 emit 계약이고 [WS 프로토콜](./6-websocket-protocol.md)이 마스킹을 규정하지
       않는다. ② `inputData`/`outputData` 는 **다른 컬럼**이라 포함되지 않는다 — 외부 `getStatus` 는
       `stripAndRedact` 를 거는데 내부 REST 는 걸지 않아 같은 형태의 비대칭이 남아 있다.
-      ③ **workflow-assistant LLM 도구**(`explore-tools.service.ts`)는 같은 두 컬럼을
-      `maskSensitiveFields`(**키 이름** 기반)로만 내보내 자유 텍스트 안의 자격증명을 통과시킨다.
+      ③ **workflow-assistant LLM 도구**(`explore-tools.service.ts`)는 `inputData` ·
+      `outputData` · `error` **세 필드**를 `maskSensitiveFields`(**키 이름** 기반)로만 내보내
+      자유 텍스트 안의 자격증명을 통과시킨다 (그쪽 마스킹 규칙의 SoT 는
+      [AI Assistant](../3-workflow-editor/4-ai-assistant.md)).
       여기에 값-패턴 마스킹을 **단순 합성하면 안 된다** — 그 함수는 자격증명 키를 `****9876` 처럼
       **접미 힌트를 남겨** 어떤 키가 가려졌는지 식별하게 하는데, 값-패턴 마스킹을 겹치면 그 힌트가
       사라진다(기존 테스트가 이 회귀를 잡는다). 어느 의미가 우선하는지는 별도 결정이라 분리했다.
