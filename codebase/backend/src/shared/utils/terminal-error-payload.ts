@@ -45,11 +45,6 @@ export interface TerminalErrorPayload {
 }
 
 /**
- * @param err DB 의 `Execution.error` 값. 레거시 문자열·`null`·키 생략 객체를 전부 받는다.
- * @returns §6.4 형태. 입력이 없으면 `null` — **빈 객체를 돌려주지 않는다**(수신자가
- *   "에러가 있는데 내용이 없다" 로 읽는다).
- */
-/**
  * `message`·`details` 의 값-embedded secret 을 마스킹한다.
  *
  * ## 왜 여기인가 — **egress 초크포인트**
@@ -71,6 +66,26 @@ export interface TerminalErrorPayload {
  *
  * `code`(enum 문자열)·`nodeId`(uuid)는 대상이 아니다 — 자유 텍스트가 아니라 값 공간이 닫혀 있다.
  *
+ * ## 무엇을 **못** 잡는지 (실측)
+ *
+ * `deepRedactSecrets` 의 `SECRET_LEAK_PATTERNS` 는 **자격증명**을 겨냥한다. 무수정 프로브 결과:
+ *
+ * | 입력 | 결과 |
+ * |---|---|
+ * | `postgres://user:pw@db.internal/prod` | `postgres://***@db.internal/prod` ✅ |
+ * | `Bearer sk-live-…` | `***` ✅ |
+ * | `postgres://db.internal:5432/prod` (자격증명 없음) | **무변화** |
+ * | 내부 호스트명·사설 IP·스택 프래그먼트 | **무변화** |
+ *
+ * 자매 유틸 `execution-engine/sanitize-error-message.ts` 는 `CONNECTION_STRING_PATTERN` ·
+ * `STACK_TRACE_PATTERN` · 500자 절단까지 걸지만 **알림 경로 전용**이다. 두 egress 의 방어
+ * 강도가 다르다는 뜻이고, 그건 이 저장소가 반복해 겪은 "자매 중 하나만" 형태다.
+ *
+ * **여기서 넓히지 않은 이유**: 그 패턴들을 shared SoT 로 올리면 `deepRedactSecrets` 의 다른
+ * 소비자(conversation-thread `turns[].data` · `ai_message.messages[]` · EIA `nodeOutput`)까지
+ * 전부 영향을 받는다 — blast radius 가 다른 결정이라 별도 PR 로 뗀다
+ * (`spec-sync-external-interaction-api-gaps.md` 등재). 이 함수의 보장은 **자격증명 마스킹까지**다.
+ *
  * **여기엔 copy-on-change 조기 반환을 두지 않는다.** 처음엔 "바뀐 게 없으면 같은 객체를
  * 돌려준다" 를 넣었는데, 호출부가 이미 매번 새 payload 를 만들어 넘기므로 그 분기가 아끼는
  * 것은 spread 한 번뿐이고 **바깥에서 관측할 방법이 없다** — 실제로 그 분기를 무력화한
@@ -88,6 +103,11 @@ function redactTerminalError(p: TerminalErrorPayload): TerminalErrorPayload {
   };
 }
 
+/**
+ * @param err DB 의 `Execution.error` 값. 레거시 문자열·`null`·키 생략 객체를 전부 받는다.
+ * @returns §6.4 형태. 입력이 없으면 `null` — **빈 객체를 돌려주지 않는다**(수신자가
+ *   "에러가 있는데 내용이 없다" 로 읽는다).
+ */
 export function toTerminalErrorPayload(
   err: unknown,
 ): TerminalErrorPayload | null {

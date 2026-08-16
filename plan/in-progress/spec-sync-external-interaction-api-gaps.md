@@ -161,6 +161,13 @@ checker 가 독립적으로** "인용이 가리키는 절이 오히려 반대를
       > 이번 조치의 실제 효과는 "REST 와 같아진다" 가 아니라 **WS/SSE/webhook 종결 경로에
       > 값-패턴 마스킹이 생긴다** 이다.
 
+- [ ] **잔여 — 자격증명 **없는** 연결 문자열·내부 호스트명·스택 프래그먼트는 여전히 통과**
+      (2026-08-16 등재, `09_51_00` requirement W1). `SECRET_LEAK_PATTERNS` 는 자격증명을
+      겨냥한다 — 무수정 프로브로 `postgres://db.internal:5432/prod` 무변화 확인.
+      알림 경로의 `CONNECTION_STRING_PATTERN`·`STACK_TRACE_PATTERN` 을 shared SoT 로 올리면
+      `deepRedactSecrets` 의 **다른 소비자 전부**(conversation-thread `turns[].data` ·
+      `ai_message.messages[]` · EIA `nodeOutput`)가 영향을 받으므로 blast radius 가 다른 별건
+
 > **왜 그 PR 에서 안 고쳤나**: 노출이 `error` 객체화로 **넓어지지 않았다** — 종전에도 같은
 > `errMessage` 문자열이 같은 fanout 을 탔다. 형태만 바뀌었지 내용과 경로는 동일하다.
 > 즉 선존 갭이고, `durationMs` 를 "비용이 다르다" 고 떼어낸 PR 이 이걸 끌어들이면 앞뒤가

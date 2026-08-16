@@ -156,18 +156,27 @@ describe('toTerminalErrorPayload — secret 마스킹 (egress 초크포인트)',
     expect(JSON.stringify(out?.details)).not.toContain('leak-me-999');
   });
 
-  it('code·nodeId 는 건드리지 않는다 (값 공간이 닫혀 있다)', () => {
-    const nodeId = '3f2504e0-4f89-11d3-9a0c-0305e82c3301';
+  /**
+   * **판별력 있는 입력을 쓴다.** 처음엔 `code: 'EXECUTION_TIME_LIMIT_EXCEEDED'` ·
+   * `nodeId: <uuid>` 로 단언했는데, 그 값들은 `SECRET_LEAK_PATTERNS` 에 애초에 안 걸려서
+   * **마스킹이 실수로 걸려도 no-op** 이라 GREEN 이었다 — "안 건드린다" 를 증명하지 못하는
+   * 공허한 테스트다(`09_51_00` testing W7). 마스킹이 걸리면 반드시 값이 바뀌는 입력을 준다.
+   */
+  it('code·nodeId 는 마스킹 대상 문자열이어도 건드리지 않는다', () => {
+    const code = 'Bearer sk-live-should-not-be-masked';
+    const nodeId = 'api-key=must-stay-verbatim';
+    const out = toTerminalErrorPayload({ code, message: 'boom', nodeId });
+    expect(out).toEqual({ code, message: 'boom', nodeId });
+  });
+
+  it('JSON 형태 message 는 secret 만 지우고 JSON 을 깨뜨리지 않는다', () => {
     const out = toTerminalErrorPayload({
-      code: 'EXECUTION_TIME_LIMIT_EXCEEDED',
-      message: 'boom',
-      nodeId,
+      message: '{"detail":"denied","authorization":"Bearer leak-json-777"}',
     });
-    expect(out).toEqual({
-      code: 'EXECUTION_TIME_LIMIT_EXCEEDED',
-      message: 'boom',
-      nodeId,
-    });
+    expect(out?.message).not.toContain('leak-json-777');
+    // 재직렬화되므로 원문과 바이트가 같지는 않지만, **JSON 으로는 여전히 파싱된다**.
+    expect(() => JSON.parse(out?.message ?? '')).not.toThrow();
+    expect(JSON.parse(out?.message ?? '')).toMatchObject({ detail: 'denied' });
   });
 
   it('평범한 메시지는 훼손하지 않는다 (오탐 대조)', () => {

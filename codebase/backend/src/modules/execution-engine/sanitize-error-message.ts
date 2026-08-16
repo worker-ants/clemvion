@@ -12,8 +12,11 @@
  *
  * 길이 제한 + stack trace · connection string 패턴 제거 + **secret 토큰 마스킹**.
  * Error.message 안에 평문으로 들어온 내부 호스트명·연결 문자열·파일 경로, 그리고
- * 노드 예외가 echo 한 Bearer/API 키/Authorization 헤더 값이 인앱/이메일(외부 SMTP)·
- * webhook 알림으로 흘러가지 않도록 하는 defense in depth.
+ * 노드 예외가 echo 한 Bearer/API 키/Authorization 헤더 값이 인앱/이메일(외부 SMTP)로
+ * 흘러가지 않도록 하는 defense in depth.
+ *
+ * (종전엔 "webhook 알림" 도 적혀 있었으나 실측하면 호출부 3곳이 전부
+ * `channel: 'in_app'|'email'|'both'` 다 — webhook 채널 0건. 여기서도 범위를 좁혀 적는다.)
  *
  * secret 마스킹은 shared SoT `shared/utils/sanitize-error-message.ts` 의
  * `redactSecrets`(SECRET_LEAK_PATTERNS) 를 재사용한다 — WS 경로의 key-name 기반
