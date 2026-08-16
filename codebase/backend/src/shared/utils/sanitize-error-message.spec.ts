@@ -275,7 +275,10 @@ describe('deepRedactSecrets — 기존 마스킹 마커 보존 (계약 캐너리
   });
 
   it('WS 키-마스킹의 `[REDACTED]` · 깊이 상한의 `[REDACTED_DEPTH]` 도 보존', () => {
-    const wire = { apiKey: '[REDACTED]', nested: { token: '[REDACTED_DEPTH]' } };
+    const wire = {
+      apiKey: '[REDACTED]',
+      nested: { token: '[REDACTED_DEPTH]' },
+    };
     expect(deepRedactSecrets(wire)).toEqual(wire);
   });
 
@@ -286,12 +289,14 @@ describe('deepRedactSecrets — 기존 마스킹 마커 보존 (계약 캐너리
 
   it('**마커가 아닌** 진짜 값은 여전히 마스킹한다 (보존이 구멍이 되지 않음)', () => {
     // 이 단언이 없으면 위 세 테스트는 "전부 보존" 구현으로도 초록이 된다.
-    expect(deepRedactSecrets({ authorization: 'Bearer sk-live-real' })).toEqual({
-      authorization: '***',
-    });
-    expect(deepRedactSecrets({ api_key: '[REDACTED_BUT_NOT_A_MARKER]' })).toEqual(
-      { api_key: '***' },
+    expect(deepRedactSecrets({ authorization: 'Bearer sk-live-real' })).toEqual(
+      {
+        authorization: '***',
+      },
     );
+    expect(
+      deepRedactSecrets({ api_key: '[REDACTED_BUT_NOT_A_MARKER]' }),
+    ).toEqual({ api_key: '***' });
   });
 });
 
@@ -319,10 +324,14 @@ describe('deepRedactSecretsPreserving', () => {
 
   it('깊이 무관하게 보존한다 (중첩 turnDebug 경로)', () => {
     const nested = {
-      nodeOutput: { meta: { turnDebug: [{ llmCalls: [{ raw: 'Bearer q' }] }] } },
+      nodeOutput: {
+        meta: { turnDebug: [{ llmCalls: [{ raw: 'Bearer q' }] }] },
+      },
     };
     const out = deepRedactSecretsPreserving(nested, PRESERVE) as {
-      nodeOutput: { meta: { turnDebug: Array<{ llmCalls: Array<{ raw: string }> }> } };
+      nodeOutput: {
+        meta: { turnDebug: Array<{ llmCalls: Array<{ raw: string }> }> };
+      };
     };
     expect(out.nodeOutput.meta.turnDebug[0].llmCalls[0].raw).toBe('Bearer q');
   });

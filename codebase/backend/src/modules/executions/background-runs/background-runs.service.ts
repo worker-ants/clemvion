@@ -18,7 +18,10 @@ import {
   BackgroundRunStatus,
 } from './dto/background-run-response.dto';
 import { QueryBackgroundRunDto } from './dto/query-background-run.dto';
-import { redactStoredErrorForResponse } from '../../../shared/utils/redact-stored-error';
+import {
+  redactStoredDataForResponse,
+  redactStoredErrorForResponse,
+} from '../../../shared/utils/redact-stored-error';
 
 const NODE_EXECUTIONS_DEFAULT_LIMIT = 50;
 const NODE_EXECUTIONS_MAX_LIMIT = 200;
@@ -294,11 +297,12 @@ export class BackgroundRunsService {
       startedAt: this.toIso(row.startedAt),
       finishedAt: row.finishedAt ? this.toIso(row.finishedAt) : null,
       durationMs: row.durationMs ?? null,
-      inputData: row.inputData ?? null,
-      outputData: row.outputData ?? null,
       // 자매 표면 — `executions.service.ts` 의 읽기 경로와 같은 클래스다. 이 컨트롤러도
-      // `@Roles` 게이트 없이 워크스페이스 멤버 전원에게 열려 있고 같은 `NodeExecution.error`
-      // 를 싣는다. 한쪽만 마스킹하면 *"자매 넷 중 하나만"* 이 그대로 재현된다.
+      // `@Roles` 게이트 없이 워크스페이스 멤버 전원에게 열려 있고 같은 `NodeExecution` 의
+      // 세 컬럼을 싣는다. (`error` 만 걸려 있던 자리다 — 두 컬럼은 원문이었다.)
+      // 읽기 표면 전체 목록은 `ExecutionsService.toResponseExecution` 의 표가 정본.
+      inputData: redactStoredDataForResponse(row.inputData),
+      outputData: redactStoredDataForResponse(row.outputData),
       error: redactStoredErrorForResponse(row.error),
     };
   }

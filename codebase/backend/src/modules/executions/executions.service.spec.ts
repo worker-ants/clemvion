@@ -850,9 +850,12 @@ describe('ExecutionsService', () => {
    * ## 표면마다 **따로** 단언하는 이유
    *
    * 한 헬퍼를 부르니 한 번만 검증하면 된다고 생각하기 쉽다. 그러면 **한 표면에서
-   * 호출을 지워도 스위트가 초록**이다 — 이 저장소가 *"자매 넷 중 하나만"* 으로 반복해
-   * 겪은 형태고, 이 결함을 등재한 트래커조차 네 표면 중 **한 줄만** 지목했다.
-   * 그래서 독립 표면 넷 + 재사용 둘을 각각 겨눈다.
+   * 호출을 지워도 스위트가 초록**이다 — 이 저장소가 *"자매 중 하나만"* 으로 반복해
+   * 겪은 형태고, 이 결함을 등재한 트래커조차 **한 줄만** 지목했다.
+   * 그래서 독립 표면과 재사용 경로를 각각 겨눈다.
+   *
+   * > 표면 목록·개수는 `ExecutionsService.toResponseExecution` 의 표가 정본이다 —
+   * > 여기에 숫자를 다시 적지 않는다(적으면 표면이 늘 때 이 주석만 낡는다).
    */
   describe('Execution.error 응답 마스킹 — 표면 전수', () => {
     const LEAKY = {
@@ -1097,6 +1100,178 @@ describe('ExecutionsService', () => {
 
       const result = await service.findByWorkflow('w1', {});
       expect(result.data[0].error).toBeNull();
+    });
+  });
+
+  /**
+   * `inputData`/`outputData` 응답 egress 마스킹 (§R17 잔여 ② — 결정 2026-08-16).
+   *
+   * ## 왜 `error` 자매 describe 와 따로 두나
+   *
+   * 트래커는 이 항목을 *"`Execution.error` 와 같은 형태"* 로 등재했지만 **다르다** —
+   * 이 두 컬럼에는 **앞선 마스킹 층**이 있다. webhook ingestion 이 민감 헤더를
+   * `[REDACTED]` 로 마스킹해 저장하고(12-webhook §5.3), 그건 4개 문서가 전제를 공유하는
+   * 문서화된 계약이다. 그래서 여기엔 `error` 에 없는 단언이 하나 더 붙는다 — **마커 보존**.
+   *
+   * 표면마다 따로 단언하는 이유는 위 `error` describe 와 같다.
+   */
+  describe('inputData/outputData 응답 마스킹 — 표면 전수', () => {
+    const LEAKY_IN = {
+      note: 'connect via postgres://admin:pw@db.internal/prod',
+    };
+    // `Bearer …` 를 쓴다. 초안은 `token=sk-live-abc123` 이었는데 **통과했다** —
+    // `SECRET_LEAK_PATTERNS` 의 키워드 목록은 `access_token`/`refresh_token`/`id_token`/
+    // `api_key` 는 담지만 **bare `token=` 은 없다**. 이 PR 이 만든 결함이 아니라 선존
+    // 패턴 커버리지 갭이라(패턴 확장은 캐너리가 막는 별건) 트래커에 등재하고, 여기서는
+    // 마스커가 실제로 잡는 값으로 "이 표면이 값-마스커를 지나는가" 만 겨눈다.
+    const LEAKY_OUT = { body: 'upstream said Bearer sk-live-abc123' };
+
+    it('① findById — 상세 조회', async () => {
+      const row = baseFake({
+        id: 'eD1',
+        inputData: { ...LEAKY_IN },
+        outputData: { ...LEAKY_OUT },
+      });
+      executionRepo.createQueryBuilder.mockReturnValueOnce(
+        buildSingleQB(row) as unknown,
+      );
+      nodeExecutionRepo.find.mockResolvedValue([]);
+
+      const result = (await service.findById('eD1')) as unknown as {
+        inputData: { note: string };
+        outputData: { body: string };
+      };
+      expect(result.inputData.note).not.toContain('admin:pw');
+      expect(result.outputData.body).not.toContain('sk-live-abc123');
+    });
+
+    it('② findByWorkflow — 목록 (toExecutionDto)', async () => {
+      const row = baseFake({
+        id: 'eD2',
+        inputData: { ...LEAKY_IN },
+        outputData: { ...LEAKY_OUT },
+      });
+      executionRepo.createQueryBuilder.mockReturnValueOnce(
+        buildListQB([row]) as unknown,
+      );
+
+      const result = await service.findByWorkflow('w1', {});
+      expect(JSON.stringify(result.data[0].inputData)).not.toContain(
+        'admin:pw',
+      );
+      expect(JSON.stringify(result.data[0].outputData)).not.toContain(
+        'sk-live-abc123',
+      );
+    });
+
+    it('③ getChain — chain 조회', async () => {
+      const root = baseFake({ id: 'eD3', outputData: { ...LEAKY_OUT } });
+      const chainQB: Record<string, jest.Mock> = {};
+      chainQB.leftJoinAndSelect = jest.fn().mockReturnValue(chainQB);
+      chainQB.where = jest.fn().mockReturnValue(chainQB);
+      chainQB.orderBy = jest.fn().mockReturnValue(chainQB);
+      chainQB.getOne = jest
+        .fn()
+        .mockResolvedValue({ ...root, workflow: { workspaceId: 'ws1' } });
+      chainQB.getMany = jest.fn().mockResolvedValue([root]);
+      executionRepo.createQueryBuilder.mockReturnValue(chainQB as unknown);
+
+      const rows = await service.getChain('eD3', 'ws1', { sub: 'u1' } as never);
+      expect(JSON.stringify(rows[0].outputData)).not.toContain(
+        'sk-live-abc123',
+      );
+    });
+
+    it('④ stop — 취소 응답', async () => {
+      const running = baseFake({
+        id: 'eD4',
+        status: ExecutionStatus.RUNNING,
+        error: null,
+      });
+      const cancelled = baseFake({
+        id: 'eD4',
+        status: ExecutionStatus.CANCELLED,
+        error: null,
+        outputData: { ...LEAKY_OUT },
+      });
+      executionRepo.findOne
+        .mockResolvedValueOnce(running as unknown)
+        .mockResolvedValueOnce(cancelled as unknown);
+
+      const qb: Record<string, jest.Mock> = {};
+      qb.update = jest.fn().mockReturnValue(qb);
+      qb.set = jest.fn().mockReturnValue(qb);
+      qb.where = jest.fn().mockReturnValue(qb);
+      qb.andWhere = jest.fn().mockReturnValue(qb);
+      qb.execute = jest.fn().mockResolvedValue({ affected: 1 });
+      executionRepo.createQueryBuilder.mockReturnValue(qb as unknown);
+
+      const result = await service.stop('eD4');
+      expect(JSON.stringify(result.outputData)).not.toContain('sk-live-abc123');
+    });
+
+    it('⑤ findById — nodeExecutions[] 의 두 컬럼도 마스킹 (형제 필드 우회 차단)', async () => {
+      const row = baseFake({ id: 'eD5' });
+      executionRepo.createQueryBuilder.mockReturnValueOnce(
+        buildSingleQB(row) as unknown,
+      );
+      nodeExecutionRepo.find.mockResolvedValue([
+        {
+          id: 'ne1',
+          executionId: 'eD5',
+          error: null,
+          inputData: { ...LEAKY_IN },
+          outputData: { ...LEAKY_OUT },
+        },
+      ]);
+
+      const result = (await service.findById('eD5')) as unknown as {
+        nodeExecutions: Array<Record<string, unknown>>;
+      };
+      const ne = JSON.stringify(result.nodeExecutions[0]);
+      expect(ne).not.toContain('admin:pw');
+      expect(ne).not.toContain('sk-live-abc123');
+    });
+
+    /**
+     * **webhook ingestion 마커 보존** — 12-webhook §5.3 이 규정한 계약.
+     *
+     * 값-마스커가 이 마커를 `***` 로 덮으면 같은 헤더가 읽는 경로마다 다르게 보인다
+     * (`$trigger.headers` 는 `[REDACTED]`, 실행 상세 API 는 `***`). 이 저장소가 마스킹
+     * 연쇄 작업으로 없애 온 바로 그 병이라, 여기가 RED 면 계약이 깨졌다는 뜻이다.
+     */
+    it('⑥ ingestion 의 `[REDACTED]` 헤더 마커를 덮지 않는다 (12-webhook §5.3 계약)', async () => {
+      const row = baseFake({
+        id: 'eD6',
+        inputData: {
+          headers: {
+            authorization: '[REDACTED]',
+            'content-type': 'application/json',
+          },
+        },
+      });
+      executionRepo.createQueryBuilder.mockReturnValueOnce(
+        buildListQB([row]) as unknown,
+      );
+
+      const result = await service.findByWorkflow('w1', {});
+      const headers = (
+        result.data[0].inputData as { headers: Record<string, string> }
+      ).headers;
+      expect(headers.authorization).toBe('[REDACTED]');
+      expect(headers['content-type']).toBe('application/json');
+    });
+
+    it('⑦ 정상 데이터는 손상되지 않는다 + DB 원문 불변 (egress-only)', async () => {
+      const original = { orderId: 'A-1', qty: 3 };
+      const row = baseFake({ id: 'eD7', inputData: original });
+      executionRepo.createQueryBuilder.mockReturnValueOnce(
+        buildListQB([row]) as unknown,
+      );
+
+      const result = await service.findByWorkflow('w1', {});
+      expect(result.data[0].inputData).toEqual({ orderId: 'A-1', qty: 3 });
+      expect(original).toEqual({ orderId: 'A-1', qty: 3 });
     });
   });
 });
