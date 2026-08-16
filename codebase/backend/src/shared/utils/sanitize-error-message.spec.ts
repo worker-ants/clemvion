@@ -1,5 +1,6 @@
 import {
   deepRedactSecrets,
+  deepRedactSecretsPreserving,
   LAST_ERROR_MESSAGE_MAX_LEN,
   redactSecrets,
   redactSecretsInJsonString,
@@ -250,5 +251,98 @@ describe('redactSecretsInJsonString (JSON-safe)', () => {
     // text (unchanged), NOT parsed and re-serialized (which would lose precision).
     const bigIntStr = '900719925474099123';
     expect(redactSecretsInJsonString(bigIntStr)).toBe(bigIntStr);
+  });
+});
+
+/**
+ * **앞선 마스킹 층의 마커를 덮지 않는다** — 계약 캐너리.
+ *
+ * 이 저장소에는 값-마스커가 여럿이고 마커가 다르다. 뒤에 도는 쪽이 앞 층의 마커를
+ * 덮으면 *같은 값이 읽는 경로마다 다르게 보인다* — 마스킹 연쇄 작업이 없애 온 병이다.
+ * 특히 `[REDACTED]` 는 [12-webhook §5.3] 이 규정하고 4개 문서가 전제를 공유하는
+ * **문서화된 계약**이라, 여기가 RED 로 바뀌면 그 계약이 깨졌다는 뜻이다.
+ */
+describe('deepRedactSecrets — 기존 마스킹 마커 보존 (계약 캐너리)', () => {
+  it('webhook ingestion 의 `[REDACTED]` 헤더 마커를 `***` 로 덮지 않는다', () => {
+    const stored = {
+      headers: {
+        authorization: '[REDACTED]',
+        cookie: '[REDACTED]',
+        'content-type': 'application/json',
+      },
+    };
+    expect(deepRedactSecrets(stored)).toEqual(stored);
+  });
+
+  it('WS 키-마스킹의 `[REDACTED]` · 깊이 상한의 `[REDACTED_DEPTH]` 도 보존', () => {
+    const wire = { apiKey: '[REDACTED]', nested: { token: '[REDACTED_DEPTH]' } };
+    expect(deepRedactSecrets(wire)).toEqual(wire);
+  });
+
+  it('이미 `***` 인 값도 그대로 (멱등)', () => {
+    const once = deepRedactSecrets({ api_key: 'k-1' });
+    expect(deepRedactSecrets(once)).toEqual({ api_key: '***' });
+  });
+
+  it('**마커가 아닌** 진짜 값은 여전히 마스킹한다 (보존이 구멍이 되지 않음)', () => {
+    // 이 단언이 없으면 위 세 테스트는 "전부 보존" 구현으로도 초록이 된다.
+    expect(deepRedactSecrets({ authorization: 'Bearer sk-live-real' })).toEqual({
+      authorization: '***',
+    });
+    expect(deepRedactSecrets({ api_key: '[REDACTED_BUT_NOT_A_MARKER]' })).toEqual(
+      { api_key: '***' },
+    );
+  });
+});
+
+/**
+ * `preserveKeys` — 내부 WS wire 가 에디터 전용 raw 디버그(`llmCalls`)를 지키는 장치.
+ * 이 예외가 없으면 값-마스킹이 WS §Rationale 의 strip-only 결정이 기각한 상태
+ * (*"값-레벨 마스킹은 에디터 디버깅 가치를 훼손"*)를 만든다.
+ */
+describe('deepRedactSecretsPreserving', () => {
+  const PRESERVE: ReadonlySet<string> = new Set(['llmCalls']);
+
+  it('preserveKeys 하위 트리는 원문 그대로 (참조까지 동일)', () => {
+    const llmCalls = [
+      { requestPayload: { system: 'Authorization: Bearer raw-abc' } },
+    ];
+    const out = deepRedactSecretsPreserving(
+      { message: 'auth failed: Bearer sk-live-xyz', llmCalls },
+      PRESERVE,
+    ) as Record<string, unknown>;
+    // 보존 — 에디터가 원문을 본다
+    expect(out.llmCalls).toBe(llmCalls);
+    // 그 밖은 정상 마스킹 — 보존이 전체를 무력화하지 않는다
+    expect(out.message).toBe('auth failed: ***');
+  });
+
+  it('깊이 무관하게 보존한다 (중첩 turnDebug 경로)', () => {
+    const nested = {
+      nodeOutput: { meta: { turnDebug: [{ llmCalls: [{ raw: 'Bearer q' }] }] } },
+    };
+    const out = deepRedactSecretsPreserving(nested, PRESERVE) as {
+      nodeOutput: { meta: { turnDebug: Array<{ llmCalls: Array<{ raw: string }> }> } };
+    };
+    expect(out.nodeOutput.meta.turnDebug[0].llmCalls[0].raw).toBe('Bearer q');
+  });
+
+  it('preserveKeys 가 비면 deepRedactSecrets 와 같은 결과', () => {
+    const input = { message: 'Bearer sk-live-xyz', api_key: 'k' };
+    expect(deepRedactSecretsPreserving(input, new Set())).toEqual(
+      deepRedactSecrets(input),
+    );
+  });
+
+  it('캐시를 공유하지 않는다 — 같은 객체를 두 모드로 불러도 서로 오염되지 않는다', () => {
+    // deepRedactSecrets 는 depth-0 을 WeakMap 캐시한다. 그 캐시를 preserving 변형이
+    // 함께 쓰면 먼저 부른 쪽 결과가 반대편으로 새어 나간다.
+    const shared = { llmCalls: [{ raw: 'Bearer keep-me' }] };
+    const masked = deepRedactSecrets(shared) as { llmCalls: [{ raw: string }] };
+    const preserved = deepRedactSecretsPreserving(shared, PRESERVE) as {
+      llmCalls: [{ raw: string }];
+    };
+    expect(masked.llmCalls[0].raw).toBe('***');
+    expect(preserved.llmCalls[0].raw).toBe('Bearer keep-me');
   });
 });
