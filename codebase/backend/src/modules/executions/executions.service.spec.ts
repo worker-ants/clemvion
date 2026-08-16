@@ -1056,6 +1056,46 @@ describe('ExecutionsService', () => {
       });
     });
 
+    /**
+     * **copy-on-change 를 참조 동일성으로 고정한다** (`17_35_49` testing W1).
+     *
+     * 위 `⑤-b` 는 **값**만 비교하므로, 삼항을 지우고 다시 무조건 spread 로 되돌려도
+     * 필드 값이 같아 **GREEN 이다** — 즉 최적화가 실제로 적용되는지 아무도 안 보고 있었다.
+     * 그 최적화 자체가 직전 라운드(`17_12_34` performance W1)의 조치라 회귀 위험이 크다.
+     * 참조가 같은지를 물어야 그 회귀가 RED 로 잡힌다.
+     */
+    it('⑤-c `error` 가 없는 행은 **원본 참조 그대로** 돌려준다 (무조건 spread 회귀 차단)', async () => {
+      const row = baseFake({ id: 'eM8c' });
+      executionRepo.createQueryBuilder.mockReturnValueOnce(
+        buildSingleQB(row) as unknown,
+      );
+      const clean = {
+        id: 'ne-clean',
+        executionId: 'eM8c',
+        status: 'completed',
+        error: null,
+      };
+      const failed = {
+        id: 'ne-failed',
+        executionId: 'eM8c',
+        status: 'failed',
+        error: { ...LEAKY },
+      };
+      nodeExecutionRepo.find.mockResolvedValue([clean, failed]);
+
+      const result = (await service.findById('eM8c')) as unknown as {
+        nodeExecutions: unknown[];
+      };
+      // `error` 없는 행 → 복제하지 않는다(참조 동일).
+      expect(result.nodeExecutions[0]).toBe(clean);
+      // `error` 있는 행 → 복제한다(원본 불변 + 마스킹된 새 객체).
+      expect(result.nodeExecutions[1]).not.toBe(failed);
+      expect(failed.error).toEqual(LEAKY);
+      expect((result.nodeExecutions[1] as { error: unknown }).error).toEqual(
+        MASKED,
+      );
+    });
+
     it('error 가 null 이면 null 그대로 (형태 변경 없음)', async () => {
       const row = baseFake({ id: 'eM6', error: null });
       executionRepo.createQueryBuilder.mockReturnValueOnce(

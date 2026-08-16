@@ -6,6 +6,7 @@ code:
   - codebase/backend/src/modules/executions/background-runs/**
   - codebase/backend/src/modules/execution-engine/**
   - codebase/frontend/src/lib/websocket/use-background-run.ts
+  - codebase/backend/src/shared/utils/redact-stored-error.ts
 ---
 
 # Spec: Background

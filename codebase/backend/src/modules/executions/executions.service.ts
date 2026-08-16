@@ -91,8 +91,19 @@ export type ResponseExecution = Omit<
   error: Record<string, unknown> | null;
 };
 
+/**
+ * 응답으로 나가는 NodeExecution — {@link ResponseExecution} 과 **같은 이유**로 존재한다.
+ *
+ * 자매를 하나만 고치는 것이 이 PR 이 고치는 결함 클래스 그 자체라, `Execution` 쪽만
+ * 좁히고 여기 `as NodeExecution` 를 남겨 두면 같은 실수를 한 함수 안에서 반복하게 된다
+ * (`17_35_49` maintainability W1 — 실제로 그렇게 됐다).
+ */
+export type ResponseNodeExecution = Omit<NodeExecution, 'error'> & {
+  error: Record<string, unknown> | null;
+};
+
 export type ExecutionDetailWithTrigger = ResponseExecution & {
-  nodeExecutions: NodeExecution[];
+  nodeExecutions: ResponseNodeExecution[];
   triggerSource: ExecutionTriggerSource;
   triggerLabel: string | null;
   executionPath: string[];
@@ -626,13 +637,10 @@ export class ExecutionsService {
         // (`17_12_34` performance W1).
         const reconciledNodeExecutions = reconcilePreParkWaitingStatus(
           nodeExecutions,
-        ).map((ne) =>
+        ).map<ResponseNodeExecution>((ne) =>
           ne.error == null
             ? ne
-            : ({
-                ...ne,
-                error: redactStoredErrorForResponse(ne.error),
-              } as NodeExecution),
+            : { ...ne, error: redactStoredErrorForResponse(ne.error) },
         );
         const executionPath = pathRows.map((r) => r.nodeId);
         // `take` 상한과 동일 길이로 돌아오면 그 이후의 로그가 잘렸을 수 있다.
@@ -781,8 +789,12 @@ export class ExecutionsService {
   }
 
   /**
-   * 동시 stop 요청에 대한 TOCTOU 경쟁을 막기 위해, 최종 상태 전환은 단일 원자 UPDATE
-   * (status WHERE status IN [전이 가능 상태]) 로 수행한다.
+   * 실행 중지 — **응답 마스킹 관문**.
+   *
+   * > 동시성 계약(TOCTOU 방지 원자 UPDATE)은 본체 {@link ExecutionsService.stopInternal}
+   * > 의 JSDoc 에 있다. 리팩터로 로직이 그쪽으로 내려갔으므로 설명도 함께 옮겼다 —
+   * > 얇은 wrapper 에 남겨 두면 *"불변식이 여기 있다"* 로 잘못 읽힌다
+   * > (`17_35_49` documentation W2).
    *
    * **응답 마스킹은 여기 한 자리에서 건다.** `stopInternal` 은 반환 지점이 **넷**이라
    * (waiting 경로 · `affected=0` 재조회 · 정상 재조회 · 각 폴백) 호출부마다 마스킹을 걸면
@@ -806,7 +818,15 @@ export class ExecutionsService {
     return this.toResponseExecution(await this.stopInternal(id));
   }
 
-  /** {@link stop} 의 본체. 반환은 **마스킹 전** 엔티티다 — 감싸는 쪽이 관문이다. */
+  /**
+   * {@link ExecutionsService.stop} 의 본체. 반환은 **마스킹 전** 엔티티다 — 감싸는 쪽이 관문이다.
+   *
+   * **동시성 계약**: 동시 stop 요청에 대한 TOCTOU 경쟁을 막기 위해, 최종 상태 전환은
+   * 단일 원자 UPDATE(`status WHERE status IN [전이 가능 상태]`)로 수행한다. `affected=0`
+   * 은 다른 요청이 먼저 전이시켰다는 뜻이라 최신 상태로 재조회해 돌려준다.
+   * `WAITING_FOR_INPUT` 은 별도 경로로, 엔진의 `cancelWaitingExecution` 이 continuation
+   * bus 로 fan-out 하며 enqueue 실패(`queued=false`)는 503 으로 surface 한다.
+   */
   private async stopInternal(id: string): Promise<Execution> {
     const execution = await this.executionRepository.findOne({ where: { id } });
     if (!execution) {

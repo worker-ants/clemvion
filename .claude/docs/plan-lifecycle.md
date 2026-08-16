@@ -85,9 +85,14 @@ owner: <역할/이름>                 # planner / developer / 사용자 본인 
 | `spec/**` frontmatter | 이 spec 의 **미구현 surface 를 책임지는** plan (`status: partial` 시 의무) | spec → plan | [`spec/conventions/spec-impl-evidence.md §2.1`](../../spec/conventions/spec-impl-evidence.md) | `spec-pending-plan-existence.test.ts` · `spec-status-lifecycle.test.ts` |
 | `plan/**` frontmatter | 이 plan 의 **선행/의존** plan (먼저 닫혀야 하는 것) | plan → plan | 본 문서 §4 | **없음** — 선언적 cross-link 전용 |
 
-  실측(2026-08-16): spec 레벨 17건 · plan 레벨 3건. 같은 키가 두 의미로 쓰이는 것을 금지하지는
+  실측(2026-08-16): spec 레벨 **17건** · plan 레벨 **4건**. 같은 키가 두 의미로 쓰이는 것을 금지하지는
   않되(이미 관행이 됐다), **어느 의미인지는 선언 위치가 정한다** — 읽는 쪽이 파일 위치를 보고
   판정하면 되므로 키를 나누지 않는다.
+
+  > **이 수치는 처음에 3 이라고 적었다가 4 로 정정했다** — 같은 PR 의 **뒷 커밋**이 plan 레벨
+  > `pending_plans` 를 가진 문서를 하나 더 만들어, 내가 잰 시점의 값이 PR 이 닫히는 시점에는
+  > 이미 틀린 값이 됐다(`17_35_49` requirement INFO 가 실측 반증). **PR 안의 정량 기록은
+  > "PR 이 닫히는 시점" 기준으로 재야 한다.**
 
   > **plan 레벨에는 가드가 없다** — 경로 오기·이동 후 stale 경로가 빌드에서 검출되지 않는다.
   > `user_guide:`(§2.1) 와 같은 성격이다. 가드를 붙이지 않는 이유는 plan 레벨 값이 "완료

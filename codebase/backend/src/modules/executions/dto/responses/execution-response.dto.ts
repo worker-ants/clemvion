@@ -62,7 +62,15 @@ export class ExecutionDto {
   })
   outputData?: Record<string, unknown> | null;
 
-  /** 에러 객체 */
+  /**
+   * 에러 객체.
+   *
+   * **자격증명으로 판별된 값은 마스킹되어 반환된다** — `Bearer …`·자격증명 포함 URI 등이
+   * `***` 로 치환되므로 **DB 원문과 다를 수 있다**. `code`·`nodeId` 는 값 공간이 닫혀 있어
+   * 원문 그대로다. SoT: EIA §R17 "내부 읽기 경로" 불릿
+   * (`spec/5-system/14-external-interaction-api.md`), 구현
+   * `shared/utils/redact-stored-error.ts`.
+   */
   @ApiPropertyOptional({
     type: 'object',
     additionalProperties: true,
@@ -158,7 +166,13 @@ export class NodeExecutionSummaryDto {
   })
   outputData?: Record<string, unknown> | null;
 
-  /** 에러 */
+  /**
+   * 에러.
+   *
+   * **자격증명으로 판별된 값은 마스킹되어 반환된다** (DB 원문과 다를 수 있다) — 상위
+   * `Execution.error` 와 **같은 관문**을 지난다. 데이터 모델 §2.14 가 둘을 원본/복사
+   * 관계로 규정하므로 한쪽만 가리면 방어가 우회된다. SoT: EIA §R17.
+   */
   @ApiPropertyOptional({
     type: 'object',
     additionalProperties: true,

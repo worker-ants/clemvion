@@ -12,7 +12,7 @@
 `toExecutionDto` · `getChain` · `stop`)에 적용한다. `POST /executions/:id/re-run` 과 WS
 `execution.snapshot` 은 `findById` 를 재사용하므로 함께 덮인다.
 
-**`nodeExecutions[].error` 도 함께 마스킹한다** — [데이터 모델 §2.14] 가 `Execution.error` 를
+**`nodeExecutions[].error` 도 함께 마스킹한다** — [데이터 모델 §2.14](./spec/1-data-model.md) 가 `Execution.error` 를
 *"최초 failed NodeExecution 의 에러 정보를 **복사**"* 로 정의하므로, 최상위만 가리면 **같은
 문자열이 같은 응답 안에 원문으로 병존**해 방어가 통째로 우회된다. 자매 표면인
 `GET /executions/:id/background-runs/:id` 의 body 노드도 같이 건다.

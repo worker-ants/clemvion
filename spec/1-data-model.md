@@ -561,6 +561,7 @@ External Interaction API 의 `iext_*`(per_execution JWT) 발급 jti 를 영속 �
 | 복사 | Execution.error — 워크플로우 실행이 `failed` 상태로 전이될 때, **최초 failed NodeExecution**의 에러 정보를 복사 |
 | 구조 | `{ nodeId: "uuid" \| null, code: "ERROR_CODE" \| null, message: "에러 설명", details?: {...} }` — `nodeId` 는 노드 없는 엔진 인프라 실패(worker 크래시 등)에서, `code` 는 분류 가능한 코드가 없는 일반 `catch` 경로에서 `null` 이다. `details` 의 출처는 노드 핸들러 결과의 `output_data.error.details`([노드 출력 규약 §3.2](./conventions/node-output.md)) 이며, 아래 `NodeExecution.error` 표에는 열거돼 있지 않다. 억지 fallback 코드를 넣지 않는 이유는 [EIA §6.4](./5-system/14-external-interaction-api.md) 참조 |
 | 용도 | 실행 목록에서 Execution 단위로 에러 원인을 즉시 파악 가능 (NodeExecution 조회 없이) |
+| 응답 마스킹 | **두 필드 모두 응답 egress 에서 자격증명 값-패턴 마스킹을 거친다** (DB 는 원문 보존). 위 "복사" 관계 때문에 **한쪽만 가리면 같은 문자열이 같은 응답에 병존해 방어가 우회**되므로 반드시 함께 건다. SoT: [EIA §R17](./5-system/14-external-interaction-api.md) "내부 읽기 경로" 불릿 |
 
 ### 2.15 WorkflowVersion
 

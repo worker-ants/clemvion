@@ -119,12 +119,6 @@ redactStoredErrorForResponse(
 마지막 행이 이 결정의 **비용 상한**이다 — 평범한 에러 메시지는 손상되지 않고, 진단 정밀도
 손실은 **자격증명 형태 부분문자열에 한정**된다.
 
-- **`toTerminalErrorPayload` 를 재사용하지 않는다.** 그건 §6.4 **wire 형태**(`{code, message,
-  nodeId, details?}`)로 **정규화**한다 — 내부 REST 에 쓰면 값 마스킹이 아니라 **응답 계약
-  변경**이 되고, 프런트가 읽는 형태가 바뀐다. 이번 결정은 "값을 마스킹" 이지 "형태 통일" 이 아니다.
-- 내부는 `deepRedactSecrets` 로 동일 — 두 egress 의 **방어 강도가 같아야** 비대칭 해소다.
-- DB 는 **원문 보존**(§R17 egress-only 원칙 그대로). 서버 로그·사후 디버깅의 진실은 유지된다.
-
 ### 캐시 상호작용 — 마스킹을 캐시 **안쪽**에 둔다
 
 `findById` 는 종결 상태 snapshot 을 LRU 캐시에 넣는다(`writeSnapshotCache`). 마스킹을
@@ -321,5 +315,14 @@ cancelled/waiting 노드의 Input/Output/**Error** 탭)이고, 거기 Error 탭�
       > WARNING 7(requirement)은 **고치려다 되돌렸다** — 처방을 적용하니 기존 테스트가 RED 였고
       > (`maskSensitiveFields` 의 `****9876` 접미 힌트가 값-패턴 마스킹에 덮인다), 테스트를
       > 내 변경에 맞춰 고치는 대신 트래커에 결정 항목으로 등재했다
-- [ ] `--impl-done` BLOCK: NO
+- [x] `/ai-review` **2라운드** (`17_35_49`, forced 7 + performance) — **CRITICAL 0**,
+      WARNING 3 + documentation 4 전부 조치 → `RESOLUTION.md`
+      > 2라운드가 잡은 것 중 둘이 **내가 1라운드 fix 를 하면서 만든 것**이다 —
+      > 고친 null-hiding 캐스트를 자매 자리에 재도입, 그리고 새 copy-on-change 가
+      > **참조 동일성으로 검증되지 않음**(무조건 spread 뮤턴트가 GREEN). 후자는
+      > `⑤-c` 를 추가하고 뮤턴트로 **RED 확인**했다
+- [x] `--impl-done` (`17_35_13`) **BLOCK: NO** — WARNING 1(응답 DTO Swagger JSDoc)은
+      `PROJECT.md` 의 "같은 turn 갱신 의무" 대로 이 PR 안에서 반영. INFO 2건도 함께 닫음
+- [x] TEST WORKFLOW **최종 재실측** — lint / unit(**백엔드 427 suites · 8,775 passed**,
+      프런트 285 files) / build / **e2e 276 passed** 전부 PASS
 - [ ] push 게이트 통과 → PR
