@@ -24,7 +24,7 @@ spec_impact: none
 | `Execution.error.message` 에 실리는 값 | **raw 예외 메시지** (`err.message`) — 아래 3곳 |
 | WS `sanitizePayloadForWs` | **키 이름** 패턴 매칭 → 자유 텍스트 *내부* 값은 못 본다 |
 | `stripExternalOnlyFields` | `EXTERNAL_STRIPPED_FIELDS = ['llmCalls']` → `error` 통과 |
-| 도달 범위 | WS + SSE(§5.2) + **EIA outbound webhook(§3.3) = 외부 제3자** |
+| 도달 범위 | WS + SSE(§5.2) + **EIA outbound webhook(§3.1) = 외부 제3자** |
 
 **결정적 근거는 저장소 자신이 적어 뒀다.** `sanitize-error-message.ts` 가 이렇게 말한다:
 
@@ -148,10 +148,25 @@ masking** 이고, 자매 트래커
   wire 이벤트가 아니다(사용자가 의도적으로 에러를 분기 처리하는 값)
 - 500자 절단 정책 변경 — 기존 util 의 값을 그대로 쓴다
 
+## 후속 (이 PR 범위 밖)
+
+- [ ] **planner 턴 — EIA §R17 "표면 제약(보안)" 마스킹 카탈로그에 5번째 항목 등재**
+      (`10_19_31` plan_coherence W1). 현재 4개 불릿(`conversationThread` · `ai_message` ·
+      `nodeOutput.conversationConfig` · terminal `result`/`error`)에 이번 egress 마스킹
+      지점이 빠져 있다. `spec_impact: none` 의 근거는 *"계약 위반이 아니다"* 이지
+      *"카탈로그 완전성이 유지된다"* 가 아니었다 — 지적이 맞다. spec 본문은 developer 권한 밖.
+      **§6.4 필드 표에도 캐비엇이 필요하다** (`10_19_30` W1/W2): 외부 통합사가 보는 정본은
+      CHANGELOG 가 아니라 §6.4 인데, 값 마스킹 사실이 거기 없다
+- [ ] `plan/in-progress/eia-terminal-emit-facade.md` 체크리스트가 미완료로 stale
+      (#1174 `8e0728a90` 로 이미 머지됨) → `[x]` 갱신 + `plan/complete/` 이동
+      (`10_19_31` plan_coherence INFO2). 무관한 plan 이라 별도 턴
+
 ## 체크리스트
 
 - [x] `--impl-prep` (`09_25_29`) **BLOCK: NO** — WARNING 2건이 접근을 바꿨다(위 참조)
-- [ ] TEST WORKFLOW 4스테이지
-- [ ] `/ai-review` Critical 0
-- [ ] `--impl-done` BLOCK: NO
+- [x] TEST WORKFLOW 4스테이지 — lint / unit(backend 426·8752) / build / **e2e 276**
+- [x] `/ai-review` (`09_51_00`) **Critical 0** · Warning 10 처리 → `RESOLUTION.md`
+- [x] `/ai-review` (`10_19_30`) **Critical 0** · Warning 6 처리 → 같은 세션 `RESOLUTION.md`
+- [ ] fresh `/ai-review` (fix 이후)
+- [x] `--impl-done` (`10_19_31`) **BLOCK: NO** — §3.3→§3.1 인용 오류 정정, 나머지는 후속 등재
 - [ ] push 게이트 통과 → PR

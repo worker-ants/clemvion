@@ -190,9 +190,30 @@ describe('toTerminalErrorPayload — secret 마스킹 (egress 초크포인트)',
     expect(out?.details).toBe(details);
   });
 
+  // 상단 스위트에도 같은 단언이 있다. 중복이 아니라 **마스킹 도입 후에도** 이 경로가
+  // 그대로인지를 묻는 것이다 — 한쪽만 갱신되면 그때 갈린다 (`10_19_30` maintainability W6).
   it('입력이 없으면 여전히 null 이다 (빈 객체를 만들지 않는다)', () => {
     expect(toTerminalErrorPayload(null)).toBeNull();
     expect(toTerminalErrorPayload(undefined)).toBeNull();
+  });
+
+  it('details 가 명시적 null 이면 키를 보존한다 (undefined 와 다르다)', () => {
+    const out = toTerminalErrorPayload({ message: 'boom', details: null });
+    expect(out && 'details' in out).toBe(true);
+    expect(out?.details).toBeNull();
+  });
+
+  /**
+   * **잔여 갭 캐너리** — JSDoc 이 실측표로 "이건 못 잡는다" 고 선언한 것을 테스트로 고정한다.
+   * 나중에 `SECRET_LEAK_PATTERNS` 가 넓어지면 이 테스트가 깨지고, 그때 표와 CHANGELOG 의
+   * "잔여 갭" 서술도 같이 고쳐야 한다는 신호가 된다 (`10_19_30` testing INFO7).
+   */
+  it('자격증명 **없는** 연결 문자열·호스트명은 통과한다 (선언한 잔여 갭)', () => {
+    const plain = 'connect failed: postgres://db.internal:5432/prod';
+    expect(toTerminalErrorPayload({ message: plain })?.message).toBe(plain);
+
+    const host = 'ECONNREFUSED 10.0.3.17:6379 (redis-primary.internal)';
+    expect(toTerminalErrorPayload({ message: host })?.message).toBe(host);
   });
 
   it('details 가 없으면 키를 만들지 않는다 (§6.4 optional)', () => {
