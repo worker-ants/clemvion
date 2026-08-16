@@ -150,7 +150,7 @@ masking** 이고, 자매 트래커
 
 ## 후속 (이 PR 범위 밖)
 
-- [ ] **planner 턴 — EIA §R17 "표면 제약(보안)" 마스킹 카탈로그에 5번째 항목 등재**
+- [x] **planner 턴 — EIA §R17 마스킹 카탈로그 + §6.4 캐비엇 등재** — 해소(2026-08-16)
       (`10_19_31` plan_coherence W1). 현재 4개 불릿(`conversationThread` · `ai_message` ·
       `nodeOutput.conversationConfig` · terminal `result`/`error`)에 이번 egress 마스킹
       지점이 빠져 있다. `spec_impact: none` 의 근거는 *"계약 위반이 아니다"* 이지

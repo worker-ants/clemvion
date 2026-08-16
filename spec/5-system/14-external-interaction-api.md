@@ -805,6 +805,13 @@ header value   = "t={timestamp},v1={hex(signature)}"
 > chat-channel dispatcher 와 에디터 프런트엔드가 문자열을 흡수하는 분기를 **의도적으로
 > 유지**한다 — 그 분기는 제거 대상이 아니다. 필드 집합 표의 `error` 행 참조.
 
+> **`message`·`details` 는 egress 마스킹을 거친다** (2026-08-16). 자격증명 패턴(`Bearer …`,
+> 자격증명 포함 URI 등)이 `***` 로 치환된다 — 근거·범위·잔여 갭은 §R17 의
+> "`execution.failed` payload 의 `error.message`/`error.details`" 불릿. **`code`·`nodeId` 는
+> 원문 그대로**이고, `execution.cancelled` 의 `error` 는 **대상이 아니다**(손으로 조립하는 별도
+> 경로). JSON 형태 `message` 는 마스킹 후 재직렬화되므로 공백 등 포맷이 정규화될 수 있다
+> (파싱 가능성은 유지).
+
 ### 6.5 페이로드 — `execution.cancelled` / `execution.ai_message`
 
 `execution.cancelled` 는 §6.3 의 `payload` 자리에 `status` + `result.cancelledBy` +
@@ -1452,6 +1459,32 @@ present-when-available 이므로, REST 만 `null` 로 정규화하면 위젯의 
   > `nodeOutput.meta.turnDebug[].llmCalls[].requestPayload`(시스템 프롬프트·대화 이력)가 세 출구
   > 모두로 그대로 나갔다. WS fanout 과 **같은 필드 목록·같은 깊이 정책**을 공유하는 공용 유틸로
   > 통일해 닫았다 ([WS §4.4](./6-websocket-protocol.md#44-사용자-입력-대기-이벤트-상세-executionwaiting_for_input)).
+- **`execution.failed` payload 의 `error.message`/`error.details` — DB `Execution.error` 원문 (강제됨 — 2026-08-16)**:
+  위 `nodeOutput.conversationConfig` 불릿의 `terminal error(FAILED)` 와 **다른 컬럼이다** — 거기는
+  `getStatus` 가 `Execution.outputData` 로 조립하는 값이고, 여기는 DB `Execution.error` 다(이름이 같아
+  혼동하기 쉽다). 이 payload 는 내부 WS 뿐 아니라 SSE 스트림(§5.2)·아웃바운드 webhook(§3.1)으로
+  **외부 제3자**에게 나가는데, WS 경로의 `sanitizePayloadForWs` 는 **credential 키 이름** 기반이라 자유
+  텍스트 *안*에 박힌 토큰(`Bearer …`, 자격증명 포함 URI)을 잡지 못하고 `stripExternalOnlyFields` 는
+  `llmCalls` 만 지운다 — 이 필드엔 값-패턴 방어가 없었다.
+  `shared/utils/terminal-error-payload.ts` 의 `toTerminalErrorPayload` 가 **egress 초크포인트**에서
+  `deepRedactSecrets` 로 `message`·`details` 를 마스킹한다. 종결 emit 4곳과 chat-channel 재정규화 1곳이
+  **모두 이 함수를 거치므로**(DB write 경로는 0) 새 emit 경로가 생겨도 마스킹이 구조적으로 빠지지 않는다.
+  - **`code`·`nodeId` 는 대상이 아니다** — enum 문자열과 uuid 로 값 공간이 닫혀 있다.
+  - **`execution.cancelled` 의 `error` 는 이 마스킹 대상이 아니다** — 시스템 취소 경로는
+    `{code, message}` 를 **손으로 조립**하고 `toTerminalErrorPayload` 를 거치지 않는다. 현재는 전부
+    정적 상수 문자열이라 유출 위험이 없으나 **구조적 보장은 아니다**. §6 필드 집합 표는 두 이벤트의
+    `error` 를 한 행에 묶으므로 이 비대칭을 여기 적어 둔다.
+  - **egress-only(§R17 원칙 준수)**: DB `Execution.error` 는 **원문을 보존**한다. 위
+    `conversationThread` 불릿과 **같은 원칙**(내부 소비처는 faithful 유지)이되 구체 근거는 다르다 —
+    여기서는 서버 로그·사후 디버깅의 진실을 남기는 것이다.
+  - **잔여 갭(의도)**: `SECRET_LEAK_PATTERNS` 는 자격증명을 겨냥하므로 **자격증명 없는 연결 문자열·
+    내부 호스트명·사설 IP·스택 프래그먼트는 통과**한다. 알림 경로 전용 `CONNECTION_STRING_PATTERN`/
+    `STACK_TRACE_PATTERN` 을 공유 SoT 로 올리면 `deepRedactSecrets` 의 다른 소비자 전부가 영향받으므로
+    별건으로 분리했다.
+  - **내부 REST 와의 비대칭은 미결이다**: `GET /api/executions/:id` 는 `Execution.error` **원문**을
+    반환하므로 같은 컬럼을 두 표면이 다른 값으로 말한다. 어느 쪽이 옳은지는 아직 정하지 않았다 —
+    [실행 내역 R-5](../2-navigation/14-execution-history.md) 가 그 엔드포인트의 안전성을 *"롤 게이팅이
+    아니라 서버 boundary masking parity 에 의존"* 으로 규정하므로, 결정 시 함께 검토할 재료다.
 - **`nodeOutput` 일반 키 allowlist (미구현·잔여)**: conversationConfig 이외의 `nodeOutput` 키 집합을 렌더 필수 메타로
   제한하는 런타임 allowlist 필터(SSE emit 은 sanitizePayloadForWs 의 credential-**키** 마스킹으로 부분 방어; author
   config 의 값-embedded secret 은 저위험 gap)는 위 값/키 기반 redaction 과 **별개**이며 여전히 후속 하드닝 항목이다.
