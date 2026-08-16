@@ -149,8 +149,17 @@ checker 가 독립적으로** "인용이 가리키는 절이 오히려 반대를
 (키-이름 기반)만 통과하므로 자유 텍스트 안의 토큰을 걸러내지 못한다. REST `getStatus` 는
 `stripAndRedact` 로 값-패턴까지 마스킹하므로 **두 표면이 비대칭**이다.
 
-- [ ] `toTerminalErrorPayload` 내부 또는 fanout 경계에서 `message`/`details` 에
+- [x] `toTerminalErrorPayload` 내부 또는 fanout 경계에서 `message`/`details` 에
       `deepRedactSecrets` 적용 → REST 와 대칭
+      — **해소** (2026-08-16, [`eia-terminal-error-sanitize.md`](./eia-terminal-error-sanitize.md)).
+      등재된 두 후보 중 **`toTerminalErrorPayload` 내부**를 택했다: 호출부 5곳이 전부 emit 쪽
+      (DB write 0)이라 새 종결 경로가 생겨도 구조적으로 빠질 수 없다.
+
+      > **위 "REST 와 대칭" 서술은 부정확했다.** 실측하면 REST `getStatus` 의 `error` 는
+      > `Execution.error` 가 아니라 `stripAndRedact(execution.outputData)` 다
+      > (`interaction.service.ts:454`) — 두 표면은 마스킹 유무 이전에 **다른 컬럼**을 싣는다.
+      > 이번 조치의 실제 효과는 "REST 와 같아진다" 가 아니라 **WS/SSE/webhook 종결 경로에
+      > 값-패턴 마스킹이 생긴다** 이다.
 
 > **왜 그 PR 에서 안 고쳤나**: 노출이 `error` 객체화로 **넓어지지 않았다** — 종전에도 같은
 > `errMessage` 문자열이 같은 fanout 을 탔다. 형태만 바뀌었지 내용과 경로는 동일하다.

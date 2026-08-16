@@ -126,3 +126,68 @@ describe('toTerminalErrorPayload', () => {
     });
   });
 });
+
+/**
+ * **secret 마스킹** — 이 payload 는 WS 뿐 아니라 SSE 스트림과 EIA outbound webhook 으로
+ * **외부 제3자**에게 나간다. `message` 는 임의 내부 예외 원문이고, WS 경로의
+ * `sanitizePayloadForWs` 는 키 이름 기반이라 자유 텍스트 *안*의 토큰을 못 잡는다.
+ *
+ * 리뷰가 5라운드 연속 INFO 로 미룬 항목인데, 미룬 근거를 실측하니 갭이 실재했다.
+ */
+describe('toTerminalErrorPayload — secret 마스킹 (egress 초크포인트)', () => {
+  it('message 안의 Bearer 토큰을 마스킹한다', () => {
+    const out = toTerminalErrorPayload({
+      message: 'upstream rejected: Bearer sk-live-abcdef123456',
+    });
+    expect(out?.message).not.toContain('sk-live-abcdef123456');
+    expect(out?.message).toContain('upstream rejected');
+  });
+
+  it('레거시 문자열 입력에도 마스킹이 걸린다 (분기가 갈려도 빠지지 않는다)', () => {
+    const out = toTerminalErrorPayload('auth failed: api-key=xyz789secret');
+    expect(out?.message).not.toContain('xyz789secret');
+  });
+
+  it('details 의 중첩 값도 마스킹한다', () => {
+    const out = toTerminalErrorPayload({
+      message: 'boom',
+      details: { upstream: { authorization: 'Bearer leak-me-999' } },
+    });
+    expect(JSON.stringify(out?.details)).not.toContain('leak-me-999');
+  });
+
+  it('code·nodeId 는 건드리지 않는다 (값 공간이 닫혀 있다)', () => {
+    const nodeId = '3f2504e0-4f89-11d3-9a0c-0305e82c3301';
+    const out = toTerminalErrorPayload({
+      code: 'EXECUTION_TIME_LIMIT_EXCEEDED',
+      message: 'boom',
+      nodeId,
+    });
+    expect(out).toEqual({
+      code: 'EXECUTION_TIME_LIMIT_EXCEEDED',
+      message: 'boom',
+      nodeId,
+    });
+  });
+
+  it('평범한 메시지는 훼손하지 않는다 (오탐 대조)', () => {
+    const message = 'Node "HTTP 요청" failed: connection reset by peer';
+    expect(toTerminalErrorPayload({ message })?.message).toBe(message);
+  });
+
+  it('마스킹할 게 없으면 details 참조를 보존한다 (copy-on-change)', () => {
+    const details = { safe: 'value' };
+    const out = toTerminalErrorPayload({ message: 'boom', details });
+    expect(out?.details).toBe(details);
+  });
+
+  it('입력이 없으면 여전히 null 이다 (빈 객체를 만들지 않는다)', () => {
+    expect(toTerminalErrorPayload(null)).toBeNull();
+    expect(toTerminalErrorPayload(undefined)).toBeNull();
+  });
+
+  it('details 가 없으면 키를 만들지 않는다 (§6.4 optional)', () => {
+    const out = toTerminalErrorPayload({ message: 'boom' });
+    expect(out && 'details' in out).toBe(false);
+  });
+});

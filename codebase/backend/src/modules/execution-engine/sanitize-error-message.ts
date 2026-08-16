@@ -1,5 +1,14 @@
 /**
- * 실행 실패 에러 메시지를 사용자向 표면(WS 이벤트 / 알림 / 이메일)에 노출하기 전 정리한다.
+ * 실행 실패 에러 메시지를 **알림 표면**(인앱 알림 / 이메일)에 노출하기 전 정리한다.
+ *
+ * **적용 범위를 좁혀 적는다.** 종전 첫 줄은 "WS 이벤트 / 알림 / 이메일" 이라고 썼는데,
+ * 호출부는 실측 **3곳뿐이고 전부 알림 조립 지점**이다
+ * (`execution-engine.service` 실패 알림 · `background-execution.processor` · `schedule-runner`).
+ * WS/SSE/webhook 종결 이벤트는 이 함수를 **거치지 않았다** — 문서한 보장이 구현보다 넓었다.
+ *
+ * 그 종결 경로는 `shared/utils/terminal-error-payload.ts` 의 `toTerminalErrorPayload` 가
+ * egress 초크포인트에서 `deepRedactSecrets` 로 마스킹한다(EIA §R17 egress-only 원칙).
+ * 두 경로가 쓰는 마스킹 SoT 는 `shared/utils/sanitize-error-message.ts` 로 같다.
  *
  * 길이 제한 + stack trace · connection string 패턴 제거 + **secret 토큰 마스킹**.
  * Error.message 안에 평문으로 들어온 내부 호스트명·연결 문자열·파일 경로, 그리고
