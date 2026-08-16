@@ -223,9 +223,11 @@ EIA spec `:910` 의 *"향후 secret store 통합 검토"* 문구도 함께 정�
 - [x] 독립 표면 4곳 적용. **셋은 공통 관문으로 묶었다** — `stripPrivateRelations` 를
       `toResponseExecution` 으로 확장해 `findById`·`getChain`·`stop` 이 같은 문을 지난다.
       `toExecutionDto`(목록)는 엔티티가 아니라 DTO 조립이라 거기서 직접 부른다
-      > **`stop` 은 반환 지점이 넷**이라(waiting · `affected=0` · 정상 · 각 폴백) 호출부
-      > 마스킹으로는 다섯 번째가 추가될 때 빠진다 → `stopInternal` 로 본체를 내리고
-      > `stop` 을 관문으로 만들었다
+      > **`stop` 은 `return` 문이 셋**이고(waiting · `affected=0` · 정상) 각각 `?? execution`
+      > 폴백이 있어 나갈 수 있는 객체는 여섯 가지다 — 호출부 마스킹으로는 네 번째 반환이
+      > 추가될 때 빠진다 → `stopInternal` 로 본체를 내리고 `stop` 을 관문으로 만들었다
+      > (처음엔 "반환 지점 넷" 이라 썼는데 폴백을 별개 지점으로 잘못 센 것이다.
+      > `18_14_50` documentation W1 이 잡았고, 소스 JSDoc 과 함께 여기도 정정한다)
 - [x] 회귀 테스트 — 표면 4곳 각각 + 캐시 히트 경로 + `stop` 의 둘째 반환 지점 +
       "DB 원문 불변" + null 형태. 유틸 단위 테스트 7건 (**44 tests PASS**)
 - [x] 판별력 — 표면별 뮤턴트 5종 **전부 RED**, 그리고 **죽는 테스트가 표면별로 갈린다**:
@@ -351,4 +353,12 @@ cancelled/waiting 노드의 Input/Output/**Error** 탭)이고, 거기 Error 탭�
       값을 냈고 둘 다 `grep` 으로 코드블록 예시까지 셌다) — 대신 **세는 방법을 문서에 박았다**
 - [x] `--impl-done` **재실행** (`18_33_59`) — **BLOCK: NO**, CRITICAL 0 · WARNING 2 조치
       (§R17 잔여 ③ 을 세 필드로 열거 · `spec_impact` 에 `1-data-model.md` 추가)
+- [x] `/ai-review` **6라운드** (`18_58_22`, forced 7) — **CRITICAL 0 · WARNING 2** 조치
+      → `RESOLUTION.md`. **내 커밋 메시지가 거짓**이었던 것을 잡혔다("전부 걷어냈다" 고 쓰고
+      한 파일만 고침). 다만 조치는 실측으로 갈랐다 — 라운드 ID 인용은 **저장소 기존 관용**이라
+      (선존 파일 다수가 같은 형태) 인용은 남기고 **장황한 자기정정 서사만** 걷어냈다
+- [x] `--impl-done` **재실행** (`18_58_29`) — **BLOCK: NO**, CRITICAL 0 · WARNING 1 조치
+      (`1-data-model.md` 무조건문 → 열거 + "어디서 나가든 마스킹" 오독 차단 캐비엇)
+- [x] TEST WORKFLOW **최종** — lint / unit(**백엔드 427 suites · 8,776 passed**) / build /
+      **e2e 276 passed**. 문서 가드 20파일 · 2,956 tests PASS
 - [ ] push 게이트 통과 → PR

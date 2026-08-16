@@ -86,7 +86,7 @@ export type ResponseExecution = Omit<
  *
  * 자매를 하나만 고치는 것이 이 PR 이 고치는 결함 클래스 그 자체라, `Execution` 쪽만
  * 좁히고 여기 `as NodeExecution` 를 남겨 두면 같은 실수를 한 함수 안에서 반복하게 된다
- * (`17_35_49` maintainability W1 — 실제로 그렇게 됐다).
+ * (ai-review `17_35_49` maintainability W1).
  */
 export type ResponseNodeExecution = Omit<NodeExecution, 'error'> & {
   error: Record<string, unknown> | null;
@@ -802,21 +802,13 @@ export class ExecutionsService {
    * 추가될 때 조용히 빠진다 — 이 저장소가 *"자매 넷 중 하나만"* 으로 반복해 겪은 형태다.
    * 함수를 하나 더 두어 **모든 반환이 같은 문을 통과**하게 한다.
    *
-   * > 종전 이 문장은 *"반환 지점이 넷"* 이라고 썼는데 **틀렸다**(`18_14_50` documentation
-   * > W1). `?? execution` 폴백을 별개 지점으로 잘못 셌다 — 세어 보면 `return` 문은 셋이다.
-   *
-   * ## 반환 계약이 바뀌었다 (2026-08-16)
-   *
-   * 종전에는 재조회한 **엔티티 참조를 그대로** 돌려줬다 — `findById`/`getChain` 과 달리
-   * strip 관문을 타지 않던 유일한 공개 경로였다(`17_12_34` side_effect W1). 이제
-   * (1) `error` 가 마스킹된 **복사본**이고 (2) 타입이 {@link ResponseExecution} 이다.
-   *
-   * **`trigger`/`executor` 가 응답에서 사라지지는 않는다** — 실측하면 이 경로의
-   * `findOne` 은 `relations` 를 주지 않고 두 관계 모두 `eager` 가 아니라, 종전에도
-   * 애초에 로드되지 않았다. 타입에서 제거된 것이지 값이 없어진 것이 아니다.
-   *
-   * 내부 소비자(`interaction.service.ts` · `hooks.service.ts`)는 반환값을 쓰지 않고
-   * 버린다(실측) — 영향은 HTTP 응답 표면 하나뿐이다.
+   * **반환 계약(2026-08-16 변경)**: 종전에는 재조회한 **엔티티 참조를 그대로** 돌려줬다 —
+   * `findById`/`getChain` 과 달리 strip 관문을 타지 않던 유일한 공개 경로였다. 이제
+   * `error` 가 마스킹된 **복사본**이고 타입이 {@link ResponseExecution} 이다.
+   * `trigger`/`executor` 는 이 경로의 `findOne` 이 `relations` 를 주지 않고 두 관계 모두
+   * `eager` 가 아니라 **애초에 로드되지 않으므로** 응답에서 사라지는 값은 없다(타입에서만
+   * 제거). 내부 소비자(`interaction.service.ts` · `hooks.service.ts`)는 반환값을 버리므로
+   * 영향은 HTTP 응답 표면 하나뿐이다.
    */
   async stop(id: string): Promise<ResponseExecution> {
     return this.toResponseExecution(await this.stopInternal(id));
