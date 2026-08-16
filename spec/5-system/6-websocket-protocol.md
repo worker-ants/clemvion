@@ -196,6 +196,21 @@ socket.emit("unsubscribe", { channel: "execution:550e8400-e29b-41d4-a716-4466554
 > - **예외는 `llmCalls` 하나** — 에디터 전용 raw 디버그라 wire 에서는 원문을 유지한다(fanout 에서는 필드째 strip 되므로 외부 노출은 늘지 않는다). 아래 `## Rationale` 의 strip-only 항목 참조.
 > - **앞선 키-이름 마스킹의 `[REDACTED]` 마커는 덮이지 않는다** — 값-마스커가 마커에 대해 멱등하다.
 > - 근거·적용 범위·잔여 갭: [EIA §R17](./14-external-interaction-api.md).
+>
+> **REST `inputData` 비대상과의 비대칭은 의도된 것이다** (2026-08-17 명시): 내부 REST 는
+> `inputData` 를 마스킹하지 **않는데**([§R17 잔여 ②](./14-external-interaction-api.md) ·
+> [Re-run §10.2](./13-replay-rerun.md)) 여기 emit payload 의 `input` 은 마스킹된다. 두 결정의
+> 축이 다르기 때문이다 — 마스킹 **범위**는 *수신 인구*(boundary parity)가 정하고, `inputData`
+> 카브아웃은 *그 값이 되쓰이는가*(round-trip)가 정한다. REST `inputData` 는 Re-run 모달·에디터
+> 히스토리 로드가 **읽어서 재제출**하지만, **WS node 이벤트의 `input` 은 어떤 소비자도
+> 재제출하지 않는다**(실측: Re-run 은 REST 상세의 `inputData` 만 읽는다) — 표시 전용이라
+> 마스킹해도 데이터가 오염되지 않는다. 즉 같은 이름의 필드지만 **다른 계약**이다.
+>
+> **`config` 의 raw-echo 계약보다 값-마스킹이 우선한다**: payload 에 실리는
+> `NodeHandlerOutput.config` 는 [node-output Principle 7](../conventions/node-output.md#principle-7--config-echo-원칙-nodehandleroutputconfig)
+> 이 *"원본 그대로 echo"* 로 규정하지만, 그 안에 **자격증명 패턴이 박혀 있으면 마스킹된다**.
+> 자격증명을 외부 수신자에게 흘리지 않는 것이 우선이며, 이는 §R17 `ai_message` 불릿이
+> *"보수적 패턴의 rare FP 를 보안 우선으로 수용"* 이라 한 것과 같은 판단이다.
 | `execution.waiting_for_input` | `{ executionId, nodeId, nodeExecutionId, nodeType, interactionType, formConfig?, buttonConfig?, conversationConfig?, conversationThread? }` | Form 노드, 버튼 Presentation 노드, 또는 AI Agent Multi Turn 노드에서 사용자 입력 대기. 재개 후 `execution.node.completed`도 동일한 `nodeExecutionId`로 발행되어 프론트 타임라인의 동일 row가 업데이트된다. `conversationThread` 가 동봉되면 UI 가 라이브 thread 패널을 갱신할 수 있다 (선택, §4.4.5). 아래 §4.4 참조 |
 | `execution.ai_message` | `{ executionId, nodeId, message, turnCount, messages, metadata?, llmCalls?, durationMs?, presentations? }` | AI Agent Multi Turn 모드에서 AI 응답 메시지 전달. `messages` 는 system 을 제외한 user / assistant / **tool** 메시지를 모두 포함하는 권위 있는 스냅샷이며, 각 항목은 `source: 'live' \| 'injected'` 마커를 동봉한다 (§4.4.6). `presentations` 는 AI Agent 의 `render_*` 표현 도구 출력 (§4.4 표 / [Spec AI Agent §7.10](../4-nodes/3-ai/1-ai-agent.md#710-presentation-payload-render_-운반)). 상세 필드 정의는 §4.4 참조 |
 | `execution.tool_call_started` | `{ executionId, nodeId, turnIndex, toolCallId, name, arguments }` | AI Agent 가 provider tool(KB/MCP 등)을 실행하기 시작했음을 알림. 디버깅 타임라인이 즉시 pending 상태의 tool 항목을 표시할 수 있도록 turn 종료 전에 발송 |

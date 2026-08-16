@@ -311,6 +311,17 @@ Waiting 시점 output 을 **그대로 유지** (immutable snapshot) 하고 `outp
 - URL 내 임베디드 credential (`https://user:pass@host` → `https://host` 로 sanitize).
 - 파일 업로드 원본 바이너리 (reference만).
 
+> **egress 값-마스킹이 이 금지를 backstop 한다 (2026-08-17 명시)**: 위 "절대 echo 금지" 는
+> **핸들러의 의무**지만, 핸들러가 놓치거나 자유 텍스트 필드(`code`·`systemPrompt`·`body` 등)
+> **안에** 자격증명 리터럴이 박힌 경우는 잡히지 않는다. 그래서 `outputData` 가 응답·emit 으로
+> 나갈 때 자격증명 **값-패턴**(`Bearer …`, 자격증명 포함 URI 등)이 `***` 로 치환된다
+> ([EIA §R17](../5-system/14-external-interaction-api.md) · [WS §4.1](../5-system/6-websocket-protocol.md)).
+>
+> **이는 "그대로 echo" 원칙과 충돌하지 않는다** — 위 금지 목록이 이미 자격증명을 echo 대상에서
+> 배제하므로, 마스킹은 그 규칙을 **egress 에서 집행**하는 방어 계층이지 새 예외가 아니다.
+> 비-자격증명 config(코드 로직·프롬프트 본문·필드 정의)는 **무변화**로 echo 된다.
+> DB 는 원문을 보존한다(egress-only) — 이 마스킹은 저장이 아니라 나가는 경로에만 건다.
+
 **선택적 echo** (크기 문제):
 - `form.config.fields` 가 매우 클 경우 → 그대로 echo (정의상 구조 정보).
 - `ai_agent.config.systemPrompt` 가 수천 줄일 경우에도 그대로 echo (디버깅 목적).

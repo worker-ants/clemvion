@@ -1575,6 +1575,17 @@ present-when-available 이므로, REST 만 `null` 로 정규화하면 위젯의 
     보인다. 위 `execution.ai_message` 불릿이 *"보수적 패턴의 rare FP 를 보안 우선으로 수용"* 이라
     한 것과 같은 판단이며, 외부 `getStatus` 는 이미 같은 마스킹을 걸고 있었다(내부만 없었다).
     participant-vs-observer 분리 egress 는 실제 요구가 관측되면 검토한다.
+  - **emit 의 `input` 은 마스킹하는데 REST `inputData` 는 안 하는 이유** (2026-08-17 명시):
+    두 결정의 축이 다르다 — 마스킹 **범위**는 *수신 인구*(boundary parity)가 정하고,
+    `inputData` 카브아웃은 *그 값이 되쓰이는가*(round-trip)가 정한다. REST `inputData` 는
+    Re-run 프리필이 **읽어서 재제출**하지만 **WS node 이벤트의 `input` 은 어떤 소비자도
+    재제출하지 않는다**(실측) — 표시 전용이라 마스킹해도 데이터가 오염되지 않는다.
+    같은 이름이지만 다른 계약이다. 자세한 근거: [WS §4.1](./6-websocket-protocol.md) ·
+    [Re-run §10.2](./13-replay-rerun.md) · 잔여 ②.
+  - **`config` raw-echo 와도 충돌하지 않는다**:
+    [node-output Principle 7](../conventions/node-output.md#principle-7--config-echo-원칙-nodehandleroutputconfig)
+    은 자격증명을 **이미 "절대 echo 금지"** 로 규정하므로, 이 마스킹은 그 규칙을 egress 에서
+    집행하는 backstop 이지 새 예외가 아니다. 비-자격증명 config 는 무변화다.
 
 - **언제 가리는가 — ingestion-time 과 egress-time 이 공존한다**:
   [12-webhook §5.3](./12-webhook.md#53-민감-헤더-마스킹-ingestion) 은 민감 헤더를 **ingestion

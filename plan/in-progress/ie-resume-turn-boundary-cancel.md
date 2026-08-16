@@ -395,6 +395,14 @@ CRITICAL 1건은 cafe24-api-catalog `mains_update`/`mains_delete` 의 pre-existi
   보이나, 이 채널이 다른 구독자/알림·로그 파이프라인으로 재사용될 경우 값-임베디드
   토큰이 무마스킹 노출될 수 있다. 후속: 구독 인가 스코프(실행 소유자 한정) 확인 +
   필요 시 방어적으로 `redactSecrets` 적용 검토.
+
+  > **해소 (2026-08-17)** — `WebsocketService.emitExecutionEvent` 에 값-패턴 마스킹
+  > 초크포인트가 생기면서 `USER_MESSAGE` 를 포함한 **모든 execution 이벤트**가 wire·fanout
+  > 양쪽에서 마스킹된다(EIA §R17 · [WS §4.1](../../spec/5-system/6-websocket-protocol.md)).
+  > emit-site 가 아니라 **공유 초크포인트**라 이 시그널만 빠질 수 없다 — 위 "비대칭" 전제가
+  > 사라졌다. 부수적으로 그때 확인한 사실: 이 채널의 구독 인가는 실행 소유자 한정이 아니라
+  > **workspace 소유 검증뿐**이라(role 미검사) 위 우려의 방향은 옳았다.
+  > 코드 변경 불요 (`00_59_32` plan_coherence W2).
 - **`NODE_CANCELLED` 재emit 멱등성 확인 필요 (ai-review INFO, side_effect)** — 신규
   취소-가드 경로(turn 경계 가드·`finalizeAiNode` isFailed 분기)가 재시도/재진입될
   경우 `markNodeCancelled` 가 이미 CANCELLED 인 `NodeExecution` 에 대해 `finishedAt`

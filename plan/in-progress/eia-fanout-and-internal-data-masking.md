@@ -15,6 +15,7 @@ spec_impact:
   - spec/5-system/13-replay-rerun.md
   - spec/5-system/14-external-interaction-api.md
   - spec/5-system/15-chat-channel.md
+  - spec/conventions/node-output.md
 ---
 
 # 외부 fanout 은 값-패턴 마스킹을 한 번도 받은 적이 없다 — node/execution emit + 내부 REST 두 컬럼
