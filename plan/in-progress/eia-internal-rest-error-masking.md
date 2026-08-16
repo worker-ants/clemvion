@@ -335,4 +335,13 @@ cancelled/waiting 노드의 Input/Output/**Error** 탭)이고, 거기 Error 탭�
       프런트 285 files) / build / **e2e 276 passed** 전부 PASS
       > build 가 1회 `no space left on device` 로 실패했다 — 코드 회귀가 아니라 Docker
       > 빌드 캐시 13GB. `docker builder prune -af` 후 통과(기록된 형태 그대로)
+- [x] `/ai-review` **4라운드** (`18_14_50`, forced 7, **코드 동결 후**) — **CRITICAL 0 ·
+      WARNING 1**(내가 센 `stopInternal` 반환 지점 수가 틀림) → `RESOLUTION.md`
+      > `security` INFO 가 **내 근거의 논리 결함**을 짚었다 — `triggerToken` 근거 (a) 는
+      > 해시+`timingSafeEqual` 반례로 무너진다. spec 을 정정했다(비용 근거로 격하 + 반례 명시)
+- [x] `--impl-done` **재실행** (`18_20_34`, 코드 동결 후) — **BLOCK: NO**,
+      CRITICAL 0 · **WARNING 0**. INFO 3건도 전부 반영
+      > `17_35_13` 은 최종 코드 커밋보다 앞서 게이트가 stale 로 판정한다 —
+      > **게이트는 세션 디렉토리 시각 vs spec-linked 코드의 커밋 author date 를 비교**한다
+      > (소스 실측). 그래서 코드를 동결한 뒤 두 게이트를 다시 열었다
 - [ ] push 게이트 통과 → PR

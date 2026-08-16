@@ -959,7 +959,7 @@ describe('ExecutionsService', () => {
       expect(result.error).toEqual(MASKED);
     });
 
-    it('④-b stop 의 `affected=0` 분기도 같은 관문을 지난다 (반환 지점이 넷이다)', async () => {
+    it('④-b stop 의 `affected=0` 분기도 같은 관문을 지난다 (`return` 문이 셋이다)', async () => {
       const running = baseFake({
         id: 'eM4b',
         status: ExecutionStatus.RUNNING,

@@ -909,7 +909,7 @@ ALTER TABLE trigger
 }
 ```
 
-> `config.notification.signing.secretRef` 의 plaintext 는 [`SecretResolver`](../conventions/secret-store.md) 가 관리하는 `secret_store` 테이블에 backend AES-256-GCM 으로 암호화되어 보관 (DB 는 ciphertext 만) — config JSONB 에는 ref 만. `notification_secret_v2` 컬럼도 동일하게 ref 만 보관 (rotation grace 기간). `config.interaction.triggerToken` 는 JSONB 평문으로 보관하며, 이는 [`secret-store.md §1`](../conventions/secret-store.md) 의 **명시적 비대상 예외**다 (결정 2026-08-16 — 근거는 그 문서). 종전 "향후 secret store 통합 검토" 서술은 의식적 예외로 결정된 이상 거짓이라 정정한다.
+> `config.notification.signing.secretRef` 의 plaintext 는 [`SecretResolver`](../conventions/secret-store.md) 가 관리하는 `secret_store` 테이블에 backend AES-256-GCM 으로 암호화되어 보관 (DB 는 ciphertext 만) — config JSONB 에는 ref 만. `notification_secret_v2` 컬럼도 동일하게 ref 만 보관 (rotation grace 기간). `config.interaction.triggerToken` 는 JSONB 평문으로 보관하며, 이는 [`secret-store.md §1`](../conventions/secret-store.md#1-uri-scheme) 의 **명시적 비대상 예외**다 (결정 2026-08-16 — 근거는 그 문서). 종전 "향후 secret store 통합 검토" 서술은 의식적 예외로 결정된 이상 거짓이라 정정한다.
 
 ### 7.2 Execution 엔티티 확장
 
@@ -1488,7 +1488,11 @@ present-when-available 이므로, REST 만 `null` 로 정규화하면 위젯의 
     `redactStoredErrorForResponse`(`deepRedactSecrets` 위임, **형태 보존**)를 `ExecutionsService` 의
     독립 반환 경로 **4곳**(`findById` · `toExecutionDto` · `getChain` · `stop`)에 적용한다.
     `POST /executions/:id/re-run` 과 WS `execution.snapshot` 은 `findById` 를 재사용하므로 함께 덮인다.
-    - **갈리는 축은 REST↔WS 가 아니었다**: 종전 서술이 이 갭을 *"내부 REST vs WS"* 라 불렀는데,
+    - **이 마스킹은 [API 규약 §5.3](./2-api-convention.md#53-에러-응답) 의 HTTP 에러 envelope 비echo 원칙과 다른 레이어다** — 그쪽은 요청 실패 응답의
+      메시지 구성 규칙이고, 여기는 **도메인 데이터(`Execution.error` 컬럼 값)** 의 egress 마스킹이며 자격증명 패턴만
+      겨냥한다. 같은 CWE-209 동기를 공유하되 강도와 대상이 다르므로 한쪽을 근거로 다른 쪽을 판정하면 안 된다.
+    - **갈리는 축은 REST↔WS 가 아니었다**: 종전 서술은 이 갭을 *"내부 REST 와의 비대칭은 미결이다"* 로
+      REST 표면에 한정해 적었는데,
       실측하면 WS `execution.snapshot` 도 같은 원문을 싣고 있었다. 실제 축은 **종결 emit ↔ 그 밖의
       모든 읽기 경로**다.
     - **`nodeExecutions[].error` 도 함께 마스킹한다**: 데이터 모델 §2.14
