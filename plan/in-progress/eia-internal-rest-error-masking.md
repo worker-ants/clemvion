@@ -323,6 +323,16 @@ cancelled/waiting 노드의 Input/Output/**Error** 탭)이고, 거기 Error 탭�
       > `⑤-c` 를 추가하고 뮤턴트로 **RED 확인**했다
 - [x] `--impl-done` (`17_35_13`) **BLOCK: NO** — WARNING 1(응답 DTO Swagger JSDoc)은
       `PROJECT.md` 의 "같은 turn 갱신 의무" 대로 이 PR 안에서 반영. INFO 2건도 함께 닫음
+- [x] `/ai-review` **3라운드** (`17_56_15`, forced 7 + api_contract) — **CRITICAL 0 ·
+      WARNING 1**, 그 하나(고아 JSDoc)는 **리포트 도착 전에 이미 고쳐져 있었다**
+      → `RESOLUTION.md`. **수렴 판정**: 발견의 성격이 동작·구조 → 그 fix 의 검증 공백 →
+      문서 배치로 계속 내려왔다
+      > testing reviewer 가 내 뮤테이션 주장(`⑤-c` 가 RED)을 **독립 재현해 검증**했다 —
+      > RESOLUTION 의 판별력 주장이 자기 증언이 아님이 확인됐다
+      > ⚠️ 그 리뷰어가 `git checkout --` 로 원복했는데, 이 저장소엔 **병렬 리뷰어가 남의
+      > 미커밋 작업을 되돌린 전례**가 있어 즉시 확인했다 — 손실 없음(당시 미커밋 편집 1건 존재)
 - [x] TEST WORKFLOW **최종 재실측** — lint / unit(**백엔드 427 suites · 8,775 passed**,
       프런트 285 files) / build / **e2e 276 passed** 전부 PASS
+      > build 가 1회 `no space left on device` 로 실패했다 — 코드 회귀가 아니라 Docker
+      > 빌드 캐시 13GB. `docker builder prune -af` 후 통과(기록된 형태 그대로)
 - [ ] push 게이트 통과 → PR

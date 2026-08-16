@@ -66,16 +66,6 @@ const RERUN_CHAIN_WALK_MAX = RERUN_CHAIN_DEPTH_LIMIT * 2;
 export const SNAPSHOT_CACHE_MAX_ENTRIES = 256;
 
 /**
- * `findById` 응답 — 기존 entity 형태(websocket snapshot/frontend 호환)에
- * triggerSource/triggerLabel 두 필드를 추가한 shape. `executionPath` 는
- * `execution_node_log` 의 (execution_id, id) 정렬 결과로 채워진다 — entity
- * 컬럼이 사라졌으므로 service 가 외부 API 호환성을 위해 별도 채움.
- *
- * `executionPathTruncated` 는 `executionPath.length === MAX_EXECUTION_PATH_ROWS`
- * 인 상황에서 추가 행이 잘렸을 수 있음을 알린다 — 프론트엔드 UI 가 "이 이후 일부
- * 로그가 표시되지 않습니다" 배너를 띄울 수 있도록.
- */
-/**
  * 응답으로 나가는 Execution — 엔티티와 **`error` 의 null 가능성만** 다르다.
  *
  * 엔티티는 `error: Record<string, unknown>` 로 `| null` 없이 선언돼 있지만, egress
@@ -102,6 +92,16 @@ export type ResponseNodeExecution = Omit<NodeExecution, 'error'> & {
   error: Record<string, unknown> | null;
 };
 
+/**
+ * `findById` 응답 — 기존 entity 형태(websocket snapshot/frontend 호환)에
+ * triggerSource/triggerLabel 두 필드를 추가한 shape. `executionPath` 는
+ * `execution_node_log` 의 (execution_id, id) 정렬 결과로 채워진다 — entity
+ * 컬럼이 사라졌으므로 service 가 외부 API 호환성을 위해 별도 채움.
+ *
+ * `executionPathTruncated` 는 `executionPath.length === MAX_EXECUTION_PATH_ROWS`
+ * 인 상황에서 추가 행이 잘렸을 수 있음을 알린다 — 프론트엔드 UI 가 "이 이후 일부
+ * 로그가 표시되지 않습니다" 배너를 띄울 수 있도록.
+ */
 export type ExecutionDetailWithTrigger = ResponseExecution & {
   nodeExecutions: ResponseNodeExecution[];
   triggerSource: ExecutionTriggerSource;
