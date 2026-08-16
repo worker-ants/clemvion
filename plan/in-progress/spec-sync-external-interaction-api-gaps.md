@@ -166,7 +166,8 @@ checker 가 독립적으로** "인용이 가리키는 절이 오히려 반대를
       겨냥한다 — 무수정 프로브로 `postgres://db.internal:5432/prod` 무변화 확인.
       알림 경로의 `CONNECTION_STRING_PATTERN`·`STACK_TRACE_PATTERN` 을 shared SoT 로 올리면
       `deepRedactSecrets` 의 **다른 소비자 전부**(conversation-thread `turns[].data` ·
-      `ai_message.messages[]` · EIA `nodeOutput`)가 영향을 받으므로 blast radius 가 다른 별건
+      `ai_message.messages[]` · EIA `nodeOutput`)가 영향을 받으므로 blast radius 가 다른 별건이다.
+      승격 시 그 소비자들의 회귀 테스트를 선행해야 한다
 
 > **왜 그 PR 에서 안 고쳤나**: 노출이 `error` 객체화로 **넓어지지 않았다** — 종전에도 같은
 > `errMessage` 문자열이 같은 fanout 을 탔다. 형태만 바뀌었지 내용과 경로는 동일하다.

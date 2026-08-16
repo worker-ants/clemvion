@@ -216,6 +216,9 @@ describe('toTerminalErrorPayload — secret 마스킹 (egress 초크포인트)',
     expect(toTerminalErrorPayload({ message: host })?.message).toBe(host);
   });
 
+  // 위 null 단언과 같은 취지 — 상단 스위트에도 있지만, **마스킹 도입 후에도**
+  // 이 경로가 그대로인지를 묻는다 (`10_41_55` maintainability W2: 한쪽만 주석이 달려
+  // 비대칭이라는 지적).
   it('details 가 없으면 키를 만들지 않는다 (§6.4 optional)', () => {
     const out = toTerminalErrorPayload({ message: 'boom' });
     expect(out && 'details' in out).toBe(false);
