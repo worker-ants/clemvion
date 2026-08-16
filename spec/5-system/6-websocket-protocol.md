@@ -8,6 +8,8 @@ code:
   - codebase/backend/src/modules/websocket/websocket.service.ts
   - codebase/backend/src/modules/websocket/websocket-events.types.ts
   - codebase/backend/src/shared/utils/strip-external-only-fields.ts
+  - codebase/backend/src/shared/utils/redact-stored-error.ts
+  - codebase/backend/src/modules/executions/executions.service.ts
   - codebase/backend/src/modules/websocket/execution-seq-allocator.service.ts
   - codebase/backend/src/modules/websocket/ws-error-codes.ts
   - codebase/backend/src/modules/external-interaction/sse-adapter.service.ts
