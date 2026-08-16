@@ -184,7 +184,7 @@ checker 가 독립적으로** "인용이 가리키는 절이 오히려 반대를
       아니면 REST 에도 적용을 검토한다 — **둘 중 하나를 고르는 것이 이 항목이다**
 
       > **결정됨 (2026-08-16, 사용자 택일): 내부 경로에도 마스킹한다.** 집행은
-      > [`eia-internal-rest-error-masking.md`](./eia-internal-rest-error-masking.md).
+      > [`eia-internal-rest-error-masking.md`](../complete/eia-internal-rest-error-masking.md).
       > **이 항목의 제목이 부정확했다** — 실측하니 갈리는 축은 REST↔WS 가 아니라
       > **종결 emit ↔ 그 밖의 모든 읽기 경로**다. WS `execution.snapshot`
       > (`websocket.gateway.ts:399` → `findById`)도 원문을 싣고 있었다. 위 `:862` 도
@@ -197,7 +197,7 @@ checker 가 독립적으로** "인용이 가리키는 절이 오히려 반대를
       **택일해서 근거를 Rationale 에 남긴다**
 
       > **결정됨 (2026-08-16, 사용자 택일): (b) 명시적 예외 등재.** 집행은
-      > [`eia-internal-rest-error-masking.md`](./eia-internal-rest-error-masking.md) §D.
+      > [`eia-internal-rest-error-masking.md`](../complete/eia-internal-rest-error-masking.md) §D.
       > 근거는 `AuthConfig.config` 문구를 **재사용하지 않는다** — 그쪽 예외는 "다른
       > 메커니즘으로 동등 암호화" 이고 이 필드는 **암호화 자체가 없어** 예외의 종류가 다르다
       > (`16_03_57` rationale/convention W2)
