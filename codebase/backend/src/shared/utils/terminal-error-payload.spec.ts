@@ -126,3 +126,101 @@ describe('toTerminalErrorPayload', () => {
     });
   });
 });
+
+/**
+ * **secret 마스킹** — 이 payload 는 WS 뿐 아니라 SSE 스트림과 EIA outbound webhook 으로
+ * **외부 제3자**에게 나간다. `message` 는 임의 내부 예외 원문이고, WS 경로의
+ * `sanitizePayloadForWs` 는 키 이름 기반이라 자유 텍스트 *안*의 토큰을 못 잡는다.
+ *
+ * 리뷰가 5라운드 연속 INFO 로 미룬 항목인데, 미룬 근거를 실측하니 갭이 실재했다.
+ */
+describe('toTerminalErrorPayload — secret 마스킹 (egress 초크포인트)', () => {
+  it('message 안의 Bearer 토큰을 마스킹한다', () => {
+    const out = toTerminalErrorPayload({
+      message: 'upstream rejected: Bearer sk-live-abcdef123456',
+    });
+    expect(out?.message).not.toContain('sk-live-abcdef123456');
+    expect(out?.message).toContain('upstream rejected');
+  });
+
+  it('레거시 문자열 입력에도 마스킹이 걸린다 (분기가 갈려도 빠지지 않는다)', () => {
+    const out = toTerminalErrorPayload('auth failed: api-key=xyz789secret');
+    expect(out?.message).not.toContain('xyz789secret');
+  });
+
+  it('details 의 중첩 값도 마스킹한다', () => {
+    const out = toTerminalErrorPayload({
+      message: 'boom',
+      details: { upstream: { authorization: 'Bearer leak-me-999' } },
+    });
+    expect(JSON.stringify(out?.details)).not.toContain('leak-me-999');
+  });
+
+  /**
+   * **판별력 있는 입력을 쓴다.** 처음엔 `code: 'EXECUTION_TIME_LIMIT_EXCEEDED'` ·
+   * `nodeId: <uuid>` 로 단언했는데, 그 값들은 `SECRET_LEAK_PATTERNS` 에 애초에 안 걸려서
+   * **마스킹이 실수로 걸려도 no-op** 이라 GREEN 이었다 — "안 건드린다" 를 증명하지 못하는
+   * 공허한 테스트다(`09_51_00` testing W7). 마스킹이 걸리면 반드시 값이 바뀌는 입력을 준다.
+   */
+  it('code·nodeId 는 마스킹 대상 문자열이어도 건드리지 않는다', () => {
+    const code = 'Bearer sk-live-should-not-be-masked';
+    const nodeId = 'api-key=must-stay-verbatim';
+    const out = toTerminalErrorPayload({ code, message: 'boom', nodeId });
+    expect(out).toEqual({ code, message: 'boom', nodeId });
+  });
+
+  it('JSON 형태 message 는 secret 만 지우고 JSON 을 깨뜨리지 않는다', () => {
+    const out = toTerminalErrorPayload({
+      message: '{"detail":"denied","authorization":"Bearer leak-json-777"}',
+    });
+    expect(out?.message).not.toContain('leak-json-777');
+    // 재직렬화되므로 원문과 바이트가 같지는 않지만, **JSON 으로는 여전히 파싱된다**.
+    expect(() => JSON.parse(out?.message ?? '')).not.toThrow();
+    expect(JSON.parse(out?.message ?? '')).toMatchObject({ detail: 'denied' });
+  });
+
+  it('평범한 메시지는 훼손하지 않는다 (오탐 대조)', () => {
+    const message = 'Node "HTTP 요청" failed: connection reset by peer';
+    expect(toTerminalErrorPayload({ message })?.message).toBe(message);
+  });
+
+  it('마스킹할 게 없으면 details 참조를 보존한다 (copy-on-change)', () => {
+    const details = { safe: 'value' };
+    const out = toTerminalErrorPayload({ message: 'boom', details });
+    expect(out?.details).toBe(details);
+  });
+
+  // 상단 스위트에도 같은 단언이 있다. 중복이 아니라 **마스킹 도입 후에도** 이 경로가
+  // 그대로인지를 묻는 것이다 — 한쪽만 갱신되면 그때 갈린다 (`10_19_30` maintainability W6).
+  it('입력이 없으면 여전히 null 이다 (빈 객체를 만들지 않는다)', () => {
+    expect(toTerminalErrorPayload(null)).toBeNull();
+    expect(toTerminalErrorPayload(undefined)).toBeNull();
+  });
+
+  it('details 가 명시적 null 이면 키를 보존한다 (undefined 와 다르다)', () => {
+    const out = toTerminalErrorPayload({ message: 'boom', details: null });
+    expect(out && 'details' in out).toBe(true);
+    expect(out?.details).toBeNull();
+  });
+
+  /**
+   * **잔여 갭 캐너리** — JSDoc 이 실측표로 "이건 못 잡는다" 고 선언한 것을 테스트로 고정한다.
+   * 나중에 `SECRET_LEAK_PATTERNS` 가 넓어지면 이 테스트가 깨지고, 그때 표와 CHANGELOG 의
+   * "잔여 갭" 서술도 같이 고쳐야 한다는 신호가 된다 (`10_19_30` testing INFO7).
+   */
+  it('자격증명 **없는** 연결 문자열·호스트명은 통과한다 (선언한 잔여 갭)', () => {
+    const plain = 'connect failed: postgres://db.internal:5432/prod';
+    expect(toTerminalErrorPayload({ message: plain })?.message).toBe(plain);
+
+    const host = 'ECONNREFUSED 10.0.3.17:6379 (redis-primary.internal)';
+    expect(toTerminalErrorPayload({ message: host })?.message).toBe(host);
+  });
+
+  // 위 null 단언과 같은 취지 — 상단 스위트에도 있지만, **마스킹 도입 후에도**
+  // 이 경로가 그대로인지를 묻는다 (`10_41_55` maintainability W2: 한쪽만 주석이 달려
+  // 비대칭이라는 지적).
+  it('details 가 없으면 키를 만들지 않는다 (§6.4 optional)', () => {
+    const out = toTerminalErrorPayload({ message: 'boom' });
+    expect(out && 'details' in out).toBe(false);
+  });
+});

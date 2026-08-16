@@ -1,10 +1,33 @@
 /**
- * 실행 실패 에러 메시지를 사용자向 표면(WS 이벤트 / 알림 / 이메일)에 노출하기 전 정리한다.
+ * 실행 실패 에러 메시지를 **알림 표면**(인앱 알림 / 이메일)에 노출하기 전 정리한다.
+ *
+ * **적용 범위를 좁혀 적는다.** 호출부는 실측 **3곳**이다:
+ *
+ * | 호출부 | 무엇에 쓰나 |
+ * |---|---|
+ * | `execution-engine.service` 실패 알림 | 알림 문구 |
+ * | `schedule-runner.service` | 알림 문구 |
+ * | `background-execution.processor` | 알림 문구 **+ 내부 WS 채널** `background:run:<id>` 의 `errorMessage` |
+ *
+ * 종전 첫 줄은 "WS 이벤트 / 알림 / 이메일" 이라고 썼다. 그건 **종결 3종**(`execution.failed`
+ * 등)을 보호한다는 뜻으로 읽혔는데 사실이 아니다 — 그 경로는 이 함수를 거치지 않고
+ * `shared/utils/terminal-error-payload.ts` 의 `toTerminalErrorPayload` 가 egress 초크포인트에서
+ * `deepRedactSecrets` 로 마스킹한다(EIA §R17 egress-only 원칙).
+ *
+ * **그 정정도 한 번 더 좁아야 했다** (`11_04_07` requirement W1): 고치면서 "3곳 전부 알림
+ * 조립" 이라고 썼는데 `background-execution.processor` 는 결과를 WS 에도 싣는다. 다만 그
+ * 채널은 `background:run:<id>` 로 **격리된 내부 채널**이고 SSE/webhook 으로 나가지 않는다 —
+ * 종결 3종의 외부 노출과는 다른 표면이다.
+ *
+ * 두 경로가 쓰는 마스킹 SoT 는 `shared/utils/sanitize-error-message.ts` 로 같다.
  *
  * 길이 제한 + stack trace · connection string 패턴 제거 + **secret 토큰 마스킹**.
  * Error.message 안에 평문으로 들어온 내부 호스트명·연결 문자열·파일 경로, 그리고
- * 노드 예외가 echo 한 Bearer/API 키/Authorization 헤더 값이 인앱/이메일(외부 SMTP)·
- * webhook 알림으로 흘러가지 않도록 하는 defense in depth.
+ * 노드 예외가 echo 한 Bearer/API 키/Authorization 헤더 값이 인앱/이메일(외부 SMTP)로
+ * 흘러가지 않도록 하는 defense in depth.
+ *
+ * (종전엔 "webhook 알림" 도 적혀 있었으나 실측하면 호출부 3곳이 전부
+ * `channel: 'in_app'|'email'|'both'` 다 — webhook 채널 0건. 여기서도 범위를 좁혀 적는다.)
  *
  * secret 마스킹은 shared SoT `shared/utils/sanitize-error-message.ts` 의
  * `redactSecrets`(SECRET_LEAK_PATTERNS) 를 재사용한다 — WS 경로의 key-name 기반

@@ -1,5 +1,30 @@
 # Changelog
 
+## Unreleased — 종결 이벤트 `error` 가 자격증명 마스킹 없이 외부로 나가고 있었다
+
+`execution.failed` 의 `error.message` 는 임의 내부 예외 원문(`err.message`)이고, 이 payload 는
+WS 뿐 아니라 SSE 스트림(§5.2)과 **EIA outbound webhook(§3.1)** 으로 **외부 제3자 통합사**에게
+그대로 전달된다. WS 경로의 `sanitizePayloadForWs` 는 **키 이름** 기반이라 자유 텍스트 *안*에
+박힌 토큰(`Bearer …`, 자격증명 포함 URI)을 못 잡고, `stripExternalOnlyFields` 는 `llmCalls`
+하나만 지운다 — 즉 이 필드엔 값-패턴 방어가 **없었다**.
+
+`toTerminalErrorPayload`(종결 emit 4곳 + chat-channel fanout 이 모두 거치는 egress 초크포인트)
+에서 `message`·`details` 에 `deepRedactSecrets` 를 적용한다. **DB 는 원문을 그대로 보존**한다
+(EIA §R17 egress-only masking 원칙, 서버 로그·사후 디버깅의 진실).
+
+**⚠️ wire 변화**: 종결 `error.message` / `error.details` 의 바이트가 바뀔 수 있다.
+`Bearer sk-…` → `***`, `postgres://user:pw@host/db` → `postgres://***@host/db`.
+JSON 형태 message 는 마스킹 후 **재직렬화**되므로 공백 등 포맷이 정규화된다(파싱 가능성은 유지).
+`code`·`nodeId` 는 값 공간이 닫혀 있어 **건드리지 않는다**.
+
+**잔여 갭(의도)**: `SECRET_LEAK_PATTERNS` 는 자격증명을 겨냥하므로 **자격증명 없는 연결
+문자열·내부 호스트명·스택 프래그먼트는 여전히 통과**한다. 자매 유틸(알림 경로)의
+`CONNECTION_STRING_PATTERN` 을 shared SoT 로 올리는 것은 `deepRedactSecrets` 의 다른 소비자
+전부에 영향을 주므로 별도 PR 로 분리했다.
+
+**수신자 영향**: `error.message` 를 **문자열 동등 비교**로 분기하던 외부 통합사가 있다면 영향을
+받는다. 값이 좁아지는 방향이고 필드 형태(§6.4)는 불변이다.
+
 ## Unreleased — 종결 emit 타입 초크포인트 + retry-turn `cancelledBy` 누락
 
 `emitExecution(payload: unknown)` 이 종결 이벤트 형태를 강제하지 않아 필드 하나를 호출부마다
@@ -17,7 +42,7 @@ EIA §6 이 요구하던 계약이 이제 이 경로에서도 충족된다.
 있다면 영향을 받는다. 값이 유실되던 쪽이 정상화되는 방향이고, 필드 **추가**이므로 breaking
 이 아니다.
 
-⚠️ **저장소 밖에도 도달한다.** 이 이벤트는 EIA outbound webhook(§3.3 EIA-NX-02 화이트리스트)과
+⚠️ **저장소 밖에도 도달한다.** 이 이벤트는 EIA outbound webhook(§3.1 EIA-NX-02 화이트리스트)과
 SSE 스트림(§5.2 `GET /api/external/executions/:id/stream`)으로 **외부 제3자 통합사**에게 같은
 payload 로 전달된다. 저장소 내 소비자(`chat-channel.dispatcher.ts`)는 `result` 부재를 `{}` 로
 방어해 무해하지만, **외부 통합사는 grep 할 수 없다** — 처음엔 저장소 안만 보고 "무해" 로 적었다.
