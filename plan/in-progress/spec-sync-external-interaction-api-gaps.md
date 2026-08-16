@@ -183,11 +183,37 @@ checker 가 독립적으로** "인용이 가리키는 절이 오히려 반대를
       실측 확인함. 의도된 비대칭이면 R17 의 `llmCalls` 선례처럼 caveat 로 명시하고,
       아니면 REST 에도 적용을 검토한다 — **둘 중 하나를 고르는 것이 이 항목이다**
 
+      > **결정됨 (2026-08-16, 사용자 택일): 내부 경로에도 마스킹한다.** 집행은
+      > [`eia-internal-rest-error-masking.md`](./eia-internal-rest-error-masking.md).
+      > **이 항목의 제목이 부정확했다** — 실측하니 갈리는 축은 REST↔WS 가 아니라
+      > **종결 emit ↔ 그 밖의 모든 읽기 경로**다. WS `execution.snapshot`
+      > (`websocket.gateway.ts:399` → `findById`)도 원문을 싣고 있었다. 위 `:862` 도
+      > **목록 경로 전용**이고 상세는 다른 함수다 — 독립 조치가 필요한 자리는 4곳이다
+
 - [ ] `interaction.triggerToken` 이 `SecretResolver` 미경유 · JSONB 평문 보관
       (선존, `09_25_29`·`11_36_45` W2 재확인). `secret-store.md` Overview 의 "모든 도메인
       모듈은 SecretResolver 경유" 와 충돌. (a) `secret://triggers/{triggerId}/interaction-token`
       슬롯 이관 + 구현 plan 신설, 또는 (b) `secret-store.md §1` 비대상 절에 명시적 예외 등재 —
       **택일해서 근거를 Rationale 에 남긴다**
+
+      > **결정됨 (2026-08-16, 사용자 택일): (b) 명시적 예외 등재.** 집행은
+      > [`eia-internal-rest-error-masking.md`](./eia-internal-rest-error-masking.md) §D.
+      > 근거는 `AuthConfig.config` 문구를 **재사용하지 않는다** — 그쪽 예외는 "다른
+      > 메커니즘으로 동등 암호화" 이고 이 필드는 **암호화 자체가 없어** 예외의 종류가 다르다
+      > (`16_03_57` rationale/convention W2)
+
+- [ ] **`NodeExecution.error` 는 내부 표면에서 여전히 원문이다** (2026-08-16 등재,
+      `16_03_57` plan_coherence W1 이 "선등재" 를 요구해 먼저 적는다). 위 `Execution.error`
+      결정의 **범위 밖**이다 — 다른 컬럼이고 `execution.node.*` 이벤트의 계약이 다르며,
+      프런트도 별도로 렌더한다(`executions/[executionId]/page.tsx:493` ·
+      `3-execution.md §10.6.1` 노드 상세 Error 탭). 노드 핸들러가 쓰는 raw 예외 메시지라
+      **같은 클래스의 유출 가능성이 있다**. 같은 결정을 적용할지 택일 필요
+
+- [ ] **내부 REST 의 `inputData`/`outputData` 도 원문이다** (2026-08-16 등재, 같은 근거).
+      `executions.service.ts:860`·`:861`. 외부 EIA `getStatus` 는 같은 `outputData` 에
+      `stripAndRedact` 를 거는데(`interaction.service.ts:452`) 내부 REST 는 걸지 않는다 —
+      `Execution.error` 와 **같은 형태의 비대칭**이 두 컬럼 더 남아 있다는 뜻이다.
+      blast radius 가 달라 별건으로 뗀다
 
 > **왜 그 PR 에서 안 고쳤나**: 노출이 `error` 객체화로 **넓어지지 않았다** — 종전에도 같은
 > `errMessage` 문자열이 같은 fanout 을 탔다. 형태만 바뀌었지 내용과 경로는 동일하다.

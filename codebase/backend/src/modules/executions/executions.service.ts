@@ -37,6 +37,7 @@ import {
   type ExecutionTriggerSource,
 } from './utils/execution-trigger';
 import { loadParentWorkflowNames } from './utils/load-parent-workflow-names';
+import { redactStoredErrorForResponse } from '../../shared/utils/redact-stored-error';
 
 // execution_node_log 행 수 상한. ForEach 같은 컨테이너에서 행 수가 폭증하는 경우
 // 메모리 적재량을 묶어두기 위한 안전망 — UI timeline 은 정렬된 nodeId prefix 만
@@ -533,7 +534,7 @@ export class ExecutionsService {
       .where('e.id = :rootId OR e.chainId = :rootId', { rootId })
       .orderBy('e.startedAt', 'ASC')
       .getMany();
-    return rows.map((e) => this.stripPrivateRelations(e));
+    return rows.map((e) => this.toResponseExecution(e));
   }
 
   async findById(id: string): Promise<ExecutionDetailWithTrigger> {
@@ -613,7 +614,7 @@ export class ExecutionsService {
         // 응답 직전 trigger/executor 관계 객체를 제거 (User 등 민감 정보 누출
         // 방지).
         return {
-          ...this.stripPrivateRelations(execution),
+          ...this.toResponseExecution(execution),
           nodeExecutions: reconciledNodeExecutions,
           triggerSource: trigger.source,
           triggerLabel: trigger.label,
@@ -744,8 +745,18 @@ export class ExecutionsService {
   /**
    * 동시 stop 요청에 대한 TOCTOU 경쟁을 막기 위해, 최종 상태 전환은 단일 원자 UPDATE
    * (status WHERE status IN [전이 가능 상태]) 로 수행한다.
+   *
+   * **응답 마스킹은 여기 한 자리에서 건다.** `stopInternal` 은 반환 지점이 **넷**이라
+   * (waiting 경로 · `affected=0` 재조회 · 정상 재조회 · 각 폴백) 호출부마다 마스킹을 걸면
+   * 다섯 번째 반환이 추가될 때 조용히 빠진다 — 이 저장소가 *"자매 넷 중 하나만"* 으로
+   * 반복해 겪은 형태다. 함수를 하나 더 두어 **모든 반환이 같은 문을 통과**하게 한다.
    */
   async stop(id: string): Promise<Execution> {
+    return this.toResponseExecution(await this.stopInternal(id));
+  }
+
+  /** {@link stop} 의 본체. 반환은 **마스킹 전** 엔티티다 — 감싸는 쪽이 관문이다. */
+  private async stopInternal(id: string): Promise<Execution> {
     const execution = await this.executionRepository.findOne({ where: { id } });
     if (!execution) {
       throw new NotFoundException({
@@ -859,7 +870,9 @@ export class ExecutionsService {
       durationMs: execution.durationMs ?? null,
       inputData: execution.inputData ?? null,
       outputData: execution.outputData ?? null,
-      error: execution.error ?? null,
+      // 목록 경로의 `error` 마스킹 자리. 나머지 세 표면은 `toResponseExecution` 이 덮는다
+      // (여기는 엔티티가 아니라 DTO 조립이라 그 관문을 지나지 않는다).
+      error: redactStoredErrorForResponse(execution.error),
       executedBy: execution.executedBy ?? null,
       parentExecutionId: execution.parentExecutionId ?? null,
       recursionDepth: execution.recursionDepth ?? 0,
@@ -877,12 +890,28 @@ export class ExecutionsService {
   }
 
   /**
-   * findById 응답 직전, 응답으로 노출하면 안 되는 관계 객체를 제거한다.
-   * (deriveExecutionTrigger 산출 후에는 더 이상 필요하지 않음)
+   * 응답 직전, **엔티티를 그대로 내보내면 안 되는 것**을 두 가지 처리한다:
+   *
+   * 1. 관계 객체 제거 — `trigger`/`executor` (User 등 민감 정보).
+   *    `deriveExecutionTrigger` 산출 후에는 더 이상 필요하지 않다.
+   * 2. `error` 컬럼 값 마스킹 — {@link redactStoredErrorForResponse}.
+   *
+   * ## 왜 둘을 한 함수에 묶나 — 표면이 넷인데 자매가 갈라진다
+   *
+   * 종전 이름은 `stripPrivateRelations` 였고 (1) 만 했다. 마스킹을 호출부마다 손으로
+   * 걸면 **한 곳씩 빠진다** — 이 저장소의 반복 실패 형태다. 실제로 이 결함을 등재한
+   * 트래커 항목도 `toExecutionDto` **한 줄만** 지목했는데, 실측하니 그건 목록 경로
+   * 전용이고 상세·chain·stop 이 각자 다른 자리에서 같은 컬럼을 싣고 있었다.
+   *
+   * 이 함수는 그중 **셋**(`findById` · `getChain` · `stop`)의 공통 관문이다. 넷째인
+   * `toExecutionDto` 는 엔티티가 아니라 DTO 를 조립하므로 거기서 직접 부른다.
    */
-  private stripPrivateRelations(execution: Execution): Execution {
+  private toResponseExecution(execution: Execution): Execution {
     const { trigger: _t, executor: _e, ...rest } = execution;
-    return rest as Execution;
+    return {
+      ...rest,
+      error: redactStoredErrorForResponse(rest.error),
+    } as Execution;
   }
 
   /**
