@@ -169,6 +169,26 @@ checker 가 독립적으로** "인용이 가리키는 절이 오히려 반대를
       `ai_message.messages[]` · EIA `nodeOutput`)가 영향을 받으므로 blast radius 가 다른 별건이다.
       승격 시 그 소비자들의 회귀 테스트를 선행해야 한다
 
+- [ ] **§6.4 필드 표 + §R17 마스킹 카탈로그에 이 egress 지점 등재** (planner 턴)
+      — 2026-08-16 등재, `11_36_45` W1. 구현은 끝났는데 **spec 이 새 보안 불변식을 모른다**.
+
+      > ⚠️ **R17 3번째 불릿에 속지 말 것.** 거기 적힌 *"terminal `result`/`error`"* 의 `error`
+      > 는 `getStatus` 의 **`outputData` 기반**이라 이번에 마스킹한 `Execution.error` 와
+      > **다른 컬럼**이다. 이름이 같아 "이미 포괄됨" 으로 넘기기 쉽다 — 이 트래커의
+      > *"REST 와 대칭"* 서술이 같은 이유로 부정확했던 전례가 있다.
+
+- [ ] **내부 REST 와 WS 가 같은 `Execution.error` 에 다른 값을 말한다** (2026-08-16 등재,
+      `11_36_45` I1). `executions.service.ts:862` 는 `error: execution.error ?? null` 로
+      **원문**을 주고, WS/SSE/webhook 종결 이벤트는 이제 마스킹된 값을 준다.
+      실측 확인함. 의도된 비대칭이면 R17 의 `llmCalls` 선례처럼 caveat 로 명시하고,
+      아니면 REST 에도 적용을 검토한다 — **둘 중 하나를 고르는 것이 이 항목이다**
+
+- [ ] `interaction.triggerToken` 이 `SecretResolver` 미경유 · JSONB 평문 보관
+      (선존, `09_25_29`·`11_36_45` W2 재확인). `secret-store.md` Overview 의 "모든 도메인
+      모듈은 SecretResolver 경유" 와 충돌. (a) `secret://triggers/{triggerId}/interaction-token`
+      슬롯 이관 + 구현 plan 신설, 또는 (b) `secret-store.md §1` 비대상 절에 명시적 예외 등재 —
+      **택일해서 근거를 Rationale 에 남긴다**
+
 > **왜 그 PR 에서 안 고쳤나**: 노출이 `error` 객체화로 **넓어지지 않았다** — 종전에도 같은
 > `errMessage` 문자열이 같은 fanout 을 탔다. 형태만 바뀌었지 내용과 경로는 동일하다.
 > 즉 선존 갭이고, `durationMs` 를 "비용이 다르다" 고 떼어낸 PR 이 이걸 끌어들이면 앞뒤가
