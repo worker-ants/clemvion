@@ -46,7 +46,15 @@ export class ExecutionDto {
   @ApiPropertyOptional({ nullable: true, example: 1820 })
   durationMs?: number | null;
 
-  /** 입력 데이터 — 트리거가 워크플로우에 주입한 input (manual parameters / webhook body / schedule context) */
+  /**
+   * 입력 데이터 — 트리거가 워크플로우에 주입한 input (manual parameters / webhook body / schedule context).
+   *
+   * **자격증명으로 판별된 값은 마스킹되어 반환된다** (`error` 와 동일 정책, 2026-08-16) —
+   * `Bearer …`·자격증명 포함 URI 등이 `***` 로 치환되므로 **DB 원문과 다를 수 있다**.
+   * webhook ingestion 이 이미 `[REDACTED]` 로 가린 민감 헤더는 **그 마커가 보존**된다
+   * (`spec/5-system/12-webhook.md` §5.3 계약). SoT: EIA §R17, 구현
+   * `shared/utils/redact-stored-error.ts` 의 `redactStoredDataForResponse`.
+   */
   @ApiPropertyOptional({
     type: 'object',
     additionalProperties: true,
@@ -54,7 +62,11 @@ export class ExecutionDto {
   })
   inputData?: Record<string, unknown> | null;
 
-  /** 출력 데이터 — 워크플로우 최종 결과. 노드별 envelope 는 nodeExecutions[i].outputData 참조 */
+  /**
+   * 출력 데이터 — 워크플로우 최종 결과. 노드별 envelope 는 nodeExecutions[i].outputData 참조.
+   *
+   * **자격증명으로 판별된 값은 마스킹되어 반환된다** — 위 `inputData` 와 같은 정책·같은 SoT.
+   */
   @ApiPropertyOptional({
     type: 'object',
     additionalProperties: true,
@@ -158,6 +170,9 @@ export class NodeExecutionSummaryDto {
    *
    * `_resumeState` 등 engine-internal 필드는 저장 시 제거된다.
    * 본 라이브 릴리즈 이전 실행 row 는 `config` 가 evaluated 형태로 남아있을 수 있다 (백필 X, historical record).
+   *
+   * **자격증명으로 판별된 값은 마스킹되어 반환된다** (2026-08-16) — 형제 필드 `error` 와
+   * 같은 정책이다. SoT: EIA §R17.
    */
   @ApiPropertyOptional({
     type: 'object',

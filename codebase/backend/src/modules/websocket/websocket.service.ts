@@ -6,7 +6,11 @@ import {
   EXTERNAL_STRIPPED_FIELDS,
   stripExternalOnlyFields,
 } from '../../shared/utils/strip-external-only-fields';
-import { deepRedactSecretsPreserving } from '../../shared/utils/sanitize-error-message';
+import {
+  DEPTH_MASK_MARKER,
+  deepRedactSecretsPreserving,
+  KEY_MASK_MARKER,
+} from '../../shared/utils/sanitize-error-message';
 
 // 값·타입 정의는 **의존성-프리 모듈**로 분리했다 — 이 파일이 ES-module 순환 위에 있어
 // 순환 위의 다른 파일이 모듈 평가 시점에 enum 을 읽으면 `undefined` 였기 때문이다
@@ -99,7 +103,10 @@ const SANITIZE_CACHE = new WeakMap<object, unknown>();
  */
 function sanitizePayloadForWs(value: unknown, depth = 0): unknown {
   if (value === null || typeof value !== 'object') return value;
-  if (depth > MAX_SANITIZE_DEPTH) return '[REDACTED_DEPTH]';
+  // 마커 문자열은 `sanitize-error-message` 의 상수를 **공유**한다 — 값-마스커가
+  // "이미 마스킹된 값" 을 알아보는 근거가 그 상수 집합이라, 여기서 리터럴을 따로 쓰면
+  // 한쪽만 바뀌었을 때 재마스킹 방지가 조용히 깨진다.
+  if (depth > MAX_SANITIZE_DEPTH) return DEPTH_MASK_MARKER;
   // depth 0 진입만 캐시 검사 — 부분트리는 부모 호출이 이미 캐시 적중 시 진입 자체 안 함.
   // 캐시 키는 입력 object identity. 결과는 sanitized output (원본일 수도 있음).
   if (depth === 0) {
@@ -129,7 +136,7 @@ function sanitizeInner(value: object, depth: number): unknown {
   for (const [k, v] of Object.entries(obj)) {
     if (CREDENTIAL_KEY_PATTERN.test(k)) {
       if (!result) result = { ...obj };
-      result[k] = '[REDACTED]';
+      result[k] = KEY_MASK_MARKER;
     } else {
       const sanitized = sanitizePayloadForWs(v, depth + 1);
       if (sanitized !== v) {

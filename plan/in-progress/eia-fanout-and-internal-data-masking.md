@@ -7,6 +7,10 @@ status: in-progress
 priority: P1
 pending_plans:
   - plan/in-progress/spec-sync-external-interaction-api-gaps.md
+spec_impact:
+  - spec/5-system/14-external-interaction-api.md
+  - spec/5-system/6-websocket-protocol.md
+  - spec/5-system/12-webhook.md
 ---
 
 # 외부 fanout 은 값-패턴 마스킹을 한 번도 받은 적이 없다 — node/execution emit + 내부 REST 두 컬럼
@@ -19,9 +23,14 @@ pending_plans:
 
 | 항목 | 결정 | 근거 |
 |---|---|---|
-| A | **fanout 브랜치에만** 값-패턴 마스킹 | 아래 §A |
-| B | #1179 와 같은 구조로 닫는다 | 아래 §B |
+| A | ~~fanout 브랜치에만~~ → **wire + fanout 둘 다** (`llmCalls` 만 wire 예외) — **2026-08-16 재택일** | 아래 §A + §A-재택일 |
+| B | ~~#1179 와 같은 구조~~ → **같은 구조가 아니었다**. 마커 멱등성이 선행 조건 | 아래 §B + §마커 |
 | D | A·B PR 에 묶는다 | 트래커가 이미 "단독으론 게이트 비용이 이익을 넘는다" 로 등재 |
+
+> **표를 두 번 고쳤다.** 초판은 A 를 *"fanout 브랜치에만"*, B 를 *"#1179 와 같은 구조"* 로
+> 적었는데 **둘 다 실측으로 반증됐다**(각각 §A-재택일 · §마커). 두 게이트가 이 표의 stale
+> 상태를 각각 잡았다(`23_08_19` requirement W3 · `23_10_41` plan_coherence W2) — 결정이
+> 뒤집히면 **요약 표가 가장 늦게 낡는다**.
 
 ## §A — 전제를 무수정 프로브로 실증했다
 
@@ -61,11 +70,26 @@ SSE 구독자 · `ChatChannelDispatcher` · `NotificationFanout`.
 **두 fanout 브랜치가 공유하는 단일 헬퍼**를 두어 세 번째 emit 경로가 생겨도 구조적으로
 빠질 수 없게 한다.
 
-### 왜 wire 가 아니라 fanout 인가
+### ~~왜 wire 가 아니라 fanout 인가~~ → §A-재택일 (초안의 근거가 반증됐다)
 
-`stripExternalOnlyFields` 가 **이미 fanout 브랜치에만** 걸려 있다(`:257`·`:331`) —
-*"외부는 내부보다 적게 받는다"* 는 비대칭이 이 자리에 선례로 존재한다. 같은 자리에 얹으면
-워크플로 소유자의 콘솔 디버깅(원문 에러)은 보존하면서 외부 노출만 닫힌다.
+> **초판 주장**: *"`stripExternalOnlyFields` 가 이미 fanout 브랜치에만 걸려 있어
+> (`:257`·`:331`) 선례가 있다. 같은 자리에 얹으면 **워크플로 소유자**의 콘솔 디버깅은
+> 보존하면서 외부 노출만 닫힌다."*
+
+**선례 부분은 참이지만 "소유자" 부분이 틀렸다.** `ExecutionChannelAuthorizer.authorize` 는
+`verifyOwnership(executionId, workspaceId)` 만 호출하고 `ChannelAuthorizerContext` 는 **role
+필드를 아예 갖지 않는다**. 즉 `execution:<id>` wire 수신 인구는 "소유자" 가 아니라
+**viewer 를 포함한 워크스페이스 멤버 전원** — `GET /api/executions/:id` 와 **같은 인구**이고,
+§R17 이 *"안전성은 롤 게이팅이 아니라 boundary masking parity 에 의존"* 이라며 내부 REST 를
+마스킹한 바로 그 상황이다. 한쪽만 열어 두면 같은 문서 트리 안에서 선례가 갈린다.
+
+**재택일(2026-08-16): wire + fanout 둘 다 마스킹.** 단 `llmCalls` 는 wire 에서 제외한다 —
+그러지 않으면 WS §Rationale 의 strip-only 결정이 *"값-레벨 마스킹은 에디터 디버깅 가치를
+훼손한다"* 며 기각한 그 상태가 된다. fanout 에서는 그 필드가 통째로 strip 되므로 외부 노출은
+늘지 않는다. 즉 **strip 결정은 유지되고 값-마스킹이 병존**한다.
+
+> 이 반증은 `22_22_36` cross_spec WARNING #1 이 제기했고 소스로 확인했다. 리뷰어 지적을
+> 액면가로 받은 것이 아니라 **인가 코드를 직접 읽어** 갈랐다.
 
 ## §B — 트래커가 지목한 것보다 자매가 많다
 
@@ -127,6 +151,25 @@ deepRedactSecrets({headers:{authorization:'[REDACTED]', cookie:'[REDACTED]', 'co
 | `toFanoutEnvelope` | fanout envelope **조립** (strip → redact → routing 첨부) | 마스커가 아니라 조립 함수라 `redact*`/`strip*`/`sanitize*` 패밀리에 넣지 않는다. 기존 `to*` 조립 패밀리(`toTerminalErrorPayload` · `toResponseExecution` · `toExecutionDto`)와 같은 결. 모듈-로컬 `stripAndRedact`(`interaction.service.ts`)와 **동명 재사용 회피** |
 | `redactStoredDataForResponse` | DB `inputData`/`outputData` 컬럼값 egress 마스킹 | 자매 `redactStoredErrorForResponse` 와 **같은 파일·같은 명명 규칙**. `Error`↔`Data` 로 대상 컬럼만 갈린다 |
 
+## §부작용 — 디버깅 가시성이 줄어드는 자리 (수용된 trade-off)
+
+**사용자에게 보이는 변화다.** 워크플로가 **정당하게** 자격증명을 다루는 경우
+(HTTP 노드가 토큰을 받아 하류로 넘기는 등) 그 값이 이제 `***` 로 보인다:
+
+| 표면 | 종전 | 이후 |
+|---|---|---|
+| WS/SSE node 이벤트의 `output`/`error` | 원문 | 마스킹 |
+| 실행 상세 API 의 `inputData`/`outputData` | 원문 | 마스킹 |
+| DB (`Execution.*`) | 원문 | **원문 유지** (egress-only) |
+
+선례가 이미 이 방향을 택했다 — §R17 `ai_message` 불릿이 *"보수적 패턴의 rare FP 로 이미
+전달된 응답이 `***` 로 바뀔 수 있으나 **보안 우선**으로 수용"* 이라 못박았고, 외부
+`getStatus` 는 같은 `outputData` 에 이미 같은 마스킹을 걸고 있었다(내부만 안 걸려 있었다).
+
+**에디터 탈출구는 `llmCalls` 하나뿐이라 LLM 호출 밖은 덮지 못한다.** 자격증명을 다루는
+워크플로의 디버깅 요구가 실제로 관측되면 participant-vs-observer 분리 egress(§R17 이
+"후속 개선 여지" 로 남긴 것)를 검토한다 — 지금은 **관측 전이라 착수하지 않는다**.
+
 ## §D — 흩어진 것은 문구가 아니라 **수치**다
 
 `executions.service.ts:802` · `background-runs.service.ts:301` · `executions.service.spec.ts:853`
@@ -136,29 +179,48 @@ deepRedactSecrets({headers:{authorization:'[REDACTED]', cookie:'[REDACTED]', 'co
 
 ## 작업 체크리스트
 
-- [ ] `/consistency-check --impl-prep`
-- [ ] 마커 멱등 — `deepRedactSecrets` 가 기존 마스킹 마커를 덮지 않게 (§마커) + 캐너리
-- [ ] B — `Execution.inputData` 의 webhook `[REDACTED]` 헤더가 읽기 경로를 지나도 보존되는
-      계약 테스트 (spec 5곳이 규정한 마커)
-- [ ] A — 두 fanout 브랜치가 공유하는 단일 헬퍼 + `deepRedactSecrets`
-- [ ] A — 회귀 테스트: fanout 은 마스킹 · wire 는 원문 보존(양방향 고정)
-- [ ] B — `toExecutionDto` + `toResponseExecution` 두 자리
-- [ ] B — 회귀 테스트
-- [ ] D — 정본 서술 1곳 + `{@link}` 2곳
-- [ ] 성능 실측 기록 (fanout 당 추가 walk 1회)
-- [ ] TEST WORKFLOW (lint / unit / build / e2e)
-- [ ] spec — `6-websocket-protocol.md` fanout 마스킹 규정 (**strip-only 결정과의 관계**를 명시 — §마커 참조)
-- [ ] spec — `14-external-interaction-api.md` §R17 카탈로그 등재 + **잔여 ①·② 둘 다 flip**
-      (③ 은 범위 밖 유지임을 명시). `22_22_36` rationale INFO-2 — 이 문서 자신이 *"열거다"* 를
-      원칙으로 두므로 ② 를 안 뒤집으면 stale 잔여가 남는다
-- [ ] spec — ingestion-time(§5.3 webhook 헤더) ↔ egress-time(§R17) 마스킹 철학의 상호 참조
-      한두 문장 (`22_22_36` rationale INFO-1). 아래 §마커 발견이 그 구체적 사례다
-- [ ] spec — `6-websocket-protocol.md` §4.1 의 `nodeName` → `nodeLabel` 4행 정정
-      (`22_22_36` convention W1). **범위 확장이 아니다** — checker 가 *"이번 작업의 spec 반영
-      단계에 곁들여 정정" _을 명시 권고_ 했고 같은 파일을 이미 연다. 실측: 엔진 emit 은 전부
-      `nodeLabel: node.label ?? node.type` 이고 `nodeName` emit 은 코드베이스에 0건.
-      추적 유실 방지로 `spec-sync-websocket-protocol-gaps.md` 에도 등재
-- [ ] `/consistency-check --spec`
-- [ ] 코드 동결 → `/ai-review` → 발견 모아서 fix → `RESOLUTION.md`
+- [x] `/consistency-check --impl-prep` (`22_22_36`) — **BLOCK: NO**, CRITICAL 0 · WARNING 5
+      전건 반영 (①·② flip · 헬퍼 명명 사전대조 · `nodeName` 정정 · 두 상충 캐비엇)
+- [x] 마커 멱등 — `deepRedactSecrets` 가 기존 마스킹 마커를 덮지 않게 (§마커) + 캐너리 4개
+- [x] B — webhook `[REDACTED]` 헤더가 읽기 경로를 지나도 보존되는 계약 테스트
+- [x] A — 두 emit 이 공유하는 초크포인트(`maskWireEnvelope` → `toFanoutEnvelope`)
+      > **사용자 재택일로 wire 도 마스킹**(`llmCalls` 만 예외) — 초안의 "fanout 전용" 근거
+      > (*"wire 는 소유자 콘솔"*)가 `ExecutionChannelAuthorizer` 실측으로 반증됐다
+- [x] A — 회귀 테스트 7개 (두 emit × wire·fanout 네 조합 + `llmCalls` 보존 + 마커 + 무손상)
+- [x] B — 여섯 표면 전부 (`toExecutionDto` · `toResponseExecution` · `nodeExecutions[]` ·
+      `BackgroundRunsService`) — 트래커는 한 곳만 지목했었다
+- [x] B — 회귀 테스트 8개
+- [x] D — 정본 표 1곳(`toResponseExecution`) + 나머지 3곳은 참조로
+- [x] 성능 실측 — emit 당 추가 walk 1회의 비용
+      > 8턴 `turnDebugHistory` waiting payload, N=3000, 같은 머신 A/B:
+      > **strip only `0.0181` → mask+strip `0.0323` ms/emit (+0.0142, 1.78배)**.
+      > `stripExternalOnlyFields` JSDoc 이 기록한 옛 실측(0.0112→0.0314, 2.80배)과 **같은 축**
+      > 이고 배율은 그보다 작다 — 순회가 2회에서 3회가 된 것이라 선형 증가다.
+      > ForEach 5,000 emit 기준 누적 +71ms. 수용한다: 이 표면은 자격증명이 외부 SSE 로
+      > 나가던 자리라 비용 대비 이익이 명확하다.
+      > 읽기 표면은 컬럼 2개가 늘지만 종결 실행은 `snapshotCache` 로 1회만 계산된다.
+- [x] TEST WORKFLOW 4단계 PASS (fix 반영 후 재실행) — lint / unit(백엔드 **427 suites ·
+      8,809 tests**) / build / e2e **276**
+      > **build 가 유닛이 못 잡은 타입 결함을 두 번 잡았다** — ① 두 컬럼에 관문을 걸자
+      > `ResponseExecution`/`ResponseNodeExecution` 이 `| null` 을 거부 ② `maskIfPresent<T>` 의
+      > `T` 가 값이 아니라 `mask` 파라미터에서 추론돼 `undefined` 를 흡수. 둘 다 캐스트로
+      > 덮었으면 조용히 지나갔을 자리다
+      > **plan 링크 가드도 draft 를 잡았다** — 인용 블록의 `./` 링크가 `spec/5-system/` 기준이라
+      > `plan/in-progress/` 에서는 깨진다. 코드 스팬으로 교체
+- [x] spec — `6-websocket-protocol.md` §4.1 마스킹 캐비엇 + `## Rationale` strip-only 보강
+      (**번복이 아니라 병존**임을 명시) + `:184` 자기모순 각주 정정(`23_10_41` naming W3)
+- [x] spec — `14-external-interaction-api.md` §R17 emit 카탈로그 불릿 신설 + **잔여 ①·② flip**
+      (③ 범위 밖 유지 명시) + 표면 열거를 "여섯 표면·세 컬럼" 으로 갱신
+- [x] spec — ingestion-time ↔ egress-time 마스킹 철학 상호 참조 (§R17) +
+      `12-webhook.md` §5.3 "민감 헤더 key 한정" 스코프 캐비엇
+- [x] spec — `6-websocket-protocol.md` §4.1 의 `nodeName` → `nodeLabel` **4행 정정 + drift
+      Note 교체** (`22_22_36` convention W1). **범위 확장이 아니다** — checker 가 *"이번 작업의
+      spec 반영 단계에 곁들여 정정"* 을 명시 권고했고 같은 파일을 이미 연다. 실측: 엔진 emit 은
+      전부 `nodeLabel: node.label ?? node.type` 이고 `nodeName` emit 은 코드베이스에 0건.
+      정정했으므로 트래커 등재는 불요(미구현 `execution.paused` 행만 그대로 두고 사유 명시)
+- [x] `/consistency-check --spec` (`23_10_41`) — **BLOCK: NO**, CRITICAL 0 · WARNING 3 전건 반영
+      (WS `:184` 자기모순 · plan 표 stale · draft `## Rationale` 부재)
+- [x] 코드 동결 → `/ai-review` (`23_08_19`, forced 7 전원) — **CRITICAL 0 · WARNING 8**,
+      **8건 전부 이 PR 에서 조치**(이연 0) → `RESOLUTION.md`
 - [ ] `--impl-done`
 - [ ] push 게이트 통과 → PR

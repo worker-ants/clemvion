@@ -169,6 +169,18 @@ checker 가 독립적으로** "인용이 가리키는 절이 오히려 반대를
       `ai_message.messages[]` · EIA `nodeOutput`)가 영향을 받으므로 blast radius 가 다른 별건이다.
       승격 시 그 소비자들의 회귀 테스트를 선행해야 한다
 
+- [ ] **`SECRET_LEAK_PATTERNS` 가 bare `token=` 을 안 잡는다** (2026-08-16 등재, 위 항목의
+      자매 — 같은 "패턴 폭" 축이다). 키워드 목록은 `client_secret`·`access_token`·
+      `refresh_token`·`id_token`·`api_key`·`password`·`passwd`·`pwd` 를 담지만 **`token` 단독은
+      없다** — `secret` 은 단독 패턴이 따로 있는데 `token` 은 없어 **비대칭**이다.
+      > **발견 경위**: `fe6a54c80` 의 테스트 fixture 를 `token=sk-live-abc123` 으로 썼다가
+      > **통과하는 것을 보고** 알았다(fixture 를 `Bearer …` 로 교체). 즉 실측 확인된 갭이다.
+      > `token=` 은 OAuth 응답·쿼리스트링에서 흔한 형태라 위 "자격증명 없는 연결 문자열"
+      > 보다 **위험이 높을 수 있다** — 그쪽은 자격증명이 없지만 이쪽은 자격증명 그 자체다.
+      > **다만 blast radius 는 같은 축**이다: 패턴을 넓히면 `deepRedactSecrets` 의 소비자
+      > 전부가 영향받고 `redact-stored-error.spec.ts` 의 캐너리가 RED 로 바뀐다.
+      > 위 항목과 **함께** 처리하는 것이 자연스럽다(한 번의 회귀 검증으로 둘 다 닫는다).
+
 - [x] **§6.4 필드 표 + §R17 마스킹 카탈로그에 이 egress 지점 등재** — 해소(2026-08-16)
       — 2026-08-16 등재, `11_36_45` W1. 구현은 끝났는데 **spec 이 새 보안 불변식을 모른다**.
 
@@ -220,9 +232,14 @@ checker 가 독립적으로** "인용이 가리키는 절이 오히려 반대를
       > `***` 로 덮는다. 두 마스킹 의미 중 이 표면에서 무엇이 우선인지가 **결정 항목**이다.
       > 테스트를 내 변경에 맞춰 고치는 대신 되돌리고 여기 등재한다
 
-- [ ] **단일 관문 근거 서술이 소스 3곳에 흩어져 있다** (2026-08-16 등재,
-      `19_16_28` maintainability W1). `executions.service.ts:802` · `background-runs.service.ts:301`
-      · `executions.service.spec.ts:853` 이 각각 *"자매 넷 중 하나만"* 을 언급한다.
+- [x] **단일 관문 근거 서술이 소스 3곳에 흩어져 있다** — 해소(2026-08-16, `fe6a54c80`).
+      읽기 표면 표를 `toResponseExecution` 에 정본으로 두고 나머지 세 지점은 그것을 가리키게
+      했다(개수를 다시 적지 않는다). **아래 "고치지 않는 이유" 가 이번에 뒤집혔다** — A·B 로
+      이미 같은 파일들을 열어 게이트를 한 바퀴 도는 중이라 한계비용이 0 이었고, 실제로
+      표면이 넷→여섯이 되며 그 "넷" 이 **낡았다**(우려가 실현됐다).
+      (원 등재, `19_16_28` maintainability W1) `executions.service.ts:802` ·
+      `background-runs.service.ts:301` · `executions.service.spec.ts:853` 이 각각
+      *"자매 넷 중 하나만"* 을 언급한다.
       > **전제를 실측했다 — verbatim 복제는 아니다.** 공유되는 것은 저장소 공용 **관용구**
       > (패턴 이름)이고 주변 서술은 지점마다 다르다(background-runs 는 `@Roles` 부재와
       > `NodeExecution.error` 를, spec 파일은 표면별 단언 이유를 담는다). **다만 "넷" 이라는
@@ -232,16 +249,24 @@ checker 가 독립적으로** "인용이 가리키는 절이 오히려 반대를
       > 0인데, 이 저장소의 게이트는 코드 편집마다 리뷰 라운드를 다시 요구한다 — 문서 서술
       > 수준의 개선을 위해 전체 게이트를 한 바퀴 더 도는 것은 비용이 이익을 넘는다
 
-- [ ] **WS `execution.node.*` emit 의 `error` 는 여전히 원문이다** (2026-08-16 등재).
-      위 항목의 **잔여**다 — 읽기 표면이 아니라 별도 emit 계약이고(종결 emit 이
-      `toTerminalErrorPayload` 를 갖는 것과 같은 층), `6-websocket-protocol.md` 가 마스킹을
-      규정하지 않는다. 종결 emit 과 같은 처방(egress 초크포인트)을 적용할지 택일 필요
+- [x] **WS `execution.node.*` emit 의 `error` 는 여전히 원문이다** — 해소(2026-08-16, `1b8fd5cc7`).
+      **사용자 택일: wire + fanout 둘 다 마스킹**(`llmCalls` 만 wire 예외).
+      > **초안의 "fanout 전용" 근거가 실측으로 반증됐다.** *"내부 wire 는 소유자 콘솔"* 로
+      > 적었으나 `ExecutionChannelAuthorizer` 는 `verifyOwnership(executionId, workspaceId)`
+      > 만 보고 **role 을 아예 받지 않는다** — 수신 인구가 `GET /api/executions/:id` 와 동일
+      > (viewer 포함)이라 §R17 이 내부 REST 를 마스킹한 것과 같은 상황이었다.
+      > 범위도 좁혔다: node 이벤트는 **SSE 에만** 도달하고 notification webhook 은
+      > `FANOUT_EVENTS` 화이트리스트 밖이다(`node.completed` 만 Chat Channel 추가 구독).
 
-- [ ] **내부 REST 의 `inputData`/`outputData` 도 원문이다** (2026-08-16 등재, 같은 근거).
-      `executions.service.ts:860`·`:861`. 외부 EIA `getStatus` 는 같은 `outputData` 에
-      `stripAndRedact` 를 거는데(`interaction.service.ts:452`) 내부 REST 는 걸지 않는다 —
-      `Execution.error` 와 **같은 형태의 비대칭**이 두 컬럼 더 남아 있다는 뜻이다.
-      blast radius 가 달라 별건으로 뗀다
+- [x] **내부 REST 의 `inputData`/`outputData` 도 원문이다** — 해소(2026-08-16, `fe6a54c80`).
+      트래커가 지목한 `toExecutionDto` 한 줄이 아니라 **여섯 표면**이었다 —
+      `toResponseExecution` 의 `...rest` 가 엔티티를 통째 펼치던 자리 셋과
+      `nodeExecutions[]`, 그리고 트래커에 없던 `BackgroundRunsService` 자매까지.
+      > **"`Execution.error` 와 같은 형태" 라는 이 항목의 서술은 틀렸다.** `error` 는 마커
+      > 없는 자유 필드지만 `inputData` 에는 webhook ingestion 의 `[REDACTED]` 마커가 이미
+      > 있다(12-webhook §5.3 계약, 4개 문서가 전제 공유). 값-마스커가 그걸 `***` 로 덮는
+      > 충돌을 무수정 프로브로 확인했고, `deepRedactSecrets` 를 **마커에 대해 멱등**하게
+      > 만들어 닫았다. 이건 §C 가 "결정 항목" 으로 떼어 둔 충돌과 **같은 형태**다
 
 > **왜 그 PR 에서 안 고쳤나**: 노출이 `error` 객체화로 **넓어지지 않았다** — 종전에도 같은
 > `errMessage` 문자열이 같은 fanout 을 탔다. 형태만 바뀌었지 내용과 경로는 동일하다.

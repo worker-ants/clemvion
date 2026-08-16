@@ -1262,6 +1262,68 @@ describe('ExecutionsService', () => {
       expect(headers['content-type']).toBe('application/json');
     });
 
+    /**
+     * **copy-on-change 를 필드별로 가른다** (`23_08_19` testing W5).
+     *
+     * 판정이 `error` 단일 필드에서 세 필드 AND 비교로 넓어졌다. 위 테스트들은 **값**만 보므로
+     * `inputData === ne.inputData` 항이 빠져도 전부 GREEN 이다 — 즉 그 항을 아무도 안 보고
+     * 있었다. 필드 하나만 leaky 한 행을 만들어 참조 동일성으로 물어야 그 뮤턴트가 RED 가 된다.
+     */
+    it('⑥-b copy-on-change — 세 컬럼이 전부 clean 한 행만 원본 참조를 유지한다', async () => {
+      const row = baseFake({ id: 'eD6b' });
+      executionRepo.createQueryBuilder.mockReturnValueOnce(
+        buildSingleQB(row) as unknown,
+      );
+      const clean = {
+        id: 'ne-clean',
+        executionId: 'eD6b',
+        error: null,
+        inputData: { orderId: 'A-1' },
+        outputData: { ok: true },
+      };
+      const inputLeaky = {
+        id: 'ne-in',
+        executionId: 'eD6b',
+        error: null,
+        inputData: { note: 'Bearer sk-live-IN' },
+        outputData: { ok: true },
+      };
+      const outputLeaky = {
+        id: 'ne-out',
+        executionId: 'eD6b',
+        error: null,
+        inputData: { orderId: 'A-2' },
+        outputData: { note: 'Bearer sk-live-OUT' },
+      };
+      nodeExecutionRepo.find.mockResolvedValue([
+        clean,
+        inputLeaky,
+        outputLeaky,
+      ]);
+
+      const result = (await service.findById('eD6b')) as unknown as {
+        nodeExecutions: unknown[];
+      };
+      // 셋 다 무변화 → 복제하지 않는다.
+      expect(result.nodeExecutions[0]).toBe(clean);
+      // `inputData` 만 바뀌어도 복제된다 (그 비교 항이 살아있다는 증거).
+      expect(result.nodeExecutions[1]).not.toBe(inputLeaky);
+      expect(
+        JSON.stringify(
+          (result.nodeExecutions[1] as { inputData: unknown }).inputData,
+        ),
+      ).not.toContain('sk-live-IN');
+      // `outputData` 만 바뀌어도 복제된다.
+      expect(result.nodeExecutions[2]).not.toBe(outputLeaky);
+      expect(
+        JSON.stringify(
+          (result.nodeExecutions[2] as { outputData: unknown }).outputData,
+        ),
+      ).not.toContain('sk-live-OUT');
+      // 원본 엔티티는 불변 (egress-only).
+      expect(inputLeaky.inputData.note).toBe('Bearer sk-live-IN');
+    });
+
     it('⑦ 정상 데이터는 손상되지 않는다 + DB 원문 불변 (egress-only)', async () => {
       const original = { orderId: 'A-1', qty: 3 };
       const row = baseFake({ id: 'eD7', inputData: original });

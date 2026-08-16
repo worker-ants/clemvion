@@ -47,14 +47,16 @@ export class BackgroundRunNodeExecutionDto {
   durationMs: number | null;
 
   @ApiPropertyOptional({
-    description: '입력 데이터 (JSON)',
+    description:
+      '입력 데이터 (JSON). 자격증명으로 판별된 값은 마스킹되어 반환된다(DB 원문과 다를 수 있음) — 형제 필드 `error` 와 같은 정책. webhook ingestion 이 남긴 `[REDACTED]` 마커는 보존된다. SoT: EIA §R17 (spec/5-system/14-external-interaction-api.md)',
     type: 'object',
     additionalProperties: true,
   })
   inputData: Record<string, unknown> | null;
 
   @ApiPropertyOptional({
-    description: '출력 데이터 (JSON, NodeHandlerOutput shape)',
+    description:
+      '출력 데이터 (JSON, NodeHandlerOutput shape). 자격증명으로 판별된 값은 마스킹되어 반환된다 — 위 `inputData` 와 같은 정책·같은 SoT.',
     type: 'object',
     additionalProperties: true,
   })

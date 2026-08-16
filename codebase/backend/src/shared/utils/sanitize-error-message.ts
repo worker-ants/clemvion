@@ -114,10 +114,17 @@ export const MAX_REDACT_DEPTH = 10;
  * **안전 방향은 한쪽으로만 열린다**: 절대 unmask 하지 않고, 이미 마스킹된 값을 다시 덮지
  * 않을 뿐이다. 마커 문자열 자체는 시크릿이 아니므로 보존해도 노출이 늘지 않는다.
  */
+/** 값-패턴 마스커가 남기는 마커. */
+export const VALUE_MASK_MARKER = '***';
+/** 키-이름 마스커(`sanitizePayloadForWs` · webhook ingestion)가 남기는 마커. */
+export const KEY_MASK_MARKER = '[REDACTED]';
+/** 깊이 상한 초과 서브트리를 통째로 대체하는 마커. */
+export const DEPTH_MASK_MARKER = '[REDACTED_DEPTH]';
+
 const MASKED_MARKERS: ReadonlySet<string> = new Set([
-  '***',
-  '[REDACTED]',
-  '[REDACTED_DEPTH]',
+  VALUE_MASK_MARKER,
+  KEY_MASK_MARKER,
+  DEPTH_MASK_MARKER,
 ]);
 
 function isMaskedMarker(v: unknown): boolean {

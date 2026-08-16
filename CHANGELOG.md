@@ -1,5 +1,41 @@
 # Changelog
 
+## Unreleased — 자유 텍스트 안의 자격증명이 WS emit 과 내부 REST 두 컬럼으로 나가고 있었다
+
+아래 두 항목(#1177 종결 emit · #1179 읽기 경로)이 `Execution.error` 를 닫았지만 **그 옆이
+비어 있었다.** 무수정 프로브로 실증한 누출 — `execution.node.failed` 의
+`error: 'Authorization: Bearer eyJ…'` 가 외부 fanout envelope 까지 원문으로 도달했고,
+`inputData`/`outputData` 는 내부 REST 여섯 표면에서 원문이었다.
+
+**왜 샜나** (총칭이 아니라 열거): `sanitizePayloadForWs` 는 **키 이름** 기반이라 문자열 값을
+그대로 통과시키고, `stripExternalOnlyFields` 는 `llmCalls` **필드 제거** 전용이며,
+`SseAdapter` 는 이벤트 타입 필터가 없어 `node.*` 를 전부 외부로 push 한다. 종결 이벤트만
+`toTerminalErrorPayload` 가 막고 있었다.
+
+**WS emit** — 두 emit(`emitExecutionEvent`·`emitNodeEvent`)이 공유하는 초크포인트에서 값-패턴
+마스킹. `executionEventSubject.next` 호출부가 정확히 둘이라 한 곳만 고치면 자매가 갈린다.
+**내부 wire 에도 적용**한다 — `execution:<id>` 구독 인가가 workspace 소유만 보고 role 을 안
+받아 수신 인구가 `GET /api/executions/:id` 와 동일하기 때문이다(EIA §R17 boundary parity).
+**예외는 `llmCalls` 하나** — 에디터 전용 raw 디버그라 wire 에서 원문 유지(fanout 은 필드째
+strip 하므로 외부 노출 불변). WS §Rationale 의 strip-only 결정은 **번복되지 않았다**.
+
+**내부 REST** — `redactStoredDataForResponse` 를 `inputData`/`outputData` 에 적용. 표면은
+**여섯**이다: `findById` · `getChain` · `stop` · `toExecutionDto`(목록) ·
+`findById` 의 `nodeExecutions[]` · `BackgroundRunsService.toNodeExecutionDto`.
+
+**마커를 덮지 않는다** — `deepRedactSecrets` 가 이미 마스킹된 값(`[REDACTED]` · `***` ·
+`[REDACTED_DEPTH]`)을 재마스킹하지 않게 했다. webhook ingestion 이 남긴 `[REDACTED]` 는
+[12-webhook §5.3](./spec/5-system/12-webhook.md) 이 규정한 계약이라, 덮으면 같은 헤더가
+`$trigger.headers` 에서는 `[REDACTED]`, 실행 상세 API 에서는 `***` 로 보인다.
+
+**⚠️ wire 변화**: WS/SSE 이벤트 payload 와 실행 상세 API 의 `inputData`/`outputData` 바이트가
+바뀔 수 있다. 워크플로가 **정당하게** 자격증명을 다루면 그 값도 `***` 로 보인다 — 외부
+`getStatus` 는 이미 같은 마스킹을 걸고 있었고 내부만 없던 비대칭을 없앤 것이다. DB 는 원문을
+보존한다(egress-only). 평범한 값은 무변화(캐너리로 고정).
+
+**성능**: emit 당 순회가 2회 → 3회. 8턴 waiting payload N=3000 실측 **0.0181 → 0.0323 ms**
+(+0.0142, 1.78배).
+
 ## Unreleased — 같은 `Execution.error` 를 표면마다 다른 값으로 말하고 있었다 (읽기 경로)
 
 **#1177**(아래 항목 — CHANGELOG 는 최신이 위로 쌓인다)이 **종결 emit 경로**에 값-마스킹을

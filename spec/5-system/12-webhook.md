@@ -317,6 +317,15 @@ required 파라미터 누락·타입 강제 변환 실패 시 `hooks.service` �
 webhook 요청의 **인증/시크릿성 헤더 값**(`Authorization`·`Cookie`·`X-Api-Key`·`X-Auth-Token` 등)은 `Execution.inputData` 로 저장되기 **전**, 인증 검증(§4·§7 step 6) **직후** `[REDACTED]` 로 마스킹된다 (`hooks.service` 의 두 execute 진입점 — §7 step 8b 일반 경로 / step 7e chatChannel 경로). 마스킹 blacklist 는 통합 노드가 재사용하는 `sanitizeResponseHeaders`(exact: `authorization`/`cookie`/`x-auth-token`… + substring `auth`/`token`/`secret`/`cookie`/`credential`/`password`/`api-key`/`signature`)를 단일 진실로 재사용하며, 키는 유지하고 값만 마스킹한다. `signature` substring 은 `X-Hub-Signature-256`(webhook HMAC)·`X-Slack-Signature`·`X-Signature-Ed25519`(Discord) 등 서명 헤더까지 커버한다. 비민감 커스텀 헤더(`content-type`·`x-event-type` 등)는 그대로 보존된다.
 
 - **효과 (단일 소스)**: `Execution.inputData.headers`, Manual Trigger `output.request.headers`([manual-trigger §5.2](../4-nodes/7-trigger/1-manual-trigger.md#52-case-webhook-어댑터-port-out)), expression `$trigger.headers`([5-expression-language §4.5](./5-expression-language.md#45-trigger--env-런타임-주입)) — 세 노출 표면이 모두 마스킹된 값을 참조한다. 실행 상세·Re-run 모달·background-run 상세 등 `inputData`/`output_data` 를 노출하는 모든 read 경로가 자동으로 마스킹된다 (표면별 개별 마스킹 불필요).
+
+  > **스코프는 "알려진 민감 헤더 key" 한정이다 (2026-08-16 명시)**: 위 자동 마스킹은
+  > `sanitizeResponseHeaders` 의 key-blacklist 가 아는 **헤더 key**(그리고 `Execution.inputData`
+  > 의 헤더 서브필드)에만 걸린다. **body·params 의 자유 텍스트에 박힌 자격증명**(`Bearer …`,
+  > 자격증명 포함 URI 등)은 이 층이 잡지 못하며, 그쪽은 읽기·emit 표면의 egress 값-마스킹
+  > ([EIA §R17](./14-external-interaction-api.md))이 담당한다. 두 층은 대상이 달라 경쟁하지 않고
+  > 쌓이며, egress 층은 여기서 남긴 `[REDACTED]` 마커를 **덮지 않는다**.
+  > 이 문장을 *"inputData 는 이미 전부 안전하다"* 로 읽으면 EIA §R17 이 닫은 자유-텍스트 갭이
+  > 가려진다.
 - **인증 무영향**: HMAC 서명 검증·IP whitelist·토큰 비교(§4)는 마스킹 **이전** raw 헤더로 수행되며, `sourceIp`·§A.3 호출 이력도 raw 로 기록된다. 마스킹은 인증 이후 저장 직전에만 적용된다.
 - **정당화**: 실행 상세 read 는 워크스페이스 소유권(`verifyOwnership(workspaceId)`)만 게이트하므로, 마스킹이 없으면 **워크스페이스 전 멤버**가 raw 인증 헤더를 열람할 수 있다. `output.request.headers` 를 raw 로 소비하는 다운스트림 노드는 없으며(인증은 이미 §4 에서 완료), 비민감 헤더는 보존되므로 정상 use-case 회귀가 없다.
 

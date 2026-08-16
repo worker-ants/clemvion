@@ -55,6 +55,28 @@ export const RERUN_CHAIN_DEPTH_LIMIT = 32;
 const RERUN_CHAIN_WALK_MAX = RERUN_CHAIN_DEPTH_LIMIT * 2;
 
 /**
+ * 값이 있을 때만 마스킹하고, 없으면 **입력을 그대로** 돌려준다.
+ *
+ * `redactStored*` 는 부재를 `null` 로 **정규화**하는데, `nodeExecutions[]` 는 엔티티 형태를
+ * 그대로 싣는 자리라 `undefined → null` 로 바뀌면 (1) 응답 shape 이 달라지고 (2) 값이 없어
+ * 아무것도 안 바뀐 행까지 참조가 달라져 copy-on-change 최적화가 깨진다.
+ *
+ * 컬럼마다 같은 삼항을 손으로 반복하면 컬럼이 늘 때 한 줄이 빠진다 — 이 파일이 고치는 결함
+ * 클래스 그 자체라 헬퍼로 묶는다 (`23_08_19` maintainability W7).
+ *
+ * **제네릭을 쓰지 않는다** — `<T>` 로 두면 TS 가 `T` 를 값이 아니라 `mask` 의 **파라미터
+ * 타입**(`… | null | undefined`)에서 추론해 반환 타입에 `undefined` 가 섞이고,
+ * `ResponseNodeExecution` 배정에서 빌드가 깨진다(실제로 한 번 깨졌다). 세 컬럼이 모두
+ * 같은 구체 타입이라 제네릭의 이득도 없다.
+ */
+function maskIfPresent(
+  value: Record<string, unknown>,
+  mask: (v: Record<string, unknown>) => Record<string, unknown> | null,
+): Record<string, unknown> {
+  return value == null ? value : (mask(value) ?? value);
+}
+
+/**
  * 종결 상태 (`completed` / `failed` / `cancelled`) 실행의 findById 응답은 불변이다.
  * WS 구독자 다수가 동시에 동일 execution 채널에 구독해 반복 fetch 가 발생하면
  * REPEATABLE READ 트랜잭션 + 3개 SELECT 가 매번 실행돼 DB 부하가 누적된다.
@@ -657,21 +679,15 @@ export class ExecutionsService {
           // `redactStored*` 는 바뀐 것이 없으면 같은 참조를 돌려주므로, 셋 다 무변화면
           // 행 자체를 그대로 재사용해 대규모 ForEach 실행의 행-수만큼의 shallow-copy 를
           // 피한다. `error` 만 보고 판단하던 종전 조건을 세 컬럼으로 넓힌다.
-          // 값이 없으면 **손대지 않는다** — `redactStored*` 는 부재를 `null` 로 정규화하는데,
-          // 이 배열은 엔티티 형태를 그대로 싣는 자리라 `undefined → null` 로 바꾸면
-          // 응답 shape 이 달라지고 무변화 행에도 복사가 생긴다.
-          const inputData =
-            ne.inputData == null
-              ? ne.inputData
-              : redactStoredDataForResponse(ne.inputData);
-          const outputData =
-            ne.outputData == null
-              ? ne.outputData
-              : redactStoredDataForResponse(ne.outputData);
-          const error =
-            ne.error == null
-              ? ne.error
-              : redactStoredErrorForResponse(ne.error);
+          const inputData = maskIfPresent(
+            ne.inputData,
+            redactStoredDataForResponse,
+          );
+          const outputData = maskIfPresent(
+            ne.outputData,
+            redactStoredDataForResponse,
+          );
+          const error = maskIfPresent(ne.error, redactStoredErrorForResponse);
           return inputData === ne.inputData &&
             outputData === ne.outputData &&
             error === ne.error
