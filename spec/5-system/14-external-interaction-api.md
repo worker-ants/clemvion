@@ -1509,12 +1509,15 @@ present-when-available 이므로, REST 만 `null` 로 정규화하면 위젯의 
       마스킹 — 수용된 trade-off)의 선례가 같은 방향이다. **단 R-5 의 직접 대상은 Config 탭이라
       `Execution.error` 를 이미 규정하고 있지는 않다** — 원칙을 원용한 것이지 기존 판정이 아니다.
     - **DB 는 여전히 원문**(위 egress-only 원칙 불변). 서버 로그·사후 디버깅의 진실은 유지된다.
-    - **적용 범위는 총칭이 아니라 열거다** (2026-08-16 갱신 — 표면 **여섯**, 컬럼 **셋**):
-      `error` 는 `redactStoredErrorForResponse`, `inputData`/`outputData` 는
-      `redactStoredDataForResponse` 가 담당하며 걸리는 자리는 ① `findById` ② `getChain`
-      ③ `stop` ④ `toExecutionDto`(목록) ⑤ `findById` 의 `nodeExecutions[]`
-      ⑥ `BackgroundRunsService.toNodeExecutionDto`(본문 노드) **까지**다.
+    - **적용 범위는 총칭이 아니라 열거다** (2026-08-16 갱신 — 표면 **여섯**, 컬럼 **둘**):
+      `error` 는 `redactStoredErrorForResponse`, `outputData` 는
+      `redactStoredDataForResponse` 가 담당하며 걸리는 자리는 (1) `findById` (2) `getChain`
+      (3) `stop` (4) `toExecutionDto`(목록) (5) `findById` 의 `nodeExecutions[]`
+      (6) `BackgroundRunsService.toNodeExecutionDto`(본문 노드) **까지**다.
+      **`inputData` 는 이 목록의 대상이 아니다** — 바로 아래 잔여 ② 참조.
       소스 정본은 `ExecutionsService.toResponseExecution` 의 표.
+      > 표면 번호를 아라비아 숫자로 적는다 — 같은 절의 "잔여 ①②③" 이 원형숫자를 쓰므로
+      > 두 열거가 글리프를 공유하면 인용이 섞인다 (`23_49_05` naming W1).
       *"모든 내부 읽기 경로"* 로 읽으면 아래 잔여가 가려진다 — 이 문서가 반복해 겪은 실패
       형태라 표면을 이름으로 못박는다.
       > 종전 이 자리는 *"`ExecutionsService` 4경로"* 였는데, 두 컬럼을 더하며 실측하니
@@ -1523,8 +1526,23 @@ present-when-available 이므로, REST 만 `null` 로 정규화하면 위젯의 
     - **~~잔여 ①~~ 해소(2026-08-16)**: WS `execution.node.*` **emit** 경로의 `error` — 아래
       "emit 경로 값-패턴 마스킹" 불릿이 닫았다. [WS 프로토콜 §4.1](./6-websocket-protocol.md)이
       이제 마스킹을 규정한다.
-    - **~~잔여 ②~~ 해소(2026-08-16)**: `inputData`/`outputData` — 위 표면 열거에 두 컬럼이
-      포함됐다. 외부 `getStatus` 만 `stripAndRedact` 를 걸던 비대칭이 사라졌다.
+    - **잔여 ② — `outputData` 해소, `inputData` 는 의도적 비대상(2026-08-16)**:
+      `outputData` 는 위 표면 열거에 포함됐다(외부 `getStatus` 만 `stripAndRedact` 를 걸던
+      비대칭 해소). **`inputData` 는 마스킹하지 않는다** — 표시 전용이 아니라 **재제출되는
+      값**이기 때문이다:
+      - Re-run 모달이 `inputData` 를 프리필해 `inputOverride` 로 되보내고
+        (`useOriginalInput` **기본값이 `false`** 라 사용자가 손대지 않아도 제출된다),
+        에디터 "히스토리에서 불러오기" 도 같은 값을 textarea 로 적재해 재실행한다.
+        마스킹하면 리터럴 `'***'` 가 **새 실행의 실제 입력값**이 된다 — 가시성 저하가 아니라
+        **조용한 기능 오염**이다. 두 게이트(`23_49_05` cross_spec · `23_50_03` side_effect)가
+        독립으로 CRITICAL 을 냈고 소스 추적으로 확증했다.
+      - **기본 Re-run 은 영향 없다** — 서버가 `original.inputData` 를 엔티티에서 직접 읽는다.
+        위험은 클라이언트 프리필 왕복 경로 하나다.
+      - **남는 노출**: 트리거 파라미터 자유 텍스트의 자격증명. 다만 `inputData` 의 주요
+        자격증명 벡터인 webhook 민감 헤더는 **ingestion 시점에 이미 `[REDACTED]`**
+        ([§5.3](./12-webhook.md#53-민감-헤더-마스킹-ingestion)).
+      - **닫는 조건**: 프런트가 마스킹 마커를 감지해 해당 필드 재입력을 강제하는 가드가
+        선행되어야 한다. 트래커에 등재됐다.
     - **잔여 ③ (범위 밖 유지)**: **workflow-assistant LLM 도구**(`explore-tools.service.ts`)는 `inputData` ·
       `outputData` · `error` **세 필드**를 `maskSensitiveFields`(**키 이름** 기반)로만 내보내
       자유 텍스트 안의 자격증명을 통과시킨다 (그쪽 마스킹 규칙의 SoT 는

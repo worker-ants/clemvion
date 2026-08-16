@@ -1018,6 +1018,8 @@ describe('WebsocketService', () => {
       });
       const fanout = await eventP;
       expect(fanout.payload.message).not.toContain('eyJhbGciOiJIUzI1NiJ9');
+      // 양성 단언 — 없으면 "필드 소실/undefined" 회귀도 GREEN 이다 (`23_50_03` testing W3).
+      expect(fanout.payload.message).toContain('***');
     });
 
     it('④ emitExecutionEvent — wire 도 마스킹', async () => {
@@ -1029,6 +1031,7 @@ describe('WebsocketService', () => {
         unknown
       >;
       expect(wire.message).not.toContain('eyJhbGciOiJIUzI1NiJ9');
+      expect(wire.message).toContain('***');
     });
 
     it('llmCalls 는 wire 에서 원문 유지 — 에디터 디버깅 탈출구 (strip-only 결정 보존)', async () => {

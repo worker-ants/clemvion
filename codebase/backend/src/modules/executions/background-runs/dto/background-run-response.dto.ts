@@ -48,7 +48,7 @@ export class BackgroundRunNodeExecutionDto {
 
   @ApiPropertyOptional({
     description:
-      '입력 데이터 (JSON). 자격증명으로 판별된 값은 마스킹되어 반환된다(DB 원문과 다를 수 있음) — 형제 필드 `error` 와 같은 정책. webhook ingestion 이 남긴 `[REDACTED]` 마커는 보존된다. SoT: EIA §R17 (spec/5-system/14-external-interaction-api.md)',
+      '입력 데이터 (JSON). **값-패턴 마스킹 대상이 아니다** — 재실행 프리필이 이 값을 그대로 재제출하므로 마스킹하면 `***` 가 실제 입력이 된다 (근거 정본: ExecutionsService 의 MASKED_INPUT_DATA_REASON). webhook 민감 헤더는 ingestion 시점에 이미 `[REDACTED]` 로 저장된다.',
     type: 'object',
     additionalProperties: true,
   })
@@ -56,7 +56,7 @@ export class BackgroundRunNodeExecutionDto {
 
   @ApiPropertyOptional({
     description:
-      '출력 데이터 (JSON, NodeHandlerOutput shape). 자격증명으로 판별된 값은 마스킹되어 반환된다 — 위 `inputData` 와 같은 정책·같은 SoT.',
+      '출력 데이터 (JSON, NodeHandlerOutput shape). 자격증명으로 판별된 값은 마스킹되어 반환된다(DB 원문과 다를 수 있음) — 형제 필드 `error` 와 같은 정책. ingestion 이 남긴 `[REDACTED]` 마커는 보존된다. SoT: EIA §R17 (spec/5-system/14-external-interaction-api.md)',
     type: 'object',
     additionalProperties: true,
   })

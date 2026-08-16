@@ -55,6 +55,38 @@ export const RERUN_CHAIN_DEPTH_LIMIT = 32;
 const RERUN_CHAIN_WALK_MAX = RERUN_CHAIN_DEPTH_LIMIT * 2;
 
 /**
+ * **`inputData` 를 egress 마스킹하지 않는 이유** — 이 결정을 한 곳에 적고 호출부는
+ * `{@link MASKED_INPUT_DATA_REASON}` 으로 가리킨다.
+ *
+ * `inputData` 는 **표시 전용이 아니다** — 두 소비처가 그 값을 읽어 **그대로 재제출**한다:
+ *
+ * | 소비처 | 경로 |
+ * |---|---|
+ * | Re-run 모달 | `original.inputData` → `paramValues` 프리필 → `inputOverride` 제출 |
+ * | 에디터 "히스토리에서 불러오기" | 상세 조회 `inputData` → textarea → 재실행 |
+ *
+ * Re-run 모달의 `useOriginalInput` **기본값이 `false`**(편집 모드)라, 사용자가 아무것도
+ * 건드리지 않고 실행해도 프리필된 값이 `inputOverride` 로 제출된다. 여기에 마스킹을 걸면
+ * 리터럴 `'***'` 가 **새 실행의 실제 입력값**이 된다 — 가시성 저하가 아니라 **조용한 기능
+ * 오염**이다(`23_49_05` cross_spec CRITICAL · `23_50_03` side_effect CRITICAL 이 독립 발견).
+ *
+ * **기본 Re-run(`useOriginalInput=true`)은 영향이 없다** — 서버가 `original.inputData` 를
+ * 엔티티에서 직접 읽는다. 위험은 클라이언트 프리필 왕복 경로 하나다.
+ *
+ * `outputData` 는 이 문제가 없다 — 실측상 소비처가 전부 **표시 전용**이다.
+ *
+ * **잔여 갭임을 인정한다**: 트리거 파라미터 자유 텍스트의 자격증명은 계속 노출된다. 다만
+ * `inputData` 의 주요 자격증명 벡터인 webhook 민감 헤더는 **ingestion 시점에 이미
+ * `[REDACTED]`** 로 가려져 있다(12-webhook §5.3). 프런트가 마스킹 마커를 감지해 재입력을
+ * 강제하는 가드가 선행되면 그때 이 컬럼도 닫는다 — 트래커에 등재했다.
+ */
+const MASKED_INPUT_DATA_REASON =
+  'inputData 는 Re-run/히스토리-로드가 재제출하는 값이라 egress 마스킹 대상이 아니다';
+
+// 이 상수는 JSDoc 앵커 전용이다 — 런타임 참조가 없어도 제거하지 않는다.
+void MASKED_INPUT_DATA_REASON;
+
+/**
  * 값이 있을 때만 마스킹하고, 없으면 **입력을 그대로** 돌려준다.
  *
  * `redactStored*` 는 부재를 `null` 로 **정규화**하는데, `nodeExecutions[]` 는 엔티티 형태를
@@ -66,8 +98,15 @@ const RERUN_CHAIN_WALK_MAX = RERUN_CHAIN_DEPTH_LIMIT * 2;
  *
  * **제네릭을 쓰지 않는다** — `<T>` 로 두면 TS 가 `T` 를 값이 아니라 `mask` 의 **파라미터
  * 타입**(`… | null | undefined`)에서 추론해 반환 타입에 `undefined` 가 섞이고,
- * `ResponseNodeExecution` 배정에서 빌드가 깨진다(실제로 한 번 깨졌다). 세 컬럼이 모두
+ * `ResponseNodeExecution` 배정에서 빌드가 깨진다(실제로 한 번 깨졌다). 두 컬럼이 모두
  * 같은 구체 타입이라 제네릭의 이득도 없다.
+ *
+ * **시그니처가 `| null` 을 안 적는 것은 의도다** (`23_50_03` maintainability W6). 엔티티가
+ * 두 컬럼을 non-null 로 선언하므로 **정적으로는** null 이 올 수 없고, 반환 타입에 `| null`
+ * 을 얹으면 `ResponseNodeExecution` 배정이 깨진다. 본문의 `== null` 은 TypeORM 이 런타임에
+ * `undefined` 를 줄 수 있는 경로에 대한 **방어**이며, 그 경우 입력을 그대로 통과시켜
+ * copy-on-change 를 지킨다 — 타입으로 null 가능성을 숨긴 것이 아니라, 정적 계약(non-null)과
+ * 런타임 방어를 분리한 것이다.
  */
 function maskIfPresent(
   value: Record<string, unknown>,
@@ -91,25 +130,25 @@ function maskIfPresent(
 export const SNAPSHOT_CACHE_MAX_ENTRIES = 256;
 
 /**
- * 응답으로 나가는 Execution — 엔티티와 **마스킹 대상 세 컬럼의 null 가능성만** 다르다.
+ * 응답으로 나가는 Execution — 엔티티와 **마스킹 대상 두 컬럼의 null 가능성만** 다르다.
  *
- * 엔티티는 `error`/`inputData`/`outputData` 를 `Record<string, unknown>` 로 `| null`
- * 없이 선언하지만, egress 마스킹 관문({@link ExecutionsService.toResponseExecution})은
+ * 엔티티는 `error`/`outputData` 를 `Record<string, unknown>` 로 `| null` 없이
+ * 선언하지만, egress 마스킹 관문({@link ExecutionsService.toResponseExecution})은
  * 값이 없을 때 정직하게 `null` 을 돌려준다. 그 차이를 `as Execution` 로 덮으면 이후
  * 소비자가 그 필드를 null-check 없이 만져도 컴파일러가 침묵한다 — 이 작업이 고치는
  * 결함 클래스(자매 표면 누락)를 타입이 잡아줄 기회를 줄이는 셈이라 명시 타입으로 남긴다.
  *
- * > `inputData`/`outputData` 를 여기 함께 넓힌 것은 2026-08-16 이다. 그전엔 `error` 만
- * > 넓어져 있었고, 두 컬럼에 같은 관문을 걸자 **빌드가 타입 오류로 잡았다** — 유닛
- * > 테스트는 통과했는데 `nest build` 만 잡은 자리라, 타입을 넓히지 않고 캐스트로 덮었으면
- * > 조용히 지나갔을 결함이다.
+ * > `outputData` 를 여기 넣은 것은 2026-08-16 이다. 그전엔 `error` 만 넓어져 있었고,
+ * > 같은 관문을 걸자 **빌드가 타입 오류로 잡았다** — 유닛 테스트는 통과했는데
+ * > `nest build` 만 잡은 자리다.
+ * > **`inputData` 는 여기 없다** — 마스킹 대상이 아니기 때문이다
+ * > ({@link MASKED_INPUT_DATA_REASON}). 엔티티 타입 그대로 통과한다.
  */
 export type ResponseExecution = Omit<
   Execution,
-  'error' | 'inputData' | 'outputData' | 'trigger' | 'executor'
+  'error' | 'outputData' | 'trigger' | 'executor'
 > & {
   error: Record<string, unknown> | null;
-  inputData: Record<string, unknown> | null;
   outputData: Record<string, unknown> | null;
 };
 
@@ -122,10 +161,9 @@ export type ResponseExecution = Omit<
  */
 export type ResponseNodeExecution = Omit<
   NodeExecution,
-  'error' | 'inputData' | 'outputData'
+  'error' | 'outputData'
 > & {
   error: Record<string, unknown> | null;
-  inputData: Record<string, unknown> | null;
   outputData: Record<string, unknown> | null;
 };
 
@@ -679,20 +717,15 @@ export class ExecutionsService {
           // `redactStored*` 는 바뀐 것이 없으면 같은 참조를 돌려주므로, 셋 다 무변화면
           // 행 자체를 그대로 재사용해 대규모 ForEach 실행의 행-수만큼의 shallow-copy 를
           // 피한다. `error` 만 보고 판단하던 종전 조건을 세 컬럼으로 넓힌다.
-          const inputData = maskIfPresent(
-            ne.inputData,
-            redactStoredDataForResponse,
-          );
+          // `inputData` 는 대상이 아니다 — {@link MASKED_INPUT_DATA_REASON}.
           const outputData = maskIfPresent(
             ne.outputData,
             redactStoredDataForResponse,
           );
           const error = maskIfPresent(ne.error, redactStoredErrorForResponse);
-          return inputData === ne.inputData &&
-            outputData === ne.outputData &&
-            error === ne.error
+          return outputData === ne.outputData && error === ne.error
             ? ne
-            : { ...ne, inputData, outputData, error };
+            : { ...ne, outputData, error };
         });
         const executionPath = pathRows.map((r) => r.nodeId);
         // `take` 상한과 동일 길이로 돌아오면 그 이후의 로그가 잘렸을 수 있다.
@@ -989,9 +1022,11 @@ export class ExecutionsService {
         ? this.toIso(execution.finishedAt)
         : null,
       durationMs: execution.durationMs ?? null,
-      // 목록 경로의 마스킹 자리 — 세 컬럼 전부. 나머지 세 표면은 `toResponseExecution`
-      // 이 덮는다 (여기는 엔티티가 아니라 DTO 조립이라 그 관문을 지나지 않는다).
-      inputData: redactStoredDataForResponse(execution.inputData),
+      // 목록 경로의 마스킹 자리. 나머지 세 표면은 `toResponseExecution` 이 덮는다
+      // (여기는 엔티티가 아니라 DTO 조립이라 그 관문을 지나지 않는다).
+      //
+      // **`inputData` 는 의도적으로 마스킹하지 않는다** — {@link MASKED_INPUT_DATA_REASON}.
+      inputData: execution.inputData ?? null,
       outputData: redactStoredDataForResponse(execution.outputData),
       error: redactStoredErrorForResponse(execution.error),
       executedBy: execution.executedBy ?? null,
@@ -1053,9 +1088,9 @@ export class ExecutionsService {
     const { trigger: _t, executor: _e, ...rest } = execution;
     return {
       ...rest,
-      // 세 컬럼 전부 — `...rest` 는 엔티티를 통째로 펼치므로 여기서 덮지 않으면
-      // `inputData`/`outputData` 가 원문으로 나간다 (`error` 만 가리던 자리였다).
-      inputData: redactStoredDataForResponse(rest.inputData),
+      // `...rest` 는 엔티티를 통째로 펼치므로 여기서 덮지 않으면 원문이 나간다
+      // (`error` 만 가리던 자리였다). **`inputData` 는 제외** —
+      // {@link MASKED_INPUT_DATA_REASON}.
       outputData: redactStoredDataForResponse(rest.outputData),
       error: redactStoredErrorForResponse(rest.error),
     };

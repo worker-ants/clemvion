@@ -49,11 +49,13 @@ export class ExecutionDto {
   /**
    * 입력 데이터 — 트리거가 워크플로우에 주입한 input (manual parameters / webhook body / schedule context).
    *
-   * **자격증명으로 판별된 값은 마스킹되어 반환된다** (`error` 와 동일 정책, 2026-08-16) —
-   * `Bearer …`·자격증명 포함 URI 등이 `***` 로 치환되므로 **DB 원문과 다를 수 있다**.
-   * webhook ingestion 이 이미 `[REDACTED]` 로 가린 민감 헤더는 **그 마커가 보존**된다
-   * (`spec/5-system/12-webhook.md` §5.3 계약). SoT: EIA §R17, 구현
-   * `shared/utils/redact-stored-error.ts` 의 `redactStoredDataForResponse`.
+   * **값-패턴 마스킹 대상이 아니다** (형제 `outputData`/`error` 와 다르다) — 이 값은 표시
+   * 전용이 아니라 Re-run 모달·에디터 "히스토리에서 불러오기" 가 읽어 **그대로 재제출**하므로,
+   * 마스킹하면 `***` 가 새 실행의 실제 입력이 된다. 근거 정본:
+   * `ExecutionsService` 의 `MASKED_INPUT_DATA_REASON`.
+   *
+   * 단 **webhook 민감 헤더는 ingestion 시점에 이미 `[REDACTED]`** 로 저장된다
+   * (`spec/5-system/12-webhook.md` §5.3) — 그건 이 필드에도 그대로 실린다.
    */
   @ApiPropertyOptional({
     type: 'object',
@@ -65,7 +67,10 @@ export class ExecutionDto {
   /**
    * 출력 데이터 — 워크플로우 최종 결과. 노드별 envelope 는 nodeExecutions[i].outputData 참조.
    *
-   * **자격증명으로 판별된 값은 마스킹되어 반환된다** — 위 `inputData` 와 같은 정책·같은 SoT.
+   * **자격증명으로 판별된 값은 마스킹되어 반환된다** (`error` 와 동일 정책, 2026-08-16) —
+   * `Bearer …`·자격증명 포함 URI 등이 `***` 로 치환되므로 **DB 원문과 다를 수 있다**.
+   * ingestion 이 이미 남긴 `[REDACTED]` 마커는 **보존**된다. SoT: EIA §R17, 구현
+   * `shared/utils/redact-stored-error.ts` 의 `redactStoredDataForResponse`.
    */
   @ApiPropertyOptional({
     type: 'object',

@@ -68,7 +68,7 @@ export function redactSecrets(raw: string): string {
   if (typeof raw !== 'string' || raw.length === 0) return raw;
   let masked = raw;
   for (const pattern of SECRET_LEAK_PATTERNS) {
-    masked = masked.replace(pattern, '***');
+    masked = masked.replace(pattern, VALUE_MASK_MARKER);
   }
   return masked;
 }
@@ -223,7 +223,7 @@ function deepRedactCore(
       : redactSecrets(value);
   }
   if (value === null || typeof value !== 'object') return value;
-  if (depth >= MAX_REDACT_DEPTH) return '***';
+  if (depth >= MAX_REDACT_DEPTH) return VALUE_MASK_MARKER;
   return deepRedactObject(value, depth, opts);
 }
 
@@ -255,7 +255,7 @@ function deepRedactObject(
       CREDENTIAL_KEY_PATTERN.test(k)
     ) {
       // 이미 앞선 층이 마스킹한 값이면 그 마커를 **덮지 않는다** ({@link MASKED_MARKERS}).
-      r = isMaskedMarker(v) ? v : '***';
+      r = isMaskedMarker(v) ? v : VALUE_MASK_MARKER;
     } else {
       r = deepRedactCore(v, depth + 1, opts);
     }

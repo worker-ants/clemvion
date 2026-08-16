@@ -258,7 +258,28 @@ checker 가 독립적으로** "인용이 가리키는 절이 오히려 반대를
       > 범위도 좁혔다: node 이벤트는 **SSE 에만** 도달하고 notification webhook 은
       > `FANOUT_EVENTS` 화이트리스트 밖이다(`node.completed` 만 Chat Channel 추가 구독).
 
-- [x] **내부 REST 의 `inputData`/`outputData` 도 원문이다** — 해소(2026-08-16, `fe6a54c80`).
+- [ ] **`inputData` egress 마스킹 — 프런트 마커 가드가 선행돼야 한다** (2026-08-17 등재).
+      아래 항목에서 `outputData` 만 닫고 **`inputData` 는 되돌렸다.** 이 값은 표시 전용이
+      아니라 **재제출**되기 때문이다 — Re-run 모달이 프리필해 `inputOverride` 로 되보내고
+      (`useOriginalInput` **기본 `false`**), 에디터 "히스토리에서 불러오기" 도 같은 값을
+      재실행한다. 마스킹하면 리터럴 `'***'` 가 새 실행의 **실제 입력값**이 된다.
+      > **두 게이트가 독립으로 CRITICAL 을 냈다**(`23_49_05` cross_spec · `23_50_03`
+      > side_effect). 소스 추적으로 확증했고 사용자가 **철회**를 택했다.
+      > 기본 Re-run(`useOriginalInput=true`)은 서버가 엔티티를 직접 읽어 영향 없다.
+      > **닫는 조건**: 두 소비처가 마스킹 마커를 감지해 해당 필드 재입력을 강제하는 가드.
+      > 그 가드가 서면 이 컬럼도 닫는다. 현재는 회귀 캐너리로 **비대상임을 고정**해 뒀다
+      > (`executions.service.spec.ts` ⑧·⑧-b·⑥-b, `background-runs.service.spec.ts`).
+      > 남는 노출은 트리거 파라미터 자유 텍스트뿐 — webhook 민감 헤더는 ingestion 이
+      > 이미 `[REDACTED]` 로 가린다.
+
+- [ ] **WS 대기-재개 경로에도 같은 "마스킹된 값의 재사용" 이 있는지 점검** (2026-08-17 등재,
+      `23_50_03` side_effect W2). 버튼 재개는 실측상 `resumeFromButtons` 가 로컬 UI 상태만
+      정리하고 payload 를 재제출하지 않아 **현재는 무해**하다. 다만 위 CRITICAL 과 **같은
+      클래스**(마스킹된 응답을 표시가 아니라 재입력으로 재사용)라, form/conversation 재개까지
+      포함해 전수로 한 번 훑어 두는 것이 값싸다.
+
+- [x] **내부 REST 의 `outputData` 는 원문이다** — 해소(2026-08-16, `fe6a54c80`).
+      (`inputData` 는 위 항목으로 분리 — 되돌렸다.)
       트래커가 지목한 `toExecutionDto` 한 줄이 아니라 **여섯 표면**이었다 —
       `toResponseExecution` 의 `...rest` 가 엔티티를 통째 펼치던 자리 셋과
       `nodeExecutions[]`, 그리고 트래커에 없던 `BackgroundRunsService` 자매까지.

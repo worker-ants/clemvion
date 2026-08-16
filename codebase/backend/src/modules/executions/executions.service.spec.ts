@@ -1104,18 +1104,27 @@ describe('ExecutionsService', () => {
   });
 
   /**
-   * `inputData`/`outputData` 응답 egress 마스킹 (§R17 잔여 ② — 결정 2026-08-16).
+   * `outputData` 응답 egress 마스킹 (§R17 잔여 ② 부분 해소 — 결정 2026-08-16).
+   *
+   * ## `inputData` 는 **의도적으로 대상이 아니다**
+   *
+   * 초안은 두 컬럼을 함께 마스킹했다가 **되돌렸다.** `inputData` 는 표시 전용이 아니라
+   * Re-run 모달·에디터 "히스토리에서 불러오기" 가 읽어 **그대로 재제출**하는 값이라,
+   * 마스킹하면 리터럴 `'***'` 가 새 실행의 실제 입력이 된다(조용한 기능 오염).
+   * 두 게이트가 독립으로 CRITICAL 을 냈고 소스 추적으로 확증했다 —
+   * 소스 정본은 `ExecutionsService` 의 `MASKED_INPUT_DATA_REASON`.
+   *
+   * 그래서 이 describe 는 **양방향을 고정**한다: `outputData` 는 마스킹되고
+   * `inputData` 는 **원문 그대로** 나가야 한다(⑧ 캐너리). 한쪽만 단언하면 나중에
+   * 누군가 `inputData` 에 관문을 다시 붙여도 스위트가 초록이다.
    *
    * ## 왜 `error` 자매 describe 와 따로 두나
    *
-   * 트래커는 이 항목을 *"`Execution.error` 와 같은 형태"* 로 등재했지만 **다르다** —
-   * 이 두 컬럼에는 **앞선 마스킹 층**이 있다. webhook ingestion 이 민감 헤더를
+   * `outputData` 에는 **앞선 마스킹 층**이 있다 — webhook ingestion 이 민감 헤더를
    * `[REDACTED]` 로 마스킹해 저장하고(12-webhook §5.3), 그건 4개 문서가 전제를 공유하는
    * 문서화된 계약이다. 그래서 여기엔 `error` 에 없는 단언이 하나 더 붙는다 — **마커 보존**.
-   *
-   * 표면마다 따로 단언하는 이유는 위 `error` describe 와 같다.
    */
-  describe('inputData/outputData 응답 마스킹 — 표면 전수', () => {
+  describe('outputData 응답 마스킹 — 표면 전수 (+ inputData 비대상 고정)', () => {
     const LEAKY_IN = {
       note: 'connect via postgres://admin:pw@db.internal/prod',
     };
@@ -1141,8 +1150,10 @@ describe('ExecutionsService', () => {
         inputData: { note: string };
         outputData: { body: string };
       };
-      expect(result.inputData.note).not.toContain('admin:pw');
       expect(result.outputData.body).not.toContain('sk-live-abc123');
+      expect(result.outputData.body).toContain('***');
+      // `inputData` 는 재제출 경로라 원문 그대로 — 위 describe 주석 참조.
+      expect(result.inputData.note).toContain('admin:pw');
     });
 
     it('② findByWorkflow — 목록 (toExecutionDto)', async () => {
@@ -1156,12 +1167,10 @@ describe('ExecutionsService', () => {
       );
 
       const result = await service.findByWorkflow('w1', {});
-      expect(JSON.stringify(result.data[0].inputData)).not.toContain(
-        'admin:pw',
-      );
       expect(JSON.stringify(result.data[0].outputData)).not.toContain(
         'sk-live-abc123',
       );
+      expect(JSON.stringify(result.data[0].inputData)).toContain('admin:pw');
     });
 
     it('③ getChain — chain 조회', async () => {
@@ -1210,7 +1219,7 @@ describe('ExecutionsService', () => {
       expect(JSON.stringify(result.outputData)).not.toContain('sk-live-abc123');
     });
 
-    it('⑤ findById — nodeExecutions[] 의 두 컬럼도 마스킹 (형제 필드 우회 차단)', async () => {
+    it('⑤ findById — nodeExecutions[].outputData 도 마스킹 (형제 필드 우회 차단)', async () => {
       const row = baseFake({ id: 'eD5' });
       executionRepo.createQueryBuilder.mockReturnValueOnce(
         buildSingleQB(row) as unknown,
@@ -1229,8 +1238,9 @@ describe('ExecutionsService', () => {
         nodeExecutions: Array<Record<string, unknown>>;
       };
       const ne = JSON.stringify(result.nodeExecutions[0]);
-      expect(ne).not.toContain('admin:pw');
       expect(ne).not.toContain('sk-live-abc123');
+      // 노드 레벨에서도 `inputData` 는 비대상 — 상위와 같은 이유.
+      expect(ne).toContain('admin:pw');
     });
 
     /**
@@ -1241,12 +1251,17 @@ describe('ExecutionsService', () => {
      * 연쇄 작업으로 없애 온 바로 그 병이라, 여기가 RED 면 계약이 깨졌다는 뜻이다.
      */
     it('⑥ ingestion 의 `[REDACTED]` 헤더 마커를 덮지 않는다 (12-webhook §5.3 계약)', async () => {
+      // **`outputData` 로 겨눈다** — `inputData` 는 마스커를 아예 안 지나므로 거기서
+      // 단언하면 "마커 보존" 이 아니라 "아무것도 안 함" 을 검증하는 vacuous 테스트가 된다.
+      // 트리거 노드의 `output.request.headers` 가 ingestion 마커를 그대로 싣는 실제 형태다.
       const row = baseFake({
         id: 'eD6',
-        inputData: {
-          headers: {
-            authorization: '[REDACTED]',
-            'content-type': 'application/json',
+        outputData: {
+          request: {
+            headers: {
+              authorization: '[REDACTED]',
+              'content-type': 'application/json',
+            },
           },
         },
       });
@@ -1256,8 +1271,10 @@ describe('ExecutionsService', () => {
 
       const result = await service.findByWorkflow('w1', {});
       const headers = (
-        result.data[0].inputData as { headers: Record<string, string> }
-      ).headers;
+        result.data[0].outputData as {
+          request: { headers: Record<string, string> };
+        }
+      ).request.headers;
       expect(headers.authorization).toBe('[REDACTED]');
       expect(headers['content-type']).toBe('application/json');
     });
@@ -1265,11 +1282,15 @@ describe('ExecutionsService', () => {
     /**
      * **copy-on-change 를 필드별로 가른다** (`23_08_19` testing W5).
      *
-     * 판정이 `error` 단일 필드에서 세 필드 AND 비교로 넓어졌다. 위 테스트들은 **값**만 보므로
-     * `inputData === ne.inputData` 항이 빠져도 전부 GREEN 이다 — 즉 그 항을 아무도 안 보고
-     * 있었다. 필드 하나만 leaky 한 행을 만들어 참조 동일성으로 물어야 그 뮤턴트가 RED 가 된다.
+     * 판정이 `error` 단일 필드에서 두 필드 AND 비교로 넓어졌다. 값만 비교하는 테스트는
+     * `outputData === ne.outputData` 항이 빠져도 GREEN 이다 — 참조 동일성으로 물어야
+     * 그 뮤턴트가 RED 가 된다.
+     *
+     * **`inputData` 만 leaky 한 행이 여기서 중요한 역할을 한다**: 그 행은 마스킹 대상이
+     * 아니므로 **복제되지 않아야** 한다. `inputData` 에 관문이 다시 붙으면 이 단언이
+     * RED 로 바뀌어 CRITICAL 회귀(Re-run 재제출 오염)를 그 자리에서 잡는다.
      */
-    it('⑥-b copy-on-change — 세 컬럼이 전부 clean 한 행만 원본 참조를 유지한다', async () => {
+    it('⑥-b copy-on-change — 마스킹 대상(2컬럼)만 복제를 유발한다', async () => {
       const row = baseFake({ id: 'eD6b' });
       executionRepo.createQueryBuilder.mockReturnValueOnce(
         buildSingleQB(row) as unknown,
@@ -1304,16 +1325,17 @@ describe('ExecutionsService', () => {
       const result = (await service.findById('eD6b')) as unknown as {
         nodeExecutions: unknown[];
       };
-      // 셋 다 무변화 → 복제하지 않는다.
+      // 마스킹 대상 두 컬럼이 무변화 → 복제하지 않는다.
       expect(result.nodeExecutions[0]).toBe(clean);
-      // `inputData` 만 바뀌어도 복제된다 (그 비교 항이 살아있다는 증거).
-      expect(result.nodeExecutions[1]).not.toBe(inputLeaky);
+      // **`inputData` 만 leaky 한 행도 복제되지 않는다** — 비대상이므로.
+      // 여기가 RED 면 `inputData` 에 관문이 다시 붙었다는 뜻이다(CRITICAL 회귀 캐너리).
+      expect(result.nodeExecutions[1]).toBe(inputLeaky);
       expect(
         JSON.stringify(
           (result.nodeExecutions[1] as { inputData: unknown }).inputData,
         ),
-      ).not.toContain('sk-live-IN');
-      // `outputData` 만 바뀌어도 복제된다.
+      ).toContain('sk-live-IN');
+      // `outputData` 가 바뀌면 복제된다 (그 비교 항이 살아있다는 증거).
       expect(result.nodeExecutions[2]).not.toBe(outputLeaky);
       expect(
         JSON.stringify(
@@ -1321,19 +1343,71 @@ describe('ExecutionsService', () => {
         ),
       ).not.toContain('sk-live-OUT');
       // 원본 엔티티는 불변 (egress-only).
-      expect(inputLeaky.inputData.note).toBe('Bearer sk-live-IN');
+      expect(outputLeaky.outputData.note).toBe('Bearer sk-live-OUT');
     });
 
     it('⑦ 정상 데이터는 손상되지 않는다 + DB 원문 불변 (egress-only)', async () => {
       const original = { orderId: 'A-1', qty: 3 };
-      const row = baseFake({ id: 'eD7', inputData: original });
+      const row = baseFake({ id: 'eD7', outputData: original });
       executionRepo.createQueryBuilder.mockReturnValueOnce(
         buildListQB([row]) as unknown,
       );
 
       const result = await service.findByWorkflow('w1', {});
-      expect(result.data[0].inputData).toEqual({ orderId: 'A-1', qty: 3 });
+      expect(result.data[0].outputData).toEqual({ orderId: 'A-1', qty: 3 });
       expect(original).toEqual({ orderId: 'A-1', qty: 3 });
+    });
+
+    /**
+     * **`inputData` 비대상을 네 표면에서 각각 고정한다** — CRITICAL 회귀 캐너리.
+     *
+     * 위 ①·② 가 두 표면을 덮고, ⑥-b 가 `nodeExecutions[]` 를 덮는다. 여기서는 나머지
+     * 두 반환 경로(`getChain`·`stop`)를 겨눠 **네 표면 전부**를 고정한다 — `error` 때
+     * *"한 표면에서 호출을 지워도 스위트가 초록"* 이던 것과 같은 형태를 반대 방향
+     * (관문이 **붙는** 회귀)으로 막는다.
+     */
+    it('⑧ getChain·stop 도 `inputData` 를 원문으로 통과시킨다 (재제출 경로 보호)', async () => {
+      const root = baseFake({ id: 'eD8', inputData: { ...LEAKY_IN } });
+      const chainQB: Record<string, jest.Mock> = {};
+      chainQB.leftJoinAndSelect = jest.fn().mockReturnValue(chainQB);
+      chainQB.where = jest.fn().mockReturnValue(chainQB);
+      chainQB.orderBy = jest.fn().mockReturnValue(chainQB);
+      chainQB.getOne = jest
+        .fn()
+        .mockResolvedValue({ ...root, workflow: { workspaceId: 'ws1' } });
+      chainQB.getMany = jest.fn().mockResolvedValue([root]);
+      executionRepo.createQueryBuilder.mockReturnValue(chainQB as unknown);
+
+      const rows = await service.getChain('eD8', 'ws1', { sub: 'u1' } as never);
+      expect(JSON.stringify(rows[0].inputData)).toContain('admin:pw');
+    });
+
+    it('⑧-b stop 도 `inputData` 를 원문으로 통과시킨다', async () => {
+      const running = baseFake({
+        id: 'eD8b',
+        status: ExecutionStatus.RUNNING,
+        error: null,
+      });
+      const cancelled = baseFake({
+        id: 'eD8b',
+        status: ExecutionStatus.CANCELLED,
+        error: null,
+        inputData: { ...LEAKY_IN },
+      });
+      executionRepo.findOne
+        .mockResolvedValueOnce(running as unknown)
+        .mockResolvedValueOnce(cancelled as unknown);
+
+      const qb: Record<string, jest.Mock> = {};
+      qb.update = jest.fn().mockReturnValue(qb);
+      qb.set = jest.fn().mockReturnValue(qb);
+      qb.where = jest.fn().mockReturnValue(qb);
+      qb.andWhere = jest.fn().mockReturnValue(qb);
+      qb.execute = jest.fn().mockResolvedValue({ affected: 1 });
+      executionRepo.createQueryBuilder.mockReturnValue(qb as unknown);
+
+      const result = await service.stop('eD8b');
+      expect(JSON.stringify(result.inputData)).toContain('admin:pw');
     });
   });
 });

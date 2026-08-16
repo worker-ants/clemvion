@@ -24,11 +24,11 @@ spec_impact:
 | 항목 | 결정 | 근거 |
 |---|---|---|
 | A | ~~fanout 브랜치에만~~ → **wire + fanout 둘 다** (`llmCalls` 만 wire 예외) — **2026-08-16 재택일** | 아래 §A + §A-재택일 |
-| B | ~~#1179 와 같은 구조~~ → **같은 구조가 아니었다**. 마커 멱등성이 선행 조건 | 아래 §B + §마커 |
+| B | ~~두 컬럼~~ → **`outputData` 만**. `inputData` 는 **철회**(재제출 경로 오염) — **2026-08-17 재택일** | 아래 §B + §마커 + §철회 |
 | D | A·B PR 에 묶는다 | 트래커가 이미 "단독으론 게이트 비용이 이익을 넘는다" 로 등재 |
 
-> **표를 두 번 고쳤다.** 초판은 A 를 *"fanout 브랜치에만"*, B 를 *"#1179 와 같은 구조"* 로
-> 적었는데 **둘 다 실측으로 반증됐다**(각각 §A-재택일 · §마커). 두 게이트가 이 표의 stale
+> **표를 세 번 고쳤다.** 초판은 A 를 *"fanout 브랜치에만"*, B 를 *"#1179 와 같은 구조로 두
+> 컬럼"* 으로 적었는데 **전부 실측으로 반증됐다**(§A-재택일 · §마커 · §철회). 두 게이트가 이 표의 stale
 > 상태를 각각 잡았다(`23_08_19` requirement W3 · `23_10_41` plan_coherence W2) — 결정이
 > 뒤집히면 **요약 표가 가장 늦게 낡는다**.
 
@@ -151,6 +151,30 @@ deepRedactSecrets({headers:{authorization:'[REDACTED]', cookie:'[REDACTED]', 'co
 | `toFanoutEnvelope` | fanout envelope **조립** (strip → redact → routing 첨부) | 마스커가 아니라 조립 함수라 `redact*`/`strip*`/`sanitize*` 패밀리에 넣지 않는다. 기존 `to*` 조립 패밀리(`toTerminalErrorPayload` · `toResponseExecution` · `toExecutionDto`)와 같은 결. 모듈-로컬 `stripAndRedact`(`interaction.service.ts`)와 **동명 재사용 회피** |
 | `redactStoredDataForResponse` | DB `inputData`/`outputData` 컬럼값 egress 마스킹 | 자매 `redactStoredErrorForResponse` 와 **같은 파일·같은 명명 규칙**. `Error`↔`Data` 로 대상 컬럼만 갈린다 |
 
+## §철회 — `inputData` 는 되돌렸다 (게이트가 CRITICAL 로 잡았다)
+
+**`inputData` 는 표시 전용이 아니라 재제출되는 값이다.** 소스로 확증한 경로:
+
+| 단계 | 근거 |
+|---|---|
+| 상세 페이지 → 모달 `original.inputData` | `page.tsx:471` |
+| 모달이 `paramValues` 프리필 | `rerun-modal.tsx:178` |
+| `useOriginalInput` 기본값 **`false`** | `rerun-modal.tsx:181` |
+| `inputOverride: paramValues` 제출 | `rerun-modal.tsx:284` |
+| 백엔드가 그대로 새 실행 입력으로 사용 | `executions.service.ts` re-run 분기 |
+
+마스킹하면 리터럴 `'***'` 가 **새 실행의 실제 입력값**이 된다. 에디터 "히스토리에서
+불러오기"(`editor-toolbar.tsx:126`)도 같은 컬럼이다. `23_49_05`(impl-done) cross_spec 과
+`23_50_03`(리뷰 2R) side_effect 가 **독립으로 같은 결함**을 냈고, 사용자가 **철회**를 택했다.
+
+**기본 Re-run(`useOriginalInput=true`)은 영향이 없었다** — 서버가 엔티티를 직접 읽는다.
+`outputData` 도 무해하다 — 실측상 소비처가 전부 표시 전용이다. 그래서 되돌린 범위는
+**`inputData` 하나**로 정확히 좁혔다.
+
+> **교훈**: 이 PR 은 "egress 마스킹" 을 **표시 표면**의 문제로만 봤다. 같은 필드가
+> **읽혀서 되쓰이는** 경로가 있으면 마스킹은 가시성이 아니라 **데이터 무결성** 문제가 된다.
+> 되돌린 방향은 캐너리로 고정했다(관문을 다시 붙이면 RED).
+
 ## §부작용 — 디버깅 가시성이 줄어드는 자리 (수용된 trade-off)
 
 **사용자에게 보이는 변화다.** 워크플로가 **정당하게** 자격증명을 다루는 경우
@@ -220,7 +244,14 @@ deepRedactSecrets({headers:{authorization:'[REDACTED]', cookie:'[REDACTED]', 'co
       정정했으므로 트래커 등재는 불요(미구현 `execution.paused` 행만 그대로 두고 사유 명시)
 - [x] `/consistency-check --spec` (`23_10_41`) — **BLOCK: NO**, CRITICAL 0 · WARNING 3 전건 반영
       (WS `:184` 자기모순 · plan 표 stale · draft `## Rationale` 부재)
-- [x] 코드 동결 → `/ai-review` (`23_08_19`, forced 7 전원) — **CRITICAL 0 · WARNING 8**,
-      **8건 전부 이 PR 에서 조치**(이연 0) → `RESOLUTION.md`
-- [ ] `--impl-done`
+- [x] 코드 동결 → `/ai-review` 1R (`23_08_19`, forced 7 전원) — **CRITICAL 0 · WARNING 8**,
+      **8건 전부 조치**(이연 0) → `RESOLUTION.md`
+- [x] `--impl-done` 1R (`23_49_05`) — **BLOCK: YES · CRITICAL 1**.
+      `inputData` 마스킹이 Re-run 재제출을 오염시킨다는 지적을 소스로 확증 → **§철회**
+- [x] `/ai-review` 2R (`23_50_03`, 코드 동결 후) — **CRITICAL 1**(같은 결함 독립 발견) ·
+      **WARNING 7**. CRITICAL 은 설계 철회로 해소, WARNING 6건 조치 + 1건 트래커 →
+      `RESOLUTION.md`
+- [x] `inputData` 철회 + 되돌린 방향 캐너리 고정 + spec·CHANGELOG·유저가이드 동기화
+- [x] TEST WORKFLOW 재실행 — lint / unit(백엔드 **427 suites · 8,812 tests**) / build / e2e **276**
+- [ ] `--impl-done` 재실행 (철회 반영본)
 - [ ] push 게이트 통과 → PR

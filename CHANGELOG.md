@@ -19,19 +19,29 @@
 **예외는 `llmCalls` 하나** — 에디터 전용 raw 디버그라 wire 에서 원문 유지(fanout 은 필드째
 strip 하므로 외부 노출 불변). WS §Rationale 의 strip-only 결정은 **번복되지 않았다**.
 
-**내부 REST** — `redactStoredDataForResponse` 를 `inputData`/`outputData` 에 적용. 표면은
-**여섯**이다: `findById` · `getChain` · `stop` · `toExecutionDto`(목록) ·
-`findById` 의 `nodeExecutions[]` · `BackgroundRunsService.toNodeExecutionDto`.
+**내부 REST** — `redactStoredDataForResponse` 를 **`outputData`** 에 적용. 표면은 **여섯**이다:
+`findById` · `getChain` · `stop` · `toExecutionDto`(목록) · `findById` 의 `nodeExecutions[]` ·
+`BackgroundRunsService.toNodeExecutionDto`.
+
+**⚠️ `inputData` 는 마스킹하지 않는다 (의도)** — 초안은 두 컬럼을 함께 닫았다가 **되돌렸다.**
+`inputData` 는 표시 전용이 아니라 **재제출되는 값**이다: Re-run 모달이 프리필해
+`inputOverride` 로 되보내고(`useOriginalInput` **기본 `false`** 라 손대지 않아도 제출된다),
+에디터 "히스토리에서 불러오기" 도 같은 값을 재실행한다. 마스킹하면 리터럴 `'***'` 가
+**새 실행의 실제 입력값**이 된다 — 가시성 저하가 아니라 조용한 기능 오염이다. 두 게이트가
+독립으로 CRITICAL 을 냈고 소스 추적으로 확증했다. 기본 Re-run(`useOriginalInput=true`)은
+서버가 엔티티를 직접 읽어 영향 없다. 회귀 캐너리로 비대상임을 고정했고, 프런트 마커 가드는
+트래커에 등재했다.
 
 **마커를 덮지 않는다** — `deepRedactSecrets` 가 이미 마스킹된 값(`[REDACTED]` · `***` ·
 `[REDACTED_DEPTH]`)을 재마스킹하지 않게 했다. webhook ingestion 이 남긴 `[REDACTED]` 는
 [12-webhook §5.3](./spec/5-system/12-webhook.md) 이 규정한 계약이라, 덮으면 같은 헤더가
 `$trigger.headers` 에서는 `[REDACTED]`, 실행 상세 API 에서는 `***` 로 보인다.
 
-**⚠️ wire 변화**: WS/SSE 이벤트 payload 와 실행 상세 API 의 `inputData`/`outputData` 바이트가
-바뀔 수 있다. 워크플로가 **정당하게** 자격증명을 다루면 그 값도 `***` 로 보인다 — 외부
-`getStatus` 는 이미 같은 마스킹을 걸고 있었고 내부만 없던 비대칭을 없앤 것이다. DB 는 원문을
-보존한다(egress-only). 평범한 값은 무변화(캐너리로 고정).
+**⚠️ wire 변화**: WS/SSE 이벤트 payload 와 실행 상세 API 의 `outputData` 바이트가 바뀔 수
+있다. 워크플로가 **정당하게** 자격증명을 다루면 그 값도 `***` 로 보인다 — 외부 `getStatus` 는
+이미 같은 마스킹을 걸고 있었고 내부만 없던 비대칭을 없앤 것이다. DB 는 원문을 보존한다
+(egress-only). 평범한 값은 무변화(캐너리로 고정). 유저 가이드의 Output 탭 설명에 이 캐비엇을
+추가했다.
 
 **성능**: emit 당 순회가 2회 → 3회. 8턴 waiting payload N=3000 실측 **0.0181 → 0.0323 ms**
 (+0.0142, 1.78배).
