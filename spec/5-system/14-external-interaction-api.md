@@ -1505,10 +1505,18 @@ present-when-available 이므로, REST 만 `null` 로 정규화하면 위젯의 
       마스킹 — 수용된 trade-off)의 선례가 같은 방향이다. **단 R-5 의 직접 대상은 Config 탭이라
       `Execution.error` 를 이미 규정하고 있지는 않다** — 원칙을 원용한 것이지 기존 판정이 아니다.
     - **DB 는 여전히 원문**(위 egress-only 원칙 불변). 서버 로그·사후 디버깅의 진실은 유지된다.
+    - **적용 범위는 총칭이 아니라 열거다**: 위 마스킹이 걸리는 곳은 `ExecutionsService` 4경로와
+      `BackgroundRunsService` body 노드**까지**다. *"모든 내부 읽기 경로"* 로 읽으면 아래 잔여가
+      가려진다 — 이 문서가 반복해 겪은 실패 형태라 표면을 이름으로 못박는다.
     - **잔여(범위 밖)**: ① WS `execution.node.*` **emit** 경로의 `error` 는 여전히 원문이다 — 읽기
       표면이 아니라 별도 emit 계약이고 [WS 프로토콜](./6-websocket-protocol.md)이 마스킹을 규정하지
       않는다. ② `inputData`/`outputData` 는 **다른 컬럼**이라 포함되지 않는다 — 외부 `getStatus` 는
       `stripAndRedact` 를 거는데 내부 REST 는 걸지 않아 같은 형태의 비대칭이 남아 있다.
+      ③ **workflow-assistant LLM 도구**(`explore-tools.service.ts`)는 같은 두 컬럼을
+      `maskSensitiveFields`(**키 이름** 기반)로만 내보내 자유 텍스트 안의 자격증명을 통과시킨다.
+      여기에 값-패턴 마스킹을 **단순 합성하면 안 된다** — 그 함수는 자격증명 키를 `****9876` 처럼
+      **접미 힌트를 남겨** 어떤 키가 가려졌는지 식별하게 하는데, 값-패턴 마스킹을 겹치면 그 힌트가
+      사라진다(기존 테스트가 이 회귀를 잡는다). 어느 의미가 우선하는지는 별도 결정이라 분리했다.
 - **`nodeOutput` 일반 키 allowlist (미구현·잔여)**: conversationConfig 이외의 `nodeOutput` 키 집합을 렌더 필수 메타로
   제한하는 런타임 allowlist 필터(SSE emit 은 sanitizePayloadForWs 의 credential-**키** 마스킹으로 부분 방어; author
   config 의 값-embedded secret 은 저위험 gap)는 위 값/키 기반 redaction 과 **별개**이며 여전히 후속 하드닝 항목이다.

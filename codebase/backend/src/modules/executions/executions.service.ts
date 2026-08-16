@@ -75,7 +75,23 @@ export const SNAPSHOT_CACHE_MAX_ENTRIES = 256;
  * 인 상황에서 추가 행이 잘렸을 수 있음을 알린다 — 프론트엔드 UI 가 "이 이후 일부
  * 로그가 표시되지 않습니다" 배너를 띄울 수 있도록.
  */
-export type ExecutionDetailWithTrigger = Execution & {
+/**
+ * 응답으로 나가는 Execution — 엔티티와 **`error` 의 null 가능성만** 다르다.
+ *
+ * 엔티티는 `error: Record<string, unknown>` 로 `| null` 없이 선언돼 있지만, egress
+ * 마스킹 관문({@link ExecutionsService.toResponseExecution})은 값이 없을 때 정직하게
+ * `null` 을 돌려준다. 그 차이를 `as Execution` 로 덮으면 이후 소비자가 `.error` 를
+ * null-check 없이 만져도 컴파일러가 침묵한다 — 이 PR 이 고치는 결함 클래스(자매 표면
+ * 누락)를 타입이 잡아줄 기회를 줄이는 셈이라 명시 타입으로 남긴다.
+ */
+export type ResponseExecution = Omit<
+  Execution,
+  'error' | 'trigger' | 'executor'
+> & {
+  error: Record<string, unknown> | null;
+};
+
+export type ExecutionDetailWithTrigger = ResponseExecution & {
   nodeExecutions: NodeExecution[];
   triggerSource: ExecutionTriggerSource;
   triggerLabel: string | null;
@@ -505,7 +521,7 @@ export class ExecutionsService {
     executionId: string,
     workspaceId: string,
     user: JwtPayload,
-  ): Promise<Execution[]> {
+  ): Promise<ResponseExecution[]> {
     const exec = await this.executionRepository
       .createQueryBuilder('e')
       .leftJoinAndSelect('e.workflow', 'workflow')
@@ -600,14 +616,23 @@ export class ExecutionsService {
         // **같은 문자열**이 이 배열 안에 원문으로 들어 있고, 둘이 같은 응답으로 나간다.
         // 최상위만 가리면 방어가 아니라 방어처럼 보이는 것이 된다
         // (`16_32_42` cross_spec CRITICAL).
+        //
+        // **copy-on-change 를 지킨다** — `error` 가 없는 행(정상 종료 행 = 절대다수)은
+        // 원본 참조를 그대로 돌려준다. 무조건 spread 하면 자매 함수
+        // `reconcilePreParkWaitingStatus` 가 지키는 관례를 이 배열 위에서만 깨고,
+        // 이 조회에는 `take` 상한이 없어(자매 `ExecutionNodeLog` 조회와 달리) 대규모
+        // ForEach 실행에서 불필요한 shallow-copy 가 행 수만큼 쌓인다. 게다가 진행 중
+        // 실행은 `writeSnapshotCache` 대상이 아니라 폴링·WS 재연결마다 재계산된다
+        // (`17_12_34` performance W1).
         const reconciledNodeExecutions = reconcilePreParkWaitingStatus(
           nodeExecutions,
-        ).map(
-          (ne) =>
-            ({
-              ...ne,
-              error: redactStoredErrorForResponse(ne.error),
-            }) as NodeExecution,
+        ).map((ne) =>
+          ne.error == null
+            ? ne
+            : ({
+                ...ne,
+                error: redactStoredErrorForResponse(ne.error),
+              } as NodeExecution),
         );
         const executionPath = pathRows.map((r) => r.nodeId);
         // `take` 상한과 동일 길이로 돌아오면 그 이후의 로그가 잘렸을 수 있다.
@@ -763,8 +788,21 @@ export class ExecutionsService {
    * (waiting 경로 · `affected=0` 재조회 · 정상 재조회 · 각 폴백) 호출부마다 마스킹을 걸면
    * 다섯 번째 반환이 추가될 때 조용히 빠진다 — 이 저장소가 *"자매 넷 중 하나만"* 으로
    * 반복해 겪은 형태다. 함수를 하나 더 두어 **모든 반환이 같은 문을 통과**하게 한다.
+   *
+   * ## 반환 계약이 바뀌었다 (2026-08-16)
+   *
+   * 종전에는 재조회한 **엔티티 참조를 그대로** 돌려줬다 — `findById`/`getChain` 과 달리
+   * strip 관문을 타지 않던 유일한 공개 경로였다(`17_12_34` side_effect W1). 이제
+   * (1) `error` 가 마스킹된 **복사본**이고 (2) 타입이 {@link ResponseExecution} 이다.
+   *
+   * **`trigger`/`executor` 가 응답에서 사라지지는 않는다** — 실측하면 이 경로의
+   * `findOne` 은 `relations` 를 주지 않고 두 관계 모두 `eager` 가 아니라, 종전에도
+   * 애초에 로드되지 않았다. 타입에서 제거된 것이지 값이 없어진 것이 아니다.
+   *
+   * 내부 소비자(`interaction.service.ts` · `hooks.service.ts`)는 반환값을 쓰지 않고
+   * 버린다(실측) — 영향은 HTTP 응답 표면 하나뿐이다.
    */
-  async stop(id: string): Promise<Execution> {
+  async stop(id: string): Promise<ResponseExecution> {
     return this.toResponseExecution(await this.stopInternal(id));
   }
 
@@ -918,13 +956,23 @@ export class ExecutionsService {
    *
    * 이 함수는 그중 **셋**(`findById` · `getChain` · `stop`)의 공통 관문이다. 넷째인
    * `toExecutionDto` 는 엔티티가 아니라 DTO 를 조립하므로 거기서 직접 부른다.
+   *
+   * ## 반환 타입이 `Execution` 이 아닌 이유
+   *
+   * 엔티티는 `error: Record<string, unknown>` 로 **`| null` 없이** 선언돼 있는데
+   * {@link redactStoredErrorForResponse} 는 입력이 없으면 정직하게 `null` 을 돌려준다.
+   * 종전에는 `as Execution` 로 그 `null` 가능성을 캐스트 뒤에 지웠는데, 그러면 이후
+   * 이 결과를 다루는 코드가 `.error` 를 null-check 없이 만져도 컴파일러가 침묵한다 —
+   * *"자매 표면 하나를 빠뜨린다"* 는 이 PR 이 고치는 결함 클래스를 타입 시스템이
+   * 잡아줄 기회를 스스로 줄이는 셈이다 (`17_12_34` maintainability W1).
+   * 그래서 `error` 만 넓힌 명시 타입을 돌려주고 무단 단언을 제거한다.
    */
-  private toResponseExecution(execution: Execution): Execution {
+  private toResponseExecution(execution: Execution): ResponseExecution {
     const { trigger: _t, executor: _e, ...rest } = execution;
     return {
       ...rest,
       error: redactStoredErrorForResponse(rest.error),
-    } as Execution;
+    };
   }
 
   /**

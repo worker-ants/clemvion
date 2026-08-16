@@ -1,5 +1,38 @@
 # Changelog
 
+## Unreleased — 같은 `Execution.error` 를 표면마다 다른 값으로 말하고 있었다 (읽기 경로)
+
+위 항목이 **종결 emit 경로**에 값-마스킹을 넣었는데 **읽기 경로는 그대로 원문**이었다. 같은
+소켓에서 `execution.failed` 는 마스킹된 값을, `execution.snapshot` 은 원문을 보내고 있었다.
+`GET /api/executions/:id` 에는 `@Roles` 게이트가 없어 **viewer 포함 워크스페이스 멤버 전원**이
+조회하고, 프런트는 실패 배너에 `error.message` 를 그대로 렌더한다.
+
+`redactStoredErrorForResponse`(신규 `shared/utils/redact-stored-error.ts`, `deepRedactSecrets`
+위임·**형태 보존**)를 `ExecutionsService` 의 독립 반환 경로 **4곳**(`findById` ·
+`toExecutionDto` · `getChain` · `stop`)에 적용한다. `POST /executions/:id/re-run` 과 WS
+`execution.snapshot` 은 `findById` 를 재사용하므로 함께 덮인다.
+
+**`nodeExecutions[].error` 도 함께 마스킹한다** — [데이터 모델 §2.14] 가 `Execution.error` 를
+*"최초 failed NodeExecution 의 에러 정보를 **복사**"* 로 정의하므로, 최상위만 가리면 **같은
+문자열이 같은 응답 안에 원문으로 병존**해 방어가 통째로 우회된다. 자매 표면인
+`GET /executions/:id/background-runs/:id` 의 body 노드도 같이 건다.
+
+**⚠️ wire 변화**: 위 표면들의 `error.message`/`error.details` 바이트가 바뀔 수 있다.
+`Bearer sk-…` → `***`, `postgres://user:pw@host/db` → `postgres://***@host/db`.
+`code`·`nodeId` 는 값 공간이 닫혀 있어 **건드리지 않는다**. 평범한 에러 메시지
+(`Node "Send Email" failed`)는 **무변화**다 — 진단 정밀도 손실은 자격증명 형태 부분문자열에
+한정된다(무수정 프로브로 실측, 캐너리 테스트로 고정).
+
+`ExecutionsService.stop()` 의 반환 타입이 `Execution` → `ResponseExecution` 로 좁아진다
+(`error: … | null` 을 인정하고 `trigger`/`executor` 를 타입에서 제외). **응답에서 사라지는
+필드는 없다** — 그 경로의 `findOne` 은 두 관계를 애초에 로드하지 않는다(실측).
+
+**DB 는 원문을 보존한다** (EIA §R17 egress-only 원칙). 서버 로그·사후 디버깅의 진실은 그대로다.
+
+**잔여 갭(의도, 트래커 등재)**: WS `execution.node.*` **emit** · `inputData`/`outputData` ·
+workflow-assistant LLM 도구(`maskSensitiveFields` 키-기반만 적용 — 값-패턴을 단순 합성하면
+그쪽의 `****9876` 접미 힌트가 사라져 별도 결정이 필요하다).
+
 ## Unreleased — 종결 이벤트 `error` 가 자격증명 마스킹 없이 외부로 나가고 있었다
 
 `execution.failed` 의 `error.message` 는 임의 내부 예외 원문(`err.message`)이고, 이 payload 는

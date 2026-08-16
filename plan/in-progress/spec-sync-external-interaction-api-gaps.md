@@ -210,6 +210,16 @@ checker 가 독립적으로** "인용이 가리키는 절이 오히려 반대를
       "유출 가능성" 이 아니라 **최상위 마스킹의 완전 우회**였다. 심각도를 격상해 기록한다.
       → `findById` 의 `nodeExecutions[]` + 자매 `background-runs` body 노드에 마스킹 적용
 
+- [ ] **workflow-assistant LLM 도구가 같은 두 컬럼을 더 약한 마스킹으로 내보낸다**
+      (2026-08-16 등재, `17_12_34` requirement W1). `explore-tools.service.ts:464`·`:484` 가
+      `maskSensitiveFields`(**키 이름** 기반)만 걸어 `error.message` 안의 `Bearer …` 를
+      통과시킨다 — 실측: 그 함수는 `typeof value !== 'object'` 면 그대로 반환한다.
+      > **단순 합성은 답이 아니다** (실측으로 반증). `redactStoredErrorForResponse` 를 겹쳐
+      > 봤더니 기존 테스트가 RED 였다 — `maskSensitiveFields` 는 자격증명 키를 `****9876`
+      > 으로 **접미 힌트를 남기는데**(어떤 키가 가려졌는지 식별용) 값-패턴 마스킹이 그걸
+      > `***` 로 덮는다. 두 마스킹 의미 중 이 표면에서 무엇이 우선인지가 **결정 항목**이다.
+      > 테스트를 내 변경에 맞춰 고치는 대신 되돌리고 여기 등재한다
+
 - [ ] **WS `execution.node.*` emit 의 `error` 는 여전히 원문이다** (2026-08-16 등재).
       위 항목의 **잔여**다 — 읽기 표면이 아니라 별도 emit 계약이고(종결 emit 이
       `toTerminalErrorPayload` 를 갖는 것과 같은 층), `6-websocket-protocol.md` 가 마스킹을

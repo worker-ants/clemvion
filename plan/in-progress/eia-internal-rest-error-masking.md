@@ -261,7 +261,8 @@ EIA spec `:910` 의 *"향후 secret store 통합 검토"* 문구도 함께 정�
 - [x] planner 턴 ⓔ — `6-websocket-protocol.md` `execution.snapshot` 행에 **관문 상속** 명시 +
       같은 소켓의 `execution.node.*` emit 은 아직 원문이라는 대비까지
 - [x] planner 턴 ⓕ — `12-background.md` §8.2 `nodeExecutions.data` 행에 마스킹 교차 참조
-- [ ] 정본 트래커 **I1·D 닫기**
+- [x] 정본 트래커 **I1·D 닫기** (같은 diff 안에서 이미 `[x]` — 이 줄이 stale 이었다,
+      `17_12_34` documentation W2)
 - [x] 정본 트래커 **신규 잔여 등재** — 위 항목과 **분리했다** (`16_03_57` plan_coherence W1).
       한 체크박스로 묶여 있으면 I1·D 만 닫고 체크하는 순간 신규 등재가 조용히 "완료" 로
       읽힌다. 이 트래커가 이미 5회 "미래형 등재 약속 후 미이행" 을 자백한 파일이다.
@@ -308,11 +309,17 @@ cancelled/waiting 노드의 Input/Output/**Error** 탭)이고, 거기 Error 탭�
       `AuthConfig.config` 문구 재사용이 아니라 **독립 근거**로 작성(둘은 예외의 *종류*가
       다르다 — 아래 §D), W3 는 체크박스 분리 + 선등재, W4 는 함수명 교체(단 제안된 대안
       3개가 전부 같은 부분 문자열을 갖는다는 점은 반영하지 않고 실제로 겹치지 않는 이름을 골랐다)
-- [x] TEST WORKFLOW 4스테이지 전부 PASS — lint(56s) / unit(89s — **백엔드 427 suites ·
-      8,769 passed**, 프런트 285 files) / build(149s) / **e2e 276 passed**(246s)
+- [x] TEST WORKFLOW 4스테이지 — **리뷰 fix 반영 후 최종 재실측**: lint(50s) /
+      unit(73s — **백엔드 427 suites · 8,774 passed**, 프런트 285 files) / build(145s) /
+      **e2e 276 passed**(215s) 전부 PASS
       > 래퍼 마지막 줄의 `tests=14` 는 **내부 패키지 집계**다. 백엔드 수치는 로그 첫 블록에서
       > 읽었다 — 그 줄을 백엔드 수치로 적는 것이 기존 오독 형태다
-- [ ] `--spec` BLOCK: NO (planner 턴)
-- [ ] `/ai-review` CRITICAL 0
+- [x] `--spec` — `16_32_42` **BLOCK: YES**(CRITICAL 2) → 정정 후 `16_48_55` **BLOCK: NO**
+      (WARNING 3 전부 반영: `spec_impact` 전수화 · WS snapshot ⓔ · background ⓕ)
+- [x] `/ai-review` (`17_12_34`) **CRITICAL 0** · WARNING 6 — reviewer **14명 전원**
+      (forced 7 ⊆ 14). 전 항목 조치 → `RESOLUTION.md`
+      > WARNING 7(requirement)은 **고치려다 되돌렸다** — 처방을 적용하니 기존 테스트가 RED 였고
+      > (`maskSensitiveFields` 의 `****9876` 접미 힌트가 값-패턴 마스킹에 덮인다), 테스트를
+      > 내 변경에 맞춰 고치는 대신 트래커에 결정 항목으로 등재했다
 - [ ] `--impl-done` BLOCK: NO
 - [ ] push 게이트 통과 → PR

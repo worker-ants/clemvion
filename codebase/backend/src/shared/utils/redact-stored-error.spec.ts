@@ -49,6 +49,31 @@ describe('redactStoredErrorForResponse', () => {
   });
 
   /**
+   * **JSDoc 이 약속한 레거시 형태를 고정한다** (`17_12_34` testing W1).
+   *
+   * 함수 JSDoc 은 *"jsonb 라 레거시 문자열·숫자가 들어와도 `deepRedactSecrets` 가 타입을
+   * 보존하며 통과시킨다"* 고 명시한다. 그런데 TS 시그니처는 객체만 받는 것처럼 선언돼
+   * 있고 반환은 무조건 캐스트라, **그 약속을 검증하는 것이 아무것도 없었다** — 이
+   * 저장소의 *"문서한 보장이 구현보다 넓다"* 형태다. 런타임 형태를 캐스트로 주입해 고정한다.
+   */
+  it('[레거시] 문자열 error 도 마스킹하며 문자열로 통과시킨다', () => {
+    const out = redactStoredErrorForResponse(
+      'auth failed: Bearer sk-live-abc123def456' as unknown as Record<
+        string,
+        unknown
+      >,
+    );
+    expect(out).toBe('auth failed: ***');
+  });
+
+  it('[레거시] 숫자 error 는 타입을 보존해 그대로 통과시킨다', () => {
+    const out = redactStoredErrorForResponse(
+      42 as unknown as Record<string, unknown>,
+    );
+    expect(out).toBe(42);
+  });
+
+  /**
    * **보장의 경계를 테스트로 고정한다.** 이 함수는 `deepRedactSecrets` 위임이고 그
    * `SECRET_LEAK_PATTERNS` 는 **자격증명**을 겨냥한다 — 아래 두 입력은 통과가 **정답**이다.
    *
