@@ -331,8 +331,12 @@ function renderField(
  *
  * 이 목록이 backend 와 어긋나면 아래 가드가 조용히 뚫린다(마스킹된 값을 못 알아보고
  * 프리필해 재제출) — 그래서 값 자체를 넓히기보다 backend 와 **정확히 같은 집합**으로 둔다.
+ *
+ * **이름을 backend 와 똑같이 둔다** (`MASKED_MARKERS`/`isMaskedMarker`) — 미러의 동기화는
+ * 결국 사람이 grep 으로 찾는다. 이름이 갈리면 그 검색이 실패한다. 같은 파일의
+ * `DEFAULT_FILE_*` 미러도 이름을 그대로 유지하는 선례다.
  */
-const MASK_MARKERS: ReadonlySet<string> = new Set([
+export const MASKED_MARKERS: ReadonlySet<string> = new Set([
   "***",
   "[REDACTED]",
   "[REDACTED_DEPTH]",
@@ -353,15 +357,25 @@ const MASK_MARKERS: ReadonlySet<string> = new Set([
  *
  * 그래서 **마스킹 여부를 소비 쪽에서 감지해 프리필을 건너뛴다** — 사용자가 직접 입력하게
  * 만들어, 값이 비어 제출되거나 마커가 제출되는 경로를 둘 다 막는다.
+ *
+ * ## 보장의 경계 — **정확 일치만** 잡는다 (의도)
+ *
+ * backend 의 값-마스킹에는 **부분 치환**도 있다 — `scheme://user:pass@host` 는
+ * `scheme://***@host` 가 되고 문자열 전체가 마커가 아니다. 그런 값은 여기서 **감지되지 않아
+ * 그대로 프리필된다**(자격증명은 이미 지워졌으니 노출은 아니지만, 같은 "왕복" 성질은 남는다).
+ *
+ * **부분 포함으로 넓히지 않는 이유**: `a***b` 처럼 마커를 우연히 포함할 뿐인 정상 기본값까지
+ * 비우게 되어, 가드가 정상 워크플로를 망가뜨린다. 오탐 비용이 미탐 비용보다 크다 —
+ * 미탐 쪽은 이미 자격증명이 제거된 값이기 때문이다. 이 경계는 테스트가 양방향으로 고정한다.
  */
-export function isMaskedValue(v: unknown): boolean {
-  return typeof v === "string" && MASK_MARKERS.has(v);
+export function isMaskedMarker(v: unknown): boolean {
+  return typeof v === "string" && MASKED_MARKERS.has(v);
 }
 
 function initialValueFor(field: FormField): unknown {
-  // 마스킹된 기본값은 **프리필하지 않는다** — {@link isMaskedValue} 참조.
+  // 마스킹된 기본값은 **프리필하지 않는다** — {@link isMaskedMarker} 참조.
   // 타입별 빈 초기값으로 떨어뜨려 사용자가 직접 입력하게 한다.
-  if (field.defaultValue !== undefined && !isMaskedValue(field.defaultValue)) {
+  if (field.defaultValue !== undefined && !isMaskedMarker(field.defaultValue)) {
     return field.defaultValue;
   }
   if (field.type === "checkbox") return false;
@@ -456,8 +470,8 @@ export function DynamicFormUI({
                 )}
             {/* 기본값이 마스킹돼 프리필을 건너뛴 필드 — 왜 비어 있는지 알려준다.
                 이 안내가 없으면 사용자는 "기본값이 사라졌다" 로 읽는다. */}
-            {isMaskedValue(field.defaultValue) && (
-              <p className="text-xs text-muted-foreground">
+            {isMaskedMarker(field.defaultValue) && (
+              <p className="text-xs text-[hsl(var(--muted-foreground))]">
                 {t("editor.runResults.formMaskedDefaultHint")}
               </p>
             )}

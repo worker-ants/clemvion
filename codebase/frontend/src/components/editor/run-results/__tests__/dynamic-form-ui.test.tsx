@@ -632,20 +632,71 @@ describe("DynamicFormUI — 마스킹된 defaultValue 왕복 차단", () => {
     );
   });
 
-  it("마커 필드에는 이유를 알리는 안내를 띄운다", () => {
+  /**
+   * **보장의 경계 — 부분 치환은 잡지 않는다 (의도)** (`12_06_12` security W3).
+   *
+   * backend 의 URI-userinfo 패턴은 `scheme://user:pass@host` 를 `scheme://***@host` 로
+   * **부분** 치환한다. 그 결과는 전체가 마커가 아니라 여기서 감지되지 않고 프리필된다 —
+   * **자격증명은 이미 지워졌으니 노출은 아니고**, 부분 포함으로 넓히면 위 `a***b` 같은
+   * 정상 값까지 비워 정상 워크플로를 망가뜨린다(오탐 비용 > 미탐 비용).
+   *
+   * 캐너리로 둔다: 누군가 `has()` 를 `includes()` 로 넓히면 여기가 RED 로 바뀌어
+   * 그 트레이드오프를 그 자리에서 마주하게 된다.
+   */
+  it("[캐너리] 부분 치환된 값(`scheme://***@host`)은 프리필된다 — 의도된 경계", () => {
+    render(
+      <DynamicFormUI
+        formConfig={{
+          fields: [
+            {
+              name: "dsn",
+              type: "text",
+              label: "Dsn",
+              defaultValue: "postgres://***@db.internal/prod",
+            },
+          ],
+        }}
+        onSubmit={vi.fn()}
+      />,
+    );
+    expect((screen.getByLabelText("Dsn") as HTMLInputElement).value).toBe(
+      "postgres://***@db.internal/prod",
+    );
+  });
+
+  it("마커 필드에는 이유를 알리는 안내를 띄우고, 아닌 필드에는 띄우지 않는다", () => {
+    // **음의 단언이 핵심이다** — 노출 조건을 `true &&` 로 뮤테이션해도 양의 단언만으로는
+    // GREEN 이 유지된다(`12_06_12` testing W2 가 실측으로 잡았다). 두 필드를 한 화면에
+    // 놓고 "하나만 뜬다" 를 물어야 그 뮤턴트가 RED 가 된다.
     render(
       <DynamicFormUI
         formConfig={{
           fields: [
             { name: "tok", type: "text", label: "Token", defaultValue: "***" },
+            { name: "plain", type: "text", label: "Plain", defaultValue: "ok" },
+          ],
+        }}
+        onSubmit={vi.fn()}
+      />,
+    );
+    const hints = screen.getAllByText(/자격증명으로 판별되어 가려졌어요/);
+    expect(hints).toHaveLength(1);
+  });
+
+  it("마스킹되지 않은 필드만 있으면 안내가 아예 없다", () => {
+    render(
+      <DynamicFormUI
+        formConfig={{
+          fields: [
+            { name: "plain", type: "text", label: "Plain", defaultValue: "ok" },
           ],
         }}
         onSubmit={vi.fn()}
       />,
     );
     expect(
-      screen.getByText(/자격증명으로 판별되어 가려졌어요/),
-    ).toBeInTheDocument();
+      screen.queryByText(/자격증명으로 판별되어 가려졌어요/),
+    ).not.toBeInTheDocument();
   });
 
   it("제출 payload 에 마커가 실리지 않는다 (오염 차단의 최종 단언)", () => {
@@ -661,7 +712,10 @@ describe("DynamicFormUI — 마스킹된 defaultValue 왕복 차단", () => {
         onSubmit={onSubmit}
       />,
     );
-    fireEvent.submit(screen.getByRole("button", { name: /submit|제출/i }));
+    // **`click` 을 쓴다** — `fireEvent.submit(button)` 은 form 을 직접 제출해 버튼의
+    // `type="submit"` 배선을 건너뛴다(그 배선이 깨져도 GREEN, `12_06_12` testing W1).
+    // 같은 파일의 다른 제출 테스트 13건도 전부 `click` 이다.
+    fireEvent.click(screen.getByRole("button", { name: /submit|제출/i }));
     const payload = onSubmit.mock.calls[0][0] as Record<string, unknown>;
     expect(payload.tok).toBe("");
     expect(payload.keep).toBe("ok");

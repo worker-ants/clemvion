@@ -78,11 +78,15 @@ Re-run 모달 CRITICAL 과 **글자 그대로 같은 클래스**다 — *읽혀�
 ## 작업 체크리스트
 
 - [x] `/consistency-check --impl-prep` (`11_38_00`) — **BLOCK: NO**, CRITICAL 0 · WARNING 5
-- [x] 프런트 마커 감지 유틸(`isMaskedValue`) + 동기화 의무 주석(양쪽 미러 명시)
+- [x] 프런트 마커 감지 유틸(`isMaskedMarker`) + 동기화 의무 주석(양쪽 미러 명시).
+      이름은 backend SoT(`MASKED_MARKERS`/`isMaskedMarker`)와 **일치**시켰다 — 미러 동기화를
+      grep 으로 하는 이상 이름이 다르면 다음 사람이 못 찾는다 (리뷰 W6)
 - [x] `initialValueFor` — 마스킹 마커면 프리필하지 않고 타입별 빈 초기값으로
 - [x] hint (KO/EN) — `editor.runResults.formMaskedDefaultHint`
-- [x] 회귀 테스트 4건 — 마커 3종 프리필 차단 · 마커 아닌 값 보존(`a***b` 포함) · 안내 노출 ·
-      **제출 payload 에 마커 없음**. **뮤테이션 검증**: 가드 제거 → 4건 RED(오염 재현)
+- [x] 회귀 테스트 5건 — 마커 3종 프리필 차단 · 마커 아닌 값 보존(`a***b`) · **부분-매치 캐너리**
+      (`postgres://***@db` 는 계속 프리필 = 정확 일치 경계 고정) · 안내 노출/부재 · **제출
+      payload 에 마커 없음**. **뮤테이션 검증**: 가드 제거 → RED(오염 재현) ·
+      `type="button"` → 14 RED · 힌트 조건 `true &&` → 2 RED (리뷰 W1·W2 vacuity 해소 확인)
 - [x] spec — §R17 "닫는 조건" 갱신 + "프리필 왕복" 불릿 신설
       (**판단 기준 명문화**: 외부로도 나가면 마커 가드, 안 나가면 carve-out)
 - [x] **impl-prep W1** — `12-background.md` §8.2 에 `outputData`/`inputData` 마스킹 + 노드
@@ -91,9 +95,11 @@ Re-run 모달 CRITICAL 과 **글자 그대로 같은 클래스**다 — *읽혀�
 - [x] 저비용 마무리 — 마커 JSDoc 을 `MASKED_MARKERS` 바로 위로(+ 프런트 미러 상호참조) ·
       유저가이드 Error 탭 캐비엇(KO/EN)
 - [x] 트래커 갱신 — "WS 대기-재개 점검" **종결**(발견 1건 기록 + 왜 놓쳤는지) + 저비용 2건 체크
-- [x] TEST WORKFLOW 4단계 PASS — lint / unit(백엔드 **427 suites · 8,812** · 프런트 **6,023**)
-      / build / e2e **276**
-- [ ] 코드 동결 → `/ai-review` → fix → `--impl-done` → push
+- [x] TEST WORKFLOW 4단계 PASS — lint / unit(백엔드 **427 suites · 8,812** · 프런트 **6,025**)
+      / build / e2e **276** + playwright **51**
+- [x] `/ai-review` (`12_06_12`) — CRITICAL **0**, WARNING **6** (MEDIUM) → **6건 전부 조치**
+      (코드·테스트 5 + 설계 경계 문서화 1). RESOLUTION 은 `review/code/2026/08/17/12_06_12/`
+- [ ] fix 반영본으로 재-리뷰 · `--impl-done` → push
 
 > **`token=` 패턴 확장은 이 PR 에 넣지 않는다** — 사용자가 순서를 택했다. 그 확장은 마스킹
 > 대상을 넓혀 **이 왕복 오염 범위도 함께 넓히므로**, 가드가 선 뒤에 하는 것이 맞다.
