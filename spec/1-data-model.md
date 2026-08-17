@@ -468,8 +468,8 @@ Schedule은 Trigger의 서브타입이다. 양쪽의 라이프사이클과 상�
 | finished_at | Timestamp? | 실행 종료 시각 |
 | duration_ms | Integer? | 실행 소요 시간 (wall-clock, start→finish). **취소·타임아웃 종결 경로에서는 실행 시간이 아니라 대기 경과 시간**이다 — [EIA §6.5](./5-system/14-external-interaction-api.md) 참조. 컬럼이 `INTEGER`(int4, ≈24.8일)라 쓰는 쪽은 상한 클램프가 필수다 |
 | active_running_ms | Integer | 누적 active-running 시간(ms). active 세그먼트(worker 가 노드를 전진시킨 구간)의 합 — `waiting_for_input` park 시간 제외. 기본 0. §8 active-running 타임아웃(`EXECUTION_TIME_LIMIT_EXCEEDED`)의 측정 기준 ([4-execution-engine §8](./5-system/4-execution-engine.md#8-동시-실행-제한)) |
-| input_data | JSONB? | 실행 입력 데이터 |
-| output_data | JSONB? | 실행 최종 출력 데이터 |
+| input_data | JSONB? | 실행 입력 데이터. **egress 마스킹 대상이 아니다** — Re-run 프리필이 이 값을 읽어 재제출하므로 마스킹하면 `***` 가 실제 입력이 된다 ([EIA §R17](./5-system/14-external-interaction-api.md) 잔여 ② · [Re-run §10.2](./5-system/13-replay-rerun.md)). 자매 `NodeExecution.input_data` 는 **마스킹 대상**이다(재제출 소비처 없음) |
+| output_data | JSONB? | 실행 최종 출력 데이터. **응답·emit 시 자격증명 값-패턴 마스킹**(DB 는 원문 보존) — 범위는 [EIA §R17](./5-system/14-external-interaction-api.md) |
 | error | JSONB? | 에러 정보. 최초 failed NodeExecution의 에러를 참조/복사 (아래 참조). `error.code` 어휘는 각 노드 핸들러가 정의([Spec node-output Principle 3.2](./conventions/node-output.md#32-outputerror-표준-형태)) 외에 엔진 인프라 차원의 코드를 포함한다 — `SERVER_INTERRUPTED` (graceful shutdown 미완료 노드, [§11](./5-system/4-execution-engine.md#11-graceful-shutdown)), `WORKER_HEARTBEAT_TIMEOUT` (active 세그먼트 job 이 BullMQ stalled 재배달(`maxStalledCount=1`) attempts 소진 — terminal worker failure, **PR4 구현(2026-07-04)**, [§7.1](./5-system/4-execution-engine.md#71-워커-크래시-복구--bullmq-stalled-job-target); 부팅 `recoverStuckExecutions` re-drive(§7.5 case B)는 이 코드 미사용 — 재구동 불가는 `RESUME_CHECKPOINT_MISSING`), `EXECUTION_TIME_LIMIT_EXCEEDED` (엔진 레벨 누적 active-running 시간 초과 — `waiting_for_input` 대기 제외, [§8](./5-system/4-execution-engine.md#8-동시-실행-제한)), `RESUME_FAILED` / `RESUME_CHECKPOINT_MISSING` / `RESUME_INCOMPATIBLE_STATE` (continuation rehydration 실패, [§7.5](./5-system/4-execution-engine.md#75-resume-after-restart-rehydration)) |
 | executed_by | UUID? | FK → User (수동 실행 시) |
 | parent_execution_id | UUID? | FK → Execution (서브 워크플로우 실행 시 부모 실행) |
@@ -547,8 +547,8 @@ External Interaction API 의 `iext_*`(per_execution JWT) 발급 jti 를 영속 �
 | started_at | Timestamp | 실행 시작 시각 |
 | finished_at | Timestamp? | 실행 종료 시각 |
 | duration_ms | Integer? | 소요 시간 |
-| input_data | JSONB | 노드 입력 데이터 |
-| output_data | JSONB? | 노드 출력 데이터 |
+| input_data | JSONB | 노드 입력 데이터. **응답·emit 시 자격증명 값-패턴 마스킹**(DB 는 원문 보존) — 상위 `Execution.input_data` 와 달리 재제출 소비처가 없어 마스킹한다. 한쪽만 가리면 REST 폴링이 WS 마스킹 값을 덮어 flip-flop 이 난다. 범위: [EIA §R17](./5-system/14-external-interaction-api.md) |
+| output_data | JSONB? | 노드 출력 데이터. **응답·emit 시 자격증명 값-패턴 마스킹**(DB 는 원문 보존) — 범위는 [EIA §R17](./5-system/14-external-interaction-api.md) |
 | error | JSONB? | 에러 정보 `{ code, message, stack? }` |
 | retry_count | Integer | 재시도 횟수 |
 | interaction_data | JSONB? | 사용자 인터랙션 기록 — Form 제출 또는 버튼 클릭 정보. `{ interactionType: "form_submitted" \| "button_click" \| "button_continue", buttonId?, buttonLabel?, clickedAt, clickedBy }`. 여기의 `interactionType` 은 **수행된 user action 의 기록** enum 으로, 노드 대기 상태를 분류하는 `WaitingInteractionType` (`form`/`buttons`/`ai_conversation`/`ai_form_render`, [interaction-type-registry](./conventions/interaction-type-registry.md)) 과 **이름만 같고 별개 enum** 이다. 본 필드 + `output_data.messages` (AI 노드) 가 [ConversationThread](./conventions/conversation-thread.md) 의 분산 SoT — 실행 후 timeline UI 가 reconstruct |
@@ -561,7 +561,7 @@ External Interaction API 의 `iext_*`(per_execution JWT) 발급 jti 를 영속 �
 | 복사 | Execution.error — 워크플로우 실행이 `failed` 상태로 전이될 때, **최초 failed NodeExecution**의 에러 정보를 복사 |
 | 구조 | `{ nodeId: "uuid" \| null, code: "ERROR_CODE" \| null, message: "에러 설명", details?: {...} }` — `nodeId` 는 노드 없는 엔진 인프라 실패(worker 크래시 등)에서, `code` 는 분류 가능한 코드가 없는 일반 `catch` 경로에서 `null` 이다. `details` 의 출처는 노드 핸들러 결과의 `output_data.error.details`([노드 출력 규약 §3.2](./conventions/node-output.md)) 이며, 아래 `NodeExecution.error` 표에는 열거돼 있지 않다. 억지 fallback 코드를 넣지 않는 이유는 [EIA §6.4](./5-system/14-external-interaction-api.md) 참조 |
 | 용도 | 실행 목록에서 Execution 단위로 에러 원인을 즉시 파악 가능 (NodeExecution 조회 없이) |
-| 응답 마스킹 | **열거된 읽기 경로에서만** 자격증명 값-패턴 마스킹을 거친다 — `ExecutionsService` 4곳(`findById`·`toExecutionDto`·`getChain`·`stop`) + `BackgroundRunsService` body 노드. DB 는 원문 보존. 위 "복사" 관계 때문에 **한쪽만 가리면 같은 문자열이 같은 응답에 병존해 방어가 우회**되므로 그 경로들에서는 반드시 함께 건다. ⚠️ **"이 두 컬럼은 어디서 나가든 마스킹된다" 로 읽으면 안 된다** — WS `execution.node.*` **emit** 등 별도 emit 계약 경로는 **미포함**이다. 전체 적용 범위·잔여 목록의 SoT 는 [EIA §R17](./5-system/14-external-interaction-api.md) "내부 읽기 경로" 불릿 |
+| 응답 마스킹 | **열거된 경로에서만** 자격증명 값-패턴 마스킹을 거친다. DB 는 원문 보존(egress-only). 위 "복사" 관계 때문에 **한쪽만 가리면 같은 문자열이 같은 응답에 병존해 방어가 우회**되므로, 거는 경로에서는 `Execution.error` 와 `NodeExecution.error` 를 반드시 함께 건다. ⚠️ **"어디서 나가든 마스킹된다" 로 읽으면 안 된다** — 적용 표면과 잔여 갭은 열거로만 정의된다. **표면 목록·개수를 여기 다시 적지 않는다**(그렇게 적어 둔 종전 서술이 표면이 늘면서 낡았다): SoT 는 [EIA §R17](./5-system/14-external-interaction-api.md) 의 "적용 범위는 총칭이 아니라 열거다" 항목이다. **2026-08-16 부터 WS `execution.node.*`/비-종결 `execution.*` **emit** 경로도 값-패턴 마스킹 대상**이다([WS §4.1](./5-system/6-websocket-protocol.md)) — 종전 이 자리는 emit 경로를 "미포함" 으로 단언했으나 더 이상 사실이 아니다 |
 
 ### 2.15 WorkflowVersion
 

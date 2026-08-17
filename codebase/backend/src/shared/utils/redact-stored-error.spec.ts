@@ -1,4 +1,7 @@
-import { redactStoredErrorForResponse } from './redact-stored-error';
+import {
+  redactStoredDataForResponse,
+  redactStoredErrorForResponse,
+} from './redact-stored-error';
 
 /**
  * DB `Execution.error` 컬럼 값의 **응답 egress 마스킹**을 고정한다.
@@ -96,5 +99,73 @@ describe('redactStoredErrorForResponse', () => {
         message: 'Node "Send Email" failed',
       }),
     ).toEqual({ code: 'NODE_FAILED', message: 'Node "Send Email" failed' });
+  });
+});
+
+/**
+ * 자매 함수 — `inputData`/`outputData` 컬럼용. 위 `error` 스위트와 **같은 항목을 각각**
+ * 겨눈다(`23_08_19` testing W4).
+ *
+ * 두 함수 본문이 현재 동일하다고 한쪽만 검증하면, 한쪽의 가드 조건이 바뀔 때 다른 쪽이
+ * 조용히 갈린다 — 이 파일이 막으려는 결함 클래스 그 자체다.
+ */
+describe('redactStoredDataForResponse', () => {
+  it('자유 텍스트 안의 자격증명을 마스킹한다', () => {
+    expect(
+      redactStoredDataForResponse({
+        note: 'connect failed: postgres://u:pw@db.internal/prod',
+      }),
+    ).toEqual({ note: 'connect failed: postgres://***@db.internal/prod' });
+  });
+
+  it('중첩 credential 키까지 내려간다', () => {
+    expect(
+      redactStoredDataForResponse({
+        body: { headers: { authorization: 'Bearer zzz' }, api_key: 'k-1' },
+      }),
+    ).toEqual({ body: { headers: { authorization: '***' }, api_key: '***' } });
+  });
+
+  it('null·undefined 는 null 로 정규화한다', () => {
+    expect(redactStoredDataForResponse(null)).toBeNull();
+    expect(redactStoredDataForResponse(undefined)).toBeNull();
+  });
+
+  it('입력 객체를 변이하지 않는다 (마스킹이 실제로 일어나는 입력)', () => {
+    const input = { note: 'Bearer sk-live-xyz' };
+    const out = redactStoredDataForResponse(input);
+    expect(input.note).toBe('Bearer sk-live-xyz');
+    expect(out).not.toBe(input);
+  });
+
+  it('바뀐 것이 없으면 같은 참조를 돌려준다 (copy-on-change)', () => {
+    const input = { orderId: 'A-1', qty: 3 };
+    expect(redactStoredDataForResponse(input)).toBe(input);
+  });
+
+  /**
+   * **12-webhook §5.3 계약** — ingestion 이 남긴 마커를 이 층이 덮으면 같은 헤더가
+   * `$trigger.headers` 와 실행 상세 API 에서 다르게 보인다.
+   */
+  it('[캐너리] webhook ingestion 의 `[REDACTED]` 마커를 보존한다', () => {
+    const stored = {
+      headers: {
+        authorization: '[REDACTED]',
+        'content-type': 'application/json',
+      },
+    };
+    expect(redactStoredDataForResponse(stored)).toEqual(stored);
+  });
+
+  it('[캐너리] 자격증명 없는 연결 문자열은 통과한다 — `error` 와 같은 잔여 갭', () => {
+    expect(
+      redactStoredDataForResponse({ dsn: 'postgres://db.internal:5432/prod' }),
+    ).toEqual({ dsn: 'postgres://db.internal:5432/prod' });
+  });
+
+  it('[캐너리] 평범한 데이터는 손상하지 않는다', () => {
+    expect(
+      redactStoredDataForResponse({ orderId: 'A-1', items: ['x', 'y'] }),
+    ).toEqual({ orderId: 'A-1', items: ['x', 'y'] });
   });
 });

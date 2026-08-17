@@ -1,5 +1,57 @@
 # Changelog
 
+## Unreleased — 자유 텍스트 안의 자격증명이 WS emit 과 내부 REST 두 컬럼으로 나가고 있었다
+
+아래 두 항목(#1177 종결 emit · #1179 읽기 경로)이 `Execution.error` 를 닫았지만 **그 옆이
+비어 있었다.** 무수정 프로브로 실증한 누출 — `execution.node.failed` 의
+`error: 'Authorization: Bearer eyJ…'` 가 외부 fanout envelope 까지 원문으로 도달했고,
+`inputData`/`outputData` 는 내부 REST 여섯 표면에서 원문이었다.
+
+**왜 샜나** (총칭이 아니라 열거): `sanitizePayloadForWs` 는 **키 이름** 기반이라 문자열 값을
+그대로 통과시키고, `stripExternalOnlyFields` 는 `llmCalls` **필드 제거** 전용이며,
+`SseAdapter` 는 이벤트 타입 필터가 없어 `node.*` 를 전부 외부로 push 한다. 종결 이벤트만
+`toTerminalErrorPayload` 가 막고 있었다.
+
+**WS emit** — 두 emit(`emitExecutionEvent`·`emitNodeEvent`)이 공유하는 초크포인트에서 값-패턴
+마스킹. `executionEventSubject.next` 호출부가 정확히 둘이라 한 곳만 고치면 자매가 갈린다.
+**내부 wire 에도 적용**한다 — `execution:<id>` 구독 인가가 workspace 소유만 보고 role 을 안
+받아 수신 인구가 `GET /api/executions/:id` 와 동일하기 때문이다(EIA §R17 boundary parity).
+**예외는 `llmCalls` 하나** — 에디터 전용 raw 디버그라 wire 에서 원문 유지(fanout 은 필드째
+strip 하므로 외부 노출 불변). WS §Rationale 의 strip-only 결정은 **번복되지 않았다**.
+
+**내부 REST** — `redactStoredDataForResponse` 를 **`outputData`** 에 적용. 표면은 **여섯**이다:
+`findById` · `getChain` · `stop` · `toExecutionDto`(목록) · `findById` 의 `nodeExecutions[]` ·
+`BackgroundRunsService.toNodeExecutionDto`.
+
+**⚠️ `Execution.inputData` 만 마스킹하지 않는다 (의도)** — 초안은 두 컬럼을 함께 닫았다가 **되돌렸다.**
+
+> **카브아웃은 `Execution` 레벨 한정이다** — `NodeExecution.inputData`(실행 상세의
+> `nodeExecutions[]`·background-run 본문 노드)는 재제출 소비처가 없어 **마스킹된다**.
+> 노드 레벨을 비워 두면 WS emit(마스킹)과 REST(원문)가 같은 프런트 store 슬롯에서
+> 2초 폴링에 덮여 화면이 깜빡이고, wire 마스킹의 보안 이득도 사라진다.
+> **가르는 축은 필드 이름이 아니라 "그 값이 되쓰이는가"** 다.
+`inputData` 는 표시 전용이 아니라 **재제출되는 값**이다: Re-run 모달이 프리필해
+`inputOverride` 로 되보내고(`useOriginalInput` **기본 `false`** 라 손대지 않아도 제출된다),
+에디터 "히스토리에서 불러오기" 도 같은 값을 재실행한다. 마스킹하면 리터럴 `'***'` 가
+**새 실행의 실제 입력값**이 된다 — 가시성 저하가 아니라 조용한 기능 오염이다. 두 게이트가
+독립으로 CRITICAL 을 냈고 소스 추적으로 확증했다. 기본 Re-run(`useOriginalInput=true`)은
+서버가 엔티티를 직접 읽어 영향 없다. 회귀 캐너리로 비대상임을 고정했고, 프런트 마커 가드는
+트래커에 등재했다.
+
+**마커를 덮지 않는다** — `deepRedactSecrets` 가 이미 마스킹된 값(`[REDACTED]` · `***` ·
+`[REDACTED_DEPTH]`)을 재마스킹하지 않게 했다. webhook ingestion 이 남긴 `[REDACTED]` 는
+[12-webhook §5.3](./spec/5-system/12-webhook.md) 이 규정한 계약이라, 덮으면 같은 헤더가
+`$trigger.headers` 에서는 `[REDACTED]`, 실행 상세 API 에서는 `***` 로 보인다.
+
+**⚠️ wire 변화**: WS/SSE 이벤트 payload 와 실행 상세 API 의 `outputData` 바이트가 바뀔 수
+있다. 워크플로가 **정당하게** 자격증명을 다루면 그 값도 `***` 로 보인다 — 외부 `getStatus` 는
+이미 같은 마스킹을 걸고 있었고 내부만 없던 비대칭을 없앤 것이다. DB 는 원문을 보존한다
+(egress-only). 평범한 값은 무변화(캐너리로 고정). 유저 가이드의 **Input/Output 탭** 설명에 이
+캐비엇을 추가했다(노드 레벨 `inputData` 도 마스킹 대상이라 두 탭이 대칭이다).
+
+**성능**: emit 당 순회가 2회 → 3회. 8턴 waiting payload N=3000 실측 **0.0181 → 0.0323 ms**
+(+0.0142, 1.78배).
+
 ## Unreleased — 같은 `Execution.error` 를 표면마다 다른 값으로 말하고 있었다 (읽기 경로)
 
 **#1177**(아래 항목 — CHANGELOG 는 최신이 위로 쌓인다)이 **종결 emit 경로**에 값-마스킹을

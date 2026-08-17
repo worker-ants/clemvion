@@ -169,6 +169,18 @@ checker 가 독립적으로** "인용이 가리키는 절이 오히려 반대를
       `ai_message.messages[]` · EIA `nodeOutput`)가 영향을 받으므로 blast radius 가 다른 별건이다.
       승격 시 그 소비자들의 회귀 테스트를 선행해야 한다
 
+- [ ] **`SECRET_LEAK_PATTERNS` 가 bare `token=` 을 안 잡는다** (2026-08-16 등재, 위 항목의
+      자매 — 같은 "패턴 폭" 축이다). 키워드 목록은 `client_secret`·`access_token`·
+      `refresh_token`·`id_token`·`api_key`·`password`·`passwd`·`pwd` 를 담지만 **`token` 단독은
+      없다** — `secret` 은 단독 패턴이 따로 있는데 `token` 은 없어 **비대칭**이다.
+      > **발견 경위**: `fe6a54c80` 의 테스트 fixture 를 `token=sk-live-abc123` 으로 썼다가
+      > **통과하는 것을 보고** 알았다(fixture 를 `Bearer …` 로 교체). 즉 실측 확인된 갭이다.
+      > `token=` 은 OAuth 응답·쿼리스트링에서 흔한 형태라 위 "자격증명 없는 연결 문자열"
+      > 보다 **위험이 높을 수 있다** — 그쪽은 자격증명이 없지만 이쪽은 자격증명 그 자체다.
+      > **다만 blast radius 는 같은 축**이다: 패턴을 넓히면 `deepRedactSecrets` 의 소비자
+      > 전부가 영향받고 `redact-stored-error.spec.ts` 의 캐너리가 RED 로 바뀐다.
+      > 위 항목과 **함께** 처리하는 것이 자연스럽다(한 번의 회귀 검증으로 둘 다 닫는다).
+
 - [x] **§6.4 필드 표 + §R17 마스킹 카탈로그에 이 egress 지점 등재** — 해소(2026-08-16)
       — 2026-08-16 등재, `11_36_45` W1. 구현은 끝났는데 **spec 이 새 보안 불변식을 모른다**.
 
@@ -184,7 +196,7 @@ checker 가 독립적으로** "인용이 가리키는 절이 오히려 반대를
       아니면 REST 에도 적용을 검토한다 — **둘 중 하나를 고르는 것이 이 항목이다**
 
       > **결정됨 (2026-08-16, 사용자 택일): 내부 경로에도 마스킹한다.** 집행은
-      > [`eia-internal-rest-error-masking.md`](./eia-internal-rest-error-masking.md).
+      > [`eia-internal-rest-error-masking.md`](../complete/eia-internal-rest-error-masking.md).
       > **이 항목의 제목이 부정확했다** — 실측하니 갈리는 축은 REST↔WS 가 아니라
       > **종결 emit ↔ 그 밖의 모든 읽기 경로**다. WS `execution.snapshot`
       > (`websocket.gateway.ts:399` → `findById`)도 원문을 싣고 있었다. 위 `:862` 도
@@ -197,7 +209,7 @@ checker 가 독립적으로** "인용이 가리키는 절이 오히려 반대를
       **택일해서 근거를 Rationale 에 남긴다**
 
       > **결정됨 (2026-08-16, 사용자 택일): (b) 명시적 예외 등재.** 집행은
-      > [`eia-internal-rest-error-masking.md`](./eia-internal-rest-error-masking.md) §D.
+      > [`eia-internal-rest-error-masking.md`](../complete/eia-internal-rest-error-masking.md) §D.
       > 근거는 `AuthConfig.config` 문구를 **재사용하지 않는다** — 그쪽 예외는 "다른
       > 메커니즘으로 동등 암호화" 이고 이 필드는 **암호화 자체가 없어** 예외의 종류가 다르다
       > (`16_03_57` rationale/convention W2)
@@ -220,9 +232,14 @@ checker 가 독립적으로** "인용이 가리키는 절이 오히려 반대를
       > `***` 로 덮는다. 두 마스킹 의미 중 이 표면에서 무엇이 우선인지가 **결정 항목**이다.
       > 테스트를 내 변경에 맞춰 고치는 대신 되돌리고 여기 등재한다
 
-- [ ] **단일 관문 근거 서술이 소스 3곳에 흩어져 있다** (2026-08-16 등재,
-      `19_16_28` maintainability W1). `executions.service.ts:802` · `background-runs.service.ts:301`
-      · `executions.service.spec.ts:853` 이 각각 *"자매 넷 중 하나만"* 을 언급한다.
+- [x] **단일 관문 근거 서술이 소스 3곳에 흩어져 있다** — 해소(2026-08-16, `fe6a54c80`).
+      읽기 표면 표를 `toResponseExecution` 에 정본으로 두고 나머지 세 지점은 그것을 가리키게
+      했다(개수를 다시 적지 않는다). **아래 "고치지 않는 이유" 가 이번에 뒤집혔다** — A·B 로
+      이미 같은 파일들을 열어 게이트를 한 바퀴 도는 중이라 한계비용이 0 이었고, 실제로
+      표면이 넷→여섯이 되며 그 "넷" 이 **낡았다**(우려가 실현됐다).
+      (원 등재, `19_16_28` maintainability W1) `executions.service.ts:802` ·
+      `background-runs.service.ts:301` · `executions.service.spec.ts:853` 이 각각
+      *"자매 넷 중 하나만"* 을 언급한다.
       > **전제를 실측했다 — verbatim 복제는 아니다.** 공유되는 것은 저장소 공용 **관용구**
       > (패턴 이름)이고 주변 서술은 지점마다 다르다(background-runs 는 `@Roles` 부재와
       > `NodeExecution.error` 를, spec 파일은 표면별 단언 이유를 담는다). **다만 "넷" 이라는
@@ -232,16 +249,75 @@ checker 가 독립적으로** "인용이 가리키는 절이 오히려 반대를
       > 0인데, 이 저장소의 게이트는 코드 편집마다 리뷰 라운드를 다시 요구한다 — 문서 서술
       > 수준의 개선을 위해 전체 게이트를 한 바퀴 더 도는 것은 비용이 이익을 넘는다
 
-- [ ] **WS `execution.node.*` emit 의 `error` 는 여전히 원문이다** (2026-08-16 등재).
-      위 항목의 **잔여**다 — 읽기 표면이 아니라 별도 emit 계약이고(종결 emit 이
-      `toTerminalErrorPayload` 를 갖는 것과 같은 층), `6-websocket-protocol.md` 가 마스킹을
-      규정하지 않는다. 종결 emit 과 같은 처방(egress 초크포인트)을 적용할지 택일 필요
+- [x] **WS `execution.node.*` emit 의 `error` 는 여전히 원문이다** — 해소(2026-08-16, `1b8fd5cc7`).
+      **사용자 택일: wire + fanout 둘 다 마스킹**(`llmCalls` 만 wire 예외).
+      > **초안의 "fanout 전용" 근거가 실측으로 반증됐다.** *"내부 wire 는 소유자 콘솔"* 로
+      > 적었으나 `ExecutionChannelAuthorizer` 는 `verifyOwnership(executionId, workspaceId)`
+      > 만 보고 **role 을 아예 받지 않는다** — 수신 인구가 `GET /api/executions/:id` 와 동일
+      > (viewer 포함)이라 §R17 이 내부 REST 를 마스킹한 것과 같은 상황이었다.
+      > 범위도 좁혔다: node 이벤트는 **SSE 에만** 도달하고 notification webhook 은
+      > `FANOUT_EVENTS` 화이트리스트 밖이다(`node.completed` 만 Chat Channel 추가 구독).
 
-- [ ] **내부 REST 의 `inputData`/`outputData` 도 원문이다** (2026-08-16 등재, 같은 근거).
-      `executions.service.ts:860`·`:861`. 외부 EIA `getStatus` 는 같은 `outputData` 에
-      `stripAndRedact` 를 거는데(`interaction.service.ts:452`) 내부 REST 는 걸지 않는다 —
-      `Execution.error` 와 **같은 형태의 비대칭**이 두 컬럼 더 남아 있다는 뜻이다.
-      blast radius 가 달라 별건으로 뗀다
+- [ ] **`inputData` egress 마스킹 — 프런트 마커 가드가 선행돼야 한다** (2026-08-17 등재).
+      아래 항목에서 `outputData` 만 닫고 **`inputData` 는 되돌렸다.** 이 값은 표시 전용이
+      아니라 **재제출**되기 때문이다 — Re-run 모달이 프리필해 `inputOverride` 로 되보내고
+      (`useOriginalInput` **기본 `false`**), 에디터 "히스토리에서 불러오기" 도 같은 값을
+      재실행한다. 마스킹하면 리터럴 `'***'` 가 새 실행의 **실제 입력값**이 된다.
+      > **두 게이트가 독립으로 CRITICAL 을 냈다**(`23_49_05` cross_spec · `23_50_03`
+      > side_effect). 소스 추적으로 확증했고 사용자가 **철회**를 택했다.
+      > 기본 Re-run(`useOriginalInput=true`)은 서버가 엔티티를 직접 읽어 영향 없다.
+      > **닫는 조건**: 두 소비처가 마스킹 마커를 감지해 해당 필드 재입력을 강제하는 가드.
+      > 그 가드가 서면 이 컬럼도 닫는다.
+      >
+      > **⚠️ 범위 정정 (2026-08-17, `83436ed45`) — 카브아웃은 `Execution` 레벨 한정이다.**
+      > `NodeExecution.inputData` 는 **마스킹 대상**으로 전환됐다(재제출 소비처 없음).
+      > 노드 레벨을 비워 두면 WS emit(마스킹)과 REST(원문)가 **같은 store 슬롯**에서
+      > 2초 폴링에 덮여 flip-flop 이 난다(`01_17_49` cross_spec CRITICAL).
+      > 그래서 캐너리가 **두 방향으로 갈린다** — 헷갈리기 쉬우니 명시한다:
+      >
+      > | 캐너리 | 고정하는 것 |
+      > |---|---|
+      > | `⑧` · `⑧-b` (`getChain`·`stop`) + `①`·`②` | `Execution.inputData` 가 **원문**임 |
+      > | `⑤` · `⑥-b` + `background-runs.service.spec.ts` | 노드 레벨 `inputData` 가 **마스킹**됨 |
+      >
+      > 남는 노출은 **Execution 레벨** 트리거 파라미터 자유 텍스트뿐 — webhook 민감 헤더는
+      > ingestion 이 이미 `[REDACTED]` 로 가린다.
+
+- [ ] **`kb:<documentId>` · `background:run:<id>` WS 채널에도 값-패턴 마스킹 적용 검토**
+      (2026-08-17 등재, `00_23_57` security INFO-1). 두 채널의 구독 인가도 `execution:` 과
+      **같은 근거**(role 미검사, workspace 소유만 확인)인데 `maskWireEnvelope` 밖에 있다.
+      > 이번에 닫지 않은 이유: **외부 fanout 이 없다** — `executionEventSubject` 로 흐르지
+      > 않아 SSE/chat-channel 에 도달하지 않는다. 즉 이 PR 이 겨눈 "외부 누출" 표면이
+      > 아니다. 다만 population-parity 논리는 그대로 적용되므로 별건으로 남긴다.
+
+- [ ] **`sanitize-error-message.ts` 마커 JSDoc 을 `MASKED_MARKERS` 에 귀속시키기**
+      (2026-08-17 등재, `00_47_01` documentation W1). 마커 계층 설명 대형 JSDoc 이 중간에 낀
+      한 줄 주석들 때문에 그 상수에 붙지 않는다 — 배치 문제이고 내용·동작은 무관하다.
+      > **이연 사유**: 리뷰 3R 의 유일한 WARNING 도 주석 한 줄이었고 그것을 고치자 4R 이
+      > 열려 같은 급의 nit 을 냈다. 게이트가 **주석 한 글자에도** 리뷰를 stale 처리하므로
+      > 여기서 또 고치면 5R 이 열린다. 발견의 성격이 두 라운드 연속 문서 층 =
+      > 이 저장소의 수렴 신호라, 다음에 이 파일을 여는 작업에 곁들인다.
+
+- [ ] **유저 가이드 Error 탭에도 마스킹 캐비엇** (2026-08-17 등재, `00_23_57` documentation
+      INFO-19). 이번엔 Output 탭만 반영했다 — `error` 도 #1179 이후 마스킹되므로 같은 캐비엇이
+      맞지만, 이 PR 의 변경 대상(`outputData`)에 범위를 맞춰 좁게 반영했다.
+
+- [ ] **WS 대기-재개 경로에도 같은 "마스킹된 값의 재사용" 이 있는지 점검** (2026-08-17 등재,
+      `23_50_03` side_effect W2). 버튼 재개는 실측상 `resumeFromButtons` 가 로컬 UI 상태만
+      정리하고 payload 를 재제출하지 않아 **현재는 무해**하다. 다만 위 CRITICAL 과 **같은
+      클래스**(마스킹된 응답을 표시가 아니라 재입력으로 재사용)라, form/conversation 재개까지
+      포함해 전수로 한 번 훑어 두는 것이 값싸다.
+
+- [x] **내부 REST 의 `outputData` 는 원문이다** — 해소(2026-08-16, `fe6a54c80`).
+      (`inputData` 는 위 항목으로 분리 — 되돌렸다.)
+      트래커가 지목한 `toExecutionDto` 한 줄이 아니라 **여섯 표면**이었다 —
+      `toResponseExecution` 의 `...rest` 가 엔티티를 통째 펼치던 자리 셋과
+      `nodeExecutions[]`, 그리고 트래커에 없던 `BackgroundRunsService` 자매까지.
+      > **"`Execution.error` 와 같은 형태" 라는 이 항목의 서술은 틀렸다.** `error` 는 마커
+      > 없는 자유 필드지만 `inputData` 에는 webhook ingestion 의 `[REDACTED]` 마커가 이미
+      > 있다(12-webhook §5.3 계약, 4개 문서가 전제 공유). 값-마스커가 그걸 `***` 로 덮는
+      > 충돌을 무수정 프로브로 확인했고, `deepRedactSecrets` 를 **마커에 대해 멱등**하게
+      > 만들어 닫았다. 이건 §C 가 "결정 항목" 으로 떼어 둔 충돌과 **같은 형태**다
 
 > **왜 그 PR 에서 안 고쳤나**: 노출이 `error` 객체화로 **넓어지지 않았다** — 종전에도 같은
 > `errMessage` 문자열이 같은 fanout 을 탔다. 형태만 바뀌었지 내용과 경로는 동일하다.

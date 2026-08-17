@@ -3,7 +3,7 @@ worktree: eia-followups-1464c0
 started: 2026-08-16
 owner: developer
 branch: claude/eia-followups-1464c0
-status: in-progress
+status: complete
 priority: P1
 pending_plans:
   - plan/in-progress/spec-sync-external-interaction-api-gaps.md
@@ -20,7 +20,7 @@ spec_impact:
 
 ## 다른 plan 과의 관계
 
-정본 트래커는 [`spec-sync-external-interaction-api-gaps.md`](./spec-sync-external-interaction-api-gaps.md)
+정본 트래커는 [`spec-sync-external-interaction-api-gaps.md`](../in-progress/spec-sync-external-interaction-api-gaps.md)
 이고, 이 작업은 그 문서의 **I1**(*"내부 REST 와 WS 가 같은 `Execution.error` 에 다른 값을
 말한다"*, 2026-08-16 등재) 과 **D**(`interaction.triggerToken`) 두 미결 항목을 집행한다.
 둘 다 *"택일해서 근거를 남긴다"* 로 등재돼 있었고, **사용자가 2026-08-16 에 택일했다**:
@@ -368,4 +368,4 @@ cancelled/waiting 노드의 Input/Output/**Error** 탭)이고, 거기 Error 탭�
       비용이 이익을 넘는다 → `RESOLUTION.md`
       > 6명이 **NONE** — security 는 7라운드 연속이고, documentation 은 결함 0으로
       > `pending_plans`(17·4)를 파서로 독립 재현해 일치 확인까지 했다
-- [ ] push 게이트 통과 → PR
+- [x] push 게이트 통과 → PR **#1179** (`f5351e9c2`, 2026-08-16 머지)

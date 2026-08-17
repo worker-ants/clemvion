@@ -347,6 +347,21 @@ dry-run 모드로 실행된 **NodeExecution** 은 `outputData._dryRun === true` 
 | "재실행" 버튼 | — | 클릭 시 권한 가드 통과 → `POST /api/executions/:id/re-run` → 응답의 새 Execution ID 로 라우팅 (`/w/<slug>/workflows/:workflowId/executions/:newId`, 활성 워크스페이스 slug 기준 — [2-navigation/_layout §2.2](../2-navigation/_layout.md#22-메뉴-항목)) |
 | "취소" 버튼 | — | 모달 닫기. 변경 입력 폐기 |
 
+> **`Execution.inputData` 는 egress 마스킹 대상이 아니다 — 이 모달이 그 이유다 (2026-08-16)**:
+> (**`NodeExecution.inputData` 는 마스킹한다** — 노드 레벨엔 재제출 소비처가 없다. 2026-08-17 정정)
+> 위 "입력 데이터 폼" 은 원본 `inputData.parameters` 를 **프리필**하고, "원본 입력 그대로
+> 사용" 토글의 **UI 기본값이 OFF** 라 사용자가 폼을 건드리지 않아도 그 값이
+> `inputOverride` 로 **되전송**된다. 따라서 `inputData` 에 응답 마스킹을 걸면 리터럴
+> `'***'` 가 새 Execution 의 **실제 입력값**이 된다 — 가시성 저하가 아니라 데이터 오염이다.
+> 형제 컬럼 `outputData`/`error` 는 표시 전용이라 마스킹되지만 `inputData` 는 **의도적으로
+> 제외**한다. 근거·잔여·닫는 조건의 SoT 는
+> [EIA §R17](./14-external-interaction-api.md) "잔여 ②" 이며, 구현 정본은
+> `ExecutionsService` 의 `MASKED_INPUT_DATA_REASON` 이다.
+> 에디터의 "히스토리에서 불러오기"([실행 §2.2](../3-workflow-editor/3-execution.md))도 같은
+> 컬럼을 같은 방식으로 재사용하므로 동일하게 적용된다.
+> **토글을 ON(=`useOriginalInput: true`)으로 두면 서버가 원본 엔티티를 직접 읽으므로 이
+> 경로 자체가 성립하지 않는다** — 위험은 프리필 왕복(OFF) 경로 하나다.
+
 ### 10.3 Chain 표시
 
 실행 상세 페이지 헤더에 chain 정보:

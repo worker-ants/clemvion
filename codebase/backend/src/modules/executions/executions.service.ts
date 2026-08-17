@@ -37,7 +37,10 @@ import {
   type ExecutionTriggerSource,
 } from './utils/execution-trigger';
 import { loadParentWorkflowNames } from './utils/load-parent-workflow-names';
-import { redactStoredErrorForResponse } from '../../shared/utils/redact-stored-error';
+import {
+  redactStoredDataForResponse,
+  redactStoredErrorForResponse,
+} from '../../shared/utils/redact-stored-error';
 
 // execution_node_log 행 수 상한. ForEach 같은 컨테이너에서 행 수가 폭증하는 경우
 // 메모리 적재량을 묶어두기 위한 안전망 — UI timeline 은 정렬된 nodeId prefix 만
@@ -50,6 +53,74 @@ export const RERUN_CHAIN_DEPTH_LIMIT = 32;
 // re_run_of walk 의 안전 상한 — 사이클은 구조상 불가(부모는 항상 더 이른 행)하나
 // 무한 루프 방어로 한도의 2배에서 중단.
 const RERUN_CHAIN_WALK_MAX = RERUN_CHAIN_DEPTH_LIMIT * 2;
+
+/**
+ * **`Execution.inputData` 를 egress 마스킹하지 않는 이유** — 이 결정을 한 곳에 적고
+ * 호출부는 `{@link MASKED_INPUT_DATA_REASON}` 으로 가리킨다.
+ *
+ * > **카브아웃은 `Execution` 레벨 한정이다 (2026-08-17 정정).** `NodeExecution.inputData` 는
+ * > **마스킹한다** — 재제출 소비처가 없기 때문이다(Re-run 은 `Execution.inputData` 만 읽는다,
+ * > 실측). 초판은 카브아웃을 노드 레벨까지 확대했는데, 그러면 WS emit 은 마스킹하고 REST 는
+ * > 원문을 주어 **같은 store 슬롯**(`nodeResults[].inputData`)에서 2초 폴링이 마스킹 값을
+ * > 원문으로 덮는 flip-flop 이 난다 — 화면이 깜빡이고 내부 wire 마스킹의 보안 이득도 0이 된다
+ * > (`01_17_49` cross_spec CRITICAL). 축을 정확히 하면: **round-trip 되는 것만 카브아웃**이다.
+ *
+ * `Execution.inputData` 는 **표시 전용이 아니다** — 두 소비처가 그 값을 읽어 **그대로 재제출**한다:
+ *
+ * | 소비처 | 경로 |
+ * |---|---|
+ * | Re-run 모달 | `original.inputData` → `paramValues` 프리필 → `inputOverride` 제출 |
+ * | 에디터 "히스토리에서 불러오기" | 상세 조회 `inputData` → textarea → 재실행 |
+ *
+ * Re-run 모달의 `useOriginalInput` **기본값이 `false`**(편집 모드)라, 사용자가 아무것도
+ * 건드리지 않고 실행해도 프리필된 값이 `inputOverride` 로 제출된다. 여기에 마스킹을 걸면
+ * 리터럴 `'***'` 가 **새 실행의 실제 입력값**이 된다 — 가시성 저하가 아니라 **조용한 기능
+ * 오염**이다(`23_49_05` cross_spec CRITICAL · `23_50_03` side_effect CRITICAL 이 독립 발견).
+ *
+ * **기본 Re-run(`useOriginalInput=true`)은 영향이 없다** — 서버가 `original.inputData` 를
+ * 엔티티에서 직접 읽는다. 위험은 클라이언트 프리필 왕복 경로 하나다.
+ *
+ * `outputData` 는 이 문제가 없다 — 실측상 소비처가 전부 **표시 전용**이다.
+ *
+ * **잔여 갭임을 인정한다**: 트리거 파라미터 자유 텍스트의 자격증명은 계속 노출된다. 다만
+ * `inputData` 의 주요 자격증명 벡터인 webhook 민감 헤더는 **ingestion 시점에 이미
+ * `[REDACTED]`** 로 가려져 있다(12-webhook §5.3). 프런트가 마스킹 마커를 감지해 재입력을
+ * 강제하는 가드가 선행되면 그때 이 컬럼도 닫는다 — 트래커에 등재했다.
+ */
+const MASKED_INPUT_DATA_REASON =
+  'inputData 는 Re-run/히스토리-로드가 재제출하는 값이라 egress 마스킹 대상이 아니다';
+
+// 이 상수는 JSDoc 앵커 전용이다 — 런타임 참조가 없어도 제거하지 않는다.
+void MASKED_INPUT_DATA_REASON;
+
+/**
+ * 값이 있을 때만 마스킹하고, 없으면 **입력을 그대로** 돌려준다.
+ *
+ * `redactStored*` 는 부재를 `null` 로 **정규화**하는데, `nodeExecutions[]` 는 엔티티 형태를
+ * 그대로 싣는 자리라 `undefined → null` 로 바뀌면 (1) 응답 shape 이 달라지고 (2) 값이 없어
+ * 아무것도 안 바뀐 행까지 참조가 달라져 copy-on-change 최적화가 깨진다.
+ *
+ * 컬럼마다 같은 삼항을 손으로 반복하면 컬럼이 늘 때 한 줄이 빠진다 — 이 파일이 고치는 결함
+ * 클래스 그 자체라 헬퍼로 묶는다 (`23_08_19` maintainability W7).
+ *
+ * **제네릭을 쓰지 않는다** — `<T>` 로 두면 TS 가 `T` 를 값이 아니라 `mask` 의 **파라미터
+ * 타입**(`… | null | undefined`)에서 추론해 반환 타입에 `undefined` 가 섞이고,
+ * `ResponseNodeExecution` 배정에서 빌드가 깨진다(실제로 한 번 깨졌다). 두 컬럼이 모두
+ * 같은 구체 타입이라 제네릭의 이득도 없다.
+ *
+ * **시그니처가 `| null` 을 안 적는 것은 의도다** (`23_50_03` maintainability W6). 엔티티가
+ * 두 컬럼을 non-null 로 선언하므로 **정적으로는** null 이 올 수 없고, 반환 타입에 `| null`
+ * 을 얹으면 `ResponseNodeExecution` 배정이 깨진다. 본문의 `== null` 은 TypeORM 이 런타임에
+ * `undefined` 를 줄 수 있는 경로에 대한 **방어**이며, 그 경우 입력을 그대로 통과시켜
+ * copy-on-change 를 지킨다 — 타입으로 null 가능성을 숨긴 것이 아니라, 정적 계약(non-null)과
+ * 런타임 방어를 분리한 것이다.
+ */
+function maskIfPresent(
+  value: Record<string, unknown>,
+  mask: (v: Record<string, unknown>) => Record<string, unknown> | null,
+): Record<string, unknown> {
+  return value == null ? value : (mask(value) ?? value);
+}
 
 /**
  * 종결 상태 (`completed` / `failed` / `cancelled`) 실행의 findById 응답은 불변이다.
@@ -66,30 +137,42 @@ const RERUN_CHAIN_WALK_MAX = RERUN_CHAIN_DEPTH_LIMIT * 2;
 export const SNAPSHOT_CACHE_MAX_ENTRIES = 256;
 
 /**
- * 응답으로 나가는 Execution — 엔티티와 **`error` 의 null 가능성만** 다르다.
+ * 응답으로 나가는 Execution — 엔티티와 **마스킹 대상 두 컬럼의 null 가능성만** 다르다.
  *
- * 엔티티는 `error: Record<string, unknown>` 로 `| null` 없이 선언돼 있지만, egress
- * 마스킹 관문({@link ExecutionsService.toResponseExecution})은 값이 없을 때 정직하게
- * `null` 을 돌려준다. 그 차이를 `as Execution` 로 덮으면 이후 소비자가 `.error` 를
- * null-check 없이 만져도 컴파일러가 침묵한다 — 이 PR 이 고치는 결함 클래스(자매 표면
- * 누락)를 타입이 잡아줄 기회를 줄이는 셈이라 명시 타입으로 남긴다.
+ * 엔티티는 `error`/`outputData` 를 `Record<string, unknown>` 로 `| null` 없이
+ * 선언하지만, egress 마스킹 관문({@link ExecutionsService.toResponseExecution})은
+ * 값이 없을 때 정직하게 `null` 을 돌려준다. 그 차이를 `as Execution` 로 덮으면 이후
+ * 소비자가 그 필드를 null-check 없이 만져도 컴파일러가 침묵한다 — 이 작업이 고치는
+ * 결함 클래스(자매 표면 누락)를 타입이 잡아줄 기회를 줄이는 셈이라 명시 타입으로 남긴다.
+ *
+ * > `outputData` 를 여기 넣은 것은 2026-08-16 이다. 그전엔 `error` 만 넓어져 있었고,
+ * > 같은 관문을 걸자 **빌드가 타입 오류로 잡았다** — 유닛 테스트는 통과했는데
+ * > `nest build` 만 잡은 자리다.
+ * > **`inputData` 는 여기 없다** — 마스킹 대상이 아니기 때문이다
+ * > ({@link MASKED_INPUT_DATA_REASON}). 엔티티 타입 그대로 통과한다.
  */
 export type ResponseExecution = Omit<
   Execution,
-  'error' | 'trigger' | 'executor'
+  'error' | 'outputData' | 'trigger' | 'executor'
 > & {
   error: Record<string, unknown> | null;
+  outputData: Record<string, unknown> | null;
 };
 
 /**
  * 응답으로 나가는 NodeExecution — {@link ResponseExecution} 과 **같은 이유**로 존재한다.
  *
- * 자매를 하나만 고치는 것이 이 PR 이 고치는 결함 클래스 그 자체라, `Execution` 쪽만
+ * 자매를 하나만 고치는 것이 이 작업이 고치는 결함 클래스 그 자체라, `Execution` 쪽만
  * 좁히고 여기 `as NodeExecution` 를 남겨 두면 같은 실수를 한 함수 안에서 반복하게 된다
  * (ai-review `17_35_49` maintainability W1).
  */
-export type ResponseNodeExecution = Omit<NodeExecution, 'error'> & {
+export type ResponseNodeExecution = Omit<
+  NodeExecution,
+  'error' | 'inputData' | 'outputData'
+> & {
   error: Record<string, unknown> | null;
+  inputData: Record<string, unknown> | null;
+  outputData: Record<string, unknown> | null;
 };
 
 /**
@@ -637,11 +720,29 @@ export class ExecutionsService {
         // (`17_12_34` performance W1).
         const reconciledNodeExecutions = reconcilePreParkWaitingStatus(
           nodeExecutions,
-        ).map<ResponseNodeExecution>((ne) =>
-          ne.error == null
+        ).map<ResponseNodeExecution>((ne) => {
+          // 세 컬럼 전부 마스킹하되 **copy-on-change 를 지킨다** — 위 주석의 이유.
+          // `redactStored*` 는 바뀐 것이 없으면 같은 참조를 돌려주므로, 셋 다 무변화면
+          // 행 자체를 그대로 재사용해 대규모 ForEach 실행의 행-수만큼의 shallow-copy 를
+          // 피한다. `error` 만 보고 판단하던 종전 조건을 세 컬럼으로 넓힌다.
+          // **노드 레벨 `inputData` 는 마스킹한다** — 카브아웃은 `Execution` 레벨 한정이다
+          // ({@link MASKED_INPUT_DATA_REASON}). 여기엔 재제출 소비처가 없고, 안 걸면 WS emit
+          // 과 REST 가 같은 store 슬롯에서 flip-flop 한다.
+          const inputData = maskIfPresent(
+            ne.inputData,
+            redactStoredDataForResponse,
+          );
+          const outputData = maskIfPresent(
+            ne.outputData,
+            redactStoredDataForResponse,
+          );
+          const error = maskIfPresent(ne.error, redactStoredErrorForResponse);
+          return inputData === ne.inputData &&
+            outputData === ne.outputData &&
+            error === ne.error
             ? ne
-            : { ...ne, error: redactStoredErrorForResponse(ne.error) },
-        );
+            : { ...ne, inputData, outputData, error };
+        });
         const executionPath = pathRows.map((r) => r.nodeId);
         // `take` 상한과 동일 길이로 돌아오면 그 이후의 로그가 잘렸을 수 있다.
         // UI 는 이 플래그로 배너를 띄우거나 후속 페이지 요청을 결정한다.
@@ -799,8 +900,10 @@ export class ExecutionsService {
    * **응답 마스킹은 여기 한 자리에서 건다.** `stopInternal` 은 `return` 문이 **셋**이고
    * (waiting 경로 · `affected=0` 재조회 · 정상 재조회) 각각 `?? execution` 폴백을 가져
    * 실제로 나갈 수 있는 객체는 **여섯 가지**다. 호출부마다 마스킹을 걸면 네 번째 반환이
-   * 추가될 때 조용히 빠진다 — 이 저장소가 *"자매 넷 중 하나만"* 으로 반복해 겪은 형태다.
-   * 함수를 하나 더 두어 **모든 반환이 같은 문을 통과**하게 한다.
+   * 추가될 때 조용히 빠진다. 함수를 하나 더 두어 **모든 반환이 같은 문을 통과**하게 한다.
+   *
+   * > 읽기 표면 전체 목록과 그 근거는 {@link ExecutionsService.toResponseExecution} 의
+   * > 표가 정본이다 — 여기에 개수를 다시 적지 않는다(적으면 표면이 늘 때 갈린다).
    *
    * **반환 계약(2026-08-16 변경)**: 종전에는 재조회한 **엔티티 참조를 그대로** 돌려줬다 —
    * `findById`/`getChain` 과 달리 strip 관문을 타지 않던 유일한 공개 경로였다. 이제
@@ -935,10 +1038,12 @@ export class ExecutionsService {
         ? this.toIso(execution.finishedAt)
         : null,
       durationMs: execution.durationMs ?? null,
-      inputData: execution.inputData ?? null,
-      outputData: execution.outputData ?? null,
-      // 목록 경로의 `error` 마스킹 자리. 나머지 세 표면은 `toResponseExecution` 이 덮는다
+      // 목록 경로의 마스킹 자리. 나머지 세 표면은 `toResponseExecution` 이 덮는다
       // (여기는 엔티티가 아니라 DTO 조립이라 그 관문을 지나지 않는다).
+      //
+      // **`inputData` 는 의도적으로 마스킹하지 않는다** — {@link MASKED_INPUT_DATA_REASON}.
+      inputData: execution.inputData ?? null,
+      outputData: redactStoredDataForResponse(execution.outputData),
       error: redactStoredErrorForResponse(execution.error),
       executedBy: execution.executedBy ?? null,
       parentExecutionId: execution.parentExecutionId ?? null,
@@ -961,17 +1066,29 @@ export class ExecutionsService {
    *
    * 1. 관계 객체 제거 — `trigger`/`executor` (User 등 민감 정보).
    *    `deriveExecutionTrigger` 산출 후에는 더 이상 필요하지 않다.
-   * 2. `error` 컬럼 값 마스킹 — {@link redactStoredErrorForResponse}.
+   * 2. 세 컬럼 값 마스킹 — `error`({@link redactStoredErrorForResponse}) 와
+   *    `inputData`/`outputData`({@link redactStoredDataForResponse}).
    *
-   * ## 왜 둘을 한 함수에 묶나 — 표면이 넷인데 자매가 갈라진다
+   * ## 읽기 표면 목록 — **이 주석이 정본이다** (수치를 여기 한 곳에만 둔다)
    *
    * 종전 이름은 `stripPrivateRelations` 였고 (1) 만 했다. 마스킹을 호출부마다 손으로
    * 걸면 **한 곳씩 빠진다** — 이 저장소의 반복 실패 형태다. 실제로 이 결함을 등재한
    * 트래커 항목도 `toExecutionDto` **한 줄만** 지목했는데, 실측하니 그건 목록 경로
    * 전용이고 상세·chain·stop 이 각자 다른 자리에서 같은 컬럼을 싣고 있었다.
    *
-   * 이 함수는 그중 **셋**(`findById` · `getChain` · `stop`)의 공통 관문이다. 넷째인
-   * `toExecutionDto` 는 엔티티가 아니라 DTO 를 조립하므로 거기서 직접 부른다.
+   * | # | 표면 | 관문 |
+   * |---|---|---|
+   * | 1 | `findById` (`GET /executions/:id` · WS `execution.snapshot`) | 이 함수 |
+   * | 2 | `getChain` | 이 함수 |
+   * | 3 | `stop` | 이 함수 |
+   * | 4 | `toExecutionDto` (목록) | 엔티티가 아니라 DTO 조립이라 **거기서 직접** 부른다 |
+   * | 5 | `findById` 의 `nodeExecutions[]` | 같은 함수 안, 행 단위 map |
+   * | 6 | `BackgroundRunsService.toNodeExecutionDto` (본문 노드) | 다른 서비스의 자매 |
+   *
+   * > **수치를 여기 한 곳에 모은 이유**: 종전엔 *"자매 넷 중 하나만"* 이라는 **숫자가
+   * > 소스 세 곳**(이 파일 `stop` JSDoc · `background-runs.service` · 두 `.spec.ts`)에
+   * > 흩어져 있었다. 표면이 늘면 세 곳이 갈린다 — 실제로 이번에 `inputData`/`outputData`
+   * > 가 더해지며 "넷" 이 낡았다. 다른 지점은 이 표를 `{@link}` 로 가리키기만 한다.
    *
    * ## 반환 타입이 `Execution` 이 아닌 이유
    *
@@ -987,6 +1104,10 @@ export class ExecutionsService {
     const { trigger: _t, executor: _e, ...rest } = execution;
     return {
       ...rest,
+      // `...rest` 는 엔티티를 통째로 펼치므로 여기서 덮지 않으면 원문이 나간다
+      // (`error` 만 가리던 자리였다). **`inputData` 는 제외** —
+      // {@link MASKED_INPUT_DATA_REASON}.
+      outputData: redactStoredDataForResponse(rest.outputData),
       error: redactStoredErrorForResponse(rest.error),
     };
   }

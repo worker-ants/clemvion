@@ -181,14 +181,38 @@ socket.emit("unsubscribe", { channel: "execution:550e8400-e29b-41d4-a716-4466554
 | `execution.completed` | `{ executionId, …필드 집합, seq, timestamp }` | 실행 완료 |
 | `execution.failed` | `{ executionId, …필드 집합, seq, timestamp }` | 실행 실패 |
 | `execution.cancelled` | `{ executionId, …필드 집합, seq, timestamp }` | 실행 취소 |
-| `execution.snapshot` | `{ executionId, execution, timestamp }` | 재구독 시 1회성 현재 상태 스냅샷 (놓친 이벤트 복구). `execution` 은 `ExecutionsService.findById` 의 **Execution 전체 객체** (그 안에 `status` 와 `nodeExecutions[]` 등이 nest) — top-level 에 `status`/`nodeExecutions` 가 평면으로 있는 게 아니라 `payload.execution.*` 로 nest 된다. `ExecutionEventType.EXECUTION_SNAPSHOT`, §6.2 참조. **nest 된 `execution.error` 와 `execution.nodeExecutions[].error` 는 `findById` 의 마스킹 관문을 상속한다** — 값-패턴 자격증명 마스킹이 걸린 값이 실린다 (SoT: [EIA §R17](./14-external-interaction-api.md) "내부 읽기 경로" 불릿, 결정 2026-08-16). 같은 소켓의 `execution.node.*` **emit** 은 이 관문을 지나지 않아 아직 원문이다 |
+| `execution.snapshot` | `{ executionId, execution, timestamp }` | 재구독 시 1회성 현재 상태 스냅샷 (놓친 이벤트 복구). `execution` 은 `ExecutionsService.findById` 의 **Execution 전체 객체** (그 안에 `status` 와 `nodeExecutions[]` 등이 nest) — top-level 에 `status`/`nodeExecutions` 가 평면으로 있는 게 아니라 `payload.execution.*` 로 nest 된다. `ExecutionEventType.EXECUTION_SNAPSHOT`, §6.2 참조. **nest 된 `execution.error` 와 `execution.nodeExecutions[].error` 는 `findById` 의 마스킹 관문을 상속한다** — 값-패턴 자격증명 마스킹이 걸린 값이 실린다 (SoT: [EIA §R17](./14-external-interaction-api.md) "내부 읽기 경로" 불릿, 결정 2026-08-16). 같은 소켓의 `execution.node.*` **emit** 은 이 관문(`findById`)을 지나지 않지만, **별도의 emit 시점 값-마스킹**을 받는다 (아래 §4.1 "값-패턴 마스킹" 캐비엇, 결정 2026-08-16) |
 | `execution.paused` _(계획·미구현)_ | `{ executionId, nodeId, nodeName, reason }` | 브레이크포인트에서 일시 정지. 브레이크포인트 기능은 미구현 ([Spec 실행 §6 로드맵](../3-workflow-editor/3-execution.md#6-브레이크포인트-향후-로드맵--미구현)) |
-| `execution.node.started` | `{ executionId, nodeId, nodeExecutionId, nodeName, nodeType }` | 노드 실행 시작. `nodeExecutionId`는 `NodeExecution` 행의 PK로, 컨테이너 body 노드의 iter별 타임라인 row를 구분하는 식별자 |
-| `execution.node.completed` | `{ executionId, nodeId, nodeExecutionId, nodeName, output, duration }` | 노드 실행 완료. `output` 은 `NodeHandlerOutput` 의 `output` 필드 — `output.error` 가 set 된 경우 (예: AI Agent multi-turn 의 `port: 'error'` 종결) 도 포함 ([Spec AI Agent §7.9](../4-nodes/3-ai/1-ai-agent.md#79-multi-turn-모드--오류-error-포트)). `output.error.details.retryable` / `retryAfterSec` 표준 필드는 CONVENTIONS Principle 3.2.1 정의 |
-| `execution.node.failed` | `{ executionId, nodeId, nodeExecutionId, nodeName, error }` | 노드 실행 실패. `error` 는 `output.error` 전체 구조 — `{ code: string, message: string, details?: { retryable?: boolean, retryAfterSec?: number, ... 노드별 } }` ([CONVENTIONS Principle 3.2](../conventions/node-output.md#32-outputerror-표준-형태)). LLM 계열 노드는 `details.retryable` 필수 |
-| `execution.node.skipped` | `{ executionId, nodeId, nodeExecutionId, nodeName, reason }` | 노드 건너뜀 |
+| `execution.node.started` | `{ executionId, nodeId, nodeExecutionId, nodeLabel, nodeType }` | 노드 실행 시작. `nodeExecutionId`는 `NodeExecution` 행의 PK로, 컨테이너 body 노드의 iter별 타임라인 row를 구분하는 식별자 |
+| `execution.node.completed` | `{ executionId, nodeId, nodeExecutionId, nodeLabel, output, duration }` | 노드 실행 완료. `output` 은 `NodeHandlerOutput` 의 `output` 필드 — `output.error` 가 set 된 경우 (예: AI Agent multi-turn 의 `port: 'error'` 종결) 도 포함 ([Spec AI Agent §7.9](../4-nodes/3-ai/1-ai-agent.md#79-multi-turn-모드--오류-error-포트)). `output.error.details.retryable` / `retryAfterSec` 표준 필드는 CONVENTIONS Principle 3.2.1 정의 |
+| `execution.node.failed` | `{ executionId, nodeId, nodeExecutionId, nodeLabel, error }` | 노드 실행 실패. `error` 는 `output.error` 전체 구조 — `{ code: string, message: string, details?: { retryable?: boolean, retryAfterSec?: number, ... 노드별 } }` ([CONVENTIONS Principle 3.2](../conventions/node-output.md#32-outputerror-표준-형태)). LLM 계열 노드는 `details.retryable` 필수 |
+| `execution.node.skipped` | `{ executionId, nodeId, nodeExecutionId, nodeLabel, reason }` | 노드 건너뜀 |
 | `execution.node.cancelled` | `{ executionId, nodeId, nodeExecutionId, nodeLabel, error? }` | 노드 실행이 중단됨. `NodeExecution.status = cancelled` ([실행 엔진 §1.2](./4-execution-engine.md#12-nodeexecution-상태) / [node-cancellation §2.4·§5.1](../conventions/node-cancellation.md#5-aborterror-분류)). **`error` 는 optional** — signal 경로(핸들러 `AbortError`)는 `output.error` 구조(`{ code: 'AbortError', message }`)를 싣지만, **DB 관측 가드 경로는 싣지 않는다**(내부 message 에 executionId 등이 포함될 수 있어 client 노출을 막는다). 소비자는 `error` 부재를 방어적으로 처리해야 한다. `failed` 와 별도 이벤트 — 타임라인이 취소를 실패와 구분 표시하고 `running` 에 잔류하지 않게 한다. 생산자: Parallel `cancel-others-on-fail` / 사용자 cancel / **엔진 DB 관측 가드(노드 경계·AI turn 경계·park 짝 전이, §2.4)** |
-> **Note (spec drift)**: 위 표의 `node.started` / `node.completed` / `node.failed` / `node.skipped` 행은 spec 에 `nodeName` 으로 표기되어 있으나 엔진 및 프론트엔드는 모두 `nodeLabel` 을 사용하고 있다 (기존 drift, 본 PR scope 밖 — 별도 정합 필요). `node.cancelled` 는 신설 이벤트이므로 올바른 `nodeLabel` 로 즉시 정정한다.
+> **Note (2026-08-16 정정 완료)**: 위 `node.*` 4행은 오래 `nodeName` 으로 표기돼 있었으나 엔진·프런트엔드는 처음부터 `nodeLabel` 을 썼다. 실측(엔진 emit 전수가 `nodeLabel: node.label ?? node.type`, `nodeName` emit 0건)으로 확인하고 **표를 구현에 맞춰 정정**했다. 미구현 이벤트 `execution.paused` 행은 emit 대상이 아니라 그대로 두되, 구현 착수 시 `nodeLabel` 로 맞춘다.
+>
+> **값-패턴 마스킹 (강제됨 — 결정 2026-08-16)**: 위 execution/node 이벤트 payload 는 **emit 시점**에 자격증명 값-패턴이 마스킹된다 — 자유 텍스트 안에 박힌 `Bearer …`·`Authorization:` 헤더·bare JWT·자격증명 포함 URI 등. 대상은 **특정 필드가 아니라 payload 전체**이며, 아래 열거는 대표 **예시**다: `error`(node.failed) · `output`/`input`(node.completed) · `message`(ai_message).
+>
+> - **내부 WS wire 와 외부 fanout 양쪽**에 적용된다. `execution:<id>` 구독 인가가 workspace 소유만 보고 role 을 구분하지 않아(§3.3) 수신 인구가 `GET /api/executions/:id` 와 동일하기 때문이다 — [EIA §R17](./14-external-interaction-api.md) 의 boundary masking parity 원칙과 같은 근거다.
+> - **예외는 `llmCalls` 하나** — 에디터 전용 raw 디버그라 wire 에서는 원문을 유지한다(fanout 에서는 필드째 strip 되므로 외부 노출은 늘지 않는다). 아래 `## Rationale` 의 strip-only 항목 참조.
+> - **앞선 키-이름 마스킹의 `[REDACTED]` 마커는 덮이지 않는다** — 값-마스커가 마커에 대해 멱등하다.
+> - 근거·적용 범위·잔여 갭: [EIA §R17](./14-external-interaction-api.md).
+>
+> **`input` 마스킹은 REST 노드 레벨과 일치한다** (2026-08-17 정정): emit payload 의 `input`
+> 과 REST `nodeExecutions[].inputData` 는 **같은 프런트 store 슬롯**(`nodeResults[].inputData`)
+> 으로 들어가므로 **둘 다 마스킹한다** — 한쪽만 가리면 진행 중 실행의 2초 REST 폴링이 마스킹
+> 값을 원문으로 덮어 화면이 깜빡이고(flip-flop) wire 마스킹의 보안 이득도 사라진다.
+>
+> 반면 **`Execution.inputData`(REST)는 마스킹하지 않는다** — Re-run 프리필이 그 값을 읽어
+> **재제출**하기 때문이다([§R17 잔여 ②](./14-external-interaction-api.md) ·
+> [Re-run §10.2](./13-replay-rerun.md)). 즉 가르는 축은 필드 이름이 아니라 **레벨**이다:
+> *round-trip 되는 Execution 레벨만 카브아웃*하고, 표시 전용인 노드 레벨은 REST·WS 양쪽에서
+> 일관되게 마스킹한다.
+>
+> **`config` 의 raw-echo 계약보다 값-마스킹이 우선한다**: payload 에 실리는
+> `NodeHandlerOutput.config` 는 [node-output Principle 7](../conventions/node-output.md#principle-7--config-echo-원칙-nodehandleroutputconfig)
+> 이 *"원본 그대로 echo"* 로 규정하지만, 그 안에 **자격증명 패턴이 박혀 있으면 마스킹된다**.
+> 자격증명을 외부 수신자에게 흘리지 않는 것이 우선이며, 이는 §R17 `ai_message` 불릿이
+> *"보수적 패턴의 rare FP 를 보안 우선으로 수용"* 이라 한 것과 같은 판단이다.
 | `execution.waiting_for_input` | `{ executionId, nodeId, nodeExecutionId, nodeType, interactionType, formConfig?, buttonConfig?, conversationConfig?, conversationThread? }` | Form 노드, 버튼 Presentation 노드, 또는 AI Agent Multi Turn 노드에서 사용자 입력 대기. 재개 후 `execution.node.completed`도 동일한 `nodeExecutionId`로 발행되어 프론트 타임라인의 동일 row가 업데이트된다. `conversationThread` 가 동봉되면 UI 가 라이브 thread 패널을 갱신할 수 있다 (선택, §4.4.5). 아래 §4.4 참조 |
 | `execution.ai_message` | `{ executionId, nodeId, message, turnCount, messages, metadata?, llmCalls?, durationMs?, presentations? }` | AI Agent Multi Turn 모드에서 AI 응답 메시지 전달. `messages` 는 system 을 제외한 user / assistant / **tool** 메시지를 모두 포함하는 권위 있는 스냅샷이며, 각 항목은 `source: 'live' \| 'injected'` 마커를 동봉한다 (§4.4.6). `presentations` 는 AI Agent 의 `render_*` 표현 도구 출력 (§4.4 표 / [Spec AI Agent §7.10](../4-nodes/3-ai/1-ai-agent.md#710-presentation-payload-render_-운반)). 상세 필드 정의는 §4.4 참조 |
 | `execution.tool_call_started` | `{ executionId, nodeId, turnIndex, toolCallId, name, arguments }` | AI Agent 가 provider tool(KB/MCP 등)을 실행하기 시작했음을 알림. 디버깅 타임라인이 즉시 pending 상태의 tool 항목을 표시할 수 있도록 turn 종료 전에 발송 |
@@ -1079,6 +1103,10 @@ KB 임베딩 진행 상태는 **문서 단위 채널** 로 broadcast 한다 (`We
 - **결정 (strip-only)**: `llmCalls` (및 그 안의 `requestPayload`/`responsePayload`) 는 **인증된 내부 WS 채널에만** 포함하고, **fanout(외부) 경로에서는 strip** 한다. 채널 end-user 는 최종 assistant 텍스트/`presentations` 만 받는다. strip 대상은 **WS fanout + EIA REST `getStatus()`** 양쪽이며, 필드명 기준 **깊이 무관**이다. DB 영속(`meta.turnDebug[i].llmCalls`)·실행 이력 디버그 패널은 불변.
 - **근거**: debug raw payload 는 본질적으로 에디터 전용 관심사다. 외부/채널 수신자는 이를 필요로 하지 않으므로, 단일 fanout seam 에서 제거하면 최소 변경으로 노출을 닫으면서 에디터 디버그 패널은 그대로 유지된다.
 - **기각된 대안**: 값-레벨 마스킹은 에디터 디버깅 가치를 훼손하고 부분적이며, 워크스페이스 내 viewer/editor 역할 게이트는 별도 RBAC 확장이 필요해 본 결정 범위를 넘는다. 향후 멀티테넌트 viewer 요구가 명확해지면 재검토한다.
+
+> **(2026-08-16 보강 — 이 결정은 유지된다)** 위 "기각된 대안" 은 *"`llmCalls` 를 값-레벨 마스킹으로 **대체**한다"* 에 대한 것이었고 그 근거(에디터 디버깅 가치 훼손)는 지금도 유효하다 — `llmCalls` 는 여전히 **strip-only** 이고, 내부 wire 에서 값-패턴 마스킹의 **대상이 아니다**(`WIRE_PRESERVED_FIELDS`).
+>
+> 그와 **별개로**, `llmCalls` 가 아닌 자유 텍스트 필드(`error`/`message`/`output` 등)에는 값-패턴 마스킹이 **추가**됐다(§4.1 캐비엇 / [EIA §R17](./14-external-interaction-api.md)). 즉 대체가 아니라 병존이며, 이 항목의 결정은 적용 대상이 명확해졌을 뿐 번복되지 않았다. 두 층의 역할 분담은 이렇다 — **strip** 은 *디버그 전용 필드 자체*를 외부에서 제거하고, **값-마스킹** 은 *어느 필드에든 박힐 수 있는 자격증명 패턴*을 가린다.
 
 ### `execution.retry_last_turn` 의 graph 진행 의미 — Re-run 과의 경계
 

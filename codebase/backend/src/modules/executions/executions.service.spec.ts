@@ -850,9 +850,12 @@ describe('ExecutionsService', () => {
    * ## 표면마다 **따로** 단언하는 이유
    *
    * 한 헬퍼를 부르니 한 번만 검증하면 된다고 생각하기 쉽다. 그러면 **한 표면에서
-   * 호출을 지워도 스위트가 초록**이다 — 이 저장소가 *"자매 넷 중 하나만"* 으로 반복해
-   * 겪은 형태고, 이 결함을 등재한 트래커조차 네 표면 중 **한 줄만** 지목했다.
-   * 그래서 독립 표면 넷 + 재사용 둘을 각각 겨눈다.
+   * 호출을 지워도 스위트가 초록**이다 — 이 저장소가 *"자매 중 하나만"* 으로 반복해
+   * 겪은 형태고, 이 결함을 등재한 트래커조차 **한 줄만** 지목했다.
+   * 그래서 독립 표면과 재사용 경로를 각각 겨눈다.
+   *
+   * > 표면 목록·개수는 `ExecutionsService.toResponseExecution` 의 표가 정본이다 —
+   * > 여기에 숫자를 다시 적지 않는다(적으면 표면이 늘 때 이 주석만 낡는다).
    */
   describe('Execution.error 응답 마스킹 — 표면 전수', () => {
     const LEAKY = {
@@ -1097,6 +1100,324 @@ describe('ExecutionsService', () => {
 
       const result = await service.findByWorkflow('w1', {});
       expect(result.data[0].error).toBeNull();
+    });
+  });
+
+  /**
+   * `outputData` 응답 egress 마스킹 (§R17 잔여 ② 부분 해소 — 결정 2026-08-16).
+   *
+   * ## `inputData` 는 **의도적으로 대상이 아니다**
+   *
+   * 초안은 두 컬럼을 함께 마스킹했다가 **되돌렸다.** `inputData` 는 표시 전용이 아니라
+   * Re-run 모달·에디터 "히스토리에서 불러오기" 가 읽어 **그대로 재제출**하는 값이라,
+   * 마스킹하면 리터럴 `'***'` 가 새 실행의 실제 입력이 된다(조용한 기능 오염).
+   * 두 게이트가 독립으로 CRITICAL 을 냈고 소스 추적으로 확증했다 —
+   * 소스 정본은 `ExecutionsService` 의 `MASKED_INPUT_DATA_REASON`.
+   *
+   * 그래서 이 describe 는 **양방향을 고정**한다: `outputData` 는 마스킹되고
+   * `inputData` 는 **원문 그대로** 나가야 한다(⑧ 캐너리). 한쪽만 단언하면 나중에
+   * 누군가 `inputData` 에 관문을 다시 붙여도 스위트가 초록이다.
+   *
+   * ## 왜 `error` 자매 describe 와 따로 두나
+   *
+   * `outputData` 에는 **앞선 마스킹 층**이 있다 — webhook ingestion 이 민감 헤더를
+   * `[REDACTED]` 로 마스킹해 저장하고(12-webhook §5.3), 그건 4개 문서가 전제를 공유하는
+   * 문서화된 계약이다. 그래서 여기엔 `error` 에 없는 단언이 하나 더 붙는다 — **마커 보존**.
+   */
+  describe('outputData + 노드 레벨 inputData 마스킹 — 표면 전수 (Execution.inputData 는 카브아웃)', () => {
+    const LEAKY_IN = {
+      note: 'connect via postgres://admin:pw@db.internal/prod',
+    };
+    // `Bearer …` 를 쓴다. 초안은 `token=sk-live-abc123` 이었는데 **통과했다** —
+    // `SECRET_LEAK_PATTERNS` 의 키워드 목록은 `access_token`/`refresh_token`/`id_token`/
+    // `api_key` 는 담지만 **bare `token=` 은 없다**. 이 PR 이 만든 결함이 아니라 선존
+    // 패턴 커버리지 갭이라(패턴 확장은 캐너리가 막는 별건) 트래커에 등재하고, 여기서는
+    // 마스커가 실제로 잡는 값으로 "이 표면이 값-마스커를 지나는가" 만 겨눈다.
+    const LEAKY_OUT = { body: 'upstream said Bearer sk-live-abc123' };
+
+    it('① findById — 상세 조회', async () => {
+      const row = baseFake({
+        id: 'eD1',
+        inputData: { ...LEAKY_IN },
+        outputData: { ...LEAKY_OUT },
+      });
+      executionRepo.createQueryBuilder.mockReturnValueOnce(
+        buildSingleQB(row) as unknown,
+      );
+      nodeExecutionRepo.find.mockResolvedValue([]);
+
+      const result = (await service.findById('eD1')) as unknown as {
+        inputData: { note: string };
+        outputData: { body: string };
+      };
+      expect(result.outputData.body).not.toContain('sk-live-abc123');
+      expect(result.outputData.body).toContain('***');
+      // `inputData` 는 재제출 경로라 원문 그대로 — 위 describe 주석 참조.
+      expect(result.inputData.note).toContain('admin:pw');
+    });
+
+    it('② findByWorkflow — 목록 (toExecutionDto)', async () => {
+      const row = baseFake({
+        id: 'eD2',
+        inputData: { ...LEAKY_IN },
+        outputData: { ...LEAKY_OUT },
+      });
+      executionRepo.createQueryBuilder.mockReturnValueOnce(
+        buildListQB([row]) as unknown,
+      );
+
+      const result = await service.findByWorkflow('w1', {});
+      expect(JSON.stringify(result.data[0].outputData)).not.toContain(
+        'sk-live-abc123',
+      );
+      expect(JSON.stringify(result.data[0].inputData)).toContain('admin:pw');
+    });
+
+    it('③ getChain — chain 조회', async () => {
+      const root = baseFake({ id: 'eD3', outputData: { ...LEAKY_OUT } });
+      const chainQB: Record<string, jest.Mock> = {};
+      chainQB.leftJoinAndSelect = jest.fn().mockReturnValue(chainQB);
+      chainQB.where = jest.fn().mockReturnValue(chainQB);
+      chainQB.orderBy = jest.fn().mockReturnValue(chainQB);
+      chainQB.getOne = jest
+        .fn()
+        .mockResolvedValue({ ...root, workflow: { workspaceId: 'ws1' } });
+      chainQB.getMany = jest.fn().mockResolvedValue([root]);
+      executionRepo.createQueryBuilder.mockReturnValue(chainQB as unknown);
+
+      const rows = await service.getChain('eD3', 'ws1', { sub: 'u1' } as never);
+      expect(JSON.stringify(rows[0].outputData)).not.toContain(
+        'sk-live-abc123',
+      );
+    });
+
+    it('④ stop — 취소 응답', async () => {
+      const running = baseFake({
+        id: 'eD4',
+        status: ExecutionStatus.RUNNING,
+        error: null,
+      });
+      const cancelled = baseFake({
+        id: 'eD4',
+        status: ExecutionStatus.CANCELLED,
+        error: null,
+        outputData: { ...LEAKY_OUT },
+      });
+      executionRepo.findOne
+        .mockResolvedValueOnce(running as unknown)
+        .mockResolvedValueOnce(cancelled as unknown);
+
+      const qb: Record<string, jest.Mock> = {};
+      qb.update = jest.fn().mockReturnValue(qb);
+      qb.set = jest.fn().mockReturnValue(qb);
+      qb.where = jest.fn().mockReturnValue(qb);
+      qb.andWhere = jest.fn().mockReturnValue(qb);
+      qb.execute = jest.fn().mockResolvedValue({ affected: 1 });
+      executionRepo.createQueryBuilder.mockReturnValue(qb as unknown);
+
+      const result = await service.stop('eD4');
+      expect(JSON.stringify(result.outputData)).not.toContain('sk-live-abc123');
+    });
+
+    it('⑤ findById — nodeExecutions[].outputData 도 마스킹 (형제 필드 우회 차단)', async () => {
+      const row = baseFake({ id: 'eD5' });
+      executionRepo.createQueryBuilder.mockReturnValueOnce(
+        buildSingleQB(row) as unknown,
+      );
+      nodeExecutionRepo.find.mockResolvedValue([
+        {
+          id: 'ne1',
+          executionId: 'eD5',
+          error: null,
+          inputData: { ...LEAKY_IN },
+          outputData: { ...LEAKY_OUT },
+        },
+      ]);
+
+      const result = (await service.findById('eD5')) as unknown as {
+        nodeExecutions: Array<Record<string, unknown>>;
+      };
+      const ne = JSON.stringify(result.nodeExecutions[0]);
+      expect(ne).not.toContain('sk-live-abc123');
+      // **노드 레벨은 `inputData` 도 마스킹**한다 — 카브아웃은 Execution 레벨 한정이다.
+      // 여기가 원문이면 WS emit(마스킹)과 REST 가 같은 store 슬롯에서 flip-flop 한다.
+      expect(ne).not.toContain('admin:pw');
+    });
+
+    /**
+     * **webhook ingestion 마커 보존** — 12-webhook §5.3 이 규정한 계약.
+     *
+     * 값-마스커가 이 마커를 `***` 로 덮으면 같은 헤더가 읽는 경로마다 다르게 보인다
+     * (`$trigger.headers` 는 `[REDACTED]`, 실행 상세 API 는 `***`). 이 저장소가 마스킹
+     * 연쇄 작업으로 없애 온 바로 그 병이라, 여기가 RED 면 계약이 깨졌다는 뜻이다.
+     */
+    it('⑥ ingestion 의 `[REDACTED]` 헤더 마커를 덮지 않는다 (12-webhook §5.3 계약)', async () => {
+      // **`outputData` 로 겨눈다** — `inputData` 는 마스커를 아예 안 지나므로 거기서
+      // 단언하면 "마커 보존" 이 아니라 "아무것도 안 함" 을 검증하는 vacuous 테스트가 된다.
+      // 트리거 노드의 `output.request.headers` 가 ingestion 마커를 그대로 싣는 실제 형태다.
+      const row = baseFake({
+        id: 'eD6',
+        outputData: {
+          request: {
+            headers: {
+              authorization: '[REDACTED]',
+              'content-type': 'application/json',
+            },
+          },
+        },
+      });
+      executionRepo.createQueryBuilder.mockReturnValueOnce(
+        buildListQB([row]) as unknown,
+      );
+
+      const result = await service.findByWorkflow('w1', {});
+      const headers = (
+        result.data[0].outputData as {
+          request: { headers: Record<string, string> };
+        }
+      ).request.headers;
+      expect(headers.authorization).toBe('[REDACTED]');
+      expect(headers['content-type']).toBe('application/json');
+    });
+
+    /**
+     * **copy-on-change 를 필드별로 가른다** (`23_08_19` testing W5).
+     *
+     * 판정이 `error` 단일 필드에서 두 필드 AND 비교로 넓어졌다. 값만 비교하는 테스트는
+     * `outputData === ne.outputData` 항이 빠져도 GREEN 이다 — 참조 동일성으로 물어야
+     * 그 뮤턴트가 RED 가 된다.
+     *
+     * **노드 레벨은 세 컬럼 전부 대상**이다 — 카브아웃은 `Execution` 레벨 한정이라
+     * `inputData` 만 leaky 한 행도 복제되어야 한다. 이 방향을 고정해야 "노드 레벨까지
+     * 카브아웃" 회귀(WS↔REST flip-flop)가 RED 로 잡힌다.
+     */
+    it('⑥-b copy-on-change — 노드 레벨은 세 컬럼 전부가 복제를 유발한다', async () => {
+      const row = baseFake({ id: 'eD6b' });
+      executionRepo.createQueryBuilder.mockReturnValueOnce(
+        buildSingleQB(row) as unknown,
+      );
+      const clean = {
+        id: 'ne-clean',
+        executionId: 'eD6b',
+        error: null,
+        inputData: { orderId: 'A-1' },
+        outputData: { ok: true },
+      };
+      const inputLeaky = {
+        id: 'ne-in',
+        executionId: 'eD6b',
+        error: null,
+        inputData: { note: 'Bearer sk-live-IN' },
+        outputData: { ok: true },
+      };
+      const outputLeaky = {
+        id: 'ne-out',
+        executionId: 'eD6b',
+        error: null,
+        inputData: { orderId: 'A-2' },
+        outputData: { note: 'Bearer sk-live-OUT' },
+      };
+      nodeExecutionRepo.find.mockResolvedValue([
+        clean,
+        inputLeaky,
+        outputLeaky,
+      ]);
+
+      const result = (await service.findById('eD6b')) as unknown as {
+        nodeExecutions: unknown[];
+      };
+      // 세 컬럼이 전부 무변화 → 복제하지 않는다.
+      expect(result.nodeExecutions[0]).toBe(clean);
+      // **`inputData` 만 leaky 해도 복제된다** — 노드 레벨은 그 컬럼도 마스킹 대상이다.
+      // 여기가 RED 면 카브아웃이 노드 레벨까지 번졌다는 뜻이다(flip-flop 회귀 캐너리).
+      expect(result.nodeExecutions[1]).not.toBe(inputLeaky);
+      expect(
+        JSON.stringify(
+          (result.nodeExecutions[1] as { inputData: unknown }).inputData,
+        ),
+      ).not.toContain('sk-live-IN');
+      // `outputData` 가 바뀌면 복제된다 (그 비교 항이 살아있다는 증거).
+      expect(result.nodeExecutions[2]).not.toBe(outputLeaky);
+      expect(
+        JSON.stringify(
+          (result.nodeExecutions[2] as { outputData: unknown }).outputData,
+        ),
+      ).not.toContain('sk-live-OUT');
+      // 원본 엔티티는 불변 (egress-only).
+      expect(outputLeaky.outputData.note).toBe('Bearer sk-live-OUT');
+    });
+
+    it('⑦ 정상 데이터는 손상되지 않는다 + DB 원문 불변 (egress-only)', async () => {
+      const original = { orderId: 'A-1', qty: 3 };
+      const row = baseFake({ id: 'eD7', outputData: original });
+      executionRepo.createQueryBuilder.mockReturnValueOnce(
+        buildListQB([row]) as unknown,
+      );
+
+      const result = await service.findByWorkflow('w1', {});
+      expect(result.data[0].outputData).toEqual({ orderId: 'A-1', qty: 3 });
+      expect(original).toEqual({ orderId: 'A-1', qty: 3 });
+    });
+
+    /**
+     * **`inputData` 캐너리는 레벨에 따라 방향이 갈린다** — 두 CRITICAL 회귀를 각각 막는다.
+     *
+     * | 방향 | 겨누는 회귀 | 캐너리 |
+     * |---|---|---|
+     * | `Execution.inputData` 는 **원문** | 관문이 붙으면 Re-run 재제출이 `'***'` 로 오염 | `①`(`findById`) · `②`(`findByWorkflow`) · `⑧`(`getChain`) · `⑧-b`(`stop`) |
+     * | 노드 레벨 `inputData` 는 **마스킹** | 카브아웃이 노드 레벨까지 번지면 WS↔REST flip-flop | `⑤` · `⑥-b` + `background-runs.service.spec.ts` |
+     *
+     * **두 방향을 한 목록으로 묶어 읽으면 안 된다** — 같은 이름의 컬럼이지만 레벨이
+     * 다르고 정책이 반대다. 축은 *"그 값이 되쓰이는가"* 이고, 표면 목록의 정본은
+     * `ExecutionsService.toResponseExecution` 의 표다.
+     *
+     * > 이 주석은 두 번 틀렸다: 초판은 *"네 표면"* 이라 적고 다섯을 나열했고
+     * > (`00_23_57` documentation W1), 그 정정판은 `⑥-b`·background-runs 를 "비대상 고정"
+     * > 으로 **오분류**했다(`10_26_58` W5) — 그 둘은 정반대를 고정한다. 개수·목록 대신
+     * > **방향별로** 적는 이유다.
+     */
+    it('⑧ getChain·stop 도 `inputData` 를 원문으로 통과시킨다 (재제출 경로 보호)', async () => {
+      const root = baseFake({ id: 'eD8', inputData: { ...LEAKY_IN } });
+      const chainQB: Record<string, jest.Mock> = {};
+      chainQB.leftJoinAndSelect = jest.fn().mockReturnValue(chainQB);
+      chainQB.where = jest.fn().mockReturnValue(chainQB);
+      chainQB.orderBy = jest.fn().mockReturnValue(chainQB);
+      chainQB.getOne = jest
+        .fn()
+        .mockResolvedValue({ ...root, workflow: { workspaceId: 'ws1' } });
+      chainQB.getMany = jest.fn().mockResolvedValue([root]);
+      executionRepo.createQueryBuilder.mockReturnValue(chainQB as unknown);
+
+      const rows = await service.getChain('eD8', 'ws1', { sub: 'u1' } as never);
+      expect(JSON.stringify(rows[0].inputData)).toContain('admin:pw');
+    });
+
+    it('⑧-b stop 도 `inputData` 를 원문으로 통과시킨다', async () => {
+      const running = baseFake({
+        id: 'eD8b',
+        status: ExecutionStatus.RUNNING,
+        error: null,
+      });
+      const cancelled = baseFake({
+        id: 'eD8b',
+        status: ExecutionStatus.CANCELLED,
+        error: null,
+        inputData: { ...LEAKY_IN },
+      });
+      executionRepo.findOne
+        .mockResolvedValueOnce(running as unknown)
+        .mockResolvedValueOnce(cancelled as unknown);
+
+      const qb: Record<string, jest.Mock> = {};
+      qb.update = jest.fn().mockReturnValue(qb);
+      qb.set = jest.fn().mockReturnValue(qb);
+      qb.where = jest.fn().mockReturnValue(qb);
+      qb.andWhere = jest.fn().mockReturnValue(qb);
+      qb.execute = jest.fn().mockResolvedValue({ affected: 1 });
+      executionRepo.createQueryBuilder.mockReturnValue(qb as unknown);
+
+      const result = await service.stop('eD8b');
+      expect(JSON.stringify(result.inputData)).toContain('admin:pw');
     });
   });
 });

@@ -1485,8 +1485,9 @@ present-when-available 이므로, REST 만 `null` 로 정규화하면 위젯의 
     별건으로 분리했다.
   - **내부 읽기 경로도 같은 마스킹을 적용한다 (결정 2026-08-16)**: 같은 `Execution.error` 를 내부
     표면이 원문으로 말하던 비대칭을 해소했다. `shared/utils/redact-stored-error.ts` 의
-    `redactStoredErrorForResponse`(`deepRedactSecrets` 위임, **형태 보존**)를 `ExecutionsService` 의
-    독립 반환 경로 **4곳**(`findById` · `toExecutionDto` · `getChain` · `stop`)에 적용한다.
+    `redactStoredErrorForResponse`(`deepRedactSecrets` 위임, **형태 보존**)를 적용한다.
+    **적용 표면 목록은 아래 "적용 범위는 총칭이 아니라 열거다" 항목이 정본**이다 — 여기에
+    개수를 다시 적지 않는다(초판은 *"4곳"* 이라 적었는데 이후 여섯으로 늘며 낡았다).
     `POST /executions/:id/re-run` 과 WS `execution.snapshot` 은 `findById` 를 재사용하므로 함께 덮인다.
     - **이 마스킹은 [API 규약 §5.3](./2-api-convention.md#53-에러-응답) 의 HTTP 에러 envelope 비echo 원칙과 다른 레이어다** — 그쪽은 요청 실패 응답의
       메시지 구성 규칙이고, 여기는 **도메인 데이터(`Execution.error` 컬럼 값)** 의 egress 마스킹이며 자격증명 패턴만
@@ -1509,20 +1510,116 @@ present-when-available 이므로, REST 만 `null` 로 정규화하면 위젯의 
       마스킹 — 수용된 trade-off)의 선례가 같은 방향이다. **단 R-5 의 직접 대상은 Config 탭이라
       `Execution.error` 를 이미 규정하고 있지는 않다** — 원칙을 원용한 것이지 기존 판정이 아니다.
     - **DB 는 여전히 원문**(위 egress-only 원칙 불변). 서버 로그·사후 디버깅의 진실은 유지된다.
-    - **적용 범위는 총칭이 아니라 열거다**: 위 마스킹이 걸리는 곳은 `ExecutionsService` 4경로와
-      `BackgroundRunsService` body 노드**까지**다. *"모든 내부 읽기 경로"* 로 읽으면 아래 잔여가
-      가려진다 — 이 문서가 반복해 겪은 실패 형태라 표면을 이름으로 못박는다.
-    - **잔여(범위 밖)**: ① WS `execution.node.*` **emit** 경로의 `error` 는 여전히 원문이다 — 읽기
-      표면이 아니라 별도 emit 계약이고 [WS 프로토콜](./6-websocket-protocol.md)이 마스킹을 규정하지
-      않는다. ② `inputData`/`outputData` 는 **다른 컬럼**이라 포함되지 않는다 — 외부 `getStatus` 는
-      `stripAndRedact` 를 거는데 내부 REST 는 걸지 않아 같은 형태의 비대칭이 남아 있다.
-      ③ **workflow-assistant LLM 도구**(`explore-tools.service.ts`)는 `inputData` ·
+    - **적용 범위는 총칭이 아니라 열거다** (2026-08-16 갱신 — 표면 **여섯**, 컬럼 **둘**):
+      `error` 는 `redactStoredErrorForResponse`, `outputData` 는
+      `redactStoredDataForResponse` 가 담당하며 걸리는 자리는 (1) `findById` (2) `getChain`
+      (3) `stop` (4) `toExecutionDto`(목록) (5) `findById` 의 `nodeExecutions[]`
+      (6) `BackgroundRunsService.toNodeExecutionDto`(본문 노드) **까지**다.
+      **`inputData` 는 이 목록의 대상이 아니다** — 바로 아래 잔여 ② 참조.
+      소스 정본은 `ExecutionsService.toResponseExecution` 의 표.
+      > 표면 번호를 아라비아 숫자로 적는다 — 같은 절의 "잔여 ①②③" 이 원형숫자를 쓰므로
+      > 두 열거가 글리프를 공유하면 인용이 섞인다 (`23_49_05` naming W1).
+      *"모든 내부 읽기 경로"* 로 읽으면 아래 잔여가 가려진다 — 이 문서가 반복해 겪은 실패
+      형태라 표면을 이름으로 못박는다.
+      > 종전 이 자리는 *"`ExecutionsService` 4경로"* 였는데, 두 컬럼을 더하며 실측하니
+      > `toResponseExecution` 의 `...rest` 가 엔티티를 통째 펼쳐 세 표면이 한 관문을 공유하고
+      > `nodeExecutions[]` 가 별도였다 — **"넷" 이라는 수치가 이미 낡아 있었다.**
+    - **~~잔여 ①~~ 해소(2026-08-16)**: WS `execution.node.*` **emit** 경로의 `error` — 아래
+      "emit 경로 값-패턴 마스킹" 불릿이 닫았다. [WS 프로토콜 §4.1](./6-websocket-protocol.md)이
+      이제 마스킹을 규정한다.
+    - **잔여 ② — `outputData` 해소, `Execution.inputData` 만 의도적 비대상(2026-08-16,
+      범위 정정 2026-08-17)**: `outputData` 는 위 표면 열거에 포함됐다(외부 `getStatus` 만
+      `stripAndRedact` 를 걸던 비대칭 해소).
+      **카브아웃은 `Execution.inputData` **한 컬럼**이고 `NodeExecution.inputData` 는
+      마스킹한다** — 노드 레벨엔 재제출 소비처가 없기 때문이다(Re-run 은 `Execution.inputData`
+      만 읽는다, 실측). 초판은 카브아웃을 노드 레벨까지 확대했는데, 그러면 WS emit 은
+      마스킹하고 REST 는 원문을 주어 **같은 프런트 store 슬롯**(`nodeResults[].inputData`)에서
+      2초 폴링이 마스킹 값을 원문으로 덮는 **flip-flop** 이 난다 — 화면이 깜빡이고 내부 wire
+      마스킹의 보안 이득도 0이 된다(`01_17_49` cross_spec CRITICAL).
+      **축을 정확히 하면: round-trip 되는 것만 카브아웃한다.**
+      `Execution.inputData` 를 마스킹하지 않는 이유는 그것이 **재제출되는 값**이기 때문이다:
+      - Re-run 모달이 `inputData` 를 프리필해 `inputOverride` 로 되보내고
+        (`useOriginalInput` **기본값이 `false`** 라 사용자가 손대지 않아도 제출된다),
+        에디터 "히스토리에서 불러오기" 도 같은 값을 textarea 로 적재해 재실행한다.
+        마스킹하면 리터럴 `'***'` 가 **새 실행의 실제 입력값**이 된다 — 가시성 저하가 아니라
+        **조용한 기능 오염**이다. 두 게이트(`23_49_05` cross_spec · `23_50_03` side_effect)가
+        독립으로 CRITICAL 을 냈고 소스 추적으로 확증했다.
+      - **기본 Re-run 은 영향 없다** — 서버가 `original.inputData` 를 엔티티에서 직접 읽는다.
+        위험은 클라이언트 프리필 왕복 경로 하나다.
+      - **남는 노출**: 트리거 파라미터 자유 텍스트의 자격증명. 다만 `inputData` 의 주요
+        자격증명 벡터인 webhook 민감 헤더는 **ingestion 시점에 이미 `[REDACTED]`**
+        ([§5.3](./12-webhook.md#53-민감-헤더-마스킹-ingestion)).
+      - **닫는 조건**: 프런트가 마스킹 마커를 감지해 해당 필드 재입력을 강제하는 가드가
+        선행되어야 한다. 트래커에 등재됐다.
+    - **잔여 ③ (범위 밖 유지)**: **workflow-assistant LLM 도구**(`explore-tools.service.ts`)는 `inputData` ·
       `outputData` · `error` **세 필드**를 `maskSensitiveFields`(**키 이름** 기반)로만 내보내
       자유 텍스트 안의 자격증명을 통과시킨다 (그쪽 마스킹 규칙의 SoT 는
       [AI Assistant](../3-workflow-editor/4-ai-assistant.md)).
       여기에 값-패턴 마스킹을 **단순 합성하면 안 된다** — 그 함수는 자격증명 키를 `****9876` 처럼
       **접미 힌트를 남겨** 어떤 키가 가려졌는지 식별하게 하는데, 값-패턴 마스킹을 겹치면 그 힌트가
       사라진다(기존 테스트가 이 회귀를 잡는다). 어느 의미가 우선하는지는 별도 결정이라 분리했다.
+- **`execution.node.*` / 비-종결 `execution.*` **emit** 의 자유 텍스트 값 (강제됨 — 2026-08-16)**:
+  위 두 `error` 불릿과 **또 다른 층**이다 — 그쪽은 종결 이벤트의 `Execution.error`(DB 컬럼)이고,
+  여기는 **node-level 이벤트 payload** 와 `ai_message` 같은 **비-종결** execution 이벤트의 자유
+  텍스트다. 이 표면에는 값-패턴 방어가 **아예 없었다**.
+  - **왜 샜나**: `sanitizePayloadForWs` 는 **키 이름** 기반이라 문자열 값을 그대로 통과시키고,
+    `stripExternalOnlyFields` 는 `llmCalls` **필드 제거** 전용이다. 종결 이벤트만
+    `toTerminalErrorPayload` 가 막고 있었다. 무수정 프로브로
+    `error: 'Authorization: Bearer eyJ…'` 가 fanout envelope 까지 원문 도달함을 실증했다.
+  - **처방**: `WebsocketService` 의 두 emit(`emitExecutionEvent`·`emitNodeEvent`)이 공유하는
+    초크포인트에서 마스킹한다. `executionEventSubject.next` 호출부가 **정확히 둘**이라 한 곳만
+    고치면 자매가 갈린다 — 두 경로가 같은 문을 지나게 했다. 대상은 필드명 불문 **payload 전체**다.
+  - **wire 에도 건다 (boundary parity)**: `execution:<id>` 구독 인가는 workspace 소유만 보고
+    **role 을 받지 않는다** — 수신 인구가 `GET /api/executions/:id` 와 **동일**하므로 위
+    "내부 읽기 경로" 불릿과 같은 근거가 그대로 적용된다.
+  - **단 `llmCalls` 는 wire 에서 제외**: 에디터 전용 raw 디버그 탈출구다
+    ([WS §Rationale](./6-websocket-protocol.md) strip-only 결정 — 그 결정은 **번복되지 않았다**).
+    fanout 에서는 필드째 제거되므로 외부 노출은 늘지 않는다.
+  - **도달 범위는 총칭이 아니라 열거다**: `execution.node.*` 는 **SSE 구독자**에게 도달한다
+    (`SseAdapter` 는 이벤트 타입 필터가 없다). `execution.node.completed` **만** Chat Channel 이
+    추가 구독하고, **notification webhook 은 `FANOUT_EVENTS` 화이트리스트 밖이라 도달하지 않는다.**
+  - **부작용(수용)**: 워크플로가 정당하게 자격증명을 다루면 그 값이 emit·읽기 표면에서 `***` 로
+    보인다. 위 `execution.ai_message` 불릿이 *"보수적 패턴의 rare FP 를 보안 우선으로 수용"* 이라
+    한 것과 같은 판단이며, 외부 `getStatus` 는 이미 같은 마스킹을 걸고 있었다(내부만 없었다).
+    participant-vs-observer 분리 egress 는 실제 요구가 관측되면 검토한다.
+  - **`input`/`inputData` 의 마스킹 여부는 "레벨" 이 가른다** (2026-08-17 정정):
+    마스킹 **범위**는 *수신 인구*(boundary parity)가 정하고, 카브아웃은 *그 값이
+    되쓰이는가*(round-trip)가 정한다. 두 축을 겹치면 이렇게 갈린다 —
+    | 값 | 마스킹 | 이유 |
+    |---|---|---|
+    | `Execution.inputData` (REST) | **안 함** | Re-run 프리필이 읽어 **재제출**한다 |
+    | `NodeExecution.inputData` (REST) | **함** | 재제출 소비처 없음(표시 전용) |
+    | WS node 이벤트 `input` (emit) | **함** | 위와 같은 값이 같은 store 슬롯에 들어간다 |
+    아래 두 줄은 같은 사실의 두 얼굴이다: 노드 레벨을 REST 에서 안 가리면 WS 마스킹이
+    2초 폴링에 덮여 **flip-flop** 이 나고, 반대로 Execution 레벨을 가리면 재실행이 오염된다.
+    자세한 근거: [WS §4.1](./6-websocket-protocol.md) · [Re-run §10.2](./13-replay-rerun.md).
+  - **`config` raw-echo 와도 충돌하지 않는다**:
+    [node-output Principle 7](../conventions/node-output.md#principle-7--config-echo-원칙-nodehandleroutputconfig)
+    은 자격증명을 **이미 "절대 echo 금지"** 로 규정하므로, 이 마스킹은 그 규칙을 egress 에서
+    집행하는 backstop 이지 새 예외가 아니다. 비-자격증명 config 는 무변화다.
+
+- **언제 가리는가 — ingestion-time 과 egress-time 이 공존한다**:
+  [12-webhook §5.3](./12-webhook.md#53-민감-헤더-마스킹-ingestion) 은 민감 헤더를 **ingestion
+  시점**에 지우고(`[REDACTED]`), §R17 은 `Execution.error` 등을 **egress 시점**에 가린다(DB 는
+  원문 보존). 모순이 아니라 **대상이 다르다** — *구조화된 시크릿 전용 필드(알려진 헤더 key)* 는
+  검증 후 원문을 남길 이유가 없어 ingestion 이 옳고, *자유 텍스트·진단용 필드* 는 저장 시점에
+  지우면 사후 디버깅의 진실이 사라져 egress 가 옳다. **자유 텍스트는 대상 패턴을 사전 특정할 수
+  없어 애초에 ingestion 단계에서 걷어낼 수 없다** — webhook Rationale 이 든 "DB 잔존 = 유출 표면"
+  우려는 §R17 아래서도 유효하지만, 그 대가로 얻는 진단 가치와 저울질한 결과가 egress-only 다.
+  두 층은 경쟁하지 않고 **쌓인다**: key-blacklist 가 못 잡는 값-패턴을 egress 층이 덮는다.
+  - **webhook Rationale 의 "whack-a-mole" 우려에 대한 답**: 그 문서는 display 시점 마스킹을
+    기각하며 *"모든 read 경로를 개별적으로 마스킹해야 한다"* 를 근거로 들었다. 타당한 우려이고
+    **이 작업 자체가 그것을 실증했다**(표면이 넷→여섯으로 늘었고 `inputData` 카브아웃 범위를
+    한 번 되돌렸다). 다만 여기서의 방어는 **호출부를 산발적으로 패치하는 방식이 아니다** —
+    소수의 **공유 관문**(`toResponseExecution` · `emitExecutionEvent`/`emitNodeEvent` ·
+    `toTerminalErrorPayload`)으로 수렴시켜, 새 read/emit 경로가 그 관문만 지나면 마스킹을
+    **구조적으로 상속**하게 했다. 즉 늘어나는 것은 *표면의 발견*이지 *마스킹을 손으로 거는
+    자리*가 아니다. 그래서 ingestion 층이 커버하는 "알려진 헤더 key" 와 달리, 사전 특정이
+    불가능한 자유 텍스트를 egress 에서 다룰 수 있다.
+  - **그래서 egress 층은 ingestion 층의 마커를 덮지 않는다**: `deepRedactSecrets` 는 이미
+    마스킹된 값(`[REDACTED]`·`***`·`[REDACTED_DEPTH]`)을 재마스킹하지 않는다. 덮으면 같은 헤더가
+    `$trigger.headers` 에서는 `[REDACTED]`, 실행 상세 API 에서는 `***` 로 보인다.
+
 - **`nodeOutput` 일반 키 allowlist (미구현·잔여)**: conversationConfig 이외의 `nodeOutput` 키 집합을 렌더 필수 메타로
   제한하는 런타임 allowlist 필터(SSE emit 은 sanitizePayloadForWs 의 credential-**키** 마스킹으로 부분 방어; author
   config 의 값-embedded secret 은 저위험 gap)는 위 값/키 기반 redaction 과 **별개**이며 여전히 후속 하드닝 항목이다.

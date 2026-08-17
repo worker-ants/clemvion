@@ -68,7 +68,7 @@ export function redactSecrets(raw: string): string {
   if (typeof raw !== 'string' || raw.length === 0) return raw;
   let masked = raw;
   for (const pattern of SECRET_LEAK_PATTERNS) {
-    masked = masked.replace(pattern, '***');
+    masked = masked.replace(pattern, VALUE_MASK_MARKER);
   }
   return masked;
 }
@@ -91,6 +91,57 @@ const CREDENTIAL_KEY_PATTERN =
  * stack (or hide a secret past the depth an audit reaches).
  */
 export const MAX_REDACT_DEPTH = 10;
+
+/**
+ * 앞선 마스킹 층이 이미 남긴 마커들. 이 값들을 **다시 마스킹하지 않는다.**
+ *
+ * ## 왜 필요한가 — 마커를 덮으면 계약이 깨진다
+ *
+ * 이 저장소에는 값-마스커가 **여럿**이고 서로 다른 마커를 쓴다. 그래서 두 층이 겹치면
+ * 뒤에 도는 쪽이 앞 층의 마커를 지운다:
+ *
+ * | 앞선 층 | 마커 | 겹치는 자리 |
+ * |---|---|---|
+ * | webhook ingestion (`sanitizeResponseHeaders`) | `[REDACTED]` | `Execution.inputData.headers.*` — 읽기 경로 마스킹과 겹친다 |
+ * | `sanitizePayloadForWs` (WS 키-이름) | `[REDACTED]` | fanout 분기 직전 — emit 값-마스킹과 겹친다 |
+ * | `sanitizePayloadForWs` 깊이 상한 | `[REDACTED_DEPTH]` | 같은 위 |
+ *
+ * `[REDACTED]` 는 **문서화된 계약**이다 — [12-webhook §5.3](../../../../../spec/5-system/12-webhook.md)
+ * 이 규정하고 `1-manual-trigger.md`·`5-expression-language.md`·`4-execution-engine.md`·
+ * `data-flow/10-triggers.md` 가 그 전제를 공유한다. 재마스킹하면 같은 헤더가 읽는 경로마다
+ * 다르게 보인다 — 이 저장소가 마스킹 연쇄 작업으로 없애 온 바로 그 병이다.
+ *
+ * **안전 방향은 한쪽으로만 열린다**: 절대 unmask 하지 않고, 이미 마스킹된 값을 다시 덮지
+ * 않을 뿐이다. 마커 문자열 자체는 시크릿이 아니므로 보존해도 노출이 늘지 않는다.
+ */
+/** 값-패턴 마스커가 남기는 마커. */
+export const VALUE_MASK_MARKER = '***';
+/** 키-이름 마스커(`sanitizePayloadForWs` · webhook ingestion)가 남기는 마커. */
+export const KEY_MASK_MARKER = '[REDACTED]';
+/** 깊이 상한 초과 서브트리를 통째로 대체하는 마커. */
+export const DEPTH_MASK_MARKER = '[REDACTED_DEPTH]';
+
+const MASKED_MARKERS: ReadonlySet<string> = new Set([
+  VALUE_MASK_MARKER,
+  KEY_MASK_MARKER,
+  DEPTH_MASK_MARKER,
+]);
+
+function isMaskedMarker(v: unknown): boolean {
+  return typeof v === 'string' && MASKED_MARKERS.has(v);
+}
+
+/** {@link deepRedactSecretsPreserving} 전용 옵션. 기본 경로는 빈 객체를 쓴다. */
+interface DeepRedactOptions {
+  /**
+   * 이 키의 **하위 트리 전체**를 손대지 않는다. 에디터 전용 raw 디버그 필드
+   * (`llmCalls`)를 내부 WS wire 에 원문으로 남기기 위한 것 — 그 필드는 fanout 에서
+   * `stripExternalOnlyFields` 가 통째로 제거하므로 외부로는 애초에 나가지 않는다.
+   */
+  readonly preserveKeys?: ReadonlySet<string>;
+}
+
+const NO_OPTS: DeepRedactOptions = {};
 
 /** A string that is itself a JSON object/array (e.g. tool-call `arguments`). */
 function looksLikeJson(s: string): boolean {
@@ -125,29 +176,67 @@ const DEEP_REDACT_CACHE = new WeakMap<object, unknown>();
  * flat string-level `redactSecrets` cannot reach nested string values.
  */
 export function deepRedactSecrets(value: unknown, depth = 0): unknown {
+  // depth-0 cache: same object identity → walk once (mirrors sanitizePayloadForWs).
+  // **캐시는 이 기본 경로 전용이다** — 캐시 키가 객체 identity 뿐이라, 옵션이 다른
+  // 변형({@link deepRedactSecretsPreserving})까지 같은 캐시를 쓰면 같은 객체에 대해
+  // 다른 옵션의 결과를 돌려준다. 그 변형은 캐시를 쓰지 않는다.
+  if (depth === 0 && value !== null && typeof value === 'object') {
+    const cached = DEEP_REDACT_CACHE.get(value);
+    if (cached !== undefined) return cached;
+    const result = deepRedactCore(value, 0, NO_OPTS);
+    DEEP_REDACT_CACHE.set(value, result);
+    return result;
+  }
+  return deepRedactCore(value, depth, NO_OPTS);
+}
+
+/**
+ * {@link deepRedactSecrets} 와 같은 마스킹이되 `preserveKeys` 하위 트리는 **손대지 않는다**.
+ *
+ * 유일한 호출부는 WS emit 의 내부 wire 분기다 — `llmCalls`(에디터 전용 raw LLM 요청/응답)를
+ * 원문으로 남겨야 하기 때문이다. 그 필드는 fanout 에서 `stripExternalOnlyFields` 가 통째로
+ * 제거하므로 **외부로는 어차피 안 나간다**. 이 예외가 없으면 값-마스킹이 에디터의 디버깅
+ * 탈출구를 파괴해, WS §Rationale `llmCalls` strip-only 결정이 *"값-레벨 마스킹은 에디터
+ * 디버깅 가치를 훼손한다"* 며 기각한 그 상태가 된다.
+ *
+ * **캐시를 쓰지 않는다** — 위 {@link deepRedactSecrets} 주석의 이유.
+ */
+export function deepRedactSecretsPreserving(
+  value: unknown,
+  preserveKeys: ReadonlySet<string>,
+): unknown {
+  return deepRedactCore(value, 0, { preserveKeys });
+}
+
+/**
+ * 두 공개 진입점이 공유하는 walk. 마스킹 규칙을 한 곳에 두어 변형이 늘어도 규칙이
+ * 갈리지 않게 한다 (이 저장소가 반복해 겪은 *"자매 중 하나만"* 방지).
+ */
+function deepRedactCore(
+  value: unknown,
+  depth: number,
+  opts: DeepRedactOptions,
+): unknown {
   if (typeof value === 'string') {
     return looksLikeJson(value)
       ? redactSecretsInJsonString(value, depth)
       : redactSecrets(value);
   }
   if (value === null || typeof value !== 'object') return value;
-  if (depth >= MAX_REDACT_DEPTH) return '***';
-  // depth-0 cache: same object identity → walk once (mirrors sanitizePayloadForWs).
-  if (depth === 0) {
-    const cached = DEEP_REDACT_CACHE.get(value);
-    if (cached !== undefined) return cached;
-  }
-  const result = deepRedactObject(value, depth);
-  if (depth === 0) DEEP_REDACT_CACHE.set(value, result);
-  return result;
+  if (depth >= MAX_REDACT_DEPTH) return VALUE_MASK_MARKER;
+  return deepRedactObject(value, depth, opts);
 }
 
-/** Object/array walk for {@link deepRedactSecrets} (value is a non-null object). */
-function deepRedactObject(value: object, depth: number): unknown {
+/** Object/array walk for {@link deepRedactCore} (value is a non-null object). */
+function deepRedactObject(
+  value: object,
+  depth: number,
+  opts: DeepRedactOptions,
+): unknown {
   if (Array.isArray(value)) {
     let mutated = false;
     const out = value.map((v) => {
-      const r = deepRedactSecrets(v, depth + 1);
+      const r = deepRedactCore(v, depth + 1, opts);
       if (r !== v) mutated = true;
       return r;
     });
@@ -155,13 +244,21 @@ function deepRedactObject(value: object, depth: number): unknown {
   }
   let result: Record<string, unknown> | null = null;
   for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
-    const r =
+    let r: unknown;
+    if (opts.preserveKeys?.has(k)) {
+      // 하위 트리 통째 보존 — 내려가지 않는다.
+      r = v;
+    } else if (
       v !== null &&
       v !== undefined &&
       v !== '' &&
       CREDENTIAL_KEY_PATTERN.test(k)
-        ? '***'
-        : deepRedactSecrets(v, depth + 1);
+    ) {
+      // 이미 앞선 층이 마스킹한 값이면 그 마커를 **덮지 않는다** ({@link MASKED_MARKERS}).
+      r = isMaskedMarker(v) ? v : VALUE_MASK_MARKER;
+    } else {
+      r = deepRedactCore(v, depth + 1, opts);
+    }
     if (r !== v) {
       if (!result) result = { ...(value as Record<string, unknown>) };
       result[k] = r;

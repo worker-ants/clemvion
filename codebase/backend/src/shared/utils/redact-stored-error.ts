@@ -33,3 +33,39 @@ export function redactStoredErrorForResponse(
   // 단언을 **이 한 자리**에 모은다 — 호출부 4곳에 흩으면 한 곳이 다른 캐스트를 쓴다.
   return deepRedactSecrets(err) as Record<string, unknown>;
 }
+
+/**
+ * DB `inputData`/`outputData` **컬럼 값**의 응답 egress 마스킹 — 자매
+ * {@link redactStoredErrorForResponse} 와 **같은 프리미티브·같은 원칙**이고 대상 컬럼만 다르다.
+ *
+ * SoT: [EIA §R17](../../../../../spec/5-system/14-external-interaction-api.md) "내부 읽기 경로" 불릿.
+ *
+ * ## 왜 별건인가 — `error` 와 달리 **앞선 마스킹 층이 있다**
+ *
+ * 트래커는 이 항목을 *"`Execution.error` 와 같은 형태"* 로 등재했으나 실측하면 다르다.
+ * `error` 는 마커가 없는 자유 필드지만, `inputData` 는 webhook ingestion 이 민감 헤더를
+ * `[REDACTED]` 로 마스킹해 저장한다 ([12-webhook §5.3](../../../../../spec/5-system/12-webhook.md)) —
+ * `1-manual-trigger.md`·`5-expression-language.md`·`4-execution-engine.md`·
+ * `data-flow/10-triggers.md` 가 그 전제를 공유하는 **문서화된 계약**이다.
+ *
+ * 그래서 이 층은 그 마커를 **덮지 않는다** — `deepRedactSecrets` 의 마커 멱등성이 보장하고
+ * `.spec.ts` 캐너리가 고정한다. 덮으면 같은 헤더가 읽는 경로마다 다르게 보인다.
+ *
+ * ## ingestion-time 마스킹과 경쟁하지 않는다 (방어 계층이 다르다)
+ *
+ * `12-webhook.md` Rationale 은 "display 시점 마스킹" 을 기각하고 ingestion 시점을 택했다.
+ * 본 함수는 그 결정을 **번복하지 않는다** — 그쪽은 *알려진 헤더 key* 를 저장 전에 지우는
+ * 층이고, 이쪽은 *임의 값-패턴*(자유 텍스트에 박힌 `Bearer …`·자격증명 포함 URI)을 응답
+ * 직전에 가리는 층이다. key-blacklist 로는 못 잡는 클래스를 덮으므로 두 층은 겹치지 않고
+ * 쌓인다. DB-at-rest 가 원문인 것은 §R17 `Execution.error` 와 **같은 이유**(서버 로그·
+ * 사후 디버깅의 진실 보존)다.
+ *
+ * @returns 마스킹된 **복사본**. copy-on-change 라 바뀐 것이 없으면 같은 참조를 돌려주므로
+ *   입력은 변이되지 않고 불필요한 allocation 도 생기지 않는다. 입력이 없으면 `null`.
+ */
+export function redactStoredDataForResponse(
+  data: Record<string, unknown> | null | undefined,
+): Record<string, unknown> | null {
+  if (data === null || data === undefined) return null;
+  return deepRedactSecrets(data) as Record<string, unknown>;
+}

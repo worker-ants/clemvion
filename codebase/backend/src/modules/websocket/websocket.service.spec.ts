@@ -966,4 +966,118 @@ describe('WebsocketService', () => {
       ).not.toThrow();
     });
   });
+
+  /**
+   * **자유 텍스트 값 안의 자격증명 마스킹** (EIA §R17 / 결정 2026-08-16).
+   *
+   * ## 표면마다 따로 단언하는 이유
+   *
+   * 두 emit(`emitExecutionEvent`·`emitNodeEvent`)이 한 헬퍼를 부르므로 한 번만
+   * 검증하면 된다고 생각하기 쉽다. 그러면 **한쪽에서 호출을 지워도 스위트가 초록**이다 —
+   * 이 저장소가 *"자매 넷 중 하나만"* 으로 반복해 겪은 형태다. 두 emit × (wire·fanout)
+   * 네 조합을 각각 겨눈다.
+   *
+   * 무수정 프로브가 실증한 누출: `error`(Bearer 토큰) · `input`(자격증명 포함 URI) ·
+   * `output`(스택 프래그먼트). 키 이름은 전부 credential 패턴이 **아니라서**
+   * `sanitizePayloadForWs` 가 못 잡는다.
+   */
+  describe('값-패턴 마스킹 — emit 두 경로 × wire·fanout', () => {
+    const LEAKY_ERROR =
+      'Upstream rejected: Authorization: Bearer eyJhbGciOiJIUzI1NiJ9.LEAKED';
+    const LEAKY_INPUT = { note: 'db=postgres://user:pw@db.internal:5432/prod' };
+
+    it('① emitNodeEvent — fanout 은 error 값 안의 토큰을 마스킹', async () => {
+      const eventP = nextFanoutEvent(service);
+      await service.emitNodeEvent('e1', 'n1', NodeEventType.NODE_FAILED, {
+        error: LEAKY_ERROR,
+        input: LEAKY_INPUT,
+      });
+      const fanout = await eventP;
+      expect(fanout.payload.error).not.toContain('eyJhbGciOiJIUzI1NiJ9');
+      expect(fanout.payload.error).toContain('***');
+      // 자격증명 포함 URI 는 scheme 보존 마스킹 → 호스트는 남고 자격증명만 사라진다
+      expect(JSON.stringify(fanout.payload.input)).not.toContain('user:pw');
+    });
+
+    it('② emitNodeEvent — wire 도 마스킹 (R17 boundary parity: 수신 인구가 REST 와 동일)', async () => {
+      await service.emitNodeEvent('e2', 'n1', NodeEventType.NODE_FAILED, {
+        error: LEAKY_ERROR,
+      });
+      const wire = gateway.broadcastToChannel.mock.calls[0][2] as Record<
+        string,
+        unknown
+      >;
+      expect(wire.error).not.toContain('eyJhbGciOiJIUzI1NiJ9');
+      expect(wire.error).toContain('***');
+    });
+
+    it('③ emitExecutionEvent — fanout 마스킹 (비-종결 이벤트에는 이 층이 없었다)', async () => {
+      const eventP = nextFanoutEvent(service);
+      await service.emitExecutionEvent('e3', ExecutionEventType.AI_MESSAGE, {
+        message: LEAKY_ERROR,
+      });
+      const fanout = await eventP;
+      expect(fanout.payload.message).not.toContain('eyJhbGciOiJIUzI1NiJ9');
+      // 양성 단언 — 없으면 "필드 소실/undefined" 회귀도 GREEN 이다 (`23_50_03` testing W3).
+      expect(fanout.payload.message).toContain('***');
+    });
+
+    it('④ emitExecutionEvent — wire 도 마스킹', async () => {
+      await service.emitExecutionEvent('e4', ExecutionEventType.AI_MESSAGE, {
+        message: LEAKY_ERROR,
+      });
+      const wire = gateway.broadcastToChannel.mock.calls[0][2] as Record<
+        string,
+        unknown
+      >;
+      expect(wire.message).not.toContain('eyJhbGciOiJIUzI1NiJ9');
+      expect(wire.message).toContain('***');
+    });
+
+    it('llmCalls 는 wire 에서 원문 유지 — 에디터 디버깅 탈출구 (strip-only 결정 보존)', async () => {
+      // 이 예외가 없으면 WS §Rationale 이 "에디터 디버깅 가치를 훼손한다"며 기각한
+      // 값-레벨 마스킹 상태가 된다. fanout 에서는 어차피 통째로 strip 된다.
+      const eventP = nextFanoutEvent(service);
+      await service.emitExecutionEvent('e5', ExecutionEventType.AI_MESSAGE, {
+        message: 'ok',
+        llmCalls: [{ requestPayload: { system: LEAKY_ERROR } }],
+      });
+      const fanout = await eventP;
+      const wire = gateway.broadcastToChannel.mock.calls[0][2] as Record<
+        string,
+        unknown
+      >;
+      const calls = wire.llmCalls as Array<{
+        requestPayload: { system: string };
+      }>;
+      expect(calls[0].requestPayload.system).toBe(LEAKY_ERROR);
+      // 외부에는 필드 자체가 안 나간다
+      expect(fanout.payload).not.toHaveProperty('llmCalls');
+    });
+
+    it('앞선 키-마스킹의 `[REDACTED]` 마커를 `***` 로 덮지 않는다 (계약 캐너리)', async () => {
+      // sanitizePayloadForWs 가 credential 키를 `[REDACTED]` 로 먼저 마스킹한다.
+      // 값-마스커가 그 위를 덮으면 같은 값이 표면마다 다르게 보인다.
+      const eventP = nextFanoutEvent(service);
+      await service.emitNodeEvent('e6', 'n1', NodeEventType.NODE_FAILED, {
+        apiKey: 'sk-live-CONTROL',
+      });
+      const fanout = await eventP;
+      const wire = gateway.broadcastToChannel.mock.calls[0][2] as Record<
+        string,
+        unknown
+      >;
+      expect(wire.apiKey).toBe('[REDACTED]');
+      expect(fanout.payload.apiKey).toBe('[REDACTED]');
+    });
+
+    it('평범한 에러 메시지는 손상되지 않는다 (마스킹이 과하지 않음)', async () => {
+      const eventP = nextFanoutEvent(service);
+      await service.emitNodeEvent('e7', 'n1', NodeEventType.NODE_FAILED, {
+        error: 'Node timed out after 30s',
+      });
+      const fanout = await eventP;
+      expect(fanout.payload.error).toBe('Node timed out after 30s');
+    });
+  });
 });

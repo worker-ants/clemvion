@@ -46,7 +46,20 @@ export class ExecutionDto {
   @ApiPropertyOptional({ nullable: true, example: 1820 })
   durationMs?: number | null;
 
-  /** 입력 데이터 — 트리거가 워크플로우에 주입한 input (manual parameters / webhook body / schedule context) */
+  /**
+   * 입력 데이터 — 트리거가 워크플로우에 주입한 input (manual parameters / webhook body / schedule context).
+   *
+   * **값-패턴 마스킹 대상이 아니다** (형제 `outputData`/`error` 와 다르다) — 이 값은 표시
+   * 전용이 아니라 Re-run 모달·에디터 "히스토리에서 불러오기" 가 읽어 **그대로 재제출**하므로,
+   * 마스킹하면 `***` 가 새 실행의 실제 입력이 된다. 근거 정본:
+   * `ExecutionsService` 의 `MASKED_INPUT_DATA_REASON`.
+   *
+   * **이 카브아웃은 `Execution` 레벨 한정이다** — `nodeExecutions[].inputData` 는 재제출
+   * 소비처가 없어 **마스킹된다**(2026-08-17 정정).
+   *
+   * 단 **webhook 민감 헤더는 ingestion 시점에 이미 `[REDACTED]`** 로 저장된다
+   * (`spec/5-system/12-webhook.md` §5.3) — 그건 이 필드에도 그대로 실린다.
+   */
   @ApiPropertyOptional({
     type: 'object',
     additionalProperties: true,
@@ -54,7 +67,14 @@ export class ExecutionDto {
   })
   inputData?: Record<string, unknown> | null;
 
-  /** 출력 데이터 — 워크플로우 최종 결과. 노드별 envelope 는 nodeExecutions[i].outputData 참조 */
+  /**
+   * 출력 데이터 — 워크플로우 최종 결과. 노드별 envelope 는 nodeExecutions[i].outputData 참조.
+   *
+   * **자격증명으로 판별된 값은 마스킹되어 반환된다** (`error` 와 동일 정책, 2026-08-16) —
+   * `Bearer …`·자격증명 포함 URI 등이 `***` 로 치환되므로 **DB 원문과 다를 수 있다**.
+   * ingestion 이 이미 남긴 `[REDACTED]` 마커는 **보존**된다. SoT: EIA §R17, 구현
+   * `shared/utils/redact-stored-error.ts` 의 `redactStoredDataForResponse`.
+   */
   @ApiPropertyOptional({
     type: 'object',
     additionalProperties: true,
@@ -150,6 +170,26 @@ export class NodeExecutionSummaryDto {
   durationMs?: number | null;
 
   /**
+   * 노드 입력 데이터.
+   *
+   * **자격증명으로 판별된 값은 마스킹되어 반환된다** (DB 원문과 다를 수 있다) — 상위
+   * `ExecutionDto.inputData` 와 **정책이 반대**다. 그쪽은 Re-run 프리필이 읽어 재제출하므로
+   * 원문이지만, 노드 레벨은 재제출 소비처가 없어 마스킹한다(안 걸면 WS emit 과 REST 가 같은
+   * store 슬롯에서 flip-flop 한다). 근거 정본: `ExecutionsService` 의
+   * `MASKED_INPUT_DATA_REASON`, SoT: EIA §R17.
+   *
+   * > 이 필드는 런타임 응답에는 늘 있었는데 **스키마에만 없었다**(선존 갭). 마스킹 정책이
+   * > 얹히면서 "문서화되지 않은 필드에 문서화되지 않은 정책" 이 되어 이번에 선언한다
+   * > (`10_26_58` side_effect W6). 자매 `BackgroundRunNodeExecutionDto` 는 이미 갖고 있다.
+   */
+  @ApiPropertyOptional({
+    type: 'object',
+    additionalProperties: true,
+    nullable: true,
+  })
+  inputData?: Record<string, unknown> | null;
+
+  /**
    * 노드 실행 출력 — `NodeHandlerOutput` envelope 직렬화.
    * - `config`: 노드 정의의 **원본 template** (CONVENTIONS Principle 7 — `{{ ... }}` 보존된 raw)
    * - `output`: expression 평가가 끝난 결과값 (subject / body / requestBody 등 실제 동작 입력)
@@ -158,6 +198,9 @@ export class NodeExecutionSummaryDto {
    *
    * `_resumeState` 등 engine-internal 필드는 저장 시 제거된다.
    * 본 라이브 릴리즈 이전 실행 row 는 `config` 가 evaluated 형태로 남아있을 수 있다 (백필 X, historical record).
+   *
+   * **자격증명으로 판별된 값은 마스킹되어 반환된다** (2026-08-16) — 형제 필드 `error` 와
+   * 같은 정책이다. SoT: EIA §R17.
    */
   @ApiPropertyOptional({
     type: 'object',

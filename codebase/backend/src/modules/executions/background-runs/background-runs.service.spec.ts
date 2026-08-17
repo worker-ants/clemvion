@@ -214,6 +214,114 @@ describe('BackgroundRunsService', () => {
     });
 
     /**
+     * **`error` 만 고쳐 두고 `outputData` 를 빼놓던 자리** (§R17 잔여 ② 부분 해소).
+     *
+     * 위 `error` 테스트가 초록이라 이 표면이 "마스킹된다" 고 읽히기 쉬웠지만, 같은 DTO 의
+     * `outputData` 는 원문이었다. 이 컨트롤러의 노출 인구는 위 `error` 와 **똑같다**
+     * (`@Roles` 없음).
+     *
+     * **노드 레벨이라 `inputData` 도 마스킹 대상**이다 — 재제출 카브아웃은 `Execution`
+     * 레벨 한정이고(`MASKED_INPUT_DATA_REASON` 정본), 이 표면엔 재제출 소비처가 없다.
+     */
+    it('body nodeExecutions[] 의 inputData·outputData 를 모두 마스킹한다', async () => {
+      const bgNode = makeBgNodeExec();
+      const leaky = makeBodyNodeExec({
+        id: 'body-data-leak',
+        status: NodeExecutionStatus.FAILED,
+        error: null,
+        inputData: { note: 'postgres://admin:pw@db.internal/prod' },
+        outputData: { body: 'upstream said Bearer sk-live-abc123' },
+      });
+
+      executionRepo.createQueryBuilder.mockReturnValueOnce(
+        buildOwnershipQB('ws-1'),
+      );
+      nodeExecutionRepo.createQueryBuilder
+        .mockReturnValueOnce(buildBgNodeExecQB(bgNode))
+        .mockReturnValueOnce(buildBodyPageQB([leaky]))
+        .mockReturnValueOnce(
+          buildAggregateQB({
+            total: '1',
+            pending: '0',
+            running: '0',
+            completed: '0',
+            failed: '1',
+            skipped: '0',
+            waiting: '0',
+            latestFinished: null,
+          }),
+        );
+
+      const result = await service.getBackgroundRun(
+        'exec-1',
+        'bg-run-id',
+        baseQuery,
+        'ws-1',
+      );
+
+      const row = JSON.stringify(result.nodeExecutions.data[0]);
+      expect(row).not.toContain('sk-live-abc123');
+      expect(row).toContain('***');
+      // 노드 레벨은 `inputData` 도 마스킹 — 카브아웃은 Execution 레벨 한정.
+      expect(row).not.toContain('admin:pw');
+    });
+
+    /**
+     * **ingestion 마커 보존 캐너리** (`23_50_03` testing W4) — 자매 표면
+     * (`ExecutionsService` ⑥ · `redact-stored-error.spec.ts`)에는 있는데 여기만 없었다.
+     * 이 호출부가 다른 마스킹 함수로 바뀌면 12-webhook §5.3 계약이 조용히 깨진다.
+     */
+    it('body nodeExecutions[].outputData 의 `[REDACTED]` 마커를 덮지 않는다', async () => {
+      const bgNode = makeBgNodeExec();
+      const marked = makeBodyNodeExec({
+        id: 'body-marker',
+        error: null,
+        outputData: {
+          request: {
+            headers: {
+              authorization: '[REDACTED]',
+              'content-type': 'application/json',
+            },
+          },
+        },
+      });
+
+      executionRepo.createQueryBuilder.mockReturnValueOnce(
+        buildOwnershipQB('ws-1'),
+      );
+      nodeExecutionRepo.createQueryBuilder
+        .mockReturnValueOnce(buildBgNodeExecQB(bgNode))
+        .mockReturnValueOnce(buildBodyPageQB([marked]))
+        .mockReturnValueOnce(
+          buildAggregateQB({
+            total: '1',
+            pending: '0',
+            running: '0',
+            completed: '1',
+            failed: '0',
+            skipped: '0',
+            waiting: '0',
+            latestFinished: null,
+          }),
+        );
+
+      const result = await service.getBackgroundRun(
+        'exec-1',
+        'bg-run-id',
+        baseQuery,
+        'ws-1',
+      );
+
+      const headers = (
+        result.nodeExecutions.data[0]?.outputData as {
+          request: { headers: Record<string, string> };
+        }
+      ).request.headers;
+      expect(headers.authorization).toBe('[REDACTED]');
+      expect(headers['content-type']).toBe('application/json');
+    });
+
+    /**
      * 자매 스위트(`executions.service.spec.ts`)에는 `error: null` 통과 케이스가 있는데
      * 이쪽에는 없어 **대칭이 깨져 있었다**(`18_14_50` testing INFO). 마스킹이 `null` 을
      * 엉뚱한 값(빈 객체 등)으로 바꾸는 회귀를 이 표면에서도 잡는다.

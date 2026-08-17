@@ -2,7 +2,15 @@ import { Injectable, Logger } from '@nestjs/common';
 import { Observable, Subject } from 'rxjs';
 import { WebsocketGateway } from './websocket.gateway';
 import { ExecutionSeqAllocator } from './execution-seq-allocator.service';
-import { stripExternalOnlyFields } from '../../shared/utils/strip-external-only-fields';
+import {
+  EXTERNAL_STRIPPED_FIELDS,
+  stripExternalOnlyFields,
+} from '../../shared/utils/strip-external-only-fields';
+import {
+  DEPTH_MASK_MARKER,
+  deepRedactSecretsPreserving,
+  KEY_MASK_MARKER,
+} from '../../shared/utils/sanitize-error-message';
 
 // 값·타입 정의는 **의존성-프리 모듈**로 분리했다 — 이 파일이 ES-module 순환 위에 있어
 // 순환 위의 다른 파일이 모듈 평가 시점에 enum 을 읽으면 `undefined` 였기 때문이다
@@ -62,6 +70,17 @@ const CREDENTIAL_KEY_PATTERN =
 export const MAX_SANITIZE_DEPTH = 10;
 
 /**
+ * 값-패턴 마스킹에서 제외할 키 — 에디터 전용 raw 디버그 필드.
+ *
+ * `EXTERNAL_STRIPPED_FIELDS`(=`['llmCalls']`)를 **그대로 재사용**한다. 두 목록이 갈리면
+ * "fanout 에서 지우는 필드" 와 "wire 에서 원문으로 남기는 필드" 가 어긋나, 지우지도
+ * 남기지도 않는 필드가 조용히 생긴다.
+ */
+const WIRE_PRESERVED_FIELDS: ReadonlySet<string> = new Set(
+  EXTERNAL_STRIPPED_FIELDS,
+);
+
+/**
  * 동일 객체 참조에 대한 sanitize 결과 캐시.
  *
  * ForEach 가 같은 `node.config` 를 5,000회 emit 해도 sanitize 는 1회만 수행된다.
@@ -84,7 +103,10 @@ const SANITIZE_CACHE = new WeakMap<object, unknown>();
  */
 function sanitizePayloadForWs(value: unknown, depth = 0): unknown {
   if (value === null || typeof value !== 'object') return value;
-  if (depth > MAX_SANITIZE_DEPTH) return '[REDACTED_DEPTH]';
+  // 마커 문자열은 `sanitize-error-message` 의 상수를 **공유**한다 — 값-마스커가
+  // "이미 마스킹된 값" 을 알아보는 근거가 그 상수 집합이라, 여기서 리터럴을 따로 쓰면
+  // 한쪽만 바뀌었을 때 재마스킹 방지가 조용히 깨진다.
+  if (depth > MAX_SANITIZE_DEPTH) return DEPTH_MASK_MARKER;
   // depth 0 진입만 캐시 검사 — 부분트리는 부모 호출이 이미 캐시 적중 시 진입 자체 안 함.
   // 캐시 키는 입력 object identity. 결과는 sanitized output (원본일 수도 있음).
   if (depth === 0) {
@@ -114,7 +136,7 @@ function sanitizeInner(value: object, depth: number): unknown {
   for (const [k, v] of Object.entries(obj)) {
     if (CREDENTIAL_KEY_PATTERN.test(k)) {
       if (!result) result = { ...obj };
-      result[k] = '[REDACTED]';
+      result[k] = KEY_MASK_MARKER;
     } else {
       const sanitized = sanitizePayloadForWs(v, depth + 1);
       if (sanitized !== v) {
@@ -236,16 +258,17 @@ export class WebsocketService {
     const channel = `execution:${executionId}`;
     const sanitizedPayload = sanitizePayloadForWs(payload);
     const seq = await this.seqAllocator.next(executionId);
-    const wireEnvelope: Record<string, unknown> = {
+    const wireEnvelope: Record<string, unknown> = this.maskWireEnvelope({
       executionId,
       ...((sanitizedPayload && typeof sanitizedPayload === 'object'
         ? sanitizedPayload
         : { data: sanitizedPayload }) as Record<string, unknown>),
       seq,
       timestamp: new Date().toISOString(),
-    };
+    });
     // wire envelope (frontend socket.io) — WS spec §4.4 shape 그대로. 인증된
-    // 내부 WS(에디터) 채널은 debug 필드(llmCalls) 를 포함한 full payload 수신.
+    // 내부 WS(에디터) 채널은 debug 필드(llmCalls) 를 원문으로 수신한다
+    // ({@link WIRE_PRESERVED_FIELDS}); 그 밖의 값은 위에서 마스킹됐다.
     this.gateway.broadcastToChannel(channel, eventType, wireEnvelope);
     // fanout envelope (internal subscriber: SseAdapter / NotificationFanout /
     // ChatChannelDispatcher) — routing context 가 등록되어 있으면 첨부.
@@ -254,14 +277,7 @@ export class WebsocketService {
     // 또한 fanout 은 외부 수신자(SSE 토큰 보유 채널 end-user 포함) 로 나가므로
     // debug 전용 llmCalls 를 strip 한다 (WS §4.4 strip-only 결정). wireEnvelope
     // 은 위에서 이미 broadcast 됐고 여기선 새 clone 을 strip 하므로 WS copy 불변.
-    const externalPayload = stripExternalOnlyFields(
-      wireEnvelope,
-      MAX_SANITIZE_DEPTH,
-    );
-    const fanoutEnvelope = this.attachRoutingContext(
-      executionId,
-      externalPayload,
-    );
+    const fanoutEnvelope = this.toFanoutEnvelope(executionId, wireEnvelope);
     this.executionEventSubject.next({
       executionId,
       eventType,
@@ -316,7 +332,7 @@ export class WebsocketService {
     const channel = `execution:${executionId}`;
     const sanitizedPayload = sanitizePayloadForWs(payload);
     const seq = await this.seqAllocator.next(executionId);
-    const wireEnvelope: Record<string, unknown> = {
+    const wireEnvelope: Record<string, unknown> = this.maskWireEnvelope({
       executionId,
       nodeId,
       ...((sanitizedPayload && typeof sanitizedPayload === 'object'
@@ -324,24 +340,80 @@ export class WebsocketService {
         : { data: sanitizedPayload }) as Record<string, unknown>),
       seq,
       timestamp: new Date().toISOString(),
-    };
+    });
     this.gateway.broadcastToChannel(channel, eventType, wireEnvelope);
     // node 이벤트는 현재 llmCalls 를 포함하지 않으나, 미래 누출 경로를 차단하기 위해
     // emitExecutionEvent 와 동일하게 strip 적용 (방어심층화 — W-1/W-4).
-    const externalNodePayload = stripExternalOnlyFields(
-      wireEnvelope,
-      MAX_SANITIZE_DEPTH,
-    );
-    const fanoutEnvelope = this.attachRoutingContext(
-      executionId,
-      externalNodePayload,
-    );
+    const fanoutEnvelope = this.toFanoutEnvelope(executionId, wireEnvelope);
     this.executionEventSubject.next({
       executionId,
       eventType,
       seq,
       payload: fanoutEnvelope,
     });
+  }
+
+  /**
+   * **값-패턴 마스킹 초크포인트** — emit 되는 모든 execution/node 이벤트가 여기를 지난다.
+   *
+   * ## 왜 키-이름 마스킹만으로 부족한가 (무수정 프로브로 실증)
+   *
+   * {@link sanitizePayloadForWs} 는 **키 이름** 기반이라 `typeof value !== 'object'` 면
+   * 문자열을 그대로 돌려준다. 그래서 자유 텍스트 **값** 안에 박힌 자격증명이 통과한다 —
+   * `error: 'Upstream rejected: Authorization: Bearer eyJ…'` 이 그대로 나갔다.
+   * `stripExternalOnlyFields` 는 `llmCalls` **필드 제거** 전용이라 값을 보지 않는다.
+   * 종결 이벤트는 `toTerminalErrorPayload` 가 막고 있었지만 **node 이벤트와 비-종결
+   * execution 이벤트에는 이 층이 아예 없었다.**
+   *
+   * ## wire 에도 거는 이유 (결정 2026-08-16)
+   *
+   * 초안은 fanout 분기에만 걸려 했다("내부 wire 는 소유자 콘솔이니 원문 유지"). 실측하니
+   * **그 전제가 틀렸다** — `execution:<id>` 구독 인가는
+   * {@link ExecutionChannelAuthorizer} 가 `verifyOwnership(executionId, workspaceId)`
+   * 만 보고 role 을 아예 받지 않는다. 즉 수신 인구가 `GET /api/executions/:id` 와
+   * **동일**(viewer 포함 워크스페이스 멤버 전원)이고, EIA §R17 이 같은 인구를 근거로
+   * *"안전성은 롤 게이팅이 아니라 boundary masking parity 에 의존"* 이라며 내부 REST 를
+   * 마스킹한 바로 그 상황이다. 한쪽만 열어 두면 선례가 갈린다.
+   *
+   * ## 단 `llmCalls` 는 wire 에서 제외한다
+   *
+   * {@link WIRE_PRESERVED_FIELDS} 참조. 이 예외가 없으면 WS §Rationale 의 strip-only
+   * 결정이 *"값-레벨 마스킹은 에디터 디버깅 가치를 훼손한다"* 며 기각한 상태가 된다.
+   * fanout 에서는 그 필드가 통째로 제거되므로 외부 노출은 늘지 않는다.
+   *
+   * @returns 마스킹된 **새 envelope** (`deepRedactSecretsPreserving` 의 copy-on-change 라
+   *   바뀐 것이 없으면 같은 참조). 입력은 변이되지 않는다.
+   */
+  private maskWireEnvelope(
+    wireEnvelope: Record<string, unknown>,
+  ): Record<string, unknown> {
+    return deepRedactSecretsPreserving(
+      wireEnvelope,
+      WIRE_PRESERVED_FIELDS,
+    ) as Record<string, unknown>;
+  }
+
+  /**
+   * fanout(외부 수신자) envelope 조립 — `emitExecutionEvent`/`emitNodeEvent` 공용.
+   *
+   * **두 emit 경로가 같은 문을 지나게 한다.** 종전엔 두 곳이 strip → routing 첨부를
+   * 각자 조립했고, 이 저장소는 그렇게 갈린 자매에서 *"넷 중 하나만"* 을 반복해 겪었다.
+   * 세 번째 emit 경로가 생겨도 여기를 부르면 마스킹·strip 이 구조적으로 빠지지 않는다.
+   *
+   * 순서는 **strip → routing 첨부**다. 값 마스킹은 이미 {@link maskWireEnvelope} 가
+   * wire 단계에서 끝냈으므로 여기서 다시 걸지 않는다 — 다시 걸면
+   * {@link attachRoutingContext} 가 붙인 `chatChannel` 의 `[REDACTED]` 마커를 `***` 로
+   * 덮는다(그 마커는 기존 테스트가 고정하는 계약이다).
+   */
+  private toFanoutEnvelope(
+    executionId: string,
+    maskedWireEnvelope: Record<string, unknown>,
+  ): Record<string, unknown> {
+    const externalPayload = stripExternalOnlyFields(
+      maskedWireEnvelope,
+      MAX_SANITIZE_DEPTH,
+    );
+    return this.attachRoutingContext(executionId, externalPayload);
   }
 
   /**
