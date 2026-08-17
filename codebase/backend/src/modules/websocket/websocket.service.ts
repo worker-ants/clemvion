@@ -64,8 +64,15 @@ export type {
  *
  * 키 이름 패턴 매칭 방식 — 값 자체의 entropy 분석은 false positive 가 너무 많음.
  */
+/*
+ * `[a-z0-9_-]*token` 은 `token` 계열 전체를 한 대안으로 덮는다 — bare `token` 과
+ * 접두형(`access_token`·`csrf_token`·`csrfToken`·`x-auth-token`). 2026-08-17 실측:
+ * 목록에 bare `token` 은 있었지만 접두형이 없어 `{csrf_token: …}` 이 평문으로 나갔다.
+ * `shared/utils/sanitize-error-message.ts` 의 동명 상수와 **의도된 미러**이므로 한쪽만
+ * 고치면 그쪽 JSDoc 의 "같은 클래스를 방어한다" 서술이 거짓이 된다 — 함께 갱신한다.
+ */
 const CREDENTIAL_KEY_PATTERN =
-  /^(password|passwd|pwd|api[_-]?key|secret|token|access[_-]?token|refresh[_-]?token|private[_-]?key|client[_-]?secret|authorization|cookie)$/i;
+  /^(password|passwd|pwd|api[_-]?key|secret|[a-z0-9_-]*token|private[_-]?key|client[_-]?secret|authorization|cookie)$/i;
 
 export const MAX_SANITIZE_DEPTH = 10;
 

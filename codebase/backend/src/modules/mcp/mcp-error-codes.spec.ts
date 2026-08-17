@@ -15,7 +15,13 @@ describe('redactMcpSecrets', () => {
     expect(out).toContain('https://***@mcp.example.com/rpc');
   });
 
-  it('쿼리스트링 bare token 을 마스킹하고 비-시크릿 파라미터는 보존 (MCP 전용 패턴)', () => {
+  /**
+   * 2026-08-17 — 이 케이스는 **공용 `SECRET_LEAK_PATTERNS` 로 이관**됐다. 종전엔 MCP 전용
+   * 대안이 잡았고 그 사실을 테스트 이름이 밝히고 있었는데, 공용이 `token` 계열 전체를
+   * 덮게 되면서 그 표기가 거짓이 됐다. 케이스 자체는 **남긴다** — MCP 소비자가 이 형태에
+   * 계속 의존한다는 사실이 공용 쪽 변경에서 보이지 않기 때문이다(공용을 좁히면 여기가 RED).
+   */
+  it('쿼리스트링 bare token 을 마스킹하고 비-시크릿 파라미터는 보존 (공용 패턴이 흡수)', () => {
     const out = redactMcpSecrets('GET /rpc?token=abc123&foo=bar failed');
     expect(out).not.toContain('abc123');
     expect(out).toContain('foo=bar');

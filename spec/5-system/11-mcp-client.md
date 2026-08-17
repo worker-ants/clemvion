@@ -482,7 +482,7 @@ SoT: `codebase/backend/src/modules/mcp/mcp-error-codes.ts` 의 `MCP_ERROR_CODES`
 | 필드 | 타입 | 값 |
 |------|------|----|
 | `status` | enum | `success` / `failed` |
-| `error` | jsonb? | 실패 시 `{ code, message }` (§8.2 vocabulary). `message` 는 credential-shaped span(Bearer 토큰·`Authorization` 헤더·URL userinfo(scheme 보존 `scheme://***@host`)·bare JWT·labelled `access_token`/`api_key`/`secret`/… kv) redact 후 2KB clamp — 공용 `SECRET_LEAK_PATTERNS`(`shared/utils/sanitize-error-message`) + MCP 전용 bare-token(`token=`) 패턴. `mcpDiagnostics.errors[].message` 및 `Integration.last_error` 도 동일(`sanitizeMcpErrorMessage`) |
+| `error` | jsonb? | 실패 시 `{ code, message }` (§8.2 vocabulary). `message` 는 credential-shaped span(Bearer 토큰·`Authorization` 헤더·URL userinfo(scheme 보존 `scheme://***@host`)·bare JWT·labelled `api_key`/`secret`/`token` 계열(`token`·`access_token`·`csrf_token`·`csrfToken`)/… kv) redact 후 2KB clamp — **전부 공용 `SECRET_LEAK_PATTERNS`**(`shared/utils/sanitize-error-message`). MCP 전용 추가 패턴은 2026-08-17 기준 **없다**(§Rationale 참조). `mcpDiagnostics.errors[].message` 및 `Integration.last_error` 도 동일(`sanitizeMcpErrorMessage`) |
 | `duration_ms` | int | RPC 호출 단위의 elapsed |
 | `api_label` | `varchar(128)? NULL` | Internal Bridge (`Cafe24McpToolProvider`) 경로에서만 `cafe24.<resource>.<operation>` 형식 catalog key 채움. 외부 MCP 서버 경로는 NULL |
 | `api_method` | `varchar(8)? NULL` | Internal Bridge: HTTP method (cafe24 operation). 외부 MCP 경로: NULL |
@@ -601,6 +601,8 @@ usage 로그 쓰기는 **fire-and-forget** — `tools/call` 의 응답 반환 �
 **표기 선례**: 절 단위 won't-do 표기(`_(비채택 won't-do — 이유)_` 인라인 + 전용 `R-wontdo-*` Rationale 절)는 [`6-websocket-protocol.md`](./6-websocket-protocol.md) §Rationale `R-wontdo-rawws-rest`(2026-07-08) 가 확립한 패턴을 따른다. spec 문서 단위 폐기용 `status: archived` 와는 레이어가 다르다(spec-impl-evidence §3 R-4).
 
 ### 에러 message redaction 은 공용 패턴 재사용 (§8.3)
-`mcpDiagnostics.errors[].message` 등 사용자 대면 sink 로 나가는 외부 MCP 에러 문자열의 secret 마스킹은 **공용 `SECRET_LEAK_PATTERNS`(`shared/utils/sanitize-error-message`)를 재사용**하고, 그것이 다루지 않는 MCP 특화 케이스(쿼리 bare `token=`)만 얇게 얹는다. 별도 redaction 로직을 새로 두지 않은 이유: secret 패턴은 보안 민감 SoT 라 파편화 시 "공용에 새 패턴 추가 → MCP 는 누락" 하는 유지보수 위험이 크기 때문이다. cap 만 MCP 는 §8.2 의 2048(공용 200 과 별개 — MCP 서버 에러가 더 길 수 있어 진단성 보존)로 다르게 적용한다.
+`mcpDiagnostics.errors[].message` 등 사용자 대면 sink 로 나가는 외부 MCP 에러 문자열의 secret 마스킹은 **공용 `SECRET_LEAK_PATTERNS`(`shared/utils/sanitize-error-message`)를 재사용**하고, 그것이 다루지 않는 MCP 특화 케이스만 얇게 얹는 훅(`MCP_EXTRA_SECRET_PATTERNS`)을 둔다. 별도 redaction 로직을 새로 두지 않은 이유: secret 패턴은 보안 민감 SoT 라 파편화 시 "공용에 새 패턴 추가 → MCP 는 누락" 하는 유지보수 위험이 크기 때문이다. cap 만 MCP 는 §8.2 의 2048(공용 200 과 별개 — MCP 서버 에러가 더 길 수 있어 진단성 보존)로 다르게 적용한다.
 
-> **2026-07-10 갱신**: connect URL userinfo(`scheme://user:pass@host`) 패턴은 종전 MCP 전용이었으나, 공용 `SECRET_LEAK_PATTERNS` 가 동형(scheme 보존 `scheme://***@host`, lookbehind/lookahead)으로 흡수해 MCP 전용 목록에서 제거했다 — 위 "파편화 방지" 원칙을 URL-userinfo 에도 적용(EIA §R17 잔여 하드닝, PR #886 후속). MCP 전용으로 남는 것은 bare `token=` 뿐이다.
+> **2026-07-10 갱신**: connect URL userinfo(`scheme://user:pass@host`) 패턴은 종전 MCP 전용이었으나, 공용 `SECRET_LEAK_PATTERNS` 가 동형(scheme 보존 `scheme://***@host`, lookbehind/lookahead)으로 흡수해 MCP 전용 목록에서 제거했다 — 위 "파편화 방지" 원칙을 URL-userinfo 에도 적용(EIA §R17 잔여 하드닝, PR #886 후속).
+>
+> **2026-08-17 갱신 — 훅이 비었다**: 마지막으로 남아 있던 쿼리 bare `token=` 도 공용이 흡수했다. 공용 labelled 패턴이 `token` **계열 전체**(`[A-Za-z0-9_-]*token` — bare `token`·`access_token`·`csrf_token`·`csrfToken`)로 넓어졌기 때문이다(EIA §R17 트래커 "`SECRET_LEAK_PATTERNS` 가 bare `token=` 을 안 잡는다" 집행). 무수정 프로브로 동치를 확인했다 — `?token=abc&foo=bar` 가 공용만으로도 `?***&foo=bar` 가 되고, `mcp-error-codes.spec.ts` 8건이 전부 그대로 GREEN 이다. **`MCP_EXTRA_SECRET_PATTERNS` 는 비었지만 훅 자체는 남긴다** — MCP 서버는 제3자 구현이라 공용이 모르는 형태를 언제든 되돌려줄 수 있고, 그때 여기 한 줄을 얹는 것이 공용 SoT 를 MCP 사정으로 넓히는 것보다 안전하다.

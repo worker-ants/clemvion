@@ -51,6 +51,7 @@ code:
 | 중첩은 2단계까지 | `/api/knowledge-bases/:id/documents` |
 | 3단계 이상은 최상위로 분리 | `/api/documents/:docId` (필요 시) |
 | **예외 — RPC-style sub-channel action**: `/api/{resource}/{id}/{channel}/{action}` 형태의 동작 호출은 허용 (e.g. `/api/triggers/:id/notification/rotate-secret`, `/api/triggers/:id/interaction/revoke-token`, `/api/triggers/:id/chat-channel/rotate-bot-token`, `/api/auth/workspaces/:id/switch`). 자원 자체가 아닌 sub-channel 의 부작용 동작 (`rotate-*`, `revoke-*`, `disable-*`, `switch` 등) 이며 URL 만으로 자원·채널·동작을 식별 가능해야 하기 때문 | (좌측 예시 참조) |
+| **예외 — 인증 family 전용 네임스페이스**: `/api/external/{resource}` 는 세션/워크스페이스 인증이 아니라 **execution 단명 토큰(`iext_*`)** 으로만 접근하는 별도 인증 family 다. 같은 자원이라도 인증 주체·수신 인구가 달라 경로를 분리한다 — 규칙 위반이 아니라 명시된 예외다. SoT: [§14 External Interaction API](./14-external-interaction-api.md) (rate-limit 은 아래 [§7](#7-rate-limiting), 부재 표현은 [§5.4](#54-부재-표현--null-vs-키-생략)) | `/api/external/executions/:id`, `/api/external/executions/:id/interact` |
 
 ### 2.3 워크스페이스 스코핑
 
