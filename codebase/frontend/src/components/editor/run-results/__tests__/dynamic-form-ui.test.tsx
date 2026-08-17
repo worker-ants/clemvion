@@ -580,3 +580,91 @@ describe("DynamicFormUI — key prop state 보존/리셋 (W#5)", () => {
     expect((screen.getByLabelText("Comment") as HTMLInputElement).value).toBe("");
   });
 });
+
+/**
+ * **마스킹된 기본값은 프리필하지 않는다** — 왕복 오염 차단.
+ *
+ * `formConfig` 는 `execution.waiting_for_input` payload 를 타고 오고, 그 payload 는 emit
+ * 시점에 자격증명 값-패턴이 마스킹된다(EIA §R17). 마스킹은 이 payload 가 SSE·notification
+ * webhook 으로도 나가기 때문에 **끌 수 없다**. 그런데 이 폼이 `defaultValue` 로 프리필되고
+ * 사용자가 손대지 않으면 리터럴 `'***'` 가 **실제 폼 값으로 제출**된다 — Re-run 모달에서
+ * CRITICAL 로 잡힌 것과 같은 클래스(*읽혀서 되쓰이는 값에 마스킹을 걸면 데이터 무결성
+ * 문제가 된다*)다.
+ *
+ * **양방향을 고정한다**: 마커는 프리필하지 않고(+ 안내 노출), 마커가 아닌 값은 그대로 둔다.
+ * 한쪽만 단언하면 "전부 프리필 안 함" 구현으로도 초록이 된다.
+ */
+describe("DynamicFormUI — 마스킹된 defaultValue 왕복 차단", () => {
+  const MARKERS = ["***", "[REDACTED]", "[REDACTED_DEPTH]"];
+
+  it.each(MARKERS)("마커 %s 는 프리필하지 않는다", (marker) => {
+    render(
+      <DynamicFormUI
+        formConfig={{
+          fields: [
+            { name: "tok", type: "text", label: "Token", defaultValue: marker },
+          ],
+        }}
+        onSubmit={vi.fn()}
+      />,
+    );
+    expect((screen.getByLabelText("Token") as HTMLInputElement).value).toBe("");
+  });
+
+  it("마커가 아닌 기본값은 그대로 프리필한다 (가드가 과하지 않음)", () => {
+    render(
+      <DynamicFormUI
+        formConfig={{
+          fields: [
+            { name: "n", type: "text", label: "Note", defaultValue: "평범한 값" },
+            // 마커를 *포함*할 뿐인 문자열은 마스킹 산물이 아니다 — 정확 일치만 건다.
+            { name: "p", type: "text", label: "Partial", defaultValue: "a***b" },
+          ],
+        }}
+        onSubmit={vi.fn()}
+      />,
+    );
+    expect((screen.getByLabelText("Note") as HTMLInputElement).value).toBe(
+      "평범한 값",
+    );
+    expect((screen.getByLabelText("Partial") as HTMLInputElement).value).toBe(
+      "a***b",
+    );
+  });
+
+  it("마커 필드에는 이유를 알리는 안내를 띄운다", () => {
+    render(
+      <DynamicFormUI
+        formConfig={{
+          fields: [
+            { name: "tok", type: "text", label: "Token", defaultValue: "***" },
+          ],
+        }}
+        onSubmit={vi.fn()}
+      />,
+    );
+    expect(
+      screen.getByText(/자격증명으로 판별되어 가려졌어요/),
+    ).toBeInTheDocument();
+  });
+
+  it("제출 payload 에 마커가 실리지 않는다 (오염 차단의 최종 단언)", () => {
+    const onSubmit = vi.fn();
+    render(
+      <DynamicFormUI
+        formConfig={{
+          fields: [
+            { name: "tok", type: "text", label: "Token", defaultValue: "***" },
+            { name: "keep", type: "text", label: "Keep", defaultValue: "ok" },
+          ],
+        }}
+        onSubmit={onSubmit}
+      />,
+    );
+    fireEvent.submit(screen.getByRole("button", { name: /submit|제출/i }));
+    const payload = onSubmit.mock.calls[0][0] as Record<string, unknown>;
+    expect(payload.tok).toBe("");
+    expect(payload.keep).toBe("ok");
+    expect(JSON.stringify(payload)).not.toContain("***");
+  });
+});

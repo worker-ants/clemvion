@@ -1550,7 +1550,23 @@ present-when-available 이므로, REST 만 `null` 로 정규화하면 위젯의 
         자격증명 벡터인 webhook 민감 헤더는 **ingestion 시점에 이미 `[REDACTED]`**
         ([§5.3](./12-webhook.md#53-민감-헤더-마스킹-ingestion)).
       - **닫는 조건**: 프런트가 마스킹 마커를 감지해 해당 필드 재입력을 강제하는 가드가
-        선행되어야 한다. 트래커에 등재됐다.
+        선행되어야 한다. **그 가드의 첫 조각이 2026-08-17 에 섰다** — 폼 프리필
+        (`DynamicFormUI`)이 마커를 감지해 프리필을 건너뛰고 재입력을 안내한다(아래
+        "프리필 왕복" 불릿). Re-run 모달·에디터 히스토리 로드에 같은 가드를 확장하면
+        이 컬럼도 닫을 수 있다. 트래커에 등재됐다.
+
+    - **프리필 왕복 — 마스킹된 값이 되돌아와 실제 입력이 되는 경로 (2026-08-17)**:
+      마스킹은 *"읽혀서 되쓰이는 값"* 과 만나면 가시성이 아니라 **데이터 무결성** 문제가
+      된다. 이 문서는 그 형태를 두 번 겪었다 — `Execution.inputData`(Re-run 재제출, 위 잔여
+      ②)와 **폼 `defaultValue`**.
+      - **폼 경로는 carve-out 으로 풀 수 없다**: `formConfig` 는 `execution.waiting_for_input`
+        을 타고 **SSE·notification webhook 으로도 나가므로**(`Execution.inputData` 와 달리
+        외부 노출이 있다) 마스킹을 끄면 외부 누출이 열린다. 그래서 마스킹은 유지하고
+        **소비 쪽에서 마커를 감지**해 프리필을 건너뛴다.
+      - **판단 기준**: 마스킹 대상이 *외부로도 나가는가* 를 먼저 본다 — 나가면 마커 가드,
+        안 나가면 carve-out 이 값싸다. 두 사례가 정확히 그 두 갈래다.
+      - 마커 집합은 backend `sanitize-error-message.ts` 가 SoT 이고 프런트가 미러한다 —
+        어긋나면 가드가 조용히 뚫리므로 **양쪽을 함께** 갱신한다.
     - **잔여 ③ (범위 밖 유지)**: **workflow-assistant LLM 도구**(`explore-tools.service.ts`)는 `inputData` ·
       `outputData` · `error` **세 필드**를 `maskSensitiveFields`(**키 이름** 기반)로만 내보내
       자유 텍스트 안의 자격증명을 통과시킨다 (그쪽 마스킹 규칙의 SoT 는

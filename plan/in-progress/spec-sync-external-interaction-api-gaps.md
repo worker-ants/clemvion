@@ -290,7 +290,7 @@ checker 가 독립적으로** "인용이 가리키는 절이 오히려 반대를
       > 않아 SSE/chat-channel 에 도달하지 않는다. 즉 이 PR 이 겨눈 "외부 누출" 표면이
       > 아니다. 다만 population-parity 논리는 그대로 적용되므로 별건으로 남긴다.
 
-- [ ] **`sanitize-error-message.ts` 마커 JSDoc 을 `MASKED_MARKERS` 에 귀속시키기**
+- [x] **`sanitize-error-message.ts` 마커 JSDoc 을 `MASKED_MARKERS` 에 귀속시키기**
       (2026-08-17 등재, `00_47_01` documentation W1). 마커 계층 설명 대형 JSDoc 이 중간에 낀
       한 줄 주석들 때문에 그 상수에 붙지 않는다 — 배치 문제이고 내용·동작은 무관하다.
       > **이연 사유**: 리뷰 3R 의 유일한 WARNING 도 주석 한 줄이었고 그것을 고치자 4R 이
@@ -298,15 +298,24 @@ checker 가 독립적으로** "인용이 가리키는 절이 오히려 반대를
       > 여기서 또 고치면 5R 이 열린다. 발견의 성격이 두 라운드 연속 문서 층 =
       > 이 저장소의 수렴 신호라, 다음에 이 파일을 여는 작업에 곁들인다.
 
-- [ ] **유저 가이드 Error 탭에도 마스킹 캐비엇** (2026-08-17 등재, `00_23_57` documentation
+- [x] **유저 가이드 Error 탭에도 마스킹 캐비엇** (2026-08-17 등재, `00_23_57` documentation
       INFO-19). 이번엔 Output 탭만 반영했다 — `error` 도 #1179 이후 마스킹되므로 같은 캐비엇이
       맞지만, 이 PR 의 변경 대상(`outputData`)에 범위를 맞춰 좁게 반영했다.
 
-- [ ] **WS 대기-재개 경로에도 같은 "마스킹된 값의 재사용" 이 있는지 점검** (2026-08-17 등재,
-      `23_50_03` side_effect W2). 버튼 재개는 실측상 `resumeFromButtons` 가 로컬 UI 상태만
-      정리하고 payload 를 재제출하지 않아 **현재는 무해**하다. 다만 위 CRITICAL 과 **같은
-      클래스**(마스킹된 응답을 표시가 아니라 재입력으로 재사용)라, form/conversation 재개까지
-      포함해 전수로 한 번 훑어 두는 것이 값싸다.
+- [x] **WS 대기-재개 경로에도 같은 "마스킹된 값의 재사용" 이 있는지 점검** — 집행 완료
+      (2026-08-17). **진짜 결함이 하나 있었다.**
+      > **폼 `defaultValue` 프리필 왕복 오염** — `formConfig` 는 `waiting_for_input` payload
+      > 를 타고 오고 #1180 이 그 payload 를 마스킹하는데, `DynamicFormUI` 가 `defaultValue`
+      > 로 폼을 프리필하고 사용자가 손대지 않으면 리터럴 `'***'` 가 **실제 폼 값으로 제출**
+      > 된다. 무수정 프로브로 `Bearer sk-live-ABC` → `***` 실측(머지된 코드에서 이미 성립).
+      > **마커 가드로 닫았다** — carve-out 은 불가(`formConfig` 는 SSE·webhook 으로도 나간다).
+      >
+      > **버튼 재개는 무해**가 맞았다 — `resumeFromButtons` 는 로컬 UI 상태만 정리한다.
+      > conversation 재개(`submitMessage`)도 사용자 입력을 보내지 프리필 왕복이 아니다.
+      >
+      > **교훈**: 이 항목을 등재할 때 나는 `resumeFromButtons` 만 보고 "무해" 로 정리한 뒤
+      > form 경로를 끝까지 보지 않았다. *"전수로 훑어 두는 것이 값싸다"* 고 적어 둔 것은
+      > **미루는 근거가 아니라 그때 했어야 할 일**이었고, 그래서 게이트 7라운드가 놓쳤다.
 
 - [x] **내부 REST 의 `outputData` 는 원문이다** — 해소(2026-08-16, `fe6a54c80`).
       (`inputData` 는 위 항목으로 분리 — 되돌렸다.)
