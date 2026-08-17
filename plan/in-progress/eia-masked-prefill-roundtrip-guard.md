@@ -106,7 +106,12 @@ Re-run 모달 CRITICAL 과 **글자 그대로 같은 클래스**다 — *읽혀�
       해소를 확인했다
 - [x] `--impl-done` (`12_34_24`) — **BLOCK: NO**, CRITICAL 0. WARNING 1(frontmatter `code:`
       증거 2건 누락) + INFO 2건(표기 혼용 · stale blockquote)까지 같은 턴에 반영
-- [ ] 코드 동결 → 최종 게이트 → push
+- [x] 최종 게이트 — 리뷰 (`12_57_15`) **CRITICAL 0 · WARNING 0** (LOW) ·
+      consistency (`12_57_52`) **BLOCK: NO**, 5 checker 전원 **NONE**. 남은 INFO 는 전부
+      비차단이라 코드를 더 손대지 않고 트래커에 등재했다 (신규 2건: 힌트 수명 미결정 ·
+      테스트 JSDoc 목록). `required`+마커 조합은 **조치 불요**로 판정 — 네이티브 검증이
+      제출을 막아 이 PR 목적을 보강한다
+- [ ] push → PR
 
 > **`token=` 패턴 확장은 이 PR 에 넣지 않는다** — 사용자가 순서를 택했다. 그 확장은 마스킹
 > 대상을 넓혀 **이 왕복 오염 범위도 함께 넓히므로**, 가드가 선 뒤에 하는 것이 맞다.

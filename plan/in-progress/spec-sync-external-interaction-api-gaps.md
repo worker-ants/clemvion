@@ -301,8 +301,18 @@ checker 가 독립적으로** "인용이 가리키는 절이 오히려 반대를
       - 가드 회귀 테스트가 `type: "text"` 만 순회 — `select`/`textarea` 1건 추가로
         **타입 불문 가드**임을 고정 (INFO-5). 구현은 타입을 분기하지 않으므로 실동작 영향 없음.
       - 유저가이드 `02-nodes/presentation.mdx`(+`.en`)의 `defaultValue` 행에 프리필 스킵
-        캐비엇 한 문장 (INFO-6, 2라운드 연속 잔여). 매트릭스가 요구하는 `05-run-and-debug/`
+        캐비엇 한 문장 (INFO-6, 3라운드 연속 잔여). 매트릭스가 요구하는 `05-run-and-debug/`
         타겟은 이미 갱신됐고 런타임 힌트가 원인을 그 자리에서 설명하므로 비차단.
+      - **안내 힌트의 수명이 미결정** (`12_57_15` requirement/testing INFO-4, 3라운드에서
+        처음 나옴). 힌트는 불변 prop 인 `field.defaultValue` 를 보므로 사용자가 값을 채운
+        **뒤에도 남는다**. "왜 비어 있었는지" 를 계속 설명하는 것이 맞다고 보지만 결정한
+        적이 없고 단언하는 테스트도 없다 — 의도를 정하고 `fireEvent.change` 후 상태를
+        고정할 것.
+      - 테스트 파일 상단 "검증 범위" JSDoc 목록에 신규 마스킹 왕복 차단 블록 미등재
+        (`12_57_15` documentation INFO-7).
+      > **`required` + 마커 조합은 조치 불요** (`12_57_15` side_effect INFO-5): 빈 초기값이
+      > 되면서 네이티브 HTML5 validation 이 `handleSubmit` 이전에 제출을 막는다 — 이 PR 의
+      > 목적을 **보강하는** 방향이라 결함이 아니다. 다만 이전 라운드가 다룬 적 없어 적어 둔다.
 
 - [ ] **`kb:<documentId>` · `background:run:<id>` WS 채널에도 값-패턴 마스킹 적용 검토**
       (2026-08-17 등재, `00_23_57` security INFO-1). 두 채널의 구독 인가도 `execution:` 과
