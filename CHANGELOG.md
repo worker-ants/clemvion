@@ -23,7 +23,13 @@ strip 하므로 외부 노출 불변). WS §Rationale 의 strip-only 결정은 *
 `findById` · `getChain` · `stop` · `toExecutionDto`(목록) · `findById` 의 `nodeExecutions[]` ·
 `BackgroundRunsService.toNodeExecutionDto`.
 
-**⚠️ `inputData` 는 마스킹하지 않는다 (의도)** — 초안은 두 컬럼을 함께 닫았다가 **되돌렸다.**
+**⚠️ `Execution.inputData` 만 마스킹하지 않는다 (의도)** — 초안은 두 컬럼을 함께 닫았다가 **되돌렸다.**
+
+> **카브아웃은 `Execution` 레벨 한정이다** — `NodeExecution.inputData`(실행 상세의
+> `nodeExecutions[]`·background-run 본문 노드)는 재제출 소비처가 없어 **마스킹된다**.
+> 노드 레벨을 비워 두면 WS emit(마스킹)과 REST(원문)가 같은 프런트 store 슬롯에서
+> 2초 폴링에 덮여 화면이 깜빡이고, wire 마스킹의 보안 이득도 사라진다.
+> **가르는 축은 필드 이름이 아니라 "그 값이 되쓰이는가"** 다.
 `inputData` 는 표시 전용이 아니라 **재제출되는 값**이다: Re-run 모달이 프리필해
 `inputOverride` 로 되보내고(`useOriginalInput` **기본 `false`** 라 손대지 않아도 제출된다),
 에디터 "히스토리에서 불러오기" 도 같은 값을 재실행한다. 마스킹하면 리터럴 `'***'` 가

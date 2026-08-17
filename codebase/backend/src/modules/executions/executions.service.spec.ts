@@ -1360,19 +1360,21 @@ describe('ExecutionsService', () => {
     });
 
     /**
-     * **`inputData` 비대상을 이 파일의 다섯 표면에서 각각 고정한다** — CRITICAL 회귀 캐너리.
+     * **`inputData` 캐너리는 레벨에 따라 방향이 갈린다** — 두 CRITICAL 회귀를 각각 막는다.
      *
-     * 위 ①(`findById`)·②(`findByWorkflow`)가 둘, ⑥-b 가 `nodeExecutions[]` 로 셋째,
-     * 여기 ⑧·⑧-b 가 `getChain`·`stop` 으로 넷째·다섯째다. 여섯째 표면
-     * (`BackgroundRunsService`)은 `background-runs.service.spec.ts` 가 맡는다 —
-     * 표면 목록의 정본은 `ExecutionsService.toResponseExecution` 의 표다.
+     * | 방향 | 겨누는 회귀 | 캐너리 |
+     * |---|---|---|
+     * | `Execution.inputData` 는 **원문** | 관문이 붙으면 Re-run 재제출이 `'***'` 로 오염 | `①`(`findById`) · `②`(`findByWorkflow`) · `⑧`(`getChain`) · `⑧-b`(`stop`) |
+     * | 노드 레벨 `inputData` 는 **마스킹** | 카브아웃이 노드 레벨까지 번지면 WS↔REST flip-flop | `⑤` · `⑥-b` + `background-runs.service.spec.ts` |
      *
-     * `error` 때 *"한 표면에서 호출을 지워도 스위트가 초록"* 이던 것과 같은 형태를 반대
-     * 방향(관문이 **붙는** 회귀)으로 막는다.
+     * **두 방향을 한 목록으로 묶어 읽으면 안 된다** — 같은 이름의 컬럼이지만 레벨이
+     * 다르고 정책이 반대다. 축은 *"그 값이 되쓰이는가"* 이고, 표면 목록의 정본은
+     * `ExecutionsService.toResponseExecution` 의 표다.
      *
-     * > 초판은 여기 *"네 표면"* 이라 적고 다섯을 나열했다 — 이 PR 이 없애려던 "흩어진
-     * > 수치" 결함이 새 주석에서 재발한 것이라(`00_23_57` documentation W1) 개수 대신
-     * > **각 표면을 이름으로** 적는다.
+     * > 이 주석은 두 번 틀렸다: 초판은 *"네 표면"* 이라 적고 다섯을 나열했고
+     * > (`00_23_57` documentation W1), 그 정정판은 `⑥-b`·background-runs 를 "비대상 고정"
+     * > 으로 **오분류**했다(`10_26_58` W5) — 그 둘은 정반대를 고정한다. 개수·목록 대신
+     * > **방향별로** 적는 이유다.
      */
     it('⑧ getChain·stop 도 `inputData` 를 원문으로 통과시킨다 (재제출 경로 보호)', async () => {
       const root = baseFake({ id: 'eD8', inputData: { ...LEAKY_IN } });

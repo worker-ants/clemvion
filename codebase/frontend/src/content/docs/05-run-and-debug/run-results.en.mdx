@@ -57,7 +57,7 @@ For completed, failed, or waiting nodes, the detail pane exposes sub-tabs. The A
 
 <FieldTable rows={[
   { name: "Preview", type: "Conditional", description: "Visual preview for Table, Carousel, Chart, Template, and Form. For conversational AI nodes, shows the ConversationInspector and the form/button wait UI." },
-  { name: "Input", type: "Node-level", description: "Input JSON this node received. Sometimes it loads late via polling — a brief Loading indicator can appear." },
+  { name: "Input", type: "Node-level", description: "Input JSON this node received. Sometimes it loads late via polling — a brief Loading indicator can appear. Values detected as credentials (tokens, passwords) are shown as `***` — the stored value itself is not lost." },
   { name: "Output", type: "Node-level", description: "The node's output JSON. AI nodes show a summary grid (Model · Tokens · Turn Count · Tool Calls) at the top. Values detected as credentials (tokens, passwords) are shown as `***` — the stored value itself is not lost." },
   { name: "LLM Usage", type: "AI nodes", description: "At the node level: whole-run aggregates (Model · Total/Request/Response/Thinking Tokens · Turn Count · Tool Calls · LLM Calls). At the message level: tokens and latency for the selected call." },
   { name: "Config", type: "Node-level", description: "Echo of the node's config actually used at run time. Nodes that don't yet support the new output shape show an explanatory message." },

@@ -267,10 +267,21 @@ checker 가 독립적으로** "인용이 가리키는 절이 오히려 반대를
       > side_effect). 소스 추적으로 확증했고 사용자가 **철회**를 택했다.
       > 기본 Re-run(`useOriginalInput=true`)은 서버가 엔티티를 직접 읽어 영향 없다.
       > **닫는 조건**: 두 소비처가 마스킹 마커를 감지해 해당 필드 재입력을 강제하는 가드.
-      > 그 가드가 서면 이 컬럼도 닫는다. 현재는 회귀 캐너리로 **비대상임을 고정**해 뒀다
-      > (`executions.service.spec.ts` ⑧·⑧-b·⑥-b, `background-runs.service.spec.ts`).
-      > 남는 노출은 트리거 파라미터 자유 텍스트뿐 — webhook 민감 헤더는 ingestion 이
-      > 이미 `[REDACTED]` 로 가린다.
+      > 그 가드가 서면 이 컬럼도 닫는다.
+      >
+      > **⚠️ 범위 정정 (2026-08-17, `83436ed45`) — 카브아웃은 `Execution` 레벨 한정이다.**
+      > `NodeExecution.inputData` 는 **마스킹 대상**으로 전환됐다(재제출 소비처 없음).
+      > 노드 레벨을 비워 두면 WS emit(마스킹)과 REST(원문)가 **같은 store 슬롯**에서
+      > 2초 폴링에 덮여 flip-flop 이 난다(`01_17_49` cross_spec CRITICAL).
+      > 그래서 캐너리가 **두 방향으로 갈린다** — 헷갈리기 쉬우니 명시한다:
+      >
+      > | 캐너리 | 고정하는 것 |
+      > |---|---|
+      > | `⑧` · `⑧-b` (`getChain`·`stop`) + `①`·`②` | `Execution.inputData` 가 **원문**임 |
+      > | `⑤` · `⑥-b` + `background-runs.service.spec.ts` | 노드 레벨 `inputData` 가 **마스킹**됨 |
+      >
+      > 남는 노출은 **Execution 레벨** 트리거 파라미터 자유 텍스트뿐 — webhook 민감 헤더는
+      > ingestion 이 이미 `[REDACTED]` 로 가린다.
 
 - [ ] **`kb:<documentId>` · `background:run:<id>` WS 채널에도 값-패턴 마스킹 적용 검토**
       (2026-08-17 등재, `00_23_57` security INFO-1). 두 채널의 구독 인가도 `execution:` 과

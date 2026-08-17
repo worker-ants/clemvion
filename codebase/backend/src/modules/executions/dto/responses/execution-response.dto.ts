@@ -170,6 +170,26 @@ export class NodeExecutionSummaryDto {
   durationMs?: number | null;
 
   /**
+   * 노드 입력 데이터.
+   *
+   * **자격증명으로 판별된 값은 마스킹되어 반환된다** (DB 원문과 다를 수 있다) — 상위
+   * `ExecutionDto.inputData` 와 **정책이 반대**다. 그쪽은 Re-run 프리필이 읽어 재제출하므로
+   * 원문이지만, 노드 레벨은 재제출 소비처가 없어 마스킹한다(안 걸면 WS emit 과 REST 가 같은
+   * store 슬롯에서 flip-flop 한다). 근거 정본: `ExecutionsService` 의
+   * `MASKED_INPUT_DATA_REASON`, SoT: EIA §R17.
+   *
+   * > 이 필드는 런타임 응답에는 늘 있었는데 **스키마에만 없었다**(선존 갭). 마스킹 정책이
+   * > 얹히면서 "문서화되지 않은 필드에 문서화되지 않은 정책" 이 되어 이번에 선언한다
+   * > (`10_26_58` side_effect W6). 자매 `BackgroundRunNodeExecutionDto` 는 이미 갖고 있다.
+   */
+  @ApiPropertyOptional({
+    type: 'object',
+    additionalProperties: true,
+    nullable: true,
+  })
+  inputData?: Record<string, unknown> | null;
+
+  /**
    * 노드 실행 출력 — `NodeHandlerOutput` envelope 직렬화.
    * - `config`: 노드 정의의 **원본 template** (CONVENTIONS Principle 7 — `{{ ... }}` 보존된 raw)
    * - `output`: expression 평가가 끝난 결과값 (subject / body / requestBody 등 실제 동작 입력)
