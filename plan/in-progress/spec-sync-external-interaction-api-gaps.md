@@ -283,6 +283,37 @@ checker 가 독립적으로** "인용이 가리키는 절이 오히려 반대를
       > 남는 노출은 **Execution 레벨** 트리거 파라미터 자유 텍스트뿐 — webhook 민감 헤더는
       > ingestion 이 이미 `[REDACTED]` 로 가린다.
 
+- [ ] **마커 미러 계약 테스트 — backend SoT ↔ frontend 미러를 기계가 대조하게 한다**
+      (2026-08-17 등재, `12_33_36` security/side_effect INFO-1 — 이 시리즈에서 **반복** 지적).
+      `sanitize-error-message.ts` 의 `MASKED_MARKERS` 와 `dynamic-form-ui.tsx` 의 동명 미러가
+      손으로 복제돼 있다. 한쪽만 늘면 프리필 가드가 **그 신규 마커에 대해 조용히 fail-open**
+      한다 — 마스킹된 값이 다시 프리필돼 실제 입력이 되는, 이 시리즈가 두 번 겪은 그 형태다.
+      > **이번에 한 것**: 이름을 양쪽 동일하게 맞추고(`MASKED_MARKERS`/`isMaskedMarker`)
+      > 상호참조 주석을 달았고, 프런트 테스트가 구현 상수에서 fixture 를 파생시키되
+      > **리터럴 대조 테스트**로 값 자체를 못박았다. 즉 프런트 쪽 절반은 기계가 지킨다.
+      > **남은 것**: 두 스택을 **가로지르는** 대조. backend jest 와 frontend vitest 가 갈려
+      > 있어 공유 패키지 추출(`packages/`)이 선행돼야 값싸다 — 그래서 별건으로 남긴다.
+
+- [ ] **프리필 가드 후속 3건 (전부 비차단, `12_33_36` INFO)** — 2026-08-17 등재.
+      - `isMaskedMarker` 의 non-string 입력(`123`/`null`/`true`) 직접 단위 테스트 (INFO-4).
+        현재는 컴포넌트 렌더 경유 간접 검증만 있다. 공개 유틸로 승격됐으니 판별 로직이
+        진화할 때를 대비한 회귀 방어.
+      - 가드 회귀 테스트가 `type: "text"` 만 순회 — `select`/`textarea` 1건 추가로
+        **타입 불문 가드**임을 고정 (INFO-5). 구현은 타입을 분기하지 않으므로 실동작 영향 없음.
+      - 유저가이드 `02-nodes/presentation.mdx`(+`.en`)의 `defaultValue` 행에 프리필 스킵
+        캐비엇 한 문장 (INFO-6, 3라운드 연속 잔여). 매트릭스가 요구하는 `05-run-and-debug/`
+        타겟은 이미 갱신됐고 런타임 힌트가 원인을 그 자리에서 설명하므로 비차단.
+      - **안내 힌트의 수명이 미결정** (`12_57_15` requirement/testing INFO-4, 3라운드에서
+        처음 나옴). 힌트는 불변 prop 인 `field.defaultValue` 를 보므로 사용자가 값을 채운
+        **뒤에도 남는다**. "왜 비어 있었는지" 를 계속 설명하는 것이 맞다고 보지만 결정한
+        적이 없고 단언하는 테스트도 없다 — 의도를 정하고 `fireEvent.change` 후 상태를
+        고정할 것.
+      - 테스트 파일 상단 "검증 범위" JSDoc 목록에 신규 마스킹 왕복 차단 블록 미등재
+        (`12_57_15` documentation INFO-7).
+      > **`required` + 마커 조합은 조치 불요** (`12_57_15` side_effect INFO-5): 빈 초기값이
+      > 되면서 네이티브 HTML5 validation 이 `handleSubmit` 이전에 제출을 막는다 — 이 PR 의
+      > 목적을 **보강하는** 방향이라 결함이 아니다. 다만 이전 라운드가 다룬 적 없어 적어 둔다.
+
 - [ ] **`kb:<documentId>` · `background:run:<id>` WS 채널에도 값-패턴 마스킹 적용 검토**
       (2026-08-17 등재, `00_23_57` security INFO-1). 두 채널의 구독 인가도 `execution:` 과
       **같은 근거**(role 미검사, workspace 소유만 확인)인데 `maskWireEnvelope` 밖에 있다.
@@ -290,23 +321,34 @@ checker 가 독립적으로** "인용이 가리키는 절이 오히려 반대를
       > 않아 SSE/chat-channel 에 도달하지 않는다. 즉 이 PR 이 겨눈 "외부 누출" 표면이
       > 아니다. 다만 population-parity 논리는 그대로 적용되므로 별건으로 남긴다.
 
-- [ ] **`sanitize-error-message.ts` 마커 JSDoc 을 `MASKED_MARKERS` 에 귀속시키기**
+- [x] **`sanitize-error-message.ts` 마커 JSDoc 을 `MASKED_MARKERS` 에 귀속시키기**
       (2026-08-17 등재, `00_47_01` documentation W1). 마커 계층 설명 대형 JSDoc 이 중간에 낀
       한 줄 주석들 때문에 그 상수에 붙지 않는다 — 배치 문제이고 내용·동작은 무관하다.
       > **이연 사유**: 리뷰 3R 의 유일한 WARNING 도 주석 한 줄이었고 그것을 고치자 4R 이
       > 열려 같은 급의 nit 을 냈다. 게이트가 **주석 한 글자에도** 리뷰를 stale 처리하므로
       > 여기서 또 고치면 5R 이 열린다. 발견의 성격이 두 라운드 연속 문서 층 =
       > 이 저장소의 수렴 신호라, 다음에 이 파일을 여는 작업에 곁들인다.
+      > **→ 그 "다음 작업" 이 프리필 가드 PR(2026-08-17)이었다.** 예고대로 곁들여 처리했고,
+      > 프런트 미러 상호참조도 같은 편집에서 붙였다. 위 이연 사유는 **해소된 과거 기록**이다.
 
-- [ ] **유저 가이드 Error 탭에도 마스킹 캐비엇** (2026-08-17 등재, `00_23_57` documentation
+- [x] **유저 가이드 Error 탭에도 마스킹 캐비엇** (2026-08-17 등재, `00_23_57` documentation
       INFO-19). 이번엔 Output 탭만 반영했다 — `error` 도 #1179 이후 마스킹되므로 같은 캐비엇이
       맞지만, 이 PR 의 변경 대상(`outputData`)에 범위를 맞춰 좁게 반영했다.
 
-- [ ] **WS 대기-재개 경로에도 같은 "마스킹된 값의 재사용" 이 있는지 점검** (2026-08-17 등재,
-      `23_50_03` side_effect W2). 버튼 재개는 실측상 `resumeFromButtons` 가 로컬 UI 상태만
-      정리하고 payload 를 재제출하지 않아 **현재는 무해**하다. 다만 위 CRITICAL 과 **같은
-      클래스**(마스킹된 응답을 표시가 아니라 재입력으로 재사용)라, form/conversation 재개까지
-      포함해 전수로 한 번 훑어 두는 것이 값싸다.
+- [x] **WS 대기-재개 경로에도 같은 "마스킹된 값의 재사용" 이 있는지 점검** — 집행 완료
+      (2026-08-17). **진짜 결함이 하나 있었다.**
+      > **폼 `defaultValue` 프리필 왕복 오염** — `formConfig` 는 `waiting_for_input` payload
+      > 를 타고 오고 #1180 이 그 payload 를 마스킹하는데, `DynamicFormUI` 가 `defaultValue`
+      > 로 폼을 프리필하고 사용자가 손대지 않으면 리터럴 `'***'` 가 **실제 폼 값으로 제출**
+      > 된다. 무수정 프로브로 `Bearer sk-live-ABC` → `***` 실측(머지된 코드에서 이미 성립).
+      > **마커 가드로 닫았다** — carve-out 은 불가(`formConfig` 는 SSE·webhook 으로도 나간다).
+      >
+      > **버튼 재개는 무해**가 맞았다 — `resumeFromButtons` 는 로컬 UI 상태만 정리한다.
+      > conversation 재개(`submitMessage`)도 사용자 입력을 보내지 프리필 왕복이 아니다.
+      >
+      > **교훈**: 이 항목을 등재할 때 나는 `resumeFromButtons` 만 보고 "무해" 로 정리한 뒤
+      > form 경로를 끝까지 보지 않았다. *"전수로 훑어 두는 것이 값싸다"* 고 적어 둔 것은
+      > **미루는 근거가 아니라 그때 했어야 할 일**이었고, 그래서 게이트 7라운드가 놓쳤다.
 
 - [x] **내부 REST 의 `outputData` 는 원문이다** — 해소(2026-08-16, `fe6a54c80`).
       (`inputData` 는 위 항목으로 분리 — 되돌렸다.)

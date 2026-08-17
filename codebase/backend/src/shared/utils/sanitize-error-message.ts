@@ -92,6 +92,13 @@ const CREDENTIAL_KEY_PATTERN =
  */
 export const MAX_REDACT_DEPTH = 10;
 
+/** 값-패턴 마스커가 남기는 마커. 집합 의미는 {@link MASKED_MARKERS} 참조. */
+export const VALUE_MASK_MARKER = '***';
+/** 키-이름 마스커(`sanitizePayloadForWs` · webhook ingestion)가 남기는 마커. */
+export const KEY_MASK_MARKER = '[REDACTED]';
+/** 깊이 상한 초과 서브트리를 통째로 대체하는 마커. */
+export const DEPTH_MASK_MARKER = '[REDACTED_DEPTH]';
+
 /**
  * 앞선 마스킹 층이 이미 남긴 마커들. 이 값들을 **다시 마스킹하지 않는다.**
  *
@@ -113,14 +120,11 @@ export const MAX_REDACT_DEPTH = 10;
  *
  * **안전 방향은 한쪽으로만 열린다**: 절대 unmask 하지 않고, 이미 마스킹된 값을 다시 덮지
  * 않을 뿐이다. 마커 문자열 자체는 시크릿이 아니므로 보존해도 노출이 늘지 않는다.
+ *
+ * > **프런트 미러가 있다**: `dynamic-form-ui.tsx` 의 `MASKED_MARKERS` 가 같은 집합을 복제해
+ * > **마스킹된 폼 기본값을 프리필하지 않는** 가드에 쓴다(왕복 오염 차단). 이 집합을 바꾸면
+ * > 그쪽도 함께 갱신해야 한다 — 어긋나면 그 가드가 조용히 뚫린다.
  */
-/** 값-패턴 마스커가 남기는 마커. */
-export const VALUE_MASK_MARKER = '***';
-/** 키-이름 마스커(`sanitizePayloadForWs` · webhook ingestion)가 남기는 마커. */
-export const KEY_MASK_MARKER = '[REDACTED]';
-/** 깊이 상한 초과 서브트리를 통째로 대체하는 마커. */
-export const DEPTH_MASK_MARKER = '[REDACTED_DEPTH]';
-
 const MASKED_MARKERS: ReadonlySet<string> = new Set([
   VALUE_MASK_MARKER,
   KEY_MASK_MARKER,

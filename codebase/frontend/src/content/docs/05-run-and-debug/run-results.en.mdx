@@ -61,7 +61,7 @@ For completed, failed, or waiting nodes, the detail pane exposes sub-tabs. The A
   { name: "Output", type: "Node-level", description: "The node's output JSON. AI nodes show a summary grid (Model · Tokens · Turn Count · Tool Calls) at the top. Values detected as credentials (tokens, passwords) are shown as `***` — the stored value itself is not lost." },
   { name: "LLM Usage", type: "AI nodes", description: "At the node level: whole-run aggregates (Model · Total/Request/Response/Thinking Tokens · Turn Count · Tool Calls · LLM Calls). At the message level: tokens and latency for the selected call." },
   { name: "Config", type: "Node-level", description: "Echo of the node's config actually used at run time. Nodes that don't yet support the new output shape show an explanatory message." },
-  { name: "Error", type: "On failure", description: "Detailed error info as JSON." }
+  { name: "Error", type: "On failure", description: "Detailed error info as JSON. As with Input and Output, values detected as credentials are shown as `***`." }
 ]} />
 
 Default tab priority is `Error → Preview → Output`. If there's an error, the Error tab opens first.

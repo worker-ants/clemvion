@@ -72,7 +72,7 @@ code: ["codebase/frontend/src/components/editor/run-results", "codebase/frontend
   { name: "Output", type: "노드 레벨", description: "노드의 출력 JSON이에요. AI 노드는 Model·Tokens·Turn Count·Tool Calls 요약 그리드가 상단에 함께 나와요. 토큰·비밀번호처럼 자격증명으로 판별된 값은 `***`로 가려져 표시돼요 — 저장된 값이 사라진 건 아니에요." },
   { name: "LLM Usage", type: "AI 노드", description: "노드 레벨에선 전체 실행 집계(Model·Total/Request/Response/Thinking Tokens·Turn Count·Tool Calls·LLM Calls). 메시지 레벨에선 선택한 LLM 호출의 토큰·레이턴시예요." },
   { name: "Config", type: "노드 레벨", description: "노드가 실제 실행에 사용한 설정 echo 값이에요. 아직 새 출력 shape을 지원하지 않는 노드는 안내 메시지가 나와요." },
-  { name: "Error", type: "실패 시", description: "에러 상세 정보를 JSON으로 표시해요." }
+  { name: "Error", type: "실패 시", description: "에러 상세 정보를 JSON으로 표시해요. Input·Output과 마찬가지로 자격증명으로 판별된 값은 `***`로 가려져요." }
 ]} />
 
 기본 선택 우선순위는 `Error → Preview → Output` 순이에요. 즉 에러가 있으면 Error 탭부터 열려요.
