@@ -54,6 +54,9 @@ export class ExecutionDto {
    * 마스킹하면 `***` 가 새 실행의 실제 입력이 된다. 근거 정본:
    * `ExecutionsService` 의 `MASKED_INPUT_DATA_REASON`.
    *
+   * **이 카브아웃은 `Execution` 레벨 한정이다** — `nodeExecutions[].inputData` 는 재제출
+   * 소비처가 없어 **마스킹된다**(2026-08-17 정정).
+   *
    * 단 **webhook 민감 헤더는 ingestion 시점에 이미 `[REDACTED]`** 로 저장된다
    * (`spec/5-system/12-webhook.md` §5.3) — 그건 이 필드에도 그대로 실린다.
    */

@@ -220,10 +220,10 @@ describe('BackgroundRunsService', () => {
      * `outputData` 는 원문이었다. 이 컨트롤러의 노출 인구는 위 `error` 와 **똑같다**
      * (`@Roles` 없음).
      *
-     * **`inputData` 는 비대상**이다 — 재제출 경로 보호(`ExecutionsService` 의
-     * `MASKED_INPUT_DATA_REASON` 이 정본). 그래서 이 테스트는 양방향을 함께 고정한다.
+     * **노드 레벨이라 `inputData` 도 마스킹 대상**이다 — 재제출 카브아웃은 `Execution`
+     * 레벨 한정이고(`MASKED_INPUT_DATA_REASON` 정본), 이 표면엔 재제출 소비처가 없다.
      */
-    it('body nodeExecutions[] 의 outputData 는 마스킹하고 inputData 는 원문 유지', async () => {
+    it('body nodeExecutions[] 의 inputData·outputData 를 모두 마스킹한다', async () => {
       const bgNode = makeBgNodeExec();
       const leaky = makeBodyNodeExec({
         id: 'body-data-leak',
@@ -262,8 +262,8 @@ describe('BackgroundRunsService', () => {
       const row = JSON.stringify(result.nodeExecutions.data[0]);
       expect(row).not.toContain('sk-live-abc123');
       expect(row).toContain('***');
-      // `inputData` 는 비대상 — 재제출 경로 보호. 여기가 RED 면 관문이 다시 붙었다는 뜻이다.
-      expect(row).toContain('admin:pw');
+      // 노드 레벨은 `inputData` 도 마스킹 — 카브아웃은 Execution 레벨 한정.
+      expect(row).not.toContain('admin:pw');
     });
 
     /**

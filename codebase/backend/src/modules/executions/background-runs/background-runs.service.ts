@@ -300,9 +300,9 @@ export class BackgroundRunsService {
       // 자매 표면 — `executions.service.ts` 의 읽기 경로와 같은 클래스다. 이 컨트롤러도
       // `@Roles` 게이트 없이 워크스페이스 멤버 전원에게 열려 있고 같은 `NodeExecution` 의
       // 컬럼을 싣는다. 읽기 표면 전체 목록은 `ExecutionsService.toResponseExecution` 의
-      // 표가 정본이고, `inputData` 를 마스킹하지 않는 이유는 같은 파일의
-      // `MASKED_INPUT_DATA_REASON` 이 정본이다.
-      inputData: row.inputData ?? null,
+      // 표가 정본이다. **노드 레벨이라 `inputData` 도 마스킹한다** — 카브아웃은
+      // `Execution` 레벨 한정(`MASKED_INPUT_DATA_REASON` 참조).
+      inputData: redactStoredDataForResponse(row.inputData),
       outputData: redactStoredDataForResponse(row.outputData),
       error: redactStoredErrorForResponse(row.error),
     };

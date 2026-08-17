@@ -1527,10 +1527,17 @@ present-when-available 이므로, REST 만 `null` 로 정규화하면 위젯의 
     - **~~잔여 ①~~ 해소(2026-08-16)**: WS `execution.node.*` **emit** 경로의 `error` — 아래
       "emit 경로 값-패턴 마스킹" 불릿이 닫았다. [WS 프로토콜 §4.1](./6-websocket-protocol.md)이
       이제 마스킹을 규정한다.
-    - **잔여 ② — `outputData` 해소, `inputData` 는 의도적 비대상(2026-08-16)**:
-      `outputData` 는 위 표면 열거에 포함됐다(외부 `getStatus` 만 `stripAndRedact` 를 걸던
-      비대칭 해소). **`inputData` 는 마스킹하지 않는다** — 표시 전용이 아니라 **재제출되는
-      값**이기 때문이다:
+    - **잔여 ② — `outputData` 해소, `Execution.inputData` 만 의도적 비대상(2026-08-16,
+      범위 정정 2026-08-17)**: `outputData` 는 위 표면 열거에 포함됐다(외부 `getStatus` 만
+      `stripAndRedact` 를 걸던 비대칭 해소).
+      **카브아웃은 `Execution.inputData` **한 컬럼**이고 `NodeExecution.inputData` 는
+      마스킹한다** — 노드 레벨엔 재제출 소비처가 없기 때문이다(Re-run 은 `Execution.inputData`
+      만 읽는다, 실측). 초판은 카브아웃을 노드 레벨까지 확대했는데, 그러면 WS emit 은
+      마스킹하고 REST 는 원문을 주어 **같은 프런트 store 슬롯**(`nodeResults[].inputData`)에서
+      2초 폴링이 마스킹 값을 원문으로 덮는 **flip-flop** 이 난다 — 화면이 깜빡이고 내부 wire
+      마스킹의 보안 이득도 0이 된다(`01_17_49` cross_spec CRITICAL).
+      **축을 정확히 하면: round-trip 되는 것만 카브아웃한다.**
+      `Execution.inputData` 를 마스킹하지 않는 이유는 그것이 **재제출되는 값**이기 때문이다:
       - Re-run 모달이 `inputData` 를 프리필해 `inputOverride` 로 되보내고
         (`useOriginalInput` **기본값이 `false`** 라 사용자가 손대지 않아도 제출된다),
         에디터 "히스토리에서 불러오기" 도 같은 값을 textarea 로 적재해 재실행한다.
@@ -1575,13 +1582,17 @@ present-when-available 이므로, REST 만 `null` 로 정규화하면 위젯의 
     보인다. 위 `execution.ai_message` 불릿이 *"보수적 패턴의 rare FP 를 보안 우선으로 수용"* 이라
     한 것과 같은 판단이며, 외부 `getStatus` 는 이미 같은 마스킹을 걸고 있었다(내부만 없었다).
     participant-vs-observer 분리 egress 는 실제 요구가 관측되면 검토한다.
-  - **emit 의 `input` 은 마스킹하는데 REST `inputData` 는 안 하는 이유** (2026-08-17 명시):
-    두 결정의 축이 다르다 — 마스킹 **범위**는 *수신 인구*(boundary parity)가 정하고,
-    `inputData` 카브아웃은 *그 값이 되쓰이는가*(round-trip)가 정한다. REST `inputData` 는
-    Re-run 프리필이 **읽어서 재제출**하지만 **WS node 이벤트의 `input` 은 어떤 소비자도
-    재제출하지 않는다**(실측) — 표시 전용이라 마스킹해도 데이터가 오염되지 않는다.
-    같은 이름이지만 다른 계약이다. 자세한 근거: [WS §4.1](./6-websocket-protocol.md) ·
-    [Re-run §10.2](./13-replay-rerun.md) · 잔여 ②.
+  - **`input`/`inputData` 의 마스킹 여부는 "레벨" 이 가른다** (2026-08-17 정정):
+    마스킹 **범위**는 *수신 인구*(boundary parity)가 정하고, 카브아웃은 *그 값이
+    되쓰이는가*(round-trip)가 정한다. 두 축을 겹치면 이렇게 갈린다 —
+    | 값 | 마스킹 | 이유 |
+    |---|---|---|
+    | `Execution.inputData` (REST) | **안 함** | Re-run 프리필이 읽어 **재제출**한다 |
+    | `NodeExecution.inputData` (REST) | **함** | 재제출 소비처 없음(표시 전용) |
+    | WS node 이벤트 `input` (emit) | **함** | 위와 같은 값이 같은 store 슬롯에 들어간다 |
+    아래 두 줄은 같은 사실의 두 얼굴이다: 노드 레벨을 REST 에서 안 가리면 WS 마스킹이
+    2초 폴링에 덮여 **flip-flop** 이 나고, 반대로 Execution 레벨을 가리면 재실행이 오염된다.
+    자세한 근거: [WS §4.1](./6-websocket-protocol.md) · [Re-run §10.2](./13-replay-rerun.md).
   - **`config` raw-echo 와도 충돌하지 않는다**:
     [node-output Principle 7](../conventions/node-output.md#principle-7--config-echo-원칙-nodehandleroutputconfig)
     은 자격증명을 **이미 "절대 echo 금지"** 로 규정하므로, 이 마스킹은 그 규칙을 egress 에서

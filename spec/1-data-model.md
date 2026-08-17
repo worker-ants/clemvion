@@ -468,7 +468,7 @@ Schedule은 Trigger의 서브타입이다. 양쪽의 라이프사이클과 상�
 | finished_at | Timestamp? | 실행 종료 시각 |
 | duration_ms | Integer? | 실행 소요 시간 (wall-clock, start→finish). **취소·타임아웃 종결 경로에서는 실행 시간이 아니라 대기 경과 시간**이다 — [EIA §6.5](./5-system/14-external-interaction-api.md) 참조. 컬럼이 `INTEGER`(int4, ≈24.8일)라 쓰는 쪽은 상한 클램프가 필수다 |
 | active_running_ms | Integer | 누적 active-running 시간(ms). active 세그먼트(worker 가 노드를 전진시킨 구간)의 합 — `waiting_for_input` park 시간 제외. 기본 0. §8 active-running 타임아웃(`EXECUTION_TIME_LIMIT_EXCEEDED`)의 측정 기준 ([4-execution-engine §8](./5-system/4-execution-engine.md#8-동시-실행-제한)) |
-| input_data | JSONB? | 실행 입력 데이터 |
+| input_data | JSONB? | 실행 입력 데이터. **egress 마스킹 대상이 아니다** — Re-run 프리필이 이 값을 읽어 재제출하므로 마스킹하면 `***` 가 실제 입력이 된다 ([EIA §R17](./5-system/14-external-interaction-api.md) 잔여 ② · [Re-run §10.2](./5-system/13-replay-rerun.md)). 자매 `NodeExecution.input_data` 는 **마스킹 대상**이다(재제출 소비처 없음) |
 | output_data | JSONB? | 실행 최종 출력 데이터. **응답·emit 시 자격증명 값-패턴 마스킹**(DB 는 원문 보존) — 범위는 [EIA §R17](./5-system/14-external-interaction-api.md) |
 | error | JSONB? | 에러 정보. 최초 failed NodeExecution의 에러를 참조/복사 (아래 참조). `error.code` 어휘는 각 노드 핸들러가 정의([Spec node-output Principle 3.2](./conventions/node-output.md#32-outputerror-표준-형태)) 외에 엔진 인프라 차원의 코드를 포함한다 — `SERVER_INTERRUPTED` (graceful shutdown 미완료 노드, [§11](./5-system/4-execution-engine.md#11-graceful-shutdown)), `WORKER_HEARTBEAT_TIMEOUT` (active 세그먼트 job 이 BullMQ stalled 재배달(`maxStalledCount=1`) attempts 소진 — terminal worker failure, **PR4 구현(2026-07-04)**, [§7.1](./5-system/4-execution-engine.md#71-워커-크래시-복구--bullmq-stalled-job-target); 부팅 `recoverStuckExecutions` re-drive(§7.5 case B)는 이 코드 미사용 — 재구동 불가는 `RESUME_CHECKPOINT_MISSING`), `EXECUTION_TIME_LIMIT_EXCEEDED` (엔진 레벨 누적 active-running 시간 초과 — `waiting_for_input` 대기 제외, [§8](./5-system/4-execution-engine.md#8-동시-실행-제한)), `RESUME_FAILED` / `RESUME_CHECKPOINT_MISSING` / `RESUME_INCOMPATIBLE_STATE` (continuation rehydration 실패, [§7.5](./5-system/4-execution-engine.md#75-resume-after-restart-rehydration)) |
 | executed_by | UUID? | FK → User (수동 실행 시) |
@@ -547,7 +547,7 @@ External Interaction API 의 `iext_*`(per_execution JWT) 발급 jti 를 영속 �
 | started_at | Timestamp | 실행 시작 시각 |
 | finished_at | Timestamp? | 실행 종료 시각 |
 | duration_ms | Integer? | 소요 시간 |
-| input_data | JSONB | 노드 입력 데이터 |
+| input_data | JSONB | 노드 입력 데이터. **응답·emit 시 자격증명 값-패턴 마스킹**(DB 는 원문 보존) — 상위 `Execution.input_data` 와 달리 재제출 소비처가 없어 마스킹한다. 한쪽만 가리면 REST 폴링이 WS 마스킹 값을 덮어 flip-flop 이 난다. 범위: [EIA §R17](./5-system/14-external-interaction-api.md) |
 | output_data | JSONB? | 노드 출력 데이터. **응답·emit 시 자격증명 값-패턴 마스킹**(DB 는 원문 보존) — 범위는 [EIA §R17](./5-system/14-external-interaction-api.md) |
 | error | JSONB? | 에러 정보 `{ code, message, stack? }` |
 | retry_count | Integer | 재시도 횟수 |

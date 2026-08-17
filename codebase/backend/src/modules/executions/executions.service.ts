@@ -55,10 +55,17 @@ export const RERUN_CHAIN_DEPTH_LIMIT = 32;
 const RERUN_CHAIN_WALK_MAX = RERUN_CHAIN_DEPTH_LIMIT * 2;
 
 /**
- * **`inputData` 를 egress 마스킹하지 않는 이유** — 이 결정을 한 곳에 적고 호출부는
- * `{@link MASKED_INPUT_DATA_REASON}` 으로 가리킨다.
+ * **`Execution.inputData` 를 egress 마스킹하지 않는 이유** — 이 결정을 한 곳에 적고
+ * 호출부는 `{@link MASKED_INPUT_DATA_REASON}` 으로 가리킨다.
  *
- * `inputData` 는 **표시 전용이 아니다** — 두 소비처가 그 값을 읽어 **그대로 재제출**한다:
+ * > **카브아웃은 `Execution` 레벨 한정이다 (2026-08-17 정정).** `NodeExecution.inputData` 는
+ * > **마스킹한다** — 재제출 소비처가 없기 때문이다(Re-run 은 `Execution.inputData` 만 읽는다,
+ * > 실측). 초판은 카브아웃을 노드 레벨까지 확대했는데, 그러면 WS emit 은 마스킹하고 REST 는
+ * > 원문을 주어 **같은 store 슬롯**(`nodeResults[].inputData`)에서 2초 폴링이 마스킹 값을
+ * > 원문으로 덮는 flip-flop 이 난다 — 화면이 깜빡이고 내부 wire 마스킹의 보안 이득도 0이 된다
+ * > (`01_17_49` cross_spec CRITICAL). 축을 정확히 하면: **round-trip 되는 것만 카브아웃**이다.
+ *
+ * `Execution.inputData` 는 **표시 전용이 아니다** — 두 소비처가 그 값을 읽어 **그대로 재제출**한다:
  *
  * | 소비처 | 경로 |
  * |---|---|
@@ -161,9 +168,10 @@ export type ResponseExecution = Omit<
  */
 export type ResponseNodeExecution = Omit<
   NodeExecution,
-  'error' | 'outputData'
+  'error' | 'inputData' | 'outputData'
 > & {
   error: Record<string, unknown> | null;
+  inputData: Record<string, unknown> | null;
   outputData: Record<string, unknown> | null;
 };
 
@@ -717,15 +725,23 @@ export class ExecutionsService {
           // `redactStored*` 는 바뀐 것이 없으면 같은 참조를 돌려주므로, 셋 다 무변화면
           // 행 자체를 그대로 재사용해 대규모 ForEach 실행의 행-수만큼의 shallow-copy 를
           // 피한다. `error` 만 보고 판단하던 종전 조건을 세 컬럼으로 넓힌다.
-          // `inputData` 는 대상이 아니다 — {@link MASKED_INPUT_DATA_REASON}.
+          // **노드 레벨 `inputData` 는 마스킹한다** — 카브아웃은 `Execution` 레벨 한정이다
+          // ({@link MASKED_INPUT_DATA_REASON}). 여기엔 재제출 소비처가 없고, 안 걸면 WS emit
+          // 과 REST 가 같은 store 슬롯에서 flip-flop 한다.
+          const inputData = maskIfPresent(
+            ne.inputData,
+            redactStoredDataForResponse,
+          );
           const outputData = maskIfPresent(
             ne.outputData,
             redactStoredDataForResponse,
           );
           const error = maskIfPresent(ne.error, redactStoredErrorForResponse);
-          return outputData === ne.outputData && error === ne.error
+          return inputData === ne.inputData &&
+            outputData === ne.outputData &&
+            error === ne.error
             ? ne
-            : { ...ne, outputData, error };
+            : { ...ne, inputData, outputData, error };
         });
         const executionPath = pathRows.map((r) => r.nodeId);
         // `take` 상한과 동일 길이로 돌아오면 그 이후의 로그가 잘렸을 수 있다.

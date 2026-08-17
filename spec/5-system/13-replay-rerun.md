@@ -347,7 +347,8 @@ dry-run 모드로 실행된 **NodeExecution** 은 `outputData._dryRun === true` 
 | "재실행" 버튼 | — | 클릭 시 권한 가드 통과 → `POST /api/executions/:id/re-run` → 응답의 새 Execution ID 로 라우팅 (`/w/<slug>/workflows/:workflowId/executions/:newId`, 활성 워크스페이스 slug 기준 — [2-navigation/_layout §2.2](../2-navigation/_layout.md#22-메뉴-항목)) |
 | "취소" 버튼 | — | 모달 닫기. 변경 입력 폐기 |
 
-> **`inputData` 는 egress 마스킹 대상이 아니다 — 이 모달이 그 이유다 (2026-08-16)**:
+> **`Execution.inputData` 는 egress 마스킹 대상이 아니다 — 이 모달이 그 이유다 (2026-08-16)**:
+> (**`NodeExecution.inputData` 는 마스킹한다** — 노드 레벨엔 재제출 소비처가 없다. 2026-08-17 정정)
 > 위 "입력 데이터 폼" 은 원본 `inputData.parameters` 를 **프리필**하고, "원본 입력 그대로
 > 사용" 토글의 **UI 기본값이 OFF** 라 사용자가 폼을 건드리지 않아도 그 값이
 > `inputOverride` 로 **되전송**된다. 따라서 `inputData` 에 응답 마스킹을 걸면 리터럴

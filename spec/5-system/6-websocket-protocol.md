@@ -197,14 +197,16 @@ socket.emit("unsubscribe", { channel: "execution:550e8400-e29b-41d4-a716-4466554
 > - **앞선 키-이름 마스킹의 `[REDACTED]` 마커는 덮이지 않는다** — 값-마스커가 마커에 대해 멱등하다.
 > - 근거·적용 범위·잔여 갭: [EIA §R17](./14-external-interaction-api.md).
 >
-> **REST `inputData` 비대상과의 비대칭은 의도된 것이다** (2026-08-17 명시): 내부 REST 는
-> `inputData` 를 마스킹하지 **않는데**([§R17 잔여 ②](./14-external-interaction-api.md) ·
-> [Re-run §10.2](./13-replay-rerun.md)) 여기 emit payload 의 `input` 은 마스킹된다. 두 결정의
-> 축이 다르기 때문이다 — 마스킹 **범위**는 *수신 인구*(boundary parity)가 정하고, `inputData`
-> 카브아웃은 *그 값이 되쓰이는가*(round-trip)가 정한다. REST `inputData` 는 Re-run 모달·에디터
-> 히스토리 로드가 **읽어서 재제출**하지만, **WS node 이벤트의 `input` 은 어떤 소비자도
-> 재제출하지 않는다**(실측: Re-run 은 REST 상세의 `inputData` 만 읽는다) — 표시 전용이라
-> 마스킹해도 데이터가 오염되지 않는다. 즉 같은 이름의 필드지만 **다른 계약**이다.
+> **`input` 마스킹은 REST 노드 레벨과 일치한다** (2026-08-17 정정): emit payload 의 `input`
+> 과 REST `nodeExecutions[].inputData` 는 **같은 프런트 store 슬롯**(`nodeResults[].inputData`)
+> 으로 들어가므로 **둘 다 마스킹한다** — 한쪽만 가리면 진행 중 실행의 2초 REST 폴링이 마스킹
+> 값을 원문으로 덮어 화면이 깜빡이고(flip-flop) wire 마스킹의 보안 이득도 사라진다.
+>
+> 반면 **`Execution.inputData`(REST)는 마스킹하지 않는다** — Re-run 프리필이 그 값을 읽어
+> **재제출**하기 때문이다([§R17 잔여 ②](./14-external-interaction-api.md) ·
+> [Re-run §10.2](./13-replay-rerun.md)). 즉 가르는 축은 필드 이름이 아니라 **레벨**이다:
+> *round-trip 되는 Execution 레벨만 카브아웃*하고, 표시 전용인 노드 레벨은 REST·WS 양쪽에서
+> 일관되게 마스킹한다.
 >
 > **`config` 의 raw-echo 계약보다 값-마스킹이 우선한다**: payload 에 실리는
 > `NodeHandlerOutput.config` 는 [node-output Principle 7](../conventions/node-output.md#principle-7--config-echo-원칙-nodehandleroutputconfig)

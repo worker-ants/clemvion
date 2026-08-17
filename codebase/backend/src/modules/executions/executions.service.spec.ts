@@ -1239,8 +1239,9 @@ describe('ExecutionsService', () => {
       };
       const ne = JSON.stringify(result.nodeExecutions[0]);
       expect(ne).not.toContain('sk-live-abc123');
-      // 노드 레벨에서도 `inputData` 는 비대상 — 상위와 같은 이유.
-      expect(ne).toContain('admin:pw');
+      // **노드 레벨은 `inputData` 도 마스킹**한다 — 카브아웃은 Execution 레벨 한정이다.
+      // 여기가 원문이면 WS emit(마스킹)과 REST 가 같은 store 슬롯에서 flip-flop 한다.
+      expect(ne).not.toContain('admin:pw');
     });
 
     /**
@@ -1286,11 +1287,11 @@ describe('ExecutionsService', () => {
      * `outputData === ne.outputData` 항이 빠져도 GREEN 이다 — 참조 동일성으로 물어야
      * 그 뮤턴트가 RED 가 된다.
      *
-     * **`inputData` 만 leaky 한 행이 여기서 중요한 역할을 한다**: 그 행은 마스킹 대상이
-     * 아니므로 **복제되지 않아야** 한다. `inputData` 에 관문이 다시 붙으면 이 단언이
-     * RED 로 바뀌어 CRITICAL 회귀(Re-run 재제출 오염)를 그 자리에서 잡는다.
+     * **노드 레벨은 세 컬럼 전부 대상**이다 — 카브아웃은 `Execution` 레벨 한정이라
+     * `inputData` 만 leaky 한 행도 복제되어야 한다. 이 방향을 고정해야 "노드 레벨까지
+     * 카브아웃" 회귀(WS↔REST flip-flop)가 RED 로 잡힌다.
      */
-    it('⑥-b copy-on-change — 마스킹 대상(2컬럼)만 복제를 유발한다', async () => {
+    it('⑥-b copy-on-change — 노드 레벨은 세 컬럼 전부가 복제를 유발한다', async () => {
       const row = baseFake({ id: 'eD6b' });
       executionRepo.createQueryBuilder.mockReturnValueOnce(
         buildSingleQB(row) as unknown,
@@ -1325,16 +1326,16 @@ describe('ExecutionsService', () => {
       const result = (await service.findById('eD6b')) as unknown as {
         nodeExecutions: unknown[];
       };
-      // 마스킹 대상 두 컬럼이 무변화 → 복제하지 않는다.
+      // 세 컬럼이 전부 무변화 → 복제하지 않는다.
       expect(result.nodeExecutions[0]).toBe(clean);
-      // **`inputData` 만 leaky 한 행도 복제되지 않는다** — 비대상이므로.
-      // 여기가 RED 면 `inputData` 에 관문이 다시 붙었다는 뜻이다(CRITICAL 회귀 캐너리).
-      expect(result.nodeExecutions[1]).toBe(inputLeaky);
+      // **`inputData` 만 leaky 해도 복제된다** — 노드 레벨은 그 컬럼도 마스킹 대상이다.
+      // 여기가 RED 면 카브아웃이 노드 레벨까지 번졌다는 뜻이다(flip-flop 회귀 캐너리).
+      expect(result.nodeExecutions[1]).not.toBe(inputLeaky);
       expect(
         JSON.stringify(
           (result.nodeExecutions[1] as { inputData: unknown }).inputData,
         ),
-      ).toContain('sk-live-IN');
+      ).not.toContain('sk-live-IN');
       // `outputData` 가 바뀌면 복제된다 (그 비교 항이 살아있다는 증거).
       expect(result.nodeExecutions[2]).not.toBe(outputLeaky);
       expect(
