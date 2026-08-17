@@ -3,7 +3,7 @@ worktree: eia-masking-followups-3cd512
 started: 2026-08-16
 owner: developer
 branch: claude/eia-masking-followups-3cd512
-status: in-progress
+status: complete
 priority: P1
 pending_plans:
   - plan/in-progress/spec-sync-external-interaction-api-gaps.md
@@ -21,7 +21,7 @@ spec_impact:
 
 # 외부 fanout 은 값-패턴 마스킹을 한 번도 받은 적이 없다 — node/execution emit + 내부 REST 두 컬럼
 
-정본 트래커는 [`spec-sync-external-interaction-api-gaps.md`](./spec-sync-external-interaction-api-gaps.md)
+정본 트래커는 [`spec-sync-external-interaction-api-gaps.md`](../in-progress/spec-sync-external-interaction-api-gaps.md)
 이고, 이 작업은 그 문서의 **A**(`:235` WS `execution.node.*` emit 의 `error`)·**B**(`:240`
 내부 REST `inputData`/`outputData`)·**D**(`:223` 단일 관문 근거 서술 분산) 세 항목을 집행한다.
 
@@ -278,5 +278,8 @@ deepRedactSecrets({headers:{authorization:'[REDACTED]', cookie:'[REDACTED]', 'co
       `RESOLUTION.md`
 - [x] `inputData` 철회 + 되돌린 방향 캐너리 고정 + spec·CHANGELOG·유저가이드 동기화
 - [x] TEST WORKFLOW 재실행 — lint / unit(백엔드 **427 suites · 8,812 tests**) / build / e2e **276**
-- [ ] `--impl-done` 재실행 (철회 반영본)
-- [ ] push 게이트 통과 → PR
+- [x] `--impl-done` **6라운드** — 최종 `10_50_17` **BLOCK: NO**(CRITICAL 0). 라운드별 CRITICAL:
+      재제출 오염 → chat-channel verbatim → `1-data-model` 자기모순 → WS↔REST flip-flop
+- [x] `/ai-review` **7라운드** — 최종 `11_10_29` **CRITICAL 0 · WARNING 0 · LOW**
+      (forced 7명 전원, 4명 NONE). clean 이라 `RESOLUTION.md` 불요
+- [x] push 게이트 통과 → PR **#1180**
