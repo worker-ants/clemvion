@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
-import { DynamicFormUI } from "../dynamic-form-ui";
+import { DynamicFormUI, MASKED_MARKERS } from "../dynamic-form-ui";
 import { useLocaleStore } from "@/lib/stores/locale-store";
 
 // file 검증 에러 등 user-facing 문자열을 한국어로 단언하므로 locale 을 ko 로 고정한다
@@ -595,7 +595,16 @@ describe("DynamicFormUI — key prop state 보존/리셋 (W#5)", () => {
  * 한쪽만 단언하면 "전부 프리필 안 함" 구현으로도 초록이 된다.
  */
 describe("DynamicFormUI — 마스킹된 defaultValue 왕복 차단", () => {
-  const MARKERS = ["***", "[REDACTED]", "[REDACTED_DEPTH]"];
+  // 구현 상수에서 파생시킨다 — 마커가 늘어나면 아래 `it.each` 가 자동으로 그 마커까지 돈다.
+  // 리터럴을 손으로 복제하면 새 마커가 조용히 미검증으로 남는다.
+  const MARKERS = [...MASKED_MARKERS];
+
+  // 다만 파생만 하면 **값 자체가 바뀌어도** 초록이다(집합이 통째로 이동해도 자기 자신과는
+  // 늘 일치하므로). backend SoT 와의 계약은 리터럴로 따로 못박는다 — 이 세 문자열은
+  // `sanitize-error-message.ts` 가 실제로 내보내는 값이고, 어긋나면 가드가 조용히 뚫린다.
+  it("마커 집합이 backend SoT 의 리터럴과 일치한다", () => {
+    expect(MARKERS).toEqual(["***", "[REDACTED]", "[REDACTED_DEPTH]"]);
+  });
 
   it.each(MARKERS)("마커 %s 는 프리필하지 않는다", (marker) => {
     render(

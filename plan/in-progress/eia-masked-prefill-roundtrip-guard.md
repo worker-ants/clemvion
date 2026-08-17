@@ -95,11 +95,18 @@ Re-run 모달 CRITICAL 과 **글자 그대로 같은 클래스**다 — *읽혀�
 - [x] 저비용 마무리 — 마커 JSDoc 을 `MASKED_MARKERS` 바로 위로(+ 프런트 미러 상호참조) ·
       유저가이드 Error 탭 캐비엇(KO/EN)
 - [x] 트래커 갱신 — "WS 대기-재개 점검" **종결**(발견 1건 기록 + 왜 놓쳤는지) + 저비용 2건 체크
-- [x] TEST WORKFLOW 4단계 PASS — lint / unit(백엔드 **427 suites · 8,812** · 프런트 **6,025**)
+- [x] TEST WORKFLOW 4단계 PASS — lint / unit(백엔드 **427 suites · 8,812** · 프런트 **6,026**)
       / build / e2e **276** + playwright **51**
 - [x] `/ai-review` (`12_06_12`) — CRITICAL **0**, WARNING **6** (MEDIUM) → **6건 전부 조치**
       (코드·테스트 5 + 설계 경계 문서화 1). RESOLUTION 은 `review/code/2026/08/17/12_06_12/`
-- [ ] fix 반영본으로 재-리뷰 · `--impl-done` → push
+- [x] 재-리뷰 (`12_33_36`) — CRITICAL **0**, WARNING **1** (LOW). 내 CHANGELOG fix 가 죽은
+      포인터를 만든 것 → 자매 선례대로 **이 PR 의 `## Unreleased` 절 신설**로 해소.
+      INFO 는 1건만 반영(fixture 를 구현 상수에서 파생 + 리터럴 대조 테스트 신설), 나머지
+      4건은 트래커 등재. **testing reviewer 가 내 뮤테이션 결과를 독립 재현**해 vacuity
+      해소를 확인했다
+- [x] `--impl-done` (`12_34_24`) — **BLOCK: NO**, CRITICAL 0. WARNING 1(frontmatter `code:`
+      증거 2건 누락) + INFO 2건(표기 혼용 · stale blockquote)까지 같은 턴에 반영
+- [ ] 코드 동결 → 최종 게이트 → push
 
 > **`token=` 패턴 확장은 이 PR 에 넣지 않는다** — 사용자가 순서를 택했다. 그 확장은 마스킹
 > 대상을 넓혀 **이 왕복 오염 범위도 함께 넓히므로**, 가드가 선 뒤에 하는 것이 맞다.

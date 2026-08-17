@@ -10,6 +10,8 @@ code:
   - codebase/backend/src/modules/execution-engine/events/execution-event-emitter.service.ts
   - codebase/backend/src/shared/utils/terminal-error-payload.ts
   - codebase/backend/src/shared/utils/redact-stored-error.ts
+  - codebase/backend/src/shared/utils/sanitize-error-message.ts
+  - codebase/frontend/src/components/editor/run-results/dynamic-form-ui.tsx
   - codebase/backend/src/modules/executions/executions.service.ts
   - codebase/backend/src/modules/hooks/hooks.service.ts
   - codebase/backend/src/modules/hooks/hooks.controller.ts
@@ -1559,12 +1561,12 @@ present-when-available 이므로, REST 만 `null` 로 정규화하면 위젯의 
       마스킹은 *"읽혀서 되쓰이는 값"* 과 만나면 가시성이 아니라 **데이터 무결성** 문제가
       된다. 이 문서는 그 형태를 두 번 겪었다 — `Execution.inputData`(Re-run 재제출, 위 잔여
       ②)와 **폼 `defaultValue`**.
-      - **폼 경로는 carve-out 으로 풀 수 없다**: `formConfig` 는 `execution.waiting_for_input`
+      - **폼 경로는 카브아웃으로 풀 수 없다**: `formConfig` 는 `execution.waiting_for_input`
         을 타고 **SSE·notification webhook 으로도 나가므로**(`Execution.inputData` 와 달리
         외부 노출이 있다) 마스킹을 끄면 외부 누출이 열린다. 그래서 마스킹은 유지하고
         **소비 쪽에서 마커를 감지**해 프리필을 건너뛴다.
       - **판단 기준**: 마스킹 대상이 *외부로도 나가는가* 를 먼저 본다 — 나가면 마커 가드,
-        안 나가면 carve-out 이 값싸다. 두 사례가 정확히 그 두 갈래다.
+        안 나가면 카브아웃이 값싸다. 두 사례가 정확히 그 두 갈래다.
       - 마커 집합은 backend `sanitize-error-message.ts` 가 SoT 이고 프런트가 미러한다 —
         어긋나면 가드가 조용히 뚫리므로 **양쪽을 함께** 갱신한다.
     - **잔여 ③ (범위 밖 유지)**: **workflow-assistant LLM 도구**(`explore-tools.service.ts`)는 `inputData` ·
