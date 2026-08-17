@@ -12,6 +12,7 @@ spec_impact:
   - spec/5-system/14-external-interaction-api.md
   - spec/5-system/15-chat-channel.md
   - spec/conventions/node-output.md
+  - spec/conventions/swagger.md
 ---
 
 # spec draft — WS emit 값-마스킹 + 내부 REST `outputData` (§R17 잔여 ① 종결·② 부분)

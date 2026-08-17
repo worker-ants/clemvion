@@ -1124,7 +1124,7 @@ describe('ExecutionsService', () => {
    * `[REDACTED]` 로 마스킹해 저장하고(12-webhook §5.3), 그건 4개 문서가 전제를 공유하는
    * 문서화된 계약이다. 그래서 여기엔 `error` 에 없는 단언이 하나 더 붙는다 — **마커 보존**.
    */
-  describe('outputData 응답 마스킹 — 표면 전수 (+ inputData 비대상 고정)', () => {
+  describe('outputData + 노드 레벨 inputData 마스킹 — 표면 전수 (Execution.inputData 는 카브아웃)', () => {
     const LEAKY_IN = {
       note: 'connect via postgres://admin:pw@db.internal/prod',
     };

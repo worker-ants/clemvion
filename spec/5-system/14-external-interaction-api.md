@@ -1607,6 +1607,15 @@ present-when-available 이므로, REST 만 `null` 로 정규화하면 위젯의 
   없어 애초에 ingestion 단계에서 걷어낼 수 없다** — webhook Rationale 이 든 "DB 잔존 = 유출 표면"
   우려는 §R17 아래서도 유효하지만, 그 대가로 얻는 진단 가치와 저울질한 결과가 egress-only 다.
   두 층은 경쟁하지 않고 **쌓인다**: key-blacklist 가 못 잡는 값-패턴을 egress 층이 덮는다.
+  - **webhook Rationale 의 "whack-a-mole" 우려에 대한 답**: 그 문서는 display 시점 마스킹을
+    기각하며 *"모든 read 경로를 개별적으로 마스킹해야 한다"* 를 근거로 들었다. 타당한 우려이고
+    **이 작업 자체가 그것을 실증했다**(표면이 넷→여섯으로 늘었고 `inputData` 카브아웃 범위를
+    한 번 되돌렸다). 다만 여기서의 방어는 **호출부를 산발적으로 패치하는 방식이 아니다** —
+    소수의 **공유 관문**(`toResponseExecution` · `emitExecutionEvent`/`emitNodeEvent` ·
+    `toTerminalErrorPayload`)으로 수렴시켜, 새 read/emit 경로가 그 관문만 지나면 마스킹을
+    **구조적으로 상속**하게 했다. 즉 늘어나는 것은 *표면의 발견*이지 *마스킹을 손으로 거는
+    자리*가 아니다. 그래서 ingestion 층이 커버하는 "알려진 헤더 key" 와 달리, 사전 특정이
+    불가능한 자유 텍스트를 egress 에서 다룰 수 있다.
   - **그래서 egress 층은 ingestion 층의 마커를 덮지 않는다**: `deepRedactSecrets` 는 이미
     마스킹된 값(`[REDACTED]`·`***`·`[REDACTED_DEPTH]`)을 재마스킹하지 않는다. 덮으면 같은 헤더가
     `$trigger.headers` 에서는 `[REDACTED]`, 실행 상세 API 에서는 `***` 로 보인다.
