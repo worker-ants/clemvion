@@ -6,6 +6,13 @@
 *"API 직접 호출은 서버가 여전히 받는다, 서버측 거부는 트래커로 남겼다"* 고 적어 뒀다.
 이번에 그 후속을 집행한다.
 
+**Behavior change (breaking): Manual 실행 파라미터에서 마스킹 마커 3종이 예약어가 된다** —
+`***` · `[REDACTED]` · `[REDACTED_DEPTH]` 와 **정확히 일치**하는 값을 `POST /workflows/:id/execute`
+또는 `POST /executions/:id/re-run` 에 보내면 이제 400(`MASKED_VALUE_RESUBMITTED`)이다. 저장소
+밖 소비자는 없음을 확인했고(프런트가 유일 소비자) 프런트는 이미 같은 규칙을 적용 중이라
+관측되는 변화는 **UI 를 우회해 직접 호출하는 클라이언트에만** 생긴다. 부분 일치(`a***b`)는
+영향 없다.
+
 **범위는 재제출이 아니라 Manual 실행 경로 전체다.** `POST /workflows/:id/execute` 는 재제출
 전용이 아니라 Manual 실행의 단일 진입점이고, 값이 히스토리에서 왔는지 방금 타이핑됐는지
 구분할 플래그가 없다. 그래서 **직접 입력한 마커도 거부된다** — 마커 세 문자열은 Manual

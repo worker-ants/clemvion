@@ -742,6 +742,42 @@ ES-module 순환 위에 놓인다. 생성자의 `forwardRef` 도 같은 이유�
 - [ ] (저비용) `TERMINAL_DURATION_MS_SQL` 이 컬럼명 `started_at` 을 하드코딩 — 엔티티
       메타데이터와 대조하는 assertion 을 다음 편집 때 (W7)
 
+## 마커 재제출 거부 PR 의 이월 항목 (2026-08-21 등재, `00_03_57`~`05_08_35` 11라운드)
+
+11라운드에 걸쳐 리뷰어들이 **조치 불요·강제 아님·스코프 밖**으로 판정한 것들이다. 각
+RESOLUTION 에 "트래커로 넘긴다" 고 적었는데 **실제로는 어디에도 적히지 않은 상태였다** —
+push 직전 확인에서 발각됐다. `review/**` 는 SoT 가 아니므로 여기 등재한다.
+
+- [ ] **두 Manual 엔드포인트의 최상위 `error.code` 가 다르다** — `re-run` 은 `INVALID_INPUT`,
+      `execute` 는 `INVALID_TRIGGER_PARAMETERS`. **이 PR 이전부터 존재**하는 drift 이고
+      spec 에도 명시돼 있다. 통일하면 기존 클라이언트가 보는 코드가 바뀌므로 별도 결정 필요.
+      (`details[].code` 를 보면 되므로 실사용 지장은 없다.)
+- [ ] **`ReRunRequestDto.inputOverride` Swagger description** 에 마스킹 마커 3종이 예약어라는
+      제약이 없다. 5라운드 연속 이월 — 다음 DTO 편집 기회에 한 줄.
+- [ ] **마커 리터럴 cross-stack 계약 테스트 부재** — 프런트 `lib/utils/masked-markers.ts` 와
+      backend `shared/utils/sanitize-error-message.ts` 의 `MASKED_MARKERS` 가 **문자 그대로
+      대칭**이어야 하는데 이를 강제하는 것이 없다(jest↔vitest 경계). 한쪽만 바뀌면 프런트가
+      막지 못한 값을 서버가 거부하거나 그 반대가 된다.
+- [ ] **base `resolveTriggerParameters` JSDoc 에 wrapper 역참조 없음** — 새 Manual 경로
+      작성자가 base 만 보면 wrapper 규칙을 모른다. repo-guard 가 CI 에서 잡지만 그건 사후
+      발견이지 작성 시점 안내가 아니다. `{@link resolveTriggerParametersRejectingMasked}` 한 줄.
+- [ ] **`REASON_TO_DETAIL` 문서화 밀도 비대칭** — 신규 항목만 JSDoc 이 있고 형제 3종은 없다.
+- [ ] **`workflows.controller.ts` 의 한/영 인라인 주석 혼재** — 같은 try/catch 블록.
+      이 PR 이 만든 문제가 아니고 5라운드째 이월.
+- [ ] **`ExecutionsService.reRun` 이 137줄·6책임** — 선존 구조. 이번 PR 은 분기 1개만 추가.
+      다음에 손댈 때 입력 해석 블록을 private 헬퍼로.
+- [ ] **`findMaskedResubmissions` 직접 단위 테스트 부재** — 상위 함수 경유 간접 커버만.
+      세 번째 소비처가 생기면 그때.
+- [ ] **`throwIfAny` 의 phase 경계 트레이드오프 미검증** — ①(raw) 통과 후 무관 필드의
+      `coerce_failed` 가 resolve 를 선점하면 ②(JSON 문자열 안 마커)가 그 요청에서 실행되지
+      않는다. **보안 우회가 아니라 안내가 한 왕복 늦는 UX 엣지**이고 docstring 에 적혀 있으나
+      회귀 테스트로 고정돼 있지는 않다.
+
+> **관행 권고 (`04_46_40`·`05_08_35` scope W1)**: 기능 PR 에서 **저장소 전역 정책 가드가
+> 부산물로 파생되면** 별도 PR 로 분리하는 편이 낫다. 이번엔 분리하지 않았다 — 두 가드가
+> 이 PR 의 wrapper 와 `typescript` import 를 각각 전제해서, 분리하면 그 사이 커밋 구간에
+> **가드 없이 코드만 있는 상태**가 생긴다. 대신 CHANGELOG 에 범위 초과를 명시했다.
+
 ## 후속 (cross-cutting, 본 spec 밖)
 - [x] **Redis fixed-window rate-limiter INCR+EXPIRE 원자화** — `PublicWebhookQuotaService.incrWithWindow` 를 `INCR + EXPIRE ... NX` 단일 pipeline(매 요청)으로 교정해 TTL 유실 self-heal (fail-closed 잠금 창 제거). `ChatChannelRateLimiterService` 는 **이미** 동일 `INCR + EXPIRE NX` 단일 pipeline 패턴이라 무변경(점검 완료). `InteractionRateLimiterService`(item 5)는 Lua EVAL — 세 서비스 모두 원자/self-heal 확보. (PR #843 ai-review concurrency WARNING 후속, `task_fa5c5e84`.)
 
