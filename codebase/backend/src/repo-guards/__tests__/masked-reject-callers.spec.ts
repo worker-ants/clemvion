@@ -1,4 +1,5 @@
 import * as fs from 'node:fs';
+import * as os from 'node:os';
 import * as path from 'node:path';
 import {
   ALLOWED_DIRECT_CALLERS,
@@ -45,6 +46,41 @@ describe('resolveTriggerParameters 직접 호출부 허용목록', () => {
       return !importsBaseFn(fs.readFileSync(abs, 'utf8'));
     });
     expect(dead).toEqual([]);
+  });
+
+  /**
+   * **가드가 실제 위반을 탐지하는가** (`02_04_38` testing W2).
+   *
+   * 앞의 두 테스트는 *"위반이 없다"* 만 확인한다 — 리뷰어가 `findUnexpectedCallers` 의 제외
+   * 필터를 `.filter(() => false)` 로 무력화했더니 **3개 전부 GREEN 이었다**. 즉 가드가
+   * 탐지를 멈춰도 아무도 모른다. 지키려는 것이 보안 불변식인데 그 가드 자체가 무보증이면
+   * 없느니만 못하다(있다고 믿게 만든다).
+   *
+   * 임시 디렉터리에 **진짜 위반 파일**을 만들어, 가드가 그 파일을 정확히 지목하는지 본다.
+   */
+  it('[캐너리] 허용목록 밖 위반을 실제로 탐지한다 (합성 fixture)', () => {
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'masked-guard-'));
+    try {
+      const offender = path.join(tmp, 'offending-manual-path.ts');
+      fs.writeFileSync(
+        offender,
+        "import { resolveTriggerParameters } from './x';\nexport const y = resolveTriggerParameters;\n",
+        'utf8',
+      );
+      // 위반 없는 대조군 — wrapper 만 쓴다.
+      fs.writeFileSync(
+        path.join(tmp, 'clean-manual-path.ts'),
+        "import { resolveTriggerParametersRejectingMasked } from './x';\nexport const z = resolveTriggerParametersRejectingMasked;\n",
+        'utf8',
+      );
+
+      // repoRoot 를 tmp 로 주면 상대경로가 파일명만 남아 허용목록과 겹치지 않는다.
+      expect(findUnexpectedCallers(tmp, tmp)).toEqual([
+        'offending-manual-path.ts',
+      ]);
+    } finally {
+      fs.rmSync(tmp, { recursive: true, force: true });
+    }
   });
 
   /**

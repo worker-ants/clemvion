@@ -32,9 +32,10 @@ export const ALLOWED_DIRECT_CALLERS: readonly string[] = [
   // 외부 시스템이 저작하는 페이로드 — 마커 리터럴이 정상 값일 수 있다(EIA §R17).
   'codebase/backend/src/modules/hooks/hooks.service.ts',
   'codebase/backend/src/modules/schedules/schedule-runner.service.ts',
-  // 이 가드 자신 — 이름을 상수/픽스처로 들고 있다.
-  'codebase/backend/src/repo-guards/__tests__/masked-reject-callers-guard.ts',
-  'codebase/backend/src/repo-guards/__tests__/masked-reject-callers.spec.ts',
+  // 이 가드 자신은 **여기 없다** — 이름을 상수·픽스처로 들고 있을 뿐 import 하지 않는다.
+  // 초판은 정규식이 JSDoc 안의 import 예시까지 잡아 두 파일을 여기 얹었는데, 그건 오판을
+  // 허용목록으로 은폐한 것이었다(`02_04_38` W1). 주석·문자열 제거를 넣어 근본을 고쳤고,
+  // "죽은 허용목록 항목" 캐너리가 그 결과로 이 두 줄을 죽은 항목으로 지목해 제거하게 했다.
 ];
 
 /** `src/` 하위 `.ts` 전수 (node_modules·dist 제외). */
@@ -70,15 +71,32 @@ export function listSourceFiles(rootDir: string): string[] {
  * 무시된다.
  */
 export function importsBaseFn(source: string): boolean {
-  // `import { ..., resolveTriggerParameters, ... } from '...'` 의 named 목록 안에서만 찾는다.
-  //
-  // **멀티라인 import 를 반드시 포함해야 한다** — 이 저장소는 named 가 여럿이면 prettier 가
-  // 줄바꿈한다(`resolve-trigger-parameters.spec.ts` 가 그 형태다). 한 줄만 보는 초판은 그
-  // 파일을 놓쳤고, "죽은 허용목록 항목" 캐너리가 그걸 잡았다 — 가드가 자기 사각지대를
-  // 스스로 드러낸 셈이다.
-  const importBlocks = source.match(/import\s*\{[\s\S]*?\}\s*from/g) ?? [];
+  // **주석·문자열을 먼저 걷어낸다.** 안 그러면 문서 안의 import **예시 텍스트**가 실제
+  // import 로 오판된다 — 초판은 이 파일 자신과 형제 spec 이 걸려, 그 둘을 허용목록에
+  // 얹어 은폐했다(`02_04_38` architecture W1). 그러면 "죽은 허용목록 항목" 캐너리까지
+  // 무력화되고, 나중에 무관한 파일이 같은 구문을 인용하면 엉뚱하게 CI 가 깨진다.
+  const code = stripCommentsAndStrings(source);
+
+  // 멀티라인 import 를 포함해야 한다 — named 가 여럿이면 prettier 가 줄바꿈한다.
+  const importBlocks = code.match(/import\s*\{[\s\S]*?\}\s*from/g) ?? [];
   const named = new RegExp(`(^|[\\s,{])${BASE_FN}([\\s,}]|$)`);
   return importBlocks.some((block) => named.test(block));
+}
+
+/**
+ * 라인/블록 주석과 문자열·템플릿 리터럴을 공백으로 치환한다.
+ *
+ * AST 파서(`ts.createSourceFile`)가 더 정확하지만, 이 가드가 판정하는 대상은 **import 문
+ * 하나**라 문법 표면이 좁다 — 정본 파서를 끌어오는 비용이 이득을 넘는다. 다만 주석·문자열
+ * 제거는 **하지 않으면 오판이 실제로 발생**했으므로(위 참조) 그 부분만 처리한다.
+ */
+export function stripCommentsAndStrings(source: string): string {
+  return source
+    .replaceAll(/\/\*[\s\S]*?\*\//g, ' ') // 블록 주석 (JSDoc 포함)
+    .replaceAll(/\/\/[^\n]*/g, ' ') // 라인 주석
+    .replaceAll(/`(?:\\.|[^`\\])*`/g, ' ') // 템플릿 리터럴
+    .replaceAll(/'(?:\\.|[^'\\\n])*'/g, "''") // 작은따옴표 (from '...' 형태 보존)
+    .replaceAll(/"(?:\\.|[^"\\\n])*"/g, '""'); // 큰따옴표
 }
 
 /** 허용목록 밖에서 base 를 직접 쓰는 파일들(저장소 루트 상대 경로, 정렬). */

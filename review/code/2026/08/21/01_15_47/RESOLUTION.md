@@ -18,6 +18,16 @@
 변형되면 egress 마스킹(`isMaskedMarker`)과 재제출 거부(`findMaskedResubmissions`)가 **같은
 싱글턴을 공유**하므로 두 판정기가 동시에 오염된다. `Object.freeze` 로 감쌌다.
 
+> **⚠️ 이 조치는 효과가 없었다 (`02_04_38` maintainability W3 에서 반증).**
+> `Object.freeze(new Set(...))` 는 `.add()` 를 **전혀 막지 못한다** — `Set` 의 데이터는 own
+> property 가 아니라 내부 슬롯에 있다(실측: freeze 후 `.add('c')` 성공, size 증가).
+> 아래 "런타임 불변화" 서술은 **존재하지 않는 보장을 적은 것**이다.
+>
+> `readonly string[]` + `Object.freeze` 로 교체해 실제 불변성을 확보했고, 캐너리
+> (`sanitize-error-message.spec.ts` "MASKED_MARKERS 불변성")가 그 보장을 기계에 맡긴다.
+> 이 문단을 지우지 않고 반증 노트를 다는 이유 — 틀린 주장이 어디서 왔는지 남겨야 같은
+> 형태(문서한 보장이 구현보다 넓다)를 다음에 알아본다.
+
 > 지금 직접 소비하는 신규 코드가 없어 즉시 악용 경로는 없지만, **export 로 표면을 넓힌 것이
 > 이 PR** 이라 그 비용을 이 PR 에서 닫는 게 맞다.
 

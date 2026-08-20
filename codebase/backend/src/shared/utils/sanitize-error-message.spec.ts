@@ -1,11 +1,48 @@
 import {
   deepRedactSecrets,
   deepRedactSecretsPreserving,
+  isMaskedMarker,
   LAST_ERROR_MESSAGE_MAX_LEN,
+  MASKED_MARKERS,
   redactSecrets,
   redactSecretsInJsonString,
   sanitizeLastErrorMessage,
+  VALUE_MASK_MARKER,
 } from './sanitize-error-message';
+
+/**
+ * **`MASKED_MARKERS` 는 실제로 불변이어야 한다** (`02_04_38` maintainability W3).
+ *
+ * 이 상수는 `export` 로 승격돼 **두 판정기가 공유**한다 — egress 마스킹(`isMaskedMarker`)과
+ * 재제출 거부(`findMaskedResubmissions`). 변형되면 둘이 동시에 오염된다.
+ *
+ * > **`Object.freeze(new Set(...))` 는 플라시보였다.** `Set` 의 데이터는 own property 가
+ * > 아니라 **내부 슬롯**에 있어서 `freeze` 가 `.add()` 를 전혀 막지 못한다(실측: freeze 후
+ * > `.add('c')` 성공, size 증가). 그런데 직전 라운드 RESOLUTION 은 *"런타임에서도 막았다"*
+ * > 고 적었다 — **존재하지 않는 보장을 문서가 서술**한 것이다.
+ * >
+ * > `readonly string[]` + `Object.freeze` 로 바꿔 실제 불변성을 확보했고, 이 캐너리가 그
+ * > 보장을 기계에 맡긴다. `Set` 으로 되돌리면 여기가 RED 다.
+ */
+describe('MASKED_MARKERS 불변성', () => {
+  it('[캐너리] 런타임 변형이 실제로 차단된다', () => {
+    expect(Object.isFrozen(MASKED_MARKERS)).toBe(true);
+    expect(() => {
+      (MASKED_MARKERS as string[]).push('injected');
+    }).toThrow(TypeError);
+    expect(isMaskedMarker('injected')).toBe(false);
+  });
+
+  it('마커 집합이 이 리터럴에서 이탈하지 않는다 (프런트 미러 대조용)', () => {
+    expect([...MASKED_MARKERS]).toEqual([
+      '***',
+      '[REDACTED]',
+      '[REDACTED_DEPTH]',
+    ]);
+    expect(isMaskedMarker(VALUE_MASK_MARKER)).toBe(true);
+    expect(isMaskedMarker('a***b')).toBe(false);
+  });
+});
 
 describe('redactSecrets (mask-only)', () => {
   it('masks Bearer tokens', () => {

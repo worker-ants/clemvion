@@ -147,9 +147,11 @@ export const DEPTH_MASK_MARKER = '[REDACTED_DEPTH]';
  * >
  * > 2026-08-20 에 `dynamic-form-ui.tsx` 안에서 `lib/utils/` 로 승격됐다(소비처 셋).
  */
-export const MASKED_MARKERS: ReadonlySet<string> = Object.freeze(
-  new Set([VALUE_MASK_MARKER, KEY_MASK_MARKER, DEPTH_MASK_MARKER]),
-);
+export const MASKED_MARKERS: readonly string[] = Object.freeze([
+  VALUE_MASK_MARKER,
+  KEY_MASK_MARKER,
+  DEPTH_MASK_MARKER,
+]);
 
 /**
  * 값 전체가 마스킹 마커와 **정확히 일치**하는가.
@@ -160,7 +162,7 @@ export const MASKED_MARKERS: ReadonlySet<string> = Object.freeze(
  * > 같은 프로세스 안이라 공유하지 못할 이유가 없다.
  */
 export function isMaskedMarker(v: unknown): boolean {
-  return typeof v === 'string' && MASKED_MARKERS.has(v);
+  return typeof v === 'string' && MASKED_MARKERS.includes(v);
 }
 
 /** {@link deepRedactSecretsPreserving} 전용 옵션. 기본 경로는 빈 객체를 쓴다. */
