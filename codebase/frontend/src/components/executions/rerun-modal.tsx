@@ -234,10 +234,15 @@ export function ReRunModal({
   const [paramValues, setParamValues] =
     useState<Record<string, unknown>>(originalParameters);
   const [submitting, setSubmitting] = useState(false);
-  /** 마스킹으로 막힌 키 중 사용자가 실제로 입력한 것 — {@link blockedByMaskedInput} 참조. */
-  const [touchedMaskedKeys, setTouchedMaskedKeys] = useState<Set<string>>(
-    () => new Set(),
-  );
+  /**
+   * 이번 세션에 사용자가 편집한 **모든** 키 — 마스킹 여부로 거르지 않는다.
+   *
+   * 종전 이름은 *"마스킹된 키만 담는다"* 는 뜻이라 담긴 내용보다 좁았고, 여러 라운드에
+   * 걸쳐 지적됐다(`17_13_19` maintainability INFO-3). 거르는 일은 차단 판정이 한다 —
+   * {@link blockedByMaskedInput} 이 `maskedKeys` 와의 교집합만 보므로, 이 집합이 넓은 것은
+   * 무해하다. 그 사실을 이름이 아니라 여기에 적는다.
+   */
+  const [touchedKeys, setTouchedKeys] = useState<Set<string>>(() => new Set());
 
   // 모달이 열릴 때마다 폼 상태를 원본 기준으로 리셋.
   useEffect(() => {
@@ -245,7 +250,7 @@ export function ReRunModal({
       setUseOriginalInput(false);
       setDryRun(false);
       setParamValues(originalParameters);
-      setTouchedMaskedKeys(new Set());
+      setTouchedKeys(new Set());
       setSubmitting(false);
     }
   }, [open, originalParameters]);
@@ -307,7 +312,7 @@ export function ReRunModal({
 
   const setParam = (key: string, value: unknown) => {
     setParamValues((prev) => ({ ...prev, [key]: value }));
-    setTouchedMaskedKeys((prev) =>
+    setTouchedKeys((prev) =>
       prev.has(key) ? prev : new Set(prev).add(key),
     );
   };
@@ -369,7 +374,7 @@ export function ReRunModal({
     !useOriginalInput &&
     maskedKeys.some(
       (k) =>
-        !touchedMaskedKeys.has(k) ||
+        !touchedKeys.has(k) ||
         hasMaskedMarkerLeaf(paramValues[k]) ||
         (isStructuredField(k) && typeof paramValues[k] === "string"),
     );

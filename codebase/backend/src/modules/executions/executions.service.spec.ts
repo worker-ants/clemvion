@@ -1172,12 +1172,14 @@ describe('ExecutionsService', () => {
       );
 
       const result = await service.findByWorkflow('w1', {});
-      expect(JSON.stringify(result.data[0].outputData)).not.toContain(
-        'sk-live-abc123',
-      );
-      expect(JSON.stringify(result.data[0].inputData)).not.toContain(
-        'admin:pw',
-      );
+      const out2 = JSON.stringify(result.data[0].outputData);
+      const in2 = JSON.stringify(result.data[0].inputData);
+      expect(out2).not.toContain('sk-live-abc123');
+      expect(in2).not.toContain('admin:pw');
+      // **양성 단언이 있어야 한다** — 음성만 두면 필드가 통째로 사라지거나 `null` 이 돼도
+      // 통과한다(`17_13_19` testing W1). ① 에만 있던 이 짝을 자매 셋에 번지게 했다.
+      expect(out2).toContain('***');
+      expect(in2).toContain('***');
     });
 
     it('③ getChain — chain 조회', async () => {
@@ -1412,7 +1414,9 @@ describe('ExecutionsService', () => {
       executionRepo.createQueryBuilder.mockReturnValue(chainQB as unknown);
 
       const rows = await service.getChain('eD8', 'ws1', { sub: 'u1' } as never);
-      expect(JSON.stringify(rows[0].inputData)).not.toContain('admin:pw');
+      const in8 = JSON.stringify(rows[0].inputData);
+      expect(in8).not.toContain('admin:pw');
+      expect(in8).toContain('***'); // 음성 단독은 필드 소실에도 통과한다
     });
 
     it('⑧-b stop 도 `inputData` 를 마스킹한다', async () => {
@@ -1440,7 +1444,9 @@ describe('ExecutionsService', () => {
       executionRepo.createQueryBuilder.mockReturnValue(qb as unknown);
 
       const result = await service.stop('eD8b');
-      expect(JSON.stringify(result.inputData)).not.toContain('admin:pw');
+      const in8b = JSON.stringify(result.inputData);
+      expect(in8b).not.toContain('admin:pw');
+      expect(in8b).toContain('***'); // 음성 단독은 필드 소실에도 통과한다
     });
   });
 });

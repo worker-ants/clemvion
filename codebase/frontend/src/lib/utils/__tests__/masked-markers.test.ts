@@ -81,12 +81,36 @@ describe("masked-markers", () => {
       return v;
     };
 
+    /** 같은 깊이를 **배열로** 쌓는다 — 두 분기가 깊이를 같은 보폭으로 세는지 본다. */
+    const nestArr = (depth: number, leaf: unknown): unknown => {
+      let v = leaf;
+      for (let i = 0; i < depth; i++) v = [v];
+      return v;
+    };
+
     it("[경계] 상한 깊이(10)에 놓인 마커는 잡는다 — backend 치환 지점", () => {
       expect(hasMaskedMarkerLeaf(nest(10, "***"))).toBe(true);
     });
 
     it("[경계] 상한보다 깊은 마커는 보지 않는다 — 상한이 실재한다", () => {
       expect(hasMaskedMarkerLeaf(nest(11, "***"))).toBe(false);
+    });
+
+    /**
+     * **배열 분기도 같은 보폭이어야 한다** (`17_13_19` testing INFO-6 을 실측하다 찾았다).
+     *
+     * 리뷰어는 *"배열 분기의 `depth + 1` 누락 뮤테이션을 못 잡는다"* 고 했는데 **그건
+     * 반증됐다** — 아래 깊은 회귀 테스트가 배열로 만들어져 있어 과소 계수는 스택이
+     * 터지며 RED 가 된다. 하지만 그 자리를 실측하다 **반대 방향**이 비어 있는 걸 찾았다:
+     * `depth + 2` 로 **과다 계수**하면 17개가 전부 GREEN 이다. 그러면 배열로 감싼 마커가
+     * 상한의 절반 깊이에서 이미 안 보이게 된다 — fail-open 이다.
+     *
+     * 객체 경계 테스트는 이걸 못 잡는다(객체 분기는 정상이므로). 그래서 같은 경계를
+     * **배열로도** 고정한다.
+     */
+    it("[경계] 배열로 쌓은 상한 깊이(10) 마커도 잡는다 — 두 분기 보폭 동일", () => {
+      expect(hasMaskedMarkerLeaf(nestArr(10, "***"))).toBe(true);
+      expect(hasMaskedMarkerLeaf(nestArr(11, "***"))).toBe(false);
     });
 
     /**

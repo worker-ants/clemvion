@@ -808,6 +808,59 @@ describe("ReRunModal — 마스킹 마커 왕복 차단", () => {
     );
   });
 
+  /**
+   * **모달을 닫았다 다시 열면 터치가 리셋된다** (`17_13_19` testing INFO-7).
+   *
+   * 차단 판정의 첫 조건이 *"사용자가 그 키를 건드렸는가"* 라, 그 기록이 재오픈 때 안
+   * 지워지면 **한 번 채운 적이 있다는 이유로 다음 실행에서도 영구 해제**된다 — 원본은
+   * 여전히 마커인데. 리셋은 `open` 을 보는 `useEffect` 한 줄이라 리팩터로 조용히
+   * 떨어져 나가기 쉽다.
+   *
+   * `renderModal` 은 `rerender` 를 돌려주지 않으므로 여기서만 직접 렌더한다.
+   */
+  it("[캐너리] 닫았다 다시 열면 터치 기록이 리셋돼 다시 막힌다", async () => {
+    apiGetMock.mockResolvedValue({ data: { data: [] } });
+    seedDefinitions([]);
+
+    const props: ReRunModalProps = {
+      original: {
+        id: "exec-reopen",
+        workflowId: "wf-1",
+        status: "completed",
+        startedAt: "2026-05-22T14:32:00.000Z",
+        inputData: { parameters: { apiKey: "***", name: "Alice" } },
+      },
+      open: true,
+      onClose: vi.fn(),
+    };
+    const client = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    const ui = (p: ReRunModalProps) => (
+      <QueryClientProvider client={client}>
+        <ReRunModal {...p} />
+      </QueryClientProvider>
+    );
+    const { rerender } = render(ui(props));
+
+    // 채우면 풀린다.
+    fireEvent.change(screen.getByLabelText(/apiKey/i), {
+      target: { value: "real-key" },
+    });
+    expect(screen.getByRole("button", { name: "Re-run" })).toBeEnabled();
+
+    // 닫았다 다시 연다 — 원본은 그대로 마커다.
+    rerender(ui({ ...props, open: false }));
+    rerender(ui({ ...props, open: true }));
+
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Re-run" })).toBeDisabled(),
+    );
+    expect((screen.getByLabelText(/apiKey/i) as HTMLInputElement).value).toBe(
+      "",
+    );
+  });
+
   it("[캐너리] 마커가 없으면 아무것도 막지 않는다", async () => {
     apiGetMock.mockResolvedValue({ data: { data: [] } });
     seedDefinitions([]);
