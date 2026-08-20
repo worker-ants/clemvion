@@ -339,13 +339,35 @@ export function ReRunModal({
    * 그래서 **둘 다** 요구한다: 건드렸고 **그리고** 현재 값에 마커가 남아 있지 않아야 풀린다.
    * 후자는 `hasMaskedMarkerLeaf` 라 스칼라·중첩을 함께 본다.
    *
+   * ### 세 번째 조건 — object/array 필드의 **coerce 실패**
+   *
+   * `coerceInput` 은 `JSON.parse` 가 실패하면 **raw 문자열로 폴백**한다. 그 문자열은
+   * `hasMaskedMarkerLeaf` 의 정확 일치에 걸리지 않으므로, 사용자가 마커를 남긴 채 JSON 을
+   * 깨뜨리면 차단이 **조용히 풀렸다**(`15_32_34` W1, 리뷰어가 재현). backend
+   * `resolveTriggerParameters` 의 `isCoerceFailure` 가 `coerce_failed` 로 거부해 실제 오염까지
+   * 가지는 않지만, 사용자는 "마커를 채우라" 대신 일반 오류 토스트를 본다.
+   *
+   * **선언된 필드 타입**이 object/array 인데 현재 값이 문자열이면 파싱에 실패한 상태다
+   * (성공하면 객체·배열이 나온다) — 그 동안은 무조건 막는다. 원본 값의 모양이 아니라
+   * *타입*으로 판정하는 이유: 스키마가 없으면 같은 필드가 string 으로 렌더되고 정상
+   * 편집도 문자열이라, 값 모양으로 보면 정상 입력까지 영구 차단된다.
+   *
    * **토글 ON 이면 막지 않는다**: `useOriginalInput` 은 서버가 원본 엔티티를 직접 읽으므로
    * 마스킹과 무관하게 원문으로 재실행된다 — 오히려 이 경로가 정답이라 차단하면 안 된다.
    */
+  /** 선언된 타입이 object/array 인가 — 스키마 로드 전에는 false(그땐 string 필드다). */
+  const isStructuredField = (name: string) => {
+    const t = fields.find((f) => f.name === name)?.type;
+    return t === "object" || t === "array";
+  };
+
   const blockedByMaskedInput =
     !useOriginalInput &&
     maskedKeys.some(
-      (k) => !touchedMaskedKeys.has(k) || hasMaskedMarkerLeaf(paramValues[k]),
+      (k) =>
+        !touchedMaskedKeys.has(k) ||
+        hasMaskedMarkerLeaf(paramValues[k]) ||
+        (isStructuredField(k) && typeof paramValues[k] === "string"),
     );
 
   const handleSubmit = async () => {

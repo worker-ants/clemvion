@@ -538,10 +538,17 @@ Multi Turn AI 노드의 타임라인에서 **assistant 메시지를 선택**하�
 **탭이 표시되지 않는 경우:**
 - running/pending 상태의 비(非)대화형 노드 → 기존 flat 레이아웃 (탭 없음)
 
-**inputData 데이터 흐름:**
-- WebSocket 이벤트에는 inputData가 포함되지 않음
-- REST 폴링(2초 간격)을 통해 inputData가 NodeResult에 반영됨
-- 늦게 도착하는 WS 이벤트가 이미 수신된 inputData를 덮어쓰지 않도록 머지 시 보존
+**inputData 데이터 흐름 (2026-08-20 실측 정정):**
+- `execution.node.completed` WS 이벤트는 `input` 필드로 **`NodeExecution.inputData` 를 싣는다**
+  (값-패턴 마스킹 적용 — [EIA §R17](../5-system/14-external-interaction-api.md))
+- REST 폴링(2초 간격)도 **같은 store 슬롯**을 채운다 — 그래서 두 경로의 마스킹 정책이
+  갈리면 폴링이 마스킹 값을 원문으로 덮는 **flip-flop** 이 난다. 현재는 REST·WS 가 같은
+  규칙이라 그런 일이 없다 ([WS §4.1](../5-system/6-websocket-protocol.md))
+- 늦게 도착하는 WS 이벤트가 이미 수신된 값을 지우지 않도록 머지 시 `??` 로 보존
+
+> **종전 서술은 *"WebSocket 이벤트에는 inputData 가 포함되지 않음"* 이었고 사실이 아니었다**
+> — `execution-engine.service.ts` 의 emit 과 `use-execution-events.ts` 의 store 반영으로 실측
+> 확인했다. 2026-04 이후 갱신되지 않은 stale 서술을 정정한다.
 
 **Presentation 노드 콘텐츠**:
 

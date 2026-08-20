@@ -102,6 +102,9 @@ strip 하므로 외부 노출 불변). WS §Rationale 의 strip-only 결정은 *
 
 **⚠️ `Execution.inputData` 만 마스킹하지 않는다 (의도)** — 초안은 두 컬럼을 함께 닫았다가 **되돌렸다.**
 
+> **→ 이 카브아웃은 2026-08-20 에 닫혔다** (맨 위 Unreleased 항목 참조). 아래 서술은 그
+> 시점까지의 결정이다 — 여기 적힌 "닫는 조건"(프런트 마커 가드)이 충족되면서 전환됐다.
+
 > **카브아웃은 `Execution` 레벨 한정이다** — `NodeExecution.inputData`(실행 상세의
 > `nodeExecutions[]`·background-run 본문 노드)는 재제출 소비처가 없어 **마스킹된다**.
 > 노드 레벨을 비워 두면 WS emit(마스킹)과 REST(원문)가 같은 프런트 store 슬롯에서

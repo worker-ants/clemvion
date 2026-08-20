@@ -695,6 +695,60 @@ describe("ReRunModal — 마스킹 마커 왕복 차단", () => {
     expect(screen.getByRole("button", { name: "Re-run" })).toBeEnabled();
   });
 
+  /**
+   * **무효 JSON 으로 만들어도 풀리지 않는다** (`15_32_34` W1, 리뷰어가 재현).
+   *
+   * `coerceInput` 은 `JSON.parse` 실패 시 **raw 문자열로 폴백**하고, 그 문자열은
+   * `hasMaskedMarkerLeaf` 의 정확 일치에 걸리지 않는다 — 마커를 남긴 채 JSON 만 깨뜨리면
+   * 차단이 조용히 풀렸다. backend 가 `coerce_failed` 로 거부해 실제 오염까지 가지는
+   * 않지만, 사용자는 "마커를 채우라" 대신 일반 오류 토스트를 본다.
+   */
+  it("[캐너리] object 필드를 무효 JSON 으로 만들어도 계속 막는다", async () => {
+    // **스키마를 태워야 재현된다** — object 타입으로 선언돼야 `coerceInput` 이 파싱을 시도하고,
+    // 실패 시 raw 문자열로 폴백한다. 스키마가 없으면 그냥 string 필드라 이 경로가 없다.
+    apiGetMock.mockResolvedValue({
+      data: {
+        data: [
+          {
+            id: "mt",
+            type: "manual_trigger",
+            category: "trigger",
+            config: { parameters: [{ name: "headers", type: "object" }] },
+          },
+        ],
+      },
+    });
+    seedDefinitions([def("manual_trigger", "trigger", false)]);
+    renderModal({
+      original: {
+        id: "exec-bad",
+        workflowId: "wf-1",
+        status: "completed",
+        startedAt: "2026-05-22T14:32:00.000Z",
+        inputData: { parameters: { headers: { apiKey: "***" } } },
+      },
+    } as Partial<ReRunModalProps>);
+
+    // 스키마가 비동기로 도착해야 `headers` 가 object 타입이 된다 — 그전엔 string 필드라
+    // 이 경로 자체가 없다.
+    const field = await screen.findByLabelText(/headers/i);
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Re-run" })).toBeDisabled(),
+    );
+
+    // 유효 JSON 으로 고쳐 한 번 풀고 —
+    fireEvent.change(field, { target: { value: '{"apiKey":"real"}' } });
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Re-run" })).toBeEnabled(),
+    );
+
+    // 마커를 되살린 채 JSON 을 깨뜨린다 → coerce 실패로 raw 문자열이 된다.
+    fireEvent.change(field, { target: { value: '{"apiKey":"***"' } });
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Re-run" })).toBeDisabled(),
+    );
+  });
+
   it("[캐너리] 마커가 없으면 아무것도 막지 않는다", async () => {
     apiGetMock.mockResolvedValue({ data: { data: [] } });
     seedDefinitions([]);

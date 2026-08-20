@@ -402,6 +402,7 @@ dry-run 모드로 실행된 **NodeExecution** 은 `outputData._dryRun === true` 
 | `history.rerun.modal.originalLabel` | 원본 실행 | Original Execution |
 | `history.rerun.modal.sideEffectWarning` | 이 워크플로는 외부 호출 노드 {{count}}개를 포함합니다 | This workflow includes {{count}} external-call node(s) |
 | `history.rerun.useOriginalInput` | 원본 입력 그대로 사용 | Use original input |
+| `history.rerun.maskedInputBlocked` | 자격증명으로 판별돼 가려진 입력이 있어요… (§10.2 마커 가드) | Some inputs were masked as credentials… |
 | `history.rerun.dryRunToggle` | dry-run 모드 (외부 호출 skip) | Dry-run mode (skip external calls) |
 | `history.rerun.dryRunDisabledTooltip` | 이 워크플로는 dry-run 미지원 노드를 포함합니다 | This workflow contains nodes that don't support dry-run |
 | `history.rerun.confirmButton` | 재실행 | Re-run |
