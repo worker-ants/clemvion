@@ -121,8 +121,11 @@ JSON 안에 마커가 남아 있는 동안 실행 버튼을 막는다 — 트래
       독립적으로 NONE), 이 BLOCK 은 구현으로만 풀린다 — 여기서 멈추면 순환이다
 - [x] 마커 유틸을 `lib/utils/masked-markers.ts` 로 승격 + `hasMaskedMarkerLeaf` 신설
 - [x] Re-run 모달 마커 가드 — **프리필 소스 한 곳**(`originalParameters`)에서 걷어내
-      `useState` 초기값과 열릴 때 리셋이 함께 덮인다. 비어 있는 동안 제출 차단,
-      `useOriginalInput` 경로는 보존
+      `useState` 초기값과 열릴 때 리셋이 함께 덮인다. `useOriginalInput` 경로는 보존.
+      > **차단 판정은 두 조건의 합이다**(리뷰 2라운드에 걸쳐 좁혔다): *"사용자가 그 키를
+      > 건드렸다"* **그리고** *"현재 값에 마커가 없다"*. 값만 보면 스키마 지연 도착 시
+      > `coerceInput("boolean","")` 이 `false` 를 만들어 뚫리고(`14_08_45` W2), 터치만 보면
+      > 건드린 뒤 값을 다시 마커로 되돌려도 영구 해제된다(`14_44_08` W2).
 - [x] 에디터 히스토리 로드 — 기존 `jsonError` 채널에 얹어 alert·`aria-invalid`·Run 차단을
       한 번에 붙였다. 파싱 실패 시엔 마커 검사를 **하지 않는다**(같은 사유 중복 방지)
 - [x] backend — `toResponseExecution`·`toExecutionDto` 두 관문에 마스킹 적용.

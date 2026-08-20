@@ -629,6 +629,72 @@ describe("ReRunModal — 마스킹 마커 왕복 차단", () => {
     expect(field.value).not.toBe("");
   });
 
+  /**
+   * **건드린 뒤 값이 다시 마커여도 막는다** (`14_44_08` W2). 터치 기반 판정만 쓰면 한 번
+   * 건드린 키가 영구 해제돼, 최종 값이 마커여도 그대로 전송된다 — 이 PR 이 막으려던 그
+   * 오염이다. 판정은 "건드렸다 **그리고** 현재 값에 마커가 없다" 여야 한다.
+   */
+  it("[캐너리] 건드린 뒤 값이 다시 마커면 계속 막는다", async () => {
+    apiGetMock.mockResolvedValue({ data: { data: [] } });
+    seedDefinitions([]);
+    renderModal(maskedProps);
+
+    const apiKey = screen.getByLabelText(/apiKey/i);
+    fireEvent.change(apiKey, { target: { value: "real-key" } });
+    expect(screen.getByRole("button", { name: "Re-run" })).toBeEnabled();
+
+    // 다시 마커로 되돌리면 — 터치 기록은 남아 있지만 값이 위험하다.
+    fireEvent.change(apiKey, { target: { value: "***" } });
+    expect(screen.getByRole("button", { name: "Re-run" })).toBeDisabled();
+  });
+
+  it("object 필드도 마커를 지우면 풀린다 (언블록 경로)", async () => {
+    apiGetMock.mockResolvedValue({ data: { data: [] } });
+    seedDefinitions([]);
+    renderModal({
+      original: {
+        id: "exec-n2",
+        workflowId: "wf-1",
+        status: "completed",
+        startedAt: "2026-05-22T14:32:00.000Z",
+        inputData: { parameters: { headers: { apiKey: "***" } } },
+      },
+    } as Partial<ReRunModalProps>);
+
+    expect(screen.getByRole("button", { name: "Re-run" })).toBeDisabled();
+    fireEvent.change(screen.getByLabelText(/headers/i), {
+      target: { value: '{"apiKey":"real"}' },
+    });
+    expect(screen.getByRole("button", { name: "Re-run" })).toBeEnabled();
+  });
+
+  /**
+   * 마스킹 키가 **둘 이상**인 경우. 하나만 채워도 나머지가 남으면 계속 막혀야 한다 —
+   * `some` 을 `every` 로 바꾸는 뮤테이션을 이 케이스만 잡는다 (`14_44_08` INFO-9).
+   */
+  it("[캐너리] 마스킹 키가 둘이면 하나만 채워도 계속 막힌다", async () => {
+    apiGetMock.mockResolvedValue({ data: { data: [] } });
+    seedDefinitions([]);
+    renderModal({
+      original: {
+        id: "exec-2m",
+        workflowId: "wf-1",
+        status: "completed",
+        startedAt: "2026-05-22T14:32:00.000Z",
+        inputData: { parameters: { apiKey: "***", token: "[REDACTED]" } },
+      },
+    } as Partial<ReRunModalProps>);
+
+    fireEvent.change(screen.getByLabelText(/apiKey/i), {
+      target: { value: "real" },
+    });
+    expect(screen.getByRole("button", { name: "Re-run" })).toBeDisabled();
+    fireEvent.change(screen.getByLabelText(/token/i), {
+      target: { value: "real2" },
+    });
+    expect(screen.getByRole("button", { name: "Re-run" })).toBeEnabled();
+  });
+
   it("[캐너리] 마커가 없으면 아무것도 막지 않는다", async () => {
     apiGetMock.mockResolvedValue({ data: { data: [] } });
     seedDefinitions([]);

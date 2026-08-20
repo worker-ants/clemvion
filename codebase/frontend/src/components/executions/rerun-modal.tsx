@@ -327,20 +327,26 @@ export function ReRunModal({
   }, [fields]);
 
   /**
-   * 마스킹 때문에 비워진 필드가 아직 비어 있는가 — 그 동안 제출을 막는다.
+   * 마스킹된 키가 아직 안전하지 않은가 — 그 동안 제출을 막는다.
+   *
+   * ## 판정이 두 조건의 **합**인 이유 — 각 조건만으로는 뚫린다
+   *
+   * | 조건 | 이것만 쓰면 뚫리는 경로 |
+   * |---|---|
+   * | 값이 비었는가 | 스키마 지연 도착 시 재조정이 `coerceInput("boolean","")` → `false` 를 만들어 조용히 풀린다 (`14_08_45` W2) |
+   * | 사용자가 건드렸는가 | 건드린 **뒤** 값이 다시 마커여도 영구 해제된다 (`14_44_08` W2) |
+   *
+   * 그래서 **둘 다** 요구한다: 건드렸고 **그리고** 현재 값에 마커가 남아 있지 않아야 풀린다.
+   * 후자는 `hasMaskedMarkerLeaf` 라 스칼라·중첩을 함께 본다.
    *
    * **토글 ON 이면 막지 않는다**: `useOriginalInput` 은 서버가 원본 엔티티를 직접 읽으므로
    * 마스킹과 무관하게 원문으로 재실행된다 — 오히려 이 경로가 정답이라 차단하면 안 된다.
    */
-  /**
-   * **"값이 비었는가" 가 아니라 "사용자가 그 키를 건드렸는가" 로 판정한다.**
-   *
-   * 값 기반 판정은 타입 캐스팅에 뚫린다 — 스키마가 늦게 로드되면 재조정 이펙트가
-   * `coerceInput("boolean", "")` 을 돌려 비워 둔 값이 `false` 가 되고, `"" | null |
-   * undefined` 만 보던 조건이 조용히 풀린다(`14_08_45` W2). 사용자 입력만 차단을 푼다.
-   */
   const blockedByMaskedInput =
-    !useOriginalInput && maskedKeys.some((k) => !touchedMaskedKeys.has(k));
+    !useOriginalInput &&
+    maskedKeys.some(
+      (k) => !touchedMaskedKeys.has(k) || hasMaskedMarkerLeaf(paramValues[k]),
+    );
 
   const handleSubmit = async () => {
     setSubmitting(true);

@@ -312,9 +312,29 @@ checker 가 독립적으로** "인용이 가리키는 절이 오히려 반대를
       > 예상 못 한 비용은 **spec 쪽**이었다 — 이 결론이 6개 문서에 SoT 로 미러돼 있어
       > planner 턴이 선행돼야 했다(`12_08_46` BLOCK:YES → `12_41_29` BLOCK:NO).
 
+- [ ] **`inputData` 마스킹 게이트 4곳을 단일 헬퍼로 통합** (2026-08-20 등재, `14_44_08` W4).
+      `toResponseExecution` · `toExecutionDto` · 노드 레벨 `maskIfPresent` 루프 ·
+      `background-runs.service.ts` 가 각자 마스킹을 걸고, 유일한 동기화 장치가 **사람이 읽는
+      주석 표**다. 이 fragmentation 때문에 실제로 자매 DTO JSDoc 이 갱신에서 빠지는 CRITICAL 이
+      났다(`14_08_45` C2) — 근본 원인은 그대로 남아 있다.
+      > 공유 `redactExecutionFields(row)` 또는 응답 직전 interceptor 로 통합 검토.
+
+- [ ] **`inputOverride` 서버측 마커 리터럴 거부** (2026-08-20 등재, `14_44_08` W6).
+      `resolveTriggerParameters` 는 타입·필수값만 보므로 UI 를 우회한 클라이언트(curl)는
+      `'***'` 를 그대로 실어 왕복 오염을 API 레벨에서 재현할 수 있다.
+      > **이번 PR 이 만든 결함은 아니다** — security reviewer 도 *"기밀성 침해 아님 + 기존
+      > defer 결정"* 으로 INFO 판정했다. 가드는 UI 정상 흐름 방어로 범위를 명시했다(§R17).
+      > defense-in-depth 로 얕은 서버측 체크(마커와 정확 일치면 `INVALID_INPUT`) 검토.
+
+- [ ] **`Execution.inputData` 응답 의미 반전의 외부 소비자 확인** (2026-08-20 등재,
+      `14_44_08` W5). JSON 스키마 타입은 그대로라 OpenAPI 로는 드러나지 않는 **콘텐츠 계약
+      변경**이다. 저장소 안 프런트 3소비처는 가드됐지만, 이 엔드포인트를 직접 호출하는
+      저장소 밖 소비자(QA/운영 자동화·감사 export 등)는 스키마로 알 수 없다.
+      > 존재 여부를 확인하고, 있으면 릴리스 노트에 breaking 으로 공지.
+
 - [ ] **마커 미러 계약 테스트 — backend SoT ↔ frontend 미러를 기계가 대조하게 한다**
       (2026-08-17 등재, `12_33_36` security/side_effect INFO-1 — 이 시리즈에서 **반복** 지적).
-      `sanitize-error-message.ts` 의 `MASKED_MARKERS` 와 `dynamic-form-ui.tsx` 의 동명 미러가
+      `sanitize-error-message.ts` 의 `MASKED_MARKERS` 와 `lib/utils/masked-markers.ts` 의 동명 미러가
       손으로 복제돼 있다. 한쪽만 늘면 프리필 가드가 **그 신규 마커에 대해 조용히 fail-open**
       한다 — 마스킹된 값이 다시 프리필돼 실제 입력이 되는, 이 시리즈가 두 번 겪은 그 형태다.
       > **이번에 한 것**: 이름을 양쪽 동일하게 맞추고(`MASKED_MARKERS`/`isMaskedMarker`)

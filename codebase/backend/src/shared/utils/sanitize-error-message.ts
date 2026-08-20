@@ -140,9 +140,12 @@ export const DEPTH_MASK_MARKER = '[REDACTED_DEPTH]';
  * **안전 방향은 한쪽으로만 열린다**: 절대 unmask 하지 않고, 이미 마스킹된 값을 다시 덮지
  * 않을 뿐이다. 마커 문자열 자체는 시크릿이 아니므로 보존해도 노출이 늘지 않는다.
  *
- * > **프런트 미러가 있다**: `dynamic-form-ui.tsx` 의 `MASKED_MARKERS` 가 같은 집합을 복제해
- * > **마스킹된 폼 기본값을 프리필하지 않는** 가드에 쓴다(왕복 오염 차단). 이 집합을 바꾸면
- * > 그쪽도 함께 갱신해야 한다 — 어긋나면 그 가드가 조용히 뚫린다.
+ * > **프런트 미러가 있다**: `frontend/src/lib/utils/masked-markers.ts` 의 `MASKED_MARKERS`
+ * > 가 같은 집합을 복제해 **마스킹된 값을 프리필·제출하지 않는** 가드 셋(폼 프리필 ·
+ * > Re-run 모달 · 에디터 히스토리 로드)에 쓴다. 이 집합을 바꾸면 그쪽도 함께 갱신해야
+ * > 한다 — 어긋나면 그 가드들이 조용히 뚫린다.
+ * >
+ * > 2026-08-20 에 `dynamic-form-ui.tsx` 안에서 `lib/utils/` 로 승격됐다(소비처 셋).
  */
 const MASKED_MARKERS: ReadonlySet<string> = new Set([
   VALUE_MASK_MARKER,

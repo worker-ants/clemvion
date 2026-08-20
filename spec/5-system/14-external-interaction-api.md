@@ -12,6 +12,7 @@ code:
   - codebase/backend/src/shared/utils/redact-stored-error.ts
   - codebase/backend/src/shared/utils/sanitize-error-message.ts
   - codebase/frontend/src/components/editor/run-results/dynamic-form-ui.tsx
+  - codebase/frontend/src/lib/utils/masked-markers.ts
   - codebase/frontend/src/components/executions/rerun-modal.tsx
   - codebase/frontend/src/components/editor/toolbar/editor-toolbar.tsx
   - codebase/backend/src/modules/executions/executions.service.ts
@@ -1567,7 +1568,7 @@ present-when-available 이므로, REST 만 `null` 로 정규화하면 위젯의 
         | 소비처 | 가드 | 시점 |
         |---|---|---|
         | 폼 프리필 (`DynamicFormUI`) | 마커면 프리필 스킵 + 재입력 안내 | 2026-08-17 |
-        | Re-run 모달 | 마커면 프리필 스킵 + **비어 있는 동안 제출 차단**. 토글 ON(`useOriginalInput`)이면 서버가 원문을 직접 읽으므로 차단도 풀린다 | 2026-08-20 |
+        | Re-run 모달 | 마커면 프리필 스킵 + **사용자가 그 키를 채우고 값에 마커가 없을 때까지 제출 차단**(두 조건의 합 — 값만 보면 타입 캐스팅에, 터치만 보면 되돌린 마커에 뚫린다). 토글 ON(`useOriginalInput`)이면 서버가 원문을 직접 읽으므로 차단도 풀린다 | 2026-08-20 |
         | 에디터 히스토리 로드 | JSON leaf 에 마커가 **남아 있는 동안 실행 차단**(필드 단위로 비울 수 없는 표면이라 값을 지우지 않고 막는다) | 2026-08-20 |
 
         > **"강제" 를 안내로 낮추지 않았다**: 비우고 안내만 하면 빈 문자열이 실제 입력이 되어
