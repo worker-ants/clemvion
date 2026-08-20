@@ -83,13 +83,17 @@ export function redactSecrets(raw: string): string {
  * a secret stored as a bare value (`{"api_key":"AKIA…"}`) matches no value-level
  * pattern, so key-name matching is the only way to catch it. Mirrors the WS-layer
  * `CREDENTIAL_KEY_PATTERN` (websocket.service) — both defend the same class at
- * different layers — and additionally covers `x-`-prefixed header names
- * (`x-api-key` / `x-auth-token`) common in LLM/tool structured output.
+ * different layers — and additionally covers `x-api-key`, an `x-`-prefixed header name
+ * common in LLM/tool structured output that the WS layer does not carry.
  *
  * `[a-z0-9_-]*token` covers the whole family in one alternative (bare `token`,
  * `access_token`, `csrf_token`, `csrfToken`, `x-auth-token`). Measured 2026-08-17:
  * the list carried bare `token` but **not** the prefixed forms, so `{csrf_token: …}`
  * went out in the clear on every one of the three masking axes.
+ *
+ * That family alternative landed in **both** copies, so `x-auth-token` — previously
+ * spelled out here only — is now shared with the WS mirror. `x-api-key` is the single
+ * remaining asymmetry, and it is deliberate.
  *
  * **Accepted false positive**: opaque cursors (`nextPageToken`, `continuationToken`)
  * are masked too. They are display-only here — masking is egress-only and the DB keeps

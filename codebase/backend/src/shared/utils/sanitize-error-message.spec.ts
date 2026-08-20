@@ -388,9 +388,11 @@ describe('token 계열 — 값 축과 키 축을 같은 표로 고정', () => {
 
   it('값 축: 따옴표·쿼리스트링 형태도 잡는다', () => {
     expect(redactSecrets('{"csrf_token":"sk-live-abc123"}')).toContain('***');
-    expect(redactSecrets('cb?token=sk-live-abc123&state=x')).not.toContain(
-      'sk-live-abc123',
-    );
+    // 자매 테스트(`mcp-error-codes.spec.ts`)처럼 **비-시크릿 파라미터 보존**도 함께
+    // 단언한다. 이것이 없으면 패턴이 줄 전체를 삼키도록 넓어져도 초록이다.
+    const qs = redactSecrets('cb?token=sk-live-abc123&state=x');
+    expect(qs).not.toContain('sk-live-abc123');
+    expect(qs).toContain('state=x');
   });
 
   /**

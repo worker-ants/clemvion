@@ -83,10 +83,15 @@ spec_impact:
 ## 설계 — 접두 선택 형태
 
 ```
-(?:[A-Za-z0-9]+[_-]?)?token
+[A-Za-z0-9_-]*token     # 값 축 (SECRET_LEAK_PATTERNS)
+[a-z0-9_-]*token        # 키 축 (CREDENTIAL_KEY_PATTERN ×2, `^…$` 앵커라 대소문자는 `i` 가 처리)
 ```
 
 `\b` 앵커 + `i` 플래그로 `token` · `access_token` · `csrf-token` · `csrfToken` 을 모두 덮는다.
+
+> 초안은 `(?:[A-Za-z0-9]+[_-]?)?token` 이었다. 구현에서 단순화했다 — 선택 그룹 대신 문자
+> 클래스 `*` 하나면 같은 계열을 덮으면서 백트래킹 경로가 줄어든다(`___token` 처럼 구분자만
+> 이어진 형태까지 덮는 것은 부수 효과이고 해가 없다).
 기존의 `access[_-]token|refresh[_-]token|id[_-]token` 세 대안은 이 형태에 **흡수**되므로
 합친다 — 중복 대안을 남기면 다음 사람이 어느 쪽을 고쳐야 할지 갈린다.
 
@@ -97,13 +102,13 @@ egress 전용(DB 는 원문)이라 다운스트림 실행에는 영향이 없고
 
 ## 곁들이는 저비용 문서 3건 (전부 전제 실측 완료)
 
-- [ ] **`hmacAlgorithm` 현재형 인용** — `14-…api.md:64`(EIA-NX-03)·`:1318`(R12)이 *"trigger
+- [x] **`hmacAlgorithm` 현재형 인용** — `14-…api.md:64`(EIA-NX-03)·`:1318`(R12)이 *"trigger
       config 에 보관하되"* 라 쓰는데, **실측**: `triggers.service.ts:634` 가 저장 시 스트립하고
       `V066` 마이그레이션이 컬럼을 제거했다. 현행 소유자는 `AuthConfig.config.algorithm`.
       결론(inbound `sha256` vs outbound `hmac-sha256` prefix 분리)은 유지하고 **출처만** 정정
-- [ ] **§11 표의 `execution.stop` 행** — `:300` 표는 *"(WS 명령은 §4.2 won't-do — REST cancel
+- [x] **§11 표의 `execution.stop` 행** — `:300` 표는 *"(WS 명령은 §4.2 won't-do — REST cancel
       로 처리)"* 를 달았는데 `:1124` 표는 안 달았다. 같은 문서 두 "권위 표" 가 어긋난다
-- [ ] **`2-api-convention.md §2.2`** — `/api/external/*` 가 §6 rate-limit 표(`:228`·`:229`)와
+- [x] **`2-api-convention.md §2.2`** — `/api/external/*` 가 §6 rate-limit 표(`:228`·`:229`)와
       §5.4(`:440`)에는 나오는데 **URL 구조 규칙 자체**에는 없다. 별도 인증 family 임을 명시
 
 ## 작업 체크리스트
@@ -115,13 +120,26 @@ egress 전용(DB 는 원문)이라 다운스트림 실행에는 영향이 없고
 - [x] **impl-prep W1** — `mcp-error-codes.ts` 의 bare-token 대안 흡수 + `11-mcp-client.md`
       §8.3·Rationale 동기화. `mcp-error-codes.spec.ts` **8건 그대로 GREEN**(공용만으로)
 - [x] 회귀 테스트 **19건** — 값 축 8 · 키 축 8 · 따옴표/쿼리스트링 1 · 오탐 경계 캐너리 2.
-      **뮤테이션 검증**: 값-축 되돌리면 **6 RED**, 키-축 되돌리면 **8 RED** — 두 축이 각각
-      독립으로 관측된다(한 축만 고쳐도 다른 축이 잡힌다)
+      **뮤테이션 검증** — 뮤턴트를 명시한다(숫자만 적으면 재현이 안 돼 실제로 두 번 틀렸다):
+      각 축의 계열 대안을 **변경 직전 목록**으로 되돌린다 (값 축 → `access[_-]token|
+      refresh[_-]token|id[_-]token`, 키 축 → `token|access[_-]?token|refresh[_-]?token`).
+      결과는 값 축 **6 RED**, 키 축 **6 RED** — 두 축이 각각 독립으로 관측된다.
+      > 키 축의 RED 6건은 `id_token`·`csrf_token`·`csrfToken`·`session_token`·
+      > `x-auth-token` + 캐너리 `nextPageToken` 이다. 옛 목록이 이미 담고 있던
+      > `token`·`access_token`·`refresh-token` 3건은 되돌려도 GREEN 이라 세면 안 된다 —
+      > 최초에 이 셋을 함께 세어 "8 RED" 로 적었던 것을 실측으로 정정했다.
 - [x] blast radius 실측 — 백엔드 **427 suites / 8,811 전원 GREEN**. 트래커가 경고한
       캐너리 RED 는 **일어나지 않았다**(그 캐너리는 연결 문자열용)
 - [x] ReDoS 벤치마크 — 2배씩 늘려 배율 **정확히 2배(선형)**. 단일 `*` + 리터럴이라 중첩 정량자 없음
 - [x] 트래커: `token=` 항목 + 저비용 3건 체크박스 종결(반증된 전제 명기) ·
       workflow-assistant 항목에 접두 계열 누출 증거 추가
 - [x] 저비용 문서 3건 (`hmacAlgorithm` 출처 · §11 won't-do 주석 · §2.2 인증 family)
-- [ ] TEST WORKFLOW 4단계
-- [ ] 코드 동결 → `/ai-review` → `--impl-done` → push
+- [x] TEST WORKFLOW 4단계 PASS — lint / unit(백엔드 **427 suites · 8,832** · 프런트 6,030) /
+      build / e2e **276** + playwright **51**
+- [x] `/ai-review` (`14_00_15`) — CRITICAL **0**, WARNING **5** (MEDIUM) → **5건 전부 조치**
+      + INFO 3건 반영. 핵심은 **W1** — WS 미러에 회귀 테스트가 없어 내 변경을 되돌려도
+      48건 전원 GREEN 이었다(뮤테이션 실증). 목록에 계열 5종 + 오탐 캐너리를 넣어 **2 RED**
+      로 갈리게 했다. **W5 는 리뷰어 수치도 틀렸다** — 실측 6 RED(리뷰어 5, 내 최초 8)
+- [x] `--impl-done` (`14_00_50`) — **BLOCK: NO**, CRITICAL 0. WARNING 1(§R17 서술이 구현보다
+      넓다 — `maskSensitiveFields` 축 미포함)에 캐비엇 추가
+- [ ] 최종 게이트 재확인 → push

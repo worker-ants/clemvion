@@ -1576,6 +1576,11 @@ present-when-available 이므로, REST 만 `null` 로 정규화하면 위젯의 
         안 나가면 카브아웃이 값싸다. 두 사례가 정확히 그 두 갈래다.
       - 마커 집합은 backend `sanitize-error-message.ts` 가 SoT 이고 프런트가 미러한다 —
         어긋나면 가드가 조용히 뚫리므로 **양쪽을 함께** 갱신한다.
+    - **`token` 계열 확장 (2026-08-17)**: 값 패턴과 `CREDENTIAL_KEY_PATTERN`(공용·WS 미러)이
+      `token` **계열 전체**(bare `token` + `access_token`·`csrf_token`·`csrfToken`·
+      `x-auth-token` 등 접두형)를 덮는다. **다만 이 확장은 잔여 ③ 에 미치지 않는다** —
+      `maskSensitiveFields` 의 키 목록은 리터럴 나열이라 접두 계열이 아직 통과한다.
+      즉 *"`token` 계열이 닫혔다"* 는 **이 두 축에 한한 서술**이고, 아래 표면은 별건이다.
     - **잔여 ③ (범위 밖 유지)**: **workflow-assistant LLM 도구**(`explore-tools.service.ts`)는 `inputData` ·
       `outputData` · `error` **세 필드**를 `maskSensitiveFields`(**키 이름** 기반)로만 내보내
       자유 텍스트 안의 자격증명을 통과시킨다 (그쪽 마스킹 규칙의 SoT 는
