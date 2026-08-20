@@ -924,6 +924,61 @@ describe("ReRunModal — 마스킹 마커 왕복 차단", () => {
     );
   });
 
+  /**
+   * **orphan 의 타입은 값의 모양에서 추론한다** (`18_03_01` architecture W1).
+   *
+   * W3 fix 의 첫 판(orphan 을 전부 `"string"` 으로) 은 원래 값이 object/array 였을 때
+   * `displayValue` 가 `String(value)` 로 떨어져 **`[object Object]`** 를 렌더했다 —
+   * 무수정 프로브로 실증했다. 그대로 제출하면 그 문자열이 실제 입력이 된다. 이 PR 이
+   * 막으려는 오염과 **같은 형태**가 내 fix 안에서 재현된 셈이다.
+   *
+   * 이 캐너리는 세 가지를 함께 고정한다: 값이 JSON 으로 보인다 · 안 건드리면 막힌다 ·
+   * 유효 JSON 으로 고치면 풀린다(= 구조 필드로 취급돼 coerce 조건도 함께 만족한다).
+   */
+  it("[회귀] orphan 마스킹 키가 구조값이면 JSON 으로 렌더된다", async () => {
+    apiGetMock.mockResolvedValue({
+      data: {
+        data: [
+          {
+            id: "mt",
+            type: "manual_trigger",
+            category: "trigger",
+            config: {
+              parameters: [{ name: "schemaOnly", type: "string" }],
+            },
+          },
+        ],
+      },
+    });
+    seedDefinitions([def("manual_trigger", "trigger", false)]);
+    renderModal({
+      original: {
+        id: "exec-orphan-obj",
+        workflowId: "wf-1",
+        status: "completed",
+        startedAt: "2026-05-22T14:32:00.000Z",
+        inputData: { parameters: { headers: { apiKey: "***" } } },
+      },
+    } as Partial<ReRunModalProps>);
+    await screen.findByLabelText(/schemaOnly/i);
+    const el = screen.getByLabelText(/headers/i) as HTMLInputElement;
+
+    // `String(value)` 로 떨어지면 여기가 RED.
+    expect(el.value).not.toBe("[object Object]");
+    expect(el.value).toBe('{"apiKey":"***"}');
+
+    // 중첩 마커가 남아 있으니 막혀 있다.
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Re-run" })).toBeDisabled(),
+    );
+
+    // 유효 JSON 으로 고치면 풀린다 — 구조 필드로 취급돼야 coerce 조건도 만족한다.
+    fireEvent.change(el, { target: { value: '{"apiKey":"real"}' } });
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Re-run" })).toBeEnabled(),
+    );
+  });
+
   it("[캐너리] 마커가 없으면 아무것도 막지 않는다", async () => {
     apiGetMock.mockResolvedValue({ data: { data: [] } });
     seedDefinitions([]);

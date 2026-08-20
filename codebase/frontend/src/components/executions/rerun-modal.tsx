@@ -166,6 +166,16 @@ function isStructuredType(type: TriggerParameterType): boolean {
   return type === "object" || type === "array";
 }
 
+/**
+ * 선언이 **없는** 키의 타입을 값의 모양에서 추론한다 — 스키마 드리프트로 고아가 된
+ * 마스킹 키 전용이다(`fields` JSDoc 참조). 선언이 있는 키에는 쓰지 않는다.
+ */
+function inferTypeFromValue(value: unknown): TriggerParameterType {
+  if (Array.isArray(value)) return "array";
+  if (value !== null && typeof value === "object") return "object";
+  return "string";
+}
+
 function displayValue(type: TriggerParameterType, value: unknown): string {
   if (value == null) return "";
   if (isStructuredType(type)) {
@@ -304,9 +314,21 @@ export function ReRunModal({
    * {@link blockedByMaskedInput} 이 **영구히 참**이 된다 — 재입력으로 푸는 §R17 의 UX 가
    * 그 경로에서 성립하지 않는다(`17_38_33` requirement W3, 무수정 프로브로 실증).
    *
-   * 그래서 스키마에 없는 `maskedKeys` 는 **untyped text 필드로 되살린다**. 차단의 근거가
-   * 되는 키 집합이 렌더되는 키 집합의 부분집합이라는 불변식을 코드로 세우는 것이다.
-   * 마스킹되지 않은 드리프트 키는 종전대로 두었다 — 그쪽은 막지 않으므로 교착이 없다.
+   * 그래서 스키마에 없는 `maskedKeys` 는 **되살린다**. 차단의 근거가 되는 키 집합이
+   * 렌더되는 키 집합의 부분집합이라는 불변식을 코드로 세우는 것이다. 마스킹되지 않은
+   * 드리프트 키는 종전대로 두었다 — 그쪽은 막지 않으므로 교착이 없다.
+   *
+   * > **타입은 값의 모양에서 추론한다** (`18_03_01` architecture W1). 처음엔 전부
+   * > `"string"` 으로 넣었는데, 원래 값이 object/array 였으면 `displayValue` 가
+   * > `String(value)` 로 떨어져 **`[object Object]`** 를 렌더했다(무수정 프로브로 실증).
+   * > 그 상태로 제출하면 그 문자열이 실제 입력이 된다 — 이 PR 이 막으려는 오염과 같은
+   * > 형태다.
+   * >
+   * > 다른 곳(`isStructuredField`)에서는 *"값의 모양이 아니라 **선언된 타입**으로
+   * > 판정한다"* 고 못박았는데 여기만 반대인 이유: **orphan 에는 선언이 없다.** 스키마에서
+   * > 사라진 키라 참조할 타입이 아예 없고, 값의 모양이 남은 유일한 신호다. 그리고 추론된
+   * > 타입은 `fields` 에 실리므로 `isStructuredField` 도 이 값을 그대로 쓴다 — 두 곳이
+   * > 갈리지 않는다.
    */
   const fields = useMemo<RerunField[]>(() => {
     const manualNode = workflowNodes.find((n) => n.type === "manual_trigger");
@@ -320,7 +342,7 @@ export function ReRunModal({
       const declaredNames = new Set(declared.map((f) => f.name));
       const orphanMasked = maskedKeys
         .filter((name) => !declaredNames.has(name))
-        .map((name) => ({ name, type: "string" as const }));
+        .map((name) => ({ name, type: inferTypeFromValue(originalParameters[name]) }));
       return [...declared, ...orphanMasked];
     }
     return Object.keys(originalParameters).map((name) => ({
@@ -388,6 +410,11 @@ export function ReRunModal({
    *
    * **토글 ON 이면 막지 않는다**: `useOriginalInput` 은 서버가 원본 엔티티를 직접 읽으므로
    * 마스킹과 무관하게 원문으로 재실행된다 — 오히려 이 경로가 정답이라 차단하면 안 된다.
+   *
+   * > **spec 과 방향이 반대다(동치)** — `13-replay-rerun.md` §10.2 는 *해제* 조건을
+   * > **AND** 로 서술하고, 여기 구현은 *차단* 조건을 **OR** 로 짠다. 드모르간 쌍대라
+   * > 논리적으로 같지만, 대조할 때마다 뒤집어 읽어야 하므로 적어 둔다
+   * > (`18_03_01` requirement INFO-5).
    */
   const blockedByMaskedInput =
     !useOriginalInput &&
