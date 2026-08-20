@@ -270,12 +270,23 @@ describe('BackgroundRunsService', () => {
      * **ingestion 마커 보존 캐너리** (`23_50_03` testing W4) — 자매 표면
      * (`ExecutionsService` ⑥ · `redact-stored-error.spec.ts`)에는 있는데 여기만 없었다.
      * 이 호출부가 다른 마스킹 함수로 바뀌면 12-webhook §5.3 계약이 조용히 깨진다.
+     *
+     * > **`inputData` 표면은 뒤늦게 붙었다** (`16_51_19` testing W1). 자매인
+     * > `ExecutionsService` ⑥ 을 카브아웃 폐지에 맞춰 `inputData` 로 확장하면서 **노드
+     * > 레벨인 여기는 빼먹었다** — 이 저장소가 반복해 겪는 *"자매 중 하나만"* 이 같은
+     * > 작업 안에서 또 나온 것이다. 두 표면 모두 같은 §5.3 계약을 진다.
      */
-    it('body nodeExecutions[].outputData 의 `[REDACTED]` 마커를 덮지 않는다', async () => {
+    it('body nodeExecutions[] 의 `[REDACTED]` 마커를 두 표면 모두에서 덮지 않는다', async () => {
       const bgNode = makeBgNodeExec();
       const marked = makeBodyNodeExec({
         id: 'body-marker',
         error: null,
+        inputData: {
+          headers: {
+            authorization: '[REDACTED]',
+            'content-type': 'application/json',
+          },
+        },
         outputData: {
           request: {
             headers: {
@@ -319,6 +330,15 @@ describe('BackgroundRunsService', () => {
       ).request.headers;
       expect(headers.authorization).toBe('[REDACTED]');
       expect(headers['content-type']).toBe('application/json');
+
+      // `inputData` 표면 — 카브아웃 폐지로 이쪽도 같은 관문을 지난다.
+      const inHeaders = (
+        result.nodeExecutions.data[0]?.inputData as {
+          headers: Record<string, string>;
+        }
+      ).headers;
+      expect(inHeaders.authorization).toBe('[REDACTED]');
+      expect(inHeaders['content-type']).toBe('application/json');
     });
 
     /**
