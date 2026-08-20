@@ -8,6 +8,7 @@ code:
   - codebase/backend/migrations/V067__execution_re_run_chain.sql
   - codebase/backend/migrations/V068__execution_dry_run.sql
   - codebase/backend/src/nodes/core/dry-run.util.ts
+  - codebase/frontend/src/components/executions/rerun-modal.tsx
 ---
 
 # Spec: 워크플로 Re-run (재실행)
@@ -93,6 +94,8 @@ dry-run 이 OFF 인 일반 Re-run 은 외부 호출이 그대로 재트리거되
 - 원본 실행의 입력 데이터를 폼으로 미리 채워 표시 (Manual Trigger 의 `parameters` 스키마 기반 폼 — 기존 [Spec 실행 엔진 §6.1.1](./4-execution-engine.md#611-트리거-입력-파라미터-seeding) `resolveTriggerParameters` 패턴 재사용)
 - 사용자가 필드를 편집해 다른 입력으로 재실행 가능
 - 모달 상단의 **"원본 입력 그대로 사용"** 토글 (기본 OFF — 편집 가능 상태) 을 ON 으로 두면 폼이 read-only 가 되고 "재실행" 버튼이 한 클릭 경로로 단축됨
+
+> **예외 — 마스킹된 값은 프리필하지 않는다**: 원본 값이 egress 마스킹 마커면 그 필드는 비운 채 재입력을 받고, 채워지기 전까지 제출을 막는다. 토글 ON 경로는 서버가 원본을 직접 읽으므로 영향 없다 — 상세는 [§10.2](#102-re-run-모달) 참조.
 
 ### RR-PL-03 — 부분 Re-run 미지원 (C1)
 
@@ -347,20 +350,29 @@ dry-run 모드로 실행된 **NodeExecution** 은 `outputData._dryRun === true` 
 | "재실행" 버튼 | — | 클릭 시 권한 가드 통과 → `POST /api/executions/:id/re-run` → 응답의 새 Execution ID 로 라우팅 (`/w/<slug>/workflows/:workflowId/executions/:newId`, 활성 워크스페이스 slug 기준 — [2-navigation/_layout §2.2](../2-navigation/_layout.md#22-메뉴-항목)) |
 | "취소" 버튼 | — | 모달 닫기. 변경 입력 폐기 |
 
-> **`Execution.inputData` 는 egress 마스킹 대상이 아니다 — 이 모달이 그 이유다 (2026-08-16)**:
-> (**`NodeExecution.inputData` 는 마스킹한다** — 노드 레벨엔 재제출 소비처가 없다. 2026-08-17 정정)
+> **`Execution.inputData` 는 egress 마스킹된다 — 이 모달이 마커 가드를 갖는다 (2026-08-20)**:
 > 위 "입력 데이터 폼" 은 원본 `inputData.parameters` 를 **프리필**하고, "원본 입력 그대로
-> 사용" 토글의 **UI 기본값이 OFF** 라 사용자가 폼을 건드리지 않아도 그 값이
-> `inputOverride` 로 **되전송**된다. 따라서 `inputData` 에 응답 마스킹을 걸면 리터럴
-> `'***'` 가 새 Execution 의 **실제 입력값**이 된다 — 가시성 저하가 아니라 데이터 오염이다.
-> 형제 컬럼 `outputData`/`error` 는 표시 전용이라 마스킹되지만 `inputData` 는 **의도적으로
-> 제외**한다. 근거·잔여·닫는 조건의 SoT 는
-> [EIA §R17](./14-external-interaction-api.md) "잔여 ②" 이며, 구현 정본은
-> `ExecutionsService` 의 `MASKED_INPUT_DATA_REASON` 이다.
-> 에디터의 "히스토리에서 불러오기"([실행 §2.2](../3-workflow-editor/3-execution.md))도 같은
-> 컬럼을 같은 방식으로 재사용하므로 동일하게 적용된다.
-> **토글을 ON(=`useOriginalInput: true`)으로 두면 서버가 원본 엔티티를 직접 읽으므로 이
-> 경로 자체가 성립하지 않는다** — 위험은 프리필 왕복(OFF) 경로 하나다.
+> 사용" 토글의 **UI 기본값이 OFF** 라 사용자가 폼을 건드리지 않아도 그 값이 `inputOverride`
+> 로 **되전송**된다. 그래서 2026-08-20 이전에는 이 컬럼만 마스킹에서 제외했다 — 마스킹하면
+> 리터럴 `'***'` 가 새 Execution 의 **실제 입력값**이 되기 때문이다(가시성 저하가 아니라
+> 데이터 오염).
+>
+> **전환 (2026-08-20)**: 프리필 값이 마스킹 마커면 **프리필하지 않고** 해당 필드를 비운 채
+> 재입력을 안내하며, **사용자가 그 필드를 채우고 · 값에 마커가 남아 있지 않고 ·
+> 구조(object/array) 필드라면 JSON 파싱에 성공할 때까지** Re-run 제출을 막는다
+> (무효 JSON 으로 두면 파싱이 raw 문자열로 폴백해 마커 감지를 우회하므로 그 상태도
+> 차단 대상이다). 안내만 하고 빈
+> 문자열을 통과시키면 오염의 값만 `'***'` → `''` 로 바뀔 뿐이라, §R17 이 닫는 조건에 쓴
+> **"재입력을 강제"** 를 문구대로 구현한다.
+>
+> **토글을 ON(=`useOriginalInput: true`)으로 두는 것이 오히려 정답이다** — 서버가 원본
+> 엔티티를 직접 읽으므로 마스킹과 무관하게 원문으로 재실행되고, 이때는 차단도 풀린다.
+>
+> 에디터의 "히스토리에서 불러오기"([실행 §2.2](../3-workflow-editor/3-execution.md))는 같은
+> 컬럼을 **JSON 텍스트 전체**로 적재하므로 필드 단위로 비울 수 없다 — 그쪽은 마커를 그대로
+> 보여 주고 **남아 있는 동안 실행을 막는다**.
+>
+> 근거·카탈로그의 SoT 는 [EIA §R17](./14-external-interaction-api.md).
 
 ### 10.3 Chain 표시
 
@@ -392,6 +404,7 @@ dry-run 모드로 실행된 **NodeExecution** 은 `outputData._dryRun === true` 
 | `history.rerun.modal.originalLabel` | 원본 실행 | Original Execution |
 | `history.rerun.modal.sideEffectWarning` | 이 워크플로는 외부 호출 노드 {{count}}개를 포함합니다 | This workflow includes {{count}} external-call node(s) |
 | `history.rerun.useOriginalInput` | 원본 입력 그대로 사용 | Use original input |
+| `history.rerun.maskedInputBlocked` | 자격증명으로 판별돼 가려진 입력이 있어요. 해당 항목을 직접 입력하거나 '원본 입력 그대로 사용'을 켜 주세요. | Some inputs were masked as credentials. Enter them directly, or turn on "Use original input". |
 | `history.rerun.dryRunToggle` | dry-run 모드 (외부 호출 skip) | Dry-run mode (skip external calls) |
 | `history.rerun.dryRunDisabledTooltip` | 이 워크플로는 dry-run 미지원 노드를 포함합니다 | This workflow contains nodes that don't support dry-run |
 | `history.rerun.confirmButton` | 재실행 | Re-run |

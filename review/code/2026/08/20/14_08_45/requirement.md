@@ -1,0 +1,26 @@
+# 요구사항(Requirement) 충족 리뷰 — `Execution.inputData` egress 마스킹 카브아웃 폐지 + 마커 가드
+
+## 발견사항
+
+- **[CRITICAL]** `rerun-modal.tsx` 의 마커 가드가 `object`/`array` 타입 Manual Trigger 파라미터의 **중첩** 마스킹 leaf 를 놓친다 — 정확히 이 PR 이 막으려는 "마스킹 값 왕복 재제출" 이 그 경로로 재현된다
+  - 위치: `codebase/frontend/src/components/executions/rerun-modal.tsx:113-128` (`splitMaskedParameters`), 소비부 `:317-322` (`blockedByMaskedInput`)
+  - 상세: `splitMaskedParameters` 는 각 파라미터 값 `v` 에 대해 `isMaskedMarker(v)`(문자열이 마커와 **정확히 일치**하는지)만 검사한다. 그런데 `TriggerParameterType`(`codebase/frontend/src/lib/api/triggers.ts:20-25`)은 `"object"`/`"array"` 를 포함하고, 실제로 rerun-modal 자체가 이 타입을 지원한다(`displayValue`/`coerceInput`, `rerun-modal.tsx:150-177`, 테스트 `rerun-modal.test.tsx:385-420` — object 필드를 JSON 문자열로 표시/파싱). backend 값-패턴 마스킹(`deepRedactSecrets`)은 중첩 구조의 **leaf 문자열**만 `***` 로 치환하므로, object/array 타입 파라미터의 값이 예를 들어 `{"headers":{"apiKey":"***"}}` 형태로 올 수 있다. 이때 `v`(=전체 object)는 마커 문자열과 일치하지 않아 `isMaskedMarker(v)` 가 `false` 를 반환하고: (1) 마스킹된 leaf 가 그대로 프리필되어 폼에 나타나고, (2) 해당 키가 `maskedKeys` 에 들어가지 않아 `blockedByMaskedInput` 이 그 필드를 보지 못하며, (3) 사용자가 아무것도 건드리지 않고 제출하면 `inputOverride` 에 리터럴 `'***'` 가 실린 채 그대로 전송된다. 같은 모듈(`masked-markers.ts`)에 이미 정확히 이 문제를 풀도록 만들어진 재귀 헬퍼 `hasMaskedMarkerLeaf` 가 있고(`codebase/frontend/src/lib/utils/masked-markers.ts:64-73`) `editor-toolbar.tsx` 는 그것을 쓰는데(파일 10, `:118`), `rerun-modal.tsx` 는 `isMaskedMarker` 만 import 해 쓴다(`:26`). plan(`plan/in-progress/eia-inputdata-marker-guard.md` "설계" 절)이 Re-run 모달을 "#1181 폼 가드와 같은 형태(필드 단위)"로 모델링한 것이 이 케이스에서 깨진다 — DynamicFormUI 의 필드는 원자적 primitive 인 반면, Re-run 모달의 object/array 필드는 그 자체가 JSON 블롭이라 히스토리-로드 케이스(재귀 검사 필요)와 같은 성질이다. 테스트(`rerun-modal.test.tsx:385-420`)도 object 타입을 다루지만 마스킹 leaf 가 없는 `{a:1}` 만 쓰고 있어 이 갭을 잡지 못한다.
+  - 제안: `splitMaskedParameters` 에서 각 값에 `isMaskedMarker(v)` 대신(또는 추가로) `hasMaskedMarkerLeaf(v)` 를 적용해 object/array 타입 파라미터 안의 중첩 마커도 감지·차단한다(값 전체를 비우거나, 최소한 `blockedByMaskedInput` 에는 포함시켜 제출을 막는다). 중첩 leaf 하나 때문에 object 전체를 비우는 것이 과하면, "그 필드는 비우지 않되 차단만 한다" 는 절충도 가능하지만 최소한 차단 없이 그대로 통과시키는 현재 동작은 §R17 "닫는 조건"(강제 재입력)을 만족하지 못한다. 회귀 테스트로 `{"headers":{"apiKey":"***"}}` 류 nested-marker object 필드 케이스를 추가할 것.
+
+- **[CRITICAL]** `ExecutionDto.inputData` 의 JSDoc(Swagger 설명문)이 정확히 이 PR 이 뒤집는 문장을 그대로 남겨, 공개 API 문서가 실제 동작과 반대로 말한다
+  - 위치: `codebase/backend/src/modules/executions/dto/responses/execution-response.dto.ts:52`, `:57-58`
+  - 상세: 현재 파일 내용은 다음과 같다 — `52: **값-패턴 마스킹 대상이 아니다** (형제 outputData/error 와 다르다) …`, `57-58: **이 카브아웃은 Execution 레벨 한정이다** — nodeExecutions[].inputData 는 재제출 소비처가 없어 마스킹된다(2026-08-17 정정).` 이 문장들은 이 PR 이전(카브아웃 존재 시점)의 사실이었고, 이번 PR 은 정확히 이 카브아웃을 폐지했다(`executions.service.ts` `toResponseExecution`/`toExecutionDto` 가 이제 `inputData` 도 `redactStoredDataForResponse` 를 거친다 — 파일 6). `git diff 82a967afb..37da9b593 -- .../execution-response.dto.ts` 로 확인하면 이 PR 의 커밋(`37da9b593`)이 **바로 이 JSDoc 블록**을 건드려 `근거 정본` 인용만 `MASKED_INPUT_DATA_REASON` → `toResponseExecution` 로 고쳤을 뿐, 바로 위·아래의 "마스킹 대상이 아니다"/"Execution 레벨 한정" 서술은 손대지 않았다 — 즉 이번 diff 범위 안에서 절반만 갱신됐다. 대조로, 같은 커밋이 **형제 필드** `NodeExecutionSummaryDto.inputData`(파일 4, `:173-179`)의 JSDoc 은 "`ExecutionDto.inputData` 와 **같은 정책**이다. 2026-08-20 이전에는 그쪽만 원문이었다" 로 정확히 반전 반영했다 — `ExecutionDto` 쪽만 누락됐다는 뜻이다. `nest-cli.json` 이 `@nestjs/swagger` 플러그인에 `introspectComments: true` 를 켜 두었고 이 필드의 `@ApiPropertyOptional`(`:63-67`)에는 명시 `description` 이 없으므로, 이 JSDoc 이 그대로 Swagger `description` 으로 노출된다 — 즉 공개 API 문서가 "이 필드는 마스킹되지 않는다" 고 잘못 단언하는 상태로 배포된다. spec(`spec/1-data-model.md:471`, `spec/5-system/13-replay-rerun.md:351-370`, `spec/5-system/14-external-interaction-api.md` §R17)은 모두 이번 PR 에서 "이제 마스킹한다" 로 갱신됐으므로, 이 DTO 주석만 유일하게 낡은 채 남아 spec·구현·문서 세 축 중 문서만 반대를 말한다.
+  - 제안: `52`행을 "**값-패턴 마스킹 대상이다**(DB 원문과 다를 수 있음, 2026-08-20 부터)" 류로, `57-58`행을 "이 카브아웃은 폐지됐다(2026-08-20) — 프런트 마커 가드가 재제출을 보호한다" 류로 재작성해 `NodeExecutionSummaryDto` 쪽과 같은 방향으로 맞춘다.
+
+## 참고 (INFO, 비차단)
+
+- `codebase/backend/src/modules/executions/executions.service.spec.ts:1109` describe 블록 상단 부제 `## \`inputData\` 는 **의도적으로 대상이 아니다**` 가 옛 상태를 현재형으로 먼저 진술하고 바로 아래(`:1116-1119`)에서 "2026-08-20 — 카브아웃이 닫혔다" 로 정정한다. 순서상 오독 여지가 있으나 테스트 전용 문서라 영향은 위 두 CRITICAL 보다 훨씬 낮다. `describe` 이름 자체(`:1130`)는 이미 "2026-08-20 부터 두 레벨 모두" 로 올바르게 갱신돼 있다.
+- `editor-toolbar.tsx` 의 `handleRunWithInput`(`:290-317`)은 마스킹 마커 재검사를 제출 버튼 `disabled` 상태(UI 게이트)에만 의존하고, 제출 핸들러 내부에는 별도 방어 재검증이 없다. 기존 JSON-파싱-에러 케이스도 동일 패턴(주석 `:309-310` 이 이를 명시)이라 이번 PR 이 새로 만든 결함은 아니며, 위 CRITICAL 항목만큼의 영향은 없다.
+
+## 요약
+
+핵심 설계(카브아웃 폐지 판단, 마커 가드 이원화 — 폼/Re-run 은 프리필 스킵+제출 차단, 히스토리 로드는 JSON 텍스트 전체라 값 보존+실행 차단)와 backend `toResponseExecution`/`toExecutionDto` 마스킹 확장·`ResponseExecution` 타입 확장은 spec §R17 "닫는 조건" 테이블과 정확히 line-level 로 일치하고, 캐너리·뮤테이션 테스트도 견고하다. spec 7개 문서(1-data-model/13-replay-rerun/3-execution/12-webhook/6-websocket-protocol/12-background/14-external-interaction-api)도 이번 PR 로 서로 모순 없이 함께 갱신됐다(이전 라운드 consistency-check 의 CRITICAL 들은 해소 확인됨). 다만 두 가지 구체적 결함이 남는다 — (1) Re-run 모달의 마커 가드가 object/array 타입 트리거 파라미터의 **중첩** 마스킹 값을 감지하지 못해, 이 PR 이 닫으려던 "마스킹 값이 실제 입력으로 왕복" 취약점이 그 경로로 그대로 살아 있고, (2) `ExecutionDto.inputData` 의 Swagger 노출 JSDoc 이 이 PR 이 뒤집은 바로 그 문장(마스킹 안 함/Execution 레벨 카브아웃)을 여전히 진술해 공개 API 문서가 실제 동작과 반대로 읽힌다 — 둘 다 이번 PR 자신의 diff 범위 안에서 발생한 반쪽 구현/반쪽 갱신이다.
+
+## 위험도
+
+HIGH

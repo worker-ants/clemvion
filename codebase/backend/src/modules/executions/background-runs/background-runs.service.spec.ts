@@ -221,7 +221,7 @@ describe('BackgroundRunsService', () => {
      * (`@Roles` 없음).
      *
      * **노드 레벨이라 `inputData` 도 마스킹 대상**이다 — 재제출 카브아웃은 `Execution`
-     * 레벨 한정이고(`MASKED_INPUT_DATA_REASON` 정본), 이 표면엔 재제출 소비처가 없다.
+     * 레벨 한정이었고(2026-08-20 폐지), 이 표면엔 애초에 재제출 소비처가 없다.
      */
     it('body nodeExecutions[] 의 inputData·outputData 를 모두 마스킹한다', async () => {
       const bgNode = makeBgNodeExec();
@@ -259,23 +259,41 @@ describe('BackgroundRunsService', () => {
         'ws-1',
       );
 
-      const row = JSON.stringify(result.nodeExecutions.data[0]);
-      expect(row).not.toContain('sk-live-abc123');
-      expect(row).toContain('***');
-      // 노드 레벨은 `inputData` 도 마스킹 — 카브아웃은 Execution 레벨 한정.
-      expect(row).not.toContain('admin:pw');
+      // **필드별로 나눠서 잰다** (`17_38_33` testing W4). 종전엔 노드 전체를 한 문자열로
+      // 합쳐 `toContain('***')` 를 하나만 뒀는데, 그러면 `outputData` 쪽 마스킹만으로
+      // 통과해 `inputData` 가 비거나 `null` 로 떨어지는 회귀를 못 잡는다 — 자매 파일
+      // (`executions.service.spec.ts` ①②⑥⑧⑧-b)에서 뮤테이션으로 잡아 고친 바로 그
+      // 결함 클래스가 여기 남아 있었다.
+      const outStr = JSON.stringify(result.nodeExecutions.data[0]?.outputData);
+      const inStr = JSON.stringify(result.nodeExecutions.data[0]?.inputData);
+      expect(outStr).not.toContain('sk-live-abc123');
+      expect(outStr).toContain('***');
+      // `inputData` 도 마스킹 — 2026-08-20 부터 Execution 레벨도 같은 규칙이다.
+      expect(inStr).not.toContain('admin:pw');
+      expect(inStr).toContain('***');
     });
 
     /**
      * **ingestion 마커 보존 캐너리** (`23_50_03` testing W4) — 자매 표면
      * (`ExecutionsService` ⑥ · `redact-stored-error.spec.ts`)에는 있는데 여기만 없었다.
      * 이 호출부가 다른 마스킹 함수로 바뀌면 12-webhook §5.3 계약이 조용히 깨진다.
+     *
+     * > **`inputData` 표면은 뒤늦게 붙었다** (`16_51_19` testing W1). 자매인
+     * > `ExecutionsService` ⑥ 을 카브아웃 폐지에 맞춰 `inputData` 로 확장하면서 **노드
+     * > 레벨인 여기는 빼먹었다** — 이 저장소가 반복해 겪는 *"자매 중 하나만"* 이 같은
+     * > 작업 안에서 또 나온 것이다. 두 표면 모두 같은 §5.3 계약을 진다.
      */
-    it('body nodeExecutions[].outputData 의 `[REDACTED]` 마커를 덮지 않는다', async () => {
+    it('body nodeExecutions[] 의 `[REDACTED]` 마커를 두 표면 모두에서 덮지 않는다', async () => {
       const bgNode = makeBgNodeExec();
       const marked = makeBodyNodeExec({
         id: 'body-marker',
         error: null,
+        inputData: {
+          headers: {
+            authorization: '[REDACTED]',
+            'content-type': 'application/json',
+          },
+        },
         outputData: {
           request: {
             headers: {
@@ -319,6 +337,15 @@ describe('BackgroundRunsService', () => {
       ).request.headers;
       expect(headers.authorization).toBe('[REDACTED]');
       expect(headers['content-type']).toBe('application/json');
+
+      // `inputData` 표면 — 카브아웃 폐지로 이쪽도 같은 관문을 지난다.
+      const inHeaders = (
+        result.nodeExecutions.data[0]?.inputData as {
+          headers: Record<string, string>;
+        }
+      ).headers;
+      expect(inHeaders.authorization).toBe('[REDACTED]');
+      expect(inHeaders['content-type']).toBe('application/json');
     });
 
     /**

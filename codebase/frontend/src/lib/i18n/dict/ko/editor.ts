@@ -59,6 +59,8 @@ export const editor = {
   invalidJsonInput: "잘못된 JSON 입력이에요. 확인 후 다시 시도해 주세요.",
   jsonValid: "유효한 JSON",
   loadFromHistory: "히스토리에서 불러오기",
+  runWithInputMasked:
+    "가려진 자격증명 값(***)이 남아 있어요. 실제 값으로 바꾼 뒤 실행할 수 있어요.",
   runHistoryEmpty: "이전 실행 없음",
   historyLoadFailed: "실행 입력을 불러오지 못했어요.",
   executionHistory: "실행 히스토리",

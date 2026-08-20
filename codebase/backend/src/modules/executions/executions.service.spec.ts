@@ -1104,19 +1104,23 @@ describe('ExecutionsService', () => {
   });
 
   /**
-   * `outputData` 응답 egress 마스킹 (§R17 잔여 ② 부분 해소 — 결정 2026-08-16).
+   * `outputData`·`inputData` 응답 egress 마스킹 (§R17 잔여 ② **해소** — 2026-08-20).
    *
-   * ## `inputData` 는 **의도적으로 대상이 아니다**
+   * ## 두 레벨 모두 마스킹 대상이다
    *
+   * > **2026-08-20 이전에는 `Execution.inputData` 만 카브아웃이었다.**
    * 초안은 두 컬럼을 함께 마스킹했다가 **되돌렸다.** `inputData` 는 표시 전용이 아니라
    * Re-run 모달·에디터 "히스토리에서 불러오기" 가 읽어 **그대로 재제출**하는 값이라,
-   * 마스킹하면 리터럴 `'***'` 가 새 실행의 실제 입력이 된다(조용한 기능 오염).
-   * 두 게이트가 독립으로 CRITICAL 을 냈고 소스 추적으로 확증했다 —
-   * 소스 정본은 `ExecutionsService` 의 `MASKED_INPUT_DATA_REASON`.
+   * 마스킹하면 리터럴 `'***'` 가 새 실행의 실제 입력이 됐다(조용한 기능 오염).
+   * 두 게이트가 독립으로 CRITICAL 을 냈고 소스 추적으로 확증했다.
    *
-   * 그래서 이 describe 는 **양방향을 고정**한다: `outputData` 는 마스킹되고
-   * `inputData` 는 **원문 그대로** 나가야 한다(⑧ 캐너리). 한쪽만 단언하면 나중에
-   * 누군가 `inputData` 에 관문을 다시 붙여도 스위트가 초록이다.
+   * > **2026-08-20 — 카브아웃이 닫혔다.** 그 되돌림은 *"프런트가 마커를 감지해 재입력을
+   * > 강제하는 가드"* 를 닫는 조건으로 달고 있었고(EIA §R17), 세 소비처가 전부 갖췄다 —
+   * > 폼 프리필(#1181) · Re-run 모달(프리필 스킵 + 비어 있는 동안 제출 차단) · 에디터
+   * > 히스토리 로드(마커 잔존 시 Run 차단). 그래서 **두 레벨이 같은 규칙**이 됐다.
+   *
+   * 이 describe 는 표면 전수를 고정한다 — 소스 정본은
+   * `ExecutionsService.toResponseExecution` 의 마스킹 표.
    *
    * ## 왜 `error` 자매 describe 와 따로 두나
    *
@@ -1124,7 +1128,7 @@ describe('ExecutionsService', () => {
    * `[REDACTED]` 로 마스킹해 저장하고(12-webhook §5.3), 그건 4개 문서가 전제를 공유하는
    * 문서화된 계약이다. 그래서 여기엔 `error` 에 없는 단언이 하나 더 붙는다 — **마커 보존**.
    */
-  describe('outputData + 노드 레벨 inputData 마스킹 — 표면 전수 (Execution.inputData 는 카브아웃)', () => {
+  describe('outputData + inputData 마스킹 — 표면 전수 (2026-08-20 부터 두 레벨 모두)', () => {
     const LEAKY_IN = {
       note: 'connect via postgres://admin:pw@db.internal/prod',
     };
@@ -1152,8 +1156,9 @@ describe('ExecutionsService', () => {
       };
       expect(result.outputData.body).not.toContain('sk-live-abc123');
       expect(result.outputData.body).toContain('***');
-      // `inputData` 는 재제출 경로라 원문 그대로 — 위 describe 주석 참조.
-      expect(result.inputData.note).toContain('admin:pw');
+      // `inputData` 도 마스킹된다 (2026-08-20 카브아웃 폐지 — 위 describe 주석 참조).
+      expect(result.inputData.note).not.toContain('admin:pw');
+      expect(result.inputData.note).toContain('***');
     });
 
     it('② findByWorkflow — 목록 (toExecutionDto)', async () => {
@@ -1167,10 +1172,14 @@ describe('ExecutionsService', () => {
       );
 
       const result = await service.findByWorkflow('w1', {});
-      expect(JSON.stringify(result.data[0].outputData)).not.toContain(
-        'sk-live-abc123',
-      );
-      expect(JSON.stringify(result.data[0].inputData)).toContain('admin:pw');
+      const out2 = JSON.stringify(result.data[0].outputData);
+      const in2 = JSON.stringify(result.data[0].inputData);
+      expect(out2).not.toContain('sk-live-abc123');
+      expect(in2).not.toContain('admin:pw');
+      // **양성 단언이 있어야 한다** — 음성만 두면 필드가 통째로 사라지거나 `null` 이 돼도
+      // 통과한다(`17_13_19` testing W1). ① 에만 있던 이 짝을 자매 셋에 번지게 했다.
+      expect(out2).toContain('***');
+      expect(in2).toContain('***');
     });
 
     it('③ getChain — chain 조회', async () => {
@@ -1239,7 +1248,7 @@ describe('ExecutionsService', () => {
       };
       const ne = JSON.stringify(result.nodeExecutions[0]);
       expect(ne).not.toContain('sk-live-abc123');
-      // **노드 레벨은 `inputData` 도 마스킹**한다 — 카브아웃은 Execution 레벨 한정이다.
+      // **노드 레벨도 `inputData` 를 마스킹**한다 — 2026-08-20 부터 두 레벨이 같다.
       // 여기가 원문이면 WS emit(마스킹)과 REST 가 같은 store 슬롯에서 flip-flop 한다.
       expect(ne).not.toContain('admin:pw');
     });
@@ -1252,11 +1261,19 @@ describe('ExecutionsService', () => {
      * 연쇄 작업으로 없애 온 바로 그 병이라, 여기가 RED 면 계약이 깨졌다는 뜻이다.
      */
     it('⑥ ingestion 의 `[REDACTED]` 헤더 마커를 덮지 않는다 (12-webhook §5.3 계약)', async () => {
-      // **`outputData` 로 겨눈다** — `inputData` 는 마스커를 아예 안 지나므로 거기서
-      // 단언하면 "마커 보존" 이 아니라 "아무것도 안 함" 을 검증하는 vacuous 테스트가 된다.
-      // 트리거 노드의 `output.request.headers` 가 ingestion 마커를 그대로 싣는 실제 형태다.
+      // **두 표면을 함께 겨눈다.** 종전엔 `outputData` 만 봤고 그 이유가 *"`inputData` 는
+      // 마스커를 아예 안 지나므로 vacuous"* 였는데, 2026-08-20 카브아웃 폐지로 **그 전제가
+      // 깨졌다**(`15_59_17` W6). 이제 `inputData` 도 관문을 지나므로 여기가 마커 보존의
+      // 진짜 미보호 지점이었다 — webhook ingestion 이 `Execution.inputData.headers` 에
+      // 남긴 `[REDACTED]` 가 egress 값-마스커에 덮이면 안 된다.
       const row = baseFake({
         id: 'eD6',
+        inputData: {
+          headers: {
+            authorization: '[REDACTED]',
+            'content-type': 'application/json',
+          },
+        },
         outputData: {
           request: {
             headers: {
@@ -1278,6 +1295,13 @@ describe('ExecutionsService', () => {
       ).request.headers;
       expect(headers.authorization).toBe('[REDACTED]');
       expect(headers['content-type']).toBe('application/json');
+
+      // `inputData` 표면 — 카브아웃 폐지로 이제 이쪽도 관문을 지난다.
+      const inHeaders = (
+        result.data[0].inputData as { headers: Record<string, string> }
+      ).headers;
+      expect(inHeaders.authorization).toBe('[REDACTED]');
+      expect(inHeaders['content-type']).toBe('application/json');
     });
 
     /**
@@ -1287,7 +1311,7 @@ describe('ExecutionsService', () => {
      * `outputData === ne.outputData` 항이 빠져도 GREEN 이다 — 참조 동일성으로 물어야
      * 그 뮤턴트가 RED 가 된다.
      *
-     * **노드 레벨은 세 컬럼 전부 대상**이다 — 카브아웃은 `Execution` 레벨 한정이라
+     * **노드 레벨은 세 컬럼 전부 대상**이다 — 2026-08-20 부터 Execution 레벨도 같아졌고,
      * `inputData` 만 leaky 한 행도 복제되어야 한다. 이 방향을 고정해야 "노드 레벨까지
      * 카브아웃" 회귀(WS↔REST flip-flop)가 RED 로 잡힌다.
      */
@@ -1360,23 +1384,24 @@ describe('ExecutionsService', () => {
     });
 
     /**
-     * **`inputData` 캐너리는 레벨에 따라 방향이 갈린다** — 두 CRITICAL 회귀를 각각 막는다.
+     * **`inputData` 캐너리는 2026-08-20 부터 한 방향이다** — 두 레벨이 같은 규칙이 됐다.
      *
-     * | 방향 | 겨누는 회귀 | 캐너리 |
+     * | 표면 | 고정하는 것 | 캐너리 |
      * |---|---|---|
-     * | `Execution.inputData` 는 **원문** | 관문이 붙으면 Re-run 재제출이 `'***'` 로 오염 | `①`(`findById`) · `②`(`findByWorkflow`) · `⑧`(`getChain`) · `⑧-b`(`stop`) |
-     * | 노드 레벨 `inputData` 는 **마스킹** | 카브아웃이 노드 레벨까지 번지면 WS↔REST flip-flop | `⑤` · `⑥-b` + `background-runs.service.spec.ts` |
+     * | `Execution.inputData` | **마스킹** (카브아웃 폐지) | `①`(`findById`) · `②`(`findByWorkflow`) · `⑧`(`getChain`) · `⑧-b`(`stop`) |
+     * | 노드 레벨 `inputData` | **마스킹** | `⑤` · `⑥-b` + `background-runs.service.spec.ts` |
      *
-     * **두 방향을 한 목록으로 묶어 읽으면 안 된다** — 같은 이름의 컬럼이지만 레벨이
-     * 다르고 정책이 반대다. 축은 *"그 값이 되쓰이는가"* 이고, 표면 목록의 정본은
-     * `ExecutionsService.toResponseExecution` 의 표다.
+     * > **종전엔 방향이 갈렸다** — Execution 레벨은 *"원문"* 을 고정했다(관문이 붙으면
+     * > Re-run 재제출이 `'***'` 로 오염되기 때문). 프런트 마커 가드가 그 오염 경로를
+     * > 막으면서 반전했다. 노드 레벨 캐너리는 **그대로 둔다** — 그쪽이 고정하는 회귀
+     * > (카브아웃이 노드 레벨까지 번져 WS↔REST flip-flop)는 여전히 유효하다.
      *
      * > 이 주석은 두 번 틀렸다: 초판은 *"네 표면"* 이라 적고 다섯을 나열했고
      * > (`00_23_57` documentation W1), 그 정정판은 `⑥-b`·background-runs 를 "비대상 고정"
      * > 으로 **오분류**했다(`10_26_58` W5) — 그 둘은 정반대를 고정한다. 개수·목록 대신
      * > **방향별로** 적는 이유다.
      */
-    it('⑧ getChain·stop 도 `inputData` 를 원문으로 통과시킨다 (재제출 경로 보호)', async () => {
+    it('⑧ getChain 도 `inputData` 를 마스킹한다', async () => {
       const root = baseFake({ id: 'eD8', inputData: { ...LEAKY_IN } });
       const chainQB: Record<string, jest.Mock> = {};
       chainQB.leftJoinAndSelect = jest.fn().mockReturnValue(chainQB);
@@ -1389,10 +1414,12 @@ describe('ExecutionsService', () => {
       executionRepo.createQueryBuilder.mockReturnValue(chainQB as unknown);
 
       const rows = await service.getChain('eD8', 'ws1', { sub: 'u1' } as never);
-      expect(JSON.stringify(rows[0].inputData)).toContain('admin:pw');
+      const in8 = JSON.stringify(rows[0].inputData);
+      expect(in8).not.toContain('admin:pw');
+      expect(in8).toContain('***'); // 음성 단독은 필드 소실에도 통과한다
     });
 
-    it('⑧-b stop 도 `inputData` 를 원문으로 통과시킨다', async () => {
+    it('⑧-b stop 도 `inputData` 를 마스킹한다', async () => {
       const running = baseFake({
         id: 'eD8b',
         status: ExecutionStatus.RUNNING,
@@ -1417,7 +1444,9 @@ describe('ExecutionsService', () => {
       executionRepo.createQueryBuilder.mockReturnValue(qb as unknown);
 
       const result = await service.stop('eD8b');
-      expect(JSON.stringify(result.inputData)).toContain('admin:pw');
+      const in8b = JSON.stringify(result.inputData);
+      expect(in8b).not.toContain('admin:pw');
+      expect(in8b).toContain('***'); // 음성 단독은 필드 소실에도 통과한다
     });
   });
 });

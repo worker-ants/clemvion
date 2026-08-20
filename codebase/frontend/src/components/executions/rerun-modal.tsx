@@ -23,6 +23,10 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { useT } from "@/lib/i18n";
+import {
+  hasMaskedMarkerLeaf,
+  isMaskedMarker,
+} from "@/lib/utils/masked-markers";
 import { useWorkspaceSlug } from "@/lib/workspace/use-workspace-slug";
 import { buildExecutionHref } from "@/lib/workspace/href";
 import { formatDate } from "@/lib/utils/date";
@@ -97,6 +101,43 @@ const ERROR_CODE_TO_KEY: Record<
   RERUN_DRY_RUN_NOT_APPLICABLE: "history.rerun.dryRunNotApplicable",
 };
 
+/**
+ * 마스킹 마커가 실린 파라미터를 프리필에서 걷어낸다.
+ *
+ * `Execution.inputData` 는 egress 마스킹된다([EIA §R17](../../../../../spec/5-system/14-external-interaction-api.md)).
+ * 이 모달은 그 값을 **프리필해 `inputOverride` 로 되보내고**, "원본 입력 그대로 사용" 토글의
+ * 기본값이 OFF 라 사용자가 손대지 않아도 제출된다 — 그대로 두면 리터럴 `'***'` 가 새 실행의
+ * 실제 입력이 된다.
+ *
+ * **비우기만 하면 부족하다**: 빈 문자열이 제출되면 오염의 값만 `'***'` → `''` 로 바뀐다.
+ * 그래서 비운 키를 함께 돌려주고, 호출부가 **그 키가 안전해질 때까지 제출을 막는다**
+ * (§R17 "닫는 조건" 이 쓴 단어가 "안내" 가 아니라 **"강제"** 다). 이 함수는 *어느 키인가*
+ * 만 정하고, *언제 안전한가* 는 `blockedByMaskedInput` 의 세 조건이 정한다.
+ */
+function splitMaskedParameters(params: Record<string, unknown>): {
+  prefill: Record<string, unknown>;
+  maskedKeys: string[];
+} {
+  const prefill: Record<string, unknown> = {};
+  const maskedKeys: string[] = [];
+  for (const [k, v] of Object.entries(params)) {
+    if (isMaskedMarker(v)) {
+      // 스칼라 마커 — 비우고 재입력을 받는다.
+      maskedKeys.push(k);
+      prefill[k] = "";
+    } else if (hasMaskedMarkerLeaf(v)) {
+      // object/array 파라미터 **안쪽**의 마커. 이 필드는 JSON 텍스트로 렌더되므로
+      // 통째로 비우면 어느 키가 가려졌는지가 지워진다 — 값은 그대로 보여 주고
+      // 제출만 막는다(에디터 히스토리 로드와 같은 처방).
+      maskedKeys.push(k);
+      prefill[k] = v;
+    } else {
+      prefill[k] = v;
+    }
+  }
+  return { prefill, maskedKeys };
+}
+
 /** 원본 실행 입력에서 Manual Trigger parameters 객체를 안전 추출. */
 function extractParameters(
   inputData: Record<string, unknown> | null | undefined,
@@ -117,9 +158,27 @@ interface RerunField {
 }
 
 /** 타입별 input 표시 문자열. object/array 는 JSON 문자열로 표기. */
+/**
+ * JSON 으로 편집되는 타입인가 — `displayValue` · `coerceInput` · 차단 판정 셋이 공유한다.
+ * 같은 술어가 흩어지면 한 곳만 넓혀도 나머지가 조용히 갈린다(`15_59_17` W5).
+ */
+function isStructuredType(type: TriggerParameterType): boolean {
+  return type === "object" || type === "array";
+}
+
+/**
+ * 선언이 **없는** 키의 타입을 값의 모양에서 추론한다 — 스키마 드리프트로 고아가 된
+ * 마스킹 키 전용이다(`fields` JSDoc 참조). 선언이 있는 키에는 쓰지 않는다.
+ */
+function inferTypeFromValue(value: unknown): TriggerParameterType {
+  if (Array.isArray(value)) return "array";
+  if (value !== null && typeof value === "object") return "object";
+  return "string";
+}
+
 function displayValue(type: TriggerParameterType, value: unknown): string {
   if (value == null) return "";
-  if (type === "object" || type === "array") {
+  if (isStructuredType(type)) {
     return typeof value === "string" ? value : JSON.stringify(value);
   }
   return String(value);
@@ -136,7 +195,7 @@ function displayValue(type: TriggerParameterType, value: unknown): string {
 function coerceInput(type: TriggerParameterType, raw: string): unknown {
   if (type === "boolean") return raw === "true";
   if (type === "number") return raw === "" ? "" : Number(raw);
-  if (type === "object" || type === "array") {
+  if (isStructuredType(type)) {
     try {
       return JSON.parse(raw);
     } catch {
@@ -173,9 +232,11 @@ export function ReRunModal({
     enabled: open,
   });
 
-  // 입력 폼 상태 — default = 원본 inputData.parameters.
-  const originalParameters = useMemo(
-    () => extractParameters(original.inputData),
+  // 입력 폼 상태 — default = 원본 inputData.parameters (마스킹 마커는 걷어낸다).
+  // **프리필 소스가 여기 한 곳**이라 `useState` 초기값과 열릴 때 리셋이 함께 덮인다 —
+  // 두 자리를 각각 고치면 한쪽이 조용히 남는다.
+  const { prefill: originalParameters, maskedKeys } = useMemo(
+    () => splitMaskedParameters(extractParameters(original.inputData)),
     [original.inputData],
   );
   const [useOriginalInput, setUseOriginalInput] = useState(false);
@@ -183,6 +244,15 @@ export function ReRunModal({
   const [paramValues, setParamValues] =
     useState<Record<string, unknown>>(originalParameters);
   const [submitting, setSubmitting] = useState(false);
+  /**
+   * 이번 세션에 사용자가 편집한 **모든** 키 — 마스킹 여부로 거르지 않는다.
+   *
+   * 종전 이름은 *"마스킹된 키만 담는다"* 는 뜻이라 담긴 내용보다 좁았고, 여러 라운드에
+   * 걸쳐 지적됐다(`17_13_19` maintainability INFO-3). 거르는 일은 차단 판정이 한다 —
+   * {@link blockedByMaskedInput} 이 `maskedKeys` 와의 교집합만 보므로, 이 집합이 넓은 것은
+   * 무해하다. 그 사실을 이름이 아니라 여기에 적는다.
+   */
+  const [touchedKeys, setTouchedKeys] = useState<Set<string>>(() => new Set());
 
   // 모달이 열릴 때마다 폼 상태를 원본 기준으로 리셋.
   useEffect(() => {
@@ -190,6 +260,7 @@ export function ReRunModal({
       setUseOriginalInput(false);
       setDryRun(false);
       setParamValues(originalParameters);
+      setTouchedKeys(new Set());
       setSubmitting(false);
     }
   }, [open, originalParameters]);
@@ -233,24 +304,58 @@ export function ReRunModal({
   // spec §10.2 — 입력 폼 필드는 워크플로 manual_trigger 노드 config.parameters
   // 스키마(라벨·타입)에서 도출한다. 스키마가 없으면(노드 삭제/미로딩) 원본 런타임
   // 값 키를 untyped text 로 fallback 해 데이터 은닉을 피한다.
+  /**
+   * 편집 가능한 필드 목록.
+   *
+   * ## 불변식 — **차단하는 키는 반드시 렌더된다**
+   *
+   * 스키마는 실행 이후에 바뀔 수 있다. 마스킹된 파라미터가 **현재 스키마에서 사라지면**
+   * 그 키는 렌더되지 않고, 렌더되지 않으면 `touchedKeys` 에 영영 들어가지 못해
+   * {@link blockedByMaskedInput} 이 **영구히 참**이 된다 — 재입력으로 푸는 §R17 의 UX 가
+   * 그 경로에서 성립하지 않는다(`17_38_33` requirement W3, 무수정 프로브로 실증).
+   *
+   * 그래서 스키마에 없는 `maskedKeys` 는 **되살린다**. 차단의 근거가 되는 키 집합이
+   * 렌더되는 키 집합의 부분집합이라는 불변식을 코드로 세우는 것이다. 마스킹되지 않은
+   * 드리프트 키는 종전대로 두었다 — 그쪽은 막지 않으므로 교착이 없다.
+   *
+   * > **타입은 값의 모양에서 추론한다** (`18_03_01` architecture W1). 처음엔 전부
+   * > `"string"` 으로 넣었는데, 원래 값이 object/array 였으면 `displayValue` 가
+   * > `String(value)` 로 떨어져 **`[object Object]`** 를 렌더했다(무수정 프로브로 실증).
+   * > 그 상태로 제출하면 그 문자열이 실제 입력이 된다 — 이 PR 이 막으려는 오염과 같은
+   * > 형태다.
+   * >
+   * > 다른 곳(`isStructuredField`)에서는 *"값의 모양이 아니라 **선언된 타입**으로
+   * > 판정한다"* 고 못박았는데 여기만 반대인 이유: **orphan 에는 선언이 없다.** 스키마에서
+   * > 사라진 키라 참조할 타입이 아예 없고, 값의 모양이 남은 유일한 신호다. 그리고 추론된
+   * > 타입은 `fields` 에 실리므로 `isStructuredField` 도 이 값을 그대로 쓴다 — 두 곳이
+   * > 갈리지 않는다.
+   */
   const fields = useMemo<RerunField[]>(() => {
     const manualNode = workflowNodes.find((n) => n.type === "manual_trigger");
     const schema = manualNode?.config?.parameters;
     if (Array.isArray(schema) && schema.length > 0) {
-      return (schema as TriggerParameterDefinition[]).map((p) => ({
+      const declared = (schema as TriggerParameterDefinition[]).map((p) => ({
         name: p.name,
         type: p.type,
         description: p.description,
       }));
+      const declaredNames = new Set(declared.map((f) => f.name));
+      const orphanMasked = maskedKeys
+        .filter((name) => !declaredNames.has(name))
+        .map((name) => ({ name, type: inferTypeFromValue(originalParameters[name]) }));
+      return [...declared, ...orphanMasked];
     }
     return Object.keys(originalParameters).map((name) => ({
       name,
       type: "string" as const,
     }));
-  }, [workflowNodes, originalParameters]);
+  }, [workflowNodes, originalParameters, maskedKeys]);
 
   const setParam = (key: string, value: unknown) => {
     setParamValues((prev) => ({ ...prev, [key]: value }));
+    setTouchedKeys((prev) =>
+      prev.has(key) ? prev : new Set(prev).add(key),
+    );
   };
 
   // 스키마가 비동기 로드되면 fields 가 fallback(all-string)에서 스키마 기반(typed)으로
@@ -275,6 +380,50 @@ export function ReRunModal({
       return changed ? next : prev;
     });
   }, [fields]);
+
+  /** 선언된 타입이 구조인가 — 스키마 로드 전에는 false(그땐 string 필드다). */
+  const isStructuredField = (name: string) => {
+    const t = fields.find((f) => f.name === name)?.type;
+    return t !== undefined && isStructuredType(t);
+  };
+
+  /**
+   * 마스킹된 키가 아직 안전하지 않은가 — 그 동안 제출을 막는다.
+   *
+   * ## 판정이 세 조건의 **합**인 이유 — 하나라도 빠지면 뚫린다
+   *
+   * 리뷰 3라운드에 걸쳐 하나씩 늘었다. 각 행의 오른쪽이 **그 조건이 없던 시절 실제로
+   * 뚫린 경로**다 — 조건을 넷째로 늘릴 때는 이 표와 아래 술어를 같은 편집에서 고친다.
+   *
+   * | 조건 | 이것이 빠지면 뚫리는 경로 |
+   * |---|---|
+   * | 사용자가 그 키를 건드렸는가 | 스키마 지연 도착 시 재조정이 `coerceInput("boolean","")` → `false` 를 만들어, 비워 둔 값이 "채워진 것" 이 되며 조용히 풀린다 (`14_08_45` W2) |
+   * | 현재 값에 마커가 없는가 | 건드린 **뒤** 값을 다시 마커로 되돌려도 영구 해제된다 (`14_44_08` W2). `hasMaskedMarkerLeaf` 라 스칼라·중첩을 함께 본다 |
+   * | 구조 필드면 JSON 파싱에 성공했는가 | 마커를 남긴 채 JSON 을 깨뜨리면 `coerceInput` 이 **raw 문자열로 폴백**하고, 그 문자열은 정확 일치에 안 걸려 풀린다 (`15_32_34` W1, 리뷰어가 재현) |
+   *
+   * 셋째 경로는 backend `resolveTriggerParameters` 의 `isCoerceFailure` 가 `coerce_failed`
+   * 로 거부해 실제 오염까지 가지는 않지만, 사용자는 *"마커를 채우라"* 대신 일반 오류
+   * 토스트를 본다. **선언된 필드 타입**이 object/array 인데 현재 값이 문자열이면 파싱에
+   * 실패한 상태다(성공하면 객체·배열이 나온다). 원본 값의 모양이 아니라 *타입*으로
+   * 판정하는 이유: 스키마가 없으면 같은 필드가 string 으로 렌더되고 정상 편집도 문자열이라,
+   * 값 모양으로 보면 정상 입력까지 영구 차단된다.
+   *
+   * **토글 ON 이면 막지 않는다**: `useOriginalInput` 은 서버가 원본 엔티티를 직접 읽으므로
+   * 마스킹과 무관하게 원문으로 재실행된다 — 오히려 이 경로가 정답이라 차단하면 안 된다.
+   *
+   * > **spec 과 방향이 반대다(동치)** — `13-replay-rerun.md` §10.2 는 *해제* 조건을
+   * > **AND** 로 서술하고, 여기 구현은 *차단* 조건을 **OR** 로 짠다. 드모르간 쌍대라
+   * > 논리적으로 같지만, 대조할 때마다 뒤집어 읽어야 하므로 적어 둔다
+   * > (`18_03_01` requirement INFO-5).
+   */
+  const blockedByMaskedInput =
+    !useOriginalInput &&
+    maskedKeys.some(
+      (k) =>
+        !touchedKeys.has(k) ||
+        hasMaskedMarkerLeaf(paramValues[k]) ||
+        (isStructuredField(k) && typeof paramValues[k] === "string"),
+    );
 
   const handleSubmit = async () => {
     setSubmitting(true);
@@ -432,11 +581,23 @@ export function ReRunModal({
           </TooltipProvider>
         </div>
 
+        {blockedByMaskedInput && (
+          <p
+            role="alert"
+            className="text-xs text-[hsl(var(--destructive))]"
+          >
+            {t("history.rerun.maskedInputBlocked")}
+          </p>
+        )}
+
         <DialogFooter>
           <Button variant="outline" onClick={onClose} disabled={submitting}>
             {t("history.rerun.cancelButton")}
           </Button>
-          <Button onClick={handleSubmit} disabled={submitting}>
+          <Button
+            onClick={handleSubmit}
+            disabled={submitting || blockedByMaskedInput}
+          >
             {t("history.rerun.confirmButton")}
           </Button>
         </DialogFooter>
