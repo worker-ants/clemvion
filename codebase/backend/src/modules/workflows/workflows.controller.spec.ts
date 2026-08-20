@@ -176,6 +176,35 @@ describe('WorkflowsController (execute endpoint)', () => {
     expect(engine.execute).not.toHaveBeenCalled();
   });
 
+  /**
+   * **legacy 진입 경로도 같은 거부를 받는다** (`02_29_01` testing INFO-6).
+   *
+   * 컨트롤러는 `parameterValues`(선호)와 `input.parameters`(back-compat) 둘을 같은
+   * `rawValues` 로 접어 거부 함수에 넘긴다. 신규 캐너리 셋이 전부 `parameterValues` 만
+   * 써서, 그 접기가 깨져도 GREEN 이었다 — 코드 구조로만 보장되던 것을 테스트로 고정한다.
+   */
+  it('[캐너리] legacy input.parameters 경로의 마커도 거부한다', async () => {
+    nodeRepo.findOne.mockResolvedValue({
+      id: 'n',
+      workflowId: 'wf1',
+      category: NodeCategory.TRIGGER,
+      config: { parameters: [{ name: 'apiKey', type: 'string' }] },
+    } as unknown as Node);
+
+    const err = await controller
+      .execute('wf1', 'ws', user, mockResponse(), {
+        input: { parameters: { apiKey: '***' } },
+      })
+      .catch((err_: unknown) => err_ as BadRequestException);
+
+    expect(err).toBeInstanceOf(BadRequestException);
+    expect(engine.execute).not.toHaveBeenCalled();
+    const response = (err as BadRequestException).getResponse() as {
+      details: Array<{ field: string; code: string }>;
+    };
+    expect(response.details[0].code).toBe('MASKED_VALUE_RESUBMITTED');
+  });
+
   /** 과잉 차단 아님 — 정확 일치만 본다. */
   it('[캐너리] 마커를 포함만 하는 값은 실행된다', async () => {
     nodeRepo.findOne.mockResolvedValue({
