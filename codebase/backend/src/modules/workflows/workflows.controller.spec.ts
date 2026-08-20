@@ -119,6 +119,79 @@ describe('WorkflowsController (execute endpoint)', () => {
     );
   });
 
+  /**
+   * **마스킹 값 재제출을 서버가 거부한다** (EIA §R17 서버측 2층).
+   *
+   * 이 엔드포인트는 재제출 전용이 아니라 Manual 실행 전체의 진입점이고, 값이 히스토리에서
+   * 왔는지 방금 타이핑됐는지 구분할 플래그가 없다 — 마커 세 문자열은 Manual 파라미터의
+   * **예약어**다. 프런트(`editor-toolbar.tsx`)가 이미 같은 규칙으로 막고, 서버가 그 규칙을
+   * API 레벨로 옮긴다(두 층이 갈리면 한쪽만 통과하는 값이 생긴다).
+   */
+  it('[캐너리] parameterValues 에 마스킹 마커가 실리면 400 + details[] 로 거부', async () => {
+    nodeRepo.findOne.mockResolvedValue({
+      id: 'n',
+      workflowId: 'wf1',
+      category: NodeCategory.TRIGGER,
+      config: { parameters: [{ name: 'apiKey', type: 'string' }] },
+    } as unknown as Node);
+
+    const err = await controller
+      .execute('wf1', 'ws', user, mockResponse(), {
+        parameterValues: { apiKey: '***' },
+      })
+      .catch((err_: unknown) => err_ as BadRequestException);
+
+    expect(err).toBeInstanceOf(BadRequestException);
+    expect(engine.execute).not.toHaveBeenCalled();
+    const response = (err as BadRequestException).getResponse() as {
+      code: string;
+      details: Array<{ field: string; code: string; message: string }>;
+    };
+    expect(response.code).toBe('INVALID_TRIGGER_PARAMETERS');
+    expect(response.details).toEqual([
+      {
+        field: 'apiKey',
+        code: 'MASKED_VALUE_RESUBMITTED',
+        message: expect.any(String) as unknown as string,
+      },
+    ]);
+  });
+
+  /** 중첩 마커도 잡는다 — 스칼라만 보면 #1188 의 CRITICAL 이 서버에 남는다. */
+  it('[캐너리] 중첩 object 안의 마커도 거부한다', async () => {
+    nodeRepo.findOne.mockResolvedValue({
+      id: 'n',
+      workflowId: 'wf1',
+      category: NodeCategory.TRIGGER,
+      config: { parameters: [{ name: 'headers', type: 'object' }] },
+    } as unknown as Node);
+
+    const err = await controller
+      .execute('wf1', 'ws', user, mockResponse(), {
+        parameterValues: { headers: { apiKey: '***' } },
+      })
+      .catch((err_: unknown) => err_ as BadRequestException);
+
+    expect(err).toBeInstanceOf(BadRequestException);
+    expect(engine.execute).not.toHaveBeenCalled();
+  });
+
+  /** 과잉 차단 아님 — 정확 일치만 본다. */
+  it('[캐너리] 마커를 포함만 하는 값은 실행된다', async () => {
+    nodeRepo.findOne.mockResolvedValue({
+      id: 'n',
+      workflowId: 'wf1',
+      category: NodeCategory.TRIGGER,
+      config: { parameters: [{ name: 'note', type: 'string' }] },
+    } as unknown as Node);
+
+    const res = await controller.execute('wf1', 'ws', user, mockResponse(), {
+      parameterValues: { note: 'a***b' },
+    });
+    expect(res).toEqual({ executionId: 'exec-1' });
+    expect(engine.execute).toHaveBeenCalled();
+  });
+
   it('returns 400 when required parameter is missing', async () => {
     nodeRepo.findOne.mockResolvedValue({
       id: 'n',

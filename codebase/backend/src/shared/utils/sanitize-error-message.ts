@@ -147,13 +147,21 @@ export const DEPTH_MASK_MARKER = '[REDACTED_DEPTH]';
  * >
  * > 2026-08-20 에 `dynamic-form-ui.tsx` 안에서 `lib/utils/` 로 승격됐다(소비처 셋).
  */
-const MASKED_MARKERS: ReadonlySet<string> = new Set([
+export const MASKED_MARKERS: ReadonlySet<string> = new Set([
   VALUE_MASK_MARKER,
   KEY_MASK_MARKER,
   DEPTH_MASK_MARKER,
 ]);
 
-function isMaskedMarker(v: unknown): boolean {
+/**
+ * 값 전체가 마스킹 마커와 **정확히 일치**하는가.
+ *
+ * > **2026-08-20 에 export 로 승격했다** — 재제출 거부 가드(EIA §R17, Manual 실행 경로)가
+ * > 같은 판정을 서버에서 쓴다. 복제하지 않은 이유는 이 시리즈가 미러 발산으로 반복해
+ * > 뚫렸기 때문이다: 한쪽만 마커를 늘리면 다른 쪽이 그 마커에 대해 조용히 fail-open 한다.
+ * > 같은 프로세스 안이라 공유하지 못할 이유가 없다.
+ */
+export function isMaskedMarker(v: unknown): boolean {
   return typeof v === 'string' && MASKED_MARKERS.has(v);
 }
 

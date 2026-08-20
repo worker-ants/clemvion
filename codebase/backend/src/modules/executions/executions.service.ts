@@ -26,7 +26,11 @@ import { AUDIT_ACTIONS } from '../audit-logs/audit-action.const';
 import { WorkspacesService } from '../workspaces/workspaces.service';
 import { loadTriggerParameterSchema } from '../execution-engine/utils/load-trigger-parameter-schema';
 import { resolveTriggerParameters } from '../execution-engine/utils/resolve-trigger-parameters';
-import { TriggerParameterValidationException } from '../execution-engine/types/trigger-parameter.types';
+import { findMaskedResubmissions } from '../execution-engine/utils/reject-masked-resubmission';
+import {
+  TriggerParameterValidationException,
+  toTriggerParameterErrorDetails,
+} from '../execution-engine/types/trigger-parameter.types';
 import type { JwtPayload } from '../../common/decorators/current-user.decorator';
 import { ReRunRequestDto } from './dto/re-run.dto';
 import { QueryExecutionDto } from './dto/query-execution.dto';
@@ -491,12 +495,22 @@ export class ExecutionsService {
       let parameters: Record<string, unknown>;
       try {
         parameters = resolveTriggerParameters(schema, dto.inputOverride ?? {});
+        // 마스킹된 값이 그대로 되돌아왔는가 — 프런트 가드(EIA §R17)의 서버측 2층.
+        // UI 를 거치지 않는 클라이언트(curl 등)는 프런트 차단을 우회하므로 여기서 막는다.
+        const masked = findMaskedResubmissions(parameters);
+        if (masked.length > 0) {
+          throw new TriggerParameterValidationException(masked);
+        }
       } catch (err) {
         if (err instanceof TriggerParameterValidationException) {
           throw new BadRequestException({
             code: 'INVALID_INPUT',
             message: 'Invalid input override',
-            errors: err.errors,
+            // **`errors` 가 아니라 `details` 다** — `GlobalExceptionFilter` 는 `details`
+            // 만 읽으므로 종전 `errors: err.errors` 는 필드별 내역이 봉투에 실리지 않고
+            // 조용히 버려졌다(선존 버그). 자매 호출부(`workflows.controller.ts`)는 처음부터
+            // 이 형태였다 — 이제 둘이 같아진다. spec: manual-trigger §6 "응답 봉투".
+            details: toTriggerParameterErrorDetails(err.errors),
           });
         }
         throw err;
