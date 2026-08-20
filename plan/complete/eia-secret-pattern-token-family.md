@@ -3,7 +3,7 @@ title: "`token` 계열 값·키 패턴 마스킹 + EIA 저비용 문서 정정 3
 worktree: eia-secret-pattern-token
 started: 2026-08-17
 owner: developer
-status: in-progress
+status: complete
 priority: P2
 spec_impact:
   - spec/5-system/14-external-interaction-api.md
@@ -156,4 +156,12 @@ egress 전용(DB 는 원문)이라 다운스트림 실행에는 영향이 없고
 - [x] `--impl-done` (`11_02_33`) — **BLOCK: NO**, CRITICAL 0. WARNING 1(직전 PR plan 이 머지 후
       `in-progress` 잔존)은 **소유 worktree 가 reaped 되어 아무도 못 고치는 상태**라 이 세션이
       종결하고 `plan/complete/` 로 이동
-- [ ] push → PR
+- [x] push → PR — **#1186 머지 완료** (`89a816ab9`, 2026-08-20)
+
+---
+
+> **종결 (2026-08-20)**. 직전 PR(#1181)의 plan 이 머지 후 `in-progress` 에 남아 consistency
+> WARNING 을 낸 것을 이 작업이 대신 닫았는데, **이 plan 자신이 같은 상태가 됐다** — 그래서
+> 머지 직후 같은 절차로 닫는다(편집 → `git add` → `git mv`, 인입 참조 선형 스캔).
+>
+> **인입 참조**: `review/**` 불변 기록 47건뿐, `spec/`·`plan/`·docs 에는 **0건**.
