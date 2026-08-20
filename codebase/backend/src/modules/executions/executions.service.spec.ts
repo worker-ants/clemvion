@@ -1259,11 +1259,19 @@ describe('ExecutionsService', () => {
      * 연쇄 작업으로 없애 온 바로 그 병이라, 여기가 RED 면 계약이 깨졌다는 뜻이다.
      */
     it('⑥ ingestion 의 `[REDACTED]` 헤더 마커를 덮지 않는다 (12-webhook §5.3 계약)', async () => {
-      // **`outputData` 로 겨눈다** — `inputData` 는 마스커를 아예 안 지나므로 거기서
-      // 단언하면 "마커 보존" 이 아니라 "아무것도 안 함" 을 검증하는 vacuous 테스트가 된다.
-      // 트리거 노드의 `output.request.headers` 가 ingestion 마커를 그대로 싣는 실제 형태다.
+      // **두 표면을 함께 겨눈다.** 종전엔 `outputData` 만 봤고 그 이유가 *"`inputData` 는
+      // 마스커를 아예 안 지나므로 vacuous"* 였는데, 2026-08-20 카브아웃 폐지로 **그 전제가
+      // 깨졌다**(`15_59_17` W6). 이제 `inputData` 도 관문을 지나므로 여기가 마커 보존의
+      // 진짜 미보호 지점이었다 — webhook ingestion 이 `Execution.inputData.headers` 에
+      // 남긴 `[REDACTED]` 가 egress 값-마스커에 덮이면 안 된다.
       const row = baseFake({
         id: 'eD6',
+        inputData: {
+          headers: {
+            authorization: '[REDACTED]',
+            'content-type': 'application/json',
+          },
+        },
         outputData: {
           request: {
             headers: {
@@ -1285,6 +1293,13 @@ describe('ExecutionsService', () => {
       ).request.headers;
       expect(headers.authorization).toBe('[REDACTED]');
       expect(headers['content-type']).toBe('application/json');
+
+      // `inputData` 표면 — 카브아웃 폐지로 이제 이쪽도 관문을 지난다.
+      const inHeaders = (
+        result.data[0].inputData as { headers: Record<string, string> }
+      ).headers;
+      expect(inHeaders.authorization).toBe('[REDACTED]');
+      expect(inHeaders['content-type']).toBe('application/json');
     });
 
     /**

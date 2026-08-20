@@ -157,9 +157,17 @@ interface RerunField {
 }
 
 /** 타입별 input 표시 문자열. object/array 는 JSON 문자열로 표기. */
+/**
+ * JSON 으로 편집되는 타입인가 — `displayValue` · `coerceInput` · 차단 판정 셋이 공유한다.
+ * 같은 술어가 흩어지면 한 곳만 넓혀도 나머지가 조용히 갈린다(`15_59_17` W5).
+ */
+function isStructuredType(type: TriggerParameterType): boolean {
+  return type === "object" || type === "array";
+}
+
 function displayValue(type: TriggerParameterType, value: unknown): string {
   if (value == null) return "";
-  if (type === "object" || type === "array") {
+  if (isStructuredType(type)) {
     return typeof value === "string" ? value : JSON.stringify(value);
   }
   return String(value);
@@ -176,7 +184,7 @@ function displayValue(type: TriggerParameterType, value: unknown): string {
 function coerceInput(type: TriggerParameterType, raw: string): unknown {
   if (type === "boolean") return raw === "true";
   if (type === "number") return raw === "" ? "" : Number(raw);
-  if (type === "object" || type === "array") {
+  if (isStructuredType(type)) {
     try {
       return JSON.parse(raw);
     } catch {
@@ -326,6 +334,12 @@ export function ReRunModal({
     });
   }, [fields]);
 
+  /** 선언된 타입이 구조인가 — 스키마 로드 전에는 false(그땐 string 필드다). */
+  const isStructuredField = (name: string) => {
+    const t = fields.find((f) => f.name === name)?.type;
+    return t !== undefined && isStructuredType(t);
+  };
+
   /**
    * 마스킹된 키가 아직 안전하지 않은가 — 그 동안 제출을 막는다.
    *
@@ -355,12 +369,6 @@ export function ReRunModal({
    * **토글 ON 이면 막지 않는다**: `useOriginalInput` 은 서버가 원본 엔티티를 직접 읽으므로
    * 마스킹과 무관하게 원문으로 재실행된다 — 오히려 이 경로가 정답이라 차단하면 안 된다.
    */
-  /** 선언된 타입이 object/array 인가 — 스키마 로드 전에는 false(그땐 string 필드다). */
-  const isStructuredField = (name: string) => {
-    const t = fields.find((f) => f.name === name)?.type;
-    return t === "object" || t === "array";
-  };
-
   const blockedByMaskedInput =
     !useOriginalInput &&
     maskedKeys.some(

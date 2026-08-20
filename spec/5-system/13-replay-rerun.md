@@ -358,8 +358,10 @@ dry-run 모드로 실행된 **NodeExecution** 은 `outputData._dryRun === true` 
 > 데이터 오염).
 >
 > **전환 (2026-08-20)**: 프리필 값이 마스킹 마커면 **프리필하지 않고** 해당 필드를 비운 채
-> 재입력을 안내하며, **사용자가 그 필드를 채우고 그 값에 마커가 남아 있지 않을 때까지**
-> Re-run 제출을 막는다. 안내만 하고 빈
+> 재입력을 안내하며, **사용자가 그 필드를 채우고 · 값에 마커가 남아 있지 않고 ·
+> 구조(object/array) 필드라면 JSON 파싱에 성공할 때까지** Re-run 제출을 막는다
+> (무효 JSON 으로 두면 파싱이 raw 문자열로 폴백해 마커 감지를 우회하므로 그 상태도
+> 차단 대상이다). 안내만 하고 빈
 > 문자열을 통과시키면 오염의 값만 `'***'` → `''` 로 바뀔 뿐이라, §R17 이 닫는 조건에 쓴
 > **"재입력을 강제"** 를 문구대로 구현한다.
 >
@@ -402,7 +404,7 @@ dry-run 모드로 실행된 **NodeExecution** 은 `outputData._dryRun === true` 
 | `history.rerun.modal.originalLabel` | 원본 실행 | Original Execution |
 | `history.rerun.modal.sideEffectWarning` | 이 워크플로는 외부 호출 노드 {{count}}개를 포함합니다 | This workflow includes {{count}} external-call node(s) |
 | `history.rerun.useOriginalInput` | 원본 입력 그대로 사용 | Use original input |
-| `history.rerun.maskedInputBlocked` | 자격증명으로 판별돼 가려진 입력이 있어요… (§10.2 마커 가드) | Some inputs were masked as credentials… |
+| `history.rerun.maskedInputBlocked` | 자격증명으로 판별돼 가려진 입력이 있어요. 해당 항목을 직접 입력하거나 '원본 입력 그대로 사용'을 켜 주세요. | Some inputs were masked as credentials. Enter them directly, or turn on "Use original input". |
 | `history.rerun.dryRunToggle` | dry-run 모드 (외부 호출 skip) | Dry-run mode (skip external calls) |
 | `history.rerun.dryRunDisabledTooltip` | 이 워크플로는 dry-run 미지원 노드를 포함합니다 | This workflow contains nodes that don't support dry-run |
 | `history.rerun.confirmButton` | 재실행 | Re-run |
