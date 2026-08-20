@@ -23,6 +23,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { useT } from "@/lib/i18n";
+import { isMaskedMarker } from "@/lib/utils/masked-markers";
 import { useWorkspaceSlug } from "@/lib/workspace/use-workspace-slug";
 import { buildExecutionHref } from "@/lib/workspace/href";
 import { formatDate } from "@/lib/utils/date";
@@ -96,6 +97,35 @@ const ERROR_CODE_TO_KEY: Record<
   RERUN_WORKFLOW_DELETED: "history.rerun.workflowDeleted",
   RERUN_DRY_RUN_NOT_APPLICABLE: "history.rerun.dryRunNotApplicable",
 };
+
+/**
+ * 마스킹 마커가 실린 파라미터를 프리필에서 걷어낸다.
+ *
+ * `Execution.inputData` 는 egress 마스킹된다([EIA §R17](../../../../../spec/5-system/14-external-interaction-api.md)).
+ * 이 모달은 그 값을 **프리필해 `inputOverride` 로 되보내고**, "원본 입력 그대로 사용" 토글의
+ * 기본값이 OFF 라 사용자가 손대지 않아도 제출된다 — 그대로 두면 리터럴 `'***'` 가 새 실행의
+ * 실제 입력이 된다.
+ *
+ * **비우기만 하면 부족하다**: 빈 문자열이 제출되면 오염의 값만 `'***'` → `''` 로 바뀐다.
+ * 그래서 비운 키를 함께 돌려주고, 호출부가 **그 키가 비어 있는 동안 제출을 막는다**
+ * (§R17 "닫는 조건" 이 쓴 단어가 "안내" 가 아니라 **"강제"** 다).
+ */
+function splitMaskedParameters(params: Record<string, unknown>): {
+  prefill: Record<string, unknown>;
+  maskedKeys: string[];
+} {
+  const prefill: Record<string, unknown> = {};
+  const maskedKeys: string[] = [];
+  for (const [k, v] of Object.entries(params)) {
+    if (isMaskedMarker(v)) {
+      maskedKeys.push(k);
+      prefill[k] = "";
+    } else {
+      prefill[k] = v;
+    }
+  }
+  return { prefill, maskedKeys };
+}
 
 /** 원본 실행 입력에서 Manual Trigger parameters 객체를 안전 추출. */
 function extractParameters(
@@ -173,9 +203,11 @@ export function ReRunModal({
     enabled: open,
   });
 
-  // 입력 폼 상태 — default = 원본 inputData.parameters.
-  const originalParameters = useMemo(
-    () => extractParameters(original.inputData),
+  // 입력 폼 상태 — default = 원본 inputData.parameters (마스킹 마커는 걷어낸다).
+  // **프리필 소스가 여기 한 곳**이라 `useState` 초기값과 열릴 때 리셋이 함께 덮인다 —
+  // 두 자리를 각각 고치면 한쪽이 조용히 남는다.
+  const { prefill: originalParameters, maskedKeys } = useMemo(
+    () => splitMaskedParameters(extractParameters(original.inputData)),
     [original.inputData],
   );
   const [useOriginalInput, setUseOriginalInput] = useState(false);
@@ -275,6 +307,19 @@ export function ReRunModal({
       return changed ? next : prev;
     });
   }, [fields]);
+
+  /**
+   * 마스킹 때문에 비워진 필드가 아직 비어 있는가 — 그 동안 제출을 막는다.
+   *
+   * **토글 ON 이면 막지 않는다**: `useOriginalInput` 은 서버가 원본 엔티티를 직접 읽으므로
+   * 마스킹과 무관하게 원문으로 재실행된다 — 오히려 이 경로가 정답이라 차단하면 안 된다.
+   */
+  const blockedByMaskedInput =
+    !useOriginalInput &&
+    maskedKeys.some((k) => {
+      const v = paramValues[k];
+      return v === "" || v === undefined || v === null;
+    });
 
   const handleSubmit = async () => {
     setSubmitting(true);
@@ -432,11 +477,23 @@ export function ReRunModal({
           </TooltipProvider>
         </div>
 
+        {blockedByMaskedInput && (
+          <p
+            role="alert"
+            className="text-xs text-[hsl(var(--destructive))]"
+          >
+            {t("history.rerun.maskedInputBlocked")}
+          </p>
+        )}
+
         <DialogFooter>
           <Button variant="outline" onClick={onClose} disabled={submitting}>
             {t("history.rerun.cancelButton")}
           </Button>
-          <Button onClick={handleSubmit} disabled={submitting}>
+          <Button
+            onClick={handleSubmit}
+            disabled={submitting || blockedByMaskedInput}
+          >
             {t("history.rerun.confirmButton")}
           </Button>
         </DialogFooter>

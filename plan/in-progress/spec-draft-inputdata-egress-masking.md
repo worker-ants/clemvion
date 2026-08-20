@@ -104,11 +104,11 @@ SoT 로 미러돼 있어, §R17 하나만 뒤집으면 나머지가 그 자리�
 > 엔티티를 직접 읽으므로 마스킹과 무관하게 원문으로 재실행된다(토글 ON 이면 차단도 풀린다).
 > 안내 문구가 이 사실을 알린다.
 >
-> 에디터의 "히스토리에서 불러오기"([실행 §2.2](../3-workflow-editor/3-execution.md))는 같은
+> 에디터의 "히스토리에서 불러오기"(`실행 §2.2` (`spec/3-workflow-editor/3-execution.md`))는 같은
 > 컬럼을 **JSON 텍스트 전체**로 적재하므로 필드 단위로 비울 수 없다 — 그쪽은 마커를 그대로
 > 보여 주고 **남아 있는 동안 실행을 막는다**.
 >
-> 근거·카탈로그의 SoT 는 [EIA §R17](./14-external-interaction-api.md).
+> 근거·카탈로그의 SoT 는 `EIA §R17` (`spec/5-system/14-external-interaction-api.md`).
 
 > **`MASKED_INPUT_DATA_REASON` 인용을 지운다** — 카브아웃이 없어지면 그 앵커 상수도 코드에서
 > 사라진다(developer 턴이 6개 참조처를 전수 삭제한다). 죽은 식별자를 spec 이 "구현 정본" 이라
@@ -157,7 +157,7 @@ SoT 로 미러돼 있어, §R17 하나만 뒤집으면 나머지가 그 자리�
 의 유일한 방어**다."*
 
 **변경**
-> **그리고 2026-08-20 부터 후속 층이 생겼다** — `inputData` 도 [EIA §R17](./14-external-interaction-api.md)
+> **그리고 2026-08-20 부터 후속 층이 생겼다** — `inputData` 도 `EIA §R17` (`spec/5-system/14-external-interaction-api.md`)
 > 의 egress 값-마스킹 대상이다(종전엔 Re-run 재제출 때문에 제외했고, 프런트 마커 가드가
 > 서면서 해소됐다). 즉 **ingestion 키-blacklist + egress 값-패턴의 이중 방어**이며, 이 층은
 > `$trigger.headers` 처럼 **egress 를 타지 않는 표면**까지 덮는다는 점에서 여전히 고유하다.
@@ -172,7 +172,7 @@ SoT 로 미러돼 있어, §R17 하나만 뒤집으면 나머지가 그 자리�
 > **`Execution.inputData` 도 마스킹한다 (2026-08-20)** — 종전에는 Re-run 프리필 재제출 때문에
 > Execution 레벨만 카브아웃했고 *"가르는 축은 레벨"* 이라 적었다. 프런트 마커 가드가 서면서
 > **그 축은 폐기됐다** — 두 레벨이 REST·WS 전부에서 같은 규칙을 따른다
-> ([§R17](./14-external-interaction-api.md)).
+> (`§R17` — `spec/5-system/14-external-interaction-api.md`).
 
 ### ⑦ `spec/4-nodes/1-logic/12-background.md` §8.2 — 시제
 

@@ -34,6 +34,7 @@ import {
 import { toast } from "sonner";
 import Link from "next/link";
 import { useT, useLocale } from "@/lib/i18n";
+import { hasMaskedMarkerLeaf } from "@/lib/utils/masked-markers";
 import { translateGraphWarning } from "@/lib/i18n/backend-labels";
 import { useHasRole } from "@/components/auth/role-gate";
 import { executionsApi } from "@/lib/api/executions";
@@ -102,12 +103,20 @@ export function EditorToolbar() {
   const jsonError = useMemo<string | null>(() => {
     const trimmed = jsonInput.trim();
     if (trimmed === "") return t("editor.runWithInputEmpty");
+    let parsed: unknown;
     try {
-      JSON.parse(trimmed);
-      return null;
+      parsed = JSON.parse(trimmed);
     } catch (e) {
+      // 파싱 실패면 여기서 끝낸다 — 아래 마커 검사는 수행하지 않는다. 파싱 불가 상태에
+      // 보수적 차단을 덧붙이면 같은 사유를 두 번 말하게 된다.
       return e instanceof Error ? e.message : t("editor.invalidJsonInput");
     }
+    // 히스토리 로드가 적재한 `Execution.inputData` 에는 egress 마스킹 마커가 실려 올 수
+    // 있다(EIA §R17). 그대로 실행하면 마커가 새 실행의 **실제 입력**이 되므로, 남아 있는
+    // 동안 Run 을 막는다 — 이 표면은 JSON 텍스트 전체라 필드 단위로 비울 수 없어서,
+    // 값을 지우는 대신 보여 주고 막는다(어느 필드였는지가 지워지지 않는다).
+    if (hasMaskedMarkerLeaf(parsed)) return t("editor.runWithInputMasked");
+    return null;
   }, [jsonInput, t]);
 
   // §2.2 히스토리 로드 — 다이얼로그에서 "히스토리에서 불러오기" 를 펼쳤을 때만

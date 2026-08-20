@@ -116,15 +116,33 @@ JSON 안에 마커가 남아 있는 동안 실행 버튼을 막는다 — 트래
       > **가드 사양이 강해졌다**: 체커가 *"안내만 하면 빈 문자열이 실제 입력이 되어 오염의
       > 값만 바뀐다"* 를 짚어, Re-run 모달은 **비어 있는 동안 제출을 차단**한다(토글 ON 이면
       > 해제). §R17 "닫는 조건" 의 **"강제"** 문언에 동작을 맞춘 것이다.
-- [ ] `--impl-prep` 재실행 → BLOCK: NO 확인 후에야 구현 착수
-- [ ] Re-run 모달 마커 가드 (프리필 스킵 + 안내, `useOriginalInput` 경로 보존)
-- [ ] 에디터 히스토리 로드 마커 가드 (마커 잔존 시 실행 차단 + 사유)
-- [ ] backend — `Execution.inputData` egress 마스킹으로 전환 + **`MASKED_INPUT_DATA_REASON`
-      전수 삭제(위 표 6곳)**. `background-runs.service.ts:304` 의 "Execution 레벨만 예외"
-      대비 문장은 "두 레벨 모두 마스킹" 으로 재작성
-- [ ] **캐너리 4건 방향 반전** — `①`(findById)·`②`(findByWorkflow)·`⑧`(getChain)·`⑧-b`(stop).
-      현재 *"원문으로 통과"* 를 고정하고 있어 그대로 두면 RED
-- [ ] 회귀 테스트 + **뮤테이션 검증** (가드 제거 시 RED). 뮤턴트는 **`git show <SHA>:<path>`
-      출력을 그대로** 넣는다 — 직전 PR 에서 손 재구성으로 수치를 세 번 틀렸다
-- [ ] 트래커 항목 종결
-- [ ] TEST WORKFLOW 4단계 → 코드 동결 → `/ai-review` → `--impl-done` → push
+- [x] `--impl-prep` 재실행 (`12_58_14`) — **BLOCK: YES**, 다만 사유가 *"spec 이 코드보다
+      앞섰다"* 였다. 체커가 해소 경로를 **developer 쪽**으로 지목했고(`plan_coherence` 는
+      독립적으로 NONE), 이 BLOCK 은 구현으로만 풀린다 — 여기서 멈추면 순환이다
+- [x] 마커 유틸을 `lib/utils/masked-markers.ts` 로 승격 + `hasMaskedMarkerLeaf` 신설
+- [x] Re-run 모달 마커 가드 — **프리필 소스 한 곳**(`originalParameters`)에서 걷어내
+      `useState` 초기값과 열릴 때 리셋이 함께 덮인다. 비어 있는 동안 제출 차단,
+      `useOriginalInput` 경로는 보존
+- [x] 에디터 히스토리 로드 — 기존 `jsonError` 채널에 얹어 alert·`aria-invalid`·Run 차단을
+      한 번에 붙였다. 파싱 실패 시엔 마커 검사를 **하지 않는다**(같은 사유 중복 방지)
+- [x] backend — `toResponseExecution`·`toExecutionDto` 두 관문에 마스킹 적용.
+      `MASKED_INPUT_DATA_REASON` **코드에서 0건**(표 6곳 전수 삭제)
+      > **함정**: `toExecutionDto` 는 주석만 바꾸면 `inputData: execution.inputData ?? null`
+      > 이 남아 **주석과 코드가 어긋난다**. 잡아서 실제 마스킹으로 고쳤다.
+      > **build 가 jest 가 못 잡은 것을 잡았다** — `ResponseExecution` 이 `inputData` 를
+      > 안 넓혀 둬 마스커의 `| null` 반환이 대입 불가였다(`ResponseNodeExecution` 은 이미
+      > 넓혀져 있었다 — 자매 비대칭)
+- [x] **캐너리 4건 반전** — 반전 전 실행에서 **정확히 그 4건만 RED**(131 passed)로 예측이
+      맞았음을 확인한 뒤 뒤집었다. 노드 레벨 캐너리(`⑤`·`⑥-b`)는 **그대로 둔다** — 그쪽이
+      고정하는 회귀(WS↔REST flip-flop)는 여전히 유효하다
+- [x] 회귀 **8건**(모달 5 · 툴바 3) + **뮤테이션 3종**:
+      | 뮤턴트 | 결과 |
+      |---|---|
+      | 모달 가드 제거 | **3 RED** |
+      | 툴바 마커 검사 제거 | **2 RED** |
+      | 툴바를 raw substring 으로 교체 | **2 RED** — 오탐 캐너리(`***bold***`)가 잡는다 |
+      세 번째가 핵심이다 — 경계를 **양방향**으로 관측한다
+- [x] 트래커 항목 종결
+- [x] TEST WORKFLOW 4단계 PASS — lint / unit(백엔드 **427 suites · 8,832** · 프런트 **6,044**)
+      / build / e2e **276** + playwright **51**
+- [ ] 코드 동결 → `/ai-review` → `--impl-done` → push

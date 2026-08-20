@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
-import { DynamicFormUI, MASKED_MARKERS } from "../dynamic-form-ui";
+import { DynamicFormUI } from "../dynamic-form-ui";
+import { MASKED_MARKERS } from "@/lib/utils/masked-markers";
 import { useLocaleStore } from "@/lib/stores/locale-store";
 
 // file 검증 에러 등 user-facing 문자열을 한국어로 단언하므로 locale 을 ko 로 고정한다

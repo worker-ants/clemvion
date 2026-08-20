@@ -278,7 +278,7 @@ checker 가 독립적으로** "인용이 가리키는 절이 오히려 반대를
       > 범위도 좁혔다: node 이벤트는 **SSE 에만** 도달하고 notification webhook 은
       > `FANOUT_EVENTS` 화이트리스트 밖이다(`node.completed` 만 Chat Channel 추가 구독).
 
-- [ ] **`inputData` egress 마스킹 — 프런트 마커 가드가 선행돼야 한다** (2026-08-17 등재).
+- [x] **`inputData` egress 마스킹 — 프런트 마커 가드가 선행돼야 한다** (2026-08-17 등재).
       아래 항목에서 `outputData` 만 닫고 **`inputData` 는 되돌렸다.** 이 값은 표시 전용이
       아니라 **재제출**되기 때문이다 — Re-run 모달이 프리필해 `inputOverride` 로 되보내고
       (`useOriginalInput` **기본 `false`**), 에디터 "히스토리에서 불러오기" 도 같은 값을
@@ -302,6 +302,15 @@ checker 가 독립적으로** "인용이 가리키는 절이 오히려 반대를
       >
       > 남는 노출은 **Execution 레벨** 트리거 파라미터 자유 텍스트뿐 — webhook 민감 헤더는
       > ingestion 이 이미 `[REDACTED]` 로 가린다.
+      >
+      > **→ 해소 (2026-08-20).** 닫는 조건이던 마커 가드를 세 소비처가 전부 갖췄다 —
+      > 폼 프리필(#1181) · Re-run 모달(프리필 스킵 + **비어 있는 동안 제출 차단**) ·
+      > 에디터 히스토리 로드(JSON leaf 에 마커 잔존 시 Run 차단). `Execution.inputData` 가
+      > 마스킹 대상이 되면서 위 캐너리 표의 **왼쪽 열이 반전**됐다(`①②⑧⑧-b` → 마스킹 고정).
+      > 오른쪽 열(노드 레벨)은 그대로다.
+      >
+      > 예상 못 한 비용은 **spec 쪽**이었다 — 이 결론이 6개 문서에 SoT 로 미러돼 있어
+      > planner 턴이 선행돼야 했다(`12_08_46` BLOCK:YES → `12_41_29` BLOCK:NO).
 
 - [ ] **마커 미러 계약 테스트 — backend SoT ↔ frontend 미러를 기계가 대조하게 한다**
       (2026-08-17 등재, `12_33_36` security/side_effect INFO-1 — 이 시리즈에서 **반복** 지적).

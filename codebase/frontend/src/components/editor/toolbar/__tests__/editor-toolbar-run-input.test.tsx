@@ -443,4 +443,56 @@ describe("EditorToolbar — Run with Input (§2.2)", () => {
     // 패널(dialog)이 닫혀야 한다.
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
   });
+
+  /**
+   * `Execution.inputData` 는 egress 마스킹된다(EIA §R17). 히스토리 로드는 그 값을 **JSON
+   * 텍스트 전체**로 적재하므로 필드 단위로 비울 수 없다 — 마커를 그대로 보여 주고(어느
+   * 필드였는지가 지워지지 않는다) 남아 있는 동안 Run 을 막는다.
+   */
+  it("마스킹 마커가 남아 있으면 Run 을 막는다 — 실제 값으로 바꾸면 풀린다", async () => {
+    renderToolbar();
+    await openRunWithInput();
+
+    const textarea = screen.getByPlaceholderText('{"key": "value"}');
+    const submit = screen.getByTestId("run-with-input-submit");
+
+    fireEvent.change(textarea, {
+      target: { value: '{"apiKey":"***","name":"Alice"}' },
+    });
+    expect(await screen.findByRole("alert")).toBeInTheDocument();
+    expect(submit).toBeDisabled();
+
+    fireEvent.change(textarea, {
+      target: { value: '{"apiKey":"real-key","name":"Alice"}' },
+    });
+    await waitFor(() => expect(submit).not.toBeDisabled());
+  });
+
+  it("중첩 leaf 의 마커도 잡는다", async () => {
+    renderToolbar();
+    await openRunWithInput();
+    fireEvent.change(screen.getByPlaceholderText('{"key": "value"}'), {
+      target: { value: '{"a":{"b":[{"c":"[REDACTED]"}]}}' },
+    });
+    expect(await screen.findByRole("alert")).toBeInTheDocument();
+    expect(screen.getByTestId("run-with-input-submit")).toBeDisabled();
+  });
+
+  /**
+   * **오탐 경계** — 마커를 *포함*할 뿐인 정상 값은 막지 않는다. raw 문자열 substring 으로
+   * 구현하면 마크다운 `***bold***` 가 걸려 정상 입력이 차단된다. 파싱된 leaf 를 정확
+   * 일치로만 보는 설계를 이 캐너리가 고정한다.
+   */
+  it("[캐너리] 마커를 포함만 하는 값은 막지 않는다 (`***bold***`)", async () => {
+    renderToolbar();
+    await openRunWithInput();
+    fireEvent.change(screen.getByPlaceholderText('{"key": "value"}'), {
+      target: { value: '{"note":"***bold*** text","x":"a***b"}' },
+    });
+    await waitFor(() =>
+      expect(screen.getByTestId("run-with-input-submit")).not.toBeDisabled(),
+    );
+    expect(screen.queryByRole("alert")).toBeNull();
+  });
+
 });

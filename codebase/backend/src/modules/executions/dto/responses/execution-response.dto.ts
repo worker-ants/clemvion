@@ -52,7 +52,7 @@ export class ExecutionDto {
    * **값-패턴 마스킹 대상이 아니다** (형제 `outputData`/`error` 와 다르다) — 이 값은 표시
    * 전용이 아니라 Re-run 모달·에디터 "히스토리에서 불러오기" 가 읽어 **그대로 재제출**하므로,
    * 마스킹하면 `***` 가 새 실행의 실제 입력이 된다. 근거 정본:
-   * `ExecutionsService` 의 `MASKED_INPUT_DATA_REASON`.
+   * `ExecutionsService.toResponseExecution`.
    *
    * **이 카브아웃은 `Execution` 레벨 한정이다** — `nodeExecutions[].inputData` 는 재제출
    * 소비처가 없어 **마스킹된다**(2026-08-17 정정).
@@ -173,10 +173,10 @@ export class NodeExecutionSummaryDto {
    * 노드 입력 데이터.
    *
    * **자격증명으로 판별된 값은 마스킹되어 반환된다** (DB 원문과 다를 수 있다) — 상위
-   * `ExecutionDto.inputData` 와 **정책이 반대**다. 그쪽은 Re-run 프리필이 읽어 재제출하므로
-   * 원문이지만, 노드 레벨은 재제출 소비처가 없어 마스킹한다(안 걸면 WS emit 과 REST 가 같은
-   * store 슬롯에서 flip-flop 한다). 근거 정본: `ExecutionsService` 의
-   * `MASKED_INPUT_DATA_REASON`, SoT: EIA §R17.
+   * `ExecutionDto.inputData` 와 **같은 정책**이다. 2026-08-20 이전에는 그쪽만 원문이었다
+   * (Re-run 프리필이 읽어 재제출하므로). 프런트 마커 가드가 서면서 카브아웃이 닫혀 두
+   * 레벨이 같아졌다 — 갈려 있으면 WS emit 과 REST 가 같은 store 슬롯에서 flip-flop 한다.
+   * SoT: EIA §R17.
    *
    * > 이 필드는 런타임 응답에는 늘 있었는데 **스키마에만 없었다**(선존 갭). 마스킹 정책이
    * > 얹히면서 "문서화되지 않은 필드에 문서화되지 않은 정책" 이 되어 이번에 선언한다

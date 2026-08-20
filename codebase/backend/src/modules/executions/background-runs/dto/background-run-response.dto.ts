@@ -48,7 +48,7 @@ export class BackgroundRunNodeExecutionDto {
 
   @ApiPropertyOptional({
     description:
-      '입력 데이터 (JSON). 자격증명으로 판별된 값은 마스킹되어 반환된다(DB 원문과 다를 수 있음) — 노드 레벨이라 재제출 소비처가 없어 마스킹 대상이다. 카브아웃은 `Execution.inputData` 한정(근거 정본: ExecutionsService 의 MASKED_INPUT_DATA_REASON). SoT: EIA §R17',
+      '입력 데이터 (JSON). 자격증명으로 판별된 값은 마스킹되어 반환된다(DB 원문과 다를 수 있음). `Execution.inputData` 도 2026-08-20 부터 같은 규칙이다 — 두 레벨이 갈리지 않는다. SoT: EIA §R17',
     type: 'object',
     additionalProperties: true,
   })

@@ -61,6 +61,8 @@ export const editor: Dict["editor"] = {
   invalidJsonInput: "Invalid JSON input. Please check your input and try again.",
   jsonValid: "Valid JSON",
   loadFromHistory: "Load from History",
+  runWithInputMasked:
+    "Masked credential values (***) remain. Replace them with real values to run.",
   runHistoryEmpty: "No past executions",
   historyLoadFailed: "Failed to load execution input.",
   executionHistory: "Execution History",

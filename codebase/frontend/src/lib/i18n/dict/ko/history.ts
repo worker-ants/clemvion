@@ -9,6 +9,8 @@ export const history = {
       sideEffectWarning: "이 워크플로는 외부 호출 노드 {{count}}개를 포함합니다",
     },
     useOriginalInput: "원본 입력 그대로 사용",
+    maskedInputBlocked:
+      "자격증명으로 판별돼 가려진 입력이 있어요. 해당 항목을 직접 입력하거나 '원본 입력 그대로 사용'을 켜 주세요.",
     dryRunToggle: "dry-run 모드 (외부 호출 skip)",
     dryRunDisabledTooltip: "이 워크플로는 dry-run 미지원 노드를 포함합니다",
     confirmButton: "재실행",

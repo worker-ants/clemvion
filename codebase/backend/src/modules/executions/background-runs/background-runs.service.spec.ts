@@ -221,7 +221,7 @@ describe('BackgroundRunsService', () => {
      * (`@Roles` 없음).
      *
      * **노드 레벨이라 `inputData` 도 마스킹 대상**이다 — 재제출 카브아웃은 `Execution`
-     * 레벨 한정이고(`MASKED_INPUT_DATA_REASON` 정본), 이 표면엔 재제출 소비처가 없다.
+     * 레벨 한정이었고(2026-08-20 폐지), 이 표면엔 애초에 재제출 소비처가 없다.
      */
     it('body nodeExecutions[] 의 inputData·outputData 를 모두 마스킹한다', async () => {
       const bgNode = makeBgNodeExec();

@@ -11,6 +11,8 @@ export const history: Dict["history"] = {
       sideEffectWarning: "This workflow includes {{count}} external-call node(s)",
     },
     useOriginalInput: "Use original input",
+    maskedInputBlocked:
+      "Some inputs were masked as credentials. Enter them directly, or turn on \u201cUse original input\u201d.",
     dryRunToggle: "Dry-run mode (skip external calls)",
     dryRunDisabledTooltip:
       "This workflow contains nodes that don't support dry-run",

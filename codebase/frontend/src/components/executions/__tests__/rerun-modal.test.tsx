@@ -525,3 +525,88 @@ describe("ReRunModal", () => {
     expect(routerPushMock).not.toHaveBeenCalled();
   });
 });
+
+/**
+ * `Execution.inputData` 는 egress 마스킹된다(EIA §R17, 2026-08-20 카브아웃 폐지). 이 모달은
+ * 그 값을 **프리필해 `inputOverride` 로 되보내므로**, 마커가 그대로 실리면 리터럴 `'***'` 가
+ * 새 실행의 실제 입력이 된다.
+ *
+ * **양방향을 고정한다**: 마커는 프리필하지 않고 제출을 막되, 마커가 아닌 값은 손대지 않는다.
+ * 한쪽만 단언하면 "전부 비우고 전부 막는" 구현으로도 초록이 된다.
+ */
+describe("ReRunModal — 마스킹 마커 왕복 차단", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    cleanup();
+    useLocaleStore.setState({ locale: "en" });
+    useWorkspaceStore.getState().reset();
+    routerPushMock.mockReset();
+    toastErrorMock.mockReset();
+  });
+
+  const maskedProps = {
+    original: {
+      id: "exec-m",
+      workflowId: "wf-1",
+      status: "completed",
+      startedAt: "2026-05-22T14:32:00.000Z",
+      inputData: { parameters: { apiKey: "***", name: "Alice" } },
+    },
+  } as Partial<ReRunModalProps>;
+
+  it("마커 필드는 프리필하지 않고, 마커가 아닌 값은 그대로 둔다", async () => {
+    apiGetMock.mockResolvedValue({ data: { data: [] } });
+    seedDefinitions([]);
+    renderModal(maskedProps);
+
+    const apiKey = screen.getByLabelText(/apiKey/i) as HTMLInputElement;
+    const name = screen.getByLabelText(/name/i) as HTMLInputElement;
+    expect(apiKey.value).toBe("");
+    expect(name.value).toBe("Alice");
+  });
+
+  it("마커에서 비워진 필드가 비어 있는 동안 제출을 막는다", async () => {
+    apiGetMock.mockResolvedValue({ data: { data: [] } });
+    seedDefinitions([]);
+    renderModal(maskedProps);
+
+    const submit = screen.getByRole("button", { name: "Re-run" });
+    expect(submit).toBeDisabled();
+    expect(screen.getByRole("alert")).toBeInTheDocument();
+  });
+
+  it("그 필드를 채우면 제출이 풀린다 — 안내가 아니라 강제임을 고정", async () => {
+    apiGetMock.mockResolvedValue({ data: { data: [] } });
+    seedDefinitions([]);
+    renderModal(maskedProps);
+
+    fireEvent.change(screen.getByLabelText(/apiKey/i), {
+      target: { value: "real-key" },
+    });
+    expect(screen.getByRole("button", { name: "Re-run" })).toBeEnabled();
+  });
+
+  /**
+   * `useOriginalInput` 은 서버가 원본 엔티티를 **직접** 읽는 경로라 마스킹과 무관하게
+   * 원문으로 재실행된다 — 오히려 이 경로가 정답이므로 막으면 안 된다. 이 캐너리가 없으면
+   * 누가 차단 조건을 토글과 무관하게 넓혔을 때 정상 경로가 조용히 막힌다.
+   */
+  it("[캐너리] `원본 입력 그대로 사용` 을 켜면 차단이 풀린다", async () => {
+    apiGetMock.mockResolvedValue({ data: { data: [] } });
+    seedDefinitions([]);
+    renderModal(maskedProps);
+
+    expect(screen.getByRole("button", { name: "Re-run" })).toBeDisabled();
+    fireEvent.click(screen.getByLabelText(/Use original input/i));
+    expect(screen.getByRole("button", { name: "Re-run" })).toBeEnabled();
+  });
+
+  it("[캐너리] 마커가 없으면 아무것도 막지 않는다", async () => {
+    apiGetMock.mockResolvedValue({ data: { data: [] } });
+    seedDefinitions([]);
+    renderModal();
+
+    expect(screen.getByRole("button", { name: "Re-run" })).toBeEnabled();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+});

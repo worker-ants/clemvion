@@ -55,45 +55,6 @@ export const RERUN_CHAIN_DEPTH_LIMIT = 32;
 const RERUN_CHAIN_WALK_MAX = RERUN_CHAIN_DEPTH_LIMIT * 2;
 
 /**
- * **`Execution.inputData` 를 egress 마스킹하지 않는 이유** — 이 결정을 한 곳에 적고
- * 호출부는 `{@link MASKED_INPUT_DATA_REASON}` 으로 가리킨다.
- *
- * > **카브아웃은 `Execution` 레벨 한정이다 (2026-08-17 정정).** `NodeExecution.inputData` 는
- * > **마스킹한다** — 재제출 소비처가 없기 때문이다(Re-run 은 `Execution.inputData` 만 읽는다,
- * > 실측). 초판은 카브아웃을 노드 레벨까지 확대했는데, 그러면 WS emit 은 마스킹하고 REST 는
- * > 원문을 주어 **같은 store 슬롯**(`nodeResults[].inputData`)에서 2초 폴링이 마스킹 값을
- * > 원문으로 덮는 flip-flop 이 난다 — 화면이 깜빡이고 내부 wire 마스킹의 보안 이득도 0이 된다
- * > (`01_17_49` cross_spec CRITICAL). 축을 정확히 하면: **round-trip 되는 것만 카브아웃**이다.
- *
- * `Execution.inputData` 는 **표시 전용이 아니다** — 두 소비처가 그 값을 읽어 **그대로 재제출**한다:
- *
- * | 소비처 | 경로 |
- * |---|---|
- * | Re-run 모달 | `original.inputData` → `paramValues` 프리필 → `inputOverride` 제출 |
- * | 에디터 "히스토리에서 불러오기" | 상세 조회 `inputData` → textarea → 재실행 |
- *
- * Re-run 모달의 `useOriginalInput` **기본값이 `false`**(편집 모드)라, 사용자가 아무것도
- * 건드리지 않고 실행해도 프리필된 값이 `inputOverride` 로 제출된다. 여기에 마스킹을 걸면
- * 리터럴 `'***'` 가 **새 실행의 실제 입력값**이 된다 — 가시성 저하가 아니라 **조용한 기능
- * 오염**이다(`23_49_05` cross_spec CRITICAL · `23_50_03` side_effect CRITICAL 이 독립 발견).
- *
- * **기본 Re-run(`useOriginalInput=true`)은 영향이 없다** — 서버가 `original.inputData` 를
- * 엔티티에서 직접 읽는다. 위험은 클라이언트 프리필 왕복 경로 하나다.
- *
- * `outputData` 는 이 문제가 없다 — 실측상 소비처가 전부 **표시 전용**이다.
- *
- * **잔여 갭임을 인정한다**: 트리거 파라미터 자유 텍스트의 자격증명은 계속 노출된다. 다만
- * `inputData` 의 주요 자격증명 벡터인 webhook 민감 헤더는 **ingestion 시점에 이미
- * `[REDACTED]`** 로 가려져 있다(12-webhook §5.3). 프런트가 마스킹 마커를 감지해 재입력을
- * 강제하는 가드가 선행되면 그때 이 컬럼도 닫는다 — 트래커에 등재했다.
- */
-const MASKED_INPUT_DATA_REASON =
-  'inputData 는 Re-run/히스토리-로드가 재제출하는 값이라 egress 마스킹 대상이 아니다';
-
-// 이 상수는 JSDoc 앵커 전용이다 — 런타임 참조가 없어도 제거하지 않는다.
-void MASKED_INPUT_DATA_REASON;
-
-/**
  * 값이 있을 때만 마스킹하고, 없으면 **입력을 그대로** 돌려준다.
  *
  * `redactStored*` 는 부재를 `null` 로 **정규화**하는데, `nodeExecutions[]` 는 엔티티 형태를
@@ -148,14 +109,17 @@ export const SNAPSHOT_CACHE_MAX_ENTRIES = 256;
  * > `outputData` 를 여기 넣은 것은 2026-08-16 이다. 그전엔 `error` 만 넓어져 있었고,
  * > 같은 관문을 걸자 **빌드가 타입 오류로 잡았다** — 유닛 테스트는 통과했는데
  * > `nest build` 만 잡은 자리다.
- * > **`inputData` 는 여기 없다** — 마스킹 대상이 아니기 때문이다
- * > ({@link MASKED_INPUT_DATA_REASON}). 엔티티 타입 그대로 통과한다.
+ * > **`inputData` 도 여기 있다** (2026-08-20) — 재제출 카브아웃이 닫히면서 마스킹 대상이
+ * > 됐다. 프런트 마커 가드가 프리필·제출을 막는다 (EIA §R17).
  */
 export type ResponseExecution = Omit<
   Execution,
-  'error' | 'outputData' | 'trigger' | 'executor'
+  'error' | 'inputData' | 'outputData' | 'trigger' | 'executor'
 > & {
   error: Record<string, unknown> | null;
+  // 2026-08-20 — `inputData` 가 마스킹 대상이 되면서 여기로 들어왔다. 마스커는
+  // `| null` 을 돌려주므로 엔티티 타입 그대로 두면 대입이 안 된다(build 가 잡았다).
+  inputData: Record<string, unknown> | null;
   outputData: Record<string, unknown> | null;
 };
 
@@ -726,7 +690,7 @@ export class ExecutionsService {
           // 행 자체를 그대로 재사용해 대규모 ForEach 실행의 행-수만큼의 shallow-copy 를
           // 피한다. `error` 만 보고 판단하던 종전 조건을 세 컬럼으로 넓힌다.
           // **노드 레벨 `inputData` 는 마스킹한다** — 카브아웃은 `Execution` 레벨 한정이다
-          // ({@link MASKED_INPUT_DATA_REASON}). 여기엔 재제출 소비처가 없고, 안 걸면 WS emit
+          // 여기엔 재제출 소비처가 없고, 안 걸면 WS emit
           // 과 REST 가 같은 store 슬롯에서 flip-flop 한다.
           const inputData = maskIfPresent(
             ne.inputData,
@@ -1041,8 +1005,8 @@ export class ExecutionsService {
       // 목록 경로의 마스킹 자리. 나머지 세 표면은 `toResponseExecution` 이 덮는다
       // (여기는 엔티티가 아니라 DTO 조립이라 그 관문을 지나지 않는다).
       //
-      // **`inputData` 는 의도적으로 마스킹하지 않는다** — {@link MASKED_INPUT_DATA_REASON}.
-      inputData: execution.inputData ?? null,
+      // `inputData` 도 마스킹한다 (2026-08-20, 카브아웃 폐지 — EIA §R17).
+      inputData: redactStoredDataForResponse(execution.inputData),
       outputData: redactStoredDataForResponse(execution.outputData),
       error: redactStoredErrorForResponse(execution.error),
       executedBy: execution.executedBy ?? null,
@@ -1105,8 +1069,9 @@ export class ExecutionsService {
     return {
       ...rest,
       // `...rest` 는 엔티티를 통째로 펼치므로 여기서 덮지 않으면 원문이 나간다
-      // (`error` 만 가리던 자리였다). **`inputData` 는 제외** —
-      // {@link MASKED_INPUT_DATA_REASON}.
+      // (`error` 만 가리던 자리였다). 2026-08-20 부터 `inputData` 도 포함한다 —
+      // 프런트 마커 가드(프리필 스킵·제출 차단)가 서면서 재제출 카브아웃이 닫혔다.
+      inputData: redactStoredDataForResponse(rest.inputData),
       outputData: redactStoredDataForResponse(rest.outputData),
       error: redactStoredErrorForResponse(rest.error),
     };
