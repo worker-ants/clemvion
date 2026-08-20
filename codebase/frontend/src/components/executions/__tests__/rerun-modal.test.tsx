@@ -861,6 +861,69 @@ describe("ReRunModal — 마스킹 마커 왕복 차단", () => {
     );
   });
 
+  /**
+   * **스키마 드리프트 교착** (`17_38_33` requirement W3).
+   *
+   * 스키마는 실행 이후에 바뀐다. 마스킹된 키가 현재 스키마에서 사라지면 그 키는 렌더되지
+   * 않고 → `touchedKeys` 에 영영 못 들어가고 → 차단이 **영구**가 된다. 무수정 프로브로
+   * 실증했다(교착 재현 GREEN). 유일한 탈출구가 "원본 그대로 사용" 토글인데, 그건 다른
+   * 필드의 정상 편집까지 버리는 선택이라 §R17 의 "재입력해 언블록" 이 성립하지 않는다.
+   *
+   * 불변식으로 닫았다 — **차단의 근거가 되는 키는 반드시 렌더된다**.
+   *
+   * > **관측 시점이 가설의 일부였다.** 첫 프로브는 `findByLabelText(/name/i)` 로 기다렸는데
+   * > 그 라벨은 **fallback 구간에도** 있어서 스키마 도착 전 상태를 쟀고, 그때는 `apiKey` 도
+   * > 보이므로 "교착 없음" 으로 읽혔다. 스키마에만 있는 필드(`schemaOnly`)의 등장을
+   * > 기다려야 스키마 착지 이후를 본다.
+   */
+  it("[회귀] 스키마에서 사라진 마스킹 키도 렌더돼 재입력으로 풀린다", async () => {
+    apiGetMock.mockResolvedValue({
+      data: {
+        data: [
+          {
+            id: "mt",
+            type: "manual_trigger",
+            category: "trigger",
+            config: {
+              parameters: [
+                { name: "name", type: "string" },
+                // 스키마에만 있는 필드 — 이게 보이면 스키마가 착지한 것이다.
+                { name: "schemaOnly", type: "string" },
+              ],
+            },
+          },
+        ],
+      },
+    });
+    seedDefinitions([def("manual_trigger", "trigger", false)]);
+    renderModal({
+      original: {
+        id: "exec-drift",
+        workflowId: "wf-1",
+        status: "completed",
+        startedAt: "2026-05-22T14:32:00.000Z",
+        inputData: { parameters: { apiKey: "***", name: "Alice" } },
+      },
+    } as Partial<ReRunModalProps>);
+    // 스키마 착지를 기다린다 — fallback 구간에는 apiKey 가 있으므로 그전에 재면 안 된다.
+    await screen.findByLabelText(/schemaOnly/i);
+
+    // 스키마에 없어도 **렌더된다** — 차단 근거가 되는 키이기 때문이다.
+    const orphan = screen.getByLabelText(/apiKey/i) as HTMLInputElement;
+    expect(orphan.value).toBe(""); // 마커는 프리필하지 않는다
+
+    // 아직 안 건드렸으니 막혀 있다.
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Re-run" })).toBeDisabled(),
+    );
+
+    // 채우면 풀린다 — 교착이 아니다.
+    fireEvent.change(orphan, { target: { value: "real-key" } });
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Re-run" })).toBeEnabled(),
+    );
+  });
+
   it("[캐너리] 마커가 없으면 아무것도 막지 않는다", async () => {
     apiGetMock.mockResolvedValue({ data: { data: [] } });
     seedDefinitions([]);

@@ -49,17 +49,10 @@ export class ExecutionDto {
   /**
    * 입력 데이터 — 트리거가 워크플로우에 주입한 input (manual parameters / webhook body / schedule context).
    *
-   * **값-패턴 마스킹 대상이다** (2026-08-20~, DB 원문과 다를 수 있다) — 형제
-   * `outputData`/`error` 와 같고, 자매 `nodeExecutions[].inputData` 와도 같다.
-   * 근거 정본: `ExecutionsService.toResponseExecution`.
-   *
-   * > 2026-08-20 이전에는 이 컬럼만 카브아웃이었다 — Re-run 모달·에디터 "히스토리에서
-   * > 불러오기" 가 읽어 **그대로 재제출**하므로 마스킹하면 `***` 가 새 실행의 실제 입력이
-   * > 됐기 때문이다. 그 소비처들이 마커를 감지해 프리필·제출을 막게 되면서 닫혔다
-   * > (SoT: EIA §R17).
-   *
-   * 단 **webhook 민감 헤더는 ingestion 시점에 이미 `[REDACTED]`** 로 저장된다
-   * (`spec/5-system/12-webhook.md` §5.3) — 그건 이 필드에도 그대로 실린다.
+   * 자격증명으로 판별된 값은 마스킹되어 반환된다(2026-08-20~, DB 원문과 다를 수 있음) —
+   * 형제 `outputData`/`error`, 자매 `nodeExecutions[].inputData` 와 같은 정책이고, webhook
+   * ingestion 이 남긴 `[REDACTED]` 마커는 보존된다. 근거 정본: `toResponseExecution`.
+   * SoT: EIA §R17 (`spec/5-system/14-external-interaction-api.md`).
    */
   @ApiPropertyOptional({
     type: 'object',
@@ -173,15 +166,9 @@ export class NodeExecutionSummaryDto {
   /**
    * 노드 입력 데이터.
    *
-   * **자격증명으로 판별된 값은 마스킹되어 반환된다** (DB 원문과 다를 수 있다) — 상위
-   * `ExecutionDto.inputData` 와 **같은 정책**이다. 2026-08-20 이전에는 그쪽만 원문이었다
-   * (Re-run 프리필이 읽어 재제출하므로). 프런트 마커 가드가 서면서 카브아웃이 닫혀 두
-   * 레벨이 같아졌다 — 갈려 있으면 WS emit 과 REST 가 같은 store 슬롯에서 flip-flop 한다.
-   * SoT: EIA §R17.
-   *
-   * > 이 필드는 런타임 응답에는 늘 있었는데 **스키마에만 없었다**(선존 갭). 마스킹 정책이
-   * > 얹히면서 "문서화되지 않은 필드에 문서화되지 않은 정책" 이 되어 이번에 선언한다
-   * > (`10_26_58` side_effect W6). 자매 `BackgroundRunNodeExecutionDto` 는 이미 갖고 있다.
+   * 자격증명으로 판별된 값은 마스킹되어 반환된다(DB 원문과 다를 수 있음) — 상위
+   * `ExecutionDto.inputData` 와 같은 정책이라 두 레벨이 갈리지 않는다.
+   * SoT: EIA §R17 (`spec/5-system/14-external-interaction-api.md`).
    */
   @ApiPropertyOptional({
     type: 'object',

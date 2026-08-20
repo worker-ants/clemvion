@@ -294,21 +294,40 @@ export function ReRunModal({
   // spec §10.2 — 입력 폼 필드는 워크플로 manual_trigger 노드 config.parameters
   // 스키마(라벨·타입)에서 도출한다. 스키마가 없으면(노드 삭제/미로딩) 원본 런타임
   // 값 키를 untyped text 로 fallback 해 데이터 은닉을 피한다.
+  /**
+   * 편집 가능한 필드 목록.
+   *
+   * ## 불변식 — **차단하는 키는 반드시 렌더된다**
+   *
+   * 스키마는 실행 이후에 바뀔 수 있다. 마스킹된 파라미터가 **현재 스키마에서 사라지면**
+   * 그 키는 렌더되지 않고, 렌더되지 않으면 `touchedKeys` 에 영영 들어가지 못해
+   * {@link blockedByMaskedInput} 이 **영구히 참**이 된다 — 재입력으로 푸는 §R17 의 UX 가
+   * 그 경로에서 성립하지 않는다(`17_38_33` requirement W3, 무수정 프로브로 실증).
+   *
+   * 그래서 스키마에 없는 `maskedKeys` 는 **untyped text 필드로 되살린다**. 차단의 근거가
+   * 되는 키 집합이 렌더되는 키 집합의 부분집합이라는 불변식을 코드로 세우는 것이다.
+   * 마스킹되지 않은 드리프트 키는 종전대로 두었다 — 그쪽은 막지 않으므로 교착이 없다.
+   */
   const fields = useMemo<RerunField[]>(() => {
     const manualNode = workflowNodes.find((n) => n.type === "manual_trigger");
     const schema = manualNode?.config?.parameters;
     if (Array.isArray(schema) && schema.length > 0) {
-      return (schema as TriggerParameterDefinition[]).map((p) => ({
+      const declared = (schema as TriggerParameterDefinition[]).map((p) => ({
         name: p.name,
         type: p.type,
         description: p.description,
       }));
+      const declaredNames = new Set(declared.map((f) => f.name));
+      const orphanMasked = maskedKeys
+        .filter((name) => !declaredNames.has(name))
+        .map((name) => ({ name, type: "string" as const }));
+      return [...declared, ...orphanMasked];
     }
     return Object.keys(originalParameters).map((name) => ({
       name,
       type: "string" as const,
     }));
-  }, [workflowNodes, originalParameters]);
+  }, [workflowNodes, originalParameters, maskedKeys]);
 
   const setParam = (key: string, value: unknown) => {
     setParamValues((prev) => ({ ...prev, [key]: value }));

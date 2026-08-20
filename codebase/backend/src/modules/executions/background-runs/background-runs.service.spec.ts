@@ -259,11 +259,18 @@ describe('BackgroundRunsService', () => {
         'ws-1',
       );
 
-      const row = JSON.stringify(result.nodeExecutions.data[0]);
-      expect(row).not.toContain('sk-live-abc123');
-      expect(row).toContain('***');
+      // **필드별로 나눠서 잰다** (`17_38_33` testing W4). 종전엔 노드 전체를 한 문자열로
+      // 합쳐 `toContain('***')` 를 하나만 뒀는데, 그러면 `outputData` 쪽 마스킹만으로
+      // 통과해 `inputData` 가 비거나 `null` 로 떨어지는 회귀를 못 잡는다 — 자매 파일
+      // (`executions.service.spec.ts` ①②⑥⑧⑧-b)에서 뮤테이션으로 잡아 고친 바로 그
+      // 결함 클래스가 여기 남아 있었다.
+      const outStr = JSON.stringify(result.nodeExecutions.data[0]?.outputData);
+      const inStr = JSON.stringify(result.nodeExecutions.data[0]?.inputData);
+      expect(outStr).not.toContain('sk-live-abc123');
+      expect(outStr).toContain('***');
       // `inputData` 도 마스킹 — 2026-08-20 부터 Execution 레벨도 같은 규칙이다.
-      expect(row).not.toContain('admin:pw');
+      expect(inStr).not.toContain('admin:pw');
+      expect(inStr).toContain('***');
     });
 
     /**
