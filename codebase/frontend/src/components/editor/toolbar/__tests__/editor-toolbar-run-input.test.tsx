@@ -535,5 +535,4 @@ describe("EditorToolbar — Run with Input (§2.2)", () => {
     );
     expect(screen.queryByRole("alert")).toBeNull();
   });
-
 });

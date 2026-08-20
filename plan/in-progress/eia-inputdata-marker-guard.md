@@ -148,4 +148,13 @@ JSON 안에 마커가 남아 있는 동안 실행 버튼을 막는다 — 트래
 - [x] 트래커 항목 종결
 - [x] TEST WORKFLOW 4단계 PASS — lint / unit(백엔드 **427 suites · 8,832** · 프런트 **6,044**)
       / build / e2e **276** + playwright **51**
-- [ ] 코드 동결 → `/ai-review` → `--impl-done` → push
+- [x] `/ai-review` **3라운드** — `14_08_45`(CRITICAL 2·WARNING 7) → `14_44_08`(CRITICAL 0·
+      WARNING 8) → `15_10_25`(CRITICAL 0·**WARNING 2**, LOW). 발견의 성격이 **동작 → 구조 →
+      문서 자리**로 내려와 수렴
+      > **가장 아팠던 것**: `hasMaskedMarkerLeaf` 를 이 PR 에서 만들어 놓고 모달에 안 써서
+      > 중첩 마커가 뚫렸다(C1). 그리고 그 fix 로 넣은 터치 기반 판정이 **반대쪽으로** 뚫려
+      > (건드린 뒤 마커 복귀) 두 조건의 합으로 다시 좁혔다.
+      > **문서 쪽은 같은 패턴이 3번** 재발했다 — 아래에 캐비엇만 덧붙이고 위 주제문은
+      > 안 건드리는 형태(DTO JSDoc · spec.ts 소제목 · `ResponseExecution` 주제문).
+- [x] `--impl-done` **3라운드** 전부 **BLOCK: NO** (`14_44_42` · `15_10_56`)
+- [ ] push → PR

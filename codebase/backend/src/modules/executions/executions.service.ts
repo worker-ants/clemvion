@@ -98,9 +98,10 @@ function maskIfPresent(
 export const SNAPSHOT_CACHE_MAX_ENTRIES = 256;
 
 /**
- * 응답으로 나가는 Execution — 엔티티와 **마스킹 대상 두 컬럼의 null 가능성만** 다르다.
+ * 응답으로 나가는 Execution — 엔티티와 **마스킹 대상 세 컬럼의 null 가능성만** 다르다
+ * (`error` · `inputData` · `outputData`).
  *
- * 엔티티는 `error`/`outputData` 를 `Record<string, unknown>` 로 `| null` 없이
+ * 엔티티는 이 셋을 `Record<string, unknown>` 로 `| null` 없이
  * 선언하지만, egress 마스킹 관문({@link ExecutionsService.toResponseExecution})은
  * 값이 없을 때 정직하게 `null` 을 돌려준다. 그 차이를 `as Execution` 로 덮으면 이후
  * 소비자가 그 필드를 null-check 없이 만져도 컴파일러가 침묵한다 — 이 작업이 고치는
