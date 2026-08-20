@@ -1,0 +1,12 @@
+{
+  "timestamp": "2026-08-21T00:55:25.566498",
+  "mode": "spec draft 검토 (--spec)",
+  "target_path": "plan/in-progress/spec-update-masked-reject-framing.md",
+  "checkers": [
+    "cross_spec",
+    "rationale_continuity",
+    "convention_compliance",
+    "plan_coherence",
+    "naming_collision"
+  ]
+}

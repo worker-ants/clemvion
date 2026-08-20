@@ -190,7 +190,7 @@ code:
 >
 > > **re-run 이 세 번째 소비처로 늘어난 시점은 2026-08-20 이다.** 그전까지 그 경로는 `toTriggerParameterErrorDetails` 를 거치지 않고 내부 reason 을 `errors` 키로 던졌고, `GlobalExceptionFilter` 는 `details` 만 읽으므로 **필드별 내역이 응답에 실리지 않았다**. `MASKED_VALUE_RESUBMITTED` 를 얹으면서 그 배선을 함께 교정했다 — 새 코드만 얹으면 도달하지 못하는 자리에 놓인다.
 >
-> **`MASKED_VALUE_RESUBMITTED` 는 재제출 경로 한정이다** — webhook ingestion·schedule 은 대상이 아니다(그쪽 입력은 "마스킹된 읽기에서 되돌아온 값" 이 아니다). 범위 근거: [EIA §R17](./14-external-interaction-api.md).
+> **`MASKED_VALUE_RESUBMITTED` 는 Manual 실행 경로 한정이다** — 재제출뿐 아니라 사용자가 직접 입력한 마커도 대상이다(그 표면에서 마커 세 문자열은 예약어다). webhook ingestion·schedule 은 **외부 시스템이 저작하는** 임의 페이로드라 대상이 아니다. 판정 기준은 값의 출처가 아니라 **페이로드의 저작 주체**다 — 범위 근거: [EIA §R17](./14-external-interaction-api.md).
 
 ### 1.8 KB / Graph RAG 도메인 에러 코드 (도메인 spec 참조)
 

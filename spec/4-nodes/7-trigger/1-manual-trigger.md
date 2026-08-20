@@ -167,7 +167,7 @@ Manual Trigger 핸들러는 **runtime 에러 포트를 갖지 않는다**. 모�
 | `parameters[i].type` 가 enum (`string`/`number`/`boolean`/`object`/`array`) 미일치 | `invalid_schema` | handler.validate |
 | required 파라미터의 값 누락 (실행 시점, 어댑터 공통) | `missing_required` | adapter `resolveTriggerParameters` |
 | 값이 선언 타입으로 coerce 불가 (number/object/array) | `coerce_failed` | adapter `resolveTriggerParameters` |
-| 값 leaf 가 egress 마스킹 마커(`***`/`[REDACTED]`/`[REDACTED_DEPTH]`)와 **정확히 일치** — 마스킹된 값이 그대로 재제출됨 | `masked_value_resubmitted` | adapter `resolveTriggerParameters` **직후** (Manual 실행경로·Manual re-run **한정** — webhook·schedule 은 대상 아님, [EIA §R17](../../5-system/14-external-interaction-api.md)) |
+| 값 leaf 가 egress 마스킹 마커(`***`/`[REDACTED]`/`[REDACTED_DEPTH]`)와 **정확히 일치** | `masked_value_resubmitted` | adapter `resolveTriggerParameters` **전후 2단계** — raw(coerce 전) 우선 검사 → resolve → resolve 후 재검사. Manual 실행경로·Manual re-run **한정**(webhook·schedule 은 외부 시스템이 저작하는 페이로드라 대상 아님, [EIA §R17](../../5-system/14-external-interaction-api.md)) |
 
 > 위 4가지 구조 위반(저장 시점)은 모두 단일 `invalid_schema` reason 으로 산출된다 — distinct 한 사람 친화 메시지로 분기하지 않는다(머신 코드 단일화).
 
@@ -193,6 +193,25 @@ Manual Trigger 핸들러는 **runtime 에러 포트를 갖지 않는다**. 모�
 [공통 §2](./0-common.md#2-캔버스-요약-미구현--planned) — `Manual Trigger` 행 인용 (`Parameters: N` 또는 `(none)`).
 
 ## Rationale
+
+### `masked_value_resubmitted` 검사 시점 — raw 우선 + resolve 후 재검사 (2026-08-21)
+
+§6 표가 이 reason 의 시점을 *"`resolveTriggerParameters` **전후** 2단계"* 로 적는 이유다.
+한 지점에서만 보면 **양쪽 다 뚫린다**:
+
+| 한 지점만 볼 때 | 무엇이 새는가 |
+|---|---|
+| **resolve 직후만** | `coerceToType('***', 'boolean')` 이 `Boolean('***')` → `true` 라 검사 시점엔 원본 문자열이 사라진다 — **boolean 파라미터가 통째로 우회**된다. `number` 는 `coerce_failed` 가 먼저 throw 돼 사용자가 *"타입 오류"* 를 본다(안내 자체가 틀린다). `defaultValue` 가 마커면 **손대지 않은 필드까지** 매 실행 거부된다 |
+| **raw 만** | object/array 파라미터를 JSON **문자열**(`'{"apiKey":"***"}'`)로 보내면 그 문자열은 마커와 정확히 일치하지 않는다 — 마커는 파싱 뒤에야 leaf 로 드러난다 |
+
+그래서 raw 를 먼저 보고(문자열이 살아 있는 시점), resolve 뒤에 한 번 더 본다. 두 검사
+모두 **대상 키를 raw 기준**으로 잡는다 — 그래야 `defaultValue` 로 채워진 값을 막지 않는다.
+
+> **이 문장을 "직후" 한 지점으로 되돌리지 말 것.** 첫 구현이 그랬고 boolean 우회를 리뷰어
+> 셋이 독립적으로 잡아야 했다. 눈에 잘 띄지 않는 종류의 결함이다.
+
+phase 를 합쳐 한 번에 던지지 않는 이유도 같다 — raw 에서 걸린 뒤에도 resolve 를 강행하면
+`coerce_failed` 가 섞여 안내가 다시 흐려진다.
 
 ### `restoreVersion` 이 저장 시점 파라미터 스키마 게이트를 건너뛰는 비대칭
 

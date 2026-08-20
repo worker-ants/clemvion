@@ -249,6 +249,55 @@ describe('resolveTriggerParametersRejectingMasked', () => {
     ).toEqual(['apiKey', 'nested']);
   });
 
+  /**
+   * **한 phase 안의 위반은 한 번에 다 싣는다** (`00_39_27` W2).
+   *
+   * `details[]` 는 "필드별 전체 목록" 이라는 기대를 진다. 아래는 raw phase 에서 세 필드가
+   * 동시에 걸리는 경우 — 하나만 싣고 나머지를 다음 재제출로 미루면 사용자가 왕복을 반복한다.
+   */
+  it('[캐너리] 같은 phase 의 위반은 한 응답에 전부 실린다', () => {
+    expect(
+      rejectedFields(
+        [
+          { name: 'a', type: 'string' },
+          { name: 'b', type: 'boolean' },
+          { name: 'c', type: 'number' },
+        ],
+        {
+          a: VALUE_MASK_MARKER,
+          b: VALUE_MASK_MARKER,
+          c: VALUE_MASK_MARKER,
+        },
+      ).sort(),
+    ).toEqual(['a', 'b', 'c']);
+  });
+
+  /**
+   * **phase 경계가 안내를 지킨다** — raw 에서 걸리면 resolve 를 시도하지 않는다.
+   *
+   * 합쳐서 던지려면 ① 이후에도 resolve 를 강행해야 하는데, 그러면 `coerce_failed`
+   * (`'***'` → number 캐스팅 실패)가 섞여 **안내가 다시 흐려진다** — 이 PR 이 되돌린 바로
+   * 그 문제다. 여기서 `coerce_failed` 가 섞여 나오면 그 회귀다.
+   */
+  it('[캐너리] raw 에서 걸리면 coerce_failed 가 섞이지 않는다', () => {
+    let reasons: string[] = [];
+    try {
+      resolveTriggerParametersRejectingMasked(
+        [
+          { name: 'marked', type: 'number' },
+          { name: 'bad', type: 'number' },
+        ],
+        { marked: VALUE_MASK_MARKER, bad: 'not-a-number' },
+      );
+    } catch (err_: unknown) {
+      if (err_ instanceof TriggerParameterValidationException) {
+        reasons = err_.errors.map((e) => e.reason);
+      }
+    }
+    expect(reasons).toEqual(['masked_value_resubmitted']);
+    expect(reasons).not.toContain('coerce_failed');
+  });
+
   it('null·비객체 raw 를 안전하게 지나간다', () => {
     expect(rejectedFields([{ name: 'a', type: 'string' }], null)).toEqual([]);
     expect(rejectedFields([{ name: 'a', type: 'string' }], 'nope')).toEqual([]);

@@ -8,6 +8,7 @@ import {
   TriggerParameterValidationException,
 } from '../types/trigger-parameter.types';
 import { resolveTriggerParameters } from './resolve-trigger-parameters';
+import { isRecord } from './to-record';
 
 /**
  * 마스킹된 값의 재제출을 거부하면서 트리거 파라미터를 resolve 한다 (EIA §R17).
@@ -58,16 +59,30 @@ export function resolveTriggerParametersRejectingMasked(
 ): Record<string, unknown> {
   // ① raw 검사 — coerce 가 문자열을 지우기(`Boolean('***')`) 전이고,
   //    `coerce_failed` 가 안내를 선점하기 전이다.
-  throwIfAny(findMaskedResubmissions(schema, rawSource, rawSource));
+  const rawHits = findMaskedResubmissions(schema, rawSource, rawSource);
+
+  // raw 에서 이미 걸린 게 있으면 resolve 를 시도하지 않는다 — `coerce_failed` 가 섞여
+  // 들어오면 사용자가 "가려진 값을 다시 입력하라" 대신 타입 오류를 먼저 보게 된다.
+  throwIfAny(rawHits);
 
   const resolved = resolveTriggerParameters(schema, rawSource);
 
   // ② resolve 검사 — object/array 를 JSON 문자열로 보낸 경우는 파싱 뒤에야 leaf 가 보인다.
+  //    ①에서 이미 잡힌 필드는 여기 도달하지 않으므로 중복 걱정이 없다.
   throwIfAny(findMaskedResubmissions(schema, rawSource, resolved));
 
   return resolved;
 }
 
+/**
+ * `details[]` 는 **필드별 전체 목록**이라는 기대를 지킨다 — 한 phase 안에서 걸린 필드는
+ * 모두 한 예외에 싣는다(`00_39_27` W2).
+ *
+ * > **두 phase 를 합쳐서 던지지는 않는다.** ①이 비어야 ②에 도달하므로 한 요청이 두 phase
+ * > 위반을 동시에 보고할 일은 없다. 합치려면 ① 이후에도 resolve 를 강행해야 하는데, 그러면
+ * > `coerce_failed`(`'***'` 를 number 로 캐스팅 실패 등)가 섞여 **안내가 다시 흐려진다** —
+ * > 이 PR 이 되돌린 바로 그 문제다. phase 경계를 유지하는 쪽이 사용자에게 정확하다.
+ */
 function throwIfAny(errors: TriggerParameterValidationError[]): void {
   if (errors.length > 0) {
     throw new TriggerParameterValidationException(errors);
@@ -98,7 +113,7 @@ export function findMaskedResubmissions(
   values: unknown,
 ): TriggerParameterValidationError[] {
   if (!schema || schema.length === 0) return [];
-  if (!isPlainRecord(rawSource) || !isPlainRecord(values)) return [];
+  if (!isRecord(rawSource) || !isRecord(values)) return [];
 
   return schema
     .filter((def) => Object.prototype.hasOwnProperty.call(rawSource, def.name))
@@ -107,10 +122,6 @@ export function findMaskedResubmissions(
       field: def.name,
       reason: 'masked_value_resubmitted' as const,
     }));
-}
-
-function isPlainRecord(v: unknown): v is Record<string, unknown> {
-  return v !== null && typeof v === 'object' && !Array.isArray(v);
 }
 
 function hasMaskedLeaf(value: unknown, depth: number): boolean {

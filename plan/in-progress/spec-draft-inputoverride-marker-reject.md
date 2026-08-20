@@ -155,7 +155,13 @@ execute 경로는 `MASKED_VALUE_RESUBMITTED` 안내가 도달하지만 **re-run 
 
 5. **`4-nodes/7-trigger/1-manual-trigger.md` §6** — 두 곳이 **내 변경으로 stale 이 된다**
    (`19_48_56` WARNING-1). (a) reason 표(162~172행)에 `masked_value_resubmitted` 행 추가 —
-   시점은 `adapter resolveTriggerParameters` **직후**(Manual 실행경로·Manual re-run 한정).
+   시점은 ~~`adapter resolveTriggerParameters` **직후**~~(Manual 실행경로·Manual re-run 한정).
+
+   > **⚠️ "직후" 는 폐기됐다 (2026-08-21)** — 그 시점만 보면 `Boolean('***')` → `true` 라
+   > **boolean 파라미터가 통째로 우회**된다(`00_03_57` CRITICAL). 실제 구현은 **전후 2단계**
+   > (raw 우선 → resolve → 재검사)다. 정정: `spec-update-masked-reject-framing.md`.
+   > 이 줄을 지우지 않고 취소선으로 남기는 이유 — 폐기된 설계가 어디서 왔는지 추적 가능해야
+   > 다음 사람이 같은 자리로 되돌아가지 않는다.
    (b) "응답 봉투" 문장(184행)이 *"Manual·Webhook 경로"* 만 열거하는데, 지금은 **정확한
    서술**이다(re-run 이 실제로 `details` 를 안 싣는다). 배선을 고치면 거짓이 되므로
    *"Manual·Webhook·Manual re-run 경로"* 로 함께 갱신한다.
