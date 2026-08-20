@@ -601,6 +601,34 @@ describe("ReRunModal — 마스킹 마커 왕복 차단", () => {
     expect(screen.getByRole("button", { name: "Re-run" })).toBeEnabled();
   });
 
+  /**
+   * **object/array 파라미터 안쪽의 마커** — `isMaskedMarker`(정확 일치)만 쓰면 이 경로가
+   * 통째로 뚫린다. 실제로 첫 구현이 그랬고 리뷰가 CRITICAL 로 잡았다(`14_08_45` C1):
+   * `hasMaskedMarkerLeaf` 를 만들어 두고 툴바에만 썼다.
+   *
+   * 값은 **비우지 않는다** — JSON 텍스트로 렌더되므로 통째로 지우면 어느 키가 가려졌는지가
+   * 사라진다. 보여 주고 제출만 막는다(히스토리 로드와 같은 처방).
+   */
+  it("object 파라미터 **안쪽** 마커도 제출을 막고, 값은 지우지 않는다", async () => {
+    apiGetMock.mockResolvedValue({ data: { data: [] } });
+    seedDefinitions([]);
+    renderModal({
+      original: {
+        id: "exec-n",
+        workflowId: "wf-1",
+        status: "completed",
+        startedAt: "2026-05-22T14:32:00.000Z",
+        inputData: { parameters: { headers: { apiKey: "***" } } },
+      },
+    } as Partial<ReRunModalProps>);
+
+    expect(screen.getByRole("button", { name: "Re-run" })).toBeDisabled();
+    // 값을 **비우지 않는다** — 스키마 없이 렌더되면 fallback 이 `String(value)` 로 찍어
+    // `[object Object]` 가 되는데(기존 동작), 중요한 건 빈 문자열이 아니라는 점이다.
+    const field = screen.getByLabelText(/headers/i) as HTMLInputElement;
+    expect(field.value).not.toBe("");
+  });
+
   it("[캐너리] 마커가 없으면 아무것도 막지 않는다", async () => {
     apiGetMock.mockResolvedValue({ data: { data: [] } });
     seedDefinitions([]);

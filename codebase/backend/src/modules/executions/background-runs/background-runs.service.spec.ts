@@ -262,7 +262,7 @@ describe('BackgroundRunsService', () => {
       const row = JSON.stringify(result.nodeExecutions.data[0]);
       expect(row).not.toContain('sk-live-abc123');
       expect(row).toContain('***');
-      // 노드 레벨은 `inputData` 도 마스킹 — 카브아웃은 Execution 레벨 한정.
+      // `inputData` 도 마스킹 — 2026-08-20 부터 Execution 레벨도 같은 규칙이다.
       expect(row).not.toContain('admin:pw');
     });
 

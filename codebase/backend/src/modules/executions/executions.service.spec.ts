@@ -1245,7 +1245,7 @@ describe('ExecutionsService', () => {
       };
       const ne = JSON.stringify(result.nodeExecutions[0]);
       expect(ne).not.toContain('sk-live-abc123');
-      // **노드 레벨은 `inputData` 도 마스킹**한다 — 카브아웃은 Execution 레벨 한정이다.
+      // **노드 레벨도 `inputData` 를 마스킹**한다 — 2026-08-20 부터 두 레벨이 같다.
       // 여기가 원문이면 WS emit(마스킹)과 REST 가 같은 store 슬롯에서 flip-flop 한다.
       expect(ne).not.toContain('admin:pw');
     });
@@ -1293,7 +1293,7 @@ describe('ExecutionsService', () => {
      * `outputData === ne.outputData` 항이 빠져도 GREEN 이다 — 참조 동일성으로 물어야
      * 그 뮤턴트가 RED 가 된다.
      *
-     * **노드 레벨은 세 컬럼 전부 대상**이다 — 카브아웃은 `Execution` 레벨 한정이라
+     * **노드 레벨은 세 컬럼 전부 대상**이다 — 2026-08-20 부터 Execution 레벨도 같아졌고,
      * `inputData` 만 leaky 한 행도 복제되어야 한다. 이 방향을 고정해야 "노드 레벨까지
      * 카브아웃" 회귀(WS↔REST flip-flop)가 RED 로 잡힌다.
      */

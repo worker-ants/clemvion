@@ -23,7 +23,10 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { useT } from "@/lib/i18n";
-import { isMaskedMarker } from "@/lib/utils/masked-markers";
+import {
+  hasMaskedMarkerLeaf,
+  isMaskedMarker,
+} from "@/lib/utils/masked-markers";
 import { useWorkspaceSlug } from "@/lib/workspace/use-workspace-slug";
 import { buildExecutionHref } from "@/lib/workspace/href";
 import { formatDate } from "@/lib/utils/date";
@@ -118,8 +121,15 @@ function splitMaskedParameters(params: Record<string, unknown>): {
   const maskedKeys: string[] = [];
   for (const [k, v] of Object.entries(params)) {
     if (isMaskedMarker(v)) {
+      // 스칼라 마커 — 비우고 재입력을 받는다.
       maskedKeys.push(k);
       prefill[k] = "";
+    } else if (hasMaskedMarkerLeaf(v)) {
+      // object/array 파라미터 **안쪽**의 마커. 이 필드는 JSON 텍스트로 렌더되므로
+      // 통째로 비우면 어느 키가 가려졌는지가 지워진다 — 값은 그대로 보여 주고
+      // 제출만 막는다(에디터 히스토리 로드와 같은 처방).
+      maskedKeys.push(k);
+      prefill[k] = v;
     } else {
       prefill[k] = v;
     }
@@ -215,6 +225,10 @@ export function ReRunModal({
   const [paramValues, setParamValues] =
     useState<Record<string, unknown>>(originalParameters);
   const [submitting, setSubmitting] = useState(false);
+  /** 마스킹으로 막힌 키 중 사용자가 실제로 입력한 것 — {@link blockedByMaskedInput} 참조. */
+  const [touchedMaskedKeys, setTouchedMaskedKeys] = useState<Set<string>>(
+    () => new Set(),
+  );
 
   // 모달이 열릴 때마다 폼 상태를 원본 기준으로 리셋.
   useEffect(() => {
@@ -222,6 +236,7 @@ export function ReRunModal({
       setUseOriginalInput(false);
       setDryRun(false);
       setParamValues(originalParameters);
+      setTouchedMaskedKeys(new Set());
       setSubmitting(false);
     }
   }, [open, originalParameters]);
@@ -283,6 +298,9 @@ export function ReRunModal({
 
   const setParam = (key: string, value: unknown) => {
     setParamValues((prev) => ({ ...prev, [key]: value }));
+    setTouchedMaskedKeys((prev) =>
+      prev.has(key) ? prev : new Set(prev).add(key),
+    );
   };
 
   // 스키마가 비동기 로드되면 fields 가 fallback(all-string)에서 스키마 기반(typed)으로
@@ -314,12 +332,15 @@ export function ReRunModal({
    * **토글 ON 이면 막지 않는다**: `useOriginalInput` 은 서버가 원본 엔티티를 직접 읽으므로
    * 마스킹과 무관하게 원문으로 재실행된다 — 오히려 이 경로가 정답이라 차단하면 안 된다.
    */
+  /**
+   * **"값이 비었는가" 가 아니라 "사용자가 그 키를 건드렸는가" 로 판정한다.**
+   *
+   * 값 기반 판정은 타입 캐스팅에 뚫린다 — 스키마가 늦게 로드되면 재조정 이펙트가
+   * `coerceInput("boolean", "")` 을 돌려 비워 둔 값이 `false` 가 되고, `"" | null |
+   * undefined` 만 보던 조건이 조용히 풀린다(`14_08_45` W2). 사용자 입력만 차단을 푼다.
+   */
   const blockedByMaskedInput =
-    !useOriginalInput &&
-    maskedKeys.some((k) => {
-      const v = paramValues[k];
-      return v === "" || v === undefined || v === null;
-    });
+    !useOriginalInput && maskedKeys.some((k) => !touchedMaskedKeys.has(k));
 
   const handleSubmit = async () => {
     setSubmitting(true);

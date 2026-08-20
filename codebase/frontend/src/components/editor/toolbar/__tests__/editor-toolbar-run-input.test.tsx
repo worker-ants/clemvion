@@ -468,6 +468,47 @@ describe("EditorToolbar — Run with Input (§2.2)", () => {
     await waitFor(() => expect(submit).not.toBeDisabled());
   });
 
+  /**
+   * **실제 유입 경로로 재현한다** (`14_08_45` W5). 위 테스트들은 textarea 에 마스킹 JSON 을
+   * 직접 넣는데, 이 PR 이 고치는 버그는 `getById -> JSON.stringify -> setJsonInput` 을 거쳐
+   * 들어온다 — 직렬화 단계를 건너뛰면 그 경로의 회귀를 못 잡는다.
+   */
+  it("Load from History 로 들어온 마스킹 값이 Run 을 막는다 (실제 유입 경로)", async () => {
+    getByWorkflowMock.mockResolvedValue({
+      data: [
+        {
+          id: "ex-m",
+          workflowId: "wf-1",
+          status: "completed",
+          startedAt: "2026-06-13T10:00:00.000Z",
+          triggerSource: "manual",
+          inputData: {},
+        },
+      ],
+      pagination: { page: 1, limit: 10, totalItems: 1, totalPages: 1 },
+    });
+    getByIdMock.mockResolvedValue({
+      id: "ex-m",
+      workflowId: "wf-1",
+      status: "completed",
+      inputData: { headers: { apiKey: "***" }, name: "Alice" },
+      startedAt: "2026-06-13T10:00:00.000Z",
+    });
+
+    renderToolbar();
+    await openRunWithInput();
+
+    fireEvent.click(screen.getByRole("button", { name: /Load from History/i }));
+    const item = await screen.findByRole("button", { name: /Manual/i });
+    fireEvent.click(item);
+
+    await waitFor(() => expect(getByIdMock).toHaveBeenCalledWith("ex-m"));
+    await waitFor(() =>
+      expect(screen.getByTestId("run-with-input-submit")).toBeDisabled(),
+    );
+    expect(await screen.findByRole("alert")).toBeInTheDocument();
+  });
+
   it("중첩 leaf 의 마커도 잡는다", async () => {
     renderToolbar();
     await openRunWithInput();

@@ -689,9 +689,9 @@ export class ExecutionsService {
           // `redactStored*` 는 바뀐 것이 없으면 같은 참조를 돌려주므로, 셋 다 무변화면
           // 행 자체를 그대로 재사용해 대규모 ForEach 실행의 행-수만큼의 shallow-copy 를
           // 피한다. `error` 만 보고 판단하던 종전 조건을 세 컬럼으로 넓힌다.
-          // **노드 레벨 `inputData` 는 마스킹한다** — 카브아웃은 `Execution` 레벨 한정이다
-          // 여기엔 재제출 소비처가 없고, 안 걸면 WS emit
-          // 과 REST 가 같은 store 슬롯에서 flip-flop 한다.
+          // **`inputData` 도 마스킹한다** — 2026-08-20 부터 두 레벨이 같은 규칙이다.
+          // 노드 레벨은 애초에 재제출 소비처가 없었고, 안 걸면 WS emit 과 REST 가 같은
+          // store 슬롯에서 flip-flop 한다.
           const inputData = maskIfPresent(
             ne.inputData,
             redactStoredDataForResponse,

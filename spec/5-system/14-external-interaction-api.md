@@ -1628,7 +1628,7 @@ present-when-available 이므로, REST 만 `null` 로 정규화하면 위젯의 
     보인다. 위 `execution.ai_message` 불릿이 *"보수적 패턴의 rare FP 를 보안 우선으로 수용"* 이라
     한 것과 같은 판단이며, 외부 `getStatus` 는 이미 같은 마스킹을 걸고 있었다(내부만 없었다).
     participant-vs-observer 분리 egress 는 실제 요구가 관측되면 검토한다.
-  - **`input`/`inputData` 의 마스킹 여부는 "레벨" 이 가른다** (2026-08-17 정정):
+  - **`input`/`inputData` 는 두 레벨 모두 마스킹한다** (2026-08-20 — *"레벨이 가른다"* 축 폐기):
     마스킹 **범위**는 *수신 인구*(boundary parity)가 정한다. 종전엔 여기에 *"그 값이
     되쓰이는가(round-trip)가 카브아웃을 정한다"* 는 둘째 축이 겹쳐 있었는데, **2026-08-20
     에 카브아웃이 닫히면서 그 축은 사라졌다** — round-trip 되는 값은 이제 카브아웃이 아니라
