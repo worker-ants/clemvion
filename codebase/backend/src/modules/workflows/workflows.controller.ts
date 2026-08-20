@@ -42,9 +42,8 @@ import { Execution } from '../executions/entities/execution.entity';
 import { WorkflowsService } from './workflows.service';
 import { ExecutionEngineService } from '../execution-engine/execution-engine.service';
 import { ShutdownStateService } from '../execution-engine/shutdown/shutdown-state.service';
-import { resolveTriggerParameters } from '../execution-engine/utils/resolve-trigger-parameters';
 import { loadTriggerParameterSchema } from '../execution-engine/utils/load-trigger-parameter-schema';
-import { findMaskedResubmissions } from '../execution-engine/utils/reject-masked-resubmission';
+import { resolveTriggerParametersRejectingMasked } from '../execution-engine/utils/reject-masked-resubmission';
 import {
   TriggerParameterValidationException,
   toTriggerParameterErrorDetails,
@@ -312,14 +311,10 @@ export class WorkflowsController {
     );
     let parameters: Record<string, unknown>;
     try {
-      parameters = resolveTriggerParameters(schema, rawValues);
       // 마스킹된 값이 그대로 재제출됐는가 — 프런트 가드(EIA §R17)의 서버측 2층.
       // 이 엔드포인트는 재제출 전용이 아니라 Manual 실행 전체의 진입점이고 출처를 구분할
       // 플래그가 없다 — 마커 세 문자열은 Manual 파라미터의 예약어다(프런트도 동일 규칙).
-      const masked = findMaskedResubmissions(parameters);
-      if (masked.length > 0) {
-        throw new TriggerParameterValidationException(masked);
-      }
+      parameters = resolveTriggerParametersRejectingMasked(schema, rawValues);
     } catch (err) {
       if (err instanceof TriggerParameterValidationException) {
         // `details` so GlobalExceptionFilter surfaces the per-field breakdown

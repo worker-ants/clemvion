@@ -25,8 +25,7 @@ import { AuditLogsService } from '../audit-logs/audit-logs.service';
 import { AUDIT_ACTIONS } from '../audit-logs/audit-action.const';
 import { WorkspacesService } from '../workspaces/workspaces.service';
 import { loadTriggerParameterSchema } from '../execution-engine/utils/load-trigger-parameter-schema';
-import { resolveTriggerParameters } from '../execution-engine/utils/resolve-trigger-parameters';
-import { findMaskedResubmissions } from '../execution-engine/utils/reject-masked-resubmission';
+import { resolveTriggerParametersRejectingMasked } from '../execution-engine/utils/reject-masked-resubmission';
 import {
   TriggerParameterValidationException,
   toTriggerParameterErrorDetails,
@@ -494,13 +493,13 @@ export class ExecutionsService {
       );
       let parameters: Record<string, unknown>;
       try {
-        parameters = resolveTriggerParameters(schema, dto.inputOverride ?? {});
         // 마스킹된 값이 그대로 되돌아왔는가 — 프런트 가드(EIA §R17)의 서버측 2층.
         // UI 를 거치지 않는 클라이언트(curl 등)는 프런트 차단을 우회하므로 여기서 막는다.
-        const masked = findMaskedResubmissions(parameters);
-        if (masked.length > 0) {
-          throw new TriggerParameterValidationException(masked);
-        }
+        // 검사 시점(raw 우선)은 이 함수가 소유한다 — 호출부가 순서를 다시 정하지 않는다.
+        parameters = resolveTriggerParametersRejectingMasked(
+          schema,
+          dto.inputOverride ?? {},
+        );
       } catch (err) {
         if (err instanceof TriggerParameterValidationException) {
           throw new BadRequestException({

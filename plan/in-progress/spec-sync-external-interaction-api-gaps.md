@@ -325,7 +325,7 @@ checker 가 독립적으로** "인용이 가리키는 절이 오히려 반대를
       났다(`14_08_45` C2) — 근본 원인은 그대로 남아 있다.
       > 공유 `redactExecutionFields(row)` 또는 응답 직전 interceptor 로 통합 검토.
 
-- [ ] **`inputOverride` 서버측 마커 리터럴 거부** (2026-08-20 등재, `14_44_08` W6).
+- [x] **`inputOverride` 서버측 마커 리터럴 거부** (2026-08-20 등재, `14_44_08` W6 — **2026-08-21 종결**).
       `resolveTriggerParameters` 는 타입·필수값만 보므로 UI 를 우회한 클라이언트(curl)는
       `'***'` 를 그대로 실어 왕복 오염을 API 레벨에서 재현할 수 있다.
       > **이번 PR 이 만든 결함은 아니다** — security reviewer 가 라운드마다 독립적으로
@@ -340,9 +340,10 @@ checker 가 독립적으로** "인용이 가리키는 절이 오히려 반대를
       > 가드의 범위 밖이다* 를 어디에도 쓰지 않았다. 근거가 약해서 같은 지적이 계속
       > 돌아온 것이다.
       >
-      > **→ 착수함 (2026-08-20)**: `spec-draft-inputoverride-marker-reject.md` (planner) →
-      > 구현. 이 체크박스는 **구현이 머지될 때** 닫는다 — spec 명문화만으로 닫으면 "가드가
-      > 있다" 로 오독된다.
+      > **→ 종결.** planner(`spec-draft-inputoverride-marker-reject.md`, spec 7곳) + 구현
+      > (`resolveTriggerParametersRejectingMasked`, Manual 실행 경로 두 곳). 범위는
+      > **재제출만이 아니라 Manual 실행 전체**로 정정됐다 — execute 엔드포인트가 출처를
+      > 구분할 플래그를 갖지 않기 때문이다(`23_33_00` cross_spec W1).
       >
       > **착수 시 두 가지를 함께 한다**: (1) 서버측 체크, (2) **planner 턴으로 §R17 에
       > 범위 문장 추가** — 거부하기로 하면 그 에러 코드가 EIA 에러 카탈로그에 들어가야
