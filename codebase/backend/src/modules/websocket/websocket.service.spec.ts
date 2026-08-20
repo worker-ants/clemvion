@@ -132,6 +132,14 @@ describe('WebsocketService', () => {
         client_secret: 'cs',
         authorization: 'Bearer x',
         cookie: 'sid=1',
+        // `token` 계열 — 2026-08-17. 이 목록은 bare `token` 만 담고 있었고, 그 탓에
+        // 접두형을 덮는 패턴 확장을 **되돌려도 이 파일 48건이 전원 GREEN** 이었다
+        // (뮤테이션으로 실증). 공용 SoT 쪽 `FAMILY` 표와 같은 축을 여기서도 고정한다.
+        'x-auth-token': 'xat',
+        csrf_token: 'ct',
+        csrfToken: 'ct2',
+        session_token: 'st',
+        id_token: 'it',
       };
       service.emitBackgroundRunEvent(
         'bg-run-1',
@@ -147,6 +155,29 @@ describe('WebsocketService', () => {
         expect(nested[key]).toBe('[REDACTED]');
       }
       expect(nested.keep).toBe('ok');
+    });
+
+    /**
+     * **오탐 경계** — 패턴은 `token` 으로 **끝나는** 키만 겨눈다. `tokenizer` 처럼
+     * 시작만 하는 정상 설정 키는 보존돼야 한다. 이 캐너리가 없으면 누가 부분일치로
+     * 넓혔을 때 노드 config 가 조용히 `[REDACTED]` 가 된다.
+     *
+     * 반대로 불투명 커서(`nextPageToken`)는 **의도적으로** 마스킹된다 — 공용 SoT 의
+     * 동명 캐너리와 같은 결정이다(egress 전용이라 다운스트림은 원문을 읽는다).
+     */
+    it('token 계열 오탐 경계 — `tokenizer` 는 보존, `nextPageToken` 은 마스킹', () => {
+      service.emitBackgroundRunEvent(
+        'bg-run-1',
+        BackgroundRunEventType.BACKGROUND_RUN_COMPLETED,
+        { nested: { tokenizer: 'lodash', nextPageToken: 'CURSOR-1' } },
+      );
+      const payload = gateway.broadcastToChannel.mock.calls[0][2] as Record<
+        string,
+        unknown
+      >;
+      const nested = payload.nested as Record<string, unknown>;
+      expect(nested.tokenizer).toBe('lodash');
+      expect(nested.nextPageToken).toBe('[REDACTED]');
     });
 
     it('preserves nested object reference identity when no credential key is present', () => {

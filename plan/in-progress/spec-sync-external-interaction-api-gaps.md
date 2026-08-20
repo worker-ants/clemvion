@@ -131,11 +131,11 @@ checker 가 독립적으로** "인용이 가리키는 절이 오히려 반대를
 `not.toHaveProperty('hmacAlgorithm')` 로 고정). 현행 위치는 `AuthConfig.config.algorithm` 이며
 **소유자가 트리거가 아니라 자격증명 메타로 바뀌었다** — `12-webhook.md:167` 이 그 차이를 명시한다.
 
-- [ ] `EIA-NX-03`(`:57`)·`R12`(`:1260`)의 `hmacAlgorithm` 인용을 `AuthConfig.config.algorithm`
+- [x] `EIA-NX-03`(`:57`)·`R12`(`:1260`)의 `hmacAlgorithm` 인용을 `AuthConfig.config.algorithm`
       기준으로 재작성. 결론(inbound `sha256` vs outbound `hmac-sha256` prefix 분리)은 유지
-- [ ] §11 `execution.stop` 행에 WS §4.6 과 같은 `_(WS 명령 §4.2 won't-do)_` 주석 —
+- [x] §11 `execution.stop` 행에 WS §4.6 과 같은 `_(WS 명령 §4.2 won't-do)_` 주석 —
       두 "권위 표" 가 어긋나 있다 (`22_29_16` cross_spec W2)
-- [ ] (선택·비차단) `2-api-convention.md §2.2` 에 `/api/external/*` 를 "별도 인증 family 를 쓰는
+- [x] (선택·비차단) `2-api-convention.md §2.2` 에 `/api/external/*` 를 "별도 인증 family 를 쓰는
       top-level 네임스페이스" 예외로 등재 (`22_29_16` convention_compliance W3)
 
 > **왜 여기 등재하고 그 자리에서 안 고쳤나**: 발견 시점이 `eia-terminal-payload` 의
@@ -169,7 +169,7 @@ checker 가 독립적으로** "인용이 가리키는 절이 오히려 반대를
       `ai_message.messages[]` · EIA `nodeOutput`)가 영향을 받으므로 blast radius 가 다른 별건이다.
       승격 시 그 소비자들의 회귀 테스트를 선행해야 한다
 
-- [ ] **`SECRET_LEAK_PATTERNS` 가 bare `token=` 을 안 잡는다** (2026-08-16 등재, 위 항목의
+- [x] **`SECRET_LEAK_PATTERNS` 가 bare `token=` 을 안 잡는다** (2026-08-16 등재, 위 항목의
       자매 — 같은 "패턴 폭" 축이다). 키워드 목록은 `client_secret`·`access_token`·
       `refresh_token`·`id_token`·`api_key`·`password`·`passwd`·`pwd` 를 담지만 **`token` 단독은
       없다** — `secret` 은 단독 패턴이 따로 있는데 `token` 은 없어 **비대칭**이다.
@@ -180,6 +180,18 @@ checker 가 독립적으로** "인용이 가리키는 절이 오히려 반대를
       > **다만 blast radius 는 같은 축**이다: 패턴을 넓히면 `deepRedactSecrets` 의 소비자
       > 전부가 영향받고 `redact-stored-error.spec.ts` 의 캐너리가 RED 로 바뀐다.
       > 위 항목과 **함께** 처리하는 것이 자연스럽다(한 번의 회귀 검증으로 둘 다 닫는다).
+      >
+      > **→ 해소 (2026-08-17). 위 blockquote 의 전제 두 개가 실측으로 반증됐다:**
+      > ① *"blast radius 가 같은 축 — 캐너리가 RED 로 바뀐다"* → **거짓**. 그 캐너리는
+      >   **연결 문자열**을 고정하며 `token` 문자열이 한 건도 없다. 패턴을 넓힌 뒤 백엔드
+      >   **427 suites / 8,811 전원 GREEN** — 깨진 기존 테스트 0건이라 묶을 이유가 없었다.
+      > ② *"`token` 단독이 빠진 비대칭"* 은 참이지만 **결함의 전부가 아니었다**. 3축 프로브
+      >   결과 *접두* 계열(`csrf_token`·`auth_token`·`session_token`·`csrfToken`)이 값 축과
+      >   키 축 **양쪽**에서 누출했다. 그래서 `[A-Za-z0-9_-]*token` 으로 계열째 닫았다.
+      >
+      > 범위: 값 패턴 + `CREDENTIAL_KEY_PATTERN` 2곳(미러) + MCP 전용 대안 흡수.
+      > `maskSensitiveFields`(로깅·workflow-assistant)는 **아래 workflow-assistant 항목이
+      > 소유**하므로 건드리지 않고, 이번 실측을 그 항목에 증거로 덧붙였다.
 
 - [x] **§6.4 필드 표 + §R17 마스킹 카탈로그에 이 egress 지점 등재** — 해소(2026-08-16)
       — 2026-08-16 등재, `11_36_45` W1. 구현은 끝났는데 **spec 이 새 보안 불변식을 모른다**.
@@ -231,6 +243,14 @@ checker 가 독립적으로** "인용이 가리키는 절이 오히려 반대를
       > 으로 **접미 힌트를 남기는데**(어떤 키가 가려졌는지 식별용) 값-패턴 마스킹이 그걸
       > `***` 로 덮는다. 두 마스킹 의미 중 이 표면에서 무엇이 우선인지가 **결정 항목**이다.
       > 테스트를 내 변경에 맞춰 고치는 대신 되돌리고 여기 등재한다
+      >
+      > **증거 추가 (2026-08-17, `token=` 항목 집행 중 실측)**: 이 표면의 갭은 값-패턴 부재
+      > 하나가 아니다. `maskSensitiveFields` 의 `DEFAULT_SENSITIVE_KEYS` 는 **키 축에서도**
+      > 접두 `token` 계열을 놓친다 — `{csrf_token}`·`{auth_token}`·`{session_token}`·
+      > `{csrfToken}` 이 전부 평문 통과(bare `token` 만 잡힘). 같은 라운드에 EIA 쪽 두
+      > 목록(`SECRET_LEAK_PATTERNS`·`CREDENTIAL_KEY_PATTERN` ×2)은 계열째 닫았고 **이 목록만
+      > 남겨 뒀다** — 마스킹 형태가 다르고(`****<last4>` vs `***`) 위 "무엇이 우선인가"
+      > 결정에 묶여 있어, 그 결정 없이 넓히면 여기서 또 되돌리게 된다.
 
 - [x] **단일 관문 근거 서술이 소스 3곳에 흩어져 있다** — 해소(2026-08-16, `fe6a54c80`).
       읽기 표면 표를 `toResponseExecution` 에 정본으로 두고 나머지 세 지점은 그것을 가리키게

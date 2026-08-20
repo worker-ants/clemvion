@@ -355,3 +355,65 @@ describe('deepRedactSecretsPreserving', () => {
     expect(preserved.llmCalls[0].raw).toBe('Bearer keep-me');
   });
 });
+
+/**
+ * `token` 계열 — **두 축**을 각각 겨눈다 (2026-08-17).
+ *
+ * 착수 전 무수정 프로브로 실측한 결함: 값-패턴 목록은 `access_token` 은 담으면서
+ * bare `token` 이 없었고(단독 `secret` 패턴은 있는데 `token` 은 없는 비대칭), 키-이름
+ * 목록은 반대로 bare `token` 만 있고 **접두형이 전부 빠져** `{csrf_token: …}` 이 평문으로
+ * 나갔다. 한 축만 고치면 다른 축이 조용히 남으므로 **양쪽을 같은 표로 고정**한다.
+ */
+describe('token 계열 — 값 축과 키 축을 같은 표로 고정', () => {
+  const FAMILY = [
+    'token',
+    'access_token',
+    'refresh-token',
+    'id_token',
+    'csrf_token',
+    'csrfToken',
+    'session_token',
+    'x-auth-token',
+  ];
+
+  it.each(FAMILY)('값 축: `%s=…` 를 마스킹한다', (key) => {
+    expect(redactSecrets(`${key}=sk-live-abc123`)).toBe('***');
+  });
+
+  it.each(FAMILY)('키 축: `{%s: …}` 를 마스킹한다', (key) => {
+    expect(deepRedactSecrets({ [key]: 'sk-live-abc123' })).toEqual({
+      [key]: '***',
+    });
+  });
+
+  it('값 축: 따옴표·쿼리스트링 형태도 잡는다', () => {
+    expect(redactSecrets('{"csrf_token":"sk-live-abc123"}')).toContain('***');
+    // 자매 테스트(`mcp-error-codes.spec.ts`)처럼 **비-시크릿 파라미터 보존**도 함께
+    // 단언한다. 이것이 없으면 패턴이 줄 전체를 삼키도록 넓어져도 초록이다.
+    const qs = redactSecrets('cb?token=sk-live-abc123&state=x');
+    expect(qs).not.toContain('sk-live-abc123');
+    expect(qs).toContain('state=x');
+  });
+
+  /**
+   * **오탐 경계** — `token` 으로 *시작하지만* 자격증명이 아닌 식별자는 건드리지 않는다.
+   * 패턴은 `token` 으로 **끝나는** 이름만 겨눈다. 이 캐너리가 없으면 누가 부분일치로
+   * 넓혔을 때 정상 설정값이 조용히 `***` 가 된다.
+   */
+  it('[캐너리] `tokenizer=` 처럼 token 으로 시작만 하는 키는 보존한다', () => {
+    expect(redactSecrets('tokenizer=lodash')).toBe('tokenizer=lodash');
+    expect(redactSecrets('tokenized text here')).toBe('tokenized text here');
+  });
+
+  /**
+   * **받아들이는 오탐** — 불투명 커서(`nextPageToken`)도 마스킹된다. 마스킹은 egress
+   * 전용이고 DB 는 원문을 갖고 있어 다운스트림 노드는 실제 커서를 그대로 읽는다. 즉
+   * 비용은 화면 가시성 하나뿐이다. 이 캐너리는 그 결정을 **기록**한다 — 좁히려는 사람이
+   * 재발견 대신 결정을 먼저 보게 된다.
+   */
+  it('[캐너리] 불투명 커서도 마스킹된다 — 의도된 오탐', () => {
+    expect(deepRedactSecrets({ nextPageToken: 'CURSOR-123' })).toEqual({
+      nextPageToken: '***',
+    });
+  });
+});

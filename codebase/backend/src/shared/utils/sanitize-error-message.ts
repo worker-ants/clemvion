@@ -34,7 +34,12 @@ export const SECRET_LEAK_PATTERNS: ReadonlyArray<RegExp> = [
   // OAuth-style bearer tokens
   /\bBearer\s+[A-Za-z0-9._\-+/=]+/gi,
   // Cafe24 token endpoints frequently include the secret in body / URL.
-  /"?\b(client[_-]secret|access[_-]token|refresh[_-]token|id[_-]token|api[_-]key|password|passwd|pwd)"?\s*[=:]\s*(?:"[^"]*"|[^\s&'"]+)/gi,
+  // `[A-Za-z0-9_-]*token` is the whole `token` family in one alternative: bare
+  // `token=`, and any prefixed form (`access_token` / `refresh-token` / `id_token` /
+  // `csrf_token` / `csrfToken`). It REPLACES the three explicit `*[_-]token`
+  // alternatives that used to sit here — they are subsumed, and keeping both invites
+  // the two spellings to drift.
+  /"?\b(client[_-]secret|[A-Za-z0-9_-]*token|api[_-]key|password|passwd|pwd)"?\s*[=:]\s*(?:"[^"]*"|[^\s&'"]+)/gi,
   // 단독 `secret` 키워드
   /"?\bsecret"?\s*[=:]\s*(?:"[^"]*"|[^\s&'"]+)/gi,
   // Authorization header values — mask the entire value to end-of-line so
@@ -78,11 +83,25 @@ export function redactSecrets(raw: string): string {
  * a secret stored as a bare value (`{"api_key":"AKIA…"}`) matches no value-level
  * pattern, so key-name matching is the only way to catch it. Mirrors the WS-layer
  * `CREDENTIAL_KEY_PATTERN` (websocket.service) — both defend the same class at
- * different layers — and additionally covers `x-`-prefixed header names
- * (`x-api-key` / `x-auth-token`) common in LLM/tool structured output.
+ * different layers — and additionally covers `x-api-key`, an `x-`-prefixed header name
+ * common in LLM/tool structured output that the WS layer does not carry.
+ *
+ * `[a-z0-9_-]*token` covers the whole family in one alternative (bare `token`,
+ * `access_token`, `csrf_token`, `csrfToken`, `x-auth-token`). Measured 2026-08-17:
+ * the list carried bare `token` but **not** the prefixed forms, so `{csrf_token: …}`
+ * went out in the clear on every one of the three masking axes.
+ *
+ * That family alternative landed in **both** copies, so `x-auth-token` — previously
+ * spelled out here only — is now shared with the WS mirror. `x-api-key` is the single
+ * remaining asymmetry, and it is deliberate.
+ *
+ * **Accepted false positive**: opaque cursors (`nextPageToken`, `continuationToken`)
+ * are masked too. They are display-only here — masking is egress-only and the DB keeps
+ * the raw value, so downstream nodes still read the real cursor. A canary pins this so
+ * anyone narrowing the pattern sees the decision rather than rediscovering it.
  */
 const CREDENTIAL_KEY_PATTERN =
-  /^(password|passwd|pwd|api[_-]?key|secret|token|access[_-]?token|refresh[_-]?token|private[_-]?key|client[_-]?secret|authorization|cookie|x[_-]api[_-]?key|x[_-]auth[_-]?token)$/i;
+  /^(password|passwd|pwd|api[_-]?key|secret|[a-z0-9_-]*token|private[_-]?key|client[_-]?secret|authorization|cookie|x[_-]api[_-]?key)$/i;
 
 /**
  * Recursion depth cap. Beyond this, a subtree is masked wholesale to `***` rather

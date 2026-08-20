@@ -61,7 +61,7 @@ code:
 |----|---------|---------|
 | EIA-NX-01 | Trigger 등록 페이로드의 `notification.url` 로 이벤트를 HTTP POST 한다 | 필수 |
 | EIA-NX-02 | 이벤트 종류 화이트리스트 구독: `execution.waiting_for_input` / `execution.completed` / `execution.failed` / `execution.cancelled` / `execution.ai_message` | 필수 |
-| EIA-NX-03 | 페이로드는 HMAC-SHA256 으로 서명하여 `X-Clemvion-Signature: t=<unix>,v1=<hex>` 헤더로 전송 (Stripe-style). 알고리즘 식별자는 [Webhook §4.2](./12-webhook.md#42-hmac-서명--authconfigtypehmac) 의 화이트리스트 표기 (`sha256` / `sha512`) 와 동일 값을 trigger config 에 보관하되 (`hmacAlgorithm: 'sha256'`), 외부 표면 (notification.signing.algorithm) 에서는 `hmac-sha256` / `hmac-sha512` 의 명시적 prefix 형태로 노출해 inbound webhook 검증과 outbound notification 서명의 알고리즘 출처를 분리한다 (§R12) | 필수 |
+| EIA-NX-03 | 페이로드는 HMAC-SHA256 으로 서명하여 `X-Clemvion-Signature: t=<unix>,v1=<hex>` 헤더로 전송 (Stripe-style). 알고리즘 식별자는 [Webhook §4.2](./12-webhook.md#42-hmac-서명--authconfigtypehmac) 의 화이트리스트 표기 (`sha256` / `sha512`) 와 동일 값을 **자격증명 메타**에 보관하되 (`AuthConfig.config.algorithm`), 외부 표면 (notification.signing.algorithm) 에서는 `hmac-sha256` / `hmac-sha512` 의 명시적 prefix 형태로 노출해 inbound webhook 검증과 outbound notification 서명의 알고리즘 출처를 분리한다 (§R12) | 필수 |
 | EIA-NX-04 | 동일 이벤트는 동일 `X-Clemvion-Delivery: <uuid>` 헤더로 식별 — 재시도 시 같은 ID 유지 (at-least-once 보장) | 필수 |
 | EIA-NX-05 | 이벤트 발송 전 execution 상태를 재조회해 stale notification 차단 (예: `waiting_for_input` 발송 직전에 이미 `cancelled` 라면 발송 생략) | 필수 |
 | EIA-NX-06 | 2xx 응답만 성공으로 간주. 그 외 / 타임아웃 → 지수 백오프 재시도 (default 5회). **구현됨**: base-4 custom backoff (1s/4s/16s/64s/256s) — worker `settings.backoffStrategy`(`NotificationWebhookProcessor`) + job opts `backoff.type = NOTIFICATION_BACKOFF_TYPE` ([`notification-dispatcher.service.ts`](../../codebase/backend/src/modules/external-interaction/notification-dispatcher.service.ts)). BullMQ 내장 exponential 이 base-2 뿐이라 custom 전략을 등록했다 — §6.6 참조 | 필수 |
@@ -1121,8 +1121,8 @@ Hooks 진입점 (`/api/hooks/:endpointPath`) 은 `@Public()` 로 JWT 인증을 �
 | `execution.click_button` | `click_button` | 동일 |
 | `execution.submit_message` | `submit_message` | 동일 |
 | `execution.end_conversation` | `end_conversation` | 동일 |
-| `execution.stop` | `cancel` | `force` 옵션은 외부에서 미지원 |
-| (해당 없음) | — `execution.start` 는 외부 인터페이스에서 지원 안 함 (webhook 트리거로 대체) |
+| `execution.stop` _(WS 명령 §4.2 won't-do)_ | `cancel` | WS 명령은 미채택 — 개념(실행 중단)만 매핑하고 내부·외부 모두 REST. `force` 옵션은 외부에서 미지원 |
+| `execution.start` _(WS 명령 §4.2 won't-do)_ | (외부 미지원) | WS 명령은 미채택 — 내부는 REST `POST /workflows/:id/execute`, 외부는 webhook 트리거로 실행 시작 |
 | (해당 없음) | — `execution.continue` / `execution.step` 는 디버깅 전용, 외부 미노출 |
 
 | 내부 WS 이벤트 (Server → Client) | SSE event 이름 | Outbound notification `type` |
@@ -1315,11 +1315,18 @@ NotificationDispatcher 를 엔진 내부에서 직접 호출하는 대안은 채
 
 ### R12. HMAC 알고리즘 표기 — inbound vs outbound 분리
 
-**채택**: Trigger 의 inbound webhook HMAC 검증 ([Spec Webhook §4.2](./12-webhook.md#42-hmac-서명--authconfigtypehmac)) 은 `hmacAlgorithm: 'sha256' | 'sha512'`. 본 spec 의 outbound notification 서명 표기는 `signing.algorithm: 'hmac-sha256' | 'hmac-sha512'`. inbound 는 외부 발신자(GitHub 등) 의 서명 헤더 형식 (`X-Hub-Signature-256: sha256=...`) 과 정합해야 하고, outbound 는 본 spec 의 자체 서명 헤더 (`X-Clemvion-Signature: t=...,v1=...`) 의 알고리즘 식별자 의미가 명시적이도록 `hmac-` prefix 를 부여한다.
+**채택**: Trigger 의 inbound webhook HMAC 검증 ([Spec Webhook §4.2](./12-webhook.md#42-hmac-서명--authconfigtypehmac)) 은 `AuthConfig.config.algorithm: 'sha256' | 'sha512'`. 본 spec 의 outbound notification 서명 표기는 `signing.algorithm: 'hmac-sha256' | 'hmac-sha512'`. inbound 는 외부 발신자(GitHub 등) 의 서명 헤더 형식 (`X-Hub-Signature-256: sha256=...`) 과 정합해야 하고, outbound 는 본 spec 의 자체 서명 헤더 (`X-Clemvion-Signature: t=...,v1=...`) 의 알고리즘 식별자 의미가 명시적이도록 `hmac-` prefix 를 부여한다.
 
 양쪽을 모두 `sha256` 으로 통일하는 안은 outbound 표기에서 "HMAC 서명" 임이 명시적이지 않아 향후 다른 서명 방식 (예: Ed25519) 추가 시 식별자 ambiguity 가 생기고, 양쪽을 모두 `hmac-sha256` 으로 통일하는 안은 inbound 가 외부 발신자가 정한 헤더 형식 (`sha256=<hex>`) 과 정합해야 하므로 12-webhook 의 기존 표기를 바꾸면 backward incompat 이 되어 모두 채택하지 않는다.
 
 각 경로에서 algorithm 화이트리스트는 `sha256`/`sha512` 만 (둘 다). 본 spec §3.1 EIA-NX-03 에 두 표기의 관계를 명시.
+
+> **2026-08-17 출처 정정**: 이 절과 EIA-NX-03 은 inbound 값을 *"trigger config 에 보관"* 이라
+> 현재형으로 인용했으나, inline 인증 키(`authType`/`secret`/`bearerToken`/`hmacHeader`/
+> `hmacAlgorithm`)는 `V066__trigger_config_strip_inline_auth.sql` 로 제거됐고
+> `triggers.service.ts` 가 저장 시 스트립한다. 현행 소유자는 **`AuthConfig.config.algorithm`
+> — 트리거가 아니라 자격증명 메타**다([12-webhook §2](./12-webhook.md) 가 그 차이를 명시).
+> **결론(inbound `sha256` vs outbound `hmac-` prefix 분리)은 바뀌지 않았고 출처만 정정**했다.
 
 ### R13. WS 평면 ack 에러 코드 ↔ EIA REST 에러 코드 매핑 원칙
 
@@ -1569,6 +1576,11 @@ present-when-available 이므로, REST 만 `null` 로 정규화하면 위젯의 
         안 나가면 카브아웃이 값싸다. 두 사례가 정확히 그 두 갈래다.
       - 마커 집합은 backend `sanitize-error-message.ts` 가 SoT 이고 프런트가 미러한다 —
         어긋나면 가드가 조용히 뚫리므로 **양쪽을 함께** 갱신한다.
+    - **`token` 계열 확장 (2026-08-17)**: 값 패턴과 `CREDENTIAL_KEY_PATTERN`(공용·WS 미러)이
+      `token` **계열 전체**(bare `token` + `access_token`·`csrf_token`·`csrfToken`·
+      `x-auth-token` 등 접두형)를 덮는다. **다만 이 확장은 잔여 ③ 에 미치지 않는다** —
+      `maskSensitiveFields` 의 키 목록은 리터럴 나열이라 접두 계열이 아직 통과한다.
+      즉 *"`token` 계열이 닫혔다"* 는 **이 두 축에 한한 서술**이고, 아래 표면은 별건이다.
     - **잔여 ③ (범위 밖 유지)**: **workflow-assistant LLM 도구**(`explore-tools.service.ts`)는 `inputData` ·
       `outputData` · `error` **세 필드**를 `maskSensitiveFields`(**키 이름** 기반)로만 내보내
       자유 텍스트 안의 자격증명을 통과시킨다 (그쪽 마스킹 규칙의 SoT 는

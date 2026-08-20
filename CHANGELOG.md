@@ -1,5 +1,31 @@
 # Changelog
 
+## Unreleased — `token` 계열이 값·키 두 축에서 마스킹 없이 나가고 있었다
+
+트래커의 *"`SECRET_LEAK_PATTERNS` 가 bare `token=` 을 안 잡는다"* 집행. **티켓보다 넓었다** —
+무수정 프로브로 3축을 재보니 티켓이 지목한 것은 한 칸이었고, 접두 계열(`csrf_token` ·
+`auth_token` · `session_token` · `csrfToken`)이 **세 축 전부**에서 평문으로 나갔다.
+
+**`[A-Za-z0-9_-]*token` 한 대안으로 계열째 덮는다.** 기존 `access`/`refresh`/`id` 세 대안은
+흡수돼 합쳤다 — 두 철자를 남기면 다음 사람이 어느 쪽을 고칠지 갈린다.
+
+마스킹 목록은 **넷**이고 **셋을 닫았다**: 값 패턴 · `CREDENTIAL_KEY_PATTERN` 2곳(의도된
+미러라 한쪽만 고치면 그 주석이 거짓이 된다). **`maskSensitiveFields` 는 닫지 않았다** —
+workflow-assistant 트래커 항목이 소유하고 마스킹 형태도 다르다(`****<last4>` vs `***`).
+대신 이번 실측을 그 항목에 증거로 덧붙였다.
+
+**MCP 전용 패턴을 흡수했다** — `MCP_EXTRA_SECRET_PATTERNS` 는 오직 bare `token=` 하나를
+담고 있어 이번 확장으로 잉여가 됐다. 프로브로 동치를 확인하고(`?token=abc&foo=bar` 가
+공용만으로도 `?***&foo=bar`) 2026-07-10 URL-userinfo 흡수와 같은 절차로 비웠다. **훅은
+남긴다** — MCP 서버는 제3자 구현이라 공용이 모르는 형태를 되돌려줄 수 있다.
+
+**받아들이는 오탐**: 불투명 커서(`nextPageToken`)도 마스킹된다. egress 전용이라 DB 는 원문을
+갖고 있고 다운스트림 노드는 실제 커서를 읽는다 — 비용은 화면 가시성 하나다. 반대로
+`tokenizer=` 처럼 token 으로 *시작만* 하는 이름은 건드리지 않는다. 둘 다 캐너리로 고정했다.
+
+트래커가 경고한 *"패턴을 넓히면 캐너리가 RED"* 는 **거짓이었다** — 그 캐너리는 연결 문자열을
+고정하며 `token` 이 한 건도 없다. 확장 후 백엔드 427 suites 전원 GREEN.
+
 ## Unreleased — 마스킹된 폼 기본값이 프리필돼 사용자의 실제 입력으로 제출되고 있었다
 
 아래 항목이 `formConfig` 를 포함한 WS payload 전체에 값-마스킹을 걸면서 생긴 **살아있는
