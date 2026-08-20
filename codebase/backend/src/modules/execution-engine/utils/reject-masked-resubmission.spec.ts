@@ -201,6 +201,18 @@ describe('resolveTriggerParametersRejectingMasked', () => {
   });
 
   /**
+   * **혼합 중첩** (`01_15_47` testing INFO-2) — 위 경계 테스트는 동종(객체만/배열만)만
+   * 쌓는다. 두 분기가 각자 `depth + 1` 하므로 섞여도 같은 보폭이어야 한다.
+   */
+  it('[경계] object↔array 혼합 중첩에서도 같은 보폭으로 센다', () => {
+    // 5단계 혼합: obj → arr → obj → arr → obj, leaf 는 depth 5
+    const mixed = { a: [{ b: [{ c: VALUE_MASK_MARKER }] }] };
+    expect(
+      rejectedFields([{ name: 'p', type: 'object' }], { p: mixed }),
+    ).toEqual(['p']);
+  });
+
+  /**
    * **스택 회귀** — 상한이 없으면 `RangeError`. 크기는 상한 없는 구현이 **실제로 터지는
    * 값**으로 골랐다(#1188 실측: `JSON.parse` 는 depth 100,000 을 통과시키는데 재귀는
    * 5,000 에서 터진다). 1,000 으로 잡으면 상한 없는 구현도 통과해 vacuous 하다.

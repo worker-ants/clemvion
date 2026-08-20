@@ -3,7 +3,7 @@ title: "spec 정정 — 마커 거부의 범위 서술과 검사 시점을 구�
 worktree: eia-inputoverride-reject-a3f1c9
 started: 2026-08-21
 owner: planner
-status: in-progress
+status: complete
 priority: P2
 spec_impact:
   - spec/4-nodes/7-trigger/1-manual-trigger.md

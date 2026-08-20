@@ -82,6 +82,11 @@ export function resolveTriggerParametersRejectingMasked(
  * > 위반을 동시에 보고할 일은 없다. 합치려면 ① 이후에도 resolve 를 강행해야 하는데, 그러면
  * > `coerce_failed`(`'***'` 를 number 로 캐스팅 실패 등)가 섞여 **안내가 다시 흐려진다** —
  * > 이 PR 이 되돌린 바로 그 문제다. phase 경계를 유지하는 쪽이 사용자에게 정확하다.
+ *
+ * > **알려진 트레이드오프** (`01_15_47` testing INFO-3): ①을 통과한 뒤 **무관한 필드의 진짜
+ * > 타입 오류**로 resolve 가 `coerce_failed` 를 던지면 ②(JSON 문자열 안의 마커)는 아예
+ * > 실행되지 않는다. 사용자는 타입 오류를 먼저 고치고 재제출하며 그때 마커 안내를 받는다 —
+ * > 보안 우회가 아니라 안내가 한 왕복 늦어지는 UX 엣지케이스다.
  */
 function throwIfAny(errors: TriggerParameterValidationError[]): void {
   if (errors.length > 0) {

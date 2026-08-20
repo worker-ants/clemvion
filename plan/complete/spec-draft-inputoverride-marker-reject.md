@@ -3,7 +3,7 @@ title: "`inputOverride` 서버측 마커 리터럴 거부 — 가드를 UI 밖�
 worktree: eia-inputoverride-reject-a3f1c9
 started: 2026-08-20
 owner: planner
-status: in-progress
+status: complete
 priority: P2
 spec_impact:
   - spec/5-system/14-external-interaction-api.md

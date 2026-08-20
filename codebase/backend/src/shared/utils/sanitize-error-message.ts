@@ -147,11 +147,9 @@ export const DEPTH_MASK_MARKER = '[REDACTED_DEPTH]';
  * >
  * > 2026-08-20 에 `dynamic-form-ui.tsx` 안에서 `lib/utils/` 로 승격됐다(소비처 셋).
  */
-export const MASKED_MARKERS: ReadonlySet<string> = new Set([
-  VALUE_MASK_MARKER,
-  KEY_MASK_MARKER,
-  DEPTH_MASK_MARKER,
-]);
+export const MASKED_MARKERS: ReadonlySet<string> = Object.freeze(
+  new Set([VALUE_MASK_MARKER, KEY_MASK_MARKER, DEPTH_MASK_MARKER]),
+);
 
 /**
  * 값 전체가 마스킹 마커와 **정확히 일치**하는가.
