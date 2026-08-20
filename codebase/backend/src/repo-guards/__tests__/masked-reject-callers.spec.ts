@@ -100,16 +100,21 @@ describe('resolveTriggerParameters 직접 호출부 허용목록', () => {
   });
 
   /**
-   * **우회 형태 세 가지를 전부 본다** (`02_49_22` security W1).
+   * **우회 형태를 전부 본다** (`02_49_22` → `03_14_16` security W1).
    *
-   * 초판은 named import 만 봤고, 무수정 프로브로 재니 namespace import 와 `require()` 가
-   * **조용히 통과**했다 — 새 Manual 경로가 그 형태로 base 를 쓰면 마커 재제출이 다시
-   * 열린다. 우회 가능한 가드는 없느니만 못하다(있다고 믿게 만든다).
+   * 초판은 named import 만 봤고, 라운드마다 우회 형태를 하나씩 덧대 왔다. 그때마다
+   * **무수정 프로브로 재면 새 형태가 조용히 통과**했다 — 새 Manual 경로가 그 형태로 base 를
+   * 쓰면 마커 재제출이 다시 열린다. 우회 가능한 가드는 없느니만 못하다(있다고 믿게 만든다).
+   *
+   * `03_14_16` 에서 네 번째로 같은 클래스가 나와 **정규식을 버리고 AST 로 갔다**. 아래
+   * 일곱 형태는 그 전환의 회귀 고정이다 — 뒤 셋(`dynamic-import`·`bracket`·`colon-rename`)이
+   * 정규식 시절 미탐지였던 것들이다.
    *
    * 형태별로 단언을 나눠 **어느 형태가 깨졌는지**가 실패 메시지에 드러나게 한다.
    */
   it.each([
     ['named', "import { resolveTriggerParameters } from './x';"],
+    ['named-as-rename', "import { resolveTriggerParameters as f } from './x';"],
     [
       'namespace',
       "import * as base from './resolve-trigger-parameters';\nbase.resolveTriggerParameters(s, r);",
@@ -118,8 +123,39 @@ describe('resolveTriggerParameters 직접 호출부 허용목록', () => {
       'require',
       "const { resolveTriggerParameters } = require('./x') as never;",
     ],
+    [
+      'dynamic-import',
+      "const { resolveTriggerParameters } = await import('./x');",
+    ],
+    [
+      'bracket',
+      "import * as base from './x';\nbase['resolveTriggerParameters'](s, r);",
+    ],
+    [
+      'colon-rename',
+      "const { resolveTriggerParameters: f } = require('./x') as never;",
+    ],
   ])('[캐너리] %s 형태의 base 사용을 탐지한다', (_form, source) => {
     expect(importsBaseFn(source)).toBe(true);
+  });
+
+  /**
+   * **주석·문자열은 식별자가 아니다** — AST 전환으로 `stripCommentsAndStrings` 보정 장치가
+   * 사라졌으므로, 그 장치가 막던 오판(`02_04_38` W1: JSDoc 안의 import 예시 텍스트를 실제
+   * import 로 오인)이 파서로 자연 해소됐는지 고정한다.
+   */
+  it.each([
+    [
+      '블록 주석 속 예시',
+      "/** import { resolveTriggerParameters } from './x'; */",
+    ],
+    [
+      '라인 주석 속 예시',
+      "// const { resolveTriggerParameters } = require('./x');",
+    ],
+    ['평범한 문자열 리터럴', "const doc = 'resolveTriggerParameters';"],
+  ])('[캐너리] %s 는 사용으로 오인하지 않는다', (_kind, source) => {
+    expect(importsBaseFn(source)).toBe(false);
   });
 
   /** 그 확장이 wrapper 의 멤버 접근까지 잡으면 안 된다 — 접두 겹침이 여기도 걸린다. */
