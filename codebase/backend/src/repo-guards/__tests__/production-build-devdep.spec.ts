@@ -38,6 +38,9 @@ describe('프로덕션 빌드 devDependency 누출', () => {
    */
   it('[캐너리] 빌드 대상 파일 목록이 비어 있지 않다', () => {
     const files = resolveBuildFileNames(backendDir);
+    // 하한 500 의 근거: 도입 시점 실측 **805 파일**. 정확값을 박으면 파일이 하나 늘 때마다
+    // 깨지므로 여유를 두되, "설정이 깨져 목록이 비었다" 와는 확실히 갈리는 값이어야 한다.
+    // 실측이 이 아래로 떨어지면 파일이 준 게 아니라 **설정 해석이 고장난 것**을 의심할 것.
     expect(files.length).toBeGreaterThan(500);
     expect(files.some((f) => f.endsWith('/src/main.ts'))).toBe(true);
   });

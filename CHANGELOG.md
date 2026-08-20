@@ -30,6 +30,18 @@
 신규 field code: `MASKED_VALUE_RESUBMITTED`. `coerce_failed` 재사용은 기각했다 — 사용자가
 취할 행동이 다르다("타입이 안 맞는다" 가 아니라 "가려진 값을 다시 입력하라").
 
+**부산물로 저장소 전역 가드 두 개가 생겼다** — 이 기능의 범위를 넘으므로 따로 적어 둔다.
+
+- `masked-reject-callers` — 허용목록 밖에서 base `resolveTriggerParameters` 를 쓰면 RED.
+  주석은 "어느 호출부가 어느 쪽을 써야 하는가" 를 강제하지 못하고, 세 번째 Manual 경로가
+  base 를 쓰면 거부가 조용히 열린다. 초판은 정규식이었는데 우회 형태를 라운드마다 하나씩
+  덧대다 네 번째가 나와 **AST(`ts.createSourceFile`)로 뒤집었다**.
+- `production-build-devdep` — **빌드 대상 중 어느 파일도 devDependency 를 런타임 참조하지
+  않는다**. 위 AST 전환이 `src/` 에서 devDependency 인 `typescript` 를 import 하게 만들었고,
+  `tsconfig.build.json` 의 제외가 spec 파일만 겨냥해 `*-guard.ts` 가 `dist` 로 나가고 있었다
+  (선존). `src/repo-guards/**` 를 빌드에서 제외해 막았고, 그 보장이 수동 확인에 기대지
+  않도록 이 가드가 지킨다. repo-guards 는 프로덕션 소비처 0건(실측).
+
 ## Unreleased — `Execution.inputData` 카브아웃을 닫았다 (재제출 소비처 3곳에 마커 가드)
 
 이 컬럼은 egress 마스킹의 **유일한 예외**였다. 이유는 보안이 아니라 **데이터 무결성**이었다 —
