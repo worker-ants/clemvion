@@ -69,6 +69,19 @@ export function listSourceFiles(rootDir: string): string[] {
  * `resolveTriggerParametersRejectingMasked` 는 **접두가 같다** — 단어 경계로 가르지 않으면
  * wrapper 만 쓰는 파일이 base 사용으로 오인되고, 그러면 올바른 코드가 RED 를 내 가드 자체가
  * 무시된다.
+ *
+ * ## 세 형태를 본다 (`02_49_22` security W1)
+ *
+ * 초판은 named import 만 봤다. 무수정 프로브로 재니 나머지 둘이 **조용히 우회**했다:
+ *
+ * | 형태 | 초판 | 지금 |
+ * |---|---|---|
+ * | `import { resolveTriggerParameters } from '…'` | 탐지 | 탐지 |
+ * | `import * as base from '…'` + `base.resolveTriggerParameters(…)` | **미탐지** | 탐지 |
+ * | `const { resolveTriggerParameters } = require('…')` | **미탐지** | 탐지 |
+ *
+ * 우회 가능한 가드는 **없느니만 못하다** — 있다고 믿게 만든다. 세 형태 각각을 캐너리로
+ * 고정했다.
  */
 export function importsBaseFn(source: string): boolean {
   // **주석·문자열을 먼저 걷어낸다.** 안 그러면 문서 안의 import **예시 텍스트**가 실제
@@ -77,10 +90,20 @@ export function importsBaseFn(source: string): boolean {
   // 무력화되고, 나중에 무관한 파일이 같은 구문을 인용하면 엉뚱하게 CI 가 깨진다.
   const code = stripCommentsAndStrings(source);
 
-  // 멀티라인 import 를 포함해야 한다 — named 가 여럿이면 prettier 가 줄바꿈한다.
-  const importBlocks = code.match(/import\s*\{[\s\S]*?\}\s*from/g) ?? [];
+  // ① named import — 멀티라인을 포함해야 한다(named 가 여럿이면 prettier 가 줄바꿈한다).
+  const namedBlocks = code.match(/import\s*\{[\s\S]*?\}\s*from/g) ?? [];
   const named = new RegExp(`(^|[\\s,{])${BASE_FN}([\\s,}]|$)`);
-  return importBlocks.some((block) => named.test(block));
+  if (namedBlocks.some((block) => named.test(block))) return true;
+
+  // ② `const { resolveTriggerParameters } = require('...')` — CommonJS 구조분해.
+  const requireBlocks = code.match(/\{[\s\S]*?\}\s*=\s*require\s*\(/g) ?? [];
+  if (requireBlocks.some((block) => named.test(block))) return true;
+
+  // ③ namespace import — `import * as base from '...'` 뒤의 `base.resolveTriggerParameters`.
+  //    별칭이 무엇이든 잡으려면 **멤버 접근 자체**를 본다. 같은 이름의 멤버를 다른
+  //    네임스페이스에서 쓰는 사례는 이 저장소에 없다(실측) — 생긴다면 그건 같은 이름의
+  //    다른 함수라는 뜻이라 어차피 사람이 확인해야 한다.
+  return new RegExp(`\\.\\s*${BASE_FN}\\b(?![A-Za-z0-9_])`).test(code);
 }
 
 /**

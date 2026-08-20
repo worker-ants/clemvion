@@ -98,4 +98,36 @@ describe('resolveTriggerParameters 직접 호출부 허용목록', () => {
       importsBaseFn("import { resolveTriggerParameters } from './x';"),
     ).toBe(true);
   });
+
+  /**
+   * **우회 형태 세 가지를 전부 본다** (`02_49_22` security W1).
+   *
+   * 초판은 named import 만 봤고, 무수정 프로브로 재니 namespace import 와 `require()` 가
+   * **조용히 통과**했다 — 새 Manual 경로가 그 형태로 base 를 쓰면 마커 재제출이 다시
+   * 열린다. 우회 가능한 가드는 없느니만 못하다(있다고 믿게 만든다).
+   *
+   * 형태별로 단언을 나눠 **어느 형태가 깨졌는지**가 실패 메시지에 드러나게 한다.
+   */
+  it.each([
+    ['named', "import { resolveTriggerParameters } from './x';"],
+    [
+      'namespace',
+      "import * as base from './resolve-trigger-parameters';\nbase.resolveTriggerParameters(s, r);",
+    ],
+    [
+      'require',
+      "const { resolveTriggerParameters } = require('./x') as never;",
+    ],
+  ])('[캐너리] %s 형태의 base 사용을 탐지한다', (_form, source) => {
+    expect(importsBaseFn(source)).toBe(true);
+  });
+
+  /** 그 확장이 wrapper 의 멤버 접근까지 잡으면 안 된다 — 접두 겹침이 여기도 걸린다. */
+  it('[캐너리] namespace 경유 wrapper 접근은 오인하지 않는다', () => {
+    expect(
+      importsBaseFn(
+        "import * as g from './reject-masked-resubmission';\ng.resolveTriggerParametersRejectingMasked(s, r);",
+      ),
+    ).toBe(false);
+  });
 });
