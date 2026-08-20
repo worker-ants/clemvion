@@ -8,6 +8,7 @@ code:
   - codebase/backend/migrations/V067__execution_re_run_chain.sql
   - codebase/backend/migrations/V068__execution_dry_run.sql
   - codebase/backend/src/nodes/core/dry-run.util.ts
+  - codebase/frontend/src/components/executions/rerun-modal.tsx
 ---
 
 # Spec: 워크플로 Re-run (재실행)
@@ -347,20 +348,26 @@ dry-run 모드로 실행된 **NodeExecution** 은 `outputData._dryRun === true` 
 | "재실행" 버튼 | — | 클릭 시 권한 가드 통과 → `POST /api/executions/:id/re-run` → 응답의 새 Execution ID 로 라우팅 (`/w/<slug>/workflows/:workflowId/executions/:newId`, 활성 워크스페이스 slug 기준 — [2-navigation/_layout §2.2](../2-navigation/_layout.md#22-메뉴-항목)) |
 | "취소" 버튼 | — | 모달 닫기. 변경 입력 폐기 |
 
-> **`Execution.inputData` 는 egress 마스킹 대상이 아니다 — 이 모달이 그 이유다 (2026-08-16)**:
-> (**`NodeExecution.inputData` 는 마스킹한다** — 노드 레벨엔 재제출 소비처가 없다. 2026-08-17 정정)
+> **`Execution.inputData` 는 egress 마스킹된다 — 이 모달이 마커 가드를 갖는다 (2026-08-20)**:
 > 위 "입력 데이터 폼" 은 원본 `inputData.parameters` 를 **프리필**하고, "원본 입력 그대로
-> 사용" 토글의 **UI 기본값이 OFF** 라 사용자가 폼을 건드리지 않아도 그 값이
-> `inputOverride` 로 **되전송**된다. 따라서 `inputData` 에 응답 마스킹을 걸면 리터럴
-> `'***'` 가 새 Execution 의 **실제 입력값**이 된다 — 가시성 저하가 아니라 데이터 오염이다.
-> 형제 컬럼 `outputData`/`error` 는 표시 전용이라 마스킹되지만 `inputData` 는 **의도적으로
-> 제외**한다. 근거·잔여·닫는 조건의 SoT 는
-> [EIA §R17](./14-external-interaction-api.md) "잔여 ②" 이며, 구현 정본은
-> `ExecutionsService` 의 `MASKED_INPUT_DATA_REASON` 이다.
-> 에디터의 "히스토리에서 불러오기"([실행 §2.2](../3-workflow-editor/3-execution.md))도 같은
-> 컬럼을 같은 방식으로 재사용하므로 동일하게 적용된다.
-> **토글을 ON(=`useOriginalInput: true`)으로 두면 서버가 원본 엔티티를 직접 읽으므로 이
-> 경로 자체가 성립하지 않는다** — 위험은 프리필 왕복(OFF) 경로 하나다.
+> 사용" 토글의 **UI 기본값이 OFF** 라 사용자가 폼을 건드리지 않아도 그 값이 `inputOverride`
+> 로 **되전송**된다. 그래서 2026-08-20 이전에는 이 컬럼만 마스킹에서 제외했다 — 마스킹하면
+> 리터럴 `'***'` 가 새 Execution 의 **실제 입력값**이 되기 때문이다(가시성 저하가 아니라
+> 데이터 오염).
+>
+> **전환 (2026-08-20)**: 프리필 값이 마스킹 마커면 **프리필하지 않고** 해당 필드를 비운 채
+> 재입력을 안내하며, **그 필드가 비어 있는 동안 Re-run 제출을 막는다.** 안내만 하고 빈
+> 문자열을 통과시키면 오염의 값만 `'***'` → `''` 로 바뀔 뿐이라, §R17 이 닫는 조건에 쓴
+> **"재입력을 강제"** 를 문구대로 구현한다.
+>
+> **토글을 ON(=`useOriginalInput: true`)으로 두는 것이 오히려 정답이다** — 서버가 원본
+> 엔티티를 직접 읽으므로 마스킹과 무관하게 원문으로 재실행되고, 이때는 차단도 풀린다.
+>
+> 에디터의 "히스토리에서 불러오기"([실행 §2.2](../3-workflow-editor/3-execution.md))는 같은
+> 컬럼을 **JSON 텍스트 전체**로 적재하므로 필드 단위로 비울 수 없다 — 그쪽은 마커를 그대로
+> 보여 주고 **남아 있는 동안 실행을 막는다**.
+>
+> 근거·카탈로그의 SoT 는 [EIA §R17](./14-external-interaction-api.md).
 
 ### 10.3 Chain 표시
 

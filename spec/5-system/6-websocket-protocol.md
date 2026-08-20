@@ -202,11 +202,11 @@ socket.emit("unsubscribe", { channel: "execution:550e8400-e29b-41d4-a716-4466554
 > 으로 들어가므로 **둘 다 마스킹한다** — 한쪽만 가리면 진행 중 실행의 2초 REST 폴링이 마스킹
 > 값을 원문으로 덮어 화면이 깜빡이고(flip-flop) wire 마스킹의 보안 이득도 사라진다.
 >
-> 반면 **`Execution.inputData`(REST)는 마스킹하지 않는다** — Re-run 프리필이 그 값을 읽어
-> **재제출**하기 때문이다([§R17 잔여 ②](./14-external-interaction-api.md) ·
-> [Re-run §10.2](./13-replay-rerun.md)). 즉 가르는 축은 필드 이름이 아니라 **레벨**이다:
-> *round-trip 되는 Execution 레벨만 카브아웃*하고, 표시 전용인 노드 레벨은 REST·WS 양쪽에서
-> 일관되게 마스킹한다.
+> **`Execution.inputData`(REST)도 마스킹한다 (2026-08-20)** — 2026-08-20 이전에는 Re-run
+> 프리필이 그 값을 읽어 **재제출**하기 때문에 Execution 레벨만 카브아웃했고, 그래서 이 자리에
+> *"가르는 축은 필드 이름이 아니라 레벨"* 이라 적었다. **그 축은 폐기됐다** — 프런트 마커
+> 가드(프리필 스킵·제출 차단)가 서면서 두 레벨이 REST·WS 양쪽에서 **같은 규칙**을 따른다
+> ([§R17](./14-external-interaction-api.md) · [Re-run §10.2](./13-replay-rerun.md)).
 >
 > **`config` 의 raw-echo 계약보다 값-마스킹이 우선한다**: payload 에 실리는
 > `NodeHandlerOutput.config` 는 [node-output Principle 7](../conventions/node-output.md#principle-7--config-echo-원칙-nodehandleroutputconfig)

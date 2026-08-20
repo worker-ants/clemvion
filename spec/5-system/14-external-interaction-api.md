@@ -12,6 +12,8 @@ code:
   - codebase/backend/src/shared/utils/redact-stored-error.ts
   - codebase/backend/src/shared/utils/sanitize-error-message.ts
   - codebase/frontend/src/components/editor/run-results/dynamic-form-ui.tsx
+  - codebase/frontend/src/components/executions/rerun-modal.tsx
+  - codebase/frontend/src/components/editor/toolbar/editor-toolbar.tsx
   - codebase/backend/src/modules/executions/executions.service.ts
   - codebase/backend/src/modules/hooks/hooks.service.ts
   - codebase/backend/src/modules/hooks/hooks.controller.ts
@@ -1524,7 +1526,7 @@ present-when-available 이므로, REST 만 `null` 로 정규화하면 위젯의 
       `redactStoredDataForResponse` 가 담당하며 걸리는 자리는 (1) `findById` (2) `getChain`
       (3) `stop` (4) `toExecutionDto`(목록) (5) `findById` 의 `nodeExecutions[]`
       (6) `BackgroundRunsService.toNodeExecutionDto`(본문 노드) **까지**다.
-      **`inputData` 는 이 목록의 대상이 아니다** — 바로 아래 잔여 ② 참조.
+      **`inputData` 도 이 목록의 대상이다** (2026-08-20, 아래 잔여 ② 종결).
       소스 정본은 `ExecutionsService.toResponseExecution` 의 표.
       > 표면 번호를 아라비아 숫자로 적는다 — 같은 절의 "잔여 ①②③" 이 원형숫자를 쓰므로
       > 두 열거가 글리프를 공유하면 인용이 섞인다 (`23_49_05` naming W1).
@@ -1536,17 +1538,18 @@ present-when-available 이므로, REST 만 `null` 로 정규화하면 위젯의 
     - **~~잔여 ①~~ 해소(2026-08-16)**: WS `execution.node.*` **emit** 경로의 `error` — 아래
       "emit 경로 값-패턴 마스킹" 불릿이 닫았다. [WS 프로토콜 §4.1](./6-websocket-protocol.md)이
       이제 마스킹을 규정한다.
-    - **잔여 ② — `outputData` 해소, `Execution.inputData` 만 의도적 비대상(2026-08-16,
-      범위 정정 2026-08-17)**: `outputData` 는 위 표면 열거에 포함됐다(외부 `getStatus` 만
+    - **~~잔여 ②~~ 해소(2026-08-20) — `outputData`(2026-08-16)에 이어 `Execution.inputData`
+      까지 닫혔다**: `outputData` 는 위 표면 열거에 포함됐다(외부 `getStatus` 만
       `stripAndRedact` 를 걸던 비대칭 해소).
-      **카브아웃은 `Execution.inputData` **한 컬럼**이고 `NodeExecution.inputData` 는
-      마스킹한다** — 노드 레벨엔 재제출 소비처가 없기 때문이다(Re-run 은 `Execution.inputData`
-      만 읽는다, 실측). 초판은 카브아웃을 노드 레벨까지 확대했는데, 그러면 WS emit 은
+      **카브아웃은 `Execution.inputData` **한 컬럼**이었고 `NodeExecution.inputData` 는
+      처음부터 마스킹했다** — 노드 레벨엔 재제출 소비처가 없기 때문이다(Re-run 은
+      `Execution.inputData` 만 읽는다, 실측). 초판은 카브아웃을 노드 레벨까지 확대했는데, 그러면 WS emit 은
       마스킹하고 REST 는 원문을 주어 **같은 프런트 store 슬롯**(`nodeResults[].inputData`)에서
       2초 폴링이 마스킹 값을 원문으로 덮는 **flip-flop** 이 난다 — 화면이 깜빡이고 내부 wire
       마스킹의 보안 이득도 0이 된다(`01_17_49` cross_spec CRITICAL).
       **축을 정확히 하면: round-trip 되는 것만 카브아웃한다.**
-      `Execution.inputData` 를 마스킹하지 않는 이유는 그것이 **재제출되는 값**이기 때문이다:
+      `Execution.inputData` 를 **한동안** 마스킹하지 않은 이유는 그것이 **재제출되는 값**이기
+      때문이다:
       - Re-run 모달이 `inputData` 를 프리필해 `inputOverride` 로 되보내고
         (`useOriginalInput` **기본값이 `false`** 라 사용자가 손대지 않아도 제출된다),
         에디터 "히스토리에서 불러오기" 도 같은 값을 textarea 로 적재해 재실행한다.
@@ -1558,22 +1561,35 @@ present-when-available 이므로, REST 만 `null` 로 정규화하면 위젯의 
       - **남는 노출**: 트리거 파라미터 자유 텍스트의 자격증명. 다만 `inputData` 의 주요
         자격증명 벡터인 webhook 민감 헤더는 **ingestion 시점에 이미 `[REDACTED]`**
         ([§5.3](./12-webhook.md#53-민감-헤더-마스킹-ingestion)).
-      - **닫는 조건**: 프런트가 마스킹 마커를 감지해 해당 필드 재입력을 강제하는 가드가
-        선행되어야 한다. **그 가드의 첫 조각이 2026-08-17 에 섰다** — 폼 프리필
-        (`DynamicFormUI`)이 마커를 감지해 프리필을 건너뛰고 재입력을 안내한다(아래
-        "프리필 왕복" 불릿). Re-run 모달·에디터 히스토리 로드에 같은 가드를 확장하면
-        이 컬럼도 닫을 수 있다. 트래커에 등재됐다.
+      - **닫는 조건은 충족됐다 (2026-08-20)**. 조건은 *"프런트가 마스킹 마커를 감지해 해당
+        필드 재입력을 **강제**하는 가드"* 였고, 세 소비처가 각각 갖췄다:
+
+        | 소비처 | 가드 | 시점 |
+        |---|---|---|
+        | 폼 프리필 (`DynamicFormUI`) | 마커면 프리필 스킵 + 재입력 안내 | 2026-08-17 |
+        | Re-run 모달 | 마커면 프리필 스킵 + **비어 있는 동안 제출 차단**. 토글 ON(`useOriginalInput`)이면 서버가 원문을 직접 읽으므로 차단도 풀린다 | 2026-08-20 |
+        | 에디터 히스토리 로드 | JSON leaf 에 마커가 **남아 있는 동안 실행 차단**(필드 단위로 비울 수 없는 표면이라 값을 지우지 않고 막는다) | 2026-08-20 |
+
+        > **"강제" 를 안내로 낮추지 않았다**: 비우고 안내만 하면 빈 문자열이 실제 입력이 되어
+        > 오염의 값만 `'***'` → `''` 로 바뀐다. 그래서 두 소비처는 **제출 자체를 막는다.**
+        > 폼 경로가 안내로 충분한 것은 네이티브 `required` 검증에 기댈 수 있어서다.
 
     - **프리필 왕복 — 마스킹된 값이 되돌아와 실제 입력이 되는 경로 (2026-08-17)**:
       마스킹은 *"읽혀서 되쓰이는 값"* 과 만나면 가시성이 아니라 **데이터 무결성** 문제가
       된다. 이 문서는 그 형태를 두 번 겪었다 — `Execution.inputData`(Re-run 재제출, 위 잔여
       ②)와 **폼 `defaultValue`**.
       - **폼 경로는 카브아웃으로 풀 수 없다**: `formConfig` 는 `execution.waiting_for_input`
-        을 타고 **SSE·notification webhook 으로도 나가므로**(`Execution.inputData` 와 달리
-        외부 노출이 있다) 마스킹을 끄면 외부 누출이 열린다. 그래서 마스킹은 유지하고
-        **소비 쪽에서 마커를 감지**해 프리필을 건너뛴다.
-      - **판단 기준**: 마스킹 대상이 *외부로도 나가는가* 를 먼저 본다 — 나가면 마커 가드,
-        안 나가면 카브아웃이 값싸다. 두 사례가 정확히 그 두 갈래다.
+        을 타고 **SSE·notification webhook 으로도 나간다** — 외부 노출이 있어 마스킹을 끄면
+        곧바로 누출이다. 그래서 마스킹은 유지하고 **소비 쪽에서 마커를 감지**해 프리필을 건너뛴다.
+      - **판단 기준 (2026-08-20 2축으로 재정의)**: 종전엔 *외부로도 나가는가* 단일 축이었다 —
+        나가면 마커 가드, 안 나가면 카브아웃이 값싸다. **그 "값싸다" 가 전제였고, 무너졌다.**
+        `Execution.inputData` 는 외부 노출이 없어 카브아웃 쪽이었지만, 그 예외 하나를
+        **6개 spec 파일**이 SoT 로 인용하게 되면서 유지비가 가드 비용을 넘었다(그 사이 폼
+        가드가 서서 가드 비용은 거의 0이 됐다). 그래서 축이 둘이다:
+        1. **외부로도 나가는가** — 나가면 카브아웃 자체가 불가능(폼 `formConfig`).
+        2. **예외의 미러 유지비 < 가드 비용인가** — 아니면 나가지 않아도 가드로 닫는다
+           (`Execution.inputData`).
+        두 사례는 이제 **같은 갈래**(마커 가드)이고, 도달한 경로만 다르다.
       - 마커 집합은 backend `sanitize-error-message.ts` 가 SoT 이고 프런트가 미러한다 —
         어긋나면 가드가 조용히 뚫리므로 **양쪽을 함께** 갱신한다.
     - **`token` 계열 확장 (2026-08-17)**: 값 패턴과 `CREDENTIAL_KEY_PATTERN`(공용·WS 미러)이
@@ -1613,15 +1629,18 @@ present-when-available 이므로, REST 만 `null` 로 정규화하면 위젯의 
     한 것과 같은 판단이며, 외부 `getStatus` 는 이미 같은 마스킹을 걸고 있었다(내부만 없었다).
     participant-vs-observer 분리 egress 는 실제 요구가 관측되면 검토한다.
   - **`input`/`inputData` 의 마스킹 여부는 "레벨" 이 가른다** (2026-08-17 정정):
-    마스킹 **범위**는 *수신 인구*(boundary parity)가 정하고, 카브아웃은 *그 값이
-    되쓰이는가*(round-trip)가 정한다. 두 축을 겹치면 이렇게 갈린다 —
+    마스킹 **범위**는 *수신 인구*(boundary parity)가 정한다. 종전엔 여기에 *"그 값이
+    되쓰이는가(round-trip)가 카브아웃을 정한다"* 는 둘째 축이 겹쳐 있었는데, **2026-08-20
+    에 카브아웃이 닫히면서 그 축은 사라졌다** — round-trip 되는 값은 이제 카브아웃이 아니라
+    **소비 쪽 마커 가드**로 다룬다. 현재 상태는 이렇다 —
     | 값 | 마스킹 | 이유 |
     |---|---|---|
-    | `Execution.inputData` (REST) | **안 함** | Re-run 프리필이 읽어 **재제출**한다 |
+    | `Execution.inputData` (REST) | **함** (2026-08-20~) | 재제출 경로였으나 마커 가드가 프리필·제출을 막는다 |
     | `NodeExecution.inputData` (REST) | **함** | 재제출 소비처 없음(표시 전용) |
     | WS node 이벤트 `input` (emit) | **함** | 위와 같은 값이 같은 store 슬롯에 들어간다 |
-    아래 두 줄은 같은 사실의 두 얼굴이다: 노드 레벨을 REST 에서 안 가리면 WS 마스킹이
-    2초 폴링에 덮여 **flip-flop** 이 나고, 반대로 Execution 레벨을 가리면 재실행이 오염된다.
+    세 줄이 같은 규칙을 공유한다 — 한 레벨만 REST 에서 안 가리면 WS 마스킹이 2초 폴링에
+    덮여 **flip-flop** 이 난다. Execution 레벨을 가려도 재실행이 오염되지 않는 것은 마커
+    가드가 프리필·제출을 막기 때문이다(가드가 없으면 그 오염이 되살아난다).
     자세한 근거: [WS §4.1](./6-websocket-protocol.md) · [Re-run §10.2](./13-replay-rerun.md).
   - **`config` raw-echo 와도 충돌하지 않는다**:
     [node-output Principle 7](../conventions/node-output.md#principle-7--config-echo-원칙-nodehandleroutputconfig)

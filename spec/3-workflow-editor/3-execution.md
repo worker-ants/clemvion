@@ -88,7 +88,7 @@ code:
 | 기능 | 상태 | 설명 |
 |------|------|------|
 | JSON 에디터 | 구현 | 테스트 데이터를 JSON으로 직접 편집 (textarea) |
-| 히스토리 로드 | 구현 | 다이얼로그의 "Load from History" 로 이전 실행 목록(`GET /executions/workflow/:id`)을 펼쳐 선택 → 해당 실행의 `inputData` 를 textarea 에 적재 (`editor-toolbar.tsx`) |
+| 히스토리 로드 | 구현 | 다이얼로그의 "Load from History" 로 이전 실행 목록(`GET /executions/workflow/:id`)을 펼쳐 선택 → 해당 실행의 `inputData` 를 textarea 에 적재. **적재된 JSON 에 마스킹 마커(`***` 등)가 남아 있으면 Run 이 비활성**된다 — `inputData` 는 egress 마스킹되므로([EIA §R17](../5-system/14-external-interaction-api.md)) 자격증명 자리에 마커가 실려 오고, 그대로 실행하면 마커가 새 실행의 실제 입력이 된다. 마커를 실제 값으로 바꾸면 해제되며, 표시는 아래 "검증" 행과 같은 인라인 오류 채널을 쓴다 (`editor-toolbar.tsx`) |
 | 저장 | 구현 | 자주 사용하는 테스트 데이터 세트를 이름 붙여 저장/재사용 (`WorkflowTestDataset` 엔티티, V097). Mock Input 다이얼로그의 "데이터셋으로 저장"(이름 + 워크스페이스 공유 옵션) / "데이터셋" 목록(불러오기·복제·삭제). **권한 모델**: 유저 귀속 기본(`private`) — 소유자만 조회·수정·삭제. 소유자가 `workspace` 공유를 선택하면 워크스페이스 구성원에게 read-only 노출되고, 타 구성원은 **복제(clone)** 로 자기 소유 사본을 만들어 수정한다 (R-2.2). API §9. `editor-toolbar.tsx` |
 | 검증 | 구현 | 입력 중 실시간 JSON 유효성 검증 — 무효 시 인라인 오류 표시 + Run 비활성 (`editor-toolbar.tsx`) |
 
