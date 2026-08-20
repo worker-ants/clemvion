@@ -773,6 +773,20 @@ push 직전 확인에서 발각됐다. `review/**` 는 SoT 가 아니므로 여�
       않는다. **보안 우회가 아니라 안내가 한 왕복 늦는 UX 엣지**이고 docstring 에 적혀 있으나
       회귀 테스트로 고정돼 있지는 않다.
 
+consistency `--impl-done`(`05_23_14`, **BLOCK: NO**) 이 셋을 더 냈다 — 전부 비차단이고 셋 다
+**spec 편집이라 planner 턴**이 필요하다. 그래서 이 PR 에서 하지 않는다:
+
+- [ ] **wrapper 함수명이 spec 본문에 없다** — `resolveTriggerParametersRejectingMasked` /
+      `reject-masked-resubmission.ts` 가 `1-manual-trigger.md` §6 와 `14-external-interaction-api.md`
+      §R17 어디에도 이름으로 안 나온다. `spec-impl-evidence` R-1(≥1 코드 매치)은 충족해
+      가드는 통과하지만, **"공유 함수에 넣지 않는다" 는 설계 의도가 코드 추적선에서 흐려진다**.
+      두 문서에 함수·파일명 명시 + `code:` frontmatter 에 파일 추가.
+- [ ] **§R17 "닫는 조건" 표의 신규 4번째 행만 볼드** — 기존 3행은 평문. 통일하거나 의도적
+      강조로 유지.
+- [ ] **`error-codes.md §4` "패턴" 표에 trigger-parameter reason 계열이 없다** — Code 노드
+      핸들러 내부 코드만 나열돼 있어 직접 확인이 안 된다. 이 PR 이 만든 편차가 아니라 기존
+      서술의 연장. 규약 문서 자체 개선.
+
 > **관행 권고 (`04_46_40`·`05_08_35` scope W1)**: 기능 PR 에서 **저장소 전역 정책 가드가
 > 부산물로 파생되면** 별도 PR 로 분리하는 편이 낫다. 이번엔 분리하지 않았다 — 두 가드가
 > 이 PR 의 wrapper 와 `typescript` import 를 각각 전제해서, 분리하면 그 사이 커밋 구간에
