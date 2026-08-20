@@ -3,7 +3,7 @@ title: "spec draft — `Execution.inputData` 카브아웃 폐지(egress 마스�
 worktree: eia-inputdata-marker-guard
 started: 2026-08-20
 owner: planner
-status: in-progress
+status: complete
 priority: P1
 spec_impact:
   - spec/5-system/14-external-interaction-api.md

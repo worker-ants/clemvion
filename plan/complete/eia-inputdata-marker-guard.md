@@ -3,7 +3,7 @@ title: "`Execution.inputData` egress 마스킹 — 재제출 소비처 2곳에 �
 worktree: eia-inputdata-marker-guard
 started: 2026-08-20
 owner: developer
-status: in-progress
+status: complete
 priority: P1
 spec_impact:
   - spec/5-system/14-external-interaction-api.md
