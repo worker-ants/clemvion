@@ -167,6 +167,7 @@ Manual Trigger 핸들러는 **runtime 에러 포트를 갖지 않는다**. 모�
 | `parameters[i].type` 가 enum (`string`/`number`/`boolean`/`object`/`array`) 미일치 | `invalid_schema` | handler.validate |
 | required 파라미터의 값 누락 (실행 시점, 어댑터 공통) | `missing_required` | adapter `resolveTriggerParameters` |
 | 값이 선언 타입으로 coerce 불가 (number/object/array) | `coerce_failed` | adapter `resolveTriggerParameters` |
+| 값 leaf 가 egress 마스킹 마커(`***`/`[REDACTED]`/`[REDACTED_DEPTH]`)와 **정확히 일치** — 마스킹된 값이 그대로 재제출됨 | `masked_value_resubmitted` | adapter `resolveTriggerParameters` **직후** (Manual 실행경로·Manual re-run **한정** — webhook·schedule 은 대상 아님, [EIA §R17](../../5-system/14-external-interaction-api.md)) |
 
 > 위 4가지 구조 위반(저장 시점)은 모두 단일 `invalid_schema` reason 으로 산출된다 — distinct 한 사람 친화 메시지로 분기하지 않는다(머신 코드 단일화).
 
@@ -181,7 +182,9 @@ Manual Trigger 핸들러는 **runtime 에러 포트를 갖지 않는다**. 모�
 | Webhook | `400 Bad Request` code `INVALID_WEBHOOK_PAYLOAD` | `hooks.service.ts` |
 | Schedule | Execution 미생성으로 끝나지 않음 — 런타임에 `warn` 로그 후 schema-less fallback 으로 실행 진행 (가능한 default 채움) | `schedule-runner.service.ts` |
 
-> **응답 봉투**: Manual·Webhook 경로의 컨트롤러/서비스는 `BadRequestException({ code, message, details })` 를 throw 하며, 전역 `GlobalExceptionFilter` 가 이를 프로젝트 공식 에러 봉투([API 규약 §5.3](../../5-system/2-api-convention.md#53-에러-응답))로 직렬화해 `{ error: { code, message, requestId, details } }` 로 응답한다. 내부 분류 문자열(`missing_required`/`coerce_failed`/`invalid_schema`)은 공용 헬퍼 `toTriggerParameterErrorDetails` 가 `error.details[]` 의 `UPPER_SNAKE_CASE` field code(`MISSING_REQUIRED_FIELD`/`TYPE_COERCION_FAILED`/`INVALID_SCHEMA`)로 정규화해 surface 한다 ([Spec Webhook §5.2](../../5-system/12-webhook.md#52-400-응답-형식) · [error-handling §1.7](../../5-system/3-error-handling.md#17-webhook-수신-에러-코드-도메인-spec-참조)).
+> **응답 봉투**: Manual·Webhook·**Manual re-run** 경로의 컨트롤러/서비스는 `BadRequestException({ code, message, details })` 를 throw 하며, 전역 `GlobalExceptionFilter` 가 이를 프로젝트 공식 에러 봉투([API 규약 §5.3](../../5-system/2-api-convention.md#53-에러-응답))로 직렬화해 `{ error: { code, message, requestId, details } }` 로 응답한다. 내부 분류 문자열(`missing_required`/`coerce_failed`/`invalid_schema`)은 공용 헬퍼 `toTriggerParameterErrorDetails` 가 `error.details[]` 의 `UPPER_SNAKE_CASE` field code(`MISSING_REQUIRED_FIELD`/`TYPE_COERCION_FAILED`/`INVALID_SCHEMA`/`MASKED_VALUE_RESUBMITTED`)로 정규화해 surface 한다 ([Spec Webhook §5.2](../../5-system/12-webhook.md#52-400-응답-형식) · [error-handling §1.7](../../5-system/3-error-handling.md#17-webhook-수신-에러-코드-도메인-spec-참조)).
+>
+> > **re-run 이 이 목록에 들어온 것은 2026-08-20 이다.** 그전까지 `executions.service.ts` 는 내부 reason 을 `errors` 키로 던졌고 `GlobalExceptionFilter` 는 `details` 만 읽어 **필드별 내역이 응답에 실리지 않았다** — 위 문장이 종전에 Manual·Webhook 만 열거한 것은 그 사실을 정확히 반영한 서술이었다. `masked_value_resubmitted` 를 얹으면서 그 배선을 함께 교정했다.
 
 세 어댑터의 공통 검증 시점·실패 응답은 [Trigger 공통 §1](./0-common.md#1-트리거-진입-파라미터-공통-계약) 참조.
 
