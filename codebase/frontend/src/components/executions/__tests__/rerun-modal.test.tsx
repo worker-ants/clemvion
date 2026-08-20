@@ -565,7 +565,7 @@ describe("ReRunModal — 마스킹 마커 왕복 차단", () => {
     expect(name.value).toBe("Alice");
   });
 
-  it("마커에서 비워진 필드가 비어 있는 동안 제출을 막는다", async () => {
+  it("손대지 않은 마스킹 키가 남아 있으면 제출을 막는다", async () => {
     apiGetMock.mockResolvedValue({ data: { data: [] } });
     seedDefinitions([]);
     renderModal(maskedProps);
@@ -746,6 +746,65 @@ describe("ReRunModal — 마스킹 마커 왕복 차단", () => {
     fireEvent.change(field, { target: { value: '{"apiKey":"***"' } });
     await waitFor(() =>
       expect(screen.getByRole("button", { name: "Re-run" })).toBeDisabled(),
+    );
+  });
+
+  /**
+   * **원 버그 형태 그대로의 캐너리** (`16_25_35` testing INFO-6).
+   *
+   * 최초 판정은 *"값이 비었는가"* 단독이었다. 스키마가 **늦게** 도착하면 재조정이
+   * `coerceInput("boolean", "")` -> `false` 를 만들고, `false` 는 "빈 값" 이 아니므로
+   * 차단이 조용히 풀렸다(`14_08_45` W2). 지금은 터치 조건이 붙어 막히지만, 그걸
+   * **행사하는 테스트가 없어** 누가 판정을 값-단독으로 되돌려도 GREEN 이었다.
+   *
+   * **관측점**: boolean 은 스키마가 도착해야 checkbox 로 렌더된다. 그 전환을 기다리는
+   * 것이 곧 *"재조정이 실제로 돌았다"* 의 증거다 - 안 기다리면 "스키마가 아직 안 와서"
+   * 막힌 상태를 검증하는 vacuous 테스트가 된다.
+   */
+  it("[캐너리] 마스킹된 boolean 은 지연 스키마 도착 후에도 계속 막힌다", async () => {
+    apiGetMock.mockResolvedValue({
+      data: {
+        data: [
+          {
+            id: "mt",
+            type: "manual_trigger",
+            category: "trigger",
+            config: { parameters: [{ name: "flag", type: "boolean" }] },
+          },
+        ],
+      },
+    });
+    seedDefinitions([def("manual_trigger", "trigger", false)]);
+    renderModal({
+      original: {
+        id: "exec-bool",
+        workflowId: "wf-1",
+        status: "completed",
+        startedAt: "2026-05-22T14:32:00.000Z",
+        inputData: { parameters: { flag: "***" } },
+      },
+    } as Partial<ReRunModalProps>);
+
+    // 스키마 도착 = boolean 으로 렌더 **전환** = `coerceInput("boolean","")` 재조정이 돌았다.
+    // 라벨은 스키마 전에도 있으므로(그땐 string 필드) `findByLabelText` 만으로는 이르다 —
+    // 전환 자체를 기다려야 재조정 이후 상태를 본다.
+    await waitFor(() =>
+      expect(
+        (screen.getByLabelText(/flag/i) as HTMLInputElement).type,
+      ).toBe("checkbox"),
+    );
+    const box = screen.getByLabelText(/flag/i) as HTMLInputElement;
+    expect(box.checked).toBe(false); // 재조정 결과가 `false` - "빈 값" 이 아니다
+
+    // 그럼에도 막혀 있어야 한다. 판정을 값-단독으로 되돌리면 여기가 RED.
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Re-run" })).toBeDisabled(),
+    );
+
+    // 사용자가 실제로 건드리면 풀린다 - 과잉 차단이 아님을 같은 테스트에서 고정.
+    fireEvent.click(box);
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Re-run" })).toBeEnabled(),
     );
   });
 

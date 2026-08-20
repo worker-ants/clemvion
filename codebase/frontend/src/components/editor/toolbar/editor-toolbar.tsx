@@ -103,20 +103,24 @@ export function EditorToolbar() {
   const jsonError = useMemo<string | null>(() => {
     const trimmed = jsonInput.trim();
     if (trimmed === "") return t("editor.runWithInputEmpty");
-    let parsed: unknown;
+    // 파싱과 마커 검사를 **한 try 안에** 둔다. 마커 검사도 던질 수 있기 때문이다 —
+    // `JSON.parse` 는 반복적 구현이라 재귀 탐색이 감당 못 하는 깊이도 통과시킨다
+    // (`hasMaskedMarkerLeaf` 가 깊이 상한으로 막지만, 그 상한이 이 표면의 유일한 방어가
+    // 되지 않게 한다). 여기는 `useMemo` = 렌더 경로라, 던지면 이벤트 핸들러 예외와 달리
+    // React 트리로 전파돼 에디터 화면이 통째로 깨진다 — "잘못된 JSON" 안내로 떨어뜨린다.
     try {
-      parsed = JSON.parse(trimmed);
+      const parsed: unknown = JSON.parse(trimmed);
+      // 히스토리 로드가 적재한 `Execution.inputData` 에는 egress 마스킹 마커가 실려 올 수
+      // 있다(EIA §R17). 그대로 실행하면 마커가 새 실행의 **실제 입력**이 되므로, 남아 있는
+      // 동안 Run 을 막는다 — 이 표면은 JSON 텍스트 전체라 필드 단위로 비울 수 없어서,
+      // 값을 지우는 대신 보여 주고 막는다(어느 필드였는지가 지워지지 않는다).
+      if (hasMaskedMarkerLeaf(parsed)) return t("editor.runWithInputMasked");
+      return null;
     } catch (e) {
-      // 파싱 실패면 여기서 끝낸다 — 아래 마커 검사는 수행하지 않는다. 파싱 불가 상태에
+      // 파싱 실패면 여기서 끝낸다 — 마커 검사는 수행되지 않는다. 파싱 불가 상태에
       // 보수적 차단을 덧붙이면 같은 사유를 두 번 말하게 된다.
       return e instanceof Error ? e.message : t("editor.invalidJsonInput");
     }
-    // 히스토리 로드가 적재한 `Execution.inputData` 에는 egress 마스킹 마커가 실려 올 수
-    // 있다(EIA §R17). 그대로 실행하면 마커가 새 실행의 **실제 입력**이 되므로, 남아 있는
-    // 동안 Run 을 막는다 — 이 표면은 JSON 텍스트 전체라 필드 단위로 비울 수 없어서,
-    // 값을 지우는 대신 보여 주고 막는다(어느 필드였는지가 지워지지 않는다).
-    if (hasMaskedMarkerLeaf(parsed)) return t("editor.runWithInputMasked");
-    return null;
   }, [jsonInput, t]);
 
   // §2.2 히스토리 로드 — 다이얼로그에서 "히스토리에서 불러오기" 를 펼쳤을 때만
