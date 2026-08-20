@@ -59,16 +59,21 @@ diff 의 계열 대안이 **양쪽 파일에** 들어가면서 `x-auth-token` �
 
 - `codebase/backend/src/modules/websocket/websocket.service.ts`
 
-## WARNING 5 — 내 뮤테이션 수치가 틀렸다 (requirement) — **수정, 다만 리뷰어 수치도 틀렸다**
+## WARNING 5 — 내 뮤테이션 수치가 틀렸다 (requirement) — **수정**
 
-리뷰어는 내 "8 RED" 가 실제로는 5 RED 라고 했다. **둘 다 틀렸다** — 직접 재실행하니 **6 RED**
-이고, 실패 집합은 `id_token`·`csrf_token`·`csrfToken`·`session_token`·`x-auth-token` +
-캐너리 `nextPageToken` 이다. 리뷰어는 `x-auth-token` 을 빠뜨렸다(그쪽 뮤턴트가 그 대안을
-남겨 뒀을 것이다).
+리뷰어는 내 "8 RED" 가 실제로는 5 RED 라고 했다. 나는 재실행 후 "6 RED, 리뷰어가
+`x-auth-token` 을 빠뜨렸다" 고 재정정했는데 **그 재정정이 틀렸다.**
 
-숫자만 적으면 재현이 안 돼 이런 일이 생긴다. plan 에 **뮤턴트를 명시**하고(각 축의 계열
-대안을 변경 직전 목록으로 되돌린다), 왜 옛 목록이 이미 담고 있던 3건은 세면 안 되는지까지
-적었다.
+> **후속 라운드(`11_01_55`)가 이를 다시 잡았고, `git show 45ba37792~1:<path>` 출력을 그대로
+> 넣어 재현하니 키 축은 정확히 5 RED 다.** 원인은 내 뮤턴트가 **무효**했던 것 — 직전
+> 정규식을 손으로 재구성하면서 꼬리 대안 `x[_-]auth[_-]?token` 을 빠뜨려, 실제로는 존재하지
+> 않던 결손을 만들어 `x-auth-token` 을 RED 로 만들었다. 리뷰어의 5 가 처음부터 맞았다.
+
+세 번 틀린 원인이 전부 같다: **숫자를 적으면서 뮤턴트를 손으로 재구성했다.** plan 에
+"뮤턴트는 `git show <SHA>~1:<path>` 출력을 그대로 넣는다" 를 절차로 못박았다.
+
+(값 축 6 RED 는 충실한 뮤턴트로 재확인했다. 값 축 옛 목록엔 `x-auth-token` 대안이 애초에
+없어 키 축과 숫자가 갈린다.)
 
 - `plan/in-progress/eia-secret-pattern-token-family.md`
 

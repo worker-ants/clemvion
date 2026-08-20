@@ -3,7 +3,7 @@ worktree: eia-masking-round2-53afc8
 started: 2026-08-17
 owner: developer
 branch: claude/eia-masking-round2-53afc8
-status: in-progress
+status: complete
 priority: P1
 pending_plans:
   - plan/in-progress/spec-sync-external-interaction-api-gaps.md
@@ -111,7 +111,17 @@ Re-run 모달 CRITICAL 과 **글자 그대로 같은 클래스**다 — *읽혀�
       비차단이라 코드를 더 손대지 않고 트래커에 등재했다 (신규 2건: 힌트 수명 미결정 ·
       테스트 JSDoc 목록). `required`+마커 조합은 **조치 불요**로 판정 — 네이티브 검증이
       제출을 막아 이 PR 목적을 보강한다
-- [ ] push → PR
+- [x] push → PR — **#1181 머지 완료** (`c9cc2a923`, 2026-08-17)
+
+---
+
+> **종결 (2026-08-20)**: 이 plan 은 #1181 머지 직후 `in-progress` 에 남아 있었다 — 소유
+> worktree(`eia-masking-round2-53afc8`)가 머지 후 reaped 되면서 아무도 체크박스를 닫지
+> 못했기 때문이다. `token` 계열 PR 의 `--impl-done`(`11_02_33` plan_coherence W1)이 이를
+> 잡았고, 그 세션이 대신 종결했다(소유 worktree 부재를 `git worktree list` 로 실증).
+>
+> **인입 참조 전수 확인**: 마크다운 링크·bare 언급 **277건이 전부 `review/**` 산출물**
+> (불변 기록)이고 `spec/`·`plan/`·`docs` 에는 0건 — 이동으로 깨지는 살아있는 링크가 없다.
 
 > **`token=` 패턴 확장은 이 PR 에 넣지 않는다** — 사용자가 순서를 택했다. 그 확장은 마스킹
 > 대상을 넓혀 **이 왕복 오염 범위도 함께 넓히므로**, 가드가 선 뒤에 하는 것이 맞다.

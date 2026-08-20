@@ -123,11 +123,18 @@ egress 전용(DB 는 원문)이라 다운스트림 실행에는 영향이 없고
       **뮤테이션 검증** — 뮤턴트를 명시한다(숫자만 적으면 재현이 안 돼 실제로 두 번 틀렸다):
       각 축의 계열 대안을 **변경 직전 목록**으로 되돌린다 (값 축 → `access[_-]token|
       refresh[_-]token|id[_-]token`, 키 축 → `token|access[_-]?token|refresh[_-]?token`).
-      결과는 값 축 **6 RED**, 키 축 **6 RED** — 두 축이 각각 독립으로 관측된다.
-      > 키 축의 RED 6건은 `id_token`·`csrf_token`·`csrfToken`·`session_token`·
-      > `x-auth-token` + 캐너리 `nextPageToken` 이다. 옛 목록이 이미 담고 있던
-      > `token`·`access_token`·`refresh-token` 3건은 되돌려도 GREEN 이라 세면 안 된다 —
-      > 최초에 이 셋을 함께 세어 "8 RED" 로 적었던 것을 실측으로 정정했다.
+      결과는 값 축 **6 RED**, 키 축 **5 RED** — 두 축이 각각 독립으로 관측된다.
+      > **뮤턴트는 손으로 적지 말고 `git show <SHA>~1:<path>` 출력을 그대로 넣는다.**
+      > 이 수치를 세 번 틀렸고 원인이 전부 같았다: 직전 정규식을 손으로 재구성하면서
+      > 꼬리 대안(`x[_-]auth[_-]?token`)을 빠뜨려 **무효 뮤턴트**를 만들었고, 그 탓에
+      > `x-auth-token` 이 RED 로 나와 키 축을 6 으로 셌다. 충실한 revert 는 5 다
+      > (`id_token`·`csrf_token`·`csrfToken`·`session_token` + 캐너리 `nextPageToken`).
+      > `token`·`access_token`·`refresh-token`·`x-auth-token` 4건은 옛 목록이 이미 담고
+      > 있어 되돌려도 GREEN — 세면 안 된다.
+      >
+      > 값 축 6 RED 는 충실한 뮤턴트로 재확인했다(`token`·`csrf_token`·`csrfToken`·
+      > `session_token`·`x-auth-token` + 쿼리스트링). 값 축 옛 목록엔 `x-auth-token` 대안이
+      > 애초에 없어 키 축과 갈린다 — 두 축의 숫자가 다른 것은 이 비대칭 때문이다.
 - [x] blast radius 실측 — 백엔드 **427 suites / 8,811 전원 GREEN**. 트래커가 경고한
       캐너리 RED 는 **일어나지 않았다**(그 캐너리는 연결 문자열용)
 - [x] ReDoS 벤치마크 — 2배씩 늘려 배율 **정확히 2배(선형)**. 단일 `*` + 리터럴이라 중첩 정량자 없음
@@ -139,7 +146,14 @@ egress 전용(DB 는 원문)이라 다운스트림 실행에는 영향이 없고
 - [x] `/ai-review` (`14_00_15`) — CRITICAL **0**, WARNING **5** (MEDIUM) → **5건 전부 조치**
       + INFO 3건 반영. 핵심은 **W1** — WS 미러에 회귀 테스트가 없어 내 변경을 되돌려도
       48건 전원 GREEN 이었다(뮤테이션 실증). 목록에 계열 5종 + 오탐 캐너리를 넣어 **2 RED**
-      로 갈리게 했다. **W5 는 리뷰어 수치도 틀렸다** — 실측 6 RED(리뷰어 5, 내 최초 8)
+      로 갈리게 했다. **W5(뮤테이션 수치)는 내가 두 번 틀렸다** — 최초 8, 정정 6, 실측 5.
+      리뷰어의 5 가 처음부터 맞았고 내 "리뷰어가 틀렸다" 는 재정정이 오히려 오류였다
 - [x] `--impl-done` (`14_00_50`) — **BLOCK: NO**, CRITICAL 0. WARNING 1(§R17 서술이 구현보다
       넓다 — `maskSensitiveFields` 축 미포함)에 캐비엇 추가
-- [ ] 최종 게이트 재확인 → push
+- [x] 재-리뷰 (`11_01_55`) — CRITICAL **0**, WARNING **1** (LOW), 코드 변경 0건.
+      그 1건이 **내 뮤테이션 수치**였고 리뷰어가 옳았다(내 재정정이 오류) — `git show` 출력을
+      그대로 넣어 재현해 키 축 **5 RED** 확정
+- [x] `--impl-done` (`11_02_33`) — **BLOCK: NO**, CRITICAL 0. WARNING 1(직전 PR plan 이 머지 후
+      `in-progress` 잔존)은 **소유 worktree 가 reaped 되어 아무도 못 고치는 상태**라 이 세션이
+      종결하고 `plan/complete/` 로 이동
+- [ ] push → PR
