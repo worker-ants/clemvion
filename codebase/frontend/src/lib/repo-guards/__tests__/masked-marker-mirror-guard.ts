@@ -39,11 +39,20 @@ export const SOT_SYMBOLS: readonly string[] = Object.keys(sot)
 export function resolveScanDirs(repoRoot: string): string[] {
   const base = path.join(repoRoot, "codebase");
   if (!fs.existsSync(base)) return [];
-  return fs
-    .readdirSync(base, { withFileTypes: true })
-    .filter((e) => e.isDirectory())
-    .map((e) => path.join("codebase", e.name, "src"))
-    .filter((rel) => fs.existsSync(path.join(repoRoot, rel)))
+  const dirsOf = (relParent: string): string[] => {
+    const abs = path.join(repoRoot, relParent);
+    if (!fs.existsSync(abs)) return [];
+    return fs
+      .readdirSync(abs, { withFileTypes: true })
+      .filter((e) => e.isDirectory())
+      .map((e) => path.join(relParent, e.name, "src"))
+      .filter((rel) => fs.existsSync(path.join(repoRoot, rel)));
+  };
+  // `codebase/<stack>/src` 와 `codebase/packages/<pkg>/src` 두 단계를 모두 채택한다.
+  // 한 단계만 훑으면 워크스페이스 패키지 전부가 조용히 빠진다 — 파생으로 바꾸면서
+  // **전수처럼 보이지만 아닌** 목록을 만들 뻔했다(`12_25_15` architecture W1).
+  return [...dirsOf("codebase"), ...dirsOf(path.join("codebase", "packages"))]
+    .filter((v, i, a) => a.indexOf(v) === i)
     .sort();
 }
 

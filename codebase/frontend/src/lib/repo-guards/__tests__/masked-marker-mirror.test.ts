@@ -77,6 +77,24 @@ describe("마커 SoT 미러 재발 가드", () => {
     }
   });
 
+
+  /**
+   * **스캔 범위가 "전수처럼 보이지만 아닌" 상태가 되지 않게 한다** (`12_25_15` W1).
+   *
+   * 초판 파생은 `codebase/` 를 한 단계만 훑어 워크스페이스 패키지 7개의 `src` 가 통째로
+   * 빠졌다. 그런데 당시 캐너리는 `dirs.length >= 3` 이라 **그 좁은 목록도 그대로 통과**시켰다
+   * — 하한만 보는 단언은 누락을 못 본다. 형제 패키지가 실제로 들어오는지 **직접** 묻는다.
+   */
+  it("[캐너리] 워크스페이스 패키지의 src 도 스캔 대상이다", () => {
+    const dirs = resolveScanDirs(ROOT);
+    expect(dirs).toContain("codebase/backend/src");
+    expect(dirs).toContain("codebase/frontend/src");
+    // SoT 가 아닌 형제 패키지 — 여기서 마커 심볼을 재선언해도 잡혀야 한다.
+    expect(dirs).toContain("codebase/packages/ai-end-reason/src");
+    // SoT 패키지 자신은 스캔 대상에 **있고**, 재선언 판정에서만 제외된다.
+    expect(dirs).toContain("codebase/packages/masked-markers/src");
+  });
+
   /**
    * **가드가 실제로 탐지하는가.** 앞의 단언은 *"재선언이 없다"* 만 확인하므로, 스캐너가
    * 조용히 아무것도 못 보게 돼도 GREEN 이다 — 형제 가드에서 실제로 겪은 실패다.

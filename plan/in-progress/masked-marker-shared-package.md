@@ -160,6 +160,17 @@ spec 은 이 중 일부를 **독립 메커니즘으로 명시 확정**했다(잔
 (`export const MAX_REDACT_DEPTH = MAX_MASK_DEPTH`)은 선언이 아니므로 통과한다.
 AST + allowlist 는 선례(`masked-reject-callers-guard.ts`)를 그대로 재사용한다.
 
+## 후속 (이 PR 밖)
+
+- [ ] **backend `deepRedactSecrets` 깊이 경계 테스트** — 프런트 `masked-markers.test.ts` 는
+      `nest(10)→true` / `nest(11)→false` 로 상한을 정확히 고정하는데, backend
+      `sanitize-error-message.spec.ts` 는 *"언젠가 멈춘다"*(`not.toThrow()`)만 본다. 값이
+      실수로 바뀌어도(예: 10→1) backend 스위트만으로는 감지 못한다.
+      > 두 라운드(`11_53_49`·`12_25_15`) 연속 INFO 로 나왔는데 **어디에도 적히지 않은
+      > 상태**였다 — `review/**` 는 SoT 가 아니라 PR 이 닫히면 사라진다. 그래서 여기 등재한다.
+      > 실질 위험은 낮다: `codebase/packages/**` 변경이 양쪽 워크플로 모두에 relevant 라
+      > 프런트 경계 테스트가 같은 PR 에서 돈다.
+
 ## 검증 기준
 
 추출 자체는 **동작 무변경**이어야 한다. 기존 스위트가 그대로 GREEN 인 것이 1차 근거이고,
