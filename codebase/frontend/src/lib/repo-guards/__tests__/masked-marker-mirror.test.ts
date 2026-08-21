@@ -9,7 +9,7 @@ import {
   findRedeclaredSymbols,
   listSourceFiles,
   ROOT,
-  SCAN_DIRS,
+  resolveScanDirs,
   SOT_SYMBOLS,
 } from "./masked-marker-mirror-guard";
 
@@ -50,12 +50,31 @@ describe("마커 SoT 미러 재발 가드", () => {
    * **무엇도 검사하지 않고 통과**한다. 이 저장소가 반복해 겪은 형태라 하한을 못박는다.
    */
   it("[캐너리] 스캔 대상 파일 목록이 비어 있지 않다", () => {
-    const counts = SCAN_DIRS.map(
+    const dirs = resolveScanDirs(ROOT);
+    expect(dirs.length).toBeGreaterThanOrEqual(3);
+    const counts = dirs.map(
       (rel) => listSourceFiles(path.join(ROOT, rel)).length,
     );
     // backend·frontend 는 각각 수백 개다. web-chat 은 작지만 0 이면 경로가 틀린 것.
     for (const n of counts) expect(n).toBeGreaterThan(0);
     expect(counts.reduce((a, b) => a + b, 0)).toBeGreaterThan(500);
+  });
+
+
+  /**
+   * **파생이 새 vacuous 경로를 만든다.** `SOT_SYMBOLS` 를 패키지 export 에서 뽑는 순간,
+   * import 가 비면(`{}`) 목록이 `[]` 가 되고 `findRedeclaredSymbols` 는 **무엇도 잡지 않으며**
+   * 주 단언이 조용히 통과한다. 손 목록의 미러 위험을 없앤 대가로 생긴 표면이라 함께 막는다.
+   */
+  it("[캐너리] SoT 심볼 파생이 비지 않는다", () => {
+    expect(SOT_SYMBOLS.length).toBeGreaterThanOrEqual(6);
+    for (const required of [
+      "MASKED_MARKERS",
+      "isMaskedMarker",
+      "MAX_MASK_DEPTH",
+    ]) {
+      expect(SOT_SYMBOLS).toContain(required);
+    }
   });
 
   /**

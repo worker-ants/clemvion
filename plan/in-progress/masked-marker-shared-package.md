@@ -124,12 +124,14 @@ WS 쪽만 한 칸 깊다. 그런데 프런트 스캐너의 소비처를 전수�
       (소비처 5파일의 import 경로를 바꾸지 않기 위해 — 이관과 소비처 개편을 한 PR 에 섞지 않는다)
 - [x] frontend `masked-markers.ts` → 패키지에서 import 후 재export 유지
 - [x] 미러 소멸 캐너리 — **심볼 재선언** 스코프 (아래 참조)
-- [ ] **spec R17 정정 (planner 턴 필요)** — `14-external-interaction-api.md` 의
+- [x] **spec R17 정정** (`11_27_29` W3 처분에서 집행) — `14-external-interaction-api.md` 의
       *"마커 집합은 backend `sanitize-error-message.ts` 가 SoT 이고 프런트가 미러한다"* 가
       이관 후 **사실과 어긋난다**. SoT 를 `@workflow/masked-markers` 로 바꾸고, frontmatter
       `code:` 목록에서 **`masked-markers.ts` 항목 옆**에 패키지 경로를 추가한다
       (라인번호로 지목하지 않는다 — 인접 항목이 `sanitize-error-message.ts` 라 오편집하기 쉽다).
-      developer 는 `spec/` read-only 라 planner 턴으로 분리 집행
+      **별도 planner 턴 대신** `11_27_29` RESOLUTION 의 W3 처분으로 같은 턴에 집행하고,
+      push 게이트가 요구하는 `--impl-done`(같은 5 checker·같은 spec 영역)으로 검증한다.
+      선택을 숨기지 않고 RESOLUTION·커밋에 명시했다.
 - [x] 정본 트래커 **`:373`·`:757` 두 항목** `[x]` + 대체 근거 (구현 커밋과 같은 턴)
 - [x] TEST WORKFLOW 4단계 + 타입체크 ratchet
 - [ ] `/ai-review`

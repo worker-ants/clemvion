@@ -15,25 +15,42 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as ts from 'typescript';
 
+import * as sot from '@workflow/masked-markers';
+
 /** SoT 패키지 — 여기 안에서는 당연히 선언한다. */
 export const SOT_DIR = 'codebase/packages/masked-markers';
 
-/** SoT 가 소유하는 심볼. 패키지 밖에서 새로 선언하면 미러가 되살아난 것이다. */
-export const SOT_SYMBOLS: readonly string[] = [
-  'MASKED_MARKERS',
-  'isMaskedMarker',
-  'VALUE_MASK_MARKER',
-  'KEY_MASK_MARKER',
-  'DEPTH_MASK_MARKER',
-  'MAX_MASK_DEPTH',
-];
+/**
+ * SoT 가 소유하는 심볼 — **패키지의 실제 export 표면에서 파생한다.**
+ *
+ * 손으로 나열하면 그 목록 자체가 미러가 된다(`11_53_49` maintainability W3): 패키지에 심볼이
+ * 늘 때 한쪽 가드만 갱신되면, 반대쪽 스택 전용 PR 이 신규 심볼 재선언을 조용히 통과시킨다 —
+ * 이 PR 이 없애려던 실패 클래스가 가드 **설정 데이터** 레벨에서 재현되는 것이다.
+ *
+ * > **모듈 interop 산물을 걸러낸다.** `Object.keys` 결과가 런타임마다 다르다 — vitest(ESM
+ * > interop)는 `default` 를 얹고 jest(CJS)는 얹지 않는다(실측: 프런트 캐너리가 `const
+ * > default = 1` 이라는 **문법조차 아닌** 픽스처를 만들어 RED 를 냈다). 식별자로 쓸 수 있는
+ * > 이름만 남긴다.
+ */
+export const SOT_SYMBOLS: readonly string[] = Object.keys(sot)
+  .filter((k) => k !== 'default' && k !== '__esModule')
+  .filter((k) => /^[A-Za-z_$][A-Za-z0-9_$]*$/.test(k))
+  .sort();
 
-/** 스캔 대상 — 저장소 전체(스택 무관). */
-export const SCAN_DIRS: readonly string[] = [
-  'codebase/backend/src',
-  'codebase/frontend/src',
-  'codebase/channel-web-chat/src',
-];
+/**
+ * 스캔 대상 — 각 스택의 `src` 디렉터리를 **실측으로 파생한다.** 스택이 늘어도 자동으로 포함된다.
+ * (하드코딩하면 위와 같은 이유로 목록이 또 하나의 손 유지 사본이 된다.)
+ */
+export function resolveScanDirs(repoRoot: string): string[] {
+  const base = path.join(repoRoot, 'codebase');
+  if (!fs.existsSync(base)) return [];
+  return fs
+    .readdirSync(base, { withFileTypes: true })
+    .filter((e) => e.isDirectory())
+    .map((e) => path.join('codebase', e.name, 'src'))
+    .filter((rel) => fs.existsSync(path.join(repoRoot, rel)))
+    .sort();
+}
 
 /** 한 건의 재선언. */
 export interface MirrorRedeclaration {
@@ -106,7 +123,7 @@ export function findMirrorRedeclarations(
   repoRoot: string,
 ): MirrorRedeclaration[] {
   const out: MirrorRedeclaration[] = [];
-  for (const rel of SCAN_DIRS) {
+  for (const rel of resolveScanDirs(repoRoot)) {
     for (const absolute of listSourceFiles(path.join(repoRoot, rel))) {
       const relPath = path
         .relative(repoRoot, absolute)
