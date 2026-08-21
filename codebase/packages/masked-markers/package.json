@@ -1,0 +1,39 @@
+{
+  "name": "@workflow/masked-markers",
+  "version": "0.1.0",
+  "description": "Single source of truth for the egress masking marker set ('***', '[REDACTED]', '[REDACTED_DEPTH]') and the depth cap at which the masker substitutes subtrees — shared between the backend maskers that emit them and the frontend guards that detect them to avoid re-submitting an already-masked value.",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "prepare": "node -e \"const f=require('fs'),c=require('child_process');let ts=true;try{require.resolve('typescript/package.json')}catch{ts=false};if(ts){c.execSync('tsc',{stdio:'inherit'})}else if(!f.existsSync('dist')){throw new Error('prepare: typescript is unavailable and dist/ is missing — cannot produce the build output')}\"",
+    "test": "jest",
+    "lint": "eslint src/**/*.ts"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.18.0",
+    "@types/jest": "^30.0.0",
+    "eslint": "^9.18.0",
+    "globals": "^17.9.0",
+    "jest": "^30.0.0",
+    "ts-jest": "^29.2.5",
+    "typescript": "^5.7.3",
+    "typescript-eslint": "^8.65.0"
+  },
+  "engines": {
+    "node": ">=24"
+  },
+  "jest": {
+    "moduleFileExtensions": [
+      "js",
+      "json",
+      "ts"
+    ],
+    "rootDir": "src",
+    "testRegex": ".*\\.spec\\.ts$",
+    "transform": {
+      "^.+\\.(t|j)s$": "ts-jest"
+    },
+    "testEnvironment": "node"
+  }
+}

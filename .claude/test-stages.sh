@@ -30,6 +30,7 @@ _ensure_deps() {
 INTERNAL_PACKAGES=(
   "@workflow/sdk"
   "@workflow/ai-end-reason"
+  "@workflow/masked-markers"
   "@workflow/expression-engine"
   "@workflow/graph-warning-rules"
   "@workflow/node-summary"

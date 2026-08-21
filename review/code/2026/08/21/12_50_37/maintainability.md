@@ -1,0 +1,15 @@
+# 유지보수성(Maintainability) Review — masked-marker-contract-7d2e14 (라운드 4, 12_50_37)
+
+## 발견사항
+
+- **[WARNING]** 이전 라운드(`12_25_15` WARNING 1)에서 "고쳤다"고 처분한 `SOT_DIR` 접두 겹침 하드닝이 backend 쌍둥이 파일에만 적용되고 frontend 쌍둥이 파일에는 빠졌다 — 두 사본이 같은 불변식을 지킨다는 이 가드의 설계 전제가 이미 깨져 있다
+  - 위치: `codebase/backend/src/repo-guards/__tests__/masked-marker-mirror-guard.ts:141` (`findMirrorRedeclarations` 내부, `if (relPath === SOT_DIR || relPath.startsWith(\`${SOT_DIR}/\`)) continue;`) vs `codebase/frontend/src/lib/repo-guards/__tests__/masked-marker-mirror-guard.ts:143` (동일 함수, `if (relPath.startsWith(SOT_DIR.split(path.sep).join("/"))) continue;`)
+  - 상세: `review/code/2026/08/21/12_25_15/RESOLUTION.md` WARNING 1 은 "`startsWith(SOT_DIR)` 만으로는 `masked-markers-extra` 같은 형제를 오배제하므로 **경계를 명시**했다(`=== SOT_DIR || startsWith(SOT_DIR + '/')`)"고 적었고, 이 시리즈가 접두 겹침으로 반복해 당한 자리라고까지 스스로 언급한다. 그런데 실제로 이 경계 조건은 backend 사본(`masked-marker-mirror-guard.ts:141`)에만 반영됐고, frontend 사본(`:143`)은 여전히 경계 없는 `startsWith` 그대로다. 두 파일 모두 자기 자신 JSDoc 에 "두 스택이 각자 자기 워크플로에서 도는 사본을 갖고… 탐지 로직의 중복은 구멍을 만들지 않는다 — 한 사본이 낡아도 다른 사본이 같은 불변식을 자기 트리거에서 계속 지킨다"고 명시하는데, 지금은 그 전제 자체가 깨진 상태다 — 두 사본이 **다른** 불변식(하나는 정확한 접두 경계, 하나는 느슨한 접두 매치)을 지키고 있다. 현재는 `codebase/packages/` 아래 `masked-markers` 와 이름이 겹치는 형제 패키지가 없어(`ls codebase/packages`: ai-end-reason/chat-channel-validation/expression-engine/graph-warning-rules/masked-markers/node-summary/sdk/web-chat-sdk) 실 관측되는 오탐/누락은 없지만, 향후 `masked-markers-*` 류 이름의 패키지가 추가되면 frontend 스캐너는 그 `src` 를 SoT 자신으로 오인해 마커 심볼 재선언 검사에서 **조용히 제외**한다 — 이 가드의 핵심 보장("SoT 패키지 밖에서 마커 심볼을 재선언하지 않는다")에 정확히 구멍을 낸다. 두 스펙 파일(`masked-marker-mirror.spec.ts`/`masked-marker-mirror.test.ts`) 어디에도 이 경계 자체를 직접 묻는 캐너리(예: `SOT_DIR` 와 접두가 겹치는 가상 형제 디렉터리가 재선언 판정에서 **제외되지 않는지** 확인)가 없어, 이번처럼 한쪽 사본에만 하드닝이 적용돼도 테스트가 그 비대칭을 잡지 못한다.
+  - 제안: frontend `findMirrorRedeclarations` 의 제외 조건을 backend 와 동일하게 `relPath === SOT_DIR_NORMALIZED || relPath.startsWith(\`${SOT_DIR_NORMALIZED}/\`)` 형태로 맞춘다. 더불어 두 스펙 파일에 "SOT_DIR 과 접두가 겹치는 형제 디렉터리(`codebase/packages/masked-markers-extra/src/foo.ts` 같은 합성 fixture)에서의 재선언은 여전히 탐지된다"를 직접 단언하는 캐너리를 추가해, 앞으로 두 사본 중 한쪽만 하드닝이 반영되는 이 클래스의 drift 를 기계가 잡게 한다.
+
+## 요약
+
+이 PR 은 4라운드째 반복해 온 "가드가 서술보다 좁다" 류 결함(backend-only PR 무방비 → web-chat 무방비 → 감시 목록 자체가 미러 → 스캔 파생이 얕음)을 순서대로 착실히 닫아 왔고, 이번 diff 자체(마스킹 마커 상수·판정 로직을 `@workflow/masked-markers` 로 추출하는 핵심 리팩터)는 함수가 짧고 책임이 분리돼 있으며(`listSourceFiles`/`findRedeclaredSymbols`/`resolveScanDirs`/`findMirrorRedeclarations`), 네이밍(`MAX_MASK_DEPTH` 중립화)·재export 전략·README 문서화 모두 견고하다. 그런데 직전 라운드가 "고쳤다"고 처분한 `SOT_DIR` 접두 겹침 하드닝을 실측 대조해 보니 backend 사본에만 반영되고 frontend 사본에는 빠져 있다 — "탐지 로직의 중복은 구멍을 만들지 않는다, 두 사본이 같은 불변식을 지킨다"는 이 가드 디자인 전체의 핵심 전제를 이번 라운드에서 스스로 깬 셈이다. 지금 당장 트리거되는 실 결함은 아니지만(오버랩되는 형제 패키지가 아직 없음), 이 저장소가 반복해 겪었다고 스스로 기록해 둔 바로 그 결함 클래스가 "고쳤다"는 커밋 이후에도 한쪽 쌍둥이에 남아 있다는 점, 그리고 그 비대칭을 잡을 캐너리가 양쪽 어디에도 없다는 점이 유지보수성 관점에서 실질적 위험이다. 그 외 가독성·네이밍·함수 길이·중첩 깊이·매직 넘버 축에서는 새로 지적할 사항이 없다(이전 라운드들이 지적한 `prepare` 스크립트 9번째 복제·이중 빈 줄 등 INFO 는 이미 알려진 채 의도적으로 미조치 상태라 재등재하지 않는다).
+
+## 위험도
+MEDIUM

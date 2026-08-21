@@ -7,6 +7,15 @@
  * 2026-05-19 (arch-C2) — moved from modules/integrations/integration-oauth.service.ts.
  */
 
+import {
+  DEPTH_MASK_MARKER,
+  isMaskedMarker,
+  KEY_MASK_MARKER,
+  MASKED_MARKERS,
+  MAX_MASK_DEPTH,
+  VALUE_MASK_MARKER,
+} from '@workflow/masked-markers';
+
 /** Hard cap on error message length to keep JSONB columns bounded. */
 export const LAST_ERROR_MESSAGE_MAX_LEN = 200;
 
@@ -105,18 +114,27 @@ const CREDENTIAL_KEY_PATTERN =
 
 /**
  * Recursion depth cap. Beyond this, a subtree is masked wholesale to `***` rather
- * than trusted — mirrors `sanitizePayloadForWs`'s `MAX_SANITIZE_DEPTH`, which was
- * added because an unbounded walk over low-trust LLM/tool output can blow the
+ * than trusted — an unbounded walk over low-trust LLM/tool output can blow the
  * stack (or hide a secret past the depth an audit reaches).
+ *
+ * **`MAX_MASK_DEPTH` 의 지역 별칭**이다. 이 수는 프런트 마커 스캐너와 **함께 움직여야**
+ * 하므로 SoT 는 `@workflow/masked-markers` 에 있다 — 마스커가 이 깊이에서 서브트리를
+ * 치환하므로, 스캐너 상한이 더 작으면 그 차이만큼 가드가 조용히 뚫린다.
+ *
+ * > `sanitizePayloadForWs` 의 `MAX_SANITIZE_DEPTH` 는 **이것이 아니다.** 비교가
+ * > `depth > N` 이라 마커를 한 칸 더 깊은 자리에 놓고, 프런트 스캐너는 WS 페이로드를
+ * > 스캔하지 않는다(실측). 별개 불변식이므로 함께 움직이지 않는다.
  */
-export const MAX_REDACT_DEPTH = 10;
+export const MAX_REDACT_DEPTH = MAX_MASK_DEPTH;
 
-/** 값-패턴 마스커가 남기는 마커. 집합 의미는 {@link MASKED_MARKERS} 참조. */
-export const VALUE_MASK_MARKER = '***';
-/** 키-이름 마스커(`sanitizePayloadForWs` · webhook ingestion)가 남기는 마커. */
-export const KEY_MASK_MARKER = '[REDACTED]';
-/** 깊이 상한 초과 서브트리를 통째로 대체하는 마커. */
-export const DEPTH_MASK_MARKER = '[REDACTED_DEPTH]';
+export {
+  /** 값-패턴 마스커가 남기는 마커. 집합 의미는 {@link MASKED_MARKERS} 참조. */
+  VALUE_MASK_MARKER,
+  /** 키-이름 마스커(`sanitizePayloadForWs` · webhook ingestion)가 남기는 마커. */
+  KEY_MASK_MARKER,
+  /** 깊이 상한 초과 서브트리를 통째로 대체하는 마커. */
+  DEPTH_MASK_MARKER,
+};
 
 /**
  * 앞선 마스킹 층이 이미 남긴 마커들. 이 값들을 **다시 마스킹하지 않는다.**
@@ -140,30 +158,22 @@ export const DEPTH_MASK_MARKER = '[REDACTED_DEPTH]';
  * **안전 방향은 한쪽으로만 열린다**: 절대 unmask 하지 않고, 이미 마스킹된 값을 다시 덮지
  * 않을 뿐이다. 마커 문자열 자체는 시크릿이 아니므로 보존해도 노출이 늘지 않는다.
  *
- * > **프런트 미러가 있다**: `frontend/src/lib/utils/masked-markers.ts` 의 `MASKED_MARKERS`
- * > 가 같은 집합을 복제해 **마스킹된 값을 프리필·제출하지 않는** 가드 셋(폼 프리필 ·
- * > Re-run 모달 · 에디터 히스토리 로드)에 쓴다. 이 집합을 바꾸면 그쪽도 함께 갱신해야
- * > 한다 — 어긋나면 그 가드들이 조용히 뚫린다.
- * >
- * > 2026-08-20 에 `dynamic-form-ui.tsx` 안에서 `lib/utils/` 로 승격됐다(소비처 셋).
+ * > **SoT 는 `@workflow/masked-markers` 다.** 프런트가 같은 집합을 보고 *마스킹된 값을
+ * > 프리필·제출하지 않는* 가드 셋(폼 프리필 · Re-run 모달 · 에디터 히스토리 로드)을
+ * > 돌린다. 예전엔 프런트가 이 파일을 **손으로 복제**했는데, 그 미러를 기계가 대조하게
+ * > 하려니 CI 경로 게이팅에 막혀(한쪽 워크플로가 반대쪽 변경 때 검사를 생략한다) 아예
+ * > 공유 패키지로 옮겼다. 이제 대조할 미러가 없다.
  */
-export const MASKED_MARKERS: readonly string[] = Object.freeze([
-  VALUE_MASK_MARKER,
-  KEY_MASK_MARKER,
-  DEPTH_MASK_MARKER,
-]);
+export { MASKED_MARKERS };
 
 /**
  * 값 전체가 마스킹 마커와 **정확히 일치**하는가.
  *
- * > **2026-08-20 에 export 로 승격했다** — 재제출 거부 가드(EIA §R17, Manual 실행 경로)가
- * > 같은 판정을 서버에서 쓴다. 복제하지 않은 이유는 이 시리즈가 미러 발산으로 반복해
- * > 뚫렸기 때문이다: 한쪽만 마커를 늘리면 다른 쪽이 그 마커에 대해 조용히 fail-open 한다.
- * > 같은 프로세스 안이라 공유하지 못할 이유가 없다.
+ * > 재제출 거부 가드(EIA §R17, Manual 실행 경로)와 egress 마스킹이 **같은 판정기**를 쓴다.
+ * > 복제하지 않은 이유는 이 시리즈가 미러 발산으로 반복해 뚫렸기 때문이다 — 한쪽만 마커를
+ * > 늘리면 다른 쪽이 그 마커에 대해 조용히 fail-open 한다.
  */
-export function isMaskedMarker(v: unknown): boolean {
-  return typeof v === 'string' && MASKED_MARKERS.includes(v);
-}
+export { isMaskedMarker };
 
 /** {@link deepRedactSecretsPreserving} 전용 옵션. 기본 경로는 빈 객체를 쓴다. */
 interface DeepRedactOptions {
