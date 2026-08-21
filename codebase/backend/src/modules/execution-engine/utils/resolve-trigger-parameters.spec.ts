@@ -163,6 +163,7 @@ describe('toTriggerParameterErrorDetails', () => {
       { field: 'orderId', reason: 'missing_required' },
       { field: 'amount', reason: 'coerce_failed' },
       { field: '(root)', reason: 'invalid_schema' },
+      { field: 'apiKey', reason: 'masked_value_resubmitted' },
     ]);
     expect(details).toEqual([
       {
@@ -179,6 +180,14 @@ describe('toTriggerParameterErrorDetails', () => {
         field: '(root)',
         code: 'INVALID_SCHEMA',
         message: 'Trigger parameter schema is invalid',
+      },
+      // 네 번째 reason(2026-08-21, EIA §R17). 형제 셋과 나란히 두지 않으면 매핑 리터럴
+      // 자체를 겨냥하는 단언이 없어, 코드/메시지가 바뀌어도 통합 테스트만 간접 커버한다
+      // (`02_29_01` testing INFO-7).
+      {
+        field: 'apiKey',
+        code: 'MASKED_VALUE_RESUBMITTED',
+        message: 'Masked value was resubmitted — enter the real value',
       },
     ]);
   });

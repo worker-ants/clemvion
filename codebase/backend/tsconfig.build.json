@@ -4,5 +4,15 @@
     "rootDir": "./src"
   },
   "include": ["src/**/*"],
-  "exclude": ["node_modules", "test", "dist", "**/*spec.ts"]
+  "exclude": [
+    "node_modules",
+    "test",
+    "dist",
+    "**/*spec.ts",
+    // 저장소 가드는 **테스트 전용**이다(프로덕션 소비처 0건, 실측). `*-guard.ts` 는
+    // `*spec.ts` 패턴에 걸리지 않아 그동안 dist 로 나가고 있었다. `masked-reject-callers-guard`
+    // 가 devDependency 인 `typescript` 를 import 하면서 그 오염이 실제 위험이 됐다 —
+    // 프로덕션 설치엔 devDependency 가 없으므로 dist 안의 `require("typescript")` 는 지뢰다.
+    "src/repo-guards/**"
+  ]
 }

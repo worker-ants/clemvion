@@ -10,7 +10,11 @@ export interface TriggerParameterDefinition {
 
 export interface TriggerParameterValidationError {
   field: string;
-  reason: 'missing_required' | 'coerce_failed' | 'invalid_schema';
+  reason:
+    | 'missing_required'
+    | 'coerce_failed'
+    | 'invalid_schema'
+    | 'masked_value_resubmitted';
 }
 
 /**
@@ -21,7 +25,11 @@ export interface TriggerParameterValidationError {
  */
 export interface TriggerParameterErrorDetail {
   field: string;
-  code: 'MISSING_REQUIRED_FIELD' | 'TYPE_COERCION_FAILED' | 'INVALID_SCHEMA';
+  code:
+    | 'MISSING_REQUIRED_FIELD'
+    | 'TYPE_COERCION_FAILED'
+    | 'INVALID_SCHEMA'
+    | 'MASKED_VALUE_RESUBMITTED';
   message: string;
 }
 
@@ -40,6 +48,17 @@ const REASON_TO_DETAIL: Record<
   invalid_schema: {
     code: 'INVALID_SCHEMA',
     message: 'Trigger parameter schema is invalid',
+  },
+  /**
+   * 마스킹된 값이 그대로 재제출됨 — Manual 실행 경로 한정 (EIA §R17).
+   *
+   * `coerce_failed` 를 재사용하지 않는 이유: 사용자가 취할 행동이 다르다. "타입이 안
+   * 맞는다" 가 아니라 **"가려진 값을 다시 입력하라"** 다. 의미가 틀린 코드를 재사용하면
+   * 다음 사람이 그 코드를 믿고 잘못 분기한다.
+   */
+  masked_value_resubmitted: {
+    code: 'MASKED_VALUE_RESUBMITTED',
+    message: 'Masked value was resubmitted — enter the real value',
   },
 };
 

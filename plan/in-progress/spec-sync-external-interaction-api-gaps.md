@@ -325,7 +325,7 @@ checker 가 독립적으로** "인용이 가리키는 절이 오히려 반대를
       났다(`14_08_45` C2) — 근본 원인은 그대로 남아 있다.
       > 공유 `redactExecutionFields(row)` 또는 응답 직전 interceptor 로 통합 검토.
 
-- [ ] **`inputOverride` 서버측 마커 리터럴 거부** (2026-08-20 등재, `14_44_08` W6).
+- [x] **`inputOverride` 서버측 마커 리터럴 거부** (2026-08-20 등재, `14_44_08` W6 — **2026-08-21 종결**).
       `resolveTriggerParameters` 는 타입·필수값만 보므로 UI 를 우회한 클라이언트(curl)는
       `'***'` 를 그대로 실어 왕복 오염을 API 레벨에서 재현할 수 있다.
       > **이번 PR 이 만든 결함은 아니다** — security reviewer 가 라운드마다 독립적으로
@@ -340,16 +340,24 @@ checker 가 독립적으로** "인용이 가리키는 절이 오히려 반대를
       > 가드의 범위 밖이다* 를 어디에도 쓰지 않았다. 근거가 약해서 같은 지적이 계속
       > 돌아온 것이다.
       >
+      > **→ 종결.** planner(`spec-draft-inputoverride-marker-reject.md`, spec 7곳) + 구현
+      > (`resolveTriggerParametersRejectingMasked`, Manual 실행 경로 두 곳). 범위는
+      > **재제출만이 아니라 Manual 실행 전체**로 정정됐다 — execute 엔드포인트가 출처를
+      > 구분할 플래그를 갖지 않기 때문이다(`23_33_00` cross_spec W1).
+      >
       > **착수 시 두 가지를 함께 한다**: (1) 서버측 체크, (2) **planner 턴으로 §R17 에
       > 범위 문장 추가** — 거부하기로 하면 그 에러 코드가 EIA 에러 카탈로그에 들어가야
       > 하고, 안 하기로 하면 "왜 UI 만 막는가" 가 명문화돼야 재지적이 멎는다. 어느 쪽이든
       > spec 표면이라 `developer` 권한 밖이고, 그래서 이번 PR 에서 닫지 않는다.
 
-- [ ] **`Execution.inputData` 응답 의미 반전의 외부 소비자 확인** (2026-08-20 등재,
-      `14_44_08` W5). JSON 스키마 타입은 그대로라 OpenAPI 로는 드러나지 않는 **콘텐츠 계약
-      변경**이다. 저장소 안 프런트 3소비처는 가드됐지만, 이 엔드포인트를 직접 호출하는
-      저장소 밖 소비자(QA/운영 자동화·감사 export 등)는 스키마로 알 수 없다.
-      > 존재 여부를 확인하고, 있으면 릴리스 노트에 breaking 으로 공지.
+- [x] **`Execution.inputData` 응답 의미 반전의 외부 소비자 확인** (2026-08-20 등재,
+      `14_44_08` W5 — **2026-08-20 종결**). JSON 스키마 타입은 그대로라 OpenAPI 로는 드러나지
+      않는 **콘텐츠 계약 변경**이다. 저장소 안 프런트 3소비처는 가드됐지만, 이 엔드포인트를
+      직접 호출하는 저장소 밖 소비자(QA/운영 자동화·감사 export 등)는 스키마로 알 수 없다.
+      > **→ 확인했으나 없음 (2026-08-20).** 근거는 **저장소 소유자(사용자)의 직접 답변**
+      > 이다 — *"없다, 프런트가 유일 소비자"*. 코드로 답할 수 있는 질문이 아니라(운영 정보)
+      > 이 형태의 근거가 이 항목이 요구하던 "확인" 이다. 릴리스 노트 breaking 공지는
+      > 불요. 출처·문맥: `spec-draft-inputoverride-marker-reject.md` "왜 지금인가".
 
 - [ ] **Re-run 차단 판정을 순수 함수로 추출해 직접 단위 테스트한다** (2026-08-20 등재,
       `15_59_17` W3). `blockedByMaskedInput` 은 리뷰 3라운드에 걸쳐 **세 조건의 합**으로
@@ -733,6 +741,56 @@ ES-module 순환 위에 놓인다. 생성자의 `forwardRef` 도 같은 이유�
       sanity 단언 추가.
 - [ ] (저비용) `TERMINAL_DURATION_MS_SQL` 이 컬럼명 `started_at` 을 하드코딩 — 엔티티
       메타데이터와 대조하는 assertion 을 다음 편집 때 (W7)
+
+## 마커 재제출 거부 PR 의 이월 항목 (2026-08-21 등재, `00_03_57`~`05_08_35` 11라운드)
+
+11라운드에 걸쳐 리뷰어들이 **조치 불요·강제 아님·스코프 밖**으로 판정한 것들이다. 각
+RESOLUTION 에 "트래커로 넘긴다" 고 적었는데 **실제로는 어디에도 적히지 않은 상태였다** —
+push 직전 확인에서 발각됐다. `review/**` 는 SoT 가 아니므로 여기 등재한다.
+
+- [ ] **두 Manual 엔드포인트의 최상위 `error.code` 가 다르다** — `re-run` 은 `INVALID_INPUT`,
+      `execute` 는 `INVALID_TRIGGER_PARAMETERS`. **이 PR 이전부터 존재**하는 drift 이고
+      spec 에도 명시돼 있다. 통일하면 기존 클라이언트가 보는 코드가 바뀌므로 별도 결정 필요.
+      (`details[].code` 를 보면 되므로 실사용 지장은 없다.)
+- [ ] **`ReRunRequestDto.inputOverride` Swagger description** 에 마스킹 마커 3종이 예약어라는
+      제약이 없다. 5라운드 연속 이월 — 다음 DTO 편집 기회에 한 줄.
+- [ ] **마커 리터럴 cross-stack 계약 테스트 부재** — 프런트 `lib/utils/masked-markers.ts` 와
+      backend `shared/utils/sanitize-error-message.ts` 의 `MASKED_MARKERS` 가 **문자 그대로
+      대칭**이어야 하는데 이를 강제하는 것이 없다(jest↔vitest 경계). 한쪽만 바뀌면 프런트가
+      막지 못한 값을 서버가 거부하거나 그 반대가 된다.
+- [ ] **base `resolveTriggerParameters` JSDoc 에 wrapper 역참조 없음** — 새 Manual 경로
+      작성자가 base 만 보면 wrapper 규칙을 모른다. repo-guard 가 CI 에서 잡지만 그건 사후
+      발견이지 작성 시점 안내가 아니다. `{@link resolveTriggerParametersRejectingMasked}` 한 줄.
+- [ ] **`REASON_TO_DETAIL` 문서화 밀도 비대칭** — 신규 항목만 JSDoc 이 있고 형제 3종은 없다.
+- [ ] **`workflows.controller.ts` 의 한/영 인라인 주석 혼재** — 같은 try/catch 블록.
+      이 PR 이 만든 문제가 아니고 5라운드째 이월.
+- [ ] **`ExecutionsService.reRun` 이 137줄·6책임** — 선존 구조. 이번 PR 은 분기 1개만 추가.
+      다음에 손댈 때 입력 해석 블록을 private 헬퍼로.
+- [ ] **`findMaskedResubmissions` 직접 단위 테스트 부재** — 상위 함수 경유 간접 커버만.
+      세 번째 소비처가 생기면 그때.
+- [ ] **`throwIfAny` 의 phase 경계 트레이드오프 미검증** — ①(raw) 통과 후 무관 필드의
+      `coerce_failed` 가 resolve 를 선점하면 ②(JSON 문자열 안 마커)가 그 요청에서 실행되지
+      않는다. **보안 우회가 아니라 안내가 한 왕복 늦는 UX 엣지**이고 docstring 에 적혀 있으나
+      회귀 테스트로 고정돼 있지는 않다.
+
+consistency `--impl-done`(`05_23_14`, **BLOCK: NO**) 이 셋을 더 냈다 — 전부 비차단이고 셋 다
+**spec 편집이라 planner 턴**이 필요하다. 그래서 이 PR 에서 하지 않는다:
+
+- [ ] **wrapper 함수명이 spec 본문에 없다** — `resolveTriggerParametersRejectingMasked` /
+      `reject-masked-resubmission.ts` 가 `1-manual-trigger.md` §6 와 `14-external-interaction-api.md`
+      §R17 어디에도 이름으로 안 나온다. `spec-impl-evidence` R-1(≥1 코드 매치)은 충족해
+      가드는 통과하지만, **"공유 함수에 넣지 않는다" 는 설계 의도가 코드 추적선에서 흐려진다**.
+      두 문서에 함수·파일명 명시 + `code:` frontmatter 에 파일 추가.
+- [ ] **§R17 "닫는 조건" 표의 신규 4번째 행만 볼드** — 기존 3행은 평문. 통일하거나 의도적
+      강조로 유지.
+- [ ] **`error-codes.md §4` "패턴" 표에 trigger-parameter reason 계열이 없다** — Code 노드
+      핸들러 내부 코드만 나열돼 있어 직접 확인이 안 된다. 이 PR 이 만든 편차가 아니라 기존
+      서술의 연장. 규약 문서 자체 개선.
+
+> **관행 권고 (`04_46_40`·`05_08_35` scope W1)**: 기능 PR 에서 **저장소 전역 정책 가드가
+> 부산물로 파생되면** 별도 PR 로 분리하는 편이 낫다. 이번엔 분리하지 않았다 — 두 가드가
+> 이 PR 의 wrapper 와 `typescript` import 를 각각 전제해서, 분리하면 그 사이 커밋 구간에
+> **가드 없이 코드만 있는 상태**가 생긴다. 대신 CHANGELOG 에 범위 초과를 명시했다.
 
 ## 후속 (cross-cutting, 본 spec 밖)
 - [x] **Redis fixed-window rate-limiter INCR+EXPIRE 원자화** — `PublicWebhookQuotaService.incrWithWindow` 를 `INCR + EXPIRE ... NX` 단일 pipeline(매 요청)으로 교정해 TTL 유실 self-heal (fail-closed 잠금 창 제거). `ChatChannelRateLimiterService` 는 **이미** 동일 `INCR + EXPIRE NX` 단일 pipeline 패턴이라 무변경(점검 완료). `InteractionRateLimiterService`(item 5)는 Lua EVAL — 세 서비스 모두 원자/self-heal 확보. (PR #843 ai-review concurrency WARNING 후속, `task_fa5c5e84`.)

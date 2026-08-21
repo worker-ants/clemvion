@@ -1,5 +1,54 @@
 # Changelog
 
+## Unreleased — 마커 재제출을 서버가 거부한다 (가드를 UI 밖으로)
+
+아래 항목이 닫은 카브아웃의 가드는 **프런트 렌더 경로**에만 있었다 — 그 항목 스스로
+*"API 직접 호출은 서버가 여전히 받는다, 서버측 거부는 트래커로 남겼다"* 고 적어 뒀다.
+이번에 그 후속을 집행한다.
+
+**Behavior change (breaking): Manual 실행 파라미터에서 마스킹 마커 3종이 예약어가 된다** —
+`***` · `[REDACTED]` · `[REDACTED_DEPTH]` 와 **정확히 일치**하는 값을 `POST /workflows/:id/execute`
+또는 `POST /executions/:id/re-run` 에 보내면 이제 400(`MASKED_VALUE_RESUBMITTED`)이다. 저장소
+밖 소비자는 없음을 확인했고(프런트가 유일 소비자) 프런트는 이미 같은 규칙을 적용 중이라
+관측되는 변화는 **UI 를 우회해 직접 호출하는 클라이언트에만** 생긴다. 부분 일치(`a***b`)는
+영향 없다.
+
+**범위는 재제출이 아니라 Manual 실행 경로 전체다.** `POST /workflows/:id/execute` 는 재제출
+전용이 아니라 Manual 실행의 단일 진입점이고, 값이 히스토리에서 왔는지 방금 타이핑됐는지
+구분할 플래그가 없다. 그래서 **직접 입력한 마커도 거부된다** — 마커 세 문자열은 Manual
+파라미터의 **예약어**다(정확 일치만 보므로 `a***b` 는 통과). 프런트가 이미 같은 비용을
+치르고 있어 새로 생기는 비용이 아니고, 두 층이 규칙을 갈라 두면 한쪽만 통과하는 값이 생긴다.
+
+**webhook·schedule 은 대상이 아니다.** 그쪽 body 는 외부 시스템이 저작하는 임의 페이로드라
+리터럴 `'***'` 가 정상 값일 수 있다. 그래서 거부를 `resolveTriggerParameters` 공유 함수
+안에 넣지 않았다 — 공유 프리미티브를 넓히면 무관한 경로가 오염된다.
+
+**검사 시점이 정확성을 갈랐다.** 초판은 resolve **결과**를 검사했다가 리뷰가 세 갈래를
+잡았다 — `boolean` 은 `Boolean('***')` → `true` 로 **완전 우회**, `number` 는 `coerce_failed`
+가 안내를 선점, `defaultValue` 가 마커면 손대지 않은 필드까지 **과잉 차단**. raw 를 먼저
+보고(문자열이 살아 있는 시점), object/array 를 JSON 문자열로 보내는 경로 때문에 resolve
+뒤에도 한 번 더 본다. 대상 키는 **언제나 raw 기준**이다.
+
+**선존 버그도 함께 고쳤다** — re-run 은 `errors` 키로 내부 reason 원문을 던졌고
+`GlobalExceptionFilter` 는 `details` 만 읽어 **필드별 내역이 응답에 실리지 않았다**. 그대로
+새 코드를 얹으면 사용자는 400 만 보고 이유를 못 받는다. `details` 로 교정해 자매 호출부와
+같아졌다.
+
+신규 field code: `MASKED_VALUE_RESUBMITTED`. `coerce_failed` 재사용은 기각했다 — 사용자가
+취할 행동이 다르다("타입이 안 맞는다" 가 아니라 "가려진 값을 다시 입력하라").
+
+**부산물로 저장소 전역 가드 두 개가 생겼다** — 이 기능의 범위를 넘으므로 따로 적어 둔다.
+
+- `masked-reject-callers` — 허용목록 밖에서 base `resolveTriggerParameters` 를 쓰면 RED.
+  주석은 "어느 호출부가 어느 쪽을 써야 하는가" 를 강제하지 못하고, 세 번째 Manual 경로가
+  base 를 쓰면 거부가 조용히 열린다. 초판은 정규식이었는데 우회 형태를 라운드마다 하나씩
+  덧대다 네 번째가 나와 **AST(`ts.createSourceFile`)로 뒤집었다**.
+- `production-build-devdep` — **빌드 대상 중 어느 파일도 devDependency 를 런타임 참조하지
+  않는다**. 위 AST 전환이 `src/` 에서 devDependency 인 `typescript` 를 import 하게 만들었고,
+  `tsconfig.build.json` 의 제외가 spec 파일만 겨냥해 `*-guard.ts` 가 `dist` 로 나가고 있었다
+  (선존). `src/repo-guards/**` 를 빌드에서 제외해 막았고, 그 보장이 수동 확인에 기대지
+  않도록 이 가드가 지킨다. repo-guards 는 프로덕션 소비처 0건(실측).
+
 ## Unreleased — `Execution.inputData` 카브아웃을 닫았다 (재제출 소비처 3곳에 마커 가드)
 
 이 컬럼은 egress 마스킹의 **유일한 예외**였다. 이유는 보안이 아니라 **데이터 무결성**이었다 —

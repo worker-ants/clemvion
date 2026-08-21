@@ -353,6 +353,116 @@ describe('ExecutionsService — reRun (decision F2)', () => {
     expect(engine.execute).not.toHaveBeenCalled();
   });
 
+  /**
+   * **마스킹 값 재제출을 서버가 거부한다** (EIA §R17 서버측 2층).
+   *
+   * 프런트 가드(#1188)는 렌더 경로라 `curl` 로 API 를 직접 치면 우회된다. 이 캐너리가
+   * 없으면 그 우회로가 다시 열려도 GREEN 이다.
+   */
+  it('[캐너리] inputOverride 에 마스킹 마커가 실리면 거부한다', async () => {
+    getOneQueue = [
+      {
+        id: 'e1',
+        workflowId: 'wf-1',
+        workflow: { workspaceId: 'ws-1' },
+        executedBy: 'user-1',
+        chainId: null,
+      },
+    ];
+    chainDepth = 1;
+    nodeRepo.findOne.mockResolvedValue({
+      config: { parameters: [{ name: 'apiKey', type: 'string' }] },
+    });
+
+    await expect(
+      service.reRun('e1', 'ws-1', user, {
+        useOriginalInput: false,
+        inputOverride: { apiKey: '***' },
+      }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+    expect(engine.execute).not.toHaveBeenCalled();
+  });
+
+  /**
+   * **필드별 내역이 봉투에 실린다** — 선존 버그의 회귀 캐너리.
+   *
+   * 종전 이 호출부는 `errors: err.errors`(내부 reason 원문)를 던졌고 `GlobalExceptionFilter`
+   * 는 `details` 만 읽어 **내역이 조용히 버려졌다**. 그 상태로 `MASKED_VALUE_RESUBMITTED`
+   * 를 얹으면 사용자는 400 만 보고 이유를 못 받는다 — "마커를 채우라" 대신 일반 오류를
+   * 보는, 이 시리즈가 막으려던 바로 그 UX 퇴화다. `details` 로 교정했고 여기서 고정한다.
+   */
+  it('[회귀] 거부 응답이 details[] 로 필드별 코드를 싣는다 (errors 키 아님)', async () => {
+    getOneQueue = [
+      {
+        id: 'e1',
+        workflowId: 'wf-1',
+        workflow: { workspaceId: 'ws-1' },
+        executedBy: 'user-1',
+        chainId: null,
+      },
+    ];
+    chainDepth = 1;
+    nodeRepo.findOne.mockResolvedValue({
+      config: { parameters: [{ name: 'apiKey', type: 'string' }] },
+    });
+
+    const err = await service
+      .reRun('e1', 'ws-1', user, {
+        useOriginalInput: false,
+        inputOverride: { apiKey: '***' },
+      })
+      .catch((err_: unknown) => err_);
+
+    expect(err).toBeInstanceOf(BadRequestException);
+    const body = (err as BadRequestException).getResponse() as {
+      code: string;
+      details?: { field: string; code: string }[];
+      errors?: unknown;
+    };
+    expect(body.code).toBe('INVALID_INPUT');
+    // 내부 reason 원문을 그대로 흘리지 않는다.
+    expect(body.errors).toBeUndefined();
+    expect(body.details).toEqual([
+      {
+        field: 'apiKey',
+        code: 'MASKED_VALUE_RESUBMITTED',
+        message: expect.any(String) as unknown as string,
+      },
+    ]);
+  });
+
+  /**
+   * **과잉 차단이 아님을 같은 자리에서 고정한다** — 정확 일치만 본다. 부분 포함으로
+   * 넓히면 `a***b` 같은 정상 값이 막혀 가드가 정상 워크플로를 망가뜨린다.
+   */
+  it('[캐너리] 마커를 포함만 하는 값은 통과시킨다', async () => {
+    getOneQueue = [
+      {
+        id: 'e1',
+        workflowId: 'wf-1',
+        workflow: { workspaceId: 'ws-1' },
+        executedBy: 'user-1',
+        inputData: {},
+        chainId: null,
+      },
+    ];
+    chainDepth = 1;
+    nodeRepo.findOne.mockResolvedValue({
+      config: { parameters: [{ name: 'note', type: 'string' }] },
+    });
+    jest
+      .spyOn(service, 'findById')
+      .mockResolvedValue({ id: 'new-exec-id' } as never);
+
+    await expect(
+      service.reRun('e1', 'ws-1', user, {
+        useOriginalInput: false,
+        inputOverride: { note: 'a***b' },
+      }),
+    ).resolves.toBeDefined();
+    expect(engine.execute).toHaveBeenCalled();
+  });
+
   it('allows chain depth 31 (boundary — not exceeded)', async () => {
     getOneQueue = [
       {
