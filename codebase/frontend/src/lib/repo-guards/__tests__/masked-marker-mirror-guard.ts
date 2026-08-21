@@ -4,6 +4,11 @@
 // 파서 순수 로직과 소비 spec 을 분리하는 규약은 형제 가드
 // `internal-package-registration-guard.ts` · `typescript-toolchain-guard.ts` 와 동일하다.
 
+// **판정 분기를 새로 넣거나 고칠 때는 backend 쌍둥이(`backend/src/repo-guards/__tests__/`)와
+// 함께 고치고, 양쪽에 대칭 캐너리를 넣는다.** 이 PR 에서 접두 경계를 backend 만 고치고
+// "양쪽 다 고쳤다" 고 적은 사고가 실제로 났다 — 기계가 대칭을 확인하지 않으면 한쪽만
+// 고쳐진 채로 완료형 서술이 남는다(`12_50_37` W1).
+
 import fs from "node:fs";
 import path from "node:path";
 import ts from "typescript";
@@ -134,14 +139,17 @@ export function findRedeclaredSymbols(source: string): string[] {
 /** 두 스택에서 SoT 심볼을 재선언하는 자리 전부 (SoT 패키지 자신은 제외). */
 export function findMirrorRedeclarations(repoRoot: string): MirrorRedeclaration[] {
   const out: MirrorRedeclaration[] = [];
+  // 루프 불변 — 파일마다 재계산하지 않는다. 이름을 `sot` 로 두면 상단의
+  // `import * as sot from "@workflow/masked-markers"` 를 섀도잉한다(`13_14_29` W2).
+  const sotPrefix = SOT_DIR.split(path.sep).join("/");
   for (const rel of resolveScanDirs(repoRoot)) {
     for (const absolute of listSourceFiles(path.join(repoRoot, rel))) {
       const relPath = path
         .relative(repoRoot, absolute)
         .split(path.sep)
         .join("/");
-      const sot = SOT_DIR.split(path.sep).join("/");
-      if (relPath === sot || relPath.startsWith(`${sot}/`)) continue;
+      if (relPath === sotPrefix || relPath.startsWith(`${sotPrefix}/`))
+        continue;
       for (const symbol of findRedeclaredSymbols(
         fs.readFileSync(absolute, "utf8"),
       )) {
