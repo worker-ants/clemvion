@@ -13,7 +13,7 @@ code:
   - codebase/backend/src/shared/utils/sanitize-error-message.ts
   - codebase/frontend/src/components/editor/run-results/dynamic-form-ui.tsx
   - codebase/frontend/src/lib/utils/masked-markers.ts
-  - codebase/packages/masked-markers/src/index.ts
+  - codebase/packages/masked-markers/src/**
   - codebase/frontend/src/components/executions/rerun-modal.tsx
   - codebase/frontend/src/components/editor/toolbar/editor-toolbar.tsx
   - codebase/backend/src/modules/executions/executions.service.ts
@@ -1622,7 +1622,8 @@ present-when-available 이므로, REST 만 `null` 로 정규화하면 위젯의 
         2. **예외의 미러 유지비 < 가드 비용인가** — 아니면 나가지 않아도 가드로 닫는다
            (`Execution.inputData`).
         두 사례는 이제 **같은 갈래**(마커 가드)이고, 도달한 경로만 다르다.
-      - 마커 집합과 깊이 상한의 SoT 는 **공유 패키지 `@workflow/masked-markers`** 다
+      - 마커 집합과 깊이 상한의 SoT 는 **공유 패키지**
+        [`@workflow/masked-markers`](../../codebase/packages/masked-markers/) 다
         (2026-08-21 이관). backend `sanitize-error-message.ts` 와 프런트
         `lib/utils/masked-markers.ts` 는 **재export shim** 이라 갱신할 미러가 없다.
         > 예전엔 두 스택이 값을 손으로 복제했고 한쪽만 늘면 다른 쪽이 그 신규 마커에
