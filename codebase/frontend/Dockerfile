@@ -23,6 +23,7 @@ COPY codebase/backend/package.json ./codebase/backend/
 COPY codebase/frontend/package.json ./codebase/frontend/
 COPY codebase/channel-web-chat/package.json ./codebase/channel-web-chat/
 COPY codebase/packages/ai-end-reason/package.json ./codebase/packages/ai-end-reason/
+COPY codebase/packages/masked-markers/package.json ./codebase/packages/masked-markers/
 COPY codebase/packages/expression-engine/package.json ./codebase/packages/expression-engine/
 COPY codebase/packages/node-summary/package.json ./codebase/packages/node-summary/
 COPY codebase/packages/chat-channel-validation/package.json ./codebase/packages/chat-channel-validation/

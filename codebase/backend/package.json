@@ -55,6 +55,7 @@
     "@workflow/chat-channel-validation": "workspace:*",
     "@workflow/expression-engine": "workspace:*",
     "@workflow/graph-warning-rules": "workspace:*",
+    "@workflow/masked-markers": "workspace:*",
     "@workflow/node-summary": "workspace:*",
     "bcrypt": "^6.0.0",
     "bullmq": "^5.81.2",

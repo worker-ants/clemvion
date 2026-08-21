@@ -46,6 +46,7 @@ jobs:
     with:
       pathspecs: |
         codebase/packages/ai-end-reason/**
+        codebase/packages/masked-markers/**
         codebase/packages/expression-engine/**
         codebase/packages/graph-warning-rules/**
         codebase/packages/node-summary/**
@@ -64,7 +65,7 @@ jobs:
   # 깨져도 나머지의 실패 신호가 은폐되지 않는다(단일 job 순차 run 의 set -e 문제 회피).
   #
   # matrix 라 **체크가 패키지마다 하나씩** 생긴다(`@workflow/<pkg> (lint/test/build)`).
-  # required check 로 등록할 때 5개를 전부 등록해야 하며, 패키지가 늘면 등록도 함께 늘려야 한다 —
+  # required check 로 등록할 때 6개를 전부 등록해야 하며, 패키지가 늘면 등록도 함께 늘려야 한다 —
   # 위 헤더의 손 목록 2개와 같은 성격의 손 유지 지점이다.
   packages:
     name: ${{ matrix.pkg }} (lint/test/build)
@@ -79,6 +80,7 @@ jobs:
       matrix:
         pkg:
           - '@workflow/ai-end-reason'
+          - '@workflow/masked-markers'
           - '@workflow/expression-engine'
           - '@workflow/graph-warning-rules'
           - '@workflow/node-summary'

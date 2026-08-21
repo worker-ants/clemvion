@@ -1,25 +1,29 @@
 /**
- * egress 값-마스킹이 남기는 마커 — backend `sanitize-error-message.ts` 의
- * `VALUE_MASK_MARKER`/`KEY_MASK_MARKER`/`DEPTH_MASK_MARKER` 의 프런트 미러다.
+ * egress 값-마스킹이 남기는 마커를 프런트에서 판정하는 가드들.
  *
- * **SoT 는 backend 상수**다. frontend(CSR Next.js)는 backend NestJS 모듈을 직접 import 할 수
- * 없어(빌드/번들 분리) 값을 복제한다 — 변경 시 **양쪽 미러를 함께** 갱신한다.
+ * **SoT 는 `@workflow/masked-markers` 패키지**다. 예전엔 이 파일이 backend
+ * `sanitize-error-message.ts` 의 상수를 **손으로 복제**했다 — frontend(CSR Next.js)가 backend
+ * NestJS 모듈을 직접 import 할 수 없다는 이유였는데, 그건 *공유 패키지를 안 쓸* 이유는 아니다.
  *
- * 이 목록이 backend 와 어긋나면 아래 가드들이 조용히 뚫린다(마스킹된 값을 못 알아보고
- * 프리필해 재제출) — 그래서 값을 넓히기보다 backend 와 **정확히 같은 집합**으로 둔다.
+ * 미러를 기계가 대조하게 만들려다 **CI 경로 게이팅**에 막혔다: `frontend-checks` 는
+ * `codebase/backend/**` 변경 때 검사를 생략하고 `backend-checks` 는 `codebase/frontend/**`
+ * 때 생략한다 — 한쪽에 둔 계약 가드는 **반대쪽이 마커를 바꾸는 방향에 무력**하다. 두
+ * 워크플로 모두 `codebase/packages/**` 는 relevant 로 잡으므로 값을 그쪽으로 옮겼고, 이제
+ * 대조할 미러가 없다.
  *
- * **이름을 backend 와 똑같이 둔다** (`MASKED_MARKERS`/`isMaskedMarker`) — 미러의 동기화는
- * 결국 사람이 grep 으로 찾는다. 이름이 갈리면 그 검색이 실패한다.
+ * 이 파일은 **프런트 전용 가드**(`hasMaskedMarkerLeaf`)를 소유하고, 값 집합과 정확 일치
+ * 판정은 패키지에서 그대로 재export 한다 — 소비처의 import 경로(`@/lib/utils/masked-markers`)
+ * 를 바꾸지 않기 위해서다.
  *
  * > **왜 컴포넌트에서 여기로 옮겼나 (2026-08-20)**: 처음엔 `dynamic-form-ui.tsx` 안에 있었다.
  * > 소비처가 셋(폼 프리필 · Re-run 모달 · 에디터 히스토리 로드)이 되면서 모달·툴바가 무관한
  * > 폼 UI 컴포넌트를 import 해야 하는 의존 방향이 생겨 `lib/utils/` 로 승격했다.
  */
-export const MASKED_MARKERS: ReadonlySet<string> = new Set([
-  "***",
-  "[REDACTED]",
-  "[REDACTED_DEPTH]",
-]);
+import {
+  isMaskedMarker,
+  MASKED_MARKERS,
+  MAX_MASK_DEPTH,
+} from "@workflow/masked-markers";
 
 /**
  * 이 값이 egress 마스킹의 산물인가.
@@ -44,10 +48,12 @@ export const MASKED_MARKERS: ReadonlySet<string> = new Set([
  * **부분 포함으로 넓히지 않는 이유**: `a***b` 처럼 마커를 우연히 포함할 뿐인 정상 값까지
  * 막게 되어 가드가 정상 워크플로를 망가뜨린다. 오탐 비용이 미탐 비용보다 크다 — 미탐 쪽은
  * 이미 자격증명이 제거된 값이기 때문이다. 이 경계는 테스트가 양방향으로 고정한다.
+ *
+ * > 판정 자체는 `@workflow/masked-markers` 의 `isMaskedMarker` 이고 위에서 재export 한다.
+ * > 이 문단은 **왜 그 경계인가** 를 프런트 소비 맥락에서 남기는 것이다 — 넓히자는 제안이
+ * > 반복해서 나오는 자리라, 근거가 소비처 가까이 있어야 한다.
  */
-export function isMaskedMarker(v: unknown): boolean {
-  return typeof v === "string" && MASKED_MARKERS.has(v);
-}
+export { isMaskedMarker, MASKED_MARKERS };
 
 /**
  * 중첩 구조 어딘가에 마스킹 마커 **leaf** 가 있는가.
@@ -76,7 +82,7 @@ export function isMaskedMarker(v: unknown): boolean {
  * `JSON.parse` 는 반복적 구현이라 통과시키는 깊이를 재귀 탐색이 못 따라간다 — 렌더 경로
  * (`useMemo`)에서 던지면 이벤트 핸들러 예외와 달리 React 트리로 전파돼 화면이 깨진다.
  *
- * **상한 값은 backend `MAX_REDACT_DEPTH` 와 같아야 한다.** 그 함수는 `depth >= 10` 에서
+ * **상한은 `MAX_MASK_DEPTH`(공유 패키지) 하나다.** backend 값-마스커가 그 깊이에서
  * 서브트리를 통째로 마커로 **치환**하므로, backend 를 거쳐 온 값에는 depth 10 아래에
  * 아무것도 없다 — 즉 여기서 10 아래를 안 봐도 **놓치는 마커가 없다**(그 아래 구조는 사용자가
  * 직접 만든 것이지 마스킹의 산물이 아니다).
@@ -89,16 +95,10 @@ export function hasMaskedMarkerLeaf(value: unknown): boolean {
   return scanForMarker(value, 0);
 }
 
-/**
- * backend `MAX_REDACT_DEPTH` 의 프런트 미러 — {@link hasMaskedMarkerLeaf} 참조.
- * 두 값은 **같아야 한다**. 여기가 더 작으면 그 차이만큼 가드가 조용히 뚫린다.
- */
-const MAX_MARKER_SCAN_DEPTH = 10;
-
 function scanForMarker(value: unknown, depth: number): boolean {
   // 값 검사가 **먼저**다 — 상한 지점에 놓인 치환 마커를 놓치지 않기 위해.
   if (isMaskedMarker(value)) return true;
-  if (depth >= MAX_MARKER_SCAN_DEPTH) return false;
+  if (depth >= MAX_MASK_DEPTH) return false;
   if (Array.isArray(value)) {
     return value.some((v) => scanForMarker(v, depth + 1));
   }

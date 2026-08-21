@@ -370,7 +370,7 @@ checker 가 독립적으로** "인용이 가리키는 절이 오히려 반대를
       > **이번 PR 에서 안 한 이유**: 동작 무변경 리팩터라 diff 성격이 갈리고, 리뷰어도 LOW
       > 판정했다. 조건이 **넷째로 늘어나는 순간**이 착수 시점이다.
 
-- [ ] **마커 미러 계약 테스트 — backend SoT ↔ frontend 미러를 기계가 대조하게 한다**
+- [x] **마커 미러 계약 테스트 — backend SoT ↔ frontend 미러를 기계가 대조하게 한다**
       (2026-08-17 등재, `12_33_36` security/side_effect INFO-1 — 이 시리즈에서 **반복** 지적).
       `sanitize-error-message.ts` 의 `MASKED_MARKERS` 와 `lib/utils/masked-markers.ts` 의 동명 미러가
       손으로 복제돼 있다. 한쪽만 늘면 프리필 가드가 **그 신규 마커에 대해 조용히 fail-open**
@@ -380,6 +380,14 @@ checker 가 독립적으로** "인용이 가리키는 절이 오히려 반대를
       > **리터럴 대조 테스트**로 값 자체를 못박았다. 즉 프런트 쪽 절반은 기계가 지킨다.
       > **남은 것**: 두 스택을 **가로지르는** 대조. backend jest 와 frontend vitest 가 갈려
       > 있어 공유 패키지 추출(`packages/`)이 선행돼야 값싸다 — 그래서 별건으로 남긴다.
+      >
+      > **닫았다 (2026-08-21)** — 계약 테스트가 아니라 **추출**로. `@workflow/masked-markers`
+      > 를 신설해 두 스택이 import 한다(마커 3종 · `isMaskedMarker` · `MAX_MASK_DEPTH`).
+      > 계약 테스트를 포기한 이유는 **CI 경로 게이팅**이다 — `frontend-checks` 는
+      > `codebase/backend/**` 변경 때 검사를 생략하고 `backend-checks` 는 반대쪽을 생략하므로,
+      > 한쪽에 둔 가드는 **반대쪽이 마커를 바꾸는 방향에 무력**하다. 양쪽 모두
+      > `codebase/packages/**` 는 relevant 로 잡으므로 값을 그쪽으로 옮겼고, 이제 대조할
+      > 미러가 없다. 남은 가드는 *미러가 되살아나지 않는지*(심볼 재선언)만 본다.
 
 - [ ] **프리필 가드 후속 3건 (전부 비차단, `12_33_36` INFO)** — 2026-08-17 등재.
       - `isMaskedMarker` 의 non-string 입력(`123`/`null`/`true`) 직접 단위 테스트 (INFO-4).
@@ -754,10 +762,17 @@ push 직전 확인에서 발각됐다. `review/**` 는 SoT 가 아니므로 여�
       (`details[].code` 를 보면 되므로 실사용 지장은 없다.)
 - [ ] **`ReRunRequestDto.inputOverride` Swagger description** 에 마스킹 마커 3종이 예약어라는
       제약이 없다. 5라운드 연속 이월 — 다음 DTO 편집 기회에 한 줄.
-- [ ] **마커 리터럴 cross-stack 계약 테스트 부재** — 프런트 `lib/utils/masked-markers.ts` 와
+- [x] **마커 리터럴 cross-stack 계약 테스트 부재** — 프런트 `lib/utils/masked-markers.ts` 와
       backend `shared/utils/sanitize-error-message.ts` 의 `MASKED_MARKERS` 가 **문자 그대로
       대칭**이어야 하는데 이를 강제하는 것이 없다(jest↔vitest 경계). 한쪽만 바뀌면 프런트가
       막지 못한 값을 서버가 거부하거나 그 반대가 된다.
+      > **닫았다 (2026-08-21)** — 계약 테스트가 아니라 **추출**로. `@workflow/masked-markers`
+      > 를 신설해 두 스택이 import 한다(마커 3종 · `isMaskedMarker` · `MAX_MASK_DEPTH`).
+      > 계약 테스트를 포기한 이유는 **CI 경로 게이팅**이다 — `frontend-checks` 는
+      > `codebase/backend/**` 변경 때 검사를 생략하고 `backend-checks` 는 반대쪽을 생략하므로,
+      > 한쪽에 둔 가드는 **반대쪽이 마커를 바꾸는 방향에 무력**하다. 양쪽 모두
+      > `codebase/packages/**` 는 relevant 로 잡으므로 값을 그쪽으로 옮겼고, 이제 대조할
+      > 미러가 없다. 남은 가드는 *미러가 되살아나지 않는지*(심볼 재선언)만 본다.
 - [ ] **base `resolveTriggerParameters` JSDoc 에 wrapper 역참조 없음** — 새 Manual 경로
       작성자가 base 만 보면 wrapper 규칙을 모른다. repo-guard 가 CI 에서 잡지만 그건 사후
       발견이지 작성 시점 안내가 아니다. `{@link resolveTriggerParametersRejectingMasked}` 한 줄.
