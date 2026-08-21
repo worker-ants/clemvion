@@ -122,6 +122,48 @@ describe("마커 SoT 미러 재발 가드", () => {
     }
   });
 
+  /**
+   * **함수 선언 형태의 재선언**도 잡아야 한다 (`12_50_37` testing W3).
+   *
+   * `isMaskedMarker` 는 이관 전 실제로 `export function isMaskedMarker(...)` 였다 — 즉
+   * "함수로 되살아나는 것" 이 이 가드가 막아야 할 **가장 현실적인 회귀 형태**인데,
+   * 심볼별 캐너리는 전부 `const X = 1` 픽스처만 써서 그 분기를 한 번도 행사하지 않았다.
+   */
+  it("[캐너리] 함수 선언 형태의 재선언을 탐지한다", () => {
+    expect(
+      findRedeclaredSymbols("export function isMaskedMarker() { return true; }"),
+    ).toEqual(["isMaskedMarker"]);
+  });
+
+  /**
+   * **SoT 와 경로 접두가 겹치는 형제는 제외 대상이 아니다** (`12_50_37` W1).
+   *
+   * 경계 없는 `startsWith(SOT_DIR)` 이면 `masked-markers-extra` 같은 형제가 "SoT 자신" 으로
+   * 오인돼 탐지에서 **조용히 빠진다**. 라운드3 에서 backend 만 고치고 frontend 는 놓쳤는데,
+   * 심볼 접두 겹침 캐너리는 있어도 **경로 접두 겹침**을 보는 단언이 없어 그 비대칭이
+   * 테스트로 드러나지 않았다.
+   */
+  it("[캐너리] SoT 와 접두가 겹치는 형제 패키지는 탐지 대상이다", () => {
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "marker-mirror-sib-"));
+    try {
+      const dir = path.join(tmp, "codebase", "packages", "masked-markers-extra", "src");
+      fs.mkdirSync(dir, { recursive: true });
+      fs.writeFileSync(
+        path.join(dir, "x.ts"),
+        'export const MASKED_MARKERS = ["***"];\n',
+        "utf8",
+      );
+      expect(findMirrorRedeclarations(tmp)).toEqual([
+        {
+          file: "codebase/packages/masked-markers-extra/src/x.ts",
+          symbol: "MASKED_MARKERS",
+        },
+      ]);
+    } finally {
+      fs.rmSync(tmp, { recursive: true, force: true });
+    }
+  });
+
   it.each(SOT_SYMBOLS.map((s) => [s]))(
     "[캐너리] %s 의 재선언을 탐지한다",
     (symbol) => {

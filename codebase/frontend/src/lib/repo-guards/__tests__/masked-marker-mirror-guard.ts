@@ -140,7 +140,8 @@ export function findMirrorRedeclarations(repoRoot: string): MirrorRedeclaration[
         .relative(repoRoot, absolute)
         .split(path.sep)
         .join("/");
-      if (relPath.startsWith(SOT_DIR.split(path.sep).join("/"))) continue;
+      const sot = SOT_DIR.split(path.sep).join("/");
+      if (relPath === sot || relPath.startsWith(`${sot}/`)) continue;
       for (const symbol of findRedeclaredSymbols(
         fs.readFileSync(absolute, "utf8"),
       )) {

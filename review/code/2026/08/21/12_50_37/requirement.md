@@ -1,0 +1,26 @@
+STATUS=success ISSUES=2
+===REPORT_MARKDOWN_BELOW===
+# 요구사항(Requirement) 리뷰 — masked-marker-contract-7d2e14
+
+## 발견사항
+
+- **[WARNING]** 미러 소멸 가드의 "SoT 자기 제외" 판정이 backend/frontend 두 사본 간 **비대칭** — frontend 사본이 자신의 문서화된 계약("SoT 패키지 자신만 제외한다")을 실제로 구현하지 못한다
+  - 위치: `codebase/frontend/src/lib/repo-guards/__tests__/masked-marker-mirror-guard.ts:143` (`if (relPath.startsWith(SOT_DIR.split(path.sep).join("/"))) continue;`) vs 정상 구현인 `codebase/backend/src/repo-guards/__tests__/masked-marker-mirror-guard.ts:141` (`if (relPath === SOT_DIR || relPath.startsWith(\`${SOT_DIR}/\`)) continue;`). 두 파일 모두 이 branch(origin/main 대비) 안에서 전량 신규 추가라 게이트 숫자 = 실제 소스 줄 번호.
+  - 상세: `findMirrorRedeclarations`의 헤더 주석(두 파일 130행/134행 부근)은 "SoT 패키지 자신은 스캔 대상에 **있고**, 재선언 판정에서만 **제외**된다"고 명시한다. 그런데 frontend 사본의 제외 판정은 경계 없는 `String.prototype.startsWith`이라, `codebase/packages/masked-markers-extra/src/...`처럼 `SOT_DIR`("codebase/packages/masked-markers")을 **접두사로 갖는 형제 디렉터리**도 통째로 스캔에서 빠진다 — 즉 그런 형제가 마커 심볼을 재선언해도 이 가드는 잡지 못한다(silent false negative). backend 사본은 `=== SOT_DIR || startsWith(SOT_DIR + '/')`로 구분자 경계를 명시해 이 문제가 없다.
+    이 비대칭은 우연이 아니라 **한 커밋 안에서 절반만 적용된 수정**이다: `git show 811a40f48`("파생이 '전수처럼 보이지만 아닌' 목록을 만들었다 — 라운드3 처분")의 커밋 메시지는 "`startsWith(SOT_DIR)`만 쓰면 `masked-markers-extra` 같은 형제를 오배제하므로 경계를 명시했다"고 적지만, 그 커밋의 실제 diff는 backend 파일에서만 `if (relPath.startsWith(SOT_DIR)) continue;` → `if (relPath === SOT_DIR || relPath.startsWith(\`${SOT_DIR}/\`)) continue;` 로 바뀌었고 frontend 파일에서는 `resolveScanDirs`의 2단계 확장만 있을 뿐 이 제외-판정 줄은 손대지 않은 채 그대로다. 두 가드 파일의 헤더 주석은 "값의 미러는 위험하지만 **탐지 로직의 중복은 구멍을 만들지 않는다** — 한 사본이 낡아도 다른 사본이 같은 불변식을 자기 트리거에서 계속 지킨다"고 주장하며 이중화를 정당화하는데, 이번 라운드는 바로 그 전제를 반증한다 — "낡음"이 아니라 **수정 자체가 비대칭적으로 적용**됐다.
+    검증 측면에서도 이 갭은 안 잡힌다: 두 테스트 파일(`masked-marker-mirror.spec.ts`/`.test.ts`)의 "접두가 겹치는 다른 식별자" 캐너리(`MAX_MASK_DEPTH_OLD`)는 **식별자** 접두 겹침만 다루고 **경로**(디렉터리명) 접두 겹침은 어디서도 단언하지 않는다. RESOLUTION.md류가 근거로 든 "두 미러 가드가 각각 18건으로 일치한다"는 검증도, 현재 저장소에 이름이 겹치는 형제 패키지가 실제로 없어 두 로직이 우연히 같은 출력을 내는 것일 뿐 — 이 특정 경계 로직의 동등성을 검증하지 않는다. 실질 영향은 현재 잠복 상태(그런 이름의 형제 패키지가 아직 없음)라 라이브 결함은 아니지만, "탐지 로직 중복이 안전망"이라는 이 PR 자신의 설계 근거가 이번 라운드에 실제로 깨진 형태로 재발했다는 점에서 요구사항(가드의 의도된 기능) 완전성 문제다.
+  - 제안: frontend 143행을 backend 141행과 동일한 형태(`relPath === SOT_DIR || relPath.startsWith(\`${SOT_DIR}/\`)`, 또는 `path.sep` 정규화를 유지한 동등 형태)로 맞춘다. 재발 방지를 위해 두 테스트 파일에 `codebase/packages/masked-markers-extra/src/foo.ts` 형태의 합성 fixture로 "SoT와 접두가 겹치는 형제 디렉터리도 스캔·재선언 판정 대상에 포함된다"를 직접 단언하는 캐너리를 추가할 것 — 뮤테이션 실증(frontend의 현재 로직을 유지한 채 이 fixture로 테스트하면 RED가 나야 정상)으로 캐너리의 유효성도 함께 고정한다.
+
+- **[WARNING]** `developer` 세션이 `spec/5-system/14-external-interaction-api.md`를 직접 수정 — CLAUDE.md의 역할 경계("developer는 spec/ read-only, 구현 중 spec 변경 필요 시 project-planner 위임")를 우회한 전례가 이 브랜치에 남아 있다 (내용 자체는 정확)
+  - 위치: `spec/5-system/14-external-interaction-api.md:16` (frontmatter `code:` 목록에 `codebase/packages/masked-markers/src/index.ts` 추가), `:1625`("마커 집합과 깊이 상한의 SoT는 **공유 패키지 `@workflow/masked-markers`**다") — 커밋 `bf0618a7d`("fix(guard): 없애려던 경로 게이팅을 가드 배치로 재도입했다 + spec R17 정정 — 라운드1 처분").
+  - 상세: `plan/in-progress/masked-marker-shared-package.md`의 작업 체크리스트 자신도 "spec R17 정정(11_27_29 W3 처분에서 집행)... **별도 planner 턴 대신** `11_27_29` RESOLUTION의 W3 처분으로 같은 턴에 집행하고... 선택을 숨기지 않고 RESOLUTION·커밋에 명시했다"고 이 이탈을 스스로 문서화한다. 그러나 CLAUDE.md의 Skill 체계 표는 `developer`의 쓰기 권한을 `codebase/**, plan/**, review/**/RESOLUTION.md`로 한정하고 `spec/`는 명시적으로 read-only라고 규정하며, "구현 중 spec 변경 필요 시 developer는 멈추고 project-planner 위임"이라는 별도 조항까지 둔다. `code-review-agents`(리뷰어)의 쓰기 권한도 `review/code/**`뿐, `spec/`가 아니다. 즉 code-review 세션의 RESOLUTION 처분으로 spec 파일을 직접 편집한 것은 이 규약이 요구하는 역할 분리(구현자↔기획자)를 이번 PR 자체가 우회한 사례다. 다만 결과물 내용(SoT가 공유 패키지로 이관됐다는 서술)은 실제 구현과 정확히 일치하고, frontmatter `code:` 항목 추가도 사실을 반영하므로 spec **내용**의 오류나 SPEC-DRIFT는 아니다 — 지적의 초점은 "누가 수정했는가"라는 프로세스/권한 경계다.
+  - 제안: 이번 편집 내용을 되돌릴 필요는 없다(정확함). 다만 향후 유사 상황에서는 실제로 `project-planner` 턴을 거치거나, 최소한 이런 예외적 우회가 왜 정당한지에 대한 프로젝트 차원의 명시적 합의(예: CLAUDE.md에 "code-review RESOLUTION이 사소한 spec 텍스트 오류를 직접 정정할 수 있는 예외 조건" 조항 추가)가 있어야 이 경계가 반복적으로 침식되지 않는다.
+
+- **[INFO]** `MAX_MASK_DEPTH`(마커 스캐너 상한)와 `VALUE_MASK_MARKER`/`KEY_MASK_MARKER`/`DEPTH_MASK_MARKER`/`MASKED_MARKERS`/`isMaskedMarker`(마커 집합·판정)의 값·시그니처는 이관 전후 완전히 동일함을 직접 대조로 확인했다 — `codebase/backend/src/shared/utils/sanitize-error-message.ts`의 `deepRedactCore`(`depth >= MAX_REDACT_DEPTH`)와 `codebase/frontend/src/lib/utils/masked-markers.ts`의 `scanForMarker`(`depth >= MAX_MASK_DEPTH`, 값 검사가 깊이 검사보다 먼저) 둘 다 리팩터 전후 비교·순서가 그대로다. 조치 불요, 참고용 확인 기록.
+
+## 요약
+
+이 PR의 핵심 목표 — backend/frontend에 손으로 복제되던 마스킹 마커 상수·판정 로직·깊이 상한을 `@workflow/masked-markers` 공유 패키지로 추출하고 두 스택은 재export shim으로 소비처 import 경로를 보존하는 것 — 은 값·시그니처·깊이 비교 순서가 이관 전후 완전히 동일함을 직접 대조로 확인했고, CI 배선(8곳 등록 표면)도 plan 문서가 사전에 실측한 대로 정확히 대응해 기능적으로 견고하다. 다만 이 PR 자신이 세 라운드에 걸쳐 반복 정당화해 온 "탐지 로직의 중복은 구멍을 만들지 않는다"는 안전망 전제가, 최신 라운드(`811a40f48`, "라운드3 처분")에서 실제로 깨졌다 — 커밋 메시지가 backend/frontend 양쪽에 SoT 자기 제외 경계 수정을 적용했다고 주장하지만, 실측하면 backend 사본만 고쳐지고 frontend 사본은 옛 무경계 prefix 비교 그대로 남아 있어, 두 "동일한" 안전망 사본이 실제로는 서로 다른 로직을 돈다. 현재는 이름이 겹치는 형제 패키지가 없어 라이브 영향은 없는 잠복 결함이지만, 이 경계를 직접 단언하는 캐너리가 양쪽 어디에도 없어 재발을 막을 안전망도 없다. 별도로, spec R17 정정이 `developer`/code-review RESOLUTION 세션에서 직접 집행된 것은 CLAUDE.md가 규정한 spec/ read-only 역할 경계를 이 PR 스스로 문서화한 채 우회한 사례이며, 내용 자체는 정확하지만 프로세스 관점에서 기록해 둘 필요가 있다. 두 발견 모두 이 PR을 되돌릴 사유는 아니며 각각 한 줄·한 규약 명시로 닫을 수 있는 수준이다.
+
+## 위험도
+MEDIUM
