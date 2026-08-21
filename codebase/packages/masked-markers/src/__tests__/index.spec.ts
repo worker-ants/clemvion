@@ -13,6 +13,20 @@ import {
  * **집합의 성질**(정확 일치·불변성·깊이 계약)을 고정한다.
  */
 describe("@workflow/masked-markers", () => {
+  /**
+   * **리터럴을 직접 못박는다** (`11_27_29` testing W2). 아래 "집합을 이룬다" 단언은 상수들의
+   * **상호** 정합만 보므로, 세 값이 함께 바뀌면 GREEN 을 유지한다 — 자기참조적이다.
+   * 이 값들은 backend 가 생산하고 frontend 가 판정하는 **관측 가능한 계약**이라 실수로 바뀌면
+   * 이미 저장된 마스킹 값이 인식되지 않는다.
+   */
+  it.each([
+    ["VALUE_MASK_MARKER", VALUE_MASK_MARKER, "***"],
+    ["KEY_MASK_MARKER", KEY_MASK_MARKER, "[REDACTED]"],
+    ["DEPTH_MASK_MARKER", DEPTH_MASK_MARKER, "[REDACTED_DEPTH]"],
+  ])("[캐너리] %s 리터럴 고정", (_name, actual, expected) => {
+    expect(actual).toBe(expected);
+  });
+
   it("마커 세 개가 집합을 이룬다", () => {
     expect([...MASKED_MARKERS]).toEqual([
       VALUE_MASK_MARKER,

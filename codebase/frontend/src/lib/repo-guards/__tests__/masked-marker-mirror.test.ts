@@ -27,10 +27,17 @@ import {
  * `@workflow/masked-markers` 로 옮겼고 — 두 워크플로 모두 `codebase/packages/**` 는
  * relevant 로 잡는다 — 이 가드는 그 이관이 **되돌려지지 않는지**만 지킨다.
  *
- * > 이 가드가 `frontend/` 에 사는 것은 형제 가드(`internal-package-registration`,
- * > `typescript-toolchain`)와 같은 이유다. 그 배치의 경로 갭은 여기서 문제가 되지 않는다 —
- * > 지키는 대상이 "값이 일치하는가" 가 아니라 "재선언이 생겼는가" 이고, 재선언은 그 파일을
- * > 바꾼 PR 에서만 생기기 때문이다. **값 일치는 이제 가드가 아니라 타입 시스템이 보장한다.**
+ * ## backend 에 같은 가드가 하나 더 있다 (`11_27_29` architecture W1)
+ *
+ * 초판은 이 파일 하나였고, 헤더에 *"재선언은 그 파일을 바꾼 PR 에서만 생기니 경로 갭이
+ * 문제되지 않는다"* 고 적어 뒀다. **그 문장이 거짓이었다.** backend-only PR 이 마커를
+ * 재선언하면 `frontend-checks` 가 통째로 skip 되므로 이 가드는 **아예 실행되지 않는다** —
+ * 이 PR 이 없애려던 바로 그 경로 게이팅을 가드 배치로 재도입한 것이었다.
+ *
+ * 그래서 `backend/src/repo-guards/__tests__/masked-marker-mirror.spec.ts` 에 사본을 두고,
+ * 둘 다 저장소 전체를 훑는다 — 어느 쪽이 바뀌든 최소 하나는 자기 워크플로에서 실행된다.
+ * 값의 미러와 달리 **탐지 로직의 중복은 구멍을 만들지 않는다**: 한 사본이 낡아도 다른
+ * 사본이 같은 불변식을 자기 트리거에서 계속 지킨다.
  */
 describe("마커 SoT 미러 재발 가드", () => {
   it("SoT 패키지 밖에서 마커 심볼을 재선언하지 않는다", () => {
@@ -102,6 +109,7 @@ describe("마커 SoT 미러 재발 가드", () => {
     ["주석 속 언급", "// MASKED_MARKERS 를 여기서 다시 만들지 말 것"],
     ["문자열 속 언급", 'const doc = "MASKED_MARKERS";'],
     ["무관한 마커 리터럴", 'const REDACTED = "[REDACTED]";'],
+    ["접두가 겹치는 다른 식별자", "const MAX_MASK_DEPTH_OLD = 8;"],
   ])("[캐너리] %s 는 재선언이 아니다", (_kind, source) => {
     expect(findRedeclaredSymbols(source)).toEqual([]);
   });

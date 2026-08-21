@@ -1,0 +1,213 @@
+{
+  "timestamp": "2026-08-21T11:27:29.311092",
+  "files": [
+    {
+      "file_path": ".claude/test-stages.sh",
+      "change_type": "Review",
+      "file_extension": "sh"
+    },
+    {
+      "file_path": ".github/workflows/packages-checks.yml",
+      "change_type": "Review",
+      "file_extension": "yml"
+    },
+    {
+      "file_path": "codebase/backend/Dockerfile",
+      "change_type": "Review",
+      "file_extension": ""
+    },
+    {
+      "file_path": "codebase/backend/package.json",
+      "change_type": "Review",
+      "file_extension": "json"
+    },
+    {
+      "file_path": "codebase/backend/src/shared/utils/sanitize-error-message.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "codebase/frontend/Dockerfile",
+      "change_type": "Review",
+      "file_extension": ""
+    },
+    {
+      "file_path": "codebase/frontend/Dockerfile.playwright-e2e",
+      "change_type": "Review",
+      "file_extension": "playwright-e2e"
+    },
+    {
+      "file_path": "codebase/frontend/package.json",
+      "change_type": "Review",
+      "file_extension": "json"
+    },
+    {
+      "file_path": "codebase/frontend/src/lib/repo-guards/__tests__/masked-marker-mirror-guard.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "codebase/frontend/src/lib/repo-guards/__tests__/masked-marker-mirror.test.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "codebase/frontend/src/lib/utils/masked-markers.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "codebase/packages/masked-markers/README.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "codebase/packages/masked-markers/eslint.config.mjs",
+      "change_type": "Review",
+      "file_extension": "mjs"
+    },
+    {
+      "file_path": "codebase/packages/masked-markers/package.json",
+      "change_type": "Review",
+      "file_extension": "json"
+    },
+    {
+      "file_path": "codebase/packages/masked-markers/src/__tests__/index.spec.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "codebase/packages/masked-markers/src/index.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "codebase/packages/masked-markers/tsconfig.json",
+      "change_type": "Review",
+      "file_extension": "json"
+    },
+    {
+      "file_path": "plan/in-progress/masked-marker-shared-package.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "plan/in-progress/spec-sync-external-interaction-api-gaps.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "pnpm-lock.yaml",
+      "change_type": "Review",
+      "file_extension": "yaml"
+    },
+    {
+      "file_path": "review/consistency/2026/08/21/10_45_52/SUMMARY.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "review/consistency/2026/08/21/10_45_52/_retry_state.json",
+      "change_type": "Review",
+      "file_extension": "json"
+    },
+    {
+      "file_path": "review/consistency/2026/08/21/10_45_52/convention_compliance.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "review/consistency/2026/08/21/10_45_52/cross_spec.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "review/consistency/2026/08/21/10_45_52/meta.json",
+      "change_type": "Review",
+      "file_extension": "json"
+    },
+    {
+      "file_path": "review/consistency/2026/08/21/10_45_52/naming_collision.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "review/consistency/2026/08/21/10_45_52/plan_coherence.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "review/consistency/2026/08/21/10_45_52/rationale_continuity.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "review/consistency/2026/08/21/10_58_25/SUMMARY.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "review/consistency/2026/08/21/10_58_25/_retry_state.json",
+      "change_type": "Review",
+      "file_extension": "json"
+    },
+    {
+      "file_path": "review/consistency/2026/08/21/10_58_25/convention_compliance.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "review/consistency/2026/08/21/10_58_25/cross_spec.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "review/consistency/2026/08/21/10_58_25/meta.json",
+      "change_type": "Review",
+      "file_extension": "json"
+    },
+    {
+      "file_path": "review/consistency/2026/08/21/10_58_25/naming_collision.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "review/consistency/2026/08/21/10_58_25/plan_coherence.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "review/consistency/2026/08/21/10_58_25/rationale_continuity.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    }
+  ],
+  "agents": [
+    "security",
+    "performance",
+    "architecture",
+    "requirement",
+    "scope",
+    "side_effect",
+    "maintainability",
+    "testing",
+    "documentation",
+    "dependency",
+    "database",
+    "concurrency",
+    "api_contract",
+    "user_guide_sync"
+  ],
+  "route_mode": "auto",
+  "agents_explicit": false,
+  "agents_forced": [
+    "dependency",
+    "documentation",
+    "maintainability",
+    "requirement",
+    "scope",
+    "security",
+    "side_effect",
+    "testing"
+  ]
+}
