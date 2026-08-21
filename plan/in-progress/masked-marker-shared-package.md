@@ -162,6 +162,18 @@ AST + allowlist 는 선례(`masked-reject-callers-guard.ts`)를 그대로 재사
 
 ## 후속 (이 PR 밖)
 
+- [ ] **미러 가드 탐지 로직을 공유 test-utility 로 재추출** —
+      `resolveScanDirs`/`findRedeclaredSymbols`/`findMirrorRedeclarations`(~145줄)가 backend·
+      frontend 두 사본에 문자 그대로 복제돼 있다. **이 중복이 이 PR 에서 두 번(라운드3·6)
+      비대칭 결함의 근원**이었다 — 한쪽만 고치고 "양쪽 다 고쳤다" 고 적은 사고, 그리고 규칙
+      문단을 한쪽에만 넣은 사고.
+      > 지금은 대칭 캐너리가 기계로 지키므로 급하지 않다. 다만 **알고리즘이 진화할 때마다
+      > 대칭을 사람이 재보증해야 하는 구조**는 남는다. 재추출하면 사본이 1개가 된다.
+      >
+      > 이 PR 에서 안 하는 이유: test-only 로직을 위한 새 패키지는 이미 넓어진 범위를 또
+      > 넓히는 일이고, 방금 그 비대칭에 캐너리를 건 직후다. **`review/**` 는 SoT 가 아니라
+      > PR 이 닫히면 사라지므로**(이 PR 에서 두 번 겪었다) 여기 등재한다.
+
 - [ ] **backend `deepRedactSecrets` 깊이 경계 테스트** — 프런트 `masked-markers.test.ts` 는
       `nest(10)→true` / `nest(11)→false` 로 상한을 정확히 고정하는데, backend
       `sanitize-error-message.spec.ts` 는 *"언젠가 멈춘다"*(`not.toThrow()`)만 본다. 값이
