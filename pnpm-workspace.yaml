@@ -53,13 +53,29 @@ overrides:
   form-data: ^4.0.6
   nodemailer: ^9.0.1
   next>postcss: ^8.5.18
-  # GHSA-2v37-7h3g-55p8 (high, <3.3.17). frontend 이 postcss 를 **직접** 의존하는데 그 경로가
-  # lockfile 에서 postcss@8.5.25 > nanoid@3.3.16 으로 고정돼 있었다 — 같은 트리의
-  # `next>postcss` 경로는 8.5.26 > 3.3.17 이라 이미 안전했다. 즉 postcss 값을 올리는 것으로는
-  # 두 경로 중 하나만 덮이므로, 취약한 패키지 자체에 바닥을 건다.
+  # GHSA-2v37-7h3g-55p8 (high). frontend 이 postcss 를 **직접** 의존하는데 그 경로가
+  # lockfile 에서 낮은 nanoid 로 고정돼 있었다 — 같은 트리의 `next>postcss` 경로는 이미
+  # 안전했다. 즉 postcss 값을 올리는 것으로는 두 경로 중 하나만 덮이므로, 취약한 패키지
+  # 자체에 바닥을 건다.
   # `^` 가 4.x 를 배제하지만 제약이 아니다 — postcss 8.x 의 요구가 `^3.3.x` 라 트리에 3 계열만
-  # 있다(실측: lockfile 의 nanoid 엔트리는 3.3.16·3.3.17 둘뿐).
-  nanoid: ^3.3.17
+  # 있다.
+  #
+  # **2026-08-21: advisory 범위가 넓어져 하한을 올렸다** (`<3.3.17` → `<3.3.18`). 종전 값
+  # `^3.3.17` 은 게시 시점엔 충분했지만 그대로 두면 3.3.17 이 해소돼 다시 취약해진다 —
+  # `check-override-floors.py` 가 그것을 잡았다. **advisory 범위는 나중에 넓어질 수 있으므로
+  # override 값은 "한 번 정하면 끝" 이 아니다.**
+  nanoid: ^3.3.18
+  # GHSA-ggr8-5vv4-36mx (high) — `deepmerge-ts <8.0.0` 스택 고갈. 경로는
+  # backend > @nestjs-modules/mailer > preview-email > mailparser > html-to-text > deepmerge-ts.
+  #
+  # **취약 패키지에 바닥을 걸지 않고 상위를 올린다.** `html-to-text@10.0.0` 은
+  # `deepmerge-ts: ^7.1.5` 를 요구하므로 8.x 를 강제하면 **선언 범위를 어기는 메이저 점프**가
+  # 된다. 상류가 이미 고쳤다(실측: `html-to-text@10.0.1` → `deepmerge-ts: ^8.0.1`) — 그쪽을
+  # 올리면 취약 버전이 트리에서 사라지고 범위 위반도 없다.
+  #
+  # `auditConfig.ignoreCves` 로 수용하지 않은 이유: 해소가 가능하기 때문이다. 수용은 상류에
+  # 고칠 방법이 없을 때의 마지막 수단이다.
+  html-to-text: ^10.0.1
   eslint-plugin-react-hooks: 7.0.1
   "undici@>=7.0.0 <7.29.0": ^7.29.0
   vite: ^8.0.16
