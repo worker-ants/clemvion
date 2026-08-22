@@ -1,6 +1,6 @@
 ---
 title: 미러 가드 사본을 1개로 — 경로 게이팅을 CI 잡으로 푼다
-status: in-progress
+status: complete
 worktree: repo-guard-utils-extract-9c4b21
 started: 2026-08-21
 owner: developer
@@ -83,13 +83,15 @@ tsconfig 만 읽으므로 backend 트리거로 충분하다. 경로 게이팅이
       > 가드는 frontend vitest 에도 계속 포함되므로 **CI 에서 두 번 돈다**(frontend-checks
       > + repo-guards). 의도적 수용이다 — 그래야 로컬 `run-test.sh unit` 이 그대로 돌린다.
 - [x] frontend 가드 헤더에서 "backend 쌍둥이와 함께 고쳐라" 규칙 제거 → **왜 이제 1본인지**로 대체
-- [x] **`plan/in-progress/masked-marker-shared-package.md:165`** 항목 `[x]` + 대체 근거
+- [x] **`masked-marker-shared-package.md:165`**(당시 `in-progress/`, 지금은 `complete/`) 항목 `[x]` + 대체 근거
       (구현 커밋과 같은 턴). PR #1190 이 머지돼 그 plan 은 `origin/main` 의 `in-progress/`
       에 있다(실측) — 착수 직전 병렬 세션이 `complete/` 로 옮기지 않았는지 재확인한다.
       > checker 가 그 plan 을 *"/ai-review 1건만 남은 거의 완료 단계"* 로 서술했는데
       > **stale 이다** — 이미 머지됐다. 에이전트 서술을 그대로 받지 않고 실측했다.
 - [x] TEST WORKFLOW 4단계 + 타입체크 ratchet + 하네스 테스트
-- [ ] `/ai-review`
+- [x] `/ai-review` — **2라운드** 수행 후 PR #1191 머지(2026-08-22). 세션
+      `14_02_49`·`14_26_47` (둘 다 `7b0e65aa8` 에 커밋돼 있다 — 실측).
+      > 체크박스가 `[ ]` 로 남아 있던 것은 **기록 누락**이지 미수행이 아니다.
 
 ## 검증 기준
 
