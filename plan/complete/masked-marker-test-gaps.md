@@ -1,6 +1,6 @@
 ---
 title: 마커 시리즈 잔여 테스트 갭 — 문서만 있고 기계가 없는 트레이드오프를 고정한다
-status: in-progress
+status: complete
 worktree: masked-marker-test-gaps-b5e5a8
 started: 2026-08-22
 owner: developer
@@ -10,7 +10,7 @@ spec_impact: none
 # 마커 시리즈 잔여 테스트 갭
 
 정본 트래커
-[`spec-sync-external-interaction-api-gaps.md`](./spec-sync-external-interaction-api-gaps.md)
+[`spec-sync-external-interaction-api-gaps.md`](../in-progress/spec-sync-external-interaction-api-gaps.md)
 의 *"마커 재제출 거부 PR 의 이월 항목"* 절 중 **테스트 성격 2건**을 재판정하고, 유효한 것만
 집행한다. 앞선 코스메틱 PR(#1195)이 *"성격이 달라 넣지 않는다"* 며 남긴 것들이다.
 
@@ -76,8 +76,11 @@ docstring 이 트레이드오프를 명시한다: ①(raw) 를 통과한 뒤 **�
 - [x] ② 유예 근거 교체 (트래커 **`findMaskedResubmissions` 직접 단위 테스트 부재** 항목) ·
       ③ 실측값 141줄 갱신 · 조건부 항목(마커 리터럴
       산문 재기술) 종결 — 전부 정본 트래커에 반영
-- [ ] TEST WORKFLOW 4단계 + 타입체크 ratchet
-- [ ] `/ai-review`
+- [x] TEST WORKFLOW 4단계 + 타입체크 ratchet — 4단계 PASS (backend **8,904** ·
+      frontend 6,121 · web-chat 451 · e2e backend 276 + playwright 51), ratchet
+      199건/38파일 baseline 일치
+- [x] `/ai-review` — `21_15_53`(C0 · W2) → fix → `21_25_45` **C0 · W0 · RISK NONE**.
+      `--impl-done 21_33_34` **BLOCK: NO**. PR #1196 머지 (`8a112c33e`), CI 33/33
 
 ## 검증 기준과 그 결과
 

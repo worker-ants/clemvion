@@ -1,5 +1,5 @@
 ---
-title: `ExecutionsService.reRun` 입력 해석 블록을 private 헬퍼로 — 마커 시리즈 마지막 이월 항목
+title: "`ExecutionsService.reRun` 입력 해석 블록을 private 헬퍼로 — 마커 시리즈 마지막 이월 항목"
 status: in-progress
 worktree: masked-marker-plan-close-d8edad
 started: 2026-08-22
@@ -57,7 +57,7 @@ const executionInput = useOriginal
 
 ## 함께 처리 — 앞 PR 의 plan 이동
 
-[`masked-marker-test-gaps.md`](./masked-marker-test-gaps.md) 는 PR #1196 으로 **모든 항목이
+[`masked-marker-test-gaps.md`](../complete/masked-marker-test-gaps.md) 는 PR #1196 으로 **모든 항목이
 끝났는데** `in-progress/` 에 남아 있다. 마지막 두 체크박스(TEST WORKFLOW · `/ai-review`)가
 리뷰 **후에** 완료되는 단계라 그 PR 안에서 체크하지 못했다.
 
