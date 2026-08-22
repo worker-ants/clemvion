@@ -1,0 +1,12 @@
+{
+  "timestamp": "2026-08-22T16:34:50.309284",
+  "mode": "plan draft 검토 (--plan)",
+  "target_path": "plan/in-progress/eia-error-code-unify.md",
+  "checkers": [
+    "cross_spec",
+    "rationale_continuity",
+    "convention_compliance",
+    "plan_coherence",
+    "naming_collision"
+  ]
+}

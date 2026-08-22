@@ -19,7 +19,7 @@ Each parameter entry has these fields.
 <FieldTable rows={[
   {name: "name", required: true, type: "string", description: "Parameter identifier. Letters, digits, and `_` only. Must be unique within the trigger node.", default: "-"},
   {name: "type", required: true, type: "enum", description: "One of `string` / `number` / `boolean` / `object` / `array`. Values are auto-coerced at run time.", default: "string"},
-  {name: "required", required: false, type: "boolean", description: "When true, a missing value fails the run with `INVALID_INPUT`.", default: "false"},
+  {name: "required", required: false, type: "boolean", description: "When true, a missing value fails the run with `INVALID_TRIGGER_PARAMETERS`.", default: "false"},
   {name: "defaultValue", required: false, type: "any", description: "Used when `required` is false and the value is missing.", default: "-"},
   {name: "description", required: false, type: "string", description: "Shown as a hint in the Run dialog.", default: "-"}
 ]} />

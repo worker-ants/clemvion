@@ -77,6 +77,23 @@ OAuth 등에서 인라인 문자열 리터럴로 발행되는 코드(`CAFE24_*`,
 §3 와 달리 본 절의 코드는 **§1 적용 범위 밖**이다 — 클라이언트에 노출되지 않는 구현 내부 명칭이므로
 "명명 위반 artifact" 가 아니다.
 
+본 절은 **서로 독립된 두 개의 정규화 파이프라인**을 담는다. 둘 다 *"내부 분류 문자열 → 발행 직전
+정규화 → public 코드"* 라는 **형태**는 같지만 **정규화 함수도 목적지 필드도 다르다** — 한쪽 표를
+다른 쪽 근거로 읽으면 안 된다.
+
+| 절 | 파이프라인 | 정규화 함수 | 목적지 필드 |
+|---|---|---|---|
+| §4.1 | Code 노드 핸들러 내부 분류 | `LEGACY_TO_NORMALIZED` | 노드 `output.error.code` |
+| §4.2 | Manual/Webhook trigger 파라미터 검증 사유 | `toTriggerParameterErrorDetails` | 에러 봉투의 `error.details[].code` |
+
+> §4.2 는 2026-08-22 에 신설했다. 그 전에는 본 절이 §4.1 만 담으면서 열 헤더로 스스로 scope 를
+> *"노드 `output.error.code`"* 라 선언하고 있었는데, [webhook §5.2](../5-system/12-webhook.md) ·
+> [error-handling §1.3](../5-system/3-error-handling.md) 두 문서가 **trigger 파라미터 사유**를
+> 두고 *"error-codes 규약 §4 패턴"* 을 참조하고 있었다 — 참조가 착지하지 않는 상태였다.
+> 두 파이프라인을 갈라 적어 참조를 착지시킨다.
+
+### 4.1 Code 노드 내부 분류 → 노드 `output.error.code`
+
 다음은 Code 노드 핸들러 내부의 **분류 단계 문자열**이다. `classifyCodeNodeError` 가 산출하지만
 **노드의 `output.error.code` 로는 직접 발행되지 않는다** — `LEGACY_TO_NORMALIZED` 표가 발행 직전
 public 코드로 정규화한다 (`codebase/backend/src/nodes/data/code/code.handler.ts`). 따라서 노드 출력
@@ -97,14 +114,47 @@ public 코드는 우측 열이다 — 명명 정확성 향상을 위한 internal
 > `LEGACY_TO_NORMALIZED`(노드 출력 정규화) 의 관할이 **아니며** 본 절의 내부 분류 문자열과 레이어가 다르다.
 > (엔진 레벨 누적 타임아웃은 또 다른 코드 `EXECUTION_TIME_LIMIT_EXCEEDED` 로 구분된다.)
 
+### 4.2 Trigger 파라미터 검증 사유 → 봉투 `error.details[].code`
+
+Manual Trigger 의 파라미터 스키마 검증(`resolveTriggerParameters`)이 산출하는 **내부 사유
+문자열**이다. `output.error.code` 가 아니라 **에러 봉투의 `error.details[].code`** 로 정규화돼
+나가며, 정규화 함수는 `toTriggerParameterErrorDetails`
+(`codebase/backend/src/modules/execution-engine/types/trigger-parameter.types.ts`) 다.
+
+| 내부 사유 (legacy) | 정규화 → public 항목 코드 (`error.details[].code`) | 의미 | 근거 |
+|---|---|---|---|
+| `missing_required` | `MISSING_REQUIRED_FIELD` | `required: true` 파라미터 값 누락 | [`0-common.md §1`](../4-nodes/7-trigger/0-common.md) |
+| `coerce_failed` | `TYPE_COERCION_FAILED` | 선언 타입으로 coerce 불가 | 〃 |
+| `invalid_schema` | `INVALID_SCHEMA` | 파라미터 스키마 구조 위반 | 〃 |
+| `masked_value_resubmitted` | `MASKED_VALUE_RESUBMITTED` | egress 마스킹 마커가 그대로 재제출됨 | [EIA §R17](../5-system/14-external-interaction-api.md) (정의 SoT) |
+
+> **최상위 봉투 코드는 진입점이 정한다** — 본 표는 `details[]` **항목** 코드만 다룬다. 같은 사유가
+> Manual 세 경로에서는 `INVALID_TRIGGER_PARAMETERS`, Webhook 진입점에서는
+> `INVALID_WEBHOOK_PAYLOAD` 로 감싸진다
+> ([manual-trigger §6](../4-nodes/7-trigger/1-manual-trigger.md#6-에러-코드) ·
+> [webhook §5.2](../5-system/12-webhook.md#52-400-응답-형식)).
+
 ## 5. Rename 이력 (Retired codes)
 
-§2 의 안정성 정책은 rename 을 breaking change 로 규정한다. 그럼에도 아래 코드는 **소비자가 자사 클라이언트뿐**(프론트엔드가 구·신 코드를 양쪽 매핑)이라 breaking 영향이 없음을 확인한 뒤 교체했다. 구 코드는 더 이상 발행되지 않으며(코드베이스에서 완전 제거), **외부 client 코드에 분기로 노출된 적이 없다**(문서 목록에만 노출됐던 코드는 신규 코드로 동기화). rename 배경 추적용 이력으로만 남긴다.
+§2 의 안정성 정책은 rename 을 breaking change 로 규정한다. 그럼에도 아래 코드는 흡수 조건을 충족해 교체했다. 구 코드는 더 이상 발행되지 않으며(코드베이스에서 완전 제거) rename 배경 추적용 이력으로만 남긴다.
+
+**흡수 조건은 두 등급이다** — 어느 등급으로 들어왔는지 각 행의 비고에 적는다.
+
+| 등급 | 조건 | 근거의 성격 |
+|---|---|---|
+| **A. 영향 부재 확인** | 소비자가 자사 클라이언트뿐이고(프론트엔드가 구·신 코드를 양쪽 매핑) **외부 client 코드에 분기로 노출된 적이 없다** — 문서 목록에만 노출됐던 코드는 신규 코드로 동기화 | 배제 |
+| **B. 잔여 위험 인수** | 저장소 밖 호출자를 **원리적으로 배제할 수 없는** 표면(워크스페이스 JWT 로 호출 가능한 내부 REST 등)이지만, 관측 가능한 범위(자사 프론트 코드·저장소 전수 grep)에서 분기 지점이 **발견되지 않았고**, 남는 위험을 **명시적으로 인수**했다 | 미발견 + 인수 |
+
+> **B 는 A 의 완화가 아니라 별개 등급이다.** A 는 *"영향이 없다"* 를 주장하고 B 는 *"영향을
+> 관측하지 못했다"* 를 주장한다 — 후자는 반증 가능성이 열려 있으므로 **사용자 결정**을
+> 요구하고, 그 결정 사실을 행에 남긴다. B 등급 행이 늘어나면 §2 의 안정성 보장이 실질적으로
+> 약해지므로, **B 는 예외로 세어야 하지 관행으로 굳혀선 안 된다.**
 
 | 구 코드 | 대체 코드 | HTTP | PR | 비고 |
 |---|---|---|---|---|
 | `LLM_CONFIG_NOT_FOUND` | `MODEL_CONFIG_DEFAULT_MISSING` | 400 | PR4b | id 미지정 시 워크스페이스 default config 부재 경로 — `resolveConfig`(chat/LLM) 전용. id 부재(404)는 `MODEL_CONFIG_NOT_FOUND` 로 별도 분리. `resolveEmbedding` ws-default 부재도 `MODEL_CONFIG_NOT_FOUND`(404) 유지(리소스 부재, 사용자 결정 2026-06-12) ([3-error-handling.md §1.3 Rationale](../5-system/3-error-handling.md#rationale)) |
 | `LLM_CONFIG_INVALID` | `MODEL_CONFIG_INVALID` | 400 | PR4b | 접두어를 `MODEL_CONFIG_*` 로 통일 (LLMConfig→ModelConfig 1급 통합). 의미·status 변경 없음 |
+| `INVALID_INPUT` | `INVALID_TRIGGER_PARAMETERS` | 400 | #1193 | **[등급 B — 잔여 위험 인수]** Manual re-run(`POST /executions/:id/re-run`)의 `inputOverride` 검증 실패 봉투. 같은 검증(`resolveTriggerParameters`)을 쓰는 자매 두 경로(주 실행·저장)가 처음부터 `INVALID_TRIGGER_PARAMETERS` 였고 이 경로만 달랐던 **선존 drift** 를 통일. **⚠️ 본 표에서 리스크 등급이 가장 높은 행이다** — 위 세 행은 *"소비자가 자사 클라이언트뿐이라 breaking 영향이 **없음을 확인**"* 한 사례인 반면, 이 행은 **워크스페이스 JWT 로 호출 가능한 내부 REST 엔드포인트**라 저장소 밖 서드파티가 이 값으로 분기했을 가능성을 **코드로 배제할 수 없다**. 판정 근거는 "부재 확인" 이 아니라 **관측(grep) 범위에서 미발견**이다(프런트 `rerun-modal.tsx` `ERROR_CODE_TO_KEY` 는 `RERUN_*` 4종만 매핑 — 이 코드는 generic fallback, 저장소 내 나머지 노출은 유저 가이드 mdx 2곳). **그 잔여 위험을 명시 인수한 최초 사례**(사용자 결정 2026-08-22)이므로, 이후 이 표를 *"공개 API 든 rename 안전"* 으로 일반화하지 말 것 |
 | `WORKSPACE_REQUIRED` | `WORKSPACE_ID_REQUIRED` | 400 | #566 | chat-channel `rotate-bot-token` controller 인라인 코드(`401`)를 공용 `@WorkspaceId()` 데코레이터 canonical(`400`)로 통일 (HTTP status 도 401→400 정정). user-docs 목록에만 노출됐고 client 하드코딩 분기 없음 — breaking 영향 0. 경위 [15-chat-channel.md §R-CC-18](../5-system/15-chat-channel.md#r-cc-18-rotate-bot-token-workspace-검증--공용-workspaceid-데코레이터-통일) |
 
 ## Rationale
@@ -132,3 +182,12 @@ public 코드는 우측 열이다 — 명명 정확성 향상을 위한 internal
   breaking 정책이 적용돼 §5 흡수가 아니라 신설(§3·§4) 또는 정식 마이그레이션을 거친다. 즉 §5 는
   "노출 0" 이 아니라 "client 분기 0" 을 흡수 조건으로 삼는다 (`WORKSPACE_REQUIRED` 등재가 이 기준의
   첫 적용 — user-docs 노출은 있었으나 client 분기는 없었다).
+
+- **그 2분법에 없던 제3상태를 §5 표 등급 B 로 명문화했다 (2026-08-22)**: 위 서술은 *"분기 0 을
+  확인"* 과 *"하드코딩 분기 존재"* 두 갈래만 다룬다. 그런데 **워크스페이스 JWT 로 호출 가능한
+  내부 REST 엔드포인트**는 저장소 밖 호출자를 원리적으로 배제할 수 없어 어느 쪽으로도 판정되지
+  않는다 — 관측되는 것은 *"찾지 못했다"* 뿐이다. `INVALID_INPUT` → `INVALID_TRIGGER_PARAMETERS`
+  통일이 그 상태의 첫 사례이고, 등급을 **A(영향 부재 확인) / B(잔여 위험 인수)** 로 갈라
+  등재했다. 이 갈래를 만들지 않으면 두 선택지밖에 없다 — 근거를 **과장해** A 로 적거나(원칙문이
+  실제보다 강해진다), 실질 위험이 없는데도 정식 마이그레이션을 강제하거나. 등급을 나누면
+  **각 행이 자기 근거의 강도를 스스로 말한다.**

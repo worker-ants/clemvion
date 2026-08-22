@@ -390,9 +390,11 @@ checker 가 독립적으로** "인용이 가리키는 절이 오히려 반대를
       > 미러가 없다. 남은 가드는 *미러가 되살아나지 않는지*(심볼 재선언)만 본다.
 
 - [ ] **프리필 가드 후속 3건 (전부 비차단, `12_33_36` INFO)** — 2026-08-17 등재.
-      - `isMaskedMarker` 의 non-string 입력(`123`/`null`/`true`) 직접 단위 테스트 (INFO-4).
-        현재는 컴포넌트 렌더 경유 간접 검증만 있다. 공개 유틸로 승격됐으니 판별 로직이
-        진화할 때를 대비한 회귀 방어.
+      - ~~`isMaskedMarker` 의 non-string 입력(`123`/`null`/`true`) 직접 단위 테스트 (INFO-4).~~
+        **닫혔다 (2026-08-21, PR #1190 — 2026-08-22 재판정에서 발견).** 공유 패키지
+        `codebase/packages/masked-markers/src/__tests__/index.spec.ts` 의
+        `[캐너리] 비문자열 %s 는 마커가 아니다` 가 `number`/`null`/`undefined`/`object`/`array`
+        5종을 직접 순회한다. 미러 추출이 이 항목을 **부수적으로** 닫았고 아무도 적지 않았다.
       - 가드 회귀 테스트가 `type: "text"` 만 순회 — `select`/`textarea` 1건 추가로
         **타입 불문 가드**임을 고정 (INFO-5). 구현은 타입을 분기하지 않으므로 실동작 영향 없음.
       - 유저가이드 `02-nodes/presentation.mdx`(+`.en`)의 `defaultValue` 행에 프리필 스킵
@@ -756,10 +758,30 @@ ES-module 순환 위에 놓인다. 생성자의 `forwardRef` 도 같은 이유�
 RESOLUTION 에 "트래커로 넘긴다" 고 적었는데 **실제로는 어디에도 적히지 않은 상태였다** —
 push 직전 확인에서 발각됐다. `review/**` 는 SoT 가 아니므로 여기 등재한다.
 
-- [ ] **두 Manual 엔드포인트의 최상위 `error.code` 가 다르다** — `re-run` 은 `INVALID_INPUT`,
+- [x] **두 Manual 엔드포인트의 최상위 `error.code` 가 다르다** — `re-run` 은 `INVALID_INPUT`,
       `execute` 는 `INVALID_TRIGGER_PARAMETERS`. **이 PR 이전부터 존재**하는 drift 이고
       spec 에도 명시돼 있다. 통일하면 기존 클라이언트가 보는 코드가 바뀌므로 별도 결정 필요.
       (`details[].code` 를 보면 되므로 실사용 지장은 없다.)
+      > **결정됨 (2026-08-22, 사용자)**: **`INVALID_TRIGGER_PARAMETERS` 로 통일**한다 —
+      > 즉 `re-run` 쪽을 바꾼다. **breaking**: 기존 re-run 클라이언트가 보던
+      > `INVALID_INPUT` 이 사라진다.
+      >
+      > 실측 기준점(2026-08-22, `7b0e65aa8`): 발행처는
+      > `executions.service.ts:506`(re-run) / `workflows.controller.ts:324`(execute) 두 곳.
+      > 동반 개정이 필요한 spec 은 **3곳** — `4-nodes/7-trigger/1-manual-trigger.md:180-181`
+      > (경로별 코드 표), `5-system/13-replay-rerun.md:246`(§8.1 정의 SoT),
+      > `5-system/3-error-handling.md:80`(카탈로그). 그 중 `3-error-handling.md:80` 은
+      > *"`RERUN_` prefix 를 붙이지 않는 것은 의도 — 이미 발행 중인 코드라 error-codes §2
+      > rename-stability 상 유지"* 라는 **반대 방향 Rationale** 을 담고 있어, 통일 시
+      > 그 문장을 그대로 두면 자기모순이 된다. 함께 개정해야 한다.
+      > Swagger 표기(`executions.controller.ts:274`)도 동반 대상.
+      >
+      > spec 편집을 포함하므로 **planner 턴 + `/consistency-check --plan`** 이 선행했다.
+
+      > **닫았다 (2026-08-22, `eia-error-code-unify`)** — 통일 집행. spec 6파일 + 코드 2곳 +
+      > 테스트 + 유저 가이드 KO/EN. 은퇴 코드는 `error-codes.md §5` Rename 이력에 등재했고,
+      > 그 행에 **본 표에서 리스크 등급이 가장 높다**는 사실(제3자 분기를 코드로 배제 불가,
+      > 판정 근거는 관측 범위 미발견)을 명시했다. 설계·기각 대안: [`eia-error-code-unify.md`](../complete/eia-error-code-unify.md)
 - [ ] **`ReRunRequestDto.inputOverride` Swagger description** 에 마스킹 마커 3종이 예약어라는
       제약이 없다. 5라운드 연속 이월 — 다음 DTO 편집 기회에 한 줄.
 - [x] **마커 리터럴 cross-stack 계약 테스트 부재** — 프런트 `lib/utils/masked-markers.ts` 와
@@ -791,16 +813,41 @@ push 직전 확인에서 발각됐다. `review/**` 는 SoT 가 아니므로 여�
 consistency `--impl-done`(`05_23_14`, **BLOCK: NO**) 이 셋을 더 냈다 — 전부 비차단이고 셋 다
 **spec 편집이라 planner 턴**이 필요하다. 그래서 이 PR 에서 하지 않는다:
 
-- [ ] **wrapper 함수명이 spec 본문에 없다** — `resolveTriggerParametersRejectingMasked` /
+- [x] **wrapper 함수명이 spec 본문에 없다** — `resolveTriggerParametersRejectingMasked` /
       `reject-masked-resubmission.ts` 가 `1-manual-trigger.md` §6 와 `14-external-interaction-api.md`
       §R17 어디에도 이름으로 안 나온다. `spec-impl-evidence` R-1(≥1 코드 매치)은 충족해
       가드는 통과하지만, **"공유 함수에 넣지 않는다" 는 설계 의도가 코드 추적선에서 흐려진다**.
       두 문서에 함수·파일명 명시 + `code:` frontmatter 에 파일 추가.
-- [ ] **§R17 "닫는 조건" 표의 신규 4번째 행만 볼드** — 기존 3행은 평문. 통일하거나 의도적
+      > **닫았다 (2026-08-22)** — `1-manual-trigger.md §6` 과 `14-…md §R17` 두 본문에
+      > wrapper 함수명·파일명과 **base 에 넣지 않은 이유**(Webhook·Schedule 이 base 를
+      > 공유한다), 그리고 그 규칙을 강제하는 CI 가드
+      > (`masked-reject-callers-guard.ts`)를 함께 적었다. `code:` frontmatter 에도 추가.
+      > 실측: `grep -rln resolveTriggerParametersRejectingMasked spec` = 2파일(전엔 0).
+- [x] **§R17 "닫는 조건" 표의 신규 4번째 행만 볼드** — 기존 3행은 평문. 통일하거나 의도적
       강조로 유지.
-- [ ] **`error-codes.md §4` "패턴" 표에 trigger-parameter reason 계열이 없다** — Code 노드
+      > **닫았다 (2026-08-22)** — **평문으로 통일**했다(4번째 행의 볼드를 걷어냄). 표의 다른
+      > 세 행이 평문이고, 행 안에 이미 부분 볼드가 여러 개라 행 전체 볼드가 강조로 읽히지도
+      > 않았다.
+- [x] **`error-codes.md §4` "패턴" 표에 trigger-parameter reason 계열이 없다** — Code 노드
       핸들러 내부 코드만 나열돼 있어 직접 확인이 안 된다. 이 PR 이 만든 편차가 아니라 기존
       서술의 연장. 규약 문서 자체 개선.
+      > **닫았다 (2026-08-22)** — 단순 append 가 아니라 **§4.1 / §4.2 분리**로. §4 는 열
+      > 헤더로 스스로 scope 를 *"노드 `output.error.code`"* 라 선언하고 있었는데
+      > trigger-parameter 계열은 목적지가 **봉투의 `details[].code`** 이고 정규화 함수도
+      > 다르다(`toTriggerParameterErrorDetails`) — 그대로 행만 넣으면 표가 자기 선언과
+      > 모순된다(consistency `16_34_50` W2 지적). §4 상단에 두 파이프라인 대조표를 두고
+      > 각각을 §4.1·§4.2 로 내렸다.
+
+consistency `--impl-prep`(`15_35_56`, 2026-08-22)가 하나 더 냈다 — 역시 **planner 턴**이다:
+
+- [ ] **egress 마스킹 규약이 정식 `spec/conventions/**` 문서 없이 코드 JSDoc 산문에만 있다**
+      (`15_35_56` convention_compliance W1). 마커 3종의 의미, 깊이 상한 SoT(`MAX_MASK_DEPTH`)와
+      지역 별칭 목록, **소비처별 경계 연산자와 그 근거**(`deepRedactSecrets` 는 `>=`,
+      `sanitizePayloadForWs` 는 `>`, `stripExternalOnlyFields` 는 `>`), 재마스킹 금지 규칙이
+      네 파일의 주석에 흩어져 있다. `error-codes.md`·`audit-actions.md` 가 스스로 경고한
+      *"산문 규약 표류"* 와 동형이고, 이미 마커 이름 불일치로 **1회 실측 발생 이력**이 있다.
+      > `spec/conventions/egress-masking.md`(가칭) 신설 여부는 planner 판단. 신설 시
+      > `spec-impl-evidence` 패턴대로 frontmatter `code:` 에 네 파일 등재.
 
 > **관행 권고 (`04_46_40`·`05_08_35` scope W1)**: 기능 PR 에서 **저장소 전역 정책 가드가
 > 부산물로 파생되면** 별도 PR 로 분리하는 편이 낫다. 이번엔 분리하지 않았다 — 두 가드가
@@ -813,6 +860,43 @@ consistency `--impl-done`(`05_23_14`, **BLOCK: NO**) 이 셋을 더 냈다 — �
 ## 비고
 - 각 항목의 근거(claim→코드부재)는 audit findings/5-system/5-system__14-external-interaction-api.md 참조.
 - 핵심 surface (REST 명령·SSE 스트림·iext/itk 토큰·HMAC 서명·SSRF·secret rotation·idempotency·CORS) 는 구현 완료. 위 항목은 hardening/배율/분산성 갭이며 기능 데드락은 아님.
+
+### 미체크 항목 재판정 (2026-08-22, `backend-redact-depth-boundary`)
+
+> **세션명이 이 절을 실은 PR 과 다른 것은 의도다** (`17_06_14` scope W2). 재판정은
+> `backend-redact-depth-boundary` 세션이 착수 전 점검으로 수행했고, 그 PR 의 리뷰가
+> *"본래 목표(깊이 경계 테스트)와 무관한 grooming"* 으로 지적해 **커밋째 이 PR 로 옮겼다.**
+> 수행 주체를 사후에 고쳐 적으면 어느 실측이 어느 세션 것인지 추적선이 끊긴다.
+
+
+착수 전 **미체크 37건을 항목별로 재판정**했다 — 이전 세션들이 쌓은 것이라 이미 닫혔을 수
+있어서다. 판정은 항목 서술이 아니라 **현행 `origin/main`(`7b0e65aa8`) 코드/spec 실측**으로
+했다.
+
+| 결과 | 건수 | 비고 |
+| --- | --- | --- |
+| 이미 닫혀 있었다 | **1** | 프리필 가드 후속 3건의 첫 하위 항목 (`isMaskedMarker` non-string 단위 테스트) — PR #1190 이 부수적으로 닫음 |
+| 이번 PR 이 닫았다 | 0 | (이 PR 이 닫은 것은 트래커 밖 `masked-marker-shared-package.md` L192) |
+| 결정만 받았다 | 1 | 두 Manual 엔드포인트 `error.code` 통일 (아래 결정 노트) |
+| 여전히 유효 | 나머지 | 실측 근거는 각 항목 유지 |
+
+**실측 표본**(항목 → 확인 명령의 결과):
+
+- `result.outputs` — spec `14-…md:589` 가 여전히 **미구현 (Planned)**
+- 분산 SSE fan-out — `sse-adapter`·`notification-fanout` 둘 다 `executionEvents$` in-process
+  구독뿐, Redis pub/sub 없음
+- `getStatus` `nodeOutput` 키-allowlist — `interaction.service.ts:312` 주석이 아직
+  *"별개 잔여 항목"*
+- §8.2 HMAC — spec `14-…md:945` 가 아직 *"`hmac-sha256` 만"*
+- `EIA-AU-09` — `data-flow/15-…md` 가 아직 참조. **주의**: 문서에 `EIA-AU-08/09` 로 적혀
+  있어 `grep 'EIA-AU-09'` 는 **0건을 낸다**(철자 하나만 보면 놓치는 형태)
+- `TERMINAL_DURATION_MS_SQL` 실 Postgres 검증 — `codebase/backend/test/` 에 참조 0건
+- `extractReturnedDurationMs`/`applyResolvedDuration` — 저장소 전체 참조 0건
+- Re-run 차단 판정 순수 함수 추출 — `rerun-modal.tsx:419` 에 여전히 컴포넌트 본문 표현식
+
+> **교훈**: 닫힌 1건은 *"미러 추출"* 이라는 **다른 제목의 PR** 이 부수적으로 닫은 것이었다.
+> 트래커 항목은 **자기를 닫은 PR 이 자기 이름을 부르지 않으면** 영영 미체크로 남는다 —
+> 그래서 주기적 재판정이 필요하고, 재판정은 항목 서술이 아니라 코드를 봐야 한다.
 
 ### consistency 라운드가 넷을 더 잡았다 (`16_51_08`, 전원 BLOCK:NO)
 

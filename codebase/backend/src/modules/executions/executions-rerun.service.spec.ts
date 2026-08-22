@@ -327,7 +327,7 @@ describe('ExecutionsService — reRun (decision F2)', () => {
     );
   });
 
-  it('throws INVALID_INPUT when inputOverride fails trigger schema validation', async () => {
+  it('throws INVALID_TRIGGER_PARAMETERS when inputOverride fails trigger schema validation', async () => {
     getOneQueue = [
       {
         id: 'e1',
@@ -344,12 +344,21 @@ describe('ExecutionsService — reRun (decision F2)', () => {
         parameters: [{ name: 'orderId', type: 'string', required: true }],
       },
     });
-    await expect(
-      service.reRun('e1', 'ws-1', user, {
+    // **코드 값을 직접 단언한다** — 제목만 코드명을 주장하고 본문이
+    // `toBeInstanceOf(BadRequestException)` 만 보면, 값이 실수로 되돌아가도 GREEN 이다
+    // (`17_06_14` testing W5). 자매 셋(`workflows.controller.spec.ts` ×2 ·
+    // `workflows.service.spec.ts`)은 이미 값을 단언하고 있어 여기만 뒤처져 있었다.
+    // 관용구는 같은 파일의 자매 테스트(`[회귀] 거부 응답이 details[] 로 …`)와 맞춘다.
+    const err = await service
+      .reRun('e1', 'ws-1', user, {
         useOriginalInput: false,
         inputOverride: {},
-      }),
-    ).rejects.toBeInstanceOf(BadRequestException);
+      })
+      .catch((err_: unknown) => err_);
+    expect(err).toBeInstanceOf(BadRequestException);
+    expect((err as BadRequestException).getResponse()).toMatchObject({
+      code: 'INVALID_TRIGGER_PARAMETERS',
+    });
     expect(engine.execute).not.toHaveBeenCalled();
   });
 
@@ -419,7 +428,7 @@ describe('ExecutionsService — reRun (decision F2)', () => {
       details?: { field: string; code: string }[];
       errors?: unknown;
     };
-    expect(body.code).toBe('INVALID_INPUT');
+    expect(body.code).toBe('INVALID_TRIGGER_PARAMETERS');
     // 내부 reason 원문을 그대로 흘리지 않는다.
     expect(body.errors).toBeUndefined();
     expect(body.details).toEqual([

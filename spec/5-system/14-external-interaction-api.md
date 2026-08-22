@@ -17,6 +17,8 @@ code:
   - codebase/frontend/src/components/executions/rerun-modal.tsx
   - codebase/frontend/src/components/editor/toolbar/editor-toolbar.tsx
   - codebase/backend/src/modules/executions/executions.service.ts
+  - codebase/backend/src/modules/execution-engine/utils/reject-masked-resubmission.ts
+  - codebase/backend/src/modules/workflows/workflows.controller.ts
   - codebase/backend/src/modules/hooks/hooks.service.ts
   - codebase/backend/src/modules/hooks/hooks.controller.ts
   - codebase/backend/src/modules/triggers/dto/interaction-config.dto.ts
@@ -1571,7 +1573,15 @@ present-when-available 이므로, REST 만 `null` 로 정규화하면 위젯의 
         | 폼 프리필 (`DynamicFormUI`) | 마커면 프리필 스킵 + 재입력 안내 | 2026-08-17 |
         | Re-run 모달 | 마커면 프리필 스킵 + **세 조건이 모두 참일 때까지 제출 차단** — 사용자가 그 키를 건드렸고 · 현재 값에 마커가 없고 · 구조 필드라면 JSON 파싱에 성공했다. (값만 보면 타입 캐스팅에, 터치만 보면 되돌린 마커에, 앞의 둘만 보면 **무효 JSON** 에 뚫린다.) 토글 ON(`useOriginalInput`)이면 서버가 원문을 직접 읽으므로 차단도 풀린다 | 2026-08-20 |
         | 에디터 히스토리 로드 | JSON leaf 에 마커가 **남아 있는 동안 실행 차단**(필드 단위로 비울 수 없는 표면이라 값을 지우지 않고 막는다) | 2026-08-20 |
-        | **서버 (Manual 실행 경로)** | Manual 실행 경로 두 곳(`POST /executions/:id/re-run` 의 `inputOverride` · `POST /workflows/:id/execute` 의 파라미터)에서 값 leaf 가 마커와 **정확히 일치하면 거부** — `400` `details[].code = MASKED_VALUE_RESUBMITTED`. **재제출만이 아니라 fresh 입력도 대상**이다(아래 범위 캐비엇) | 2026-08-20 |
+        | 서버 (Manual 실행 경로) | Manual 실행 경로 두 곳(`POST /executions/:id/re-run` 의 `inputOverride` · `POST /workflows/:id/execute` 의 파라미터)에서 값 leaf 가 마커와 **정확히 일치하면 거부** — `400` `details[].code = MASKED_VALUE_RESUBMITTED`. **재제출만이 아니라 fresh 입력도 대상**이다(아래 범위 캐비엇) | 2026-08-20 |
+
+        > **구현 위치**: 두 호출부는 base `resolveTriggerParameters` 가 아니라 wrapper
+        > `resolveTriggerParametersRejectingMasked`
+        > (`codebase/backend/src/modules/execution-engine/utils/reject-masked-resubmission.ts`)
+        > 를 부른다. 판정기는 같은 파일의 `hasMaskedLeaf`(깊이 상한 `MAX_REDACT_DEPTH` 공유).
+        > **base 에 넣지 않은 것은 의도** — base 는 Webhook·Schedule 도 공유하므로 거기 넣으면
+        > 무관한 경로가 같은 거부 규칙을 진다. Manual 경로가 base 를 직접 부르면 CI 가드
+        > (`repo-guards/__tests__/masked-reject-callers-guard.ts`)가 RED 를 낸다.
 
         > **가드의 범위 — Manual 실행 경로 전체다** (재제출만이 아니다). 서버측 거부는
         > `POST /executions/:id/re-run` 과 `POST /workflows/:id/execute` 두 호출부에 걸린다.

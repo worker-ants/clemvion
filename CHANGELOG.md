@@ -1,5 +1,31 @@
 # Changelog
 
+## Unreleased — Manual 세 경로가 같은 검증 실패에 서로 다른 코드를 내고 있었다
+
+**Behavior change (breaking): `POST /executions/:id/re-run` 의 `inputOverride` 검증 실패 봉투가
+`INVALID_INPUT` → `INVALID_TRIGGER_PARAMETERS` 로 바뀐다.** 하위 호환 alias 는 없다
+(`error.code` 는 단일 값이라 alias 를 실을 자리가 없다). `error.details[]` 항목 코드
+(`MISSING_REQUIRED_FIELD` 등)는 **변화 없다** — 필드별 사유로 분기하던 클라이언트는 영향받지
+않는다.
+
+같은 검증(`resolveTriggerParameters`)을 쓰는 세 경로 중 이 경로만 코드가 달랐다 — 주 실행
+(`POST /workflows/:id/execute`)과 저장(`POST /workflows/:id/save`)은 처음부터
+`INVALID_TRIGGER_PARAMETERS` 였다. **선존 drift** 이고, 통일 방향은 바꾸는 표면이 작은 쪽으로
+골랐다(반대로 하면 저장 경로까지 세 엔드포인트가 동시에 바뀐다).
+
+**이것은 `spec/conventions/error-codes.md §2` 의 명시적 예외다.** 그 규약은 *"에러 코드 rename 은
+breaking"* + *"이름 정확성 향상만을 위한 rename 은 하지 않는다"* 로 못박는다. §5(Rename 이력)에
+행을 신설하되, 기존 3행과 **리스크 등급이 다르다**는 것을 그 행에 적었다 — 기존 행들은
+*"소비자가 자사 클라이언트뿐이라 breaking 영향이 **없음을 확인**"* 한 사례인 반면, 이 경로는
+워크스페이스 JWT 로 호출 가능한 내부 REST 엔드포인트라 **저장소 밖 서드파티 분기를 코드로
+배제할 수 없다.** 판정 근거는 "부재 확인" 이 아니라 **관측 범위 미발견**이다(프런트
+`rerun-modal.tsx` 의 `ERROR_CODE_TO_KEY` 는 `RERUN_*` 4종만 매핑 — 이 코드는 generic fallback,
+저장소 내 나머지 노출은 유저 가이드 mdx 2곳). 그 잔여 위험은 **사용자 결정으로 인수**했다.
+
+부수로, 유저 가이드 KO/EN 이 Manual Trigger `required` 를 *"값 누락 시 `INVALID_INPUT` 으로
+실패"* 라 적고 있던 **선존 오류**도 함께 정정했다 — 주 실행 경로는 원래
+`INVALID_TRIGGER_PARAMETERS` 였다.
+
 ## Unreleased — 마커 재제출을 서버가 거부한다 (가드를 UI 밖으로)
 
 아래 항목이 닫은 카브아웃의 가드는 **프런트 렌더 경로**에만 있었다 — 그 항목 스스로
