@@ -17,7 +17,11 @@ export class ReRunRequestDto {
 
   @ApiPropertyOptional({
     description:
-      'useOriginalInput=false 일 때 사용할 입력. Manual Trigger parameters 스키마와 호환 (resolveTriggerParameters 검증)',
+      'useOriginalInput=false 일 때 사용할 입력. Manual Trigger parameters 스키마와 호환. ' +
+      '**마스킹 마커 3종(`***` / `[REDACTED]` / `[REDACTED_DEPTH]`)은 이 필드의 예약어다** — ' +
+      '값 leaf 가 마커와 정확히 일치하면 400 `INVALID_TRIGGER_PARAMETERS` + ' +
+      '`details[].code = MASKED_VALUE_RESUBMITTED` 로 거부된다. 응답에서 가려진 값을 그대로 ' +
+      '되보내는 것을 막기 위함이며, 부분 일치(`a***b`)는 통과한다.',
     type: Object,
   })
   @IsOptional()

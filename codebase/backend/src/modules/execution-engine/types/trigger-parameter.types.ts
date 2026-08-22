@@ -37,14 +37,23 @@ const REASON_TO_DETAIL: Record<
   TriggerParameterValidationError['reason'],
   { code: TriggerParameterErrorDetail['code']; message: string }
 > = {
+  /** `required: true` 인데 값이 없다 — 사용자가 취할 행동: 그 필드를 채운다. */
   missing_required: {
     code: 'MISSING_REQUIRED_FIELD',
     message: 'Required parameter is missing',
   },
+  /**
+   * 값은 있으나 선언 타입으로 변환할 수 없다(`number` 에 문자열, `object`/`array` 에
+   * 파싱 불가 JSON 등) — 사용자가 취할 행동: **타입을 맞춘다**.
+   */
   coerce_failed: {
     code: 'TYPE_COERCION_FAILED',
     message: 'Value could not be coerced to the declared type',
   },
+  /**
+   * 값이 아니라 **스키마 자체**가 깨졌다(이름 중복·미지원 타입 등) — 사용자가 취할 행동은
+   * 입력 수정이 아니라 **트리거 노드 설정 수정**이다. 위 둘과 책임 주체가 다르다.
+   */
   invalid_schema: {
     code: 'INVALID_SCHEMA',
     message: 'Trigger parameter schema is invalid',

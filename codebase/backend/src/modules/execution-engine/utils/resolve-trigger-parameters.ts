@@ -105,6 +105,22 @@ export function validateTriggerParameterSchema(
  *   fields and any coerce failures (for object/array where JSON parse fails
  *   yet value is a string that looks like JSON)
  * - Returns `{}` when schema is empty or missing (pass-through compatibility)
+ *
+ * ## ⚠️ Manual 실행 경로는 이 함수를 **직접 부르지 않는다**
+ *
+ * `POST /workflows/:id/execute` 와 `POST /executions/:id/re-run` 두 곳은 wrapper
+ * {@link resolveTriggerParametersRejectingMasked}
+ * (`./reject-masked-resubmission.ts`) 를 부른다 — 그쪽이 egress 마스킹 마커의 재제출을
+ * raw 단계에서 먼저 거부한 뒤 이 함수로 위임한다.
+ *
+ * **그 검사를 여기(base)에 넣지 않은 것은 의도다.** base 는 Webhook·Schedule 어댑터도
+ * 공유하는데 그 경로들은 마커를 되돌려 받는 표면이 아니다 — 공유 함수에 넣으면 무관한
+ * 경로가 같은 거부 규칙을 진다. 규칙의 강제는 CI 가드
+ * (`repo-guards/__tests__/masked-reject-callers-guard.ts`)가 맡는다: Manual 경로가 base 를
+ * 직접 부르면 RED.
+ *
+ * 정의 SoT: `spec/5-system/14-external-interaction-api.md` §R17 ·
+ * `spec/4-nodes/7-trigger/1-manual-trigger.md` §6.
  */
 export function resolveTriggerParameters(
   schema: TriggerParameterDefinition[] | undefined | null,

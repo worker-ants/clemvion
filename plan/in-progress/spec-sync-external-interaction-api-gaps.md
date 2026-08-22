@@ -782,8 +782,12 @@ push 직전 확인에서 발각됐다. `review/**` 는 SoT 가 아니므로 여�
       > 테스트 + 유저 가이드 KO/EN. 은퇴 코드는 `error-codes.md §5` Rename 이력에 등재했고,
       > 그 행에 **본 표에서 리스크 등급이 가장 높다**는 사실(제3자 분기를 코드로 배제 불가,
       > 판정 근거는 관측 범위 미발견)을 명시했다. 설계·기각 대안: [`eia-error-code-unify.md`](../complete/eia-error-code-unify.md)
-- [ ] **`ReRunRequestDto.inputOverride` Swagger description** 에 마스킹 마커 3종이 예약어라는
+- [x] **`ReRunRequestDto.inputOverride` Swagger description** 에 마스킹 마커 3종이 예약어라는
       제약이 없다. 5라운드 연속 이월 — 다음 DTO 편집 기회에 한 줄.
+      > **닫았다 (2026-08-22, `masked-marker-cosmetic-followups`)** — 마커 3종이 **이 필드의 예약어**임을,
+      > 거부 시 코드(`400 INVALID_TRIGGER_PARAMETERS` + `details[].code =
+      > MASKED_VALUE_RESUBMITTED`)와 **부분 일치는 통과**한다는 경계까지 description 에 적었다.
+      > OpenAPI 소비자가 문서만 보고 통합할 때 이 제약을 모르면 400 의 원인을 못 찾는다.
 - [x] **마커 리터럴 cross-stack 계약 테스트 부재** — 프런트 `lib/utils/masked-markers.ts` 와
       backend `shared/utils/sanitize-error-message.ts` 의 `MASKED_MARKERS` 가 **문자 그대로
       대칭**이어야 하는데 이를 강제하는 것이 없다(jest↔vitest 경계). 한쪽만 바뀌면 프런트가
@@ -795,12 +799,25 @@ push 직전 확인에서 발각됐다. `review/**` 는 SoT 가 아니므로 여�
       > 한쪽에 둔 가드는 **반대쪽이 마커를 바꾸는 방향에 무력**하다. 양쪽 모두
       > `codebase/packages/**` 는 relevant 로 잡으므로 값을 그쪽으로 옮겼고, 이제 대조할
       > 미러가 없다. 남은 가드는 *미러가 되살아나지 않는지*(심볼 재선언)만 본다.
-- [ ] **base `resolveTriggerParameters` JSDoc 에 wrapper 역참조 없음** — 새 Manual 경로
+- [x] **base `resolveTriggerParameters` JSDoc 에 wrapper 역참조 없음** — 새 Manual 경로
       작성자가 base 만 보면 wrapper 규칙을 모른다. repo-guard 가 CI 에서 잡지만 그건 사후
       발견이지 작성 시점 안내가 아니다. `{@link resolveTriggerParametersRejectingMasked}` 한 줄.
-- [ ] **`REASON_TO_DETAIL` 문서화 밀도 비대칭** — 신규 항목만 JSDoc 이 있고 형제 3종은 없다.
-- [ ] **`workflows.controller.ts` 의 한/영 인라인 주석 혼재** — 같은 try/catch 블록.
+      > **닫았다 (2026-08-22, `masked-marker-cosmetic-followups`)** — 한 줄이 아니라 **왜 base 가 아닌지**까지
+      > 적었다 — base 는 Webhook·Schedule 도 공유하므로 거기 넣으면 무관한 경로가 같은 거부
+      > 규칙을 진다. 역참조만 달면 다음 사람이 *"그럼 base 에 넣지 그랬나"* 를 다시 묻는다.
+      > 실측: 그 파일 안 wrapper 언급 **0 → 1건**.
+- [x] **`REASON_TO_DETAIL` 문서화 밀도 비대칭** — 신규 항목만 JSDoc 이 있고 형제 3종은 없다.
+      > **닫았다 (2026-08-22, `masked-marker-cosmetic-followups`)** — 형제 3종에 JSDoc 을 채웠다(실측 1 → 4/4).
+      > 그냥 채우지 않고 **사용자가 취할 행동**을 기준으로 적었다 — `missing_required`(필드를
+      > 채운다) · `coerce_failed`(타입을 맞춘다) · `invalid_schema`(**입력이 아니라 트리거 노드
+      > 설정을 고친다** — 앞의 둘과 책임 주체가 다르다). 그 구분이 이 4종이 별개 코드로
+      > 존재하는 이유다.
+- [x] **`workflows.controller.ts` 의 한/영 인라인 주석 혼재** — 같은 try/catch 블록.
       이 PR 이 만든 문제가 아니고 5라운드째 이월.
+      > **닫았다 (2026-08-22, `masked-marker-cosmetic-followups`)** — 한국어로 통일했다(이 저장소 기본).
+      > 실측: 해당 try/catch 블록의 한글 없는 주석 줄 **0건**. 영문 주석이 담고 있던
+      > *"`errors` 가 아니라 `details`"* 라는 근거는 보존했다 — 언어만 바꾸고 정보를 잃지
+      > 않는 것이 이 항목의 요점이다.
 - [ ] **`ExecutionsService.reRun` 이 137줄·6책임** — 선존 구조. 이번 PR 은 분기 1개만 추가.
       다음에 손댈 때 입력 해석 블록을 private 헬퍼로.
 - [ ] **`findMaskedResubmissions` 직접 단위 테스트 부재** — 상위 함수 경유 간접 커버만.
