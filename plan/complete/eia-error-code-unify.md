@@ -1,6 +1,6 @@
 ---
 title: 두 Manual 엔드포인트의 `error.code` 를 `INVALID_TRIGGER_PARAMETERS` 로 통일한다
-status: in-progress
+status: complete
 worktree: eia-error-code-unify-a87cea
 started: 2026-08-22
 owner: planner
@@ -16,7 +16,7 @@ spec_impact:
 # 두 Manual 엔드포인트의 `error.code` 를 `INVALID_TRIGGER_PARAMETERS` 로 통일한다
 
 정본 트래커
-[`spec-sync-external-interaction-api-gaps.md`](./spec-sync-external-interaction-api-gaps.md)
+[`spec-sync-external-interaction-api-gaps.md`](../in-progress/spec-sync-external-interaction-api-gaps.md)
 의 *"두 Manual 엔드포인트의 최상위 `error.code` 가 다르다"* 항목 집행 + 같은 절의 **spec 편집
 3건**.
 
@@ -104,7 +104,7 @@ spec_impact:
 
 > **편집 대상 텍스트의 출처** (`16_34_50` plan_coherence INFO): 위 spec 위치 다수
 > (`3-error-handling.md:80,189` · `13-replay-rerun.md:246,377`)는 1~2일 전 완료된 자매 plan
-> [`spec-draft-inputoverride-marker-reject.md`](../complete/spec-draft-inputoverride-marker-reject.md)
+> [`spec-draft-inputoverride-marker-reject.md`](./spec-draft-inputoverride-marker-reject.md)
 > (PR #1188·#1189 계열)이 짜 넣은 **다중 관심사 텍스트**다 — `details[]` 카탈로그 참조,
 > re-run `details` 배선 정정 각주, §2 rename-stability 반대 방향 Rationale 이 한 문장에
 > 섞여 있다. **코드명 토큰만 치환하고 나머지 서술은 보존한다** — 문장을 통째로 다시 쓰면
