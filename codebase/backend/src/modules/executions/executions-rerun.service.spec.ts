@@ -344,12 +344,23 @@ describe('ExecutionsService — reRun (decision F2)', () => {
         parameters: [{ name: 'orderId', type: 'string', required: true }],
       },
     });
-    await expect(
-      service.reRun('e1', 'ws-1', user, {
+    // **코드 값을 직접 단언한다** — 제목만 코드명을 주장하고 본문이
+    // `toBeInstanceOf(BadRequestException)` 만 보면, 값이 실수로 되돌아가도 GREEN 이다
+    // (`17_06_14` testing W5). 자매 셋(`workflows.controller.spec.ts` ×2 ·
+    // `workflows.service.spec.ts`)은 이미 값을 단언하고 있어 여기만 뒤처져 있었다.
+    const err = await service
+      .reRun('e1', 'ws-1', user, {
         useOriginalInput: false,
         inputOverride: {},
-      }),
-    ).rejects.toBeInstanceOf(BadRequestException);
+      })
+      .then(
+        () => null,
+        (e: unknown) => e,
+      );
+    expect(err).toBeInstanceOf(BadRequestException);
+    expect((err as BadRequestException).getResponse()).toMatchObject({
+      code: 'INVALID_TRIGGER_PARAMETERS',
+    });
     expect(engine.execute).not.toHaveBeenCalled();
   });
 
