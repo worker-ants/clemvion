@@ -162,7 +162,7 @@ AST + allowlist 는 선례(`masked-reject-callers-guard.ts`)를 그대로 재사
 
 ## 후속 (이 PR 밖)
 
-- [ ] **미러 가드 탐지 로직을 공유 test-utility 로 재추출** —
+- [x] **미러 가드 탐지 로직을 공유 test-utility 로 재추출** —
       `resolveScanDirs`/`findRedeclaredSymbols`/`findMirrorRedeclarations`(~145줄)가 backend·
       frontend 두 사본에 문자 그대로 복제돼 있다. **이 중복이 이 PR 에서 두 번(라운드3·6)
       비대칭 결함의 근원**이었다 — 한쪽만 고치고 "양쪽 다 고쳤다" 고 적은 사고, 그리고 규칙
@@ -173,6 +173,19 @@ AST + allowlist 는 선례(`masked-reject-callers-guard.ts`)를 그대로 재사
       > 이 PR 에서 안 하는 이유: test-only 로직을 위한 새 패키지는 이미 넓어진 범위를 또
       > 넓히는 일이고, 방금 그 비대칭에 캐너리를 건 직후다. **`review/**` 는 SoT 가 아니라
       > PR 이 닫히면 사라지므로**(이 PR 에서 두 번 겪었다) 여기 등재한다.
+      >
+      > **닫았다 (2026-08-22)** — 재추출이 아니라 **중복의 이유를 없애는 쪽**으로.
+      > `.github/workflows/repo-guards.yml` 을 신설해 `codebase/**` 어디가 바뀌든 도는 자리를
+      > 만들고, backend 사본 2파일을 삭제했다. 사본이 둘이던 유일한 이유가 경로 게이팅이었기
+      > 때문이다.
+      >
+      > 공유 devDep 패키지 안을 기각한 근거(등록 표면 실측): 패키지 안은 **로직만 1본이 되고
+      > 러너는 둘로 남으며**(경로 게이팅이 그대로다) 등록 표면 8곳 중 2곳만 자동 검증이고,
+      > test-only 코드가 **Dockerfile 3곳(프로덕션 배포 경로)** 을 건드린다. CI 잡 안은 로직·
+      > 러너 모두 1본이고 표면 5곳이 전부 하네스 가드로 강제된다.
+      >
+      > 실증: backend 파일 하나만 바꾼 diff 에서 `repo-guards` = **relevant=true**,
+      > 대조군 `frontend-checks` = **relevant=false**.
 
 - [ ] **backend `deepRedactSecrets` 깊이 경계 테스트** — 프런트 `masked-markers.test.ts` 는
       `nest(10)→true` / `nest(11)→false` 로 상한을 정확히 고정하는데, backend

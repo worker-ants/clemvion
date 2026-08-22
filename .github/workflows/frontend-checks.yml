@@ -41,11 +41,6 @@ jobs:
     with:
       pathspecs: |
         codebase/frontend/**
-        # **마커 SoT 미러 가드가 이 잡에 산다** — 그 가드는 `codebase/*/src` 전부를
-        # 훑으므로 web-chat 이 마커를 재선언해도 잡아야 한다. web-chat 전용
-        # 워크플로는 `channel-web-chat...` 만 설치해 이 가드를 돌릴 수 없어,
-        # 대신 여기서 트리거를 넓힌다(`11_53_49` architecture W1).
-        codebase/channel-web-chat/**
         codebase/packages/**
         pnpm-lock.yaml
         pnpm-workspace.yaml

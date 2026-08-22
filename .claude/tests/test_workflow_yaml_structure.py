@@ -257,6 +257,7 @@ class WorkflowStructureTest(unittest.TestCase):
         ("harness-checks.yml", "unittest"): "${{ !cancelled() }}",
         ("migration-check.yml", "guard"): "${{ !cancelled() }}",
         ("packages-checks.yml", "packages"): "${{ !cancelled() }}",
+        ("repo-guards.yml", "mirror-guard"): "${{ !cancelled() }}",
         ("spec-link-checks.yml", "spec-link-integrity"): "${{ !cancelled() }}",
         ("web-chat-checks.yml", "sdk"): "${{ !cancelled() }}",
         ("web-chat-checks.yml", "sdk-client"): "${{ !cancelled() }}",
@@ -290,6 +291,7 @@ class WorkflowStructureTest(unittest.TestCase):
         "harness-checks.yml",
         "migration-check.yml",
         "packages-checks.yml",
+        "repo-guards.yml",
         "spec-link-checks.yml",
         "web-chat-checks.yml",
     }
@@ -360,6 +362,7 @@ class WorkflowStructureTest(unittest.TestCase):
         "harness-checks.yml": set(),
         "migration-check.yml": set(),
         "packages-checks.yml": set(),
+        "repo-guards.yml": set(),
         "review-gate.yml": {"paths"},
         "spec-link-checks.yml": set(),
         "web-chat-checks.yml": set(),
@@ -412,6 +415,7 @@ class WorkflowStructureTest(unittest.TestCase):
         # 유일한 쓰기 권한. `gh pr comment` 로 열린 PR 에 rebase 안내를 단다.
         "migration-recheck-on-main.yml": {"contents": "read", "pull-requests": "write"},
         "packages-checks.yml": {"contents": "read"},
+        "repo-guards.yml": {"contents": "read"},
         "review-gate.yml": {"contents": "read"},
         "spec-link-checks.yml": {"contents": "read"},
         "web-chat-checks.yml": {"contents": "read"},

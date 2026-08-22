@@ -57,6 +57,7 @@ CONVERTED = [
     "harness-checks.yml",
     "migration-check.yml",
     "packages-checks.yml",
+    "repo-guards.yml",
     "spec-link-checks.yml",
     "web-chat-checks.yml",
 ]

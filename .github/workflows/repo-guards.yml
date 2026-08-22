@@ -1,0 +1,86 @@
+# 저장소 전체를 훑는 repo-guard 전용 CI.
+#
+# ## 왜 별도 워크플로인가 — 경로 게이팅이 크로스스택 가드를 무력화한다
+#
+# 스택별 워크플로(`frontend-checks`·`backend-checks`·`web-chat-checks`)는 각자 자기 경로만
+# relevant 로 잡고, 무관하면 **검사를 생략하고 체크는 통과로 보고**한다. 그래서 `codebase/*/src`
+# **전부**를 훑어야 하는 가드를 어느 한 스택에 두면, 다른 스택만 바뀐 PR 에서 **아예 실행되지
+# 않는다** — 있다고 믿게 만들 뿐이다.
+#
+# PR #1190 은 그 갭을 backend·frontend **양쪽에 사본**을 둬서 메웠다. 사본은 동작했지만 두 번
+# 실제 결함의 근원이 됐다(한쪽만 고치고 "양쪽 다 고쳤다" 고 적음 · 규칙 문단을 한쪽에만 추가).
+# 이 워크플로는 **중복의 이유 자체**를 없앤다 — `codebase/**` 어디가 바뀌든 도는 자리가 하나
+# 생기므로 가드 사본이 하나면 된다.
+#
+# ## 범위
+#
+# **저장소 전체를 스캔 대상으로 삼는 가드만** 여기서 돈다. 자기 스택만 읽는 가드
+# (`masked-reject-callers`·`production-build-devdep`·`eslint-unicorn-peer` 등)는 그 스택
+# 워크플로에 그대로 둔다 — 그쪽은 경로 게이팅이 오히려 맞는 동작이다.
+#
+# > 미러 가드는 frontend vitest 스위트에도 그대로 포함된다 — 즉 frontend 를 건드리는 PR 에서는
+# > **두 번 돈다**. 의도적 수용이다: 그래야 로컬 `run-test.sh unit` 이 별도 배선 없이 돌린다.
+# > 중복 실행 비용(수초)보다 로컬 커버리지가 값지다.
+name: repo-guards
+
+# **`paths:` 필터가 없다 — 의도적이다** (required status check 등록을 위해).
+# 근거·메커니즘은 `scripts/ci-paths-changed.sh` 헤더 주석 참조.
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: repo-guards-${{ github.ref }}
+  cancel-in-progress: true
+
+# 이 워크플로는 읽기만 한다 — checkout 과 검사 실행뿐이다. 명시하지 않으면 저장소 기본
+# 토큰 권한을 상속하는데, 그 기본값은 저장소 설정에 달려 있어 이 파일만 봐서는 알 수 없다.
+# `test_workflow_yaml_structure.py` 의 `_PERMISSIONS` 등록부가 이 선언을 강제한다.
+permissions:
+  contents: read
+
+jobs:
+  changes:
+    name: 변경 경로 판정
+    uses: ./.github/workflows/_changed-paths.yml
+    with:
+      pathspecs: |
+        # **스택을 나열하지 않고 `codebase/**` 통째로 잡는다.** 이 워크플로의 존재 이유가
+        # "어느 스택이 바뀌든 돈다" 이므로, 스택 목록을 손으로 유지하면 새 스택이 생겼을 때
+        # 조용히 빠진다 — 그게 바로 여기서 고치려는 결함 클래스다.
+        codebase/**
+        pnpm-lock.yaml
+        pnpm-workspace.yaml
+        scripts/ci-paths-changed.sh
+        .github/workflows/_changed-paths.yml
+        # 공유 셋업 액션. `_changed-paths.yml` 을 등재한 것과 **같은 이유**다 —
+        # 이 액션이 바뀌면 그것에 기대는 이 워크플로가 돌아야 한다.
+        .github/actions/pnpm-workspace/action.yml
+        .github/workflows/repo-guards.yml
+
+  mirror-guard:
+    name: 마커 SoT 미러 재발 가드
+    needs: changes
+    # `changes` 가 실패/오류여도 이 잡은 돈다 — needs 실패로 skipped 되면
+    # 'skipped 가 required check 를 만족하는가' 라는 모호함이 다른 경로로 재발한다.
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: 무관한 변경 — 검사 생략 (체크는 통과로 보고)
+        if: needs.changes.outputs.relevant == 'false'
+        run: echo "codebase 관련 경로 변경 없음 — 이 잡은 no-op 으로 통과한다."
+      - uses: actions/checkout@v7
+        if: needs.changes.outputs.relevant != 'false'
+      - uses: ./.github/actions/pnpm-workspace
+        if: needs.changes.outputs.relevant != 'false'
+        with:
+          filter: 'frontend...'
+      # 가드 spec 하나만 돌린다 — frontend 전체 vitest 가 아니다. 이 잡은 모든 codebase PR
+      # 에서 도므로 비용을 최소로 둔다.
+      - name: Vitest (미러 가드)
+        if: needs.changes.outputs.relevant != 'false'
+        run: >-
+          pnpm --filter frontend exec vitest run
+          src/lib/repo-guards/__tests__/masked-marker-mirror.test.ts
