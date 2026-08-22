@@ -195,6 +195,9 @@ socket.emit("unsubscribe", { channel: "execution:550e8400-e29b-41d4-a716-4466554
 > - **내부 WS wire 와 외부 fanout 양쪽**에 적용된다. `execution:<id>` 구독 인가가 workspace 소유만 보고 role 을 구분하지 않아(§3.3) 수신 인구가 `GET /api/executions/:id` 와 동일하기 때문이다 — [EIA §R17](./14-external-interaction-api.md) 의 boundary masking parity 원칙과 같은 근거다.
 > - **예외는 `llmCalls` 하나** — 에디터 전용 raw 디버그라 wire 에서는 원문을 유지한다(fanout 에서는 필드째 strip 되므로 외부 노출은 늘지 않는다). 아래 `## Rationale` 의 strip-only 항목 참조.
 > - **앞선 키-이름 마스킹의 `[REDACTED]` 마커는 덮이지 않는다** — 값-마스커가 마커에 대해 멱등하다.
+> - WS 마스커(`sanitizePayloadForWs`)의 깊이 상한 `MAX_SANITIZE_DEPTH` 는 REST 값-마스커의
+>   상한과 **별개 불변식**이다(비교 연산자가 달라 마커가 놓이는 최대 깊이가 한 칸 다르다) —
+>   좌표계 SoT 는 [egress-masking 규약](../conventions/egress-masking.md).
 > - 근거·적용 범위·잔여 갭: [EIA §R17](./14-external-interaction-api.md).
 >
 > **`input` 마스킹은 REST 노드 레벨과 일치한다** (2026-08-17 정정): emit payload 의 `input`

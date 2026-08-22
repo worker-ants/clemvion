@@ -321,6 +321,9 @@ Waiting 시점 output 을 **그대로 유지** (immutable snapshot) 하고 `outp
 > 배제하므로, 마스킹은 그 규칙을 **egress 에서 집행**하는 방어 계층이지 새 예외가 아니다.
 > 비-자격증명 config(코드 로직·프롬프트 본문·필드 정의)는 **무변화**로 echo 된다.
 > DB 는 원문을 보존한다(egress-only) — 이 마스킹은 저장이 아니라 나가는 경로에만 건다.
+>
+> 마스커·스캐너의 깊이 상한·경계 연산자·마커 좌표계는
+> [egress-masking 규약](./egress-masking.md) 이 SoT 다.
 
 **선택적 echo** (크기 문제):
 - `form.config.fields` 가 매우 클 경우 → 그대로 echo (정의상 구조 정보).

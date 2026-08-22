@@ -1394,6 +1394,10 @@ scope/audience 불일치를 HTTP 시맨틱대로 `403 Forbidden`(인증됐으나
 
 ### R17. `getStatus` 의 `currentNode`/`context` 실값 노출 (null placeholder 부분 번복) + SSE 역할 분담 + outputData 표면 제약 (결정 2026-06-25, `conversationThread` reload 노출 재조정 2026-07-09)
 
+> **구현 좌표계는 별도 규약이 소유한다**: 본 절은 마스킹의 **정책·적용 범위·잔여 갭**이 주제다.
+> 마스커·스캐너별 **깊이 상한·경계 연산자·마커**와 그것들을 합치지 않는 근거는
+> [egress-masking 규약](../conventions/egress-masking.md) 을 본다.
+
 **경위**: 초기 V1 은 §5.3 `getStatus` 의 `currentNode`/`context` 를 항상 `null`, `seq` 를 `0` placeholder 로 두고
 상세 표면은 SSE `waiting_for_input` 페이로드를 권위로 삼았다(git `5b468d37` 이전).
 
