@@ -348,15 +348,13 @@ describe('ExecutionsService — reRun (decision F2)', () => {
     // `toBeInstanceOf(BadRequestException)` 만 보면, 값이 실수로 되돌아가도 GREEN 이다
     // (`17_06_14` testing W5). 자매 셋(`workflows.controller.spec.ts` ×2 ·
     // `workflows.service.spec.ts`)은 이미 값을 단언하고 있어 여기만 뒤처져 있었다.
+    // 관용구는 같은 파일의 자매 테스트(`[회귀] 거부 응답이 details[] 로 …`)와 맞춘다.
     const err = await service
       .reRun('e1', 'ws-1', user, {
         useOriginalInput: false,
         inputOverride: {},
       })
-      .then(
-        () => null,
-        (e: unknown) => e,
-      );
+      .catch((err_: unknown) => err_);
     expect(err).toBeInstanceOf(BadRequestException);
     expect((err as BadRequestException).getResponse()).toMatchObject({
       code: 'INVALID_TRIGGER_PARAMETERS',
