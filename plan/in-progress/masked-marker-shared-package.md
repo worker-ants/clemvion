@@ -174,7 +174,9 @@ AST + allowlist 는 선례(`masked-reject-callers-guard.ts`)를 그대로 재사
       > 넓히는 일이고, 방금 그 비대칭에 캐너리를 건 직후다. **`review/**` 는 SoT 가 아니라
       > PR 이 닫히면 사라지므로**(이 PR 에서 두 번 겪었다) 여기 등재한다.
       >
-      > **닫았다 (2026-08-22)** — 재추출이 아니라 **중복의 이유를 없애는 쪽**으로.
+      > **닫았다 (2026-08-22)** — 설계·근거 전문은
+      > [`plan/in-progress/mirror-guard-single-copy.md`](./mirror-guard-single-copy.md).
+      > 재추출이 아니라 **중복의 이유를 없애는 쪽**으로.
       > `.github/workflows/repo-guards.yml` 을 신설해 `codebase/**` 어디가 바뀌든 도는 자리를
       > 만들고, backend 사본 2파일을 삭제했다. 사본이 둘이던 유일한 이유가 경로 게이팅이었기
       > 때문이다.

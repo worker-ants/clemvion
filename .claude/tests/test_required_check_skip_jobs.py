@@ -168,6 +168,45 @@ class DeadFilterTest(unittest.TestCase):
     통과시키려 이 단언을 약화하지 않는다.
     """
 
+    # `repo-guards.yml` 이 지키는 불변식은 "모든 스택을 덮는다" 이고, 그게 이 워크플로의
+    # **존재 이유**다. 위 dead-filter 단언은 그것을 못 지킨다 — pathspec 이
+    # `codebase/frontend/**` 하나로 좁혀져도 tracked 파일과는 매치하므로 여전히 GREEN 이다.
+    #
+    # 도입 시점엔 backend 파일만 바꾼 diff 로 손수 실측해 확인했는데(대조군 frontend-checks 는
+    # relevant=false), **1회성 수동 확인은 보장이 아니다**(`14_02_49` testing W1). 스택별로
+    # 최소 1개 tracked 파일과 매치하는지를 기계가 묻게 한다.
+    REPO_GUARDS_MUST_COVER = (
+        "codebase/backend/",
+        "codebase/frontend/",
+        "codebase/packages/",
+        "codebase/channel-web-chat/",
+    )
+
+    def test_repo_guards_pathspec_covers_every_stack(self):
+        import test_harness_checks_paths_coverage as coverage
+
+        tracked = coverage._tracked_files()
+        specs = pathspecs_of("repo-guards.yml")
+        for stack in self.REPO_GUARDS_MUST_COVER:
+            in_stack = [t for t in tracked if t.startswith(stack)]
+            with self.subTest(stack=stack):
+                # 스택 자체가 비면 이 단언은 vacuous 하다 — 먼저 그것부터 막는다.
+                self.assertTrue(
+                    in_stack,
+                    f"{stack} 에 tracked 파일이 하나도 없다 — 스택 경로가 바뀌었거나 이 "
+                    "단언이 vacuous 해졌다",
+                )
+                self.assertTrue(
+                    any(
+                        coverage.filter_covers_file(spec, t)
+                        for spec in specs
+                        for t in in_stack
+                    ),
+                    f"repo-guards.yml 의 pathspec 이 {stack} 를 하나도 덮지 않는다 — 그 "
+                    "스택만 바뀐 PR 에서 저장소-전체 가드가 아예 실행되지 않는다. 이 "
+                    "워크플로의 존재 이유가 무너진 상태다.",
+                )
+
     def test_no_pathspec_is_a_dead_filter(self):
         import test_harness_checks_paths_coverage as coverage
 
