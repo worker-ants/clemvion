@@ -70,9 +70,11 @@ docstring 이 트레이드오프를 명시한다: ①(raw) 를 통과한 뒤 **�
 ## 작업
 
 - [x] `/consistency-check --impl-prep` — `20_57_25` **BLOCK: NO** (Critical 0 · Warning 0)
-- [x] ① phase 경계 회귀 테스트 추가 → **트래커 L868 항목 종결**
+- [x] ① phase 경계 회귀 테스트 추가 → 트래커 항목 **`throwIfAny` 의 phase 경계
+      트레이드오프 미검증** 종결
 - [x] **뮤테이션으로 판별력 검증** — 3종, 전부 예측대로 (아래 결과표)
-- [x] ② 유예 근거 교체 (트래커 L826-827) · ③ 실측값 141줄 갱신 · 조건부 항목(마커 리터럴
+- [x] ② 유예 근거 교체 (트래커 **`findMaskedResubmissions` 직접 단위 테스트 부재** 항목) ·
+      ③ 실측값 141줄 갱신 · 조건부 항목(마커 리터럴
       산문 재기술) 종결 — 전부 정본 트래커에 반영
 - [ ] TEST WORKFLOW 4단계 + 타입체크 ratchet
 - [ ] `/ai-review`
