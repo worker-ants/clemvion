@@ -320,9 +320,9 @@ describe('deepRedactSecrets (recursive, copy-on-change)', () => {
      * 보고 정상 입력을 거부하게 된다.
      */
     it('[경계] 상한 깊이의 문자열 잎은 값 검사를 먼저 받는다 — 순서 뒤집으면 RED', () => {
-      expect(deepRedactSecrets(nestObj(MAX_REDACT_DEPTH, 'plain-leaf'))).toEqual(
-        nestObj(MAX_REDACT_DEPTH, 'plain-leaf'),
-      );
+      expect(
+        deepRedactSecrets(nestObj(MAX_REDACT_DEPTH, 'plain-leaf')),
+      ).toEqual(nestObj(MAX_REDACT_DEPTH, 'plain-leaf'));
     });
 
     it('[경계] 그 자리의 비밀 문자열은 여전히 가려진다 — fail-closed 방향', () => {
