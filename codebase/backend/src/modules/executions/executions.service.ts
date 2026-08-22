@@ -482,44 +482,12 @@ export class ExecutionsService {
 
     // 입력 — 원본 그대로 / inputOverride (Manual Trigger 스키마 검증).
     const useOriginal = dto.useOriginalInput ?? true;
-    let executionInput: Record<string, unknown>;
-    if (useOriginal) {
-      executionInput = original.inputData ?? {};
-    } else {
-      const schema = await loadTriggerParameterSchema(
-        this.nodeRepository,
-        original.workflowId,
-        this.logger,
-      );
-      let parameters: Record<string, unknown>;
-      try {
-        // 마스킹된 값이 그대로 되돌아왔는가 — 프런트 가드(EIA §R17)의 서버측 2층.
-        // UI 를 거치지 않는 클라이언트(curl 등)는 프런트 차단을 우회하므로 여기서 막는다.
-        // 검사 시점(raw 우선)은 이 함수가 소유한다 — 호출부가 순서를 다시 정하지 않는다.
-        parameters = resolveTriggerParametersRejectingMasked(
-          schema,
+    const executionInput: Record<string, unknown> = useOriginal
+      ? (original.inputData ?? {})
+      : await this.resolveManualOverrideInput(
+          original.workflowId,
           dto.inputOverride ?? {},
         );
-      } catch (err) {
-        if (err instanceof TriggerParameterValidationException) {
-          throw new BadRequestException({
-            // **자매 호출부(`workflows.controller.ts`)와 같은 코드다** — 셋 다
-            // `resolveTriggerParameters` 의 같은 검증 실패를 감싸므로 최상위 코드도 같아야
-            // 한다. 2026-08-22 이전엔 이 자리만 `INVALID_INPUT` 이었다(선존 drift).
-            // rename 근거·잔여 위험: `spec/conventions/error-codes.md` §5.
-            code: 'INVALID_TRIGGER_PARAMETERS',
-            message: 'Invalid input override',
-            // **`errors` 가 아니라 `details` 다** — `GlobalExceptionFilter` 는 `details`
-            // 만 읽으므로 종전 `errors: err.errors` 는 필드별 내역이 봉투에 실리지 않고
-            // 조용히 버려졌다(선존 버그). 자매 호출부(`workflows.controller.ts`)는 처음부터
-            // 이 형태였다 — 이제 둘이 같아진다. spec: manual-trigger §6 "응답 봉투".
-            details: toTriggerParameterErrorDetails(err.errors),
-          });
-        }
-        throw err;
-      }
-      executionInput = { __triggerSource: 'manual' as const, parameters };
-    }
 
     // chain root = 원본의 chain_id (있으면) 아니면 원본 자신의 id.
     const chainId = original.chainId ?? original.id;
@@ -557,6 +525,61 @@ export class ExecutionsService {
 
     const detail = await this.findById(newExecutionId);
     return { ...detail, reRunOf: executionId, chainId, dryRun };
+  }
+
+  /**
+   * `useOriginalInput: false` 일 때 쓸 입력을 만든다 — 스키마 로드 → 마커 거부 resolve →
+   * 검증 실패를 응답 봉투로 매핑까지.
+   *
+   * ## 왜 이 덩어리만 뽑았나
+   *
+   * {@link reRun} 의 여섯 책임(조회+인가 · dry-run pre-flight · chain 깊이 · **입력 해석** ·
+   * execute · 감사로그) 중 나머지는 각각 5~10줄인데 입력 해석만 40줄이었다. 가장 크고,
+   * 세 층(로드·검증·에러 매핑)이 한 블록에 얽혀 있어 읽는 비용도 가장 컸다.
+   *
+   * > **`useOriginal` 판정은 여기 없다.** 호출부의 `inputModified` 계산이 같은 값을 쓰므로,
+   * > 기본값 `?? true` 를 이 안에도 두면 두 곳이 되고 한쪽만 바뀔 때 조용히 갈린다.
+   *
+   * > **`__triggerSource` 봉투까지 여기서 만든다.** 파라미터만 돌려주면 *"manual override
+   * > 입력은 이렇게 생겼다"* 는 계약이 호출부와 두 군데로 쪼개진다.
+   */
+  private async resolveManualOverrideInput(
+    workflowId: string,
+    inputOverride: Record<string, unknown>,
+  ): Promise<Record<string, unknown>> {
+    const schema = await loadTriggerParameterSchema(
+      this.nodeRepository,
+      workflowId,
+      this.logger,
+    );
+    let parameters: Record<string, unknown>;
+    try {
+      // 마스킹된 값이 그대로 되돌아왔는가 — 프런트 가드(EIA §R17)의 서버측 2층.
+      // UI 를 거치지 않는 클라이언트(curl 등)는 프런트 차단을 우회하므로 여기서 막는다.
+      // 검사 시점(raw 우선)은 그 wrapper 가 소유한다 — 호출부가 순서를 다시 정하지 않는다.
+      parameters = resolveTriggerParametersRejectingMasked(
+        schema,
+        inputOverride,
+      );
+    } catch (err) {
+      if (err instanceof TriggerParameterValidationException) {
+        throw new BadRequestException({
+          // **자매 호출부(`workflows.controller.ts`)와 같은 코드다** — 셋 다
+          // `resolveTriggerParameters` 의 같은 검증 실패를 감싸므로 최상위 코드도 같아야
+          // 한다. 2026-08-22 이전엔 이 자리만 `INVALID_INPUT` 이었다(선존 drift).
+          // rename 근거·잔여 위험: `spec/conventions/error-codes.md` §5.
+          code: 'INVALID_TRIGGER_PARAMETERS',
+          message: 'Invalid input override',
+          // **`errors` 가 아니라 `details` 다** — `GlobalExceptionFilter` 는 `details`
+          // 만 읽으므로 종전 `errors: err.errors` 는 필드별 내역이 봉투에 실리지 않고
+          // 조용히 버려졌다(선존 버그). 자매 호출부(`workflows.controller.ts`)는 처음부터
+          // 이 형태였다 — 이제 둘이 같아진다. spec: manual-trigger §6 "응답 봉투".
+          details: toTriggerParameterErrorDetails(err.errors),
+        });
+      }
+      throw err;
+    }
+    return { __triggerSource: 'manual' as const, parameters };
   }
 
   /**
