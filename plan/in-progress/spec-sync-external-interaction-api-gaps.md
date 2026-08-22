@@ -914,6 +914,21 @@ push 직전 확인에서 발각됐다. `review/**` 는 SoT 가 아니므로 여�
       > 같은 디렉토리의 형제 `execute-node.dto.ts` 가 이미 다수 패턴을 쓴다 — 내가 이번에
       > **잘못된 형제**를 베꼈다가 checker 에 잡혔다.
 
+- [ ] **`ExecuteWorkflowDto.input` 이 형제 `ExecuteNodeDto.input` 과 이름은 같고 의미가 다르다**
+      (2026-08-23 등재, `00_33_31` naming_collision W1). `@ApiBody` 배선으로 둘이 처음
+      **같은 Swagger 표면에 동시 노출**됐다 — 전자는 `.parameters` 를 품는 봉투, 후자는
+      노드 입력 값 자체다.
+      > **checker 가 제안한 `legacyInput` 리네임은 성립하지 않는다** (실측): 런타임이
+      > `body?.input` 을 읽으므로(`workflows.controller.ts:308,343`) DTO 필드명만 바꾸면
+      > **OpenAPI 가 존재하지 않는 필드명을 광고**하게 된다 — 클라이언트가 `legacyInput` 을
+      > 보내면 조용히 무시된다. *"런타임 계약 불변, OpenAPI 표면만 변경"* 이라는 제안 근거가
+      > 바로 그 이유로 틀렸다.
+      >
+      > 현재는 docstring 의 `{@link ExecuteNodeDto.input}` 상호 참조로 완화돼 있고 checker 도
+      > *"즉시 변경 불요"* 로 판정했다. 진짜로 이름을 바꾸려면 **와이어 필드명 자체를 바꾸는
+      > 계약 변경**이라, 위의 "여분 키 400 거부" 항목과 같은 성격(사용자 판단 필요)이다.
+
+
 - [ ] **`swagger.md §3` 의 기본 수치 규칙(`DTO description 10~40자`)이 현실과 벌어져 있다**
       (2026-08-22 등재, 위 §3 예외 확장 작업의 부수 실측). 예외 확장은 **보안·정책 캐비엇
       클래스**만 덮는데, 실측하면 그보다 훨씬 넓다 — 요청 DTO `description` **333개 중
