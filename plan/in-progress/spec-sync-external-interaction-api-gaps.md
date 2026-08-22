@@ -822,6 +822,16 @@ push 직전 확인에서 발각됐다. `review/**` 는 SoT 가 아니므로 여�
       다음에 손댈 때 입력 해석 블록을 private 헬퍼로.
 - [ ] **`findMaskedResubmissions` 직접 단위 테스트 부재** — 상위 함수 경유 간접 커버만.
       세 번째 소비처가 생기면 그때.
+- [ ] **`swagger.md §3` 의 길이-예외가 응답 필드만 문면상 포괄한다** (2026-08-22 등재,
+      `20_05_10` convention_compliance W1). 그 예외는 *"**응답** 값이 저장된 값과 다를 수 있는
+      필드(egress 마스킹 대상 등)"* 라 적혀 있어 **요청 필드의 보안·거부 규칙 캐비엇**
+      (`ReRunRequestDto.inputOverride` 의 마커 예약어)은 문면상 대상이 아니다.
+      > **실무가 이미 앞서 있다** — checker 실측: 같은 파일의 `dryRun` description 도 길이
+      > 가이드를 초과한 상태다. 즉 규약 문면이 현실보다 좁다(§3 이 자기 이력에서 *"이미 굳은
+      > 관행의 추인"* 이라 밝힌 것과 같은 형태의 재발).
+      > **이번 PR 은 예외에 기대지 않고 길이 가이드 안(129자)으로 들어가 회피했다** — 예외
+      > 범위를 넓히는 것은 규약 개정이라 **planner 턴**이다.
+
 - [ ] **마커 리터럴을 산문으로 재기술한 지점이 3곳 늘었다** (2026-08-22 등재, `19_36_12`
       requirement W1). `masked-marker-cosmetic-followups` 가 Swagger description ·
       `REASON_TO_DETAIL` JSDoc · base 함수 JSDoc 에 마커/거부 규칙을 **산문으로** 적었다.
