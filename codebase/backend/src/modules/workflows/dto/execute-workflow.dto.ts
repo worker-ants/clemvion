@@ -42,10 +42,16 @@ export class ExecuteWorkflowDto {
    * **{@link ExecuteNodeDto.input} 과 이름만 같고 형태가 다르다.** 그쪽은 노드 입력 값
    * 자체이고, 이쪽은 `parameters` 를 품는 **봉투**다 — 같은 컨트롤러의 OpenAPI 표면에
    * 나란히 노출되므로 구분해 둔다. 나머지 키는 실행 입력에 그대로 실린다.
+   *
+   * > **마커 거부는 두 필드에 똑같이 걸린다** (`00_07_27` requirement W1). 컨트롤러가
+   * > `parameterValues ?? input.parameters` 로 합류시킨 뒤 `resolveTriggerParametersRejectingMasked`
+   * > 를 **한 번** 부르기 때문이다 — 한쪽 description 에만 적으면 다른 경로로 보내는
+   * > 클라이언트가 규칙을 못 본다.
    */
   @ApiPropertyOptional({
     description:
-      '레거시 봉투. `parameterValues` 미지정 시 `input.parameters` 사용',
+      '레거시 봉투. `parameterValues` 미지정 시 `input.parameters` 사용 — ' +
+      '그 값도 동일한 마커 거부 대상.',
     type: 'object',
     additionalProperties: true,
   })
