@@ -136,13 +136,25 @@ Manual Trigger 의 파라미터 스키마 검증(`resolveTriggerParameters`)이 
 
 ## 5. Rename 이력 (Retired codes)
 
-§2 의 안정성 정책은 rename 을 breaking change 로 규정한다. 그럼에도 아래 코드는 **소비자가 자사 클라이언트뿐**(프론트엔드가 구·신 코드를 양쪽 매핑)이라 breaking 영향이 없음을 확인한 뒤 교체했다. 구 코드는 더 이상 발행되지 않으며(코드베이스에서 완전 제거), **외부 client 코드에 분기로 노출된 적이 없다**(문서 목록에만 노출됐던 코드는 신규 코드로 동기화). rename 배경 추적용 이력으로만 남긴다.
+§2 의 안정성 정책은 rename 을 breaking change 로 규정한다. 그럼에도 아래 코드는 흡수 조건을 충족해 교체했다. 구 코드는 더 이상 발행되지 않으며(코드베이스에서 완전 제거) rename 배경 추적용 이력으로만 남긴다.
+
+**흡수 조건은 두 등급이다** — 어느 등급으로 들어왔는지 각 행의 비고에 적는다.
+
+| 등급 | 조건 | 근거의 성격 |
+|---|---|---|
+| **A. 영향 부재 확인** | 소비자가 자사 클라이언트뿐이고(프론트엔드가 구·신 코드를 양쪽 매핑) **외부 client 코드에 분기로 노출된 적이 없다** — 문서 목록에만 노출됐던 코드는 신규 코드로 동기화 | 배제 |
+| **B. 잔여 위험 인수** | 저장소 밖 호출자를 **원리적으로 배제할 수 없는** 표면(워크스페이스 JWT 로 호출 가능한 내부 REST 등)이지만, 관측 가능한 범위(자사 프론트 코드·저장소 전수 grep)에서 분기 지점이 **발견되지 않았고**, 남는 위험을 **명시적으로 인수**했다 | 미발견 + 인수 |
+
+> **B 는 A 의 완화가 아니라 별개 등급이다.** A 는 *"영향이 없다"* 를 주장하고 B 는 *"영향을
+> 관측하지 못했다"* 를 주장한다 — 후자는 반증 가능성이 열려 있으므로 **사용자 결정**을
+> 요구하고, 그 결정 사실을 행에 남긴다. B 등급 행이 늘어나면 §2 의 안정성 보장이 실질적으로
+> 약해지므로, **B 는 예외로 세어야 하지 관행으로 굳혀선 안 된다.**
 
 | 구 코드 | 대체 코드 | HTTP | PR | 비고 |
 |---|---|---|---|---|
 | `LLM_CONFIG_NOT_FOUND` | `MODEL_CONFIG_DEFAULT_MISSING` | 400 | PR4b | id 미지정 시 워크스페이스 default config 부재 경로 — `resolveConfig`(chat/LLM) 전용. id 부재(404)는 `MODEL_CONFIG_NOT_FOUND` 로 별도 분리. `resolveEmbedding` ws-default 부재도 `MODEL_CONFIG_NOT_FOUND`(404) 유지(리소스 부재, 사용자 결정 2026-06-12) ([3-error-handling.md §1.3 Rationale](../5-system/3-error-handling.md#rationale)) |
 | `LLM_CONFIG_INVALID` | `MODEL_CONFIG_INVALID` | 400 | PR4b | 접두어를 `MODEL_CONFIG_*` 로 통일 (LLMConfig→ModelConfig 1급 통합). 의미·status 변경 없음 |
-| `INVALID_INPUT` | `INVALID_TRIGGER_PARAMETERS` | 400 | #TBD_PR | Manual re-run(`POST /executions/:id/re-run`)의 `inputOverride` 검증 실패 봉투. 같은 검증(`resolveTriggerParameters`)을 쓰는 자매 두 경로(주 실행·저장)가 처음부터 `INVALID_TRIGGER_PARAMETERS` 였고 이 경로만 달랐던 **선존 drift** 를 통일. **⚠️ 본 표에서 리스크 등급이 가장 높은 행이다** — 위 세 행은 *"소비자가 자사 클라이언트뿐이라 breaking 영향이 **없음을 확인**"* 한 사례인 반면, 이 행은 **워크스페이스 JWT 로 호출 가능한 내부 REST 엔드포인트**라 저장소 밖 서드파티가 이 값으로 분기했을 가능성을 **코드로 배제할 수 없다**. 판정 근거는 "부재 확인" 이 아니라 **관측(grep) 범위에서 미발견**이다(프런트 `rerun-modal.tsx` `ERROR_CODE_TO_KEY` 는 `RERUN_*` 4종만 매핑 — 이 코드는 generic fallback, 저장소 내 나머지 노출은 유저 가이드 mdx 2곳). **그 잔여 위험을 명시 인수한 최초 사례**(사용자 결정 2026-08-22)이므로, 이후 이 표를 *"공개 API 든 rename 안전"* 으로 일반화하지 말 것 |
+| `INVALID_INPUT` | `INVALID_TRIGGER_PARAMETERS` | 400 | #TBD_PR | **[등급 B — 잔여 위험 인수]** Manual re-run(`POST /executions/:id/re-run`)의 `inputOverride` 검증 실패 봉투. 같은 검증(`resolveTriggerParameters`)을 쓰는 자매 두 경로(주 실행·저장)가 처음부터 `INVALID_TRIGGER_PARAMETERS` 였고 이 경로만 달랐던 **선존 drift** 를 통일. **⚠️ 본 표에서 리스크 등급이 가장 높은 행이다** — 위 세 행은 *"소비자가 자사 클라이언트뿐이라 breaking 영향이 **없음을 확인**"* 한 사례인 반면, 이 행은 **워크스페이스 JWT 로 호출 가능한 내부 REST 엔드포인트**라 저장소 밖 서드파티가 이 값으로 분기했을 가능성을 **코드로 배제할 수 없다**. 판정 근거는 "부재 확인" 이 아니라 **관측(grep) 범위에서 미발견**이다(프런트 `rerun-modal.tsx` `ERROR_CODE_TO_KEY` 는 `RERUN_*` 4종만 매핑 — 이 코드는 generic fallback, 저장소 내 나머지 노출은 유저 가이드 mdx 2곳). **그 잔여 위험을 명시 인수한 최초 사례**(사용자 결정 2026-08-22)이므로, 이후 이 표를 *"공개 API 든 rename 안전"* 으로 일반화하지 말 것 |
 | `WORKSPACE_REQUIRED` | `WORKSPACE_ID_REQUIRED` | 400 | #566 | chat-channel `rotate-bot-token` controller 인라인 코드(`401`)를 공용 `@WorkspaceId()` 데코레이터 canonical(`400`)로 통일 (HTTP status 도 401→400 정정). user-docs 목록에만 노출됐고 client 하드코딩 분기 없음 — breaking 영향 0. 경위 [15-chat-channel.md §R-CC-18](../5-system/15-chat-channel.md#r-cc-18-rotate-bot-token-workspace-검증--공용-workspaceid-데코레이터-통일) |
 
 ## Rationale
@@ -170,3 +182,12 @@ Manual Trigger 의 파라미터 스키마 검증(`resolveTriggerParameters`)이 
   breaking 정책이 적용돼 §5 흡수가 아니라 신설(§3·§4) 또는 정식 마이그레이션을 거친다. 즉 §5 는
   "노출 0" 이 아니라 "client 분기 0" 을 흡수 조건으로 삼는다 (`WORKSPACE_REQUIRED` 등재가 이 기준의
   첫 적용 — user-docs 노출은 있었으나 client 분기는 없었다).
+
+- **그 2분법에 없던 제3상태를 §5 표 등급 B 로 명문화했다 (2026-08-22)**: 위 서술은 *"분기 0 을
+  확인"* 과 *"하드코딩 분기 존재"* 두 갈래만 다룬다. 그런데 **워크스페이스 JWT 로 호출 가능한
+  내부 REST 엔드포인트**는 저장소 밖 호출자를 원리적으로 배제할 수 없어 어느 쪽으로도 판정되지
+  않는다 — 관측되는 것은 *"찾지 못했다"* 뿐이다. `INVALID_INPUT` → `INVALID_TRIGGER_PARAMETERS`
+  통일이 그 상태의 첫 사례이고, 등급을 **A(영향 부재 확인) / B(잔여 위험 인수)** 로 갈라
+  등재했다. 이 갈래를 만들지 않으면 두 선택지밖에 없다 — 근거를 **과장해** A 로 적거나(원칙문이
+  실제보다 강해진다), 실질 위험이 없는데도 정식 마이그레이션을 강제하거나. 등급을 나누면
+  **각 행이 자기 근거의 강도를 스스로 말한다.**

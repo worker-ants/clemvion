@@ -162,7 +162,10 @@ spec_impact:
 - [x] spec 편집 3건 (wrapper 함수명 · §R17 볼드 · `error-codes.md §4` 표 → **§4.1/§4.2 분리**)
 - [x] 코드·Swagger·테스트
 - [x] 유저 가이드 KO/EN 2곳 (선존 drift 동반 정정)
-- [x] 정본 트래커 4항목 `[x]` (결정 항목 + spec 3건) — 미체크 38 → 34
+- [x] 정본 트래커 4항목 `[x]` (결정 항목 + spec 3건)
+      > **카운트 기준 시점** (`17_40_20` plan_coherence INFO): `origin/main` 실측은 **37**이다.
+      > 이 브랜치 선두의 재판정 커밋이 egress-masking 항목 1건을 **신규 등재**해 38 이 됐고,
+      > 거기서 4건을 닫아 **34** 가 됐다. 즉 `37 → (+1) 38 → (−4) 34`.
 - [x] TEST WORKFLOW 4단계 + 타입체크 ratchet — lint / unit(backend 8,896 · frontend 6,107 ·
       web-chat 451) / build / e2e(backend 276 + playwright 51). ratchet 199건/38파일 일치.
       > build·e2e 가 각 1회씩 Docker VM 디스크 부족으로 죽었다 — 코드 결함 아님.
