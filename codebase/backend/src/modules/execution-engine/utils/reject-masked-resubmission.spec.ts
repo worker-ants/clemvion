@@ -310,6 +310,49 @@ describe('resolveTriggerParametersRejectingMasked', () => {
     expect(reasons).not.toContain('coerce_failed');
   });
 
+  /**
+   * **알려진 트레이드오프를 기계로 고정한다** (`01_15_47` testing INFO-3).
+   *
+   * 위 캐너리의 **반대 방향**이다. ①(raw)을 통과한 뒤 **무관한 필드**의 진짜 타입 오류로
+   * resolve 가 `coerce_failed` 를 던지면, ②(JSON 문자열 안의 마커)는 그 요청에서 **아예
+   * 실행되지 않는다.** 사용자는 타입 오류를 먼저 고치고 재제출하며 그때 마커 안내를 받는다 —
+   * 보안 우회가 아니라 **안내가 한 왕복 늦어지는** UX 엣지케이스다.
+   *
+   * > **여기가 RED 면 버그가 아니라 결정 신호다.** 두 phase 를 합쳐 한 번에 보고하도록
+   * > 바꾸면 깨진다. 그 자체는 개선일 수 있으나 합치려면 resolve 를 강행해야 하고, 그러면
+   * > `coerce_failed` 가 마커 안내에 섞여 **안내가 다시 흐려진다** — 이 시리즈가 되돌린
+   * > 바로 그 문제다. 바꾸려면 {@link resolveTriggerParametersRejectingMasked} 곁의
+   * > `throwIfAny` docstring 을 읽고 **의도적으로** 이 테스트를 갱신하라.
+   */
+  it('[캐너리] 무관한 필드의 coerce 실패가 ② 마커 검사를 선점한다', () => {
+    const schema: TriggerParameterDefinition[] = [
+      { name: 'payload', type: 'object' },
+      { name: 'count', type: 'number' },
+    ];
+    const jsonWithMarker = `{"apiKey":"${VALUE_MASK_MARKER}"}`;
+
+    // 대조군 — coerce 가 성공하면 ②가 돌아 **같은 마커를 잡는다.**
+    // 이 줄이 없으면 아래 단언은 "애초에 ②도 못 잡는 값" 으로도 통과한다(vacuous).
+    expect(
+      rejectedFields(schema, { payload: jsonWithMarker, count: 1 }),
+    ).toEqual(['payload']);
+
+    // 실험군 — 마커와 무관한 `count` 가 coerce 에서 죽으면 그 마커는 보고되지 않는다.
+    let reasons: string[] = [];
+    try {
+      resolveTriggerParametersRejectingMasked(schema, {
+        payload: jsonWithMarker,
+        count: 'not-a-number',
+      });
+    } catch (err_: unknown) {
+      if (err_ instanceof TriggerParameterValidationException) {
+        reasons = err_.errors.map((e) => e.reason);
+      }
+    }
+    expect(reasons).toEqual(['coerce_failed']);
+    expect(reasons).not.toContain('masked_value_resubmitted');
+  });
+
   it('null·비객체 raw 를 안전하게 지나간다', () => {
     expect(rejectedFields([{ name: 'a', type: 'string' }], null)).toEqual([]);
     expect(rejectedFields([{ name: 'a', type: 'string' }], 'nope')).toEqual([]);
