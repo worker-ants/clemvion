@@ -1,6 +1,6 @@
 ---
 title: "`POST /workflows/:id/execute` 본문을 OpenAPI 에 싣는다 — 계약은 건드리지 않고"
-status: in-progress
+status: complete
 worktree: execute-body-dto-c37965
 started: 2026-08-22
 owner: developer
@@ -10,7 +10,7 @@ spec_impact: none
 # `execute()` 요청 본문 OpenAPI 문서화
 
 정본 트래커
-[`spec-sync-external-interaction-api-gaps.md`](./spec-sync-external-interaction-api-gaps.md)
+[`spec-sync-external-interaction-api-gaps.md`](../in-progress/spec-sync-external-interaction-api-gaps.md)
 의 마커 시리즈 이월 항목 중 **마지막 남은 1건**. 형제 `re-run` 은 `ReRunRequestDto` 가 있어
 #1195 에서 마커 예약어 제약을 `description` 에 넣었는데, `execute` 는 **인라인 타입 +
 `@ApiBody` 부재**라 넣을 자리가 없다. 두 경로는 같은 거부 규칙
@@ -46,12 +46,27 @@ spec_impact: none
 
 ## 작업
 
-- [ ] `/consistency-check --impl-prep`
-- [ ] `ExecuteWorkflowDto` 신설 (`@ApiPropertyOptional` 만, class-validator 데코레이터 없음)
-- [ ] `@ApiBody({ type: ExecuteWorkflowDto })` 추가 — `@Body()` 인라인 타입은 유지
-- [ ] 트래커 항목 종결 + "검증 켜기" 신규 등재
-- [ ] TEST WORKFLOW 4단계 + 타입체크 ratchet
-- [ ] `/ai-review`
+- [x] `/consistency-check --impl-prep` — `23_46_23` **BLOCK: NO**. W1(열린 map 표기) 반영,
+      INFO 2건(설명 길이·동명 필드 구분) 반영
+- [x] `ExecuteWorkflowDto` 신설 (`@ApiPropertyOptional` 만, class-validator 데코레이터 없음)
+- [x] `@ApiBody({ type: ExecuteWorkflowDto })` 추가 — `@Body()` 인라인 타입은 유지
+- [x] 트래커 항목 종결 + "검증 켜기" 신규 등재 (+ `re-run.dto.ts` 표기 후속 등재)
+- [x] TEST WORKFLOW 4단계 + 타입체크 ratchet — 4단계 PASS (backend **8,909** ·
+      frontend 6,130 · web-chat 451 · e2e backend 276 + playwright 51), ratchet 199건/38파일
+- [x] `/ai-review` — `00_07_27` **Critical 0 · Warning 3**, 3건 전부 반영 후 재검증
+
+## 뮤테이션 결과 — 예측을 먼저 적고 실행했다
+
+| 뮤턴트 | 예측 | 실측 |
+| --- | --- | --- |
+| `@Body()` 를 `ExecuteWorkflowDto` 로 타입 (계약 축소) | 캐너리 RED | ✅ RED (2건) |
+| `@ApiBody` 가 형제 `ExecuteNodeDto` 를 참조 (복붙 실수) | 신규 OpenAPI 가드 RED | ✅ **RED, 그 가드 단독** — 나머지 8건 GREEN |
+
+둘 다 `tsc` 선검증 0 오류로 **유효 뮤턴트**임을 확인했다(컴파일 실패로 인한 거짓 RED 아님).
+원복 후 `cmp` 바이트 동일, 168/168 재확인.
+
+> 두 번째가 이 라운드의 수확이다 — 리뷰가 *"런타임만 지키는 캐너리는 이 PR 의 목적을
+> 못 지킨다"* 고 지적했고, 실측하니 정확히 그랬다(기존 8건 전부 GREEN).
 
 ## 검증 기준
 
