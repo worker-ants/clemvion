@@ -781,7 +781,7 @@ push 직전 확인에서 발각됐다. `review/**` 는 SoT 가 아니므로 여�
       > **닫았다 (2026-08-22, `eia-error-code-unify`)** — 통일 집행. spec 6파일 + 코드 2곳 +
       > 테스트 + 유저 가이드 KO/EN. 은퇴 코드는 `error-codes.md §5` Rename 이력에 등재했고,
       > 그 행에 **본 표에서 리스크 등급이 가장 높다**는 사실(제3자 분기를 코드로 배제 불가,
-      > 판정 근거는 관측 범위 미발견)을 명시했다. 설계·기각 대안: [`eia-error-code-unify.md`](./eia-error-code-unify.md)
+      > 판정 근거는 관측 범위 미발견)을 명시했다. 설계·기각 대안: [`eia-error-code-unify.md`](../complete/eia-error-code-unify.md)
 - [ ] **`ReRunRequestDto.inputOverride` Swagger description** 에 마스킹 마커 3종이 예약어라는
       제약이 없다. 5라운드 연속 이월 — 다음 DTO 편집 기회에 한 줄.
 - [x] **마커 리터럴 cross-stack 계약 테스트 부재** — 프런트 `lib/utils/masked-markers.ts` 와
