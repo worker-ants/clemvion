@@ -30,7 +30,7 @@ code: ["codebase/backend/src/nodes/trigger/manual-trigger/manual-trigger.schema.
 <FieldTable rows={[
   {name: "name", required: true, type: "string", description: "파라미터 식별자예요. 영문, 숫자, `_`만 허용하고 trigger 노드 내에서 유일해야 해요.", default: "-"},
   {name: "type", required: true, type: "enum", description: "`string` / `number` / `boolean` / `object` / `array` 중 하나예요. 실행 시 자동 타입 강제 변환이 적용돼요.", default: "string"},
-  {name: "required", required: false, type: "boolean", description: "true면 값 누락 시 실행이 `INVALID_INPUT`으로 실패해요.", default: "false"},
+  {name: "required", required: false, type: "boolean", description: "true면 값 누락 시 실행이 `INVALID_TRIGGER_PARAMETERS`로 실패해요.", default: "false"},
   {name: "defaultValue", required: false, type: "any", description: "required가 false일 때 값이 없으면 이 값으로 채워요.", default: "-"},
   {name: "description", required: false, type: "string", description: "Run 대화상자에서 힌트로 표시돼요.", default: "-"}
 ]} />

@@ -149,7 +149,7 @@ spec_impact:
 
 - [x] `/consistency-check --plan` — **BLOCK: NO** (`16_34_50`). WARNING 2 · INFO 8 전부 반영:
       W1(선례에 없는 근거 소급 부여) 정정 · W2(`§4` 단순 append 금지) · INFO 1·3·4·5·6·7·8
-- [ ] spec 6파일 개정 (`error-codes.md §5` Rename 이력 행 신설 포함)
+- [x] spec 6파일 개정 (`error-codes.md §5` Rename 이력 행 신설 포함)
       - `§5` 신규 행 **"PR" 컬럼**은 **이 작업의 PR 번호**를 쓴다 — 실측 근거로 인용한
         커밋 `7b0e65aa8` 을 옮겨 적지 않는다 (`16_34_50` naming_collision INFO)
       - `§5` 신규 행 **비고**에 리스크 등급 명시 — *"내부 REST 엔드포인트, 제3자 분기는
@@ -159,19 +159,34 @@ spec_impact:
         갭도 함께 메운다)
       - `13-replay-rerun.md §8.1` 표에 **`RERUN_` prefix 미사용이 의도**임을 각주로 —
         형제 `RERUN_*` 와 어긋나 보이는 이유가 *"Manual 실행/저장 경로와 코드를 공유"* 임
-- [ ] spec 편집 3건 (wrapper 함수명 · §R17 볼드 · `error-codes.md §4` 표)
-- [ ] 코드·Swagger·테스트
-- [ ] 유저 가이드 KO/EN 2곳
-- [ ] 정본 트래커 4항목 `[x]` (결정 항목 + spec 3건)
+- [x] spec 편집 3건 (wrapper 함수명 · §R17 볼드 · `error-codes.md §4` 표 → **§4.1/§4.2 분리**)
+- [x] 코드·Swagger·테스트
+- [x] 유저 가이드 KO/EN 2곳 (선존 drift 동반 정정)
+- [x] 정본 트래커 4항목 `[x]` (결정 항목 + spec 3건) — 미체크 38 → 34
 - [ ] TEST WORKFLOW 4단계 + 타입체크 ratchet
 - [ ] `/ai-review`
 
 ## 검증 기준
 
-- 통일 후 `grep -rn 'INVALID_INPUT' codebase spec` 의 잔존은 **`error-codes.md §5` 이력 행
-  하나**여야 한다(은퇴 코드의 기록). 그 밖에 남으면 동반 개정 누락이다.
-- 두 엔드포인트가 같은 검증 실패에서 **같은 최상위 코드 + 같은 `details[]` 항목 코드**를
-  내는지 테스트로 고정한다.
+- **실측 (2026-08-22, 편집 직후)**: `grep -rn 'INVALID_INPUT' codebase spec` = **5건**,
+  전부 *"여기가 예전에 `INVALID_INPUT` 이었다"* 를 적은 **이력 기록**이다 — 발행 지점 0건.
+
+| # | 잔존 위치 | 성격 |
+| --- | --- | --- |
+| 1 | `executions.service.ts:508` 발행부 주석 | 왜 자매와 같은 코드인지 |
+| 2·3 | `3-error-handling.md:91,93` §1.3 콜아웃 | 무엇이 기각됐고 무엇이 뒤집혔는지 |
+| 4 | `13-replay-rerun.md:252` §8.1 각주 | `RERUN_` prefix 미사용 근거 |
+| 5 | `error-codes.md:145` §5 Rename 이력 행 | 은퇴 코드 정본 등재 (**구 코드 컬럼**) |
+
+  > 처음 이 자리에 *"잔존은 `error-codes.md §5` 이력 행 하나여야 한다"* 고 적었는데
+  **너무 좁았다** — 이력은 한 곳에 모으는 것이 아니라 **뒤집힌 서술이 있던 자리마다**
+  남겨야 다음 사람이 그 자리에서 읽는다. 기준을 실제 결과로 교체한다.
+
+- **세 엔드포인트가 같은 코드를 낸다는 것이 각 소비처 테스트로 고정돼 있다** (실측:
+  `INVALID_TRIGGER_PARAMETERS` 를 단언하는 spec 파일 **3개** —
+  `workflows.controller.spec.ts`(주 실행) · `workflows.service.spec.ts`(저장) ·
+  `executions-rerun.service.spec.ts`(re-run)). `details[]` 항목 코드는 셋 다
+  `toTriggerParameterErrorDetails` 를 거치므로 원래 동일하다.
 
 ## Rationale
 

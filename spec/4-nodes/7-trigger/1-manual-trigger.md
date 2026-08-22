@@ -5,6 +5,7 @@ code:
   - codebase/backend/src/nodes/trigger/manual-trigger/manual-trigger.handler.ts
   - codebase/backend/src/nodes/trigger/manual-trigger/manual-trigger.schema.ts
   - codebase/backend/src/modules/execution-engine/utils/resolve-trigger-parameters.ts
+  - codebase/backend/src/modules/execution-engine/utils/reject-masked-resubmission.ts
   - codebase/backend/src/modules/workflows/workflows.service.ts
   - codebase/frontend/src/components/editor/settings-panel/node-configs/trigger-configs.tsx
 ---
@@ -178,13 +179,26 @@ Manual Trigger 핸들러는 **runtime 에러 포트를 갖지 않는다**. 모�
 | 어댑터 | 응답 (Execution 미생성) | 처리 위치 |
 |--------|------------------------|-----------|
 | Manual (주 실행 경로) | `400 Bad Request` code `INVALID_TRIGGER_PARAMETERS` | `workflows.controller.ts` |
-| Manual re-run (inputOverride) | `400 Bad Request` code `INVALID_INPUT` | `executions.service.ts` |
+| Manual re-run (inputOverride) | `400 Bad Request` code `INVALID_TRIGGER_PARAMETERS` | `executions.service.ts` |
 | Webhook | `400 Bad Request` code `INVALID_WEBHOOK_PAYLOAD` | `hooks.service.ts` |
 | Schedule | Execution 미생성으로 끝나지 않음 — 런타임에 `warn` 로그 후 schema-less fallback 으로 실행 진행 (가능한 default 채움) | `schedule-runner.service.ts` |
 
 > **응답 봉투**: Manual·Webhook·**Manual re-run** 경로의 컨트롤러/서비스는 `BadRequestException({ code, message, details })` 를 throw 하며, 전역 `GlobalExceptionFilter` 가 이를 프로젝트 공식 에러 봉투([API 규약 §5.3](../../5-system/2-api-convention.md#53-에러-응답))로 직렬화해 `{ error: { code, message, requestId, details } }` 로 응답한다. 내부 분류 문자열(`missing_required`/`coerce_failed`/`invalid_schema`/`masked_value_resubmitted`)은 공용 헬퍼 `toTriggerParameterErrorDetails` 가 `error.details[]` 의 `UPPER_SNAKE_CASE` field code(`MISSING_REQUIRED_FIELD`/`TYPE_COERCION_FAILED`/`INVALID_SCHEMA`/`MASKED_VALUE_RESUBMITTED`)로 정규화해 surface 한다 ([Spec Webhook §5.2](../../5-system/12-webhook.md#52-400-응답-형식) · [error-handling §1.7](../../5-system/3-error-handling.md#17-webhook-수신-에러-코드-도메인-spec-참조)).
 >
 > > **re-run 이 이 목록에 들어온 것은 2026-08-20 이다.** 그전까지 `executions.service.ts` 는 내부 reason 을 `errors` 키로 던졌고 `GlobalExceptionFilter` 는 `details` 만 읽어 **필드별 내역이 응답에 실리지 않았다** — 위 문장이 종전에 Manual·Webhook 만 열거한 것은 그 사실을 정확히 반영한 서술이었다. `masked_value_resubmitted` 를 얹으면서 그 배선을 함께 교정했다.
+
+> **마커 재제출 거부는 base 가 아니라 wrapper 가 한다.** Manual 두 경로
+> (`POST /workflows/:id/execute` · `POST /executions/:id/re-run`)는
+> `resolveTriggerParameters`(base)를 **직접 부르지 않고**
+> `resolveTriggerParametersRejectingMasked`(`execution-engine/utils/reject-masked-resubmission.ts`)
+> 를 부른다. 그 wrapper 가 `masked_value_resubmitted` 검사를 raw 단계에서 먼저 수행한 뒤
+> base 로 위임한다.
+>
+> **base 자체에 넣지 않은 것은 의도다** — base 는 Webhook·Schedule 어댑터도 공유하는데,
+> 그쪽은 egress 마스킹 마커를 되돌려 받는 표면이 아니다. 공유 함수에 넣으면 무관한 경로가
+> 같은 거부 규칙을 지게 된다. 규칙의 강제는 CI 가드
+> (`repo-guards/__tests__/masked-reject-callers-guard.ts`)가 맡는다 — Manual 경로가 base 를
+> 직접 부르면 RED. 정의 SoT 는 [EIA §R17](../../5-system/14-external-interaction-api.md).
 
 세 어댑터의 공통 검증 시점·실패 응답은 [Trigger 공통 §1](./0-common.md#1-트리거-진입-파라미터-공통-계약) 참조.
 

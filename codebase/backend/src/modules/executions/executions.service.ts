@@ -503,7 +503,11 @@ export class ExecutionsService {
       } catch (err) {
         if (err instanceof TriggerParameterValidationException) {
           throw new BadRequestException({
-            code: 'INVALID_INPUT',
+            // **자매 호출부(`workflows.controller.ts`)와 같은 코드다** — 셋 다
+            // `resolveTriggerParameters` 의 같은 검증 실패를 감싸므로 최상위 코드도 같아야
+            // 한다. 2026-08-22 이전엔 이 자리만 `INVALID_INPUT` 이었다(선존 drift).
+            // rename 근거·잔여 위험: `spec/conventions/error-codes.md` §5.
+            code: 'INVALID_TRIGGER_PARAMETERS',
             message: 'Invalid input override',
             // **`errors` 가 아니라 `details` 다** — `GlobalExceptionFilter` 는 `details`
             // 만 읽으므로 종전 `errors: err.errors` 는 필드별 내역이 봉투에 실리지 않고

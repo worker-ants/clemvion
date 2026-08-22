@@ -327,7 +327,7 @@ describe('ExecutionsService — reRun (decision F2)', () => {
     );
   });
 
-  it('throws INVALID_INPUT when inputOverride fails trigger schema validation', async () => {
+  it('throws INVALID_TRIGGER_PARAMETERS when inputOverride fails trigger schema validation', async () => {
     getOneQueue = [
       {
         id: 'e1',
@@ -419,7 +419,7 @@ describe('ExecutionsService — reRun (decision F2)', () => {
       details?: { field: string; code: string }[];
       errors?: unknown;
     };
-    expect(body.code).toBe('INVALID_INPUT');
+    expect(body.code).toBe('INVALID_TRIGGER_PARAMETERS');
     // 내부 reason 원문을 그대로 흘리지 않는다.
     expect(body.errors).toBeUndefined();
     expect(body.details).toEqual([

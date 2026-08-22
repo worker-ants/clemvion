@@ -758,7 +758,7 @@ ES-module 순환 위에 놓인다. 생성자의 `forwardRef` 도 같은 이유�
 RESOLUTION 에 "트래커로 넘긴다" 고 적었는데 **실제로는 어디에도 적히지 않은 상태였다** —
 push 직전 확인에서 발각됐다. `review/**` 는 SoT 가 아니므로 여기 등재한다.
 
-- [ ] **두 Manual 엔드포인트의 최상위 `error.code` 가 다르다** — `re-run` 은 `INVALID_INPUT`,
+- [x] **두 Manual 엔드포인트의 최상위 `error.code` 가 다르다** — `re-run` 은 `INVALID_INPUT`,
       `execute` 는 `INVALID_TRIGGER_PARAMETERS`. **이 PR 이전부터 존재**하는 drift 이고
       spec 에도 명시돼 있다. 통일하면 기존 클라이언트가 보는 코드가 바뀌므로 별도 결정 필요.
       (`details[].code` 를 보면 되므로 실사용 지장은 없다.)
@@ -776,8 +776,12 @@ push 직전 확인에서 발각됐다. `review/**` 는 SoT 가 아니므로 여�
       > 그 문장을 그대로 두면 자기모순이 된다. 함께 개정해야 한다.
       > Swagger 표기(`executions.controller.ts:274`)도 동반 대상.
       >
-      > spec 편집을 포함하므로 **planner 턴 + `/consistency-check --spec`** 이 선행한다.
-      > 집행은 별 PR — 이 항목은 그 PR 에서 닫는다.
+      > spec 편집을 포함하므로 **planner 턴 + `/consistency-check --plan`** 이 선행했다.
+
+      > **닫았다 (2026-08-22, `eia-error-code-unify`)** — 통일 집행. spec 6파일 + 코드 2곳 +
+      > 테스트 + 유저 가이드 KO/EN. 은퇴 코드는 `error-codes.md §5` Rename 이력에 등재했고,
+      > 그 행에 **본 표에서 리스크 등급이 가장 높다**는 사실(제3자 분기를 코드로 배제 불가,
+      > 판정 근거는 관측 범위 미발견)을 명시했다. 설계·기각 대안: [`eia-error-code-unify.md`](./eia-error-code-unify.md)
 - [ ] **`ReRunRequestDto.inputOverride` Swagger description** 에 마스킹 마커 3종이 예약어라는
       제약이 없다. 5라운드 연속 이월 — 다음 DTO 편집 기회에 한 줄.
 - [x] **마커 리터럴 cross-stack 계약 테스트 부재** — 프런트 `lib/utils/masked-markers.ts` 와
@@ -809,16 +813,30 @@ push 직전 확인에서 발각됐다. `review/**` 는 SoT 가 아니므로 여�
 consistency `--impl-done`(`05_23_14`, **BLOCK: NO**) 이 셋을 더 냈다 — 전부 비차단이고 셋 다
 **spec 편집이라 planner 턴**이 필요하다. 그래서 이 PR 에서 하지 않는다:
 
-- [ ] **wrapper 함수명이 spec 본문에 없다** — `resolveTriggerParametersRejectingMasked` /
+- [x] **wrapper 함수명이 spec 본문에 없다** — `resolveTriggerParametersRejectingMasked` /
       `reject-masked-resubmission.ts` 가 `1-manual-trigger.md` §6 와 `14-external-interaction-api.md`
       §R17 어디에도 이름으로 안 나온다. `spec-impl-evidence` R-1(≥1 코드 매치)은 충족해
       가드는 통과하지만, **"공유 함수에 넣지 않는다" 는 설계 의도가 코드 추적선에서 흐려진다**.
       두 문서에 함수·파일명 명시 + `code:` frontmatter 에 파일 추가.
-- [ ] **§R17 "닫는 조건" 표의 신규 4번째 행만 볼드** — 기존 3행은 평문. 통일하거나 의도적
+      > **닫았다 (2026-08-22)** — `1-manual-trigger.md §6` 과 `14-…md §R17` 두 본문에
+      > wrapper 함수명·파일명과 **base 에 넣지 않은 이유**(Webhook·Schedule 이 base 를
+      > 공유한다), 그리고 그 규칙을 강제하는 CI 가드
+      > (`masked-reject-callers-guard.ts`)를 함께 적었다. `code:` frontmatter 에도 추가.
+      > 실측: `grep -rln resolveTriggerParametersRejectingMasked spec` = 2파일(전엔 0).
+- [x] **§R17 "닫는 조건" 표의 신규 4번째 행만 볼드** — 기존 3행은 평문. 통일하거나 의도적
       강조로 유지.
-- [ ] **`error-codes.md §4` "패턴" 표에 trigger-parameter reason 계열이 없다** — Code 노드
+      > **닫았다 (2026-08-22)** — **평문으로 통일**했다(4번째 행의 볼드를 걷어냄). 표의 다른
+      > 세 행이 평문이고, 행 안에 이미 부분 볼드가 여러 개라 행 전체 볼드가 강조로 읽히지도
+      > 않았다.
+- [x] **`error-codes.md §4` "패턴" 표에 trigger-parameter reason 계열이 없다** — Code 노드
       핸들러 내부 코드만 나열돼 있어 직접 확인이 안 된다. 이 PR 이 만든 편차가 아니라 기존
       서술의 연장. 규약 문서 자체 개선.
+      > **닫았다 (2026-08-22)** — 단순 append 가 아니라 **§4.1 / §4.2 분리**로. §4 는 열
+      > 헤더로 스스로 scope 를 *"노드 `output.error.code`"* 라 선언하고 있었는데
+      > trigger-parameter 계열은 목적지가 **봉투의 `details[].code`** 이고 정규화 함수도
+      > 다르다(`toTriggerParameterErrorDetails`) — 그대로 행만 넣으면 표가 자기 선언과
+      > 모순된다(consistency `16_34_50` W2 지적). §4 상단에 두 파이프라인 대조표를 두고
+      > 각각을 §4.1·§4.2 로 내렸다.
 
 consistency `--impl-prep`(`15_35_56`, 2026-08-22)가 하나 더 냈다 — 역시 **planner 턴**이다:
 

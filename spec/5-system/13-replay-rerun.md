@@ -243,7 +243,14 @@ Run Results 드로어와 실행 상세 페이지는 dry-run 모드로 실행된 
 | 404 | `RERUN_WORKFLOW_DELETED` | 원본 실행의 워크플로가 삭제됨 (Re-run 의 전제 — 현재 시점 워크플로 정의 — 가 충족 불가) |
 | 409 | `RERUN_CHAIN_DEPTH_EXCEEDED` | RR-PL-05 chain 깊이 32 초과 |
 | 400 | `RERUN_DRY_RUN_NOT_APPLICABLE` | dry-run 요청이지만 워크플로에 `supportsDryRun: false` 노드가 포함됨 |
-| 400 | `INVALID_INPUT` | `inputOverride` 가 Manual Trigger parameters 스키마와 충돌 (`resolveTriggerParameters` 가 던지는 동일 에러), **또는 마스킹된 값이 그대로 재제출됨**(§10.2). 필드별 사유는 `error.details[]` 에 실리며 항목 코드는 [error-handling §1.7](./3-error-handling.md#17-webhook-수신-에러-코드-도메인-spec-참조) 카탈로그를 따른다 — `MISSING_REQUIRED_FIELD` / `TYPE_COERCION_FAILED` / `INVALID_SCHEMA` / `MASKED_VALUE_RESUBMITTED` |
+| 400 | `INVALID_TRIGGER_PARAMETERS` | `inputOverride` 가 Manual Trigger parameters 스키마와 충돌 (`resolveTriggerParameters` 가 던지는 동일 에러), **또는 마스킹된 값이 그대로 재제출됨**(§10.2). 필드별 사유는 `error.details[]` 에 실리며 항목 코드는 [error-handling §1.7](./3-error-handling.md#17-webhook-수신-에러-코드-도메인-spec-참조) 카탈로그를 따른다 — `MISSING_REQUIRED_FIELD` / `TYPE_COERCION_FAILED` / `INVALID_SCHEMA` / `MASKED_VALUE_RESUBMITTED` |
+
+> **왜 `INVALID_TRIGGER_PARAMETERS` 만 `RERUN_` prefix 가 없나**: 형제 4종은 re-run **고유**
+> 실패(권한·chain 깊이·워크플로 삭제·dry-run 부적용)라 경로 이름을 달았다. 이 코드는 반대로
+> **Manual 주 실행(`POST /workflows/:id/execute`)·저장(`POST /workflows/:id/save`) 경로와
+> 같은 검증 실패를 같은 코드로 내기 위한** 것이므로 경로별 prefix 를 붙이면 통일이
+> 무의미해진다. 2026-08-22 이전에는 이 자리가 `INVALID_INPUT` 이었다 —
+> [error-codes §5 Rename 이력](../conventions/error-codes.md) 참조.
 
 본 엔드포인트는 [Spec API 규칙 §5](./2-api-convention.md) 의 표준 응답 envelope 와 [Spec 에러 처리](./3-error-handling.md) 의 에러 shape 를 그대로 따른다.
 
@@ -374,7 +381,7 @@ dry-run 모드로 실행된 **NodeExecution** 은 `outputData._dryRun === true` 
 >
 > **서버가 2층으로 막는다 (2026-08-20).** 위 차단은 프런트 렌더 경로에 있으므로 UI 를 거치지
 > 않는 클라이언트(`curl` 등)는 우회할 수 있었다. 이제 서버가 `inputOverride` 의 값 leaf 가
-> 마커와 **정확히 일치하면** `400 INVALID_INPUT` + `details[].code =
+> 마커와 **정확히 일치하면** `400 INVALID_TRIGGER_PARAMETERS` + `details[].code =
 > MASKED_VALUE_RESUBMITTED` 로 거부한다([§8.1](#81-post-apiexecutionsexecutionidre-run)) — 오염이 실제로 일어나지
 > 않는다. 프런트 차단은 **더 나은 안내**를 위해 남는다(어느 필드인지 그 자리에서 보여 준다).
 >
