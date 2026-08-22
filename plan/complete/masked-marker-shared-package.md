@@ -1,6 +1,6 @@
 ---
 title: 마스킹 마커 계약을 공유 패키지로 추출한다
-status: in-progress
+status: complete
 worktree: masked-marker-contract-7d2e14
 started: 2026-08-21
 owner: developer
@@ -15,7 +15,7 @@ PR #1189 의 이월 항목 중 하나 — *"프런트/백엔드 `MASKED_MARKERS`
 
 ## 다른 plan 과의 관계
 
-정본 트래커는 [`spec-sync-external-interaction-api-gaps.md`](./spec-sync-external-interaction-api-gaps.md)
+정본 트래커는 [`spec-sync-external-interaction-api-gaps.md`](../in-progress/spec-sync-external-interaction-api-gaps.md)
 이고, **같은 결함이 거기 두 번 등재돼 있다**(실측):
 
 | 위치 | 등재 | 내용 |
@@ -134,7 +134,11 @@ WS 쪽만 한 칸 깊다. 그런데 프런트 스캐너의 소비처를 전수�
       선택을 숨기지 않고 RESOLUTION·커밋에 명시했다.
 - [x] 정본 트래커 **`:373`·`:757` 두 항목** `[x]` + 대체 근거 (구현 커밋과 같은 턴)
 - [x] TEST WORKFLOW 4단계 + 타입체크 ratchet
-- [ ] `/ai-review`
+- [x] `/ai-review` — **9라운드** 수행 후 PR #1190 머지(2026-08-21). 세션
+      `11_27_29`·`11_53_49`·`12_25_15`·`12_50_37`·`13_14_29`·`13_34_34`·`13_55_59`·
+      `14_19_12`·`14_39_29` (전부 `3f8543eae` 에 커밋돼 있다 — 실측).
+      > 체크박스가 `[ ]` 로 남아 있던 것은 **기록 누락**이지 미수행이 아니다. 판정은
+      > 에이전트 서술이 아니라 머지 커밋의 `review/code/**` 산출물로 했다.
 
 ## 미러 소멸 캐너리 — **리터럴이 아니라 심볼을 본다**
 
@@ -175,7 +179,7 @@ AST + allowlist 는 선례(`masked-reject-callers-guard.ts`)를 그대로 재사
       > PR 이 닫히면 사라지므로**(이 PR 에서 두 번 겪었다) 여기 등재한다.
       >
       > **닫았다 (2026-08-22)** — 설계·근거 전문은
-      > [`plan/in-progress/mirror-guard-single-copy.md`](./mirror-guard-single-copy.md).
+      > [`plan/complete/mirror-guard-single-copy.md`](./mirror-guard-single-copy.md).
       > 재추출이 아니라 **중복의 이유를 없애는 쪽**으로.
       > `.github/workflows/repo-guards.yml` 을 신설해 `codebase/**` 어디가 바뀌든 도는 자리를
       > 만들고, backend 사본 2파일을 삭제했다. 사본이 둘이던 유일한 이유가 경로 게이팅이었기
@@ -189,14 +193,29 @@ AST + allowlist 는 선례(`masked-reject-callers-guard.ts`)를 그대로 재사
       > 실증: backend 파일 하나만 바꾼 diff 에서 `repo-guards` = **relevant=true**,
       > 대조군 `frontend-checks` = **relevant=false**.
 
-- [ ] **backend `deepRedactSecrets` 깊이 경계 테스트** — 프런트 `masked-markers.test.ts` 는
+- [x] **backend `deepRedactSecrets` 깊이 경계 테스트** — 프런트 `masked-markers.test.ts` 는
       `nest(10)→true` / `nest(11)→false` 로 상한을 정확히 고정하는데, backend
       `sanitize-error-message.spec.ts` 는 *"언젠가 멈춘다"*(`not.toThrow()`)만 본다. 값이
       실수로 바뀌어도(예: 10→1) backend 스위트만으로는 감지 못한다.
       > 두 라운드(`11_53_49`·`12_25_15`) 연속 INFO 로 나왔는데 **어디에도 적히지 않은
       > 상태**였다 — `review/**` 는 SoT 가 아니라 PR 이 닫히면 사라진다. 그래서 여기 등재한다.
-      > 실질 위험은 낮다: `codebase/packages/**` 변경이 양쪽 워크플로 모두에 relevant 라
-      > 프런트 경계 테스트가 같은 PR 에서 돈다.
+      > ~~실질 위험은 낮다: `codebase/packages/**` 변경이 양쪽 워크플로 모두에 relevant 라
+      > 프런트 경계 테스트가 같은 PR 에서 돈다.~~
+      >
+      > **닫았다 (2026-08-22, `backend-redact-depth-boundary`)** — 경계 7종을 추가하고
+      > 뮤테이션 9종으로 판별력을 실측했다(생존 0/9). 상한은 리터럴이 아니라
+      > `MAX_REDACT_DEPTH` 를 import 해 쓰므로 SoT 가 움직이면 테스트가 따라온다.
+      >
+      > **유예 근거였던 *"실질 위험 낮음"* 은 실측으로 반증됐다.** 그 논리는 *"프런트
+      > 테스트가 같은 PR 에서 도니 괜찮다"* 였는데, 프런트가 무는 것은 **SoT 상수 값**의
+      > 변경뿐이다(실측: `MAX_MASK_DEPTH` 10→9 → frontend RED / backend GREEN). 상수는
+      > 그대로 두고 **마스커의 비교식만** 어긋나는 방향(`>= N` → `>= N - 1`, `>=` → `>`,
+      > 값·깊이 검사 순서 뒤집기)은 프런트가 **볼 수 없는** 표면이다. 실측:
+      > 변경 전 spec + 효과적 캡 9 뮤턴트로 backend 전체 **430 스위트 / 8,896 테스트가
+      > 전부 GREEN**. 즉 위험은 낮은 게 아니라 **아무도 안 보고 있었다**.
+      >
+      > 교훈: *"다른 가드가 덮는다"* 는 유예 근거는 **그 가드가 무는 변경의 방향**까지
+      > 세어야 성립한다. 값 하나만 보는 가드는 그 값을 쓰는 **식**의 변형을 못 본다.
 
 ## 검증 기준
 
