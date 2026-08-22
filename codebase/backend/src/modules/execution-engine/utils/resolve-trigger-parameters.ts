@@ -98,13 +98,12 @@ export function validateTriggerParameterSchema(
 }
 
 /**
- * Resolve raw parameter values against a declared schema.
+ * 선언된 스키마에 맞춰 raw 파라미터 값을 해석한다.
  *
- * - Applies defaults for optional params
- * - Throws TriggerParameterValidationException listing all missing required
- *   fields and any coerce failures (for object/array where JSON parse fails
- *   yet value is a string that looks like JSON)
- * - Returns `{}` when schema is empty or missing (pass-through compatibility)
+ * - optional 파라미터에는 기본값을 채운다
+ * - 누락된 required 필드 **전부**와 coerce 실패(`object`/`array` 인데 JSON 처럼 보이는
+ *   문자열이 파싱에 실패한 경우 등)를 모아 `TriggerParameterValidationException` 을 던진다
+ * - 스키마가 비었거나 없으면 `{}` 를 돌려준다(pass-through 호환)
  *
  * ## ⚠️ Manual 실행 경로는 이 함수를 **직접 부르지 않는다**
  *

@@ -1,6 +1,6 @@
 ---
 title: 마커 시리즈 이월 코스메틱 4건 — 문서만 고치되 정보는 늘린다
-status: in-progress
+status: complete
 worktree: masked-marker-cosmetic-followups-edb6f2
 started: 2026-08-22
 owner: developer
@@ -11,7 +11,7 @@ spec_impact:
 # 마커 시리즈 이월 코스메틱 4건
 
 정본 트래커
-[`spec-sync-external-interaction-api-gaps.md`](./spec-sync-external-interaction-api-gaps.md)
+[`spec-sync-external-interaction-api-gaps.md`](../in-progress/spec-sync-external-interaction-api-gaps.md)
 의 *"마커 재제출 거부 PR 의 이월 항목"* 절 중 **코스메틱 4건**(Swagger 설명 · JSDoc ·
 주석 언어 혼재) 처분. 전부 **실행 동작 무변경**이다.
 
@@ -69,9 +69,22 @@ spec_impact:
       > 소유하므로 트래커에 덧쓰면 충돌만 만든다. ④신규 식별자 0건(확인).
 - [x] 코스메틱 4건 적용
 - [x] 정본 트래커 4항목 `[x]` — 미체크 34 → 30
-- [ ] **가드가 여전히 무는지 확인** (아래 검증 기준)
-- [ ] TEST WORKFLOW 4단계 + 타입체크 ratchet
-- [ ] `/ai-review`
+- [x] **가드가 여전히 무는지 확인** — `cp` 백업 뮤테이션 2종, **둘 다 RED**:
+      Manual `execute` 경로가 base 를 직접 호출 → 1 failed / `re-run` 경로 → 1 failed.
+      원복 후 두 파일 바이트 동일 + 72/72 재확인. **base JSDoc 에 wrapper 이름이 처음
+      들어갔어도 가드가 무뎌지지 않았다.**
+- [x] TEST WORKFLOW 4단계 + 타입체크 ratchet — lint / unit(backend 8,903 · frontend 6,108 ·
+      web-chat 451) / build / e2e(backend 276 + playwright 51). ratchet 199건/38파일 일치.
+      > **frontend flaky 1건 기록**: 1회차에 `rerun-modal.test.tsx` 의 *"fallback 구간에
+      > 편집한 문자열이 스키마 도착 후 native 타입으로 재조정된다"* 가 실패했다. 이 diff 는
+      > **backend 주석·Swagger 문자열과 spec frontmatter 뿐**이라 그 컴포넌트를 건드릴 수
+      > 없다(유발 불가 = phantom). 격리 실행 32/32 통과, 전체 재실행도 PASS.
+- [x] `/ai-review` — `19_25_39` Critical 0 · WARNING 2 · RISK LOW. 둘 다 처분:
+      **W1 은 이 PR 의 주제를 이 PR 이 어긴 것**이다 — 항목 802 가 *주석 언어 혼재*를
+      고치는 것인데, 같은 PR 이 base 함수 docblock 에 영→한 전환을 새로 만들었다.
+      블록 전체를 한국어로 통일(정보 손실 0, 한글 없는 서술 줄 **0건** 실측).
+      W2(`execute` 의 OpenAPI 비대칭)는 **DTO 승격이 코스메틱이 아니라** 컨트롤러
+      시그니처 변경이라 트래커에 신규 등재하고 이식 대상까지 적었다.
 
 ## 검증 기준
 

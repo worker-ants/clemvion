@@ -822,6 +822,14 @@ push 직전 확인에서 발각됐다. `review/**` 는 SoT 가 아니므로 여�
       다음에 손댈 때 입력 해석 블록을 private 헬퍼로.
 - [ ] **`findMaskedResubmissions` 직접 단위 테스트 부재** — 상위 함수 경유 간접 커버만.
       세 번째 소비처가 생기면 그때.
+- [ ] **`POST /workflows/:id/execute` 의 body 가 DTO 가 아니라 OpenAPI 에 마커 예약어 설명이
+      없다** (2026-08-22 등재, `19_25_39` documentation W1). 형제 `re-run` 은 `ReRunRequestDto`
+      가 있어 이번에 예약어 제약을 description 에 넣었는데, `execute` 의 `parameterValues` 는
+      **인라인 타입 + `@ApiBody` 부재**라 넣을 자리가 없다. **두 경로는 같은 거부 규칙**
+      (`resolveTriggerParametersRejectingMasked`)을 쓰므로 문서만 비대칭이다.
+      > 지금 고치지 않는 이유: DTO 승격은 코스메틱이 아니라 **컨트롤러 시그니처 변경**이다.
+      > `execute()` body 를 DTO 로 올리거나 `@ApiBody` 를 다는 기회에 `re-run.dto.ts` 의
+      > 설명을 그대로 이식한다.
 - [ ] **`throwIfAny` 의 phase 경계 트레이드오프 미검증** — ①(raw) 통과 후 무관 필드의
       `coerce_failed` 가 resolve 를 선점하면 ②(JSON 문자열 안 마커)가 그 요청에서 실행되지
       않는다. **보안 우회가 아니라 안내가 한 왕복 늦는 UX 엣지**이고 docstring 에 적혀 있으나
