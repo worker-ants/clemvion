@@ -237,7 +237,7 @@ Run Results 드로어와 실행 상세 페이지는 dry-run 모드로 실행된 
 
 | HTTP | code | 의미 |
 | --- | --- | --- |
-| 401 | `UNAUTHORIZED` | 인증 토큰 없음/만료. 표준 [Spec 에러 처리](./3-error-handling.md) 규약 |
+| 401 | `AUTH_REQUIRED` | 인증 토큰 없음/만료. 표준 [Spec 에러 처리](./3-error-handling.md) 규약 |
 | 403 | `RERUN_PERMISSION_DENIED` | RR-PL-06 권한 미충족 (워크스페이스 멤버 아님 / Viewer / 다른 사용자의 실행이고 Owner/Admin 아님) |
 | 404 | `RERUN_EXECUTION_NOT_FOUND` | `executionId` 가 존재하지 않거나 다른 워크스페이스 |
 | 404 | `RERUN_WORKFLOW_DELETED` | 원본 실행의 워크플로가 삭제됨 (Re-run 의 전제 — 현재 시점 워크플로 정의 — 가 충족 불가) |
@@ -266,7 +266,7 @@ Run Results 드로어와 실행 상세 페이지는 dry-run 모드로 실행된 
 
 | HTTP | code | 의미 |
 | --- | --- | --- |
-| 401 | `UNAUTHORIZED` | 인증 토큰 없음/만료 |
+| 401 | `AUTH_REQUIRED` | 인증 토큰 없음/만료 |
 | 403 | `RERUN_PERMISSION_DENIED` | RR-PL-06 미충족 (타인 실행이고 owner/admin 아님) |
 | 404 | `RERUN_EXECUTION_NOT_FOUND` | `executionId` 미존재 또는 다른 워크스페이스 |
 

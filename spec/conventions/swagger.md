@@ -257,14 +257,17 @@ async findAll(@Query() query: QueryWorkflowDto) { ... }
 - `summary`는 10~20자 내외, `description`은 50~150자 내외
 - 가능하면 "무엇을 하는지 + 제약/부수효과"를 담습니다
 
-> **예외 — 보안·정책 캐비엇 (2026-08-17 규약화)**: 응답 값이 **저장된 값과 다를 수 있는**
-> 필드(egress 마스킹 대상 등)는 위 길이 제한의 예외다. 소비자가 OpenAPI 만 보고 통합할 때
-> *"왜 DB 와 값이 다른가"* 를 알 방법이 그 설명뿐이기 때문이다. 다만 **상세 근거는 spec 본문에
-> 두고 여기서는 요약 1~2문장 + SoT 링크**로 적는다.
+> **예외 — 보안·정책 캐비엇** (2026-08-17 규약화 · 2026-08-22 요청 필드까지 확장):
+> 아래 두 부류는 위 길이 제한의 예외다.
 >
-> 이 예외는 새로 만든 관행이 아니라 **이미 굳은 관행의 추인**이다 — 실측상 9곳 이상의 DTO 가
-> 이 형태를 쓰고 있었고(`execution-response.dto.ts` · `background-run-response.dto.ts` 등),
-> 두 라운드 연속 규약 위반으로 지적됐다. 규약이 현실을 반영하도록 고친다.
+> | 부류 | 소비자가 그 설명 없이는 못 알아내는 것 |
+> | --- | --- |
+> | **응답** 값이 저장된 값과 다를 수 있는 필드 (egress 마스킹 대상 등) | *"왜 DB 와 값이 다른가"* |
+> | **요청** 값이 정책으로 거부될 수 있는 필드 (예약어·재제출 금지 값 등) | *"왜 이 값을 보내면 400 인가"* |
+>
+> 다만 **상세 근거는 spec 본문에 두고 여기서는 요약 1~2문장 + SoT 링크**로 적는다.
+>
+> 근거: [§Rationale — §3 보안·정책 캐비엇 예외](#3-보안정책-캐비엇-예외--왜-길이-제한-밖인가-그리고-왜-양방향인가)
 
 ---
 
@@ -399,6 +402,33 @@ fallthrough 자체를 없애 판별자를 sound 하게 만드는 대안은 wire 
 `nodeOutput` 과 `buttonConfig.buttons` 는 노드 타입별 자유 payload(`formConfig`/`conversationConfig`/임의 키)로, §1-4 가 말하는 **진짜 열린 map** 이다. 클래스로 고정하면 노드 타입이 늘 때마다 DTO 가 따라 늘고, 공용 노드 output 규약([`./node-output.md`](./node-output.md) — `1-node-common.md` 등 여러 노드 문서가 참조하는 독립 conventions 문서)과 SoT 가 이중화된다. 봉투(`interactionType`/`waitingNodeId`/`conversationThread`/변형 키)만 닫고 내부는 열어 두는 것이 두 규약의 책임 경계와 일치한다.
 
 같은 이유로 `ConversationThreadDto` 도 만들지 않는다 — [`./conversation-thread.md`](./conversation-thread.md) **§1.3(자료구조)** 이 thread shape(`turns[]`/`source`/`totalChars`/`nextSeq`)의 SoT 이고(§4 는 영속화 단계, §8.4 는 durable 컬럼 채택 근거), Swagger DTO 로 재선언하면 두 문서가 갈린다. 봉투에서는 open object 로 두고 description 이 `conversation-thread.md` 를 지목한다.
+
+### §3 보안·정책 캐비엇 예외 — 왜 길이 제한 밖인가, 그리고 왜 양방향인가
+
+**왜 예외인가** (2026-08-17): 소비자가 OpenAPI 만 보고 통합할 때, *"이 필드는 내가 저장한
+값과 다르게 돌아온다"* 를 알 방법이 **그 `description` 뿐**이다. 10~40자 안에 그 사실과 이유를
+동시에 담을 수 없어서, 이 부류만 길이 제한 밖에 둔다.
+
+**새 관행이 아니라 추인이었다** — 도입 시점 실측으로 이미 9곳 이상의 DTO 가 이 형태를 쓰고
+있었고(`execution-response.dto.ts` · `background-run-response.dto.ts` 등) 두 라운드 연속
+규약 위반으로 지적됐다. 규약이 현실을 반영하도록 고친 것이다.
+
+**왜 요청 필드까지 넓혔나** (2026-08-22): 논거가 **대칭**인데 문면만 한쪽이었다. 응답 쪽
+질문이 *"왜 DB 와 값이 다른가"* 라면 요청 쪽은 *"왜 이 값을 보내면 400 인가"* 이고, 소비자가
+알 방법이 그 설명뿐이라는 점도 같다. 계기는 `ReRunRequestDto.inputOverride` 로, 마스킹 마커와
+정확히 일치하는 값이 `MASKED_VALUE_RESUBMITTED` 로 거부된다는 사실을 적어야 했는데 이건
+응답이 아니라 **요청이 거부되는 규칙**이라 기존 문면이 못 덮었다(SoT:
+[EIA §R17](../5-system/14-external-interaction-api.md)).
+
+**요청 쪽도 똑같이 "추인" 이다** (2026-08-22 실측 — `codebase/backend/src/**/dto/**/*.dto.ts`
+중 `responses/` 및 `*-response.dto.ts` 제외): 요청 DTO 73개 파일의 `description` 333개 중
+**114개(34%)가 40자를 넘는다**. 최장은 `chat-channel-config.dto.ts` 435자이고, 상위권에는 이
+예외가 겨냥한 바로 그 클래스가 있다 — `create-auth-config.dto.ts`(248자, 인증 상세 설정) ·
+`chat-channel-config.dto.ts`(386자, provider 발급 webhook 인증 자료).
+
+> **넓히지 않은 것**: 위 34% 는 보안·정책 캐비엇 클래스보다 넓다. 즉 `10~40자` **기본 수치
+> 규칙 자체**가 현실과 벌어져 있을 수 있는데, 그건 이 예외의 문제가 아니라 별개 판단이라
+> 여기서 건드리지 않는다.
 
 ### §5 ApiOkPaginatedResponse single-wrap (pass-through 예외)
 `ApiOkPaginatedResponse` 가 문서화하는 wire shape 는 **single-wrap** `{ data: <Dto>[], pagination }` 다(§5-2). 페이지네이션 핸들러는 공용 `PaginatedResponseDto`(`{ data, pagination }` — top-level `data` 키 보유)를 반환하고, `TransformInterceptor` 는 이미 `data` 키가 있는 객체를 추가 래핑 없이 pass-through(`'data' in data` 분기)하므로, §2-5 의 "성공 응답을 `{ data }` 로 감싼다"는 보편 규칙의 **주요 pass-through 사례**가 된다(두 번째 사례: 비-페이징 고정 컬렉션이 `{ data: { items } }` 를 직접 반환하는 경우 — [api-convention §5.2](../5-system/2-api-convention.md#52-목록-응답) 비-페이징 고정 컬렉션. `pagination` 필드가 없어 이 §5 페이징 pass-through 와는 형태가 다르다). 종전 헬퍼가 선언하던 double-wrap `{ data: { data, pagination } }` 은 의도된 결정이 아니라 pass-through 를 간과한 **버그**였다 — 실제 런타임(`PaginatedResponseDto`+interceptor)·e2e(`res.body.data`/`res.body.pagination` top-level)·`api-convention §5.2` 가 모두 single-wrap 이라 헬퍼·§5-2 를 그에 맞춰 정정했다. **single-wrap 을 double-wrap 으로 되돌리지 말 것** — 런타임과 어긋난다.
