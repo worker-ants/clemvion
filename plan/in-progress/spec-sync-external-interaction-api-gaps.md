@@ -324,6 +324,9 @@ checker 가 독립적으로** "인용이 가리키는 절이 오히려 반대를
       주석 표**다. 이 fragmentation 때문에 실제로 자매 DTO JSDoc 이 갱신에서 빠지는 CRITICAL 이
       났다(`14_08_45` C2) — 근본 원인은 그대로 남아 있다.
       > 공유 `redactExecutionFields(row)` 또는 응답 직전 interceptor 로 통합 검토.
+      > **착수 시 동반 갱신**: 이 통합이 집행되면 개별 호출부 심볼이 헬퍼 하나로 흡수돼
+      > [`egress-masking` 규약 §1 좌표계 표](../../spec/conventions/egress-masking.md) 의
+      > 소비처 열이 stale 해진다(그 문서 §3 에 같은 트리거가 적혀 있다).
 
 - [x] **`inputOverride` 서버측 마커 리터럴 거부** (2026-08-20 등재, `14_44_08` W6 — **2026-08-21 종결**).
       `resolveTriggerParameters` 는 타입·필수값만 보므로 UI 를 우회한 클라이언트(curl)는
@@ -840,7 +843,7 @@ consistency `--impl-done`(`05_23_14`, **BLOCK: NO**) 이 셋을 더 냈다 — �
 
 consistency `--impl-prep`(`15_35_56`, 2026-08-22)가 하나 더 냈다 — 역시 **planner 턴**이다:
 
-- [ ] **egress 마스킹 규약이 정식 `spec/conventions/**` 문서 없이 코드 JSDoc 산문에만 있다**
+- [x] **egress 마스킹 규약이 정식 `spec/conventions/**` 문서 없이 코드 JSDoc 산문에만 있다**
       (`15_35_56` convention_compliance W1). 마커 3종의 의미, 깊이 상한 SoT(`MAX_MASK_DEPTH`)와
       지역 별칭 목록, **소비처별 경계 연산자와 그 근거**(`deepRedactSecrets` 는 `>=`,
       `sanitizePayloadForWs` 는 `>`, `stripExternalOnlyFields` 는 `>`), 재마스킹 금지 규칙이
