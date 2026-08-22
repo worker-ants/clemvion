@@ -163,8 +163,15 @@ spec_impact:
 - [x] 코드·Swagger·테스트
 - [x] 유저 가이드 KO/EN 2곳 (선존 drift 동반 정정)
 - [x] 정본 트래커 4항목 `[x]` (결정 항목 + spec 3건) — 미체크 38 → 34
-- [ ] TEST WORKFLOW 4단계 + 타입체크 ratchet
-- [ ] `/ai-review`
+- [x] TEST WORKFLOW 4단계 + 타입체크 ratchet — lint / unit(backend 8,896 · frontend 6,107 ·
+      web-chat 451) / build / e2e(backend 276 + playwright 51). ratchet 199건/38파일 일치.
+      > build·e2e 가 각 1회씩 Docker VM 디스크 부족으로 죽었다 — 코드 결함 아님.
+      > `docker builder prune -af`(10.12GB) + `docker image prune -f`(33.33GB) 후 통과.
+      > 볼륨은 건드리지 않았다.
+- [x] `/ai-review` — 2라운드. `17_06_14`(Critical 0 · W6) → 처분 → `17_32_01`(Critical 0 · W2).
+      남은 2건은 (a) 사용자가 인수한 breaking 결정 자체 (b) PR 생성 전엔 채울 수 없는
+      `#TBD_PR` — 둘 다 코드 조치 없음. W5(테스트가 제목만 주장)는 **대조군 뮤테이션으로
+      판별력을 실증**하고 고쳤다.
 
 ## 검증 기준
 
