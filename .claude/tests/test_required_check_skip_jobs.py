@@ -175,6 +175,10 @@ class DeadFilterTest(unittest.TestCase):
     # 도입 시점엔 backend 파일만 바꾼 diff 로 손수 실측해 확인했는데(대조군 frontend-checks 는
     # relevant=false), **1회성 수동 확인은 보장이 아니다**(`14_02_49` testing W1). 스택별로
     # 최소 1개 tracked 파일과 매치하는지를 기계가 묻게 한다.
+    # **손 목록이다 — `codebase/<stack>` 이 새로 생기면 여기도 함께 늘려야 한다.**
+    # 파생으로 뽑지 않는 이유: 파생하면 `codebase/**` 와 같은 소스를 보게 돼
+    # "pathspec 이 스택을 덮는가" 를 자기 자신에게 묻는 꼴이 된다(항상 참).
+    # 누락 시 실패 방향은 **검증 범위 축소**(fail-open 아님)라 안전하다.
     REPO_GUARDS_MUST_COVER = (
         "codebase/backend/",
         "codebase/frontend/",

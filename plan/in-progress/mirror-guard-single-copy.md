@@ -73,9 +73,13 @@ tsconfig 만 읽으므로 backend 트리거로 충분하다. 경로 게이팅이
 - [x] `/consistency-check --plan` — **BLOCK: NO**(W1 반영, INFO 2·3 반영)
 - [x] `.github/workflows/repo-guards.yml` 신설 + 하네스 레지스트리 4곳 등록
 - [x] backend 미러 가드 사본 2파일 삭제
-- [x] **`frontend-checks.yml` 의 `codebase/channel-web-chat/**` pathspec 정리** — 그 줄은
-      *"미러 가드가 이 잡에 산다"* 는 이유로 넣은 것이라(`11_53_49` W1) 전용 잡이 생기면
-      근거가 소멸한다. 되돌리고 주석도 함께 지운다.
+- [x] **`frontend-checks.yml` 의 `codebase/channel-web-chat/**` pathspec — 유지하되 근거 교체**
+      (라운드1 W1 정정). 처음엔 *"미러 가드가 이 잡에 산다"* 는 이유였고(`11_53_49` W1) 전용
+      잡이 생기며 그 근거가 소멸해 **지웠는데, 소비처를 하나만 보고 판단한 것이었다.**
+      실측하니 `typescript-toolchain-guard.ts:173` 이 `codebase/<dir>/package.json` 을 읽고
+      `discoverWorkspaceDirs()` 에 `channel-web-chat` 이 포함된다 — 지우면 그 스택의 toolchain
+      이 어긋나도 CI 가 못 잡는다(`web-chat-checks` 는 그 가드를 안 돌린다). 되돌리고 주석의
+      **근거만** typescript-toolchain 소비처로 갈아 끼웠다.
       > 가드는 frontend vitest 에도 계속 포함되므로 **CI 에서 두 번 돈다**(frontend-checks
       > + repo-guards). 의도적 수용이다 — 그래야 로컬 `run-test.sh unit` 이 그대로 돌린다.
 - [x] frontend 가드 헤더에서 "backend 쌍둥이와 함께 고쳐라" 규칙 제거 → **왜 이제 1본인지**로 대체
