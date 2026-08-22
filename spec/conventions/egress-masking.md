@@ -37,29 +37,29 @@ code:
 
 ## 1. 좌표계
 
-세 계열이 있다: ① 공유 `MAX_MASK_DEPTH`(1~3행, backend·frontend 가 같은 수를 본다) ② WS 전용 `MAX_SANITIZE_DEPTH`(4행, **독립 선언**) ③ 호출부가 값을 정하는 `stripExternalOnlyFields`(5행).
+세 계열이 있다: ① 공유 `MAX_MASK_DEPTH`(표 1~3행, backend·frontend 가 같은 수를 본다) ② WS 전용 `MAX_SANITIZE_DEPTH`(표 4행, **독립 선언**) ③ 호출부가 값을 정하는 `stripExternalOnlyFields`(표 5행).
 
 | # | 상한 | 값 | 비교 | 초과 시 | 소비처 (심볼) |
 |---|---|---|---|---|---|
-| 1 | `MAX_MASK_DEPTH` (`@workflow/masked-markers`) | **10** | — | — | **SoT 상수**. 2·3 이 이 값을 참조 |
-| 2 | `MAX_REDACT_DEPTH` (backend 지역 별칭) | **10** (1행 재export) | `depth >= N` | `VALUE_MASK_MARKER` | `deepRedactSecrets`(REST 응답·저장 에러·conversation thread) · `hasMaskedLeaf`(Manual 실행 재제출 거부 판정) |
-| 3 | 프런트는 별칭 없이 `MAX_MASK_DEPTH` 를 직접 import | **10** (1행 그대로) | 값 검사 **먼저**, `depth >= N` 에서 하강 중단 | 스캔 범위 `0..N` | `hasMaskedMarkerLeaf`(폼 프리필 스킵·재제출 차단) |
+| 1 | `MAX_MASK_DEPTH` (`@workflow/masked-markers`) | **10** | — | — | **SoT 상수**. 표 2·3행이 이 값을 참조 |
+| 2 | `MAX_REDACT_DEPTH` (backend 지역 별칭) | **10** (표 1행 재export) | `depth >= N` | `VALUE_MASK_MARKER` | `deepRedactSecrets`(REST 응답·저장 에러·conversation thread) · `hasMaskedLeaf`(Manual 실행 재제출 거부 판정) |
+| 3 | 프런트는 별칭 없이 `MAX_MASK_DEPTH` 를 직접 import | **10** (표 1행 그대로) | 값 검사 **먼저**, `depth >= N` 에서 하강 중단 | 스캔 범위 `0..N` | `hasMaskedMarkerLeaf`(폼 프리필 스킵·재제출 차단) |
 | 4 | `MAX_SANITIZE_DEPTH` (`websocket.service.ts`, **별개 불변식**) | **10** (독립 선언) | `depth > N` | `DEPTH_MASK_MARKER` | `sanitizePayloadForWs`(WS emit) |
 | 5 | `stripExternalOnlyFields(_, maxDepth)` | **호출부 지정** | `depth > maxDepth` | 서브트리 **보존**(손대지 않음) | 두 표면이 각자 **자매 sanitizer 의 상한**을 넘긴다 |
 
-> **"값" 열은 깊이 값이지 행 번호가 아니다.** 지금 네 상한이 전부 `10` 이지만, 2·3 은 1행을 참조하고 4는 **독립 선언**이라 우연히 같을 뿐이다.
+> **"값" 열은 깊이 값이지 행 번호가 아니다.** 지금 네 상한이 전부 `10` 이지만, 표 2·3행은 표 1행을 참조하고 표 4행은 **독립 선언**이라 우연히 같을 뿐이다. 본 문서의 산문은 행을 지칭할 때 항상 **"표 N행"** 으로 적는다.
 
-`5` 의 호출부 2곳: `InteractionService` 의 공개 표면 조립부가 `MAX_REDACT_DEPTH` 를, `WebsocketService.toFanoutEnvelope` 이 `MAX_SANITIZE_DEPTH` 를 넘긴다. **`stripExternalOnlyFields` 는 자기 상한을 갖지 않는다** — 표면마다 자매 sanitizer 와 어긋나면 strip 이 닿지 않는 층에 마스킹만 걸리거나 그 반대가 된다.
+**표 5행**의 호출부 2곳: `InteractionService` 의 공개 표면 조립부가 `MAX_REDACT_DEPTH` 를, `WebsocketService.toFanoutEnvelope` 이 `MAX_SANITIZE_DEPTH` 를 넘긴다. **`stripExternalOnlyFields` 는 자기 상한을 갖지 않는다** — 표면마다 자매 sanitizer 와 어긋나면 strip 이 닿지 않는 층에 마스킹만 걸리거나 그 반대가 된다.
 
-> **⚠️ 이름이 한 단어 차이인 스캐너가 둘 있다**: backend `hasMaskedLeaf`(`reject-masked-resubmission.ts`, 2행) 와 frontend `hasMaskedMarkerLeaf`(`lib/utils/masked-markers.ts`, 3행). **같은 상한을 공유하지만 파일도 스택도 다르다** — 한쪽만 고치고 *"양쪽 고쳤다"* 고 적는 사고가 PR #1190 에서 두 번 났다.
+> **⚠️ 이름이 한 단어 차이인 스캐너가 둘 있다**: backend `hasMaskedLeaf`(`reject-masked-resubmission.ts`, 표 2행) 와 frontend `hasMaskedMarkerLeaf`(`lib/utils/masked-markers.ts`, 표 3행). **같은 상한을 공유하지만 파일도 스택도 다르다** — 한쪽만 고치고 *"양쪽 고쳤다"* 고 적는 사고가 PR #1190 에서 두 번 났다.
 
 > **인용은 심볼 기준이다.** 절대 라인 번호를 쓰지 않는다 — 리팩터마다 stale 화되기 때문이다.
 
 ### 1.1 값이 같다고 같은 상한이 아니다
 
-2 와 4 는 둘 다 `10` 이지만 비교가 `>=` vs `>` 라 **마커가 놓이는 최대 깊이가 한 칸 다르다**(각각 10, 11). 4 를 1행에 맞춰 재export 하지 **않은 것도 의도다** — 값을 공유하면 다음 사람이 비교 연산자까지 같다고 읽는다.
+**표 2행과 표 4행**은 둘 다 `10` 이지만 비교가 `>=` vs `>` 라 **마커가 놓이는 최대 깊이가 한 칸 다르다**(각각 10, 11). 표 4행을 표 1행에 맞춰 재export 하지 **않은 것도 의도다** — 값을 공유하면 다음 사람이 비교 연산자까지 같다고 읽는다.
 
-3 이 `>=` 이면서 **값 검사를 깊이 검사보다 먼저** 하는 것도 이 한 칸 때문이다. 2 가 정확히 depth `N` 에 마커를 치환하므로, 스캐너가 깊이 검사를 먼저 하면 **그 자리의 마커를 검사도 없이 지나친다**(off-by-one = fail-open).
+두 스캐너(**표 2행** `hasMaskedLeaf` · **표 3행** `hasMaskedMarkerLeaf`)가 `>=` 이면서 **값 검사를 깊이 검사보다 먼저** 하는 것도 이 한 칸 때문이다. 표 2행의 마스커가 정확히 depth `N` 에 마커를 치환하므로, 스캐너가 깊이 검사를 먼저 하면 **그 자리의 마커를 검사도 없이 지나친다**(off-by-one = fail-open).
 
 ---
 
@@ -80,7 +80,7 @@ code:
 
 좌표계 표는 **사람이 갱신해야 한다**. `code:` frontmatter 의 파일 목록만 `spec-code-paths.test.ts` 가 존재를 확인할 뿐, 표의 값·연산자·심볼이 소스와 일치하는지는 검사하지 않는다.
 
-**알려진 stale 트리거**: 정본 트래커의 미체크 항목 *"`inputData` 마스킹 게이트 4곳을 단일 헬퍼로 통합"* 이 집행되면 **표 2·5행의 소비처 열이 흡수돼 낡는다.** 그 항목 착수 시 이 표를 동반 갱신한다.
+**알려진 stale 트리거**: 정본 트래커의 미체크 항목 *"`inputData` 마스킹 게이트 4곳을 단일 헬퍼로 통합"* 이 집행되면 **표 2행·표 5행의 소비처 열이 흡수돼 낡는다.** 그 항목 착수 시 이 표를 동반 갱신한다.
 
 ---
 

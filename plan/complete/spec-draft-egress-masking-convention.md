@@ -1,6 +1,6 @@
 ---
 title: egress 마스킹 좌표계를 정식 conventions 문서로 승격한다
-status: in-progress
+status: complete
 worktree: egress-masking-convention-531f5b
 started: 2026-08-22
 owner: planner
@@ -14,7 +14,7 @@ spec_impact:
 # egress 마스킹 좌표계를 정식 conventions 문서로 승격한다
 
 정본 트래커
-[`spec-sync-external-interaction-api-gaps.md`](./spec-sync-external-interaction-api-gaps.md)
+[`spec-sync-external-interaction-api-gaps.md`](../in-progress/spec-sync-external-interaction-api-gaps.md)
 의 *"egress 마스킹 규약이 정식 `spec/conventions/**` 문서 없이 코드 JSDoc 산문에만 있다"*
 항목(consistency `15_35_56` convention_compliance W1) 처분.
 
@@ -115,7 +115,7 @@ backend·frontend 가 같은 수를 공유) ② WS 전용 `MAX_SANITIZE_DEPTH`(4
 > 이 표를 동반 갱신한다 — 트래커 쪽에도 같은 상호 참조를 남긴다.
 
 > **인용은 심볼 기준이다.** 절대 라인 번호를 쓰지 않는다 — 형제 plan
-> [`ws-event-types-extract.md`](./ws-event-types-extract.md) 가 *"라인 인용은 리팩터마다
+> [`ws-event-types-extract.md`](../in-progress/ws-event-types-extract.md) 가 *"라인 인용은 리팩터마다
 > stale 화된다"* 를 실측으로 얻고 3개 문서를 심볼 기준으로 전환한 선례를 따른다.
 
 ## 마스킹은 한 번 — 그 뒤 단계는 마커를 덮지 않는다
@@ -135,7 +135,7 @@ backend·frontend 가 같은 수를 공유) ② WS 전용 `MAX_SANITIZE_DEPTH`(4
 > **⚠️ 이 순서 계약이 확인된 범위는 `toFanoutEnvelope` 경로다** (`18_27_11` plan_coherence W2).
 > *"마스킹은 한 번"* 을 전 경로의 확정 불변식으로 쓰면 **문서한 보장이 실제보다 넓어진다** —
 > `TerminalErrorPayload` 를 채우는 호출부들이 전부 `sanitizeErrorMessage` 를 경유하는지는
-> 형제 plan [`ws-event-types-extract.md`](./ws-event-types-extract.md) 에 **아직 미확인
+> 형제 plan [`ws-event-types-extract.md`](../in-progress/ws-event-types-extract.md) 에 **아직 미확인
 > 항목(`[ ]`)** 으로 열려 있다. 신설 문서는 이 범위 한정을 그대로 적고, 그 전수 확인이
 > 끝나면 caveat 를 걷는다.
 
@@ -145,7 +145,7 @@ backend·frontend 가 같은 수를 공유) ② WS 전용 `MAX_SANITIZE_DEPTH`(4
       `= 1` 이 **리터럴 1 로 오독**되는 CRITICAL — 좌표계 혼동을 막으려는 문서가 자기 표에서
       같은 혼동을 만들었다) → 정정 → `18_27_11` **BLOCK: NO**(WARNING 3 전부 반영)
 - [x] `spec/conventions/egress-masking.md` 신설 (§Overview / 본문 / §Rationale 3섹션).
-      frontmatter: `id: egress-masking` · `status: implemented` · `code:` **4파일** —
+      frontmatter: `id: egress-masking` · `status: implemented` · `code:` **6파일**(정의처 4 + `18_27_11` W1 로 추가한 스캐너 2) —
       `codebase/packages/masked-markers/src/index.ts` ·
       `codebase/backend/src/shared/utils/sanitize-error-message.ts` ·
       `codebase/backend/src/shared/utils/strip-external-only-fields.ts` ·
@@ -163,7 +163,9 @@ backend·frontend 가 같은 수를 공유) ② WS 전용 `MAX_SANITIZE_DEPTH`(4
       (전량은 TEST WORKFLOW unit 에서 재확인)
 - [x] **자체 검증 기준 실측**: 신설 문서의 마커 리터럴 **0건**(이름으로만 5회 인용) ·
       절대 라인 인용 **0건**
-- [ ] `/ai-review`
+- [x] `/ai-review` — `18_45_57` Critical 0 · WARNING 2 · RISK LOW. 둘 다 반영:
+      **행 번호 표기 모호성**(이 문서가 스스로 경계하는 부류를 산문에서 되풀이 — 9곳
+      "표 N행" 통일 + 표기 규칙 자체를 문서에 명문화) · `code:` 개수 라벨 4→6 정정
 
 ## 검증 기준
 
