@@ -822,6 +822,17 @@ push 직전 확인에서 발각됐다. `review/**` 는 SoT 가 아니므로 여�
       다음에 손댈 때 입력 해석 블록을 private 헬퍼로.
 - [ ] **`findMaskedResubmissions` 직접 단위 테스트 부재** — 상위 함수 경유 간접 커버만.
       세 번째 소비처가 생기면 그때.
+- [ ] **마커 리터럴을 산문으로 재기술한 지점이 3곳 늘었다** (2026-08-22 등재, `19_36_12`
+      requirement W1). `masked-marker-cosmetic-followups` 가 Swagger description ·
+      `REASON_TO_DETAIL` JSDoc · base 함수 JSDoc 에 마커/거부 규칙을 **산문으로** 적었다.
+      값의 SoT 는 `@workflow/masked-markers` 인데 이 세 곳은 링크 없이 재기술이라, 마커가
+      바뀌면 기계가 아니라 **사람이** 찾아야 한다.
+      > **PR #1194(`spec/conventions/egress-masking.md` 신설)가 머지되면 그 문서 §3
+      > *"이 문서는 기계가 지키지 않는다"* 가 이 클래스를 흡수한다** — 그때 이 항목을 닫는다.
+      > **#1194 가 철회되거나 이 PR 보다 늦게 들어오면** 흡수처가 없으므로 이 항목이 유일한
+      > 기록이다. 그래서 `complete/` 로 봉인된 plan 이 아니라 **여기(in-progress)** 에 적었다
+      > — 미머지 PR 의 존재를 기정사실로 전제하면 그 PR 이 실패할 때 정보가 사라진다.
+
 - [ ] **`POST /workflows/:id/execute` 의 body 가 DTO 가 아니라 OpenAPI 에 마커 예약어 설명이
       없다** (2026-08-22 등재, `19_25_39` documentation W1). 형제 `re-run` 은 `ReRunRequestDto`
       가 있어 이번에 예약어 제약을 description 에 넣었는데, `execute` 의 `parameterValues` 는
