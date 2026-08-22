@@ -4,6 +4,7 @@ import {
   isMaskedMarker,
   LAST_ERROR_MESSAGE_MAX_LEN,
   MASKED_MARKERS,
+  MAX_REDACT_DEPTH,
   redactSecrets,
   redactSecretsInJsonString,
   sanitizeLastErrorMessage,
@@ -236,11 +237,149 @@ describe('deepRedactSecrets (recursive, copy-on-change)', () => {
     expect(out.args).not.toContain('sk-LEAF-1');
   });
 
-  it('caps recursion depth (deep nesting is masked wholesale, no stack blowup)', () => {
-    // Build nesting deeper than MAX_REDACT_DEPTH.
-    let deep: Record<string, unknown> = { leaf: 'Bearer sk-DEEP-END' };
-    for (let i = 0; i < 25; i++) deep = { n: deep };
-    expect(() => deepRedactSecrets(deep)).not.toThrow();
+  /**
+   * ## 깊이 상한 경계 — 마스커 자신의 좌표계
+   *
+   * 종전 이 자리에는 `expect(...).not.toThrow()` 하나뿐이었다(25겹 중첩). 그건 *"언젠가
+   * 멈춘다"* 만 보므로 **상한이 10 에서 1 로 바뀌어도 GREEN** 이고, 25 는 상한이 아예
+   * 없어도 스택이 안 터지는 크기라 회귀 테스트로서도 vacuous 했다.
+   *
+   * 프런트 스캐너 쪽은 `lib/utils/__tests__/masked-markers.test.ts` 가
+   * `nest(10)→true` / `nest(11)→false` 로 그 자리를 정확히 고정한다. **마커를 놓는 쪽**
+   * (여기)이 고정돼 있지 않으면 두 상한이 어긋나도 아무도 모른다 — 스캐너 상한이 더
+   * 작으면 그 차이만큼 가드가 조용히 뚫린다.
+   *
+   * ### 어느 상한인가 (좌표계 혼동 방지)
+   *
+   * 이 저장소에는 깊이 상한이 셋 있고 **셋 다 다른 불변식**이다:
+   *
+   * | 상한 | 비교 | 초과 시 |
+   * | --- | --- | --- |
+   * | `MAX_REDACT_DEPTH`(= `MAX_MASK_DEPTH` 지역 별칭) — **이 파일** | `depth >= N` | `VALUE_MASK_MARKER` (`'***'`) |
+   * | `MAX_SANITIZE_DEPTH` (`websocket.service.ts`) | `depth > N` | `DEPTH_MASK_MARKER` |
+   * | `stripExternalOnlyFields(_, maxDepth)` | `depth > maxDepth` | 서브트리 보존 |
+   *
+   * 아래 단언은 **첫 행 하나만** 겨냥한다. 나머지 둘의 `>` 경계는 의도적으로 분리된
+   * 결정이므로 여기서 건드리지 않는다. 특히 **이 경로의 깊이 마커는
+   * `DEPTH_MASK_MARKER` 가 아니라 `VALUE_MASK_MARKER`** 다 — 이름만 보면 반대로 읽히니
+   * 아래 기대값이 그 사실의 캐너리다.
+   *
+   * ### 리터럴을 박지 않는다
+   *
+   * `MAX_REDACT_DEPTH` 를 import 해서 쓰므로 SoT(`@workflow/masked-markers` 의
+   * `MAX_MASK_DEPTH`)가 움직이면 이 테스트가 따라온다. 상한 *값* 을 못박는 것은 이
+   * 테스트의 일이 아니고(그건 프런트 리터럴 테스트가 맡는다), 선언된 상한이 **구현에
+   * 실제로 반영돼 있는가** 가 이 테스트의 일이다.
+   */
+  describe('깊이 상한 경계 (MAX_REDACT_DEPTH)', () => {
+    /** `k` 겹으로 감싼다 — `leaf` 는 depth `k` 에 놓인다. */
+    const nestObj = (depth: number, leaf: unknown): unknown => {
+      let v = leaf;
+      for (let i = 0; i < depth; i++) v = { n: v };
+      return v;
+    };
+    /** 같은 깊이를 **배열로** 쌓는다 — 두 분기의 보폭이 같은지 본다. */
+    const nestArr = (depth: number, leaf: unknown): unknown => {
+      let v = leaf;
+      for (let i = 0; i < depth; i++) v = [v];
+      return v;
+    };
+    /** 객체↔배열을 번갈아 쌓는다 — 섞여도 같은 보폭이어야 한다. */
+    const nestMixed = (depth: number, leaf: unknown): unknown => {
+      let v = leaf;
+      for (let i = 0; i < depth; i++) v = i % 2 === 0 ? { n: v } : [v];
+      return v;
+    };
+
+    /**
+     * 비밀이 **아닌** 잎. 값 패턴에 걸리지 않으므로 이 서브트리가 마스킹되는 원인은
+     * 오직 깊이 하나다 — 비밀을 넣으면 값 마스킹과 깊이 마스킹이 같은 `'***'` 를 내
+     * 분기를 못 가른다.
+     */
+    const PLAIN_SUBTREE = { keep: 'plain' };
+
+    it('[경계] 상한 깊이의 서브트리는 통째로 마커가 된다 — 마스커의 치환 지점', () => {
+      expect(
+        deepRedactSecrets(nestObj(MAX_REDACT_DEPTH, PLAIN_SUBTREE)),
+      ).toEqual(nestObj(MAX_REDACT_DEPTH, VALUE_MASK_MARKER));
+    });
+
+    it('[경계] 상한 한 칸 위(-1)의 서브트리는 살아남는다 — 상한이 작아지면 RED', () => {
+      expect(
+        deepRedactSecrets(nestObj(MAX_REDACT_DEPTH - 1, PLAIN_SUBTREE)),
+      ).toEqual(nestObj(MAX_REDACT_DEPTH - 1, PLAIN_SUBTREE));
+    });
+
+    /**
+     * **값 검사가 깊이 검사보다 먼저다** — 순서를 뒤집으면 RED.
+     *
+     * `deepRedactCore` 는 ①문자열 ②원시값 ③깊이 순으로 본다. 그래서 상한 지점의
+     * **문자열 잎**은 깊이와 무관하게 값 패턴으로만 판정되고, 비밀이 아니면 그대로
+     * 남는다. 깊이 검사를 앞으로 옮기면 그 자리의 평범한 값까지 마커로 덮이는데,
+     * 마커는 *"서버가 가렸다"* 는 신호이므로 재제출 판정기가 **있지도 않은 마스킹**을
+     * 보고 정상 입력을 거부하게 된다.
+     */
+    it('[경계] 상한 깊이의 문자열 잎은 값 검사를 먼저 받는다 — 순서 뒤집으면 RED', () => {
+      expect(deepRedactSecrets(nestObj(MAX_REDACT_DEPTH, 'plain-leaf'))).toEqual(
+        nestObj(MAX_REDACT_DEPTH, 'plain-leaf'),
+      );
+    });
+
+    it('[경계] 그 자리의 비밀 문자열은 여전히 가려진다 — fail-closed 방향', () => {
+      expect(
+        JSON.stringify(
+          deepRedactSecrets(nestObj(MAX_REDACT_DEPTH, 'Bearer sk-DEEP-END')),
+        ),
+      ).not.toContain('sk-DEEP-END');
+    });
+
+    it('[경계] 배열로 쌓은 상한 깊이도 같은 보폭 — 과다/과소 계수면 RED', () => {
+      expect(
+        deepRedactSecrets(nestArr(MAX_REDACT_DEPTH, PLAIN_SUBTREE)),
+      ).toEqual(nestArr(MAX_REDACT_DEPTH, VALUE_MASK_MARKER));
+      expect(
+        deepRedactSecrets(nestArr(MAX_REDACT_DEPTH - 1, PLAIN_SUBTREE)),
+      ).toEqual(nestArr(MAX_REDACT_DEPTH - 1, PLAIN_SUBTREE));
+    });
+
+    it('[경계] object↔array 혼합 중첩에서도 같은 보폭으로 센다', () => {
+      expect(
+        deepRedactSecrets(nestMixed(MAX_REDACT_DEPTH, PLAIN_SUBTREE)),
+      ).toEqual(nestMixed(MAX_REDACT_DEPTH, VALUE_MASK_MARKER));
+    });
+
+    /**
+     * **세 번째 재귀 진입점** — JSON 문자열 잎.
+     *
+     * `redactSecretsInJsonString` 은 파싱한 값을 `depth + 1` 로 다시 태운다(파싱이 한
+     * 칸을 쓴다). 그래서 JSON **안**의 내용은 상한보다 한 칸 일찍 잘린다. 객체·배열 두
+     * 분기만 고정하면 이 경로의 보폭 변경이 조용히 지나간다 — `depth + 1` 을 `depth` 로
+     * 되돌리면 아래가 RED 다.
+     */
+    it('[경계] JSON 문자열 잎의 내용도 같은 상한을 쓴다 — 파싱이 한 칸', () => {
+      expect(
+        deepRedactSecrets(nestObj(MAX_REDACT_DEPTH - 1, '{"deep":{"x":1}}')),
+      ).toEqual(
+        nestObj(MAX_REDACT_DEPTH - 1, JSON.stringify(VALUE_MASK_MARKER)),
+      );
+    });
+
+    /**
+     * **스택 오버플로 회귀** — 상한을 지우면 `RangeError` 로 RED.
+     *
+     * 크기는 **상한 없는 구현이 실제로 터지는 값**으로 골랐다(#1188 실측: `JSON.parse` 는
+     * depth 100,000 을 통과시키는데 재귀는 5,000 에서 터진다). 종전 이 자리의 25 는
+     * 상한이 없어도 통과하므로 vacuous 했다.
+     *
+     * 던지지 않는 것만 보면 옛 테스트와 같으므로 **산출물 형태까지** 단언한다 — 옛
+     * 제목이 약속했던 *"deep nesting is masked wholesale"* 은 실제로 검사된 적이 없었다.
+     */
+    it('[회귀] 매우 깊은 입력에서도 던지지 않고, 상한 지점에서 잘린다', () => {
+      const run = (): unknown =>
+        deepRedactSecrets(nestObj(5000, 'Bearer sk-DEEP-END'));
+      expect(run).not.toThrow();
+      expect(run()).toEqual(nestObj(MAX_REDACT_DEPTH, VALUE_MASK_MARKER));
+    });
   });
 
   it('caches by object identity (repeated calls return the same masked result)', () => {
