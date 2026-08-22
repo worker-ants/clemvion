@@ -317,9 +317,9 @@ export class WorkflowsController {
       parameters = resolveTriggerParametersRejectingMasked(schema, rawValues);
     } catch (err) {
       if (err instanceof TriggerParameterValidationException) {
-        // `details` so GlobalExceptionFilter surfaces the per-field breakdown
-        // in the official envelope's `error.details[]` (parity with the webhook
-        // path, spec manual-trigger §6). Field codes are UPPER_SNAKE_CASE.
+        // `errors` 가 아니라 `details` 다 — `GlobalExceptionFilter` 는 `details` 만
+        // 읽으므로 필드별 내역이 공식 봉투의 `error.details[]` 에 실린다(webhook 경로와
+        // 동일 형태, spec manual-trigger §6). 항목 코드는 UPPER_SNAKE_CASE.
         throw new BadRequestException({
           code: 'INVALID_TRIGGER_PARAMETERS',
           message: 'Invalid trigger parameters',

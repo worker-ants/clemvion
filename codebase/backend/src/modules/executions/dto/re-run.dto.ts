@@ -17,7 +17,9 @@ export class ReRunRequestDto {
 
   @ApiPropertyOptional({
     description:
-      'useOriginalInput=false 일 때 사용할 입력. Manual Trigger parameters 스키마와 호환 (resolveTriggerParameters 검증)',
+      'useOriginalInput=false 일 때 사용할 입력(Manual Trigger 스키마 호환). ' +
+      '마스킹 마커와 정확히 일치하는 값은 400 `MASKED_VALUE_RESUBMITTED` 로 거부. ' +
+      'SoT: EIA §R17.',
     type: Object,
   })
   @IsOptional()
