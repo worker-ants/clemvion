@@ -1,0 +1,12 @@
+{
+  "timestamp": "2026-08-22T13:20:18.437818",
+  "mode": "plan draft 검토 (--plan)",
+  "target_path": "plan/in-progress/mirror-guard-single-copy.md",
+  "checkers": [
+    "cross_spec",
+    "rationale_continuity",
+    "convention_compliance",
+    "plan_coherence",
+    "naming_collision"
+  ]
+}

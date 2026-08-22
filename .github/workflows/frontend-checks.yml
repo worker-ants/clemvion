@@ -41,10 +41,16 @@ jobs:
     with:
       pathspecs: |
         codebase/frontend/**
-        # **마커 SoT 미러 가드가 이 잡에 산다** — 그 가드는 `codebase/*/src` 전부를
-        # 훑으므로 web-chat 이 마커를 재선언해도 잡아야 한다. web-chat 전용
-        # 워크플로는 `channel-web-chat...` 만 설치해 이 가드를 돌릴 수 없어,
-        # 대신 여기서 트리거를 넓힌다(`11_53_49` architecture W1).
+        # **`typescript-toolchain` 가드가 이 경로의 `package.json` 을 읽는다.**
+        # `discoverWorkspaceDirs()` 가 `pnpm-workspace.yaml` 에서 워크스페이스 셋을 뽑고
+        # (`channel-web-chat` 포함), 각 디렉터리의 `package.json` 으로 toolchain 정합을
+        # 검사한다(`typescript-toolchain-guard.ts` 의 manifest 읽기). 그 경로를 빼면
+        # web-chat 의 toolchain 이 어긋나도 CI 가 못 잡는다 — `web-chat-checks` 는
+        # `channel-web-chat...` 만 설치해 이 가드를 돌리지 않는다.
+        #
+        # > 한때 이 줄의 근거는 "미러 가드가 이 잡에 산다" 였는데, 그 가드가
+        # > `repo-guards.yml` 로 옮겨 간 뒤 **근거만 갈아 끼우고 줄은 유지**한다.
+        # > 소비처를 하나만 보고 지웠다가 두 번째 소비처를 놓칠 뻔했다(`14_02_49` W1).
         codebase/channel-web-chat/**
         codebase/packages/**
         pnpm-lock.yaml

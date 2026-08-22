@@ -4,10 +4,14 @@
 // 파서 순수 로직과 소비 spec 을 분리하는 규약은 형제 가드
 // `internal-package-registration-guard.ts` · `typescript-toolchain-guard.ts` 와 동일하다.
 
-// **판정 분기를 새로 넣거나 고칠 때는 backend 쌍둥이(`backend/src/repo-guards/__tests__/`)와
-// 함께 고치고, 양쪽에 대칭 캐너리를 넣는다.** 이 PR 에서 접두 경계를 backend 만 고치고
-// "양쪽 다 고쳤다" 고 적은 사고가 실제로 났다 — 기계가 대칭을 확인하지 않으면 한쪽만
-// 고쳐진 채로 완료형 서술이 남는다(`12_50_37` W1).
+// **이 파일이 유일한 사본이다.** 한때 backend 에도 같은 로직이 있었다 — 스택별 워크플로가
+// 자기 경로만 relevant 로 잡아, 한쪽에 둔 가드가 반대쪽 변경에서 실행조차 안 됐기 때문이다.
+// 그 사본이 두 번 실제 결함의 근원이 됐다(접두 경계를 한쪽만 고치고 "양쪽 다 고쳤다" 고 적음 ·
+// 규칙 문단을 한쪽에만 추가). `.github/workflows/repo-guards.yml` 이 `codebase/**` 전체를
+// 트리거로 잡아 **중복의 이유 자체를 없앴다** — 이제 어느 스택이 바뀌든 이 파일이 돈다.
+//
+// > 되돌리지 말 것: backend 에 사본을 다시 두면 그 대칭을 사람이 재보증해야 한다.
+// > 저장소 전체를 훑는 가드는 `repo-guards.yml` 에 태우면 사본이 필요 없다.
 
 import fs from "node:fs";
 import path from "node:path";
