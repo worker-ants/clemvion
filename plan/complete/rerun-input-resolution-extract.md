@@ -1,6 +1,6 @@
 ---
 title: "`ExecutionsService.reRun` 입력 해석 블록을 private 헬퍼로 — 마커 시리즈 마지막 이월 항목"
-status: in-progress
+status: complete
 worktree: masked-marker-plan-close-d8edad
 started: 2026-08-22
 owner: developer
@@ -10,7 +10,7 @@ spec_impact: none
 # `reRun` 입력 해석 블록 추출
 
 정본 트래커
-[`spec-sync-external-interaction-api-gaps.md`](./spec-sync-external-interaction-api-gaps.md)
+[`spec-sync-external-interaction-api-gaps.md`](../in-progress/spec-sync-external-interaction-api-gaps.md)
 의 *"마커 재제출 거부 PR 의 이월 항목"* 중 **마지막 남은 1건**이다. 트래커 문면 그대로:
 *"다음에 손댈 때 입력 해석 블록을 private 헬퍼로."*
 
@@ -45,19 +45,37 @@ const executionInput = useOriginal
 
 ## 작업
 
-- [ ] `/consistency-check --impl-prep`
-- [ ] `resolveManualOverrideInput` 추출 (동작 무변경)
-- [ ] **뮤테이션으로 기존 테스트가 옮겨진 코드를 무는지 검증** (아래 검증 기준)
-- [ ] 트래커 `reRun` 항목 종결
-- [ ] `masked-marker-test-gaps.md` 의 **마지막 두 체크박스를 `[x]` 로 갱신** — 이동 전 필수
-      (`plan-lifecycle.md §3` 이동 조건 = "모든 체크박스 `[x]`". `21_53_41` plan_coherence W2)
-- [ ] **`masked-marker-test-gaps.md` 를 `complete/` 로 이동** (아래 참조)
-- [ ] TEST WORKFLOW 4단계 + 타입체크 ratchet
-- [ ] `/ai-review`
+- [x] `/consistency-check --impl-prep` — `21_53_41` **BLOCK: NO**. Warning 2건 처리
+      (plan 체크리스트 명시 · spec 401 drift 를 planner 항목으로 등재)
+- [x] `resolveManualOverrideInput` 추출 (동작 무변경) — **141줄 → 109줄**
+- [x] **뮤테이션으로 기존 테스트가 옮겨진 코드를 무는지 검증** — 3종 전부 RED (아래 결과)
+- [x] 트래커 `reRun` 항목 종결
+- [x] `masked-marker-test-gaps.md` 의 **마지막 두 체크박스를 `[x]` 로 갱신**
+- [x] **`masked-marker-test-gaps.md` 를 `complete/` 로 이동**
+- [x] TEST WORKFLOW 4단계 + 타입체크 ratchet — 4단계 PASS (backend **8,904** ·
+      frontend 6,124 · web-chat 451 · e2e backend 276 + playwright 51), ratchet 199건/38파일
+- [x] `/ai-review` — `22_19_56` **Critical 0 · Warning 1**, 그 Warning 이 이 체크리스트다
+
+## 뮤테이션 결과 — 예측을 먼저 적고 실행했다
+
+| 뮤턴트 | 예측 | 실측 |
+| --- | --- | --- |
+| M1 에러 코드를 `INVALID_INPUT` 으로 되돌림 | RED | ✅ RED (2건) |
+| M2 `details` → `errors` 되돌림 | RED | ✅ RED (1건) |
+| M3 마커 거부를 base resolve 로 되돌림 | RED | ✅ RED (2건) + **CI 가드도 RED** |
+
+> **M3 의 첫 시도는 무효 뮤턴트였다.** `resolveTriggerParameters` 가 import 돼 있지 않아
+> TS2304 로 죽은 **거짓 RED**(6건 실패로 보였다). `tsc` 선검증에서 잡아 import 를 함께 넣어
+> 유효화한 뒤 다시 쟀고, 그때도 RED 였다.
+>
+> M3 에서 `masked-reject-callers-guard` 가 함께 RED 인 것이 요점이다 — 호출 지점이 `reRun`
+> 본문에서 private 메서드로 옮겨가도 가드의 AST 탐지 축에 그대로 걸린다.
+
+원복 후 `cmp` 바이트 동일, 210/210 재확인.
 
 ## 함께 처리 — 앞 PR 의 plan 이동
 
-[`masked-marker-test-gaps.md`](../complete/masked-marker-test-gaps.md) 는 PR #1196 으로 **모든 항목이
+[`masked-marker-test-gaps.md`](./masked-marker-test-gaps.md) 는 PR #1196 으로 **모든 항목이
 끝났는데** `in-progress/` 에 남아 있다. 마지막 두 체크박스(TEST WORKFLOW · `/ai-review`)가
 리뷰 **후에** 완료되는 단계라 그 PR 안에서 체크하지 못했다.
 
