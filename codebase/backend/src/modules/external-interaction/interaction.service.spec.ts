@@ -716,6 +716,52 @@ describe('InteractionService.getStatus', () => {
     expect(Object.keys(out).sort()).toEqual(['config', 'meta', 'output']);
   });
 
+  /**
+   * **목록을 하나로 유지한 대가를 REST 쪽에도 못박는다** (`22_51_46` side_effect/api_contract W1).
+   *
+   * chat-channel 렌더러 때문에 넓힌 4키(`payload`·`title`·`rendered`·`nodeType`)는
+   * **REST `getStatus` 에서도 통과**한다 — 목록이 하나이므로 필연이다. 리뷰어가 짚은 대로
+   * *"SSE 를 넓혔더니 REST 도 조용히 넓어졌다"* 가 되지 않으려면, 그 확장이 **의도**임을
+   * 테스트가 말해야 한다. 표면별로 목록을 가르는 대안은 손-동기화 지점을 둘로 만든다.
+   *
+   * 실측으로 확인한 것: 이 넷을 **REST 로 읽는 소비처는 현재 없다**(위젯은 `output.rendered`
+   * 처럼 한 겹 아래로 읽는다). 즉 확장은 노출 표면을 넓히되 **깨는 것은 없다**. 그리고
+   * 넷 다 핸들러가 만든 **렌더 데이터**라 엔진 내부 필드(`_retryState` 등)와 성격이 다르다 —
+   * 위 `_retryState` 캐너리가 막는 것이 이 allowlist 의 본래 목적이고, 이 테스트는 그
+   * 목적이 4키 추가로 훼손되지 않았음을 함께 고정한다.
+   */
+  it('[캐너리] chat-channel wire 4키는 REST `getStatus` 에서도 통과한다 (목록 단일화의 의도된 결과)', async () => {
+    const { service, repo, nodeRepo } = makeMocks();
+    repo.findOne.mockResolvedValue(
+      makeExecution({ status: ExecutionStatus.WAITING_FOR_INPUT }),
+    );
+    nodeRepo.findOne.mockResolvedValue({
+      nodeId: 'n1',
+      node: { type: 'Form' },
+      outputData: {
+        // `meta.interactionType` 이 있어야 waiting context 가 조립된다(위 캐너리와 동일).
+        meta: { interactionType: 'form' },
+        payload: { items: [{ title: 'a' }] },
+        title: '주문 확인',
+        rendered: 'hello **world**',
+        nodeType: 'carousel',
+        // 같은 응답에서 엔진 내부 필드는 여전히 떨어진다 — 확장이 목적을 훼손하지 않았다.
+        _retryState: { attempt: 9 },
+      },
+    });
+    const r = await service.getStatus(IEXT_CTX);
+    const out = (r.context as unknown as Record<string, unknown>)
+      .nodeOutput as Record<string, unknown>;
+    expect(Object.keys(out).sort()).toEqual([
+      'meta',
+      'nodeType',
+      'payload',
+      'rendered',
+      'title',
+    ]);
+    expect(out._retryState).toBeUndefined();
+  });
+
   // interactionType 이 sound discriminator 가 아님을 고정하는 가드 — buttons 인데
   // buttonConfig 복원에 실패하면 nodeOutput 변형으로 fallthrough 한다. 이 케이스가
   // 있기 때문에 OpenAPI 스키마에 discriminator 를 선언할 수 없다 (Swagger 규약 §1-4).

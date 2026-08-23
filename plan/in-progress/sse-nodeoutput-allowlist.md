@@ -6,6 +6,7 @@ started: 2026-08-23
 owner: developer
 spec_impact:
   - spec/5-system/14-external-interaction-api.md
+  - spec/5-system/6-websocket-protocol.md
 ---
 
 # SSE/fanout allowlist (EIA §R17 표의 마지막 행)

@@ -12,7 +12,8 @@ import type { NodeHandlerOutput } from '../../nodes/core/node-handler.interface'
 // 정본 트래커의 재배치 항목이 요구한 판단 시점이 바로 여기다(결론: 이번 라운드 무변경).
 //
 // 두 정책의 관계: deny-list 는 **어느 깊이에서든 아는 것을 뺀다**(fail-open),
-// 이 allowlist 는 **최상위에서 아는 것만 남긴다**(fail-closed). `getStatus` 는 둘 다 지난다.
+// 이 allowlist 는 **최상위에서 아는 것만 남긴다**(fail-closed). `getStatus` 와
+// `toFanoutEnvelope` 는 **둘 다** 두 정책을 지난다.
 
 /**
  * `nodeOutput` 의 **최상위** 키 allowlist — EIA §R17.

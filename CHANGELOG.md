@@ -21,9 +21,22 @@ JSDoc 이 *"표현식 리졸버·UI 자동완성에 노출되지 않게 `output`
 
 **범위는 총칭이 아니라 열거다** — `getStatus` waiting `nodeOutput` **1곳**에만 적용한다.
 terminal `result`/`error` 는 `Execution.outputData` = **작성자가 정의한** 워크플로 출력이라
-allowlist 를 걸면 정상 데이터가 잘린다. **SSE·fanout 은 여전히 deny-list(잔여)** 이고
+allowlist 를 걸면 정상 데이터가 잘린다. ~~**SSE·fanout 은 여전히 deny-list(잔여)** 이고
 정본 트래커에 별도 항목으로 등재돼 있다 — 즉 이 시점부터 REST 와 SSE 의 `nodeOutput` 필터
-강도가 다르다.
+강도가 다르다.~~
+
+> **정정 (같은 날 닫혔다)**: SSE/fanout 도 `toFanoutEnvelope` 한 chokepoint 에서 같은
+> allowlist 를 지난다 — **REST 와 SSE 의 강도는 같다.** 유예 사유였던 *"envelope shape 이
+> 달라 별건 변경이 필요하다"* 가 실측으로 반증됐다(두 emit 이 그 한 함수를 공유하고,
+> payload 가 평평하게 펼쳐져 위치도 REST 와 동일하다).
+>
+> 대신 목록이 **9키에서 13키로** 넓어졌다(실측). chat-channel 렌더러가 `nodeOutput.payload`·
+> `.title`·`.rendered`·`.nodeType` 를 top-level flat legacy shape 으로 읽는데 그 넷이
+> 목록에 없어, 그대로 배선했다면 Discord/Telegram/Slack 메시지가 조용히 비었다.
+> **외부 수신자에게는 동작 변경이다** — SSE/webhook payload 의 `nodeOutput` 최상위에서
+> 목록 밖 키가 사라진다(엔진 내부 `_retryState` 등). 알려진 두 소비처(위젯·chat-channel)는
+> 실측으로 영향 없음을 확인했으나, 제3자 webhook 구독자가 다른 키를 참조 중이었다면
+> 그 키는 더 이상 도달하지 않는다.
 
 평평한 allowlist 를 손으로 나열했다면 **폼 렌더가 깨졌다**: 위젯이
 `nodeOutput.formConfig ?? nodeOutput` 으로 `nodeOutput` 자체를 폼 선언으로 쓰는데 폼 핸들러는

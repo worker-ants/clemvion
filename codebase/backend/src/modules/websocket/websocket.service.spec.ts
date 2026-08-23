@@ -835,6 +835,43 @@ describe('WebsocketService', () => {
     });
 
     /**
+     * **copy-on-change 는 `buttonConfig` 분기에도 있다** (`22_51_46` testing W2).
+     *
+     * 위 `제거할 필드가 없으면 … 동일 객체` 테스트는 **top-level 분기만** 고정한다 —
+     * `buttonConfig` 쪽 `if (narrowed !== inner)` 가드를 지워도 잡는 테스트가 없었다.
+     * 그 가드가 죽으면 버튼 waiting 이벤트마다 `buttonConfig` 를 통째로 재조립하고,
+     * 그러면 이 파일이 성능 근거로 못박아 둔 clone-on-write 계약이 한 분기에서만
+     * 조용히 깨진다.
+     *
+     * 뮤테이션 M5 가 이 테스트의 존재 이유다 — 그 가드만 제거하면 여기만 RED 다.
+     */
+    it('[캐너리] `buttonConfig.nodeOutput` 이 이미 깨끗하면 `buttonConfig` 를 재조립하지 않는다', async () => {
+      const eventP = nextFanoutEvent(service);
+      await service.emitExecutionEvent(
+        'exec-bc-identity',
+        ExecutionEventType.EXECUTION_WAITING_FOR_INPUT,
+        {
+          status: 'waiting_for_input',
+          waitingNodeId: 'n-btn-clean',
+          buttonConfig: {
+            buttons: [{ id: 'b1', label: 'Yes' }],
+            // 전부 allowlist 안 — 좁힐 것이 없다.
+            nodeOutput: { config: { prompt: 'pick' }, output: {} },
+          },
+        },
+      );
+      const fanout = await eventP;
+      const wire = gateway.broadcastToChannel.mock.calls[0][2] as Record<
+        string,
+        unknown
+      >;
+      // envelope 자체와 `buttonConfig` 서브트리 **양쪽**의 동일성 — 하나만 보면
+      // 나머지 층에서 일어나는 불필요한 재구성을 놓친다(`10_32_27` testing W5 와 같은 형태).
+      expect(fanout.payload).toBe(wire);
+      expect(fanout.payload.buttonConfig).toBe(wire.buttonConfig);
+    });
+
+    /**
      * **chat-channel 렌더 보존** — Discord/Telegram/Slack 은 `nodeOutput` 을 flat
      * legacy shape 으로 읽는다(`extractRendered` 가 `nodeOutput.rendered`, 카드/제목
      * 렌더가 `nodeOutput.payload`·`nodeOutput.title`, 라우팅이 `nodeOutput.nodeType`).
