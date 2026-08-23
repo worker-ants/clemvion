@@ -1,8 +1,9 @@
 ---
 title: "workflow-assistant LLM 도구의 약한 마스킹 — 유출 차단 우선으로 닫는다"
-status: in-progress
+status: complete
 worktree: assistant-mask-leak-e36aa6
 started: 2026-08-23
+completed: 2026-08-23
 owner: developer
 spec_impact:
   - spec/3-workflow-editor/4-ai-assistant.md
@@ -12,7 +13,7 @@ spec_impact:
 # workflow-assistant 마스킹 — 두 축을 닫는다
 
 정본 트래커
-[`spec-sync-external-interaction-api-gaps.md`](./spec-sync-external-interaction-api-gaps.md)
+[`spec-sync-external-interaction-api-gaps.md`](../in-progress/spec-sync-external-interaction-api-gaps.md)
 의 항목 *"workflow-assistant LLM 도구가 `inputData`·`outputData`·`error` 세 필드를 더 약한
 마스킹으로 내보낸다"* (2026-08-16 등재, `17_12_34` requirement W1).
 
@@ -150,7 +151,7 @@ M2 가 GREEN 인 건 겹친 층이 같은 키를 덮기 때문이고 그 자체�
 
 ## 게이트·수치
 
-- **TEST WORKFLOW**: lint · unit(backend 8,931 → **8,947**) · build ·
+- **TEST WORKFLOW**: lint · unit(backend 8,931 → **8,950**) · build ·
   e2e(285 + **Playwright 51**, 로그 직접 확인) 전부 PASS — 리뷰 fix 후 재수행분
 - **ratchet**: 199건 / 38파일 — baseline 일치
 - `--impl-prep` `16_09_25` BLOCK:YES → planner 턴 → `--spec` `16_21_45` BLOCK:NO
@@ -172,3 +173,27 @@ M2 가 GREEN 인 건 겹친 층이 같은 키를 덮기 때문이고 그 자체�
 
 **W3·W4** 는 각각 내가 만든 가독성 결함(헬퍼가 클래스 JSDoc 과 선언 사이에 낌)과 CHANGELOG
 누락이라 그대로 반영했다.
+
+## `/ai-review` 2라운드 (`17_14_18` — CRITICAL 0 · WARNING 1) — 내 실측이 프록시였다
+
+3/4 reviewer 가 1라운드 WARNING 해소를 **뮤테이션 재현으로 직접 확인**했다. 남은 1건이
+내 측정의 사각지대를 정확히 짚었다:
+
+> 정적 grep 은 **스키마 필드명**만 본다. HTTP Request · Send Email 노드의 `headers`/`body`
+> 는 **사용자가 키 이름을 직접 정한다** — 정적 분석으로 원리적으로 안 보인다.
+
+**맞다.** 1라운드에서 "단정" 을 "실측" 으로 바꿨는데, 그 실측의 **축이 프록시**였다.
+사용자가 `headers.id_token` 을 쓰면 그 값이 config echo 에서 가려진다.
+
+**처분** — 위험을 재평가하되 없는 척하지 않는다:
+
+- 방향이 **과잉 마스킹(안전 쪽)** 이라 유출이 아니라 표시 문제다.
+- 이 노출은 **신규가 아니다** — 이미 목록에 있던 `token`·`access_token`·`authorization`·
+  `apiKey` 가 같은 성질을 갖는다. 이번 확장은 접두형으로 넓혔을 뿐 **새 클래스를 만들지
+  않았다**.
+- 그래서 되돌리지 않고 **한계를 코드 주석과 트래커에 명시**했다. 트래커 항목에 **재개
+  신호**(사용자 신고 · config echo 를 표현식이 실제로 읽는 사례 확인)와 그때의 조치 순서
+  ((a) 표현식 경로 제외 먼저, (b) 목록 분리는 손 동기화 비용 때문에 나중)를 적었다.
+
+INFO #3(자매 spec 5종 vs 유틸 spec 8종 비대칭)도 **8종으로 맞췄다** — M2 재적용 시 자매
+spec 단독 **8건 RED**(5 → 8).

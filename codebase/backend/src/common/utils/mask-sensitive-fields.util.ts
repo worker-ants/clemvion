@@ -18,16 +18,26 @@ const DEFAULT_SENSITIVE_KEYS: ReadonlySet<string> = new Set(
     // `CREDENTIAL_KEY_PATTERN` 의 `[a-z0-9_-]*token` 과 달리 항목을 손으로 편다.
     // 새 접두형을 만나면 여기에 더한다.
     //
-    // **blast radius 를 실측했다** (`16_46_56` side_effect W1). 이 상수는
+    // **blast radius 를 실측했다 — 다만 정적 grep 이 닿는 범위까지다**
+    // (`16_46_56` side_effect W1 → `17_14_18` W1 이 그 한계를 짚었다). 이 상수는
     // `handler-output.adapter.ts` 도 쓰고, 그쪽은 노드 `config` echo 를 DB·WS·표현식으로
     // 내보낸다 — 비-자격증명 config 필드가 이 이름들과 겹치면 멀쩡한 값이 가려진다.
-    // 전수 grep 결과 **노드 config 필드명 충돌 0건**이다. 정확 일치 후보는
-    // `http-request.handler.ts` 의 `auth_token` 하나뿐인데 그건 **URL 쿼리파라미터**
-    // 블랙리스트라 목적이 다르고 이 상수와 무관하다. `oauth_token_exchange_failed` 류는
-    // 부분 문자열일 뿐이고 이 목록은 완전 일치라 안 걸린다.
     //
-    // 넓힐 때 **같은 실측을 다시 해라** — 이 목록의 위험은 목록 자체가 아니라
-    // *자매 표면의 config 필드명과 겹치는지*에 있다.
+    // **잰 것**: 노드 소스의 **정적 config 필드명** 전수 grep → 충돌 0건. 정확 일치 후보는
+    // `http-request.handler.ts` 의 `auth_token` 하나뿐인데 그건 **URL 쿼리파라미터**
+    // 블랙리스트라 목적이 다르다. `oauth_token_exchange_failed` 류는 부분 문자열일 뿐이고
+    // 이 목록은 완전 일치라 안 걸린다.
+    //
+    // **못 잰 것 (정적 분석으로는 원리적으로 못 닫는다)**: HTTP Request · Send Email 노드의
+    // `headers`/`body` 는 **사용자가 키 이름을 직접 정한다**. 사용자가 `headers.id_token` 을
+    // 쓰면 그 값이 config echo 에서 가려진다. 방향이 **과잉 마스킹(안전 쪽)** 이라 유출은
+    // 아니고, 이 노출은 **신규가 아니다** — 이미 목록에 있던 `token`·`access_token`·
+    // `authorization`·`apiKey` 가 같은 성질을 갖는다. 이번 확장은 접두형으로 넓혔을 뿐
+    // 클래스를 새로 만들지 않았다.
+    //
+    // 넓힐 때 **같은 실측을 다시 하되, 이 한계도 같이 기억해라** — 위험은 목록 자체가
+    // 아니라 *자매 표면이 내보내는 키 이름과 겹치는지*이고, 그중 사용자 정의 키는
+    // grep 으로 안 보인다.
     'csrfToken',
     'csrf_token',
     'authToken',

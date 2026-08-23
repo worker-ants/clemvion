@@ -96,10 +96,13 @@ describe('adaptHandlerReturn', () => {
     // (`16_46_56` testing W2).
     it.each([
       ['csrf_token'],
-      ['auth_token'],
-      ['session_token'],
-      ['id_token'],
       ['csrfToken'],
+      ['auth_token'],
+      ['authToken'],
+      ['session_token'],
+      ['sessionToken'],
+      ['id_token'],
+      ['idToken'],
     ])('masks the `%s` key in echoed config (token family)', (key) => {
       const out = adaptHandlerReturn({
         config: { [key]: 'AAAABBBB4321', endpoint: 'https://api.example.com' },

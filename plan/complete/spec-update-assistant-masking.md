@@ -1,8 +1,9 @@
 ---
 title: "spec 동기화 — assistant 마스킹 포맷을 `***` 로, EIA §R17 잔여③ 결정 완료로"
-status: in-progress
+status: complete
 worktree: assistant-mask-leak-e36aa6
 started: 2026-08-23
+completed: 2026-08-23
 owner: project-planner
 spec_impact:
   - spec/3-workflow-editor/4-ai-assistant.md
