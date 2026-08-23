@@ -25,6 +25,7 @@ import {
   ApiParam,
   ApiNoContentResponse,
   ApiBadRequestResponse,
+  ApiBody,
   ApiUnauthorizedResponse,
   ApiForbiddenResponse,
   ApiNotFoundResponse,
@@ -54,6 +55,7 @@ import { QueryWorkflowDto } from './dto/query-workflow.dto';
 import { SaveCanvasDto } from './dto/save-canvas.dto';
 import { ImportWorkflowDto } from './dto/import-workflow.dto';
 import { ExecuteNodeDto } from './dto/execute-node.dto';
+import { ExecuteWorkflowDto } from './dto/execute-workflow.dto';
 import {
   CanvasSaveResultDto,
   ExecuteAcceptedDto,
@@ -248,6 +250,10 @@ export class WorkflowsController {
       '워크플로우를 수동으로 실행 큐에 등록합니다. 트리거 파라미터는 노드 스키마에 따라 검증됩니다.',
   })
   @ApiParam({ name: 'id', description: '워크플로우 UUID', format: 'uuid' })
+  // 본문 스키마는 `@ApiBody` 로만 선언하고 `@Body()` 파라미터는 인라인 타입을 유지한다 —
+  // 파라미터 타입을 DTO 로 바꾸면 전역 파이프가 진입해 `forbidNonWhitelisted` 가 켜지고
+  // 여분 키를 보내던 클라이언트가 400 으로 깨진다. 근거: `ExecuteWorkflowDto` docstring.
+  @ApiBody({ type: ExecuteWorkflowDto, required: false })
   @ApiAcceptedWrappedResponse(ExecuteAcceptedDto, {
     description: '실행 큐 등록 완료 (비동기 실행)',
   })

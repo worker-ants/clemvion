@@ -899,6 +899,36 @@ push 직전 확인에서 발각됐다. `review/**` 는 SoT 가 아니므로 여�
       > **`### §3` 만 없었다**(2026-08-17 예외가 근거를 본문 인라인으로 두고 갔다). 신설하면서
       > 그 2026-08-17 근거도 함께 옮겨 §3 의 근거가 두 곳으로 쪼개지지 않게 했다.
 
+- [ ] **`execute` 본문의 여분 키를 400 으로 거부할 것인가** (2026-08-22 등재, `execute-body-dto`
+      의 이연 결정). 지금은 전역 파이프가 이 본문을 **검증하지 않는다** — 여분 top-level 키가
+      조용히 무시된다. 거부로 바꾸면 문서화가 아니라 **공개 API 계약 축소**라 사용자 판단이
+      필요하다.
+      > 실측: 1st-party(`frontend/src/lib/api/workflows.ts:182`)는 정확히
+      > `{ input, parameterValues }` 만 보내 **호환**이다. 위험한 쪽은 우리가 못 세는 외부
+      > 클라이언트이고, 이 엔드포인트는 유저 가이드(`02-nodes/triggers.mdx`)에도 실려 있다.
+
+- [ ] **`re-run.dto.ts` 가 열린 map 을 `type: Object` 축약형으로 적는다** (2026-08-22 등재,
+      `23_46_23` convention_compliance W1 의 부수 발견). 실측: `additionalProperties: true`
+      를 쓰는 파일 **40개** vs `type: Object` 축약형 **2개**(`re-run.dto.ts` + 이번 신규).
+      신규 파일은 이번에 다수 패턴으로 맞췄고, `re-run.dto.ts` 는 선존이라 남겼다.
+      > 같은 디렉토리의 형제 `execute-node.dto.ts` 가 이미 다수 패턴을 쓴다 — 내가 이번에
+      > **잘못된 형제**를 베꼈다가 checker 에 잡혔다.
+
+- [ ] **`ExecuteWorkflowDto.input` 이 형제 `ExecuteNodeDto.input` 과 이름은 같고 의미가 다르다**
+      (2026-08-23 등재, `00_33_31` naming_collision W1). `@ApiBody` 배선으로 둘이 처음
+      **같은 Swagger 표면에 동시 노출**됐다 — 전자는 `.parameters` 를 품는 봉투, 후자는
+      노드 입력 값 자체다.
+      > **checker 가 제안한 `legacyInput` 리네임은 성립하지 않는다** (실측): 런타임이
+      > `body?.input` 을 읽으므로(`workflows.controller.ts:308,343`) DTO 필드명만 바꾸면
+      > **OpenAPI 가 존재하지 않는 필드명을 광고**하게 된다 — 클라이언트가 `legacyInput` 을
+      > 보내면 조용히 무시된다. *"런타임 계약 불변, OpenAPI 표면만 변경"* 이라는 제안 근거가
+      > 바로 그 이유로 틀렸다.
+      >
+      > 현재는 docstring 의 `{@link ExecuteNodeDto.input}` 상호 참조로 완화돼 있고 checker 도
+      > *"즉시 변경 불요"* 로 판정했다. 진짜로 이름을 바꾸려면 **와이어 필드명 자체를 바꾸는
+      > 계약 변경**이라, 위의 "여분 키 400 거부" 항목과 같은 성격(사용자 판단 필요)이다.
+
+
 - [ ] **`swagger.md §3` 의 기본 수치 규칙(`DTO description 10~40자`)이 현실과 벌어져 있다**
       (2026-08-22 등재, 위 §3 예외 확장 작업의 부수 실측). 예외 확장은 **보안·정책 캐비엇
       클래스**만 덮는데, 실측하면 그보다 훨씬 넓다 — 요청 DTO `description` **333개 중
@@ -928,7 +958,7 @@ push 직전 확인에서 발각됐다. `review/**` 는 SoT 가 아니므로 여�
       > 기계가 지키지 않는다 + 알려진 stale 트리거"* 로 이 클래스를 소유하므로, 남아 있던
       > JSDoc 2곳의 산문 재기술은 그 문서가 관리 주체다. 폴백 조항은 발동하지 않았다.
 
-- [ ] **`POST /workflows/:id/execute` 의 body 가 DTO 가 아니라 OpenAPI 에 마커 예약어 설명이
+- [x] **`POST /workflows/:id/execute` 의 body 가 DTO 가 아니라 OpenAPI 에 마커 예약어 설명이
       없다** (2026-08-22 등재, `19_25_39` documentation W1). 형제 `re-run` 은 `ReRunRequestDto`
       가 있어 이번에 예약어 제약을 description 에 넣었는데, `execute` 의 `parameterValues` 는
       **인라인 타입 + `@ApiBody` 부재**라 넣을 자리가 없다. **두 경로는 같은 거부 규칙**
@@ -936,6 +966,21 @@ push 직전 확인에서 발각됐다. `review/**` 는 SoT 가 아니므로 여�
       > 지금 고치지 않는 이유: DTO 승격은 코스메틱이 아니라 **컨트롤러 시그니처 변경**이다.
       > `execute()` body 를 DTO 로 올리거나 `@ApiBody` 를 다는 기회에 `re-run.dto.ts` 의
       > 설명을 그대로 이식한다.
+      > **닫았다 (2026-08-22, `execute-body-dto`)** — 문면이 열어 둔 두 길 중 **`@ApiBody`**
+      > 를 택했다. 둘은 동등하지 않다(실측):
+      >
+      > | `@Body()` 파라미터를 DTO 로 타입하면 | 결과 |
+      > | --- | --- |
+      > | class-validator 데코레이터 **없이** | `validate()` 가 등록 메타데이터를 못 찾아 **모든 요청** 거부 — 빈 객체 `{}` 조차 400 |
+      > | 데코레이터를 **달면** | `forbidNonWhitelisted` 가 켜져 **여분 top-level 키**가 400 |
+      >
+      > 즉 "문서를 단다" 가 조용히 **공개 API 계약을 좁히는** 변경이 된다. 지금은 전역
+      > `CustomValidationPipe.toValidate()` 가 `Object` 를 제외해 **검증이 통째로 skip** 되고
+      > 있다. 그래서 DTO 는 **OpenAPI 스키마 보유자**로만 쓰고 `@Body()` 인라인 타입은 유지 —
+      > 문서는 형제와 대칭이 되고 런타임은 한 줄도 안 바뀐다.
+      >
+      > 그 결정을 지키는 캐너리를 함께 넣었다(`workflows-execute-body.spec.ts`) — 없으면
+      > 다음 사람이 *"타입을 맞춰 주자"* 며 조용히 계약을 좁힐 수 있다.
 - [x] **`throwIfAny` 의 phase 경계 트레이드오프 미검증** — ①(raw) 통과 후 무관 필드의
       `coerce_failed` 가 resolve 를 선점하면 ②(JSON 문자열 안 마커)가 그 요청에서 실행되지
       않는다. **보안 우회가 아니라 안내가 한 왕복 늦는 UX 엣지**이고 docstring 에 적혀 있으나
