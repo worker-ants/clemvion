@@ -69,3 +69,91 @@ export function redactStoredDataForResponse(
   if (data === null || data === undefined) return null;
   return deepRedactSecrets(data) as Record<string, unknown>;
 }
+
+/**
+ * 세 컬럼(`inputData` · `outputData` · `error`)을 **한 번에** 마스킹한다.
+ *
+ * ## 왜 존재하나 — 자매가 갈리는 걸 사람이 막고 있었다
+ *
+ * 이 조합은 응답 조립부 **네 곳**(`toExecutionDto` · `toResponseExecution` · 노드 레벨 루프 ·
+ * `background-runs.service.ts`)에서 각자 손으로 반복됐고, 유일한 동기화 장치가 **사람이 읽는
+ * 주석 표**였다. 그 상태에서 실제로 자매 갱신이 빠지는 CRITICAL 이 났다(`14_08_45` C2).
+ *
+ * ## 왜 헬퍼가 **둘**인가
+ *
+ * | 헬퍼 | 쓰는 곳 | 부재 처리 |
+ * |---|---|---|
+ * | 이 함수 | 응답 DTO 조립(3곳) | `null` 로 **정규화** |
+ * | {@link redactNodeExecutionRow} | `nodeExecutions[]` 행 | 입력을 **그대로 보존** |
+ *
+ * 하나로 뭉개면 그 차이가 사라진다 — `nodeExecutions[]` 는 엔티티 형태를 그대로 싣는
+ * 자리라 `undefined → null` 이 되면 (a) 응답 shape 이 달라지고 (b) 값이 없어 아무것도 안
+ * 바뀐 행까지 참조가 달라져 copy-on-change 최적화가 깨진다.
+ *
+ * 그래서 **합치지 않고 나란히 둔다.** 넷이 흩어져 주석으로 동기화되던 것을, 둘이 한 파일에서
+ * 서로를 보는 상태로 바꾸는 것이 이 통합의 요점이다 — 세 번째 컬럼이 늘어날 때 고칠 자리가
+ * 이 파일 하나다.
+ */
+export function redactStoredFieldsForResponse(row: {
+  inputData?: Record<string, unknown> | null;
+  outputData?: Record<string, unknown> | null;
+  error?: Record<string, unknown> | null;
+}): {
+  inputData: Record<string, unknown> | null;
+  outputData: Record<string, unknown> | null;
+  error: Record<string, unknown> | null;
+} {
+  return {
+    inputData: redactStoredDataForResponse(row.inputData),
+    outputData: redactStoredDataForResponse(row.outputData),
+    error: redactStoredErrorForResponse(row.error),
+  };
+}
+
+/**
+ * 값이 있을 때만 마스킹하고, 없으면 **입력을 그대로** 돌려준다.
+ *
+ * `redactStored*` 는 부재를 `null` 로 정규화하는데, `nodeExecutions[]` 는 엔티티 형태를 그대로
+ * 싣는 자리라 그 정규화가 응답 shape 을 바꾼다.
+ *
+ * **제네릭을 쓰지 않는다** — `<T>` 로 두면 TS 가 `T` 를 값이 아니라 `mask` 의 **파라미터
+ * 타입**(`… | null | undefined`)에서 추론해 반환 타입에 `undefined` 가 섞이고, 배정에서
+ * 빌드가 깨진다(실제로 한 번 깨졌다). 두 컬럼이 모두 같은 구체 타입이라 제네릭의 이득도 없다.
+ *
+ * **시그니처가 `| null` 을 안 적는 것은 의도다** — 엔티티가 두 컬럼을 non-null 로 선언하므로
+ * **정적으로는** null 이 올 수 없고, 반환 타입에 `| null` 을 얹으면 배정이 깨진다. 본문의
+ * `== null` 은 TypeORM 이 런타임에 `undefined` 를 줄 수 있는 경로에 대한 **방어**다.
+ */
+function maskIfPresent(
+  value: Record<string, unknown>,
+  mask: (v: Record<string, unknown>) => Record<string, unknown> | null,
+): Record<string, unknown> {
+  return value == null ? value : (mask(value) ?? value);
+}
+
+/**
+ * `nodeExecutions[]` 행 하나를 마스킹하되 **copy-on-change 를 지킨다** —
+ * 세 컬럼 다 무변화면 **같은 참조**를 돌려준다.
+ *
+ * 무조건 spread 하면 이 조회에 `take` 상한이 없어(자매 `ExecutionNodeLog` 조회와 달리)
+ * 대규모 ForEach 실행에서 불필요한 shallow-copy 가 **행 수만큼** 쌓인다. 진행 중 실행은
+ * 스냅샷 캐시 대상도 아니라 폴링·WS 재연결마다 재계산된다 (`17_12_34` performance W1).
+ *
+ * 자매는 {@link redactStoredFieldsForResponse} — 왜 둘인지는 그쪽 docstring 참조.
+ */
+export function redactNodeExecutionRow<
+  T extends {
+    inputData: Record<string, unknown>;
+    outputData: Record<string, unknown>;
+    error: Record<string, unknown>;
+  },
+>(row: T): T {
+  const inputData = maskIfPresent(row.inputData, redactStoredDataForResponse);
+  const outputData = maskIfPresent(row.outputData, redactStoredDataForResponse);
+  const error = maskIfPresent(row.error, redactStoredErrorForResponse);
+  return inputData === row.inputData &&
+    outputData === row.outputData &&
+    error === row.error
+    ? row
+    : { ...row, inputData, outputData, error };
+}

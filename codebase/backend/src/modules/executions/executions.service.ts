@@ -41,8 +41,8 @@ import {
 } from './utils/execution-trigger';
 import { loadParentWorkflowNames } from './utils/load-parent-workflow-names';
 import {
-  redactStoredDataForResponse,
-  redactStoredErrorForResponse,
+  redactStoredFieldsForResponse,
+  redactNodeExecutionRow,
 } from '../../shared/utils/redact-stored-error';
 
 // execution_node_log 행 수 상한. ForEach 같은 컨테이너에서 행 수가 폭증하는 경우
@@ -56,35 +56,6 @@ export const RERUN_CHAIN_DEPTH_LIMIT = 32;
 // re_run_of walk 의 안전 상한 — 사이클은 구조상 불가(부모는 항상 더 이른 행)하나
 // 무한 루프 방어로 한도의 2배에서 중단.
 const RERUN_CHAIN_WALK_MAX = RERUN_CHAIN_DEPTH_LIMIT * 2;
-
-/**
- * 값이 있을 때만 마스킹하고, 없으면 **입력을 그대로** 돌려준다.
- *
- * `redactStored*` 는 부재를 `null` 로 **정규화**하는데, `nodeExecutions[]` 는 엔티티 형태를
- * 그대로 싣는 자리라 `undefined → null` 로 바뀌면 (1) 응답 shape 이 달라지고 (2) 값이 없어
- * 아무것도 안 바뀐 행까지 참조가 달라져 copy-on-change 최적화가 깨진다.
- *
- * 컬럼마다 같은 삼항을 손으로 반복하면 컬럼이 늘 때 한 줄이 빠진다 — 이 파일이 고치는 결함
- * 클래스 그 자체라 헬퍼로 묶는다 (`23_08_19` maintainability W7).
- *
- * **제네릭을 쓰지 않는다** — `<T>` 로 두면 TS 가 `T` 를 값이 아니라 `mask` 의 **파라미터
- * 타입**(`… | null | undefined`)에서 추론해 반환 타입에 `undefined` 가 섞이고,
- * `ResponseNodeExecution` 배정에서 빌드가 깨진다(실제로 한 번 깨졌다). 두 컬럼이 모두
- * 같은 구체 타입이라 제네릭의 이득도 없다.
- *
- * **시그니처가 `| null` 을 안 적는 것은 의도다** (`23_50_03` maintainability W6). 엔티티가
- * 두 컬럼을 non-null 로 선언하므로 **정적으로는** null 이 올 수 없고, 반환 타입에 `| null`
- * 을 얹으면 `ResponseNodeExecution` 배정이 깨진다. 본문의 `== null` 은 TypeORM 이 런타임에
- * `undefined` 를 줄 수 있는 경로에 대한 **방어**이며, 그 경우 입력을 그대로 통과시켜
- * copy-on-change 를 지킨다 — 타입으로 null 가능성을 숨긴 것이 아니라, 정적 계약(non-null)과
- * 런타임 방어를 분리한 것이다.
- */
-function maskIfPresent(
-  value: Record<string, unknown>,
-  mask: (v: Record<string, unknown>) => Record<string, unknown> | null,
-): Record<string, unknown> {
-  return value == null ? value : (mask(value) ?? value);
-}
 
 /**
  * 종결 상태 (`completed` / `failed` / `cancelled`) 실행의 findById 응답은 불변이다.
@@ -726,27 +697,11 @@ export class ExecutionsService {
         const reconciledNodeExecutions = reconcilePreParkWaitingStatus(
           nodeExecutions,
         ).map<ResponseNodeExecution>((ne) => {
-          // 세 컬럼 전부 마스킹하되 **copy-on-change 를 지킨다** — 위 주석의 이유.
-          // `redactStored*` 는 바뀐 것이 없으면 같은 참조를 돌려주므로, 셋 다 무변화면
-          // 행 자체를 그대로 재사용해 대규모 ForEach 실행의 행-수만큼의 shallow-copy 를
-          // 피한다. `error` 만 보고 판단하던 종전 조건을 세 컬럼으로 넓힌다.
-          // **`inputData` 도 마스킹한다** — 2026-08-20 부터 두 레벨이 같은 규칙이다.
-          // 노드 레벨은 애초에 재제출 소비처가 없었고, 안 걸면 WS emit 과 REST 가 같은
-          // store 슬롯에서 flip-flop 한다.
-          const inputData = maskIfPresent(
-            ne.inputData,
-            redactStoredDataForResponse,
-          );
-          const outputData = maskIfPresent(
-            ne.outputData,
-            redactStoredDataForResponse,
-          );
-          const error = maskIfPresent(ne.error, redactStoredErrorForResponse);
-          return inputData === ne.inputData &&
-            outputData === ne.outputData &&
-            error === ne.error
-            ? ne
-            : { ...ne, inputData, outputData, error };
+          // 세 컬럼 마스킹 + copy-on-change 는 헬퍼가 소유한다 — 위 주석의 이유가 그
+          // docstring 에 있다. **`inputData` 도 마스킹한다**(2026-08-20 부터 두 레벨이 같은
+          // 규칙): 노드 레벨은 애초에 재제출 소비처가 없었고, 안 걸면 WS emit 과 REST 가
+          // 같은 store 슬롯에서 flip-flop 한다.
+          return redactNodeExecutionRow(ne);
         });
         const executionPath = pathRows.map((r) => r.nodeId);
         // `take` 상한과 동일 길이로 돌아오면 그 이후의 로그가 잘렸을 수 있다.
@@ -1047,9 +1002,7 @@ export class ExecutionsService {
       // (여기는 엔티티가 아니라 DTO 조립이라 그 관문을 지나지 않는다).
       //
       // `inputData` 도 마스킹한다 (2026-08-20, 카브아웃 폐지 — EIA §R17).
-      inputData: redactStoredDataForResponse(execution.inputData),
-      outputData: redactStoredDataForResponse(execution.outputData),
-      error: redactStoredErrorForResponse(execution.error),
+      ...redactStoredFieldsForResponse(execution),
       executedBy: execution.executedBy ?? null,
       parentExecutionId: execution.parentExecutionId ?? null,
       recursionDepth: execution.recursionDepth ?? 0,
@@ -1071,8 +1024,9 @@ export class ExecutionsService {
    *
    * 1. 관계 객체 제거 — `trigger`/`executor` (User 등 민감 정보).
    *    `deriveExecutionTrigger` 산출 후에는 더 이상 필요하지 않다.
-   * 2. 세 컬럼 값 마스킹 — `error`({@link redactStoredErrorForResponse}) 와
-   *    `inputData`/`outputData`({@link redactStoredDataForResponse}).
+   * 2. 세 컬럼(`inputData`·`outputData`·`error`) 값 마스킹 —
+   *    `redactStoredFieldsForResponse` 한 번. 종전엔 컬럼마다 손으로 부르고 자매
+   *    호출부 넷을 이 주석 표가 동기화했다.
    *
    * ## 읽기 표면 목록 — **이 주석이 정본이다** (수치를 여기 한 곳에만 둔다)
    *
@@ -1087,7 +1041,7 @@ export class ExecutionsService {
    * | 2 | `getChain` | 이 함수 |
    * | 3 | `stop` | 이 함수 |
    * | 4 | `toExecutionDto` (목록) | 엔티티가 아니라 DTO 조립이라 **거기서 직접** 부른다 |
-   * | 5 | `findById` 의 `nodeExecutions[]` | 같은 함수 안, 행 단위 map |
+   * | 5 | `findById` 의 `nodeExecutions[]` | 행 단위 `redactNodeExecutionRow` |
    * | 6 | `BackgroundRunsService.toNodeExecutionDto` (본문 노드) | 다른 서비스의 자매 |
    *
    * > **수치를 여기 한 곳에 모은 이유**: 종전엔 *"자매 넷 중 하나만"* 이라는 **숫자가
@@ -1098,7 +1052,7 @@ export class ExecutionsService {
    * ## 반환 타입이 `Execution` 이 아닌 이유
    *
    * 엔티티는 `error: Record<string, unknown>` 로 **`| null` 없이** 선언돼 있는데
-   * {@link redactStoredErrorForResponse} 는 입력이 없으면 정직하게 `null` 을 돌려준다.
+   * `redactStoredFieldsForResponse` 는 입력이 없으면 정직하게 `null` 을 돌려준다.
    * 종전에는 `as Execution` 로 그 `null` 가능성을 캐스트 뒤에 지웠는데, 그러면 이후
    * 이 결과를 다루는 코드가 `.error` 를 null-check 없이 만져도 컴파일러가 침묵한다 —
    * *"자매 표면 하나를 빠뜨린다"* 는 이 PR 이 고치는 결함 클래스를 타입 시스템이
@@ -1112,9 +1066,7 @@ export class ExecutionsService {
       // `...rest` 는 엔티티를 통째로 펼치므로 여기서 덮지 않으면 원문이 나간다
       // (`error` 만 가리던 자리였다). 2026-08-20 부터 `inputData` 도 포함한다 —
       // 프런트 마커 가드(프리필 스킵·제출 차단)가 서면서 재제출 카브아웃이 닫혔다.
-      inputData: redactStoredDataForResponse(rest.inputData),
-      outputData: redactStoredDataForResponse(rest.outputData),
-      error: redactStoredErrorForResponse(rest.error),
+      ...redactStoredFieldsForResponse(rest),
     };
   }
 
