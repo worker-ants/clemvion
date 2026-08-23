@@ -8,6 +8,9 @@ owner: developer
 spec_impact:
   - spec/5-system/14-external-interaction-api.md
   - spec/5-system/6-websocket-protocol.md
+  # 자기-반증형 소정정 (CLAUDE.md §) — `#1205` 에서 내가 쓴 "SSE·fanout 이 잔여다" 예고를
+  # 이 작업이 실측으로 반증했다. 취소선 보존 + 정정. 게이트는 `--impl-done spec/conventions/`.
+  - spec/conventions/conversation-thread.md
 ---
 
 # SSE/fanout allowlist (EIA §R17 표의 마지막 행)
@@ -99,9 +102,16 @@ allowlist 안이다. 즉 #1205 가 넣은 회귀는 없고, **목록이 chat-cha
 - [x] (planner 턴) §R17 표의 SSE 행 flip + WS §4.4 단서. **단 "강도가 다르다" 서술은
       *제거*가 아니라 *범위 축소*로 끝났다** — `23_29_27` CRITICAL 이후 `waiting` 표면 한정
       으로 정정하고 `node.*` 잔여를 명시했다(위 상단 배너).
-- [x] 미러 전수 스윕 — 같은 주장이 실린 자리를 **다섯 곳** 고쳤다: §R17 · WS §4.4 ·
-      CHANGELOG · `toFanoutEnvelope` JSDoc · `getStatus` JSDoc. 앞 셋만 고치고 뒤 둘을
-      놓쳤던 것을 `23_56_18` documentation W3·W4 가 잡았다.
+- [x] 미러 전수 스윕 — 같은 주장이 실린 자리를 **여섯 곳** 고쳤다: §R17 · WS §4.4 ·
+      CHANGELOG · `toFanoutEnvelope` JSDoc · `getStatus` JSDoc ·
+      `conventions/conversation-thread.md` §8.4.
+      > **스윕을 두 번 놓쳤고, 이유가 서로 달랐다.**
+      > - 1차(`23_56_18` W3·W4): **문서 셋만 세고 코드 주석 둘을 안 셌다** — 세는 대상의
+      >   *종류*를 좁게 잡았다.
+      > - 2차(`00_16_59` W1): 여섯 번째는 `SSE·fanout **이** 잔여다` 인데 내 grep 은
+      >   `SSE·fanout **은** 잔여` 였다 — **조사 한 글자** 때문에 비켰다. 문자열을 세지
+      >   말고 **주장**을 세야 했다. 고쳐 돌린 스윕은 `잔여` 를 전부 뽑아 `SSE|fanout` 로
+      >   거른 것이고, 그제야 여섯 번째가 나왔다.
 - [x] `22_26_33` WARNING 반영 — JSDoc 그룹 표 3그룹 동기화(W3) · 트래커 wire-only 4→8키(W4) ·
       `node-output-allowlist.ts` **재배치는 이번 라운드 무변경**(INFO 2)
 - [x] 뮤테이션 검증 — **4/4 예측 일치** (아래 표)
