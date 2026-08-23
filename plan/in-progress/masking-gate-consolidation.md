@@ -67,9 +67,9 @@ shape 이 바뀌고 (b) 값이 없어 아무것도 안 바뀐 행까지 참조�
 - [x] `/consistency-check --impl-prep` — BLOCK:NO (CRITICAL 0, `13_55_36`)
 - [x] 헬퍼 2개 신설 + 4개 호출부 교체 (동작 무변경)
 - [x] `egress-masking.md §3` 의 stale 트리거 문장 **정정** (표 자체는 무변경)
-- [ ] **뮤테이션으로 판별력 검증** (아래 기준)
-- [ ] 트래커 항목 종결
-- [ ] TEST WORKFLOW 4단계 + 타입체크 ratchet
+- [x] **뮤테이션으로 판별력 검증** — M1 5 RED · M2 2 RED, 둘 다 `tsc` 선검증 통과
+- [x] 트래커 항목 종결 (미체크 26 → 25) + 반증 근거를 트래커 블록쿼트에 기록
+- [x] TEST WORKFLOW 4단계 전부 PASS + ratchet 199건 baseline 일치
 - [ ] `/ai-review`
 
 ## 검증 기준
@@ -81,3 +81,21 @@ shape 이 바뀌고 (b) 값이 없어 아무것도 안 바뀐 행까지 참조�
     한다. GREEN 이면 copy-on-change 계약을 아무도 안 지키고 있다는 뜻이고, 그 사실 자체가
     기록할 발견이다
 - 뮤테이션은 **커밋 후** `cp` 백업으로. `git checkout`/`reset --hard` 금지.
+
+## 결과
+
+- **뮤테이션 실측**
+  - **M1** 헬퍼에서 `inputData` 마스킹 제거 → **RED 5건**: 표면 ①상세(`findById`) ·
+    ②목록(`toExecutionDto`) · ⑧`getChain` · ⑧-b `stop` + `background-runs`. 예측대로 4개
+    호출부가 전부 이 헬퍼를 지나며, 표면별 캐너리가 각각 물었다.
+  - **M2** `redactNodeExecutionRow` 를 **항상 얕은 복사**로 → **RED 2건**:
+    *"`error` 가 없는 행은 원본 참조 그대로"*(⑤-c) · *"노드 레벨은 세 컬럼 전부가 복제를
+    유발"*(⑥-b). copy-on-change 계약을 실제로 지키는 테스트가 있음을 확인했다.
+  - 두 뮤턴트 모두 적용 후 `tsc --noEmit` 0건 — **유효 뮤턴트**다(거짓 RED 아님).
+- **TEST WORKFLOW**: lint PASS · unit PASS(backend 8,914 / frontend 287파일 / 그 외 전부) ·
+  build PASS · e2e PASS(backend supertest 285 + **Playwright 51**, 로그에서 직접 확인).
+- **타입체크 ratchet**: 199건 / 38파일 — baseline 과 일치(신규 오류 0).
+- **consistency `13_55_36`**: BLOCK **NO**, CRITICAL 0. WARNING 2건 중 1건(반증 근거를
+  트래커에 남길 것)은 이 PR 에서 반영, 나머지 1건(`2-api-convention.md §2.2` 인증 URL 중첩
+  예외 문구)은 **이 작업 범위 밖 · planner 소관**이라 미반영. INFO 중 `toResponseExecution`
+  JSDoc stale 심볼 인용 3곳은 이 PR 에서 갱신했다.

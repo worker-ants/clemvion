@@ -318,15 +318,28 @@ checker 가 독립적으로** "인용이 가리키는 절이 오히려 반대를
       > 예상 못 한 비용은 **spec 쪽**이었다 — 이 결론이 6개 문서에 SoT 로 미러돼 있어
       > planner 턴이 선행돼야 했다(`12_08_46` BLOCK:YES → `12_41_29` BLOCK:NO).
 
-- [ ] **`inputData` 마스킹 게이트 4곳을 단일 헬퍼로 통합** (2026-08-20 등재, `14_44_08` W4).
-      `toResponseExecution` · `toExecutionDto` · 노드 레벨 `maskIfPresent` 루프 ·
-      `background-runs.service.ts` 가 각자 마스킹을 걸고, 유일한 동기화 장치가 **사람이 읽는
-      주석 표**다. 이 fragmentation 때문에 실제로 자매 DTO JSDoc 이 갱신에서 빠지는 CRITICAL 이
-      났다(`14_08_45` C2) — 근본 원인은 그대로 남아 있다.
-      > 공유 `redactExecutionFields(row)` 또는 응답 직전 interceptor 로 통합 검토.
-      > **착수 시 동반 갱신**: 이 통합이 집행되면 개별 호출부 심볼이 헬퍼 하나로 흡수돼
+- [x] **`inputData` 마스킹 게이트 4곳을 단일 헬퍼로 통합** (2026-08-20 등재, `14_44_08` W4 —
+      **2026-08-23 종결**). `toResponseExecution` · `toExecutionDto` · 노드 레벨 `maskIfPresent`
+      루프 · `background-runs.service.ts` 가 각자 마스킹을 걸고, 유일한 동기화 장치가 **사람이
+      읽는 주석 표**였다. 이 fragmentation 때문에 실제로 자매 DTO JSDoc 이 갱신에서 빠지는
+      CRITICAL 이 났다(`14_08_45` C2).
+      > **집행 결과**: `redact-stored-error.ts` 에 헬퍼 **둘**을 인접 배치했다 —
+      > `redactStoredFieldsForResponse`(DTO 조립 3곳, 부재를 `null` 로 정규화) ·
+      > `redactNodeExecutionRow`(`nodeExecutions[]` 행, copy-on-change·부재 보존).
+      > **하나로 뭉개지 않았다** — 노드 레벨은 엔티티 형태를 그대로 싣는 자리라 `undefined →
+      > null` 정규화가 응답 shape 을 바꾸고 copy-on-change 를 깬다. 등재 시 제안한
+      > `redactExecutionFields(row)` **단일** 헬퍼는 그 이유로 기각. interceptor 안은
+      > 미검토 — 두 헬퍼로 SoT 가 한 파일에 모여 동기 문제가 해소돼 착수 근거가 사라졌다.
+      > **뮤테이션 검증**: `inputData` 마스킹 제거 → 5개 테스트 RED(표면 ①상세·②목록·⑧chain·
+      > ⑧-b stop + background-runs), identity 보존 파기 → 2개 RED. 둘 다 `tsc` 선검증 통과.
+      > ~~**착수 시 동반 갱신**: 이 통합이 집행되면 개별 호출부 심볼이 헬퍼 하나로 흡수돼
       > [`egress-masking` 규약 §1 좌표계 표](../../spec/conventions/egress-masking.md) 의
-      > 소비처 열이 stale 해진다(그 문서 §3 에 같은 트리거가 적혀 있다).
+      > 소비처 열이 stale 해진다(그 문서 §3 에 같은 트리거가 적혀 있다).~~
+      > **그 예고는 틀렸다 — 표는 무변경이다.** 실측: 표 2행 소비처 `deepRedactSecrets` 는
+      > 신규 래퍼가 흡수하지 않고 그 **위**에 서고(사슬만 한 겹 길어진다), 표 5행 소비처
+      > `stripExternalOnlyFields` 는 호출부가 `websocket.service.ts`·`interaction.service.ts`
+      > 뿐이라 이 4개 게이트와 접점이 없다. 표는 **마스커(함수) 좌표계**인데 예고를 쓸 때
+      > **호출부(응답 조립부) 좌표계**로 착각했다 — 표 대신 그 §3 트리거 문장을 정정했다.
 
 - [x] **`inputOverride` 서버측 마커 리터럴 거부** (2026-08-20 등재, `14_44_08` W6 — **2026-08-21 종결**).
       `resolveTriggerParameters` 는 타입·필수값만 보므로 UI 를 우회한 클라이언트(curl)는
