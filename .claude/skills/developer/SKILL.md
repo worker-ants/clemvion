@@ -25,7 +25,7 @@ model: opus
 
 | 경로 | 권한 |
 | --- | --- |
-| `spec/` | Read only — 수정 시 `project-planner` 위임. 갱신 제안은 `plan/in-progress/spec-update-<name>.md` |
+| `spec/` | Read only — 수정 시 `project-planner` 위임. 갱신 제안은 `plan/in-progress/spec-update-<name>.md`. **좁은 예외 1건**(자기가 쓴 예고를 실측으로 반증하는 소정정): 조건·게이트는 [`CLAUDE.md` §자기-반증형 소정정](../../../CLAUDE.md#자기-반증형-소정정--developer-가-spec-을-고칠-수-있는-유일한-경우) 이 SoT — **여기에 복제하지 않는다** |
 | `plan/in-progress/` | Read/Write 자유 |
 | `plan/complete/` | Read/Write — 모든 항목 끝나면 `git mv` |
 | `codebase/**` | Read/Write — 구현 주 영역 |

@@ -330,17 +330,51 @@ checker 가 독립적으로** "인용이 가리키는 절이 오히려 반대를
       > 4. `egress-masking.md` frontmatter `code:` 에 `redact-stored-error.ts` 미등재.
       >    (4번은 `spec/` 편집이라 위 권한-경계 항목의 처분에 종속된다.)
 
-- [ ] **`developer` 의 자기-예측 반증형 spec 소정정 — 권한 경계를 정한다** (2026-08-23 등재,
-      `14_23_44` scope W2). `masking-gate-consolidation` 에서 developer 턴이
+- [ ] **doc-link 검사기가 `CLAUDE.md`·`.claude/**` 를 안 훑는다** (2026-08-23 등재).
+      `scripts/check-doc-links.py:187` 의 스코프는 `["prd", "spec"]` 뿐이라 거버넌스 문서의
+      링크·앵커는 **기계가 안 지킨다**.
+      > **실측 (넓혀서 돌려 봄)**: 루트 `*.md` + `.claude/**` = 58개 파일, 새로 드러나는 깨진
+      > 링크 **6건**. 그중 `PROJECT.md:50` 이 `CLAUDE.md#worktree-기반-작업-정책` 이라는
+      > **이미 썩은 앵커**를 갖고 있다 — 가설이 아니라 실현된 형태다.
+      > **발견 경위**: 이번 PR 이 CLAUDE.md 에 앵커를 새로 만들었고, 검사기가 그걸 지키는지
+      > **일부러 깨뜨려** 확인했더니 `BROKEN` 이 안 늘었다. 안 깨봤으면 "링크 검사 통과" 를
+      > 증거로 적을 뻔했다.
+      > **미착수 사유**: 사용자 요청 범위(예외 명문화) 밖의 하네스 변경이다. 6건 중
+      > `CHANGELOG.md:1060` 은 과거 기록이라 처분이 갈리므로 결정이 하나 섞인다.
+
+- [ ] ~~Docker Hub 익명 pull rate limit — CI 에 레지스트리 인증/미러 도입~~ →
+      **won't-do (2026-08-23 사용자 결정)**. `#1202` 의 e2e 가 `minio` pull 에서
+      `unauthorized` 로 죽어 backend supertest 가 시작조차 못 했다(재실행으로 초록).
+      저장소의 **어떤 워크플로에도 Docker Hub 로그인이 없어**(실측) 익명 pull rate limit 에
+      상시 노출돼 있고 **재발한다**.
+      > **다시 진단하지 말 것** — 사용자가 처리하지 않기로 결정했다. 증상은 `docker compose up`
+      > 이 이미지 pull 에서 `unauthorized: authentication required` 로 실패하고 테스트는 0건
+      > 실행되는 형태다(로그에 `Tests:`/`FAIL` 없음). **조치는 실패 job 재실행**이다.
+      > 같은 run 의 다른 job(`e2e-frontend`)이 통과했다면 일시적 현상이 확정된다.
+
+- [x] **`developer` 의 자기-예측 반증형 spec 소정정 — 권한 경계를 정한다** (2026-08-23 등재 ·
+      **같은 날 종결**. `14_23_44` scope W2 → `15_16_28` plan_coherence W1).
+      `masking-gate-consolidation` 에서 developer 턴이
       `spec/conventions/egress-masking.md §3` 을 직접 고쳤다. 내용은 정확하고 5개 consistency
       checker + 9개 reviewer 가 전원 타당 판정했지만, CLAUDE.md 권한표는 developer 를 `spec/`
       **read-only** 로 못박고 "구현 중 spec 변경 필요 시 planner 위임" 을 따로 강조한다.
       실질 위험은 형식이 아니라 **게이트**다 — 이 편집은 `--impl-prep` 만 거쳤고 spec 편집이
       받아야 할 `--spec` 은 못 받았다.
-      > **planner 판단 항목**: (a) developer 가 *자기가 그 문서에 적어 둔 예고를 실측으로
-      > 반증하는* 소정정을 예외로 명문화할지, (b) 그런 정정도 planner 턴으로 강제할지.
-      > (b) 를 택하면 "예고를 남긴 사람과 반증할 수 있는 사람이 달라진다" 는 비용을 받는다.
-      > 이 항목 자체가 그 비용의 사례다 — 반증 근거는 이미 위 종결 항목에 실측으로 남아 있다.
+      > ~~**planner 판단 항목**: (a) 예외 명문화 (b) planner 턴 강제.~~
+      > **→ 사용자 결정 (2026-08-23): (a) 예외 명문화.** 근거는 (b) 의 비용 — 예고를 남긴
+      > 것도, 그것이 틀렸음을 실측한 것도 developer 라, planner 를 강제하면 **반증할 수 있는
+      > 유일한 사람에게서 정정 권한을 뺏는다**.
+      >
+      > **집행**: [`CLAUDE.md` §자기-반증형 소정정] 에 정의를 신설했다. 좁게 유지하는
+      > **5조건**(자기가 쓴 문장 · 예고/트리거일 것 · 실측 반증 · 그 문장에 국한(취소선 보존) ·
+      > `spec_impact`+커밋 기록)을 전부 충족해야 하고, `--spec` 을 면제하는 대신
+      > **`--impl-done` 을 그 spec 파일 포함 scope 로** 돌리는 것을 조건에 넣었다 — 원 지적의
+      > 실질이 형식이 아니라 게이트였기 때문이다.
+      >
+      > **미러를 늘리지 않았다**: live 규칙이 5곳에 있었는데(CLAUDE.md 2 + developer/SKILL.md 3),
+      > 문구를 5곳에 복제하는 대신 **CLAUDE.md 한 곳에 정의하고 나머지는 가리킨다**. SKILL.md
+      > §기획 금지("신규 정의·대규모 개정")와 §133("spec 자체 문제")은 **손대지 않았다** —
+      > 자기-반증 소정정은 애초에 그 둘에 저촉되지 않는다(전수 판정 후 무변경 결정).
 
 - [x] **`inputData` 마스킹 게이트 4곳을 단일 헬퍼로 통합** (2026-08-20 등재, `14_44_08` W4 —
       **2026-08-23 종결**). `toResponseExecution` · `toExecutionDto` · 노드 레벨 `maskIfPresent`
