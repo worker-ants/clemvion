@@ -77,6 +77,8 @@ allowlist 안이다. 즉 #1205 가 넣은 회귀는 없고, **목록이 chat-cha
 - [x] `toFanoutEnvelope` 에 두 위치 배선
 - [x] 캐너리 — `_retryState` 두 위치에서 제거 · chat-channel 4키 보존 · 내부 WS 불변
 - [x] (planner 턴) §R17 표의 SSE 행 flip + "강도가 다르다" 서술 제거 + WS §4.4 단서
+- [x] `22_26_33` WARNING 반영 — JSDoc 그룹 표 3그룹 동기화(W3) · 트래커 wire-only 4→8키(W4) ·
+      `node-output-allowlist.ts` **재배치는 이번 라운드 무변경**(INFO 2)
 - [ ] 뮤테이션 검증
 - [ ] TEST WORKFLOW 4단계 + ratchet
 - [ ] `/ai-review`
@@ -89,3 +91,15 @@ allowlist 안이다. 즉 #1205 가 넣은 회귀는 없고, **목록이 chat-cha
   - M1 fanout 배선 제거 → `_retryState` 캐너리 RED
   - M2 allowlist 에서 `rendered` 제거 → chat-channel 보존 캐너리 RED (4키가 진짜 지켜지나)
 - 뮤테이션은 **커밋 후** `cp` 백업으로. `git checkout`/`reset --hard` 금지.
+
+## 재배치 defer 사유 (`22_26_33` plan_coherence INFO 2)
+
+트래커의 *"`node-output-allowlist.ts` 를 `shared/utils/` 밖으로 재배치"* 항목은 재개 조건을
+*"소비처가 둘이 되면 그때 함께 정하라"* 로 뒀고, 이번 작업이 그 시점이다. **결론: 무변경.**
+
+소비처가 `external-interaction/` 과 `websocket/` 으로 **갈렸으므로** 그 항목이 적어 둔 후보
+*"유일 소비처 인근"* 이 성립하지 않는다. `nodes/core/` 로 올리는 대안은 그쪽이 EIA 전용 wire
+키 8개를 떠안게 되어 더 나쁘다. `shared/utils/` 는 두 소비처 양쪽의 하위 계층이라 상향 참조가
+없다. 남은 흠(*"shared 8파일 중 유일하게 도메인 타입 import"*)은 이 파일의 **방어 수단**인
+컴파일타임 assertion 그 자체라 제거 대상이 아니다. 트래커 항목의 재개 신호를
+*"shared 아래가 아닌 소비처가 생겼다"* 로 갈아 두었다.

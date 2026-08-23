@@ -116,13 +116,17 @@ owner: planner
 
       </details>
 
-- [ ] **wire-only 4키가 `node-output.md` Principle 0 의 닫힌 레지스트리 밖이다** (2026-08-23 등재,
-      `20_09_38` convention_compliance W3). 그 규약은 `NodeHandlerOutput` 을 **5필드 + 3예외**
-      닫힌 목록으로 못박는데, EIA wire 조립 레이어는 거기에 없는 `formConfig`·
-      `conversationConfig`·`buttonConfig`·`interactionType` 을 top-level 로 얹는다 —
-      이번 PR 이 `NODE_OUTPUT_ALLOWED_KEYS` 로 그 사실을 **컴파일타임 SoT 로 명문화**하면서
-      규약과의 간극이 드러났다.
-      > **동작 결함은 아니다** — 위젯 파서가 실제로 그 키들을 읽고(실측), allowlist 가
+- [ ] **wire-only ~~4키~~ **8키**가 `node-output.md` Principle 0 의 닫힌 레지스트리 밖이다**
+      (2026-08-23 등재, `20_09_38` convention_compliance W3 · `22_26_33` plan_coherence W4 로
+      키 수 갱신). 그 규약은 `NodeHandlerOutput` 을 **5필드 + 3예외** 닫힌 목록으로 못박는데,
+      EIA wire 조립 레이어는 거기에 없는 키를 top-level 로 얹는다 — **착수 시 다시 세라**,
+      정본은 `NODE_OUTPUT_ALLOWED_KEYS` 의 wire 전용 두 그룹이다:
+      - 위젯 파서: `formConfig`·`conversationConfig`·`buttonConfig`·`interactionType`
+      - chat-channel 렌더러: `payload`·`title`·`rendered`·`nodeType` (2026-08-23 SSE 작업이 추가)
+
+      `NODE_OUTPUT_ALLOWED_KEYS` 가 그 사실을 **컴파일타임 SoT 로 명문화**하면서 규약과의
+      간극이 드러났다.
+      > **동작 결함은 아니다** — 실제 소비처가 그 키들을 읽고(실측), allowlist 가
       > fail-closed 로 통과시킨다. 문제는 **규약 문서가 그 층의 존재를 모른다**는 것이다.
       > **planner 소관**: Principle 0 에 "EIA wire 조립 레이어가 추가하는 wire-only 필드는
       > `NodeHandlerOutput` 계약 **밖**" 각주를 다는 편이 낫다 — 5필드 목록을 넓히면
@@ -137,6 +141,15 @@ owner: planner
       > **착수 시 후보**: 유일 소비처 인근(`modules/external-interaction/`) 또는 `nodes/core/`.
       > 위 SSE 항목이 소비처를 하나 늘리므로 **그 작업과 함께 정하는 편이 낫다** — 소비처가
       > 둘이 되면 배치 답이 달라진다.
+      >
+      > **그 판단 시점이 왔고, 결론은 무변경이다 (2026-08-23, SSE 작업)**: 소비처는
+      > `modules/external-interaction/interaction.service.ts` 와 `modules/websocket/
+      > websocket.service.ts` 둘로 갈렸다 — 즉 *"유일 소비처 인근"* 이라는 후보가 사라졌고,
+      > `nodes/core/` 로 올리면 이번엔 그쪽이 EIA 전용 wire 키 8개를 떠안는다. `shared/utils/`
+      > 는 두 소비처 **양쪽의 하위 계층**이라 상향 참조가 없다. 남은 흠은 *"shared 8파일 중
+      > 유일하게 도메인 타입을 import"* 뿐인데, 그 결속이 이 파일의 **방어 수단**(컴파일타임
+      > assertion)이라 없앨 수 없다. 항목은 열어 두되 **재개 신호는 "소비처가 늘었다" 가
+      > 아니라 "shared 아래가 아닌 소비처가 생겼다"** 로 바꾼다.
 
 - [x] **`getStatus` 일반 `nodeOutput` 키-allowlist** (§R17 잔여) — §R17 이 "conversationConfig 이외의 일반 `nodeOutput` 키-allowlist 만 잔여 항목" 이라 명시했으나 등재된 plan 이 없었다. 현재 `conversationThread`·`ai_message`·`nodeOutput.conversationConfig` 는 `redactThreadForPublic`/`deepRedactSecrets` 로 마스킹되지만 그 외 `nodeOutput` 키는 공개 표면에 그대로 실린다. 도입 시 §R17 잔여 문구 flip. (2026-07-10 consistency `plan-coherence` W3 로 등재 — spec-impl-evidence R-5 "빈 약속 영구 누락" 방지.)
       > **→ 종결 (2026-08-23).** 착수 전 프로브가 **전제를 절반 갈았다**: 그 사이
