@@ -79,6 +79,12 @@ owner: planner
       > 깨진다** — REST 열람(읽고 버림)과 위험이 다르다.
       > **착수 시**: EIA §R17 의 표에서 이 행을 flip 하고, "REST·SSE 방어 강도가 다르다" 는
       > 서술을 함께 지운다. 그 표가 이 항목의 SoT 다.
+      >
+      > **호출부 실측 (`19_00_23` security W1 이 보강)** — 다시 찾지 말 것:
+      > `FormInteractionService.waitForFormSubmission` 과
+      > `ButtonInteractionService.waitForButtonInteraction` 이 아무 필터 없이
+      > `nodeOutput` / `buttonConfig.nodeOutput` 을 실어 `toFanoutEnvelope` 를 지난다.
+      > REST 와 **같은 인가**(`verifyOwnership`)를 쓰는 같은 수신 인구다.
 
 - [x] **`getStatus` 일반 `nodeOutput` 키-allowlist** (§R17 잔여) — §R17 이 "conversationConfig 이외의 일반 `nodeOutput` 키-allowlist 만 잔여 항목" 이라 명시했으나 등재된 plan 이 없었다. 현재 `conversationThread`·`ai_message`·`nodeOutput.conversationConfig` 는 `redactThreadForPublic`/`deepRedactSecrets` 로 마스킹되지만 그 외 `nodeOutput` 키는 공개 표면에 그대로 실린다. 도입 시 §R17 잔여 문구 flip. (2026-07-10 consistency `plan-coherence` W3 로 등재 — spec-impl-evidence R-5 "빈 약속 영구 누락" 방지.)
       > **→ 종결 (2026-08-23).** 착수 전 프로브가 **전제를 절반 갈았다**: 그 사이

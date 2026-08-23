@@ -611,6 +611,50 @@ describe('InteractionService.getStatus', () => {
     });
   });
 
+  // buttons 분기는 `{ buttons, nodeOutput }` 로 다시 감싼다 — 지금은 form 과 같은 `out`
+  // 참조를 재사용해 사실상 안전하지만, 분기가 독립적으로 재가공되면 회귀를 못 잡는다
+  // (`19_00_23` testing INFO 4).
+  it('[캐너리] buttons 분기의 `buttonConfig.nodeOutput` 도 allowlist 를 지난다', async () => {
+    const { service, repo, nodeRepo } = makeMocks();
+    repo.findOne.mockResolvedValue(
+      makeExecution({ status: ExecutionStatus.WAITING_FOR_INPUT }),
+    );
+    nodeRepo.findOne.mockResolvedValue({
+      nodeId: 'n1',
+      node: { type: 'Carousel' },
+      outputData: {
+        meta: { interactionType: 'buttons' },
+        buttonConfig: { buttons: [{ id: 'b1', label: '문의' }] },
+        _retryState: { attempt: 1 },
+      },
+    });
+    const r = await service.getStatus(IEXT_CTX);
+    const bc = (r.context as unknown as Record<string, unknown>)
+      .buttonConfig as Record<string, unknown>;
+    const nested = bc.nodeOutput as Record<string, unknown>;
+    expect(nested._retryState).toBeUndefined();
+    // 대조군 — 버튼 자체는 살아 있어야 한다.
+    expect(bc.buttons).toEqual([{ id: 'b1', label: '문의' }]);
+  });
+
+  // 설계 경계를 **의도 명시**로 못박는다 — 지금은 무관 테스트의 부수 효과로만 덮인다
+  // (`19_00_23` testing INFO 5). terminal `result` 는 `Execution.outputData` = 작성자가
+  // 정의한 워크플로 출력이라 allowlist 를 걸면 정상 데이터가 잘린다.
+  it('[캐너리] terminal `result` 는 nodeOutput allowlist 를 받지 **않는다** (의도)', async () => {
+    const { service, repo } = makeMocks();
+    repo.findOne.mockResolvedValue(
+      makeExecution({
+        status: ExecutionStatus.COMPLETED,
+        outputData: { 작성자가정한임의키: 'keep', total: 42 },
+      }),
+    );
+    const r = await service.getStatus(IEXT_CTX);
+    const result = r.result as Record<string, unknown>;
+    // allowlist 였다면 둘 다 사라졌을 것이다.
+    expect(result.작성자가정한임의키).toBe('keep');
+    expect(result.total).toBe(42);
+  });
+
   // 배선 캐너리 — 헬퍼 자체는 `strip-external-only-fields.spec.ts` 가 고정한다. 여기서는
   // **`getStatus` 가 실제로 그 헬퍼를 지나는지**만 본다. 이 시리즈가 반복해 겪은 형태:
   // 헬퍼는 초록인데 호출부에 안 걸려 있었다.

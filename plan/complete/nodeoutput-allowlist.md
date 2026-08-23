@@ -1,8 +1,9 @@
 ---
 title: "`getStatus` 의 `nodeOutput` 을 fail-open deny-list 에서 fail-closed allowlist 로"
-status: in-progress
+status: complete
 worktree: nodeoutput-allowlist-17a6f5
 started: 2026-08-23
+completed: 2026-08-23
 owner: developer
 spec_impact:
   - spec/5-system/14-external-interaction-api.md
@@ -11,7 +12,7 @@ spec_impact:
 # `nodeOutput` 키 allowlist (EIA §R17 잔여)
 
 정본 트래커
-[`spec-sync-external-interaction-api-gaps.md`](./spec-sync-external-interaction-api-gaps.md)
+[`spec-sync-external-interaction-api-gaps.md`](../in-progress/spec-sync-external-interaction-api-gaps.md)
 의 항목 *"`getStatus` 일반 `nodeOutput` 키-allowlist"* (2026-07-10 등재, `plan-coherence` W3).
 
 ## 착수 전 프로브 — 항목 전제가 **부분적으로 낡았다**
@@ -80,8 +81,8 @@ allowlist 를 새로 발명하지 않고 그 타입의 **공개 부분집합**�
 - [x] 캐너리 — 유틸 스위트 + **배선 캐너리**(호출부가 실제로 지나는지)
 - [x] 뮤테이션 검증 — **vacuous 캐너리를 드러냈다**(아래)
 - [x] TEST WORKFLOW 4단계 PASS + ratchet — **게이트가 신규 타입 오류를 잡았다**(아래)
-- [ ] `/ai-review`
-- [ ] 상위 트래커 체크박스 flip + 근거 기록 (`18_30_40` INFO 5)
+- [x] `/ai-review` — `19_00_23` CRITICAL 0 · WARNING 4 → **전부 반영** (RESOLUTION.md)
+- [x] 상위 트래커 체크박스 flip + 근거 기록 (`18_30_40` INFO 5)
 
 ## 검증 기준
 
@@ -141,8 +142,27 @@ strip 하고 `nest build` 는 `*.spec.ts` 를 exclude** 하므로 이 게이트 
 
 ## 게이트·수치
 
-- **TEST WORKFLOW**: lint · unit(backend **8,971**) · build · e2e(285 + **Playwright 51**) PASS
+- **TEST WORKFLOW**: lint · unit(backend **8,974**) · build · e2e(285 + **Playwright 51**) PASS — 리뷰 fix 후 재수행분
 - **ratchet**: 199건 / 38파일 — baseline 일치
 - 부수: 첫 e2e 는 postgres 컨테이너가 `No space left on device` 로 죽었다(테스트 실패 아님).
   `docker builder prune -af` + `image prune -f` 로 **49.8GB** 회수 후 재실행 PASS. 볼륨은
   건드리지 않았다.
+
+## `/ai-review` 처분 (`19_00_23` — CRITICAL 0 · WARNING 4 · MEDIUM)
+
+전문은 [`RESOLUTION.md`](../../review/code/2026/08/23/19_00_23/RESOLUTION.md). 요지:
+
+- **W1 (security)**: SSE 잔여는 `--impl-prep` 에서 **의도적으로 정한 범위**라 유지. 다만
+  리뷰어가 **내가 못 찾은 호출부 2곳**(`waitForFormSubmission`·`waitForButtonInteraction`)을
+  짚어, 그 실측을 트래커 항목에 옮겨 적었다 — 후속 착수자가 다시 찾지 않도록.
+- **W2 (architecture)**: 내가 **순수·범용 유틸을 도메인 타입에 결속**시켰다(계층 역전).
+  `node-output-allowlist.ts` 로 분리하고 테스트도 갈랐다.
+- **W3**: `getStatus` JSDoc 이 *"allowlist 는 별개 잔여 항목"* 이라 말하는데 **바로 그 메서드
+  본문에** 배선을 넣었다. spec 표는 갱신했는데 이 한 줄만 남은, 이 세션에서 반복한 형태다.
+- **W4**: 같은 표면의 선행 보안 수정(`llmCalls`)은 CHANGELOG 에 운영 영향까지 남겼는데 이번엔
+  없었다. 같은 형식으로 추가하되 `_retryState` 가 자격증명이 아님도 함께 적어 과장하지 않았다.
+- **INFO 5건 조치**(`__proto__`·buttons 분기·terminal 경계 캐너리 · `delete` 근거 · 체크박스),
+  8건 미조치 사유는 RESOLUTION 표에.
+
+부수: 첫 unit 재수행에서 무관 파일(`node-components.module.spec.ts`)이 **SIGSEGV** 로 죽었다 —
+실패 테스트는 0건이었고 단독 재실행은 통과. phantom 으로 기록하고 정식 재실행했다.
