@@ -116,7 +116,7 @@ dispatch 매핑 (`interaction.service.ts`). 외부 scope 는 `expectedNodeId`(=`
 - **In-process trusted 경로**: Chat Channel inbound (`hooks.service.ts` `handleChatChannelWebhook`)
   는 HTTP 를 거치지 않고 `scope: 'in_process_trusted'` ctx 를 직접 합성해 같은 dispatch 를 호출한다
   — 토큰 검증 우회는 서버 내부 모듈만 가능 (타입 union 으로 컴파일러 강제,
-  `interaction.guard.ts` EIA-AU-08/09). 흐름 자체는 [Chat Channel data-flow](./14-chat-channel.md) 참조.
+  `interaction.guard.ts` EIA-AU-08). 흐름 자체는 [Chat Channel data-flow](./14-chat-channel.md) 참조.
 - **refresh-token**: `POST /:id/refresh-token` 은 `iext_*` 만 대상 (`itk_*` 는 403). 만료 30분
   이내(`IEXT_REFRESH_WINDOW_SEC`)에만 신규 발급 — 구 jti 는 즉시 Redis blacklist + `execution_token`
   row DELETE 후 새 jti 가 INSERT 된다. terminal execution 은 410.
