@@ -654,16 +654,24 @@ checker 가 독립적으로** "인용이 가리키는 절이 오히려 반대를
 둘 다 **EIA 쪽이 이미 정합**인데 참조하는 문서가 옛 서술을 유지한 경우다 — 내 diff 밖이라
 등재만 한다.
 
-- [ ] **`15-chat-channel.md` §5.1(319행)·§8(507행)** — `InteractionRequestContext` 를
+- [x] **`15-chat-channel.md` §5.1(319행)·§8(507행)** — `InteractionRequestContext` 를
       "단일 인터페이스 + optional `scope` 필드" 로 서술한다. EIA §3.3.1 은 이미
       **discriminated union**(`External`/`Internal` 별도 인터페이스)으로 정의하고 코드도
       그렇다. **체커가 "보안 민감(토큰-우회 타입)이라 우선도 있다" 고 표시했다** — 다만
       문서 stale 이지 런타임 결함이 아님을 확인했다. EIA §3.3.1 을 SoT 로 가리키는 포인터로
       대체하는 편이 재-drift 를 막는다
-- [ ] **EIA §5.1** 이 webhook §5.2 를 *"legacy `statusCode/errors` shape"* 라 서술 —
+- [x] **EIA §5.1** 이 webhook §5.2 를 *"legacy `statusCode/errors` shape"* 라 서술 —
       webhook 은 2026-06-28(`7e181ed8e`)에 이미 `{error:{code,message,details}}` 로
       정합화됐다. 대비 문구가 유효기간을 넘겼다
-- [ ] (INFO) `data-flow/15-external-interaction.md:119` 가 **정의되지 않은 `EIA-AU-09`** 참조
+- [ ] **`interaction.guard.ts:27` JSDoc 에 같은 `EIA-AU-09` 오기가 남아 있다** (2026-08-23 등재,
+      `21_24_43` rationale INFO 7). spec 쪽은 `spec-text-fixes` planner 턴이 정정했으나
+      **코드 주석은 developer 소관**이라 그 턴에서 못 건드렸다.
+      > 실측: `* [Spec EIA §3.3 EIA-AU-08 + §3.3.1 EIA-AU-09] — In-process trusted caller 예외.`
+      > `EIA-AU-09` 는 정의된 적이 없다(EIA 는 `01`~`08`). **`+ §3.3.1 EIA-AU-09` 부분만**
+      > 지우면 된다 — §3.3.1 자체는 실재하는 절이므로 그 참조는 살릴 수 있다.
+      > 이 파일을 다른 이유로 여는 작업에 곁들인다.
+
+- [x] (INFO) `data-flow/15-external-interaction.md:119` 가 **정의되지 않은 `EIA-AU-09`** 참조
       (EIA §3.3 은 `01`~`08` 까지만 정의)
 
 ## ⚠️ `duration_ms` 에 "대기 시간" 이 섞여 집계를 오염시킨다 (2026-08-15 등재, `10_34_51` W3)

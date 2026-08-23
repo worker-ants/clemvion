@@ -316,7 +316,7 @@ TTL: 7일 (사용자 이탈 시 자동 만료)
 
 - **Webhook 진입점**: [WH-SC-02 HMAC 서명](./12-webhook.md#42-hmac-서명--authconfigtypehmac) (provider 가 지원하는 경우) 또는 endpoint UUID 의 randomness 에 의존. 텔레그램은 HMAC 미지원이므로 `secret_token` 파라미터를 `setWebhook` 시 등록해 `X-Telegram-Bot-Api-Secret-Token` 헤더로 검증 (구체는 [providers/telegram §6](../4-nodes/7-trigger/providers/telegram.md#6-보안)).
 - **EIA inbound facade**: 어댑터가 인터랙션 명령을 보낼 때 EIA 의 외부 토큰 (`iext_*` / `itk_*`) 발급을 우회하고 [`InteractionService.interact(ctx: InteractionRequestContext, dto: InteractDto)`](../../codebase/backend/src/modules/external-interaction/interaction.service.ts) 를 직접 in-process 호출. EIA HTTP 표면은 외부 클라이언트 전용 — 어댑터는 같은 process 안의 trusted caller. 우회 자체는 [EIA §3.3 EIA-AU-08](./14-external-interaction-api.md#33-인증) 의 명시적 예외 조항에 근거.
-- **구현 단계의 접근 제어**: `InteractionRequestContext` 의 `scope: 'in_process_trusted'` 플래그가 set 된 경우만 token 검증 단계 (`tokenService.verify`) 를 skip. 외부 HTTP guard 는 ctx 합성 시 이 플래그를 절대 set 하지 않는다. 본 플래그의 추가는 [`InteractionRequestContext` 의 `tokenFamily` 확장이 아니라 별도 필드 도입] — `tokenFamily` 는 토큰 종류 식별용이고 `scope` 는 caller 의 신뢰 영역 식별용으로 직교적 의미를 가짐.
+- **구현 단계의 접근 제어**: 이 우회는 **in-process 신뢰 caller 에만** 열리고 외부 HTTP 경로는 구조적으로 닿을 수 없다. **SoT: [EIA §3.3.1](./14-external-interaction-api.md)** — 그 절이 `InteractionRequestContext` 를 discriminated union(`External…`/`Internal…` + `isInternalCtx()`)으로 정의하고, HTTP guard 가 합성하는 ctx 는 `scope === undefined` 라는 불변식을 **컴파일러로 강제**한다. 타입 shape 을 여기 다시 적지 않는다 — 두 문서가 각자 서술하면 갈린다(실제로 갈렸다). 본 플래그의 추가는 [`InteractionRequestContext` 의 `tokenFamily` 확장이 아니라 별도 필드 도입] — `tokenFamily` 는 토큰 종류 식별용이고 `scope` 는 caller 의 신뢰 영역 식별용으로 직교적 의미를 가짐.
 
 ### 5.2 SSRF
 
@@ -504,7 +504,7 @@ codebase/backend/src/modules/
 - `Trigger.config.chatChannel` 미존재 시 = 일반 webhook 트리거 (기존 동작 그대로). 기존 트리거 영향 없음.
 - 신규 컬럼 5개 (`chat_channel_*`) 추가. NOT NULL DEFAULT 가 지정되어 있어 기존 row 영향 없음.
 - 신규 endpoint `POST /api/triggers/:id/chat-channel/rotate-bot-token` 추가 — 기존 endpoint 변경 없음.
-- 내부 `InteractionService.interact()` 의 메서드 시그니처는 그대로. `InteractionRequestContext` 에 `scope?: 'in_process_trusted'` optional 필드만 추가 (외부 HTTP guard 의 ctx 합성은 변경 없음).
+- 내부 `InteractionService.interact()` 의 메서드 시그니처는 그대로. ~~`InteractionRequestContext` 에 `scope?: 'in_process_trusted'` optional 필드만 추가~~ → **현재는 discriminated union 이다**(v1 구현 완료) — 타입 정의는 [EIA §3.3.1](./14-external-interaction-api.md) 이 SoT. 외부 HTTP guard 의 ctx 합성은 변경 없음.
 - `ChatChannelDispatcher` 가 기존 단일 sink `WebsocketService.executionEvents$` (RxJS Subject) 를 추가 구독 (`onModuleInit`) — 기존 sink·NotificationDispatcher·SSE 발송 경로에는 변경 없음 (새 listener 추가일 뿐, 새 sink 도입 없음).
 
 ---

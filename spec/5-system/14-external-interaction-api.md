@@ -328,7 +328,7 @@ POST /api/external/executions/550e8400-.../interact
 
 **에러 응답:**
 
-응답 body 형식은 [Spec API 규칙 §5.3](./2-api-convention.md) 의 `{ "error": { "code", "message", "details" } }` 컨벤션을 따른다 (12-webhook §5.2 의 `statusCode/errors` shape 는 webhook 호출 진입점 전용 legacy 형식 — 본 spec 의 신규 endpoint 는 신컨벤션 채택).
+응답 body 형식은 [Spec API 규칙 §5.3](./2-api-convention.md) 의 `{ "error": { "code", "message", "details" } }` 컨벤션을 따른다 (~~12-webhook §5.2 의 `statusCode/errors` shape 는 webhook 호출 진입점 전용 legacy 형식 — 본 spec 의 신규 endpoint 는 신컨벤션 채택~~ → **그 대비는 유효기간을 넘겼다**: webhook 이 `7e181ed8e`(#754)로 같은 봉투를 채택해 2026-06-28 부터 **두 문서가 같은 형식**이다. 작성 시점(#228)엔 옳았던 서술이라 이력을 남긴다).
 
 ```jsonc
 // 예시: form validation 실패
