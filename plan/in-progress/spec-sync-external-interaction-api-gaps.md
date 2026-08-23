@@ -116,7 +116,7 @@ owner: planner
 
       </details>
 
-- [ ] **wire-only ~~4키~~ **8키**가 `node-output.md` Principle 0 의 닫힌 레지스트리 밖이다**
+- [ ] **wire-only 키가 `node-output.md` Principle 0 의 닫힌 레지스트리 밖이다** (~~4키~~ → **8키**)
       (2026-08-23 등재, `20_09_38` convention_compliance W3 · `22_26_33` plan_coherence W4 로
       키 수 갱신). 그 규약은 `NodeHandlerOutput` 을 **5필드 + 3예외** 닫힌 목록으로 못박는데,
       EIA wire 조립 레이어는 거기에 없는 키를 top-level 로 얹는다 — **착수 시 다시 세라**,
@@ -131,6 +131,29 @@ owner: planner
       > **planner 소관**: Principle 0 에 "EIA wire 조립 레이어가 추가하는 wire-only 필드는
       > `NodeHandlerOutput` 계약 **밖**" 각주를 다는 편이 낫다 — 5필드 목록을 넓히면
       > 핸들러 계약이 오염된다.
+
+- [ ] **fanout chokepoint 가 타입이 아니라 주석으로만 강제된다** (2026-08-23 등재,
+      `23_16_40` architecture INFO 6). `emitExecutionEvent`/`emitNodeEvent` 는
+      `toFanoutEnvelope` 를 지나지만 **그렇게 하라고 강제하는 것은 JSDoc 뿐**이고
+      `broadcastToChannel` 은 여전히 public 이다. 새 external emit 경로가 그 문을 우회하면
+      2026-08-23 에 닫은 정보 노출이 그대로 재발한다.
+      > **이번 diff 가 만든 문제가 아니다** — 기존 구조다. 다만 이 PR 이 그 문에
+      > **보안 책임을 하나 더 얹었으므로** 우회 비용이 전보다 커졌다.
+      > **후보**: fanout 전용 emit 을 private 으로 좁히거나, 외부 sink 로 나가는 지점에
+      > 타입 래퍼(`FanoutEnvelope` branded type)를 두어 조립을 강제한다.
+      > **함께 볼 것** (`23_16_40` security INFO 1): allowlist 는 **이름 기반**이라 wire 전용
+      > 8키 중 하나와 같은 이름의 내부 필드가 나중에 `nodeOutput` 최상위에 붙으면 통과한다.
+      > 두 항목의 처방이 같은 자리(신규 emit·신규 top-level 필드 리뷰 체크리스트)다.
+
+- [ ] **fanout allowlist 캐너리 4건이 `describe('llmCalls strip …')` 안에 있다** (2026-08-23 등재,
+      `23_16_40` testing INFO 14). 블록명이 실제 검증 대상(allowlist)과 어긋난다 — 다음에 이
+      파일을 여는 사람이 allowlist 테스트를 그 이름 아래에서 찾지 않는다.
+      > **이번에 안 옮긴 이유**: 이동은 `codebase/**` 변경이라 방금 끝난 리뷰가 다시 stale 이
+      > 된다. 순수 이동이라 위험은 0에 가깝지만 **리뷰 한 바퀴 값어치는 아니다** — 다음에 이
+      > 파일을 실질 수정할 때 함께 옮긴다.
+      > **`emitNodeEvent` 경로 미검증**(같은 라운드 testing INFO 12)도 같은 자리다 — 현재
+      > `nodeOutput` 을 싣는 이벤트는 `emitExecutionEvent` 뿐이라 위험이 낮고, 그 전제가
+      > 깨지는 순간(= `emitNodeEvent` 가 `nodeOutput` 을 싣는 첫 케이스)이 재개 신호다.
 
 - [ ] **`node-output-allowlist.ts` 를 `shared/utils/` 밖으로 재배치** (2026-08-23 등재,
       `19_24_24` architecture INFO 1). 그 디렉토리 8개 파일 중 **유일하게 도메인 타입**

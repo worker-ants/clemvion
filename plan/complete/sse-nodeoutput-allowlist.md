@@ -1,8 +1,9 @@
 ---
 title: "SSE/fanout 의 `nodeOutput` 도 fail-closed allowlist 로 — REST 와 강도를 맞춘다"
-status: in-progress
+status: complete
 worktree: sse-nodeoutput-allowlist-3b6219
 started: 2026-08-23
+completed: 2026-08-23
 owner: developer
 spec_impact:
   - spec/5-system/14-external-interaction-api.md
@@ -81,8 +82,16 @@ allowlist 안이다. 즉 #1205 가 넣은 회귀는 없고, **목록이 chat-cha
 - [x] `22_26_33` WARNING 반영 — JSDoc 그룹 표 3그룹 동기화(W3) · 트래커 wire-only 4→8키(W4) ·
       `node-output-allowlist.ts` **재배치는 이번 라운드 무변경**(INFO 2)
 - [x] 뮤테이션 검증 — **4/4 예측 일치** (아래 표)
-- [ ] TEST WORKFLOW 4단계 + ratchet
-- [ ] `/ai-review`
+- [x] TEST WORKFLOW 4단계 + ratchet — lint 56s · unit 74s(backend **8,990 passed** / 433
+      suites, 전 러너 실패 0) · build 158s · e2e 220s(285 passed) · ratchet 199/38 baseline 일치
+- [x] `/ai-review` — 2라운드로 수렴
+      - `22_51_46`: LOW · C0 · **W4** → 4건 전부 처리 (`RESOLUTION.md`). W1 REST 표면 확장은
+        목록을 가르는 대신 **캐너리로 의도 고정**, W2 는 캐너리 + **M5**, W3 CHANGELOG 자기정정,
+        W4 는 **감사 불가를 명시**하고 문서화로 처분.
+      - `23_16_40` (fresh): LOW · C0 · **W1** — 새 지적이 아니라 W4 의 재확인이고 리뷰어가
+        *"조치 불요, 이미 문서화 완료"* 로 판정. **새 Warning 0 → 수렴.**
+        INFO 중 내 서식 오류 1건만 고치고, chokepoint 강제(architecture 6 + security 1)와
+        describe 블록 이동(testing 14 + 12)은 **정본 트래커에 등재**했다.
 
 ## 검증 기준
 
