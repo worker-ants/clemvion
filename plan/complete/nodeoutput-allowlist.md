@@ -142,7 +142,7 @@ strip 하고 `nest build` 는 `*.spec.ts` 를 exclude** 하므로 이 게이트 
 
 ## 게이트·수치
 
-- **TEST WORKFLOW**: lint · unit(backend **8,974**) · build · e2e(285 + **Playwright 51**) PASS — 리뷰 fix 후 재수행분
+- **TEST WORKFLOW**: lint · unit(backend **8,975**) · build · e2e(285 + **Playwright 51**) PASS — 리뷰 2R fix 후 재수행분
 - **ratchet**: 199건 / 38파일 — baseline 일치
 - 부수: 첫 e2e 는 postgres 컨테이너가 `No space left on device` 로 죽었다(테스트 실패 아님).
   `docker builder prune -af` + `image prune -f` 로 **49.8GB** 회수 후 재실행 PASS. 볼륨은
@@ -166,3 +166,27 @@ strip 하고 `nest build` 는 `*.spec.ts` 를 exclude** 하므로 이 게이트 
 
 부수: 첫 unit 재수행에서 무관 파일(`node-components.module.spec.ts`)이 **SIGSEGV** 로 죽었다 —
 실패 테스트는 0건이었고 단독 재실행은 통과. phantom 으로 기록하고 정식 재실행했다.
+
+## `/ai-review` 2라운드 (`19_24_24` — CRITICAL 0 · WARNING 2)
+
+전문은 [`RESOLUTION.md`](../../review/code/2026/08/23/19_24_24/RESOLUTION.md). 4명 전원이
+1라운드 WARNING 4건의 실제 반영을 재확인했다.
+
+- **W1 (SSE 잔존)**: 범위 유지. **리뷰어가 호출부를 또 짚었다**(`processButtonResumeTurn`·
+  `nodeOutputForEvent`) — 트래커에 전부 옮기고 재사용할 헬퍼 경로도 적었다. 후속 착수자가
+  세 번째로 같은 grep 을 돌리지 않도록.
+- **W2 (깨진 링크)**: 1라운드 W2 대응으로 파일을 분리하며 JSDoc 을 **그대로 옮겨** `{@link}`
+  가 자매 **파일**의 심볼을 "위" 라 가리켰다. 파일명 명시 산문으로 정정 — import 추가는
+  방금 끊어 낸 결합을 되살리므로 택하지 않았다.
+- **INFO 2**: `Object.freeze` 적용. `as const` 는 컴파일타임 리터럴 타입만 주는데 이 상수의
+  JSDoc 이 "보안 경계" 라 주장하므로 런타임 불변까지 참으로 만들었다.
+- **INFO 1 (재배치)**: 미조치, 트래커 등재. 같은 라운드에 이미 한 번 옮겼고, **SSE 항목이
+  소비처를 하나 늘리므로 그 작업과 함께 정하는 게 낫다**(소비처가 둘이면 배치 답이 달라진다).
+
+### ⚠️ 새 캐너리가 내 가정을 반증했다
+
+`error` 출구 캐너리가 첫 실행에서 **실패**했다. 원인은 코드가 아니라 **내 fixture** —
+두 terminal 출구는 **둘 다 `execution.outputData`** 를 읽는데(분기는 `status` 로만) 나는
+`execution.error` 에 넣었다. 리뷰어는 제안에 정확히 `outputData` 라 적었는데 내가 옮겨 적으며
+틀렸다. 고치면서 **"두 출구가 같은 컬럼을 읽는다"** 는 사실이 테스트 주석으로 남았고,
+그게 원래 INFO 가 겨눈 "통합 리팩터링 시 한쪽만 바뀌는 것" 을 막는 핵심이다.

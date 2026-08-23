@@ -655,6 +655,23 @@ describe('InteractionService.getStatus', () => {
     expect(result.total).toBe(42);
   });
 
+  // `error` 출구는 `result` 와 코드가 완전 대칭인데 캐너리는 한쪽에만 있었다
+  // (`19_24_24` testing INFO 3). 두 출구를 통합 리팩터링할 때 한쪽만 바뀌는 걸 막는다.
+  it('[캐너리] terminal `error` 도 nodeOutput allowlist 를 받지 **않는다** (의도)', async () => {
+    const { service, repo } = makeMocks();
+    repo.findOne.mockResolvedValue(
+      makeExecution({
+        status: ExecutionStatus.FAILED,
+        // 두 terminal 출구는 **둘 다 `execution.outputData`** 를 읽는다(`error` 컬럼 아님).
+        outputData: { 임의진단키: 'keep', code: 'BOOM' },
+      }),
+    );
+    const r = await service.getStatus(IEXT_CTX);
+    const err = r.error as unknown as Record<string, unknown>;
+    expect(err.임의진단키).toBe('keep');
+    expect(err.code).toBe('BOOM');
+  });
+
   // 배선 캐너리 — 헬퍼 자체는 `strip-external-only-fields.spec.ts` 가 고정한다. 여기서는
   // **`getStatus` 가 실제로 그 헬퍼를 지나는지**만 본다. 이 시리즈가 반복해 겪은 형태:
   // 헬퍼는 초록인데 호출부에 안 걸려 있었다.

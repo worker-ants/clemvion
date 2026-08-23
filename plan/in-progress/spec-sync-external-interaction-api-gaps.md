@@ -83,8 +83,22 @@ owner: planner
       > **호출부 실측 (`19_00_23` security W1 이 보강)** — 다시 찾지 말 것:
       > `FormInteractionService.waitForFormSubmission` 과
       > `ButtonInteractionService.waitForButtonInteraction` 이 아무 필터 없이
-      > `nodeOutput` / `buttonConfig.nodeOutput` 을 실어 `toFanoutEnvelope` 를 지난다.
-      > REST 와 **같은 인가**(`verifyOwnership`)를 쓰는 같은 수신 인구다.
+      > `nodeOutput` / `buttonConfig.nodeOutput` / `nodeOutputForEvent` 를 실어
+      > `toFanoutEnvelope` 를 지난다. **`processButtonResumeTurn` 도 같은 경로다**
+      > (`19_24_24` security W1 이 추가로 짚었다). REST 와 **같은 인가**(`verifyOwnership`)를
+      > 쓰는 같은 수신 인구이고, chat-channel 어댑터가 같은 subject 를 구독한다.
+      > **재사용할 헬퍼는 이미 있다** — `shared/utils/node-output-allowlist.ts` 의
+      > `allowlistNodeOutputKeys`. envelope 안에서 `nodeOutput` 서브트리를 찾아 거는 것이 일이다.
+
+- [ ] **`node-output-allowlist.ts` 를 `shared/utils/` 밖으로 재배치** (2026-08-23 등재,
+      `19_24_24` architecture INFO 1). 그 디렉토리 8개 파일 중 **유일하게 도메인 타입**
+      (`NodeHandlerOutput`)을 import 한다 — "shared = 도메인 비의존" 불변식이 이 PR 에서
+      국소화만 되고 완전히 회복되진 않았다.
+      > **왜 이번에 안 옮겼나**: 같은 라운드에 이미 한 번 옮겼고(순수 유틸에서 분리),
+      > 또 옮기면 리뷰가 다시 stale 해진다. 리뷰어도 "후속" 으로 판정했다.
+      > **착수 시 후보**: 유일 소비처 인근(`modules/external-interaction/`) 또는 `nodes/core/`.
+      > 위 SSE 항목이 소비처를 하나 늘리므로 **그 작업과 함께 정하는 편이 낫다** — 소비처가
+      > 둘이 되면 배치 답이 달라진다.
 
 - [x] **`getStatus` 일반 `nodeOutput` 키-allowlist** (§R17 잔여) — §R17 이 "conversationConfig 이외의 일반 `nodeOutput` 키-allowlist 만 잔여 항목" 이라 명시했으나 등재된 plan 이 없었다. 현재 `conversationThread`·`ai_message`·`nodeOutput.conversationConfig` 는 `redactThreadForPublic`/`deepRedactSecrets` 로 마스킹되지만 그 외 `nodeOutput` 키는 공개 표면에 그대로 실린다. 도입 시 §R17 잔여 문구 flip. (2026-07-10 consistency `plan-coherence` W3 로 등재 — spec-impl-evidence R-5 "빈 약속 영구 누락" 방지.)
       > **→ 종결 (2026-08-23).** 착수 전 프로브가 **전제를 절반 갈았다**: 그 사이

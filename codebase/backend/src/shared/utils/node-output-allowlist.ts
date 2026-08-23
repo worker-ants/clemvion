@@ -13,7 +13,8 @@ import type { NodeHandlerOutput } from '../../nodes/core/node-handler.interface'
  *
  * ## 왜 deny-list 로는 부족한가
  *
- * 위 {@link EXTERNAL_STRIPPED_FIELDS} 는 **한 칸짜리 deny-list** 라 **새 핸들러가 새 키를
+ * 자매 파일 `strip-external-only-fields.ts` 의 `EXTERNAL_STRIPPED_FIELDS` 는 **한 칸짜리
+ * deny-list** 라 **새 핸들러가 새 키를
  * 내면 기본값이 통과**한다(fail-open). 실제로 새는 것이 있다 — `NodeHandlerOutput` 의
  * 엔진 내부 필드 `_retryState` 는 `NodeExecution.outputData` 에 **저장되고**
  * (`retry-turn.service.ts`), `llmCalls` 가 아니므로 그대로 외부로 나간다. 자매 필드
@@ -51,7 +52,7 @@ import type { NodeHandlerOutput } from '../../nodes/core/node-handler.interface'
  * 데이터가 잘린다. 즉 이건 "세 곳 중 하나만 고쳤다" 가 아니라 **`NodeHandlerOutput`
  * shape 인 곳이 하나뿐**이라서다.
  */
-export const NODE_OUTPUT_ALLOWED_KEYS = [
+export const NODE_OUTPUT_ALLOWED_KEYS = Object.freeze([
   // NodeHandlerOutput 공개분 (`_resumeState`·`_retryState` 는 의도적 제외)
   'config',
   'output',
@@ -63,7 +64,9 @@ export const NODE_OUTPUT_ALLOWED_KEYS = [
   'conversationConfig',
   'buttonConfig',
   'interactionType',
-] as const;
+  // `as const` 는 **컴파일타임 리터럴 타입**만 준다 — `.push`/`.splice` 를 막지 않는다.
+  // 이 상수는 보안 경계라 런타임 불변까지 강제한다 (`19_24_24` security INFO 2).
+] as const);
 
 /**
  * 컴파일타임 결속 — `NodeHandlerOutput` 의 **공개** 키가 전부 allowlist 에 있는지 검사한다.
