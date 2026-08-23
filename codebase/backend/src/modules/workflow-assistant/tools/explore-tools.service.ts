@@ -51,20 +51,6 @@ export const EXECUTION_STATUS_VALUES = [
 type ExecutionStatusFilter = (typeof EXECUTION_STATUS_VALUES)[number];
 
 /**
- * Read-only "Clarify" 도구들. 모두 `workspace_id` 스코프로 격리되어 있으며,
- * LLM이 사용자의 질문 수를 줄이거나 기존 자산을 참조하는 데 쓴다.
- *
- * Architecture note: intentionally depends on Repositories rather than on
- * `WorkflowsService` / `IntegrationsService` / `KnowledgeBaseService`. Those
- * services expose DTO-wrapped, pagination-aware list methods tailored to
- * their own controllers; here we need minimal read shapes shaped for an LLM
- * tool result. The workspace boundary — the only security-critical filter —
- * is enforced on every query below via `workspace_id = :workspaceId`. If
- * another layer of business logic (e.g. RBAC visibility) lands on those
- * services later, replace the Repository injection with the service DI at
- * that point to inherit the new rule.
- */
-/**
  * LLM 도구가 읽는 실행 기록의 세 컬럼(`inputData`·`outputData`·`error`)을 마스킹한다.
  *
  * ## 왜 두 겹인가 — 한쪽은 키만, 한쪽은 값만 본다
@@ -110,6 +96,21 @@ function redactAssistantFields(row: {
     error: both(row.error ?? null),
   };
 }
+
+/**
+ * Read-only "Clarify" 도구들. 모두 `workspace_id` 스코프로 격리되어 있으며,
+ * LLM이 사용자의 질문 수를 줄이거나 기존 자산을 참조하는 데 쓴다.
+ *
+ * Architecture note: intentionally depends on Repositories rather than on
+ * `WorkflowsService` / `IntegrationsService` / `KnowledgeBaseService`. Those
+ * services expose DTO-wrapped, pagination-aware list methods tailored to
+ * their own controllers; here we need minimal read shapes shaped for an LLM
+ * tool result. The workspace boundary — the only security-critical filter —
+ * is enforced on every query below via `workspace_id = :workspaceId`. If
+ * another layer of business logic (e.g. RBAC visibility) lands on those
+ * services later, replace the Repository injection with the service DI at
+ * that point to inherit the new rule.
+ */
 
 @Injectable()
 export class ExploreToolsService {

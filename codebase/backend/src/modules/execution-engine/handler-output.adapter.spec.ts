@@ -89,6 +89,29 @@ describe('adaptHandlerReturn', () => {
     });
 
     // INFO #5 (Security) — boundary 자동 마스킹.
+    // `token` **계열**(접두형) — 이 표면은 값-패턴 층을 겹치지 않으므로
+    // `DEFAULT_SENSITIVE_KEYS` 가 **유일한 방어**다. 공유 상수라 workflow-assistant 쪽
+    // 테스트로는 안 잡힌다(그쪽은 겹친 층이 같은 키를 덮어 목록을 비워도 GREEN 이다 —
+    // 뮤테이션으로 확인). 그래서 **이 표면 자신의 테스트로** 고정한다
+    // (`16_46_56` testing W2).
+    it.each([
+      ['csrf_token'],
+      ['auth_token'],
+      ['session_token'],
+      ['id_token'],
+      ['csrfToken'],
+    ])('masks the `%s` key in echoed config (token family)', (key) => {
+      const out = adaptHandlerReturn({
+        config: { [key]: 'AAAABBBB4321', endpoint: 'https://api.example.com' },
+        output: {},
+      });
+      const cfg = out.config as Record<string, unknown>;
+      expect(cfg[key]).toBe('****4321');
+      // 대조군 — 민감하지 않은 config 는 손상되지 않는다. 이 표면은 그 값을 DB·WS·
+      // 표현식으로 내보내므로 과잉 마스킹이 곧 기능 회귀다.
+      expect(cfg.endpoint).toBe('https://api.example.com');
+    });
+
     it('masks credential-like keys in echoed config', () => {
       const result = adaptHandlerReturn({
         config: {

@@ -79,7 +79,7 @@ P2키  → {"token":"***","csrf_token":"***","auth_token":"***",
 - [x] 자매의 값 축 잔여를 트래커에 **별도 체크박스**로 등재
 - [x] 뮤테이션 검증 — M2 가 **가드 부재를 드러냈다**(아래)
 - [x] TEST WORKFLOW 4단계 전부 PASS + ratchet 199건 baseline 일치
-- [ ] `/ai-review`
+- [x] `/ai-review` — `16_46_56` CRITICAL 0 · WARNING 4 → **전부 반영** (RESOLUTION.md)
 
 ## 검증 기준
 
@@ -150,7 +150,25 @@ M2 가 GREEN 인 건 겹친 층이 같은 키를 덮기 때문이고 그 자체�
 
 ## 게이트·수치
 
-- **TEST WORKFLOW**: lint · unit(backend 8,931 → **8,942**) · build ·
-  e2e(285 + **Playwright 51**, 로그 직접 확인) 전부 PASS
+- **TEST WORKFLOW**: lint · unit(backend 8,931 → **8,947**) · build ·
+  e2e(285 + **Playwright 51**, 로그 직접 확인) 전부 PASS — 리뷰 fix 후 재수행분
 - **ratchet**: 199건 / 38파일 — baseline 일치
 - `--impl-prep` `16_09_25` BLOCK:YES → planner 턴 → `--spec` `16_21_45` BLOCK:NO
+
+## `/ai-review` 처분 (`16_46_56` — CRITICAL 0 · WARNING 4 · MEDIUM)
+
+전문은 [`RESOLUTION.md`](../../review/code/2026/08/23/16_46_56/RESOLUTION.md). 요지:
+
+**W1 이 내 plan 의 틀린 지점을 짚었다.** 자매 표면의 키 축을 *"위험 없는 절반"* 이라
+적었는데 **그건 측정이 아니라 단정**이었다. 실측하니 노드 config 필드명 **충돌 0건** —
+유일한 정확 일치(`http-request.handler.ts` 의 `auth_token`)는 **URL 쿼리파라미터** 블랙리스트라
+목적이 다르고, `oauth_token_exchange_failed` 류는 부분 문자열인데 이 목록은 완전 일치라 안
+걸린다. 리뷰어가 제안한 목록 분리는 **하지 않았다** — 같은 규칙을 두 목록에 손으로
+동기화하는 상태가 되고, 그건 이 세션이 #1202 부터 없애 온 형태다. 실측을 코드 옆에 남겼다.
+
+**W2 는 뮤테이션이 이미 보여준 것을 확인했다** — 목록에서 8개를 빼도 assistant 쪽은 GREEN
+이라 그 목록의 유일한 실사용처가 자기 테스트로 보호되지 않았다. 자매 spec 에 캐너리 5건 +
+대조군 1건을 넣고, M2 재적용 시 **자매 spec 단독 5건 RED** 를 확인했다.
+
+**W3·W4** 는 각각 내가 만든 가독성 결함(헬퍼가 클래스 JSDoc 과 선언 사이에 낌)과 CHANGELOG
+누락이라 그대로 반영했다.

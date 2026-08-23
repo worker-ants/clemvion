@@ -113,6 +113,36 @@ Re-run 프리필이 읽어 그대로 재제출하므로 마스킹하면 `'***'` 
 마스킹을 걸고 `MASKED_INPUT_DATA_REASON` 앵커를 전수 삭제했다. spec 은 이 결론이 **6개
 문서에 SoT 로 미러**돼 있어 선행 planner 턴에서 함께 뒤집었다.
 
+## Unreleased — workflow-assistant LLM 도구의 마스킹을 값 축까지 넓혔다 (포맷 변경 포함)
+
+위 *"`token` 계열이 값·키 두 축에서"* 항목이 **명시적으로 남겨 둔 표면**을 닫는다. 그 항목은
+EIA 쪽 두 축만 덮고 `maskSensitiveFields`(키 이름 기반) 목록은 *"마스킹 형태가 다르고 어느
+의미가 우선인지가 별도 결정이라"* 손대지 않았다. 그 결정이 내려졌다 — **유출 차단이 우선**.
+
+무수정 프로브로 갭을 먼저 실증했다: `error.message` 안의 `Bearer sk-live-…` 와 자격증명
+URI 가 **완전 통과**했고(그 함수는 `typeof value !== 'object'` 면 문자열 **안**을 안 본다),
+`csrf_token`·`auth_token`·`session_token`·`csrfToken` 이 **평문 그대로** 나갔다.
+
+**바뀐 것 셋:**
+
+1. **값 축 신설** — `explore-tools.service.ts` 가 `deepRedactSecrets` 를 키-마스킹 **위**에
+   겹친다. 순서가 의미를 정한다(뒤집으면 두 층이 서로를 지운다).
+2. **출력 포맷 `****<last4>` → `***`** — 두 마스킹이 같은 값에 닿으면 접미 힌트가 덮인다.
+   식별 가능성을 잃는 대신 자유 텍스트 안의 자격증명을 막는 **의도된 트레이드**다.
+   **키 이름은 응답에 남으므로** *어떤* 키가 가려졌는지는 여전히 읽을 수 있다.
+   **이 포맷은 그 도구의 로컬 합성 결과이고 `maskSensitiveFields` 자체 포맷은 불변**이다.
+3. **`DEFAULT_SENSITIVE_KEYS` 에 token 계열 8개 추가** — 실질 수혜자는 이 목록을 공유하는
+   **자매 표면**(`handler-output.adapter.ts`, 노드 `config` echo)이다. 정작 assistant 표면은
+   겹친 층의 `CREDENTIAL_KEY_PATTERN` 이 계열을 이미 덮어 이 확장이 불필요했다(뮤테이션
+   M2 로 확인). 그 비대칭 때문에 **assistant 쪽 테스트로는 이 목록을 지킬 수 없어**
+   유틸·자매 표면 **양쪽에** 캐너리를 따로 두었다.
+
+자매 표면의 **값 축은 의도적으로 안 닫았다** — 그 값은 DB 저장·WS emit·표현식 echo 로
+흐르므로 값-패턴을 겹치면 정상 워크플로를 깨뜨릴 수 있다. 트래커에 별도 항목으로 등재했다.
+
+`--impl-prep` 이 BLOCK:YES 로 막았고(포맷이 요구사항 `ED-AI-37` 정본에 리터럴로 박혀 있었다)
+planner 턴으로 spec 4곳을 동기화한 뒤 재개했다.
+
 ## Unreleased — `token` 계열이 값·키 두 축에서 마스킹 없이 나가고 있었다
 
 트래커의 *"`SECRET_LEAK_PATTERNS` 가 bare `token=` 을 안 잡는다"* 집행. **티켓보다 넓었다** —

@@ -17,6 +17,17 @@ const DEFAULT_SENSITIVE_KEYS: ReadonlySet<string> = new Set(
     // 이 목록은 **키 이름 완전 일치**라 계열을 정규식처럼 못 접는다 — 자매
     // `CREDENTIAL_KEY_PATTERN` 의 `[a-z0-9_-]*token` 과 달리 항목을 손으로 편다.
     // 새 접두형을 만나면 여기에 더한다.
+    //
+    // **blast radius 를 실측했다** (`16_46_56` side_effect W1). 이 상수는
+    // `handler-output.adapter.ts` 도 쓰고, 그쪽은 노드 `config` echo 를 DB·WS·표현식으로
+    // 내보낸다 — 비-자격증명 config 필드가 이 이름들과 겹치면 멀쩡한 값이 가려진다.
+    // 전수 grep 결과 **노드 config 필드명 충돌 0건**이다. 정확 일치 후보는
+    // `http-request.handler.ts` 의 `auth_token` 하나뿐인데 그건 **URL 쿼리파라미터**
+    // 블랙리스트라 목적이 다르고 이 상수와 무관하다. `oauth_token_exchange_failed` 류는
+    // 부분 문자열일 뿐이고 이 목록은 완전 일치라 안 걸린다.
+    //
+    // 넓힐 때 **같은 실측을 다시 해라** — 이 목록의 위험은 목록 자체가 아니라
+    // *자매 표면의 config 필드명과 겹치는지*에 있다.
     'csrfToken',
     'csrf_token',
     'authToken',
