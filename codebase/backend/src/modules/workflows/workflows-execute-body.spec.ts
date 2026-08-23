@@ -154,6 +154,20 @@ describe('POST /workflows/:id/execute OpenAPI 노출', () => {
     });
 
     /**
+     * **`input` 은 deprecated 다** (2026-08-23 사용자 결정). 리네임 대신 이 표시로 동명이의를
+     * 해소하기로 했으므로, 플래그가 조용히 사라지면 그 결정이 무효가 된다.
+     *
+     * `parameterValues` 는 preferred 경로라 **deprecated 가 아니어야** 한다 — 한쪽만 보면
+     * "둘 다 deprecated" 로 바꿔도 통과한다.
+     */
+    it('[결정] `input` 만 deprecated 로 표시된다', () => {
+      const input = schema.properties?.input as SchemaObject;
+      const preferred = schema.properties?.parameterValues as SchemaObject;
+      expect(input.deprecated).toBe(true);
+      expect(preferred.deprecated).toBeFalsy();
+    });
+
+    /**
      * 이 PR 이 존재하는 이유 — 형제 `re-run` 과 달리 `execute` 에는 마커 예약어 제약을 적을
      * 자리가 없었다. **두 필드 모두** 같은 관문을 지나므로 양쪽에 적혀야 한다(W1).
      */

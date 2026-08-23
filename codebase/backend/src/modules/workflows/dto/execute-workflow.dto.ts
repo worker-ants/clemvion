@@ -43,6 +43,15 @@ export class ExecuteWorkflowDto {
    * 자체이고, 이쪽은 `parameters` 를 품는 **봉투**다 — 같은 컨트롤러의 OpenAPI 표면에
    * 나란히 노출되므로 구분해 둔다. 나머지 키는 실행 입력에 그대로 실린다.
    *
+   * > **`deprecated` 인 이유** (2026-08-23 사용자 결정): 형제 {@link ExecuteNodeDto.input}
+   * > 과 이름이 같고 뜻이 달라 같은 OpenAPI 표면에서 헷갈린다. 그런데 **리네임은 답이
+   * > 아니다** — 런타임이 `body?.input` 을 읽으므로 속성명만 바꾸면 OpenAPI 가 없는 필드를
+   * > 광고하고, 와이어 필드를 바꾸면 계약이 깨진다.
+   * >
+   * > 코드가 이미 답을 말한다: `parameterValues ?? input.parameters` — 이 필드는 **처음부터
+   * > back-compat 경로**다. `deprecated` 는 비파괴로 클라이언트를 `parameterValues` 로
+   * > 유도하므로, 동명이의가 **시간이 지나며 저절로 해소**된다.
+   *
    * > **마커 거부는 두 필드에 똑같이 걸린다** (`00_07_27` requirement W1). 컨트롤러가
    * > `parameterValues ?? input.parameters` 로 합류시킨 뒤 `resolveTriggerParametersRejectingMasked`
    * > 를 **한 번** 부르기 때문이다 — 한쪽 description 에만 적으면 다른 경로로 보내는
@@ -51,9 +60,10 @@ export class ExecuteWorkflowDto {
   @ApiPropertyOptional({
     description:
       '레거시 봉투. `parameterValues` 미지정 시 `input.parameters` 사용 — ' +
-      '그 값도 동일한 마커 거부 대상.',
+      '그 값도 동일한 마커 거부 대상. 신규 통합은 `parameterValues` 를 쓴다.',
     type: 'object',
     additionalProperties: true,
+    deprecated: true,
   })
   input?: Record<string, unknown>;
 }
