@@ -1,6 +1,8 @@
 import {
+  redactNodeExecutionRow,
   redactStoredDataForResponse,
   redactStoredErrorForResponse,
+  redactStoredFieldsForResponse,
 } from './redact-stored-error';
 
 /**
@@ -167,5 +169,133 @@ describe('redactStoredDataForResponse', () => {
     expect(
       redactStoredDataForResponse({ orderId: 'A-1', items: ['x', 'y'] }),
     ).toEqual({ orderId: 'A-1', items: ['x', 'y'] });
+  });
+});
+
+/**
+ * 통합 헬퍼 — 세 컬럼을 한 번에 거는 자리. **여기 없으면 회귀가 서비스 레이어의 흩어진
+ * 테스트를 거쳐야만 드러난다** (`14_23_44` testing/maintainability W1). 이 통합이 없애려던
+ * fragmentation 을 테스트 층에 남겨 두지 않는다.
+ *
+ * 케이스는 plan 의 뮤테이션 실측을 그대로 옮긴 것이다 — M1(컬럼 하나의 마스킹 누락) ·
+ * M2(identity 보존 파기)가 여기서 각각 RED 가 된다.
+ */
+describe('redactStoredFieldsForResponse', () => {
+  const CRED = 'connect failed: postgres://u:pw@db.internal/prod';
+  const MASKED = 'connect failed: postgres://***@db.internal/prod';
+
+  // 세 컬럼을 **각각** 단언한다 — 한 컬럼만 보면 나머지 둘의 마스킹이 빠져도 통과한다.
+  it.each([
+    ['inputData' as const],
+    ['outputData' as const],
+    ['error' as const],
+  ])('%s 컬럼의 자격증명을 마스킹한다', (column) => {
+    const out = redactStoredFieldsForResponse({ [column]: { note: CRED } });
+    expect(out[column]).toEqual({ note: MASKED });
+  });
+
+  it('세 컬럼을 **동시에** 건다 — 한 컬럼이 있다고 다른 컬럼을 건너뛰지 않는다', () => {
+    expect(
+      redactStoredFieldsForResponse({
+        inputData: { a: CRED },
+        outputData: { b: CRED },
+        error: { message: CRED },
+      }),
+    ).toEqual({
+      inputData: { a: MASKED },
+      outputData: { b: MASKED },
+      error: { message: MASKED },
+    });
+  });
+
+  it('부재 컬럼을 `null` 로 **정규화**한다 (DTO 조립부의 계약)', () => {
+    expect(redactStoredFieldsForResponse({})).toEqual({
+      inputData: null,
+      outputData: null,
+      error: null,
+    });
+    // `undefined` 를 명시로 넘겨도 같다 — TypeORM 이 두 형태를 다 준다.
+    expect(
+      redactStoredFieldsForResponse({
+        inputData: undefined,
+        outputData: null,
+        error: undefined,
+      }),
+    ).toEqual({ inputData: null, outputData: null, error: null });
+  });
+
+  it('마스킹할 것이 없으면 값을 손상시키지 않는다', () => {
+    const plain = { step: 3, label: '정상 종료' };
+    expect(
+      redactStoredFieldsForResponse({ outputData: plain }).outputData,
+    ).toEqual(plain);
+  });
+});
+
+/**
+ * 자매 헬퍼 — `nodeExecutions[]` 행용. 위 스위트와 **부재 처리·참조 처리가 반대**라서
+ * 따로 고정한다.
+ *
+ * `undefined → null` 정규화를 하면 (a) 응답 shape 이 바뀌고 (b) 값이 없어 아무것도 안 바뀐
+ * 행까지 참조가 달라져 copy-on-change 가 깨진다. 그 조회에는 `take` 상한이 없어 대규모
+ * ForEach 실행에서 shallow-copy 가 행 수만큼 쌓인다.
+ */
+describe('redactNodeExecutionRow', () => {
+  const CRED = 'Bearer sk-live-abc123def456';
+  const row = (over: Record<string, unknown> = {}) => ({
+    id: 'ne-1',
+    inputData: {},
+    outputData: {},
+    error: {},
+    ...over,
+  });
+
+  it('세 컬럼을 마스킹하고 나머지 필드는 보존한다', () => {
+    const out = redactNodeExecutionRow(
+      row({
+        inputData: { h: CRED },
+        outputData: { o: CRED },
+        error: { m: CRED },
+      }),
+    );
+    expect(out).toEqual({
+      id: 'ne-1',
+      inputData: { h: '***' },
+      outputData: { o: '***' },
+      error: { m: '***' },
+    });
+  });
+
+  it('세 컬럼 다 무변화면 **같은 참조**를 돌려준다 (무조건 spread 회귀 차단)', () => {
+    const input = row({ outputData: { step: 3 } });
+    expect(redactNodeExecutionRow(input)).toBe(input);
+  });
+
+  // 세 컬럼 **각각**이 복제를 유발할 수 있어야 한다 — 한 컬럼만 보면 나머지 둘이
+  // copy-on-change 판정에서 빠져도 통과한다.
+  it.each([
+    ['inputData' as const],
+    ['outputData' as const],
+    ['error' as const],
+  ])('%s 만 바뀌어도 복제된다', (column) => {
+    const input = row({ [column]: { leak: CRED } });
+    const out = redactNodeExecutionRow(input);
+    expect(out).not.toBe(input);
+    expect(out[column]).toEqual({ leak: '***' });
+    // 원본은 변이되지 않는다.
+    expect(input[column]).toEqual({ leak: CRED });
+  });
+
+  it('부재 컬럼을 `null` 로 정규화하지 **않는다** — 입력을 그대로 보존한다', () => {
+    // TypeORM 이 런타임에 `undefined` 를 줄 수 있는 경로의 방어 분기.
+    // 타입상으로는 non-null 이라 캐스트로 그 런타임 형태를 재현한다.
+    const input = row({
+      inputData: undefined,
+      error: undefined,
+    } as unknown as Record<string, unknown>);
+    const out = redactNodeExecutionRow(input);
+    expect(out).toBe(input);
+    expect(out.inputData).toBeUndefined();
+    expect(out.error).toBeUndefined();
   });
 });

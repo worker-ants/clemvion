@@ -1,8 +1,9 @@
 ---
 title: "`inputData`·`outputData`·`error` 마스킹 게이트 4곳을 헬퍼로 통합"
-status: in-progress
+status: complete
 worktree: masking-gate-consolidation-71bbfc
 started: 2026-08-23
+completed: 2026-08-23
 owner: developer
 spec_impact:
   - spec/conventions/egress-masking.md
@@ -11,7 +12,7 @@ spec_impact:
 # 마스킹 게이트 4곳 통합
 
 정본 트래커
-[`spec-sync-external-interaction-api-gaps.md`](./spec-sync-external-interaction-api-gaps.md)
+[`spec-sync-external-interaction-api-gaps.md`](../in-progress/spec-sync-external-interaction-api-gaps.md)
 의 항목 *"`inputData` 마스킹 게이트 4곳을 단일 헬퍼로 통합"* (2026-08-20 등재, `14_44_08` W4).
 
 > **이 근본 원인은 이미 CRITICAL 을 냈다** — 자매 DTO JSDoc 이 갱신에서 빠진 `14_08_45` C2.
@@ -70,7 +71,7 @@ shape 이 바뀌고 (b) 값이 없어 아무것도 안 바뀐 행까지 참조�
 - [x] **뮤테이션으로 판별력 검증** — M1 5 RED · M2 2 RED, 둘 다 `tsc` 선검증 통과
 - [x] 트래커 항목 종결 (미체크 26 → 25) + 반증 근거를 트래커 블록쿼트에 기록
 - [x] TEST WORKFLOW 4단계 전부 PASS + ratchet 199건 baseline 일치
-- [ ] `/ai-review`
+- [x] `/ai-review` — CRITICAL 0 / WARNING 2 (`14_23_44`), 위험도 LOW
 
 ## 검증 기준
 
@@ -99,3 +100,45 @@ shape 이 바뀌고 (b) 값이 없어 아무것도 안 바뀐 행까지 참조�
   트래커에 남길 것)은 이 PR 에서 반영, 나머지 1건(`2-api-convention.md §2.2` 인증 URL 중첩
   예외 문구)은 **이 작업 범위 밖 · planner 소관**이라 미반영. INFO 중 `toResponseExecution`
   JSDoc stale 심볼 인용 3곳은 이 PR 에서 갱신했다.
+
+## `/ai-review` 처분 (`14_23_44` — CRITICAL 0 · WARNING 2 · 위험도 LOW)
+
+reviewer 9명(security·performance·requirement 포함) 전원이 **기능적 동등성**을 확인했다.
+router 가 5명(architecture·dependency·database·concurrency·api_contract)을 제외했고,
+forced 7명은 전원 결과가 나왔다(미이행 0).
+
+### WARNING #1 — 신설 헬퍼 co-located 테스트 부재 → **이 PR 에서 수정**
+
+정당한 지적이다. 이 PR 이 없애려던 fragmentation("회귀가 여러 호출부에 흩어진 테스트를
+거쳐야만 드러난다")이 **테스트 층에는 그대로** 남아 있었다. `redact-stored-error.spec.ts` 에
+두 스위트를 추가했다(+12 케이스, backend 8,914 → 8,926).
+
+**추가한 테스트가 스스로 판별력을 갖는지 다시 뮤테이션**했다 — 서비스 레이어가 아니라
+**이 파일만** 돌려서 확인:
+
+| 뮤턴트 | 이 파일 단독 결과 |
+| --- | --- |
+| M1 `inputData` 마스킹 누락 | **2 RED** |
+| M2 identity 보존 파기(무조건 spread) | **2 RED** |
+| M3 노드 헬퍼가 부재를 `null` 로 정규화 (= **두 헬퍼를 뭉갠 회귀**) | **1 RED** |
+
+M3 는 이번에 새로 추가한 뮤턴트다. 이 PR 의 핵심 설계 결정("합치지 않고 나란히 둔다")이
+말이 아니라 **테스트로** 고정됐음을 뜻한다. 셋 다 `tsc --noEmit` 0건 — 유효 뮤턴트다.
+
+### WARNING #2 — developer 가 `spec/` 을 직접 편집 → **트래커에 planner 항목으로 등재**
+
+이 PR 에서 되돌리지 않았다. 내용은 5개 consistency checker + 9개 reviewer 가 전원 타당
+판정했고(`rationale_continuity` 는 "근거 있는 정정으로 뒤집힘" 으로 명시), 되돌리면
+**지금은 거짓인 지시문**("그 항목 착수 시 이 표를 동반 갱신한다" — 그 항목은 종결됐다)이
+규약 문서에 남는다.
+
+다만 지적의 **실질**은 형식이 아니라 게이트다 — 이 편집은 `--impl-prep` 만 거쳤고 spec
+편집이 받아야 할 `--spec` 은 받지 못했다. 그래서 경계 자체를 정하는 판단을 정본 트래커에
+planner 항목으로 등재했다(미체크 25 → 26). **이 PR 이 그 판단을 선점하지 않는다.**
+
+### INFO — 미조치 사유
+
+- 네이밍 접미사(`redactNodeExecutionRow` 만 `…ForResponse` 아님) · `@param`/`@returns` 태그
+  보완: 둘 다 우선순위 낮음으로 명시됐고, 이름 변경은 방금 4곳을 옮긴 직후의 추가 이동이라
+  이 PR 의 diff 를 넓히기만 한다.
+- 나머지 INFO 5건은 전부 **양성 확인**(조치 불요)이다.

@@ -318,6 +318,18 @@ checker 가 독립적으로** "인용이 가리키는 절이 오히려 반대를
       > 예상 못 한 비용은 **spec 쪽**이었다 — 이 결론이 6개 문서에 SoT 로 미러돼 있어
       > planner 턴이 선행돼야 했다(`12_08_46` BLOCK:YES → `12_41_29` BLOCK:NO).
 
+- [ ] **`developer` 의 자기-예측 반증형 spec 소정정 — 권한 경계를 정한다** (2026-08-23 등재,
+      `14_23_44` scope W2). `masking-gate-consolidation` 에서 developer 턴이
+      `spec/conventions/egress-masking.md §3` 을 직접 고쳤다. 내용은 정확하고 5개 consistency
+      checker + 9개 reviewer 가 전원 타당 판정했지만, CLAUDE.md 권한표는 developer 를 `spec/`
+      **read-only** 로 못박고 "구현 중 spec 변경 필요 시 planner 위임" 을 따로 강조한다.
+      실질 위험은 형식이 아니라 **게이트**다 — 이 편집은 `--impl-prep` 만 거쳤고 spec 편집이
+      받아야 할 `--spec` 은 못 받았다.
+      > **planner 판단 항목**: (a) developer 가 *자기가 그 문서에 적어 둔 예고를 실측으로
+      > 반증하는* 소정정을 예외로 명문화할지, (b) 그런 정정도 planner 턴으로 강제할지.
+      > (b) 를 택하면 "예고를 남긴 사람과 반증할 수 있는 사람이 달라진다" 는 비용을 받는다.
+      > 이 항목 자체가 그 비용의 사례다 — 반증 근거는 이미 위 종결 항목에 실측으로 남아 있다.
+
 - [x] **`inputData` 마스킹 게이트 4곳을 단일 헬퍼로 통합** (2026-08-20 등재, `14_44_08` W4 —
       **2026-08-23 종결**). `toResponseExecution` · `toExecutionDto` · 노드 레벨 `maskIfPresent`
       루프 · `background-runs.service.ts` 가 각자 마스킹을 걸고, 유일한 동기화 장치가 **사람이
