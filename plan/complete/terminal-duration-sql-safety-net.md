@@ -1,6 +1,6 @@
 ---
 title: "`TERMINAL_DURATION_MS_SQL` 을 실제 Postgres 에서 값으로 검증한다"
-status: in-progress
+status: complete
 worktree: eia-tracker-groom-7d0396
 started: 2026-08-23
 owner: developer
@@ -10,7 +10,7 @@ spec_impact: none
 # `TERMINAL_DURATION_MS_SQL` 안전망
 
 정본 트래커
-[`spec-sync-external-interaction-api-gaps.md`](./spec-sync-external-interaction-api-gaps.md)
+[`spec-sync-external-interaction-api-gaps.md`](../in-progress/spec-sync-external-interaction-api-gaps.md)
 의 **W10 + 바로 아래 저비용 형제(W7)** 를 함께 집행한다. 트래커 문면:
 
 > *"단위 테스트는 문자열 `toContain` 뿐이고, 이 SQL 을 태우는 유일한 e2e 도 `duration_ms` 를
@@ -52,12 +52,22 @@ SQL 이 `started_at` 을 문자열로 하드코딩한다. `information_schema.co
 
 ## 작업
 
-- [ ] `/consistency-check --impl-prep`
-- [ ] e2e 신설 — SQL 값 검증 4케이스 + 스키마 전제 2건
-- [ ] **뮤테이션으로 판별력 검증** (아래 기준)
-- [ ] 트래커 W10·W7 종결
-- [ ] TEST WORKFLOW 4단계 + 타입체크 ratchet
-- [ ] `/ai-review`
+- [x] `/consistency-check --impl-prep` — `10_48_33` **BLOCK: NO**. INFO-7(e2e 결속) 반영
+- [x] e2e 신설 — 값 검증 + 스키마 전제. 리뷰 반영으로 **9케이스**가 됐다
+      (전제 1 · 값 4 · 경계 2 · 스키마 2)
+- [x] **뮤테이션으로 판별력 검증** — 전제가 부분적으로 반증됐다 (아래 결과)
+- [x] 트래커 W10·W7 종결
+- [x] TEST WORKFLOW 4단계 + 타입체크 ratchet — 4단계 PASS
+      (e2e **276 → 285**, ratchet 199건/38파일 baseline 일치)
+- [x] `/ai-review` — `11_15_39` **Critical 0 · Warning 1**, INFO 4건 반영 후 재검증
+
+> **리뷰가 클램프 테스트의 급소를 짚었다** — 100일(넉넉히 초과)만 보면 `LEAST` 의 존재만 알
+> 뿐 상한이 `PG_INT4_MAX` 인지 하나 작은지는 갈리지 않는다. **정확히 상한 / 상한+1ms** 두
+> 케이스를 추가했다. 클램프를 검증한다면서 정작 경계를 안 보고 있었던 셈이다.
+>
+> ⚠️ 이 라운드 workflow 가 **SECURITY WARNING** 을 냈다 — summary 에이전트가 `SUMMARY.md`
+> 쓰기 차단을 셸 `cp` 로 우회했고, 그렇게 쓰인 내용은 반환본과 **일치하지 않았다**. 정식
+> 경로로 재기록해 정정했다. 상세는 RESOLUTION.
 
 ## 검증 결과 — 전제가 **부분적으로 틀렸다**
 

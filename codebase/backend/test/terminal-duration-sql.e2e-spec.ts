@@ -52,13 +52,26 @@ function entityColumn(propertyName: string): string {
  * 바꾸고 나머지는 손대지 않는다.
  */
 
-/** 정본 SQL 에서 named 파라미터만 pg 자리표시자로 치환한다. */
+/** 정본 SQL 에서 named 파라미터만 pg 자리표시자로 치환한다. 순수 변환. */
 function toPgSql(): string {
-  const needle = `:${TERMINAL_FINISHED_AT_PARAM}`;
-  const occurrences = TERMINAL_DURATION_MS_SQL.split(needle).length - 1;
-  // 치환이 0건이면 아래 쿼리는 파라미터를 안 쓰는 다른 것이 된다 — vacuous 방지.
-  expect(occurrences).toBeGreaterThan(0);
-  return TERMINAL_DURATION_MS_SQL.split(needle).join('$1');
+  return TERMINAL_DURATION_MS_SQL.split(`:${TERMINAL_FINISHED_AT_PARAM}`).join(
+    '$1',
+  );
+}
+
+/** 치환 대상이 몇 번 나오는지 — 0 이면 아래 모든 쿼리가 vacuous 해진다. */
+function paramOccurrences(): number {
+  return (
+    TERMINAL_DURATION_MS_SQL.split(`:${TERMINAL_FINISHED_AT_PARAM}`).length - 1
+  );
+}
+
+/** 기준 시각 — 모든 케이스가 여기서 출발한다. */
+const START = '2026-01-01T00:00:00.000Z';
+
+/** `START` 로부터 `ms` 밀리초 뒤. 손계산 대신 계산시킨다. */
+function plusMs(ms: number): string {
+  return new Date(Date.parse(START) + ms).toISOString();
 }
 
 describe('TERMINAL_DURATION_MS_SQL — 실제 Postgres 값 검증', () => {
@@ -88,24 +101,26 @@ describe('TERMINAL_DURATION_MS_SQL — 실제 Postgres 값 검증', () => {
     return raw === null ? null : Number(raw);
   }
 
+  /**
+   * 아래 모든 케이스의 **전제**다 — 치환 대상이 사라지면 쿼리가 파라미터를 안 쓰는 다른
+   * 것이 되어 전부 vacuous 해진다. 그 신호를 케이스마다 흩뿌리지 않고 여기 한 곳에 둔다.
+   */
+  it('[전제] 정본 SQL 에 named 파라미터가 실제로 들어 있다', () => {
+    expect(paramOccurrences()).toBeGreaterThan(0);
+  });
+
   it('[단위] 1,500ms 경과를 밀리초로 돌려준다 — 초로 계산하면 여기서 갈린다', async () => {
-    await expect(
-      durationMs('2026-01-01T00:00:00.000Z', '2026-01-01T00:00:01.500Z'),
-    ).resolves.toBe(1500);
+    await expect(durationMs(START, plusMs(1500))).resolves.toBe(1500);
   });
 
   it('[부호] `finishedAt < started_at` 이면 NULL — 0 이 아니다', async () => {
     // 종전 `GREATEST(0, …)` 는 같은 이상 상황에 **0ms 만에 끝남** 을 보고했다.
     // JS 쌍둥이(`resolveTerminalDurationMs`)가 null 을 내므로 sentinel 이 같아야 한다.
-    await expect(
-      durationMs('2026-01-01T00:00:10.000Z', '2026-01-01T00:00:00.000Z'),
-    ).resolves.toBeNull();
+    await expect(durationMs(plusMs(10_000), START)).resolves.toBeNull();
   });
 
   it('[경계] 같은 시각이면 0 — NULL 과 구분된다', async () => {
-    await expect(
-      durationMs('2026-01-01T00:00:00.000Z', '2026-01-01T00:00:00.000Z'),
-    ).resolves.toBe(0);
+    await expect(durationMs(START, START)).resolves.toBe(0);
   });
 
   /**
@@ -114,9 +129,22 @@ describe('TERMINAL_DURATION_MS_SQL — 실제 Postgres 값 검증', () => {
    * 하필 오래 대기한 실행을 마감하는 자리라 24.8일 초과가 정상 시나리오다.
    */
   it('[클램프] int4 를 넘는 경과는 saturate 되고 문장이 실패하지 않는다', async () => {
-    await expect(
-      durationMs('2026-01-01T00:00:00.000Z', '2026-04-11T00:00:00.000Z'),
-    ).resolves.toBe(PG_INT4_MAX);
+    // `PG_INT4_MAX` 의 약 4배 — saturate 가 발동하는지 자체를 본다.
+    await expect(durationMs(START, plusMs(PG_INT4_MAX * 4))).resolves.toBe(
+      PG_INT4_MAX,
+    );
+  });
+
+  /**
+   * 컷오프를 **정확히** 짚는다 (`11_15_39` testing INFO-1). 넉넉히 초과하는 값만 보면
+   * `LEAST` 가 있다는 것만 알 뿐, 상한이 `PG_INT4_MAX` 인지 그보다 하나 작은지는 갈리지
+   * 않는다 — 클램프 테스트에서 정작 중요한 건 그 경계다.
+   */
+  it.each([
+    ['정확히 상한', PG_INT4_MAX],
+    ['상한 + 1ms', PG_INT4_MAX + 1],
+  ])('[경계] %s 는 %d 가 아니라 상한으로 수렴한다', async (_label, ms) => {
+    await expect(durationMs(START, plusMs(ms))).resolves.toBe(PG_INT4_MAX);
   });
 
   /**
