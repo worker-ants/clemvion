@@ -197,3 +197,27 @@ M2 가 GREEN 인 건 겹친 층이 같은 키를 덮기 때문이고 그 자체�
 
 INFO #3(자매 spec 5종 vs 유틸 spec 8종 비대칭)도 **8종으로 맞췄다** — M2 재적용 시 자매
 spec 단독 **8건 RED**(5 → 8).
+
+## `--impl-done` (`17_34_06` — **BLOCK: NO**, CRITICAL 0)
+
+checker 5명 전원 CRITICAL 0. WARNING 2건은 둘 다 **한 줄짜리 문서 정밀도**라 반영했다:
+
+- **좌표계 링크화** — 자매 spec 두 곳(`14-external-interaction-api.md:1399` ·
+  `6-websocket-protocol.md:200`)이 같은 문서를 markdown 링크로 거는데 §4.1.1 만 평문이었다.
+- **자매 헬퍼 교차 인용** — `redactAssistantFields` 가 `redactStoredFieldsForResponse` 와
+  이름·shape 이 닮았는데 **강도가 다르다**(키+값 2겹 vs 값 1겹). 바꿔 쓰면 조용히 방어가
+  얕아지므로 docstring 에 그 차이를 적었다.
+- (INFO #1 도 함께) §4.1.1 의 *"다른 소비처는 영향받지 않는다"* 가 **포맷 축에서만** 참이라
+  범위/포맷을 갈라 다시 썼다 — 공유 목록 확장은 그쪽 마스킹 **범위**를 실제로 넓힌다.
+
+## 최종 게이트
+
+| 게이트 | 결과 |
+| --- | --- |
+| `--impl-prep` (`16_09_25`) | **BLOCK YES** → planner 턴으로 근본 해소 |
+| `--spec` (`16_21_45`) | BLOCK NO — 편집 **전에** 파급 4곳으로 범위를 넓혔다 |
+| `/ai-review` 1R (`16_46_56`) | CRITICAL 0 · WARNING 4 → 전부 반영 |
+| `/ai-review` 2R (`17_14_18`) | CRITICAL 0 · WARNING 1 → 반영(내 실측이 프록시였다) |
+| `--impl-done` (`17_34_06`) | **BLOCK NO** · CRITICAL 0 |
+| TEST WORKFLOW | lint · unit(backend **8,950**) · build · e2e(285 + Playwright 51) 전부 PASS |
+| ratchet | 199건 / 38파일 — baseline 일치 |
