@@ -87,6 +87,12 @@ describe('allowlistNodeOutputKeys', () => {
     expect(out[key]).toBe('keep-me');
   });
 
+  it('[캐너리] 목록이 런타임에도 불변이다 — 보안 경계 주장의 실측', () => {
+    // 리뷰어가 `Object.freeze` 를 빼는 뮤턴트로 **아무도 안 잡는다**는 걸 실증했다
+    // (`19_43_33` testing INFO 2). `as const` 는 컴파일타임 타입만 준다.
+    expect(Object.isFrozen(NODE_OUTPUT_ALLOWED_KEYS)).toBe(true);
+  });
+
   it('떨어뜨릴 것이 없으면 **같은 참조**를 돌려준다 (copy-on-change)', () => {
     const input = { config: {}, output: {} };
     expect(allowlistNodeOutputKeys(input)).toBe(input);

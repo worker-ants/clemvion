@@ -387,8 +387,8 @@ export class InteractionService {
         // 같은 `iext_*`/`itk_*` 토큰이 닿는 표면이므로 fanout 만 막는 것은 반쪽이었다.
         // EIA §R17 잔여 — **fail-closed allowlist**. 위 `stripAndRedact` 는 deny-list
         // (`llmCalls` 한 칸)라 새 핸들러 키가 기본값으로 통과했다. 실제로 엔진 내부
-        // `_retryState` 가 그렇게 나가고 있었다. `NodeHandlerOutput` 타입에서 파생한
-        // 최상위 키 집합만 남긴다 — 근거·범위는 그 상수의 JSDoc.
+        // `_retryState` 가 그렇게 나가고 있었다. `NodeHandlerOutput` **공개 키에 결속된**
+        // 최상위 키 집합만 남긴다(결속은 컴파일타임 assertion) — 근거·범위는 그 상수의 JSDoc.
         const out = allowlistNodeOutputKeys(
           stripAndRedact(nodeExec.outputData) ?? {},
         );

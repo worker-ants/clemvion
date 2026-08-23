@@ -74,9 +74,18 @@ const ITK_CTX: InteractionRequestContext = {
   triggerId: 'trg-1',
 };
 
-function makeExecution(
-  overrides: Partial<Execution> = {},
-): Pick<
+/**
+ * `overrides` 를 **반환 타입과 같은 키 집합**으로 좁힌다 — `Partial<Execution>` 이었을 때
+ * `error` 처럼 반환에 없는 컬럼을 조용히 받아들여, 그 값이 응답에 반영될 거라 오해하기
+ * 쉬웠다. 실제로 이 함정으로 캐너리를 한 번 잘못 썼다(`19_43_33` testing INFO 3).
+ * 이제 그런 키를 넘기면 **컴파일 에러**가 난다.
+ *
+ * `conversationThread` 는 **반환 타입엔 없지만 넣는다** — `getStatus` 의 2단계 조회가
+ * **같은 `repo.findOne`** 을 쓰므로 이 헬퍼가 두 조회를 다 먹인다(실측: 좁혔더니 기존
+ * 호출부 6곳이 컴파일 에러였고, 그 여섯은 정당했다). 반면 `error` 는 어느 조회도 읽지
+ * 않으므로 계속 막힌다 — 그게 이 좁히기가 잡으려던 것이다.
+ */
+type ExecutionFixture = Pick<
   Execution,
   | 'id'
   | 'status'
@@ -85,7 +94,12 @@ function makeExecution(
   | 'startedAt'
   | 'finishedAt'
   | 'durationMs'
-> {
+  | 'conversationThread'
+>;
+
+function makeExecution(
+  overrides: Partial<ExecutionFixture> = {},
+): ExecutionFixture {
   return {
     id: 'exec-1',
     status: ExecutionStatus.WAITING_FOR_INPUT,

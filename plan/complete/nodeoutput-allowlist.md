@@ -142,7 +142,7 @@ strip 하고 `nest build` 는 `*.spec.ts` 를 exclude** 하므로 이 게이트 
 
 ## 게이트·수치
 
-- **TEST WORKFLOW**: lint · unit(backend **8,975**) · build · e2e(285 + **Playwright 51**) PASS — 리뷰 2R fix 후 재수행분
+- **TEST WORKFLOW**: lint · unit(backend **8,976**) · build · e2e(285 + **Playwright 51**) PASS — 리뷰 3R fix 후 재수행분
 - **ratchet**: 199건 / 38파일 — baseline 일치
 - 부수: 첫 e2e 는 postgres 컨테이너가 `No space left on device` 로 죽었다(테스트 실패 아님).
   `docker builder prune -af` + `image prune -f` 로 **49.8GB** 회수 후 재실행 PASS. 볼륨은
@@ -190,3 +190,36 @@ strip 하고 `nest build` 는 `*.spec.ts` 를 exclude** 하므로 이 게이트 
 `execution.error` 에 넣었다. 리뷰어는 제안에 정확히 `outputData` 라 적었는데 내가 옮겨 적으며
 틀렸다. 고치면서 **"두 출구가 같은 컬럼을 읽는다"** 는 사실이 테스트 주석으로 남았고,
 그게 원래 INFO 가 겨눈 "통합 리팩터링 시 한쪽만 바뀌는 것" 을 막는 핵심이다.
+
+## `/ai-review` 3라운드 — **수렴** (`19_43_33` — CRITICAL 0 · WARNING 0)
+
+두 reviewer 가 1·2라운드 지적의 반영을 재확인했다. 남은 INFO 3건은 전부 1줄짜리라 **지금
+반영하는 게 남기는 것보다 쌌다**:
+
+- **INFO 1**: 호출부 인라인 주석만 *"타입에서 파생"* 이라는 옛 표현을 쓰고 있었다(메인
+  JSDoc·CHANGELOG 는 이미 "결속" 으로 정밀화됨) → 통일.
+- **INFO 2**: `Object.freeze` 를 **아무도 안 지킨다**는 걸 리뷰어가 뮤테이션으로 실증했다
+  (빼도 21/21 GREEN). 캐너리 1줄 추가.
+- **INFO 3**: `makeExecution` 의 `overrides: Partial<Execution>` 가 반환 `Pick` 밖 키를
+  조용히 받아, **내가 실제로 그 함정에 빠졌다**(2R 에서 `error` 에 fixture 를 넣음).
+
+### INFO 3 을 고치다 **기존 호출부 6곳**이 걸렸다
+
+타입을 `Partial<ExecutionFixture>` 로 좁히니 `conversationThread` 를 넘기는 6곳이 컴파일
+에러가 났다. **그 여섯은 정당했다** — `getStatus` 의 2단계 조회가 **같은 `repo.findOne`** 을
+쓰므로 이 헬퍼가 두 조회를 다 먹인다. 그래서 그 키를 `ExecutionFixture` 에 넣고, 그 사실을
+JSDoc 에 적었다. `error` 는 어느 조회도 안 읽으므로 계속 막힌다.
+
+**좁히기가 실제로 무는지 확인했다** — fixture 에 `error` 를 넘기니 `TS2353`. 내가 빠졌던
+함정이 이제 컴파일 에러다.
+
+## 수렴 판정
+
+발견의 성격: **동작(내부 필드 유출) → 구조(계층 역전·파일 분리) → 표현 정밀도·fixture 타입**.
+구조가 사라졌다.
+
+| 라운드 | CRITICAL | WARNING |
+| --- | --- | --- |
+| `19_00_23` | 0 | 4 |
+| `19_24_24` | 0 | 2 |
+| `19_43_33` | 0 | **0** |
