@@ -61,14 +61,33 @@ Workflow 의 generic 단계 정의: [`developer/SKILL.md`](.claude/skills/develo
 | 역할 | Skill | 쓰기 권한 |
 | --- | --- | --- |
 | 기획자 | [`project-planner`](.claude/skills/project-planner/SKILL.md) | `spec/**`, `plan/**` |
-| 개발자 | [`developer`](.claude/skills/developer/SKILL.md) | `codebase/**`, `plan/**`, `review/**/RESOLUTION.md`. `spec/` read-only |
+| 개발자 | [`developer`](.claude/skills/developer/SKILL.md) | `codebase/**`, `plan/**`, `review/**/RESOLUTION.md`. `spec/` read-only ([좁은 예외](#자기-반증형-소정정--developer-가-spec-을-고칠-수-있는-유일한-경우)) |
 | 일관성 검토자 | [`consistency-checker`](.claude/skills/consistency-checker/SKILL.md) (`/consistency-check`) | `review/consistency/**` |
 | 코드 리뷰어 | [`code-review-agents`](.claude/skills/code-review-agents/SKILL.md) (`/ai-review`) | `review/code/**` |
 | 통합 조율자 | [`merge-coordinator`](.claude/skills/merge-coordinator/SKILL.md) (`/merge-coordinate`) | `review/merge/**`, `.claude/worktrees/integrate-*/**` |
 
 - `spec/` 변경 → `project-planner`. `codebase/` 변경 → `developer`.
-- 구현 중 spec 변경 필요 시 `developer` 는 멈추고 `project-planner` 위임.
+- 구현 중 spec 변경 필요 시 `developer` 는 멈추고 `project-planner` 위임 — **단 하나의 좁은 예외**는 아래 §자기-반증형 소정정.
 - `project-planner` 는 `spec/` 쓰기 직전 `consistency-check --spec` 의무. `developer` 는 구현 착수 직전 `consistency-check --impl-prep` 의무. Critical 발견 시 차단.
+
+### 자기-반증형 소정정 — `developer` 가 `spec/` 을 고칠 수 있는 유일한 경우
+
+`developer` 가 **자신이 그 spec 문서에 써 넣은 예고 문장**을 나중에 실측으로 반증했을 때,
+그 문장의 정정에 한해 planner 턴 없이 직접 고친다. 아래 **다섯 조건을 전부** 충족해야 한다:
+
+1. 대상 문장을 **developer 자신이 그 문서에 썼다** (`git blame` 으로 확인 가능)
+2. 그 문장이 **예고·트리거**다 — 제품 정의·요구사항·API 계약은 **해당 없음**
+3. **실측이 그 문장을 반증**했고, 그 측정을 정정문에 함께 싣는다
+4. 정정은 그 문장에 **국한**된다 — 원문은 취소선으로 **남기고**, 인접 서술은 건드리지 않는다
+5. plan `spec_impact` 에 명시하고 커밋 본문에 실측을 기록한다
+
+**게이트**: `--spec` 대신 **`--impl-done` 을 그 spec 파일이 포함되는 scope 로** 반드시 돌린다.
+사전 승인을 면제하는 대신 사후 그물이 훑는다.
+
+> **왜 예외인가** (2026-08-23 사용자 결정, `#1202` 계기): 틀린 예고를 남겨 두면 다음 사람이
+> 있지도 않은 작업을 쫓는다. 그런데 예고를 남긴 것도, 그것이 틀렸음을 실측한 것도 developer
+> 다 — 여기서 planner 를 강제하면 **반증할 수 있는 유일한 사람에게서 정정 권한을 뺏는다**.
+> 조건 1~5 가 이 예외를 "실측했으니 고쳤다" 라는 만능 통행증으로 넓히는 것을 막는다.
 
 **보조 도구**: [`spec-coverage`](.claude/skills/spec-coverage/SKILL.md) (`/spec-coverage`) — spec 본문 약속 vs 구현 갭 standing audit (NLP 휴리스틱). 수동 호출만, CI 차단 아님. 산출 `review/spec-coverage/**`. SoT: [`spec/conventions/spec-impl-evidence.md`](spec/conventions/spec-impl-evidence.md) + [`.claude/docs/plan-lifecycle.md §6.2`](.claude/docs/plan-lifecycle.md).
 
