@@ -748,6 +748,214 @@ describe('WebsocketService', () => {
     });
 
     /**
+     * **fanout `nodeOutput` 은 fail-closed allowlist 다** — EIA §R17.
+     *
+     * `stripExternalOnlyFields` 는 이름을 아는 `llmCalls` 만 뺀다(fail-open). 그래서
+     * 핸들러가 새로 넣은 내부 필드는 이름이 목록에 없다는 이유로 **그대로 나갔다**.
+     * REST `getStatus` 는 #1205 에서 allowlist 로 닫혔고, 이 테스트가 SSE/fanout 쪽
+     * 같은 문을 고정한다.
+     *
+     * `_retryState` 를 고른 이유: `NodeHandlerOutput` 의 비공개 필드인데 `_resumeState`
+     * 와 달리 **`NodeExecution.outputData` 에 실제로 영속된다**(`retry-turn.service.ts`).
+     * 즉 가상의 필드가 아니라 현존하는 fail-open 사례다.
+     */
+    it('[캐너리] fanout 의 `nodeOutput` 에서 allowlist 밖 내부 필드가 제거된다', async () => {
+      const eventP = nextFanoutEvent(service);
+      await service.emitExecutionEvent(
+        'exec-allowlist-form',
+        ExecutionEventType.EXECUTION_WAITING_FOR_INPUT,
+        {
+          status: 'waiting_for_input',
+          waitingNodeId: 'n-form',
+          interactionType: 'form',
+          nodeOutput: {
+            config: { fields: [] },
+            output: { ok: true },
+            _retryState: { attempts: 3, lastError: 'INTERNAL DETAIL' },
+            someUnknownInternalField: 'INTERNAL DETAIL',
+          },
+        },
+      );
+      const fanout = await eventP;
+      const nodeOutput = fanout.payload.nodeOutput as Record<string, unknown>;
+      expect(nodeOutput).not.toHaveProperty('_retryState');
+      expect(nodeOutput).not.toHaveProperty('someUnknownInternalField');
+      // 대조군 — 허용 키는 남는다(통째로 날려서 통과하는 구현 배제).
+      expect(nodeOutput.config).toEqual({ fields: [] });
+      expect(nodeOutput.output).toEqual({ ok: true });
+
+      // **내부 WS 는 안 바뀐다** — 이 작업의 안전 조건이다. 에디터 콘솔은 디버깅을
+      // 위해 원문을 그대로 받는다(WS §4.4 strip-only 결정).
+      const wire = gateway.broadcastToChannel.mock.calls[0][2] as Record<
+        string,
+        unknown
+      >;
+      const wireNodeOutput = wire.nodeOutput as Record<string, unknown>;
+      expect(wireNodeOutput).toHaveProperty('_retryState');
+      expect(wireNodeOutput).toHaveProperty('someUnknownInternalField');
+    });
+
+    /**
+     * 버튼 waiting 은 `nodeOutput` 을 **한 겹 아래**(`buttonConfig.nodeOutput`) 에
+     * 싣는다(`button-interaction.service.ts:421`). 두 자리를 함께 고정하지 않으면
+     * 이 저장소가 반복해 겪은 *"넷 중 하나만"* 형태가 그대로 재발한다.
+     */
+    it('[캐너리] fanout 의 `buttonConfig.nodeOutput` 도 같은 allowlist 를 지난다', async () => {
+      const eventP = nextFanoutEvent(service);
+      await service.emitExecutionEvent(
+        'exec-allowlist-buttons',
+        ExecutionEventType.EXECUTION_WAITING_FOR_INPUT,
+        {
+          status: 'waiting_for_input',
+          waitingNodeId: 'n-btn',
+          interactionType: 'buttons',
+          buttonConfig: {
+            buttons: [{ id: 'b1', label: 'Yes' }],
+            nodeOutput: {
+              config: { prompt: 'pick' },
+              _retryState: { attempts: 1, lastError: 'INTERNAL DETAIL' },
+            },
+          },
+        },
+      );
+      const fanout = await eventP;
+      const bc = fanout.payload.buttonConfig as Record<string, unknown>;
+      const nodeOutput = bc.nodeOutput as Record<string, unknown>;
+      expect(nodeOutput).not.toHaveProperty('_retryState');
+      // 형제 필드는 보존 — `buttonConfig` 재조립이 `buttons` 를 떨구면 렌더가 깨진다.
+      expect(bc.buttons).toEqual([{ id: 'b1', label: 'Yes' }]);
+      expect(nodeOutput.config).toEqual({ prompt: 'pick' });
+
+      const wire = gateway.broadcastToChannel.mock.calls[0][2] as Record<
+        string,
+        unknown
+      >;
+      const wireBc = wire.buttonConfig as Record<string, unknown>;
+      expect(wireBc.nodeOutput).toHaveProperty('_retryState');
+    });
+
+    /**
+     * **copy-on-change 는 `buttonConfig` 분기에도 있다** (`22_51_46` testing W2).
+     *
+     * 위 `제거할 필드가 없으면 … 동일 객체` 테스트는 **top-level 분기만** 고정한다 —
+     * `buttonConfig` 쪽 `if (narrowed !== inner)` 가드를 지워도 잡는 테스트가 없었다.
+     * 그 가드가 죽으면 버튼 waiting 이벤트마다 `buttonConfig` 를 통째로 재조립하고,
+     * 그러면 이 파일이 성능 근거로 못박아 둔 clone-on-write 계약이 한 분기에서만
+     * 조용히 깨진다.
+     *
+     * 뮤테이션 M5 가 이 테스트의 존재 이유다 — 그 가드만 제거하면 여기만 RED 다.
+     */
+    it('[캐너리] `buttonConfig.nodeOutput` 이 이미 깨끗하면 `buttonConfig` 를 재조립하지 않는다', async () => {
+      const eventP = nextFanoutEvent(service);
+      await service.emitExecutionEvent(
+        'exec-bc-identity',
+        ExecutionEventType.EXECUTION_WAITING_FOR_INPUT,
+        {
+          status: 'waiting_for_input',
+          waitingNodeId: 'n-btn-clean',
+          buttonConfig: {
+            buttons: [{ id: 'b1', label: 'Yes' }],
+            // 전부 allowlist 안 — 좁힐 것이 없다.
+            nodeOutput: { config: { prompt: 'pick' }, output: {} },
+          },
+        },
+      );
+      const fanout = await eventP;
+      const wire = gateway.broadcastToChannel.mock.calls[0][2] as Record<
+        string,
+        unknown
+      >;
+      // envelope 자체와 `buttonConfig` 서브트리 **양쪽**의 동일성 — 하나만 보면
+      // 나머지 층에서 일어나는 불필요한 재구성을 놓친다(`10_32_27` testing W5 와 같은 형태).
+      expect(fanout.payload).toBe(wire);
+      expect(fanout.payload.buttonConfig).toBe(wire.buttonConfig);
+    });
+
+    /**
+     * **chat-channel 렌더 보존** — Discord/Telegram/Slack 은 `nodeOutput` 을 flat
+     * legacy shape 으로 읽는다(`extractRendered` 가 `nodeOutput.rendered`, 카드/제목
+     * 렌더가 `nodeOutput.payload`·`nodeOutput.title`, 라우팅이 `nodeOutput.nodeType`).
+     * allowlist 를 REST 표면 기준으로만 잡으면 이 넷이 조용히 사라져 **외부 채널의
+     * 메시지가 빈 상태로 나간다** — 유출이 아니라 기능 파손이라 마스킹 테스트로는
+     * 잡히지 않는다. 그래서 보존을 명시적으로 못박는다.
+     */
+    it.each([
+      ['rendered', 'hello **world**'],
+      ['payload', { items: [{ title: 'a' }] }],
+      ['title', '주문 확인'],
+      ['nodeType', 'ai_agent'],
+    ])(
+      '[캐너리] chat-channel 이 top-level 로 읽는 `%s` 는 fanout 에 남는다',
+      async (key, value) => {
+        const eventP = nextFanoutEvent(service);
+        await service.emitExecutionEvent(
+          `exec-chat-${key}`,
+          ExecutionEventType.EXECUTION_WAITING_FOR_INPUT,
+          {
+            status: 'waiting_for_input',
+            waitingNodeId: 'n-chat',
+            nodeOutput: { [key]: value },
+          },
+        );
+        const fanout = await eventP;
+        const nodeOutput = fanout.payload.nodeOutput as Record<string, unknown>;
+        expect(nodeOutput[key]).toEqual(value);
+      },
+    );
+
+    /**
+     * **[잔여 캐너리] `envelope.output` 은 아직 안 좁힌다** — `23_29_27` cross_spec CRITICAL.
+     *
+     * `execution.node.completed` / `.failed` 는 `NodeExecution.outputData` 를 **`output`**
+     * 이라는 다른 키로 최상위에 싣는다(5곳: `execution-engine` 2 · `form-interaction` ·
+     * `button-interaction` · `ai-turn-orchestrator`). 그래서 `nodeOutput` 만 찾은 이 PR 의
+     * 배선이 그 표면을 지나쳤고, `_retryState` 는 **여기로 여전히 나간다**.
+     *
+     * ## 그런데 같은 allowlist 를 그대로 걸면 깨진다 — 실측
+     *
+     * `NodeExecution.outputData` 는 `NodeHandlerOutput` **하나가 아니다**. 버튼 재개 경로는
+     * `{type, buttonId, buttonLabel, clickedAt, selectedItem, nodeOutput, _selectedPort}`
+     * 를 저장하는데(`button-interaction.service.ts:180`), 정본 구현에 넣어 보면
+     * **`{}` 가 된다** — 13키 중 하나도 안 맞는다. carousel+buttons 는 presentation 타입이라
+     * chat-channel dispatcher 의 sub-filter 도 통과하므로 외부 발송이 통째로 빈다.
+     *
+     * 즉 이 표면은 **키 목록이 아니라 shape 판별**이 먼저인 별건이다. 반쯤 추측한 좁히기를
+     * 보안 경계에 넣지 않는다 — 그러면 fail-open 을 fail-broken 으로 바꿀 뿐이다.
+     *
+     * ## 그래서 안 닫은 방향을 캐너리로 고정한다
+     *
+     * 이 테스트는 **현 상태를 기술**한다. 후속 작업이 이 표면을 닫으면 여기가 RED 가 되고,
+     * 그때 이 테스트를 **의식적으로 뒤집는 것**이 그 작업의 일부다. 이렇게 두지 않으면
+     * 갭이 아무 데도 안 남아 다음 사람이 "REST 와 같은 강도" 라고 읽는다.
+     */
+    it('[잔여] `execution.node.*` 의 `envelope.output` 은 아직 allowlist 를 지나지 않는다', async () => {
+      const eventP = nextFanoutEvent(service);
+      await service.emitNodeEvent(
+        'exec-node-output-gap',
+        'n-done',
+        NodeEventType.NODE_COMPLETED,
+        {
+          nodeType: 'carousel',
+          status: 'completed',
+          output: {
+            config: {},
+            output: { rendered: 'card' },
+            _retryState: { attempt: 1 },
+          },
+        },
+      );
+      const fanout = await eventP;
+      const out = (fanout.payload as Record<string, unknown>).output as Record<
+        string,
+        unknown
+      >;
+      // ⚠️ 이것이 **잔여 갭**이다 — 닫히면 이 단언이 뒤집힌다.
+      expect(out._retryState).toBeDefined();
+      // 렌더 필드는 당연히 살아 있다(대조군).
+      expect(out.output).toEqual({ rendered: 'card' });
+    });
+
+    /**
      * 재귀 strip 의 비용 근거를 단언한다 — 제거할 게 없으면 **새 객체를 만들지 않고
      * 입력을 그대로** 돌려준다(clone-on-write). 이게 깨지면 모든 실행 이벤트가
      * payload 전체를 복제하게 되므로, 성능 주장이 주석에만 있으면 안 된다.

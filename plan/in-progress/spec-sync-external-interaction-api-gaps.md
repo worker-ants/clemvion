@@ -69,8 +69,33 @@ owner: planner
     - **재리뷰(`09_36_01`) 가 잡은 잔여 gap — C1 fix 의 자기 사각지대**: C1 의 조기 return 근거("부팅 전엔 정리할 게 없다")는 **메모리에만 참**이고 `sessionStorage` 의 이전 세션은 놓친다 → 부팅 중 `resetSession` 이 조용히 무시되고 **옛 대화가 부활**(재현 확인, side_effect·security 독립 지적). fix = `pendingResetRef` 로 의도를 기록하고 `applyConfig` 가 `loadSession` 직전 소비. 교훈: **"정리할 게 없다"를 메모리만 보고 판단하면 영속 상태를 놓친다.**
     - 검증(`08_29_33`+`09_36_01` 반영 후): 신규 회귀 테스트 **8건**(vitest 실측 — eager-start 36→40: C1·C1-b·W2·W3 / token-refresh 10→11: W5 / widget-state 37→40: W4 가드 + 재개 경로 2케이스). 전부 mutation 검증(대응 가드 제거 시 **그 테스트만** 실패). 특히 W3 는 리뷰어가 "제거해도 364건 중 0건 실패"라 실증한 언마운트 지점을 닫은 것. channel-web-chat 22 파일 **372 passed**, lint·unit·build PASS.
     - **분리는 여전히 후속 후보** — 다만 그 경계는 `useEiaStream`(스트림)이 아니라 `useEiaSession`(세션 라이프사이클 전체, ≈300/735줄)이어야 하고, 가드가 하나로 정리된 **지금 상태에서 하는 편이 안전**하다. 기존 `useTokenRefresh`/`usePendingMessageQueue` 가 ref 주입 계약을 확립해 뒀다.
-- [ ] **SSE/fanout 의 `nodeOutput` 은 여전히 fail-open deny-list 다** (2026-08-23 등재,
-      `18_30_40` plan_coherence W2 — 위 REST 항목에서 **의도적으로 분리**).
+- [x] **~~SSE/fanout 의 `nodeOutput` 은 여전히 fail-open deny-list 다~~ 해소 (2026-08-23) —
+      `waiting_for_input` 표면 한정** (등재 2026-08-23, `18_30_40` plan_coherence W2 — 위 REST
+      항목에서 **의도적으로 분리**). **`node.*` 이벤트 표면은 아래 신규 항목으로 분리.**
+      > **착수하니 전제 둘이 뒤집혔다.**
+      >
+      > 1. **호출부는 넷이 아니라 하나였다.** 아래 실측이 나열한 세 서비스가 전부
+      >    `WebsocketService.toFanoutEnvelope` 한 함수를 지난다 — 그 함수가 이미
+      >    **외부 전용**이라(내부 WS 는 그 전에 `broadcastToChannel` 로 나간 뒤다)
+      >    호출부를 하나도 건드리지 않고 닫혔다. *"envelope shape 이 달라 한 줄 대칭
+      >    적용이 안 된다"* 는 (a) 는 틀렸다: payload 가 envelope 에 **평평하게** 펼쳐져
+      >    위치가 REST 와 동일하다(`nodeOutput` / `buttonConfig.nodeOutput`).
+      > 2. **(b) 는 맞았고, 그래서 목록이 넓어졌다.** *"잘못 좁히면 외부 채널 렌더가
+      >    깨진다"* 를 실측하니 chat-channel 렌더러가 `nodeOutput.payload`·`.title`·
+      >    `.rendered`·`.nodeType` 를 **top-level flat legacy shape** 으로 읽는데 그
+      >    넷이 allowlist 에 **없었다**. 그대로 걸었다면 Discord/Telegram/Slack 메시지가
+      >    조용히 비었다 — 유출이 아니라 기능 파손이라 마스킹 테스트로는 안 잡힌다.
+      >    넷을 wire 전용 그룹에 넣고 리터럴 테스트로 못박았다.
+      >    - **위젯(#1205)은 회귀가 아니었다** — `channel-web-chat` 은 `output.rendered`·
+      >      `config.items` 처럼 한 겹 아래로 읽어 전부 allowlist 안이다(실측).
+      >
+      > §R17 표의 SSE 행을 flip 하고 *"REST·SSE 방어 강도가 다르다"* 서술을 폐기했다.
+      > WS §4.4 의 *"fanout envelope 을 내부 WS store 와 SSE 가 공유한다"* 에도
+      > `nodeOutput` 키 집합만은 공유하지 않는다는 단서를 달았다.
+
+      <details>
+      <summary>등재 당시 본문 (반증된 전제 포함 — 이력 보존)</summary>
+
       `toFanoutEnvelope` 는 **envelope 레벨**에서 `stripExternalOnlyFields` 를 걸므로 그 안의
       `nodeOutput` 에 allowlist 를 대려면 별건 변경이 필요하다. 같은 `_retryState` 를 나르고,
       **chat-channel 어댑터가 같은 subject 를 구독**해 blast radius 가 REST 열람자보다 넓다.
@@ -90,17 +115,100 @@ owner: planner
       > **재사용할 헬퍼는 이미 있다** — `shared/utils/node-output-allowlist.ts` 의
       > `allowlistNodeOutputKeys`. envelope 안에서 `nodeOutput` 서브트리를 찾아 거는 것이 일이다.
 
-- [ ] **wire-only 4키가 `node-output.md` Principle 0 의 닫힌 레지스트리 밖이다** (2026-08-23 등재,
-      `20_09_38` convention_compliance W3). 그 규약은 `NodeHandlerOutput` 을 **5필드 + 3예외**
-      닫힌 목록으로 못박는데, EIA wire 조립 레이어는 거기에 없는 `formConfig`·
-      `conversationConfig`·`buttonConfig`·`interactionType` 을 top-level 로 얹는다 —
-      이번 PR 이 `NODE_OUTPUT_ALLOWED_KEYS` 로 그 사실을 **컴파일타임 SoT 로 명문화**하면서
-      규약과의 간극이 드러났다.
-      > **동작 결함은 아니다** — 위젯 파서가 실제로 그 키들을 읽고(실측), allowlist 가
+      </details>
+
+- [ ] **wire-only 키가 `node-output.md` Principle 0 의 닫힌 레지스트리 밖이다** (~~4키~~ → **8키**)
+      (2026-08-23 등재, `20_09_38` convention_compliance W3 · `22_26_33` plan_coherence W4 로
+      키 수 갱신). 그 규약은 `NodeHandlerOutput` 을 **5필드 + 3예외** 닫힌 목록으로 못박는데,
+      EIA wire 조립 레이어는 거기에 없는 키를 top-level 로 얹는다 — **착수 시 다시 세라**,
+      정본은 `NODE_OUTPUT_ALLOWED_KEYS` 의 wire 전용 두 그룹이다:
+      - 위젯 파서: `formConfig`·`conversationConfig`·`buttonConfig`·`interactionType`
+      - chat-channel 렌더러: `payload`·`title`·`rendered`·`nodeType` (2026-08-23 SSE 작업이 추가)
+
+      `NODE_OUTPUT_ALLOWED_KEYS` 가 그 사실을 **컴파일타임 SoT 로 명문화**하면서 규약과의
+      간극이 드러났다.
+      > **동작 결함은 아니다** — 실제 소비처가 그 키들을 읽고(실측), allowlist 가
       > fail-closed 로 통과시킨다. 문제는 **규약 문서가 그 층의 존재를 모른다**는 것이다.
       > **planner 소관**: Principle 0 에 "EIA wire 조립 레이어가 추가하는 wire-only 필드는
       > `NodeHandlerOutput` 계약 **밖**" 각주를 다는 편이 낫다 — 5필드 목록을 넓히면
       > 핸들러 계약이 오염된다.
+
+- [ ] **`execution.node.completed`/`.failed` 의 `envelope.output` 은 아직 deny-list 다**
+      (2026-08-23 등재, `23_29_27` cross_spec **CRITICAL**). 같은 `NodeExecution.outputData` 를
+      **`output`** 이라는 다른 키로 최상위에 싣는 표면이라, `nodeOutput` 만 찾은 SSE 작업이
+      그대로 지나쳤다. `_retryState` 가 여기로 나간다.
+      > **왜 놓쳤나 — 질문이 한 칸 좁았다.** *"`nodeOutput` 이 어디 있나"* 를 물었어야 할 자리에서
+      > 물었어야 할 질문은 *"`NodeHandlerOutput` 이 어느 문으로 나가나"* 였다. 키 이름이 다르면
+      > grep 이 침묵한다.
+      >
+      > **emit 5곳 (실측 — 다시 찾지 말 것)**: `execution-engine.service.ts` 2곳
+      > (NODE_COMPLETED · NODE_FAILED) · `form-interaction.service.ts` ·
+      > `button-interaction.service.ts` · `ai-turn-orchestrator.service.ts`. 전부
+      > `output: <nodeExec>.outputData` 이고 `emitNode` → `emitNodeEvent` →
+      > `toFanoutEnvelope` 를 지난다 — **배선 지점은 여전히 그 한 함수다.**
+      >
+      > ## ⚠️ 같은 목록을 그대로 걸면 **깨진다** (실측 — 이 항목의 핵심)
+      >
+      > `envelope.output` 은 `NodeHandlerOutput` **하나가 아니다.** 버튼 재개 경로는
+      > `{type, buttonId, buttonLabel, clickedAt, selectedItem, nodeOutput, _selectedPort}`
+      > 를 `outputData` 에 저장하는데(`button-interaction.service.ts:180`), **정본**
+      > `allowlistNodeOutputKeys` 에 넣어 보면 **`{}`** 다 — 13키 중 하나도 안 맞는다.
+      > carousel+buttons 는 presentation 타입이라 chat-channel dispatcher sub-filter 도
+      > 통과하므로 **외부 발송이 통째로 빈다**.
+      >
+      > **그래서 이건 키를 더 넣는 일이 아니라 shape 판별 문제다.** 착수 시 먼저 답할 것:
+      > `NodeExecution.outputData` 가 실제로 취하는 shape 이 몇 가지인가(핸들러 반환 ·
+      > 폼/버튼 재개 record · AI turn record …), 그리고 그 판별을 **런타임 휴리스틱 없이**
+      > 할 수 있나. 못 하면 좁히기를 넣지 말 것 — fail-open 을 fail-broken 으로 바꿀 뿐이다.
+      >
+      > **안 닫은 방향은 캐너리가 고정한다**: `websocket.service.spec.ts` 의
+      > `[잔여] execution.node.* 의 envelope.output 은 아직 allowlist 를 지나지 않는다`.
+      > 이 항목을 닫으면 **그 단언이 뒤집히는 것이 작업의 일부**다.
+
+- [ ] **WS §4.4 `buttonConfig.nodeOutput` 행에 `nodeType` carve-out 각주 없음**
+      (2026-08-24 등재, `00_51_50` convention_compliance INFO 7). 같은 절이 *"판별자 래퍼
+      금지"* 를 말하는데 새 `nodeType` legacy carve-out 이 교차 참조 없이 병존한다 —
+      오독 여지.
+      > **planner 소관.** checker 가 *"선택, CRITICAL/WARNING 아님, 이번 diff scope 밖"*
+      > 으로 판정했고, 여기서 §4.4 를 또 고치면 `--impl-done` 게이트가 다시 돌아야 한다
+      > (이번 PR 이 그 루프를 다섯 번 돌았다). 다음에 그 절을 열 때 함께.
+
+- [ ] **`conversation-thread.md` frontmatter `code:` 에 `websocket.service.ts` 누락**
+      (2026-08-24 등재, `00_26_17` convention_compliance INFO 4). 그 문서 §8.4 의 정정
+      blockquote 가 `toFanoutEnvelope` 를 근거로 인용하는데 glob 이 그 파일에 안 걸린다 —
+      가드 위반은 아니고 추적성 갭이다.
+      > **planner 소관** (`spec/conventions/**`). 자기-반증형 소정정 예외는 **내가 쓴 문장의
+      > 정정**에만 열리고 frontmatter 메타데이터 추가는 그 범위가 아니다 — 그래서 이번 턴에
+      > 손대지 않았다. 다음 planner 턴에서 그 문서를 열 때 함께.
+
+- [ ] **`egress-masking.md` §2 의 파이프라인 순서가 3단계로 낡았다** (2026-08-23 등재,
+      `23_29_27` convention_compliance W1). 그 문서가 "구현 좌표계 SoT" 를 자처하는데
+      `toFanoutEnvelope` 는 이제 `strip → nodeOutput allowlist → routing` 이다.
+      > **planner 소관** (`spec/conventions/**`). §2 순서에 allowlist 단계를 넣거나 §3
+      > "표를 갱신한 실례" 목록에 2026-08-23 건을 등재한다.
+
+- [ ] **fanout chokepoint 가 타입이 아니라 주석으로만 강제된다** (2026-08-23 등재,
+      `23_16_40` architecture INFO 6). `emitExecutionEvent`/`emitNodeEvent` 는
+      `toFanoutEnvelope` 를 지나지만 **그렇게 하라고 강제하는 것은 JSDoc 뿐**이고
+      `broadcastToChannel` 은 여전히 public 이다. 새 external emit 경로가 그 문을 우회하면
+      2026-08-23 에 닫은 정보 노출이 그대로 재발한다.
+      > **이번 diff 가 만든 문제가 아니다** — 기존 구조다. 다만 이 PR 이 그 문에
+      > **보안 책임을 하나 더 얹었으므로** 우회 비용이 전보다 커졌다.
+      > **후보**: fanout 전용 emit 을 private 으로 좁히거나, 외부 sink 로 나가는 지점에
+      > 타입 래퍼(`FanoutEnvelope` branded type)를 두어 조립을 강제한다.
+      > **함께 볼 것** (`23_16_40` security INFO 1): allowlist 는 **이름 기반**이라 wire 전용
+      > 8키 중 하나와 같은 이름의 내부 필드가 나중에 `nodeOutput` 최상위에 붙으면 통과한다.
+      > 두 항목의 처방이 같은 자리(신규 emit·신규 top-level 필드 리뷰 체크리스트)다.
+
+- [ ] **fanout allowlist 캐너리 4건이 `describe('llmCalls strip …')` 안에 있다** (2026-08-23 등재,
+      `23_16_40` testing INFO 14). 블록명이 실제 검증 대상(allowlist)과 어긋난다 — 다음에 이
+      파일을 여는 사람이 allowlist 테스트를 그 이름 아래에서 찾지 않는다.
+      > **이번에 안 옮긴 이유**: 이동은 `codebase/**` 변경이라 방금 끝난 리뷰가 다시 stale 이
+      > 된다. 순수 이동이라 위험은 0에 가깝지만 **리뷰 한 바퀴 값어치는 아니다** — 다음에 이
+      > 파일을 실질 수정할 때 함께 옮긴다.
+      > **`emitNodeEvent` 경로 미검증**(같은 라운드 testing INFO 12)도 같은 자리다 — 현재
+      > `nodeOutput` 을 싣는 이벤트는 `emitExecutionEvent` 뿐이라 위험이 낮고, 그 전제가
+      > 깨지는 순간(= `emitNodeEvent` 가 `nodeOutput` 을 싣는 첫 케이스)이 재개 신호다.
 
 - [ ] **`node-output-allowlist.ts` 를 `shared/utils/` 밖으로 재배치** (2026-08-23 등재,
       `19_24_24` architecture INFO 1). 그 디렉토리 8개 파일 중 **유일하게 도메인 타입**
@@ -111,6 +219,15 @@ owner: planner
       > **착수 시 후보**: 유일 소비처 인근(`modules/external-interaction/`) 또는 `nodes/core/`.
       > 위 SSE 항목이 소비처를 하나 늘리므로 **그 작업과 함께 정하는 편이 낫다** — 소비처가
       > 둘이 되면 배치 답이 달라진다.
+      >
+      > **그 판단 시점이 왔고, 결론은 무변경이다 (2026-08-23, SSE 작업)**: 소비처는
+      > `modules/external-interaction/interaction.service.ts` 와 `modules/websocket/
+      > websocket.service.ts` 둘로 갈렸다 — 즉 *"유일 소비처 인근"* 이라는 후보가 사라졌고,
+      > `nodes/core/` 로 올리면 이번엔 그쪽이 EIA 전용 wire 키 8개를 떠안는다. `shared/utils/`
+      > 는 두 소비처 **양쪽의 하위 계층**이라 상향 참조가 없다. 남은 흠은 *"shared 8파일 중
+      > 유일하게 도메인 타입을 import"* 뿐인데, 그 결속이 이 파일의 **방어 수단**(컴파일타임
+      > assertion)이라 없앨 수 없다. 항목은 열어 두되 **재개 신호는 "소비처가 늘었다" 가
+      > 아니라 "shared 아래가 아닌 소비처가 생겼다"** 로 바꾼다.
 
 - [x] **`getStatus` 일반 `nodeOutput` 키-allowlist** (§R17 잔여) — §R17 이 "conversationConfig 이외의 일반 `nodeOutput` 키-allowlist 만 잔여 항목" 이라 명시했으나 등재된 plan 이 없었다. 현재 `conversationThread`·`ai_message`·`nodeOutput.conversationConfig` 는 `redactThreadForPublic`/`deepRedactSecrets` 로 마스킹되지만 그 외 `nodeOutput` 키는 공개 표면에 그대로 실린다. 도입 시 §R17 잔여 문구 flip. (2026-07-10 consistency `plan-coherence` W3 로 등재 — spec-impl-evidence R-5 "빈 약속 영구 누락" 방지.)
       > **→ 종결 (2026-08-23).** 착수 전 프로브가 **전제를 절반 갈았다**: 그 사이

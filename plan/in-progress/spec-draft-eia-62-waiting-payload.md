@@ -183,8 +183,14 @@ strip 결정의 SoT 는 WS §4.4 Rationale 의 `### ai_message.llmCalls[] 외부
   > **→ 그 불릿은 이제 종결됐다 (2026-08-23, `nodeoutput-allowlist` PR).** 위 가드레일이
   > 요구한 "인용 동기화" 를 그 PR 이 수행한 기록이다(`20_09_38` plan_coherence W4 가 지목).
   > **다만 부분 종결이다** — REST `getStatus` waiting 출구만 fail-closed allowlist 를 받고,
-  > terminal `result`/`error` 는 작성자 데이터라 의도적 제외, **SSE·fanout 은 잔여**로 정본
-  > 트래커에 별도 항목이 서 있다. §R17 의 범위 표가 그 셋의 SoT 다.
+  > terminal `result`/`error` 는 작성자 데이터라 의도적 제외, ~~**SSE·fanout 은 잔여**로 정본
+  > 트래커에 별도 항목이 서 있다.~~ §R17 의 범위 표가 그 셋의 SoT 다.
+  >
+  > **후속 (2026-08-23, `sse-nodeoutput-allowlist` PR — `23_29_27` plan_coherence W2)**:
+  > SSE/fanout 도 같은 날 닫혔다 — 단 **`waiting_for_input` 표면 한정**이다.
+  > `execution.node.completed`/`.failed` 의 `envelope.output` 은 여전히 잔여이고 정본
+  > 트래커에 **새 항목**으로 서 있다(같은 `outputData` 를 다른 키로 싣는 이종 payload라
+  > 같은 목록을 걸 수 없다는 실측과 함께). §R17 표가 계속 SoT 다.
 
 ## 🔴 조사 중 발견 — `turnDebug.llmCalls` 가 외부 fanout 으로 새는 것으로 보인다
 

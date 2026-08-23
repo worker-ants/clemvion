@@ -312,7 +312,9 @@ export class InteractionService {
    * `conversationThread` 의 turn 텍스트 불변식은 SSE 와 공유하는 `redactThreadForPublic` 로 egress 시
    * 런타임 마스킹돼 자동 강제된다 (EIA §R17). `nodeOutput` 키-allowlist 는 **이 함수의 waiting
    * 출구 1곳에 fail-closed 로 적용**된다(2026-08-23) — terminal `result`/`error` 는 작성자
-   * 데이터라 의도적 제외, SSE·fanout 은 잔여. 범위 표는 EIA §R17.
+   * 데이터라 의도적 제외. ~~SSE·fanout 은 잔여.~~ **SSE/fanout 의 `waiting_for_input`
+   * `nodeOutput`/`buttonConfig.nodeOutput` 도 같은 날 같은 목록으로 닫혔다** — 잔여로 남은
+   * 것은 `execution.node.*` 의 `envelope.output` 하나다. 범위 표는 EIA §R17.
    *
    * **`conversationThread` (durable 동봉, EIA §R17 재조정 2026-07-09)**: `waiting_for_input` 시
    * durable 스냅샷(`Execution.conversation_thread`)을 SSE 와 동일 wire shape 으로 동봉해 위젯의

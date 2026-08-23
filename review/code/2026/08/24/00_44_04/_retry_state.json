@@ -1,0 +1,50 @@
+{
+  "session_dir": "/Volumes/project/private/clemvion/.claude/worktrees/sse-nodeoutput-allowlist-3b6219/review/code/2026/08/24/00_44_04",
+  "summary_subagent_type": "code-review-summary",
+  "summary_output_file": "/Volumes/project/private/clemvion/.claude/worktrees/sse-nodeoutput-allowlist-3b6219/review/code/2026/08/24/00_44_04/SUMMARY.md",
+  "router_subagent_type": "review-router",
+  "router_prompt_file": null,
+  "router_output_file": "/Volumes/project/private/clemvion/.claude/worktrees/sse-nodeoutput-allowlist-3b6219/review/code/2026/08/24/00_44_04/_routing_decision.json",
+  "routing_status": "skipped",
+  "routing_skip_reason": "REVIEW_AGENTS explicitly set",
+  "agents_forced": [
+    "documentation",
+    "requirement"
+  ],
+  "agents_forced_reasons": {
+    "documentation": [
+      "문서 파일(.md/.txt/.rst/.adoc/LICENSE/CHANGELOG 등) 변경: CHANGELOG.md, plan/complete/sse-nodeoutput-allowlist.md, plan/in-progress/spec-draft-eia-62-waiting-payload.md (외 67건)"
+    ],
+    "requirement": [
+      "spec 본문 변경 — documentation 외에도 요구사항 일관성 검증 필요: spec/5-system/14-external-interaction-api.md, spec/5-system/6-websocket-protocol.md, spec/conventions/conversation-thread.md",
+      "소스 코드 변경 — 코드 변경 시 항상 적용: codebase/backend/src/modules/external-interaction/interaction.service.spec.ts, codebase/backend/src/modules/external-interaction/interaction.service.ts, codebase/backend/src/modules/websocket/websocket.service.spec.ts (외 3건)"
+    ]
+  },
+  "agents_skipped": [],
+  "subagent_invocations": [
+    {
+      "name": "documentation",
+      "subagent_type": "documentation-reviewer",
+      "prompt_file": "/Volumes/project/private/clemvion/.claude/worktrees/sse-nodeoutput-allowlist-3b6219/review/code/2026/08/24/00_44_04/_prompts/documentation.md",
+      "output_file": "/Volumes/project/private/clemvion/.claude/worktrees/sse-nodeoutput-allowlist-3b6219/review/code/2026/08/24/00_44_04/documentation.md"
+    },
+    {
+      "name": "requirement",
+      "subagent_type": "requirement-reviewer",
+      "prompt_file": "/Volumes/project/private/clemvion/.claude/worktrees/sse-nodeoutput-allowlist-3b6219/review/code/2026/08/24/00_44_04/_prompts/requirement.md",
+      "output_file": "/Volumes/project/private/clemvion/.claude/worktrees/sse-nodeoutput-allowlist-3b6219/review/code/2026/08/24/00_44_04/requirement.md"
+    }
+  ],
+  "agents_pending": [
+    "documentation",
+    "requirement"
+  ],
+  "agents_success": [],
+  "agents_fatal": [],
+  "agent_history": {},
+  "rate_limit_episodes": 0,
+  "total_wait_sec": 0,
+  "wake_history": [],
+  "last_reset_hint_sec": null,
+  "loop_mode": false
+}

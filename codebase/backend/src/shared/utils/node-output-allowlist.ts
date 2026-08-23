@@ -2,14 +2,21 @@ import type { NodeHandlerOutput } from '../../nodes/core/node-handler.interface'
 
 // 자매 `strip-external-only-fields.ts` 와 **의도적으로 분리**된 파일이다
 // (`19_00_23` architecture W2). 그쪽은 **순수·범용** deny-list(다중 소비처, 깊은 순회)라
-// 도메인 타입을 몰라야 하는데, 이 allowlist 는 `NodeHandlerOutput` 에 결속돼 있고 소비처도
-// `getStatus` 한 곳이다. 한 파일에 두면 하위 계층이 상위 도메인 타입을 참조하게 된다.
+// 도메인 타입을 몰라야 하는데, 이 allowlist 는 `NodeHandlerOutput` 에 결속돼 있다.
+// 한 파일에 두면 하위 계층이 상위 도메인 타입을 참조하게 된다.
+//
+// **소비처는 둘이다** — EIA REST `getStatus` 와 WS `toFanoutEnvelope`(SSE/webhook/
+// chat-channel fanout). 초판 주석은 *"소비처도 `getStatus` 한 곳"* 이라 적었는데
+// 2026-08-23 에 SSE 를 같은 강도로 닫으며 그 문장이 낡았다. 소비처가 둘이 된 지금도
+// `shared/utils/` 배치는 유지한다 — 둘 다 shared 아래 계층이라 상향 참조가 없고,
+// 정본 트래커의 재배치 항목이 요구한 판단 시점이 바로 여기다(결론: 이번 라운드 무변경).
 //
 // 두 정책의 관계: deny-list 는 **어느 깊이에서든 아는 것을 뺀다**(fail-open),
-// 이 allowlist 는 **최상위에서 아는 것만 남긴다**(fail-closed). `getStatus` 는 둘 다 지난다.
+// 이 allowlist 는 **최상위에서 아는 것만 남긴다**(fail-closed). `getStatus` 와
+// `toFanoutEnvelope` 는 **둘 다** 두 정책을 지난다.
 
 /**
- * `nodeOutput` 의 **최상위** 키 allowlist — EIA §R17 잔여 항목.
+ * `nodeOutput` 의 **최상위** 키 allowlist — EIA §R17.
  *
  * ## 왜 deny-list 로는 부족한가
  *
@@ -37,7 +44,11 @@ import type { NodeHandlerOutput } from '../../nodes/core/node-handler.interface'
  * | 그룹 | 키 | 근거 |
  * |---|---|---|
  * | 핸들러 계약 공개분 | `config` · `output` · `meta` · `port` · `status` | `NodeHandlerOutput` |
- * | wire 전용 | `formConfig` · `conversationConfig` · `buttonConfig` · `interactionType` | 위젯 파서가 top-level 로 읽는다 |
+ * | wire 전용 (위젯) | `formConfig` · `conversationConfig` · `buttonConfig` · `interactionType` | 위젯 파서가 top-level 로 읽는다 |
+ * | wire 전용 (chat-channel) | `payload` · `title` · `rendered` · `nodeType` | Discord/Telegram/Slack 렌더러가 flat legacy shape 으로 읽는다. SoT: `spec/5-system/15-chat-channel.md` §(c) *renderPresentationByType shape 처리 우선순위* |
+ *
+ * 이 표는 아래 배열의 요약이 아니라 **그 배열과 함께 갱신되어야 하는 미러**다 —
+ * `22_26_33` rationale/convention W3 이 잡은 대로, 배열만 늘리면 표가 조용히 낡는다.
  *
  * ## **최상위만** 거른다 — 그 아래는 렌더 payload 자체다
  *
@@ -59,11 +70,27 @@ export const NODE_OUTPUT_ALLOWED_KEYS = Object.freeze([
   'meta',
   'port',
   'status',
-  // wire 전용 — `eia-events.ts` 의 parseWaitingForInput 이 top-level 로 읽는다
+  // wire 전용 (위젯) — `eia-events.ts` 의 parseWaitingForInput 이 top-level 로 읽는다
   'formConfig',
   'conversationConfig',
   'buttonConfig',
   'interactionType',
+  // wire 전용 (chat-channel) — Discord/Telegram/Slack 렌더러가 **top-level** 로 읽는다.
+  // 위젯은 `output.rendered`·`config.items` 처럼 한 겹 아래로 읽어 이 넷 없이도 되지만,
+  // chat-channel 은 flat legacy shape 을 그대로 본다 — `extractRendered` 가
+  // `nodeOutput.rendered` 를, 카드·제목 렌더가 `nodeOutput.payload`·`nodeOutput.title` 을,
+  // 라우팅이 `nodeOutput.nodeType` 을 읽는다.
+  //
+  // **표면별로 목록을 가르지 않는다** — 그러면 손-동기화 지점이 둘 생긴다.
+  //
+  // 다만 이 넷은 **§R17 이 정의한 키가 아니다** — `NodeHandlerOutput` 계약 밖의,
+  // chat-channel legacy flat shape 보존을 위한 **별개 carve-out** 이다. §R17 의 표가
+  // 이들을 "wire 전용 (chat-channel 렌더러)" 로 **별도 갈래**에 둔 것이 그 뜻이고,
+  // 위 위젯 4키와 마찬가지로 타입이 아니라 **리터럴 테스트**가 지킨다.
+  'payload',
+  'title',
+  'rendered',
+  'nodeType',
   // `as const` 는 **컴파일타임 리터럴 타입**만 준다 — `.push`/`.splice` 를 막지 않는다.
   // 이 상수는 보안 경계라 런타임 불변까지 강제한다 (`19_24_24` security INFO 2).
 ] as const);
