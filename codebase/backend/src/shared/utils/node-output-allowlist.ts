@@ -81,8 +81,12 @@ export const NODE_OUTPUT_ALLOWED_KEYS = Object.freeze([
   // `nodeOutput.rendered` 를, 카드·제목 렌더가 `nodeOutput.payload`·`nodeOutput.title` 을,
   // 라우팅이 `nodeOutput.nodeType` 을 읽는다.
   //
-  // **표면별로 목록을 가르지 않는다** — 그러면 손-동기화 지점이 둘 생긴다. 이 넷도
-  // §R17 이 정의한 "렌더에 필요한 키" 에 해당한다.
+  // **표면별로 목록을 가르지 않는다** — 그러면 손-동기화 지점이 둘 생긴다.
+  //
+  // 다만 이 넷은 **§R17 이 정의한 키가 아니다** — `NodeHandlerOutput` 계약 밖의,
+  // chat-channel legacy flat shape 보존을 위한 **별개 carve-out** 이다. §R17 의 표가
+  // 이들을 "wire 전용 (chat-channel 렌더러)" 로 **별도 갈래**에 둔 것이 그 뜻이고,
+  // 위 위젯 4키와 마찬가지로 타입이 아니라 **리터럴 테스트**가 지킨다.
   'payload',
   'title',
   'rendered',

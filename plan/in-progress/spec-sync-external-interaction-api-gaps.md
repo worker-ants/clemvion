@@ -165,6 +165,14 @@ owner: planner
       > `[잔여] execution.node.* 의 envelope.output 은 아직 allowlist 를 지나지 않는다`.
       > 이 항목을 닫으면 **그 단언이 뒤집히는 것이 작업의 일부**다.
 
+- [ ] **`conversation-thread.md` frontmatter `code:` 에 `websocket.service.ts` 누락**
+      (2026-08-24 등재, `00_26_17` convention_compliance INFO 4). 그 문서 §8.4 의 정정
+      blockquote 가 `toFanoutEnvelope` 를 근거로 인용하는데 glob 이 그 파일에 안 걸린다 —
+      가드 위반은 아니고 추적성 갭이다.
+      > **planner 소관** (`spec/conventions/**`). 자기-반증형 소정정 예외는 **내가 쓴 문장의
+      > 정정**에만 열리고 frontmatter 메타데이터 추가는 그 범위가 아니다 — 그래서 이번 턴에
+      > 손대지 않았다. 다음 planner 턴에서 그 문서를 열 때 함께.
+
 - [ ] **`egress-masking.md` §2 의 파이프라인 순서가 3단계로 낡았다** (2026-08-23 등재,
       `23_29_27` convention_compliance W1). 그 문서가 "구현 좌표계 SoT" 를 자처하는데
       `toFanoutEnvelope` 는 이제 `strip → nodeOutput allowlist → routing` 이다.
