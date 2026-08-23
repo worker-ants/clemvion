@@ -25,8 +25,12 @@ allowlist 를 걸면 정상 데이터가 잘린다. ~~**SSE·fanout 은 여전�
 정본 트래커에 별도 항목으로 등재돼 있다 — 즉 이 시점부터 REST 와 SSE 의 `nodeOutput` 필터
 강도가 다르다.~~
 
-> **정정 (같은 날 닫혔다)**: SSE/fanout 도 `toFanoutEnvelope` 한 chokepoint 에서 같은
-> allowlist 를 지난다 — **REST 와 SSE 의 강도는 같다.** 유예 사유였던 *"envelope shape 이
+> **정정 (같은 날 닫혔다 — 단 `waiting` 표면 한정)**: SSE/fanout 의 `waiting_for_input`
+> `nodeOutput`(및 `buttonConfig.nodeOutput`)도 `toFanoutEnvelope` 한 chokepoint 에서 같은
+> allowlist 를 지난다. **`execution.node.completed`/`.failed` 의 `envelope.output` 은
+> 잔여다** — 같은 `outputData` 를 다른 키로 싣는 이종 payload 라 같은 목록을 걸면 버튼 재개
+> record 가 `{}` 가 된다(실측). 트래커에 등재했고 캐너리가 그 방향을 고정한다.
+> 유예 사유였던 *"envelope shape 이
 > 달라 별건 변경이 필요하다"* 가 실측으로 반증됐다(두 emit 이 그 한 함수를 공유하고,
 > payload 가 평평하게 펼쳐져 위치도 REST 와 동일하다).
 >

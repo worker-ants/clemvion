@@ -1747,11 +1747,28 @@ present-when-available 이므로, REST 만 `null` 로 정규화하면 위젯의 
   | `getStatus` waiting `nodeOutput` | **fail-closed allowlist** | `NodeHandlerOutput` shape 이라 키 집합이 타입에 결속된다 |
   | `getStatus` terminal `result` | deny-list 유지 (**의도적 제외**) | `Execution.outputData` = **작성자가 정의한** 워크플로 출력. allowlist 를 걸면 정상 데이터가 잘린다 |
   | `getStatus` terminal `error` | deny-list 유지 (**의도적 제외**) | 〃 (자유 형태 에러 payload) |
-  | SSE/fanout emit (`toFanoutEnvelope`) | **fail-closed allowlist** (2026-08-23 추가) | 같은 `nodeOutput` 이니 같은 강도여야 한다. 초판은 *"envelope 레벨 strip 이라 별건 변경이 필요하다"* 며 유예했는데, 실측하니 **`emitExecutionEvent`/`emitNodeEvent` 두 emit 이 이 한 함수를 공유하는 단일 chokepoint** 라 호출부 변경 없이 닫혔다 |
+  | SSE/fanout `waiting_for_input` 의 `nodeOutput` / `buttonConfig.nodeOutput` | **fail-closed allowlist** (2026-08-23 추가) | 같은 `nodeOutput` 이니 같은 강도여야 한다. 초판은 *"envelope 레벨 strip 이라 별건 변경이 필요하다"* 며 유예했는데, 실측하니 **`emitExecutionEvent`/`emitNodeEvent` 두 emit 이 `toFanoutEnvelope` 한 함수를 공유하는 단일 chokepoint** 라 호출부 변경 없이 닫혔다 |
+  | SSE/fanout `execution.node.completed`/`.failed` 의 **`envelope.output`** | deny-list 유지 (**잔여**) | 같은 `NodeExecution.outputData` 를 **다른 키**로 싣는 표면. 아래 참조 |
 
-  **REST 와 SSE 는 같은 강도다.** 초판은 *"이 시점부터 방어 강도가 다르다"* 로 비대칭을 기록했으나
+  **~~REST 와 SSE 는 같은 강도다.~~** ~~초판은 *"이 시점부터 방어 강도가 다르다"* 로 비대칭을 기록했으나
   같은 날 SSE 를 닫아 그 서술은 폐기했다 — 위 "wire 형식 동일" 서술이 이제 *형식*과 *필터 강도*
-  양쪽에 적용된다.
+  양쪽에 적용된다.~~
+
+  > **정정 (2026-08-23, `23_29_27` cross_spec CRITICAL)**: 위 문장은 **구현보다 넓었다.**
+  > `waiting_for_input` 의 두 자리는 닫혔지만, `execution.node.completed`/`.failed` 는 같은
+  > `NodeExecution.outputData` 를 **`output`** 이라는 다른 키로 최상위에 싣는다(emit 5곳:
+  > `execution-engine` 2 · `form-interaction` · `button-interaction` · `ai-turn-orchestrator`).
+  > 그 표면은 여전히 deny-list 라 `_retryState` 가 나간다. 정확한 서술은
+  > **"waiting 표면은 같은 강도, node 이벤트 표면은 아직 아니다"** 다.
+  >
+  > **같은 목록을 그대로 걸 수 없다** — 실측: 버튼 재개 경로는 `outputData` 에
+  > `{type, buttonId, buttonLabel, clickedAt, selectedItem, nodeOutput, _selectedPort}` 를
+  > 저장하는데(`button-interaction.service.ts`), 정본 `allowlistNodeOutputKeys` 에 넣으면
+  > **`{}`** 가 된다(13키 중 하나도 안 맞는다). carousel+buttons 는 presentation 타입이라
+  > chat-channel sub-filter 도 통과하므로 외부 발송이 통째로 빈다. 즉 `envelope.output` 은
+  > `NodeHandlerOutput` **하나가 아니라** 이종(異種) payload 이고, **키 목록이 아니라 shape
+  > 판별이 먼저인 별건**이다. 잔여는 정본 트래커에 등재했고, **안 닫은 방향은
+  > `websocket.service.spec.ts` 의 `[잔여]` 캐너리가 고정**한다 — 닫히면 그 단언이 뒤집힌다.
 
   **내부 WS(에디터)는 대상이 아니다.** `toFanoutEnvelope` 호출 시점에 wire envelope 은 이미
   `broadcastToChannel` 로 나갔고 fanout 은 새 clone 을 좁힌다 — [WS §4.4](./6-websocket-protocol.md)

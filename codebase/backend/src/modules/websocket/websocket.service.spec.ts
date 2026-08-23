@@ -904,6 +904,58 @@ describe('WebsocketService', () => {
     );
 
     /**
+     * **[잔여 캐너리] `envelope.output` 은 아직 안 좁힌다** — `23_29_27` cross_spec CRITICAL.
+     *
+     * `execution.node.completed` / `.failed` 는 `NodeExecution.outputData` 를 **`output`**
+     * 이라는 다른 키로 최상위에 싣는다(5곳: `execution-engine` 2 · `form-interaction` ·
+     * `button-interaction` · `ai-turn-orchestrator`). 그래서 `nodeOutput` 만 찾은 이 PR 의
+     * 배선이 그 표면을 지나쳤고, `_retryState` 는 **여기로 여전히 나간다**.
+     *
+     * ## 그런데 같은 allowlist 를 그대로 걸면 깨진다 — 실측
+     *
+     * `NodeExecution.outputData` 는 `NodeHandlerOutput` **하나가 아니다**. 버튼 재개 경로는
+     * `{type, buttonId, buttonLabel, clickedAt, selectedItem, nodeOutput, _selectedPort}`
+     * 를 저장하는데(`button-interaction.service.ts:180`), 정본 구현에 넣어 보면
+     * **`{}` 가 된다** — 13키 중 하나도 안 맞는다. carousel+buttons 는 presentation 타입이라
+     * chat-channel dispatcher 의 sub-filter 도 통과하므로 외부 발송이 통째로 빈다.
+     *
+     * 즉 이 표면은 **키 목록이 아니라 shape 판별**이 먼저인 별건이다. 반쯤 추측한 좁히기를
+     * 보안 경계에 넣지 않는다 — 그러면 fail-open 을 fail-broken 으로 바꿀 뿐이다.
+     *
+     * ## 그래서 안 닫은 방향을 캐너리로 고정한다
+     *
+     * 이 테스트는 **현 상태를 기술**한다. 후속 작업이 이 표면을 닫으면 여기가 RED 가 되고,
+     * 그때 이 테스트를 **의식적으로 뒤집는 것**이 그 작업의 일부다. 이렇게 두지 않으면
+     * 갭이 아무 데도 안 남아 다음 사람이 "REST 와 같은 강도" 라고 읽는다.
+     */
+    it('[잔여] `execution.node.*` 의 `envelope.output` 은 아직 allowlist 를 지나지 않는다', async () => {
+      const eventP = nextFanoutEvent(service);
+      await service.emitNodeEvent(
+        'exec-node-output-gap',
+        'n-done',
+        NodeEventType.NODE_COMPLETED,
+        {
+          nodeType: 'carousel',
+          status: 'completed',
+          output: {
+            config: {},
+            output: { rendered: 'card' },
+            _retryState: { attempt: 1 },
+          },
+        },
+      );
+      const fanout = await eventP;
+      const out = (fanout.payload as Record<string, unknown>).output as Record<
+        string,
+        unknown
+      >;
+      // ⚠️ 이것이 **잔여 갭**이다 — 닫히면 이 단언이 뒤집힌다.
+      expect(out._retryState).toBeDefined();
+      // 렌더 필드는 당연히 살아 있다(대조군).
+      expect(out.output).toEqual({ rendered: 'card' });
+    });
+
+    /**
      * 재귀 strip 의 비용 근거를 단언한다 — 제거할 게 없으면 **새 객체를 만들지 않고
      * 입력을 그대로** 돌려준다(clone-on-write). 이게 깨지면 모든 실행 이벤트가
      * payload 전체를 복제하게 되므로, 성능 주장이 주석에만 있으면 안 된다.

@@ -69,8 +69,9 @@ owner: planner
     - **재리뷰(`09_36_01`) 가 잡은 잔여 gap — C1 fix 의 자기 사각지대**: C1 의 조기 return 근거("부팅 전엔 정리할 게 없다")는 **메모리에만 참**이고 `sessionStorage` 의 이전 세션은 놓친다 → 부팅 중 `resetSession` 이 조용히 무시되고 **옛 대화가 부활**(재현 확인, side_effect·security 독립 지적). fix = `pendingResetRef` 로 의도를 기록하고 `applyConfig` 가 `loadSession` 직전 소비. 교훈: **"정리할 게 없다"를 메모리만 보고 판단하면 영속 상태를 놓친다.**
     - 검증(`08_29_33`+`09_36_01` 반영 후): 신규 회귀 테스트 **8건**(vitest 실측 — eager-start 36→40: C1·C1-b·W2·W3 / token-refresh 10→11: W5 / widget-state 37→40: W4 가드 + 재개 경로 2케이스). 전부 mutation 검증(대응 가드 제거 시 **그 테스트만** 실패). 특히 W3 는 리뷰어가 "제거해도 364건 중 0건 실패"라 실증한 언마운트 지점을 닫은 것. channel-web-chat 22 파일 **372 passed**, lint·unit·build PASS.
     - **분리는 여전히 후속 후보** — 다만 그 경계는 `useEiaStream`(스트림)이 아니라 `useEiaSession`(세션 라이프사이클 전체, ≈300/735줄)이어야 하고, 가드가 하나로 정리된 **지금 상태에서 하는 편이 안전**하다. 기존 `useTokenRefresh`/`usePendingMessageQueue` 가 ref 주입 계약을 확립해 뒀다.
-- [x] **~~SSE/fanout 의 `nodeOutput` 은 여전히 fail-open deny-list 다~~ 해소 (2026-08-23)** (등재
-      2026-08-23, `18_30_40` plan_coherence W2 — 위 REST 항목에서 **의도적으로 분리**).
+- [x] **~~SSE/fanout 의 `nodeOutput` 은 여전히 fail-open deny-list 다~~ 해소 (2026-08-23) —
+      `waiting_for_input` 표면 한정** (등재 2026-08-23, `18_30_40` plan_coherence W2 — 위 REST
+      항목에서 **의도적으로 분리**). **`node.*` 이벤트 표면은 아래 신규 항목으로 분리.**
       > **착수하니 전제 둘이 뒤집혔다.**
       >
       > 1. **호출부는 넷이 아니라 하나였다.** 아래 실측이 나열한 세 서비스가 전부
@@ -131,6 +132,44 @@ owner: planner
       > **planner 소관**: Principle 0 에 "EIA wire 조립 레이어가 추가하는 wire-only 필드는
       > `NodeHandlerOutput` 계약 **밖**" 각주를 다는 편이 낫다 — 5필드 목록을 넓히면
       > 핸들러 계약이 오염된다.
+
+- [ ] **`execution.node.completed`/`.failed` 의 `envelope.output` 은 아직 deny-list 다**
+      (2026-08-23 등재, `23_29_27` cross_spec **CRITICAL**). 같은 `NodeExecution.outputData` 를
+      **`output`** 이라는 다른 키로 최상위에 싣는 표면이라, `nodeOutput` 만 찾은 SSE 작업이
+      그대로 지나쳤다. `_retryState` 가 여기로 나간다.
+      > **왜 놓쳤나 — 질문이 한 칸 좁았다.** *"`nodeOutput` 이 어디 있나"* 를 물었어야 할 자리에서
+      > 물었어야 할 질문은 *"`NodeHandlerOutput` 이 어느 문으로 나가나"* 였다. 키 이름이 다르면
+      > grep 이 침묵한다.
+      >
+      > **emit 5곳 (실측 — 다시 찾지 말 것)**: `execution-engine.service.ts` 2곳
+      > (NODE_COMPLETED · NODE_FAILED) · `form-interaction.service.ts` ·
+      > `button-interaction.service.ts` · `ai-turn-orchestrator.service.ts`. 전부
+      > `output: <nodeExec>.outputData` 이고 `emitNode` → `emitNodeEvent` →
+      > `toFanoutEnvelope` 를 지난다 — **배선 지점은 여전히 그 한 함수다.**
+      >
+      > ## ⚠️ 같은 목록을 그대로 걸면 **깨진다** (실측 — 이 항목의 핵심)
+      >
+      > `envelope.output` 은 `NodeHandlerOutput` **하나가 아니다.** 버튼 재개 경로는
+      > `{type, buttonId, buttonLabel, clickedAt, selectedItem, nodeOutput, _selectedPort}`
+      > 를 `outputData` 에 저장하는데(`button-interaction.service.ts:180`), **정본**
+      > `allowlistNodeOutputKeys` 에 넣어 보면 **`{}`** 다 — 13키 중 하나도 안 맞는다.
+      > carousel+buttons 는 presentation 타입이라 chat-channel dispatcher sub-filter 도
+      > 통과하므로 **외부 발송이 통째로 빈다**.
+      >
+      > **그래서 이건 키를 더 넣는 일이 아니라 shape 판별 문제다.** 착수 시 먼저 답할 것:
+      > `NodeExecution.outputData` 가 실제로 취하는 shape 이 몇 가지인가(핸들러 반환 ·
+      > 폼/버튼 재개 record · AI turn record …), 그리고 그 판별을 **런타임 휴리스틱 없이**
+      > 할 수 있나. 못 하면 좁히기를 넣지 말 것 — fail-open 을 fail-broken 으로 바꿀 뿐이다.
+      >
+      > **안 닫은 방향은 캐너리가 고정한다**: `websocket.service.spec.ts` 의
+      > `[잔여] execution.node.* 의 envelope.output 은 아직 allowlist 를 지나지 않는다`.
+      > 이 항목을 닫으면 **그 단언이 뒤집히는 것이 작업의 일부**다.
+
+- [ ] **`egress-masking.md` §2 의 파이프라인 순서가 3단계로 낡았다** (2026-08-23 등재,
+      `23_29_27` convention_compliance W1). 그 문서가 "구현 좌표계 SoT" 를 자처하는데
+      `toFanoutEnvelope` 는 이제 `strip → nodeOutput allowlist → routing` 이다.
+      > **planner 소관** (`spec/conventions/**`). §2 순서에 allowlist 단계를 넣거나 §3
+      > "표를 갱신한 실례" 목록에 2026-08-23 건을 등재한다.
 
 - [ ] **fanout chokepoint 가 타입이 아니라 주석으로만 강제된다** (2026-08-23 등재,
       `23_16_40` architecture INFO 6). `emitExecutionEvent`/`emitNodeEvent` 는
