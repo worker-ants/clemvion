@@ -76,4 +76,35 @@ describe('maskSensitiveFields', () => {
     expect(input.apiKey).toBe('original-key-1234');
     expect(masked).not.toBe(input);
   });
+
+  // ── `token` 계열 — 이 목록은 **키 이름 완전 일치**라 계열을 정규식처럼 못 접는다.
+  //    2026-08-16 실측: bare `token` 만 잡히고 접두형 넷이 평문 통과했다.
+  //
+  //    **여기 캐너리를 두는 이유**: 이 목록의 다른 소비처(`handler-output.adapter.ts` 의
+  //    노드 `config` echo)는 값-패턴 층을 겹치지 않는다. workflow-assistant 쪽 테스트는
+  //    겹친 층이 같은 키를 덮어 버려 **목록에서 항목을 빼도 GREEN 이다**(뮤테이션으로 확인).
+  //    즉 이 목록을 지키는 가드는 이 자리뿐이다.
+  it.each([
+    ['csrfToken'],
+    ['csrf_token'],
+    ['authToken'],
+    ['auth_token'],
+    ['sessionToken'],
+    ['session_token'],
+    ['idToken'],
+    ['id_token'],
+  ])('masks the `%s` key (token family, not just bare `token`)', (key) => {
+    const masked = maskSensitiveFields({ [key]: 'AAAABBBB9999' }) as Record<
+      string,
+      unknown
+    >;
+    expect(masked[key]).toBe('****9999');
+  });
+
+  it('leaves a non-credential key that merely contains "token" as a substring', () => {
+    // 대조군 — 목록은 **완전 일치**다. 넓히다 이 성질을 잃으면 여기가 RED 가 된다.
+    expect(maskSensitiveFields({ tokenCount: 12345 })).toEqual({
+      tokenCount: 12345,
+    });
+  });
 });

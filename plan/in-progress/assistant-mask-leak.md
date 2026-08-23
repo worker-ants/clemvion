@@ -73,12 +73,12 @@ P2키  → {"token":"***","csrf_token":"***","auth_token":"***",
 ## 작업
 
 - [x] `/consistency-check --impl-prep` — **BLOCK: YES** (`16_09_25`). 아래 §차단 참조
-- [ ] `explore-tools.service.ts` — 세 필드 triple 을 헬퍼로 묶고 `deepRedactSecrets` 중첩
-- [ ] `DEFAULT_SENSITIVE_KEYS` 에 token 계열 추가 (자매 표면 키 축)
-- [ ] 단언 6개 갱신 + **두 갭 캐너리** 신설
-- [ ] 자매의 값 축 잔여를 트래커에 등재
-- [ ] 뮤테이션 검증
-- [ ] TEST WORKFLOW 4단계 + ratchet
+- [x] `explore-tools.service.ts` — 세 필드 triple 을 헬퍼로 묶고 `deepRedactSecrets` 중첩
+- [x] `DEFAULT_SENSITIVE_KEYS` 에 token 계열 8개 추가 (자매 표면 키 축)
+- [x] 단언 6개 갱신 + 두 갭 캐너리 + **유틸 레벨 캐너리 9건**(아래 §뮤테이션 참조)
+- [x] 자매의 값 축 잔여를 트래커에 **별도 체크박스**로 등재
+- [x] 뮤테이션 검증 — M2 가 **가드 부재를 드러냈다**(아래)
+- [x] TEST WORKFLOW 4단계 전부 PASS + ratchet 199건 baseline 일치
 - [ ] `/ai-review`
 
 ## 검증 기준
@@ -127,3 +127,30 @@ spec 본문에 되반영하는 것은 planner 권한**이다.
 **같은 PR 안에서 planner 턴을 앞에 두고 원자적으로** 간다 — 역할 분리는 PR 경계가 아니라
 **게이트**로 지킨다(spec 쓰기 직전 `--spec`, 구현 후 `--impl-done`).
 planner draft: [`spec-update-assistant-masking.md`](./spec-update-assistant-masking.md).
+
+## 뮤테이션 — M2 가 **가드가 없다는 사실**을 드러냈다
+
+예측을 먼저 적고 돌렸다.
+
+| 뮤턴트 | 예측 | 실측 |
+| --- | --- | --- |
+| **M1** `deepRedactSecrets` 중첩 제거 | 값 축 캐너리 RED | **RED 3건** (값 축·키 축 캐너리 + 포맷 단언) |
+| **M2** `DEFAULT_SENSITIVE_KEYS` 에서 token 계열 8개 제거 | explore-tools 는 GREEN 유지 | **GREEN 27/27** — 예측대로 |
+
+M2 가 GREEN 인 건 겹친 층이 같은 키를 덮기 때문이고 그 자체는 정상이다. **그런데 그게
+곧 "공유 목록에 키 8개를 넣었는데 그걸 지키는 테스트가 하나도 없다" 는 뜻이었다.**
+자매(`handler-output.adapter.ts`)는 값 축을 안 겹치므로 그 목록이 **유일한 방어**인데,
+목록에서 항목을 빼도 전 스위트가 초록이었다.
+
+→ **유틸 레벨에 캐너리 9건 신설**(`it.each` 8 + 완전 일치 대조군 1). 다시 M2 를 걸었더니
+**8건 RED**. 목록 확장이 이제 기계로 고정된다.
+
+대조군 1건(`tokenCount` 는 안 가린다)은 이 목록이 **부분 문자열이 아니라 완전 일치**라는
+성질을 못박는다 — 넓히다 그 성질을 잃으면 그 자리가 RED 가 된다.
+
+## 게이트·수치
+
+- **TEST WORKFLOW**: lint · unit(backend 8,931 → **8,942**) · build ·
+  e2e(285 + **Playwright 51**, 로그 직접 확인) 전부 PASS
+- **ratchet**: 199건 / 38파일 — baseline 일치
+- `--impl-prep` `16_09_25` BLOCK:YES → planner 턴 → `--spec` `16_21_45` BLOCK:NO
