@@ -1,6 +1,6 @@
 ---
 title: 사용자 결정 3건 집행 — 여분 키 유지 · `input` deprecation · 길이 규칙 비강제화
-status: in-progress
+status: complete
 worktree: swagger-decisions-d24f77
 started: 2026-08-23
 owner: developer
@@ -11,7 +11,7 @@ spec_impact:
 # 사용자 결정 3건 집행
 
 2026-08-23 결정 브리핑에 대한 사용자 판단을 집행한다. 셋 다 정본 트래커
-[`spec-sync-external-interaction-api-gaps.md`](./spec-sync-external-interaction-api-gaps.md)
+[`spec-sync-external-interaction-api-gaps.md`](../in-progress/spec-sync-external-interaction-api-gaps.md)
 에 *"사용자 판단 필요"* 로 열려 있던 항목이다.
 
 | 항목 | 결정 | 성격 |
