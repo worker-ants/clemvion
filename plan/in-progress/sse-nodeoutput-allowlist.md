@@ -1,0 +1,91 @@
+---
+title: "SSE/fanout 의 `nodeOutput` 도 fail-closed allowlist 로 — REST 와 강도를 맞춘다"
+status: in-progress
+worktree: sse-nodeoutput-allowlist-3b6219
+started: 2026-08-23
+owner: developer
+spec_impact:
+  - spec/5-system/14-external-interaction-api.md
+---
+
+# SSE/fanout allowlist (EIA §R17 표의 마지막 행)
+
+정본 트래커
+[`spec-sync-external-interaction-api-gaps.md`](./spec-sync-external-interaction-api-gaps.md)
+의 항목 *"SSE/fanout 의 `nodeOutput` 은 여전히 fail-open deny-list 다"* (2026-08-23 등재,
+`18_30_40` plan_coherence W2 → `19_00_23`·`19_24_24` security W1 이 호출부 보강).
+
+`#1205` 가 REST `getStatus` 만 닫아 **REST 와 SSE 의 방어 강도가 다른 상태**를 만들었다.
+§R17 의 범위 표가 그 사실을 명시하고 있고, 이 작업이 그 행을 flip 한다.
+
+## 배선 지점 — `toFanoutEnvelope` 하나 (실측)
+
+트래커가 호출부 4곳을 적어 뒀지만 **그 넷이 전부 한 chokepoint 를 지난다**:
+
+```ts
+this.gateway.broadcastToChannel(channel, eventType, wireEnvelope);  // 내부 WS — 그대로
+const fanoutEnvelope = this.toFanoutEnvelope(executionId, wireEnvelope);  // 외부 — 여기
+```
+
+`toFanoutEnvelope` 는 **외부 전용**이다 — 내부 WS(에디터)는 이미 broadcast 된 뒤고, 그
+함수의 기존 주석이 *"fanout 은 외부 수신자(SSE 토큰 보유 채널 end-user 포함)로 나가므로
+strip 한다"* 로 이미 그 경계를 규정한다. 즉 **호출부 넷을 각각 고칠 필요가 없다.**
+
+payload 는 envelope 에 **평평하게 펼쳐진다**(`{executionId, ...payload, seq, timestamp}`).
+그래서 위치가 REST 와 **정확히 같다**:
+
+| 이벤트 | 위치 |
+| --- | --- |
+| form waiting | `envelope.nodeOutput` |
+| buttons waiting | `envelope.buttonConfig.nodeOutput` |
+
+## ⚠️ allowlist 가 **4키 부족하다** — 그대로 걸면 외부 채널 렌더가 깨진다
+
+트래커가 *"잘못 좁히면 외부 채널 렌더가 깨진다"* 고 경고했고, **실측하니 사실이다.**
+chat-channel 이 읽는 `nodeOutput` **top-level** 키 전수:
+
+| 키 | 현재 allowlist |
+| --- | --- |
+| `config` · `output` · `formConfig` · `conversationConfig` | ✅ |
+| **`payload`(19회) · `title`(15회) · `rendered`(4회) · `nodeType`(3회)** | ❌ **없음** |
+
+`extractRendered` 가 `nodeOutput.rendered` 를, 카드/제목 렌더가 `nodeOutput.payload`·
+`nodeOutput.title` 을 top-level 로 읽는다(flat legacy shape).
+
+### 위젯은 안전하다 — #1205 는 회귀가 아니다
+
+같은 질문을 REST 쪽에도 던졌다. 위젯(`channel-web-chat`)은 `output.rendered`·`output.items`·
+`config.items`·`config.template` 처럼 **`output`/`config` 아래로** 읽는다(실측) — 둘 다
+allowlist 안이다. 즉 #1205 가 넣은 회귀는 없고, **목록이 chat-channel 표면에 대해서만
+좁았다.**
+
+## 설계 — 목록은 **하나로 유지**하고 4키를 더한다
+
+표면별로 목록을 가르면 손-동기화 지점이 둘 생긴다(이 세션이 계속 없애 온 형태). 그리고
+이 넷은 성격상 **"렌더 필수 메타"** 가 맞다 — §R17 이 allowlist 를 그렇게 정의했다.
+
+- `NODE_OUTPUT_ALLOWED_KEYS` 의 **wire 전용 그룹**에 4키 추가. 컴파일타임 결속은
+  `NodeHandlerOutput` 공개 키만 덮으므로 이 넷은 **리터럴 테스트**가 지킨다(#1205 에서
+  그 파생 fixture 가 vacuous 했던 자리 — 이미 리터럴 대조가 서 있다).
+- `toFanoutEnvelope` 에서 두 위치에 `allowlistNodeOutputKeys` 적용. copy-on-change 유지.
+
+## 작업
+
+- [x] `/consistency-check --impl-prep` — `22_26_33`. Critical 0. naming W1·W2 (동명 필드
+      disambiguation) 반영, cross_spec W1 은 페이로드 절단 관련 프로세스 항목이라 코드 무관.
+- [x] `NODE_OUTPUT_ALLOWED_KEYS` 에 chat-channel wire 4키 추가 + 리터럴 테스트 갱신
+- [x] `toFanoutEnvelope` 에 두 위치 배선
+- [x] 캐너리 — `_retryState` 두 위치에서 제거 · chat-channel 4키 보존 · 내부 WS 불변
+- [x] (planner 턴) §R17 표의 SSE 행 flip + "강도가 다르다" 서술 제거 + WS §4.4 단서
+- [ ] 뮤테이션 검증
+- [ ] TEST WORKFLOW 4단계 + ratchet
+- [ ] `/ai-review`
+
+## 검증 기준
+
+- **내부 WS 는 안 바뀐다** — 이게 이 작업의 안전 조건이다. `broadcastToChannel` 에 넘긴
+  envelope 과 fanout envelope 이 **다른 객체**임을 캐너리로 고정한다.
+- **뮤테이션**:
+  - M1 fanout 배선 제거 → `_retryState` 캐너리 RED
+  - M2 allowlist 에서 `rendered` 제거 → chat-channel 보존 캐너리 RED (4키가 진짜 지켜지나)
+- 뮤테이션은 **커밋 후** `cp` 백업으로. `git checkout`/`reset --hard` 금지.

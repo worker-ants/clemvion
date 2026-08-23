@@ -56,12 +56,17 @@ describe('allowlistNodeOutputKeys', () => {
   //    그래서 **리터럴 대조**를 먼저 둔다. 컴파일타임 결속은 `NodeHandlerOutput` 공개 키만
   //    덮으므로 **wire 전용 키는 이 테스트가 유일한 방어**다.
   it('[리터럴] wire 전용 키가 목록에서 사라지면 여기서 잡힌다', () => {
-    // 위젯 파서(`eia-events.ts`)가 top-level 로 읽는 키들 — 빠지면 렌더가 조용히 빈다.
+    // 위젯 파서(`eia-events.ts`)와 chat-channel 렌더러가 top-level 로 읽는 키들 —
+    // 빠지면 렌더가 조용히 빈다.
     for (const wireKey of [
       'formConfig',
       'conversationConfig',
       'buttonConfig',
       'interactionType',
+      'payload',
+      'title',
+      'rendered',
+      'nodeType',
     ]) {
       expect(NODE_OUTPUT_ALLOWED_KEYS as readonly string[]).toContain(wireKey);
     }
@@ -73,9 +78,13 @@ describe('allowlistNodeOutputKeys', () => {
       'formConfig',
       'interactionType',
       'meta',
+      'nodeType',
       'output',
+      'payload',
       'port',
+      'rendered',
       'status',
+      'title',
     ]);
   });
 

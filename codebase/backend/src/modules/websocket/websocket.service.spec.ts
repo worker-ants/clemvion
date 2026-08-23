@@ -748,6 +748,125 @@ describe('WebsocketService', () => {
     });
 
     /**
+     * **fanout `nodeOutput` 은 fail-closed allowlist 다** — EIA §R17.
+     *
+     * `stripExternalOnlyFields` 는 이름을 아는 `llmCalls` 만 뺀다(fail-open). 그래서
+     * 핸들러가 새로 넣은 내부 필드는 이름이 목록에 없다는 이유로 **그대로 나갔다**.
+     * REST `getStatus` 는 #1205 에서 allowlist 로 닫혔고, 이 테스트가 SSE/fanout 쪽
+     * 같은 문을 고정한다.
+     *
+     * `_retryState` 를 고른 이유: `NodeHandlerOutput` 의 비공개 필드인데 `_resumeState`
+     * 와 달리 **`NodeExecution.outputData` 에 실제로 영속된다**(`retry-turn.service.ts`).
+     * 즉 가상의 필드가 아니라 현존하는 fail-open 사례다.
+     */
+    it('[캐너리] fanout 의 `nodeOutput` 에서 allowlist 밖 내부 필드가 제거된다', async () => {
+      const eventP = nextFanoutEvent(service);
+      await service.emitExecutionEvent(
+        'exec-allowlist-form',
+        ExecutionEventType.EXECUTION_WAITING_FOR_INPUT,
+        {
+          status: 'waiting_for_input',
+          waitingNodeId: 'n-form',
+          interactionType: 'form',
+          nodeOutput: {
+            config: { fields: [] },
+            output: { ok: true },
+            _retryState: { attempts: 3, lastError: 'INTERNAL DETAIL' },
+            someUnknownInternalField: 'INTERNAL DETAIL',
+          },
+        },
+      );
+      const fanout = await eventP;
+      const nodeOutput = fanout.payload.nodeOutput as Record<string, unknown>;
+      expect(nodeOutput).not.toHaveProperty('_retryState');
+      expect(nodeOutput).not.toHaveProperty('someUnknownInternalField');
+      // 대조군 — 허용 키는 남는다(통째로 날려서 통과하는 구현 배제).
+      expect(nodeOutput.config).toEqual({ fields: [] });
+      expect(nodeOutput.output).toEqual({ ok: true });
+
+      // **내부 WS 는 안 바뀐다** — 이 작업의 안전 조건이다. 에디터 콘솔은 디버깅을
+      // 위해 원문을 그대로 받는다(WS §4.4 strip-only 결정).
+      const wire = gateway.broadcastToChannel.mock.calls[0][2] as Record<
+        string,
+        unknown
+      >;
+      const wireNodeOutput = wire.nodeOutput as Record<string, unknown>;
+      expect(wireNodeOutput).toHaveProperty('_retryState');
+      expect(wireNodeOutput).toHaveProperty('someUnknownInternalField');
+    });
+
+    /**
+     * 버튼 waiting 은 `nodeOutput` 을 **한 겹 아래**(`buttonConfig.nodeOutput`) 에
+     * 싣는다(`button-interaction.service.ts:421`). 두 자리를 함께 고정하지 않으면
+     * 이 저장소가 반복해 겪은 *"넷 중 하나만"* 형태가 그대로 재발한다.
+     */
+    it('[캐너리] fanout 의 `buttonConfig.nodeOutput` 도 같은 allowlist 를 지난다', async () => {
+      const eventP = nextFanoutEvent(service);
+      await service.emitExecutionEvent(
+        'exec-allowlist-buttons',
+        ExecutionEventType.EXECUTION_WAITING_FOR_INPUT,
+        {
+          status: 'waiting_for_input',
+          waitingNodeId: 'n-btn',
+          interactionType: 'buttons',
+          buttonConfig: {
+            buttons: [{ id: 'b1', label: 'Yes' }],
+            nodeOutput: {
+              config: { prompt: 'pick' },
+              _retryState: { attempts: 1, lastError: 'INTERNAL DETAIL' },
+            },
+          },
+        },
+      );
+      const fanout = await eventP;
+      const bc = fanout.payload.buttonConfig as Record<string, unknown>;
+      const nodeOutput = bc.nodeOutput as Record<string, unknown>;
+      expect(nodeOutput).not.toHaveProperty('_retryState');
+      // 형제 필드는 보존 — `buttonConfig` 재조립이 `buttons` 를 떨구면 렌더가 깨진다.
+      expect(bc.buttons).toEqual([{ id: 'b1', label: 'Yes' }]);
+      expect(nodeOutput.config).toEqual({ prompt: 'pick' });
+
+      const wire = gateway.broadcastToChannel.mock.calls[0][2] as Record<
+        string,
+        unknown
+      >;
+      const wireBc = wire.buttonConfig as Record<string, unknown>;
+      expect(wireBc.nodeOutput).toHaveProperty('_retryState');
+    });
+
+    /**
+     * **chat-channel 렌더 보존** — Discord/Telegram/Slack 은 `nodeOutput` 을 flat
+     * legacy shape 으로 읽는다(`extractRendered` 가 `nodeOutput.rendered`, 카드/제목
+     * 렌더가 `nodeOutput.payload`·`nodeOutput.title`, 라우팅이 `nodeOutput.nodeType`).
+     * allowlist 를 REST 표면 기준으로만 잡으면 이 넷이 조용히 사라져 **외부 채널의
+     * 메시지가 빈 상태로 나간다** — 유출이 아니라 기능 파손이라 마스킹 테스트로는
+     * 잡히지 않는다. 그래서 보존을 명시적으로 못박는다.
+     */
+    it.each([
+      ['rendered', 'hello **world**'],
+      ['payload', { items: [{ title: 'a' }] }],
+      ['title', '주문 확인'],
+      ['nodeType', 'ai_agent'],
+    ])(
+      '[캐너리] chat-channel 이 top-level 로 읽는 `%s` 는 fanout 에 남는다',
+      async (key, value) => {
+        const eventP = nextFanoutEvent(service);
+        await service.emitExecutionEvent(
+          `exec-chat-${key}`,
+          ExecutionEventType.EXECUTION_WAITING_FOR_INPUT,
+          {
+            status: 'waiting_for_input',
+            waitingNodeId: 'n-chat',
+            nodeOutput: { [key]: value },
+          },
+        );
+        const fanout = await eventP;
+        const nodeOutput = fanout.payload.nodeOutput as Record<string, unknown>;
+        expect(nodeOutput[key]).toEqual(value);
+      },
+    );
+
+    /**
      * 재귀 strip 의 비용 근거를 단언한다 — 제거할 게 없으면 **새 객체를 만들지 않고
      * 입력을 그대로** 돌려준다(clone-on-write). 이게 깨지면 모든 실행 이벤트가
      * payload 전체를 복제하게 되므로, 성능 주장이 주석에만 있으면 안 된다.

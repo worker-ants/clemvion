@@ -7,6 +7,7 @@ code:
   - codebase/backend/src/modules/external-interaction/**
   - codebase/backend/src/shared/utils/strip-external-only-fields.ts
   - codebase/backend/src/shared/utils/node-output-allowlist.ts
+  - codebase/backend/src/modules/websocket/websocket.service.ts
   - codebase/backend/src/shared/utils/terminal-duration.ts
   - codebase/backend/src/modules/execution-engine/events/execution-event-emitter.service.ts
   - codebase/backend/src/shared/utils/terminal-error-payload.ts
@@ -1732,7 +1733,8 @@ present-when-available 이므로, REST 만 `null` 로 정규화하면 위젯의 
     마스킹된 값(`[REDACTED]`·`***`·`[REDACTED_DEPTH]`)을 재마스킹하지 않는다. 덮으면 같은 헤더가
     `$trigger.headers` 에서는 `[REDACTED]`, 실행 상세 API 에서는 `***` 로 보인다.
 
-- **~~`nodeOutput` 일반 키 allowlist (미구현·잔여)~~ 해소 (2026-08-23) — 단 `getStatus` 한 출구에 한정**:
+- **~~`nodeOutput` 일반 키 allowlist (미구현·잔여)~~ 해소 (2026-08-23) — ~~단 `getStatus` 한 출구에 한정~~
+  같은 날 SSE/fanout 까지 확대**:
   런타임 fail-closed allowlist(`allowlistNodeOutputKeys`)를 도입했다. 종전 방어는 deny-list
   (`EXTERNAL_STRIPPED_FIELDS = ['llmCalls']`) 한 칸이라 **새 핸들러 키가 기본값으로 통과**했고, 실제로 엔진 내부
   `_retryState`(`NodeExecution.outputData` 에 저장된다)가 그렇게 나가고 있었다.
@@ -1745,15 +1747,44 @@ present-when-available 이므로, REST 만 `null` 로 정규화하면 위젯의 
   | `getStatus` waiting `nodeOutput` | **fail-closed allowlist** | `NodeHandlerOutput` shape 이라 키 집합이 타입에 결속된다 |
   | `getStatus` terminal `result` | deny-list 유지 (**의도적 제외**) | `Execution.outputData` = **작성자가 정의한** 워크플로 출력. allowlist 를 걸면 정상 데이터가 잘린다 |
   | `getStatus` terminal `error` | deny-list 유지 (**의도적 제외**) | 〃 (자유 형태 에러 payload) |
-  | SSE/fanout emit (`toFanoutEnvelope`) | deny-list 유지 (**잔여**) | envelope 레벨에서 strip 하므로 그 안의 `nodeOutput` 에 도달하려면 별건 변경이 필요하다. chat-channel 어댑터가 같은 subject 를 구독해 blast radius 가 더 넓다 |
+  | SSE/fanout emit (`toFanoutEnvelope`) | **fail-closed allowlist** (2026-08-23 추가) | 같은 `nodeOutput` 이니 같은 강도여야 한다. 초판은 *"envelope 레벨 strip 이라 별건 변경이 필요하다"* 며 유예했는데, 실측하니 **`emitExecutionEvent`/`emitNodeEvent` 두 emit 이 이 한 함수를 공유하는 단일 chokepoint** 라 호출부 변경 없이 닫혔다 |
 
-  즉 **REST 와 SSE 의 `nodeOutput` 방어 강도가 이 시점부터 다르다** — 위 "wire 형식 동일" 서술은 *형식*에 대한
-  것이고 *필터 강도*에는 적용되지 않는다. SSE 잔여는 정본 트래커에 별도 항목으로 등재돼 있다.
+  **REST 와 SSE 는 같은 강도다.** 초판은 *"이 시점부터 방어 강도가 다르다"* 로 비대칭을 기록했으나
+  같은 날 SSE 를 닫아 그 서술은 폐기했다 — 위 "wire 형식 동일" 서술이 이제 *형식*과 *필터 강도*
+  양쪽에 적용된다.
 
-  allowlist 집합은 `NodeHandlerOutput` 공개 키(`config`·`output`·`meta`·`port`·`status`) + 위젯 파서가 top-level 로
-  읽는 wire 키(`formConfig`·`conversationConfig`·`buttonConfig`·`interactionType`)이며, **컴파일타임 assertion 이
-  전자를 결속**한다(그 타입에 공개 키가 늘면 빌드가 깨진다). author config 의 값-embedded secret 은 여전히 값/키
-  기반 redaction 소관이다.
+  **내부 WS(에디터)는 대상이 아니다.** `toFanoutEnvelope` 호출 시점에 wire envelope 은 이미
+  `broadcastToChannel` 로 나갔고 fanout 은 새 clone 을 좁힌다 — [WS §4.4](./6-websocket-protocol.md)
+  의 strip-only 결정(*"값-레벨 마스킹은 에디터 디버깅 가치를 훼손한다"*)이 그대로 유지된다.
+
+  allowlist 집합은 세 갈래다:
+
+  | 갈래 | 키 | 무엇이 지키나 |
+  |---|---|---|
+  | `NodeHandlerOutput` 공개 키 | `config`·`output`·`meta`·`port`·`status` | **컴파일타임 assertion** — 그 타입에 공개 키가 늘면 빌드가 깨진다 |
+  | wire 전용 (위젯 파서) | `formConfig`·`conversationConfig`·`buttonConfig`·`interactionType` | 리터럴 테스트 |
+  | wire 전용 (chat-channel 렌더러) | `payload`·`title`·`rendered`·`nodeType` | 리터럴 테스트 |
+
+  뒤 두 갈래는 타입에 없으므로 **리터럴 테스트가 유일한 방어**다 — 목록에서 파생한 fixture 는
+  목록이 줄면 케이스도 함께 줄어 조용히 통과한다(실측으로 확인된 형태).
+
+  chat-channel 4키를 **표면별 별도 목록으로 가르지 않은** 이유: Discord/Telegram/Slack 렌더러는
+  `nodeOutput` 을 flat legacy shape 으로 읽는 반면(`nodeOutput.rendered` 등) 위젯은 `output.rendered`
+  처럼 한 겹 아래로 읽는데, 목록을 표면별로 나누면 손-동기화 지점이 둘 생긴다. 이 문서가 §R17 에서
+  "총칭이 아니라 열거" 를 고집하는 것과 같은 이유로 **목록은 하나, 갈래는 주석**으로 둔다.
+
+  > **이름이 겹치는 두 쌍을 갈라 둔다** (`22_26_33` naming W1·W2) — 이 절의 관례대로 근접한 이름은
+  > 별개 표면임을 명시한다.
+  >
+  > - `nodeOutput.nodeType` (카드 렌더 서브타입: `chart`/`table`/`carousel`, **외부 노출 대상**) 은
+  >   wire top-level `waitingNodeType`(= `node.type`, §6.2 가 *"외부 소비 매핑 없음"* 으로 못박은
+  >   WS 내부 부가 식별자)과 **다른 필드**다. 값 공간이 겹쳐 오독하기 쉬우나 담긴 객체가 다르다.
+  > - `nodeOutput.payload` (핸들러가 만든 legacy 카드 렌더 데이터) 는 §6 이 정의하는 webhook 봉투
+  >   최상위 `payload` 와 **동일 키명이지만 중첩 레벨이 다른 별개 필드**다 — webhook wire 에서는
+  >   `<봉투>.payload.….nodeOutput.payload` 로 같은 이름이 두 층에 실린다. §6 이 이미 "webhook
+  >   `payload` 봉투 vs REST `data` 봉투" 를 갈라 둔 것과 같은 패턴이다.
+
+  author config 의 값-embedded secret 은 여전히 값/키 기반 redaction 소관이다.
 
 ### R18. `execution.message` — 표시-전용 presentation 노드 자동 진행 메시지 신설 (결정 2026-06-25)
 

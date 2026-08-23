@@ -69,8 +69,32 @@ owner: planner
     - **재리뷰(`09_36_01`) 가 잡은 잔여 gap — C1 fix 의 자기 사각지대**: C1 의 조기 return 근거("부팅 전엔 정리할 게 없다")는 **메모리에만 참**이고 `sessionStorage` 의 이전 세션은 놓친다 → 부팅 중 `resetSession` 이 조용히 무시되고 **옛 대화가 부활**(재현 확인, side_effect·security 독립 지적). fix = `pendingResetRef` 로 의도를 기록하고 `applyConfig` 가 `loadSession` 직전 소비. 교훈: **"정리할 게 없다"를 메모리만 보고 판단하면 영속 상태를 놓친다.**
     - 검증(`08_29_33`+`09_36_01` 반영 후): 신규 회귀 테스트 **8건**(vitest 실측 — eager-start 36→40: C1·C1-b·W2·W3 / token-refresh 10→11: W5 / widget-state 37→40: W4 가드 + 재개 경로 2케이스). 전부 mutation 검증(대응 가드 제거 시 **그 테스트만** 실패). 특히 W3 는 리뷰어가 "제거해도 364건 중 0건 실패"라 실증한 언마운트 지점을 닫은 것. channel-web-chat 22 파일 **372 passed**, lint·unit·build PASS.
     - **분리는 여전히 후속 후보** — 다만 그 경계는 `useEiaStream`(스트림)이 아니라 `useEiaSession`(세션 라이프사이클 전체, ≈300/735줄)이어야 하고, 가드가 하나로 정리된 **지금 상태에서 하는 편이 안전**하다. 기존 `useTokenRefresh`/`usePendingMessageQueue` 가 ref 주입 계약을 확립해 뒀다.
-- [ ] **SSE/fanout 의 `nodeOutput` 은 여전히 fail-open deny-list 다** (2026-08-23 등재,
-      `18_30_40` plan_coherence W2 — 위 REST 항목에서 **의도적으로 분리**).
+- [x] **~~SSE/fanout 의 `nodeOutput` 은 여전히 fail-open deny-list 다~~ 해소 (2026-08-23)** (등재
+      2026-08-23, `18_30_40` plan_coherence W2 — 위 REST 항목에서 **의도적으로 분리**).
+      > **착수하니 전제 둘이 뒤집혔다.**
+      >
+      > 1. **호출부는 넷이 아니라 하나였다.** 아래 실측이 나열한 세 서비스가 전부
+      >    `WebsocketService.toFanoutEnvelope` 한 함수를 지난다 — 그 함수가 이미
+      >    **외부 전용**이라(내부 WS 는 그 전에 `broadcastToChannel` 로 나간 뒤다)
+      >    호출부를 하나도 건드리지 않고 닫혔다. *"envelope shape 이 달라 한 줄 대칭
+      >    적용이 안 된다"* 는 (a) 는 틀렸다: payload 가 envelope 에 **평평하게** 펼쳐져
+      >    위치가 REST 와 동일하다(`nodeOutput` / `buttonConfig.nodeOutput`).
+      > 2. **(b) 는 맞았고, 그래서 목록이 넓어졌다.** *"잘못 좁히면 외부 채널 렌더가
+      >    깨진다"* 를 실측하니 chat-channel 렌더러가 `nodeOutput.payload`·`.title`·
+      >    `.rendered`·`.nodeType` 를 **top-level flat legacy shape** 으로 읽는데 그
+      >    넷이 allowlist 에 **없었다**. 그대로 걸었다면 Discord/Telegram/Slack 메시지가
+      >    조용히 비었다 — 유출이 아니라 기능 파손이라 마스킹 테스트로는 안 잡힌다.
+      >    넷을 wire 전용 그룹에 넣고 리터럴 테스트로 못박았다.
+      >    - **위젯(#1205)은 회귀가 아니었다** — `channel-web-chat` 은 `output.rendered`·
+      >      `config.items` 처럼 한 겹 아래로 읽어 전부 allowlist 안이다(실측).
+      >
+      > §R17 표의 SSE 행을 flip 하고 *"REST·SSE 방어 강도가 다르다"* 서술을 폐기했다.
+      > WS §4.4 의 *"fanout envelope 을 내부 WS store 와 SSE 가 공유한다"* 에도
+      > `nodeOutput` 키 집합만은 공유하지 않는다는 단서를 달았다.
+
+      <details>
+      <summary>등재 당시 본문 (반증된 전제 포함 — 이력 보존)</summary>
+
       `toFanoutEnvelope` 는 **envelope 레벨**에서 `stripExternalOnlyFields` 를 걸므로 그 안의
       `nodeOutput` 에 allowlist 를 대려면 별건 변경이 필요하다. 같은 `_retryState` 를 나르고,
       **chat-channel 어댑터가 같은 subject 를 구독**해 blast radius 가 REST 열람자보다 넓다.
@@ -89,6 +113,8 @@ owner: planner
       > 쓰는 같은 수신 인구이고, chat-channel 어댑터가 같은 subject 를 구독한다.
       > **재사용할 헬퍼는 이미 있다** — `shared/utils/node-output-allowlist.ts` 의
       > `allowlistNodeOutputKeys`. envelope 안에서 `nodeOutput` 서브트리를 찾아 거는 것이 일이다.
+
+      </details>
 
 - [ ] **wire-only 4키가 `node-output.md` Principle 0 의 닫힌 레지스트리 밖이다** (2026-08-23 등재,
       `20_09_38` convention_compliance W3). 그 규약은 `NodeHandlerOutput` 을 **5필드 + 3예외**

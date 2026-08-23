@@ -59,11 +59,23 @@ export const NODE_OUTPUT_ALLOWED_KEYS = Object.freeze([
   'meta',
   'port',
   'status',
-  // wire 전용 — `eia-events.ts` 의 parseWaitingForInput 이 top-level 로 읽는다
+  // wire 전용 (위젯) — `eia-events.ts` 의 parseWaitingForInput 이 top-level 로 읽는다
   'formConfig',
   'conversationConfig',
   'buttonConfig',
   'interactionType',
+  // wire 전용 (chat-channel) — Discord/Telegram/Slack 렌더러가 **top-level** 로 읽는다.
+  // 위젯은 `output.rendered`·`config.items` 처럼 한 겹 아래로 읽어 이 넷 없이도 되지만,
+  // chat-channel 은 flat legacy shape 을 그대로 본다 — `extractRendered` 가
+  // `nodeOutput.rendered` 를, 카드·제목 렌더가 `nodeOutput.payload`·`nodeOutput.title` 을,
+  // 라우팅이 `nodeOutput.nodeType` 을 읽는다.
+  //
+  // **표면별로 목록을 가르지 않는다** — 그러면 손-동기화 지점이 둘 생긴다. 이 넷도
+  // §R17 이 정의한 "렌더에 필요한 키" 에 해당한다.
+  'payload',
+  'title',
+  'rendered',
+  'nodeType',
   // `as const` 는 **컴파일타임 리터럴 타입**만 준다 — `.push`/`.splice` 를 막지 않는다.
   // 이 상수는 보안 경계라 런타임 불변까지 강제한다 (`19_24_24` security INFO 2).
 ] as const);
