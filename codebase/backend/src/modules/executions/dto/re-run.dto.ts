@@ -20,7 +20,13 @@ export class ReRunRequestDto {
       'useOriginalInput=false 일 때 사용할 입력(Manual Trigger 스키마 호환). ' +
       '마스킹 마커와 정확히 일치하는 값은 400 `MASKED_VALUE_RESUBMITTED` 로 거부. ' +
       'SoT: EIA §R17.',
-    type: Object,
+    // 열린 map 은 `type: 'object' + additionalProperties: true` 로 적는다 — 저장소 다수
+    // 패턴(40 파일)이고 형제 `execute-workflow.dto.ts` 도 그렇다. 축약형 `type: Object` 도
+    // `type: object` 로는 해석되지만 **`additionalProperties` 가 붙지 않아**, 선언된
+    // 프로퍼티가 없는 닫힌 모델처럼 보인다 — 생성기가 빈 인터페이스를 만든다
+    // (실측: 두 형태를 `createDocument` 까지 돌려 비교).
+    type: 'object',
+    additionalProperties: true,
   })
   @IsOptional()
   @IsObject()

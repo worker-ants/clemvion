@@ -415,6 +415,21 @@ checker 가 독립적으로** "인용이 가리키는 절이 오히려 반대를
       > 예상 못 한 비용은 **spec 쪽**이었다 — 이 결론이 6개 문서에 SoT 로 미러돼 있어
       > planner 턴이 선행돼야 했다(`12_08_46` BLOCK:YES → `12_41_29` BLOCK:NO).
 
+- [ ] **Swagger `createDocument` boilerplate 공유 헬퍼 — 자체 선언한 "4번째 사례" 임계값에
+      도달했다** (2026-08-23 등재, `21_03_29` plan_coherence W2).
+      리뷰가 반복해서 *"4번째 유사 스펙이 생기면 공유 헬퍼로 추출하라"* 는 조건부 처분을
+      내렸는데, **이번 `re-run.dto.spec.ts` 가 그 4번째다**.
+      > **현재 4개 · 3개 모듈**: `workflows/workflows-execute-body.spec.ts` ·
+      > `external-interaction/dto/responses/interact-ack-response.dto.spec.ts` ·
+      > `…/execution-status-response.dto.spec.ts` · `executions/dto/re-run.dto.spec.ts`.
+      > 넷이 같은 형태를 반복한다 — 프로브 `@Controller`+`@Module` 선언, `createTestingModule`
+      > → `app.init()` → `try/finally` 로 `createDocument`, `SchemaObject` 파생 캐스팅.
+      > **왜 지금 안 뽑았나**: 리뷰어 스스로 "지금 불요 / 4번째에서" 로 판정했고, 그 4번째를
+      > 만드는 PR 안에서 곧바로 추출하면 그 PR 의 범위를 넘는다. 다만 **임계값 도달 사실이
+      > review 산출물에만 남으면 다음 세션이 문서고고학을 해야 발견한다** — 그래서 여기 적는다.
+      > **착수 시**: `expectSwaggerProperty(doc, dtoName, propName)` 류로 캐스팅과 방어적
+      > 옵셔널 체이닝(`components` 가 `undefined` 면 설명 없는 `TypeError`)을 한 곳에 모은다.
+
 - [ ] **`redact-stored-error.ts` 위생 4건 — 다음에 이 파일을 손댈 때 묶어서** (2026-08-23 등재).
       전부 비차단 INFO 로 3라운드에 걸쳐 반복 지목됐고, 각각은 지금 별도 diff 를 만들 값이
       없다. 이 파일을 **다른 이유로** 여는 순간 함께 처리한다.
@@ -439,7 +454,7 @@ checker 가 독립적으로** "인용이 가리키는 절이 오히려 반대를
       > **미착수 사유**: 사용자 요청 범위(예외 명문화) 밖의 하네스 변경이다. 6건 중
       > `CHANGELOG.md:1060` 은 과거 기록이라 처분이 갈리므로 결정이 하나 섞인다.
 
-- [ ] ~~Docker Hub 익명 pull rate limit — CI 에 레지스트리 인증/미러 도입~~ →
+- [x] ~~Docker Hub 익명 pull rate limit — CI 에 레지스트리 인증/미러 도입~~ →
       **won't-do (2026-08-23 사용자 결정)**. `#1202` 의 e2e 가 `minio` pull 에서
       `unauthorized` 로 죽어 backend supertest 가 시작조차 못 했다(재실행으로 초록).
       저장소의 **어떤 워크플로에도 Docker Hub 로그인이 없어**(실측) 익명 pull rate limit 에
@@ -1132,12 +1147,21 @@ push 직전 확인에서 발각됐다. `review/**` 는 SoT 가 아니므로 여�
       > 그때 통일을 재검토한다(브리핑의 (c) 안). 관측 없이 조이는 것은 미지의 외부
       > 클라이언트를 깨는 도박이라 하지 않는다.
 
-- [ ] **`re-run.dto.ts` 가 열린 map 을 `type: Object` 축약형으로 적는다** (2026-08-22 등재,
+- [x] **`re-run.dto.ts` 가 열린 map 을 `type: Object` 축약형으로 적는다** (2026-08-22 등재 ·
+      **2026-08-23 종결**,
       `23_46_23` convention_compliance W1 의 부수 발견). 실측: `additionalProperties: true`
       를 쓰는 파일 **40개** vs `type: Object` 축약형 **2개**(`re-run.dto.ts` + 이번 신규).
       신규 파일은 이번에 다수 패턴으로 맞췄고, `re-run.dto.ts` 는 선존이라 남겼다.
       > 같은 디렉토리의 형제 `execute-node.dto.ts` 가 이미 다수 패턴을 쓴다 — 내가 이번에
       > **잘못된 형제**를 베꼈다가 checker 에 잡혔다.
+      >
+      > **→ 종결. 다만 "형태 통일" 보다 근거가 강했다** — 두 형태를 `createDocument` 까지
+      > 돌려 실측하니 축약형도 `type: object` 로는 **해석된다**(메타데이터만 봤으면
+      > "타입이 없다" 고 오판할 뻔했다). 실제 차이는 **`additionalProperties` 부재**다:
+      > OpenAPI 상 검증 의미는 같지만, 생성기가 "선언된 프로퍼티 없는 닫힌 모델" 로 읽어
+      > **빈 인터페이스**를 만든다. 열린 map 이라는 의도가 클라이언트에 전달되지 않는다.
+      > 실측 후 저장소 전체 축약형 **0건**.
+      > 산출물: [`rerun-dto-shorthand.md`](../complete/rerun-dto-shorthand.md).
 
 - [x] **`ExecuteWorkflowDto.input` 이 형제 `ExecuteNodeDto.input` 과 이름은 같고 의미가 다르다**
       (2026-08-23 등재, `00_33_31` naming_collision W1). `@ApiBody` 배선으로 둘이 처음
