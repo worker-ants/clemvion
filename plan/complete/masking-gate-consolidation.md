@@ -191,3 +191,28 @@ planner 항목이 정본 트래커에 살아 있다.
 
 수렴 판정 근거는 "발견 0" 이 아니라 **발견의 성격**이다: 1라운드 동작/테스트 갭 →
 2라운드 좁은 테스트 갭 1건(그마저 전제가 반증) → 3라운드 스타일 INFO 만. 구조가 사라졌다.
+
+## `--impl-done` (`15_16_28` — **BLOCK: NO**, CRITICAL 0)
+
+checker 5명 전원 전문 확보. WARNING 1건은 이미 트래커에 등재된 그 권한-경계 항목이고,
+checker 스스로 *"PR 자체를 되돌릴 필요는 없음(내용 정확성 다중 검증됨)"* 으로 판정했다.
+다만 *"결정이 늦어질수록 선례로 인용되는 범위가 넓어진다"* 는 지적은 타당하다 — 다음
+planner 턴의 우선 항목이다.
+
+INFO 3건은 이 파일의 위생 항목이라 **트래커에 4건 묶음으로 등재**했다(미체크 26 → 27).
+각각은 지금 별도 diff 를 만들 값이 없고, 이 파일을 다른 이유로 여는 순간 함께 처리한다.
+그중 하나(`redactNodeExecutionRow<T>` 제네릭이 `maskIfPresent` 의 "제네릭을 쓰지 않는다"
+와 나란히 놓여 오독 소지)는 **이 PR 이 만든 인접성**이라 등재 시 실질 모순이 아닌 이유
+(추론 경로가 `mask` 파라미터 vs `row` 인자로 다르다)를 함께 적어 뒀다.
+
+## 최종 상태
+
+| 게이트 | 결과 |
+| --- | --- |
+| `--impl-prep` (`13_55_36`) | BLOCK NO · CRITICAL 0 |
+| `/ai-review` 1라운드 (`14_23_44`) | CRITICAL 0 · WARNING 2 → 1건 수정, 1건 트래커 |
+| `/ai-review` 2라운드 (`14_46_46`) | CRITICAL 0 · WARNING 2 → 1건 수정(전제 반증 포함), 1건 이월 |
+| `/ai-review` 3라운드 (`15_09_42`) | **CRITICAL 0 · WARNING 0** — 수렴 |
+| `--impl-done` (`15_16_28`) | **BLOCK NO** · CRITICAL 0 |
+| TEST WORKFLOW | lint · unit(backend 8,931) · build · e2e(285 + Playwright 51) 전부 PASS |
+| 타입체크 ratchet | 199건 / 38파일 — baseline 일치 |

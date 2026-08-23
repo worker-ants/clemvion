@@ -318,6 +318,18 @@ checker 가 독립적으로** "인용이 가리키는 절이 오히려 반대를
       > 예상 못 한 비용은 **spec 쪽**이었다 — 이 결론이 6개 문서에 SoT 로 미러돼 있어
       > planner 턴이 선행돼야 했다(`12_08_46` BLOCK:YES → `12_41_29` BLOCK:NO).
 
+- [ ] **`redact-stored-error.ts` 위생 4건 — 다음에 이 파일을 손댈 때 묶어서** (2026-08-23 등재).
+      전부 비차단 INFO 로 3라운드에 걸쳐 반복 지목됐고, 각각은 지금 별도 diff 를 만들 값이
+      없다. 이 파일을 **다른 이유로** 여는 순간 함께 처리한다.
+      > 1. `redactNodeExecutionRow` 만 자매 3개의 `…ForResponse` 접미사를 안 따른다.
+      > 2. 4개 export 의 JSDoc 이 `@param`/`@returns` 태그 유무로 갈린다.
+      > 3. `redactNodeExecutionRow<T>` 의 제네릭이 바로 위 `maskIfPresent` 의 *"제네릭을 쓰지
+      >    않는다"* 와 나란히 놓여 **오독 소지**가 있다(`15_16_28` rationale INFO 1). 실질
+      >    모순은 아니다 — 그쪽 회피 사유는 `mask` **파라미터**에서 추론되는 경로인데 이쪽은
+      >    `row` **인자**에서 추론된다. 한 줄이면 갈린다.
+      > 4. `egress-masking.md` frontmatter `code:` 에 `redact-stored-error.ts` 미등재.
+      >    (4번은 `spec/` 편집이라 위 권한-경계 항목의 처분에 종속된다.)
+
 - [ ] **`developer` 의 자기-예측 반증형 spec 소정정 — 권한 경계를 정한다** (2026-08-23 등재,
       `14_23_44` scope W2). `masking-gate-consolidation` 에서 developer 턴이
       `spec/conventions/egress-masking.md §3` 을 직접 고쳤다. 내용은 정확하고 5개 consistency
