@@ -119,5 +119,11 @@ spec 본문에 되반영하는 것은 planner 권한**이다.
 
 ### 처분 — 우회하지 않고 planner 턴을 앞에 둔다
 
-코드는 이 브랜치에 보존하고, **spec 동기화를 별도 planner PR 로 먼저** 올린다. spec 이
-구현의 권위이므로 순서가 그쪽이 먼저다. planner PR 머지 후 이 브랜치를 재개한다.
+~~코드는 이 브랜치에 보존하고, **spec 동기화를 별도 planner PR 로 먼저** 올린다.~~
+→ **뒤집었다 (같은 턴 안에서).** §4.1.1 이 출력 포맷을 **리터럴로** 못박기 때문에, spec 만
+먼저 머지되면 *"spec 은 `***`, 코드는 `****1234`"* 라는 **실시간 spec-impl drift** 가 생긴다.
+이 저장소가 `/spec-coverage` 로 감시하며 반복해서 비용을 치른 바로 그 형태다.
+
+**같은 PR 안에서 planner 턴을 앞에 두고 원자적으로** 간다 — 역할 분리는 PR 경계가 아니라
+**게이트**로 지킨다(spec 쓰기 직전 `--spec`, 구현 후 `--impl-done`).
+planner draft: [`spec-update-assistant-masking.md`](./spec-update-assistant-masking.md).

@@ -256,7 +256,13 @@ interface ExecutionDetailsResponse {
 }
 ```
 
-**마스킹 규칙.** `inputData` · `outputData` · `error` 필드는 서버가 `maskSensitiveFields` 공통 유틸을 재귀 적용해 반환한다. 매칭 키(대소문자 무시): `apiKey`, `api_key`, `password`, `token`, `accessToken`, `refreshToken`, `secret`, `clientSecret`, `authorization`. 매칭된 값이 문자열이면 `"****<last4>"` 로, 그 외 타입이면 `"****"` 로 치환. 객체/배열은 재귀 순회. 원본은 DB 에 그대로 남고 read 시점에만 변환한다.
+**마스킹 규칙.** `inputData` · `outputData` · `error` 필드는 서버가 **두 층을 겹쳐** 반환한다 — 키 이름 기반 `maskSensitiveFields` 위에 값 패턴 기반 `deepRedactSecrets`(Egress 마스킹 좌표계 참조). 두 층을 거친 값은 `"***"` 로 나간다. 객체/배열은 재귀 순회하고, **키 이름은 보존**되므로 *어떤* 키가 가려졌는지는 응답에서 그대로 읽을 수 있다. 원본은 DB 에 그대로 남고 read 시점에만 변환한다.
+
+> **이 포맷은 이 도구의 로컬 합성 결과다.** `maskSensitiveFields` **자체**의 포맷은 `"****<last4>"` 로 **불변**이고, 그 유틸을 공유하는 다른 소비처(AI Agent 노드 · 노드 `config` echo boundary)는 영향을 받지 않는다. 여기서 `"***"` 가 되는 것은 위에 겹친 `deepRedactSecrets` 가 값을 다시 덮기 때문이다.
+
+> **키 축이 넓어졌다.** 종전 리터럴 목록(`apiKey`·`api_key`·`password`·`token`·`accessToken`·`refreshToken`·`secret`·`clientSecret`·`authorization`)은 접두형 `token` 계열(`csrf_token`·`auth_token`·`session_token`·`csrfToken`)을 통과시켰다. 겹친 층의 `CREDENTIAL_KEY_PATTERN` 이 그 계열을 덮는다.
+
+> **잔여 갭은 상속된다.** `deepRedactSecrets` 가 의도적으로 통과시키는 것(자격증명 **없는** 연결 문자열 · 내부 호스트명 · 스택 프래그먼트)은 이 표면에서도 동일하게 통과한다 — [EIA §R17](../5-system/14-external-interaction-api.md) 참조.
 
 **페이로드 크기 정책.** 개별 필드(`inputData`/`outputData`/`error`)에는 크기 cap 을 두지 않는다 — 2-step 패턴으로 어시스턴트가 폭주를 자연스럽게 회피하도록 유도한다(§8 시스템 프롬프트). 반면 **timeline 행 수**는 루프 노드가 수천 번 회전한 실행을 직렬화하다 컨텍스트를 터뜨리지 않도록 **실행 한 건당 500 행 상한**을 적용한다 — 넘치면 응답의 `timelineTruncated: true` 플래그로 신호하고, 앞 500 행만 담는다(자식 실행 timeline 도 각각 동일 상한). 사용자에게 "앞쪽 500 단계까지만 본 상태" 라고 명확히 알릴 때 이 플래그를 써라. 한 턴에 대량 페이로드를 세 개 이상 조회하면 `ASSISTANT_TOO_MANY_TOOL_CALLS` budget(§10) 에 근접할 수 있다.
 
@@ -1426,7 +1432,7 @@ yield { event: 'auto_resume', data: { reason, attempt, max } };
 |------|------|------|
 | 도구 수 | 2종 (`get_workflow_executions`, `get_execution_details`) | 기존 탐색 도구 6종과 동일 패턴. list→detail 2-step 으로 토큰 경제성 확보 |
 | 스코프 | 현재 세션 워크플로의 실행 + 그 실행 트리의 **직계 자식 실행(depth 1)** | 유저의 "sub-workflow node에서 실행된건 1이야 2야?" 질문에 대한 답 — 실행 트리 관점으로 해석. 2 단계 이상 중첩은 별도 호출로 분리해 응답 부피 제어 |
-| 민감 필드 마스킹 | `maskSensitiveFields` 공통 유틸 재귀 적용 (apiKey/token/password/secret/authorization/...). 원본은 DB 에 그대로 남김 | 채팅 창에 그대로 렌더되므로 최소 안전 기본값 필수. 기존 유틸 재사용 |
+| 민감 필드 마스킹 | ~~`maskSensitiveFields` 공통 유틸 재귀 적용~~ → **2026-08-23 결정으로 대체**: `maskSensitiveFields` + `deepRedactSecrets` **중첩**, 출력 `"***"` (§4.1.1 이 SoT). 원본은 DB 에 그대로 남김 | 채팅 창에 그대로 렌더되므로 최소 안전 기본값 필수. ~~기존 유틸 재사용~~ → 키 축만으로는 자유 텍스트 안의 자격증명을 못 잡아 값 축을 겹쳤다 |
 | 페이로드 크기 제한 | **없음** (마스킹만) | 사용자 명시 선택. 대신 2-step 패턴(list → 특정 id detail) 을 프롬프트가 강제 |
 | Running/waiting 실행 조회 | 허용 — 현재까지 기록된 부분 타임라인 반환 | §12.2의 "실행 중 편집 도구 거부" 는 read 에 적용하지 않음. 실시간 디버깅 UX |
 | 세션 스코프 키 | `session.workflow_id` 에서 자동 유도 — 인자로 `workflowId` 받지 않음 | scope 경계 명확화, LLM 의 잘못된 workflowId 추정 방지 |

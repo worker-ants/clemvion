@@ -7,6 +7,8 @@ code:
   - codebase/backend/src/shared/utils/strip-external-only-fields.ts
   - codebase/backend/src/modules/websocket/websocket.service.ts
   - codebase/backend/src/modules/execution-engine/utils/reject-masked-resubmission.ts
+  - codebase/backend/src/modules/workflow-assistant/tools/explore-tools.service.ts
+  - codebase/backend/src/common/utils/mask-sensitive-fields.util.ts
   - codebase/frontend/src/lib/utils/masked-markers.ts
 ---
 
@@ -42,7 +44,7 @@ code:
 | # | 상한 | 값 | 비교 | 초과 시 | 소비처 (심볼) |
 |---|---|---|---|---|---|
 | 1 | `MAX_MASK_DEPTH` (`@workflow/masked-markers`) | **10** | — | — | **SoT 상수**. 표 2·3행이 이 값을 참조 |
-| 2 | `MAX_REDACT_DEPTH` (backend 지역 별칭) | **10** (표 1행 재export) | `depth >= N` | `VALUE_MASK_MARKER` | `deepRedactSecrets`(REST 응답·저장 에러·conversation thread) · `hasMaskedLeaf`(Manual 실행 재제출 거부 판정) |
+| 2 | `MAX_REDACT_DEPTH` (backend 지역 별칭) | **10** (표 1행 재export) | `depth >= N` | `VALUE_MASK_MARKER` | `deepRedactSecrets`(REST 응답·저장 에러·conversation thread · **workflow-assistant explore 응답**) · `hasMaskedLeaf`(Manual 실행 재제출 거부 판정) |
 | 3 | 프런트는 별칭 없이 `MAX_MASK_DEPTH` 를 직접 import | **10** (표 1행 그대로) | 값 검사 **먼저**, `depth >= N` 에서 하강 중단 | 스캔 범위 `0..N` | `hasMaskedMarkerLeaf`(폼 프리필 스킵·재제출 차단) |
 | 4 | `MAX_SANITIZE_DEPTH` (`websocket.service.ts`, **별개 불변식**) | **10** (독립 선언) | `depth > N` | `DEPTH_MASK_MARKER` | `sanitizePayloadForWs`(WS emit) |
 | 5 | `stripExternalOnlyFields(_, maxDepth)` | **호출부 지정** | `depth > maxDepth` | 서브트리 **보존**(손대지 않음) | 두 표면이 각자 **자매 sanitizer 의 상한**을 넘긴다 |
@@ -81,6 +83,12 @@ code:
 좌표계 표는 **사람이 갱신해야 한다**. `code:` frontmatter 의 파일 목록만 `spec-code-paths.test.ts` 가 존재를 확인할 뿐, 표의 값·연산자·심볼이 소스와 일치하는지는 검사하지 않는다.
 
 ~~**알려진 stale 트리거**: 정본 트래커의 미체크 항목 *"`inputData` 마스킹 게이트 4곳을 단일 헬퍼로 통합"* 이 집행되면 **표 2행·표 5행의 소비처 열이 흡수돼 낡는다.** 그 항목 착수 시 이 표를 동반 갱신한다.~~
+
+**표를 갱신한 실례 (2026-08-23, `assistant-mask-leak`)**: workflow-assistant LLM 도구가
+`deepRedactSecrets` 를 **새로 겹치면서** 표 2행 소비처가 실제로 늘었다 — 그래서 그 열에
+"workflow-assistant explore 응답" 을 더하고 `code:` 에 두 파일을 등재했다. 바로 아래 취소선
+사례와 대비된다: 그쪽은 **호출부를 묶기만** 해서 마스커 목록이 안 바뀌었고, 이쪽은 **마스커가
+새 표면에 도달**해서 바뀌었다. 그 차이가 이 표가 낡는 조건이다.
 
 > **그 예고는 틀렸다 — 집행하고 실측하니 표는 무변경이다** (2026-08-23, `masking-gate-consolidation`).
 >
