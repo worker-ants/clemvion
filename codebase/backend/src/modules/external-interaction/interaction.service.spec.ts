@@ -633,10 +633,8 @@ describe('InteractionService.getStatus', () => {
       },
     });
     const r = await service.getStatus(IEXT_CTX);
-    const out = (r.context as Record<string, unknown>).nodeOutput as Record<
-      string,
-      unknown
-    >;
+    const out = (r.context as unknown as Record<string, unknown>)
+      .nodeOutput as Record<string, unknown>;
     expect(out._retryState).toBeUndefined();
     expect(out.__unknownFutureKey).toBeUndefined();
     // 폼 폴백이 쓰는 셋은 살아 있어야 한다 — 위젯이 nodeOutput 자체를 폼 선언으로 쓴다.

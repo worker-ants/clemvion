@@ -228,6 +228,34 @@ describe('allowlistNodeOutputKeys', () => {
     },
   );
 
+  // ⚠️ 아래 `it.each` 는 fixture 를 **구현 상수에서 파생**한다 — 목록이 줄면 케이스도 함께
+  //    줄어 조용히 통과한다(뮤테이션으로 실증: `formConfig` 제거 → 91→90건, 전부 GREEN).
+  //    그래서 **리터럴 대조**를 먼저 둔다. 컴파일타임 결속은 `NodeHandlerOutput` 공개 키만
+  //    덮으므로 **wire 전용 키는 이 테스트가 유일한 방어**다.
+  it('[리터럴] wire 전용 키가 목록에서 사라지면 여기서 잡힌다', () => {
+    // 위젯 파서(`eia-events.ts`)가 top-level 로 읽는 키들 — 빠지면 렌더가 조용히 빈다.
+    for (const wireKey of [
+      'formConfig',
+      'conversationConfig',
+      'buttonConfig',
+      'interactionType',
+    ]) {
+      expect(NODE_OUTPUT_ALLOWED_KEYS as readonly string[]).toContain(wireKey);
+    }
+    // 전체 집합도 못박는다 — 늘어나는 것도 의식적 결정이어야 한다.
+    expect([...NODE_OUTPUT_ALLOWED_KEYS].sort()).toEqual([
+      'buttonConfig',
+      'config',
+      'conversationConfig',
+      'formConfig',
+      'interactionType',
+      'meta',
+      'output',
+      'port',
+      'status',
+    ]);
+  });
+
   it.each([...NODE_OUTPUT_ALLOWED_KEYS])('허용 키 `%s` 는 통과한다', (key) => {
     const out = allowlistNodeOutputKeys({ [key]: 'keep-me' }) as Record<
       string,

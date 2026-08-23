@@ -78,8 +78,8 @@ allowlist 를 새로 발명하지 않고 그 타입의 **공개 부분집합**�
 - [x] allowlist 필터 신설 + **컴파일타임 결속**(`NodeHandlerOutput` 공개 키) — deny-list 는
       다른 소비처가 쓰므로 대체가 아니라 `getStatus` 경로에 **추가**
 - [x] 캐너리 — 유틸 스위트 + **배선 캐너리**(호출부가 실제로 지나는지)
-- [ ] 뮤테이션 검증
-- [ ] TEST WORKFLOW 4단계 + ratchet
+- [x] 뮤테이션 검증 — **vacuous 캐너리를 드러냈다**(아래)
+- [x] TEST WORKFLOW 4단계 PASS + ratchet — **게이트가 신규 타입 오류를 잡았다**(아래)
 - [ ] `/ai-review`
 - [ ] 상위 트래커 체크박스 flip + 근거 기록 (`18_30_40` INFO 5)
 
@@ -110,3 +110,39 @@ allowlist 를 새로 발명하지 않고 그 타입의 **공개 부분집합**�
   검증: allowlist 에서 `status` 를 빼니 `TS2322` 로 빌드가 깨진다(실측).
 - **INFO 1**: `_resumeCheckpoint` 는 `NodeHandlerOutput` 의 키가 **아니다**(실측 — `stripControlFields`
   에만 등장). fail-closed 라 열거 없이 닫히고, 그 사실을 JSDoc 에 적었다.
+
+## 뮤테이션 — 내 캐너리 하나가 **vacuous** 였다
+
+예측을 먼저 적고 돌렸다.
+
+| 뮤턴트 | 예측 | 실측 |
+| --- | --- | --- |
+| **M1** 호출부에서 allowlist 배선 제거 | 캐너리 1·3 RED | **1 RED**(배선 캐너리) — 유틸 캐너리는 GREEN 이 정답 |
+| **M2** allowlist 에서 `config` 제거 | 폼 캐너리 RED | **컴파일 실패**(`TS2322`) — 결속이 먼저 문다 |
+| **M2b** allowlist 에서 `formConfig`(wire 전용) 제거 | ? | **전부 GREEN, 91 → 90건** ⚠️ |
+
+**M1 예측이 빗나간 이유**는 의미 있다 — 유틸 캐너리는 유틸을 직접 부르므로 *배선* 제거에
+영향받지 않는다. 즉 배선 캐너리가 헬퍼와 호출부 사이를 지키는 **유일한** 테스트다.
+
+**M2b 가 진짜 발견이다.** wire 전용 키는 컴파일타임 결속이 안 덮는데(설계상 allowlist 가
+타입보다 넓을 수 있다), 내 `it.each([...NODE_OUTPUT_ALLOWED_KEYS])` 는 **fixture 를 구현
+상수에서 파생**해서 목록이 줄면 케이스도 함께 줄었다 — 한 건 적게 돌고 전부 초록.
+테스트 수가 91 → 90 으로 준 것이 유일한 흔적이었다.
+
+→ **리터럴 대조 캐너리**를 앞에 뒀다(wire 키 4개 + 전체 집합 정렬 비교). 같은 뮤턴트를 다시
+거니 **RED**. 이건 이 저장소가 이미 겪은 *"생성 입력 vs 큐레이션 코퍼스"* 형태다.
+
+## ratchet 이 제 캐너리의 타입 오류를 잡았다
+
+배선 캐너리가 `interaction.service.spec.ts` 의 타입 오류를 4 → 5 로 늘렸다. **jest 는 타입을
+strip 하고 `nest build` 는 `*.spec.ts` 를 exclude** 하므로 이 게이트 말고는 아무도 못 본다 —
+게이트가 존재하는 이유 그대로다. 기존 4건과 같은 형태(`as unknown` 경유)로 맞춰 baseline
+199건에 복귀했다.
+
+## 게이트·수치
+
+- **TEST WORKFLOW**: lint · unit(backend **8,971**) · build · e2e(285 + **Playwright 51**) PASS
+- **ratchet**: 199건 / 38파일 — baseline 일치
+- 부수: 첫 e2e 는 postgres 컨테이너가 `No space left on device` 로 죽었다(테스트 실패 아님).
+  `docker builder prune -af` + `image prune -f` 로 **49.8GB** 회수 후 재실행 PASS. 볼륨은
+  건드리지 않았다.
