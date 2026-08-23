@@ -1146,6 +1146,7 @@ push 직전 확인에서 발각됐다. `review/**` 는 SoT 가 아니므로 여�
       > OpenAPI 상 검증 의미는 같지만, 생성기가 "선언된 프로퍼티 없는 닫힌 모델" 로 읽어
       > **빈 인터페이스**를 만든다. 열린 map 이라는 의도가 클라이언트에 전달되지 않는다.
       > 실측 후 저장소 전체 축약형 **0건**.
+      > 산출물: [`rerun-dto-shorthand.md`](../complete/rerun-dto-shorthand.md).
 
 - [x] **`ExecuteWorkflowDto.input` 이 형제 `ExecuteNodeDto.input` 과 이름은 같고 의미가 다르다**
       (2026-08-23 등재, `00_33_31` naming_collision W1). `@ApiBody` 배선으로 둘이 처음
