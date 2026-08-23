@@ -13,6 +13,7 @@ import {
 } from '../../node-executions/entities/node-execution.entity';
 import { NodeComponentRegistry } from '../../../nodes/core/node-component.registry';
 import { maskSensitiveFields } from '../../../common/utils/mask-sensitive-fields.util';
+import { deepRedactSecrets } from '../../../shared/utils/sanitize-error-message';
 import { redactConfig } from './redact';
 
 const UUID_RE =
@@ -50,6 +51,59 @@ export const EXECUTION_STATUS_VALUES = [
 type ExecutionStatusFilter = (typeof EXECUTION_STATUS_VALUES)[number];
 
 /**
+ * LLM 도구가 읽는 실행 기록의 세 컬럼(`inputData`·`outputData`·`error`)을 마스킹한다.
+ *
+ * ## 왜 두 겹인가 — 한쪽은 키만, 한쪽은 값만 본다
+ *
+ * `maskSensitiveFields` 는 **키 이름**으로 가린다(`****<last4>`). 그래서 `typeof value !==
+ * 'object'` 인 순간 그대로 반환하고, **문자열 안**은 아예 보지 않는다 — `error.message` 에
+ * 박힌 `Bearer …` 나 자격증명 URI 가 그대로 나갔다. 무수정 프로브로 실증했다
+ * (`17_12_34` requirement W1):
+ *
+ * ```
+ * {"message":"auth failed: Bearer sk-live-abc123def456"}   // 통과했다
+ * ```
+ *
+ * `deepRedactSecrets` 를 겹치면 **값 축**(`SECRET_LEAK_PATTERNS`)과 **키 축**
+ * (`CREDENTIAL_KEY_PATTERN`) 이 함께 닫힌다. 후자의 `[a-z0-9_-]*token` 이 `/i` 라
+ * `csrf_token`·`auth_token`·`session_token`·`csrfToken` 계열까지 잡는다 — 그 계열은
+ * `DEFAULT_SENSITIVE_KEYS` 가 bare `token` 만 담아 평문 통과하던 자리다.
+ *
+ * ## `****<last4>` 의 식별 힌트를 잃는다 — 의도된 트레이드
+ *
+ * 두 마스킹이 같은 값에 닿으면 `****9876` 이 `***` 로 덮인다. **유출 차단을 우선**한다는
+ * 결정(2026-08-23)에 따른 것이다. 키 이름은 출력에 그대로 남으므로(`apiKey: "***"`)
+ * *어떤* 키가 가려졌는지는 여전히 읽을 수 있고, 잃는 것은 값의 마지막 4자다.
+ *
+ * ## 자매 — 이름이 닮았지만 **강도가 다르다**
+ *
+ * `redact-stored-error.ts` 의 `redactStoredFieldsForResponse` 는 같은 세 컬럼을 같은 shape
+ * 으로 다루지만 **값 축 한 겹**만 건다(REST 응답 경로). 이쪽은 결과가 **채팅 창에 원문으로
+ * 렌더**되므로 키 축을 **추가로** 겹친다. 둘을 바꿔 쓰면 조용히 방어가 얕아진다.
+ *
+ * ## 순서가 의미를 정한다
+ *
+ * **키 먼저, 값 나중**이다. 뒤집으면 값-패턴이 만든 `***` 를 키-마스킹이 다시
+ * `****` 로 덮어 두 층이 서로를 지운다.
+ */
+function redactAssistantFields(row: {
+  inputData?: Record<string, unknown> | null;
+  outputData?: Record<string, unknown> | null;
+  error?: Record<string, unknown> | null;
+}): {
+  inputData: unknown;
+  outputData: unknown;
+  error: unknown;
+} {
+  const both = (v: unknown) => deepRedactSecrets(maskSensitiveFields(v));
+  return {
+    inputData: both(row.inputData ?? null),
+    outputData: both(row.outputData ?? null),
+    error: both(row.error ?? null),
+  };
+}
+
+/**
  * Read-only "Clarify" 도구들. 모두 `workspace_id` 스코프로 격리되어 있으며,
  * LLM이 사용자의 질문 수를 줄이거나 기존 자산을 참조하는 데 쓴다.
  *
@@ -63,6 +117,7 @@ type ExecutionStatusFilter = (typeof EXECUTION_STATUS_VALUES)[number];
  * services later, replace the Repository injection with the service DI at
  * that point to inherit the new rule.
  */
+
 @Injectable()
 export class ExploreToolsService {
   constructor(
@@ -459,9 +514,7 @@ export class ExploreToolsService {
       startedAt: ne.startedAt,
       finishedAt: ne.finishedAt ?? null,
       durationMs: ne.durationMs ?? null,
-      inputData: maskSensitiveFields(ne.inputData ?? null),
-      outputData: maskSensitiveFields(ne.outputData ?? null),
-      error: maskSensitiveFields(ne.error ?? null),
+      ...redactAssistantFields(ne),
       retryCount: ne.retryCount,
       parentNodeExecutionId: ne.parentNodeExecutionId ?? null,
     };
@@ -479,9 +532,7 @@ export class ExploreToolsService {
       startedAt: e.startedAt,
       finishedAt: e.finishedAt ?? null,
       durationMs: e.durationMs ?? null,
-      inputData: maskSensitiveFields(e.inputData ?? null),
-      outputData: maskSensitiveFields(e.outputData ?? null),
-      error: maskSensitiveFields(e.error ?? null),
+      ...redactAssistantFields(e),
       parentExecutionId: e.parentExecutionId ?? null,
       recursionDepth: e.recursionDepth ?? 0,
     };

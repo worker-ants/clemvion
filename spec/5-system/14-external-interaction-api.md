@@ -1646,16 +1646,26 @@ present-when-available 이므로, REST 만 `null` 로 정규화하면 위젯의 
         > 옮겼다.
     - **`token` 계열 확장 (2026-08-17)**: 값 패턴과 `CREDENTIAL_KEY_PATTERN`(공용·WS 미러)이
       `token` **계열 전체**(bare `token` + `access_token`·`csrf_token`·`csrfToken`·
-      `x-auth-token` 등 접두형)를 덮는다. **다만 이 확장은 잔여 ③ 에 미치지 않는다** —
+      `x-auth-token` 등 접두형)를 덮는다. ~~**다만 이 확장은 잔여 ③ 에 미치지 않는다** —
       `maskSensitiveFields` 의 키 목록은 리터럴 나열이라 접두 계열이 아직 통과한다.
-      즉 *"`token` 계열이 닫혔다"* 는 **이 두 축에 한한 서술**이고, 아래 표면은 별건이다.
-    - **잔여 ③ (범위 밖 유지)**: **workflow-assistant LLM 도구**(`explore-tools.service.ts`)는 `inputData` ·
+      즉 *"`token` 계열이 닫혔다"* 는 **이 두 축에 한한 서술**이고, 아래 표면은 별건이다.~~
+      **→ 이 캐비엇은 해소됐다 (2026-08-23)**: 잔여 ③ 이 값 축 마스킹을 겹치면서
+      `CREDENTIAL_KEY_PATTERN` 이 그 표면에도 적용돼 접두 계열이 함께 닫혔다.
+    - **~~잔여 ③~~ 해소 (2026-08-23)**: **workflow-assistant LLM 도구**(`explore-tools.service.ts`)는 `inputData` ·
       `outputData` · `error` **세 필드**를 `maskSensitiveFields`(**키 이름** 기반)로만 내보내
       자유 텍스트 안의 자격증명을 통과시킨다 (그쪽 마스킹 규칙의 SoT 는
       [AI Assistant](../3-workflow-editor/4-ai-assistant.md)).
-      여기에 값-패턴 마스킹을 **단순 합성하면 안 된다** — 그 함수는 자격증명 키를 `****9876` 처럼
+      ~~여기에 값-패턴 마스킹을 **단순 합성하면 안 된다** — 그 함수는 자격증명 키를 `****9876` 처럼
       **접미 힌트를 남겨** 어떤 키가 가려졌는지 식별하게 하는데, 값-패턴 마스킹을 겹치면 그 힌트가
-      사라진다(기존 테스트가 이 회귀를 잡는다). 어느 의미가 우선하는지는 별도 결정이라 분리했다.
+      사라진다(기존 테스트가 이 회귀를 잡는다). 어느 의미가 우선하는지는 별도 결정이라 분리했다.~~
+
+      **→ 결정 완료 (2026-08-23): 유출 차단이 우선.** 위 경고는 **당시 옳았다** — 실제로 겹쳐
+      보니 기존 테스트 6건이 RED 였다. 무엇을 알고도 선택했는지 남기려고 지우지 않는다.
+      식별 힌트(`****9876` 의 마지막 4자)를 잃는 대신 자유 텍스트 안의 자격증명을 막는다.
+      **키 이름은 응답에 그대로 남으므로** *어떤* 키가 가려졌는지는 여전히 읽을 수 있고,
+      잃는 것은 값의 마지막 4자뿐이다. 포맷 SoT 는
+      [AI Assistant §4.1.1](../3-workflow-editor/4-ai-assistant.md).
+      **`maskSensitiveFields` 자체의 포맷은 불변**이다 — 겹치는 것은 그 도구의 로컬 합성이다.
 - **`execution.node.*` / 비-종결 `execution.*` **emit** 의 자유 텍스트 값 (강제됨 — 2026-08-16)**:
   위 두 `error` 불릿과 **또 다른 층**이다 — 그쪽은 종결 이벤트의 `Execution.error`(DB 컬럼)이고,
   여기는 **node-level 이벤트 payload** 와 `ai_message` 같은 **비-종결** execution 이벤트의 자유
