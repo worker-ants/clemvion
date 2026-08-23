@@ -79,7 +79,7 @@ allowlist 안이다. 즉 #1205 가 넣은 회귀는 없고, **목록이 chat-cha
 - [x] (planner 턴) §R17 표의 SSE 행 flip + "강도가 다르다" 서술 제거 + WS §4.4 단서
 - [x] `22_26_33` WARNING 반영 — JSDoc 그룹 표 3그룹 동기화(W3) · 트래커 wire-only 4→8키(W4) ·
       `node-output-allowlist.ts` **재배치는 이번 라운드 무변경**(INFO 2)
-- [ ] 뮤테이션 검증
+- [x] 뮤테이션 검증 — **4/4 예측 일치** (아래 표)
 - [ ] TEST WORKFLOW 4단계 + ratchet
 - [ ] `/ai-review`
 
@@ -87,10 +87,17 @@ allowlist 안이다. 즉 #1205 가 넣은 회귀는 없고, **목록이 chat-cha
 
 - **내부 WS 는 안 바뀐다** — 이게 이 작업의 안전 조건이다. `broadcastToChannel` 에 넘긴
   envelope 과 fanout envelope 이 **다른 객체**임을 캐너리로 고정한다.
-- **뮤테이션**:
-  - M1 fanout 배선 제거 → `_retryState` 캐너리 RED
-  - M2 allowlist 에서 `rendered` 제거 → chat-channel 보존 캐너리 RED (4키가 진짜 지켜지나)
-- 뮤테이션은 **커밋 후** `cp` 백업으로. `git checkout`/`reset --hard` 금지.
+- **뮤테이션** (커밋 후 `cp` 백업. 예측을 **실행 전에** 적고 실측과 두 칸으로 대조):
+
+  | # | 뮤턴트 | 예측 | 실측 |
+  |---|---|---|---|
+  | M1 | `toFanoutEnvelope` 에서 배선 벗기기 | `_retryState` 캐너리 **2건** RED | ✅ 2 failed / 53 passed — 그 2건 |
+  | M2 | allowlist 에서 `'rendered'` 제거 | chat-channel 캐너리 1건 + 리터럴 테스트 1건 RED | ✅ 2 failed / 78 passed — 4키 중 `rendered` 케이스만 |
+  | M3 | `buttonConfig` 블록**만** 제거 | buttonConfig 캐너리 1건만 RED, top-level 은 GREEN | ✅ 1 failed / 54 passed — 두 분기가 실제로 갈린다 |
+  | M4 | copy-on-change 제거 | 기존 `동일 객체` 테스트 1건 RED | ✅ 1 failed / 54 passed — 그 테스트 |
+
+  M3 을 넣은 이유: M1 만으로는 **두 위치를 한 덩어리로만** 검증하게 된다. 이 저장소가
+  반복해 겪은 *"넷 중 하나만"* 은 정확히 그 사각지대에서 났다.
 
 ## 재배치 defer 사유 (`22_26_33` plan_coherence INFO 2)
 
