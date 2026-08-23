@@ -1,0 +1,12 @@
+{
+  "timestamp": "2026-08-23T11:59:11.142979",
+  "mode": "spec draft 검토 (--spec)",
+  "target_path": "plan/in-progress/swagger-decisions.md",
+  "checkers": [
+    "cross_spec",
+    "rationale_continuity",
+    "convention_compliance",
+    "plan_coherence",
+    "naming_collision"
+  ]
+}
