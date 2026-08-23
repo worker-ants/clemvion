@@ -55,12 +55,43 @@ checker 는 `legacyInput` 리네임을 제안했으나 **성립하지 않는다*
 
 ## 작업
 
-- [ ] `/consistency-check --spec` (planner 의무 — ③이 `spec/conventions/` 를 건드린다)
-- [ ] ② `ExecuteWorkflowDto.input` 에 `deprecated: true` + 가드 단언 추가
-- [ ] ③ `swagger.md §3` 문면 개정 + `## Rationale` 에 근거
-- [ ] 트래커 3건 종결 (결정과 사유 기록)
-- [ ] TEST WORKFLOW 4단계 + 타입체크 ratchet
-- [ ] `/ai-review`
+- [x] `/consistency-check --spec` — `11_59_11` **BLOCK: NO**. WARNING 4건·INFO 2건 반영
+- [x] ② `ExecuteWorkflowDto.input` 에 `deprecated: true` + 가드 단언 (대조군 포함)
+- [x] ③ `swagger.md §3` 문면 개정 + `## Rationale` 신설
+- [x] 트래커 3건 종결 (결정과 사유 기록) — 미체크 **29 → 26**
+- [x] TEST WORKFLOW 4단계 + 타입체크 ratchet — 4단계 PASS
+      (backend **8,914** · frontend 6,136 · web-chat 451 · e2e 285), ratchet 199건/38파일
+- [x] `/ai-review`
+
+## consistency 가 제일 아픈 곳을 짚었다 (W2)
+
+*"강제가 아니게 되면 **예외**라는 틀이 자기모순"* — 없는 상한을 면제할 수는 없다. 제 초안은
+본문 문구만 *"길이 논의 밖"* 으로 바꿨을 뿐 **틀 자체는 그대로 뒀다.**
+
+그래서 보안·정책 캐비엇을 **면제가 아니라 적극 지시**로 뒤집었다: *"다른 필드는 짧게 써도
+되지만 이 둘은 길어도 적어야 한다."* 결과적으로 그 자리는 **더 강해졌다** — 비강제화가
+느슨해지기만 하는 변경이 아니게 됐다.
+
+나머지 반영: 해제하는 유보 문구 인용(W3) · `deprecated` 를 §1 로 일반화하지 않는 판단(W4,
+사례 1건이라 rule of three 미달) · 실측치 병존에 재실측일 각주(INFO1) · ①이 최초 결정이
+아니라 `execute-body-dto` 가 갈라 둔 자리의 답임을 명시(INFO2).
+
+## 뮤테이션 — 예측을 먼저 적고 실행
+
+| 뮤턴트 | 예측 | 실측 |
+| --- | --- | --- |
+| `deprecated: true` 제거 (결정이 조용히 사라지는 형태) | 신규 단언 RED | ✅ **RED, 단독** — 나머지 9건 GREEN |
+
+`tsc` 선검증 0 오류로 유효 뮤턴트 확인. 원복 후 `cmp` 바이트 동일.
+
+> 단언에 **대조군**을 함께 뒀다 — `parameterValues` 는 deprecated 가 **아니어야** 한다.
+> 한쪽만 보면 "둘 다 deprecated" 로 바꿔도 통과한다.
+
+## 부수 관측 — unit 1회 SIGSEGV
+
+첫 unit 실행에서 무관한 cafe24 스펙이 `SIGSEGV`(jest 워커가 OS 에 의해 종료)로 스위트 실패했다.
+**테스트 실패가 아니라 환경 사건**이고(실패 테스트 0건), DTO 데코레이터 + 마크다운 변경이
+segfault 를 낼 수는 없다. 1회 재실행에서 PASS — phantom 으로 기록한다.
 
 ## 검증 기준
 
