@@ -90,6 +90,18 @@ owner: planner
       > **재사용할 헬퍼는 이미 있다** — `shared/utils/node-output-allowlist.ts` 의
       > `allowlistNodeOutputKeys`. envelope 안에서 `nodeOutput` 서브트리를 찾아 거는 것이 일이다.
 
+- [ ] **wire-only 4키가 `node-output.md` Principle 0 의 닫힌 레지스트리 밖이다** (2026-08-23 등재,
+      `20_09_38` convention_compliance W3). 그 규약은 `NodeHandlerOutput` 을 **5필드 + 3예외**
+      닫힌 목록으로 못박는데, EIA wire 조립 레이어는 거기에 없는 `formConfig`·
+      `conversationConfig`·`buttonConfig`·`interactionType` 을 top-level 로 얹는다 —
+      이번 PR 이 `NODE_OUTPUT_ALLOWED_KEYS` 로 그 사실을 **컴파일타임 SoT 로 명문화**하면서
+      규약과의 간극이 드러났다.
+      > **동작 결함은 아니다** — 위젯 파서가 실제로 그 키들을 읽고(실측), allowlist 가
+      > fail-closed 로 통과시킨다. 문제는 **규약 문서가 그 층의 존재를 모른다**는 것이다.
+      > **planner 소관**: Principle 0 에 "EIA wire 조립 레이어가 추가하는 wire-only 필드는
+      > `NodeHandlerOutput` 계약 **밖**" 각주를 다는 편이 낫다 — 5필드 목록을 넓히면
+      > 핸들러 계약이 오염된다.
+
 - [ ] **`node-output-allowlist.ts` 를 `shared/utils/` 밖으로 재배치** (2026-08-23 등재,
       `19_24_24` architecture INFO 1). 그 디렉토리 8개 파일 중 **유일하게 도메인 타입**
       (`NodeHandlerOutput`)을 import 한다 — "shared = 도메인 비의존" 불변식이 이 PR 에서
