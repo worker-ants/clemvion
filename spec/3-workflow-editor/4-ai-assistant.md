@@ -262,7 +262,7 @@ interface ExecutionDetailsResponse {
 
 > **키 축이 넓어졌다.** 종전 리터럴 목록(`apiKey`·`api_key`·`password`·`token`·`accessToken`·`refreshToken`·`secret`·`clientSecret`·`authorization`)은 접두형 `token` 계열(`csrf_token`·`auth_token`·`session_token`·`csrfToken`)을 통과시켰다. 겹친 층의 `CREDENTIAL_KEY_PATTERN` 이 그 계열을 덮는다.
 
-> **잔여 갭은 상속된다.** `deepRedactSecrets` 가 의도적으로 통과시키는 것(자격증명 **없는** 연결 문자열 · 내부 호스트명 · 스택 프래그먼트)은 이 표면에서도 동일하게 통과한다 — [EIA §R17](../5-system/14-external-interaction-api.md) 참조.
+> **잔여 갭은 상속된다.** `deepRedactSecrets` 가 의도적으로 통과시키는 것은 이 표면에서도 **그대로** 통과한다. 목록을 여기 다시 열거하지 않는다 — [EIA §R17](../5-system/14-external-interaction-api.md) 의 "잔여 갭(의도)" **전체**를 상속하며, 그쪽이 SoT 다(열거하면 항목이 늘 때 갈린다).
 
 **페이로드 크기 정책.** 개별 필드(`inputData`/`outputData`/`error`)에는 크기 cap 을 두지 않는다 — 2-step 패턴으로 어시스턴트가 폭주를 자연스럽게 회피하도록 유도한다(§8 시스템 프롬프트). 반면 **timeline 행 수**는 루프 노드가 수천 번 회전한 실행을 직렬화하다 컨텍스트를 터뜨리지 않도록 **실행 한 건당 500 행 상한**을 적용한다 — 넘치면 응답의 `timelineTruncated: true` 플래그로 신호하고, 앞 500 행만 담는다(자식 실행 timeline 도 각각 동일 상한). 사용자에게 "앞쪽 500 단계까지만 본 상태" 라고 명확히 알릴 때 이 플래그를 써라. 한 턴에 대량 페이로드를 세 개 이상 조회하면 `ASSISTANT_TOO_MANY_TOOL_CALLS` budget(§10) 에 근접할 수 있다.
 
@@ -1468,7 +1468,7 @@ ExecutionDetailsResponse {
    c. 그렇지 않으면 `execution.parentExecutionId` 가 가리키는 부모를 한 번 조회해 `parent.workflowId === session.workflowId` 면 통과.
    d. 둘 다 아니면 `EXECUTION_NOT_IN_SCOPE`. (workspace 경계 체크는 `execution.workflow.workspaceId === session.workspaceId` 로 별도 수행 → 없으면 `EXECUTION_NOT_FOUND` 와 동일 취급으로 information leak 방지.)
 3. **sub-workflow 확장.** 통과한 `execution` 에 대해 `executions.repo.find({ where: { parentExecutionId: execution.id } })` 로 직계 자식 목록을 조회, 각각에 대해 `findById` 를 불러 `subExecutions` 채움. 2-depth 이상은 자식 실행의 `subExecutions` 를 채우지 않고 `subExecutionsTruncatedDepth: 1` 를 세팅. 자식 실행의 `nodeExecutions.length > 0` 이면 이미 내부에 sub-workflow 가 존재한다는 힌트 — `subExecutionsTruncatedDepth` 는 자식 한 건이라도 2-depth 자손이 있으면 발행.
-4. **마스킹 구현.** `codebase/backend/src/common/utils/mask-sensitive-fields.util.ts` 재사용. 응답 직렬화 직전에 `inputData`/`outputData`/`error` 필드를 각각 한 번씩 통과시킴. 원본 DB row 는 건드리지 않음.
+4. **마스킹 구현.** ~~`codebase/backend/src/common/utils/mask-sensitive-fields.util.ts` 재사용. 응답 직렬화 직전에 `inputData`/`outputData`/`error` 필드를 각각 한 번씩 통과시킴.~~ → **2026-08-23 결정으로 대체**: 그 유틸(키 축) **위에 `deepRedactSecrets`(값 축)를 겹치는** `redactAssistantFields` 로 바꿨다 — 키 축만으로는 자유 텍스트 안의 자격증명을 못 잡았다. 순서는 **키 먼저, 값 나중**(뒤집으면 두 층이 서로를 지운다). 포맷·범위의 SoT 는 §4.1.1. 원본 DB row 는 건드리지 않음(불변).
 5. **tool kind 분류.** `tool-definitions.ts:15-30` 의 `TOOL_KIND_BY_NAME` 에 두 이름을 `'explore'` 로 추가.
 6. **dispatch 추가.** `workflow-assistant-stream.service.ts` 의 `handleExploreCall()` switch 에 두 case 추가.
 7. **시스템 프롬프트 갱신.** `system-prompt.ts` 에 "실행 이슈 진단 패턴" 한 단락(2-step: list → detail) 추가. 스펙 §8 에 이미 해당 행 추가됨 — 프롬프트 구현은 그 내용을 옮기기만 하면 됨.
