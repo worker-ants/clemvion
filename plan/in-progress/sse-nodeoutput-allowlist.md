@@ -95,10 +95,15 @@ allowlist 안이다. 즉 #1205 가 넣은 회귀는 없고, **목록이 chat-cha
   | M1 | `toFanoutEnvelope` 에서 배선 벗기기 | `_retryState` 캐너리 **2건** RED | ✅ 2 failed / 53 passed — 그 2건 |
   | M2 | allowlist 에서 `'rendered'` 제거 | chat-channel 캐너리 1건 + 리터럴 테스트 1건 RED | ✅ 2 failed / 78 passed — 4키 중 `rendered` 케이스만 |
   | M3 | `buttonConfig` 블록**만** 제거 | buttonConfig 캐너리 1건만 RED, top-level 은 GREEN | ✅ 1 failed / 54 passed — 두 분기가 실제로 갈린다 |
-  | M4 | copy-on-change 제거 | 기존 `동일 객체` 테스트 1건 RED | ✅ 1 failed / 54 passed — 그 테스트 |
+  | M4 | copy-on-change 제거 (top-level) | 기존 `동일 객체` 테스트 1건 RED | ✅ 1 failed / 54 passed — 그 테스트 |
+  | M5 | copy-on-change 제거 (**`buttonConfig` 분기만**) | 신규 `buttonConfig … 재조립하지 않는다` 캐너리 1건만 RED | ✅ 1 failed / 55 passed — 그 캐너리만 |
 
   M3 을 넣은 이유: M1 만으로는 **두 위치를 한 덩어리로만** 검증하게 된다. 이 저장소가
   반복해 겪은 *"넷 중 하나만"* 은 정확히 그 사각지대에서 났다.
+
+  M5 는 `22_51_46` testing W2 가 짚어 **뒤늦게 추가**됐다 — M4 로 copy-on-change 를 덮었다고
+  여겼는데, M4 는 top-level 분기만 건드린다. **같은 계약이 두 분기에 있으면 뮤턴트도 둘이어야
+  한다**: "그 계약을 검증했다" 가 아니라 "그 계약을 **어느 분기에서** 검증했나" 를 물어야 했다.
 
 ## 재배치 defer 사유 (`22_26_33` plan_coherence INFO 2)
 
