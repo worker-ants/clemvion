@@ -511,16 +511,96 @@ describe('ExploreToolsService — execution read tools', () => {
         EX_ID,
       )) as Row;
 
+      // `****<last4>` 가 아니라 `***` 다 — 값-패턴 마스킹(`deepRedactSecrets`)이 키-마스킹의
+      // 접미 힌트를 덮는다. **유출 차단 우선** 결정(2026-08-23)에 따른 의도된 트레이드이고,
+      // *어떤* 키가 가려졌는지는 키 이름이 남아 여전히 읽을 수 있다.
       const exec = result.execution as Row;
-      expect((exec.inputData as Row).apiKey).toBe('****1234');
+      expect((exec.inputData as Row).apiKey).toBe('***');
       expect(((exec.inputData as Row).headers as Row).Authorization).toBe(
-        '****0001',
+        '***',
       );
-      expect(((exec.outputData as Row).nested as Row).token).toBe('****9999');
+      expect(((exec.outputData as Row).nested as Row).token).toBe('***');
       const ne = (result.timeline as Row[])[0];
-      expect((ne.inputData as Row).password).toBe('****');
-      expect((ne.outputData as Row).clientSecret).toBe('****2345');
-      expect(((ne.error as Row).context as Row).apiKey).toBe('****9876');
+      expect((ne.inputData as Row).password).toBe('***');
+      expect((ne.outputData as Row).clientSecret).toBe('***');
+      expect(((ne.error as Row).context as Row).apiKey).toBe('***');
+      // 키 이름은 살아 있다 — 위 트레이드가 "무엇이 가려졌는지" 까지 지우지는 않는다.
+      expect(Object.keys(ne.inputData as Row)).toEqual(['password']);
+    });
+
+    // ── 아래 둘은 이 PR 이 닫은 갭의 캐너리다. 무수정 프로브로 실증한 두 형태를 그대로
+    //    고정한다 — 없으면 다음 사람이 같은 갭을 다시 발견한다 (`17_12_34` requirement W1).
+
+    it('[캐너리] 값 축 — `error.message` **문자열 안**의 자격증명을 가린다', async () => {
+      const { svc, repos } = makeService();
+      repos.execution.findOne.mockResolvedValueOnce(
+        mockExecution({
+          inputData: null,
+          outputData: null,
+          // 키 축 마스킹만으로는 통과한다 — `maskSensitiveFields` 는
+          // `typeof value !== 'object'` 면 그대로 반환해 문자열 안을 보지 않는다.
+          error: {
+            message: 'auth failed: Bearer sk-live-abc123def456',
+            detail: 'connect failed: postgres://u:pw@db.internal/prod',
+          },
+        }),
+      );
+      repos.nodeExecution.find.mockResolvedValueOnce([]);
+      repos.execution.find.mockResolvedValue([]);
+      repos.execution.createQueryBuilder.mockReturnValue(
+        makeQueryBuilder({ many: [] }),
+      );
+
+      const result = (await svc.getExecutionDetails(
+        WORKSPACE,
+        CURRENT_WF,
+        EX_ID,
+      )) as Row;
+      const err = (result.execution as Row).error as Row;
+      expect(err.message).toBe('auth failed: ***');
+      expect(err.detail).toBe(
+        'connect failed: postgres://***@db.internal/prod',
+      );
+    });
+
+    it('[캐너리] 키 축 — `token` **계열**(접두형)도 가린다', async () => {
+      const { svc, repos } = makeService();
+      repos.execution.findOne.mockResolvedValueOnce(
+        mockExecution({
+          // bare `token` 만 잡히고 아래 넷은 평문 통과하던 자리다(2026-08-16 실측).
+          inputData: {
+            csrf_token: 'BBBB2222',
+            auth_token: 'CCCC3333',
+            session_token: 'DDDD4444',
+            csrfToken: 'EEEE5555',
+            harmless: 'keep-me',
+          },
+          outputData: null,
+          error: null,
+        }),
+      );
+      repos.nodeExecution.find.mockResolvedValueOnce([]);
+      repos.execution.find.mockResolvedValue([]);
+      repos.execution.createQueryBuilder.mockReturnValue(
+        makeQueryBuilder({ many: [] }),
+      );
+
+      const result = (await svc.getExecutionDetails(
+        WORKSPACE,
+        CURRENT_WF,
+        EX_ID,
+      )) as Row;
+      const input = (result.execution as Row).inputData as Row;
+      for (const k of [
+        'csrf_token',
+        'auth_token',
+        'session_token',
+        'csrfToken',
+      ]) {
+        expect(input[k]).toBe('***');
+      }
+      // 대조군 — 민감하지 않은 키는 손상되지 않는다.
+      expect(input.harmless).toBe('keep-me');
     });
 
     it('batches direct-child sub-workflow timelines into a single In() query and returns each child keyed by its own id', async () => {

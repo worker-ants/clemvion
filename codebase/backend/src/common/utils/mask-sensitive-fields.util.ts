@@ -10,6 +10,21 @@ const DEFAULT_SENSITIVE_KEYS: ReadonlySet<string> = new Set(
     'access_token',
     'refreshToken',
     'refresh_token',
+    // `token` 계열 — bare `token` 만 있고 접두형이 전부 빠져 있었다(2026-08-16 실측:
+    // `csrf_token`·`auth_token`·`session_token`·`csrfToken` 평문 통과). EIA 쪽 두 목록은
+    // 같은 라운드에 계열째 닫혔고 이 목록만 남아 **비대칭**이었다.
+    //
+    // 이 목록은 **키 이름 완전 일치**라 계열을 정규식처럼 못 접는다 — 자매
+    // `CREDENTIAL_KEY_PATTERN` 의 `[a-z0-9_-]*token` 과 달리 항목을 손으로 편다.
+    // 새 접두형을 만나면 여기에 더한다.
+    'csrfToken',
+    'csrf_token',
+    'authToken',
+    'auth_token',
+    'sessionToken',
+    'session_token',
+    'idToken',
+    'id_token',
     'secret',
     'client_secret',
     'clientSecret',
