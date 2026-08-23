@@ -8,7 +8,7 @@ owner: developer
 spec_impact:
   - spec/5-system/14-external-interaction-api.md
   - spec/5-system/6-websocket-protocol.md
-  # 자기-반증형 소정정 (CLAUDE.md §) — `#1205` 에서 내가 쓴 "SSE·fanout 이 잔여다" 예고를
+  # 자기-반증형 소정정 (CLAUDE.md 「자기-반증형 소정정」 절) — `#1205` 에서 내가 쓴 "SSE·fanout 이 잔여다" 예고를
   # 이 작업이 실측으로 반증했다. 취소선 보존 + 정정. 게이트는 `--impl-done spec/conventions/`.
   - spec/conventions/conversation-thread.md
 ---
@@ -117,14 +117,29 @@ allowlist 안이다. 즉 #1205 가 넣은 회귀는 없고, **목록이 chat-cha
 - [x] 뮤테이션 검증 — **4/4 예측 일치** (아래 표)
 - [x] TEST WORKFLOW 4단계 + ratchet — lint 56s · unit 74s(backend **8,990 passed** / 433
       suites, 전 러너 실패 0) · build 158s · e2e 220s(285 passed) · ratchet 199/38 baseline 일치
-- [x] `/ai-review` — 2라운드로 수렴
+- [x] `/ai-review` — **5라운드**로 수렴 (`00_44_04`: RISK=NONE · Critical 0 · **Warning 0**)
       - `22_51_46`: LOW · C0 · **W4** → 4건 전부 처리 (`RESOLUTION.md`). W1 REST 표면 확장은
         목록을 가르는 대신 **캐너리로 의도 고정**, W2 는 캐너리 + **M5**, W3 CHANGELOG 자기정정,
         W4 는 **감사 불가를 명시**하고 문서화로 처분.
-      - `23_16_40` (fresh): LOW · C0 · **W1** — 새 지적이 아니라 W4 의 재확인이고 리뷰어가
-        *"조치 불요, 이미 문서화 완료"* 로 판정. **새 Warning 0 → 수렴.**
-        INFO 중 내 서식 오류 1건만 고치고, chokepoint 강제(architecture 6 + security 1)와
-        describe 블록 이동(testing 14 + 12)은 **정본 트래커에 등재**했다.
+      - `23_16_40` (fresh): LOW · C0 · W1 — W4 의 재확인. INFO 중 내 서식 오류 1건만
+        고치고, chokepoint 강제(architecture 6 + security 1)와 describe 블록 이동
+        (testing 14 + 12)은 **정본 트래커에 등재**했다.
+      - **여기서 `--impl-done` 이 CRITICAL 을 냈다** (`23_29_27`) — 아래 상단 배너 참조.
+        그 정정 이후 라운드가 셋 더 필요했고, **매 라운드가 하나씩 진짜를 찾았다**:
+      - `23_56_18`: C0 · W4 — 신규는 **W3·W4**(JSDoc 두 곳이 정정 안 됨). 문서 셋만 세고
+        코드 주석 둘을 안 셌다.
+      - `00_16_59` (타겟 4명): C0 · **W1** — **여섯 번째 미러**. 내 grep 이
+        `SSE·fanout **은** 잔여` 였는데 실제 문구는 `**이** 잔여다` 라 **조사 한 글자**로
+        비켰다. 자기-반증형 소정정으로 처리(5조건 확인) + `--impl-done spec/conventions/`.
+      - `00_26_17` (`--impl-done`, BLOCK: NO): W1 — **인용을 지어냈다**. 주석이
+        *"§R17 이 정의한 「렌더에 필요한 키」"* 라 적었는데 §R17 에 그 표현은 **0건**.
+      - `00_44_04` (타겟 2명): **RISK=NONE · C0 · W0 → 수렴.** INFO 2건은 이미 처분됐거나
+        트래커 등재분이고, 신규 INFO 1건(빈 `§` 참조)만 고쳤다.
+
+      > **다섯 라운드가 필요했던 이유**는 라운드가 헛돈 게 아니라 **매번 다른 종류의
+      > 과잉주장**이 남아 있었기 때문이다: 동작(닫혔다고 했는데 표면이 하나 더) → 미러
+      > (세는 대상의 종류) → 미러(매칭 방식) → 출처(없는 인용). 앞의 셋을 다 고친 뒤에야
+      > 네 번째가 보였다.
 
 ## 검증 기준
 
