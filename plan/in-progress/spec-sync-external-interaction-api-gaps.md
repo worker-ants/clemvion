@@ -165,6 +165,14 @@ owner: planner
       > `[잔여] execution.node.* 의 envelope.output 은 아직 allowlist 를 지나지 않는다`.
       > 이 항목을 닫으면 **그 단언이 뒤집히는 것이 작업의 일부**다.
 
+- [ ] **WS §4.4 `buttonConfig.nodeOutput` 행에 `nodeType` carve-out 각주 없음**
+      (2026-08-24 등재, `00_51_50` convention_compliance INFO 7). 같은 절이 *"판별자 래퍼
+      금지"* 를 말하는데 새 `nodeType` legacy carve-out 이 교차 참조 없이 병존한다 —
+      오독 여지.
+      > **planner 소관.** checker 가 *"선택, CRITICAL/WARNING 아님, 이번 diff scope 밖"*
+      > 으로 판정했고, 여기서 §4.4 를 또 고치면 `--impl-done` 게이트가 다시 돌아야 한다
+      > (이번 PR 이 그 루프를 다섯 번 돌았다). 다음에 그 절을 열 때 함께.
+
 - [ ] **`conversation-thread.md` frontmatter `code:` 에 `websocket.service.ts` 누락**
       (2026-08-24 등재, `00_26_17` convention_compliance INFO 4). 그 문서 §8.4 의 정정
       blockquote 가 `toFanoutEnvelope` 를 근거로 인용하는데 glob 이 그 파일에 안 걸린다 —
