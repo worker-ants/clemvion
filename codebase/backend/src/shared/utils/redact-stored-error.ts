@@ -123,6 +123,25 @@ export function redactStoredFieldsForResponse(row: {
  * **시그니처가 `| null` 을 안 적는 것은 의도다** — 엔티티가 두 컬럼을 non-null 로 선언하므로
  * **정적으로는** null 이 올 수 없고, 반환 타입에 `| null` 을 얹으면 배정이 깨진다. 본문의
  * `== null` 은 TypeORM 이 런타임에 `undefined` 를 줄 수 있는 경로에 대한 **방어**다.
+ *
+ * ## `== null` 가드를 좁히는 뮤턴트는 **동치 뮤턴트**다 — 테스트 갭이 아니다
+ *
+ * 리뷰가 *"`== null` 을 `=== undefined` 로 좁혀도 전부 GREEN 이니 `null` 쪽이 미검증"* 으로
+ * 지적했다(`14_46_46` testing W2). 실측하면 **어떤 테스트로도 못 죽인다**:
+ *
+ * | 입력 | 가드 경로 | 좁힌 경로 (`mask(v) ?? v`) |
+ * |---|---|---|
+ * | `null` | `null` | `mask(null)` → `null`, `null ?? null` → `null` |
+ * | `undefined` | `undefined` | `mask(undefined)` → `null`, `null ?? undefined` → `undefined` |
+ *
+ * 두 부재 형태 모두 **결과가 같다** — `?? value` 폴백이 가드와 같은 값을 만들기 때문이다.
+ * 관측 가능한 차이가 없으므로 살아남는 것이 정상이다.
+ *
+ * 그럼 가드는 왜 남기나: 현재 두 mask 가 **스스로 null-check 를 하기 때문에** 동치일 뿐이고,
+ * 그러지 않는 mask 가 나중에 들어오면 폴스루가 `mask(null)` 을 실제로 호출한다. 즉 이 가드는
+ * *현재 관측되는 동작*이 아니라 *mask 계약에 대한 독립 방어*다. 죽이려면 `maskIfPresent` 를
+ * export 해 null 에 throw 하는 mask 를 주입해야 하는데, 사적 헬퍼의 공개 표면을 테스트만을
+ * 위해 넓히는 값이 이 방어의 값보다 크지 않다고 판단했다.
  */
 function maskIfPresent(
   value: Record<string, unknown>,

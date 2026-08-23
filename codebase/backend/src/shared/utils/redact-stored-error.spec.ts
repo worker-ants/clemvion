@@ -286,16 +286,29 @@ describe('redactNodeExecutionRow', () => {
     expect(input[column]).toEqual({ leak: CRED });
   });
 
-  it('부재 컬럼을 `null` 로 정규화하지 **않는다** — 입력을 그대로 보존한다', () => {
-    // TypeORM 이 런타임에 `undefined` 를 줄 수 있는 경로의 방어 분기.
-    // 타입상으로는 non-null 이라 캐스트로 그 런타임 형태를 재현한다.
-    const input = row({
-      inputData: undefined,
-      error: undefined,
-    } as unknown as Record<string, unknown>);
-    const out = redactNodeExecutionRow(input);
-    expect(out).toBe(input);
-    expect(out.inputData).toBeUndefined();
-    expect(out.error).toBeUndefined();
+  // 부재를 `null` 로 정규화하지 **않는다** — 자매 헬퍼와 반대되는 계약.
+  // 두 부재 형태를 **각각** 겨눈다: `undefined` 만 넣으면 `null` 쪽 절반이 검증에서
+  // 빠진다(`14_46_46` testing W2). 컬럼도 셋 다 도는데, 한 컬럼만 보면 나머지 둘이
+  // 정규화로 갈려도 통과하기 때문이다(같은 라운드 INFO #5 의 대칭 갭).
+  //
+  // 타입상 두 컬럼은 non-null 이라 **정적으로는** 도달 불가다. 캐스트로 TypeORM 이
+  // 런타임에 줄 수 있는 형태를 재현한다.
+  describe.each([
+    ['undefined', undefined],
+    ['null', null],
+  ] as const)('부재가 %s 일 때', (_label, absent) => {
+    it.each([
+      ['inputData' as const],
+      ['outputData' as const],
+      ['error' as const],
+    ])('%s 를 그대로 보존하고 행 참조도 유지한다', (column) => {
+      const input = row({ [column]: absent } as unknown as Record<
+        string,
+        unknown
+      >);
+      const out = redactNodeExecutionRow(input);
+      expect(out).toBe(input);
+      expect(out[column]).toBe(absent);
+    });
   });
 });
