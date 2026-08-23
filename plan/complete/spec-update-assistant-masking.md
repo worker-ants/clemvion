@@ -64,7 +64,9 @@ EIA §R17 "잔여 ③" 이 *"어느 의미가 우선하는지는 **별도 결정
 - [x] `_product-overview.md` EH-NAV-04 구현 상태
 - [x] `egress-masking.md` §1 표 2행 + `code:` 2건 + §3 에 '표가 낡는 조건' 실례 기록
 - [x] 트래커 `17_12_34` W1 종결 + 자매 값 축 잔여를 별도 체크박스로 분리(미체크 27 유지)
-- [ ] (developer 턴 재개) 코드는 `3aaa4cd19` 에 이미 있음 → TEST WORKFLOW · `--impl-done` · `/ai-review`
+- [x] (developer 턴 재개) TEST WORKFLOW 4단계 · `--impl-done`(`17_34_06` BLOCK:NO) ·
+      `/ai-review` 3라운드(`16_46_56` → `17_14_18` → `17_53_08`) 전부 완료.
+      게이트 전표는 자매 plan [`assistant-mask-leak.md`](./assistant-mask-leak.md) §최종 게이트.
 
 ## 검증
 
