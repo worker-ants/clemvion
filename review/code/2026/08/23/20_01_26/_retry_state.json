@@ -1,0 +1,38 @@
+{
+  "session_dir": "/Volumes/project/private/clemvion/.claude/worktrees/nodeoutput-allowlist-17a6f5/review/code/2026/08/23/20_01_26",
+  "summary_subagent_type": "code-review-summary",
+  "summary_output_file": "/Volumes/project/private/clemvion/.claude/worktrees/nodeoutput-allowlist-17a6f5/review/code/2026/08/23/20_01_26/SUMMARY.md",
+  "router_subagent_type": "review-router",
+  "router_prompt_file": null,
+  "router_output_file": "/Volumes/project/private/clemvion/.claude/worktrees/nodeoutput-allowlist-17a6f5/review/code/2026/08/23/20_01_26/_routing_decision.json",
+  "routing_status": "skipped",
+  "routing_skip_reason": "REVIEW_AGENTS explicitly set",
+  "agents_forced": [
+    "testing"
+  ],
+  "agents_forced_reasons": {
+    "testing": [
+      "소스 코드 변경 — 코드 변경 시 항상 적용: codebase/backend/src/modules/external-interaction/interaction.service.spec.ts, codebase/backend/src/modules/external-interaction/interaction.service.ts, codebase/backend/src/shared/utils/node-output-allowlist.spec.ts (외 1건)"
+    ]
+  },
+  "agents_skipped": [],
+  "subagent_invocations": [
+    {
+      "name": "testing",
+      "subagent_type": "testing-reviewer",
+      "prompt_file": "/Volumes/project/private/clemvion/.claude/worktrees/nodeoutput-allowlist-17a6f5/review/code/2026/08/23/20_01_26/_prompts/testing.md",
+      "output_file": "/Volumes/project/private/clemvion/.claude/worktrees/nodeoutput-allowlist-17a6f5/review/code/2026/08/23/20_01_26/testing.md"
+    }
+  ],
+  "agents_pending": [
+    "testing"
+  ],
+  "agents_success": [],
+  "agents_fatal": [],
+  "agent_history": {},
+  "rate_limit_episodes": 0,
+  "total_wait_sec": 0,
+  "wake_history": [],
+  "last_reset_hint_sec": null,
+  "loop_mode": false
+}
