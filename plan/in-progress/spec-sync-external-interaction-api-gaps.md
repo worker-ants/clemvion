@@ -415,6 +415,21 @@ checker 가 독립적으로** "인용이 가리키는 절이 오히려 반대를
       > 예상 못 한 비용은 **spec 쪽**이었다 — 이 결론이 6개 문서에 SoT 로 미러돼 있어
       > planner 턴이 선행돼야 했다(`12_08_46` BLOCK:YES → `12_41_29` BLOCK:NO).
 
+- [ ] **Swagger `createDocument` boilerplate 공유 헬퍼 — 자체 선언한 "4번째 사례" 임계값에
+      도달했다** (2026-08-23 등재, `21_03_29` plan_coherence W2).
+      리뷰가 반복해서 *"4번째 유사 스펙이 생기면 공유 헬퍼로 추출하라"* 는 조건부 처분을
+      내렸는데, **이번 `re-run.dto.spec.ts` 가 그 4번째다**.
+      > **현재 4개 · 3개 모듈**: `workflows/workflows-execute-body.spec.ts` ·
+      > `external-interaction/dto/responses/interact-ack-response.dto.spec.ts` ·
+      > `…/execution-status-response.dto.spec.ts` · `executions/dto/re-run.dto.spec.ts`.
+      > 넷이 같은 형태를 반복한다 — 프로브 `@Controller`+`@Module` 선언, `createTestingModule`
+      > → `app.init()` → `try/finally` 로 `createDocument`, `SchemaObject` 파생 캐스팅.
+      > **왜 지금 안 뽑았나**: 리뷰어 스스로 "지금 불요 / 4번째에서" 로 판정했고, 그 4번째를
+      > 만드는 PR 안에서 곧바로 추출하면 그 PR 의 범위를 넘는다. 다만 **임계값 도달 사실이
+      > review 산출물에만 남으면 다음 세션이 문서고고학을 해야 발견한다** — 그래서 여기 적는다.
+      > **착수 시**: `expectSwaggerProperty(doc, dtoName, propName)` 류로 캐스팅과 방어적
+      > 옵셔널 체이닝(`components` 가 `undefined` 면 설명 없는 `TypeError`)을 한 곳에 모은다.
+
 - [ ] **`redact-stored-error.ts` 위생 4건 — 다음에 이 파일을 손댈 때 묶어서** (2026-08-23 등재).
       전부 비차단 INFO 로 3라운드에 걸쳐 반복 지목됐고, 각각은 지금 별도 diff 를 만들 값이
       없다. 이 파일을 **다른 이유로** 여는 순간 함께 처리한다.
