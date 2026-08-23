@@ -74,9 +74,18 @@ const ITK_CTX: InteractionRequestContext = {
   triggerId: 'trg-1',
 };
 
-function makeExecution(
-  overrides: Partial<Execution> = {},
-): Pick<
+/**
+ * `overrides` 를 **반환 타입과 같은 키 집합**으로 좁힌다 — `Partial<Execution>` 이었을 때
+ * `error` 처럼 반환에 없는 컬럼을 조용히 받아들여, 그 값이 응답에 반영될 거라 오해하기
+ * 쉬웠다. 실제로 이 함정으로 캐너리를 한 번 잘못 썼다(`19_43_33` testing INFO 3).
+ * 이제 그런 키를 넘기면 **컴파일 에러**가 난다.
+ *
+ * `conversationThread` 는 **반환 타입엔 없지만 넣는다** — `getStatus` 의 2단계 조회가
+ * **같은 `repo.findOne`** 을 쓰므로 이 헬퍼가 두 조회를 다 먹인다(실측: 좁혔더니 기존
+ * 호출부 6곳이 컴파일 에러였고, 그 여섯은 정당했다). 반면 `error` 는 어느 조회도 읽지
+ * 않으므로 계속 막힌다 — 그게 이 좁히기가 잡으려던 것이다.
+ */
+type ExecutionFixture = Pick<
   Execution,
   | 'id'
   | 'status'
@@ -85,7 +94,12 @@ function makeExecution(
   | 'startedAt'
   | 'finishedAt'
   | 'durationMs'
-> {
+  | 'conversationThread'
+>;
+
+function makeExecution(
+  overrides: Partial<ExecutionFixture> = {},
+): ExecutionFixture {
   return {
     id: 'exec-1',
     status: ExecutionStatus.WAITING_FOR_INPUT,
@@ -609,6 +623,97 @@ describe('InteractionService.getStatus', () => {
       waitingNodeId: 'n1',
       buttonConfig: { buttons: [{ id: 'b1', label: '문의' }] },
     });
+  });
+
+  // buttons 분기는 `{ buttons, nodeOutput }` 로 다시 감싼다 — 지금은 form 과 같은 `out`
+  // 참조를 재사용해 사실상 안전하지만, 분기가 독립적으로 재가공되면 회귀를 못 잡는다
+  // (`19_00_23` testing INFO 4).
+  it('[캐너리] buttons 분기의 `buttonConfig.nodeOutput` 도 allowlist 를 지난다', async () => {
+    const { service, repo, nodeRepo } = makeMocks();
+    repo.findOne.mockResolvedValue(
+      makeExecution({ status: ExecutionStatus.WAITING_FOR_INPUT }),
+    );
+    nodeRepo.findOne.mockResolvedValue({
+      nodeId: 'n1',
+      node: { type: 'Carousel' },
+      outputData: {
+        meta: { interactionType: 'buttons' },
+        buttonConfig: { buttons: [{ id: 'b1', label: '문의' }] },
+        _retryState: { attempt: 1 },
+      },
+    });
+    const r = await service.getStatus(IEXT_CTX);
+    const bc = (r.context as unknown as Record<string, unknown>)
+      .buttonConfig as Record<string, unknown>;
+    const nested = bc.nodeOutput as Record<string, unknown>;
+    expect(nested._retryState).toBeUndefined();
+    // 대조군 — 버튼 자체는 살아 있어야 한다.
+    expect(bc.buttons).toEqual([{ id: 'b1', label: '문의' }]);
+  });
+
+  // 설계 경계를 **의도 명시**로 못박는다 — 지금은 무관 테스트의 부수 효과로만 덮인다
+  // (`19_00_23` testing INFO 5). terminal `result` 는 `Execution.outputData` = 작성자가
+  // 정의한 워크플로 출력이라 allowlist 를 걸면 정상 데이터가 잘린다.
+  it('[캐너리] terminal `result` 는 nodeOutput allowlist 를 받지 **않는다** (의도)', async () => {
+    const { service, repo } = makeMocks();
+    repo.findOne.mockResolvedValue(
+      makeExecution({
+        status: ExecutionStatus.COMPLETED,
+        outputData: { 작성자가정한임의키: 'keep', total: 42 },
+      }),
+    );
+    const r = await service.getStatus(IEXT_CTX);
+    const result = r.result as Record<string, unknown>;
+    // allowlist 였다면 둘 다 사라졌을 것이다.
+    expect(result.작성자가정한임의키).toBe('keep');
+    expect(result.total).toBe(42);
+  });
+
+  // `error` 출구는 `result` 와 코드가 완전 대칭인데 캐너리는 한쪽에만 있었다
+  // (`19_24_24` testing INFO 3). 두 출구를 통합 리팩터링할 때 한쪽만 바뀌는 걸 막는다.
+  it('[캐너리] terminal `error` 도 nodeOutput allowlist 를 받지 **않는다** (의도)', async () => {
+    const { service, repo } = makeMocks();
+    repo.findOne.mockResolvedValue(
+      makeExecution({
+        status: ExecutionStatus.FAILED,
+        // 두 terminal 출구는 **둘 다 `execution.outputData`** 를 읽는다(`error` 컬럼 아님).
+        outputData: { 임의진단키: 'keep', code: 'BOOM' },
+      }),
+    );
+    const r = await service.getStatus(IEXT_CTX);
+    const err = r.error as unknown as Record<string, unknown>;
+    expect(err.임의진단키).toBe('keep');
+    expect(err.code).toBe('BOOM');
+  });
+
+  // 배선 캐너리 — 헬퍼 자체는 `strip-external-only-fields.spec.ts` 가 고정한다. 여기서는
+  // **`getStatus` 가 실제로 그 헬퍼를 지나는지**만 본다. 이 시리즈가 반복해 겪은 형태:
+  // 헬퍼는 초록인데 호출부에 안 걸려 있었다.
+  it('[캐너리] waiting nodeOutput 이 엔진 내부 `_retryState` 를 싣지 않는다 (EIA §R17)', async () => {
+    const { service, repo, nodeRepo } = makeMocks();
+    repo.findOne.mockResolvedValue(
+      makeExecution({ status: ExecutionStatus.WAITING_FOR_INPUT }),
+    );
+    nodeRepo.findOne.mockResolvedValue({
+      nodeId: 'n1',
+      node: { type: 'Form' },
+      // `_retryState` 는 실제로 이 컬럼에 저장된다(`retry-turn.service.ts`).
+      // deny-list(`llmCalls` 한 칸)만 있던 시절엔 그대로 외부로 나갔다.
+      outputData: {
+        config: { fields: [] },
+        output: {},
+        meta: { interactionType: 'form' },
+        _retryState: { attempt: 2 },
+        __unknownFutureKey: 'leak',
+      },
+    });
+    const r = await service.getStatus(IEXT_CTX);
+    const out = (r.context as unknown as Record<string, unknown>)
+      .nodeOutput as Record<string, unknown>;
+    expect(out._retryState).toBeUndefined();
+    expect(out.__unknownFutureKey).toBeUndefined();
+    // 폼 폴백이 쓰는 셋은 살아 있어야 한다 — 위젯이 nodeOutput 자체를 폼 선언으로 쓴다.
+    expect(Object.keys(out).sort()).toEqual(['config', 'meta', 'output']);
   });
 
   // interactionType 이 sound discriminator 가 아님을 고정하는 가드 — buttons 인데

@@ -43,6 +43,7 @@ import {
   deepRedactSecrets,
   MAX_REDACT_DEPTH,
 } from '../../shared/utils/sanitize-error-message';
+import { allowlistNodeOutputKeys } from '../../shared/utils/node-output-allowlist';
 import { stripExternalOnlyFields } from '../../shared/utils/strip-external-only-fields';
 
 const TERMINAL_STATUSES: ReadonlySet<ExecutionStatus> = new Set([
@@ -309,7 +310,9 @@ export class InteractionService {
    * 기록하면 안 된다. 허용되는 데이터는 EIA 클라이언트가 렌더에 필요한 interaction 메타(버튼 설정,
    * 폼 스키마, conversation config)와 대화 히스토리로 한정한다 (node-execution.entity.ts `@Index` JSDoc 참조).
    * `conversationThread` 의 turn 텍스트 불변식은 SSE 와 공유하는 `redactThreadForPublic` 로 egress 시
-   * 런타임 마스킹돼 자동 강제된다 (EIA §R17). `outputData`/`nodeOutput` 키-allowlist 는 별개 잔여 항목.
+   * 런타임 마스킹돼 자동 강제된다 (EIA §R17). `nodeOutput` 키-allowlist 는 **이 함수의 waiting
+   * 출구 1곳에 fail-closed 로 적용**된다(2026-08-23) — terminal `result`/`error` 는 작성자
+   * 데이터라 의도적 제외, SSE·fanout 은 잔여. 범위 표는 EIA §R17.
    *
    * **`conversationThread` (durable 동봉, EIA §R17 재조정 2026-07-09)**: `waiting_for_input` 시
    * durable 스냅샷(`Execution.conversation_thread`)을 SSE 와 동일 wire shape 으로 동봉해 위젯의
@@ -382,7 +385,13 @@ export class InteractionService {
         // `meta.turnDebug[].llmCalls[]` 의 raw 프롬프트가 그대로 나간다. fanout 과 **같은
         // 수준**으로 debug 필드를 제거한다 (`12_06_21` cross_spec CRITICAL 1, 테스트로 실증).
         // 같은 `iext_*`/`itk_*` 토큰이 닿는 표면이므로 fanout 만 막는 것은 반쪽이었다.
-        const out = stripAndRedact(nodeExec.outputData) ?? {};
+        // EIA §R17 잔여 — **fail-closed allowlist**. 위 `stripAndRedact` 는 deny-list
+        // (`llmCalls` 한 칸)라 새 핸들러 키가 기본값으로 통과했다. 실제로 엔진 내부
+        // `_retryState` 가 그렇게 나가고 있었다. `NodeHandlerOutput` **공개 키에 결속된**
+        // 최상위 키 집합만 남긴다(결속은 컴파일타임 assertion) — 근거·범위는 그 상수의 JSDoc.
+        const out = allowlistNodeOutputKeys(
+          stripAndRedact(nodeExec.outputData) ?? {},
+        );
         const meta = (out.meta ?? {}) as { interactionType?: string };
         const rawInteractionType = meta.interactionType ?? null;
         const interactionType =

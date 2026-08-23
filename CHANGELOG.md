@@ -1,5 +1,34 @@
 # Changelog
 
+## Unreleased — `nodeOutput` 이 deny-list 한 칸에 기대고 있었고, 엔진 내부 필드가 새고 있었다
+
+`GET /api/external/executions/:id` 의 waiting `nodeOutput` 은 노드의 **전체 `outputData`** 에서
+`llmCalls` **하나만** 뺀 것이었다(`EXTERNAL_STRIPPED_FIELDS`). deny-list 라 **새 핸들러 키가
+기본값으로 통과**한다.
+
+**실제로 새고 있던 것**: 엔진 내부 `_retryState`. `NodeExecution.outputData` 에 저장되고
+(`retry-turn.service.ts`) `llmCalls` 가 아니므로 그대로 외부로 나갔다. 자매 `_resumeState` 의
+JSDoc 이 *"표현식 리졸버·UI 자동완성에 노출되지 않게 `output` 밖에 뒀다"* 고 적은 그 의도가
+외부 REST 에서만 지켜지지 않았다.
+
+> **운영 영향**: 이 필드는 재시도 continuation 상태(시도 횟수·TTL·메시지 일부)로
+> 자격증명은 아니다. 다만 **과거 waiting 응답을 받은 토큰 보유자에게 이미 노출됐을 수 있다** —
+> 같은 표면의 선행 수정(`llmCalls` fanout 누출)과 같은 성격의 기록이다.
+
+**fail-open deny-list → fail-closed allowlist.** 목록은 발명하지 않고 `NodeHandlerOutput` 의
+공개 키에 **컴파일타임 assertion 으로 결속**했다 — 그 타입에 공개 키가 늘면 빌드가 깨진다.
+(실증: 목록에서 `status` 를 빼면 `TS2322`.)
+
+**범위는 총칭이 아니라 열거다** — `getStatus` waiting `nodeOutput` **1곳**에만 적용한다.
+terminal `result`/`error` 는 `Execution.outputData` = **작성자가 정의한** 워크플로 출력이라
+allowlist 를 걸면 정상 데이터가 잘린다. **SSE·fanout 은 여전히 deny-list(잔여)** 이고
+정본 트래커에 별도 항목으로 등재돼 있다 — 즉 이 시점부터 REST 와 SSE 의 `nodeOutput` 필터
+강도가 다르다.
+
+평평한 allowlist 를 손으로 나열했다면 **폼 렌더가 깨졌다**: 위젯이
+`nodeOutput.formConfig ?? nodeOutput` 으로 `nodeOutput` 자체를 폼 선언으로 쓰는데 폼 핸들러는
+`formConfig` 를 안 낸다(`{config, output, meta}` 만).
+
 ## Unreleased — Manual 세 경로가 같은 검증 실패에 서로 다른 코드를 내고 있었다
 
 **Behavior change (breaking): `POST /executions/:id/re-run` 의 `inputOverride` 검증 실패 봉투가

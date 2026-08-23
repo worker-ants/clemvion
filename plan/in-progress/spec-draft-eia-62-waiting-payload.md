@@ -180,6 +180,11 @@ strip 결정의 SoT 는 WS §4.4 Rationale 의 `### ai_message.llmCalls[] 외부
   가 `getStatus 일반 nodeOutput 키-allowlist (§R17 잔여)` 를 **미완료로 추적 중**이다.
   이번 정정은 "`llmCalls` 는 삭제된다" 를 더하는 것이지 "일반 키 allowlist 가 생겼다" 가
   아니다 — 그 불릿을 보존하고, 문구가 바뀌면 형제 트래커의 인용도 함께 갱신한다
+  > **→ 그 불릿은 이제 종결됐다 (2026-08-23, `nodeoutput-allowlist` PR).** 위 가드레일이
+  > 요구한 "인용 동기화" 를 그 PR 이 수행한 기록이다(`20_09_38` plan_coherence W4 가 지목).
+  > **다만 부분 종결이다** — REST `getStatus` waiting 출구만 fail-closed allowlist 를 받고,
+  > terminal `result`/`error` 는 작성자 데이터라 의도적 제외, **SSE·fanout 은 잔여**로 정본
+  > 트래커에 별도 항목이 서 있다. §R17 의 범위 표가 그 셋의 SoT 다.
 
 ## 🔴 조사 중 발견 — `turnDebug.llmCalls` 가 외부 fanout 으로 새는 것으로 보인다
 

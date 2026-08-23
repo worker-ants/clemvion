@@ -1,0 +1,22 @@
+# Rationale 연속성 검토 — `spec/5-system/14-external-interaction-api.md` (nodeOutput allowlist, --impl-prep)
+
+## 발견사항
+
+- **[WARNING]** 신규 fail-closed allowlist 가 §R17 이 확립한 "3-출구 열거 원칙" 을 1개 출구로만 좁히면서, 그 범위·근거를 아직 spec 에 기록하지 않았다
+  - target 위치: `codebase/backend/src/modules/external-interaction/interaction.service.ts` (`getStatus` 의 `allowlistNodeOutputKeys(stripAndRedact(...))` 적용부) + `codebase/backend/src/shared/utils/strip-external-only-fields.ts` (`NODE_OUTPUT_ALLOWED_KEYS` / `allowlistNodeOutputKeys` JSDoc). 아직 손대지 않은 `spec/5-system/14-external-interaction-api.md` §R17 "`nodeOutput` 일반 키 allowlist (미구현·잔여)" 항목이 이 변경의 spec 착지점이다 (`plan/in-progress/nodeoutput-allowlist.md` 체크리스트에 "(planner 턴) EIA §R17 잔여 문구 flip + allowlist 를 spec 에 정의" 로 명시, 아직 미체크).
+  - 과거 결정 출처: `spec/5-system/14-external-interaction-api.md` §Rationale R17, "`nodeOutput.conversationConfig` + terminal `result`/`error` (강제됨 — bypass 차단)" 단락 — "`getStatus` 는 세 출구(waiting `nodeOutput` · terminal `result`(COMPLETED) · terminal `error`(FAILED)) **전부**에 값 마스킹 + 필드 삭제를 병행한다" 및 바로 아래 "적용 범위는 총칭이 아니라 열거다" / "*"모든 내부 읽기 경로"* 로 읽으면 아래 잔여가 가려진다 — 이 문서가 반복해 겪은 실패 형태라 표면을 이름으로 못박는다" 단락.
+  - 상세: R17 은 이 문서가 반복적으로 겪은 실패 형태(새 방어를 일부 출구에만 걸고 나머지를 놓침 — `outputData` 카브아웃, 종결 `error` 비대칭 등 각 사례가 뒤늦게 "닫힘" 처리됨)를 명시적으로 이름 붙여 경계해 왔고, 그 교훈으로 새 방어가 추가될 때마다 "적용 범위는 총칭이 아니라 열거다" 라는 문구로 대상 표면을 명시 열거해 왔다. 이번 신규 `NODE_OUTPUT_ALLOWED_KEYS` 필드-제거 방어는 `getStatus` 의 세 출구 중 waiting `nodeOutput` 한 곳에만 적용되고 terminal `result`/`error` 에는 적용되지 않는다. 코드 주석은 그 이유(`result` 는 `Execution.outputData` = 작성자 정의 워크플로 출력이라 `NodeHandlerOutput` shape 이 아니므로 allowlist 를 걸면 정상 데이터가 잘린다)를 합리적으로 설명하지만, 이 판단과 그 근거는 아직 spec §R17 본문에 반영되지 않았다. 이 상태로 머지되면 R17 을 읽는 사람은 "3-출구 열거 원칙" 이 이번 방어에는 적용되지 않은 이유를 spec 에서 찾을 수 없다 — 이 문서가 스스로 경계해 온 "표면 누락" 패턴과 겉보기에 같은 모양이 된다(실제로는 의도된 shape 차이에 근거한 결정이지만, 그 근거가 spec 밖 코드 주석에만 있다).
+  - 제안: `plan/in-progress/nodeoutput-allowlist.md` 의 계획대로 planner 턴에서 §R17 "`nodeOutput` 일반 키 allowlist" 잔여 항목을 "구현됨" 으로 flip 하면서, (a) 적용 대상은 waiting `nodeOutput` 출구 1곳뿐이라는 것, (b) terminal `result`/`error` 는 `NodeHandlerOutput` shape 이 아니라(작성자 정의 워크플로 출력) 대상에서 **의도적으로 제외**한다는 것, (c) SSE emit 은 여전히 `sanitizePayloadForWs` 의 키 기반 부분 방어만 있고 이 allowlist 의 대상이 아니라는 기존 서술이 유지된다는 것을 명시적으로 적을 것. 이 3가지가 R17 의 기존 "열거" 스타일과 정합하게 spec 에 남아야 CRITICAL 로 재발 소지가 없다.
+
+- **[INFO]** `NODE_OUTPUT_ALLOWED_KEYS` JSDoc 의 "발명하지 않고 파생한다" 표현이 실제로는 컴파일 타임 파생이 아니라 손으로 맞춘 평행 리스트
+  - target 위치: `codebase/backend/src/shared/utils/strip-external-only-fields.ts` `NODE_OUTPUT_ALLOWED_KEYS` JSDoc — "이 목록은 **발명하지 않고 파생**한다 ... 두 번째 손-동기화 목록을 만들면 이 저장소가 반복해서 치른 drift 비용이 그대로 재발한다"
+  - 과거 결정 출처: 같은 문서 §R17 "마커 집합과 깊이 상한의 SoT 는 공유 패키지 [`@workflow/masked-markers`]" 단락 — "예전엔 두 스택이 값을 손으로 복제했고 한쪽만 늘면 다른 쪽이 그 신규 마커에 대해 조용히 fail-open 했다" 는 바로 이 저장소가 겪은 hand-sync mirror drift 사고 이력.
+  - 상세: `NODE_OUTPUT_ALLOWED_KEYS` 는 `codebase/backend/src/nodes/core/node-handler.interface.ts` 의 `NodeHandlerOutput` (`config`/`output`/`meta`/`port`/`status`/`_resumeState`/`_retryState`) 의 공개 5필드를 리터럴 배열로 옮겨 적은 것으로, `keyof NodeHandlerOutput` 같은 타입 레벨 파생·`satisfies` 체크가 없다. 즉 "타입에서 파생" 이 아니라 현재 시점 값을 손으로 맞춘 것이며, `NodeHandlerOutput` 이 향후 바뀌어도 컴파일 에러로 드러나지 않는다. 다만 **위험의 방향은 과거 마커-리스트 사고와 반대**다 — 이건 allow-list 라 목록에 없는 신규 키는 기본값이 배제(fail-closed) 되므로, 과거처럼 신규 키가 조용히 새어나가는(fail-open) 보안 사고로는 이어지지 않는다. 워스트케이스는 향후 의도적으로 공개하려는 새 `NodeHandlerOutput` 필드가 이 목록 갱신을 잊으면 조용히 잘려 나가는 기능 회귀(가시적 렌더 누락)다.
+  - 제안: (a) JSDoc 문구를 "타입에서 파생" 대신 "현재 `NodeHandlerOutput` 공개 필드와 수동으로 맞춘 리스트(파생 아님)" 로 낮추거나, (b) `NODE_OUTPUT_ALLOWED_KEYS` 의 handler-계약 5키 부분만이라도 `type _Check = typeof NODE_OUTPUT_ALLOWED_KEYS[number] extends keyof NodeHandlerOutput | 'formConfig' | 'conversationConfig' | 'buttonConfig' | 'interactionType' ? true : false` 류의 컴파일 타임 assertion 으로 링크. 필수 차단 사유는 아니며 spec 착지 시점에 함께 정리하면 충분.
+
+## 요약
+
+이번 `nodeoutput-allowlist` 작업은 `spec/5-system/14-external-interaction-api.md` §R17 이 이미 "미구현·잔여" 로 명시해 둔 항목(`nodeOutput` 일반 키 allowlist)을 채우는 것이라 **기각된 대안의 재도입이나 invariant 위반은 없다** — 오히려 R17 이 반복해 온 "값 마스킹만으로 부족, 필드 삭제 병행" 원칙을 그대로 계승한다. 다만 새 방어를 `getStatus` 세 출구 중 waiting `nodeOutput` 한 곳에만 적용한 결정은, R17 이 스스로 여러 차례 강조해 온 "적용 범위는 총칭이 아니라 열거" 원칙에 맞춰 그 범위와 제외 근거를 spec 본문에 명시적으로 남겨야 한다 — 이는 이미 `plan/in-progress/nodeoutput-allowlist.md` 의 planner-턴 TODO 로 계획돼 있으므로, 그 TODO 완수 여부가 이 시점 유일한 미결 신호다. `NODE_OUTPUT_ALLOWED_KEYS` 의 "타입에서 파생" 문구는 실제로는 손으로 맞춘 평행 리스트라 표현이 과장돼 있으나, allowlist 특유의 fail-closed 방향성 덕에 과거 hand-sync 마커 드리프트 사고와 같은 보안 리스크로 이어지지는 않는다.
+
+## 위험도
+LOW
