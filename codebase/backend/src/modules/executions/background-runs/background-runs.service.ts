@@ -18,10 +18,7 @@ import {
   BackgroundRunStatus,
 } from './dto/background-run-response.dto';
 import { QueryBackgroundRunDto } from './dto/query-background-run.dto';
-import {
-  redactStoredDataForResponse,
-  redactStoredErrorForResponse,
-} from '../../../shared/utils/redact-stored-error';
+import { redactStoredFieldsForResponse } from '../../../shared/utils/redact-stored-error';
 
 const NODE_EXECUTIONS_DEFAULT_LIMIT = 50;
 const NODE_EXECUTIONS_MAX_LIMIT = 200;
@@ -302,9 +299,7 @@ export class BackgroundRunsService {
       // 컬럼을 싣는다. 읽기 표면 전체 목록은 `ExecutionsService.toResponseExecution` 의
       // 표가 정본이다. **`inputData` 도 마스킹한다** — 2026-08-20 부터 `Execution` 레벨도
       // 마스킹 대상이 되어 두 레벨이 같은 규칙이다.
-      inputData: redactStoredDataForResponse(row.inputData),
-      outputData: redactStoredDataForResponse(row.outputData),
-      error: redactStoredErrorForResponse(row.error),
+      ...redactStoredFieldsForResponse(row),
     };
   }
 

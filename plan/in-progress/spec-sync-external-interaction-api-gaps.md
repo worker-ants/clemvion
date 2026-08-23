@@ -318,15 +318,52 @@ checker 가 독립적으로** "인용이 가리키는 절이 오히려 반대를
       > 예상 못 한 비용은 **spec 쪽**이었다 — 이 결론이 6개 문서에 SoT 로 미러돼 있어
       > planner 턴이 선행돼야 했다(`12_08_46` BLOCK:YES → `12_41_29` BLOCK:NO).
 
-- [ ] **`inputData` 마스킹 게이트 4곳을 단일 헬퍼로 통합** (2026-08-20 등재, `14_44_08` W4).
-      `toResponseExecution` · `toExecutionDto` · 노드 레벨 `maskIfPresent` 루프 ·
-      `background-runs.service.ts` 가 각자 마스킹을 걸고, 유일한 동기화 장치가 **사람이 읽는
-      주석 표**다. 이 fragmentation 때문에 실제로 자매 DTO JSDoc 이 갱신에서 빠지는 CRITICAL 이
-      났다(`14_08_45` C2) — 근본 원인은 그대로 남아 있다.
-      > 공유 `redactExecutionFields(row)` 또는 응답 직전 interceptor 로 통합 검토.
-      > **착수 시 동반 갱신**: 이 통합이 집행되면 개별 호출부 심볼이 헬퍼 하나로 흡수돼
+- [ ] **`redact-stored-error.ts` 위생 4건 — 다음에 이 파일을 손댈 때 묶어서** (2026-08-23 등재).
+      전부 비차단 INFO 로 3라운드에 걸쳐 반복 지목됐고, 각각은 지금 별도 diff 를 만들 값이
+      없다. 이 파일을 **다른 이유로** 여는 순간 함께 처리한다.
+      > 1. `redactNodeExecutionRow` 만 자매 3개의 `…ForResponse` 접미사를 안 따른다.
+      > 2. 4개 export 의 JSDoc 이 `@param`/`@returns` 태그 유무로 갈린다.
+      > 3. `redactNodeExecutionRow<T>` 의 제네릭이 바로 위 `maskIfPresent` 의 *"제네릭을 쓰지
+      >    않는다"* 와 나란히 놓여 **오독 소지**가 있다(`15_16_28` rationale INFO 1). 실질
+      >    모순은 아니다 — 그쪽 회피 사유는 `mask` **파라미터**에서 추론되는 경로인데 이쪽은
+      >    `row` **인자**에서 추론된다. 한 줄이면 갈린다.
+      > 4. `egress-masking.md` frontmatter `code:` 에 `redact-stored-error.ts` 미등재.
+      >    (4번은 `spec/` 편집이라 위 권한-경계 항목의 처분에 종속된다.)
+
+- [ ] **`developer` 의 자기-예측 반증형 spec 소정정 — 권한 경계를 정한다** (2026-08-23 등재,
+      `14_23_44` scope W2). `masking-gate-consolidation` 에서 developer 턴이
+      `spec/conventions/egress-masking.md §3` 을 직접 고쳤다. 내용은 정확하고 5개 consistency
+      checker + 9개 reviewer 가 전원 타당 판정했지만, CLAUDE.md 권한표는 developer 를 `spec/`
+      **read-only** 로 못박고 "구현 중 spec 변경 필요 시 planner 위임" 을 따로 강조한다.
+      실질 위험은 형식이 아니라 **게이트**다 — 이 편집은 `--impl-prep` 만 거쳤고 spec 편집이
+      받아야 할 `--spec` 은 못 받았다.
+      > **planner 판단 항목**: (a) developer 가 *자기가 그 문서에 적어 둔 예고를 실측으로
+      > 반증하는* 소정정을 예외로 명문화할지, (b) 그런 정정도 planner 턴으로 강제할지.
+      > (b) 를 택하면 "예고를 남긴 사람과 반증할 수 있는 사람이 달라진다" 는 비용을 받는다.
+      > 이 항목 자체가 그 비용의 사례다 — 반증 근거는 이미 위 종결 항목에 실측으로 남아 있다.
+
+- [x] **`inputData` 마스킹 게이트 4곳을 단일 헬퍼로 통합** (2026-08-20 등재, `14_44_08` W4 —
+      **2026-08-23 종결**). `toResponseExecution` · `toExecutionDto` · 노드 레벨 `maskIfPresent`
+      루프 · `background-runs.service.ts` 가 각자 마스킹을 걸고, 유일한 동기화 장치가 **사람이
+      읽는 주석 표**였다. 이 fragmentation 때문에 실제로 자매 DTO JSDoc 이 갱신에서 빠지는
+      CRITICAL 이 났다(`14_08_45` C2).
+      > **집행 결과**: `redact-stored-error.ts` 에 헬퍼 **둘**을 인접 배치했다 —
+      > `redactStoredFieldsForResponse`(DTO 조립 3곳, 부재를 `null` 로 정규화) ·
+      > `redactNodeExecutionRow`(`nodeExecutions[]` 행, copy-on-change·부재 보존).
+      > **하나로 뭉개지 않았다** — 노드 레벨은 엔티티 형태를 그대로 싣는 자리라 `undefined →
+      > null` 정규화가 응답 shape 을 바꾸고 copy-on-change 를 깬다. 등재 시 제안한
+      > `redactExecutionFields(row)` **단일** 헬퍼는 그 이유로 기각. interceptor 안은
+      > 미검토 — 두 헬퍼로 SoT 가 한 파일에 모여 동기 문제가 해소돼 착수 근거가 사라졌다.
+      > **뮤테이션 검증**: `inputData` 마스킹 제거 → 5개 테스트 RED(표면 ①상세·②목록·⑧chain·
+      > ⑧-b stop + background-runs), identity 보존 파기 → 2개 RED. 둘 다 `tsc` 선검증 통과.
+      > ~~**착수 시 동반 갱신**: 이 통합이 집행되면 개별 호출부 심볼이 헬퍼 하나로 흡수돼
       > [`egress-masking` 규약 §1 좌표계 표](../../spec/conventions/egress-masking.md) 의
-      > 소비처 열이 stale 해진다(그 문서 §3 에 같은 트리거가 적혀 있다).
+      > 소비처 열이 stale 해진다(그 문서 §3 에 같은 트리거가 적혀 있다).~~
+      > **그 예고는 틀렸다 — 표는 무변경이다.** 실측: 표 2행 소비처 `deepRedactSecrets` 는
+      > 신규 래퍼가 흡수하지 않고 그 **위**에 서고(사슬만 한 겹 길어진다), 표 5행 소비처
+      > `stripExternalOnlyFields` 는 호출부가 `websocket.service.ts`·`interaction.service.ts`
+      > 뿐이라 이 4개 게이트와 접점이 없다. 표는 **마스커(함수) 좌표계**인데 예고를 쓸 때
+      > **호출부(응답 조립부) 좌표계**로 착각했다 — 표 대신 그 §3 트리거 문장을 정정했다.
 
 - [x] **`inputOverride` 서버측 마커 리터럴 거부** (2026-08-20 등재, `14_44_08` W6 — **2026-08-21 종결**).
       `resolveTriggerParameters` 는 타입·필수값만 보므로 UI 를 우회한 클라이언트(curl)는
