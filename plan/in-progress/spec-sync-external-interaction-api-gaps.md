@@ -69,7 +69,33 @@ owner: planner
     - **재리뷰(`09_36_01`) 가 잡은 잔여 gap — C1 fix 의 자기 사각지대**: C1 의 조기 return 근거("부팅 전엔 정리할 게 없다")는 **메모리에만 참**이고 `sessionStorage` 의 이전 세션은 놓친다 → 부팅 중 `resetSession` 이 조용히 무시되고 **옛 대화가 부활**(재현 확인, side_effect·security 독립 지적). fix = `pendingResetRef` 로 의도를 기록하고 `applyConfig` 가 `loadSession` 직전 소비. 교훈: **"정리할 게 없다"를 메모리만 보고 판단하면 영속 상태를 놓친다.**
     - 검증(`08_29_33`+`09_36_01` 반영 후): 신규 회귀 테스트 **8건**(vitest 실측 — eager-start 36→40: C1·C1-b·W2·W3 / token-refresh 10→11: W5 / widget-state 37→40: W4 가드 + 재개 경로 2케이스). 전부 mutation 검증(대응 가드 제거 시 **그 테스트만** 실패). 특히 W3 는 리뷰어가 "제거해도 364건 중 0건 실패"라 실증한 언마운트 지점을 닫은 것. channel-web-chat 22 파일 **372 passed**, lint·unit·build PASS.
     - **분리는 여전히 후속 후보** — 다만 그 경계는 `useEiaStream`(스트림)이 아니라 `useEiaSession`(세션 라이프사이클 전체, ≈300/735줄)이어야 하고, 가드가 하나로 정리된 **지금 상태에서 하는 편이 안전**하다. 기존 `useTokenRefresh`/`usePendingMessageQueue` 가 ref 주입 계약을 확립해 뒀다.
-- [ ] **`getStatus` 일반 `nodeOutput` 키-allowlist** (§R17 잔여) — §R17 이 "conversationConfig 이외의 일반 `nodeOutput` 키-allowlist 만 잔여 항목" 이라 명시했으나 등재된 plan 이 없었다. 현재 `conversationThread`·`ai_message`·`nodeOutput.conversationConfig` 는 `redactThreadForPublic`/`deepRedactSecrets` 로 마스킹되지만 그 외 `nodeOutput` 키는 공개 표면에 그대로 실린다. 도입 시 §R17 잔여 문구 flip. (2026-07-10 consistency `plan-coherence` W3 로 등재 — spec-impl-evidence R-5 "빈 약속 영구 누락" 방지.)
+- [ ] **SSE/fanout 의 `nodeOutput` 은 여전히 fail-open deny-list 다** (2026-08-23 등재,
+      `18_30_40` plan_coherence W2 — 위 REST 항목에서 **의도적으로 분리**).
+      `toFanoutEnvelope` 는 **envelope 레벨**에서 `stripExternalOnlyFields` 를 걸므로 그 안의
+      `nodeOutput` 에 allowlist 를 대려면 별건 변경이 필요하다. 같은 `_retryState` 를 나르고,
+      **chat-channel 어댑터가 같은 subject 를 구독**해 blast radius 가 REST 열람자보다 넓다.
+      > **왜 같이 안 닫았나**: (a) envelope shape 이 달라 한 줄 대칭 적용이 안 되고,
+      > (b) 그 payload 를 chat-channel 렌더러가 소비하므로 잘못 좁히면 **외부 채널 렌더가
+      > 깨진다** — REST 열람(읽고 버림)과 위험이 다르다.
+      > **착수 시**: EIA §R17 의 표에서 이 행을 flip 하고, "REST·SSE 방어 강도가 다르다" 는
+      > 서술을 함께 지운다. 그 표가 이 항목의 SoT 다.
+
+- [x] **`getStatus` 일반 `nodeOutput` 키-allowlist** (§R17 잔여) — §R17 이 "conversationConfig 이외의 일반 `nodeOutput` 키-allowlist 만 잔여 항목" 이라 명시했으나 등재된 plan 이 없었다. 현재 `conversationThread`·`ai_message`·`nodeOutput.conversationConfig` 는 `redactThreadForPublic`/`deepRedactSecrets` 로 마스킹되지만 그 외 `nodeOutput` 키는 공개 표면에 그대로 실린다. 도입 시 §R17 잔여 문구 flip. (2026-07-10 consistency `plan-coherence` W3 로 등재 — spec-impl-evidence R-5 "빈 약속 영구 누락" 방지.)
+      > **→ 종결 (2026-08-23).** 착수 전 프로브가 **전제를 절반 갈았다**: 그 사이
+      > `stripAndRedact` 가 세 출구에 걸려 "그대로 실린다" 는 낡았고, 진짜 문제는
+      > `EXTERNAL_STRIPPED_FIELDS = ['llmCalls']` — **deny-list 한 칸**이라 새 키가
+      > 기본값으로 통과한다는 것(fail-open)이었다.
+      > **지금 새던 구체 사례**: 엔진 내부 `_retryState` 는 `NodeExecution.outputData` 에
+      > 저장되고(`retry-turn.service.ts`) `llmCalls` 가 아니라 그대로 나갔다. 자매
+      > `_resumeState` 의 JSDoc 이 "표현식·UI 에 노출되지 않게 `output` 밖에 뒀다" 고 적은
+      > 의도가 외부 REST 에서만 안 지켜지고 있었다.
+      > **평평한 allowlist 를 손으로 나열하면 안 됐다**: 위젯이 `form → nodeOutput.formConfig
+      > ?? nodeOutput` 으로 **`nodeOutput` 자체를 폼 선언**으로 쓰는데 폼 핸들러는 `formConfig`
+      > 를 안 낸다(`{config, output, meta}` 만). 좁게 나열했으면 폼 렌더가 깨졌다.
+      > **그래서 타입에 결속했다** — `NodeHandlerOutput` 공개 키를 컴파일타임 assertion 이
+      > 덮는지 검사한다(뮤테이션으로 실증: 목록에서 `status` 를 빼면 `TS2322`).
+      > **범위는 열거했다** — REST `getStatus` waiting 출구 1곳. terminal `result`/`error` 는
+      > 작성자 데이터라 의도적 제외, SSE/fanout 은 **위 별도 항목**으로 분리.
 - [x] **host `resetSession` booting 중 중복 webhook 가드** — **결정(2026-07-11) + 위젯 구현 완료**: **single-flight coalesce**(서버 멱등 아님) — booting 중 `resetSession` 은 in-flight `start()` 에 흡수되어 2번째 POST·2번째 execution 미생성. spec lock = [widget-app §R9·§3.1](../../spec/7-channel-web-chat/1-widget-app.md). 구현: `channel-web-chat/use-widget.ts newChat` (commit `e577f1b69`, branch `claude/webchat-widget-coalesce-cancel`). 서버 무변경 항목이라 본 항목 종결.
 - [x] **공개 위젯 idle-wait execution GC (EIA-RL-07)** — **결정(2026-07-11) + 구현 완료(위젯 B-1 + 백엔드 reaper)**: ①"새 대화" best-effort `cancel`(source, widget-app §R9) = 위젯 구현(commit `e577f1b69`, PR-1). ②서버측 **idle-wait timeout backstop** = `WebchatIdleReaperService`(BullMQ repeatable 분 단위) — 익명 per_execution 토큰 전 만료(`execution_token.exp_at`)+grace `waiting_for_input` 을 engine `markWebchatIdleTimeout`(조건부 UPDATE `cancelled`/`cancelledBy='timeout'`/`WEBCHAT_IDLE_TIMEOUT`)로 회수 + `revokeAllForExecution`. EIA-RL-06 형제 sweep. §7.4 무기한 보존 불변식과 정합(§1.1 예약 "타임아웃" 사유 구현, EIA token-lifecycle sweep). spec lock = EIA §3.4 EIA-RL-07·§R19. **구현 완료(PR-2)**.
 

@@ -1731,9 +1731,28 @@ present-when-available 이므로, REST 만 `null` 로 정규화하면 위젯의 
     마스킹된 값(`[REDACTED]`·`***`·`[REDACTED_DEPTH]`)을 재마스킹하지 않는다. 덮으면 같은 헤더가
     `$trigger.headers` 에서는 `[REDACTED]`, 실행 상세 API 에서는 `***` 로 보인다.
 
-- **`nodeOutput` 일반 키 allowlist (미구현·잔여)**: conversationConfig 이외의 `nodeOutput` 키 집합을 렌더 필수 메타로
-  제한하는 런타임 allowlist 필터(SSE emit 은 sanitizePayloadForWs 의 credential-**키** 마스킹으로 부분 방어; author
-  config 의 값-embedded secret 은 저위험 gap)는 위 값/키 기반 redaction 과 **별개**이며 여전히 후속 하드닝 항목이다.
+- **~~`nodeOutput` 일반 키 allowlist (미구현·잔여)~~ 해소 (2026-08-23) — 단 `getStatus` 한 출구에 한정**:
+  런타임 fail-closed allowlist(`allowlistNodeOutputKeys`)를 도입했다. 종전 방어는 deny-list
+  (`EXTERNAL_STRIPPED_FIELDS = ['llmCalls']`) 한 칸이라 **새 핸들러 키가 기본값으로 통과**했고, 실제로 엔진 내부
+  `_retryState`(`NodeExecution.outputData` 에 저장된다)가 그렇게 나가고 있었다.
+
+  **적용 범위는 총칭이 아니라 열거다** — 이 문서가 §R17 에서 세 출구를 열거한 것과 같은 이유(한 곳만 고치고 전체를
+  flip 하면 다음 라운드에 CRITICAL 로 돌아온다):
+
+  | 표면 | 상태 | 근거 |
+  |---|---|---|
+  | `getStatus` waiting `nodeOutput` | **fail-closed allowlist** | `NodeHandlerOutput` shape 이라 키 집합이 타입에 결속된다 |
+  | `getStatus` terminal `result` | deny-list 유지 (**의도적 제외**) | `Execution.outputData` = **작성자가 정의한** 워크플로 출력. allowlist 를 걸면 정상 데이터가 잘린다 |
+  | `getStatus` terminal `error` | deny-list 유지 (**의도적 제외**) | 〃 (자유 형태 에러 payload) |
+  | SSE/fanout emit (`toFanoutEnvelope`) | deny-list 유지 (**잔여**) | envelope 레벨에서 strip 하므로 그 안의 `nodeOutput` 에 도달하려면 별건 변경이 필요하다. chat-channel 어댑터가 같은 subject 를 구독해 blast radius 가 더 넓다 |
+
+  즉 **REST 와 SSE 의 `nodeOutput` 방어 강도가 이 시점부터 다르다** — 위 "wire 형식 동일" 서술은 *형식*에 대한
+  것이고 *필터 강도*에는 적용되지 않는다. SSE 잔여는 정본 트래커에 별도 항목으로 등재돼 있다.
+
+  allowlist 집합은 `NodeHandlerOutput` 공개 키(`config`·`output`·`meta`·`port`·`status`) + 위젯 파서가 top-level 로
+  읽는 wire 키(`formConfig`·`conversationConfig`·`buttonConfig`·`interactionType`)이며, **컴파일타임 assertion 이
+  전자를 결속**한다(그 타입에 공개 키가 늘면 빌드가 깨진다). author config 의 값-embedded secret 은 여전히 값/키
+  기반 redaction 소관이다.
 
 ### R18. `execution.message` — 표시-전용 presentation 노드 자동 진행 메시지 신설 (결정 2026-06-25)
 

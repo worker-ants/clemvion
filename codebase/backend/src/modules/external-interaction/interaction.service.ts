@@ -43,7 +43,10 @@ import {
   deepRedactSecrets,
   MAX_REDACT_DEPTH,
 } from '../../shared/utils/sanitize-error-message';
-import { stripExternalOnlyFields } from '../../shared/utils/strip-external-only-fields';
+import {
+  allowlistNodeOutputKeys,
+  stripExternalOnlyFields,
+} from '../../shared/utils/strip-external-only-fields';
 
 const TERMINAL_STATUSES: ReadonlySet<ExecutionStatus> = new Set([
   ExecutionStatus.COMPLETED,
@@ -382,7 +385,13 @@ export class InteractionService {
         // `meta.turnDebug[].llmCalls[]` 의 raw 프롬프트가 그대로 나간다. fanout 과 **같은
         // 수준**으로 debug 필드를 제거한다 (`12_06_21` cross_spec CRITICAL 1, 테스트로 실증).
         // 같은 `iext_*`/`itk_*` 토큰이 닿는 표면이므로 fanout 만 막는 것은 반쪽이었다.
-        const out = stripAndRedact(nodeExec.outputData) ?? {};
+        // EIA §R17 잔여 — **fail-closed allowlist**. 위 `stripAndRedact` 는 deny-list
+        // (`llmCalls` 한 칸)라 새 핸들러 키가 기본값으로 통과했다. 실제로 엔진 내부
+        // `_retryState` 가 그렇게 나가고 있었다. `NodeHandlerOutput` 타입에서 파생한
+        // 최상위 키 집합만 남긴다 — 근거·범위는 그 상수의 JSDoc.
+        const out = allowlistNodeOutputKeys(
+          stripAndRedact(nodeExec.outputData) ?? {},
+        );
         const meta = (out.meta ?? {}) as { interactionType?: string };
         const rawInteractionType = meta.interactionType ?? null;
         const interactionType =

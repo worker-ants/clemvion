@@ -611,6 +611,38 @@ describe('InteractionService.getStatus', () => {
     });
   });
 
+  // 배선 캐너리 — 헬퍼 자체는 `strip-external-only-fields.spec.ts` 가 고정한다. 여기서는
+  // **`getStatus` 가 실제로 그 헬퍼를 지나는지**만 본다. 이 시리즈가 반복해 겪은 형태:
+  // 헬퍼는 초록인데 호출부에 안 걸려 있었다.
+  it('[캐너리] waiting nodeOutput 이 엔진 내부 `_retryState` 를 싣지 않는다 (EIA §R17)', async () => {
+    const { service, repo, nodeRepo } = makeMocks();
+    repo.findOne.mockResolvedValue(
+      makeExecution({ status: ExecutionStatus.WAITING_FOR_INPUT }),
+    );
+    nodeRepo.findOne.mockResolvedValue({
+      nodeId: 'n1',
+      node: { type: 'Form' },
+      // `_retryState` 는 실제로 이 컬럼에 저장된다(`retry-turn.service.ts`).
+      // deny-list(`llmCalls` 한 칸)만 있던 시절엔 그대로 외부로 나갔다.
+      outputData: {
+        config: { fields: [] },
+        output: {},
+        meta: { interactionType: 'form' },
+        _retryState: { attempt: 2 },
+        __unknownFutureKey: 'leak',
+      },
+    });
+    const r = await service.getStatus(IEXT_CTX);
+    const out = (r.context as Record<string, unknown>).nodeOutput as Record<
+      string,
+      unknown
+    >;
+    expect(out._retryState).toBeUndefined();
+    expect(out.__unknownFutureKey).toBeUndefined();
+    // 폼 폴백이 쓰는 셋은 살아 있어야 한다 — 위젯이 nodeOutput 자체를 폼 선언으로 쓴다.
+    expect(Object.keys(out).sort()).toEqual(['config', 'meta', 'output']);
+  });
+
   // interactionType 이 sound discriminator 가 아님을 고정하는 가드 — buttons 인데
   // buttonConfig 복원에 실패하면 nodeOutput 변형으로 fallthrough 한다. 이 케이스가
   // 있기 때문에 OpenAPI 스키마에 discriminator 를 선언할 수 없다 (Swagger 규약 §1-4).
