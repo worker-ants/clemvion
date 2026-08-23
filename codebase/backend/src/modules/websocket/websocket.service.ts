@@ -457,9 +457,16 @@ export class WebsocketService {
    * `stripExternalOnlyFields` 는 이름을 아는 필드(`llmCalls`)만 뺀다 — fail-open 이라
    * 핸들러가 **새로 추가한** 내부 필드는 그대로 나간다. EIA §R17 이 REST `getStatus`
    * 를 fail-closed allowlist 로 닫은(#1205) 이유가 그것이고, 여기까지 닫아야 REST 와
-   * SSE 의 방어 강도가 같아진다. `_retryState` 가 그 fail-open 의 현존 사례다 —
-   * `NodeHandlerOutput` 의 비공개 필드인데 `NodeExecution.outputData` 에 영속돼
-   * emit payload 로 흘러들 수 있다.
+   * SSE 의 **`waiting_for_input` 표면** 방어 강도가 같아진다. `_retryState` 가 그
+   * fail-open 의 현존 사례다 — `NodeHandlerOutput` 의 비공개 필드인데
+   * `NodeExecution.outputData` 에 영속돼 emit payload 로 흘러들 수 있다.
+   *
+   * **범위를 총칭으로 읽지 말 것 — `envelope.output` 은 아직 잔여다.**
+   * `execution.node.completed`/`.failed` 는 같은 `NodeExecution.outputData` 를
+   * **`output`** 이라는 다른 키로 최상위에 싣는데(emit 5곳), 그쪽은 `NodeHandlerOutput`
+   * 하나가 아니라 이종 payload 라(버튼 재개 record 에 이 목록을 걸면 `{}` 가 된다 — 실측)
+   * **같은 목록을 걸 수 없다**. 정본은 EIA §R17 의 범위 표이고, 안 닫은 방향은
+   * `websocket.service.spec.ts` 의 `[잔여]` 캐너리가 고정한다.
    *
    * **내부 WS 는 건드리지 않는다.** 호출 시점에 `wireEnvelope` 은 이미
    * `broadcastToChannel` 로 나갔고 여기서 만드는 것은 새 clone 이다 — 에디터 콘솔의

@@ -96,7 +96,12 @@ allowlist 안이다. 즉 #1205 가 넣은 회귀는 없고, **목록이 chat-cha
 - [x] `NODE_OUTPUT_ALLOWED_KEYS` 에 chat-channel wire 4키 추가 + 리터럴 테스트 갱신
 - [x] `toFanoutEnvelope` 에 두 위치 배선
 - [x] 캐너리 — `_retryState` 두 위치에서 제거 · chat-channel 4키 보존 · 내부 WS 불변
-- [x] (planner 턴) §R17 표의 SSE 행 flip + "강도가 다르다" 서술 제거 + WS §4.4 단서
+- [x] (planner 턴) §R17 표의 SSE 행 flip + WS §4.4 단서. **단 "강도가 다르다" 서술은
+      *제거*가 아니라 *범위 축소*로 끝났다** — `23_29_27` CRITICAL 이후 `waiting` 표면 한정
+      으로 정정하고 `node.*` 잔여를 명시했다(위 상단 배너).
+- [x] 미러 전수 스윕 — 같은 주장이 실린 자리를 **다섯 곳** 고쳤다: §R17 · WS §4.4 ·
+      CHANGELOG · `toFanoutEnvelope` JSDoc · `getStatus` JSDoc. 앞 셋만 고치고 뒤 둘을
+      놓쳤던 것을 `23_56_18` documentation W3·W4 가 잡았다.
 - [x] `22_26_33` WARNING 반영 — JSDoc 그룹 표 3그룹 동기화(W3) · 트래커 wire-only 4→8키(W4) ·
       `node-output-allowlist.ts` **재배치는 이번 라운드 무변경**(INFO 2)
 - [x] 뮤테이션 검증 — **4/4 예측 일치** (아래 표)
