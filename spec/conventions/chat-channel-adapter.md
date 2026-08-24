@@ -177,7 +177,18 @@ type ChatChannelInternalEvent =
       triggerId: string;
       workflowId: string;
       node: { id: string; type: "carousel" | "table" | "chart" | "template"; label?: string };
-      /** NodeHandlerOutput.output — 예: Template 의 `{rendered, ...}`, Carousel 의 `{items, ...}`. */
+      /**
+       * **`NodeHandlerOutput` 래퍼 전체**(= `NodeExecution.outputData`)다 — 도메인 값은
+       * 한 겹 아래인 `output.output` 이다(예: Template 의 `{rendered, …}`, Carousel 의
+       * `{items, …}`). dispatcher 가 wire envelope 의 `p.output` 을 **그대로** 넘기고,
+       * 그 wire `output` 이 래퍼이기 때문이다([WS §4.1](../5-system/6-websocket-protocol.md)
+       * 2026-08-24 정정, `12_02_30` cross_spec W1).
+       *
+       * 종전 주석은 이 필드를 `NodeHandlerOutput.output` 이라 적었다 — **한 겹 얕았다.**
+       * 렌더러(`renderPresentationByType`)가 `payload → output → config → flat` 우선순위로
+       * 훑어 실제 파손은 없었지만, 이 주석을 SoT 로 믿고 `output.rendered` 를 직접 읽으면
+       * `undefined` 다.
+       */
       output: Record<string, unknown>;
       meta?: Record<string, unknown>;
       timestamp: string;

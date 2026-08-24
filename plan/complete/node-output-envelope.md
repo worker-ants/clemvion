@@ -13,6 +13,10 @@ spec_impact:
   # 둔다 — `#1204`·`#1208` 에서 내린 것과 같은 판단이다.
   - spec/5-system/14-external-interaction-api.md
   - spec/5-system/6-websocket-protocol.md
+  # `12_02_30` cross_spec W1 — §4.1 의 래퍼/도메인값 구분을 담은 형제 문서 둘. 같은 planner
+  # 턴 범위다(내가 쓴 문장이 아니므로 자기-반증형 예외 대상 아님).
+  - spec/conventions/chat-channel-adapter.md
+  - spec/5-system/15-chat-channel.md
   # ── (2) 자기-반증형 소정정 (CLAUDE.md 「자기-반증형 소정정」 절) — **이 한 파일에만** ──
   # 대상 문장: `#1208` 에서 내가 쓴 "잔여로 남은 것은 envelope.output 하나다 … 이종 payload 라
   # 같은 목록을 걸 수 없다". **상태 예고**이지 API 계약 조항이 아니다(조건 2 충족). 이 작업의
