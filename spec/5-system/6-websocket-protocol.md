@@ -526,8 +526,16 @@ fanout 에서 같은 allowlist 를 지난다.
 > 그대로이고, allowlist 항목은 *"만약 온다면 렌더가 비지 않게"* 이상을 주장하지 않는다.
 > 새 코드가 `nodeOutput.nodeType` 을 **쓰는** 것은 여전히 C3 위반이다.
 >
-> 노드 종류를 읽어야 하면 envelope 쪽을 쓴다 — 대기 이벤트의 실제 wire 필드명은
-> **`waitingNodeType`** 이다(위 wire caveat 블록쿼트). carve-out 의 정본 열거는
+> 노드 종류를 읽어야 하면 envelope 쪽을 쓰되 **소비자에 따라 갈린다**:
+>
+> - **내부(에디터 WS 타임라인)** — 대기 이벤트의 실제 wire 필드명 **`waitingNodeType`**
+>   (위 wire caveat 블록쿼트가 소유한다).
+> - **외부 클라이언트(SSE·chat-channel·SDK)** — **`interactionType` 으로 분기한다.**
+>   [EIA §R17](./14-external-interaction-api.md) 이 *"`node.type` 은 외부 소비 매핑이 없다 …
+>   `waitingNodeType` 은 WS 내부 부가 식별자"* 로 못박았다. 초판 각주는 이 스코프를 빼고
+>   무자격으로 권고해 그 정책과 충돌했다(`17_04_25` cross_spec W2).
+>
+> carve-out 의 정본 열거는
 > [node-output.md Principle 0 의 `wire 전용` 각주](../conventions/node-output.md),
 > 범위 표는 [EIA §R17](./14-external-interaction-api.md).
 

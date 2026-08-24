@@ -148,15 +148,24 @@ execution-engine 4파일이 `code:` 에서 빠져 있다"* 는 **별개의 더 �
 
 - [x] `/consistency-check --spec` **1회차(쓰기 전)** — `13_30_49` **BLOCK: YES** →
       `RESOLUTION.md`. Critical 1 은 반박(오탐), Critical 2 는 반영.
-- [ ] `/consistency-check --spec` **2회차(쓴 뒤)** — ~~쓴 뒤 돌려야 대상 문서가 적재된다~~
-      **그 가설은 2회차 실측에 반증됐다**(아래 ⚠️). 2회차의 실제 이유는 **변경분을 checker
-      에게 보여주는 것**이다.
+- [x] `/consistency-check --spec` **2회차(쓴 뒤)** — `16_41_05` **BLOCK: YES**.
+      ~~쓴 뒤 돌려야 대상 문서가 적재된다~~ **그 가설은 반증됐다**(아래 ⚠️). 2회차의 실제
+      이유는 **변경분을 checker 에게 보여주는 것**이고, 그 값은 실증됐다 — 이 라운드가
+      **내가 지어낸 근거로 기각된 대안을 되살린 것**을 잡았다(B3 각주, `RESOLUTION.md`).
+- [x] B3 각주 **재작성** — 초판의 *"래퍼만 금지, 이름은 무관"* 은 원문에 없는 해석이었다.
+      실측(엔진은 `nodeOutput` 안에 `nodeType` 을 넣지 않는다 · 실 DB 84행 0건)에 맞춰
+      **"C3 는 지켜지고 있고 allowlist 는 예방적 허용"** 으로 교체. 표 행 포인터도 함께.
+- [x] `{runId}` → `{id}` (내 plan 자신의 B5 결정문과 어긋났다)
+- [x] B1 각주의 *"코드 주석과 같은 문구"* → *"EIA §R17 과 동일, 코드는 축약형"* 으로 정정
+- [ ] `/consistency-check --spec` **3회차** — B3 재작성 후 확인
 - [x] B1 Principle 0 — **wire-only 8키** 각주. 라벨은 기존 taxonomy 재사용
       (`wire 전용 (위젯 파서)` / `wire 전용 (chat-channel 렌더러)`) — 세 번째 표현 금지
 - [x] B2 `egress-masking.md` §2 순서 + §1 좌표계 표. **line 77 의 `ws-event-types-extract.md`
       미해결 캐비엇은 유지**(`13_30_49` plan INFO 4)
-- [x] B3 WS §4.4 `nodeType` carve-out 각주 — **"동일 이름·다른 계층"** 명시 +
-      EIA §R17 · Principle 0 교차 참조 (W4)
+- [x] B3 WS §4.4 `nodeType` carve-out 각주 — ~~**"동일 이름·다른 계층"** 명시~~
+      **그 근거는 `16_41_05` CRITICAL 로 반증됐다**(코드에 없는 구분을 내가 지어냈다).
+      실제 각주는 위 재작성분 참조 — **"C3 는 지켜지고 있고 allowlist 는 예방적 허용"**.
+      EIA §R17 · Principle 0 교차 참조는 유지.
 - [x] ~~B4~~ **won't-do 판정** (위 §B4)
 - [x] B5 WS §3.2 채널 패턴 표에 행 추가. 브래킷은 **그 문서 컨벤션 `{id}`**
 - [x] B6 미전환 **3곳** → 정본 링크 (WS §4.1-a 는 **이미 링크됨, 손대지 않는다**)

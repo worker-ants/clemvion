@@ -269,6 +269,13 @@ owner: planner
       >
       > **현재 완화책**: 프롬프트가 스스로 지시하는 *"판정에 관련되면 `Read` 로 직접 열어라"*.
       > checker 들이 실제로 그렇게 하고 있어(여러 라운드에서 관측) 게이트가 무의미하진 않다.
+      >
+      > **기존 harness 트래커와 상호 참조** (`17_04_25` plan W4 — 고립 등재는 중복 진단을
+      > 낳는다): `harness-consistency-summary-downgrade-rule.md`(2026-08-09 실측, 동일 처방
+      > 미구현) · `harness-review-gate-followups.md`. **이 항목을 그쪽으로 이관하지 않는
+      > 이유**: 발견 맥락이 EIA 시리즈이고 재현 근거(`13_30_49`·`16_41_05` 두 라운드)가 여기
+      > 쌓여 있다. 다만 **처방은 한 곳에서** 집행돼야 하므로, harness 작업을 착수하는 쪽이
+      > 이 항목을 흡수한다.
 
 - [ ] **`6-websocket-protocol.md` 에 `### 4.4` 헤딩이 둘이고 절 번호 순서가 어긋난다**
       (2026-08-24 등재, `13_30_49` naming INFO 6). **pre-existing** — allowlist 시리즈가
