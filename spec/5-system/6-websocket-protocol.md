@@ -125,7 +125,7 @@ wss://{base_url}/ws        # Socket.IO namespace '/ws'
 | 워크플로우 편집 | `workflow:{workflowId}` | 에디터에서 실행 시작/완료 알림 |
 | KB 문서 상태 | `kb:{documentId}` | Knowledge Base 문서별 임베딩·그래프 추출 상태 |
 | 알림 | `notifications:{userId}` | 사용자 알림 실시간 수신 |
-| 백그라운드 실행 | `background:run:{runId}` | Background 노드 실행의 진행·완료 이벤트. 인가는 §3.3, 이벤트 정의는 [12-background.md §8.5](../4-nodes/1-logic/12-background.md) |
+| 백그라운드 실행 | `background:run:{id}` | Background 노드 실행의 진행·완료 이벤트. 인가는 §3.3, 이벤트 정의는 [12-background.md §8.5](../4-nodes/1-logic/12-background.md) |
 
 ### 3.3 구독/구독 해제
 
@@ -501,24 +501,35 @@ fanout 에서 같은 allowlist 를 지난다.
 | `interactionType` | `form`: Form 노드, `buttons`: 버튼이 설정된 Presentation 노드, `ai_conversation`: AI Agent Multi Turn 일반 대화, `ai_form_render`: AI Agent 가 `render_form` 도구 호출로 사용자 form 제출 대기 ([Spec AI Agent §6.1.d.ii](../4-nodes/3-ai/1-ai-agent.md#61-single-turn-모드-mode--single_turn)) |
 | `formConfig` | **`interactionType = form` 한정** top-level 필드. 그래프 Form 노드의 폼 설정. `ai_form_render` 의 경우 top-level 에는 없고 `conversationConfig.pendingFormToolCall.formConfig` 위치로 nest (아래 행) — UI 가 form payload 출처를 단일 위치에서 읽도록 SoT 정리 |
 | `buttonConfig` | `interactionType = buttons` 시 존재. 버튼 정의 + 노드 렌더링 출력 (`{ buttons, nodeOutput }`). 버튼 클릭까지 무제한 대기 — 타임아웃 필드 없음 ([Presentation 공통 §3·§6.1](../4-nodes/6-presentation/0-common.md)) |
-| `buttonConfig.nodeOutput` | 노드의 구조화 출력 (`NodeHandlerOutput`: `{ config, output, meta?, port?, status }`). 클라이언트가 콘텐츠 + 버튼을 함께 표시. 노드 종류는 상위 `payload.nodeType` 로 식별 — `nodeOutput` 에 `type` 판별자 래퍼는 두지 않는다 ([node-output.md Principle 1.1.4](../conventions/node-output.md)). **단 `nodeOutput.nodeType` 은 이 금지와 무관하다** — 아래 각주 참조 |
+| `buttonConfig.nodeOutput` | 노드의 구조화 출력 (`NodeHandlerOutput`: `{ config, output, meta?, port?, status }`). 클라이언트가 콘텐츠 + 버튼을 함께 표시. 노드 종류는 상위 `payload.nodeType` 로 식별 — `nodeOutput` 에 `type` 판별자 래퍼는 두지 않는다 ([node-output.md Principle 1.1.4](../conventions/node-output.md)). **`nodeOutput.nodeType` 도 이 금지 대상이다** — 엔진은 넣지 않고 렌더러만 방어적으로 읽는다, 아래 각주 참조 |
 | `conversationConfig` | `interactionType ∈ {ai_conversation, ai_form_render}` 시 존재. AI Agent Multi Turn 대화 설정 |
 | `nodeOutput.meta.turnDebug` | `interactionType ∈ {ai_conversation, ai_form_render}` 시 존재. **진행 중 누적 관찰성 델타** — `_resumeState` 의 누적치를 `meta.*` 로 펼쳐 노출해 run-results UI 의 References / LLM Usage 탭이 **대기 중에도 동작**하게 한다 (`_resumeState` 자체는 system prompt / llmConfigId 등 internal 필드를 포함하므로 클라이언트로 보내지 않는다). 항목 shape: `{ turnIndex, ragSources[], ragDiagnostics?, llmCalls?, toolCalls?, totalDurationMs? }`. **소비 경계**: `ragSources` 는 conversation Preview 의 보조 관찰성 레인(🔎 `rag` 행 · 📚 chip)도 소비 가능([Conversation Thread §8.6](../conventions/conversation-thread.md#86-rag-source-신설--보조-관찰성-레인의-정식화)), **`llmCalls` 는 debug 탭 전용**(raw request/response payload). emit SoT: `ai-turn-orchestrator.service.ts` 의 `buildConversationMetaFromResumeState`. history 대응물은 영속된 `outputData.meta` — 두 표면이 동일 shape 이라 UI 가 분기하지 않는다 |
 | `conversationConfig.pendingFormToolCall` | **`interactionType = ai_form_render` 한정**. shape `{ toolCallId: string, formConfig: object }` — `toolCallId` 는 UI 가 렌더할 form 페이로드를 식별하는 매칭 키 (submit 시 클라이언트가 되돌려 보내는 필드는 아니다 — §4.2 `submit_form` payload 는 `{ executionId, formData }` 뿐, 서버가 보관한 `pendingFormToolCall` 로 매칭), `formConfig` 는 LLM 페이로드 ∪ `presentationTools[*].defaults` overlay 결과 (form 노드 input schema shape). UI 의 `AssistantPresentationsBlock` 이 assistant turn 의 `presentations[*]` 중 `payload.toolCallId === pendingFormToolCall.toolCallId` 인 form 페이로드를 interactive `DynamicFormUI` 로 렌더 ([Spec AI Agent §6.1.d.ii](../4-nodes/3-ai/1-ai-agent.md#61-single-turn-모드-mode--single_turn) / [§7.4](../4-nodes/3-ai/1-ai-agent.md#74-multi-turn-모드--사용자-입력-대기-status-waiting_for_input)) |
 
-> **`nodeOutput.nodeType` 과 `payload.nodeType` 은 이름이 같고 계층이 다르다** (2026-08-24 신설).
+> **`nodeOutput.nodeType` 은 C3 를 뒤집지 않는다 — 엔진은 여전히 그것을 넣지 않는다**
+> (2026-08-24 신설, `16_41_05` rationale CRITICAL 로 초판을 정정).
 >
-> | 자리 | 무엇인가 | Principle 1.1.4 금지 대상? |
-> |---|---|---|
-> | `payload.nodeType` (envelope 최상위) | **노드 종류** 식별자. 위 표가 *"노드 종류는 상위 `payload.nodeType` 로 식별"* 이라 말하는 그것 | 해당 없음 — 금지된 것은 `nodeOutput` **안의** `type` 판별자 래퍼다 |
-> | `nodeOutput.nodeType` (래퍼 안) | chat-channel 렌더러가 flat legacy shape 으로 읽는 **렌더 서브타입**(`chart`/`table`/`carousel`) | **아니다** — 판별자 래퍼가 아니라 `wire 전용 (chat-channel 렌더러)` carve-out 이다 |
+> `nodeOutput` 안의 `nodeType` 은 값 공간이 `chart`/`table`/`carousel` 로 **`payload` 의
+> 노드 종류와 같다** — 즉 아래 `## Rationale` C3 가 *"상위에서 이미 식별되므로 불필요·중복"*
+> 이라며 기각한 **바로 그 판별자**다. 초판 각주는 이것을 *"렌더 서브타입이라 별개"* 로 적어
+> **C3 를 재해석해 되살리는 모양**이 됐다. 그런 구분은 코드에 없다.
 >
-> 즉 Principle 1.1.4 는 *"`nodeOutput` 에 `{type, data}` 같은 **래퍼**를 씌우지 마라"* 이지
-> *"`nodeOutput` 안에 `nodeType` 이라는 이름을 쓰지 마라"* 가 아니다. 값 공간이 겹쳐
-> (`carousel` 은 양쪽에 나온다) 오독하기 쉬우니 갈라 둔다.
+> **실제 사실관계는 이렇다:**
 >
-> carve-out 의 정본 열거는 [node-output.md Principle 0](../conventions/node-output.md) 의
-> `wire 전용` 각주, 범위 표는 [EIA §R17](./14-external-interaction-api.md).
+> | 층 | 상태 |
+> |---|---|
+> | 엔진(emit·영속) | `nodeType` 을 **`nodeOutput` 안에 넣지 않는다** — C3 준수. `nodeType:` 대입은 전부 envelope 레벨이고, 실 DB 조회(e2e 285건 · `node_execution.output_data` 84 object 행)에서도 top-level `nodeType` 은 **0행**이다 |
+> | chat-channel 렌더러 | `nodeOutput?.nodeType` 을 **읽는다**(3 provider) — legacy flat shape 을 만나도 죽지 않으려는 **방어적 읽기** |
+> | fanout allowlist | `nodeType` 을 통과 목록에 둔다 — 그 방어를 깨지 않으려는 **예방적 허용**이지 계약 편입이 아니다 |
+>
+> 즉 **읽는 쪽이 있다는 사실이 넣어도 된다는 뜻은 아니다.** C3 의 방향(엔진은 넣지 않는다)은
+> 그대로이고, allowlist 항목은 *"만약 온다면 렌더가 비지 않게"* 이상을 주장하지 않는다.
+> 새 코드가 `nodeOutput.nodeType` 을 **쓰는** 것은 여전히 C3 위반이다.
+>
+> 노드 종류를 읽어야 하면 envelope 쪽을 쓴다 — 대기 이벤트의 실제 wire 필드명은
+> **`waitingNodeType`** 이다(위 wire caveat 블록쿼트). carve-out 의 정본 열거는
+> [node-output.md Principle 0 의 `wire 전용` 각주](../conventions/node-output.md),
+> 범위 표는 [EIA §R17](./14-external-interaction-api.md).
 
 
 **AI Agent Multi Turn 노드 (`interactionType: "ai_conversation"`):**

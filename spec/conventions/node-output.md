@@ -58,8 +58,12 @@ pending_plans:
 > 레이어의 산물**이라, 계약에 편입하면 모든 핸들러가 지켜야 할 것처럼 읽힌다. 정본 열거는
 > `codebase/backend/src/shared/utils/node-output-allowlist.ts` 의 `NODE_OUTPUT_ALLOWED_KEYS`
 > 이고(컴파일타임 assertion 이 위 5필드를 결속, 나머지 8키는 리터럴 테스트가 지킨다),
-> 범위 표는 [EIA §R17](../5-system/14-external-interaction-api.md). 갈래 라벨은 그 상수의
-> 주석과 **같은 문구를 쓴다** — 표현이 갈리면 그 자체로 세 번째 사본이 된다.
+> 범위 표는 [EIA §R17](../5-system/14-external-interaction-api.md).
+>
+> 갈래 라벨은 **EIA §R17 과 같은 문구**를 쓴다. (코드 JSDoc 은 접미어 없는 축약형
+> `wire 전용 (위젯)`/`(chat-channel)` 이라 문자 그대로 같지는 않다 — `16_41_05`
+> convention W3 이 초판의 *"그 상수의 주석과 같은 문구"* 를 정정했다. **키 배열 자체는
+> 정확히 일치**하므로 기능 위험은 없고, 라벨 통일은 후속 developer 턴 몫이다.)
 
 > **internal top-level 필드 허용 예외**: `_resumeState` (multi-turn waiting/resumed 의 internal 전달), `_resumeCheckpoint` (재시작 후 재개용 DB 보존 부분집합 — §7.5 rehydration), `_retryState` (retryable error 종결 시 DB 보존 — Principle 4.2.1 보존 예외) 는 5필드 외 top-level 위치를 갖는다. expression resolver / autocomplete 비노출, credential strip 정책은 세 필드 동일. 상세: Principle 4.2.1.
 
