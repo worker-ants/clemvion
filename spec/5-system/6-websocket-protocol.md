@@ -539,7 +539,6 @@ fanout 에서 같은 allowlist 를 지난다.
 > [node-output.md Principle 0 의 `wire 전용` 각주](../conventions/node-output.md),
 > 범위 표는 [EIA §R17](./14-external-interaction-api.md).
 
-
 **AI Agent Multi Turn 노드 (`interactionType: "ai_conversation"`):**
 
 ```json

@@ -118,7 +118,7 @@ owner: planner
       </details>
 
 - [x] **wire-only 키가 `node-output.md` Principle 0 의 닫힌 레지스트리 밖이다** (~~4키~~ → **8키**)
-      > **해소 (2026-08-24, `planner-doc-batch`)**: Principle 0 에 `wire 전용` 각주 신설 — 두 갈래 8키 표(위젯 파서 4 / chat-channel 렌더러 4)이고 라벨은 `NODE_OUTPUT_ALLOWED_KEYS` 주석과 **같은 문구**를 썼다(세 번째 표현 금지). **5필드 목록은 넓히지 않았다** — 이 키들은 핸들러 산물이 아니라 wire 조립 레이어의 산물이라, 계약에 편입하면 모든 핸들러가 지켜야 할 것처럼 읽힌다.
+      > **해소 (2026-08-24, `planner-doc-batch`)**: Principle 0 에 `wire 전용` 각주 신설 — 두 갈래 8키 표(위젯 파서 4 / chat-channel 렌더러 4)이고 라벨은 ~~`NODE_OUTPUT_ALLOWED_KEYS` 주석과~~ **EIA §R17 과** 같은 문구를 썼다(코드 JSDoc 은 접미어 없는 축약형이라 문자 그대로 같지는 않다 — `16_41_05` convention W3 정정. **키 배열 자체는 정확히 일치**하므로 기능 위험은 없다). **5필드 목록은 넓히지 않았다** — 이 키들은 핸들러 산물이 아니라 wire 조립 레이어의 산물이라, 계약에 편입하면 모든 핸들러가 지켜야 할 것처럼 읽힌다.
       (2026-08-23 등재, `20_09_38` convention_compliance W3 · `22_26_33` plan_coherence W4 로
       키 수 갱신). 그 규약은 `NodeHandlerOutput` 을 **5필드 + 3예외** 닫힌 목록으로 못박는데,
       EIA wire 조립 레이어는 거기에 없는 키를 top-level 로 얹는다 — **착수 시 다시 세라**,
@@ -248,6 +248,26 @@ owner: planner
       > 역추적(`git log -S`)해 판단 축을 먼저 세울 것 — 축 없이 넷을 넣으면 목록이
       > *"thread 를 건드리는 모든 파일"* 로 부풀어 가드 신호가 오히려 죽는다.
 
+- [ ] **`--spec` 의 `target_path` 가 plan 파일 하나로 고정돼 자매 트래커가 검토 밖에 있다**
+      (2026-08-24 등재, `17_15_29` requirement INFO 3 — **위 후보 미도달과 다른 고장**).
+      > **실측**: `review/consistency/2026/08/24/*/meta.json` 의 `target_path` 가 세 라운드
+      > 모두 draft plan(`spec-draft-planner-doc-batch.md`) **한 개**다. 그래서 같은 작업이
+      > 갱신하는 **정본 트래커**(`spec-sync-external-interaction-api-gaps.md`)는
+      > **어느 라운드에서도 검토 대상이 아니었다.**
+      >
+      > **증상이 실제로 났다**: `16_41_05` 가 draft 의 B3 근거를 CRITICAL 로 반증했는데,
+      > **같은 근거를 담은 트래커 줄은 그대로 남았다**. 세 라운드를 돌고도 안 잡혔고,
+      > `/ai-review` 가 뒤늦게 잡았다(W2·W3). 즉 **게이트를 여러 번 도는 것으로는 못 메운다** —
+      > 스코프 밖은 몇 번을 돌아도 스코프 밖이다.
+      >
+      > **위 항목(후보 미도달)과 구분할 것**: 그쪽은 *"관련 문서를 번들에 못 싣는다"*,
+      > 이쪽은 *"target 자체가 한 개로 고정"* 이다. 처방도 다르다 — 후자는
+      > `--spec` 이 **여러 target 을 받거나**, draft 의 `spec_impact`/자매 plan 을 자동으로
+      > target 에 포함하면 된다.
+      >
+      > **당장의 완화책**: draft 와 트래커를 **같은 커밋에서** 고치고, 게이트 결과를 draft 에
+      > 반영할 때 **트래커의 같은 항목도 함께 훑는다**(이번에 그렇게 했어야 했다).
+
 - [ ] **`--spec` 번들러가 `spec_impact` 대상을 후보 집합에 넣지 못한다 (하네스)**
       (2026-08-24 등재, `13_30_49`·`16_41_05` 실측).
       > **두 고장이 섞여 있다 — 이걸 갈라야 고칠 수 있다:**
@@ -319,7 +339,7 @@ owner: planner
       > 돌린다 — 어느 쪽인지는 planner 판단.
 
 - [x] **WS §4.4 `buttonConfig.nodeOutput` 행에 `nodeType` carve-out 각주 없음**
-      > **해소 (2026-08-24)**: 각주에 **동일 이름·다른 계층** 표를 넣었다 — `payload.nodeType`(노드 종류, envelope 최상위) vs `nodeOutput.nodeType`(렌더 서브타입, 래퍼 안). Principle 1.1.4 가 금지한 것은 *`{type, data}` 래퍼*이지 *`nodeType` 이라는 이름*이 아님을 명시하고 Principle 0 · EIA §R17 로 교차 참조했다(`13_30_49` naming W4 반영).
+      > **해소 (2026-08-24) — 단 초판 근거는 반증됐다.** ~~각주에 **동일 이름·다른 계층** 표를 넣었다 — `nodeOutput.nodeType` 은 렌더 서브타입이라 Principle 1.1.4 의 판별자 금지와 무관하다.~~ **`16_41_05` cross_spec CRITICAL 이 반증했다** — 그 값 공간은 `chart`/`table`/`carousel` 로 `payload` 의 노드 종류와 **같고**, C3 가 기각한 바로 그 판별자다. *"렌더 서브타입"* 이라는 구분은 **코드에 없다**(내가 지어낸 것). **재작성된 각주의 논지**: 엔진은 `nodeOutput` 안에 `nodeType` 을 **넣지 않는다**(실 DB 84행 0건) — 즉 **C3 는 이미 지켜지고 있고**, allowlist 항목은 렌더러의 legacy 방어적 읽기를 깨지 않으려는 **예방적 허용**일 뿐이다. 새 코드가 그것을 쓰는 것은 여전히 C3 위반이다.
       (2026-08-24 등재, `00_51_50` convention_compliance INFO 7). 같은 절이 *"판별자 래퍼
       금지"* 를 말하는데 새 `nodeType` legacy carve-out 이 교차 참조 없이 병존한다 —
       오독 여지.

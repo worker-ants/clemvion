@@ -157,7 +157,7 @@ execution-engine 4파일이 `code:` 에서 빠져 있다"* 는 **별개의 더 �
       **"C3 는 지켜지고 있고 allowlist 는 예방적 허용"** 으로 교체. 표 행 포인터도 함께.
 - [x] `{runId}` → `{id}` (내 plan 자신의 B5 결정문과 어긋났다)
 - [x] B1 각주의 *"코드 주석과 같은 문구"* → *"EIA §R17 과 동일, 코드는 축약형"* 으로 정정
-- [ ] `/consistency-check --spec` **3회차** — B3 재작성 후 확인
+- [x] `/consistency-check --spec` **3회차** — `17_04_25` **BLOCK: NO**. WARNING 4건(정정문 옆에 만든 새 충돌 · plan 자기모순 · 파일명 규약 · harness 고립 등재)까지 같은 커밋에서 정정.
 - [x] B1 Principle 0 — **wire-only 8키** 각주. 라벨은 기존 taxonomy 재사용
       (`wire 전용 (위젯 파서)` / `wire 전용 (chat-channel 렌더러)`) — 세 번째 표현 금지
 - [x] B2 `egress-masking.md` §2 순서 + §1 좌표계 표. **line 77 의 `ws-event-types-extract.md`
