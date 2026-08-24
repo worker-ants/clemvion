@@ -1800,9 +1800,13 @@ present-when-available 이므로, REST 만 `null` 로 정규화하면 위젯의 
   > fail-closed 의 정의이고, **그 동작을 캐너리가 명시적으로 고정**한다. *"flat view 를
   > `outputData` 로 영속하는 것이 옳은가"* 는 영속 계약 문제라 별건으로 트래커에 있다.
   >
-  > **외부 수신자에게는 동작 변경이다** (`waiting` 표면 고지와 대칭): SSE/webhook/chat-channel
-  > 로 나가는 `execution.node.completed`/`.failed` payload 의 **`output` 최상위에서 목록 밖
-  > 키가 사라진다**. 과거 응답에는 `_retryState` 등 엔진 내부 필드가 **이미 노출돼 있었을 수
+  > **외부 수신자에게는 동작 변경이다** (`waiting` 표면 고지와 대칭): **SSE·chat-channel** 로
+  > 나가는 `execution.node.completed`/`.failed` payload 의 **`output` 최상위에서 목록 밖
+  > 키가 사라진다**. ~~webhook~~ **은 영향 밖이다** — `FANOUT_EVENTS` 화이트리스트 5종
+  > (`waiting_for_input`·`completed`·`failed`·`cancelled`·`ai_message`)에 `node.*` 가 애초에
+  > 없어 outbound webhook 은 이 이벤트를 받지 않는다(실측, §R10 의 *"화이트리스트 5종 변경
+  > 없음"* 과 일치). 초판은 세 채널을 나열했는데 **한 채널이 과잉**이었다
+  > (`12_55_09` cross_spec W3). 과거 응답에는 `_retryState` 등 엔진 내부 필드가 **이미 노출돼 있었을 수
   > 있고**, 그것을 닫는 것이 이 변경의 목적이다. 알려진 소비처(위젯·chat-channel 렌더러)는
   > 실측으로 영향 없음을 확인했으나 **제3자 webhook 구독자는 확인 범위 밖**이다. 내부 WS 불변.
   >

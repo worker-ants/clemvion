@@ -17,6 +17,9 @@ spec_impact:
   # 턴 범위다(내가 쓴 문장이 아니므로 자기-반증형 예외 대상 아님).
   - spec/conventions/chat-channel-adapter.md
   - spec/5-system/15-chat-channel.md
+  # `12_55_09` convention W2 — 래퍼/도메인 구분의 **정본**을 Principle 0 에 1회 세운다.
+  # 이 구분이 산문으로 5곳에 흩어져 이번 작업에서 4라운드 연쇄 정정을 낳았다.
+  - spec/conventions/node-output.md
   # `12_42_20` cross_spec CRITICAL — `conversation-thread.md` §9.7 두 행(`node.failed`/
   # `node.completed` 의 error shape). **아래 (2) 와 같은 파일이지만 성격이 다르다**:
   # §8.4 는 자기-반증형 소정정, §9.7 은 **planner 턴**(내가 쓴 문장이 아니고 wire 계약이라

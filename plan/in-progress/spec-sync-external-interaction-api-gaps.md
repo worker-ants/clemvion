@@ -246,6 +246,18 @@ owner: planner
       > 얕다. 표의 다른 행들과 함께 봐야 갈리므로 **`spec/4-nodes/7-trigger/providers/`
       > 스코프의 planner 턴**에서 판정한다 — 이 PR 의 `spec_impact` 밖이다.
 
+- [ ] **래퍼/도메인 구분 산문 사본 4곳을 정본 링크로 대체** (2026-08-24 등재,
+      `12_55_09` convention W2 의 후반부). 정본은 `node-output.md` Principle 0 에 **세웠고**,
+      나머지 4곳(`6-websocket-protocol.md` §4.1-a · `14-external-interaction-api.md` §R17 ·
+      `chat-channel-adapter.md` §1.3/§3 · `conversation-thread.md` §9.7)은 아직 각자 산문을
+      들고 있다.
+      > **왜 이번에 사본까지 안 줄였나**: 정본을 세우는 것과 사본 4곳을 링크로 **갈아끼우는**
+      > 것은 위험이 다르다. 후자는 각 문서의 문맥에 맞게 문장을 다시 짜야 하고, 이번 작업이
+      > 이미 그 자리들을 네 라운드에 걸쳐 건드린 직후다 — 연달아 또 손대면 리뷰가 따라오지
+      > 못한다. **정본이 선 지금은 사본이 늘어나도 대조할 기준이 있다.**
+      > **B 묶음(planner doc)과 함께 처리**하는 것이 자연스럽다 — 거기 이미
+      > `node-output.md` Principle 0 항목이 있다.
+
 - [ ] **`background:run:{id}` 채널이 WS §3.2 "채널 패턴" 표에서 누락** (2026-08-24 등재,
       `10_44_28` convention_compliance W1). §3.3 인가 표에는 나오는데 §3.2 패턴 표에는 없다.
       `redis-keys.md` §4 가 이 채널의 SoT 로 §3.2 를 지목하고 있어 포인터가 빈다.

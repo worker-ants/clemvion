@@ -38,7 +38,8 @@ allowlist 를 걸면 정상 데이터가 잘린다. ~~**SSE·fanout 은 여전�
 > > `conversationConfig` 뿐이고 전부 목록 안이었다.
 > >
 > > **외부 수신자에게는 동작 변경이다** (`#1208` 의 waiting 표면 고지와 대칭):
-> > SSE/webhook/chat-channel 로 나가는 `execution.node.completed`/`.failed` payload 의
+> > **SSE·chat-channel**(~~webhook~~ 은 `FANOUT_EVENTS` 5종에 `node.*` 가 없어 영향 밖)
+> > 로 나가는 `execution.node.completed`/`.failed` payload 의
 > > **`output` 최상위에서 목록 밖 키가 사라진다**. 과거 응답에는 `_retryState` 등 엔진 내부
 > > 필드가 **이미 노출돼 있었을 수 있다** — 그것을 닫는 것이 이 변경의 목적이다.
 > > 알려진 소비처(위젯·chat-channel 렌더러)는 실측으로 영향 없음을 확인했고, **제3자 webhook

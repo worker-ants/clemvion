@@ -28,6 +28,23 @@ pending_plans:
 
 이 5필드의 의미는 **어떤 노드에서든 동일**해야 합니다.
 
+> **wire envelope 은 이 래퍼를 통째로 싣는다 — 도메인 값은 한 겹 아래다** (2026-08-24 신설,
+> `12_55_09` convention W2). WS/EIA fanout envelope 의 `output`(`execution.node.*`)과
+> `nodeOutput`(`waiting_for_input`)은 **`NodeHandlerOutput` 래퍼 전체**(= `NodeExecution.
+> outputData`)이고, 위 표의 `output` **주 데이터**는 wire 에서 `output.output` /
+> `nodeOutput.output` 이다. 봉투 필드명이 래퍼 안의 필드명과 **우연히 같아** 생기는 혼동이라,
+> 이 문단이 그 구분의 **정본**이다 — 다른 문서는 여기를 인용한다
+> ([WS §4.1](../5-system/6-websocket-protocol.md) · [EIA §R17](../5-system/14-external-interaction-api.md) ·
+> [chat-channel-adapter §1.3](./chat-channel-adapter.md) · [conversation-thread §9.7](./conversation-thread.md)).
+>
+> **왜 정본이 필요한가**: 이 구분이 산문으로 5개 문서에 흩어져 있던 탓에, 2026-08-24 한
+> 작업에서 **네 라운드에 걸쳐 같은 결함이 하나씩** 튀어나왔다(각 라운드가 미러 하나씩만
+> 잡았다). 사본을 줄이는 것이 그 재발을 막는 유일한 방법이다.
+>
+> **Principle 8.1 의 금지 패턴(`output.output.extracted.*`)과 혼동하지 말 것** — 그쪽은
+> **핸들러 반환값 내부**의 이중 래핑 금지이고, 여기는 **전송 봉투와 래퍼**라는 다른 계층이다.
+> 문자열이 닮았을 뿐이다.
+
 > **internal top-level 필드 허용 예외**: `_resumeState` (multi-turn waiting/resumed 의 internal 전달), `_resumeCheckpoint` (재시작 후 재개용 DB 보존 부분집합 — §7.5 rehydration), `_retryState` (retryable error 종결 시 DB 보존 — Principle 4.2.1 보존 예외) 는 5필드 외 top-level 위치를 갖는다. expression resolver / autocomplete 비노출, credential strip 정책은 세 필드 동일. 상세: Principle 4.2.1.
 
 ---
