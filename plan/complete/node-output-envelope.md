@@ -1,8 +1,9 @@
 ---
 title: "`execution.node.*` 의 `envelope.output` 도 fail-closed allowlist — 유예 근거가 실측에 반증됐다"
-status: in-progress
+status: complete
 worktree: node-output-envelope-458f05
 started: 2026-08-24
+completed: 2026-08-24
 owner: developer
 spec_impact:
   # ── (1) planner 턴으로 고친다 — 자기-반증형 소정정 예외가 **적용되지 않는** 파일들 ──
@@ -112,8 +113,15 @@ chat-channel `node.completed` 소비 경로도 같은 13키로 덮인다 — dis
 - [x] **(planner 턴)** §R17 표의 잔여 행 flip + 틀린 유예 근거 취소선 정정, WS §4.4 단서,
       WS §4.1 표에 `output` 열 + 래퍼/도메인값 이름 분리(`10_44_28` naming W2 · INFO 1)
 - [x] 뮤테이션 검증 — 3건, **예측 2/3 적중 + 1건은 내 예측이 틀렸다**
-- [ ] TEST WORKFLOW 4단계 + ratchet
-- [ ] `/ai-review`
+- [x] TEST WORKFLOW 4단계 + ratchet — lint 48s · unit 85s(backend **8,997 passed** /
+      433 suites, 전 러너 실패 0) · build 145s · e2e 239s(285 passed) · ratchet 199/38 일치
+- [x] `/ai-review` — 3라운드로 수렴
+      - `11_05_39`: LOW · C0 · **W3** → 3건 전부 처리. 핵심은 **"emit 5곳" 이 6곳**이었던
+        내 정량 오류(다섯 자리 전수 정정) · 리팩터가 떼어 놓은 JSDoc · `#1208` 과 비대칭이던
+        breaking-change 고지.
+      - `11_34_04` (타겟 4명): LOW · C0 · **W0 → 수렴.** INFO 2건만 처리 —
+        그중 `.failed` 직접 증거는 **내가 spec 에 그 보장을 써 넣었기 때문에** 넘기지 않았다.
+      - `11_53_06` (타겟 2명): LOW · C0 · **W1** — 이 체크박스 미동기화 하나.
 
 ## 검증 기준
 
@@ -124,9 +132,15 @@ chat-channel `node.completed` 소비 경로도 같은 13키로 덮인다 — dis
 
 | # | 뮤턴트 | 예측 | 실측 |
 |---|---|---|---|
-| M1 | `narrowTopLevelNodeOutput(next, 'output')` 제거 | 신규 `output` 캐너리 + flat 폴백 캐너리 **2건** RED, 기존 `nodeOutput`/`buttonConfig` 는 GREEN | ✅ 2 failed / 56 passed — 정확히 그 둘, 나머지 GREEN |
+| M1 | `narrowTopLevelNodeOutput(next, 'output')` 제거 | 신규 `output` 캐너리 + flat 폴백 캐너리 **2건** RED, 기존 `nodeOutput`/`buttonConfig` 는 GREEN | ✅ 2 failed / 56 passed (58 기준) — 정확히 그 둘, 나머지 GREEN |
+| M5 | 〃 (**PR 종결 시점 재측정**) | 리뷰가 캐너리를 늘렸으니 RED 도 늘어야 한다 | ✅ **3 failed / 60 passed (63 기준)** — `.failed` 캐너리가 셋째로 독립 발화 |
 | M2 | `…(envelope, 'nodeOutput')` 제거 | `nodeOutput` 캐너리 **2건** RED | ⚠️ **1 failed** / 57 passed — 예측이 틀렸다 |
 | M3 | 헬퍼 copy-on-change 제거 | 기존 `동일 객체` 1건 RED | ✅ 1 failed / 57 passed — 그 테스트 |
+
+**M1 의 카운트는 두 번 적는다** (`11_53_06` testing INFO 1). 뮤테이션을 돌린 시점(58건)과
+  PR 이 닫히는 시점(63건)의 baseline 이 다르다 — 리뷰가 캐너리를 늘렸기 때문이다. 이 저장소가
+  기록한 *"PR 안의 정량 기록은 PR 이 닫히는 시점의 값"* 에 맞춰 **M5 로 재측정**해 함께 실었다.
+  결론(그 뮤턴트가 잡힌다)은 두 시점 모두 같고, 늘어난 1건이 `.failed` 캐너리다.
 
 **M2 예측이 왜 틀렸나 (중요)**: chat-channel 4키 캐너리를 함께 셌는데, 그 넷은
 `expect(nodeOutput[key]).toEqual(value)` 로 **보존**을 단언한다. 필터가 통째로 사라지면
