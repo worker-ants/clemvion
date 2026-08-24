@@ -201,6 +201,33 @@ owner: planner
       > `[잔여 고정] flat 폴백 shape 이 오면 목록 밖 키는 떨어진다`.
       > **재개 신호**: 그 폴백이 실제로 발현한 행이 관측되면(운영 DB 또는 새 e2e 시나리오).
 
+- [ ] 🔴 **`system_error` 재시도 배너가 라이브 WS 경로에서 안 뜬다 — spec 문구가 낳은 프런트 결함**
+      (2026-08-24 등재, `12_24_55` cross_spec **CRITICAL**). **문서 정합이 아니라 실제 기능
+      결함**이다.
+      > **실측 (다시 찾지 말 것)**:
+      > - `NODE_FAILED` emit **4곳 전수** — `execution-engine.service.ts:6302`·`:6378`·`:8018`,
+      >   `ai-turn-orchestrator.service.ts:1537` — 이 top-level `error` 를 **`string`**
+      >   (message only)으로 보낸다. 구조화 객체는 `output.output.error` 에만 있다.
+      > - `use-execution-events.ts:894` `handleNodeFailed` 는
+      >   `extractNodeErrorPayload(payload.error, undefined)` 를 부른다. 그 함수는 `rawError`
+      >   가 **객체일 때만** `direct` 를 잡고 `rawOutput` 이 `undefined` 라 `nested` 도 없다
+      >   → **항상 `null`** → `system_error` APPEND 블록이 한 번도 실행되지 않는다.
+      > - 그 함수의 주석이 *"§4.1 갱신 — `execution.node.failed.error` 는 `output.error`
+      >   전체 구조"* 다. **틀린 spec 문구를 코드가 믿었다.** 그 문구는 2026-08-24 에 정정했다.
+      >
+      > **`handleNodeCompleted`(`:804`)도 같이 봐야 한다** — `extractNodeErrorPayload(undefined,
+      > payload.output)` 인데 `nested` 가 `rawOutput.error` **한 단**만 본다. `payload.output`
+      > 은 래퍼라 구조화 에러는 `output.output.error` **두 단** 아래다.
+      >
+      > **왜 이 PR 에서 안 고쳤나**: (a) frontend 를 전혀 건드리지 않는 egress-masking PR 이고,
+      > (b) 고치면 **배너가 새로 뜨기 시작**하는 UI 동작 변경이며, (c) 현재 테스트
+      > (`CT-S9`/`CT-S10`)가 **존재하지 않는 shape 을 fixture 로 쓰고 배너 미표시를 의도된
+      > 동작으로 단언**하고 있어 fixture 교체가 함께 필요하다. 자기 PR 로 가야 한다.
+      >
+      > **착수 시**: `extractNodeErrorPayload(payload.error, payload.output)` + `nested` 를
+      > `rawOutput.output.error` 2단 접근으로. `CT-S9`/`CT-S10` fixture 를 실 backend shape
+      > (`error: string` + `output.output.error` 객체)으로 교체하고 *"legacy string"* 주석 정정.
+
 - [ ] **provider spec 3곳의 `output.rendered` 가 wire 래퍼 기준인지 미확정**
       (2026-08-24 등재, `12_13_36` convention_compliance INFO 1). `telegram.md:160` ·
       `slack.md:233` · `discord.md:256` 의 CCH-MP-06 행이 *"`output.rendered` 를 escape 후
