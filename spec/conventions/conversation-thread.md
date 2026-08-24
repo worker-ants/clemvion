@@ -566,14 +566,21 @@ content 가 blank 가 아닌 assistant (LLM 의 thinking text 등) 는 parent �
 | `waiting_for_input` (interactionType=ai_conversation) | REPLACE with `threadTurnsToConversationItems(payload.conversationThread.turns)` + **MERGE orphan tools / intermediate assistants** (§9.11). `lastAppliedThreadSeqRef` 로 동일 `nextSeq` 재emit skip | lean thread 보존 |
 | `waiting_for_input` (interactionType=ai_form_render) | 위 ai_conversation 행과 동일 REPLACE/MERGE 정책 + 추가로 `conversationConfig.pendingFormToolCall: { toolCallId, formConfig }` 를 store 의 `waitingConversationConfig.pendingFormToolCall` 에 저장. 이 값이 set 인 동안 SummaryView / SelectedItemDetail 의 `AssistantPresentationsBlock` 이 `payload.toolCallId` 매칭 시 interactive form 렌더 (§9.1 `ai_assistant` 행 비고) | AI Agent multi-turn 의 render_form blocking |
 | `waiting_for_input` (interactionType=form / buttons) | `conversationThread` 가 동봉된 경우에만 위 ai_conversation 행과 동일 정책 — live tool row 보존 의무 동일 (Inv-4) | Form / Buttons 노드 |
-| `node.failed` (interactionType=ai_conversation 컨텍스트의 AI Agent multi-turn) | APPEND `system_error` item to `conversationMessages` — payload 의 `error.{code, message, details.retryable, details.retryAfterSec}` 를 §1.2 `data?` shape 으로 매핑. 기존 항목 변형 금지 (Inv-3 immutability) | 에러 인라인 표시 (Inv-6) |
-| `node.completed` (multi-turn `port: 'error'` + `output.error` set) | 위 `node.failed` 와 동일 정책 — APPEND `system_error` item. `error` 정보는 payload 의 `output.error` 에서 추출 (`buildMultiTurnFinalOutput` 의 error 종결 형태, [Spec AI Agent §7.9](../4-nodes/3-ai/1-ai-agent.md#79-multi-turn-모드--오류-error-포트)) | 에러 인라인 표시 (Inv-6) |
+| `node.failed` (interactionType=ai_conversation 컨텍스트의 AI Agent multi-turn) | APPEND `system_error` item to `conversationMessages` — ~~payload 의 `error.{code, message, details.retryable, details.retryAfterSec}` 를~~ **wire top-level `error` 는 `string`(message only)이다** (2026-08-24 실측 정정, emit 4곳 전수: `execution-engine.service.ts:6302`·`:6378`·`:8018`, `ai-turn-orchestrator.service.ts:1537` — SoT [WS §4.1](../5-system/6-websocket-protocol.md)). 구조화 객체는 **`payload.output.output.error`** 에만 있고, `output` 이 동봉되는 2경로(error-port 종결·AI turn 종결)에서만 도달 가능하다. 그것을 §1.2 `data?` shape 으로 매핑. 기존 항목 변형 금지 (Inv-3 immutability) | 에러 인라인 표시 (Inv-6) |
+| `node.completed` (multi-turn `port: 'error'` + `output.error` set) | 위 `node.failed` 와 동일 정책 — APPEND `system_error` item. `error` 정보는 payload 의 **`output.output.error`** 에서 추출 — wire `output` 은 `NodeHandlerOutput` **래퍼 전체**라 도메인 값이 한 겹 아래다(~~`output.error`~~, 2026-08-24 정정. `buildMultiTurnFinalOutput` 의 error 종결 형태, [Spec AI Agent §7.9](../4-nodes/3-ai/1-ai-agent.md#79-multi-turn-모드--오류-error-포트)) | 에러 인라인 표시 (Inv-6) |
 
 REPLACE 는 unconditional 배열 교체가 아니라 **carry-over policy 가 명시된 교체**다 — Inv-1, Inv-4 (§9.9) 를 깨지 않도록 prev 의 일부 상태를 보존한다.
 
 **Carry-over 필드의 스키마 귀속**: `toolStatus` / `durationMs` / `error` 는 store 내부 `ConversationItem` 의 runtime 필드 (`codebase/frontend/src/lib/stores/execution-store.ts`) 이며, ConversationTurn §1.2 wire 스키마 확장이 아니다.
 
 본 계약은 권위적 snapshot 재구성의 conversation UI 레이어 명문화이며, carry-over 항목은 live WS 이벤트 선행 도착 정보를 snapshot 빈 상태가 덮어쓰지 않기 위한 정책이다.
+
+> **⚠️ 위 두 행이 프런트 결함을 낳았다** (2026-08-24, `12_42_20` cross_spec CRITICAL):
+> `use-execution-events.ts` 의 `extractNodeErrorPayload` 가 이 서술을 코드화해
+> `payload.error` 를 **객체로** 파싱하고 nested 분기도 **한 단**만 본다. 그래서 라이브 WS
+> 경로에서 `system_error` 배너가 **한 번도 뜨지 않는다**. 코드 수정은 UI 동작·테스트 fixture
+> 가 함께 바뀌므로 **별건**으로 정본 트래커에 등재돼 있고, **그 작업이 이 두 행의 문구도
+> 함께 검증**한다. 여기서는 계약을 실측에 맞춰 먼저 바로잡는다.
 
 #### 9.7.1 store reset 정책 (실행 lifecycle 별)
 

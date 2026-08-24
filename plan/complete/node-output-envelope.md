@@ -17,6 +17,10 @@ spec_impact:
   # 턴 범위다(내가 쓴 문장이 아니므로 자기-반증형 예외 대상 아님).
   - spec/conventions/chat-channel-adapter.md
   - spec/5-system/15-chat-channel.md
+  # `12_42_20` cross_spec CRITICAL — `conversation-thread.md` §9.7 두 행(`node.failed`/
+  # `node.completed` 의 error shape). **아래 (2) 와 같은 파일이지만 성격이 다르다**:
+  # §8.4 는 자기-반증형 소정정, §9.7 은 **planner 턴**(내가 쓴 문장이 아니고 wire 계약이라
+  # 예외 조건 1·2 둘 다 불충족).
   # ── (2) 자기-반증형 소정정 (CLAUDE.md 「자기-반증형 소정정」 절) — **이 한 파일에만** ──
   # 대상 문장: `#1208` 에서 내가 쓴 "잔여로 남은 것은 envelope.output 하나다 … 이종 payload 라
   # 같은 목록을 걸 수 없다". **상태 예고**이지 API 계약 조항이 아니다(조건 2 충족). 이 작업의

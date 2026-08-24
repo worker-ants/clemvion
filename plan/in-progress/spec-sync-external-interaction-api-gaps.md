@@ -227,6 +227,12 @@ owner: planner
       > **착수 시**: `extractNodeErrorPayload(payload.error, payload.output)` + `nested` 를
       > `rawOutput.output.error` 2단 접근으로. `CT-S9`/`CT-S10` fixture 를 실 backend shape
       > (`error: string` + `output.output.error` 객체)으로 교체하고 *"legacy string"* 주석 정정.
+      >
+      > **문서는 이미 정정돼 있다** (2026-08-24, `#node-output-envelope`): WS §4.1 과
+      > `conversation-thread.md` §9.7 **두 행**이 실측 shape 으로 고쳐졌고 각각 *"이 문구가
+      > 프런트 결함을 낳았다"* 는 인과까지 적혀 있다. **착수 시 그 문구를 다시 고칠 게 아니라,
+      > 코드를 그 문구에 맞추고 §9.7 위의 ⚠️ 블록을 지우면 된다** — 그 블록이 "아직 안 고쳐진
+      > 코드" 를 가리키는 표지다.
 
 - [ ] **provider spec 3곳의 `output.rendered` 가 wire 래퍼 기준인지 미확정**
       (2026-08-24 등재, `12_13_36` convention_compliance INFO 1). `telegram.md:160` ·
