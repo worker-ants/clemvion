@@ -1756,8 +1756,10 @@ present-when-available 이므로, REST 만 `null` 로 정규화하면 위젯의 
 
   > **정정 (2026-08-23, `23_29_27` cross_spec CRITICAL)**: 위 문장은 **구현보다 넓었다.**
   > `waiting_for_input` 의 두 자리는 닫혔지만, `execution.node.completed`/`.failed` 는 같은
-  > `NodeExecution.outputData` 를 **`output`** 이라는 다른 키로 최상위에 싣는다(emit 5곳:
-  > `execution-engine` 2 · `form-interaction` · `button-interaction` · `ai-turn-orchestrator`).
+  > `NodeExecution.outputData` 를 **`output`** 이라는 다른 키로 최상위에 싣는다(emit **6곳**:
+  > `execution-engine` 2 · `form-interaction` 1 · `button-interaction` 1 ·
+  > **`ai-turn-orchestrator` 2**). ~~초판은 "5곳" 이라 적었다~~ — `ai-turn-orchestrator` 의
+  > 두 분기를 하나로 셌다(`11_05_39` requirement W3, `grep` 실측 정정).
   > ~~그 표면은 여전히 deny-list 라 `_retryState` 가 나간다. 정확한 서술은
   > **"waiting 표면은 같은 강도, node 이벤트 표면은 아직 아니다"** 다.~~
   > **(2026-08-24 해소 — 아래 재정정. 이제 두 표면 모두 같은 강도다.)**
@@ -1797,6 +1799,12 @@ present-when-available 이므로, REST 만 `null` 로 정규화하면 위젯의 
   > 로 쓸 수 있다(285건에서 미발현). 그 shape 이 오면 목록 밖 키가 떨어지는 것이
   > fail-closed 의 정의이고, **그 동작을 캐너리가 명시적으로 고정**한다. *"flat view 를
   > `outputData` 로 영속하는 것이 옳은가"* 는 영속 계약 문제라 별건으로 트래커에 있다.
+  >
+  > **외부 수신자에게는 동작 변경이다** (`waiting` 표면 고지와 대칭): SSE/webhook/chat-channel
+  > 로 나가는 `execution.node.completed`/`.failed` payload 의 **`output` 최상위에서 목록 밖
+  > 키가 사라진다**. 과거 응답에는 `_retryState` 등 엔진 내부 필드가 **이미 노출돼 있었을 수
+  > 있고**, 그것을 닫는 것이 이 변경의 목적이다. 알려진 소비처(위젯·chat-channel 렌더러)는
+  > 실측으로 영향 없음을 확인했으나 **제3자 webhook 구독자는 확인 범위 밖**이다. 내부 WS 불변.
   >
   > **교훈**: 나는 *"그 객체에 목록을 걸면 어떻게 되나"* 를 쟀고, 물었어야 할 것은
   > **"그 객체가 이 표면에 도달하나"** 였다. 프록시를 재고 유예 결론을 냈다.

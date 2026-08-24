@@ -36,6 +36,14 @@ allowlist 를 걸면 정상 데이터가 잘린다. ~~**SSE·fanout 은 여전�
 > > `nodeOutputCache` 에만 들어간다. 실 DB 조회(e2e 285건 후, 84 object 행)에서
 > > `output_data` top-level 키는 `meta`·`config`·`output`·`port`·`status`·
 > > `conversationConfig` 뿐이고 전부 목록 안이었다.
+> >
+> > **외부 수신자에게는 동작 변경이다** (`#1208` 의 waiting 표면 고지와 대칭):
+> > SSE/webhook/chat-channel 로 나가는 `execution.node.completed`/`.failed` payload 의
+> > **`output` 최상위에서 목록 밖 키가 사라진다**. 과거 응답에는 `_retryState` 등 엔진 내부
+> > 필드가 **이미 노출돼 있었을 수 있다** — 그것을 닫는 것이 이 변경의 목적이다.
+> > 알려진 소비처(위젯·chat-channel 렌더러)는 실측으로 영향 없음을 확인했고, **제3자 webhook
+> > 구독자는 확인 범위 밖**이다(운영 로그 접근이 없어 표본 감사를 못 했다). 내부 WS(에디터)는
+> > 불변이다.
 > 유예 사유였던 *"envelope shape 이
 > 달라 별건 변경이 필요하다"* 가 실측으로 반증됐다(두 emit 이 그 한 함수를 공유하고,
 > payload 가 평평하게 펼쳐져 위치도 REST 와 동일하다).

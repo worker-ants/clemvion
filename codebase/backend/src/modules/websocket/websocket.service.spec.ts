@@ -885,7 +885,7 @@ describe('WebsocketService', () => {
       ['title', '주문 확인'],
       ['nodeType', 'ai_agent'],
     ])(
-      '[캐너리] chat-channel 이 top-level 로 읽는 `%s` 는 fanout 에 남는다',
+      '[캐너리] chat-channel 이 top-level 로 읽는 `%s` 는 fanout 에 남는다 (waiting)',
       async (key, value) => {
         const eventP = nextFanoutEvent(service);
         await service.emitExecutionEvent(
@@ -904,13 +904,44 @@ describe('WebsocketService', () => {
     );
 
     /**
+     * **같은 넷을 `output` 경로에도 따로 단언한다** (`11_05_39` testing INFO 8).
+     *
+     * 두 경로가 같은 헬퍼를 공유하므로 *논리적으로는* 위 waiting 케이스가 보장하지만,
+     * **직접 증거는 아니다** — 헬퍼가 키별로 분기하도록 바뀌거나 `output` 배선만 빠지면
+     * waiting 쪽은 GREEN 인 채로 chat-channel `node.completed` 렌더가 조용히 빈다.
+     * `node.completed` 는 Discord/Telegram/Slack 의 **비차단 presentation** 발송 경로라
+     * (CCH-MP-06) 그 파손이 waiting 과 별개로 드러난다.
+     */
+    it.each([
+      ['rendered', 'hello **world**'],
+      ['payload', { items: [{ title: 'a' }] }],
+      ['title', '주문 확인'],
+      ['nodeType', 'ai_agent'],
+    ])(
+      '[캐너리] chat-channel 이 top-level 로 읽는 `%s` 는 fanout 에 남는다 (node.completed)',
+      async (key, value) => {
+        const eventP = nextFanoutEvent(service);
+        await service.emitNodeEvent(
+          `exec-chat-out-${key}`,
+          'n-chat-out',
+          NodeEventType.NODE_COMPLETED,
+          { nodeType: 'template', output: { [key]: value } },
+        );
+        const fanout = await eventP;
+        const out = (fanout.payload as Record<string, unknown>)
+          .output as Record<string, unknown>;
+        expect(out[key]).toEqual(value);
+      },
+    );
+
+    /**
      * **`envelope.output` 도 같은 allowlist 를 지난다** — `23_29_27` cross_spec CRITICAL
      * 이 연 잔여를 2026-08-24 에 닫았다. **이 테스트는 그 전 라운드의 `[잔여]` 캐너리를
      * 뒤집은 것이다** — 그 캐너리의 JSDoc 이 *"닫히면 RED 가 되고 그 단언을 뒤집는 것이
      * 그 작업의 일부"* 라고 적어 뒀고, 이 커밋이 그 계약을 이행한다.
      *
      * `execution.node.completed`/`.failed` 는 `NodeExecution.outputData` 를 **`output`**
-     * 이라는 다른 키로 최상위에 싣는다(emit 5곳). 키 이름이 달라 `nodeOutput` 만 찾은
+     * 이라는 다른 키로 최상위에 싣는다(emit **6곳**). 키 이름이 달라 `nodeOutput` 만 찾은
      * 종전 배선이 이 표면을 통째로 지나쳤다.
      *
      * ## 유예 근거가 실측에 반증됐다

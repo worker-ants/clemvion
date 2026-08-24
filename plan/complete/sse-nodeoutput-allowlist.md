@@ -20,7 +20,7 @@ spec_impact:
 > 이 문서가 *"REST 와 강도를 맞춘다"* 로 시작했지만, `--impl-done` 게이트가 **그 보장이
 > 구현보다 넓다**는 것을 잡았다. 닫힌 것은 `waiting_for_input` 의 두 자리이고,
 > `execution.node.completed`/`.failed` 가 **`output`** 이라는 **다른 키**로 싣는 같은
-> `NodeExecution.outputData` 는 그대로 나간다(emit 5곳, 전부 같은 `toFanoutEnvelope` 통과).
+> `NodeExecution.outputData` 는 그대로 나간다(emit **6곳** — 초판은 5곳이라 적었다, `11_05_39` requirement W3 정정 — 전부 같은 `toFanoutEnvelope` 통과).
 >
 > **질문이 한 칸 좁았다.** *"`nodeOutput` 이 어디 있나"* 를 물었고, 물었어야 할 것은
 > *"`NodeHandlerOutput` 이 어느 문으로 나가나"* 였다. 키 이름이 다르면 grep 이 침묵한다.

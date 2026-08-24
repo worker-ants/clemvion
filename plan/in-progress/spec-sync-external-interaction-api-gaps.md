@@ -161,7 +161,7 @@ owner: planner
       > 물었어야 할 질문은 *"`NodeHandlerOutput` 이 어느 문으로 나가나"* 였다. 키 이름이 다르면
       > grep 이 침묵한다.
       >
-      > **emit 5곳 (실측 — 다시 찾지 말 것)**: `execution-engine.service.ts` 2곳
+      > **emit ~~5곳~~ 6곳 (실측 — 다시 찾지 말 것)**: `execution-engine.service.ts` 2곳
       > (NODE_COMPLETED · NODE_FAILED) · `form-interaction.service.ts` ·
       > `button-interaction.service.ts` · `ai-turn-orchestrator.service.ts`. 전부
       > `output: <nodeExec>.outputData` 이고 `emitNode` → `emitNodeEvent` →
