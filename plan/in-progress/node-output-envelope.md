@@ -5,11 +5,18 @@ worktree: node-output-envelope-458f05
 started: 2026-08-24
 owner: developer
 spec_impact:
+  # ── (1) planner 턴으로 고친다 — 자기-반증형 소정정 예외가 **적용되지 않는** 파일들 ──
+  # 이 둘은 **API 계약 문서**라 CLAUDE.md 예외 조건 2 에 해당하지 않는다. 그래서 예외를
+  # 원용하지 않고, 이 PR 안에서 **planner 턴**으로 처리한다(아래 `## 작업` 의 "(planner 턴)"
+  # 항목). spec 을 별도 PR 로 떼면 머지 시차 동안 spec-impl drift 가 생기므로 같은 PR 에
+  # 둔다 — `#1204`·`#1208` 에서 내린 것과 같은 판단이다.
   - spec/5-system/14-external-interaction-api.md
   - spec/5-system/6-websocket-protocol.md
-  # 자기-반증형 소정정 (CLAUDE.md 「자기-반증형 소정정」 절) — `#1208` 에서 내가 쓴
-  # "잔여로 남은 것은 envelope.output 하나다 … 이종 payload 라 같은 목록을 걸 수 없다" 를
-  # 이 작업의 실 DB 조회가 반증했다. 취소선 보존 + 정정. 게이트는 `--impl-done spec/conventions/`.
+  # ── (2) 자기-반증형 소정정 (CLAUDE.md 「자기-반증형 소정정」 절) — **이 한 파일에만** ──
+  # 대상 문장: `#1208` 에서 내가 쓴 "잔여로 남은 것은 envelope.output 하나다 … 이종 payload 라
+  # 같은 목록을 걸 수 없다". **상태 예고**이지 API 계약 조항이 아니다(조건 2 충족). 이 작업의
+  # 실 DB 조회가 반증했고(조건 3), 취소선 보존 + 그 문장에 국한(조건 4).
+  # 게이트는 `--impl-done spec/conventions/` (조건 5).
   - spec/conventions/conversation-thread.md
 ---
 
@@ -95,21 +102,40 @@ chat-channel `node.completed` 소비 경로도 같은 13키로 덮인다 — dis
 
 ## 작업
 
-- [ ] `/consistency-check --impl-prep`
-- [ ] `allowlistFanoutNodeOutput` 에 `envelope.output` 배선 (세 위치 공통 헬퍼로 정리)
-- [ ] 캐너리 — `_retryState` 제거 · 렌더 키 보존 · **내부 WS 불변** · flat 폴백 동작 고정
-- [ ] **#1208 의 잔여 캐너리를 뒤집는다** (`[잔여] … 아직 allowlist 를 지나지 않는다`)
+- [x] `/consistency-check --impl-prep` — `10_44_28` **BLOCK: YES** (절차 Critical) → 아래
+      `RESOLUTION.md`. 실질 spec-code 충돌은 checker 재확인에서 **이미 해소** 판정.
+- [x] `allowlistFanoutNodeOutput` 에 `envelope.output` 배선 (최상위 두 키를 공통 헬퍼로)
+- [x] 캐너리 — `_retryState` 제거 · 렌더 키 보존 · **내부 WS 불변** · flat 폴백 동작 고정
+- [x] **#1208 의 잔여 캐너리를 뒤집었다** (`[잔여] … 아직 allowlist 를 지나지 않는다`)
       — 그 테스트의 JSDoc 이 *"닫히면 RED 가 되고 그 단언을 뒤집는 것이 그 작업의 일부"*
-      라고 적어 뒀다. 그 계약을 이행한다.
-- [ ] (planner 턴) §R17 표의 잔여 행 flip + **틀린 유예 근거를 취소선으로 정정**,
-      WS §4.4 단서 갱신
-- [ ] 뮤테이션 검증
+      라고 적어 뒀다. 그 계약을 이행했다.
+- [x] **(planner 턴)** §R17 표의 잔여 행 flip + 틀린 유예 근거 취소선 정정, WS §4.4 단서,
+      WS §4.1 표에 `output` 열 + 래퍼/도메인값 이름 분리(`10_44_28` naming W2 · INFO 1)
+- [x] 뮤테이션 검증 — 3건, **예측 2/3 적중 + 1건은 내 예측이 틀렸다**
 - [ ] TEST WORKFLOW 4단계 + ratchet
 - [ ] `/ai-review`
 
 ## 검증 기준
 
 - **내부 WS 는 안 바뀐다** — #1208 과 같은 안전 조건.
-- **뮤테이션**: `envelope.output` 배선만 제거 → 새 캐너리만 RED(기존 둘은 GREEN 이어야
-  세 위치가 실제로 갈린다).
 - 뮤테이션은 **커밋 후** `cp` 백업으로. `git checkout`/`reset --hard` 금지.
+
+## 뮤테이션 (예측을 실행 전에 쓰고 실측과 두 칸으로 대조)
+
+| # | 뮤턴트 | 예측 | 실측 |
+|---|---|---|---|
+| M1 | `narrowTopLevelNodeOutput(next, 'output')` 제거 | 신규 `output` 캐너리 + flat 폴백 캐너리 **2건** RED, 기존 `nodeOutput`/`buttonConfig` 는 GREEN | ✅ 2 failed / 56 passed — 정확히 그 둘, 나머지 GREEN |
+| M2 | `…(envelope, 'nodeOutput')` 제거 | `nodeOutput` 캐너리 **2건** RED | ⚠️ **1 failed** / 57 passed — 예측이 틀렸다 |
+| M3 | 헬퍼 copy-on-change 제거 | 기존 `동일 객체` 1건 RED | ✅ 1 failed / 57 passed — 그 테스트 |
+
+**M2 예측이 왜 틀렸나 (중요)**: chat-channel 4키 캐너리를 함께 셌는데, 그 넷은
+`expect(nodeOutput[key]).toEqual(value)` 로 **보존**을 단언한다. 필터가 통째로 사라지면
+보존은 여전히 참이라 **GREEN 이다** — 그 캐너리는 *과잉 좁힘*만 잡는 **단방향 가드**다.
+
+설계 자체는 의도대로다(그 넷의 존재 이유가 chat-channel 렌더 파손 방지). 다만 **"이 캐너리가
+무엇을 잡는가" 를 내가 한 방향으로만 세지 않았다** — 보존 단언과 제거 단언은 서로 다른
+뮤턴트를 잡는다. M1 이 두 방향을 다 잡은 것은 신규 캐너리에 제거 단언(`_retryState`)과
+보존 단언(`output`)이 **둘 다** 들어 있기 때문이다.
+
+- **세 위치가 실제로 갈린다** — M1 과 M2 가 서로 다른 테스트를 RED 로 만든다(교집합 0).
+- **내부 WS 는 안 바뀐다** — #1208 과 같은 안전 조건, 신규 캐너리가 대조군으로 고정.

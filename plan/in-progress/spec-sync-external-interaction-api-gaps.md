@@ -201,6 +201,13 @@ owner: planner
       > `[잔여 고정] flat 폴백 shape 이 오면 목록 밖 키는 떨어진다`.
       > **재개 신호**: 그 폴백이 실제로 발현한 행이 관측되면(운영 DB 또는 새 e2e 시나리오).
 
+- [ ] **`background:run:{id}` 채널이 WS §3.2 "채널 패턴" 표에서 누락** (2026-08-24 등재,
+      `10_44_28` convention_compliance W1). §3.3 인가 표에는 나오는데 §3.2 패턴 표에는 없다.
+      `redis-keys.md` §4 가 이 채널의 SoT 로 §3.2 를 지목하고 있어 포인터가 빈다.
+      > **planner 소관**이고 **선재 갭**이다(이번 작업이 만든 것이 아니다). §3.2 표에 행을
+      > 추가하거나, `redis-keys.md` §4 포인터를 `4-nodes/1-logic/12-background.md §8.5` 로
+      > 돌린다 — 어느 쪽인지는 planner 판단.
+
 - [ ] **WS §4.4 `buttonConfig.nodeOutput` 행에 `nodeType` carve-out 각주 없음**
       (2026-08-24 등재, `00_51_50` convention_compliance INFO 7). 같은 절이 *"판별자 래퍼
       금지"* 를 말하는데 새 `nodeType` legacy carve-out 이 교차 참조 없이 병존한다 —
