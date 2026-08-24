@@ -489,8 +489,8 @@ export class WebsocketService {
    *
    * **키 이름이 둘이다 — `nodeOutput` 과 `output`.**
    * `execution.node.completed`/`.failed` 는 같은 `NodeExecution.outputData` 를
-   * **`output`** 이라는 다른 키로 최상위에 싣는다(emit **6곳**:
-   * `execution-engine` 2 · `form-interaction` 1 · `button-interaction` 1 · `ai-turn-orchestrator` 2). 종전 배선이 `nodeOutput`
+   * **`output`** 이라는 다른 키로 최상위에 싣는다 — emit **6곳**(`execution-engine` 2 ·
+   * `form-interaction` 1 · `button-interaction` 1 · `ai-turn-orchestrator` 2). 종전 배선이 `nodeOutput`
    * 만 찾아 그 표면을 통째로 지나쳤고, 2026-08-24 에 함께 닫았다.
    *
    * 그때 유예 근거로 적었던 *"이종 payload 라 같은 목록을 걸 수 없다(버튼 재개 record 가

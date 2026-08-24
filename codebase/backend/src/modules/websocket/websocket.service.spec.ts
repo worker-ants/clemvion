@@ -992,6 +992,48 @@ describe('WebsocketService', () => {
     });
 
     /**
+     * **`.failed` 도 같은 문을 지난다** (`11_34_04` testing INFO 2).
+     *
+     * 위 캐너리들이 전부 `NODE_COMPLETED` 라 `.failed` 변형은 **직접 증거가 없었다**.
+     * 단일 chokepoint 라 이벤트 타입 분기가 없으니 *논리적으로는* 보장되지만, 그건
+     * 이 PR 이 INFO 8 에서 이미 거부한 논법이다 — 게다가 WS §4.1 표에
+     * **"`.failed` 의 `output` 도 같은 allowlist 를 지난다"** 를 이번에 내가 써 넣었다.
+     * **문서한 보장이 구현보다 넓지 않도록** 그 방향을 직접 못박는다.
+     *
+     * `finalizeErrorPortNode` 는 `error` 와 `output`(= `outputData`)을 **함께** 싣는다 —
+     * 그래서 `error` 는 그대로 남고 `output` 안의 목록 밖 키만 떨어지는지도 같이 본다.
+     */
+    it('[캐너리] `execution.node.failed` 의 `envelope.output` 도 allowlist 를 지난다', async () => {
+      const eventP = nextFanoutEvent(service);
+      await service.emitNodeEvent(
+        'exec-node-failed-allowlist',
+        'n-failed',
+        NodeEventType.NODE_FAILED,
+        {
+          nodeType: 'http',
+          status: 'failed',
+          error: { code: 'UPSTREAM_ERROR', message: 'boom' },
+          output: {
+            config: {},
+            output: { error: { code: 'UPSTREAM_ERROR' } },
+            _retryState: { attempt: 3 },
+          },
+        },
+      );
+      const fanout = await eventP;
+      const payload = fanout.payload as Record<string, unknown>;
+      const out = payload.output as Record<string, unknown>;
+      expect(out).not.toHaveProperty('_retryState');
+      // 형제 필드 `error` 는 allowlist 대상이 아니다 — envelope 최상위에 그대로 남는다.
+      expect(payload.error).toEqual({
+        code: 'UPSTREAM_ERROR',
+        message: 'boom',
+      });
+      // 도메인 값은 한 겹 아래(`output.output`) — WS §4.1 이 이번에 정정한 그 층이다.
+      expect(out.output).toEqual({ error: { code: 'UPSTREAM_ERROR' } });
+    });
+
+    /**
      * **flat 폴백의 현 동작을 고정한다.**
      *
      * `ai-turn-orchestrator.service.ts` 의 `finalAdapted ?? context.nodeOutputCache[...]`
