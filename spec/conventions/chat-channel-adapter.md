@@ -188,6 +188,10 @@ type ChatChannelInternalEvent =
        * 렌더러(`renderPresentationByType`)가 `payload → output → config → flat` 우선순위로
        * 훑어 실제 파손은 없었지만, 이 주석을 SoT 로 믿고 `output.rendered` 를 직접 읽으면
        * `undefined` 다.
+       *
+       * **래퍼/도메인 값 구분의 정본은 `node-output.md` Principle 0 의 `wire envelope`
+       * 각주**다 — 이 주석은 그 계약을 재진술하지 않고 인용한다
+       * (2026-08-24, `13_30_49` W3).
        */
       output: Record<string, unknown>;
       meta?: Record<string, unknown>;

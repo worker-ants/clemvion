@@ -232,6 +232,14 @@ server-side validation 실패 시: §4.1 modal 은 `view_submission` 응답 `res
 | `table` | `output.{rows, columns}` → mrkdwn code block 안의 monospace table (column padding · header separator · row cap 20 · cell >16 chars ellipsis · 3500자 분할) | fallback to text | 표 PNG `files.uploadV2` | text (정밀도 우선) | text (변경 없음) |
 | `template` | `output.rendered` 가 plain text 면 `chat.postMessage` (3500자 분할). HTML 은 noop fallback | fallback to text | HTML → SSR PNG | text fallback | HTML → SSR PNG |
 
+> **이 표는 핸들러 출력(`NodeHandlerOutput.output`) 기준이다** (2026-08-24 신설,
+> `13_30_49` naming W5). 네 행의 `output.payload.*` · `output.items[]` ·
+> `output.{rows, columns}` · `output.rendered` 는 모두 **노드가 무엇을 만드나**를 적은 것이지
+> 렌더러의 접근 경로가 아니다. wire envelope 에 실릴 때는 **래퍼가 한 겹 더 붙어**
+> `nodeOutput.output.<field>` 가 되고, 렌더러는 `payload → output → config → flat` 우선순위로
+> 훑어 legacy flat shape 까지 함께 받는다. 정본은
+> [node-output.md Principle 0 의 `wire envelope` 각주](../../../conventions/node-output.md).
+
 **버튼 처리**: 모든 시각형에 대해 `buttonConfig.buttons[]` 가 있으면 시각 message 들 **다음** 메시지로 actions block 발송 (Slack UX 정합 — 컨텐츠 본 후 선택).
 
 **legacy `text_only` 처리**: Telegram 과 동일 — 어댑터가 입력 단계에서 `visualNode === "text_only"` 를 `"text"` 로 read-time normalize (Convention §2.3 의 normalize 정책 적용).

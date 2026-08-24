@@ -255,6 +255,14 @@ server-side validation 실패 시: §4.1 modal 은 후속 메시지 버튼 재�
 | `table` | `output.{rows, columns}` → markdown code block monospace table (column 정렬 · row cap 20 · cell >16 chars ellipsis · 2000자 분할) | fallback to text | 표 PNG attachment | text (정밀도 우선) | text (변경 없음) |
 | `template` | `output.rendered` plain text → `POST /messages` (2000자 분할). HTML 은 noop fallback | fallback to text | HTML → SSR PNG | text fallback | HTML → SSR PNG |
 
+> **이 표는 핸들러 출력(`NodeHandlerOutput.output`) 기준이다** (2026-08-24 신설,
+> `13_30_49` naming W5). 네 행의 `output.payload.*` · `output.items[]` ·
+> `output.{rows, columns}` · `output.rendered` 는 모두 **노드가 무엇을 만드나**를 적은 것이지
+> 렌더러의 접근 경로가 아니다. wire envelope 에 실릴 때는 **래퍼가 한 겹 더 붙어**
+> `nodeOutput.output.<field>` 가 되고, 렌더러는 `payload → output → config → flat` 우선순위로
+> 훑어 legacy flat shape 까지 함께 받는다. 정본은
+> [node-output.md Principle 0 의 `wire envelope` 각주](../../../conventions/node-output.md).
+
 **Embed 활용 시기** (계획): Discord embed 는 풍부한 표현 (title / description / fields / image / color) 을 지원하지만 fields 의 inline / max length 제약이 있어 chart/table 의 monospace 표현은 plain content 가 더 가독적. carousel 의 각 카드는 embed 가 더 잘 어울린다 — `auto` 분기에서 imageUrl 있으면 embed 사용은 **미구현 (Planned)**. 현재 모든 시각형은 markdown 텍스트 fallback (embeds 미사용).
 
 **버튼 처리**: 모든 시각형에 대해 `buttonConfig.buttons[]` 가 있으면 시각 message 들 **다음** 메시지로 ACTION_ROW 발송 (또는 마지막 message 의 `components` 에 첨부).

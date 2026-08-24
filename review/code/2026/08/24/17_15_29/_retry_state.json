@@ -1,0 +1,56 @@
+{
+  "session_dir": "/Volumes/project/private/clemvion/.claude/worktrees/planner-doc-batch-dd163d/review/code/2026/08/24/17_15_29",
+  "summary_subagent_type": "code-review-summary",
+  "summary_output_file": "/Volumes/project/private/clemvion/.claude/worktrees/planner-doc-batch-dd163d/review/code/2026/08/24/17_15_29/SUMMARY.md",
+  "router_subagent_type": "review-router",
+  "router_prompt_file": null,
+  "router_output_file": "/Volumes/project/private/clemvion/.claude/worktrees/planner-doc-batch-dd163d/review/code/2026/08/24/17_15_29/_routing_decision.json",
+  "routing_status": "skipped",
+  "routing_skip_reason": "REVIEW_AGENTS explicitly set",
+  "agents_forced": [
+    "documentation",
+    "requirement"
+  ],
+  "agents_forced_reasons": {
+    "documentation": [
+      "문서 파일(.md/.txt/.rst/.adoc/LICENSE/CHANGELOG 등) 변경: plan/in-progress/spec-draft-planner-doc-batch.md, plan/in-progress/spec-sync-external-interaction-api-gaps.md, review/consistency/2026/08/24/13_30_49/RESOLUTION.md (외 29건)"
+    ],
+    "requirement": [
+      "spec 본문 변경 — documentation 외에도 요구사항 일관성 검증 필요: spec/4-nodes/7-trigger/providers/discord.md, spec/4-nodes/7-trigger/providers/slack.md, spec/4-nodes/7-trigger/providers/telegram.md (외 6건)"
+    ]
+  },
+  "agents_skipped": [],
+  "subagent_invocations": [
+    {
+      "name": "documentation",
+      "subagent_type": "documentation-reviewer",
+      "prompt_file": "/Volumes/project/private/clemvion/.claude/worktrees/planner-doc-batch-dd163d/review/code/2026/08/24/17_15_29/_prompts/documentation.md",
+      "output_file": "/Volumes/project/private/clemvion/.claude/worktrees/planner-doc-batch-dd163d/review/code/2026/08/24/17_15_29/documentation.md"
+    },
+    {
+      "name": "requirement",
+      "subagent_type": "requirement-reviewer",
+      "prompt_file": "/Volumes/project/private/clemvion/.claude/worktrees/planner-doc-batch-dd163d/review/code/2026/08/24/17_15_29/_prompts/requirement.md",
+      "output_file": "/Volumes/project/private/clemvion/.claude/worktrees/planner-doc-batch-dd163d/review/code/2026/08/24/17_15_29/requirement.md"
+    },
+    {
+      "name": "scope",
+      "subagent_type": "scope-reviewer",
+      "prompt_file": "/Volumes/project/private/clemvion/.claude/worktrees/planner-doc-batch-dd163d/review/code/2026/08/24/17_15_29/_prompts/scope.md",
+      "output_file": "/Volumes/project/private/clemvion/.claude/worktrees/planner-doc-batch-dd163d/review/code/2026/08/24/17_15_29/scope.md"
+    }
+  ],
+  "agents_pending": [
+    "documentation",
+    "requirement",
+    "scope"
+  ],
+  "agents_success": [],
+  "agents_fatal": [],
+  "agent_history": {},
+  "rate_limit_episodes": 0,
+  "total_wait_sec": 0,
+  "wake_history": [],
+  "last_reset_hint_sec": null,
+  "loop_mode": false
+}

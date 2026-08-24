@@ -117,7 +117,8 @@ owner: planner
 
       </details>
 
-- [ ] **wire-only 키가 `node-output.md` Principle 0 의 닫힌 레지스트리 밖이다** (~~4키~~ → **8키**)
+- [x] **wire-only 키가 `node-output.md` Principle 0 의 닫힌 레지스트리 밖이다** (~~4키~~ → **8키**)
+      > **해소 (2026-08-24, `planner-doc-batch`)**: Principle 0 에 `wire 전용` 각주 신설 — 두 갈래 8키 표(위젯 파서 4 / chat-channel 렌더러 4)이고 라벨은 ~~`NODE_OUTPUT_ALLOWED_KEYS` 주석과~~ **EIA §R17 과** 같은 문구를 썼다(코드 JSDoc 은 접미어 없는 축약형이라 문자 그대로 같지는 않다 — `16_41_05` convention W3 정정. **키 배열 자체는 정확히 일치**하므로 기능 위험은 없다). **5필드 목록은 넓히지 않았다** — 이 키들은 핸들러 산물이 아니라 wire 조립 레이어의 산물이라, 계약에 편입하면 모든 핸들러가 지켜야 할 것처럼 읽힌다.
       (2026-08-23 등재, `20_09_38` convention_compliance W3 · `22_26_33` plan_coherence W4 로
       키 수 갱신). 그 규약은 `NodeHandlerOutput` 을 **5필드 + 3예외** 닫힌 목록으로 못박는데,
       EIA wire 조립 레이어는 거기에 없는 키를 top-level 로 얹는다 — **착수 시 다시 세라**,
@@ -234,7 +235,77 @@ owner: planner
       > 코드를 그 문구에 맞추고 §9.7 위의 ⚠️ 블록을 지우면 된다** — 그 블록이 "아직 안 고쳐진
       > 코드" 를 가리키는 표지다.
 
-- [ ] **provider spec 3곳의 `output.rendered` 가 wire 래퍼 기준인지 미확정**
+- [ ] **`conversation-thread.md` 의 `code:` 가 thread 로직을 가진 execution-engine 파일들을
+      빠뜨렸을 수 있다** (2026-08-24 등재, `13_30_49` cross_spec W1 의 후반부 — B4 를
+      won't-do 로 닫으며 갈라져 나온 **별개의 더 큰 질문**).
+      > B4 는 *"`websocket.service.ts` 를 넣자"* 였고, `code:` 정의(**"본 spec 이 약속한
+      > surface 의 구현 경로"**)에 안 맞아 won't-do 로 닫았다. 그런데 checker 가 그 판정
+      > 과정에서 **반대 방향**을 짚었다 — `execution-engine`/`ai-turn-orchestrator`/
+      > `form-interaction`/`button-interaction` 은 thread 를 **실제로 누적·영속**하는데
+      > `code:` 에 없다.
+      > **미판정으로 남긴다**: 그 넷이 conversation-thread 가 *약속한 surface* 를 구현하는지,
+      > 아니면 thread 를 **소비**만 하는지 갈라야 한다. 현재 `code:` 16항목의 선정 기준을
+      > 역추적(`git log -S`)해 판단 축을 먼저 세울 것 — 축 없이 넷을 넣으면 목록이
+      > *"thread 를 건드리는 모든 파일"* 로 부풀어 가드 신호가 오히려 죽는다.
+
+- [ ] **`--spec` 의 `target_path` 가 plan 파일 하나로 고정돼 자매 트래커가 검토 밖에 있다**
+      (2026-08-24 등재, `17_15_29` requirement INFO 3 — **위 후보 미도달과 다른 고장**).
+      > **실측**: `review/consistency/2026/08/24/*/meta.json` 의 `target_path` 가 세 라운드
+      > 모두 draft plan(`spec-draft-planner-doc-batch.md`) **한 개**다. 그래서 같은 작업이
+      > 갱신하는 **정본 트래커**(`spec-sync-external-interaction-api-gaps.md`)는
+      > **어느 라운드에서도 검토 대상이 아니었다.**
+      >
+      > **증상이 실제로 났다**: `16_41_05` 가 draft 의 B3 근거를 CRITICAL 로 반증했는데,
+      > **같은 근거를 담은 트래커 줄은 그대로 남았다**. 세 라운드를 돌고도 안 잡혔고,
+      > `/ai-review` 가 뒤늦게 잡았다(W2·W3). 즉 **게이트를 여러 번 도는 것으로는 못 메운다** —
+      > 스코프 밖은 몇 번을 돌아도 스코프 밖이다.
+      >
+      > **위 항목(후보 미도달)과 구분할 것**: 그쪽은 *"관련 문서를 번들에 못 싣는다"*,
+      > 이쪽은 *"target 자체가 한 개로 고정"* 이다. 처방도 다르다 — 후자는
+      > `--spec` 이 **여러 target 을 받거나**, draft 의 `spec_impact`/자매 plan 을 자동으로
+      > target 에 포함하면 된다.
+      >
+      > **당장의 완화책**: draft 와 트래커를 **같은 커밋에서** 고치고, 게이트 결과를 draft 에
+      > 반영할 때 **트래커의 같은 항목도 함께 훑는다**(이번에 그렇게 했어야 했다).
+
+- [ ] **`--spec` 번들러가 `spec_impact` 대상을 후보 집합에 넣지 못한다 (하네스)**
+      (2026-08-24 등재, `13_30_49`·`16_41_05` 실측).
+      > **두 고장이 섞여 있다 — 이걸 갈라야 고칠 수 있다:**
+      >
+      > | 파일 | 프롬프트에서의 상태 | 예산을 올리면 |
+      > |---|---|---|
+      > | `spec/5-system/6-websocket-protocol.md` | **절단 목록**에 있음(후보이긴 하다) | 도움 될 수 있다 |
+      > | `spec/conventions/node-output.md` | **bundle 에도 절단 목록에도 없다** | **소용없다 — 후보가 아니다** |
+      >
+      > **실측**: `CONSISTENCY_MAX_CONTEXT_SIZE=900000` 으로 올려도 후자는 안 들어온다.
+      > 파일을 **변경한 뒤** 돌려도 안 들어온다 — `--diff-base` 랭킹은 *"바꾼 파일 우선"* 이라
+      > 광고하지만 그건 **후보를 재정렬**할 뿐 비후보를 후보로 만들지 않는다(2회차 `16_41_05`
+      > 로 반증). 즉 `related_specs` **후보 선정** 단계의 도달성 문제다.
+      >
+      > **왜 중요한가**: planner 가 `spec_impact` 에 적은 **바로 그 파일**을 게이트가 못 본다.
+      > `13_30_49` 이 그 상태에서 CRITICAL 을 냈고, 그건 **오탐이었다**(같은 절의 다른 각주를
+      > 내 것으로 오인). 후보 선정이 `spec_impact` 를 **무조건 포함**하도록 고치는 것이
+      > 가장 작은 처방으로 보인다.
+      >
+      > **현재 완화책**: 프롬프트가 스스로 지시하는 *"판정에 관련되면 `Read` 로 직접 열어라"*.
+      > checker 들이 실제로 그렇게 하고 있어(여러 라운드에서 관측) 게이트가 무의미하진 않다.
+      >
+      > **기존 harness 트래커와 상호 참조** (`17_04_25` plan W4 — 고립 등재는 중복 진단을
+      > 낳는다): `harness-consistency-summary-downgrade-rule.md`(2026-08-09 실측, 동일 처방
+      > 미구현) · `harness-review-gate-followups.md`. **이 항목을 그쪽으로 이관하지 않는
+      > 이유**: 발견 맥락이 EIA 시리즈이고 재현 근거(`13_30_49`·`16_41_05` 두 라운드)가 여기
+      > 쌓여 있다. 다만 **처방은 한 곳에서** 집행돼야 하므로, harness 작업을 착수하는 쪽이
+      > 이 항목을 흡수한다.
+
+- [ ] **`6-websocket-protocol.md` 에 `### 4.4` 헤딩이 둘이고 절 번호 순서가 어긋난다**
+      (2026-08-24 등재, `13_30_49` naming INFO 6). **pre-existing** — allowlist 시리즈가
+      만든 것이 아니다.
+      > 앵커 링크가 어느 쪽에 걸리는지 불확정이라, 이 문서를 인용하는 spec 이 많은 만큼
+      > 실질 위험이 있다. 다만 절 번호 재정리는 **문서 전체의 링크를 훑어야** 해서
+      > doc 묶음에 얹을 크기가 아니다. 그 절을 실질 수정할 때 함께.
+
+- [x] **provider spec 3곳의 `output.rendered` 가 wire 래퍼 기준인지 미확정**
+      > **판정 완료 (2026-08-24) — 경로는 현행 유지**. 세 파일의 같은 표를 행 단위로 읽으니 `chart`=`output.payload.*` · `carousel`=`output.items[]` · `table`=`output.{rows,columns}` · `template`=`output.rendered` 로 일관된 **노드 타입별 출력 shape 표**다. `output.output.*` 로 고치면 나머지 세 행·노드 spec 과 어긋나 **오히려 틀린다**. 진짜 결함은 표가 **어느 계층을 서술하는지 말하지 않는 것**이라, 경로는 두고 **표 상단 각주 1회로 4행 전체**를 덮었다(`13_30_49` naming W5 반영).
       (2026-08-24 등재, `12_13_36` convention_compliance INFO 1). `telegram.md:160` ·
       `slack.md:233` · `discord.md:256` 의 CCH-MP-06 행이 *"`output.rendered` 를 escape 후
       발송"* 이라 적는데, 그 경로의 렌더러 입력은 **wire 래퍼**라 값은 실제로
@@ -246,7 +317,8 @@ owner: planner
       > 얕다. 표의 다른 행들과 함께 봐야 갈리므로 **`spec/4-nodes/7-trigger/providers/`
       > 스코프의 planner 턴**에서 판정한다 — 이 PR 의 `spec_impact` 밖이다.
 
-- [ ] **래퍼/도메인 구분 산문 사본 4곳을 정본 링크로 대체** (2026-08-24 등재,
+- [x] **래퍼/도메인 구분 산문 사본 4곳을 정본 링크로 대체** (2026-08-24 등재,
+      > **해소 (2026-08-24) — 4곳이 아니라 3곳이었다**. WS §4.1-a 는 `#1209` 가 **이미 링크**해 뒀다. 미전환 3곳(EIA §R17 · conversation-thread §9.7 · chat-channel-adapter §1.3)에 정본 인용을 넣었다. 개수 오산은 **또 "열어 본 것만 세고" 형태**(`13_30_49` W3 이 정정).
       `12_55_09` convention W2 의 후반부). 정본은 `node-output.md` Principle 0 에 **세웠고**,
       나머지 4곳(`6-websocket-protocol.md` §4.1-a · `14-external-interaction-api.md` §R17 ·
       `chat-channel-adapter.md` §1.3/§3 · `conversation-thread.md` §9.7)은 아직 각자 산문을
@@ -258,14 +330,16 @@ owner: planner
       > **B 묶음(planner doc)과 함께 처리**하는 것이 자연스럽다 — 거기 이미
       > `node-output.md` Principle 0 항목이 있다.
 
-- [ ] **`background:run:{id}` 채널이 WS §3.2 "채널 패턴" 표에서 누락** (2026-08-24 등재,
+- [x] **`background:run:{id}` 채널이 WS §3.2 "채널 패턴" 표에서 누락** (2026-08-24 등재,
+      > **해소 (2026-08-24) — §3.2 에 행 추가로 판정**. `redis-keys.md:84` 가 `background:run` · `execution` · `workflow` **세 채널을 한 행에 묶어** WS §채널 하나를 가리키므로, 포인터를 돌리면 그 행을 쪼개야 하고 *"이 셋은 Redis 키가 아니라 Socket.IO 채널"* 이라는 요지가 흐려진다. 인가 표(§3.3)에 있는 채널이 패턴 표에만 없는 건 분류 문제가 아니라 **누락**이다. 브래킷은 그 문서 컨벤션 `{id}`.
       `10_44_28` convention_compliance W1). §3.3 인가 표에는 나오는데 §3.2 패턴 표에는 없다.
       `redis-keys.md` §4 가 이 채널의 SoT 로 §3.2 를 지목하고 있어 포인터가 빈다.
       > **planner 소관**이고 **선재 갭**이다(이번 작업이 만든 것이 아니다). §3.2 표에 행을
       > 추가하거나, `redis-keys.md` §4 포인터를 `4-nodes/1-logic/12-background.md §8.5` 로
       > 돌린다 — 어느 쪽인지는 planner 판단.
 
-- [ ] **WS §4.4 `buttonConfig.nodeOutput` 행에 `nodeType` carve-out 각주 없음**
+- [x] **WS §4.4 `buttonConfig.nodeOutput` 행에 `nodeType` carve-out 각주 없음**
+      > **해소 (2026-08-24) — 단 초판 근거는 반증됐다.** ~~각주에 **동일 이름·다른 계층** 표를 넣었다 — `nodeOutput.nodeType` 은 렌더 서브타입이라 Principle 1.1.4 의 판별자 금지와 무관하다.~~ **`16_41_05` cross_spec CRITICAL 이 반증했다** — 그 값 공간은 `chart`/`table`/`carousel` 로 `payload` 의 노드 종류와 **같고**, C3 가 기각한 바로 그 판별자다. *"렌더 서브타입"* 이라는 구분은 **코드에 없다**(내가 지어낸 것). **재작성된 각주의 논지**: 엔진은 `nodeOutput` 안에 `nodeType` 을 **넣지 않는다**(실 DB 84행 0건) — 즉 **C3 는 이미 지켜지고 있고**, allowlist 항목은 렌더러의 legacy 방어적 읽기를 깨지 않으려는 **예방적 허용**일 뿐이다. 새 코드가 그것을 쓰는 것은 여전히 C3 위반이다.
       (2026-08-24 등재, `00_51_50` convention_compliance INFO 7). 같은 절이 *"판별자 래퍼
       금지"* 를 말하는데 새 `nodeType` legacy carve-out 이 교차 참조 없이 병존한다 —
       오독 여지.
@@ -273,7 +347,8 @@ owner: planner
       > 으로 판정했고, 여기서 §4.4 를 또 고치면 `--impl-done` 게이트가 다시 돌아야 한다
       > (이번 PR 이 그 루프를 다섯 번 돌았다). 다음에 그 절을 열 때 함께.
 
-- [ ] **`conversation-thread.md` frontmatter `code:` 에 `websocket.service.ts` 누락**
+- [x] **`conversation-thread.md` frontmatter `code:` 에 `websocket.service.ts` 누락**
+      > **won't-do 판정 (2026-08-24) — 등재 근거 자체가 잘못됐다**. `spec-impl-evidence.md` §2.1 이 `code:` 를 **"본 spec 이 약속한 surface 의 구현 경로"** 로 정의한다 — **인용 추적성이 아니다**. `websocket.service.ts` 는 conversation-thread surface 를 구현하지 않고(fanout 조립은 EIA §R17 의 surface), 그 문서 기존 `code:` **16항목이 전부 도메인 파일**이라 넣으면 `spec-code-paths.test.ts` 가드 신호가 흐려진다. 원래 근거(§8.4 blockquote 의 `toFanoutEnvelope` 인용)는 **본문 인라인 링크가 이미 해결**한다.
       (2026-08-24 등재, `00_26_17` convention_compliance INFO 4). 그 문서 §8.4 의 정정
       blockquote 가 `toFanoutEnvelope` 를 근거로 인용하는데 glob 이 그 파일에 안 걸린다 —
       가드 위반은 아니고 추적성 갭이다.
@@ -281,7 +356,8 @@ owner: planner
       > 정정**에만 열리고 frontmatter 메타데이터 추가는 그 범위가 아니다 — 그래서 이번 턴에
       > 손대지 않았다. 다음 planner 턴에서 그 문서를 열 때 함께.
 
-- [ ] **`egress-masking.md` §2 의 파이프라인 순서가 3단계로 낡았다** (2026-08-23 등재,
+- [x] **`egress-masking.md` §2 의 파이프라인 순서가 3단계로 낡았다** (2026-08-23 등재,
+      > **해소 (2026-08-24)**: §2 를 **4단계**(`maskWireEnvelope` → `stripExternalOnlyFields` → `allowlistFanoutNodeOutput` → `attachRoutingContext`)로 갱신하고, 새 단계가 fail-closed 인 이유와 **순서가 중요한 이유**(`attachRoutingContext` 뒤에 걸면 그 함수가 얹은 `triggerId`/`chatChannel` 이 목록 밖이라 떨어진다)를 함께 적었다. §1 좌표계 표는 **깊이 상한 표**이고 새 단계는 최상위 전용이라 **해당 없음**(판정). line 77 의 `ws-event-types-extract.md` 미해결 캐비엇은 **유지**(`13_30_49` plan INFO 4).
       `23_29_27` convention_compliance W1). 그 문서가 "구현 좌표계 SoT" 를 자처하는데
       `toFanoutEnvelope` 는 이제 `strip → nodeOutput allowlist → routing` 이다.
       > **planner 소관** (`spec/conventions/**`). §2 순서에 allowlist 단계를 넣거나 §3

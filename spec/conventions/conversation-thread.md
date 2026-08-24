@@ -581,6 +581,9 @@ REPLACE 는 unconditional 배열 교체가 아니라 **carry-over policy 가 명
 > 경로에서 `system_error` 배너가 **한 번도 뜨지 않는다**. 코드 수정은 UI 동작·테스트 fixture
 > 가 함께 바뀌므로 **별건**으로 정본 트래커에 등재돼 있고, **그 작업이 이 두 행의 문구도
 > 함께 검증**한다. 여기서는 계약을 실측에 맞춰 먼저 바로잡는다.
+>
+> **래퍼/도메인 값 구분의 정본은 [node-output.md Principle 0 의 `wire envelope` 각주](./node-output.md)**
+> 다 — 위 두 행은 그 계약을 재진술하지 않고 인용한다(2026-08-24, `13_30_49` W3).
 
 #### 9.7.1 store reset 정책 (실행 lifecycle 별)
 

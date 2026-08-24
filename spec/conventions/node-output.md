@@ -45,6 +45,26 @@ pending_plans:
 > **핸들러 반환값 내부**의 이중 래핑 금지이고, 여기는 **전송 봉투와 래퍼**라는 다른 계층이다.
 > 문자열이 닮았을 뿐이다.
 
+> **wire 조립 레이어가 얹는 `wire 전용` 키는 이 계약 밖이다** (2026-08-24 신설). EIA/WS 가
+> `nodeOutput` 을 조립할 때 위 5필드에 **없는** 키를 top-level 로 얹는다 — 소비처가 실제로
+> 그 자리에서 읽기 때문이다. 현재 **8키**이고 두 갈래다:
+>
+> | 갈래 | 키 | 읽는 쪽 |
+> |---|---|---|
+> | `wire 전용 (위젯 파서)` | `formConfig` · `conversationConfig` · `buttonConfig` · `interactionType` | `channel-web-chat` 의 `parseWaitingForInput` |
+> | `wire 전용 (chat-channel 렌더러)` | `payload` · `title` · `rendered` · `nodeType` | Discord/Telegram/Slack 렌더러(flat legacy shape) |
+>
+> **5필드 목록을 넓히지 않는다** — 이 키들은 핸들러가 만드는 것이 아니라 **wire 조립
+> 레이어의 산물**이라, 계약에 편입하면 모든 핸들러가 지켜야 할 것처럼 읽힌다. 정본 열거는
+> `codebase/backend/src/shared/utils/node-output-allowlist.ts` 의 `NODE_OUTPUT_ALLOWED_KEYS`
+> 이고(컴파일타임 assertion 이 위 5필드를 결속, 나머지 8키는 리터럴 테스트가 지킨다),
+> 범위 표는 [EIA §R17](../5-system/14-external-interaction-api.md).
+>
+> 갈래 라벨은 **EIA §R17 과 같은 문구**를 쓴다. (코드 JSDoc 은 접미어 없는 축약형
+> `wire 전용 (위젯)`/`(chat-channel)` 이라 문자 그대로 같지는 않다 — `16_41_05`
+> convention W3 이 초판의 *"그 상수의 주석과 같은 문구"* 를 정정했다. **키 배열 자체는
+> 정확히 일치**하므로 기능 위험은 없고, 라벨 통일은 후속 developer 턴 몫이다.)
+
 > **internal top-level 필드 허용 예외**: `_resumeState` (multi-turn waiting/resumed 의 internal 전달), `_resumeCheckpoint` (재시작 후 재개용 DB 보존 부분집합 — §7.5 rehydration), `_retryState` (retryable error 종결 시 DB 보존 — Principle 4.2.1 보존 예외) 는 5필드 외 top-level 위치를 갖는다. expression resolver / autocomplete 비노출, credential strip 정책은 세 필드 동일. 상세: Principle 4.2.1.
 
 ---
