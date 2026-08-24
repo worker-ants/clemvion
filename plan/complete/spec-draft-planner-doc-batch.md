@@ -1,8 +1,9 @@
 ---
 title: "planner 턴 doc 묶음 7건 — allowlist 시리즈가 남긴 문서 부채를 한 번에"
-status: in-progress
+status: complete
 worktree: planner-doc-batch-dd163d
 started: 2026-08-24
+completed: 2026-08-24
 owner: project-planner
 spec_impact:
   - spec/conventions/node-output.md
@@ -171,7 +172,11 @@ execution-engine 4파일이 `code:` 에서 빠져 있다"* 는 **별개의 더 �
 - [x] B6 미전환 **3곳** → 정본 링크 (WS §4.1-a 는 **이미 링크됨, 손대지 않는다**)
 - [x] B7 판정 적용 — **표 상단 각주 1회로 4행 전체**(chart/carousel/table/template) 커버 (W5)
 - [x] 트래커 항목 7건 종결 동기화 (+ B4 won't-do, 파생 후속 2건 등재)
-- [ ] `/ai-review`
+- [x] `/ai-review` — `17_15_29`(documentation·requirement·scope 타겟, **코드 0줄이라 3명**)
+      **CRITICAL 0 · WARNING 3** → 전부 처리. 리뷰어가 W2·W3 의 **공통 원인**까지 짚었다:
+      `--spec` 의 `target_path` 가 세 라운드 모두 draft 하나라 **자매 트래커가 스코프 밖**이었다
+      — 그래서 `16_41_05` 가 draft 를 정정해도 트래커의 같은 근거는 살아남았다.
+      **게이트를 여러 번 도는 것으로는 못 메운다.** 별 항목으로 등재.
 
 ## 검증 기준
 
