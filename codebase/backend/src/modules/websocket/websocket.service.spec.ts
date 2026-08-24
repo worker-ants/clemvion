@@ -904,34 +904,28 @@ describe('WebsocketService', () => {
     );
 
     /**
-     * **[잔여 캐너리] `envelope.output` 은 아직 안 좁힌다** — `23_29_27` cross_spec CRITICAL.
+     * **`envelope.output` 도 같은 allowlist 를 지난다** — `23_29_27` cross_spec CRITICAL
+     * 이 연 잔여를 2026-08-24 에 닫았다. **이 테스트는 그 전 라운드의 `[잔여]` 캐너리를
+     * 뒤집은 것이다** — 그 캐너리의 JSDoc 이 *"닫히면 RED 가 되고 그 단언을 뒤집는 것이
+     * 그 작업의 일부"* 라고 적어 뒀고, 이 커밋이 그 계약을 이행한다.
      *
-     * `execution.node.completed` / `.failed` 는 `NodeExecution.outputData` 를 **`output`**
-     * 이라는 다른 키로 최상위에 싣는다(5곳: `execution-engine` 2 · `form-interaction` ·
-     * `button-interaction` · `ai-turn-orchestrator`). 그래서 `nodeOutput` 만 찾은 이 PR 의
-     * 배선이 그 표면을 지나쳤고, `_retryState` 는 **여기로 여전히 나간다**.
+     * `execution.node.completed`/`.failed` 는 `NodeExecution.outputData` 를 **`output`**
+     * 이라는 다른 키로 최상위에 싣는다(emit 5곳). 키 이름이 달라 `nodeOutput` 만 찾은
+     * 종전 배선이 이 표면을 통째로 지나쳤다.
      *
-     * ## 그런데 같은 allowlist 를 그대로 걸면 깨진다 — 실측
+     * ## 유예 근거가 실측에 반증됐다
      *
-     * `NodeExecution.outputData` 는 `NodeHandlerOutput` **하나가 아니다**. 버튼 재개 경로는
-     * `{type, buttonId, buttonLabel, clickedAt, selectedItem, nodeOutput, _selectedPort}`
-     * 를 저장하는데(`button-interaction.service.ts:180`), 정본 구현에 넣어 보면
-     * **`{}` 가 된다** — 13키 중 하나도 안 맞는다. carousel+buttons 는 presentation 타입이라
-     * chat-channel dispatcher 의 sub-filter 도 통과하므로 외부 발송이 통째로 빈다.
-     *
-     * 즉 이 표면은 **키 목록이 아니라 shape 판별**이 먼저인 별건이다. 반쯤 추측한 좁히기를
-     * 보안 경계에 넣지 않는다 — 그러면 fail-open 을 fail-broken 으로 바꿀 뿐이다.
-     *
-     * ## 그래서 안 닫은 방향을 캐너리로 고정한다
-     *
-     * 이 테스트는 **현 상태를 기술**한다. 후속 작업이 이 표면을 닫으면 여기가 RED 가 되고,
-     * 그때 이 테스트를 **의식적으로 뒤집는 것**이 그 작업의 일부다. 이렇게 두지 않으면
-     * 갭이 아무 데도 안 남아 다음 사람이 "REST 와 같은 강도" 라고 읽는다.
+     * *"이종 payload 라 같은 목록을 걸면 버튼 재개 record 가 `{}` 가 된다"* 고 적었는데,
+     * 그 flat record 는 `contextService.setNodeOutput` 으로 **in-memory 캐시**에만
+     * 들어간다 — `outputData` 가 되는 것은 `buildResumedStructuredOutput` 이 반환하는
+     * `NodeHandlerOutput` 이다. 실 DB 조회(e2e 285건 후 teardown 전, 84 object 행)에서
+     * top-level 키는 `meta`·`config`·`output`·`port`·`status`·`conversationConfig` 뿐이고
+     * **전부 목록 안**이었다.
      */
-    it('[잔여] `execution.node.*` 의 `envelope.output` 은 아직 allowlist 를 지나지 않는다', async () => {
+    it('[캐너리] `execution.node.*` 의 `envelope.output` 도 allowlist 를 지난다', async () => {
       const eventP = nextFanoutEvent(service);
       await service.emitNodeEvent(
-        'exec-node-output-gap',
+        'exec-node-output-closed',
         'n-done',
         NodeEventType.NODE_COMPLETED,
         {
@@ -941,6 +935,7 @@ describe('WebsocketService', () => {
             config: {},
             output: { rendered: 'card' },
             _retryState: { attempt: 1 },
+            someUnknownInternalField: 'INTERNAL DETAIL',
           },
         },
       );
@@ -949,10 +944,57 @@ describe('WebsocketService', () => {
         string,
         unknown
       >;
-      // ⚠️ 이것이 **잔여 갭**이다 — 닫히면 이 단언이 뒤집힌다.
-      expect(out._retryState).toBeDefined();
-      // 렌더 필드는 당연히 살아 있다(대조군).
+      expect(out).not.toHaveProperty('_retryState');
+      expect(out).not.toHaveProperty('someUnknownInternalField');
+      // 대조군 — 렌더 필드는 남는다(통째로 날려서 통과하는 구현 배제).
       expect(out.output).toEqual({ rendered: 'card' });
+      expect(out.config).toEqual({});
+
+      // **내부 WS 는 안 바뀐다** — 에디터 콘솔은 원문을 그대로 받는다.
+      const wire = gateway.broadcastToChannel.mock.calls[0][2] as Record<
+        string,
+        unknown
+      >;
+      const wireOut = wire.output as Record<string, unknown>;
+      expect(wireOut).toHaveProperty('_retryState');
+      expect(wireOut).toHaveProperty('someUnknownInternalField');
+    });
+
+    /**
+     * **flat 폴백의 현 동작을 고정한다.**
+     *
+     * `ai-turn-orchestrator.service.ts` 의 `finalAdapted ?? context.nodeOutputCache[...]`
+     * 폴백은 `outputData` 에 **flat view**(`execution-context.service.ts` 주석이
+     * *"already-flattened … 의도적으로 bare (예: `{parameters: {}}`)"* 라 부르는 것)를
+     * 쓸 수 있다. e2e 285건 실 DB 조회에서는 **한 행도 안 나타났지만** 코드 경로로는
+     * 살아 있다.
+     *
+     * 그런 shape 이 오면 목록 밖 키는 떨어진다 — 이것이 fail-closed 의 정의다. 여기서
+     * 중요한 것은 **그 사실이 테스트에 적혀 있다**는 점이다. "flat view 가 `outputData`
+     * 로 영속되는 것이 옳은가" 는 영속 계약 문제라 **별건**으로 트래커에 있다.
+     */
+    it('[잔여 고정] flat 폴백 shape 이 오면 목록 밖 키는 떨어진다 (fail-closed 의 정의)', async () => {
+      const eventP = nextFanoutEvent(service);
+      await service.emitNodeEvent(
+        'exec-node-output-flat',
+        'n-flat',
+        NodeEventType.NODE_COMPLETED,
+        {
+          nodeType: 'template',
+          // `nodeOutputCache` 의 bare flat view 예시.
+          output: { parameters: {}, rendered: 'body', items: [1, 2] },
+        },
+      );
+      const fanout = await eventP;
+      const out = (fanout.payload as Record<string, unknown>).output as Record<
+        string,
+        unknown
+      >;
+      // 목록 안 — chat-channel 렌더러가 top-level 로 읽는 키다.
+      expect(out.rendered).toBe('body');
+      // 목록 밖 — 떨어진다.
+      expect(out).not.toHaveProperty('parameters');
+      expect(out).not.toHaveProperty('items');
     });
 
     /**

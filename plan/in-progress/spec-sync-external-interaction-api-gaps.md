@@ -133,8 +133,28 @@ owner: planner
       > `NodeHandlerOutput` 계약 **밖**" 각주를 다는 편이 낫다 — 5필드 목록을 넓히면
       > 핸들러 계약이 오염된다.
 
-- [ ] **`execution.node.completed`/`.failed` 의 `envelope.output` 은 아직 deny-list 다**
-      (2026-08-23 등재, `23_29_27` cross_spec **CRITICAL**). 같은 `NodeExecution.outputData` 를
+- [x] **~~`execution.node.completed`/`.failed` 의 `envelope.output` 은 아직 deny-list 다~~
+      해소 (2026-08-24)** (등재 2026-08-23, `23_29_27` cross_spec **CRITICAL**).
+      > **착수하니 이 항목이 적어 둔 유예 근거가 틀렸다.** 아래 *"같은 목록을 그대로 걸면
+      > 깨진다"* 의 `{}` **측정 자체는 맞았지만**, 그 객체가 `outputData` 가 된다는 **전제**가
+      > 틀렸다 — `resolveButtonInteraction` 의 flat record 는 `setNodeOutput` 으로 in-memory
+      > `nodeOutputCache` 에만 들어가고, `nodeExec.outputData` 에 대입되는 것은
+      > `buildResumedStructuredOutput` 이 반환하는 **`NodeHandlerOutput`** 이다.
+      >
+      > **실 DB 조회로 확정**(e2e 285건 후 teardown 전, `node_execution.output_data` 93행 중
+      > 84행 object·배열/스칼라 0행): top-level 키는 `meta`(83)·`config`(82)·`output`(81)·
+      > `port`(20)·`status`(7)·`conversationConfig`(1) 뿐, **전부 목록 안**. flat record 는
+      > 한 행도 없다. 그래서 같은 목록을 그대로 걸었다.
+      >
+      > **교훈**: *"그 객체에 목록을 걸면 어떻게 되나"* 를 쟀고, 물었어야 할 것은
+      > **"그 객체가 이 표면에 도달하나"** 였다. 프록시를 재고 유예 결론을 냈다.
+      >
+      > **파생 신규 항목**: `finalAdapted ?? nodeOutputCache` 폴백이 flat view 를
+      > `outputData` 로 영속할 수 있다(285건 미발현) — 아래 별도 항목.
+
+      <details>
+      <summary>등재 당시 본문 (반증된 유예 근거 포함 — 이력 보존)</summary>
+ 같은 `NodeExecution.outputData` 를
       **`output`** 이라는 다른 키로 최상위에 싣는 표면이라, `nodeOutput` 만 찾은 SSE 작업이
       그대로 지나쳤다. `_retryState` 가 여기로 나간다.
       > **왜 놓쳤나 — 질문이 한 칸 좁았다.** *"`nodeOutput` 이 어디 있나"* 를 물었어야 할 자리에서
@@ -164,6 +184,22 @@ owner: planner
       > **안 닫은 방향은 캐너리가 고정한다**: `websocket.service.spec.ts` 의
       > `[잔여] execution.node.* 의 envelope.output 은 아직 allowlist 를 지나지 않는다`.
       > 이 항목을 닫으면 **그 단언이 뒤집히는 것이 작업의 일부**다.
+
+      </details>
+
+- [ ] **`finalAdapted ?? nodeOutputCache` 폴백이 flat view 를 `outputData` 로 영속할 수 있다**
+      (2026-08-24 등재, `envelope.output` 작업의 파생). `ai-turn-orchestrator.service.ts` 의
+      그 폴백은 `execution-context.service.ts` 주석이 *"already-flattened engine output …
+      의도적으로 bare (예: `{parameters: {}}`)"* 라 부르는 view 를 `outputData` 에 쓴다 —
+      그 컬럼의 계약은 `NodeHandlerOutput` 인데.
+      > **실측: e2e 285건 실 DB 조회에서 한 행도 안 나타났다**(top-level 키 6종 전부
+      > `NodeHandlerOutput` 계약 안). 즉 **현재 발현하지 않는 잠재 경로**다.
+      > **이번에 안 고친 이유**: 이건 egress 마스킹이 아니라 **영속 계약** 문제다. 고치려면
+      > 폴백이 무엇을 써야 하는지(adapt? 빈 객체? throw?)를 정해야 하고, 그 결정이 표현식
+      > 리졸버·실행 이력 UI 까지 번진다 — allowlist PR 에 얹을 크기가 아니다.
+      > **현 동작은 캐너리가 고정한다** — `websocket.service.spec.ts` 의
+      > `[잔여 고정] flat 폴백 shape 이 오면 목록 밖 키는 떨어진다`.
+      > **재개 신호**: 그 폴백이 실제로 발현한 행이 관측되면(운영 DB 또는 새 e2e 시나리오).
 
 - [ ] **WS §4.4 `buttonConfig.nodeOutput` 행에 `nodeType` carve-out 각주 없음**
       (2026-08-24 등재, `00_51_50` convention_compliance INFO 7). 같은 절이 *"판별자 래퍼

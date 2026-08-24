@@ -1748,7 +1748,7 @@ present-when-available 이므로, REST 만 `null` 로 정규화하면 위젯의 
   | `getStatus` terminal `result` | deny-list 유지 (**의도적 제외**) | `Execution.outputData` = **작성자가 정의한** 워크플로 출력. allowlist 를 걸면 정상 데이터가 잘린다 |
   | `getStatus` terminal `error` | deny-list 유지 (**의도적 제외**) | 〃 (자유 형태 에러 payload) |
   | SSE/fanout `waiting_for_input` 의 `nodeOutput` / `buttonConfig.nodeOutput` | **fail-closed allowlist** (2026-08-23 추가) | 같은 `nodeOutput` 이니 같은 강도여야 한다. 초판은 *"envelope 레벨 strip 이라 별건 변경이 필요하다"* 며 유예했는데, 실측하니 **`emitExecutionEvent`/`emitNodeEvent` 두 emit 이 `toFanoutEnvelope` 한 함수를 공유하는 단일 chokepoint** 라 호출부 변경 없이 닫혔다 |
-  | SSE/fanout `execution.node.completed`/`.failed` 의 **`envelope.output`** | deny-list 유지 (**잔여**) | 같은 `NodeExecution.outputData` 를 **다른 키**로 싣는 표면. 아래 참조 |
+  | SSE/fanout `execution.node.completed`/`.failed` 의 **`envelope.output`** | **fail-closed allowlist** (2026-08-24 추가) | 같은 `NodeExecution.outputData` 를 **다른 키**로 싣는 표면. 같은 chokepoint 에서 같은 목록으로 닫았다. 아래 정정 참조 |
 
   **~~REST 와 SSE 는 같은 강도다.~~** ~~초판은 *"이 시점부터 방어 강도가 다르다"* 로 비대칭을 기록했으나
   같은 날 SSE 를 닫아 그 서술은 폐기했다 — 위 "wire 형식 동일" 서술이 이제 *형식*과 *필터 강도*
@@ -1758,17 +1758,48 @@ present-when-available 이므로, REST 만 `null` 로 정규화하면 위젯의 
   > `waiting_for_input` 의 두 자리는 닫혔지만, `execution.node.completed`/`.failed` 는 같은
   > `NodeExecution.outputData` 를 **`output`** 이라는 다른 키로 최상위에 싣는다(emit 5곳:
   > `execution-engine` 2 · `form-interaction` · `button-interaction` · `ai-turn-orchestrator`).
-  > 그 표면은 여전히 deny-list 라 `_retryState` 가 나간다. 정확한 서술은
-  > **"waiting 표면은 같은 강도, node 이벤트 표면은 아직 아니다"** 다.
+  > ~~그 표면은 여전히 deny-list 라 `_retryState` 가 나간다. 정확한 서술은
+  > **"waiting 표면은 같은 강도, node 이벤트 표면은 아직 아니다"** 다.~~
+  > **(2026-08-24 해소 — 아래 재정정. 이제 두 표면 모두 같은 강도다.)**
   >
-  > **같은 목록을 그대로 걸 수 없다** — 실측: 버튼 재개 경로는 `outputData` 에
+  > ~~**같은 목록을 그대로 걸 수 없다** — 실측: 버튼 재개 경로는 `outputData` 에
   > `{type, buttonId, buttonLabel, clickedAt, selectedItem, nodeOutput, _selectedPort}` 를
   > 저장하는데(`button-interaction.service.ts`), 정본 `allowlistNodeOutputKeys` 에 넣으면
-  > **`{}`** 가 된다(13키 중 하나도 안 맞는다). carousel+buttons 는 presentation 타입이라
-  > chat-channel sub-filter 도 통과하므로 외부 발송이 통째로 빈다. 즉 `envelope.output` 은
+  > **`{}`** 가 된다(13키 중 하나도 안 맞는다). … 즉 `envelope.output` 은
   > `NodeHandlerOutput` **하나가 아니라** 이종(異種) payload 이고, **키 목록이 아니라 shape
-  > 판별이 먼저인 별건**이다. 잔여는 정본 트래커에 등재했고, **안 닫은 방향은
-  > `websocket.service.spec.ts` 의 `[잔여]` 캐너리가 고정**한다 — 닫히면 그 단언이 뒤집힌다.
+  > 판별이 먼저인 별건**이다.~~
+
+  > **재정정 (2026-08-24) — 위 유예 근거가 실측에 반증됐고, 그 표면도 닫혔다.**
+  >
+  > `{}` 라는 **측정 자체는 맞았다. 틀린 것은 "그 객체가 `outputData` 가 된다" 는 전제**다.
+  > `resolveButtonInteraction` 이 만드는 그 flat record 는 `contextService.setNodeOutput` 으로
+  > **in-memory `nodeOutputCache`** 에만 들어가고, `nodeExec.outputData` 에 대입되는 것은
+  > 바로 다음 줄의 `buildResumedStructuredOutput(...)` 결과 — 반환 타입이
+  > **`NodeHandlerOutput`**(`{config, output, port, status, meta?}`)이라 **전부 목록 안**이다.
+  >
+  > **실 DB 조회로 확정했다**(재현 아님 — e2e 285건을 돌린 뒤 teardown 전에 e2e postgres 를
+  > 직접 조회). `node_execution.output_data` 93행 중 84행이 object(나머지 NULL, 배열·스칼라
+  > 0행)이고 top-level 키는 다음이 전부다:
+  >
+  > | 키 | 행 수 |
+  > |---|---|
+  > | `meta` | 83 |
+  > | `config` | 82 |
+  > | `output` | 81 |
+  > | `port` | 20 |
+  > | `status` | 7 |
+  > | `conversationConfig` | 1 |
+  >
+  > flat record 는 **한 행도 없다.** 따라서 같은 목록을 그대로 걸었다.
+  >
+  > **남은 위험은 하나** — `ai-turn-orchestrator.service.ts` 의
+  > `finalAdapted ?? context.nodeOutputCache[node.id]` 폴백은 그 flat view 를 `outputData`
+  > 로 쓸 수 있다(285건에서 미발현). 그 shape 이 오면 목록 밖 키가 떨어지는 것이
+  > fail-closed 의 정의이고, **그 동작을 캐너리가 명시적으로 고정**한다. *"flat view 를
+  > `outputData` 로 영속하는 것이 옳은가"* 는 영속 계약 문제라 별건으로 트래커에 있다.
+  >
+  > **교훈**: 나는 *"그 객체에 목록을 걸면 어떻게 되나"* 를 쟀고, 물었어야 할 것은
+  > **"그 객체가 이 표면에 도달하나"** 였다. 프록시를 재고 유예 결론을 냈다.
 
   **내부 WS(에디터)는 대상이 아니다.** `toFanoutEnvelope` 호출 시점에 wire envelope 은 이미
   `broadcastToChannel` 로 나갔고 fanout 은 새 clone 을 좁힌다 — [WS §4.4](./6-websocket-protocol.md)

@@ -27,9 +27,15 @@ allowlist 를 걸면 정상 데이터가 잘린다. ~~**SSE·fanout 은 여전�
 
 > **정정 (같은 날 닫혔다 — 단 `waiting` 표면 한정)**: SSE/fanout 의 `waiting_for_input`
 > `nodeOutput`(및 `buttonConfig.nodeOutput`)도 `toFanoutEnvelope` 한 chokepoint 에서 같은
-> allowlist 를 지난다. **`execution.node.completed`/`.failed` 의 `envelope.output` 은
+> allowlist 를 지난다. ~~**`execution.node.completed`/`.failed` 의 `envelope.output` 은
 > 잔여다** — 같은 `outputData` 를 다른 키로 싣는 이종 payload 라 같은 목록을 걸면 버튼 재개
-> record 가 `{}` 가 된다(실측). 트래커에 등재했고 캐너리가 그 방향을 고정한다.
+> record 가 `{}` 가 된다(실측).~~
+>
+> > **정정 (2026-08-24)**: 그 표면도 같은 목록으로 닫혔다. `{}` 측정 자체는 맞았지만
+> > **그 객체가 `outputData` 가 된다는 전제가 틀렸다** — flat record 는 in-memory
+> > `nodeOutputCache` 에만 들어간다. 실 DB 조회(e2e 285건 후, 84 object 행)에서
+> > `output_data` top-level 키는 `meta`·`config`·`output`·`port`·`status`·
+> > `conversationConfig` 뿐이고 전부 목록 안이었다.
 > 유예 사유였던 *"envelope shape 이
 > 달라 별건 변경이 필요하다"* 가 실측으로 반증됐다(두 emit 이 그 한 함수를 공유하고,
 > payload 가 평평하게 펼쳐져 위치도 REST 와 동일하다).

@@ -389,7 +389,7 @@ race-free.
 
 > **정정 (2026-08-23, 자기-반증형 소정정)**: 위 취소선 문장은 **`#1205` 에서 developer 인 내가 쓴 예고**인데, 같은 날 `sse-nodeoutput-allowlist` 작업이 실측으로 반증했다. SSE/fanout 의 `waiting_for_input` `nodeOutput`(및 `buttonConfig.nodeOutput`)도 **같은 목록으로 닫혔다** — 유예 사유였던 *"envelope shape 이 달라 별건 변경이 필요하다"* 가 틀렸고, `emitExecutionEvent`/`emitNodeEvent` 두 emit 이 `WebsocketService.toFanoutEnvelope` 한 함수를 공유해 호출부 변경 없이 배선됐다.
 >
-> **잔여로 남은 것은 `execution.node.completed`/`.failed` 의 `envelope.output` 하나다** — 같은 `NodeExecution.outputData` 를 **다른 키**로 싣는 표면이고, 이종 payload 라 같은 목록을 걸 수 없다(버튼 재개 record 에 적용하면 `{}` 가 된다, 정본 구현으로 실측). 정본 범위 표는 계속 EIA §R17 이다. 따라서 "park resume 전용" 은 **저장 목적**의 서술이고, 소비처는 (a) rehydration(내부), (b) SSE waiting emit, (c) getStatus REST(읽기 전용) 로 확장됐다.
+> ~~**잔여로 남은 것은 `execution.node.completed`/`.failed` 의 `envelope.output` 하나다** — 같은 `NodeExecution.outputData` 를 **다른 키**로 싣는 표면이고, 이종 payload 라 같은 목록을 걸 수 없다(버튼 재개 record 에 적용하면 `{}` 가 된다, 정본 구현으로 실측).~~ **(2026-08-24 정정)** 그 표면도 같은 목록으로 닫혔다 — 유예 근거였던 *"이종 payload"* 는 **틀렸다**. 그 flat record 는 in-memory `nodeOutputCache` 에만 들어가고 `outputData` 가 되는 것은 `NodeHandlerOutput` 이다(실 DB 조회로 확정). 상세는 EIA §R17 재정정 블록. 정본 범위 표는 계속 EIA §R17 이다. 따라서 "park resume 전용" 은 **저장 목적**의 서술이고, 소비처는 (a) rehydration(내부), (b) SSE waiting emit, (c) getStatus REST(읽기 전용) 로 확장됐다.
 
 ### 8.5 Inv-8 — store 보존과 렌더 도달성의 분리
 

@@ -188,9 +188,10 @@ strip 결정의 SoT 는 WS §4.4 Rationale 의 `### ai_message.llmCalls[] 외부
   >
   > **후속 (2026-08-23, `sse-nodeoutput-allowlist` PR — `23_29_27` plan_coherence W2)**:
   > SSE/fanout 도 같은 날 닫혔다 — 단 **`waiting_for_input` 표면 한정**이다.
-  > `execution.node.completed`/`.failed` 의 `envelope.output` 은 여전히 잔여이고 정본
+  > **(2026-08-24 갱신: 그 잔여도 닫혔다 — 아래 서술은 그 직전 상태다.)**
+  > ~~`execution.node.completed`/`.failed` 의 `envelope.output` 은 여전히 잔여이고 정본
   > 트래커에 **새 항목**으로 서 있다(같은 `outputData` 를 다른 키로 싣는 이종 payload라
-  > 같은 목록을 걸 수 없다는 실측과 함께). §R17 표가 계속 SoT 다.
+  > 같은 목록을 걸 수 없다는 실측과 함께).~~ §R17 표가 계속 SoT 다.
 
 ## 🔴 조사 중 발견 — `turnDebug.llmCalls` 가 외부 fanout 으로 새는 것으로 보인다
 

@@ -179,18 +179,27 @@ function sanitizeInner(value: object, depth: number): unknown {
  * **copy-on-change** — 바뀐 것이 없으면 입력 참조를 그대로 돌려준다. fanout 은 모든
  * execution 이벤트가 지나는 hot path 라 무변경 이벤트에 객체를 새로 만들지 않는다.
  */
+function narrowTopLevelNodeOutput(
+  envelope: Record<string, unknown>,
+  key: 'nodeOutput' | 'output',
+): Record<string, unknown> {
+  const value = envelope[key];
+  if (value === null || typeof value !== 'object') return envelope;
+  const narrowed = allowlistNodeOutputKeys(value);
+  return narrowed === value ? envelope : { ...envelope, [key]: narrowed };
+}
+
 function allowlistFanoutNodeOutput(
   envelope: Record<string, unknown>,
 ): Record<string, unknown> {
-  let next = envelope;
+  // waiting_for_input (form / ai_conversation) + `execution.node.*`.
+  // **키 이름이 둘인 것이 이 표면의 함정이었다** — `nodeOutput` 만 찾은 종전 배선이
+  // `output` 을 통째로 지나쳤다(`23_29_27` cross_spec CRITICAL).
+  let next = narrowTopLevelNodeOutput(envelope, 'nodeOutput');
+  next = narrowTopLevelNodeOutput(next, 'output');
 
-  const top = envelope.nodeOutput;
-  if (top !== null && typeof top === 'object') {
-    const narrowed = allowlistNodeOutputKeys(top);
-    if (narrowed !== top) next = { ...next, nodeOutput: narrowed };
-  }
-
-  const bc = envelope.buttonConfig;
+  // buttons waiting 은 한 겹 아래다 — 최상위 헬퍼로 못 덮는 유일한 자리.
+  const bc = next.buttonConfig;
   if (bc !== null && typeof bc === 'object') {
     const inner = (bc as Record<string, unknown>).nodeOutput;
     if (inner !== null && typeof inner === 'object') {
@@ -461,12 +470,17 @@ export class WebsocketService {
    * fail-open 의 현존 사례다 — `NodeHandlerOutput` 의 비공개 필드인데
    * `NodeExecution.outputData` 에 영속돼 emit payload 로 흘러들 수 있다.
    *
-   * **범위를 총칭으로 읽지 말 것 — `envelope.output` 은 아직 잔여다.**
+   * **키 이름이 둘이다 — `nodeOutput` 과 `output`.**
    * `execution.node.completed`/`.failed` 는 같은 `NodeExecution.outputData` 를
-   * **`output`** 이라는 다른 키로 최상위에 싣는데(emit 5곳), 그쪽은 `NodeHandlerOutput`
-   * 하나가 아니라 이종 payload 라(버튼 재개 record 에 이 목록을 걸면 `{}` 가 된다 — 실측)
-   * **같은 목록을 걸 수 없다**. 정본은 EIA §R17 의 범위 표이고, 안 닫은 방향은
-   * `websocket.service.spec.ts` 의 `[잔여]` 캐너리가 고정한다.
+   * **`output`** 이라는 다른 키로 최상위에 싣는다(emit 5곳). 종전 배선이 `nodeOutput`
+   * 만 찾아 그 표면을 통째로 지나쳤고, 2026-08-24 에 함께 닫았다.
+   *
+   * 그때 유예 근거로 적었던 *"이종 payload 라 같은 목록을 걸 수 없다(버튼 재개 record 가
+   * `{}` 가 된다)"* 는 **틀렸다** — 그 flat record 는 in-memory `nodeOutputCache` 에만
+   * 들어가고 `outputData` 가 되는 것은 `buildResumedStructuredOutput` 의
+   * `NodeHandlerOutput` 이다. 실 DB 조회(e2e 285건 후 teardown 전)에서 `outputData`
+   * top-level 키는 `meta`·`config`·`output`·`port`·`status`·`conversationConfig` 뿐이었고
+   * **전부 이 목록 안**이다. 근거는 EIA §R17 의 범위 표.
    *
    * **내부 WS 는 건드리지 않는다.** 호출 시점에 `wireEnvelope` 은 이미
    * `broadcastToChannel` 로 나갔고 여기서 만드는 것은 새 clone 이다 — 에디터 콘솔의
