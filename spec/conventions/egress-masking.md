@@ -70,7 +70,14 @@ code:
 두 층위로 지켜진다:
 
 1. **함수 안**: `deepRedactObject` 는 자격증명 키의 값이 **이미 마커면 덮지 않는다**(`isMaskedMarker(v) ? v : VALUE_MASK_MARKER`). 앞선 층이 남긴 키-마커가 값-마커로 바뀌면 두 마커의 의미 구분이 사라진다.
-2. **호출 순서**: `WebsocketService.toFanoutEnvelope` 은 `maskWireEnvelope`(wire 단계) → `stripExternalOnlyFields` → `attachRoutingContext` 순이고 **뒤에서 다시 마스킹하지 않는다**. 다시 걸면 `attachRoutingContext` 가 붙인 `chatChannel` 의 키-마커를 값-마커로 덮는다(그 마커는 기존 테스트가 고정하는 계약이다).
+2. **호출 순서**: `WebsocketService.toFanoutEnvelope` 은 `maskWireEnvelope`(wire 단계) → `stripExternalOnlyFields` → **`allowlistFanoutNodeOutput`**(2026-08-24 신설) → `attachRoutingContext` **4단계**이고 **뒤에서 다시 마스킹하지 않는다**. 다시 걸면 `attachRoutingContext` 가 붙인 `chatChannel` 의 키-마커를 값-마커로 덮는다(그 마커는 기존 테스트가 고정하는 계약이다).
+
+> **3번째 단계 `allowlistFanoutNodeOutput` 는 fail-closed allowlist 다** (2026-08-24, `#1209`).
+> 앞선 `stripExternalOnlyFields` 가 **이름을 아는 것을 빼는**(fail-open) deny-list 인 반면,
+> 이쪽은 `nodeOutput`/`buttonConfig.nodeOutput`/`output` **세 자리**에서 **아는 것만
+> 남긴다**. 순서가 중요하다 — allowlist 를 `attachRoutingContext` **뒤에** 걸면 그 함수가
+> 얹은 `triggerId`/`chatChannel` 이 목록 밖이라 떨어진다. 정본 범위 표는
+> [EIA §R17](../5-system/14-external-interaction-api.md).
 
 **2 는 구조가 아니라 규율이다** — 세 번째 emit 경로가 순서를 다르게 조립해도 컴파일러도 가드도 막지 않는다. 그래서 여기 적는다.
 

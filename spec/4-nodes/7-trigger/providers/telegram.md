@@ -159,6 +159,14 @@ server-side validation 실패 시 어댑터가 currentFieldIdx 를 되돌리고 
 | `table` | `output.{rows, columns}` → monospace MarkdownV2 표 (column 너비 자동 정렬, cell padding, header separator, row cap 20, cell >16 chars ellipsis, code block wrap, 4096자 분할) | fallback to text (warning 로그) | 표 PNG `sendPhoto` | text (table 도 가독성 text 우선) | text (변경 없음) |
 | `template` | `output.rendered` 를 MarkdownV2 escape 후 `sendMessage` (4096자 분할). HTML/Markdown/Text 3 모드 모두 텍스트로 발송 (v1 은 HTML 렌더링 안 함 — escape 후 plain text). CCH-MP-06 (비-blocking 본문 발화) 및 CCH-MP-01 보강 (AI render_template 도구 결과 발화) 진입점에서 동일 fallback 재사용. v2 의 HTML/Markdown rich rendering 은 후속 | fallback to text | HTML → SSR PNG (v2) | text | HTML → SSR PNG (v2) |
 
+> **이 표는 핸들러 출력(`NodeHandlerOutput.output`) 기준이다** (2026-08-24 신설,
+> `13_30_49` naming W5). 네 행의 `output.payload.*` · `output.items[]` ·
+> `output.{rows, columns}` · `output.rendered` 는 모두 **노드가 무엇을 만드나**를 적은 것이지
+> 렌더러의 접근 경로가 아니다. wire envelope 에 실릴 때는 **래퍼가 한 겹 더 붙어**
+> `nodeOutput.output.<field>` 가 되고, 렌더러는 `payload → output → config → flat` 우선순위로
+> 훑어 legacy flat shape 까지 함께 받는다. 정본은
+> [node-output.md Principle 0 의 `wire envelope` 각주](../../../conventions/node-output.md).
+
 **버튼 처리**: 모든 시각형에 대해 `buttonConfig.buttons[]` 가 있으면 시각 message 들 **다음** 메시지로 `inline_keyboard` 발송 (텔레그램 UX 정합 — 사용자가 컨텐츠 본 후 선택).
 
 **legacy `text_only` 처리**: 어댑터가 입력 단계에서 `visualNode === "text_only"` 를 `"text"` 로 read-time normalize (Convention §2.3 의 normalize 정책 적용). 마이그레이션 완료 전 과도기.
