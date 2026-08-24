@@ -109,6 +109,11 @@ chat-channel `node.completed` 소비 경로도 같은 13키로 덮인다 — dis
 
 - [x] `/consistency-check --impl-prep` — `10_44_28` **BLOCK: YES** (절차 Critical) → 아래
       `RESOLUTION.md`. 실질 spec-code 충돌은 checker 재확인에서 **이미 해소** 판정.
+- [x] `--impl-done` **두 스코프** (`12_13_36` plan_coherence W1 이 요구한 증거 인용)
+      - `12_02_30` (`spec/5-system/`) **BLOCK: NO** · W2 → 형제 문서 2곳 정정 + 게이트 실행
+      - `12_13_36` (`spec/conventions/`) **BLOCK: YES** — 자기-반증형 소정정 **조건 5** 게이트.
+        같은 파일 §3 매핑표에 미러가 하나 더 남아 있었다(§1.3 은 고치고 §3 은 안 고쳤다).
+        planner 턴으로 정정 → `12_37_04` 재실행으로 해소.
 - [x] `allowlistFanoutNodeOutput` 에 `envelope.output` 배선 (최상위 두 키를 공통 헬퍼로)
 - [x] 캐너리 — `_retryState` 제거 · 렌더 키 보존 · **내부 WS 불변** · flat 폴백 동작 고정
 - [x] **#1208 의 잔여 캐너리를 뒤집었다** (`[잔여] … 아직 allowlist 를 지나지 않는다`)

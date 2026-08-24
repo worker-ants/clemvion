@@ -201,6 +201,18 @@ owner: planner
       > `[잔여 고정] flat 폴백 shape 이 오면 목록 밖 키는 떨어진다`.
       > **재개 신호**: 그 폴백이 실제로 발현한 행이 관측되면(운영 DB 또는 새 e2e 시나리오).
 
+- [ ] **provider spec 3곳의 `output.rendered` 가 wire 래퍼 기준인지 미확정**
+      (2026-08-24 등재, `12_13_36` convention_compliance INFO 1). `telegram.md:160` ·
+      `slack.md:233` · `discord.md:256` 의 CCH-MP-06 행이 *"`output.rendered` 를 escape 후
+      발송"* 이라 적는데, 그 경로의 렌더러 입력은 **wire 래퍼**라 값은 실제로
+      `output.output.rendered` 에서 온다.
+      > **단정하지 않고 등재한다** — 실측으로 확인한 것은 `extractRendered` 가
+      > `rendered` → `payload.rendered` → `output.rendered` **세 후보를 훑는다**는 것뿐이다.
+      > 그래서 동작은 어느 shape 이든 맞고, 남은 질문은 **그 문장이 "노드가 무엇을 만드나"를
+      > 말하는가, "렌더러가 어디서 읽나"를 말하는가**다. 전자면 현행이 맞고 후자면 한 겹
+      > 얕다. 표의 다른 행들과 함께 봐야 갈리므로 **`spec/4-nodes/7-trigger/providers/`
+      > 스코프의 planner 턴**에서 판정한다 — 이 PR 의 `spec_impact` 밖이다.
+
 - [ ] **`background:run:{id}` 채널이 WS §3.2 "채널 패턴" 표에서 누락** (2026-08-24 등재,
       `10_44_28` convention_compliance W1). §3.3 인가 표에는 나오는데 §3.2 패턴 표에는 없다.
       `redis-keys.md` §4 가 이 채널의 SoT 로 §3.2 를 지목하고 있어 포인터가 빈다.
