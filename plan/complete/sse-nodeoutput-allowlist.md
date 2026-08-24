@@ -20,7 +20,7 @@ spec_impact:
 > 이 문서가 *"REST 와 강도를 맞춘다"* 로 시작했지만, `--impl-done` 게이트가 **그 보장이
 > 구현보다 넓다**는 것을 잡았다. 닫힌 것은 `waiting_for_input` 의 두 자리이고,
 > `execution.node.completed`/`.failed` 가 **`output`** 이라는 **다른 키**로 싣는 같은
-> `NodeExecution.outputData` 는 그대로 나간다(emit 5곳, 전부 같은 `toFanoutEnvelope` 통과).
+> `NodeExecution.outputData` 는 그대로 나간다(emit **6곳** — 초판은 5곳이라 적었다, `11_05_39` requirement W3 정정 — 전부 같은 `toFanoutEnvelope` 통과).
 >
 > **질문이 한 칸 좁았다.** *"`nodeOutput` 이 어디 있나"* 를 물었고, 물었어야 할 것은
 > *"`NodeHandlerOutput` 이 어느 문으로 나가나"* 였다. 키 이름이 다르면 grep 이 침묵한다.
@@ -28,10 +28,14 @@ spec_impact:
 > 이벤트는 `emitExecutionEvent` 뿐이라 위험 낮음"*)를 내가 그대로 받아들인 것도 같은 오류다.
 > **그 전제가 틀렸다** — `emitNodeEvent` 는 `nodeOutput` 이 아니라 `output` 을 싣는다.
 >
-> **그런데 같은 목록을 그대로 걸 수 없다**(실측): 버튼 재개 record 를 정본
+> **[2026-08-24 반증됨 — 아래 근거는 틀렸다]** 그 `{}` 측정 자체는 맞았으나 **그 객체가
+> `outputData` 가 된다는 전제**가 틀렸다(flat record 는 in-memory 캐시에만 들어간다).
+> 실 DB 조회로 확정 후 `#node-output-envelope` 이 그 표면도 같은 목록으로 닫았다.
+>
+> ~~**그런데 같은 목록을 그대로 걸 수 없다**(실측): 버튼 재개 record 를 정본
 > `allowlistNodeOutputKeys` 에 넣으면 **`{}`** 다. 그래서 반쯤 추측한 좁히기를 넣는 대신
 > **잔여로 재등재하고 안 닫은 방향을 캐너리로 고정**했다. 근거·착수 지침은 정본 트래커의
-> 신규 항목에 있다.
+> 신규 항목에 있다.~~
 
 정본 트래커
 [`spec-sync-external-interaction-api-gaps.md`](./spec-sync-external-interaction-api-gaps.md)

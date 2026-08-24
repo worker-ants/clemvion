@@ -184,8 +184,8 @@ socket.emit("unsubscribe", { channel: "execution:550e8400-e29b-41d4-a716-4466554
 | `execution.snapshot` | `{ executionId, execution, timestamp }` | 재구독 시 1회성 현재 상태 스냅샷 (놓친 이벤트 복구). `execution` 은 `ExecutionsService.findById` 의 **Execution 전체 객체** (그 안에 `status` 와 `nodeExecutions[]` 등이 nest) — top-level 에 `status`/`nodeExecutions` 가 평면으로 있는 게 아니라 `payload.execution.*` 로 nest 된다. `ExecutionEventType.EXECUTION_SNAPSHOT`, §6.2 참조. **nest 된 `execution.error` 와 `execution.nodeExecutions[].error` 는 `findById` 의 마스킹 관문을 상속한다** — 값-패턴 자격증명 마스킹이 걸린 값이 실린다 (SoT: [EIA §R17](./14-external-interaction-api.md) "내부 읽기 경로" 불릿, 결정 2026-08-16). 같은 소켓의 `execution.node.*` **emit** 은 이 관문(`findById`)을 지나지 않지만, **별도의 emit 시점 값-마스킹**을 받는다 (아래 §4.1 "값-패턴 마스킹" 캐비엇, 결정 2026-08-16) |
 | `execution.paused` _(계획·미구현)_ | `{ executionId, nodeId, nodeName, reason }` | 브레이크포인트에서 일시 정지. 브레이크포인트 기능은 미구현 ([Spec 실행 §6 로드맵](../3-workflow-editor/3-execution.md#6-브레이크포인트-향후-로드맵--미구현)) |
 | `execution.node.started` | `{ executionId, nodeId, nodeExecutionId, nodeLabel, nodeType }` | 노드 실행 시작. `nodeExecutionId`는 `NodeExecution` 행의 PK로, 컨테이너 body 노드의 iter별 타임라인 row를 구분하는 식별자 |
-| `execution.node.completed` | `{ executionId, nodeId, nodeExecutionId, nodeLabel, output, duration }` | 노드 실행 완료. `output` 은 `NodeHandlerOutput` 의 `output` 필드 — `output.error` 가 set 된 경우 (예: AI Agent multi-turn 의 `port: 'error'` 종결) 도 포함 ([Spec AI Agent §7.9](../4-nodes/3-ai/1-ai-agent.md#79-multi-turn-모드--오류-error-포트)). `output.error.details.retryable` / `retryAfterSec` 표준 필드는 CONVENTIONS Principle 3.2.1 정의 |
-| `execution.node.failed` | `{ executionId, nodeId, nodeExecutionId, nodeLabel, error }` | 노드 실행 실패. `error` 는 `output.error` 전체 구조 — `{ code: string, message: string, details?: { retryable?: boolean, retryAfterSec?: number, ... 노드별 } }` ([CONVENTIONS Principle 3.2](../conventions/node-output.md#32-outputerror-표준-형태)). LLM 계열 노드는 `details.retryable` 필수 |
+| `execution.node.completed` | `{ executionId, nodeId, nodeExecutionId, nodeLabel, output, duration }` | 노드 실행 완료. **wire 의 `output` 은 `NodeExecution.outputData` 전체**(= `NodeHandlerOutput` 래퍼)다 — 그 안의 도메인 값은 한 겹 더 아래인 `output.output` 이고, CONVENTIONS Principle 3.2 가 말하는 `output.error` 는 wire 에서 **`output.output.error`** 다 (예: AI Agent multi-turn 의 `port: 'error'` 종결, [Spec AI Agent §7.9](../4-nodes/3-ai/1-ai-agent.md#79-multi-turn-모드--오류-error-포트)). `details.retryable` / `retryAfterSec` 표준 필드는 CONVENTIONS Principle 3.2.1 정의. **래퍼(`output`)와 도메인 값(`output.output`)은 이름이 겹칠 뿐 다른 층이다** — 종전 서술은 wire `output` 을 도메인 값으로 적어 한 겹 얕았다 (`10_44_28` naming W2, 실측 정정: emit SoT `execution-engine.service.ts` 의 `output: nodeExecution.outputData`). fanout(외부)에서는 이 래퍼에 fail-closed allowlist 가 걸린다(§4.4 · [EIA §R17](./14-external-interaction-api.md)) |
+| `execution.node.failed` | `{ executionId, nodeId, nodeExecutionId, nodeLabel, error, output }` | 노드 실행 실패. `error` 는 **문자열**(message only)이고 구조화 객체는 `output.output.error` 에만 있다. `output` 은 emit 경로에 따라 실린다 — 실측·인과·경로별 상세는 **아래 §4.1-a** |
 | `execution.node.skipped` | `{ executionId, nodeId, nodeExecutionId, nodeLabel, reason }` | 노드 건너뜀 |
 | `execution.node.cancelled` | `{ executionId, nodeId, nodeExecutionId, nodeLabel, error? }` | 노드 실행이 중단됨. `NodeExecution.status = cancelled` ([실행 엔진 §1.2](./4-execution-engine.md#12-nodeexecution-상태) / [node-cancellation §2.4·§5.1](../conventions/node-cancellation.md#5-aborterror-분류)). **`error` 는 optional** — signal 경로(핸들러 `AbortError`)는 `output.error` 구조(`{ code: 'AbortError', message }`)를 싣지만, **DB 관측 가드 경로는 싣지 않는다**(내부 message 에 executionId 등이 포함될 수 있어 client 노출을 막는다). 소비자는 `error` 부재를 방어적으로 처리해야 한다. `failed` 와 별도 이벤트 — 타임라인이 취소를 실패와 구분 표시하고 `running` 에 잔류하지 않게 한다. 생산자: Parallel `cancel-others-on-fail` / 사용자 cancel / **엔진 DB 관측 가드(노드 경계·AI turn 경계·park 짝 전이, §2.4)** |
 > **Note (2026-08-16 정정 완료)**: 위 `node.*` 4행은 오래 `nodeName` 으로 표기돼 있었으나 엔진·프런트엔드는 처음부터 `nodeLabel` 을 썼다. 실측(엔진 emit 전수가 `nodeLabel: node.label ?? node.type`, `nodeName` emit 0건)으로 확인하고 **표를 구현에 맞춰 정정**했다. 미구현 이벤트 `execution.paused` 행은 emit 대상이 아니라 그대로 두되, 구현 착수 시 `nodeLabel` 로 맞춘다.
@@ -234,6 +234,31 @@ socket.emit("unsubscribe", { channel: "execution:550e8400-e29b-41d4-a716-4466554
 > 단 flat 은 **봉투 차원**이라 필드 집합 안쪽 중첩은 유지된다 — 취소 사유는
 > `result.cancelledBy` 이지 최상위 `cancelledBy` 가 아니다(종전 이 표의 표기가 틀렸다).
 > `durationMs` 를 본 문서 계열이 `duration` 으로 적어 온 표기 차이는 그대로 둔다(같은 값).
+
+#### 4.1-a `execution.node.failed` 의 `error`/`output` — 실측 정정 (2026-08-24)
+
+**`error` 는 문자열이다.** ~~종전 §4.1 은 *"`error` 는 `output.error` 전체 구조
+(`{code, message, details}`)"* 라 적었다.~~ emit **4곳 전수** 실측 결과 top-level `error` 는
+항상 `string`(message only)이다 — `execution-engine.service.ts` 3곳(pre-flight throw ·
+error-port 종결 · container 실패)과 `ai-turn-orchestrator.service.ts` 1곳. 구조화 객체는
+**`output.output.error`** 에만 있고, `output` 이 동봉되는 2경로에서만 도달 가능하다.
+
+> **이 문구가 프런트 결함을 낳았다** — `use-execution-events.ts` 의
+> `extractNodeErrorPayload` 가 이 서술(그 함수 주석이 §4.1 을 인용한다)을 믿고
+> `payload.error` 를 **객체로** 파싱해, 문자열이 오면 `null` 을 돌려준다. 그 결과
+> [conversation-thread §1.2.1](../conventions/conversation-thread.md) 의 `system_error`
+> 재시도 배너가 라이브 WS 경로에서 뜨지 않는다. **코드 수정은 별건**으로 정본 트래커에
+> 등재했다 — UI 동작·테스트 fixture 가 함께 바뀌므로 egress 작업에 얹지 않는다.
+
+**`output` 은 emit 경로에 따라 실린다** — error-port 종결(`finalizeErrorPortNode`)과 AI turn
+종결 **2곳만** `output: <nodeExec>.outputData`(completed 와 같은 래퍼)를 동봉하고, 일반
+pre-flight throw·container 실패 경로 2곳은 **키 자체가 없다**. 동봉되는 경우 그 래퍼도
+fanout 에서 같은 allowlist 를 지난다.
+
+> **래퍼/도메인 값 구분의 정본은 [node-output.md Principle 0](../conventions/node-output.md)**
+> 이다 — wire envelope 의 `output`/`nodeOutput` 은 `NodeHandlerOutput` **래퍼 전체**이고
+> 도메인 값은 한 겹 아래다. 이 구분이 여러 문서에 산문으로 흩어져 이번 시리즈에서
+> **4라운드 연쇄 정정**을 낳았다(`12_55_09` convention W2).
 
 ### 4.2 실행 제어 명령 (Client → Server)
 
@@ -422,7 +447,7 @@ socket.emit("unsubscribe", { channel: "execution:550e8400-e29b-41d4-a716-4466554
 
 `interactionType` 필드로 Form 노드와 버튼 Presentation 노드를 구분한다.
 
-> **실제 wire 필드명 주의 (fanout envelope)**: 아래 JSON 은 §2.1 논리 구조 표기다. 서버발신 `execution.waiting_for_input` 의 실제 평면 wire(§2.2)는 id 를 **`nodeId` 가 아니라 `waitingNodeId`** 로 싣고, 여기에 `waitingNodeType`·`waitingNodeLabel`·`nodeExecutionId`·`startedAt`(에디터 타임라인 관측용)을 평면 병합한다. form·ai 노드 설정은 top-level `formConfig`/`conversationConfig` 가 아니라 **`nodeOutput`**(예: `nodeOutput.conversationConfig`)에 nest 되고, `buttons` 는 top-level `buttonConfig` 를 유지한다. 이 fanout envelope 은 **내부 WS store 와 EIA SSE 스트림이 공유**한다 — 단 **`waiting_for_input` 의 `nodeOutput`(및 `buttonConfig.nodeOutput`) 키 집합은 공유하지 않는다**: 외부로 나가는 clone 에만 fail-closed allowlist 가 걸려 엔진 내부 필드(`_retryState` 등)가 제거된다(2026-08-23, [EIA §R17](./14-external-interaction-api.md) 의 `nodeOutput` allowlist 표가 정본). 내부 WS 는 원문 그대로다. **`execution.node.*` 의 `envelope.output` 은 이 좁히기 대상이 아니다** — 같은 `outputData` 를 다른 키로 싣는 잔여 표면이며, 그쪽은 이종 payload 라 같은 목록을 걸 수 없다(§R17 정정 블록). **외부 클라이언트가 소비하는 필드 매핑의 SoT 는 [EIA §6.2 "SSE 스트림 wire 형태 주의" blockquote](./14-external-interaction-api.md#62-페이로드--executionwaiting_for_input)**(+위젯 파서 `codebase/channel-web-chat/src/lib/eia-events.ts` `parseWaitingForInput`)**이며, WS 내부 부가 식별자(`waitingNodeType`/`waitingNodeLabel`/`nodeExecutionId`/`startedAt`)는 본 §4.4 가 소유한다.** emit SoT: `form-interaction`/`button-interaction`/`ai-turn-orchestrator` 서비스의 `emitExecution(EXECUTION_WAITING_FOR_INPUT, …)`. 방식 근거는 본 문서 ## Rationale "§4.4 wire 필드 caveat" 항목.
+> **실제 wire 필드명 주의 (fanout envelope)**: 아래 JSON 은 §2.1 논리 구조 표기다. 서버발신 `execution.waiting_for_input` 의 실제 평면 wire(§2.2)는 id 를 **`nodeId` 가 아니라 `waitingNodeId`** 로 싣고, 여기에 `waitingNodeType`·`waitingNodeLabel`·`nodeExecutionId`·`startedAt`(에디터 타임라인 관측용)을 평면 병합한다. form·ai 노드 설정은 top-level `formConfig`/`conversationConfig` 가 아니라 **`nodeOutput`**(예: `nodeOutput.conversationConfig`)에 nest 되고, `buttons` 는 top-level `buttonConfig` 를 유지한다. 이 fanout envelope 은 **내부 WS store 와 EIA SSE 스트림이 공유**한다 — 단 **`waiting_for_input` 의 `nodeOutput`(및 `buttonConfig.nodeOutput`) 키 집합은 공유하지 않는다**: 외부로 나가는 clone 에만 fail-closed allowlist 가 걸려 엔진 내부 필드(`_retryState` 등)가 제거된다(2026-08-23, [EIA §R17](./14-external-interaction-api.md) 의 `nodeOutput` allowlist 표가 정본). 내부 WS 는 원문 그대로다. ~~**`execution.node.*` 의 `envelope.output` 은 이 좁히기 대상이 아니다**~~ — **2026-08-24 에 같은 목록으로 함께 닫혔다.** 그 표면은 같은 `outputData` 를 `output` 이라는 다른 키로 싣는데, 유예 근거였던 *"이종 payload"* 가 실 DB 조회에 반증됐다(§R17 재정정 블록). **외부 클라이언트가 소비하는 필드 매핑의 SoT 는 [EIA §6.2 "SSE 스트림 wire 형태 주의" blockquote](./14-external-interaction-api.md#62-페이로드--executionwaiting_for_input)**(+위젯 파서 `codebase/channel-web-chat/src/lib/eia-events.ts` `parseWaitingForInput`)**이며, WS 내부 부가 식별자(`waitingNodeType`/`waitingNodeLabel`/`nodeExecutionId`/`startedAt`)는 본 §4.4 가 소유한다.** emit SoT: `form-interaction`/`button-interaction`/`ai-turn-orchestrator` 서비스의 `emitExecution(EXECUTION_WAITING_FOR_INPUT, …)`. 방식 근거는 본 문서 ## Rationale "§4.4 wire 필드 caveat" 항목.
 
 **Form 노드 (`interactionType: "form"`):**
 

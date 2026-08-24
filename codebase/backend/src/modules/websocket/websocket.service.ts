@@ -169,28 +169,54 @@ function sanitizeInner(value: object, depth: number): unknown {
 //  `websocket-events.types.ts` 로 옮겨졌으니 "바로 아래" 로 읽지 말 것.)
 
 /**
- * fanout envelope 안의 `nodeOutput` 두 자리를 fail-closed allowlist 로 좁힌다.
+ * envelope 의 **최상위 키 하나**를 fail-closed allowlist 로 좁힌다 — 조립은 호출자
+ * ({@link allowlistFanoutNodeOutput}) 몫이다.
+ *
+ * `key` 가 유니온인 이유: 같은 `NodeHandlerOutput` 래퍼가 이벤트에 따라 **다른 이름**으로
+ * 실린다 — waiting 은 `nodeOutput`, `execution.node.*` 는 `output`. 값이 객체가 아니면
+ * (없거나 `null` 포함) 입력을 그대로 돌려준다.
+ *
+ * **copy-on-change** — 좁힐 것이 없으면 **입력 참조 그대로** 반환한다. fanout 은 모든
+ * execution 이벤트가 지나는 hot path 라 무변경 이벤트에 객체를 새로 만들지 않는다.
+ */
+function narrowTopLevelNodeOutput(
+  envelope: Record<string, unknown>,
+  key: 'nodeOutput' | 'output',
+): Record<string, unknown> {
+  const value = envelope[key];
+  if (value === null || typeof value !== 'object') return envelope;
+  const narrowed = allowlistNodeOutputKeys(value);
+  return narrowed === value ? envelope : { ...envelope, [key]: narrowed };
+}
+
+/**
+ * fanout envelope 안에서 `NodeHandlerOutput` 래퍼가 실리는 **세 자리**를 좁힌다 — 이
+ * 파일의 실제 chokepoint 다.
+ *
+ * | 이벤트 | 자리 |
+ * |---|---|
+ * | waiting (form / ai_conversation) | `nodeOutput` |
+ * | waiting (buttons) | `buttonConfig.nodeOutput` (**한 겹 아래**) |
+ * | `execution.node.completed` / `.failed` | `output` |
  *
  * payload 는 envelope 에 **평평하게** 펼쳐지므로(`{executionId, ...payload, seq, ...}`)
- * 위치가 REST `getStatus` 와 정확히 같다 — 폼 waiting 은 `nodeOutput`, 버튼 waiting 은
- * `buttonConfig.nodeOutput`. 두 자리 모두 emit 하는 곳이 여럿이지만
+ * 앞 두 자리는 REST `getStatus` 와 위치가 같다. emit 하는 곳은 여럿이지만
  * {@link WebsocketService.toFanoutEnvelope} 이 유일한 외부 출구라 여기서 한 번 건다.
  *
- * **copy-on-change** — 바뀐 것이 없으면 입력 참조를 그대로 돌려준다. fanout 은 모든
- * execution 이벤트가 지나는 hot path 라 무변경 이벤트에 객체를 새로 만들지 않는다.
+ * 최상위 두 키는 {@link narrowTopLevelNodeOutput} 에 위임하고, `buttonConfig.nodeOutput`
+ * 만 인라인이다 — 중첩 자리는 그 헬퍼의 계약(최상위 한 키) 밖이다. 네 번째 중첩 자리가
+ * 생기면 경로 기반으로 일반화한다.
  */
 function allowlistFanoutNodeOutput(
   envelope: Record<string, unknown>,
 ): Record<string, unknown> {
-  let next = envelope;
+  // **키 이름이 둘인 것이 이 표면의 함정이었다** — `nodeOutput` 만 찾은 종전 배선이
+  // `output` 을 통째로 지나쳤다(`23_29_27` cross_spec CRITICAL).
+  let next = narrowTopLevelNodeOutput(envelope, 'nodeOutput');
+  next = narrowTopLevelNodeOutput(next, 'output');
 
-  const top = envelope.nodeOutput;
-  if (top !== null && typeof top === 'object') {
-    const narrowed = allowlistNodeOutputKeys(top);
-    if (narrowed !== top) next = { ...next, nodeOutput: narrowed };
-  }
-
-  const bc = envelope.buttonConfig;
+  // buttons waiting 은 한 겹 아래다 — 최상위 헬퍼로 못 덮는 유일한 자리.
+  const bc = next.buttonConfig;
   if (bc !== null && typeof bc === 'object') {
     const inner = (bc as Record<string, unknown>).nodeOutput;
     if (inner !== null && typeof inner === 'object') {
@@ -461,12 +487,18 @@ export class WebsocketService {
    * fail-open 의 현존 사례다 — `NodeHandlerOutput` 의 비공개 필드인데
    * `NodeExecution.outputData` 에 영속돼 emit payload 로 흘러들 수 있다.
    *
-   * **범위를 총칭으로 읽지 말 것 — `envelope.output` 은 아직 잔여다.**
+   * **키 이름이 둘이다 — `nodeOutput` 과 `output`.**
    * `execution.node.completed`/`.failed` 는 같은 `NodeExecution.outputData` 를
-   * **`output`** 이라는 다른 키로 최상위에 싣는데(emit 5곳), 그쪽은 `NodeHandlerOutput`
-   * 하나가 아니라 이종 payload 라(버튼 재개 record 에 이 목록을 걸면 `{}` 가 된다 — 실측)
-   * **같은 목록을 걸 수 없다**. 정본은 EIA §R17 의 범위 표이고, 안 닫은 방향은
-   * `websocket.service.spec.ts` 의 `[잔여]` 캐너리가 고정한다.
+   * **`output`** 이라는 다른 키로 최상위에 싣는다 — emit **6곳**(`execution-engine` 2 ·
+   * `form-interaction` 1 · `button-interaction` 1 · `ai-turn-orchestrator` 2). 종전 배선이 `nodeOutput`
+   * 만 찾아 그 표면을 통째로 지나쳤고, 2026-08-24 에 함께 닫았다.
+   *
+   * 그때 유예 근거로 적었던 *"이종 payload 라 같은 목록을 걸 수 없다(버튼 재개 record 가
+   * `{}` 가 된다)"* 는 **틀렸다** — 그 flat record 는 in-memory `nodeOutputCache` 에만
+   * 들어가고 `outputData` 가 되는 것은 `buildResumedStructuredOutput` 의
+   * `NodeHandlerOutput` 이다. 실 DB 조회(e2e 285건 후 teardown 전)에서 `outputData`
+   * top-level 키는 `meta`·`config`·`output`·`port`·`status`·`conversationConfig` 뿐이었고
+   * **전부 이 목록 안**이다. 근거는 EIA §R17 의 범위 표.
    *
    * **내부 WS 는 건드리지 않는다.** 호출 시점에 `wireEnvelope` 은 이미
    * `broadcastToChannel` 로 나갔고 여기서 만드는 것은 새 clone 이다 — 에디터 콘솔의

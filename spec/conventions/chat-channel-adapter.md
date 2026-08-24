@@ -177,7 +177,18 @@ type ChatChannelInternalEvent =
       triggerId: string;
       workflowId: string;
       node: { id: string; type: "carousel" | "table" | "chart" | "template"; label?: string };
-      /** NodeHandlerOutput.output — 예: Template 의 `{rendered, ...}`, Carousel 의 `{items, ...}`. */
+      /**
+       * **`NodeHandlerOutput` 래퍼 전체**(= `NodeExecution.outputData`)다 — 도메인 값은
+       * 한 겹 아래인 `output.output` 이다(예: Template 의 `{rendered, …}`, Carousel 의
+       * `{items, …}`). dispatcher 가 wire envelope 의 `p.output` 을 **그대로** 넘기고,
+       * 그 wire `output` 이 래퍼이기 때문이다([WS §4.1](../5-system/6-websocket-protocol.md)
+       * 2026-08-24 정정, `12_02_30` cross_spec W1).
+       *
+       * 종전 주석은 이 필드를 `NodeHandlerOutput.output` 이라 적었다 — **한 겹 얕았다.**
+       * 렌더러(`renderPresentationByType`)가 `payload → output → config → flat` 우선순위로
+       * 훑어 실제 파손은 없었지만, 이 주석을 SoT 로 믿고 `output.rendered` 를 직접 읽으면
+       * `undefined` 다.
+       */
       output: Record<string, unknown>;
       meta?: Record<string, unknown>;
       timestamp: string;
@@ -368,7 +379,7 @@ interface SendResult {
 | `execution.completed` | `result.outputs` | `text` 1건 — `languageHints.executionCompleted` 또는 result 의 summary |
 | `execution.failed` | `error.code` + `error.details.statusCode` (다른 필드 사용 금지) | `text` 1건 — 분류 helper [§3.1](#31-execution-failed-분류-알고리즘) 결과 `(key, placeholders)` → `languageHints[key]` lookup + placeholder 치환. [Spec Chat Channel §3.5 CCH-ERR-*](../5-system/15-chat-channel.md#35-실행-실패-사용자-안내-cch-err-) 가 시스템 의무 SoT |
 | `execution.cancelled` | `cancelledBy` + `error?.code` | `text` 1건 — `error.code` 가 `RESUME_*` (§7.5 rehydration 실패 system cancel) 면 graceful 세션 만료 안내 (`languageHints.sessionExpired`), 그 외 일반 취소 안내 |
-| `execution.node.completed` (presentation 노드 한정, **chat-channel-internal** — §1.3 `ChatChannelInternalEvent`) | `node.type ∈ {template, carousel, table, chart}` + `output` | `template`: `output.rendered` 를 `text` 1건 (MarkdownV2 escape). `carousel`/`table`/`chart`: §5.4 v1 fallback 의 `renderCarouselFallback`/`renderTableFallback`/`renderChartFallback` 그대로 재사용. **buttons 가 있는 (blocking) 케이스는 `execution.waiting_for_input` (interactionType=buttons) 행이 별도 처리** — 어댑터 sub-filter 가 `nodeExec.outputData.status === 'waiting_for_input'` 인 케이스를 사전 필터링. `form` 노드는 항상 blocking 이라 본 row 대상 아님. SoT: [Spec Chat Channel §3.1 CCH-AD-07](../5-system/15-chat-channel.md#31-어댑터-라이프사이클) / §3.3 CCH-MP-06. |
+| `execution.node.completed` (presentation 노드 한정, **chat-channel-internal** — §1.3 `ChatChannelInternalEvent`) | `node.type ∈ {template, carousel, table, chart}` + `output` | `template`: **`output.output.rendered`** 를 `text` 1건 (MarkdownV2 escape) — wire `output` 은 `NodeHandlerOutput` **래퍼 전체**라 도메인 값이 한 겹 아래다(~~`output.rendered`~~, §1.3 JSDoc 참조. 실제 `extractRendered` 는 `rendered` → `payload.rendered` → `output.rendered` 세 후보를 훑어 legacy flat shape 도 받는다). `carousel`/`table`/`chart`: §5.4 v1 fallback 의 `renderCarouselFallback`/`renderTableFallback`/`renderChartFallback` 그대로 재사용. **buttons 가 있는 (blocking) 케이스는 `execution.waiting_for_input` (interactionType=buttons) 행이 별도 처리** — 어댑터 sub-filter 가 `nodeExec.outputData.status === 'waiting_for_input'` 인 케이스를 사전 필터링. `form` 노드는 항상 blocking 이라 본 row 대상 아님. SoT: [Spec Chat Channel §3.1 CCH-AD-07](../5-system/15-chat-channel.md#31-어댑터-라이프사이클) / §3.3 CCH-MP-06. |
 
 ### 3.1 Execution Failed 분류 알고리즘
 

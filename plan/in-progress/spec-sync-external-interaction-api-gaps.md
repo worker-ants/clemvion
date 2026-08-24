@@ -133,15 +133,35 @@ owner: planner
       > `NodeHandlerOutput` 계약 **밖**" 각주를 다는 편이 낫다 — 5필드 목록을 넓히면
       > 핸들러 계약이 오염된다.
 
-- [ ] **`execution.node.completed`/`.failed` 의 `envelope.output` 은 아직 deny-list 다**
-      (2026-08-23 등재, `23_29_27` cross_spec **CRITICAL**). 같은 `NodeExecution.outputData` 를
+- [x] **~~`execution.node.completed`/`.failed` 의 `envelope.output` 은 아직 deny-list 다~~
+      해소 (2026-08-24)** (등재 2026-08-23, `23_29_27` cross_spec **CRITICAL**).
+      > **착수하니 이 항목이 적어 둔 유예 근거가 틀렸다.** 아래 *"같은 목록을 그대로 걸면
+      > 깨진다"* 의 `{}` **측정 자체는 맞았지만**, 그 객체가 `outputData` 가 된다는 **전제**가
+      > 틀렸다 — `resolveButtonInteraction` 의 flat record 는 `setNodeOutput` 으로 in-memory
+      > `nodeOutputCache` 에만 들어가고, `nodeExec.outputData` 에 대입되는 것은
+      > `buildResumedStructuredOutput` 이 반환하는 **`NodeHandlerOutput`** 이다.
+      >
+      > **실 DB 조회로 확정**(e2e 285건 후 teardown 전, `node_execution.output_data` 93행 중
+      > 84행 object·배열/스칼라 0행): top-level 키는 `meta`(83)·`config`(82)·`output`(81)·
+      > `port`(20)·`status`(7)·`conversationConfig`(1) 뿐, **전부 목록 안**. flat record 는
+      > 한 행도 없다. 그래서 같은 목록을 그대로 걸었다.
+      >
+      > **교훈**: *"그 객체에 목록을 걸면 어떻게 되나"* 를 쟀고, 물었어야 할 것은
+      > **"그 객체가 이 표면에 도달하나"** 였다. 프록시를 재고 유예 결론을 냈다.
+      >
+      > **파생 신규 항목**: `finalAdapted ?? nodeOutputCache` 폴백이 flat view 를
+      > `outputData` 로 영속할 수 있다(285건 미발현) — 아래 별도 항목.
+
+      <details>
+      <summary>등재 당시 본문 (반증된 유예 근거 포함 — 이력 보존)</summary>
+ 같은 `NodeExecution.outputData` 를
       **`output`** 이라는 다른 키로 최상위에 싣는 표면이라, `nodeOutput` 만 찾은 SSE 작업이
       그대로 지나쳤다. `_retryState` 가 여기로 나간다.
       > **왜 놓쳤나 — 질문이 한 칸 좁았다.** *"`nodeOutput` 이 어디 있나"* 를 물었어야 할 자리에서
       > 물었어야 할 질문은 *"`NodeHandlerOutput` 이 어느 문으로 나가나"* 였다. 키 이름이 다르면
       > grep 이 침묵한다.
       >
-      > **emit 5곳 (실측 — 다시 찾지 말 것)**: `execution-engine.service.ts` 2곳
+      > **emit ~~5곳~~ 6곳 (실측 — 다시 찾지 말 것)**: `execution-engine.service.ts` 2곳
       > (NODE_COMPLETED · NODE_FAILED) · `form-interaction.service.ts` ·
       > `button-interaction.service.ts` · `ai-turn-orchestrator.service.ts`. 전부
       > `output: <nodeExec>.outputData` 이고 `emitNode` → `emitNodeEvent` →
@@ -164,6 +184,86 @@ owner: planner
       > **안 닫은 방향은 캐너리가 고정한다**: `websocket.service.spec.ts` 의
       > `[잔여] execution.node.* 의 envelope.output 은 아직 allowlist 를 지나지 않는다`.
       > 이 항목을 닫으면 **그 단언이 뒤집히는 것이 작업의 일부**다.
+
+      </details>
+
+- [ ] **`finalAdapted ?? nodeOutputCache` 폴백이 flat view 를 `outputData` 로 영속할 수 있다**
+      (2026-08-24 등재, `envelope.output` 작업의 파생). `ai-turn-orchestrator.service.ts` 의
+      그 폴백은 `execution-context.service.ts` 주석이 *"already-flattened engine output …
+      의도적으로 bare (예: `{parameters: {}}`)"* 라 부르는 view 를 `outputData` 에 쓴다 —
+      그 컬럼의 계약은 `NodeHandlerOutput` 인데.
+      > **실측: e2e 285건 실 DB 조회에서 한 행도 안 나타났다**(top-level 키 6종 전부
+      > `NodeHandlerOutput` 계약 안). 즉 **현재 발현하지 않는 잠재 경로**다.
+      > **이번에 안 고친 이유**: 이건 egress 마스킹이 아니라 **영속 계약** 문제다. 고치려면
+      > 폴백이 무엇을 써야 하는지(adapt? 빈 객체? throw?)를 정해야 하고, 그 결정이 표현식
+      > 리졸버·실행 이력 UI 까지 번진다 — allowlist PR 에 얹을 크기가 아니다.
+      > **현 동작은 캐너리가 고정한다** — `websocket.service.spec.ts` 의
+      > `[잔여 고정] flat 폴백 shape 이 오면 목록 밖 키는 떨어진다`.
+      > **재개 신호**: 그 폴백이 실제로 발현한 행이 관측되면(운영 DB 또는 새 e2e 시나리오).
+
+- [ ] 🔴 **`system_error` 재시도 배너가 라이브 WS 경로에서 안 뜬다 — spec 문구가 낳은 프런트 결함**
+      (2026-08-24 등재, `12_24_55` cross_spec **CRITICAL**). **문서 정합이 아니라 실제 기능
+      결함**이다.
+      > **실측 (다시 찾지 말 것)**:
+      > - `NODE_FAILED` emit **4곳 전수** — `execution-engine.service.ts:6302`·`:6378`·`:8018`,
+      >   `ai-turn-orchestrator.service.ts:1537` — 이 top-level `error` 를 **`string`**
+      >   (message only)으로 보낸다. 구조화 객체는 `output.output.error` 에만 있다.
+      > - `use-execution-events.ts:894` `handleNodeFailed` 는
+      >   `extractNodeErrorPayload(payload.error, undefined)` 를 부른다. 그 함수는 `rawError`
+      >   가 **객체일 때만** `direct` 를 잡고 `rawOutput` 이 `undefined` 라 `nested` 도 없다
+      >   → **항상 `null`** → `system_error` APPEND 블록이 한 번도 실행되지 않는다.
+      > - 그 함수의 주석이 *"§4.1 갱신 — `execution.node.failed.error` 는 `output.error`
+      >   전체 구조"* 다. **틀린 spec 문구를 코드가 믿었다.** 그 문구는 2026-08-24 에 정정했다.
+      >
+      > **`handleNodeCompleted`(`:804`)도 같이 봐야 한다** — `extractNodeErrorPayload(undefined,
+      > payload.output)` 인데 `nested` 가 `rawOutput.error` **한 단**만 본다. `payload.output`
+      > 은 래퍼라 구조화 에러는 `output.output.error` **두 단** 아래다.
+      >
+      > **왜 이 PR 에서 안 고쳤나**: (a) frontend 를 전혀 건드리지 않는 egress-masking PR 이고,
+      > (b) 고치면 **배너가 새로 뜨기 시작**하는 UI 동작 변경이며, (c) 현재 테스트
+      > (`CT-S9`/`CT-S10`)가 **존재하지 않는 shape 을 fixture 로 쓰고 배너 미표시를 의도된
+      > 동작으로 단언**하고 있어 fixture 교체가 함께 필요하다. 자기 PR 로 가야 한다.
+      >
+      > **착수 시**: `extractNodeErrorPayload(payload.error, payload.output)` + `nested` 를
+      > `rawOutput.output.error` 2단 접근으로. `CT-S9`/`CT-S10` fixture 를 실 backend shape
+      > (`error: string` + `output.output.error` 객체)으로 교체하고 *"legacy string"* 주석 정정.
+      >
+      > **문서는 이미 정정돼 있다** (2026-08-24, `#node-output-envelope`): WS §4.1 과
+      > `conversation-thread.md` §9.7 **두 행**이 실측 shape 으로 고쳐졌고 각각 *"이 문구가
+      > 프런트 결함을 낳았다"* 는 인과까지 적혀 있다. **착수 시 그 문구를 다시 고칠 게 아니라,
+      > 코드를 그 문구에 맞추고 §9.7 위의 ⚠️ 블록을 지우면 된다** — 그 블록이 "아직 안 고쳐진
+      > 코드" 를 가리키는 표지다.
+
+- [ ] **provider spec 3곳의 `output.rendered` 가 wire 래퍼 기준인지 미확정**
+      (2026-08-24 등재, `12_13_36` convention_compliance INFO 1). `telegram.md:160` ·
+      `slack.md:233` · `discord.md:256` 의 CCH-MP-06 행이 *"`output.rendered` 를 escape 후
+      발송"* 이라 적는데, 그 경로의 렌더러 입력은 **wire 래퍼**라 값은 실제로
+      `output.output.rendered` 에서 온다.
+      > **단정하지 않고 등재한다** — 실측으로 확인한 것은 `extractRendered` 가
+      > `rendered` → `payload.rendered` → `output.rendered` **세 후보를 훑는다**는 것뿐이다.
+      > 그래서 동작은 어느 shape 이든 맞고, 남은 질문은 **그 문장이 "노드가 무엇을 만드나"를
+      > 말하는가, "렌더러가 어디서 읽나"를 말하는가**다. 전자면 현행이 맞고 후자면 한 겹
+      > 얕다. 표의 다른 행들과 함께 봐야 갈리므로 **`spec/4-nodes/7-trigger/providers/`
+      > 스코프의 planner 턴**에서 판정한다 — 이 PR 의 `spec_impact` 밖이다.
+
+- [ ] **래퍼/도메인 구분 산문 사본 4곳을 정본 링크로 대체** (2026-08-24 등재,
+      `12_55_09` convention W2 의 후반부). 정본은 `node-output.md` Principle 0 에 **세웠고**,
+      나머지 4곳(`6-websocket-protocol.md` §4.1-a · `14-external-interaction-api.md` §R17 ·
+      `chat-channel-adapter.md` §1.3/§3 · `conversation-thread.md` §9.7)은 아직 각자 산문을
+      들고 있다.
+      > **왜 이번에 사본까지 안 줄였나**: 정본을 세우는 것과 사본 4곳을 링크로 **갈아끼우는**
+      > 것은 위험이 다르다. 후자는 각 문서의 문맥에 맞게 문장을 다시 짜야 하고, 이번 작업이
+      > 이미 그 자리들을 네 라운드에 걸쳐 건드린 직후다 — 연달아 또 손대면 리뷰가 따라오지
+      > 못한다. **정본이 선 지금은 사본이 늘어나도 대조할 기준이 있다.**
+      > **B 묶음(planner doc)과 함께 처리**하는 것이 자연스럽다 — 거기 이미
+      > `node-output.md` Principle 0 항목이 있다.
+
+- [ ] **`background:run:{id}` 채널이 WS §3.2 "채널 패턴" 표에서 누락** (2026-08-24 등재,
+      `10_44_28` convention_compliance W1). §3.3 인가 표에는 나오는데 §3.2 패턴 표에는 없다.
+      `redis-keys.md` §4 가 이 채널의 SoT 로 §3.2 를 지목하고 있어 포인터가 빈다.
+      > **planner 소관**이고 **선재 갭**이다(이번 작업이 만든 것이 아니다). §3.2 표에 행을
+      > 추가하거나, `redis-keys.md` §4 포인터를 `4-nodes/1-logic/12-background.md §8.5` 로
+      > 돌린다 — 어느 쪽인지는 planner 판단.
 
 - [ ] **WS §4.4 `buttonConfig.nodeOutput` 행에 `nodeType` carve-out 각주 없음**
       (2026-08-24 등재, `00_51_50` convention_compliance INFO 7). 같은 절이 *"판별자 래퍼
