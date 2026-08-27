@@ -1,8 +1,9 @@
 ---
 title: "config echo 마스킹을 어댑터에서 출구로 — 표현식이 읽는 값을 되살린다 (C2 (a))"
-status: in-progress
+status: complete
 worktree: masking-residuals-0b195b
 started: 2026-08-24
+completed: 2026-08-27
 owner: developer
 spec_impact:
   # `19_26_06` CRITICAL — 이 변경이 **보안 설계 Rationale 을 무효화**한다. 내가 쓴 예고가
@@ -127,9 +128,13 @@ spec_impact:
 - [x] TEST WORKFLOW 4단계 + ratchet — backend **9,023 passed** / 433 suites · e2e 285 ·
       199/38 일치. ⚠️ 이 수는 **PR 이 닫히는 시점의 값**이라 리뷰 라운드마다 갱신한다
       (`12_00_05` INFO 11 — 9,018 로 적어 둔 사이 후속 커밋이 2건을 더했다).
-- [x] `/ai-review` — **4라운드**. `10_53_52`(CRITICAL 1) → `11_25_15`(W4) →
-      `12_00_05`(W6) → `12_28_26` **RISK=LOW · CRITICAL 0 · 신규 WARNING 1**
-      (나머지 1건은 기등재 트레이드오프). 라운드마다 RESOLUTION.md 동봉.
+- [x] `/ai-review` — **5라운드 수렴**. `10_53_52`(CRITICAL 1) → `11_25_15`(W4) →
+      `12_00_05`(W6) → `12_28_26`(W2, 신규 1) → `12_52_43` **CRITICAL 0 · WARNING 0**.
+      1~4 라운드는 RESOLUTION.md 동봉, 5라운드는 clean 이라 불요.
+      > 라운드마다 반증된 것이 **직전 라운드에서 내가 쓴 수정**이었다 — 캐너리가
+      > 아무것도 안 보던 것(R1) · 정정문의 논리 오류(R2) · vacuous 단언(R3) ·
+      > 덮지 않는 캐너리를 근거로 인용한 JSDoc(R4). 5라운드에서 리뷰어가 M6 을
+      > 독립 재현해 *"직전 라운드엔 동일 뮤테이션이 66/66 GREEN 이었다"* 까지 확인.
 
 ## 뮤테이션 (예측을 실행 전에 쓰고 실측과 두 칸으로 대조)
 
