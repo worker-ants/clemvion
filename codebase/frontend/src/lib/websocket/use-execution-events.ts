@@ -58,6 +58,13 @@ function sanitizeUuid(v: unknown): string | undefined {
  * SoT: spec/conventions/node-output.md Principle 3.2 / 3.2.1 + Spec
  * WebSocket Protocol §4.1 error payload shape.
  */
+/** 객체(배열 아님)면 레코드로, 아니면 `null`. 위 중첩 접근을 읽을 만하게 만든다. */
+function asRecord(v: unknown): Record<string, unknown> | null {
+  return v && typeof v === "object" && !Array.isArray(v)
+    ? (v as Record<string, unknown>)
+    : null;
+}
+
 function extractNodeErrorPayload(
   rawError: unknown,
   rawOutput: unknown,
@@ -66,20 +73,21 @@ function extractNodeErrorPayload(
   message: string;
   details?: { retryable?: boolean; retryAfterSec?: number; [k: string]: unknown };
 } | null {
-  // §4.1 갱신 — `execution.node.failed.error` 는 `output.error` 전체 구조
+  // `rawError` 가 **객체인 경우만** 잡는다. 오늘 `execution.node.failed` 의 top-level
+  // `error` 는 emit 4곳 전수가 **문자열**이므로 이 분기는 사실상 안 탄다 — 방어로 남긴다
+  // (`node.completed` 등 다른 호출자가 객체를 넘길 수 있다).
   const direct =
     rawError && typeof rawError === "object" && !Array.isArray(rawError)
       ? (rawError as Record<string, unknown>)
       : null;
-  // multi-turn `port: 'error'` 의 `node.completed` 분기
-  const nested =
-    rawOutput &&
-    typeof rawOutput === "object" &&
-    "error" in (rawOutput as Record<string, unknown>) &&
-    (rawOutput as Record<string, unknown>).error &&
-    typeof (rawOutput as Record<string, unknown>).error === "object"
-      ? ((rawOutput as Record<string, unknown>).error as Record<string, unknown>)
-      : null;
+  // **래퍼를 한 겹 통과한다** — `rawOutput` 은 `NodeHandlerOutput` 래퍼
+  // (`nodeExec.outputData`)이고 도메인 값은 그 아래 `output` 이다
+  // (node-output.md Principle 0). 구조화 에러는 `output.output.error` 에만 있다
+  // (6-websocket-protocol.md §4.1-a, 2026-08-24 실측 정정).
+  //
+  // 종전에는 `rawOutput.error` 를 봤다 — **한 겹 얕아서** 래퍼를 넘겨도 못 찾았다.
+  const domain = asRecord(rawOutput)?.output;
+  const nested = asRecord(asRecord(domain)?.error);
   const source = direct ?? nested;
   if (!source) return null;
   const code = typeof source.code === "string" ? source.code : null;
@@ -831,10 +839,14 @@ export function useExecutionEvents({
 
   const handleNodeFailed = useCallback(
     (data: unknown) => {
-      // spec/5-system/6-websocket-protocol.md §4.1 — `error` 가 본 PR 에서
-      // output.error 전체 구조 (`{code, message, details?}`) 로 운반된다.
-      // 호환을 위해 string (옛 backend) 도 받는다 — 그 경우 시스템 에러
-      // 인라인 item 을 APPEND 하지 않고 단순 status 갱신만 수행.
+      // spec/5-system/6-websocket-protocol.md **§4.1-a** (2026-08-24 실측 정정) —
+      // top-level `error` 는 **문자열**(message only)이고, 구조화 객체는
+      // `output.output.error` 에만 있다. `output` 은 emit 경로에 따라 실린다
+      // (error-port 종결·AI turn 종결 2곳만; pre-flight throw·container 실패는 미동봉).
+      //
+      // ~~종전 주석은 *"`error` 가 output.error 전체 구조로 운반된다"* 였다.~~
+      // **그 서술이 이 파일의 결함을 낳았다** — 문자열이 오면 `null` 로 떨어져
+      // `system_error` 배너가 라이브 WS 경로에서 한 번도 뜨지 않았다.
       const payload = data as {
         nodeExecutionId?: string;
         parentNodeExecutionId?: string;
@@ -891,7 +903,12 @@ export function useExecutionEvents({
         // spec/conventions/conversation-thread.md §9.7 — multi-turn AI Agent
         // 가 retryable error 로 종결 시 (또는 일반 LLM 실패) conversation
         // thread 마지막에 system_error item APPEND.
-        const errorPayload = extractNodeErrorPayload(payload.error, undefined);
+        // `payload.output` 을 **반드시 넘긴다** — top-level `error` 는 문자열이라
+        // 구조화 객체는 여기에만 있다. 종전 `undefined` 가 이 배너를 죽여 놨다.
+        const errorPayload = extractNodeErrorPayload(
+          payload.error,
+          payload.output,
+        );
         if (errorPayload && isMultiTurnAiContext(payload.nodeType)) {
           const retryable =
             typeof errorPayload.details?.retryable === "boolean"

@@ -1988,20 +1988,30 @@ describe("useExecutionEvents", () => {
       seedConversation();
       const { failed } = bindNodeHandlers();
 
+      // **production shape** — top-level `error` 는 문자열, 구조화 객체는 래퍼
+      // 한 겹 아래(`output.output.error`). 종전 fixture 는 `error` 를 객체로 보내
+      // 정정 전 §4.1 문구를 인코딩했고, 그래서 결함이 있는 채로 초록이었다.
       failed?.({
         nodeId: "agent-1",
         nodeType: "ai_agent",
         nodeLabel: "CS Bot",
         nodeExecutionId: "11111111-1111-1111-1111-111111111111",
-        error: {
-          code: "LLM_RATE_LIMIT",
-          message: "Anthropic API returned 429 (Too Many Requests)",
-          details: {
-            provider: "anthropic",
-            statusCode: 429,
-            retryable: true,
-            retryAfterSec: 30,
+        error: "Anthropic API returned 429 (Too Many Requests)",
+        output: {
+          output: {
+            error: {
+              code: "LLM_RATE_LIMIT",
+              message: "Anthropic API returned 429 (Too Many Requests)",
+              details: {
+                provider: "anthropic",
+                statusCode: 429,
+                retryable: true,
+                retryAfterSec: 30,
+              },
+            },
           },
+          config: {},
+          meta: {},
         },
       });
 
@@ -2032,10 +2042,17 @@ describe("useExecutionEvents", () => {
         nodeId: "agent-1",
         nodeType: "ai_agent",
         nodeLabel: "CS Bot",
-        error: {
-          code: "LLM_CALL_FAILED",
-          message: "401 unauthorized",
-          details: { statusCode: 401, retryable: false },
+        error: "401 unauthorized",
+        output: {
+          output: {
+            error: {
+              code: "LLM_CALL_FAILED",
+              message: "401 unauthorized",
+              details: { statusCode: 401, retryable: false },
+            },
+          },
+          config: {},
+          meta: {},
         },
       });
 
@@ -2055,13 +2072,22 @@ describe("useExecutionEvents", () => {
       seedConversation();
       const { failed } = bindNodeHandlers();
 
-      const conversationOutput = {
-        result: { messages: [{ role: "user", content: "ORD-12345" }], turnCount: 2 },
-        error: {
-          code: "LLM_CALL_FAILED",
-          message: "Request timed out.",
-          details: { retryable: true },
+      // `output` 은 `NodeHandlerOutput` **래퍼**다 (`nodeExec.outputData`).
+      // 도메인 값은 한 겹 아래 — node-output.md Principle 0.
+      const conversationWrapper = {
+        output: {
+          result: {
+            messages: [{ role: "user", content: "ORD-12345" }],
+            turnCount: 2,
+          },
+          error: {
+            code: "LLM_CALL_FAILED",
+            message: "Request timed out.",
+            details: { retryable: true },
+          },
         },
+        config: {},
+        meta: {},
       };
 
       failed?.({
@@ -2069,8 +2095,8 @@ describe("useExecutionEvents", () => {
         nodeId: "agent-1",
         nodeType: "ai_agent",
         nodeLabel: "CS Bot",
-        error: conversationOutput.error,
-        output: conversationOutput,
+        error: "Request timed out.",
+        output: conversationWrapper,
       });
 
       const result = useExecutionStore
@@ -2078,7 +2104,7 @@ describe("useExecutionEvents", () => {
         .nodeResults.find((r) => r.nodeId === "agent-1");
       expect(result?.status).toBe("failed");
       // 회귀 지점: `outputData: null` 하드코딩이면 여기서 실패한다.
-      expect(result?.outputData).toEqual(conversationOutput);
+      expect(result?.outputData).toEqual(conversationWrapper);
     });
 
     // PR #959 후속 — `handleNodeFailed` 의 `outputData: payload.output ?? null` 은
@@ -2131,12 +2157,16 @@ describe("useExecutionEvents", () => {
         nodeType: "ai_agent",
         nodeLabel: "CS Bot",
         output: {
-          result: { messages: [], turnCount: 2 },
-          error: {
-            code: "LLM_RATE_LIMIT",
-            message: "Rate limited",
-            details: { retryable: true, retryAfterSec: 10 },
+          output: {
+            result: { messages: [], turnCount: 2 },
+            error: {
+              code: "LLM_RATE_LIMIT",
+              message: "Rate limited",
+              details: { retryable: true, retryAfterSec: 10 },
+            },
           },
+          config: {},
+          meta: {},
         },
       });
 
@@ -2147,7 +2177,55 @@ describe("useExecutionEvents", () => {
       expect(last.systemError?.retryAfterSec).toBe(10);
     });
 
-    it("legacy string error (no structured shape) does NOT APPEND system_error", () => {
+    /**
+     * **이 결함의 정확한 형태를 문다** (`12_24_55` CRITICAL).
+     *
+     * 라이브 WS 는 top-level `error` 를 **문자열**로 보내고 구조화 객체는 래퍼 한 겹
+     * 아래(`output.output.error`)에만 있다. 종전 코드는 (a) `error` 를 객체로 파싱하고
+     * (b) `rawOutput` 에 `undefined` 를 넘겨 **항상 `null`** 이었다 — 배너가 한 번도
+     * 뜨지 않았다.
+     *
+     * 위 CT-S9/S10 은 `error` 를 **객체**로 보내므로 `direct` 분기로 통과한다. 즉 그
+     * 케이스들만으로는 이 회귀를 **못 잡는다** — production 이 절대 안 보내는 shape 이다.
+     */
+    it("[캐너리] 문자열 error + 래퍼 output 조합에서 배너가 뜬다 (라이브 WS 실제 shape)", () => {
+      useExecutionStore.getState().startExecution("exec-1");
+      seedConversation();
+      const { failed } = bindNodeHandlers();
+
+      failed?.({
+        nodeId: "agent-1",
+        nodeType: "ai_agent",
+        nodeLabel: "CS Bot",
+        // 백엔드 emit 4곳 전수가 이 형태다 — message only.
+        error: "Anthropic API returned 529 (Overloaded)",
+        output: {
+          output: {
+            result: { messages: [], turnCount: 2 },
+            error: {
+              code: "LLM_OVERLOADED",
+              message: "Anthropic API returned 529 (Overloaded)",
+              details: { retryable: true, retryAfterSec: 5 },
+            },
+          },
+          config: {},
+          meta: {},
+        },
+      });
+
+      const items = useExecutionStore.getState().conversationMessages;
+      const last = items[items.length - 1];
+      expect(last.type).toBe("system_error");
+      expect(last.systemError?.code).toBe("LLM_OVERLOADED");
+      expect(last.systemError?.retryable).toBe(true);
+      expect(last.systemError?.retryAfterSec).toBe(5);
+    });
+
+    // §4.1-a — pre-flight throw · container 실패 2경로는 `output` **키 자체가 없다**.
+    // 그래서 구조화 에러에 도달할 방법이 없고 배너도 안 뜬다. 이것은 결함이 아니라
+    // spec 이 규정한 정상이다. (종전 라벨은 *"옛 backend 호환"* 이었는데, 사유가 호환이
+    // 아니라 **경로별 동봉 여부**다.)
+    it("`output` 미동봉 경로(문자열 error 단독)는 system_error 를 APPEND 하지 않는다", () => {
       useExecutionStore.getState().startExecution("exec-1");
       seedConversation();
       const { failed } = bindNodeHandlers();
@@ -2159,7 +2237,7 @@ describe("useExecutionEvents", () => {
       });
 
       const items = useExecutionStore.getState().conversationMessages;
-      // 기존 3개 turn 유지, system_error 미추가 — 옛 backend 호환
+      // 기존 3개 turn 유지 — 구조화 에러에 도달할 경로가 없다.
       expect(items).toHaveLength(3);
       expect(items.every((i) => i.type !== "system_error")).toBe(true);
     });
