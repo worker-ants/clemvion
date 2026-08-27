@@ -464,7 +464,7 @@ codebase/frontend/src/app/(main)/w/[slug]/workflows/[id]/executions/
 
 ### R-5. 노드 상세 Config 탭이 viewer 롤에도 노출되지만 안전한 이유
 
-> **R-5 의 대상 범위** (2026-08-16 추가): 본 항목이 다루는 것은 **Config 탭의 config echo** 하나다. 같은 엔드포인트가 싣는 **`Execution.error`·`nodeExecutions[].error` 는 별개 정책**으로, write 시점이 아니라 **응답 egress 에서** 마스킹된다 — SoT 는 [EIA §R17](../5-system/14-external-interaction-api.md) 의 "내부 읽기 경로" 불릿이다. R-5 의 *"boundary masking parity"* 원칙은 그 결정의 **근거로 원용**됐을 뿐, R-5 가 그 필드들을 이미 규정하고 있었던 것은 아니다. 두 정책을 하나로 읽으면 "error 도 write 시점에 마스킹된다" 는 잘못된 결론이 나온다.
+> **R-5 의 대상 범위** (2026-08-16 추가): 본 항목이 다루는 것은 **Config 탭의 config echo** 하나다. 같은 엔드포인트가 싣는 **`Execution.error`·`nodeExecutions[].error` 는 별개 정책**으로, write 시점이 아니라 **응답 egress 에서** 마스킹된다 — SoT 는 [EIA §R17](../5-system/14-external-interaction-api.md) 의 "내부 읽기 경로" 불릿이다. R-5 의 *"egress masking parity"* 원칙은 그 결정의 **근거로 원용**됐을 뿐, R-5 가 그 필드들을 이미 규정하고 있었던 것은 아니다. 두 정책을 하나로 읽으면 "error 도 write 시점에 마스킹된다" 는 잘못된 결론이 나온다.
 
 §3.3 노드 상세의 **Config 탭**(§10.6.1 SoT)은 노드 핸들러가 echo 한 실행 시 config 를 표시한다. `GET /api/executions/:id` 는 별도 `@Roles` 게이트 없이 워크스페이스 멤버 전원(viewer 포함)이 조회 가능하므로 Config 탭도 viewer 에게 노출된다. 그러나 config echo 는 **egress 에서** 마스킹되어 내려오므로 노출 자체가 새로운 시크릿 유출 경로를 만들지 않는다. 즉 안전성은 **롤 게이팅이 아니라 서버 egress masking parity** 에 의존한다.
 

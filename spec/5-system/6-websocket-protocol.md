@@ -193,7 +193,7 @@ socket.emit("unsubscribe", { channel: "execution:550e8400-e29b-41d4-a716-4466554
 >
 > **값-패턴 마스킹 (강제됨 — 결정 2026-08-16)**: 위 execution/node 이벤트 payload 는 **emit 시점**에 자격증명 값-패턴이 마스킹된다 — 자유 텍스트 안에 박힌 `Bearer …`·`Authorization:` 헤더·bare JWT·자격증명 포함 URI 등. 대상은 **특정 필드가 아니라 payload 전체**이며, 아래 열거는 대표 **예시**다: `error`(node.failed) · `output`/`input`(node.completed) · `message`(ai_message).
 >
-> - **내부 WS wire 와 외부 fanout 양쪽**에 적용된다. `execution:<id>` 구독 인가가 workspace 소유만 보고 role 을 구분하지 않아(§3.3) 수신 인구가 `GET /api/executions/:id` 와 동일하기 때문이다 — [EIA §R17](./14-external-interaction-api.md) 의 boundary masking parity 원칙과 같은 근거다.
+> - **내부 WS wire 와 외부 fanout 양쪽**에 적용된다. `execution:<id>` 구독 인가가 workspace 소유만 보고 role 을 구분하지 않아(§3.3) 수신 인구가 `GET /api/executions/:id` 와 동일하기 때문이다 — [EIA §R17](./14-external-interaction-api.md) 의 egress masking parity 원칙과 같은 근거다.
 > - **예외는 `llmCalls` 하나** — 에디터 전용 raw 디버그라 wire 에서는 원문을 유지한다(fanout 에서는 필드째 strip 되므로 외부 노출은 늘지 않는다). 아래 `## Rationale` 의 strip-only 항목 참조.
 > - **앞선 키-이름 마스킹의 `[REDACTED]` 마커는 덮이지 않는다** — 값-마스커가 마커에 대해 멱등하다.
 > - WS 마스커(`sanitizePayloadForWs`)의 깊이 상한 `MAX_SANITIZE_DEPTH` 는 REST 값-마스커의

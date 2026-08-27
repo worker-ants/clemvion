@@ -20,7 +20,8 @@ pending_plans:
 ## Principle 0 — `NodeHandlerOutput`의 5필드는 불변
 
 모든 노드 핸들러는 `{ config, output, meta?, port?, status? }` 형태의 객체를 반환합니다.
-- `config`: 해석된 설정값 (자격증명 제거)
+- `config`: 핸들러가 echo 한 **원문** 설정값 — 자격증명도 **원문 그대로** 담긴다.
+  마스킹은 저장 시점이 아니라 **egress(REST/WS)** 에서만 걸린다 ([Principle 7](#principle-7--config-echo-원칙-nodehandleroutputconfig), 2026-08-24 정정 — 종전 *"해석된 설정값 (자격증명 제거)"* 는 `handler-output.adapter.ts` 의 마스킹 boundary 를 전제한 서술이었고 그 boundary 는 제거됐다).
 - `output`: 후속 노드에 전달되는 **주 데이터**
 - `meta`: **실행 메타데이터** (duration, statusCode, tokens, logs)
 - `port`: 라우팅 포트 지시 (string | string[])
