@@ -1555,6 +1555,8 @@ retry 재진입은 노드 config 의 `{{ expression }}` 을 best-effort 재평�
 
 ### Engine Raw Config Exposure
 
+> **`config` 에는 storage-time 마스킹이 없다** (2026-08-24 명문화). 엔진→핸들러→`NodeExecution.outputData` 저장까지 **원문이 유지**되고, 마스킹은 egress(REST/WS)에서만 일어난다. 표현식(`$node["X"].config.<field>`)도 원문을 읽는다 — [node-output.md Principle 7](../conventions/node-output.md) · [실행 내역 R-5 정정](../2-navigation/14-execution-history.md).
+
 **결정 요약**:
 
 - 엔진이 핸들러에 raw config (expression 평가 전 원본) 를 `ExecutionContext.rawConfig` / `state.rawConfig` (multi-turn) 로 노출한다.

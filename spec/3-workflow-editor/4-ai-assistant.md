@@ -258,7 +258,7 @@ interface ExecutionDetailsResponse {
 
 **마스킹 규칙.** `inputData` · `outputData` · `error` 필드는 서버가 **두 층을 겹쳐** 반환한다 — 키 이름 기반 `maskSensitiveFields` 위에 값 패턴 기반 `deepRedactSecrets`([Egress 마스킹 좌표계](../conventions/egress-masking.md) 참조). 두 층을 거친 값은 `"***"` 로 나간다. 객체/배열은 재귀 순회하고, **키 이름은 보존**되므로 *어떤* 키가 가려졌는지는 응답에서 그대로 읽을 수 있다. 원본은 DB 에 그대로 남고 read 시점에만 변환한다.
 
-> **이 포맷은 이 도구의 로컬 합성 결과다.** `maskSensitiveFields` **자체**의 포맷은 `"****<last4>"` 로 **불변**이고, 그 유틸을 공유하는 다른 소비처(AI Agent 노드 · 노드 `config` echo boundary)는 **포맷 축에서** 영향을 받지 않는다. 다만 아래 키 축 확장은 그 공유 목록(`DEFAULT_SENSITIVE_KEYS`)을 넓히므로 **마스킹 범위는 그쪽에도 넓어진다** — 포맷은 불변, 대상은 증가다. 여기서 `"***"` 가 되는 것은 위에 겹친 `deepRedactSecrets` 가 값을 다시 덮기 때문이다.
+> **이 포맷은 이 도구의 로컬 합성 결과다.** `maskSensitiveFields` **자체**의 포맷은 `"****<last4>"` 로 **불변**이고, 그 유틸을 공유하는 다른 소비처(AI Agent 노드 · ~~노드 `config` echo boundary~~ — **후자는 2026-08-24 에 사라졌다**, config echo 는 이제 egress 에서만 마스킹된다)는 **포맷 축에서** 영향을 받지 않는다. 다만 아래 키 축 확장은 그 공유 목록(`DEFAULT_SENSITIVE_KEYS`)을 넓히므로 **마스킹 범위는 그쪽에도 넓어진다** — 포맷은 불변, 대상은 증가다. 여기서 `"***"` 가 되는 것은 위에 겹친 `deepRedactSecrets` 가 값을 다시 덮기 때문이다.
 
 > **키 축이 넓어졌다.** 종전 리터럴 목록(`apiKey`·`api_key`·`password`·`token`·`accessToken`·`refreshToken`·`secret`·`clientSecret`·`authorization`)은 접두형 `token` 계열(`csrf_token`·`auth_token`·`session_token`·`csrfToken`)을 통과시켰다. 겹친 층의 `CREDENTIAL_KEY_PATTERN` 이 그 계열을 덮는다.
 

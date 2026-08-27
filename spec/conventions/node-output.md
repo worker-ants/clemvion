@@ -336,6 +336,18 @@ Waiting 시점 output 을 **그대로 유지** (immutable snapshot) 하고 `outp
 > - `$node["X"].config.<field>` — 노드가 **어떻게 설정됐는가** (원본 템플릿)
 > - `$node["X"].output.<field>` — 노드가 **무엇을 실제로 생산/사용했는가** (평가 결과)
 >
+> **마스킹은 egress 에서만 한다 — 표현식은 원문을 읽는다** (2026-08-24 신설).
+> `config` 는 `NodeExecution.outputData` 에 **원문으로 저장**되고, 나가는 자리에서만 가려진다
+> (REST `redactStoredDataForResponse` · WS `maskWireEnvelope`, 둘 다 공유
+> `deepRedactSecrets*`). 위 `$node["X"].config.<field>` 소비 계약이 성립하려면 **원문이어야
+> 하기 때문**이다 — 종전엔 엔진 boundary(`handler-output.adapter.ts`)가 저장 전에 마스킹해
+> 그 참조가 리터럴 `****abcd` 를 읽었고, 그건 가시성 저하가 아니라 **기능 오염**이었다.
+> EIA §R17 의 **egress-only 원칙**과 같은 방향이고, 근거·경위는
+> [실행 내역 R-5 정정 블록](../2-navigation/14-execution-history.md).
+>
+> 그래서 **핸들러가 config 에 시크릿 평문을 싣지 않는 것**이 여전히 상시 불변식이다 —
+> egress 가 가리는 것은 키 축이 아는 이름뿐이고, DB 와 표현식은 원문을 본다.
+>
 > 두 영역의 직교성은 Principle 1.1 의 핵심 전제입니다. 핸들러가 `context.rawConfig` 를 echo 함으로써 이 직교성이 유지됩니다 (PRD `ENG-RC-*`, Spec [실행 엔진 §5.5](../../spec/5-system/4-execution-engine.md)).
 
 **항상 echo** (NodeHandlerOutput.config 에 raw 형태로): 사용자가 UI 에서 설정한 **비민감** 값
