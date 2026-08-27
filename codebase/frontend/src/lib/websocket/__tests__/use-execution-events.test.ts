@@ -1962,7 +1962,8 @@ describe("useExecutionEvents", () => {
   });
 
   // spec/conventions/conversation-thread.md §9.10 CT-S9 / CT-S10 / CT-S11
-  // — node.failed / node.completed (with output.error) → system_error APPEND
+  // — node.failed / node.completed (with **`output.output.error`** — `output` 은
+  //   `NodeHandlerOutput` 래퍼다) → system_error APPEND
   describe("system_error inline marker (CT-S9 / CT-S10 / CT-S11)", () => {
     function bindNodeHandlers() {
       renderHook(() => useExecutionEvents({ executionId: "exec-1" }));
@@ -2183,8 +2184,14 @@ describe("useExecutionEvents", () => {
      * (b) `rawOutput` 에 `undefined` 를 넘겨 **항상 `null`** 이었다 — 배너가 한 번도
      * 뜨지 않았다.
      *
-     * 위 CT-S9/S10 은 `error` 를 **객체**로 보내므로 `direct` 분기로 통과한다. 즉 그
-     * 케이스들만으로는 이 회귀를 **못 잡는다** — production 이 절대 안 보내는 shape 이다.
+     * ~~*"위 CT-S9/S10 은 `error` 를 객체로 보내므로 `direct` 분기로 통과한다"*~~
+     * — **이 문장은 같은 PR 안에서 낡았다**(`01_44_22` W1). CT-S9/S10 도 production
+     * shape(문자열 `error`)으로 정정했고 `direct` 분기 자체를 지웠다.
+     *
+     * **그래도 이 케이스를 따로 두는 이유**: CT-S9/S10 은 `retryable` 유무라는 **다른 축**을
+     * 검증하느라 payload 에 여러 필드가 섞여 있다. 이 캐너리는 결함의 **최소 조합**
+     * (문자열 `error` + 래퍼 `output` 하나)만 남겨, 회귀 시 *"무엇이 깨졌는지"* 가
+     * 한 줄로 읽히게 한다.
      */
     it("[캐너리] 문자열 error + 래퍼 output 조합에서 배너가 뜬다 (라이브 WS 실제 shape)", () => {
       useExecutionStore.getState().startExecution("exec-1");
@@ -2213,6 +2220,62 @@ describe("useExecutionEvents", () => {
       expect(last.systemError?.code).toBe("LLM_OVERLOADED");
       expect(last.systemError?.retryable).toBe(true);
       expect(last.systemError?.retryAfterSec).toBe(5);
+    });
+
+    /**
+     * **`!code || !message` 가드를 문다** (`01_44_22` testing W2).
+     *
+     * 리뷰어가 그 가드를 `if (false)` 로 뮤테이션해도 **87/87 GREEN** 임을 실증했다 —
+     * 커버리지 0 이었다. 이 PR 은 같은 함수의 `direct` 분기를 *"커버리지 0인 방어는
+     * 위험하다"* 는 이유로 지웠으면서 **형제 가드에는 그 원칙을 안 적용**했다.
+     *
+     * 이쪽은 지우지 않고 **테스트를 붙인다** — `direct` 와 달리 **도달한다**. 백엔드가
+     * `error: {}` 나 코드 없는 객체를 싣는 것은 타입상 막히지 않고, 그때 `code`/`message`
+     * 가 `undefined` 인 배너를 띄우면 사용자에게 빈 칸이 보인다.
+     */
+    it("[가드] 구조화 에러에 `code`/`message` 가 없으면 배너를 안 띄운다", () => {
+      useExecutionStore.getState().startExecution("exec-1");
+      seedConversation();
+      const { failed } = bindNodeHandlers();
+
+      failed?.({
+        nodeId: "agent-1",
+        nodeType: "ai_agent",
+        error: "something went wrong",
+        // `error` 객체는 있는데 두 필수 키가 없다 — 가드가 없으면 `undefined` 를 담은
+        // 배너가 뜬다.
+        output: wrapNodeHandlerOutput({
+          error: { details: { retryable: true } },
+        }),
+      });
+
+      const items = useExecutionStore.getState().conversationMessages;
+      expect(items).toHaveLength(3);
+      expect(items.every((i) => i.type !== "system_error")).toBe(true);
+    });
+
+    /**
+     * `details` **키 자체가 없는** 조합 — `retryable` 이 `false` 로 떨어져 CT-S10 과 같이
+     * `[다시 시도]` 를 숨겨야 한다 (`01_44_22` testing INFO 7).
+     */
+    it("[가드] `details` 가 없으면 retryable 은 false 로 떨어진다", () => {
+      useExecutionStore.getState().startExecution("exec-1");
+      seedConversation();
+      const { failed } = bindNodeHandlers();
+
+      failed?.({
+        nodeId: "agent-1",
+        nodeType: "ai_agent",
+        error: "Upstream refused the request.",
+        output: wrapNodeHandlerOutput({
+          error: { code: "LLM_CALL_FAILED", message: "Upstream refused the request." },
+        }),
+      });
+
+      const last = useExecutionStore.getState().conversationMessages.at(-1);
+      expect(last?.type).toBe("system_error");
+      expect(last?.systemError?.retryable).toBe(false);
+      expect(last?.systemError?.retryAfterSec).toBeUndefined();
     });
 
     // §4.1-a — pre-flight throw · container 실패 2경로는 `output` **키 자체가 없다**.
@@ -2244,7 +2307,12 @@ describe("useExecutionEvents", () => {
       failed?.({
         nodeId: "http-1",
         nodeType: "http_request",
-        error: { code: "HTTP_5XX", message: "Server error" },
+        // production shape — 이 PR 이 세운 "fixture = production shape" 원칙을
+        // 음성 테스트에도 적용한다 (`01_44_22` testing INFO 8).
+        error: "Server error",
+        output: wrapNodeHandlerOutput({
+          error: { code: "HTTP_5XX", message: "Server error" },
+        }),
       });
 
       const items = useExecutionStore.getState().conversationMessages;
