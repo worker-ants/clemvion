@@ -1,5 +1,6 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import { repoRoot } from "./spec-frontmatter-parse";
 import {
@@ -118,20 +119,40 @@ describe("spec-link-integrity guard", () => {
 /**
  * 두 **제외** 규칙(`.claude/worktrees/` 스킵 · 루트 비재귀)은 실 저장소에 대고 단언하면
  * **공허하다** — 이 체크아웃에도 CI 체크아웃에도 `.claude/worktrees/` 가 없어서
- * `startsWith(".claude/worktrees/") === false` 가 규칙과 무관하게 참이 된다.
- * (`.claude/worktrees/` 는 gitignored 이고, 실제로는 **main checkout 에만** 존재한다.)
+ * `startsWith(".claude/worktrees/") === false` 가 규칙과 무관하게 참이 된다
+ * (그 디렉토리는 gitignored 이고 실제로는 **main checkout 에만** 존재한다).
  *
- * 그래서 두 제외 대상이 **실재하는** fixture 에 대고 판정한다. 각 제외 영역에 깨진 링크를
- * 하나씩 심어 뒀으므로, 제외가 풀리면 위반 0 → 1 로 바뀌어 관측된다.
+ * 그래서 두 제외 대상이 **실재하는** 트리를 만들어 놓고 판정한다.
+ *
+ * **커밋된 fixture 로는 안 된다 (실측)**: `.git/info/exclude` 에 `.claude/worktrees/` 를
+ * **모든 깊이**에서 매치하는 규칙이 있어, `fixtures-governance` 아래에 만들어도 커밋되지
+ * 않는다. 로컬에서만 초록이고 CI 에서는 파일이 없어 전제가 무너진다. 그래서 `mkdtemp` 로
+ * **런타임에** 세운다 — gitignore 와 무관하고 자기완결적이다.
  */
-describe("governance scope — 제외 규칙 (fixture)", () => {
-  const fixture = path.join(__dirname, "fixtures-governance");
+describe("governance scope — 제외 규칙", () => {
+  let fixture: string;
 
-  it("fixture 가 실제로 두 제외 대상을 담고 있다 (전제)", () => {
-    expect(
-      fs.existsSync(path.join(fixture, ".claude", "worktrees", "some-task")),
-      "worktree 사본 fixture 가 없으면 아래 단언이 공허해진다",
-    ).toBe(true);
+  beforeAll(() => {
+    fixture = fs.mkdtempSync(path.join(os.tmpdir(), "gov-scope-"));
+    const w = (rel: string, body: string): void => {
+      const abs = path.join(fixture, rel);
+      fs.mkdirSync(path.dirname(abs), { recursive: true });
+      fs.writeFileSync(abs, body, "utf8");
+    };
+    // 스코프 안 — 루트 레벨 + `.claude/` 하위
+    w("README.md", "# 루트\n[이웃](.claude/docs/policy.md)\n");
+    w(".claude/docs/policy.md", "# 정책\n본문.\n");
+    // 스코프 밖 — 각각 **깨진 링크**를 담고 있어 제외가 풀리면 관측된다
+    w("nested/deep.md", "# 재귀하면 잡힌다\n[깨짐](./nope.md)\n");
+    w(".claude/worktrees/copy/.claude/docs/policy.md", "# 사본\n[깨짐](./gone.md)\n");
+  });
+
+  afterAll(() => {
+    fs.rmSync(fixture, { recursive: true, force: true });
+  });
+
+  it("두 제외 대상이 실제로 존재한다 (전제)", () => {
+    expect(fs.existsSync(path.join(fixture, ".claude", "worktrees", "copy"))).toBe(true);
     expect(fs.existsSync(path.join(fixture, "nested", "deep.md"))).toBe(true);
   });
 
@@ -141,8 +162,6 @@ describe("governance scope — 제외 규칙 (fixture)", () => {
   });
 
   it("제외된 영역의 깨진 링크는 위반으로 올라오지 않는다", () => {
-    // fixture 의 `nested/deep.md` 와 worktree 사본에는 각각 깨진 링크가 있다.
-    // 제외가 풀리면 이 단언이 RED 가 된다.
     const violations = findBrokenGovernanceLinks(fixture);
     expect(violations, fmt(violations)).toEqual([]);
   });
