@@ -445,7 +445,7 @@ export class WebsocketService {
    * {@link ExecutionChannelAuthorizer} 가 `verifyOwnership(executionId, workspaceId)`
    * 만 보고 role 을 아예 받지 않는다. 즉 수신 인구가 `GET /api/executions/:id` 와
    * **동일**(viewer 포함 워크스페이스 멤버 전원)이고, EIA §R17 이 같은 인구를 근거로
-   * *"안전성은 롤 게이팅이 아니라 boundary masking parity 에 의존"* 이라며 내부 REST 를
+   * *"안전성은 롤 게이팅이 아니라 egress masking parity 에 의존"* 이라며 내부 REST 를
    * 마스킹한 바로 그 상황이다. 한쪽만 열어 두면 선례가 갈린다.
    *
    * ## 단 `llmCalls` 는 wire 에서 제외한다

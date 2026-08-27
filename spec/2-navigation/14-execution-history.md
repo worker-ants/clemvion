@@ -481,7 +481,13 @@ codebase/frontend/src/app/(main)/w/[slug]/workflows/[id]/executions/
 > 1. **크로스-노드 자격증명 릴레이** — 표현식이 `config` 를 원문으로 읽으므로, 같은 워크스페이스의 작성자가 한 노드의 `config.apiKey` 를 다른 노드 body 에 실어 제3자 엔드포인트로 보낼 수 있다. 종전엔 마스킹이 **부수적으로** 이 경로도 막고 있었다. 다만 그 차단은 **의도된 방어가 아니라 기능 결함의 부산물**이었고(그래서 정상 워크플로도 함께 깨뜨렸다), 워크플로 작성 권한을 가진 사용자는 애초에 그 자격증명을 노드 설정에서 볼 수 있다. **워크스페이스 경계를 넘지 않는다.**
 > 2. **safe-by-construction → safe-by-convention** — 마스킹이 생성 시점 한 곳에서 각 egress 의 규율로 옮겨졌다. `NodeHandlerOutput.config` 에 raw/masked 브랜딩이 없어, 두 관문을 우회하는 **신규 egress** 가 생기면 컴파일러가 못 잡는다. 오늘의 출구는 둘뿐이고 둘 다 공유 마스커를 지나지만(실측), **새 출구를 여는 사람이 이 문단을 읽어야 한다.**
 >
-> 둘 다 **자격증명을 노드 `config` 에 평문으로 담는 노드 타입**(HTTP Request · Send Email 등)에서만 문제가 되므로, 근본 처방은 AI Agent 의 `llmConfigId` 처럼 **자격증명 참조를 간접화**하는 것이다 — 정본 트래커에 등재 — 신규 핸들러/integration 이 config 에 시크릿 평문을 싣지 않도록 하는 것이 상시 불변식이다.
+> 둘 다 **자격증명이 노드 `config` 에 평문 문자열로 앉는 자리**에서만 문제가 된다. 그 자리는 **생각보다 좁다** (2026-08-27 정정 — 초판은 *"HTTP Request · Send Email 등"* 이라 통째로 지목했는데, 두 노드 spec 을 실측하니 틀렸다):
+> 
+> - **Send Email 은 해당 없음** — 자격증명은 `integrationId` 가 가리키는 Integration 엔티티에서 오고 config 에 앉지 않는다 ([Send Email §1](../4-nodes/4-integration/3-send-email.md)).
+> - **HTTP Request 도 `authentication='integration'` 은 해당 없음** — 같은 `integrationId` 간접화다. 게다가 config echo 가 필드를 **명시 열거**하고 `url` 은 `sanitizeUrlCredentials` 결과로 교체한다 ([HTTP Request §4](../4-nodes/4-integration/1-http-request.md), Principle 7 D1).
+> - **실제로 남는 표면은 `authentication='custom'`** — 사용자가 `headers`/`body` 에 값을 직접 적는 모드다. 여기엔 스키마가 없으므로 간접화할 참조도 없다.
+> 
+> 즉 **간접화(`llmConfigId`/`integrationId`)는 이미 표준이고**, 근본 처방은 *"도입"* 이 아니라 *"사용자 자유입력 자리를 어떻게 다룰 것인가"* 다 — 그쪽이 훨씬 어렵다. 정본 트래커에 이 좁힌 형태로 등재한다. 신규 핸들러/integration 이 config 에 시크릿 평문을 싣지 않도록 하는 것은 그와 별개로 상시 불변식이다.
 
 ### R-6. EH-DETAIL-06(단일 노드) 과 EH-DETAIL-12(cross-node v2) 를 별도 ID 로 분리한 이유
 

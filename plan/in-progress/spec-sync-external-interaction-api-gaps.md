@@ -518,12 +518,30 @@ checker 가 독립적으로** "인용이 가리키는 절이 오히려 반대를
       > 드러났다: **크로스-노드 자격증명 릴레이**(표현식이 원문을 읽으니 한 노드의 `apiKey` 를
       > 다른 노드로 실어 보낼 수 있다)와 **safe-by-convention 으로의 이동**(새 egress 를 여는
       > 사람이 규율을 지켜야 한다).
-      > **둘 다 자격증명이 `config` 에 평문으로 들어가는 노드**(HTTP Request · Send Email 등)
-      > 에서만 문제가 된다. AI Agent 는 `llmConfigId` **참조**만 담아 이 벡터가 없다.
-      > **근본 처방은 그 패턴의 일반화**다 — 자격증명을 값이 아니라 참조로 담게 하면
-      > 마스킹 위치 논쟁 자체가 사라진다.
-      > **미판정으로 남긴다**: 노드 스키마·UI·마이그레이션이 함께 움직여야 하는 큰 작업이고,
-      > 먼저 *"평문 자격증명을 담는 노드 타입이 실제로 몇 개인가"* 를 재야 한다.
+      > **둘 다 자격증명이 `config` 에 평문으로 들어가는 자리**에서만 문제가 된다.
+      >
+      > ⚠️ **전제 정정 (2026-08-27 실측, `13_47_15` cross_spec W1)** — 이 항목이 스스로
+      > *"평문 자격증명을 담는 노드 타입이 실제로 몇 개인가를 재야 한다"* 고 적어 뒀고,
+      > 그걸 쟀다. **초판의 "HTTP Request · Send Email 등" 은 틀렸다**:
+      >
+      > | 대상 | 실측 | 판정 |
+      > | --- | --- | --- |
+      > | AI Agent | `llmConfigId` 참조 | 해당 없음 (초판도 동일) |
+      > | **Send Email** | `integrationId` 가 가리키는 Integration 엔티티에서 자격증명 해소 | **해당 없음** |
+      > | **HTTP Request** `authentication='integration'` | 같은 `integrationId` 간접화. 게다가 config echo 가 필드를 **명시 열거**하고 `url` 은 `sanitizeUrlCredentials` 로 교체 (Principle 7 D1) | **해당 없음** |
+      > | **HTTP Request** `authentication='custom'` | 사용자가 `headers`/`body` 에 **직접 입력** | **유일하게 남는 표면** |
+      >
+      > **따라서 "근본 처방 = 간접화 도입" 이라는 프레이밍이 틀렸다.** 간접화
+      > (`llmConfigId`/`integrationId`)는 **이미 표준**이고, 남은 문제는 *"스키마가 없는
+      > 사용자 자유입력 자리를 어떻게 다룰 것인가"* 다 — 간접화할 **참조 대상이 없으므로**
+      > 같은 처방이 안 듣는다. 그쪽이 훨씬 어렵다.
+      >
+      > **왜 틀렸나**: 두 노드의 spec 을 안 읽고 *"integration 노드니까 config 에 자격증명이
+      > 있겠지"* 로 추정해 썼다. 이 오류를 R-5 W2 에도 그대로 실어 spec 에 남길 뻔했다
+      > (같은 라운드가 잡았다).
+      >
+      > **미판정으로 남긴다**: 대상이 좁아졌지만 스키마 없는 자유입력이라 처방이 더 어렵다.
+      > 재개 전에 `authentication='custom'` 실사용 빈도를 먼저 재는 편이 낫다.
       > **워크스페이스 경계는 넘지 않는다** — 작성 권한자는 애초에 그 값을 노드 설정에서 본다.
 
 - [ ] **`chatChannel` 라우팅 컨텍스트만 좁은 마스커를 받는다** (2026-08-24 등재, `19_26_06` plan W6 이 드러낸 것).
@@ -1700,6 +1718,15 @@ consistency `--impl-prep`(`15_35_56`, 2026-08-22)가 하나 더 냈다 — 역�
       > **재개 신호**: 핸들러가 반환 후 config 를 변형하는 사례가 생기거나, egress 진입점이
       > in-memory 캐시 객체를 **그대로** depth-0 인자로 넘기게 바뀔 때. 리뷰어도 재현 경로를
       > 확증하지 못했다고 명시했다 — 그 판정을 그대로 싣는다.
+
+## `config` aliasing 계약이 `node-output.md` mutation-보호 단락에 없다 (2026-08-27 등재, `13_47_15` INFO 6)
+
+- [ ] **`node-output.md` 의 mutation 보호 서술은 `context.rawConfig` freeze(엔진→핸들러 방향)만
+      다룬다** — 2026-08-24 에 생긴 **반대 방향** 계약(핸들러가 반환한 `config` 객체가
+      `structuredOutputCache` 에 **참조로** 눕는다)이 그 단락에 없다.
+      > 계약 자체는 `execution-context.service.ts` JSDoc + 캐너리 2건으로 코드에 고정돼 있다.
+      > 빠진 것은 **규약 문서의 커버리지**다. `node-output.md` 를 다른 이유로 열 때 한 줄 넣는다.
+      > 관련: 같은 라운드 W4(`DEEP_REDACT_CACHE` identity 전제)의 전제 1 이 바로 이 계약이다.
 
 ## 후속 (cross-cutting, 본 spec 밖)
 - [x] **Redis fixed-window rate-limiter INCR+EXPIRE 원자화** — `PublicWebhookQuotaService.incrWithWindow` 를 `INCR + EXPIRE ... NX` 단일 pipeline(매 요청)으로 교정해 TTL 유실 self-heal (fail-closed 잠금 창 제거). `ChatChannelRateLimiterService` 는 **이미** 동일 `INCR + EXPIRE NX` 단일 pipeline 패턴이라 무변경(점검 완료). `InteractionRateLimiterService`(item 5)는 Lua EVAL — 세 서비스 모두 원자/self-heal 확보. (PR #843 ai-review concurrency WARNING 후속, `task_fa5c5e84`.)
