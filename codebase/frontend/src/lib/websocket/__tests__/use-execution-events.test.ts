@@ -2133,7 +2133,9 @@ describe("useExecutionEvents", () => {
         nodeId: "http-1",
         nodeType: "http_request",
         nodeLabel: "Call API",
-        error: { code: "HTTP_500", message: "Internal Server Error" },
+        // production shape — 자매 non-AI 테스트는 직전 라운드에 고쳤는데 이쪽을 갈랐다
+        // (`02_02_18` INFO 1).
+        error: "Internal Server Error",
         output: httpOutput,
       });
 
@@ -2320,6 +2322,21 @@ describe("useExecutionEvents", () => {
       expect(items.every((i) => i.type !== "system_error")).toBe(true);
     });
 
+    /**
+     * **`isMultiTurnAiContext` 의 "이전 대화 없음" 분기를 실제로 태운다** (`02_02_18` W1).
+     *
+     * 종전 fixture 는 `output` 이 없어 `errorPayload` 가 `null` 이었고, `&&` 단락 평가로
+     * **`isMultiTurnAiContext` 를 호출하기도 전에** 차단됐다. 그래서 그 함수를
+     * `return true` 로 뮤테이션해도 89/89 GREEN — 이 테스트가 검증한다고 믿은 분기가
+     * 실은 무검증이었다.
+     *
+     * 직전 라운드가 이 케이스를 *"공허 테스트는 아니다"* 로 판정했는데 **단락 평가 순서를
+     * 놓친 오판**이었고, 이번 라운드가 뮤테이션으로 반증했다.
+     *
+     * 그래서 `output` 을 실어 `errorPayload` 를 non-null 로 만들고, `seedConversation()` 은
+     * **일부러 호출하지 않는다** — 배너를 막는 것이 `errorPayload` 부재가 아니라
+     * **대화 이력 부재**임을 그 자리에서 가른다.
+     */
     it("AI node failure without prior conversation context does NOT APPEND (single-turn case)", () => {
       useExecutionStore.getState().startExecution("exec-1");
       // no seedConversation — conversationMessages empty
@@ -2328,7 +2345,10 @@ describe("useExecutionEvents", () => {
       failed?.({
         nodeId: "agent-1",
         nodeType: "ai_agent",
-        error: { code: "LLM_RATE_LIMIT", message: "429" },
+        error: "429",
+        output: wrapNodeHandlerOutput({
+          error: { code: "LLM_RATE_LIMIT", message: "429" },
+        }),
       });
 
       // single-turn AI 는 thread 가 없으므로 inline marker 안 함
