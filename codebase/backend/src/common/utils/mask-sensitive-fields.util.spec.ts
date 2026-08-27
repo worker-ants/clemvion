@@ -1,4 +1,5 @@
 import { maskSensitiveFields } from './mask-sensitive-fields.util';
+import { deepRedactSecrets } from '../../shared/utils/sanitize-error-message';
 
 describe('maskSensitiveFields', () => {
   it('masks apiKey preserving only the last 4 chars', () => {
@@ -106,5 +107,67 @@ describe('maskSensitiveFields', () => {
     expect(maskSensitiveFields({ tokenCount: 12345 })).toEqual({
       tokenCount: 12345,
     });
+  });
+});
+
+/**
+ * **포함관계 캐너리 — 두 마스커의 키 집합**
+ *
+ * `maskSensitiveFields`(이 파일, 키 이름 목록 `DEFAULT_SENSITIVE_KEYS`)와
+ * `deepRedactSecrets`(`sanitize-error-message.ts`, `CREDENTIAL_KEY_PATTERN` 정규식)는
+ * **같은 클래스를 서로 다른 수단으로** 막는다. 그런데 egress 경로(WS `maskWireEnvelope` ·
+ * REST `redactStoredDataForResponse`)는 **후자만** 지난다.
+ *
+ * 그래서 *"전자가 잡는 키를 후자도 잡는가"* 가 **구조적 안전 전제**다. 이 포함관계가 서 있으면
+ * 앞단(예: `handler-output.adapter` 의 config echo)에서 전자를 걷어내도 egress 는 여전히
+ * 덮인다. 깨지면 그 차집합이 곧 유출이다.
+ *
+ * **정규식을 읽지 않고 정본 구현을 실행해 확인한다** — `CREDENTIAL_KEY_PATTERN` 은 export
+ * 되지 않고, 무엇보다 *표기*가 아니라 *동작*이 계약이다. 목록이 나중에 넓어져도
+ * (2026-08-23 에 token 계열 8키가 그랬듯) 이 테스트가 자동으로 새 키를 검사한다.
+ */
+describe('DEFAULT_SENSITIVE_KEYS ⊆ deepRedactSecrets 의 키 축', () => {
+  // 목록 자체에서 파생한다 — 손으로 나열하면 목록이 늘 때 조용히 통과한다.
+  const KEYS = Object.keys(
+    maskSensitiveFields({
+      apiKey: 'v',
+      api_key: 'v',
+      apikey: 'v',
+      password: 'v',
+      passwd: 'v',
+      token: 'v',
+      accessToken: 'v',
+      access_token: 'v',
+      refreshToken: 'v',
+      refresh_token: 'v',
+      csrfToken: 'v',
+      csrf_token: 'v',
+      authToken: 'v',
+      auth_token: 'v',
+      sessionToken: 'v',
+      session_token: 'v',
+      idToken: 'v',
+      id_token: 'v',
+      secret: 'v',
+      client_secret: 'v',
+      clientSecret: 'v',
+      authorization: 'v',
+    }) as Record<string, unknown>,
+  );
+
+  it.each(KEYS)(
+    '`%s` 는 egress 마스커(`deepRedactSecrets`)도 가린다',
+    (key) => {
+      const raw = 'SUPER-SECRET-VALUE-0123456789';
+      const out = deepRedactSecrets({ [key]: raw }) as Record<string, unknown>;
+      expect(out[key]).not.toBe(raw);
+      expect(String(out[key])).not.toContain('0123456789');
+    },
+  );
+
+  it('[대조군] 민감하지 않은 키는 두 마스커 모두 건드리지 않는다', () => {
+    const benign = { tokenCount: 12345, description: 'plain text' };
+    expect(maskSensitiveFields(benign)).toEqual(benign);
+    expect(deepRedactSecrets(benign)).toEqual(benign);
   });
 });

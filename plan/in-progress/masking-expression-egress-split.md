@@ -1,0 +1,119 @@
+---
+title: "config echo 마스킹을 어댑터에서 출구로 — 표현식이 읽는 값을 되살린다 (C2 (a))"
+status: in-progress
+worktree: masking-residuals-0b195b
+started: 2026-08-24
+owner: developer
+spec_impact:
+  # `19_26_06` CRITICAL — 이 변경이 **보안 설계 Rationale 을 무효화**한다. 내가 쓴 예고가
+  # 아니므로 자기-반증형 소정정 대상이 아니고, 이 PR 안에서 **planner 턴**으로 처리한다.
+  - spec/2-navigation/14-execution-history.md      # R-5: "저장 시점에 이미 마스킹" → 무효
+  - spec/4-nodes/3-ai/1-ai-agent.md                # "adaptHandlerReturn boundary" 서술
+  - spec/3-workflow-editor/4-ai-assistant.md       # "노드 config echo boundary" 소비처 열거
+  - spec/5-system/4-execution-engine.md            # config 가 storage-time 마스킹 없음을 명문화
+  - spec/conventions/node-output.md                # Principle 7 인접: config 도 egress-only
+  - spec/conventions/egress-masking.md             # §1 좌표계 표에서 어댑터 행 처분
+---
+
+# C2 (a) — 표현식 경로만 마스킹에서 제외
+
+정본 트래커의 항목 *"`DEFAULT_SENSITIVE_KEYS` 의 실질 위험은 정적 grep 으로 못 닫는다"*
+(2026-08-23 등재, `17_14_18` side_effect W1)이 지정한 **재개 신호가 발화**했다.
+
+## 재개 신호가 발화했다 (실측)
+
+그 항목의 재개 조건은 *"config echo 를 다운스트림 표현식이 **실제로 읽는 사례**가 확인될 때"*
+였다. 확인됐고, 가장 강한 형태다:
+
+| 근거 | 위치 |
+| --- | --- |
+| 표현식 컨텍스트가 `config` 를 노출한다 | `expression-resolver.service.ts:60` — `config: adapted.config ?? {}` |
+| **저장소가 사용자 표현식을 그 패턴으로 이주시킨다** | `scripts/migrate-node-output-refs.ts` — *"`$node["<Label>"].config.<field>` 로 재작성"* |
+
+즉 경로가 있는 정도가 아니라 **사용자를 그 패턴으로 옮기고 있다.** 그런데 어댑터
+(`handler-output.adapter.ts:36`)가 `maskSensitiveFields(r.config)` 를 걸어, 그 표현식들이
+**마스킹된 값**을 읽는다. `apiKey` 같은 이름의 config 필드를 다운스트림에서 참조하면
+리터럴 `****abcd` 가 흘러간다 — 가시성 저하가 아니라 **기능 오염**이다.
+
+## 안전성은 **키 집합 포함관계**에 걸려 있다
+
+어댑터의 마스킹을 걷어내도 되는 이유는 **출구가 이미 각자 마스킹하기 때문**이다:
+
+| 출구 | 마스커 | 확인 |
+| --- | --- | --- |
+| WS emit | `maskWireEnvelope` → `deepRedactSecretsPreserving` | `websocket.service.ts:334`·`:408` — **모든** emit 이 지난다 |
+| REST 응답 | `redactStoredDataForResponse` → `deepRedactSecrets` | `redact-stored-error.ts:107-108` |
+| DB | **원문 보존** | EIA §R17 의 egress-only 원칙 |
+
+**다만 두 마스커는 키 집합이 다르다.** 어댑터는 `DEFAULT_SENSITIVE_KEYS`(키 이름 목록),
+출구는 `CREDENTIAL_KEY_PATTERN`(정규식). 걷어낸 뒤 **차집합이 생기면 그게 유출**이다.
+
+> **이 PR 의 안전성이 그 포함관계 하나에 걸려 있으므로, 눈으로 읽지 않고 정본 구현을 실행해
+> 확인하고 그 불변식을 테스트로 못박는다.** 목록이 나중에 넓어져도 테스트가 잡는다.
+
+## 왜 "출구로 옮긴다" 가 아니라 "어댑터에서 뺀다" 인가
+
+출구는 **이미** 마스킹하고 있다. 새로 걸 것이 없다 — 어댑터의 것은 **중복**이었다.
+그래서 이 작업은 *"마스킹을 옮기는 리팩터"* 가 아니라 *"중복 한 겹을 걷어내는 것"* 이고,
+이 저장소가 반복해 겪은 **"출구 중 하나를 빠뜨린다"** 위험이 원리적으로 없다.
+
+## 착수 전 측정 — 전제는 섰고, 게이트가 두 가지를 고쳐 줬다
+
+### ① 포함관계 확인 (go/no-go) — **성립한다**
+
+`DEFAULT_SENSITIVE_KEYS` 전 키를 **정본 `deepRedactSecrets` 에 실제로 통과**시켜
+전부 마스킹됨을 확인했다(18 passed). 목록에서 파생한 `it.each` 라 **목록이 넓어져도 자동으로
+새 키를 검사**한다 — 2026-08-23 에 token 계열 8키가 늘었을 때 같은 일이 또 생긴다.
+
+### ② `19_26_06` plan W6 정정 — 중복 선언은 **이 경로 위에 있지 않다**
+
+지적: *"`CREDENTIAL_KEY_PATTERN` 이 REST 와 WS 에 독립적으로 두 번 선언됐고 오늘도 다르다
+(REST 만 `x[_-]api[_-]?key`). 포함관계를 단수로 서술하면 '동명이인 상수' 실수를 재현한다."*
+
+**중복과 차이는 사실이다.** 다만 실측하니 **config echo 경로는 그 중복 위를 지나지 않는다**:
+
+| 경로 | 마스커 |
+| --- | --- |
+| WS 전 emit(`maskWireEnvelope`) | **공유** `deepRedactSecretsPreserving` (`sanitize-error-message.ts`) |
+| REST(`redactStoredDataForResponse`) | **공유** `deepRedactSecrets` (같은 파일) |
+| `websocket.service.ts` 의 **로컬** 패턴 | `sanitizePayloadForWs` → `ctx.chatChannel` **라우팅 컨텍스트 전용** |
+
+즉 config echo 는 두 출구 모두 **같은 공유 마스커**를 지나므로 포함관계 단언은 하나로 충분하다.
+
+> **그래도 지적이 진짜를 하나 드러냈다** — 로컬 패턴이 공유본보다 **좁다**(`x-api-key` 없음).
+> `chatChannel` 라우팅 컨텍스트만 그 좁은 마스커를 받는다. 이 PR 의 범위는 아니라 **별건으로
+> 등재**한다.
+
+## 이 변경은 **DB 저장을 원문으로 바꾼다** (별도 결정, `19_26_06` rationale W3)
+
+표제가 *"표현식 경로만 제외"* 라 좁게 읽히는데, 어댑터를 걷어내면 **DB 에 저장되는 config 도
+원문**이 된다. 그 자체가 결정이므로 따로 적는다.
+
+**근거**: EIA §R17 이 세운 **egress-only 원칙**과 같은 방향이다 — DB 는 원문을 보존하고
+나가는 자리에서 가린다(서버 로그·사후 디버깅의 진실 유지). `Execution.error`·`outputData` 가
+이미 그렇게 하고 있고, config 만 storage-time 마스킹으로 예외였다. **이 PR 은 그 예외를
+없애 원칙과 정렬한다.**
+
+**대가**: DB 를 직접 읽는 사람은 원문을 본다. 그건 §R17 이 이미 수용한 trade-off 다.
+
+## 작업
+
+- [x] `/consistency-check --impl-prep` — `19_26_06` **BLOCK: YES**(보안 Rationale 무효화)
+      → `RESOLUTION.md`. `spec_impact` 를 6건으로 확장.
+- [x] **포함관계 캐너리** — 정본 `deepRedactSecrets` 실행으로 확인(18 passed). 목록에서
+      파생해 **넓어져도 자동 검사**.
+- [ ] 어댑터에서 `maskSensitiveFields(config)` 제거 + 왜 안전한지 JSDoc
+- [ ] 캐너리 — 표현식이 **원문**을 읽는다 · WS/REST 는 **여전히 마스킹** · DB 는 원문(§R17)
+- [ ] 뮤테이션 — 출구 마스킹을 하나씩 제거해 각 캐너리가 갈리는지
+- [ ] (planner 턴) **6개 spec** — R-5 보안 근거 정정이 핵심, 나머지는 그 파생
+- [ ] 자매 트래커 항목(값 축 / `DEFAULT_SENSITIVE_KEYS`) 종결 동기화 (`19_26_06` plan W5)
+- [ ] `chatChannel` 라우팅 전용 로컬 마스커가 공유본보다 좁다 — 별건 등재
+- [ ] TEST WORKFLOW 4단계 + ratchet
+- [ ] `/ai-review`
+
+## 검증 기준
+
+- **포함관계가 깨지면 이 PR 은 성립하지 않는다.** 캐너리가 RED 면 되돌리고 다른 설계로 간다.
+- **뮤테이션은 출구별로**: WS 마스킹 제거 → WS 캐너리만 RED, REST 제거 → REST 캐너리만 RED.
+  둘이 함께 죽으면 캐너리가 출구를 안 가르고 있다는 뜻이다.
+- 뮤테이션은 **커밋 후** `cp` 백업으로. `git checkout`/`reset --hard` 금지.

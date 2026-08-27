@@ -1,3 +1,4 @@
+import { deepRedactSecrets } from '../../shared/utils/sanitize-error-message';
 import {
   adaptHandlerReturn,
   toEngineFlatShape,
@@ -88,34 +89,41 @@ describe('adaptHandlerReturn', () => {
       expect(result._retryState).toBe(retryState);
     });
 
-    // INFO #5 (Security) — boundary 자동 마스킹.
-    // `token` **계열**(접두형) — 이 표면은 값-패턴 층을 겹치지 않으므로
-    // `DEFAULT_SENSITIVE_KEYS` 가 **유일한 방어**다. 공유 상수라 workflow-assistant 쪽
-    // 테스트로는 안 잡힌다(그쪽은 겹친 층이 같은 키를 덮어 목록을 비워도 GREEN 이다 —
-    // 뮤테이션으로 확인). 그래서 **이 표면 자신의 테스트로** 고정한다
-    // (`16_46_56` testing W2).
+    /**
+     * **이 표면은 더 이상 마스킹하지 않는다** (2026-08-24, C2 (a)).
+     *
+     * 종전 이 자리의 테스트들은 `adaptHandlerReturn` 이 `config` 를 마스킹함을 단언했다
+     * (`****4321` 형태). **의도적으로 뒤집는다** — 그 마스킹이 표현식까지 덮어
+     * `migrate-node-output-refs.ts` 가 사용자를 이주시킨 `$node["X"].config.<field>` 참조가
+     * 리터럴 `****abcd` 를 읽고 있었다. 가시성 저하가 아니라 **기능 오염**이다.
+     *
+     * 종전 테스트의 대조군 주석이 이미 그 위험을 알고 있었다 — *"이 표면은 그 값을 DB·WS·
+     * 표현식으로 내보내므로 **과잉 마스킹이 곧 기능 회귀**다."* 그 문장이 옳았고, 이 변경이
+     * 그 나머지 절반을 집행한다.
+     *
+     * **egress 는 그대로다** — WS `maskWireEnvelope` · REST `redactStoredDataForResponse`
+     * 가 각자 마스킹하고, 그 키 축이 `DEFAULT_SENSITIVE_KEYS` 를 포함한다
+     * (`mask-sensitive-fields.util.spec.ts` 의 포함관계 캐너리). 아래 캐너리들이
+     * **어댑터는 원문 · 두 출구는 마스킹** 을 각각 고정한다.
+     */
     it.each([
       ['csrf_token'],
-      ['csrfToken'],
-      ['auth_token'],
       ['authToken'],
-      ['session_token'],
       ['sessionToken'],
-      ['id_token'],
       ['idToken'],
-    ])('masks the `%s` key in echoed config (token family)', (key) => {
+      ['apiKey'],
+    ])('[캐너리] echoed config 의 `%s` 를 **원문 그대로** 둔다 (표현식이 읽는 값)', (key) => {
+      const raw = 'AAAABBBB4321';
       const out = adaptHandlerReturn({
-        config: { [key]: 'AAAABBBB4321', endpoint: 'https://api.example.com' },
+        config: { [key]: raw, endpoint: 'https://api.example.com' },
         output: {},
       });
       const cfg = out.config as Record<string, unknown>;
-      expect(cfg[key]).toBe('****4321');
-      // 대조군 — 민감하지 않은 config 는 손상되지 않는다. 이 표면은 그 값을 DB·WS·
-      // 표현식으로 내보내므로 과잉 마스킹이 곧 기능 회귀다.
+      expect(cfg[key]).toBe(raw);
       expect(cfg.endpoint).toBe('https://api.example.com');
     });
 
-    it('masks credential-like keys in echoed config', () => {
+    it('[캐너리] 중첩 config 도 원문 — 어댑터는 어느 깊이에서도 손대지 않는다', () => {
       const result = adaptHandlerReturn({
         config: {
           model: 'gpt-4',
@@ -130,26 +138,50 @@ describe('adaptHandlerReturn', () => {
       });
       const cfg = result.config;
       expect(cfg.model).toBe('gpt-4');
-      expect(cfg.apiKey).toBe('****7890');
+      expect(cfg.apiKey).toBe('sk-secret-1234567890');
       const headers = cfg.headers as Record<string, string>;
-      expect(headers.Authorization).toBe('****cdef');
+      expect(headers.Authorization).toBe('Bearer xyz-token-abcdef');
       expect(headers['x-trace-id']).toBe('trace-1');
       const nested = cfg.nested as Record<string, string>;
-      expect(nested.password).toBe('****w0rd');
+      expect(nested.password).toBe('p@ssw0rd');
       expect(nested.other).toBe('public');
     });
 
-    it('masks non-string credential values as ****', () => {
+    /**
+     * **egress 대조군** — 어댑터가 원문을 두더라도 **나가는 자리에서는 가려진다**.
+     * 이게 이 PR 의 안전 주장이므로 같은 파일에서 함께 못박는다: 위 캐너리만 있으면
+     * *"마스킹을 없앴다"* 로만 읽힌다.
+     */
+    it('[캐너리] 어댑터가 남긴 원문을 egress 마스커가 가린다 (안전 주장)', () => {
+      const adapted = adaptHandlerReturn({
+        config: { apiKey: 'sk-secret-1234567890', endpoint: 'https://api.example.com' },
+        output: {},
+      });
+      const atEgress = deepRedactSecrets(adapted.config) as Record<string, unknown>;
+      expect(String(atEgress.apiKey)).not.toContain('1234567890');
+      // 대조군 — 민감하지 않은 값은 egress 에서도 그대로다.
+      expect(atEgress.endpoint).toBe('https://api.example.com');
+    });
+
+    /**
+     * 종전엔 비-문자열 자격증명 값도 `****` 로 눌렀다. **이제 원문이다** — 어댑터는
+     * 어떤 타입도 손대지 않는다(위 캐너리와 같은 이유). egress 는 여전히 가린다:
+     * 아래 대조군이 같은 값에 `deepRedactSecrets` 를 걸어 그 사실을 함께 못박는다.
+     */
+    it('[캐너리] 비-문자열 자격증명 값도 어댑터는 원문으로 둔다', () => {
+      const tokenObj = { complex: 'object' };
       const result = adaptHandlerReturn({
-        config: {
-          token: { complex: 'object' },
-          secret: 12345,
-        },
+        config: { token: tokenObj, secret: 12345 },
         output: {},
       });
       const cfg = result.config;
-      expect(cfg.token).toBe('****');
-      expect(cfg.secret).toBe('****');
+      expect(cfg.token).toEqual(tokenObj);
+      expect(cfg.secret).toBe(12345);
+
+      // egress 대조군 — 나가는 자리에서는 둘 다 가려진다.
+      const atEgress = deepRedactSecrets(cfg) as Record<string, unknown>;
+      expect(atEgress.token).not.toEqual(tokenObj);
+      expect(atEgress.secret).not.toBe(12345);
     });
   });
 
