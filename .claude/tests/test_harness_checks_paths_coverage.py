@@ -196,13 +196,31 @@ def _filter_to_regex(filt: str) -> re.Pattern:
     return re.compile("^" + "".join(out) + "$")
 
 
+# git pathspec 의 `:(glob)` 매직. 이 접두가 붙으면 git 의 `*` 가 **`/` 를 넘지 않게** 되어
+# 아래 `_filter_to_regex` 가 이미 구현한 GitHub 의미와 **정확히 같아진다** — 그래서 벗겨
+# 내고 같은 규칙으로 판정하는 것이 옳다.
+#
+# 왜 필요한가 (2026-08-27): 이 모듈은 GitHub Actions `paths:` glob 의미를 모델링하는데,
+# 런타임은 `paths:` 를 걷어내고 `ci-paths-changed.sh` → `git diff -- <spec>` 로 옮겨 갔다
+# (required status check 데드락 회피). 둘은 대부분 일치하지만 **루트 `*.md` 하나에서
+# 정확히 갈린다** — GitHub 은 루트 6개만, git 은 `*` 가 `/` 를 넘어 **17,202개**를 잡는다
+# (실측). 그래서 런타임에서 "루트 md 만" 을 표현하려면 `:(glob)` 이 **필수**이고, 이 함수가
+# 그걸 모르면 옳은 pathspec 을 죽은 필터로 오판한다(`spec-link-checks.yml` 에서 발생).
+_GIT_GLOB_MAGIC = ":(glob)"
+
+
 def filter_covers_file(filt: str, path: str) -> bool:
     """Does one entry match this repo-relative file?
 
     Not `fnmatch`: its `*` crosses `/`, which would make a root `*.md` filter
     appear to cover `.claude/x.md`. GitHub's `*` stops at a segment boundary and
     only `**` crosses it, so a filter is built into a regex by hand.
+
+    A leading `:(glob)` (git pathspec magic) is stripped first — it asks git for
+    exactly the segment-bounded `*` this function already models.
     """
+    if filt.startswith(_GIT_GLOB_MAGIC):
+        filt = filt[len(_GIT_GLOB_MAGIC):]
     return _filter_to_regex(filt).match(path) is not None
 
 

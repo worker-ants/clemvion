@@ -47,7 +47,7 @@
 
 **Cross-stack 의무 — 한쪽 누락 금지**: lint / unit / build 단계의 wrapper 호출은 `.claude/test-stages.sh` 안에서 backend + frontend 를 **순차 AND** 로 실행한다 (한쪽 실패 시 즉시 단계 실패). **반드시 wrapper 를 통해 호출** — `pnpm --filter backend build` 같은 단일 stack 직호출로 단계를 "통과" 처리하면 다른 한쪽 회귀 (대표 사례: PR-E3 의 trigger drawer `t.x.y` 객체 접근 → `t("x.y")` 함수 호출 타입 오류, frontend build 누락으로 main 머지 후 `0f05d3e5` 핫픽스 필요) 가 검출되지 않는다. wrapper 가 한 단계 = 양쪽 stack 묶음이라는 invariant 의 유일한 enforcer.
 
-**Worktree 별 e2e 자동 격리**: `make e2e-*` 는 현재 worktree dir basename 으로 compose project name 을 도출 (main worktree = `clemvion-e2e`, `.claude/worktrees/<task>-<slug>/` = `clemvion-e2e-<task>-<slug>`). 컨테이너·볼륨·network 가 worktree 별로 분리되므로 여러 worktree 에서 e2e 를 **동시에** 돌려도 충돌 없음. image 자체는 worktree 간 공유되어 (각 빌드 서비스에 `image:` 명시) 두 번째 worktree 의 첫 e2e 가 image rebuild 비용을 다시 치르지 않는다. `COMPOSE_PROJECT=foo make e2e-test` 로 사용자 override 가능. 자세한 내용은 `docker-compose.e2e.yml` 헤더 주석과 `Makefile` 상단, 운영 정책은 [`CLAUDE.md` §Worktree 기반 작업 정책](CLAUDE.md#worktree-기반-작업-정책) 참고.
+**Worktree 별 e2e 자동 격리**: `make e2e-*` 는 현재 worktree dir basename 으로 compose project name 을 도출 (main worktree = `clemvion-e2e`, `.claude/worktrees/<task>-<slug>/` = `clemvion-e2e-<task>-<slug>`). 컨테이너·볼륨·network 가 worktree 별로 분리되므로 여러 worktree 에서 e2e 를 **동시에** 돌려도 충돌 없음. image 자체는 worktree 간 공유되어 (각 빌드 서비스에 `image:` 명시) 두 번째 worktree 의 첫 e2e 가 image rebuild 비용을 다시 치르지 않는다. `COMPOSE_PROJECT=foo make e2e-test` 로 사용자 override 가능. 자세한 내용은 `docker-compose.e2e.yml` 헤더 주석과 `Makefile` 상단, 운영 정책은 [`.claude/docs/worktree-policy.md`](.claude/docs/worktree-policy.md) (진입 TL;DR 은 [`CLAUDE.md` §0](CLAUDE.md)) 참고.
 
 ## 버전·도구 정책
 
@@ -243,7 +243,7 @@ developer workflow §4 종료 직전, 5단계로 진행하기 전 자가 점검:
 - [ ] 해요체로 통일됐는가 (`~합니다` / `~한다` 어미가 본문에 없는가)
 - [ ] KO/EN 변경 set 의 파일 쌍 대응이 맞는가
 - [ ] Callout `type` ∈ `{note, tip, warn}` 인가
-- [ ] **GUI 흐름 절 (예: "1. 좌측 메뉴 → Triggers 클릭")** 에 `<ImplAnchor kind="ui-entry">` 가 동반 작성됐는가? `file`/`symbol` 이 코드에 실존하는가? (SoT: [`spec/conventions/user-guide-evidence.md`](../../spec/conventions/user-guide-evidence.md). 가드: `impl-anchor-existence.test.ts` / `integrations-coverage.test.ts` / `triggers-coverage.test.ts`)
+- [ ] **GUI 흐름 절 (예: "1. 좌측 메뉴 → Triggers 클릭")** 에 `<ImplAnchor kind="ui-entry">` 가 동반 작성됐는가? `file`/`symbol` 이 코드에 실존하는가? (SoT: [`spec/conventions/user-guide-evidence.md`](spec/conventions/user-guide-evidence.md). 가드: `impl-anchor-existence.test.ts` / `integrations-coverage.test.ts` / `triggers-coverage.test.ts`)
 - [ ] 본문에 내부 SoT (`spec/`·`plan/in-progress|complete/` 경로, `CCH-XX-NN`·`R-XX-N` 같은 내부 식별자, `ERROR_KO`·`backend-labels.ts` 같은 매핑 테이블·파일 이름) 가 노출되지 않는가? (가드: `no-internal-refs.test.ts`)
 - [ ] "v2 (후속)"·"향후 ~ 예정"·"별 plan ..." 같은 향후 진행 예정 표현이 본문에 없는가? 현재 동작 상태 서술로 통일됐는가?
 
@@ -335,16 +335,29 @@ e2e 는 **인프라 의존성과 multi-actor 흐름** 을 보장하는 회귀 �
 
 ### 문서 링크 검증
 
-`spec/` 의 markdown 내부 링크와 `codebase/frontend/src/content/docs/**.mdx` frontmatter `spec:` 항목 정합성을 확인한다.
+**CI 가 강제한다** — `spec-link-checks` 워크플로가 아래 가드를 돌린다. 수동 확인이 필요하면
+같은 명령을 직접 실행한다.
 
 ```bash
-python3 scripts/check-doc-links.py
+pnpm --filter frontend test src/lib/docs/__tests__/spec-link-integrity.test.ts
 ```
 
-- 종료 코드: 깨진 항목이 있으면 `1`, 모두 정상이면 `0`
-- 의존성 없음 (Python 3 표준 라이브러리만 사용)
-- 검사 항목: 파일 경로 존재 여부, anchor (`#section`) 가 대상 파일 헤딩 슬러그에 매칭되는지, MDX `spec:` 배열의 모든 경로 존재 여부
-- PR 머지 전 또는 spec 헤딩을 변경한 후 한 번씩 돌려서 cross-reference 깨짐을 잡는 용도
+검사 스코프 3가지 (SoT: [`spec/conventions/spec-impl-evidence.md`](spec/conventions/spec-impl-evidence.md) §4.2):
+
+1. `spec/**.md` 본문의 in-repo 링크 + `#anchor` 헤딩 슬러그 (생성형 `*-api-catalog/` 제외)
+2. `codebase/{backend,frontend,channel-web-chat,packages}` 의 `.ts`/`.tsx` 주석 중
+   `spec/**.md` 를 가리키는 링크
+3. **거버넌스 문서** — 루트 `*.md`(`CLAUDE.md`·`PROJECT.md` 등, 비재귀) + `.claude/**.md`
+   (`.claude/worktrees/` 는 저장소 사본이라 제외)
+
+MDX frontmatter `spec:`/`code:` 경로 실재는 별도 가드가 본다 —
+`src/lib/docs/__tests__/registry.test.ts`.
+
+> **2026-08-27 변경**: 종전의 `scripts/check-doc-links.py` 를 **삭제**하고 위 가드로 합쳤다.
+> 그 스크립트는 (a) 어떤 CI·hook 도 호출하지 않아 실제로는 아무것도 지키지 못했고,
+> (b) `origin/main` 에서 이미 `exit 1` 이었으며, (c) 그 2건은 산문 속 링크 문법 예시
+> (`` `[..](path)` ``·ASCII 상태도의 `[panel](transient)`)를 링크로 오파싱한 **오탐**이었다.
+> 같은 스코프를 보는 가드가 둘이고 판정이 갈리는 상태 자체가 결함이었다.
 
 ### Playwright flaky surfacing
 

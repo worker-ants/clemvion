@@ -278,6 +278,55 @@ export function findBrokenLinks(root: string): LinkViolation[] {
   });
 }
 
+// ---------------------------------------------------------------------------
+// 거버넌스 문서 (루트 `*.md` + `.claude/**.md`)
+// ---------------------------------------------------------------------------
+
+/**
+ * `.claude/worktrees/` 는 **저장소 전체의 사본**이다 (`.gitignore` 에 있고, main
+ * checkout 에서는 실제로 십수 개가 들어 있다). 훑으면 spec/codebase 전부를 사본 수만큼
+ * 중복 스캔한다 — 느려지는 정도가 아니라 사본 안의 옛 링크까지 위반으로 올라온다.
+ * 이 가드는 **어느 체크아웃에서 돌든** 같은 결과를 내야 하므로 무조건 제외한다.
+ */
+const GOVERNANCE_SKIP_DIRS = new Set(["worktrees", "node_modules"]);
+
+/**
+ * 루트 `*.md`(비재귀) + `.claude/**.md`.
+ *
+ * 루트는 `recurse: false` 다 — 재귀하면 `spec/`·`plan/`·`codebase/`·`review/` 가
+ * 전부 딸려 들어와 다른 가드들과 스코프가 겹치고, `plan/complete/**` 처럼 **깨진 링크가
+ * 정상인** 트리까지 빨아들인다 (`collectLivePlanMarkdown` 의 주석 참조).
+ */
+export function collectGovernanceMarkdown(root: string): MdFileRef[] {
+  const rootLevel = walkTree(root, ["."], {
+    recurse: false,
+    includeFile: (name) => name.endsWith(".md"),
+  });
+  const claudeDir = walkTree(root, [".claude"], {
+    skipDir: (name) => GOVERNANCE_SKIP_DIRS.has(name),
+    includeFile: (name) => name.endsWith(".md"),
+  });
+  return [...rootLevel, ...claudeDir];
+}
+
+/**
+ * 거버넌스 문서(`CLAUDE.md`·`PROJECT.md`·`.claude/**`)의 in-repo 링크·앵커 검증.
+ *
+ * **왜 필요한가**: 이 문서들은 규약의 SoT 인데 종전까지 **어떤 기계도 안 봤다**.
+ * 넓혀서 처음 돌렸을 때 실제로 4건이 깨져 있었고 (2026-08-27 실측), 그중
+ * `PROJECT.md` 의 `CLAUDE.md#worktree-기반-작업-정책` 은 **존재한 적 없는 앵커**였다.
+ *
+ * 종전에는 배선되지 않은 `scripts/check-doc-links.py` 가 이 역할을 표방했으나
+ * (a) 아무 CI·hook 도 호출하지 않았고 (b) `origin/main` 에서 이미 exit 1 이었으며
+ * (c) 그 2건은 산문 속 링크 문법 예시를 링크로 오파싱한 **오탐**이었다. 이 가드로
+ * 대체하고 그 스크립트는 삭제했다.
+ */
+export function findBrokenGovernanceLinks(root: string): LinkViolation[] {
+  return findBrokenLinksInFiles(collectGovernanceMarkdown(root), {
+    checkSelfAnchors: true,
+  });
+}
+
 // plan 수집은 `plan-scan.ts` 소관이다 — 링크 모듈이 plan 트리 규칙까지 갖고 있으면
 // 그 규칙이 두 곳으로 갈린다(이 PR 이 고치고 있는 바로 그 형태).
 export { collectLivePlanMarkdown };

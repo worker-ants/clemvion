@@ -11,6 +11,10 @@
 # 본 workflow 는 가드 vitest 하나만 도는 lightweight 대체 트리거다.
 # (harness `unit` stage 는 무조건 frontend test 를 돌리므로 로컬/harness 는 이미 커버 —
 #  본 workflow 는 CI PR-trigger 갭만 메운다.)
+#
+# 2026-08-27: 가드에 **scope 3(거버넌스 문서 — 루트 `*.md` + `.claude/**`)** 가 붙으면서
+# 같은 갭이 그대로 재현될 뻔했다 — 스코프만 넓히고 `pathspecs` 를 안 늘리면 `CLAUDE.md` 를
+# 고쳐도 CI 에서 가드가 안 돈다. 아래 목록에 두 경로를 함께 등재한 이유다.
 
 name: spec-link-checks
 
@@ -50,6 +54,11 @@ jobs:
         codebase/channel-web-chat/**
         codebase/packages/**
         spec/**
+        # 거버넌스 문서 (2026-08-27 추가) — 가드 scope 3.
+        # `:(glob)` 매직이 없으면 git pathspec 의 `*` 가 `/` 를 넘어 **17,202개**(spec·plan·
+        # review 전부)를 잡는다(실측). 루트 레벨 `*.md` 만 잡으려면 이 매직이 필수다.
+        :(glob)*.md
+        .claude/**
         scripts/ci-paths-changed.sh
         .github/workflows/_changed-paths.yml
         # 공유 셋업 액션. `_changed-paths.yml` 을 등재한 것과 **같은 이유**다 —
