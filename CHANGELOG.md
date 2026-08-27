@@ -1,5 +1,26 @@
 # Changelog
 
+## Unreleased — 노드 `config` echo 마스킹을 **저장 시점에서 egress 로** 옮겼다
+
+**표현식이 원문을 읽는다.** `handler-output.adapter.ts` 가 `config` 를 저장 전에 마스킹해,
+`migrate-node-output-refs.ts` 가 사용자를 이주시킨 `$node["X"].config.<field>` 참조가 리터럴
+`****abcd` 를 읽고 있었다 — 가시성 저하가 아니라 **기능 오염**이다. 그 boundary 마스킹을
+제거했다.
+
+**운영 영향**: `NodeExecution.outputData` 의 `config` 가 **DB 에 원문으로 저장**된다(종전엔
+마스킹값). REST/WS 응답은 **바뀌지 않는다** — 두 출구가 각자 `deepRedactSecrets*` 를 이미
+걸고 있어 나가는 값은 그대로 마스킹된다. DB 를 직접 읽는 사람만 원문을 본다(EIA §R17 의
+egress-only 원칙이 `Execution.error`·`outputData` 에 이미 적용하던 것 — config 만 예외였다).
+
+**안전성은 키 집합 포함관계에 의존한다**: 어댑터는 키 **목록**(`DEFAULT_SENSITIVE_KEYS`),
+egress 는 키 **정규식**(`CREDENTIAL_KEY_PATTERN`)을 쓴다. 그 차집합이 곧 유출이므로,
+목록을 **직접 순회**하는 포함관계 캐너리가 정본 구현으로 그것을 단언한다 — 목록이 넓어지면
+새 키가 자동으로 검사된다.
+
+**대가 두 가지**를 [실행 내역 R-5](spec/2-navigation/14-execution-history.md) 정정 블록에
+명시했다 — 크로스-노드 자격증명 릴레이(워크스페이스 경계는 넘지 않는다)와
+safe-by-construction → safe-by-convention 이동.
+
 ## Unreleased — `nodeOutput` 이 deny-list 한 칸에 기대고 있었고, 엔진 내부 필드가 새고 있었다
 
 `GET /api/external/executions/:id` 의 waiting `nodeOutput` 은 노드의 **전체 `outputData`** 에서

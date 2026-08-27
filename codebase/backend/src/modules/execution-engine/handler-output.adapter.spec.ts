@@ -151,6 +151,27 @@ describe('adaptHandlerReturn', () => {
     });
 
     /**
+     * **aliasing 이 바뀌었다 — 이제 핸들러 원본 객체가 그대로 전달된다** (`10_53_52` testing INFO 9).
+     *
+     * 종전 `maskSensitiveFields` 는 매 레벨 새 객체를 만들어 **암묵적 deep-clone** 역할을
+     * 겸했다. 걷어내면서 그 부수 효과도 사라졌으므로, 이제 `adaptHandlerReturn` 은 핸들러가
+     * 준 객체를 **참조로** 넘긴다.
+     *
+     * **동작 변화를 숨기지 않고 고정한다** — 핸들러가 반환 후 자기 config 를 변형하면 그것이
+     * 저장·emit 값에 보인다. 오늘의 핸들러는 그러지 않지만, 이 캐너리가 없으면 나중에 누가
+     * 그렇게 했을 때 원인을 찾기 어렵다.
+     */
+    it('[캐너리] config 는 clone 되지 않고 참조로 전달된다 (마스킹 제거의 부수 효과)', () => {
+      const rawConfig = {
+        endpoint: 'https://api.example.com',
+        nested: { a: 1 },
+      };
+      const out = adaptHandlerReturn({ config: rawConfig, output: {} });
+      expect(out.config).toBe(rawConfig);
+      expect(out.config.nested).toBe(rawConfig.nested);
+    });
+
+    /**
      * **egress 대조군** — 어댑터가 원문을 두더라도 **나가는 자리에서는 가려진다**.
      * 이게 이 PR 의 안전 주장이므로 같은 파일에서 함께 못박는다: 위 캐너리만 있으면
      * *"마스킹을 없앴다"* 로만 읽힌다.

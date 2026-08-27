@@ -41,7 +41,11 @@ export function adaptHandlerReturn(raw: unknown): NodeHandlerOutput {
       // `redactStoredDataForResponse`. 둘 다 **공유** `deepRedactSecrets*` 를 쓰고,
       // 그 키 축(`CREDENTIAL_KEY_PATTERN`)이 `DEFAULT_SENSITIVE_KEYS` 를 **포함**한다
       // (`mask-sensitive-fields.util.spec.ts` 의 포함관계 캐너리가 정본 구현으로 단언 —
-      // 목록에서 파생하므로 목록이 넓어져도 자동 검사된다).
+      // `DEFAULT_SENSITIVE_KEYS` 를 **직접 순회**하므로 목록이 넓어져도 자동 검사된다).
+      //
+      // 초판은 그 캐너리가 키를 **손으로 다시 나열**하고도 *"목록에서 파생"* 이라
+      // 적었다 — `10_53_52` 리뷰가 실증해 잡았다(egress 가 못 잡는 가상 키를 넣어도
+      // 전 스위트 GREEN). 상수를 export 해 진짜 파생으로 고쳤다.
       //
       // 즉 **새로 걸 출구가 없다** — 이 저장소가 반복해 겪은 *"출구 중 하나를 빠뜨린다"*
       // 위험이 원리적으로 없는 형태다. DB 는 이제 원문을 보존하며, 그것이 EIA §R17 의

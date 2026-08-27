@@ -1,4 +1,13 @@
-const DEFAULT_SENSITIVE_KEYS: ReadonlySet<string> = new Set(
+/**
+ * **테스트가 이 상수에서 직접 파생하도록 export 한다** (2026-08-24).
+ *
+ * config echo 의 안전성이 *"이 목록 ⊆ egress 마스커의 키 축"* 이라는 포함관계에
+ * 의존하는데(`handler-output.adapter.ts` 참조), 그 캐너리가 목록을 **손으로 다시
+ * 나열**하면 목록이 넓어져도 새 키를 검사하지 않는다 — 실제로 그렇게 썼다가
+ * `10_53_52` 리뷰가 잡았다(가상 신규 키를 넣어도 전 스위트 GREEN 이었다).
+ * 런타임 소비처는 이 export 를 쓰지 않는다.
+ */
+export const DEFAULT_SENSITIVE_KEYS: ReadonlySet<string> = new Set(
   [
     'apiKey',
     'api_key',

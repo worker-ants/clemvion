@@ -1,4 +1,7 @@
-import { maskSensitiveFields } from './mask-sensitive-fields.util';
+import {
+  DEFAULT_SENSITIVE_KEYS,
+  maskSensitiveFields,
+} from './mask-sensitive-fields.util';
 import { deepRedactSecrets } from '../../shared/utils/sanitize-error-message';
 
 describe('maskSensitiveFields', () => {
@@ -119,41 +122,25 @@ describe('maskSensitiveFields', () => {
  * REST `redactStoredDataForResponse`)는 **후자만** 지난다.
  *
  * 그래서 *"전자가 잡는 키를 후자도 잡는가"* 가 **구조적 안전 전제**다. 이 포함관계가 서 있으면
- * 앞단(예: `handler-output.adapter` 의 config echo)에서 전자를 걷어내도 egress 는 여전히
- * 덮인다. 깨지면 그 차집합이 곧 유출이다.
+ * 앞단(`handler-output.adapter` 의 config echo)에서 전자를 걷어내도 egress 는 여전히 덮인다.
+ * 깨지면 그 차집합이 곧 유출이다.
  *
- * **정규식을 읽지 않고 정본 구현을 실행해 확인한다** — `CREDENTIAL_KEY_PATTERN` 은 export
- * 되지 않고, 무엇보다 *표기*가 아니라 *동작*이 계약이다. 목록이 나중에 넓어져도
- * (2026-08-23 에 token 계열 8키가 그랬듯) 이 테스트가 자동으로 새 키를 검사한다.
+ * ## 상수에서 **직접** 파생한다
+ *
+ * 초판은 키를 **손으로 다시 나열**하고 `Object.keys(maskSensitiveFields({...}))` 로 감싸
+ * *"목록에서 파생했다"* 고 적었다. `maskSensitiveFields` 는 키를 **드롭하지 않으므로** 그
+ * 표현식은 입력 리터럴을 그대로 돌려줄 뿐이고, `DEFAULT_SENSITIVE_KEYS` 와 **무관**했다.
+ * `10_53_52` 리뷰가 실증했다 — egress 가 못 잡는 가상 키를 목록에 넣어도 전 스위트 GREEN.
+ *
+ * 그래서 상수를 export 해 `[...DEFAULT_SENSITIVE_KEYS]` 로 **진짜 파생**한다. 이제 목록이
+ * 넓어지면(2026-08-23 에 token 계열 8키가 그랬듯) 새 키가 **자동으로** 검사된다.
  */
 describe('DEFAULT_SENSITIVE_KEYS ⊆ deepRedactSecrets 의 키 축', () => {
-  // 목록 자체에서 파생한다 — 손으로 나열하면 목록이 늘 때 조용히 통과한다.
-  const KEYS = Object.keys(
-    maskSensitiveFields({
-      apiKey: 'v',
-      api_key: 'v',
-      apikey: 'v',
-      password: 'v',
-      passwd: 'v',
-      token: 'v',
-      accessToken: 'v',
-      access_token: 'v',
-      refreshToken: 'v',
-      refresh_token: 'v',
-      csrfToken: 'v',
-      csrf_token: 'v',
-      authToken: 'v',
-      auth_token: 'v',
-      sessionToken: 'v',
-      session_token: 'v',
-      idToken: 'v',
-      id_token: 'v',
-      secret: 'v',
-      client_secret: 'v',
-      clientSecret: 'v',
-      authorization: 'v',
-    }) as Record<string, unknown>,
-  );
+  const KEYS = [...DEFAULT_SENSITIVE_KEYS];
+
+  it('[메타] 목록이 비어 있지 않다 — 파생이 끊기면 아래 전부가 공허해진다', () => {
+    expect(KEYS.length).toBeGreaterThan(15);
+  });
 
   it.each(KEYS)(
     '`%s` 는 egress 마스커(`deepRedactSecrets`)도 가린다',

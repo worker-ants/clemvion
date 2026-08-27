@@ -474,7 +474,14 @@ codebase/frontend/src/app/(main)/w/[slug]/workflows/[id]/executions/
 > 
 > **Config 탭의 안전성 결론은 그대로다** — 이 엔드포인트가 REST egress 를 지나므로 viewer 가 보는 값은 여전히 마스킹된다. 바뀐 것은 *어디서* 가려지느냐이고, **DB 를 직접 읽는 사람은 이제 원문을 본다**(§R17 이 수용한 trade-off).
 > 
-> 안전 전제는 *"두 마스커의 키 축이 어긋나지 않는다"* 이고, 그것을 `mask-sensitive-fields.util.spec.ts` 의 **포함관계 캐너리**가 정본 구현으로 단언한다 — 신규 핸들러/integration 이 config 에 시크릿 평문을 싣지 않도록 하는 것이 상시 불변식이다.
+> 안전 전제는 *"두 마스커의 키 축이 어긋나지 않는다"* 이고, 그것을 `mask-sensitive-fields.util.spec.ts` 의 **포함관계 캐너리**가 정본 구현으로 단언한다(`DEFAULT_SENSITIVE_KEYS` 를 직접 순회하므로 목록이 넓어져도 자동 검사).
+>
+> **이 변경이 만든 두 가지 대가를 명시한다** (`10_53_52` security/architecture W2·W3):
+>
+> 1. **크로스-노드 자격증명 릴레이** — 표현식이 `config` 를 원문으로 읽으므로, 같은 워크스페이스의 작성자가 한 노드의 `config.apiKey` 를 다른 노드 body 에 실어 제3자 엔드포인트로 보낼 수 있다. 종전엔 마스킹이 **부수적으로** 이 경로도 막고 있었다. 다만 그 차단은 **의도된 방어가 아니라 기능 결함의 부산물**이었고(그래서 정상 워크플로도 함께 깨뜨렸다), 워크플로 작성 권한을 가진 사용자는 애초에 그 자격증명을 노드 설정에서 볼 수 있다. **워크스페이스 경계를 넘지 않는다.**
+> 2. **safe-by-construction → safe-by-convention** — 마스킹이 생성 시점 한 곳에서 각 egress 의 규율로 옮겨졌다. `NodeHandlerOutput.config` 에 raw/masked 브랜딩이 없어, 두 관문을 우회하는 **신규 egress** 가 생기면 컴파일러가 못 잡는다. 오늘의 출구는 둘뿐이고 둘 다 공유 마스커를 지나지만(실측), **새 출구를 여는 사람이 이 문단을 읽어야 한다.**
+>
+> 둘 다 **자격증명을 노드 `config` 에 평문으로 담는 노드 타입**(HTTP Request · Send Email 등)에서만 문제가 되므로, 근본 처방은 AI Agent 의 `llmConfigId` 처럼 **자격증명 참조를 간접화**하는 것이다 — 정본 트래커에 등재 — 신규 핸들러/integration 이 config 에 시크릿 평문을 싣지 않도록 하는 것이 상시 불변식이다.
 
 ### R-6. EH-DETAIL-06(단일 노드) 과 EH-DETAIL-12(cross-node v2) 를 별도 ID 로 분리한 이유
 

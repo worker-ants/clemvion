@@ -512,6 +512,20 @@ checker 가 독립적으로** "인용이 가리키는 절이 오히려 반대를
       > 이번 조치의 실제 효과는 "REST 와 같아진다" 가 아니라 **WS/SSE/webhook 종결 경로에
       > 값-패턴 마스킹이 생긴다** 이다.
 
+- [ ] **자격증명을 노드 `config` 에 평문으로 담는 노드 타입 — 참조 간접화 검토**
+      (2026-08-27 등재, `10_53_52` security W2 · architecture W3).
+      > config echo 마스킹을 egress 로 옮기면서(`masking-expression-egress-split`) 두 대가가
+      > 드러났다: **크로스-노드 자격증명 릴레이**(표현식이 원문을 읽으니 한 노드의 `apiKey` 를
+      > 다른 노드로 실어 보낼 수 있다)와 **safe-by-convention 으로의 이동**(새 egress 를 여는
+      > 사람이 규율을 지켜야 한다).
+      > **둘 다 자격증명이 `config` 에 평문으로 들어가는 노드**(HTTP Request · Send Email 등)
+      > 에서만 문제가 된다. AI Agent 는 `llmConfigId` **참조**만 담아 이 벡터가 없다.
+      > **근본 처방은 그 패턴의 일반화**다 — 자격증명을 값이 아니라 참조로 담게 하면
+      > 마스킹 위치 논쟁 자체가 사라진다.
+      > **미판정으로 남긴다**: 노드 스키마·UI·마이그레이션이 함께 움직여야 하는 큰 작업이고,
+      > 먼저 *"평문 자격증명을 담는 노드 타입이 실제로 몇 개인가"* 를 재야 한다.
+      > **워크스페이스 경계는 넘지 않는다** — 작성 권한자는 애초에 그 값을 노드 설정에서 본다.
+
 - [ ] **`chatChannel` 라우팅 컨텍스트만 좁은 마스커를 받는다** (2026-08-24 등재, `19_26_06` plan W6 이 드러낸 것).
       > `CREDENTIAL_KEY_PATTERN` 이 **두 번 선언**돼 있고 실제로 다르다 — `sanitize-error-message.ts` 는 `x[_-]api[_-]?key` 를 갖고 `websocket.service.ts` 의 로컬본은 **없다**(실측).
       > **config echo 경로는 영향 없다**(실측: `maskWireEnvelope` 도 공유본을 쓴다). 좁은 로컬본을 받는 것은 `sanitizePayloadForWs(ctx.chatChannel)` **라우팅 컨텍스트 하나**다 — 거기 `x-api-key` 키가 실린다면 WS 에서만 안 가려진다.
