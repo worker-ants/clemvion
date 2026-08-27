@@ -383,6 +383,24 @@ class FilterMatchBoundaryTest(unittest.TestCase):
         self.assertTrue(filter_covers_file("*.md", "PROJECT.md"))
         self.assertFalse(filter_covers_file("*.md", ".claude/x.md"))
 
+    def test_git_glob_magic_is_stripped_and_keeps_segment_bounds(self):
+        """`:(glob)` 접두는 벗기되 **세그먼트 경계는 그대로**여야 한다.
+
+        런타임(`git diff -- <spec>`)에서 이 매직이 없으면 `*` 가 `/` 를 넘어 저장소의
+        거의 모든 `.md` 를 잡는다. 매직이 붙으면 git 이 이 함수가 이미 구현한 GitHub
+        의미와 같아지므로, 접두를 벗기고 같은 규칙으로 판정하는 것이 옳다.
+
+        이 케이스가 없으면 스트립 로직이 `spec-link-checks.yml` 의 dead-filter 통합
+        테스트를 통해 **간접적으로만** 실행된다 (`17_52_44` testing W2).
+        """
+        self.assertTrue(filter_covers_file(":(glob)*.md", "PROJECT.md"))
+        self.assertTrue(filter_covers_file(":(glob)*.md", "CLAUDE.md"))
+        # 세그먼트 경계 — 매직이 붙어도 `*` 는 `/` 를 넘지 않는다.
+        self.assertFalse(filter_covers_file(":(glob)*.md", "spec/x.md"))
+        self.assertFalse(filter_covers_file(":(glob)*.md", ".claude/docs/y.md"))
+        # 접두는 **접두일 때만** 벗긴다 — 중간에 나오면 리터럴이다.
+        self.assertFalse(filter_covers_file("a:(glob)*.md", "PROJECT.md"))
+
     def test_exact_filter_matches_only_itself(self):
         self.assertTrue(filter_covers_file(".github/dependabot.yml",
                                            ".github/dependabot.yml"))

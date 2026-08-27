@@ -46,6 +46,10 @@ function fmt(violations: LinkViolation[]): string {
   return lines.join("\n");
 }
 
+// `.claude/**.md` 실측 52개(2026-08-27). 스코프가 조용히 좁아지면 걸리도록 여유를 두되
+// **0 이 아닌** 하한을 둔다 — 이름 없는 리터럴이면 왜 이 값인지 다음 사람이 모른다.
+const MIN_CLAUDE_DOCS = 20;
+
 describe("spec-link-integrity guard", () => {
   const root = repoRoot();
 
@@ -107,7 +111,9 @@ describe("spec-link-integrity guard", () => {
     // 통째로 빠져도 통과한다.
     expect(rel).toContain("CLAUDE.md");
     expect(rel).toContain("PROJECT.md");
-    expect(rel.filter((p) => p.startsWith(".claude/")).length).toBeGreaterThan(20);
+    expect(rel.filter((p) => p.startsWith(".claude/")).length).toBeGreaterThan(
+      MIN_CLAUDE_DOCS,
+    );
   });
 
   it("has no broken in-repo links or heading anchors in governance docs", () => {
@@ -145,18 +151,20 @@ describe("governance scope — 제외 규칙", () => {
     // 스코프 밖 — 각각 **깨진 링크**를 담고 있어 제외가 풀리면 관측된다
     w("nested/deep.md", "# 재귀하면 잡힌다\n[깨짐](./nope.md)\n");
     w(".claude/worktrees/copy/.claude/docs/policy.md", "# 사본\n[깨짐](./gone.md)\n");
+    w(".claude/node_modules/pkg/readme.md", "# 의존성\n[깨짐](./gone.md)\n");
   });
 
   afterAll(() => {
     fs.rmSync(fixture, { recursive: true, force: true });
   });
 
-  it("두 제외 대상이 실제로 존재한다 (전제)", () => {
+  it("세 제외 대상이 실제로 존재한다 (전제)", () => {
     expect(fs.existsSync(path.join(fixture, ".claude", "worktrees", "copy"))).toBe(true);
+    expect(fs.existsSync(path.join(fixture, ".claude", "node_modules", "pkg"))).toBe(true);
     expect(fs.existsSync(path.join(fixture, "nested", "deep.md"))).toBe(true);
   });
 
-  it("루트는 비재귀 · `.claude/worktrees/` 는 스킵한다", () => {
+  it("루트는 비재귀 · `worktrees`/`node_modules` 는 스킵한다", () => {
     const rel = collectGovernanceMarkdown(fixture).map((f) => f.relPath).sort();
     expect(rel).toEqual([".claude/docs/policy.md", "README.md"]);
   });
@@ -164,6 +172,24 @@ describe("governance scope — 제외 규칙", () => {
   it("제외된 영역의 깨진 링크는 위반으로 올라오지 않는다", () => {
     const violations = findBrokenGovernanceLinks(fixture);
     expect(violations, fmt(violations)).toEqual([]);
+  });
+
+  /**
+   * **양성 검출** — 위 세 케이스는 전부 *"안 잡힌다"* 를 단언한다. 그것만으로는
+   * 진입점이 **아무것도 못 잡는 상태**여도 전부 통과한다 (스코프를 빈 배열로 만들면
+   * 세 케이스가 다 초록이다). 스코프 **안**의 깨진 링크가 실제로 올라오는지 함께 못박는다.
+   */
+  it("[양성] 스코프 안의 깨진 링크는 DEAD 로 검출된다", () => {
+    const broken = path.join(fixture, "BROKEN.md");
+    fs.writeFileSync(broken, "# 루트\n[깨짐](./no-such-file.md)\n", "utf8");
+    try {
+      const violations = findBrokenGovernanceLinks(fixture);
+      expect(violations.length).toBe(1);
+      expect(violations[0].kind).toBe("DEAD");
+      expect(violations[0].source).toBe("BROKEN.md");
+    } finally {
+      fs.rmSync(broken, { force: true });
+    }
   });
 });
 

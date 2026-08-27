@@ -837,7 +837,10 @@ checker 가 독립적으로** "인용이 가리키는 절이 오히려 반대를
       >
       > **집행 내용**: (a) `scripts/check-doc-links.py` 삭제, (b) `spec-link-integrity.test.ts`
       > 에 **scope 3(거버넌스 문서)** 추가, (c) 위 4건 정정, (d) `spec-link-checks.yml` 의
-      > `pathspecs` 에 `:(glob)*.md`·`.claude/**` 등재, (e) `PROJECT.md` §문서 링크 검증 갱신.
+      > `pathspecs` 에 `:(glob)*.md`·`.claude/**` 등재, (e) `PROJECT.md` §문서 링크 검증 갱신,
+      > (f) **`spec-impl-evidence.md §4.2` 표에 scope (3) 반영** (planner 턴 — 세 곳이 그 절을
+      > SoT 로 인용하는데 정작 표가 (1)(2) 만 서술하고 있었다. `17_52_44` W1 이 잡았고,
+      > 이 체크리스트에도 원래 빠져 있었다).
       >
       > **(d) 가 없으면 (b) 는 헛돈다** — 스코프만 넓히고 트리거를 안 늘리면 `CLAUDE.md` 를
       > 고쳐도 CI 에서 가드가 안 돈다. 그 워크플로 헤더 스스로 *"이 저장소가 여섯 번 겪은
