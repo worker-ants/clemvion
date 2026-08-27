@@ -1655,6 +1655,52 @@ consistency `--impl-prep`(`15_35_56`, 2026-08-22)가 하나 더 냈다 — 역�
 > 이 PR 의 wrapper 와 `typescript` import 를 각각 전제해서, 분리하면 그 사이 커밋 구간에
 > **가드 없이 코드만 있는 상태**가 생긴다. 대신 CHANGELOG 에 범위 초과를 명시했다.
 
+## 리뷰 타겟 재실행이 forced 커버리지 자기검사를 공허하게 만든다 (2026-08-27 등재, `12_52_43` W2)
+
+- [ ] **`Workflow(ai-review)` 에 좁힌 `agents_forced` 를 넘기면, 요약 에이전트가 그 좁힌
+      목록에 대해서만 커버리지를 검사한다** — orchestrator 가 `meta.json`/`_retry_state.json`
+      에 기록한 **진짜** forced 목록과 대조하지 않는다.
+      > **실측 (2026-08-27)**: `masking-expression-egress-split` 의 2~5라운드를 전부
+      > 타겟(4명 → 2명)으로 돌리며 `agents_forced` 도 그만큼 좁혀 넘겼다. 매 라운드 SUMMARY 가
+      > *"forced 전원 결과 확보됨 — 누락 없음"* 이라 적었지만, `meta.json` 기준 forced 는
+      > **7명**이었다:
+      > ```
+      > 12_28_26 → missing forced: maintainability, scope, side_effect
+      > 12_52_43 → missing forced: maintainability, requirement, scope, security, side_effect
+      > ```
+      > 그래서 push 게이트가 두 세션을 **resolved 로 세지 않았고**(`_summary_is_resolved` 의
+      > 조건 1), `newest_review` 가 3라운드(`12_00_05`)로 잡혀 차단됐다. 게이트 결함이
+      > 아니라 **내가 만든 상태**였고, 게이트가 정확히 그 구멍을 막고 있었다.
+      >
+      > **왜 위험한가**: 실패가 조용하다. SUMMARY 는 초록으로 끝나고, 막히는 건 한참 뒤
+      > push 시점이며, 그때 나오는 메시지(*"코드가 리뷰 뒤에 수정됐다"*)는 **원인을 가리키지
+      > 않는다** — 나는 처음에 timestamp 오탐으로 오진했다. 술어를 읽고서야 알았다.
+      >
+      > **진단법**: `_forced_coverage_missing(<session_dir>)` 를 직접 호출한다. 세션 시각과
+      > 코드 커밋 시각을 비교하기 **전에** 이걸 먼저 봐야 한다.
+      >
+      > **처분 후보** (택일 아님, 조사 필요): (a) 요약 에이전트가 넘겨받은 목록 대신
+      > `meta.json` 의 `agents_forced` 를 읽게 한다 — 자기검사가 입력에 의존하지 않게.
+      > (b) orchestrator 가 `--agents` 를 받아 forced 목록 자체를 좁혀 기록하게 한다.
+      > (a) 가 옳아 보이지만 forced 화이트리스트의 **취지**(축소 불가)를 확인해야 한다.
+
+## `config` 장기 참조 × egress identity 캐시 (2026-08-27 등재, `12_52_43` W4, **오늘은 도달 불가**)
+
+- [ ] **`DEEP_REDACT_CACHE` 는 객체 identity 로만 키를 잡는다** — *"같은 identity ⇒ 같은
+      내용"* 전제다. config echo 마스킹을 걷어내며 `setStructuredOutput` 이 핸들러 원본을
+      참조로 장기 보관하게 됐으므로, 그 전제가 이론상 약해진다.
+      > **실측으로 좁힌 도달 조건 — 둘 다 필요하고 둘 다 오늘 거짓이다**:
+      > 1. 핸들러가 **반환 후** 자기 `config` 를 변형한다 → 오늘 그런 핸들러는 없고,
+      >    `execution-context.service.spec.ts` 의 캐너리가 그 동작을 명시적으로 고정해 뒀다.
+      > 2. **같은 top-level 객체**가 `deepRedactSecrets` 에 두 번 들어간다 → 캐시 키는
+      >    depth-0 인자다. REST 는 `redactStoredDataForResponse(row.outputData)` 로 **쿼리마다
+      >    새 객체**이고, WS 변형 `deepRedactSecretsPreserving` 은 **캐시를 아예 안 쓴다**
+      >    (그 함수 JSDoc 이 이유까지 적어 뒀다 — 옵션이 다르면 같은 캐시를 쓰면 안 된다).
+      >
+      > **재개 신호**: 핸들러가 반환 후 config 를 변형하는 사례가 생기거나, egress 진입점이
+      > in-memory 캐시 객체를 **그대로** depth-0 인자로 넘기게 바뀔 때. 리뷰어도 재현 경로를
+      > 확증하지 못했다고 명시했다 — 그 판정을 그대로 싣는다.
+
 ## 후속 (cross-cutting, 본 spec 밖)
 - [x] **Redis fixed-window rate-limiter INCR+EXPIRE 원자화** — `PublicWebhookQuotaService.incrWithWindow` 를 `INCR + EXPIRE ... NX` 단일 pipeline(매 요청)으로 교정해 TTL 유실 self-heal (fail-closed 잠금 창 제거). `ChatChannelRateLimiterService` 는 **이미** 동일 `INCR + EXPIRE NX` 단일 pipeline 패턴이라 무변경(점검 완료). `InteractionRateLimiterService`(item 5)는 Lua EVAL — 세 서비스 모두 원자/self-heal 확보. (PR #843 ai-review concurrency WARNING 후속, `task_fa5c5e84`.)
 
