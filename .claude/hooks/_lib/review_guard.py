@@ -495,6 +495,13 @@ def _section_has_rows(lines: list[str], heading_token: str) -> bool:
     return False
 
 
+def _fmt_ts(t: float) -> str:
+    """게이트 메시지용 짧은 시각 표기. 0/음수면 `(없음)`."""
+    if t <= 0:
+        return "(없음)"
+    return datetime.fromtimestamp(t).strftime("%m-%d %H:%M:%S")
+
+
 def _newest_resolved_review_mtime(repo_root: str,
                                   dirty: set[str] | None = None) -> float:
     """Authoritative time of the most recent *resolved* review (0.0 if none).
@@ -980,12 +987,19 @@ def evaluate_review(
                 tuple(notes),
             )
         if newest_impl_done < newest_spec_code:
+            # 두 시각을 **메시지에 싣는다**. 종전에는 "재실행하라" 고만 말해서, 방금 5개
+            # checker 를 돌린 사람이 **왜 그것이 무효인지** 를 알 수 없었다 — 게이트 결함으로
+            # 오진하기 쉬웠고 실제로 한 세션에서 다섯 번 반복됐다(2026-08-28 실측).
+            # 판정 기준이 세션 디렉터리 시각이라는 사실이 보이면 두 번 돌릴 이유가 없다.
             return ReviewDecision(
                 True,
                 f"{len(spec_linked)} spec-linked file(s) changed AFTER the most "
                 f"recent `--impl-done` consistency report — re-run "
                 f"`/consistency-check --impl-done <spec/영역>` so the spec-impl "
-                f"check postdates the latest edit.",
+                f"check postdates the latest edit. "
+                f"(리포트 세션 시각 {_fmt_ts(newest_impl_done)} < 최신 spec-linked 편집 "
+                f"{_fmt_ts(newest_spec_code)} — 판정 기준은 세션 디렉터리 시각이다. "
+                f"규약: developer/SKILL.md §4 '순서'.)",
                 # Blocking does not make the advisory moot: the session being
                 # rejected as stale may be the very one that downgraded a
                 # Critical, and dropping the note here loses the only place that
