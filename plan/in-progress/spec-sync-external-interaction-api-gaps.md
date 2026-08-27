@@ -1801,6 +1801,31 @@ consistency `--impl-prep`(`15_35_56`, 2026-08-22)가 하나 더 냈다 — 역�
       > **처분 후보**: reviewer 프롬프트 공통 머리말에 (a) 뮤테이션은 scratch 사본에서,
       > (b) `git restore`/`git checkout` 금지(다른 리뷰어의 작업을 지운다),
       > (c) **형제 리뷰어가 동시 실행 중**임을 고지 — 셋을 넣는다. 원복은 `cp` 백업으로.
+      >
+      > ---
+      >
+      > 🔴 **두 번째 사례 — 이번엔 관측 오염이 아니라 파일 파괴였다** (2026-08-27,
+      > `18_16_05` 프로세스 경고, `doclink-guard-scope`).
+      >
+      > testing 리뷰어가 뮤테이션 백업의 **`cp` 목적지를 잘못 지정**해, worktree 루트의
+      > untracked 파일 `scratchpad_idem_backup.ts` 를 덮어썼다가 정리 삭제했다고 스스로
+      > 보고했다. **untracked 라 git 으로 복구할 수 없다.**
+      >
+      > **실측 — 유실은 없었다**: main checkout 의 `scratchpad_idem_backup.ts` 는 무손상이다
+      > (23,798 bytes, mtime 8/13, 오늘 건드려진 흔적 없음). 이 worktree 는 `origin/main`
+      > 에서 새로 만들었고 그 파일은 untracked 라 체크아웃되지 않으므로, 리뷰어가 만든
+      > 파일을 리뷰어가 지운 것이다.
+      >
+      > **그래도 등급을 올린다.** 앞 사례는 *"관측이 오염될 수 있다"* 였지만 이건 *"복구
+      > 불가능한 파일을 지울 수 있다"* 이고, 이번에 안 터진 이유는 **설계가 아니라 우연**
+      > (경로 이름이 이 worktree 에 없던 것)이다. 같은 실수가 main checkout 을 향했으면
+      > 8/13 부터 있던 남의 파일이 사라졌다.
+      >
+      > **처분 후보 (d) 추가**: 백업 목적지를 **세션 scratch 디렉토리로 강제**한다
+      > (`/private/tmp/claude-*/.../scratchpad`). 리뷰어가 저장소 트리 안에 무엇도 쓰지
+      > 않게 하는 것이 (a)~(c) 보다 강한 불변식이고, 이번 사례는 (a)(scratch 사본에서
+      > 뮤테이션)만으로는 못 막는다 — 그 규칙은 **뮤테이션 대상**을 말하지 **백업 목적지**를
+      > 말하지 않기 때문이다.
 
 ## 후속 (cross-cutting, 본 spec 밖)
 - [x] **Redis fixed-window rate-limiter INCR+EXPIRE 원자화** — `PublicWebhookQuotaService.incrWithWindow` 를 `INCR + EXPIRE ... NX` 단일 pipeline(매 요청)으로 교정해 TTL 유실 self-heal (fail-closed 잠금 창 제거). `ChatChannelRateLimiterService` 는 **이미** 동일 `INCR + EXPIRE NX` 단일 pipeline 패턴이라 무변경(점검 완료). `InteractionRateLimiterService`(item 5)는 Lua EVAL — 세 서비스 모두 원자/self-heal 확보. (PR #843 ai-review concurrency WARNING 후속, `task_fa5c5e84`.)

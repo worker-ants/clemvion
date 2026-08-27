@@ -348,7 +348,7 @@ pnpm --filter frontend test src/lib/docs/__tests__/spec-link-integrity.test.ts
 2. `codebase/{backend,frontend,channel-web-chat,packages}` 의 `.ts`/`.tsx` 주석 중
    `spec/**.md` 를 가리키는 링크
 3. **거버넌스 문서** — 루트 `*.md`(`CLAUDE.md`·`PROJECT.md` 등, 비재귀) + `.claude/**.md`
-   (`.claude/worktrees/` 는 저장소 사본이라 제외)
+   (`.claude/worktrees/` 는 저장소 사본이라 제외, `node_modules` 도 제외)
 
 MDX frontmatter `spec:`/`code:` 경로 실재는 별도 가드가 본다 —
 `src/lib/docs/__tests__/registry.test.ts`.
