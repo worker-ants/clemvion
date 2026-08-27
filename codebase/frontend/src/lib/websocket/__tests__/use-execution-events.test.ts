@@ -1975,6 +1975,20 @@ describe("useExecutionEvents", () => {
       return { failed, completed };
     }
 
+    /**
+     * `NodeHandlerOutput` **래퍼**를 만든다 — 이벤트의 `output` 이 그것이고 도메인 값은
+     * 한 겹 아래다 (node-output.md Principle 0 · 6-websocket-protocol.md §4.1-a).
+     *
+     * **왜 빌더인가**: 이 결함의 근본 원인이 *"fixture 가 production shape 을 못 따라가
+     * 결함을 가렸다"* 였다. 래퍼를 손으로 5곳에 복제하면 **같은 drift 를 다시 심는다** —
+     * 래퍼 모양이 바뀔 때 고칠 자리가 한 곳이어야 한다 (`01_26_11` maintainability W3).
+     */
+    function wrapNodeHandlerOutput(
+      domain: Record<string, unknown>,
+    ): Record<string, unknown> {
+      return { output: domain, config: {}, meta: {} };
+    }
+
     function seedConversation() {
       useExecutionStore.getState().setConversationMessages([
         { type: "user", content: "주문 상태 확인", turnIndex: 1 },
@@ -1997,22 +2011,18 @@ describe("useExecutionEvents", () => {
         nodeLabel: "CS Bot",
         nodeExecutionId: "11111111-1111-1111-1111-111111111111",
         error: "Anthropic API returned 429 (Too Many Requests)",
-        output: {
-          output: {
-            error: {
-              code: "LLM_RATE_LIMIT",
-              message: "Anthropic API returned 429 (Too Many Requests)",
-              details: {
-                provider: "anthropic",
-                statusCode: 429,
-                retryable: true,
-                retryAfterSec: 30,
-              },
+        output: wrapNodeHandlerOutput({
+          error: {
+            code: "LLM_RATE_LIMIT",
+            message: "Anthropic API returned 429 (Too Many Requests)",
+            details: {
+              provider: "anthropic",
+              statusCode: 429,
+              retryable: true,
+              retryAfterSec: 30,
             },
           },
-          config: {},
-          meta: {},
-        },
+        }),
       });
 
       const items = useExecutionStore.getState().conversationMessages;
@@ -2043,17 +2053,13 @@ describe("useExecutionEvents", () => {
         nodeType: "ai_agent",
         nodeLabel: "CS Bot",
         error: "401 unauthorized",
-        output: {
-          output: {
-            error: {
-              code: "LLM_CALL_FAILED",
-              message: "401 unauthorized",
-              details: { statusCode: 401, retryable: false },
-            },
+        output: wrapNodeHandlerOutput({
+          error: {
+            code: "LLM_CALL_FAILED",
+            message: "401 unauthorized",
+            details: { statusCode: 401, retryable: false },
           },
-          config: {},
-          meta: {},
-        },
+        }),
       });
 
       const items = useExecutionStore.getState().conversationMessages;
@@ -2074,21 +2080,17 @@ describe("useExecutionEvents", () => {
 
       // `output` 은 `NodeHandlerOutput` **래퍼**다 (`nodeExec.outputData`).
       // 도메인 값은 한 겹 아래 — node-output.md Principle 0.
-      const conversationWrapper = {
-        output: {
-          result: {
-            messages: [{ role: "user", content: "ORD-12345" }],
-            turnCount: 2,
-          },
-          error: {
-            code: "LLM_CALL_FAILED",
-            message: "Request timed out.",
-            details: { retryable: true },
-          },
+      const conversationWrapper = wrapNodeHandlerOutput({
+        result: {
+          messages: [{ role: "user", content: "ORD-12345" }],
+          turnCount: 2,
         },
-        config: {},
-        meta: {},
-      };
+        error: {
+          code: "LLM_CALL_FAILED",
+          message: "Request timed out.",
+          details: { retryable: true },
+        },
+      });
 
       failed?.({
         nodeExecutionId: "11111111-1111-4111-8111-111111111111",
@@ -2147,7 +2149,7 @@ describe("useExecutionEvents", () => {
       ).toHaveLength(0);
     });
 
-    it("node.completed with output.error APPENDs system_error (multi-turn AI port=error)", () => {
+    it("node.completed with output.output.error APPENDs system_error (multi-turn AI port=error)", () => {
       useExecutionStore.getState().startExecution("exec-1");
       seedConversation();
       const { completed } = bindNodeHandlers();
@@ -2156,18 +2158,14 @@ describe("useExecutionEvents", () => {
         nodeId: "agent-1",
         nodeType: "ai_agent",
         nodeLabel: "CS Bot",
-        output: {
-          output: {
-            result: { messages: [], turnCount: 2 },
-            error: {
-              code: "LLM_RATE_LIMIT",
-              message: "Rate limited",
-              details: { retryable: true, retryAfterSec: 10 },
-            },
+        output: wrapNodeHandlerOutput({
+          result: { messages: [], turnCount: 2 },
+          error: {
+            code: "LLM_RATE_LIMIT",
+            message: "Rate limited",
+            details: { retryable: true, retryAfterSec: 10 },
           },
-          config: {},
-          meta: {},
-        },
+        }),
       });
 
       const items = useExecutionStore.getState().conversationMessages;
@@ -2199,18 +2197,14 @@ describe("useExecutionEvents", () => {
         nodeLabel: "CS Bot",
         // 백엔드 emit 4곳 전수가 이 형태다 — message only.
         error: "Anthropic API returned 529 (Overloaded)",
-        output: {
-          output: {
-            result: { messages: [], turnCount: 2 },
-            error: {
-              code: "LLM_OVERLOADED",
-              message: "Anthropic API returned 529 (Overloaded)",
-              details: { retryable: true, retryAfterSec: 5 },
-            },
+        output: wrapNodeHandlerOutput({
+          result: { messages: [], turnCount: 2 },
+          error: {
+            code: "LLM_OVERLOADED",
+            message: "Anthropic API returned 529 (Overloaded)",
+            details: { retryable: true, retryAfterSec: 5 },
           },
-          config: {},
-          meta: {},
-        },
+        }),
       });
 
       const items = useExecutionStore.getState().conversationMessages;
