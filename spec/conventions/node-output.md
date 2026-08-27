@@ -57,7 +57,7 @@ pending_plans:
 >
 > **5필드 목록을 넓히지 않는다** — 이 키들은 핸들러가 만드는 것이 아니라 **wire 조립
 > 레이어의 산물**이라, 계약에 편입하면 모든 핸들러가 지켜야 할 것처럼 읽힌다. 정본 열거는
-> `codebase/backend/src/shared/utils/node-output-allowlist.ts` 의 `NODE_OUTPUT_ALLOWED_KEYS`
+> `codebase/backend/src/nodes/core/node-output-allowlist.ts` 의 `NODE_OUTPUT_ALLOWED_KEYS`
 > 이고(컴파일타임 assertion 이 위 5필드를 결속, 나머지 8키는 리터럴 테스트가 지킨다),
 > 범위 표는 [EIA §R17](../5-system/14-external-interaction-api.md).
 >

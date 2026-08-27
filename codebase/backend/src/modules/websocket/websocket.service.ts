@@ -6,7 +6,7 @@ import {
   EXTERNAL_STRIPPED_FIELDS,
   stripExternalOnlyFields,
 } from '../../shared/utils/strip-external-only-fields';
-import { allowlistNodeOutputKeys } from '../../shared/utils/node-output-allowlist';
+import { allowlistNodeOutputKeys } from '../../nodes/core/node-output-allowlist';
 import {
   DEPTH_MASK_MARKER,
   deepRedactSecretsPreserving,

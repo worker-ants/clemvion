@@ -1,16 +1,15 @@
 import 'reflect-metadata';
 import { Controller, Post, Body } from '@nestjs/common';
-import { Test } from '@nestjs/testing';
-import { ApiBody, DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
-import type { ApiResponseSchemaHost, OpenAPIObject } from '@nestjs/swagger';
+import { ApiBody } from '@nestjs/swagger';
+
+import {
+  buildSwaggerDocument,
+  schemaOf,
+  type SwaggerSchemaObject,
+} from '../../shared/testing/swagger-probe';
 import { CustomValidationPipe } from '../../common/pipes/validation.pipe';
 import { WorkflowsController } from './workflows.controller';
 import { ExecuteWorkflowDto } from './dto/execute-workflow.dto';
-
-// SchemaObject 는 swagger 가 공개 export 하지 않는다 — 자매 스펙
-// (`external-interaction/dto/responses/interact-ack-response.dto.spec.ts`) 과 같은 방식으로
-// 공개 타입에서 파생한다.
-type SchemaObject = ApiResponseSchemaHost['schema'];
 
 /**
  * `POST /workflows/:id/execute` 의 **본문 계약이 좁아지지 않았는지** 지키는 캐너리.
@@ -113,7 +112,7 @@ describe('POST /workflows/:id/execute OpenAPI 노출', () => {
   });
 
   describe('스키마 렌더링', () => {
-    let schema: SchemaObject;
+    let schema: SwaggerSchemaObject;
 
     beforeAll(async () => {
       @Controller('stub')
@@ -123,21 +122,10 @@ describe('POST /workflows/:id/execute OpenAPI 노출', () => {
         run(@Body() _body?: unknown): void {}
       }
 
-      const moduleRef = await Test.createTestingModule({
+      const doc = await buildSwaggerDocument({
         controllers: [StubController],
-      }).compile();
-      const app = moduleRef.createNestApplication();
-      await app.init();
-      try {
-        const doc: OpenAPIObject = SwaggerModule.createDocument(
-          app,
-          new DocumentBuilder().build(),
-        );
-        schema = (doc.components?.schemas as Record<string, SchemaObject>)
-          .ExecuteWorkflowDto;
-      } finally {
-        await app.close();
-      }
+      });
+      schema = schemaOf(doc, 'ExecuteWorkflowDto');
     });
 
     it('ExecuteWorkflowDto 가 components.schemas 에 등재된다', () => {
@@ -146,7 +134,7 @@ describe('POST /workflows/:id/execute OpenAPI 노출', () => {
 
     it('두 필드 다 열린 map 으로 렌더링된다 (`additionalProperties: true`)', () => {
       for (const field of ['parameterValues', 'input'] as const) {
-        const prop = schema.properties?.[field] as SchemaObject;
+        const prop = schema.properties?.[field] as SwaggerSchemaObject;
         expect(prop).toBeDefined();
         expect(prop.type).toBe('object');
         expect(prop.additionalProperties).toBe(true);
@@ -161,8 +149,9 @@ describe('POST /workflows/:id/execute OpenAPI 노출', () => {
      * "둘 다 deprecated" 로 바꿔도 통과한다.
      */
     it('[결정] `input` 만 deprecated 로 표시된다', () => {
-      const input = schema.properties?.input as SchemaObject;
-      const preferred = schema.properties?.parameterValues as SchemaObject;
+      const input = schema.properties?.input as SwaggerSchemaObject;
+      const preferred = schema.properties
+        ?.parameterValues as SwaggerSchemaObject;
       expect(input.deprecated).toBe(true);
       expect(preferred.deprecated).toBeFalsy();
     });
@@ -173,7 +162,7 @@ describe('POST /workflows/:id/execute OpenAPI 노출', () => {
      */
     it('[가드] 마커 거부 규칙이 두 필드 description 에 모두 드러난다', () => {
       for (const field of ['parameterValues', 'input'] as const) {
-        const prop = schema.properties?.[field] as SchemaObject;
+        const prop = schema.properties?.[field] as SwaggerSchemaObject;
         expect(prop.description).toEqual(expect.stringContaining('마커'));
       }
     });

@@ -84,7 +84,7 @@ export function redactStoredDataForResponse(
  * | 헬퍼 | 쓰는 곳 | 부재 처리 |
  * |---|---|---|
  * | 이 함수 | 응답 DTO 조립(3곳) | `null` 로 **정규화** |
- * | {@link redactNodeExecutionRow} | `nodeExecutions[]` 행 | 입력을 **그대로 보존** |
+ * | {@link redactNodeExecutionRowForResponse} | `nodeExecutions[]` 행 | 입력을 **그대로 보존** |
  *
  * 하나로 뭉개면 그 차이가 사라진다 — `nodeExecutions[]` 는 엔티티 형태를 그대로 싣는
  * 자리라 `undefined → null` 이 되면 (a) 응답 shape 이 달라지고 (b) 값이 없어 아무것도 안
@@ -119,6 +119,11 @@ export function redactStoredFieldsForResponse(row: {
  * **제네릭을 쓰지 않는다** — `<T>` 로 두면 TS 가 `T` 를 값이 아니라 `mask` 의 **파라미터
  * 타입**(`… | null | undefined`)에서 추론해 반환 타입에 `undefined` 가 섞이고, 배정에서
  * 빌드가 깨진다(실제로 한 번 깨졌다). 두 컬럼이 모두 같은 구체 타입이라 제네릭의 이득도 없다.
+ *
+ * > 아래 {@link redactNodeExecutionRowForResponse} 는 **제네릭을 쓴다** — 모순이 아니다. 추론 출처가
+ * > 다르다: 여기는 `mask` **파라미터**에서 추론돼 `undefined` 가 섞이지만, 그쪽은 `row`
+ * > **인자**에서 추론되므로 그 경로가 없다. 나란히 놓여 오독을 부르던 자리라 명시한다
+ * > (`15_16_28` rationale INFO 1).
  *
  * **시그니처가 `| null` 을 안 적는 것은 의도다** — 엔티티가 두 컬럼을 non-null 로 선언하므로
  * **정적으로는** null 이 올 수 없고, 반환 타입에 `| null` 을 얹으면 배정이 깨진다. 본문의
@@ -159,8 +164,11 @@ function maskIfPresent(
  * 스냅샷 캐시 대상도 아니라 폴링·WS 재연결마다 재계산된다 (`17_12_34` performance W1).
  *
  * 자매는 {@link redactStoredFieldsForResponse} — 왜 둘인지는 그쪽 docstring 참조.
+ *
+ * @param row 마스킹 대상 행. `inputData` / `outputData` / `error` 세 컬럼만 본다.
+ * @returns 세 컬럼이 모두 무변화면 **`row` 자신**, 아니면 세 컬럼만 교체한 shallow copy.
  */
-export function redactNodeExecutionRow<
+export function redactNodeExecutionRowForResponse<
   T extends {
     inputData: Record<string, unknown>;
     outputData: Record<string, unknown>;

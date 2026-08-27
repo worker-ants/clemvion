@@ -43,7 +43,7 @@ import {
   deepRedactSecrets,
   MAX_REDACT_DEPTH,
 } from '../../shared/utils/sanitize-error-message';
-import { allowlistNodeOutputKeys } from '../../shared/utils/node-output-allowlist';
+import { allowlistNodeOutputKeys } from '../../nodes/core/node-output-allowlist';
 import { stripExternalOnlyFields } from '../../shared/utils/strip-external-only-fields';
 
 const TERMINAL_STATUSES: ReadonlySet<ExecutionStatus> = new Set([

@@ -5,6 +5,7 @@ code:
   - codebase/packages/masked-markers/src/index.ts
   - codebase/backend/src/shared/utils/sanitize-error-message.ts
   - codebase/backend/src/shared/utils/strip-external-only-fields.ts
+  - codebase/backend/src/shared/utils/redact-stored-error.ts
   - codebase/backend/src/modules/websocket/websocket.service.ts
   - codebase/backend/src/modules/execution-engine/utils/reject-masked-resubmission.ts
   - codebase/backend/src/modules/workflow-assistant/tools/explore-tools.service.ts
