@@ -2308,6 +2308,86 @@ describe("useExecutionEvents", () => {
     });
 
     /**
+     * **`details` 하위 필드의 타입 가드를 문다** (`02_39_10` W1 · INFO 12).
+     *
+     * `retryable`/`retryAfterSec` 는 `typeof` 로 좁힌 뒤에만 쓰고, 아니면 각각 `false` /
+     * `undefined` 로 떨어진다. 백엔드가 `retryable: "true"`(문자열) 같은 스키마 drift 를
+     * 보내면 그 가드가 유일한 방어다 — 없으면 `"true"` 가 truthy 라 **`[다시 시도]` 가
+     * 잘못 노출**되고, `retryAfterSec: "30"` 이면 숫자 자리에 문자열이 들어간다.
+     *
+     * `details` 자체가 object 가 아닌 경우(`"n/a"`)도 같은 자리에서 함께 가른다.
+     *
+     * **두 핸들러 모두에 넣는다** — 그 블록은 완전히 복제돼 있어서 한쪽만 테스트하면
+     * 나머지가 무방비다. 이 PR 이 세 번 겪은 "형제 중 하나만" 을 반복하지 않는다.
+     */
+    it("[가드] `details` 필드 타입이 틀리면 안전값으로 떨어진다 — failed", () => {
+      useExecutionStore.getState().startExecution("exec-1");
+      seedConversation();
+      const { failed } = bindNodeHandlers();
+
+      failed?.({
+        nodeId: "agent-1",
+        nodeType: "ai_agent",
+        error: "Rate limited",
+        output: wrapNodeHandlerOutput({
+          error: {
+            code: "LLM_RATE_LIMIT",
+            message: "Rate limited",
+            // 스키마 drift — 둘 다 타입이 틀렸다.
+            details: { retryable: "true", retryAfterSec: "30" },
+          },
+        }),
+      });
+
+      const last = useExecutionStore.getState().conversationMessages.at(-1);
+      expect(last?.type).toBe("system_error");
+      expect(last?.systemError?.retryable).toBe(false);
+      expect(last?.systemError?.retryAfterSec).toBeUndefined();
+    });
+
+    it("[가드] `details` 필드 타입이 틀리면 안전값으로 떨어진다 — completed", () => {
+      useExecutionStore.getState().startExecution("exec-1");
+      seedConversation();
+      const { completed } = bindNodeHandlers();
+
+      completed?.({
+        nodeId: "agent-1",
+        nodeType: "ai_agent",
+        output: wrapNodeHandlerOutput({
+          error: {
+            code: "LLM_RATE_LIMIT",
+            message: "Rate limited",
+            details: { retryable: "true", retryAfterSec: "30" },
+          },
+        }),
+      });
+
+      const last = useExecutionStore.getState().conversationMessages.at(-1);
+      expect(last?.type).toBe("system_error");
+      expect(last?.systemError?.retryable).toBe(false);
+      expect(last?.systemError?.retryAfterSec).toBeUndefined();
+    });
+
+    it("[가드] `details` 가 object 가 아니면 안전값으로 떨어진다", () => {
+      useExecutionStore.getState().startExecution("exec-1");
+      seedConversation();
+      const { failed } = bindNodeHandlers();
+
+      failed?.({
+        nodeId: "agent-1",
+        nodeType: "ai_agent",
+        error: "Rate limited",
+        output: wrapNodeHandlerOutput({
+          error: { code: "LLM_RATE_LIMIT", message: "Rate limited", details: "n/a" },
+        }),
+      });
+
+      const last = useExecutionStore.getState().conversationMessages.at(-1);
+      expect(last?.type).toBe("system_error");
+      expect(last?.systemError?.retryable).toBe(false);
+    });
+
+    /**
      * `handleNodeCompleted` 쪽 **대칭 케이스** (`02_21_19` INFO 8) — 공유 함수라 간접
      * 방어는 되지만, 두 핸들러가 각자 `isMultiTurnAiContext` 를 부르므로 한쪽 배선이
      * 끊겨도 다른 쪽 테스트로는 안 잡힌다.
