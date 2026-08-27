@@ -464,9 +464,30 @@ codebase/frontend/src/app/(main)/w/[slug]/workflows/[id]/executions/
 
 ### R-5. 노드 상세 Config 탭이 viewer 롤에도 노출되지만 안전한 이유
 
-> **R-5 의 대상 범위** (2026-08-16 추가): 본 항목이 다루는 것은 **Config 탭의 config echo** 하나다. 같은 엔드포인트가 싣는 **`Execution.error`·`nodeExecutions[].error` 는 별개 정책**으로, write 시점이 아니라 **응답 egress 에서** 마스킹된다 — SoT 는 [EIA §R17](../5-system/14-external-interaction-api.md) 의 "내부 읽기 경로" 불릿이다. R-5 의 *"boundary masking parity"* 원칙은 그 결정의 **근거로 원용**됐을 뿐, R-5 가 그 필드들을 이미 규정하고 있었던 것은 아니다. 두 정책을 하나로 읽으면 "error 도 write 시점에 마스킹된다" 는 잘못된 결론이 나온다.
+> **R-5 의 대상 범위** (2026-08-16 추가): 본 항목이 다루는 것은 **Config 탭의 config echo** 하나다. 같은 엔드포인트가 싣는 **`Execution.error`·`nodeExecutions[].error` 는 별개 정책**으로, write 시점이 아니라 **응답 egress 에서** 마스킹된다 — SoT 는 [EIA §R17](../5-system/14-external-interaction-api.md) 의 "내부 읽기 경로" 불릿이다. R-5 의 *"egress masking parity"* 원칙은 그 결정의 **근거로 원용**됐을 뿐, R-5 가 그 필드들을 이미 규정하고 있었던 것은 아니다. 두 정책을 하나로 읽으면 "error 도 write 시점에 마스킹된다" 는 잘못된 결론이 나온다.
 
-§3.3 노드 상세의 **Config 탭**(§10.6.1 SoT)은 노드 핸들러가 echo 한 실행 시 config 를 표시한다. `GET /api/executions/:id` 는 별도 `@Roles` 게이트 없이 워크스페이스 멤버 전원(viewer 포함)이 조회 가능하므로 Config 탭도 viewer 에게 노출된다. 그러나 config echo 는 엔진 boundary(`handler-output.adapter.ts` 의 `maskSensitiveFields`)에서 DB·WS·REST 모든 경로에 **보편 마스킹**되어 내려오므로(민감 필드는 저장 시점에 이미 마스킹), 노출 자체가 새로운 시크릿 유출 경로를 만들지 않는다. 즉 안전성은 **롤 게이팅이 아니라 서버 boundary masking parity** 에 의존한다 — 신규 핸들러/integration 이 config 에 시크릿 평문을 싣지 않도록 하는 것이 상시 불변식이다.
+§3.3 노드 상세의 **Config 탭**(§10.6.1 SoT)은 노드 핸들러가 echo 한 실행 시 config 를 표시한다. `GET /api/executions/:id` 는 별도 `@Roles` 게이트 없이 워크스페이스 멤버 전원(viewer 포함)이 조회 가능하므로 Config 탭도 viewer 에게 노출된다. 그러나 config echo 는 **egress 에서** 마스킹되어 내려오므로 노출 자체가 새로운 시크릿 유출 경로를 만들지 않는다. 즉 안전성은 **롤 게이팅이 아니라 서버 egress masking parity** 에 의존한다.
+
+> **정정 (2026-08-24) — 마스킹 시점이 바뀌었다.** ~~엔진 boundary(`handler-output.adapter.ts` 의 `maskSensitiveFields`)에서 DB·WS·REST 모든 경로에 **보편 마스킹**되어 내려온다(민감 필드는 **저장 시점에 이미** 마스킹).~~ 그 boundary 마스킹은 **제거됐다** — 표현식 컨텍스트가 같은 `config` 를 읽는데(`expression-resolver.service.ts`), `migrate-node-output-refs.ts` 가 사용자를 `$node["X"].config.<field>` 참조로 이주시켜 놓아 **리터럴 `****abcd` 가 워크플로에 흘러들었다**.
+> 
+> **지금의 정확한 서술**: `config` 는 **DB 에 원문으로 저장**되고, 나가는 자리에서만 가려진다 — REST 는 `redactStoredDataForResponse`, WS 는 `maskWireEnvelope`(둘 다 공유 `deepRedactSecrets*`). **표현식은 원문을 읽는다**(그것이 이 변경의 목적이다). EIA §R17 의 **egress-only 원칙**과 같은 방향이고, `Execution.error`·`outputData` 가 이미 그 원칙을 따르고 있었다 — config 만 예외였다.
+> 
+> **Config 탭의 안전성 결론은 그대로다** — 이 엔드포인트가 REST egress 를 지나므로 viewer 가 보는 값은 여전히 마스킹된다. 바뀐 것은 *어디서* 가려지느냐이고, **DB 를 직접 읽는 사람은 이제 원문을 본다**(§R17 이 수용한 trade-off).
+> 
+> 안전 전제는 *"두 마스커의 키 축이 어긋나지 않는다"* 이고, 그것을 `mask-sensitive-fields.util.spec.ts` 의 **포함관계 캐너리**가 정본 구현으로 단언한다(`DEFAULT_SENSITIVE_KEYS` 를 직접 순회하므로 목록이 넓어져도 자동 검사).
+>
+> **이 변경이 만든 두 가지 대가를 명시한다** (`10_53_52` security/architecture W2·W3):
+>
+> 1. **크로스-노드 자격증명 릴레이** — 표현식이 `config` 를 원문으로 읽으므로, 같은 워크스페이스의 작성자가 한 노드의 `config.apiKey` 를 다른 노드 body 에 실어 제3자 엔드포인트로 보낼 수 있다. 종전엔 마스킹이 **부수적으로** 이 경로도 막고 있었다. 다만 그 차단은 **의도된 방어가 아니라 기능 결함의 부산물**이었고(그래서 정상 워크플로도 함께 깨뜨렸다), 워크플로 작성 권한을 가진 사용자는 애초에 그 자격증명을 노드 설정에서 볼 수 있다. **워크스페이스 경계를 넘지 않는다.**
+> 2. **safe-by-construction → safe-by-convention** — 마스킹이 생성 시점 한 곳에서 각 egress 의 규율로 옮겨졌다. `NodeHandlerOutput.config` 에 raw/masked 브랜딩이 없어, 두 관문을 우회하는 **신규 egress** 가 생기면 컴파일러가 못 잡는다. 오늘의 출구는 둘뿐이고 둘 다 공유 마스커를 지나지만(실측), **새 출구를 여는 사람이 이 문단을 읽어야 한다.**
+>
+> 둘 다 **자격증명이 노드 `config` 에 평문 문자열로 앉는 자리**에서만 문제가 된다. 그 자리는 **생각보다 좁다** (2026-08-27 정정 — 초판은 *"HTTP Request · Send Email 등"* 이라 통째로 지목했는데, 두 노드 spec 을 실측하니 틀렸다):
+> 
+> - **Send Email 은 해당 없음** — 자격증명은 `integrationId` 가 가리키는 Integration 엔티티에서 오고 config 에 앉지 않는다 ([Send Email §1](../4-nodes/4-integration/3-send-email.md)).
+> - **HTTP Request 도 `authentication='integration'` 은 해당 없음** — 같은 `integrationId` 간접화다. 게다가 config echo 가 필드를 **명시 열거**하고 `url` 은 `sanitizeUrlCredentials` 결과로 교체한다 ([HTTP Request §4](../4-nodes/4-integration/1-http-request.md), Principle 7 D1).
+> - **실제로 남는 표면은 `authentication='custom'`** — 사용자가 `headers`/`body` 에 값을 직접 적는 모드다. 여기엔 스키마가 없으므로 간접화할 참조도 없다.
+> 
+> 즉 **간접화(`llmConfigId`/`integrationId`)는 이미 표준이고**, 근본 처방은 *"도입"* 이 아니라 *"사용자 자유입력 자리를 어떻게 다룰 것인가"* 다 — 그쪽이 훨씬 어렵다. 정본 트래커에 이 좁힌 형태로 등재한다. 신규 핸들러/integration 이 config 에 시크릿 평문을 싣지 않도록 하는 것은 그와 별개로 상시 불변식이다.
 
 ### R-6. EH-DETAIL-06(단일 노드) 과 EH-DETAIL-12(cross-node v2) 를 별도 ID 로 분리한 이유
 

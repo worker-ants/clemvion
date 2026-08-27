@@ -1527,7 +1527,7 @@ present-when-available 이므로, REST 만 `null` 로 정규화하면 위젯의 
     - **근거**: `GET /api/executions/:id` 에 `@Roles` 게이트가 없어 viewer 를 포함한 워크스페이스 멤버
       전원이 조회하고, 프런트가 실패 배너에 `error.message` 를 그대로 렌더한다.
       [실행 내역 R-5](../2-navigation/14-execution-history.md) 의 *"안전성은 롤 게이팅이 아니라 서버
-      boundary masking parity 에 의존"* 원칙과, 위 `execution.ai_message` 불릿(내부 WS·Chat Channel 도
+      egress masking parity 에 의존"* 원칙과, 위 `execution.ai_message` 불릿(내부 WS·Chat Channel 도
       마스킹 — 수용된 trade-off)의 선례가 같은 방향이다. **단 R-5 의 직접 대상은 Config 탭이라
       `Execution.error` 를 이미 규정하고 있지는 않다** — 원칙을 원용한 것이지 기존 판정이 아니다.
     - **DB 는 여전히 원문**(위 egress-only 원칙 불변). 서버 로그·사후 디버깅의 진실은 유지된다.

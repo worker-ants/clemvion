@@ -1,5 +1,4 @@
 import { NodeHandlerOutput } from '../../nodes/core/node-handler.interface.js';
-import { maskSensitiveFields } from '../../common/utils/mask-sensitive-fields.util';
 import { isRecord } from './utils/to-record.js';
 
 /**
@@ -28,15 +27,30 @@ export function adaptHandlerReturn(raw: unknown): NodeHandlerOutput {
   if (isNewShape(raw)) {
     const r = raw;
     return {
-      // INFO #5 (Security) — `config` 는 핸들러가 echo 한 raw config 다 (CONVENTIONS
-      // Principle 7). JSDoc 상 credential 은 핸들러가 strip 하도록 명시돼 있으나
-      // 런타임 강제가 없어 실수 leak 위험이 있었다. `maskSensitiveFields` 로
-      // boundary 에서 자동 마스킹 — DB 저장 / WS emit / 표현식 echo 모두 안전.
-      // (값 자체가 민감하지 않은 키는 영향 없음 — 키 이름 화이트리스트 매칭.)
-      config: (maskSensitiveFields(r.config ?? {}) ?? {}) as Record<
-        string,
-        unknown
-      >,
+      // `config` 는 핸들러가 echo 한 **원문** config 다 (CONVENTIONS Principle 7).
+      //
+      // **여기서 마스킹하지 않는다** (2026-08-24 변경). 종전엔 `maskSensitiveFields` 를
+      // 걸어 *"DB 저장 / WS emit / 표현식 echo 모두 안전"* 하게 만들었는데, 그 **표현식
+      // echo 까지 마스킹된 것**이 문제였다 — `migrate-node-output-refs.ts` 가 사용자
+      // 표현식을 `$node["<Label>"].config.<field>` 로 이주시키고 있어서, `apiKey` 류
+      // 이름의 config 필드를 다운스트림에서 참조하면 리터럴 `****abcd` 가 흘러간다.
+      // 가시성 저하가 아니라 **기능 오염**이다.
+      //
+      // **걷어내도 안전한 이유**: 두 egress 가 **각자 이미** 마스킹한다 —
+      // WS 는 `maskWireEnvelope`(모든 emit 이 지난다), REST 는
+      // `redactStoredDataForResponse`. 둘 다 **공유** `deepRedactSecrets*` 를 쓰고,
+      // 그 키 축(`CREDENTIAL_KEY_PATTERN`)이 `DEFAULT_SENSITIVE_KEYS` 를 **포함**한다
+      // (`mask-sensitive-fields.util.spec.ts` 의 포함관계 캐너리가 정본 구현으로 단언 —
+      // `DEFAULT_SENSITIVE_KEYS` 를 **직접 순회**하므로 목록이 넓어져도 자동 검사된다).
+      //
+      // 초판은 그 캐너리가 키를 **손으로 다시 나열**하고도 *"목록에서 파생"* 이라
+      // 적었다 — `10_53_52` 리뷰가 실증해 잡았다(egress 가 못 잡는 가상 키를 넣어도
+      // 전 스위트 GREEN). 상수를 export 해 진짜 파생으로 고쳤다.
+      //
+      // 즉 **새로 걸 출구가 없다** — 이 저장소가 반복해 겪은 *"출구 중 하나를 빠뜨린다"*
+      // 위험이 원리적으로 없는 형태다. DB 는 이제 원문을 보존하며, 그것이 EIA §R17 의
+      // **egress-only 원칙**과 정렬된다(config 만 storage-time 마스킹으로 예외였다).
+      config: r.config ?? {},
       output: r.output,
       ...(r.meta !== undefined ? { meta: r.meta } : {}),
       ...(r.port !== undefined ? { port: r.port } : {}),

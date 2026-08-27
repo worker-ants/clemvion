@@ -20,7 +20,8 @@ pending_plans:
 ## Principle 0 — `NodeHandlerOutput`의 5필드는 불변
 
 모든 노드 핸들러는 `{ config, output, meta?, port?, status? }` 형태의 객체를 반환합니다.
-- `config`: 해석된 설정값 (자격증명 제거)
+- `config`: 핸들러가 echo 한 **원문** 설정값 — 자격증명도 **원문 그대로** 담긴다.
+  마스킹은 저장 시점이 아니라 **egress(REST/WS)** 에서만 걸린다 ([Principle 7](#principle-7--config-echo-원칙-nodehandleroutputconfig), 2026-08-24 정정 — 종전 *"해석된 설정값 (자격증명 제거)"* 는 `handler-output.adapter.ts` 의 마스킹 boundary 를 전제한 서술이었고 그 boundary 는 제거됐다).
 - `output`: 후속 노드에 전달되는 **주 데이터**
 - `meta`: **실행 메타데이터** (duration, statusCode, tokens, logs)
 - `port`: 라우팅 포트 지시 (string | string[])
@@ -253,7 +254,7 @@ pending_plans:
 
 `_resumeCheckpoint` 는 §7.5 rehydration(재시작/타 인스턴스 재개)용으로 상시 영속되며, `_retryState` 와 **동일 부분집합 + 동일 masking 정책**이되 **`expiresAt`(TTL) 과 `lastUserMessage` 가 없다** (재개는 도착한 사용자 메시지를 그대로 처리, 장시간 idle 후에도 가능). 스키마 진화 대비 `schemaVersion`(정수) 을 동봉하며, 재개 시 그 값이 현재 코드 지원 버전을 초과하면 graceful reset 한다. 부재/손상/미래 버전 시 graceful reset (`RESUME_INCOMPATIBLE_STATE`); 재구성은 핵심 필드 누락 시 기본값으로 보강한다. 재구성 로직(`buildRetryReentryState`)은 `_retryState` 와 공유한다. 상세: [Spec 실행 엔진 §1.3 / §7.5](../5-system/4-execution-engine.md#13-블로킹재개-컨트랙트-nodehandleroutput-status).
 
-`_retryState` 포함 필드: `_resumeState` 동일 shape (messages / turnCount / model / temperature / maxTokens / knowledgeBases / RAG / MCP / pendingFormToolCall? 등) + `expiresAt: ISO 8601` (TTL — 기본 60분) + `lastUserMessage?: string` (실패한 turn 의 사용자 메시지 원문, `truncateForErrorDetails(500)` 로 cap — retry 재진입 시 replay 용. `_resumeState.messages` 는 turn 직전 스냅샷이라 실패 메시지를 포함하지 않으므로 별도 보관) + `lastUserMessageSource?: 'ai_message' | 'form_submitted'` (replay 출처). credential 제거 정책은 `_resumeState` 와 동일 (`maskSensitiveFields` 가 boundary 에서 strip). expression resolver / autocomplete 비노출. `lastUserMessage` 부재 시 (옛 payload 호환) replay 없이 wait loop 진입.
+`_retryState` 포함 필드: `_resumeState` 동일 shape (messages / turnCount / model / temperature / maxTokens / knowledgeBases / RAG / MCP / pendingFormToolCall? 등) + `expiresAt: ISO 8601` (TTL — 기본 60분) + `lastUserMessage?: string` (실패한 turn 의 사용자 메시지 원문, `truncateForErrorDetails(500)` 로 cap — retry 재진입 시 replay 용. `_resumeState.messages` 는 turn 직전 스냅샷이라 실패 메시지를 포함하지 않으므로 별도 보관) + `lastUserMessageSource?: 'ai_message' | 'form_submitted'` (replay 출처). credential 제거 정책은 `_resumeState` 와 동일 (~~`maskSensitiveFields` boundary~~ **allow-list 로 애초에 배제** — 그 boundary 는 2026-08-24 에 제거됐고, **이 배제는 그것과 무관**하다(`buildRetryState`/`buildResumeState` 가 옮길 키를 열거한다)). expression resolver / autocomplete 비노출. `lastUserMessage` 부재 시 (옛 payload 호환) replay 없이 wait loop 진입.
 
 소비: WS 명령 `execution.retry_last_turn` ([Spec WebSocket §4.2](../5-system/6-websocket-protocol.md#42-실행-제어-명령-client--server)) 이 `nodeExecutionId` 로 `_retryState` 를 lookup → `expiresAt` 검증 → 새 NodeExecution row 를 spawn → multi-turn loop 재진입. TTL 만료 또는 한 번 소비된 `_retryState` 는 `RETRY_STATE_NOT_FOUND` 에러 코드로 응답.
 
@@ -335,6 +336,18 @@ Waiting 시점 output 을 **그대로 유지** (immutable snapshot) 하고 `outp
 > 후속 노드는:
 > - `$node["X"].config.<field>` — 노드가 **어떻게 설정됐는가** (원본 템플릿)
 > - `$node["X"].output.<field>` — 노드가 **무엇을 실제로 생산/사용했는가** (평가 결과)
+>
+> **마스킹은 egress 에서만 한다 — 표현식은 원문을 읽는다** (2026-08-24 신설).
+> `config` 는 `NodeExecution.outputData` 에 **원문으로 저장**되고, 나가는 자리에서만 가려진다
+> (REST `redactStoredDataForResponse` · WS `maskWireEnvelope`, 둘 다 공유
+> `deepRedactSecrets*`). 위 `$node["X"].config.<field>` 소비 계약이 성립하려면 **원문이어야
+> 하기 때문**이다 — 종전엔 엔진 boundary(`handler-output.adapter.ts`)가 저장 전에 마스킹해
+> 그 참조가 리터럴 `****abcd` 를 읽었고, 그건 가시성 저하가 아니라 **기능 오염**이었다.
+> EIA §R17 의 **egress-only 원칙**과 같은 방향이고, 근거·경위는
+> [실행 내역 R-5 정정 블록](../2-navigation/14-execution-history.md).
+>
+> 그래서 **핸들러가 config 에 시크릿 평문을 싣지 않는 것**이 여전히 상시 불변식이다 —
+> egress 가 가리는 것은 키 축이 아는 이름뿐이고, DB 와 표현식은 원문을 본다.
 >
 > 두 영역의 직교성은 Principle 1.1 의 핵심 전제입니다. 핸들러가 `context.rawConfig` 를 echo 함으로써 이 직교성이 유지됩니다 (PRD `ENG-RC-*`, Spec [실행 엔진 §5.5](../../spec/5-system/4-execution-engine.md)).
 

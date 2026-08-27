@@ -1,0 +1,72 @@
+{
+  "session_dir": "/Volumes/project/private/clemvion/.claude/worktrees/masking-residuals-0b195b/review/code/2026/08/27/11_25_15",
+  "summary_subagent_type": "code-review-summary",
+  "summary_output_file": "/Volumes/project/private/clemvion/.claude/worktrees/masking-residuals-0b195b/review/code/2026/08/27/11_25_15/SUMMARY.md",
+  "router_subagent_type": "review-router",
+  "router_prompt_file": null,
+  "router_output_file": "/Volumes/project/private/clemvion/.claude/worktrees/masking-residuals-0b195b/review/code/2026/08/27/11_25_15/_routing_decision.json",
+  "routing_status": "skipped",
+  "routing_skip_reason": "REVIEW_AGENTS explicitly set",
+  "agents_forced": [
+    "documentation",
+    "requirement",
+    "security",
+    "testing"
+  ],
+  "agents_forced_reasons": {
+    "documentation": [
+      "문서 파일(.md/.txt/.rst/.adoc/LICENSE/CHANGELOG 등) 변경: CHANGELOG.md, plan/in-progress/masking-expression-egress-split.md, plan/in-progress/spec-sync-external-interaction-api-gaps.md (외 24건)"
+    ],
+    "requirement": [
+      "spec 본문 변경 — documentation 외에도 요구사항 일관성 검증 필요: spec/2-navigation/14-execution-history.md, spec/3-workflow-editor/4-ai-assistant.md, spec/4-nodes/3-ai/1-ai-agent.md (외 3건)",
+      "소스 코드 변경 — 코드 변경 시 항상 적용: codebase/backend/src/common/utils/mask-sensitive-fields.util.spec.ts, codebase/backend/src/common/utils/mask-sensitive-fields.util.ts, codebase/backend/src/modules/execution-engine/handler-output.adapter.spec.ts (외 2건)"
+    ],
+    "security": [
+      "소스 코드 변경 — 코드 변경 시 항상 적용: codebase/backend/src/common/utils/mask-sensitive-fields.util.spec.ts, codebase/backend/src/common/utils/mask-sensitive-fields.util.ts, codebase/backend/src/modules/execution-engine/handler-output.adapter.spec.ts (외 2건)"
+    ],
+    "testing": [
+      "소스 코드 변경 — 코드 변경 시 항상 적용: codebase/backend/src/common/utils/mask-sensitive-fields.util.spec.ts, codebase/backend/src/common/utils/mask-sensitive-fields.util.ts, codebase/backend/src/modules/execution-engine/handler-output.adapter.spec.ts (외 2건)"
+    ]
+  },
+  "agents_skipped": [],
+  "subagent_invocations": [
+    {
+      "name": "security",
+      "subagent_type": "security-reviewer",
+      "prompt_file": "/Volumes/project/private/clemvion/.claude/worktrees/masking-residuals-0b195b/review/code/2026/08/27/11_25_15/_prompts/security.md",
+      "output_file": "/Volumes/project/private/clemvion/.claude/worktrees/masking-residuals-0b195b/review/code/2026/08/27/11_25_15/security.md"
+    },
+    {
+      "name": "testing",
+      "subagent_type": "testing-reviewer",
+      "prompt_file": "/Volumes/project/private/clemvion/.claude/worktrees/masking-residuals-0b195b/review/code/2026/08/27/11_25_15/_prompts/testing.md",
+      "output_file": "/Volumes/project/private/clemvion/.claude/worktrees/masking-residuals-0b195b/review/code/2026/08/27/11_25_15/testing.md"
+    },
+    {
+      "name": "requirement",
+      "subagent_type": "requirement-reviewer",
+      "prompt_file": "/Volumes/project/private/clemvion/.claude/worktrees/masking-residuals-0b195b/review/code/2026/08/27/11_25_15/_prompts/requirement.md",
+      "output_file": "/Volumes/project/private/clemvion/.claude/worktrees/masking-residuals-0b195b/review/code/2026/08/27/11_25_15/requirement.md"
+    },
+    {
+      "name": "documentation",
+      "subagent_type": "documentation-reviewer",
+      "prompt_file": "/Volumes/project/private/clemvion/.claude/worktrees/masking-residuals-0b195b/review/code/2026/08/27/11_25_15/_prompts/documentation.md",
+      "output_file": "/Volumes/project/private/clemvion/.claude/worktrees/masking-residuals-0b195b/review/code/2026/08/27/11_25_15/documentation.md"
+    }
+  ],
+  "agents_pending": [
+    "security",
+    "testing",
+    "requirement",
+    "documentation"
+  ],
+  "agents_success": [],
+  "agents_fatal": [],
+  "agent_history": {},
+  "rate_limit_episodes": 0,
+  "total_wait_sec": 0,
+  "wake_history": [],
+  "last_reset_hint_sec": null,
+  "loop_mode": false
+}

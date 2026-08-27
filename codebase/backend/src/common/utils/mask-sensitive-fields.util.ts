@@ -1,4 +1,13 @@
-const DEFAULT_SENSITIVE_KEYS: ReadonlySet<string> = new Set(
+/**
+ * **테스트가 이 상수에서 직접 파생하도록 export 한다** (2026-08-24).
+ *
+ * config echo 의 안전성이 *"이 목록 ⊆ egress 마스커의 키 축"* 이라는 포함관계에
+ * 의존하는데(`handler-output.adapter.ts` 참조), 그 캐너리가 목록을 **손으로 다시
+ * 나열**하면 목록이 넓어져도 새 키를 검사하지 않는다 — 실제로 그렇게 썼다가
+ * `10_53_52` 리뷰가 잡았다(가상 신규 키를 넣어도 전 스위트 GREEN 이었다).
+ * 런타임 소비처는 이 export 를 쓰지 않는다.
+ */
+export const DEFAULT_SENSITIVE_KEYS: ReadonlySet<string> = new Set(
   [
     'apiKey',
     'api_key',
@@ -19,9 +28,16 @@ const DEFAULT_SENSITIVE_KEYS: ReadonlySet<string> = new Set(
     // 새 접두형을 만나면 여기에 더한다.
     //
     // **blast radius 를 실측했다 — 다만 정적 grep 이 닿는 범위까지다**
-    // (`16_46_56` side_effect W1 → `17_14_18` W1 이 그 한계를 짚었다). 이 상수는
-    // `handler-output.adapter.ts` 도 쓰고, 그쪽은 노드 `config` echo 를 DB·WS·표현식으로
-    // 내보낸다 — 비-자격증명 config 필드가 이 이름들과 겹치면 멀쩡한 값이 가려진다.
+    // (`16_46_56` side_effect W1 → `17_14_18` W1 이 그 한계를 짚었다).
+    //
+    // **소비처는 이제 `explore-tools.service.ts` 하나다** — 실행 행의 `inputData` /
+    // `outputData` / `error` 를 `deepRedactSecrets(maskSensitiveFields(v))` 로 겹쳐 가린
+    // 뒤 LLM 컨텍스트로 내보낸다. 과잉 마스킹 성질은 그대로다 — 비-자격증명 필드가 이
+    // 이름들과 겹치면 멀쩡한 값이 가려진다.
+    //
+    // ~~이 상수는 `handler-output.adapter.ts` 도 쓰고, 그쪽은 노드 `config` echo 를
+    // DB·WS·표현식으로 내보낸다.~~ **그 소비처는 2026-08-24 에 사라졌다** — config echo 는
+    // 이제 egress(`deepRedactSecrets*`)에서만 가려지고 표현식은 원문을 읽는다.
     //
     // **잰 것**: 노드 소스의 **정적 config 필드명** 전수 grep → 충돌 0건. 정확 일치 후보는
     // `http-request.handler.ts` 의 `auth_token` 하나뿐인데 그건 **URL 쿼리파라미터**

@@ -512,6 +512,50 @@ checker 가 독립적으로** "인용이 가리키는 절이 오히려 반대를
       > 이번 조치의 실제 효과는 "REST 와 같아진다" 가 아니라 **WS/SSE/webhook 종결 경로에
       > 값-패턴 마스킹이 생긴다** 이다.
 
+- [ ] **자격증명을 노드 `config` 에 평문으로 담는 노드 타입 — 참조 간접화 검토**
+      (2026-08-27 등재, `10_53_52` security W2 · architecture W3).
+      > config echo 마스킹을 egress 로 옮기면서(`masking-expression-egress-split`) 두 대가가
+      > 드러났다: **크로스-노드 자격증명 릴레이**(표현식이 원문을 읽으니 한 노드의 `apiKey` 를
+      > 다른 노드로 실어 보낼 수 있다)와 **safe-by-convention 으로의 이동**(새 egress 를 여는
+      > 사람이 규율을 지켜야 한다).
+      > **둘 다 자격증명이 `config` 에 평문으로 들어가는 자리**에서만 문제가 된다.
+      >
+      > ⚠️ **전제 정정 (2026-08-27 실측, `13_47_15` cross_spec W1)** — 이 항목이 스스로
+      > *"평문 자격증명을 담는 노드 타입이 실제로 몇 개인가를 재야 한다"* 고 적어 뒀고,
+      > 그걸 쟀다. **초판의 "HTTP Request · Send Email 등" 은 틀렸다**:
+      >
+      > | 대상 | 실측 | 판정 |
+      > | --- | --- | --- |
+      > | AI Agent | `llmConfigId` 참조 | 해당 없음 (초판도 동일) |
+      > | **Send Email** | `integrationId` 가 가리키는 Integration 엔티티에서 자격증명 해소 | **해당 없음** |
+      > | **HTTP Request** `authentication='integration'` | 같은 `integrationId` 간접화. 게다가 config echo 가 필드를 **명시 열거**하고 `url` 은 `sanitizeUrlCredentials` 로 교체 (Principle 7 D1) | **해당 없음** |
+      > | **HTTP Request** `authentication='custom'` | 사용자가 `headers`/`body` 에 **직접 입력** | **유일하게 남는 표면** |
+      >
+      > **따라서 "근본 처방 = 간접화 도입" 이라는 프레이밍이 틀렸다.** 간접화
+      > (`llmConfigId`/`integrationId`)는 **이미 표준**이고, 남은 문제는 *"스키마가 없는
+      > 사용자 자유입력 자리를 어떻게 다룰 것인가"* 다 — 간접화할 **참조 대상이 없으므로**
+      > 같은 처방이 안 듣는다. 그쪽이 훨씬 어렵다.
+      >
+      > **왜 틀렸나**: 두 노드의 spec 을 안 읽고 *"integration 노드니까 config 에 자격증명이
+      > 있겠지"* 로 추정해 썼다. 이 오류를 R-5 W2 에도 그대로 실어 spec 에 남길 뻔했다
+      > (같은 라운드가 잡았다).
+      >
+      > **미판정으로 남긴다**: 대상이 좁아졌지만 스키마 없는 자유입력이라 처방이 더 어렵다.
+      > 재개 전에 `authentication='custom'` 실사용 빈도를 먼저 재는 편이 낫다.
+      >
+      > **동반 점검 (2026-08-27 등재, `14_10_42` security W1)**: config 가 DB 에 원문으로
+      > 앉으면 노출 표면이 REST/WS 두 egress **밖**으로도 넓어진다 — DB 백업·복제본·직접
+      > `psql` 조회·감사 export·리포팅/ETL 파이프라인. 이 PR 은 두 egress 만 다뤘다.
+      > **그 제3경로들이 `config` 원문을 재유출하지 않는지는 아직 안 쟀다** — 간접화 처방과
+      > 별개로 점검이 필요하다(원문 저장 자체는 `Execution.error` 와 동일 정책이므로 새 정책은
+      > 아니지만, 담기는 값의 민감도가 올라갔다).
+      > **워크스페이스 경계는 넘지 않는다** — 작성 권한자는 애초에 그 값을 노드 설정에서 본다.
+
+- [ ] **`chatChannel` 라우팅 컨텍스트만 좁은 마스커를 받는다** (2026-08-24 등재, `19_26_06` plan W6 이 드러낸 것).
+      > `CREDENTIAL_KEY_PATTERN` 이 **두 번 선언**돼 있고 실제로 다르다 — `sanitize-error-message.ts` 는 `x[_-]api[_-]?key` 를 갖고 `websocket.service.ts` 의 로컬본은 **없다**(실측).
+      > **config echo 경로는 영향 없다**(실측: `maskWireEnvelope` 도 공유본을 쓴다). 좁은 로컬본을 받는 것은 `sanitizePayloadForWs(ctx.chatChannel)` **라우팅 컨텍스트 하나**다 — 거기 `x-api-key` 키가 실린다면 WS 에서만 안 가려진다.
+      > **미판정으로 남긴다**: 그 컨텍스트가 실제로 그런 키를 담는지 먼저 재야 하고, 담지 않으면 두 선언을 합치는 것이 순수 위생 작업이다. 합칠 때는 **넓은 쪽으로** 합쳐야 한다(좁은 쪽으로 합치면 REST 가 후퇴한다).
+
 - [ ] **잔여 — 자격증명 **없는** 연결 문자열·내부 호스트명·스택 프래그먼트는 여전히 통과**
       (2026-08-16 등재, `09_51_00` requirement W1). `SECRET_LEAK_PATTERNS` 는 자격증명을
       겨냥한다 — 무수정 프로브로 `postgres://db.internal:5432/prod` 무변화 확인.
@@ -585,7 +629,8 @@ checker 가 독립적으로** "인용이 가리키는 절이 오히려 반대를
       "유출 가능성" 이 아니라 **최상위 마스킹의 완전 우회**였다. 심각도를 격상해 기록한다.
       → `findById` 의 `nodeExecutions[]` + 자매 `background-runs` body 노드에 마스킹 적용
 
-- [ ] **`DEFAULT_SENSITIVE_KEYS` 의 실질 위험은 정적 grep 으로 못 닫는다** (2026-08-23 등재,
+- [x] **`DEFAULT_SENSITIVE_KEYS` 의 실질 위험은 정적 grep 으로 못 닫는다** (2026-08-23 등재,
+      > **해소 (2026-08-24, `masking-expression-egress-split`)** — 이 항목의 재개 신호(*"config echo 를 다운스트림 표현식이 실제로 읽는 사례"*)가 **가장 강한 형태로 발화**했다: `migrate-node-output-refs.ts` 가 사용자 표현식을 `$node["X"].config.<field>` 로 **이주시키고** 있었다. 지정된 조치 **(a) 표현식 경로만 마스킹 제외**를 집행 — 어댑터의 `maskSensitiveFields` 를 걷어내 표현식·DB 는 원문, egress(REST/WS)만 마스킹으로 정렬했다. 안전 전제(두 마스커의 키 축 포함관계)는 **정본 구현 실행**으로 확인하고 목록에서 파생한 캐너리로 못박았다.
       `17_14_18` side_effect W1). 이 목록을 넓힐 때마다 *"노드 config 필드명과 겹치나"* 를
       재는데, **HTTP Request · Send Email 노드의 `headers`/`body` 는 사용자가 키 이름을 직접
       정한다** — 정적 분석으로는 원리적으로 안 보인다.
@@ -598,7 +643,9 @@ checker 가 독립적으로** "인용이 가리키는 절이 오히려 반대를
       > 그때 조치는 (a) 표현식 경로만 마스킹 제외하거나 (b) 표면별 키 목록을 분리하는 것 —
       > (b)는 두 목록 손 동기화 비용이 있어 (a)를 먼저 검토한다.
 
-- [ ] **자매 표면 `handler-output.adapter.ts` 의 값 축은 아직 열려 있다** (2026-08-23 등재,
+- [x] **자매 표면 `handler-output.adapter.ts` 의 값 축은 아직 열려 있다** (2026-08-23 등재,
+      > **전제가 바뀌어 재기술 (2026-08-24)** — 이 항목은 *"키 축만 걸려 있으니 값 축을 마저 걸자"* 였다. 그런데 위 항목 처리로 **어댑터의 키 축 마스킹 자체가 사라졌다** — 이제 이 표면은 마스킹을 **하지 않고**, egress 가 값 축·키 축을 **둘 다** 건다. **즉 원래 형태의 이 항목은 대상이 없다.**
+      > **남는 질문은 방향이 반대다**: 어댑터가 아니라 **egress 의 값 축**이 config 를 충분히 덮는가. `deepRedactSecrets` 가 이미 `SECRET_LEAK_PATTERNS`(`Bearer …` 등)를 걸므로 대체로 덮이고, 안 덮이는 것은 아래 *"자격증명 없는 연결 문자열·내부 호스트명"* 항목과 **같은 잔여**다. 그쪽으로 합류시킨다.
       위 항목에서 **의도적으로 분리**). 노드 `config` echo 를 `maskSensitiveFields` **키 축만**
       으로 가린다 — 자유 텍스트 안의 `Bearer …`·자격증명 URI 는 그대로 통과한다.
       > **왜 같이 안 닫았나**: 그 값은 **DB 저장 · WS emit · 표현식 echo** 로 흐른다. 값 축을
@@ -746,6 +793,29 @@ checker 가 독립적으로** "인용이 가리키는 절이 오히려 반대를
       > 증거로 적을 뻔했다.
       > **미착수 사유**: 사용자 요청 범위(예외 명문화) 밖의 하네스 변경이다. 6건 중
       > `CHANGELOG.md:1060` 은 과거 기록이라 처분이 갈리므로 결정이 하나 섞인다.
+      > ⚠️ **전제 정정 (2026-08-27 실측, C 작업 중)** — 이 항목을 "스코프가 좁다" 로만 적은
+      > 것이 사실을 가렸다. 실제로는 **세 가지**가 더 있다:
+      >
+      > 1. **`check-doc-links.py` 는 어디에도 배선돼 있지 않다.** `.github/`·`.claude/`·
+      >    `Makefile`·`scripts/` 전역 grep 에서 호출처 **0건**. 스코프를 넓혀도 **아무도 안
+      >    돌리므로 아무것도 안 지켜진다** — 배선이 스코프보다 먼저다.
+      > 2. **지금 `origin/main` 에서 이미 exit 1 이다** (`BROKEN=2`). 내 변경과 무관하며
+      >    두 파일 다 내 diff 밖·`origin/main` 과 동일. 안 돌리니 아무도 몰랐다.
+      > 3. **둘 다 오탐이고, 배선된 검사기는 이 둘을 안 문다.**
+      >    `spec-impl-evidence.md:132` 은 백틱 코드스팬 안의 `[..](path)`,
+      >    `1-widget-app.md:62` 는 **ASCII 상태도**의 `[panel](transient)` — 코드스팬이
+      >    아니라 그냥 다이어그램이다(스팬 제외만으론 못 잡는다).
+      >    `spec-link-integrity.test.ts` 는 **scope (1) 이 동일한 `spec/**.md`** 인데도
+      >    통과한다 — 즉 **같은 스코프에 다른 판정**이고, 배선된 쪽이 맞다.
+      >
+      > **처분 방향 (재설계)**: 넓힐 대상은 unwired 인 `check-doc-links.py` 가 아니라
+      > **build 를 차단하는 `spec-link-integrity.test.ts`** 다. `check-doc-links.py` 는
+      > 열등 중복이라 **삭제 후보** — 남긴다면 배선이 조건이고, 배선하려면 오탐 2건이
+      > 선결이다. 원래 적은 "6건" 은 **오탐 섞인 수**이므로 대상 검사기를 바꿔 다시 재야
+      > 한다. `PROJECT.md:50` 의 썩은 앵커는 검사기와 무관하게 유효한 실현 사례로 남는다.
+      >
+      > **왜 틀렸나**: `... | tail -3; echo exit=$?` 로 종료코드를 읽어 **`tail` 의 0** 을
+      > 스크립트의 0 으로 착각했다. 파이프 뒤 `$?` 는 마지막 명령의 것이다.
 
 - [x] ~~Docker Hub 익명 pull rate limit — CI 에 레지스트리 인증/미러 도입~~ →
       **won't-do (2026-08-23 사용자 결정)**. `#1202` 의 e2e 가 `minio` pull 에서
@@ -1609,6 +1679,96 @@ consistency `--impl-prep`(`15_35_56`, 2026-08-22)가 하나 더 냈다 — 역�
 > 부산물로 파생되면** 별도 PR 로 분리하는 편이 낫다. 이번엔 분리하지 않았다 — 두 가드가
 > 이 PR 의 wrapper 와 `typescript` import 를 각각 전제해서, 분리하면 그 사이 커밋 구간에
 > **가드 없이 코드만 있는 상태**가 생긴다. 대신 CHANGELOG 에 범위 초과를 명시했다.
+
+## 리뷰 타겟 재실행이 forced 커버리지 자기검사를 공허하게 만든다 (2026-08-27 등재, `12_52_43` W2)
+
+- [ ] **`Workflow(ai-review)` 에 좁힌 `agents_forced` 를 넘기면, 요약 에이전트가 그 좁힌
+      목록에 대해서만 커버리지를 검사한다** — orchestrator 가 `meta.json`/`_retry_state.json`
+      에 기록한 **진짜** forced 목록과 대조하지 않는다.
+      > **실측 (2026-08-27)**: `masking-expression-egress-split` 의 2~5라운드를 전부
+      > 타겟(4명 → 2명)으로 돌리며 `agents_forced` 도 그만큼 좁혀 넘겼다. 매 라운드 SUMMARY 가
+      > *"forced 전원 결과 확보됨 — 누락 없음"* 이라 적었지만, `meta.json` 기준 forced 는
+      > **7명**이었다:
+      > ```
+      > 12_28_26 → missing forced: maintainability, scope, side_effect
+      > 12_52_43 → missing forced: maintainability, requirement, scope, security, side_effect
+      > ```
+      > 그래서 push 게이트가 두 세션을 **resolved 로 세지 않았고**(`_summary_is_resolved` 의
+      > 조건 1), `newest_review` 가 3라운드(`12_00_05`)로 잡혀 차단됐다. 게이트 결함이
+      > 아니라 **내가 만든 상태**였고, 게이트가 정확히 그 구멍을 막고 있었다.
+      >
+      > **왜 위험한가**: 실패가 조용하다. SUMMARY 는 초록으로 끝나고, 막히는 건 한참 뒤
+      > push 시점이며, 그때 나오는 메시지(*"코드가 리뷰 뒤에 수정됐다"*)는 **원인을 가리키지
+      > 않는다** — 나는 처음에 timestamp 오탐으로 오진했다. 술어를 읽고서야 알았다.
+      >
+      > **진단법**: `_forced_coverage_missing(<session_dir>)` 를 직접 호출한다. 세션 시각과
+      > 코드 커밋 시각을 비교하기 **전에** 이걸 먼저 봐야 한다.
+      >
+      > **처분 후보** (택일 아님, 조사 필요): (a) 요약 에이전트가 넘겨받은 목록 대신
+      > `meta.json` 의 `agents_forced` 를 읽게 한다 — 자기검사가 입력에 의존하지 않게.
+      > (b) orchestrator 가 `--agents` 를 받아 forced 목록 자체를 좁혀 기록하게 한다.
+      > (a) 가 옳아 보이지만 forced 화이트리스트의 **취지**(축소 불가)를 확인해야 한다.
+
+## `config` 장기 참조 × egress identity 캐시 (2026-08-27 등재, `12_52_43` W4, **오늘은 도달 불가**)
+
+- [ ] **`DEEP_REDACT_CACHE` 는 객체 identity 로만 키를 잡는다** — *"같은 identity ⇒ 같은
+      내용"* 전제다. config echo 마스킹을 걷어내며 `setStructuredOutput` 이 핸들러 원본을
+      참조로 장기 보관하게 됐으므로, 그 전제가 이론상 약해진다.
+      > **실측으로 좁힌 도달 조건 — 둘 다 필요하고 둘 다 오늘 거짓이다**:
+      > 1. 핸들러가 **반환 후** 자기 `config` 를 변형한다 → 오늘 그런 핸들러는 없고,
+      >    `execution-context.service.spec.ts` 의 캐너리가 그 동작을 명시적으로 고정해 뒀다.
+      > 2. **같은 top-level 객체**가 `deepRedactSecrets` 에 두 번 들어간다 → 캐시 키는
+      >    depth-0 인자다. REST 는 `redactStoredDataForResponse(row.outputData)` 로 **쿼리마다
+      >    새 객체**이고, WS 변형 `deepRedactSecretsPreserving` 은 **캐시를 아예 안 쓴다**
+      >    (그 함수 JSDoc 이 이유까지 적어 뒀다 — 옵션이 다르면 같은 캐시를 쓰면 안 된다).
+      >
+      > **재개 신호**: 핸들러가 반환 후 config 를 변형하는 사례가 생기거나, egress 진입점이
+      > in-memory 캐시 객체를 **그대로** depth-0 인자로 넘기게 바뀔 때. 리뷰어도 재현 경로를
+      > 확증하지 못했다고 명시했다 — 그 판정을 그대로 싣는다.
+
+## `config` aliasing 계약이 `node-output.md` mutation-보호 단락에 없다 (2026-08-27 등재, `13_47_15` INFO 6)
+
+- [ ] **`node-output.md` 의 mutation 보호 서술은 `context.rawConfig` freeze(엔진→핸들러 방향)만
+      다룬다** — 2026-08-24 에 생긴 **반대 방향** 계약(핸들러가 반환한 `config` 객체가
+      `structuredOutputCache` 에 **참조로** 눕는다)이 그 단락에 없다.
+      > 계약 자체는 `execution-context.service.ts` JSDoc + 캐너리 2건으로 코드에 고정돼 있다.
+      > 빠진 것은 **규약 문서의 커버리지**다. `node-output.md` 를 다른 이유로 열 때 한 줄 넣는다.
+      > 관련: 같은 라운드 W4(`DEEP_REDACT_CACHE` identity 전제)의 전제 1 이 바로 이 계약이다.
+
+## 이 PR 이전 실행을 predecessor 로 시딩하면 `config` 가 여전히 마스킹값이다 (2026-08-27 등재, `14_10_42` INFO 7)
+
+- [ ] **storage-format 전환은 과거 row 에 소급되지 않는다** — 단일 노드 디버그 재실행이
+      `seedSingleNodePredecessorOutputs` 로 **2026-08-24 이전에 저장된** 실행을 predecessor 로
+      시딩하면, 그 `config` 는 옛 boundary 가 남긴 `****abcd` 형태 그대로 캐리된다.
+      > 표현식이 그 값을 읽으면 **마스킹 문자열**을 읽는다 — 이 PR 이 고치려던 바로 그 증상이
+      > 과거 실행에 대해서는 남는다. 일반적 마이그레이션 한계이고 신규 결함이 아니다.
+      > **처분 후보**: (a) 무조치 + 문서화(과거 실행은 재실행하면 새 값을 얻는다),
+      > (b) 시딩 시점에 마스킹 마커를 감지해 경고. **먼저 잴 것**: 그 경로가 실제로 얼마나
+      > 쓰이는지, 그리고 마스킹 마커(`****`)가 정상 값과 구별 가능한지.
+
+## 형제 리뷰어의 뮤테이션이 다른 리뷰어의 관측을 오염시킨다 (2026-08-27 등재, `14_10_42` INFO 9)
+
+- [ ] **같은 fan-out 안의 reviewer 들이 같은 워크트리에서 동시에 뮤테이션을 돌린다** —
+      한 리뷰어가 캐너리 검증차 소스를 고치는 동안 다른 리뷰어가 그 상태를 읽는다.
+      > **실측 (2026-08-27)**: requirement 리뷰어가 *"이 diff 와 무관한 미커밋 뮤테이션
+      > 잔여물(`DEFAULT_SENSITIVE_KEYS` 에 `oauthCred` 삽입) — **다른 병렬 세션**의 산물로
+      > 추정"* 이라 보고했다. 실제로는 **같은 라운드의 testing 리뷰어**가 캐너리를 재현하려
+      > 넣은 것이다(그 리뷰어가 뮤테이션 재현 성공을 보고했다). 다른 세션이 아니다.
+      > 라운드 종료 후 작업트리·HEAD 모두 clean 확인 — **실질 오염은 남지 않았다**.
+      >
+      > **왜 등재하는가**: (1) 관측이 **잘못된 원인**("다른 세션")으로 보고돼 조사 비용을
+      > 유발한다. (2) 타이밍이 조금만 달랐다면 형제 리뷰어가 **뮤턴트 상태의 소스를 읽고**
+      > 없는 결함을 보고하거나 있는 결함을 놓쳤을 것이다. 이번엔 운이 좋았을 뿐이다.
+      > (3) 이 저장소는 **이미 같은 클래스를 겪었다** — 셋이 같은 유령을 쫓고 하나가
+      > `git restore` 로 남의 트리를 되돌린 적이 있다.
+      >
+      > **실측된 갭**: 완화책이 프롬프트에 **없다** — `_prompts/testing.md` 에
+      > `scratch`·`git restore`·`병렬` 언급 **각 0건**(grep). 즉 종전 교훈이 reviewer 프롬프트
+      > 생성 경로에 반영된 적이 없다.
+      >
+      > **처분 후보**: reviewer 프롬프트 공통 머리말에 (a) 뮤테이션은 scratch 사본에서,
+      > (b) `git restore`/`git checkout` 금지(다른 리뷰어의 작업을 지운다),
+      > (c) **형제 리뷰어가 동시 실행 중**임을 고지 — 셋을 넣는다. 원복은 `cp` 백업으로.
 
 ## 후속 (cross-cutting, 본 spec 밖)
 - [x] **Redis fixed-window rate-limiter INCR+EXPIRE 원자화** — `PublicWebhookQuotaService.incrWithWindow` 를 `INCR + EXPIRE ... NX` 단일 pipeline(매 요청)으로 교정해 TTL 유실 self-heal (fail-closed 잠금 창 제거). `ChatChannelRateLimiterService` 는 **이미** 동일 `INCR + EXPIRE NX` 단일 pipeline 패턴이라 무변경(점검 완료). `InteractionRateLimiterService`(item 5)는 Lua EVAL — 세 서비스 모두 원자/self-heal 확보. (PR #843 ai-review concurrency WARNING 후속, `task_fa5c5e84`.)

@@ -3277,7 +3277,10 @@ export class AiTurnExecutor {
     // spec §7.9 / execution-engine §1.3 — retryable error 종결 시에만 top-level
     // `_retryState` 를 운반한다. `_resumeState` 의 부분집합 + `expiresAt` (TTL).
     // credential (llmConfigId 가 가리키는 provider secret) 은 포함하지 않으며
-    // `maskSensitiveFields` boundary 와 동일 정책. retryable !== true 면 미동봉.
+    // credential 은 **allow-list 로 애초에 배제**한다 — 아래 `_resumeState` 와 같은 정책.
+    // (~~`maskSensitiveFields` boundary 와 동일 정책~~ → 그 boundary 는 2026-08-24 에
+    //  제거됐다. 이 배제는 그것과 **무관**하게 allow-list 로 성립한다.)
+    // retryable !== true 면 미동봉.
     // `details` 는 `unknown` 이라 `retryable` 접근을 위해 narrowing 캐스트가
     // 필요하다. eslint `no-unnecessary-type-assertion` 은 tsc 와 타입 분석이
     // 엇갈려 이를 "불필요" 로 오판정하는데, 제거하면 tsc 가 TS2339("Property
@@ -3348,8 +3351,11 @@ export class AiTurnExecutor {
    * re-run the failed last turn) + `expiresAt` (ISO 8601 TTL).
    *
    * Credentials (the `llmConfigId` that points at a provider secret) are NOT
-   * included — same masking policy as `_resumeState` (`maskSensitiveFields`
-   * boundary strip). We deliberately allow-list the carried keys rather than
+   * included — same policy as `_resumeState`: the carried keys are
+   * **allow-listed**, so credentials never enter in the first place.
+   * (Formerly cited the `maskSensitiveFields` boundary strip; that boundary
+   *  was removed on 2026-08-24 — this exclusion never depended on it.)
+   * We deliberately allow-list the carried keys rather than
    * spread the whole state so no secret / oversized bookkeeping leaks in.
    */
   private static buildRetryState(

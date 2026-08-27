@@ -51,6 +51,10 @@ code:
 
 > **"값" 열은 깊이 값이지 행 번호가 아니다.** 지금 네 상한이 전부 `10` 이지만, 표 2·3행은 표 1행을 참조하고 표 4행은 **독립 선언**이라 우연히 같을 뿐이다. 본 문서의 산문은 행을 지칭할 때 항상 **"표 N행"** 으로 적는다.
 
+> **`maskSensitiveFields` 는 이 좌표계 표에 행이 없다** (2026-08-24 명시). 종전 소비처는 `handler-output.adapter.ts`(노드 `config` echo)와 `explore-tools.service.ts`(workflow-assistant) 둘이었는데, **전자가 제거됐다** — config echo 를 표현식이 읽는데 마스킹돼 있어 기능 오염을 냈기 때문이다([실행 내역 R-5 정정](../2-navigation/14-execution-history.md)). 남은 소비처는 **깊이 상한을 갖지 않아** 이 표의 축(깊이)에 해당하지 않는다.
+>
+> **대신 지켜야 할 축이 하나 생겼다** — config echo 는 이제 egress 의 `deepRedactSecrets*` **하나에만** 의존하므로, 그 키 축이 `DEFAULT_SENSITIVE_KEYS` 를 **포함**해야 한다. `mask-sensitive-fields.util.spec.ts` 의 포함관계 캐너리가 정본 구현으로 그것을 단언한다 (목록에서 파생하므로 목록이 넓어져도 자동 검사).
+
 **표 5행**의 호출부 2곳: `InteractionService` 의 공개 표면 조립부가 `MAX_REDACT_DEPTH` 를, `WebsocketService.toFanoutEnvelope` 이 `MAX_SANITIZE_DEPTH` 를 넘긴다. **`stripExternalOnlyFields` 는 자기 상한을 갖지 않는다** — 표면마다 자매 sanitizer 와 어긋나면 strip 이 닿지 않는 층에 마스킹만 걸리거나 그 반대가 된다.
 
 > **⚠️ 이름이 한 단어 차이인 스캐너가 둘 있다**: backend `hasMaskedLeaf`(`reject-masked-resubmission.ts`, 표 2행) 와 frontend `hasMaskedMarkerLeaf`(`lib/utils/masked-markers.ts`, 표 3행). **같은 상한을 공유하지만 파일도 스택도 다르다** — 한쪽만 고치고 *"양쪽 고쳤다"* 고 적는 사고가 PR #1190 에서 두 번 났다.
