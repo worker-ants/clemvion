@@ -116,6 +116,50 @@ class VerdictTest(_RepoFixture):
         )
         self.assertEqual(verdict(out), "true", out)
 
+    def test_git_glob_magic_confines_star_to_the_root_segment(self):
+        """`:(glob)*.md` 가 **실행 계층에서** 루트 세그먼트에 갇히는지.
+
+        `spec-link-checks.yml` 이 거버넌스 문서(루트 `*.md`)를 트리거하려고 이 매직을
+        쓴다. 매직 없이 `*.md` 를 쓰면 git pathspec 의 `*` 가 `/` 를 넘어 `spec/`·`plan/`·
+        `review/` 의 모든 `.md` 를 잡아, 사실상 모든 PR 에서 가드가 돈다.
+
+        이 저장소는 그 반대 방향(트리거가 **안 도는** 갭)을 여섯 번 겪었고, 이번엔 그
+        수정이 **수동 실측에만** 근거하고 있었다 (`17_52_44` testing W3). 실행 계층에
+        고정한다 — 아래 두 단언이 갈려야 매직이 실제로 일하는 것이다.
+        """
+        # (a) 루트 `.md` → 잡힌다
+        head = self.commit("root-doc.md")
+        rc, out = run_script(
+            self.repo, ":(glob)*.md",
+            PR_BASE_SHA=self.base, PR_HEAD_SHA=head,
+        )
+        self.assertEqual(rc, 0, out)
+        self.assertEqual(verdict(out), "true", out)
+
+        # (b) 한 칸 아래 `.md` → 안 잡힌다. **매직이 없으면 이쪽도 true 가 된다.**
+        head2 = self.commit("nested/deep.md")
+        rc, out = run_script(
+            self.repo, ":(glob)*.md",
+            PR_BASE_SHA=head, PR_HEAD_SHA=head2,
+        )
+        self.assertEqual(rc, 0, out)
+        self.assertEqual(verdict(out), "false", out)
+
+    def test_without_the_magic_the_star_crosses_slashes(self):
+        """위 테스트의 **대조군** — 매직을 뺀 `*.md` 는 중첩 경로도 잡는다.
+
+        이 케이스가 없으면 (b) 가 *"매직 덕분에 false"* 인지 *"`*.md` 가 원래 루트만
+        잡아서 false"* 인지 구별되지 않는다. 즉 위 테스트 혼자서는 매직의 기여를
+        관측하지 못한다.
+        """
+        head = self.commit("nested/deep.md")
+        rc, out = run_script(
+            self.repo, "*.md",
+            PR_BASE_SHA=self.base, PR_HEAD_SHA=head,
+        )
+        self.assertEqual(rc, 0, out)
+        self.assertEqual(verdict(out), "true", out)
+
     def test_the_real_manifest_pathspecs_match_every_depth(self):
         """실사용 pathspec 을 **문자열 그대로** 놓고 깊이 0/1/2 를 각각 단언한다.
 

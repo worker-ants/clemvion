@@ -196,13 +196,31 @@ def _filter_to_regex(filt: str) -> re.Pattern:
     return re.compile("^" + "".join(out) + "$")
 
 
+# git pathspec 의 `:(glob)` 매직. 이 접두가 붙으면 git 의 `*` 가 **`/` 를 넘지 않게** 되어
+# 아래 `_filter_to_regex` 가 이미 구현한 GitHub 의미와 **정확히 같아진다** — 그래서 벗겨
+# 내고 같은 규칙으로 판정하는 것이 옳다.
+#
+# 왜 필요한가 (2026-08-27): 이 모듈은 GitHub Actions `paths:` glob 의미를 모델링하는데,
+# 런타임은 `paths:` 를 걷어내고 `ci-paths-changed.sh` → `git diff -- <spec>` 로 옮겨 갔다
+# (required status check 데드락 회피). 둘은 대부분 일치하지만 **루트 `*.md` 하나에서
+# 정확히 갈린다** — GitHub 은 루트 6개만, git 은 `*` 가 `/` 를 넘어 **17,202개**를 잡는다
+# (실측). 그래서 런타임에서 "루트 md 만" 을 표현하려면 `:(glob)` 이 **필수**이고, 이 함수가
+# 그걸 모르면 옳은 pathspec 을 죽은 필터로 오판한다(`spec-link-checks.yml` 에서 발생).
+_GIT_GLOB_MAGIC = ":(glob)"
+
+
 def filter_covers_file(filt: str, path: str) -> bool:
     """Does one entry match this repo-relative file?
 
     Not `fnmatch`: its `*` crosses `/`, which would make a root `*.md` filter
     appear to cover `.claude/x.md`. GitHub's `*` stops at a segment boundary and
     only `**` crosses it, so a filter is built into a regex by hand.
+
+    A leading `:(glob)` (git pathspec magic) is stripped first — it asks git for
+    exactly the segment-bounded `*` this function already models.
     """
+    if filt.startswith(_GIT_GLOB_MAGIC):
+        filt = filt[len(_GIT_GLOB_MAGIC):]
     return _filter_to_regex(filt).match(path) is not None
 
 
@@ -364,6 +382,24 @@ class FilterMatchBoundaryTest(unittest.TestCase):
         """The `fnmatch` trap that a prior guard's blind spot reproduced."""
         self.assertTrue(filter_covers_file("*.md", "PROJECT.md"))
         self.assertFalse(filter_covers_file("*.md", ".claude/x.md"))
+
+    def test_git_glob_magic_is_stripped_and_keeps_segment_bounds(self):
+        """`:(glob)` 접두는 벗기되 **세그먼트 경계는 그대로**여야 한다.
+
+        런타임(`git diff -- <spec>`)에서 이 매직이 없으면 `*` 가 `/` 를 넘어 저장소의
+        거의 모든 `.md` 를 잡는다. 매직이 붙으면 git 이 이 함수가 이미 구현한 GitHub
+        의미와 같아지므로, 접두를 벗기고 같은 규칙으로 판정하는 것이 옳다.
+
+        이 케이스가 없으면 스트립 로직이 `spec-link-checks.yml` 의 dead-filter 통합
+        테스트를 통해 **간접적으로만** 실행된다 (`17_52_44` testing W2).
+        """
+        self.assertTrue(filter_covers_file(":(glob)*.md", "PROJECT.md"))
+        self.assertTrue(filter_covers_file(":(glob)*.md", "CLAUDE.md"))
+        # 세그먼트 경계 — 매직이 붙어도 `*` 는 `/` 를 넘지 않는다.
+        self.assertFalse(filter_covers_file(":(glob)*.md", "spec/x.md"))
+        self.assertFalse(filter_covers_file(":(glob)*.md", ".claude/docs/y.md"))
+        # 접두는 **접두일 때만** 벗긴다 — 중간에 나오면 리터럴이다.
+        self.assertFalse(filter_covers_file("a:(glob)*.md", "PROJECT.md"))
 
     def test_exact_filter_matches_only_itself(self):
         self.assertTrue(filter_covers_file(".github/dependabot.yml",

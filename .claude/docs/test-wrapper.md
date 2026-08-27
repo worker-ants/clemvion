@@ -22,7 +22,7 @@ cmd_build() { pnpm --filter backend build; }
 cmd_e2e()   { make e2e-test; }
 ```
 
-샘플: [`.claude/test-stages.sh.example`](.claude/test-stages.sh.example).
+샘플: [`.claude/test-stages.sh.example`](../test-stages.sh.example).
 
 ## 출력 형식
 

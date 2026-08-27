@@ -1,10 +1,13 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import { repoRoot } from "./spec-frontmatter-parse";
 import {
   collectCodebaseSources,
+  collectGovernanceMarkdown,
   collectSpecMarkdown,
+  findBrokenGovernanceLinks,
   findBrokenLinks,
   findBrokenSpecLinksInSources,
   slugify,
@@ -20,6 +23,10 @@ import {
 //      channel-web-chat,packages}` — but only for links that target a
 //      `spec/**.md` file (JSDoc spec cross-refs, whose hand-counted `../`
 //      depth drifts silently).
+//   3. Governance docs — root-level `*.md` (`CLAUDE.md`, `PROJECT.md`, …) and
+//      `.claude/**.md`. Added 2026-08-27; four links were already broken the
+//      first time it ran, one of them an anchor that never existed. Replaces
+//      `scripts/check-doc-links.py`, which no CI or hook ever invoked.
 // Scope (1) applies no target filter: a `plan/**` link written in a spec doc IS
 // checked here and breaks the build when the plan file moves (e.g. in-progress →
 // complete). Only scope (2) filters to `spec/**.md` targets. What plan-coherence-
@@ -38,6 +45,10 @@ function fmt(violations: LinkViolation[]): string {
   }
   return lines.join("\n");
 }
+
+// `.claude/**.md` 실측 52개(2026-08-27). 스코프가 조용히 좁아지면 걸리도록 여유를 두되
+// **0 이 아닌** 하한을 둔다 — 이름 없는 리터럴이면 왜 이 값인지 다음 사람이 모른다.
+const MIN_CLAUDE_DOCS = 20;
 
 describe("spec-link-integrity guard", () => {
   const root = repoRoot();
@@ -92,6 +103,94 @@ describe("spec-link-integrity guard", () => {
     const violations = findBrokenSpecLinksInSources(root);
     expect(violations, fmt(violations)).toEqual([]);
   }, 30_000);
+
+  // ── Scope 3: governance docs ───────────────────────────────────────────
+  it("scans both governance roots (guard against vacuous pass)", () => {
+    const rel = collectGovernanceMarkdown(root).map((f) => f.relPath);
+    // 루트 레벨과 `.claude/` 가 **각각** 비어 있지 않아야 한다 — 합계만 세면 한쪽이
+    // 통째로 빠져도 통과한다.
+    expect(rel).toContain("CLAUDE.md");
+    expect(rel).toContain("PROJECT.md");
+    expect(rel.filter((p) => p.startsWith(".claude/")).length).toBeGreaterThan(
+      MIN_CLAUDE_DOCS,
+    );
+  });
+
+  it("has no broken in-repo links or heading anchors in governance docs", () => {
+    const violations = findBrokenGovernanceLinks(root);
+    expect(violations, fmt(violations)).toEqual([]);
+  }, 30_000);
+});
+
+/**
+ * 두 **제외** 규칙(`.claude/worktrees/` 스킵 · 루트 비재귀)은 실 저장소에 대고 단언하면
+ * **공허하다** — 이 체크아웃에도 CI 체크아웃에도 `.claude/worktrees/` 가 없어서
+ * `startsWith(".claude/worktrees/") === false` 가 규칙과 무관하게 참이 된다
+ * (그 디렉토리는 gitignored 이고 실제로는 **main checkout 에만** 존재한다).
+ *
+ * 그래서 두 제외 대상이 **실재하는** 트리를 만들어 놓고 판정한다.
+ *
+ * **커밋된 fixture 로는 안 된다 (실측)**: `.git/info/exclude` 에 `.claude/worktrees/` 를
+ * **모든 깊이**에서 매치하는 규칙이 있어, `fixtures-governance` 아래에 만들어도 커밋되지
+ * 않는다. 로컬에서만 초록이고 CI 에서는 파일이 없어 전제가 무너진다. 그래서 `mkdtemp` 로
+ * **런타임에** 세운다 — gitignore 와 무관하고 자기완결적이다.
+ */
+describe("governance scope — 제외 규칙", () => {
+  let fixture: string;
+
+  beforeAll(() => {
+    fixture = fs.mkdtempSync(path.join(os.tmpdir(), "gov-scope-"));
+    const w = (rel: string, body: string): void => {
+      const abs = path.join(fixture, rel);
+      fs.mkdirSync(path.dirname(abs), { recursive: true });
+      fs.writeFileSync(abs, body, "utf8");
+    };
+    // 스코프 안 — 루트 레벨 + `.claude/` 하위
+    w("README.md", "# 루트\n[이웃](.claude/docs/policy.md)\n");
+    w(".claude/docs/policy.md", "# 정책\n본문.\n");
+    // 스코프 밖 — 각각 **깨진 링크**를 담고 있어 제외가 풀리면 관측된다
+    w("nested/deep.md", "# 재귀하면 잡힌다\n[깨짐](./nope.md)\n");
+    w(".claude/worktrees/copy/.claude/docs/policy.md", "# 사본\n[깨짐](./gone.md)\n");
+    w(".claude/node_modules/pkg/readme.md", "# 의존성\n[깨짐](./gone.md)\n");
+  });
+
+  afterAll(() => {
+    fs.rmSync(fixture, { recursive: true, force: true });
+  });
+
+  it("세 제외 대상이 실제로 존재한다 (전제)", () => {
+    expect(fs.existsSync(path.join(fixture, ".claude", "worktrees", "copy"))).toBe(true);
+    expect(fs.existsSync(path.join(fixture, ".claude", "node_modules", "pkg"))).toBe(true);
+    expect(fs.existsSync(path.join(fixture, "nested", "deep.md"))).toBe(true);
+  });
+
+  it("루트는 비재귀 · `worktrees`/`node_modules` 는 스킵한다", () => {
+    const rel = collectGovernanceMarkdown(fixture).map((f) => f.relPath).sort();
+    expect(rel).toEqual([".claude/docs/policy.md", "README.md"]);
+  });
+
+  it("제외된 영역의 깨진 링크는 위반으로 올라오지 않는다", () => {
+    const violations = findBrokenGovernanceLinks(fixture);
+    expect(violations, fmt(violations)).toEqual([]);
+  });
+
+  /**
+   * **양성 검출** — 위 세 케이스는 전부 *"안 잡힌다"* 를 단언한다. 그것만으로는
+   * 진입점이 **아무것도 못 잡는 상태**여도 전부 통과한다 (스코프를 빈 배열로 만들면
+   * 세 케이스가 다 초록이다). 스코프 **안**의 깨진 링크가 실제로 올라오는지 함께 못박는다.
+   */
+  it("[양성] 스코프 안의 깨진 링크는 DEAD 로 검출된다", () => {
+    const broken = path.join(fixture, "BROKEN.md");
+    fs.writeFileSync(broken, "# 루트\n[깨짐](./no-such-file.md)\n", "utf8");
+    try {
+      const violations = findBrokenGovernanceLinks(fixture);
+      expect(violations.length).toBe(1);
+      expect(violations[0].kind).toBe("DEAD");
+      expect(violations[0].source).toBe("BROKEN.md");
+    } finally {
+      fs.rmSync(broken, { force: true });
+    }
+  });
 });
 
 // Pin the slug algorithm so future edits don't silently drift it (which would

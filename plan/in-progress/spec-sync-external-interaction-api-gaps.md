@@ -782,7 +782,7 @@ checker 가 독립적으로** "인용이 가리키는 절이 오히려 반대를
       > 4. `egress-masking.md` frontmatter `code:` 에 `redact-stored-error.ts` 미등재.
       >    (4번은 `spec/` 편집이라 위 권한-경계 항목의 처분에 종속된다.)
 
-- [ ] **doc-link 검사기가 `CLAUDE.md`·`.claude/**` 를 안 훑는다** (2026-08-23 등재).
+- [x] ~~**doc-link 검사기가 `CLAUDE.md`·`.claude/**` 를 안 훑는다**~~ → **완료 (2026-08-27, `doclink-guard-scope`)**. (2026-08-23 등재.)
       `scripts/check-doc-links.py:187` 의 스코프는 `["prd", "spec"]` 뿐이라 거버넌스 문서의
       링크·앵커는 **기계가 안 지킨다**.
       > **실측 (넓혀서 돌려 봄)**: 루트 `*.md` + `.claude/**` = 58개 파일, 새로 드러나는 깨진
@@ -814,6 +814,38 @@ checker 가 독립적으로** "인용이 가리키는 절이 오히려 반대를
       > 선결이다. 원래 적은 "6건" 은 **오탐 섞인 수**이므로 대상 검사기를 바꿔 다시 재야
       > 한다. `PROJECT.md:50` 의 썩은 앵커는 검사기와 무관하게 유효한 실현 사례로 남는다.
       >
+      > ✅ **집행 (2026-08-27, 사용자 결정 (b))** — 열등 중복을 지우고 배선된 쪽을 넓혔다.
+      >
+      > **삭제 전 고유 기능 확인**: `check-doc-links.py` 만 갖고 있다고 본 MDX frontmatter
+      > `spec:` 검사가 **중복**임을 뮤테이션으로 확인했다 — 어느 `.mdx` 의 `spec:` 을 없는
+      > 경로로 바꾸니 배선된 `registry.test.ts` 가 RED (*"모든 .mdx frontmatter 의 spec/code
+      > 경로가 실재해요"*). 스코프의 나머지 절반인 `prd/` 는 **디렉토리 자체가 없다**.
+      > 즉 고유 기능 0 — 삭제해도 잃는 것이 없다.
+      >
+      > ⚠️ **"6건" 은 틀렸다** — 그 수는 오탐 섞인 파이썬 스크립트 기준이었다. 배선된
+      > 가드로 다시 재니 **58개 파일 / BROKEN 4**:
+      >
+      > | # | 자리 | 실제 원인 |
+      > | --- | --- | --- |
+      > | 1 | `.claude/docs/test-wrapper.md:25` | 링크가 `.claude/docs/` 기준인데 `.claude/…` 로 시작 (한 칸 위여야 함) |
+      > | 2 | `.claude/skills/spec-coverage/SKILL.md:75` | 참조 plan 이 `in-progress`→`complete` 로 이동 |
+      > | 3 | `PROJECT.md:50` | `CLAUDE.md#worktree-기반-작업-정책` — **존재한 적 없는 앵커** |
+      > | 4 | `PROJECT.md:246` | 루트 문서인데 `../../spec/…` 로 두 칸 올라감 |
+      >
+      > `CHANGELOG.md:1060`("처분이 갈리므로 결정이 하나 섞인다" 고 적어 둔 그 항목)은
+      > **애초에 없었다** — 배선된 가드 기준으로는 위반이 아니다. 결정 사항 0건.
+      >
+      > **집행 내용**: (a) `scripts/check-doc-links.py` 삭제, (b) `spec-link-integrity.test.ts`
+      > 에 **scope 3(거버넌스 문서)** 추가, (c) 위 4건 정정, (d) `spec-link-checks.yml` 의
+      > `pathspecs` 에 `:(glob)*.md`·`.claude/**` 등재, (e) `PROJECT.md` §문서 링크 검증 갱신,
+      > (f) **`spec-impl-evidence.md §4.2` 표에 scope (3) 반영** (planner 턴 — 세 곳이 그 절을
+      > SoT 로 인용하는데 정작 표가 (1)(2) 만 서술하고 있었다. `17_52_44` W1 이 잡았고,
+      > 이 체크리스트에도 원래 빠져 있었다).
+      >
+      > **(d) 가 없으면 (b) 는 헛돈다** — 스코프만 넓히고 트리거를 안 늘리면 `CLAUDE.md` 를
+      > 고쳐도 CI 에서 가드가 안 돈다. 그 워크플로 헤더 스스로 *"이 저장소가 여섯 번 겪은
+      > paths 커버리지 갭"* 이라 적어 둔 바로 그 형태다. `:(glob)` 매직이 필수인 것도 실측
+      > 근거가 있다 — 없으면 `*` 가 `/` 를 넘어 **17,202개**를 잡는다(있으면 루트 6개).
       > **왜 틀렸나**: `... | tail -3; echo exit=$?` 로 종료코드를 읽어 **`tail` 의 0** 을
       > 스크립트의 0 으로 착각했다. 파이프 뒤 `$?` 는 마지막 명령의 것이다.
 
@@ -1769,6 +1801,31 @@ consistency `--impl-prep`(`15_35_56`, 2026-08-22)가 하나 더 냈다 — 역�
       > **처분 후보**: reviewer 프롬프트 공통 머리말에 (a) 뮤테이션은 scratch 사본에서,
       > (b) `git restore`/`git checkout` 금지(다른 리뷰어의 작업을 지운다),
       > (c) **형제 리뷰어가 동시 실행 중**임을 고지 — 셋을 넣는다. 원복은 `cp` 백업으로.
+      >
+      > ---
+      >
+      > 🔴 **두 번째 사례 — 이번엔 관측 오염이 아니라 파일 파괴였다** (2026-08-27,
+      > `18_16_05` 프로세스 경고, `doclink-guard-scope`).
+      >
+      > testing 리뷰어가 뮤테이션 백업의 **`cp` 목적지를 잘못 지정**해, worktree 루트의
+      > untracked 파일 `scratchpad_idem_backup.ts` 를 덮어썼다가 정리 삭제했다고 스스로
+      > 보고했다. **untracked 라 git 으로 복구할 수 없다.**
+      >
+      > **실측 — 유실은 없었다**: main checkout 의 `scratchpad_idem_backup.ts` 는 무손상이다
+      > (23,798 bytes, mtime 8/13, 오늘 건드려진 흔적 없음). 이 worktree 는 `origin/main`
+      > 에서 새로 만들었고 그 파일은 untracked 라 체크아웃되지 않으므로, 리뷰어가 만든
+      > 파일을 리뷰어가 지운 것이다.
+      >
+      > **그래도 등급을 올린다.** 앞 사례는 *"관측이 오염될 수 있다"* 였지만 이건 *"복구
+      > 불가능한 파일을 지울 수 있다"* 이고, 이번에 안 터진 이유는 **설계가 아니라 우연**
+      > (경로 이름이 이 worktree 에 없던 것)이다. 같은 실수가 main checkout 을 향했으면
+      > 8/13 부터 있던 남의 파일이 사라졌다.
+      >
+      > **처분 후보 (d) 추가**: 백업 목적지를 **세션 scratch 디렉토리로 강제**한다
+      > (`/private/tmp/claude-*/.../scratchpad`). 리뷰어가 저장소 트리 안에 무엇도 쓰지
+      > 않게 하는 것이 (a)~(c) 보다 강한 불변식이고, 이번 사례는 (a)(scratch 사본에서
+      > 뮤테이션)만으로는 못 막는다 — 그 규칙은 **뮤테이션 대상**을 말하지 **백업 목적지**를
+      > 말하지 않기 때문이다.
 
 ## 후속 (cross-cutting, 본 spec 밖)
 - [x] **Redis fixed-window rate-limiter INCR+EXPIRE 원자화** — `PublicWebhookQuotaService.incrWithWindow` 를 `INCR + EXPIRE ... NX` 단일 pipeline(매 요청)으로 교정해 TTL 유실 self-heal (fail-closed 잠금 창 제거). `ChatChannelRateLimiterService` 는 **이미** 동일 `INCR + EXPIRE NX` 단일 pipeline 패턴이라 무변경(점검 완료). `InteractionRateLimiterService`(item 5)는 Lua EVAL — 세 서비스 모두 원자/self-heal 확보. (PR #843 ai-review concurrency WARNING 후속, `task_fa5c5e84`.)

@@ -72,7 +72,7 @@ SUMMARY.md 상단 30라인 Read → 후보 갯수 (high/medium/low) 요약 → �
 | 5 | 코드가 emit 하는 이벤트/큐/SSE 이름 (`execution.*`·BullMQ 큐 등) 이 어떤 spec 본문에도 미등장 | medium (동적 이벤트명 enumerate 오탐 가능) |
 | 6 | `process.env.<KEY>`/config 키가 어떤 `spec/**` 에도 미언급 (표준 env allowlist 제외) | low (운영 env noise 다수) |
 
-각 후보는 spec 라인 번호(forward) 또는 코드 위치(reverse) + 매칭/미참조 식별자 + heuristic 번호 + `[forward]`/`[reverse]` 방향 라벨과 함께 보고. Gate D 는 142-파일 수작업 sync audit 을 상시 탐지기로 대체하는 목적 ([Spec-drift backlog](../../../plan/in-progress/knowledge-base-quality-improvements.md)).
+각 후보는 spec 라인 번호(forward) 또는 코드 위치(reverse) + 매칭/미참조 식별자 + heuristic 번호 + `[forward]`/`[reverse]` 방향 라벨과 함께 보고. Gate D 는 142-파일 수작업 sync audit 을 상시 탐지기로 대체하는 목적 ([Spec-drift backlog](../../../plan/complete/knowledge-base-quality-improvements.md)).
 
 ## 출력 위치
 

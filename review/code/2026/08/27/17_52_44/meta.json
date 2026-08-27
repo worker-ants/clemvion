@@ -1,0 +1,77 @@
+{
+  "timestamp": "2026-08-27T17:52:44.753997",
+  "files": [
+    {
+      "file_path": ".claude/docs/test-wrapper.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": ".claude/skills/spec-coverage/SKILL.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": ".claude/tests/test_harness_checks_paths_coverage.py",
+      "change_type": "Review",
+      "file_extension": "py"
+    },
+    {
+      "file_path": ".github/workflows/spec-link-checks.yml",
+      "change_type": "Review",
+      "file_extension": "yml"
+    },
+    {
+      "file_path": "PROJECT.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "codebase/frontend/src/lib/docs/__tests__/spec-link-integrity.test.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "codebase/frontend/src/lib/docs/__tests__/spec-links.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "plan/in-progress/spec-sync-external-interaction-api-gaps.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "scripts/check-doc-links.py",
+      "change_type": "Review",
+      "file_extension": "py"
+    }
+  ],
+  "agents": [
+    "security",
+    "performance",
+    "architecture",
+    "requirement",
+    "scope",
+    "side_effect",
+    "maintainability",
+    "testing",
+    "documentation",
+    "dependency",
+    "database",
+    "concurrency",
+    "api_contract",
+    "user_guide_sync"
+  ],
+  "route_mode": "auto",
+  "agents_explicit": false,
+  "agents_forced": [
+    "documentation",
+    "maintainability",
+    "requirement",
+    "scope",
+    "security",
+    "side_effect",
+    "testing"
+  ]
+}
