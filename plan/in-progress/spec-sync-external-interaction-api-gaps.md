@@ -112,7 +112,7 @@ owner: planner
       > `toFanoutEnvelope` 를 지난다. **`processButtonResumeTurn` 도 같은 경로다**
       > (`19_24_24` security W1 이 추가로 짚었다). REST 와 **같은 인가**(`verifyOwnership`)를
       > 쓰는 같은 수신 인구이고, chat-channel 어댑터가 같은 subject 를 구독한다.
-      > **재사용할 헬퍼는 이미 있다** — `shared/utils/node-output-allowlist.ts` 의
+      > **재사용할 헬퍼는 이미 있다** — `nodes/core/node-output-allowlist.ts` 의
       > `allowlistNodeOutputKeys`. envelope 안에서 `nodeOutput` 서브트리를 찾아 거는 것이 일이다.
 
       </details>
@@ -376,7 +376,12 @@ owner: planner
       > 8키 중 하나와 같은 이름의 내부 필드가 나중에 `nodeOutput` 최상위에 붙으면 통과한다.
       > 두 항목의 처방이 같은 자리(신규 emit·신규 top-level 필드 리뷰 체크리스트)다.
 
-- [ ] **fanout allowlist 캐너리 4건이 `describe('llmCalls strip …')` 안에 있다** (2026-08-23 등재,
+- [x] ~~**fanout allowlist 캐너리가 `describe('llmCalls strip …')` 안에 있다**~~ → **완료 (2026-08-27, `eia-misc-hygiene`)**.
+      **캐너리는 4건이 아니라 8건이었다** — 등재 시점(2026-08-23) 이후 `envelope.output`
+      경로 2건과 파이프라인 불변식 2건이 더 들어왔다. 여덟을 통째로 형제 describe
+      `nodeOutput allowlist · fanout 파이프라인 불변식` 로 분리했다(테스트 수 63→63 불변).
+      `aiPayload` fixture 를 쓰는 4건은 원 블록에 남으므로 fixture 스코프 문제가 없다(실측).
+      (2026-08-23 등재,
       `23_16_40` testing INFO 14). 블록명이 실제 검증 대상(allowlist)과 어긋난다 — 다음에 이
       파일을 여는 사람이 allowlist 테스트를 그 이름 아래에서 찾지 않는다.
       > **이번에 안 옮긴 이유**: 이동은 `codebase/**` 변경이라 방금 끝난 리뷰가 다시 stale 이
@@ -386,7 +391,25 @@ owner: planner
       > `nodeOutput` 을 싣는 이벤트는 `emitExecutionEvent` 뿐이라 위험이 낮고, 그 전제가
       > 깨지는 순간(= `emitNodeEvent` 가 `nodeOutput` 을 싣는 첫 케이스)이 재개 신호다.
 
-- [ ] **`node-output-allowlist.ts` 를 `shared/utils/` 밖으로 재배치** (2026-08-23 등재,
+- [x] ~~**`node-output-allowlist.ts` 를 `shared/utils/` 밖으로 재배치**~~ → **완료 (2026-08-27, `eia-misc-hygiene`)**.
+      `nodes/core/` 로 옮겼다 — `NodeHandlerOutput` 이 사는 `node-handler.interface.ts`
+      바로 옆이고, 그 디렉토리가 이미 그 인터페이스 주변 유틸의 자리다. 소비처는 3곳뿐이라
+      (websocket · interaction.service · 자기 spec) 이동 비용이 낮았다.
+      **불변식 회복 확인**: 이동 후 `shared/utils/` 에서 `nodes/`·`modules/` 를 import 하는
+      파일 **0건**(이동 전에는 이 파일이 유일했다 — 실측).
+      > **아래 원 등재문(2026-08-23)의 *"국소화만 되고 완전히 회복되진 않았다"* 는
+      > 이동 *전* 상태를 말한다** — 이 완료 주석과 시제가 어긋나 보이는 것을 막으려
+      > 표식을 남긴다 (`20_07_43` INFO 6). spec 참조 2곳(`14-…md` 의
+      `code:` frontmatter · `node-output.md` 본문)도 동반 갱신 — `code:` 는
+      ⚠️ **내가 쓴 근거는 틀렸다** (2026-08-27 `20_07_43` INFO 5 가 지적, 실측 확인):
+      *"`spec-code-paths.test.ts` 가 검사하므로 안 고치면 build 가 깨진다"* 고 적었으나
+      그 가드는 **any-match** 다 — `codes.some((c) => globMatchesAny(c, root))`. 목록의
+      **한 경로라도** 실존하면 통과하므로, 나머지가 전부 stale 이어도 안 깨진다. 두 문서
+      모두 유효 경로를 여럿 갖고 있어 실제로 안 깨졌을 것이다.
+      **고친 것 자체는 옳다** — stale 경로는 다음 사람을 헛걸음시키고, 링크 가드는
+      frontmatter 를 안 본다(그건 본문 `[..](path)` 만 본다). 다만 **강제되지 않는다**는
+      것이 사실이고, 그래서 이런 자리는 사람이 안 보면 조용히 썩는다.
+      (2026-08-23 등재,
       `19_24_24` architecture INFO 1). 그 디렉토리 8개 파일 중 **유일하게 도메인 타입**
       (`NodeHandlerOutput`)을 import 한다 — "shared = 도메인 비의존" 불변식이 이 PR 에서
       국소화만 되고 완전히 회복되진 않았다.
@@ -755,8 +778,20 @@ checker 가 독립적으로** "인용이 가리키는 절이 오히려 반대를
       > 예상 못 한 비용은 **spec 쪽**이었다 — 이 결론이 6개 문서에 SoT 로 미러돼 있어
       > planner 턴이 선행돼야 했다(`12_08_46` BLOCK:YES → `12_41_29` BLOCK:NO).
 
-- [ ] **Swagger `createDocument` boilerplate 공유 헬퍼 — 자체 선언한 "4번째 사례" 임계값에
-      도달했다** (2026-08-23 등재, `21_03_29` plan_coherence W2).
+- [x] ~~**Swagger `createDocument` boilerplate 공유 헬퍼 — "4번째 사례" 임계값 도달**~~ → **완료 (2026-08-27, `eia-misc-hygiene`)**.
+      `src/shared/testing/swagger-probe.ts` 신설 — `buildSwaggerDocument` / `schemasOf` /
+      `schemaOf` / `propertyOf` + `SwaggerSchemaObject`. 네 스펙 전부 전환, 잔존
+      `SwaggerModule.createDocument`·`ApiResponseSchemaHost` **각 0건**(실측), 순 −41줄.
+      > **`dist` 오염을 먼저 막았다**: `@nestjs/testing` 은 devDependency 라 이 파일이
+      > dist 로 나가면 프로덕션에서 지뢰다. `*spec.ts` 패턴에 안 걸리는 이름이라
+      > `tsconfig.build.json` 의 `exclude` 에 `src/shared/testing/**` 을 명시 등재했다 —
+      > 같은 파일이 `src/repo-guards/**` 를 등재한 것과 **같은 이유**이고, 그 선례는 실제
+      > 오염이 일어난 뒤 추가된 것이다. `nest build` 후 `dist/shared/testing` 부재 확인.
+      > **헬퍼의 존재 이유(에러 경로)를 캐너리로 고정했고, 그 캐너리가 내 가정을 반증했다**:
+      > 티켓이 적은 *"`components` 가 `undefined` 면 설명 없는 `TypeError`"* 는 도달하지
+      > 않는다 — `createDocument` 는 DTO 가 없어도 `{"schemas":{}}` 를 낸다(실측).
+      > 도달하는 상태는 **빈 레코드**라 그쪽을 물게 고쳤다.
+      (2026-08-23 등재, `21_03_29` plan_coherence W2.)
       리뷰가 반복해서 *"4번째 유사 스펙이 생기면 공유 헬퍼로 추출하라"* 는 조건부 처분을
       내렸는데, **이번 `re-run.dto.spec.ts` 가 그 4번째다**.
       > **현재 4개 · 3개 모듈**: `workflows/workflows-execute-body.spec.ts` ·
@@ -770,7 +805,15 @@ checker 가 독립적으로** "인용이 가리키는 절이 오히려 반대를
       > **착수 시**: `expectSwaggerProperty(doc, dtoName, propName)` 류로 캐스팅과 방어적
       > 옵셔널 체이닝(`components` 가 `undefined` 면 설명 없는 `TypeError`)을 한 곳에 모은다.
 
-- [ ] **`redact-stored-error.ts` 위생 4건 — 다음에 이 파일을 손댈 때 묶어서** (2026-08-23 등재).
+- [x] ~~**`redact-stored-error.ts` 위생 4건**~~ → **완료 (2026-08-27, `eia-misc-hygiene`)**. 네 건 전부:
+      **①** `redactNodeExecutionRow` → `redactNodeExecutionRowForResponse`(호출부 11곳 동반).
+      **②** 그 함수에 `@param`/`@returns` 보강 — 4개 export 중 유일 누락분이었다.
+      **③** `maskIfPresent` 의 *"제네릭을 쓰지 않는다"* 옆에 **왜 아래는 쓰는지**를 명시
+      (추론 출처가 `mask` 파라미터 vs `row` 인자로 다르다).
+      **④** `egress-masking.md` `code:` 에 등재 — 정의(*"약속한 surface 의 구현 경로"*)를
+      충족한다: 그 문서 §2 가 `redactStoredFieldsForResponse`·`redactStoredDataForResponse`
+      를 **직접 지목**하고, WS 짝인 `websocket.service.ts` 는 이미 등재돼 있었다.
+      (2026-08-23 등재.)
       전부 비차단 INFO 로 3라운드에 걸쳐 반복 지목됐고, 각각은 지금 별도 diff 를 만들 값이
       없다. 이 파일을 **다른 이유로** 여는 순간 함께 처리한다.
       > 1. `redactNodeExecutionRow` 만 자매 3개의 `…ForResponse` 접미사를 안 따른다.
@@ -1058,7 +1101,10 @@ checker 가 독립적으로** "인용이 가리키는 절이 오히려 반대를
 - [x] **EIA §5.1** 이 webhook §5.2 를 *"legacy `statusCode/errors` shape"* 라 서술 —
       webhook 은 2026-06-28(`7e181ed8e`)에 이미 `{error:{code,message,details}}` 로
       정합화됐다. 대비 문구가 유효기간을 넘겼다
-- [ ] **`interaction.guard.ts:27` JSDoc 에 같은 `EIA-AU-09` 오기가 남아 있다** (2026-08-23 등재,
+- [x] ~~**`interaction.guard.ts:27` JSDoc 의 `EIA-AU-09` 오기**~~ → **완료 (2026-08-27, `eia-misc-hygiene`)**.
+      `+ §3.3.1 EIA-AU-09` → `+ §3.3.1` (그 절 자체는 실재하므로 참조는 살렸다).
+      결합 표기(`EIA-AU-08/09`)까지 포함한 전수 재스윕 결과 저장소 잔존 **0건**.
+      (2026-08-23 등재,
       `21_24_43` rationale INFO 7). spec 쪽은 `spec-text-fixes` planner 턴이 정정했으나
       **코드 주석은 developer 소관**이라 그 턴에서 못 건드렸다.
       > 실측: `* [Spec EIA §3.3 EIA-AU-08 + §3.3.1 EIA-AU-09] — In-process trusted caller 예외.`
@@ -1861,8 +1907,10 @@ consistency `--impl-prep`(`15_35_56`, 2026-08-22)가 하나 더 냈다 — 역�
 - `getStatus` `nodeOutput` 키-allowlist — `interaction.service.ts:312` 주석이 아직
   *"별개 잔여 항목"*
 - §8.2 HMAC — spec `14-…md:945` 가 아직 *"`hmac-sha256` 만"*
-- `EIA-AU-09` — `data-flow/15-…md` 가 아직 참조. **주의**: 문서에 `EIA-AU-08/09` 로 적혀
-  있어 `grep 'EIA-AU-09'` 는 **0건을 낸다**(철자 하나만 보면 놓치는 형태)
+- ~~`EIA-AU-09` — `data-flow/15-…md` 가 아직 참조~~ → **해소 완료**. spec 쪽은 `spec-text-fixes`
+  턴이, 코드 주석은 `eia-misc-hygiene`(2026-08-27)이 정정했다. 저장소 잔존 0건(실측).
+  **주의는 유지**: 문서에 `EIA-AU-08/09` 로 적히면 `grep 'EIA-AU-09'` 는 **0건을 낸다** —
+  같은 형태의 다음 오기를 찾을 때 결합 표기를 함께 훑어야 한다
 - `TERMINAL_DURATION_MS_SQL` 실 Postgres 검증 — `codebase/backend/test/` 에 참조 0건
 - `extractReturnedDurationMs`/`applyResolvedDuration` — 저장소 전체 참조 0건
 - Re-run 차단 판정 순수 함수 추출 — `rerun-modal.tsx:419` 에 여전히 컴포넌트 본문 표현식

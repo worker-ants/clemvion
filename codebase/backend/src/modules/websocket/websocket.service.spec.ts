@@ -747,6 +747,56 @@ describe('WebsocketService', () => {
       expect(fanout.payload.interactionType).toBe('ai_conversation');
     });
 
+    it('llmCalls 없는 이벤트는 그대로 fanout (no-op strip)', async () => {
+      const eventP = nextFanoutEvent(service);
+      await service.emitExecutionEvent(
+        'exec-plain',
+        ExecutionEventType.AI_MESSAGE,
+        { nodeId: 'n-1', message: 'hi' },
+      );
+      const fanout = await eventP;
+      expect(fanout.payload.message).toBe('hi');
+      expect(fanout.payload).not.toHaveProperty('llmCalls');
+    });
+
+    // W-1/W-4 방어심층화: emitNodeEvent fanout 도 strip 적용.
+    // 현재 node 이벤트에 llmCalls 는 없으나, 미래 누출 경로를 차단하기 위해
+    // emitExecutionEvent 와 동일 패턴으로 strip 을 걸어둔다.
+    it('emitNodeEvent fanout 도 llmCalls 를 strip (방어심층화 — W-1/W-4)', async () => {
+      const eventP = nextFanoutEvent(service);
+      await service.emitNodeEvent(
+        'exec-node-strip',
+        'node-1',
+        NodeEventType.NODE_COMPLETED,
+        {
+          output: { result: 'ok' },
+          // 미래 node 이벤트에 llmCalls 가 포함되는 경우를 시뮬레이션
+          llmCalls: [{ requestPayload: { system: 'SECRET' } }],
+        },
+      );
+      const fanout = await eventP;
+      // fanout 에 llmCalls 가 없어야 한다
+      expect(fanout.payload).not.toHaveProperty('llmCalls');
+      // wire envelope 에는 그대로 유지 (strip 은 fanout 전용)
+      const wire = gateway.broadcastToChannel.mock.calls[0][2] as Record<
+        string,
+        unknown
+      >;
+      expect(wire.llmCalls).toBeDefined();
+      // 다른 필드는 보존
+      expect(fanout.payload.nodeId).toBe('node-1');
+    });
+  });
+
+  /**
+   * `llmCalls strip` 에서 **분리했다** (2026-08-27). 그 블록명 아래에 있으면 다음 사람이
+   * allowlist 테스트를 거기서 찾지 않는다 (`23_16_40` testing INFO 14).
+   *
+   * 두 관심사는 같은 `toFanoutEnvelope` 파이프라인을 지나지만 **막는 것이 다르다** —
+   * `llmCalls` strip 은 **알려진 한 필드**를 떨어뜨리고, allowlist 는 **모르는 모든 키**를
+   * 떨어뜨린다(fail-closed). 뒤 두 케이스는 어느 쪽도 아닌 파이프라인 자체의 불변식이다.
+   */
+  describe('nodeOutput allowlist · fanout 파이프라인 불변식', () => {
     /**
      * **fanout `nodeOutput` 은 fail-closed allowlist 다** — EIA §R17.
      *
@@ -1211,46 +1261,6 @@ describe('WebsocketService', () => {
         expect(JSON.stringify(fanout.payload)).not.toContain(marker);
       },
     );
-
-    it('llmCalls 없는 이벤트는 그대로 fanout (no-op strip)', async () => {
-      const eventP = nextFanoutEvent(service);
-      await service.emitExecutionEvent(
-        'exec-plain',
-        ExecutionEventType.AI_MESSAGE,
-        { nodeId: 'n-1', message: 'hi' },
-      );
-      const fanout = await eventP;
-      expect(fanout.payload.message).toBe('hi');
-      expect(fanout.payload).not.toHaveProperty('llmCalls');
-    });
-
-    // W-1/W-4 방어심층화: emitNodeEvent fanout 도 strip 적용.
-    // 현재 node 이벤트에 llmCalls 는 없으나, 미래 누출 경로를 차단하기 위해
-    // emitExecutionEvent 와 동일 패턴으로 strip 을 걸어둔다.
-    it('emitNodeEvent fanout 도 llmCalls 를 strip (방어심층화 — W-1/W-4)', async () => {
-      const eventP = nextFanoutEvent(service);
-      await service.emitNodeEvent(
-        'exec-node-strip',
-        'node-1',
-        NodeEventType.NODE_COMPLETED,
-        {
-          output: { result: 'ok' },
-          // 미래 node 이벤트에 llmCalls 가 포함되는 경우를 시뮬레이션
-          llmCalls: [{ requestPayload: { system: 'SECRET' } }],
-        },
-      );
-      const fanout = await eventP;
-      // fanout 에 llmCalls 가 없어야 한다
-      expect(fanout.payload).not.toHaveProperty('llmCalls');
-      // wire envelope 에는 그대로 유지 (strip 은 fanout 전용)
-      const wire = gateway.broadcastToChannel.mock.calls[0][2] as Record<
-        string,
-        unknown
-      >;
-      expect(wire.llmCalls).toBeDefined();
-      // 다른 필드는 보존
-      expect(fanout.payload.nodeId).toBe('node-1');
-    });
   });
 
   describe('emitNotificationEvent', () => {

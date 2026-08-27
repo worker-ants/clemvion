@@ -1,18 +1,12 @@
 import { Controller, Module, Post } from '@nestjs/common';
+import { ApiBody } from '@nestjs/swagger';
+
 import {
-  ApiBody,
-  type ApiResponseSchemaHost,
-  DocumentBuilder,
-  type OpenAPIObject,
-  SwaggerModule,
-} from '@nestjs/swagger';
-import { Test } from '@nestjs/testing';
-
+  buildSwaggerDocument,
+  propertyOf,
+  type SwaggerSchemaObject,
+} from '../../../shared/testing/swagger-probe';
 import { ReRunRequestDto } from './re-run.dto';
-
-// SchemaObject 는 swagger 가 공개 export 하지 않는다 — 자매 스펙
-// (`workflows/workflows-execute-body.spec.ts`) 과 같은 방식으로 공개 타입에서 파생한다.
-type SchemaObject = ApiResponseSchemaHost['schema'];
 
 /**
  * `inputOverride` 가 **열린 map** 으로 광고되는지 고정한다.
@@ -44,25 +38,11 @@ class ProbeController {
 class ProbeModule {}
 
 describe('ReRunRequestDto — OpenAPI 노출', () => {
-  let inputOverride: SchemaObject;
+  let inputOverride: SwaggerSchemaObject;
 
   beforeAll(async () => {
-    const moduleRef = await Test.createTestingModule({
-      imports: [ProbeModule],
-    }).compile();
-    const app = moduleRef.createNestApplication();
-    await app.init();
-    try {
-      const doc: OpenAPIObject = SwaggerModule.createDocument(
-        app,
-        new DocumentBuilder().build(),
-      );
-      const dto = (doc.components?.schemas as Record<string, SchemaObject>)
-        .ReRunRequestDto;
-      inputOverride = (dto.properties ?? {}).inputOverride as SchemaObject;
-    } finally {
-      await app.close();
-    }
+    const doc = await buildSwaggerDocument({ imports: [ProbeModule] });
+    inputOverride = propertyOf(doc, 'ReRunRequestDto', 'inputOverride');
   });
 
   it('[캐너리] `inputOverride` 를 **열린 map** 으로 광고한다', () => {

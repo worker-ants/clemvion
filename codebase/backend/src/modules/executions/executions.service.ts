@@ -42,7 +42,7 @@ import {
 import { loadParentWorkflowNames } from './utils/load-parent-workflow-names';
 import {
   redactStoredFieldsForResponse,
-  redactNodeExecutionRow,
+  redactNodeExecutionRowForResponse,
 } from '../../shared/utils/redact-stored-error';
 
 // execution_node_log 행 수 상한. ForEach 같은 컨테이너에서 행 수가 폭증하는 경우
@@ -701,7 +701,7 @@ export class ExecutionsService {
           // docstring 에 있다. **`inputData` 도 마스킹한다**(2026-08-20 부터 두 레벨이 같은
           // 규칙): 노드 레벨은 애초에 재제출 소비처가 없었고, 안 걸면 WS emit 과 REST 가
           // 같은 store 슬롯에서 flip-flop 한다.
-          return redactNodeExecutionRow(ne);
+          return redactNodeExecutionRowForResponse(ne);
         });
         const executionPath = pathRows.map((r) => r.nodeId);
         // `take` 상한과 동일 길이로 돌아오면 그 이후의 로그가 잘렸을 수 있다.
@@ -1041,7 +1041,7 @@ export class ExecutionsService {
    * | 2 | `getChain` | 이 함수 |
    * | 3 | `stop` | 이 함수 |
    * | 4 | `toExecutionDto` (목록) | 엔티티가 아니라 DTO 조립이라 **거기서 직접** 부른다 |
-   * | 5 | `findById` 의 `nodeExecutions[]` | 행 단위 `redactNodeExecutionRow` |
+   * | 5 | `findById` 의 `nodeExecutions[]` | 행 단위 `redactNodeExecutionRowForResponse` |
    * | 6 | `BackgroundRunsService.toNodeExecutionDto` (본문 노드) | 다른 서비스의 자매 |
    *
    * > **수치를 여기 한 곳에 모은 이유**: 종전엔 *"자매 넷 중 하나만"* 이라는 **숫자가

@@ -1,11 +1,11 @@
 import { Controller, Post } from '@nestjs/common';
-import { Test } from '@nestjs/testing';
-import { ApiOkResponse, DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
-import type { ApiResponseSchemaHost, OpenAPIObject } from '@nestjs/swagger';
+import { ApiOkResponse } from '@nestjs/swagger';
 
-// SchemaObject 는 swagger 가 공개 export 하지 않고 11.4.x exports 맵이 deep-import 를
-// 차단하므로 공개 타입 `ApiResponseSchemaHost['schema']` 에서 파생 (common/swagger/api-wrapped.ts 참고).
-type SchemaObject = ApiResponseSchemaHost['schema'];
+import {
+  buildSwaggerDocument,
+  schemaOf,
+  type SwaggerSchemaObject,
+} from '../../../../shared/testing/swagger-probe';
 import { InteractAckDto } from './interact-ack-response.dto';
 import { EIA_EXECUTION_STATUS_VALUES } from './execution-status.literal';
 
@@ -28,26 +28,12 @@ class StubController {
   }
 }
 
-async function buildDocument(): Promise<OpenAPIObject> {
-  const moduleRef = await Test.createTestingModule({
-    controllers: [StubController],
-  }).compile();
-  const app = moduleRef.createNestApplication();
-  await app.init();
-  try {
-    return SwaggerModule.createDocument(app, new DocumentBuilder().build());
-  } finally {
-    await app.close();
-  }
-}
-
 describe('InteractAckDto — OpenAPI 스키마 (EIA §5.1 / §5.4)', () => {
-  let interactAck: SchemaObject;
+  let interactAck: SwaggerSchemaObject;
 
   beforeAll(async () => {
-    const doc = await buildDocument();
-    const schemas = doc.components?.schemas as Record<string, SchemaObject>;
-    interactAck = schemas.InteractAckDto;
+    const doc = await buildSwaggerDocument({ controllers: [StubController] });
+    interactAck = schemaOf(doc, 'InteractAckDto');
   });
 
   it('InteractAckDto 가 components.schemas 에 등재된다', () => {
@@ -55,7 +41,8 @@ describe('InteractAckDto — OpenAPI 스키마 (EIA §5.1 / §5.4)', () => {
   });
 
   it('currentStatus.enum 이 공유 SoT 를 반영한다 (DTO↔SoT 참조; SoT 불변식은 execution-status.literal.spec)', () => {
-    const currentStatus = interactAck.properties?.currentStatus as SchemaObject;
+    const currentStatus = interactAck.properties
+      ?.currentStatus as SwaggerSchemaObject;
     expect(currentStatus.enum).toEqual([...EIA_EXECUTION_STATUS_VALUES]);
   });
 

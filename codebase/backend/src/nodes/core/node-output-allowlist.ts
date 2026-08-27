@@ -1,4 +1,4 @@
-import type { NodeHandlerOutput } from '../../nodes/core/node-handler.interface';
+import type { NodeHandlerOutput } from './node-handler.interface';
 
 // 자매 `strip-external-only-fields.ts` 와 **의도적으로 분리**된 파일이다
 // (`19_00_23` architecture W2). 그쪽은 **순수·범용** deny-list(다중 소비처, 깊은 순회)라

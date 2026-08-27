@@ -1,5 +1,5 @@
 import {
-  redactNodeExecutionRow,
+  redactNodeExecutionRowForResponse,
   redactStoredDataForResponse,
   redactStoredErrorForResponse,
   redactStoredFieldsForResponse,
@@ -240,7 +240,7 @@ describe('redactStoredFieldsForResponse', () => {
  * 행까지 참조가 달라져 copy-on-change 가 깨진다. 그 조회에는 `take` 상한이 없어 대규모
  * ForEach 실행에서 shallow-copy 가 행 수만큼 쌓인다.
  */
-describe('redactNodeExecutionRow', () => {
+describe('redactNodeExecutionRowForResponse', () => {
   const CRED = 'Bearer sk-live-abc123def456';
   const row = (over: Record<string, unknown> = {}) => ({
     id: 'ne-1',
@@ -251,7 +251,7 @@ describe('redactNodeExecutionRow', () => {
   });
 
   it('세 컬럼을 마스킹하고 나머지 필드는 보존한다', () => {
-    const out = redactNodeExecutionRow(
+    const out = redactNodeExecutionRowForResponse(
       row({
         inputData: { h: CRED },
         outputData: { o: CRED },
@@ -268,7 +268,7 @@ describe('redactNodeExecutionRow', () => {
 
   it('세 컬럼 다 무변화면 **같은 참조**를 돌려준다 (무조건 spread 회귀 차단)', () => {
     const input = row({ outputData: { step: 3 } });
-    expect(redactNodeExecutionRow(input)).toBe(input);
+    expect(redactNodeExecutionRowForResponse(input)).toBe(input);
   });
 
   // 세 컬럼 **각각**이 복제를 유발할 수 있어야 한다 — 한 컬럼만 보면 나머지 둘이
@@ -279,7 +279,7 @@ describe('redactNodeExecutionRow', () => {
     ['error' as const],
   ])('%s 만 바뀌어도 복제된다', (column) => {
     const input = row({ [column]: { leak: CRED } });
-    const out = redactNodeExecutionRow(input);
+    const out = redactNodeExecutionRowForResponse(input);
     expect(out).not.toBe(input);
     expect(out[column]).toEqual({ leak: '***' });
     // 원본은 변이되지 않는다.
@@ -306,7 +306,7 @@ describe('redactNodeExecutionRow', () => {
         string,
         unknown
       >);
-      const out = redactNodeExecutionRow(input);
+      const out = redactNodeExecutionRowForResponse(input);
       expect(out).toBe(input);
       expect(out[column]).toBe(absent);
     });

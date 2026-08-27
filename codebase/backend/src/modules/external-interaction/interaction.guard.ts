@@ -24,7 +24,7 @@ export const REFRESH_TOKEN_URL_HEADER = 'X-Refresh-Token-Url';
  * Express request 에 동봉되는 인증 컨텍스트.
  * Controller / Service 가 `req.interaction` 으로 접근.
  *
- * [Spec EIA §3.3 EIA-AU-08 + §3.3.1 EIA-AU-09] — In-process trusted caller 예외.
+ * [Spec EIA §3.3 EIA-AU-08 + §3.3.1] — In-process trusted caller 예외.
  * 두 ctx 타입을 union 으로 분리해 컴파일러가 invariant 를 강제한다:
  *
  * - {@link ExternalInteractionRequestContext} — 외부 HTTP 진입점. `InteractionGuard.canActivate`
