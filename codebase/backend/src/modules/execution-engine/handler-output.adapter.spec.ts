@@ -112,16 +112,19 @@ describe('adaptHandlerReturn', () => {
       ['sessionToken'],
       ['idToken'],
       ['apiKey'],
-    ])('[캐너리] echoed config 의 `%s` 를 **원문 그대로** 둔다 (표현식이 읽는 값)', (key) => {
-      const raw = 'AAAABBBB4321';
-      const out = adaptHandlerReturn({
-        config: { [key]: raw, endpoint: 'https://api.example.com' },
-        output: {},
-      });
-      const cfg = out.config as Record<string, unknown>;
-      expect(cfg[key]).toBe(raw);
-      expect(cfg.endpoint).toBe('https://api.example.com');
-    });
+    ])(
+      '[캐너리] echoed config 의 `%s` 를 **원문 그대로** 둔다 (표현식이 읽는 값)',
+      (key) => {
+        const raw = 'AAAABBBB4321';
+        const out = adaptHandlerReturn({
+          config: { [key]: raw, endpoint: 'https://api.example.com' },
+          output: {},
+        });
+        const cfg = out.config as Record<string, unknown>;
+        expect(cfg[key]).toBe(raw);
+        expect(cfg.endpoint).toBe('https://api.example.com');
+      },
+    );
 
     it('[캐너리] 중첩 config 도 원문 — 어댑터는 어느 깊이에서도 손대지 않는다', () => {
       const result = adaptHandlerReturn({
@@ -154,10 +157,16 @@ describe('adaptHandlerReturn', () => {
      */
     it('[캐너리] 어댑터가 남긴 원문을 egress 마스커가 가린다 (안전 주장)', () => {
       const adapted = adaptHandlerReturn({
-        config: { apiKey: 'sk-secret-1234567890', endpoint: 'https://api.example.com' },
+        config: {
+          apiKey: 'sk-secret-1234567890',
+          endpoint: 'https://api.example.com',
+        },
         output: {},
       });
-      const atEgress = deepRedactSecrets(adapted.config) as Record<string, unknown>;
+      const atEgress = deepRedactSecrets(adapted.config) as Record<
+        string,
+        unknown
+      >;
       expect(String(atEgress.apiKey)).not.toContain('1234567890');
       // 대조군 — 민감하지 않은 값은 egress 에서도 그대로다.
       expect(atEgress.endpoint).toBe('https://api.example.com');

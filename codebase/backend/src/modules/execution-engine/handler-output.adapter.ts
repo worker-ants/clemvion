@@ -46,7 +46,7 @@ export function adaptHandlerReturn(raw: unknown): NodeHandlerOutput {
       // 즉 **새로 걸 출구가 없다** — 이 저장소가 반복해 겪은 *"출구 중 하나를 빠뜨린다"*
       // 위험이 원리적으로 없는 형태다. DB 는 이제 원문을 보존하며, 그것이 EIA §R17 의
       // **egress-only 원칙**과 정렬된다(config 만 storage-time 마스킹으로 예외였다).
-      config: (r.config ?? {}) as Record<string, unknown>,
+      config: r.config ?? {},
       output: r.output,
       ...(r.meta !== undefined ? { meta: r.meta } : {}),
       ...(r.port !== undefined ? { port: r.port } : {}),
