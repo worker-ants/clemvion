@@ -1,8 +1,9 @@
 ---
 title: "`system_error` 재시도 배너가 라이브 WS 경로에서 안 뜬다 — 프런트가 정정 전 spec 을 믿고 있다"
-status: in-progress
+status: complete
 worktree: system-error-banner
 started: 2026-08-28
+completed: 2026-08-28
 owner: developer
 spec_impact: none
 ---
@@ -69,6 +70,10 @@ spec 은 이미 옳다. 백엔드를 바꾸면 8/24 에 정정한 방향을 되�
       > 떼어 놓기(2회) · 자기모순 주석 · 분기를 못 가르는 fixture · 등가 뮤턴트를
       > 가른다고 주장하기.
 - [x] push · PR
+- [x] **완료 후 정리** (`03_03_36` W1~W3) — 정본 트래커 체크+역참조 ·
+      `conversation-thread.md` ⚠️ 마커 해소 표기 · `6-websocket-protocol.md §4.2` 의
+      한 겹 얕은 표기 3곳 정정(**이 PR 이 고친 버그와 같은 모양**, 백엔드는 이미 두 겹을
+      뚫는다 — `retry-turn.service.ts:153-164` 실측)
 
 ## 스코프 밖
 

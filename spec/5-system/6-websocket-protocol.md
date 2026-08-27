@@ -256,6 +256,12 @@ error-port 종결 · container 실패)과 `ai-turn-orchestrator.service.ts` 1곳
 pre-flight throw·container 실패 경로 2곳은 **키 자체가 없다**. 동봉되는 경우 그 래퍼도
 fanout 에서 같은 allowlist 를 지난다.
 
+> **§4.2 도 같은 오차를 갖고 있었다 (2026-08-28 정정)**: `retry_last_turn` 명령과
+> `NODE_NOT_RETRYABLE`·`RETRY_TOO_EARLY` 에러 코드 서술 3곳이 `output.error.details.…` 로
+> **한 겹 얕게** 적혀 있었다. 백엔드는 `outputData.output.error.details.…` 로 두 겹을
+>뚫는다(`retry-turn.service.ts:153-164` 실측). **프런트가 이 문서의 얕은 표기를 믿어
+> `system_error` 배너가 죽었던 것과 같은 모양**이라 함께 정정했다.
+>
 > **래퍼/도메인 값 구분의 정본은 [node-output.md Principle 0](../conventions/node-output.md)**
 > 이다 — wire envelope 의 `output`/`nodeOutput` 은 `NodeHandlerOutput` **래퍼 전체**이고
 > 도메인 값은 한 겹 아래다. 이 구분이 여러 문서에 산문으로 흩어져 이번 시리즈에서
@@ -275,7 +281,7 @@ fanout 에서 같은 allowlist 를 지난다.
 | `execution.click_button` | `{ executionId, nodeId?, buttonId }` | 버튼이 설정된 Presentation 노드에서 버튼 클릭. `buttonId`는 port 타입 버튼의 UUID 또는 `__continue__` (link 전용 시 Continue 액션). `nodeId` 는 선택 필드 — **제공되면** publisher 가 실제 대기 노드와 대조하고(F-6, [실행 엔진 §7.5.1](./4-execution-engine.md#751-publisher-측-사전-검증--invalid_execution_state) nodeId 불일치), 미제공이면 server lookup(executionId+status)만으로 대기 노드를 식별한다 (frontend 는 click_button 에 nodeId 를 싣지 않아 실질 no-op) |
 | `execution.submit_message` | `{ executionId, nodeId, message }` | AI Agent Multi Turn 모드에서 사용자 메시지 전송. **form bypass**: `interactionType: 'ai_form_render'` 활성 중 본 명령이 수신되면 backend 가 `pendingFormToolCall.toolCallId` 매칭하는 render_form 도구의 tool_result content 를 `{type:'cancelled', reason:'user_sent_message_instead'}` 로 채우고 `pendingFormToolCall` 클리어 후 정상 `ai_user` turn 진행 ([Spec AI Agent §6.2 step 2.c.bypass](../4-nodes/3-ai/1-ai-agent.md#62-multi-turn-모드-mode--multi_turn)) — LLM 의 다음 reasoning 자유 보존. UI 의 MessageInput 은 항상 활성 (form 우회 허용) |
 | `execution.end_conversation` | `{ executionId, nodeId }` | AI Agent Multi Turn 대화 종료 요청 |
-| `execution.retry_last_turn` | `{ executionId, nodeExecutionId }` | AI Agent Multi Turn 의 retryable error (`output.error.details.retryable === true`) 종결 후 동일 nodeId 의 새 NodeExecution row 를 spawn 해 마지막 LLM 호출 재진입. `nodeId` 대신 `nodeExecutionId` 사용 사유: 동일 nodeId 가 여러 NodeExecution row 를 가질 수 있어 row 단위 식별 필요. 워크플로우 Re-run ([§13 replay-rerun](./13-replay-rerun.md)) 과 다름 — 동일 Execution 안 노드 단위 재시도. |
+| `execution.retry_last_turn` | `{ executionId, nodeExecutionId }` | AI Agent Multi Turn 의 retryable error (`outputData.output.error.details.retryable === true` — **래퍼 한 겹 아래**, §4.1-a) 종결 후 동일 nodeId 의 새 NodeExecution row 를 spawn 해 마지막 LLM 호출 재진입. `nodeId` 대신 `nodeExecutionId` 사용 사유: 동일 nodeId 가 여러 NodeExecution row 를 가질 수 있어 row 단위 식별 필요. 워크플로우 Re-run ([§13 replay-rerun](./13-replay-rerun.md)) 과 다름 — 동일 Execution 안 노드 단위 재시도. |
 
 **실행 시작 응답 (_비채택 won't-do_):**
 
@@ -432,8 +438,8 @@ fanout 에서 같은 allowlist 를 지난다.
 | 코드 | 설명 |
 |------|------|
 | `RETRY_STATE_NOT_FOUND` | `NodeExecution.outputData._retryState` 가 DB 에 없거나 만료됨 (`expiresAt` TTL 초과, 또는 이미 다른 retry 가 소비). 이 코드는 `_retryState` DB row 의 만료/부재를 의미하며 별도 token 필드는 payload 에 존재하지 않는다 |
-| `NODE_NOT_RETRYABLE` | 해당 노드의 `output.error.details.retryable === false` 또는 노드가 retryable error 로 종결되지 않음 (예: 정상 종결, condition 종결) |
-| `RETRY_TOO_EARLY` | `output.error.details.retryAfterSec` 카운트다운 종료 전 호출 — 서버측 enforcement. 클라이언트가 disabled 처리하면 정상적으로는 발생 안 함 |
+| `NODE_NOT_RETRYABLE` | 해당 노드의 `outputData.output.error.details.retryable === false` 또는 노드가 retryable error 로 종결되지 않음 (예: 정상 종결, condition 종결) |
+| `RETRY_TOO_EARLY` | `outputData.output.error.details.retryAfterSec` 카운트다운 종료 전 호출 — 서버측 enforcement. 클라이언트가 disabled 처리하면 정상적으로는 발생 안 함 |
 | `INVALID_EXECUTION_STATE` | 대상 `NodeExecution` 이 `FAILED` 상태가 아니거나 Execution 이 retry 진입 가능 상태가 아님 (사전 검증 실패). 기존 continuation 명령의 동일 코드와 의미 공유 (기대 상태만 다름 — retry 는 `FAILED` 기대) |
 
 **`_retryState` 소비 원자성·TTL (구현 계약):**
