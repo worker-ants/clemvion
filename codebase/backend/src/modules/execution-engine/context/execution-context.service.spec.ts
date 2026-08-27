@@ -161,6 +161,23 @@ describe('ExecutionContextService', () => {
       });
     });
 
+    /**
+     * **자매 대조군** — 아래 `setStructuredOutput` 캐너리와 짝이다. 이쪽은 방어적
+     * shallow-copy 를 **하므로** 호출자가 자기 로컬 참조를 계속 변형해도 캐시에 안 샌다.
+     * 두 캐너리가 같이 있어야 "왜 한쪽만 복사하나" 가 우연이 아니라 계약으로 읽힌다.
+     */
+    it('[대조군] 입력을 shallow-copy 한다 — 호출자 변형이 캐시로 새지 않는다', () => {
+      const local: Record<string, unknown> = { count: 1 };
+      service.setEngineResolvedConfig(executionId, nodeId, local);
+
+      const cached =
+        service.getContext(executionId)?.engineResolvedConfigCache?.[nodeId];
+      expect(cached).not.toBe(local);
+
+      local.count = 999;
+      expect(cached?.count).toBe(1);
+    });
+
     it('overwrites prior entry for the same node (per-node fresh resolve)', () => {
       service.setEngineResolvedConfig(executionId, nodeId, { count: 2 });
       service.setEngineResolvedConfig(executionId, nodeId, { count: 5 });
@@ -200,6 +217,57 @@ describe('ExecutionContextService', () => {
       });
       // Engine-side evaluated value separated
       expect(ctx?.engineResolvedConfigCache?.[nodeId]).toEqual({ count: 3 });
+    });
+  });
+
+  /**
+   * **`12_00_05` INFO 6 → `12_28_26` W1.**
+   *
+   * 어댑터에서 config-echo 마스킹을 걷어내며(2026-08-24) `adapted.config` 가 더 이상
+   * `maskSensitiveFields` 가 만든 fresh 객체가 아니게 됐다. 그 마스킹이 **암묵적
+   * deep-clone 을 겸하고 있었으므로**, 제거와 함께 핸들러 원본이 장기 생존 캐시에
+   * 그대로 눕는다.
+   *
+   * `handler-output.adapter.spec.ts` 의 캐너리는 **`adaptHandlerReturn` 까지만** 문다 —
+   * 그 파일은 이 서비스를 import 조차 하지 않는다. 이 describe 가 **나머지 한 홉**을
+   * 문다. (`12_28_26` W1: 그 캐너리를 이 홉의 근거로 인용한 JSDoc 이 실제보다 넓은
+   * 보장을 주장하고 있었다.)
+   */
+  describe('setStructuredOutput — 참조 저장 (방어적 복사 없음)', () => {
+    it('[캐너리] adapted 래퍼와 그 config 를 참조 그대로 캐시에 눕힌다', () => {
+      const rawConfig = {
+        endpoint: 'https://api.example.com',
+        nested: { a: 1 },
+      };
+      const adapted = {
+        output: {},
+        config: rawConfig,
+      } as unknown as Parameters<typeof service.setStructuredOutput>[2];
+
+      service.setStructuredOutput(executionId, nodeId, adapted);
+
+      const cached =
+        service.getContext(executionId)?.structuredOutputCache?.[nodeId];
+      expect(cached).toBe(adapted);
+      expect(cached?.config).toBe(rawConfig);
+      expect((cached?.config as { nested: unknown }).nested).toBe(
+        rawConfig.nested,
+      );
+    });
+
+    it('[캐너리] 반환 후 핸들러가 자기 config 를 변형하면 캐시에도 보인다', () => {
+      const rawConfig: Record<string, unknown> = { endpoint: 'a' };
+      const adapted = {
+        output: {},
+        config: rawConfig,
+      } as unknown as Parameters<typeof service.setStructuredOutput>[2];
+
+      service.setStructuredOutput(executionId, nodeId, adapted);
+      rawConfig.endpoint = 'b';
+
+      const cached =
+        service.getContext(executionId)?.structuredOutputCache?.[nodeId];
+      expect((cached?.config as { endpoint: string }).endpoint).toBe('b');
     });
   });
 

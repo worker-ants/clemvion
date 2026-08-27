@@ -138,14 +138,22 @@ export class ExecutionContextService {
    * Contrast with {@link setNodeOutput}, which **throws** on a missing key
    * because the strict handler-output path must guarantee delivery.
    *
-   * **Stores `adapted` by reference — no defensive copy** (asymmetric with
-   * {@link setEngineResolvedConfig}, which shallow-copies). This is load-bearing
-   * since 2026-08-24: `adapted.config` used to be a fresh object minted by
-   * `maskSensitiveFields`, so the aliasing was masked by that incidental clone.
-   * With config-echo masking moved to egress the handler's own object is what
-   * lands in this long-lived cache, so a handler that mutates its `config` after
-   * returning would mutate the cache too. `handler-output.adapter.spec.ts` pins
-   * the reference-passing with a `toBe` canary.
+   * **Stores `adapted` by reference — no defensive copy**, asymmetric with
+   * {@link setEngineResolvedConfig}, which shallow-copies. Two distinct hops
+   * share the identity, and each has its own canary — do not conflate them:
+   *
+   * 1. `adaptHandlerReturn` returns the handler's `config` object itself
+   *    (pinned in `handler-output.adapter.spec.ts`, `out.config` `toBe`
+   *    `rawConfig`). That canary says nothing about this method.
+   * 2. This method stores the whole `adapted` wrapper by reference, so
+   *    `structuredOutputCache[nodeId]` — and its `.config` — stay identical to
+   *    what the handler returned (pinned below in this module's spec).
+   *
+   * Load-bearing since 2026-08-24: `adapted.config` used to be a fresh object
+   * minted by `maskSensitiveFields`, so hop 2's aliasing was hidden behind that
+   * incidental clone. With config-echo masking moved to egress the handler's own
+   * object is what lands in this long-lived cache, so a handler that mutates its
+   * `config` after returning would mutate the cache too.
    */
   setStructuredOutput(
     key: string,
