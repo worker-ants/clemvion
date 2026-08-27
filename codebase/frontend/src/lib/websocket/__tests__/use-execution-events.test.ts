@@ -2225,17 +2225,20 @@ describe("useExecutionEvents", () => {
     });
 
     /**
-     * **`!code || !message` 가드를 문다** (`01_44_22` testing W2).
+     * **`!code || !message` 가드를 문다** (`01_44_22` W2 → `02_21_19` W1).
      *
-     * 리뷰어가 그 가드를 `if (false)` 로 뮤테이션해도 **87/87 GREEN** 임을 실증했다 —
-     * 커버리지 0 이었다. 이 PR 은 같은 함수의 `direct` 분기를 *"커버리지 0인 방어는
-     * 위험하다"* 는 이유로 지웠으면서 **형제 가드에는 그 원칙을 안 적용**했다.
+     * 이력이 두 단계다:
+     * 1. `01_44_22` 가 `if (false)` 뮤테이션으로 **커버리지 0** 을 실증했다. 이 PR 은 같은
+     *    함수의 `direct` 분기를 *"커버리지 0인 방어는 위험"* 이라며 지웠으면서 **형제
+     *    가드에는 그 원칙을 안 적용**하고 있었다.
+     * 2. 그래서 테스트를 붙였는데 **두 키를 동시에 비웠다**. 그러면 `||`→`&&` 뮤테이션이
+     *    살아남는다(`02_21_19` W1 이 실증) — **분기를 못 가르는 fixture** 다.
      *
-     * 이쪽은 지우지 않고 **테스트를 붙인다** — `direct` 와 달리 **도달한다**. 백엔드가
-     * `error: {}` 나 코드 없는 객체를 싣는 것은 타입상 막히지 않고, 그때 `code`/`message`
-     * 가 `undefined` 인 배너를 띄우면 사용자에게 빈 칸이 보인다.
+     * 그래서 **각 항을 따로 가른다**. 가드를 지우지 않는 이유는 `direct` 와 달리
+     * **도달하기 때문**이다 — 백엔드가 코드 없는 `error` 객체를 싣는 것은 타입상 막히지
+     * 않고, 그때 `code`/`message` 가 `undefined` 인 배너가 사용자에게 빈 칸으로 보인다.
      */
-    it("[가드] 구조화 에러에 `code`/`message` 가 없으면 배너를 안 띄운다", () => {
+    it("[가드] `message` 만 없어도 배너를 안 띄운다 (`||` 좌항)", () => {
       useExecutionStore.getState().startExecution("exec-1");
       seedConversation();
       const { failed } = bindNodeHandlers();
@@ -2244,16 +2247,85 @@ describe("useExecutionEvents", () => {
         nodeId: "agent-1",
         nodeType: "ai_agent",
         error: "something went wrong",
-        // `error` 객체는 있는데 두 필수 키가 없다 — 가드가 없으면 `undefined` 를 담은
-        // 배너가 뜬다.
         output: wrapNodeHandlerOutput({
-          error: { details: { retryable: true } },
+          error: { code: "LLM_CALL_FAILED", details: { retryable: true } },
         }),
       });
 
       const items = useExecutionStore.getState().conversationMessages;
       expect(items).toHaveLength(3);
       expect(items.every((i) => i.type !== "system_error")).toBe(true);
+    });
+
+    it("[가드] `code` 만 없어도 배너를 안 띄운다 (`||` 우항)", () => {
+      useExecutionStore.getState().startExecution("exec-1");
+      seedConversation();
+      const { failed } = bindNodeHandlers();
+
+      failed?.({
+        nodeId: "agent-1",
+        nodeType: "ai_agent",
+        error: "something went wrong",
+        output: wrapNodeHandlerOutput({
+          error: { message: "Upstream refused", details: { retryable: true } },
+        }),
+      });
+
+      const items = useExecutionStore.getState().conversationMessages;
+      expect(items).toHaveLength(3);
+      expect(items.every((i) => i.type !== "system_error")).toBe(true);
+    });
+
+    /**
+     * `output` 이 배열이어도 배너가 안 뜨는지.
+     *
+     * ⚠️ **이 테스트는 `!Array.isArray(v)` 항을 가르지 못한다 — 그래도 남긴다.**
+     * 그 항을 지우는 뮤테이션(M7)을 돌려도 **92/92 GREEN** 이다(실측). 이유는 배열이
+     * `asRecord` 를 통과하더라도 `[].output` 이 `undefined` 라 다음 단계에서 어차피
+     * `null` 로 떨어지기 때문 — **모든 현실 입력에 대해 등가 뮤턴트**다. WS JSON 은
+     * 프로퍼티를 가진 배열을 만들 수 없으므로 그 항은 타입 수준 방어로만 존재한다.
+     *
+     * 검증하는 것은 *"배열이 와도 배너가 안 뜬다"* 는 **동작**이고, 그건 실제로 유효한
+     * 회귀 방어다(`asRecord` 를 통째로 없애는 변경 등은 이 테스트가 문다). 항 하나를
+     * 가른다고 **주장하지는 않는다** — 이름과 주석이 실제 검증 범위와 어긋나면 그것이
+     * 이 PR 이 세 번 겪은 결함이다.
+     */
+    it("`output` 이 배열이면 배너를 안 띄운다 (동작 고정 — 항 분리는 못 함)", () => {
+      useExecutionStore.getState().startExecution("exec-1");
+      seedConversation();
+      const { failed } = bindNodeHandlers();
+
+      failed?.({
+        nodeId: "agent-1",
+        nodeType: "ai_agent",
+        error: "something went wrong",
+        output: [],
+      });
+
+      const items = useExecutionStore.getState().conversationMessages;
+      expect(items).toHaveLength(3);
+      expect(items.every((i) => i.type !== "system_error")).toBe(true);
+    });
+
+    /**
+     * `handleNodeCompleted` 쪽 **대칭 케이스** (`02_21_19` INFO 8) — 공유 함수라 간접
+     * 방어는 되지만, 두 핸들러가 각자 `isMultiTurnAiContext` 를 부르므로 한쪽 배선이
+     * 끊겨도 다른 쪽 테스트로는 안 잡힌다.
+     */
+    it("completed 도 이전 대화가 없으면 배너를 안 띄운다 (single-turn 대칭)", () => {
+      useExecutionStore.getState().startExecution("exec-1");
+      // no seedConversation
+      const { completed } = bindNodeHandlers();
+
+      completed?.({
+        nodeId: "agent-1",
+        nodeType: "ai_agent",
+        output: wrapNodeHandlerOutput({
+          error: { code: "LLM_RATE_LIMIT", message: "429" },
+        }),
+      });
+
+      expect(useExecutionStore.getState().conversationMessages).toHaveLength(0);
     });
 
     /**
