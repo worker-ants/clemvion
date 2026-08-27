@@ -28,12 +28,16 @@ export const DEFAULT_SENSITIVE_KEYS: ReadonlySet<string> = new Set(
     // 새 접두형을 만나면 여기에 더한다.
     //
     // **blast radius 를 실측했다 — 다만 정적 grep 이 닿는 범위까지다**
-    // (`16_46_56` side_effect W1 → `17_14_18` W1 이 그 한계를 짚었다). 이 상수는
-    // **소비처는 이제 `explore-tools.service.ts`(workflow-assistant) 하나다.**
-    // ~~`handler-output.adapter.ts` 도 쓰고, 그쪽은 노드 `config` echo 를 DB·WS·표현식으로
-    //  흘린다.~~ — 2026-08-24 에 그 소비처가 사라졌다. config echo 는 이제 egress
-    // (`deepRedactSecrets*`)에서만 가려지고 표현식은 원문을 읽는다.
-    // 내보낸다 — 비-자격증명 config 필드가 이 이름들과 겹치면 멀쩡한 값이 가려진다.
+    // (`16_46_56` side_effect W1 → `17_14_18` W1 이 그 한계를 짚었다).
+    //
+    // **소비처는 이제 `explore-tools.service.ts` 하나다** — 실행 행의 `inputData` /
+    // `outputData` / `error` 를 `deepRedactSecrets(maskSensitiveFields(v))` 로 겹쳐 가린
+    // 뒤 LLM 컨텍스트로 내보낸다. 과잉 마스킹 성질은 그대로다 — 비-자격증명 필드가 이
+    // 이름들과 겹치면 멀쩡한 값이 가려진다.
+    //
+    // ~~이 상수는 `handler-output.adapter.ts` 도 쓰고, 그쪽은 노드 `config` echo 를
+    // DB·WS·표현식으로 내보낸다.~~ **그 소비처는 2026-08-24 에 사라졌다** — config echo 는
+    // 이제 egress(`deepRedactSecrets*`)에서만 가려지고 표현식은 원문을 읽는다.
     //
     // **잰 것**: 노드 소스의 **정적 config 필드명** 전수 grep → 충돌 0건. 정확 일치 후보는
     // `http-request.handler.ts` 의 `auth_token` 하나뿐인데 그건 **URL 쿼리파라미터**

@@ -124,7 +124,9 @@ spec_impact:
 - [x] (planner 턴) **6개 spec** + `10_53_52` 로 stale 인용 4곳 추가 정정
 - [x] 자매 트래커 2건 종결 — 하나는 **전제가 바뀌어 대상 소멸**
 - [x] `chatChannel` 로컬 마스커 별건 등재 + 자격증명 참조 간접화 등재
-- [x] TEST WORKFLOW 4단계 + ratchet — backend **9,018 passed** · e2e 285 · 199/38 일치
+- [x] TEST WORKFLOW 4단계 + ratchet — backend **9,020 passed** / 433 suites · e2e 285 ·
+      199/38 일치. ⚠️ 이 수는 **PR 이 닫히는 시점의 값**이라 리뷰 라운드마다 갱신한다
+      (`12_00_05` INFO 11 — 9,018 로 적어 둔 사이 후속 커밋이 2건을 더했다).
 - [ ] `/ai-review`
 
 ## 뮤테이션 (예측을 실행 전에 쓰고 실측과 두 칸으로 대조)

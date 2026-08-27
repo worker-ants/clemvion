@@ -137,6 +137,15 @@ export class ExecutionContextService {
    *
    * Contrast with {@link setNodeOutput}, which **throws** on a missing key
    * because the strict handler-output path must guarantee delivery.
+   *
+   * **Stores `adapted` by reference — no defensive copy** (asymmetric with
+   * {@link setEngineResolvedConfig}, which shallow-copies). This is load-bearing
+   * since 2026-08-24: `adapted.config` used to be a fresh object minted by
+   * `maskSensitiveFields`, so the aliasing was masked by that incidental clone.
+   * With config-echo masking moved to egress the handler's own object is what
+   * lands in this long-lived cache, so a handler that mutates its `config` after
+   * returning would mutate the cache too. `handler-output.adapter.spec.ts` pins
+   * the reference-passing with a `toBe` canary.
    */
   setStructuredOutput(
     key: string,

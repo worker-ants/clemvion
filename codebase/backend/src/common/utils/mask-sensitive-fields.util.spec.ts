@@ -159,7 +159,9 @@ describe('DEFAULT_SENSITIVE_KEYS ⊆ deepRedactSecrets 의 키 축', () => {
    */
   it('[대조군] 빈 문자열 자격증명은 원문으로 통과한다 (유출 없음, 의도된 사각)', () => {
     const out = deepRedactSecrets({ apiKey: '' }) as Record<string, unknown>;
-    expect(typeof out.apiKey).toBe('string');
+    // `typeof === 'string'` 은 **마스킹돼도 참**이라 분기를 못 가른다 (`12_00_05` W2 가
+    // `v !== ''` 가드를 빼는 뮤턴트로 42/42 GREEN 을 실증했다). 값으로 단언한다.
+    expect(out.apiKey).toBe('');
   });
 
   it('[대조군] 민감하지 않은 키는 두 마스커 모두 건드리지 않는다', () => {
