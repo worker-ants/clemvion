@@ -152,6 +152,16 @@ describe('DEFAULT_SENSITIVE_KEYS ⊆ deepRedactSecrets 의 키 축', () => {
     },
   );
 
+  /**
+   * **빈 값은 이 PR 이 실제로 동작을 바꾼 지점**이다 (`11_25_15` testing INFO 4).
+   * 어댑터 마스킹이 있을 땐 빈 문자열도 마스킹 형태로 눌렸지만, 이제 egress 까지 원문으로
+   * 간다. 값이 비어 있어 **실질 유출은 없다** — 그 사각을 우연이 아니라 **의도**로 못박는다.
+   */
+  it('[대조군] 빈 문자열 자격증명은 원문으로 통과한다 (유출 없음, 의도된 사각)', () => {
+    const out = deepRedactSecrets({ apiKey: '' }) as Record<string, unknown>;
+    expect(typeof out.apiKey).toBe('string');
+  });
+
   it('[대조군] 민감하지 않은 키는 두 마스커 모두 건드리지 않는다', () => {
     const benign = { tokenCount: 12345, description: 'plain text' };
     expect(maskSensitiveFields(benign)).toEqual(benign);

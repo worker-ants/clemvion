@@ -29,9 +29,10 @@ export const DEFAULT_SENSITIVE_KEYS: ReadonlySet<string> = new Set(
     //
     // **blast radius 를 실측했다 — 다만 정적 grep 이 닿는 범위까지다**
     // (`16_46_56` side_effect W1 → `17_14_18` W1 이 그 한계를 짚었다). 이 상수는
+    // **소비처는 이제 `explore-tools.service.ts`(workflow-assistant) 하나다.**
     // ~~`handler-output.adapter.ts` 도 쓰고, 그쪽은 노드 `config` echo 를 DB·WS·표현식으로
-    // 흘린다.~~ **2026-08-24 에 그 소비처가 사라졌다** — config echo 는 이제 egress
-    // (`deepRedactSecrets*`)에서만 가려지고, 표현식은 원문을 읽는다.
+    //  흘린다.~~ — 2026-08-24 에 그 소비처가 사라졌다. config echo 는 이제 egress
+    // (`deepRedactSecrets*`)에서만 가려지고 표현식은 원문을 읽는다.
     // 내보낸다 — 비-자격증명 config 필드가 이 이름들과 겹치면 멀쩡한 값이 가려진다.
     //
     // **잰 것**: 노드 소스의 **정적 config 필드명** 전수 grep → 충돌 0건. 정확 일치 후보는
