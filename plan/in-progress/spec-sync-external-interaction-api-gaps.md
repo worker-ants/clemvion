@@ -112,7 +112,7 @@ owner: planner
       > `toFanoutEnvelope` 를 지난다. **`processButtonResumeTurn` 도 같은 경로다**
       > (`19_24_24` security W1 이 추가로 짚었다). REST 와 **같은 인가**(`verifyOwnership`)를
       > 쓰는 같은 수신 인구이고, chat-channel 어댑터가 같은 subject 를 구독한다.
-      > **재사용할 헬퍼는 이미 있다** — `shared/utils/node-output-allowlist.ts` 의
+      > **재사용할 헬퍼는 이미 있다** — `nodes/core/node-output-allowlist.ts` 의
       > `allowlistNodeOutputKeys`. envelope 안에서 `nodeOutput` 서브트리를 찾아 거는 것이 일이다.
 
       </details>

@@ -747,18 +747,6 @@ describe('WebsocketService', () => {
       expect(fanout.payload.interactionType).toBe('ai_conversation');
     });
 
-    /**
-     * **fanout `nodeOutput` 은 fail-closed allowlist 다** — EIA §R17.
-     *
-     * `stripExternalOnlyFields` 는 이름을 아는 `llmCalls` 만 뺀다(fail-open). 그래서
-     * 핸들러가 새로 넣은 내부 필드는 이름이 목록에 없다는 이유로 **그대로 나갔다**.
-     * REST `getStatus` 는 #1205 에서 allowlist 로 닫혔고, 이 테스트가 SSE/fanout 쪽
-     * 같은 문을 고정한다.
-     *
-     * `_retryState` 를 고른 이유: `NodeHandlerOutput` 의 비공개 필드인데 `_resumeState`
-     * 와 달리 **`NodeExecution.outputData` 에 실제로 영속된다**(`retry-turn.service.ts`).
-     * 즉 가상의 필드가 아니라 현존하는 fail-open 사례다.
-     */
     it('llmCalls 없는 이벤트는 그대로 fanout (no-op strip)', async () => {
       const eventP = nextFanoutEvent(service);
       await service.emitExecutionEvent(
@@ -809,6 +797,18 @@ describe('WebsocketService', () => {
    * 떨어뜨린다(fail-closed). 뒤 두 케이스는 어느 쪽도 아닌 파이프라인 자체의 불변식이다.
    */
   describe('nodeOutput allowlist · fanout 파이프라인 불변식', () => {
+    /**
+     * **fanout `nodeOutput` 은 fail-closed allowlist 다** — EIA §R17.
+     *
+     * `stripExternalOnlyFields` 는 이름을 아는 `llmCalls` 만 뺀다(fail-open). 그래서
+     * 핸들러가 새로 넣은 내부 필드는 이름이 목록에 없다는 이유로 **그대로 나갔다**.
+     * REST `getStatus` 는 #1205 에서 allowlist 로 닫혔고, 이 테스트가 SSE/fanout 쪽
+     * 같은 문을 고정한다.
+     *
+     * `_retryState` 를 고른 이유: `NodeHandlerOutput` 의 비공개 필드인데 `_resumeState`
+     * 와 달리 **`NodeExecution.outputData` 에 실제로 영속된다**(`retry-turn.service.ts`).
+     * 즉 가상의 필드가 아니라 현존하는 fail-open 사례다.
+     */
     it('[캐너리] fanout 의 `nodeOutput` 에서 allowlist 밖 내부 필드가 제거된다', async () => {
       const eventP = nextFanoutEvent(service);
       await service.emitExecutionEvent(

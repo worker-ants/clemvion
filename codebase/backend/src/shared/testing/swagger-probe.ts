@@ -38,9 +38,10 @@ export type SwaggerSchemaObject = ApiResponseSchemaHost['schema'];
  * `app.close()` 가 `finally` 에 있는 것이 중요하다 — `createDocument` 가 던지면 Nest
  * 애플리케이션이 살아남아 Jest 가 열린 핸들로 매달린다.
  *
- * 인자는 `Test.createTestingModule` 의 metadata 를 **그대로** 받는다. 네 스펙 중 둘은
- * `{ controllers: [StubController] }`, 둘은 `{ imports: [ProbeModule] }` 로 프로브를
- * 세운다 — 한쪽 형태만 받게 만들면 나머지가 헬퍼를 못 쓴다.
+ * 인자는 `Test.createTestingModule` 의 metadata 를 **그대로** 받는다. 네 스펙 중 셋은
+ * `{ controllers: [StubController] }`, 하나(`re-run.dto.spec.ts`)는
+ * `{ imports: [ProbeModule] }` 로 프로브를 세운다 — 한쪽 형태만 받게 만들면 나머지가
+ * 헬퍼를 못 쓴다.
  */
 export async function buildSwaggerDocument(
   metadata: ModuleMetadata,
@@ -55,19 +56,6 @@ export async function buildSwaggerDocument(
   }
 }
 
-/**
- * `components.schemas` 레코드 전체 — 여러 DTO 를 한 문서에서 조회하는 스펙용
- * (`@ApiExtraModels` 로 등재된 variant 들이 dangling `$ref` 가 아닌지 보는 경우).
- * 단건이면 {@link schemaOf} 가 낫다.
- */
-/**
- * 생성 문서에서 DTO 스키마 하나를 꺼낸다.
- *
- * **왜 던지나**: 원래 네 스펙은 `doc.components?.schemas as Record<…>` 로 캐스팅한 뒤
- * 인덱싱했다. DTO 이름을 오타 내거나 프로브가 그 DTO 를 참조하지 않으면 `undefined` 가
- * 나오고, 다음 줄의 `.properties` 접근이 **설명 없는 `TypeError`** 로 죽는다. 어느 단계가
- * 비었는지 이름으로 말해 주는 편이 디버깅 비용이 훨씬 싸다.
- */
 /**
  * `components.schemas` 레코드 전체 — **여러 DTO 를 한 문서에서** 조회하는 스펙용
  * (`@ApiExtraModels` 로 등재된 variant 들이 dangling `$ref` 가 아닌지 보는 경우).
@@ -92,6 +80,14 @@ export function schemasOf(
   return schemas;
 }
 
+/**
+ * 생성 문서에서 DTO 스키마 하나를 꺼낸다.
+ *
+ * **왜 던지나**: 원래 네 스펙은 `doc.components?.schemas as Record<…>` 로 캐스팅한 뒤
+ * 인덱싱했다. DTO 이름을 오타 내거나 프로브가 그 DTO 를 참조하지 않으면 `undefined` 가
+ * 나오고, 다음 줄의 `.properties` 접근이 **설명 없는 `TypeError`** 로 죽는다. 어느 단계가
+ * 비었는지 이름으로 말해 주는 편이 디버깅 비용이 훨씬 싸다.
+ */
 export function schemaOf(
   doc: OpenAPIObject,
   dtoName: string,
