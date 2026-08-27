@@ -542,6 +542,13 @@ checker 가 독립적으로** "인용이 가리키는 절이 오히려 반대를
       >
       > **미판정으로 남긴다**: 대상이 좁아졌지만 스키마 없는 자유입력이라 처방이 더 어렵다.
       > 재개 전에 `authentication='custom'` 실사용 빈도를 먼저 재는 편이 낫다.
+      >
+      > **동반 점검 (2026-08-27 등재, `14_10_42` security W1)**: config 가 DB 에 원문으로
+      > 앉으면 노출 표면이 REST/WS 두 egress **밖**으로도 넓어진다 — DB 백업·복제본·직접
+      > `psql` 조회·감사 export·리포팅/ETL 파이프라인. 이 PR 은 두 egress 만 다뤘다.
+      > **그 제3경로들이 `config` 원문을 재유출하지 않는지는 아직 안 쟀다** — 간접화 처방과
+      > 별개로 점검이 필요하다(원문 저장 자체는 `Execution.error` 와 동일 정책이므로 새 정책은
+      > 아니지만, 담기는 값의 민감도가 올라갔다).
       > **워크스페이스 경계는 넘지 않는다** — 작성 권한자는 애초에 그 값을 노드 설정에서 본다.
 
 - [ ] **`chatChannel` 라우팅 컨텍스트만 좁은 마스커를 받는다** (2026-08-24 등재, `19_26_06` plan W6 이 드러낸 것).
@@ -1727,6 +1734,41 @@ consistency `--impl-prep`(`15_35_56`, 2026-08-22)가 하나 더 냈다 — 역�
       > 계약 자체는 `execution-context.service.ts` JSDoc + 캐너리 2건으로 코드에 고정돼 있다.
       > 빠진 것은 **규약 문서의 커버리지**다. `node-output.md` 를 다른 이유로 열 때 한 줄 넣는다.
       > 관련: 같은 라운드 W4(`DEEP_REDACT_CACHE` identity 전제)의 전제 1 이 바로 이 계약이다.
+
+## 이 PR 이전 실행을 predecessor 로 시딩하면 `config` 가 여전히 마스킹값이다 (2026-08-27 등재, `14_10_42` INFO 7)
+
+- [ ] **storage-format 전환은 과거 row 에 소급되지 않는다** — 단일 노드 디버그 재실행이
+      `seedSingleNodePredecessorOutputs` 로 **2026-08-24 이전에 저장된** 실행을 predecessor 로
+      시딩하면, 그 `config` 는 옛 boundary 가 남긴 `****abcd` 형태 그대로 캐리된다.
+      > 표현식이 그 값을 읽으면 **마스킹 문자열**을 읽는다 — 이 PR 이 고치려던 바로 그 증상이
+      > 과거 실행에 대해서는 남는다. 일반적 마이그레이션 한계이고 신규 결함이 아니다.
+      > **처분 후보**: (a) 무조치 + 문서화(과거 실행은 재실행하면 새 값을 얻는다),
+      > (b) 시딩 시점에 마스킹 마커를 감지해 경고. **먼저 잴 것**: 그 경로가 실제로 얼마나
+      > 쓰이는지, 그리고 마스킹 마커(`****`)가 정상 값과 구별 가능한지.
+
+## 형제 리뷰어의 뮤테이션이 다른 리뷰어의 관측을 오염시킨다 (2026-08-27 등재, `14_10_42` INFO 9)
+
+- [ ] **같은 fan-out 안의 reviewer 들이 같은 워크트리에서 동시에 뮤테이션을 돌린다** —
+      한 리뷰어가 캐너리 검증차 소스를 고치는 동안 다른 리뷰어가 그 상태를 읽는다.
+      > **실측 (2026-08-27)**: requirement 리뷰어가 *"이 diff 와 무관한 미커밋 뮤테이션
+      > 잔여물(`DEFAULT_SENSITIVE_KEYS` 에 `oauthCred` 삽입) — **다른 병렬 세션**의 산물로
+      > 추정"* 이라 보고했다. 실제로는 **같은 라운드의 testing 리뷰어**가 캐너리를 재현하려
+      > 넣은 것이다(그 리뷰어가 뮤테이션 재현 성공을 보고했다). 다른 세션이 아니다.
+      > 라운드 종료 후 작업트리·HEAD 모두 clean 확인 — **실질 오염은 남지 않았다**.
+      >
+      > **왜 등재하는가**: (1) 관측이 **잘못된 원인**("다른 세션")으로 보고돼 조사 비용을
+      > 유발한다. (2) 타이밍이 조금만 달랐다면 형제 리뷰어가 **뮤턴트 상태의 소스를 읽고**
+      > 없는 결함을 보고하거나 있는 결함을 놓쳤을 것이다. 이번엔 운이 좋았을 뿐이다.
+      > (3) 이 저장소는 **이미 같은 클래스를 겪었다** — 셋이 같은 유령을 쫓고 하나가
+      > `git restore` 로 남의 트리를 되돌린 적이 있다.
+      >
+      > **실측된 갭**: 완화책이 프롬프트에 **없다** — `_prompts/testing.md` 에
+      > `scratch`·`git restore`·`병렬` 언급 **각 0건**(grep). 즉 종전 교훈이 reviewer 프롬프트
+      > 생성 경로에 반영된 적이 없다.
+      >
+      > **처분 후보**: reviewer 프롬프트 공통 머리말에 (a) 뮤테이션은 scratch 사본에서,
+      > (b) `git restore`/`git checkout` 금지(다른 리뷰어의 작업을 지운다),
+      > (c) **형제 리뷰어가 동시 실행 중**임을 고지 — 셋을 넣는다. 원복은 `cp` 백업으로.
 
 ## 후속 (cross-cutting, 본 spec 밖)
 - [x] **Redis fixed-window rate-limiter INCR+EXPIRE 원자화** — `PublicWebhookQuotaService.incrWithWindow` 를 `INCR + EXPIRE ... NX` 단일 pipeline(매 요청)으로 교정해 TTL 유실 self-heal (fail-closed 잠금 창 제거). `ChatChannelRateLimiterService` 는 **이미** 동일 `INCR + EXPIRE NX` 단일 pipeline 패턴이라 무변경(점검 완료). `InteractionRateLimiterService`(item 5)는 Lua EVAL — 세 서비스 모두 원자/self-heal 확보. (PR #843 ai-review concurrency WARNING 후속, `task_fa5c5e84`.)
