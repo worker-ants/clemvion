@@ -89,6 +89,11 @@ codebase/backend
 > | `pnpm install --strict-peer-dependencies` (비-frozen) | **실패** — backend 2건 보고 |
 > | `pnpm install --frozen-lockfile --strict-peer-dependencies` (= CI 가 도는 형태) | **exit 0** |
 >
+> ⚠️ **이 표의 첫 줄은 그대로 읽으면 안 된다** (§3.1 에서 정정). 그때 비-frozen 이 실패한
+> 것은 **그 순간 매니페스트가 바뀌어 재해소가 일어났기** 때문이다. 매니페스트 무변경
+> 상태에서 같은 명령을 돌리면 **조용히 exit 0** 이다(2026-08-28 실측). 판별 기준은
+> "frozen 인가" 가 아니라 **"재해소가 일어나는가"** 다 — 관측 잡이 lockfile 을 치우는 이유.
+>
 > 그 2건은 이 브랜치가 만든 것이 **아니다** — `origin/main` 의 lockfile 과 대조해 typeorm 의
 > peer 해소가 **바이트 동일**(`typeorm@0.3.31(ioredis@6.0.0)…`)임을 확인했다:
 >
@@ -107,7 +112,11 @@ codebase/backend
 > 이 항목은 §1 의 체크박스를 되돌리지 **않는다**. 5곳 배치는 실제로 됐고, 새로 들어오는
 > 미충족을 막는다는 좁은 보장은 참이다. 넓게 읽히는 서술만 여기서 좁히고, 남은 갭은 §3 으로 뺀다.
 
-## 3. frozen 게이트의 사각지대 — lockfile 에 이미 박힌 미충족 peer (P3)
+## 3. frozen 게이트의 사각지대 — lockfile 에 이미 박힌 미충족 peer (P3) — **(a) 로 집행 완료**
+
+> **결정 (2026-08-28, 사용자): (a).** 구현은 `scripts/check-unmet-peers.py` +
+> `.github/workflows/deps-peer-observe.yml`(주간 스케줄 전용, PR 트리거 없음). 상세는
+> 아래 §3.1.
 
 위 정정에서 드러난 잔여. 처분 후보:
 
@@ -143,6 +152,47 @@ codebase/backend
 > ⚠️ 억제 규칙(`peerDependencyRules`)을 **넣지는 않았다.** §1 이 남긴 교훈 그대로다 —
 > frozen 게이트에서는 애초에 발화하지 않으므로 막을 대상이 없고, 막을 대상이 없는 억제는
 > 죽은 설정이라 나중에 진짜 미충족을 조용히 덮는다(fail-open).
+
+### 3.1 집행 (2026-08-28) — (a) 관측형
+
+- **선행 실측을 한 번 더 정정한다.** 위 표의 "frozen 은 못 잡는다" 결론은 처음엔
+  **node_modules 가 있는 상태**로만 재서 나온 것이었다. 그건 약한 조건이다 — CI 는 항상
+  fresh 체크아웃이므로 "설치가 새로 일어나면 잡히지 않나" 라는 반론이 성립한다.
+  그래서 **node_modules 를 지우고 CI 형태 그대로** 다시 쟀다:
+
+  | 조건 | 결과 |
+  |---|---|
+  | fresh(node_modules 없음) + `--frozen-lockfile --strict-peer-dependencies` **= CI 형태** | **exit 0, 보고 0건** |
+  | node_modules 있음 + `--strict-peer-dependencies` (매니페스트 무변경) | exit 0, 보고 0건 |
+  | `--lockfile-only --strict-peer-dependencies` (lockfile 최신) | exit 0, 보고 0건 |
+  | **lockfile 제거 후** `--lockfile-only --strict-peer-dependencies` | **exit 1, 2건** |
+
+  결론은 유지되지만 **근거가 바뀌었다** — 원인은 "node_modules 유무" 가 아니라
+  **"재해소가 일어나는가"** 다. frozen 은 재해소를 하지 않으므로 fresh 든 아니든 계산 자체를
+  안 한다. 마지막 줄이 관측 잡의 트리거다.
+
+- **구현**: `scripts/check-unmet-peers.py` — lockfile 을 임시로 치우고 재해소한 뒤
+  `finally` 로 되돌린다(`git checkout` 미사용 — 미커밋 작업을 지운 전례). 결과를
+  `ACCEPTED` 등재부와 대조해 **새로 생긴 것에서만** 실패한다.
+- **왜 baseline 인가**: 착수 시점에 이미 2건이라 baseline 없이 돌리면 첫 주부터 영구
+  빨간불이고, 그건 신호가 아니라 소음이다. `check-pnpm-security-config.py` 의
+  `EXPECTED_*` 스냅샷 규약과 같은 형태.
+- **양방향 fail-closed**: 등재 항목이 **사라져도** 실패한다 — 해소된 수용을 남겨 두면
+  나중에 같은 이름의 진짜 문제를 덮는다(§1 이 `peerDependencyRules` 를 되돌린 이유).
+- **차단 아님**: `.github/workflows/deps-peer-observe.yml` 은 `schedule` +
+  `workflow_dispatch` 만 트리거다. `deps-security-checks.yml` 안에 넣지 않은 이유는
+  그 워크플로가 required check 자리라 스케줄 전용 잡이 PR 마다 `skipped` 로 보고되기
+  때문이다 — 그 파일 헤더가 직접 경고하는 모호함을 새로 만들 이유가 없다.
+- **뮤테이션 검증** (예측/실측 전부 일치):
+
+  | 뮤턴트 | 예측 | 실측 |
+  |---|---|---|
+  | `typeorm→ioredis` 등재 제거 | RED "새로 생겼다" | **RED** — "사라졌다" 분기까지 동시 발화 |
+  | 파서(`_UNMET_RE`) 무력화 | RED fail-closed | **RED** |
+
+  두 번째가 중요하다 — pnpm 출력 형태가 바뀌면 파서가 조용히 0건을 돌려주고 가드가
+  그때부터 무의미해진다. 종료 코드와 파싱 결과가 어긋나면 통과시키지 않는다.
+- `test_workflow_yaml_structure.py` 의 `_PERMISSIONS` 등재부도 함께 갱신했다(2-place 규약).
 
 ## 2. eslint 9 → 10 상향 (P3)
 
@@ -281,7 +331,7 @@ eslint 9 는 이미 `maintenance` dist-tag 다(2026-08-01 실측: latest = 10.8.
       > 지금은 `codebase/frontend/eslint.config.mjs` 헤더의 실측 표를 사람이 다시 확인해야 안다.
       > `--strict-peer-dependencies` 는 **사후**에만 잡는다(올리면 CI 가 즉시 빨간불) — 상류가
       > 지원을 시작했다는 **능동 신호**는 없다. §2 해제 조건과 같은 자리라 함께 다룬다.
-- [ ] §3 frozen 게이트 사각지대 — **선행 실측 완료(아래), 남은 것은 (a)/(c) 택일뿐**
+- [x] §3 frozen 게이트 사각지대 — **(a) 관측형으로 집행 완료** (2026-08-28 사용자 결정). `scripts/check-unmet-peers.py` + `.github/workflows/deps-peer-observe.yml`(주간 스케줄 전용). 상세·뮤테이션 실측은 §3.1
 - [x] (후속) `@eslint/eslintrc` 죽은 선언 제거 — backend devDep 에 `^3.3.6` 이 선언돼 있었으나
       **사용처 0건**(import·`FlatCompat`·`.eslintrc*` 파일 전부 없음, 전수 grep). eslint 10 이
       이 패키지를 더 이상 번들하지 않아(실측: backend `eslint@10.9.1` → 의존 없음 /
