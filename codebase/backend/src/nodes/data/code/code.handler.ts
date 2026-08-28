@@ -451,6 +451,10 @@ export class CodeHandler implements NodeHandler {
         script = await isolate.compileScript(wrapUserCode(code));
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
+        // `cause` 부착 기준: spec/5-system/3-error-handling.md §6.3.1 (C1 AND C2).
+        // C1 — 위 `message` 가 원본을 이미 싣는다. C2 — `isolated-vm` 의 컴파일 예외는
+        // 자기 realm 의 `SyntaxError` 라 message·name 밖 속성이 없다(그래서 테스트도
+        // `toBeInstanceOf(Error)` 대신 `toBeDefined` 를 쓴다 — cross-realm).
         throw new Error(`code has a syntax error: ${message}`, { cause: err });
       }
 

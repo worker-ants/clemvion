@@ -197,8 +197,10 @@ describe('CodeHandler', () => {
 
     // `preserve-caught-error`(eslint 10 recommended) 대응으로 붙인 `cause: err` 를 잠근다.
     // 바로 위 케이스는 `.message` 만 보므로 `cause` 를 떼도 GREEN 이다 — 이 케이스가 그 축이다.
-    // 부착이 안전한 근거는 형제 케이스(`expression-resolver.service.spec.ts`)와 같다:
-    // 감싼 message 가 이미 원본 `err.message` 를 싣고 있어 cause 가 새 정보를 노출하지 않는다.
+    // 기준의 정본은 `spec/5-system/3-error-handling.md` §6.3.1(C1 AND C2) — 여기 요약을
+    // 두지 않는다. 이 자리가 만족하는 방식만 적는다: C1 — 감싼 message 가 원본
+    // `err.message` 를 이미 싣는다. C2 — `isolated-vm` 컴파일 예외는 자기 realm 의
+    // `SyntaxError` 라 message·name 밖 속성이 없다(그 realm 경계가 아래 단언 형태도 정한다).
     it('원본 컴파일 예외를 `cause` 로 보존한다 (cause 제거 시 RED)', async () => {
       let thrown: unknown;
       try {

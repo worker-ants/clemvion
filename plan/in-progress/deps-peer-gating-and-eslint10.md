@@ -337,11 +337,28 @@ eslint 9 는 이미 `maintenance` dist-tag 다(2026-08-01 실측: latest = 10.8.
         **§6.3.1** + 그 Rationale. `conventions/` 가 아닌 이유: `secret-store.md` 는 secret
         계약이라 범위가 좁고(부착 사례 둘은 secret 과 무관), `error-codes.md` 는 에러 **코드
         문자열**의 SoT 라 wrapping 정책이 들어갈 자리가 아니다.
-        초안·검토 기록: `plan/in-progress/spec-draft-error-cause-criterion.md`,
+        초안·검토 기록: `plan/complete/spec-draft-error-cause-criterion.md`(#1228 에서 이동),
         `review/consistency/2026/08/29/00_13_01`(BLOCK: NO).
         **기준이 초안에서 바뀌었다** — `--spec` 검토가 "`cause` 는 message 가 아니라 `err`
         **객체 전체**를 붙인다" 를 짚어, "message 가 원문을 포함하는가"(C1) 하나였던 것을
         **C1 AND C2**(`err` 가 message·name 밖 민감 속성을 안 들고 있는가)로 고쳤다.
+
+        > **⚠️ 후속 정정 (2026-08-29) — 내가 "등재됐다" 고 한 것이 거짓이었다.**
+        >
+        > `#1230` PR 본문에 "인라인 주석 3곳이 §6.3.1 을 참조하도록 정리하는 것은 developer
+        > 턴이고 **이 §2 에 등재돼 있다**" 고 적었는데, **등재돼 있지 않았다.** 위 `[x]` 항목은
+        > *테스트로 잠갔다* 는 다른 작업이고, 그 정리 작업은 `spec-draft-error-cause-criterion.md`
+        > 안에만 있었다 — 그 문서는 `#1228` 에서 **`complete/` 로 봉인**됐으므로 열린 항목으로는
+        > 어디에도 남지 않았다(`git grep '6\.3\.1' -- plan/` 로 확인).
+        >
+        > 이 저장소가 이미 배운 형태다 — **조건부 처분을 봉인된 `complete/` 에 두면 유실된다.**
+        > 재등재 대신 그 자리에서 처리했다(주석 5곳, 아래).
+        >
+        > **처리 (2026-08-29)**: `expression-resolver.service.ts` · `code.handler.ts` ·
+        > `secret-resolver.service.ts` + 두 spec 파일의 설명 주석이 §6.3.1 을 가리킨다.
+        > **주석에 기준을 재서술하지 않고** "이 자리가 C1·C2 를 어떻게 만족하는가" 만 적었다 —
+        > 실제로 `expression-resolver.service.spec.ts` 의 주석이 **C1 만 적고 있어** 정본과
+        > 갈려 있었다(§6.3.1 이 C2 를 추가하기 전 문구가 남은 것). 요약을 두면 갈린다.
       > **(등재 당시 기록) 왜 그 턴에 안 고쳤나** — developer SKILL §수렴 예외 (a)+(b)+(c)+(d) 충족.
       > (a) 동작 결함이 아니다: 두 경로 모두 `cause` 부착이 안전함을 `security`·
       > `rationale_continuity` 두 리뷰어가 **독립적으로 실측 확인**했다(다운스트림에서

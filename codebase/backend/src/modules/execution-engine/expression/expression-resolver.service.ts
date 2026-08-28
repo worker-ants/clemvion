@@ -313,6 +313,9 @@ export class ExpressionResolverService {
       return `${result as string}`;
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
+      // `cause` 부착 기준: spec/5-system/3-error-handling.md §6.3.1 (C1 AND C2).
+      // C1 — 위 `message` 가 원본 `err.message` 를 이미 싣는다. C2 — 여기 도달하는 것은
+      // 표현식 평가 예외라 message·name 밖에 민감 속성이 붙지 않는다.
       throw new Error(`Expression error in config.${path}: ${message}`, {
         cause: err,
       });
