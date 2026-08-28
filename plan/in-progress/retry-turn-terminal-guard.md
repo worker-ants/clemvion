@@ -152,17 +152,25 @@ Critical 2 / Warning 3. **Critical 1건은 전제가 반증됐다** — 실측�
 
 ### 후속 (본 PR 밖)
 
-- [ ] **W1 (concurrency)** — `applyRetryLastTurn` 진입부의 `spawnedRow.status !== RUNNING`
+- [x] **W1 (concurrency)** — `applyRetryLastTurn` 진입부의 `spawnedRow.status !== RUNNING`
+      > ✅ **완료 확인 (2026-08-28 `plan-audit`)** — retry-turn.service.ts:546 `claimSpawnedRetryRow`(조건부 UPDATE + `jsonb_exists` + `affected===1`)가 :339 에서 호출됨. 도입 커밋 `dc81d21c9`(#1031). 이 plan §코드표 #1 도 'P1 완료' 로 표기.
+      > 적대적 재검증 통과(반증 시도 실패). 원 서술은 이력이라 그대로 둔다.
       체크가 **원자 claim 이 아니다**(`continuation-execution.processor.ts` 가 `retry_last_turn`
       을 원자 claim 대상에서 명시적으로 제외). 중복 continuation job 전달 시 중복 LLM 턴·공유
       context mutation·중복 종결 이벤트를 완전히 막지 못한다. 조건부 UPDATE(CAS)로 강화하거나
       중복-job 시뮬레이션 테스트로 현 한계를 명시 검증할 것. **이 PR 이 겨냥한 "동시 Stop 이
       다른 target 을 덮어쓰는" 레이스와는 별개**이며 그쪽은 닫혔다.
 - [ ] **W3 (maintainability)** — "spawn 된 row 를 FAILED 로 마감" 로직이
+      > ⚠️ **서술 정정 필요 (2026-08-28 `plan-audit`)** — 항목 자체는 **유효**하다.
+      > **무엇이 낡았나**: '3개 분기에 문자 그대로 반복' → '2개 분기(:389·:401)'. 3번째였던 '_retryState 부재 → 무조건 FAILED' 분기는 6R CRITICAL#1 수정에서 삭제됐다. §코드표 #9 의 '(3곳 반복)' 도 같이 정정.
+      > **실측**: `markSpawnedRowFailed` grep 0건 = 추출 미이행(유효). 단 반복은 3곳이 아니라 2곳 — `grep -n NodeExecutionStatus.FAILED retry-turn.service.ts` → :389(execution not found)·:401(node not found) 뿐.
       `applyRetryLastTurn` 3개 분기에 문자 그대로 반복(DRY). `markSpawnedRowFailed` 추출.
 - [x] **INFO 1** — ~~`AiTurnOrchestrator` forwardRef 근거 주석~~ **전제 반증, 무조치 종결**.
       해당 파일에 `forwardRef` 자체가 없다 (실측 근거는 마스터 백로그 **#8**).
 - [ ] **INFO 2** — `finalizeGuarded` 가 호출자 소유 `execution.status` 를 부수효과로 재대입.
+      > ⚠️ **서술 정정 필요 (2026-08-28 `plan-audit`)** — 항목 자체는 **유효**하다.
+      > **무엇이 낡았나**: '현재 두 호출부는 재사용하지 않아 안전하나' 를 삭제하고 '호출부가 이미 이 in-place 변이에 의존한다(CANCELLED RETURNING 값 → wire durationMs)' 로 교체. 안전 전제가 사라졌으므로 P3 우선순위도 재평가할 것.
+      > **실측**: 부수효과 존속(:596 `execution.status = live.status`, JSDoc :561-579 에 `@param` 없음). 단 '두 호출부는 재사용하지 않아 안전' 은 거짓 — :659·:665 가 durationMs/finishedAt 을 되쓰고 :748·:996 이 `resolveTerminalDurationMs(execution)` 로 그 값을 emit 한다.
       현재 두 호출부는 재사용하지 않아 안전하나 시그니처만으로는 드러나지 않는다.
 
 ## 2차 라운드 추가 후속 (`review/code/2026/07/27/21_39_25`)
@@ -173,6 +181,9 @@ Critical 2 / Warning 3. **Critical 1건은 전제가 반증됐다** — 실측�
       바로 그 상태("역방향 주입 제거")를 서술하고 있고, 정작 지적 대상인
       `AiTurnOrchestrator` 의 `forwardRef` 는 **존재하지 않는다**(실측 근거는 마스터 백로그 **#8**).
 - [ ] **W3 (maintainability)** — `finalizeGuarded` 가 `boolean` 반환과 동시에 인자
+      > ⚠️ **서술 정정 필요 (2026-08-28 `plan-audit`)** — 항목 자체는 **유효**하다.
+      > **무엇이 낡았나**: '인자 `execution.status` 를 in-place 로' → '`execution.status`·`durationMs`·`finishedAt` 을'. 처방된 `{persisted, live}` 반환은 durationMs/finishedAt 되쓰기를 담지 못하므로 처방 자체를 재설계해야 한다.
+      > **실측**: 미이행 — 시그니처는 여전히 `Promise<boolean>`(:581-586)이고 JSDoc 에 `@param` 없음. 다만 변이 대상이 `execution.status` 하나가 아니다: :659·:665 가 `durationMs`·`finishedAt` 도 in-place 로 덮어쓴다.
       `execution.status` 를 in-place 로 덮어쓰는 숨은 side-channel. `{ persisted, live }`
       반환으로 명시화하거나 최소한 `@param` 에 명시.
 - [x] **W4 (testing)** — spec 헤더 주석이 "deep-integration 은 엔진 thin delegator 경유로
@@ -185,6 +196,9 @@ Critical 2 / Warning 3. **Critical 1건은 전제가 반증됐다** — 실측�
       불변식 덕에 안전하고 회귀 테스트로 고정했으나, orchestrator 가 엔티티를 재조회/교체하는
       형태로 바뀌면 같은 stale-전이 결함이 재발할 수 있다. 통일 적용 또는 불변식 주석 추가.
 - [ ] **INFO 14** — 멱등 분기의 CANCELLED 타깃 대칭 테스트, `retryLastTurn` 의 `!nodeExec`
+      > ⚠️ **서술 정정 필요 (2026-08-28 `plan-audit`)** — 항목 자체는 **유효**하다.
+      > **무엇이 낡았나**: '멱등 분기의 CANCELLED 타깃 대칭 테스트' 를 항목에서 빼라(이미 존재·중복 착수 위험). 남는 것은 `!nodeExec`(null) 분기 · `retryState.retryAfterSec` fallback · `finishedAt??startedAt` 둘 다 부재 분기 3건뿐. §코드표 #7 도 동일 정정.
+      > **실측**: 첫 절은 이미 완료 — spec.ts:1259 `describe('CANCELLED 멱등 분기 (target===CANCELLED, live.status===CANCELLED)')`(4R Warning#1). 나머지는 미검증: `installRetryMocks(null)` grep 0건, retryAfterSec 테스트는 :318 `details.retryAfterSec` 하나뿐.
       서브분기·`retryAfterSec` fallback/타임스탬프 부재 분기 미검증.
 - [ ] **INFO 13** — WS 프로토콜 문서에 "동시 취소 시 후발 종결 시도는 이벤트 없이 폐기" 계약
       한 줄 추가(planner 범위).
@@ -242,6 +256,9 @@ side_effect 리뷰어가 `finalizeGuarded` 멱등 분기의 `target=CANCELLED` �
 - **Warning #4 (concurrency)** — 위 1차 라운드 W1 과 동일 건. 이미 등재됨, 추가 조치 없음.
 - **Warning #5 (maintainability)** — 위 1차 라운드 W3 과 동일 건. 이미 등재됨, 추가 조치 없음.
 - [ ] **Warning #6 (maintainability, 신규 등재)** — 회귀 테스트의 `createQueryBuilder`
+      > ⚠️ **서술 정정 필요 (2026-08-28 `plan-audit`)** — 항목 자체는 **유효**하다.
+      > **무엇이 낡았나**: '이번 라운드 2곳 추가로 누적 6곳' → '실측 11곳(+ 기본 mock 2곳)'. §코드표 #13 의 '(6곳)' 도 같이 정정. 수량이 2배 가까이 늘었으므로 P3 유지 여부도 재평가.
+      > **실측**: `mockGuardedUpdateBuilder`/`guardedUpdateBuilder` grep 0건 = 팩토리 미도입(유효). '누적 6곳' 은 낡음 — 인라인 체이너 재정의 실측 11곳(:412·437·471·499·548·1109·1160·1191·1267·1338·1400) + 기본 mock 2곳(:75·:90).
       guarded-update mock 리터럴(`{update,set,where,andWhere,execute}` 체이너)이 스파이 배선만
       다른 채 근접 중복(이번 라운드 2곳 추가로 누적 6곳). 공유 팩토리
       (`mockGuardedUpdateBuilder({affected, setSpy?, andWhereSpy?, setParameterSpy?})`)로
@@ -325,6 +342,9 @@ RESOLUTION: `review/code/2026/07/28/00_44_54/RESOLUTION.md`.
       리포트로 해당 행 uncovered 실측(branch 78.87%). 이 메서드의 핵심 불변식("동시 retry 의
       중복 spawn 차단")을 뒷받침하는 테스트가 전무하다.
 - [ ] **W4(maintainability) — 멱등 분기 회고 주석 누적 정리.** 2~4R 소견이 삭제 없이 누적돼
+      > ⚠️ **서술 정정 필요 (2026-08-28 `plan-audit`)** — 항목 자체는 **유효**하다.
+      > **무엇이 낡았나**: '회고 주석 약 40줄 > 실제 제어흐름 6~7줄' → '주석 49줄 vs 코드 42줄'. 비율 근거가 약해졌으니 '주석이 코드를 압도한다' 대신 '라운드별 서사가 삭제 없이 누적됐다' 를 근거로 재서술.
+      > **실측**: 정리 미수행 — :597-688 멱등 분기 본문의 `//` 주석 49줄. 단 '실제 제어흐름 6~7줄' 은 낡음: 같은 구간 비주석·비공백 코드가 42줄(4R COALESCE + RETURNING 되쓰기 도입으로 커졌다).
       회고 주석 약 40줄 > 실제 제어흐름 6~7줄. **지적은 타당하다.** 다만 수렴 판정 규칙(Critical
       해소 후 코드를 더 건드리지 않는다)에 따라 이번 턴에는 손대지 않았다 — 여기서 주석을
       정리하면 리뷰가 다시 stale 이 되어 6라운드가 열린다. 안정화 후 "왜 이렇게 처리하는가"의
@@ -348,7 +368,9 @@ RESOLUTION: `review/code/2026/07/28/00_44_54/RESOLUTION.md`.
 
 ### project-planner 위임 (developer 권한 밖)
 
-- [ ] **spec 자기모순 정정.** `spec/5-system/4-execution-engine.md` 줄 77(전이표)·1454(상세
+- [x] **spec 자기모순 정정.** `spec/5-system/4-execution-engine.md` 줄 77(전이표)·1454(상세
+      > ✅ **완료 확인 (2026-08-28 `plan-audit`)** — 4-execution-engine.md 전이표 `failed → running` 행이 '**park 없이 그 turn 에서 종결되어도 cancel 은 보존된다**' 로 정정됐고 :1550 이 '옛 서술 철회 (2026-07-28)' 로 원문 보존. node-cancellation.md:199 에 `retry-turn.service.ts`(`finalizeGuarded`) 행 존재.
+      > 적대적 재검증 통과(반증 시도 실패). 원 서술은 이력이라 그대로 둔다.
       산문)는 2026-06-06 작성 그대로 "park 없이 그 turn 에서 종결되면 cancel 은 무효과로
       흘려보내진다"고 하는데, 줄 79-92(2026-07-27 `#1023` 신설)는 "park 여부 무관 cancel 은
       항상 보존"이라고 정반대로 서술한다. **코드·테스트가 후자를 증명하므로 코드는 유지하고

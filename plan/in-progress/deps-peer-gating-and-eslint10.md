@@ -106,6 +106,9 @@ eslint 9 는 이미 `maintenance` dist-tag 다(2026-08-01 실측: latest = 10.8.
       > 출처: `review/code/2026/08/10/15_41_41` scope INFO.
 
 - [ ] §2 eslint 10 상향 — 10개 워크스페이스 + config 검증
+      > ⚠️ **서술 정정 필요 (2026-08-28 `plan-audit`)** — 항목 자체는 **유효**하다.
+      > **무엇이 낡았나**: "10개 워크스페이스" → **11개** 로 정정. 같은 수치가 3곳에 미러돼 있어 동시 갱신 필요: 본문 §범위(L92)·체크박스(L108)·`.github/dependabot.yml:91`·`codebase/backend/eslint.config.mjs:28`. 신규 워크스페이스는 `codebase/packages/masked-markers`(eslint `^9.18.0`).
+      > **실측**: `grep -rln '"eslint":' --include=package.json` = **11개**(root 없음). `find -name eslint.config.mjs` 도 11개. #1190(3f8543eae, 08-21)이 `packages/masked-markers` 를 추가하면서 10→11 이 됐다.
 - [ ] §2 상향 후 `dependabot.yml` 의 `eslint-plugin-unicorn` ignore 해제 + `eslint.config.mjs`
       주석의 실측 표 갱신
 - [ ] TEST WORKFLOW + `/ai-review`

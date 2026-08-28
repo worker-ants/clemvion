@@ -15,6 +15,9 @@ exec-intake 큐 백로그(`exec-intake-queue-impl.md`, PR1~PR4 + PR2b)는 **완�
 - [ ] **곁들임 INFO 리팩터 묶음** (ai-review 누적):
   - [x] ARCH#4: `resolveExecutionRunWorkerConcurrency` 를 `execution-run.queue.ts` → `execution-limits.ts` 로 이관(동시성 한도 로직 응집). 완료(2026-07-04).
   - [ ] ARCH#5: `error-codes.ts` 엔진 레벨 에러코드 레이어 분리(노드 핸들러 코드와 혼재 정리; `EXECUTION_QUEUE_WAIT_TIMEOUT`/`EXECUTION_TIME_LIMIT_EXCEEDED` 등). **별도 후속** — 공용 `ErrorCode` 재편+하드코딩 문자열 enum 편입+소비처 리다이렉트로 blast radius 큼. 타 in-progress plan(http-ssrf·node-output-redesign)이 error-codes.ts 에 항목 추가 중이라 지금 재편 시 충돌 → 그 PR 들 정착 후 착수.
+        > ⚠️ **서술 정정 필요 (2026-08-28 `plan-audit`)** — 항목 자체는 **유효**하다.
+        > **무엇이 낡았나**: 차단 근거 절반이 사라졌다. "타 in-progress plan(http-ssrf·node-output-redesign)이 error-codes.ts 에 항목 추가 중" 중 http-ssrf 는 두 문서 모두 이미 완료 이동됨(plan/complete/http-ssrf-all-auth.md, plan/complete/http-ssrf-all-auth-followups.md). 게다가 `git log -- codebase/backend/src/nodes/core/error-codes.ts` 최신 커밋은 537c930b0(#693, 2026-06)로 2개월 넘게 무변경 — "지금 재편 시 충돌" 전제를 착수 전 재측정할 것. 남은 in-progress 는 node-output-redesign 뿐이고 error-codes 언급은 그 디렉터리 2파일(text-classifier.md·send-email.md)에 그친다.
+        > **실측**: 작업은 미착수: nodes/core/error-codes.ts 단일 파일에 HTTP(:10~)·DB·LLM 노드 코드와 엔진 코드(:73 EXECUTION_TIME_LIMIT_EXCEEDED, EXECUTION_INTERNAL_ERROR 등)가 여전히 혼재. `EXECUTION_QUEUE_WAIT_TIMEOUT` 은 execution-engine.service.ts:2872 하드코딩 문자열.
   - [x] ARCH#6: `execution-limits.ts` 모듈 경계 JSDoc. 완료(2026-07-04).
   - [x] MAINT#9: `system-status.constants.ts` concurrency 파싱 일원화 — continuation 을 canonical `resolveContinuationWorkerConcurrency`(strict) 재사용으로 통일(inline loose `Number()||1` 은 §11 계약과 drift 였음). 완료(2026-07-04). (getter 전환은 스코프 밖 — 두 concurrency 상수는 모듈-로드 1회 평가가 spec 의도.)
 > **⚠ 소급 정정 (2026-08-14)** — 아래 "admission 회귀 보강" 이 GREEN 이던 근거는

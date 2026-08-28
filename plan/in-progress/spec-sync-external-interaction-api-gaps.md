@@ -16,6 +16,9 @@ owner: planner
 > `result.outputs` 가 조용히 사라진다** — 이 세션에서 이미 겪은 형태다.
 
 - [ ] **`result.outputs` emit** — **먼저 planner 턴에서 내용을 정의해야 한다.** spec 은
+      > ⚠️ **서술 정정 필요 (2026-08-28 `plan-audit`)** — 항목 자체는 **유효**하다.
+      > **무엇이 낡았나**: 괄호 안 '(현재 `execution.completed` payload 는 `{status}` 하나)' 가 낡았다 — 2026-08-15 durationMs 완료로 이미 2필드다. '{status, durationMs} 둘' 로 고치고, '신규 데이터 클래스가 열린다' 근거는 유지.
+      > **실측**: spec/5-system/14-external-interaction-api.md:593 아직 '미구현 (Planned)' — 항목 자체는 유효. 그러나 같은 문서 §6.3(762~779)은 payload 를 {status, durationMs} 로 싣는다(durationMs 행도 '구현됨').
       이름만 두고 shape·의미를 적은 문장이 0건이다. 채우면 외부 webhook 에 신규 데이터
       클래스가 열리는데(현재 `execution.completed` payload 는 `{status}` 하나) 크기 상한이
       없다. 소비처 0곳
@@ -581,6 +584,9 @@ checker 가 독립적으로** "인용이 가리키는 절이 오히려 반대를
       > **워크스페이스 경계는 넘지 않는다** — 작성 권한자는 애초에 그 값을 노드 설정에서 본다.
 
 - [ ] **`chatChannel` 라우팅 컨텍스트만 좁은 마스커를 받는다** (2026-08-24 등재, `19_26_06` plan W6 이 드러낸 것).
+      > ⚠️ **서술 정정 필요 (2026-08-28 `plan-audit`)** — 항목 자체는 **유효**하다.
+      > **무엇이 낡았나**: 항목이 등재된 2026-08-24 보다 **먼저**(#1186) 코드에 '의도된 carve-out' 결정이 기록돼 있는데 항목이 그걸 인용하지 않는다. '두 선언을 합치는 것이 순수 위생 작업' 이라는 처방을 '기존 carve-out 근거(REST 전용 확장)를 재검토할지' 로 재작성하고, websocket.service.ts:74-77 을 근거로 인용할 것. 남은 실측 질문(ChatChannelRoutingInfo 의 index signature `[key: string]: unknown` 로 x-api-key 가 실릴 수 있는가)은 유효하므로 유지.
+      > **실측**: 두 선언 차이는 사실: sanitize-error-message.ts:112-113 에 `x[_-]api[_-]?key` 있고 websocket.service.ts:78-79 에 없음. 그러나 :74-77 JSDoc 이 '여기 없는 것이 정상이고, 동기화 대상이 아니다' 로 명시. 도입 커밋 89a816ab9(#1186, 2026-08-20).
       > `CREDENTIAL_KEY_PATTERN` 이 **두 번 선언**돼 있고 실제로 다르다 — `sanitize-error-message.ts` 는 `x[_-]api[_-]?key` 를 갖고 `websocket.service.ts` 의 로컬본은 **없다**(실측).
       > **config echo 경로는 영향 없다**(실측: `maskWireEnvelope` 도 공유본을 쓴다). 좁은 로컬본을 받는 것은 `sanitizePayloadForWs(ctx.chatChannel)` **라우팅 컨텍스트 하나**다 — 거기 `x-api-key` 키가 실린다면 WS 에서만 안 가려진다.
       > **미판정으로 남긴다**: 그 컨텍스트가 실제로 그런 키를 담는지 먼저 재야 하고, 담지 않으면 두 선언을 합치는 것이 순수 위생 작업이다. 합칠 때는 **넓은 쪽으로** 합쳐야 한다(좁은 쪽으로 합치면 REST 가 후퇴한다).
@@ -1020,6 +1026,9 @@ checker 가 독립적으로** "인용이 가리키는 절이 오히려 반대를
       > 미러가 없다. 남은 가드는 *미러가 되살아나지 않는지*(심볼 재선언)만 본다.
 
 - [ ] **프리필 가드 후속 3건 (전부 비차단, `12_33_36` INFO)** — 2026-08-17 등재.
+      > ⚠️ **서술 정정 필요 (2026-08-28 `plan-audit`)** — 항목 자체는 **유효**하다.
+      > **무엇이 낡았나**: 제목의 '3건' 이 낡았다 — 목록은 5개 하위 항목이고 1개(isMaskedMarker non-string)만 닫혀 **미해결 4건**이다. 나머지 둘은 나중 라운드(`12_57_15`)에서 추가됐다. 제목을 '후속 4건' 으로 고치고 출처를 `12_33_36`+`12_57_15` 병기할 것.
+      > **실측**: 하위 4건 전부 미해소 실측: dynamic-form-ui.test.tsx 마스킹 가드 테스트 615·629·685·718 전부 `type:"text"`; presentation.mdx 마스킹/프리필 문자열 0건; 힌트 수명 단언 없음; 파일 상단 '검증 범위' 8줄에 마스킹 블록 없음.
       - ~~`isMaskedMarker` 의 non-string 입력(`123`/`null`/`true`) 직접 단위 테스트 (INFO-4).~~
         **닫혔다 (2026-08-21, PR #1190 — 2026-08-22 재판정에서 발견).** 공유 패키지
         `codebase/packages/masked-markers/src/__tests__/index.spec.ts` 의
@@ -1138,6 +1147,9 @@ checker 가 독립적으로** "인용이 가리키는 절이 오히려 반대를
 - [x] 집계 3자리에 status 필터 (`f79792621`). 자리별 뮤테이션으로 판별력 확인
 - [ ] **프런트엔드 Duration 컬럼 4곳** — 순진한 status 필터는 **오답**이다(아래 실측)
 - [ ] 순수 실행시간과 wall-clock 대기시간의 **필드 분리** — 위 항목의 유일한 정답
+      > ⚠️ **서술 정정 필요 (2026-08-28 `plan-audit`)** — 항목 자체는 **유효**하다.
+      > **무엇이 낡았나**: '필드 분리' 를 신규 설계 과제로 서술한 것이 낡았다 — DB/엔티티 층 분리는 #469 로 이미 존재한다(`Execution.activeRunningMs`). 남은 작업은 **노출**이다: ExecutionStatusDto/STATUS_PROJECTION_COLUMNS(interaction.service.ts:73)와 위 프런트 4컬럼에 activeRunningMs 를 싣는 것. 이 사실을 적으면 작업 크기 추정이 달라진다.
+      > **실측**: 분리 필드가 이미 있다: execution.entity.ts:71-72 `active_running_ms`, JSDoc(:64-69) 이 'waiting_for_input park 시간은 제외 … wall-clock 총 소요는 durationMs 별도'. 도입 f0fa0bacf(#469, 2026-06-05). DTO/프런트 노출 0건(grep).
 
 ### 프런트엔드는 status 로 못 가른다 (실측)
 
@@ -1842,6 +1854,67 @@ consistency `--impl-prep`(`15_35_56`, 2026-08-22)가 하나 더 냈다 — 역�
 >
 > 내가 등재했던 사례 3건(관측 오염·파일 파괴 near-miss·`.bak` 재발)은 실측과 함께 그쪽
 > 항목 안으로 **전부 옮겼다** — 잃은 내용은 없다.
+
+## 잔여 plan 전수 감사 — 결과와 **다루지 못한 범위** (2026-08-28 `plan-audit`)
+
+`origin/main`(`69bf9e50f`) 기준으로 in-progress plan 의 미해결 항목을 코드베이스와 대조했다.
+8개 클러스터 fan-out + **"이미 처리됨"·"불필요" 판정만 적대적 재검증**하는 파이프라인.
+
+| | 수 |
+| --- | --- |
+| 감사한 항목 | **176** |
+| `already_done` → 검증 통과 | **6** (체크 완료) |
+| `already_done` → **반증** | **1** (살려 둠 — 아래) |
+| `unnecessary` | **0** |
+| `needs_revision` | **29** (항목은 유효, 서술만 정정) |
+| `still_open` | 140 |
+
+### 적대적 검증이 오판을 하나 잡았다
+
+`spec-draft-eia-notification-payload-contract.md` 의 *"`chat-channel/types.ts:388` 을 (1)
+최종형과 동기화"* 를 감사자가 `already_done` 으로 판정했는데 **틀렸다**. 검증자가 반증했고
+내가 직접 재확인했다 — `EiaCompletedEvent`(`types.ts:386`)에 `status` 필드가 **없고**, 그
+파일 전체에서 그 의미의 `status` 는 **0건**이다(있는 3건은 `statusCode` 주석과 무관 서술).
+SoT 인 `chat-channel-adapter.md:149-151` 은 `status` + `result?` 를 선언하고 emit 도 싣는다.
+
+**검증 단계가 없었으면 살아있는 항목을 닫았다.** 7건 중 1건이 오판이었다.
+
+### 감사가 **다루지 않은** 범위 — 다음 사람이 알아야 한다
+
+이 감사는 176항목만 봤다. 나머지는 **의도적으로 제외**했고 사유가 다르다:
+
+- **`node-output-redesign/**` (30파일 · 약 85항목)** — 2026-06-25 에 **이미 전수 재대조
+  (6차 갱신)** 를 했다. 그래서 이번엔 *"그 뒤 얼마나 낡았나"* 만 쟀다:
+  `codebase/backend/src/nodes/` 에 **35커밋**이 들어왔고 변화가 세 곳에 몰려 있다 —
+  **`ai/ai-agent` 73 · `integration/cafe24` 37 · `ai/information-extractor` 12**,
+  나머지는 각 ≤7. **7차는 30파일 전수가 아니라 이 셋만** 하면 된다.
+  특히 `README.md` 의 P0 항목이 `ai-turn-executor.ts:1209`·`:1439` 를 **줄 번호로** 인용하는데
+  `#1212`(config echo 마스킹)가 그 파일을 건드렸다.
+- **로드맵 4종** (`rag-quality-improvement` 40 · `marketplace-and-plugin-sdk` 33 ·
+  `self-hosting-deployment` 29 · `ai-agent-tool-connection-rewrite` 27 = **129항목**) —
+  전부 `worktree: (unstarted)` 이고 미해결 항목이 **작업 단위가 아니라 제안 내용**이다.
+  코드 대조로 판정할 대상이 아니라 *"이 로드맵이 아직 유효한가"* 라는 다른 질문이다.
+
+### 로드맵 4종의 `plan/research/` 이관 판정 — 실측
+
+`plan-lifecycle.md §2` 의 세 신호로 쟀다:
+
+| 문서 | 자기규정 | owner | 위임 인덱스 | 판정 |
+| --- | --- | --- | --- | --- |
+| `rag-quality-improvement` | *"리서치 기반 개선 제안"* ✅ | `사용자 본인 / planner` ✅ | 0건 ❌ | **2/3 — 이관 후보** |
+| `marketplace-and-plugin-sdk` | ❌ | `developer` ❌ | 0건 ❌ | 작업 plan (미착수) |
+| `self-hosting-deployment` | ❌ | `developer` ❌ | 0건 ❌ | 작업 plan (미착수) |
+| `ai-agent-tool-connection-rewrite` | ❌ | `developer` ❌ | 0건 ❌ | 작업 plan (미착수) |
+
+- [ ] **`rag-quality-improvement.md` 를 `plan/research/` 로 옮길지 판정** — 신호 2/3 이라
+      단독 판정하지 않았다. 셋 다 *"다른 plan 참조 0건"* 이라 **위임 인덱스 축은 미충족**이고,
+      그 문서가 스스로 *"리서치 기반 개선 제안 **+ 실행 plan**"* 이라 양쪽에 걸친다.
+      > 이관하면 `in-progress/` 의 미해결 40건이 라이프사이클 축에서 빠져 `plan-stale-audit`
+      > 신호가 정확해진다. 안 하면 2026-06-03 등재 문서가 계속 "진행 중" 으로 잡힌다.
+- [ ] **미착수 로드맵 3종의 유효성 재판정** — 전부 2026-05-11 등재로 **109일** 경과.
+      코드 대조가 아니라 *"제품이 이 방향을 아직 가는가"* 를 물어야 하므로 사용자 판단이 필요하다.
+- [ ] **`node-output-redesign` 7차 — `ai-agent`·`cafe24`·`information-extractor` 3파일만**
+      (위 실측 근거). 30파일 전수는 불필요하다.
 
 ## 후속 (cross-cutting, 본 spec 밖)
 - [x] **Redis fixed-window rate-limiter INCR+EXPIRE 원자화** — `PublicWebhookQuotaService.incrWithWindow` 를 `INCR + EXPIRE ... NX` 단일 pipeline(매 요청)으로 교정해 TTL 유실 self-heal (fail-closed 잠금 창 제거). `ChatChannelRateLimiterService` 는 **이미** 동일 `INCR + EXPIRE NX` 단일 pipeline 패턴이라 무변경(점검 완료). `InteractionRateLimiterService`(item 5)는 Lua EVAL — 세 서비스 모두 원자/self-heal 확보. (PR #843 ai-review concurrency WARNING 후속, `task_fa5c5e84`.)

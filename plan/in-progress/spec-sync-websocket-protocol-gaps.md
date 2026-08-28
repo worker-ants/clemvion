@@ -14,7 +14,9 @@ owner: planner
 spec 초안은 raw/native WebSocket 프로토콜을 전제했으나 구현은 Socket.IO (namespace `/ws`) 기반이다. 본 spec 의 transport 서술은 Socket.IO 현실에 맞춰 정정했고, 아래 항목은 코드에 실재 부재하는 약속이라 미구현(Planned)으로 분리했다.
 
 ## 미구현 항목 (잔여 — 실 기능 backlog)
-- [ ] 종결 3종의 `durationMs`(본 문서 표기 `duration`) — **본 문서는 더 이상 SoT 가 아니다.**
+- [x] 종결 3종의 `durationMs`(본 문서 표기 `duration`) — **본 문서는 더 이상 SoT 가 아니다.**
+      > ✅ **완료 확인 (2026-08-28 `plan-audit`)** — EIA 트래커 :22 '[x] durationMs emit — 완료(2026-08-15, 0f0050dea+0dce2a83f)'. spec 14-EIA '종결 이벤트의 필드 집합' durationMs 행=구현됨. execution-event-emitter.service.ts:32-41,146 이 3종 payload 에 적재(#1171).
+      > 적대적 재검증 통과(반증 시도 실패). 원 서술은 이력이라 그대로 둔다.
       2026-08-13 부터 필드 계약은 [EIA §6 도입부](../../spec/5-system/14-external-interaction-api.md#종결-이벤트의-필드-집합-normative)
       가 소유하며, 이 항목의 추적도 그쪽 트래커(`spec-sync-external-interaction-api-gaps.md`)가
       정본이다. 여기 남기는 것은 WS 쪽에서 찾는 사람을 위한 포인터다

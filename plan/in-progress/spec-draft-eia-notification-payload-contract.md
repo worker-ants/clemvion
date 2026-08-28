@@ -198,6 +198,9 @@ DB(`trigger.workflowId`), 안쪽은 routing context — **출처가 다르다**.
 - [ ] `chat-channel/types.ts:388` 을 (1) 최종형과 동기화
 - [ ] `duration` → `durationMs` 전역 개명
 - [ ] 코드 3곳의 `EIA §6.5 line 536` 인용에서 줄 번호 제거 (`chat-channel.dispatcher.ts:506`,
+      > ⚠️ **서술 정정 필요 (2026-08-28 `plan-audit`)** — 항목 자체는 **유효**하다.
+      > **무엇이 낡았나**: 항목 자체는 유효(3곳 전부 미제거). ① `chat-channel.dispatcher.spec.ts:428` → `:488` 로 갱신. ② 같은 주석 줄에 붙어 있는 두 번째 하드코딩 인용 `chat-channel-adapter.md §1.2 line 89` (실제 §1.2 = 그 파일 138행) 3곳도 같은 편집 범위에 넣어야 한다 — 동일 결함 클래스인데 항목이 `line 536` 만 지목한다. ③ 본문 L155 의 "§6.5 의 실제 위치는 675행" 도 재-stale (현재 827행) — 줄 번호를 다시 적지 말고 "앵커만 남긴다" 서술로 축약할 것.
+      > **실측**: `grep -rn "line 536"` 코드 3곳 잔존: chat-channel.dispatcher.ts:506 / types.ts:378 / chat-channel.dispatcher.spec.ts:**488** (plan 은 :428 로 적음). 같은 주석에 `§1.2 line 89` 도 3곳(dispatcher.ts:507·types.ts:376·spec.ts:489)
       `chat-channel.dispatcher.spec.ts:428`, `chat-channel/types.ts:378`)
 - [ ] `execution.ai_message` 봉투 서술 정정 (별건)
 - [x] `node-output-redesign/README.md:372` 의 EIA cross-ref — **절 번호 자체가 틀렸다.**
@@ -209,7 +212,9 @@ DB(`trigger.workflowId`), 안쪽은 routing context — **출처가 다르다**.
       그 **이전에** 돌아 strip 대상이 아니다. **SSE·webhook 양쪽** payload 에 실린다
       (chat-channel 트리거 execution 한정, `sanitizePayloadForWs` 는 거침). spec 어디에도 없는
       필드다. 이번 draft 범위는 넓히지 않고 별건으로 판단
-- [ ] `failRetryExecution` 의 `cancelledBy` 누락 → [`retry-turn-terminal-guard.md`](./retry-turn-terminal-guard.md) **#2** 에서 집행
+- [x] `failRetryExecution` 의 `cancelledBy` 누락 → [`retry-turn-terminal-guard.md`](./retry-turn-terminal-guard.md) **#2** 에서 집행
+      > ✅ **완료 확인 (2026-08-28 `plan-audit`)** — retry-turn.service.ts:994 `cancelledBy: 'user'` (git log -S → 8e0728a90 #1174). retry-turn-terminal-guard.md:372 "#2 … **P2 완료**". EIA §6 필드표(:592)도 "(2026-08-15 해소)" 로 이미 기록
+      > 적대적 재검증 통과(반증 시도 실패). 원 서술은 이력이라 그대로 둔다.
       (그 항목 완료 시 (1) 표의 "경로 1곳 누락" 도 함께 해제)
 
 ## 체크리스트
