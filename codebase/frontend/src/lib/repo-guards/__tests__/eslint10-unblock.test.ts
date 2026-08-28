@@ -66,10 +66,12 @@ describe("frontend·channel-web-chat 의 eslint 9 잔류 전제 (실측)", () =>
     }
   });
 
+  // lockfile 은 6MB 급이다. `it.each` 안에서 읽으면 케이스마다 재파싱한다 — 한 번만 읽는다.
+  const entries = readPeerRanges(readLockfile(), BLOCKER_NAMES);
+
   it.each(BLOCKERS)(
     "$name ($kind) 가 여전히 eslint 10 을 배제한다 — 배제가 풀리면 이 케이스가 RED 로 알린다",
     ({ name, kind, lever }) => {
-      const entries = readPeerRanges(readLockfile(), BLOCKER_NAMES);
       const entry = entries.get(name);
 
       // fail-closed — lockfile 에서 못 찾으면 "막는 것이 없다" 가 아니라 **구조가 바뀐 것**이다.
@@ -120,6 +122,14 @@ describe("allowsEslint10 (합성)", () => {
     expect(allowsEslint10(">=9.0.0")).toBe(true);
   });
 
+  it("`~` 항도 major 고정으로 읽는다", () => {
+    // 이 케이스가 없던 동안 `termMajorFloor` 의 정규식에서 `~` 를 지우는 뮤테이션이
+    // **생존했다**(스위트 전부 GREEN). 연산자 하나하나가 별도 표면이다.
+    expect(allowsEslint10("~9.5.0")).toBe(false);
+    expect(allowsEslint10("~10.5.0")).toBe(true);
+    expect(allowsEslint10("^8 || ~9.7")).toBe(false);
+  });
+
   it("해석 불가한 항은 조용히 false 가 아니라 throw 다 (fail-closed)", () => {
     // 조용히 false 면 "아직 막혀 있다" 로 읽혀 가드가 영원히 초록이 된다.
     expect(() => allowsEslint10("latest")).toThrow(/해석할 수 없다/);
@@ -166,5 +176,38 @@ describe("readPeerRanges (합성)", () => {
 
   it("없는 패키지는 결과에 없다 — 호출부가 fail-closed 로 처리한다", () => {
     expect(readPeerRanges(SAMPLE, ["eslint-plugin-jsx-a11y"]).size).toBe(0);
+  });
+
+  it("`snapshots:` 섹션의 동명 키에 오염되지 않는다", () => {
+    // 실측(2026-08-28): 실제 lockfile 에서 `eslint-plugin-react` 키 정규식이 **2건** 매칭된다
+    // — `packages:` 의 `…@7.37.5:` 와 `snapshots:` 의 `…@7.37.5(eslint@9.39.4(jiti@2.7.0)):`.
+    // 지금은 snapshots 항목에 `peerDependencies:` 가 없어 오염이 안 날 뿐이라 **우연히**
+    // 안전했다. 아래 fixture 는 그 우연을 없애고 섹션 한정을 구조로 고정한다.
+    const withSnapshots = [
+      SAMPLE,
+      "snapshots:",
+      "",
+      "  eslint-plugin-react@7.37.5(eslint@9.39.4(jiti@2.7.0)):",
+      "    peerDependencies:",
+      "      eslint: ^99 || ^100",
+      "",
+    ].join("\n");
+
+    const got = readPeerRanges(withSnapshots, ["eslint-plugin-react"]);
+    // `packages:` 값이 남아야 한다 — snapshots 의 `^99 || ^100` 에 덮이면 안 된다.
+    expect(got.get("eslint-plugin-react")?.eslintPeer).toBe("^3 || ^8 || ^9.7");
+  });
+
+  it("`packages:` 밖에서 시작하는 문서는 아무것도 읽지 않는다", () => {
+    // 섹션 추적이 사라지면(=항상 읽으면) 이 케이스가 RED 가 된다.
+    const onlySnapshots = [
+      "snapshots:",
+      "",
+      "  eslint-plugin-react@7.37.5(eslint@9.39.4):",
+      "    peerDependencies:",
+      "      eslint: ^10.0.0",
+      "",
+    ].join("\n");
+    expect(readPeerRanges(onlySnapshots, ["eslint-plugin-react"]).size).toBe(0);
   });
 });

@@ -88,8 +88,15 @@ export interface PeerEntry {
  * 이 저장소의 해소 결과에 대한 정본이라 그 셋 중 유일하게 성립하는 출처다.
  *
  * YAML 파서를 끌어오지 않고 줄 단위로 읽는다 — lockfile 은 6MB 급이고 필요한 것은
- * 최상위 `packages:` 아래 두 줄뿐이다. 들여쓰기 폭에 기대지 않도록 **키 줄의 형태**
- * (`  <name>@<ver>:`)와 그 블록 안의 `eslint:` 만 본다.
+ * `packages:` 아래 두 줄뿐이다.
+ *
+ * **`packages:` 섹션으로 한정하는 것이 구조적 요구다(2026-08-28 실측).** lockfile 에는
+ * `snapshots:` 섹션이 따로 있고 거기에도 같은 이름의 키가 산다 —
+ * `eslint-plugin-react@7.37.5:`(packages) 와
+ * `eslint-plugin-react@7.37.5(eslint@9.39.4(jiti@2.7.0)):`(snapshots) 둘 다 키 정규식에
+ * 매칭된다(실측: 2건). 지금은 snapshots 항목 아래에 `peerDependencies:` 블록이 없어서
+ * 오염이 **일어나지 않을 뿐**이고, 그건 구조적 안전이 아니라 우연이다. 섹션을 명시적으로
+ * 추적해 그 우연을 없앤다.
  */
 export function readPeerRanges(
   lockText: string,
@@ -98,11 +105,22 @@ export function readPeerRanges(
   const wanted = new Set(names);
   const out = new Map<string, PeerEntry>();
 
+  let inPackagesSection = false;
   let current: { name: string; version: string } | null = null;
   let inPeerBlock = false;
 
   for (const raw of lockText.split("\n")) {
-    // 최상위 패키지 키 — `  eslint-plugin-react@7.37.5:` (들여쓰기 2칸).
+    // 최상위 섹션 키(들여쓰기 0칸) — `packages:` / `snapshots:` / `importers:` …
+    const section = /^(?<name>[A-Za-z_][\w-]*):\s*$/.exec(raw);
+    if (section?.groups) {
+      inPackagesSection = section.groups.name === "packages";
+      current = null;
+      inPeerBlock = false;
+      continue;
+    }
+    if (!inPackagesSection) continue;
+
+    // 패키지 키 — `  eslint-plugin-react@7.37.5:` (들여쓰기 2칸).
     const key = /^ {2}(?<name>@?[^@\s/]+(?:\/[^@\s]+)?)@(?<version>[^:\s]+):\s*$/.exec(raw);
     if (key?.groups) {
       const { name, version } = key.groups;
@@ -171,6 +189,7 @@ export function allowsEslint10(range: string): boolean {
   });
 }
 
+/** 저장소 루트의 `pnpm-lock.yaml` 원문. 읽기 전용 — 이 가드는 아무것도 쓰지 않는다. */
 export function readLockfile(): string {
   return fs.readFileSync(LOCKFILE, "utf8");
 }
