@@ -60,6 +60,9 @@ P0 PR 은 **자기가 건드린 5개 컨트롤러의 12곳**에만 부착했다.
 
 - [x] 위 §1·§2·§3 처리
 - [ ] `/consistency-check --spec` (spec 본문 편집이므로 의무)
+      > ⚠️ **서술 정정 필요 (2026-08-28 `plan-audit`)** — 항목 자체는 **유효**하다.
+      > **무엇이 낡았나**: 사전 게이트인 --spec 을 사후에 돌릴 대상이 없다(spec 편집은 이미 병합). 17_42_52 의 cross_spec.md:4 가 spec_impact 3파일(3-execution·node-cancellation·swagger)을 실제로 훑었고 BLOCK:NO 이므로, '--impl-done 으로 갈음' 을 명시해 [x] 처리하라. 나머지 항목이 전부 [x] 라 이 한 줄이 plan/complete 이동을 막고 있다.
+      > **실측**: 작업은 #1150(c3f15ab1a)로 이미 머지. 동봉 게이트 review/consistency/2026/08/11/17_21_43·17_42_52 는 meta.json 상 둘 다 mode='--impl-done, scope=spec/conventions'. 같은 날 --spec 3회는 전부 EIA/1-auth 타깃.
 
 ## Rationale
 
@@ -193,5 +196,8 @@ diff 를 눈으로 보다 발견했다. 시그니처 탐색을 **괄호 깊이 0
       (`plan_coherence` WARNING: 이 P3 spec-doc 티켓이 `complete/` 로 가면 docs-guard
       작업자가 못 찾는다). 이 줄은 포인터다.
 - [ ] `workflow-assistant.controller.ts` 3라우트에 `@ApiUnauthorizedResponse` 부재 —
+      > ⚠️ **서술 정정 필요 (2026-08-28 `plan-audit`)** — 항목 자체는 **유효**하다.
+      > **무엇이 낡았나**: '3라우트' → '7라우트(컨트롤러 전량)'. 범위 확정 근거: grep -rL 'ApiUnauthorizedResponse' 로 401 이 0건인 controller 는 health·invitations·third-party-oauth·workflow-assistant 4개인데 앞 셋은 전 라우트가 @Public(라우트 수 = @Public 수) — 즉 workflow-assistant 가 유일한 보호 컨트롤러 갭이다. swagger.md §2-4 기준.
+      > **실측**: 해당 파일 @ApiUnauthorizedResponse = 0건이고 라우트는 7개(:51,:70,:91,:103,:116,:130,:144) — 3개가 아니라 전부 미문서화. '3' 은 plan §실측표의 '시그니처 직전 3' 배치 수치에서 온 것.
       `swagger.md` **§2-4**(상태 코드 응답 규칙)가 401 을 요구한다. 이 티켓은 403 만 다룬다.
       (첫 판에 §5-4 라 적었으나 401 요구는 §2-4 소관 — `plan_coherence` 정정.)

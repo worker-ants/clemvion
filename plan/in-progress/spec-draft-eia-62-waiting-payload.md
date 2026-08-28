@@ -252,7 +252,9 @@ strip 결정의 SoT 는 WS §4.4 Rationale 의 `### ai_message.llmCalls[] 외부
       → **planner 인계**: §6.2 재작성 시 top-level 을 리네임(`turnDebugSnapshot` 등)하거나
       disambiguation 문구를 예시 옆에 부착. 그대로 옮겨 적으면 spec 에 정식 충돌로 고착된다
       (`10_32_29` naming_collision CRITICAL 1).
-- [ ] **planner 인계 (선택)**: `6-websocket-protocol.md` `## Rationale` 의 "strip-only 결정"
+- [x] **planner 인계 (선택)**: `6-websocket-protocol.md` `## Rationale` 의 "strip-only 결정"
+      > ✅ **완료 확인 (2026-08-28 `plan-audit`)** — 6-websocket-protocol.md:1152-1159 `### llmCalls 외부 수신자 strip …` 아래 "**(2026-08-14 갱신)** … fanout 은 최상위 필드만 지웠고(depth-1) … 깊이 무관 strip 으로 바꾸고 … (`81f2c60d6`·`5df89cda6`·`34e32e62f`·`7fa12301c`)" — 요청한 문장 그대로 반영됨
+      > 적대적 재검증 통과(반증 시도 실패). 원 서술은 이력이라 그대로 둔다.
       항목에 *"2026-08-14: depth-1 이라 실제 누출 발견 → 깊이 무관 strip 으로 강화(`81f2c60d6`)"*
       한 줄 addendum (`10_32_29` INFO 3)
 - [x] 성능 실측 — 옛 shallow 와 A/B 완료(커밋 `5df89cda6`). 8턴 `turnDebugHistory`

@@ -56,6 +56,9 @@ eslint 에 `max-lines`/`complexity` 가드 없음.
 ## 체크리스트
 
 - [~] `useEiaSession` 훅 추출 — **1차 slice 만 완료**. staleness 축(`worldGenRef`·`bootGenRef`·
+      > ⚠️ **서술 정정 필요 (2026-08-28 `plan-audit`)** — 항목 자체는 **유효**하다.
+      > **무엇이 낡았나**: §배경의 "`useCallback` 26개·`useRef` 13개" → 실측 24개·13개. 더 중요한 건 규모 서술: 1차 slice 가 1116→1009줄로 줄인 파일이 지금 **1,432줄**(#1130 등 후속 유입)이라 "계속 커진다"의 근거가 바뀌었다 — merge-base 877 → 현재 1,432 로 갱신하고, 추출 근거가 약해진 게 아니라 강해졌음을 반영할 것. eslint max-lines/complexity 부재는 실측 재확인됨(eslint.config.mjs grep 0건).
+      > **실측**: 나머지 슬라이스 미착수는 참 — establishConfig(1206)·teardownSession(400)·start(885)·seedWaitingFromStatus(743)·sendCommand(956)·스트림/토큰 배선 전부 use-widget.ts 잔존. 하지만 §배경 수치가 낡았다.
       `unmountedRef` + `isStale`·`beginBootAttempt`·`cannotApplyConfig`·`isAttemptStale`)을
       `useSessionGenerations` 로 분리. **나머지**(`establishConfig`/`applyConfig`/`start`/
       `seedWaitingFromStatus`/`sendCommand`/`teardownSession`/스트림·토큰 배선)는 미착수.

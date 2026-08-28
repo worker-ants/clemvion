@@ -483,6 +483,9 @@ CRITICAL 1건은 cafe24-api-catalog `mains_update`/`mains_delete` 의 pre-existi
 - [x] `/ai-review` + Critical·Warning 해소 (RESOLUTION.md 참조)
 - [x] `/consistency-check --impl-done` (BLOCK: NO)
 - [ ] plan 이동 시 상호참조 링크 3곳 정정 (위 "⚠️" 절 참조)
+      > ⚠️ **서술 정정 필요 (2026-08-28 `plan-audit`)** — 항목 자체는 **유효**하다.
+      > **무엇이 낡았나**: 하위 줄번호 2개 정정 + "링크 3곳" 을 "markdown 링크 3곳 + 백틱 경로 참조 4파일" 로 확장. 백틱 참조는 링크가 아니라 깨지진 않지만 이동 후 경로 서술이 거짓이 된다.
+      > **실측**: markdown 링크는 3곳 맞다(05-database.md:164 / spec-update:374 / residual:66) — 2곳 줄번호 stale. 추가로 update-returning-tuple-shape.md:97,126,221 · retry-turn-terminal-guard.md:421 · cafe24-backlog-residual.md:223 · harness-consistency-summary-downgrade-rule.md:241,248 이 백틱 경로로 이 plan 을 참조한다.
 
 ## 8차 라운드 (최종) — 코드 변경 없이 수렴
 
@@ -517,6 +520,9 @@ CRITICAL 1건은 cafe24-api-catalog `mains_update`/`mains_delete` 의 pre-existi
       오분류할 수 있다(이 PR 이 반복해 닫아온 것과 같은 계열). 발생 조건이 "취소 마킹 DB 저장
       실패" 라 드묾.
 - [ ] **테스트 위생** — 트랜잭션 mock 헬퍼 3중 중복(두 쌍은 인자 순서가 반대) ·
+      > ⚠️ **서술 정정 필요 (2026-08-28 `plan-audit`)** — 항목 자체는 **유효**하다.
+      > **무엇이 낡았나**: "raw-SQL 매직 인덱스 `[7]` 4곳" → **3곳** 으로 정정(`grep -rn 'as unknown\[\])\[7\]' codebase/backend/src` = 3). 나머지 서술은 유지.
+      > **실측**: 3개 하위항목은 실측 일치: FinalizeSubject 3중(ai-turn-orchestrator.service.spec.ts:382,533,653) · tx mock 3쌍(installIdleTx:3088/installCancelTx:3279 vs installTx:3427 인자순서 역전) · driveResumeTurn 은 noType(:948)만, null/primitive 미검증. 그러나 `[7]` 은 backend 전수 3곳(3757,13095,13225).
       raw-SQL 매직 인덱스(`[7]`) 4곳 · `FinalizeSubject` 타입 3중 반복 ·
       `processAiResumeTurn` 3항 OR 가드 중 2항 미검증.
 - [ ] **`handleAiMessageTurn` 분해** — 423줄/4책임. 최소 turn 경계 cancel 가드 블록만이라도
@@ -533,3 +539,25 @@ CRITICAL 1건은 cafe24-api-catalog `mains_update`/`mains_delete` 의 pre-existi
       가 `finalizeGuarded` 로 처리. 실측 결과 대상은 1곳이 아니라 2곳이었다
       (`failRetryExecution` + `completeRetryExecution` — 후자가 더 나쁘다: 취소된 실행을
       COMPLETED 로 덮고 완료 이벤트까지 발행). ai-review 5라운드 수렴.
+
+## 감사 메모 — 서술 정정 필요 (2026-08-28 `plan-audit`)
+
+> 아래는 코드베이스 대조에서 나온 **서술 낡음**이다. 항목 자체는 전부 **유효**하다.
+> 항목 원문이 여러 줄이라 각 자리에 인라인으로 못 붙이고 여기 모았다 —
+> 착수 시 해당 항목과 함께 읽을 것.
+
+- **`spec-update-node-cancellation-...md:334` 상호참조 링크**
+  - 무엇이 낡았나: :334 → :374 로 정정. 그 문서에 이후 절이 추가되며 앵커가 밀렸다 — 줄번호 대신 앵커 문구("추가 위임 (2026-07-26 #7)")로 쓰는 편이 안전하다.
+  - 실측: grep plan/: 해당 markdown 링크 `](ie-resume-turn-boundary-cancel.md)` 는 spec-update-node-cancellation-shutdown-classification.md **:374** 에 있다. :334 에는 없다.
+- **`node-cancellation-residual-...md:65` 상호참조 링크**
+  - 무엇이 낡았나: :65 → :66 으로 정정.
+  - 실측: grep plan/: 링크 `](./ie-resume-turn-boundary-cancel.md)` 는 node-cancellation-residual-signal-propagation.md **:66** 에 있다(:65 아님).
+- **plan 이동 시 상호참조 링크 3곳 정정 (위 "⚠️" 절 참조)**
+  - 무엇이 낡았나: 하위 줄번호 2개 정정 + "링크 3곳" 을 "markdown 링크 3곳 + 백틱 경로 참조 4파일" 로 확장. 백틱 참조는 링크가 아니라 깨지진 않지만 이동 후 경로 서술이 거짓이 된다.
+  - 실측: markdown 링크는 3곳 맞다(05-database.md:164 / spec-update:374 / residual:66) — 2곳 줄번호 stale. 추가로 update-returning-tuple-shape.md:97,126,221 · retry-turn-terminal-guard.md:421 · cafe24-backlog-residual.md:223 · harness-consistency-summary-downgrade-rule.md:241,248 이 백틱 경로로 이 plan 을 참조한다.
+- ****테스트 위생** — 트랜잭션 mock 헬퍼 3중 중복 · 매직 인덱스 등**
+  - 무엇이 낡았나: "raw-SQL 매직 인덱스 `[7]` 4곳" → **3곳** 으로 정정(`grep -rn 'as unknown\[\])\[7\]' codebase/backend/src` = 3). 나머지 서술은 유지.
+  - 실측: 3개 하위항목은 실측 일치: FinalizeSubject 3중(ai-turn-orchestrator.service.spec.ts:382,533,653) · tx mock 3쌍(installIdleTx:3088/installCancelTx:3279 vs installTx:3427 인자순서 역전) · driveResumeTurn 은 noType(:948)만, null/primitive 미검증. 그러나 `[7]` 은 backend 전수 3곳(3757,13095,13225).
+- ****줄 번호 앵커 소탕** — stale 인용 2곳 + 하드코딩 서수**
+  - 무엇이 낡았나: 위치를 `:3701`/`:6973` → `:3869`/`:7202` 로 정정하거나, 아예 줄번호를 버리고 앵커 문구(`line 1238 참고` / `line 1210 의 initialVariables`)로 재서술. 이 항목 자체가 줄번호 앵커 stale 의 실례가 됐다.
+  - 실측: stale 앵커 2곳 실재하나 위치가 밀렸다: `line 1238 참고`→execution-engine.service.ts:3869, `line 1210 의 initialVariables`→:7202 (plan 은 :3701/:6973). 인용 대상 1238/1210 은 실제로 markWebChatIdleTimeout/claimResumeEntry — 앵커 자체도 stale. 서수는 ai-turn-orchestrator.service.ts:1604, 소비처 6개(=서술과 일치).

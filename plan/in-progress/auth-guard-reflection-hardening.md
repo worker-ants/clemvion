@@ -319,6 +319,9 @@ Postgres `uuid` 컬럼으로 흘러가는 이상 프로덕션에서 존재할 �
       > `workspace-context.util.ts:74` 한 곳)과 "`roles.guard.spec.ts` 는 전역 라우트라
       > 방어선으로 세면 안 된다". 그건 그 자리에 남겼다. 중복은 근거 쪽이지 이 사실이 아니다.
 - [ ] `__test-utils__` 류 디렉터리가 **3곳째** 생기면 `tsconfig.build.json` 의 `exclude` 에
+      > ⚠️ **서술 정정 필요 (2026-08-28 `plan-audit`)** — 항목 자체는 **유효**하다.
+      > **무엇이 낡았나**: "개수 트리거"·"실질 위험 없음" 서술을 갈아야 한다. #1214(b541484c2, 2026-08-27)가 tsconfig.build.json 에 test-only 디렉터리 두 곳을 **명시 경로로** exclude 했고(`src/repo-guards/**`, `src/shared/testing/**`), 그 사유가 바로 이 항목이 배제한 위험의 실례다 — 주석이 "devDependency 인 typescript/@nestjs/testing 을 import 하면서 dist 안의 require 가 지뢰" 라고 적는다. 즉 저장소가 이미 채택한 판별 기준은 디렉터리 개수가 아니라 **devDependency import 여부**이며, 처방도 glob 이 아니라 per-directory 명시 경로다. 현재 `__test-utils__` 2곳은 순수 함수라 여전히 안전(source-scan.ts docstring 이 "build tsc 가 컴파일한다" 를 계약으로 명시)이므로 유예는 유지하되, 트리거를 그 축으로 재정의할 것.
+      > **실측**: `**/__test-utils__/**` exclude 는 여전히 없고(tsconfig.build.json 전문 확인), `__test-utils__` 이름의 디렉터리도 여전히 2곳(common/, modules/integrations/)이라 항목은 유효. 그러나 그 사이 정책 지형이 바뀌었다.
       `**/__test-utils__/**` 추가 검토 (동 ai-review INFO 4). 현재 2곳
       (`modules/integrations/__test-utils__` · 신설 `common/__test-utils__`)이고 둘 다
       런타임 import 가 없어 `dist/` 에 실려도 실질 위험은 없다. **트리거를 개수로 못박는

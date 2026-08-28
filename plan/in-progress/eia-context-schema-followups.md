@@ -74,7 +74,9 @@ owner: developer
       > 근거: `/cancel` 은 `interact` 의 편의 alias 라 같은 ack 를 쓰는 것이 자연스럽고,
       > 클라이언트가 두 엔드포인트의 언랩 로직을 분기하지 않아도 된다 — R16 이 no-content
       > 예외를 없앤 것과 같은 논거다.
-- [ ] **EIA `dto/responses` spec 의 Swagger `buildDocument` 보일러플레이트 dedup**
+- [x] **EIA `dto/responses` spec 의 Swagger `buildDocument` 보일러플레이트 dedup**
+      > ✅ **완료 확인 (2026-08-28 `plan-audit`)** — 공유 헬퍼 `codebase/backend/src/shared/testing/swagger-probe.ts` 신설(`buildSwaggerDocument`/`schemasOf`/`SwaggerSchemaObject`) — 커밋 `b541484c2`(#1214). 두 EIA dto.spec 이 이미 import 하고, 트리거였던 4번째 스펙은 `re-run.dto.spec.ts`.
+      > 적대적 재검증 통과(반증 시도 실패). 원 서술은 이력이라 그대로 둔다.
       — ai-review 20_32_30 W2. **트리거는 "3번째 스키마 회귀 spec 추가 시점"** 이고
       2026-08-08 실측 현재 2곳(`execution-status-response.dto.spec.ts:41` ·
       `interact-ack-response.dto.spec.ts:31`)이라 **아직 트리거 미도달**. 조건부 대기 항목.
