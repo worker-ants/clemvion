@@ -82,6 +82,7 @@ updates:
       #
       # ⚠️ eslint 자체의 major 는 **여기서 막지 않는다**. frontend·channel-web-chat 은
       # eslint 9 에 남아 있는데(그쪽 `eslint-config-next` 스택이 eslint 10 을 배제한다 —
-      # 아래 참조), 그 둘은 `eslint: "^9"` 로 선언돼 dependabot 이 major 를 올리면
+      # 실측 표와 해제 조건의 SoT 는 `codebase/frontend/eslint.config.mjs` 헤더),
+      # 그 둘은 `eslint: "^9"` 로 선언돼 dependabot 이 major 를 올리면
       # `--strict-peer-dependencies` 가 CI 에서 즉시 빨간불을 낸다. 조용히 통과하는 경로가
       # 없으므로 사전 ignore 보다 사후 게이트가 낫다.
