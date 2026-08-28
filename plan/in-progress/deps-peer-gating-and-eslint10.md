@@ -206,7 +206,7 @@ eslint 9 는 이미 `maintenance` dist-tag 다(2026-08-01 실측: latest = 10.8.
       주석의 실측 표 갱신 — unicorn `^56.0.1` → `^73.0.0`. ignore 를 남기면 "막을 대상이 없는
       억제"가 되어 fail-open 이므로 제거하고, 되살릴 조건(가드 + `--strict-peer-dependencies`)을
       그 자리에 적었다. registry 표는 66·70·73 재확인(전부 `>=10.4`).
-- [ ] TEST WORKFLOW + `/ai-review`
+- [x] TEST WORKFLOW + `/ai-review`
       - [x] lint — PASS (backend `--max-warnings 0` 포함)
       - [x] unit — PASS (backend 434 suite / 9,031 tests + 내부 패키지 8개 전부)
       - [x] build — PASS
@@ -242,7 +242,24 @@ eslint 9 는 이미 `maintenance` dist-tag 다(2026-08-01 실측: latest = 10.8.
       > (c) 근거를 여기 남긴다 — 등재 사유는 "비용" 이 아니라 "수렴" 이다. 발견의 성격이
       > 이미 동작 → 구조 → **문서** 로 이동했다.
       > (d) 그 턴(2026-08-28)에 등재했다.
+      >
+      > 같은 예외로 함께 미룬 것: **frontend·channel-web-chat 의 "eslint 9 잔류" 해제 조건에
+      > backend `eslint-unicorn-peer.spec.ts` 와 대칭되는 자동 가드가 없다**(2라운드 INFO #6).
+      > 지금은 `codebase/frontend/eslint.config.mjs` 헤더의 실측 표를 사람이 다시 확인해야 안다.
+      > `--strict-peer-dependencies` 는 **사후**에만 잡는다(올리면 CI 가 즉시 빨간불) — 상류가
+      > 지원을 시작했다는 **능동 신호**는 없다. §2 해제 조건과 같은 자리라 함께 다룬다.
 - [ ] §3 frozen 게이트 사각지대 — 위 신설 항목. `typeorm → ioredis` 실측이 선행
+
+> **2라운드 리뷰(`review/code/2026/08/28/12_28_11`)의 교훈 — 내가 요청한 테스트가 vacuous 했다.**
+> 1라운드 Warning 을 닫으려 넣은 force-split 테스트는 **분기 진입만** 고정하고
+> `overlapBuffer = ''` 리셋은 관측하지 못했다. fixture 가 force-split 직후 끝나서 그 값을
+> **읽는 코드에 도달하지 않았기** 때문이다(그 값은 `pushChunk(…, overlapBuffer, …)` 에서만
+> 소비된다). 뮤테이션으로 확정했다 — 리셋 삭제 시 신규 케이스 RED · 기존 케이스 GREEN.
+>
+> **"분기에 들어갔다" 는 "그 분기가 만든 값이 관측됐다" 와 다른 주장이다.** fixture 의 형태가
+> 커버리지의 축이고, 이 경우 축은 "force-split **이후에** 일반 청크가 하나 더 나오는가" 였다.
+> 덧붙여, 지워진 원본 dead-store 를 되살리는 뮤턴트는 뒤따르는 무조건 대입 때문에 **무효
+> 뮤턴트**라 쓸 수 없었다 — 관측 가능한 축을 따로 골라야 했다.
 
 > **사전 일관성 검토 (`--impl-prep spec/5-system/`, 2026-08-28 `11_15_50`) — BLOCK: NO.**
 > Critical 0. WARNING 4건은 전부 **이 브랜치와 무관한 선재 spec drift** 다 —
