@@ -60,7 +60,7 @@ export function validateBootConfig(config: BootConfig): void {
   }
   // profile 은 webhook payload 로 전송되므로 크기를 제한(대용량 페이로드 방지).
   if (config.profile !== undefined) {
-    let size = 0;
+    let size: number;
     try {
       size = JSON.stringify(config.profile).length;
     } catch {

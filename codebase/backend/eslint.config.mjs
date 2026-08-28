@@ -16,22 +16,26 @@ export default tseslint.config(
     // 03 m-4 — unicorn 플러그인은 preset 전체가 아니라 catch-error-name 단일 룰만
     // 사용하기 위해 등록한다 (부수 규칙 유입 차단).
     //
-    // 버전 ^56 고정(caret range — 56.x 대역의 minor/patch 는 자동 허용, exact pin 아님) —
-    // v57 부터 eslint peer floor 가 본 패키지의 선언 floor(^9.18) 를 넘는다.
+    // **2026-08-28: eslint 10 상향과 함께 `^56` → `^73` 으로 풀었다.** 종전 `^56` pin 의
+    // 사유는 "v57+ 의 eslint peer floor 가 backend 선언 floor(^9.18)를 넘는다" 였는데,
+    // 그 선언이 `^10.9.1` 이 되면서 전제가 사라졌다. `dependabot.yml` 의 major ignore 도
+    // 같은 커밋에서 함께 지웠다 — 이 주석과 그 항목은 서로를 참조하도록 결속돼 있었다.
     //
-    // 아래 registry 실측 표는 이 저장소의 SoT 다 — `.github/dependabot.yml`·
-    // `plan/in-progress/eslint-unicorn-peer-restore.md` 는 이 표를 중복 기재하지 않고 참조만
-    // 한다. 값을 갱신할 때는 여기 한 곳만 고치면 된다.
+    // 아래 registry 실측 표는 이 저장소의 SoT 다 — `.github/dependabot.yml` 은 이 표를
+    // 중복 기재하지 않고 참조만 한다. 값을 갱신할 때는 여기 한 곳만 고치면 된다.
     //
-    // registry 실측(2026-08-01): 56.x=`>=8.56.0` / 57=`>=9.20.0` / 58~59=`>=9.22.0` /
-    // 60~61=`>=9.29.0` / 62~65=`>=9.38.0` / **66+=`>=10.4`**(eslint 9 자체를 배제).
-    // 66+ 로 가려면 eslint 10 상향이 전제이며 그건 10개 워크스페이스가 걸린 독립 작업이다.
+    // registry 실측(2026-08-01 측정, 2026-08-28 66/70/73 재확인): 56.x=`>=8.56.0` /
+    // 57=`>=9.20.0` / 58~59=`>=9.22.0` / 60~61=`>=9.29.0` / 62~65=`>=9.38.0` /
+    // **66+=`>=10.4`**(eslint 9 자체를 배제. 66·70·73 모두 같은 값).
     //
-    // dependabot #1049 가 이 의도를 모른 채 ^72 로 올려 unmet peer 를 만들었고(주석은 ^56 인
-    // 채로 남아 코드-문서가 어긋났다), 되돌렸다. 재발은 dependabot.yml 의 major
-    // ignore 가 막는다 — 이 pin 을 풀려면 그 항목도 함께 지워야 한다. 상시 회귀 가드:
-    // `src/repo-guards/__tests__/eslint-unicorn-peer.spec.ts`
+    // 표기가 **2-component(`>=10.4`)** 라는 점이 중요하다 — 가드의 `parseGteFloor` 가
+    // 3-component 만 받던 탓에 이 상향에서 fail-closed 로 멈췄고, 그 자리에서 파서를
+    // 넓혔다. 상시 회귀 가드: `src/repo-guards/__tests__/eslint-unicorn-peer.spec.ts`
     // (`unicorn/catch-error-name` 실발화 + 설치된 peer eslint range 정합 검사).
+    //
+    // 역사: dependabot #1049 가 이 의도를 모른 채 ^56 → ^72 로 올려 unmet peer 를 만들었고
+    // (주석은 ^56 인 채로 남아 코드-문서가 어긋났다), 되돌렸다. 지금은 eslint 10 이 그
+    // peer 를 실제로 충족하므로 같은 값이 정상 상태다.
     plugins: { unicorn: eslintPluginUnicorn },
   },
   {

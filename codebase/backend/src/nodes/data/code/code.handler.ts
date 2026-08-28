@@ -451,7 +451,7 @@ export class CodeHandler implements NodeHandler {
         script = await isolate.compileScript(wrapUserCode(code));
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
-        throw new Error(`code has a syntax error: ${message}`);
+        throw new Error(`code has a syntax error: ${message}`, { cause: err });
       }
 
       // --- run with dual timeout: isolate CPU timeout + host wall-clock race -

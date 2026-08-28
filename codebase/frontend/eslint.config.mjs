@@ -1,3 +1,24 @@
+// ⚠️ 이 워크스페이스는 **eslint 9 에 남는다** (backend·`packages/*` 9개는 2026-08-28 에
+// eslint 10 으로 올렸다 — `plan/in-progress/deps-peer-gating-and-eslint10.md` §2).
+//
+// 상류가 막는다. `eslint-config-next` 자신의 peer 는 `eslint: >=9.0.0` 이라 열려 보이지만,
+// 그 **의존성**들이 eslint 9 를 상한으로 못 박는다 — 2026-08-28 registry 실측(각 패키지의
+// latest 기준):
+//
+//   eslint-plugin-react      7.37.5  peer eslint `^3 || … || ^9.7`
+//   eslint-plugin-jsx-a11y   6.10.2  peer eslint `^3 || … || ^9`
+//   eslint-plugin-import     2.32.0  peer eslint `^2 || … || ^9`
+//   eslint-plugin-react-hooks 7.1.1  peer eslint `… || ^10.0.0`   ← 이것만 10 지원
+//
+// 즉 셋은 **eslint 10 을 지원하는 버전이 아직 존재하지 않는다**(latest 조차). 올리면
+// `pnpm install --strict-peer-dependencies` 가 CI 5개 설치 지점 전부에서 실패한다 — 실제로
+// 상향을 시도해 그 실패를 확인하고 되돌린 것이 이 주석의 근거다.
+//
+// `peerDependencyRules` 로 억제하지 않았다: 이 저장소는 억제에 "그 코드에 도달하지 않는다"
+// 수준의 실측을 요구하는데(`pnpm-workspace.yaml` §peer dependency 게이트), 여기서는
+// 플러그인들이 실제로 eslint 10 위에서 **돌아야 하는** 대상이라 미검증 억제가 곧 fail-open 이다.
+//
+// 푸는 조건: 위 셋의 peer 에 `^10` 이 들어오는 것. 그때 `eslint: "^9"` 를 올리면 된다.
 import { defineConfig, globalIgnores } from "eslint/config";
 import nextVitals from "eslint-config-next/core-web-vitals";
 import nextTs from "eslint-config-next/typescript";

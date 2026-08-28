@@ -1,4 +1,5 @@
 import { execFileSync } from 'node:child_process';
+import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { createRequire } from 'node:module';
 import {
@@ -52,6 +53,33 @@ const ESLINT_BIN = path.join(BACKEND_ROOT, 'node_modules', '.bin', 'eslint');
 // 형제 가드 `typescript-toolchain-guard.ts`(`loadTypescriptFrom`)와 동일하게 `createRequire` 로
 // 우회한다(변수명이 `require` 가 아니면 규칙이 잡지 않는다).
 const req = createRequire(__filename);
+
+/**
+ * 설치된 패키지의 `package.json` 을 **파일 경로로** 읽는다.
+ *
+ * `req('<pkg>/package.json')` 을 쓰지 않는 이유(실측) — `eslint-plugin-unicorn@73` 은
+ * `exports` 맵이 `{".": …}` 하나뿐이라 `./package.json` 서브패스가 **차단**된다
+ * (`Cannot find module 'eslint-plugin-unicorn/package.json'`). 56.x 에는 그 제약이 없었고,
+ * eslint 10 상향과 함께 56→73 으로 올리면서 드러났다. 즉 이 가드가 재는 대상(설치본의
+ * peer range)은 그대로인데 **접근 경로만** 막힌 것이므로, 모듈 해소 대신 node_modules 경로를
+ * 직접 읽어 계약을 유지한다. pnpm 은 `node_modules/<pkg>` 를 symlink 로 두므로 경로 접근이
+ * 설치 실물을 가리킨다.
+ */
+function readInstalledPackageJson(pkgName: string): {
+  version?: string;
+  peerDependencies?: Record<string, string>;
+} {
+  const pkgPath = path.join(
+    BACKEND_ROOT,
+    'node_modules',
+    pkgName,
+    'package.json',
+  );
+  return JSON.parse(fs.readFileSync(pkgPath, 'utf8')) as {
+    version?: string;
+    peerDependencies?: Record<string, string>;
+  };
+}
 
 type LintMessage = { ruleId: string | null; messageId?: string };
 
@@ -153,11 +181,9 @@ describe('unicorn/catch-error-name 이 실제로 발화한다 (실측, eslint CL
 
 describe('설치된 eslint-plugin-unicorn 의 peer eslint range 가 backend 선언과 정합한다 (실측)', () => {
   it('unicorn peerDependencies.eslint 가 backend 선언 eslint floor 를 넘지 않는다', () => {
-    // require 대상은 실제 node_modules 실측 — 값을 하드코딩하지 않는다(#1049 는 정확히 "값이
+    // 읽는 대상은 실제 node_modules 실측 — 값을 하드코딩하지 않는다(#1049 는 정확히 "값이
     // 바뀌었는데 주석/가드는 옛 값을 가정한다"는 사고였다).
-    const unicornPkg = req('eslint-plugin-unicorn/package.json') as {
-      peerDependencies?: Record<string, string>;
-    };
+    const unicornPkg = readInstalledPackageJson('eslint-plugin-unicorn');
     const unicornPeerRange = unicornPkg.peerDependencies?.eslint;
     // vacuity 방지 — peerDependencies.eslint 자체가 사라지면(패키지 구조 변경) 아래 비교가
     // 전부 통과해 버린다. 부재/파싱 불가는 fail-closed.
@@ -188,9 +214,7 @@ describe('설치된 eslint-plugin-unicorn 의 peer eslint range 가 backend 선�
   });
 
   it('설치된 eslint 실측 버전이 unicorn peer 요구를 실제로 만족한다 (unmet peer 재발 차단)', () => {
-    const unicornPkg = req('eslint-plugin-unicorn/package.json') as {
-      peerDependencies?: Record<string, string>;
-    };
+    const unicornPkg = readInstalledPackageJson('eslint-plugin-unicorn');
     const unicornFloor = parseGteFloor(
       unicornPkg.peerDependencies?.eslint ?? '',
     );
@@ -226,14 +250,23 @@ describe('parseGteFloor (합성)', () => {
     expect(parseGteFloor(' >=9.20.0 ')).toEqual([9, 20, 0]);
   });
 
+  it('생략된 자리는 semver 관례대로 0 — `>=10.4` 는 `eslint-plugin-unicorn@66+` 의 실제 표기다', () => {
+    // 회귀 고정: 이 케이스가 없던 동안 파서는 `>=10.4` 를 null 로 떨궜고, 56→73 상향에서
+    // 가드 2건이 fail-closed 로 멈췄다. 형태(자릿수)가 커버리지의 축이다.
+    expect(parseGteFloor('>=10.4')).toEqual([10, 4, 0]);
+    expect(parseGteFloor('>=9.18')).toEqual([9, 18, 0]);
+    expect(parseGteFloor('>=9')).toEqual([9, 0, 0]);
+    expect(parseGteFloor(' >=10 ')).toEqual([10, 0, 0]);
+  });
+
   it.each([
     '^9.18.0',
     '~9.18.0',
-    '>=9',
-    '>=9.18',
     '9.18.0',
     '',
     '>=9.18.0 <10.0.0',
+    '>=',
+    '>=x',
   ])('해석하지 않는 형태 %j 는 null (→ 호출부 fail-closed)', (bad) => {
     expect(parseGteFloor(bad)).toBeNull();
   });
@@ -276,11 +309,24 @@ describe('compareTriple / satisfiesFloor (합성)', () => {
   });
 
   it('#1049 시나리오를 합성 값으로 재현 — 56.x 는 통과, 66+(72.x) 는 실패', () => {
-    const backendFloor: SemverTriple = [9, 18, 0]; // package.json devDependencies.eslint ^9.18.0
+    // 합성 fixture — **사고 당시(eslint ^9.18.0)** 의 선언값이다. 지금 backend 선언은
+    // `^10.9.1` 이지만, 이 케이스가 고정하는 것은 "그때 왜 66+ 가 막혔는가" 라는 과거
+    // 시나리오이므로 현재값으로 갱신하지 않는다(갱신하면 재현이 사라진다).
+    const backendFloor: SemverTriple = [9, 18, 0];
     const unicorn56Peer: SemverTriple = [8, 56, 0]; // eslint-plugin-unicorn 56.x 의 실제 peer
     const unicorn72Peer: SemverTriple = [10, 4, 0]; // eslint-plugin-unicorn 66+ 의 실제 peer(#1049)
 
     expect(satisfiesFloor(backendFloor, unicorn56Peer)).toBe(true);
     expect(satisfiesFloor(backendFloor, unicorn72Peer)).toBe(false);
+  });
+
+  it('eslint 10 상향 후 상태 — 선언 ^10.9.1 은 unicorn 66+ 의 `>=10.4` 를 만족한다', () => {
+    // 위 케이스의 짝. eslint 10 상향이 정확히 무엇을 풀었는지를 고정한다 — 선언 floor 가
+    // 10.4 를 넘어서면서 66+ 가 처음으로 허용된다. 10.0.0 이 여전히 막히는 것도 함께 고정해
+    // "major 만 올리면 된다" 는 오해를 차단한다(unicorn floor 는 minor 까지 본다).
+    const unicorn73Peer: SemverTriple = [10, 4, 0];
+
+    expect(satisfiesFloor([10, 9, 1], unicorn73Peer)).toBe(true);
+    expect(satisfiesFloor([10, 0, 0], unicorn73Peer)).toBe(false);
   });
 });

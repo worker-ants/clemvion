@@ -329,7 +329,7 @@ export class InformationExtractorHandler implements ResumableNodeHandler<EndReas
       ReturnType<
         import('../../../modules/agent-memory/agent-memory.service').AgentMemoryService['recall']
       >
-    > = [];
+    >;
     try {
       recalled = await this.agentMemoryService.recall(
         args.workspaceId,
@@ -1021,7 +1021,6 @@ export class InformationExtractorHandler implements ResumableNodeHandler<EndReas
     let totalInputTokens = 0;
     let totalOutputTokens = 0;
     let totalThinkingTokens = 0;
-    let followUp = '';
 
     for (;;) {
       let trace: LlmCallRecord;
@@ -1074,7 +1073,7 @@ export class InformationExtractorHandler implements ResumableNodeHandler<EndReas
 
       // 1. Content-only response — treat as followup question.
       if (!toolCall) {
-        followUp = result.content ?? '';
+        const followUp = result.content ?? '';
         return {
           kind: 'ok',
           messages,

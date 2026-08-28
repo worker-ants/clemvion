@@ -1580,7 +1580,7 @@ export class AiTurnExecutor {
     // §6.1 단계 0.5 — System prompt 를 §11.4 ordering [1]~[4] 으로 조립.
     // §11.4 [5] Thread/Memory 주입(단계 1.3/1.5)은 아래 applySingleTurnMemoryInjection
     // 가 이 결과 뒤에 수행한다 (ordering 의존: [3][4] suffix 포함 후 [5] 주입).
-    let finalSystemPrompt = this.buildAgentSingleTurnSystemPrompt(
+    const finalSystemPrompt = this.buildAgentSingleTurnSystemPrompt(
       context,
       config,
       systemPrompt,
@@ -1616,7 +1616,8 @@ export class AiTurnExecutor {
       userPrompt,
     });
     messages = memInjection.messages;
-    finalSystemPrompt = memInjection.finalSystemPrompt;
+    // 주입된 system prompt 는 `memInjection.messages` 안에 이미 들어 있다 — 아래 경로는
+    // `messages` 만 소비하므로 지역 `finalSystemPrompt` 를 갱신하지 않는다.
     const memoryMeta = memInjection.memoryMeta;
     const singleTurnInjection = memInjection.singleTurnInjection;
 
@@ -2034,7 +2035,8 @@ export class AiTurnExecutor {
             },
           };
     messages = multiTurnInjection.messages;
-    finalSystemPrompt = multiTurnInjection.finalSystemPrompt;
+    // 위 single-turn 경로와 동일 — 주입된 system prompt 는 `multiTurnInjection.messages` 가
+    // 이미 담고 있고 아래는 `messages` 만 소비한다.
 
     const resolvedModel = model || llmConfig.defaultModel;
     const multiTurnStateBase = {

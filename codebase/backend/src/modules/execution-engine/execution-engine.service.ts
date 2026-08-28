@@ -4915,7 +4915,7 @@ export class ExecutionEngineService
       // "wire 는 DB 가 말하는 것만 말한다" 를 지킬 수 없기 때문이다. 반대 선택(모르면
       // 일단 발행)은 더 흔한 경우(a)를 맞히지만 (b)에서 DB 와 모순되는 이벤트를 낸다 —
       // 관측 가능한 무음(warn)이 관측 불가능한 오시그널보다 낫다.
-      let live: Execution | null = null;
+      let live: Execution | null;
       try {
         live = await this.executionRepository.findOneBy({
           id: savedExecution.id,

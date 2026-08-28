@@ -153,7 +153,7 @@ export async function checkResolvedHostIp(
     // dns 모듈 미가용 (browser bundling 등) — fail-open.
     return { ok: true };
   }
-  let addrs: string[] = [];
+  let addrs: string[];
   try {
     const v4 = await dns.resolve4(hostname).catch(() => [] as string[]);
     const v6 = await dns.resolve6(hostname).catch(() => [] as string[]);

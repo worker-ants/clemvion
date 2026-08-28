@@ -72,23 +72,25 @@ updates:
       - dependency-name: "typescript"
         update-types: ["version-update:semver-major"]
 
-      # eslint-plugin-unicorn major 도 제외한다.
+      # (2026-08-28 제거) `eslint-plugin-unicorn` major ignore.
       #
-      # backend 는 이 플러그인의 preset 이 아니라 `unicorn/catch-error-name` **단일 룰**만 쓰고,
-      # 버전은 `codebase/backend/eslint.config.mjs` 가 근거 주석과 함께 `^56`(caret range —
-      # exact pin 아님, 56.x 대역 minor/patch 는 자동 허용) 으로 고정해 뒀다 — v57 부터 eslint
-      # peer floor 가 그 패키지의 선언 floor(`^9.18`)를 넘기 때문이다.
+      # 이 항목의 존재 이유는 "unicorn 66+ 가 `eslint@>=10.4` 를 요구하는데 이 저장소는
+      # eslint 9 였다" 였다. `plan/in-progress/deps-peer-gating-and-eslint10.md` §2 가
+      # eslint 10 상향을 끝내면서(backend·packages 9개 워크스페이스 `^10.9.1`) 그 전제가
+      # 사라졌고, unicorn 도 `^73` 으로 함께 올렸다 — 그러므로 ignore 를 유지할 근거가 없다.
+      # 남겨 두면 "막을 대상이 없는 억제" 가 되어 다음 진짜 문제를 조용히 덮는다(fail-open).
       #
-      # dependabot 은 그 주석을 볼 수 없어서 #1049 가 `^56.0.1` → `^72.0.0`(16 major)로 올렸고,
-      # `eslint@>=10.4` 를 요구하는 채로 설치본은 9.39.4 라 **unmet peer** 가 됐다. 값만 바뀌고
-      # 주석은 "^56" 인 채 남아 코드-문서가 어긋난 상태로 머지됐다(Actions 가 repo 레벨에서
-      # 꺼져 있어 검증이 없었다 — #1047 과 같은 경로). 상시 회귀 가드:
-      # `codebase/backend/src/repo-guards/__tests__/eslint-unicorn-peer.spec.ts`.
+      # 되살릴 조건: unicorn 의 peer eslint floor 가 이 저장소의 선언 floor 를 다시 넘을 때.
+      # 그 판정은 사람이 다시 할 필요가 없다 — 상시 가드
+      # `codebase/backend/src/repo-guards/__tests__/eslint-unicorn-peer.spec.ts` 가
+      # 설치본 실측으로 잡고, CI install 의 `--strict-peer-dependencies` 가 이중으로 막는다
+      # (#1049 당시엔 둘 다 없어서 무방비였다).
       #
       # 버전별 eslint peer floor 실측 표의 SoT 는 `codebase/backend/eslint.config.mjs`(단일 룰
-      # 등록 블록 주석) — 여기서는 중복 기재하지 않는다. 결론만: 66 이상은 eslint 9 자체를
-      # 배제하므로, 이 항목을 푸는 전제는 **eslint 10 상향**이다(eslint 9 는 이미
-      # `maintenance` dist-tag, latest 는 10.x). 그 작업은 10개 워크스페이스와 전 config 검증이
-      # 걸린 독립 건이다.
-      - dependency-name: "eslint-plugin-unicorn"
-        update-types: ["version-update:semver-major"]
+      # 등록 블록 주석) — 여기서는 중복 기재하지 않는다.
+      #
+      # ⚠️ eslint 자체의 major 는 **여기서 막지 않는다**. frontend·channel-web-chat 은
+      # eslint 9 에 남아 있는데(그쪽 `eslint-config-next` 스택이 eslint 10 을 배제한다 —
+      # 아래 참조), 그 둘은 `eslint: "^9"` 로 선언돼 dependabot 이 major 를 올리면
+      # `--strict-peer-dependencies` 가 CI 에서 즉시 빨간불을 낸다. 조용히 통과하는 경로가
+      # 없으므로 사전 ignore 보다 사후 게이트가 낫다.

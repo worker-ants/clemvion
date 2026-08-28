@@ -598,7 +598,7 @@ export class KnowledgeBaseService {
               `UPDATE document SET graph_extraction_status = 'failed' WHERE id = ANY($1::uuid[])`,
               [ids],
             );
-            graphRequeued -= slice.length;
+            // graphRequeued 보정은 두지 않는다 — 아래 `throw err` 로 반환 자체가 일어나지 않는다.
             const msg = err instanceof Error ? err.message : String(err);
             this.logger.error(
               `Retry graph addBulk failed for ${ids.length} docs, rolled back to 'failed': ${msg}`,

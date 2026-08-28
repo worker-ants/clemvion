@@ -313,7 +313,9 @@ export class ExpressionResolverService {
       return `${result as string}`;
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
-      throw new Error(`Expression error in config.${path}: ${message}`);
+      throw new Error(`Expression error in config.${path}: ${message}`, {
+        cause: err,
+      });
     }
   }
 }
