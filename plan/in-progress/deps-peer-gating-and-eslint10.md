@@ -380,6 +380,12 @@ eslint 9 는 이미 `maintenance` dist-tag 다(2026-08-01 실측: latest = 10.8.
         > 리뷰가 지목한 것은 1곳이지만 **자매를 전수로 세어** `code.handler` 2곳도 같은 형태라
         > 3곳을 함께 고쳤다. 조치 기록: 그 세션의 `RESOLUTION.md`.
         >
+        > **2라운드 (`review/code/2026/08/29/01_40_43`)**: Critical 0 · **Warning 0** ·
+        > 위험도 NONE (router 선별 7명, forced 전원 결과 확보). 1라운드 Warning 의 fix 가
+        > 자매 전수까지 반영됐음을 7 reviewer 가 독립 확인했다 — RESOLUTION 불요(clean).
+        > 게이트도 이 라운드로 재무장이 풀린다(1라운드 세션 시각 < fix 커밋 시각이었다).
+        > `--impl-done`(`01_30_29`)은 그 뒤 spec-linked **코드** 편집이 없으므로 유효하다.
+        >
         > 후속으로 남긴 것 (developer SKILL §수렴 예외 (a)(b)(c)(d) — 둘 다 동작 결함이 아니고,
         > 고치면 spec-linked 파일이라 리뷰 2종이 freshness 로 재무장된다):
         >
@@ -389,8 +395,17 @@ eslint 9 는 이미 `maintenance` dist-tag 다(2026-08-01 실측: latest = 10.8.
         >       잠갔다" 고 한 것은 **C1 만** 잠근 것이다.
         > - [ ] **`cause` 비노출 불변식의 계측 지점** (리뷰 INFO #2) — `GlobalExceptionFilter`
         >       또는 공용 에러 직렬화 유틸에 "`cause` 를 클라이언트 응답에 노출하지 않는다"
-        >       회귀 테스트 1건. 오늘 안전한 근거가 "저장소 안에 `.cause` 소비자가 없다" 는
-        >       **전역 부재**라, APM·구조적 로깅 유틸이 하나 생기면 조용히 깨진다.
+        >       회귀 테스트 1건. 오늘 안전한 근거가 **부재 주장**이라, APM·구조적 로깅 유틸이
+        >       하나 생기면 조용히 깨진다.
+        >
+        >       **근거의 범위를 좁혀 둔다 (2026-08-29 2라운드 INFO #3 · 실측).** "저장소 전체에
+        >       `.cause` 소비자가 없다" 는 **거짓**이다 — backend 소스에 정확히 한 곳,
+        >       `telegram/telegram-client.ts:92` 의 `describeFetchError()` 가 `err.cause` 를
+        >       읽어 로그 문자열을 만든다(`grep -rn --include='*.ts' '\.cause' codebase/backend/src`
+        >       가 그 한 줄만 낸다). 다만 그 함수는 **Telegram fetch 에러 전용**이라 위 세
+        >       경로(`expression-resolver`/`code.handler`/`secret-resolver`)가 던지는 에러를
+        >       받지 않는다. 그러니 참인 명제는 **"이 세 경로의 `cause` 를 읽는 곳이 없다"** 다.
+        >       다음에 이 근거를 재사용할 때 넓은 쪽을 쓰지 말 것.
         > - [ ] (작음, 다음에 그 파일을 열 때) `secret-resolver.service.ts` 의 비부착 주석에서
         >       "서버 로그에만 남는 것도 아니다" 옆에 "이는 C1 판정의 **보조 근거**일 뿐
         >       판정축이 아니다" 한 문장 — `--impl-done`(`01_30_29`) `rationale_continuity`

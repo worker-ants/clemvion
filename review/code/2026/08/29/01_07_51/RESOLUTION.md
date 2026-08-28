@@ -64,9 +64,14 @@ INFO #1 · #2 를 `plan/in-progress/deps-peer-gating-and-eslint10.md` §2 에 �
 등재했다. developer SKILL **§수렴 예외** (a)(b)(c)(d) 를 근거로 든다:
 
 - (a) **동작 결함이 아니다.** 두 항목 다 오늘 재현되는 오동작이 없다 — #1 은 커버리지
-  갭(주석이 말하는 C2 를 아무도 단언하지 않음), #2 는 "저장소에 `.cause` 소비자가 없다"
-  는 **전역 부재** 불변식의 계측 지점 부재다. 부재 자체는 `security` reviewer 가 grep 으로
-  직접 확인했다. 발견의 성격이 동작 → 구조 → **문서/커버리지**로 이동했다.
+  갭(주석이 말하는 C2 를 아무도 단언하지 않음), #2 는 `cause` 비노출이 **부재 주장**에
+  기대고 있다는 계측 지점 부재다. 발견의 성격이 동작 → 구조 → **문서/커버리지**로 이동했다.
+
+  > **후속 정정 (2026-08-29 2라운드 INFO #3).** 이 문단이 처음 쓴 "저장소에 `.cause`
+  > 소비자가 없다" 는 **전역** 부재 표현은 거짓이다 — `telegram-client.ts:92` 의
+  > `describeFetchError()` 가 `err.cause` 를 읽는다(로그 문자열 전용, backend 소스 전체에서
+  > 유일). 그 함수는 Telegram fetch 에러만 받으므로 여기 세 경로와 무관하고 결론은 그대로지만,
+  > 참인 명제는 **"이 세 경로의 `cause` 를 읽는 곳이 없다"** 로 좁은 쪽이다.
 - (b) **fix 가 새 라운드를 강제한다.** #1 은 `expression-resolver.service.spec.ts`(spec
   frontmatter `code:` 에 걸리는 spec-linked 파일)를 건드리므로 방금 통과한 `/ai-review` 와
   이어서 준비할 `--impl-done` 이 freshness 비교에서 동시에 무효가 된다. #2 는 아예
