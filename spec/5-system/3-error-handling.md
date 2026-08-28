@@ -471,6 +471,34 @@ API 호출 → 응답 확인
 - OAuth 토큰
 - 개인 식별 정보 (이메일은 부분 마스킹: `g***@example.com`)
 
+#### 6.3.1 에러 wrapping 시 `Error.cause` 부착 기준
+
+> **이 절이 다루는 채널** — 위 §6.3 이 *로그* 를 다루는 것과 달리, 이 절은 **에러 객체
+> 자체의 구성**을 다룬다. 노드 에러는 Activity API 를 통해 사용자에게 노출되므로
+> "서버에만 남으니 안전" 이 성립하지 않기 때문이다(§Rationale).
+>
+> **REST 표준 봉투 경로에는 이 절을 적용하기 전에 [§2 에러 응답 형식](#2-에러-응답-형식)과
+> [api-convention §5.3](./2-api-convention.md#53-에러-응답)을 먼저 본다.** 그쪽은 내부 구현
+> 원문 echo 를 **조건 없이** 금지한다 — 아래 기준은 "원문을 이미 담은 message" 를 전제로
+> 하므로, REST 경로에서는 그 전제 자체가 §5.3 위반이다. 이 절은 그 적법성을 판정하지 않는다.
+>
+> (여기서 말하는 `cause` 는 JS `Error` 의 `cause` 프로퍼티다 — 서술어 "근본 원인(root
+> cause)" 과는 무관하다.)
+
+`catch` 한 에러를 새 에러로 감쌀 때 `{ cause: err }` 를 붙일지는 **아래 두 조건을 모두**
+만족하는지로 정한다. 하나라도 어긋나면 **붙이지 않는다**.
+
+| # | 조건 | 왜 |
+|---|---|---|
+| C1 | 감싼 `message` 가 원본 `err.message` 를 **이미 포함**한다 | 포함한다면 `cause` 가 message 축에서 새 정보를 더하지 않는다. 포함하지 않는다면 그 비노출이 **의도**이므로 `cause` 가 그 의도를 무효화한다 |
+| C2 | `err` 가 message·name **밖의 민감 정보를 속성으로 들고 있지 않다** | `cause` 는 문자열이 아니라 **객체 전체**를 붙인다. pg 드라이버의 `detail`/`hint`/`where`, HTTP 응답 헤더, 커넥션 문자열 등이 붙어 오면 C1 이 참이어도 새 정보가 샌다 |
+
+**붙이지 않을 때**는 `eslint-disable-next-line preserve-caught-error -- <사유>` 로 억제하고
+**무엇을 왜 감추는지**를 주석에 남긴다. 원본 상세는 `logger` 로만 남겨 운영 가시성을
+확보한다 — 이 형태의 정본 사례가 `SecretResolverService.resolve` 이고, 그 근거는
+[secret-store SS-SE-05](../conventions/secret-store.md)다(복호화 실패 시 `ref` +
+`workspaceId` 만 기록, plaintext·crypto 상세 미기록).
+
 ---
 
 ## 7. 헬스 체크
@@ -544,3 +572,20 @@ GET /api/health
   있어 그대로 노출하면 정보 누출(CWE-209)이 된다. 운영 가시성은 원문을 `logger.warn` 으로만 남겨 확보한다
   (클라이언트 응답과 분리). 이는 WebSocket `EXECUTION_INTERNAL_ERROR` 의 고정 문구 결정(내부 예외 message
   비노출)과 동일한 원칙이며, 5xx 마스킹(generic 500)과 일관된다.
+- **`Error.cause` 부착 기준을 "소비처가 직렬화하는가" 로 잡지 않은 이유 (§6.3.1, 2026-08-29)**:
+  `#1219`(eslint 10 상향)이 켠 `preserve-caught-error` 룰에 대응하며 같은 룰에 두 가지 처분이
+  갈렸다 — `expression-resolver`·`code.handler` 는 `cause` 부착, `SecretResolverService.resolve`
+  는 비부착. 그 기준을 정본화한 것이 §6.3.1 이다.
+
+  기준 후보는 둘이었다. **기각한 쪽은 "지금 `.cause` 가 클라이언트로 직렬화되는가"** 다 —
+  실측으로는 그 시점에 직렬화하는 경로가 0곳이었으므로(`GlobalExceptionFilter` 등, 로그 전용
+  unwrap 인 `describeFetchError` 는 별개) 어느 쪽을 골라도 당장은 안전했다. 그런데 그 기준은
+  **소비처가 바뀌면 무너진다**: 나중에 누가 `.cause` 를 봉투에 실으면 과거의 모든 부착이
+  소급해 노출이 된다. `#814`(SSRF 에러 메시지 일반화)가 정확히 그 함정이었다 — "서버 로그니까
+  안전" 이라는 전제가 Activity API 노출로 반증됐다. 그래서 기준을 **에러 객체 자신의 성질**
+  (C1 message 포함 여부 · C2 부가 속성 유무)에 걸었다. 소비처와 무관하게 불변이다.
+
+  **C2 를 뒤늦게 넣은 경위도 남긴다.** 초안은 C1 만 두었는데, `--spec` 검토가 "`cause` 는
+  message 문자열이 아니라 `err` **객체 전체**를 붙인다" 를 짚었다. pg 의 `detail`/`hint`/`where`
+  처럼 message 밖 속성이 붙어 오면 C1 이 참이어도 새 정보가 샌다 — `#814` 가 세운 "필드가
+  아니라 raw content 가 판단축" 을 message 텍스트 하나로 근사한 것이 초안의 결함이었다.

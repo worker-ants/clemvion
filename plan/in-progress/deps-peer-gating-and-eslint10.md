@@ -313,7 +313,16 @@ eslint 9 는 이미 `maintenance` dist-tag 다(2026-08-01 실측: latest = 10.8.
       - 부수 발견: `code.handler` 의 cause 는 `isolated-vm` 이 **자기 realm** 에서 만든
         `SyntaxError` 라 호스트 `Error` 를 상속하지 않는다(`toBeInstanceOf(Error)` 실패 실측).
         형제 케이스와 단언 형태가 다른 이유이고, 통일하려다 지우면 안 된다.
-      - `spec/conventions/` 에 판별 기준을 명문화하는 것은 **여전히 planner 턴** 으로 남는다.
+      - ~~`spec/conventions/` 에 판별 기준을 명문화하는 것은 **여전히 planner 턴** 으로 남는다.~~
+        → **완료 (2026-08-29, planner 턴).** 정본은 `spec/5-system/3-error-handling.md`
+        **§6.3.1** + 그 Rationale. `conventions/` 가 아닌 이유: `secret-store.md` 는 secret
+        계약이라 범위가 좁고(부착 사례 둘은 secret 과 무관), `error-codes.md` 는 에러 **코드
+        문자열**의 SoT 라 wrapping 정책이 들어갈 자리가 아니다.
+        초안·검토 기록: `plan/in-progress/spec-draft-error-cause-criterion.md`,
+        `review/consistency/2026/08/29/00_13_01`(BLOCK: NO).
+        **기준이 초안에서 바뀌었다** — `--spec` 검토가 "`cause` 는 message 가 아니라 `err`
+        **객체 전체**를 붙인다" 를 짚어, "message 가 원문을 포함하는가"(C1) 하나였던 것을
+        **C1 AND C2**(`err` 가 message·name 밖 민감 속성을 안 들고 있는가)로 고쳤다.
       > **(등재 당시 기록) 왜 그 턴에 안 고쳤나** — developer SKILL §수렴 예외 (a)+(b)+(c)+(d) 충족.
       > (a) 동작 결함이 아니다: 두 경로 모두 `cause` 부착이 안전함을 `security`·
       > `rationale_continuity` 두 리뷰어가 **독립적으로 실측 확인**했다(다운스트림에서
