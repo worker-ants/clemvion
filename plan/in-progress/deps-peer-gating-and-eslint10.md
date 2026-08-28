@@ -207,12 +207,41 @@ eslint 9 는 이미 `maintenance` dist-tag 다(2026-08-01 실측: latest = 10.8.
       억제"가 되어 fail-open 이므로 제거하고, 되살릴 조건(가드 + `--strict-peer-dependencies`)을
       그 자리에 적었다. registry 표는 66·70·73 재확인(전부 `>=10.4`).
 - [ ] TEST WORKFLOW + `/ai-review`
-      - [x] lint — PASS (backend `--max-warnings 0` 포함, 15건 수정 후)
-      - [x] unit — PASS (backend 434 suite / 9,030 tests + 내부 패키지 전부)
+      - [x] lint — PASS (backend `--max-warnings 0` 포함)
+      - [x] unit — PASS (backend 434 suite / 9,031 tests + 내부 패키지 8개 전부)
       - [x] build — PASS
-      - [ ] e2e
-      - [ ] `/ai-review`
-      - [ ] `/consistency-check --impl-done`
+      - [x] e2e — PASS (285/285)
+      - [x] `/ai-review` (`review/code/2026/08/28/11_45_02`) — RISK=HIGH, Critical 1 + Warning 2.
+            **전부 조치 완료** (`0f3b3e0c3`·`9bcbb7fa5`·`3a540aa81`, RESOLUTION.md §조치 항목).
+            - Critical: `PROJECT.md` 가 **자기가 명문화한 2-place 편집 계약을 스스로 어겼다** —
+              dependabot ignore 를 2건→1건으로 줄이면서 "현재 2건" 서술을 안 고쳤다. 이 PR 이
+              재발 방지 근거로 인용하는 `#1049`(값-주석 drift) 를 최상위 문서에 새로 만든 셈.
+              카운트는 추정 대신 `.github/dependabot.yml` 을 파싱해 세어 정정했다.
+            - Warning 2: 내가 손댄 두 자리에 **테스트가 없었다** — `chunkText` force-split 분기
+              (죽은 대입을 지운 바로 그 분기)와 `SecretResolver` 복호화 실패 분기(disable 주석으로만
+              보안 불변식을 적은 자리). 둘 다 회귀 테스트로 잠갔고, 후자는 `err.cause === undefined`
+              를 단언해 disable 이 실수로 지워지면 RED 가 나게 했다.
+            - 별도: `beed5143e` 가 `dependabot.yml` 에 심은 **매달린 참조**("아래 참조" 뒤에 아무것도
+              없음)를 RESOLUTION 검토 중 직접 발견해 정정했다(`214af6d0e`). 리뷰가 잡은 것이 아니다.
+      - [x] `/consistency-check --impl-done spec/5-system/ --diff-base origin/main`
+            (`review/consistency/2026/08/28/12_20_11`) — **BLOCK: NO**, Critical 0 · Warning 0,
+            5개 checker 전원 NONE. `spec/**` diff 0 을 각 checker 가 독립 확인했다.
+- [ ] (후속, INFO) `cause` 부착 판단 근거의 문서화 비대칭 — `expression-resolver.service.ts` ·
+      `code.handler.ts` 의 `cause: err` 옆에 "message 가 이미 원문을 노출 중이라 cause 부착이
+      추가 노출을 만들지 않는다 — `secret-resolver` 의 SS-SE-05 억제와는 구분" 1줄 주석 추가.
+      가능하면 `spec/conventions/` 에 판별 기준("message 에 원문이 이미 있으면 cause 안전")을
+      한 줄 명문화(= planner 턴).
+      > **왜 이 턴에 안 고쳤나** — developer SKILL §수렴 예외 (a)+(b)+(c)+(d) 충족.
+      > (a) 동작 결함이 아니다: 두 경로 모두 `cause` 부착이 안전함을 `security`·
+      > `rationale_continuity` 두 리뷰어가 **독립적으로 실측 확인**했다(다운스트림에서
+      > `.cause` 를 직렬화하는 곳이 없음). 남은 것은 근거 주석의 유무뿐이다.
+      > (b) fix 가 새 라운드를 강제한다: 두 파일 다 spec frontmatter `code:` 에 걸리는
+      > spec-linked 파일이라, 주석 한 줄만 건드려도 방금 통과한 `--impl-done`(12_20_11) 과
+      > `/ai-review`(11_45_02) 가 freshness 비교에서 **동시에 무효**가 된다. 2줄 주석의
+      > 값이 리뷰 2종 재실행 비용을 넘지 않는다.
+      > (c) 근거를 여기 남긴다 — 등재 사유는 "비용" 이 아니라 "수렴" 이다. 발견의 성격이
+      > 이미 동작 → 구조 → **문서** 로 이동했다.
+      > (d) 그 턴(2026-08-28)에 등재했다.
 - [ ] §3 frozen 게이트 사각지대 — 위 신설 항목. `typeorm → ioredis` 실측이 선행
 
 > **사전 일관성 검토 (`--impl-prep spec/5-system/`, 2026-08-28 `11_15_50`) — BLOCK: NO.**
