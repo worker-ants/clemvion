@@ -8,12 +8,22 @@
 export type SemverTriple = readonly [number, number, number];
 
 /**
- * `>=X.Y.Z` 형태의 단일 하한 range 파싱(예: `eslint-plugin-unicorn` 의 `peerDependencies.eslint`).
- * 그 외 형태(복합 range·`^`·`~` 등)는 null — 호출부가 fail-closed 로 처리한다.
+ * `>=X` · `>=X.Y` · `>=X.Y.Z` 형태의 단일 하한 range 파싱(예: `eslint-plugin-unicorn` 의
+ * `peerDependencies.eslint`). 생략된 자리는 semver 관례대로 0 으로 채운다 —
+ * `>=10.4` 는 `>=10.4.0` 과 같은 뜻이다.
+ *
+ * 그 외 형태(복합 range·`^`·`~`·연산자 없는 순수 버전)는 null — 호출부가 fail-closed 로 처리한다.
+ *
+ * **왜 3-component 만으로는 부족했나 (2026-08-28 실측)**: 종전 구현은 `>=X.Y.Z` 만 받았다.
+ * 그때 관리 대상이던 `eslint-plugin-unicorn@56.x` 의 peer 가 `>=8.56.0` 이라 우연히 맞았을 뿐,
+ * eslint 10 상향과 함께 `@73` 으로 올리자 실제 peer 는 **`>=10.4`** — 2-component 였다.
+ * 가드는 설계대로 fail-closed(null → 단언 실패)로 멈췄고, 그 헤더 주석이 예고한
+ * "registry 표기가 바뀌면 이 가드도 함께 갱신한다" 가 실제로 발동한 사례다.
  */
 export function parseGteFloor(range: string): SemverTriple | null {
-  const m = /^\s*>=\s*(\d+)\.(\d+)\.(\d+)\s*$/.exec(range);
-  return m ? [Number(m[1]), Number(m[2]), Number(m[3])] : null;
+  const m = /^\s*>=\s*(\d+)(?:\.(\d+))?(?:\.(\d+))?\s*$/.exec(range);
+  if (!m) return null;
+  return [Number(m[1]), Number(m[2] ?? 0), Number(m[3] ?? 0)];
 }
 
 /** `^X.Y.Z` caret range 의 하한(예: backend package.json 의 `devDependencies.eslint`). */

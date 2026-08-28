@@ -64,7 +64,7 @@ export class PublicWebhookThrottleGuard implements CanActivate {
     //    authConfigId 를 (null 대신) 비-null 값으로 잘못 돌려줘 모든 공개 webhook 을 인증 webhook
     //    으로 오판 → body 크기·IP rate-limit 보호가 전량 우회되는 버그가 있었다. full load 로 교정
     //    (트리거는 req 에 첨부돼 HooksService 가 재사용 — W14).
-    let trigger: Trigger | null = null;
+    let trigger: Trigger | null;
     try {
       trigger = await this.triggerRepository.findOne({
         where: { endpointPath, type: 'webhook' },

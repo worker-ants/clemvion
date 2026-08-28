@@ -196,6 +196,39 @@ describe('SecretResolverService', () => {
       await svc.store(ref, 'ws-1', 'a');
       await expect(svc.store(ref, 'ws-1', 'b')).rejects.toThrow(/이미 존재/);
     });
+
+    /**
+     * `resolve()` catch 분기에 걸린 `eslint-disable-next-line preserve-caught-error`
+     * 의 보안 불변식을 잠근다 — cause 를 보존하면 crypto 에러 상세가 Activity API 로
+     * 노출된다(SS-SE-05, `#814` 근거). 메시지만 단언하면 vacuous 하다: disable 주석이
+     * 실수로 지워지고 `throw new Error(msg, { cause: err })` 로 바뀌어도 메시지 단언은
+     * 여전히 통과하기 때문이다 — 그래서 `cause` 부재를 **함께** 단언한다.
+     */
+    it('실패 — 복호화 실패(authTag 위조) 시 메시지만 노출되고 cause 는 보존되지 않는다', async () => {
+      const repo = createInMemoryRepository();
+      const svc = new SecretResolverService(
+        repo,
+        createConfigService(validKey),
+      );
+      svc.onModuleInit();
+      const ref = 'secret://triggers/abc/bot-token';
+      // 형식은 유효(IV 12B + ciphertext 4B + tag 16B)하지만 전부 0 — AES-GCM authTag
+      // 검증이 반드시 실패해 decryptSecret 내부에서 crypto 상세 에러를 던진다.
+      await repo.insert({
+        ref,
+        workspaceId: 'ws-1',
+        encrypted: Buffer.alloc(12 + 4 + 16),
+      });
+
+      expect.assertions(3);
+      try {
+        await svc.resolve(ref);
+      } catch (err) {
+        expect(err).toBeInstanceOf(Error);
+        expect((err as Error).message).toBe('Secret decryption failed');
+        expect((err as Error).cause).toBeUndefined();
+      }
+    });
   });
 
   describe('rotate', () => {

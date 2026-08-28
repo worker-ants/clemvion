@@ -286,7 +286,7 @@ export function validateScalarField(
     def.pattern &&
     def.pattern.length <= MAX_PATTERN_LENGTH
   ) {
-    let re: RegExp | null = null;
+    let re: RegExp | null;
     try {
       re = new RegExp(def.pattern);
     } catch {

@@ -67,7 +67,6 @@ export function chunkText(
           // Sentence too large, force split
           if (currentChunk.trim()) {
             pushChunk(chunks, currentChunk, overlapBuffer, baseMetadata);
-            overlapBuffer = getOverlapText(currentChunk, chunkOverlap);
             currentChunk = '';
           }
           forceSplitAndPush(
@@ -77,6 +76,7 @@ export function chunkText(
             chunkOverlap,
             baseMetadata,
           );
+          // forceSplitAndPush 가 자체적으로 overlap 을 처리한다 — 이 분기는 캐리오버 없음.
           overlapBuffer = '';
         } else if (estimateTokens(currentChunk + ' ' + sentence) > chunkSize) {
           pushChunk(chunks, currentChunk, overlapBuffer, baseMetadata);

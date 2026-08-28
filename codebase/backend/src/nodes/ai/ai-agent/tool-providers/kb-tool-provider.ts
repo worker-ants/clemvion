@@ -236,7 +236,7 @@ export class KbToolProvider implements AgentToolProvider {
       }
     }
 
-    let results: Awaited<ReturnType<RagSearchService['search']>> = [];
+    let results: Awaited<ReturnType<RagSearchService['search']>>;
     let rerankDiagnostics:
       | Awaited<ReturnType<RagSearchService['searchWithMeta']>>['rerank']
       | undefined;
