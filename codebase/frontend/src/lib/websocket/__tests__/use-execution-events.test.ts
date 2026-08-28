@@ -1962,7 +1962,8 @@ describe("useExecutionEvents", () => {
   });
 
   // spec/conventions/conversation-thread.md §9.10 CT-S9 / CT-S10 / CT-S11
-  // — node.failed / node.completed (with output.error) → system_error APPEND
+  // — node.failed / node.completed (with **`output.output.error`** — `output` 은
+  //   `NodeHandlerOutput` 래퍼다) → system_error APPEND
   describe("system_error inline marker (CT-S9 / CT-S10 / CT-S11)", () => {
     function bindNodeHandlers() {
       renderHook(() => useExecutionEvents({ executionId: "exec-1" }));
@@ -1973,6 +1974,20 @@ describe("useExecutionEvents", () => {
         (c: unknown[]) => c[0] === "execution.node.completed",
       )?.[1] as ((data: unknown) => void) | undefined;
       return { failed, completed };
+    }
+
+    /**
+     * `NodeHandlerOutput` **래퍼**를 만든다 — 이벤트의 `output` 이 그것이고 도메인 값은
+     * 한 겹 아래다 (node-output.md Principle 0 · 6-websocket-protocol.md §4.1-a).
+     *
+     * **왜 빌더인가**: 이 결함의 근본 원인이 *"fixture 가 production shape 을 못 따라가
+     * 결함을 가렸다"* 였다. 래퍼를 손으로 5곳에 복제하면 **같은 drift 를 다시 심는다** —
+     * 래퍼 모양이 바뀔 때 고칠 자리가 한 곳이어야 한다 (`01_26_11` maintainability W3).
+     */
+    function wrapNodeHandlerOutput(
+      domain: Record<string, unknown>,
+    ): Record<string, unknown> {
+      return { output: domain, config: {}, meta: {} };
     }
 
     function seedConversation() {
@@ -1988,21 +2003,27 @@ describe("useExecutionEvents", () => {
       seedConversation();
       const { failed } = bindNodeHandlers();
 
+      // **production shape** — top-level `error` 는 문자열, 구조화 객체는 래퍼
+      // 한 겹 아래(`output.output.error`). 종전 fixture 는 `error` 를 객체로 보내
+      // 정정 전 §4.1 문구를 인코딩했고, 그래서 결함이 있는 채로 초록이었다.
       failed?.({
         nodeId: "agent-1",
         nodeType: "ai_agent",
         nodeLabel: "CS Bot",
         nodeExecutionId: "11111111-1111-1111-1111-111111111111",
-        error: {
-          code: "LLM_RATE_LIMIT",
-          message: "Anthropic API returned 429 (Too Many Requests)",
-          details: {
-            provider: "anthropic",
-            statusCode: 429,
-            retryable: true,
-            retryAfterSec: 30,
+        error: "Anthropic API returned 429 (Too Many Requests)",
+        output: wrapNodeHandlerOutput({
+          error: {
+            code: "LLM_RATE_LIMIT",
+            message: "Anthropic API returned 429 (Too Many Requests)",
+            details: {
+              provider: "anthropic",
+              statusCode: 429,
+              retryable: true,
+              retryAfterSec: 30,
+            },
           },
-        },
+        }),
       });
 
       const items = useExecutionStore.getState().conversationMessages;
@@ -2032,11 +2053,14 @@ describe("useExecutionEvents", () => {
         nodeId: "agent-1",
         nodeType: "ai_agent",
         nodeLabel: "CS Bot",
-        error: {
-          code: "LLM_CALL_FAILED",
-          message: "401 unauthorized",
-          details: { statusCode: 401, retryable: false },
-        },
+        error: "401 unauthorized",
+        output: wrapNodeHandlerOutput({
+          error: {
+            code: "LLM_CALL_FAILED",
+            message: "401 unauthorized",
+            details: { statusCode: 401, retryable: false },
+          },
+        }),
       });
 
       const items = useExecutionStore.getState().conversationMessages;
@@ -2055,22 +2079,27 @@ describe("useExecutionEvents", () => {
       seedConversation();
       const { failed } = bindNodeHandlers();
 
-      const conversationOutput = {
-        result: { messages: [{ role: "user", content: "ORD-12345" }], turnCount: 2 },
+      // `output` 은 `NodeHandlerOutput` **래퍼**다 (`nodeExec.outputData`).
+      // 도메인 값은 한 겹 아래 — node-output.md Principle 0.
+      const conversationWrapper = wrapNodeHandlerOutput({
+        result: {
+          messages: [{ role: "user", content: "ORD-12345" }],
+          turnCount: 2,
+        },
         error: {
           code: "LLM_CALL_FAILED",
           message: "Request timed out.",
           details: { retryable: true },
         },
-      };
+      });
 
       failed?.({
         nodeExecutionId: "11111111-1111-4111-8111-111111111111",
         nodeId: "agent-1",
         nodeType: "ai_agent",
         nodeLabel: "CS Bot",
-        error: conversationOutput.error,
-        output: conversationOutput,
+        error: "Request timed out.",
+        output: conversationWrapper,
       });
 
       const result = useExecutionStore
@@ -2078,7 +2107,7 @@ describe("useExecutionEvents", () => {
         .nodeResults.find((r) => r.nodeId === "agent-1");
       expect(result?.status).toBe("failed");
       // 회귀 지점: `outputData: null` 하드코딩이면 여기서 실패한다.
-      expect(result?.outputData).toEqual(conversationOutput);
+      expect(result?.outputData).toEqual(conversationWrapper);
     });
 
     // PR #959 후속 — `handleNodeFailed` 의 `outputData: payload.output ?? null` 은
@@ -2104,7 +2133,9 @@ describe("useExecutionEvents", () => {
         nodeId: "http-1",
         nodeType: "http_request",
         nodeLabel: "Call API",
-        error: { code: "HTTP_500", message: "Internal Server Error" },
+        // production shape — 자매 non-AI 테스트는 직전 라운드에 고쳤는데 이쪽을 갈랐다
+        // (`02_02_18` INFO 1).
+        error: "Internal Server Error",
         output: httpOutput,
       });
 
@@ -2121,7 +2152,7 @@ describe("useExecutionEvents", () => {
       ).toHaveLength(0);
     });
 
-    it("node.completed with output.error APPENDs system_error (multi-turn AI port=error)", () => {
+    it("node.completed with output.output.error APPENDs system_error (multi-turn AI port=error)", () => {
       useExecutionStore.getState().startExecution("exec-1");
       seedConversation();
       const { completed } = bindNodeHandlers();
@@ -2130,14 +2161,14 @@ describe("useExecutionEvents", () => {
         nodeId: "agent-1",
         nodeType: "ai_agent",
         nodeLabel: "CS Bot",
-        output: {
+        output: wrapNodeHandlerOutput({
           result: { messages: [], turnCount: 2 },
           error: {
             code: "LLM_RATE_LIMIT",
             message: "Rate limited",
             details: { retryable: true, retryAfterSec: 10 },
           },
-        },
+        }),
       });
 
       const items = useExecutionStore.getState().conversationMessages;
@@ -2147,7 +2178,265 @@ describe("useExecutionEvents", () => {
       expect(last.systemError?.retryAfterSec).toBe(10);
     });
 
-    it("legacy string error (no structured shape) does NOT APPEND system_error", () => {
+    /**
+     * **이 결함의 정확한 형태를 문다** (`12_24_55` CRITICAL).
+     *
+     * 라이브 WS 는 top-level `error` 를 **문자열**로 보내고 구조화 객체는 래퍼 한 겹
+     * 아래(`output.output.error`)에만 있다. 종전 코드는 (a) `error` 를 객체로 파싱하고
+     * (b) `rawOutput` 에 `undefined` 를 넘겨 **항상 `null`** 이었다 — 배너가 한 번도
+     * 뜨지 않았다.
+     *
+     * ~~*"위 CT-S9/S10 은 `error` 를 객체로 보내므로 `direct` 분기로 통과한다"*~~
+     * — **이 문장은 같은 PR 안에서 낡았다**(`01_44_22` W1). CT-S9/S10 도 production
+     * shape(문자열 `error`)으로 정정했고 `direct` 분기 자체를 지웠다.
+     *
+     * **그래도 이 케이스를 따로 두는 이유**: CT-S9/S10 은 `retryable` 유무라는 **다른 축**을
+     * 검증하느라 payload 에 여러 필드가 섞여 있다. 이 캐너리는 결함의 **최소 조합**
+     * (문자열 `error` + 래퍼 `output` 하나)만 남겨, 회귀 시 *"무엇이 깨졌는지"* 가
+     * 한 줄로 읽히게 한다.
+     */
+    it("[캐너리] 문자열 error + 래퍼 output 조합에서 배너가 뜬다 (라이브 WS 실제 shape)", () => {
+      useExecutionStore.getState().startExecution("exec-1");
+      seedConversation();
+      const { failed } = bindNodeHandlers();
+
+      failed?.({
+        nodeId: "agent-1",
+        nodeType: "ai_agent",
+        nodeLabel: "CS Bot",
+        // 백엔드 emit 4곳 전수가 이 형태다 — message only.
+        error: "Anthropic API returned 529 (Overloaded)",
+        output: wrapNodeHandlerOutput({
+          result: { messages: [], turnCount: 2 },
+          error: {
+            code: "LLM_OVERLOADED",
+            message: "Anthropic API returned 529 (Overloaded)",
+            details: { retryable: true, retryAfterSec: 5 },
+          },
+        }),
+      });
+
+      const items = useExecutionStore.getState().conversationMessages;
+      const last = items[items.length - 1];
+      expect(last.type).toBe("system_error");
+      expect(last.systemError?.code).toBe("LLM_OVERLOADED");
+      expect(last.systemError?.retryable).toBe(true);
+      expect(last.systemError?.retryAfterSec).toBe(5);
+    });
+
+    /**
+     * **`!code || !message` 가드를 문다** (`01_44_22` W2 → `02_21_19` W1).
+     *
+     * 이력이 두 단계다:
+     * 1. `01_44_22` 가 `if (false)` 뮤테이션으로 **커버리지 0** 을 실증했다. 이 PR 은 같은
+     *    함수의 `direct` 분기를 *"커버리지 0인 방어는 위험"* 이라며 지웠으면서 **형제
+     *    가드에는 그 원칙을 안 적용**하고 있었다.
+     * 2. 그래서 테스트를 붙였는데 **두 키를 동시에 비웠다**. 그러면 `||`→`&&` 뮤테이션이
+     *    살아남는다(`02_21_19` W1 이 실증) — **분기를 못 가르는 fixture** 다.
+     *
+     * 그래서 **각 항을 따로 가른다**. 가드를 지우지 않는 이유는 `direct` 와 달리
+     * **도달하기 때문**이다 — 백엔드가 코드 없는 `error` 객체를 싣는 것은 타입상 막히지
+     * 않고, 그때 `code`/`message` 가 `undefined` 인 배너가 사용자에게 빈 칸으로 보인다.
+     */
+    it("[가드] `message` 만 없어도 배너를 안 띄운다 (`||` 좌항)", () => {
+      useExecutionStore.getState().startExecution("exec-1");
+      seedConversation();
+      const { failed } = bindNodeHandlers();
+
+      failed?.({
+        nodeId: "agent-1",
+        nodeType: "ai_agent",
+        error: "something went wrong",
+        output: wrapNodeHandlerOutput({
+          error: { code: "LLM_CALL_FAILED", details: { retryable: true } },
+        }),
+      });
+
+      const items = useExecutionStore.getState().conversationMessages;
+      expect(items).toHaveLength(3);
+      expect(items.every((i) => i.type !== "system_error")).toBe(true);
+    });
+
+    it("[가드] `code` 만 없어도 배너를 안 띄운다 (`||` 우항)", () => {
+      useExecutionStore.getState().startExecution("exec-1");
+      seedConversation();
+      const { failed } = bindNodeHandlers();
+
+      failed?.({
+        nodeId: "agent-1",
+        nodeType: "ai_agent",
+        error: "something went wrong",
+        output: wrapNodeHandlerOutput({
+          error: { message: "Upstream refused", details: { retryable: true } },
+        }),
+      });
+
+      const items = useExecutionStore.getState().conversationMessages;
+      expect(items).toHaveLength(3);
+      expect(items.every((i) => i.type !== "system_error")).toBe(true);
+    });
+
+    /**
+     * `output` 이 배열이어도 배너가 안 뜨는지.
+     *
+     * ⚠️ **이 테스트는 `!Array.isArray(v)` 항을 가르지 못한다 — 그래도 남긴다.**
+     * 그 항을 지우는 뮤테이션(M7)을 돌려도 **92/92 GREEN** 이다(실측). 이유는 배열이
+     * `asRecord` 를 통과하더라도 `[].output` 이 `undefined` 라 다음 단계에서 어차피
+     * `null` 로 떨어지기 때문 — **모든 현실 입력에 대해 등가 뮤턴트**다. WS JSON 은
+     * 프로퍼티를 가진 배열을 만들 수 없으므로 그 항은 타입 수준 방어로만 존재한다.
+     *
+     * 검증하는 것은 *"배열이 와도 배너가 안 뜬다"* 는 **동작**이고, 그건 실제로 유효한
+     * 회귀 방어다(`asRecord` 를 통째로 없애는 변경 등은 이 테스트가 문다). 항 하나를
+     * 가른다고 **주장하지는 않는다** — 이름과 주석이 실제 검증 범위와 어긋나면 그것이
+     * 이 PR 이 세 번 겪은 결함이다.
+     */
+    it("`output` 이 배열이면 배너를 안 띄운다 (동작 고정 — 항 분리는 못 함)", () => {
+      useExecutionStore.getState().startExecution("exec-1");
+      seedConversation();
+      const { failed } = bindNodeHandlers();
+
+      failed?.({
+        nodeId: "agent-1",
+        nodeType: "ai_agent",
+        error: "something went wrong",
+        output: [],
+      });
+
+      const items = useExecutionStore.getState().conversationMessages;
+      expect(items).toHaveLength(3);
+      expect(items.every((i) => i.type !== "system_error")).toBe(true);
+    });
+
+    /**
+     * **`details` 하위 필드의 타입 가드를 문다** (`02_39_10` W1 · INFO 12).
+     *
+     * `retryable`/`retryAfterSec` 는 `typeof` 로 좁힌 뒤에만 쓰고, 아니면 각각 `false` /
+     * `undefined` 로 떨어진다. 백엔드가 `retryable: "true"`(문자열) 같은 스키마 drift 를
+     * 보내면 그 가드가 유일한 방어다 — 없으면 `"true"` 가 truthy 라 **`[다시 시도]` 가
+     * 잘못 노출**되고, `retryAfterSec: "30"` 이면 숫자 자리에 문자열이 들어간다.
+     *
+     * `details` 자체가 object 가 아닌 경우(`"n/a"`)도 같은 자리에서 함께 가른다.
+     *
+     * **두 핸들러 모두에 넣는다** — 그 블록은 완전히 복제돼 있어서 한쪽만 테스트하면
+     * 나머지가 무방비다. 이 PR 이 세 번 겪은 "형제 중 하나만" 을 반복하지 않는다.
+     */
+    it("[가드] `details` 필드 타입이 틀리면 안전값으로 떨어진다 — failed", () => {
+      useExecutionStore.getState().startExecution("exec-1");
+      seedConversation();
+      const { failed } = bindNodeHandlers();
+
+      failed?.({
+        nodeId: "agent-1",
+        nodeType: "ai_agent",
+        error: "Rate limited",
+        output: wrapNodeHandlerOutput({
+          error: {
+            code: "LLM_RATE_LIMIT",
+            message: "Rate limited",
+            // 스키마 drift — 둘 다 타입이 틀렸다.
+            details: { retryable: "true", retryAfterSec: "30" },
+          },
+        }),
+      });
+
+      const last = useExecutionStore.getState().conversationMessages.at(-1);
+      expect(last?.type).toBe("system_error");
+      expect(last?.systemError?.retryable).toBe(false);
+      expect(last?.systemError?.retryAfterSec).toBeUndefined();
+    });
+
+    it("[가드] `details` 필드 타입이 틀리면 안전값으로 떨어진다 — completed", () => {
+      useExecutionStore.getState().startExecution("exec-1");
+      seedConversation();
+      const { completed } = bindNodeHandlers();
+
+      completed?.({
+        nodeId: "agent-1",
+        nodeType: "ai_agent",
+        output: wrapNodeHandlerOutput({
+          error: {
+            code: "LLM_RATE_LIMIT",
+            message: "Rate limited",
+            details: { retryable: "true", retryAfterSec: "30" },
+          },
+        }),
+      });
+
+      const last = useExecutionStore.getState().conversationMessages.at(-1);
+      expect(last?.type).toBe("system_error");
+      expect(last?.systemError?.retryable).toBe(false);
+      expect(last?.systemError?.retryAfterSec).toBeUndefined();
+    });
+
+    it("[가드] `details` 가 object 가 아니면 안전값으로 떨어진다", () => {
+      useExecutionStore.getState().startExecution("exec-1");
+      seedConversation();
+      const { failed } = bindNodeHandlers();
+
+      failed?.({
+        nodeId: "agent-1",
+        nodeType: "ai_agent",
+        error: "Rate limited",
+        output: wrapNodeHandlerOutput({
+          error: { code: "LLM_RATE_LIMIT", message: "Rate limited", details: "n/a" },
+        }),
+      });
+
+      const last = useExecutionStore.getState().conversationMessages.at(-1);
+      expect(last?.type).toBe("system_error");
+      expect(last?.systemError?.retryable).toBe(false);
+    });
+
+    /**
+     * `handleNodeCompleted` 쪽 **대칭 케이스** (`02_21_19` INFO 8) — 공유 함수라 간접
+     * 방어는 되지만, 두 핸들러가 각자 `isMultiTurnAiContext` 를 부르므로 한쪽 배선이
+     * 끊겨도 다른 쪽 테스트로는 안 잡힌다.
+     */
+    it("completed 도 이전 대화가 없으면 배너를 안 띄운다 (single-turn 대칭)", () => {
+      useExecutionStore.getState().startExecution("exec-1");
+      // no seedConversation
+      const { completed } = bindNodeHandlers();
+
+      completed?.({
+        nodeId: "agent-1",
+        nodeType: "ai_agent",
+        output: wrapNodeHandlerOutput({
+          error: { code: "LLM_RATE_LIMIT", message: "429" },
+        }),
+      });
+
+      expect(useExecutionStore.getState().conversationMessages).toHaveLength(0);
+    });
+
+    /**
+     * `details` **키 자체가 없는** 조합 — `retryable` 이 `false` 로 떨어져 CT-S10 과 같이
+     * `[다시 시도]` 를 숨겨야 한다 (`01_44_22` testing INFO 7).
+     */
+    it("[가드] `details` 가 없으면 retryable 은 false 로 떨어진다", () => {
+      useExecutionStore.getState().startExecution("exec-1");
+      seedConversation();
+      const { failed } = bindNodeHandlers();
+
+      failed?.({
+        nodeId: "agent-1",
+        nodeType: "ai_agent",
+        error: "Upstream refused the request.",
+        output: wrapNodeHandlerOutput({
+          error: { code: "LLM_CALL_FAILED", message: "Upstream refused the request." },
+        }),
+      });
+
+      const last = useExecutionStore.getState().conversationMessages.at(-1);
+      expect(last?.type).toBe("system_error");
+      expect(last?.systemError?.retryable).toBe(false);
+      expect(last?.systemError?.retryAfterSec).toBeUndefined();
+    });
+
+    // §4.1-a — pre-flight throw · container 실패 2경로는 `output` **키 자체가 없다**.
+    // 그래서 구조화 에러에 도달할 방법이 없고 배너도 안 뜬다. 이것은 결함이 아니라
+    // spec 이 규정한 정상이다. (종전 라벨은 *"옛 backend 호환"* 이었는데, 사유가 호환이
+    // 아니라 **경로별 동봉 여부**다.)
+    it("`output` 미동봉 경로(문자열 error 단독)는 system_error 를 APPEND 하지 않는다", () => {
       useExecutionStore.getState().startExecution("exec-1");
       seedConversation();
       const { failed } = bindNodeHandlers();
@@ -2159,7 +2448,7 @@ describe("useExecutionEvents", () => {
       });
 
       const items = useExecutionStore.getState().conversationMessages;
-      // 기존 3개 turn 유지, system_error 미추가 — 옛 backend 호환
+      // 기존 3개 turn 유지 — 구조화 에러에 도달할 경로가 없다.
       expect(items).toHaveLength(3);
       expect(items.every((i) => i.type !== "system_error")).toBe(true);
     });
@@ -2172,7 +2461,12 @@ describe("useExecutionEvents", () => {
       failed?.({
         nodeId: "http-1",
         nodeType: "http_request",
-        error: { code: "HTTP_5XX", message: "Server error" },
+        // production shape — 이 PR 이 세운 "fixture = production shape" 원칙을
+        // 음성 테스트에도 적용한다 (`01_44_22` testing INFO 8).
+        error: "Server error",
+        output: wrapNodeHandlerOutput({
+          error: { code: "HTTP_5XX", message: "Server error" },
+        }),
       });
 
       const items = useExecutionStore.getState().conversationMessages;
@@ -2180,6 +2474,21 @@ describe("useExecutionEvents", () => {
       expect(items.every((i) => i.type !== "system_error")).toBe(true);
     });
 
+    /**
+     * **`isMultiTurnAiContext` 의 "이전 대화 없음" 분기를 실제로 태운다** (`02_02_18` W1).
+     *
+     * 종전 fixture 는 `output` 이 없어 `errorPayload` 가 `null` 이었고, `&&` 단락 평가로
+     * **`isMultiTurnAiContext` 를 호출하기도 전에** 차단됐다. 그래서 그 함수를
+     * `return true` 로 뮤테이션해도 89/89 GREEN — 이 테스트가 검증한다고 믿은 분기가
+     * 실은 무검증이었다.
+     *
+     * 직전 라운드가 이 케이스를 *"공허 테스트는 아니다"* 로 판정했는데 **단락 평가 순서를
+     * 놓친 오판**이었고, 이번 라운드가 뮤테이션으로 반증했다.
+     *
+     * 그래서 `output` 을 실어 `errorPayload` 를 non-null 로 만들고, `seedConversation()` 은
+     * **일부러 호출하지 않는다** — 배너를 막는 것이 `errorPayload` 부재가 아니라
+     * **대화 이력 부재**임을 그 자리에서 가른다.
+     */
     it("AI node failure without prior conversation context does NOT APPEND (single-turn case)", () => {
       useExecutionStore.getState().startExecution("exec-1");
       // no seedConversation — conversationMessages empty
@@ -2188,7 +2497,10 @@ describe("useExecutionEvents", () => {
       failed?.({
         nodeId: "agent-1",
         nodeType: "ai_agent",
-        error: { code: "LLM_RATE_LIMIT", message: "429" },
+        error: "429",
+        output: wrapNodeHandlerOutput({
+          error: { code: "LLM_RATE_LIMIT", message: "429" },
+        }),
       });
 
       // single-turn AI 는 thread 가 없으므로 inline marker 안 함

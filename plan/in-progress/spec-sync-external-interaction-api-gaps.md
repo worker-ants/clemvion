@@ -202,7 +202,13 @@ owner: planner
       > `[잔여 고정] flat 폴백 shape 이 오면 목록 밖 키는 떨어진다`.
       > **재개 신호**: 그 폴백이 실제로 발현한 행이 관측되면(운영 DB 또는 새 e2e 시나리오).
 
-- [ ] 🔴 **`system_error` 재시도 배너가 라이브 WS 경로에서 안 뜬다 — spec 문구가 낳은 프런트 결함**
+- [x] ~~🔴 **`system_error` 재시도 배너가 라이브 WS 경로에서 안 뜬다**~~ → **완료
+      (2026-08-28, `system-error-banner-live-ws`)**. 아래 실측이 전부 그대로 확인됐고,
+      **표면이 하나 넓었다** — `node.completed`(`port:'error'`) 호출부도 `payload.output` 을
+      넘기면서 헬퍼가 래퍼를 **한 겹 얕게** 봐서 못 찾고 있었다(뮤테이션으로 확인).
+      `conversation-thread.md §9.7` 위 ⚠️ 마커와 `6-websocket-protocol.md §4.2` 의 얕은
+      표기 3곳도 같은 PR 에서 정리했다. (원 등재 내용 ↓)
+      🔴 **`system_error` 재시도 배너가 라이브 WS 경로에서 안 뜬다 — spec 문구가 낳은 프런트 결함**
       (2026-08-24 등재, `12_24_55` cross_spec **CRITICAL**). **문서 정합이 아니라 실제 기능
       결함**이다.
       > **실측 (다시 찾지 말 것)**:

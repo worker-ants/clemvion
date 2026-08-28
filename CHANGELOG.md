@@ -1,5 +1,24 @@
 # Changelog
 
+## Unreleased — `system_error` 재시도 배너가 라이브 실행에서 **처음** 뜬다
+
+**죽어 있던 경로를 되살린 것이지 새 기능이 아니다.** multi-turn AI Agent 가 LLM 실패로
+종결될 때 대화 마지막에 붙는 `system_error` 인라인 배너(`[다시 시도]` 포함)가 **라이브 WS
+경로에서 한 번도 뜨지 않았다.**
+
+원인은 spec 문구였다. `use-execution-events.ts` 의 `extractNodeErrorPayload` 가 정정 전
+§4.1(*"`error` 는 `output.error` 전체 구조"*)을 믿고 `payload.error` 를 **객체로** 파싱했는데,
+백엔드 emit **4곳 전수**가 top-level `error` 를 **문자열**(message only)로 보낸다. 구조화
+객체는 `output.output.error` 에만 있다. 그래서 항상 `null` 로 떨어져 APPEND 블록이 한 번도
+실행되지 않았다. 그 spec 문구는 2026-08-24 에 §4.1-a 로 정정됐고 **코드만 남아 있었다.**
+
+`node.completed`(`port:'error'`) 경로도 같은 이유로 깨져 있었다 — 그쪽은 `payload.output` 을
+넘겼지만 헬퍼가 래퍼를 **한 겹 얕게** 봤다.
+
+**운영 영향**: 이 배포 이후 사용자가 대화 스레드에서 **처음으로** 이 배너를 보게 된다.
+**회귀가 아니라 원래 의도된 동작의 복구**다 — 관측 시 신규 결함으로 오인하지 말 것.
+백엔드 payload·API 계약은 **바뀌지 않았다**(프런트 파싱만 정정).
+
 ## Unreleased — 노드 `config` echo 마스킹을 **저장 시점에서 egress 로** 옮겼다
 
 **표현식이 원문을 읽는다.** `handler-output.adapter.ts` 가 `config` 를 저장 전에 마스킹해,
