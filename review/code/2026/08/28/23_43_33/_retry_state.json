@@ -1,0 +1,60 @@
+{
+  "session_dir": "/Users/gehrig/orca/workspaces/clemvion/oystercatcher/.claude/worktrees/eslint10-upgrade-5e3cf9/review/code/2026/08/28/23_43_33",
+  "summary_subagent_type": "code-review-summary",
+  "summary_output_file": "/Users/gehrig/orca/workspaces/clemvion/oystercatcher/.claude/worktrees/eslint10-upgrade-5e3cf9/review/code/2026/08/28/23_43_33/SUMMARY.md",
+  "router_subagent_type": "review-router",
+  "router_prompt_file": null,
+  "router_output_file": "/Users/gehrig/orca/workspaces/clemvion/oystercatcher/.claude/worktrees/eslint10-upgrade-5e3cf9/review/code/2026/08/28/23_43_33/_routing_decision.json",
+  "routing_status": "skipped",
+  "routing_skip_reason": "REVIEW_AGENTS explicitly set",
+  "agents_forced": [
+    "documentation",
+    "requirement",
+    "testing"
+  ],
+  "agents_forced_reasons": {
+    "documentation": [
+      "문서 파일(.md/.txt/.rst/.adoc/LICENSE/CHANGELOG 등) 변경: plan/in-progress/deps-peer-gating-and-eslint10.md, review/code/2026/08/28/23_20_05/RESOLUTION.md, review/code/2026/08/28/23_20_05/SUMMARY.md (외 8건)"
+    ],
+    "requirement": [
+      "소스 코드 변경 — 코드 변경 시 항상 적용: codebase/frontend/eslint.config.mjs, codebase/frontend/src/lib/repo-guards/__tests__/eslint10-unblock-guard.ts, codebase/frontend/src/lib/repo-guards/__tests__/eslint10-unblock.test.ts"
+    ],
+    "testing": [
+      "소스 코드 변경 — 코드 변경 시 항상 적용: codebase/frontend/eslint.config.mjs, codebase/frontend/src/lib/repo-guards/__tests__/eslint10-unblock-guard.ts, codebase/frontend/src/lib/repo-guards/__tests__/eslint10-unblock.test.ts"
+    ]
+  },
+  "agents_skipped": [],
+  "subagent_invocations": [
+    {
+      "name": "testing",
+      "subagent_type": "testing-reviewer",
+      "prompt_file": "/Users/gehrig/orca/workspaces/clemvion/oystercatcher/.claude/worktrees/eslint10-upgrade-5e3cf9/review/code/2026/08/28/23_43_33/_prompts/testing.md",
+      "output_file": "/Users/gehrig/orca/workspaces/clemvion/oystercatcher/.claude/worktrees/eslint10-upgrade-5e3cf9/review/code/2026/08/28/23_43_33/testing.md"
+    },
+    {
+      "name": "documentation",
+      "subagent_type": "documentation-reviewer",
+      "prompt_file": "/Users/gehrig/orca/workspaces/clemvion/oystercatcher/.claude/worktrees/eslint10-upgrade-5e3cf9/review/code/2026/08/28/23_43_33/_prompts/documentation.md",
+      "output_file": "/Users/gehrig/orca/workspaces/clemvion/oystercatcher/.claude/worktrees/eslint10-upgrade-5e3cf9/review/code/2026/08/28/23_43_33/documentation.md"
+    },
+    {
+      "name": "requirement",
+      "subagent_type": "requirement-reviewer",
+      "prompt_file": "/Users/gehrig/orca/workspaces/clemvion/oystercatcher/.claude/worktrees/eslint10-upgrade-5e3cf9/review/code/2026/08/28/23_43_33/_prompts/requirement.md",
+      "output_file": "/Users/gehrig/orca/workspaces/clemvion/oystercatcher/.claude/worktrees/eslint10-upgrade-5e3cf9/review/code/2026/08/28/23_43_33/requirement.md"
+    }
+  ],
+  "agents_pending": [
+    "testing",
+    "documentation",
+    "requirement"
+  ],
+  "agents_success": [],
+  "agents_fatal": [],
+  "agent_history": {},
+  "rate_limit_episodes": 0,
+  "total_wait_sec": 0,
+  "wake_history": [],
+  "last_reset_hint_sec": null,
+  "loop_mode": false
+}

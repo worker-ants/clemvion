@@ -223,7 +223,9 @@ eslint 9 는 이미 `maintenance` dist-tag 다(2026-08-01 실측: latest = 10.8.
 > 그 의존성 셋이 eslint 9 를 상한으로 못 박는다(2026-08-28 registry 실측, 각 latest):
 > `eslint-plugin-react@7.37.5`=`^…|| ^9.7` · `eslint-plugin-jsx-a11y@6.10.2`=`^…|| ^9` ·
 > `eslint-plugin-import@2.32.0`=`^…|| ^9`. **eslint 10 을 지원하는 버전이 아직 없다**
-> (`eslint-plugin-react-hooks@7.1.1` 만 `^10.0.0` 을 넣었다). 실제로 11개를 전부 올려
+> (`eslint-plugin-react-hooks@7.1.1` 만 `^10.0.0` 을 넣었다 — ⚠️ **그러나 우리 트리는
+> 7.0.1 에 핀돼 있어 그것도 차단자다. 아래 §정정 참조 — 차단자는 셋이 아니라 넷**).
+> 실제로 11개를 전부 올려
 > `pnpm install --strict-peer-dependencies` 를 돌려 이 4건의 unmet peer 를 **관측하고**
 > 되돌렸다 — "peer 를 읽어 추정" 이 아니라 실행 결과다.
 >
