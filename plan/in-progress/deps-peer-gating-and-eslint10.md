@@ -256,8 +256,10 @@ eslint 9 는 이미 `maintenance` dist-tag 다(2026-08-01 실측: latest = 10.8.
       단언은 RED 를 낸다. 그래서 두 spec 에 케이스를 하나씩 넣고 판별 기준(“message 가 이미
       원문을 담고 있으면 cause 안전, `secret-resolver` 는 담지 않으므로 예외”)을 그 케이스의
       주석에 실었다.
-      - 뮤테이션 실측(두 곳의 `cause: err` 제거): 신규 2건 **RED**, 기존 131건 **GREEN** —
-        즉 기존 `.message` 단언만으로는 이 계약을 지키지 못했다.
+      - 뮤테이션 실측(두 곳의 `cause: err` 제거): **신규 2건만 RED, 두 spec 의 기존 케이스는
+        전부 GREEN** — 즉 기존 `.message` 단언만으로는 이 계약을 전혀 지키지 못했다.
+        (절대 개수는 적지 않는다 — 케이스가 늘면 그 숫자가 조용히 stale 해진다. 측정 시점
+        커밋은 `b235a612b` 직전 상태다.)
       - 부수 발견: `code.handler` 의 cause 는 `isolated-vm` 이 **자기 realm** 에서 만든
         `SyntaxError` 라 호스트 `Error` 를 상속하지 않는다(`toBeInstanceOf(Error)` 실패 실측).
         형제 케이스와 단언 형태가 다른 이유이고, 통일하려다 지우면 안 된다.
