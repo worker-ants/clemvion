@@ -72,22 +72,13 @@ updates:
       - dependency-name: "typescript"
         update-types: ["version-update:semver-major"]
 
-      # (2026-08-28 제거) `eslint-plugin-unicorn` major ignore.
-      #
-      # 이 항목의 존재 이유는 "unicorn 66+ 가 `eslint@>=10.4` 를 요구하는데 이 저장소는
-      # eslint 9 였다" 였다. `plan/in-progress/deps-peer-gating-and-eslint10.md` §2 가
-      # eslint 10 상향을 끝내면서(backend·packages 9개 워크스페이스 `^10.9.1`) 그 전제가
-      # 사라졌고, unicorn 도 `^73` 으로 함께 올렸다 — 그러므로 ignore 를 유지할 근거가 없다.
-      # 남겨 두면 "막을 대상이 없는 억제" 가 되어 다음 진짜 문제를 조용히 덮는다(fail-open).
-      #
-      # 되살릴 조건: unicorn 의 peer eslint floor 가 이 저장소의 선언 floor 를 다시 넘을 때.
-      # 그 판정은 사람이 다시 할 필요가 없다 — 상시 가드
-      # `codebase/backend/src/repo-guards/__tests__/eslint-unicorn-peer.spec.ts` 가
-      # 설치본 실측으로 잡고, CI install 의 `--strict-peer-dependencies` 가 이중으로 막는다
-      # (#1049 당시엔 둘 다 없어서 무방비였다).
-      #
-      # 버전별 eslint peer floor 실측 표의 SoT 는 `codebase/backend/eslint.config.mjs`(단일 룰
-      # 등록 블록 주석) — 여기서는 중복 기재하지 않는다.
+      # (묘비) `eslint-plugin-unicorn` major ignore 는 2026-08-28 부로 제거했다 — 위 항목이
+      # 이 리스트의 유일한 원소인 이유. 존재 이유였던 "unicorn 66+ 가 `eslint@>=10.4` 를
+      # 요구하는데 이 저장소는 eslint 9 였다" 는 backend·packages 의 eslint 10 상향
+      # (`plan/in-progress/deps-peer-gating-and-eslint10.md` §2, unicorn 도 `^73` 동반 상향)
+      # 으로 소멸했다. 재발 방지는 상시 가드로 이관: `eslint-unicorn-peer.spec.ts`(설치본
+      # peer 실측) + CI `--strict-peer-dependencies`(unmet peer 즉시 실패) — `#1049` 당시엔
+      # 둘 다 없어 무방비였다. 상세 이력은 `PROJECT.md` §버전·도구 정책 의 동명 각주.
       #
       # ⚠️ eslint 자체의 major 는 **여기서 막지 않는다**. frontend·channel-web-chat 은
       # eslint 9 에 남아 있는데(그쪽 `eslint-config-next` 스택이 eslint 10 을 배제한다 —
