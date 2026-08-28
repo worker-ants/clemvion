@@ -223,7 +223,9 @@ eslint 9 는 이미 `maintenance` dist-tag 다(2026-08-01 실측: latest = 10.8.
 > 그 의존성 셋이 eslint 9 를 상한으로 못 박는다(2026-08-28 registry 실측, 각 latest):
 > `eslint-plugin-react@7.37.5`=`^…|| ^9.7` · `eslint-plugin-jsx-a11y@6.10.2`=`^…|| ^9` ·
 > `eslint-plugin-import@2.32.0`=`^…|| ^9`. **eslint 10 을 지원하는 버전이 아직 없다**
-> (`eslint-plugin-react-hooks@7.1.1` 만 `^10.0.0` 을 넣었다). 실제로 11개를 전부 올려
+> (`eslint-plugin-react-hooks@7.1.1` 만 `^10.0.0` 을 넣었다 — ⚠️ **그러나 우리 트리는
+> 7.0.1 에 핀돼 있어 그것도 차단자다. 아래 §정정 참조 — 차단자는 셋이 아니라 넷**).
+> 실제로 11개를 전부 올려
 > `pnpm install --strict-peer-dependencies` 를 돌려 이 4건의 unmet peer 를 **관측하고**
 > 되돌렸다 — "peer 를 읽어 추정" 이 아니라 실행 결과다.
 >
@@ -231,6 +233,23 @@ eslint 9 는 이미 `maintenance` dist-tag 다(2026-08-01 실측: latest = 10.8.
 > 도달하지 않는다" 인데(`pnpm-workspace.yaml` §peer dependency 게이트), 여기서는 그 플러그인들이
 > eslint 10 위에서 **실제로 돌아야 하는** 대상이라 미검증 억제가 곧 fail-open 이다.
 > 해제 조건과 실측 표의 SoT: `codebase/frontend/eslint.config.mjs` 헤더.
+>
+> ### ⚠️ 정정 (2026-08-28 후속 턴) — **우리 트리의 차단자는 셋이 아니라 넷이다**
+>
+> 위 서술은 `eslint-plugin-react-hooks` 를 "이미 `^10.0.0` 을 넣었으니 차단자가 아니다" 로
+> 뺐다. 그건 **registry latest(7.1.1)** 를 잰 것이고, **우리 트리는 다르다** —
+> `pnpm-workspace.yaml` 의 `eslint-plugin-react-hooks: 7.0.1` **exact 핀** 때문에 lockfile 이
+> 7.0.1 을 고정하고 있고 그 버전의 peer 상한은 `^9.0.0` 이다(lockfile 실측).
+>
+> 결론(“frontend 는 아직 못 올린다”)은 그대로지만 **해제 조건이 하나 늘었다**. 그리고 그
+> 하나는 성격이 다르다 — 앞의 셋은 상류를 기다려야 하지만 이건 **우리 override 값**이라
+> 우리가 올리면 된다. 다만 그 핀에는 근거 주석이 없어(`ef3617a79` pnpm 마이그레이션 유입)
+> 왜 exact 였는지부터 확인해야 한다.
+>
+> **이 갭은 감시 가드의 뮤테이션 검증 중 드러났다.** react-hooks 를 차단자 목록에 넣어
+> RED 를 기대했는데 GREEN 이 나왔고(무효 뮤턴트), 그 이유를 파다가 우리 트리의 핀을 봤다.
+> 원래 설계대로 셋만 봤다면 나머지 셋이 풀린 순간 가드가 **"해제됐다" 고 거짓 통지**했을
+> 것이다 — registry 를 재고 우리 트리를 재지 않은 대가다.
 >
 > 부수 실측: `@eslint/js` 는 더 이상 eslint 와 lockstep 이 아니다 — eslint latest `10.9.1`
 > 대비 `@eslint/js` latest 는 **`10.0.1`**(10.x 전체가 alpha/rc 포함 5개뿐). peer 는
@@ -335,11 +354,19 @@ eslint 9 는 이미 `maintenance` dist-tag 다(2026-08-01 실측: latest = 10.8.
       > 이미 동작 → 구조 → **문서** 로 이동했다.
       > (d) 그 턴(2026-08-28)에 등재했다.
       >
-      > 같은 예외로 함께 미룬 것: **frontend·channel-web-chat 의 "eslint 9 잔류" 해제 조건에
-      > backend `eslint-unicorn-peer.spec.ts` 와 대칭되는 자동 가드가 없다**(2라운드 INFO #6).
-      > 지금은 `codebase/frontend/eslint.config.mjs` 헤더의 실측 표를 사람이 다시 확인해야 안다.
-      > `--strict-peer-dependencies` 는 **사후**에만 잡는다(올리면 CI 가 즉시 빨간불) — 상류가
-      > 지원을 시작했다는 **능동 신호**는 없다. §2 해제 조건과 같은 자리라 함께 다룬다.
+      > ~~같은 예외로 함께 미룬 것: **frontend·channel-web-chat 의 "eslint 9 잔류" 해제 조건에
+      > backend `eslint-unicorn-peer.spec.ts` 와 대칭되는 자동 가드가 없다**(2라운드 INFO #6).~~
+      > → **완료 (2026-08-28)**: `codebase/frontend/src/lib/repo-guards/__tests__/eslint10-unblock.test.ts`.
+      > 차단자 4개의 peer range 를 **lockfile 에서** 읽어 "아직 eslint 10 을 배제하는가" 를
+      > 단언한다 — 배제가 풀리면 RED 로 해제를 통지하는 **캐너리**다(방향이 거꾸로인 가드).
+      >
+      > 데이터 출처가 lockfile 인 이유(실측): 그 플러그인들은 frontend 의 전이 의존이라
+      > `require()` 로 해소되지 않고(`MODULE_NOT_FOUND`), `eslint-config-next` 는 `exports` 맵이
+      > `./package.json` 을 막는다(`ERR_PACKAGE_PATH_NOT_EXPORTED` — unicorn 73 과 같은 클래스).
+      >
+      > **보장 범위를 좁게 적는다**: 이 가드는 registry 를 보지 **않는다**. "상류가 릴리스한
+      > 순간" 이 아니라 "그 릴리스가 우리 lockfile 에 들어온 순간" 알린다. 유입은 dependabot
+      > 이 담당한다 — 두 축의 분업이다.
 - [x] §3 frozen 게이트 사각지대 — **(a) 관측형으로 집행 완료** (2026-08-28 사용자 결정). `scripts/check-unmet-peers.py` + `.github/workflows/deps-peer-observe.yml`(주간 스케줄 전용). 상세·뮤테이션 실측은 §3.1
 - [x] (후속) `@eslint/eslintrc` 죽은 선언 제거 — backend devDep 에 `^3.3.6` 이 선언돼 있었으나
       **사용처 0건**(import·`FlatCompat`·`.eslintrc*` 파일 전부 없음, 전수 grep). eslint 10 이

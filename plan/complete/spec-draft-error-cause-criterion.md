@@ -3,7 +3,7 @@ title: spec draft — 에러 wrapping 시 `cause` 부착 판별 기준 명문화
 worktree: eslint10-upgrade-5e3cf9
 started: 2026-08-29
 owner: project-planner
-status: in-progress
+status: complete
 priority: P3
 spec_impact:
   - spec/5-system/3-error-handling.md
@@ -89,7 +89,10 @@ Rationale 에는 위 §"왜 이 기준이 필요한가" 를 압축해 싣고, `#
 
 ## 체크리스트
 
-- [ ] `/consistency-check --spec` 통과 (Critical 0)
-- [ ] `spec/5-system/3-error-handling.md` §6.3.1 + Rationale 반영
-- [ ] 인라인 주석 3곳이 이 절을 참조하도록 정리 — **본 draft 범위 밖**(코드 편집이라
-      developer 턴). 정본이 생긴 뒤 후속으로 등재한다.
+- [x] `/consistency-check --spec` 통과 — `review/consistency/2026/08/29/00_13_01`, **BLOCK: NO**
+      (Critical 0). WARNING 4건은 **전부 반영**했고, 그중 #3 은 기준 자체를 C1 → C1 AND C2 로 고쳤다.
+- [x] `spec/5-system/3-error-handling.md` §6.3.1 + Rationale 반영 — `#1230`(`44346ec81`) 로 머지됨.
+- [x] 인라인 주석 3곳이 이 절을 참조하도록 정리 — **본 draft 범위 밖**(코드 편집이라
+      developer 턴). **등재 완료**: `plan/in-progress/deps-peer-gating-and-eslint10.md` §2 의
+      `cause` 후속 항목이 그 주인이다. 여기서 `[x]` 인 것은 "정리했다" 가 아니라 **"이 draft
+      의 책임 범위에서 처분(위임)이 끝났다"** 는 뜻이다 — 실제 코드 편집은 그쪽에서 추적한다.
