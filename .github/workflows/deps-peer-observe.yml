@@ -1,0 +1,67 @@
+# 미충족 peer 관측 — **차단하지 않는다.**
+#
+# `plan/in-progress/deps-peer-gating-and-eslint10.md` §3 처분 (a).
+#
+# ## 왜 별도 워크플로인가
+#
+# `deps-security-checks.yml` 안의 잡으로 넣지 않았다. 그 워크플로는 PR·push 에서도 돌고
+# required status check 로 등록되는 자리라, 거기에 스케줄 전용 잡을 넣으면 PR 마다
+# `skipped` 로 보고된다 — 그 파일 헤더가 직접 경고하는 "skipped 가 required check 를
+# 만족하는가" 모호함을 새로 만드는 셈이다. 트리거를 아예 분리하면 그 질문 자체가 없다.
+#
+# ## 왜 차단이 아닌가
+#
+# 미충족 peer 는 대개 **상류 사정**이다 — 남이 릴리스를 내면 우리 main 이 빨개진다.
+# 그건 신호가 아니라 인질이다. 그래서 PR 트리거를 두지 않는다. 실패는 주간 런의 빨간불로
+# 남고, GitHub 이 스케줄 워크플로 실패를 알린다.
+#
+# ## 무엇을 보는가 — frozen 게이트가 **구조적으로** 못 보는 것
+#
+# 설치 호출부 5곳이 전부 `--frozen-lockfile` 과 함께 `--strict-peer-dependencies` 를 쓴다.
+# frozen 은 재해소를 하지 않으므로 peer 가 계산되지 않는다. 실측(2026-08-28): fresh
+# 체크아웃 + `--frozen-lockfile --strict-peer-dependencies` → **exit 0, 보고 0건**.
+# 같은 상태에서 lockfile 을 지우고 재해소하면 **exit 1, 2건**. 그 차이가 이 잡의 존재 이유다.
+#
+# 상세 근거·수용 등재부·해제 조건은 `scripts/check-unmet-peers.py` docstring 이 SoT 다 —
+# 여기서 중복 기재하지 않는다.
+
+name: deps-peer-observe
+
+on:
+  schedule:
+    # 매주 월요일 07:41 UTC. `deps-security-checks` 의 06:17 과 겹치지 않게 띄웠다 —
+    # 둘 다 레지스트리를 두드리므로 같은 분에 몰 이유가 없고, 실패했을 때 어느 잡의
+    # 알림인지 제목만 보고 갈리는 편이 낫다.
+    - cron: '41 7 * * 1'
+  # 사람이 확인하고 싶을 때 — 특히 `ACCEPTED` 등재를 고친 직후.
+  workflow_dispatch:
+
+concurrency:
+  group: deps-peer-observe
+  cancel-in-progress: true
+
+# 읽기만 한다. 워크플로마다 필요한 값을 선언하는 것이 이 저장소 규칙이고
+# `test_workflow_yaml_structure.py` 의 `_PERMISSIONS` 등록부가 그것을 강제한다.
+permissions:
+  contents: read
+
+jobs:
+  unmet-peers:
+    name: 미충족 peer 관측 (비-frozen 재해소)
+    runs-on: ubuntu-latest
+    # 해소가 ~2,000 패키지다. 로컬 실측 ~40s 였고 러너·레지스트리 지연을 얹어 넉넉히 준다.
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6.0.10
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.x'
+      # 스크립트가 lockfile 을 임시로 치우고 재해소한 뒤 되돌린다. 러너는 일회용이라
+      # 원복이 실패해도 저장소에 영향이 없지만, 같은 스크립트를 **로컬에서도** 돌리므로
+      # 원복은 스크립트 쪽에서 `finally` 로 보장한다(그 파일 주석 참조).
+      - name: Check unmet peers
+        run: python3 scripts/check-unmet-peers.py

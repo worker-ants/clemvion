@@ -407,6 +407,8 @@ class WorkflowStructureTest(unittest.TestCase):
     _PERMISSIONS = {
         "_changed-paths.yml": {"contents": "read"},
         "backend-checks.yml": {"contents": "read"},
+        # 스케줄 전용 관측 잡 — PR 트리거가 없다(§3 (a)). 읽기만 한다.
+        "deps-peer-observe.yml": {"contents": "read"},
         "deps-security-checks.yml": {"contents": "read"},
         "e2e.yml": {"contents": "read"},
         "frontend-checks.yml": {"contents": "read"},
