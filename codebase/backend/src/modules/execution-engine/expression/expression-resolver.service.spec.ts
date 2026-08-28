@@ -130,6 +130,31 @@ describe('ExpressionResolverService', () => {
       );
     });
 
+    // `preserve-caught-error`(eslint 10 recommended) 대응으로 붙인 `cause: err` 를 잠근다.
+    // 위 두 케이스는 `.message` 만 보므로 `cause` 를 떼도 GREEN 이다 — 이 케이스가 그 축이다.
+    //
+    // 여기서 `cause` 부착이 안전한 근거: 던지는 message 가 **이미** 원본 `err.message` 를
+    // 그대로 싣고 있어(`Expression error in config.${path}: ${message}`) cause 가 새 정보를
+    // 노출하지 않는다. 반대로 `SecretResolverService.resolve` 는 원본을 일부러 감추는
+    // 자리라 그쪽만 `preserve-caught-error` 를 끄고 `cause` 를 달지 않는다 — 두 처분을
+    // 가르는 기준이 "message 가 원문을 이미 담고 있는가" 다.
+    it('원본 예외를 `cause` 로 보존한다 (cause 제거 시 RED)', () => {
+      const config = { url: '{{ $input. }}' };
+      let thrown: unknown;
+      try {
+        service.resolveConfig(config, baseContext);
+      } catch (err) {
+        thrown = err;
+      }
+      // vacuity 방지 — 아무것도 안 던지면 아래 단언이 전부 통과해 버린다.
+      expect(thrown).toBeInstanceOf(Error);
+      const cause = (thrown as Error).cause;
+      expect(cause).toBeInstanceOf(Error);
+      // 감싼 message 가 원본 message 를 실제로 포함한다 — 이것이 "cause 가 새 정보를
+      // 노출하지 않는다" 는 위 근거의 실측이다.
+      expect((thrown as Error).message).toContain((cause as Error).message);
+    });
+
     it('coerces mixed text + expression to string', () => {
       const config = { message: 'Items: {{ $input.count }}' };
       const result = service.resolveConfig(config, baseContext);

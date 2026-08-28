@@ -120,6 +120,30 @@ codebase/backend
 착수 전 **`typeorm → ioredis` 가 실제 런타임 경로인지 먼저 실측**할 것 — (b)/(c) 의 갈림이
 거기서 정해진다. 미측정 전제로 항목을 키우지 않는다.
 
+> ### ✅ 선행 실측 완료 (2026-08-28 후속 턴) — **도달 불가 경로였다. (b) 는 탈락한다.**
+>
+> | 확인 | 결과 |
+> |---|---|
+> | `TypeOrmModule.forRootAsync` 의 `cache` 옵션 | **없음** (`app.module.ts` — `type/host/port/entities/synchronize/logging/extra` 뿐) |
+> | ⇒ typeorm 이 Redis query cache 를 만드는가 | **아니오** → `ioredis` 를 **로드하지 않는다** |
+> | backend 의 `ioredis` 실사용 | **직접 의존 `^6.0.0`** — BullMQ · rate limiter · dedup · seq allocator · continuation bus · health (10+ 모듈) |
+>
+> 즉 typeorm 의 `ioredis@^5.0.4` peer 는 **우리가 도달하지 않는 코드**를 위한 것이고,
+> 우리가 쓰는 ioredis 6 은 **별개 소비자**의 직접 의존이다. 두 축이 겹치지 않는다.
+>
+> 이 저장소가 peer 억제에 요구하는 근거는 "동작할 것이다" 가 아니라 **"그 코드에 도달하지
+> 않는다"** 인데(`pnpm-workspace.yaml` §peer dependency 게이트), 이 건은 정확히 그 기준을
+> 충족한다. `nunjucks → chokidar` 는 §1 이 이미 optional peer 로 실측해 뒀다.
+>
+> **⇒ 두 건 다 무해가 확정됐으므로 (b)"먼저 처분하고 차단형으로 승격" 은 처분할 대상이
+> 없어 성립하지 않는다.** 남은 선택은 (a) 관측형 주간 잡과 (c) 무조치뿐이고, 둘의 차이는
+> "앞으로 새로 박히는 미충족을 보고만이라도 받을 것인가" 다 — 이 항목의 실제 결정 지점은
+> 거기로 좁혀졌다.
+>
+> ⚠️ 억제 규칙(`peerDependencyRules`)을 **넣지는 않았다.** §1 이 남긴 교훈 그대로다 —
+> frozen 게이트에서는 애초에 발화하지 않으므로 막을 대상이 없고, 막을 대상이 없는 억제는
+> 죽은 설정이라 나중에 진짜 미충족을 조용히 덮는다(fail-open).
+
 ## 2. eslint 9 → 10 상향 (P3)
 
 eslint 9 는 이미 `maintenance` dist-tag 다(2026-08-01 실측: latest = 10.8.0). `#1074` 가 unicorn 을
@@ -226,12 +250,21 @@ eslint 9 는 이미 `maintenance` dist-tag 다(2026-08-01 실측: latest = 10.8.
       - [x] `/consistency-check --impl-done spec/5-system/ --diff-base origin/main`
             (`review/consistency/2026/08/28/12_20_11`) — **BLOCK: NO**, Critical 0 · Warning 0,
             5개 checker 전원 NONE. `spec/**` diff 0 을 각 checker 가 독립 확인했다.
-- [ ] (후속, INFO) `cause` 부착 판단 근거의 문서화 비대칭 — `expression-resolver.service.ts` ·
-      `code.handler.ts` 의 `cause: err` 옆에 "message 가 이미 원문을 노출 중이라 cause 부착이
-      추가 노출을 만들지 않는다 — `secret-resolver` 의 SS-SE-05 억제와는 구분" 1줄 주석 추가.
-      가능하면 `spec/conventions/` 에 판별 기준("message 에 원문이 이미 있으면 cause 안전")을
-      한 줄 명문화(= planner 턴).
-      > **왜 이 턴에 안 고쳤나** — developer SKILL §수렴 예외 (a)+(b)+(c)+(d) 충족.
+- [x] (후속, INFO) `cause` 부착 판단 근거 — **주석 대신 테스트로 잠갔다** (2026-08-28 후속 턴).
+      등재 당시 계획은 "`cause: err` 옆에 1줄 주석" 이었는데, 같은 라운드의 리뷰 INFO 가 요구한
+      것은 **런타임 단언**이었다. 둘 중 테스트가 강하다 — 주석은 지워져도 아무도 모르지만
+      단언은 RED 를 낸다. 그래서 두 spec 에 케이스를 하나씩 넣고 판별 기준(“message 가 이미
+      원문을 담고 있으면 cause 안전, `secret-resolver` 는 담지 않으므로 예외”)을 그 케이스의
+      주석에 실었다.
+      - 뮤테이션 실측(두 곳의 `cause: err` 제거): **신규 2건만 RED, 두 spec 의 기존 케이스는
+        전부 GREEN** — 즉 기존 `.message` 단언만으로는 이 계약을 전혀 지키지 못했다.
+        (절대 개수는 적지 않는다 — 케이스가 늘면 그 숫자가 조용히 stale 해진다. 측정 시점
+        커밋은 `b235a612b` 직전 상태다.)
+      - 부수 발견: `code.handler` 의 cause 는 `isolated-vm` 이 **자기 realm** 에서 만든
+        `SyntaxError` 라 호스트 `Error` 를 상속하지 않는다(`toBeInstanceOf(Error)` 실패 실측).
+        형제 케이스와 단언 형태가 다른 이유이고, 통일하려다 지우면 안 된다.
+      - `spec/conventions/` 에 판별 기준을 명문화하는 것은 **여전히 planner 턴** 으로 남는다.
+      > **(등재 당시 기록) 왜 그 턴에 안 고쳤나** — developer SKILL §수렴 예외 (a)+(b)+(c)+(d) 충족.
       > (a) 동작 결함이 아니다: 두 경로 모두 `cause` 부착이 안전함을 `security`·
       > `rationale_continuity` 두 리뷰어가 **독립적으로 실측 확인**했다(다운스트림에서
       > `.cause` 를 직렬화하는 곳이 없음). 남은 것은 근거 주석의 유무뿐이다.
@@ -248,7 +281,20 @@ eslint 9 는 이미 `maintenance` dist-tag 다(2026-08-01 실측: latest = 10.8.
       > 지금은 `codebase/frontend/eslint.config.mjs` 헤더의 실측 표를 사람이 다시 확인해야 안다.
       > `--strict-peer-dependencies` 는 **사후**에만 잡는다(올리면 CI 가 즉시 빨간불) — 상류가
       > 지원을 시작했다는 **능동 신호**는 없다. §2 해제 조건과 같은 자리라 함께 다룬다.
-- [ ] §3 frozen 게이트 사각지대 — 위 신설 항목. `typeorm → ioredis` 실측이 선행
+- [ ] §3 frozen 게이트 사각지대 — **선행 실측 완료(아래), 남은 것은 (a)/(c) 택일뿐**
+- [x] (후속) `@eslint/eslintrc` 죽은 선언 제거 — backend devDep 에 `^3.3.6` 이 선언돼 있었으나
+      **사용처 0건**(import·`FlatCompat`·`.eslintrc*` 파일 전부 없음, 전수 grep). eslint 10 이
+      이 패키지를 더 이상 번들하지 않아(실측: backend `eslint@10.9.1` → 의존 없음 /
+      frontend `eslint@9.39.4` → 의존 있음) **§2 상향 직후 그 선언만이 backend 트리에
+      붙잡아 두는 유일한 끈**이 됐다. 제거 후 `codebase/backend/node_modules/@eslint/` 에
+      `js` 만 남음을 확인했고 backend lint 는 그대로 통과한다.
+      - 값: dependabot 이 이 패키지 bump PR 을 계속 만든다(`#1184` 가 정확히 그것). 아무도
+        쓰지 않는 패키지의 PR 스트림이 사라진다.
+      - **하지 않은 것**: `pnpm-workspace.yaml` 의 brace-expansion 주석이 인용하는 경로
+        (`@eslint/eslintrc > minimatch@3.1.5 > brace-expansion@1.1.18`)를 고치려 했으나,
+        실측이 그 계획을 반증했다 — 그 경로는 frontend 의 eslint 9 를 통해 **lockfile 에
+        그대로 남아 있다**(`@eslint/eslintrc@3.3.6 → minimatch: 3.1.5` snapshot 확인).
+        주석은 지금도 정확하므로 건드리지 않았다.
 
 > **2라운드 리뷰(`review/code/2026/08/28/12_28_11`)의 교훈 — 내가 요청한 테스트가 vacuous 했다.**
 > 1라운드 Warning 을 닫으려 넣은 force-split 테스트는 **분기 진입만** 고정하고

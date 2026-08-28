@@ -195,6 +195,34 @@ describe('CodeHandler', () => {
       ).rejects.toThrow(/syntax error/);
     });
 
+    // `preserve-caught-error`(eslint 10 recommended) 대응으로 붙인 `cause: err` 를 잠근다.
+    // 바로 위 케이스는 `.message` 만 보므로 `cause` 를 떼도 GREEN 이다 — 이 케이스가 그 축이다.
+    // 부착이 안전한 근거는 형제 케이스(`expression-resolver.service.spec.ts`)와 같다:
+    // 감싼 message 가 이미 원본 `err.message` 를 싣고 있어 cause 가 새 정보를 노출하지 않는다.
+    it('원본 컴파일 예외를 `cause` 로 보존한다 (cause 제거 시 RED)', async () => {
+      let thrown: unknown;
+      try {
+        await handler.execute(
+          null,
+          { code: 'this is ( not valid js' },
+          context,
+        );
+      } catch (err) {
+        thrown = err;
+      }
+      // vacuity 방지 — reject 하지 않으면 아래 단언이 전부 통과해 버린다.
+      expect(thrown).toBeInstanceOf(Error);
+      const cause = (thrown as Error).cause;
+      // `toBeInstanceOf(Error)` 를 쓰지 않는다 — 이 cause 는 `isolated-vm` 이 **자기 realm**
+      // 에서 만든 `SyntaxError` 라 호스트의 `Error.prototype` 을 상속하지 않는다(실측:
+      // "Expected constructor: Error / Received constructor: SyntaxError"). 형제
+      // `expression-resolver` 케이스는 같은 realm 이라 `instanceof` 가 성립한다 — 두 곳의
+      // 단언 형태가 다른 이유가 이것이고, 통일하려다 이 사실을 지우면 안 된다.
+      expect(cause).toBeDefined();
+      expect(typeof (cause as Error).message).toBe('string');
+      expect((thrown as Error).message).toContain((cause as Error).message);
+    });
+
     it('should return undefined output when code returns nothing', async () => {
       const result = (await handler.execute(
         null,
