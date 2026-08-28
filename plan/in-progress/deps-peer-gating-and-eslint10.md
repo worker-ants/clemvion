@@ -1,6 +1,6 @@
 ---
 title: 의존성 peer 게이팅 + eslint 10 상향 — 무검증 major 머지의 남은 두 구멍
-worktree: spec-small-followups
+worktree: eslint10-upgrade-5e3cf9
 started: 2026-08-01
 owner: developer
 status: in-progress
@@ -13,6 +13,11 @@ spec_impact: none
 > `(unstarted)` 로 두면 plan 게이트가 이 브랜치를 **다른 plan**(같은 워크트리를 선언 중인
 > `typescript-toolchain-followups`)에 연결한다 — 실제로 그렇게 막혔다. 게이트는 한
 > 워크트리의 여러 plan 중 **하나만 처리돼도** 통과하도록 설계돼 있다.
+>
+> _(2026-08-29)_ §2 이후는 `eslint10-upgrade-5e3cf9` 워크트리에서 진행 중이라 값을 그리로
+> 옮겼다. `--impl-done`(`01_30_29`) `plan_coherence` INFO #9 가 이 불일치를 짚었다 — 위
+> 문단이 말한 오연결의 반대 방향이다(이번엔 게이트가 더 관대해지는 쪽이라 막히지는
+> 않았지만, 그래서 조용하다).
 
 ## Overview
 
@@ -386,6 +391,11 @@ eslint 9 는 이미 `maintenance` dist-tag 다(2026-08-01 실측: latest = 10.8.
         >       또는 공용 에러 직렬화 유틸에 "`cause` 를 클라이언트 응답에 노출하지 않는다"
         >       회귀 테스트 1건. 오늘 안전한 근거가 "저장소 안에 `.cause` 소비자가 없다" 는
         >       **전역 부재**라, APM·구조적 로깅 유틸이 하나 생기면 조용히 깨진다.
+        > - [ ] (작음, 다음에 그 파일을 열 때) `secret-resolver.service.ts` 의 비부착 주석에서
+        >       "서버 로그에만 남는 것도 아니다" 옆에 "이는 C1 판정의 **보조 근거**일 뿐
+        >       판정축이 아니다" 한 문장 — `--impl-done`(`01_30_29`) `rationale_continuity`
+        >       INFO #2. §6.3.1 이 **명시적으로 기각한** "소비처가 직렬화하는가" 기준과
+        >       닮아 보여 오인 소지가 있다는 지적이다(실제 판정은 C1 로 정확히 했다).
       > **(등재 당시 기록) 왜 그 턴에 안 고쳤나** — developer SKILL §수렴 예외 (a)+(b)+(c)+(d) 충족.
       > (a) 동작 결함이 아니다: 두 경로 모두 `cause` 부착이 안전함을 `security`·
       > `rationale_continuity` 두 리뷰어가 **독립적으로 실측 확인**했다(다운스트림에서
