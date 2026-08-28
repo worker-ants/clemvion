@@ -453,8 +453,11 @@ export class CodeHandler implements NodeHandler {
         const message = err instanceof Error ? err.message : String(err);
         // `cause` 부착 기준: spec/5-system/3-error-handling.md §6.3.1 (C1 AND C2).
         // C1 — 위 `message` 가 원본을 이미 싣는다. C2 — `isolated-vm` 의 컴파일 예외는
-        // 자기 realm 의 `SyntaxError` 라 message·name 밖 속성이 없다(그래서 테스트도
-        // `toBeInstanceOf(Error)` 대신 `toBeDefined` 를 쓴다 — cross-realm).
+        // `SyntaxError` 이고 own property 가 `message`/`stack` 뿐이라(2026-08-29 실측)
+        // message·name 밖에 민감 정보가 붙지 않는다.
+        //
+        // 테스트가 `toBeInstanceOf(Error)` 대신 `toBeDefined` 를 쓰는 이유는 **여기가
+        // 아니라 Jest** 다 — 상세는 `code.handler.spec.ts` 의 그 단언 주석.
         throw new Error(`code has a syntax error: ${message}`, { cause: err });
       }
 

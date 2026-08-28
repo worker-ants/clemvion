@@ -139,7 +139,10 @@ describe('ExpressionResolverService', () => {
     // "`cause` 는 `err` **객체 전체**를 붙인다" 를 짚어 C2 가 추가됐다).
     //
     // 이 자리가 그 기준을 어떻게 만족하는지만 적는다: C1 — 던지는 message 가 원본
-    // `err.message` 를 그대로 싣는다. C2 — 표현식 평가 예외라 message·name 밖 속성이 없다.
+    // `err.message` 를 그대로 싣는다. C2 — 표현식 평가 예외라 message·name 밖에 **민감**
+    // 속성이 붙지 않는다(부가 own property 의 실측은 `expression-resolver.service.ts` 의
+    // 같은 주석). 한정어 없이 "속성이 없다" 로 적으면 거짓이다 — `ExpressionError` 는
+    // `code`/`position` 을 갖는다.
     // 반대 사례(비부착)는 `SecretResolverService.resolve` 이고 §6.3.1 이 그것을 지목한다.
     it('원본 예외를 `cause` 로 보존한다 (cause 제거 시 RED)', () => {
       const config = { url: '{{ $input. }}' };

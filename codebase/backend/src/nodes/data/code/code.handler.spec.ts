@@ -199,8 +199,9 @@ describe('CodeHandler', () => {
     // 바로 위 케이스는 `.message` 만 보므로 `cause` 를 떼도 GREEN 이다 — 이 케이스가 그 축이다.
     // 기준의 정본은 `spec/5-system/3-error-handling.md` §6.3.1(C1 AND C2) — 여기 요약을
     // 두지 않는다. 이 자리가 만족하는 방식만 적는다: C1 — 감싼 message 가 원본
-    // `err.message` 를 이미 싣는다. C2 — `isolated-vm` 컴파일 예외는 자기 realm 의
-    // `SyntaxError` 라 message·name 밖 속성이 없다(그 realm 경계가 아래 단언 형태도 정한다).
+    // `err.message` 를 이미 싣는다. C2 — `isolated-vm` 컴파일 예외는 `SyntaxError` 이고
+    // own property 가 `message`/`stack` 뿐이라 민감 정보가 붙지 않는다(실측 근거는
+    // `code.handler.ts` 의 같은 주석).
     it('원본 컴파일 예외를 `cause` 로 보존한다 (cause 제거 시 RED)', async () => {
       let thrown: unknown;
       try {
@@ -215,11 +216,19 @@ describe('CodeHandler', () => {
       // vacuity 방지 — reject 하지 않으면 아래 단언이 전부 통과해 버린다.
       expect(thrown).toBeInstanceOf(Error);
       const cause = (thrown as Error).cause;
-      // `toBeInstanceOf(Error)` 를 쓰지 않는다 — 이 cause 는 `isolated-vm` 이 **자기 realm**
-      // 에서 만든 `SyntaxError` 라 호스트의 `Error.prototype` 을 상속하지 않는다(실측:
-      // "Expected constructor: Error / Received constructor: SyntaxError"). 형제
-      // `expression-resolver` 케이스는 같은 realm 이라 `instanceof` 가 성립한다 — 두 곳의
-      // 단언 형태가 다른 이유가 이것이고, 통일하려다 이 사실을 지우면 안 된다.
+      // `toBeInstanceOf(Error)` 를 쓰지 않는다. 다만 그 이유는 **isolate 경계가 아니라
+      // Jest 의 realm** 이다 — 종전 주석은 "`isolated-vm` 이 자기 realm 에서 만들어
+      // 호스트의 `Error.prototype` 을 상속하지 않는다" 고 적었는데, 2026-08-29 실측이
+      // 반증했다:
+      //
+      //   host(평범한 node, = 프로덕션): `err instanceof Error` → **true**
+      //   vm context(= Jest 가 테스트 파일을 돌리는 realm): → **false**
+      //
+      // 즉 네이티브 애드온이 만든 이 `SyntaxError` 는 **메인 realm** 의 `Error` 를 상속하고,
+      // Jest 의 샌드박스 `Error` 와만 갈린다(그래서 "Expected constructor: Error / Received
+      // constructor: SyntaxError"). 형제 `expression-resolver` 케이스는 `ExpressionError` 를
+      // Jest 가 적재한 JS 코드가 만들어 같은 샌드박스 realm 이라 `instanceof` 가 성립한다 —
+      // 두 곳의 단언 형태가 다른 이유가 이것이고, 통일하려다 이 사실을 지우면 안 된다.
       expect(cause).toBeDefined();
       expect(typeof (cause as Error).message).toBe('string');
       expect((thrown as Error).message).toContain((cause as Error).message);

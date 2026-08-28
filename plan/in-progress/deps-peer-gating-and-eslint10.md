@@ -329,9 +329,16 @@ eslint 9 는 이미 `maintenance` dist-tag 다(2026-08-01 실측: latest = 10.8.
         전부 GREEN** — 즉 기존 `.message` 단언만으로는 이 계약을 전혀 지키지 못했다.
         (절대 개수는 적지 않는다 — 케이스가 늘면 그 숫자가 조용히 stale 해진다. 측정 시점
         커밋은 `b235a612b` 직전 상태다.)
-      - 부수 발견: `code.handler` 의 cause 는 `isolated-vm` 이 **자기 realm** 에서 만든
-        `SyntaxError` 라 호스트 `Error` 를 상속하지 않는다(`toBeInstanceOf(Error)` 실패 실측).
-        형제 케이스와 단언 형태가 다른 이유이고, 통일하려다 지우면 안 된다.
+      - ~~부수 발견: `code.handler` 의 cause 는 `isolated-vm` 이 **자기 realm** 에서 만든
+        `SyntaxError` 라 호스트 `Error` 를 상속하지 않는다(`toBeInstanceOf(Error)` 실패 실측).~~
+        → **정정 (2026-08-29) — 실측이 반증했다.** 원인은 isolate 경계가 아니라 **Jest 의
+        realm** 이다. 같은 컴파일 예외를 평범한 node(= 프로덕션과 같은 host realm)에서 받으면
+        `err instanceof Error` 가 **true** 이고, `vm.createContext` 로 만든 별도 realm
+        (= Jest 가 테스트 파일을 실행하는 조건) 안에서만 **false** 다. 즉 네이티브 애드온은
+        **메인 realm** 의 `Error` 로 만들고 Jest 샌드박스의 `Error` 와만 갈린다. own property
+        도 `message`/`stack` 뿐이었다. "형제 케이스와 단언 형태가 다른 이유이고 통일하려다
+        지우면 안 된다" 는 결론은 유지되지만 **귀속이 틀렸다** — 그 귀속을 그대로 옮겨 적은
+        주석 2곳(`code.handler.ts` · `code.handler.spec.ts`)을 함께 정정했다.
       - ~~`spec/conventions/` 에 판별 기준을 명문화하는 것은 **여전히 planner 턴** 으로 남는다.~~
         → **완료 (2026-08-29, planner 턴).** 정본은 `spec/5-system/3-error-handling.md`
         **§6.3.1** + 그 Rationale. `conventions/` 가 아닌 이유: `secret-store.md` 는 secret
@@ -359,6 +366,26 @@ eslint 9 는 이미 `maintenance` dist-tag 다(2026-08-01 실측: latest = 10.8.
         > **주석에 기준을 재서술하지 않고** "이 자리가 C1·C2 를 어떻게 만족하는가" 만 적었다 —
         > 실제로 `expression-resolver.service.spec.ts` 의 주석이 **C1 만 적고 있어** 정본과
         > 갈려 있었다(§6.3.1 이 C2 를 추가하기 전 문구가 남은 것). 요약을 두면 갈린다.
+        >
+        > **리뷰 라운드 결과** (`review/code/2026/08/29/01_07_51`, forced 7 reviewer 전원 —
+        > Critical 0 · Warning 1). 그 Warning 이 **이 PR 의 목적을 그대로 재발시킨 사례**다:
+        > `expression-resolver.service.spec.ts` 의 C2 서술이 §6.3.1 원문의 한정어("message·name
+        > 밖의 **민감** 정보")를 떨어뜨려 "밖 속성이 없다" 로 과잉 일반화됐는데, `ExpressionError`
+        > 는 실제로 `code`(enum)·`position`(정수 오프셋)을 갖는다 — 문자 그대로는 거짓이었다.
+        > 리뷰가 지목한 것은 1곳이지만 **자매를 전수로 세어** `code.handler` 2곳도 같은 형태라
+        > 3곳을 함께 고쳤다. 조치 기록: 그 세션의 `RESOLUTION.md`.
+        >
+        > 후속으로 남긴 것 (developer SKILL §수렴 예외 (a)(b)(c)(d) — 둘 다 동작 결함이 아니고,
+        > 고치면 spec-linked 파일이라 리뷰 2종이 freshness 로 재무장된다):
+        >
+        > - [ ] **C2 를 단언으로 잠그기** (리뷰 INFO #1) — `cause` 의 own enumerable key 가
+        >       `code`/`position`(비민감) 밖으로 늘면 RED 를 내는 캐너리. 지금은 주석이 "민감
+        >       속성 없음" 을 말할 뿐 아무도 강제하지 않는다. 위 §6.3.1 항목이 "주석 대신 테스트로
+        >       잠갔다" 고 한 것은 **C1 만** 잠근 것이다.
+        > - [ ] **`cause` 비노출 불변식의 계측 지점** (리뷰 INFO #2) — `GlobalExceptionFilter`
+        >       또는 공용 에러 직렬화 유틸에 "`cause` 를 클라이언트 응답에 노출하지 않는다"
+        >       회귀 테스트 1건. 오늘 안전한 근거가 "저장소 안에 `.cause` 소비자가 없다" 는
+        >       **전역 부재**라, APM·구조적 로깅 유틸이 하나 생기면 조용히 깨진다.
       > **(등재 당시 기록) 왜 그 턴에 안 고쳤나** — developer SKILL §수렴 예외 (a)+(b)+(c)+(d) 충족.
       > (a) 동작 결함이 아니다: 두 경로 모두 `cause` 부착이 안전함을 `security`·
       > `rationale_continuity` 두 리뷰어가 **독립적으로 실측 확인**했다(다운스트림에서
