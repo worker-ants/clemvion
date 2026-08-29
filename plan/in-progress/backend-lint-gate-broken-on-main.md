@@ -1,6 +1,6 @@
 ---
 title: backend lint 스테이지가 main 에서 깨져 있다 — prettier·typescript-eslint 무검증 머지의 결과
-worktree: eia-idem-resolve-cache-hit-36acd6
+worktree: eia-failopen-observability-18dc47
 started: 2026-08-08
 owner: developer
 status: in-progress
@@ -581,6 +581,71 @@ PR 을 막는다" 고 적은 것은 **부정확**했다 — 막던 것은 그중
         > "미계측" 인지 구분되지 않기 때문이다 —
         > 근거는 [`data-flow/9-observability.md` §Rationale](../../spec/data-flow/9-observability.md).
         > 설계 배경 전문: [`plan/complete/spec-draft-nf-ob-07-redis-fail-open.md`](../complete/spec-draft-nf-ob-07-redis-fail-open.md).
+        >
+        > **재실측 (2026-08-29, `eia-failopen-observability`) — 수가 또 움직였다.** 위 "18개
+        > 파일" 은 2026-08-13 값이다. 지금 재니 **Redis 를 만지며 fail-open 하는 파일 21개,
+        > 그중 배선된 것은 2개**(정의부 `business-metrics.service.ts` + 호출부
+        > `idempotency.interceptor.ts`)라 **미배선 19개**다.
+        >
+        > > ⚠️ **이 수치는 착수 시점 값이고, 이 PR 자신이 입력 집합을 바꿨다** (`19_53_43`
+        > > documentation WARNING). 아래 명령을 **최종 커밋 상태**에서 다시 돌리면:
+        > >
+        > > | 축 | 착수 시 | 최종 커밋 |
+        > > | --- | --- | --- |
+        > > | `fail-open` 언급 (non-spec) | 31 | **32** — 이 PR 의 `redis-fail-open-catalog-guard.ts` 가 들어왔다 |
+        > > | 그중 Redis 접촉 | 21 | **21** — 그 가드는 `\bRedis\b` 경계에 안 걸린다(`RedisFailOpen…` 은 경계 없음) |
+        > > | 그중 "배선" | 2 | **3** ← **오검출** |
+        > > | **미배선** | **19** | **19** |
+        > >
+        > > **틀린 것은 "배선 2개" 다.** 그 가드는 `recordRedisFailOpen` 을 `RECORDER_FN`
+        > > **문자열 상수**로 들고 있을 뿐 호출하지 않는데, 단순 문자열 grep 은 그것을 호출부로
+        > > 센다. 결론(미배선 19, defer)은 그대로다.
+        > >
+        > > **리뷰어는 클래스를 맞히고 산수를 틀렸다** — "22개/미배선 20개" 라고 했는데 실측은
+        > > 21/19 다(더 느슨한 Redis 술어를 쓴 것으로 보인다). 그래도 지적의 핵심은 옳다:
+        > > **PR 이 추가하는 파일이 그 PR 이 인용한 측정의 입력 집합에 들어간다.** 백로그 수치를
+        > > 적을 때는 "지금" 이 아니라 **PR 이 닫히는 시점**에 재야 한다.
+        >
+        > 측정 명령은
+        > `grep -rli "fail-open" --include='*.ts' codebase/backend/src` 에서 `.spec.ts` 를 뺀 뒤
+        > `Redis|ioredis|redisConn|RedisConnectionProvider` 를 포함하는 것만 남긴 것이다
+        > (fail-open 언급 전체는 31개인데 SSRF·node-output-allowlist 등 **Redis 와 무관한
+        > 10개**가 섞여 있어 그대로 세면 배선 대상을 과대계상한다).
+        >
+        > **배선 자체는 여전히 이 항목에 남는다.** 19곳은 component 라벨 설계 + spec 카탈로그
+        > 갱신을 동반해 PR 하나에 담기지 않는다.
+        >
+        > **대신 "빠뜨림" 을 막는 계측 지점을 먼저 뒀다 (2026-08-29 완료)** —
+        > `repo-guards/__tests__/redis-fail-open-catalog.spec.ts`. 유니온 ↔ spec 카탈로그 행 ↔
+        > 실제 프로덕션 호출부 **3자 정합**을 강제한다. 종전에는 "배선된 것은 idempotency
+        > 하나" 라는 사실이 **아무 데도 고정돼 있지 않아**, 유니온만 넓히고 spec 표를 잊거나
+        > 그 반대여도 둘 다 조용히 통과했다. 후자가 특히 나쁘다 — 대시보드에 라벨이 있는데
+        > 값이 영원히 0이면 운영자는 "그 경로는 건강하다" 고 읽는다.
+        >
+        > | 뮤턴트 | 예측 | 실측 |
+        > | --- | --- | --- |
+        > | 유니온만 `\| 'blacklist'` 로 넓힘 (spec·배선 미갱신) | RED | **RED 4** |
+        > | 가드에서 상수 추적(`METRICS_COMPONENT`) 제거 | RED | **RED 3** |
+        >
+        > 상수 추적이 없으면 정본 호출부가 통째로 안 보이고, 그 상태에서도 "모든 값이 호출부를
+        > 가진다" 가 **거짓 RED 가 아니라 조용한 오판**이 된다. 그래서 "해석 실패(`null`)가
+        > 0건" 을 별도 단언으로 뒀다.
+        >
+        > **남은 갭 (`19_53_43` testing INFO 1, 이 PR 에서 안 닫음)**:
+        > `listProductionSources` 의 `node_modules`/`dist`/`.d.ts` **제외 분기가 관측 불가**다 —
+        > 리뷰어가 제외 조건을 무력화하는 뮤턴트를 넣었는데 10/10 그대로 GREEN 이었다.
+        > 원인은 `codebase/backend/src` 하위에 그 디렉터리·확장자가 **애초에 없어** 분기가
+        > 발화하지 않는 것이다(분기를 못 가르는 입력 — 이 PR 에서 세 번 밟은 그 형태).
+        >
+        > 지금 닫지 않는 이유는 **비용이 라운드 하나이기 때문**이다. `codebase/**` 를 건드리면
+        > review freshness 가 깨져 4번째 리뷰 라운드가 강제되는데, 이 분기는 현재 입력에서
+        > 도달 불가한 방어 코드라 위험이 낮다. 다음에 이 가드를 만질 때 scratch 디렉터리에
+        > `node_modules/`·`dist/`·`*.d.ts` 를 합성해 제외 로직을 **직접 발화시키는** 케이스로
+        > 닫는다 — `withPatchedSpec` 이 이미 그 패턴(저장소 밖 tmpdir)을 갖고 있다.
+        >
+        > > 대안으로 "관측 불가한 절은 두지 않는다"(이 저장소가 `isIdempotencyEntry` 에서 내린
+        > > 판단)를 적용해 **제외 절을 지우는** 것도 있다. 다만 그쪽은 가드가 나중에 `src` 밖을
+        > > 스캔하게 될 때 조용히 오작동하는 방향이라, 지우기보다 **발화시키는** 쪽을 택한다.
       - GET→SET 비원자 구조(선재)를 `SET NX EX` 선점 또는 in-flight dedup 으로 좁힐지 검토
         (`14_27_02` concurrency INFO 7) — 정상 시에도 좁은 창이 있다
 - [x] **`Idempotency-Key` e2e 부재** (`16_29_45` testing CRITICAL 의 후속 권고).
@@ -1191,7 +1256,8 @@ TEST WORKFLOW 를 온전히 통과했다고 말할 수 없는 상태다. 코드 
 **왜 별 PR 인가 (사용자 결정 2026-08-08).** 78파일 포맷 변경을 보안 PR 에 넣으면 diff 가
 swamp 되고 scope 리뷰어가 정당하게 지적한다. 보안 fix 의 리뷰 품질을 지키는 것이 우선이다.
 
-**함께 볼 것**: [`deps-peer-gating-and-eslint10.md`](deps-peer-gating-and-eslint10.md) 가
+**함께 볼 것**: [`deps-peer-gating-and-eslint10.md`](../complete/deps-peer-gating-and-eslint10.md)
+(2026-08-29 `complete/` 로 이동) 가
 "Actions 가 repo 레벨에서 꺼져 있어 dependabot PR 이 아무 검증 없이 머지된다" 를 이미
 기록하고 required-check 등록을 사용자 액션으로 남겨 뒀다. **이 건이 그 미등록의 3번째
 피해**다(1: `#1058` typescript 롤백, 2: `#1074` unicorn 복원, 3: 본 건). required check

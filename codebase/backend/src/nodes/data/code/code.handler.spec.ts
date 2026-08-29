@@ -243,7 +243,9 @@ describe('CodeHandler', () => {
     });
 
     // C2 캐너리 — 형제 `expression-resolver.service.spec.ts` 와 같은 축(enumerable own key).
-    // 왜 enumerable 인지, 왜 `message`/`stack` 이 안 잡히는지는 그쪽 주석에 있다.
+    // 왜 enumerable 인지, 왜 `message`/`stack` 이 안 잡히는지는 정본인
+    // `packages/expression-engine/src/__tests__/error-shape.spec.ts` 상단 주석에 있다
+    // (종전에는 형제 spec 을 가리켰는데, 그쪽도 사본이라 한 다리를 더 건너야 했다).
     //
     // 여기 화이트리스트는 **빈 집합**이다 (2026-08-29 실측: `isolate.compileScript` 의 컴파일
     // 예외는 `Object.keys` = `[]`, `getOwnPropertyNames` = `['stack','message']`). 즉

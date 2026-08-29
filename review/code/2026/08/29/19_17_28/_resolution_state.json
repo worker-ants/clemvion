@@ -1,0 +1,31 @@
+{
+  "version": 1,
+  "started_at": "2026-08-29T10:20:00Z",
+  "summary_items_total": 1,
+  "items_resolved_ids": ["WARNING#1"],
+  "items_pending_ids": [],
+  "items_escalated_ids": {},
+  "commits_made": [
+    {
+      "sha": "4dbc6ee39fc672b67416a660c48fe61de58b5ea8",
+      "summary_id": "WARNING#1",
+      "scope": "backend/common/filters, backend/repo-guards",
+      "note": "WARNING#1 fix + INFO#1,2,5,10 반영. INFO#3,4,7 은 plan 사안이라 main 위임(미착수). INFO#6,8,9 는 won't-do."
+    }
+  ],
+  "spec_drafts_pending": [],
+  "spec_drafts_applied": [],
+  "e2e_attempts": 1,
+  "e2e_last_status": "pass",
+  "e2e_log_paths": ["_test_logs/e2e-20260829-193619.log"],
+  "auto_fix_iterations": {},
+  "mutation_reverification": {
+    "target": "codebase/backend/src/common/filters/http-exception.filter.ts:isUniqueViolation branch (message value)",
+    "predicted": "QueryFailedError(23505) it.each 분기가 RED 로 떨어진다",
+    "observed": "1 failed, 18 passed, 19 total — 실패 위치가 정확히 QueryFailedError(23505) 분기",
+    "restored_via": "cp backup (git checkout/restore 미사용)",
+    "restore_verified": "git diff --stat 해당 파일 0"
+  },
+  "escalation_reason": null,
+  "last_reset_hint_sec": null
+}
