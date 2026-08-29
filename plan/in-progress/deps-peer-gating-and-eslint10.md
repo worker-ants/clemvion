@@ -416,10 +416,26 @@ eslint 9 는 이미 `maintenance` dist-tag 다(2026-08-01 실측: latest = 10.8.
         > 후속으로 남긴 것 (developer SKILL §수렴 예외 (a)(b)(c)(d) — 둘 다 동작 결함이 아니고,
         > 고치면 spec-linked 파일이라 리뷰 2종이 freshness 로 재무장된다):
         >
-        > - [ ] **C2 를 단언으로 잠그기** (리뷰 INFO #1) — `cause` 의 own enumerable key 가
+        > - [x] **C2 를 단언으로 잠그기** (리뷰 INFO #1) — `cause` 의 own enumerable key 가
         >       `code`/`position`(비민감) 밖으로 늘면 RED 를 내는 캐너리. 지금은 주석이 "민감
         >       속성 없음" 을 말할 뿐 아무도 강제하지 않는다. 위 §6.3.1 항목이 "주석 대신 테스트로
         >       잠갔다" 고 한 것은 **C1 만** 잠근 것이다.
+        >       → **완료 (2026-08-29, `#1233`)**. 캐너리 2건, 축은 **enumerable** own key 다
+        >       (C2 가 막으려는 것이 직렬화에 딸려 나오는 값이고 `JSON.stringify`·spread 는
+        >       enumerable 만 본다. 표준 `message`/`stack` 은 non-enumerable 이라 안 잡히는 게 맞다).
+        >       화이트리스트는 실측이다 — `evaluate()` 를 4개 오류 종류로 직접 호출해
+        >       `ExpressionError` 계열 전부 `['name','code','position']`, `isolated-vm` 컴파일
+        >       예외는 `[]`. 키 이름만 잠그면 "같은 키에 민감한 값" 을 놓치므로 `code`(EXPR_ enum)·
+        >       `position`(정수) 의 **모양**도 함께 고정했다.
+        >
+        >       뮤테이션 5/5 RED (예측과 전부 일치). 그중 결정적인 것: 민감 속성을 붙이는
+        >       M1·M2 가 **정확히 1건씩만** 실패했다 — 기존 테스트로는 이 클래스를 전혀 못
+        >       잡았다는 실증이다. `cause: err` 제거(M4·M5)는 2건씩 실패했다.
+        >
+        >       **프로브가 한 번 나를 속였다**: 첫 측정이 존재하지 않는 export
+        >       (`evaluateExpression`)를 불러 host `TypeError` 를 재고 `keys=[]` 라는 엉뚱한
+        >       답을 냈다. 실제 진입점(`evaluate`)으로 다시 재서 위 표를 얻었다 — 측정 대상이
+        >       내 버그였는지부터 봐야 한다.
         > - [ ] **`cause` 비노출 불변식의 계측 지점** (리뷰 INFO #2) — `GlobalExceptionFilter`
         >       또는 공용 에러 직렬화 유틸에 "`cause` 를 클라이언트 응답에 노출하지 않는다"
         >       회귀 테스트 1건. 오늘 안전한 근거가 **부재 주장**이라, APM·구조적 로깅 유틸이
@@ -433,11 +449,16 @@ eslint 9 는 이미 `maintenance` dist-tag 다(2026-08-01 실측: latest = 10.8.
         >       경로(`expression-resolver`/`code.handler`/`secret-resolver`)가 던지는 에러를
         >       받지 않는다. 그러니 참인 명제는 **"이 세 경로의 `cause` 를 읽는 곳이 없다"** 다.
         >       다음에 이 근거를 재사용할 때 넓은 쪽을 쓰지 말 것.
-        > - [ ] (작음, 다음에 그 파일을 열 때) `secret-resolver.service.ts` 의 비부착 주석에서
+        > - [x] (작음, 다음에 그 파일을 열 때) `secret-resolver.service.ts` 의 비부착 주석에서
         >       "서버 로그에만 남는 것도 아니다" 옆에 "이는 C1 판정의 **보조 근거**일 뿐
         >       판정축이 아니다" 한 문장 — `--impl-done`(`01_30_29`) `rationale_continuity`
         >       INFO #2. §6.3.1 이 **명시적으로 기각한** "소비처가 직렬화하는가" 기준과
         >       닮아 보여 오인 소지가 있다는 지적이다(실제 판정은 C1 로 정확히 했다).
+        >       → **완료 (2026-08-29, `#1233`)** — 위 캐너리와 같은 PR. 두 항목 다 spec-linked
+        >       파일이라 따로 하면 게이트 라운드를 두 번 돈다.
+        >
+        > 남은 것은 **`cause` 비노출 계측 지점 1건**이다(위 두 번째 항목). 표면이 달라
+        > (`GlobalExceptionFilter`) 별건으로 둔다.
       > **(등재 당시 기록) 왜 그 턴에 안 고쳤나** — developer SKILL §수렴 예외 (a)+(b)+(c)+(d) 충족.
       > (a) 동작 결함이 아니다: 두 경로 모두 `cause` 부착이 안전함을 `security`·
       > `rationale_continuity` 두 리뷰어가 **독립적으로 실측 확인**했다(다운스트림에서
