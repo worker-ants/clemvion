@@ -17,6 +17,22 @@ function makeNode(id: string, label: string, type = 'http_request'): Node {
   return node;
 }
 
+/**
+ * 던져진 예외를 잡아 돌려준다. **vacuity 방지 단언을 품고 있다** — 아무것도 던지지
+ * 않으면 `.cause` 가 `undefined` 라 뒤따르는 단언이 전부 조용히 통과해 버린다.
+ * 그 함정이 `cause` 관련 케이스마다 반복되므로 여기 한 곳에만 둔다.
+ */
+function captureThrown(fn: () => unknown): Error {
+  let thrown: unknown;
+  try {
+    fn();
+  } catch (err) {
+    thrown = err;
+  }
+  expect(thrown).toBeInstanceOf(Error);
+  return thrown as Error;
+}
+
 describe('ExpressionResolverService', () => {
   let service: ExpressionResolverService;
   let envAllowlist: string | undefined;
@@ -145,21 +161,72 @@ describe('ExpressionResolverService', () => {
     // `code`/`position` 을 갖는다.
     // 반대 사례(비부착)는 `SecretResolverService.resolve` 이고 §6.3.1 이 그것을 지목한다.
     it('원본 예외를 `cause` 로 보존한다 (cause 제거 시 RED)', () => {
-      const config = { url: '{{ $input. }}' };
-      let thrown: unknown;
-      try {
-        service.resolveConfig(config, baseContext);
-      } catch (err) {
-        thrown = err;
-      }
-      // vacuity 방지 — 아무것도 안 던지면 아래 단언이 전부 통과해 버린다.
-      expect(thrown).toBeInstanceOf(Error);
-      const cause = (thrown as Error).cause;
+      const thrown = captureThrown(() =>
+        service.resolveConfig({ url: '{{ $input. }}' }, baseContext),
+      );
+      const cause = thrown.cause;
       expect(cause).toBeInstanceOf(Error);
       // 감싼 message 가 원본 message 를 실제로 포함한다 — 이것이 "cause 가 새 정보를
       // 노출하지 않는다" 는 위 근거의 실측이다.
-      expect((thrown as Error).message).toContain((cause as Error).message);
+      expect(thrown.message).toContain((cause as Error).message);
     });
+
+    // C2 캐너리 — §6.3.1 의 C2("message·name 밖의 **민감** 정보를 속성으로 갖지 않는다")를
+    // 주석이 아니라 **단언**으로 잠근다. 위 케이스는 C1(감싼 message 가 원본을 싣는다)만
+    // 검증하므로, `cause` 에 민감 속성이 새로 붙어도 RED 가 나지 않았다.
+    //
+    // 축이 **enumerable** own key 인 이유: C2 가 막으려는 것은 pg 드라이버의
+    // `detail`/`hint`, HTTP 응답 헤더, 커넥션 문자열처럼 **직렬화에 딸려 나오는** 값이다.
+    // `JSON.stringify` 와 object spread 는 enumerable 만 본다. 표준 `message`/`stack` 은
+    // own 이지만 non-enumerable 이라 여기 안 잡히는 것이 맞다.
+    //
+    // **이 캐너리가 무엇을 잠그고 무엇을 안 잠그는지**를 정확히 적는다. 여기서 두 번
+    // 좁게 적었다가 두 번 다 리뷰가 뚫었다: 처음엔 syntax 한 종류만 지나갔고, 다음엔
+    // 세 종류로 늘렸는데 리뷰가 4번째(`ExpressionFunctionError`)를 뮤테이션으로 뚫었다.
+    // 세어 보니 `ExpressionError` 하위 클래스는 **여섯**이다(Timeout·DepthExceeded 포함).
+    //
+    // 그래서 축을 둘로 나눴다:
+    //   (1) **클래스 전수** — `packages/expression-engine/src/__tests__/error-shape.spec.ts`
+    //       가 그 모듈이 export 하는 하위 클래스를 **열거해서** 전부 검사하고, 개수가
+    //       바뀌면 전수성 단언이 먼저 RED 를 낸다. 새 클래스가 생겨도 자동으로 덮인다.
+    //   (2) **경로** — 아래 `it.each`. 이 catch 가 실제로 그런 `cause` 를 달아 내보내는지를
+    //       `resolveConfig` 경로로 값싸게 트리거되는 네 종으로 확인한다.
+    //       (Timeout·DepthExceeded 는 이 경로로 만들려면 비싸서 (1)에 맡긴다.)
+    //
+    // fixture 가 정말로 서로 다른 클래스로 갈라지는지도 `cause.name` 으로 함께 단언한다.
+    // 그러지 않으면 네 번 도는 것이 커버리지가 아니라 착시가 된다(뮤테이션으로 확인:
+    // `cause.name` 과 `code` 정확값 **둘 다** 치워야 퇴화한 fixture 가 GREEN 이 된다).
+    it.each([
+      ['ExpressionSyntaxError', '{{ $input. }}', 'EXPR_SYNTAX_ERROR'],
+      [
+        'ExpressionReferenceError',
+        '{{ $input.nonExistent.deep }}',
+        'EXPR_REFERENCE_ERROR',
+      ],
+      ['ExpressionTypeError', '{{ $input.count.b.c }}', 'EXPR_TYPE_ERROR'],
+      ['ExpressionFunctionError', '{{ unknownFn() }}', 'EXPR_FUNCTION_ERROR'],
+    ])(
+      'C2 캐너리 — %s 의 `cause` enumerable own key 가 비민감 화이트리스트를 벗어나지 않는다',
+      (className, expression, expectedCode) => {
+        const thrown = captureThrown(() =>
+          service.resolveConfig({ url: expression }, baseContext),
+        );
+        const cause = thrown.cause as Error;
+        expect(cause).toBeInstanceOf(Error);
+        // fixture 판별력 — 넷이 같은 분기로 무너지면 위 `it.each` 가 무의미해진다.
+        expect(cause.name).toBe(className);
+
+        expect(Object.keys(cause).sort()).toEqual(['code', 'name', 'position']);
+
+        // 키 이름만 잠그면 "같은 키에 민감한 값이 실린다" 는 변형을 놓친다. 두 값의
+        // **모양**도 함께 고정한다 — `code` 는 `EXPR_` 접두 enum, `position` 은 정수.
+        const shape = cause as unknown as { code: unknown; position: unknown };
+        expect(shape.code).toBe(expectedCode);
+        expect(
+          shape.position === undefined || Number.isInteger(shape.position),
+        ).toBe(true);
+      },
+    );
 
     it('coerces mixed text + expression to string', () => {
       const config = { message: 'Items: {{ $input.count }}' };

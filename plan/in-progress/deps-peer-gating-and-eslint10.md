@@ -416,11 +416,85 @@ eslint 9 는 이미 `maintenance` dist-tag 다(2026-08-01 실측: latest = 10.8.
         > 후속으로 남긴 것 (developer SKILL §수렴 예외 (a)(b)(c)(d) — 둘 다 동작 결함이 아니고,
         > 고치면 spec-linked 파일이라 리뷰 2종이 freshness 로 재무장된다):
         >
-        > - [ ] **C2 를 단언으로 잠그기** (리뷰 INFO #1) — `cause` 의 own enumerable key 가
+        > - [x] **C2 를 단언으로 잠그기** (리뷰 INFO #1) — `cause` 의 own enumerable key 가
         >       `code`/`position`(비민감) 밖으로 늘면 RED 를 내는 캐너리. 지금은 주석이 "민감
         >       속성 없음" 을 말할 뿐 아무도 강제하지 않는다. 위 §6.3.1 항목이 "주석 대신 테스트로
         >       잠갔다" 고 한 것은 **C1 만** 잠근 것이다.
-        > - [ ] **`cause` 비노출 불변식의 계측 지점** (리뷰 INFO #2) — `GlobalExceptionFilter`
+        >       → **완료 (2026-08-29, `#1233`)**. 캐너리 2건, 축은 **enumerable** own key 다
+        >       (C2 가 막으려는 것이 직렬화에 딸려 나오는 값이고 `JSON.stringify`·spread 는
+        >       enumerable 만 본다. 표준 `message`/`stack` 은 non-enumerable 이라 안 잡히는 게 맞다).
+        >       화이트리스트는 실측이다 — `evaluate()` 를 직접 호출해 `ExpressionError` 의
+        >       **세 하위 클래스**(`Syntax`·`Reference`·`Type`) 전부 `['name','code','position']`,
+        >       `isolated-vm` 컴파일 예외는 `[]`. 키 이름만 잠그면 "같은 키에 민감한 값" 을
+        >       놓치므로 `code`(EXPR_ enum)·`position`(정수) 의 **모양**도 함께 고정했다.
+        >
+        >       뮤테이션 5/5 RED (예측과 전부 일치):
+        >
+        >       | 뮤턴트 | 내용 | 실측 |
+        >       |---|---|---|
+        >       | M1 | `ExpressionError` 에 `connectionString` 이 붙는다 | RED — 1 failed / 45 |
+        >       | M2 | isolated-vm cause 에 `isolateSourcePath` 가 붙는다 | RED — 1 failed / 90 |
+        >       | M3 | 캐너리 화이트리스트에서 `position` 제거 (캐너리 자기 유효성) | RED — 1 failed / 45 |
+        >       | M4 | expression 의 `cause: err` 제거 | RED — 2 failed / 45 |
+        >       | M5 | code.handler 의 `cause: err` 제거 | RED — 2 failed / 90 |
+        >
+        >       결정적인 것은 M1·M2 가 **정확히 1건씩만** 실패했다는 점이다 — 실패한 그 1건이
+        >       방금 넣은 캐너리이고, 기존 44/89건은 민감 속성이 붙어도 전부 GREEN 이었다.
+        >
+        >       **리뷰가 이 항목의 정량 주장 두 개를 잡았다 (`11_58_35`, WARNING #1·#2).**
+        >       (a) "4개 오류 종류" 는 틀렸다 — 호출은 4건이었지만 그중 둘이 같은 클래스라
+        >       **클래스는 3개**다. (b) "5/5" 라 써 놓고 본문은 M1·M2·M4·M5 넷만 서술해
+        >       M3 가 어디에도 없었다. 위 표로 둘 다 고쳤다.
+        >
+        >       (c) 같은 WARNING 이 더 중요한 것을 짚었다 — **캐너리가 실제로 지나가는 것은
+        >       syntax 한 종류뿐**이었다. 나머지 둘에 민감 속성이 붙어도 GREEN 이다. `it.each`
+        >       로 세 클래스를 각각 실행 경로로 지나가게 넓혔고, fixture 가 정말 서로 다른
+        >       클래스로 갈라지는지도 `cause.name` 으로 함께 단언한다(안 그러면 세 번 도는
+        >       것이 커버리지가 아니라 착시다). 137 tests 통과.
+        >
+        >       WARNING #3(캡처 보일러플레이트 반복)도 함께 처리 — 두 spec 에
+        >       `captureThrown`/`captureRejected` 로 추출했다. vacuity 방지 단언을 헬퍼가
+        >       품으므로 그 함정 설명이 케이스마다 복제되지 않는다.
+        >
+        >       **3라운드 (`12_23_45`) — 같은 형태를 세 번째로 밟았고, 거기서 축을 바꿨다.**
+        >       리뷰가 4번째 클래스(`ExpressionFunctionError`)를 뮤테이션으로 뚫었다(47/47
+        >       GREEN 실측). 세어 보니 하위 클래스는 넷도 아닌 **여섯**이다(Timeout·
+        >       DepthExceeded 포함). fixture 를 하나 더 넣는 것으로는 같은 지적이 또 나온다는
+        >       게 분명해져서 **축을 둘로 갈랐다**:
+        >
+        >       | 축 | 어디 | 무엇을 잠그나 |
+        >       |---|---|---|
+        >       | 클래스 전수 | `packages/expression-engine/src/__tests__/error-shape.spec.ts` (신규) | export 된 하위 클래스를 **열거해서** 전부 검사. 개수가 바뀌면 전수성 단언이 먼저 RED |
+        >       | 경로 | backend spec 의 `it.each` | 이 catch 가 실제로 그런 `cause` 를 달아 내보내는지. 값싸게 트리거되는 네 종 |
+        >
+        >       핵심은 **열거**다 — 소비처에서만 잠그면 거기서 지나가는 클래스만 잠기고
+        >       나머지는 조용히 새로 생긴다. 클래스 정의 옆에서 export 를 열거하면 새
+        >       하위 클래스가 자동으로 덮인다. 뮤테이션 2건으로 확인: M9(리뷰가 뚫은 그
+        >       구멍에 민감 속성 주입) **RED**, M10(새 하위 클래스가 조용히 추가) **RED**.
+        >
+        >       **교훈**: "한 칸 좁게" 를 세 라운드 연속 밟았다면 다음 fixture 를 더할 게
+        >       아니라 **열거 가능한 축이 있는지**를 먼저 봐야 한다.
+        >
+        >       **4라운드 (`12_50_04`) — 그 전수 캐너리의 단언이 겉보기보다 약했다.**
+        >       `code` 검증이 `Object.values(ErrorCode)).toContain(err.code)` 였는데, 이건
+        >       "enum 안의 값인가" 만 보는 **타입 검사**라 클래스↔코드 매핑이 뒤바뀌어도
+        >       통과한다. 리뷰어가 `Syntax`/`Reference` 의 코드를 맞바꾸는 뮤테이션으로
+        >       **9/9 GREEN** 을 실측해 보였다. 클래스별 정확값 표(`EXPECTED_CODE`) +
+        >       "표가 하위 클래스와 1:1" 단언으로 바꿨다 — 새 클래스를 표에 안 적으면
+        >       `undefined` 로 조용히 통과하는 대신 먼저 RED 가 난다. 이로써
+        >       `Timeout`/`DepthExceeded` 의 매핑도 **처음으로** 검증된다(backend `it.each`
+        >       로는 이 둘을 커버할 수 없다). 뮤테이션: M11(그 맞바꿈) 조치 전 9/9 GREEN →
+        >       조치 후 **5 failed**, M12(표에서 한 항목 삭제) **RED**.
+        >
+        >       **두 번째 교훈**: 전수로 순회한다고 판별력이 생기는 게 아니다. 순회 축과
+        >       **단언 축이 따로**다 — 클래스를 여섯 개 돌아도 값 단언이 "타입" 이면
+        >       클래스별 차이는 하나도 안 잡힌다.
+        >
+        >       **프로브가 한 번 나를 속였다**: 첫 측정이 존재하지 않는 export
+        >       (`evaluateExpression`)를 불러 host `TypeError` 를 재고 `keys=[]` 라는 엉뚱한
+        >       답을 냈다. 실제 진입점(`evaluate`)으로 다시 재서 위 표를 얻었다 — 측정 대상이
+        >       내 버그였는지부터 봐야 한다.
+        > - **`cause` 비노출 불변식의 계측 지점** (리뷰 INFO #2 — 정본 체크박스는 §열린 항목) — `GlobalExceptionFilter`
         >       또는 공용 에러 직렬화 유틸에 "`cause` 를 클라이언트 응답에 노출하지 않는다"
         >       회귀 테스트 1건. 오늘 안전한 근거가 **부재 주장**이라, APM·구조적 로깅 유틸이
         >       하나 생기면 조용히 깨진다.
@@ -433,11 +507,31 @@ eslint 9 는 이미 `maintenance` dist-tag 다(2026-08-01 실측: latest = 10.8.
         >       경로(`expression-resolver`/`code.handler`/`secret-resolver`)가 던지는 에러를
         >       받지 않는다. 그러니 참인 명제는 **"이 세 경로의 `cause` 를 읽는 곳이 없다"** 다.
         >       다음에 이 근거를 재사용할 때 넓은 쪽을 쓰지 말 것.
-        > - [ ] (작음, 다음에 그 파일을 열 때) `secret-resolver.service.ts` 의 비부착 주석에서
+        > - [x] (작음, 다음에 그 파일을 열 때) `secret-resolver.service.ts` 의 비부착 주석에서
         >       "서버 로그에만 남는 것도 아니다" 옆에 "이는 C1 판정의 **보조 근거**일 뿐
         >       판정축이 아니다" 한 문장 — `--impl-done`(`01_30_29`) `rationale_continuity`
         >       INFO #2. §6.3.1 이 **명시적으로 기각한** "소비처가 직렬화하는가" 기준과
         >       닮아 보여 오인 소지가 있다는 지적이다(실제 판정은 C1 로 정확히 했다).
+        >       → **완료 (2026-08-29, `#1233`)** — 위 캐너리와 같은 PR. 두 항목 다 spec-linked
+        >       파일이라 따로 하면 게이트 라운드를 두 번 돈다.
+        >
+        > 남은 것은 **`cause` 비노출 계측 지점 1건**이다(위 두 번째 항목). 표면이 달라
+        > (`GlobalExceptionFilter`) 별건으로 둔다.
+        >
+        > 여기에 `#1233` 리뷰(`11_58_35`)의 INFO 2건을 **다음에 그 파일을 열 때** 항목으로
+        > 더한다. 둘 다 spec-linked 파일이라 주석 한 줄에 게이트 두 종이 재무장된다
+        > (§수렴 예외 (a)(b)(c)(d)):
+        >
+        > - (작음) `secret-resolver.service.ts` 의 "형제 3곳" → **4곳** (정본 체크박스는 §열린 항목) — C1/C2 를 함께
+        >       서술하는 형제 지점은 `expression-resolver.service.ts`/`.spec.ts` ·
+        >       `code.handler.ts`/`.spec.ts` 로 넷이다 (리뷰 INFO #3).
+        > - (작음) **근거 서술 중복 정리 묶음** (정본 체크박스는 §열린 항목) — 셋 다 같은 성격이고 전부 spec-linked
+        >       파일이라 한 번에 처리한다:
+        >       - "축이 enumerable own key 인 이유" 가 두 backend spec + 신규 패키지 캐너리에
+        >         거의 같은 문장으로 있다 (`11_58_35` INFO #4 · `12_23_45` INFO #1 의 헬퍼
+        >         JSDoc 중복 포함). 한쪽을 정본으로 두거나 §6.3.1 Rationale 로 올린다.
+        >       - `captureThrown`/`captureRejected` 의 vacuity-guard JSDoc 이 두 spec 에 복제.
+        >       **이 PR 이 고치려던 drift 와 같은 형태**라 방치하면 같은 자리에서 또 갈린다.
       > **(등재 당시 기록) 왜 그 턴에 안 고쳤나** — developer SKILL §수렴 예외 (a)+(b)+(c)+(d) 충족.
       > (a) 동작 결함이 아니다: 두 경로 모두 `cause` 부착이 안전함을 `security`·
       > `rationale_continuity` 두 리뷰어가 **독립적으로 실측 확인**했다(다운스트림에서
@@ -498,6 +592,33 @@ eslint 9 는 이미 `maintenance` dist-tag 다(2026-08-01 실측: latest = 10.8.
 > ④ execution-engine / embedding-pipeline / graph-rag 소급 caveat 3건.
 > ③④ 는 각각 `spec-update-node-cancellation-shutdown-classification.md` ·
 > `update-returning-tuple-shape.md` 가 이미 위임해 둔 항목이라 **신규 등재 불요**(중복 방지).
+
+### 열린 항목 (§2 후속) — 이 트래커가 아직 `complete/` 로 못 가는 이유
+
+> **왜 여기 따로 두나 (2026-08-29 실측).** 이 셋을 §2 서술 안의 **인용문**(`> - [ ]`)에
+> 적어 뒀더니 plan 라이프사이클 게이트가 **하나도 못 봤다** — `_all_checkboxes_done()` 이
+> `True` 를 반환해 "체크박스가 모두 완료됐으니 `complete/` 로 옮기라" 는 nudge 가 떴다.
+> 원인은 `plan_guard.py` 의 `_CHECKBOX = ^\s*[-*]\s+\[([ xX])\]` 가 `>` 접두를 넘지
+> 못하는 것이다(`'        > - [ ] 항목'` → 매치 안 됨을 직접 실행해 확인).
+>
+> 이 저장소가 이미 아는 실패의 **새 입구**다 — 살아 있는 항목을 품은 채 `complete/` 로
+> 봉인되면 유실된다. 서술은 인용문에 남기고 **정본 체크박스는 최상위로** 올린다.
+> 게이트 쪽 사각지대는 `harness-review-gate-followups.md` 에 등재했다.
+
+- [ ] **`cause` 비노출 불변식의 계측 지점** — `GlobalExceptionFilter` 또는 공용 에러 직렬화
+      유틸에 "`cause` 를 클라이언트 응답에 노출하지 않는다" 회귀 테스트 1건. 근거가
+      **부재 주장**이라 APM·구조적 로깅 유틸이 하나 생기면 조용히 깨진다. 표면이 달라
+      별건. (근거·범위 서술은 §2 의 해당 인용문)
+- [ ] **(작음) `secret-resolver.service.ts` 의 "형제 3곳" → 4곳** — C1/C2 를 함께 서술하는
+      형제 지점은 `expression-resolver.service.ts`/`.spec.ts` · `code.handler.ts`/`.spec.ts`
+      로 넷이다.
+- [ ] **(작음) 근거 서술 중복 정리 묶음** — "축이 enumerable own key 인 이유" 가 두 backend
+      spec + 패키지 캐너리 3곳에 거의 같은 문장으로 있고, `captureThrown`/`captureRejected`
+      의 vacuity-guard JSDoc 도 두 spec 에 복제돼 있다. 한쪽을 정본으로 두거나 §6.3.1
+      Rationale 로 올린다. **이 PR 이 고치려던 drift 와 같은 형태**다.
+
+> 셋 다 spec-linked 파일이라 주석 한 줄만 건드려도 `/ai-review` 와 `--impl-done` 이 동시에
+> 재무장된다 — 그래서 묶어서 한 번에 처리한다 (developer SKILL §수렴 예외).
 
 ## Rationale
 
