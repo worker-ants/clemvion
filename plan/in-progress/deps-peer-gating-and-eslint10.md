@@ -456,6 +456,25 @@ eslint 9 는 이미 `maintenance` dist-tag 다(2026-08-01 실측: latest = 10.8.
         >       `captureThrown`/`captureRejected` 로 추출했다. vacuity 방지 단언을 헬퍼가
         >       품으므로 그 함정 설명이 케이스마다 복제되지 않는다.
         >
+        >       **3라운드 (`12_23_45`) — 같은 형태를 세 번째로 밟았고, 거기서 축을 바꿨다.**
+        >       리뷰가 4번째 클래스(`ExpressionFunctionError`)를 뮤테이션으로 뚫었다(47/47
+        >       GREEN 실측). 세어 보니 하위 클래스는 넷도 아닌 **여섯**이다(Timeout·
+        >       DepthExceeded 포함). fixture 를 하나 더 넣는 것으로는 같은 지적이 또 나온다는
+        >       게 분명해져서 **축을 둘로 갈랐다**:
+        >
+        >       | 축 | 어디 | 무엇을 잠그나 |
+        >       |---|---|---|
+        >       | 클래스 전수 | `packages/expression-engine/src/__tests__/error-shape.spec.ts` (신규) | export 된 하위 클래스를 **열거해서** 전부 검사. 개수가 바뀌면 전수성 단언이 먼저 RED |
+        >       | 경로 | backend spec 의 `it.each` | 이 catch 가 실제로 그런 `cause` 를 달아 내보내는지. 값싸게 트리거되는 네 종 |
+        >
+        >       핵심은 **열거**다 — 소비처에서만 잠그면 거기서 지나가는 클래스만 잠기고
+        >       나머지는 조용히 새로 생긴다. 클래스 정의 옆에서 export 를 열거하면 새
+        >       하위 클래스가 자동으로 덮인다. 뮤테이션 2건으로 확인: M9(리뷰가 뚫은 그
+        >       구멍에 민감 속성 주입) **RED**, M10(새 하위 클래스가 조용히 추가) **RED**.
+        >
+        >       **교훈**: "한 칸 좁게" 를 세 라운드 연속 밟았다면 다음 fixture 를 더할 게
+        >       아니라 **열거 가능한 축이 있는지**를 먼저 봐야 한다.
+        >
         >       **프로브가 한 번 나를 속였다**: 첫 측정이 존재하지 않는 export
         >       (`evaluateExpression`)를 불러 host `TypeError` 를 재고 `keys=[]` 라는 엉뚱한
         >       답을 냈다. 실제 진입점(`evaluate`)으로 다시 재서 위 표를 얻었다 — 측정 대상이
@@ -491,10 +510,13 @@ eslint 9 는 이미 `maintenance` dist-tag 다(2026-08-01 실측: latest = 10.8.
         > - [ ] (작음) `secret-resolver.service.ts` 의 "형제 3곳" → **4곳** — C1/C2 를 함께
         >       서술하는 형제 지점은 `expression-resolver.service.ts`/`.spec.ts` ·
         >       `code.handler.ts`/`.spec.ts` 로 넷이다 (리뷰 INFO #3).
-        > - [ ] (작음) "축이 enumerable own key 인 이유" 설명이 두 spec 에 거의 같은 문장으로
-        >       중복돼 있다 — 한쪽이 다른 쪽을 참조하게 하거나 §6.3.1 Rationale 에 한 줄로
-        >       단일화 (리뷰 INFO #4). **이 PR 이 고치려던 drift 와 같은 형태**라 방치하면
-        >       같은 자리에서 또 갈린다.
+        > - [ ] (작음) **근거 서술 중복 정리 묶음** — 셋 다 같은 성격이고 전부 spec-linked
+        >       파일이라 한 번에 처리한다:
+        >       - "축이 enumerable own key 인 이유" 가 두 backend spec + 신규 패키지 캐너리에
+        >         거의 같은 문장으로 있다 (`11_58_35` INFO #4 · `12_23_45` INFO #1 의 헬퍼
+        >         JSDoc 중복 포함). 한쪽을 정본으로 두거나 §6.3.1 Rationale 로 올린다.
+        >       - `captureThrown`/`captureRejected` 의 vacuity-guard JSDoc 이 두 spec 에 복제.
+        >       **이 PR 이 고치려던 drift 와 같은 형태**라 방치하면 같은 자리에서 또 갈린다.
       > **(등재 당시 기록) 왜 그 턴에 안 고쳤나** — developer SKILL §수렴 예외 (a)+(b)+(c)+(d) 충족.
       > (a) 동작 결함이 아니다: 두 경로 모두 `cause` 부착이 안전함을 `security`·
       > `rationale_continuity` 두 리뷰어가 **독립적으로 실측 확인**했다(다운스트림에서

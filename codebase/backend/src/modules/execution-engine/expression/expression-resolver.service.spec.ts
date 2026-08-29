@@ -180,14 +180,22 @@ describe('ExpressionResolverService', () => {
     // `JSON.stringify` 와 object spread 는 enumerable 만 본다. 표준 `message`/`stack` 은
     // own 이지만 non-enumerable 이라 여기 안 잡히는 것이 맞다.
     //
-    // 화이트리스트는 실측이다 (2026-08-29): `ExpressionError` 의 **세 하위 클래스 전부**가
-    // `['name','code','position']` 이고, `code` 는 `ErrorCode` enum 문자열, `position` 은
-    // 입력 문자열 안의 정수 오프셋이라 둘 다 비민감이다.
+    // **이 캐너리가 무엇을 잠그고 무엇을 안 잠그는지**를 정확히 적는다. 여기서 두 번
+    // 좁게 적었다가 두 번 다 리뷰가 뚫었다: 처음엔 syntax 한 종류만 지나갔고, 다음엔
+    // 세 종류로 늘렸는데 리뷰가 4번째(`ExpressionFunctionError`)를 뮤테이션으로 뚫었다.
+    // 세어 보니 `ExpressionError` 하위 클래스는 **여섯**이다(Timeout·DepthExceeded 포함).
     //
-    // 세 클래스를 **각각 실제 실행 경로로** 지나간다. 한 종류만 지나가면 나머지 둘에
-    // 민감 속성이 붙어도 GREEN 이다 — 첫 버전이 정확히 그 상태였고 리뷰가 잡았다.
+    // 그래서 축을 둘로 나눴다:
+    //   (1) **클래스 전수** — `packages/expression-engine/src/__tests__/error-shape.spec.ts`
+    //       가 그 모듈이 export 하는 하위 클래스를 **열거해서** 전부 검사하고, 개수가
+    //       바뀌면 전수성 단언이 먼저 RED 를 낸다. 새 클래스가 생겨도 자동으로 덮인다.
+    //   (2) **경로** — 아래 `it.each`. 이 catch 가 실제로 그런 `cause` 를 달아 내보내는지를
+    //       `resolveConfig` 경로로 값싸게 트리거되는 네 종으로 확인한다.
+    //       (Timeout·DepthExceeded 는 이 경로로 만들려면 비싸서 (1)에 맡긴다.)
+    //
     // fixture 가 정말로 서로 다른 클래스로 갈라지는지도 `cause.name` 으로 함께 단언한다.
-    // 그러지 않으면 세 번 도는 것이 커버리지가 아니라 착시가 된다.
+    // 그러지 않으면 네 번 도는 것이 커버리지가 아니라 착시가 된다(뮤테이션으로 확인:
+    // `cause.name` 과 `code` 정확값 **둘 다** 치워야 퇴화한 fixture 가 GREEN 이 된다).
     it.each([
       ['ExpressionSyntaxError', '{{ $input. }}', 'EXPR_SYNTAX_ERROR'],
       [
@@ -196,6 +204,7 @@ describe('ExpressionResolverService', () => {
         'EXPR_REFERENCE_ERROR',
       ],
       ['ExpressionTypeError', '{{ $input.count.b.c }}', 'EXPR_TYPE_ERROR'],
+      ['ExpressionFunctionError', '{{ unknownFn() }}', 'EXPR_FUNCTION_ERROR'],
     ])(
       'C2 캐너리 — %s 의 `cause` enumerable own key 가 비민감 화이트리스트를 벗어나지 않는다',
       (className, expression, expectedCode) => {
