@@ -836,6 +836,33 @@ PR 을 막는다" 고 적은 것은 **부정확**했다 — 막던 것은 그중
       >    거짓 신호다.
       > 2. 4·6 의 에러 채널을 "세 테스트가 고정한다" 고 **테스트 제목을 눈으로 세어** 적었는데
       >    실측은 4건 / 2건이었다. 제목 열거는 실측이 아니다.
+      >
+      > **커밋 `49b9f92b5`.** 게이트: consistency `--impl-prep spec/5-system/` **BLOCK: NO**
+      > (`review/consistency/2026/08/29/17_23_43`) · `/ai-review --branch origin/main`
+      > **Critical 0 · Warning 0 · INFO 13, RISK=LOW** (`review/code/2026/08/29/17_32_16`,
+      > reviewer 9/9 · forced 누락 0). 코드 수정 0건으로 수렴 — 근거는 그 RESOLUTION.md.
+      >
+      > **뮤테이션이 병렬 checker 를 오염시켰다.** 내가 뮤턴트를 넣었다 뺀 시간대와
+      > consistency checker 실행이 겹쳐 `convention_compliance` 는 그것을 "필드 스왑 로직
+      > 결함" 으로, `rationale_continuity` 는 "두 열람 사이 diff 해시 변경" 으로 관측했고
+      > summary 가 "`/ai-review` 에서 반드시 확인" 권고까지 만들었다. 실제 트리엔 없는 결함이라
+      > 그쪽 SUMMARY 에 정정을 남겼다. **뮤테이션은 리뷰/체커 실행과 시간대를 겹치지 말 것** —
+      > 오염은 한 checker 에 그치지 않고 라운드 전체의 신뢰도를 깎는다.
+      >
+      > **이 자리에 남긴 조건부 후속 3건** (`17_32_16` INFO 2·4·6 이관 — `review/` 는 SoT 가
+      > 아니라 여기 적는다). 셋 다 **지금은 하지 않는 것이 맞다**는 판단이고, 트리거가
+      > 발동하기 전에는 착수하지 않는다:
+      >
+      > - **두 번째 호출부가 생기면** — `resolveCacheHit()` 이 "`switchMap` project 함수
+      >   안에서만 호출" 계약을 JSDoc 서술로만 강제한다. 호출부가 하나인 동안은 위험이 0이라
+      >   타입으로 올리지 않는다. 둘째가 생기면 discriminated union 반환 등을 재검토.
+      > - **`cacheTapped`/`storeEntry` 를 다음에 만질 때** — 그 둘은 위치 인자, `resolveCacheHit`
+      >   만 객체 번들이라 클래스 안에 두 스타일이 공존한다. 지금 통일하면 무관한 두 메서드를
+      >   이 PR 로 끌어들인다. **판단 기준은 "타입이 막아 주는가" 가 아니라 "기존 테스트가 그
+      >   실수를 이미 무는가"** 다 — 이번 swap 뮤턴트 13 RED 가 그 기준을 바꿔 놓았다.
+      > - **8번째 분기가 생기면** — 추출로 복잡도가 준 것이 아니라 `intercept()` 에서 **옮겨진**
+      >   것뿐이다(7갈래 그대로). 6→7 트리거가 실제로 발동해 이 항목을 만들었으므로 그 관례를
+      >   끊지 않고 다음 눈금을 8로 이어 둔다.
 - [x] **`readKey`/`hashBody` 경계값 테스트 부재** (`12_55_52` testing INFO 10) — 키 길이
       초과(`MAX_KEY_LENGTH` 200), 공백뿐인 키, non-string 헤더. 선재 갭이고 이 PR 범위 밖.
       함께: 클래스 docstring 에 R8 선재 결함 참조 한 줄 추가(INFO 2, 경미).
