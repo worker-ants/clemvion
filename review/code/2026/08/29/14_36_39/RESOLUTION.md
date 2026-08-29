@@ -53,7 +53,7 @@ plan 에 구현 설명을 쓰면서 예시를 인라인 코드로 적었다:
 ## TEST 결과
 
 - lint  : 통과 (`_test_logs/lint-20260829-145227.log`)
-- unit  : 통과 (`_test_logs/unit-20260829-145321.log` — frontend 6,213 passed, 신규 9건 포함)
+- unit  : 통과 (`_test_logs/unit-20260829-145321.log` — frontend 6,213 passed, 신규 **10건** 포함 — "9건" 이라 적었던 것을 `15_55_00` INFO #9 가 실측으로 정정)
 - build : 통과 (`_test_logs/build-20260829-145440.log`)
 - e2e   : 통과 285/285 (`_test_logs/e2e-20260829-145631.log`)
 
