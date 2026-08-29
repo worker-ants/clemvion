@@ -1,6 +1,6 @@
 ---
 title: backend lint 스테이지가 main 에서 깨져 있다 — prettier·typescript-eslint 무검증 머지의 결과
-worktree: eia-r8-cache-scope-4ae434
+worktree: eia-idem-resolve-cache-hit-36acd6
 started: 2026-08-08
 owner: developer
 status: in-progress
@@ -803,7 +803,7 @@ PR 을 막는다" 고 적은 것은 **부정확**했다 — 막던 것은 그중
       > 새 최상위 절을 만들면 §5~§9 번호가 전부 밀리고 그 앵커를 인용하는 문서가 여럿이다
       > (`§9.8` 만 `2-navigation/4-integration.md` 4곳 + `redis-keys.md`). 번호 이동은 앵커
       > 일괄 갱신을 요구하므로 별건으로 둔다 — 이 계열에서 앵커를 세 번 깨뜨렸다.
-- [ ] **`intercept()` 의 `switchMap` 콜백을 `resolveCacheHit()` 로 추출** — **내가 세운 트리거가
+- [x] **`intercept()` 의 `switchMap` 콜백을 `resolveCacheHit()` 로 추출** — **내가 세운 트리거가
       실제로 발동했다.** `23_24_08`·`23_36_13` 두 라운드가 "6번째 분기가 추가되면 재검토" 로
       유예했는데, `00_20_20` maintainability INFO 4 가 **분기 7개**가 됐음을 셌다(캐시 미스 ·
       엔트리 문법 손상 · 엔트리 형태 불일치 · bodyHash 불일치 · payload 손상 · 에러 재현 ·
@@ -811,6 +811,31 @@ PR 을 막는다" 고 적은 것은 **부정확**했다 — 막던 것은 그중
       > **조건부 유예를 조용히 연장하지 않기 위해 항목으로 꺼낸다.** 이 PR 안에서 하지 않는
       > 이유는 순수 구조 변경이라 리뷰 라운드를 한 번 더 요구하는데, 이번 PR 의 남은 발견이
       > 전부 문서·테스트 층위라 수렴 중이기 때문이다. 다음에 이 콜백을 만질 때 착수한다.
+
+      > **완료 (2026-08-29, `eia-idem-resolve-cache-hit`).** 착수 직전 `origin/main`
+      > (`98af82eeb`) 에서 재실측 — `resolveCacheHit` grep **0건**(미이행), `switchMap` 콜백의
+      > 분기 **7개**가 위 열거와 일치. 콜백 본문 전체를 `resolveCacheHit(cachedJson, lookup)`
+      > 로 옮기고, 호출부가 넘기던 네 값(`redisKey`·`bodyHash`·`context`·`next`)을
+      > `CacheLookup` 으로 묶었다. **순수 구조 변경** — 기존 spec **63건 전부 GREEN**, 새
+      > 테스트 없음. `intercept()` 는 이제 "캐시를 쓸 수 있는 요청인가" 까지만 본다.
+      >
+      > **docstring 에 쓰려던 근거 두 개가 내 뮤테이션에 반증돼 고쳐 썼다** — 예측·실측을
+      > 두 칸으로 적었기에 드러났다:
+      >
+      > | 뮤턴트 | 예측 | 실측 |
+      > | --- | --- | --- |
+      > | `CacheLookup` 의 `redisKey` ↔ `bodyHash` 를 서로 바꿔 넣음 | 생존 (조용히 "항상 캐시 미스") | **RED 13건** |
+      > | 분기 4 `throw ConflictException` → `of(...)` (성공 채널) | RED | RED **4건** |
+      > | 분기 6 `throw HttpException` → `of(...)` (성공 채널) | RED | RED **2건** |
+      >
+      > 1. `CacheLookup` 을 **"위치 인자 swap 을 타입이 막아 준다"** 로 정당화하려 했는데, 그
+      >    swap 은 조용하지 않았다 — 적재 키·조회 키를 단언하는 테스트 13개가 이미 그 자리를
+      >    문다. 타입 안전은 근거가 아니므로 지우고, 남는 진짜 근거(호출부가 무엇을 넘기는지
+      >    이름으로 읽힘)만 적었다. **`interface` 를 새로 만들 때 "타입이 막아 준다" 를 쓰기
+      >    전에 그 뮤턴트를 한 번 주입해 볼 것** — 기존 테스트가 이미 물고 있으면 그 문장은
+      >    거짓 신호다.
+      > 2. 4·6 의 에러 채널을 "세 테스트가 고정한다" 고 **테스트 제목을 눈으로 세어** 적었는데
+      >    실측은 4건 / 2건이었다. 제목 열거는 실측이 아니다.
 - [x] **`readKey`/`hashBody` 경계값 테스트 부재** (`12_55_52` testing INFO 10) — 키 길이
       초과(`MAX_KEY_LENGTH` 200), 공백뿐인 키, non-string 헤더. 선재 갭이고 이 PR 범위 밖.
       함께: 클래스 docstring 에 R8 선재 결함 참조 한 줄 추가(INFO 2, 경미).
