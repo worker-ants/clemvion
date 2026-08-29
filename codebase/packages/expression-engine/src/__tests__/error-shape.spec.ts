@@ -25,6 +25,26 @@ describe('ExpressionError 계열의 own-property 모양 (§6.3.1 C2 캐너리)',
   /** 비민감 화이트리스트 — `code` 는 enum 문자열, `position` 은 입력 안의 정수 오프셋. */
   const ALLOWED_KEYS = ['code', 'name', 'position'];
 
+  /**
+   * 클래스 → 그 클래스가 **써야 하는** `ErrorCode`.
+   *
+   * 종전엔 `expect(Object.values(ErrorCode)).toContain(err.code)` 였는데, 그건 "enum 안의
+   * 값인가" 만 보는 **타입 검사**라 클래스↔코드 매핑이 뒤바뀌어도 통과한다 — 리뷰가
+   * `SyntaxError`/`ReferenceError` 의 코드를 맞바꾸는 뮤테이션으로 9/9 GREEN 을 실측해
+   * 보였다. 정확값 비교로 바꿔 그 축을 실제로 잠근다.
+   *
+   * 아래 전수성 단언이 이 표와 `SUBCLASSES` 를 대조하므로, 새 클래스를 표에 안 적으면
+   * `undefined` 로 조용히 통과하는 게 아니라 먼저 RED 가 난다.
+   */
+  const EXPECTED_CODE: Record<string, ErrorCode> = {
+    SyntaxError: ErrorCode.EXPR_SYNTAX_ERROR,
+    ReferenceError: ErrorCode.EXPR_REFERENCE_ERROR,
+    TypeError: ErrorCode.EXPR_TYPE_ERROR,
+    FunctionError: ErrorCode.EXPR_FUNCTION_ERROR,
+    TimeoutError: ErrorCode.EXPR_TIMEOUT,
+    DepthExceededError: ErrorCode.EXPR_DEPTH_EXCEEDED,
+  };
+
   /** `errors.ts` 가 export 하는 `ExpressionError` 하위 클래스 전부 (base 제외). */
   const SUBCLASSES = Object.entries(errors).filter(
     (entry): entry is [string, new (message: string) => ExpressionError] => {
@@ -50,18 +70,24 @@ describe('ExpressionError 계열의 own-property 모양 (§6.3.1 C2 캐너리)',
     ]);
   });
 
+  it('클래스↔코드 표가 하위 클래스와 1:1 이다', () => {
+    expect(Object.keys(EXPECTED_CODE).sort()).toEqual(
+      SUBCLASSES.map(([name]) => name).sort(),
+    );
+  });
+
   it.each(SUBCLASSES)(
     '%s 의 enumerable own key 가 비민감 화이트리스트를 벗어나지 않는다',
-    (_name, Cls) => {
+    (name, Cls) => {
       const err = new Cls('probe message');
       expect(Object.keys(err).sort()).toEqual(ALLOWED_KEYS);
 
-      // 키 이름만 잠그면 "같은 키에 민감한 값이 실린다" 는 변형을 놓친다. 값의 **모양**도
-      // 함께 고정한다.
-      expect(Object.values(ErrorCode)).toContain(err.code);
-      expect(
-        err.position === undefined || Number.isInteger(err.position),
-      ).toBe(true);
+      // 키 이름만 잠그면 "같은 키에 민감한 값이 실린다" 는 변형을 놓친다. 값도 고정한다.
+      expect(err.code).toBe(EXPECTED_CODE[name]);
+      // 여기 fixture 는 `position` 을 넘기지 않으므로 `undefined` 가 **정확한** 기대값이다.
+      // 종전의 `undefined || Number.isInteger(...)` 는 이 파일 안에서 정수 분기가 한 번도
+      // 실행되지 않는 vacuous disjunction 이었다. 정수 분기는 아래 base 케이스가 지나간다.
+      expect(err.position).toBeUndefined();
     },
   );
 

@@ -213,7 +213,7 @@ describe('ExpressionResolverService', () => {
         );
         const cause = thrown.cause as Error;
         expect(cause).toBeInstanceOf(Error);
-        // fixture 판별력 — 셋이 같은 분기로 무너지면 위 `it.each` 가 무의미해진다.
+        // fixture 판별력 — 넷이 같은 분기로 무너지면 위 `it.each` 가 무의미해진다.
         expect(cause.name).toBe(className);
 
         expect(Object.keys(cause).sort()).toEqual(['code', 'name', 'position']);
