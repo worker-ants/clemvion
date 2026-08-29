@@ -16,6 +16,10 @@ import { checkSsrfSafeUrl } from '../../../common/utils/ssrf-safe-url.util';
 /**
  * Outbound notification webhook 의 구독 가능한 이벤트 type.
  * [Spec EIA §3.1 EIA-NX-02].
+ *
+ * `websocket/websocket-events.types.ts` 의 `InAppNotificationEventType`(WS 인앱 알림 벨
+ * 전용, `notification.new` 단일 값)과는 **무관** — 그쪽은 인앱 알림, 이쪽은 outbound
+ * webhook 구독 화이트리스트다.
  */
 export const NOTIFICATION_EVENT_TYPES = [
   'execution.waiting_for_input',

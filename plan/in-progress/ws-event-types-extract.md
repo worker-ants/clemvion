@@ -1,5 +1,5 @@
 ---
-worktree: eia-r8-cache-scope-4ae434
+worktree: ws-event-types-followups-4731db
 started: 2026-08-15
 owner: developer
 branch: claude/ws-event-types-extract
@@ -305,6 +305,80 @@ ES-module 순환 위에 있어서다. 생성자의 `forwardRef` 도 같은 이�
       > 위 6개는 대조용 스냅샷이다.
       >
       > frontmatter 는 2026-08-29 확인 시점에도 `spec_impact: none` 이라 항목은 유효하다.
+      >
+      > ### 2026-08-29 (`ws-event-types-followups`) — 산출은 끝냈고, **이동이 막혔다**
+      >
+      > **① 위가 지시한 명령은 무효다.** `git diff --stat origin/main -- spec/` 는 **아무것도
+      > 출력하지 않는다**(실행 확인). 이 작업의 spec 편집은 `#1175`·`#1176` 으로 **이미
+      > origin/main 에 있어서** diff 가 빌 수밖에 없다. 완료 이동 시점에 재라는 지침 자체는
+      > 옳았지만 **비교 대상을 틀렸다** — origin/main 이 아니라 **이 plan 의 커밋들**이다.
+      >
+      > **② 실제 대상은 7개이고, 위 스냅샷은 6개였다.** 두 커밋의 합집합:
+      >
+      > | # | 파일 | 출처 |
+      > | --- | --- | --- |
+      > | 1 | `spec/3-workflow-editor/3-execution.md` | #1176 |
+      > | 2 | `spec/5-system/4-execution-engine.md` | #1176 — **스냅샷이 빠뜨린 것** |
+      > | 3 | `spec/5-system/6-websocket-protocol.md` | #1175 + #1176 |
+      > | 4 | `spec/5-system/8-embedding-pipeline.md` | #1176 |
+      > | 5 | `spec/5-system/10-graph-rag.md` | #1176 |
+      > | 6 | `spec/data-flow/0-overview.md` | #1176 |
+      > | 7 | `spec/data-flow/6-knowledge-base.md` | #1176 |
+      >
+      > 산출 명령: `git show --stat --format="" c6dd5cb89 57917975c -- spec/`.
+      > 빠졌던 `4-execution-engine.md` 는 **이 plan 이 `[x]` 로 닫은 항목**(§4.4 Rationale 한 줄)
+      > 그 자체다 — 스냅샷을 "관측" 으로 떴을 때 자기가 한 편집 하나를 못 본 것이다.
+      >
+      > **③ 이동이 실측으로 막혔다 — 이 항목이 아직 열려 있는 이유.**
+      > `git mv` 로 옮기고 링크 가드를 돌리니 RED 다:
+      >
+      > ```text
+      > [DEAD] spec/conventions/egress-masking.md:89
+      >        -> ../../plan/in-progress/ws-event-types-extract.md
+      > ```
+      >
+      > 그 캐비엇은 **내용도 이미 낡았다** — "`TerminalErrorPayload` 호출부가 전부
+      > `sanitizeErrorMessage` 를 경유하는지 아직 전수 확인되지 않았다(이 plan 의 미체크 항목).
+      > 그 확인이 끝나면 이 캐비엇을 걷는다" 인데, 그 항목은 2026-08-29 에 `[x]` 로 닫혔다
+      > (답: 경유하지 않고 그게 의도다 — `#1177` 의 `redactTerminalError` docstring 실측).
+      > 즉 **트리거는 이미 발동했고 캐비엇을 걷을 때가 됐다.**
+      >
+      > **그런데 developer 가 고칠 수 없다.** `CLAUDE.md` §자기-반증형 소정정의 조건 1
+      > ("그 문장을 developer 자신이 썼다")이 **불충족**이다 — `git blame` → `bdcfdc514`
+      > (`#1194`, `docs(conventions)`) 로 **planner 턴** 산출이다. 조건 2·3·4 는 충족으로
+      > 보이지만(예고·트리거 문장 / 실측이 반증 / 한 문단 국한) 다섯 조건은 **전부** 만족해야
+      > 하므로 예외가 성립하지 않는다.
+      >
+      > **⇒ 남은 것은 planner 턴 하나다.** 그 턴이 (a) `egress-masking.md:89` 의 캐비엇을
+      > 걷거나 링크를 `../../plan/complete/…` 로 갱신하고, (b) 같은 PR 에서 이 plan 을
+      > `complete/` 로 옮기며 아래 `spec_impact` 를 박으면 이 항목이 닫힌다:
+      >
+      > ```yaml
+      > spec_impact:
+      >   - spec/3-workflow-editor/3-execution.md
+      >   - spec/5-system/4-execution-engine.md
+      >   - spec/5-system/6-websocket-protocol.md
+      >   - spec/5-system/8-embedding-pipeline.md
+      >   - spec/5-system/10-graph-rag.md
+      >   - spec/data-flow/0-overview.md
+      >   - spec/data-flow/6-knowledge-base.md
+      > ```
+      >
+      > 이동 시 함께 갱신할 **살아있는** 인입 링크는 둘뿐이다 —
+      > `spec/conventions/egress-masking.md:89` 와
+      > `plan/in-progress/spec-sync-external-interaction-api-gaps.md:1386`.
+      > `plan/complete/**` 4건은 시점 기록이라 옛 경로 유지가 규약이다.
+      >
+      > **같은 planner 턴에 함께 볼 것 — `<도메인>EventType` 규칙이 문서에 없다**
+      > (`23_23_48` convention_compliance INFO 1). 이 모듈은 다섯 enum 이 전부 그 형태인데
+      > (`ExecutionEventType`·`NodeEventType`·`BackgroundRunEventType`·`KbEventType`·
+      > `InAppNotificationEventType`) `spec/conventions/**` 어디에도 명문화돼 있지 않다.
+      >
+      > **이게 그냥 누락이 아닌 이유**: 이번 개명에서 내가 "WS 쪽을 고친다" 를 정당화한 근거의
+      > 절반이 바로 그 규칙이었다("도메인 접두는 이 모듈 규칙 **안**이다"). 즉 **문서에 없는
+      > 규칙을 근거로 결정을 내렸다.** 다음 사람이 같은 판단을 하려면 다섯 파일을 열어 패턴을
+      > 귀납해야 한다. 한 문단이면 되고, 자리는 `6-websocket-protocol.md` Rationale 이
+      > 자연스럽다(신설 convention 문서까지는 과할 수 있다 — planner 판단).
       frontmatter 가 `none` 인데 실제로는 `spec/5-system/6-websocket-protocol.md` frontmatter
       `code:` 1줄을 바꿨다. in-progress 단계는 Gate C 의무가 아니라 지금 차단 사유는 아니지만,
       **완료 이동 시점에 실제 변경 파일 목록으로 갱신해야 Gate C 를 통과한다**
@@ -348,10 +422,49 @@ ES-module 순환 위에 있어서다. 생성자의 `forwardRef` 도 같은 이�
 
 ### 그 밖
 
-- [ ] **`NotificationEventType` 개명** — `triggers/dto/notification-config.dto.ts` 의 동명 타입과
+- [x] **`NotificationEventType` 개명** — `triggers/dto/notification-config.dto.ts` 의 동명 타입과
       충돌한다. 이번엔 disambiguation JSDoc 으로 막았고 그 주석에 "개명은 별도 항목" 이라고 썼는데,
       **정작 그 항목을 만들지 않았다** (`20_05_19` naming INFO7 이 등재 여부 확인을 요구해 발각).
       이 브랜치에서 반복된 "등재했다" 거짓의 또 한 사례라 여기 실제로 등재한다
+
+      > **완료 (2026-08-29, `ws-event-types-followups`).**
+      > `NotificationEventType` → **`InAppNotificationEventType`** (6곳: enum 선언 · 그 JSDoc
+      > `{@link}` · `websocket.service.ts` 의 import/re-export/사용 3곳 · 캐너리의
+      > `EXPECTED_EXPORTS`).
+      >
+      > **개명 대상으로 WS 쪽을 고른 근거**: (a) 저쪽(`triggers/dto`)은 EIA §3.1 EIA-NX-02 의
+      > 외부 계약(구독 화이트리스트)에 붙어 있고, (b) 이 모듈의 자매 enum 이 이미
+      > `<도메인>EventType` 규칙이라(`ExecutionEventType`·`NodeEventType`·
+      > `BackgroundRunEventType`·`KbEventType`) 도메인 접두는 그 규칙 **안**이다.
+      > **spec 은 이 이름을 인용하지 않는다**(`grep -rn NotificationEventType spec/` → 0건)
+      > → spec 변경 불요, developer 범위.
+      >
+      > facade 하위호환 걱정은 없다 — 개명 전 전수 grep 에서 `websocket.service` 를 통해
+      > 이 심볼을 가져가는 **외부 소비자가 0곳**이었다(참조 8곳 전부가 위 6곳 + 무관한
+      > `triggers/dto` 2곳).
+      >
+      > 주석도 함께 고쳤다. 종전 JSDoc 은 "같은 이름의 다른 타입이 있다 … 개명은 별도 항목"
+      > 인데, **주석은 오import 를 막지 못한다** — 자동완성이 두 심볼을 같은 이름으로 보여
+      > 주면 잘못 고른 쪽도 컴파일된다. 이름으로 가른 지금은 그 서술 자체가 낡았다.
+
+- [ ] **(작음) facade 재수출 커버리지 비대칭** — `websocket.service.ts` 가
+      `InAppNotificationEventType` 을 재수출하는데 `websocket.service.spec.ts` 가 **그것만
+      소비하지 않는다.** 그 spec 은 다른 셋(`ExecutionEventType`·`NodeEventType`·
+      `BackgroundRunEventType`)에 대해 "의도된 커버리지" 라고 **명시**하고 있어 이 값만 빈다 —
+      재수출 줄이 오탈자로 깨져도 RED 가 없다. (`23_30_12` testing INFO 2)
+
+      **fix 는 한 줄이다** — `websocket.service.spec.ts` 에서 facade(`./websocket.service`)를
+      통해 `InAppNotificationEventType` 을 import 하고
+      `expect(InAppNotificationEventType.NOTIFICATION_NEW).toBe('notification.new')` 를 단언한다.
+
+      > **이 PR 에서 안 한 이유** (숨기지 않고 적는다 — 이 세션이 계속 만난 "주장은 있는데
+      > 그걸 지키는 것이 없다" 형태라 넘기는 게 편치 않았다):
+      > - **사전 갭이다.** 개명 전에도 옛 이름으로 같은 상태였다 — 이 PR 이 만든 결함이 아니다.
+      > - **비용이 리뷰 라운드 하나다.** `codebase/**` 를 건드리면 3라운드가 강제되는데,
+      >   2라운드가 이미 **Warning 0** 으로 수렴했다. 수렴 뒤 한 줄 때문에 라운드를 다시 여는
+      >   것은 이 저장소가 기록한 "fix→리뷰 stale 루프" 를 자초하는 쪽이다.
+      > - 대신 **트리거가 아니라 즉시 실행 가능한 형태**로 적었다. 다음에 이 파일을 여는
+      >   사람이 재발견할 필요가 없다.
 - [x] `spec/3-workflow-editor/3-execution.md` frontmatter `code:` 에
       `websocket-events.types.ts` 등재 — `NodeEventType` 을 인용하면서 자매 spec
       (`6-websocket-protocol.md`)과 비대칭 (`20_05_19` cross_spec INFO2)
@@ -373,12 +486,33 @@ ES-module 순환 위에 있어서다. 생성자의 `forwardRef` 도 같은 이�
       > `- [ ] 잔여 — 자격증명 **없는** 연결 문자열·내부 호스트명·스택 프래그먼트는 여전히 통과`.
       > 여기서 열어 두면 같은 항목을 두 번 세게 되므로 포인터로 대체해 닫는다.
       (`19_27_37` INFO2 — 기존 설계이고 이번 diff 와 무관)
-- [ ] **export-default 캐너리가 `export { X as default } from` 별칭을 못 본다**
+- [x] **export-default 캐너리가 `export { X as default } from` 별칭을 못 본다**
       (`22_13_48` INFO2). **방어는 완전하고 캐너리만 좁다** — 진짜 방어선인 세 번째 테스트가
       `import D from '…'` 를 default 바인딩 값 간선으로 잡는다(형태별 뮤테이션 "default 단독"
-      RED 로 실증). 자기점검의 완전성만 남은 문제라 라운드를 하나 더 도는 값을 못 한다
-- [ ] `ts.getModifiers(st as ts.HasModifiers)` → `ts.canHaveModifiers(st)` 가드
+      RED 로 실증). ~~자기점검의 완전성만 남은 문제라 라운드를 하나 더 도는 값을 못 한다~~
+- [x] `ts.getModifiers(st as ts.HasModifiers)` → `ts.canHaveModifiers(st)` 가드
       (`22_13_48` INFO3 — 순수 스타일, 런타임 위험 없음)
+
+      > **둘 다 완료 (2026-08-29, `ws-event-types-followups`).** 판정을 `hasDefaultExport()`
+      > 헬퍼로 빼고 **세 형태를 표로 소진**했다(`ExportAssignment` / modifier `default` /
+      > `NamedExports` 의 `as default` 별칭). 캐스트도 `canHaveModifiers` 가드로 교체 —
+      > 두 항목이 같은 다섯 줄이라 함께 닫는 게 자연스러웠다.
+      >
+      > **"라운드를 더 도는 값을 못 한다" 는 판단을 뒤집었다.** 그 판단은 이 항목만 따로 볼
+      > 때의 값이고, 지금은 자매 항목 둘 때문에 어차피 이 파일을 만지므로 **한계비용이 0**이다.
+      > 유예 근거가 "가치가 없다" 가 아니라 "**비용 대비** 가치가 없다" 였으므로, 비용이
+      > 사라지면 근거도 사라진다.
+      >
+      > | 뮤턴트 | 예측 | 실측 |
+      > | --- | --- | --- |
+      > | types 모듈 끝에 `export { NodeEventType as default };` | RED | **RED 1** (default 캐너리) |
+      > | ↑ 그대로 두고 새 별칭 절만 제거 (= **종전 캐너리 재현**) | GREEN (갭 실증) | **6/6 GREEN** |
+      > | `channel-authorizer.ts` 에 `import Svc from './websocket.service'` | RED | **RED 1** (eager 값 간선) |
+      > | `EXPECTED_EXPORTS` 만 옛 이름으로 되돌림 | RED | **RED 1** (export 열거) |
+      >
+      > 두 번째 줄이 이 항목의 실증이다 — **종전 캐너리는 별칭 형태를 통과시켰다.**
+      > 세 번째 줄은 위 본문이 "진짜 방어선" 이라고 주장한 것을 **인용이 아니라 실측으로**
+      > 확인한 것이다(주장을 물려받지 않았다).
 
 > **CHANGELOG 항목은 불필요하다 — 다만 근거를 정정한다** (`22_13_48` INFO1). 이전 리뷰
 > 3라운드가 "이 저장소는 `CHANGELOG.md` 를 쓰지 않는다" 를 근거로 써 왔는데 거짓이다

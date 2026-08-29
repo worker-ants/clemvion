@@ -56,7 +56,7 @@ const EXPECTED_EXPORTS = [
   'ToolCallCompletedPayload',
   'NodeEventType',
   'BackgroundRunEventType',
-  'NotificationEventType',
+  'InAppNotificationEventType',
   'NotificationNewPayload',
   'KbEventType',
 ];
@@ -157,6 +157,40 @@ function exportLeavesValueEdge(decl: ts.ExportDeclaration): boolean {
   if (!clause) return true; // `export * from`
   if (ts.isNamespaceExport(clause)) return true; // `export * as ns from`
   return namedBindingValueNames(clause).length > 0;
+}
+
+/**
+ * 이 statement 가 default export 를 만드는가 — **세 형태 전부**를 본다.
+ *
+ * | 형태 | AST |
+ * |---|---|
+ * | `export default X` · `export = X` | `ExportAssignment` |
+ * | `export default function f() {}` · `export default class C {}` | modifier `default` |
+ * | `export { X as default }` · `export { X as default } from '…'` | `ExportDeclaration` 의 `NamedExports` 에 `default` 로 개명하는 specifier |
+ *
+ * **세 번째가 종전에 빠져 있었다** (`22_13_48` INFO2). 앞의 둘만 보면 별칭 형태가 통과해,
+ * "이 모듈에는 default export 가 없다" 는 전제를 캐너리가 **지키지 못한 채 초록**이었다.
+ * 방어 자체는 그때도 완전했다(진짜 방어선은 `import D from '…'` 를 값 간선으로 잡는 아래
+ * 테스트다) — 무너져 있던 것은 **자기점검의 완전성**이다.
+ *
+ * `ts.canHaveModifiers` 로 좁힌 뒤 `getModifiers` 를 부른다. 종전의
+ * `getModifiers(st as ts.HasModifiers)` 는 modifier 를 가질 수 없는 노드에도 캐스트로
+ * 밀어 넣는 형태라, 타입이 실제 계약을 반영하지 못했다(`22_13_48` INFO3).
+ */
+function hasDefaultExport(st: ts.Statement): boolean {
+  if (ts.isExportAssignment(st)) return true;
+  if (
+    ts.canHaveModifiers(st) &&
+    ts.getModifiers(st)?.some((m) => m.kind === ts.SyntaxKind.DefaultKeyword)
+  ) {
+    return true;
+  }
+  return (
+    ts.isExportDeclaration(st) &&
+    st.exportClause !== undefined &&
+    ts.isNamedExports(st.exportClause) &&
+    st.exportClause.elements.some((el) => el.name.text === 'default')
+  );
 }
 
 /** 함수 안에 있으면 lazy — 모듈 평가 시점에 실행되지 않는다. */
@@ -320,13 +354,7 @@ describe('websocket-events.types — ES-module 순환 재편입 방지 (#1174 �
       TYPES_FILE,
       path.join(WS_DIR, 'websocket.service.ts'),
     ]) {
-      const hasDefault = parse(file).statements.some(
-        (st) =>
-          ts.isExportAssignment(st) ||
-          ts
-            .getModifiers(st as ts.HasModifiers)
-            ?.some((m) => m.kind === ts.SyntaxKind.DefaultKeyword),
-      );
+      const hasDefault = parse(file).statements.some(hasDefaultExport);
       expect({ file: path.basename(file), hasDefault }).toEqual({
         file: path.basename(file),
         hasDefault: false,
@@ -394,5 +422,40 @@ describe('websocket-events.types — ES-module 순환 재편입 방지 (#1174 �
     );
 
     expect(offenders).toEqual([]);
+  });
+});
+
+/**
+ * `hasDefaultExport` 세 형태 + 음성을 **합성 소스**로 직접 검증한다.
+ *
+ * `22_13_48` WARNING1 — 세 번째 분기(`export { X as default }` 별칭)를 뮤테이션(술어를
+ * 절대 불일치로 교체)으로 검증했지만 그건 임시 사본에서였고 되돌려졌다 — 영구 테스트로
+ * 남지 않았다. 위 describe 의 "두 모듈 어디에도 `export default` 가 없다" 캐너리는
+ * **항상 음성** 케이스만 통과시키므로, 이 분기가 다시 깨져도(예: 세 번째 조건이 `false` 로
+ * 뭉개져도) 그 캐너리는 못 잡는다. 여기서는 실제 파일이 아니라 `ts.createSourceFile` 로
+ * 만든 합성 소스에 `hasDefaultExport` 를 직접 먹여, 양성 3형태 + 음성 2형태를 테이블로
+ * 고정한다 — 저장소 상태와 무관하게 항상 돈다. 음성이 없으면 `return true` 로 뭉갠
+ * 뮤턴트가 살아남으므로 반드시 함께 둔다.
+ */
+describe('hasDefaultExport — 합성 소스 테이블', () => {
+  it.each<[string, string, boolean]>([
+    ['export default X;', 'ExportAssignment', true],
+    ['export default function f() {}', 'default modifier', true],
+    ['export { X as default };', 'NamedExports 별칭', true],
+    [
+      "export { X as default } from './m';",
+      'NamedExports 별칭 (from 절)',
+      true,
+    ],
+    ['export { X };', '일반 named export', false],
+    ['export const X = 1;', 'default 아닌 값 선언', false],
+  ])('%s (%s) → hasDefault=%s', (source, _label, expected) => {
+    const sf = ts.createSourceFile(
+      't.ts',
+      source,
+      ts.ScriptTarget.Latest,
+      /* setParentNodes */ true,
+    );
+    expect(sf.statements.some(hasDefaultExport)).toBe(expected);
   });
 });
