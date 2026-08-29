@@ -6,6 +6,23 @@ import {
 import { ExecutionContext } from '../../core/node-handler.interface.js';
 import { createEmptyConversationThread } from '../../../shared/conversation-thread/conversation-thread.types';
 
+/**
+ * reject 된 예외를 잡아 돌려준다. **vacuity 방지 단언을 품고 있다** — reject 하지 않으면
+ * `.cause` 가 `undefined` 라 뒤따르는 단언이 전부 조용히 통과해 버린다. 그 함정이
+ * `cause` 관련 케이스마다 반복되므로 여기 한 곳에만 둔다(형제
+ * `expression-resolver.service.spec.ts` 에 동기 버전이 있다).
+ */
+async function captureRejected(fn: () => Promise<unknown>): Promise<Error> {
+  let thrown: unknown;
+  try {
+    await fn();
+  } catch (err) {
+    thrown = err;
+  }
+  expect(thrown).toBeInstanceOf(Error);
+  return thrown as Error;
+}
+
 describe('CodeHandler', () => {
   let handler: CodeHandler;
   let context: ExecutionContext;
@@ -203,19 +220,10 @@ describe('CodeHandler', () => {
     // own property 가 `message`/`stack` 뿐이라 민감 정보가 붙지 않는다(실측 근거는
     // `code.handler.ts` 의 같은 주석).
     it('원본 컴파일 예외를 `cause` 로 보존한다 (cause 제거 시 RED)', async () => {
-      let thrown: unknown;
-      try {
-        await handler.execute(
-          null,
-          { code: 'this is ( not valid js' },
-          context,
-        );
-      } catch (err) {
-        thrown = err;
-      }
-      // vacuity 방지 — reject 하지 않으면 아래 단언이 전부 통과해 버린다.
-      expect(thrown).toBeInstanceOf(Error);
-      const cause = (thrown as Error).cause;
+      const thrown = await captureRejected(() =>
+        handler.execute(null, { code: 'this is ( not valid js' }, context),
+      );
+      const cause = thrown.cause;
       // `toBeInstanceOf(Error)` 를 쓰지 않는다. 다만 그 이유는 **isolate 경계가 아니라
       // Jest 의 realm** 이다 — 종전 주석은 "`isolated-vm` 이 자기 realm 에서 만들어
       // 호스트의 `Error.prototype` 을 상속하지 않는다" 고 적었는데, 2026-08-29 실측이
@@ -231,7 +239,7 @@ describe('CodeHandler', () => {
       // 두 곳의 단언 형태가 다른 이유가 이것이고, 통일하려다 이 사실을 지우면 안 된다.
       expect(cause).toBeDefined();
       expect(typeof (cause as Error).message).toBe('string');
-      expect((thrown as Error).message).toContain((cause as Error).message);
+      expect(thrown.message).toContain((cause as Error).message);
     });
 
     // C2 캐너리 — 형제 `expression-resolver.service.spec.ts` 와 같은 축(enumerable own key).
@@ -242,19 +250,10 @@ describe('CodeHandler', () => {
     // `isolated-vm` 이 호스트로 넘겨 주는 것은 표준 `Error` 모양뿐이고 부가 속성이 없다.
     // 상류가 진단 필드(예: 소스 경로·isolate 식별자)를 얹기 시작하면 이 단언이 RED 로 알린다.
     it('C2 캐너리 — `cause` 에 enumerable own 속성이 하나도 붙지 않는다', async () => {
-      let thrown: unknown;
-      try {
-        await handler.execute(
-          null,
-          { code: 'this is ( not valid js' },
-          context,
-        );
-      } catch (err) {
-        thrown = err;
-      }
-      // vacuity 방지 — reject 하지 않으면 `cause` 가 undefined 라 `Object.keys` 가 던진다.
-      expect(thrown).toBeInstanceOf(Error);
-      const cause = (thrown as Error).cause;
+      const thrown = await captureRejected(() =>
+        handler.execute(null, { code: 'this is ( not valid js' }, context),
+      );
+      const cause = thrown.cause;
       expect(cause).toBeDefined();
 
       expect(Object.keys(cause as object)).toEqual([]);

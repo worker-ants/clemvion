@@ -423,14 +423,38 @@ eslint 9 는 이미 `maintenance` dist-tag 다(2026-08-01 실측: latest = 10.8.
         >       → **완료 (2026-08-29, `#1233`)**. 캐너리 2건, 축은 **enumerable** own key 다
         >       (C2 가 막으려는 것이 직렬화에 딸려 나오는 값이고 `JSON.stringify`·spread 는
         >       enumerable 만 본다. 표준 `message`/`stack` 은 non-enumerable 이라 안 잡히는 게 맞다).
-        >       화이트리스트는 실측이다 — `evaluate()` 를 4개 오류 종류로 직접 호출해
-        >       `ExpressionError` 계열 전부 `['name','code','position']`, `isolated-vm` 컴파일
-        >       예외는 `[]`. 키 이름만 잠그면 "같은 키에 민감한 값" 을 놓치므로 `code`(EXPR_ enum)·
-        >       `position`(정수) 의 **모양**도 함께 고정했다.
+        >       화이트리스트는 실측이다 — `evaluate()` 를 직접 호출해 `ExpressionError` 의
+        >       **세 하위 클래스**(`Syntax`·`Reference`·`Type`) 전부 `['name','code','position']`,
+        >       `isolated-vm` 컴파일 예외는 `[]`. 키 이름만 잠그면 "같은 키에 민감한 값" 을
+        >       놓치므로 `code`(EXPR_ enum)·`position`(정수) 의 **모양**도 함께 고정했다.
         >
-        >       뮤테이션 5/5 RED (예측과 전부 일치). 그중 결정적인 것: 민감 속성을 붙이는
-        >       M1·M2 가 **정확히 1건씩만** 실패했다 — 기존 테스트로는 이 클래스를 전혀 못
-        >       잡았다는 실증이다. `cause: err` 제거(M4·M5)는 2건씩 실패했다.
+        >       뮤테이션 5/5 RED (예측과 전부 일치):
+        >
+        >       | 뮤턴트 | 내용 | 실측 |
+        >       |---|---|---|
+        >       | M1 | `ExpressionError` 에 `connectionString` 이 붙는다 | RED — 1 failed / 45 |
+        >       | M2 | isolated-vm cause 에 `isolateSourcePath` 가 붙는다 | RED — 1 failed / 90 |
+        >       | M3 | 캐너리 화이트리스트에서 `position` 제거 (캐너리 자기 유효성) | RED — 1 failed / 45 |
+        >       | M4 | expression 의 `cause: err` 제거 | RED — 2 failed / 45 |
+        >       | M5 | code.handler 의 `cause: err` 제거 | RED — 2 failed / 90 |
+        >
+        >       결정적인 것은 M1·M2 가 **정확히 1건씩만** 실패했다는 점이다 — 실패한 그 1건이
+        >       방금 넣은 캐너리이고, 기존 44/89건은 민감 속성이 붙어도 전부 GREEN 이었다.
+        >
+        >       **리뷰가 이 항목의 정량 주장 두 개를 잡았다 (`11_58_35`, WARNING #1·#2).**
+        >       (a) "4개 오류 종류" 는 틀렸다 — 호출은 4건이었지만 그중 둘이 같은 클래스라
+        >       **클래스는 3개**다. (b) "5/5" 라 써 놓고 본문은 M1·M2·M4·M5 넷만 서술해
+        >       M3 가 어디에도 없었다. 위 표로 둘 다 고쳤다.
+        >
+        >       (c) 같은 WARNING 이 더 중요한 것을 짚었다 — **캐너리가 실제로 지나가는 것은
+        >       syntax 한 종류뿐**이었다. 나머지 둘에 민감 속성이 붙어도 GREEN 이다. `it.each`
+        >       로 세 클래스를 각각 실행 경로로 지나가게 넓혔고, fixture 가 정말 서로 다른
+        >       클래스로 갈라지는지도 `cause.name` 으로 함께 단언한다(안 그러면 세 번 도는
+        >       것이 커버리지가 아니라 착시다). 137 tests 통과.
+        >
+        >       WARNING #3(캡처 보일러플레이트 반복)도 함께 처리 — 두 spec 에
+        >       `captureThrown`/`captureRejected` 로 추출했다. vacuity 방지 단언을 헬퍼가
+        >       품으므로 그 함정 설명이 케이스마다 복제되지 않는다.
         >
         >       **프로브가 한 번 나를 속였다**: 첫 측정이 존재하지 않는 export
         >       (`evaluateExpression`)를 불러 host `TypeError` 를 재고 `keys=[]` 라는 엉뚱한
@@ -459,6 +483,18 @@ eslint 9 는 이미 `maintenance` dist-tag 다(2026-08-01 실측: latest = 10.8.
         >
         > 남은 것은 **`cause` 비노출 계측 지점 1건**이다(위 두 번째 항목). 표면이 달라
         > (`GlobalExceptionFilter`) 별건으로 둔다.
+        >
+        > 여기에 `#1233` 리뷰(`11_58_35`)의 INFO 2건을 **다음에 그 파일을 열 때** 항목으로
+        > 더한다. 둘 다 spec-linked 파일이라 주석 한 줄에 게이트 두 종이 재무장된다
+        > (§수렴 예외 (a)(b)(c)(d)):
+        >
+        > - [ ] (작음) `secret-resolver.service.ts` 의 "형제 3곳" → **4곳** — C1/C2 를 함께
+        >       서술하는 형제 지점은 `expression-resolver.service.ts`/`.spec.ts` ·
+        >       `code.handler.ts`/`.spec.ts` 로 넷이다 (리뷰 INFO #3).
+        > - [ ] (작음) "축이 enumerable own key 인 이유" 설명이 두 spec 에 거의 같은 문장으로
+        >       중복돼 있다 — 한쪽이 다른 쪽을 참조하게 하거나 §6.3.1 Rationale 에 한 줄로
+        >       단일화 (리뷰 INFO #4). **이 PR 이 고치려던 drift 와 같은 형태**라 방치하면
+        >       같은 자리에서 또 갈린다.
       > **(등재 당시 기록) 왜 그 턴에 안 고쳤나** — developer SKILL §수렴 예외 (a)+(b)+(c)+(d) 충족.
       > (a) 동작 결함이 아니다: 두 경로 모두 `cause` 부착이 안전함을 `security`·
       > `rationale_continuity` 두 리뷰어가 **독립적으로 실측 확인**했다(다운스트림에서

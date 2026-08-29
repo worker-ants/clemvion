@@ -17,6 +17,22 @@ function makeNode(id: string, label: string, type = 'http_request'): Node {
   return node;
 }
 
+/**
+ * 던져진 예외를 잡아 돌려준다. **vacuity 방지 단언을 품고 있다** — 아무것도 던지지
+ * 않으면 `.cause` 가 `undefined` 라 뒤따르는 단언이 전부 조용히 통과해 버린다.
+ * 그 함정이 `cause` 관련 케이스마다 반복되므로 여기 한 곳에만 둔다.
+ */
+function captureThrown(fn: () => unknown): Error {
+  let thrown: unknown;
+  try {
+    fn();
+  } catch (err) {
+    thrown = err;
+  }
+  expect(thrown).toBeInstanceOf(Error);
+  return thrown as Error;
+}
+
 describe('ExpressionResolverService', () => {
   let service: ExpressionResolverService;
   let envAllowlist: string | undefined;
@@ -145,20 +161,14 @@ describe('ExpressionResolverService', () => {
     // `code`/`position` 을 갖는다.
     // 반대 사례(비부착)는 `SecretResolverService.resolve` 이고 §6.3.1 이 그것을 지목한다.
     it('원본 예외를 `cause` 로 보존한다 (cause 제거 시 RED)', () => {
-      const config = { url: '{{ $input. }}' };
-      let thrown: unknown;
-      try {
-        service.resolveConfig(config, baseContext);
-      } catch (err) {
-        thrown = err;
-      }
-      // vacuity 방지 — 아무것도 안 던지면 아래 단언이 전부 통과해 버린다.
-      expect(thrown).toBeInstanceOf(Error);
-      const cause = (thrown as Error).cause;
+      const thrown = captureThrown(() =>
+        service.resolveConfig({ url: '{{ $input. }}' }, baseContext),
+      );
+      const cause = thrown.cause;
       expect(cause).toBeInstanceOf(Error);
       // 감싼 message 가 원본 message 를 실제로 포함한다 — 이것이 "cause 가 새 정보를
       // 노출하지 않는다" 는 위 근거의 실측이다.
-      expect((thrown as Error).message).toContain((cause as Error).message);
+      expect(thrown.message).toContain((cause as Error).message);
     });
 
     // C2 캐너리 — §6.3.1 의 C2("message·name 밖의 **민감** 정보를 속성으로 갖지 않는다")를
@@ -170,34 +180,44 @@ describe('ExpressionResolverService', () => {
     // `JSON.stringify` 와 object spread 는 enumerable 만 본다. 표준 `message`/`stack` 은
     // own 이지만 non-enumerable 이라 여기 안 잡히는 것이 맞다.
     //
-    // 화이트리스트는 실측이다 (2026-08-29, `evaluate()` 를 4개 오류 종류로 직접 호출):
-    // `ExpressionSyntaxError`·`ExpressionReferenceError`·`ExpressionTypeError` 전부
-    // `['name','code','position']` — `code` 는 `ErrorCode` enum 문자열, `position` 은 입력
-    // 문자열 안의 정수 오프셋이라 둘 다 비민감이다.
-    it('C2 캐너리 — `cause` 의 enumerable own key 가 비민감 화이트리스트를 벗어나지 않는다', () => {
-      const config = { url: '{{ $input. }}' };
-      let thrown: unknown;
-      try {
-        service.resolveConfig(config, baseContext);
-      } catch (err) {
-        thrown = err;
-      }
-      // vacuity 방지 — 안 던지면 `cause` 가 undefined 라 아래가 통과해 버린다.
-      expect(thrown).toBeInstanceOf(Error);
-      const cause = (thrown as Error).cause as Error;
-      expect(cause).toBeInstanceOf(Error);
+    // 화이트리스트는 실측이다 (2026-08-29): `ExpressionError` 의 **세 하위 클래스 전부**가
+    // `['name','code','position']` 이고, `code` 는 `ErrorCode` enum 문자열, `position` 은
+    // 입력 문자열 안의 정수 오프셋이라 둘 다 비민감이다.
+    //
+    // 세 클래스를 **각각 실제 실행 경로로** 지나간다. 한 종류만 지나가면 나머지 둘에
+    // 민감 속성이 붙어도 GREEN 이다 — 첫 버전이 정확히 그 상태였고 리뷰가 잡았다.
+    // fixture 가 정말로 서로 다른 클래스로 갈라지는지도 `cause.name` 으로 함께 단언한다.
+    // 그러지 않으면 세 번 도는 것이 커버리지가 아니라 착시가 된다.
+    it.each([
+      ['ExpressionSyntaxError', '{{ $input. }}', 'EXPR_SYNTAX_ERROR'],
+      [
+        'ExpressionReferenceError',
+        '{{ $input.nonExistent.deep }}',
+        'EXPR_REFERENCE_ERROR',
+      ],
+      ['ExpressionTypeError', '{{ $input.count.b.c }}', 'EXPR_TYPE_ERROR'],
+    ])(
+      'C2 캐너리 — %s 의 `cause` enumerable own key 가 비민감 화이트리스트를 벗어나지 않는다',
+      (className, expression, expectedCode) => {
+        const thrown = captureThrown(() =>
+          service.resolveConfig({ url: expression }, baseContext),
+        );
+        const cause = thrown.cause as Error;
+        expect(cause).toBeInstanceOf(Error);
+        // fixture 판별력 — 셋이 같은 분기로 무너지면 위 `it.each` 가 무의미해진다.
+        expect(cause.name).toBe(className);
 
-      expect(Object.keys(cause).sort()).toEqual(['code', 'name', 'position']);
+        expect(Object.keys(cause).sort()).toEqual(['code', 'name', 'position']);
 
-      // 키 이름만 잠그면 "같은 키에 민감한 값이 실린다" 는 변형을 놓친다. 두 값의 **모양**도
-      // 함께 고정한다 — `code` 는 `EXPR_` 접두 enum, `position` 은 정수(또는 미설정).
-      const shape = cause as unknown as { code: unknown; position: unknown };
-      expect(typeof shape.code).toBe('string');
-      expect(shape.code as string).toMatch(/^EXPR_[A-Z_]+$/);
-      expect(
-        shape.position === undefined || Number.isInteger(shape.position),
-      ).toBe(true);
-    });
+        // 키 이름만 잠그면 "같은 키에 민감한 값이 실린다" 는 변형을 놓친다. 두 값의
+        // **모양**도 함께 고정한다 — `code` 는 `EXPR_` 접두 enum, `position` 은 정수.
+        const shape = cause as unknown as { code: unknown; position: unknown };
+        expect(shape.code).toBe(expectedCode);
+        expect(
+          shape.position === undefined || Number.isInteger(shape.position),
+        ).toBe(true);
+      },
+    );
 
     it('coerces mixed text + expression to string', () => {
       const config = { message: 'Items: {{ $input.count }}' };
