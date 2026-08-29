@@ -56,6 +56,31 @@ interface IdempotencyEntry {
 }
 
 /**
+ * `intercept()` 가 계산해 둔 요청 축 — {@link IdempotencyInterceptor.resolveCacheHit} 가
+ * 판정에 쓰는 전부다.
+ *
+ * **개별 인자 5개로 늘어놓지 않는 이유는 읽기 쉬움이지 안전이 아니다.** `redisKey` 와
+ * `bodyHash` 가 둘 다 `string` 이라 위치 인자였다면 순서가 뒤바뀌어도 타입이 못 잡는 것은
+ * 맞다. 그러나 그 실수는 조용하지 않다 — 두 필드를 서로 바꿔 넣은 뮤턴트를 실제로 주입해
+ * 보니 이 클래스의 spec 테스트 **13개가 죽었다**(키 스코프 3축 · 캐시 재현 · 손상 강등 ·
+ * `payload_corrupt` 계측). 적재 키와 조회 키를 단언하는 테스트들이 이미 그 자리를 문다.
+ *
+ * 그러니 여기에 "타입이 막아 준다" 는 근거를 붙이지 말 것 — 실측이 그 근거를 반증했다.
+ * 남는 값은 호출부(`{ redisKey, bodyHash, context, next }`)가 무엇을 넘기는지 이름으로
+ * 읽힌다는 것뿐이고, 그것으로 충분하다.
+ */
+interface CacheLookup {
+  /** `<prefix><executionId>:<route>:<key>` — 조회와 적재가 같은 키를 쓴다. */
+  redisKey: string;
+  /** 이번 요청 body 의 SHA-256 — 캐시 엔트리의 것과 달라지면 `409`. */
+  bodyHash: string;
+  /** 응답 상태코드 재현(`res.status()`)과 적재 시 상태코드 판독에 쓴다. */
+  context: ExecutionContext;
+  /** 캐시를 못 쓸 때 흘려보낼 원 핸들러. */
+  next: CallHandler;
+}
+
+/**
  * [Spec EIA §3.2 EIA-IN-11 / §R8] — Idempotency-Key 처리.
  *
  * - 클라이언트가 `Idempotency-Key` 헤더를 보내면 첫 응답을 Redis 에 24h 캐시.
@@ -161,76 +186,111 @@ export class IdempotencyInterceptor implements NestInterceptor {
         this.metrics?.recordRedisFailOpen(METRICS_COMPONENT, 'get_failed');
         return of(null);
       }),
-      switchMap((cachedJson) => {
-        // 캐시를 못 쓰는 모든 경우의 공통 처리 — 신규 처리 후 적재. 캐시 미스 · 엔트리 손상 ·
-        // payload 손상 세 자리가 같은 동작이라 한 곳에 둔다.
-        const processFresh = () =>
-          next.handle().pipe(this.cacheTapped(redisKey, bodyHash, context));
-
-        if (!cachedJson) return processFresh();
-
-        let parsed: unknown;
-        try {
-          parsed = JSON.parse(cachedJson);
-        } catch (err) {
-          return this.discardCorruptEntry('엔트리', err, processFresh);
-        }
-        // **`try/catch` 만으로는 부족하다 — `JSON.parse` 는 문법 오류에만 던진다.**
-        // `'null'`·`'42'`·`'[]'` 는 전부 **유효한 JSON** 이라 통과한 뒤 아래에서 필드를 읽는다.
-        // 그중 `'null'` 은 `cached.bodyHash` 에서 `TypeError` 를 내고, 그 예외가
-        // `GlobalExceptionFilter` 까지 올라가 **500** 이 된다 — 이 클래스가 없애려는 바로 그
-        // 실패 형태다(무수정 프로브 실측: `'null'`→TypeError / `'42'`·`'[]'`·`'"str"'`→409).
-        // 형태를 명시로 검사한다. truthiness 나 `typeof === 'object'` 만으로는 배열·필드 누락이
-        // 그대로 통과한다.
-        if (!isIdempotencyEntry(parsed)) {
-          return this.discardCorruptEntry(
-            '엔트리',
-            `형태 불일치 (${describeShape(parsed)})`,
-            processFresh,
-          );
-        }
-        const cached: IdempotencyEntry = parsed;
-
-        // **bodyHash 판정은 payload 파싱보다 먼저다.** payload 가 깨졌든 아니든 "이 키가 이미
-        // 다른 body 로 쓰였다" 는 사실은 그대로다 — 순서를 바꾸면 손상된 엔트리에서 409 가
-        // 조용히 사라지고 두 번째 body 가 새 응답을 받는다.
-        if (cached.bodyHash !== bodyHash) {
-          throw new ConflictException({
-            error: {
-              code: 'IDEMPOTENCY_KEY_CONFLICT',
-              message: 'Idempotency-Key 가 이미 다른 body 와 사용되었습니다.',
-            },
-          });
-        }
-
-        // **엔트리 안쪽 `responseJson` 도 깨질 수 있다.** 종전에는 바깥 JSON 만 `try/catch` 로
-        // 막고 이 파싱은 재현 분기 두 자리에서 맨몸으로 했다 — 깨져 있으면 그 `SyntaxError` 가
-        // 그대로 올라가 `GlobalExceptionFilter` 가 **500 으로 마스킹**했다. 캐시 손상이 요청
-        // 실패가 되는 것은 이 인터셉터의 fail-open 원칙과 반대다. 한 번만 파싱해 그 자리에
-        // 방어를 둔다(재현 분기의 `JSON.parse` 중복도 함께 사라진다).
-        let cachedPayload: unknown;
-        try {
-          cachedPayload = JSON.parse(cached.responseJson);
-        } catch (err) {
-          return this.discardCorruptEntry('payload', err, processFresh);
-        }
-
-        // 같은 key + 같은 body — 캐시된 응답 그대로 반환.
-        //
-        // **`409`·`410` 은 예외로 재현해야 한다.** 그 둘은 애초에 `ConflictException`/
-        // `GoneException` 으로 던져져 캐시된 것이라, 성공 채널로 돌려주면 클라이언트가
-        // 202 로 받는다 — 재현이 아니라 상태코드 왜곡이다.
-        if (isErrorStatusCacheable(cached.statusCode)) {
-          throw new HttpException(
-            cachedPayload as Record<string, unknown>,
-            cached.statusCode,
-          );
-        }
-        const res = context.switchToHttp().getResponse<HttpResponseLike>();
-        if (typeof res.status === 'function') res.status(cached.statusCode);
-        return of(cachedPayload);
-      }),
+      switchMap((cachedJson) =>
+        this.resolveCacheHit(cachedJson, { redisKey, bodyHash, context, next }),
+      ),
     );
+  }
+
+  /**
+   * 캐시 조회 결과 한 건을 응답으로 판정한다 — **일곱 갈래**다.
+   *
+   * | # | 조건 | 결과 |
+   * |---|---|---|
+   * | 1 | 캐시 미스 (`null`) | 신규 처리 후 적재 |
+   * | 2 | 엔트리 문법 손상 (`JSON.parse` throw) | 버리고 신규 처리 (warn) |
+   * | 3 | 엔트리 형태 불일치 (`'null'`·`'42'`·`'[]'`) | 버리고 신규 처리 (warn) |
+   * | 4 | `bodyHash` 불일치 | `409 IDEMPOTENCY_KEY_CONFLICT` |
+   * | 5 | `responseJson` 손상 | 버리고 신규 처리 (warn) |
+   * | 6 | 캐시된 상태코드가 `409`·`410` | **예외 채널로** 재현 |
+   * | 7 | 그 밖 (= `2xx`) | 성공 채널로 재현 |
+   *
+   * `intercept()` 의 `switchMap` 본문이었다. 앞선 두 라운드(`23_24_08`·`23_36_13`)가 "여섯
+   * 번째 분기가 생기면 재검토" 로 유예했는데 일곱 번째(3 · 엔트리 형태 불일치)가 더해지며 그
+   * 트리거가 발동했다. 이제 `intercept()` 는 **"캐시를 쓸 수 있는 요청인가"** 까지만 보고
+   * (키 · execution ctx · Redis 가용성), **"찾은 것으로 무엇을 하는가"** 는 전부 여기 있다.
+   *
+   * **`switchMap` 의 project 함수 *안에서* 불러야 한다.** 4·6 은 값을 돌려주는 대신
+   * `throw` 하는데, 그 자리이기 때문에 RxJS 가 출력 스트림의 error 알림으로 바꿔 준다.
+   * `intercept()` 본문으로 끌어올리면 같은 `throw` 가 Observable 이 만들어지기도 전에 터져
+   * 파이프라인 **밖**의 동기 예외가 된다.
+   *
+   * 그 채널은 실측으로 고정돼 있다 — 4 를 성공 채널(`of(...)`)로 바꾼 뮤턴트에 **4개**,
+   * 6 을 성공 채널로 바꾼 뮤턴트에 **2개**의 spec 테스트가 죽는다. 재현이 아니라 상태코드
+   * 왜곡이 되는 형태라(§R8) 이 둘은 값으로 돌려주면 안 된다.
+   */
+  private resolveCacheHit(
+    cachedJson: string | null,
+    lookup: CacheLookup,
+  ): Observable<unknown> {
+    const { redisKey, bodyHash, context, next } = lookup;
+    // 캐시를 못 쓰는 모든 경우의 공통 처리 — 신규 처리 후 적재. 캐시 미스 · 엔트리 손상 ·
+    // payload 손상 세 자리가 같은 동작이라 한 곳에 둔다.
+    const processFresh = () =>
+      next.handle().pipe(this.cacheTapped(redisKey, bodyHash, context));
+
+    if (!cachedJson) return processFresh();
+
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(cachedJson);
+    } catch (err) {
+      return this.discardCorruptEntry('엔트리', err, processFresh);
+    }
+    // **`try/catch` 만으로는 부족하다 — `JSON.parse` 는 문법 오류에만 던진다.**
+    // `'null'`·`'42'`·`'[]'` 는 전부 **유효한 JSON** 이라 통과한 뒤 아래에서 필드를 읽는다.
+    // 그중 `'null'` 은 `cached.bodyHash` 에서 `TypeError` 를 내고, 그 예외가
+    // `GlobalExceptionFilter` 까지 올라가 **500** 이 된다 — 이 클래스가 없애려는 바로 그
+    // 실패 형태다(무수정 프로브 실측: `'null'`→TypeError / `'42'`·`'[]'`·`'"str"'`→409).
+    // 형태를 명시로 검사한다. truthiness 나 `typeof === 'object'` 만으로는 배열·필드 누락이
+    // 그대로 통과한다.
+    if (!isIdempotencyEntry(parsed)) {
+      return this.discardCorruptEntry(
+        '엔트리',
+        `형태 불일치 (${describeShape(parsed)})`,
+        processFresh,
+      );
+    }
+    const cached: IdempotencyEntry = parsed;
+
+    // **bodyHash 판정은 payload 파싱보다 먼저다.** payload 가 깨졌든 아니든 "이 키가 이미
+    // 다른 body 로 쓰였다" 는 사실은 그대로다 — 순서를 바꾸면 손상된 엔트리에서 409 가
+    // 조용히 사라지고 두 번째 body 가 새 응답을 받는다.
+    if (cached.bodyHash !== bodyHash) {
+      throw new ConflictException({
+        error: {
+          code: 'IDEMPOTENCY_KEY_CONFLICT',
+          message: 'Idempotency-Key 가 이미 다른 body 와 사용되었습니다.',
+        },
+      });
+    }
+
+    // **엔트리 안쪽 `responseJson` 도 깨질 수 있다.** 종전에는 바깥 JSON 만 `try/catch` 로
+    // 막고 이 파싱은 재현 분기 두 자리에서 맨몸으로 했다 — 깨져 있으면 그 `SyntaxError` 가
+    // 그대로 올라가 `GlobalExceptionFilter` 가 **500 으로 마스킹**했다. 캐시 손상이 요청
+    // 실패가 되는 것은 이 인터셉터의 fail-open 원칙과 반대다. 한 번만 파싱해 그 자리에
+    // 방어를 둔다(재현 분기의 `JSON.parse` 중복도 함께 사라진다).
+    let cachedPayload: unknown;
+    try {
+      cachedPayload = JSON.parse(cached.responseJson);
+    } catch (err) {
+      return this.discardCorruptEntry('payload', err, processFresh);
+    }
+
+    // 같은 key + 같은 body — 캐시된 응답 그대로 반환.
+    //
+    // **`409`·`410` 은 예외로 재현해야 한다.** 그 둘은 애초에 `ConflictException`/
+    // `GoneException` 으로 던져져 캐시된 것이라, 성공 채널로 돌려주면 클라이언트가
+    // 202 로 받는다 — 재현이 아니라 상태코드 왜곡이다.
+    if (isErrorStatusCacheable(cached.statusCode)) {
+      throw new HttpException(
+        cachedPayload as Record<string, unknown>,
+        cached.statusCode,
+      );
+    }
+    const res = context.switchToHttp().getResponse<HttpResponseLike>();
+    if (typeof res.status === 'function') res.status(cached.statusCode);
+    return of(cachedPayload);
   }
 
   /**

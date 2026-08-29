@@ -1,6 +1,6 @@
 ---
 title: backend lint 스테이지가 main 에서 깨져 있다 — prettier·typescript-eslint 무검증 머지의 결과
-worktree: eia-r8-cache-scope-4ae434
+worktree: eia-idem-resolve-cache-hit-36acd6
 started: 2026-08-08
 owner: developer
 status: in-progress
@@ -803,7 +803,7 @@ PR 을 막는다" 고 적은 것은 **부정확**했다 — 막던 것은 그중
       > 새 최상위 절을 만들면 §5~§9 번호가 전부 밀리고 그 앵커를 인용하는 문서가 여럿이다
       > (`§9.8` 만 `2-navigation/4-integration.md` 4곳 + `redis-keys.md`). 번호 이동은 앵커
       > 일괄 갱신을 요구하므로 별건으로 둔다 — 이 계열에서 앵커를 세 번 깨뜨렸다.
-- [ ] **`intercept()` 의 `switchMap` 콜백을 `resolveCacheHit()` 로 추출** — **내가 세운 트리거가
+- [x] **`intercept()` 의 `switchMap` 콜백을 `resolveCacheHit()` 로 추출** — **내가 세운 트리거가
       실제로 발동했다.** `23_24_08`·`23_36_13` 두 라운드가 "6번째 분기가 추가되면 재검토" 로
       유예했는데, `00_20_20` maintainability INFO 4 가 **분기 7개**가 됐음을 셌다(캐시 미스 ·
       엔트리 문법 손상 · 엔트리 형태 불일치 · bodyHash 불일치 · payload 손상 · 에러 재현 ·
@@ -811,6 +811,58 @@ PR 을 막는다" 고 적은 것은 **부정확**했다 — 막던 것은 그중
       > **조건부 유예를 조용히 연장하지 않기 위해 항목으로 꺼낸다.** 이 PR 안에서 하지 않는
       > 이유는 순수 구조 변경이라 리뷰 라운드를 한 번 더 요구하는데, 이번 PR 의 남은 발견이
       > 전부 문서·테스트 층위라 수렴 중이기 때문이다. 다음에 이 콜백을 만질 때 착수한다.
+
+      > **완료 (2026-08-29, `eia-idem-resolve-cache-hit`).** 착수 직전 `origin/main`
+      > (`98af82eeb`) 에서 재실측 — `resolveCacheHit` grep **0건**(미이행), `switchMap` 콜백의
+      > 분기 **7개**가 위 열거와 일치. 콜백 본문 전체를 `resolveCacheHit(cachedJson, lookup)`
+      > 로 옮기고, 호출부가 넘기던 네 값(`redisKey`·`bodyHash`·`context`·`next`)을
+      > `CacheLookup` 으로 묶었다. **순수 구조 변경** — 기존 spec **63건 전부 GREEN**, 새
+      > 테스트 없음. `intercept()` 는 이제 "캐시를 쓸 수 있는 요청인가" 까지만 본다.
+      >
+      > **docstring 에 쓰려던 근거 두 개가 내 뮤테이션에 반증돼 고쳐 썼다** — 예측·실측을
+      > 두 칸으로 적었기에 드러났다:
+      >
+      > | 뮤턴트 | 예측 | 실측 |
+      > | --- | --- | --- |
+      > | `CacheLookup` 의 `redisKey` ↔ `bodyHash` 를 서로 바꿔 넣음 | 생존 (조용히 "항상 캐시 미스") | **RED 13건** |
+      > | 분기 4 `throw ConflictException` → `of(...)` (성공 채널) | RED | RED **4건** |
+      > | 분기 6 `throw HttpException` → `of(...)` (성공 채널) | RED | RED **2건** |
+      >
+      > 1. `CacheLookup` 을 **"위치 인자 swap 을 타입이 막아 준다"** 로 정당화하려 했는데, 그
+      >    swap 은 조용하지 않았다 — 적재 키·조회 키를 단언하는 테스트 13개가 이미 그 자리를
+      >    문다. 타입 안전은 근거가 아니므로 지우고, 남는 진짜 근거(호출부가 무엇을 넘기는지
+      >    이름으로 읽힘)만 적었다. **`interface` 를 새로 만들 때 "타입이 막아 준다" 를 쓰기
+      >    전에 그 뮤턴트를 한 번 주입해 볼 것** — 기존 테스트가 이미 물고 있으면 그 문장은
+      >    거짓 신호다.
+      > 2. 4·6 의 에러 채널을 "세 테스트가 고정한다" 고 **테스트 제목을 눈으로 세어** 적었는데
+      >    실측은 4건 / 2건이었다. 제목 열거는 실측이 아니다.
+      >
+      > **커밋 `49b9f92b5`.** 게이트: consistency `--impl-prep spec/5-system/` **BLOCK: NO**
+      > (`review/consistency/2026/08/29/17_23_43`) · `/ai-review --branch origin/main`
+      > **Critical 0 · Warning 0 · INFO 13, RISK=LOW** (`review/code/2026/08/29/17_32_16`,
+      > reviewer 9/9 · forced 누락 0). 코드 수정 0건으로 수렴 — 근거는 그 RESOLUTION.md.
+      >
+      > **뮤테이션이 병렬 checker 를 오염시켰다.** 내가 뮤턴트를 넣었다 뺀 시간대와
+      > consistency checker 실행이 겹쳐 `convention_compliance` 는 그것을 "필드 스왑 로직
+      > 결함" 으로, `rationale_continuity` 는 "두 열람 사이 diff 해시 변경" 으로 관측했고
+      > summary 가 "`/ai-review` 에서 반드시 확인" 권고까지 만들었다. 실제 트리엔 없는 결함이라
+      > 그쪽 SUMMARY 에 정정을 남겼다. **뮤테이션은 리뷰/체커 실행과 시간대를 겹치지 말 것** —
+      > 오염은 한 checker 에 그치지 않고 라운드 전체의 신뢰도를 깎는다.
+      >
+      > **이 자리에 남긴 조건부 후속 3건** (`17_32_16` INFO 2·4·6 이관 — `review/` 는 SoT 가
+      > 아니라 여기 적는다). 셋 다 **지금은 하지 않는 것이 맞다**는 판단이고, 트리거가
+      > 발동하기 전에는 착수하지 않는다:
+      >
+      > - **두 번째 호출부가 생기면** — `resolveCacheHit()` 이 "`switchMap` project 함수
+      >   안에서만 호출" 계약을 JSDoc 서술로만 강제한다. 호출부가 하나인 동안은 위험이 0이라
+      >   타입으로 올리지 않는다. 둘째가 생기면 discriminated union 반환 등을 재검토.
+      > - **`cacheTapped`/`storeEntry` 를 다음에 만질 때** — 그 둘은 위치 인자, `resolveCacheHit`
+      >   만 객체 번들이라 클래스 안에 두 스타일이 공존한다. 지금 통일하면 무관한 두 메서드를
+      >   이 PR 로 끌어들인다. **판단 기준은 "타입이 막아 주는가" 가 아니라 "기존 테스트가 그
+      >   실수를 이미 무는가"** 다 — 이번 swap 뮤턴트 13 RED 가 그 기준을 바꿔 놓았다.
+      > - **8번째 분기가 생기면** — 추출로 복잡도가 준 것이 아니라 `intercept()` 에서 **옮겨진**
+      >   것뿐이다(7갈래 그대로). 6→7 트리거가 실제로 발동해 이 항목을 만들었으므로 그 관례를
+      >   끊지 않고 다음 눈금을 8로 이어 둔다.
 - [x] **`readKey`/`hashBody` 경계값 테스트 부재** (`12_55_52` testing INFO 10) — 키 길이
       초과(`MAX_KEY_LENGTH` 200), 공백뿐인 키, non-string 헤더. 선재 갭이고 이 PR 범위 밖.
       함께: 클래스 docstring 에 R8 선재 결함 참조 한 줄 추가(INFO 2, 경미).
