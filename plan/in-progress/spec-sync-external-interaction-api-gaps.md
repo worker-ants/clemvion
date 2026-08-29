@@ -1944,6 +1944,45 @@ SoT 인 `chat-channel-adapter.md:149-151` 은 `status` + `result?` 를 선언하
 ## 후속 (cross-cutting, 본 spec 밖)
 - [x] **Redis fixed-window rate-limiter INCR+EXPIRE 원자화** — `PublicWebhookQuotaService.incrWithWindow` 를 `INCR + EXPIRE ... NX` 단일 pipeline(매 요청)으로 교정해 TTL 유실 self-heal (fail-closed 잠금 창 제거). `ChatChannelRateLimiterService` 는 **이미** 동일 `INCR + EXPIRE NX` 단일 pipeline 패턴이라 무변경(점검 완료). `InteractionRateLimiterService`(item 5)는 Lua EVAL — 세 서비스 모두 원자/self-heal 확보. (PR #843 ai-review concurrency WARNING 후속, `task_fa5c5e84`.)
 
+## §R8 Rationale 의 `statusCode` 선재 갭 서술이 **태어날 때부터 거짓이었다** (2026-08-29 등재)
+
+- [ ] **`14-external-interaction-api.md:1264` 의 "값 범위는 아직 보지 않는 **선재 갭**" 문장을
+      완료형으로 정정** — `isHttpStatusCode()` 가 이미 100~599 정수 범위를 검사한다.
+
+  **실측 (2026-08-29, `eia-idem-resolve-cache-hit` 세션이 `--impl-done` 중 발견)**:
+
+  | 대상 | 값 |
+  | --- | --- |
+  | 문제 문장 | `spec/5-system/14-external-interaction-api.md` §R8 Rationale, "fail-open 의 원인은 두 축이다" 문단 |
+  | 문장 요지 | "`statusCode` 는 현재 **타입만** 검사한다(`typeof === 'number'`) — 값 범위는 아직 보지 않는 **선재 갭**이다 … 범위 검사는 `readKey`/`hashBody` 경계값 항목과 함께 닫는다" |
+  | 실제 코드 | `idempotency.interceptor.ts` 의 `isHttpStatusCode()` — `Number.isInteger` + `MIN_HTTP_STATUS_CODE`(100) ~ `MAX_HTTP_STATUS_CODE`(599) |
+  | 갭을 닫은 커밋 | `4b1f899b7` (`#1159`, 2026-08-13) |
+  | 문장을 쓴 커밋 | `1e9f3f238` (`#1162`, 2026-08-13) |
+  | 순서 | `git merge-base --is-ancestor 4b1f899b7 1e9f3f238` → **참**. 즉 `#1159` 가 먼저 머지됐다 |
+
+  **여기서 중요한 것은 "낡았다" 가 아니라 "쓰일 때 이미 거짓이었다" 는 것이다.** 보통 spec
+  서술 낡음은 코드가 앞서가서 생기는데, 이 문장은 갭을 **닫은 PR 이 머지된 뒤에** 그 갭이
+  아직 열려 있다고 새로 적었다. `#1162` 는 같은 문단의 fail-open 경로 수를 정정하던 PR 이라
+  인접 문장을 옮겨 적으면서 옛 상태를 그대로 실어 나른 것으로 보인다 — **"인접 서술을
+  건드리지 않는다" 를 지키다가 인접 서술의 거짓을 승계한 형태**다.
+
+  **왜 이번 PR 에서 고치지 않았나** (`eia-idem-resolve-cache-hit`, `spec_impact: none`):
+  - 그 PR 은 `switchMap` 콜백 추출 **순수 구조 리팩터**다. spec 편집은 `spec_impact` 를
+    바꾸고 `/ai-review` + `--impl-done` 을 다시 요구한다.
+  - 게이트를 다시 돌리려면 `--impl-done` scope 에 이 spec 파일이 들어가야 하는데, 그
+    스코프(`spec/5-system/`)의 번들이 **예산 초과로 이 파일 본문과 코드 diff 를 둘 다
+    떨군다**(2026-08-29 실측: 생략 19개에 `14-external-interaction-api.md` 와
+    `<git diff …>` 가 함께 들어 있었다). 검증력이 없는 라운드로 spec 을 고치게 된다.
+  - `17_53_19` 의 `rationale_continuity` 도 "이번 diff 와 무관한 사전 존재 drift, 승인 차단
+    사유 아님, 별도 정리 turn 권장" 으로 등급을 매겼다.
+
+  **다음 턴에서 판단할 것 — planner 턴인가, developer 자기-반증형 소정정인가.**
+  `CLAUDE.md` 의 다섯 조건 중 1(작성자 동일: `worker-ants`)·2(예고·트리거: "…함께 닫는다")·
+  3(실측 반증)·4(국한)는 충족으로 보이나, 문장 앞부분 "현재 타입만 검사한다" 는 예고가 아니라
+  **구현 상태 서술**이라 2번의 경계에 걸친다. 소정정으로 갈 경우 원문을 취소선으로 남기고
+  위 실측표를 함께 실어야 하며, 게이트는 `--spec` 이 아니라 이 파일이 포함되는 스코프의
+  `--impl-done` 이다 — 그 번들 문제를 먼저 풀어야 한다.
+
 ## 비고
 - 각 항목의 근거(claim→코드부재)는 audit findings/5-system/5-system__14-external-interaction-api.md 참조.
 - 핵심 surface (REST 명령·SSE 스트림·iext/itk 토큰·HMAC 서명·SSRF·secret rotation·idempotency·CORS) 는 구현 완료. 위 항목은 hardening/배율/분산성 갭이며 기능 데드락은 아님.
