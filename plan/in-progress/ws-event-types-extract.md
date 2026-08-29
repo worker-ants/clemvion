@@ -368,6 +368,17 @@ ES-module 순환 위에 있어서다. 생성자의 `forwardRef` 도 같은 이�
       > `spec/conventions/egress-masking.md:89` 와
       > `plan/in-progress/spec-sync-external-interaction-api-gaps.md:1386`.
       > `plan/complete/**` 4건은 시점 기록이라 옛 경로 유지가 규약이다.
+      >
+      > **같은 planner 턴에 함께 볼 것 — `<도메인>EventType` 규칙이 문서에 없다**
+      > (`23_23_48` convention_compliance INFO 1). 이 모듈은 다섯 enum 이 전부 그 형태인데
+      > (`ExecutionEventType`·`NodeEventType`·`BackgroundRunEventType`·`KbEventType`·
+      > `InAppNotificationEventType`) `spec/conventions/**` 어디에도 명문화돼 있지 않다.
+      >
+      > **이게 그냥 누락이 아닌 이유**: 이번 개명에서 내가 "WS 쪽을 고친다" 를 정당화한 근거의
+      > 절반이 바로 그 규칙이었다("도메인 접두는 이 모듈 규칙 **안**이다"). 즉 **문서에 없는
+      > 규칙을 근거로 결정을 내렸다.** 다음 사람이 같은 판단을 하려면 다섯 파일을 열어 패턴을
+      > 귀납해야 한다. 한 문단이면 되고, 자리는 `6-websocket-protocol.md` Rationale 이
+      > 자연스럽다(신설 convention 문서까지는 과할 수 있다 — planner 판단).
       frontmatter 가 `none` 인데 실제로는 `spec/5-system/6-websocket-protocol.md` frontmatter
       `code:` 1줄을 바꿨다. in-progress 단계는 Gate C 의무가 아니라 지금 차단 사유는 아니지만,
       **완료 이동 시점에 실제 변경 파일 목록으로 갱신해야 Gate C 를 통과한다**
