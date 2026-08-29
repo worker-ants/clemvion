@@ -320,6 +320,46 @@ describe("extractLinks — 링크 텍스트가 줄을 넘어도 본다", () => {
     expect(extractLinks(writeDoc("ml-url.md", body))).toEqual([]);
   });
 
+  it("한 문서에 멀티라인 링크가 **둘 이상**이어도 각자 제 줄에 귀속된다", () => {
+    // 줄 귀속은 오프셋→줄 이진 탐색으로 계산한다. 링크가 하나뿐이면 그 탐색이 항상
+    // 0번 줄 근처를 맞혀 **off-by-one 이 숨는다** — 두 개 이상이어야 관측된다.
+    const body =
+      `# T\n` + // 1
+      `\n` + // 2
+      `${mkMultiLink("첫 링크", "둘째 줄", "./a.md")}\n` + // 3~4
+      `\n` + // 5
+      `사이 본문\n` + // 6
+      `\n` + // 7
+      `${mkMultiLink("둘째 링크", "둘째 줄", "./b.md")}\n`; // 8~9
+    expect(extractLinks(writeDoc("ml-two.md", body))).toMatchObject([
+      { line: 3, target: "./a.md" },
+      { line: 8, target: "./b.md" },
+    ]);
+  });
+
+  it("단일라인과 멀티라인이 섞여도 순서·줄이 맞는다", () => {
+    const body =
+      `# T\n` + // 1
+      `\n` + // 2
+      `${mkLink("한 줄", "./one.md")}\n` + // 3
+      `\n` + // 4
+      `${mkMultiLink("두 줄", "이어서", "./multi.md")}\n` + // 5~6
+      `\n` + // 7
+      `${mkLink("또 한 줄", "./two.md")}\n`; // 8
+    expect(extractLinks(writeDoc("ml-mixed.md", body))).toMatchObject([
+      { line: 3, target: "./one.md" },
+      { line: 5, target: "./multi.md" },
+      { line: 8, target: "./two.md" },
+    ]);
+  });
+
+  it("세 줄 이상 걸친 링크도 첫 줄에 귀속된다", () => {
+    const body = `# T\n\n본문\n\n[첫 줄\n둘째 줄\n셋째 줄](./deep.md)\n`;
+    expect(extractLinks(writeDoc("ml-three.md", body))).toMatchObject([
+      { line: 5, target: "./deep.md" },
+    ]);
+  });
+
   it("코드펜스를 사이에 둔 `[` 와 `](` 는 링크가 아니다", () => {
     // 펜스 안은 건너뛰므로 앞뒤가 붙어 **없던 링크가 생기면** 안 된다.
     const body = "# T\n\n[열린 텍스트\n\n```\ncode\n```\n\n](./a.md)\n";

@@ -71,8 +71,8 @@ export function headingSlugs(absPath: string): Set<string> {
 }
 
 export interface MdLink {
-  line: number;
-  raw: string;
+  line: number; // 링크가 **시작한** 줄 (멀티라인이면 첫 줄)
+  raw: string; // 멀티라인 링크면 **개행을 포함**한다
   target: string; // url part only (title and surrounding ws stripped)
 }
 
@@ -128,6 +128,58 @@ function cannotContainLink(text: string): boolean {
  *    붙어 없던 링크가 생긴다. 그래서 건너뛴 자리마다 `]` 를 남긴다 — `]` 는 `[^\]]*`
  *    (링크 텍스트)를 즉시 끝내고, 뒤에 오는 것은 개행이라 `](` 도 될 수 없다.
  */
+/** 마스킹된 전문 + 그 안의 오프셋을 원본 줄로 되돌리는 지도. */
+interface MaskedDoc {
+  /** 펜스·인라인 코드를 처리한 뒤 개행으로 다시 이은 전문. */
+  body: string;
+  /** 각 마스킹 줄이 `body` 안에서 시작하는 오프셋 (오름차순). */
+  startOf: number[];
+  /** 각 마스킹 줄이 원본 몇 번째 줄인가 (1-based). */
+  srcLineOf: number[];
+}
+
+/**
+ * 원문을 링크 매칭용으로 마스킹한다 — `extractLinks` 의 §1~§3 을 이 함수가 담당한다.
+ *
+ * 펜스(경계 줄과 내부 줄을 **같이**) 는 `]` 한 글자로 바꾼다. 그냥 지우면 앞뒤 줄이 붙어
+ * **없던 링크가 생기고**, 공백으로 두면 링크 텍스트가 펜스를 건너뛰어 이어진다. `]` 는
+ * 열린 `[` 텍스트를 즉시 끊고, 뒤가 개행이라 `](` 도 될 수 없다.
+ */
+function buildMaskedDoc(text: string): MaskedDoc {
+  const lines = text.split(/\r?\n/);
+  const masked: string[] = [];
+  const srcLineOf: number[] = [];
+  let inFence = false;
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    const isFenceBoundary = FENCE_RE.test(line);
+    if (isFenceBoundary) inFence = !inFence;
+    // 경계 줄과 내부 줄의 처리는 동일하다 — 둘 다 스캔 대상이 아니다.
+    masked.push(isFenceBoundary || inFence ? "]" : line.replace(/`[^`]*`/g, ""));
+    srcLineOf.push(i + 1);
+  }
+
+  const startOf: number[] = [];
+  let acc = 0;
+  for (const l of masked) {
+    startOf.push(acc);
+    acc += l.length + 1; // +1 = join 에 쓰는 개행
+  }
+  return { body: masked.join("\n"), startOf, srcLineOf };
+}
+
+/** `body` 안의 오프셋이 속한 **원본** 줄 번호 (1-based). */
+function lineForOffset(doc: MaskedDoc, offset: number): number {
+  let lo = 0;
+  let hi = doc.startOf.length - 1;
+  while (lo < hi) {
+    const mid = (lo + hi + 1) >> 1;
+    if (doc.startOf[mid] <= offset) lo = mid;
+    else hi = mid - 1;
+  }
+  return doc.srcLineOf[lo];
+}
+
 export function extractLinks(absPath: string): MdLink[] {
   const text = fs.readFileSync(absPath, "utf8");
   // 링크가 있을 수 없으면 스캔 전체가 낭비다 — 전수 스캔 114ms → 56ms(실측).
@@ -135,53 +187,17 @@ export function extractLinks(absPath: string): MdLink[] {
   // 사전 필터는 그대로 유효하다.
   if (cannotContainLink(text)) return [];
 
-  const lines = text.split(/\r?\n/);
-  const masked: string[] = [];
-  const srcLineOf: number[] = []; // masked[k] 가 원본 몇 번째 줄인가 (1-based)
-  let inFence = false;
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i];
-    if (FENCE_RE.test(line)) {
-      inFence = !inFence;
-      masked.push("]"); // 펜스 경계에서 열린 링크 텍스트를 끊는다 (위 §3)
-      srcLineOf.push(i + 1);
-      continue;
-    }
-    if (inFence) {
-      masked.push("]");
-      srcLineOf.push(i + 1);
-      continue;
-    }
-    masked.push(line.replace(/`[^`]*`/g, ""));
-    srcLineOf.push(i + 1);
-  }
-
-  // 각 마스킹 줄의 시작 오프셋 — 매치 위치를 원본 줄 번호로 되돌리는 데 쓴다.
-  const startOf: number[] = [];
-  let acc = 0;
-  for (const l of masked) {
-    startOf.push(acc);
-    acc += l.length + 1; // +1 = join 에 쓰는 개행
-  }
-  const body = masked.join("\n");
-
+  const doc = buildMaskedDoc(text);
   const out: MdLink[] = [];
   LINK_RE.lastIndex = 0;
   let m: RegExpExecArray | null;
-  while ((m = LINK_RE.exec(body)) !== null) {
+  while ((m = LINK_RE.exec(doc.body)) !== null) {
     const rawTarget = m[2].trim();
     // Strip an optional title:  (url "title")
     const tm = /^(\S+)(\s+"[^"]*")?$/.exec(rawTarget);
     const url = tm ? tm[1] : rawTarget.split(/\s+/)[0];
     // 링크가 **시작한** 줄을 보고한다 — 여러 줄에 걸치면 첫 줄이 사람이 찾는 자리다.
-    let lo = 0;
-    let hi = startOf.length - 1;
-    while (lo < hi) {
-      const mid = (lo + hi + 1) >> 1;
-      if (startOf[mid] <= m.index) lo = mid;
-      else hi = mid - 1;
-    }
-    out.push({ line: srcLineOf[lo], raw: m[0], target: url });
+    out.push({ line: lineForOffset(doc, m.index), raw: m[0], target: url });
   }
   return out;
 }
@@ -224,7 +240,7 @@ export type LinkViolationKind = "DEAD" | "ANCHOR";
 export interface LinkViolation {
   kind: LinkViolationKind;
   source: string; // relPath
-  line: number;
+  line: number; // 링크가 **시작한** 줄 (멀티라인이면 첫 줄)
   target: string;
 }
 
