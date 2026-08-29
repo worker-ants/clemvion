@@ -71,12 +71,15 @@ export function headingSlugs(absPath: string): Set<string> {
 }
 
 export interface MdLink {
-  line: number;
-  raw: string;
+  line: number; // 링크가 **시작한** 줄 (멀티라인이면 첫 줄)
+  raw: string; // 멀티라인 링크면 **개행을 포함**한다
   target: string; // url part only (title and surrounding ws stripped)
 }
 
-const LINK_RE = /\[([^\]]*)\]\(([^)]+)\)/g;
+// 링크 **텍스트**는 줄을 넘을 수 있고(`[^\]]*` 가 개행을 포함한다), **목적지**는 넘지
+// 못한다(`[^)\n]+`). 후자는 의도된 좁힘이다 — CommonMark 도 `<...>` 형태가 아니면 목적지에
+// 개행을 허용하지 않고, 넓히면 본문 괄호가 URL 로 오인될 여지가 생긴다.
+const LINK_RE = /\[([^\]]*)\]\(([^)\n]+)\)/g;
 const FENCE_RE = /^(\s*)(```|~~~)/;
 
 /**
@@ -101,31 +104,121 @@ function cannotContainLink(text: string): boolean {
   return !text.includes("](") && !text.includes("]`");
 }
 
-/** Extract markdown links outside fenced/inline code. */
-export function extractLinks(absPath: string): MdLink[] {
-  const text = fs.readFileSync(absPath, "utf8");
-  // 링크가 있을 수 없으면 라인 루프 전체가 낭비다 — 전수 스캔 114ms → 56ms(실측).
-  if (cannotContainLink(text)) return [];
-  const out: MdLink[] = [];
-  let inFence = false;
+/** 마스킹된 전문 + 그 안의 오프셋을 원본 줄로 되돌리는 지도. */
+interface MaskedDoc {
+  /** 펜스·인라인 코드를 처리한 뒤 개행으로 다시 이은 전문. */
+  body: string;
+  /** 각 마스킹 줄이 `body` 안에서 시작하는 오프셋 (오름차순). */
+  startOf: number[];
+  /** 각 마스킹 줄이 원본 몇 번째 줄인가 (1-based). */
+  srcLineOf: number[];
+}
+
+/**
+ * 원문을 링크 매칭용으로 마스킹한다 — `extractLinks` 의 §1~§4 를 이 함수가 담당한다
+ * (인라인 코드 삭제 · 줄 지도 · 펜스 차단 · **빈 줄 차단**).
+ *
+ * 펜스(경계 줄과 내부 줄을 **같이**) 는 `]` 한 글자로 바꾼다. 그냥 지우면 앞뒤 줄이 붙어
+ * **없던 링크가 생기고**, 공백으로 두면 링크 텍스트가 펜스를 건너뛰어 이어진다. `]` 는
+ * 열린 `[` 텍스트를 즉시 끊고, 뒤가 개행이라 `](` 도 될 수 없다.
+ */
+function buildMaskedDoc(text: string): MaskedDoc {
   const lines = text.split(/\r?\n/);
+  const masked: string[] = [];
+  const srcLineOf: number[] = [];
+  let inFence = false;
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
-    if (FENCE_RE.test(line)) {
-      inFence = !inFence;
-      continue;
-    }
-    if (inFence) continue;
-    const noCode = line.replace(/`[^`]*`/g, "");
-    LINK_RE.lastIndex = 0;
-    let m: RegExpExecArray | null;
-    while ((m = LINK_RE.exec(noCode)) !== null) {
-      const rawTarget = m[2].trim();
-      // Strip an optional title:  (url "title")
-      const tm = /^(\S+)(\s+"[^"]*")?$/.exec(rawTarget);
-      const url = tm ? tm[1] : rawTarget.split(/\s+/)[0];
-      out.push({ line: i + 1, raw: m[0], target: url });
-    }
+    const isFenceBoundary = FENCE_RE.test(line);
+    if (isFenceBoundary) inFence = !inFence;
+    // 세 경우 모두 `]` 로 끊는다:
+    //   - 펜스 경계 줄 / 펜스 내부 줄 — 스캔 대상이 아니다.
+    //   - **빈 줄** — CommonMark 에서 링크 텍스트는 **문단 경계를 넘지 못한다.**
+    //     `mdast-util-from-markdown`(이 파일이 헤딩 슬러그에 쓰는 그 파서)로 확인:
+    //     `[t\n둘째 줄](u)` → 링크 / `[t\n\n다른 문단](u)` → **링크 아님**.
+    //     끊지 않으면 문단을 건너뛰어 **없는 링크를 만들어 낸다**(false positive).
+    const isBlank = line.trim() === "";
+    masked.push(
+      isFenceBoundary || inFence || isBlank ? "]" : line.replace(/`[^`]*`/g, ""),
+    );
+    srcLineOf.push(i + 1);
+  }
+
+  const startOf: number[] = [];
+  let acc = 0;
+  for (const l of masked) {
+    startOf.push(acc);
+    acc += l.length + 1; // +1 = join 에 쓰는 개행
+  }
+  return { body: masked.join("\n"), startOf, srcLineOf };
+}
+
+/** `body` 안의 오프셋이 속한 **원본** 줄 번호 (1-based). */
+function lineForOffset(doc: MaskedDoc, offset: number): number {
+  let lo = 0;
+  let hi = doc.startOf.length - 1;
+  while (lo < hi) {
+    const mid = (lo + hi + 1) >> 1;
+    if (doc.startOf[mid] <= offset) lo = mid;
+    else hi = mid - 1;
+  }
+  return doc.srcLineOf[lo];
+}
+
+/**
+ * Extract markdown links outside fenced/inline code.
+ *
+ * ## 왜 줄 단위로 매칭하지 않는가
+ *
+ * 종전 구현은 줄로 자른 뒤 **줄마다** `LINK_RE` 를 돌렸다. 그래서 링크 **텍스트**가 줄을
+ * 넘으면 — `[` 와 `](` 가 다른 줄에 있으면 — 그 링크는 **아예 수집되지 않았다.** 존재·앵커
+ * 검증이 통째로 건너뛰어지고, 가드는 실패가 아니라 **침묵으로 통과**한다. 깨진 앵커가
+ * 있어도 아무도 모르는 형태다(2026-08-11 실측: `spec/**.md` 6건/6파일 + 거버넌스 스코프
+ * 2건이 그렇게 숨어 있었다).
+ *
+ * 그래서 **마스킹된 전문(全文)** 을 만들어 한 번에 매칭한다.
+ *
+ * ## 마스킹이 네 가지를 동시에 지켜야 한다
+ *
+ * 1. **인라인 코드는 지운다 (공백으로 채우지 않는다).** `` [a]`code`(b) `` 는 코드를
+ *    지워야 비로소 링크가 된다 — 공백으로 채우면 `](` 인접성이 깨져 그 링크를 놓친다.
+ *    이건 기존 동작이고 전용 회귀 테스트가 있다.
+ * 2. **줄 번호는 원본 기준이어야 한다.** 1 때문에 오프셋이 밀리므로, 마스킹 텍스트의 각
+ *    줄이 원본 몇 번째 줄인지를 `srcLineOf` 에 따로 들고 간다.
+ * 3. **펜스를 사이에 두고 링크가 새로 생기면 안 된다.** 펜스 줄을 그냥 건너뛰면 앞뒤가
+ *    붙어 없던 링크가 생긴다. 그래서 건너뛴 자리마다 `]` 를 남긴다 — `]` 는 `[^\]]*`
+ *    (링크 텍스트)를 즉시 끝내고, 뒤에 오는 것은 개행이라 `](` 도 될 수 없다.
+ * 4. **빈 줄(문단 경계)도 같은 이유로 끊는다.** CommonMark 에서 링크 텍스트는 문단을
+ *    넘지 못한다. 안 끊으면 문단을 건너뛰어 **없는 링크를 만들어 낸다**(false positive) —
+ *    이 축을 빠뜨린 채 "양방향으로 안전하다" 고 적었던 것을 리뷰가 잡았다.
+ *
+ * ## 왜 여기만 정규식인가 (같은 파일의 `headingSlugs` 는 AST 파서를 쓴다)
+ *
+ * 링크 추출을 `fromMarkdown` AST 순회로 바꾸면 위 §1~§4 를 파서가 대신 지킨다 — 그게
+ * 원칙적으로 옳고, 백로그에 올려 뒀다(`harness-review-gate-followups.md`). 지금 안 바꾸는
+ * 이유는 **이 스캐너가 CommonMark 와 의도적으로 다른 지점이 있어서**다: `` [a]`code`(b) ``
+ * 를 CommonMark 는 링크로 보지 않지만 이 가드는 **본다**(인라인 코드를 지운 뒤 판정 —
+ * 전용 회귀 테스트가 그 동작을 고정한다). AST 로 옮기는 것은 그 판정을 바꾸는 결정이라
+ * 버그 수정이 아니라 **설계 변경**이고, 그 자체로 한 PR 이다.
+ */
+export function extractLinks(absPath: string): MdLink[] {
+  const text = fs.readFileSync(absPath, "utf8");
+  // 링크가 있을 수 없으면 스캔 전체가 낭비다 — 전수 스캔 114ms → 56ms(실측).
+  // 멀티라인 링크에서도 `](` 는 **붙어 있다**(줄이 넘는 것은 텍스트 쪽이다). 따라서 이
+  // 사전 필터는 그대로 유효하다.
+  if (cannotContainLink(text)) return [];
+
+  const doc = buildMaskedDoc(text);
+  const out: MdLink[] = [];
+  LINK_RE.lastIndex = 0;
+  let m: RegExpExecArray | null;
+  while ((m = LINK_RE.exec(doc.body)) !== null) {
+    const rawTarget = m[2].trim();
+    // Strip an optional title:  (url "title")
+    const tm = /^(\S+)(\s+"[^"]*")?$/.exec(rawTarget);
+    const url = tm ? tm[1] : rawTarget.split(/\s+/)[0];
+    // 링크가 **시작한** 줄을 보고한다 — 여러 줄에 걸치면 첫 줄이 사람이 찾는 자리다.
+    out.push({ line: lineForOffset(doc, m.index), raw: m[0], target: url });
   }
   return out;
 }
@@ -168,7 +261,7 @@ export type LinkViolationKind = "DEAD" | "ANCHOR";
 export interface LinkViolation {
   kind: LinkViolationKind;
   source: string; // relPath
-  line: number;
+  line: number; // 링크가 **시작한** 줄 (멀티라인이면 첫 줄)
   target: string;
 }
 
