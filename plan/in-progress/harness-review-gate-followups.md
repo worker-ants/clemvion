@@ -1,6 +1,6 @@
 ---
 title: 리뷰 게이트 CI 백스톱 진행 중 발견한 미해결 후속
-worktree: harness-review-ci-backstop-91f379
+worktree: eslint10-upgrade-5e3cf9  # 2026-08-29 갱신 — 멀티라인 링크 항목은 이 워크트리에서 처리 (`#1235`)
 started: 2026-08-07
 owner: developer
 priority: P3
