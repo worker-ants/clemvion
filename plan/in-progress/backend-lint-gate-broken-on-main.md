@@ -1219,7 +1219,8 @@ TEST WORKFLOW 를 온전히 통과했다고 말할 수 없는 상태다. 코드 
 **왜 별 PR 인가 (사용자 결정 2026-08-08).** 78파일 포맷 변경을 보안 PR 에 넣으면 diff 가
 swamp 되고 scope 리뷰어가 정당하게 지적한다. 보안 fix 의 리뷰 품질을 지키는 것이 우선이다.
 
-**함께 볼 것**: [`deps-peer-gating-and-eslint10.md`](deps-peer-gating-and-eslint10.md) 가
+**함께 볼 것**: [`deps-peer-gating-and-eslint10.md`](../complete/deps-peer-gating-and-eslint10.md)
+(2026-08-29 `complete/` 로 이동) 가
 "Actions 가 repo 레벨에서 꺼져 있어 dependabot PR 이 아무 검증 없이 머지된다" 를 이미
 기록하고 required-check 등록을 사용자 액션으로 남겨 뒀다. **이 건이 그 미등록의 3번째
 피해**다(1: `#1058` typescript 롤백, 2: `#1074` unicorn 복원, 3: 본 건). required check

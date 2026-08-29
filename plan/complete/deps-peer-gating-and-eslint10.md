@@ -3,7 +3,7 @@ title: 의존성 peer 게이팅 + eslint 10 상향 — 무검증 major 머지의
 worktree: eia-failopen-observability-18dc47
 started: 2026-08-01
 owner: developer
-status: in-progress
+status: complete
 priority: P2
 spec_impact: none
 ---
@@ -18,6 +18,35 @@ spec_impact: none
 > 옮겼다. `--impl-done`(`01_30_29`) `plan_coherence` INFO #9 가 이 불일치를 짚었다 — 위
 > 문단이 말한 오연결의 반대 방향이다(이번엔 게이트가 더 관대해지는 쪽이라 막히지는
 > 않았지만, 그래서 조용하다).
+>
+> _(2026-08-29, 같은 날 뒤)_ **마지막 열린 항목 3건을 `eia-failopen-observability-18dc47`
+> 에서 닫으며 `worktree:` 를 그리로 다시 옮겼다.** 위 문단의 `eslint10-upgrade-5e3cf9` 는
+> 그 시점의 기록이고 지금은 아니다 — `19_17_28` scope INFO #4 가 "필드는 바뀌었는데 이
+> 서술은 안 바뀌었다" 로 이 불일치를 잡았다. **같은 실패를 이 파일에서 두 번 했다**:
+> frontmatter 를 옮길 때마다 그것을 설명하는 산문이 한 박자 뒤처진다. 필드와 산문은 같은
+> 편집에서 함께 움직여야 한다.
+
+## 봉인 시점의 유효한 결론 (2026-08-29, `complete/` 이동 시 작성)
+
+> **왜 이 절이 있나** (`19_17_28` maintainability INFO #7): 이 문서는 "정정의 정정" 이 여러 겹
+> 중첩된 55KB 짜리다. 본문을 순서대로 읽으면 **이미 철회된 중간 결론**을 현재 상태로 오독하기
+> 쉽다. 봉인하면서 "지금 참인 것" 만 여기 모은다 — 아래 본문은 그 **경위**이지 현재 상태가 아니다.
+
+| # | 결론 | 상태 |
+| --- | --- | --- |
+| §1 | `--strict-peer-dependencies` 를 5곳에 배치 | 완료. **단 보장은 좁다** — `--frozen-lockfile` 과 함께 쓰여 재해소가 없으면 발화하지 않는다. "이미 lockfile 에 박힌 미충족" 은 못 잡는다 |
+| §1 부속 | `peerDependencyRules` 억제 | **넣지 않았다.** 막을 대상이 실행 시점에 존재하지 않았고, 죽은 억제는 나중에 진짜 미충족을 조용히 덮는다 |
+| §2 | eslint 10 상향 (backend·packages 9개 워크스페이스 `^10.9.1`, unicorn `^73`) | 완료. frontend 는 `eslint-config-next` 계열이 아직 eslint 10 을 배제해 9.x 유지 — 해제는 캐너리가 RED 로 통지한다 |
+| §3 | frozen 게이트 사각지대 | **(a) 관측형**으로 집행 (`scripts/check-unmet-peers.py` + 주간 스케줄 잡). 차단형 아님 — 상류 사정으로 main 이 빨개지는 것을 피한다 |
+| §2 후속 3건 | `cause` 비노출 계측 지점 · 형제 3→4곳 · 근거 서술 중복 정리 | 완료 (2026-08-29, `eia-failopen-observability`) |
+
+**이 트래커가 다루지 **않은** 것** — 되살릴 때 여기부터 보라:
+
+- **Actions 를 repo 레벨에서 켜는 것** = 저장소 설정 소관이라 파일로 못 고친다(§Overview 가
+  범위 밖으로 선언). 두 사고(`#1049`·`#1058`)의 **공통 근본 원인**이 여전히 이것이다.
+- **`--frozen-lockfile` 잡을 required check 로 승격** = 저장소 설정. 사용자 결정 대기.
+- **`typeorm → ioredis` · `nunjucks → chokidar` 미충족 2건** = 도달 불가 경로로 실측 확정돼
+  무해. 억제 규칙은 일부러 넣지 않았다(위 §1 부속과 같은 이유).
 
 ## Overview
 
@@ -593,7 +622,7 @@ eslint 9 는 이미 `maintenance` dist-tag 다(2026-08-01 실측: latest = 10.8.
 > ③④ 는 각각 `spec-update-node-cancellation-shutdown-classification.md` ·
 > `update-returning-tuple-shape.md` 가 이미 위임해 둔 항목이라 **신규 등재 불요**(중복 방지).
 
-### 열린 항목 (§2 후속) — 이 트래커가 아직 `complete/` 로 못 가는 이유
+### ~~열린 항목 (§2 후속) — 이 트래커가 아직 `complete/` 로 못 가는 이유~~ → **전부 닫힘 (2026-08-29)**
 
 > **왜 여기 따로 두나 (2026-08-29 실측).** 이 셋을 §2 서술 안의 **인용문**(`> - [ ]`)에
 > 적어 뒀더니 plan 라이프사이클 게이트가 **하나도 못 봤다** — `_all_checkboxes_done()` 이
