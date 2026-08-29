@@ -1,6 +1,6 @@
 ---
 title: 의존성 peer 게이팅 + eslint 10 상향 — 무검증 major 머지의 남은 두 구멍
-worktree: spec-small-followups
+worktree: eslint10-upgrade-5e3cf9
 started: 2026-08-01
 owner: developer
 status: in-progress
@@ -13,6 +13,11 @@ spec_impact: none
 > `(unstarted)` 로 두면 plan 게이트가 이 브랜치를 **다른 plan**(같은 워크트리를 선언 중인
 > `typescript-toolchain-followups`)에 연결한다 — 실제로 그렇게 막혔다. 게이트는 한
 > 워크트리의 여러 plan 중 **하나만 처리돼도** 통과하도록 설계돼 있다.
+>
+> _(2026-08-29)_ §2 이후는 `eslint10-upgrade-5e3cf9` 워크트리에서 진행 중이라 값을 그리로
+> 옮겼다. `--impl-done`(`01_30_29`) `plan_coherence` INFO #9 가 이 불일치를 짚었다 — 위
+> 문단이 말한 오연결의 반대 방향이다(이번엔 게이트가 더 관대해지는 쪽이라 막히지는
+> 않았지만, 그래서 조용하다).
 
 ## Overview
 
@@ -329,19 +334,83 @@ eslint 9 는 이미 `maintenance` dist-tag 다(2026-08-01 실측: latest = 10.8.
         전부 GREEN** — 즉 기존 `.message` 단언만으로는 이 계약을 전혀 지키지 못했다.
         (절대 개수는 적지 않는다 — 케이스가 늘면 그 숫자가 조용히 stale 해진다. 측정 시점
         커밋은 `b235a612b` 직전 상태다.)
-      - 부수 발견: `code.handler` 의 cause 는 `isolated-vm` 이 **자기 realm** 에서 만든
-        `SyntaxError` 라 호스트 `Error` 를 상속하지 않는다(`toBeInstanceOf(Error)` 실패 실측).
-        형제 케이스와 단언 형태가 다른 이유이고, 통일하려다 지우면 안 된다.
+      - ~~부수 발견: `code.handler` 의 cause 는 `isolated-vm` 이 **자기 realm** 에서 만든
+        `SyntaxError` 라 호스트 `Error` 를 상속하지 않는다(`toBeInstanceOf(Error)` 실패 실측).~~
+        → **정정 (2026-08-29) — 실측이 반증했다.** 원인은 isolate 경계가 아니라 **Jest 의
+        realm** 이다. 같은 컴파일 예외를 평범한 node(= 프로덕션과 같은 host realm)에서 받으면
+        `err instanceof Error` 가 **true** 이고, `vm.createContext` 로 만든 별도 realm
+        (= Jest 가 테스트 파일을 실행하는 조건) 안에서만 **false** 다. 즉 네이티브 애드온은
+        **메인 realm** 의 `Error` 로 만들고 Jest 샌드박스의 `Error` 와만 갈린다. own property
+        도 `message`/`stack` 뿐이었다. "형제 케이스와 단언 형태가 다른 이유이고 통일하려다
+        지우면 안 된다" 는 결론은 유지되지만 **귀속이 틀렸다** — 그 귀속을 그대로 옮겨 적은
+        주석 2곳(`code.handler.ts` · `code.handler.spec.ts`)을 함께 정정했다.
       - ~~`spec/conventions/` 에 판별 기준을 명문화하는 것은 **여전히 planner 턴** 으로 남는다.~~
         → **완료 (2026-08-29, planner 턴).** 정본은 `spec/5-system/3-error-handling.md`
         **§6.3.1** + 그 Rationale. `conventions/` 가 아닌 이유: `secret-store.md` 는 secret
         계약이라 범위가 좁고(부착 사례 둘은 secret 과 무관), `error-codes.md` 는 에러 **코드
         문자열**의 SoT 라 wrapping 정책이 들어갈 자리가 아니다.
-        초안·검토 기록: `plan/in-progress/spec-draft-error-cause-criterion.md`,
+        초안·검토 기록: `plan/complete/spec-draft-error-cause-criterion.md`(#1228 에서 이동),
         `review/consistency/2026/08/29/00_13_01`(BLOCK: NO).
         **기준이 초안에서 바뀌었다** — `--spec` 검토가 "`cause` 는 message 가 아니라 `err`
         **객체 전체**를 붙인다" 를 짚어, "message 가 원문을 포함하는가"(C1) 하나였던 것을
         **C1 AND C2**(`err` 가 message·name 밖 민감 속성을 안 들고 있는가)로 고쳤다.
+
+        > **⚠️ 후속 정정 (2026-08-29) — 내가 "등재됐다" 고 한 것이 거짓이었다.**
+        >
+        > `#1230` PR 본문에 "인라인 주석 3곳이 §6.3.1 을 참조하도록 정리하는 것은 developer
+        > 턴이고 **이 §2 에 등재돼 있다**" 고 적었는데, **등재돼 있지 않았다.** 위 `[x]` 항목은
+        > *테스트로 잠갔다* 는 다른 작업이고, 그 정리 작업은 `spec-draft-error-cause-criterion.md`
+        > 안에만 있었다 — 그 문서는 `#1228` 에서 **`complete/` 로 봉인**됐으므로 열린 항목으로는
+        > 어디에도 남지 않았다(`git grep '6\.3\.1' -- plan/` 로 확인).
+        >
+        > 이 저장소가 이미 배운 형태다 — **조건부 처분을 봉인된 `complete/` 에 두면 유실된다.**
+        > 재등재 대신 그 자리에서 처리했다(주석 5곳, 아래).
+        >
+        > **처리 (2026-08-29)**: `expression-resolver.service.ts` · `code.handler.ts` ·
+        > `secret-resolver.service.ts` + 두 spec 파일의 설명 주석이 §6.3.1 을 가리킨다.
+        > **주석에 기준을 재서술하지 않고** "이 자리가 C1·C2 를 어떻게 만족하는가" 만 적었다 —
+        > 실제로 `expression-resolver.service.spec.ts` 의 주석이 **C1 만 적고 있어** 정본과
+        > 갈려 있었다(§6.3.1 이 C2 를 추가하기 전 문구가 남은 것). 요약을 두면 갈린다.
+        >
+        > **리뷰 라운드 결과** (`review/code/2026/08/29/01_07_51`, forced 7 reviewer 전원 —
+        > Critical 0 · Warning 1). 그 Warning 이 **이 PR 의 목적을 그대로 재발시킨 사례**다:
+        > `expression-resolver.service.spec.ts` 의 C2 서술이 §6.3.1 원문의 한정어("message·name
+        > 밖의 **민감** 정보")를 떨어뜨려 "밖 속성이 없다" 로 과잉 일반화됐는데, `ExpressionError`
+        > 는 실제로 `code`(enum)·`position`(정수 오프셋)을 갖는다 — 문자 그대로는 거짓이었다.
+        > 리뷰가 지목한 것은 1곳이지만 **자매를 전수로 세어** `code.handler` 2곳도 같은 형태라
+        > 3곳을 함께 고쳤다. 조치 기록: 그 세션의 `RESOLUTION.md`.
+        >
+        > **2라운드 (`review/code/2026/08/29/01_40_43`)**: Critical 0 · **Warning 0** ·
+        > 위험도 NONE (router 선별 7명, forced 전원 결과 확보). 1라운드 Warning 의 fix 가
+        > 자매 전수까지 반영됐음을 7 reviewer 가 독립 확인했다 — RESOLUTION 불요(clean).
+        > 게이트도 이 라운드로 재무장이 풀린다(1라운드 세션 시각 < fix 커밋 시각이었다).
+        > `--impl-done`(`01_30_29`)은 그 뒤 spec-linked **코드** 편집이 없으므로 유효하다.
+        >
+        > 후속으로 남긴 것 (developer SKILL §수렴 예외 (a)(b)(c)(d) — 둘 다 동작 결함이 아니고,
+        > 고치면 spec-linked 파일이라 리뷰 2종이 freshness 로 재무장된다):
+        >
+        > - [ ] **C2 를 단언으로 잠그기** (리뷰 INFO #1) — `cause` 의 own enumerable key 가
+        >       `code`/`position`(비민감) 밖으로 늘면 RED 를 내는 캐너리. 지금은 주석이 "민감
+        >       속성 없음" 을 말할 뿐 아무도 강제하지 않는다. 위 §6.3.1 항목이 "주석 대신 테스트로
+        >       잠갔다" 고 한 것은 **C1 만** 잠근 것이다.
+        > - [ ] **`cause` 비노출 불변식의 계측 지점** (리뷰 INFO #2) — `GlobalExceptionFilter`
+        >       또는 공용 에러 직렬화 유틸에 "`cause` 를 클라이언트 응답에 노출하지 않는다"
+        >       회귀 테스트 1건. 오늘 안전한 근거가 **부재 주장**이라, APM·구조적 로깅 유틸이
+        >       하나 생기면 조용히 깨진다.
+        >
+        >       **근거의 범위를 좁혀 둔다 (2026-08-29 2라운드 INFO #3 · 실측).** "저장소 전체에
+        >       `.cause` 소비자가 없다" 는 **거짓**이다 — backend 소스에 정확히 한 곳,
+        >       `telegram/telegram-client.ts:92` 의 `describeFetchError()` 가 `err.cause` 를
+        >       읽어 로그 문자열을 만든다(`grep -rn --include='*.ts' '\.cause' codebase/backend/src`
+        >       가 그 한 줄만 낸다). 다만 그 함수는 **Telegram fetch 에러 전용**이라 위 세
+        >       경로(`expression-resolver`/`code.handler`/`secret-resolver`)가 던지는 에러를
+        >       받지 않는다. 그러니 참인 명제는 **"이 세 경로의 `cause` 를 읽는 곳이 없다"** 다.
+        >       다음에 이 근거를 재사용할 때 넓은 쪽을 쓰지 말 것.
+        > - [ ] (작음, 다음에 그 파일을 열 때) `secret-resolver.service.ts` 의 비부착 주석에서
+        >       "서버 로그에만 남는 것도 아니다" 옆에 "이는 C1 판정의 **보조 근거**일 뿐
+        >       판정축이 아니다" 한 문장 — `--impl-done`(`01_30_29`) `rationale_continuity`
+        >       INFO #2. §6.3.1 이 **명시적으로 기각한** "소비처가 직렬화하는가" 기준과
+        >       닮아 보여 오인 소지가 있다는 지적이다(실제 판정은 C1 로 정확히 했다).
       > **(등재 당시 기록) 왜 그 턴에 안 고쳤나** — developer SKILL §수렴 예외 (a)+(b)+(c)+(d) 충족.
       > (a) 동작 결함이 아니다: 두 경로 모두 `cause` 부착이 안전함을 `security`·
       > `rationale_continuity` 두 리뷰어가 **독립적으로 실측 확인**했다(다운스트림에서

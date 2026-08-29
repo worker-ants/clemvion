@@ -133,11 +133,17 @@ describe('ExpressionResolverService', () => {
     // `preserve-caught-error`(eslint 10 recommended) 대응으로 붙인 `cause: err` 를 잠근다.
     // 위 두 케이스는 `.message` 만 보므로 `cause` 를 떼도 GREEN 이다 — 이 케이스가 그 축이다.
     //
-    // 여기서 `cause` 부착이 안전한 근거: 던지는 message 가 **이미** 원본 `err.message` 를
-    // 그대로 싣고 있어(`Expression error in config.${path}: ${message}`) cause 가 새 정보를
-    // 노출하지 않는다. 반대로 `SecretResolverService.resolve` 는 원본을 일부러 감추는
-    // 자리라 그쪽만 `preserve-caught-error` 를 끄고 `cause` 를 달지 않는다 — 두 처분을
-    // 가르는 기준이 "message 가 원문을 이미 담고 있는가" 다.
+    // 부착 여부의 **기준은 여기 적지 않는다** — 정본은
+    // `spec/5-system/3-error-handling.md` §6.3.1(C1 AND C2)이다. 여기 요약을 두면 정본이
+    // 바뀔 때 갈린다(실제로 갈렸다: 이 주석은 한때 C1 만 적고 있었고, `--spec` 검토가
+    // "`cause` 는 `err` **객체 전체**를 붙인다" 를 짚어 C2 가 추가됐다).
+    //
+    // 이 자리가 그 기준을 어떻게 만족하는지만 적는다: C1 — 던지는 message 가 원본
+    // `err.message` 를 그대로 싣는다. C2 — 표현식 평가 예외라 message·name 밖에 **민감**
+    // 속성이 붙지 않는다(부가 own property 의 실측은 `expression-resolver.service.ts` 의
+    // 같은 주석). 한정어 없이 "속성이 없다" 로 적으면 거짓이다 — `ExpressionError` 는
+    // `code`/`position` 을 갖는다.
+    // 반대 사례(비부착)는 `SecretResolverService.resolve` 이고 §6.3.1 이 그것을 지목한다.
     it('원본 예외를 `cause` 로 보존한다 (cause 제거 시 RED)', () => {
       const config = { url: '{{ $input. }}' };
       let thrown: unknown;

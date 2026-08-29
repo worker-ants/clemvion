@@ -86,11 +86,17 @@ export class SecretResolverService implements OnModuleInit {
       // 원본 crypto 에러 상세(예: "Unsupported state or unable to authenticate data")를
       // 호출 스택에 노출하지 않도록 추상화된 에러로 교체.
       //
-      // `preserve-caught-error`(eslint 10 recommended)를 여기서만 끈다 — `cause: err` 를 달면
-      // 위 추상화가 무의미해진다. 이 경로의 에러 메시지는 서버 로그에만 남지 않는다:
-      // `#814`(SSRF 메시지 일반화)에서 "서버 로그니까 안전" 이 오전제로 반증됐고, 노드 에러는
-      // Activity API 로 사용자에게 노출된다. 원본 상세는 바로 위 `logger.error` 로만 남긴다
-      // (SS-SE-05: ref + workspaceId, plaintext 미기록).
+      // `cause` 비부착 — 기준의 정본은 spec/5-system/3-error-handling.md §6.3.1 이고,
+      // 이 자리가 그 절이 지목하는 **비부착 사례**다. **C1 이 성립하지 않는다**: 위
+      // `message`(`'Secret decryption failed'`)가 원본을 일부러 담지 않으므로, `cause` 를
+      // 달면 그 비노출 의도가 무효화된다. §6.3.1 은 C1 AND C2 라 C1 이 거짓인 시점에
+      // C2 는 판정 불요다 (형제 3곳이 "C1 — … C2 — …" 두 줄인 것과 형식이 다른 이유).
+      //
+      // 그래서 `preserve-caught-error`(eslint 10 recommended)를 여기서만 끈다. 이 경로의
+      // 에러가 서버 로그에만 남는 것도 아니다 — `#814`(SSRF 메시지 일반화)에서 "서버
+      // 로그니까 안전" 이 오전제로 반증됐고, 노드 에러는 Activity API 로 사용자에게 노출된다.
+      // 원본 상세는 바로 위 `logger.error` 로만 남긴다(SS-SE-05: ref + workspaceId,
+      // plaintext 미기록).
       // eslint-disable-next-line preserve-caught-error -- cause 보존 시 crypto 에러 상세가 Activity API 로 노출됨 (SS-SE-05, `#814` 근거)
       throw new Error('Secret decryption failed');
     }
