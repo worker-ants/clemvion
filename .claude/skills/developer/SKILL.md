@@ -19,7 +19,7 @@ model: opus
 - **TDD 준수**: 스펙 해석 즉시 테스트 선작성, 구현 후 보강.
 - **품질 책임**: Warning 이상 이슈와 누락 테스트는 지시 범위 밖이라도 해결. 기존부터 있던 이슈도 발견 시 조치.
 - **누락 방지**: `plan/in-progress/` 에 진행 메모 작성·갱신, 재진입 시 먼저 확인. plan 라이프사이클: [`.claude/docs/plan-lifecycle.md`](../../docs/plan-lifecycle.md).
-- **plan 체크박스 = 실제 상태**: `plan/in-progress/<task>.md` 의 체크리스트는 **각 단계가 끝날 때마다 그 즉시** 갱신한다 (실제 통과한 단계만 `[x]`). 아직 안 돌린 단계(e2e·`/ai-review` 등)를 **미리 `[x]` 로 적거나, 코드 커밋 시 forward-looking 으로 적어두고 방치 금지**. 근거: review 산출물(`review/code/**`)은 gitignored 라 PR 에 없고, **plan 노트가 PR 에서 워크플로 이행을 확인할 유일한 흔적**이다 — stale 체크박스는 "단계 건너뜀" 으로 오인된다. e2e/ai-review 결과는 통과 직후 갱신해 REVIEW WORKFLOW 커밋(step 9) 또는 별도 `docs(plan):` 커밋으로 PR 에 반영한다.
+- **plan 체크박스 = 실제 상태**: `plan/in-progress/<task>.md` 의 체크리스트는 **각 단계가 끝날 때마다 그 즉시** 갱신한다 (실제 통과한 단계만 `[x]`). 아직 안 돌린 단계(e2e·`/ai-review` 등)를 **미리 `[x]` 로 적거나, 코드 커밋 시 forward-looking 으로 적어두고 방치 금지**. 근거: 체크박스는 "그 단계를 실제로 통과했다" 는 **상태 주장**이다 — 미리 `[x]` 를 적으면 PR 을 읽는 사람이 통과로 읽고, 수행해 놓고 `[ ]` 로 두면 반대로 "단계 건너뜀" 으로 오인된다. (종전 이 자리의 근거였던 "review 산출물(`review/code/**`)은 gitignored 라 PR 에 없다" 는 **사실이 아니다** — `.gitignore` 가 무시하는 것은 `review/**/_prompts/` 한 줄뿐이고 `SUMMARY.md`·`<role>.md`·`meta.json`·`RESOLUTION.md` 는 커밋된다. 2026-08-29 `git check-ignore` 실측.) e2e/ai-review 결과는 통과 직후 갱신해 REVIEW WORKFLOW 커밋(step 9) 또는 별도 `docs(plan):` 커밋으로 PR 에 반영한다.
 
 ## 경로별 권한
 
@@ -29,7 +29,7 @@ model: opus
 | `plan/in-progress/` | Read/Write 자유 |
 | `plan/complete/` | Read/Write — 모든 항목 끝나면 `git mv` |
 | `codebase/**` | Read/Write — 구현 주 영역 |
-| `review/` | Read/Write — `RESOLUTION.md` 는 구현자 (또는 resolution-applier sub-agent) 가 작성 |
+| `review/` | Read/Write — 라운드 산출물 **전체**(`SUMMARY.md`·`<role>.md`·`meta.json`·`RESOLUTION.md`)를 커밋한다(`_prompts/` 만 gitignored). `RESOLUTION.md` 는 구현자 (또는 resolution-applier sub-agent) 가 작성 |
 | `README.md`, `PROJECT.md` | Read/Write |
 
 ## 작업 워크플로
