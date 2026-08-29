@@ -1983,6 +1983,25 @@ SoT 인 `chat-channel-adapter.md:149-151` 은 `status` + `result?` 를 선언하
   위 실측표를 함께 실어야 하며, 게이트는 `--spec` 이 아니라 이 파일이 포함되는 스코프의
   `--impl-done` 이다 — 그 번들 문제를 먼저 풀어야 한다.
 
+## `15-external-interaction.md §4` Redis 각주가 `redis-keys.md` 등재를 반영 못 한다 (2026-08-29 등재)
+
+- [ ] **§4 외부 의존 표의 Redis 행 각주 "EIA 계열 키는 그 표에 아직 미등재" 를 명확화하거나
+      §2.2 참조로 통합** — 실제로는 `4-execution-engine.md §9.2`(엔진 소유 키 **전용** 표) 기준
+      서술인데, 바로 옆 §2.2 가 "SoT 는 `conventions/redis-keys.md`" 라고 말하고 **거기엔 이미
+      등재돼 있어** 나란히 읽으면 "어디에도 없다" 로 오독된다.
+
+  **출처**: `--impl-done`(`review/consistency/2026/08/29/19_45_22`) convention_compliance INFO 3.
+  **이번 PR 범위 밖(pre-existing)** 이고 CRITICAL/WARNING 도 아니라 그 PR 에서 손대지 않았다 —
+  `spec/` 쓰기라 `project-planner` 영역이기도 하다.
+
+  **처분 후보 둘 중 하나** (checker 제안 그대로):
+  - 각주를 "`4-execution-engine.md §9.2`(엔진 소유 키 전용 표)에는 없음 — 정식 등재는
+    `conventions/redis-keys.md §3`" 로 **주어를 명시**하거나,
+  - §2.2 와 중복이므로 §4 각주를 **제거하고 §2.2 참조로 통합**.
+
+  > 후자가 더 나아 보이지만 판단은 planner 턴에서. 이 저장소가 반복해 겪은 형태다 —
+  > **"어느 표를 말하는가" 를 생략한 부재 서술**은 인접 문서가 그 부재를 메우는 순간 거짓이 된다.
+
 ## 비고
 - 각 항목의 근거(claim→코드부재)는 audit findings/5-system/5-system__14-external-interaction-api.md 참조.
 - 핵심 surface (REST 명령·SSE 스트림·iext/itk 토큰·HMAC 서명·SSRF·secret rotation·idempotency·CORS) 는 구현 완료. 위 항목은 hardening/배율/분산성 갭이며 기능 데드락은 아님.
