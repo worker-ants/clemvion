@@ -1,6 +1,6 @@
 ---
 title: backend lint 스테이지가 main 에서 깨져 있다 — prettier·typescript-eslint 무검증 머지의 결과
-worktree: eia-idem-resolve-cache-hit-36acd6
+worktree: eia-failopen-observability-18dc47
 started: 2026-08-08
 owner: developer
 status: in-progress
@@ -581,6 +581,34 @@ PR 을 막는다" 고 적은 것은 **부정확**했다 — 막던 것은 그중
         > "미계측" 인지 구분되지 않기 때문이다 —
         > 근거는 [`data-flow/9-observability.md` §Rationale](../../spec/data-flow/9-observability.md).
         > 설계 배경 전문: [`plan/complete/spec-draft-nf-ob-07-redis-fail-open.md`](../complete/spec-draft-nf-ob-07-redis-fail-open.md).
+        >
+        > **재실측 (2026-08-29, `eia-failopen-observability`) — 수가 또 움직였다.** 위 "18개
+        > 파일" 은 2026-08-13 값이다. 지금 재니 **Redis 를 만지며 fail-open 하는 파일 21개,
+        > 그중 배선된 것은 2개**(정의부 `business-metrics.service.ts` + 호출부
+        > `idempotency.interceptor.ts`)라 **미배선 19개**다. 측정 명령은
+        > `grep -rli "fail-open" --include='*.ts' codebase/backend/src` 에서 `.spec.ts` 를 뺀 뒤
+        > `Redis|ioredis|redisConn|RedisConnectionProvider` 를 포함하는 것만 남긴 것이다
+        > (fail-open 언급 전체는 31개인데 SSRF·node-output-allowlist 등 **Redis 와 무관한
+        > 10개**가 섞여 있어 그대로 세면 배선 대상을 과대계상한다).
+        >
+        > **배선 자체는 여전히 이 항목에 남는다.** 19곳은 component 라벨 설계 + spec 카탈로그
+        > 갱신을 동반해 PR 하나에 담기지 않는다.
+        >
+        > **대신 "빠뜨림" 을 막는 계측 지점을 먼저 뒀다 (2026-08-29 완료)** —
+        > `repo-guards/__tests__/redis-fail-open-catalog.spec.ts`. 유니온 ↔ spec 카탈로그 행 ↔
+        > 실제 프로덕션 호출부 **3자 정합**을 강제한다. 종전에는 "배선된 것은 idempotency
+        > 하나" 라는 사실이 **아무 데도 고정돼 있지 않아**, 유니온만 넓히고 spec 표를 잊거나
+        > 그 반대여도 둘 다 조용히 통과했다. 후자가 특히 나쁘다 — 대시보드에 라벨이 있는데
+        > 값이 영원히 0이면 운영자는 "그 경로는 건강하다" 고 읽는다.
+        >
+        > | 뮤턴트 | 예측 | 실측 |
+        > | --- | --- | --- |
+        > | 유니온만 `\| 'blacklist'` 로 넓힘 (spec·배선 미갱신) | RED | **RED 4** |
+        > | 가드에서 상수 추적(`METRICS_COMPONENT`) 제거 | RED | **RED 3** |
+        >
+        > 상수 추적이 없으면 정본 호출부가 통째로 안 보이고, 그 상태에서도 "모든 값이 호출부를
+        > 가진다" 가 **거짓 RED 가 아니라 조용한 오판**이 된다. 그래서 "해석 실패(`null`)가
+        > 0건" 을 별도 단언으로 뒀다.
       - GET→SET 비원자 구조(선재)를 `SET NX EX` 선점 또는 in-flight dedup 으로 좁힐지 검토
         (`14_27_02` concurrency INFO 7) — 정상 시에도 좁은 창이 있다
 - [x] **`Idempotency-Key` e2e 부재** (`16_29_45` testing CRITICAL 의 후속 권고).

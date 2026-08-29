@@ -90,7 +90,8 @@ export class SecretResolverService implements OnModuleInit {
       // 이 자리가 그 절이 지목하는 **비부착 사례**다. **C1 이 성립하지 않는다**: 위
       // `message`(`'Secret decryption failed'`)가 원본을 일부러 담지 않으므로, `cause` 를
       // 달면 그 비노출 의도가 무효화된다. §6.3.1 은 C1 AND C2 라 C1 이 거짓인 시점에
-      // C2 는 판정 불요다 (형제 3곳이 "C1 — … C2 — …" 두 줄인 것과 형식이 다른 이유).
+      // C2 는 판정 불요다 (형제 4곳이 "C1 — … C2 — …" 두 줄인 것과 형식이 다른 이유 —
+      // `expression-resolver.service.ts`/`.spec.ts` · `code.handler.ts`/`.spec.ts`).
       //
       // 아래 "서버 로그에만 남는 것도 아니다" 는 **C1 판정의 보조 근거**일 뿐 판정축이
       // 아니다 — §6.3.1 은 "소비처가 직렬화하는가" 를 기준으로 삼는 안을 **명시적으로

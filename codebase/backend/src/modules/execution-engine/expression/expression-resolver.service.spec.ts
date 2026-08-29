@@ -175,10 +175,11 @@ describe('ExpressionResolverService', () => {
     // 주석이 아니라 **단언**으로 잠근다. 위 케이스는 C1(감싼 message 가 원본을 싣는다)만
     // 검증하므로, `cause` 에 민감 속성이 새로 붙어도 RED 가 나지 않았다.
     //
-    // 축이 **enumerable** own key 인 이유: C2 가 막으려는 것은 pg 드라이버의
-    // `detail`/`hint`, HTTP 응답 헤더, 커넥션 문자열처럼 **직렬화에 딸려 나오는** 값이다.
-    // `JSON.stringify` 와 object spread 는 enumerable 만 본다. 표준 `message`/`stack` 은
-    // own 이지만 non-enumerable 이라 여기 안 잡히는 것이 맞다.
+    // 축이 **enumerable** own key 인 이유는 정본이 따로 있다 —
+    // `packages/expression-engine/src/__tests__/error-shape.spec.ts` 상단 주석.
+    // (요지만: `JSON.stringify`·object spread 가 enumerable 만 보고, 표준 `message`/`stack`
+    // 은 non-enumerable 이라 안 잡히는 것이 맞다.) 종전에는 그 4줄이 여기 통째로 복제돼
+    // 있었고, 근거가 바뀌면 한쪽만 고쳐지는 drift 형태였다.
     //
     // **이 캐너리가 무엇을 잠그고 무엇을 안 잠그는지**를 정확히 적는다. 여기서 두 번
     // 좁게 적었다가 두 번 다 리뷰가 뚫었다: 처음엔 syntax 한 종류만 지나갔고, 다음엔

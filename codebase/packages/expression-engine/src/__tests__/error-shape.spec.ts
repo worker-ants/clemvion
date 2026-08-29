@@ -20,6 +20,13 @@ import { ErrorCode, ExpressionError } from '../errors';
  * `detail`/`hint`, HTTP 응답 헤더, 커넥션 문자열처럼 **직렬화에 딸려 나오는** 값이다.
  * `JSON.stringify` 와 object spread 는 enumerable 만 본다. 표준 `message`/`stack` 은
  * own 이지만 non-enumerable 이라 여기 안 잡히는 것이 맞다.
+ *
+ * ─── 위 "enumerable 인 이유" 문단은 **이 파일이 정본**이다 ───
+ * 같은 근거가 backend 의 형제 캐너리들에도 필요한데, 종전에는
+ * `expression-resolver.service.spec.ts` 에 **같은 문장이 통째로 복제**돼 있었다(정리 전 실측:
+ * 축약 없는 사본 2곳 + 위임 1곳). 근거가 바뀔 때 한쪽만 고쳐지는 drift 를 막으려고 여기를
+ * 정본으로 두고 backend 쪽은 이 파일을 가리키게 했다. 정본을 **아래층 패키지**에 둔 이유는
+ * 에러 클래스 자체가 이 패키지 것이고, 그래야 참조가 위층(backend)으로 향하지 않기 때문이다.
  */
 describe('ExpressionError 계열의 own-property 모양 (§6.3.1 C2 캐너리)', () => {
   /** 비민감 화이트리스트 — `code` 는 enum 문자열, `position` 은 입력 안의 정수 오프셋. */

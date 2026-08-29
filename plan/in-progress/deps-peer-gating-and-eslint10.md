@@ -1,6 +1,6 @@
 ---
 title: 의존성 peer 게이팅 + eslint 10 상향 — 무검증 major 머지의 남은 두 구멍
-worktree: eslint10-upgrade-5e3cf9
+worktree: eia-failopen-observability-18dc47
 started: 2026-08-01
 owner: developer
 status: in-progress
@@ -605,17 +605,67 @@ eslint 9 는 이미 `maintenance` dist-tag 다(2026-08-01 실측: latest = 10.8.
 > 봉인되면 유실된다. 서술은 인용문에 남기고 **정본 체크박스는 최상위로** 올린다.
 > 게이트 쪽 사각지대는 `harness-review-gate-followups.md` 에 등재했다.
 
-- [ ] **`cause` 비노출 불변식의 계측 지점** — `GlobalExceptionFilter` 또는 공용 에러 직렬화
+- [x] **`cause` 비노출 불변식의 계측 지점** — `GlobalExceptionFilter` 또는 공용 에러 직렬화
       유틸에 "`cause` 를 클라이언트 응답에 노출하지 않는다" 회귀 테스트 1건. 근거가
       **부재 주장**이라 APM·구조적 로깅 유틸이 하나 생기면 조용히 깨진다. 표면이 달라
       별건. (근거·범위 서술은 §2 의 해당 인용문)
-- [ ] **(작음) `secret-resolver.service.ts` 의 "형제 3곳" → 4곳** — C1/C2 를 함께 서술하는
+
+      > **완료 (2026-08-29, `eia-failopen-observability`).** `http-exception.filter.spec.ts` 에
+      > `describe('cause 비노출 불변식 (계측 지점)')` 신설 — **9건 추가(10→19)**. `it.each` 를
+      > 전개한 실행 수 기준이며, 파일 전체를 실행해 얻은 값이다(선언만 세면 6이다).
+      >
+      > **부재 주장의 참인 범위를 좁게 적었다.** "저장소 전체에 `cause` 를 읽는 곳이 없다" 는
+      > **거짓**이다 — 실측하니 `chat-channel/providers/telegram/telegram-client.ts` 의
+      > `describeFetchError` 가 `err.cause` 를 읽는다(backend `src` 전체에서 `.cause` 를 읽는
+      > 유일한 곳). 참인 것은 **"클라이언트 응답 봉투를 만드는 경로가 `cause` 를 싣지
+      > 않는다"** 이고 그 단일 출구가 이 필터다. 그래서 계측을 거기 뒀다.
+      >
+      > **초안 테스트는 절반이 공허했다 — 뮤테이션이 아니었으면 몰랐다.**
+      >
+      > | 뮤턴트 | 예측 | 실측 |
+      > | --- | --- | --- |
+      > | 봉투에 `cause` 추가 | RED | 초안 **RED 2** → fixture 보강 후 **RED 7** |
+      > | `...exception` 스프레드 | RED | **RED 7** (신규 4 + 기존 3) |
+      >
+      > 초안이 놓친 두 형태, 둘 다 이 저장소가 이미 아는 함정이었다:
+      >
+      > 1. **표식을 non-enumerable 자리에 뒀다.** `JSON.stringify` 는 enumerable own key 만
+      >    보므로 표식이 `message` 에만 있으면 유출돼도 `{}` 로 직렬화돼 단언이 조용히
+      >    통과한다. `HttpException` 케이스가 그래서 뮤턴트를 놓쳤다 — **§6.3.1 C2 캐너리가
+      >    "축이 enumerable own key 인 이유" 로 적어 둔 바로 그 함정**을, 그 문단을 정리하러
+      >    온 PR 에서 내가 다시 밟았다.
+      > 2. **닫힌 집합 열거의 fixture 에 `cause` 가 없었다.** 유출 뮤턴트의 조건이 아예
+      >    발화하지 않아 4건 전부 통과했다. 분기를 못 가르는 fixture 다.
+      >
+      > 그래서 fixture 가 유출 시 실제로 표식을 드러내는 형태인지 못 박는 **vacuity 방지
+      > 단언 1건**을 함께 뒀다. 축이 다른 "비-Error fallthrough" 는 `it.each` 에서 분리했다 —
+      > 문자열은 `cause` 를 가질 수 없어 이 축을 가르지 못한다.
+- [x] **(작음) `secret-resolver.service.ts` 의 "형제 3곳" → 4곳** — C1/C2 를 함께 서술하는
       형제 지점은 `expression-resolver.service.ts`/`.spec.ts` · `code.handler.ts`/`.spec.ts`
       로 넷이다.
-- [ ] **(작음) 근거 서술 중복 정리 묶음** — "축이 enumerable own key 인 이유" 가 두 backend
+
+      > **완료 (2026-08-29).** `git grep "C1 —"` 로 재확인 — 이 기준의 형제는 정확히 그 4곳이다
+      > (`agent-memory.service.ts` · `integration-expiry-scanner.service.spec.ts` 의 `C1`/`REQ-C1`
+      > 은 SQL 리터럴 보간 금지·요구사항 ID 로 **다른 기준**이라 형제가 아니다). 숫자만 고치지
+      > 않고 네 경로를 주석에 함께 적었다 — 다음 사람이 다시 세지 않도록.
+- [x] **(작음) 근거 서술 중복 정리 묶음** — "축이 enumerable own key 인 이유" 가 두 backend
       spec + 패키지 캐너리 3곳에 거의 같은 문장으로 있고, `captureThrown`/`captureRejected`
       의 vacuity-guard JSDoc 도 두 spec 에 복제돼 있다. 한쪽을 정본으로 두거나 §6.3.1
       Rationale 로 올린다. **이 PR 이 고치려던 drift 와 같은 형태**다.
+
+      > **완료 (2026-08-29) — 단, 위 "3곳" 은 틀렸다.** 실측하니 **축약 없는 사본은 2곳**이고
+      > (`expression-resolver.service.spec.ts` · `packages/expression-engine/.../error-shape.spec.ts`),
+      > 세 번째로 센 `code.handler.spec.ts` 는 **이미 위임하고 있었다**("그쪽 주석에 있다").
+      > 인계받은 수치를 그대로 믿었으면 없는 중복을 지우러 갔을 것이다.
+      >
+      > **정본을 `packages/expression-engine` 쪽에 뒀다** — 에러 클래스 자체가 그 패키지 것이고,
+      > 그래야 참조가 아래층→위층(backend)으로 향하지 않는다. backend 두 파일은 그리로
+      > 가리키게 했다(`code.handler.spec.ts` 는 종전에 사본을 가리켜 한 다리를 더 건넜다).
+      >
+      > **`captureThrown`/`captureRejected` 는 중복이 아니라서 손대지 않았다.** 둘은 같은
+      > 헬퍼의 사본이 아니라 **시그니처가 다른 자매**(동기 / async)이고, 이미 서로를
+      > 교차 참조한다. 두 모듈의 test 파일을 호출부 2곳 때문에 공용 유틸로 묶는 것은
+      > 이 항목이 막으려던 drift 보다 큰 결합을 만든다.
 
 > 셋 다 spec-linked 파일이라 주석 한 줄만 건드려도 `/ai-review` 와 `--impl-done` 이 동시에
 > 재무장된다 — 그래서 묶어서 한 번에 처리한다 (developer SKILL §수렴 예외).
