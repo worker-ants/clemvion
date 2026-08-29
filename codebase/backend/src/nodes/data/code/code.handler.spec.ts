@@ -234,6 +234,32 @@ describe('CodeHandler', () => {
       expect((thrown as Error).message).toContain((cause as Error).message);
     });
 
+    // C2 캐너리 — 형제 `expression-resolver.service.spec.ts` 와 같은 축(enumerable own key).
+    // 왜 enumerable 인지, 왜 `message`/`stack` 이 안 잡히는지는 그쪽 주석에 있다.
+    //
+    // 여기 화이트리스트는 **빈 집합**이다 (2026-08-29 실측: `isolate.compileScript` 의 컴파일
+    // 예외는 `Object.keys` = `[]`, `getOwnPropertyNames` = `['stack','message']`). 즉
+    // `isolated-vm` 이 호스트로 넘겨 주는 것은 표준 `Error` 모양뿐이고 부가 속성이 없다.
+    // 상류가 진단 필드(예: 소스 경로·isolate 식별자)를 얹기 시작하면 이 단언이 RED 로 알린다.
+    it('C2 캐너리 — `cause` 에 enumerable own 속성이 하나도 붙지 않는다', async () => {
+      let thrown: unknown;
+      try {
+        await handler.execute(
+          null,
+          { code: 'this is ( not valid js' },
+          context,
+        );
+      } catch (err) {
+        thrown = err;
+      }
+      // vacuity 방지 — reject 하지 않으면 `cause` 가 undefined 라 `Object.keys` 가 던진다.
+      expect(thrown).toBeInstanceOf(Error);
+      const cause = (thrown as Error).cause;
+      expect(cause).toBeDefined();
+
+      expect(Object.keys(cause as object)).toEqual([]);
+    });
+
     it('should return undefined output when code returns nothing', async () => {
       const result = (await handler.execute(
         null,

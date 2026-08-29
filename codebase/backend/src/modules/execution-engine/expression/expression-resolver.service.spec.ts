@@ -161,6 +161,44 @@ describe('ExpressionResolverService', () => {
       expect((thrown as Error).message).toContain((cause as Error).message);
     });
 
+    // C2 캐너리 — §6.3.1 의 C2("message·name 밖의 **민감** 정보를 속성으로 갖지 않는다")를
+    // 주석이 아니라 **단언**으로 잠근다. 위 케이스는 C1(감싼 message 가 원본을 싣는다)만
+    // 검증하므로, `cause` 에 민감 속성이 새로 붙어도 RED 가 나지 않았다.
+    //
+    // 축이 **enumerable** own key 인 이유: C2 가 막으려는 것은 pg 드라이버의
+    // `detail`/`hint`, HTTP 응답 헤더, 커넥션 문자열처럼 **직렬화에 딸려 나오는** 값이다.
+    // `JSON.stringify` 와 object spread 는 enumerable 만 본다. 표준 `message`/`stack` 은
+    // own 이지만 non-enumerable 이라 여기 안 잡히는 것이 맞다.
+    //
+    // 화이트리스트는 실측이다 (2026-08-29, `evaluate()` 를 4개 오류 종류로 직접 호출):
+    // `ExpressionSyntaxError`·`ExpressionReferenceError`·`ExpressionTypeError` 전부
+    // `['name','code','position']` — `code` 는 `ErrorCode` enum 문자열, `position` 은 입력
+    // 문자열 안의 정수 오프셋이라 둘 다 비민감이다.
+    it('C2 캐너리 — `cause` 의 enumerable own key 가 비민감 화이트리스트를 벗어나지 않는다', () => {
+      const config = { url: '{{ $input. }}' };
+      let thrown: unknown;
+      try {
+        service.resolveConfig(config, baseContext);
+      } catch (err) {
+        thrown = err;
+      }
+      // vacuity 방지 — 안 던지면 `cause` 가 undefined 라 아래가 통과해 버린다.
+      expect(thrown).toBeInstanceOf(Error);
+      const cause = (thrown as Error).cause as Error;
+      expect(cause).toBeInstanceOf(Error);
+
+      expect(Object.keys(cause).sort()).toEqual(['code', 'name', 'position']);
+
+      // 키 이름만 잠그면 "같은 키에 민감한 값이 실린다" 는 변형을 놓친다. 두 값의 **모양**도
+      // 함께 고정한다 — `code` 는 `EXPR_` 접두 enum, `position` 은 정수(또는 미설정).
+      const shape = cause as unknown as { code: unknown; position: unknown };
+      expect(typeof shape.code).toBe('string');
+      expect(shape.code as string).toMatch(/^EXPR_[A-Z_]+$/);
+      expect(
+        shape.position === undefined || Number.isInteger(shape.position),
+      ).toBe(true);
+    });
+
     it('coerces mixed text + expression to string', () => {
       const config = { message: 'Items: {{ $input.count }}' };
       const result = service.resolveConfig(config, baseContext);
