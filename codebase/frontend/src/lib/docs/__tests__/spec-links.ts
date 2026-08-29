@@ -76,7 +76,10 @@ export interface MdLink {
   target: string; // url part only (title and surrounding ws stripped)
 }
 
-const LINK_RE = /\[([^\]]*)\]\(([^)]+)\)/g;
+// 링크 **텍스트**는 줄을 넘을 수 있고(`[^\]]*` 가 개행을 포함한다), **목적지**는 넘지
+// 못한다(`[^)\n]+`). 후자는 의도된 좁힘이다 — CommonMark 도 `<...>` 형태가 아니면 목적지에
+// 개행을 허용하지 않고, 넓히면 본문 괄호가 URL 로 오인될 여지가 생긴다.
+const LINK_RE = /\[([^\]]*)\]\(([^)\n]+)\)/g;
 const FENCE_RE = /^(\s*)(```|~~~)/;
 
 /**
@@ -101,31 +104,84 @@ function cannotContainLink(text: string): boolean {
   return !text.includes("](") && !text.includes("]`");
 }
 
-/** Extract markdown links outside fenced/inline code. */
+/**
+ * Extract markdown links outside fenced/inline code.
+ *
+ * ## 왜 줄 단위로 매칭하지 않는가
+ *
+ * 종전 구현은 줄로 자른 뒤 **줄마다** `LINK_RE` 를 돌렸다. 그래서 링크 **텍스트**가 줄을
+ * 넘으면 — `[` 와 `](` 가 다른 줄에 있으면 — 그 링크는 **아예 수집되지 않았다.** 존재·앵커
+ * 검증이 통째로 건너뛰어지고, 가드는 실패가 아니라 **침묵으로 통과**한다. 깨진 앵커가
+ * 있어도 아무도 모르는 형태다(2026-08-11 실측: `spec/**.md` 6건/6파일 + 거버넌스 스코프
+ * 2건이 그렇게 숨어 있었다).
+ *
+ * 그래서 **마스킹된 전문(全文)** 을 만들어 한 번에 매칭한다.
+ *
+ * ## 마스킹이 세 가지를 동시에 지켜야 한다
+ *
+ * 1. **인라인 코드는 지운다 (공백으로 채우지 않는다).** `` [a]`code`(b) `` 는 코드를
+ *    지워야 비로소 링크가 된다 — 공백으로 채우면 `](` 인접성이 깨져 그 링크를 놓친다.
+ *    이건 기존 동작이고 전용 회귀 테스트가 있다.
+ * 2. **줄 번호는 원본 기준이어야 한다.** 1 때문에 오프셋이 밀리므로, 마스킹 텍스트의 각
+ *    줄이 원본 몇 번째 줄인지를 `srcLineOf` 에 따로 들고 간다.
+ * 3. **펜스를 사이에 두고 링크가 새로 생기면 안 된다.** 펜스 줄을 그냥 건너뛰면 앞뒤가
+ *    붙어 없던 링크가 생긴다. 그래서 건너뛴 자리마다 `]` 를 남긴다 — `]` 는 `[^\]]*`
+ *    (링크 텍스트)를 즉시 끝내고, 뒤에 오는 것은 개행이라 `](` 도 될 수 없다.
+ */
 export function extractLinks(absPath: string): MdLink[] {
   const text = fs.readFileSync(absPath, "utf8");
-  // 링크가 있을 수 없으면 라인 루프 전체가 낭비다 — 전수 스캔 114ms → 56ms(실측).
+  // 링크가 있을 수 없으면 스캔 전체가 낭비다 — 전수 스캔 114ms → 56ms(실측).
+  // 멀티라인 링크에서도 `](` 는 **붙어 있다**(줄이 넘는 것은 텍스트 쪽이다). 따라서 이
+  // 사전 필터는 그대로 유효하다.
   if (cannotContainLink(text)) return [];
-  const out: MdLink[] = [];
-  let inFence = false;
+
   const lines = text.split(/\r?\n/);
+  const masked: string[] = [];
+  const srcLineOf: number[] = []; // masked[k] 가 원본 몇 번째 줄인가 (1-based)
+  let inFence = false;
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
     if (FENCE_RE.test(line)) {
       inFence = !inFence;
+      masked.push("]"); // 펜스 경계에서 열린 링크 텍스트를 끊는다 (위 §3)
+      srcLineOf.push(i + 1);
       continue;
     }
-    if (inFence) continue;
-    const noCode = line.replace(/`[^`]*`/g, "");
-    LINK_RE.lastIndex = 0;
-    let m: RegExpExecArray | null;
-    while ((m = LINK_RE.exec(noCode)) !== null) {
-      const rawTarget = m[2].trim();
-      // Strip an optional title:  (url "title")
-      const tm = /^(\S+)(\s+"[^"]*")?$/.exec(rawTarget);
-      const url = tm ? tm[1] : rawTarget.split(/\s+/)[0];
-      out.push({ line: i + 1, raw: m[0], target: url });
+    if (inFence) {
+      masked.push("]");
+      srcLineOf.push(i + 1);
+      continue;
     }
+    masked.push(line.replace(/`[^`]*`/g, ""));
+    srcLineOf.push(i + 1);
+  }
+
+  // 각 마스킹 줄의 시작 오프셋 — 매치 위치를 원본 줄 번호로 되돌리는 데 쓴다.
+  const startOf: number[] = [];
+  let acc = 0;
+  for (const l of masked) {
+    startOf.push(acc);
+    acc += l.length + 1; // +1 = join 에 쓰는 개행
+  }
+  const body = masked.join("\n");
+
+  const out: MdLink[] = [];
+  LINK_RE.lastIndex = 0;
+  let m: RegExpExecArray | null;
+  while ((m = LINK_RE.exec(body)) !== null) {
+    const rawTarget = m[2].trim();
+    // Strip an optional title:  (url "title")
+    const tm = /^(\S+)(\s+"[^"]*")?$/.exec(rawTarget);
+    const url = tm ? tm[1] : rawTarget.split(/\s+/)[0];
+    // 링크가 **시작한** 줄을 보고한다 — 여러 줄에 걸치면 첫 줄이 사람이 찾는 자리다.
+    let lo = 0;
+    let hi = startOf.length - 1;
+    while (lo < hi) {
+      const mid = (lo + hi + 1) >> 1;
+      if (startOf[mid] <= m.index) lo = mid;
+      else hi = mid - 1;
+    }
+    out.push({ line: srcLineOf[lo], raw: m[0], target: url });
   }
   return out;
 }

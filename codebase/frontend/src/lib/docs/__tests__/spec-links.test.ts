@@ -254,3 +254,98 @@ describe("extractLinks — 사전 필터가 링크를 놓치지 않는다", () =
     ).toEqual(["./b.md"]);
   });
 });
+
+/**
+ * **링크 텍스트가 줄을 넘는 형태**를 `extractLinks` 가 보는지.
+ *
+ * 종전 구현은 `text.split(/\r?\n/)` 로 자른 뒤 **줄마다** `LINK_RE` 를 돌렸다. 그래서
+ * `[` 와 `](` 가 서로 다른 줄에 있으면 링크가 **아예 수집되지 않았고**, 존재·앵커 검증이
+ * 통째로 건너뛰어졌다 — 가드가 실패가 아니라 **침묵으로 통과**한다. 깨진 앵커가 있어도
+ * 아무도 모르는 형태이고, 이 폴더가 반복해 데인 "성능/단순화가 가드를 조용히 멈추게 한다"
+ * 와 같은 계열이다.
+ *
+ * 실측(2026-08-11, CommonMark 파서 기준): `spec/**.md` 에 6건 / 6파일,
+ * 거버넌스 스코프(루트 `*.md` + `.claude/**.md`)에 2건이 이 형태로 숨어 있었다.
+ *
+ * 아래는 **양방향**으로 고정한다 — 넓히는 방향(멀티라인 텍스트를 본다)만 잠그면
+ * "전부 링크로 본다" 는 반대 오류가 통과하므로, 목적지가 줄을 넘는 경우와 코드펜스를
+ * 사이에 둔 경우는 링크가 **아니어야** 한다는 것도 함께 단언한다.
+ */
+describe("extractLinks — 링크 텍스트가 줄을 넘어도 본다", () => {
+  let root: string;
+
+  beforeAll(() => {
+    root = fs.mkdtempSync(path.join(os.tmpdir(), "extract-links-ml-"));
+  });
+  afterAll(() => fs.rmSync(root, { recursive: true, force: true }));
+
+  const writeDoc = (name: string, body: string): string => {
+    const p = path.join(root, name);
+    fs.writeFileSync(p, body);
+    return p;
+  };
+
+  /** 링크 텍스트가 두 줄에 걸친 마크다운 링크. */
+  const mkMultiLink = (l1: string, l2: string, url: string): string =>
+    `[${l1}\n${l2}](${url})`;
+
+  it("텍스트가 두 줄에 걸친 링크를 찾는다", () => {
+    const body = `# T\n\n${mkMultiLink("첫 줄", "둘째 줄", "./a.md")}\n`;
+    expect(extractLinks(writeDoc("ml.md", body)).map((l) => l.target)).toEqual([
+      "./a.md",
+    ]);
+  });
+
+  it("실제 저장소에 있던 형태 — 인용부호와 인라인 코드가 섞인 두 줄", () => {
+    const bt = "`";
+    // `.claude/skills/**/SKILL.md` 에 실재하던 모양: 텍스트 첫 줄이 인라인 코드로 끝나고
+    // 다음 줄이 `> ` 인용으로 시작한다.
+    const body = `# T\n\n[${bt}a.py${bt}\n> ${bt}b()${bt}](./t.md)\n`;
+    expect(extractLinks(writeDoc("ml-quote.md", body)).map((l) => l.target)).toEqual(
+      ["./t.md"],
+    );
+  });
+
+  it("줄 번호는 링크가 **시작한** 줄이다", () => {
+    const body = `# T\n\n본문\n\n${mkMultiLink("첫 줄", "둘째 줄", "./a.md")}\n`;
+    expect(extractLinks(writeDoc("ml-line.md", body)).map((l) => l.line)).toEqual([
+      5,
+    ]);
+  });
+
+  it("목적지(URL)는 줄을 넘지 못한다", () => {
+    // `](` 뒤에서 줄이 바뀌면 링크로 보지 않는다 — CommonMark 도 `<...>` 형태가 아니면
+    // 목적지에 줄바꿈을 허용하지 않는다. 넓히는 쪽으로 실수하면 여기가 빨개진다.
+    const body = "# T\n\n[t](./a\n.md)\n";
+    expect(extractLinks(writeDoc("ml-url.md", body))).toEqual([]);
+  });
+
+  it("코드펜스를 사이에 둔 `[` 와 `](` 는 링크가 아니다", () => {
+    // 펜스 안은 건너뛰므로 앞뒤가 붙어 **없던 링크가 생기면** 안 된다.
+    const body = "# T\n\n[열린 텍스트\n\n```\ncode\n```\n\n](./a.md)\n";
+    expect(extractLinks(writeDoc("ml-fence.md", body))).toEqual([]);
+  });
+});
+
+/**
+ * 위 사각지대의 **실제 피해**를 통합 경로로 고정한다 — `extractLinks` 가 놓치면
+ * `findBrokenLinks` 도 못 보고, 깨진 타깃이 조용히 통과한다.
+ */
+describe("멀티라인 링크의 깨진 타깃도 잡힌다", () => {
+  let root: string;
+
+  beforeAll(() => {
+    root = fs.mkdtempSync(path.join(os.tmpdir(), "ml-broken-"));
+    fs.mkdirSync(path.join(root, "spec"), { recursive: true });
+    fs.writeFileSync(
+      path.join(root, "spec", "a.md"),
+      // 텍스트가 두 줄에 걸치고, 목적지 파일은 존재하지 않는다.
+      "# A\n\n[첫 줄\n둘째 줄](./nope.md)\n",
+    );
+  });
+  afterAll(() => fs.rmSync(root, { recursive: true, force: true }));
+
+  it("DEAD 로 보고된다 (종전에는 침묵 통과)", () => {
+    expect(fingerprint(findBrokenLinks(root))).toEqual(["DEAD ./nope.md"]);
+  });
+});
