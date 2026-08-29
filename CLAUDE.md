@@ -61,7 +61,7 @@ Workflow 의 generic 단계 정의: [`developer/SKILL.md`](.claude/skills/develo
 | 역할 | Skill | 쓰기 권한 |
 | --- | --- | --- |
 | 기획자 | [`project-planner`](.claude/skills/project-planner/SKILL.md) | `spec/**`, `plan/**` |
-| 개발자 | [`developer`](.claude/skills/developer/SKILL.md) | `codebase/**`, `plan/**`, `review/**/RESOLUTION.md`. `spec/` read-only ([좁은 예외](#자기-반증형-소정정--developer-가-spec-을-고칠-수-있는-유일한-경우)) |
+| 개발자 | [`developer`](.claude/skills/developer/SKILL.md) | `codebase/**`, `plan/**`, `review/**`. `spec/` read-only ([좁은 예외](#자기-반증형-소정정--developer-가-spec-을-고칠-수-있는-유일한-경우)) |
 | 일관성 검토자 | [`consistency-checker`](.claude/skills/consistency-checker/SKILL.md) (`/consistency-check`) | `review/consistency/**` |
 | 코드 리뷰어 | [`code-review-agents`](.claude/skills/code-review-agents/SKILL.md) (`/ai-review`) | `review/code/**` |
 | 통합 조율자 | [`merge-coordinator`](.claude/skills/merge-coordinator/SKILL.md) (`/merge-coordinate`) | `review/merge/**`, `.claude/worktrees/integrate-*/**` |
