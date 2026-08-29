@@ -197,11 +197,18 @@ DB(`trigger.workflowId`), 안쪽은 routing context — **출처가 다르다**.
       `spec-sync-external-interaction-api-gaps.md` 의 같은 항목에 근거 기록)
 - [ ] `chat-channel/types.ts:388` 을 (1) 최종형과 동기화
 - [ ] `duration` → `durationMs` 전역 개명
-- [ ] 코드 3곳의 `EIA §6.5 line 536` 인용에서 줄 번호 제거 (`chat-channel.dispatcher.ts:506`,
-      > ⚠️ **서술 정정 필요 (2026-08-28 `plan-audit`)** — 항목 자체는 **유효**하다.
-      > **무엇이 낡았나**: 항목 자체는 유효(3곳 전부 미제거). ① `chat-channel.dispatcher.spec.ts:428` → `:488` 로 갱신. ② 같은 주석 줄에 붙어 있는 두 번째 하드코딩 인용 `chat-channel-adapter.md §1.2 line 89` (실제 §1.2 = 그 파일 138행) 3곳도 같은 편집 범위에 넣어야 한다 — 동일 결함 클래스인데 항목이 `line 536` 만 지목한다. ③ 본문 L155 의 "§6.5 의 실제 위치는 675행" 도 재-stale (현재 827행) — 줄 번호를 다시 적지 말고 "앵커만 남긴다" 서술로 축약할 것.
-      > **실측**: `grep -rn "line 536"` 코드 3곳 잔존: chat-channel.dispatcher.ts:506 / types.ts:378 / chat-channel.dispatcher.spec.ts:**488** (plan 은 :428 로 적음). 같은 주석에 `§1.2 line 89` 도 3곳(dispatcher.ts:507·types.ts:376·spec.ts:489)
-      `chat-channel.dispatcher.spec.ts:428`, `chat-channel/types.ts:378`)
+- [ ] 코드 주석의 **하드코딩 줄 번호 인용을 앵커로 교체** — `grep -rn 'line 536'` 과
+      `grep -rn '§1.2 line 89'` 이 각각 **3곳**을 낸다(2026-08-29 재실측):
+      `chat-channel.dispatcher.ts` · `chat-channel/types.ts` ·
+      `chat-channel.dispatcher.spec.ts` — 두 인용이 **같은 주석 줄에 붙어 있으므로 한 번에**
+      고친다.
+      > **범위를 넓혔다 (2026-08-29).** 원래 항목은 `line 536` 하나만 지목했는데, 같은
+      > 주석에 `chat-channel-adapter.md §1.2 line 89` 라는 **동일 결함 클래스**가 또 있다
+      > (그 파일의 실제 §1.2 는 다른 줄이다). 하나만 고치면 남은 쪽이 같은 방식으로 썩는다.
+      >
+      > **여기서는 줄 번호를 다시 적지 않는다.** 원래 항목이 파일별 `:428` 같은 위치를
+      > 박아 뒀는데 그중 하나가 이미 `:488` 로 밀려 있었다 — 줄 번호로 줄 번호 결함을
+      > 추적하면 같은 자리에서 다시 썩는다. 위 두 `grep` 이 정본이다.
 - [ ] `execution.ai_message` 봉투 서술 정정 (별건)
 - [x] `node-output-redesign/README.md:372` 의 EIA cross-ref — **절 번호 자체가 틀렸다.**
       `execution.failed` 는 §6.4 인데 §6.3 을 가리켰다. 이 draft 이전부터의 결함

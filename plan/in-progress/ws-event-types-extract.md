@@ -292,9 +292,19 @@ ES-module 순환 위에 있어서다. 생성자의 `forwardRef` 도 같은 이�
       코드가 더 바뀌어 게이트가 재실행을 요구 → `22_27_21` **BLOCK: NO** (5 checker 전원 Critical 0)
 - [x] push 게이트 통과 → PR **#1175** (`c6dd5cb89`, 2026-08-15 머지)
 - [ ] **`plan/complete/` 이동 시 `spec_impact` 갱신** (`22_27_21` plan_coherence INFO7) —
-      > ⚠️ **서술 정정 필요 (2026-08-28 `plan-audit`)** — 항목 자체는 **유효**하다.
-      > **무엇이 낡았나**: 실제 갱신 대상은 1파일이 아니라 6파일이다. 이 plan 이 [x] 로 닫은 planner 턴 편집이 origin/main 에 착지해 있다: spec/3-workflow-editor/3-execution.md(:11 code: 등재, :665), spec/5-system/6-websocket-protocol.md(:9, :834, :1128), spec/5-system/10-graph-rag.md:552, spec/5-system/8-embedding-pipeline.md:276, spec/data-flow/6-knowledge-base.md:288, spec/data-flow/0-overview.md:110. 완료 이동 시 이 6개를 리스트로 적어야 Gate C 를 통과한다.
-      > **실측**: frontmatter 는 여전히 `spec_impact: none`(:6) 이라 항목 자체는 유효. 다만 "6-websocket-protocol.md 1줄" 서술이 낡았다 — `git show --stat c6dd5cb89` 는 그 1줄이 맞지만 이후 planner 턴 항목들이 전부 [x] 로 닫혔다.
+      > **대상이 1파일이 아니다 (2026-08-28 `plan-audit`, 2026-08-29 재확인).** 아래 본문은
+      > "`6-websocket-protocol.md` frontmatter `code:` 1줄" 이라 적는데, 그건 `c6dd5cb89`
+      > **한 커밋** 기준이다. 그 뒤 이 plan 이 `[x]` 로 닫은 planner 턴 편집들이 함께
+      > 착지해 실제 대상은 여러 파일이다(2026-08-28 감사 관측: `3-execution.md` ·
+      > `6-websocket-protocol.md` · `10-graph-rag.md` · `8-embedding-pipeline.md` ·
+      > `data-flow/6-knowledge-base.md` · `data-flow/0-overview.md` — 6개).
+      >
+      > **여기에 파일 목록을 고정하지 않는다.** 목록은 그 사이 커밋으로 또 늘거나 줄고,
+      > 이 문서가 지금 고치고 있는 결함이 정확히 그것이다. 완료 이동 **그 시점에**
+      > `git diff --stat origin/main -- spec/` 로 산출해 `spec_impact` 에 적는다.
+      > 위 6개는 대조용 스냅샷이다.
+      >
+      > frontmatter 는 2026-08-29 확인 시점에도 `spec_impact: none` 이라 항목은 유효하다.
       frontmatter 가 `none` 인데 실제로는 `spec/5-system/6-websocket-protocol.md` frontmatter
       `code:` 1줄을 바꿨다. in-progress 단계는 Gate C 의무가 아니라 지금 차단 사유는 아니지만,
       **완료 이동 시점에 실제 변경 파일 목록으로 갱신해야 Gate C 를 통과한다**
@@ -347,10 +357,21 @@ ES-module 순환 위에 있어서다. 생성자의 `forwardRef` 도 같은 이�
       (`6-websocket-protocol.md`)과 비대칭 (`20_05_19` cross_spec INFO2)
 - [x] `spec/5-system/4-execution-engine.md` §4.4 Rationale 에 이번 추출로 **순환 참여자 집합이
       축소**됐다는 후속 한 줄 (`20_05_19` rationale INFO4). 봉인 기법·단일 sink 정책 자체는 불변
-- [ ] `TerminalErrorPayload` 를 채우는 호출부의 `sanitizeErrorMessage` 경유 여부 전수 확인
-      > ⚠️ **서술 정정 필요 (2026-08-28 `plan-audit`)** — 항목 자체는 **유효**하다.
-      > **무엇이 낡았나**: 질문의 답이 나왔고 답은 "경유하지 않는다(의도적)" 다. 마스킹은 `sanitizeErrorMessage` 가 아니라 `deepRedactSecrets` 로 걸렸고, 같은 docstring 이 `sanitizeErrorMessage` 는 **알림 경로 전용**이며 두 egress 의 방어 강도가 다르다는 것을 실측표(`postgres://db.internal:5432/prod` 무변화)와 함께 명시한다. 살아있는 잔여는 패턴 폭 확대 한 건뿐이고 이미 `plan/in-progress/spec-sync-external-interaction-api-gaps.md:588` 에 `- [ ] 잔여 — 자격증명 없는 연결 문자열·내부 호스트명·스택 프래그먼트는 여전히 통과` 로 등재돼 있다. 이 항목은 그 포인터로 대체해 닫을 것(중복 추적).
-      > **실측**: #1177(107c8038f)이 shared/utils/terminal-error-payload.ts 에 `redactTerminalError` egress 초크포인트를 넣으며 전수 결과를 docstring 에 기록: "toTerminalErrorPayload 호출부 5곳이 전부 emit 쪽 — EXECUTION_FAILED 4곳 + chat-channel.dispatcher 1곳, DB write 0".
+- [x] `TerminalErrorPayload` 를 채우는 호출부의 `sanitizeErrorMessage` 경유 여부 전수 확인
+      → **답이 나왔다 (2026-08-29 종결): 경유하지 않는다, 그리고 그게 의도다.**
+      > `#1177`(107c8038f)이 `shared/utils/terminal-error-payload.ts` 에
+      > `redactTerminalError` **egress 초크포인트**를 넣으면서 전수 결과를 docstring 에
+      > 기록했다 — "`toTerminalErrorPayload` 호출부 5곳이 전부 emit 쪽(EXECUTION_FAILED
+      > 4곳 + `chat-channel.dispatcher` 1곳), DB write 0". 마스킹은
+      > `sanitizeErrorMessage` 가 아니라 **`deepRedactSecrets`** 로 걸리고, 같은 docstring 이
+      > `sanitizeErrorMessage` 는 **알림 경로 전용**이라는 것과 두 egress 의 방어 강도 차이를
+      > 실측표와 함께 적는다. 2026-08-29 에 `redactTerminalError` 가 그 파일에 존재함을
+      > 확인했다.
+      >
+      > **살아있는 잔여는 한 건뿐이고 다른 트래커가 이미 센다** —
+      > `spec-sync-external-interaction-api-gaps.md` 의
+      > `- [ ] 잔여 — 자격증명 **없는** 연결 문자열·내부 호스트명·스택 프래그먼트는 여전히 통과`.
+      > 여기서 열어 두면 같은 항목을 두 번 세게 되므로 포인터로 대체해 닫는다.
       (`19_27_37` INFO2 — 기존 설계이고 이번 diff 와 무관)
 - [ ] **export-default 캐너리가 `export { X as default } from` 별칭을 못 본다**
       (`22_13_48` INFO2). **방어는 완전하고 캐너리만 좁다** — 진짜 방어선인 세 번째 테스트가

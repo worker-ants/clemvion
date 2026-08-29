@@ -202,9 +202,15 @@ sentinel 경로(`ErrorPortFallbackError`/`ExecutionTimeLimitError`)뿐이다.
 > 앞선 세 번의 회고를 이 문서에 써 놓고 또 반복했다. 이번엔 구현 커밋과 **같은 턴에**
 > 두 트래커를 함께 닫았다 — 회고를 쓰는 것과 그 회고가 가리키는 행동을 하는 것은 별개다.
 - [ ] ~~`result.outputs`~~ → **이번 PR 제외.** spec 이 이 필드의 **내용을 정의한 적이 없다**
-      > ⚠️ **서술 정정 필요 (2026-08-28 `plan-audit`)** — 항목 자체는 **유효**하다.
-      > **무엇이 낡았나**: '현재 `execution.completed` webhook payload 는 `{status}` 하나뿐' → '`{status, durationMs}`'. #1171 이후 durationMs 가 실린다(execution-event-emitter.service.ts:32·146, EIA spec:762 '`status` 와 `durationMs` 를 채워 보낸다'). 이연 판정 자체는 유지.
-      > **실측**: 이연 사유 핵심은 유효 — `grep -rn 'result\.outputs' spec/` 5히트 전부 Planned 표기(EIA:593·717·762·776, chat-channel-adapter:383), shape 정의 0건. 그러나 '`execution.completed` payload 는 `{status}` 하나뿐' 은 거짓.
+      > **아래 괄호 안 근거 하나가 낡았다 (2026-08-29 재실측).** 본문이
+      > "현재 `execution.completed` webhook payload 는 `{status}` 하나뿐" 이라 적는데
+      > **`{status, durationMs}` 두 필드**다 — `durationMs` 는 `#1171` 로 실렸고 EIA spec 이
+      > "`status` 와 `durationMs` 를 채워 보낸다" 로 명시한다.
+      >
+      > **이연 판정 자체는 그대로 유효하다** — `grep -rn 'result\.outputs' spec/` 이 내는
+      > 5히트가 전부 "Planned" 표기이고 shape·의미를 정의한 문장은 0건이다(2026-08-29 확인).
+      > 즉 "채우면 내가 계약을 발명하게 된다" 는 핵심 근거는 살아 있고, 낡은 것은 곁들인
+      > "지금 1필드뿐" 이라는 대비뿐이다.
       (§6 표·§6.3 등 5곳 전부 "Planned" 표기뿐, shape·의미 문장 0건). 채우면 내가 계약을
       발명하게 되고, 외부 webhook 에 **신규 데이터 클래스**가 열린다 — 현재
       `execution.completed` webhook payload 는 `{status}` 하나뿐이고 `node.completed` 는

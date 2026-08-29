@@ -235,10 +235,21 @@ raw `.query()` 는 ORM 매핑을 타지 않아 행의 키가 **DB 그대로 snak
 - [x] 8라운드 `00_54_01` **CRITICAL 0 / WARNING 2** — 둘 다 "한쪽만 고쳤다" 였다.
       자매 가드에 주석 스트리핑 미적용(→ `__testing__/source-scan.ts` 로 공유),
       CHANGELOG 중복 서술 두 섹션 중 한쪽만 정정(→ 양쪽에, 항목 번호 오류도 정정)
-- [ ] 후속 ②(`updateExecutionStatus` 트랜잭션화)·③(EIA `durationMs`/`result.outputs` emit)
-      > ⚠️ **서술 정정 필요 (2026-08-28 `plan-audit`)** — 항목 자체는 **유효**하다.
-      > **무엇이 낡았나**: ③ 이 낡았다. `durationMs` 는 이미 완료 — `plan/in-progress/eia-terminal-payload.md:199` `- [x] durationMs — 종결 3종 전부 완료 (2026-08-15)`. `result.outputs` 는 같은 plan:204 에서 취소선+"이번 PR 제외, planner 턴에서 내용 정의 후 별건" 으로 이관·보류됐다(spec 이 shape 을 정의한 적 없음). 항목을 "②만 잔존" 으로 좁히고 ③ 은 eia-terminal-payload.md 포인터로 대체할 것.
-      > **실측**: ②는 유효: execution-engine.service.ts `updateExecutionStatus` else 분기 raw UPDATE 가 주석으로 "이 UPDATE 는 애플리케이션 트랜잭션 밖" 을 명시(linkedNodeExec 분기만 dataSource.transaction).
+- [ ] 후속 **②(`updateExecutionStatus` 트랜잭션화)만 잔존**
+      > **③ 은 이 트래커의 항목이 아니다 (2026-08-29 정정).** 원래 ③ 이 "EIA
+      > `durationMs`/`result.outputs` emit" 이었는데 둘 다 여기서 할 일이 없다:
+      >
+      > - `durationMs` — **완료**(2026-08-15). `eia-terminal-payload.md` 가 "종결 3종 전부
+      >   완료" 로 닫았다.
+      > - `result.outputs` — 같은 트래커에서 **취소선 + "planner 턴에서 내용 정의 후 별건"**
+      >   으로 이관·보류됐다. spec 이 shape 을 정의한 적이 없어서다.
+      >
+      > 그러니 ③ 은 지우고 **`eia-terminal-payload.md` 포인터로 대체**한다 — 두 트래커가
+      > 같은 항목을 각자 세면 진행 상황이 두 번 세어진다.
+      >
+      > ② 는 유효함을 재확인했다(2026-08-29): `execution-engine.service.ts` 의
+      > `updateExecutionStatus` else 분기 raw UPDATE 가 주석으로 "이 UPDATE 는 애플리케이션
+      > 트랜잭션 밖" 임을 명시하고, `dataSource.transaction` 은 linkedNodeExec 분기에만 있다.
 
 ## 후속
 
