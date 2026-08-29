@@ -210,18 +210,25 @@ export enum BackgroundRunEventType {
  * 사용자 알림 도메인 이벤트. 채널: `notifications:<userId>`.
  * 권위 정의: spec/5-system/6-websocket-protocol.md §4.4 (`notification.new`).
  *
- * ⚠️ **인앱 알림 벨 전용** — `triggers/dto/notification-config.dto.ts` 에 **같은 이름의
- * 다른 타입**이 있다(outbound webhook 구독 화이트리스트, `execution.*` 5값). 둘은 무관하다.
+ * **인앱 알림 벨 전용** — 이름의 `InApp` 접두가 그 스코프다.
  *
- * 이 모듈은 이름이 "이벤트 타입 정본" 처럼 보여 오import 위험이 있으므로 여기 적어 둔다
- * (`18_53_27` naming W3). 개명은 별도 항목.
+ * `triggers/dto/notification-config.dto.ts` 의 `NotificationEventType` 과 **다른 것**이다.
+ * 그쪽은 outbound webhook 구독 화이트리스트(`execution.*` 5값)이고 둘은 무관하다.
+ * 종전에는 **둘이 같은 이름**이라 disambiguation JSDoc 으로만 막고 있었는데(`18_53_27`
+ * naming W3), 주석은 오import 를 막지 못한다 — 자동완성이 두 심볼을 같은 이름으로 보여
+ * 주면 잘못 고른 쪽도 컴파일된다. 그래서 이름 자체로 갈랐다.
+ *
+ * 개명 대상으로 **이쪽**을 고른 이유: 저쪽은 EIA §3.1 의 외부 계약(구독 화이트리스트)에
+ * 붙어 있고, 이 모듈의 자매 enum 들이 이미 `<도메인>EventType` 규칙(`ExecutionEventType` ·
+ * `NodeEventType` · `BackgroundRunEventType` · `KbEventType`)을 따르므로 도메인을 앞에
+ * 붙이는 것이 그 규칙 안에 있다.
  */
-export enum NotificationEventType {
+export enum InAppNotificationEventType {
   NOTIFICATION_NEW = 'notification.new',
 }
 
 /**
- * Wire payload for {@link NotificationEventType.NOTIFICATION_NEW}.
+ * Wire payload for {@link InAppNotificationEventType.NOTIFICATION_NEW}.
  * spec/5-system/6-websocket-protocol.md §4.4 의 shape
  * `{ id, type, title, message, resourceType, resourceId }`. `resourceType` /
  * `resourceId` 는 리소스 attribution 이 없는 알림에서 null.

@@ -24,7 +24,7 @@ import {
   ExecutionEventType,
   NodeEventType,
   BackgroundRunEventType,
-  NotificationEventType,
+  InAppNotificationEventType,
 } from './websocket-events.types';
 import type {
   ExecutionChannelEvent,
@@ -41,7 +41,7 @@ export {
   ExecutionEventType,
   NodeEventType,
   BackgroundRunEventType,
-  NotificationEventType,
+  InAppNotificationEventType,
 };
 export type {
   ExecutionChannelEvent,
@@ -585,7 +585,7 @@ export class WebsocketService {
       // 않는다 (§4.4 가 권위 shape 이고 wire 계약을 spec 밖으로 확장하지 않는다).
       this.gateway.broadcastToChannel(
         channel,
-        NotificationEventType.NOTIFICATION_NEW,
+        InAppNotificationEventType.NOTIFICATION_NEW,
         {
           id: notification.id,
           type: notification.type,

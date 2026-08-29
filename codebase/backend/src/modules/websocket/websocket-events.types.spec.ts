@@ -56,7 +56,7 @@ const EXPECTED_EXPORTS = [
   'ToolCallCompletedPayload',
   'NodeEventType',
   'BackgroundRunEventType',
-  'NotificationEventType',
+  'InAppNotificationEventType',
   'NotificationNewPayload',
   'KbEventType',
 ];
@@ -157,6 +157,40 @@ function exportLeavesValueEdge(decl: ts.ExportDeclaration): boolean {
   if (!clause) return true; // `export * from`
   if (ts.isNamespaceExport(clause)) return true; // `export * as ns from`
   return namedBindingValueNames(clause).length > 0;
+}
+
+/**
+ * 이 statement 가 default export 를 만드는가 — **세 형태 전부**를 본다.
+ *
+ * | 형태 | AST |
+ * |---|---|
+ * | `export default X` · `export = X` | `ExportAssignment` |
+ * | `export default function f() {}` · `export default class C {}` | modifier `default` |
+ * | `export { X as default }` · `export { X as default } from '…'` | `ExportDeclaration` 의 `NamedExports` 에 `default` 로 개명하는 specifier |
+ *
+ * **세 번째가 종전에 빠져 있었다** (`22_13_48` INFO2). 앞의 둘만 보면 별칭 형태가 통과해,
+ * "이 모듈에는 default export 가 없다" 는 전제를 캐너리가 **지키지 못한 채 초록**이었다.
+ * 방어 자체는 그때도 완전했다(진짜 방어선은 `import D from '…'` 를 값 간선으로 잡는 아래
+ * 테스트다) — 무너져 있던 것은 **자기점검의 완전성**이다.
+ *
+ * `ts.canHaveModifiers` 로 좁힌 뒤 `getModifiers` 를 부른다. 종전의
+ * `getModifiers(st as ts.HasModifiers)` 는 modifier 를 가질 수 없는 노드에도 캐스트로
+ * 밀어 넣는 형태라, 타입이 실제 계약을 반영하지 못했다(`22_13_48` INFO3).
+ */
+function hasDefaultExport(st: ts.Statement): boolean {
+  if (ts.isExportAssignment(st)) return true;
+  if (
+    ts.canHaveModifiers(st) &&
+    ts.getModifiers(st)?.some((m) => m.kind === ts.SyntaxKind.DefaultKeyword)
+  ) {
+    return true;
+  }
+  return (
+    ts.isExportDeclaration(st) &&
+    st.exportClause !== undefined &&
+    ts.isNamedExports(st.exportClause) &&
+    st.exportClause.elements.some((el) => el.name.text === 'default')
+  );
 }
 
 /** 함수 안에 있으면 lazy — 모듈 평가 시점에 실행되지 않는다. */
@@ -320,13 +354,7 @@ describe('websocket-events.types — ES-module 순환 재편입 방지 (#1174 �
       TYPES_FILE,
       path.join(WS_DIR, 'websocket.service.ts'),
     ]) {
-      const hasDefault = parse(file).statements.some(
-        (st) =>
-          ts.isExportAssignment(st) ||
-          ts
-            .getModifiers(st as ts.HasModifiers)
-            ?.some((m) => m.kind === ts.SyntaxKind.DefaultKeyword),
-      );
+      const hasDefault = parse(file).statements.some(hasDefaultExport);
       expect({ file: path.basename(file), hasDefault }).toEqual({
         file: path.basename(file),
         hasDefault: false,
