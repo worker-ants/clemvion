@@ -494,7 +494,7 @@ eslint 9 는 이미 `maintenance` dist-tag 다(2026-08-01 실측: latest = 10.8.
         >       (`evaluateExpression`)를 불러 host `TypeError` 를 재고 `keys=[]` 라는 엉뚱한
         >       답을 냈다. 실제 진입점(`evaluate`)으로 다시 재서 위 표를 얻었다 — 측정 대상이
         >       내 버그였는지부터 봐야 한다.
-        > - [ ] **`cause` 비노출 불변식의 계측 지점** (리뷰 INFO #2) — `GlobalExceptionFilter`
+        > - **`cause` 비노출 불변식의 계측 지점** (리뷰 INFO #2 — 정본 체크박스는 §열린 항목) — `GlobalExceptionFilter`
         >       또는 공용 에러 직렬화 유틸에 "`cause` 를 클라이언트 응답에 노출하지 않는다"
         >       회귀 테스트 1건. 오늘 안전한 근거가 **부재 주장**이라, APM·구조적 로깅 유틸이
         >       하나 생기면 조용히 깨진다.
@@ -522,10 +522,10 @@ eslint 9 는 이미 `maintenance` dist-tag 다(2026-08-01 실측: latest = 10.8.
         > 더한다. 둘 다 spec-linked 파일이라 주석 한 줄에 게이트 두 종이 재무장된다
         > (§수렴 예외 (a)(b)(c)(d)):
         >
-        > - [ ] (작음) `secret-resolver.service.ts` 의 "형제 3곳" → **4곳** — C1/C2 를 함께
+        > - (작음) `secret-resolver.service.ts` 의 "형제 3곳" → **4곳** (정본 체크박스는 §열린 항목) — C1/C2 를 함께
         >       서술하는 형제 지점은 `expression-resolver.service.ts`/`.spec.ts` ·
         >       `code.handler.ts`/`.spec.ts` 로 넷이다 (리뷰 INFO #3).
-        > - [ ] (작음) **근거 서술 중복 정리 묶음** — 셋 다 같은 성격이고 전부 spec-linked
+        > - (작음) **근거 서술 중복 정리 묶음** (정본 체크박스는 §열린 항목) — 셋 다 같은 성격이고 전부 spec-linked
         >       파일이라 한 번에 처리한다:
         >       - "축이 enumerable own key 인 이유" 가 두 backend spec + 신규 패키지 캐너리에
         >         거의 같은 문장으로 있다 (`11_58_35` INFO #4 · `12_23_45` INFO #1 의 헬퍼
@@ -592,6 +592,33 @@ eslint 9 는 이미 `maintenance` dist-tag 다(2026-08-01 실측: latest = 10.8.
 > ④ execution-engine / embedding-pipeline / graph-rag 소급 caveat 3건.
 > ③④ 는 각각 `spec-update-node-cancellation-shutdown-classification.md` ·
 > `update-returning-tuple-shape.md` 가 이미 위임해 둔 항목이라 **신규 등재 불요**(중복 방지).
+
+### 열린 항목 (§2 후속) — 이 트래커가 아직 `complete/` 로 못 가는 이유
+
+> **왜 여기 따로 두나 (2026-08-29 실측).** 이 셋을 §2 서술 안의 **인용문**(`> - [ ]`)에
+> 적어 뒀더니 plan 라이프사이클 게이트가 **하나도 못 봤다** — `_all_checkboxes_done()` 이
+> `True` 를 반환해 "체크박스가 모두 완료됐으니 `complete/` 로 옮기라" 는 nudge 가 떴다.
+> 원인은 `plan_guard.py` 의 `_CHECKBOX = ^\s*[-*]\s+\[([ xX])\]` 가 `>` 접두를 넘지
+> 못하는 것이다(`'        > - [ ] 항목'` → 매치 안 됨을 직접 실행해 확인).
+>
+> 이 저장소가 이미 아는 실패의 **새 입구**다 — 살아 있는 항목을 품은 채 `complete/` 로
+> 봉인되면 유실된다. 서술은 인용문에 남기고 **정본 체크박스는 최상위로** 올린다.
+> 게이트 쪽 사각지대는 `harness-review-gate-followups.md` 에 등재했다.
+
+- [ ] **`cause` 비노출 불변식의 계측 지점** — `GlobalExceptionFilter` 또는 공용 에러 직렬화
+      유틸에 "`cause` 를 클라이언트 응답에 노출하지 않는다" 회귀 테스트 1건. 근거가
+      **부재 주장**이라 APM·구조적 로깅 유틸이 하나 생기면 조용히 깨진다. 표면이 달라
+      별건. (근거·범위 서술은 §2 의 해당 인용문)
+- [ ] **(작음) `secret-resolver.service.ts` 의 "형제 3곳" → 4곳** — C1/C2 를 함께 서술하는
+      형제 지점은 `expression-resolver.service.ts`/`.spec.ts` · `code.handler.ts`/`.spec.ts`
+      로 넷이다.
+- [ ] **(작음) 근거 서술 중복 정리 묶음** — "축이 enumerable own key 인 이유" 가 두 backend
+      spec + 패키지 캐너리 3곳에 거의 같은 문장으로 있고, `captureThrown`/`captureRejected`
+      의 vacuity-guard JSDoc 도 두 spec 에 복제돼 있다. 한쪽을 정본으로 두거나 §6.3.1
+      Rationale 로 올린다. **이 PR 이 고치려던 drift 와 같은 형태**다.
+
+> 셋 다 spec-linked 파일이라 주석 한 줄만 건드려도 `/ai-review` 와 `--impl-done` 이 동시에
+> 재무장된다 — 그래서 묶어서 한 번에 처리한다 (developer SKILL §수렴 예외).
 
 ## Rationale
 
