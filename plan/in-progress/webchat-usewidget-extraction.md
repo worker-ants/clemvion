@@ -56,7 +56,19 @@ eslint 에 `max-lines`/`complexity` 가드 없음.
 ## 체크리스트
 
 - [~] `useEiaSession` 훅 추출 — **1차 slice 만 완료**. staleness 축(`worldGenRef`·`bootGenRef`·
-      > ⚠️ **서술 정정 필요 (2026-08-28 `plan-audit`)** — 항목 자체는 **유효**하다.
+      > **수치 재실측 (2026-08-29)** — 아래 §배경 수치가 낡았고, **2026-08-28 `plan-audit`
+      > 이 제시한 정정값도 재현되지 않았다.** 세는 방법을 함께 적는다(그러지 않으면 같은
+      > 자리에서 또 갈린다):
+      >
+      > | 값 | plan 원문 | plan-audit(08-28) | 재실측(08-29) | 세는 법 |
+      > |---|---|---|---|---|
+      > | `useCallback` | 26 | 24 | **24** | `grep -oE 'useCallback(<[^>]*>)?\(' \| wc -l` |
+      > | `useRef` | 13 | 13 | **9** | `grep -oE 'useRef(<[^>]*>)?\(' \| wc -l` |
+      > | 파일 줄 수 | — | 1,432 | **1,432** | `wc -l` |
+      >
+      > `useRef` 의 13 은 **호출 수가 아니라 그 단어가 등장하는 줄 수**(`grep -c useRef`)다 —
+      > import·타입 주석까지 센다. 훅 호출은 9개다. 규모 서술의 근거는 유지된다(1차 slice 가
+      > 1,116→1,009 로 줄인 파일이 지금 1,432).
       > **무엇이 낡았나**: §배경의 "`useCallback` 26개·`useRef` 13개" → 실측 24개·13개. 더 중요한 건 규모 서술: 1차 slice 가 1116→1009줄로 줄인 파일이 지금 **1,432줄**(#1130 등 후속 유입)이라 "계속 커진다"의 근거가 바뀌었다 — merge-base 877 → 현재 1,432 로 갱신하고, 추출 근거가 약해진 게 아니라 강해졌음을 반영할 것. eslint max-lines/complexity 부재는 실측 재확인됨(eslint.config.mjs grep 0건).
       > **실측**: 나머지 슬라이스 미착수는 참 — establishConfig(1206)·teardownSession(400)·start(885)·seedWaitingFromStatus(743)·sendCommand(956)·스트림/토큰 배선 전부 use-widget.ts 잔존. 하지만 §배경 수치가 낡았다.
       `unmountedRef` + `isStale`·`beginBootAttempt`·`cannotApplyConfig`·`isAttemptStale`)을
