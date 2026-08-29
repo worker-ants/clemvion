@@ -227,6 +227,9 @@ describe('GlobalExceptionFilter', () => {
     /** `cause` 에만 담기는 표식 — 응답 어디에도 이 문자열이 나타나면 안 된다. */
     const CAUSE_MARKER = 'SENSITIVE-CAUSE-DETAIL-a1b2c3';
 
+    /** `error` 봉투가 (details 없이) 싣는 닫힌 키 집합 — 아래 두 곳에서 재사용한다. */
+    const CLOSED_ENVELOPE_KEYS = ['code', 'message', 'requestId'];
+
     /**
      * 표식을 **enumerable own key 로** 심는다. `JSON.stringify` 는 enumerable own key 만
      * 보고 표준 `message`/`stack` 은 non-enumerable 이라 안 잡히므로, 표식을 message 에만
@@ -351,13 +354,17 @@ describe('GlobalExceptionFilter', () => {
           .mockImplementation(() => undefined);
         new GlobalExceptionFilter().catch(make(), host);
 
-        // `details` 는 호출자가 명시적으로 실은 경우에만 붙는 선택 키다 — 이 넷은 안 싣는다.
-        // 이 셋을 벗어난 키가 생기면(= 에러 객체를 통째로 펼치는 변경) 여기서 RED.
-        expect(Object.keys(bodyOf(json).error).sort()).toEqual([
-          'code',
-          'message',
-          'requestId',
-        ]);
+        // `details` 는 호출자가 명시적으로 실은 경우에만 붙는 선택 키다 — 위 4개 fixture 는
+        // `details` 를 안 싣는다. 아래 CLOSED_ENVELOPE_KEYS 3개 키를 벗어난 키가 생기면
+        // (= 에러 객체를 통째로 펼치는 변경) 여기서 RED.
+        expect(Object.keys(bodyOf(json).error).sort()).toEqual(
+          CLOSED_ENVELOPE_KEYS,
+        );
+        // 키 이름만으로는 값 안에 `cause` 내용이 섞여 드는 것(예: message 필드에 원본
+        // 드라이버 메시지를 이어붙이는 변경)을 못 잡는다 — 4개 분기 전부에 값 누출 부재
+        // 단언을 함께 건다(WARNING: QueryFailedError(23505) 분기는 이 단언이 없으면
+        // 뮤테이션으로 GREEN 그대로 통과함을 실측 확인).
+        expect(JSON.stringify(bodyOf(json))).not.toContain(CAUSE_MARKER);
       },
     );
 
@@ -368,11 +375,9 @@ describe('GlobalExceptionFilter', () => {
       const { host, json } = mockHost();
       new GlobalExceptionFilter().catch('a raw string thrown', host);
 
-      expect(Object.keys(bodyOf(json).error).sort()).toEqual([
-        'code',
-        'message',
-        'requestId',
-      ]);
+      expect(Object.keys(bodyOf(json).error).sort()).toEqual(
+        CLOSED_ENVELOPE_KEYS,
+      );
     });
   });
 });

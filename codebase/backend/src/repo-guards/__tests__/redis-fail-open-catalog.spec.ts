@@ -114,6 +114,17 @@ describe('clemvion.redis.fail_open component 카탈로그 정합', () => {
       ).toThrow(/카탈로그 행을 찾지 못했다/);
     });
 
+    it('카탈로그 행은 있는데 `component` (…) 패턴이 안 맞으면 빈 배열이 아니라 throw 한다', () => {
+      // 행 자체는 살아있지만(위 케이스와 다른 실패 모드) `component` 뒤 괄호 목록 표기가
+      // 깨지면 정규식 매치가 실패한다 — 이때도 빈 배열로 조용히 통과하면 안 된다.
+      expect(() =>
+        withPatchedSpec(
+          (row) => row.replace(/`component`\s*\([^)]*\)/, '`component` 없음'),
+          (root) => readCatalogComponents(root),
+        ),
+      ).toThrow(/목록을 파싱하지 못했다/);
+    });
+
     it(`상수를 거쳐 넘기는 ${RECORDER_FN} 호출부도 값을 해석한다`, () => {
       // 정본 호출부(`idempotency.interceptor.ts`)가 문자열 리터럴이 아니라 `METRICS_COMPONENT`
       // 상수를 넘긴다. 상수 추적이 없으면 그 호출부가 통째로 안 보이고, 그 상태에서도 위
@@ -127,9 +138,22 @@ describe('clemvion.redis.fail_open component 카탈로그 정합', () => {
     });
 
     it(`유니온 소스 경로(${UNION_SOURCE}) 가 실재한다`, () => {
-      // 파일이 옮겨지면 `readUnionMembers` 가 ENOENT 로 죽어야 한다 — 빈 배열로 조용히
-      // 통과하면 위 정합 단언이 `[] === []` 로 공허해진다.
+      // 현재 저장소 상태에서 경로가 실재함만 본다 — 옮겨졌을 때의 실패 모드 자체는
+      // 아래 별도 케이스가 scratch 경로로 직접 검증한다.
       expect(fs.existsSync(path.join(repoRoot, UNION_SOURCE))).toBe(true);
+    });
+
+    it('유니온 소스 파일이 없으면 빈 배열이 아니라 throw 한다 (ENOENT)', () => {
+      // 파일이 옮겨진 상태를 scratch 빈 디렉터리로 직접 재현한다 — 빈 배열로 조용히
+      // 통과하면 위 정합 단언이 `[] === []` 로 공허해진다.
+      const tmp = fs.mkdtempSync(
+        path.join(os.tmpdir(), 'redis-failopen-guard-union-'),
+      );
+      try {
+        expect(() => readUnionMembers(tmp)).toThrow();
+      } finally {
+        fs.rmSync(tmp, { recursive: true, force: true });
+      }
     });
   });
 });
