@@ -424,3 +424,38 @@ describe('websocket-events.types — ES-module 순환 재편입 방지 (#1174 �
     expect(offenders).toEqual([]);
   });
 });
+
+/**
+ * `hasDefaultExport` 세 형태 + 음성을 **합성 소스**로 직접 검증한다.
+ *
+ * `22_13_48` WARNING1 — 세 번째 분기(`export { X as default }` 별칭)를 뮤테이션(술어를
+ * 절대 불일치로 교체)으로 검증했지만 그건 임시 사본에서였고 되돌려졌다 — 영구 테스트로
+ * 남지 않았다. 위 describe 의 "두 모듈 어디에도 `export default` 가 없다" 캐너리는
+ * **항상 음성** 케이스만 통과시키므로, 이 분기가 다시 깨져도(예: 세 번째 조건이 `false` 로
+ * 뭉개져도) 그 캐너리는 못 잡는다. 여기서는 실제 파일이 아니라 `ts.createSourceFile` 로
+ * 만든 합성 소스에 `hasDefaultExport` 를 직접 먹여, 양성 3형태 + 음성 2형태를 테이블로
+ * 고정한다 — 저장소 상태와 무관하게 항상 돈다. 음성이 없으면 `return true` 로 뭉갠
+ * 뮤턴트가 살아남으므로 반드시 함께 둔다.
+ */
+describe('hasDefaultExport — 합성 소스 테이블', () => {
+  it.each<[string, string, boolean]>([
+    ['export default X;', 'ExportAssignment', true],
+    ['export default function f() {}', 'default modifier', true],
+    ['export { X as default };', 'NamedExports 별칭', true],
+    [
+      "export { X as default } from './m';",
+      'NamedExports 별칭 (from 절)',
+      true,
+    ],
+    ['export { X };', '일반 named export', false],
+    ['export const X = 1;', 'default 아닌 값 선언', false],
+  ])('%s (%s) → hasDefault=%s', (source, _label, expected) => {
+    const sf = ts.createSourceFile(
+      't.ts',
+      source,
+      ts.ScriptTarget.Latest,
+      /* setParentNodes */ true,
+    );
+    expect(sf.statements.some(hasDefaultExport)).toBe(expected);
+  });
+});
