@@ -446,6 +446,25 @@ ES-module 순환 위에 있어서다. 생성자의 `forwardRef` 도 같은 이�
       > 주석도 함께 고쳤다. 종전 JSDoc 은 "같은 이름의 다른 타입이 있다 … 개명은 별도 항목"
       > 인데, **주석은 오import 를 막지 못한다** — 자동완성이 두 심볼을 같은 이름으로 보여
       > 주면 잘못 고른 쪽도 컴파일된다. 이름으로 가른 지금은 그 서술 자체가 낡았다.
+
+- [ ] **(작음) facade 재수출 커버리지 비대칭** — `websocket.service.ts` 가
+      `InAppNotificationEventType` 을 재수출하는데 `websocket.service.spec.ts` 가 **그것만
+      소비하지 않는다.** 그 spec 은 다른 셋(`ExecutionEventType`·`NodeEventType`·
+      `BackgroundRunEventType`)에 대해 "의도된 커버리지" 라고 **명시**하고 있어 이 값만 빈다 —
+      재수출 줄이 오탈자로 깨져도 RED 가 없다. (`23_30_12` testing INFO 2)
+
+      **fix 는 한 줄이다** — `websocket.service.spec.ts` 에서 facade(`./websocket.service`)를
+      통해 `InAppNotificationEventType` 을 import 하고
+      `expect(InAppNotificationEventType.NOTIFICATION_NEW).toBe('notification.new')` 를 단언한다.
+
+      > **이 PR 에서 안 한 이유** (숨기지 않고 적는다 — 이 세션이 계속 만난 "주장은 있는데
+      > 그걸 지키는 것이 없다" 형태라 넘기는 게 편치 않았다):
+      > - **사전 갭이다.** 개명 전에도 옛 이름으로 같은 상태였다 — 이 PR 이 만든 결함이 아니다.
+      > - **비용이 리뷰 라운드 하나다.** `codebase/**` 를 건드리면 3라운드가 강제되는데,
+      >   2라운드가 이미 **Warning 0** 으로 수렴했다. 수렴 뒤 한 줄 때문에 라운드를 다시 여는
+      >   것은 이 저장소가 기록한 "fix→리뷰 stale 루프" 를 자초하는 쪽이다.
+      > - 대신 **트리거가 아니라 즉시 실행 가능한 형태**로 적었다. 다음에 이 파일을 여는
+      >   사람이 재발견할 필요가 없다.
 - [x] `spec/3-workflow-editor/3-execution.md` frontmatter `code:` 에
       `websocket-events.types.ts` 등재 — `NodeEventType` 을 인용하면서 자매 spec
       (`6-websocket-protocol.md`)과 비대칭 (`20_05_19` cross_spec INFO2)
