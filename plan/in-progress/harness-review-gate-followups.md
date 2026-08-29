@@ -1,6 +1,6 @@
 ---
 title: 리뷰 게이트 CI 백스톱 진행 중 발견한 미해결 후속
-worktree: eslint10-upgrade-5e3cf9  # 2026-08-29 갱신 — 멀티라인 링크 항목은 이 워크트리에서 처리 (`#1235`)
+worktree: eslint10-upgrade-5e3cf9
 started: 2026-08-07
 owner: developer
 priority: P3
@@ -19,6 +19,14 @@ spec_impact: none
 > 비어 있는 것은 누락이 아니라 그 뜻이다. §11 은 **부분 종결**이라(침묵 해소는 완료,
 > 구조적 차단·동반 2건은 잔여) 그 사실을 명시해 유지했다. 원문(발견 경위·실측치·처방
 > 후보)은 그대로 옮겼다.
+
+> _(2026-08-29)_ `worktree:` 를 `harness-review-ci-backstop-91f379` → `eslint10-upgrade-5e3cf9`
+> 로 갱신했다 (`--impl-done` `16_05_53` plan_coherence INFO #4). 멀티라인 링크 항목을 이
+> 워크트리에서 처리했다.
+>
+> **주석을 필드 값에 붙이지 말 것** — 처음엔 `worktree: <값>  # 경위…` 로 적었는데
+> `plan_guard._frontmatter_worktree` 가 줄 전체를 값으로 읽어 **연결이 끊겼고** push 가
+> 막혔다(`linked = [deps-peer-gating-and-eslint10.md]` 하나뿐). 경위는 본문에 적는다.
 
 ## 현재 상태 (2026-08-29 갱신)
 
