@@ -106,7 +106,7 @@ const ROUTING_SCHEMA = {
 // The workflow sandbox cannot import (static `import` → SyntaxError; dynamic
 // `import()` → "not available in workflow scripts"), so each workflow carries its own
 // copy. Edit the _lib file, then paste the block verbatim here.
-// `.claude/tests/test_workflow_shared_block.py` fails the build if these drift apart;
+// `.claude/tests/test_workflow_scripts.py` fails the build if these drift apart;
 // `.claude/tests/test_agent_return.mjs` unit-tests the canonical logic.
 // The measurements and rationale behind this contract live in the _lib header.
 
