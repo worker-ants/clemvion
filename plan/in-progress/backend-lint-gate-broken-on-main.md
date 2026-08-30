@@ -278,6 +278,17 @@ PR 을 막는다" 고 적은 것은 **부정확**했다 — 막던 것은 그중
 
 ## 후속 (타입체크 갭 PR 밖)
 
+- [ ] **harness: sub-agent 프로토콜 헤더가 리뷰 산출물 본문에 새어 든다** (`18_10_28`
+      documentation W1). checker/reviewer 가 `output_file` 에 쓸 때 `STATUS=…` 줄과
+      `===REPORT_MARKDOWN_BELOW===` 구분자가 그대로 남아, 보고서가 `#` 제목이 아니라
+      프로토콜 잡음으로 시작한다.
+      - **실측 (2026-08-30): `review/**` 에서 825개 파일.** 이번 PR 이 만든 게 아니라
+        오래된 성질이다. 이 PR 은 자신이 새로 커밋한 1건만 고쳤다 — 무관한 대량 정리를
+        같은 커밋에 섞지 않기 위해서다(`17_36_15` scope INFO 8 이 지적한 형태).
+      - 처방은 **산출물 일괄 수정이 아니라 발생원**이다. orchestrator 가 `output_file` 을
+        집계할 때 선두의 이 두 패턴을 벗기거나, sub-agent 계약에서 헤더를 반환 메시지
+        전용으로 못박는다. 바닥을 안 고치면 다음 라운드가 또 825+n 을 만든다.
+
 > 타입체크 갭 PR: [#1109](https://github.com/worker-ants/clemvion/pull/1109)
 
 - [x] `deleteByPrefix` 가드의 **존재 근거를 실행 가능한 테스트로** 고정 (ai-review INFO 7).

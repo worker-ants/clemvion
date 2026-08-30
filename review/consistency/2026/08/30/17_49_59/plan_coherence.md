@@ -1,5 +1,3 @@
-STATUS=success plan_coherence review complete — 2 WARNING findings
-===REPORT_MARKDOWN_BELOW===
 # Plan 정합성 검토 — `plan/in-progress/spec-draft-else-branch-transaction.md`
 
 ## 발견사항
