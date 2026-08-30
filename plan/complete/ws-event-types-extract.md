@@ -406,9 +406,19 @@ ES-module 순환 위에 있어서다. 생성자의 `forwardRef` 도 같은 이�
       > 규칙을 근거로 결정을 내렸다.** 다음 사람이 같은 판단을 하려면 다섯 파일을 열어 패턴을
       > 귀납해야 한다. 한 문단이면 되고, 자리는 `6-websocket-protocol.md` Rationale 이
       > 자연스럽다(신설 convention 문서까지는 과할 수 있다 — planner 판단).
-      frontmatter 가 `none` 인데 실제로는 `spec/5-system/6-websocket-protocol.md` frontmatter
+      ~~frontmatter 가 `none` 인데 실제로는 `spec/5-system/6-websocket-protocol.md` frontmatter
       `code:` 1줄을 바꿨다. in-progress 단계는 Gate C 의무가 아니라 지금 차단 사유는 아니지만,
-      **완료 이동 시점에 실제 변경 파일 목록으로 갱신해야 Gate C 를 통과한다**
+      **완료 이동 시점에 실제 변경 파일 목록으로 갱신해야 Gate C 를 통과한다**~~
+
+      > ✅ **완료 (2026-08-30, `ws-facade-coverage-close`).** 위 문장은 **이 문서가
+      > `complete/` 로 봉인되는 시점 기준으로 이미 과거형**이다 — frontmatter 는 같은
+      > 커밋에서 `spec_impact` **7개 목록**으로 갱신됐고 Gate C(`plan-frontmatter` ·
+      > `plan-scan`)를 통과했다(195 tests).
+      >
+      > **봉인 문서에 미완료형 문장을 남기지 않는다** (`11_36_05` documentation W2) —
+      > `complete/` 는 "지금 참인 상태" 가 아니라 **끝난 일의 기록**이라, 미래형이 남아 있으면
+      > 다음 사람이 없는 잔여를 쫓는다. 이 트래커가 통째로 그 클래스를 다뤘는데
+      > **자기 문장에서 같은 실수를 할 뻔했다.**
 
 ## 후속 (이 PR 범위 밖)
 

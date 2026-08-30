@@ -1386,7 +1386,14 @@ ES-module 순환 위에 놓인다. 생성자의 `forwardRef` 도 같은 이유�
       **완료** ([`ws-event-types-extract`](../complete/ws-event-types-extract.md) —
       2026-08-30 `complete/` 로 이동).
       `websocket-events.types.ts` 신설(**import 0줄 · 구현 0개**), 호출부 **25 → 13**,
-      타입만 가져가던 곳 **0**.
+      타입만 가져가던 곳 **1** — 그 하나는 re-export facade 를 검증하는
+      `websocket.service.spec.ts` 라 **의도된 커버리지**다.
+
+      > ~~타입만 가져가던 곳 **0**~~ 은 **틀린 수치였다** (`11_36_05` documentation W1).
+      > 정본 트래커가 그 값을 TS 파서 전수(1,230 파일)로 **1** 로 재측정해 정정했는데
+      > 이 요약만 옛 값을 들고 있었다 — **한 PR 이 두 문서에서 서로 다른 수를 주장**했다.
+      > 원 grep 이 편집 스크립트의 제외를 물려받아 생긴 오측이고, 경위는
+      > [`ws-event-types-extract`](../complete/ws-event-types-extract.md) §③ 에 있다.
       **역재현으로 실증**: 72 suites 를 터뜨렸던 모듈 스코프 파생을 되살려 **425/425 통과**.
       그 형태를 **캐너리로 남겼다** — 순환이 되살아나면 즉시 대량으로 깨진다
 
