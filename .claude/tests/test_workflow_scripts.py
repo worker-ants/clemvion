@@ -111,6 +111,34 @@ class SharedBlockDriftTest(unittest.TestCase):
                     f"then paste the marked block verbatim into all of: {', '.join(FAN_OUT)}",
                 )
 
+    def test_guard_filename_references_point_at_this_file(self):
+        """마커 **밖**의 헤더 주석도 이 파일을 가리켜야 한다.
+
+        `_extract_block()` 은 마커 사이만 비교하므로, 그 위 4~5줄의 "MIRROR of…" 헤더
+        주석은 **구조적으로 이 가드의 사각지대**다. 실제로 그 자리에서 드리프트가 났다:
+        가드 테스트 파일이 `test_workflow_shared_block.py` → `test_workflow_scripts.py`
+        로 바뀌었는데 마커 줄만 갱신되고 헤더 주석 3곳이 옛 이름을 계속 가리켰다.
+        존재하지 않는 파일을 "이걸 돌려라" 로 안내하는 상태였다(`20_21_06` 다수 지적).
+
+        파일명을 하드코딩하지 않고 **이 테스트 파일 자신의 이름**과 대조한다 — 다음에
+        이름이 또 바뀌면 이 단언이 같이 따라간다.
+        """
+        me = Path(__file__).name
+        stale = re.compile(r"\.claude/tests/(test_\w+\.py)")
+        for path in [LIB] + [WORKFLOWS_DIR / n for n in FAN_OUT]:
+            text = path.read_text(encoding="utf-8")
+            for lineno, line in enumerate(text.split("\n"), 1):
+                for referenced in stale.findall(line):
+                    with self.subTest(file=path.name, line=lineno):
+                        self.assertEqual(
+                            referenced,
+                            me,
+                            f"{path.name}:{lineno} points at `{referenced}`, which is not "
+                            f"this guard (`{me}`). The SHARED-BLOCK markers are checked "
+                            f"verbatim but this line sits outside them — that blind spot "
+                            f"is exactly where the last drift happened.",
+                        )
+
     def test_no_fan_out_workflow_still_defaults_a_missing_status_to_success(self):
         # The exact regression: `return m ? m[1] : 'success'` turned a contract-breaking
         # agent into a fake success and dropped its findings from the verdict.

@@ -101,7 +101,7 @@ test('the prompt contract names the delimiter it will be parsed by', () => {
 // said "결과를 output_file 에 Write" and steps 2·3 named a STATUS header + delimiter
 // without saying which sink they belonged to — so agents wrote what they returned, and
 // 536 artefacts under `review/**` begin with `STATUS=…` instead of their own `#` title
-// (271 of them carry the delimiter too; the rest predate it). Measured 2026-08-31.
+// (271 of them carry the delimiter too; the rest predate it). Measured 2026-08-30.
 //
 // These two assertions are what a mutation revealed to be missing: reverting the wording
 // left all 11 prior tests green. They pin the distinction, not the prose — the wording may
