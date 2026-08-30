@@ -8671,49 +8671,60 @@ export class ExecutionEngineService
     const elseStatusesSql = opts?.allowRetryReentry
       ? ExecutionEngineService.NON_TERMINAL_OR_FAILED_STATUSES_SQL
       : ExecutionEngineService.NON_TERMINAL_STATUSES_SQL;
-    // 타입 주장 대신 `unknown` — 실제 shape 해석은 `updateReturningRows` 가 한다(위와 동일).
-    const updated: unknown = await this.executionRepository.query(
-      `UPDATE execution
-          SET status = $2,
-              active_running_ms = $3,
-              finished_at = $4,
-              duration_ms = $5,
-              output_data = $6::jsonb,
-              resume_call_stack = $7::jsonb,
-              error = $8::jsonb
-        WHERE id = $1
-          AND status IN (${elseStatusesSql})
-        RETURNING id`,
-      [
-        execution.id,
-        newStatus,
-        execution.activeRunningMs ?? 0,
-        execution.finishedAt ?? null,
-        execution.durationMs ?? null,
-        execution.outputData == null
-          ? null
-          : JSON.stringify(execution.outputData),
-        execution.resumeCallStack == null
-          ? null
-          : JSON.stringify(execution.resumeCallStack),
-        execution.error == null ? null : JSON.stringify(execution.error),
-      ],
-    );
     // 여기서 `false` 는 "동시 cancel 이 이미 terminal 로 옮겼으니 종결 이벤트를 내지 말라"
     // 는 뜻이다. 배열이 아니면 그 신호가 조용히 켜져서 — **DB 는 UPDATE 됐는데
     // `execution.completed`/`failed` 가 영영 발행되지 않는다**(EIA §6 종결 이벤트 계약이
-    // 깨지고 클라이언트는 무기한 대기). 앞의 admission 가드와 달리 이 UPDATE 는 애플리케이션
-    // 트랜잭션 밖이라 throw 가 롤백을 부르지는 못하지만, **관측 불가능한 유실을 관측 가능한
-    // 실패로 바꾸는 것**이 목적이다 (ai-review `17_15_21` WARNING 1).
-    // 같은 튜플 문제 — `updated.length > 0` 은 항상 참이라 "동시 cancel 이 이미 terminal 로
-    // 옮겼으니 종결 이벤트를 내지 말라" 는 분기가 **한 번도 타지 않았다**. DB 쓰기 자체는
-    // `WHERE status IN (...)` 가드가 지켜 왔으므로 데이터는 안전했고, 틀린 것은 **앱이
-    // 자기가 적용했는지 아는 것** 쪽이다.
-    const persisted =
-      updateReturningRows<{ id: string }>(
-        updated,
-        `updateExecutionStatus, execution ${execution.id} → ${newStatus}`,
-      ).length > 0;
+    // 깨지고 클라이언트는 무기한 대기). 그래서 `updateReturningRows` 가 shape 위반에
+    // throw 해 **관측 불가능한 유실을 관측 가능한 실패로** 바꾼다 (`17_15_21` WARNING 1).
+    //
+    // 같은 튜플 문제 — `updated.length > 0` 은 항상 참이라 "동시 cancel 선점" 분기가
+    // **한 번도 타지 않았다**. DB 쓰기 자체는 `WHERE status IN (...)` 가드가 지켜 왔으므로
+    // 데이터는 안전했고, 틀린 것은 **앱이 자기가 적용했는지 아는 것** 쪽이다.
+    //
+    // **트랜잭션으로 감싸는 이유** (`18_19_33` concurrency INFO 9): 종전엔 트랜잭션 밖
+    // 단발 UPDATE 라 가드가 throw 해도 **이미 커밋된 UPDATE 를 되돌리지 못했다.** 그러면
+    // DB 는 terminal 인데 종결 이벤트는 안 나가고, 그 실행은 어떤 재구동 경로에도 안 잡힌다
+    // (stuck recovery 는 non-terminal 만 본다) — 가드가 막으려던 바로 그 무기한 대기가
+    // **가드가 발동한 순간에** 생긴다. 트랜잭션 안이면 throw 가 UPDATE 를 롤백하므로 행이
+    // 비-terminal 로 남아 재구동 대상이 된다. 짝 전이 분기가 이미 같은 이유로 트랜잭션을
+    // 쓰고 있어 형태도 맞춘다.
+    let persisted = false;
+    await this.dataSource.transaction(async (manager) => {
+      // 타입 주장 대신 `unknown` — 실제 shape 해석은 `updateReturningRows` 가 한다(위와 동일).
+      const updated: unknown = await manager.query(
+        `UPDATE execution
+            SET status = $2,
+                active_running_ms = $3,
+                finished_at = $4,
+                duration_ms = $5,
+                output_data = $6::jsonb,
+                resume_call_stack = $7::jsonb,
+                error = $8::jsonb
+          WHERE id = $1
+            AND status IN (${elseStatusesSql})
+          RETURNING id`,
+        [
+          execution.id,
+          newStatus,
+          execution.activeRunningMs ?? 0,
+          execution.finishedAt ?? null,
+          execution.durationMs ?? null,
+          execution.outputData == null
+            ? null
+            : JSON.stringify(execution.outputData),
+          execution.resumeCallStack == null
+            ? null
+            : JSON.stringify(execution.resumeCallStack),
+          execution.error == null ? null : JSON.stringify(execution.error),
+        ],
+      );
+      // throw 는 트랜잭션을 롤백한다 — 위 UPDATE 가 함께 되돌아간다.
+      persisted =
+        updateReturningRows<{ id: string }>(
+          updated,
+          `updateExecutionStatus, execution ${execution.id} → ${newStatus}`,
+        ).length > 0;
+    });
     // WARNING #9 — else 분기도 동일하게, 가드를 실제로 통과했을 때만 기록.
     if (enteringRunning && persisted) {
       this.recordRunningSegmentStart(execution.id);
