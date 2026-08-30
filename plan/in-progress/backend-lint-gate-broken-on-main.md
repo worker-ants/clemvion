@@ -278,6 +278,17 @@ PR 을 막는다" 고 적은 것은 **부정확**했다 — 막던 것은 그중
 
 ## 후속 (타입체크 갭 PR 밖)
 
+- [ ] **`#1242` 의 planner draft 가 git 이력에 없다** (`19_26_58` requirement W1 의 자매 건).
+      `plan/in-progress/spec-draft-raw-query-results.md` — `--spec` 근거로 쓰고 **커밋 전에
+      지웠다.** 이력 0건인데 `#1242` 커밋 메시지와 자매 티켓이 그 파일을 인용한다.
+      - **원문은 살아 있다**: `review/consistency/2026/08/30/16_50_38/_prompts/cross_spec.md`
+        의 코드펜스(24~270행)에 통째로 실려 있다. 기억으로 재작성하지 말고 **거기서 그대로
+        떠서** `plan/complete/` 로 복원할 것(관례 실측: 보존된 69개 중 66개가 `plan/complete/`).
+      - **별도 커밋으로 가른다** — 이 PR 은 자신이 만든 draft 1건만 복원했다
+        (`17_36_15` scope INFO 8 에서 "무관한 정리를 같은 커밋에 섞지 말라" 를 수용한 약속).
+      - **발생원**: planner 턴 끝에 draft 를 `rm` 하는 내 습관이다. draft 는 **산출물이지
+        임시 파일이 아니다** — `spec/` 을 직접 못 고치는 경계를 정당화하는 유일한 증거다.
+        두 턴 연속(#1242·이 PR) 같은 실수를 했으므로 습관이 문제이지 실수가 아니다.
 - [ ] **harness: sub-agent 프로토콜 헤더가 리뷰 산출물 본문에 새어 든다** (`18_10_28`
       documentation W1). checker/reviewer 가 `output_file` 에 쓸 때 `STATUS=…` 줄과
       `===REPORT_MARKDOWN_BELOW===` 구분자가 그대로 남아, 보고서가 `#` 제목이 아니라

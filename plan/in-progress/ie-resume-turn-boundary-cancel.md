@@ -304,10 +304,16 @@ CRITICAL 1건은 cafe24-api-catalog `mains_update`/`mains_delete` 의 pre-existi
   를 재사용하며 사전 초기화를 빠뜨리면 취소된 NodeExecution 이 성공 페이로드를 노출하는
   결함이 재발할 수 있다. 후속: `markNodeCancelled` 자신이 초기화를 항상 흡수하거나, 옵션
   플래그(`clearPayload?`)로 인터페이스 시그니처에 명시.
-- **`updateExecutionStatus` 두 분기의 4줄 마무리 블록 중복 (ai-review WARNING #6)** —
-  `linkedNodeExec`/else 두 분기 끝의 `recordRunningSegmentStart`+`emitTerminalExecutionMetrics`
-  +`return persisted` 가 그대로 중복 이식돼 있다(`execution-engine.service.ts:8201-8205` vs
-  `:8245-8249`). 후속: 공통 후처리를 함수 끝 단일 지점 또는 사설 헬퍼로 추출.
+- [x] **`updateExecutionStatus` 두 분기의 4줄 마무리 블록 중복 (ai-review WARNING #6)** —
+  ~~`linkedNodeExec`/else 두 분기 끝의 `recordRunningSegmentStart`+`emitTerminalExecutionMetrics`
+  +`return persisted` 가 그대로 중복 이식돼 있다.~~ **완료 (2026-08-30)** — 사설 헬퍼
+  `finishStatusTransition` 으로 추출했다(이 항목이 요구한 그 처방이다).
+  > 착수 계기는 이 항목이 아니라 **else 분기 트랜잭션화**였다. 그 변경으로 두 분기가 완전
+  > 대칭이 되면서 복제가 "다음에 한쪽만 고치는" 구조가 됐고, ai-review `17_36_15`
+  > maintainability W2 가 같은 지적을 독립적으로 다시 냈다. 즉 이 항목은 2026-07-26 에
+  > 등재된 뒤 **한 달 넘게 열린 채 다른 PR 이 우연히 해소**한 형태다.
+  >
+  > 종전 줄 번호(`:8201-8205` vs `:8245-8249`)는 이미 밀렸다 — 함수명으로 찾을 것.
 - **`markNodeCancelled`/`assertExecutionNotCancelled` public 전환 표면 확대 (ai-review
   WARNING #7)** — `ExecutionEngineService` 의 두 메서드가 `private`→`public` 으로 바뀌어
   `AiTurnEngineDriver` 노출 목적(기존 `updateExecutionStatus` 선례와 일관)으로 의도된

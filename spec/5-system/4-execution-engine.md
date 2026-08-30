@@ -1518,6 +1518,22 @@ PR3 의 제어된 re-drive(부팅 backstop)로 멱등 재구동 메커니즘을 
   `markWebChatIdleTimeout` 은 이미 `dataSource.transaction` 으로 원자화돼 있었고 **이 경로만
   열려 있었다** — 자매 함수 주석이 경고하던 실패 모드가 이 함수에 그대로 남아 있었다.
   단일 트랜잭션으로 통일했다(트랜잭션 안에서 두 UPDATE, 커밋 이후 emit).
+- **`updateExecutionStatus` else 분기 원자화 (2026-08-30)**: 위 dead-letter 건과 **목적이
+  다르다.** 그쪽은 2-테이블 부분 커밋을 막는 것이고, 이쪽은 **가드의 throw 가 자기 UPDATE 를
+  되돌리게** 하는 것이다.
+  - **이전 한계**: else 분기(직접 마감)의 guarded UPDATE 는 트랜잭션 밖 단발이었다. 결과
+    shape 가드(`updateReturningRows`, `8332d9a20` 도입)가 throw 해도 그 UPDATE 는 **이미
+    커밋된 뒤**였다.
+  - **그 한계가 낳는 결함**: 가드가 발동하면 행은 terminal 로 커밋된 채 종결 이벤트만
+    유실되고, 그 실행은 비-terminal 만 스캔하는 stuck recovery 에도 잡히지 않는다. **가드가
+    막으려던 무기한 대기가 가드가 발동한 순간에 생긴다** — 관측을 얻고 정합성을 잃는 교환이
+    되어 있었다.
+  - **해소**: guarded UPDATE 를 `dataSource.transaction` 안에서 실행한다. throw 가 롤백을
+    불러 행이 비-terminal 로 남고 재구동 대상이 된다. 짝 전이 분기가 이미 트랜잭션을 쓰고
+    있어 두 분기가 대칭이 됐고, 그 결과 공통 종결부를 `finishStatusTransition` 으로 뽑아
+    형제 분기 drift 경로를 함께 없앴다.
+  - **비용**: 상태 전이 choke point 에 BEGIN/COMMIT 왕복이 붙는다. 롤백 보장이 그 비용을
+    상회한다고 판단했다 — 짝 전이 분기가 이미 같은 비용을 치르고 있다.
 - **at-least-once 경계 = PR3 모델 계승**: 완료 노드는 skip(exactly-once), RUNNING-at-crash 노드는 재실행(at-least-once). Integration 노드의 재실행 멱등은 §7.3 대로 노드의 책임이다. PR4 는 이 경계를 바꾸지 않는다.
 - **Q2 defer — under-count 미해소**: 세그먼트-start 영속(active_running_ms 정밀 flush)은 migration 이 필요해 PR4 scope 에서 제외했다(§Rationale "Graceful Shutdown … under-count 허용"). PR4 는 마이그레이션 없이 기존 컬럼만 재사용한다.
 - **잔여 zombie race**: lock 만료 후 부활하는 zombie 워커는 stalled fencing 으로 완전히 배제되지 않으나, `maxStalledCount:1`(무한 재배달 없음) + per-node COMPLETED skip 으로 blast radius 가 bound 된다(§7.5 case B 각주). 현행 fail-path 도 동일 노출이라 신규 회귀 아님. 같은 class 의 narrow race 로, `finalizeStalledExhausted`(stalled 소진 dead-letter 마감)가 발동하는 순간 부팅 backstop `recoverStuckExecutions` 가 같은 stale RUNNING 을 re-claim 해 재구동 중이면 조건부 UPDATE(`WHERE status='running'`)가 정상 재구동을 `WORKER_HEARTBEAT_TIMEOUT` 로 잘못 마감할 수 있다("job stalled 소진 == 부팅 스캔" 이 겹치는 극히 좁은 창 한정, per-node skip 으로 완료 노드 보존). 완전 fencing 은 세그먼트-start/owner-token 영속(defer)에 의존한다.
