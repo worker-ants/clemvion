@@ -96,3 +96,43 @@ test('the prompt contract names the delimiter it will be parsed by', () => {
   // If these ever disagree, every agent returns a body the parser cannot find.
   assert.ok(REPORT_RETURN_CONTRACT.includes(DELIM))
 })
+
+// The contract governs **two different sinks** and used to say so only for one. Step 1
+// said "결과를 output_file 에 Write" and steps 2·3 named a STATUS header + delimiter
+// without saying which sink they belonged to — so agents wrote what they returned, and
+// 536 artefacts under `review/**` begin with `STATUS=…` instead of their own `#` title
+// (271 of them carry the delimiter too; the rest predate it). Measured 2026-08-30.
+//
+// These two assertions are what a mutation revealed to be missing: reverting the wording
+// left all 11 prior tests green. They pin the distinction, not the prose — the wording may
+// be rephrased as long as the file/return split survives.
+test('step 1 tells the agent the FILE gets markdown only — no header, no delimiter', () => {
+  const step1 = REPORT_RETURN_CONTRACT.split('\n').find(l => l.trim().startsWith('1)'))
+  assert.ok(step1, 'contract lost its step 1')
+  // The line that assigns output_file must scope it to the report body.
+  const fileClause = REPORT_RETURN_CONTRACT.slice(REPORT_RETURN_CONTRACT.indexOf(step1))
+  const upToStep2 = fileClause.slice(0, fileClause.indexOf('2)'))
+  assert.match(
+    upToStep2,
+    /output_file[\s\S]*마크다운 본문만/,
+    'step 1 must say the file gets the markdown body ONLY — otherwise agents mirror the return into it',
+  )
+  assert.match(
+    upToStep2,
+    /넣지 마세요/,
+    'step 1 must explicitly forbid the header/delimiter in the file',
+  )
+})
+
+test('steps 2 and 3 are scoped to the RETURN message, not the file', () => {
+  const lines = REPORT_RETURN_CONTRACT.split('\n')
+  for (const n of ['2)', '3)']) {
+    const step = lines.find(l => l.trim().startsWith(n))
+    assert.ok(step, `contract lost its step ${n}`)
+    assert.match(
+      step,
+      /반환 메시지/,
+      `step ${n} must name the return message as its sink — an unscoped step is what leaked the header into ${'`output_file`'}`,
+    )
+  }
+})

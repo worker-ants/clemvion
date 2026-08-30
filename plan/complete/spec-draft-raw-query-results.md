@@ -13,7 +13,7 @@ spec_impact:
   - spec/5-system/10-graph-rag.md
 ---
 
-> **복원 배너 (2026-08-31) — 이 파일은 `#1242` 당시 커밋되지 않았다.**
+> **복원 배너 (2026-08-30) — 이 파일은 `#1242` 당시 커밋되지 않았다.**
 >
 > planner 턴 끝에 draft 를 `rm` 하는 바람에 git 이력에 0건이었는데, `#1242` 커밋 메시지와
 > `backend-lint-gate-broken-on-main.md` 이 이 파일을 근거로 인용하고 있었다. ai-review

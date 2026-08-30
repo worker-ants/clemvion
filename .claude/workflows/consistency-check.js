@@ -45,21 +45,29 @@ if (!invocations.length || !summary) {
 // The workflow sandbox cannot import (static `import` → SyntaxError; dynamic
 // `import()` → "not available in workflow scripts"), so each workflow carries its own
 // copy. Edit the _lib file, then paste the block verbatim here.
-// `.claude/tests/test_workflow_shared_block.py` fails the build if these drift apart;
+// `.claude/tests/test_workflow_scripts.py` fails the build if these drift apart;
 // `.claude/tests/test_agent_return.mjs` unit-tests the canonical logic.
 // The measurements and rationale behind this contract live in the _lib header.
 
-// >>> SHARED-BLOCK: agent-return (mirrored verbatim into the 3 workflows — guard: .claude/tests/test_workflow_shared_block.py)
+// >>> SHARED-BLOCK: agent-return (mirrored verbatim into the 3 workflows — guard: .claude/tests/test_workflow_scripts.py)
 const DELIM = '===REPORT_MARKDOWN_BELOW==='
 
 // Appended to every fan-out agent prompt. Overrides `prompt_file`'s "STATUS 한 줄만
 // 반환" instruction, which predates the harness's return-findings-as-text behaviour.
+//
+// **파일과 반환 메시지는 내용이 다르다.** 초판은 1) 에 "결과를 Write" 라고만 적고 2·3) 이
+// 어느 쪽을 규정하는지 말하지 않아, agent 들이 반환할 것을 그대로 파일에도 썼다 — 산출물
+// 536개가 `STATUS=…` 로 시작해 실제 제목이 2~3행부터 나온다(2026-08-30 실측; 그중 271개는
+// 구분자까지 포함, 나머지는 구분자 도입 이전 형태). 아래에서 두 대상을 갈라 적는다.
 const REPORT_RETURN_CONTRACT = [
   '',
   '출력 규약 (prompt_file 의 지시보다 **이 규약이 우선**):',
-  '1) 결과를 output_file 에 Write 하세요 (best-effort — 실패해도 아래 2·3 은 반드시 수행).',
-  '2) 첫 줄에 `STATUS=<success|fatal> ...` 헤더.',
-  `3) 둘째 줄에 정확히 \`${DELIM}\` 한 줄, 그 다음부터 보고서 **마크다운 전문**.`,
+  '1) **output_file 에는 보고서 마크다운 본문만** Write 하세요 — `STATUS=` 헤더도,',
+  `   \`${DELIM}\` 구분자도 파일에 넣지 마세요. 파일은 \`#\` 제목으로 시작해야 합니다.`,
+  '   (best-effort — Write 가 실패해도 아래 2·3 은 반드시 수행.)',
+  '2) **반환 메시지**의 첫 줄에 `STATUS=<success|fatal> ...` 헤더.',
+  `3) **반환 메시지**의 둘째 줄에 정확히 \`${DELIM}\` 한 줄, 그 다음부터 보고서`,
+  '   **마크다운 전문**.',
   '   (Write 성공 여부와 무관하게 항상 포함 — 전문이 없으면 통합 SUMMARY 가 이 agent 의',
   '    Critical 을 누락해 판정이 거짓 음성이 됩니다.)',
 ].join('\n')

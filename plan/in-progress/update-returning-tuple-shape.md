@@ -240,6 +240,12 @@ raw `.query()` 는 ORM 매핑을 타지 않아 행의 키가 **DB 그대로 snak
       > 함께 롤백한다. 상세·뮤테이션 실측은 `backend-lint-gate-broken-on-main.md` 의
       > 같은 항목(`18_19_33` concurrency INFO 9)에 있다 — **두 plan 이 같은 항목을 추적**하고
       > 있었고 그쪽이 원본이다.
+      >
+      > **후속 하드닝 (2026-08-30, `#1243` 이후)**: `updateExecutionStatus` 의 self-deadlock
+      > 제약 JSDoc 이 세 판에 걸쳐 정정됐다(호출부 11 → 20, 어휘적 → 호출 스택 축, 그리고
+      > `webauthn.service.ts` 누락 보정). 상세 이력은
+      > `backend-lint-gate-broken-on-main.md` 의 self-deadlock 항목에 표로 있다.
+      > 이 파일은 그 변경으로 다시 손댔을 뿐 새 항목은 없다.
       > **③ 은 이 트래커의 항목이 아니다 (2026-08-29 정정).** 원래 ③ 이 "EIA
       > `durationMs`/`result.outputs` emit" 이었는데 둘 다 여기서 할 일이 없다:
       >

@@ -1,0 +1,67 @@
+{
+  "timestamp": "2026-08-30T20:21:06.655597",
+  "files": [
+    {
+      "file_path": ".claude/tests/test_agent_return.mjs",
+      "change_type": "Review",
+      "file_extension": "mjs"
+    },
+    {
+      "file_path": ".claude/workflows/_lib/agent-return.mjs",
+      "change_type": "Review",
+      "file_extension": "mjs"
+    },
+    {
+      "file_path": ".claude/workflows/ai-review.js",
+      "change_type": "Review",
+      "file_extension": "js"
+    },
+    {
+      "file_path": ".claude/workflows/consistency-check.js",
+      "change_type": "Review",
+      "file_extension": "js"
+    },
+    {
+      "file_path": ".claude/workflows/merge-coordinate.js",
+      "change_type": "Review",
+      "file_extension": "js"
+    },
+    {
+      "file_path": "codebase/backend/src/modules/execution-engine/execution-engine.service.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "plan/in-progress/backend-lint-gate-broken-on-main.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    }
+  ],
+  "agents": [
+    "security",
+    "performance",
+    "architecture",
+    "requirement",
+    "scope",
+    "side_effect",
+    "maintainability",
+    "testing",
+    "documentation",
+    "dependency",
+    "database",
+    "concurrency",
+    "api_contract",
+    "user_guide_sync"
+  ],
+  "route_mode": "auto",
+  "agents_explicit": false,
+  "agents_forced": [
+    "documentation",
+    "maintainability",
+    "requirement",
+    "scope",
+    "security",
+    "side_effect",
+    "testing"
+  ]
+}

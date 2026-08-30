@@ -109,3 +109,26 @@ owner: planner
       누락만 잡고 동일 타입 스왑은 못 잡는다 — 실측 오류 0건).
 
 > `status: implemented` 승격은 여전히 불가 — §1.3 LDAP/SAML 이 남아 있다.
+
+## 추가 발견 (2026-08-30, `--impl-done` `21_59_41` cross_spec)
+
+무관한 PR(`claude/review-artifact-header-leak`)의 `--impl-done` 이 `spec/data-flow/` 스냅샷을
+다른 영역과 대조하다 드러낸 **기존** 불일치다. 그 PR 의 diff 가 유발한 것이 아니고,
+checker 가 **`plan/**` 어디에도 추적되지 않음**을 확인해 여기 등재한다.
+
+- [ ] **계정 잠금 시 이메일 알림 — 두 spec 이 다르다** (`21_59_41` cross_spec W1).
+      `data-flow/2-auth.md` §3.2·§2.3 과 실코드(`mail.service.ts`·`auth.service.ts`)는
+      **알림 없음**으로 일치하는데, `5-system/1-auth.md` §1.1 표만 "이메일 알림" 을 요구한다.
+      - 처방 둘 중 하나: (a) §1.1 표에서 그 문구 제거, (b) 알림을 실제로 원하면 구현 티켓 +
+        `data-flow/2-auth.md` 동반 갱신.
+      - **project-planner 턴 필요** — 제품 요구사항 텍스트라 developer 자기-반증형 소정정
+        예외(예고·트리거 문장 한정) 대상이 아니다.
+
+- [ ] **`alert_rule`(V016) 이 데이터 모델 SoT 에 없다** (`21_59_41` cross_spec W2).
+      컬럼 정의가 `data-flow/9-observability.md` §2.1 에만 있고 `1-data-model.md` §2 에는
+      엔티티 섹션 자체가 없다.
+      - 처방: `1-data-model.md` §2 에 `AlertRule`(V016) 섹션 신설, `9-observability.md` §2.1
+        은 발췌로 축약.
+      - **이 파일은 auth 트래커라 주제가 맞지 않는다.** observability/데이터모델 트래커가
+        저장소에 없어(전수 확인) 임시로 여기 둔다 — 다음 planner 턴이 적절한 트래커를 만들거나
+        옮길 것. 등재하지 않으면 checker 가 확인한 대로 **어디에도 남지 않는다.**

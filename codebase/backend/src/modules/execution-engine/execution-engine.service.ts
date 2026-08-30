@@ -8568,17 +8568,19 @@ export class ExecutionEngineService
    * 이미 열린 트랜잭션 안에서 호출하면 같은 Execution 행을 두 커넥션이 잠그려 해
    * self-deadlock 이 된다.
    *
-   * 호출부는 **20곳**이다 — 이 파일 안의 직접 호출 11곳 + `EngineDriver` 경유 9곳
-   * (`ai-turn-orchestrator` 3 · `retry-turn` 2 · `form-interaction` 2 ·
-   * `button-interaction` 2). **전부 트랜잭션 콜백 밖**이다: 소비 서비스 넷 중
-   * `.transaction(` 을 여는 파일은 `retry-turn.service.ts` 하나뿐이고, 그 블록은
-   * 두 driver 호출보다 한참 위에서 닫힌다(실측).
+   * **현재 스냅샷 (2026-08-30)**: 호출부 **20곳**(이 파일 직접 11 + `EngineDriver` 경유 9)
+   * 과 backend `.transaction(` 블록 **36개**(모듈 안 9 + 밖 27 — 이 9는 **블록 수**라
+   * 앞의 "경유 9곳" 과 무관한 집합이다)를 전수 대조한 결과
+   * **트랜잭션 콜백 안에서 이 메서드를 부르는 경로는 없다.** 한계는 정적 분석이라는 것 —
+   * DI·이벤트 핸들러·큐 consumer 가 런타임에 만드는 경로는 못 본다.
    *
-   * **이 확인은 어휘적(lexical) 범위다** — 호출 스택 위쪽에서 트랜잭션을 연 caller 가
-   * 있는지까지는 보지 않았다. 새 호출부를 추가할 때는 그 축도 함께 볼 것.
+   * **새 호출부나 새 `.transaction(` 블록을 추가하면 이 대조를 다시 하라.** 자동 가드는
+   * 없다. 세는 패턴은 **제네릭 인자(`.transaction<T>(`)를 포함하고 주석 줄을 제외**해야
+   * 한다 — 그러지 않으면 **35**(제네릭 누락)나 **39**(주석 포함, 이 JSDoc 프로즈 3줄이 섞인다)가
+   * 나온다.
    *
-   * (초판은 "11곳 전수 대조" 라고 적었는데, 그 11은 **이 파일 안만** 센 수였다 —
-   * `17_36_15` 의 리뷰어 수치를 재보지 않고 옮겼고, `18_10_28` 이 잡았다.)
+   * 이 수치가 세 판에 걸쳐 어떻게 틀렸다 고쳐졌는지(11 → 20, 어휘적 → 호출 스택)는
+   * `plan/in-progress/backend-lint-gate-broken-on-main.md` 의 해당 항목에 있다.
    */
   // C-1 step2 — EngineDriver member (상태 전이 단일 choke point).
   public async updateExecutionStatus(
