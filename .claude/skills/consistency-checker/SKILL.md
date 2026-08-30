@@ -47,6 +47,17 @@ python3 .claude/skills/consistency-checker/scripts/consistency_orchestrator.py -
 
 모드 (첫 호출 — `--resume` 없을 때 택일):
 - `--spec <path>` — spec draft (project-planner 의 `spec/` 쓰기 직전 의무).
+  > **draft 원본이 `<session>/_target/` 에 보존된다** (`meta.json` 의 `target_snapshot`).
+  > draft 는 임시 파일이 아니라 **산출물**이다 — `developer` 가 `spec/` 을 직접 못 고치는
+  > 경계는 "planner 턴을 밟았다" 로만 정당화되고 draft 가 그 유일한 증거다. planner 턴 끝에
+  > draft 를 지우는 일이 두 턴 연속 벌어져(`#1242`·`#1243`) main 이 존재하지 않는 파일을
+  > 인용하는 상태가 됐고, 그때 복원은 `_prompts/` 코드펜스에 원문이 **우연히** 남아 있어서
+  > 가능했다(프롬프트의 target 은 예산에 따라 잘린다). 그 우연을 계약으로 바꾼 것이 이
+  > 사본이다.
+  >
+  > **차단 가드가 아니다.** draft 를 `plan/complete/` 로 옮기는 관례(보존된 69개 중 66개)는
+  > 여전히 사람이 지킨다 — push 가드를 정밀화했다 철회한 이력(`#970`)을 반복하지 않으려고
+  > 증거 보존만 자동화했다.
 - `--plan <path>` — plan draft.
 - `--impl-prep <scope>` — 구현 착수 직전. scope = spec 영역 경로.
 - `--impl-done <scope>` — **구현 완료 후 사후 검증**. scope = spec 영역 경로. target_doc 에 spec 영역 파일 + `git diff <diff-base>...HEAD -- <code_areas>` 가 함께 묶여, 5 checker 가 "spec 본문 vs 실 구현 diff" 정합성을 사후 분석. `--diff-base <ref>` 로 base 변경 (default: `origin/main`). **이 base 는 전 모드 공통으로 번들 우선순위 산정에도 쓰인다** — 이 브랜치가 변경한 파일이 컨텍스트 예산의 앞자리를 받는다. **spec 연결 코드(어떤 spec 의 frontmatter `code:` glob 에 매칭) 변경 시 developer REVIEW WORKFLOW 의 의무 단계** — `BLOCK: NO` 산출물이 없으면 `review_guard.py` 의 SPEC-CONSISTENCY 게이트가 push·턴종료를 차단한다. (이전엔 "권장" 이었으나 종료 게이트로 승격: code-vs-spec 일치 검증의 비대칭 해소.) target_doc 맨 앞에는 **HEAD 워킹트리 절대경로 + "CWD 상대 Read/Grep 은 diff-base(변경 전) 라 신뢰 금지" 가드**가 박힌다 — checker sub-agent 의 CWD 가 default-branch 체크아웃이라 신규 추가 코드를 "미구현" 으로 오탐하던 #738 버그 차단 (코드 확인은 절대경로 / `git -C <root>` 로).
