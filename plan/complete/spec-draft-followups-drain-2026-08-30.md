@@ -2,7 +2,7 @@
 worktree: spec-followups-drain-08e637
 started: 2026-08-30
 owner: project-planner
-status: in-progress
+status: complete
 priority: P2
 spec_impact:
   - spec/5-system/14-external-interaction-api.md
