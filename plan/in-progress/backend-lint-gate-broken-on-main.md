@@ -5,8 +5,16 @@ started: 2026-08-08
 owner: developer
 status: in-progress
 priority: P1
-spec_impact: none
+spec_impact:
+  - spec/5-system/4-execution-engine.md
+  - spec/data-flow/3-execution.md
 ---
+
+> **`spec_impact` 정정 (2026-08-30)** — 종전 `none` 이었다. 그 사이 이 plan 이
+> **`updateExecutionStatus` else 분기 트랜잭션화**를 완료 항목으로 받았고, 그 변경은
+> §1.1 「원자성 보장」과 `data-flow/3-execution.md` §2.1 매핑 표를 갱신하게 했다.
+> `none` 인 채로 `complete/` 로 옮기면 Gate C(`spec-plan-completion.test.ts`)가 그 값을
+> 그대로 믿어 **"spec 영향 없음" 이 잘못 확정된다** (`17_49_59` plan_coherence W1).
 
 ## Overview
 
@@ -269,6 +277,28 @@ PR 을 막는다" 고 적은 것은 **부정확**했다 — 막던 것은 그중
       죽은 채로 두면 "abort 처리가 저기서 일어난다" 는 오독을 남긴다.
 
 ## 후속 (타입체크 갭 PR 밖)
+
+- [ ] **`#1242` 의 planner draft 가 git 이력에 없다** (`19_26_58` requirement W1 의 자매 건).
+      `plan/in-progress/spec-draft-raw-query-results.md` — `--spec` 근거로 쓰고 **커밋 전에
+      지웠다.** 이력 0건인데 `#1242` 커밋 메시지와 자매 티켓이 그 파일을 인용한다.
+      - **원문은 살아 있다**: `review/consistency/2026/08/30/16_50_38/_prompts/cross_spec.md`
+        의 코드펜스(24~270행)에 통째로 실려 있다. 기억으로 재작성하지 말고 **거기서 그대로
+        떠서** `plan/complete/` 로 복원할 것(관례 실측: 보존된 69개 중 66개가 `plan/complete/`).
+      - **별도 커밋으로 가른다** — 이 PR 은 자신이 만든 draft 1건만 복원했다
+        (`17_36_15` scope INFO 8 에서 "무관한 정리를 같은 커밋에 섞지 말라" 를 수용한 약속).
+      - **발생원**: planner 턴 끝에 draft 를 `rm` 하는 내 습관이다. draft 는 **산출물이지
+        임시 파일이 아니다** — `spec/` 을 직접 못 고치는 경계를 정당화하는 유일한 증거다.
+        두 턴 연속(#1242·이 PR) 같은 실수를 했으므로 습관이 문제이지 실수가 아니다.
+- [ ] **harness: sub-agent 프로토콜 헤더가 리뷰 산출물 본문에 새어 든다** (`18_10_28`
+      documentation W1). checker/reviewer 가 `output_file` 에 쓸 때 `STATUS=…` 줄과
+      `===REPORT_MARKDOWN_BELOW===` 구분자가 그대로 남아, 보고서가 `#` 제목이 아니라
+      프로토콜 잡음으로 시작한다.
+      - **실측 (2026-08-30): `review/**` 에서 825개 파일.** 이번 PR 이 만든 게 아니라
+        오래된 성질이다. 이 PR 은 자신이 새로 커밋한 1건만 고쳤다 — 무관한 대량 정리를
+        같은 커밋에 섞지 않기 위해서다(`17_36_15` scope INFO 8 이 지적한 형태).
+      - 처방은 **산출물 일괄 수정이 아니라 발생원**이다. orchestrator 가 `output_file` 을
+        집계할 때 선두의 이 두 패턴을 벗기거나, sub-agent 계약에서 헤더를 반환 메시지
+        전용으로 못박는다. 바닥을 안 고치면 다음 라운드가 또 825+n 을 만든다.
 
 > 타입체크 갭 PR: [#1109](https://github.com/worker-ants/clemvion/pull/1109)
 
@@ -1292,17 +1322,31 @@ swamp 되고 scope 리뷰어가 정당하게 지적한다. 보안 fix 의 리뷰
 `assertRowArray` 가드를 execution-engine·executions 두 서비스 4곳에 폈고, 누락 자체를
 막는 구조적 회귀 테스트(`assert-row-array.spec.ts`)를 뒀다. 남은 것:
 
-- [ ] **backend 전역 raw-query 소비 지점 감사** — 이번 가드의 `FILES` 는 위 2파일 한정이다.
-      `integration-oauth.service.ts:593·803` 의 `consumeOAuthState` 등이 검증 없이
-      결과를 소비한다(`18_19_33` testing INFO 7 — 심볼 실존 확인함). 같은 fail-open 방향인지
-      **지점마다 실패 방향을 재고** 판단할 것 — 이번에 4곳 중 1곳만 fail-open 이었다.
+- [x] **backend 전역 raw-query 소비 지점 감사** — **이미 수행됐다 (2026-08-30 확인).**
+      `update-returning-tuple-shape.md` 가 바로 이 항목("①: backend 전역 감사")에서 출발해
+      **소비 41곳을 실패 방향별로 분류**하고 미가드 fail-open 후보 4곳을 직접 읽었다 —
+      **넷 다 보장을 우회하지 않는다**(둘은 화면 통계, 하나는 telemetry, 하나는 이미
+      `try/catch` 안). 여기 지목된 `integration-oauth.service.ts` 2곳도 그 감사에서
+      "이미 튜플로 정확히 다루고 있었다" 로 판정됐고, `#1241` 의 발견형 가드가 사유와 함께
+      허용목록에 등재해 두고 있다.
+      **체크가 안 된 채 남아 있어 다음 사람이 끝난 감사를 다시 할 뻔했다** — 이 항목은
+      `update-returning-tuple-shape.md` 에서 수행됐고 이 plan 에는 반영되지 않았다.
 - [ ] **`CONSUMING_QUERY` 사각지대** — `let` 선언·구조분해(`const [row] = await …`)·체이닝
       형태는 정규식에 안 잡혀 GREEN 을 유지한 채 지나간다(`18_19_33` testing INFO 8).
       주석으로 명시해 뒀다. 넓힐 거면 **정규식이 아니라 AST** 가 맞다 — 유한한 문제를
       무한한 문제와 바꾸지 않도록 착수 전에 비용을 먼저 볼 것.
-- [ ] **`updateExecutionStatus` else 분기 트랜잭션화** (`18_19_33` concurrency INFO 9).
-      지금은 트랜잭션 밖 단발 UPDATE 라 가드가 throw 해도 이미 커밋된 UPDATE 를 못 되돌린다.
-      가드는 "조용한 유실 → 시끄러운 실패" 까지만 하고, 롤백 보장은 이 항목이 해야 한다.
+- [x] **`updateExecutionStatus` else 분기 트랜잭션화** (`18_19_33` concurrency INFO 9).
+      ~~지금은 트랜잭션 밖 단발 UPDATE 라 가드가 throw 해도 이미 커밋된 UPDATE 를 못 되돌린다.~~
+      **완료 (2026-08-30).** guarded UPDATE 를 `dataSource.transaction` 안으로 옮겨
+      `manager.query` 로 실행한다 — shape 위반 throw 가 UPDATE 를 함께 롤백한다.
+      - **왜 중요한가**: 롤백이 없으면 가드가 발동한 순간 DB 는 terminal 인데 종결 이벤트는
+        안 나가고, 그 실행은 stuck recovery(non-terminal 만 스캔)에도 안 잡힌다 —
+        **가드가 막으려던 무기한 대기가 가드 때문에 생긴다.**
+      - 회귀 테스트 2건: 트랜잭션 경유 + throw 전파(롤백 축), 정상 경로도 같은 배선(공허 방지).
+      - 뮤테이션 실측: 트랜잭션 제거 → **RED 2**(신규 둘만) · 콜백 안에서 throw 삼킴 →
+        **RED 2**(기존 "배열이 아니면 던진다" + 신규 롤백). 두 축이 각각 물린다.
+      - 테스트 mock 도 정직해졌다 — 트랜잭션 manager 가 기존 repo mock 에 **위임**해
+        수십 개 기존 단언을 살리면서 "트랜잭션을 경유했는가" 를 별도로 기록한다.
 ### `chat-channel.dispatcher.spec.ts` 스타일 4건 — **의식적 무조치, 여기서 추적한다**
 
 `18_38_10` documentation WARNING 1 이 지적한 대로, 나는 이 4건을 "넘긴다" 고 판단해 놓고

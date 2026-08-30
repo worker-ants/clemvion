@@ -272,11 +272,22 @@ describe('ExecutionEngineService', () => {
     // 현재 DB status 를 실제로 대조**한다 — opt-in(`allowRetryReentry`) 시에만 SQL 에
     // `'failed'` 가 들어가므로, opts 전파가 빠지면 이 mock 이 `[]` 를 돌려 RED 가 된다.
     dbExecutionStatus = ExecutionStatus.PENDING;
-    mockTxManagerQuery = jest.fn((sql: unknown) => {
+    mockTxManagerQuery = jest.fn((sql: unknown, ...rest: unknown[]) => {
       if (typeof sql === 'string' && sql.includes('FOR UPDATE')) {
         return Promise.resolve(
           sql.includes(`'${dbExecutionStatus}'`) ? [{ id: executionId }] : [],
         );
+      }
+      // `updateExecutionStatus` else 분기의 guarded UPDATE 가 이제 이 트랜잭션
+      // manager 를 탄다(`18_19_33` concurrency INFO 9 — throw 가 UPDATE 를 롤백하도록).
+      //
+      // **기존 repo mock 에 위임한다.** 그 UPDATE 는 종전에 `executionRepository.query`
+      // 를 탔고, 이 스펙의 수십 개 테스트가 거기에 단언·`mockResolvedValueOnce` 를
+      // 걸어 두고 있다. 위임하면 그 의도가 전부 살아 있으면서 호출이 **실제로
+      // 트랜잭션을 경유한다는 사실**도 `mockTxManagerQuery` 에 기록된다 — 두 신호를
+      // 다 남기려고 공유 대신 위임을 골랐다(공유하면 "트랜잭션을 탔는가" 를 못 가른다).
+      if (typeof sql === 'string' && /UPDATE execution/.test(sql)) {
+        return mockExecutionRepo.query(sql, ...rest) as Promise<unknown>;
       }
       return Promise.resolve([{ id: executionId }]);
     });
@@ -4777,6 +4788,79 @@ describe('ExecutionEngineService', () => {
           ExecutionStatus.COMPLETED,
         ),
       ).rejects.toThrow(/배열이 아님/);
+    });
+
+    /**
+     * `18_19_33` concurrency INFO 9 — 위 "배열이 아니면 던진다" 는 **관측**까지만 하고
+     * 롤백은 보장하지 못했다. 종전 UPDATE 는 트랜잭션 밖 단발이라, 가드가 throw 해도
+     * **이미 커밋된 UPDATE 를 되돌리지 못했다.**
+     *
+     * 그때 남는 상태가 최악이다 — DB 는 terminal 인데 종결 이벤트는 안 나가고, 그 실행은
+     * stuck recovery(non-terminal 만 스캔)에도 안 잡힌다. **가드가 막으려던 무기한 대기가
+     * 가드가 발동한 순간에 생긴다.**
+     *
+     * 이제 UPDATE 가 트랜잭션 안에서 돌므로 throw 가 롤백을 부른다. 여기서 고정하는 축은
+     * 두 개다: (a) UPDATE 가 트랜잭션 manager 를 경유하는가, (b) throw 가 트랜잭션 콜백
+     * **밖으로** 전파되는가(삼켜지면 롤백도 안 되고 false 가 조용히 반환된다).
+     *
+     * **경계를 분명히 한다** (`17_36_15` testing INFO 3): 실제 DB `ROLLBACK` 자체는
+     * TypeORM 의 트랜잭션 계약이라 mock 으로 증명할 수 없다. 여기서 고정하는 것은 그
+     * **전제조건 두 개**뿐이다 — 초판 테스트 이름이 "UPDATE 가 롤백된다" 라 결론까지
+     * 증명한 것처럼 읽혀 좁혔다. 실 DB 검증은 e2e 몫인데, shape 위반은 드라이버 계약이
+     * 바뀌어야 나는 이벤트라 e2e 로 재현할 방법이 없다(드라이버 mock 이 필요하다).
+     */
+    it('shape 위반 throw 가 트랜잭션 manager 를 경유해 밖으로 전파된다 (롤백 전제조건)', async () => {
+      mockExecutionRepo.query = jest.fn().mockResolvedValue(undefined);
+      const svcAny = service as unknown as {
+        updateExecutionStatus: (...a: unknown[]) => Promise<boolean>;
+      };
+      const txSpy = (
+        service as unknown as { dataSource: { transaction: jest.Mock } }
+      ).dataSource.transaction;
+      const txCallsBefore = txSpy.mock.calls.length;
+
+      await expect(
+        svcAny.updateExecutionStatus(
+          {
+            id: 'eRollback',
+            workflowId: 'wf',
+            status: ExecutionStatus.RUNNING,
+          },
+          ExecutionStatus.COMPLETED,
+        ),
+      ).rejects.toThrow(/배열이 아님/);
+
+      // (a) 트랜잭션을 실제로 열었다 — 안 열었으면 롤백할 대상 자체가 없다.
+      expect(txSpy.mock.calls.length).toBe(txCallsBefore + 1);
+      // (b) UPDATE 가 트랜잭션 manager 를 경유했다(repo 직접 호출이 아니다).
+      const txUpdateCalls = mockTxManagerQuery.mock.calls.filter(
+        (c) => typeof c[0] === 'string' && /UPDATE execution/.test(c[0]),
+      );
+      expect(txUpdateCalls.length).toBeGreaterThan(0);
+    });
+
+    it('정상 경로도 트랜잭션 manager 를 경유한다 — 위 롤백 테스트가 공허하지 않다', async () => {
+      // 위 테스트만 있으면 "throw 경로만 트랜잭션" 이어도 통과한다. 정상 경로까지
+      // 같은 배선인지 고정해야 (a)(b) 가 이 함수의 성질이 된다.
+      mockExecutionRepo.query = jest
+        .fn()
+        .mockResolvedValue([[{ id: 'eOk' }], 1]);
+      const svcAny = service as unknown as {
+        updateExecutionStatus: (...a: unknown[]) => Promise<boolean>;
+      };
+      mockTxManagerQuery.mockClear();
+
+      await expect(
+        svcAny.updateExecutionStatus(
+          { id: 'eOk', workflowId: 'wf', status: ExecutionStatus.RUNNING },
+          ExecutionStatus.COMPLETED,
+        ),
+      ).resolves.toBe(true);
+
+      const txUpdateCalls = mockTxManagerQuery.mock.calls.filter(
+        (c) => typeof c[0] === 'string' && /UPDATE execution/.test(c[0]),
+      );
+      expect(txUpdateCalls.length).toBe(1);
     });
 
     it('lockNonTerminalExecutionRow: SELECT FOR UPDATE 가 배열이 아니면 던진다 — 조용한 "live 아님" 과 구분', async () => {

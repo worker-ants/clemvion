@@ -235,7 +235,11 @@ raw `.query()` 는 ORM 매핑을 타지 않아 행의 키가 **DB 그대로 snak
 - [x] 8라운드 `00_54_01` **CRITICAL 0 / WARNING 2** — 둘 다 "한쪽만 고쳤다" 였다.
       자매 가드에 주석 스트리핑 미적용(→ `__testing__/source-scan.ts` 로 공유),
       CHANGELOG 중복 서술 두 섹션 중 한쪽만 정정(→ 양쪽에, 항목 번호 오류도 정정)
-- [ ] 후속 **②(`updateExecutionStatus` 트랜잭션화)만 잔존**
+- [x] 후속 **②(`updateExecutionStatus` 트랜잭션화)** — **완료 (2026-08-30).**
+      > guarded UPDATE 를 `dataSource.transaction` 안으로 옮겨 shape 위반 throw 가 UPDATE 를
+      > 함께 롤백한다. 상세·뮤테이션 실측은 `backend-lint-gate-broken-on-main.md` 의
+      > 같은 항목(`18_19_33` concurrency INFO 9)에 있다 — **두 plan 이 같은 항목을 추적**하고
+      > 있었고 그쪽이 원본이다.
       > **③ 은 이 트래커의 항목이 아니다 (2026-08-29 정정).** 원래 ③ 이 "EIA
       > `durationMs`/`result.outputs` emit" 이었는데 둘 다 여기서 할 일이 없다:
       >

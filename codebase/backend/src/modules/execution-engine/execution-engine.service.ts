@@ -8561,6 +8561,24 @@ export class ExecutionEngineService
    *   emit 을 skip 해 이벤트 이중 발행/terminal status 전복을 막아야 한다.
    *   실제 소비 현황은 `engine-driver.interface.ts` 의 `AiTurnEngineDriver`
    *   JSDoc 참조 — AI 경로(3곳)만 현재 소비, form/button 4곳은 후속.
+   *
+   * **호출 제약 — 자신의 트랜잭션 콜백 안에서 부르지 말 것.** 이제 **두 분기 모두**
+   * 내부에서 `dataSource.transaction` 을 연다(짝 전이는 두 save 의 원자성 때문,
+   * else 분기는 shape 가드의 throw 가 UPDATE 를 롤백하게 하려고 — 목적이 다르다).
+   * 이미 열린 트랜잭션 안에서 호출하면 같은 Execution 행을 두 커넥션이 잠그려 해
+   * self-deadlock 이 된다.
+   *
+   * 호출부는 **20곳**이다 — 이 파일 안의 직접 호출 11곳 + `EngineDriver` 경유 9곳
+   * (`ai-turn-orchestrator` 3 · `retry-turn` 2 · `form-interaction` 2 ·
+   * `button-interaction` 2). **전부 트랜잭션 콜백 밖**이다: 소비 서비스 넷 중
+   * `.transaction(` 을 여는 파일은 `retry-turn.service.ts` 하나뿐이고, 그 블록은
+   * 두 driver 호출보다 한참 위에서 닫힌다(실측).
+   *
+   * **이 확인은 어휘적(lexical) 범위다** — 호출 스택 위쪽에서 트랜잭션을 연 caller 가
+   * 있는지까지는 보지 않았다. 새 호출부를 추가할 때는 그 축도 함께 볼 것.
+   *
+   * (초판은 "11곳 전수 대조" 라고 적었는데, 그 11은 **이 파일 안만** 센 수였다 —
+   * `17_36_15` 의 리뷰어 수치를 재보지 않고 옮겼고, `18_10_28` 이 잡았다.)
    */
   // C-1 step2 — EngineDriver member (상태 전이 단일 choke point).
   public async updateExecutionStatus(
@@ -8644,12 +8662,12 @@ export class ExecutionEngineService
         await manager.save(NodeExecution, linkedNodeExec);
         persisted = true;
       });
-      // WARNING #9 — 가드를 실제로 통과했을 때만 세그먼트 시작을 기록한다.
-      if (enteringRunning && persisted) {
-        this.recordRunningSegmentStart(execution.id);
-      }
-      this.emitTerminalExecutionMetrics(execution, newStatus, persisted);
-      return persisted;
+      return this.finishStatusTransition(
+        execution,
+        newStatus,
+        enteringRunning,
+        persisted,
+      );
     }
 
     // M-3 — else 분기: 옛 full-entity save 는 stale 엔티티의 모든 컬럼을 덮어써,
@@ -8671,50 +8689,88 @@ export class ExecutionEngineService
     const elseStatusesSql = opts?.allowRetryReentry
       ? ExecutionEngineService.NON_TERMINAL_OR_FAILED_STATUSES_SQL
       : ExecutionEngineService.NON_TERMINAL_STATUSES_SQL;
-    // 타입 주장 대신 `unknown` — 실제 shape 해석은 `updateReturningRows` 가 한다(위와 동일).
-    const updated: unknown = await this.executionRepository.query(
-      `UPDATE execution
-          SET status = $2,
-              active_running_ms = $3,
-              finished_at = $4,
-              duration_ms = $5,
-              output_data = $6::jsonb,
-              resume_call_stack = $7::jsonb,
-              error = $8::jsonb
-        WHERE id = $1
-          AND status IN (${elseStatusesSql})
-        RETURNING id`,
-      [
-        execution.id,
-        newStatus,
-        execution.activeRunningMs ?? 0,
-        execution.finishedAt ?? null,
-        execution.durationMs ?? null,
-        execution.outputData == null
-          ? null
-          : JSON.stringify(execution.outputData),
-        execution.resumeCallStack == null
-          ? null
-          : JSON.stringify(execution.resumeCallStack),
-        execution.error == null ? null : JSON.stringify(execution.error),
-      ],
-    );
     // 여기서 `false` 는 "동시 cancel 이 이미 terminal 로 옮겼으니 종결 이벤트를 내지 말라"
     // 는 뜻이다. 배열이 아니면 그 신호가 조용히 켜져서 — **DB 는 UPDATE 됐는데
     // `execution.completed`/`failed` 가 영영 발행되지 않는다**(EIA §6 종결 이벤트 계약이
-    // 깨지고 클라이언트는 무기한 대기). 앞의 admission 가드와 달리 이 UPDATE 는 애플리케이션
-    // 트랜잭션 밖이라 throw 가 롤백을 부르지는 못하지만, **관측 불가능한 유실을 관측 가능한
-    // 실패로 바꾸는 것**이 목적이다 (ai-review `17_15_21` WARNING 1).
-    // 같은 튜플 문제 — `updated.length > 0` 은 항상 참이라 "동시 cancel 이 이미 terminal 로
-    // 옮겼으니 종결 이벤트를 내지 말라" 는 분기가 **한 번도 타지 않았다**. DB 쓰기 자체는
-    // `WHERE status IN (...)` 가드가 지켜 왔으므로 데이터는 안전했고, 틀린 것은 **앱이
-    // 자기가 적용했는지 아는 것** 쪽이다.
-    const persisted =
-      updateReturningRows<{ id: string }>(
-        updated,
-        `updateExecutionStatus, execution ${execution.id} → ${newStatus}`,
-      ).length > 0;
-    // WARNING #9 — else 분기도 동일하게, 가드를 실제로 통과했을 때만 기록.
+    // 깨지고 클라이언트는 무기한 대기). 그래서 `updateReturningRows` 가 shape 위반에
+    // throw 해 **관측 불가능한 유실을 관측 가능한 실패로** 바꾼다 (`17_15_21` WARNING 1).
+    //
+    // 같은 튜플 문제 — `updated.length > 0` 은 항상 참이라 "동시 cancel 선점" 분기가
+    // **한 번도 타지 않았다**. DB 쓰기 자체는 `WHERE status IN (...)` 가드가 지켜 왔으므로
+    // 데이터는 안전했고, 틀린 것은 **앱이 자기가 적용했는지 아는 것** 쪽이다.
+    //
+    // **트랜잭션으로 감싸는 이유** (`18_19_33` concurrency INFO 9): 종전엔 트랜잭션 밖
+    // 단발 UPDATE 라 가드가 throw 해도 **이미 커밋된 UPDATE 를 되돌리지 못했다.** 그러면
+    // DB 는 terminal 인데 종결 이벤트는 안 나가고, 그 실행은 어떤 재구동 경로에도 안 잡힌다
+    // (stuck recovery 는 non-terminal 만 본다) — 가드가 막으려던 바로 그 무기한 대기가
+    // **가드가 발동한 순간에** 생긴다. 트랜잭션 안이면 throw 가 UPDATE 를 롤백하므로 행이
+    // 비-terminal 로 남아 재구동 대상이 된다. 짝 전이 분기가 이미 같은 이유로 트랜잭션을
+    // 쓰고 있어 형태도 맞춘다.
+    let persisted = false;
+    await this.dataSource.transaction(async (manager) => {
+      // 타입 주장 대신 `unknown` — 실제 shape 해석은 `updateReturningRows` 가 한다(위와 동일).
+      const updated: unknown = await manager.query(
+        `UPDATE execution
+            SET status = $2,
+                active_running_ms = $3,
+                finished_at = $4,
+                duration_ms = $5,
+                output_data = $6::jsonb,
+                resume_call_stack = $7::jsonb,
+                error = $8::jsonb
+          WHERE id = $1
+            AND status IN (${elseStatusesSql})
+          RETURNING id`,
+        [
+          execution.id,
+          newStatus,
+          execution.activeRunningMs ?? 0,
+          execution.finishedAt ?? null,
+          execution.durationMs ?? null,
+          execution.outputData == null
+            ? null
+            : JSON.stringify(execution.outputData),
+          execution.resumeCallStack == null
+            ? null
+            : JSON.stringify(execution.resumeCallStack),
+          execution.error == null ? null : JSON.stringify(execution.error),
+        ],
+      );
+      // throw 는 트랜잭션을 롤백한다 — 위 UPDATE 가 함께 되돌아간다.
+      persisted =
+        updateReturningRows<{ id: string }>(
+          updated,
+          `updateExecutionStatus, execution ${execution.id} → ${newStatus}`,
+        ).length > 0;
+    });
+    return this.finishStatusTransition(
+      execution,
+      newStatus,
+      enteringRunning,
+      persisted,
+    );
+  }
+
+  /**
+   * `updateExecutionStatus` 두 분기가 공유하는 종결부.
+   *
+   * 종전엔 `linkedNodeExec` 분기와 else 분기가 이 네 줄을 **손으로 복제**하고 있었다.
+   * 이번에 else 분기도 트랜잭션을 쓰게 되면서 두 분기가 완전 대칭이 됐고, 그러자
+   * 복제가 구조적 위험이 됐다 — 이 파일은 **형제 분기 한쪽만 고치는 drift** 를 이미
+   * 여러 번 겪었다(아래 WARNING #9 자체가 그 사례다). 다음에 종결부가 바뀔 때 한쪽만
+   * 고치는 경로를 없앤다 (`17_36_15` maintainability W2).
+   *
+   * **WARNING #9 (2026-07-26)**: 세그먼트 시작 기록은 **가드를 실제로 통과했을 때만**
+   * 한다. 예전엔 가드보다 먼저 무조건 기록해, 거부된(no-op) RUNNING 재claim 에도
+   * in-memory `segmentStartMs` 유령 항목이 남았다 — 그 executionId 는 실제로 RUNNING 이
+   * 된 적이 없어 "이탈" 분기가 결코 오지 않으므로 정리 기회 없이 누적되는 누수였다.
+   */
+  private finishStatusTransition(
+    execution: Execution,
+    newStatus: ExecutionStatus,
+    enteringRunning: boolean,
+    persisted: boolean,
+  ): boolean {
     if (enteringRunning && persisted) {
       this.recordRunningSegmentStart(execution.id);
     }
