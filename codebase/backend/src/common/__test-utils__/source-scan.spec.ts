@@ -119,6 +119,22 @@ describe('countRawUpdateReturning / hasRawUpdateReturning', () => {
         'QueryBuilder .update().returning().execute() — UpdateResult 계약, .query() 가 아니다',
         "await qb.update(T).set({ x: 1 }).returning('*').execute();",
       ],
+      [
+        // `countRawUpdateReturning` 의 docstring 이 스스로 적어 둔 blind spot이다 —
+        // **고쳐야 할 결함이 아니라 의도된 한계를 RED 방향으로 고정한다.** SQL 이 변수에
+        // 담기면 `.query(` 뒤에 문자열 리터럴이 오지 않아 판정 축이 원리적으로 못 본다.
+        // 넓히려면 데이터플로 분석이 필요해 정규식 스캐너 범위 밖 — 다음 사람이 이걸
+        // 버그로 보고 스캐너를 넓히려 들지 않도록 여기 명시한다 (`13_15_58` testing W3).
+        '`.query(sqlVar)` — SQL 이 변수에 담기면 못 본다. 알려진 한계, RED 로 고정(고칠 대상 아님)',
+        'const sql = `UPDATE t SET x = 1 WHERE id = $1 RETURNING x`;\nawait db.query(sql, [1]);',
+      ],
+      [
+        // 제네릭 부분 정규식이 한 단계 중첩까지만 받는다 — 2단계 이상은 여전히 못 받는다
+        // (source-scan.ts 의 `countRawUpdateReturning` docstring 참조). **의도된 한계를
+        // 고정**한다, 고칠 대상 아님 (`13_15_58` testing W3).
+        '2단계 이상 중첩 제네릭 `.query<Array<Map<string, Row>>>(` — 알려진 한계, RED 로 고정(고칠 대상 아님)',
+        'await db.query<Array<Map<string, Row>>>(`UPDATE t SET x = 1 RETURNING id`);',
+      ],
     ])('%s', (_label, src) => {
       expect(hasRawUpdateReturning(src)).toBe(false);
       expect(countRawUpdateReturning(src)).toBe(0);
