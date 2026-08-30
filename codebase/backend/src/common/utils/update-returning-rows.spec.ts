@@ -340,6 +340,34 @@ describe('findUnguarded — 합성 입력으로 판정 로직 자체를 고정�
     expect(unguarded).toEqual(['fake/allowlisted-grown.ts']);
   });
 
+  it('unguarded 가 여럿이면 **전부** 보고한다 — 첫 건에서 멈추지 않는다', () => {
+    // 위 케이스들이 전부 `discovered` 원소를 **하나만** 써서, 루프가 첫 unguarded 에서
+    // `break` 해도 전부 GREEN 이었다(`13_46_53` testing W3 가 그 뮤턴트로 실증).
+    // 원소가 둘 이상일 때만 "전부 순회" 와 "첫 건에서 중단" 이 갈린다.
+    const unguarded = findUnguarded(
+      [
+        ['fake/a.ts', 2],
+        ['fake/b.ts', 2],
+      ],
+      new Map(),
+      () => 1,
+    );
+    expect(unguarded).toEqual(['fake/a.ts', 'fake/b.ts']);
+  });
+
+  it('여럿 중 일부만 unguarded 면 그 일부만 보고한다 — 통과 항목이 순회를 끊지 않는다', () => {
+    // 반대 방향도 고정한다: 중간에 **통과하는** 항목이 있어도 뒤엣것을 계속 본다.
+    const unguarded = findUnguarded(
+      [
+        ['fake/ok.ts', 1],
+        ['fake/bad.ts', 2],
+      ],
+      new Map(),
+      (rel) => (rel === 'fake/ok.ts' ? 1 : 0),
+    );
+    expect(unguarded).toEqual(['fake/bad.ts']);
+  });
+
   it('허용목록 파일의 raw 지점이 허용 수 이내면 통과 — guardCountOf 는 호출되지 않아도 된다', () => {
     const unguarded = findUnguarded(
       [['fake/allowlisted-stable.ts', 1]],

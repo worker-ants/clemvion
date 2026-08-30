@@ -96,6 +96,18 @@ export function countCalls(src: string, name: string): number {
  *   추적하려면 데이터플로 분석이 필요해 정규식 스캐너의 범위를 벗어난다. 이 저장소의
  *   raw UPDATE/DELETE 지점은 지금까지 전부 리터럴이라 실피해는 없지만, 다음 사람이 변수로
  *   리팩터하면 **조용히** 이 가드의 사각지대로 들어간다는 뜻이다.
+ * - **CTE 접두 — `WITH … UPDATE/DELETE … RETURNING` 을 못 본다.** 판정이 SQL 의 **첫
+ *   키워드**를 보는데 CTE 는 `WITH` 로 시작하므로 `^\s*(UPDATE|DELETE)` 가 어긋난다.
+ *   PostgreSQL 은 CTE 를 얹어도 top-level 이 UPDATE/DELETE 면 **command tag 가 그대로**라
+ *   반환은 `[rows, count]` 튜플이다 — 즉 이건 오탐 배제가 아니라 **진짜 미탐지**다.
+ *   오늘 저장소에 그 형태의 사용처는 없다(전수 확인). 넓히지 않는 이유는 첫 키워드 판정이
+ *   `INSERT … ON CONFLICT DO UPDATE` 오탐을 배제하는 근거이기도 해서다 — CTE 를 받으려면
+ *   본문을 파싱해 top-level 커맨드를 찾아야 하고, 그건 정규식 스캐너를 SQL 파서로 바꾸는
+ *   일이다(이 저장소가 기록한 "유한한 문제를 무한한 문제와 바꾸지 말라").
+ *
+ *   > **이 항목은 1라운드 리뷰(`12_41_15` requirement)가 이미 짚었는데 SUMMARY 합성에서
+ *   > 누락돼 두 라운드를 그냥 지나갔다** (`13_46_53` W4 가 재발견). 개별 리포트에 있던
+ *   > 발견이 요약을 거치며 사라질 수 있다 — 요약만 읽고 처분하면 이렇게 샌다.
  */
 export function countRawUpdateReturning(src: string): number {
   const clean = stripComments(src);

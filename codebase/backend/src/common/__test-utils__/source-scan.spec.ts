@@ -135,6 +135,19 @@ describe('countRawUpdateReturning / hasRawUpdateReturning', () => {
         '2단계 이상 중첩 제네릭 `.query<Array<Map<string, Row>>>(` — 알려진 한계, RED 로 고정(고칠 대상 아님)',
         'await db.query<Array<Map<string, Row>>>(`UPDATE t SET x = 1 RETURNING id`);',
       ],
+      [
+        // **이건 오탐 배제가 아니라 진짜 미탐지다.** PostgreSQL 은 CTE 를 얹어도 top-level 이
+        // UPDATE 면 command tag 가 그대로라 반환이 `[rows, count]` 튜플이다. 그런데 판정은
+        // 첫 키워드를 보므로 `WITH` 에서 어긋난다. 넓히지 않는 이유는 첫 키워드 판정이
+        // `INSERT … ON CONFLICT DO UPDATE` 오탐 배제의 근거이기도 해서다 — CTE 를 받으려면
+        // SQL 파서가 필요하다. 오늘 저장소에 이 형태는 없다(전수 확인).
+        //
+        // 1라운드 리뷰가 이미 짚었는데 SUMMARY 합성에서 누락돼 두 라운드를 지나갔다
+        // (`13_46_53` W4 재발견). **한계를 아는 것과 고정하는 것은 다르다** — 여기 없었으면
+        // 세 번째로 잊혔을 것이다.
+        'CTE 접두 `WITH … UPDATE … RETURNING` — 진짜 미탐지. 알려진 한계, RED 로 고정(고칠 대상 아님)',
+        'await db.query(`WITH x AS (SELECT 1) UPDATE t SET a = 1 RETURNING id`);',
+      ],
     ])('%s', (_label, src) => {
       expect(hasRawUpdateReturning(src)).toBe(false);
       expect(countRawUpdateReturning(src)).toBe(0);
