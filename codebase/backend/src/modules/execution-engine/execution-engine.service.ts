@@ -8569,7 +8569,8 @@ export class ExecutionEngineService
    * self-deadlock 이 된다.
    *
    * **현재 스냅샷 (2026-08-30)**: 호출부 **20곳**(이 파일 직접 11 + `EngineDriver` 경유 9)
-   * 과 backend `.transaction(` 블록 **36개**(모듈 안 9 + 밖 27)를 전수 대조한 결과
+   * 과 backend `.transaction(` 블록 **36개**(모듈 안 9 + 밖 27 — 이 9는 **블록 수**라
+   * 앞의 "경유 9곳" 과 무관한 집합이다)를 전수 대조한 결과
    * **트랜잭션 콜백 안에서 이 메서드를 부르는 경로는 없다.** 한계는 정적 분석이라는 것 —
    * DI·이벤트 핸들러·큐 consumer 가 런타임에 만드는 경로는 못 본다.
    *
