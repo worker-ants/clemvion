@@ -278,7 +278,24 @@ PR 을 막는다" 고 적은 것은 **부정확**했다 — 막던 것은 그중
 
 ## 후속 (타입체크 갭 PR 밖)
 
-- [ ] **`#1242` 의 planner draft 가 git 이력에 없다** (`19_26_58` requirement W1 의 자매 건).
+- [x] **`#1242` 의 planner draft 가 git 이력에 없다** (`19_26_58` requirement W1 의 자매 건).
+      **완료 (2026-08-31)** — 등재해 둔 경로 그대로 번들(`16_50_38/_prompts/cross_spec.md`
+      24~270행)에서 원문을 떠 `plan/complete/spec-draft-raw-query-results.md` 로 복원했다.
+      본문은 손대지 않고 **복원 배너**로 출처와 한 가지 불일치를 밝혔다: frontmatter 의
+      `spec_impact` 는 draft 시점 7개인데 `#1242` 가 실제로 바꾼 spec 은 **6개**다
+      (`3-error-handling.md` 는 검토 중 범위 밖으로 뺐고 그 판단은 본문 §C 에 있다).
+      사후 편집하면 그 턴의 증거가 아니게 되므로 고치지 않았다.
+      > **재발 방지가 남았다** — 아래 항목 참조. 이번 복원은 증상 처리다.
+- [ ] **planner 턴 draft 를 커밋하는 것을 절차로 못박는다** (위 두 건의 발생원).
+      `--spec` 을 돌린 draft 는 **산출물**이지 임시 파일이 아니다 — `developer` 가 `spec/` 을
+      직접 못 고치는 CLAUDE.md 경계를 정당화하는 유일한 증거다. 두 턴 연속(`#1242`·`#1243`)
+      같은 실수를 했으므로 개인의 부주의가 아니라 **절차의 공백**이다.
+      - 후보 (a): `consistency_orchestrator.py --spec` 이 target draft 를 세션 디렉터리로
+        복사해 산출물과 함께 커밋되게 한다 — 지금도 프롬프트 번들에 원문이 들어가지만
+        그건 **부수 효과**라 의존할 근거가 없다(포맷이 바뀌면 사라진다).
+      - 후보 (b): `plan_guard` 에 "`--spec` 세션이 있는데 그 target 이 tracked 가 아니면
+        push 차단" 을 추가. (a)보다 강하지만 draft 경로를 세션 메타에서 읽어야 한다.
+      - 어느 쪽이든 **바닥을 고치는 것**이라, 다음 planner 턴 전에 정한다.
       `plan/in-progress/spec-draft-raw-query-results.md` — `--spec` 근거로 쓰고 **커밋 전에
       지웠다.** 이력 0건인데 `#1242` 커밋 메시지와 자매 티켓이 그 파일을 인용한다.
       - **원문은 살아 있다**: `review/consistency/2026/08/30/16_50_38/_prompts/cross_spec.md`
