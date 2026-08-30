@@ -1206,3 +1206,15 @@ retry 는 "노드 단위 재시도" 라는 표현 때문에 일부 독자가 "do
 
 - **`workflow:` — 실존 IDOR 차단**: 에디터 실행 알림 emit(`workflow:{workflowId}`)이 실존하므로, 타 workspace 의 `workflowId` 를 추측한 사용자가 이벤트를 수신할 수 있었다. `WorkflowsService.findById(workflowId, workspaceId)`(미소유/부재 시 NotFound throw — ID enumeration 차단)로 join 전 동기 차단한다.
 - **`notifications:` — emit 도입 전에 authorizer 를 선제 배치했다 (fail-closed)**: authorizer 는 `notification.new` emit 경로가 아직 없던 시점에 **먼저** 배치됐다 — emit 이 후행 phase 에서 도입될 때 인가 누락이 그대로 사용자간 알림 누출로 현실화되는 패턴(enforcement 비대칭)을 구조적으로 차단하기 위함. "emit 없을 때 authorizer 먼저" 가 fail-closed 원칙에 부합하고, JWT `sub` 비교라 구현 비용도 수 줄에 불과했다. (기각된 대안: emit 구현 시점에 authorizer 동반 추가 — emit plan 이 인가 추가를 기억해야 하는 프로세스 의존이라 누락 재발 위험이 커 기각.) 이후 emit(`emitNotificationEvent`)이 실제 도입되면서 이 선제 배치가 의도대로 인가를 이미 갖춘 채 활성화됐다.
+
+### WS 이벤트 enum 명명 — `<도메인>EventType` (2026-08-30, `#1238` 후속)
+
+`websocket-events.types.ts` 의 이벤트 enum 은 **도메인을 접두로** 갖는다 — `ExecutionEventType` · `NodeEventType` · `BackgroundRunEventType` · `KbEventType` · `InAppNotificationEventType`. 도메인 없는 일반명(`NotificationEventType` 등)은 **다른 영역의 동명 타입과 충돌**하므로 쓰지 않는다.
+
+실제로 충돌했다: `triggers/dto/notification-config.dto.ts` 의 `NotificationEventType`(outbound webhook 구독 화이트리스트, `execution.*` 5값)과 WS 인앱 알림 벨 enum 이 같은 이름이었고, `#1238` 에서 후자를 `InAppNotificationEventType` 으로 개명해 해소했다. 그때까지는 disambiguation JSDoc 으로만 막고 있었는데 — **주석은 오import 를 막지 못한다.** 자동완성이 두 심볼을 같은 이름으로 보여 주면 잘못 고른 쪽도 컴파일된다.
+
+개명 대상으로 WS 쪽을 고른 근거: 반대쪽은 [EIA §3.1 `EIA-NX-02`](./14-external-interaction-api.md) 의 외부 계약(구독 화이트리스트)에 붙어 있고, 이 모듈의 자매 enum 이 이미 위 규칙을 따르므로 도메인 접두는 그 규칙 **안**이다.
+
+> **왜 `spec/conventions/` 신설이 아닌가**: 이 규칙의 적용 범위가 **WS 이벤트 enum 한 모듈**이다. `conventions/` 는 여러 영역이 참조하는 규약의 자리이고, 한 파일에만 걸리는 규칙을 거기 올리면 저장소가 `#1188`~`#1191` 네 PR 을 들여 걷어낸 **미러를 문서 레이어에 되살린다**([`egress-masking.md`](../conventions/egress-masking.md) 신설 시 `#1194` 가 같은 판단을 기록했다 — "신설이 자동으로 옳지 않다"). 적용 범위가 넓어지면 그때 승격한다.
+>
+> 코드 쪽 근거는 `websocket-events.types.ts` 의 `InAppNotificationEventType` JSDoc — 같은 규칙이 두 곳에 살므로 상호 포인터로 drift 를 잡는다.

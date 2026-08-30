@@ -307,7 +307,7 @@ timing-safe 비교 (SHA-256 후 `timingSafeEqual`, 길이 leak 차단).
 | --- | --- | --- |
 | 외부 webhook endpoint | 내부 → 외부 HTTP POST | 2xx 만 성공. 10s timeout. SSRF 이중 검증. 검증 측 헬퍼 `verifySignatureHeader` (±5분 tolerance) 는 SDK/e2e 재사용용 export |
 | 외부 클라이언트 (EventSource / fetch) | 외부 → 내부 | web-chat 위젯 (`channel-web-chat`) 이 대표 소비자 — [Chat Channel data-flow](./14-chat-channel.md) |
-| Redis | 내부 | blacklist · idempotency · seq · BullMQ. **미가용 또는 캐시 손상** 시 fail-open — 가용성 우선. 경로마다 warn 을 남기되 **기동 시 미주입(설정 상태)만 예외** (fail-open 근거는 **아래 §Rationale** 이다. 키 **형태**는 [실행 엔진 §9.1](../5-system/4-execution-engine.md#91-키-패턴) 참고 — 다만 EIA 계열 키는 그 표에 아직 미등재다(별도 항목)) |
+| Redis | 내부 | blacklist · idempotency · seq · BullMQ. **미가용 또는 캐시 손상** 시 fail-open — 가용성 우선. 경로마다 warn 을 남기되 **기동 시 미주입(설정 상태)만 예외** (fail-open 근거는 **아래 §Rationale** 이다. 키 **형태**는 [`conventions/redis-keys.md §3`](../conventions/redis-keys.md#3-전역-인벤토리-포인터) 에 등재돼 있다 — 전역 인벤토리 SoT 로 위 §2.2 와 같은 출처다. [실행 엔진 §9.2](../5-system/4-execution-engine.md#92-용도별-키-정의-및-ttl) 의 표는 **엔진이 소유한 키 전용**이라 EIA 계열이 거기 없는 것은 정상이다) |
 | Telegram/Slack/Discord 등 chat provider | 간접 | in-process trusted 경로의 상류 — [Chat Channel data-flow](./14-chat-channel.md) |
 
 ---

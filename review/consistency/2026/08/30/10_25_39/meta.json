@@ -1,0 +1,12 @@
+{
+  "timestamp": "2026-08-30T10:25:39.493837",
+  "mode": "spec draft 검토 (--spec)",
+  "target_path": "plan/in-progress/spec-draft-followups-drain-2026-08-30.md",
+  "checkers": [
+    "cross_spec",
+    "rationale_continuity",
+    "convention_compliance",
+    "plan_coherence",
+    "naming_collision"
+  ]
+}
