@@ -16,11 +16,13 @@ describe('KbStatsHelper', () => {
   });
 
   it('runs a single atomic UPDATE that recounts entity + relation', async () => {
-    // Raw `UPDATE … RETURNING` resolves to a `[rows, affectedCount]` tuple, not a bare
-    // row array — this mock used to encode the same wrong shape that caused the
-    // tracked 4-month bug (`01_12_26` testing W4). `refresh()` doesn't consume the
-    // return value today, but the mock should still reflect the real driver contract
-    // so a future consumer doesn't inherit a false shape from the test.
+    // raw `UPDATE … RETURNING` 의 런타임 값은 행 배열이 아니라 `[rows, affectedCount]`
+    // 튜플이다. 이 mock 은 **이 저장소가 4개월 앓은 결함과 똑같이 틀린 shape** 를
+    // 인코딩하고 있었다 (`01_12_26` testing W4) — 그 결함이 오래 산 이유 자체가
+    // "mock 이 틀린 현실을 가르쳐 준" 것이었다.
+    //
+    // `refresh()` 는 오늘 반환값을 안 쓴다. 그래도 mock 은 드라이버의 실제 계약을
+    // 비춰야 한다 — 안 그러면 다음 소비자가 **테스트로부터 거짓 shape 를 물려받는다.**
     dataSource.query.mockResolvedValue([
       [{ entity_count: 12, relation_count: 34 }],
       1,
@@ -39,7 +41,7 @@ describe('KbStatsHelper', () => {
   });
 
   it('tolerates an empty RETURNING result (KB row missing) without throwing', async () => {
-    // Same tuple shape, 0-row case: `[[], 0]`, not `[]`.
+    // 같은 튜플 shape 의 0행 케이스 — `[]` 가 아니라 `[[], 0]` 이다.
     dataSource.query.mockResolvedValue([[], 0]);
 
     await expect(helper.refresh('kb-missing')).resolves.toBeUndefined();
