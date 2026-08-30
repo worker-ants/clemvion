@@ -1,6 +1,6 @@
 ---
 title: UPDATE/DELETE 의 RETURNING 이 `[rows, count]` 튜플인데 8곳이 행 배열로 다뤘다
-worktree: eia-r8-cache-scope-4ae434
+worktree: raw-update-guard-scope-0e154c
 started: 2026-08-13
 owner: developer
 status: in-progress
@@ -301,7 +301,7 @@ raw `.query()` 는 ORM 매핑을 타지 않아 행의 키가 **DB 그대로 snak
         (b) 는 세션 중 워크트리를 건드리면 훅이 전부 깨지는 알려진 위험이 있어 신중해야 한다.
       - 판정 자체는 push 를 막지 못한다 — 게이트는 **BLOCK: NO 세션만** 세고 최신을 취한다
         (`_newest_resolved_impl_done_mtime`). 비용은 라운드 낭비와 **오탐에 익숙해지는 것**이다.
-- [ ] **구조적 가드가 "이 3개 파일" 하드코딩이다** (`01_12_26` architecture W1). 새 raw
+- [x] **구조적 가드가 "이 3개 파일" 하드코딩이다** (`01_12_26` architecture W1). 새 raw
       UPDATE/DELETE 지점이 그 밖의 파일에 생기면 **아무 가드도 RED 를 내지 않는다.**
       현재 방식은 "이미 아는 지점이 후퇴하지 않는지" 만 지키고 "새 지점이 생겼는지" 는 못 본다.
       - 후보: raw UPDATE/DELETE 를 감싸는 얇은 `DataSource`/`EntityManager` 확장 래퍼로
@@ -309,6 +309,43 @@ raw `.query()` 는 ORM 매핑을 타지 않아 행의 키가 **DB 그대로 snak
       - **착수 전 비용을 볼 것** — 이 저장소는 "유한한 문제(blind 정규식)를 무한한 문제
         (정밀 파서)와 바꾸지 말라" 는 교훈을 이미 갖고 있다. 래퍼는 파서가 아니라 타입
         경계라 그 함정과는 다르지만, 기존 호출부 전수 이관 비용이 실제 크기다.
+
+      > **완료 (2026-08-30, `raw-update-guard-scope`) — 래퍼가 아니라 발견형 가드로.**
+      >
+      > 위 "비용을 볼 것" 을 따랐다. 래퍼는 raw 호출부 **전수 이관**을 요구하는데, 정작
+      > 이 항목이 지적한 축은 정밀도가 아니라 **입력 집합**이다 — 가드가 못 보는 이유는
+      > `EXPECTED` 가 **손으로 고른 3파일**이기 때문이다. 그래서 입력을 **발견**으로 바꿨다:
+      > `src/**` 전수에서 raw `UPDATE`/`DELETE … RETURNING` 을 찾아, 각 지점이
+      > `updateReturningRows` 를 거치거나 **사유가 적힌 allowlist** 에 있어야 한다.
+      > 호출부는 하나도 안 건드린다. 래퍼가 더 강한 보장(컴파일 타임)인 것은 맞으므로
+      > 이관 비용을 치를 이유가 생기면 그때 승격한다.
+      >
+      > **판정 축은 SQL 리터럴의 첫 키워드다.** 처음엔 `.query(` 주변 윈도우를 훑었는데
+      > 오탐 둘이 나왔다 — `INSERT … RETURNING`(command tag 가 INSERT 라 튜플 아님)과
+      > `INSERT … ON CONFLICT DO UPDATE … RETURNING`(본문에 UPDATE 가 있지만 여전히
+      > INSERT 태그). 선두 키워드로 가르니 둘 다 자연히 빠졌다.
+      >
+      > **엔진 §7.4·§7.5 의 의도된 조건부 UPDATE 는 allowlist 가 필요 없다** — 전부
+      > QueryBuilder `.execute()`(반환 `UpdateResult{raw, affected}`)라 `.query()` 만 보는
+      > 이 가드에 **구조적으로** 안 걸린다. `12_17_21` cross_spec INFO 1 이 "제외하라" 고
+      > 권고한 지점인데, 실측하니 제외가 이미 설계에 내장돼 있었다.
+      >
+      > | 뮤턴트 | 예측 | 실측 |
+      > | --- | --- | --- |
+      > | 목록 밖 파일에 헬퍼 없는 raw UPDATE 신설 | RED | **RED 1** — 그리고 **기존 큐레이션 가드 14건은 전부 GREEN** (이 항목이 말한 갭의 직접 실증) |
+      > | 스캐너가 항상 `false`(발견 0건) | RED | **RED 2** (vacuity 방지 단언 둘) |
+      > | 죽은 allowlist 항목 추가 | RED | **RED 1** |
+      >
+      > **발견하니 3파일 밖에 이미 대상이 있었다** — 총 9파일 후보 중 오탐 2를 걷어내면
+      > 실제 7이고, 그중 `integration-oauth.service.ts`(명시 튜플 타입으로 올바름)와
+      > `kb-stats.helper.ts` 는 **어떤 가드도 안 보던** 지점이었다.
+      >
+      > **`kb-stats.helper.ts` 는 allowlist 로 덮지 않고 고쳤다.** 반환을 소비하지 않아
+      > 지금은 무해하지만 타입 인자가 `query<{…}[]>` 로 **행 배열이라 거짓 선언**돼 있었고,
+      > 바로 위 주석이 *"향후 호출자가 갱신된 카운트를 활용할 수 있도록 유지"* 라고
+      > **소비를 초대**하고 있었다. 그 사람이 타입을 믿고 `result[0].entity_count` 를 읽으면
+      > `undefined` 다 — 이 트래커의 원 결함이 4개월 산 이유의 절반이 **틀린 타입이 오해를
+      > 확인해 준 것**이었다. 튜플로 정정했다.
 - **[planner 위임]** raw SQL 결과 shape 을 **규약으로 승격** (`00_54_07` rationale_continuity INFO 2).
   이 지식이 **네 번 독립적으로 재발견**됐다 — `stuck-document-recovery` 의 구조분해,
   `agent-memory-admin` 의 `deletedRowCount`, `integration-oauth` 의 명시 튜플 타입, 그리고

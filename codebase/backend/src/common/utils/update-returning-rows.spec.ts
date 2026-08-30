@@ -1,6 +1,9 @@
-import { readFileSync } from 'fs';
-import { join } from 'path';
-import { countCalls } from '../__test-utils__/source-scan';
+import { readFileSync, readdirSync } from 'fs';
+import { join, relative, sep } from 'path';
+import {
+  countCalls,
+  hasRawUpdateReturning,
+} from '../__test-utils__/source-scan';
 import { updateReturningRows } from './update-returning-rows';
 
 describe('updateReturningRows', () => {
@@ -107,5 +110,118 @@ describe('UPDATE/DELETE 결과를 직접 소비하는 지점이 다시 생기지
     // 달라진다. 늘었으면 (1) 새 지점이 UPDATE/DELETE 인지 보고 (2) 맞으면 헬퍼를 태우고
     // (3) 아니면 이 기대값을 갱신한다 (`20_36_35` WARNING 7).
     expect(counts).toEqual([3, 10, 0]);
+  });
+});
+
+/**
+ * **목록 밖에 새 지점이 생겼는지** 를 본다 — 위 `describe` 가 원리적으로 못 보던 축이다.
+ *
+ * 위 가드는 손으로 고른 3파일의 헬퍼 호출 수만 센다. 그래서 *"아는 지점이 후퇴하지
+ * 않는지"* 는 지키지만 **목록 밖 파일에 새 raw UPDATE 가 생기면 아무것도 RED 를 내지
+ * 않는다** (`01_12_26` architecture W1).
+ *
+ * 여기서는 입력 집합을 **손으로 고르지 않고 `src/**` 전수에서 발견**한다
+ * ({@link hasRawUpdateReturning}). 그러면 "목록을 줄이는 편집" 이라는 조용한 통과 표면이
+ * 사라진다 — 이 저장소가 반복 기록한 *"입력 집합 자체가 커버리지"* 다.
+ *
+ * ## 왜 래퍼(타입 경계)로 가지 않았나
+ *
+ * plan 은 `DataSource`/`EntityManager` 확장 래퍼로 "호출 즉시 언랩" 을 강제하는 안을
+ * 함께 적어 두면서 **"착수 전 비용을 볼 것"** 을 달아 뒀다. 재보니 그 안은 기존 raw 호출부
+ * **전수 이관**을 요구한다. 반면 발견형 가드는 호출부를 하나도 안 건드리고 같은 축을 —
+ * *"헬퍼를 안 거치는 지점이 존재하는가"* — 지킨다. 래퍼가 더 강한 보장(컴파일 타임)을
+ * 주는 것은 맞으므로, 이관 비용을 치를 이유가 생기면 그때 승격한다.
+ */
+describe('헬퍼를 거치지 않는 raw UPDATE/DELETE 지점이 새로 생기지 않는다', () => {
+  const SRC = join(__dirname, '..', '..');
+
+  /**
+   * 발견되지만 헬퍼가 **필요 없는** 지점 — 각 항목은 사유가 있어야 한다.
+   *
+   * 목록에 넣는 것 자체가 판단이므로, "왜 안전한가" 를 여기 적지 않으면 다음 사람이
+   * 그 판단을 다시 해야 한다.
+   */
+  const ALLOWED: ReadonlyArray<readonly [string, string]> = [
+    [
+      'modules/knowledge-base/queues/stuck-document-recovery.service.ts',
+      '`const [rows] = await …` 구조분해로 이미 언랩한다 (위 대조군 테스트가 2곳을 고정).',
+    ],
+    [
+      'modules/agent-memory/agent-memory-admin.service.ts',
+      '로컬 `deletedRowCount()` 가 튜플·비튜플 양쪽을 받는다 (위 대조군 테스트가 고정).',
+    ],
+    [
+      'modules/integrations/integration-oauth.service.ts',
+      '`.query<[Row[], number]>` 로 **튜플 타입을 명시**해 구조분해한다 — 타입이 곧 언랩 계약.',
+    ],
+    [
+      'modules/knowledge-base/graph/kb-stats.helper.ts',
+      '반환값을 **소비하지 않는다**(`await …query(…)`, 대입 없음). 타입 인자도 튜플로 정정해 ' +
+        '다음 사람이 행 배열로 오해하지 않게 했다.',
+    ],
+  ];
+
+  /** `src/**` 의 `.ts` 전수 (spec·d.ts·node_modules·dist 제외). */
+  function listSources(dir: string): string[] {
+    const out: string[] = [];
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      const full = join(dir, entry.name);
+      if (entry.isDirectory()) {
+        if (entry.name === 'node_modules' || entry.name === 'dist') continue;
+        out.push(...listSources(full));
+      } else if (
+        entry.name.endsWith('.ts') &&
+        !entry.name.endsWith('.spec.ts') &&
+        !entry.name.endsWith('.d.ts')
+      ) {
+        out.push(full);
+      }
+    }
+    return out;
+  }
+
+  /** 발견된 raw UPDATE/DELETE … RETURNING 보유 파일 (저장소 상대 경로). */
+  function discover(): string[] {
+    return listSources(SRC)
+      .filter((f) => hasRawUpdateReturning(readFileSync(f, 'utf8')))
+      .map((f) => relative(SRC, f).split(sep).join('/'))
+      .sort();
+  }
+
+  it('발견된 지점은 모두 헬퍼를 거치거나 사유와 함께 허용목록에 있다', () => {
+    const allowed = new Set(ALLOWED.map(([rel]) => rel));
+    const unguarded = discover().filter((rel) => {
+      if (allowed.has(rel)) return false;
+      return (
+        countCalls(
+          readFileSync(join(SRC, rel), 'utf8'),
+          'updateReturningRows',
+        ) === 0
+      );
+    });
+    expect(unguarded).toEqual([]);
+  });
+
+  it('허용목록이 죽은 항목을 갖지 않는다 — 사라진 파일은 면제를 공짜로 만든다', () => {
+    // 대상이 아니게 된 항목을 남겨 두면, 나중에 같은 경로에 진짜 지점이 생겼을 때
+    // 이미 면제돼 있다. 양방향으로 조인다.
+    const found = new Set(discover());
+    expect(
+      ALLOWED.map(([rel]) => rel).filter((rel) => !found.has(rel)),
+    ).toEqual([]);
+  });
+
+  it('허용목록의 모든 항목에 사유가 적혀 있다', () => {
+    expect(ALLOWED.filter(([, why]) => why.trim().length < 20)).toEqual([]);
+  });
+
+  it('발견 자체가 공허하지 않다 — 알려진 지점을 실제로 찾는다', () => {
+    // 스캐너가 0건을 돌려주면 위 단언들이 전부 조용히 통과한다(vacuity).
+    const found = discover();
+    expect(found).toContain('modules/auth/auth-oauth.service.ts');
+    expect(found).toContain(
+      'modules/execution-engine/execution-engine.service.ts',
+    );
+    expect(found.length).toBeGreaterThanOrEqual(ALLOWED.length + 1);
   });
 });

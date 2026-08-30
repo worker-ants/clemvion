@@ -57,3 +57,49 @@ export function countCalls(src: string, name: string): number {
   const pattern = new RegExp(`\\b${name}[<(]`, 'g');
   return (stripComments(src).match(pattern) ?? []).length;
 }
+
+/**
+ * 한 소스가 **raw `UPDATE`/`DELETE … RETURNING`** 을 실행하는가.
+ *
+ * ## 왜 필요한가 — 큐레이션 목록은 "새 지점" 을 못 본다
+ *
+ * 자매 가드들은 **손으로 고른 파일 목록**(`EXPECTED`)의 헬퍼 호출 수만 셌다. 그 방식은
+ * *"아는 지점이 후퇴하지 않는지"* 는 지키지만 *"모르는 지점이 생겼는지"* 는 원리적으로
+ * 못 본다 — 목록 밖 파일에 새 raw UPDATE 가 생기면 **아무 가드도 RED 를 내지 않는다**
+ * (`01_12_26` architecture W1). 실측으로도 목록(3파일) 밖에 이미 대상이 있었다.
+ *
+ * 그래서 입력 집합을 **손으로 고르지 않고 발견**한다. 목록을 줄이는 편집이 조용히
+ * 통과하던 표면이 사라진다.
+ *
+ * ## 판정 축 — SQL 리터럴의 **첫 키워드**
+ *
+ * `.query(` 뒤의 SQL 리터럴을 꺼내 **선두가 `UPDATE`/`DELETE` 인지**를 본다. 호출 주변을
+ * 훑는 방식(윈도우)으로 하면 안 된다 — 실측에서 두 종류가 오탐으로 잡혔다:
+ *
+ * | 형태 | 왜 대상이 아닌가 |
+ * |---|---|
+ * | `INSERT … RETURNING` | command tag 가 INSERT — 튜플이 아니라 행 배열이다 |
+ * | `INSERT … ON CONFLICT DO UPDATE … RETURNING` | 본문에 `UPDATE` 가 있지만 여전히 INSERT 태그다 |
+ *
+ * 선두 키워드로 가르면 둘 다 자연히 빠진다.
+ *
+ * ## 이 축이 **안** 보는 것 (의도)
+ *
+ * QueryBuilder `.update().execute()` 는 대상이 아니다 — 그쪽 반환은 `[rows, count]` 튜플이
+ * 아니라 `UpdateResult { raw, affected }` 라 애초에 다른 계약이다. 엔진 §7.4·§7.5 의
+ * **의도된 조건부 UPDATE**(경합 판정용 `affected` 기반)가 전부 그 형태이므로, 이 가드는
+ * 그것들을 **구조적으로** 건드리지 않는다(allowlist 로 빼 줄 필요가 없다).
+ */
+export function hasRawUpdateReturning(src: string): boolean {
+  const clean = stripComments(src);
+  // `.query(` / `.query<…>(` 뒤에 오는 첫 문자열 리터럴(백틱·작은따옴표·큰따옴표).
+  // 작은따옴표를 빠뜨렸던 것이 과거 CRITICAL(소셜 로그인 상시 실패)의 사각지대였다.
+  const CALL = /\.query\s*(?:<[^>]*>)?\s*\(\s*(`[^`]*`|'[^']*'|"[^"]*")/g;
+  for (const m of clean.matchAll(CALL)) {
+    const sql = m[1].slice(1, -1);
+    if (/^\s*(UPDATE|DELETE)\b/i.test(sql) && /\bRETURNING\b/i.test(sql)) {
+      return true;
+    }
+  }
+  return false;
+}
