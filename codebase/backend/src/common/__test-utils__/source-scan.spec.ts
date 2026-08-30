@@ -1,4 +1,8 @@
-import { countCalls } from './source-scan';
+import {
+  countCalls,
+  countRawUpdateReturning,
+  hasRawUpdateReturning,
+} from './source-scan';
 
 /**
  * 이 헬퍼는 **가드가 무엇을 세는지**를 정하므로, 여기가 틀리면 두 구조적 가드가
@@ -50,5 +54,83 @@ describe('source-scan', () => {
   it('URL 이 호출과 다른 줄이면 영향 없다 (실제 대상 파일들의 형태)', () => {
     const src = "const u = 'https://x.test';\nfoo(u);";
     expect(countCalls(src, 'foo')).toBe(1);
+  });
+});
+
+/**
+ * 자매 `countCalls` 는 위에 전용 테스트 6개가 있는데 `hasRawUpdateReturning` /
+ * `countRawUpdateReturning` 은 지금까지 0개였다 — 판정 축 전체가 "오늘의 실제 소스가
+ * 우연히 그 형태를 담고 있는가" 에만 의존했다는 뜻이다 (`01_12_26` testing W3). 합성
+ * 문자열로 각 판정 축을 직접 고정한다. 음성 케이스가 없으면 `return true` 로 뭉갠
+ * 뮤턴트가 전부 살아남는다 — 그래서 양성/음성을 모두 둔다.
+ */
+describe('countRawUpdateReturning / hasRawUpdateReturning', () => {
+  describe('양성 — raw UPDATE/DELETE … RETURNING 을 찾아낸다', () => {
+    it.each([
+      [
+        '백틱 SQL 리터럴',
+        'await db.query(`UPDATE t SET x = 1 WHERE id = $1 RETURNING x`);',
+      ],
+      [
+        '작은따옴표 SQL 리터럴 — 과거 CRITICAL(소셜 로그인 상시 실패)의 사각지대였다',
+        "await db.query('UPDATE t SET x = 1 WHERE id = $1 RETURNING x');",
+      ],
+      [
+        '큰따옴표 SQL 리터럴',
+        'await db.query("UPDATE t SET x = 1 WHERE id = $1 RETURNING x");',
+      ],
+      [
+        'DELETE … RETURNING',
+        'await db.query(`DELETE FROM t WHERE id = $1 RETURNING id`);',
+      ],
+      [
+        '제네릭 타입 인자가 있는 호출 (`.query<Row[]>(`)',
+        'await db.query<{ id: string }[]>(`UPDATE t SET x = 1 RETURNING id`);',
+      ],
+      [
+        '중첩 제네릭 `.query<Array<{...}>>(` — W1 fix 검증, `scripts/eval-retrieval.ts:162` 실형태',
+        'await db.query<Array<{ id: string }>>(`UPDATE t SET x = 1 RETURNING id`);',
+      ],
+    ])('%s', (_label, src) => {
+      expect(hasRawUpdateReturning(src)).toBe(true);
+      expect(countRawUpdateReturning(src)).toBe(1);
+    });
+  });
+
+  describe('음성 — 대상이 아닌 형태는 뭉개지 않는다', () => {
+    it.each([
+      [
+        'INSERT … RETURNING — command tag 가 INSERT 라 튜플이 아니라 행 배열',
+        'await db.query(`INSERT INTO t (a) VALUES ($1) RETURNING id`);',
+      ],
+      [
+        'INSERT … ON CONFLICT DO UPDATE … RETURNING — 본문에 UPDATE 가 있어도 태그는 INSERT',
+        'await db.query(`INSERT INTO t (a) VALUES ($1) ON CONFLICT (a) DO UPDATE SET a = $1 RETURNING id`);',
+      ],
+      [
+        'UPDATE 인데 RETURNING 이 없음',
+        'await db.query(`UPDATE t SET x = 1 WHERE id = $1`);',
+      ],
+      [
+        '주석 안에 든 UPDATE … RETURNING — stripComments 축',
+        '/* await db.query(`UPDATE t SET x = 1 RETURNING x`); */',
+      ],
+      [
+        'QueryBuilder .update().returning().execute() — UpdateResult 계약, .query() 가 아니다',
+        "await qb.update(T).set({ x: 1 }).returning('*').execute();",
+      ],
+    ])('%s', (_label, src) => {
+      expect(hasRawUpdateReturning(src)).toBe(false);
+      expect(countRawUpdateReturning(src)).toBe(0);
+    });
+  });
+
+  it('여러 지점을 존재-only 가 아니라 개수로 센다 (W2 하드닝의 토대)', () => {
+    const src = [
+      'await db.query(`UPDATE a SET x = 1 WHERE id = $1 RETURNING x`);',
+      'await db.query(`DELETE FROM b WHERE id = $1 RETURNING id`);',
+    ].join('\n');
+    expect(countRawUpdateReturning(src)).toBe(2);
+    expect(hasRawUpdateReturning(src)).toBe(true);
   });
 });

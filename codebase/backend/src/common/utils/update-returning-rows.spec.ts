@@ -2,7 +2,7 @@ import { readFileSync, readdirSync } from 'fs';
 import { join, relative, sep } from 'path';
 import {
   countCalls,
-  hasRawUpdateReturning,
+  countRawUpdateReturning,
 } from '../__test-utils__/source-scan';
 import { updateReturningRows } from './update-returning-rows';
 
@@ -121,8 +121,17 @@ describe('UPDATE/DELETE 결과를 직접 소비하는 지점이 다시 생기지
  * 않는다** (`01_12_26` architecture W1).
  *
  * 여기서는 입력 집합을 **손으로 고르지 않고 `src/**` 전수에서 발견**한다
- * ({@link hasRawUpdateReturning}). 그러면 "목록을 줄이는 편집" 이라는 조용한 통과 표면이
+ * ({@link countRawUpdateReturning}). 그러면 "목록을 줄이는 편집" 이라는 조용한 통과 표면이
  * 사라진다 — 이 저장소가 반복 기록한 *"입력 집합 자체가 커버리지"* 다.
+ *
+ * ## 판정은 존재가 아니라 **개수**로 한다
+ *
+ * 처음엔 파일 단위 존재만 봤다 — 헬퍼 호출이 파일에 하나라도 있으면 통과였다. 그러면
+ * 한 파일에 raw 지점이 2곳이고 헬퍼는 1곳만 거치는 경우를 "가드됨" 으로 오판한다. 자매
+ * 큐레이션 가드(`EXPECTED`)는 정확한 개수 튜플로 이걸 피하는데 존재-only 판정은 그
+ * 정밀도를 잃는다 (`01_12_26` requirement/testing W2). 그래서 `discover()` 는 파일마다
+ * **raw 지점 수**까지 함께 돌려주고, 판정은 `countCalls(...) >= rawCount` 로 개수를
+ * 직접 비교한다.
  *
  * ## 왜 래퍼(타입 경계)로 가지 않았나
  *
@@ -180,24 +189,39 @@ describe('헬퍼를 거치지 않는 raw UPDATE/DELETE 지점이 새로 생기�
     return out;
   }
 
-  /** 발견된 raw UPDATE/DELETE … RETURNING 보유 파일 (저장소 상대 경로). */
-  function discover(): string[] {
+  /**
+   * 발견된 raw UPDATE/DELETE … RETURNING 지점 — (저장소 상대 경로, 그 파일의 raw 지점 수).
+   * 존재-only 가 아니라 **개수**를 돌려주는 이유는 위 docstring 참조.
+   */
+  function discover(): Array<[string, number]> {
     return listSources(SRC)
-      .filter((f) => hasRawUpdateReturning(readFileSync(f, 'utf8')))
-      .map((f) => relative(SRC, f).split(sep).join('/'))
-      .sort();
+      .map((f): [string, number] => [
+        relative(SRC, f).split(sep).join('/'),
+        countRawUpdateReturning(readFileSync(f, 'utf8')),
+      ])
+      .filter(([, count]) => count > 0)
+      .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0));
   }
 
-  it('발견된 지점은 모두 헬퍼를 거치거나 사유와 함께 허용목록에 있다', () => {
+  // `discover()` 는 src/** 전수(약 800여 파일)를 재귀 스캔한다 — `it` 마다 새로 돌리면
+  // 스위트가 파일 수에 선형으로 느려진다. 한 번만 계산해 아래 4개 `it` 이 공유한다
+  // (`01_12_26` maintainability W5). 스캔은 순수 함수라 공유해도 테스트 간 격리가
+  // 깨지지 않는다 — 어떤 `it` 도 소스를 변형하지 않는다.
+  let discovered: Array<[string, number]>;
+  beforeAll(() => {
+    discovered = discover();
+  });
+
+  it('발견된 지점은 모두 raw 지점 수만큼 헬퍼를 거치거나 사유와 함께 허용목록에 있다', () => {
     const allowed = new Set(ALLOWED.map(([rel]) => rel));
-    const unguarded = discover().filter((rel) => {
+    const unguarded = discovered.filter(([rel, rawCount]) => {
       if (allowed.has(rel)) return false;
-      return (
-        countCalls(
-          readFileSync(join(SRC, rel), 'utf8'),
-          'updateReturningRows',
-        ) === 0
+      const guardCount = countCalls(
+        readFileSync(join(SRC, rel), 'utf8'),
+        'updateReturningRows',
       );
+      // 개수 비교다 — 파일에 raw 지점이 2곳인데 헬퍼가 1곳만 거치면 여전히 unguarded.
+      return guardCount < rawCount;
     });
     expect(unguarded).toEqual([]);
   });
@@ -205,7 +229,7 @@ describe('헬퍼를 거치지 않는 raw UPDATE/DELETE 지점이 새로 생기�
   it('허용목록이 죽은 항목을 갖지 않는다 — 사라진 파일은 면제를 공짜로 만든다', () => {
     // 대상이 아니게 된 항목을 남겨 두면, 나중에 같은 경로에 진짜 지점이 생겼을 때
     // 이미 면제돼 있다. 양방향으로 조인다.
-    const found = new Set(discover());
+    const found = new Set(discovered.map(([rel]) => rel));
     expect(
       ALLOWED.map(([rel]) => rel).filter((rel) => !found.has(rel)),
     ).toEqual([]);
@@ -217,11 +241,11 @@ describe('헬퍼를 거치지 않는 raw UPDATE/DELETE 지점이 새로 생기�
 
   it('발견 자체가 공허하지 않다 — 알려진 지점을 실제로 찾는다', () => {
     // 스캐너가 0건을 돌려주면 위 단언들이 전부 조용히 통과한다(vacuity).
-    const found = discover();
-    expect(found).toContain('modules/auth/auth-oauth.service.ts');
-    expect(found).toContain(
-      'modules/execution-engine/execution-engine.service.ts',
-    );
-    expect(found.length).toBeGreaterThanOrEqual(ALLOWED.length + 1);
+    const found = new Set(discovered.map(([rel]) => rel));
+    expect(found.has('modules/auth/auth-oauth.service.ts')).toBe(true);
+    expect(
+      found.has('modules/execution-engine/execution-engine.service.ts'),
+    ).toBe(true);
+    expect(discovered.length).toBeGreaterThanOrEqual(ALLOWED.length + 1);
   });
 });

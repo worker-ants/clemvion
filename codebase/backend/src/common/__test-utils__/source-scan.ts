@@ -83,23 +83,44 @@ export function countCalls(src: string, name: string): number {
  *
  * 선두 키워드로 가르면 둘 다 자연히 빠진다.
  *
- * ## 이 축이 **안** 보는 것 (의도)
+ * ## 이 축이 **안** 보는 것 (의도 + 미문서 blind spot 정정)
  *
- * QueryBuilder `.update().execute()` 는 대상이 아니다 — 그쪽 반환은 `[rows, count]` 튜플이
- * 아니라 `UpdateResult { raw, affected }` 라 애초에 다른 계약이다. 엔진 §7.4·§7.5 의
- * **의도된 조건부 UPDATE**(경합 판정용 `affected` 기반)가 전부 그 형태이므로, 이 가드는
- * 그것들을 **구조적으로** 건드리지 않는다(allowlist 로 빼 줄 필요가 없다).
+ * - QueryBuilder `.update().execute()` 는 대상이 아니다 — 그쪽 반환은 `[rows, count]` 튜플이
+ *   아니라 `UpdateResult { raw, affected }` 라 애초에 다른 계약이다. 엔진 §7.4·§7.5 의
+ *   **의도된 조건부 UPDATE**(경합 판정용 `affected` 기반)가 전부 그 형태이므로, 이 가드는
+ *   그것들을 **구조적으로** 건드리지 않는다(allowlist 로 빼 줄 필요가 없다).
+ * - **`.query(sqlVar)` — SQL 이 변수에 담겨 전달되면 원리적으로 못 본다.** 이 판정 축은
+ *   `.query(` 뒤에 오는 **문자열 리터럴**만 읽는다. SQL 을 상수/템플릿으로 조립해 변수에
+ *   담고 `.query(sql, params)` 처럼 넘기면 `m[1]` 이 리터럴이 아니라서 애초에 매치되지
+ *   않는다(scratch 프로브로 실측, `false` 반환 — `01_12_26` W1). 넓히지 않는다 — 변수를
+ *   추적하려면 데이터플로 분석이 필요해 정규식 스캐너의 범위를 벗어난다. 이 저장소의
+ *   raw UPDATE/DELETE 지점은 지금까지 전부 리터럴이라 실피해는 없지만, 다음 사람이 변수로
+ *   리팩터하면 **조용히** 이 가드의 사각지대로 들어간다는 뜻이다.
  */
-export function hasRawUpdateReturning(src: string): boolean {
+export function countRawUpdateReturning(src: string): number {
   const clean = stripComments(src);
   // `.query(` / `.query<…>(` 뒤에 오는 첫 문자열 리터럴(백틱·작은따옴표·큰따옴표).
   // 작은따옴표를 빠뜨렸던 것이 과거 CRITICAL(소셜 로그인 상시 실패)의 사각지대였다.
-  const CALL = /\.query\s*(?:<[^>]*>)?\s*\(\s*(`[^`]*`|'[^']*'|"[^"]*")/g;
+  //
+  // 제네릭 부분은 **한 단계 중첩**까지 받는다 — `.query<Array<{ id: string }>>(` 형태가
+  // 저장소에 실존한다(`scripts/eval-retrieval.ts:162`). 옛 `<[^>]*>` 는 안쪽 `<...>` 를
+  // 만나면 첫 `>` 에서 멈춰 버려 바깥 `.query<Array<...>>(` 전체가 매치 실패했다 — 오늘은
+  // 전부 SELECT 라 무해하지만 이 자리에 UPDATE...RETURNING 이 오면 통째로 못 봤을 것이다
+  // (`01_12_26` testing/requirement W1). 2단계 이상 중첩은 여전히 못 받는다 — 저장소
+  // 실측상 1단계를 넘는 사례가 없어 그 이상은 넓히지 않는다.
+  const CALL =
+    /\.query\s*(?:<(?:[^<>]|<[^<>]*>)*>)?\s*\(\s*(`[^`]*`|'[^']*'|"[^"]*")/g;
+  let count = 0;
   for (const m of clean.matchAll(CALL)) {
     const sql = m[1].slice(1, -1);
     if (/^\s*(UPDATE|DELETE)\b/i.test(sql) && /\bRETURNING\b/i.test(sql)) {
-      return true;
+      count++;
     }
   }
-  return false;
+  return count;
+}
+
+/** {@link countRawUpdateReturning} 의 "지점이 존재하는가" 만 필요할 때 쓰는 얇은 래퍼. */
+export function hasRawUpdateReturning(src: string): boolean {
+  return countRawUpdateReturning(src) > 0;
 }
