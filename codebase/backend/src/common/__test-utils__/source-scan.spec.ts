@@ -91,6 +91,15 @@ describe('countRawUpdateReturning / hasRawUpdateReturning', () => {
         '중첩 제네릭 `.query<Array<{...}>>(` — W1 fix 검증, `scripts/eval-retrieval.ts:162` 실형태',
         'await db.query<Array<{ id: string }>>(`UPDATE t SET x = 1 RETURNING id`);',
       ],
+      [
+        // 프로덕션 지점은 대부분 여러 줄짜리 템플릿 리터럴이다 — 이 diff 가 함께 고친
+        // `kb-stats.helper.ts` 의 UPDATE 부터가 8줄에 걸쳐 있다. 그런데 이 축은 여태
+        // **오늘의 실제 소스가 우연히 멀티라인 형태를 담고 있는가** 로만 간접 검증됐다
+        // (`14_11_02` testing INFO). 직전 커밋 `#1235` 가 자매 가드에서 정확히 이
+        // 멀티라인 축으로 무너졌으므로 실제 소스와 무관하게 여기 고정한다.
+        '멀티라인 백틱 리터럴 — `UPDATE` 와 `RETURNING` 이 다른 줄 (실제 지점의 지배적 형태)',
+        'await db.query(`\n  UPDATE t\n     SET x = 1\n   WHERE id = $1\n  RETURNING x\n`);',
+      ],
     ])('%s', (_label, src) => {
       expect(hasRawUpdateReturning(src)).toBe(true);
       expect(countRawUpdateReturning(src)).toBe(1);

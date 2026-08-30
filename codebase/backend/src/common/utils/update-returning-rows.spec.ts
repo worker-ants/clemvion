@@ -192,10 +192,14 @@ describe('헬퍼를 거치지 않는 raw UPDATE/DELETE 지점이 새로 생기�
    * 그 판단을 다시 해야 한다.
    *
    * **세 번째 항목(개수)이 있는 이유**: 면제는 파일 단위가 아니라 **그 사유가 실제로
-   * 검토한 지점 수**까지만 걸린다. 이 수는 실측값이다 — 각 파일의
-   * `countRawUpdateReturning` 을 직접 돌려 확인했다(스캐너 프로브,
-   * `13_15_58` requirement W1). 여기 적은 수보다 그 파일의 `rawCount` 가 늘면
+   * 검토한 지점 수**까지만 걸린다. 여기 적은 수보다 그 파일의 `rawCount` 가 늘면
    * `findUnguarded` 가 unguarded 로 분류한다 — 사유가 검토하지 않은 새 지점이라는 뜻.
+   *
+   * **이 수가 실측과 같다는 보장은 `findUnguarded` 가 아니라 별도 테스트가 준다.**
+   * `findUnguarded` 는 `rawCount > allowedCount` 만 보므로 선언값에 대해 **상한 검사**일
+   * 뿐이다 — 오타로 부풀리면 그 차이만큼 조용히 미검증으로 남는다. 그래서
+   * `'허용목록의 선언 개수가 실측과 정확히 일치한다'` 가 반대 방향을 닫는다
+   * (`14_11_02` requirement W1). 두 테스트를 함께 봐야 이 목록이 조여진다.
    */
   const ALLOWED: ReadonlyArray<readonly [string, string, number]> = [
     [
@@ -277,6 +281,23 @@ describe('헬퍼를 거치지 않는 raw UPDATE/DELETE 지점이 새로 생기�
     const found = new Set(discovered.map(([rel]) => rel));
     expect(
       ALLOWED.map(([rel]) => rel).filter((rel) => !found.has(rel)),
+    ).toEqual([]);
+  });
+
+  it('허용목록의 선언 개수가 실측과 정확히 일치한다 — 부풀리면 그만큼 조용히 미검증', () => {
+    // `findUnguarded` 는 `rawCount > allowedCount` 만 잡는다. 즉 선언값은 **상한**으로만
+    // 쓰인다 — 오타로 `99` 를 적으면 그 파일에 새 raw 지점이 생겨도 조용히 통과한다
+    // (`14_11_02` requirement W1 이 scratch 재현으로 실증).
+    //
+    // 위 "죽은 항목" 테스트는 **경로** 축을 양방향으로 조이지만 **개수** 축은 한쪽만
+    // 조여 있었다. 여기서 나머지 방향을 닫는다 — 선언값은 상한이 아니라 실측과 같아야
+    // 한다. 지점이 줄어도(과다 선언) 늘어도(미달 선언) RED 다.
+    const measured = new Map(discovered);
+    expect(
+      ALLOWED.filter(([rel, , declared]) => measured.get(rel) !== declared).map(
+        ([rel, , declared]) =>
+          `${rel}: 선언 ${declared} vs 실측 ${measured.get(rel)}`,
+      ),
     ).toEqual([]);
   });
 
