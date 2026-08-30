@@ -26,8 +26,15 @@ export class KbStatsHelper {
     // `RETURNING` 절은 향후 호출자가 갱신된 카운트를 활용할 수 있도록 유지하되,
     // 현재는 어느 호출자도 반환값을 사용하지 않는다 — UI 갱신은 frontend 의
     // `kb-graph-stats` React Query invalidate 경로로 별도 처리되기 때문.
+    //
+    // **타입 인자는 튜플이다.** raw `UPDATE … RETURNING` 의 런타임 값은 행 배열이 아니라
+    // `[rows, affectedCount]` 다. 종전에는 `{…}[]` 로 적혀 있었는데, 지금은 반환을 안 써서
+    // 무해해도 위 주석이 **"향후 호출자가 활용" 을 명시적으로 초대**하고 있었다 — 그 사람이
+    // 이 타입을 믿고 `result[0].entity_count` 를 읽으면 `entity_count` 가 `undefined` 다.
+    // (이 저장소가 4개월간 그 형태의 결함을 안고 있었고, 그때도 **틀린 타입이 오해를
+    // 확인해 주는** 것이 원인의 절반이었다.) 소비할 때는 `updateReturningRows` 를 거친다.
     await this.dataSource.query<
-      { entity_count: number; relation_count: number }[]
+      [{ entity_count: number; relation_count: number }[], number]
     >(
       `UPDATE knowledge_base
          SET entity_count = (
