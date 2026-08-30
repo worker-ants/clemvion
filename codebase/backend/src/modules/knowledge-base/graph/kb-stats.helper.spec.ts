@@ -16,8 +16,14 @@ describe('KbStatsHelper', () => {
   });
 
   it('runs a single atomic UPDATE that recounts entity + relation', async () => {
+    // Raw `UPDATE … RETURNING` resolves to a `[rows, affectedCount]` tuple, not a bare
+    // row array — this mock used to encode the same wrong shape that caused the
+    // tracked 4-month bug (`01_12_26` testing W4). `refresh()` doesn't consume the
+    // return value today, but the mock should still reflect the real driver contract
+    // so a future consumer doesn't inherit a false shape from the test.
     dataSource.query.mockResolvedValue([
-      { entity_count: 12, relation_count: 34 },
+      [{ entity_count: 12, relation_count: 34 }],
+      1,
     ]);
 
     await helper.refresh('kb-1');
@@ -33,7 +39,8 @@ describe('KbStatsHelper', () => {
   });
 
   it('tolerates an empty RETURNING result (KB row missing) without throwing', async () => {
-    dataSource.query.mockResolvedValue([]);
+    // Same tuple shape, 0-row case: `[[], 0]`, not `[]`.
+    dataSource.query.mockResolvedValue([[], 0]);
 
     await expect(helper.refresh('kb-missing')).resolves.toBeUndefined();
   });
