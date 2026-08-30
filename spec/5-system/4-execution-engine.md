@@ -10,6 +10,7 @@ pending_plans:
   - plan/in-progress/execution-engine-residual-gaps.md
   - plan/in-progress/retry-turn-terminal-guard.md
   - plan/in-progress/exec-intake-followups.md
+  - plan/in-progress/update-returning-tuple-shape.md
 ---
 
 # Spec: 실행 엔진 상세
@@ -48,6 +49,21 @@ pending → running ──┤                     └─ cancelled
 ```
 
 > ※ Rehydration (다른 인스턴스가 사용자 입력을 받아 재개) 은 `waiting_for_input` 의 **내부 transition** — 다이어그램상 self-loop 로 표시하지 않으나 §7.5 의 재개 경로가 이를 수행한다. 상태 enum 자체는 변경되지 않는다.
+
+> **소급 각주 (2026-08-30) — 종결 이벤트의 선점 감지가 4개월간 도달 불가였다.**
+> 종결 경로는 guarded UPDATE(`status IN (non-terminal)`)의 결과로 "동시 cancel 이 이미
+> terminal 로 옮겼으면 종결 이벤트를 내지 말라" 를 분기한다. 그런데 그 UPDATE 의 반환은
+> `[rows, affectedCount]` 튜플이라 `updated.length > 0` 이 **항상 참**이었고, **skip 분기가
+> 한 번도 타지 않았다**. `8332d9a20`(2026-08-13)이 고쳤다.
+>
+> **DB 는 안 깨졌다** — `WHERE status IN (...)` 가드가 쓰기 자체를 지켜 왔다. 틀린 것은
+> *앱이 자기가 적용했는지 아는 것* 쪽이라, 증상은 "취소된 실행에도 종결 이벤트가 발행" 이다.
+>
+> 영향 범위는 이 반환으로 분기하는 **11곳 / 3파일**(수정 시점 기준)이었고, 원인은 소비자가
+> 아니라 그들이 공유한 드라이버 메서드 **한 곳**이다. 전수 목록은
+> `plan/in-progress/update-returning-tuple-shape.md` 가 정본. 같은 결함의 **반대 부호**가
+> [§8 동시 실행 제한](#8-동시-실행-제한)에 있다 — 그쪽은 항상 *거짓*이었다.
+> 불변식은 [`conventions/raw-query-results.md`](../conventions/raw-query-results.md) 참조.
 >
 > ※ `failed → running` 은 **`execution.retry_last_turn` 재진입 전용** 전이다 (아래 표 · §1.3). AI Agent multi-turn 의 retryable error 종결로 `failed` 가 된 Execution 을, 동일 nodeId 의 **새 NodeExecution row** 를 구동(WS `node.started`/`node.completed` 발행)하기 위해 `running` 으로 되돌린다. **이것은 Execution entity 레벨 전이**이며, 동시에 §1.2 의 새 NodeExecution row 가 생성된다(기존 `failed` row 는 전이시키지 않음 — §1.2 비고). 일반 노드 실패 경로에는 적용되지 않고, 코드상 `allowRetryReentry` opt-in (state-machine) 으로만 허용해 실패 종결 실행의 우발적 부활을 차단한다.
 
@@ -1119,6 +1135,20 @@ frontend 는 backend 의 안정 code 를 `code → i18n key` 맵으로 표시하
 ## 8. 동시 실행 제한
 
 > **구현 상태**: **단일 Execution active-running 누적 타임아웃은 PR2a 구현 완료**(`impl-exec-concurrency-cap`). **워크스페이스/워크플로우 동시 실행 cap + 큐 대기 5분 cancel 은 PR2b 구현 완료**(settings 키·advisory-lock admission gate·`queued_at`·`EXECUTION_QUEUE_WAIT_TIMEOUT`·workspace settings write API — 본 절 + §2.13 + §3-error-handling §1.5). priority 3-tier 도 **구현 완료(2026-07-04, triggerType threading, §4.3)**. 단일 Execution 최대 노드 수(500)만 여전히 **Planned**. 잔여 후속: `plan/in-progress/exec-intake-followups.md`.
+
+> **소급 각주 (2026-08-30) — admission gate 가 4개월간 한 번도 통과하지 못했다.**
+> gate 는 advisory-lock UPDATE 의 `RETURNING` 으로 `rows.length === 1` 을 판정했는데, 그
+> 반환이 `[rows, affectedCount]` 튜플이라 길이가 **항상 2** → 판정이 **항상 거짓**이었다.
+> `8332d9a20`(2026-08-13)이 고쳤다.
+>
+> **제품이 돌아간 이유**: 그 UPDATE 는 이미 커밋돼 row 가 `running` 이 되고, 재큐된 job 을
+> `runExecutionFromQueue` 의 RUNNING arm 이 "stalled 재배달" 로 오인해 §7.5 rehydration 으로
+> 재구동했다. **결과만 맞고 경로가 틀렸다** — 대가는 매 실행 약 2s 지연과, `if (admitted)`
+> 블록(`recordRunningSegmentStart`·`EXECUTION_STARTED` emit)의 **전면 사문화**다.
+>
+> 같은 결함의 **반대 부호**가 [§1.1](#11-execution-상태)에 있다 — 그쪽은 `length > 0` 이라
+> 항상 *참*이었다. 하나의 shape 오해가 "늘 실패" 와 "늘 성공" 양쪽으로 나타난 사례다.
+> 불변식은 [`conventions/raw-query-results.md`](../conventions/raw-query-results.md) 참조.
 
 | 제한 항목                        | 기본값 | 설정 위치                                                                                                                                      | 비고                                                                                                          |
 | -------------------------------- | ------ | ---------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- |

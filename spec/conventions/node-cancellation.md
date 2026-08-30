@@ -14,6 +14,7 @@ code:
   - codebase/frontend/src/lib/api/executions.ts
 pending_plans:
   - plan/in-progress/node-cancellation-residual-signal-propagation.md
+  - plan/in-progress/update-returning-tuple-shape.md
 ---
 
 # Node Cancellation 컨벤션 (AbortSignal 전파 기반)
@@ -101,6 +102,30 @@ signal 미지원 — best-effort. 자기 작업 완료까지 계속 진행해도
   확인**하고, 그 상태에서 목표로의 전이가 불가하거나 조건부 UPDATE 가 0행이면
   **저장·종결 이벤트 발행을 모두 skip** 한다. 확인 없이 쓰면 턴 진행 중 도착한 Stop 이
   `failed`/`completed` 로 덮여 **취소가 소실**된다.
+
+> **소급 각주 (2026-08-30) — 위 두 불릿의 "0행" 분기가 4개월간 도달 불가였다.**
+>
+> 판정에 쓰인 조건부 UPDATE 의 반환은 행 배열이 아니라 `[rows, affectedCount]` 튜플이라,
+> `length > 0` 이 **항상 참**이었다. `8332d9a20`(2026-08-13)이 고쳤다.
+>
+> **범위를 좁게 읽을 것** — 같은 절의 다른 메커니즘은 영향이 없다:
+>
+> | §2.4 메커니즘 | 영향 |
+> |---|---|
+> | 노드 경계 `assertExecutionNotCancelled()` | **없음** (반환값 분기가 아니다) |
+> | turn 경계 같은 가드 | **없음** |
+> | park↔resume 짝 전이의 `SELECT … FOR UPDATE` **잠금 자체** | **없음** — 잠금은 정상 동작했다 |
+> | 그 불릿의 "조건부 UPDATE 가 0행이면 skip" | **있음** |
+> | retry 재진입 종결의 "0행이면 저장·emit 모두 skip" | **있음** |
+>
+> 영향 범위는 이 반환으로 분기하는 **11곳 / 3파일**(수정 시점 기준)이었고, 원인은 소비자가
+> 아니라 그들이 공유한 드라이버 메서드 **한 곳**(`updateExecutionStatus`)이다. 그래서 여기
+> 위치 목록을 싣지 않는다 — 전수 목록은 `plan/in-progress/update-returning-tuple-shape.md`
+> 가 정본이고, 그 목록은 리팩터마다 움직인다.
+>
+> §6 의 `finalizeCancelledExecution` 행은 **이 영향권 밖**이다. 그 함수가 반환값으로 분기하게
+> 된 것은 수정 이후(`#1172`, 2026-08-15)라 죽은 적이 없다.
+> 불변식은 [`raw-query-results.md`](./raw-query-results.md) 참조.
 
 ## 3. signal 전파 흐름
 
@@ -198,6 +223,17 @@ if (upstream) {
 | §2.4 top-level **취소 종결** 경로 terminal 가드 (`finalizeCancelledExecution`) | ✓ | `execution-engine.service.ts` — 조건부 UPDATE(`status IN (non-terminal)`)가 0행이면 **행을 재조회해 DB 실측으로 분기**한다: 이미 `CANCELLED` 면 **emit 한다**(`stop()` 은 RUNNING/PENDING 에서 이벤트를 쏘지 않으므로 여기가 유일한 알림 지점), 다른 종결자가 `FAILED`/`COMPLETED` 로 선점했으면 skip. 자매 `finalizeFailedExecution` 과 **진입점만 같고 `!persisted` 이후는 극성이 반대**다(그쪽은 무조건 skip — 목적이 "덮어쓰지 말라"). 회귀 테스트 3갈래(a/b/재조회 실패)로 고정 |
 | §2.4 retry 재진입 종결 경로 terminal 가드 | ✓ | `retry-turn.service.ts` — `completeRetryExecution`/`failRetryExecution` 이 공용 `finalizeGuarded` 로 **행을 재조회해 비-terminal 을 확인한 뒤** 전이한다. 선점이 관측되면(전이 불가 또는 조건부 UPDATE `affected=0`) **저장·종결 이벤트 emit 을 모두 skip**. 취소 시각 보존 메커니즘은 짝 전이 행과 다르다 — 아래 Rationale 참조. mutation 13/13 검증 |
 | Workflow 단위 timeout / graceful shutdown 의 **노드 abort** | — | 노드 abort 통합 미구현 (Planned). 단 **워크플로 시간 한도 자체는 PR2a 구현 완료** — active-running 누적 타임아웃 (`assertActiveTimeWithinLimit`, 노드 경계 판정, §2.3 / [execution-engine §8](../5-system/4-execution-engine.md#8-동시-실행-제한)) |
+
+> **소급 각주 (2026-08-30) — 위 표의 `mutation 6/6`·`mutation 13/13` 이 보장하는 범위.**
+>
+> 그 수치는 **driver mock 경계 안쪽의 로직 검증**이다. mock 이 boolean 을 정직하게 돌려주는
+> 세계에서 가드 로직은 실제로 옳았다 — 숫자는 맞다. 다만 **결론이 한 칸 넓다**: 그 시점의
+> 실제 드라이버(`updateExecutionStatus`)는 튜플을 행 배열로 오해해 **항상 참**을 돌려줬고,
+> 그래서 `affected=0` 분기는 프로덕션에서 도달 불가였다. `8332d9a20`(2026-08-13)이 고쳤다.
+>
+> 즉 "mutation N/N 검증" 은 *로직이 옳다*는 뜻이지 *그 분기가 실제로 탔다*는 뜻이 아니다.
+> 두 층을 가르는 것이 이 caveat 의 목적이다 — 헬퍼 경계 안쪽 검증은 그 경계 **밖**의
+> 계약이 참일 때만 결론으로 이어진다.
 
 ## Rationale
 

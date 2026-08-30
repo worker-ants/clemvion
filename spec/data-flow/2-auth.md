@@ -389,3 +389,15 @@ CSRF 와 replay 방지를 위해 `auth_oauth_state` 는 callback 한 번에 소�
 단일 원자 쿼리(`DELETE ... RETURNING`)를 쓰는 이유는 동시 callback 경합에서도 정확히 한 요청만 state 를
 얻게 하기 위해서다. 별도 정기 TTL 배치를 두지 않는 이유는 row 수가 매우 적고 (10분 TTL × 동시 OAuth
 시도 수) 매 `/start` 의 기회적 purge 만으로 충분하기 때문이다.
+
+> **소급 각주 (2026-08-30)** — 위 설계는 옳았고, **구현이 4개월간 이 보장을 못 지켰다.**
+> `DELETE … RETURNING` 의 반환은 행 배열이 아니라 `[rows, affectedCount]` 튜플인데 코드가
+> 행 배열로 다뤄, 소비된 state 를 **한 번도 해석하지 못했다** → 정상 callback 까지 전부
+> `OAUTH_STATE_MISMATCH` 로 실패(**소셜 로그인 상시 실패**). `#1168`(2026-08-14)이 고쳤다.
+>
+> 같은 PR 이 두 번째 결함도 드러냈다 — 튜플을 풀고 나서 `rememberMe`(camelCase)를 읽었는데
+> raw 행의 실제 키는 `remember_me` 다. **"로그인 유지" 가 통째로 무시**됐고, 단위 테스트의
+> mock 이 엔티티 형태였던 탓에 초록인 채로 살아남았다.
+>
+> 두 불변식은 이제 [`conventions/raw-query-results.md`](../conventions/raw-query-results.md)
+> 가 규정하고 발견형 가드가 집행한다(`#1241`).

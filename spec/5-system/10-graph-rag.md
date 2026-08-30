@@ -16,6 +16,8 @@ code:
   - codebase/frontend/src/components/knowledge-base/entity-detail-dialog.tsx
   - codebase/frontend/src/components/knowledge-base/kb-form-body.tsx
   - codebase/backend/migrations/V025__graph_rag.sql
+pending_plans:
+  - plan/in-progress/update-returning-tuple-shape.md
   - codebase/backend/migrations/V026__graph_extraction_status_nullable_index.sql
   - codebase/backend/migrations/V027__relation_head_tail_index.sql
   - codebase/backend/migrations/V037__kb_retry_failed_status.sql
@@ -564,6 +566,16 @@ LIMIT $5;        -- 회수 폭(recall): vectorSeedTopK + expandedChunkLimit. 최
 | graph 모드 KB 인데 entity_count = 0 (추출 미완료/실패) | 검색이 vector-only 흐름으로 자동 fallback (빈 그래프 expansion = vector top-K 와 동일) |
 | `re-extract` 동시 호출 | DB 컬럼 (`reextract_status`) atomic compare-and-swap 으로 차단, 409 `KB_REEXTRACT_IN_PROGRESS` |
 | 워커 정상 종료 후 `processing` 상태에서 멈춤 | `StuckDocumentRecoveryService` 가 부팅 시점에 `graph_last_attempted_at < NOW() - 10min` 인 문서를 회수해 큐 재 add |
+
+> **소급 각주 (2026-08-30) — `re-extract` 동시 호출 차단이 4개월간 작동하지 않았다.**
+> 위 표의 CAS 락은 `UPDATE … RETURNING` 이 0행인지로 선점을 판정하는데, 그 반환은 행
+> 배열이 아니라 `[rows, affectedCount]` 튜플이라 길이가 항상 2였다. 그래서 **409
+> `KB_REEXTRACT_IN_PROGRESS` 가 한 번도 발행되지 않았다** — 설계는 옳았고 구현이 못
+> 지켰다. `#1168`(2026-08-14)이 고쳤다.
+>
+> 자매 경로인 KB 재임베딩 CAS 락도 동일 결함이었다 —
+> [임베딩 파이프라인 §7.3.2](./8-embedding-pipeline.md#732-kb-전체--post-apiknowledge-basesidre-embed) 참조.
+> 불변식은 [`conventions/raw-query-results.md`](../conventions/raw-query-results.md).
 
 ### 7.1 Retry & Failure 정책 상세
 

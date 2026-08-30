@@ -631,6 +631,19 @@ Graph RAG 시각화(KB-GR-UI-07)의 "노드/엣지" 가 워크플로우 캔버�
 |---|---|
 | `spec/5-system/3-error-handling.md` **§1.2 인증/인가 에러** | `OAUTH_STATE_MISMATCH` (400) 등재 + `data-flow/2-auth.md` 상호링크 |
 
+> **⚠️ 위 "§1.2 메인 표" 지시는 그대로 집행하면 안 된다 (2026-08-30 planner 턴 실측).**
+> 이 항목을 raw-query 규약 PR 에 얹으려다 두 결함을 발견해 **의도적으로 남겨 뒀다** —
+> 제자리에 넣으려면 구조 판단이 필요하고, 그건 이 집결 티켓의 몫이다.
+>
+> | 확인한 것 | 실측 (2026-08-30) |
+> |---|---|
+> | **§1.2 메인 표는 400 을 안 받는다** | 메인 = 401×5 · 403×3 · 423×1, **400 은 0건**. 400 둘은 §1.2.1 소재. 문서 자신의 Rationale 이 "§1.2 는 401/403/423, 그 밖 status 는 서브섹션" 을 선례로 명시 |
+> | **발행처가 둘이고 의미 폭이 다르다** | 통합 OAuth = `MISMATCH`(4)·`MISSING`(2)·`EXPIRED`(5)·`INVALID`(2) 로 **세분** / 소셜 로그인 = `MISMATCH`(9)·`EXPIRED`(1) — MISMATCH 하나가 missing·expired·consumed 를 **포괄** |
+>
+> 따라서 필요한 것은 (a) §1.2.1("2FA / WebAuthn / 재인증")이 **아닌** 새 서브섹션, (b) 두
+> 발행처의 의미 폭 차이 표기, (c) `2-navigation/4-integration.md §9.4`(통합 쪽 기등재)와의
+> 상호링크. `spec_impact` 에 통합 문서 추가 여부도 함께 판단할 것.
+
 > **삽입 위치 정정** — 초판은 "§1.8 인근" 이라고 적었다. §1.8 은 **KB / Graph RAG 도메인 전용**
 > 절이라 인증 코드가 갈 자리가 아니다. 자매 코드가 거기 있다는 이유로 위치까지 따라간 것인데,
 > 그 자매가 KB 코드였다는 게 요점이었다. 인증 코드의 자리는 §1.2 다
@@ -664,6 +677,13 @@ Graph RAG 시각화(KB-GR-UI-07)의 "노드/엣지" 가 워크플로우 캔버�
 **부수**: frontmatter `pending_plans:` 에 `update-returning-tuple-shape.md` 등재.
 대상은 위 표의 5개 문서 **전부**다 (checker 는 `4-execution-engine.md`·`node-cancellation.md`
 둘만 짚었으나, caveat 을 받는 문서는 다섯이고 기준이 같다).
+
+> **✅ 완료 (2026-08-30, planner 턴)** — 등재 가능한 **4곳 전부** 반영했다:
+> `node-cancellation.md` · `4-execution-engine.md` · `8-embedding-pipeline.md` ·
+> `10-graph-rag.md`. **`data-flow/2-auth.md` 는 제외** — 그 문서는 frontmatter 자체가 없다
+> (`# ` 로 시작, 실측). "5개 전부" 라는 지시는 그 한 곳에서 성립하지 않는다.
+>
+> 소급 각주 5건도 같은 턴에 반영했다(`2-auth.md` 포함 — 각주는 frontmatter 와 무관).
 
 > `spec-pending-plan-existence.test.ts` 는 **한 방향 가드**다 — 등재된 경로가 실존하는지만
 > 검사하고, 문서가 관련 plan 을 등재하도록 강제하지 않는다. 즉 이 항목은 **가드가 잡아주지

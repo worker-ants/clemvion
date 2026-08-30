@@ -8,6 +8,8 @@ code:
   - codebase/backend/src/modules/knowledge-base/queues/document-embedding.processor.ts
   - codebase/backend/src/modules/model-config/model-config.service.ts
   - codebase/backend/src/modules/knowledge-base/search/rag-search.service.ts
+pending_plans:
+  - plan/in-progress/update-returning-tuple-shape.md
 ---
 
 # Spec: 벡터 임베딩 파이프라인
@@ -262,6 +264,14 @@ KB 의 `rag_mode` 가 `graph` 면 `document-embedding` worker 가 임베딩을 �
      RETURNING id
    ```
    결과가 0행이면 `409 KB_REEMBED_IN_PROGRESS`.
+
+   > **소급 각주 (2026-08-30)** — 위 CAS 락은 설계대로였으나, **"0행" 판정이 4개월간
+   > 성립한 적이 없다.** raw `UPDATE … RETURNING` 의 반환은 행 배열이 아니라
+   > `[rows, affectedCount]` 튜플이라 길이가 항상 2였고, 그래서 이 잠금은 **동시 요청을
+   > 한 번도 거절하지 못했다**(409 미발행). `#1168`(2026-08-14)이 고쳤다.
+   > 자매 경로인 KB 재추출 CAS 락도 같은 결함이었다 —
+   > [Graph RAG §7](./10-graph-rag.md#7-에러-처리) 참조.
+   > 불변식은 [`conventions/raw-query-results.md`](../conventions/raw-query-results.md).
 2. KB 의 모든 문서를 큐에 `addBulk` (각 child job 에 `isKbBatch: true, knowledgeBaseId: <kbId>` 포함)
 3. 응답 즉시 202 반환 (`{ documentCount }`)
 4. 마지막 child job 의 completed/failed 시점에 `DocumentEmbeddingProcessor` 가 KB 의 남은 pending/processing 문서가 0건임을 확인하면 `reembed_status = 'idle'` 로 reset

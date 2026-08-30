@@ -394,7 +394,7 @@ raw `.query()` 는 ORM 매핑을 타지 않아 행의 키가 **DB 그대로 snak
       >
       > CTE 접두 blind spot 은 **1라운드가 이미 짚었는데 SUMMARY 합성에서 누락돼** 두
       > 라운드를 지나갔다 — 개별 리포트의 발견이 요약을 거치며 사라질 수 있다.
-- **[planner 위임]** raw SQL 결과 shape 을 **규약으로 승격** (`00_54_07` rationale_continuity INFO 2).
+- [x] **[planner 위임 — 완료 2026-08-30]** raw SQL 결과 shape 을 **규약으로 승격** (`00_54_07` rationale_continuity INFO 2).
   이 지식이 **네 번 독립적으로 재발견**됐다 — `stuck-document-recovery` 의 구조분해,
   `agent-memory-admin` 의 `deletedRowCount`, `integration-oauth` 의 명시 튜플 타입, 그리고
   이 PR 의 헬퍼. 네 번 각자 알아낸 것은 개인의 부주의가 아니라 **적어 둔 자리가 없다**는 뜻이다.
@@ -403,7 +403,7 @@ raw `.query()` 는 ORM 매핑을 타지 않아 행의 키가 **DB 그대로 snak
     entity 타입으로 단언하지 말 것(이 PR 의 `rememberMe` 결함이 (b) 의 실례다).
   - 위치는 `spec/conventions/` 신규 문서 또는 기존 `migrations.md` 확장. **어느 쪽이든
     (b) 를 빼지 말 것** — 이번에 (a) 만 처방했다가 (b) 를 놓쳐 CRITICAL 이 났다.
-- **[planner 위임]** 소급 각주 — 대상이 **한 문서가 아니다** (`22_45_25` WARNING 2 · INFO 1).
+- [x] **[planner 위임 — 완료 2026-08-30]** 소급 각주 — 대상이 **한 문서가 아니다** (`22_45_25` WARNING 2 · INFO 1).
   이 PR 이 고친 것들이 실제로 어겼던 spec 서술을 전부 세면 **다섯**이다:
   - `spec/5-system/4-execution-engine.md` §1.1 — admission gate·종결 이벤트
     (2026-07-30 의 유사 사례 retry-reentry opt-in 미전파와 대칭)
@@ -415,6 +415,13 @@ raw `.query()` 는 ORM 매핑을 타지 않아 행의 키가 **DB 그대로 snak
     걸면 영향권 밖 메커니즘(`assertExecutionNotCancelled` 관측, `linkedNodeExec` 의
     `FOR UPDATE` 잠금)까지 "검증 안 됨" 으로 뭉뚱그려져 **반대 방향 drift** 를 만든다.
     - **영향 있음 — 11곳 / 3파일.** `updateExecutionStatus` 반환값으로 분기하는 경로.
+      > **이 수는 그대로 정확하다 (2026-08-30 재확인).** planner 턴이 "오늘의 분기 지점"
+      > 을 세어 12를 얻고 이 11을 낡은 것으로 오판했다가 정정했다 — **두 집합이 다르다.**
+      > 11 = `8332d9a20^` 시점의 **영향 집합**(실측: execution-engine 6 · retry-turn 2 ·
+      > ai-turn 3). 12 = 오늘의 분기 지점. 차이는 `finalizeCancelledExecution` 하나이고,
+      > 그 함수는 당시 `await this.updateExecutionStatus(…)` 로 **반환을 받지 않았다** —
+      > 분기는 수정 *이후* `#1172`(2026-08-15)에 생겼으므로 죽은 적이 없다.
+      > 아래 표의 함수명·줄번호는 작성 시점(`#1168`) 기준이라 줄번호는 이미 밀렸다.
       `8332d9a20` 이전엔 `persisted`/`completed` 가 항상 `true` 라 skip 분기가 죽어 있었다.
 
       | 파일 | 호출부 |
@@ -454,7 +461,7 @@ raw `.query()` 는 ORM 매핑을 타지 않아 행의 키가 **DB 그대로 snak
   `developer` 는 `spec/` 쓰기 권한이 없어 이번 PR 로는 못 넣는다 — frontmatter
   `spec_impact` 를 리스트로 둔 이유는 **문서 상단 배너** 참조(Gate C 가 `complete/` 이동 시
   이 값을 신뢰한다).
-- **[planner 위임]** 같은 결함이 **세 번** 개별 발생했는데 invariant 가 `spec/conventions/`
+- [x] **[planner 위임 — 완료 2026-08-30, 위 규약 승격 항목과 동일 요청]** 같은 결함이 **세 번** 개별 발생했는데 invariant 가 `spec/conventions/`
   에 없다 (`20_36_36` INFO 2·3). "raw UPDATE/DELETE RETURNING 소비는 `updateReturningRows`
   경유" 를 정식 규약으로 승격할지 판단 필요. 네 번째 재발을 막는 유일한 구조적 수단이다 —
   이번 PR 의 회귀 가드는 **두 파일 범위**로 한정돼 있다.
