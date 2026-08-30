@@ -1,5 +1,27 @@
 # Changelog
 
+## Unreleased — raw UPDATE/DELETE … RETURNING 회귀 가드를 큐레이션에서 발견형으로 확장했다
+
+`update-returning-rows.spec.ts` 의 구조적 가드는 손으로 고른 3파일(`EXPECTED`)의 헬퍼 호출
+수만 셌다 — *"아는 지점이 후퇴하지 않는지"* 는 지키지만 **목록 밖 파일에 새 raw UPDATE 가
+생기면 아무 가드도 RED 를 내지 않았다.** 이제 `src/**` 전수에서 raw `UPDATE`/`DELETE …
+RETURNING` 을 SQL 리터럴의 첫 키워드로 발견하고, 각 지점이 `updateReturningRows` 를
+**개수만큼** 거치거나 사유가 적힌 허용목록에 있어야 통과한다(파일 단위 존재-only 판정이
+아니다 — 한 파일에 raw 지점이 2곳이고 헬퍼가 1곳뿐이면 여전히 RED).
+
+발견하니 목록 밖에 이미 두 지점이 있었다: `integration-oauth.service.ts`(명시 튜플 타입으로
+이미 올바름)와 `kb-stats.helper.ts`. 후자는 반환을 소비하지 않아 오늘은 무해하지만 타입
+인자가 `query<{…}[]>` 로 **행 배열이라 거짓 선언**돼 있었다 — 바로 위 주석이 "향후 호출자가
+활용할 수 있도록" 이라고 소비를 초대하고 있어, 다음 사람이 그 타입을 믿으면 이 저장소가
+4개월 앓았던 것과 같은 결함(`entity_count` 읽기가 `undefined`)이 재발할 토대였다. 타입을
+`[rows, affectedCount]` 튜플로 정정했다.
+
+스캐너 자체의 정규식도 `.query<Array<{...}>>(` 같은 **중첩 제네릭**을 만나면 매치가 통째로
+실패하던 것을 한 단계 중첩까지 받도록 넓혔고(`scripts/eval-retrieval.ts:162` 실형태로 검증),
+`hasRawUpdateReturning`/`countRawUpdateReturning` 전용 단위 테스트를 신설해 판정 축(양성 6·
+음성 5)을 합성 문자열로 직접 고정했다 — 그 전에는 이 판정이 "오늘의 실제 소스가 우연히 그
+형태를 담고 있는가" 에만 의존했다.
+
 ## Unreleased — `system_error` 재시도 배너가 라이브 실행에서 **처음** 뜬다
 
 **죽어 있던 경로를 되살린 것이지 새 기능이 아니다.** multi-turn AI Agent 가 LLM 실패로
