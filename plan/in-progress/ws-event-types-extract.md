@@ -369,7 +369,26 @@ ES-module 순환 위에 있어서다. 생성자의 `forwardRef` 도 같은 이�
       > `plan/in-progress/spec-sync-external-interaction-api-gaps.md:1386`.
       > `plan/complete/**` 4건은 시점 기록이라 옛 경로 유지가 규약이다.
       >
-      > **같은 planner 턴에 함께 볼 것 — `<도메인>EventType` 규칙이 문서에 없다**
+      > ### ✅ planner 턴 진행 (2026-08-30, `spec-followups-drain`) — **절반 해소**
+      >
+      > **`egress-masking.md:89` 캐비엇은 회수됐다.** 확인 결과(별도 초크포인트)를 본문에
+      > 실어 교체했고, `plan/in-progress/…` 링크가 그 문단과 함께 사라졌다.
+      > **⇒ 이제 이동해도 DEAD 링크가 생기지 않는다.**
+      >
+      > **그런데 초안의 "캐비엇 회수와 이동은 같은 PR 이어야 한다" 는 전제가 틀렸다.**
+      > 링크가 통째로 사라지므로 두 작업은 애초에 묶일 필요가 없었다. 그리고 묶으면 **안
+      > 된다** — 아래 facade 커버리지 항목이 아직 열려 있어 `plan-lifecycle.md §3` 의
+      > "미해결 follow-up 0건" 조건을 어긴다(`10_25_39` cross_spec W1).
+      >
+      > **⇒ 남은 이동 조건은 하나다**: 아래 facade 항목(테스트 한 줄)을 닫는 **developer 턴**이
+      > 같은 PR 에서 `git mv` + `spec_impact` 7줄을 넣으면 이 항목이 닫힌다.
+      > planner 턴은 `codebase/**` 를 못 만지므로 여기까지가 한계다.
+      >
+      > **`<도메인>EventType` 규칙은 이 턴에서 처리됐다** — `6-websocket-protocol.md`
+      > `## Rationale` 에 `### WS 이벤트 enum 명명` 서브섹션으로 신설.
+      > (`conventions/` 신설은 적용 범위가 한 모듈이라 기각 — 근거는 그 문단에.)
+
+      > **~~같은 planner 턴에 함께 볼 것~~ — `<도메인>EventType` 규칙이 문서에 없다**
       > (`23_23_48` convention_compliance INFO 1). 이 모듈은 다섯 enum 이 전부 그 형태인데
       > (`ExecutionEventType`·`NodeEventType`·`BackgroundRunEventType`·`KbEventType`·
       > `InAppNotificationEventType`) `spec/conventions/**` 어디에도 명문화돼 있지 않다.

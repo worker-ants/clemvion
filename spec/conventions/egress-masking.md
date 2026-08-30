@@ -6,6 +6,7 @@ code:
   - codebase/backend/src/shared/utils/sanitize-error-message.ts
   - codebase/backend/src/shared/utils/strip-external-only-fields.ts
   - codebase/backend/src/shared/utils/redact-stored-error.ts
+  - codebase/backend/src/shared/utils/terminal-error-payload.ts
   - codebase/backend/src/modules/websocket/websocket.service.ts
   - codebase/backend/src/modules/execution-engine/utils/reject-masked-resubmission.ts
   - codebase/backend/src/modules/workflow-assistant/tools/explore-tools.service.ts
@@ -45,7 +46,7 @@ code:
 | # | 상한 | 값 | 비교 | 초과 시 | 소비처 (심볼) |
 |---|---|---|---|---|---|
 | 1 | `MAX_MASK_DEPTH` (`@workflow/masked-markers`) | **10** | — | — | **SoT 상수**. 표 2·3행이 이 값을 참조 |
-| 2 | `MAX_REDACT_DEPTH` (backend 지역 별칭) | **10** (표 1행 재export) | `depth >= N` | `VALUE_MASK_MARKER` | `deepRedactSecrets`(REST 응답·저장 에러·conversation thread · **workflow-assistant explore 응답**) · `hasMaskedLeaf`(Manual 실행 재제출 거부 판정) |
+| 2 | `MAX_REDACT_DEPTH` (backend 지역 별칭) | **10** (표 1행 재export) | `depth >= N` | `VALUE_MASK_MARKER` | `deepRedactSecrets`(REST 응답·저장 에러·conversation thread · **workflow-assistant explore 응답** · **`TerminalErrorPayload` emit** — `redactTerminalError` 경유, 2026-08-29 등재) · `hasMaskedLeaf`(Manual 실행 재제출 거부 판정) |
 | 3 | 프런트는 별칭 없이 `MAX_MASK_DEPTH` 를 직접 import | **10** (표 1행 그대로) | 값 검사 **먼저**, `depth >= N` 에서 하강 중단 | 스캔 범위 `0..N` | `hasMaskedMarkerLeaf`(폼 프리필 스킵·재제출 차단) |
 | 4 | `MAX_SANITIZE_DEPTH` (`websocket.service.ts`, **별개 불변식**) | **10** (독립 선언) | `depth > N` | `DEPTH_MASK_MARKER` | `sanitizePayloadForWs`(WS emit) |
 | 5 | `stripExternalOnlyFields(_, maxDepth)` | **호출부 지정** | `depth > maxDepth` | 서브트리 **보존**(손대지 않음) | 두 표면이 각자 **자매 sanitizer 의 상한**을 넘긴다 |
@@ -86,7 +87,7 @@ code:
 
 **2 는 구조가 아니라 규율이다** — 세 번째 emit 경로가 순서를 다르게 조립해도 컴파일러도 가드도 막지 않는다. 그래서 여기 적는다.
 
-> **이 순서 계약이 확인된 범위는 `toFanoutEnvelope` 경로다.** `TerminalErrorPayload` 를 채우는 호출부들이 전부 `sanitizeErrorMessage` 를 경유하는지는 **아직 전수 확인되지 않았다**([`ws-event-types-extract.md`](../../plan/in-progress/ws-event-types-extract.md) 미체크 항목). 그 확인이 끝나면 이 캐비엇을 걷는다 — **확인 전에 "전 경로 불변식" 이라 쓰면 문서한 보장이 구현보다 넓어진다.**
+> **이 순서 계약이 확인된 범위는 `toFanoutEnvelope` 경로다** — 그리고 `TerminalErrorPayload` 는 **그 대상이 아니다**(2026-08-29 전수 확인). 그 페이로드를 채우는 `toTerminalErrorPayload` 호출부는 **5곳이고 전부 emit 쪽**(`chat-channel.dispatcher` 1 · `execution-engine.service` 3 · `retry-turn.service` 1, DB write 0)이며, 마스킹은 `sanitizeErrorMessage` 가 아니라 **`redactTerminalError` → `deepRedactSecrets`**(표 2행)라는 **별도 egress 초크포인트**로 걸린다. `sanitizeErrorMessage` 의 실제 범위는 알림 경로다. 두 경로는 방어 강도가 다르므로 하나의 "전 경로 불변식" 으로 묶지 않는다.
 
 ---
 
