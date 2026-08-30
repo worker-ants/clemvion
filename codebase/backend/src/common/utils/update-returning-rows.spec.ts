@@ -6,6 +6,11 @@ import {
 } from '../__test-utils__/source-scan';
 import { updateReturningRows } from './update-returning-rows';
 
+// 아래 두 `describe` 가 각자 재선언하던 것을 파일 상단으로 hoist 했다
+// (`13_15_58` maintainability INFO 2, 세 번째 describe 가 생기기 전이지만 둘도 이미
+// 중복이었다).
+const SRC = join(__dirname, '..', '..');
+
 describe('updateReturningRows', () => {
   it('UPDATE/DELETE 튜플에서 RETURNING 행만 꺼낸다', () => {
     expect(updateReturningRows([[{ id: 'a' }], 1], 'ctx')).toEqual([
@@ -51,8 +56,6 @@ describe('updateReturningRows', () => {
  * `stuck-document-recovery` 의 구조분해와 `agent-memory-admin` 의 `deletedRowCount`.
  */
 describe('UPDATE/DELETE 결과를 직접 소비하는 지점이 다시 생기지 않는다', () => {
-  const SRC = join(__dirname, '..', '..');
-
   /** 반환값을 변수로 받는 raw 쿼리 호출. */
   const CONSUMING = /const\s+\w+[^=\n]*=\s*\n?\s*await\s+[\w.]*\.query[<(]/g;
 
@@ -141,32 +144,80 @@ describe('UPDATE/DELETE 결과를 직접 소비하는 지점이 다시 생기지
  * *"헬퍼를 안 거치는 지점이 존재하는가"* — 지킨다. 래퍼가 더 강한 보장(컴파일 타임)을
  * 주는 것은 맞으므로, 이관 비용을 치를 이유가 생기면 그때 승격한다.
  */
+
+/**
+ * `discovered` 중 헬퍼(또는 유효한 허용목록)가 못 덮는 지점을 가른다.
+ *
+ * **순수 함수다** — 파일시스템을 만지지 않는다. 그래서 합성 입력으로 판정 로직 자체를
+ * 검증할 수 있다(아래 `describe('findUnguarded — …')`). 이전엔 이 판정이 `it` 본문에
+ * 인라인이라 스텁을 먹일 수 없었고, 유일한 검증은 리뷰 라운드 중 만들었다 지운 수동
+ * 프로브 파일 1회뿐이었다 — 하드닝을 지키는 영속 테스트가 없었다 (`13_15_58` testing W2).
+ *
+ * 두 축을 가른다:
+ *
+ * 1. **허용목록(`allowed`) 안의 파일** — 그 사유가 검토한 raw 지점 수(`allowedCount`)를
+ *    넘지 않는 한 통과한다. `rawCount`가 그 수를 넘으면, 사유가 커버하지 못하는 **새
+ *    지점**이 그 파일에 생겼다는 뜻 — unguarded 로 분류한다. 파일 단위 전면 면제였던
+ *    이전 판정은 이 축이 없어 `kb-stats.helper.ts` 류 파일에 두 번째 raw 지점이 생겨도
+ *    GREEN 이었다 (`13_15_58` requirement W1).
+ * 2. **그 외 파일** — `guardCountOf(rel)`(헬퍼 호출 수)가 `rawCount` 보다 **작으면**
+ *    unguarded. 존재(`> 0`)가 아니라 **개수**로 판정해야, 한 파일에 raw 지점이 2곳이고
+ *    헬퍼는 1곳만 거치는 **부분 커버리지**를 잡는다.
+ */
+function findUnguarded(
+  discovered: ReadonlyArray<readonly [string, number]>,
+  allowed: ReadonlyMap<string, number>,
+  guardCountOf: (rel: string) => number,
+): string[] {
+  const unguarded: string[] = [];
+  for (const [rel, rawCount] of discovered) {
+    const allowedCount = allowed.get(rel);
+    if (allowedCount !== undefined) {
+      if (rawCount > allowedCount) unguarded.push(rel);
+      continue;
+    }
+    if (guardCountOf(rel) < rawCount) unguarded.push(rel);
+  }
+  return unguarded;
+}
+
 describe('헬퍼를 거치지 않는 raw UPDATE/DELETE 지점이 새로 생기지 않는다', () => {
-  const SRC = join(__dirname, '..', '..');
+  /** 허용목록 사유의 최소 길이 — 빈 사유나 "ok" 류를 막는다. */
+  const MIN_REASON_LENGTH = 20;
 
   /**
-   * 발견되지만 헬퍼가 **필요 없는** 지점 — 각 항목은 사유가 있어야 한다.
+   * 발견되지만 헬퍼가 **필요 없는** 지점 — (경로, 사유, 그 사유가 검토한 raw 지점 수).
    *
    * 목록에 넣는 것 자체가 판단이므로, "왜 안전한가" 를 여기 적지 않으면 다음 사람이
    * 그 판단을 다시 해야 한다.
+   *
+   * **세 번째 항목(개수)이 있는 이유**: 면제는 파일 단위가 아니라 **그 사유가 실제로
+   * 검토한 지점 수**까지만 걸린다. 이 수는 실측값이다 — 각 파일의
+   * `countRawUpdateReturning` 을 직접 돌려 확인했다(스캐너 프로브,
+   * `13_15_58` requirement W1). 여기 적은 수보다 그 파일의 `rawCount` 가 늘면
+   * `findUnguarded` 가 unguarded 로 분류한다 — 사유가 검토하지 않은 새 지점이라는 뜻.
    */
-  const ALLOWED: ReadonlyArray<readonly [string, string]> = [
+  const ALLOWED: ReadonlyArray<readonly [string, string, number]> = [
     [
       'modules/knowledge-base/queues/stuck-document-recovery.service.ts',
       '`const [rows] = await …` 구조분해로 이미 언랩한다 (위 대조군 테스트가 2곳을 고정).',
+      2,
     ],
     [
       'modules/agent-memory/agent-memory-admin.service.ts',
       '로컬 `deletedRowCount()` 가 튜플·비튜플 양쪽을 받는다 (위 대조군 테스트가 고정).',
+      2,
     ],
     [
       'modules/integrations/integration-oauth.service.ts',
       '`.query<[Row[], number]>` 로 **튜플 타입을 명시**해 구조분해한다 — 타입이 곧 언랩 계약.',
+      2,
     ],
     [
       'modules/knowledge-base/graph/kb-stats.helper.ts',
       '반환값을 **소비하지 않는다**(`await …query(…)`, 대입 없음). 타입 인자도 튜플로 정정해 ' +
         '다음 사람이 행 배열로 오해하지 않게 했다.',
+      1,
     ],
   ];
 
@@ -213,16 +264,10 @@ describe('헬퍼를 거치지 않는 raw UPDATE/DELETE 지점이 새로 생기�
   });
 
   it('발견된 지점은 모두 raw 지점 수만큼 헬퍼를 거치거나 사유와 함께 허용목록에 있다', () => {
-    const allowed = new Set(ALLOWED.map(([rel]) => rel));
-    const unguarded = discovered.filter(([rel, rawCount]) => {
-      if (allowed.has(rel)) return false;
-      const guardCount = countCalls(
-        readFileSync(join(SRC, rel), 'utf8'),
-        'updateReturningRows',
-      );
-      // 개수 비교다 — 파일에 raw 지점이 2곳인데 헬퍼가 1곳만 거치면 여전히 unguarded.
-      return guardCount < rawCount;
-    });
+    const allowed = new Map(ALLOWED.map(([rel, , count]) => [rel, count]));
+    const unguarded = findUnguarded(discovered, allowed, (rel) =>
+      countCalls(readFileSync(join(SRC, rel), 'utf8'), 'updateReturningRows'),
+    );
     expect(unguarded).toEqual([]);
   });
 
@@ -236,7 +281,9 @@ describe('헬퍼를 거치지 않는 raw UPDATE/DELETE 지점이 새로 생기�
   });
 
   it('허용목록의 모든 항목에 사유가 적혀 있다', () => {
-    expect(ALLOWED.filter(([, why]) => why.trim().length < 20)).toEqual([]);
+    expect(
+      ALLOWED.filter(([, why]) => why.trim().length < MIN_REASON_LENGTH),
+    ).toEqual([]);
   });
 
   it('발견 자체가 공허하지 않다 — 알려진 지점을 실제로 찾는다', () => {
@@ -247,5 +294,58 @@ describe('헬퍼를 거치지 않는 raw UPDATE/DELETE 지점이 새로 생기�
       found.has('modules/execution-engine/execution-engine.service.ts'),
     ).toBe(true);
     expect(discovered.length).toBeGreaterThanOrEqual(ALLOWED.length + 1);
+  });
+});
+
+/**
+ * 위 describe 는 **저장소의 실제 파일**로만 `findUnguarded` 를 돌린다 — 오늘의 저장소가
+ * 우연히 부분 커버리지 형태를 담고 있지 않으면, 판정 로직이 옛 존재-only(`=== 0`)로
+ * 후퇴해도 아무 테스트도 RED 가 되지 않는다. 여기서는 **합성 입력**으로 판정 로직
+ * 자체를 파일시스템 없이 고정한다 (`13_15_58` testing W2).
+ */
+describe('findUnguarded — 합성 입력으로 판정 로직 자체를 고정한다', () => {
+  it('부분 커버리지(raw 2곳 중 헬퍼 1곳) → unguarded — 이 PR 핵심 하드닝의 판별 입력', () => {
+    // 구 판정(`guardCount === 0`)이었다면 guardCount=1 은 "존재하니 통과" 로 오판했다.
+    // 새 판정(`guardCount < rawCount`)은 1 < 2 라 unguarded 로 잡는다.
+    const unguarded = findUnguarded(
+      [['fake/partial.ts', 2]],
+      new Map(),
+      () => 1,
+    );
+    expect(unguarded).toEqual(['fake/partial.ts']);
+  });
+
+  it('완전 커버리지(raw 2곳, 헬퍼 2곳) → 통과', () => {
+    const unguarded = findUnguarded([['fake/full.ts', 2]], new Map(), () => 2);
+    expect(unguarded).toEqual([]);
+  });
+
+  it('초과 커버리지(raw 1곳, 헬퍼 3곳) → 통과', () => {
+    const unguarded = findUnguarded([['fake/over.ts', 1]], new Map(), () => 3);
+    expect(unguarded).toEqual([]);
+  });
+
+  // rawCount=0 인 파일은 애초에 `discover()` 가 걸러 `discovered` 에 들어오지 않는다
+  // (본 파일의 `discover()` 정의 참조, `count > 0` 필터). 그래서 `findUnguarded` 입력에
+  // rawCount=0 케이스는 해당 없음 — 여기서 별도로 고정하지 않는다.
+
+  it('허용목록 파일의 raw 지점이 허용 수를 넘으면 unguarded — 파일 단위 전면 면제를 좁힌다', () => {
+    // guardCountOf 가 무엇을 반환하든(여기선 0) 결과가 바뀌면 안 된다 — 허용목록 항목은
+    // 헬퍼 호출 수가 아니라 "사유가 검토한 수" 로만 판정한다.
+    const unguarded = findUnguarded(
+      [['fake/allowlisted-grown.ts', 2]],
+      new Map([['fake/allowlisted-grown.ts', 1]]),
+      () => 0,
+    );
+    expect(unguarded).toEqual(['fake/allowlisted-grown.ts']);
+  });
+
+  it('허용목록 파일의 raw 지점이 허용 수 이내면 통과 — guardCountOf 는 호출되지 않아도 된다', () => {
+    const unguarded = findUnguarded(
+      [['fake/allowlisted-stable.ts', 1]],
+      new Map([['fake/allowlisted-stable.ts', 1]]),
+      () => 0,
+    );
+    expect(unguarded).toEqual([]);
   });
 });
