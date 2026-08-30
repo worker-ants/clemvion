@@ -1,0 +1,12 @@
+{
+  "timestamp": "2026-08-30T17:49:59.566192",
+  "mode": "spec draft 검토 (--spec)",
+  "target_path": "plan/in-progress/spec-draft-else-branch-transaction.md",
+  "checkers": [
+    "cross_spec",
+    "rationale_continuity",
+    "convention_compliance",
+    "plan_coherence",
+    "naming_collision"
+  ]
+}

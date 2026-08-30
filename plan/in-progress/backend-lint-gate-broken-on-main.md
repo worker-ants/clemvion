@@ -5,8 +5,16 @@ started: 2026-08-08
 owner: developer
 status: in-progress
 priority: P1
-spec_impact: none
+spec_impact:
+  - spec/5-system/4-execution-engine.md
+  - spec/data-flow/3-execution.md
 ---
+
+> **`spec_impact` 정정 (2026-08-30)** — 종전 `none` 이었다. 그 사이 이 plan 이
+> **`updateExecutionStatus` else 분기 트랜잭션화**를 완료 항목으로 받았고, 그 변경은
+> §1.1 「원자성 보장」과 `data-flow/3-execution.md` §2.1 매핑 표를 갱신하게 했다.
+> `none` 인 채로 `complete/` 로 옮기면 Gate C(`spec-plan-completion.test.ts`)가 그 값을
+> 그대로 믿어 **"spec 영향 없음" 이 잘못 확정된다** (`17_49_59` plan_coherence W1).
 
 ## Overview
 

@@ -621,6 +621,22 @@ TypeORM 0.3.31 + pg 는 `UPDATE`/`DELETE` 의 결과를 **`[rows, rowCount]` 튜
 수정: 공용 헬퍼 `updateReturningRows(result, detail)` 로 튜플/배열을 흡수하고, 8곳을 태웠다.
 배열이 아니면 `detail` 과 함께 throw 한다 — 드라이버가 또 바뀌면 조용히 통과하는 대신 죽는다.
 
+> **소급 정정 (2026-08-30) — 그 throw 는 관측까지만 했고, 롤백은 못 했다.**
+>
+> 위 "배열이 아니면 throw" 는 `updateExecutionStatus` else 분기에서 **트랜잭션 밖 단발
+> UPDATE** 위에 얹혀 있었다. 그래서 가드가 발동하면 **UPDATE 는 커밋된 채 예외만** 나갔고,
+> 남는 상태가 원래 결함보다 나빴다 — DB 는 terminal 인데 종결 이벤트는 안 나가고, 그 실행은
+> stuck recovery(non-terminal 만 스캔)에도 안 잡힌다. **가드가 막으려던 무기한 대기가
+> 가드가 발동한 순간에 생긴다.**
+>
+> guarded UPDATE 를 `dataSource.transaction` 안으로 옮겨 throw 가 UPDATE 를 함께 롤백하게
+> 했다. 이제 행이 비-terminal 로 남아 재구동 대상이 된다. 노출 창은 `8332d9a20`(2026-08-13,
+> throw 도입)부터 이 수정까지 약 17일이며, shape 위반은 드라이버 계약이 바뀌어야 나는
+> 이벤트라 실제 발동 여부는 확인되지 않았다.
+>
+> 회귀 테스트 2건(트랜잭션 경유 + throw 전파 / 정상 경로 동일 배선)과 뮤테이션 실측:
+> 트랜잭션 제거 → RED 2, 콜백 안에서 throw 삼킴 → RED 2.
+
 **왜 4개월간 아무도 못 봤나 — 초록이 두 겹이었다.** 단위 테스트 mock 이 `[{...}]`(INSERT 형태)라
 코드와 **같은 오해를 공유**했고, OAuth 콜백에는 e2e 가 없었다. 그래서 `auth-oauth-callback.e2e-spec.ts`
 를 신설해 실 드라이버 위에서 성공/거절 **양방향**을 고정했다(한쪽만 보면 "전부 실패" 도 절반은 초록이다).

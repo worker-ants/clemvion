@@ -8561,6 +8561,13 @@ export class ExecutionEngineService
    *   emit 을 skip 해 이벤트 이중 발행/terminal status 전복을 막아야 한다.
    *   실제 소비 현황은 `engine-driver.interface.ts` 의 `AiTurnEngineDriver`
    *   JSDoc 참조 — AI 경로(3곳)만 현재 소비, form/button 4곳은 후속.
+   *
+   * **호출 제약 — 자신의 트랜잭션 콜백 안에서 부르지 말 것.** 이제 **두 분기 모두**
+   * 내부에서 `dataSource.transaction` 을 연다(짝 전이는 두 save 의 원자성 때문,
+   * else 분기는 shape 가드의 throw 가 UPDATE 를 롤백하게 하려고 — 목적이 다르다).
+   * 이미 열린 트랜잭션 안에서 호출하면 같은 Execution 행을 두 커넥션이 잠그려 해
+   * self-deadlock 이 된다. 현재 호출부 11곳은 전부 top-level 이라 해당 없음
+   * (`17_36_15` concurrency INFO 2 가 전수 대조). 새 호출부를 추가할 때 확인할 것.
    */
   // C-1 step2 — EngineDriver member (상태 전이 단일 choke point).
   public async updateExecutionStatus(
@@ -8644,12 +8651,12 @@ export class ExecutionEngineService
         await manager.save(NodeExecution, linkedNodeExec);
         persisted = true;
       });
-      // WARNING #9 — 가드를 실제로 통과했을 때만 세그먼트 시작을 기록한다.
-      if (enteringRunning && persisted) {
-        this.recordRunningSegmentStart(execution.id);
-      }
-      this.emitTerminalExecutionMetrics(execution, newStatus, persisted);
-      return persisted;
+      return this.finishStatusTransition(
+        execution,
+        newStatus,
+        enteringRunning,
+        persisted,
+      );
     }
 
     // M-3 — else 분기: 옛 full-entity save 는 stale 엔티티의 모든 컬럼을 덮어써,
@@ -8725,7 +8732,34 @@ export class ExecutionEngineService
           `updateExecutionStatus, execution ${execution.id} → ${newStatus}`,
         ).length > 0;
     });
-    // WARNING #9 — else 분기도 동일하게, 가드를 실제로 통과했을 때만 기록.
+    return this.finishStatusTransition(
+      execution,
+      newStatus,
+      enteringRunning,
+      persisted,
+    );
+  }
+
+  /**
+   * `updateExecutionStatus` 두 분기가 공유하는 종결부.
+   *
+   * 종전엔 `linkedNodeExec` 분기와 else 분기가 이 네 줄을 **손으로 복제**하고 있었다.
+   * 이번에 else 분기도 트랜잭션을 쓰게 되면서 두 분기가 완전 대칭이 됐고, 그러자
+   * 복제가 구조적 위험이 됐다 — 이 파일은 **형제 분기 한쪽만 고치는 drift** 를 이미
+   * 여러 번 겪었다(아래 WARNING #9 자체가 그 사례다). 다음에 종결부가 바뀔 때 한쪽만
+   * 고치는 경로를 없앤다 (`17_36_15` maintainability W2).
+   *
+   * **WARNING #9 (2026-07-26)**: 세그먼트 시작 기록은 **가드를 실제로 통과했을 때만**
+   * 한다. 예전엔 가드보다 먼저 무조건 기록해, 거부된(no-op) RUNNING 재claim 에도
+   * in-memory `segmentStartMs` 유령 항목이 남았다 — 그 executionId 는 실제로 RUNNING 이
+   * 된 적이 없어 "이탈" 분기가 결코 오지 않으므로 정리 기회 없이 누적되는 누수였다.
+   */
+  private finishStatusTransition(
+    execution: Execution,
+    newStatus: ExecutionStatus,
+    enteringRunning: boolean,
+    persisted: boolean,
+  ): boolean {
     if (enteringRunning && persisted) {
       this.recordRunningSegmentStart(execution.id);
     }

@@ -65,6 +65,17 @@ pending → running ──┤                     └─ cancelled
 > [§8 동시 실행 제한](#8-동시-실행-제한)에 있다 — 그쪽은 항상 *거짓*이었다.
 > 불변식은 [`conventions/raw-query-results.md`](../conventions/raw-query-results.md) 참조.
 >
+> **후속 각주 (2026-08-30) — 위 서술이 한 칸 넓었다.** `8332d9a20` 은 shape 오해를 고치면서
+> "배열이 아니면 throw" 가드를 함께 얹었는데, **그 throw 는 관측까지만 했고 롤백은 못 했다.**
+> 그 UPDATE 가 트랜잭션 밖 단발이라, 가드가 발동하면 행은 terminal 로 **커밋된 채** 예외만
+> 나갔다 — 종결 이벤트는 유실되고 그 실행은 비-terminal 만 스캔하는 stuck recovery 에도
+> 안 잡힌다. **가드가 막으려던 무기한 대기가 가드가 발동한 순간에 생기는** 상태다.
+>
+> guarded UPDATE 를 트랜잭션 안으로 옮겨 닫았다(위 「원자성 보장」의 else 분기 항목).
+> 창은 `8332d9a20`(2026-08-13)부터 그 수정까지 약 **17일**이다. 다만 shape 위반은 드라이버
+> 계약이 바뀌어야 나는 이벤트라 **실제로 발동했는지는 확인되지 않았다** — "창이 있었다" 와
+> "발동했다" 는 다르다.
+>
 > ※ `failed → running` 은 **`execution.retry_last_turn` 재진입 전용** 전이다 (아래 표 · §1.3). AI Agent multi-turn 의 retryable error 종결로 `failed` 가 된 Execution 을, 동일 nodeId 의 **새 NodeExecution row** 를 구동(WS `node.started`/`node.completed` 발행)하기 위해 `running` 으로 되돌린다. **이것은 Execution entity 레벨 전이**이며, 동시에 §1.2 의 새 NodeExecution row 가 생성된다(기존 `failed` row 는 전이시키지 않음 — §1.2 비고). 일반 노드 실패 경로에는 적용되지 않고, 코드상 `allowRetryReentry` opt-in (state-machine) 으로만 허용해 실패 종결 실행의 우발적 부활을 차단한다.
 
 | 상태                | 설명                                                                                                      | 전이 조건                                                                                      |
@@ -96,6 +107,13 @@ pending → running ──┤                     └─ cancelled
 | failed            | waiting_for_input | **`execution.retry_last_turn` 재진입 전용** (`allowRetryReentry` opt-in) — 재진입한 turn 이 **계속**되는 경우(대화가 끝나지 않아 다음 사용자 입력을 기다림) `reparkAiResumeTurn` 이 세그먼트를 종료하며 park 한다. 이 전이가 없으면 `assertTransition('failed','waiting_for_input')` 이 동기 throw 하고 그 예외 메시지가 `EXECUTION_FAILED` payload 로 노출된다(2026-07-30 ai-review CRITICAL #1 — 동시성 무관, 매 호출 결정적 실패였다). **multi-turn 재진입에서 가장 흔한 경로다.** 이후 재개는 일반 `waiting_for_input → running` 경로(§7.5 원자 claim)로 합류한다 — 즉 opt-in 은 이 한 번의 park 에만 필요하다. 일반 경로엔 없음 |
 
 > **원자성 보장**: `running ↔ waiting_for_input` 전이는 짝이 되는 `NodeExecution` 상태 변경 (`waiting_for_input` / `completed`) 과 **단일 DB 트랜잭션** 으로 묶여 commit / rollback 된다. 서버가 두 save 사이에 크래시해도 `Execution` 과 `NodeExecution` 의 상태 불일치가 발생하지 않는다 (구현: `ExecutionEngineService.updateExecutionStatus` 의 `linkedNodeExec` 파라미터). WebSocket 이벤트 발행은 트랜잭션 commit 후 수행한다. `waiting_for_input → failed` 전이도 동일한 원자성 — `NodeExecution.status=FAILED` save + `Execution.status=FAILED` 가 단일 트랜잭션으로 묶이고, WS 이벤트 순서는 `NODE_FAILED` → `EXECUTION_FAILED`. **재개 진입의 `waiting_for_input → running` claim(§7.5)도 이 원자성에 포함** — 조건부 UPDATE 가 짝 상태(Execution·NodeExecution)를 단일 트랜잭션으로 갱신하고, `affected=0` 이면 어느 쪽도 갱신하지 않는 no-op(ack-and-discard)이며, claim 후 rehydration 프로세스 실패는 `RESUME_*` terminal 로 원자 마감(§7.5)해 `running` 잔류를 남기지 않는다.
+>
+> **else 분기(직접 마감)도 트랜잭션 안에서 돈다 (2026-08-30).** `linkedNodeExec` 없이
+> `running`/`completed`/`failed`/`cancelled` 로 직접 마감하는 경로의 guarded UPDATE 도
+> `dataSource.transaction` 안에서 실행된다. **목적이 짝 전이와 다르다** — 짝 전이는 두 save
+> 의 원자성 때문이고, 이쪽은 결과 shape 가드가 throw 할 때 **그 UPDATE 가 함께 롤백**되게
+> 하기 위해서다. 롤백이 없으면 행은 terminal 로 커밋된 채 종결 이벤트만 유실되고, 그 실행은
+> 비-terminal 만 스캔하는 stuck recovery 에도 잡히지 않는다.
 >
 > **짝 전이는 방향과 무관하게 no-op 이 될 수 있다 (2026-07-27).** 위 claim(재개 방향)뿐 아니라
 > **park 방향(`running → waiting_for_input`)도** 대상 행이 이미 terminal 이면 적용되지 않는다.

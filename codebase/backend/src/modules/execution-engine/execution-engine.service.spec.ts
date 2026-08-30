@@ -4802,8 +4802,14 @@ describe('ExecutionEngineService', () => {
      * 이제 UPDATE 가 트랜잭션 안에서 돌므로 throw 가 롤백을 부른다. 여기서 고정하는 축은
      * 두 개다: (a) UPDATE 가 트랜잭션 manager 를 경유하는가, (b) throw 가 트랜잭션 콜백
      * **밖으로** 전파되는가(삼켜지면 롤백도 안 되고 false 가 조용히 반환된다).
+     *
+     * **경계를 분명히 한다** (`17_36_15` testing INFO 3): 실제 DB `ROLLBACK` 자체는
+     * TypeORM 의 트랜잭션 계약이라 mock 으로 증명할 수 없다. 여기서 고정하는 것은 그
+     * **전제조건 두 개**뿐이다 — 초판 테스트 이름이 "UPDATE 가 롤백된다" 라 결론까지
+     * 증명한 것처럼 읽혀 좁혔다. 실 DB 검증은 e2e 몫인데, shape 위반은 드라이버 계약이
+     * 바뀌어야 나는 이벤트라 e2e 로 재현할 방법이 없다(드라이버 mock 이 필요하다).
      */
-    it('shape 위반 throw 가 트랜잭션 밖으로 나간다 — UPDATE 가 롤백된다', async () => {
+    it('shape 위반 throw 가 트랜잭션 manager 를 경유해 밖으로 전파된다 (롤백 전제조건)', async () => {
       mockExecutionRepo.query = jest.fn().mockResolvedValue(undefined);
       const svcAny = service as unknown as {
         updateExecutionStatus: (...a: unknown[]) => Promise<boolean>;
