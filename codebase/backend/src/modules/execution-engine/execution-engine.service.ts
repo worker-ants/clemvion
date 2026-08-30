@@ -8576,7 +8576,8 @@ export class ExecutionEngineService
    *
    * **새 호출부나 새 `.transaction(` 블록을 추가하면 이 대조를 다시 하라.** 자동 가드는
    * 없다. 세는 패턴은 **제네릭 인자(`.transaction<T>(`)를 포함하고 주석 줄을 제외**해야
-   * 한다 — 그러지 않으면 각각 35(제네릭 누락)와 부풀린 수가 나온다.
+   * 한다 — 그러지 않으면 **35**(제네릭 누락)나 **39**(주석 포함, 이 JSDoc 프로즈 3줄이 섞인다)가
+   * 나온다.
    *
    * 이 수치가 세 판에 걸쳐 어떻게 틀렸다 고쳐졌는지(11 → 20, 어휘적 → 호출 스택)는
    * `plan/in-progress/backend-lint-gate-broken-on-main.md` 의 해당 항목에 있다.
