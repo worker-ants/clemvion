@@ -1383,7 +1383,8 @@ ES-module 순환 위에 놓인다. 생성자의 `forwardRef` 도 같은 이유�
 우회했지만 근본 원인은 남았고, `tsc` 는 이 클래스를 못 잡는다.
 
 - [x] `ExecutionEventType`·`NodeEventType` 등 런타임 값을 의존성-프리 모듈로 추출 —
-      **완료** ([`ws-event-types-extract`](./ws-event-types-extract.md)).
+      **완료** ([`ws-event-types-extract`](../complete/ws-event-types-extract.md) —
+      2026-08-30 `complete/` 로 이동).
       `websocket-events.types.ts` 신설(**import 0줄 · 구현 0개**), 호출부 **25 → 13**,
       타입만 가져가던 곳 **0**.
       **역재현으로 실증**: 72 suites 를 터뜨렸던 모듈 스코프 파생을 되살려 **425/425 통과**.

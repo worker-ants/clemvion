@@ -3,6 +3,7 @@ import {
   BackgroundRunEventType,
   type ExecutionChannelEvent,
   ExecutionEventType,
+  InAppNotificationEventType,
   MAX_SANITIZE_DEPTH,
   NodeEventType,
   WebsocketService,
@@ -1442,6 +1443,29 @@ describe('WebsocketService', () => {
       });
       const fanout = await eventP;
       expect(fanout.payload.error).toBe('Node timed out after 30s');
+    });
+  });
+
+  /**
+   * 하위호환 re-export facade — `websocket-events.types.ts` 의 값을
+   * `websocket.service` 를 통해서도 꺼낼 수 있어야 한다.
+   *
+   * **이 spec 이 그 facade 의 유일한 소비자다** — `websocket-events.types.spec.ts` 가
+   * "`websocket.service` 로의 eager 값 간선" 을 금지하면서 이 파일만 예외로 두는데, 그
+   * 예외의 근거가 "여기가 facade 를 실제로 검증한다" 이기 때문이다.
+   *
+   * **`InAppNotificationEventType` 만 그 검증에서 빠져 있었다** (`23_30_12` testing INFO 2).
+   * 나머지 셋은 이 파일이 **실제로 써서** 덮인다(재수출이 끊기면 컴파일이 깨진다) —
+   * 그런데 이 값은 쓰는 자리가 없어 import 조차 없었고, 재수출 줄이 오탈자로 사라져도
+   * 아무것도 RED 를 내지 않았다. 쓰이지 않는 값은 **명시 단언으로만** 덮인다.
+   */
+  describe('re-export facade', () => {
+    it('`InAppNotificationEventType` 을 facade 로 꺼낼 수 있다', () => {
+      // import 자체가 컴파일 타임 계약이고, 값 단언이 런타임 계약이다.
+      // 개명(`NotificationEventType` → 현재 이름, `#1238`)에도 wire 값은 불변이어야 한다.
+      expect(InAppNotificationEventType.NOTIFICATION_NEW).toBe(
+        'notification.new',
+      );
     });
   });
 });
