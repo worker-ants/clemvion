@@ -8574,11 +8574,21 @@ export class ExecutionEngineService
    * `.transaction(` 을 여는 파일은 `retry-turn.service.ts` 하나뿐이고, 그 블록은
    * 두 driver 호출보다 한참 위에서 닫힌다(실측).
    *
-   * **이 확인은 어휘적(lexical) 범위다** — 호출 스택 위쪽에서 트랜잭션을 연 caller 가
-   * 있는지까지는 보지 않았다. 새 호출부를 추가할 때는 그 축도 함께 볼 것.
+   * **호출 스택 축도 확인했다 (2026-08-31).** backend 의 `.transaction(` 블록 **36개**
+   * (`*.spec.ts` 제외)를 전수로 봤다:
+   * - 이 모듈 안 **9개** — 콜백 본문이 `updateExecutionStatus` 에 도달하지 않는다.
+   *   블록 안의 `this.*` 호출은 `lockNonTerminalExecutionRow` 뿐이고 그것도 이 메서드를
+   *   부르지 않는다(나머지 블록은 `manager` 만 쓴다 — 빈 결과가 스캐너 실명이 아님을
+   *   블록 본문 대조로 확인했다).
+   * - 모듈 밖 **27개** — 엔진 서비스를 참조하는 파일은 `executions.service.ts` 하나뿐이고,
+   *   그 트랜잭션 본문은 `manager` 만 쓴다.
+   *
+   * **남는 한계는 정적 분석이라는 것**이다. DI 로 주입된 다른 구현·이벤트 핸들러·큐
+   * consumer 가 런타임에 트랜잭션을 걸친 경로를 만들면 이 대조는 그것을 못 본다.
    *
    * (초판은 "11곳 전수 대조" 라고 적었는데, 그 11은 **이 파일 안만** 센 수였다 —
-   * `17_36_15` 의 리뷰어 수치를 재보지 않고 옮겼고, `18_10_28` 이 잡았다.)
+   * `17_36_15` 의 리뷰어 수치를 재보지 않고 옮겼고, `18_10_28` 이 잡았다. 그 다음 판은
+   * 어휘적 범위까지만 보고 그 사실을 명시했고, 이번에 호출 스택 축을 채웠다.)
    */
   // C-1 step2 — EngineDriver member (상태 전이 단일 choke point).
   public async updateExecutionStatus(
