@@ -10,9 +10,12 @@ import {
   Post,
   Req,
   Res,
+  UploadedFile,
   UseGuards,
+  UseInterceptors,
   forwardRef,
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
 import {
   ApiTags,
   ApiBearerAuth,
@@ -20,7 +23,10 @@ import {
   ApiUnauthorizedResponse,
   ApiNotFoundResponse,
   ApiBadRequestResponse,
+  ApiBody,
+  ApiConsumes,
   ApiForbiddenResponse,
+  ApiPayloadTooLargeResponse,
 } from '@nestjs/swagger';
 import { ConfigService } from '@nestjs/config';
 import { Throttle } from '@nestjs/throttler';
@@ -43,7 +49,11 @@ import { AUDIT_ACTIONS } from '../audit-logs/audit-action.const';
 import { AuthService } from '../auth/auth.service';
 import { authContextFromRequest } from '../auth/utils/auth-context';
 import { setRefreshTokenCookie } from '../auth/utils/refresh-cookie';
-import Express from 'express';
+// `Express` 로 default import 하면 **전역 `Express` 네임스페이스를 가린다** —
+// `@types/multer` 가 `Express.Multer.File` 을 그 전역에 augment 하므로, 가려진 상태에서는
+// 파일 업로드 파라미터의 타입을 쓸 수 없다(실측: `Namespace 'e' has no exported member
+// 'Multer'`). 아바타 업로드가 그 지점을 처음 밟아서 이름을 바꾼다.
+import ExpressModule from 'express';
 
 @ApiTags('Users')
 @ApiBearerAuth('access-token')
@@ -127,6 +137,61 @@ export class UsersController {
     };
   }
 
+  @Post('me/avatar')
+  @UseInterceptors(
+    FileInterceptor('file', {
+      // `UsersService.AVATAR_MAX_BYTES` 와 **같은 값이어야 한다.** multer 는 스트림
+      // 단계에서 끊어 413 을 내고, 서비스 상수는 계약 서술이다 — 갈라지면 문서와 실제
+      // 한도가 어긋난다. 회귀 테스트가 두 값의 동일성을 고정한다.
+      limits: { fileSize: UsersService.AVATAR_MAX_BYTES },
+    }),
+  )
+  @ApiOperation({
+    summary: '아바타 이미지 업로드',
+    description:
+      '아바타 이미지를 업로드하고 프로필의 `avatarUrl` 을 갱신합니다 (최대 2MB, png/jpg/jpeg/webp/gif). ' +
+      '업로드된 이미지는 **URL 을 아는 누구나 접근할 수 있는 공개 오브젝트**이며, URL 은 추측 불가능한 ' +
+      'UUID 를 포함합니다. 기존 아바타 객체는 교체 후 정리됩니다.',
+  })
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    description: '업로드할 아바타 이미지',
+    schema: {
+      type: 'object',
+      properties: {
+        file: {
+          type: 'string',
+          format: 'binary',
+          description: '이미지 파일 (최대 2MB, png/jpg/jpeg/webp/gif)',
+        },
+      },
+      required: ['file'],
+    },
+  })
+  @ApiOkWrappedResponse(UserProfileDto, { description: '갱신된 프로필' })
+  @ApiBadRequestResponse({
+    description: '파일 누락 또는 허용되지 않는 이미지 형식',
+  })
+  @ApiPayloadTooLargeResponse({ description: '파일 크기 초과 (2MB)' })
+  @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
+  @ApiNotFoundResponse({ description: '사용자를 찾을 수 없음' })
+  async uploadAvatar(
+    @CurrentUser() payload: JwtPayload,
+    @UploadedFile() file: Express.Multer.File,
+  ) {
+    const updated = await this.usersService.updateAvatar(payload.sub, file);
+    return {
+      data: {
+        id: updated.id,
+        email: updated.email,
+        name: updated.name,
+        avatarUrl: updated.avatarUrl,
+        locale: updated.locale ?? 'ko',
+        theme: updated.theme ?? 'light',
+      },
+    };
+  }
+
   @Post('me/change-password')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
@@ -145,8 +210,8 @@ export class UsersController {
   async changePassword(
     @CurrentUser() payload: JwtPayload,
     @Body() dto: ChangePasswordDto,
-    @Req() req: Express.Request,
-    @Res({ passthrough: true }) res: Express.Response,
+    @Req() req: ExpressModule.Request,
+    @Res({ passthrough: true }) res: ExpressModule.Response,
   ) {
     // 도메인 로직(현재 비밀번호 검증·강도·해시·저장)은 service 로 이전 (refactor 04 B-2).
     await this.usersService.changePassword(
@@ -232,8 +297,8 @@ export class UsersController {
   async verifyEmailChange(
     @CurrentUser() payload: JwtPayload,
     @Body() dto: EmailChangeVerifyDto,
-    @Req() req: Express.Request,
-    @Res({ passthrough: true }) res: Express.Response,
+    @Req() req: ExpressModule.Request,
+    @Res({ passthrough: true }) res: ExpressModule.Response,
   ) {
     const ctx = authContextFromRequest(req);
     const tokens = await this.authService.verifyEmailChange(

@@ -1,10 +1,15 @@
+import { randomUUID } from 'node:crypto';
+
 import {
+  BadRequestException,
   Injectable,
+  Logger,
   NotFoundException,
   UnauthorizedException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
+import { S3Service } from '../../common/services/s3.service';
 import { User } from './entities/user.entity';
 import {
   comparePassword,
@@ -14,10 +19,122 @@ import {
 
 @Injectable()
 export class UsersService {
+  private readonly logger = new Logger(UsersService.name);
+
   constructor(
     @InjectRepository(User)
     private readonly userRepository: Repository<User>,
+    private readonly s3Service: S3Service,
   ) {}
+
+  /**
+   * 아바타로 허용하는 확장자 → `Content-Type`.
+   *
+   * **확장자 화이트리스트로 판정한다** — 업로드 클라이언트가 보내는 `mimetype` 은 신뢰할
+   * 수 없고(임의 지정 가능), 여기서 정한 값을 그대로 오브젝트의 `Content-Type` 으로 쓴다.
+   * 공개 버킷에서 이 헤더가 곧 브라우저의 렌더 방식이므로, `image/*` 로 고정하는 것이
+   * `text/html` 이 저장돼 같은 오리진에서 실행되는 경로를 원천 차단한다.
+   *
+   * SVG 는 **의도적으로 제외**한다 — 스크립트를 품을 수 있는 유일한 이미지 포맷이라
+   * 공개 URL 로 서빙하면 저장형 XSS 표면이 된다.
+   */
+  private static readonly AVATAR_CONTENT_TYPES: Record<string, string> = {
+    png: 'image/png',
+    jpg: 'image/jpeg',
+    jpeg: 'image/jpeg',
+    webp: 'image/webp',
+    gif: 'image/gif',
+  };
+
+  /** 아바타 크기 상한. 컨트롤러의 multer 한도와 **같은 값이어야** 한다. */
+  static readonly AVATAR_MAX_BYTES = 2 * 1024 * 1024;
+
+  /**
+   * 아바타 이미지를 업로드하고 `user.avatarUrl` 을 **공개 URL** 로 갱신한다.
+   *
+   * ## 공개 버킷 전제 (사용자 결정 2026-08-31)
+   *
+   * 이 경로가 만드는 오브젝트는 **URL 을 아는 누구나 읽을 수 있다.** 세 안(공개 URL /
+   * 서명 URL / 백엔드 프록시) 중 공개 URL 이 선택됐고, 그 대가가 이것이다.
+   *
+   * 완화는 **키의 추측 불가능성**이다 — `avatars/{userId}/{uuid}.{ext}` 의 `uuid` 가
+   * 없으면 userId 만으로 키가 완성돼 워크스페이스 멤버 목록을 아는 사람이 아바타를
+   * 열거할 수 있다. 그래서 uuid 는 장식이 아니라 **접근 통제의 일부**다.
+   *
+   * @throws BadRequestException 파일 부재·허용되지 않는 확장자.
+   */
+  async updateAvatar(
+    userId: string,
+    file: Express.Multer.File | undefined,
+  ): Promise<User> {
+    if (!file?.buffer?.length) {
+      throw new BadRequestException({
+        code: 'INVALID_FILE_TYPE',
+        message: 'Avatar image file is required',
+      });
+    }
+
+    const ext = file.originalname.split('.').pop()?.toLowerCase();
+    const contentType = ext
+      ? UsersService.AVATAR_CONTENT_TYPES[ext]
+      : undefined;
+    if (!contentType) {
+      throw new BadRequestException({
+        code: 'INVALID_FILE_TYPE',
+        message: `Only ${Object.keys(UsersService.AVATAR_CONTENT_TYPES).join(', ')} images are allowed`,
+      });
+    }
+
+    const user = await this.userRepository.findOne({ where: { id: userId } });
+    if (!user) throw new NotFoundException({ code: 'USER_NOT_FOUND' });
+
+    const previousUrl = user.avatarUrl;
+    const key = `avatars/${userId}/${randomUUID()}.${ext}`;
+    await this.s3Service.upload(key, file.buffer, contentType);
+
+    user.avatarUrl = this.s3Service.getPublicUrl(key);
+    await this.userRepository.save(user);
+
+    // **DB 저장 뒤에** 옛 객체를 지운다. 순서를 뒤집으면 저장이 실패했을 때 사용자에게
+    // 이미 지워진 아바타를 가리키는 URL 이 남는다 — 고아 객체(과금·용량)보다 나쁘다.
+    await this.deletePreviousAvatarObject(userId, previousUrl);
+    return user;
+  }
+
+  /**
+   * 교체된 아바타 객체를 best-effort 로 지운다.
+   *
+   * **URL 전체가 아니라 `avatars/{userId}/…` 조각으로 키를 복원한다** — 저장된 값은
+   * `publicBaseUrl` 이 섞인 완성 URL 이고, 그 base 는 배포 환경에 따라(그리고 시간에
+   * 따라) 달라진다. base 를 걷어내는 방식이면 도메인이 바뀐 뒤의 옛 URL 에서 키를 못
+   * 찾는다. 자기 userId 접두로 앵커를 잡으면 base 와 무관하고, 남의 키를 지울 수도 없다.
+   *
+   * 실패는 삼킨다 — 아바타 교체는 이미 성공했고, 고아 객체 하나가 사용자 흐름을 깨뜨릴
+   * 이유가 없다. 대신 `warn` 으로 관측 가능하게 남긴다.
+   */
+  private async deletePreviousAvatarObject(
+    userId: string,
+    previousUrl: string | null | undefined,
+  ): Promise<void> {
+    if (!previousUrl) return;
+    const marker = `avatars/${userId}/`;
+    const at = previousUrl.indexOf(marker);
+    // 우리가 올린 객체가 아니면(외부 URL 을 `PATCH /users/me` 로 넣은 경우) 건드리지 않는다.
+    if (at < 0) return;
+
+    const key = decodeURIComponent(previousUrl.slice(at));
+    // 쿼리스트링·프래그먼트가 붙어 있으면 키가 아니다 — 잘라낸다.
+    const cleanKey = key.split(/[?#]/)[0];
+    try {
+      await this.s3Service.delete(cleanKey);
+    } catch (err) {
+      this.logger.warn(
+        `avatar cleanup failed (orphan object left): key=${cleanKey} — ${
+          err instanceof Error ? err.message : String(err)
+        }`,
+      );
+    }
+  }
 
   async findById(id: string): Promise<User | null> {
     return this.userRepository.findOne({ where: { id } });

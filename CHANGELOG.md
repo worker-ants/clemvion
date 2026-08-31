@@ -1,5 +1,41 @@
 # Changelog
 
+## Unreleased — 아바타 이미지 업로드 (공개 버킷 + 공개 URL)
+
+`POST /api/users/me/avatar` 신설. 종전에는 `PATCH /api/users/me` 로 **외부 URL 문자열만**
+넣을 수 있었고 파일 업로드는 `9-user-profile.md §6.1` 에 "미구현 (Planned)" 로만 있었다.
+
+**서빙 전략은 공개 버킷 + 공개 URL 이다(사용자 결정).** 세 안(공개 URL / 서명 URL / 백엔드
+프록시) 중 고른 것이고, 그 대가는 **아바타 이미지가 URL 을 아는 누구나 접근 가능**하다는
+것이다. 워크스페이스 멤버 전용이 아니다.
+
+그래서 세 가지를 코드로 고정했다 — 셋 다 **"동작은 하는데 잘못된 채로 동작"** 하는 종류라
+테스트가 아니면 드러나지 않는다:
+
+- **키의 UUID 는 접근 통제다.** 공개 버킷에서 키가 곧 권한이라, `avatars/{userId}` 만이면
+  워크스페이스 멤버 목록을 아는 사람이 아바타를 열거할 수 있다. `avatars/{userId}/{uuid}.{ext}`.
+- **`Content-Type` 은 확장자에서 파생한다.** 클라이언트가 보내는 `mimetype` 을 믿고 쓰면
+  `text/html` 이 저장돼 같은 오리진에서 실행될 수 있다. **SVG 는 의도적으로 제외** — 스크립트를
+  품을 수 있는 유일한 이미지 포맷이라 공개 URL 로 서빙하면 저장형 XSS 표면이 된다.
+- **교체 시 옛 객체를 지우되 DB 저장 뒤에 한다.** 순서를 뒤집으면 저장 실패 시 사용자에게
+  **이미 지워진** 아바타를 가리키는 URL 이 남는다 — 고아 객체보다 나쁘다. 키 복원은 저장된
+  URL 에서 base 를 걷어내는 대신 `avatars/{userId}/` 앵커로 잡는다(도메인이 바뀐 뒤의 옛 URL
+  에서도 복원되고, 남의 키를 지울 수도 없다).
+
+**배포 선행 조건(코드 밖)**: `avatars/` 접두에 **익명 GET 을 허용하는 버킷 정책**이 필요하다.
+정책이 닫혀 있으면 업로드는 성공하고 **이미지만 403** 이 된다 — 증상이 업로드가 아니라 표시에서
+난다. 신규 `S3_PUBLIC_BASE_URL` 도 함께 필요하다(`S3_ENDPOINT` 는 백엔드가 SDK 로 쓰는 **내부**
+주소라 브라우저가 도달하지 못한다). `.env.example` 에 둘 다 경고와 함께 등재했다.
+
+부수로 `users.controller.ts` 의 `import Express from 'express'` 를 `ExpressModule` 로 개명했다 —
+그 이름이 **전역 `Express` 네임스페이스를 가려서** `@types/multer` 가 augment 한
+`Express.Multer.File` 을 쓸 수 없었다(실측: `Namespace 'e' has no exported member 'Multer'`).
+잠재 위험이었고 이 변경이 처음 밟았다.
+
+spec `9-user-profile.md` 의 "미구현 (Planned)" 배지 flip 은 `spec/` 쓰기라 planner 트랙으로
+분리했다(`plan/in-progress/spec-update-avatar-upload-implemented.md`) — 배지만 뒤집지 말고
+**공개된다는 사실**을 함께 적어야 한다는 점을 그 plan 에 명시했다.
+
 ## Unreleased — raw UPDATE/DELETE … RETURNING 회귀 가드를 큐레이션에서 발견형으로 확장했다
 
 `update-returning-rows.spec.ts` 의 구조적 가드는 손으로 고른 3파일(`EXPECTED`)의 헬퍼 호출

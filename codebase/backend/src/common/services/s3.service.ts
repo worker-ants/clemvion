@@ -13,6 +13,7 @@ import { Readable } from 'stream';
 export class S3Service {
   private readonly client: S3Client;
   private readonly bucket: string;
+  private readonly publicBaseUrl: string;
 
   constructor(private readonly configService: ConfigService) {
     const bucket = this.configService.get<string>('s3.bucket');
@@ -28,6 +29,10 @@ export class S3Service {
     }
 
     this.bucket = bucket;
+    // 미설정 시 `endpoint` 폴백은 `s3.config.ts` 가 한다 — 여기서 다시 폴백하면
+    // 폴백 규칙이 두 곳이 되어 갈라진다.
+    this.publicBaseUrl =
+      this.configService.get<string>('s3.publicBaseUrl') ?? endpoint;
     this.client = new S3Client({
       endpoint,
       region: region || 'us-east-1',
@@ -53,6 +58,34 @@ export class S3Service {
       }),
     );
     return key;
+  }
+
+  /**
+   * 공개 읽기가 열린 오브젝트의 브라우저 접근 URL.
+   *
+   * ## 전제 — 이 메서드는 버킷 정책을 만들지 않는다
+   *
+   * URL 문자열만 조립한다. 그 경로가 실제로 익명 GET 을 허용하는지는 **버킷 정책**이
+   * 정하며 그건 인프라 설정이다(코드 밖). 정책이 닫혀 있으면 이 URL 은 403 을 낸다 —
+   * 조용히 깨지는 것이 아니라 눈에 보이게 실패한다.
+   *
+   * ## 왜 `endpoint` 가 아니라 `publicBaseUrl` 인가
+   *
+   * `endpoint` 는 백엔드가 SDK 로 쓰는 **내부** 주소다(`http://minio:9000`). 그 값을
+   * 브라우저에 주면 컨테이너 호스트명이라 도달하지 못한다. 배포 환경에서는
+   * `S3_PUBLIC_BASE_URL` 로 공개 도메인/CDN 을 준다.
+   *
+   * @param key `upload()` 가 돌려준 오브젝트 키.
+   */
+  getPublicUrl(key: string): string {
+    const base = this.publicBaseUrl.replace(/\/+$/, '');
+    // 키의 각 세그먼트만 인코딩한다 — 통째로 `encodeURIComponent` 하면 `/` 가 `%2F` 가
+    // 되어 경로가 아니라 한 덩어리 오브젝트명이 된다.
+    const encoded = key
+      .split('/')
+      .map((seg) => encodeURIComponent(seg))
+      .join('/');
+    return `${base}/${this.bucket}/${encoded}`;
   }
 
   async download(key: string): Promise<Buffer> {

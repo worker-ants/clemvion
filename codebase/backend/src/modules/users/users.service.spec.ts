@@ -1,5 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
+import { S3Service } from '../../common/services/s3.service';
 import {
   BadRequestException,
   NotFoundException,
@@ -39,6 +40,23 @@ describe('UsersService', () => {
       providers: [
         UsersService,
         { provide: getRepositoryToken(User), useValue: repo },
+        // 아바타 업로드(§6.1)로 생성자 의존이 늘었다. 이 스위트의 케이스들은 S3 를
+        // 건드리지 않으므로 호출되면 **테스트가 시끄럽게 실패하도록** 던지는 stub 을 준다
+        // — 조용한 no-op 을 주면 S3 를 부르는 회귀가 여기서 통과해 버린다.
+        {
+          provide: S3Service,
+          useValue: {
+            upload: jest.fn(() => {
+              throw new Error('unexpected S3 upload in this suite');
+            }),
+            getPublicUrl: jest.fn(() => {
+              throw new Error('unexpected S3 getPublicUrl in this suite');
+            }),
+            delete: jest.fn(() => {
+              throw new Error('unexpected S3 delete in this suite');
+            }),
+          },
+        },
       ],
     }).compile();
     service = module.get(UsersService);

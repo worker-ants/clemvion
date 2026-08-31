@@ -15,7 +15,60 @@ owner: planner
 > 기능 또는 frontend: avatar 업로드는 S3 공개 URL 서빙 전략(S3Service getUrl 부재) 설계 선행, 알림 설정은 신규
 > entity+migration+모듈, 슬러그 라우팅은 frontend.
 
-- [ ] 아바타 이미지 **파일 업로드** 엔드포인트 (§6.1 `POST /api/users/me/avatar`) — **대형(스토리지 서빙)**: S3Service.upload 는 key 만 반환하고 공개 URL 메서드가 없어, 업로드 + 서빙 GET 엔드포인트(key→URL) 전략 설계 선행. 별도 PR.
+- [x] 아바타 이미지 **파일 업로드** 엔드포인트 (§6.1 `POST /api/users/me/avatar`) — **대형(스토리지 서빙)**: S3Service.upload 는 key 만 반환하고 공개 URL 메서드가 없어, 업로드 + 서빙 GET 엔드포인트(key→URL) 전략 설계 선행. 별도 PR.
+      **완료 (2026-08-31). 서빙 전략 = 공개 버킷 + 공개 URL (사용자 결정).**
+      세 안(공개 URL / 서명 URL / 백엔드 프록시) 중 사용자가 공개 URL 을 골랐다.
+
+      | 측정 (착수 전) | 값 |
+      |---|---|
+      | `S3Service` 공개 API | `upload`·`download`·`delete`·`deleteMany` — **URL 메서드 없음** |
+      | S3 객체를 브라우저로 서빙하는 선례 | **0건** (`download` 유일 소비처는 임베딩 파이프라인) |
+      | spec 의 서빙 전략 서술 | **없음** (`9-user-profile.md:334` 는 "미구현 (Planned)" 한 줄) |
+
+      - **구현**: `S3Service.getPublicUrl(key)` 신설 + `POST /api/users/me/avatar`
+        (multer 2MB, png/jpg/jpeg/webp/gif). `S3_PUBLIC_BASE_URL` 신규 env —
+        `S3_ENDPOINT` 는 백엔드가 SDK 로 쓰는 **내부** 주소라 브라우저가 도달하지 못한다.
+      - **⚠ 배포 선행 조건 (코드 밖)**: `avatars/` 접두에 **익명 GET 을 허용하는 버킷 정책**이
+        필요하다. 정책이 닫혀 있으면 **업로드는 성공하고 이미지만 403** 이 된다 — 조용히
+        깨지지는 않지만 증상이 업로드가 아니라 표시에서 난다. `.env.example` 에 경고를 달았다.
+      - **SVG 는 의도적으로 제외**했다 — 스크립트를 품을 수 있는 유일한 이미지 포맷이라
+        공개 URL 로 서빙하면 저장형 XSS 표면이 된다.
+      - **`Content-Type` 은 확장자에서 파생**한다. 클라이언트 `mimetype` 을 믿고 쓰면
+        `text/html` 이 저장돼 같은 오리진에서 실행될 수 있다.
+      - **키의 UUID 는 장식이 아니라 접근 통제다** — 공개 버킷에서 키가 곧 권한이라,
+        `avatars/{userId}` 만이면 멤버 목록을 아는 사람이 아바타를 열거할 수 있다.
+
+      **회귀 테스트 13건 · 뮤테이션 6축 (예측 / 실측 — 전부 RED)**:
+
+      | 뮤턴트 | 실측 |
+      |---|---|
+      | 키에서 uuid 제거 (추측 가능) | **RED** 2 |
+      | `Content-Type` 을 클라이언트 값으로 | **RED** 1 |
+      | 확장자 화이트리스트 무력화 | **RED** 3 |
+      | 옛 객체 정리 호출 제거 | **RED** 2 |
+      | 정리를 DB 저장 **앞**으로 (순서 반전) | **RED** 1 |
+      | 남의 키 보호 제거 (userId 앵커 → 공통 접두) | **RED** 1 |
+
+      - **테스트 축을 "조용한 실패" 로 골랐다** (사용자 결정: 항목별 판단). 세 위험 모두
+        *"동작은 하는데 잘못된 채로 동작"* 이라 테스트가 아니면 안 보인다. 단순 happy-path 는
+        그 셋에 자연히 포함되므로 따로 세지 않았다.
+      - **순서 축을 따로 둔 이유**: 정리를 저장 앞에 두면 저장 실패 시 사용자에게 **이미
+        지워진** 아바타 URL 이 남는다 — 고아 객체보다 나쁘다.
+      - **base URL 이 바뀐 뒤에도 옛 키를 복원**하는지 고정했다. base 를 걷어내는 방식이면
+        도메인 이전 후 조용히 고아가 쌓인다.
+
+      **부수 — `Express` 네임스페이스 shadowing**: `users.controller.ts` 가
+      `import Express from 'express'` 로 **전역 `Express` 를 가리고 있었다.**
+      `@types/multer` 가 `Express.Multer.File` 을 그 전역에 augment 하므로 업로드 파라미터의
+      타입을 쓸 수 없었다(실측: `Namespace 'e' has no exported member 'Multer'`). 잠재 위험을
+      이 변경이 처음 밟아서 `ExpressModule` 로 개명했다(사용처 4곳 동반).
+
+      **spec 배지 flip 은 planner 트랙으로 분리** — `9-user-profile.md:334` 의
+      ~~`POST /api/users/me/avatar`~~ "미구현 (Planned)" 취소선과 §5.1 구현 상태 문단이
+      갱신돼야 한다. developer 는 `spec/` 쓰기 권한 밖이다(자기-반증형 소정정 예외에도
+      해당하지 않는다 — 내가 쓴 예고 문장이 아니다). 선례: `spec-sync-websocket-protocol-gaps.md`
+      의 `notification.new` 배지 flip 위임.
+      → [`spec-update-avatar-upload-implemented.md`](./spec-update-avatar-upload-implemented.md)
 - [x] 알림 설정 조회/수정 (§6.2 `GET/PATCH /api/notifications/settings`) — **완료 (2026-07-08)**. **재검증: store 는 이미 존재**(`user.notification_preferences` JSONB V010, `integrationExpiryEmail`) — 신규 entity 아님. 구현: 엔드포인트 신설(GET get-or-default·PATCH 부분머지) + prefs shape 확장(`executionFailedEmail`/`scheduleFailedEmail`) + DTO + **caller-side opt-out enforcement**(execution/schedule 실패 dispatch 가 `resolveOptOutEmailChannels` 로 채널 계산 — "channel 계산=호출자 책임" 불변식 보존). 응답=기본값 해소값(FE 오독 방지). spec §6.2 flip·§5.1 캡션/각주·§5.3 갱신. unit(notifications+schedule+execution dispatch)·lint·build.
   - **impl-prep 반영**: enforcement 중앙화(notify 내부)는 8-notifications "호출자 책임" 불변식 위반(CRITICAL) → caller-side 유지. `marketplace_update`(§5.1 인앱 only·opt-in·미발사)·`integration_expired`(기존 opt-in) 는 opt-out 집합 제외.
   - [ ] **(후속) in_app 채널 뮤팅** (§5.1 "채널별" — 인앱 알림 항상 표시, 뮤팅 미구현).
