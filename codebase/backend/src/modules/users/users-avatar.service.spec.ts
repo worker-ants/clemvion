@@ -14,6 +14,9 @@
  * 단순 happy-path(업로드하면 URL 이 저장된다)는 위 셋에 자연히 포함되므로 따로 세지 않는다.
  */
 
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
+
 import { BadRequestException } from '@nestjs/common';
 import { Test, type TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
@@ -36,13 +39,13 @@ function makeFile(originalname: string): Express.Multer.File {
 describe('UsersService.updateAvatar (§6.1 — 공개 URL 서빙)', () => {
   let service: UsersService;
   let s3: { upload: jest.Mock; getPublicUrl: jest.Mock; delete: jest.Mock };
-  let saved: User | undefined;
+  let savedPatch: Partial<User> | undefined;
 
   const buildUser = (avatarUrl: string | null): User =>
     ({ id: USER_ID, email: 'a@b.c', avatarUrl }) as unknown as User;
 
   async function setup(existing: User | null): Promise<void> {
-    saved = undefined;
+    savedPatch = undefined;
     s3 = {
       upload: jest.fn().mockResolvedValue(undefined),
       getPublicUrl: jest.fn(
@@ -52,9 +55,17 @@ describe('UsersService.updateAvatar (§6.1 — 공개 URL 서빙)', () => {
     };
     const repo = {
       findOne: jest.fn().mockResolvedValue(existing),
-      save: jest.fn(async (u: User) => {
-        saved = u;
-        return u;
+      // 아바타 갱신은 **컬럼 단위 update** 다 — 스냅샷 전체 save 는 lost update 를 만든다.
+      update: jest.fn(async (_id: string, patch: Partial<User>) => {
+        savedPatch = patch;
+        return undefined;
+      }),
+      findOneOrFail: jest.fn(async () => ({
+        ...(existing ?? ({ id: USER_ID } as User)),
+        ...savedPatch,
+      })),
+      save: jest.fn(() => {
+        throw new Error('updateAvatar 는 save() 를 쓰면 안 된다 (lost update)');
       }),
     };
     const module: TestingModule = await Test.createTestingModule({
@@ -157,16 +168,16 @@ describe('UsersService.updateAvatar (§6.1 — 공개 URL 서빙)', () => {
       await expect(
         service.updateAvatar(USER_ID, makeFile('new.png')),
       ).resolves.toBeDefined();
-      expect(saved?.avatarUrl).toContain('avatars/');
+      expect(savedPatch?.avatarUrl).toContain('avatars/');
     });
 
     it('정리는 DB 저장 **뒤에** 일어난다 — 저장이 실패하면 옛 객체가 남아야 한다', async () => {
       const old = `https://cdn.example/bucket/avatars/${USER_ID}/old.png`;
       await setup(buildUser(old));
       const repo = (
-        service as unknown as { userRepository: { save: jest.Mock } }
+        service as unknown as { userRepository: { update: jest.Mock } }
       ).userRepository;
-      repo.save.mockRejectedValue(new Error('db down'));
+      repo.update.mockRejectedValue(new Error('db down'));
 
       await expect(
         service.updateAvatar(USER_ID, makeFile('new.png')),
@@ -197,7 +208,10 @@ describe('UsersService.updateAvatar — 정리 실패는 요청을 깨뜨리지 
       findOne: jest
         .fn()
         .mockResolvedValue({ id: USER_ID, avatarUrl: broken } as User),
-      save: jest.fn(async (u: User) => u),
+      update: jest.fn().mockResolvedValue(undefined),
+      findOneOrFail: jest
+        .fn()
+        .mockResolvedValue({ id: USER_ID, avatarUrl: 'new' } as User),
     };
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -272,5 +286,183 @@ describe('UsersService.update — PATCH 로 아바타를 바꿔도 옛 객체를
     await service.update(USER_ID, { name: 'new name' } as Partial<User>);
     expect(repo.findOne).not.toHaveBeenCalled();
     expect(s3.delete).not.toHaveBeenCalled();
+  });
+});
+
+describe('UsersService.updateAvatar — 아바타 외의 컬럼을 건드리지 않는다 (lost update)', () => {
+  /**
+   * 리뷰 2라운드(2026-08-31)가 잡은 CRITICAL. 초판은 S3 업로드 **앞에서** 읽은 엔티티
+   * 스냅샷에 `avatarUrl` 만 얹어 `save(user)` 했다. 업로드는 네트워크 I/O 라 수백 ms~수 초
+   * 걸리고, 그 사이 다른 요청이 같은 row 를 바꾸면(로그인 실패 카운터·계정 잠금·2FA 등록 —
+   * 전부 `usersService.update()` 의 부분 갱신 경로) 뒤늦은 저장이 그 변경을 **조용히 옛
+   * 값으로 되돌린다.**
+   *
+   * 고친 방식은 락이 아니라 **쓰는 컬럼을 줄이는 것**이다. `avatarUrl` 하나만 UPDATE 에
+   * 실으면 경쟁 자체가 성립하지 않는다. 그래서 여기서 고정할 것은 "락이 있다" 가 아니라
+   * **"UPDATE 페이로드에 avatarUrl 말고 아무것도 없다"** 이다.
+   */
+  it('update 는 avatarUrl 단 하나만 싣는다', async () => {
+    const s3 = {
+      upload: jest.fn().mockResolvedValue(undefined),
+      getPublicUrl: jest.fn((k: string) => `https://cdn.example/bucket/${k}`),
+      delete: jest.fn().mockResolvedValue(undefined),
+    };
+    const update = jest.fn().mockResolvedValue(undefined);
+    const repo = {
+      findOne: jest.fn().mockResolvedValue({
+        id: USER_ID,
+        avatarUrl: null,
+        // 업로드가 도는 동안 다른 요청이 바꿀 수 있는 컬럼들.
+        loginAttempts: 0,
+        lockedUntil: null,
+        twoFactorSecret: null,
+      } as unknown as User),
+      update,
+      findOneOrFail: jest.fn().mockResolvedValue({ id: USER_ID } as User),
+      save: jest.fn(() => {
+        throw new Error('save() 를 쓰면 스냅샷 전체가 실린다');
+      }),
+    };
+    const module: TestingModule = await Test.createTestingModule({
+      providers: [
+        UsersService,
+        { provide: getRepositoryToken(User), useValue: repo },
+        { provide: S3Service, useValue: s3 },
+      ],
+    }).compile();
+
+    await module.get(UsersService).updateAvatar(USER_ID, makeFile('me.png'));
+
+    expect(update).toHaveBeenCalledTimes(1);
+    const [id, patch] = update.mock.calls[0] as [
+      string,
+      Record<string, unknown>,
+    ];
+    expect(id).toBe(USER_ID);
+    // 키 집합을 **정확히** 비교한다 — 하나라도 더 실리면 그 컬럼이 되돌려질 수 있다.
+    expect(Object.keys(patch)).toEqual(['avatarUrl']);
+    expect(repo.save).not.toHaveBeenCalled();
+  });
+});
+
+describe('UsersService.updateAvatar — 확장자 화이트리스트는 프로토타입 체인을 타지 않는다', () => {
+  /**
+   * 리뷰 2라운드 WARNING. `AVATAR_CONTENT_TYPES` 는 일반 객체 리터럴이라
+   * `o['constructor']` 같은 상속 이름이 truthy 다. `ext` 는 사용자가 보낸 **파일명**에서
+   * 나오므로 `avatar.constructor` 로 화이트리스트를 통과했다.
+   *
+   * ## 실제로 도달 가능한 것은 2개다 — 리뷰의 "7개" 를 좁힌다
+   *
+   * 리뷰는 원시 객체에서 7개 이름이 전부 truthy 임을 실측했다. 맞지만 **코드 경로의
+   * 성질은 아니다.** `ext` 는 조회 전에 `.toLowerCase()` 를 거치고, `Object.prototype` 의
+   * 이름들은 camelCase 라 소문자화하면 사라진다:
+   *
+   *   constructor → constructor  (히트)      toString → tostring  (미스)
+   *   __proto__   → __proto__    (히트)      valueOf  → valueof   (미스) … 나머지도 미스
+   *
+   * 그래서 **가드를 지웠을 때 실제로 뚫리는 것은 `constructor`·`__proto__` 둘뿐**이고,
+   * 뮤테이션도 26건 중 2건만 RED 였다(예측과 일치). 나머지 5개 케이스는 소문자화가 이미
+   * 막으므로 이 가드를 가르지 못한다 — 지우지 않고 두되 **왜 vacuous 인지**를 여기 적어,
+   * 다음 사람이 "7개를 막는다" 고 오독하지 않게 한다.
+   *
+   * 도달 가능한 표면이 2개라고 해서 가드가 불필요한 것은 아니다. 우회 하나면 충분하다.
+   */
+  it.each([
+    // ↓ 가드를 지우면 실제로 뚫리는 둘
+    'constructor',
+    '__proto__',
+    // ↓ 아래 다섯은 `.toLowerCase()` 가 이미 막는다 (이 가드를 가르지 못함)
+    'toString',
+    'valueOf',
+    'hasOwnProperty',
+    'isPrototypeOf',
+    'propertyIsEnumerable',
+  ])('확장자 %s 를 거부한다', async (ext) => {
+    const s3 = {
+      upload: jest.fn(),
+      getPublicUrl: jest.fn(),
+      delete: jest.fn(),
+    };
+    const module: TestingModule = await Test.createTestingModule({
+      providers: [
+        UsersService,
+        {
+          provide: getRepositoryToken(User),
+          useValue: { findOne: jest.fn(), update: jest.fn() },
+        },
+        { provide: S3Service, useValue: s3 },
+      ],
+    }).compile();
+
+    await expect(
+      module.get(UsersService).updateAvatar(USER_ID, makeFile(`a.${ext}`)),
+    ).rejects.toBeInstanceOf(BadRequestException);
+    expect(s3.upload).not.toHaveBeenCalled();
+  });
+});
+
+describe('UsersService.updateAvatar — 사용자 부재 응답이 형제 엔드포인트와 같다', () => {
+  /**
+   * 리뷰 2라운드 WARNING. `code` 만 싣고 `message` 를 빼면, 같은 `USER_NOT_FOUND` 를 쓰는
+   * 형제 엔드포인트(`getMe`·`updateMe`·`changePassword` — 전부 `'User not found'` 포함)와
+   * 응답 본문이 갈린다.
+   */
+  it('code 와 message 를 모두 싣는다', async () => {
+    const module: TestingModule = await Test.createTestingModule({
+      providers: [
+        UsersService,
+        {
+          provide: getRepositoryToken(User),
+          useValue: { findOne: jest.fn().mockResolvedValue(null) },
+        },
+        {
+          provide: S3Service,
+          useValue: {
+            upload: jest.fn(),
+            getPublicUrl: jest.fn(),
+            delete: jest.fn(),
+          },
+        },
+      ],
+    }).compile();
+
+    await expect(
+      module.get(UsersService).updateAvatar(USER_ID, makeFile('me.png')),
+    ).rejects.toMatchObject({
+      response: { code: 'USER_NOT_FOUND', message: 'User not found' },
+    });
+  });
+});
+
+describe('OAuth 연동 경로가 아바타 정리를 우회한다 — 캐너리', () => {
+  /**
+   * 리뷰 2라운드 WARNING. 이 PR 이 "`avatarUrl` 이 바뀌면 옛 S3 객체를 지운다" 는 불변식을
+   * `UsersService.update()` **한 곳에** 심었는데, `auth-oauth.service.ts` 의 `resolveUser()`
+   * 는 raw `QueryBuilder` 로 `avatarUrl` 을 직접 써 그 진입점을 지나가지 않는다.
+   *
+   * **오늘은 고아가 생기지 않는다.** 값 우선순위가 `byEmail.avatarUrl ?? profile.avatarUrl`
+   * 이라 이미 올린 아바타가 있으면 그 값이 이기고, 결국 아무것도 바뀌지 않기 때문이다.
+   * 우선순위가 뒤집히면(예: 공급자 사진을 우선) 업로드된 객체가 조용히 고아가 되고,
+   * 이 PR 의 회귀 테스트는 **어느 것도 그것을 잡지 못한다.**
+   *
+   * ## 왜 런타임 테스트가 아니라 소스 캐너리인가
+   *
+   * OAuth stub 모드는 `profile.avatarUrl` 을 **항상 `null`** 로 준다
+   * (`auth-oauth.service.ts` `isOAuthStubEnabled()` 분기). 그래서 우선순위를 뒤집어도
+   * `byEmail.avatarUrl ?? null` 과 `null ?? byEmail.avatarUrl` 이 같은 값을 내고,
+   * 런타임 단언은 **두 분기를 가르지 못한다**(vacuous). 실제로 가르려면 공급자 사진이
+   * 있는 fixture 가 필요한데 그건 stub 계약을 바꾸는 일이라 이 PR 범위 밖이다.
+   *
+   * 그래서 표현식 자체를 고정한다. 이 테스트가 깨지면 **우선순위를 바꾸는 사람이 위 문단을
+   * 읽게 되는 것**이 목적이다 — 그때 정리 경로를 함께 손봐야 한다.
+   */
+  it('resolveUser 는 기존 avatarUrl 을 공급자 사진보다 우선한다', () => {
+    const src = readFileSync(
+      join(__dirname, '../auth/auth-oauth.service.ts'),
+      'utf-8',
+    );
+    expect(src).toContain(
+      'avatarUrl: byEmail.avatarUrl ?? profile.avatarUrl ?? undefined,',
+    );
   });
 });

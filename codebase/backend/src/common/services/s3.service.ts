@@ -29,8 +29,14 @@ export class S3Service {
     }
 
     this.bucket = bucket;
-    // 미설정 시 `endpoint` 폴백은 `s3.config.ts` 가 한다 — 여기서 다시 폴백하면
-    // 폴백 규칙이 두 곳이 되어 갈라진다.
+    // 폴백 **규칙**(`S3_PUBLIC_BASE_URL` → `S3_ENDPOINT` → localhost)의 SoT 는
+    // `s3.config.ts` 다. 아래 `?? endpoint` 는 그 규칙의 사본이 아니라, 설정 모듈이
+    // 아예 로드되지 않은 조립(주로 부분 mock 을 쓰는 테스트)에서 `undefined` 가 URL 에
+    // 박히는 것을 막는 **2차 방어**다 — `s3Config` 가 로드된 경로에서는 좌변이 언제나
+    // 채워지므로 이 분기는 타지 않는다.
+    //
+    // 초판 주석은 여기 "폴백은 config 한 곳" 이라고 단언했는데 **바로 이 줄이 다시
+    // 폴백하고 있었다.** 주장을 코드에 맞춰 정정한다.
     this.publicBaseUrl =
       this.configService.get<string>('s3.publicBaseUrl') ?? endpoint;
     this.client = new S3Client({

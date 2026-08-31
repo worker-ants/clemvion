@@ -21,13 +21,29 @@
   **이미 지워진** 아바타를 가리키는 URL 이 남는다 — 고아 객체보다 나쁘다. 키 복원은 저장된
   URL 에서 base 를 걷어내는 대신 `avatars/{userId}/` 앵커로 잡는다(도메인이 바뀐 뒤의 옛 URL
   에서도 복원되고, 남의 키를 지울 수도 없다).
+- **`avatarUrl` 컬럼 하나만 UPDATE 한다.** 첫 판은 업로드 **앞에서** 읽은 엔티티 스냅샷을
+  `save()` 했는데, S3 업로드가 도는 수백 ms~수 초 사이 다른 요청이 바꾼 컬럼(로그인 실패
+  카운터·계정 잠금·2FA 등록)이 그 스냅샷의 옛 값으로 **조용히 되돌아간다**. 락을 거는 대신
+  **쓰는 컬럼을 줄여** 경쟁 자체를 없앴다.
+- **확장자 조회는 프로토타입 체인을 타지 않는다.** `ext` 는 사용자가 보낸 파일명에서 나오므로
+  `avatar.constructor` / `avatar.__proto__` 가 일반 객체 인덱싱에서 truthy 를 돌려줘
+  화이트리스트를 통과했다(소문자화 때문에 이 둘만 도달 가능). `hasOwnProperty` 로 막는다.
 
-**배포 선행 조건(코드 밖)**: `avatars/` 접두에 **익명 GET 을 허용하는 버킷 정책**이 필요하다.
+**배포 선행 조건**: `avatars/` 접두에 **익명 `GetObject` 만 허용하고 목록 조회는 허용하지
+않는** 버킷 정책이 필요하다. 로컬·e2e 는 `createbuckets` 가
+`scripts/minio/avatars-public-read.json` 을 `mc anonymous set-json` 으로 적용한다.
+
+**`mc anonymous set download` 는 실측으로 기각했다.** 이름과 달리 접두에 걸면
+`s3:ListBucket` 을 함께 열어, 익명 요청이 `?list-type=2&prefix=avatars` 로 **UUID 를 포함한
+전체 키를 열거**할 수 있었다. 그러면 공개 버킷에서 아바타를 지키는 유일한 수단인 키의 추측
+불가능성이 무의미해진다. 명시 정책으로 바꾼 뒤 목록 **403** · GET **200** 을 확인했다.
+기각 근거와 재현 명령: `scripts/minio/README.md`. 운영 버킷에도 같은 조건이 필요하다 —
+콘솔·CLI 의 "public read" 프리셋은 대개 목록 조회를 함께 연다.
 정책이 닫혀 있으면 업로드는 성공하고 **이미지만 403** 이 된다 — 증상이 업로드가 아니라 표시에서
 난다. 신규 `S3_PUBLIC_BASE_URL` 도 함께 필요하다(`S3_ENDPOINT` 는 백엔드가 SDK 로 쓰는 **내부**
 주소라 브라우저가 도달하지 못한다). `.env.example` 에 둘 다 경고와 함께 등재했다.
 
-부수로 `users.controller.ts` 의 `import Express from 'express'` 를 `ExpressModule` 로 개명했다 —
+부수로 `users.controller.ts` 의 `import Express from 'express'` 를 `ExpressNS` 로 개명했다 —
 그 이름이 **전역 `Express` 네임스페이스를 가려서** `@types/multer` 가 augment 한
 `Express.Multer.File` 을 쓸 수 없었다(실측: `Namespace 'e' has no exported member 'Multer'`).
 잠재 위험이었고 이 변경이 처음 밟았다.

@@ -61,7 +61,10 @@ owner: planner
       `import Express from 'express'` 로 **전역 `Express` 를 가리고 있었다.**
       `@types/multer` 가 `Express.Multer.File` 을 그 전역에 augment 하므로 업로드 파라미터의
       타입을 쓸 수 없었다(실측: `Namespace 'e' has no exported member 'Multer'`). 잠재 위험을
-      이 변경이 처음 밟아서 `ExpressModule` 로 개명했다(사용처 4곳 동반).
+      이 변경이 처음 밟아서 `ExpressNS` 로 개명했다(사용처 4곳 동반). 초판은
+      `ExpressModule` 이었으나 NestJS `@Module()` 클래스와 표기가 겹쳐 오독 소지가 있다는
+      리뷰 지적으로 바꿨다 — 다른 4개 컨트롤러의 `import Express` 는 `Express.Multer` 를
+      쓰지 않아 shadowing 이 문제되지 않으므로 **건드리지 않았다**.
 
       **spec 배지 flip 은 planner 트랙으로 분리** — `9-user-profile.md:334` 의
       ~~`POST /api/users/me/avatar`~~ "미구현 (Planned)" 취소선과 §5.1 구현 상태 문단이
@@ -69,6 +72,36 @@ owner: planner
       해당하지 않는다 — 내가 쓴 예고 문장이 아니다). 선례: `spec-sync-websocket-protocol-gaps.md`
       의 `notification.new` 배지 flip 위임.
       → [`spec-update-avatar-upload-implemented.md`](./spec-update-avatar-upload-implemented.md)
+
+      **리뷰 2라운드에서 유예한 두 건** (`review/code/2026/08/31/22_44_14`):
+
+      - [ ] **동시 업로드 TOCTOU — 고아 객체** (리뷰 W5). `updateAvatar`·`update` 모두
+            정리 대상 키를 **비원자적 사전 SELECT** 로 잡는다. 같은 사용자가 더블클릭이나
+            다중 탭으로 동시에 업로드하면 "패자" 요청이 올린 객체를 어느 정리 로직도
+            대상으로 잡지 못해 **영구 고아**가 된다.
+
+            지금 안 고치는 이유: 데이터 정합성은 깨지지 않는다(사용자가 보는 아바타는 승자
+            하나로 수렴한다). 남는 것은 과금·용량뿐이고, 막으려면 per-user advisory lock 이
+            필요한데 그건 아바타 하나 때문에 치르기엔 큰 값이다. **주기적 orphan-sweep** 이
+            더 맞는 도구인데 그건 이 PR 범위가 아니다.
+
+            재개 신호: `avatars/` 접두의 객체 수가 사용자 수를 유의미하게 웃돌 때.
+            (근거가 프록시가 아니라 **직접 측정 가능한 양**이 되도록 이렇게 적는다.)
+
+      - [ ] **`POST /api/users/me/avatar` e2e 부재** (리뷰 W9). 자매 엔드포인트
+            (`change-password`·`email-change`)는 둘 다 e2e-spec 을 갖는다. unit mock 은
+            `S3Service` 를 통째로 대체하므로 **실제 MinIO 왕복·413·공개 URL GET 200** 을
+            증명하지 못한다 — 특히 공개 URL 200 은 이 기능의 핵심 계약인데 코드가 아니라
+            **버킷 정책**이 정하므로 unit 으로는 원리적으로 닿지 않는다.
+
+            **선행 조건은 이 PR 에서 해소했다**: `docker-compose.yml`·`docker-compose.e2e.yml`
+            의 `createbuckets` 가 `scripts/minio/avatars-public-read.json` 을
+            `mc anonymous set-json` 으로 적용한다. 그전에는 문서가 요구하는 정책이 로컬
+            인프라에 **아예 없어서**, 문서를 그대로 따라도 문서가 경고한 403 을 겪었다.
+
+            **리뷰가 제안한 `mc anonymous set download` 는 실측으로 기각했다** — 이름과
+            달리 접두에 걸면 `s3:ListBucket` 을 함께 열어 익명 요청이 UUID 를 포함한 전체
+            키를 열거할 수 있다. 근거·재현: [`scripts/minio/README.md`](../../scripts/minio/README.md).
 - [x] 알림 설정 조회/수정 (§6.2 `GET/PATCH /api/notifications/settings`) — **완료 (2026-07-08)**. **재검증: store 는 이미 존재**(`user.notification_preferences` JSONB V010, `integrationExpiryEmail`) — 신규 entity 아님. 구현: 엔드포인트 신설(GET get-or-default·PATCH 부분머지) + prefs shape 확장(`executionFailedEmail`/`scheduleFailedEmail`) + DTO + **caller-side opt-out enforcement**(execution/schedule 실패 dispatch 가 `resolveOptOutEmailChannels` 로 채널 계산 — "channel 계산=호출자 책임" 불변식 보존). 응답=기본값 해소값(FE 오독 방지). spec §6.2 flip·§5.1 캡션/각주·§5.3 갱신. unit(notifications+schedule+execution dispatch)·lint·build.
   - **impl-prep 반영**: enforcement 중앙화(notify 내부)는 8-notifications "호출자 책임" 불변식 위반(CRITICAL) → caller-side 유지. `marketplace_update`(§5.1 인앱 only·opt-in·미발사)·`integration_expired`(기존 opt-in) 는 opt-out 집합 제외.
   - [ ] **(후속) in_app 채널 뮤팅** (§5.1 "채널별" — 인앱 알림 항상 표시, 뮤팅 미구현).

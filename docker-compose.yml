@@ -55,6 +55,16 @@ services:
     # 비밀번호의 셸 메타문자(>, <, &, ; 등)가 entrypoint 평문 치환 후 /bin/sh 에
     # 의해 재파싱되는 것을 막기 위해 환경변수로 주입한 뒤 컨테이너 셸에서
     # 큰따옴표로 감싸 참조한다. compose 의 변수 보간 우회를 위해 $$ 로 이스케이프.
+    #
+    # 아바타 공개 읽기 정책은 아바타 업로드(§6.1)의 **배포 선행 조건**이다. 없으면 업로드는
+    # 성공하고 **이미지만 403** 이 된다 — 증상이 업로드가 아니라 표시에서 난다.
+    #
+    # 정책을 파일로 두고 `set-json` 으로 적용한다. `mc anonymous set download` 는 이름과
+    # 달리 접두에 걸면 **`s3:ListBucket` 을 함께 연다**(실측). 목록이 열리면 공개 버킷에서
+    # 아바타를 지키는 유일한 수단인 키 UUID 의 추측 불가능성이 무의미해진다.
+    # 기각 근거와 실측 명령: `scripts/minio/README.md`
+    volumes:
+      - ./scripts/minio/avatars-public-read.json:/policy/avatars-public-read.json:ro
     environment:
       MC_USER: ${MINIO_ROOT_USER}
       MC_PASS: ${MINIO_ROOT_PASSWORD}
@@ -62,6 +72,7 @@ services:
       /bin/sh -c "
       mc alias set local http://minio:9000 \"$$MC_USER\" \"$$MC_PASS\";
       mc mb local/workflow-storage --ignore-existing;
+      mc anonymous set-json /policy/avatars-public-read.json local/workflow-storage;
       exit 0;
       "
 

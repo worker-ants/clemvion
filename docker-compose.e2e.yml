@@ -82,6 +82,10 @@ services:
       minio:
         condition: service_healthy
     # 비밀번호의 셸 메타문자 우회를 위해 환경변수 주입 + $$ 이스케이프 (dev compose 와 동일 패턴).
+    # 아바타 공개 읽기 정책 — dev compose 와 동일. `set download` 가 ListBucket 을 함께
+    # 여는 문제와 기각 근거는 `scripts/minio/README.md`.
+    volumes:
+      - ./scripts/minio/avatars-public-read.json:/policy/avatars-public-read.json:ro
     environment:
       MC_USER: clemvion
       MC_PASS: clemvion-e2e
@@ -89,6 +93,7 @@ services:
       /bin/sh -c "
       mc alias set local http://minio:9000 \"$$MC_USER\" \"$$MC_PASS\";
       mc mb local/workflow-storage --ignore-existing;
+      mc anonymous set-json /policy/avatars-public-read.json local/workflow-storage;
       exit 0;
       "
 
