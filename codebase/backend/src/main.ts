@@ -49,6 +49,7 @@ import {
   isSwaggerEnabled,
 } from './common/config/production-guards';
 import { assertWorkspaceIdReflectionWorks } from './common/decorators/workspace-reflection-canary';
+import { isPrivateHost } from './common/utils/ssrf.util';
 
 /**
  * Swagger UI(`/docs`) 문서를 앱에 마운트한다 (04 M-1). 호출 자체가 게이팅 대상 —
@@ -146,6 +147,28 @@ async function bootstrap() {
         '대상 outbound 가 허용됩니다. self-host 의도가 아니면 SSRF 위험이니 비활성화하고, ' +
         '의도적이라면 egress 방화벽/IP allowlist 를 반드시 병행하세요.',
     );
+  }
+
+  // 아바타 공개 URL 의 base 가 production 에서 loopback 을 가리키면, 업로드는 200 으로
+  // **성공하고** 브라우저에서 이미지만 깨진다 — 증상이 원인에서 멀어 배포 뒤 한참 뒤에
+  // 발견된다. 실제로 이 변수를 도입하면서 k8s prod/staging overlay 에 patch 를 빠뜨려
+  // base 의 localhost 기본값이 실릴 뻔했다(리뷰 3라운드).
+  //
+  // `throw` 가 아니라 `warn` 인 이유는 위 ALLOW_PRIVATE_HOST_TARGETS 와 같다 — 단일 호스트
+  // self-host 배포는 사설 주소가 정답일 수 있다. 판정은 운영자에게 남기고 가시화만 한다.
+  if (process.env.NODE_ENV === 'production') {
+    const publicBase =
+      process.env.S3_PUBLIC_BASE_URL || process.env.S3_ENDPOINT || '';
+    // 판정은 손으로 짜지 않고 정본 `isPrivateHost` 를 쓴다 — loopback 뿐 아니라 RFC1918·
+    // link-local·ULA·IPv4-mapped IPv6 까지 이미 다룬다. DNS 이름(`minio` 등)은 동기로
+    // 판정할 수 없어 false 를 돌려주는데, 그건 이 경고의 한계이지 결함이 아니다.
+    if (publicBase && isPrivateHost(publicBase)) {
+      logger.warn(
+        `[CONFIG] S3_PUBLIC_BASE_URL 이 사설/loopback 주소입니다 (${publicBase}) — ` +
+          '아바타 업로드는 성공하지만 브라우저가 이미지를 가져오지 못합니다. ' +
+          '공개 도메인/CDN 주소로 설정하세요. 단일 호스트·사내망 self-host 라면 무시해도 됩니다.',
+      );
+    }
   }
 
   // 본문 파서를 직접 제어한다 (`bodyParser: false`). 이유: 라우트별 크기 한도 분리 —

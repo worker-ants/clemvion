@@ -38,7 +38,10 @@ owner: planner
       - **키의 UUID 는 장식이 아니라 접근 통제다** — 공개 버킷에서 키가 곧 권한이라,
         `avatars/{userId}` 만이면 멤버 목록을 아는 사람이 아바타를 열거할 수 있다.
 
-      **회귀 테스트 13건 · 뮤테이션 6축 (예측 / 실측 — 전부 RED)**:
+      **회귀 테스트 — 착수 시 13건(3축), 리뷰 3라운드 대응까지 마친 시점 실측 30건.**
+      아래 표는 착수 시점의 6축이고, 리뷰 대응으로 추가된 축은 각 RESOLUTION 에 있다.
+
+      **뮤테이션 6축 (예측 / 실측 — 전부 RED)**:
 
       | 뮤턴트 | 실측 |
       |---|---|
@@ -102,6 +105,37 @@ owner: planner
             **리뷰가 제안한 `mc anonymous set download` 는 실측으로 기각했다** — 이름과
             달리 접두에 걸면 `s3:ListBucket` 을 함께 열어 익명 요청이 UUID 를 포함한 전체
             키를 열거할 수 있다. 근거·재현: [`scripts/minio/README.md`](../../scripts/minio/README.md).
+
+      **리뷰 3라운드의 구조 제안 처분** (`review/code/2026/08/31/23_19_39`):
+
+      - [ ] **아바타 정리 불변식을 쓰기 경로 한 곳으로 모은다** (리뷰 W8·W9). 지금은
+            "`avatarUrl` 이 바뀌면 옛 객체를 지운다" 가 `UsersService.update()`(범용, 호출부
+            17곳)와 `updateAvatar()` 두 곳에 있고, OAuth `resolveUser()` 는 raw QueryBuilder
+            로 아예 우회한다(캐너리로 감지 중). 리포지토리 계층 subscriber 나 도메인 이벤트로
+            올리면 모든 쓰기가 같은 지점을 지난다.
+
+            함께 볼 것: `UsersService` 가 프로필 CRUD·비밀번호·로그인 카운터에 더해 S3
+            오케스트레이션까지 지고 있어, 무관한 `users.service.spec.ts` 까지 `S3Service`
+            mock 을 지게 됐다 → `UserAvatarService` 분리.
+
+            재개 신호: 아바타 외에 S3 를 쓰는 사용자-스코프 리소스가 하나 더 생길 때.
+            지금 나누면 소비자가 하나뿐인 추상이 된다.
+
+      **기각 — `avatarUrl` 에 URL 대신 S3 key 를 저장하자** (리뷰 W7). 제안대로는 성립하지
+      않는다. 그 컬럼은 **우리가 올린 객체의 URL 만 담는 것이 아니다**:
+
+      - `update-me.dto.ts` 가 `@IsUrl({ require_tld: false })` 로 검증한다 — 계약이 URL 이다.
+      - `auth-oauth.service.ts` 가 OAuth 제공자의 사진 URL(`profile.avatarUrl`)을 그대로 넣는다.
+
+      즉 외부 URL 과 자체 업로드가 **같은 컬럼을 공유**하므로 key 로 바꾸려면 판별 컬럼이나
+      별도 컬럼이 필요하고, 그건 이 항목의 범위를 넘는 데이터 모델 변경이다. URL→key 역산이
+      남는 것은 그 공유의 대가다. 역산 로직을 `S3Service` 로 옮겨 build/parse 를 대칭으로
+      두자는 부분(W7 후반·W19)은 위 W8·W9 항목과 함께 볼 일이다.
+
+      **조치하지 않음**: 검증 로직 private 헬퍼 분리(W5)·spec 보일러플레이트 팩토리 통합(W6)
+      — 지금 크기에서 읽기가 나빠지지 않는다. 정리를 fire-and-forget 으로(W10) — 응답 지연을
+      줄이지만 "저장 뒤 정리" 순서 보장을 테스트로 관측할 수 없게 만든다. 그 순서는 이 기능의
+      실제 결함(저장 실패 시 이미 지워진 URL 이 남는 것)을 막는 축이라 지연보다 우선한다.
 - [x] 알림 설정 조회/수정 (§6.2 `GET/PATCH /api/notifications/settings`) — **완료 (2026-07-08)**. **재검증: store 는 이미 존재**(`user.notification_preferences` JSONB V010, `integrationExpiryEmail`) — 신규 entity 아님. 구현: 엔드포인트 신설(GET get-or-default·PATCH 부분머지) + prefs shape 확장(`executionFailedEmail`/`scheduleFailedEmail`) + DTO + **caller-side opt-out enforcement**(execution/schedule 실패 dispatch 가 `resolveOptOutEmailChannels` 로 채널 계산 — "channel 계산=호출자 책임" 불변식 보존). 응답=기본값 해소값(FE 오독 방지). spec §6.2 flip·§5.1 캡션/각주·§5.3 갱신. unit(notifications+schedule+execution dispatch)·lint·build.
   - **impl-prep 반영**: enforcement 중앙화(notify 내부)는 8-notifications "호출자 책임" 불변식 위반(CRITICAL) → caller-side 유지. `marketplace_update`(§5.1 인앱 only·opt-in·미발사)·`integration_expired`(기존 opt-in) 는 opt-out 집합 제외.
   - [ ] **(후속) in_app 채널 뮤팅** (§5.1 "채널별" — 인앱 알림 항상 표시, 뮤팅 미구현).

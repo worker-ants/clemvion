@@ -86,4 +86,5 @@ Critical 인가 참조.
 - 구현: `plan/in-progress/spec-sync-user-profile-gaps.md` §6.1 항목 (완료 기록·뮤테이션 실측)
 - 코드: `users.controller.ts` `uploadAvatar` · `users.service.ts` `updateAvatar` ·
   `common/services/s3.service.ts` `getPublicUrl`
-- 회귀: `codebase/backend/src/modules/users/users-avatar.service.spec.ts` (13건, 3축)
+- 회귀: `codebase/backend/src/modules/users/users-avatar.service.spec.ts` — **30건**
+  (§6.1 핵심 3축 13건 + 리뷰 1~3라운드 대응 17건). 실측: `jest --silent <file>`

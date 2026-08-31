@@ -147,6 +147,20 @@ describe('UsersService.updateAvatar (§6.1 — 공개 URL 서빙)', () => {
       expect(s3.delete).toHaveBeenCalledWith(`avatars/${USER_ID}/old.webp`);
     });
 
+    it.each([
+      ['?v=2', '쿼리스트링'],
+      ['#frag', '프래그먼트'],
+      ['?v=2#frag', '둘 다'],
+    ])('옛 URL 에 %s 가 붙어 있어도 순수 키로 지운다 (%s)', async (suffix) => {
+      // 사용자가 `PATCH /users/me` 로 쿼리·프래그먼트가 붙은 URL 을 넣을 수 있다.
+      // 그대로 키로 쓰면 S3 에 그런 오브젝트가 없어 삭제가 조용히 실패하고 고아가 남는다.
+      // 리뷰 3라운드 실측: 이 분기를 지워도 기존 테스트 27건이 전부 GREEN 이었다.
+      const old = `https://cdn.example/bucket/avatars/${USER_ID}/old.png${suffix}`;
+      await setup(buildUser(old));
+      await service.updateAvatar(USER_ID, makeFile('new.png'));
+      expect(s3.delete).toHaveBeenCalledWith(`avatars/${USER_ID}/old.png`);
+    });
+
     it('남의 아바타 키는 지우지 않는다', async () => {
       const other =
         'https://cdn.example/bucket/avatars/99999999-0000-0000-0000-000000000000/x.png';

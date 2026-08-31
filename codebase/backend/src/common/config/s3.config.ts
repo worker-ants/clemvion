@@ -15,6 +15,10 @@ export const s3Config = registerAs('s3', () => ({
    * 그건 단일 호스트 개발 환경에서만 맞는 가정이다.
    *
    * SoT: `spec/2-navigation/9-user-profile.md` §6.1 아바타 업로드.
+   *
+   * **주의**: 그 §6.1 은 이 글을 쓰는 시점에 아직 "미구현 (Planned)" 로 남아 있다 —
+   * spec 쓰기가 planner 트랙이라 배지 flip 을 분리했다
+   * (`plan/in-progress/spec-update-avatar-upload-implemented.md`). 구현은 이미 있다.
    */
   publicBaseUrl:
     process.env.S3_PUBLIC_BASE_URL ||

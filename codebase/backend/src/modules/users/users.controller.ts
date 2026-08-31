@@ -121,7 +121,10 @@ export class UsersController {
   @ApiOperation({
     summary: '현재 사용자 프로필 수정',
     description:
-      '이름, 언어(locale), 테마, 아바타 URL 중 전달된 필드만 부분 갱신합니다. 비밀번호 변경은 별도 엔드포인트(`POST /users/me/change-password`)를 이용하세요.',
+      '이름, 언어(locale), 테마, 아바타 URL 중 전달된 필드만 부분 갱신합니다. ' +
+      '`avatarUrl` 을 **다른 값으로** 바꾸면 직전에 업로드된 아바타 객체가 스토리지에서 ' +
+      '함께 정리됩니다(best-effort — 실패해도 이 요청은 성공합니다). 비밀번호 변경은 ' +
+      '별도 엔드포인트(`POST /users/me/change-password`)를 이용하세요.',
   })
   @ApiOkWrappedResponse(UserProfileDto, { description: '수정된 프로필' })
   @ApiBadRequestResponse({ description: '입력값 검증 실패' })

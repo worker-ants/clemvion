@@ -143,6 +143,19 @@ describe('S3Service.getPublicUrl', () => {
     expect(url).not.toContain('%2F');
   });
 
+  it('s3.publicBaseUrl 이 없으면 endpoint 로 떨어진다 (생성자의 2차 방어)', () => {
+    // 생성자 주석이 "설정 모듈이 로드되지 않은 조립에서 `undefined` 가 URL 에 박히는 것을
+    // 막는다" 고 주장한다. 리뷰 3라운드 실측으로 **그 주장을 검증하는 테스트가 없었다**
+    // (해당 분기를 지워도 81건 전부 GREEN). 주장을 코드에 묶는다.
+    const s = createService({
+      's3.endpoint': 'http://fallback:9000',
+      's3.publicBaseUrl': undefined as unknown as string,
+    });
+    const url = s.getPublicUrl('avatars/u1/a.png');
+    expect(url).toBe('http://fallback:9000/test-bucket/avatars/u1/a.png');
+    expect(url).not.toContain('undefined');
+  });
+
   it('publicBaseUrl 이 endpoint 와 달라도 그 값을 쓴다 (내부 주소를 새지 않는다)', () => {
     const s = createService({
       's3.endpoint': 'http://minio:9000',
