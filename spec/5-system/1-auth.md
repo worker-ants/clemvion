@@ -49,7 +49,7 @@ pending_plans:
 | 비밀번호 저장 | bcrypt (cost factor ≥ 12). `user.password_hash` 는 nullable — OAuth 단독 가입 사용자는 NULL |
 | 로그인 | 이메일 + 비밀번호 → JWT 발급 |
 | 비밀번호 분실 | 이메일로 재설정 링크 발송 (유효기간 30분). 모든 이메일 보유 사용자에게 발급 (§1.1.A 참고) |
-| 로그인 실패 | 5회 실패 시 10분 잠금, 이메일 알림 |
+| 로그인 실패 | 5회 실패 시 10분 잠금 (알림 없음 — 아래 Rationale) |
 | 토큰 at-rest 저장 | 이메일 인증 토큰(`emailVerifyToken`)·비밀번호 재설정 토큰(`passwordResetToken`)·이메일 변경 토큰(`emailChangeToken`, §1.1.B)은 **SHA-256 해시**로만 저장한다 (raw 토큰은 메일 링크로만 전달, DB 미저장). 검증 시 입력 토큰을 동일 해시로 변환해 비교 |
 | 인증 메일 재발송 | `POST /api/auth/resend-verification` — throttle 5/min, 이메일 enumeration-safe 응답 (존재 여부 무관 동일 응답). 발급되는 인증 토큰은 24h 유효 (§5 동일) |
 
@@ -523,6 +523,26 @@ counter 역행이 감지되면 `verifyAuthenticationResponse` 가 reject 한다.
 ---
 
 ## Rationale
+
+### 계정 잠금에 이메일 알림은 없다 — 표 문구 정정 (2026-08-31)
+
+§1.1 표가 *"5회 실패 시 10분 잠금, **이메일 알림**"* 이라 적고 있었으나 **구현에 그런 알림이
+없다.** 되살릴 요구사항이 아니라 **표 문구가 틀린 것**이라 판단한 근거를 실측으로 남긴다:
+
+| 무엇 | 결과 |
+| --- | --- |
+| `data-flow/2-auth.md` §3.2 | 잠금 동작(5회 → `locked_until = now + 10m`, `ACCOUNT_LOCKED`)을 상세히 서술하면서 **알림 언급 없음** |
+| `users.service.ts` 잠금 설정부 | 그 파일은 `MailService` 를 **주입받지 않는다** |
+| `MailService` 발송 메서드 **6종 전수** | verification · workspaceInvitation · passwordReset · emailChangeVerification · emailChangedNotice · notification — **잠금 알림 없음** |
+| backend 전체 "잠금 ↔ 메일" 연결 | **0건** |
+
+세 SoT(구현 · data-flow · 에러 코드 흐름) 중 **이 표 하나만** 달랐다. 사용자 통지는 이미
+`login_history` 기록 + `ACCOUNT_LOCKED` 에러 코드로 설계돼 있다.
+
+**알림을 추가하는 것은 별개 제품 결정**이다 — 이 정정은 문서를 구현에 맞출 뿐, 기능을
+없애거나 보류하지 않는다. 원한다면 별건 티켓으로 다룬다.
+
+> 출처: `#1245` 의 `--impl-done`(`21_59_41`) cross_spec 이 찾은 기존 불일치.
 
 ### §3.2 "멤버 관리" 행의 Admin 열 정정 (CRU → CRUD, 2026-07-28)
 
