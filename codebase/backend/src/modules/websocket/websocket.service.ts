@@ -564,7 +564,7 @@ export class WebsocketService {
 
   /**
    * 사용자 알림 실시간 push — `notifications:<userId>` 채널에 `notification.new` emit.
-   * spec/data-flow/8-notifications.md §1·§2.2 + spec/5-system/6-websocket-protocol.md §4.4.
+   * spec/data-flow/8-notifications.md §1·§2.2 + spec/5-system/6-websocket-protocol.md §4.5.
    *
    * 채널 authorizer(`NotificationsChannelAuthorizer`, JWT `sub` == userId)가 이미
    * fail-closed 로 배치돼 있어 다른 사용자 채널로 새지 않는다 (WS spec §3.3 Rationale).
@@ -580,9 +580,9 @@ export class WebsocketService {
     if (!userId) return;
     const channel = `notifications:${userId}`;
     try {
-      // payload shape 은 WS spec §4.4 의 { id, type, title, message, resourceType,
+      // payload shape 은 WS spec §4.5 의 { id, type, title, message, resourceType,
       // resourceId } 정확히 그대로 — 다른 이벤트의 timestamp/seq 는 여기선 붙이지
-      // 않는다 (§4.4 가 권위 shape 이고 wire 계약을 spec 밖으로 확장하지 않는다).
+      // 않는다 (§4.5 가 권위 shape 이고 wire 계약을 spec 밖으로 확장하지 않는다).
       this.gateway.broadcastToChannel(
         channel,
         InAppNotificationEventType.NOTIFICATION_NEW,

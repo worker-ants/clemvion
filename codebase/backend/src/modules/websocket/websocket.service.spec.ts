@@ -1265,7 +1265,7 @@ describe('WebsocketService', () => {
   });
 
   describe('emitNotificationEvent', () => {
-    it('`notifications:<userId>` 채널에 notification.new 를 spec §4.4 shape 으로 emit', () => {
+    it('`notifications:<userId>` 채널에 notification.new 를 spec §4.5 shape 으로 emit', () => {
       service.emitNotificationEvent('user-42', {
         id: 'notif-1',
         type: 'execution_failed',
@@ -1280,7 +1280,7 @@ describe('WebsocketService', () => {
         gateway.broadcastToChannel.mock.calls[0];
       expect(channel).toBe('notifications:user-42');
       expect(event).toBe('notification.new');
-      // WS spec §4.4 정확 shape — timestamp/seq 등 확장 필드 없음.
+      // WS spec §4.5 정확 shape — timestamp/seq 등 확장 필드 없음.
       expect(payload).toEqual({
         id: 'notif-1',
         type: 'execution_failed',

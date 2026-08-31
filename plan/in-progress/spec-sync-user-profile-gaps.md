@@ -19,6 +19,25 @@ owner: planner
 - [x] 알림 설정 조회/수정 (§6.2 `GET/PATCH /api/notifications/settings`) — **완료 (2026-07-08)**. **재검증: store 는 이미 존재**(`user.notification_preferences` JSONB V010, `integrationExpiryEmail`) — 신규 entity 아님. 구현: 엔드포인트 신설(GET get-or-default·PATCH 부분머지) + prefs shape 확장(`executionFailedEmail`/`scheduleFailedEmail`) + DTO + **caller-side opt-out enforcement**(execution/schedule 실패 dispatch 가 `resolveOptOutEmailChannels` 로 채널 계산 — "channel 계산=호출자 책임" 불변식 보존). 응답=기본값 해소값(FE 오독 방지). spec §6.2 flip·§5.1 캡션/각주·§5.3 갱신. unit(notifications+schedule+execution dispatch)·lint·build.
   - **impl-prep 반영**: enforcement 중앙화(notify 내부)는 8-notifications "호출자 책임" 불변식 위반(CRITICAL) → caller-side 유지. `marketplace_update`(§5.1 인앱 only·opt-in·미발사)·`integration_expired`(기존 opt-in) 는 opt-out 집합 제외.
   - [ ] **(후속) in_app 채널 뮤팅** (§5.1 "채널별" — 인앱 알림 항상 표시, 뮤팅 미구현).
+
+        > **⚠ 구현이 아니라 결정이 먼저다 (2026-08-31 실측 등재).** 착수하려고 §5.1 과 코드를
+        > 열었더니 **뮤팅의 계약이 어디에도 정의돼 있지 않다**:
+        >
+        > - §5.1 표의 "사용자 변경 가능" 열은 **이메일 토글만** 정의한다
+        >   (`executionFailedEmail`·`scheduleFailedEmail`·`integrationExpiryEmail`).
+        >   in_app 쪽 필드명은 **spec 에도 코드에도 0건**이다.
+        > - **어떤 유형이 뮤팅 대상인가**가 표와 충돌한다 — `팀 초대` 행은 변경 가능이
+        >   **"X (항상 발송)"** 이고, `마켓플레이스 업데이트` 는 인앱 only 인데 미발사다.
+        > - **"뮤팅" 의 의미가 미정**: 알림 row 를 *만들지 않는가* 아니면 *만들되 벨에서
+        >   숨기는가*. 후자면 `hasRecentByResource` 24h 중복 방지(§4-integration)와 벨
+        >   카운트가 함께 걸린다.
+        > - 코드 쪽 계산은 `notifications.service.ts:422` 의
+        >   `prefs?.[prefKey] === false ? 'in_app' : 'both'` 2갈래뿐이라, 뮤팅을 넣으려면
+        >   **세 번째 상태**(email-only / none)가 필요하다 — 채널 enum 소비처 전수 영향.
+        >
+        > 넷 다 제품 semantics 라 developer 단독으로 정할 수 없다. planner 턴이 §5.1 에
+        > (a) 뮤팅 가능 유형 (b) 필드명 (c) 뮤팅의 의미(미생성 vs 숨김) 를 적어 주면
+        > 구현 자체는 작다.
   - [x] **(후속, planner) 4-integration §11.2/§11.3 필드명 동기화** — 옛 `notifyIntegrationExpiryByEmail`→`integrationExpiryEmail` (코드/9-user-profile 는 이미 `integrationExpiryEmail`; 기본값 서술은 이미 정합) + §11.3 stale 클래스명 `NotificationDispatcher` 정정. **완료 (2026-07-17)**: §11.2 채널 서술·§11.3 토글 필드명을 `notification_preferences.integrationExpiryEmail` 로 정정(SoT 링크 병기) + 정정 근거 note 신설. `9-user-profile.md §5.1` 각주의 "planner 후속" 추적 표기도 해소로 갱신.
     **⚠ 클래스명 건은 plan 서술이 부정확했다**: `NotificationDispatcher` 는 "stale(존재하지 않는) 클래스명" 이 아니라 **실존하는 다른 계층의 클래스**다 — `modules/external-interaction/notification-dispatcher.service.ts:22` 의 EIA **webhook 큐**(`NOTIFICATION_WEBHOOK_QUEUE`) enqueuer. 이메일 발송은 `modules/notifications/notifications.service.ts` 의 `dispatchEmails`(`MailService` 주입)가 담당한다. 즉 spec 의 오류는 "죽은 이름 인용" 이 아니라 **이름이 비슷한 별개 컴포넌트 오지목** 이었고, 정정문에 그 구분을 명시했다.
 - [ ] 이메일 일일 요약 토글 (§5.3) — 저장소는 존재하나 **집계·발송 job + 전용 토글** 미구현(별도 PR).

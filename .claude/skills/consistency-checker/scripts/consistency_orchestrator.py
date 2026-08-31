@@ -476,6 +476,98 @@ def _head_basis_notice(root, diff_base):
     )
 
 
+#: `_scope_delta_census` 가 나열하는 scope-hit 경로의 상한. 넘으면 "… 외 N건" 으로 접는다.
+#: head 구역은 절단 대상이 아니므로(그게 census 의 존재 이유다) 여기서 스스로 유계화해야
+#: 한다 — 대형 scope(`spec/5-system/` 등)에서 수백 줄이 본문 예산을 잠식하는 것을 막는다.
+_SCOPE_HITS_DISPLAY_LIMIT = 20
+
+
+def _count_diff_files(diff_text):
+    """Number of files in a unified diff — `diff --git` headers, not `+++` lines.
+
+    `+++` would double-count nothing but miscount renames and `/dev/null`
+    entries; the `diff --git` header is emitted exactly once per file.
+    """
+    if not diff_text:
+        return 0
+    return diff_text.count("\ndiff --git ") + (
+        1 if diff_text.startswith("diff --git ") else 0
+    )
+
+
+def _scope_delta_census(root, target_path_rel, changed_rels, diff_text):
+    """``--impl-done`` head census: what delta EXISTS, measured before budgeting.
+
+    Root cause this guards against (`harness-consistency-summary-downgrade-rule.md`,
+    re-observed 2026-08-06 across three sessions): the implementation diff is a
+    named chunk in the BODY, so `truncate_file_bundle` can drop its content while
+    the label survives. Measured then: 15 prompts (5 checkers x 3 sessions) with
+    ` ```diff ` fences = 0 and the 28 changed files appearing 0 times — five
+    checkers judged "spec vs implementation" having seen no implementation, and
+    one misdiagnosed the surviving label as an unsubstituted placeholder.
+
+    A census in the body would be dropped by the same cut. This block is
+    concatenated into the HEAD section, which `truncate_file_bundle` never
+    treats as a drop candidate, so the checker can always tell **"the diff was
+    cut"** apart from **"there is no diff"** — two states that look identical
+    from inside a truncated prompt and lead to opposite conclusions.
+
+    It also states the scope-side delta. A branch that legitimately changes code
+    only (spec delta 0 under `scope`) has been read as *"the review premise is
+    void"* and reported CRITICAL — see the sibling entry in
+    `update-returning-tuple-shape.md`, where the same input produced YES/NO in
+    four rounds. Naming the number, with its meaning, removes the inference.
+    """
+    scope_rel = target_path_rel.rstrip("/")
+    prefix = scope_rel + "/"
+    scope_hits = sorted(
+        r for r in changed_rels if r == scope_rel or r.startswith(prefix)
+    )
+    diff_files = _count_diff_files(diff_text)
+    diff_lines = diff_text.count("\n") if diff_text.strip() else 0
+
+    if scope_hits:
+        shown = "".join(
+            f"    - `{r}`\n" for r in scope_hits[:_SCOPE_HITS_DISPLAY_LIMIT]
+        )
+        more = (
+            f"    - … 외 {len(scope_hits) - _SCOPE_HITS_DISPLAY_LIMIT}건\n"
+            if len(scope_hits) > _SCOPE_HITS_DISPLAY_LIMIT
+            else ""
+        )
+        scope_line = (
+            f"- **scope(`{scope_rel}`) 델타: {len(scope_hits)}개 파일**\n{shown}{more}"
+        )
+    else:
+        scope_line = (
+            f"- **scope(`{scope_rel}`) 델타: 0개 파일** — 이 브랜치는 그 spec 영역을 "
+            "바꾸지 않았다. **이것은 정상이며 검토 전제가 무효라는 뜻이 아니다** "
+            "(코드 전용 PR 이면 spec 델타 0이 당연하다). 델타 0 자체를 근거로 "
+            "CRITICAL 을 내지 말 것.\n"
+        )
+
+    if diff_files:
+        diff_line = (
+            f"- **구현 diff: {diff_files}개 파일 / {diff_lines}줄** — 아래 "
+            "`## 구현 변경 사항` 에 실려야 한다.\n"
+            "  - **아래에 diff 본문이 보이지 않으면 그것은 \"구현이 없다\" 가 아니라 "
+            "\"예산에 잘렸다\" 는 뜻이다.** 그 경우 구현 유무를 이 프롬프트로 판정하지 말고, "
+            f"위 워킹트리를 절대경로로 직접 읽어라 (`git -C \"{root}\" diff` 등).\n"
+        )
+    else:
+        diff_line = (
+            "- **구현 diff: 0개 파일** — code_areas 에 변경이 없거나 git diff 가 실패했다"
+            "(base ref fetch 여부 확인). spec 전용 PR 이면 정상이다.\n"
+        )
+
+    return (
+        "### 이 검토가 실제로 다루는 델타 (예산 절단 전 실측)\n\n"
+        + scope_line
+        + diff_line
+        + "\n"
+    )
+
+
 RATIONALE_HEADER_RE = re.compile(r"^##\s+Rationale\b.*$", re.MULTILINE)
 
 
@@ -683,8 +775,12 @@ def collect_context(args, root):
         # (262,144 default and 650,000), so five checkers judged "spec vs
         # implementation" having seen no implementation. Ahead of the dump it
         # only loses to the files the branch itself is editing.
-        target_doc = _head_basis_notice(root, diff_base) + _splice_chunk(
-            spec_bundle, diff_section, _n_on_topic(scope_files, target_abs)
+        target_doc = (
+            _head_basis_notice(root, diff_base)
+            + _scope_delta_census(root, target_path_rel, _rank_changed, diff_text)
+            + _splice_chunk(
+                spec_bundle, diff_section, _n_on_topic(scope_files, target_abs)
+            )
         )
         mode_label = (
             f"구현 완료 후 검토 (--impl-done, scope={target_path_rel}, "

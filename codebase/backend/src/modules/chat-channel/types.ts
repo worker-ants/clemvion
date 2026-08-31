@@ -373,9 +373,9 @@ export interface EiaAiMessageEvent extends EiaEventBase {
   // 도달하지 않으므로 본 입력 계약에서 제외한다 (WS §4.4 strip-only 결정).
   /**
    * AI Agent `render_*` 표현 도구 호출 turn 에서만 동봉.
-   * SoT: [spec/conventions/chat-channel-adapter.md §1.2 line 89](../../../../../spec/conventions/chat-channel-adapter.md#12-eiaevent-입력)
+   * SoT: [spec/conventions/chat-channel-adapter.md §1.2](../../../../../spec/conventions/chat-channel-adapter.md#12-eiaevent-입력)
    *      / [spec/4-nodes/3-ai/1-ai-agent.md §7.10](../../../../../spec/4-nodes/3-ai/1-ai-agent.md#710-presentation-payload-render_-운반)
-   *      / [spec/5-system/14-external-interaction-api.md §6.5 line 536](../../../../../spec/5-system/14-external-interaction-api.md#65-페이로드--executioncancelled--executionai_message).
+   *      / [spec/5-system/14-external-interaction-api.md §6.5](../../../../../spec/5-system/14-external-interaction-api.md#65-페이로드--executioncancelled--executionai_message).
    *
    * 4종 display-only (`carousel`/`table`/`chart`/`template`) 만 본 필드로 채널 발화 대상.
    * `render_form` (`type === 'form'`) 은 별 plan `chat-channel-form-native-modal` 추적.

@@ -17,6 +17,19 @@ owner: developer (다음 진입자)
 - [x] **운영(A-2) — 결정 2026-06-02**: install endpoint access log 의 `:installToken` segment 마스킹. **인프라 레벨(ingress/HAProxy)에서 처리**하기로 결정 — 코드 변경 없이 운영 측에서 적용한다. 적용 가이드(masking 위치·log-format 예시·query 이동 trade-off)를 `k8s/README.md` §Access log 에 명시. (ai-review W6/W11)
 - [x] **운영(A-3) — Layer 2 완료**: install endpoint 실패 페널티 lockout (`Cafe24InstallRateLimitService`, `cafe24:install:fail:{ip}` INCR/EXPIRE, 임계치 10/10분 → `429 CAFE24_INSTALL_RATE_LIMITED`). token oracle enumeration 방어. spec §9.8 + Rationale 등재. 구현: `plan/complete/cafe24-install-ratelimit.md` (2026-06-02).
   - [ ] **A-3 follow-up — Layer 1 (분산 throttle store)**: 기존 30/min IP throttle 을 Redis 분산 store 로 이전 (멀티 인스턴스 quota 직렬화). `@nestjs/throttler` storage 가 전역 단일 설정이라 모든 throttled 엔드포인트에 영향 + 새 의존성/커스텀 storage 필요 → 별 infra PR 로 분리(deferred, 사용자 결정 2026-06-02). enumeration 방어 핵심은 Layer 2 가 cross-pod 로 완수.
+        > **규모 실측 (2026-08-31) — 신규 의존성 추가 건이다.** 착수 전 현황:
+        >
+        > | 측정 | 값 |
+        > |---|---|
+        > | `ThrottlerModule.forRoot` | `app.module.ts:151` — `throttlers: [{name:'default', ttl:60000, limit:100}]` |
+        > | storage 설정 | **없음** (기본 in-memory) |
+        > | Redis storage 패키지 | **미설치** (`@nest-lab/throttler-storage-redis` 등 0건) |
+        > | `@nestjs/throttler` | `^6.5.0` |
+        >
+        > 즉 "Redis 로 이전" 은 설정 한 줄이 아니라 **새 의존성 도입**이고,
+        > `deps-guard-hardening.md` 가 세워 둔 축(오버라이드 바닥·audit 수용 근거·라이선스)을
+        > 통과해야 한다. 게다가 storage 는 `forRoot` 전역 단일 설정이라 **모든 throttled
+        > 엔드포인트가 한 번에 영향**을 받는다(이 항목 원문이 지적한 그대로). 단독 PR 이다.
 - [x] **C-6 — ✅ RESOLVED (makeshop Phase 1)**: `buildIntegrationMeta` 레지스트리 패턴 — cafe24 하드코딩을 `Map<serviceType, fn>` (`INTEGRATION_DERIVED_REGISTRY`, `integrations.service.ts`) 로 전환 완료. **메이크샵 통합이 second provider 로 편입되며 해소**됐다 (cafe24·makeshop·google derived `appUrl`/`autoRefresh` 가 per-service fn 으로 파생). spec 측(derived 필드 per-service registry 일반화)·구현 측(레지스트리 리팩토링) 분해는 [`makeshop-integration.md §C-6 편입`](../complete/makeshop-integration.md#c-6-편입--buildintegrationmeta-레지스트리-전환-cafe24-백로그) 참조. spec 정합: [통합 §9.1](../../spec/2-navigation/4-integration.md#91-목록crud), [MakeShop 노드 §9.8](../../spec/4-nodes/4-integration/5-makeshop.md#98-buildintegrationmeta-derived-필드-일반화-c-6-동반-해소).
 - [x] **D-2** (defer — 결정 2026-06-02 → **완료 2026-07-17**): `process()` 에러 격리 정책 spec 명시 (`.catch(logger.error)` BullMQ 재시도 회피). ~~현재는 프레임워크(NestJS Logger) 에러 로그 출력으로 충분하다고 결정 — 별도 관측 도구(Sentry/Datadog 등) 선정 및 spec 명시는 관측 인프라를 **추후 일괄 도입**할 때 함께 진행한다.~~ (ai-review W7)
   **완료 근거**: defer 의 전제였던 **"관측 인프라 일괄 도입"이 충족됐다** — OTel 파이프라인이 `dc24f047d`(#594, 2026-06-14, 본 defer 결정 2026-06-02 **이후**)로 도입돼 `spec/5-system/_product-overview.md` 의 NF-OB-02(Prometheus 메트릭)·NF-OB-03(분산 트레이싱)·NF-OB-07(비즈니스 커스텀 메트릭)이 전부 ✅ 다(`codebase/backend/src/instrumentation.ts`, `business-metrics.service.ts`). 즉 "별도 에러 트래킹 도구(Sentry 등) 선정"을 더 기다릴 이유가 없다 — BullMQ job 실패는 큐 메트릭으로, 그 위 운영 관측은 OTel 이 받는다.

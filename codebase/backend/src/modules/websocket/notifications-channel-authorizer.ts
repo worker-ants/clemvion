@@ -9,8 +9,9 @@ import {
  * WS 모듈 로컬 provider 로 둔다.
  *
  * 04 M-6 (IDOR, 선제): user 단위 채널이므로 JWT sub(userId)와 채널의 userId 가 일치할 때만
- * 구독 허용. emit 은 미구현(spec §4.4 Planned)이라 현재 실피해 0 이나, emit 도입 시 사용자간
- * 알림 누출이 즉시 현실화되므로 fail-closed 로 먼저 막는다.
+ * 구독 허용. 이 가드는 선제로 들어왔으나 **더 이상 가정이 아니다** — `notification.new`
+ * emit 은 구현·배선 완료(`WebsocketService.emitNotificationEvent` ← `NotificationsService`)라
+ * 이 비교가 실제 트래픽에서 사용자간 알림 누출을 막고 있다 (spec §4.5).
  */
 @Injectable()
 export class NotificationsChannelAuthorizer implements ChannelAuthorizer {

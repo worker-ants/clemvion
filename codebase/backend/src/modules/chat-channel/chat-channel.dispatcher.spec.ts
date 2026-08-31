@@ -485,8 +485,8 @@ describe('toChatChannelEvent — execution.cancelled error 전파 (방안 D)', (
 // 2026-05-25 — toChatChannelEvent 의 `execution.ai_message` 분기가 payload 의
 // `presentations?: PresentationPayload[]` 필드를 추출하는지 회귀 차단.
 // 추출 누락 시 chat-channel renderer 가 event.presentations === undefined 로
-// 보아 회귀 ② (AI render_* sequential 발송) 가 실패. SoT: spec §6.5 line 536 +
-// chat-channel-adapter.md §1.2 line 89.
+// 보아 회귀 ② (AI render_* sequential 발송) 가 실패. SoT: spec §6.5 +
+// chat-channel-adapter.md §1.2.
 // ---------------------------------------------------------------------------
 describe('toChatChannelEvent — execution.ai_message presentations[] 추출 (CCH-MP-01 보강)', () => {
   const baseRouting = {
