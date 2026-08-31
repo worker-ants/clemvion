@@ -135,7 +135,10 @@ export type ErrorCodeValue = (typeof ErrorCode)[keyof typeof ErrorCode];
  *    (규약 §4.2 가 소유하는 `details[].code` 레이어이며 봉투 `code` 가 아니다)
  *
  * 형제 가드 `repo-guards/__tests__/engine-error-code-anchor-guard.ts` 가 이 구분을
- * 강제한다 — 엔진 모듈에 새 맨 문자열 코드가 생기면 RED.
+ * 강제한다 — 엔진 모듈에서 `code`/`errorCode` 에 바인딩되거나 `new XxxError('X', …)` 로
+ * 넘어가는 맨 문자열이 생기면 RED. (그 **다섯 형태**가 가드가 실제로 훑는 범위다.
+ * 처음엔 "새 맨 문자열 코드가 생기면 RED" 라 적었는데 생성자 인자를 안 보고 있었다 —
+ * 리뷰 `20_43_35` W1. 보장을 좁히는 대신 스캔을 넓혔다.)
  */
 export const EngineErrorCode = {
   /**

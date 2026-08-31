@@ -43,6 +43,13 @@ export const ANCHORED_ELSEWHERE: Record<string, string> = {
     "trigger-parameter.types.ts `TriggerParameterErrorDetail['code']` 유니온",
   MASKED_VALUE_RESUBMITTED:
     "trigger-parameter.types.ts `TriggerParameterErrorDetail['code']` 유니온",
+  // 아래 셋은 `new RehydrationError('RESUME_…', msg)` 의 **생성자 positional 인자**다.
+  // `ai-conversation-helpers.ts` 의 `RehydrationError.code` 가 리터럴 유니온으로 선언돼
+  // 있어 오탈자는 `tsc` 에서 죽는다.
+  RESUME_CHECKPOINT_MISSING:
+    'ai-conversation-helpers.ts `RehydrationError.code` 리터럴 유니온 (생성자 인자)',
+  RESUME_INCOMPATIBLE_STATE:
+    'ai-conversation-helpers.ts `RehydrationError.code` 리터럴 유니온 (생성자 인자)',
 };
 
 /** UPPER_SNAKE_CASE 만 코드 후보로 본다 (`'text'`·`'json'` 같은 값 제외). */
@@ -115,8 +122,34 @@ function walkTsFiles(dir: string): string[] {
  * 바인딩 형태를 하나씩 정규식에 더하는 방식은 **다음 형태를 미리 알 수 없어** 같은 실패를
  * 반복한다. AST 는 "식별자에 문자열이 붙는다" 를 형태와 무관하게 본다.
  *
- * 수집 대상 4형태: 객체 속성(`{ code: 'X' }`) · 변수 선언(`const code = 'X'`) ·
- * 대입(`code = 'X'`) · 클래스 필드(`readonly code = 'X'`).
+ * 수집 대상 **5형태**: 객체 속성(`{ code: 'X' }`) · 변수 선언(`const code = 'X'`) ·
+ * 대입(`code = 'X'`) · 클래스 필드(`readonly code = 'X'`) · **`new XxxError('X', …)` 의
+ * positional 인자**.
+ *
+ * 다섯 번째는 리뷰(`20_43_35` W1)가 잡았다 — 앞 네 형태만 보던 판이 docstring 에는
+ * *"엔진 모듈에 새 맨 문자열 코드가 생기면 RED"* 라 적고 있었다. `RehydrationError` 가
+ * 코드를 생성자 인자로 받으므로 `RESUME_*` 세 값이 **주장 밖**에 있었다. 보장을 좁히는
+ * 대신 스캔을 넓혔다 — 좁히면 다음 사람이 그 경계를 다시 밟는다.
+ *
+ * 생성자는 **이름이 `Error` 로 끝나는 것**만 본다. 임의 생성자의 문자열 인자까지 받으면
+ * 코드와 무관한 UPPER_SNAKE 상수가 위반으로 잡혀 예외 목록이 알리바이로 부푼다.
+ *
+ * ## 여기서 형태 넓히기를 멈춘다 — 경계와 그 이유
+ *
+ * **일반 메서드 인자로 넘기는 형태는 보지 않는다.** 실측 예:
+ * `markExecutionCancelled(executionId, 'RESUME_FAILED')`. 다섯 형태로 넓힌 직후 이것이
+ * 여섯 번째로 나왔고, 그때 멈췄다.
+ *
+ * 이유는 **형태 공간이 열려 있기 때문**이다. "임의 함수의 임의 문자열 인자" 까지 받으면
+ * 코드와 무관한 UPPER_SNAKE 값이 대량으로 잡혀 예외 목록이 부풀고, 그 목록이 커지는 순간
+ * 가드는 *"무엇이 위반인가"* 를 스스로 말하지 못하게 된다. 한 칸씩 넓히는 대응은 다음
+ * 형태에서 같은 자리를 다시 밟는다 — 이 브랜치가 이미 그 계단을 여러 번 밟았다.
+ *
+ * **그 자리를 무엇이 막는가**: 그런 호출부의 파라미터는 리터럴 유니온으로 선언돼 있어
+ * (`execution-engine.service.ts` 의 `'RESUME_CHECKPOINT_MISSING' | 'RESUME_FAILED' | …`)
+ * 오탈자가 `tsc` 에서 죽는다. 즉 이 가드가 막는 것은 **앵커가 아예 없는** 자리고, 타입이
+ * 이미 붙잡는 자리는 그 타입이 맡는다. 이 가드의 보장은 **딱 다섯 형태**다 — 그보다 넓게
+ * 읽히지 않도록 여기 적어 둔다.
  */
 export function collectBoundCodes(
   repoRoot: string,
@@ -161,6 +194,20 @@ export function collectBoundCodes(
           ? node.initializer.expression
           : node.initializer;
         record(node.name.text, init);
+      } else if (
+        ts.isNewExpression(node) &&
+        ts.isIdentifier(node.expression) &&
+        node.expression.text.endsWith('Error')
+      ) {
+        for (const arg of node.arguments ?? []) {
+          if (ts.isStringLiteral(arg) && UPPER_SNAKE.test(arg.text)) {
+            hits.push({
+              code: arg.text,
+              file: path.relative(repoRoot, abs),
+              line: sf.getLineAndCharacterOfPosition(arg.getStart(sf)).line + 1,
+            });
+          }
+        }
       } else if (
         ts.isBinaryExpression(node) &&
         node.operatorToken.kind === ts.SyntaxKind.EqualsToken

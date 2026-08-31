@@ -29,9 +29,37 @@ class FixtureError extends Error {
 const target: { code?: string } = {};
 target.code = 'FIXTURE_ASSIGNMENT_FORM';
 
+// ⑤ 에러 생성자 positional 인자 — 리뷰(`20_43_35` W1)가 잡은 형태
+class FixtureCtorError extends Error {
+  constructor(
+    public readonly code: 'FIXTURE_CTOR_ARG_FORM',
+    message: string,
+  ) {
+    super(message);
+  }
+}
+const ctorForm = new FixtureCtorError('FIXTURE_CTOR_ARG_FORM', 'boom');
+
+// 대조군 — 이름이 `Error` 로 끝나지 않는 생성자는 보지 않는다.
+class FixtureHelper {
+  constructor(public readonly code: string) {}
+}
+const notAnError = new FixtureHelper('FIXTURE_NON_ERROR_CTOR');
+
 // 대조군 — UPPER_SNAKE 가 아니므로 수집되면 안 된다(오탐 축).
 const notACode = { code: 'lower_snake_value' };
 // 대조군 — 바인딩 이름이 다르므로 수집되면 안 된다.
 const otherName = { status: 'FIXTURE_WRONG_BINDING' };
 
-export { objectForm, code, FixtureError, target, notACode, otherName };
+export {
+  objectForm,
+  code,
+  FixtureError,
+  target,
+  notACode,
+  otherName,
+  FixtureCtorError,
+  ctorForm,
+  FixtureHelper,
+  notAnError,
+};

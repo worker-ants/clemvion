@@ -78,8 +78,18 @@ describe('엔진 에러 코드 앵커 가드', () => {
       ['변수 선언 — 1차 정규식이 놓쳤던 형태', 'FIXTURE_VARIABLE_FORM'],
       ['클래스 필드', 'FIXTURE_CLASS_FIELD_FORM'],
       ['대입', 'FIXTURE_ASSIGNMENT_FORM'],
+      [
+        '에러 생성자 인자 — 리뷰 `20_43_35` W1 이 잡은 형태',
+        'FIXTURE_CTOR_ARG_FORM',
+      ],
     ])('%s 를 수집한다', (_label, code) => {
       expect(found).toContain(code);
+    });
+
+    it('이름이 `Error` 로 끝나지 않는 생성자는 수집하지 않는다', () => {
+      // 임의 생성자의 문자열 인자까지 받으면 코드와 무관한 UPPER_SNAKE 상수가 위반으로
+      // 잡혀 예외 목록이 알리바이로 부푼다 — 경계를 테스트로 고정한다.
+      expect(found).not.toContain('FIXTURE_NON_ERROR_CTOR');
     });
 
     it('UPPER_SNAKE 가 아닌 값은 수집하지 않는다', () => {
@@ -103,6 +113,9 @@ describe('엔진 에러 코드 앵커 가드', () => {
     expect(hits.map((h) => h.code).sort()).toEqual([
       'FIXTURE_ASSIGNMENT_FORM',
       'FIXTURE_CLASS_FIELD_FORM',
+      // 1건이다 — 픽스처의 `public readonly code: 'FIXTURE_CTOR_ARG_FORM'` 는 **타입
+      // 애노테이션**이라 초기화가 없어 수집 대상이 아니다(`new …(…)` 호출부 1곳만).
+      'FIXTURE_CTOR_ARG_FORM',
       'FIXTURE_OBJECT_FORM',
       'FIXTURE_VARIABLE_FORM',
     ]);
