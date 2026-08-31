@@ -115,6 +115,23 @@ describe('아바타 업로드 — 공개 버킷 정책 (e2e)', () => {
     );
   }, 60_000);
 
+  it('2MB 를 넘으면 413 이고 아무것도 올라가지 않는다', async () => {
+    // multer `limits.fileSize` 가 스트림 단계에서 끊는다. 컨트롤러가
+    // `@ApiPayloadTooLargeResponse('파일 크기 초과 (2MB)')` 로 **문서화**해 둔 계약인데
+    // 그 강제를 실제로 확인하는 테스트가 없었다(리뷰 6·7라운드가 두 번 지목) — 문서한
+    // 보장이 구현보다 넓은 상태였다. 상한 참조가 깨져도 아무도 RED 를 내지 않았다.
+    const tooBig = Buffer.alloc(2 * 1024 * 1024 + 1, 0);
+    const res = await request(BASE_URL)
+      .post('/api/users/me/avatar')
+      .set('Authorization', `Bearer ${accessToken}`)
+      .attach('file', tooBig, {
+        filename: 'huge.png',
+        contentType: 'image/png',
+      });
+
+    expect(res.status).toBe(413);
+  }, 60_000);
+
   it('교체하면 옛 객체가 정리된다 (익명 GET 이 더 이상 200 이 아니다)', async () => {
     const oldKey = keyFromPublicUrl(avatarUrl);
 

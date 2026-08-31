@@ -10,6 +10,7 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { S3Service } from '../../common/services/s3.service';
+import { updateReturningRows } from '../../common/utils/update-returning-rows';
 import { User } from './entities/user.entity';
 import {
   comparePassword,
@@ -50,6 +51,12 @@ export class UsersService {
 
   /** 아바타 크기 상한. 컨트롤러의 multer 한도와 **같은 값이어야** 한다. */
   static readonly AVATAR_MAX_BYTES = 2 * 1024 * 1024;
+
+  /** 이 횟수만큼 연속 실패하면 계정을 잠근다. */
+  static readonly LOGIN_LOCK_THRESHOLD = 5;
+
+  /** 잠금 지속 시간(분). DB `NOW()` 기준이라 앱 서버 시계에 의존하지 않는다. */
+  static readonly LOGIN_LOCK_MINUTES = 10;
 
   /**
    * 아바타 키 접두. **생성(`updateAvatar`)과 복원(`deletePreviousAvatarObject`)이 같은
@@ -314,14 +321,55 @@ export class UsersService {
     return count > 0;
   }
 
+  /**
+   * 로그인 실패 카운터 증가 + 임계 도달 시 잠금. **단일 원자 UPDATE 다.**
+   *
+   * ## 왜 read-modify-write 가 아니어야 하나
+   *
+   * 첫 판은 `findOneOrFail` → 필드 수정 → `save(user)` 였다. 그 형태는 두 가지를 깬다:
+   *
+   * 1. **다른 컬럼을 되돌린다.** `save()` 는 요청 시작 시점 스냅샷 전체를 쓴다. 아바타
+   *    업로드가 `avatarUrl` 을 갱신하고 **옛 S3 객체까지 지운 뒤** 이 저장이 커밋되면,
+   *    DB 가 **이미 삭제된 객체를 가리키는 옛 URL** 로 되돌아간다. 고아 객체보다 나쁜
+   *    상태이고, `updateAvatar` 가 정리 순서를 지켜 막으려던 바로 그 결과다.
+   *    (`updateAvatar` 쪽만 컬럼 단위로 바꿨더니 경쟁이 **반대 방향**으로 남았다 —
+   *    리뷰 7라운드가 실측 지목.)
+   * 2. **자기 자신도 잃는다.** 동시 로그인 실패 둘이 같은 값을 읽으면 카운터가 2 가 아니라
+   *    1 이 되어 잠금 임계가 느슨해진다. 보안 카운터가 경쟁에서 지는 것은 그 자체로 결함이다.
+   *
+   * 증가와 잠금 판정을 한 문장에 두면 둘 다 성립하지 않는다. 자매 메서드
+   * `resetLoginAttempts` 는 이미 컬럼 단위 `update()` 였다 — 이쪽만 예외였다.
+   *
+   * 잠금 시각을 DB `NOW()` 로 잡는 것도 의도다. 앱 서버 시계가 여럿이면
+   * `new Date(Date.now() + …)` 는 인스턴스마다 달라진다.
+   */
   async incrementLoginAttempts(id: string): Promise<number> {
-    const user = await this.userRepository.findOneOrFail({ where: { id } });
-    user.loginAttempts += 1;
-    if (user.loginAttempts >= 5) {
-      user.lockedUntil = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
+    const rows = updateReturningRows<{ login_attempts: number }>(
+      await this.userRepository.query(
+        `UPDATE "user"
+            SET login_attempts = login_attempts + 1,
+                locked_until = CASE
+                  WHEN login_attempts + 1 >= $2 THEN NOW() + ($3 || ' minutes')::interval
+                  ELSE locked_until
+                END
+          WHERE id = $1
+        RETURNING login_attempts`,
+        [
+          id,
+          UsersService.LOGIN_LOCK_THRESHOLD,
+          UsersService.LOGIN_LOCK_MINUTES,
+        ],
+      ),
+      `incrementLoginAttempts(userId=${id})`,
+    );
+    if (rows.length === 0) {
+      // 종전 `findOneOrFail` 과 같은 계약: 없는 사용자면 던진다.
+      throw new NotFoundException({
+        code: 'USER_NOT_FOUND',
+        message: 'User not found',
+      });
     }
-    await this.userRepository.save(user);
-    return user.loginAttempts;
+    return rows[0].login_attempts;
   }
 
   async resetLoginAttempts(id: string): Promise<void> {
