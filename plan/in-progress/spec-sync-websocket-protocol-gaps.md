@@ -20,10 +20,65 @@ spec 초안은 raw/native WebSocket 프로토콜을 전제했으나 구현은 So
       2026-08-13 부터 필드 계약은 [EIA §6 도입부](../../spec/5-system/14-external-interaction-api.md#종결-이벤트의-필드-집합-normative)
       가 소유하며, 이 항목의 추적도 그쪽 트래커(`spec-sync-external-interaction-api-gaps.md`)가
       정본이다. 여기 남기는 것은 WS 쪽에서 찾는 사람을 위한 포인터다
-- [ ] 서버발신 `auth.token_expired` 시스템 이벤트 emit (§4.5)
+- [ ] 서버발신 `auth.token_expired` 시스템 이벤트 emit (§4.6 — 2026-08-31 절번호 이동 전 §4.5)
+
+      > **⚠ "emit 한 줄 추가" 가 아니다 — 착수 전 결정이 필요하다 (2026-08-31 실측 등재).**
+      >
+      > 이 항목을 착수하려다 **plan 에 없던 사실**을 실측했다: **WS 소켓은 핸드셰이크
+      > 이후 토큰을 한 번도 재검증하지 않는다.**
+      >
+      > | 측정 | 값 |
+      > |---|---|
+      > | `jwtService.verify` 호출부 | `websocket.gateway.ts:156` **단 1곳** (`handleConnection` 내부) |
+      > | gateway 의 `exp` 참조 | **0건** |
+      > | gateway 의 `setTimeout`/`setInterval` | **0건** |
+      > | `src/modules/websocket/` 의 guard | `ws-rate-limit.guard.ts` 뿐 — **auth guard 없음** |
+      >
+      > 결과: **한 번 연결된 소켓은 토큰이 만료돼도 무기한 살아 있고 계속 이벤트를 받는다.**
+      > §1.2 가 서술하는 복구 경로(*"연결 중 토큰 만료: 클라이언트는 `connect_error` 를 받으면
+      > REST `/auth/refresh` … 재연결"*)는 **새 연결 시도에서만 발화**하므로 이미 연결된
+      > 소켓에는 적용되지 않는다 — 즉 §1.2 의 그 문장은 살아있는 소켓의 만료를 **다루지 않는다**.
+      >
+      > **그래서 결정이 필요한 것**: 이 이벤트를 emit 한 뒤 **disconnect 하는가**.
+      > - 안 끊으면 *"토큰 만료됨"* 을 알리고도 그 소켓은 계속 인가된 채로 남는다 —
+      >   위 갭이 그대로다.
+      > - 끊으면 **현재 살아남던 소켓이 끊기는 동작 변경**이다. §4.6 payload 는 `{ message }`
+      >   뿐이고 disconnect 를 말하지 않으며, §1.3 이 *REST 재발급 + 재연결*을 정식 모델로
+      >   확정했으므로 방향은 정합하지만 **spec 본문이 그 전이를 적고 있지 않다**.
+      >
+      > developer 권한 밖(제품 semantics + 동작 변경)이라 여기서 멈춘다. planner 턴이
+      > §1.2·§4.6 에 (a) 소켓 수명이 토큰 수명에 종속되는가 (b) 사전 통지 lead time 이
+      > 있는가 두 가지를 적어 주면 구현은 작다(핸드셰이크에서 `exp` 를 읽어 소켓별 타이머,
+      > `handleDisconnect` 에서 해제).
 - [x] `notifications:{userId}` 채널의 `notification.new` emit 경로 — **완료** (`spec-sync-data-flow-8-notifications-gaps.md` PR1, `WebsocketService.emitNotificationEvent`). §4.4 spec 본문 "계획·미구현" 배지 flip 은 `plan/in-progress/spec-update-notifications-ws-emit.md`(planner) 위임.
-- [ ] `system.maintenance` 시스템 이벤트 emit (§4.5)
+- [ ] `system.maintenance` 시스템 이벤트 emit (§4.6 — 2026-08-31 절번호 이동 전 §4.5)
+
+      > **⚠ 발화 트리거가 존재하지 않는다 (2026-08-31 실측 등재).** payload 는
+      > `{ message, scheduledAt }` 인데 **유지보수를 선언하는 주체가 코드에도 spec 에도 없다** —
+      > 관리자 API·설정·스케줄 어느 것도 없다.
+      >
+      > **SIGTERM 훅으로 갈음하려는 유혹을 경계할 것.** `shutdown-state.service.ts` 의
+      > `onApplicationShutdown(signal)` 이 실재하는 유일한 후보인데, SIGTERM 은 **사전 예고가
+      > 없다** — `scheduledAt`("예정된") 이 표현하는 것과 다른 사건이다. 거기 배선하면
+      > payload 가 약속하는 것보다 **좁은 보장**을 넓은 이름으로 내보내게 된다.
+      >
+      > 착수 전 결정: 유지보수 선언 주체(관리자 API? 환경변수? 배포 파이프라인?)를 정할 것.
+      > 그것이 정해지기 전까지 이 항목은 "구현" 이 아니라 **설계** 다.
+
 - [ ] 서버발신 application-level ping (현재 app ping 은 client→server 방향만, §5)
+
+      > **⚠ 이 항목은 "왜 필요한가" 가 먼저다 (2026-08-31 실측 등재).** 같은 문서 §5.1 이
+      > *"전송 계층 heartbeat 는 Socket.IO/Engine.IO 내장 ping/pong 으로 처리된다
+      > (`pingInterval` 25s / `pingTimeout` 20s)"* 라고 이미 확정했다. 그 위에 앱 레벨
+      > 서버발신 ping 을 얹으면 **소비처도 주기도 정의되지 않은 주기적 브로드캐스트**가 하나
+      > 더 생긴다.
+      >
+      > 이 줄은 raw-WS 전제였던 spec 초안의 잔재일 가능성이 높다 — 같은 전제에서 온 형제
+      > 항목 4종은 이미 §비채택(won't-do)으로 종결됐다(서브프로토콜 인증 · close code 매핑 ·
+      > in-band 갱신 · `execution.start`/`stop` WS 명령).
+      >
+      > 착수 전 판정: **won't-do 로 종결하는 것이 맞는지 먼저 물을 것.** 구현이 아니라
+      > 위 4종과 같은 처분이 답일 수 있다.
 - [x] WS 명령 rate-limit (socket 당 60 msg/min) + `RATE_LIMITED` 코드 (§7.1) — `WsRateLimiterService`(in-memory per-socket fixed-window) + `WsRateLimitGuard`(class-level, `WsException` → `exception` 이벤트). lint·unit·build·e2e 통과.
 - [x] 전용 WS 에러 코드 `INVALID_MESSAGE` / `UNKNOWN_TYPE` / `SUBSCRIPTION_LIMIT_EXCEEDED` (§3.3·§3.4·§7.1) — `WsErrorCode` enum 확장. subscribe ack `code` additive, 미등록 이벤트 `onAny` → `error{code}`. spec §7.1/§3.3/§3.4/§7.2 + `3-error-handling.md §1.5` 동기화. lint·unit·build·e2e 통과.
 
@@ -38,3 +93,9 @@ spec 초안은 raw/native WebSocket 프로토콜을 전제했으나 구현은 So
 ## 비고
 - 각 항목의 근거(claim→코드부재)는 audit findings/5-system/5-system__6-websocket-protocol.md 참조.
 - 위 4종 won't-do 는 전송계층이 Socket.IO 로 확정된 이상 raw-WS 2종은 영구 미도입, REST 대체 2종은 의도적 미도입이라 "Planned" 표기가 잘못된 기대를 남겨 명시 종결함. 잔여 3종(auth.token_expired·system.maintenance·server ping)만 실 backlog.
+  > **"실 backlog" 를 "착수 가능" 으로 읽지 말 것 (2026-08-31 정정).** 셋을 착수하려고
+  > 열어 보니 **세 개 모두 구현 앞에 결정이 하나씩 있다** — 각 항목의 인라인 블록 참조.
+  > 요약: `auth.token_expired` = 소켓 수명이 토큰 수명에 종속되는가(동작 변경) ·
+  > `system.maintenance` = 유지보수를 선언하는 주체가 없다(설계) · server ping =
+  > 위 4종과 같은 won't-do 가 답일 수 있다(처분). 이 줄이 셋을 "남은 구현 3건" 으로
+  > 읽히게 해 두어, 착수하려던 세션이 매번 같은 조사를 반복하게 된다.
