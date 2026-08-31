@@ -378,7 +378,7 @@ pending_plans:
 
 ### 6.3 알림 규칙 API
 
-§5.4 화면이 사용하는 워크스페이스 단위 알림 규칙 CRUD (`codebase/backend/src/modules/alerts/`). 규칙 평가·발사는 [data-flow/9-observability.md §1.3](../data-flow/9-observability.md#13-alerts-evaluator) 참조.
+§5.4 화면이 사용하는 워크스페이스 단위 알림 규칙 CRUD (`codebase/backend/src/modules/alerts/`). 키 정의: [1-data-model §2.25 AlertRule](../1-data-model.md#225-alertrule). 규칙 평가·발사는 [data-flow/9-observability.md §1.3](../data-flow/9-observability.md#13-alerts-evaluator) 참조.
 
 | 메서드 | 경로 | 권한 | 설명 |
 |--------|------|------|------|

@@ -1,0 +1,13 @@
+{
+  "timestamp": "2026-08-31T10:46:44.331676",
+  "mode": "spec draft 검토 (--spec)",
+  "target_path": "plan/in-progress/spec-draft-lockout-and-alertrule.md",
+  "checkers": [
+    "cross_spec",
+    "rationale_continuity",
+    "convention_compliance",
+    "plan_coherence",
+    "naming_collision"
+  ],
+  "target_snapshot": "_target/spec-draft-lockout-and-alertrule.md"
+}

@@ -1,6 +1,6 @@
 # Data Flow: 관측성 (Health · Dashboard · Statistics · Alerts · System Status)
 
-> 관련 spec: [데이터 모델 §2 (alert_rule V016)](../1-data-model.md) · [data-flow 개요](./0-overview.md)
+> 관련 spec: [데이터 모델 §2.25 AlertRule (V016)](../1-data-model.md#225-alertrule) · [data-flow 개요](./0-overview.md)
 
 ---
 
