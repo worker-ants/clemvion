@@ -3,7 +3,7 @@
 > **6차 갱신 (2026-06-25 코드 재검증)**: 27개 노드 plan 문서를 현재 코드베이스와 전수 재대조 (노드별 sub-agent fan-out). 그동안의 대규모 리팩토링 — ai-agent **god-handler 분할** (#665 AiConditionEvaluator / #668 AiMemoryManager / #669 AiTurnExecutor; turn 로직은 `ai-turn-executor.ts`, 엔진은 `modules/execution-engine/ai-turn-orchestrator.service.ts`), 엔진 **C-1 분할 체인 + `src/execution-engine/` → `src/modules/execution-engine/` 재배치**, code 노드 **isolated-vm 전면 재작성** (#546), if-else/filter/transform **regex chokepoint 통일** (`compileUserRegex`, #570), core util `nodes/logic/core` → `nodes/core` 이동 — 으로 각 문서의 `파일:라인` 인용이 대거 stale 해진 것을 **전수 현행화**했다. 각 노드 문서 최상단에 동일 `6차 갱신` 블록으로 해소·잔여·정정 내역을 기록했다. **아래 §"진행 상태 요약" Phase 2 표의 `핵심 갭` 컬럼은 2026-05-16 분석 시점 값** — 노드별 현행 해소 상태는 각 노드 문서의 `6차 갱신` 블록이 SoT.
 >
 > **우선순위 항목 net 변화**:
-> - **P0 (ai-agent error 컨트랙트)** — **multi-turn 경로 해소**: 엔진 `handleAiTurnError` + `classifyLlmError` (429→`LLM_RATE_LIMIT` retryable, 5xx/network→`LLM_CALL_FAILED`, 401/403 non-retryable) 가 `output.error` + 부분 `output.result.*` 병존 · `port:'error'` 로 finalize, error 포트 단위테스트 추가. D6 통일(waiting/resumed `output.result.*`, top-level `output.maxTurns`/단수 `output.message` 제거)도 정합. **잔여: single-turn (`executeSingleTurn`) 경로만** — `llmService.chat` (`ai-turn-executor.ts:1209`·`:1439`) try/catch 미적용 → single throw 는 여전히 engine FAILED. (신규) `LLM_RESPONSE_INVALID` 가 spec §10 "예약"→"runtime" 격상됐으나 single-turn 은 raw-string fallback 유지 → drift. config echo 의 memory 필드 누락 잔여.
+> - **P0 (ai-agent error 컨트랙트)** — **multi-turn 경로 해소**: 엔진 `handleAiTurnError` + `classifyLlmError` (429→`LLM_RATE_LIMIT` retryable, 5xx/network→`LLM_CALL_FAILED`, 401/403 non-retryable) 가 `output.error` + 부분 `output.result.*` 병존 · `port:'error'` 로 finalize, error 포트 단위테스트 추가. D6 통일(waiting/resumed `output.result.*`, top-level `output.maxTurns`/단수 `output.message` 제거)도 정합. **잔여: single-turn (`executeSingleTurn`) 경로만** — `llmService.chat` 호출에 try/catch 미적용 → single throw 는 여전히 engine FAILED (**7차 재검증 2026-08-31: 여전히 참**. 줄 번호 인용은 썩어서 심볼로 교체 — 근거는 아래 §7차 블록). (신규) `LLM_RESPONSE_INVALID` 가 spec §10 "예약"→"runtime" 격상됐으나 single-turn 은 raw-string fallback 유지 → drift. config echo 의 memory 필드 누락 잔여.
 > - **P1 — 2건 모두 해소**: information-extractor **ConversationThread v2 multi-turn push 구현** (#484, 종결 4분기 push) + D6 단일화 (`78594c71`). Code 노드 sandbox API **전건 해소** (`timeout` schema·`$node`/`$helpers` 주입·timer 셰도잉 + #546 isolated-vm) — **Code 노드 잔여 갭 0**.
 > - **P2** — Cafe24 §1 `cursor?: string` spec 잔재 **정정** (#440/#516). Parallel `meta.durationMs`/`meta.branches` **잔여**. ForEach `collectResults` dead field **잔여**. Chart `chartOutputSchema` 는 **dead schema 아님으로 전제 정정** (`chart.component.ts` 가 `outputSchema` 로 사용 중) — Principle 1.1.4 관점 정리만 잔여.
 > - **P3** — Merge `meta.strategy`/`meta.outputFormat` 중복은 **"유지" 결정으로 spec 명문화** (해소). HTTP transport-failed `output.response:{error}` legacy **잔여**. Workflow async `output.workflowId`/`output.status` 중복 **잔여**.
@@ -22,6 +22,38 @@
 > **3차 확장 (2026-05-16 구현 분석)**: 본 폴더는 28종 노드별 spec ↔ **backend 구현** ↔ 기존 plan 을 모두 비교한 종합 분석 단계로 확장됐다. 모든 노드 plan 파일에 `## 구현 분석 (2026-05-16)` 과 `## 종합 개선안 (2026-05-16)` 두 새 섹션이 추가되었다. 28종 중 **잔여 권고가 1건 이상인 노드 27 / 완전 부합 1**(split). 권고는 `(spec)` · `(impl)` · `(frontend)` 접두로 분류한다. 자세한 단면별 통계는 §"종합 개선안 통계 (2026-05-16)" 표.
 >
 > **2차 갱신 (2026-05-16 spec 정합)**: 본 폴더의 노드별 plan 들은 1차 초안(2026-04 / commit `e228ec96`) 이후 spec/4-nodes/ 와 spec/conventions/node-output.md 가 여러 차례 개선됐다. 본 갱신에서 (a) 모든 plan 파일 상단에 `최신화 검토 (2026-05-16)` 상태 블록을 추가해 현재 spec 부합 여부와 잔여 권고 항목을 명시했고, (b) 신규 노드 **Cafe24** ([cafe24.md](./cafe24.md)) 를 인덱스·요약 표·잔여 권고 통계에 편입했다. 노드 카운트는 27 → 28 로 변경됐다.
+
+> **7차 갱신 (2026-08-31) — 착수 슬라이스: README P0 의 줄 번호 인용 정정 + 주장 재검증**
+>
+> 7차의 범위는 [`spec-sync-external-interaction-api-gaps.md`](../spec-sync-external-interaction-api-gaps.md)
+> 가 실측으로 좁혀 두었다 — 6차(2026-06-25) 이후 코드 변경이 몰린 **`ai-agent`(73) ·
+> `cafe24`(37) · `information-extractor`(12)** 3파일만이고 30파일 전수는 불필요하다.
+> 그 항목이 특히 지목한 것이 위 P0 의 `ai-turn-executor.ts:1209`·`:1439` **줄 번호 인용**이다.
+>
+> **① 줄 번호는 썩어 있었다.**
+>
+> | 인용 | 그 줄에 실제로 있는 것 | 실제 `llmService.chat` 호출부 |
+> |---|---|---|
+> | `:1209` | `* spec §6.1 도구 루프 —` 주석 | **1671 · 1808** (single-turn) |
+> | `:1439` | `model,` (인자 나열 중간) | **2764 · 2909** (multi-turn) |
+>
+> 심볼 서술로 교체했다. 이 저장소는 같은 결함 클래스를 `chat-channel` 주석 6곳에서도
+> 방금 고쳤다 — **줄 번호로 코드를 인용하면 다음 편집이 조용히 무효화한다.**
+>
+> **② 그런데 P0 잔여 주장 자체는 여전히 참이다** (반증 시도 실패):
+>
+> - `ai-agent.handler.ts:134-147` 의 `execute()` 는 `try { … } finally { cleanupProviders }`
+>   — **`catch` 가 없다.** throw 는 그대로 엔진으로 전파된다.
+> - `executeSingleTurn` 본문(1525~1938)의 유일한 `catch`(1837)는 `JSON.parse(result.content)`
+>   용이다 — `llmService.chat` 과 무관하다.
+> - **혼동 주의**: 같은 파일 `:584` docstring 이 *"`executeSingleTurn` — try/catch 로 잡아
+>   §7.3 error 포트 output 을 그대로 return"* 이라 적는데, 그 계약은
+>   **`ToolDefinitionPayloadExceededError`(`buildTools` pre-flight) 한정**이다. `chat` throw
+>   축이 아니므로 이 문장을 근거로 P0 를 닫으면 **틀린다**.
+>
+> **잔여 (미착수)**: `cafe24`·`information-extractor` 두 파일의 전수 대조와, 위 P0 문장의
+> 나머지 두 주장(`LLM_RESPONSE_INVALID` raw-string fallback drift · config echo memory 필드
+> 누락)은 아직 재검증하지 않았다.
 
 본 plan 폴더는 `spec/4-nodes/` 의 모든 노드 spec 을 검토하여, 각 노드의 `output` 필드 정의가 다음 정의에 부합하는지 진단하고 노드별 개선안을 모은 자료다. 2026-05-16 갱신부터 backend 구현 (`codebase/backend/src/nodes/**/*.handler.ts`, `*.schema.ts`, `*.spec.ts`) 정합성도 함께 다룬다.
 
