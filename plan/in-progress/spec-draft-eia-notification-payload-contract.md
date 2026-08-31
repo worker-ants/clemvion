@@ -197,11 +197,25 @@ DB(`trigger.workflowId`), 안쪽은 routing context — **출처가 다르다**.
       `spec-sync-external-interaction-api-gaps.md` 의 같은 항목에 근거 기록)
 - [ ] `chat-channel/types.ts:388` 을 (1) 최종형과 동기화
 - [ ] `duration` → `durationMs` 전역 개명
-- [ ] 코드 주석의 **하드코딩 줄 번호 인용을 앵커로 교체** — `grep -rn 'line 536'` 과
+- [x] 코드 주석의 **하드코딩 줄 번호 인용을 앵커로 교체** — `grep -rn 'line 536'` 과
       `grep -rn '§1.2 line 89'` 이 각각 **3곳**을 낸다(2026-08-29 재실측):
       `chat-channel.dispatcher.ts` · `chat-channel/types.ts` ·
       `chat-channel.dispatcher.spec.ts` — 두 인용이 **같은 주석 줄에 붙어 있으므로 한 번에**
       고친다.
+      **완료 (2026-08-31).** 여섯 인용 전부에서 ` line NNN` 만 떼고 §번호와 앵커를 남겼다.
+      정본 grep 두 개가 이제 **각각 0건**이다.
+      - **결함이 가설이 아니었다 — 두 숫자 다 무관한 절을 가리키고 있었다**:
+
+        | 인용 | 적힌 값 | 실제 헤딩 위치 | 그 줄에 실제로 있는 것 |
+        |---|---|---|---|
+        | EIA `§6.5` | `line 536` | **827** | `### 5.5 토큰 갱신 — POST …/refresh-token` |
+        | `chat-channel-adapter §1.2` | `line 89` | **138** | `escapeControlText()` JSDoc |
+
+      - **앵커는 건드리지 않았다** — `types.ts` 의 마크다운 링크는 이미
+        `#65-페이로드--executioncancelled--executionai_message` ·`#12-eiaevent-입력` 로
+        정확했다. 썩은 것은 **링크 텍스트에 덧붙은 줄 번호**뿐이라, 고칠 표면을 그것으로
+        한정했다(앵커까지 손대면 검증 대상이 늘고 이 항목의 결함 클래스와 무관해진다).
+      - 주석 전용 변경이지만 `chat-channel.dispatcher.spec.ts` 43 tests 재실행 통과.
       > **범위를 넓혔다 (2026-08-29).** 원래 항목은 `line 536` 하나만 지목했는데, 같은
       > 주석에 `chat-channel-adapter.md §1.2 line 89` 라는 **동일 결함 클래스**가 또 있다
       > (그 파일의 실제 §1.2 는 다른 줄이다). 하나만 고치면 남은 쪽이 같은 방식으로 썩는다.

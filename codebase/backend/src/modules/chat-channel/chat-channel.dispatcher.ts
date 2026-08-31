@@ -503,8 +503,8 @@ export function toChatChannelEvent(
       if (typeof message !== 'string') return null;
       const turnCount = (event.payload as { turnCount?: unknown }).turnCount;
       // 2026-05-25 — CCH-MP-01 보강: `presentations?` 필드 추출 (AI Agent
-      // `render_*` 도구 호출 turn 의 sequential 발송 — SoT EIA §6.5 line 536 /
-      // chat-channel-adapter §1.2 line 89). 미추출 시 chat-channel renderer 가
+      // `render_*` 도구 호출 turn 의 sequential 발송 — SoT EIA §6.5 /
+      // chat-channel-adapter §1.2). 미추출 시 chat-channel renderer 가
       // 봐도 event.presentations 가 undefined 라 회귀 ② 가 동작 안 함.
       const rawPresentations = (event.payload as { presentations?: unknown })
         .presentations;
