@@ -104,10 +104,15 @@ exec-intake 큐 백로그(`exec-intake-queue-impl.md`, PR1~PR4 + PR2b)는 **완�
         > 즉 **"충돌한다" 는 전제 자체를 착수 전에 다시 재야 한다** — 남은 근거는 blast
         > radius 뿐이고, 그건 "미루는" 이유이지 "막힌" 이유가 아니다.
         >
-        > 작업은 여전히 미착수임을 확인했다(2026-08-29): `nodes/core/error-codes.ts` 한
+        > ~~작업은 여전히 미착수임을 확인했다(2026-08-29): `nodes/core/error-codes.ts` 한
         > 파일에 HTTP·DB·LLM 노드 코드와 엔진 코드가 그대로 혼재하고,
         > `EXECUTION_QUEUE_WAIT_TIMEOUT` 은 `execution-engine.service.ts` 의 하드코딩
-        > 문자열이다.
+        > 문자열이다.~~ → **위 "완료 (2026-08-31)" 기록으로 대체됨.**
+        >
+        > 그 관측 자체는 그때 참이었고 지금은 아니다 — `EXECUTION_QUEUE_WAIT_TIMEOUT` 은
+        > `EngineErrorCode` 참조가 됐다. 다만 *"한 파일에 혼재"* 는 **끝까지 참이다**:
+        > 파일은 일부러 나누지 않았고 const 를 둘로 갈랐다(위 ② 참조). 그 판단이 이 항목의
+        > 결론이므로 원문을 지우지 않고 취소선으로 남긴다.
   - [x] ARCH#6: `execution-limits.ts` 모듈 경계 JSDoc. 완료(2026-07-04).
   - [x] MAINT#9: `system-status.constants.ts` concurrency 파싱 일원화 — continuation 을 canonical `resolveContinuationWorkerConcurrency`(strict) 재사용으로 통일(inline loose `Number()||1` 은 §11 계약과 drift 였음). 완료(2026-07-04). (getter 전환은 스코프 밖 — 두 concurrency 상수는 모듈-로드 1회 평가가 spec 의도.)
 > **⚠ 소급 정정 (2026-08-14)** — 아래 "admission 회귀 보강" 이 GREEN 이던 근거는
