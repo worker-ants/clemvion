@@ -19,7 +19,12 @@ priority: P3
 - `:136` — 아바타 행: *"이미지 파일 업로드는 미구현 (Planned) — 전용 업로드 엔드포인트(§6.1 참조) 부재"*
 - `§5.1` 구현 상태 배너의 범위 서술
 
-**대상은 세 문서다** — 초판에는 `9-user-profile.md` 만 적었고, 리뷰(2026-08-31)가 `0-overview.md §2.7` 과 `data-flow/4-file-storage.md` 누락을 잡았다. `spec/` 쓰기라 **planner 트랙**이다. developer 는 권한 밖이고, 자기-반증형 소정정 예외에도
+**대상은 세 문서다** — 초판에는 `9-user-profile.md` 만 적었고, 리뷰(2026-08-31)가 `0-overview.md §2.7` 과 `data-flow/4-file-storage.md` 누락을 잡았다. **⛔ 이 plan 은 머지 차단 요인이다.** `--impl-done` consistency 게이트가 **BLOCK: YES** 를
+냈고 사유는 아래 `## 할 일` 의 Rationale 항목이다 — 구현이 `spec/0-overview.md` §2.7 의
+**명시적 Rationale 결정과 충돌**한다(`review/consistency/2026/09/01/01_51_41`). 코드는
+완성·검증됐지만 이 planner 턴 없이는 PR 이 머지될 수 없다.
+
+`spec/` 쓰기라 **planner 트랙**이다. developer 는 권한 밖이고, 자기-반증형 소정정 예외에도
 해당하지 않는다 — 그 문장은 developer 가 쓴 **예고**가 아니라 제품 정의 서술이다.
 
 선례: `spec-sync-websocket-protocol-gaps.md` 의 `notification.new` 배지 flip 도 같은 방식으로
@@ -43,6 +48,27 @@ Critical 인가 참조.
 - [ ] [`spec/0-overview.md`](../../spec/0-overview.md) §2.7 — 스토리지 레이아웃 트리의
       `avatars/` 항목과 아래 표의 `Form 노드 업로드 / Avatar` 행
       (`{workspaceId}/avatars/...` · **"계획 (코드 미구현)"**)
+- [ ] **⛔ `spec/0-overview.md` `## Rationale` §"S3 객체 키 prefix 설계" 본문 (`:371`, `:372`)**
+      — **이것이 `--impl-done` 을 BLOCK 시킨 Critical 이다.** 본문·표만 고치면 안 된다.
+
+      그 절은 지금 이렇게 적고 있다:
+
+      > `:371` … Form/**Avatar** 영역은 §2.7 의 키 구조와 같이 이 패턴을 따른다.
+      > `:372` **채택**: Knowledge Base 원본 문서 키**만** … workspaceId 를 prefix 에서 제외한다.
+
+      즉 "workspaceId 를 빼는 예외는 KB **하나뿐**" 이라는 **배타적 서술**이다. 구현은
+      `avatars/{userId}/{uuid}.{ext}` 로 그 예외에 두 번째 항목을 추가했으므로, 두 문장을
+      "KB·Avatar **둘**이 예외" 로 정정하고 **Avatar 를 뺀 근거**를 bullet 으로 신설해야 한다:
+
+      - `User` 는 **워크스페이스 비종속 리소스**다. 한 사용자가 여러 워크스페이스에 속하는데
+        키를 워크스페이스로 나누면 같은 사람의 아바타가 워크스페이스마다 갈라진다.
+      - 공개 버킷에서 **키가 곧 접근 통제**라 파일명이 UUID 여야 한다(`{userId}.{ext}` 처럼
+        예측 가능하면 멤버 목록을 아는 사람이 열거할 수 있다). 이건 KB 의 "prefix scan 비용"
+        과는 **다른 축의 근거**이므로 따로 적어야 한다.
+
+      **초판 체크리스트가 이 항목을 빠뜨렸다** — 본문·표만 지목하고 Rationale 절을 안 적었다.
+      consistency 4개 checker 중 `rationale_continuity` 가 그 누락까지 함께 지적했다
+      (`review/consistency/2026/09/01/01_51_41`).
 - [ ] [`spec/data-flow/4-file-storage.md`](../../spec/data-flow/4-file-storage.md) —
       §1.1 제목·§1.2(자기-참조 TODO "기능 도입 시 갱신하라")·§2.1 키 패턴 표의
       `<workspaceId>/avatars/<userId>.<ext>` 행(**"spec 정의, 미구현"**)·§2.2 `avatar_url`

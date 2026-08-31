@@ -146,6 +146,21 @@ owner: planner
 
             </details>
 
+      - [ ] **multer 413 메시지가 CWE-209 고정 문구 계약을 깬다** (consistency
+            `01_51_41` WARNING 5). `error-handling.md §1.3` 은 `PAYLOAD_TOO_LARGE` 의
+            메시지를 `"Request payload too large."` 로 고정하는데, multer 의
+            `PayloadTooLargeException` 은 `HttpException` 분기를 타서 `mapHttpErrorLike`
+            마스킹을 우회하고 라이브러리 원문(`"File too large"`)을 그대로 내보낸다.
+            같은 패턴이 `knowledge-base.controller.ts` 에도 있었으나 **이 PR 이 도달
+            가능성을 크게 높였다**(아바타는 사용자가 직접 파일을 올리는 첫 경로다).
+            `http-exception.filter.ts` 에서 정규화 + `message` 를 명시 단언하는 회귀 테스트.
+
+      - [ ] **`@ApiOperation.description` 길이 강제 초과 2건** (consistency `01_51_41`
+            WARNING 4). `swagger.md §3` 이 50~150자를 **강제**하는데 `updateMe` 202자,
+            `uploadAvatar` 170자다. 압축하거나, DTO description 에 이미 있는 "보안·정책
+            캐비엇 길이 예외" 를 엔드포인트 description 까지 확장하도록 `swagger.md §3` 을
+            개정한다(후자는 planner 트랙).
+
       - [ ] **`uploadAvatar` 컨트롤러의 예외 전파 테스트** (리뷰 9라운드 W5). 형제
             엔드포인트(`getMe`·`changePassword` 등)는 서비스가 던진 예외가 컨트롤러에서
             삼켜지지 않는지를 `rejects.toThrow` 로 확인하는데 이 핸들러만 없다. 위험은 낮다
