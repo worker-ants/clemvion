@@ -25,6 +25,7 @@ import {
   ApiProduces,
   ApiQuery,
   ApiTags,
+  ApiUnauthorizedResponse,
   ApiForbiddenResponse,
 } from '@nestjs/swagger';
 import { Roles } from '../../common/guards/roles.guard';
@@ -55,6 +56,7 @@ export class WorkflowAssistantController {
       '지정한 워크플로우에 속한 내 세션을 최근 상호작용 순으로 최대 50건 반환한다.',
   })
   @ApiQuery({ name: 'workflowId', required: true, format: 'uuid' })
+  @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
   @ApiForbiddenResponse({ description: '워크스페이스 멤버가 아님' })
   async list(
     @WorkspaceId() workspaceId: string,
@@ -74,6 +76,7 @@ export class WorkflowAssistantController {
       '워크플로우 편집기 진입 시 기본 선택할 세션을 조회한다. 없으면 null 반환.',
   })
   @ApiQuery({ name: 'workflowId', required: true, format: 'uuid' })
+  @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
   @ApiForbiddenResponse({ description: '워크스페이스 멤버가 아님' })
   async latest(
     @WorkspaceId() workspaceId: string,
@@ -91,6 +94,7 @@ export class WorkflowAssistantController {
   @Get('sessions/:id')
   @ApiOperation({ summary: '세션 상세(메시지 포함) 조회' })
   @ApiParam({ name: 'id', format: 'uuid' })
+  @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
   @ApiForbiddenResponse({ description: '워크스페이스 멤버가 아님' })
   async findOne(
     @WorkspaceId() workspaceId: string,
@@ -104,6 +108,7 @@ export class WorkflowAssistantController {
   @Roles('editor')
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({ summary: '세션 생성' })
+  @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
   @ApiForbiddenResponse({ description: 'editor 이상 권한 필요' })
   async create(
     @WorkspaceId() workspaceId: string,
@@ -117,6 +122,7 @@ export class WorkflowAssistantController {
   @Roles('editor')
   @ApiOperation({ summary: '세션 제목/모델/상태 업데이트' })
   @ApiParam({ name: 'id', format: 'uuid' })
+  @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
   @ApiForbiddenResponse({ description: 'editor 이상 권한 필요' })
   async update(
     @WorkspaceId() workspaceId: string,
@@ -132,6 +138,7 @@ export class WorkflowAssistantController {
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: '세션 삭제 (cascade로 메시지 삭제)' })
   @ApiParam({ name: 'id', format: 'uuid' })
+  @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
   @ApiForbiddenResponse({ description: 'editor 이상 권한 필요' })
   async remove(
     @WorkspaceId() workspaceId: string,
@@ -154,6 +161,7 @@ export class WorkflowAssistantController {
   @ApiOkResponse({
     description: 'SSE stream. Parse with an EventSource-style client.',
   })
+  @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
   @ApiForbiddenResponse({ description: 'editor 이상 권한 필요' })
   async sendMessage(
     @WorkspaceId() workspaceId: string,

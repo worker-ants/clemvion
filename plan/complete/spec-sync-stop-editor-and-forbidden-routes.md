@@ -3,7 +3,7 @@ title: spec 동기화 후속 — /executions/:id/stop 의 Editor+ 반영 · 잔�
 worktree: stop-editor-403-docs
 started: 2026-08-08
 owner: project-planner
-status: in-progress
+status: complete
 priority: P3
 spec_impact:
   - spec/3-workflow-editor/3-execution.md
@@ -13,7 +13,7 @@ spec_impact:
 
 ## Overview
 
-[`auth-workspace-membership-guard`](../complete/auth-workspace-membership-guard.md) (P0 cross-tenant fix)의
+[`auth-workspace-membership-guard`](./auth-workspace-membership-guard.md) (P0 cross-tenant fix)의
 `--impl-done`(`review/consistency/2026/08/08/22_43_48`, **BLOCK: NO**) WARNING 1건 + INFO 2건을
 분리 등재한다. 셋 다 **문서 동기화**이고 `spec/` 쓰기라 planner 트랙이다.
 
@@ -134,7 +134,7 @@ P0 PR 의 `nodes.controller.ts` 가 `@ApiUnauthorizedResponse`(401) → `@ApiFor
 - 문서 가드 **2890 passed**. 신규 앵커는 뮤테이션으로 검증했다 — **다만 이 시점의 검증은
   불완전했다**(두 앵커를 동시에 바꿨다). 아래 "내 뮤테이션 주장이 절반만 참이었다" 가 정본이다.
 - 참고: `origin/main` 자체의 backend tsc/lint 오류(309줄)는 **선재**이며
-  [`backend-lint-gate-broken-on-main`](./backend-lint-gate-broken-on-main.md) 에서 별도 추적한다.
+  [`backend-lint-gate-broken-on-main`](../in-progress/backend-lint-gate-broken-on-main.md) 에서 별도 추적한다.
   변경 파일에는 0건이다.
 
 ## 리뷰 라운드가 잡은 것 (`17_21_33` 코드 6 + `17_21_43` consistency 5)
@@ -202,10 +202,24 @@ diff 를 눈으로 보다 발견했다. 시그니처 탐색을 **괄호 깊이 0
 ## 후속 (이 티켓 범위 밖, 등재만)
 
 - **`spec-link-integrity` 멀티라인 링크 사각지대** — 여기서 발견했으나 **하니스 결함**이라
-      [`harness-review-gate-followups.md`](./harness-review-gate-followups.md) 로 이관했다
+      [`harness-review-gate-followups.md`](../in-progress/harness-review-gate-followups.md) 로 이관했다
       (`plan_coherence` WARNING: 이 P3 spec-doc 티켓이 `complete/` 로 가면 docs-guard
       작업자가 못 찾는다). 이 줄은 포인터다.
-- [ ] `workflow-assistant.controller.ts` **전 라우트(7개)** 에 `@ApiUnauthorizedResponse` 부재 —
+- [x] `workflow-assistant.controller.ts` **전 라우트(7개)** 에 `@ApiUnauthorizedResponse` 부재 —
+      **완료 (2026-08-31).** 7개 전부에 규약 §2-4 의 정본 문구
+      (`description: '인증 실패 또는 토큰 만료'`, 저장소 156회 사용)를 부착했다. 배치는 형제
+      컨트롤러 관례대로 `@ApiForbiddenResponse` **바로 앞**이다(`triggers.controller.ts` 대조).
+      - **회귀를 잠갔다** — `workflow-assistant.controller.swagger.spec.ts`. 규약을 지키는
+        컨트롤러가 40개가 넘는데 이 하나만 0건이었다는 것은 **이 축을 보는 게이트가 없다**는
+        뜻이라, 고쳐만 두면 다음 라우트가 같은 방식으로 다시 빠진다.
+      - **뮤테이션 실측 (예측 / 실측)**: 데코레이터 1개 제거 → RED / **RED**(`missing` 배열이
+        그 라우트를 지목) · 문구를 `'인증 실패'` 로 교체(7개 전부) → RED / **RED**. 원복 GREEN.
+        두 축(존재·문구)이 각각 물린다.
+      - **공허 방지**: `[전제]` 케이스가 라우트 수를 **7 로 고정**한다. 프로브가 컨트롤러를
+        못 세우거나 라우트가 사라지면 본 단언이 0회 실행되고 조용히 통과하기 때문이다.
+      - **저장소 전수 가드는 만들지 않았다** — 401 이 0건인 나머지 세 컨트롤러
+        (health·invitations·third-party-oauth)는 전 라우트가 `@Public` 이라 정당한 예외이고,
+        그 판정 규칙을 세우는 것은 이 티켓의 범위가 아니다.
       > **범위가 3 → 7 로 늘었다 (2026-08-29 재실측).** 그 파일의
       > `@ApiUnauthorizedResponse` 는 **0건**이고 라우트는 **7개**다 — 즉 일부가 아니라
       > **컨트롤러 전량**이 미문서화다. 원래 적힌 "3" 은 §실측표의 *"시그니처 직전 3"*

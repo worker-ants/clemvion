@@ -128,7 +128,7 @@ Rationale 절 (문서 끝, 신설 또는 기존 절에 추가)에 배경 한 단
   `complete/` 에 있다. `RESOLUTION.md` 에 spec 반영 사실이 이미 2회 언급돼 있는 것도 확인했다
   (`review/**` 는 시점 기록이라 소급 갱신 대상이 아니다).
 - ~~나머지 ~61개 라우트에 `@ApiForbiddenResponse` 부착 — 별도 plan 분리 권장~~ →
-  **이미 승격됨.** [`spec-sync-stop-editor-and-forbidden-routes.md`](../in-progress/spec-sync-stop-editor-and-forbidden-routes.md)
+  **이미 승격됨.** [`spec-sync-stop-editor-and-forbidden-routes.md`](./spec-sync-stop-editor-and-forbidden-routes.md)
   §2 가 같은 작업을 실 체크박스로 갖고 있다(전수 스캔 + 코드모드 + 설명 문자열 통일).
   그 문서가 "종전엔 두 plan 의 **산문 권고**로만 있었다 — checker 가 유실 패턴을 지적해
   체크리스트로 승격한다" 고 명시한다. 여기 포인터를 남겨 두지 않으면 이 문서만 읽는 사람이
