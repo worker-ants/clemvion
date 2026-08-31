@@ -976,7 +976,7 @@ socket.emit("subscribe", { channel: "execution:550e8400..." });
 
 > 스냅샷 payload 는 `{ executionId, execution, timestamp }` 다 — `status` / `nodeExecutions[]` 는 `execution` 객체(`ExecutionsService.findById` 반환) 안에 nest 된다 (`emitExecutionSnapshot`). 재구독 시 첫 구독에서만 1회 발행한다 (재구독 중복 emit 방지 — `isNewSubscription` 가드).
 
-**seq 기반 정밀 재전송은 SSE 전송 표면의 메커니즘이다.** 끊긴 구간의 개별 이벤트를 `seq > lastSeq` 단위로 손실 없이 재생하는 경로(5분 버퍼)는 native WS subscribe 명령이 아니라 **SSE 어댑터**가 `Last-Event-Id` 헤더로 제공한다 (§4.6, [Spec EIA §5.2 SSE 이벤트 스트림](./14-external-interaction-api.md)). 즉 5분 버퍼는 SSE 어댑터(`external-interaction/sse-adapter.service.ts`)가 자체 보유하며, native WS 는 위 snapshot 으로 갈음한다.
+**seq 기반 정밀 재전송은 SSE 전송 표면의 메커니즘이다.** 끊긴 구간의 개별 이벤트를 `seq > lastSeq` 단위로 손실 없이 재생하는 경로(5분 버퍼)는 native WS subscribe 명령이 아니라 **SSE 어댑터**가 `Last-Event-Id` 헤더로 제공한다 (§4.7, [Spec EIA §5.2 SSE 이벤트 스트림](./14-external-interaction-api.md)). 즉 5분 버퍼는 SSE 어댑터(`external-interaction/sse-adapter.service.ts`)가 자체 보유하며, native WS 는 위 snapshot 으로 갈음한다.
 
 > **`execution.replay_unavailable` — SSE 구현됨 / native WS 미해당.** SSE 전송은 버퍼가 요청 범위를 못 채우면(만료·폐기) `execution.replay_unavailable` 을 1회 emit 하고 클라이언트는 REST `GET /executions/:id` 로 재조회한다 ([EIA §5.2](./14-external-interaction-api.md#52-sse-이벤트-스트림--get-apiexternalexecutionsexecutionidstream) 구현됨). native WS 는 seq 버퍼 자체가 없어(재구독 시 `execution.snapshot` 으로 갈음) 만료 신호가 구조적으로 불필요하므로 대응 이벤트를 두지 않는다.
 
