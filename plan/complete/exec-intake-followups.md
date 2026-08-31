@@ -61,6 +61,40 @@ exec-intake 큐 백로그(`exec-intake-queue-impl.md`, PR1~PR4 + PR2b)는 **완�
         > > 여기를 빠뜨렸다. **미러가 셋이면 셋을 다 세야 한다** — 지적받은 자리만 고치면
         > > 남은 자리가 다음 라운드에 그대로 나온다(실제로 그렇게 됐다).
         >
+        > **⑤ 2026-06-14 "중앙 enum 확장" 결정과의 관계** (consistency `21_34_02`
+        > `rationale_continuity` WARNING 반영 — 지어내지 않고 정확히).
+        >
+        > `4-execution-engine.md` §Rationale 에 사용자 확정 결정이 있다 — *"신규 `EXEC_*`
+        > prefix 를 만들지 않고 중앙 `ErrorCode` enum 의 기존 `EXECUTION_*` 확장. `EXEC_*` 는
+        > 기존 `EXECUTION_*` 과 **이중 표기**라 기각."*
+        >
+        > - **기각된 것은 값 레벨 prefix 다.** 사유가 "이중 표기" 이므로 대상은 **코드
+        >   문자열**이다. 이 변경은 값을 한 글자도 바꾸지 않았다 — 새 prefix 도 이중 표기도
+        >   생기지 않았으므로 그 결정의 **문면은 건드리지 않는다**.
+        > - **그러나 형태는 선례와 어긋난다.** `ErrorCode` 의 `RETRY_*` 는 주석이 스스로
+        >   *"노드 `output.error.code` 가 아니다"* 라고 적으면서도 *"canonical code strings 는
+        >   one source of truth"* 를 이유로 **같은 enum 안에** 남았다. 즉 이 저장소의 선례는
+        >   "레이어가 달라도 한 enum" 이고, 나는 **자매 const** 를 택했다.
+        > - **왜 그래도 이렇게 했나**: 선례가 지키려던 것은 *"canonical string 의 SoT 가
+        >   하나"* 이고 그건 **같은 파일**이면 유지된다(그래서 파일을 나누지 않았다). 그 위에서
+        >   `ErrorCode` 의 자기 선언 범위(*node handlers' `output.error.code`*)를 넓히지
+        >   않으려면 자매 const 가 필요했다.
+        > - **다만 이 논리는 `RETRY_*` 에도 똑같이 적용될 수 있었고 그때는 채택되지 않았다.**
+        >   즉 중립적 선택이 아니라 **형태의 의식적 이탈**이다. 그렇게 적어 둔다 — 다음 사람이
+        >   "언제 central enum 을 확장하고 언제 자매 const 를 만드는가" 를 판단할 때, 내
+        >   근거가 선례를 이겼다고 읽지 않도록.
+        > - **되돌리는 비용은 낮다**: 엄격히 선례를 따르려면 넷을 `ErrorCode` 로 옮기면 되고
+        >   **값은 움직이지 않는다**.
+        >
+        > ⚠️ 완화 요인도 적어 둔다 — 그 결정의 표제는 *"Continuation ack client-safe typed
+        > error"* 로 **WS ack 경계 코드**에 한정된 맥락일 수 있다(이 const 는 DB 영속
+        > `Execution.error` 봉투다). checker 도 그래서 CRITICAL 이 아니라 WARNING 을 냈다.
+        > 해석의 여지가 있다는 사실 자체를 여기 남긴다.
+        >
+        > **후속 (planner 트랙)**: `spec/conventions/error-codes.md` §Overview 가 대표 surface
+        > 를 `ErrorCode` 단수로 서술한다 — `EngineErrorCode` 병기 1줄이 필요하다.
+        > → [`spec-conventions-engine-error-code-surface.md`](../in-progress/spec-conventions-engine-error-code-surface.md)
+
         > **재발 방지**: `repo-guards/__tests__/engine-error-code-anchor-guard.ts` (AST).
         > 관례대로 TS 소스는 정규식이 아니라 파서로 읽는다 — 실제로 내 1차 정규식 스캔이
         > `code:` 만 봐서 `const code = 'X'` 를 통째로 놓쳤고, `workflow-errors.ts` 의
