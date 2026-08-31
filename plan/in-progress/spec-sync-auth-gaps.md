@@ -148,10 +148,20 @@ checker 가 **`plan/**` 어디에도 추적되지 않음**을 확인해 여기 �
 > 3컬럼) · 타입에 **`Number` 를 발명**했다(어휘는 `Float`/`Int`/`BigInt` 뿐 — `Float` 로
 > 정정하고 DB 고정소수를 설명에 남겼다).
 
-- [ ] **`ACCOUNT_LOCKED` 상태 코드가 spec 간 다르다** (`10_46_44` cross_spec INFO 1).
+- [x] **`ACCOUNT_LOCKED` 상태 코드가 spec 간 다르다** (`10_46_44` cross_spec INFO 1).
       `5-system/1-auth.md` · `3-error-handling.md` · `data-flow/2-auth.md` · `auth.service.ts`
       사이에서 **423 vs 401** 이 갈린다. 위 ① 작업 중 인접해서 드러났으나 **범위 밖**이라
       건드리지 않았다 — 어느 쪽이 맞는지 실측이 먼저다.
-- [ ] **`ALERT_RULE_NOT_FOUND` 가 에러 코드 중앙 카탈로그에 없다** (`10_46_44` cross_spec
+- [x] **`ALERT_RULE_NOT_FOUND` 가 에러 코드 중앙 카탈로그에 없다** (`10_46_44` cross_spec
       INFO 2). `alerts.service.ts:49,66` 이 발행하는데 `3-error-handling.md` 미등재.
       `9-user-profile.md:387-388` 에만 있다.
+
+> **위 두 건 완료 (2026-08-31, planner 턴).** `--spec`(`11_05_44`) BLOCK:NO, WARNING 2건 반영.
+>
+> - `ACCOUNT_LOCKED` **423 → 401**. `UnauthorizedException` 실측 + `data-flow` 두 곳과 일치.
+>   **낡은 게 아니라 처음부터 틀렸다** — `git log -S "LockedException"` **0건**이고 그 행은
+>   최초 spec 초안(`05089d5a6`)부터 남아 있었다. "구현을 423 으로" 는 API 계약 변경이라 기각.
+> - `ALERT_RULE_NOT_FOUND` **§1.3 직접 등재**(404). `MODEL_CONFIG_NOT_FOUND` 선례를 따랐고,
+>   워크스페이스 스코프 조회라 **타 워크스페이스 접근도 같은 404**(존재 누설 방지)임을 명시.
+> - **부수 효과를 함께 닫았다**: 423 이 §1.2 에서 사라지면서 같은 문서 Rationale 두 곳의
+>   "401/403/423" 서술이 낡는다 → 함께 갱신(`11_05_44` W1).

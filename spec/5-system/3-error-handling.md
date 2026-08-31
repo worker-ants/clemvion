@@ -45,7 +45,7 @@ code:
 | `FORBIDDEN` | 권한 없음 | 역할 권한 부족(generic) | 403 |
 | `ADMIN_REQUIRED` | Admin 권한 필요 | 워크스페이스 Owner/Admin 역할 필요 시 발행되는 `FORBIDDEN` 의 컨텍스트 특화 코드(`WorkspacesService.assertAdmin()` 발행) | 403 |
 | `LOGIN_FAILED` | 로그인 실패 | 잘못된 자격 증명 | 401 |
-| `ACCOUNT_LOCKED` | 계정 잠김 | 로그인 시도 초과 | 423 |
+| `ACCOUNT_LOCKED` | 계정 잠김 | 로그인 시도 초과 (5회 → 10분). `UnauthorizedException` — 아래 Rationale "423 오기 정정" | 401 |
 | `NOT_A_MEMBER` | 워크스페이스 비멤버 | 대상 워크스페이스 멤버십 검증 실패 (전환 `/api/auth/workspaces/:id/switch`·탈퇴·멤버십 확인 경로, `auth.service`·`workspaces.service`) ([1-auth.md §5](./1-auth.md#5-api-엔드포인트) · [data-flow §1.5](../data-flow/12-workspace.md#15-워크스페이스-전환-토큰-재발급)) | 403 |
 | `INVALID_PASSWORD` | 비밀번호 재확인 실패 | `POST /users/me/change-password` 현재 비밀번호 미설정·불일치 ([1-auth.md §2.3](./1-auth.md#23-세션-정책)). 재인증 코드 `PASSWORD_INVALID`(§1.2.1)·`login_history.failure_reason` 동명값과 별개 | 401 |
 
@@ -80,6 +80,7 @@ code:
 | `INVALID_TRIGGER_PARAMETERS` | Manual Trigger parameters 스키마 검증 실패. **세 엔드포인트 공용** — 주 실행(`POST /workflows/:id/execute`, `workflows.controller.ts`) · 저장(`POST /workflows/:id/save`, `workflows.service.ts` `validateManualTrigger`) · **Re-run 의 `inputOverride`**(`POST /executions/:id/re-run`, `executions.service.ts`). 셋 다 `resolveTriggerParameters` 가 던지는 같은 검증 실패를 감싸므로 같은 코드를 낸다. 필드별 사유는 `details[]`([§1.7](#17-webhook-수신-에러-코드-도메인-spec-참조) 카탈로그). Re-run 경로의 정의 SoT 는 [replay-rerun §8.1](./13-replay-rerun.md). **경로별 `RERUN_` prefix 를 붙이지 않는 것은 의도** — 세 경로를 하나로 모으는 것이 이 코드의 존재 이유다 | 400 |
 | `MODEL_CONFIG_INVALID` | ModelConfig 입력 검증 실패 — 알 수 없는 `kind`, 필수 provider 의 apiKey 누락, 사설망/loopback baseUrl(SSRF 가드, tei/local 외) 등 (`model-config.service.ts`·`model-config.controller.ts`·`llm-preview.service.ts`(preview-models, C-2 cluster 4 이후 llm 모듈) 발행) | 400 |
 | `RESOURCE_NOT_FOUND` | 리소스 없음 | 404 |
+| `ALERT_RULE_NOT_FOUND` | 알림 규칙 없음 — 워크스페이스 스코프 안에서 규칙 id 미발견 (`alerts.service.ts` 가 `where: { id, workspaceId }` 로 조회하므로 **타 워크스페이스 규칙 접근도 같은 404** — 존재 누설 방지, `MODEL_CONFIG_NOT_FOUND` 의 cross-kind 차단과 동형). 화면·API 계약: [사용자 프로필 §5.4·§6.3](../2-navigation/9-user-profile.md) | 404 |
 | `MODEL_CONFIG_NOT_FOUND` | 지정 id 의 ModelConfig 부재 또는 cross-kind 접근 차단(존재 누설 방지) — id 지정 경로 + `resolveEmbedding` 의 ws-default 부재(KB 임베딩 config 부재 = 리소스 부재). `RESOURCE_NOT_FOUND` 의 ModelConfig 특화 코드 (`model-config.service.ts` 발행) | 404 |
 | `MODEL_CONFIG_DEFAULT_MISSING` | id 미지정 시 워크스페이스 default config 없음(setup 안내용) — `resolveConfig` 의 ws default(chat/LLM) 경로 전용. `resolveEmbedding` 의 ws-default 부재는 `MODEL_CONFIG_NOT_FOUND`(404) 를 사용한다(임베딩 config 부재 = 리소스 부재, setup 안내와 구분; 사용자 결정 2026-06-12) (`model-config.service.ts` 발행) | 400 |
 | `RESOURCE_CONFLICT` | 리소스 충돌 (이름 중복 등) | 409 |
@@ -546,10 +547,42 @@ GET /api/health
 
 ## Rationale
 
+### `ACCOUNT_LOCKED` 423 → 401 오기 정정 (2026-08-31)
+
+카탈로그가 **423**, 구현은 **401** 이었다. 카탈로그 한 줄만 달랐다:
+
+| 무엇 | 값 |
+| --- | --- |
+| `auth.service.ts` | `throw new UnauthorizedException({ code: 'ACCOUNT_LOCKED', … })` → **401** |
+| `data-flow/2-auth.md` 시퀀스·상태 전이 표 | **401** (두 곳) |
+| 본 카탈로그 (정정 전) | 423 |
+
+**낡은 게 아니라 처음부터 틀렸다.** `git log -S "LockedException"` 이 backend auth 에서
+**0건** — 이 저장소는 423 을 던지는 예외를 한 번도 쓴 적이 없고, 그 행은 최초 spec 초안
+(`05089d5a6`)부터 그대로 남아 있었다. 구현 의도가 423이었던 흔적이 없다.
+
+**기각한 대안 — 구현을 423 으로 바꾸기**: 상태 코드는 API 계약이라 클라이언트가 401 로
+분기해 재로그인을 유도하고 있을 수 있다. 문서가 틀렸다는 근거가 실측으로 확정된 이상
+문서를 고치는 쪽이 **위험이 없다**. 423 이 의미상 낫다는 판단은 별개 제품 결정이다.
+
+부수 효과로 §1.2 에 423 이 **하나도 남지 않는다** — 위 두 Rationale 항목의 "401/403/423"
+서술을 함께 갱신했다.
+
+### `ALERT_RULE_NOT_FOUND` 등재 (2026-08-31)
+
+`alerts.service.ts` 가 발행하는데 이 카탈로그에 **0건**이었고, 문서화는 기능 spec
+(`9-user-profile.md` §6.3)에만 있었다.
+
+§1.3 에 **직접 등재**한다 — §1.5~§1.9 의 도메인-참조 패턴이 아니라 같은 절
+`MODEL_CONFIG_NOT_FOUND` 의 직접-등재 선례를 따른 것이다.
+
+> 두 항목 다 `#1247` 작업 중 `--spec`(`10_46_44`) cross_spec 이 인접해서 찾아 범위 밖으로
+> 등재해 뒀던 건이다.
+
 - **§1 카탈로그 완결성 — 2FA/WebAuthn(§1.2.1)·KB/Graph RAG(§1.8) 도메인 등재**: [`conventions/error-codes.md §1`](../conventions/error-codes.md#1-의미-기반-명명-핵심-원칙)이 본 §1 을 "제품 전체 에러 코드 카탈로그 SoT" 로 선언하나, `1-auth.md`(WebAuthn/2FA)·`10-graph-rag.md`(KB) 도메인 코드가 §1 에 미등재였다. 이를 §1.5~§1.7 이 이미 쓰던 "도메인 spec 참조(정의 SoT 는 도메인 spec, 본 §1 은 공용 카탈로그 가시성 등재)" 패턴으로 완결했다 — 새 원칙 도입도 코드 재정의도 아니다. **spec 에 문서화된 코드만 등재**하며, 코드에만 존재하고 도메인 spec 본문 미문서였던 재인증 세부 코드(`REAUTH_REQUIRED`/`PASSWORD_INVALID`/`TOTP_INVALID`)는 dangling SoT 를 피해 "spec 문서화 → 등재" 순서의 후속으로 남겼고, 이는 아래 §2.3 정합화 bullet 에서 완결했다.
 - **§2.3 재인증 흐름 정합화 + 세부 코드 등재 (drift 정정, 위 완결성 bullet 후속)**: `1-auth.md §2.3` "강제 종료 재인증" 행이 구현(`verifyReauth`=password OR TOTP)·Rationale 1.1.B-4·`9-user-profile.md` 코퍼스 합의와 달리 "WebAuthn/이메일 OTP 대체 + §1.4.2 우선순위" 로 과대 서술(미구현 대안)돼 있어, 실제 지원(password OR TOTP)으로 정렬하고 WebAuthn·이메일 OTP 재인증을 "현재 미지원(1.1.B-4)" 으로 명시했다([1-auth.md §2.3.D](./1-auth.md#23d--23-재인증-흐름-정합화-구현11b-4-정렬)). 이로써 §2.3 이 재인증 세부 코드의 SoT 가 되어 위 완결성 bullet 이 "후속으로 남긴" 3코드를 §1.2.1 에 등재했다. #882 §1.2.1 주석의 status 오기(`REAUTH_REQUIRED` 403→400·`PASSWORD_INVALID` 400→401)와 "로그인 TOTP 실패는 별도 code 없이 `totp_failed` 로만" 서술도 코드 기준으로 정정했다(`PASSWORD_INVALID` 는 `verifyReauth`·`verifyPasswordForUser` 발행이며 로그인은 `LOGIN_FAILED`). `PASSWORD_INVALID`(재인증/2FA·WebAuthn 관리)는 비밀번호 변경 코드 `INVALID_PASSWORD` 와 별개다.
-- **§1 카탈로그 완결성 종결 — #882/#887 deferred 잔여 등재**: #882·#887 이 "본문 문서화 → 등재" 후속으로 남긴 `NOT_A_MEMBER`(403)·`INVALID_PASSWORD`(401)·`PASSWORD_REQUIRED`(401)를 등재했다. `PASSWORD_REQUIRED` 는 `verifyPasswordForUser` 의 missing 케이스라 그 mismatch 형제 `PASSWORD_INVALID` 와 동일 §1.2.1 에, `NOT_A_MEMBER`·`INVALID_PASSWORD` 는 §1.2 에 배치(둘 다 401/403 auth 코드로 §1.2 의 401/403/423 구조 부합 — §1.3 유효성 400/404/409/422 아님). `PASSWORD_REQUIRED` 는 `1-auth.md §5`(민감 동작 재확인 note)로·`INVALID_PASSWORD` 는 `§2.3` 본문 note(reauth 코드 L334 선례 대칭)로 코드·status 본문 문서화, `NOT_A_MEMBER` 는 기존 §5 본문 참조. 4중 근접명명(`INVALID_PASSWORD`≠`PASSWORD_INVALID`≠`PASSWORD_REQUIRED`≠`REAUTH_REQUIRED`)은 각 설명에 명시 구분. **범위 한정**: workspace 직접-추가 경로 코드(`ALREADY_A_MEMBER`·`WORKSPACE_TYPE_MISMATCH`, `workspaces.service.ts`)는 #882/#887 deferred 목록 밖이라 본 pass 범위 아님(별도 완결성 pass — §1.9 로 완결).
-- **§1.9 워크스페이스 멤버 직접 추가 코드 등재 (#893 후속 완결성 pass)**: #893 이 "별도 pass" 로 남긴 직접-추가 경로(`addMemberByEmail`) UPPER_SNAKE 코드 `CANNOT_ASSIGN_OWNER`(403)·`ALREADY_A_MEMBER`(409)·`WORKSPACE_TYPE_MISMATCH`(403)를 §1.5~§1.8 도메인-참조 패턴으로 §1.9 신설 등재했다. SoT=data-flow §1.9. 초대 흐름 lowercase 동명 코드(`already_a_member`·`workspace_type_mismatch`)와 wire-별개임을 note 로 명시(error-codes.md §3 정합). §1.2(401/403/423)에 409 를 섞지 않고 status 열 서브섹션으로 둔 것은 §1.5~§1.8 선례. generic `USER_NOT_FOUND`·`WORKSPACE_NOT_FOUND`(404)는 도메인 distinctive 아니라 제외. 그 외 workspace role/membership 관리 코드(`SOLE_OWNER_CANNOT_LEAVE` 등)는 별도 pass.
+- **§1 카탈로그 완결성 종결 — #882/#887 deferred 잔여 등재**: #882·#887 이 "본문 문서화 → 등재" 후속으로 남긴 `NOT_A_MEMBER`(403)·`INVALID_PASSWORD`(401)·`PASSWORD_REQUIRED`(401)를 등재했다. `PASSWORD_REQUIRED` 는 `verifyPasswordForUser` 의 missing 케이스라 그 mismatch 형제 `PASSWORD_INVALID` 와 동일 §1.2.1 에, `NOT_A_MEMBER`·`INVALID_PASSWORD` 는 §1.2 에 배치(둘 다 401/403 auth 코드로 §1.2 의 401/403(§1.2 구조 — 종전 서술의 423 은 `ACCOUNT_LOCKED` 오기였고 2026-08-31 정정됐다) 구조 부합 — §1.3 유효성 400/404/409/422 아님). `PASSWORD_REQUIRED` 는 `1-auth.md §5`(민감 동작 재확인 note)로·`INVALID_PASSWORD` 는 `§2.3` 본문 note(reauth 코드 L334 선례 대칭)로 코드·status 본문 문서화, `NOT_A_MEMBER` 는 기존 §5 본문 참조. 4중 근접명명(`INVALID_PASSWORD`≠`PASSWORD_INVALID`≠`PASSWORD_REQUIRED`≠`REAUTH_REQUIRED`)은 각 설명에 명시 구분. **범위 한정**: workspace 직접-추가 경로 코드(`ALREADY_A_MEMBER`·`WORKSPACE_TYPE_MISMATCH`, `workspaces.service.ts`)는 #882/#887 deferred 목록 밖이라 본 pass 범위 아님(별도 완결성 pass — §1.9 로 완결).
+- **§1.9 워크스페이스 멤버 직접 추가 코드 등재 (#893 후속 완결성 pass)**: #893 이 "별도 pass" 로 남긴 직접-추가 경로(`addMemberByEmail`) UPPER_SNAKE 코드 `CANNOT_ASSIGN_OWNER`(403)·`ALREADY_A_MEMBER`(409)·`WORKSPACE_TYPE_MISMATCH`(403)를 §1.5~§1.8 도메인-참조 패턴으로 §1.9 신설 등재했다. SoT=data-flow §1.9. 초대 흐름 lowercase 동명 코드(`already_a_member`·`workspace_type_mismatch`)와 wire-별개임을 note 로 명시(error-codes.md §3 정합). §1.2(401/403(§1.2 구조 — 종전 서술의 423 은 `ACCOUNT_LOCKED` 오기였고 2026-08-31 정정됐다))에 409 를 섞지 않고 status 열 서브섹션으로 둔 것은 §1.5~§1.8 선례. generic `USER_NOT_FOUND`·`WORKSPACE_NOT_FOUND`(404)는 도메인 distinctive 아니라 제외. 그 외 workspace role/membership 관리 코드(`SOLE_OWNER_CANNOT_LEAVE` 등)는 별도 pass.
 - **`MODEL_CONFIG_NOT_FOUND`(404) 와 `MODEL_CONFIG_DEFAULT_MISSING`(400) 분리 (PR4b)**: 구 단일 코드는
   id 지정 경로의 "지정 config 부재"(404)와 id 미지정 경로의 "워크스페이스 default 미설정"(400)을 한
   코드로 묶어 동일 코드가 404/400 두 status 를 갖는 모호성이 있었다. id 경로는 `MODEL_CONFIG_NOT_FOUND`(404,
