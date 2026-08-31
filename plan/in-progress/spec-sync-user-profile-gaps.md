@@ -123,6 +123,16 @@ owner: planner
 
             </details>
 
+      - [ ] **프런트엔드 아바타 업로드 UI + 유저 가이드 동반 갱신** (리뷰 6라운드 INFO).
+            `POST /api/users/me/avatar` 는 backend 만 있고 이를 쓰는 화면이 없다. 이 PR 은
+            backend 전용이라 "누락" 이 아니라 **아직 미트리거**지만, 추적 항목이 없으면
+            엔드포인트만 떠 있는 채로 잊힌다.
+
+            UI 를 붙이는 PR 에서
+            `codebase/frontend/src/content/docs/07-workspace-and-team/password-and-sessions.mdx`
+            (frontmatter 가 `users.controller.ts` 를 SoT 로 명시)를 **동반 갱신**해야 한다.
+            지금은 `PATCH /users/me` 의 URL 입력만 설명한다.
+
       - [ ] **업로드 바이트의 매직 넘버 검증** (리뷰 1~4라운드가 매번 지목 — INFO 3회 →
             WARNING 1회). 지금은 확장자 화이트리스트 + 서버 강제 `Content-Type` 만 본다.
             저장형 XSS 주 벡터는 그것으로 막히지만(브라우저가 `image/*` 로만 렌더),

@@ -49,8 +49,10 @@ import {
   isSwaggerEnabled,
 } from './common/config/production-guards';
 import { assertWorkspaceIdReflectionWorks } from './common/decorators/workspace-reflection-canary';
-import { resolvePublicBaseUrl } from './common/config/s3.config';
-import { isPrivateHost } from './common/utils/ssrf.util';
+import {
+  resolvePublicBaseUrl,
+  shouldWarnPublicBaseIsPrivate,
+} from './common/config/s3.config';
 
 /**
  * Swagger UI(`/docs`) 문서를 앱에 마운트한다 (04 M-1). 호출 자체가 게이팅 대상 —
@@ -157,20 +159,17 @@ async function bootstrap() {
   //
   // `throw` 가 아니라 `warn` 인 이유는 위 ALLOW_PRIVATE_HOST_TARGETS 와 같다 — 단일 호스트
   // self-host 배포는 사설 주소가 정답일 수 있다. 판정은 운영자에게 남기고 가시화만 한다.
-  if (process.env.NODE_ENV === 'production') {
-    // 규칙을 다시 적지 않고 SoT 함수를 부른다 — 손으로 적었던 사본은 마지막 항이 `''`
-    // 라 두 env 가 모두 미설정일 때(=기본값 localhost 가 서빙되는 바로 그때) 침묵했다.
-    const publicBase = resolvePublicBaseUrl(process.env);
-    // 판정은 손으로 짜지 않고 정본 `isPrivateHost` 를 쓴다 — loopback 뿐 아니라 RFC1918·
-    // link-local·ULA·IPv4-mapped IPv6 까지 이미 다룬다. DNS 이름(`minio` 등)은 동기로
-    // 판정할 수 없어 false 를 돌려주는데, 그건 이 경고의 한계이지 결함이 아니다.
-    if (publicBase && isPrivateHost(publicBase)) {
-      logger.warn(
-        `[CONFIG] S3_PUBLIC_BASE_URL 이 사설/loopback 주소입니다 (${publicBase}) — ` +
-          '아바타 업로드는 성공하지만 브라우저가 이미지를 가져오지 못합니다. ' +
-          '공개 도메인/CDN 주소로 설정하세요. 단일 호스트·사내망 self-host 라면 무시해도 됩니다.',
-      );
-    }
+  //
+  // 판정(`NODE_ENV` + 폴백 규칙 + 사설 주소 여부)은 `s3.config.ts` 의 순수 함수에 있다 —
+  // 여기 인라인으로 두었더니 조합 전체를 어떤 테스트도 물지 못했다(리뷰 6라운드 실측:
+  // `if (false && …)` 뮤턴트가 85건 GREEN 으로 생존). 부트스트랩 본문에는 판정을 두지 않는다.
+  if (shouldWarnPublicBaseIsPrivate(process.env)) {
+    logger.warn(
+      `[CONFIG] S3_PUBLIC_BASE_URL 이 사설/loopback 주소입니다 ` +
+        `(${resolvePublicBaseUrl(process.env)}) — 아바타 업로드는 성공하지만 브라우저가 ` +
+        '이미지를 가져오지 못합니다. 공개 도메인/CDN 주소로 설정하세요. ' +
+        '단일 호스트·사내망 self-host 라면 무시해도 됩니다.',
+    );
   }
 
   // 본문 파서를 직접 제어한다 (`bodyParser: false`). 이유: 라우트별 크기 한도 분리 —

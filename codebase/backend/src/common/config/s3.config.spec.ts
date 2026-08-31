@@ -1,4 +1,8 @@
-import { resolvePublicBaseUrl, s3Config } from './s3.config';
+import {
+  resolvePublicBaseUrl,
+  s3Config,
+  shouldWarnPublicBaseIsPrivate,
+} from './s3.config';
 
 /**
  * `publicBaseUrl` 의 3단 폴백. 이 값이 틀리면 아바타는 **업로드까지 성공하고** 브라우저
@@ -74,4 +78,65 @@ describe('resolvePublicBaseUrl (폴백 SoT)', () => {
       expect(resolvePublicBaseUrl(env as NodeJS.ProcessEnv)).toBe(expected);
     },
   );
+});
+
+/**
+ * 부팅 경고의 **조합 판정**. 6라운드 리뷰가 `main.ts` 안의 인라인 조합을
+ * `if (false && …)` 로 뮤테이션해도 85건이 전부 GREEN 임을 실측했다 — 부트스트랩 본문은
+ * 유닛이 못 붙잡는다. 그래서 조합을 순수 함수로 빼고 여기서 문다.
+ */
+describe('shouldWarnPublicBaseIsPrivate', () => {
+  it('production 이 아니면 판정하지 않는다 (dev 는 localhost 가 정상)', () => {
+    expect(
+      shouldWarnPublicBaseIsPrivate({
+        NODE_ENV: 'development',
+        S3_PUBLIC_BASE_URL: 'http://localhost:9000',
+      }),
+    ).toBe(false);
+  });
+
+  it.each([
+    ['loopback', 'http://localhost:9000'],
+    ['127.0.0.1', 'http://127.0.0.1:9000'],
+    ['IPv6 loopback', 'http://[::1]:9000'],
+    ['RFC1918 10.x', 'http://10.0.0.5:9000'],
+    ['RFC1918 192.168.x', 'http://192.168.1.10'],
+  ])('production + %s → 경고한다', (_label, url) => {
+    expect(
+      shouldWarnPublicBaseIsPrivate({
+        NODE_ENV: 'production',
+        S3_PUBLIC_BASE_URL: url,
+      }),
+    ).toBe(true);
+  });
+
+  it.each([
+    ['공개 도메인', 'https://cdn.example.com'],
+    ['미치환 sentinel', 'https://REPLACE_ME.cloudfront.net'],
+    ['서브도메인 함정', 'https://localhost.evil.com'],
+  ])('production + %s → 경고하지 않는다', (_label, url) => {
+    expect(
+      shouldWarnPublicBaseIsPrivate({
+        NODE_ENV: 'production',
+        S3_PUBLIC_BASE_URL: url,
+      }),
+    ).toBe(false);
+  });
+
+  it('두 env 가 모두 미설정이면 경고한다 — 기본값이 localhost 이기 때문', () => {
+    // 이 케이스가 핵심이다. 4라운드까지 `main.ts` 사본의 폴백 마지막 항이 `''` 라
+    // **여기서 침묵했다** — 가드가 정확히 기본값 경로를 놓쳤다.
+    expect(shouldWarnPublicBaseIsPrivate({ NODE_ENV: 'production' })).toBe(
+      true,
+    );
+  });
+
+  it('S3_ENDPOINT 만 사설이어도 경고한다 (공개 base 미설정 → endpoint 폴백)', () => {
+    expect(
+      shouldWarnPublicBaseIsPrivate({
+        NODE_ENV: 'production',
+        S3_ENDPOINT: 'http://10.1.2.3:9000',
+      }),
+    ).toBe(true);
+  });
 });

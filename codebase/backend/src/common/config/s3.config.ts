@@ -1,5 +1,7 @@
 import { registerAs } from '@nestjs/config';
 
+import { isPrivateHost } from '../utils/ssrf.util';
+
 /**
  * 아바타 공개 URL base 의 폴백 규칙 — **이 함수가 SoT 다.**
  *
@@ -13,6 +15,23 @@ import { registerAs } from '@nestjs/config';
  */
 export function resolvePublicBaseUrl(env: NodeJS.ProcessEnv): string {
   return env.S3_PUBLIC_BASE_URL || env.S3_ENDPOINT || 'http://localhost:9000';
+}
+
+/**
+ * production 부팅 시 아바타 공개 base 가 브라우저에서 도달 불가능한 주소인지.
+ *
+ * `main.ts` 가 이 값으로 경고를 낸다. **판정을 순수 함수로 뺀 이유**는 리뷰 6라운드가
+ * `main.ts` 안의 조합(`NODE_ENV==='production' && isPrivateHost(resolve…)`)을
+ * `if (false && …)` 로 뮤테이션해도 85건이 전부 GREEN 임을 실측했기 때문이다 — 부트스트랩
+ * 본문은 유닛으로 붙잡기 어렵다. 조합을 여기로 옮기면 그 자체를 테스트로 고정할 수 있다.
+ *
+ * `throw` 가 아니라 `warn` 인 판단은 호출자(`main.ts`)의 몫이다 — 단일 호스트·사내망
+ * self-host 는 사설 주소가 정답일 수 있다(`ALLOW_PRIVATE_HOST_TARGETS` 와 같은 정책).
+ */
+export function shouldWarnPublicBaseIsPrivate(env: NodeJS.ProcessEnv): boolean {
+  if (env.NODE_ENV !== 'production') return false;
+  const base = resolvePublicBaseUrl(env);
+  return Boolean(base) && isPrivateHost(base);
 }
 
 export const s3Config = registerAs('s3', () => ({
