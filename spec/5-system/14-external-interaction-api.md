@@ -946,7 +946,8 @@ ALTER TABLE trigger
 
 - Timing-safe 비교
 - timestamp ±5분 window
-- algorithm whitelist: `hmac-sha256` 만. v2 추가 시 `v2=` prefix 로 병행
+- algorithm whitelist: `hmac-sha256` / `hmac-sha512` — 두 값만 (§R12 · [EIA-NX-03](#31-outbound-notification-notification-webhook)). inbound webhook 검증([Webhook §4.2](./12-webhook.md#42-hmac-서명--authconfigtypehmac))의 `sha256` / `sha512` 와 **같은 두 알고리즘**이고 표기 규약만 다르다
+- **서명 스킴 버전은 별개 축이다** — 헤더 값의 `v1=`([§6.1 헤더](#61-헤더))가 소유하며, 새 스킴 도입 시 `v2=` 를 병행 표기한다. 현재 발행되는 것은 `v1=` 뿐이다. 이 `v2` 는 secret rotation 의 `notification_secret_v2` 컬럼([§7.1](#71-trigger-엔티티-확장))과 **무관**하다 — 이름만 겹친다
 - 서명 헤더 누락 / 형식 오류 / window 초과 / 검증 실패 모두 동일 401 메시지 — algorithm leak 차단
 
 ### 8.3 Token 일반 규약

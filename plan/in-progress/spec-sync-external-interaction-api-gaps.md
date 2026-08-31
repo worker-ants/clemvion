@@ -1240,8 +1240,30 @@ checker 가 독립적으로** "인용이 가리키는 절이 오히려 반대를
 그리고 코드(`notification-signature.util.ts` `SupportedHmacAlgorithm`)는 전부
 **sha256 + sha512 둘 다** 화이트리스트다. 보안 섹션의 자기모순이라 우선순위가 높다.
 
-- [ ] §8.2 를 `hmac-sha256` / `hmac-sha512`(§R12) 로 정정. "v2 추가 시 `v2=` prefix" 문구는
+- [x] §8.2 를 `hmac-sha256` / `hmac-sha512`(§R12) 로 정정. "v2 추가 시 `v2=` prefix" 문구는
       secret rotation 표기와 구분해 재작성하거나 삭제
+      **완료 (2026-08-31).**
+      - **화이트리스트**: `hmac-sha256` **만** → `hmac-sha256` / `hmac-sha512`. 이 문장은
+        **자기 문서보다도 좁았다** — §R12 는 *"각 경로에서 화이트리스트는 `sha256`/`sha512`
+        만 (둘 다)"*, EIA-NX-03 도 두 값을 명시한다. 구현도 마찬가지다:
+
+        | 지점 | 값 |
+        |---|---|
+        | `notification-signature.util.ts:11` | `SupportedHmacAlgorithm = 'hmac-sha256' \| 'hmac-sha512'` |
+        | `notification-config.dto.ts:46` | `@IsIn(['hmac-sha256', 'hmac-sha512'])` |
+        | `notification-webhook.processor.ts:298` | `if (raw === 'hmac-sha512') return 'hmac-sha512'` |
+
+      - **`v2=` 문구는 삭제가 아니라 축을 갈라 재작성했다.** 그 문장은 세 가지를 한 줄에
+        섞고 있었다 — (a) 알고리즘 화이트리스트(그 bullet 의 주어) (b) **서명 스킴 버전**
+        (`X-Clemvion-Signature` 의 `v1=`) (c) 읽는 사람이 떠올리는 `notification_secret_v2`
+        (**secret rotation 컬럼**, §7.1). (b)는 실재하는 forward-compat 서술이라 지우면
+        정보가 사라진다. 그래서 별 bullet 로 내리고 (c)와 **이름만 겹친다**고 못박았다.
+      - **넓히지 않았다**: "현재 발행되는 것은 `v1=` 뿐" 을 함께 적었다. `v2=` 는 예약이지
+        구현된 것이 아니다.
+      - **앵커 3건 자체 검증**: 초안이 `#31-비기능-요구사항`(§3.1 의 실제 제목은 *Outbound
+        Notification*)과 *"§8.2 상단 형식 참조"*(형식은 **§6.1 헤더**에 있다) 두 곳을
+        틀렸다. 바로 위 항목이 등재한 **"`spec-links` 가 앵커를 안 본다"** 가 그대로 재현된
+        것이라, 헤딩 slug 대조로 직접 잡았다 — 최종 3건 전부 OK.
 
 ## retry-turn 재진입 시 DB 와 emit 의 `durationMs` 가 어긋난다 (2026-08-15 등재, `10_34_51` W1)
 
