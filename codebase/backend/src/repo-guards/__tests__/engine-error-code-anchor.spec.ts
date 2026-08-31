@@ -41,6 +41,9 @@ describe('엔진 에러 코드 앵커 가드', () => {
     const declared = readDeclaredCodes(REPO_ROOT);
     // 파서가 깨지면 `declared` 가 비고, 그러면 아래 본 단언이 **전부 위반으로 뒤집혀**
     // 시끄럽게 실패한다(조용한 통과가 아니다). 그래도 원인을 즉시 말해 주도록 고정한다.
+    // 하한 30 은 임의 수가 아니다 — 이 글 시점 `ErrorCode` 36 + `EngineErrorCode` 4 = 40.
+    // 코드는 늘기만 하고 줄 일이 드물어 여유를 두되, 파서가 **한쪽 const 만** 읽는 회귀
+    // (36 또는 4)는 걸리도록 잡았다. 정확히 두 const 를 읽는지는 아래 두 단언이 본다.
     expect(declared.size).toBeGreaterThan(30);
     expect(declared).toContain('EXECUTION_QUEUE_WAIT_TIMEOUT'); // EngineErrorCode 쪽
     expect(declared).toContain('HTTP_TRANSPORT_FAILED'); // ErrorCode 쪽
@@ -88,6 +91,26 @@ describe('엔진 에러 코드 앵커 가드', () => {
     });
   });
 
+  it('[positive path] 앵커 없는 코드를 실제로 검출한다', () => {
+    // **음성 결과는 검출 능력의 증거가 아니다.** 아래 본 단언(`[]`)은 저장소가 지금
+    // 클린해서 통과할 수도 있고, 스캐너가 아무것도 못 봐서 통과할 수도 있다 — 둘은
+    // 결과가 같다. 픽스처에는 어느 enum 에도 없는 `FIXTURE_*` 가 있으므로, 여기서는
+    // **반드시 검출돼야** 한다.
+    const hits = findUnanchored(
+      REPO_ROOT,
+      'codebase/backend/src/repo-guards/__tests__',
+    );
+    expect(hits.map((h) => h.code).sort()).toEqual([
+      'FIXTURE_ASSIGNMENT_FORM',
+      'FIXTURE_CLASS_FIELD_FORM',
+      'FIXTURE_OBJECT_FORM',
+      'FIXTURE_VARIABLE_FORM',
+    ]);
+    // 위반 보고에 위치가 실려야 고치러 갈 수 있다.
+    expect(hits[0].file).toContain('engine-error-code-anchor-fixture.ts');
+    expect(hits[0].line).toBeGreaterThan(0);
+  });
+
   it('앵커 없는 엔진 에러 코드가 없다', () => {
     const unanchored = findUnanchored(REPO_ROOT);
     // 위반 시 어디를 고쳐야 하는지 파일:줄 로 말해 준다 — 개수만 세면 역산해야 한다.
@@ -100,6 +123,9 @@ describe('엔진 에러 코드 앵커 가드', () => {
     // 사유 없는 예외는 "미처리" 와 구분되지 않는다.
     for (const [code, reason] of Object.entries(ANCHORED_ELSEWHERE)) {
       expect(typeof reason).toBe('string');
+      // 20 자는 "붙잡는 타입이 어디 있는가" 를 최소한 파일명+식별자로 적으면 넘는 길이다
+      // (실제 항목 중 가장 짧은 것이 45 자). `'TODO'`·`'나중에'` 같은 알리바이를 막는 것이
+      // 목적이고, 길이만으로 사유의 질을 보증하지는 않는다 — 그건 사람이 읽어야 한다.
       expect(reason.length).toBeGreaterThan(20);
       expect(code).toMatch(/^[A-Z][A-Z0-9_]+$/);
     }

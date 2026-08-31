@@ -12,8 +12,6 @@
 // 여기 값들은 어느 enum 에도 없는 **가짜 코드**다(`FIXTURE_` 접두). 실제 코드와 겹치면
 // 픽스처가 라이브 카탈로그에 의존하게 된다.
 
-/* eslint-disable @typescript-eslint/no-unused-vars */
-
 // ① 객체 속성
 const objectForm = {
   code: 'FIXTURE_OBJECT_FORM',

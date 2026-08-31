@@ -197,8 +197,18 @@ export function collectBoundCodes(
  * 유일한 예외는 `ANCHORED_ELSEWHERE` — **다른 타입이 이미 그 값을 붙잡고 있어서** 상수로
  * 또 옮기면 앵커가 둘이 되는 경우다.
  */
-export function findUnanchored(repoRoot: string): BareCodeHit[] {
-  return collectBoundCodes(repoRoot).filter(
+export function findUnanchored(
+  repoRoot: string,
+  /**
+   * 스캔 대상 디렉터리. 기본값은 엔진 모듈.
+   *
+   * 픽스처를 넘길 수 있게 열어 둔다 — 그러지 않으면 *"위반을 실제로 검출하는가"* 를
+   * **저장소가 지금 클린하다는 사실에만** 기대어 확인하게 된다. 그건 음성 결과이지
+   * 검출 능력의 증거가 아니다.
+   */
+  relDir?: string,
+): BareCodeHit[] {
+  return collectBoundCodes(repoRoot, relDir).filter(
     (h) => !(h.code in ANCHORED_ELSEWHERE),
   );
 }

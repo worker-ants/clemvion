@@ -1,0 +1,77 @@
+{
+  "timestamp": "2026-08-31T20:27:29.709390",
+  "files": [
+    {
+      "file_path": "codebase/backend/src/modules/execution-engine/ai-turn-orchestrator.service.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "codebase/backend/src/modules/execution-engine/execution-engine.service.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "codebase/backend/src/modules/execution-engine/shutdown/shutdown-state.service.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "codebase/backend/src/nodes/core/error-codes.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "codebase/backend/src/repo-guards/__tests__/engine-error-code-anchor-fixture.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "codebase/backend/src/repo-guards/__tests__/engine-error-code-anchor-guard.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "codebase/backend/src/repo-guards/__tests__/engine-error-code-anchor.spec.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "plan/complete/exec-intake-followups.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "plan/in-progress/exec-intake-followups.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    }
+  ],
+  "agents": [
+    "security",
+    "performance",
+    "architecture",
+    "requirement",
+    "scope",
+    "side_effect",
+    "maintainability",
+    "testing",
+    "documentation",
+    "dependency",
+    "database",
+    "concurrency",
+    "api_contract",
+    "user_guide_sync"
+  ],
+  "route_mode": "auto",
+  "agents_explicit": false,
+  "agents_forced": [
+    "documentation",
+    "maintainability",
+    "requirement",
+    "scope",
+    "security",
+    "side_effect",
+    "testing"
+  ]
+}
