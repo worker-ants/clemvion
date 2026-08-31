@@ -212,6 +212,23 @@ describe('UsersService.updateAvatar (§6.1 — 공개 URL 서빙)', () => {
       expect(s3.delete).not.toHaveBeenCalled();
     });
 
+    it('업로드 자체가 실패하면 DB 도 S3 도 건드리지 않고 전파한다', async () => {
+      // 이 스위트는 정리 실패·DB 갱신 실패는 촘촘히 잠갔는데 **업로드 실패만 비어 있었다**
+      // (리뷰 8라운드). S3/MinIO 장애 시 부분 상태가 남지 않는지는 별개 축이다.
+      await setup(
+        buildUser(`https://cdn.example/bucket/avatars/${USER_ID}/old.png`),
+      );
+      s3.upload.mockRejectedValue(new Error('s3 unavailable'));
+
+      await expect(
+        service.updateAvatar(USER_ID, makeFile('new.png')),
+      ).rejects.toThrow('s3 unavailable');
+
+      // 업로드가 실패했으면 URL 을 저장해서도, 옛 객체를 지워서도 안 된다.
+      expect(savedPatch).toBeUndefined();
+      expect(s3.delete).not.toHaveBeenCalled();
+    });
+
     it('정리 실패가 업로드를 깨뜨리지 않는다 (best-effort)', async () => {
       const old = `https://cdn.example/bucket/avatars/${USER_ID}/old.png`;
       await setup(buildUser(old));

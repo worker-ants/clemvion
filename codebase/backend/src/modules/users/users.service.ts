@@ -379,6 +379,21 @@ export class UsersService {
     });
   }
 
+  /**
+   * 잠금 만료 판정.
+   *
+   * **쓰기와 읽기의 시계가 다르다** — `incrementLoginAttempts` 는 `locked_until` 을 DB
+   * `NOW()` 로 잡는데(앱 서버가 여럿일 때 인스턴스마다 값이 달라지지 않도록), 여기 비교는
+   * 앱 서버 시계를 쓴다. 리뷰 8라운드가 지적한 비대칭이고, **의도적으로 남긴다**:
+   *
+   * - 영향은 시계 드리프트만큼 잠금이 길거나 짧아지는 것뿐이다. NTP 동기 환경에서 초 단위고,
+   *   잠금은 10분이다.
+   * - 없애려면 판정마다 `SELECT NOW()` 를 한 번 더 쳐야 한다 — 모든 로그인 시도가 치르는
+   *   비용이고, 막는 것은 초 단위 오차다.
+   *
+   * 시계가 크게 어긋난 배포에서 잠금 시간이 눈에 띄게 달라지면 그때 DB 기준 판정으로
+   * 바꾼다. 그 전까지 이 문단이 "왜 다른가" 의 답이다.
+   */
   async isLocked(user: User): Promise<boolean> {
     if (!user.lockedUntil) return false;
     if (new Date() > user.lockedUntil) {
