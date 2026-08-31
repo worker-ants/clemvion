@@ -190,6 +190,22 @@ security/maintainability 가 같은 지점을 INFO 로 확인).
 
 - [ ] **(다음 slice)** `invalidateWorld()`/`markUnmounted()` 로 쓰기 측 대칭 캡슐화, raw ref 내부화
 
+      > **규모 실측 (2026-08-31) — 이 항목은 독립 slice 가 아니다.** 착수하려고 열었다가
+      > 바로 위 문단이 이미 답을 적어 둔 것을 확인했다: *"세 호출부의 호출 맥락을 같이
+      > 옮겨야 하는데 그건 다음 slice 가 가져갈 `teardownSession`/`start` 본체와 붙어
+      > 있다. 지금 쪼개면 인터페이스를 두 번 바꾸게 된다."*
+      >
+      > | 측정 | 값 |
+      > |---|---|
+      > | `use-widget.ts` | **1,432줄** |
+      > | `worldGenRef`/`bootGenRef` 사용처(비-테스트) | **45곳** |
+      > | `use-widget-eager-start.test.ts` | 4,276줄 |
+      >
+      > 즉 실제 작업 단위는 *"`invalidateWorld()` 두 함수 추가"* 가 아니라 **남은 slice 전체**
+      > (`establishConfig`/`applyConfig`/`start`/`seedWaitingFromStatus`/`sendCommand`/
+      > `teardownSession` + 스트림·토큰 배선)다. 순서 차단(§선행)은 해소됐지만 **크기는
+      > 그대로**이므로, 다른 항목에 곁들일 수 있는 크기로 오독하지 말 것 — 단독 PR 이다.
+
 ### 남은 slice (미착수)
 
 `establishConfig`/`applyConfig`/`start`/`seedWaitingFromStatus`/`sendCommand`/`teardownSession` +
