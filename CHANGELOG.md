@@ -60,6 +60,24 @@
 `Express.Multer.File` 을 쓸 수 없었다(실측: `Namespace 'e' has no exported member 'Multer'`).
 잠재 위험이었고 이 변경이 처음 밟았다.
 
+## 부수 — 로그인 실패 카운터가 아바타 URL 을 되돌리고 있었다
+
+`incrementLoginAttempts` 가 `findOneOrFail` → 필드 수정 → `save(user)`(스냅샷 전체) 였다.
+아바타 업로드가 `avatarUrl` 을 갱신하고 **옛 S3 객체까지 지운 뒤** 그 저장이 커밋되면, DB 가
+**이미 삭제된 객체를 가리키는 옛 URL** 로 되돌아간다 — 위에서 "정리를 저장 뒤에 한다" 로 막은
+바로 그 상태를 반대편 writer 가 되돌리고 있었다. 아바타 업로드가 없던 시절에는 이 경로가
+없었으므로 이 변경이 만든 결함이고, 그래서 여기서 닫는다.
+
+증가와 잠금 판정을 **단일 원자 `UPDATE … RETURNING`** 으로 바꿨다. 부수적으로 잠금 자체도
+강해진다 — read-modify-write 는 동시 실패 둘이 같은 값을 읽으면 카운터가 2 가 아니라 1 이
+되어 임계가 느슨해졌다.
+
+**쓰기와 읽기의 시계가 갈렸다.** `locked_until` 은 이제 DB `NOW()` 로 잡는데(앱 서버가
+여럿일 때 인스턴스마다 값이 달라지지 않도록), 그 값을 비교하는 `isLocked()` 는 앱 서버
+시계를 쓴다. **의도적으로 남긴다** — 영향은 시계 드리프트만큼 잠금이 길거나 짧아지는 것이고
+NTP 동기 환경에서 초 단위인데, 없애려면 판정마다 `SELECT NOW()` 를 한 번 더 쳐야 한다(모든
+로그인 시도가 치르는 비용). 근거와 재개 조건은 `isLocked()` JSDoc 에 있다.
+
 spec `9-user-profile.md` 의 "미구현 (Planned)" 배지 flip 은 `spec/` 쓰기라 planner 트랙으로
 분리했다(`plan/in-progress/spec-update-avatar-upload-implemented.md`) — 배지만 뒤집지 말고
 **공개된다는 사실**을 함께 적어야 한다는 점을 그 plan 에 명시했다.
