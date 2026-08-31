@@ -176,3 +176,101 @@ describe('UsersService.updateAvatar (§6.1 — 공개 URL 서빙)', () => {
     });
   });
 });
+
+describe('UsersService.updateAvatar — 정리 실패는 요청을 깨뜨리지 않는다', () => {
+  /**
+   * 리뷰(2026-08-31)가 잡은 CRITICAL. 첫 판은 `decodeURIComponent` 를 정리 `try` **밖**에
+   * 두었다. 옛 `avatarUrl` 에 깨진 퍼센트 인코딩이 있으면 `URIError` 가 전파돼 — 새 파일
+   * 업로드와 DB 저장이 **이미 성공한 뒤에** — 클라이언트는 500 을 받았다. 그 값은 사용자가
+   * `PATCH /users/me` 로 직접 넣을 수 있고 `@IsUrl` 은 퍼센트 인코딩을 검사하지 않는다.
+   *
+   * 즉 JSDoc 이 약속한 "정리 실패는 삼킨다" 보다 구현이 좁았다.
+   */
+  it('옛 URL 의 퍼센트 인코딩이 깨져 있어도 업로드는 성공한다', async () => {
+    const s3 = {
+      upload: jest.fn().mockResolvedValue(undefined),
+      getPublicUrl: jest.fn((k: string) => `https://cdn.example/bucket/${k}`),
+      delete: jest.fn().mockResolvedValue(undefined),
+    };
+    const broken = `https://cdn.example/bucket/avatars/${USER_ID}/%zz.png`;
+    const repo = {
+      findOne: jest
+        .fn()
+        .mockResolvedValue({ id: USER_ID, avatarUrl: broken } as User),
+      save: jest.fn(async (u: User) => u),
+    };
+    const module: TestingModule = await Test.createTestingModule({
+      providers: [
+        UsersService,
+        { provide: getRepositoryToken(User), useValue: repo },
+        { provide: S3Service, useValue: s3 },
+      ],
+    }).compile();
+    const service = module.get(UsersService);
+
+    // 파싱이 try 밖이면 여기서 URIError 가 나 500 이 된다.
+    await expect(
+      service.updateAvatar(USER_ID, makeFile('new.png')),
+    ).resolves.toBeDefined();
+    expect(s3.upload).toHaveBeenCalled();
+    // 키를 못 읽었으니 삭제는 시도하지 않고 조용히 넘어간다(고아 객체 1개).
+    expect(s3.delete).not.toHaveBeenCalled();
+  });
+});
+
+describe('UsersService.update — PATCH 로 아바타를 바꿔도 옛 객체를 정리한다', () => {
+  /**
+   * 리뷰(2026-08-31) WARNING. `POST me/avatar` 만 정리하고 `PATCH me` 는 하지 않아,
+   * 업로드한 아바타를 PATCH 로 덮으면 S3 객체가 영구 고아로 남았다.
+   *
+   * 정리 조건이 "페이로드에 avatarUrl 이 있다" 가 아니라 **"값이 달라졌다"** 인 것이
+   * 핵심이다 — OAuth 재연동은 같은 URL 을 다시 넘기므로, 값 비교가 없으면 방금 저장한
+   * 객체를 지운다.
+   */
+  const OLD = `https://cdn.example/bucket/avatars/${USER_ID}/old.png`;
+
+  async function build(after: string | null) {
+    const s3 = {
+      upload: jest.fn(),
+      getPublicUrl: jest.fn(),
+      delete: jest.fn().mockResolvedValue(undefined),
+    };
+    const repo = {
+      findOne: jest
+        .fn()
+        .mockResolvedValue({ id: USER_ID, avatarUrl: OLD } as User),
+      update: jest.fn().mockResolvedValue(undefined),
+      findOneOrFail: jest
+        .fn()
+        .mockResolvedValue({ id: USER_ID, avatarUrl: after } as User),
+      save: jest.fn(),
+    };
+    const module: TestingModule = await Test.createTestingModule({
+      providers: [
+        UsersService,
+        { provide: getRepositoryToken(User), useValue: repo },
+        { provide: S3Service, useValue: s3 },
+      ],
+    }).compile();
+    return { service: module.get(UsersService), s3, repo };
+  }
+
+  it('avatarUrl 이 바뀌면 옛 객체를 지운다', async () => {
+    const { service, s3 } = await build('https://gravatar.example/x');
+    await service.update(USER_ID, { avatarUrl: 'https://gravatar.example/x' });
+    expect(s3.delete).toHaveBeenCalledWith(`avatars/${USER_ID}/old.png`);
+  });
+
+  it('같은 값이면 지우지 않는다 — OAuth 재연동이 사용 중인 객체를 날리면 안 된다', async () => {
+    const { service, s3 } = await build(OLD);
+    await service.update(USER_ID, { avatarUrl: OLD });
+    expect(s3.delete).not.toHaveBeenCalled();
+  });
+
+  it('avatarUrl 이 없는 페이로드는 사전 조회조차 하지 않는다 (호출부 17곳의 비용)', async () => {
+    const { service, repo, s3 } = await build(OLD);
+    await service.update(USER_ID, { name: 'new name' } as Partial<User>);
+    expect(repo.findOne).not.toHaveBeenCalled();
+    expect(s3.delete).not.toHaveBeenCalled();
+  });
+});

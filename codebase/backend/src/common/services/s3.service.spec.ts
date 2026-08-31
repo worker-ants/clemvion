@@ -18,7 +18,7 @@ jest.mock('@aws-sdk/client-s3', () => {
   };
 });
 
-function createService(): S3Service {
+function createService(overrides: Record<string, string> = {}): S3Service {
   const config = {
     get: jest.fn((key: string) => {
       const values: Record<string, string> = {
@@ -27,6 +27,8 @@ function createService(): S3Service {
         's3.region': 'us-east-1',
         's3.accessKey': 'ak',
         's3.secretKey': 'sk',
+        's3.publicBaseUrl': 'http://localhost:9000',
+        ...overrides,
       };
       return values[key];
     }),
@@ -110,5 +112,44 @@ describe('S3Service.deleteMany', () => {
 
     // Key 가 없는 Errors 항목은 무시 (S3 응답 방어).
     expect(result).toEqual({ errored: ['bad-1', 'bad-2'] });
+  });
+});
+
+/**
+ * `getPublicUrl` 은 아바타 업로드(§6.1)가 신설한 메서드다. 소비 테스트들이 `S3Service`
+ * 를 통째로 mock 하기 때문에 **이 구현 자체는 어디서도 실행되지 않았다** — 여기서 문다.
+ */
+describe('S3Service.getPublicUrl', () => {
+  it('base + 버킷 + 키를 경로로 잇는다', () => {
+    expect(createService().getPublicUrl('avatars/u1/a.png')).toBe(
+      'http://localhost:9000/test-bucket/avatars/u1/a.png',
+    );
+  });
+
+  it('base 의 트레일링 슬래시를 제거한다 (`//` 이중 슬래시 방지)', () => {
+    const s = createService({ 's3.publicBaseUrl': 'https://cdn.example///' });
+    expect(s.getPublicUrl('avatars/u1/a.png')).toBe(
+      'https://cdn.example/test-bucket/avatars/u1/a.png',
+    );
+  });
+
+  it('세그먼트만 인코딩한다 — `/` 는 경로로 남는다', () => {
+    // 키 전체를 `encodeURIComponent` 하면 `/` 가 `%2F` 가 되어 경로가 아니라 한 덩어리
+    // 오브젝트명이 된다. 그 구현과 갈라지도록 공백이 든 세그먼트로 확인한다.
+    const url = createService().getPublicUrl('avatars/u 1/a b.png');
+    expect(url).toBe(
+      'http://localhost:9000/test-bucket/avatars/u%201/a%20b.png',
+    );
+    expect(url).not.toContain('%2F');
+  });
+
+  it('publicBaseUrl 이 endpoint 와 달라도 그 값을 쓴다 (내부 주소를 새지 않는다)', () => {
+    const s = createService({
+      's3.endpoint': 'http://minio:9000',
+      's3.publicBaseUrl': 'https://cdn.example',
+    });
+    const url = s.getPublicUrl('avatars/u1/a.png');
+    expect(url).toBe('https://cdn.example/test-bucket/avatars/u1/a.png');
+    expect(url).not.toContain('minio');
   });
 });

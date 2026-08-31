@@ -38,7 +38,9 @@ export class UsersService {
    * SVG 는 **의도적으로 제외**한다 — 스크립트를 품을 수 있는 유일한 이미지 포맷이라
    * 공개 URL 로 서빙하면 저장형 XSS 표면이 된다.
    */
-  private static readonly AVATAR_CONTENT_TYPES: Record<string, string> = {
+  // Swagger 산문의 확장자 목록과 동기화됐는지 테스트가 대조하므로 `public` 이다
+  // (`users-avatar-swagger-sync.spec.ts`).
+  static readonly AVATAR_CONTENT_TYPES: Record<string, string> = {
     png: 'image/png',
     jpg: 'image/jpeg',
     jpeg: 'image/jpeg',
@@ -69,7 +71,10 @@ export class UsersService {
   ): Promise<User> {
     if (!file?.buffer?.length) {
       throw new BadRequestException({
-        code: 'INVALID_FILE_TYPE',
+        // 확장자 불허(`INVALID_FILE_TYPE`)와 **다른 코드**다 — 클라이언트가 취할 행동이
+        // 다르다("파일을 고르세요" vs "다른 형식으로 바꾸세요"). 저장소 규약이 메시지
+        // 문자열 파싱을 금지하므로 코드로 갈라야 분기할 수 있다.
+        code: 'FILE_REQUIRED',
         message: 'Avatar image file is required',
       });
     }
@@ -122,14 +127,19 @@ export class UsersService {
     // 우리가 올린 객체가 아니면(외부 URL 을 `PATCH /users/me` 로 넣은 경우) 건드리지 않는다.
     if (at < 0) return;
 
-    const key = decodeURIComponent(previousUrl.slice(at));
-    // 쿼리스트링·프래그먼트가 붙어 있으면 키가 아니다 — 잘라낸다.
-    const cleanKey = key.split(/[?#]/)[0];
+    // **파싱도 try 안이다.** 첫 판은 `decodeURIComponent` 를 밖에 두었는데, 옛
+    // `avatarUrl` 에 깨진 퍼센트 인코딩(`%zz`)이 있으면 `URIError` 가 전파돼 — 업로드와
+    // DB 저장이 **이미 성공한 뒤에** — 클라이언트가 500 을 받았다. 그 값은 사용자가
+    // `PATCH /users/me` 로 직접 넣을 수 있고 `@IsUrl` 은 퍼센트 인코딩 유효성을 보지 않는다.
+    // 바로 위 JSDoc 이 "실패는 삼킨다" 고 적고 있었으므로 **보장이 구현보다 넓었다**.
     try {
+      const key = decodeURIComponent(previousUrl.slice(at));
+      // 쿼리스트링·프래그먼트가 붙어 있으면 키가 아니다 — 잘라낸다.
+      const cleanKey = key.split(/[?#]/)[0];
       await this.s3Service.delete(cleanKey);
     } catch (err) {
       this.logger.warn(
-        `avatar cleanup failed (orphan object left): key=${cleanKey} — ${
+        `avatar cleanup failed (orphan object left): previousUrl=${previousUrl} — ${
           err instanceof Error ? err.message : String(err)
         }`,
       );
@@ -158,9 +168,34 @@ export class UsersService {
     return this.userRepository.save(user);
   }
 
+  /**
+   * 부분 갱신. `avatarUrl` 이 페이로드에 있으면 **옛 S3 객체도 정리**한다.
+   *
+   * ## 왜 `'avatarUrl' in data` 로 가두는가
+   *
+   * 이 메서드의 호출부는 17곳이고 대부분 totp·webauthn·auth 의 뜨거운 경로다. 무조건
+   * 사전 조회를 하면 그 전부가 SELECT 를 하나씩 더 낸다. 아바타를 담은 페이로드는
+   * 프로필 수정과 OAuth 연동뿐이라, 그때만 조회한다.
+   *
+   * ## 왜 "값이 바뀐 경우에만" 인가
+   *
+   * OAuth 재연동은 **같은** `avatarUrl` 을 다시 넘긴다. 값 비교 없이 지우면 방금 저장한
+   * — 즉 사용 중인 — 객체를 날린다. 정리의 조건은 "페이로드에 있다" 가 아니라 "달라졌다" 다.
+   */
   async update(id: string, data: Partial<User>): Promise<User> {
+    const previousUrl =
+      'avatarUrl' in data
+        ? ((await this.userRepository.findOne({ where: { id } }))?.avatarUrl ??
+          null)
+        : null;
+
     await this.userRepository.update(id, data);
-    return this.userRepository.findOneOrFail({ where: { id } });
+    const updated = await this.userRepository.findOneOrFail({ where: { id } });
+
+    if (previousUrl && previousUrl !== updated.avatarUrl) {
+      await this.deletePreviousAvatarObject(id, previousUrl);
+    }
+    return updated;
   }
 
   /**
