@@ -1121,7 +1121,7 @@ Hooks 진입점 (`/api/hooks/:endpointPath`) 은 `@Public()` 로 JWT 인증을 �
 
 ## 11. WebSocket 명령 ↔ 외부 명령 매핑
 
-[Spec WebSocket 프로토콜 §4.6](./6-websocket-protocol.md#46-외부-표면-매핑-external-interaction-api) (신설) 에 1:1 매핑 표가 있다. 본 spec 의 5.1 의 표가 그 권위 표와 정합해야 한다.
+[Spec WebSocket 프로토콜 §4.7](./6-websocket-protocol.md#47-외부-표면-매핑-external-interaction-api) (신설) 에 1:1 매핑 표가 있다. 본 spec 의 5.1 의 표가 그 권위 표와 정합해야 한다.
 
 | 내부 WS 명령 (Client → Server) | 외부 REST 명령 (`/interact` body.command) | 페이로드 필드 매핑 |
 |------------------------------|----------------------------------------|----------------|

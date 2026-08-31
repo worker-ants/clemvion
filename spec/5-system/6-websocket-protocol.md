@@ -450,6 +450,29 @@ fanout 에서 같은 allowlist 를 지난다.
 - **replay 중 cancel**: replay turn 진행 중 외부 cancel 신호(`execution.cancel`)가 도달하면 진행 중 turn 을 조기 종료하고 Execution 을 `cancelled` 로 마감한다 — `execution.cancelled` 이벤트가 발사되며 `execution.completed` / `execution.failed` 는 발사되지 않는다. 이는 정상 multi-turn 의 "입력 대기 중 cancel" 과 동일 의미의 대칭 보장이다 (replay 는 입력 대기 없이 즉시 turn 을 돌리므로 별도 cancel 경로 필요). `cancelled` 페이로드의 분류는 일반 사용자 취소와 동일하게 다룬다.
 - **재진입 종결 후 graph 진행**: 재진입한 turn 이 성공 종결되면 spawn 된 NodeExecution 은 일반 노드 `COMPLETED` 와 동일하게 출력 포트의 downstream 노드로 그래프 진행이 이어진다 — [실행 엔진 §1.1 Execution 상태](./4-execution-engine.md#11-execution-상태) 의 종결 규칙 + [§2.1 토폴로지 traversal](./4-execution-engine.md#21-토폴로지-정렬-기반-실행-순환-참조-지원). 재진입이 실패하면 일반 노드 `FAILED` 와 동일하게 종결 (Execution 도 `FAILED` 마감). **재진입한 turn 이 대화를 끝내지 않으면**(가장 흔한 경우) 종결이 아니라 `waiting_for_input` 으로 **re-park** 하고 세그먼트를 종료한다 — 다음 사용자 입력이 오면 일반 §7.5 rehydration 재개 경로로 합류한다(실행 엔진 §1.1 의 `failed → waiting_for_input` opt-in 전이). 워크플로 Re-run ([§13 replay-rerun](./13-replay-rerun.md)) 과 구분되는 점은 "동일 Execution 안 노드 단위 재진입" 이며 "downstream traversal 차단" 이 아니다. AI Agent 본문은 [§7.9](../4-nodes/3-ai/1-ai-agent.md#79-multi-turn-모드--오류-error-포트) + [§12.8](../4-nodes/3-ai/1-ai-agent.md#128-retry_last_turn-성공-후-downstream-graph-진행) 참조.
 
+### 4.3 KB 문서 이벤트 (Server → Client)
+
+채널: `kb:{documentId}` (KB ID 가 아니라 **문서 ID** 가 채널 키). payload 에는 `documentId`, `timestamp` (ISO 8601) 가 자동 첨부된다. backend 권위 정의는 `websocket-events.types.ts` 의 `KbEventType` union (11개 = embedding 6 + graph 5). frontend `useKbEvents` (`KB_EVENT_NAMES`) 가 이 union 과 1:1 로 구독한다.
+
+**임베딩 이벤트 (6개):**
+
+| 이벤트 type | payload | 설명 |
+|-------------|---------|------|
+| `document:embedding_started` | `{ documentId, knowledgeBaseId }` | processing 시작 |
+| `document:embedding_progress` | `{ documentId, progress: number }` | 청크 배치 완료마다 (0~100) |
+| `document:embedding_completed` | `{ documentId, chunkCount }` | 완료 |
+| `document:embedding_error` | `{ documentId, error: string }` | union 에 **선언돼 있으나 현재 emit 경로 없음** — 일시 오류는 `embedding_status='error'` 전환과 함께 `_retry` 로 통지된다 (data-flow §2.5). union 멤버로 남겨 forward-compat 확보. 영구 실패 신호로 사용하지 말 것 |
+| `document:embedding_retry` | `{ documentId, attempt: number, maxAttempts: number, error: string }` | 일시 오류 후 재시도 큐잉 직전 |
+| `document:embedding_failed` | `{ documentId, error: string }` | 재시도 모두 소진 또는 비재시도성 오류로 최종 실패 |
+
+**그래프 추출 이벤트 (5개):** `rag_mode = 'graph'` KB 문서에 대해 동일 채널로 추가 emit.
+
+| 이벤트 type | 설명 |
+|-------------|------|
+| `document:graph_started` / `_progress` / `_completed` / `_retry` / `_failed` | 임베딩과 달리 `_error` 이벤트가 없다 (emit 경로가 없어 #443 에서 union 제거 — 일시 오류는 `_retry`, 최종 실패는 `_failed`). payload 상세는 [`spec/5-system/10-graph-rag.md §6`](./10-graph-rag.md) 참조 |
+
+상태 전이 및 의미는 [`spec/5-system/8-embedding-pipeline.md §9.2`](./8-embedding-pipeline.md#92-상태-전이) 와 직접 대응된다.
+
 ### 4.4 사용자 입력 대기 이벤트 상세 (`execution.waiting_for_input`)
 
 `interactionType` 필드로 Form 노드와 버튼 Presentation 노드를 구분한다.
@@ -829,30 +852,7 @@ provider tool 실행이 끝나면 (성공·실패 무관) 발송한다. `status`
 
 ---
 
-### 4.3 KB 문서 이벤트 (Server → Client)
-
-채널: `kb:{documentId}` (KB ID 가 아니라 **문서 ID** 가 채널 키). payload 에는 `documentId`, `timestamp` (ISO 8601) 가 자동 첨부된다. backend 권위 정의는 `websocket-events.types.ts` 의 `KbEventType` union (11개 = embedding 6 + graph 5). frontend `useKbEvents` (`KB_EVENT_NAMES`) 가 이 union 과 1:1 로 구독한다.
-
-**임베딩 이벤트 (6개):**
-
-| 이벤트 type | payload | 설명 |
-|-------------|---------|------|
-| `document:embedding_started` | `{ documentId, knowledgeBaseId }` | processing 시작 |
-| `document:embedding_progress` | `{ documentId, progress: number }` | 청크 배치 완료마다 (0~100) |
-| `document:embedding_completed` | `{ documentId, chunkCount }` | 완료 |
-| `document:embedding_error` | `{ documentId, error: string }` | union 에 **선언돼 있으나 현재 emit 경로 없음** — 일시 오류는 `embedding_status='error'` 전환과 함께 `_retry` 로 통지된다 (data-flow §2.5). union 멤버로 남겨 forward-compat 확보. 영구 실패 신호로 사용하지 말 것 |
-| `document:embedding_retry` | `{ documentId, attempt: number, maxAttempts: number, error: string }` | 일시 오류 후 재시도 큐잉 직전 |
-| `document:embedding_failed` | `{ documentId, error: string }` | 재시도 모두 소진 또는 비재시도성 오류로 최종 실패 |
-
-**그래프 추출 이벤트 (5개):** `rag_mode = 'graph'` KB 문서에 대해 동일 채널로 추가 emit.
-
-| 이벤트 type | 설명 |
-|-------------|------|
-| `document:graph_started` / `_progress` / `_completed` / `_retry` / `_failed` | 임베딩과 달리 `_error` 이벤트가 없다 (emit 경로가 없어 #443 에서 union 제거 — 일시 오류는 `_retry`, 최종 실패는 `_failed`). payload 상세는 [`spec/5-system/10-graph-rag.md §6`](./10-graph-rag.md) 참조 |
-
-상태 전이 및 의미는 [`spec/5-system/8-embedding-pipeline.md §9.2`](./8-embedding-pipeline.md#92-상태-전이) 와 직접 대응된다.
-
-### 4.4 알림 이벤트 (Server → Client)
+### 4.5 알림 이벤트 (Server → Client)
 
 채널: `notifications:{userId}`
 
@@ -862,7 +862,7 @@ provider tool 실행이 끝나면 (성공·실패 무관) 발송한다. `status`
 |-------------|---------|------|
 | `notification.new` | `{ id, type, title, message, resourceType, resourceId }` | 새 알림 (적재 직후 즉시 emit) |
 
-### 4.5 시스템 이벤트
+### 4.6 시스템 이벤트
 
 구독 불필요. 연결 전체에 자동 전송.
 
@@ -872,7 +872,7 @@ provider tool 실행이 끝나면 (성공·실패 무관) 발송한다. `status`
 | `system.maintenance` _(계획·미구현)_ | `{ message, scheduledAt }` | 예정된 유지보수 알림. **backend emit 없음** |
 | `error` | `{ message }` | 핸드셰이크/연결 레벨 에러. 인증 실패 시 `handleConnection` 이 `{ message }` 를 emit 하고 disconnect 한다 (`{ code, message }` 형태 아님 — `message` 단일 필드) |
 
-### 4.6 외부 표면 매핑 (External Interaction API)
+### 4.7 외부 표면 매핑 (External Interaction API)
 
 [Spec External Interaction API](./14-external-interaction-api.md) 는 외부 호출자가 WebSocket 대신 REST + SSE + Outbound Notification 으로 동일한 명령·이벤트를 주고받을 수 있게 한다. 두 표면의 의미가 분기되지 않도록 본 §4.6 의 매핑 표가 권위적이며, 외부 spec 의 §11 표는 이 표와 정합해야 한다.
 
@@ -1086,7 +1086,7 @@ socket.emit("subscribe", { channel: "execution:550e8400..." });
 - **미구현 (Planned) 으로 분리한 약속**: 서브프로토콜 인증·`auth.refresh`/`auth.refreshed`·`auth.token_expired` emit·`execution.start`/`stop`/`start.ack` WS 경로·서버발신 app ping·raw close code·`system.maintenance` emit·`INVALID_MESSAGE`/`UNKNOWN_TYPE`/`SUBSCRIPTION_LIMIT_EXCEEDED`/`RATE_LIMITED` 전용 에러 코드·60 msg/min WS rate-limit. 이들은 삭제하지 않고 본문에서 _(계획·미구현)_ 로 표기 분리했다. (`notification.new` emit 은 이후 구현 완료 — §4.4.)
   - **Planned → 구현 완료 (2026-07-07)**: 위 중 **WS 에러 처리 하드닝** — 전용 에러 코드 4종(`INVALID_MESSAGE`/`UNKNOWN_TYPE`/`SUBSCRIPTION_LIMIT_EXCEEDED`/`RATE_LIMITED`)과 socket 당 60 msg/min rate-limit — 이 구현됐다(§7.1/§3.3/§3.4/§7.2 본문 flip). subscribe ack 은 평문 `error` + 구조화 `code` additive, rate-limit 은 `WsRateLimitGuard`(class-level, in-memory per-socket), 미등록 이벤트는 `onAny`→`error{code}`.
   - **Planned → 비채택 won't-do (2026-07-08)**: 4종 항목을 정식 종결했다 (근거 §Rationale `R-wontdo-rawws-rest`) — **raw-WS 전제**(전송계층 구조적 부적용): `Sec-WebSocket-Protocol` 서브프로토콜 인증(§1.2)·raw close code 매핑(§8); **REST 대체 충분**(중복 경로 회피): in-band `auth.refresh`/`auth.refreshed`(§1.3)·`execution.start`/`stop`/`start.ack` WS 경로(§4.2). 본문 표기를 _(비채택 won't-do)_ 로 전환.
-  - **잔여(Planned, 실 기능 백로그)**: 서버발신 `auth.token_expired` emit(§4.5)·`system.maintenance` emit(§4.5)·서버발신 app ping(§5). 이들은 트리거 소스 설계가 필요한 실 구현 항목으로 `plan/in-progress/spec-sync-websocket-protocol-gaps.md` 에 유지.
+  - **잔여(Planned, 실 기능 백로그)**: 서버발신 `auth.token_expired` emit(§4.6)·`system.maintenance` emit(§4.6)·서버발신 app ping(§5). 이들은 트리거 소스 설계가 필요한 실 구현 항목으로 `plan/in-progress/spec-sync-websocket-protocol-gaps.md` 에 유지.
 - **status 강등**: 본문이 약속한 다수 surface(WS start/stop 명령·auth.refresh·rate-limit 등)가 코드에 실재 부재하므로 `implemented` → `partial` 로 강등하고 `plan/in-progress/spec-sync-websocket-protocol-gaps.md` 로 추적한다. `code:` 글로브에 백엔드 SoT(`ws-error-codes.ts`)와 프론트 SoT(`ws-client.ts`)를 추가했다.
 - **drift 아닌 positive**: §4.2 의 continuation/retry 코드(`INVALID_EXECUTION_STATE`/`RESUME_*`/`RETRY_*`)는 코드와 정합 — 변경 없음.
 
@@ -1101,7 +1101,7 @@ socket.emit("subscribe", { channel: "execution:550e8400..." });
 - **REST 대체로 충분 (중복 경로 회피)** — 이미 정식 REST 경로가 동일 기능을 완결하는 항목:
   - **§1.3 in-band `auth.refresh`/`auth.refreshed`** — 토큰 만료 시 REST `/auth/refresh` + Socket.IO 재연결이 세션을 유지한다. in-band 갱신의 이득(짧은 재연결 창 제거)은 별도 WS auth 프로토콜(핸들러·emit·재생공격 방어·테스트) 유지 비용에 못 미친다.
   - **§4.2 `execution.start`/`execution.stop`/`execution.start.ack` WS 명령** — 실행 시작=REST `POST /workflows/:id/execute`, 중단=REST `POST /executions/:id/stop` 가 정식 경로다. WS 시작/중단은 REST 와 순수 중복 표면이라 유지 부채만 늘린다(진행 상황은 `execution:{id}` 구독으로 수신하므로 시작을 WS 로 둘 이점 없음).
-- **범위 밖(잔여 유지)**: 서버발신 `auth.token_expired`(§4.5)·`system.maintenance`(§4.5)·app ping(§5)은 본 결정에 포함되지 않는다 — 트리거 소스 설계가 필요한 실 기능 backlog 로 남는다.
+- **범위 밖(잔여 유지)**: 서버발신 `auth.token_expired`(§4.6)·`system.maintenance`(§4.6)·app ping(§5)은 본 결정에 포함되지 않는다 — 트리거 소스 설계가 필요한 실 기능 backlog 로 남는다.
 - **폐기 대안**: 4종을 "Planned" 로 계속 두는 안 → 전송계층이 Socket.IO 로 확정된 이상 raw-WS 2종은 영구 미도입이고 REST 대체 2종은 의도적 미도입이므로, "Planned" 표기는 잘못된 기대(언젠가 구현)를 남긴다. 명시적 won't-do 가 정직하다.
 
 ### 재연결 복구 — native WS 는 snapshot, seq 버퍼-replay 는 SSE 전송 (§6.2)

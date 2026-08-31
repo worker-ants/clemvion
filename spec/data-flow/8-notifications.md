@@ -22,7 +22,7 @@
 - `codebase/backend/src/modules/notifications/notifications.service.ts` — `notify()`/`createMany` 적재 + WS emit(`emitNew`) + 이메일 발송(`dispatchEmails`) + 목록 / 카운트 / 읽음 / dismiss + `hasRecentByResource` 중복 방지 + `findByBackgroundRun` (§2.1, Background 본문 실패 attribution) + `resolveOptOutEmailChannels`(발사원이 호출해 이메일 opt-out 채널을 계산하는 헬퍼 — 조회만 제공, 적재 경로 미개입). **channel 계산은 호출자 책임** — `notify()`/`createMany` 적재 경로는 pref-blind 이며 발사원이 채널을 계산해 넘긴다(integration 노티파이어는 인라인, 실행/스케줄 실패는 위 헬퍼 경유 — 둘 다 caller-orchestrated).
 - `codebase/backend/src/modules/notifications/notifications.controller.ts` — 목록 / 읽음 / dismiss 처리
 - `codebase/backend/src/modules/mail/mail.service.ts` — SMTP 발송 (verification / invitation / password-reset + `sendNotificationEmail` 알림 이메일)
-- `codebase/backend/src/modules/websocket/websocket.service.ts` — `notification.new` emit (`emitNotificationEvent`; [`spec/5-system/6-websocket-protocol.md §4.4`](../5-system/6-websocket-protocol.md#44-알림-이벤트-server--client) 권위 표기)
+- `codebase/backend/src/modules/websocket/websocket.service.ts` — `notification.new` emit (`emitNotificationEvent`; [`spec/5-system/6-websocket-protocol.md §4.5`](../5-system/6-websocket-protocol.md#45-알림-이벤트-server--client) 권위 표기)
 
 ---
 
@@ -94,7 +94,7 @@ DB CHECK 제약(V052 도입, 현행은 V070 이 `alert_*` 3종 포함 10개 목�
 
 | Sink | 흐름 | 비고 |
 | --- | --- | --- |
-| WebSocket 채널 `notifications:<userId>` | `notification.new` emit | 모든 알림에 대해 즉시(best-effort). 이벤트 정의는 [`spec/5-system/6-websocket-protocol.md §4.4`](../5-system/6-websocket-protocol.md#44-알림-이벤트-server--client). `WebsocketService.emitNotificationEvent` 가 `emitNew`(notify/createMany 적재 후)에서 호출. `WebsocketGateway.VALID_CHANNEL_PREFIXES` 에 `notifications:` prefix 등록 |
+| WebSocket 채널 `notifications:<userId>` | `notification.new` emit | 모든 알림에 대해 즉시(best-effort). 이벤트 정의는 [`spec/5-system/6-websocket-protocol.md §4.5`](../5-system/6-websocket-protocol.md#45-알림-이벤트-server--client). `WebsocketService.emitNotificationEvent` 가 `emitNew`(notify/createMany 적재 후)에서 호출. `WebsocketGateway.VALID_CHANNEL_PREFIXES` 에 `notifications:` prefix 등록 |
 | SMTP | 알림 이메일 (단일 범용 템플릿) | 구현됨 — `channel IN ('email', 'both')` 시 `MailService.sendNotificationEmail`(subject=title, body=message + CTA) 발송 후 `email_sent_at` 갱신(best-effort). type별 시각 템플릿은 단일 범용으로 downscope |
 
 ---
@@ -187,7 +187,7 @@ hard delete 배치, (b) 분석용 ETL 의 dismiss 이벤트 집계 를 도입할
 
 본 phase 는 같은 device 의 React Query 캐시 invalidate 로 popover 가 즉시 갱신된다. 같은 사용자의
 다른 device 간 read/dismiss 동기화 (예: 한 탭에서 dismiss 한 알림이 다른 탭의 popover 에서도
-즉시 사라짐) 는 [`spec/5-system/6-websocket-protocol.md §4.4`](../5-system/6-websocket-protocol.md#44-알림-이벤트-server--client)
+즉시 사라짐) 는 [`spec/5-system/6-websocket-protocol.md §4.5`](../5-system/6-websocket-protocol.md#45-알림-이벤트-server--client)
 에 `notification.read`, `notification.dismissed` 이벤트를 신설해 가능. follow-up phase 에서 검토하며,
 이벤트 이름은 §4.4 기존 `notification.new` prefix 와 일관성을 유지한다.
 
@@ -344,7 +344,7 @@ PATCH/POST 어느 쪽도 가능했으나, 일관된 `POST /action-verb` 패턴�
 
 emit 은 점 표기 이벤트 type (`notification.new`) 과 `notifications:<userId>` 채널을 사용한다. 근거:
 
-1. **프로토콜 권위**: [`spec/5-system/6-websocket-protocol.md §4.4`](../5-system/6-websocket-protocol.md#44-알림-이벤트-server--client) 가 알림 이벤트의 정식 정의처이며, 거기서 채널은 `notifications:{userId}`, 이벤트 type 은 `notification.new` (점 표기) 로 명시. 다른 모든 WebSocket 이벤트 (`execution.started`, `execution.node.completed`, `auth.token_expired` 등) 도 점 표기를 따른다.
+1. **프로토콜 권위**: [`spec/5-system/6-websocket-protocol.md §4.5`](../5-system/6-websocket-protocol.md#45-알림-이벤트-server--client) 가 알림 이벤트의 정식 정의처이며, 거기서 채널은 `notifications:{userId}`, 이벤트 type 은 `notification.new` (점 표기) 로 명시. 다른 모든 WebSocket 이벤트 (`execution.started`, `execution.node.completed`, `auth.token_expired` 등) 도 점 표기를 따른다.
 2. **gateway 코드 정합**: `WebsocketGateway.VALID_CHANNEL_PREFIXES` 가 `'notifications:'` prefix 를 등록 (`user:` 가 아니다). 채널 표기는 코드와 일치해야 한다.
 3. **본 문서 §4.6 follow-up 정합**: 같은 문서가 multi-device 동기화 follow-up 으로 `notification.read` / `notification.dismissed` (점 표기) 를 명시한다.
 
