@@ -1,0 +1,32 @@
+{
+  "session_dir": "/Volumes/project/private/clemvion/.claude/worktrees/retry-turn-terminal-guard-review-7b7629/review/code/2026/08/31/12_41_13",
+  "summary_subagent_type": "code-review-summary",
+  "summary_output_file": "/Volumes/project/private/clemvion/.claude/worktrees/retry-turn-terminal-guard-review-7b7629/review/code/2026/08/31/12_41_13/SUMMARY.md",
+  "router_subagent_type": "review-router",
+  "router_prompt_file": null,
+  "router_output_file": "/Volumes/project/private/clemvion/.claude/worktrees/retry-turn-terminal-guard-review-7b7629/review/code/2026/08/31/12_41_13/_routing_decision.json",
+  "routing_status": "skipped",
+  "routing_skip_reason": "REVIEW_AGENTS explicitly set",
+  "agents_forced": [],
+  "agents_forced_reasons": {},
+  "agents_skipped": [],
+  "subagent_invocations": [
+    {
+      "name": "security",
+      "subagent_type": "security-reviewer",
+      "prompt_file": "/Volumes/project/private/clemvion/.claude/worktrees/retry-turn-terminal-guard-review-7b7629/review/code/2026/08/31/12_41_13/_prompts/security.md",
+      "output_file": "/Volumes/project/private/clemvion/.claude/worktrees/retry-turn-terminal-guard-review-7b7629/review/code/2026/08/31/12_41_13/security.md"
+    }
+  ],
+  "agents_pending": [
+    "security"
+  ],
+  "agents_success": [],
+  "agents_fatal": [],
+  "agent_history": {},
+  "rate_limit_episodes": 0,
+  "total_wait_sec": 0,
+  "wake_history": [],
+  "last_reset_hint_sec": null,
+  "loop_mode": false
+}
