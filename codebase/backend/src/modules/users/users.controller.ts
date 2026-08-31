@@ -54,6 +54,11 @@ import { setRefreshTokenCookie } from '../auth/utils/refresh-cookie';
 // `@types/multer` 가 `Express.Multer.File` 을 그 전역에 augment 하므로, 가려진 상태에서는
 // 파일 업로드 파라미터의 타입을 쓸 수 없다(실측: `Namespace 'e' has no exported member
 // 'Multer'`). 아바타 업로드가 그 지점을 처음 밟아서 이름을 바꾼다.
+// `Express` 가 아니라 `ExpressNS` 인 이유: default import 이름이 `Express` 면 **전역
+// `Express` 네임스페이스를 가려서**, `@types/multer` 가 거기 augment 한
+// `Express.Multer.File` 을 이 파일에서 쓸 수 없다(실측: `Namespace 'e' has no exported
+// member 'Multer'`). 다른 컨트롤러 4곳은 Multer 타입을 쓰지 않아 `Express` 그대로다 —
+// 전역 컨벤션으로 승격하려면 `spec/conventions/` 문서화가 선행돼야 한다.
 import ExpressNS from 'express';
 
 @ApiTags('Users')

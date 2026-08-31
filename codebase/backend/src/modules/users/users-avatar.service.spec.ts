@@ -36,6 +36,15 @@ function makeFile(originalname: string): Express.Multer.File {
   } as unknown as Express.Multer.File;
 }
 
+/** 파일 객체는 정상인데 **내용만 비어 있는** 케이스. `!file` 만으로는 못 거른다. */
+function makeEmptyFile(): Express.Multer.File {
+  return {
+    originalname: 'me.png',
+    buffer: Buffer.alloc(0),
+    mimetype: 'image/png',
+  } as unknown as Express.Multer.File;
+}
+
 describe('UsersService.updateAvatar (§6.1 — 공개 URL 서빙)', () => {
   let service: UsersService;
   let s3: { upload: jest.Mock; getPublicUrl: jest.Mock; delete: jest.Mock };
@@ -142,11 +151,18 @@ describe('UsersService.updateAvatar (§6.1 — 공개 URL 서빙)', () => {
       expect(s3.upload).not.toHaveBeenCalled();
     });
 
-    it('빈 파일을 거부한다', async () => {
+    // 가드는 `!file?.buffer?.length` 라 **두 조건**을 본다. 초판은 `undefined` 하나만
+    // 넘겨서, `!file` 로 바꿔 빈-버퍼 방어를 통째로 없애도 GREEN 이었다(리뷰 5라운드 실측).
+    // 이름은 "빈 파일" 인데 실제로 검증한 것은 "파일 부재" 였다 — 이 PR 이 다른 곳에서는
+    // 경계하던 "분기를 못 가르는 fixture" 가 정작 이 가드에는 적용되지 않았다.
+    it.each([
+      ['파일 부재', undefined],
+      ['파일은 있으나 buffer 가 빈 것', makeEmptyFile()],
+    ])('%s 를 거부한다', async (_label, file) => {
       await setup(buildUser(null));
-      await expect(
-        service.updateAvatar(USER_ID, undefined),
-      ).rejects.toBeInstanceOf(BadRequestException);
+      await expect(service.updateAvatar(USER_ID, file)).rejects.toBeInstanceOf(
+        BadRequestException,
+      );
       expect(s3.upload).not.toHaveBeenCalled();
     });
   });

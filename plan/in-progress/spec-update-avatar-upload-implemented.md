@@ -86,5 +86,9 @@ Critical 인가 참조.
 - 구현: `plan/in-progress/spec-sync-user-profile-gaps.md` §6.1 항목 (완료 기록·뮤테이션 실측)
 - 코드: `users.controller.ts` `uploadAvatar` · `users.service.ts` `updateAvatar` ·
   `common/services/s3.service.ts` `getPublicUrl`
-- 회귀: `codebase/backend/src/modules/users/users-avatar.service.spec.ts` — **30건**
-  (§6.1 핵심 3축 13건 + 리뷰 1~3라운드 대응 17건). 실측: `jest --silent <file>`
+- 회귀: `codebase/backend/src/modules/users/users-avatar.service.spec.ts` —
+  착수 시 3축이었고 리뷰 1~5라운드 대응으로 축이 늘었다.
+
+  **건수는 적지 않는다.** 이 문서는 같은 숫자를 두 번 정정했는데(13 → 30) 그때마다 다음
+  라운드가 테스트를 더해 곧바로 다시 stale 해졌다 — 커밋 시점에 맞는 숫자도 다음 커밋이
+  틀리게 만든다. 필요하면 `jest --silent <file>` 로 그 시점에 직접 센다.
