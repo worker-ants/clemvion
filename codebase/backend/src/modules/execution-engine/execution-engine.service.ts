@@ -79,6 +79,7 @@ import {
   rehydrateConversationThread,
 } from '../../shared/conversation-thread/conversation-thread.types';
 import { cloneThread } from '../../shared/conversation-thread/thread-renderer';
+import { EngineErrorCode } from '../../nodes/core/error-codes';
 import { buildGraph, GraphEdge } from './graph/graph-builder';
 import { topologicalSort } from './graph/topological-sort';
 import { identifyBackEdges } from './graph/back-edge-identifier';
@@ -1143,7 +1144,7 @@ export class ExecutionEngineService
    * @returns 실제로 이 호출이 `waiting_for_input → cancelled` 전이를 일으켰으면 `true`.
    */
   async markWebChatIdleTimeout(executionId: string): Promise<boolean> {
-    const code = 'WEBCHAT_IDLE_TIMEOUT';
+    const code = EngineErrorCode.WEBCHAT_IDLE_TIMEOUT;
     const message =
       'Execution cancelled: public web-chat widget idle-wait timeout';
     try {
@@ -2869,7 +2870,7 @@ export class ExecutionEngineService
    * rehydration cancel 과 동일 이벤트 경로). spec §8.
    */
   private async markQueueWaitTimeout(executionId: string): Promise<void> {
-    const code = 'EXECUTION_QUEUE_WAIT_TIMEOUT';
+    const code = EngineErrorCode.EXECUTION_QUEUE_WAIT_TIMEOUT;
     const message = 'Execution cancelled: queue wait time exceeded';
     const terminalFinishedAt = new Date();
     try {
@@ -3332,7 +3333,7 @@ export class ExecutionEngineService
     // DB 와 emit 이 **같은 객체**를 쓰게 한 곳에 둔다. 종전엔 emit 이 이 message 를 손으로
     // 다시 적었고, 그 과정에서 `attempts` 가 빠져 두 표현이 이미 어긋나 있었다.
     const stalledError = {
-      code: 'WORKER_HEARTBEAT_TIMEOUT',
+      code: EngineErrorCode.WORKER_HEARTBEAT_TIMEOUT,
       message: 'Execution failed: worker crash (stalled 재배달 attempts 소진)',
     };
     // 자매 둘과 동형인 단일 트랜잭션 — **근거는 위 JSDoc 참조**(같은 설명을 두 곳에 두면

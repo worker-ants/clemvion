@@ -113,6 +113,60 @@ export const ErrorCode = {
 export type ErrorCodeValue = (typeof ErrorCode)[keyof typeof ErrorCode];
 
 /**
+ * **엔진 레이어** 에러 코드 — 노드 핸들러가 아니라 **엔진 자신이** `Execution.error` /
+ * `NodeExecution.error` 봉투에 싣는 값.
+ *
+ * ## 왜 별 const 인가 (같은 파일 안에서)
+ *
+ * 위 `ErrorCode` 는 docstring 이 스스로 범위를 *"node handlers' `output.error.code`"* 로
+ * 못박는다. 엔진 코드를 거기 섞으면 그 계약이 조용히 넓어진다. 그렇다고 **파일을 나누면**
+ * 같은 파일이 이미 명시한 *"canonical code strings 는 one source of truth"* 원칙이 깨진다
+ * (그래서 WS ack 용 `RETRY_*` 도 여기 산다). 그래서 **파일은 하나, const 는 둘** —
+ * 레이어는 타입에 드러나고 SoT 는 하나로 남는다.
+ *
+ * ## 여기 있는 것 / 없는 것
+ *
+ * 여기 있는 넷은 전부 **맨 문자열이었다**(2026-08-31 실측: 5지점). DB 에 영속되고
+ * FE·알림이 값으로 분기하는데 앵커가 없어 **오탈자가 조용히 통과**했다.
+ *
+ * 반면 아래 둘은 **이미 타입 앵커가 있어** 옮기지 않았다 — 옮기면 앵커가 두 개가 된다:
+ *  - `INVALID_EXECUTION_STATE` / `ERROR_PORT_FALLBACK` — 에러 클래스의 `readonly code`
+ *  - trigger 파라미터 검증 4종 — `TriggerParameterErrorDetail['code']` 유니온
+ *    (규약 §4.2 가 소유하는 `details[].code` 레이어이며 봉투 `code` 가 아니다)
+ *
+ * 형제 가드 `repo-guards/__tests__/engine-error-code-anchor-guard.ts` 가 이 구분을
+ * 강제한다 — 엔진 모듈에 새 맨 문자열 코드가 생기면 RED.
+ */
+export const EngineErrorCode = {
+  /**
+   * Execution 이 admission(큐 대기)에서 한도를 넘겨 시작조차 못 한 경우.
+   * `started_at` 이 admission 이전 시각이라 `durationMs` 는 **큐 대기 시간**이다
+   * (`14-external-interaction-api.md` §6 durationMs 행).
+   */
+  EXECUTION_QUEUE_WAIT_TIMEOUT: 'EXECUTION_QUEUE_WAIT_TIMEOUT',
+  /**
+   * 활성 세그먼트 워커의 terminal 실패 → Execution `failed`. 이름의 "HEARTBEAT" 는
+   * 별도 heartbeat 채널을 암시하지만 그런 채널은 없다 — 2026-07-04 부터 의미가
+   * "BullMQ stalled-job 재배달 소진" 으로 재정의됐고 **코드명은 유지**(rename = breaking).
+   * SoT: [`spec/conventions/error-codes.md` §3](../../../../../spec/conventions/error-codes.md).
+   */
+  WORKER_HEARTBEAT_TIMEOUT: 'WORKER_HEARTBEAT_TIMEOUT',
+  /**
+   * SIGTERM grace 가 끝났는데 in-flight 노드가 남아 강제 마감된 경우
+   * (`shutdown-state.service.ts`). Execution·NodeExecution 양쪽 봉투에 실린다.
+   */
+  SERVER_INTERRUPTED: 'SERVER_INTERRUPTED',
+  /**
+   * 공개 웹채팅 위젯이 입력 대기 상태로 idle 한도를 넘겨 reaper 가 취소한 경우.
+   * `failed` 가 아니라 `cancelled` 로 마감된다.
+   */
+  WEBCHAT_IDLE_TIMEOUT: 'WEBCHAT_IDLE_TIMEOUT',
+} as const;
+
+export type EngineErrorCodeValue =
+  (typeof EngineErrorCode)[keyof typeof EngineErrorCode];
+
+/**
  * Build a standardized runtime-error `output.error` envelope. `details` is
  * free-form per node; callers should ensure it's JSON-serializable.
  */
