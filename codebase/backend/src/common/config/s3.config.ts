@@ -1,5 +1,20 @@
 import { registerAs } from '@nestjs/config';
 
+/**
+ * 아바타 공개 URL base 의 폴백 규칙 — **이 함수가 SoT 다.**
+ *
+ * `main.ts` 의 production 부팅 경고도 같은 값을 봐야 한다. 처음에는 그쪽이 규칙을 손으로
+ * 다시 적었는데 마지막 항이 `''` 였다 — 두 env 가 **모두 미설정**이면 앱은 여기 기본값인
+ * `http://localhost:9000` 을 서빙하는데 경고는 빈 문자열을 보고 침묵했다. 즉 **가드가
+ * 정확히 기본값 케이스를 놓쳤다**(리뷰 4라운드). 규칙이 두 곳에 있으면 이렇게 갈린다.
+ *
+ * `||`(falsy)를 쓰는 것도 의도다 — 빈 문자열로 설정된 env 는 미설정과 같게 다뤄야 한다.
+ * `??`(nullish)면 `S3_PUBLIC_BASE_URL=` 이 빈 base 로 통과한다.
+ */
+export function resolvePublicBaseUrl(env: NodeJS.ProcessEnv): string {
+  return env.S3_PUBLIC_BASE_URL || env.S3_ENDPOINT || 'http://localhost:9000';
+}
+
 export const s3Config = registerAs('s3', () => ({
   endpoint: process.env.S3_ENDPOINT || 'http://localhost:9000',
   accessKey: process.env.S3_ACCESS_KEY || 'minioadmin',
@@ -20,8 +35,5 @@ export const s3Config = registerAs('s3', () => ({
    * spec 쓰기가 planner 트랙이라 배지 flip 을 분리했다
    * (`plan/in-progress/spec-update-avatar-upload-implemented.md`). 구현은 이미 있다.
    */
-  publicBaseUrl:
-    process.env.S3_PUBLIC_BASE_URL ||
-    process.env.S3_ENDPOINT ||
-    'http://localhost:9000',
+  publicBaseUrl: resolvePublicBaseUrl(process.env),
 }));

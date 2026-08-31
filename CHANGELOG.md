@@ -44,6 +44,13 @@
 불가능성이 무의미해진다. 명시 정책으로 바꾼 뒤 목록 **403** · GET **200** 을 확인했다.
 기각 근거와 재현 명령: `scripts/minio/README.md`. 운영 버킷에도 같은 조건이 필요하다 —
 콘솔·CLI 의 "public read" 프리셋은 대개 목록 조회를 함께 연다.
+
+**부팅 가드**: production 에서 이 base 가 사설/loopback 주소로 판정되면 경고 로그를 남긴다
+(`main.ts`). 신규 env 를 k8s overlay 에 전파하지 않아 base 기본값인 `localhost` 가 프로덕션에
+실릴 뻔한 근접사고가 실제로 있었고, 그 클래스의 backstop 이다. 판정은 정본
+`isPrivateHost` 를 쓰고, 폴백 규칙은 `resolvePublicBaseUrl` 한 곳에서만 정의한다.
+`throw` 가 아니라 `warn` 인 것은 단일 호스트·사내망 self-host 에서는 사설 주소가 정답일 수
+있어서다(`ALLOW_PRIVATE_HOST_TARGETS` 와 같은 정책).
 정책이 닫혀 있으면 업로드는 성공하고 **이미지만 403** 이 된다 — 증상이 업로드가 아니라 표시에서
 난다. 신규 `S3_PUBLIC_BASE_URL` 도 함께 필요하다(`S3_ENDPOINT` 는 백엔드가 SDK 로 쓰는 **내부**
 주소라 브라우저가 도달하지 못한다). `.env.example` 에 둘 다 경고와 함께 등재했다.

@@ -49,6 +49,7 @@ import {
   isSwaggerEnabled,
 } from './common/config/production-guards';
 import { assertWorkspaceIdReflectionWorks } from './common/decorators/workspace-reflection-canary';
+import { resolvePublicBaseUrl } from './common/config/s3.config';
 import { isPrivateHost } from './common/utils/ssrf.util';
 
 /**
@@ -157,8 +158,9 @@ async function bootstrap() {
   // `throw` 가 아니라 `warn` 인 이유는 위 ALLOW_PRIVATE_HOST_TARGETS 와 같다 — 단일 호스트
   // self-host 배포는 사설 주소가 정답일 수 있다. 판정은 운영자에게 남기고 가시화만 한다.
   if (process.env.NODE_ENV === 'production') {
-    const publicBase =
-      process.env.S3_PUBLIC_BASE_URL || process.env.S3_ENDPOINT || '';
+    // 규칙을 다시 적지 않고 SoT 함수를 부른다 — 손으로 적었던 사본은 마지막 항이 `''`
+    // 라 두 env 가 모두 미설정일 때(=기본값 localhost 가 서빙되는 바로 그때) 침묵했다.
+    const publicBase = resolvePublicBaseUrl(process.env);
     // 판정은 손으로 짜지 않고 정본 `isPrivateHost` 를 쓴다 — loopback 뿐 아니라 RFC1918·
     // link-local·ULA·IPv4-mapped IPv6 까지 이미 다룬다. DNS 이름(`minio` 등)은 동기로
     // 판정할 수 없어 false 를 돌려주는데, 그건 이 경고의 한계이지 결함이 아니다.

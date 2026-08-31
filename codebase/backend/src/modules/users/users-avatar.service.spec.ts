@@ -103,10 +103,31 @@ describe('UsersService.updateAvatar (§6.1 — 공개 URL 서빙)', () => {
   });
 
   describe('축 2 — Content-Type 은 클라이언트 값을 쓰지 않는다', () => {
-    it('확장자에서 파생한 image/* 를 싣는다 (파일의 mimetype 은 text/html 이어도)', async () => {
+    // 매핑 **값**을 전수로 문다. 초판은 `png` 하나만 단언해서, `jpg: 'image/jpeg'` 를
+    // `'image/jpg'` 로 바꿔도 33건이 전부 GREEN 이었다(리뷰 4라운드 실측). Content-Type 은
+    // 공개 URL 에서 브라우저의 렌더 방식을 정하는 보안 경계라 값 하나하나가 계약이다.
+    it.each([
+      ['me.png', 'image/png'],
+      ['me.jpg', 'image/jpeg'],
+      ['me.jpeg', 'image/jpeg'],
+      ['me.webp', 'image/webp'],
+      ['me.gif', 'image/gif'],
+    ])(
+      '%s → %s 를 싣는다 (파일의 mimetype 은 text/html 이어도)',
+      async (name, expected) => {
+        await setup(buildUser(null));
+        await service.updateAvatar(USER_ID, makeFile(name));
+        expect(s3.upload.mock.calls[0][2]).toBe(expected);
+      },
+    );
+
+    it('대문자 확장자도 정상 처리한다 (ME.PNG)', async () => {
+      // 거부 케이스만 있고 **대문자가 통과하는지**를 보는 양성 테스트가 없었다 —
+      // `.toLowerCase()` 를 지워도 30건이 전부 GREEN 이었다(리뷰 4라운드 실측).
       await setup(buildUser(null));
-      await service.updateAvatar(USER_ID, makeFile('me.png'));
+      await service.updateAvatar(USER_ID, makeFile('ME.PNG'));
       expect(s3.upload.mock.calls[0][2]).toBe('image/png');
+      expect(s3.upload.mock.calls[0][0]).toMatch(/\.png$/);
     });
 
     it.each([

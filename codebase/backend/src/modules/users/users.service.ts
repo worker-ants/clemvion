@@ -135,14 +135,16 @@ export class UsersService {
     // `@VersionColumn` 도 필요 없다.
     const avatarUrl = this.s3Service.getPublicUrl(key);
     await this.userRepository.update(userId, { avatarUrl });
-    // 응답 봉투가 쓸 최신 상태. 업로드 도중 바뀐 다른 컬럼도 여기서 반영된다.
-    const updated = await this.userRepository.findOneOrFail({
-      where: { id: userId },
-    });
-
-    // **DB 저장 뒤에** 옛 객체를 지운다. 순서를 뒤집으면 저장이 실패했을 때 사용자에게
-    // 이미 지워진 아바타를 가리키는 URL 이 남는다 — 고아 객체(과금·용량)보다 나쁘다.
-    await this.deletePreviousAvatarObject(userId, previousUrl);
+    // 재조회와 옛 객체 정리는 서로의 결과를 쓰지 않으므로 병렬로 기다린다.
+    //
+    // **"DB 저장 뒤에 정리" 불변식은 그대로다** — 둘 다 위 `update()` 가 성공한 뒤에야
+    // 시작한다. 순서를 뒤집으면(정리를 저장 앞에) 저장 실패 시 사용자에게 이미 지워진
+    // 아바타를 가리키는 URL 이 남는다 — 고아 객체(과금·용량)보다 나쁘다.
+    const [updated] = await Promise.all([
+      // 응답 봉투가 쓸 최신 상태. 업로드 도중 바뀐 다른 컬럼도 여기서 반영된다.
+      this.userRepository.findOneOrFail({ where: { id: userId } }),
+      this.deletePreviousAvatarObject(userId, previousUrl),
+    ]);
     return updated;
   }
 
