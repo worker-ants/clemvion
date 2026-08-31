@@ -39,6 +39,7 @@ User ──┬── Workspace (1:N)
        │       ├── AuthConfig (1:N)
        │       ├── AuditLog (1:N)
        │       ├── Notification (1:N)
+       │       ├── AlertRule (1:N)      # 알림 규칙 (§2.25, workflow_id nullable)
        │       ├── SecretStore (1:N)
        │       └── AssistantSession (1:N)
        │               └── AssistantMessage (1:N)
@@ -720,7 +721,7 @@ CHECK 제약명은 `chk_login_history_event` 다 (V040 도입). WebAuthn 추가�
 | id | UUID | PK |
 | workspace_id | UUID | FK → Workspace |
 | user_id | UUID | FK → User (수신자) |
-| type | Enum | execution_failed / background_failed / schedule_failed / integration_expired / **integration_action_required** / marketplace_update / team_invite. **분리 원칙**: `integration_expired` 는 **수동성** — `token_expires_at` 만료 임계 (`status_reason='token_expired'`) 임박/도래를 알리는 passive notice. 사용자가 통합을 다시 쓰려 할 때만 행동 필요. `integration_action_required` 는 **능동성** — `error(auth_failed)` / `error(network)` / `error(insufficient_scope)` 같은 운영 중 발생한 장애로, 사용자가 즉시 손봐야 서비스가 복구되는 active alert. `install_timeout` (사용자가 외부 install 흐름 진행 중인 명시적 상태) 은 여전히 알림 미발사 (UI 배지만) — 사용자가 외부 흐름을 알고 있는 상태이므로 push 불필요. 자세한 임계·메시지는 [Spec 통합 §11.2](./2-navigation/4-integration.md#112-알림-생성) 참고. |
+| type | Enum | execution_failed / background_failed / schedule_failed / integration_expired / **integration_action_required** / marketplace_update / team_invite / **alert_failure_rate / alert_duration / alert_llm_cost** (알람 3종은 `alert_` + [§2.25](#225-alertrule) `AlertRule.type` 에서 파생 — `alerts-evaluator.service.ts` 가 `` `alert_${rule.type}` `` 로 만든다). **분리 원칙**: `integration_expired` 는 **수동성** — `token_expires_at` 만료 임계 (`status_reason='token_expired'`) 임박/도래를 알리는 passive notice. 사용자가 통합을 다시 쓰려 할 때만 행동 필요. `integration_action_required` 는 **능동성** — `error(auth_failed)` / `error(network)` / `error(insufficient_scope)` 같은 운영 중 발생한 장애로, 사용자가 즉시 손봐야 서비스가 복구되는 active alert. `install_timeout` (사용자가 외부 install 흐름 진행 중인 명시적 상태) 은 여전히 알림 미발사 (UI 배지만) — 사용자가 외부 흐름을 알고 있는 상태이므로 push 불필요. 자세한 임계·메시지는 [Spec 통합 §11.2](./2-navigation/4-integration.md#112-알림-생성) 참고. |
 | title | String | 알림 제목 |
 | message | String | 알림 내용 |
 | resource_type | String? | 관련 리소스 유형 (딥링크 라우팅 키 — workflow, integration, workspace_invitation 등) |
@@ -854,6 +855,35 @@ chat 계열 LLM 호출(`chat`/`chatStream`) 후 provider 응답 토큰 수를 ap
 
 ---
 
+### 2.25 AlertRule
+
+> 관련 문서: [사용자 프로필 §5.4·§6.3](./2-navigation/9-user-profile.md) (화면·API 계약) ·
+> [data-flow 관측성 §1.3·§2.1](./data-flow/9-observability.md) (평가·발사 흐름)
+
+워크스페이스 단위 알림 규칙 (V016). 실패율·평균 실행 시간·LLM 비용이 임계치를 넘으면
+evaluator 가 cron 으로 평가해 알림을 발사한다.
+
+| 필드 | 타입 | 설명 |
+|------|------|------|
+| id | UUID | PK |
+| workspace_id | UUID | FK → Workspace (CASCADE) |
+| workflow_id | UUID? | FK → Workflow (CASCADE). **NULL = 워크스페이스 전역 규칙** |
+| type | Enum | failure_rate / duration / llm_cost |
+| threshold | Float | 임계치 (DB 는 `NUMERIC(12,4)` 고정소수) |
+| window_iso | String | 평가 창, ISO-8601 기간. 기본 `PT1H` |
+| channel | Enum | in_app / email (기본 `in_app`). **§2.19 `Notification.channel` 과 값역이 다르다** — 그쪽은 `both` 를 포함한 3값이라 직접 매핑되지 않는다 |
+| enabled | Boolean | 평가 대상 여부 (기본: true) |
+| last_triggered_at | Timestamp? | 마지막 발동 시각 |
+| created_by | UUID? | FK → User (**SET NULL** — 작성자가 삭제돼도 규칙은 남는다) |
+| created_at | Timestamp | 생성 시각 |
+| updated_at | Timestamp | 수정 시각 |
+
+**인덱스**: `(workspace_id)` · `(enabled) WHERE enabled = true` — evaluator 가 활성 규칙만
+전체 로드하므로 partial 이 그 조회를 직접 덮는다. (§3 중앙 표는 갱신하지 않는다 —
+DocumentChunk·Entity 계열 선례를 따른다.)
+
+발사되는 알림의 `type` 은 `alert_` + 이 표의 `type` 이다 → §2.19 참조.
+
 ## 3. 인덱스 전략
 
 | 테이블 | 인덱스 | 목적 |
@@ -911,6 +941,23 @@ chat 계열 LLM 호출(`chat`/`chatStream`) 후 provider 응답 토큰 수를 ap
 | Notification | (workspace_id, created_at DESC) | 워크스페이스별 알림 조회 — partial 미적용 (향후 admin/감사 쿼리가 dismissed 포함 전체 row 를 볼 여지) |
 
 ## Rationale
+
+### `alert_rule` 을 §2.25 로 등재 (2026-08-31)
+
+V016 이 만든 `alert_rule` 이 이 문서에 없었다. 컬럼 정의는 `data-flow/9-observability.md`
+§2.1 에만 있었고, 정작 그 문서 상단은 *"관련 spec: 데이터 모델 §2 (alert_rule V016)"* 로
+**여기를 가리키고 있었다** — 읽는 사람은 정의가 이 문서에 있다고 믿게 된다.
+
+**기각한 대안 — `9-observability.md` 존치**: "컬럼이 어딘가엔 적혀 있다" 는 SoT 가 아니다.
+이 문서가 엔티티 정의의 단일 진실이고, 다른 문서가 이미 그 위치를 가리키고 있었다는 사실
+자체가 근거다. 링크만 지우는 것은 문제를 숨긴다.
+
+같은 편집에서 §2.19 `Notification.type` 의 **닫힌 목록**도 고쳤다 — evaluator 가 실제로
+넣는 `alert_failure_rate`/`alert_duration`/`alert_llm_cost` 세 값이 빠져 있어 "이 enum 이
+전부다" 라는 서술이 거짓이었다.
+
+> 출처: `#1245` 의 `--impl-done`(`21_59_41`) cross_spec. enum drift 는 그 후속
+> `--spec`(`10_37_51`) 이 추가로 찾았다.
 
 ### WorkflowVersion.snapshot 구성 서술 정정 (2026-07-31)
 

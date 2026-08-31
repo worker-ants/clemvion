@@ -116,7 +116,7 @@ owner: planner
 다른 영역과 대조하다 드러낸 **기존** 불일치다. 그 PR 의 diff 가 유발한 것이 아니고,
 checker 가 **`plan/**` 어디에도 추적되지 않음**을 확인해 여기 등재한다.
 
-- [ ] **계정 잠금 시 이메일 알림 — 두 spec 이 다르다** (`21_59_41` cross_spec W1).
+- [x] **계정 잠금 시 이메일 알림 — 두 spec 이 다르다** (`21_59_41` cross_spec W1).
       `data-flow/2-auth.md` §3.2·§2.3 과 실코드(`mail.service.ts`·`auth.service.ts`)는
       **알림 없음**으로 일치하는데, `5-system/1-auth.md` §1.1 표만 "이메일 알림" 을 요구한다.
       - 처방 둘 중 하나: (a) §1.1 표에서 그 문구 제거, (b) 알림을 실제로 원하면 구현 티켓 +
@@ -124,11 +124,34 @@ checker 가 **`plan/**` 어디에도 추적되지 않음**을 확인해 여기 �
       - **project-planner 턴 필요** — 제품 요구사항 텍스트라 developer 자기-반증형 소정정
         예외(예고·트리거 문장 한정) 대상이 아니다.
 
-- [ ] **`alert_rule`(V016) 이 데이터 모델 SoT 에 없다** (`21_59_41` cross_spec W2).
+- [x] **`alert_rule`(V016) 이 데이터 모델 SoT 에 없다** (`21_59_41` cross_spec W2).
       컬럼 정의가 `data-flow/9-observability.md` §2.1 에만 있고 `1-data-model.md` §2 에는
       엔티티 섹션 자체가 없다.
       - 처방: `1-data-model.md` §2 에 `AlertRule`(V016) 섹션 신설, `9-observability.md` §2.1
         은 발췌로 축약.
-      - **이 파일은 auth 트래커라 주제가 맞지 않는다.** observability/데이터모델 트래커가
-        저장소에 없어(전수 확인) 임시로 여기 둔다 — 다음 planner 턴이 적절한 트래커를 만들거나
-        옮길 것. 등재하지 않으면 checker 가 확인한 대로 **어디에도 남지 않는다.**
+      - ~~이 파일은 auth 트래커라 주제가 맞지 않는다 — 임시로 여기 둔다.~~ **해소돼 위치
+        문제도 사라졌다.**
+
+> **위 두 건 완료 (2026-08-31, planner 턴).** `--spec` 2회(`10_37_51`·`10_46_44`) 모두
+> BLOCK:NO, WARNING 7건 전량 반영. 반영 내용:
+>
+> - `5-system/1-auth.md` §1.1 표에서 "이메일 알림" 제거 + `## Rationale` 에 **실측 4행**
+>   (`MailService` 발송 메서드 6종 전수 · 잠금↔메일 연결 0건 등)으로 정정 근거
+> - `1-data-model.md` **§2.25 AlertRule** 신설(문서 관례대로 `필드|타입|설명` 3컬럼,
+>   추상 타입) + §1 ER 트리 + `## Rationale` 에 기각한 대안
+> - **곁가지로 §2.19 `Notification.type` drift 도 고쳤다** — 닫힌 목록에
+>   `alert_failure_rate`/`alert_duration`/`alert_llm_cost` 가 빠져 있어 "이 enum 이 전부다"
+>   가 거짓이었다(`10_37_51` cross_spec W1 이 발견)
+> - 상호참조 양방향: `9-observability.md` 링크에 anchor, `9-user-profile.md` §6.3 에 역참조
+>
+> **내가 틀렸던 것 둘**: 컬럼 표를 raw DDL 2컬럼으로 옮겼다(24개 엔티티가 예외 없이
+> 3컬럼) · 타입에 **`Number` 를 발명**했다(어휘는 `Float`/`Int`/`BigInt` 뿐 — `Float` 로
+> 정정하고 DB 고정소수를 설명에 남겼다).
+
+- [ ] **`ACCOUNT_LOCKED` 상태 코드가 spec 간 다르다** (`10_46_44` cross_spec INFO 1).
+      `5-system/1-auth.md` · `3-error-handling.md` · `data-flow/2-auth.md` · `auth.service.ts`
+      사이에서 **423 vs 401** 이 갈린다. 위 ① 작업 중 인접해서 드러났으나 **범위 밖**이라
+      건드리지 않았다 — 어느 쪽이 맞는지 실측이 먼저다.
+- [ ] **`ALERT_RULE_NOT_FOUND` 가 에러 코드 중앙 카탈로그에 없다** (`10_46_44` cross_spec
+      INFO 2). `alerts.service.ts:49,66` 이 발행하는데 `3-error-handling.md` 미등재.
+      `9-user-profile.md:387-388` 에만 있다.
