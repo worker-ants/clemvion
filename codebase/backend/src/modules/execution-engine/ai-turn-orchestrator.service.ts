@@ -17,6 +17,7 @@ import {
   isResumableNodeHandler,
 } from '../../nodes/core/node-handler.interface';
 import { NodeHandlerRegistry } from '../../nodes/core/node-handler.registry';
+import { ErrorCode } from '../../nodes/core/error-codes';
 import { ExecutionContextService } from './context/execution-context.service';
 import type { ResumeState } from './utils/resume-state.schema';
 import { ExecutionEventEmitter } from './events/execution-event-emitter.service';
@@ -1294,20 +1295,20 @@ export class AiTurnOrchestrator {
       AiTurnOrchestrator.NETWORK_MESSAGE_PATTERN.test(rawMessage);
 
     if (is429) {
-      return { code: 'LLM_RATE_LIMIT', retryable: true };
+      return { code: ErrorCode.LLM_RATE_LIMIT, retryable: true };
     }
     if (isAuth) {
-      return { code: 'LLM_CALL_FAILED', retryable: false };
+      return { code: ErrorCode.LLM_CALL_FAILED, retryable: false };
     }
     if (is5xx || isNetwork) {
-      return { code: 'LLM_CALL_FAILED', retryable: true };
+      return { code: ErrorCode.LLM_CALL_FAILED, retryable: true };
     }
     if (typeof explicitCode === 'string' && explicitCode.length > 0) {
       return { code: explicitCode, retryable: false };
     }
     // 분류 불가 fallback — spec §10 은 별도 AI_* 코드 없이 LLM_CALL_FAILED
     // (non-retryable) 로 통합한다. 재시도 안전성이 확인되지 않은 미상 throw.
-    return { code: 'LLM_CALL_FAILED', retryable: false };
+    return { code: ErrorCode.LLM_CALL_FAILED, retryable: false };
   }
 
   static extractAiTurnErrorPayload(err: unknown): {
