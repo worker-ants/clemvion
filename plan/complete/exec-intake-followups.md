@@ -44,11 +44,22 @@ exec-intake 큐 백로그(`exec-intake-queue-impl.md`, PR1~PR4 + PR2b)는 **완�
         > 여기에 `ai-turn-orchestrator.service.ts` 의 `LLM_*` 4지점(값은 enum 에 있는데 상수를
         > 안 거침)을 더해 **총 9지점**을 리다이렉트했다.
         >
-        > **④ 옮기지 않은 것과 그 이유.** `INVALID_EXECUTION_STATE`·`ERROR_PORT_FALLBACK`
-        > (에러 클래스 `readonly code`)와 trigger 파라미터 검증 4종
-        > (`TriggerParameterErrorDetail['code']` 유니온, 규약 §4.2 의 `details[].code` 레이어)은
-        > **이미 타입 앵커가 있다.** 상수로 또 옮기면 앵커가 둘이 되어 갈라진다. 가드의
+        > **④ 옮기지 않은 것과 그 이유 — 세 카테고리.**
+        > (a) `INVALID_EXECUTION_STATE`·`ERROR_PORT_FALLBACK` (에러 클래스 `readonly code`)
+        > (b) trigger 파라미터 검증 4종 (`TriggerParameterErrorDetail['code']` 유니온,
+        > 규약 §4.2 의 `details[].code` 레이어)
+        > (c) `RESUME_CHECKPOINT_MISSING`·`RESUME_INCOMPATIBLE_STATE`
+        > (`RehydrationError.code` 리터럴 유니온, **생성자 positional 인자** — 리뷰 2R 이
+        > 드러낸 형태). `RESUME_FAILED` 는 일반 메서드 인자로만 쓰여 가드 스캔 표면 밖이라
+        > 예외 목록에 두지 않았다.
+        >
+        > 셋 다 **이미 타입 앵커가 있다.** 상수로 또 옮기면 앵커가 둘이 되어 갈라진다. 가드의
         > `ANCHORED_ELSEWHERE` 에 **사유와 함께** 등재했다.
+        >
+        > > **이 문단이 세 번째로 고쳐졌다 (리뷰 4R).** 같은 사실이 `error-codes.ts` JSDoc ·
+        > > `CHANGELOG.md` · 이 plan 세 곳에 있는데, 2R fix 를 3R 에서 앞의 둘에만 반영하고
+        > > 여기를 빠뜨렸다. **미러가 셋이면 셋을 다 세야 한다** — 지적받은 자리만 고치면
+        > > 남은 자리가 다음 라운드에 그대로 나온다(실제로 그렇게 됐다).
         >
         > **재발 방지**: `repo-guards/__tests__/engine-error-code-anchor-guard.ts` (AST).
         > 관례대로 TS 소스는 정규식이 아니라 파서로 읽는다 — 실제로 내 1차 정규식 스캔이

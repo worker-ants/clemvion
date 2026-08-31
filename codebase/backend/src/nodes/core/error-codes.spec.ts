@@ -1,4 +1,5 @@
 import {
+  EngineErrorCode,
   ErrorCode,
   buildErrorEnvelope,
   maskEmailForErrorDetails,
@@ -39,6 +40,28 @@ describe('ErrorCode enum', () => {
     expect(ErrorCode.SUB_WORKFLOW_NOT_FOUND).toBeDefined();
     expect(ErrorCode.SUB_WORKFLOW_TIMEOUT).toBeDefined();
     expect(ErrorCode.SUB_WORKFLOW_QUEUE_FAILED).toBeDefined();
+  });
+});
+
+describe('EngineErrorCode enum', () => {
+  it('maps every key to its own name (UPPER_SNAKE_CASE)', () => {
+    // 형제 `ErrorCode` 와 같은 형식 계약. 신설 const 만 이 검사를 안 받고 있었다.
+    for (const [key, value] of Object.entries(EngineErrorCode)) {
+      expect(value).toBe(key);
+      expect(key).toMatch(/^[A-Z][A-Z0-9_]*$/);
+    }
+  });
+
+  it('shares no code with ErrorCode — 두 네임스페이스가 겹치면 SoT 가 둘이 된다', () => {
+    // 파일은 하나지만 const 는 둘이라는 설계의 **전제**가 이것이다. 같은 코드가 양쪽에
+    // 있으면 "레이어를 타입으로 가른다" 는 주장이 무너지고, 앵커 가드도 그 값을 어느 쪽
+    // 근거로 통과시킨 것인지 말할 수 없게 된다.
+    const overlap = Object.keys(EngineErrorCode).filter((k) => k in ErrorCode);
+    expect(overlap).toEqual([]);
+  });
+
+  it('is non-empty — 위 두 단언이 공허해지지 않도록', () => {
+    expect(Object.keys(EngineErrorCode).length).toBeGreaterThan(0);
   });
 });
 
