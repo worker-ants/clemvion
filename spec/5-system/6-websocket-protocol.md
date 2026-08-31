@@ -25,7 +25,7 @@ code:
 
 ## 1. 연결
 
-> **전송 계층 (구현 현실)**: 본 채널은 **Socket.IO** 로 구현되어 있다 (`@WebSocketGateway({ namespace: '/ws' })`, 클라이언트 `socket.io-client`). 따라서 메시지는 Socket.IO 의 이벤트/ack 모델을 따른다 — 클라이언트는 `socket.emit('<event>', data)` 로 보내고, 명령 ack 는 `{ event, data }` 형태의 callback payload 로 돌려받는다 (아래 §3.3 / §4.2 의 ack 예시 참조). 본 문서의 `{ type, id, payload }` JSON 프레임 표기는 **논리적 메시지 형태를 보이기 위한 추상화** 이며, 실제 wire 는 Socket.IO 가 감싼다 (raw WebSocket 프레임 / `Sec-WebSocket-Protocol` 서브프로토콜 / raw close code 를 직접 다루지 않는다). 본 §1~§9 중 raw-WS 전제 항목은 두 갈래다 — 서브프로토콜 인증(§1.2)·raw close 코드(§8) 및 REST 대체 항목(§1.3 in-band 갱신·§4.2 WS start/stop)은 **비채택 (won't-do)** (근거 §Rationale `R-wontdo-rawws-rest`), 서버발신 app ping(§5)·`auth.token_expired`/`system.maintenance` emit(§4.5)은 **미구현 (Planned)** 이다 — `plan/in-progress/spec-sync-websocket-protocol-gaps.md` 참조.
+> **전송 계층 (구현 현실)**: 본 채널은 **Socket.IO** 로 구현되어 있다 (`@WebSocketGateway({ namespace: '/ws' })`, 클라이언트 `socket.io-client`). 따라서 메시지는 Socket.IO 의 이벤트/ack 모델을 따른다 — 클라이언트는 `socket.emit('<event>', data)` 로 보내고, 명령 ack 는 `{ event, data }` 형태의 callback payload 로 돌려받는다 (아래 §3.3 / §4.2 의 ack 예시 참조). 본 문서의 `{ type, id, payload }` JSON 프레임 표기는 **논리적 메시지 형태를 보이기 위한 추상화** 이며, 실제 wire 는 Socket.IO 가 감싼다 (raw WebSocket 프레임 / `Sec-WebSocket-Protocol` 서브프로토콜 / raw close code 를 직접 다루지 않는다). 본 §1~§9 중 raw-WS 전제 항목은 두 갈래다 — 서브프로토콜 인증(§1.2)·raw close 코드(§8) 및 REST 대체 항목(§1.3 in-band 갱신·§4.2 WS start/stop)은 **비채택 (won't-do)** (근거 §Rationale `R-wontdo-rawws-rest`), 서버발신 app ping(§5)·`auth.token_expired`/`system.maintenance` emit(§4.6)은 **미구현 (Planned)** 이다 — `plan/in-progress/spec-sync-websocket-protocol-gaps.md` 참조.
 
 ### 1.1 엔드포인트
 
@@ -49,7 +49,7 @@ wss://{base_url}/ws        # Socket.IO namespace '/ws'
 
 **인증 실패 시:**
 - 핸드셰이크 단계: 토큰 부재/무효이면 서버가 `error` 이벤트(`{ message }`)를 emit 한 직후 `disconnect()` 로 연결을 끊는다 (raw HTTP `401` 이 아니라 Socket.IO connection error 경로).
-- 연결 중 토큰 만료: 클라이언트는 `connect_error` 를 받으면 REST `/auth/refresh` 로 토큰을 새로 받아 Socket.IO `auth` payload 를 교체한 뒤 재연결한다 (`ws-client.ts`). **서버발신 `auth.token_expired` 이벤트는 미구현 (Planned)** — §4.5 참조.
+- 연결 중 토큰 만료: 클라이언트는 `connect_error` 를 받으면 REST `/auth/refresh` 로 토큰을 새로 받아 Socket.IO `auth` payload 를 교체한 뒤 재연결한다 (`ws-client.ts`). **서버발신 `auth.token_expired` 이벤트는 미구현 (Planned)** — §4.6 참조.
 
 ### 1.3 토큰 갱신 (연결 유지)
 
@@ -153,7 +153,7 @@ socket.emit("unsubscribe", { channel: "execution:550e8400-e29b-41d4-a716-4466554
 | `workflow:{workflowId}` | workspace 소유 검증 (`WorkflowsService.findById(workflowId, workspaceId)`, 비-UUID 선차단) |
 | `kb:{documentId}` | workspace 문서 소유 검증 |
 | `background:run:{id}` | workspace 소유 검증 (비-UUID 선차단) |
-| `notifications:{userId}` | **user 단위** — JWT `sub` 와 채널의 `userId` 일치 검증 (fail-closed). `notification.new` emit 은 `emitNotificationEvent` 로 구현됨 (§4.4) |
+| `notifications:{userId}` | **user 단위** — JWT `sub` 와 채널의 `userId` 일치 검증 (fail-closed). `notification.new` emit 은 `emitNotificationEvent` 로 구현됨 (§4.5) |
 
 권한 없으면 **별도 `error` 메시지가 아니라 동일한 `subscribed` ack 에 `success: false`, 평문 `error` 문자열, 그리고 구조화 `code`** 로 응답한다 (평문 `error` 에 `code` 를 additive 로 동봉 — §7.1):
 
@@ -874,7 +874,7 @@ provider tool 실행이 끝나면 (성공·실패 무관) 발송한다. `status`
 
 ### 4.7 외부 표면 매핑 (External Interaction API)
 
-[Spec External Interaction API](./14-external-interaction-api.md) 는 외부 호출자가 WebSocket 대신 REST + SSE + Outbound Notification 으로 동일한 명령·이벤트를 주고받을 수 있게 한다. 두 표면의 의미가 분기되지 않도록 본 §4.6 의 매핑 표가 권위적이며, 외부 spec 의 §11 표는 이 표와 정합해야 한다.
+[Spec External Interaction API](./14-external-interaction-api.md) 는 외부 호출자가 WebSocket 대신 REST + SSE + Outbound Notification 으로 동일한 명령·이벤트를 주고받을 수 있게 한다. 두 표면의 의미가 분기되지 않도록 본 §4.7 의 매핑 표가 권위적이며, 외부 spec 의 §11 표는 이 표와 정합해야 한다.
 
 **Client → Server 명령 매핑:**
 
@@ -1010,7 +1010,7 @@ socket.emit("subscribe", { channel: "execution:550e8400..." });
 { "event": "execution.retry_last_turn.ack", "data": { "success": false, "executionId": "...", "nodeExecutionId": "...", "resumed": false, "error": { "code": "NOT_FOUND", "message": "Execution not found" } } }
 ```
 
-> **미구현 (Planned)**: spec 초안의 독립 `{ type: 'error', id, payload: { code, message } }` 범용 프로토콜 에러 프레임은 발행되지 않는다. 연결 레벨 에러는 §4.5 의 `error` 이벤트(`{ message }`)로만, 명령 에러는 위 ack 형태로만 표면화된다.
+> **미구현 (Planned)**: spec 초안의 독립 `{ type: 'error', id, payload: { code, message } }` 범용 프로토콜 에러 프레임은 발행되지 않는다. 연결 레벨 에러는 §4.6 의 `error` 이벤트(`{ message }`)로만, 명령 에러는 위 ack 형태로만 표면화된다.
 
 ---
 
@@ -1083,7 +1083,7 @@ socket.emit("subscribe", { channel: "execution:550e8400..." });
 본 spec 초안은 "native/raw WebSocket 프로토콜" 을 전제로 `{ type, id, payload }` 프레임·`Sec-WebSocket-Protocol` 서브프로토콜 인증·`auth.refresh`/`auth.refreshed` in-band 갱신·`execution.start`/`execution.stop` WS 명령·서버발신 30s/10s app ping·raw close code(1000/1001/1008/4000/4001)·`{type:'error',code}` 프레임을 약속했다. 그러나 구현(`websocket.gateway.ts` / `websocket.service.ts` / 프론트 `ws-client.ts`)은 **Socket.IO** (namespace `/ws`) 기반이고, 위 raw-WS 표면 중 다수가 부재하거나 형태가 다르다.
 
 - **정정한 사실 (구현 일치)**: 전송 = Socket.IO; 인증 = `handshake.query.token || handshake.auth.token` (서브프로토콜 경로 없음); 구독 ack = `{ event:'subscribed', data:{ success, channel?, error? } }`; 권한/한도 거부 = 평문 `error` 문자열 (코드 필드 없음); snapshot payload = `{ executionId, execution, timestamp }` (status/nodeExecutions 는 `execution` nest); app ping = client→server (`handlePing`); heartbeat = Socket.IO 내장; 재연결 = Socket.IO 내장 backoff; 토큰 갱신 = REST refresh + 재연결; 서버발신 이벤트 wire = `{ executionId, ...payload, seq, timestamp }` 평면 + 이벤트 이름 분리.
-- **미구현 (Planned) 으로 분리한 약속**: 서브프로토콜 인증·`auth.refresh`/`auth.refreshed`·`auth.token_expired` emit·`execution.start`/`stop`/`start.ack` WS 경로·서버발신 app ping·raw close code·`system.maintenance` emit·`INVALID_MESSAGE`/`UNKNOWN_TYPE`/`SUBSCRIPTION_LIMIT_EXCEEDED`/`RATE_LIMITED` 전용 에러 코드·60 msg/min WS rate-limit. 이들은 삭제하지 않고 본문에서 _(계획·미구현)_ 로 표기 분리했다. (`notification.new` emit 은 이후 구현 완료 — §4.4.)
+- **미구현 (Planned) 으로 분리한 약속**: 서브프로토콜 인증·`auth.refresh`/`auth.refreshed`·`auth.token_expired` emit·`execution.start`/`stop`/`start.ack` WS 경로·서버발신 app ping·raw close code·`system.maintenance` emit·`INVALID_MESSAGE`/`UNKNOWN_TYPE`/`SUBSCRIPTION_LIMIT_EXCEEDED`/`RATE_LIMITED` 전용 에러 코드·60 msg/min WS rate-limit. 이들은 삭제하지 않고 본문에서 _(계획·미구현)_ 로 표기 분리했다. (`notification.new` emit 은 이후 구현 완료 — §4.5.)
   - **Planned → 구현 완료 (2026-07-07)**: 위 중 **WS 에러 처리 하드닝** — 전용 에러 코드 4종(`INVALID_MESSAGE`/`UNKNOWN_TYPE`/`SUBSCRIPTION_LIMIT_EXCEEDED`/`RATE_LIMITED`)과 socket 당 60 msg/min rate-limit — 이 구현됐다(§7.1/§3.3/§3.4/§7.2 본문 flip). subscribe ack 은 평문 `error` + 구조화 `code` additive, rate-limit 은 `WsRateLimitGuard`(class-level, in-memory per-socket), 미등록 이벤트는 `onAny`→`error{code}`.
   - **Planned → 비채택 won't-do (2026-07-08)**: 4종 항목을 정식 종결했다 (근거 §Rationale `R-wontdo-rawws-rest`) — **raw-WS 전제**(전송계층 구조적 부적용): `Sec-WebSocket-Protocol` 서브프로토콜 인증(§1.2)·raw close code 매핑(§8); **REST 대체 충분**(중복 경로 회피): in-band `auth.refresh`/`auth.refreshed`(§1.3)·`execution.start`/`stop`/`start.ack` WS 경로(§4.2). 본문 표기를 _(비채택 won't-do)_ 로 전환.
   - **잔여(Planned, 실 기능 백로그)**: 서버발신 `auth.token_expired` emit(§4.6)·`system.maintenance` emit(§4.6)·서버발신 app ping(§5). 이들은 트리거 소스 설계가 필요한 실 구현 항목으로 `plan/in-progress/spec-sync-websocket-protocol-gaps.md` 에 유지.

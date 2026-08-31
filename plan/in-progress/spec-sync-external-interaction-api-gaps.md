@@ -347,6 +347,32 @@ owner: planner
         만든/바꾼 5개 앵커 전부 일치. 잔여 깨짐 2건은 `plan/complete/archive/` 의 선재
         결함(`#44-실행-진행-이벤트`, 존재한 적 없는 헤딩)이라 범위 밖.
 
+      - **⚠ 그 검증은 한 칸 좁았다 — 같은 PR 의 `/ai-review` 가 잡았다 (2026-08-31).**
+        "앵커 링크 96건 전수" 는 **마크다운 링크만** 센 것이고, `§4.x` **bare 프로즈 인용**은
+        훑지 않았다. documentation·requirement·maintainability **3명이 독립적으로** 같은
+        근본 원인을 지적했다. 재발 지점 12곳:
+
+        | 파일 | 건수 | 주어 |
+        |---|---:|---|
+        | `6-websocket-protocol.md` (자기 문서) | 6 | 시스템 3 · 알림 2 · 외부표면 1 |
+        | `data-flow/8-notifications.md` | 1 | 알림 (**같은 문단 안에서 190행은 §4.5, 192행은 §4.4** — 자기모순) |
+        | `websocket-events.types.ts` · `websocket.service.ts` · `websocket.service.spec.ts` | 4 | 알림 (`codebase/` — 검증 범위 밖이었다) |
+        | `spec-sync-websocket-protocol-gaps.md` | 1 | 알림 |
+
+        **이 PR 이 고치던 결함 클래스를 이 PR 이 재생산했다.** `chat-channel` 주석 6곳에서
+        "줄 번호로 인용하면 썩는다" 를 고쳐 놓고, 절 번호 이동에서는 **인용의 한 형태만**
+        방어했다.
+
+      - **정정 후 재전수 (주어 기준 분류)**: 실질 잔존 오인용 **0건**. 리뷰어가 지목한 9건
+        외에 내 sweep 이 **2건을 더 찾았고**(`websocket.service.spec.ts:1268` ·
+        `spec-sync-websocket-protocol-gaps.md:53`), 반대로 내 heuristic 오탐 3건은
+        손으로 걸러냈다 — `8-notifications.md:347`(그 줄의 `auth.token_expired` 는 **점 표기
+        예시**이지 절 참조가 아니다) 과 내 이력 서술 2곳("이동 전 §4.5").
+
+      - **절차로 고정**: spec 절 번호를 옮길 때 대조 대상은 앵커가 아니라 **인용 전체**다 —
+        `grep -rn '§<구번호>' spec/ codebase/ plan/in-progress/ .claude/` 로 훑고, **각 건의
+        주어**로 분류할 것(같은 `§4.4` 라도 *대기 상세*를 가리키면 정정 대상이 아니다).
+
 - [ ] **`spec-links` 가드가 앵커를 검사하지 않는다** (2026-08-31 등재, 위 항목 작업 중 발견).
       링크의 **파일 경로만** 보고 `#fragment` 는 보지 않는다.
       - **실측(뮤테이션)**: `8-notifications.md` 의 앵커 4건을 존재하지 않는

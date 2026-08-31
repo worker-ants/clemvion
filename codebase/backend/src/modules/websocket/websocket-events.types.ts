@@ -208,7 +208,7 @@ export enum BackgroundRunEventType {
 
 /**
  * 사용자 알림 도메인 이벤트. 채널: `notifications:<userId>`.
- * 권위 정의: spec/5-system/6-websocket-protocol.md §4.4 (`notification.new`).
+ * 권위 정의: spec/5-system/6-websocket-protocol.md §4.5 (`notification.new`).
  *
  * **인앱 알림 벨 전용** — 이름의 `InApp` 접두가 그 스코프다.
  *
@@ -229,7 +229,7 @@ export enum InAppNotificationEventType {
 
 /**
  * Wire payload for {@link InAppNotificationEventType.NOTIFICATION_NEW}.
- * spec/5-system/6-websocket-protocol.md §4.4 의 shape
+ * spec/5-system/6-websocket-protocol.md §4.5 의 shape
  * `{ id, type, title, message, resourceType, resourceId }`. `resourceType` /
  * `resourceId` 는 리소스 attribution 이 없는 알림에서 null.
  */

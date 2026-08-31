@@ -132,6 +132,27 @@ class ScopeDeltaCensus(unittest.TestCase):
         self.assertIn("구현 diff: 0개 파일", out)
         self.assertNotIn("예산에 잘렸다", out)
 
+    # The list folds at `_SCOPE_HITS_DISPLAY_LIMIT`. Every other fixture here is
+    # 0–1 paths, so the fold was reachable in production (`spec/5-system/` alone
+    # can change dozens of files) and unreachable in this suite.
+    def test_under_the_limit_lists_every_path_and_does_not_fold(self):
+        n = 20
+        out = self._census(changed=[f"spec/5-system/f{i:02d}.md" for i in range(n)])
+        self.assertTrue(self._scope_says(out, n), out)
+        self.assertNotIn("외", out.split("구현 diff")[0])
+        self.assertIn("spec/5-system/f19.md", out)
+
+    def test_over_the_limit_folds_with_the_exact_remainder(self):
+        n = 25
+        out = self._census(changed=[f"spec/5-system/f{i:02d}.md" for i in range(n)])
+        # The COUNT stays honest even though the LIST is folded — a reader must
+        # not conclude the scope changed only 20 files.
+        self.assertTrue(self._scope_says(out, n), out)
+        self.assertIn("… 외 5건", out)
+        # Sorted, so the first 20 are f00–f19 and f20+ are the folded ones.
+        self.assertIn("spec/5-system/f19.md", out)
+        self.assertNotIn("spec/5-system/f20.md", out)
+
 
 class CensusIsWiredIntoImplDone(unittest.TestCase):
     """A helper that nobody calls is a helper that guards nothing.

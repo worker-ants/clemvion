@@ -564,7 +564,7 @@ export class WebsocketService {
 
   /**
    * 사용자 알림 실시간 push — `notifications:<userId>` 채널에 `notification.new` emit.
-   * spec/data-flow/8-notifications.md §1·§2.2 + spec/5-system/6-websocket-protocol.md §4.4.
+   * spec/data-flow/8-notifications.md §1·§2.2 + spec/5-system/6-websocket-protocol.md §4.5.
    *
    * 채널 authorizer(`NotificationsChannelAuthorizer`, JWT `sub` == userId)가 이미
    * fail-closed 로 배치돼 있어 다른 사용자 채널로 새지 않는다 (WS spec §3.3 Rationale).

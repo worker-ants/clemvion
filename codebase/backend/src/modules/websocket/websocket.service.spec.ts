@@ -1265,7 +1265,7 @@ describe('WebsocketService', () => {
   });
 
   describe('emitNotificationEvent', () => {
-    it('`notifications:<userId>` 채널에 notification.new 를 spec §4.4 shape 으로 emit', () => {
+    it('`notifications:<userId>` 채널에 notification.new 를 spec §4.5 shape 으로 emit', () => {
       service.emitNotificationEvent('user-42', {
         id: 'notif-1',
         type: 'execution_failed',

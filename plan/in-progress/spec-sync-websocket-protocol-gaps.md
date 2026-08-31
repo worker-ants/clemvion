@@ -50,7 +50,7 @@ spec 초안은 raw/native WebSocket 프로토콜을 전제했으나 구현은 So
       > §1.2·§4.6 에 (a) 소켓 수명이 토큰 수명에 종속되는가 (b) 사전 통지 lead time 이
       > 있는가 두 가지를 적어 주면 구현은 작다(핸드셰이크에서 `exp` 를 읽어 소켓별 타이머,
       > `handleDisconnect` 에서 해제).
-- [x] `notifications:{userId}` 채널의 `notification.new` emit 경로 — **완료** (`spec-sync-data-flow-8-notifications-gaps.md` PR1, `WebsocketService.emitNotificationEvent`). §4.4 spec 본문 "계획·미구현" 배지 flip 은 `plan/in-progress/spec-update-notifications-ws-emit.md`(planner) 위임.
+- [x] `notifications:{userId}` 채널의 `notification.new` emit 경로 — **완료** (`spec-sync-data-flow-8-notifications-gaps.md` PR1, `WebsocketService.emitNotificationEvent`). §4.5 spec 본문 "계획·미구현" 배지 flip 은 `plan/in-progress/spec-update-notifications-ws-emit.md`(planner) 위임.
 - [ ] `system.maintenance` 시스템 이벤트 emit (§4.6 — 2026-08-31 절번호 이동 전 §4.5)
 
       > **⚠ 발화 트리거가 존재하지 않는다 (2026-08-31 실측 등재).** payload 는

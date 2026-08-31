@@ -476,6 +476,11 @@ def _head_basis_notice(root, diff_base):
     )
 
 
+#: `_scope_delta_census` 가 나열하는 scope-hit 경로의 상한. 넘으면 "… 외 N건" 으로 접는다.
+#: head 구역은 절단 대상이 아니므로(그게 census 의 존재 이유다) 여기서 스스로 유계화해야
+#: 한다 — 대형 scope(`spec/5-system/` 등)에서 수백 줄이 본문 예산을 잠식하는 것을 막는다.
+_SCOPE_HITS_DISPLAY_LIMIT = 20
+
 
 def _count_diff_files(diff_text):
     """Number of files in a unified diff — `diff --git` headers, not `+++` lines.
@@ -522,9 +527,13 @@ def _scope_delta_census(root, target_path_rel, changed_rels, diff_text):
     diff_lines = diff_text.count("\n") if diff_text.strip() else 0
 
     if scope_hits:
-        shown = "".join(f"    - `{r}`\n" for r in scope_hits[:20])
+        shown = "".join(
+            f"    - `{r}`\n" for r in scope_hits[:_SCOPE_HITS_DISPLAY_LIMIT]
+        )
         more = (
-            f"    - … 외 {len(scope_hits) - 20}건\n" if len(scope_hits) > 20 else ""
+            f"    - … 외 {len(scope_hits) - _SCOPE_HITS_DISPLAY_LIMIT}건\n"
+            if len(scope_hits) > _SCOPE_HITS_DISPLAY_LIMIT
+            else ""
         )
         scope_line = (
             f"- **scope(`{scope_rel}`) 델타: {len(scope_hits)}개 파일**\n{shown}{more}"

@@ -189,7 +189,7 @@ hard delete 배치, (b) 분석용 ETL 의 dismiss 이벤트 집계 를 도입할
 다른 device 간 read/dismiss 동기화 (예: 한 탭에서 dismiss 한 알림이 다른 탭의 popover 에서도
 즉시 사라짐) 는 [`spec/5-system/6-websocket-protocol.md §4.5`](../5-system/6-websocket-protocol.md#45-알림-이벤트-server--client)
 에 `notification.read`, `notification.dismissed` 이벤트를 신설해 가능. follow-up phase 에서 검토하며,
-이벤트 이름은 §4.4 기존 `notification.new` prefix 와 일관성을 유지한다.
+이벤트 이름은 §4.5 기존 `notification.new` prefix 와 일관성을 유지한다.
 
 ---
 
