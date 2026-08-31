@@ -137,8 +137,12 @@ describe('엔진 에러 코드 앵커 가드', () => {
     for (const [code, reason] of Object.entries(ANCHORED_ELSEWHERE)) {
       expect(typeof reason).toBe('string');
       // 20 자는 "붙잡는 타입이 어디 있는가" 를 최소한 파일명+식별자로 적으면 넘는 길이다
-      // (실제 항목 중 가장 짧은 것이 45 자). `'TODO'`·`'나중에'` 같은 알리바이를 막는 것이
-      // 목적이고, 길이만으로 사유의 질을 보증하지는 않는다 — 그건 사람이 읽어야 한다.
+      // (실측: 현재 항목 중 가장 짧은 것이 **64 자** — `ErrorPortFallbackError` 행).
+      // `'TODO'`·`'나중에'` 같은 알리바이를 막는 것이 목적이고, 길이만으로 사유의 질을
+      // 보증하지는 않는다 — 그건 사람이 읽어야 한다.
+      //
+      // 초판은 여기 "45 자" 라 적었다. **재지 않고 어림한 값이었고 틀렸다**(리뷰
+      // `20_59_14` INFO 13). 근거 수치는 세어서 쓴다.
       expect(reason.length).toBeGreaterThan(20);
       expect(code).toMatch(/^[A-Z][A-Z0-9_]+$/);
     }

@@ -129,10 +129,14 @@ export type ErrorCodeValue = (typeof ErrorCode)[keyof typeof ErrorCode];
  * 여기 있는 넷은 전부 **맨 문자열이었다**(2026-08-31 실측: 5지점). DB 에 영속되고
  * FE·알림이 값으로 분기하는데 앵커가 없어 **오탈자가 조용히 통과**했다.
  *
- * 반면 아래 둘은 **이미 타입 앵커가 있어** 옮기지 않았다 — 옮기면 앵커가 두 개가 된다:
+ * 반면 아래 **셋**은 **이미 타입 앵커가 있어** 옮기지 않았다 — 옮기면 앵커가 두 개가 된다:
  *  - `INVALID_EXECUTION_STATE` / `ERROR_PORT_FALLBACK` — 에러 클래스의 `readonly code`
  *  - trigger 파라미터 검증 4종 — `TriggerParameterErrorDetail['code']` 유니온
  *    (규약 §4.2 가 소유하는 `details[].code` 레이어이며 봉투 `code` 가 아니다)
+ *  - `RESUME_CHECKPOINT_MISSING` / `RESUME_INCOMPATIBLE_STATE` —
+ *    `RehydrationError.code` 리터럴 유니온으로 **생성자 positional 인자**로 넘어간다
+ *    (리뷰 `20_43_35` W1 이 드러낸 형태. `RESUME_FAILED` 는 일반 메서드 인자로만 쓰여
+ *    가드 스캔 표면 밖이라 예외 목록에 두지 않았다 — 아래 경계 문단 참조)
  *
  * 형제 가드 `repo-guards/__tests__/engine-error-code-anchor-guard.ts` 가 이 구분을
  * 강제한다 — 엔진 모듈에서 `code`/`errorCode` 에 바인딩되거나 `new XxxError('X', …)` 로
