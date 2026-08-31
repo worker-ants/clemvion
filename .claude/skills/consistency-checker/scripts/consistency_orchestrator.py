@@ -988,6 +988,47 @@ def build_checker_prompt_body(checker_name, subs):
 # ---------------------------------------------------------------------------
 
 
+def _preserve_spec_draft(session_dir, context):
+    """`--spec` 의 target draft 원본을 세션 산출물로 남긴다.
+
+    **draft 는 임시 파일이 아니라 산출물이다** — `developer` 가 `spec/` 을 직접 못 고치는
+    CLAUDE.md 경계는 "planner 턴을 밟았다" 로만 정당화되고, draft 가 그 유일한 증거다.
+    그런데 planner 턴 끝에 draft 를 지우는 일이 두 턴 연속 벌어졌고(`#1242`·`#1243`),
+    머지된 뒤 main 이 **존재하지 않는 파일**을 6곳에서 인용하는 상태가 됐다
+    (ai-review `19_26_58` requirement W1).
+
+    복원은 두 번 다 `_prompts/*.md` 의 코드펜스에서 원문을 떠서 했다. 그건 **부수 효과**다 —
+    프롬프트는 예산에 따라 `truncate_file_bundle` 로 **잘리고**(`budget_substitutions`),
+    포맷이 바뀌면 사라진다. 우연히 남던 것을 계약으로 바꾼다.
+
+    **차단하지 않는다.** 이 저장소는 push 가드를 정밀화했다가 3라운드 회귀 끝에 철회한
+    이력이 있다(`#970`) — "유한한 문제를 무한한 문제와 바꾸지 말 것". 여기서 고르는 것은
+    *증거 보존*이고, draft 를 `plan/complete/` 로 옮기는 관례 자체는 사람이 지킨다.
+
+    Returns: 남긴 파일의 세션 상대 경로, 또는 `--spec` 이 아니거나 읽지 못하면 `None`.
+    """
+    target_rel = context.get("target_path") or ""
+    if "--spec" not in (context.get("mode") or ""):
+        return None
+    if not target_rel:
+        return None
+
+    src = target_rel if os.path.isabs(target_rel) else os.path.join(repo_root(), target_rel)
+    try:
+        with open(src, "r", encoding="utf-8") as f:
+            body = f.read()
+    except OSError as exc:  # 읽기 실패가 세션 준비를 막지는 않는다.
+        debug_log(f"spec draft 보존 실패({target_rel}): {exc}")
+        return None
+
+    snapshot_dir = os.path.join(session_dir, "_target")
+    os.makedirs(snapshot_dir, exist_ok=True)
+    dest = os.path.join(snapshot_dir, os.path.basename(target_rel))
+    with open(dest, "w", encoding="utf-8") as f:
+        f.write(body)
+    return os.path.relpath(dest, session_dir)
+
+
 def prepare_session(context, config):
     session_dir = session.create_session_dir(config["output_dir"])
     prompts_dir = os.path.join(session_dir, "_prompts")
@@ -1031,12 +1072,16 @@ def prepare_session(context, config):
     with open(state_path, "w", encoding="utf-8") as f:
         json.dump(retry_state, f, indent=2, ensure_ascii=False)
 
+    preserved = _preserve_spec_draft(session_dir, context)
+
     meta = {
         "timestamp": datetime.now().isoformat(),
         "mode": context["mode"],
         "target_path": context["target_path"],
         "checkers": config["agents"],
     }
+    if preserved:
+        meta["target_snapshot"] = preserved
     session.save_metadata(session_dir, meta)
 
     debug_log(
