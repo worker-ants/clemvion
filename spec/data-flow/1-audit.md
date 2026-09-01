@@ -52,8 +52,10 @@ sequenceDiagram
   ALS->>PG: INSERT audit_log (...)
 ```
 
-`AuditLogsService.record` 의 실제 호출자는 **8개 위치(5개 service 모듈 + 3개 auth/user controller)**
-다. 워크스페이스·멤버 도메인 CRUD 는 `workspaces.service`·`workspace-invitations.service` 가, `user.*`
+`AuditLogsService.record` 의 실제 호출자는 **12개 위치(9개 service 모듈 + 3개 auth/user controller)**
+다 — 아래 표의 Writer module 수와 같다(2026-09-01 실측. 종전 "8개(5+3)" 는 2026-08-01 CRUD 확장
+이전 수치가 남은 것으로, 표와 모순이었다). 이 12는 **파일 수**이고, `resource_type` 라벨의 distinct
+값은 **10종**이라 서로 다른 수치다 ([`5-system/_product-overview.md` §5 NF-OB-07](../5-system/_product-overview.md)). 워크스페이스·멤버 도메인 CRUD 는 `workspaces.service`·`workspace-invitations.service` 가, `user.*`
 인증 이벤트는 세션 workspaceId 가 살아있는 controller 경계가 기록한다(§Rationale 4.1.B). 이 표가 현재
 코드에서 실제로 기록되는 action 의 SoT 다:
 

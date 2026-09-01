@@ -109,9 +109,9 @@ owner: planner
         시작할 수 없다. `action`·`resourceType`·`resourceId`·`workspaceId` 를 싣는다.
       - 주입은 `@Optional()` (선례 `idempotency.interceptor.ts`) — 관측이 없다고 감사가
         멈추면 본말이 뒤집힌다.
-      - 라벨은 **클램핑**이다(닫힌 유니온이 아니라). `resourceType` 은 실측 12종으로
-        유계지만 `record()` 시그니처가 `string`(열림)이라 컴파일러가 닫힘을 증명하지
-        못한다 — 증명되지 않은 닫힘을 타입으로 주장하는 대신 `recordExecutionError` 와
+      - 라벨은 **클램핑**이다(닫힌 유니온이 아니라). `resourceType` 은 실측 **distinct
+        10종**으로 유계지만 `record()` 시그니처가 `string`(열림)이라 컴파일러가 닫힘을
+        증명하지 못한다 — 증명되지 않은 닫힘을 타입으로 주장하는 대신 `recordExecutionError` 와
         같은 클램핑으로 방어했다. `record()` 가 닫힌 유니온을 받게 되면 그때 좁힌다.
       - 뮤테이션 4축 (예측/실측 전부 RED): 원 상태 복원 · 성공 경로에서도 카운터 증가 ·
         로그에서 `resourceId` 만 제거 · `@Optional` 제거.
@@ -119,13 +119,19 @@ owner: planner
       아래는 착수 시점 서술로 남긴다.
       `AuditLogsService.record()` 는 DB 오류를 `logger.warn` 한 줄로 **삼킨다** — 알림도
       메트릭도 없다. 그래서 "회전은 200 으로 성공, 그런데 감사 행만 조용히 비어 있음" 이
-      아무에게도 안 보인다. **이 PR 이 만든 회귀가 아니라** 17개 감사 producer 전체의
-      기존 설계이고, 세 회전 메서드가 그 관례를 따른 것 자체는 옳다.
+      아무에게도 안 보인다. **이 PR 이 만든 회귀가 아니라** 감사 producer **12개 모듈**
+      전체의 기존 설계이고, 세 회전 메서드가 그 관례를 따른 것 자체는 옳다.
       다만 이번에 "계정 탈취 재구성" 이라는 신뢰 수준을 명시적으로 끌어올렸으므로, 그
       신뢰를 지탱하는 하부 메커니즘과의 갭을 등재해 둔다.
       - [x] **`audit_log` 축 — 완료 (2026-09-01).** `clemvion.audit.write_failed` 신설 +
             로그에 유실 대상 기재. 위 항목 참조. spec 반영은
             [`spec-draft-audit-write-failed-metric.md`](../complete/spec-draft-audit-write-failed-metric.md).
+      - [x] **`resource_type` "실측 12종" 오기산 정정 → 10종 (2026-09-01).** `--impl-done`
+            consistency `16_02_03` WARNING. 12 는 라벨 값이 아니라 **producer 파일 수**였다 —
+            세는 대상을 바꿔 놓고 같은 숫자를 카디널리티라 적었다. spec 2곳(`_product-overview.md`
+            NF-OB-07 · `data-flow/1-audit.md` §1.1 산문의 "8개 위치")·JSDoc·plan 2곳 전파분
+            동반 정정 **완료** (`--spec` `16_16_39` BLOCK:NO 통과 후 반영). 경위와 실측 근거:
+            [`spec-draft-audit-resource-type-count.md`](spec-draft-audit-resource-type-count.md).
       - [ ] **`clampLabel` 대칭 테스트 + `record()` JSDoc** (리뷰 4라운드 INFO).
             둘 다 **미조치이며 우선순위 판단**이다 — 문서화되어 있어서가 아니다(3라운드에
             거짓 근거를 쓴 뒤로 이 구분을 명시해 적는다).
@@ -143,9 +149,10 @@ owner: planner
             관측 강도가 갈렸다** — `spec/data-flow/1-audit.md` 가 그 비대칭을 명시적으로
             적고 있으므로 숨어 있지는 않다.
 
-            지금 안 붙이는 이유: "감사 실패 관측을 어디까지 넓히나" 는 17개 producer 전체에
-            걸리는 결정이고, `audit_log` 는 "계정 탈취 재구성" 이라는 신뢰 수준을 명시적으로
-            끌어올린 자리라 먼저 닫을 근거가 있었다. `login_history` 는 그 근거가 아직 없다.
+            지금 안 붙이는 이유: "감사 실패 관측을 어디까지 넓히나" 는 **삼키는 감사성 write
+            경로 전반**(`audit_log`·`login_history`·앞으로 생길 것)에 걸리는 결정이고,
+            `audit_log` 는 "계정 탈취 재구성" 이라는 신뢰 수준을 명시적으로 끌어올린 자리라
+            먼저 닫을 근거가 있었다. `login_history` 는 그 근거가 아직 없다.
 
             재개 신호: 로그인 이력 유실이 실제로 조사에 걸릴 때, 또는 producer 를 하나 더
             넓힐 일이 생겨 "어디까지" 를 한 번에 정하게 될 때.

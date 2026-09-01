@@ -171,9 +171,12 @@ export class BusinessMetricsService {
    *
    * ## 왜 클램핑인가 (닫힌 유니온이 아니라)
    *
-   * `resourceType` 은 코드가 정하는 값이라 실측 12종으로 유계다. 그런데 소스인
-   * `AuditLogsService.record()` 의 시그니처가 `resourceType: string`(열림)이라 **컴파일러가
-   * 닫힘을 증명하지 못한다**. 증명되지 않은 닫힘을 타입으로 주장하는 대신
+   * `resourceType` 은 코드가 정하는 값이라 **distinct 10종**으로 유계다 (`user`·`trigger`·
+   * `workflow`·`schedule`·`member`·`workspace`·`integration`·`model_config`·`auth_config`·
+   * `execution`). 세는 대상에 주의 — 감사 producer **파일**은 12개고, `resourceType` 이라는
+   * 식별자는 알림(`NotificationsService.notify`)도 쓴다(`workspace_invitation`·`alert_rule`은
+   * 알림 값이라 여기 안 온다). 그런데 소스인 `AuditLogsService.record()` 의 시그니처가
+   * `resourceType: string`(열림)이라 **컴파일러가 닫힘을 증명하지 못한다**. 증명되지 않은 닫힘을 타입으로 주장하는 대신
    * `recordExecutionError` 와 같은 클램핑으로 방어한다 — `record()` 가 닫힌 유니온을
    * 받도록 바뀌면 그때 이쪽도 유니온으로 좁히는 것이 맞다.
    */

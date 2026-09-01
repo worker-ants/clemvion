@@ -129,3 +129,33 @@ NF-OB-07 카탈로그 표를 동시에 넓히는 것이 규칙"** 이라고 못 
 - 구현·리뷰: `plan/in-progress/spec-sync-auth-gaps.md` (감사 로깅 잔여)
 - 리뷰 SD1: `review/code/2026/09/01/14_31_12/SUMMARY.md`
 - 선례: `clemvion.redis.fail_open` 카탈로그 등재
+
+---
+
+## 정정 (2026-09-01, `--impl-done` consistency `16_02_03` WARNING)
+
+이 draft 가 두 곳(§카탈로그 표 · §기각한 대안)에서 인용한 **"실측 12종"은 틀렸다.**
+원문은 기록이라 지우지 않고 여기에 정정을 남긴다.
+
+**`resource_type` 의 distinct 값은 10종이다** — `user` · `trigger` · `workflow` · `schedule` ·
+`member` · `workspace` · `integration` · `model_config` · `auth_config` · `execution`.
+
+12 는 라벨 값의 수가 아니라 **`AuditLogsService` 를 주입해 `record()` 를 부르는 파일의 수**였다.
+세는 대상을 바꿔 놓고 같은 숫자를 카디널리티라고 적었다. 전수 실측:
+
+| 세는 대상 | 값 |
+|---|---|
+| `AuditLogsService` 주입 파일 | 13 (`audit-logs.controller.ts` 는 조회 전용) |
+| 감사 producer 파일 | **12** |
+| `record()` 호출 지점 | 27 |
+| **distinct `resourceType`** | **10** |
+
+`resourceType` 이라는 식별자는 알림(`NotificationsService.notify`)도 쓴다 —
+`workspace_invitation` · `alert_rule` 은 알림 값이라 이 카운터에 오지 않는다. 이름만 grep 하면
+섞인다.
+
+**설계 결론은 바뀌지 않는다.** 닫힌 유니온을 기각한 근거는 개수가 아니라 `record()` 시그니처가
+`resourceType: string`(열림)이라 컴파일러가 닫힘을 증명하지 못한다는 점이고, 10이든 12든 그
+논증에 영향이 없다. 그러나 근거로 인용한 실측이 틀렸다면 그 실측은 고친다.
+
+정정 경위: [`spec-draft-audit-resource-type-count.md`](../in-progress/spec-draft-audit-resource-type-count.md)
