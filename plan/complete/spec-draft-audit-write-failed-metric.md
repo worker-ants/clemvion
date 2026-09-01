@@ -2,14 +2,20 @@
 title: "spec draft — `clemvion.audit.write_failed` 를 NF-OB-07 카탈로그에 등재"
 worktree: .claude/worktrees/audit-record-factory
 started: 2026-09-01
+completed: 2026-09-01
 owner: project-planner
-status: in-progress
+status: applied
 priority: P2
 spec_impact:
   - spec/5-system/_product-overview.md
   - spec/data-flow/9-observability.md
   - spec/data-flow/1-audit.md
 ---
+
+**✅ 적용 완료 (2026-09-01).** §A~§C 를 spec 세 문서에 반영했다. planner 의무 게이트
+`/consistency-check --spec` 은 `review/consistency/2026/09/01/15_00_54` 에서 **BLOCK: NO**
+이고, 그 WARNING 2건(원칙 예외를 원 출처에 교차 참조 · 기존 plan 항목과 연결)도 함께
+반영했다. 이 문서는 **그 결정의 근거 산출물**로 보존한다.
 
 ## Overview
 

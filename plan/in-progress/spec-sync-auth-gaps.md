@@ -125,7 +125,7 @@ owner: planner
       신뢰를 지탱하는 하부 메커니즘과의 갭을 등재해 둔다.
       - [x] **`audit_log` 축 — 완료 (2026-09-01).** `clemvion.audit.write_failed` 신설 +
             로그에 유실 대상 기재. 위 항목 참조. spec 반영은
-            [`spec-draft-audit-write-failed-metric.md`](./spec-draft-audit-write-failed-metric.md).
+            [`spec-draft-audit-write-failed-metric.md`](../complete/spec-draft-audit-write-failed-metric.md).
       - [ ] **`login_history` 축 — 미결.** `login-history.service.ts` 의 `record` 는 여전히
             `Logger.error` 뿐이고 카운터가 없다. `audit_log` 쪽만 넓혀서 **두 producer 의
             관측 강도가 갈렸다** — `spec/data-flow/1-audit.md` 가 그 비대칭을 명시적으로

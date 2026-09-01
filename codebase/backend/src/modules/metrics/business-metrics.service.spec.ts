@@ -60,13 +60,8 @@ describe('BusinessMetricsService (NF-OB-07)', () => {
   });
 
   /**
-   * 인터셉터 쪽 테스트는 이 메서드를 `jest.fn()` 스텁으로 대체하므로, **이 구현 자체는
-   * 어느 테스트도 실행하지 않았다** — 카운터 이름 오탈자·라벨 키 뒤바뀜·`add` 누락이
-   * 전부 조용히 통과한다. 형제 `record*` 메서드가 모두 여기 테스트를 갖는 이유와 같다.
-   */
-  /**
    * `audit-logs.spec.ts` 는 이 메서드를 `jest.fn()` 스텁으로 대체하므로 **구현 자체는
-   * 어느 테스트도 실행하지 않았다** — 위 `recordRedisFailOpen` 주석이 이미 적어 둔 그
+   * 어느 테스트도 실행하지 않았다** — 아래 `recordRedisFailOpen` 주석이 이미 적어 둔 그
    * 함정에 그대로 빠졌다. 카운터 이름 오탈자·라벨 키 뒤바뀜·클램핑 누락이 전부 조용히
    * 통과한다.
    */
@@ -87,6 +82,11 @@ describe('BusinessMetricsService (NF-OB-07)', () => {
     expect(labels.resource_type).toHaveLength(64);
   });
 
+  /**
+   * 인터셉터 쪽 테스트는 이 메서드를 `jest.fn()` 스텁으로 대체하므로, **이 구현 자체는
+   * 어느 테스트도 실행하지 않았다** — 카운터 이름 오탈자·라벨 키 뒤바뀜·`add` 누락이
+   * 전부 조용히 통과한다. 형제 `record*` 메서드가 모두 여기 테스트를 갖는 이유와 같다.
+   */
   it('recordRedisFailOpen → redis.fail_open{component,reason} += 1', () => {
     service.recordRedisFailOpen('idempotency', 'get_failed');
     expect(mock.counters['clemvion.redis.fail_open'].add).toHaveBeenCalledWith(

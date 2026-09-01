@@ -46,17 +46,6 @@ export type RedisFailOpenReason =
   | 'payload_corrupt';
 
 /**
- * NF-OB-07 도메인/비즈니스 커스텀 메트릭 (spec/5-system/_product-overview.md §5).
- * OTel MeterProvider(NF-OB-02, `instrumentation.ts`) 위에 도메인 instrument 를 만든다.
- *
- * `OTEL_ENABLED` 미설정 시 전역 MeterProvider 가 없어 `getMeter` 는 **no-op meter** 를
- * 돌려준다 — 따라서 모든 record/observe 호출은 비활성 환경에서도 안전한 무동작이다.
- * 호출부는 enable 여부를 신경 쓸 필요 없이 항상 호출하면 된다.
- *
- * 본 메트릭은 운영 관측·알람(Prometheus/Grafana)용 보조 노출이며, 제품 분석의 SoT 는
- * DB 집계 기반 Statistics API 다 (NF-OB-07 "관측 대상의 이원화 정책").
- */
-/**
  * Prometheus 라벨 값의 상한. 초과분은 잘라 낸다.
  *
  * 라벨 cardinality 가 터지는 것을 막는 방어선이라 **값 자체가 계약**이다. 종전에는 `64` 가
@@ -70,6 +59,17 @@ function clampLabel(value: string): string {
   return value.substring(0, PROMETHEUS_LABEL_MAX_LEN);
 }
 
+/**
+ * NF-OB-07 도메인/비즈니스 커스텀 메트릭 (spec/5-system/_product-overview.md §5).
+ * OTel MeterProvider(NF-OB-02, `instrumentation.ts`) 위에 도메인 instrument 를 만든다.
+ *
+ * `OTEL_ENABLED` 미설정 시 전역 MeterProvider 가 없어 `getMeter` 는 **no-op meter** 를
+ * 돌려준다 — 따라서 모든 record/observe 호출은 비활성 환경에서도 안전한 무동작이다.
+ * 호출부는 enable 여부를 신경 쓸 필요 없이 항상 호출하면 된다.
+ *
+ * 본 메트릭은 운영 관측·알람(Prometheus/Grafana)용 보조 노출이며, 제품 분석의 SoT 는
+ * DB 집계 기반 Statistics API 다 (NF-OB-07 "관측 대상의 이원화 정책").
+ */
 @Injectable()
 export class BusinessMetricsService {
   private readonly logger = new Logger(BusinessMetricsService.name);
