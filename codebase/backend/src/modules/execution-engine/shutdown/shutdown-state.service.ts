@@ -8,6 +8,7 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
+import { EngineErrorCode } from '../../../nodes/core/error-codes';
 import {
   Execution,
   ExecutionStatus,
@@ -190,7 +191,7 @@ export class ShutdownStateService implements OnApplicationShutdown {
           .set({
             status: NodeExecutionStatus.FAILED,
             error: {
-              code: 'SERVER_INTERRUPTED',
+              code: EngineErrorCode.SERVER_INTERRUPTED,
               message:
                 'NodeExecution interrupted by server shutdown (SIGTERM grace period elapsed)',
             },
@@ -218,7 +219,7 @@ export class ShutdownStateService implements OnApplicationShutdown {
           .set({
             status: ExecutionStatus.FAILED,
             error: {
-              code: 'SERVER_INTERRUPTED',
+              code: EngineErrorCode.SERVER_INTERRUPTED,
               message:
                 'Execution interrupted by server shutdown (SIGTERM grace period elapsed)',
             },

@@ -82,6 +82,56 @@ spec `9-user-profile.md` 의 "미구현 (Planned)" 배지 flip 은 `spec/` 쓰�
 분리했다(`plan/in-progress/spec-update-avatar-upload-implemented.md`) — 배지만 뒤집지 말고
 **공개된다는 사실**을 함께 적어야 한다는 점을 그 plan 에 명시했다.
 
+## Unreleased — 엔진 에러 코드가 반만 상수였다 (그리고 "분리" 는 틀린 처방이었다)
+
+`Execution.error.code` / `NodeExecution.error.code` 는 DB 에 영속되고 FE·알림·chat-channel
+분류기가 **값으로 분기**한다. 그런데 엔진이 쓰는 코드 넷은 상수도 타입도 없는 맨 문자열이었다
+— `EXECUTION_QUEUE_WAIT_TIMEOUT` · `WEBCHAT_IDLE_TIMEOUT`(둘 다 `const code = '…'`) ·
+`WORKER_HEARTBEAT_TIMEOUT` · `SERVER_INTERRUPTED`(×2). **오탈자를 잡는 것이 아무것도 없었다.**
+한 글자 틀리면 그 오타가 DB 에 들어가고 소비처는 조용히 else 로 떨어진다. 여기에 값은 이미
+enum 에 있으면서 상수를 안 거치던 `ai-turn-orchestrator` 의 `LLM_*` 4지점을 더해 **9지점**을
+상수 참조로 바꿨다.
+
+**원 티켓의 처방("`error-codes.ts` 엔진 레벨 레이어 *분리*")은 재고 나니 틀렸다.** 저장소
+전체에서 `code:` 리터럴 201개가 `ErrorCode` 밖에 있지만 대다수(`ACCOUNT_LOCKED`·
+`WORKSPACE_NOT_FOUND` 등)는 **API 예외 코드**로 애초에 그 enum 소관이 아니다 — docstring 이
+범위를 *"node handlers' `output.error.code`"* 로 못박고 있어 "혼재" 는 과장이었다. 게다가 같은
+파일이 WS ack 용 `RETRY_*` 를 품으며 *"canonical code strings 는 **one source of truth**"* 를
+근거로 적어 두었으니, 파일을 나누면 그 원칙이 깨진다. 그래서 **파일은 하나, const 는 둘** —
+`EngineErrorCode` 를 신설해 레이어는 타입에 드러내고 SoT 는 유지했다.
+
+**옮기지 않은 것도 있다.** `INVALID_EXECUTION_STATE`·`ERROR_PORT_FALLBACK`(에러 클래스
+`readonly code`) · trigger 파라미터 검증 4종(`TriggerParameterErrorDetail['code']` 유니온,
+규약 §4.2 의 `details[].code` 레이어) · `RESUME_CHECKPOINT_MISSING`/`RESUME_INCOMPATIBLE_STATE`
+(`RehydrationError.code` 리터럴 유니온)은 **이미 타입 앵커가 있다** — 상수로 또 옮기면 앵커가
+둘이 되어 갈라진다. 가드의 `ANCHORED_ELSEWHERE` 에 사유와 함께 등재했고, 사유 없는 항목과
+코드에서 사라진 죽은 항목을 테스트가 막는다.
+
+**가드가 훑는 형태는 다섯이고, 여섯 번째에서 멈췄다.** 초판은 식별자 바인딩 4형태만 보면서
+docstring 에는 *"새 맨 문자열 코드가 생기면 RED"* 라 적었다 — `new RehydrationError('RESUME_…')`
+같은 **생성자 인자**가 그 주장 밖이었다(리뷰가 잡았다). 보장을 좁히는 대신 생성자 인자를
+다섯 번째 형태로 넣었더니, 곧바로 여섯 번째가 나왔다 —
+`markExecutionCancelled(executionId, 'RESUME_FAILED')` 같은 **일반 메서드 인자**다.
+
+**설계의 전제도 테스트로 고정했다** — *"파일은 하나, const 는 둘"* 이 성립하려면 두 const 가
+겹치지 않아야 한다. 겹치면 "레이어를 타입으로 가른다" 는 주장이 무너지고 앵커 가드도 그 값을
+어느 쪽 근거로 통과시킨 것인지 말할 수 없다. 키 교집합이 빈 집합인지 단언한다.
+
+거기서 멈췄다. "임의 함수의 임의 문자열 인자" 까지 받으면 코드와 무관한 UPPER_SNAKE 가 대량
+으로 잡히고, 예외 목록이 커지는 순간 가드는 *"무엇이 위반인가"* 를 스스로 말하지 못하게 된다.
+한 칸씩 넓히는 대응은 다음 형태에서 같은 자리를 다시 밟는다. **그 자리는 리터럴 유니온
+파라미터 타입이 막는다** — 이 가드가 맡는 것은 앵커가 **아예 없는** 자리다. 경계와 그 이유를
+가드 docstring 에 적어 두었다.
+
+재발 방지는 `repo-guards/__tests__/engine-error-code-anchor-guard.ts`(AST). 관례대로 TS 소스는
+정규식이 아니라 파서로 읽는다 — 실제로 1차 정규식 스캔이 `code:` 만 보고 `const code = 'X'` 를
+통째로 놓쳤고, `workflow-errors.ts` 의 **주석 속 예시**를 위반으로 오탐했다. AST 가 둘 다 해결한다.
+
+**뮤테이션이 가드 설계를 한 번 뒤집었다.** 첫 판은 *"모르는 코드 **값**"* 을 찾도록 짰는데,
+이미 enum 에 있는 값을 맨 문자열로 되돌려도 통과했다 — 막으려던 회귀를 그대로 통과시킨 것이다.
+막으려는 것은 값이 아니라 **"상수를 안 거치는 사이트"** 라 판정을 **형태**로 옮겼고, 그제서야
+네 축(리다이렉트 되돌림 · 수집 형태 누락 · UPPER_SNAKE 필터 · 예외 목록)이 전부 RED 가 됐다.
+
 ## Unreleased — raw UPDATE/DELETE … RETURNING 회귀 가드를 큐레이션에서 발견형으로 확장했다
 
 `update-returning-rows.spec.ts` 의 구조적 가드는 손으로 고른 3파일(`EXPECTED`)의 헬퍼 호출
