@@ -8,7 +8,7 @@
     "build": "tsc",
     "prepare": "node -e \"const f=require('fs'),c=require('child_process');let ts=true;try{require.resolve('typescript/package.json')}catch{ts=false};if(ts){c.execSync('tsc',{stdio:'inherit'})}else if(!f.existsSync('dist')){throw new Error('prepare: typescript is unavailable and dist/ is missing — cannot produce the build output')}\"",
     "test": "jest",
-    "lint": "eslint src/**/*.ts"
+    "lint": "eslint \"src/**/*.ts\""
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
