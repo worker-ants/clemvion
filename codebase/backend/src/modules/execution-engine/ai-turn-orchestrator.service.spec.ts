@@ -257,6 +257,42 @@ describe('AiTurnOrchestrator', () => {
       );
     });
 
+    // C-4 (`ie-resume-turn-boundary-cancel.md` 8R) — 마킹이 **실패해도** 취소는
+    // 취소로 종결돼야 한다. 종전에는 `markNodeCancelled` 의 reject 가 그대로
+    // 전파돼 `ExecutionCancelledError` 가 아예 던져지지 않았고, 상위가 그것을
+    // 일반 예외로 보고 취소를 FAILED 로 오분류했다.
+    //
+    // 발생 조건이 "취소 마킹 DB 저장 실패" 라 드물지만, 드문 것과 안 나는 것은
+    // 다르다 — 그리고 이 경로는 사용자가 누른 Stop 의 최종 분류를 정한다.
+    it('markNodeCancelled 가 실패해도 ExecutionCancelledError 로 종결한다 — 취소가 FAILED 로 오분류되지 않는다', async () => {
+      driver.updateExecutionStatus.mockResolvedValueOnce(false);
+      driver.markNodeCancelled.mockRejectedValueOnce(
+        new Error('DB write failed'),
+      );
+      const savedExecution = {
+        id: executionId,
+        status: ExecutionStatus.RUNNING,
+      };
+      const context = contextService.createContext(executionId, workflowId);
+      const nodeExec = { id: 'ne-1', status: NodeExecutionStatus.RUNNING };
+
+      const promise = (
+        orchestrator as unknown as ReparkSubject
+      ).reparkAiResumeTurn(
+        savedExecution,
+        context,
+        nodeExec,
+        reparkNode as Node,
+      );
+
+      // 원본 DB 예외가 아니라 취소 예외로 종결한다.
+      await expect(promise).rejects.toBeInstanceOf(ExecutionCancelledError);
+      await expect(promise).rejects.not.toThrow(/DB write failed/);
+
+      // [전제] 마킹을 실제로 시도했다 — 안 불렀으면 위 단언이 이 경로를 안 태운다.
+      expect(driver.markNodeCancelled).toHaveBeenCalled();
+    });
+
     it('대조: 짝 전이가 적용되면(true) throw 하지 않고 markNodeCancelled 도 호출하지 않는다', async () => {
       const savedExecution = {
         id: executionId,

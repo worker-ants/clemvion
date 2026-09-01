@@ -78,7 +78,7 @@ export class Execution {
   outputData: Record<string, unknown>;
 
   @Column({ type: 'jsonb', nullable: true })
-  error: Record<string, unknown>;
+  error: Record<string, unknown> | null;
 
   @Column({ name: 'executed_by', nullable: true })
   executedBy: string;

@@ -383,27 +383,19 @@ export class RetryTurnService {
       this.nodeRepository.findOneBy({ id: spawnedRow.nodeId }),
     ]);
     if (!execution) {
-      this.logger.error(
-        `applyRetryLastTurn: execution ${executionId} not found — marking spawned row FAILED to avoid zombie`,
+      await this.markSpawnedRowFailed(
+        spawnedRow,
+        `applyRetryLastTurn: execution ${executionId} not found`,
+        'Retry re-entry failed: parent execution not found',
       );
-      spawnedRow.status = NodeExecutionStatus.FAILED;
-      spawnedRow.error = {
-        message: 'Retry re-entry failed: parent execution not found',
-      };
-      spawnedRow.finishedAt = new Date();
-      await this.nodeExecutionRepository.save(spawnedRow);
       return;
     }
     if (!node) {
-      this.logger.error(
-        `applyRetryLastTurn: node ${spawnedRow.nodeId} not found — marking spawned row FAILED to avoid zombie`,
+      await this.markSpawnedRowFailed(
+        spawnedRow,
+        `applyRetryLastTurn: node ${spawnedRow.nodeId} not found`,
+        'Retry re-entry failed: node definition not found',
       );
-      spawnedRow.status = NodeExecutionStatus.FAILED;
-      spawnedRow.error = {
-        message: 'Retry re-entry failed: node definition not found',
-      };
-      spawnedRow.finishedAt = new Date();
-      await this.nodeExecutionRepository.save(spawnedRow);
       return;
     }
 
@@ -572,6 +564,16 @@ export class RetryTurnService {
    * 자기 전이를 보고 throw 한다. stale 을 신뢰하지 않는 것이 이 수정의 요지이므로
    * **행을 다시 읽어 in-memory 를 정본으로 맞춘 뒤** 전이를 요청한다.
    *
+   * @param execution **in-place 로 변이된다 — 반환값만 보지 말 것.** 세 필드를 쓴다:
+   *   - `status` ← DB 정본(`live.status`). 위 "왜 DB 를 다시 읽나" 의 귀결이다.
+   *   - `durationMs` · `finishedAt` ← CANCELLED 멱등 분기에서 `COALESCE` 의 **결과**를
+   *     되쓴다. 어느 쪽이 선택됐는지는 DB 만 알기 때문이다.
+   *
+   *   이 변이는 우연이 아니라 **계약**이다. 호출부(`failRetryExecution`)가 되쓴
+   *   `durationMs` 를 그대로 wire 에 실어, 안 되쓰면 "DB 는 T1, 이벤트는 T2" 로 갈린다.
+   *   그래서 시그니처를 `{ persisted, live }` 같은 순수 반환형으로 바꾸는 처방은
+   *   이 세 필드를 담지 못한다 — 바꾸려면 되쓰기 소비처까지 함께 설계해야 한다.
+   *
    * @returns `true` 면 전이가 영속됐다(호출부는 종결 이벤트를 emit 한다).
    *   `false` 는 (a) row 부재, (b) 정본 상태에서 목표로의 전이가 상태머신상 불가
    *   (= DB 가 이미 terminal — 동시 cancel 선점), (c) guarded UPDATE 0행 매칭.
@@ -727,13 +729,56 @@ export class RetryTurnService {
    * @internal 이 메서드는 `resumeGraphAfterRetry` 의 defensive fallback 에서만
    * 호출된다. 다른 경로에서 직접 호출하지 말 것.
    */
+  /**
+   * spawn 된 RUNNING row 를 FAILED 로 마감한다 — **zombie row 방지**.
+   *
+   * `applyRetryLastTurn` 진입부의 두 not-found 분기(parent execution / node 정의)가
+   * 같은 4단계(로그 · status · error · finishedAt + save)를 문자 그대로 반복하고
+   * 있었다. 한쪽만 고치면 다른 쪽이 조용히 갈린다.
+   *
+   * @param logContext 로그에 실을 사유. `— marking spawned row FAILED to avoid zombie`
+   *   접미는 여기서 붙인다(두 분기가 같은 문장을 쓰도록).
+   * @param errorMessage row 의 `error.message` 에 남길 사용자 향 사유.
+   */
+  private async markSpawnedRowFailed(
+    spawnedRow: NodeExecution,
+    logContext: string,
+    errorMessage: string,
+  ): Promise<void> {
+    this.logger.error(
+      `${logContext} — marking spawned row FAILED to avoid zombie`,
+    );
+    spawnedRow.status = NodeExecutionStatus.FAILED;
+    spawnedRow.error = { message: errorMessage };
+    spawnedRow.finishedAt = new Date();
+    await this.nodeExecutionRepository.save(spawnedRow);
+  }
+
+  /**
+   * 성공 종결 직전의 마감 필드 세팅 — **`error` 를 명시적으로 비운다.**
+   *
+   * retry 는 정의상 **FAILED 실행에서 시작**하므로 로드된 엔티티가 이전 시도의
+   * `error` 를 들고 있다. 그리고 종결을 영속하는 guarded UPDATE 는 그 컬럼을 그대로
+   * 쓴다(`execution-engine.service.ts` 의 `SET … error = $8::jsonb`). 비우지 않으면
+   * `status='completed'` 인데 `error` 가 non-null 인 **모순 레코드**가 남는다 —
+   * 조회 화면·알람이 "성공했는데 에러가 있다" 를 보게 된다.
+   *
+   * 취소(CANCELLED) 경로와는 처방이 다르다. 그쪽은 `finalizeGuarded` 가 SET 절에서
+   * `error` 를 **아예 제외**해 stop 이 쓴 값을 보존한다(W16). 여기는 반대로 **이번
+   * 시도가 성공했다는 사실이 최신 진실**이라 옛 값을 지우는 것이 맞다.
+   */
+  private prepareSuccessTermination(execution: Execution): void {
+    execution.error = null;
+    execution.finishedAt = new Date();
+    execution.durationMs =
+      resolveTerminalDurationMs(execution) ?? execution.durationMs;
+  }
+
   private async completeRetryExecution(
     execution: Execution,
     executionId: string,
   ): Promise<void> {
-    execution.finishedAt = new Date();
-    execution.durationMs =
-      resolveTerminalDurationMs(execution) ?? execution.durationMs;
+    this.prepareSuccessTermination(execution);
     if (
       !(await this.finalizeGuarded(
         execution,
@@ -909,9 +954,14 @@ export class RetryTurnService {
           Record<string, unknown> | undefined) ?? {};
     }
     // 조건 밖 — `outputData` 만 마지막 노드에 의존한다 (engine 과 동일 처방).
-    savedExecution.finishedAt = new Date();
-    savedExecution.durationMs =
-      resolveTerminalDurationMs(savedExecution) ?? savedExecution.durationMs;
+    this.prepareSuccessTermination(savedExecution);
+    // **이 경로만 `finalizeGuarded` 를 거치지 않는다** (driver 를 직접 부른다).
+    // 안전한 이유는 불변식 하나다 — orchestrator 가 상태를 갱신하는 대상이 여기
+    // 넘기는 `savedExecution` **바로 그 객체**라, 성공 턴을 거치면 in-memory 가
+    // 이미 `running` 이다. 그래서 stale-전이 throw 가 나지 않는다.
+    //
+    // orchestrator 가 엔티티를 재조회/교체하는 형태로 바뀌면 그 불변식이 깨지고
+    // 같은 결함이 재발한다. 그때는 이 호출도 `finalizeGuarded` 로 통일할 것.
     const completed = await this.driver.updateExecutionStatus(
       savedExecution,
       ExecutionStatus.COMPLETED,

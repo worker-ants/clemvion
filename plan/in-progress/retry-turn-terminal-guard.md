@@ -1,6 +1,8 @@
 ---
 title: retry-turn 종결 2경로의 무가드 terminal 쓰기 차단 (#1022 동일 클래스)
-worktree: retry-atomic-claim-4d9e77
+worktree: retry-ie-residuals-c4a1b2
+# ↑ 2026-09-01 갱신 (C-4) — 직전 값 `retry-atomic-claim-4d9e77` 도 머지됐다. 아래 경고가
+#   그대로 적용된다: 머지된 값을 두면 P1 코드 push 시 가드가 무장 해제된다.
 # ↑ 2026-07-28 갱신 — 최초 worktree(retry-turn-cancel-guard-ba75a2)는 #1024 로 머지됐다.
 #   plan_guard.py 는 `worktree:` basename 을 현재 worktree 디렉터리명과 매칭하므로, 머지된
 #   값을 두면 P1 코드 push 시 가드가 '연결된 plan 없음(ad-hoc)'으로 오판해 **무장 해제**된다
@@ -56,6 +58,22 @@ spec_impact:
 - [ ] **통합 레벨 관측** — 남는 진짜 갭은 "driver 가 실제로 `false` 를 만들어 주는가" 다.
       `8332d9a20` 이후 그 값이 실신호가 됐으므로, 배포 후 동시 cancel 시 선점 분기가
       실제로 타는지 로그로 확인한다(`update-returning-tuple-shape.md` §후속 배포 관측과 병합).
+
+## C-4 처분 (2026-09-01)
+
+이 트래커의 잔여 13건 중 **6건을 처리**했다(위 각 항목에 인라인). 남긴 7건의 사유:
+
+| 항목 | 남긴 이유 |
+|---|---|
+| 통합 레벨 관측 (`persisted` 실신호) | **코드 조치가 아니다** — 배포 후 로그 관측이라 PR 로 닫히지 않는다 |
+| WS 프로토콜 문서 계약 1줄 (INFO 13 / W8) | `spec/` 쓰기라 **planner 턴**이 필요하다. developer 권한 밖이고, 이 changeset 은 코드 전용이다 |
+| guarded-update mock 팩토리 (W6) | 13곳을 한 PR 에서 함께 바꾸면 **이번에 넣은 인자 포착 단언과 diff 가 뒤섞인다.** 그 단언이 리뷰에서 읽혀야 하는 것이 이 PR 의 요지다 |
+| 멱등 분기 회고 주석 정리 (W4) | 같은 이유. 그 구간(`:597-688`)은 이번에 **손대지 않았다** — 주석을 재구성하면 무변경 코드가 diff 에 크게 실린다 |
+| COALESCE 실 DB 검증 | e2e 인프라가 필요하다. 단위는 query builder 를 mock 하므로 원리적으로 SQL 유효성을 못 본다 |
+| COMPLETED 멱등 분기 | **질문을 바꿔 남겼다**(위 항목 참조). 처방의 전제가 COMPLETED 에는 성립하지 않는다 |
+
+**"우선순위 판단" 이지 "문서화됐다" 가 아니다** — 앞 세 건은 diff 위생 판단이고, 재개 신호는
+"이 파일을 다음에 손댈 때" 다.
 
 ## Overview
 
@@ -160,7 +178,10 @@ Critical 2 / Warning 3. **Critical 1건은 전제가 반증됐다** — 실측�
       context mutation·중복 종결 이벤트를 완전히 막지 못한다. 조건부 UPDATE(CAS)로 강화하거나
       중복-job 시뮬레이션 테스트로 현 한계를 명시 검증할 것. **이 PR 이 겨냥한 "동시 Stop 이
       다른 target 을 덮어쓰는" 레이스와는 별개**이며 그쪽은 닫혔다.
-- [ ] **W3 (maintainability)** — "spawn 된 row 를 FAILED 로 마감" 로직이
+- [x] **W3 (maintainability) — 완료 (2026-09-01, C-4).** `markSpawnedRowFailed(spawnedRow,
+      logContext, errorMessage)` 로 추출. 2곳(`:389` execution not found · `:401` node not
+      found)이 로그·status·error·finishedAt+save 4단계를 문자 그대로 반복하고 있었다.
+      ~~"spawn 된 row 를 FAILED 로 마감" 로직이
       > **3곳 → 2곳 (2026-08-29 재실측).** `grep -n 'NodeExecutionStatus.FAILED'` 가 내는
       > 대입은 `:389`(execution not found) · `:401`(node not found) **둘뿐**이다. 3번째였던
       > "`_retryState` 부재 → 무조건 FAILED" 분기는 6R CRITICAL#1 수정에서 삭제됐다.
@@ -195,7 +216,13 @@ Critical 2 / Warning 3. **Critical 1건은 전제가 반증됐다** — 실측�
       주입하지 않는다" 는 관찰은 **맞지만**, 그것이 곧 모순의 근거는 아니었다 — 엔진 주석은
       바로 그 상태("역방향 주입 제거")를 서술하고 있고, 정작 지적 대상인
       `AiTurnOrchestrator` 의 `forwardRef` 는 **존재하지 않는다**(실측 근거는 마스터 백로그 **#8**).
-- [ ] **W3 (maintainability)** — `finalizeGuarded` 가 `boolean` 반환과 동시에 인자
+- [x] **W3 (maintainability) — 문서화로 종결 (2026-09-01, C-4).** 시그니처 변경은 하지
+      않는다. `@param execution` 에 **변이되는 세 필드**(`status` · `durationMs` ·
+      `finishedAt`)와 **그 변이가 계약인 이유**(호출부가 되쓴 `durationMs` 를 wire 에 싣는다)를
+      명시했다. 처방으로 적혀 있던 `{ persisted, live }` 순수 반환은 `durationMs`/`finishedAt`
+      되쓰기를 담지 못한다 — 바꾸려면 되쓰기 소비처까지 함께 설계해야 하고, 그건 이 항목의
+      범위(시그니처가 부수효과를 안 드러낸다)보다 크다.
+      ~~`boolean` 반환과 동시에 인자
       > **변이 대상이 하나가 아니다 (2026-08-29 재실측).** 아래 본문은 `execution.status`
       > 하나만 지목하는데, `:659`·`:665` 가 `durationMs`·`finishedAt` 도 in-place 로
       > 덮어쓴다. 세 필드다.
@@ -212,11 +239,18 @@ Critical 2 / Warning 3. **Critical 1건은 전제가 반증됐다** — 실측�
       `RetryTurnService` 인스턴스를 직접 구동한다. 문서 drift 정정.
       **3차 라운드에서 해소** — Critical #2 로 재지적됐고 헤더를 2계층 구조 서술로 정정
       (`084f96a51`).
-- [ ] **INFO 2** — `resumeGraphAfterRetry` 자연 종결 분기는 `finalizeGuarded` 를 거치지 않고
+- [x] **INFO 2 — 불변식 주석으로 종결 (2026-09-01, C-4).** 통일 대신 주석을 택했다 —
+      이 경로가 안전한 이유가 "orchestrator 가 갱신하는 대상이 여기 넘기는 바로 그 객체" 라는
+      **참조 동일성 불변식** 하나이고, 그 불변식이 깨지는 조건(엔티티 재조회/교체)을 함께
+      적어 두면 다음 사람이 재발 조건을 알아본다. 통일은 그 불변식이 깨질 때가 적기다.
+      ~~`resumeGraphAfterRetry` 자연 종결 분기는 `finalizeGuarded` 를 거치지 않고
       `driver.updateExecutionStatus` 를 직접 호출한다. 현재는 "`execution` 참조 동일성"
       불변식 덕에 안전하고 회귀 테스트로 고정했으나, orchestrator 가 엔티티를 재조회/교체하는
       형태로 바뀌면 같은 stale-전이 결함이 재발할 수 있다. 통일 적용 또는 불변식 주석 추가.
-- [ ] **INFO 14** — ~~멱등 분기의 CANCELLED 타깃 대칭 테스트~~, `retryLastTurn` 의 `!nodeExec`
+- [x] **INFO 14 — 완료 (2026-09-01, C-4).** 남아 있던 3분기를 전부 덮었다. 각 fixture 는
+      **그 분기를 실제로 가르는** 값으로 잡았고(분기를 못 가르면 GREEN 이 증거가 못 된다),
+      뮤테이션 3축 전부 예측 RED / 실측 RED — 각각 자기 테스트만 죽인다.
+      ~~`retryLastTurn` 의 `!nodeExec`
       > **첫 절은 이미 완료다 — 항목에서 뺀다 (2026-08-29 재실측).**
       > `retry-turn.service.spec.ts` 에
       > `describe('CANCELLED 멱등 분기 (target===CANCELLED, live.status===CANCELLED)')` 가
@@ -299,17 +333,35 @@ side_effect 리뷰어가 `finalizeGuarded` 멱등 분기의 `target=CANCELLED` �
       통합 검토.
 - **Warning #8 (documentation/spec)** — 위 2차 라운드 INFO 13 과 동일 건, `project-planner`
   범위. 추가 조치 없음.
-- [ ] **INFO 2 (requirement, 신규 등재)** — `execution.error` 가 retry 시작 시점의 옛 실패
+- [x] **INFO 2 (requirement) — 완료 (2026-09-01, C-4).** 자연 종결·fallback 두 경로에
+      `prepareSuccessTermination` 을 두어 `error` 를 명시적으로 비운다. RED 로 실증했다
+      (`Received: {"message": "이전 시도의 실패"}`) — driver 의 guarded UPDATE 가
+      `error = $8::jsonb` 로 엔티티 값을 그대로 영속하므로 `status='completed'` 인데
+      `error` non-null 인 모순 레코드가 실제로 만들어졌다. 두 호출부를 각각 뮤테이션으로
+      고정했다(한쪽만 되돌려도 RED). 부수로 `Execution.error` 의 **타입이 틀려 있었다** —
+      DB 는 `nullable: true` 인데 타입은 `Record<string, unknown>` 이었다. 캐스트로 덮지 않고
+      `| null` 로 고쳤고 신규 tsc 에러 0(199→199, 전부 선재 spec)을 확인했다.
+      ~~`execution.error` 가 retry 시작 시점의 옛 실패
       메시지를 비우지 않아, 취소 종결뿐 아니라 **성공(COMPLETED) 종결에서도** 옛 값이 그대로
       재기록될 수 있다(`status:'completed'` 인데 `error` non-null 인 모순 레코드). 취소 경로는
       이미 별도 계열로 추적 중이었으나, 성공 경로도 동일 문제라는 점은 이번 라운드 신규 확인.
       `applyRetryLastTurn` 진입 시 또는 자연종결 직전 `execution.error = null` 명시적 세팅 검토.
       이번 diff 의 신규 회귀는 아님(diff 이전부터 동일 동작).
-- [ ] **후속 (신규 등재)** — **COMPLETED 타깃 멱등 분기도 CANCELLED 와 같은 시각 부풀림 소지가
-      있다.** 이번 라운드는 리뷰어가 CANCELLED 만 Critical 로 지목했고 §2.3 같은 명명된 계약도
-      CANCELLED 에만 있어 그 범위로 한정해 고쳤다. 후속 라운드에서 "자연 성공 종결이 이미 다른
-      경로로 COMPLETED 를 커밋한 뒤 이 멱등 분기가 재도달하는 시나리오가 실제로 가능한가" 부터
-      실측하고, 가능하면 COMPLETED 도 동일한 COALESCE 전환 검토.
+- [ ] **후속 — 질문을 바꿨다 (2026-09-01, C-4 실측).** 종전 서술은 "COMPLETED 도 CANCELLED
+      와 같은 시각 부풀림 소지가 있으니 COALESCE 전환을 검토" 였다. `updateExecutionStatus`
+      경유 COMPLETED 전이 지점을 전수 열거(엔진 4곳 `:2410`·`:2575`·`:3570`·`:4770` +
+      retry `:965`)하고 나니 **처방의 전제가 COMPLETED 에는 성립하지 않는다.**
+
+      COALESCE 는 **"두 writer 중 이른 쪽이 진실"** 인 모양에 대한 처방이다 — `stop()` 이 쓴
+      T1(사용자가 Stop 을 누른 시각)이 진실이고 retry 의 T2(catch 시각)는 늦은 값이라, DB 에
+      이미 있으면 보존해야 한다. **COMPLETED 에는 그 비대칭이 없다.** 먼저 완료시킨 쪽이 곧
+      완료다. 두 번째 도달이 있다면 그건 시각이 부풀려진 문제가 아니라 **두 흐름이 같은 실행의
+      그래프를 끝까지 돌렸다**는 뜻이고, 처방도 타임스탬프 병합이 아니라 그 중복을 막는 쪽이다.
+
+      그래서 남는 질문은 **"COMPLETED 도 COALESCE 할까" 가 아니라 "두 흐름이 한 실행을 동시에
+      COMPLETED 로 몰 수 있는가"** 다. 위 5개 지점의 상호배타성(그래프 완주 경로 vs retry
+      fallback)을 관측으로 확인하는 것이 선행이고, 정적 열거만으로는 안 갈린다.
+      재개 신호: 같은 실행에 종결 이벤트가 2회 발행된 관측.
 
 나머지(INFO 1·3~26)는 이번 라운드에서 조치 대상 아님(이미 추적 중이거나 범위 밖 재확인) —
 변경 없음. TEST WORKFLOW 전량 재통과 — 실제 수치는
@@ -370,7 +422,12 @@ RESOLUTION: `review/code/2026/07/28/00_44_54/RESOLUTION.md`.
       > **취소선을 라벨(`~~원문:~~`)에만 걸어 아래 문단이 stale 로 남아 있었다**
       > (`17_54_32` documentation W2) — 같은 PR 계열의 `durationMs` 항목이 이미 겪고 고친
       > "절반만 취소선" 이 인접 파일에서 재발했다. 문단 전체를 감쌌다.
-- [ ] **W6(testing) — `retryLastTurn` atomic-consume SQL 이 어느 계층에서도 미검증.**
+- [x] **W6(testing) — 완료 (2026-09-01, C-4).** 트랜잭션 mock 체이너가 `set`/`andWhere`
+      인자를 포착하도록 바꾸고, `jsonb_exists(output_data, '_retryState')` 가드와
+      `output_data - '_retryState'` 키 제거식을 단언으로 고정했다.
+      **지적이 실증됐다** — `jsonb_exists` 가드를 제거한 뮤턴트에서 **나머지 46개 테스트가
+      전부 통과**했다. 중복 spawn 차단이라는 이 메서드의 핵심 불변식이 무방비였다.
+      ~~어느 계층에서도 미검증.~~
       JSONB `-` 키 제거 + `jsonb_exists` 동시성 가드가 unit(mock 체이너가 인자 미검증)·e2e
       (`grep -rl "retry_last_turn" test/` 0건) 모두에서 평가되지 않는다. 리뷰어가 커버리지
       리포트로 해당 행 uncovered 실측(branch 78.87%). 이 메서드의 핵심 불변식("동시 retry 의
