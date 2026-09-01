@@ -126,6 +126,18 @@ owner: planner
       - [x] **`audit_log` 축 — 완료 (2026-09-01).** `clemvion.audit.write_failed` 신설 +
             로그에 유실 대상 기재. 위 항목 참조. spec 반영은
             [`spec-draft-audit-write-failed-metric.md`](../complete/spec-draft-audit-write-failed-metric.md).
+      - [ ] **`clampLabel` 대칭 테스트 + `record()` JSDoc** (리뷰 4라운드 INFO).
+            둘 다 **미조치이며 우선순위 판단**이다 — 문서화되어 있어서가 아니다(3라운드에
+            거짓 근거를 쓴 뒤로 이 구분을 명시해 적는다).
+
+            - `recordExecutionError` 쪽에 65자 → `toHaveLength(64)` 형제 테스트가 없다.
+              리뷰어가 클램핑 호출을 우회하는 뮤턴트로 **GREEN 생존**을 실증했다. 다만
+              공유 상수 `PROMETHEUS_LABEL_MAX_LEN` 자체는 아바타 쪽 뮤턴트(64→128)가 이미
+              물고 있어(X4 → RED), "두 메트릭의 방어 강도가 갈린다" 는 리팩터 근거는
+              무너지지 않는다. 갭은 **호출부 대칭**뿐이다.
+            - `AuditLogsService.record()` JSDoc 이 이번에 추가한 관측 동작(카운터·로그
+              4필드)을 안 적는다 — "삼킨다" 는 절반만 서술. 3~4라운드 연속 이월.
+
       - [ ] **`login_history` 축 — 미결.** `login-history.service.ts` 의 `record` 는 여전히
             `Logger.error` 뿐이고 카운터가 없다. `audit_log` 쪽만 넓혀서 **두 producer 의
             관측 강도가 갈렸다** — `spec/data-flow/1-audit.md` 가 그 비대칭을 명시적으로
