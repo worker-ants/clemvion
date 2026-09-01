@@ -95,7 +95,7 @@ class F {
 `;
 
 /**
- * 가드가 **잡아야** 하는 형태 5 — 묶이긴 했는데 **엉뚱한 리소스**에 묶였다.
+ * 가드가 **잡아야** 하는 형태 6 — 묶이긴 했는데 **엉뚱한 리소스**에 묶였다.
  *
  * `findUnboundHelpers` 의 접두 검사는 이것을 통과시킨다("`AuditActionFor<` 로 시작함").
  * 그러나 `resourceType` 은 `bar` 인데 `action` 은 `foo` 계열만 받으므로, 이 helper 는
