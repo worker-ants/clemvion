@@ -1,8 +1,10 @@
+import { Logger } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { AuditLogsController } from './audit-logs.controller';
 import { AuditLogsService } from './audit-logs.service';
+import { BusinessMetricsService } from '../metrics/business-metrics.service';
 import { AuditLog } from './entities/audit-log.entity';
 import { AUDIT_ACTIONS } from './audit-action.const';
 import { ROLES_KEY } from '../../common/guards/roles.guard';
@@ -123,5 +125,89 @@ describe('AuditLogsService.record — best-effort (swallow)', () => {
         resourceId: 'ac-1',
       }),
     );
+  });
+});
+
+/**
+ * 삼킨 실패가 **보이는지** — swallow 계약의 나머지 절반.
+ *
+ * 위 스위트는 "실패해도 주 동작을 안 깨뜨린다" 를 고정한다. 그건 옳지만 절반이다.
+ * 종전에는 나머지 절반이 `logger.warn` 한 줄뿐이라 **"작업은 200 으로 성공, 감사 행만
+ * 조용히 비어 있음"** 이 아무에게도 안 보였다:
+ *
+ *   - 로그는 사후 조회만 되고 **비율·추세로 알람을 걸 수 없다**
+ *   - 그 로그조차 **무엇이 유실됐는지** 안 적었다 — 에러 문구뿐이라 어느 감사가 사라졌는지
+ *     알 수 없었다. 유실 사실만 알고 대상을 모르면 조사도 복구도 시작할 수 없다.
+ *
+ * 감사 로그는 "계정 탈취 후 조용한 시크릿 교체를 재구성한다" 는 신뢰를 지탱하는데, 그
+ * 신뢰는 **적재가 실제로 됐을 때만** 성립한다. 여기서 그 갭이 보이는지를 고정한다.
+ */
+describe('AuditLogsService.record — 삼킨 실패의 관측', () => {
+  const entry = {
+    workspaceId: 'ws-1',
+    userId: 'user-1',
+    action: AUDIT_ACTIONS.AUTH_CONFIG_CREATE,
+    resourceType: 'auth_config',
+    resourceId: 'ac-1',
+  };
+
+  function build(saveRejects: boolean) {
+    const repo = {
+      create: jest.fn((d: unknown) => d),
+      save: saveRejects
+        ? jest.fn().mockRejectedValue(new Error('audit DB unreachable'))
+        : jest.fn().mockResolvedValue(undefined),
+    };
+    const metrics = { recordAuditWriteFailed: jest.fn() };
+    const service = new AuditLogsService(
+      repo as unknown as Repository<AuditLog>,
+      metrics as unknown as BusinessMetricsService,
+    );
+    return { service, repo, metrics };
+  }
+
+  it('적재 실패를 카운터로 올린다 (알람을 걸 수 있게)', async () => {
+    const { service, metrics } = build(true);
+    await service.record(entry);
+    expect(metrics.recordAuditWriteFailed).toHaveBeenCalledWith('auth_config');
+  });
+
+  it('정상 경로에서는 카운터를 올리지 않는다', async () => {
+    // 이 단언이 없으면 "항상 올린다" 도 위 테스트를 통과한다.
+    const { service, metrics } = build(false);
+    await service.record(entry);
+    expect(metrics.recordAuditWriteFailed).not.toHaveBeenCalled();
+  });
+
+  it('로그에 무엇이 유실됐는지 적는다 (action·resourceType·resourceId·workspaceId)', async () => {
+    const { service } = build(true);
+    const warn = jest
+      .spyOn(Logger.prototype, 'warn')
+      .mockImplementation(() => undefined);
+    try {
+      await service.record(entry);
+      const msg = String(warn.mock.calls[0][0]);
+      // 넷을 각각 단언한다 — 하나만 보면 나머지가 빠져도 통과한다.
+      expect(msg).toContain(AUDIT_ACTIONS.AUTH_CONFIG_CREATE);
+      expect(msg).toContain('auth_config');
+      expect(msg).toContain('ac-1');
+      expect(msg).toContain('ws-1');
+      // 원인도 여전히 남아야 한다.
+      expect(msg).toContain('audit DB unreachable');
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
+  it('metrics 없이 조립해도 감사 기록은 동작한다 (@Optional)', async () => {
+    // 관측이 없다고 감사가 멈추면 본말이 뒤집힌다.
+    const repo = {
+      create: jest.fn((d: unknown) => d),
+      save: jest.fn().mockRejectedValue(new Error('boom')),
+    };
+    const service = new AuditLogsService(
+      repo as unknown as Repository<AuditLog>,
+    );
+    await expect(service.record(entry)).resolves.toBeUndefined();
   });
 });

@@ -49,10 +49,40 @@ owner: planner
       발동해 위 카디널리티 논점을 공유한다. *(`importWorkflow` 는 4차 리뷰에서 조치 완료 —
       `workflows.service.ts` `details: { imported: true }`. 카디널리티 논거가 적용되지 않는데
       `saveCanvas` 와 묶여 유예됐던 것이 원래의 오분류였다.)*
-- [ ] `recordAudit` 공통 팩토리 (W4) — 5개 helper 의 `details` 계약이 전부 달라(passthrough /
-      `{type}` / 없음 / `{kind}` / `ipAddress`) 공통분모가 `resourceType` 바인딩 + 필드 전달뿐이다.
-      추출해도 타입 있는 per-service 래퍼는 남는다. *(원래 근거였던 "6번째 리소스에서 재검토" 는
-      이미 5개라 성립하지 않아 6차에서 근거를 교체했다.)*
+- [x] `recordAudit` 공통 팩토리 (W4) — **won't-do 로 종결 (2026-09-01).** 추출하지 않는
+      대신 **가드로 대체**했다. 다섯을 전부 읽어 이 plan 의 근거를 실측했고 **서술은 옳았다**:
+
+      | 서비스 | action 타입 | 추가 필드 → details |
+      |---|---|---|
+      | triggers | `AuditActionFor<'trigger'>` | `type` → `{type}` |
+      | workflows | `AuditActionFor<'workflow'>` | `details?` passthrough |
+      | schedules | `AuditActionFor<'schedule'>` | 없음 |
+      | model_config | `AuditActionFor<'model_config'>` | `kind` → `{kind}` |
+      | auth_config | **맨 `AuditAction`** | `ipAddress` |
+
+      **그런데 그 표가 이 plan 이 적지 않은 것을 드러냈다** — 넷은 리소스에 묶는데
+      `auth_config` 만 맨 union 이었다. 판별 프로브로 실재를 확인했다:
+
+      ```
+      auth-configs 에 action: 'trigger.created'  → tsc 0 에러   ← 구멍
+      schedules   에 action: 'trigger.created'  → TS2322       ← 대조군
+      ```
+
+      대조군이 없었다면 "`AuditActionFor` 가 원래 안 좁히나?" 와 구분되지 않았다.
+
+      **처방을 바꾼 이유**: 얇은 공통분모를 억지로 뽑으면 그것을 **쓰는 곳만** 안전해진다.
+      정작 문제는 그 공통분모(`resourceType` 바인딩)가 **균일하게 지켜지지 않은 것**이므로,
+      지켜지는지를 검사하는 가드가 맞다 — 앞으로 생길 서비스도 잡는다.
+
+      - `auth-configs` 를 `AuditActionFor<typeof AUTH_CONFIG_RESOURCE_TYPE>` 로 (실제 결함)
+      - `repo-guards/__tests__/audit-action-binding{-guard,-fixture,}.ts` 신설. 판정은
+        **값이 아니라 형태**로 한다(액션이 추가될 때마다 가드를 고치지 않아도 되고, 정작
+        "묶이지 않았다" 는 구조적 사실을 놓치지 않는다)
+      - 형태 커버리지는 **불변 fixture** 에. 라이브 소스에 걸면 가드가 없애려는 형태의
+        존재를 단언하게 되어 자기반증 테스트가 된다
+      - 뮤테이션 5축 (예측/실측 전부 RED): 원 결함 복원 · 스캔 경로 오지정 · 메서드 이름
+        오탈자 · 접두 검사 느슨화 · `action` 부재 통과. 뒤 둘은 **가드가 아무것도 안 보는데
+        통과하는** 상태를 잡는 전제 단언이다
 - [x] **트리거 시크릿/토큰 회전 3종 감사** — **완료 (2026-08-11, `claude/trigger-rotation-audit`)**. planner 선행(spec 6곳)과 구현을 한 PR 에서 처리했다. 액션명은 규약(§2.1 과거분사 + §1 언더스코어)과 선례(`integration.rotated`)로 도출: `trigger.notification_secret_rotated` · `trigger.chat_channel_bot_token_rotated` · `trigger.interaction_token_revoked`. 셋으로 가른 근거(폭발 반경)는 `conventions/audit-actions.md §3` Rationale. 아래는 착수 시점 서술로 남긴다.
       `TriggersService` 의 `rotateNotificationSecret`·`revokePerTriggerToken`·`rotateBotToken`
       이 `recordAudit` 를 호출하지 않는다(실측). Editor+ 면 호출 가능한 특권 작업이고 응답에
@@ -66,7 +96,27 @@ owner: planner
       코드 실측에 맞춤). 반면 이 항목은 **새 설계**다 — `trigger.rotate*` 는 spec 카탈로그
       에도 코드에도 0건이라(재확인), 액션명·시제 분류·감사 대상 범위를 새로 정해야 하고
       그 자체가 리뷰 대상이다. 정정 턴에 설계를 얹으면 두 성격이 한 커밋에서 섞인다.
-- [ ] **`audit_log` 적재 실패에 관측 수단이 없다** (2026-08-11, side_effect WARNING).
+- [x] **`audit_log` 적재 실패에 관측 수단이 없다** — **완료 (2026-09-01).**
+      **삼키는 것 자체는 유지했다** — 감사 기록 실패가 본 요청(회전·삭제 같은 특권 작업)을
+      깨뜨리면 안 되고, 그 판단은 옳다. 고친 것은 그 뒤가 조용했다는 점이다:
+
+      - `BusinessMetricsService.recordAuditWriteFailed(resourceType)` 신설
+        (`clemvion.audit.write_failed`). 선례 `recordRedisFailOpen` 과 **같은 결함
+        클래스**라 그 모양을 그대로 따랐다 — 그쪽 주석이 이미 "warn 로그뿐이라 비율·추세로
+        알람을 걸 수 없다" 고 적고 있다.
+      - **로그가 무엇이 유실됐는지 안 적고 있었다.** 종전 메시지는 에러 문구뿐이라 어느
+        감사가 사라졌는지 알 수 없었다 — 유실 사실만 알고 대상을 모르면 조사도 복구도
+        시작할 수 없다. `action`·`resourceType`·`resourceId`·`workspaceId` 를 싣는다.
+      - 주입은 `@Optional()` (선례 `idempotency.interceptor.ts`) — 관측이 없다고 감사가
+        멈추면 본말이 뒤집힌다.
+      - 라벨은 **클램핑**이다(닫힌 유니온이 아니라). `resourceType` 은 실측 12종으로
+        유계지만 `record()` 시그니처가 `string`(열림)이라 컴파일러가 닫힘을 증명하지
+        못한다 — 증명되지 않은 닫힘을 타입으로 주장하는 대신 `recordExecutionError` 와
+        같은 클램핑으로 방어했다. `record()` 가 닫힌 유니온을 받게 되면 그때 좁힌다.
+      - 뮤테이션 4축 (예측/실측 전부 RED): 원 상태 복원 · 성공 경로에서도 카운터 증가 ·
+        로그에서 `resourceId` 만 제거 · `@Optional` 제거.
+
+      아래는 착수 시점 서술로 남긴다.
       `AuditLogsService.record()` 는 DB 오류를 `logger.warn` 한 줄로 **삼킨다** — 알림도
       메트릭도 없다. 그래서 "회전은 200 으로 성공, 그런데 감사 행만 조용히 비어 있음" 이
       아무에게도 안 보인다. **이 PR 이 만든 회귀가 아니라** 17개 감사 producer 전체의

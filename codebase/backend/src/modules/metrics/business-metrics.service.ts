@@ -65,6 +65,7 @@ export class BusinessMetricsService {
   private readonly llmTokens: Counter;
   private readonly nodeDuration: Histogram;
   private readonly redisFailOpen: Counter;
+  private readonly auditWriteFailed: Counter;
   private readonly queueDepth: ObservableGauge;
   /** 큐 깊이 provider 목록 — 각 모듈(execution-engine·continuation)이 자기 큐를 등록. */
   private readonly queueProviders: QueueDepthProvider[] = [];
@@ -86,6 +87,11 @@ export class BusinessMetricsService {
     this.redisFailOpen = meter.createCounter('clemvion.redis.fail_open', {
       description:
         'Redis 의존 기능이 fail-open 으로 강등된 횟수 (component·reason 별)',
+      unit: '{event}',
+    });
+    this.auditWriteFailed = meter.createCounter('clemvion.audit.write_failed', {
+      description:
+        '감사 로그 적재가 실패해 조용히 삼켜진 횟수 (resource_type 별)',
       unit: '{event}',
     });
     this.nodeDuration = meter.createHistogram('clemvion.node.duration', {
@@ -136,6 +142,33 @@ export class BusinessMetricsService {
     reason: RedisFailOpenReason,
   ): void {
     this.redisFailOpen.add(1, { component, reason });
+  }
+
+  /**
+   * 감사 로그 적재가 **실패해 삼켜진** 사건을 집계.
+   *
+   * `AuditLogsService.record()` 는 DB 오류를 삼킨다 — 감사 기록 실패가 본 요청(회전·삭제
+   * 같은 특권 작업)을 깨뜨리면 안 되기 때문이고, 그 판단 자체는 옳다. 문제는 그 뒤였다:
+   * 종전에는 `logger.warn` 한 줄뿐이라 **"작업은 200 으로 성공, 감사 행만 조용히 비어 있음"**
+   * 이 아무에게도 안 보였다. 로그는 사후 조회는 되지만 비율·추세로 알람을 걸 수 없다
+   * (`recordRedisFailOpen` 이 같은 이유로 존재한다 — 같은 결함 클래스다).
+   *
+   * 감사 로그는 "계정 탈취 후 조용한 시크릿 교체를 재구성한다" 는 신뢰를 지탱하는데,
+   * 그 신뢰는 **적재가 실제로 됐을 때만** 성립한다. 이 카운터가 그 갭을 보이게 한다
+   * (예: `rate(clemvion_audit_write_failed[5m]) > 0`).
+   *
+   * ## 왜 클램핑인가 (닫힌 유니온이 아니라)
+   *
+   * `resourceType` 은 코드가 정하는 값이라 실측 12종으로 유계다. 그런데 소스인
+   * `AuditLogsService.record()` 의 시그니처가 `resourceType: string`(열림)이라 **컴파일러가
+   * 닫힘을 증명하지 못한다**. 증명되지 않은 닫힘을 타입으로 주장하는 대신
+   * `recordExecutionError` 와 같은 클램핑으로 방어한다 — `record()` 가 닫힌 유니온을
+   * 받도록 바뀌면 그때 이쪽도 유니온으로 좁히는 것이 맞다.
+   */
+  recordAuditWriteFailed(resourceType: string): void {
+    this.auditWriteFailed.add(1, {
+      resource_type: resourceType.substring(0, 64),
+    });
   }
 
   /** LLM 호출의 토큰 사용량을 type 별로 누적 (model 라벨). 0 은 건너뛴다. */
