@@ -49,10 +49,40 @@ owner: planner
       발동해 위 카디널리티 논점을 공유한다. *(`importWorkflow` 는 4차 리뷰에서 조치 완료 —
       `workflows.service.ts` `details: { imported: true }`. 카디널리티 논거가 적용되지 않는데
       `saveCanvas` 와 묶여 유예됐던 것이 원래의 오분류였다.)*
-- [ ] `recordAudit` 공통 팩토리 (W4) — 5개 helper 의 `details` 계약이 전부 달라(passthrough /
-      `{type}` / 없음 / `{kind}` / `ipAddress`) 공통분모가 `resourceType` 바인딩 + 필드 전달뿐이다.
-      추출해도 타입 있는 per-service 래퍼는 남는다. *(원래 근거였던 "6번째 리소스에서 재검토" 는
-      이미 5개라 성립하지 않아 6차에서 근거를 교체했다.)*
+- [x] `recordAudit` 공통 팩토리 (W4) — **won't-do 로 종결 (2026-09-01).** 추출하지 않는
+      대신 **가드로 대체**했다. 다섯을 전부 읽어 이 plan 의 근거를 실측했고 **서술은 옳았다**:
+
+      | 서비스 | action 타입 | 추가 필드 → details |
+      |---|---|---|
+      | triggers | `AuditActionFor<'trigger'>` | `type` → `{type}` |
+      | workflows | `AuditActionFor<'workflow'>` | `details?` passthrough |
+      | schedules | `AuditActionFor<'schedule'>` | 없음 |
+      | model_config | `AuditActionFor<'model_config'>` | `kind` → `{kind}` |
+      | auth_config | **맨 `AuditAction`** | `ipAddress` |
+
+      **그런데 그 표가 이 plan 이 적지 않은 것을 드러냈다** — 넷은 리소스에 묶는데
+      `auth_config` 만 맨 union 이었다. 판별 프로브로 실재를 확인했다:
+
+      ```
+      auth-configs 에 action: 'trigger.created'  → tsc 0 에러   ← 구멍
+      schedules   에 action: 'trigger.created'  → TS2322       ← 대조군
+      ```
+
+      대조군이 없었다면 "`AuditActionFor` 가 원래 안 좁히나?" 와 구분되지 않았다.
+
+      **처방을 바꾼 이유**: 얇은 공통분모를 억지로 뽑으면 그것을 **쓰는 곳만** 안전해진다.
+      정작 문제는 그 공통분모(`resourceType` 바인딩)가 **균일하게 지켜지지 않은 것**이므로,
+      지켜지는지를 검사하는 가드가 맞다 — 앞으로 생길 서비스도 잡는다.
+
+      - `auth-configs` 를 `AuditActionFor<typeof AUTH_CONFIG_RESOURCE_TYPE>` 로 (실제 결함)
+      - `repo-guards/__tests__/audit-action-binding{-guard,-fixture,}.ts` 신설. 판정은
+        **값이 아니라 형태**로 한다(액션이 추가될 때마다 가드를 고치지 않아도 되고, 정작
+        "묶이지 않았다" 는 구조적 사실을 놓치지 않는다)
+      - 형태 커버리지는 **불변 fixture** 에. 라이브 소스에 걸면 가드가 없애려는 형태의
+        존재를 단언하게 되어 자기반증 테스트가 된다
+      - 뮤테이션 5축 (예측/실측 전부 RED): 원 결함 복원 · 스캔 경로 오지정 · 메서드 이름
+        오탈자 · 접두 검사 느슨화 · `action` 부재 통과. 뒤 둘은 **가드가 아무것도 안 보는데
+        통과하는** 상태를 잡는 전제 단언이다
 - [x] **트리거 시크릿/토큰 회전 3종 감사** — **완료 (2026-08-11, `claude/trigger-rotation-audit`)**. planner 선행(spec 6곳)과 구현을 한 PR 에서 처리했다. 액션명은 규약(§2.1 과거분사 + §1 언더스코어)과 선례(`integration.rotated`)로 도출: `trigger.notification_secret_rotated` · `trigger.chat_channel_bot_token_rotated` · `trigger.interaction_token_revoked`. 셋으로 가른 근거(폭발 반경)는 `conventions/audit-actions.md §3` Rationale. 아래는 착수 시점 서술로 남긴다.
       `TriggersService` 의 `rotateNotificationSecret`·`revokePerTriggerToken`·`rotateBotToken`
       이 `recordAudit` 를 호출하지 않는다(실측). Editor+ 면 호출 가능한 특권 작업이고 응답에
@@ -66,14 +96,102 @@ owner: planner
       코드 실측에 맞춤). 반면 이 항목은 **새 설계**다 — `trigger.rotate*` 는 spec 카탈로그
       에도 코드에도 0건이라(재확인), 액션명·시제 분류·감사 대상 범위를 새로 정해야 하고
       그 자체가 리뷰 대상이다. 정정 턴에 설계를 얹으면 두 성격이 한 커밋에서 섞인다.
-- [ ] **`audit_log` 적재 실패에 관측 수단이 없다** (2026-08-11, side_effect WARNING).
+- [x] **`audit_log` 적재 실패에 관측 수단이 없다** — **완료 (2026-09-01).**
+      **삼키는 것 자체는 유지했다** — 감사 기록 실패가 본 요청(회전·삭제 같은 특권 작업)을
+      깨뜨리면 안 되고, 그 판단은 옳다. 고친 것은 그 뒤가 조용했다는 점이다:
+
+      - `BusinessMetricsService.recordAuditWriteFailed(resourceType)` 신설
+        (`clemvion.audit.write_failed`). 선례 `recordRedisFailOpen` 과 **같은 결함
+        클래스**라 그 모양을 그대로 따랐다 — 그쪽 주석이 이미 "warn 로그뿐이라 비율·추세로
+        알람을 걸 수 없다" 고 적고 있다.
+      - **로그가 무엇이 유실됐는지 안 적고 있었다.** 종전 메시지는 에러 문구뿐이라 어느
+        감사가 사라졌는지 알 수 없었다 — 유실 사실만 알고 대상을 모르면 조사도 복구도
+        시작할 수 없다. `action`·`resourceType`·`resourceId`·`workspaceId` 를 싣는다.
+      - 주입은 `@Optional()` (선례 `idempotency.interceptor.ts`) — 관측이 없다고 감사가
+        멈추면 본말이 뒤집힌다.
+      - 라벨은 **클램핑**이다(닫힌 유니온이 아니라). `resourceType` 은 실측 **distinct
+        10종**으로 유계지만 `record()` 시그니처가 `string`(열림)이라 컴파일러가 닫힘을
+        증명하지 못한다 — 증명되지 않은 닫힘을 타입으로 주장하는 대신 `recordExecutionError` 와
+        같은 클램핑으로 방어했다. `record()` 가 닫힌 유니온을 받게 되면 그때 좁힌다.
+      - 뮤테이션 4축 (예측/실측 전부 RED): 원 상태 복원 · 성공 경로에서도 카운터 증가 ·
+        로그에서 `resourceId` 만 제거 · `@Optional` 제거.
+
+      아래는 착수 시점 서술로 남긴다.
       `AuditLogsService.record()` 는 DB 오류를 `logger.warn` 한 줄로 **삼킨다** — 알림도
       메트릭도 없다. 그래서 "회전은 200 으로 성공, 그런데 감사 행만 조용히 비어 있음" 이
-      아무에게도 안 보인다. **이 PR 이 만든 회귀가 아니라** 17개 감사 producer 전체의
-      기존 설계이고, 세 회전 메서드가 그 관례를 따른 것 자체는 옳다.
+      아무에게도 안 보인다. **이 PR 이 만든 회귀가 아니라** 감사 producer **12개 모듈**
+      전체의 기존 설계이고, 세 회전 메서드가 그 관례를 따른 것 자체는 옳다.
       다만 이번에 "계정 탈취 재구성" 이라는 신뢰 수준을 명시적으로 끌어올렸으므로, 그
       신뢰를 지탱하는 하부 메커니즘과의 갭을 등재해 둔다.
-      - [ ] 적재 실패 카운터/알림 도입 여부 결정 — 전 producer 공통이라 별도 트랙
+      - [x] **`audit_log` 축 — 완료 (2026-09-01).** `clemvion.audit.write_failed` 신설 +
+            로그에 유실 대상 기재. 위 항목 참조. spec 반영은
+            [`spec-draft-audit-write-failed-metric.md`](../complete/spec-draft-audit-write-failed-metric.md).
+      - [x] **`resource_type` "실측 12종" 오기산 정정 → 10종 (2026-09-01).** `--impl-done`
+            consistency `16_02_03` WARNING. 12 는 라벨 값이 아니라 **producer 파일 수**였다 —
+            세는 대상을 바꿔 놓고 같은 숫자를 카디널리티라 적었다. spec 2곳(`_product-overview.md`
+            NF-OB-07 · `data-flow/1-audit.md` §1.1 산문의 "8개 위치")·JSDoc·plan 2곳 전파분
+            동반 정정 **완료** (`--spec` `16_16_39` BLOCK:NO 통과 후 반영). 경위와 실측 근거:
+            [`spec-draft-audit-resource-type-count.md`](../complete/spec-draft-audit-resource-type-count.md).
+      - [x] **가드가 "자기 리소스에 묶였는지" 까지 본다 — 완료 (2026-09-01, 리뷰 5R).**
+            종전 `findUnboundHelpers` 는 `AuditActionFor<` **접두**만 봐서 "엉뚱한 리소스에
+            묶인" 형태를 통과시켰다. 3~4라운드에 이 유예를 **"`_NoCrossDomain` 이 이미 막는다"**
+            로 정당화했는데 **그 근거가 틀렸다** — 뮤테이션이 갈랐다:
+
+            | 뮤턴트 | tsc |
+            |---|---|
+            | `auth-configs` helper 를 `AuditActionFor<'workflow'>` 로 오귀속 | 에러 **5건** |
+            | 위 + `_NoCrossDomain` 제거 | 에러 **5건 (변화 없음)** |
+
+            캐너리를 지워도 검출이 그대로 → 잡는 주체는 캐너리가 아니라 **호출부의 액션
+            리터럴**이다(에러 5건이 전부 호출부에 찍힌다). 리뷰어 둘이 근거로 댄 "뮤턴트가
+            0 에러로 통과" 도 **호출부 없는 스크래치 재현**이라 저장소에서는 반증됐다.
+
+            남는 진짜 갭은 **호출부가 아직 없는 helper**(선언을 먼저 만든 경우)와 호출부
+            액션이 두 리소스 모두에 유효해 안 갈리는 경우. `findMisboundHelpers` 로 선언
+            단계에서 닫았다 — 값이 아니라 형태로 판정하고, `typeof CONST`/리터럴 표기를
+            상수 해석으로 정규화한다(표기만 다른 대조군 fixture 로 고정).
+
+      - [ ] **가드를 `record()` 호출식까지 넓힌다** (리뷰 7라운드 WARNING). 현재 가드는
+            `recordAudit` **helper 선언**만 본다. 실측으로 경계를 확인했다 — `record()` 호출
+            27곳 중 **22곳은 `action` 이 리터럴/`AUDIT_ACTIONS.X`** 라 같은 객체 리터럴 안에
+            `resourceType` 과 나란히 있고, **5곳만 `params.action`**(= 그 5개 helper)이다.
+
+            helper 는 `resourceType` 을 고정해 놓고 `action` 만 받아 **호출자가 불일치를 볼 수
+            없다**. 인라인 22곳은 두 값이 붙어 있어 성격이 다르다 — 가드 범위가 "불일치가 안
+            보이는 집합" 과 일치한다.
+
+            그래도 22곳이 **타입으로 강제되지는 않는다**(`record()` 의 `action` 은 열린
+            `AuditAction`). 넓히려면 `AUDIT_ACTIONS.X` 를 **파일 밖**(`audit-action.const.ts`)
+            까지 해석해 접두를 `resourceType` 과 비교해야 한다 — 지금 가드의 상수 해석은
+            같은 파일 안으로 제한돼 있다. **미조치이며 우선순위 판단**이다(현재 22곳 전부
+            올바름을 리뷰어가 확인).
+
+      - [ ] **`clampLabel` 대칭 테스트 + `record()` JSDoc** (리뷰 4라운드 INFO).
+            부수: `audit-logs.service.ts:105` 주석의 **"12개+"** 를 "12개" 로 통일(7R INFO 6).
+            `codebase/` 편집이라 리뷰 게이트를 리셋하므로 다음에 이 파일을 손댈 때 함께.
+            둘 다 **미조치이며 우선순위 판단**이다 — 문서화되어 있어서가 아니다(3라운드에
+            거짓 근거를 쓴 뒤로 이 구분을 명시해 적는다).
+
+            - `recordExecutionError` 쪽에 65자 → `toHaveLength(64)` 형제 테스트가 없다.
+              리뷰어가 클램핑 호출을 우회하는 뮤턴트로 **GREEN 생존**을 실증했다. 다만
+              공유 상수 `PROMETHEUS_LABEL_MAX_LEN` 자체는 아바타 쪽 뮤턴트(64→128)가 이미
+              물고 있어(X4 → RED), "두 메트릭의 방어 강도가 갈린다" 는 리팩터 근거는
+              무너지지 않는다. 갭은 **호출부 대칭**뿐이다.
+            - `AuditLogsService.record()` JSDoc 이 이번에 추가한 관측 동작(카운터·로그
+              4필드)을 안 적는다 — "삼킨다" 는 절반만 서술. 3~4라운드 연속 이월.
+
+      - [ ] **`login_history` 축 — 미결.** `login-history.service.ts` 의 `record` 는 여전히
+            `Logger.error` 뿐이고 카운터가 없다. `audit_log` 쪽만 넓혀서 **두 producer 의
+            관측 강도가 갈렸다** — `spec/data-flow/1-audit.md` 가 그 비대칭을 명시적으로
+            적고 있으므로 숨어 있지는 않다.
+
+            지금 안 붙이는 이유: "감사 실패 관측을 어디까지 넓히나" 는 **삼키는 감사성 write
+            경로 전반**(`audit_log`·`login_history`·앞으로 생길 것)에 걸리는 결정이고,
+            `audit_log` 는 "계정 탈취 재구성" 이라는 신뢰 수준을 명시적으로 끌어올린 자리라
+            먼저 닫을 근거가 있었다. `login_history` 는 그 근거가 아직 없다.
+
+            재개 신호: 로그인 이력 유실이 실제로 조사에 걸릴 때, 또는 producer 를 하나 더
+            넓힐 일이 생겨 "어디까지" 를 한 번에 정하게 될 때.
 - [ ] **회전 감사 mutation 잔여 갭 1건** (2026-08-11, ai-review `12_37_14` testing INFO).
       `rotateBotToken` 의 실패경로 회귀는 실패를 **4단계(`setupChannel`)** 에 주입한다.
       그래서 감사를 **5→6 구간**으로 옮기는 뮤턴트는 아직 GREEN 으로 산다. 그 테스트의

@@ -14,7 +14,10 @@ import { Execution } from '../executions/entities/execution.entity';
 import { Trigger } from '../triggers/entities/trigger.entity';
 import { User } from '../users/entities/user.entity';
 import { AuditLogsService } from '../audit-logs/audit-logs.service';
-import { AUDIT_ACTIONS, AuditAction } from '../audit-logs/audit-action.const';
+import {
+  AUDIT_ACTIONS,
+  AuditActionFor,
+} from '../audit-logs/audit-action.const';
 import { PaginatedResponseDto } from '../../common/dto/paginated-response.dto';
 import { PaginationQueryDto } from '../../common/dto/pagination.dto';
 
@@ -76,7 +79,11 @@ export class AuthConfigsService {
    * 경로(create/update/regenerate/remove/reveal)가 공유한다.
    */
   private recordAudit(params: {
-    action: AuditAction;
+    // `AuditAction`(전체 union)이 아니라 **리소스에 묶인** 타입이다. 맨 union 이면
+    // `trigger.created` 같은 다른 리소스의 액션을 `resourceType: 'auth_config'` 로 기록해도
+    // 컴파일러가 잡지 못한다 — 실측으로 확인했다(그 상태에서 tsc 0 에러, 같은 프로브가
+    // `schedules` 에서는 TS2322). 자매 helper 4개는 이미 이 형태였고 여기만 예외였다.
+    action: AuditActionFor<typeof AUTH_CONFIG_RESOURCE_TYPE>;
     workspaceId: string;
     userId: string;
     resourceId: string;

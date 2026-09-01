@@ -201,7 +201,8 @@ flowchart LR
 > 기본 메트릭은 auto-instrumentation 의 HTTP 서버 + `instrumentation-runtime-node`(event loop·GC·heap)
 > 자동 수집에 더해, **도메인/비즈니스 커스텀 메트릭(NF-OB-07)** — 워크플로 실행 수(`clemvion.execution.total`)·
 > 에러(`clemvion.execution.errors`)·큐 깊이(`clemvion.queue.depth`)·LLM 토큰(`clemvion.llm.tokens`)·
-> 노드 지연(`clemvion.node.duration`)·Redis fail-open 강등(`clemvion.redis.fail_open`) — 을
+> 노드 지연(`clemvion.node.duration`)·Redis fail-open 강등(`clemvion.redis.fail_open`)·
+> 감사 적재 실패(`clemvion.audit.write_failed`) — 을
 > `BusinessMetricsService` 가 함께 노출한다.
 > 구현: `codebase/backend/src/instrumentation.ts`, `codebase/backend/src/modules/metrics/business-metrics.service.ts`.
 > SoT: [`spec/5-system/_product-overview.md` NF-OB-02](../5-system/_product-overview.md) / [NF-OB-07](../5-system/_product-overview.md#nf-ob-07-메트릭-카탈로그).
@@ -269,3 +270,10 @@ Redis fail-open 을 하는 서비스는 여럿이지만(rate limiter·quota·con
 정하는 **닫힌 집합**과 1:1 로 유지한다. 새 소비자를 배선할 때 유니온과 NF-OB-07 카탈로그 표를
 **동시에** 넓히는 것이 규칙이다. 라벨을 `string` 으로 열어 두지 않는 이유이기도 하다 —
 외부 문자열이 라벨에 실리면 Prometheus 시계열 cardinality 가 터진다.
+
+> **이 원칙은 코드 유니온이 있는 라벨에 적용된다.** 소스 시그니처가 **이미 `string`** 인
+> 라벨은 컴파일러가 닫힘을 증명하지 못하므로, 유니온을 주장하는 대신 값 길이를 64자로
+> **클램핑**해 같은 목적(cardinality 방어)을 달성한다 — `clemvion.execution.errors` 의
+> `error_code`, `clemvion.audit.write_failed` 의 `resource_type` 이 그 경우다.
+> 증명되지 않은 닫힘을 타입으로 적으면 다음 사람이 그걸 믿고 클램핑을 지운다.
+> 목록은 [NF-OB-07 카탈로그](../5-system/_product-overview.md#nf-ob-07-메트릭-카탈로그).
