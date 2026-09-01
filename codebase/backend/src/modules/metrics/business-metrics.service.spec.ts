@@ -64,6 +64,29 @@ describe('BusinessMetricsService (NF-OB-07)', () => {
    * 어느 테스트도 실행하지 않았다** — 카운터 이름 오탈자·라벨 키 뒤바뀜·`add` 누락이
    * 전부 조용히 통과한다. 형제 `record*` 메서드가 모두 여기 테스트를 갖는 이유와 같다.
    */
+  /**
+   * `audit-logs.spec.ts` 는 이 메서드를 `jest.fn()` 스텁으로 대체하므로 **구현 자체는
+   * 어느 테스트도 실행하지 않았다** — 위 `recordRedisFailOpen` 주석이 이미 적어 둔 그
+   * 함정에 그대로 빠졌다. 카운터 이름 오탈자·라벨 키 뒤바뀜·클램핑 누락이 전부 조용히
+   * 통과한다.
+   */
+  it('recordAuditWriteFailed → audit.write_failed{resource_type} += 1', () => {
+    service.recordAuditWriteFailed('auth_config');
+    expect(
+      mock.counters['clemvion.audit.write_failed'].add,
+    ).toHaveBeenCalledWith(1, { resource_type: 'auth_config' });
+  });
+
+  it('recordAuditWriteFailed → 라벨을 64자로 클램핑한다 (cardinality 방어)', () => {
+    // 65자를 넣어야 64 경계가 갈린다 — 64자를 넣으면 자르든 안 자르든 같은 값이라
+    // 클램핑을 제거해도 통과한다(분기를 못 가르는 fixture).
+    const long = 'x'.repeat(65);
+    service.recordAuditWriteFailed(long);
+    const [, labels] = mock.counters['clemvion.audit.write_failed'].add.mock
+      .calls[0] as [number, { resource_type: string }];
+    expect(labels.resource_type).toHaveLength(64);
+  });
+
   it('recordRedisFailOpen → redis.fail_open{component,reason} += 1', () => {
     service.recordRedisFailOpen('idempotency', 'get_failed');
     expect(mock.counters['clemvion.redis.fail_open'].add).toHaveBeenCalledWith(

@@ -199,6 +199,27 @@ describe('AuditLogsService.record — 삼킨 실패의 관측', () => {
     }
   });
 
+  it('metrics 호출이 던져도 삼킨다 — 관측이 새 실패 경로가 되면 안 된다', async () => {
+    // 이 메서드의 존재 이유가 "감사 실패가 본 요청을 절대 깨뜨리지 않는다" 인데, 관측을
+    // 붙이면서 관측이 그 계약을 역행하면 본말전도다. 12개+ 특권 CRUD producer 가 이
+    // chokepoint 를 지난다.
+    const repo = {
+      create: jest.fn((d: unknown) => d),
+      save: jest.fn().mockRejectedValue(new Error('audit DB unreachable')),
+    };
+    const metrics = {
+      recordAuditWriteFailed: jest.fn(() => {
+        throw new Error('meter exploded');
+      }),
+    };
+    const service = new AuditLogsService(
+      repo as unknown as Repository<AuditLog>,
+      metrics as unknown as BusinessMetricsService,
+    );
+    await expect(service.record(entry)).resolves.toBeUndefined();
+    expect(metrics.recordAuditWriteFailed).toHaveBeenCalled();
+  });
+
   it('metrics 없이 조립해도 감사 기록은 동작한다 (@Optional)', async () => {
     // 관측이 없다고 감사가 멈추면 본말이 뒤집힌다.
     const repo = {

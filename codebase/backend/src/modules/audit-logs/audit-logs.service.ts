@@ -101,7 +101,16 @@ export class AuditLogsService {
       // 2. 로그에 **무엇이 유실됐는지** — 종전 메시지는 에러 문구뿐이라, 로그를 봐도 어느
       //    감사가 사라졌는지 알 수 없었다. 유실 사실만 알고 대상을 모르면 복구도 조사도
       //    시작할 수 없다.
-      this.metrics?.recordAuditWriteFailed(entry.resourceType);
+      // **관측 호출도 삼킨다.** 이 메서드의 존재 이유가 "감사 실패가 본 요청을 절대
+      // 깨뜨리지 않는다" 인데, 여기서 던지면 그 예외가 12개+ 특권 CRUD producer 로
+      // 전파돼 계약을 정면으로 역행한다 — 관측을 붙이면서 관측이 새 실패 경로가 되는 것은
+      // 본말전도다. (OTel Counter 는 실측상 non-throwing 이라 발동 가능성은 낮지만,
+      // 이 자리는 chokepoint 라 파급이 넓다.)
+      try {
+        this.metrics?.recordAuditWriteFailed(entry.resourceType);
+      } catch {
+        // best-effort — 관측 실패는 관측 실패로 끝낸다.
+      }
       this.logger.warn(
         `Failed to write audit log (action=${entry.action} ` +
           `resourceType=${entry.resourceType} resourceId=${entry.resourceId} ` +

@@ -1,5 +1,45 @@
 # Changelog
 
+## Unreleased — 감사 액션 바인딩 구멍 + 삼킨 적재 실패를 알람 걸 수 있게
+
+`spec-sync-auth-gaps.md` 의 감사 로깅 잔여 2건. **plan 의 처방을 실측이 바꿨다.**
+
+### `recordAudit` 공통 팩토리 → won't-do, 가드로 대체
+
+plan 은 "5개 helper 의 `details` 계약이 전부 달라 공통분모가 `resourceType` 바인딩 + 필드
+전달뿐" 이라 적고 있었고, 다섯을 전부 읽어 확인하니 **그 서술은 옳았다.** 그런데 그 표가
+plan 이 적지 않은 것을 드러냈다 — 넷은 `AuditActionFor<T>` 로 리소스에 묶는데 `auth_config`
+만 맨 union 이었다. 판별 프로브로 실재를 확인했다:
+
+```
+auth-configs 에 action: 'trigger.created'  → tsc 0 에러   ← 구멍
+schedules   에 action: 'trigger.created'  → TS2322       ← 대조군
+```
+
+즉 `auth_config` 감사에 **다른 리소스의 액션을 기록할 수 있었고** 컴파일러가 안 잡았다.
+대조군이 없었다면 "`AuditActionFor` 가 원래 안 좁히나?" 와 구분되지 않았다.
+
+**팩토리를 추출하면 그것을 쓰는 곳만 안전해진다.** 정작 문제는 그 공통분모가 균일하게
+지켜지지 않은 것이므로, 지켜지는지 검사하는 AST 가드를 뒀다 — 앞으로 생길 서비스도 잡는다.
+판정은 **값이 아니라 형태**로 한다(액션이 추가될 때마다 가드를 고치지 않아도 되고, 정작
+"묶이지 않았다" 는 구조적 사실을 놓치지 않는다).
+
+### 삼킨 감사 적재 실패를 보이게
+
+**삼키는 것 자체는 유지했다** — 감사 기록 실패가 본 요청(회전·삭제 같은 특권 작업)을
+깨뜨리면 안 되고 그 판단은 옳다. 고친 것은 그 뒤가 조용했다는 점이다.
+
+- `clemvion.audit.write_failed` 카운터 신설. 선례 `clemvion.redis.fail_open` 과 **같은 결함
+  클래스**라 그 모양을 따랐다 — 그쪽 서술이 이미 "warn 로그뿐이라 비율·추세로 알람을 걸 수
+  없다" 고 적고 있다. 알람 예: `rate(clemvion_audit_write_failed[5m]) > 0`.
+- **로그가 무엇이 유실됐는지 안 적고 있었다.** 종전 메시지는 에러 문구뿐이라 어느 감사가
+  사라졌는지 알 수 없었다 — 유실 사실만 알고 대상을 모르면 조사도 복구도 시작할 수 없다.
+  `action`·`resourceType`·`resourceId`·`workspaceId` 를 싣는다.
+- 관측 호출 자체도 `try`/`catch` 로 감쌌다. 이 메서드의 존재 이유가 swallow 계약인데,
+  관측을 붙이면서 관측이 새 실패 경로가 되면 본말전도다(12개+ 특권 producer 가 지나는
+  chokepoint 다).
+- 주입은 `@Optional()` — 관측이 없다고 감사가 멈추면 안 된다.
+
 ## Unreleased — 아바타 이미지 업로드 (공개 버킷 + 공개 URL)
 
 `POST /api/users/me/avatar` 신설. 종전에는 `PATCH /api/users/me` 로 **외부 URL 문자열만**

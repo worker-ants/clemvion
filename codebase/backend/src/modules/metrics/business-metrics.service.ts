@@ -56,6 +56,20 @@ export type RedisFailOpenReason =
  * 본 메트릭은 운영 관측·알람(Prometheus/Grafana)용 보조 노출이며, 제품 분석의 SoT 는
  * DB 집계 기반 Statistics API 다 (NF-OB-07 "관측 대상의 이원화 정책").
  */
+/**
+ * Prometheus 라벨 값의 상한. 초과분은 잘라 낸다.
+ *
+ * 라벨 cardinality 가 터지는 것을 막는 방어선이라 **값 자체가 계약**이다. 종전에는 `64` 가
+ * `recordExecutionError`·`recordAuditWriteFailed` 두 곳에 매직넘버로 흩어져 있어, 한쪽만
+ * 바꾸면 두 메트릭의 방어 강도가 조용히 갈렸다.
+ */
+const PROMETHEUS_LABEL_MAX_LEN = 64;
+
+/** 외부 유래 문자열을 라벨에 넣기 전 상한으로 자른다. */
+function clampLabel(value: string): string {
+  return value.substring(0, PROMETHEUS_LABEL_MAX_LEN);
+}
+
 @Injectable()
 export class BusinessMetricsService {
   private readonly logger = new Logger(BusinessMetricsService.name);
@@ -116,9 +130,7 @@ export class BusinessMetricsService {
    * 외부 유래 `errorCode` 는 최대 64자로 클램핑해 Prometheus 라벨 cardinality 폭발을 방지.
    */
   recordExecutionError(errorCode: string): void {
-    this.executionErrors.add(1, {
-      error_code: errorCode.substring(0, 64),
-    });
+    this.executionErrors.add(1, { error_code: clampLabel(errorCode) });
   }
 
   /**
@@ -166,9 +178,7 @@ export class BusinessMetricsService {
    * 받도록 바뀌면 그때 이쪽도 유니온으로 좁히는 것이 맞다.
    */
   recordAuditWriteFailed(resourceType: string): void {
-    this.auditWriteFailed.add(1, {
-      resource_type: resourceType.substring(0, 64),
-    });
+    this.auditWriteFailed.add(1, { resource_type: clampLabel(resourceType) });
   }
 
   /** LLM 호출의 토큰 사용량을 type 별로 누적 (model 라벨). 0 은 건너뛴다. */
