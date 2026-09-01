@@ -220,7 +220,23 @@ describe('AuditLogsService.record — 삼킨 실패의 관측', () => {
     expect(metrics.recordAuditWriteFailed).toHaveBeenCalled();
   });
 
-  it('metrics 없이 조립해도 감사 기록은 동작한다 (@Optional)', async () => {
+  it('metrics provider 없이 DI 조립이 성공한다 (@Optional)', async () => {
+    // **DI 를 실제로 태운다.** 종전에는 `new AuditLogsService(repo)` 로 생성자를 직접
+    // 불러서 `@Optional()` 이 있든 없든 항상 통과했다 — 이름은 `@Optional` 회귀라면서
+    // 정작 그 데코레이터를 안 물었다. 뮤테이션으로 확인하니 RED 를 내는 것은 이 테스트가
+    // 아니라 **무관한 `findAll` DI 스위트**였고, 그 스위트가 리팩터되면 이 계약은 아무도
+    // 안 지키게 된다(리뷰 3라운드 실측).
+    const moduleRef = await Test.createTestingModule({
+      providers: [
+        AuditLogsService,
+        { provide: getRepositoryToken(AuditLog), useValue: {} },
+        // BusinessMetricsService 를 **일부러 넣지 않는다** — 없어도 조립돼야 한다.
+      ],
+    }).compile();
+    expect(moduleRef.get(AuditLogsService)).toBeInstanceOf(AuditLogsService);
+  });
+
+  it('metrics 없이도 감사 기록은 동작한다 (런타임)', async () => {
     // 관측이 없다고 감사가 멈추면 본말이 뒤집힌다.
     const repo = {
       create: jest.fn((d: unknown) => d),

@@ -60,6 +60,33 @@ class E {
 }
 `;
 
+/**
+ * 가드가 **잡아야** 하는 형태 5 — 화살표 함수 클래스 필드에 맨 union.
+ *
+ * NestJS 서비스에서 `this` 바인딩용으로 흔한 문법인데, 종전 가드는 `MethodDeclaration` 만
+ * 봐서 이 형태를 **존재하지 않는 것처럼** 통과시켰다(실측: 탐지 0건). 즉 이 PR 이 막으려는
+ * 결함이 문법만 바꾸면 그대로 재도입됐다.
+ */
+export const ARROW_FIELD_BARE_SOURCE = `
+class G {
+  private recordAudit = (params: {
+    workspaceId: string;
+    action: AuditAction;
+    resourceId: string;
+  }): Promise<void> => this.x.record(params);
+}
+`;
+
+/** 화살표 필드라도 **묶여 있으면** 통과해야 한다 (형태가 아니라 바인딩으로 판정). */
+export const ARROW_FIELD_BOUND_SOURCE = `
+class H {
+  private recordAudit = (params: {
+    action: AuditActionFor<typeof FOO_RESOURCE_TYPE>;
+    resourceId: string;
+  }): Promise<void> => this.x.record(params);
+}
+`;
+
 /** 가드가 **무시**해야 하는 형태 — 이름이 다른 메서드. */
 export const UNRELATED_METHOD_SOURCE = `
 class F {

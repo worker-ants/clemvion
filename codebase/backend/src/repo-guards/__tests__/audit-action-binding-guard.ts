@@ -76,17 +76,18 @@ export function findAuditHelpers(
   const found: AuditHelperSite[] = [];
 
   const visit = (node: ts.Node): void => {
-    if (
-      ts.isMethodDeclaration(node) &&
-      ts.isIdentifier(node.name) &&
-      AUDIT_HELPER_NAMES.has(node.name.text)
-    ) {
+    // **두 선언 형태를 모두 본다.** 메서드(`recordAudit(params) {}`)와 화살표 함수 클래스
+    // 필드(`recordAudit = (params) => {}`) — 후자는 NestJS 서비스에서 `this` 바인딩용으로
+    // 흔하다. 메서드만 보면 화살표 형태는 **존재하지 않는 것처럼 통과**해, 이 가드가 막으려는
+    // 결함(리소스에 안 묶인 `action`)이 그 형태로 조용히 재도입된다.
+    const params = auditHelperParams(node);
+    if (params) {
       const line = sf.getLineAndCharacterOfPosition(node.getStart(sf)).line + 1;
       found.push({
         file: fileLabel,
         line,
-        method: node.name.text,
-        actionType: extractActionType(node),
+        method: (node.name as ts.Identifier).text,
+        actionType: extractActionType(params),
       });
     }
     ts.forEachChild(node, visit);
@@ -96,13 +97,44 @@ export function findAuditHelpers(
 }
 
 /**
+ * 감사 helper 선언이면 그 파라미터 목록을, 아니면 `null`.
+ *
+ * 메서드 선언과 화살표 함수 클래스 필드를 같은 형태로 정규화한다 — 판정 로직이 선언
+ * 문법에 따라 갈리면 새 문법이 등장할 때마다 사각지대가 생긴다.
+ */
+function auditHelperParams(
+  node: ts.Node,
+): ts.NodeArray<ts.ParameterDeclaration> | null {
+  if (
+    ts.isMethodDeclaration(node) &&
+    ts.isIdentifier(node.name) &&
+    AUDIT_HELPER_NAMES.has(node.name.text)
+  ) {
+    return node.parameters;
+  }
+  if (
+    ts.isPropertyDeclaration(node) &&
+    ts.isIdentifier(node.name) &&
+    AUDIT_HELPER_NAMES.has(node.name.text) &&
+    node.initializer &&
+    (ts.isArrowFunction(node.initializer) ||
+      ts.isFunctionExpression(node.initializer))
+  ) {
+    return node.initializer.parameters;
+  }
+  return null;
+}
+
+/**
  * `recordAudit(params: { action: T; ... })` 의 `T` 를 소스 문자열로 돌려준다.
  *
  * 파라미터가 없거나 `action` 프로퍼티가 없으면 `null` — 그것도 "묶이지 않음" 으로 다룬다
  * (가드가 조용히 넘기면 안 되는 형태다).
  */
-function extractActionType(node: ts.MethodDeclaration): string | null {
-  const first = node.parameters[0];
+function extractActionType(
+  params: ts.NodeArray<ts.ParameterDeclaration>,
+): string | null {
+  const first = params[0];
   if (!first?.type || !ts.isTypeLiteralNode(first.type)) return null;
   for (const member of first.type.members) {
     if (

@@ -40,6 +40,8 @@ import {
   findUnboundHelpers,
 } from './audit-action-binding-guard';
 import {
+  ARROW_FIELD_BARE_SOURCE,
+  ARROW_FIELD_BOUND_SOURCE,
   BARE_UNION_SOURCE,
   BOUND_SOURCE,
   LOOKALIKE_TYPE_SOURCE,
@@ -88,8 +90,18 @@ describe('판정은 형태로 한다 — fixture', () => {
     ['action 프로퍼티 자체가 없음', NO_ACTION_SOURCE],
     ['positional 파라미터', POSITIONAL_SOURCE],
     ['이름만 비슷한 타입 (AuditActionOf)', LOOKALIKE_TYPE_SOURCE],
+    ['화살표 함수 클래스 필드에 맨 union', ARROW_FIELD_BARE_SOURCE],
   ])('%s → 잡는다', (_label, src) => {
     expect(findUnboundHelpers(parse(src))).toHaveLength(1);
+  });
+
+  it('화살표 함수 필드라도 묶여 있으면 통과한다 (판정은 문법이 아니라 바인딩)', () => {
+    expect(findUnboundHelpers(parse(ARROW_FIELD_BOUND_SOURCE))).toEqual([]);
+  });
+
+  it('화살표 함수 필드를 실제로 수집한다 — 종전에는 탐지 0건이었다', () => {
+    // 이 단언이 없으면 "안 잡는다" 와 "잡았는데 묶여 있다" 가 구분되지 않는다.
+    expect(parse(ARROW_FIELD_BOUND_SOURCE)).toHaveLength(1);
   });
 
   it('이름이 다른 메서드는 아예 수집하지 않는다', () => {
