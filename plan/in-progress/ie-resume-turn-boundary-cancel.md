@@ -565,6 +565,17 @@ CRITICAL 1건은 cafe24-api-catalog `mains_update`/`mains_delete` 의 pre-existi
       로그)하되 **취소 분류는 유지**한다. 삼키는 것이 아니라, 실패의 처방이 분류 변경이
       아니기 때문이다 — 감사 적재 실패(`#1259`)와 같은 판단이다. 뮤턴트(try/catch 제거) →
       RED 1.
+- [ ] **마킹 실패 진단 로그가 두 실패 원인을 구분하지 않는다** (C-4 리뷰 3R INFO 1).
+      `assertLinkedTransitionApplied` 의 catch 는 `markNodeCancelled` 내부의
+      `save()`·`emitNode()` **두 순차 await** 를 하나로 묶어 잡는다. `save()` 는 성공하고
+      `emitNode()` 만 실패한 경우에도 *"짝 row 가 non-terminal 로 잔류할 수 있다"* 를 남겨,
+      **이미 CANCELLED 로 커밋된 상태를 오도**한다 — 조사자가 없는 non-terminal row 를
+      찾으러 간다.
+
+      정확히 진단하려면 두 await 를 별도 `try` 로 쪼개야 하는데, 그건 C-4 가 닫은 결함(취소
+      분류)과 무관한 **구조 변경**이라 분리했다. **미조치이며 우선순위 판단**이다.
+      재개 신호: 그 로그가 실제 조사에서 오도한 관측.
+
 - [ ] **테스트 위생** — 트랜잭션 mock 헬퍼 3중 중복(두 쌍은 인자 순서가 반대) ·
       > **`[7]` 은 4곳이 아니라 3곳이다 (2026-08-29 재실측).**
       > `grep -rn 'as unknown\[\])\[7\]' codebase/backend/src` = **3**. 아래 본문의 "4곳" 만
