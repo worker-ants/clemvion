@@ -55,6 +55,21 @@ spec_impact:
 - [x] ~~`persisted=false` 분기를 mock 경계 밖에서 재검증~~ — **전제가 틀려 불요.**
       `mockResolvedValueOnce(false)` 3건(complete·fail·cancel)이 이미 있고 대조군도 있다.
       단위 커버리지는 처음부터 온전했다.
+- [ ] **`markSpawnedRowFailed` 근접 명명 교차 참조** (`--impl-done` 18_43_01 W2).
+      신규 `RetryTurnService.markSpawnedRowFailed` 가 기존
+      `ExecutionEngineService.markSpawnedRowFailedOnPublishError` 와 근접 명명이다 —
+      **이 함정은 이미 한 번 발동했다**: 2026-08-29 재실측 때 부분 일치 grep 이 후자 5건을
+      물어 "추출 이미 완료" 로 오판했다(위 §W3 주석에 기록).
+
+      체커 제안은 신규 메서드 JSDoc 에 "cf. 다른 클래스, WS publish 실패 전용" 한 줄을
+      **코드 쪽에도** 두라는 것이다. 함정 자체는 이미 이 plan 에 적혀 있으므로 정보는
+      존재하고, 요청은 중복 배치다. 체커도 **"필수 아님"** 으로 판정했다.
+
+      이번에 안 하는 이유: `codebase/` 편집이라 리뷰·`--impl-done` **두 게이트를 다시**
+      리셋한다 — 교차 참조 한 줄의 값어치와 맞지 않는다. **미조치이며 우선순위 판단**이다.
+      재개 신호: 이 파일을 다음에 손댈 때, 또는 `markExecutionFailed` 공용 헬퍼 승격 시
+      통합 검토 대상에 포함.
+
 - [ ] **통합 레벨 관측** — 남는 진짜 갭은 "driver 가 실제로 `false` 를 만들어 주는가" 다.
       `8332d9a20` 이후 그 값이 실신호가 됐으므로, 배포 후 동시 cancel 시 선점 분기가
       실제로 타는지 로그로 확인한다(`update-returning-tuple-shape.md` §후속 배포 관측과 병합).
@@ -75,6 +90,14 @@ spec_impact:
 
 **"우선순위 판단" 이지 "문서화됐다" 가 아니다** — 앞 세 건은 diff 위생 판단이고, 재개 신호는
 "이 파일을 다음에 손댈 때" 다.
+
+### 정정 2 (`--impl-done` 18_43_01 W1) — 표를 안 고쳤다
+
+라운드별 체크박스만 갱신하고 **이 문서가 스스로 "단일 진실 목록" 이라 지정한 §코드 표**(아래)를
+안 고쳤다. 같은 문서 안에서 **"여러 사본 중 하나만 갱신"** 이 또 났다.
+
+체커는 3행(#5·#9·#10)을 지목했는데 **세어 보니 7행**이었다 — #3(부분 진행) · #6(질문 재정의) ·
+#7 · #11 이 더 있었다. 지목된 것만 고쳤으면 절반만 갱신한 채 "고쳤다" 고 적었을 것이다.
 
 ### 정정 (C-4 리뷰 2R)
 
@@ -511,15 +534,15 @@ RESOLUTION: `review/code/2026/07/28/00_44_54/RESOLUTION.md`.
 |---|---|---|---|
 | 1 | `applyRetryLastTurn` 재진입 가드를 **원자 claim** 으로 전환 — **구현 완료** `b351731f0`. 단 claim **삽입 위치** 결함 2건(CRITICAL#1: "손상 판정" 이 claim 보다 앞에 있어 살아있는 delivery 오판·FAILED 오마킹, CRITICAL#2: claim 성공 후 not-found 분기의 stale full-entity `save()` 가 claim 이 지운 `_retryState` 를 TypeORM jsonb diff 로 부활)이 후속 ai-review 에서 발견돼 **6R 에서 수정 완료** | **P1 완료** | 1R W1 → 5R **CRITICAL 승격** → 코드화 `b351731f0` → 6R 결함 발견·수정 |
 | 2 | `EXECUTION_CANCELLED` payload 에 `cancelledBy` 추가 — **P2 완료** ([`eia-terminal-emit-facade`](../complete/eia-terminal-emit-facade.md) 가 흡수, 2026-08-15). 처방이었던 `emitCancellationEvent` 재사용 대신 **타입 파사드가 `cancelledBy` 를 필수 필드로 만들어** 컴파일러가 이 경로를 드러냈다. spec 단언도 함께 이관. 계약 SoT 는 [EIA §6 행동 계약](../../spec/5-system/14-external-interaction-api.md#executioncancelled-의-행동-계약-normative) | **P2 완료** | 5R W1 (+ impl-done cross_spec 독립 확인) |
-| 3 | atomic-consume SQL(JSONB `-` + `jsonb_exists`) 실 Postgres 검증 — unit·e2e 어느 계층에도 없음. **6R 이후 범위 확장**: `retryLastTurn` 의 원본 claim 뿐 아니라 `applyRetryLastTurn`/`claimSpawnedRetryRow` 의 2차 claim 도 동일 갭 — mock 이 SQL 조건을 평가하지 않아 실 DB 의 `jsonb_exists`/`status` 매칭 결과(동시 UPDATE 상황의 정확한 1/0 반환)를 검증하지 못한다 | P2 | 5R W6 → 6R W7 |
+| 3 | atomic-consume SQL 실 Postgres 검증 — **부분 진행 (2026-09-01, C-4).** "unit·e2e 어느 계층에도 없음" 은 이제 **틀리다**: unit 이 `set`/`andWhere` 인자를 포착해 `jsonb_exists` 가드와 키 제거식을 고정했다(가드 제거 뮤턴트 → 나머지 46 GREEN 이던 것이 RED). **남는 것은 실 Postgres 검증뿐**이다. **6R 이후 범위 확장**: `retryLastTurn` 의 원본 claim 뿐 아니라 `applyRetryLastTurn`/`claimSpawnedRetryRow` 의 2차 claim 도 동일 갭 — mock 이 SQL 조건을 평가하지 않아 실 DB 의 `jsonb_exists`/`status` 매칭 결과(동시 UPDATE 상황의 정확한 1/0 반환)를 검증하지 못한다 | P2 | 5R W6 → 6R W7 |
 | 4 | COALESCE 경로 실 DB e2e — 신규 패턴이고 현재 근거는 TypeORM 소스 정적 확인뿐 | P2 | 5R (RESOLUTION 한계 명시) |
-| 5 | `execution.error` 미클리어 — **성공(COMPLETED) 종결에서도** 옛 실패 메시지 재기록 가능 | P3 | 4R INFO 2 |
-| 6 | COMPLETED 타깃 멱등 분기도 CANCELLED 와 같은 시각 부풀림 소지 — 대칭 검토 | P3 | 4R 신규 |
-| 7 | `!nodeExec` · `retryAfterSec` fallback · 타임스탬프 부재 분기 미검증 | P3 | 2R INFO 14 = 5R W7 |
+| 5 | ~~`execution.error` 미클리어~~ — **완료 (2026-09-01, C-4).** `prepareSuccessTermination` 이 두 성공 종결 경로에서 비운다. RED 로 실증 후 수정, 호출부 각각 뮤테이션 고정 | ✅ | 4R INFO 2 → C-4 |
+| 6 | COMPLETED 멱등 분기 — **질문이 바뀌었다 (2026-09-01, C-4).** COALESCE 는 "두 writer 중 이른 쪽이 진실" 인 모양의 처방인데 COMPLETED 엔 그 비대칭이 없다. 남는 질문은 **"두 흐름이 한 실행을 동시에 COMPLETED 로 몰 수 있는가"** | P3 | 4R 신규 → C-4 재정의 |
+| 7 | ~~`!nodeExec` · `retryAfterSec` fallback · 타임스탬프 부재 분기 미검증~~ — **완료 (2026-09-01, C-4).** 각 fixture 를 그 분기를 실제로 가르는 값으로 잡고 뮤테이션 3축 RED | ✅ | 2R INFO 14 = 5R W7 → C-4 |
 | 8 | ~~`forwardRef` 근거 주석 모순~~ → **전제 반증, 종결(무조치)**. 지적은 "`AiTurnOrchestrator` 의 forwardRef 근거 주석이 순환을 잘못 인용한다" 였는데 **`ai-turn-orchestrator.service.ts` 에는 `forwardRef` 가 존재하지 않는다**: 워킹트리 0건 · `origin/main` 0건 · **전 ref 대상 `git log -S "forwardRef" -- <file>` 결과 이 파일을 건드린 커밋 0개**(= 있었다가 지워진 것도 아님). 그 파일은 단방향 `@Inject(ENGINE_DRIVER)` 만 쓰고 `RetryTurnService` 언급도 0건이다. `AiTurnOrchestrator` 용 forwardRef 는 **엔진 쪽**(`execution-engine.service.ts:781`)에 있고 그 근거 주석은 네 갈래 전부 사실과 일치한다 — forwardRef 대상 3종(781 AiTurn·785 Form·787 Button)이 "AiTurn/Form/Button 양방향 유지" 와 일치, 엔진의 `RetryTurnService` 주입 0건, 주석이 지목한 외부 진입점 2곳(`websocket.gateway.ts:121`·`continuation-execution.processor.ts:66`)이 실제로 직접 주입, 단방향 `Retry→engine(ENGINE_DRIVER)` 유지. **정정할 주석이 없다.** ⚠️ 12R RESOLUTION 의 "실측 확정 → forwardRef 는 잔재" 판정은 **틀렸다** — 나는 지적 대상(`AiTurnOrchestrator` 의 forwardRef)이 아니라 다른 것(`RetryTurnService` 주입 수)을 세고, 존재하지 않는 forwardRef 를 "잔재" 라 단정했다. 매칭 "3건" 수치도 오측(실제 7건, 전부 한 파일의 주석) | ~~P3~~ 종결 | 1R INFO 1 = 2R W2 = 3R W3 = 5R W3 = 12R W1 (**5회 재보고 — 전원 전제 미검증**. 교훈: 반복 보고는 신뢰 근거가 아니다. 대상의 **존재 여부**를 먼저 재라) |
-| 9 | `markSpawnedRowFailed` 추출 (3곳 반복) | P3 | 1R W3 = 5R W5 = **7R W8 재지적**(`review/code/2026/07/30/11_41_20`) |
-| 10 | `finalizeGuarded` in-place 변이 은닉 — `{persisted, live}` 또는 `@param` 명시 | P3 | 1R INFO 2 = 2R W3 |
-| 11 | `resumeGraphAfterRetry` 자연 종결이 `finalizeGuarded` 미경유 (참조 동일성 불변식 의존) | P3 | 2R INFO 2 |
+| 9 | ~~`markSpawnedRowFailed` 추출~~ — **완료 (2026-09-01, C-4).** 반복은 3곳이 아니라 **2곳**이었다(:389·:401 — 3번째는 6R CRITICAL#1 수정에서 삭제됨) | ✅ | 1R W3 = 5R W5 = 7R W8 → C-4 |
+| 10 | ~~`finalizeGuarded` in-place 변이 은닉~~ — **완료 (2026-09-01, C-4).** `@param` 을 택했다 — 변이 대상이 셋(`status`·`durationMs`·`finishedAt`)이라 `{persisted, live}` 순수 반환은 되쓰기를 담지 못한다 | ✅ | 1R INFO 2 = 2R W3 → C-4 |
+| 11 | ~~`resumeGraphAfterRetry` 자연 종결이 `finalizeGuarded` 미경유~~ — **완료 (2026-09-01, C-4).** 통일 대신 **불변식 주석**을 택했다. 깨지는 조건(엔티티 재조회/교체)을 함께 적어 재발 신호를 남겼다 | ✅ | 2R INFO 2 → C-4 |
 | 12 | 멱등 분기 회고 주석 약 40줄 정리 (실제 제어흐름 6~7줄) | P3 | 5R W4 |
 | 13 | 테스트 `createQueryBuilder` mock 팩토리 통합 (6곳) | P3 | 4R W6 = 5R |
 | 14 | 멱등 분기의 driver choke point 우회 흡수 — self-transition capability 승격. `emitTerminalExecutionMetrics` 미경유도 함께 | P3 | 4R W2 = 5R W2 |
