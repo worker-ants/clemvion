@@ -161,6 +161,12 @@ describe("findBrokenPlanLinks (living plans)", () => {
     fs.mkdirSync(dir, { recursive: true });
     fs.mkdirSync(path.join(root, "plan", "complete"), { recursive: true });
     fs.writeFileSync(path.join(root, "plan", "complete", "moved.md"), "# Moved\n");
+    // `plan/complete/**` 는 스코프 밖이다 — 시점 기록의 깨진 링크는 정상 상태다.
+    // 이 파일은 `sealed.md` 로 **일부러 깨진 링크**를 품는다(아래 전용 단언이 고정).
+    fs.writeFileSync(
+      path.join(root, "plan", "complete", "sealed.md"),
+      mkLink("sealed dead", "./gone.md"),
+    );
 
     fs.writeFileSync(
       path.join(dir, "live.md"),
@@ -196,6 +202,19 @@ describe("findBrokenPlanLinks (living plans)", () => {
 
   it("reports the DEAD sibling link a plan move leaves behind", () => {
     expect(fingerprint(findBrokenPlanLinks(root))).toEqual(["DEAD ./moved.md"]);
+  });
+
+  // `plan/complete/**` 제외는 **의도된 계약**이고 이번 PR 이 `plan-lifecycle.md §3` 에
+  // 명문화했다. 그런데 이 자매 스코프 결정(하위 폴더·`0-`/`_` 접두·코드펜스)들이 전부
+  // fixture 로 고정돼 있는 사이 이 조합만 산문에만 있었다(리뷰 3R testing WARNING).
+  //
+  // 문서화한 보장은 코드로 봉인한다 — 안 그러면 `collectLivePlanMarkdown` 이 `complete/`
+  // 까지 넓혀지는 회귀가 그 문서가 경고하는 "대량 실패" 를 그대로 일으킨다.
+  it("plan/complete/ 의 깨진 링크는 보고하지 않는다 — 봉인된 시점 기록", () => {
+    const reported = fingerprint(findBrokenPlanLinks(root));
+    expect(reported).not.toContain("DEAD ./gone.md");
+    // 대조군: 같은 스캔이 살아있는 쪽 위반은 실제로 잡고 있다(0건이면 vacuous).
+    expect(reported).toEqual(["DEAD ./moved.md"]);
   });
 
   it("ignores links inside fenced code blocks", () => {

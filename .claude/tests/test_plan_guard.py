@@ -325,6 +325,20 @@ class FilesystemHelpersTest(unittest.TestCase):
             )
             self.assertFalse(pg._all_checkboxes_done(tmp, os.path.relpath(p, tmp)))
 
+    def test_own_done_plus_quoted_done_is_completion(self):
+        """자기 닫힌 항목 + 인용문 닫힌 항목 공존 → 완료. 비대칭의 **참** 경로.
+
+        비대칭 카운팅이 "닫힌 항목을 자기 것만 센다" 로 좁아졌으므로, 자기 것이 하나라도
+        있으면 인용문 안 닫힌 항목이 더 있어도 완료 판정이 나와야 한다 — 좁힘이 참 경로까지
+        먹지 않았는지 고정한다.
+        """
+        with tempfile.TemporaryDirectory() as tmp:
+            p = self._make_plan(
+                tmp, "x.md", worktree="t",
+                body="## tasks\n- [x] 내 작업\n> - [x] 인용한 남의 완료 항목\n",
+            )
+            self.assertTrue(pg._all_checkboxes_done(tmp, os.path.relpath(p, tmp)))
+
     def test_quoted_open_still_vetoes_alongside_own_done(self):
         """비대칭이 열린 쪽 거부권을 **약화시키지 않았다** — 원 결함의 캐너리.
 

@@ -48,6 +48,10 @@ const TOOL_TAGS = [
   "parameter",
 ] as const;
 
+/** 스캔 루트 — `walkTree` 에 넘기는 하위 디렉터리. */
+const SCAN_ROOTS = ["plan", "spec"] as const;
+type ScanRoot = (typeof SCAN_ROOTS)[number];
+
 /**
  * 전제 테스트의 하한 — **루트별로** 건다.
  *
@@ -90,9 +94,6 @@ interface StrayHit {
  * 초판은 이 `walkTree` 호출을 `findStrayTags` 와 전제 테스트에 각각 복제했다. 사본이 둘이면
  * `skipDir` 같은 옵션이 한쪽만 바뀌어도 아무도 모른다(리뷰 1R testing WARNING).
  */
-const SCAN_ROOTS = ["plan", "spec"] as const;
-type ScanRoot = (typeof SCAN_ROOTS)[number];
-
 function collectScanTargets(root: string, subdirs: readonly string[] = SCAN_ROOTS) {
   return walkTree(root, subdirs, {
     // `archive/` 는 옛 memory/user_memo 보관소다 — 라이프사이클 문서가 아니라 제외한다.

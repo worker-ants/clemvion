@@ -23,7 +23,7 @@ code:
 ③ historical-artifact 예외 레지스트리.
 
 **적용 범위**: 본 규율은 `code:` 의 `ErrorCode` enum(`codebase/backend/src/nodes/core/error-codes.ts` —
-명명이 중앙화된 **대표 surface 중 하나**. 나머지 하나는 아래 문단 참조)뿐 아니라 **프로젝트 전체의 에러 코드 문자열**에 적용된다 — API·통합·
+명명이 중앙화된 **대표 surface 중 하나**)뿐 아니라 **프로젝트 전체의 에러 코드 문자열**에 적용된다 — API·통합·
 OAuth 등에서 인라인 문자열 리터럴로 발행되는 코드(`CAFE24_*`, `OAUTH_*` 등)를 포함한다.
 
 **대표 surface 는 둘이다.** 같은 파일(`nodes/core/error-codes.ts`)에 `ErrorCode` 와

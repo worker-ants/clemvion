@@ -246,7 +246,12 @@ def _plan_handled(plan_rel: str, plan_changes: list[str]) -> bool:
 
 
 def _all_checkboxes_done(repo_root: str, plan_rel: str) -> bool:
-    """True when the plan has at least one checkbox and none are open (`[ ]`)."""
+    """True when the plan has at least one checkbox and none are open (`[ ]`).
+
+    인용문(`>`) 안 체크박스는 **비대칭**으로 센다 — 열린 항목은 인용문 안이어도 거부권을
+    갖고(숨은 잔여를 잡는다), 닫힌 항목은 자기 것만 "체크리스트다" 의 증거로 센다(남의
+    완료 목록 인용이 허위 완료를 만들지 못하게). 근거는 `_CHECKBOX` 위 주석.
+    """
     path = os.path.join(repo_root, plan_rel)
     open_count = done_count = 0
     in_frontmatter = False
