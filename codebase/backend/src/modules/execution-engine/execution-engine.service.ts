@@ -4305,7 +4305,21 @@ export class ExecutionEngineService
         // 가리지 않도록 여기서 흡수하고 마킹만 skip 한다 — `CoreEngineDriver` JSDoc
         // 의 choke point 예외 참조.
         try {
-          await this.updateExecutionStatus(reloaded, ExecutionStatus.FAILED);
+          // C-4 (`ie-resume-turn-boundary-cancel.md` 8R) — **반환값도 소비한다.**
+          // 종전에는 `false`(동시 Stop 이 이미 terminal 로 선점 → 0행 매칭)가
+          // 조용히 버려져, 형제 종결 경로(`failFirstSegmentSetup`)는 같은 상황에
+          // warn 을 남기는데 여기만 무로그였다. 동작은 양쪽 다 정확하지만 관측이
+          // 갈리면 "왜 이 실행만 FAILED 가 안 찍혔나" 를 로그로 추적할 수 없다.
+          const persisted = await this.updateExecutionStatus(
+            reloaded,
+            ExecutionStatus.FAILED,
+          );
+          if (!persisted) {
+            this.logger.warn(
+              `executeSync(${savedExecution.id}): 동시 cancel 이 이미 terminal 로 ` +
+                `선점 — timeout FAILED 마킹 skip`,
+            );
+          }
         } catch (transitionErr) {
           this.logger.warn(
             `executeSync(${savedExecution.id}) timeout 마킹 skip — ` +

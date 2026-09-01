@@ -190,10 +190,17 @@ describe('RetryTurnService', () => {
 
     let qbExecuteAffected: number;
     let createdEntities: Array<Record<string, unknown>>;
+    // C-4 (`retry-turn-terminal-guard.md` W6) — 원자 consume 의 SQL 은 어느 계층에서도
+    // 평가되지 않았다: 이 체이너가 인자를 버렸고 e2e 도 `retry_last_turn` 0건이었다.
+    // 중복 spawn 차단이라는 이 메서드의 핵심 불변식이 **가드를 지워도 초록**이었다.
+    let consumeSetArgs: Array<Record<string, unknown>>;
+    let consumeAndWhereSql: string[];
 
     function installRetryMocks(nodeExec: Record<string, unknown> | null) {
       qbExecuteAffected = 1;
       createdEntities = [];
+      consumeSetArgs = [];
+      consumeAndWhereSql = [];
       mockNodeExecutionRepo.findOneBy = jest.fn().mockResolvedValue(nodeExec);
       // dataSource.transaction → manager with create / save / createQueryBuilder.
       (service as unknown as { dataSource: unknown }).dataSource = {
@@ -209,9 +216,15 @@ describe('RetryTurnService', () => {
               createQueryBuilder: jest.fn(() => {
                 const qb = {
                   update: jest.fn(() => qb),
-                  set: jest.fn(() => qb),
+                  set: jest.fn((v: Record<string, unknown>) => {
+                    consumeSetArgs.push(v);
+                    return qb;
+                  }),
                   where: jest.fn(() => qb),
-                  andWhere: jest.fn(() => qb),
+                  andWhere: jest.fn((sql: string) => {
+                    consumeAndWhereSql.push(sql);
+                    return qb;
+                  }),
                   execute: jest.fn(async () => ({
                     affected: qbExecuteAffected,
                   })),
@@ -224,6 +237,32 @@ describe('RetryTurnService', () => {
         ),
       };
     }
+
+    // C-4 — 원자 consume 의 **SQL 형태**를 고정한다. `affected=0` 분기는 이미 덮여
+    // 있었지만(위 'concurrent consume removed the key'), 그건 mock 이 돌려준 숫자를
+    // 검증할 뿐이다. 실제로 `affected` 를 0으로 만드는 것은 `jsonb_exists` 가드이고,
+    // 그 가드를 지워도 모든 테스트가 초록이었다 — 숫자가 아니라 **조건**을 물어야 한다.
+    it('원자 consume 이 jsonb_exists 가드와 JSONB 키 제거로 구성된다', async () => {
+      installRetryMocks(makeFailedNodeExec());
+
+      await service.retryLastTurn(EXEC, NE_ID);
+
+      // [전제] consume UPDATE 가 실제로 조립됐다 — 아니면 아래 단언이 vacuous 다.
+      expect(consumeSetArgs).toHaveLength(1);
+      expect(consumeAndWhereSql).toHaveLength(1);
+
+      // 키 제거는 JSONB `-` 로 **그 키만** 지운다. 컬럼을 통째로 덮어쓰면 동시에
+      // 기록된 다른 outputData 키가 사라진다.
+      const setOutput = consumeSetArgs[0].outputData;
+      expect(typeof setOutput).toBe('function');
+      expect((setOutput as () => string)()).toBe("output_data - '_retryState'");
+
+      // 레이스를 차단하는 것은 이 가드다. `?` 대신 `jsonb_exists` 를 쓰는 이유는
+      // pg 드라이버가 `?` 를 바인드 파라미터로 오인하기 때문(소스 주석 참조).
+      expect(consumeAndWhereSql[0]).toBe(
+        "jsonb_exists(output_data, '_retryState')",
+      );
+    });
 
     it('spawns a new NodeExecution when TTL is valid', async () => {
       installRetryMocks(makeFailedNodeExec());
@@ -333,6 +372,71 @@ describe('RetryTurnService', () => {
       await expect(service.retryLastTurn(EXEC, NE_ID)).rejects.toMatchObject({
         code: 'RETRY_TOO_EARLY',
       });
+    });
+
+    // C-4 (`retry-turn-terminal-guard.md` 2R INFO 14) — 아래 셋은 어느 라운드에서도
+    // 검증된 적이 없다. 각 fixture 는 **그 분기를 실제로 가르는** 값이어야 한다 —
+    // 분기를 못 가르는 값으로 통과시키면 GREEN 이 증거가 되지 못한다.
+
+    // (1) row 자체가 없는 경우. 형제 케이스(`executionId` 불일치)는 있었지만
+    //     `!nodeExec` 쪽은 없었다 — 같은 `if` 의 다른 항이다.
+    it('rejects with INVALID_EXECUTION_STATE when the NodeExecution row is absent', async () => {
+      installRetryMocks(null);
+      await expect(service.retryLastTurn(EXEC, NE_ID)).rejects.toMatchObject({
+        code: 'INVALID_EXECUTION_STATE',
+      });
+    });
+
+    // (2) `retryAfterSec` 를 `_retryState` 에서 읽는 fallback. 위 기존 테스트는
+    //     `details.retryAfterSec` 쪽만 태운다 — details 에서 **빼야** 이 항이 갈린다.
+    it('reads retryAfterSec from _retryState when output.error.details omits it', async () => {
+      installRetryMocks(
+        makeFailedNodeExec({
+          finishedAt: new Date(),
+          outputData: {
+            output: {
+              error: {
+                code: 'LLM_RATE_LIMIT',
+                // retryAfterSec 없음 — fallback 이 없으면 카운트다운 자체가 안 걸린다.
+                details: { retryable: true },
+              },
+            },
+            _retryState: {
+              messages: [],
+              expiresAt: futureIso(),
+              retryAfterSec: 120,
+            },
+          },
+        }),
+      );
+      await expect(service.retryLastTurn(EXEC, NE_ID)).rejects.toMatchObject({
+        code: 'RETRY_TOO_EARLY',
+      });
+    });
+
+    // (3) 카운트다운 기준 시각이 **둘 다 없는** 경우. `finishedAt ?? startedAt` 가
+    //     undefined 면 `typeof finishedAtMs === 'number'` 가 false 라 enforcement 를
+    //     건너뛴다 — 시각을 모르는데 막으면 영영 재시도할 수 없기 때문이다.
+    //     retryAfterSec 는 크게 잡는다: 기준 시각이 하나라도 살아 있으면 TOO_EARLY 로
+    //     떨어지므로, 통과한다는 사실 자체가 "둘 다 없음" 을 가른다.
+    it('skips the retryAfterSec countdown when both finishedAt and startedAt are absent', async () => {
+      installRetryMocks(
+        makeFailedNodeExec({
+          startedAt: null,
+          finishedAt: null,
+          outputData: {
+            output: {
+              error: {
+                code: 'LLM_RATE_LIMIT',
+                details: { retryable: true, retryAfterSec: 86_400 },
+              },
+            },
+            _retryState: { messages: [], expiresAt: futureIso() },
+          },
+        }),
+      );
+      const result = await service.retryLastTurn(EXEC, NE_ID);
+      expect(result.spawnedNodeExecutionId).toBe('ne-spawned');
     });
   });
 
@@ -846,6 +950,53 @@ describe('RetryTurnService', () => {
       );
     });
 
+    // C-4 (`retry-turn-terminal-guard.md` 5R INFO 2) — retry 는 **FAILED 실행에서**
+    // 시작하므로 로드된 엔티티가 이전 시도의 `error` 를 들고 있다. 자연 종결 경로는
+    // `outputData`·`finishedAt`·`durationMs` 만 세팅하고 `error` 는 건드리지 않는데,
+    // driver 의 guarded UPDATE 는 `error = $8::jsonb` 로 그 값을 **그대로 영속**한다
+    // → `status='completed'` 인데 `error` non-null 인 모순 레코드.
+    //
+    // 값을 **호출 시점에 스냅샷**한다. `toHaveBeenCalledWith` 나 사후 `execution.error`
+    // 는 같은 객체를 뒤늦게 보는 것이라, 나중에 누가 지우면 통과해 버린다.
+    it('자연 종결이 이전 시도의 error 를 비운다 — completed 인데 error 가 남지 않는다', async () => {
+      execution.error = { message: '이전 시도의 실패' };
+      (
+        mockAiTurnOrchestrator.processAiResumeTurn as jest.Mock
+      ).mockImplementation((exec: { status: ExecutionStatus }) => {
+        exec.status = ExecutionStatus.RUNNING;
+        return Promise.resolve(undefined);
+      });
+      (mockDriver.loadAndBuildGraph as jest.Mock).mockResolvedValue({
+        nodes: [{ id: NODE_ID }],
+        sortedNodeIds: [NODE_ID],
+        sortedIndexMap: new Map([[NODE_ID, 0]]),
+        backEdgeMap: new Map(),
+        outgoingEdgeMap: new Map(),
+        nodeMap: new Map([[NODE_ID, { id: NODE_ID }]]),
+        forwardEdges: [],
+      });
+      (mockDriver.runNodeDispatchLoop as jest.Mock).mockResolvedValue({
+        parked: false,
+      });
+
+      const NOT_CALLED = Symbol('completion-not-reached');
+      let errorAtCompletion: unknown = NOT_CALLED;
+      (mockDriver.updateExecutionStatus as jest.Mock).mockImplementation(
+        (exec: Record<string, unknown>, status: ExecutionStatus) => {
+          if (status === ExecutionStatus.COMPLETED) {
+            errorAtCompletion = exec.error ?? null;
+          }
+          return Promise.resolve(true);
+        },
+      );
+
+      await service.applyRetryLastTurn(EXEC, SPAWNED_ID);
+
+      // [전제] COMPLETED 종결에 실제로 도달했다 — 아니면 아래 단언이 vacuous 다.
+      expect(errorAtCompletion).not.toBe(NOT_CALLED);
+      expect(errorAtCompletion).toBeNull();
+    });
+
     // W-7 — resumeGraphAfterRetry defensive fallback (graph 비어 있음) →
     // completeRetryExecution 으로 Execution.COMPLETED 마감, dispatch loop 미진입.
     it('W-7: falls back to completeRetryExecution when the rebuilt graph has no nodes', async () => {
@@ -880,6 +1031,42 @@ describe('RetryTurnService', () => {
           durationMs: expect.any(Number) as unknown,
         },
       );
+    });
+
+    // C-4 — 위 자연 종결과 **같은 불변식을 fallback 경로에서** 고정한다.
+    // 두 경로가 `prepareSuccessTermination` 을 공유하지만, 한쪽 호출이 빠지는 회귀는
+    // 헬퍼 테스트로는 안 잡힌다 — 호출부마다 걸어야 한다.
+    it('fallback 종결(completeRetryExecution)도 이전 시도의 error 를 비운다', async () => {
+      execution.error = { message: '이전 시도의 실패' };
+      (
+        mockAiTurnOrchestrator.processAiResumeTurn as jest.Mock
+      ).mockResolvedValue(undefined);
+      (mockDriver.loadAndBuildGraph as jest.Mock).mockResolvedValue({
+        nodes: [],
+        sortedNodeIds: [],
+        sortedIndexMap: new Map<string, number>(),
+        backEdgeMap: new Map(),
+        outgoingEdgeMap: new Map(),
+        nodeMap: new Map(),
+        forwardEdges: [],
+      });
+
+      const NOT_CALLED = Symbol('completion-not-reached');
+      let errorAtCompletion: unknown = NOT_CALLED;
+      (mockDriver.updateExecutionStatus as jest.Mock).mockImplementation(
+        (exec: Record<string, unknown>, status: ExecutionStatus) => {
+          if (status === ExecutionStatus.COMPLETED) {
+            errorAtCompletion = exec.error ?? null;
+          }
+          return Promise.resolve(true);
+        },
+      );
+
+      await service.applyRetryLastTurn(EXEC, SPAWNED_ID);
+
+      // [전제] fallback 이 실제로 COMPLETED 종결에 도달했다.
+      expect(errorAtCompletion).not.toBe(NOT_CALLED);
+      expect(errorAtCompletion).toBeNull();
     });
 
     // W-7 — resumeGraphAfterRetry defensive fallback (completedNode 가 sorted

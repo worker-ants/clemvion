@@ -382,6 +382,10 @@ export class AiTurnOrchestrator {
    *      성공 페이로드를 노출하지 않도록), `markNodeCancelled` 로 CANCELLED
    *      마킹 + terminal 이벤트(`NODE_CANCELLED`) 발행 — 방치하면 영구
    *      RUNNING(non-terminal) 로 잔류한다(concurrency WARNING #1).
+   *      마킹이 **실패해도 취소 분류는 유지한다** (C-4) — `markNodeCancelled` 의
+   *      reject 를 흡수하고 로그로만 관측한다. 그대로 전파하면 아래 2번이 실행되지
+   *      않아 상위가 취소를 FAILED 로 오분류한다. 대가는 짝 row 가 non-terminal 로
+   *      잔류할 수 있다는 것이고, 그것이 로그에 남는 이유다.
    *   2. `ExecutionCancelledError` 를 던져 상위(기존 취소 종결 경로,
    *      `finalizeResumedExecutionOutcome` → cancelled)로 넘긴다 — 그대로
    *      진행하면 취소된 실행이 정상 park/완료처럼 보인다. 메시지 접미사는
@@ -406,7 +410,30 @@ export class AiTurnOrchestrator {
       // 여기서 선제적으로 비워야 잔존을 막는다.
       nodeExec.outputData = {};
       nodeExec.error = {};
-      await this.driver.markNodeCancelled(nodeExec, node, context, executionId);
+      try {
+        await this.driver.markNodeCancelled(
+          nodeExec,
+          node,
+          context,
+          executionId,
+        );
+      } catch (err) {
+        // C-4 (`ie-resume-turn-boundary-cancel.md` 8R) — 마킹 실패가 취소
+        // **분류**를 바꾸면 안 된다. 종전에는 이 reject 가 그대로 전파돼
+        // `ExecutionCancelledError` 가 **아예 던져지지 않았고**, 상위가 그것을
+        // 일반 예외로 보고 취소를 FAILED 로 오분류했다 — 이 파일이 반복해 닫아온
+        // 바로 그 계열의 결함이 예외 경로에 남아 있었다.
+        //
+        // 마킹 실패 자체는 여전히 문제다(짝 row 가 non-terminal 로 잔류한다).
+        // 그러나 그 처방은 **관측**이지 분류 변경이 아니다. 무엇이 실패했는지
+        // 알 수 있게 남기고, 취소는 취소로 종결시킨다.
+        this.logger.error(
+          `assertLinkedTransitionApplied(${executionId}): markNodeCancelled 실패 — ` +
+            `짝 NodeExecution ${nodeExec.id} 가 non-terminal 로 잔류할 수 있다. ` +
+            `취소 분류는 유지한다. phase=${phase} ` +
+            `error=${err instanceof Error ? err.message : String(err)}`,
+        );
+      }
     }
     throw new ExecutionCancelledError(
       `Execution ${executionId} cancelled during ${phase}`,

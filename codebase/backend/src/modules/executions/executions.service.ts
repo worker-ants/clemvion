@@ -75,12 +75,17 @@ export const SNAPSHOT_CACHE_MAX_ENTRIES = 256;
  * 응답으로 나가는 Execution — 엔티티와 **마스킹 대상 세 컬럼의 null 가능성만** 다르다
  * (`error` · `inputData` · `outputData`).
  *
- * 엔티티는 이 셋을 `Record<string, unknown>` 로 `| null` 없이
+ * 엔티티는 `inputData`/`outputData` 를 `Record<string, unknown>` 로 `| null` 없이
  * 선언하지만, egress 마스킹 관문({@link ExecutionsService.toResponseExecution})은
  * 값이 없을 때 정직하게 `null` 을 돌려준다. 그 차이를 `as Execution` 로 덮으면 이후
  * 소비자가 그 필드를 null-check 없이 만져도 컴파일러가 침묵한다 — 이 작업이 고치는
  * 결함 클래스(자매 표면 누락)를 타입이 잡아줄 기회를 줄이는 셈이라 명시 타입으로 남긴다.
  *
+ * > **`error` 는 이제 엔티티도 `| null` 이다** (2026-09-01, C-4) — DB 컬럼이 처음부터
+ * > `nullable: true` 였는데 타입만 그것을 안 적고 있었다(성공 종결에서 `error = null` 을
+ * > 쓸 수 없어 드러났다). 그래서 `error` 에 한해 이 타입은 **엔티티와 같고**, 넓히는
+ * > 것은 나머지 둘뿐이다. 아래 서술은 그 정정 이전 이력이다.
+ * >
  * > `outputData` 를 여기 넣은 것은 2026-08-16 이다. 그전엔 `error` 만 넓어져 있었고,
  * > 같은 관문을 걸자 **빌드가 타입 오류로 잡았다** — 유닛 테스트는 통과했는데
  * > `nest build` 만 잡은 자리다.
@@ -1051,8 +1056,11 @@ export class ExecutionsService {
    *
    * ## 반환 타입이 `Execution` 이 아닌 이유
    *
-   * 엔티티는 `error: Record<string, unknown>` 로 **`| null` 없이** 선언돼 있는데
-   * `redactStoredFieldsForResponse` 는 입력이 없으면 정직하게 `null` 을 돌려준다.
+   * `redactStoredFieldsForResponse` 는 입력이 없으면 정직하게 `null` 을 돌려주는데,
+   * 종전엔 엔티티가 `error: Record<string, unknown>` 로 **`| null` 없이** 선언돼 있어
+   * 그 차이가 캐스트로 지워졌다. (엔티티 쪽 타입은 2026-09-01 에 `| null` 로 정정됐다 —
+   * DB 는 처음부터 `nullable: true` 였다. `inputData`/`outputData` 는 여전히 아니라
+   * 아래 논지는 그대로 유효하다.)
    * 종전에는 `as Execution` 로 그 `null` 가능성을 캐스트 뒤에 지웠는데, 그러면 이후
    * 이 결과를 다루는 코드가 `.error` 를 null-check 없이 만져도 컴파일러가 침묵한다 —
    * *"자매 표면 하나를 빠뜨린다"* 는 이 PR 이 고치는 결함 클래스를 타입 시스템이

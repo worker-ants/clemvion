@@ -1,6 +1,9 @@
 ---
 title: IE resume turn 경계 cancel 체크 + park 짝 전이 lost-update 차단
-worktree: ie-resume-signal-6e933d
+worktree: retry-ie-residuals-c4a1b2
+# ↑ 2026-09-01 갱신 (C-4) — 직전 값 `ie-resume-signal-6e933d` 는 머지됐다.
+#   plan_guard 는 `worktree:` basename 을 현재 worktree 명과 매칭하므로, 머지된 값을
+#   두면 이 plan 의 P1 코드 push 에서 가드가 '연결된 plan 없음' 으로 오판한다.
 started: 2026-07-26
 owner: developer
 status: in-progress
@@ -24,6 +27,22 @@ spec_impact:
 >
 > 근본 원인·실측·처방: [`update-returning-tuple-shape.md`](./update-returning-tuple-shape.md).
 > **`plan/complete/` 로 옮기기 전에 6~8차 결론을 수정 후 코드로 재검증할 것.**
+
+## C-4 처분 (2026-09-01)
+
+잔여 12건 중 **2건을 처리**했다(위 각 항목에 인라인). 남긴 10건의 사유:
+
+| 항목 | 남긴 이유 |
+|---|---|
+| 상호참조 링크 3곳 + 백틱 경로 4파일 · 체크리스트 이동 항목 | **plan 이동 시점의 작업**이다. 이 트래커는 아직 열린 항목이 있어 `complete/` 로 가지 않는다 |
+| `markExecutionFailed` 공용 헬퍼 승격 | 3개 종결 경로를 **동시에** 건드리는 리팩터다. 위 반환값 비대칭 한 줄과 회귀 위험이 비교되지 않아 분리했다 |
+| 배포 시 공지 | 코드 조치가 아니다 |
+| 테스트 위생 (tx mock 3중 · `[7]` 매직 인덱스 · `FinalizeSubject` · OR 가드 2항) | 앞 세 건은 diff 위생 판단. **OR 가드 2항 미검증은 실제 커버리지 갭**이라 다음 순번으로 올린다 |
+| `handleAiMessageTurn` 분해 (423줄/4책임) | 이 PR 이 그 함수의 **취소 경로만** 건드렸다. 분해를 얹으면 리뷰가 두 가지를 동시에 봐야 한다 |
+| 줄 번호 앵커 소탕 | 이번에 인용한 두 앵커는 **문구 고정**으로 썼다(줄 번호 미사용). 기존 stale 2곳은 그 파일을 손댈 때 |
+| multi-turn WS 메타 O(N²) | 선재이고 본 계열과 무관하다 |
+
+**전부 "우선순위 판단" 이다** — 문서화되어 있어서가 아니다.
 
 ## Overview
 
@@ -511,10 +530,17 @@ CRITICAL 1건은 cafe24-api-catalog `mains_update`/`mains_delete` 의 pre-existi
 공유 잠금 헬퍼 무력화 / `FOR UPDATE` 제거 / 취소 종결 헬퍼 throw 무력화 /
 짝 `NodeExecution` 마킹 제거 / `finalizeFailedExecution`·`failFirstSegmentSetup` 선점 return 제거.
 
-- [ ] **두 guard 지점 반환값 소비 비대칭** — `failFirstSegmentSetup` 은 선점 시 warn 로그를
-      남기는데 `executeSync` timeout catch 는 무로그로 지나간다(관측성 drift). 동작은 양쪽 다
-      정확. 아래 통합 항목과 함께 처리.
-- [ ] **`markExecutionFailed` 공용 헬퍼 승격** — `finalizeFailedExecution` /
+- [x] **두 guard 지점 반환값 소비 비대칭 — 완료 (2026-09-01, C-4).** `executeSync` timeout
+      catch(`execution-engine.service.ts:4308`)가 `updateExecutionStatus` 의 **반환값을
+      버리고** 있었다. `catch (transitionErr)` 는 로그를 남기는데 `false`(동시 Stop 선점 →
+      0행 매칭)는 조용했다. 형제 `failFirstSegmentSetup` 과 같은 문구로 warn 을 맞췄다.
+      아래 `markExecutionFailed` 통합과 **분리해** 처리했다 — 통합은 3경로를 동시에 건드리는
+      리팩터라 회귀 위험이 이 한 줄과 비교가 안 된다.
+- [ ] **`markExecutionFailed` 공용 헬퍼 승격** — 착수 시 **`finalizeGuarded`(retry-turn)
+      흡수 여부도 스코프에 명시할 것** (C-4 리뷰 2R INFO 4). 두 서비스가 "guarded 종결 +
+      반환값 소비" 를 각자 재구현 중이고, **바로 그 비대칭이 C-4 가 닫은 결함의 근원**이었다
+      (한쪽만 반환값을 관측하고 있었다). 통합 대상을 3경로로 잡으면 같은 병이 네 번째
+      자리에서 또 난다. — `finalizeFailedExecution` /
       `failFirstSegmentSetup` / `executeSync` timeout catch 3곳이 동일한 guarded-마킹 단계를
       각자 재구현 중. 3개 종결 경로를 동시에 건드리는 리팩터라 이 PR 끝단에서 하기엔
       회귀 위험이 이득보다 커 분리한다.
@@ -530,10 +556,26 @@ CRITICAL 1건은 cafe24-api-catalog `mains_update`/`mains_delete` 의 pre-existi
       테스트 위생 문제의 신호가 아니라 **버그의 증거**였는데 위생 항목으로 접수됐다.
       영향 평가("취소 정합성과 무관")도 틀렸다 — `persisted` 는 종결 이벤트 emit 분기를
       가르는 값이다. 근본 원인은 `update-returning-tuple-shape.md` 참조.
-- [ ] **`assertLinkedTransitionApplied` 의 `markNodeCancelled` reject 경로 미검증** — 그 경우
-      원본 예외가 `ExecutionCancelledError` 로 감싸이지 않고 전파돼 상위가 취소를 FAILED 로
-      오분류할 수 있다(이 PR 이 반복해 닫아온 것과 같은 계열). 발생 조건이 "취소 마킹 DB 저장
-      실패" 라 드묾.
+- [x] **`assertLinkedTransitionApplied` 의 `markNodeCancelled` reject 경로 — 완료
+      (2026-09-01, C-4).** 미검증이 아니라 **결함이었다.** reject 가 그대로 전파돼
+      `ExecutionCancelledError` 가 **아예 던져지지 않았고**, 상위가 그것을 일반 예외로 보고
+      취소를 FAILED 로 오분류했다.
+
+      `try`/`catch` 로 감싸 마킹 실패를 **관측**(어느 짝 row 가 non-terminal 로 잔류하는지
+      로그)하되 **취소 분류는 유지**한다. 삼키는 것이 아니라, 실패의 처방이 분류 변경이
+      아니기 때문이다 — 감사 적재 실패(`#1259`)와 같은 판단이다. 뮤턴트(try/catch 제거) →
+      RED 1.
+- [ ] **마킹 실패 진단 로그가 두 실패 원인을 구분하지 않는다** (C-4 리뷰 3R INFO 1).
+      `assertLinkedTransitionApplied` 의 catch 는 `markNodeCancelled` 내부의
+      `save()`·`emitNode()` **두 순차 await** 를 하나로 묶어 잡는다. `save()` 는 성공하고
+      `emitNode()` 만 실패한 경우에도 *"짝 row 가 non-terminal 로 잔류할 수 있다"* 를 남겨,
+      **이미 CANCELLED 로 커밋된 상태를 오도**한다 — 조사자가 없는 non-terminal row 를
+      찾으러 간다.
+
+      정확히 진단하려면 두 await 를 별도 `try` 로 쪼개야 하는데, 그건 C-4 가 닫은 결함(취소
+      분류)과 무관한 **구조 변경**이라 분리했다. **미조치이며 우선순위 판단**이다.
+      재개 신호: 그 로그가 실제 조사에서 오도한 관측.
+
 - [ ] **테스트 위생** — 트랜잭션 mock 헬퍼 3중 중복(두 쌍은 인자 순서가 반대) ·
       > **`[7]` 은 4곳이 아니라 3곳이다 (2026-08-29 재실측).**
       > `grep -rn 'as unknown\[\])\[7\]' codebase/backend/src` = **3**. 아래 본문의 "4곳" 만
