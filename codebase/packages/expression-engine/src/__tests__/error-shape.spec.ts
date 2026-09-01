@@ -52,9 +52,29 @@ describe('ExpressionError 계열의 own-property 모양 (§6.3.1 C2 캐너리)',
     DepthExceededError: ErrorCode.EXPR_DEPTH_EXCEEDED,
   };
 
-  /** `errors.ts` 가 export 하는 `ExpressionError` 하위 클래스 전부 (base 제외). */
+  /**
+   * `errors.ts` 가 export 하는 `ExpressionError` 하위 클래스 전부 (base 제외).
+   *
+   * 발견은 **런타임**(`Object.entries`)이 하고 타입은 **모듈에서 유도**한다 — 명시 배열로
+   * 적으면 새 하위 클래스가 목록에 안 들어와 아래 전수성 단언이 무력해진다(이 테스트의
+   * 존재 이유가 사라진다). 반대로 타입 술어로 `new (message: string) => ExpressionError`
+   * 를 주장하면 그 타입이 `Object.entries` 원소 타입(모듈 export 의 union — 값 enum
+   * `ErrorCode` 포함)의 부분타입이 아니라 TS2677 이 난다. 그래서 이름 쪽을 유도한다.
+   */
+  type ErrorsModule = typeof errors;
+  type SubclassName = Exclude<
+    {
+      [K in keyof ErrorsModule]: ErrorsModule[K] extends abstract new (
+        ...args: never[]
+      ) => ExpressionError
+        ? K
+        : never;
+    }[keyof ErrorsModule],
+    'ExpressionError'
+  >;
+
   const SUBCLASSES = Object.entries(errors).filter(
-    (entry): entry is [string, new (message: string) => ExpressionError] => {
+    (entry): entry is [SubclassName, ErrorsModule[SubclassName]] => {
       const [, value] = entry;
       return (
         typeof value === 'function' &&

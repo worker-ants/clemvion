@@ -3,7 +3,8 @@ title: "spec draft — 아바타 S3 키에서 workspaceId 제외 (§2.7 Rational
 worktree: .claude/worktrees/avatar-upload-public-url-be6022
 started: 2026-09-01
 owner: project-planner
-status: in-progress
+status: applied
+completed: 2026-09-01
 priority: P1
 spec_impact:
   - spec/0-overview.md
@@ -13,6 +14,17 @@ spec_impact:
   - spec/5-system/2-api-convention.md
   - spec/5-system/3-error-handling.md
 ---
+
+> ✅ **적용 완료 (2026-09-01).** `spec/0-overview.md` §2.7 표(`:278`)와 `## Rationale`
+> "S3 객체 키 prefix 설계"(`:376`) 양쪽에 Avatar 예외가 반영됐다 — 본문·표만 고치면 Rationale
+> 이 여전히 "KB 하나뿐" 이라 충돌이 남는다는 것이 이 draft 의 요지였고, 그대로 반영됐다.
+> 나머지 `spec_impact` 5개 파일도 같은 PR(worker-ants/clemvion#1258)에 포함됐다.
+>
+> **이동이 늦었다** — #1258 머지 시점에 옮겼어야 했는데 `in-progress` 에 남아 있었다.
+> 자매 draft 둘(`spec-draft-audit-write-failed-metric` ·
+> `spec-draft-audit-resource-type-count`)은 각자 PR 에서 옮겨졌는데 이것만 빠졌다.
+> `plan/complete/spec-update-avatar-upload-implemented.md:39` 가 이미 `./` 상대경로로
+> **complete/ 안에 있을 것을 전제한 링크**를 갖고 있어, 그동안 그 링크가 깨져 있었다.
 
 ## Overview
 
@@ -366,5 +378,5 @@ KB 제외는 **비용**(prefix scan), Avatar 제외는 **소유 모델**(User �
 ## 관련
 
 - BLOCK 근거: `review/consistency/2026/09/01/01_51_41/SUMMARY.md`
-- 구현·리뷰 이력: [`spec-sync-user-profile-gaps.md`](./spec-sync-user-profile-gaps.md) §6.1
-- 위임 트래커: [`spec-update-avatar-upload-implemented.md`](../complete/spec-update-avatar-upload-implemented.md)
+- 구현·리뷰 이력: [`spec-sync-user-profile-gaps.md`](../in-progress/spec-sync-user-profile-gaps.md) §6.1
+- 위임 트래커: [`spec-update-avatar-upload-implemented.md`](./spec-update-avatar-upload-implemented.md)

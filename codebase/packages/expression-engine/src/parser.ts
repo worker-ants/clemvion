@@ -312,11 +312,14 @@ export class Parser {
         this.advance();
         return { type: 'Identifier', name: token.value };
 
-      case TokenType.LParen:
+      // `case` 는 스코프를 만들지 않는다 — `const` 를 중괄호 없이 두면 형제 `case` 에도
+      // 이름이 보이고 TDZ 에 걸린다(`no-case-declarations`). 블록으로 감싼다.
+      case TokenType.LParen: {
         this.advance();
         const expr = this.parseExpression();
         this.expect(TokenType.RParen, 'Expected )');
         return expr;
+      }
 
       case TokenType.LBracket:
         return this.parseArrayLiteral();
