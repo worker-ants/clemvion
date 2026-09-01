@@ -180,6 +180,29 @@ spec_impact: none
       고 지적했다. 여기서 또 다른 spec 파일을 열면 그 지적을 키운다. **미조치이며 우선순위
       판단**이다 — 재개 신호: 다음 harness 가드 추가 시 함께(그때는 카운트를 한 번만 고친다).
 
+      > **격상 조건 (2026-09-01 `--impl-done` plan_coherence INFO#6)**: 이 유예는 **누적 2회**
+      > 다(1R 등재 + 2~5R 재확인). checker 가 *"세 번째 유예 시 WARNING 격상 근거로 표시해
+      > 둘 것"* 이라 명시했다. **다음에 또 미루면 INFO 가 아니라 WARNING 으로 다룬다** —
+      > 유예가 스스로 갱신되며 영구화하는 것을 막는 조건이다. 유예의 근거(spec 축 과다 번들)는
+      > 이 PR 한정이므로 다음 PR 에서는 그 근거가 사라진다는 점도 함께 적어 둔다.
+
+- [ ] **planner 승인 spec 문구를 developer 가 wording-only 로 고치는 패턴이 규약에 없다**
+      (2026-09-01 `--impl-done` plan_coherence INFO#7 — **planner 검토 대상**).
+
+      이 PR 에서 실제로 그 형태가 나왔다: `error-codes.md` §Overview 는 planner 트랙 draft 가
+      `--spec` 6라운드를 통과해 승인된 문구인데, 그 뒤 **code-review fix 라운드(developer
+      트랙)가 같은 문장을 다듬었다**(1R W2 · 3R INFO#4). checker 판정은 — target 자체는 문제
+      없고 `--impl-done` 사후 그물도 통과하지만, **CLAUDE.md 자기-반증형 소정정의 5조건
+      어디에도 정확히 대응하지 않는 제3의 패턴**이다.
+
+      그 조항은 "developer 가 자기 예고를 실측으로 반증했을 때" 를 다루는데, 이 경우는
+      **반증이 아니라 승인된 범위 안의 표현 다듬기**다. 넓게 읽으면 조항이 만능 통행증이 되고,
+      좁게 읽으면 승인된 draft 를 따라잡는 편집조차 planner 턴을 요구하게 된다.
+
+      **developer 가 단독으로 정할 수 없다** — CLAUDE.md 규약 본문의 문제이므로 planner 턴에서
+      "명문화할지 / 현행 유지할지" 를 결정한다. 판단 재료: 이 PR 의 두 사례와 `--impl-done`
+      2회가 전부 BLOCK:NO 였다는 사실.
+
 - [ ] **frontend 테스트가 어떤 게이트에서도 타입체크되지 않는다** (리뷰 4R maintainability
       W1 의 근본 원인). `tsconfig.json` 이 `src/**/__tests__/**` · `src/**/*.test.ts` 를
       exclude 하고 `vitest run` 은 타입을 strip 한다 → **테스트 코드에 타입 오류가 들어가도
