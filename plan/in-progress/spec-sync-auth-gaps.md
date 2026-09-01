@@ -123,7 +123,20 @@ owner: planner
       기존 설계이고, 세 회전 메서드가 그 관례를 따른 것 자체는 옳다.
       다만 이번에 "계정 탈취 재구성" 이라는 신뢰 수준을 명시적으로 끌어올렸으므로, 그
       신뢰를 지탱하는 하부 메커니즘과의 갭을 등재해 둔다.
-      - [ ] 적재 실패 카운터/알림 도입 여부 결정 — 전 producer 공통이라 별도 트랙
+      - [x] **`audit_log` 축 — 완료 (2026-09-01).** `clemvion.audit.write_failed` 신설 +
+            로그에 유실 대상 기재. 위 항목 참조. spec 반영은
+            [`spec-draft-audit-write-failed-metric.md`](./spec-draft-audit-write-failed-metric.md).
+      - [ ] **`login_history` 축 — 미결.** `login-history.service.ts` 의 `record` 는 여전히
+            `Logger.error` 뿐이고 카운터가 없다. `audit_log` 쪽만 넓혀서 **두 producer 의
+            관측 강도가 갈렸다** — `spec/data-flow/1-audit.md` 가 그 비대칭을 명시적으로
+            적고 있으므로 숨어 있지는 않다.
+
+            지금 안 붙이는 이유: "감사 실패 관측을 어디까지 넓히나" 는 17개 producer 전체에
+            걸리는 결정이고, `audit_log` 는 "계정 탈취 재구성" 이라는 신뢰 수준을 명시적으로
+            끌어올린 자리라 먼저 닫을 근거가 있었다. `login_history` 는 그 근거가 아직 없다.
+
+            재개 신호: 로그인 이력 유실이 실제로 조사에 걸릴 때, 또는 producer 를 하나 더
+            넓힐 일이 생겨 "어디까지" 를 한 번에 정하게 될 때.
 - [ ] **회전 감사 mutation 잔여 갭 1건** (2026-08-11, ai-review `12_37_14` testing INFO).
       `rotateBotToken` 의 실패경로 회귀는 실패를 **4단계(`setupChannel`)** 에 주입한다.
       그래서 감사를 **5→6 구간**으로 옮기는 뮤턴트는 아직 GREEN 으로 산다. 그 테스트의

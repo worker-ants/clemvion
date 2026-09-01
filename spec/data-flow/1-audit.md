@@ -19,8 +19,23 @@
 - `codebase/backend/src/modules/auth/jobs/login-history-pruner.service.ts` — login_history 보존 기간 일일 정리 (BullMQ)
 
 두 `record` 모두 **실패를 삼킨다** (swallow) — 감사 기록 실패가 주 동작(리소스 변경·인증 흐름)을
-깨서는 안 된다는 계약. 호출부가 `await` 해도 throw 되지 않으며, 실패는 로그로만 남는다
-(`audit-logs.service.ts` 의 `logger.warn`, `login-history.service.ts` 의 `Logger.error` — 둘 다 NestJS `Logger`).
+깨서는 안 된다는 계약. 호출부가 `await` 해도 throw 되지 않는다.
+
+**삼킨 실패가 어떻게 관측되는지는 둘이 다르다**:
+
+- `audit-logs.service.ts` — `logger.warn` **에 더해** 카운터
+  `clemvion.audit.write_failed{resource_type}` 를 올린다
+  ([NF-OB-07 카탈로그](../5-system/_product-overview.md#nf-ob-07-메트릭-카탈로그)).
+  로그는 사후 조회는 되지만 비율·추세로 알람을 걸 수 없어서다. 로그 메시지에는 **무엇이
+  유실됐는지**(`action`·`resourceType`·`resourceId`·`workspaceId`)를 함께 싣는다 — 유실
+  사실만 알고 대상을 모르면 조사도 복구도 시작할 수 없다. 관측 호출 자체도 삼킨다(관측이
+  swallow 계약을 역행하는 새 실패 경로가 되면 본말전도다).
+- `login-history.service.ts` — `Logger.error` 뿐이다. **카운터가 없다.**
+
+이 비대칭은 의도적으로 드러내 둔다 — 하나로 묶어 서술하면 어느 쪽으로 읽어도 틀리고,
+`login_history` 쪽 갭이 보이지 않는다. 도입 여부는
+[`spec-sync-auth-gaps.md`](../../plan/in-progress/spec-sync-auth-gaps.md) 에서 별도 트랙으로
+추적한다.
 
 ---
 
