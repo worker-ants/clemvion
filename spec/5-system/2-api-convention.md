@@ -277,11 +277,11 @@ GET /api/executions/{executionId}/background-runs/{backgroundRunId}?cursor=eyJ..
 | 항목 | 규칙 |
 |------|------|
 | 형식 | `multipart/form-data` (필드명 `file`) |
-| 최대 크기 | 단일 파일 50MB (`FileInterceptor` `limits.fileSize`) |
+| 최대 크기 | **엔드포인트별 상이** — KB 문서 50MB, 아바타 2MB (각 `FileInterceptor` `limits.fileSize`) |
 | 허용 타입 | 엔드포인트별 제한 (Knowledge Base 문서: PDF/Markdown/텍스트 등) |
 | 응답 | 업로드된 파일 메타데이터 (id, status 등) |
 
-현재 파일 업로드 엔드포인트는 Knowledge Base 문서 업로드(`POST /api/knowledge-bases/:id/documents`)가 유일하다. 유저 아바타는 multipart 업로드가 아니라 `avatarUrl` URL 필드로 관리한다(별도 업로드 엔드포인트 없음).
+파일 업로드 엔드포인트는 둘이다 — Knowledge Base 문서 업로드(`POST /api/knowledge-bases/:id/documents`)와 아바타 업로드(`POST /api/users/me/avatar`, [프로필 §6.1](../2-navigation/9-user-profile.md)). 아바타는 `PATCH /api/users/me` 의 `avatarUrl` 로 **외부 URL 을 넣는 경로도** 함께 유지한다 — 두 경로가 같은 컬럼을 공유한다.
 
 ---
 

@@ -76,7 +76,7 @@ owner: planner
       갱신돼야 한다. developer 는 `spec/` 쓰기 권한 밖이다(자기-반증형 소정정 예외에도
       해당하지 않는다 — 내가 쓴 예고 문장이 아니다). 선례: `spec-sync-websocket-protocol-gaps.md`
       의 `notification.new` 배지 flip 위임.
-      → [`spec-update-avatar-upload-implemented.md`](./spec-update-avatar-upload-implemented.md)
+      → [`spec-update-avatar-upload-implemented.md`](../complete/spec-update-avatar-upload-implemented.md) — **완료 (2026-09-01)**
 
       **리뷰 2라운드에서 유예한 두 건** (`review/code/2026/08/31/22_44_14`):
 

@@ -133,7 +133,7 @@ pending_plans:
 
 | 필드 | 편집 가능 | 편집 방식 | 설명 |
 |------|-----------|-----------|------|
-| 아바타 | O | 인라인 토글 | 현재 구현: `PATCH /users/me` 의 `avatarUrl` 필드로 URL 갱신/제거. **이미지 파일 업로드는 미구현 (Planned)** — 전용 업로드 엔드포인트(§6.1 참조) 부재 |
+| 아바타 | O | 인라인 토글 | **이미지 파일 업로드**(§6.1 `POST /api/users/me/avatar`) 또는 `PATCH /users/me` 의 `avatarUrl` 로 외부 URL 갱신/제거. 업로드된 이미지는 **공개 URL 로 서빙된다** — §6.1 의 서빙 전략 참조 |
 | 이름 | O | 인라인 토글 | 표시 이름 |
 | 이메일 | O (별도 변경) | 전용 페이지 `/profile/change-email` | 재인증(비밀번호 또는 2FA) + 신규 이메일 확인 메일. 확인 완료 시 전 세션 revoke + 현재 디바이스 재발급. 상세 [인증 §1.1.B](../5-system/1-auth.md#11b-이메일-변경-흐름) |
 | 언어 | O | 인라인 토글 | UI 언어 (ko, en) |
@@ -327,11 +327,31 @@ pending_plans:
 
 ### 6.1 사용자/워크스페이스 API
 
+#### 아바타 서빙 전략 — 공개 버킷 + 공개 URL
+
+업로드된 아바타는 **URL 을 아는 누구나 접근할 수 있다.** 워크스페이스 멤버 전용이 아니다.
+세 안(공개 URL / 서명 URL / 백엔드 프록시) 중 공개 URL 을 택한 대가다 (2026-08-31 결정).
+
+완화는 **키의 추측 불가능성** 하나뿐이다 — `avatars/{userId}/{uuid}.{ext}` 의 UUID
+([`0-overview.md` §2.7](../0-overview.md)). 그래서 버킷 정책은 `avatars/` 접두에 익명
+`GetObject` 만 허용하고 **`ListBucket` 은 허용하지 않는다**. 목록이 열리면 추측할 필요가
+없어져 통제가 통째로 무너지므로, 둘은 **짝**이다.
+
+**SVG 를 제외하는 이유**도 여기서 나온다 — 스크립트를 품을 수 있는 유일한 이미지 포맷이라
+공개 URL 로 서빙하면 저장형 XSS 표면이 된다. `Content-Type` 도 클라이언트가 보낸 값이 아니라
+**확장자에서 파생**한다.
+
+> **배포 선행 조건**: 위 버킷 정책이 없으면 업로드는 **성공하고 이미지만 403** 이 된다 —
+> 증상이 업로드가 아니라 표시에서 난다. 브라우저가 도달하는 `S3_PUBLIC_BASE_URL` 도 함께
+> 필요하다 ([data-flow §2.3](../data-flow/4-file-storage.md)). 정책 예시·실측:
+> `scripts/minio/avatars-public-read.json`, `scripts/minio/README.md`.
+
+
 | 메서드 | 경로 | 설명 |
 |--------|------|------|
 | GET | /api/users/me | 내 프로필 조회. 응답(`UserProfileDto`)에 진행 중인 이메일 변경 표시용 **`pendingEmail: string \| null`** 포함(확인 대기 중인 신규 이메일, 없으면 null — [인증 §1.1.B](../5-system/1-auth.md#11b-이메일-변경-흐름)) |
 | PATCH | /api/users/me | 프로필 수정 (이메일 제외 — 이메일은 `/email-change/*` 별도 흐름) |
-| ~~POST~~ | ~~/api/users/me/avatar~~ | 아바타 **이미지 파일** 업로드 — **미구현 (Planned)**. 현재는 `PATCH /api/users/me` 의 `avatarUrl` 로 URL 설정/제거만 가능 |
+| POST | /api/users/me/avatar | 아바타 **이미지 파일** 업로드. `multipart/form-data` 의 `file` 필드, 최대 2MB, 허용 확장자 `png`/`jpg`/`jpeg`/`webp`/`gif`(**SVG 제외** — 서빙 전략 참조). 성공 시 **200** + `PATCH /users/me` 와 동일한 프로필 봉투. 파일 부재·빈 내용 400 `FILE_REQUIRED`, 확장자 불허 400 `INVALID_FILE_TYPE`, 크기 초과 413 `PAYLOAD_TOO_LARGE` |
 | POST | /api/users/me/change-password | 비밀번호 변경. 성공 시 전 세션 revoke + 현재 디바이스 새 세션 재발급 — `{ accessToken }` 반환 + refresh 쿠키 회전 ([인증 §2.3 / Rationale 2.3.C](../5-system/1-auth.md#23-세션-정책)) |
 | POST | /api/users/me/email-change/request | 이메일 변경 시작. **재인증 필수**(비밀번호 또는 등록 TOTP — WebAuthn step-up 재인증은 현재 미지원, 인증 §1.1.B Rationale 1.1.B-4; OAuth-only 무2FA 는 403 `REAUTH_NOT_AVAILABLE`). 신규 이메일 형식·중복 검증 후 신규 이메일로 확인 메일(1h) 발송. throttle 5/min. 흐름 [인증 §1.1.B](../5-system/1-auth.md#11b-이메일-변경-흐름) |
 | POST | /api/users/me/email-change/verify | 이메일 변경 확인(JWT 인증). 토큰 검증 → `email` 교체 + `email_verified=true` + 전 세션 revoke + 현재 디바이스 재발급(`{ accessToken }` + refresh 쿠키 회전) + 옛 이메일 통지 + `user.email_changed` 감사. 토큰 무효·만료 400 `VALIDATION_ERROR`, 신규 이메일 선점 시 409 `RESOURCE_CONFLICT` |

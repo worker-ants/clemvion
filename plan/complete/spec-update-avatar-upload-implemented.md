@@ -1,10 +1,18 @@
 ---
 title: "아바타 업로드가 구현됐다 — `9-user-profile.md` 의 \"미구현 (Planned)\" 배지 flip"
-worktree: (unstarted)
+worktree: .claude/worktrees/avatar-upload-public-url-be6022
 started: 2026-08-31
+completed: 2026-09-01
 owner: project-planner
-status: in-progress
+status: complete
 priority: P3
+spec_impact:
+  - spec/0-overview.md
+  - spec/data-flow/0-overview.md
+  - spec/data-flow/4-file-storage.md
+  - spec/2-navigation/9-user-profile.md
+  - spec/5-system/2-api-convention.md
+  - spec/5-system/3-error-handling.md
 ---
 
 ## Overview
@@ -19,10 +27,23 @@ priority: P3
 - `:136` — 아바타 행: *"이미지 파일 업로드는 미구현 (Planned) — 전용 업로드 엔드포인트(§6.1 참조) 부재"*
 - `§5.1` 구현 상태 배너의 범위 서술
 
-**대상은 세 문서다** — 초판에는 `9-user-profile.md` 만 적었고, 리뷰(2026-08-31)가 `0-overview.md §2.7` 과 `data-flow/4-file-storage.md` 누락을 잡았다. **⛔ 이 plan 은 머지 차단 요인이다.** `--impl-done` consistency 게이트가 **BLOCK: YES** 를
-냈고 사유는 아래 `## 할 일` 의 Rationale 항목이다 — 구현이 `spec/0-overview.md` §2.7 의
-**명시적 Rationale 결정과 충돌**한다(`review/consistency/2026/09/01/01_51_41`). 코드는
-완성·검증됐지만 이 planner 턴 없이는 PR 이 머지될 수 없다.
+**대상은 세 문서다** — 초판에는 `9-user-profile.md` 만 적었고, 리뷰(2026-08-31)가 `0-overview.md §2.7` 과 `data-flow/4-file-storage.md` 누락을 잡았다. **✅ 완료 (2026-09-01, planner 턴).** 이 plan 은 `--impl-done` 게이트의 BLOCK 사유였다 —
+구현이 `spec/0-overview.md` §2.7 의 **명시적 Rationale 결정과 충돌**했다
+(`review/consistency/2026/09/01/01_51_41`).
+
+해소 방향은 **사용자 결정**이다: (a) 코드를 spec 에 맞춰 `{workspaceId}/avatars/...` 로
+바꾼다 vs (b) spec 을 코드에 맞춘다 — **(b)** 를 택했다. `User` 가 워크스페이스 비종속
+리소스라 키를 워크스페이스로 나누면 같은 사람의 아바타가 워크스페이스마다 갈라진다.
+
+변경안·근거·기각한 대안은
+[`spec-draft-avatar-storage-key.md`](./spec-draft-avatar-storage-key.md) 에 있고,
+planner 의무 게이트 `/consistency-check --spec` 은 `review/consistency/2026/09/01/11_18_49`
+에서 **BLOCK: NO** 다(WARNING 4건 전부 반영 후).
+
+**대상 문서는 6개다** — 초판은 3개로 적었다. `--spec` 1차가 BLOCK 을 내며
+`5-system/2-api-convention.md`(아바타 업로드 엔드포인트 **없음**이라 단언)와
+`data-flow/0-overview.md`(KB **만** 예외라 단언)를 더 찾아냈다. 원인은 내가 **앵커 링크만
+grep** 하고 같은 주장을 하는 **산문**을 훑지 않은 것이다.
 
 `spec/` 쓰기라 **planner 트랙**이다. developer 는 권한 밖이고, 자기-반증형 소정정 예외에도
 해당하지 않는다 — 그 문장은 developer 가 쓴 **예고**가 아니라 제품 정의 서술이다.
@@ -30,13 +51,24 @@ priority: P3
 선례: `spec-sync-websocket-protocol-gaps.md` 의 `notification.new` 배지 flip 도 같은 방식으로
 planner 에 위임됐다.
 
-## 할 일
+## 할 일 — 전항목 완료 (2026-09-01)
 
-- [ ] `:334` 표 행 — 취소선·"미구현 (Planned)" 해제, 구현 형태 반영
-- [ ] `:136` 아바타 행 — "이미지 파일 업로드는 미구현" 서술 정정
-- [ ] `§6.1` 에 **엔드포인트 계약**을 적는다 — `multipart/form-data` `file`, 최대 2MB,
+| 항목 | 해소한 draft 절 |
+|---|---|
+| `9-user-profile.md` `:334` 표 행 · `:136` 아바타 행 · §6.1 계약 | §D-1·D-2·D-3 |
+| `0-overview.md` §2.7 트리·표·note | §A-1·A-2·A-3 |
+| **`0-overview.md` `## Rationale`** (BLOCK 사유) | §B |
+| `data-flow/4-file-storage.md` §1.2/§1.3·§2.1·§2.2·§2.3·Rationale·상단 요약 | §C-1~C-7 |
+| `5-system/3-error-handling.md` 에러 카탈로그 | §F |
+| `5-system/2-api-convention.md` §9 (`--spec` 1차가 추가로 발견) | §G |
+| `data-flow/0-overview.md` `:273` (`--spec` 1차가 추가로 발견) | §H |
+
+
+- [x] `:334` 표 행 — 취소선·"미구현 (Planned)" 해제, 구현 형태 반영
+- [x] `:136` 아바타 행 — "이미지 파일 업로드는 미구현" 서술 정정
+- [x] `§6.1` 에 **엔드포인트 계약**을 적는다 — `multipart/form-data` `file`, 최대 2MB,
       허용 확장자 `png/jpg/jpeg/webp/gif`, 응답은 `PATCH /users/me` 와 동일한 프로필 봉투
-- [ ] 착수 시 `/consistency-check --spec` (planner 의무 게이트)
+- [x] 착수 시 `/consistency-check --spec` (planner 의무 게이트)
 
 ### 같은 사실을 말하는 다른 SoT 문서 — 리뷰(2026-08-31)가 잡은 누락
 
@@ -45,10 +77,10 @@ planner 에 위임됐다.
 이건 문서 흠결이 아니라 **운영자를 잘못된 버킷 정책으로 이끄는 경로**다 — 아래 §왜 이게
 Critical 인가 참조.
 
-- [ ] [`spec/0-overview.md`](../../spec/0-overview.md) §2.7 — 스토리지 레이아웃 트리의
+- [x] [`spec/0-overview.md`](../../spec/0-overview.md) §2.7 — 스토리지 레이아웃 트리의
       `avatars/` 항목과 아래 표의 `Form 노드 업로드 / Avatar` 행
       (`{workspaceId}/avatars/...` · **"계획 (코드 미구현)"**)
-- [ ] **⛔ `spec/0-overview.md` `## Rationale` §"S3 객체 키 prefix 설계" 본문 (`:371`, `:372`)**
+- [x] **⛔ `spec/0-overview.md` `## Rationale` §"S3 객체 키 prefix 설계" 본문 (`:371`, `:372`)**
       — **이것이 `--impl-done` 을 BLOCK 시킨 Critical 이다.** 본문·표만 고치면 안 된다.
 
       그 절은 지금 이렇게 적고 있다:
@@ -69,11 +101,11 @@ Critical 인가 참조.
       **초판 체크리스트가 이 항목을 빠뜨렸다** — 본문·표만 지목하고 Rationale 절을 안 적었다.
       consistency 4개 checker 중 `rationale_continuity` 가 그 누락까지 함께 지적했다
       (`review/consistency/2026/09/01/01_51_41`).
-- [ ] [`spec/data-flow/4-file-storage.md`](../../spec/data-flow/4-file-storage.md) —
+- [x] [`spec/data-flow/4-file-storage.md`](../../spec/data-flow/4-file-storage.md) —
       §1.1 제목·§1.2(자기-참조 TODO "기능 도입 시 갱신하라")·§2.1 키 패턴 표의
       `<workspaceId>/avatars/<userId>.<ext>` 행(**"spec 정의, 미구현"**)·§2.2 `avatar_url`
       서술("현재는 외부 URL 또는 빈 값")·§2.3 설정 매핑에 **신규 `s3.publicBaseUrl` 행** 추가
-- [ ] [`spec/5-system/3-error-handling.md`](../../spec/5-system/3-error-handling.md) §1
+- [x] [`spec/5-system/3-error-handling.md`](../../spec/5-system/3-error-handling.md) §1
       에러 카탈로그에 **`FILE_REQUIRED`**(파일 누락)과 **`INVALID_FILE_TYPE`**(확장자 불허,
       knowledge-base 와 공용) 등재
 
