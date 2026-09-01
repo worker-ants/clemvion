@@ -173,9 +173,16 @@ describe("plan/spec 마크다운에 도구 아티팩트 태그가 없다", () =>
   it("archive/ 는 스캔하지 않는다 — 그 밖은 스캔한다 (대조군 포함)", () => {
     const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "stray-tags-fixture-"));
     try {
-      const archived = path.join(tmp, "plan", "complete", "archive", "from-x");
-      fs.mkdirSync(archived, { recursive: true });
-      fs.writeFileSync(path.join(archived, "old.md"), "# Old\n</content>\n");
+      // `skipDir` 은 **경로가 아니라 basename** 을 본다 — `archive` 라는 이름이면 어디든
+      // 제외된다. fixture 를 한 자리(`plan/complete/archive/`)에만 두면 그 사실이 안 드러나
+      // 검증 범위가 실제 스코프보다 좁아진다(리뷰 4R testing INFO). **두 자리**에 심는다.
+      for (const dir of [
+        path.join(tmp, "plan", "complete", "archive", "from-x"),
+        path.join(tmp, "spec", "archive"),
+      ]) {
+        fs.mkdirSync(dir, { recursive: true });
+        fs.writeFileSync(path.join(dir, "old.md"), "# Old\n</content>\n");
+      }
 
       const live = path.join(tmp, "plan", "complete");
       fs.writeFileSync(path.join(live, "kept.md"), "# Kept\n</content>\n");

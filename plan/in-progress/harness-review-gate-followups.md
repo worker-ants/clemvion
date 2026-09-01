@@ -180,6 +180,27 @@ spec_impact: none
       고 지적했다. 여기서 또 다른 spec 파일을 열면 그 지적을 키운다. **미조치이며 우선순위
       판단**이다 — 재개 신호: 다음 harness 가드 추가 시 함께(그때는 카운트를 한 번만 고친다).
 
+- [ ] **frontend 테스트가 어떤 게이트에서도 타입체크되지 않는다** (리뷰 4R maintainability
+      W1 의 근본 원인). `tsconfig.json` 이 `src/**/__tests__/**` · `src/**/*.test.ts` 를
+      exclude 하고 `vitest run` 은 타입을 strip 한다 → **테스트 코드에 타입 오류가 들어가도
+      아무 게이트가 안 문다.**
+
+      실제로 그 갭으로 하나 들어왔다 — `walkTree(root, SCAN_ROOTS)` 가 `readonly string[]`
+      을 `string[]` 파라미터에 넘겨 **TS2345** 인데 lint·build·vitest 전부 초록이었다.
+      격리 재현으로 확정(종전 시그니처 `exit 2` / 수정본 `exit 0`).
+
+      **backend 에는 이미 처방이 있다** — `backend-checks.yml` 의 `typecheck-ratchet` 잡
+      (`scripts/check-backend-typecheck-ratchet.py` + baseline JSON, 증가·감소 둘 다 실패).
+      `frontend-checks.yml` 에는 대응 잡이 **없다**. 같은 병에 한쪽만 약을 먹었다.
+
+      **실측(2026-09-01)**: `src/lib/docs/__tests__/` **26파일 → 실제 오류 0건**(W1 수정 후).
+      ad-hoc 호출에서 나온 `TS2307` 4건은 `paths` 를 안 넘긴 탓의 alias 미해결이라 진짜
+      오류가 아니다. 즉 **이 디렉터리는 baseline 0 으로 바로 잠글 수 있다.**
+
+      **범위 주의**: 잰 것은 `src/lib/docs/__tests__/` 뿐이다. **frontend 테스트 전체는 안
+      쟀다** — 착수 시 전체 규모를 먼저 재고, 크면 backend 처럼 baseline ratchet 으로,
+      작으면 곧장 exclude 해제로 간다.
+
 - [ ] **`plan-stale-audit.sh` 의 체크박스 정규식이 `plan_guard.py` 와 어긋난다** (리뷰 2R
       testing). `#1262` 가 `plan_guard.py` 의 `_CHECKBOX` 를 인용문(`>`) 접두까지 넓혔는데
       (열린 쪽만; 닫힌 쪽은 의도적으로 안 넓힘), 같은 목적의 **독립 사본**인

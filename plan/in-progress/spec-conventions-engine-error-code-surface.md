@@ -55,7 +55,8 @@ developer 가 `spec/` 을 고칠 수 있는 좁은 예외(자기-반증형 소�
         실제로는 `EngineErrorCode` / `ErrorCode` / 둘 다 아님(raw literal) **삼분법**이다.
         `:562` "복사" 서술도 `EXECUTION_QUEUE_WAIT_TIMEOUT` 의 admission-gate 직접 갱신 경로를
         빠뜨려 "복사만이 유일한 채움 경로" 처럼 읽힌다.
-      - `codebase/backend/src/nodes/core/error-codes.ts:114-115` — `EngineErrorCode` JSDoc 이
+      - `codebase/backend/src/nodes/core/error-codes.ts` — `EngineErrorCode` JSDoc(앵커:
+        `**엔진 레이어** 에러 코드`)이
         **"엔진 레이어" 이분법**으로 프레이밍한다. 이 병기가 반증한 그 분류가 **소스 주석에는
         그대로 남는다**(6차 `--spec` cross_spec INFO #1). spec 이 아니라 코드 주석이라
         developer 트랙이다.
