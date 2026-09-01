@@ -300,6 +300,43 @@ class FilesystemHelpersTest(unittest.TestCase):
             )
             self.assertTrue(pg._all_checkboxes_done(tmp, os.path.relpath(p, tmp)))
 
+    def test_quoted_done_checkbox_alone_is_not_completion(self):
+        """인용문 안 **닫힌** 체크박스만으로는 "완료" 가 아니다 — 두 번째 오탐 방향.
+
+        앵커를 열린/닫힌 양쪽 다 넓히면 자기 체크박스가 없고 남의 완료 목록만 인용한
+        문서가 `done>0 and open==0` 으로 허위 "완료" 판정을 받는다. 그러면 Stop nudge 가
+        프로즈 불릿으로 추적 중인 실제 작업을 두고 `complete/` 이동을 권한다.
+
+        저장소 실사용 선례가 있다 — `auth-config-webhook-followups.md` 가 in-progress
+        이던 시절 정확히 이 구조였다(인용 blockquote 안 닫힌 체크박스 + 프로즈 불릿 추적).
+
+        비대칭 카운팅 전이면 **RED**(True 를 반환).
+        """
+        with tempfile.TemporaryDirectory() as tmp:
+            p = self._make_plan(
+                tmp, "x.md", worktree="t",
+                body=(
+                    "## 선행 작업 (다른 plan 에서 인용)\n"
+                    "> - [x] 스키마 마이그레이션\n"
+                    "> - [x] 백필\n"
+                    "\n## 이 문서의 작업\n"
+                    "- 웹훅 재시도 정책 정리\n"
+                ),
+            )
+            self.assertFalse(pg._all_checkboxes_done(tmp, os.path.relpath(p, tmp)))
+
+    def test_quoted_open_still_vetoes_alongside_own_done(self):
+        """비대칭이 열린 쪽 거부권을 **약화시키지 않았다** — 원 결함의 캐너리.
+
+        닫힌 쪽만 좁히는 수정이 열린 쪽까지 좁히면 이 PR 이 고친 원 결함이 되살아난다.
+        """
+        with tempfile.TemporaryDirectory() as tmp:
+            p = self._make_plan(
+                tmp, "x.md", worktree="t",
+                body="## tasks\n- [x] 내 작업\n> - [ ] 인용문 안 남은 작업\n",
+            )
+            self.assertFalse(pg._all_checkboxes_done(tmp, os.path.relpath(p, tmp)))
+
 
 class PorcelainPathSurvivesOnARealRepoTest(unittest.TestCase):
     """git 파싱 헬퍼를 **실제 저장소**로 구동한다.

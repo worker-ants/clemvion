@@ -49,13 +49,23 @@ const TOOL_TAGS = [
 ] as const;
 
 /**
- * 전제 테스트의 하한. 2026-09-01 실측 `plan/`+`spec/` 마크다운(archive 제외) **891개** —
- * 한 자릿수 배수 아래로 잡아 자연 감소에는 안 걸리고 "스캔이 통째로 실패" 만 잡는다.
+ * 전제 테스트의 하한 — **루트별로** 건다.
  *
- * (초판은 이 자리에 **436** 이라 적었다. 재지 않고 쓴 숫자였고 리뷰가 아니라 내가 다시 세서
- * 잡았다 — 주석의 "실측" 도 실측이어야 한다.)
+ * 2026-09-01 실측(archive 제외): `plan/` **505** · `spec/` **386** (합 891).
+ *
+ * 합계 하나로 걸면 **한 루트가 통째로 빠지는 부분 실패를 못 잡는다** — 각 루트가 단독으로도
+ * 합계 하한을 넘기 때문이다(리뷰 2R testing WARNING). 루트별 하한이라야 "`spec` 이 조용히
+ * 스캔에서 빠졌다" 가 RED 로 드러난다.
+ *
+ * 값은 실측의 절반 언저리 — 자연 감소에는 안 걸리고 루트 소실만 잡는다.
+ *
+ * (초판은 합계 자리에 **436** 이라 적었다. 재지 않고 쓴 숫자였고 리뷰가 아니라 내가 다시
+ * 세서 잡았다 — 주석의 "실측" 도 실측이어야 한다.)
  */
-const MIN_EXPECTED_MD_FILES = 100;
+const MIN_EXPECTED_MD_FILES: Record<ScanRoot, number> = {
+  plan: 250,
+  spec: 190,
+};
 
 /**
  * **한 줄이 통째로** 태그일 때만 잡는다.
@@ -80,8 +90,11 @@ interface StrayHit {
  * 초판은 이 `walkTree` 호출을 `findStrayTags` 와 전제 테스트에 각각 복제했다. 사본이 둘이면
  * `skipDir` 같은 옵션이 한쪽만 바뀌어도 아무도 모른다(리뷰 1R testing WARNING).
  */
-function collectScanTargets(root: string) {
-  return walkTree(root, ["plan", "spec"], {
+const SCAN_ROOTS = ["plan", "spec"] as const;
+type ScanRoot = (typeof SCAN_ROOTS)[number];
+
+function collectScanTargets(root: string, subdirs: readonly string[] = SCAN_ROOTS) {
+  return walkTree(root, subdirs, {
     // `archive/` 는 옛 memory/user_memo 보관소다 — 라이프사이클 문서가 아니라 제외한다.
     // 이 분기는 아래 fixture 테스트가 잠근다(무력화하면 RED).
     skipDir: (name) => name === "archive",
@@ -106,9 +119,33 @@ function findStrayTags(root: string): StrayHit[] {
 describe("plan/spec 마크다운에 도구 아티팩트 태그가 없다", () => {
   const root = repoRoot();
 
-  it("[전제] 스캔이 실제로 파일을 봤다 — 0건이면 아래 단언이 vacuous 하다", () => {
-    expect(collectScanTargets(root).length).toBeGreaterThan(MIN_EXPECTED_MD_FILES);
+  // **케이스를 검사 대상 상수에서 뽑지 않는다.**
+  //
+  // 초판은 `it.each(SCAN_ROOTS)` 였는데, `SCAN_ROOTS` 에서 `"spec"` 을 빼는 뮤턴트가
+  // **RED 없이 12→11 tests 로 통과**했다 — 스캔에서 빠진 루트는 그 루트의 검사에서도
+  // 함께 빠지기 때문이다. **집합에서 케이스를 파생하면 집합을 줄이는 편집은 언제나
+  // 조용히 통과한다.**
+  //
+  // 2판은 `MIN_EXPECTED_MD_FILES` 의 키와 대조했는데, **둘을 함께 줄이는 뮤턴트**가 다시
+  // 통과했다(실측). 그래서 기대 루트를 **테스트 본문의 리터럴**로 못박는다 — 프로덕션
+  // 상수를 어떻게 고쳐도 이 리터럴은 안 따라온다.
+  const EXPECTED_ROOTS = ["plan", "spec"];
+
+  it("[전제] 스캔 루트가 기대 목록 그대로다 — 루트가 조용히 빠지지 않는다", () => {
+    expect([...SCAN_ROOTS].sort()).toEqual(EXPECTED_ROOTS);
+    expect(Object.keys(MIN_EXPECTED_MD_FILES).sort()).toEqual(EXPECTED_ROOTS);
   });
+
+  // 루트별 하한 — 합계 하한은 한 루트가 통째로 빠져도 통과한다(각각이 단독으로 합계를
+  // 넘기 때문). "0건이면 vacuous" 는 부분 실패에도 똑같이 적용된다.
+  it.each(EXPECTED_ROOTS as ScanRoot[])(
+    "[전제] %s/ 를 실제로 스캔했다 — 루트가 빠지면 아래 단언이 그만큼 vacuous 하다",
+    (subdir) => {
+      expect(collectScanTargets(root, [subdir]).length).toBeGreaterThan(
+        MIN_EXPECTED_MD_FILES[subdir],
+      );
+    },
+  );
 
   it("잔재 태그가 없다", () => {
     const hits = findStrayTags(root).map(
