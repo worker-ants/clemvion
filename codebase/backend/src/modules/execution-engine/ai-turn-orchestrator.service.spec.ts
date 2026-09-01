@@ -309,6 +309,11 @@ describe('AiTurnOrchestrator', () => {
       expect(errorSpy).toHaveBeenCalledWith(
         expect.stringContaining('DB write failed'),
       );
+      // `phase` 도 고정한다 — 어느 소비처에서 난 실패인지가 조사 시작점을 가른다
+      // (같은 헬퍼를 6곳이 부른다).
+      expect(errorSpy).toHaveBeenCalledWith(
+        expect.stringContaining('AI turn — re-park'),
+      );
     });
 
     it('대조: 짝 전이가 적용되면(true) throw 하지 않고 markNodeCancelled 도 호출하지 않는다', async () => {

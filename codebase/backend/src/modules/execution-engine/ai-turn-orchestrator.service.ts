@@ -382,6 +382,10 @@ export class AiTurnOrchestrator {
    *      성공 페이로드를 노출하지 않도록), `markNodeCancelled` 로 CANCELLED
    *      마킹 + terminal 이벤트(`NODE_CANCELLED`) 발행 — 방치하면 영구
    *      RUNNING(non-terminal) 로 잔류한다(concurrency WARNING #1).
+   *      마킹이 **실패해도 취소 분류는 유지한다** (C-4) — `markNodeCancelled` 의
+   *      reject 를 흡수하고 로그로만 관측한다. 그대로 전파하면 아래 2번이 실행되지
+   *      않아 상위가 취소를 FAILED 로 오분류한다. 대가는 짝 row 가 non-terminal 로
+   *      잔류할 수 있다는 것이고, 그것이 로그에 남는 이유다.
    *   2. `ExecutionCancelledError` 를 던져 상위(기존 취소 종결 경로,
    *      `finalizeResumedExecutionOutcome` → cancelled)로 넘긴다 — 그대로
    *      진행하면 취소된 실행이 정상 park/완료처럼 보인다. 메시지 접미사는

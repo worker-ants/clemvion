@@ -536,7 +536,11 @@ CRITICAL 1건은 cafe24-api-catalog `mains_update`/`mains_delete` 의 pre-existi
       0행 매칭)는 조용했다. 형제 `failFirstSegmentSetup` 과 같은 문구로 warn 을 맞췄다.
       아래 `markExecutionFailed` 통합과 **분리해** 처리했다 — 통합은 3경로를 동시에 건드리는
       리팩터라 회귀 위험이 이 한 줄과 비교가 안 된다.
-- [ ] **`markExecutionFailed` 공용 헬퍼 승격** — `finalizeFailedExecution` /
+- [ ] **`markExecutionFailed` 공용 헬퍼 승격** — 착수 시 **`finalizeGuarded`(retry-turn)
+      흡수 여부도 스코프에 명시할 것** (C-4 리뷰 2R INFO 4). 두 서비스가 "guarded 종결 +
+      반환값 소비" 를 각자 재구현 중이고, **바로 그 비대칭이 C-4 가 닫은 결함의 근원**이었다
+      (한쪽만 반환값을 관측하고 있었다). 통합 대상을 3경로로 잡으면 같은 병이 네 번째
+      자리에서 또 난다. — `finalizeFailedExecution` /
       `failFirstSegmentSetup` / `executeSync` timeout catch 3곳이 동일한 guarded-마킹 단계를
       각자 재구현 중. 3개 종결 경로를 동시에 건드리는 리팩터라 이 PR 끝단에서 하기엔
       회귀 위험이 이득보다 커 분리한다.
