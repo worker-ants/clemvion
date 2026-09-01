@@ -151,7 +151,24 @@ owner: planner
             단계에서 닫았다 — 값이 아니라 형태로 판정하고, `typeof CONST`/리터럴 표기를
             상수 해석으로 정규화한다(표기만 다른 대조군 fixture 로 고정).
 
+      - [ ] **가드를 `record()` 호출식까지 넓힌다** (리뷰 7라운드 WARNING). 현재 가드는
+            `recordAudit` **helper 선언**만 본다. 실측으로 경계를 확인했다 — `record()` 호출
+            27곳 중 **22곳은 `action` 이 리터럴/`AUDIT_ACTIONS.X`** 라 같은 객체 리터럴 안에
+            `resourceType` 과 나란히 있고, **5곳만 `params.action`**(= 그 5개 helper)이다.
+
+            helper 는 `resourceType` 을 고정해 놓고 `action` 만 받아 **호출자가 불일치를 볼 수
+            없다**. 인라인 22곳은 두 값이 붙어 있어 성격이 다르다 — 가드 범위가 "불일치가 안
+            보이는 집합" 과 일치한다.
+
+            그래도 22곳이 **타입으로 강제되지는 않는다**(`record()` 의 `action` 은 열린
+            `AuditAction`). 넓히려면 `AUDIT_ACTIONS.X` 를 **파일 밖**(`audit-action.const.ts`)
+            까지 해석해 접두를 `resourceType` 과 비교해야 한다 — 지금 가드의 상수 해석은
+            같은 파일 안으로 제한돼 있다. **미조치이며 우선순위 판단**이다(현재 22곳 전부
+            올바름을 리뷰어가 확인).
+
       - [ ] **`clampLabel` 대칭 테스트 + `record()` JSDoc** (리뷰 4라운드 INFO).
+            부수: `audit-logs.service.ts:105` 주석의 **"12개+"** 를 "12개" 로 통일(7R INFO 6).
+            `codebase/` 편집이라 리뷰 게이트를 리셋하므로 다음에 이 파일을 손댈 때 함께.
             둘 다 **미조치이며 우선순위 판단**이다 — 문서화되어 있어서가 아니다(3라운드에
             거짓 근거를 쓴 뒤로 이 구분을 명시해 적는다).
 
