@@ -131,7 +131,26 @@ owner: planner
             세는 대상을 바꿔 놓고 같은 숫자를 카디널리티라 적었다. spec 2곳(`_product-overview.md`
             NF-OB-07 · `data-flow/1-audit.md` §1.1 산문의 "8개 위치")·JSDoc·plan 2곳 전파분
             동반 정정 **완료** (`--spec` `16_16_39` BLOCK:NO 통과 후 반영). 경위와 실측 근거:
-            [`spec-draft-audit-resource-type-count.md`](spec-draft-audit-resource-type-count.md).
+            [`spec-draft-audit-resource-type-count.md`](../complete/spec-draft-audit-resource-type-count.md).
+      - [x] **가드가 "자기 리소스에 묶였는지" 까지 본다 — 완료 (2026-09-01, 리뷰 5R).**
+            종전 `findUnboundHelpers` 는 `AuditActionFor<` **접두**만 봐서 "엉뚱한 리소스에
+            묶인" 형태를 통과시켰다. 3~4라운드에 이 유예를 **"`_NoCrossDomain` 이 이미 막는다"**
+            로 정당화했는데 **그 근거가 틀렸다** — 뮤테이션이 갈랐다:
+
+            | 뮤턴트 | tsc |
+            |---|---|
+            | `auth-configs` helper 를 `AuditActionFor<'workflow'>` 로 오귀속 | 에러 **5건** |
+            | 위 + `_NoCrossDomain` 제거 | 에러 **5건 (변화 없음)** |
+
+            캐너리를 지워도 검출이 그대로 → 잡는 주체는 캐너리가 아니라 **호출부의 액션
+            리터럴**이다(에러 5건이 전부 호출부에 찍힌다). 리뷰어 둘이 근거로 댄 "뮤턴트가
+            0 에러로 통과" 도 **호출부 없는 스크래치 재현**이라 저장소에서는 반증됐다.
+
+            남는 진짜 갭은 **호출부가 아직 없는 helper**(선언을 먼저 만든 경우)와 호출부
+            액션이 두 리소스 모두에 유효해 안 갈리는 경우. `findMisboundHelpers` 로 선언
+            단계에서 닫았다 — 값이 아니라 형태로 판정하고, `typeof CONST`/리터럴 표기를
+            상수 해석으로 정규화한다(표기만 다른 대조군 fixture 로 고정).
+
       - [ ] **`clampLabel` 대칭 테스트 + `record()` JSDoc** (리뷰 4라운드 INFO).
             둘 다 **미조치이며 우선순위 판단**이다 — 문서화되어 있어서가 아니다(3라운드에
             거짓 근거를 쓴 뒤로 이 구분을 명시해 적는다).

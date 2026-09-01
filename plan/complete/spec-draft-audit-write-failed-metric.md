@@ -158,4 +158,4 @@ NF-OB-07 카탈로그 표를 동시에 넓히는 것이 규칙"** 이라고 못 
 `resourceType: string`(열림)이라 컴파일러가 닫힘을 증명하지 못한다는 점이고, 10이든 12든 그
 논증에 영향이 없다. 그러나 근거로 인용한 실측이 틀렸다면 그 실측은 고친다.
 
-정정 경위: [`spec-draft-audit-resource-type-count.md`](../in-progress/spec-draft-audit-resource-type-count.md)
+정정 경위: [`spec-draft-audit-resource-type-count.md`](spec-draft-audit-resource-type-count.md)

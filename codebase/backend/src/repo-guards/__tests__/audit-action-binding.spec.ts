@@ -37,6 +37,7 @@ import {
   BOUND_TYPE_NAME,
   collectSourceFiles,
   findAuditHelpers,
+  findMisboundHelpers,
   findUnboundHelpers,
 } from './audit-action-binding-guard';
 import {
@@ -45,9 +46,12 @@ import {
   BARE_UNION_SOURCE,
   BOUND_SOURCE,
   LOOKALIKE_TYPE_SOURCE,
+  MATCHED_RESOURCE_SOURCE,
+  MIXED_NOTATION_SOURCE,
   NO_ACTION_SOURCE,
   POSITIONAL_SOURCE,
   UNRELATED_METHOD_SOURCE,
+  WRONG_RESOURCE_BOUND_SOURCE,
 } from './audit-action-binding-fixture';
 
 const REPO_ROOT = path.resolve(__dirname, '../../../../..');
@@ -76,6 +80,27 @@ describe('감사 helper 의 action 은 리소스에 묶인 타입이어야 한�
     // 컴파일러가 잡지 못한다. `AuditActionFor<...>` 로 묶을 것.
     expect(unbound).toEqual([]);
   });
+
+  it('[전제] 바인딩 대상까지 실제로 해석됐다 — null 이면 아래 단언이 vacuous 하다', () => {
+    // `findMisboundHelpers` 는 양쪽이 해석될 때만 판정한다. 정규화가 조용히 전부 `null` 을
+    // 내면 "위반 0건" 이 되므로, 해석된 helper 가 실제로 있는지를 먼저 고정한다.
+    const resolved = sites.filter(
+      (s) => s.boundResource !== null && s.recordedResource !== null,
+    );
+    expect(resolved.length).toBeGreaterThanOrEqual(5);
+  });
+
+  it('모든 helper 가 **자기** 리소스에 묶여 있다', () => {
+    const misbound = findMisboundHelpers(sites).map(
+      (s) =>
+        `${s.file}:${s.line} ${s.method} — bound=${String(s.boundResource)} recorded=${String(s.recordedResource)}`,
+    );
+    // "묶였는가" 는 이 가드가 지키려는 불변식보다 한 칸 좁다. `AuditActionFor<'workflow'>`
+    // 로 선언하고 `resourceType: 'auth_config'` 를 기록해도 접두 검사는 통과한다.
+    // 컴파일러는 이것을 호출부에서 잡지만(뮤턴트 → tsc 5건), 호출부가 아직 없는 helper 는
+    // 그 그물에 걸리지 않는다. 여기서 선언 단계로 앞당긴다.
+    expect(misbound).toEqual([]);
+  });
 });
 
 describe('판정은 형태로 한다 — fixture', () => {
@@ -97,6 +122,31 @@ describe('판정은 형태로 한다 — fixture', () => {
 
   it('화살표 함수 필드라도 묶여 있으면 통과한다 (판정은 문법이 아니라 바인딩)', () => {
     expect(findUnboundHelpers(parse(ARROW_FIELD_BOUND_SOURCE))).toEqual([]);
+  });
+
+  it('묶였지만 엉뚱한 리소스면 잡는다', () => {
+    const sites = parse(WRONG_RESOURCE_BOUND_SOURCE);
+    // 접두 검사는 통과한다 — 그래서 별도 술어가 필요하다.
+    expect(findUnboundHelpers(sites)).toEqual([]);
+    expect(findMisboundHelpers(sites)).toHaveLength(1);
+    expect(sites[0]).toMatchObject({
+      boundResource: 'foo',
+      recordedResource: 'bar',
+    });
+  });
+
+  it('자기 리소스에 묶였으면 잡지 않는다 (대조군)', () => {
+    expect(findMisboundHelpers(parse(MATCHED_RESOURCE_SOURCE))).toEqual([]);
+  });
+
+  it('표기만 다르고 값이 같으면 잡지 않는다 — 상수를 실제로 푼다', () => {
+    const sites = parse(MIXED_NOTATION_SOURCE);
+    // 문자열 표기로만 비교하면 `'foo'` vs `FOO_RESOURCE_TYPE` 이 거짓 경보가 된다.
+    expect(sites[0]).toMatchObject({
+      boundResource: 'foo',
+      recordedResource: 'foo',
+    });
+    expect(findMisboundHelpers(sites)).toEqual([]);
   });
 
   it('화살표 함수 필드를 실제로 수집한다 — 종전에는 탐지 0건이었다', () => {

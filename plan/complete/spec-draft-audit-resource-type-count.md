@@ -3,12 +3,17 @@ title: "spec draft — NF-OB-07 `resource_type` \"실측 12종\" 오기산 정�
 worktree: .claude/worktrees/audit-record-factory
 started: 2026-09-01
 owner: project-planner
-status: in-progress
+status: applied
+completed: 2026-09-01
 priority: P2
 spec_impact:
   - spec/5-system/_product-overview.md
   - spec/data-flow/1-audit.md
 ---
+
+> ✅ **적용 완료 (2026-09-01).** `--spec` 게이트(`review/consistency/2026/09/01/16_16_39`,
+> **BLOCK: NO`) 통과 후 `spec/5-system/_product-overview.md` NF-OB-07 과
+> `spec/data-flow/1-audit.md` §1.1 산문에 반영했다. 동반 정정 3곳(JSDoc·plan 2개)도 완료.
 
 ## Overview
 

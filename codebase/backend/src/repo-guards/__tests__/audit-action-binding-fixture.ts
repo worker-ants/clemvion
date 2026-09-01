@@ -93,3 +93,58 @@ class F {
   private logSomething(params: { action: AuditAction }): void {}
 }
 `;
+
+/**
+ * 가드가 **잡아야** 하는 형태 5 — 묶이긴 했는데 **엉뚱한 리소스**에 묶였다.
+ *
+ * `findUnboundHelpers` 의 접두 검사는 이것을 통과시킨다("`AuditActionFor<` 로 시작함").
+ * 그러나 `resourceType` 은 `bar` 인데 `action` 은 `foo` 계열만 받으므로, 이 helper 는
+ * **모순된 감사 행**을 만드는 자리다 — 이 PR 이 auth-configs 에서 고친 것과 같은 결함 클래스가
+ * 문법만 바꿔 재도입되는 경로.
+ */
+export const WRONG_RESOURCE_BOUND_SOURCE = `
+const FOO_RESOURCE_TYPE = 'foo';
+const BAR_RESOURCE_TYPE = 'bar';
+class H {
+  private recordAudit(params: {
+    workspaceId: string;
+    action: AuditActionFor<typeof FOO_RESOURCE_TYPE>;
+    resourceId: string;
+  }): Promise<void> {
+    return this.x.record({ ...params, resourceType: BAR_RESOURCE_TYPE });
+  }
+}
+`;
+
+/** 대조군 — 같은 형태인데 **자기 리소스**에 묶였다. 잡히면 안 된다. */
+export const MATCHED_RESOURCE_SOURCE = `
+const FOO_RESOURCE_TYPE = 'foo';
+class I {
+  private recordAudit(params: {
+    workspaceId: string;
+    action: AuditActionFor<typeof FOO_RESOURCE_TYPE>;
+    resourceId: string;
+  }): Promise<void> {
+    return this.x.record({ ...params, resourceType: FOO_RESOURCE_TYPE });
+  }
+}
+`;
+
+/**
+ * 대조군 2 — **표기만 다르고 값은 같다** (`'foo'` 리터럴 vs `FOO_RESOURCE_TYPE` 상수).
+ *
+ * 문자열 표기로만 비교하면 이것이 거짓 경보가 된다. 정규화(상수 해석)가 실제로 도는지를
+ * 이 fixture 가 고정한다 — 없으면 "한 칸 좁은 술어" 가 반대 방향으로 재발한다.
+ */
+export const MIXED_NOTATION_SOURCE = `
+const FOO_RESOURCE_TYPE = 'foo';
+class J {
+  private recordAudit(params: {
+    workspaceId: string;
+    action: AuditActionFor<'foo'>;
+    resourceId: string;
+  }): Promise<void> {
+    return this.x.record({ ...params, resourceType: FOO_RESOURCE_TYPE });
+  }
+}
+`;
