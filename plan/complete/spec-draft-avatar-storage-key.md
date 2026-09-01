@@ -378,5 +378,5 @@ KB 제외는 **비용**(prefix scan), Avatar 제외는 **소유 모델**(User �
 ## 관련
 
 - BLOCK 근거: `review/consistency/2026/09/01/01_51_41/SUMMARY.md`
-- 구현·리뷰 이력: [`spec-sync-user-profile-gaps.md`](./spec-sync-user-profile-gaps.md) §6.1
-- 위임 트래커: [`spec-update-avatar-upload-implemented.md`](../complete/spec-update-avatar-upload-implemented.md)
+- 구현·리뷰 이력: [`spec-sync-user-profile-gaps.md`](../in-progress/spec-sync-user-profile-gaps.md) §6.1
+- 위임 트래커: [`spec-update-avatar-upload-implemented.md`](./spec-update-avatar-upload-implemented.md)
