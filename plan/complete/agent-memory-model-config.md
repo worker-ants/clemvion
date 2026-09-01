@@ -83,4 +83,3 @@ KB 의 `embeddingModelConfigId` 패턴 미러(검증된 선례 — 서버가 con
       최종(02_21_06) cross_spec/naming Critical = **검증된 cross-branch baseline 오탐**(인용 5파일
       전부 신 필드명 0 잔재 grep 증명, §7 config echo line 442도 신 이름). RESOLUTION 에 grep 근거.
       SPEC-CONSISTENCY 게이트는 `BYPASS_REVIEW_GUARD=1`(오탐 문서화).
-</content>

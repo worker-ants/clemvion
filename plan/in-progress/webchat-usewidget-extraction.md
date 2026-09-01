@@ -116,7 +116,6 @@ eslint 에 `max-lines`/`complexity` 가드 없음.
       회귀 테스트 주석도 함께 갱신했다(옛 "호출부 양쪽 게이트" 서술 → "openStream 내부 단일
       게이트"). 이 저장소가 주석 drift 로 반복 결함을 낸 이력이 있어 미루지 않았다.
 - [ ] `/consistency-check --impl-done spec/7-channel-web-chat/` 통과
-</content>
 
 
 ## 1차 slice — staleness 축 분리 (2026-07-24)

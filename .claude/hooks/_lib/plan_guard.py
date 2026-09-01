@@ -73,7 +73,18 @@ IN_PROGRESS_DIR = os.path.join("plan", "in-progress")
 _PLACEHOLDER_WORKTREE = {"(unstarted)", "unstarted", "-", "tbd", "none", "n/a"}
 
 # A markdown task checkbox line: `- [ ]`, `- [x]`, `* [X]`, with optional indent.
-_CHECKBOX = re.compile(r"^\s*[-*]\s+\[(?P<mark>[ xX])\]")
+# 앵커가 `>` 를 넘는다 — **인용문 안의 열린 체크박스도 열린 작업**이다.
+# 종전 `^\s*` 는 공백만 허용해 `>` 에서 끊겼고, 그래서 최상위가 전부 닫힌 문서에서
+# 인용문 안 잔여가 숨었다(`deps-peer-gating-and-eslint10.md` 실측: 열린 항목 3건인데
+# Stop nudge 가 "전부 완료" 로 오판). 살아 있는 항목을 품은 채 `complete/` 로 봉인되면
+# 유실된다 — `spec-draft-error-cause-criterion.md` 선례.
+#
+# **반대 방향 오탐은 안 생긴다**: 불릿(`[-*]\s+`)을 요구하므로 서술로 인용된 `[ ]`
+# (예: "종전엔 `[ ]` 로 남아 있어") 는 그대로 통과한다. 저장소 실측(2026-09-01) —
+# 인용문 안 `[ ]` 6건 중 불릿 구조는 3건이고 셋 다 실제 열린 작업이다.
+#
+# blockquote 접두는 **유한한 문법**이라 이 확장이 "정밀 파서로 미끄러지는" 종류가 아니다.
+_CHECKBOX = re.compile(r"^[\s>]*[-*]\s+\[(?P<mark>[ xX])\]")
 # Trailing " (branch ...)" annotation some plans append to the worktree value.
 _BRANCH_ANNOT = re.compile(r"\s*\(branch[^)]*\)\s*$", re.IGNORECASE)
 

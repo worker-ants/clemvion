@@ -1,6 +1,6 @@
 ---
 title: "`error-codes.md` §Overview 가 대표 surface 를 `ErrorCode` 단수로 서술한다 — `EngineErrorCode` 병기"
-worktree: (unstarted)
+worktree: easy-a-harness-hygiene
 started: 2026-08-31
 owner: project-planner
 status: in-progress
@@ -28,11 +28,61 @@ developer 가 `spec/` 을 고칠 수 있는 좁은 예외(자기-반증형 소�
 
 ## 할 일
 
-- [ ] `spec/conventions/error-codes.md` §Overview "적용 범위" 문단에 두 surface 병기 —
-      `ErrorCode`(노드 핸들러 `output.error.code`) / `EngineErrorCode`(엔진이 싣는
-      `Execution.error`·`NodeExecution.error`). **같은 파일**에 있다는 점도 함께 적을 것 —
-      "파일은 하나, const 는 둘" 이 그 설계의 핵심이고, 문서가 두 파일로 읽히면 오해가 된다.
-- [ ] 착수 시 `/consistency-check --spec` (planner 의무 게이트)
+- [x] **`spec/conventions/error-codes.md` §Overview 두 surface 병기 — 완료 (2026-09-01).**
+      **같은 파일**에 있다는 점도 함께 적을 것 — "파일은 하나, const 는 둘" 이 그 설계의
+      핵심이고, 문서가 두 파일로 읽히면 오해가 된다.
+
+      > **접근이 바뀌었다 (2026-09-01, `--spec` 4라운드).** 원래 이 항목은 목적지 필드를
+      > 괄호로 적었다 — *"`ErrorCode`(노드 핸들러 `output.error.code`) / `EngineErrorCode`
+      > (엔진이 싣는 `Execution.error`·`NodeExecution.error`)"*. **그 서술이 반증됐다**:
+      > `Execution.error` 는 두 family 가 공존하는 필드이고(`EXECUTION_TIME_LIMIT_EXCEEDED`
+      > 는 `ErrorCode` 소속인데 엔진이 싣는다), `EngineErrorCode` 는 코드마다 목적지가 다르다.
+      >
+      > 그리고 목적지 매핑은 애초에 §Overview 의 책임이 아니라 `3-error-handling.md §1`
+      > 카탈로그 SoT 에 위임돼 있다. **최종 접근: 존재·자매 관계·키 disjoint 만 적고 목적지는
+      > SoT 로 보낸다.** 경위는
+      > [`spec-draft-error-code-two-surfaces.md`](../complete/spec-draft-error-code-two-surfaces.md)
+      > §"세 번 고쳤다" 참조.
+- [x] **`/consistency-check --spec` — 완료 (2026-09-01).** **6라운드**를 돌았고 마지막이
+      **BLOCK: NO · Critical 0 · WARNING 0**(`review/consistency/2026/09/01/21_56_30`).
+      매 라운드가 실재하는 오류를 잡았고 전부 내가 방금 쓴 문장에서 나왔다 — 경위는
+      [`spec-draft-error-code-two-surfaces.md`](../complete/spec-draft-error-code-two-surfaces.md)
+      §"세 번 고쳤다".
+- [ ] **후속 (별도 planner 턴) — 인접 문서의 선재 drift 2건** (`--spec` `21_39_47` cross_spec).
+      이 병기가 만든 것이 아니고, 층 기반으로 쓰면서 충돌 주장도 사라졌다. 다만 같은 오독을
+      계속 재생산하는 자리라 등재한다:
+      - `spec/1-data-model.md:474` — 엔진 인프라 코드 6종을 **소속 구분 없이** 나열한다.
+        실제로는 `EngineErrorCode` / `ErrorCode` / 둘 다 아님(raw literal) **삼분법**이다.
+        `:562` "복사" 서술도 `EXECUTION_QUEUE_WAIT_TIMEOUT` 의 admission-gate 직접 갱신 경로를
+        빠뜨려 "복사만이 유일한 채움 경로" 처럼 읽힌다.
+      - `codebase/backend/src/nodes/core/error-codes.ts:114-115` — `EngineErrorCode` JSDoc 이
+        **"엔진 레이어" 이분법**으로 프레이밍한다. 이 병기가 반증한 그 분류가 **소스 주석에는
+        그대로 남는다**(6차 `--spec` cross_spec INFO #1). spec 이 아니라 코드 주석이라
+        developer 트랙이다.
+      - `spec/5-system/3-error-handling.md` §1.4 — "엔진 수준 에러" 10종을 단일 집합처럼
+        나열하는데 named const 등재는 **2종뿐**이다. 두 surface 병기를 읽은 사람이 "이 카탈로그가
+        두 surface 로 다 설명된다" 고 오독할 수 있다.
+- [x] **"판단 기준을 함께 적을지" 에 대한 답 (2026-09-01)** — §함께 볼 것이 "이 항목의 실제
+      무게" 라 부른 질문이다. **답: 이번에는 안 쓴다.** 규약 문서에 기준을 쓰면 그 형태가
+      규약으로 굳는데, 근거인 ARCH#5 ⑤ 가 스스로 *"의식적 이탈"·"해석의 여지가 있다"* 고
+      유보를 남긴 상태다. 유보 중인 결정을 기준으로 승격시키면 다음 사람은 유보를 못 보고
+      규약만 본다 — ARCH#5 ⑤ 가 막으려던 그 독법이다.
+
+      **기준을 쓰려면 먼저 그 유보를 닫아야 한다** — `RETRY_*` 가 왜 자매 const 가 되지
+      않았는지, 그 결정이 WS ack 경계에 한정된 맥락이었는지를 판정하는 별도 planner 항목이다.
+      재개 신호: 세 번째 자매 const 가 생길 때(그때는 형태가 관례가 되므로 기준이 필요해진다).
+
+      > **그 신호는 이미 모호하다** (`--spec` `21_49_21` plan_coherence W3). `WsErrorCode` 가
+      > **`EngineErrorCode` 보다 먼저**(2026-07-07, `daaae64c2`, #843) 별도 const 로 신설돼
+      > 있다. 다만 **다른 파일**이라, "세 번째" 를 *같은 파일 안의* 자매로 세는지 저장소 전체
+      > 별도 const 로 세는지에 따라 이미 충족일 수도 있다. 재개 판정 때 **그 정의부터** 정할 것
+      > — 여기 적어 두는 이유는 draft 가 `complete/` 로 가면 이 사실이 소실되기 때문이다.
+
+## 나란히 가는 plan
+
+`spec-update-node-cancellation-shutdown-classification.md` §3 이 같은 파일
+(`spec/conventions/error-codes.md`)에 `AbortError` 등재를 위임해 두었다 — 두 편집이 같은
+문서를 겨누므로 착수 순서가 겹치면 서로의 문단을 덮을 수 있다(6차 `plan_coherence` INFO #7).
 
 ## 함께 볼 것 (착수 전 읽기)
 

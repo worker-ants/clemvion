@@ -49,6 +49,11 @@ describe("findBrokenLinksInFiles core (via public entry points)", () => {
         mkLink("bad self", "#nope"), // ANCHOR → no such heading
         mkLink("dead", "./missing.md"), // DEAD → file absent
         mkLink("ok rel", "./real.md#good-anchor"), // valid cross-file anchor
+        // 멀티라인 ANCHOR — 링크 **텍스트**가 두 줄에 걸친다. 통합층은 지금까지 멀티라인을
+        // DEAD 로만 검증했다(`15_01_34` INFO #17 · `15_55_00` INFO #8). 스캐너가 줄 단위로
+        // 퇴행하면 이 링크는 **아예 안 보이고** ANCHOR 판정도 함께 사라진다.
+        "[multiline anchor",
+        'text](./real.md#no-such-anchor)',
       ].join("\n"),
     );
     fs.writeFileSync(path.join(root, "spec", "real.md"), "# Good Anchor\n");
@@ -78,8 +83,30 @@ describe("findBrokenLinksInFiles core (via public entry points)", () => {
     // #nope and ./missing.md do not.
     expect(fingerprint(findBrokenLinks(root))).toEqual([
       "ANCHOR #nope",
+      "ANCHOR ./real.md#no-such-anchor",
       "DEAD ./missing.md",
     ]);
+  });
+
+  // `LinkViolation.line` 은 단위 층 5곳이 이미 잠근다(시작 줄 · 멀티 2개 · 혼재 3개 ·
+  // 3줄 스팬). 통합층이 더하는 것은 **"전달이 끊기지 않았는가"** 하나다 — 코어가 줄을
+  // 옳게 세도 공개 진입점이 그것을 떨구면 사용자는 위치 없는 위반만 본다. (`15_55_00` W1)
+  it("통합 경로가 line 을 그대로 전달한다 — 멀티라인 ANCHOR 는 **시작** 줄", () => {
+    const byTarget = new Map(
+      findBrokenLinks(root).map((v) => [v.target, v.line]),
+    );
+
+    // [전제] 세 위반이 다 잡혔다 — 아니면 아래 단언이 vacuous 하다.
+    expect([...byTarget.keys()].sort()).toEqual([
+      "#nope",
+      "./missing.md",
+      "./real.md#no-such-anchor",
+    ]);
+
+    expect(byTarget.get("#nope")).toBe(4);
+    expect(byTarget.get("./missing.md")).toBe(5);
+    // 멀티라인은 **시작** 줄이지 닫는 줄이 아니다.
+    expect(byTarget.get("./real.md#no-such-anchor")).toBe(7);
   });
 
   it("findBrokenSpecLinksInSources reports DEAD + broken spec anchor only", () => {

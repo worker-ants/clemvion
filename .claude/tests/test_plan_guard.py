@@ -262,6 +262,44 @@ class FilesystemHelpersTest(unittest.TestCase):
             p = self._make_plan(tmp, "x.md", worktree="t", body="no checkboxes\n")
             self.assertFalse(pg._all_checkboxes_done(tmp, os.path.relpath(p, tmp)))
 
+    def test_open_checkbox_inside_blockquote_counts(self):
+        """인용문 안의 **열린** 체크박스도 열린 작업이다.
+
+        `^\\s*` 앵커는 공백만 허용해 `>` 에서 끊겼고, 그래서 최상위가 전부 닫힌 문서에서
+        인용문 안 잔여가 **숨었다** — Stop nudge 가 "전부 완료" 로 오판해 `complete/` 이동을
+        권했다(`deps-peer-gating-and-eslint10.md` 실측). 살아 있는 항목을 품은 채 봉인되면
+        유실된다(`spec-draft-error-cause-criterion.md` 선례).
+        """
+        with tempfile.TemporaryDirectory() as tmp:
+            p = self._make_plan(
+                tmp, "x.md", worktree="t",
+                body="## tasks\n- [x] a\n> - [ ] 인용문 안 잔여\n",
+            )
+            self.assertFalse(pg._all_checkboxes_done(tmp, os.path.relpath(p, tmp)))
+
+    def test_nested_blockquote_open_checkbox_counts(self):
+        """중첩 인용(`> > `)도 같다 — blockquote 접두는 유한한 문법이다."""
+        with tempfile.TemporaryDirectory() as tmp:
+            p = self._make_plan(
+                tmp, "x.md", worktree="t",
+                body="## tasks\n- [x] a\n> > - [ ] 중첩 인용 잔여\n",
+            )
+            self.assertFalse(pg._all_checkboxes_done(tmp, os.path.relpath(p, tmp)))
+
+    def test_narrative_bracket_mention_is_not_a_checkbox(self):
+        """서술로 인용된 `[ ]` 는 세지 않는다 — **거짓 양성 방향**의 대조군.
+
+        넓히는 변경이 반대 방향 오탐을 만들지 않는지가 이 항목의 판정 근거였다. 저장소
+        실측(2026-09-01): 인용문 안 `[ ]` 6건 중 불릿 구조를 갖춘 진짜 체크박스는 3건이고
+        나머지는 서술이다 — 불릿(`[-*]\\s+`)이 없어 넓혀도 안 걸린다.
+        """
+        with tempfile.TemporaryDirectory() as tmp:
+            p = self._make_plan(
+                tmp, "x.md", worktree="t",
+                body="## tasks\n- [x] a\n> 종전엔 `[ ]` 로 남아 있어 오판했다\n",
+            )
+            self.assertTrue(pg._all_checkboxes_done(tmp, os.path.relpath(p, tmp)))
+
 
 class PorcelainPathSurvivesOnARealRepoTest(unittest.TestCase):
     """git 파싱 헬퍼를 **실제 저장소**로 구동한다.
