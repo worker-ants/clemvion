@@ -1,5 +1,43 @@
 # Changelog
 
+## Unreleased — 성공한 retry 가 옛 실패 메시지를 남기고 있었다
+
+`retry-turn-terminal-guard.md` · `ie-resume-turn-boundary-cancel.md` 잔여 항목.
+
+### 성공한 retry 가 옛 `error` 를 영속했다
+
+retry 는 정의상 **FAILED 실행에서 시작**하므로 로드된 엔티티가 이전 시도의 `error` 를 들고
+있다. 자연 종결 경로는 `outputData`·`finishedAt`·`durationMs` 만 세팅하는데, guarded UPDATE 는
+`error = $8::jsonb` 로 그 값을 그대로 영속했다 → `status='completed'` 인데 `error` non-null 인
+**모순 레코드**. 조회 화면·알람이 "성공했는데 에러가 있다" 를 보게 된다.
+
+두 성공 종결 경로(자연 · defensive fallback)에서 `error` 를 명시적으로 비운다. **취소 경로와
+처방이 다르다** — 그쪽은 SET 절에서 `error` 를 아예 제외해 stop 이 쓴 값을 보존한다(W16).
+여기는 반대로 이번 시도가 성공했다는 사실이 최신 진실이다.
+
+부수로 `Execution.error` 의 타입을 `| null` 로 정정했다. DB 는 처음부터 `nullable: true`
+였는데 타입만 그것을 안 적고 있었다.
+
+### 중복 spawn 차단 가드가 무방비였다
+
+`retryLastTurn` 의 원자 consume SQL 이 어느 계층에서도 평가되지 않았다 — 트랜잭션 mock 이
+`set`/`andWhere` 인자를 버렸고 e2e 도 `retry_last_turn` 0건. `jsonb_exists` 가드를 제거한
+뮤턴트에서 **나머지 46개 테스트가 전부 통과**했다. 인자를 포착해 가드와 JSONB 키 제거식을
+단언으로 고정했다.
+
+`affected=0` 분기는 이미 덮여 있었지만 그건 mock 이 돌려준 **숫자**를 볼 뿐이다. 실제로
+`affected` 를 0으로 만드는 것은 그 가드이므로 숫자가 아니라 **조건**을 물어야 한다.
+
+### 취소가 FAILED 로 오분류되는 경로
+
+`assertLinkedTransitionApplied` 에서 `markNodeCancelled` 가 reject 하면 원본 예외가 그대로
+전파돼 `ExecutionCancelledError` 가 **아예 던져지지 않았고**, 상위가 그것을 일반 예외로 보고
+취소를 FAILED 로 오분류했다. 마킹 실패를 관측(어느 짝 row 가 non-terminal 로 잔류하는지)하되
+분류는 유지한다 — 마킹 실패의 처방이 분류 변경이 아니기 때문이다.
+
+그 외: 미검증 3분기 커버 · `markSpawnedRowFailed` 추출 · `finalizeGuarded` 의 in-place 변이
+3필드를 `@param` 에 명시 · `executeSync` timeout 경로가 버리던 guarded UPDATE 반환값 소비.
+
 ## Unreleased — 감사 액션 바인딩 구멍 + 삼킨 적재 실패를 알람 걸 수 있게
 
 `spec-sync-auth-gaps.md` 의 감사 로깅 잔여 2건. **plan 의 처방을 실측이 바꿨다.**

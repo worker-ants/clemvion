@@ -3788,6 +3788,13 @@ describe('ExecutionEngineService', () => {
             'runExecution',
           )
           .mockImplementation(() => new Promise<unknown>(() => undefined));
+        const warnSpy = jest
+          .spyOn(
+            (service as unknown as { logger: { warn: (m: string) => void } })
+              .logger,
+            'warn',
+          )
+          .mockImplementation(() => undefined);
 
         mockExecutionRepo.findOneBy.mockResolvedValueOnce({
           id: executionId,
@@ -3812,6 +3819,17 @@ describe('ExecutionEngineService', () => {
             ExecutionStatus.FAILED,
         );
         expect(failedSaveCall).toBeUndefined();
+
+        // C-4 — 선점을 **관측 가능하게** 남기는지까지 본다. 이 전제(0행 매칭)는
+        // 이미 세팅돼 있었지만 warn 은 단언되지 않아, 로그 블록을 통째로 지워도
+        // RED 가 안 났다. 형제 종결 경로(`failFirstSegmentSetup`)는 같은 상황에
+        // warn 을 남기므로, 여기만 조용하면 "왜 이 실행만 FAILED 가 안 찍혔나" 를
+        // 로그로 추적할 수 없다.
+        expect(warnSpy).toHaveBeenCalledWith(
+          expect.stringMatching(
+            /executeSync\(.*\): 동시 cancel 이 이미 terminal 로 선점/,
+          ),
+        );
 
         runExecutionSpy.mockRestore();
       });

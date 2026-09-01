@@ -269,6 +269,16 @@ describe('AiTurnOrchestrator', () => {
       driver.markNodeCancelled.mockRejectedValueOnce(
         new Error('DB write failed'),
       );
+      const errorSpy = jest
+        .spyOn(
+          (
+            orchestrator as unknown as {
+              logger: { error: (m: string) => void };
+            }
+          ).logger,
+          'error',
+        )
+        .mockImplementation(() => undefined);
       const savedExecution = {
         id: executionId,
         status: ExecutionStatus.RUNNING,
@@ -291,6 +301,14 @@ describe('AiTurnOrchestrator', () => {
 
       // [전제] 마킹을 실제로 시도했다 — 안 불렀으면 위 단언이 이 경로를 안 태운다.
       expect(driver.markNodeCancelled).toHaveBeenCalled();
+
+      // 흡수했으니 **로그가 유일한 신호**다. 무엇이 잔류하는지(짝 row id)와 왜
+      // (원본 에러)를 둘 다 실어야 조사 시작점이 된다 — 둘 중 하나만 있으면
+      // "어딘가 실패했다" 까지만 알고 대상을 모른다.
+      expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining('ne-1'));
+      expect(errorSpy).toHaveBeenCalledWith(
+        expect.stringContaining('DB write failed'),
+      );
     });
 
     it('대조: 짝 전이가 적용되면(true) throw 하지 않고 markNodeCancelled 도 호출하지 않는다', async () => {
