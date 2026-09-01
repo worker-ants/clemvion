@@ -222,7 +222,7 @@ GET /api/triggers?type=webhook&status=active
 | 일반 API | 100 req/min (사용자 기준) | `X-RateLimit-Limit`, `X-RateLimit-Remaining`, `X-RateLimit-Reset` |
 | 인증 API | 10 req/min (IP 기준) | 동일 |
 | Webhook 수신 | 100 req/min (글로벌 throttler `default`) | 동일 |
-| 파일 업로드 (KB 문서) | 글로벌 100 req/min 상속 (`POST /api/knowledge-bases/:id/documents` 에 별도 `@Throttle` 없음) | 동일 |
+| 파일 업로드 (KB 문서·아바타) | 글로벌 100 req/min 상속 (`POST /api/knowledge-bases/:id/documents`·`POST /api/users/me/avatar` 둘 다 별도 `@Throttle` 없음) | 동일 |
 | Provider probe API (`POST /api/model-configs/preview-models` · `POST /api/model-configs/:id/test` · `GET /api/model-configs/:id/models`) | 10 req/min (사용자 기준) — 실시간 provider 호출 비용·속도제한 보호용 `@Throttle`, 3 핸들러 공통 컨트롤러 상수 `PROVIDER_PROBE_THROTTLE` | 동일 |
 | KB 재임베딩 (`POST /api/knowledge-bases/:id/re-embed`) | 3 req/min (사용자 기준) — `@Throttle`, editor 이상 ([§8 임베딩 파이프라인](./8-embedding-pipeline.md) SoT) | 동일 |
 | 초대 발송/재발송 (`POST /api/workspaces/:id/invitations` · `.../invitations/:invitationId/resend`) | 10 req/min (사용자 기준) — email-bombing 방지 `@Throttle`. provider probe 와 공통 tier 상수 `SENSITIVE_ACTION_THROTTLE`(별칭 `INVITATION_THROTTLE`) | 동일 |
@@ -277,11 +277,11 @@ GET /api/executions/{executionId}/background-runs/{backgroundRunId}?cursor=eyJ..
 | 항목 | 규칙 |
 |------|------|
 | 형식 | `multipart/form-data` (필드명 `file`) |
-| 최대 크기 | 단일 파일 50MB (`FileInterceptor` `limits.fileSize`) |
-| 허용 타입 | 엔드포인트별 제한 (Knowledge Base 문서: PDF/Markdown/텍스트 등) |
-| 응답 | 업로드된 파일 메타데이터 (id, status 등) |
+| 최대 크기 | **엔드포인트별 상이** — KB 문서 50MB, 아바타 2MB (각 `FileInterceptor` `limits.fileSize`) |
+| 허용 타입 | 엔드포인트별 제한 (Knowledge Base 문서: PDF/Markdown/텍스트 등, 아바타: `png`/`jpg`/`jpeg`/`webp`/`gif` — SVG 제외) |
+| 응답 | **엔드포인트별 상이** — KB 문서는 업로드된 파일 메타데이터(id, status 등), 아바타는 `PATCH /users/me` 와 동일한 **프로필 봉투**([프로필 §6.1](../2-navigation/9-user-profile.md)) |
 
-현재 파일 업로드 엔드포인트는 Knowledge Base 문서 업로드(`POST /api/knowledge-bases/:id/documents`)가 유일하다. 유저 아바타는 multipart 업로드가 아니라 `avatarUrl` URL 필드로 관리한다(별도 업로드 엔드포인트 없음).
+파일 업로드 엔드포인트는 둘이다 — Knowledge Base 문서 업로드(`POST /api/knowledge-bases/:id/documents`)와 아바타 업로드(`POST /api/users/me/avatar`, [프로필 §6.1](../2-navigation/9-user-profile.md)). 아바타는 `PATCH /api/users/me` 의 `avatarUrl` 로 **외부 URL 을 넣는 경로도** 함께 유지한다 — 두 경로가 같은 컬럼을 공유한다.
 
 ---
 

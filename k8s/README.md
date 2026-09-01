@@ -180,6 +180,7 @@ CI 파이프라인에서는 `kustomize edit set image clemvion/backend=<registry
 | `DB_HOST` | `REPLACE_ME.rds.amazonaws.com` | RDS endpoint |
 | `REDIS_HOST` | `REPLACE_ME.cache.amazonaws.com` | ElastiCache 엔드포인트 |
 | `S3_ENDPOINT` | `https://s3.us-east-1.amazonaws.com` | 리전 맞춰서 (그대로 두거나 자체 호스팅 endpoint) |
+| `S3_PUBLIC_BASE_URL` | `https://cdn.example.com` | **브라우저가 도달하는** 주소. 아바타 이미지 URL 의 base 로, `S3_ENDPOINT` 가 내부 주소면 반드시 따로 준다. 추가로 `avatars/` 접두에 **익명 `GetObject` 만 허용하고 `ListBucket` 은 허용하지 않는** 버킷 정책이 필요하다 (키의 UUID 가 접근 통제라, 목록이 열리면 무의미해진다). 정책 예시·실측: `scripts/minio/README.md`. 없으면 업로드는 성공하고 **이미지만 403** 이다 |
 
 DB/Redis 포트, S3 버킷·리전은 base ConfigMap 기본값 사용. 다르면 같은 patch 블록에 추가.
 

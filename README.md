@@ -209,6 +209,8 @@ JWT_REFRESH_EXPIRATION=7d
 
 # S3 / MinIO
 S3_ENDPOINT=http://localhost:9000
+# 아바타 공개 URL 의 base — 브라우저가 도달하는 주소. 미설정 시 S3_ENDPOINT 로 폴백한다.
+S3_PUBLIC_BASE_URL=http://localhost:9000
 S3_ACCESS_KEY=<access-key>
 S3_SECRET_KEY=<secret-key>
 S3_BUCKET=workflow

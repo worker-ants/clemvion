@@ -23,6 +23,9 @@ data:
 
   # S3 / MinIO (access/secret key는 Secret)
   S3_ENDPOINT: "http://minio:9000"
+  # 아바타 공개 URL 의 base. 클러스터 내부 주소가 아니라 **브라우저가 도달하는** 주소여야
+  # 한다. overlay 에서 공개 도메인/CDN 으로 덮는다.
+  S3_PUBLIC_BASE_URL: "http://localhost:9000"
   S3_BUCKET: "workflow-storage"
   S3_REGION: "us-east-1"
 

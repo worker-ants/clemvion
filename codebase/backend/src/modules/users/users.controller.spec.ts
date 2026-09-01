@@ -43,6 +43,7 @@ describe('UsersController', () => {
             findById: jest.fn(),
             update: jest.fn(),
             changePassword: jest.fn(),
+            updateAvatar: jest.fn(),
           },
         },
         {
@@ -383,5 +384,67 @@ describe('UsersController', () => {
       expect(spy).toHaveBeenCalledWith('user-uuid');
       expect(result.data.message).toEqual(expect.any(String));
     });
+  });
+});
+
+describe('UsersController.uploadAvatar (§6.1)', () => {
+  /**
+   * 리뷰(2026-08-31) WARNING — 이 컨트롤러의 다른 6개 엔드포인트는 전부 컨트롤러 레벨
+   * 테스트가 있는데 `uploadAvatar` 만 없었다. 위임 인자(`payload.sub`·`file`)와 응답
+   * 매핑이 고정되지 않으면, 서비스가 맞아도 컨트롤러가 엉뚱한 사용자의 파일을 올릴 수 있다.
+   */
+  let controller: UsersController;
+  let updateAvatar: jest.Mock;
+
+  const payload: JwtPayload = {
+    sub: 'user-uuid',
+    email: 'test@example.com',
+    workspaceId: 'ws-uuid',
+    role: 'owner',
+  };
+
+  beforeEach(async () => {
+    updateAvatar = jest.fn().mockResolvedValue({
+      id: 'user-uuid',
+      email: 'test@example.com',
+      name: 'Test User',
+      avatarUrl: 'https://cdn.example/bucket/avatars/user-uuid/x.png',
+      locale: null,
+      theme: null,
+    } as unknown as User);
+    const module: TestingModule = await Test.createTestingModule({
+      controllers: [UsersController],
+      providers: [
+        { provide: UsersService, useValue: { updateAvatar } },
+        { provide: AuditLogsService, useValue: { record: jest.fn() } },
+        { provide: AuthService, useValue: {} },
+        { provide: ConfigService, useValue: { get: jest.fn() } },
+      ],
+    }).compile();
+    controller = module.get<UsersController>(UsersController);
+  });
+
+  it('현재 사용자의 id 와 파일을 그대로 서비스에 넘긴다', async () => {
+    const file = { originalname: 'me.png' } as Express.Multer.File;
+    await controller.uploadAvatar(payload, file);
+    // 다른 사용자의 id 를 쓰면 남의 아바타를 덮어쓴다.
+    expect(updateAvatar).toHaveBeenCalledWith('user-uuid', file);
+  });
+
+  it('프로필 봉투를 돌려주고 pendingEmail 은 싣지 않는다', async () => {
+    const res = await controller.uploadAvatar(
+      payload,
+      {} as Express.Multer.File,
+    );
+    expect(res.data).toEqual({
+      id: 'user-uuid',
+      email: 'test@example.com',
+      name: 'Test User',
+      avatarUrl: 'https://cdn.example/bucket/avatars/user-uuid/x.png',
+      // null 이면 기본값으로 채운다 — getMe/updateMe 와 같은 규칙이어야 한다.
+      locale: 'ko',
+      theme: 'light',
+    });
+    expect(res.data).not.toHaveProperty('pendingEmail');
   });
 });

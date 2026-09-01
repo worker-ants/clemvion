@@ -33,6 +33,11 @@ patches:
       - op: replace
         path: /data/S3_ENDPOINT
         value: "https://s3.us-east-1.amazonaws.com"
+      # 브라우저가 아바타 이미지를 가져갈 주소. base 의 기본값은 localhost 라, 여기서 덮지
+      # 않으면 업로드는 200 으로 성공하고 **이미지만** 안 뜬다 — 증상이 원인에서 멀다.
+      - op: replace
+        path: /data/S3_PUBLIC_BASE_URL
+        value: "https://REPLACE_ME.cloudfront.net"
       - op: replace
         path: /data/MAIL_TRANSPORT
         value: "smtp"

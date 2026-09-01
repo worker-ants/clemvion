@@ -262,20 +262,22 @@ Clemvion은 AI 에이전트와 노코드 워크플로우 빌더를 통합한 실
     {kbId}/
       {documentId}/
         {sanitizedFilename}
-  {workspaceId}/                   # Form/Avatar 영역 (계획)
+  {workspaceId}/                   # Form 영역 (계획)
     forms/                         # Form 노드 파일 업로드
       {executionId}/
         {fileId}_{originalName}
-    avatars/                       # 프로필 이미지
-      {userId}.{ext}
+  avatars/                         # 프로필 이미지 (구현됨) — workspaceId 없음
+    {userId}/
+      {uuid}.{ext}
 ```
 
 | 영역 | 키 패턴 | 상태 | 코드 |
 |------|---------|------|------|
 | Knowledge Base 원본 문서 | `kb/{kbId}/{documentId}/{sanitizedFilename}` | 구현됨 | `codebase/backend/src/modules/knowledge-base/knowledge-base.service.ts:723` |
-| Form 노드 업로드 / Avatar | `{workspaceId}/forms/...`, `{workspaceId}/avatars/...` | 계획 (코드 미구현) | — |
+| Form 노드 업로드 | `{workspaceId}/forms/{executionId}/{fileId}_{originalName}` | 계획 (코드 미구현) | — |
+| Avatar (프로필 이미지) | `avatars/{userId}/{uuid}.{ext}` | 구현됨 | `codebase/backend/src/modules/users/users.service.ts` (`avatarKeyPrefix`) |
 
-> KB 원본 키는 `workspaceId` 를 prefix 로 두지 않는다 (`kb/...` 로 시작). 버킷 이름은 `S3_BUCKET` 환경변수 (기본 `workflow-storage`, `codebase/backend/.env.example:102`) 로 지정한다. 키 설계 근거·기각된 대안은 [Rationale § S3 객체 키 prefix 설계](#s3-객체-키-prefix-설계--kb-원본-키에서-workspaceid-제외-27) 참조.
+> KB 원본 키와 Avatar 키는 `workspaceId` 를 prefix 로 두지 않는다 (각각 `kb/...`, `avatars/...` 로 시작). 버킷 이름은 `S3_BUCKET` 환경변수 (기본 `workflow-storage`, `codebase/backend/.env.example`) 로 지정한다. **Avatar 키만 공개 읽기 대상**이며, 그 버킷 정책은 `avatars/` 접두에 익명 `GetObject` 만 허용하고 **`ListBucket` 은 허용하지 않는다** (정책 파일·실측: `scripts/minio/avatars-public-read.json`, `scripts/minio/README.md`). 키 설계 근거·기각된 대안은 [Rationale § S3 객체 키 prefix 설계](#s3-객체-키-prefix-설계--kb-원본과-avatar-키에서-workspaceid-제외-27) 참조.
 
 ### 2.8 DB 마이그레이션 (Flyway)
 
@@ -366,11 +368,14 @@ Clemvion은 AI 에이전트와 노코드 워크플로우 빌더를 통합한 실
 
 본 절은 본문에 inline 으로 산재된 결정 근거를 한 곳에 모은다. 본문은 latest-only 사실을 기술하고, "왜 이 선택인가 / 어떤 대안을 기각했는가" 는 본 절을 참조한다. 새로 본 문서를 읽는 사람이 "현재 어떻게 동작하는가" 와 "왜 그렇게 결정됐는가" 를 섞지 않도록 분리한다.
 
-### S3 객체 키 prefix 설계 — KB 원본 키에서 workspaceId 제외 (§2.7)
+### S3 객체 키 prefix 설계 — KB 원본과 Avatar 키에서 workspaceId 제외 (§2.7)
 
-- **배경**: 멀티 테넌트 환경에서 S3 키를 `{workspaceId}/...` 로 prefix 하는 것이 일반적 패턴이다 (논리적 격리 + bucket policy 단위 권한 제어). Form/Avatar 영역은 §2.7 의 키 구조와 같이 이 패턴을 따른다.
-- **채택**: Knowledge Base 원본 문서 키만 `kb/{kbId}/{documentId}/...` 로 두고 workspaceId 를 prefix 에서 제외한다. (`{workspaceId}/kb/...` 패턴은 키 길이가 늘어나고 KB list/delete 시 prefix scan 비용이 증가.)
-- **trade-off**: `kbId` 자체가 KB 메타데이터의 FK 로 workspace 에 종속되므로 워크스페이스 격리는 application layer 에서 보장 (`kbId → workspaceId` 조회 후 권한 체크). 키 공간이 겹칠 위험은 없지만, 만약 향후 bucket policy 만으로 workspace 격리를 강제해야 하는 요구가 생기면 prefix 재설계 비용이 발생한다. 현 시점에서 그 요구는 없다.
+- **배경**: 멀티 테넌트 환경에서 S3 키를 `{workspaceId}/...` 로 prefix 하는 것이 일반적 패턴이다 (논리적 격리 + bucket policy 단위 권한 제어). **Form 영역은** §2.7 의 키 구조와 같이 이 패턴을 따른다.
+- **채택**: **두 영역**이 workspaceId prefix 에서 빠진다 — Knowledge Base 원본 문서 키와 Avatar 키. **근거가 서로 다르므로 나눠 적는다.**
+  - **KB 원본 문서** `kb/{kbId}/{documentId}/...` — `{workspaceId}/kb/...` 는 키 길이가 늘어나고 KB list/delete 시 prefix scan 비용이 증가한다. **비용 근거**.
+  - **Avatar** `avatars/{userId}/{uuid}.{ext}` — `User` 는 **워크스페이스 비종속 리소스**다. 한 사용자가 여러 워크스페이스에 속하므로 키를 워크스페이스로 나누면 같은 사람의 아바타가 워크스페이스마다 갈라지고, 워크스페이스를 추가할 때마다 다시 올려야 한다. **소유 모델 근거** — 비용 최적화가 아니라 리소스의 귀속이 다르다.
+- **Avatar 파일명이 `{userId}.{ext}` 가 아니라 `{uuid}.{ext}` 인 이유**: 아바타는 공개 버킷에서 서빙되므로(§2.7 note) **키가 곧 접근 통제**다. `{userId}.{ext}` 는 예측 가능해서, 워크스페이스 멤버 목록을 아는 사람이 다른 사용자의 아바타를 열거·열람할 수 있다. UUID 는 장식이 아니라 통제 수단이고, 그래서 `ListBucket` 차단과 **짝**이다 — 둘 중 하나만으로는 통제가 성립하지 않는다.
+- **trade-off**: `kbId` 자체가 KB 메타데이터의 FK 로 workspace 에 종속되므로 KB 쪽 워크스페이스 격리는 application layer 에서 보장 (`kbId → workspaceId` 조회 후 권한 체크). **Avatar 는 격리 대상이 아니다** — 공개 읽기가 제품 결정이다 (2026-08-31 사용자 결정, [프로필 §6.1](2-navigation/9-user-profile.md)). 만약 향후 bucket policy 만으로 workspace 격리를 강제해야 하는 요구가 생기면 KB 쪽 prefix 재설계 비용이 발생한다. 현 시점에서 그 요구는 없다.
 
 ### DB 마이그레이션 도구로 Flyway 채택 (§2.8)
 

@@ -270,8 +270,10 @@ read/write 되는 컬럼** 만 발췌하고, 전체 정의는 `1-data-model.md` 
 
 KB 원본 문서의 S3 key 는 `kb/{kbId}/{documentId}/{sanitizedFilename}` 다 (`knowledge-base.service.ts` 의
 `s3Key` 구성). `spec/0-overview.md` §2.7 의 객체 키 표·동 문서 Rationale "S3 객체 키 prefix 설계" 와
-정합하며, KB 원본 키만 `workspaceId` prefix 를 제외한다 (워크스페이스 격리는 DB 권한 검증으로 보장 —
-prefix scan 비용·키 길이 절감). data-flow 의 schema 매핑 표도 이 키를 기재한다.
+정합하며, KB 원본 키와 Avatar 키가 `workspaceId` prefix 를 제외한다. **두 예외의 근거는 다르다**
+(KB=prefix scan 비용·키 길이, Avatar=`User` 가 워크스페이스 비종속) — 근거는
+[`spec/0-overview.md` Rationale § S3 객체 키 prefix 설계](../0-overview.md#s3-객체-키-prefix-설계--kb-원본과-avatar-키에서-workspaceid-제외-27)
+가 단일 진실이며 여기서 복제하지 않는다. data-flow 의 schema 매핑 표도 이 키를 기재한다.
 
 > 과거 본 항목은 §2.7 가 `{workspaceId}/knowledge-base/{kbId}/...` 를 기술하던 시기의 코드/spec 불일치를
 > 다뤘으나, §2.7 이 `kb/{kbId}/{documentId}/...` 로 정합된 뒤 불일치는 해소됐다.

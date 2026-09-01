@@ -10,9 +10,12 @@ import {
   Post,
   Req,
   Res,
+  UploadedFile,
   UseGuards,
+  UseInterceptors,
   forwardRef,
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
 import {
   ApiTags,
   ApiBearerAuth,
@@ -20,7 +23,10 @@ import {
   ApiUnauthorizedResponse,
   ApiNotFoundResponse,
   ApiBadRequestResponse,
+  ApiBody,
+  ApiConsumes,
   ApiForbiddenResponse,
+  ApiPayloadTooLargeResponse,
 } from '@nestjs/swagger';
 import { ConfigService } from '@nestjs/config';
 import { Throttle } from '@nestjs/throttler';
@@ -30,6 +36,7 @@ import {
   PasswordChangeResultDto,
   UserProfileDto,
 } from './dto/responses/user-response.dto';
+import { User } from './entities/user.entity';
 import { UsersService } from './users.service';
 import { CurrentUser } from '../../common/decorators';
 import type { JwtPayload } from '../../common/decorators';
@@ -43,7 +50,14 @@ import { AUDIT_ACTIONS } from '../audit-logs/audit-action.const';
 import { AuthService } from '../auth/auth.service';
 import { authContextFromRequest } from '../auth/utils/auth-context';
 import { setRefreshTokenCookie } from '../auth/utils/refresh-cookie';
-import Express from 'express';
+// `Express` 로 default import 하면 **전역 `Express` 네임스페이스를 가린다** —
+// `@types/multer` 가 `Express.Multer.File` 을 그 전역에 augment 하므로, 가려진 상태에서는
+// 파일 업로드 파라미터의 타입을 쓸 수 없다(실측: `Namespace 'e' has no exported member
+// 'Multer'`). 아바타 업로드가 그 지점을 처음 밟아서 이름을 바꿨다.
+//
+// 다른 컨트롤러 4곳은 Multer 타입을 쓰지 않아 `Express` 그대로다 — 전역 컨벤션으로
+// 승격하려면 `spec/conventions/` 문서화가 선행돼야 한다.
+import ExpressNS from 'express';
 
 @ApiTags('Users')
 @ApiBearerAuth('access-token')
@@ -65,6 +79,22 @@ export class UsersController {
       this.configService.get<string>('app.cookieDomain') || '';
   }
 
+  /**
+   * 프로필 응답 봉투의 `data`. `getMe`·`updateMe`·`uploadAvatar` 세 곳이 같은 모양을
+   * 내보내므로 한 곳에서 만든다 — 필드가 늘 때 세 군데를 따로 고치면 조용히 갈린다.
+   * `pendingEmail` 은 `getMe` 만 싣는다(스프레드로 덧붙인다).
+   */
+  private toProfileData(user: User) {
+    return {
+      id: user.id,
+      email: user.email,
+      name: user.name,
+      avatarUrl: user.avatarUrl,
+      locale: user.locale ?? 'ko',
+      theme: user.theme ?? 'light',
+    };
+  }
+
   @Get('me')
   @ApiOperation({
     summary: '현재 사용자 프로필 조회',
@@ -83,12 +113,7 @@ export class UsersController {
     }
     return {
       data: {
-        id: user.id,
-        email: user.email,
-        name: user.name,
-        avatarUrl: user.avatarUrl,
-        locale: user.locale ?? 'ko',
-        theme: user.theme ?? 'light',
+        ...this.toProfileData(user),
         // 진행 중인 이메일 변경 표시용 (spec/5-system/1-auth.md §1.1.B).
         pendingEmail: user.pendingEmail ?? null,
       },
@@ -99,7 +124,10 @@ export class UsersController {
   @ApiOperation({
     summary: '현재 사용자 프로필 수정',
     description:
-      '이름, 언어(locale), 테마, 아바타 URL 중 전달된 필드만 부분 갱신합니다. 비밀번호 변경은 별도 엔드포인트(`POST /users/me/change-password`)를 이용하세요.',
+      '이름, 언어(locale), 테마, 아바타 URL 중 전달된 필드만 부분 갱신합니다. ' +
+      '`avatarUrl` 을 **다른 값으로** 바꾸면 직전에 업로드된 아바타 객체가 스토리지에서 ' +
+      '함께 정리됩니다(best-effort — 실패해도 이 요청은 성공합니다). 비밀번호 변경은 ' +
+      '별도 엔드포인트(`POST /users/me/change-password`)를 이용하세요.',
   })
   @ApiOkWrappedResponse(UserProfileDto, { description: '수정된 프로필' })
   @ApiBadRequestResponse({ description: '입력값 검증 실패' })
@@ -115,16 +143,60 @@ export class UsersController {
     }
 
     const updated = await this.usersService.update(payload.sub, dto);
-    return {
-      data: {
-        id: updated.id,
-        email: updated.email,
-        name: updated.name,
-        avatarUrl: updated.avatarUrl,
-        locale: updated.locale ?? 'ko',
-        theme: updated.theme ?? 'light',
+    return { data: this.toProfileData(updated) };
+  }
+
+  @Post('me/avatar')
+  // 이 컨트롤러의 다른 POST 5개와 같이 명시 200. 없으면 NestJS 기본 201 이 나가
+  // `@ApiOkWrappedResponse`(200 문서)와 런타임이 어긋난다.
+  @HttpCode(HttpStatus.OK)
+  @UseInterceptors(
+    FileInterceptor('file', {
+      // 상수를 **직접 참조**하므로 서비스와 갈릴 수 없다. multer 는 스트림 단계에서
+      // 끊어 413 을 내고, 서비스 상수는 계약 서술이다.
+      //
+      // 초판 주석은 여기 "회귀 테스트가 두 값의 동일성을 고정한다" 고 적었다 — **그런
+      // 테스트는 없었고, 직접 참조라 애초에 필요하지도 않았다.** 존재하지 않는 보호를
+      // 근거로 드는 주석은 다음 사람이 그 보호를 믿고 상수를 리터럴로 바꾸게 만든다.
+      // 진짜 드리프트 지점은 아래 Swagger 리터럴("최대 2MB")이고, 그건 아래 테스트가 문다.
+      limits: { fileSize: UsersService.AVATAR_MAX_BYTES },
+    }),
+  )
+  @ApiOperation({
+    summary: '아바타 이미지 업로드',
+    description:
+      '아바타 이미지를 업로드하고 프로필의 `avatarUrl` 을 갱신합니다 (최대 2MB, png/jpg/jpeg/webp/gif). ' +
+      '업로드된 이미지는 **URL 을 아는 누구나 접근할 수 있는 공개 오브젝트**이며, URL 은 추측 불가능한 ' +
+      'UUID 를 포함합니다. 기존 아바타 객체는 교체 후 정리됩니다.',
+  })
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    description: '업로드할 아바타 이미지',
+    schema: {
+      type: 'object',
+      properties: {
+        file: {
+          type: 'string',
+          format: 'binary',
+          description: '이미지 파일 (최대 2MB, png/jpg/jpeg/webp/gif)',
+        },
       },
-    };
+      required: ['file'],
+    },
+  })
+  @ApiOkWrappedResponse(UserProfileDto, { description: '갱신된 프로필' })
+  @ApiBadRequestResponse({
+    description: '파일 누락 또는 허용되지 않는 이미지 형식',
+  })
+  @ApiPayloadTooLargeResponse({ description: '파일 크기 초과 (2MB)' })
+  @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
+  @ApiNotFoundResponse({ description: '사용자를 찾을 수 없음' })
+  async uploadAvatar(
+    @CurrentUser() payload: JwtPayload,
+    @UploadedFile() file: Express.Multer.File,
+  ) {
+    const updated = await this.usersService.updateAvatar(payload.sub, file);
+    return { data: this.toProfileData(updated) };
   }
 
   @Post('me/change-password')
@@ -145,8 +217,8 @@ export class UsersController {
   async changePassword(
     @CurrentUser() payload: JwtPayload,
     @Body() dto: ChangePasswordDto,
-    @Req() req: Express.Request,
-    @Res({ passthrough: true }) res: Express.Response,
+    @Req() req: ExpressNS.Request,
+    @Res({ passthrough: true }) res: ExpressNS.Response,
   ) {
     // 도메인 로직(현재 비밀번호 검증·강도·해시·저장)은 service 로 이전 (refactor 04 B-2).
     await this.usersService.changePassword(
@@ -232,8 +304,8 @@ export class UsersController {
   async verifyEmailChange(
     @CurrentUser() payload: JwtPayload,
     @Body() dto: EmailChangeVerifyDto,
-    @Req() req: Express.Request,
-    @Res({ passthrough: true }) res: Express.Response,
+    @Req() req: ExpressNS.Request,
+    @Res({ passthrough: true }) res: ExpressNS.Response,
   ) {
     const ctx = authContextFromRequest(req);
     const tokens = await this.authService.verifyEmailChange(

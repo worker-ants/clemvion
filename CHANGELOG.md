@@ -1,5 +1,87 @@
 # Changelog
 
+## Unreleased — 아바타 이미지 업로드 (공개 버킷 + 공개 URL)
+
+`POST /api/users/me/avatar` 신설. 종전에는 `PATCH /api/users/me` 로 **외부 URL 문자열만**
+넣을 수 있었고 파일 업로드는 `9-user-profile.md §6.1` 에 "미구현 (Planned)" 로만 있었다.
+
+**서빙 전략은 공개 버킷 + 공개 URL 이다(사용자 결정).** 세 안(공개 URL / 서명 URL / 백엔드
+프록시) 중 고른 것이고, 그 대가는 **아바타 이미지가 URL 을 아는 누구나 접근 가능**하다는
+것이다. 워크스페이스 멤버 전용이 아니다.
+
+그래서 세 가지를 코드로 고정했다 — 셋 다 **"동작은 하는데 잘못된 채로 동작"** 하는 종류라
+테스트가 아니면 드러나지 않는다:
+
+- **키의 UUID 는 접근 통제다.** 공개 버킷에서 키가 곧 권한이라, `avatars/{userId}` 만이면
+  워크스페이스 멤버 목록을 아는 사람이 아바타를 열거할 수 있다. `avatars/{userId}/{uuid}.{ext}`.
+- **`Content-Type` 은 확장자에서 파생한다.** 클라이언트가 보내는 `mimetype` 을 믿고 쓰면
+  `text/html` 이 저장돼 같은 오리진에서 실행될 수 있다. **SVG 는 의도적으로 제외** — 스크립트를
+  품을 수 있는 유일한 이미지 포맷이라 공개 URL 로 서빙하면 저장형 XSS 표면이 된다.
+- **교체 시 옛 객체를 지우되 DB 저장 뒤에 한다.** 순서를 뒤집으면 저장 실패 시 사용자에게
+  **이미 지워진** 아바타를 가리키는 URL 이 남는다 — 고아 객체보다 나쁘다. 키 복원은 저장된
+  URL 에서 base 를 걷어내는 대신 `avatars/{userId}/` 앵커로 잡는다(도메인이 바뀐 뒤의 옛 URL
+  에서도 복원되고, 남의 키를 지울 수도 없다).
+- **`avatarUrl` 컬럼 하나만 UPDATE 한다.** 첫 판은 업로드 **앞에서** 읽은 엔티티 스냅샷을
+  `save()` 했는데, S3 업로드가 도는 수백 ms~수 초 사이 다른 요청이 바꾼 컬럼(로그인 실패
+  카운터·계정 잠금·2FA 등록)이 그 스냅샷의 옛 값으로 **조용히 되돌아간다**. 락을 거는 대신
+  **쓰는 컬럼을 줄여** 그 lost update 를 없앴다.
+
+  **없앤 것은 "다른 컬럼" 경쟁뿐이다.** 같은 사용자가 동시에 두 번 업로드하면 `avatarUrl`
+  자체를 두고 여전히 경합하고, 패자가 올린 객체는 고아로 남는다(과금·용량, 정합성은 무사).
+  직렬화가 필요한 그 건은 `plan/in-progress/spec-sync-user-profile-gaps.md` 에 유예로
+  등재했다 — 여기서 "경쟁을 없앴다" 고 넓게 읽으면 안 된다.
+- **확장자 조회는 프로토타입 체인을 타지 않는다.** `ext` 는 사용자가 보낸 파일명에서 나오므로
+  `avatar.constructor` / `avatar.__proto__` 가 일반 객체 인덱싱에서 truthy 를 돌려줘
+  화이트리스트를 통과했다(소문자화 때문에 이 둘만 도달 가능). `hasOwnProperty` 로 막는다.
+
+**배포 선행 조건**: `avatars/` 접두에 **익명 `GetObject` 만 허용하고 목록 조회는 허용하지
+않는** 버킷 정책이 필요하다. 로컬·e2e 는 `createbuckets` 가
+`scripts/minio/avatars-public-read.json` 을 `mc anonymous set-json` 으로 적용한다.
+
+**`mc anonymous set download` 는 실측으로 기각했다.** 이름과 달리 접두에 걸면
+`s3:ListBucket` 을 함께 열어, 익명 요청이 `?list-type=2&prefix=avatars` 로 **UUID 를 포함한
+전체 키를 열거**할 수 있었다. 그러면 공개 버킷에서 아바타를 지키는 유일한 수단인 키의 추측
+불가능성이 무의미해진다. 명시 정책으로 바꾼 뒤 목록 **403** · GET **200** 을 확인했다.
+기각 근거와 재현 명령: `scripts/minio/README.md`. 운영 버킷에도 같은 조건이 필요하다 —
+콘솔·CLI 의 "public read" 프리셋은 대개 목록 조회를 함께 연다.
+
+**부팅 가드**: production 에서 이 base 가 사설/loopback 주소로 판정되면 경고 로그를 남긴다
+(`main.ts`). 신규 env 를 k8s overlay 에 전파하지 않아 base 기본값인 `localhost` 가 프로덕션에
+실릴 뻔한 근접사고가 실제로 있었고, 그 클래스의 backstop 이다. 판정은 정본
+`isPrivateHost` 를 쓰고, 폴백 규칙은 `resolvePublicBaseUrl` 한 곳에서만 정의한다.
+`throw` 가 아니라 `warn` 인 것은 단일 호스트·사내망 self-host 에서는 사설 주소가 정답일 수
+있어서다(`ALLOW_PRIVATE_HOST_TARGETS` 와 같은 정책).
+정책이 닫혀 있으면 업로드는 성공하고 **이미지만 403** 이 된다 — 증상이 업로드가 아니라 표시에서
+난다. 신규 `S3_PUBLIC_BASE_URL` 도 함께 필요하다(`S3_ENDPOINT` 는 백엔드가 SDK 로 쓰는 **내부**
+주소라 브라우저가 도달하지 못한다). `.env.example` 에 둘 다 경고와 함께 등재했다.
+
+부수로 `users.controller.ts` 의 `import Express from 'express'` 를 `ExpressNS` 로 개명했다 —
+그 이름이 **전역 `Express` 네임스페이스를 가려서** `@types/multer` 가 augment 한
+`Express.Multer.File` 을 쓸 수 없었다(실측: `Namespace 'e' has no exported member 'Multer'`).
+잠재 위험이었고 이 변경이 처음 밟았다.
+
+## 부수 — 로그인 실패 카운터가 아바타 URL 을 되돌리고 있었다
+
+`incrementLoginAttempts` 가 `findOneOrFail` → 필드 수정 → `save(user)`(스냅샷 전체) 였다.
+아바타 업로드가 `avatarUrl` 을 갱신하고 **옛 S3 객체까지 지운 뒤** 그 저장이 커밋되면, DB 가
+**이미 삭제된 객체를 가리키는 옛 URL** 로 되돌아간다 — 위에서 "정리를 저장 뒤에 한다" 로 막은
+바로 그 상태를 반대편 writer 가 되돌리고 있었다. 아바타 업로드가 없던 시절에는 이 경로가
+없었으므로 이 변경이 만든 결함이고, 그래서 여기서 닫는다.
+
+증가와 잠금 판정을 **단일 원자 `UPDATE … RETURNING`** 으로 바꿨다. 부수적으로 잠금 자체도
+강해진다 — read-modify-write 는 동시 실패 둘이 같은 값을 읽으면 카운터가 2 가 아니라 1 이
+되어 임계가 느슨해졌다.
+
+**쓰기와 읽기의 시계가 갈렸다.** `locked_until` 은 이제 DB `NOW()` 로 잡는데(앱 서버가
+여럿일 때 인스턴스마다 값이 달라지지 않도록), 그 값을 비교하는 `isLocked()` 는 앱 서버
+시계를 쓴다. **의도적으로 남긴다** — 영향은 시계 드리프트만큼 잠금이 길거나 짧아지는 것이고
+NTP 동기 환경에서 초 단위인데, 없애려면 판정마다 `SELECT NOW()` 를 한 번 더 쳐야 한다(모든
+로그인 시도가 치르는 비용). 근거와 재개 조건은 `isLocked()` JSDoc 에 있다.
+
+spec `9-user-profile.md` 의 "미구현 (Planned)" 배지 flip 은 `spec/` 쓰기라 planner 트랙으로
+분리했다(`plan/in-progress/spec-update-avatar-upload-implemented.md`) — 배지만 뒤집지 말고
+**공개된다는 사실**을 함께 적어야 한다는 점을 그 plan 에 명시했다.
+
 ## Unreleased — 엔진 에러 코드가 반만 상수였다 (그리고 "분리" 는 틀린 처방이었다)
 
 `Execution.error.code` / `NodeExecution.error.code` 는 DB 에 영속되고 FE·알림·chat-channel

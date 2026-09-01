@@ -33,6 +33,10 @@ patches:
       - op: replace
         path: /data/REDIS_HOST
         value: "REPLACE_ME.cache.amazonaws.com"
+      # base 기본값이 localhost 라 반드시 덮는다 — 안 덮으면 아바타 이미지만 조용히 깨진다.
+      - op: replace
+        path: /data/S3_PUBLIC_BASE_URL
+        value: "https://REPLACE_ME.cloudfront.net"
       - op: replace
         path: /data/S3_ENDPOINT
         value: "https://s3.us-east-1.amazonaws.com"
