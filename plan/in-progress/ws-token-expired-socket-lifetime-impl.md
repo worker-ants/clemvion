@@ -74,11 +74,19 @@ WARNING 3건 중 **1건만 이 작업 몫**이었다(형제 draft 체크리스�
 ## 체크리스트
 
 - [x] `--impl-prep spec/5-system/` — **BLOCK: NO**. 번들이 근거 문서를 생략했으나 checker 가 `Read` 로 열어 판정(위 표)
-- [ ] backend: 소켓별 타이머 + emit + disconnect + 해제 (TDD)
-- [ ] frontend: 구독 + disconnect reason 분기 + 명시 재연결 (TDD)
-- [ ] lint / unit / build / e2e
+- [x] backend: 소켓별 타이머 + emit + disconnect + 해제 (TDD) — 뮤테이션 RED 2
+- [x] frontend: 구독 + disconnect reason 분기 + **재핸드셰이크** (TDD) — 뮤테이션 RED 1 + 대조군
+- [x] lint / unit / build / e2e
+- [x] **`scripts/check-frontend-typecheck-ratchet.py`** — 4단계 wrapper 밖이라 별도로 돌린다.
+      초판이 이걸 안 돌려 CI 를 깰 뻔했다(아래 리뷰 1R C2).
 - [ ] `/ai-review` + 조치
 - [ ] PR
+- [ ] **머지 후 planner 턴** — spec 의 `_(계획·미구현)_` 배지 flip(§1.2·§4.6·Rationale·`:28`)과
+      `spec-sync-websocket-protocol-gaps.md:23` 체크박스. **developer 권한 밖**이다(그 문구의
+      원저자가 아니라 자기-반증형 소정정 예외에 해당하지 않는다). 이 PR 은 구현만 싣는다.
+- [ ] **배포 전환 창 리스크** (리뷰 1R api_contract W6) — 이 재연결 로직을 모르는 **구버전
+      번들**(배포 시점에 이미 열려 있던 탭)은 최대 900초 뒤 무통지로 끊긴다. FE 우선 배포로
+      창을 줄이거나 그 이탈을 감내한다는 판단을 배포 런북에 남길 것.
 
 ## 비고 — `--impl-prep` 번들 예산
 

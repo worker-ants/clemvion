@@ -59,6 +59,11 @@ const EXPECTED_EXPORTS = [
   'InAppNotificationEventType',
   'NotificationNewPayload',
   'KbEventType',
+  // §4.6 auth 시스템 이벤트 (`R-ws-socket-lifetime-binds-token`). 이 목록은 **완전한
+  // 목록**이라 신규 export 를 빠뜨리면 #1174 회귀(72 suites 가 `Cannot read properties
+  // of undefined`)를 막던 불변식이 조용히 약해진다 — 부분집합 검사라 RED 가 안 난다.
+  'AuthEventType',
+  'AuthTokenExpiredPayload',
 ];
 
 /**

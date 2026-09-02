@@ -147,8 +147,15 @@ describe("ws-client", () => {
       return call[1] as (arg: never) => void;
     }
 
-    it("auth.token_expired 를 받으면 재발급 → auth.token 교체 → 명시적 connect", async () => {
-      createWsClient().connect();
+    // **통지 시점의 소켓은 연결돼 있다.** `connected: false` 로 검사하면 프로덕션에 없는
+    // 상태를 보는 것이고, socket.io-client 의 `connect()` 는 `if (this.connected) return this`
+    // 로 **완전한 no-op** 이라 그 차이가 곧 결함이 된다(리뷰 1R CRITICAL #1: 초판이 정확히
+    // 이 fixture 때문에 GREEN 이었고, 실제로는 §9.2 의 "끊김이 보이지 않는다" 가 매 900초
+    // 마다 깨졌다 — 재연결이 서버 강제 종료 뒤에야 일어났다).
+    it("auth.token_expired — 연결된 소켓을 재핸드셰이크한다 (disconnect → connect)", async () => {
+      createWsClient().connect("old-token");
+      mockSocket.connected = true;
+
       await (handlerFor("auth.token_expired") as (a: unknown) => Promise<void>)({
         message: "expiring",
         expiresAt: new Date().toISOString(),
@@ -156,11 +163,16 @@ describe("ws-client", () => {
 
       expect(mockRefresh).toHaveBeenCalledTimes(1);
       expect(mockSocket.auth.token).toBe("new-token");
+      // 새 토큰으로 다시 붙으려면 기존 연결을 먼저 끊어야 한다 — `connect()` 단독은 no-op.
+      expect(mockSocket.disconnect).toHaveBeenCalled();
       expect(mockSocket.connect).toHaveBeenCalled();
+      expect(mockSocket.disconnect.mock.invocationCallOrder[0]).toBeLessThan(
+        mockSocket.connect.mock.invocationCallOrder[0],
+      );
     });
 
     it("통지를 놓쳐도 io server disconnect 면 같은 복구를 한다 (fallback)", async () => {
-      createWsClient().connect();
+      createWsClient().connect("old-token");
       await (handlerFor("disconnect") as (r: string) => Promise<void>)(
         "io server disconnect",
       );
@@ -168,10 +180,12 @@ describe("ws-client", () => {
       expect(mockRefresh).toHaveBeenCalledTimes(1);
       expect(mockSocket.auth.token).toBe("new-token");
       expect(mockSocket.connect).toHaveBeenCalled();
+      // 이미 끊긴 상태다 — 불필요한 disconnect 를 덧붙이지 않는다.
+      expect(mockSocket.disconnect).not.toHaveBeenCalled();
     });
 
     it("대조군 — 그 밖의 disconnect reason 은 건드리지 않는다 (내장 재연결 몫)", async () => {
-      createWsClient().connect();
+      createWsClient().connect("old-token");
       await (handlerFor("disconnect") as (r: string) => Promise<void>)(
         "transport close",
       );

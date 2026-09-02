@@ -46,6 +46,30 @@ export function createWsClient(): WsClient {
       console.error("[ws] Server error:", err);
     });
 
+    // 토큰 재발급 → `auth.token` 교체 → 재연결. **세 트리거의 공통 몸통**이다
+    // (`connect_error` · `auth.token_expired` · 서버발신 `disconnect`). 재발급 정책이
+    // 바뀔 때 한쪽만 고치는 shotgun surgery 를 막으려 한 곳에 둔다(리뷰 1R W1).
+    const refreshAndReconnect = async (why: string) => {
+      try {
+        const newToken = await refreshAccessToken();
+        if (!newToken || !socket) return;
+        (socket.auth as { token: string }).token = newToken;
+
+        // **`connect()` 단독은 이미 연결된 소켓에서 아무 일도 하지 않는다** —
+        // socket.io-client 가 `connect() { if (this.connected) return this; }` 로 즉시
+        // 반환한다(v4.8.3 실측). 사전 통지 경로는 소켓이 **연결된 채로** 도착하므로,
+        // 끊지 않고 connect 만 부르면 새 토큰이 `auth` 에만 얹히고 재핸드셰이크가 없다.
+        //
+        // 그러면 실제 재연결은 서버가 `exp` 에 강제 종료한 뒤에야 일어나 §9.2 의 "끊김이
+        // 보이지 않는다" 가 **매 토큰 주기마다** 깨진다(리뷰 1R CRITICAL #1). 명시적으로
+        // 끊고 다시 붙어 그 창을 밀리초로 줄인다.
+        if (socket.connected) socket.disconnect();
+        socket.connect();
+      } catch (refreshErr) {
+        console.error(`[ws] Token refresh failed (${why}):`, refreshErr);
+      }
+    };
+
     // Carousel disabled stuck 버그 fix — 첫 connect_error 시 일단 token refresh
     // + 명시적 재연결 한 번 시도. socket.io 자체 reconnect 는 같은 stale token
     // 으로 무한 재시도하므로 auth race 시 영구 실패한다. 첫 실패 message 가
@@ -60,41 +84,21 @@ export function createWsClient(): WsClient {
     socket.on("connect", () => {
       refreshAttempted = false;
     });
-    socket.on("connect_error", async (err: Error) => {
+    socket.on("connect_error", (err: Error) => {
       console.error("[ws] Connection error:", err.message);
       if (refreshAttempted) return;
       refreshAttempted = true;
-      try {
-        const newToken = await refreshAccessToken();
-        if (newToken && socket) {
-          // socket.io 의 auth payload 를 새 token 으로 갱신 후 명시적 재연결.
-          (socket.auth as { token: string }).token = newToken;
-          socket.connect();
-        }
-      } catch (refreshErr) {
-        console.error("[ws] Token refresh failed:", refreshErr);
-      }
+      void refreshAndReconnect("connect_error");
     });
 
     // §1.2/§9.2 — 소켓 수명이 토큰 수명에 종속된다. 서버가 만료 60초 전
     // `auth.token_expired` 를 통지하고 `exp` 에 `disconnect()` 한다.
     //
     // **위 `connect_error` 경로로는 못 잡는다.** 그쪽은 *연결 시도가 실패*할 때 발화하고,
-    // 여기서 다루는 것은 *이미 연결된* 소켓이 서버에 의해 끊기는 경우다. 그리고
-    // **Socket.IO 자동 재연결은 서버발신 `disconnect()` 에 발화하지 않는다**
-    // (reason `"io server disconnect"`, §6.1 예외) — 명시적 `connect()` 가 필요하다.
-    // 이 두 경로가 없으면 사용자는 조용히 연결을 잃는다.
-    const refreshAndReconnect = async (why: string) => {
-      try {
-        const newToken = await refreshAccessToken();
-        if (newToken && socket) {
-          (socket.auth as { token: string }).token = newToken;
-          socket.connect();
-        }
-      } catch (refreshErr) {
-        console.error(`[ws] Token refresh failed (${why}):`, refreshErr);
-      }
-    };
+    // 여기서 다루는 것은 *이미 연결된* 소켓이다. 그리고 **Socket.IO 자동 재연결은
+    // 서버발신 `disconnect()` 에 발화하지 않는다**(reason `"io server disconnect"`,
+    // §6.1 예외). 이 두 경로가 없으면 사용자는 조용히 연결을 잃는다.
+
 
     // 정상 경로 — 통지 창(60초) 안에 갈아탄다. 성공하면 끊김이 보이지 않는다.
     socket.on("auth.token_expired", () => {
