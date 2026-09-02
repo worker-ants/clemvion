@@ -9,8 +9,11 @@ spec_impact:
 
 # spec draft — WS `auth.token_expired` 배지 flip · 트래커 종결 · §10.4 예외 반영
 
+> ✅ **종결 (2026-09-02)** — 변경안 spec 12곳·plan 6곳 전량 반영, `#1267` 머지.
+> `6-websocket-protocol.md` 는 `status: implemented` 로 승격됐다.
+
 > 착수 근거: `#1266`(구현 머지) 후속. 코드 리뷰 5R SPEC-DRIFT #1 · `--impl-done` W1 ·
-> [`ws-token-expired-socket-lifetime-impl.md`](./ws-token-expired-socket-lifetime-impl.md)
+> [`ws-token-expired-socket-lifetime-impl.md`](../in-progress/ws-token-expired-socket-lifetime-impl.md)
 > 체크리스트의 "머지 후 planner 턴".
 >
 > **developer 권한 밖이라 여기까지 미뤄진 것**이다 — 배지·요약은 제품 정의 텍스트이고

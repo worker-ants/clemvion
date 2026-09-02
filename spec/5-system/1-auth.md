@@ -334,9 +334,9 @@ counter 역행이 감지되면 `verifyAuthenticationResponse` 가 reject 한다.
 | Refresh 쿠키 Path | `/api/auth` 로 한정 (refresh·login·logout 등 auth 엔드포인트 외에는 쿠키 미첨부 — 표면 축소). `set`/`clear` 가 동일 Path 사용 필수 |
 | `/auth/refresh` CSRF | `SameSite=none` 모드에서 cross-site 강제 refresh 를 막기 위해 요청 `Origin` 을 CORS allowlist(`isOriginAllowed`)와 대조 — allowlist 외·불투명(`'null'`) Origin 은 `403`. Origin 부재(same-origin·non-browser)는 통과. 다른 엔드포인트는 Bearer access token 기반이라 쿠키 CSRF 면역 — Rationale 2.3.B |
 
-> **재인증 에러 코드** (`verifyReauth` — 강제 종료·revoke-others·이메일 변경 §1.1.B 공용): 비밀번호/TOTP 어느 자격도 미입력·미충족 → `REAUTH_REQUIRED`(400) · 비밀번호 불일치 → `PASSWORD_INVALID`(401) · TOTP 불일치 → `TOTP_INVALID`(401) · 재인증 수단 부재(OAuth-only) → `REAUTH_NOT_AVAILABLE`(403). `PASSWORD_INVALID` 는 2FA 비활성화·WebAuthn credential 관리의 비밀번호 재확인(`AuthService.verifyPasswordForUser`)과, `TOTP_INVALID` 는 로그인 2FA 검증과 **동일 코드**를 공유한다. 공용 카탈로그 등재는 [3-error-handling §1.2.1](./3-error-handling.md#121-2fa--webauthn--재인증-코드-도메인-spec-참조).
+> **재인증 에러 코드** (`verifyReauth` — 강제 종료·revoke-others·이메일 변경 §1.1.B 공용): 비밀번호/TOTP 어느 자격도 미입력·미충족 → `REAUTH_REQUIRED`(400) · 비밀번호 불일치 → `PASSWORD_INVALID`(401) · TOTP 불일치 → `TOTP_INVALID`(401) · 재인증 수단 부재(OAuth-only) → `REAUTH_NOT_AVAILABLE`(403). `PASSWORD_INVALID` 는 2FA 비활성화·WebAuthn credential 관리의 비밀번호 재확인(`AuthService.verifyPasswordForUser`)·**비밀번호 변경의 현재 비밀번호 재확인**(`UsersService.changePassword`, 아래 note)과, `TOTP_INVALID` 는 로그인 2FA 검증과 **동일 코드**를 공유한다. 공용 카탈로그 등재는 [3-error-handling §1.2.1](./3-error-handling.md#121-2fa--webauthn--재인증비밀번호-재확인-코드-도메인-spec-참조).
 
-> **비밀번호 변경 실패 코드**: `POST /users/me/change-password` 의 현재 비밀번호 재확인 실패(미설정 OAuth-only·불일치)는 `INVALID_PASSWORD`(401, `users.service.changePassword`)를 반환한다 — 재인증 `PASSWORD_INVALID`(위 재인증 note)·`login_history.failure_reason` 동명 감사값과 **별개 wire 코드**다.
+> **비밀번호 변경 실패 코드**: `POST /users/me/change-password` 의 현재 비밀번호 재확인 실패는 **두 조건을 갈라** 반환한다 (`users.service.changePassword`) — 비밀번호 미설정(OAuth-only, `passwordHash` 부재) → `PASSWORD_REQUIRED`(401) · 불일치 → `PASSWORD_INVALID`(401). 둘 다 민감 동작 재확인(`AuthService.verifyPasswordForUser`, [§5](#5-api-엔드포인트))과 **같은 코드**이며, 형제 흐름이 이미 갈라 두던 구분을 이 경로에도 적용한 것이다. 사용자 미존재는 그대로 `USER_NOT_FOUND`(404). **OAuth-only 사용자는 §1.1.A 의 비밀번호 추가 경로**(forgot-password → reset-password)로 안내한다. `login_history.failure_reason` 의 `INVALID_PASSWORD` 는 **로그인 실패 감사값**(`AuthService.login`)으로 레이어가 다르며, 동명 wire 코드는 2026-09-02 은퇴했다([error-codes.md §5](../conventions/error-codes.md#5-rename-이력-retired-codes)).
 
 ### 2.4 토큰 갱신 플로우
 
@@ -518,7 +518,7 @@ counter 역행이 감지되면 `verifyAuthenticationResponse` 가 reject 한다.
 
 `POST /api/auth/register` 는 본문에 `invitationToken?` 을 받아 [§1.5.2 흐름](#152-흐름-미가입자-가입-경로) 의 트랜잭션을 수행한다.
 
-> **민감 동작 비밀번호 재확인 코드**: 2FA 비활성화(`/api/auth/2fa/disable`)·WebAuthn 복구 코드 재발급(`/api/auth/2fa/webauthn/recovery-codes/regenerate`) 등 민감 동작의 비밀번호 재확인은 `AuthService.verifyPasswordForUser` 를 재사용한다 — 비밀번호 미설정(OAuth-only)·미입력 → `PASSWORD_REQUIRED`(401), 불일치 → `PASSWORD_INVALID`(401). 세션-revoke·이메일 변경 재인증(`verifyReauth`, §2.3, missing→`REAUTH_REQUIRED` 400)과는 **별도 헬퍼**이며 status·코드가 다르다. 공용 카탈로그는 [3-error-handling §1.2.1](./3-error-handling.md#121-2fa--webauthn--재인증-코드-도메인-spec-참조).
+> **민감 동작 비밀번호 재확인 코드**: 2FA 비활성화(`/api/auth/2fa/disable`)·WebAuthn 복구 코드 재발급(`/api/auth/2fa/webauthn/recovery-codes/regenerate`) 등 민감 동작의 비밀번호 재확인은 `AuthService.verifyPasswordForUser` 를 재사용한다 — 비밀번호 미설정(OAuth-only)·미입력 → `PASSWORD_REQUIRED`(401), 불일치 → `PASSWORD_INVALID`(401). **비밀번호 변경**(`UsersService.changePassword`, §2.3 note)도 같은 두 코드를 발행한다 — 헬퍼는 다르지만(순환 의존으로 재사용 불가) 코드는 공유한다. 세션-revoke·이메일 변경 재인증(`verifyReauth`, §2.3, missing→`REAUTH_REQUIRED` 400)과는 **별도 헬퍼**이며 status·코드가 다르다. 공용 카탈로그는 [3-error-handling §1.2.1](./3-error-handling.md#121-2fa--webauthn--재인증비밀번호-재확인-코드-도메인-spec-참조).
 
 ---
 
@@ -747,13 +747,13 @@ reissue 세션은 표준 7일(`rememberMe=false`)로 발급한다 — 현재 fam
 **기각된 대안 (a) 전 세션 revoke + 재발급 없음**: 현재 디바이스 포함 전체 종료 후 재로그인 강제. 변경한 본인은 방금 비밀번호로 재인증한 신뢰 세션이라 끊을 보안 이득이 없고 재로그인 비용만 발생.
 **기각된 대안 (b') 현재 family 제외 revoke**: 위 쿠키 `Path` 제약으로 changePassword 컨트롤러에서 현재 family 식별 불가 — 구현 불가능.
 
-**OAuth-only 사용자**: `passwordHash` 가 없으면 `POST /users/me/change-password` 자체가 `INVALID_PASSWORD` 로 차단되므로(현행) 본 정책은 비밀번호 보유 사용자에만 적용된다.
+**OAuth-only 사용자**: `passwordHash` 가 없으면 `POST /users/me/change-password` 자체가 `PASSWORD_REQUIRED`(401)로 차단되므로 본 정책은 비밀번호 보유 사용자에만 적용된다. 비밀번호를 **추가**하려면 [§1.1.A](#11a-비밀번호-재설정-흐름과-가입-경로-oauth-only--webauthn-보유-사용자-포함) 의 forgot-password → reset-password 경로를 쓴다 (그 흐름은 `passwordHash` 부재를 전제 조건으로 검사하지 않는다).
 
 revoke/재발급 실패가 비밀번호 변경 주 동작(이미 커밋됨)을 깨지 않도록 best-effort 로 처리하되, 실패는 서버 로그로 관측 가능해야 한다.
 
 ### 2.3.D — §2.3 재인증 흐름 정합화 (구현·1.1.B-4 정렬)
 
-§2.3 "강제 종료 재인증" 행은 당초 "OAuth-only 는 TOTP/WebAuthn 또는 이메일 OTP 로 대체, §1.4.2 우선순위(WebAuthn 우선)" 로 서술됐으나, 실제 구현(`SessionsService.verifyReauth`)·Rationale 1.1.B-4·[9-user-profile.md](../2-navigation/9-user-profile.md)(비밀번호/TOTP)·`plan/complete/refactor-auth-reverify-unify.md` 는 일관되게 **password OR TOTP** 만 지원한다. WebAuthn step-up 재인증은 challenge/response 흐름이 필요해 현재 미지원이며(1.1.B-4), 이메일 OTP 는 코드에 없다. 따라서 §2.3 행을 실제 지원 수단으로 정정하고 WebAuthn·이메일 OTP 는 "현재 미지원" 으로 명시한다 — 새 결정이 아니라 아웃라이어 서술을 이미 확정된 1.1.B-4 에 정렬한 것이다. 이 정정으로 §2.3 이 재인증 세부 코드(`REAUTH_REQUIRED`=400·`PASSWORD_INVALID`=401·`TOTP_INVALID`=401)의 SoT 가 되어 카탈로그 [3-error-handling §1.2.1](./3-error-handling.md#121-2fa--webauthn--재인증-코드-도메인-spec-참조) 등재 전제를 충족한다. 계보: `spec-draft-email-change` 가 §2.3 문구 정정을 `refactor-auth-reverify-unify` 로 위임했으나 그 완료 작업이 반영하지 않아 유실됐고, 본 정정이 완결한다.
+§2.3 "강제 종료 재인증" 행은 당초 "OAuth-only 는 TOTP/WebAuthn 또는 이메일 OTP 로 대체, §1.4.2 우선순위(WebAuthn 우선)" 로 서술됐으나, 실제 구현(`SessionsService.verifyReauth`)·Rationale 1.1.B-4·[9-user-profile.md](../2-navigation/9-user-profile.md)(비밀번호/TOTP)·`plan/complete/refactor-auth-reverify-unify.md` 는 일관되게 **password OR TOTP** 만 지원한다. WebAuthn step-up 재인증은 challenge/response 흐름이 필요해 현재 미지원이며(1.1.B-4), 이메일 OTP 는 코드에 없다. 따라서 §2.3 행을 실제 지원 수단으로 정정하고 WebAuthn·이메일 OTP 는 "현재 미지원" 으로 명시한다 — 새 결정이 아니라 아웃라이어 서술을 이미 확정된 1.1.B-4 에 정렬한 것이다. 이 정정으로 §2.3 이 재인증 세부 코드(`REAUTH_REQUIRED`=400·`PASSWORD_INVALID`=401·`TOTP_INVALID`=401)의 SoT 가 되어 카탈로그 [3-error-handling §1.2.1](./3-error-handling.md#121-2fa--webauthn--재인증비밀번호-재확인-코드-도메인-spec-참조) 등재 전제를 충족한다. 계보: `spec-draft-email-change` 가 §2.3 문구 정정을 `refactor-auth-reverify-unify` 로 위임했으나 그 완료 작업이 반영하지 않아 유실됐고, 본 정정이 완결한다.
 
 ### 1.5.D — 워크스페이스 초대 토큰을 raw 로 저장하는 이유 (vs 이메일·재설정 토큰의 SHA-256 해시)
 

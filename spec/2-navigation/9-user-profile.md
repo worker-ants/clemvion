@@ -91,7 +91,7 @@ pending_plans:
 | 편집 방식 | 사용 항목 | 동작 |
 |-----------|-----------|------|
 | **인라인 토글** | 사용자 정보(아바타·이름), 환경설정(언어·테마) | 카드 우상단 [편집] → 해당 카드만 input 활성 + [취소]/[저장]. 저장 클릭 시 **변경 전·후 diff 확인 모달**("이전: A → 새: B") 한 단계를 거친 뒤 PATCH 실행. 다른 카드는 readonly 유지. 환경설정의 테마 라이브 프리뷰는 **편집 모드 동안 로컬 임시 state** 로 격리되어 [취소] / 모달 닫힘 시 항상 원복된다 |
-| **전용 페이지(sub-route)** | 비밀번호 | `/profile/change-password` 로 이동. 페이지 진입 자체가 "지금 비밀번호를 변경하려는 의도" 의 표명 역할. 자세한 폼은 §2.2 참조 |
+| **전용 페이지(sub-route)** | 비밀번호 | `/profile/change-password` 로 이동. 페이지 진입 자체가 "지금 비밀번호를 변경하려는 의도" 의 표명 역할. 자세한 폼은 §2.2 참조. OAuth-only 계정의 안내 분기는 §2.2 보안 설정 표(비밀번호 변경 행)가 SoT. |
 | **전용 페이지(sub-route)** | 이메일 | 본 화면에서는 표시 + [변경하기 →]. `/profile/change-email` 로 이동해 재인증 → 신규 이메일 확인 메일 → 링크 클릭으로 확정. 상세 [인증 §1.1.B](../5-system/1-auth.md#11b-이메일-변경-흐름) |
 | **별도 sub-route** | 2FA, 활성 세션·로그인 이력 | 보안 카드의 Link 로 `/profile/security`, `/profile/sessions` 진입 |
 
@@ -138,13 +138,13 @@ pending_plans:
 | 이메일 | O (별도 변경) | 전용 페이지 `/profile/change-email` | 재인증(비밀번호 또는 2FA) + 신규 이메일 확인 메일. 확인 완료 시 전 세션 revoke + 현재 디바이스 재발급. 상세 [인증 §1.1.B](../5-system/1-auth.md#11b-이메일-변경-흐름) |
 | 언어 | O | 인라인 토글 | UI 언어 (ko, en) |
 | 테마 | O | 인라인 토글 (라이브 프리뷰는 임시 state 로 격리) | Light / Dark / **System** — backend `UpdateMeDto.USER_THEMES` 가 `['light','dark','system']` 수용(저장·반환). `system` = OS 색상 모드 자동 추종으로 **frontend 가 `prefers-color-scheme` 로 적용**(frontend UI 토글 노출은 Planned) |
-| 비밀번호 | O | 전용 페이지 `/profile/change-password` | 현재 비밀번호 확인 → 새 비밀번호 입력 |
+| 비밀번호 | O | 전용 페이지 `/profile/change-password` | 현재 비밀번호 확인 → 새 비밀번호 입력 (OAuth-only 분기는 아래 §2.2 표) |
 
 ### 2.2 보안 설정
 
 | 항목 | 설명 |
 |------|------|
-| 비밀번호 변경 | 전용 페이지 `/profile/change-password` — 현재 비밀번호 확인 → 새 비밀번호 입력. `/profile` 본문의 비밀번호 카드에서 [변경하기 →] 링크로 진입. 페이지 진입 자체가 의도 표명 역할 |
+| 비밀번호 변경 | 전용 페이지 `/profile/change-password` — 현재 비밀번호 확인 → 새 비밀번호 입력. **OAuth-only 계정**(비밀번호 미설정)은 현재 비밀번호 확인 단계에서 `PASSWORD_REQUIRED`(401)로 막히며, 화면은 비밀번호를 **추가**하는 경로([인증 §1.1.A](../5-system/1-auth.md#11a-비밀번호-재설정-흐름과-가입-경로-oauth-only--webauthn-보유-사용자-포함) forgot-password → reset-password)를 안내한다 — 이 행이 그 안내의 단일 SoT 다. `/profile` 본문의 비밀번호 카드에서 [변경하기 →] 링크로 진입. 페이지 진입 자체가 의도 표명 역할 |
 | 2FA 설정 | `/profile/security` 페이지. 두 섹션으로 분리 노출 — (1) **TOTP** 카드(QR 코드 표시 → 인증 앱으로 스캔 → 확인 코드 입력 + 복구 코드 발급) (2) **Passkey · 보안 키** 카드(WebAuthn credential 다중 등록 / 목록·이름 변경·삭제 + 별도 복구 코드). 두 방식 동시 등록 가능, 로그인 시 우선순위는 [인증 spec §1.4.2](../5-system/1-auth.md#142-로그인-시-인증-방식-선택--webauthn-우선-totp-fallback-자동-금지) |
 | 활성 세션 | `/profile/sessions` 페이지. 현재 로그인된 기기/브라우저 목록(family 단위), "현재" 세션 배지 표시. 다른 세션 개별 종료 또는 일괄 종료 (비밀번호 재확인 필수). 상세: [인증 spec §2.3](../5-system/1-auth.md#23-세션-정책) |
 | 로그인 이력 | `/profile/sessions` 페이지의 이력 탭. 성공·실패·강제 종료 등 이벤트를 시간순으로 표시 (본인만 조회). 보존 180일. 상세: [인증 spec §4.3](../5-system/1-auth.md#43-로그인-이력-loginhistory) |

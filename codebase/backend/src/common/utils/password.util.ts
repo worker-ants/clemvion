@@ -8,6 +8,26 @@ import * as bcrypt from 'bcrypt';
 export const BCRYPT_ROUNDS = 12;
 
 /**
+ * 비밀번호 재확인 실패 코드 — **두 조건의 단일 SoT**.
+ *
+ * `AuthService.verifyPasswordForUser`(2FA 비활성화·WebAuthn 관리 등 민감 동작 재확인)와
+ * `UsersService.changePassword`(비밀번호 변경) 가 같은 값을 발행한다. 두 곳이 각자
+ * 문자열 리터럴을 들고 있던 것이 `INVALID_PASSWORD` drift 의 원인이었다 — 변경 경로만
+ * 두 조건을 한 코드로 합쳐 OAuth-only 사용자에게 "현재 비밀번호가 틀렸다" 고 말했다.
+ * (은퇴 이력: `spec/conventions/error-codes.md` §5, 등급 B)
+ *
+ * 헬퍼 자체를 공유하지 않는 이유는 `UsersService` 가 `AuthService` 를 주입할 수 없기
+ * 때문이다(역방향 의존 = 순환). 그래서 **코드만** 공유한다. 메시지는 흐름마다 안내가
+ * 달라 각 호출부가 소유한다.
+ */
+export const PASSWORD_VERIFY_CODES = {
+  /** 비밀번호 미설정(OAuth-only) 또는 미입력 — 재확인할 대상이 없다. */
+  REQUIRED: 'PASSWORD_REQUIRED',
+  /** 비밀번호는 있으나 입력이 일치하지 않는다. */
+  INVALID: 'PASSWORD_INVALID',
+} as const;
+
+/**
  * 평문 비밀번호를 `BCRYPT_ROUNDS` cost 로 해시한다. bcrypt rounds 의 중복 정의를
  * 막기 위한 단일 진입점.
  */

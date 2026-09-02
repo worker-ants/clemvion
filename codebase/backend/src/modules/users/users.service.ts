@@ -13,6 +13,7 @@ import { S3Service } from '../../common/services/s3.service';
 import { updateReturningRows } from '../../common/utils/update-returning-rows';
 import { User } from './entities/user.entity';
 import {
+  PASSWORD_VERIFY_CODES,
   comparePassword,
   hashPassword,
   validatePasswordStrength,
@@ -263,7 +264,10 @@ export class UsersService {
    * 교체만 담당한다.
    *
    * @throws NotFoundException `USER_NOT_FOUND` — 사용자 없음
-   * @throws UnauthorizedException `INVALID_PASSWORD` — passwordHash 부재(OAuth-only) 또는 현재 비밀번호 불일치
+   * @throws UnauthorizedException `PASSWORD_REQUIRED` — passwordHash 부재(OAuth-only). 비밀번호를
+   *   추가하려면 forgot-password → reset-password 경로를 쓴다 (`spec/5-system/1-auth.md` §1.1.A)
+   * @throws UnauthorizedException `PASSWORD_INVALID` — 현재 비밀번호 불일치
+   *   두 코드 모두 `AuthService.verifyPasswordForUser` 와 **공유**한다 (`PASSWORD_VERIFY_CODES`).
    * @throws BadRequestException — 새 비밀번호 강도 정책 위반(`validatePasswordStrength`)
    */
   async changePassword(
@@ -280,17 +284,21 @@ export class UsersService {
     }
 
     if (!user.passwordHash) {
+      // OAuth-only 계정 — 재확인할 비밀번호가 **없다**. 불일치와 같은 코드를 쓰면
+      // 클라이언트가 두 상황을 구분할 수 없고(FE 에 `hasPassword` 신호가 없다),
+      // 사용자는 설정한 적 없는 비밀번호가 "틀렸다" 는 말을 듣는다.
       throw new UnauthorizedException({
-        code: 'INVALID_PASSWORD',
-        message: 'Current password is incorrect',
+        code: PASSWORD_VERIFY_CODES.REQUIRED,
+        message:
+          '비밀번호가 설정되지 않은 계정이에요. 비밀번호 재설정으로 먼저 설정해 주세요.',
       });
     }
 
     const matches = await comparePassword(currentPassword, user.passwordHash);
     if (!matches) {
       throw new UnauthorizedException({
-        code: 'INVALID_PASSWORD',
-        message: 'Current password is incorrect',
+        code: PASSWORD_VERIFY_CODES.INVALID,
+        message: '현재 비밀번호가 일치하지 않아요.',
       });
     }
 

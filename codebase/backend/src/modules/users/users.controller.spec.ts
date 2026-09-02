@@ -263,7 +263,7 @@ describe('UsersController', () => {
       jest
         .spyOn(service, 'changePassword')
         .mockRejectedValue(
-          new UnauthorizedException({ code: 'INVALID_PASSWORD' }),
+          new UnauthorizedException({ code: 'PASSWORD_INVALID' }),
         );
       const rotateSpy = jest.spyOn(
         authService,
