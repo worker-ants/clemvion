@@ -66,7 +66,10 @@ export interface WalkOptions {
  */
 export function walkTree(
   root: string,
-  bases: string[],
+  // `readonly` 로 받는다 — 호출부가 `as const` 배열을 그대로 넘길 수 있어야 한다.
+  // 본체는 순회만 하고 `bases` 를 변형하지 않으므로 넓혀도 안전하고, 기존 `string[]`
+  // 호출부는 전부 그대로 통과한다(`string[]` 은 `readonly string[]` 에 대입 가능).
+  bases: readonly string[],
   options: WalkOptions,
 ): MdFileRef[] {
   const recurse = options.recurse ?? true;

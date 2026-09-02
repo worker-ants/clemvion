@@ -1,5 +1,11 @@
 /**
- * Canonical error-code enum for node handlers' `output.error.code`.
+ * Canonical error-code enum for node handlers' `output.error.code` — and for the
+ * engine, which emits some of these too (e.g. `EXECUTION_TIME_LIMIT_EXCEEDED`).
+ *
+ * So membership here does **not** mean "node-level": the boundary with the sibling
+ * `EngineErrorCode` below is asymmetric, and the catalog's "engine-level error"
+ * grouping does not map 1:1 onto these two consts. See
+ * `spec/conventions/error-codes.md` §Overview.
  *
  * CONVENTIONS §3.2 — runtime failures emitted by a node handler follow
  * the shape `{ code, message, details? }` and route to the `error` port.

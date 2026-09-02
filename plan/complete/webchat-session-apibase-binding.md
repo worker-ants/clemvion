@@ -89,4 +89,3 @@ endpoint 를 안 바꾼다")에 기대므로(concurrency 23_58_23 WARNING) 함�
 - `use-widget` 이 잘못된 apiBase 를 넘기도록 변조 → **18건 RED**(복원 경로 전반)
 
 배선(올바른 값 전달)은 타입체커가 강제하지 못하므로 두 번째 mutation 이 그 축을 덮는다.
-</content>

@@ -171,6 +171,79 @@ spec_impact: none
       > 백틱 세 개가 오기를 요구하는데, 인용문 줄은 `>` 로 시작한다. 인용문 안에서는
       > 이 "각각 코드로 떼기" 가 유일하게 통하는 방법이다.
 
+- [ ] **신규 가드를 `spec-impl-evidence.md §4.2` SoT 에 등재** (리뷰 1R documentation W5).
+      `stray-tool-tags.test.ts` 는 build 차단 가드인데 그 family 의 규약 SoT(§4.2 표 +
+      frontmatter `code:` + "build 차단 **4건**" 카운트)에 없다.
+
+      **이번 PR 에서 안 하는 이유**: `spec/` 편집이라 planner 턴 + 별도 `--spec` 라운드가
+      필요한데, 같은 리뷰의 scope WARNING #1 이 **"이 PR 에 spec 축이 이미 과하게 묶였다"**
+      고 지적했다. 여기서 또 다른 spec 파일을 열면 그 지적을 키운다. **미조치이며 우선순위
+      판단**이다 — 재개 신호: 다음 harness 가드 추가 시 함께(그때는 카운트를 한 번만 고친다).
+
+      > **격상 조건 (2026-09-01 `--impl-done` plan_coherence INFO#6)**: 이 유예는 **누적 2회**
+      > 다(1R 등재 + 2~5R 재확인). checker 가 *"세 번째 유예 시 WARNING 격상 근거로 표시해
+      > 둘 것"* 이라 명시했다. **다음에 또 미루면 INFO 가 아니라 WARNING 으로 다룬다** —
+      > 유예가 스스로 갱신되며 영구화하는 것을 막는 조건이다. 유예의 근거(spec 축 과다 번들)는
+      > 이 PR 한정이므로 다음 PR 에서는 그 근거가 사라진다는 점도 함께 적어 둔다.
+
+- [ ] **planner 승인 spec 문구를 developer 가 wording-only 로 고치는 패턴이 규약에 없다**
+      (2026-09-01 `--impl-done` plan_coherence INFO#7 — **planner 검토 대상**).
+
+      이 PR 에서 실제로 그 형태가 나왔다: `error-codes.md` §Overview 는 planner 트랙 draft 가
+      `--spec` 6라운드를 통과해 승인된 문구인데, 그 뒤 **code-review fix 라운드(developer
+      트랙)가 같은 문장을 다듬었다**(1R W2 · 3R INFO#4). checker 판정은 — target 자체는 문제
+      없고 `--impl-done` 사후 그물도 통과하지만, **CLAUDE.md 자기-반증형 소정정의 5조건
+      어디에도 정확히 대응하지 않는 제3의 패턴**이다.
+
+      그 조항은 "developer 가 자기 예고를 실측으로 반증했을 때" 를 다루는데, 이 경우는
+      **반증이 아니라 승인된 범위 안의 표현 다듬기**다. 넓게 읽으면 조항이 만능 통행증이 되고,
+      좁게 읽으면 승인된 draft 를 따라잡는 편집조차 planner 턴을 요구하게 된다.
+
+      **developer 가 단독으로 정할 수 없다** — CLAUDE.md 규약 본문의 문제이므로 planner 턴에서
+      "명문화할지 / 현행 유지할지" 를 결정한다. 판단 재료: 이 PR 의 두 사례와 `--impl-done`
+      2회가 전부 BLOCK:NO 였다는 사실.
+
+- [ ] **frontend 테스트가 어떤 게이트에서도 타입체크되지 않는다** (리뷰 4R maintainability
+      W1 의 근본 원인). `tsconfig.json` 이 `src/**/__tests__/**` · `src/**/*.test.ts` 를
+      exclude 하고 `vitest run` 은 타입을 strip 한다 → **테스트 코드에 타입 오류가 들어가도
+      아무 게이트가 안 문다.**
+
+      실제로 그 갭으로 하나 들어왔다 — `walkTree(root, SCAN_ROOTS)` 가 `readonly string[]`
+      을 `string[]` 파라미터에 넘겨 **TS2345** 인데 lint·build·vitest 전부 초록이었다.
+      격리 재현으로 확정(종전 시그니처 `exit 2` / 수정본 `exit 0`).
+
+      **backend 에는 이미 처방이 있다** — `backend-checks.yml` 의 `typecheck-ratchet` 잡
+      (`scripts/check-backend-typecheck-ratchet.py` + baseline JSON, 증가·감소 둘 다 실패).
+      `frontend-checks.yml` 에는 대응 잡이 **없다**. 같은 병에 한쪽만 약을 먹었다.
+
+      **실측(2026-09-01)**: `src/lib/docs/__tests__/` **26파일 → 실제 오류 0건**(W1 수정 후).
+      ad-hoc 호출에서 나온 `TS2307` 4건은 `paths` 를 안 넘긴 탓의 alias 미해결이라 진짜
+      오류가 아니다. 즉 **이 디렉터리는 baseline 0 으로 바로 잠글 수 있다.**
+
+      **범위 주의**: 잰 것은 `src/lib/docs/__tests__/` 뿐이다. **frontend 테스트 전체는 안
+      쟀다** — 착수 시 전체 규모를 먼저 재고, 크면 backend 처럼 baseline ratchet 으로,
+      작으면 곧장 exclude 해제로 간다.
+
+- [ ] **`plan-stale-audit.sh` 의 체크박스 정규식이 `plan_guard.py` 와 어긋난다** (리뷰 2R
+      testing). `#1262` 가 `plan_guard.py` 의 `_CHECKBOX` 를 인용문(`>`) 접두까지 넓혔는데
+      (열린 쪽만; 닫힌 쪽은 의도적으로 안 넓힘), 같은 목적의 **독립 사본**인
+      `.claude/tools/plan-stale-audit.sh:123-125` 의 `^[[:space:]]*-[[:space:]]*\[[ x]\]`
+      는 그대로다.
+
+      **어긋나는 방향**: 스크립트는 인용문 안 **열린** 항목을 못 세므로 `done/total` 진행도를
+      **실제보다 완료에 가깝게** 보고한다. 하드 게이트는 `plan_guard.py` 쪽이고 이 스크립트는
+      informational 리포트라 차단력에는 영향이 없다 — 다만 사람이 이 숫자를 보고 `complete/`
+      이동을 판단하면 같은 유실 경로가 열린다. **둘이 다르면 `plan_guard.py` 를 믿어라.**
+
+      **이번 PR 에서 안 하는 이유**: 셸 쪽은 `done`/`total` 두 grep 을 비대칭으로 갈라야
+      하는데(열린 쪽만 `>` 허용) informational 출력이라 이를 고정할 테스트 표면이 없다.
+      검증 없는 정규식 변경을 하네스에 넣지 않는다. 재개 신호: 이 스크립트에 테스트가
+      생기거나, 진행도 숫자를 근거로 한 오판이 실제로 관측될 때.
+
+      > `plan_guard.py` 의 `_CHECKBOX` 주석이 *"이 페어가 두 번 drift 했다"* 고 스스로 적어
+      > 뒀는데 **같은 클래스의 세 번째 drift 를 내가 냈다.** 기존 AST 동일-함수 검출
+      > 테스트는 파일이 달라 사정권 밖이다.
+
 - [ ] **(작음, 한 묶음) 링크 가드 통합층 대칭성 2건** — 둘 다 `spec-links.test.ts` 의
       통합 경로(`findBrokenLinks`) 보강이라 함께 처리한다:
       - `LinkViolation.line` 을 통합 테스트에서도 단언 (`15_55_00` W1). **계약 자체는 이미
@@ -901,7 +974,22 @@ spec_impact: none
 
 ## `plan_guard._all_checkboxes_done()` 이 인용문 안 체크박스를 못 본다 (2026-08-29 실측)
 
-- [ ] `_CHECKBOX` 정규식이 `>` 접두를 넘도록 넓힐지 판정한다.
+- [x] **`_CHECKBOX` 정규식이 `>` 접두를 넘도록 넓힐지 판정 — 완료 (2026-09-01). (a) 채택.**
+      앵커를 `^[\s>]*` 로 넓혔다(`plan_guard.py`). 아래 표의 실측을 오늘 재확인했다 —
+      인용문 안 `[ ]` 는 **9건 → 6건**으로 줄었지만 불릿 구조를 갖춘 진짜 체크박스는 **3건
+      그대로**이고, 서술 인용은 불릿이 없어 넓혀도 안 걸린다. **오늘 판정이 뒤집히는 문서는
+      0건** — 이 변경은 지금 뭘 고치는 게 아니라 "최상위가 전부 닫힌 문서에서 인용문 안 잔여가
+      숨는" 경로를 막는 예방이다. 회귀 테스트 3건(인용문·중첩 인용·서술 대조군), RED 2 → GREEN.
+
+      > **정정 (같은 날, 리뷰 2R)**: 위 문단이 *"서술 인용은 불릿이 없어 안 걸린다"* 로
+      > 반대 방향 오탐을 다 봤다고 적었는데, **그것은 두 방향 중 하나뿐**이었다. 두 번째는
+      > 인용문 안 **닫힌** 체크박스다 — 앵커를 양쪽 다 넓히면 자기 체크박스가 없고 남의 완료
+      > 목록만 인용한 문서가 `done>0 and open==0` 으로 **허위 "완료"** 판정을 받는다.
+      > 저장소 실사용 선례가 있다(`auth-config-webhook-followups.md` 의 in-progress 시절).
+      >
+      > 최종 구현은 **비대칭**이다 — 열린 쪽만 `>` 를 넘긴다. 열린 항목은 *거부권*이라 인용문
+      > 안이어도 세고, 닫힌 항목은 *"이 문서가 체크리스트다" 라는 증거*라 자기 것만 센다.
+      > 회귀 테스트 2건 추가(허위 완료 · 열린 쪽 거부권 캐너리), 각 방향 뮤턴트 RED.
 
 **증상**: `deps-peer-gating-and-eslint10.md` 에 **열린 항목 3건**이 있는데도 Stop nudge 가
 *"체크박스가 모두 완료([x])됐지만 아직 `in-progress/` 에 있습니다 — `complete/` 로 이동을

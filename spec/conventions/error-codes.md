@@ -23,8 +23,18 @@ code:
 ③ historical-artifact 예외 레지스트리.
 
 **적용 범위**: 본 규율은 `code:` 의 `ErrorCode` enum(`codebase/backend/src/nodes/core/error-codes.ts` —
-명명이 중앙화된 **대표 surface**)뿐 아니라 **프로젝트 전체의 에러 코드 문자열**에 적용된다 — API·통합·
+명명이 중앙화된 **대표 surface 중 하나**)뿐 아니라 **프로젝트 전체의 에러 코드 문자열**에 적용된다 — API·통합·
 OAuth 등에서 인라인 문자열 리터럴로 발행되는 코드(`CAFE24_*`, `OAUTH_*` 등)를 포함한다.
+
+**대표 surface 는 둘이다.** 같은 파일(`nodes/core/error-codes.ts`)에 `ErrorCode` 와
+`EngineErrorCode` 가 **자매 const** 로 있고, 키가 겹치지 않는다(테스트로 고정). 파일은 하나이고
+const 가 둘이라는 점이 그 설계의 핵심이다 — 두 파일로 읽으면 오해가 된다.
+
+경계는 **비대칭**이다: `EngineErrorCode` 는 **엔진만** 발행하고, `ErrorCode` 는 노드 핸들러가
+주로 쓰되 **엔진도 쓴다**(예: `EXECUTION_TIME_LIMIT_EXCEEDED`). 그래서 §1 카탈로그의 "엔진
+수준 에러" 분류와 **1:1 대응하지 않는다** — 어느 const 에 속하는지를 그 분류로 추론하지 말 것.
+§3 예외 레지스트리의 `WORKER_HEARTBEAT_TIMEOUT` 행이 이미 `EngineErrorCode` 멤버를 다루고
+있어, 이 병기는 새 규칙이 아니라 **기존 실무의 명문화**다.
 
 ## 1. 의미 기반 명명 (핵심 원칙)
 

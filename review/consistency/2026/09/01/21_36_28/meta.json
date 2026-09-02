@@ -1,0 +1,13 @@
+{
+  "timestamp": "2026-09-01T21:36:28.436226",
+  "mode": "spec draft 검토 (--spec)",
+  "target_path": "plan/in-progress/spec-draft-error-code-two-surfaces.md",
+  "checkers": [
+    "cross_spec",
+    "rationale_continuity",
+    "convention_compliance",
+    "plan_coherence",
+    "naming_collision"
+  ],
+  "target_snapshot": "_target/spec-draft-error-code-two-surfaces.md"
+}

@@ -262,6 +262,95 @@ class FilesystemHelpersTest(unittest.TestCase):
             p = self._make_plan(tmp, "x.md", worktree="t", body="no checkboxes\n")
             self.assertFalse(pg._all_checkboxes_done(tmp, os.path.relpath(p, tmp)))
 
+    def test_open_checkbox_inside_blockquote_counts(self):
+        """인용문 안의 **열린** 체크박스도 열린 작업이다.
+
+        `^\\s*` 앵커는 공백만 허용해 `>` 에서 끊겼고, 그래서 최상위가 전부 닫힌 문서에서
+        인용문 안 잔여가 **숨었다** — Stop nudge 가 "전부 완료" 로 오판해 `complete/` 이동을
+        권했다(`deps-peer-gating-and-eslint10.md` 실측). 살아 있는 항목을 품은 채 봉인되면
+        유실된다(`spec-draft-error-cause-criterion.md` 선례).
+        """
+        with tempfile.TemporaryDirectory() as tmp:
+            p = self._make_plan(
+                tmp, "x.md", worktree="t",
+                body="## tasks\n- [x] a\n> - [ ] 인용문 안 잔여\n",
+            )
+            self.assertFalse(pg._all_checkboxes_done(tmp, os.path.relpath(p, tmp)))
+
+    def test_nested_blockquote_open_checkbox_counts(self):
+        """중첩 인용(`> > `)도 같다 — blockquote 접두는 유한한 문법이다."""
+        with tempfile.TemporaryDirectory() as tmp:
+            p = self._make_plan(
+                tmp, "x.md", worktree="t",
+                body="## tasks\n- [x] a\n> > - [ ] 중첩 인용 잔여\n",
+            )
+            self.assertFalse(pg._all_checkboxes_done(tmp, os.path.relpath(p, tmp)))
+
+    def test_narrative_bracket_mention_is_not_a_checkbox(self):
+        """서술로 인용된 `[ ]` 는 세지 않는다 — **거짓 양성 방향**의 대조군.
+
+        넓히는 변경이 반대 방향 오탐을 만들지 않는지가 이 항목의 판정 근거였다. 저장소
+        실측(2026-09-01): 인용문 안 `[ ]` 6건 중 불릿 구조를 갖춘 진짜 체크박스는 3건이고
+        나머지는 서술이다 — 불릿(`[-*]\\s+`)이 없어 넓혀도 안 걸린다.
+        """
+        with tempfile.TemporaryDirectory() as tmp:
+            p = self._make_plan(
+                tmp, "x.md", worktree="t",
+                body="## tasks\n- [x] a\n> 종전엔 `[ ]` 로 남아 있어 오판했다\n",
+            )
+            self.assertTrue(pg._all_checkboxes_done(tmp, os.path.relpath(p, tmp)))
+
+    def test_quoted_done_checkbox_alone_is_not_completion(self):
+        """인용문 안 **닫힌** 체크박스만으로는 "완료" 가 아니다 — 두 번째 오탐 방향.
+
+        앵커를 열린/닫힌 양쪽 다 넓히면 자기 체크박스가 없고 남의 완료 목록만 인용한
+        문서가 `done>0 and open==0` 으로 허위 "완료" 판정을 받는다. 그러면 Stop nudge 가
+        프로즈 불릿으로 추적 중인 실제 작업을 두고 `complete/` 이동을 권한다.
+
+        저장소 실사용 선례가 있다 — `auth-config-webhook-followups.md` 가 in-progress
+        이던 시절 정확히 이 구조였다(인용 blockquote 안 닫힌 체크박스 + 프로즈 불릿 추적).
+
+        비대칭 카운팅 전이면 **RED**(True 를 반환).
+        """
+        with tempfile.TemporaryDirectory() as tmp:
+            p = self._make_plan(
+                tmp, "x.md", worktree="t",
+                body=(
+                    "## 선행 작업 (다른 plan 에서 인용)\n"
+                    "> - [x] 스키마 마이그레이션\n"
+                    "> - [x] 백필\n"
+                    "\n## 이 문서의 작업\n"
+                    "- 웹훅 재시도 정책 정리\n"
+                ),
+            )
+            self.assertFalse(pg._all_checkboxes_done(tmp, os.path.relpath(p, tmp)))
+
+    def test_own_done_plus_quoted_done_is_completion(self):
+        """자기 닫힌 항목 + 인용문 닫힌 항목 공존 → 완료. 비대칭의 **참** 경로.
+
+        비대칭 카운팅이 "닫힌 항목을 자기 것만 센다" 로 좁아졌으므로, 자기 것이 하나라도
+        있으면 인용문 안 닫힌 항목이 더 있어도 완료 판정이 나와야 한다 — 좁힘이 참 경로까지
+        먹지 않았는지 고정한다.
+        """
+        with tempfile.TemporaryDirectory() as tmp:
+            p = self._make_plan(
+                tmp, "x.md", worktree="t",
+                body="## tasks\n- [x] 내 작업\n> - [x] 인용한 남의 완료 항목\n",
+            )
+            self.assertTrue(pg._all_checkboxes_done(tmp, os.path.relpath(p, tmp)))
+
+    def test_quoted_open_still_vetoes_alongside_own_done(self):
+        """비대칭이 열린 쪽 거부권을 **약화시키지 않았다** — 원 결함의 캐너리.
+
+        닫힌 쪽만 좁히는 수정이 열린 쪽까지 좁히면 이 PR 이 고친 원 결함이 되살아난다.
+        """
+        with tempfile.TemporaryDirectory() as tmp:
+            p = self._make_plan(
+                tmp, "x.md", worktree="t",
+                body="## tasks\n- [x] 내 작업\n> - [ ] 인용문 안 남은 작업\n",
+            )
+            self.assertFalse(pg._all_checkboxes_done(tmp, os.path.relpath(p, tmp)))
+
 
 class PorcelainPathSurvivesOnARealRepoTest(unittest.TestCase):
     """git 파싱 헬퍼를 **실제 저장소**로 구동한다.

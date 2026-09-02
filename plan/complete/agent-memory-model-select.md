@@ -128,5 +128,3 @@ rerank) 탭으로 통합돼 모델 목록을 동적 조회할 수 있음.
 - [x] follow-up /ai-review (3 reviewer: side-effect NONE/requirement NONE/testing LOW, Critical 0) —
       review/code/2026/06/19/21_23_25/. 테스트 보강(동시·미발화·teardown, 14→17 cases) + §12.12 문구 정정.
 - [x] follow-up /consistency-check --impl-done BLOCK:NO — review/consistency/2026/06/19/21_30_59/.
-</content>
-</invoke>

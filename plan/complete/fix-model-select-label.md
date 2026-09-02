@@ -40,4 +40,3 @@ FieldGroup 미사용 custom 위젯 전수 감사 결과 동일 라벨/hint 누�
 - [x] selector fix TEST WORKFLOW: lint/unit/build/**e2e 205 PASS** (clean). /ai-review(2 reviewer, LOW,
       Critical/Warning 0) — review/code/2026/06/19/23_08_15/. impl-done BLOCK:NO —
       review/consistency/2026/06/19/23_14_28/ (fix 가 §2.6.1 hint 계약 복원, drift 0).
-</content>

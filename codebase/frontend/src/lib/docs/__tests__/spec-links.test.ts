@@ -49,6 +49,11 @@ describe("findBrokenLinksInFiles core (via public entry points)", () => {
         mkLink("bad self", "#nope"), // ANCHOR → no such heading
         mkLink("dead", "./missing.md"), // DEAD → file absent
         mkLink("ok rel", "./real.md#good-anchor"), // valid cross-file anchor
+        // 멀티라인 ANCHOR — 링크 **텍스트**가 두 줄에 걸친다. 통합층은 지금까지 멀티라인을
+        // DEAD 로만 검증했다(`15_01_34` INFO #17 · `15_55_00` INFO #8). 스캐너가 줄 단위로
+        // 퇴행하면 이 링크는 **아예 안 보이고** ANCHOR 판정도 함께 사라진다.
+        "[multiline anchor",
+        'text](./real.md#no-such-anchor)',
       ].join("\n"),
     );
     fs.writeFileSync(path.join(root, "spec", "real.md"), "# Good Anchor\n");
@@ -78,8 +83,30 @@ describe("findBrokenLinksInFiles core (via public entry points)", () => {
     // #nope and ./missing.md do not.
     expect(fingerprint(findBrokenLinks(root))).toEqual([
       "ANCHOR #nope",
+      "ANCHOR ./real.md#no-such-anchor",
       "DEAD ./missing.md",
     ]);
+  });
+
+  // `LinkViolation.line` 은 단위 층 5곳이 이미 잠근다(시작 줄 · 멀티 2개 · 혼재 3개 ·
+  // 3줄 스팬). 통합층이 더하는 것은 **"전달이 끊기지 않았는가"** 하나다 — 코어가 줄을
+  // 옳게 세도 공개 진입점이 그것을 떨구면 사용자는 위치 없는 위반만 본다. (`15_55_00` W1)
+  it("통합 경로가 line 을 그대로 전달한다 — 멀티라인 ANCHOR 는 **시작** 줄", () => {
+    const byTarget = new Map(
+      findBrokenLinks(root).map((v) => [v.target, v.line]),
+    );
+
+    // [전제] 세 위반이 다 잡혔다 — 아니면 아래 단언이 vacuous 하다.
+    expect([...byTarget.keys()].sort()).toEqual([
+      "#nope",
+      "./missing.md",
+      "./real.md#no-such-anchor",
+    ]);
+
+    expect(byTarget.get("#nope")).toBe(4);
+    expect(byTarget.get("./missing.md")).toBe(5);
+    // 멀티라인은 **시작** 줄이지 닫는 줄이 아니다.
+    expect(byTarget.get("./real.md#no-such-anchor")).toBe(7);
   });
 
   it("findBrokenSpecLinksInSources reports DEAD + broken spec anchor only", () => {
@@ -134,6 +161,12 @@ describe("findBrokenPlanLinks (living plans)", () => {
     fs.mkdirSync(dir, { recursive: true });
     fs.mkdirSync(path.join(root, "plan", "complete"), { recursive: true });
     fs.writeFileSync(path.join(root, "plan", "complete", "moved.md"), "# Moved\n");
+    // `plan/complete/**` 는 스코프 밖이다 — 시점 기록의 깨진 링크는 정상 상태다.
+    // 이 파일은 `sealed.md` 로 **일부러 깨진 링크**를 품는다(아래 전용 단언이 고정).
+    fs.writeFileSync(
+      path.join(root, "plan", "complete", "sealed.md"),
+      mkLink("sealed dead", "./gone.md"),
+    );
 
     fs.writeFileSync(
       path.join(dir, "live.md"),
@@ -169,6 +202,19 @@ describe("findBrokenPlanLinks (living plans)", () => {
 
   it("reports the DEAD sibling link a plan move leaves behind", () => {
     expect(fingerprint(findBrokenPlanLinks(root))).toEqual(["DEAD ./moved.md"]);
+  });
+
+  // `plan/complete/**` 제외는 **의도된 계약**이고 이번 PR 이 `plan-lifecycle.md §3` 에
+  // 명문화했다. 그런데 이 자매 스코프 결정(하위 폴더·`0-`/`_` 접두·코드펜스)들이 전부
+  // fixture 로 고정돼 있는 사이 이 조합만 산문에만 있었다(리뷰 3R testing WARNING).
+  //
+  // 문서화한 보장은 코드로 봉인한다 — 안 그러면 `collectLivePlanMarkdown` 이 `complete/`
+  // 까지 넓혀지는 회귀가 그 문서가 경고하는 "대량 실패" 를 그대로 일으킨다.
+  it("plan/complete/ 의 깨진 링크는 보고하지 않는다 — 봉인된 시점 기록", () => {
+    const reported = fingerprint(findBrokenPlanLinks(root));
+    expect(reported).not.toContain("DEAD ./gone.md");
+    // 대조군: 같은 스캔이 살아있는 쪽 위반은 실제로 잡고 있다(0건이면 vacuous).
+    expect(reported).toEqual(["DEAD ./moved.md"]);
   });
 
   it("ignores links inside fenced code blocks", () => {
