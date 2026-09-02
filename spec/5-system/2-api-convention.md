@@ -169,6 +169,7 @@ GET /api/triggers?type=webhook&status=active
 - `requestId`: 모든 에러 응답에 항상 포함되는 추적용 UUID (서버 로그 상관관계). `GlobalExceptionFilter` 가 매 응답마다 발급한다.
 - `details`: 선택 필드 (검증 오류 등 추가 컨텍스트 존재 시에만 동봉). 검증 오류 항목은 `{ field, message, code: "INVALID_FIELD" }` 구조이며 `field` 는 중첩 경로(`nodes[3].type`)를 유지한다.
 - `code` 의 상태코드별 기본값: 400=`VALIDATION_ERROR`, 401=`AUTH_REQUIRED`, 403=`FORBIDDEN`, 404=`RESOURCE_NOT_FOUND`, 409=`RESOURCE_CONFLICT`, 413=`PAYLOAD_TOO_LARGE`, 422=`INVALID_STATE`, 429=`RATE_LIMITED`, 5xx=`INTERNAL_ERROR`.
+- **`410` 에는 기본값이 없다.** 위 목록은 `GlobalExceptionFilter` 의 상태→코드 매핑이고 그 매핑에 410 항목이 없어, 코드를 명시하지 않은 `410` 응답은 4xx 인데도 `INTERNAL_ERROR` 로 떨어진다. 따라서 **`410` 을 반환하는 경로는 `code` 를 반드시 명시한다** (현행 발행 지점은 전부 명시 — §6 `410` 행의 코드들). 여기에 기본값을 새로 정의하지 않는 이유는 [Rationale](#rationale) 참조.
 
 ### 5.4 부재 표현 — `null` vs 키 생략
 
@@ -201,12 +202,14 @@ GET /api/triggers?type=webhook&status=active
 |------|------|-----------|
 | 200 | OK | 조회, 수정 성공 |
 | 201 | Created | 생성 성공 |
+| 202 | Accepted | **비동기 수락** — 큐에 적재하고 즉시 반환하며 결과는 별도 채널(실행 상세·WS·SSE)로 전달. webhook 수신(§11.4)·실행 트리거·재임베딩 등 장기 작업. **no-content 가 아니다** — `{ data: { executionId, ... } }` ack 본문을 싣는다 ([12-webhook §3.1](./12-webhook.md#31-webhook-수신-엔드포인트) · [14-external-interaction-api §5.1](./14-external-interaction-api.md)) |
 | 204 | No Content | 삭제 성공 |
 | 400 | Bad Request | 잘못된 요청 (유효성 검증 실패) |
 | 401 | Unauthorized | 인증 필요 또는 토큰 만료 |
 | 403 | Forbidden | 권한 없음 |
 | 404 | Not Found | 리소스 없음 |
 | 409 | Conflict | 리소스 충돌 (중복 생성 등) |
+| 410 | Gone | 리소스가 **존재했으나 소멸·비활성** — 애초에 없는 404 와 구분한다. 비활성 webhook 트리거 `TRIGGER_INACTIVE`([12-webhook WH-EP-07](./12-webhook.md#요구사항)) · terminal execution 에 대한 명령 `EXECUTION_TERMINATED`([14-external-interaction-api EIA-IN-12](./14-external-interaction-api.md)) · 만료·사용된 초대 `invitation_expired`/`invitation_already_used`([1-auth §1.5.4](./1-auth.md#154-에러-응답)). **예외** — `config.chatChannel` 트리거는 비활성이어도 410 이 아니라 `202 + { executionId: 'ignored' }` 다 ([15-chat-channel §5.5](./15-chat-channel.md#55-inbound-http-contract)). **기본 코드가 없다 — §5.3** |
 | 413 | Payload Too Large | 요청 본문 크기 초과 (body-parser 한도). 코드 `PAYLOAD_TOO_LARGE`. webhook 본문 크기 정책은 [Spec Webhook WH-NF-02](./12-webhook.md#비기능-요구사항) |
 | 422 | Unprocessable Entity | 비즈니스 로직 오류 |
 | 429 | Too Many Requests | Rate Limit 초과 |
@@ -416,6 +419,21 @@ Content-Type: application/json
 ---
 
 ## Rationale
+
+### §5.3 에 `410` 기본 코드를 **만들지 않은** 이유 (2026-09-02)
+
+§6 에 `410 Gone` 을 등재하면서 §5.3 의 "상태코드별 기본값" 목록에도 `410=<무언가>` 를 넣는
+것이 자연스러워 보인다. **넣지 않는다.**
+
+그 목록은 우리가 바라는 규범이 아니라 `GlobalExceptionFilter` 의 상태→코드 매핑을 옮긴
+**서술**이다. 그 매핑에는 410 항목이 없다(실측). 따라서 기본값을 적으면 **문서가 구현에 없는
+동작을 약속**하게 되고, 다음 사람이 그 약속을 믿고 `code` 를 생략하는 순간 410 응답이
+`INTERNAL_ERROR` 를 싣는다 — 문서가 만든 결함이다.
+
+**기각한 대안** — 필터에 `case 410` 을 추가하고 그 값을 문서화하는 것. 현행 발행 지점 전부가
+이미 도메인 코드를 명시하므로(`TRIGGER_INACTIVE`·`EXECUTION_TERMINATED`·`invitation_*`) 새
+기본값은 **도달하지 않는 코드**를 하나 늘릴 뿐이다. 대신 "명시 의무" 를 규약으로 적어
+누락이 리뷰에서 보이게 했다.
 
 ### §10.4 재연결 요약에 예외를 "복제" 하지 않고 "위임" 한 이유 (2026-09-02)
 
