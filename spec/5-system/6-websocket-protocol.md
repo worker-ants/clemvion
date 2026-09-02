@@ -1,8 +1,6 @@
 ---
 id: websocket-protocol
-status: partial
-pending_plans:
-  - plan/in-progress/spec-sync-websocket-protocol-gaps.md
+status: implemented
 code:
   - codebase/backend/src/modules/websocket/websocket.gateway.ts
   - codebase/backend/src/modules/websocket/websocket.service.ts
@@ -25,7 +23,7 @@ code:
 
 ## 1. 연결
 
-> **전송 계층 (구현 현실)**: 본 채널은 **Socket.IO** 로 구현되어 있다 (`@WebSocketGateway({ namespace: '/ws' })`, 클라이언트 `socket.io-client`). 따라서 메시지는 Socket.IO 의 이벤트/ack 모델을 따른다 — 클라이언트는 `socket.emit('<event>', data)` 로 보내고, 명령 ack 는 `{ event, data }` 형태의 callback payload 로 돌려받는다 (아래 §3.3 / §4.2 의 ack 예시 참조). 본 문서의 `{ type, id, payload }` JSON 프레임 표기는 **논리적 메시지 형태를 보이기 위한 추상화** 이며, 실제 wire 는 Socket.IO 가 감싼다 (raw WebSocket 프레임 / `Sec-WebSocket-Protocol` 서브프로토콜 / raw close code 를 직접 다루지 않는다). 본 §1~§9 중 raw-WS 전제 항목은 두 갈래다 — 서브프로토콜 인증(§1.2)·raw close 코드(§8) 및 REST 대체 항목(§1.3 in-band 갱신·§4.2 WS start/stop)은 **비채택 (won't-do)** (근거 §Rationale `R-wontdo-rawws-rest`), 서버발신 app ping(§5)·`system.maintenance` emit(§4.6) 역시 **비채택 (won't-do)** (근거 §Rationale `R-wontdo-maintenance-appping`), 서버발신 `auth.token_expired` emit(§4.6)만 **미구현 (Planned)** 이다 — `plan/in-progress/spec-sync-websocket-protocol-gaps.md` 참조.
+> **전송 계층 (구현 현실)**: 본 채널은 **Socket.IO** 로 구현되어 있다 (`@WebSocketGateway({ namespace: '/ws' })`, 클라이언트 `socket.io-client`). 따라서 메시지는 Socket.IO 의 이벤트/ack 모델을 따른다 — 클라이언트는 `socket.emit('<event>', data)` 로 보내고, 명령 ack 는 `{ event, data }` 형태의 callback payload 로 돌려받는다 (아래 §3.3 / §4.2 의 ack 예시 참조). 본 문서의 `{ type, id, payload }` JSON 프레임 표기는 **논리적 메시지 형태를 보이기 위한 추상화** 이며, 실제 wire 는 Socket.IO 가 감싼다 (raw WebSocket 프레임 / `Sec-WebSocket-Protocol` 서브프로토콜 / raw close code 를 직접 다루지 않는다). 본 §1~§9 중 raw-WS 전제 항목은 두 갈래다 — 서브프로토콜 인증(§1.2)·raw close 코드(§8) 및 REST 대체 항목(§1.3 in-band 갱신·§4.2 WS start/stop)은 **비채택 (won't-do)** (근거 §Rationale `R-wontdo-rawws-rest`), 서버발신 app ping(§5)·`system.maintenance` emit(§4.6) 역시 **비채택 (won't-do)** (근거 §Rationale `R-wontdo-maintenance-appping`), 서버발신 `auth.token_expired` emit(§4.6)은 **구현 완료** 다 (2026-09-02, 근거 §Rationale `R-ws-socket-lifetime-binds-token`). **이 갈래에 남은 미구현은 없다** — 추적하던 `spec-sync-websocket-protocol-gaps.md` 는 종결돼 `plan/complete/` 로 이동했다.
 
 ### 1.1 엔드포인트
 
@@ -49,7 +47,7 @@ wss://{base_url}/ws        # Socket.IO namespace '/ws'
 
 **인증 실패 시:**
 - 핸드셰이크 단계: 토큰 부재/무효이면 서버가 `error` 이벤트(`{ message }`)를 emit 한 직후 `disconnect()` 로 연결을 끊는다 (raw HTTP `401` 이 아니라 Socket.IO connection error 경로).
-- 연결 중 토큰 만료: **소켓 수명은 토큰 수명에 종속된다.** 서버는 핸드셰이크에서 검증한 토큰의 `exp` 를 읽어 소켓별 타이머를 걸고, 만료 **60초 전**에 `auth.token_expired` 를 1회 emit 한 뒤 `exp` 도달 시 `disconnect()` 한다 (`handleDisconnect` 에서 타이머 해제). **서버발신 emit 은 미구현 (Planned)** — 결정은 확정, 구현 대기 (근거 §Rationale `R-ws-socket-lifetime-binds-token`).
+- 연결 중 토큰 만료: **소켓 수명은 토큰 수명에 종속된다.** 서버는 핸드셰이크에서 검증한 토큰의 `exp` 를 읽어 소켓별 타이머를 걸고, 만료 **60초 전**에 `auth.token_expired` 를 1회 emit 한 뒤 `exp` 도달 시 `disconnect()` 한다 (`handleDisconnect` 에서 타이머 해제). **구현 완료** (2026-09-02, 근거 §Rationale `R-ws-socket-lifetime-binds-token`).
   - **클라이언트 계약 (필수)**: 서버 동작만으로는 성립하지 않는다. 클라이언트는 `auth.token_expired` 를 구독해 통지 창(60초) 안에 REST `/auth/refresh` → `socket.auth.token` 교체 → **명시적 `socket.connect()`** 를 수행한다. 통지를 놓친 경우(백그라운드 탭 등)의 fallback 은 §9.2 를 따른다.
   - **자동 재연결에 기대지 않는다**: Socket.IO 는 **서버가 `disconnect()` 를 호출한 경우** 자동 재연결을 발화하지 않는다 (§6.1 예외).
   - **닫는 범위**: 이 모델은 **토큰 자연 만료** 경로만 닫는다. 명시적 revoke(비번 변경·`token_reuse_detected` 로 refresh family revoke — [`1-auth.md §1.4·§2.3`](./1-auth.md))는 **이미 발급된 access token 을 무효화하지 않으므로** 그 소켓은 자연 `exp` 까지(최대 15분) 살아 있다. "즉시 종료" 가 필요하면 소켓에 revoke 를 전파하는 별도 메커니즘이 필요하며, 본 결정은 그것을 약속하지 않는다.
@@ -873,7 +871,7 @@ provider tool 실행이 끝나면 (성공·실패 무관) 발송한다. `status`
 
 | 이벤트 type | payload | 설명 |
 |-------------|---------|------|
-| `auth.token_expired` _(계획·미구현)_ | `{ message, expiresAt }` | 토큰 만료 **사전 통지**. 만료 60초 전 1회 emit 하고 `exp` 도달 시 서버가 `disconnect()` 한다 (§1.2 — 결정 확정, **backend emit 은 구현 대기**). `expiresAt` 은 ISO 8601 문자열이며 **이 소켓이 강제 종료되는 시각**이다 — `_retryState.expiresAt`(AI retry TTL, §4.2)·`auth.refreshed.expiresAt`(비채택 §1.3)과 **별개**다. `TOKEN_EXPIRED` 는 REST/JWT 검증 에러 코드일 뿐 이 WS 이벤트와 다르다 |
+| `auth.token_expired` | `{ message, expiresAt }` | 토큰 만료 **사전 통지**. 만료 60초 전 1회 emit 하고 `exp` 도달 시 서버가 `disconnect()` 한다 (§1.2). `expiresAt` 은 ISO 8601 문자열이며 **이 소켓이 강제 종료되는 시각**이다 — `_retryState.expiresAt`(AI retry TTL, §4.2)·`auth.refreshed.expiresAt`(비채택 §1.3)과 **별개**다. `TOKEN_EXPIRED` 는 REST/JWT 검증 에러 코드일 뿐 이 WS 이벤트와 다르다 |
 | `system.maintenance` _(비채택 won't-do)_ | `{ message, scheduledAt }` | 예정된 유지보수 알림. **발화 주체가 존재하지 않는다** — 유지보수를 선언하는 관리자 API·설정·스케줄이 없고 계획에도 없다. `scheduledAt` 은 사람이 미래 시점을 선언해야 성립하므로 그 표면을 만드는 것은 갭 메우기가 아니라 신규 제품 기능이다. 근거 §Rationale `R-wontdo-maintenance-appping`. payload 형태는 재도입 대비로 남긴다 |
 | `error` | `{ message }` | 핸드셰이크/연결 레벨 에러. 인증 실패 시 `handleConnection` 이 `{ message }` 를 emit 하고 disconnect 한다 (`{ code, message }` 형태 아님 — `message` 단일 필드) |
 
@@ -1097,8 +1095,10 @@ socket.emit("subscribe", { channel: "execution:550e8400..." });
   - **Planned → 구현 완료 (2026-07-07)**: 위 중 **WS 에러 처리 하드닝** — 전용 에러 코드 4종(`INVALID_MESSAGE`/`UNKNOWN_TYPE`/`SUBSCRIPTION_LIMIT_EXCEEDED`/`RATE_LIMITED`)과 socket 당 60 msg/min rate-limit — 이 구현됐다(§7.1/§3.3/§3.4/§7.2 본문 flip). subscribe ack 은 평문 `error` + 구조화 `code` additive, rate-limit 은 `WsRateLimitGuard`(class-level, in-memory per-socket), 미등록 이벤트는 `onAny`→`error{code}`.
   - **Planned → 비채택 won't-do (2026-07-08)**: 4종 항목을 정식 종결했다 (근거 §Rationale `R-wontdo-rawws-rest`) — **raw-WS 전제**(전송계층 구조적 부적용): `Sec-WebSocket-Protocol` 서브프로토콜 인증(§1.2)·raw close code 매핑(§8); **REST 대체 충분**(중복 경로 회피): in-band `auth.refresh`/`auth.refreshed`(§1.3)·`execution.start`/`stop`/`start.ack` WS 경로(§4.2). 본문 표기를 _(비채택 won't-do)_ 로 전환.
   - **Planned → 비채택 won't-do (2026-09-02)**: 위 잔여 중 **2종**을 추가 종결했다 (근거 §Rationale `R-wontdo-maintenance-appping`) — `system.maintenance` emit(§4.6)·서버발신 app ping(§5). 2026-07-08 결정이 이 둘을 "트리거 소스 설계 필요" 로 범위 밖에 뒀는데, 2026-08-31 착수 시도에서 **설계가 필요한 것이 아니라 대상이 없다**는 것이 실측됐다(유지보수 선언 주체 부재 · 전송 heartbeat 가 이미 그 자리를 채움). 본문 표기를 _(비채택 won't-do)_ 로 전환.
-  - **잔여(Planned, 구현 대기)**: 서버발신 `auth.token_expired` emit(§4.6) **1종**. 선행하던 제품 결정(**소켓 수명이 토큰 수명에 종속되는가**)은 **2026-09-02 확정**됐다 — 종속시킨다 + 60초 사전 통지 (근거 §Rationale `R-ws-socket-lifetime-binds-token`). 남은 것은 구현뿐이며 **backend 타이머와 frontend 구독·명시 재연결 양쪽**이 필요하다(§1.2·§9.2).
-- **status 강등**: 본문이 약속한 다수 surface(WS start/stop 명령·auth.refresh·rate-limit 등)가 코드에 실재 부재하므로 `implemented` → `partial` 로 강등하고 `plan/in-progress/spec-sync-websocket-protocol-gaps.md` 로 추적한다. `code:` 글로브에 백엔드 SoT(`ws-error-codes.ts`)와 프론트 SoT(`ws-client.ts`)를 추가했다.
+  - **Planned → 구현 완료 (2026-09-02)**: 서버발신 `auth.token_expired` emit(§4.6) 이 backend 타이머 + frontend 구독·명시 재연결 양쪽으로 구현됐다(§1.2·§9.2, 근거 §Rationale `R-ws-socket-lifetime-binds-token`).
+  - **잔여: 없다.** 2026-06-03 에 Planned 로 분리한 항목이 전부 처분됐다 — 구현 완료 2종(`notification.new`·`auth.token_expired`)·WS 에러 처리 하드닝·비채택 6종. 추적하던 `spec-sync-websocket-protocol-gaps.md` 는 종결돼 `plan/complete/` 로 이동했고, 그에 따라 frontmatter 를 `partial` → `implemented` 로 승격했다(`spec-impl-evidence.md §3` 가드).
+- **status 강등**: 본문이 약속한 다수 surface(WS start/stop 명령·auth.refresh·rate-limit 등)가 코드에 실재 부재하므로 `implemented` → `partial` 로 강등하고 `plan/in-progress/spec-sync-websocket-protocol-gaps.md` 로 추적한다.
+  > **(2026-09-02 갱신)** 그 추적이 끝나 **`implemented` 로 복귀**했다. 위 문장의 `in-progress/` 경로는 2026-06-03 시점 표기이고 현재 위치는 `plan/complete/spec-sync-websocket-protocol-gaps.md` 다 — 원문은 강등 결정의 이력이라 고치지 않고, 이 주석이 갱신된 포인터다. `code:` 글로브에 백엔드 SoT(`ws-error-codes.ts`)와 프론트 SoT(`ws-client.ts`)를 추가했다.
 - **drift 아닌 positive**: §4.2 의 continuation/retry 코드(`INVALID_EXECUTION_STATE`/`RESUME_*`/`RETRY_*`)는 코드와 정합 — 변경 없음.
 
 ### R-wontdo-rawws-rest. raw-WS 전제·REST 대체 항목 비채택 (결정 2026-07-08)
@@ -1113,7 +1113,7 @@ socket.emit("subscribe", { channel: "execution:550e8400..." });
   - **§1.3 in-band `auth.refresh`/`auth.refreshed`** — 토큰 만료 시 REST `/auth/refresh` + Socket.IO 재연결이 세션을 유지한다. in-band 갱신의 이득(짧은 재연결 창 제거)은 별도 WS auth 프로토콜(핸들러·emit·재생공격 방어·테스트) 유지 비용에 못 미친다.
   - **§4.2 `execution.start`/`execution.stop`/`execution.start.ack` WS 명령** — 실행 시작=REST `POST /workflows/:id/execute`, 중단=REST `POST /executions/:id/stop` 가 정식 경로다. WS 시작/중단은 REST 와 순수 중복 표면이라 유지 부채만 늘린다(진행 상황은 `execution:{id}` 구독으로 수신하므로 시작을 WS 로 둘 이점 없음).
 - **범위 밖(잔여 유지)**: 서버발신 `auth.token_expired`(§4.6)·`system.maintenance`(§4.6)·app ping(§5)은 본 결정에 포함되지 않는다 — 트리거 소스 설계가 필요한 실 기능 backlog 로 남는다.
-  > **(2026-09-02 갱신)** 이 셋 중 `system.maintenance`·app ping 은 후속 결정 `R-wontdo-maintenance-appping` 으로 **비채택 종결**됐다. 위 문장은 2026-07-08 시점의 범위 판단이므로 그대로 둔다 — 고쳐 쓰면 그때 결정이 이 둘까지 판단했던 것으로 기록이 바뀐다. 현재 잔여는 `auth.token_expired` **1종**이다.
+  > **(2026-09-02 갱신)** 이 셋 중 `system.maintenance`·app ping 은 후속 결정 `R-wontdo-maintenance-appping` 으로 **비채택 종결**됐고, `auth.token_expired` 는 `R-ws-socket-lifetime-binds-token` 으로 결정 후 **구현 완료**됐다. 위 문장은 2026-07-08 시점의 범위 판단이므로 그대로 둔다 — 고쳐 쓰면 그때 결정이 이 셋까지 판단했던 것으로 기록이 바뀐다. **현재 잔여는 없다**(추적 문서는 `plan/complete/spec-sync-websocket-protocol-gaps.md`).
 - **폐기 대안**: 4종을 "Planned" 로 계속 두는 안 → 전송계층이 Socket.IO 로 확정된 이상 raw-WS 2종은 영구 미도입이고 REST 대체 2종은 의도적 미도입이므로, "Planned" 표기는 잘못된 기대(언젠가 구현)를 남긴다. 명시적 won't-do 가 정직하다.
 
 ### R-wontdo-maintenance-appping. `system.maintenance` emit · 서버발신 app ping 비채택 (결정 2026-09-02)
@@ -1130,7 +1130,7 @@ socket.emit("subscribe", { channel: "execution:550e8400..." });
 - **폐기 대안**
   - *두 항목을 Planned 로 계속 두는 안* → 주인 없는 Planned 배지는 **잘못된 기대(언젠가 구현)** 를 남긴다. 본 문서가 2026-07-08 에 4종에 대해 이미 같은 판단을 했다.
   - *`system.maintenance` 를 위해 관리자 API 를 먼저 만드는 안* → 순서가 뒤집힌다. 운영상 필요가 생겨 관리자 표면이 만들어지면 그때 이 이벤트를 **재등재하는 비용은 작다** — payload 형태를 §4.6 에 남겨 두는 이유가 그것이다.
-- **범위 밖(잔여 유지)**: 서버발신 `auth.token_expired`(§4.6)는 **Planned 로 남는다.** _(2026-09-02 갱신: 여기서 말한 제품 결정은 그 뒤 확정됐다 — `R-ws-socket-lifetime-binds-token`. 배지는 구현 전까지 Planned 다.)_ 이 항목만은 "트리거 부재" 가 아니라 **실재하는 인가 갭**이다 — 소켓이 핸드셰이크 이후 토큰을 재검증하지 않아 만료된 토큰으로도 이벤트를 계속 받는다. 소켓 수명을 토큰 수명에 종속시킬지는 제품 결정이라 별도 planner 턴에서 다룬다(실측·선택지는 `plan/in-progress/spec-sync-websocket-protocol-gaps.md`).
+- **범위 밖(잔여 유지)**: 서버발신 `auth.token_expired`(§4.6)는 **Planned 로 남는다.** _(2026-09-02 갱신: 여기서 말한 제품 결정이 확정되고(`R-ws-socket-lifetime-binds-token`) **구현까지 완료**돼 배지를 내렸다. 추적 문서는 `plan/complete/spec-sync-websocket-protocol-gaps.md`.)_ 이 항목만은 "트리거 부재" 가 아니라 **실재하는 인가 갭**이다 — 소켓이 핸드셰이크 이후 토큰을 재검증하지 않아 만료된 토큰으로도 이벤트를 계속 받는다. 소켓 수명을 토큰 수명에 종속시킬지는 제품 결정이라 별도 planner 턴에서 다룬다(실측·선택지는 `plan/in-progress/spec-sync-websocket-protocol-gaps.md`).
 
 ### R-ws-socket-lifetime-binds-token. 소켓 수명을 토큰 수명에 종속 (결정 2026-09-02)
 
@@ -1145,7 +1145,16 @@ socket.emit("subscribe", { channel: "execution:550e8400..." });
 - **클라이언트 계약이 결정의 일부다**: Socket.IO 는 **서버발신 `disconnect()`** 에 자동 재연결을 발화하지 않는다(§6.1 예외). 착수 시점 실측으로 프론트에 `auth.token_expired` 구독이 **0건**이고 `disconnect` 재연결 경로도 없었다 — 서버만 바꾸면 사용자가 조용히 연결을 잃는다. 그래서 §9.2 에 사전 통지 경로와 통지를 놓친 경우의 fallback 을 함께 규정했다.
 - **닫지 않는 것 (범위 명시)**: 이 결정은 **토큰 자연 만료** 경로만 닫는다. 명시적 revoke(비번 변경·`token_reuse_detected` 로 refresh family revoke — [`1-auth.md §1.4·§2.3`](./1-auth.md))는 이미 발급된 access token 을 무효화하지 않으므로 그 소켓은 자연 `exp` 까지(최대 15분) 산다. "즉시 종료" 에는 소켓으로 revoke 를 전파하는 별도 메커니즘이 필요하며 **본 결정은 그것을 약속하지 않는다.**
 - **타이머의 내성 범위**: 이 타이머는 소켓을 들고 있는 **프로세스에 로컬**이다. 프로세스가 죽으면 소켓 자체가 끊겨 클라이언트가 새 핸드셰이크로 새 타이머를 받으므로, 다중 인스턴스 간 상태 불일치(R10/R15/R19 가 다루는 클래스)에 해당하지 않는다.
+- **구현 완료 (2026-09-02)**: backend 소켓별 타이머(`armExpiryTimers`) + frontend 구독·명시 재연결. 이 결정이 확정한 계약이 양쪽에 다 들어간 뒤 배지를 내렸다 — 서버만으로는 성립하지 않는 계약이라 한쪽만으로 flip 하지 않았다.
 - **payload `expiresAt`**: ISO 8601 문자열이며 **이 소켓이 강제 종료되는 시각**이다. 선례는 구현된 `_retryState.expiresAt`(§4.2)이고, `auth.refreshed.expiresAt`(§1.3 비채택)과는 이름만 같다. 미구현 이벤트라 wire 호환 부담 없이 지금 정의하는 것이 가장 싸다.
+
+### `implemented` 승격 — 잔존 "계획·미구현" 배지가 막지 않는 이유 (2026-09-02)
+
+`spec-sync-websocket-protocol-gaps.md` 의 마지막 항목이 닫혀 `partial` → `implemented` 로 승격했다 (`spec-impl-evidence.md §3` 가드: 마지막 `pending_plans` 가 `complete/` 로 이동한 커밋 안에서 승격).
+
+본문에는 브레이크포인트 3종(`execution.paused`·`execution.continue`·`execution.step`)이 여전히 _(계획·미구현)_ 로 남는다. **그것은 이 문서가 추적하는 약속이 아니다** — 세 배지 모두 [`3-execution.md §6 브레이크포인트 향후 로드맵`](../3-workflow-editor/3-execution.md) 을 소유처로 지목하는 **미러링**이고, 그 소유 문서는 이미 `status: implemented` 다. 즉 이 저장소는 "향후 로드맵 — 미구현" 절을 `implemented` 와 양립하는 것으로 이미 다루고 있다.
+
+그 로드맵이 착수되면 plan 은 **소유 문서 쪽에서** 생긴다. 여기서 `pending_plans` 를 다시 여는 것은 남의 로드맵을 이 문서의 미완으로 기록하는 것이라 `status` 의미를 흐린다.
 
 ### 재연결 복구 — native WS 는 snapshot, seq 버퍼-replay 는 SSE 전송 (§6.2)
 

@@ -10,7 +10,7 @@ spec_impact: none
 > 근거 spec: [`spec/5-system/6-websocket-protocol.md`](../../spec/5-system/6-websocket-protocol.md)
 > §1.2 · §1.3 · §4.6 · §6.1 · §9.2 + Rationale `R-ws-socket-lifetime-binds-token` (`#1265`).
 > 토큰 수명·revoke 의미는 [`spec/5-system/1-auth.md`](../../spec/5-system/1-auth.md) §1.4·§2.3.
-> 트래커: [`spec-sync-websocket-protocol-gaps.md`](./spec-sync-websocket-protocol-gaps.md) 잔여 1종.
+> 트래커: [`spec-sync-websocket-protocol-gaps.md`](../complete/spec-sync-websocket-protocol-gaps.md) 잔여 1종.
 
 ## 무엇을 만드는가
 
@@ -80,7 +80,7 @@ WARNING 3건 중 **1건만 이 작업 몫**이었다(형제 draft 체크리스�
 - [x] **`scripts/check-frontend-typecheck-ratchet.py`** — 4단계 wrapper 밖이라 별도로 돌린다.
       초판이 이걸 안 돌려 CI 를 깰 뻔했다(아래 리뷰 1R C2).
 - [x] `/ai-review` **5라운드** — 신규 WARNING **8 → 5 → 4 → 3 → 0**. 최종 Critical 0 · Warning 0.
-- [ ] PR
+- [x] PR — `#1266` 머지
 
 - [ ] **이월 INFO — 다음에 이 파일을 만질 때 함께 정리** (5R 기준 3~5라운드 연속 지적).
       개별로는 차단 사유가 아니라 매 라운드 다시 올라온다. 한 번에 닫는 게 싸다:
@@ -91,7 +91,8 @@ WARNING 3건 중 **1건만 이 작업 몫**이었다(형제 draft 체크리스�
       - `armExpiryTimers` 진입부 선제 `clearTimeout` (현재는 `connectionStateRecovery`
         미사용이라 도달 불가 — 그 옵션을 켜면 그날 필요해진다)
       - `setTimeout` 에 `.unref()` (셧다운 상호작용 가정 자체를 제거)
-- [ ] **머지 후 planner 턴** — spec 의 `_(계획·미구현)_` 배지 flip(§1.2·§4.6·Rationale·`:28`)과
+- [x] **머지 후 planner 턴 — 완료.** spec 배지 flip + 트래커 종결 + `implemented` 승격.
+      ~~spec 의 `_(계획·미구현)_` 배지 flip(§1.2·§4.6·Rationale·`:28`)과
       `spec-sync-websocket-protocol-gaps.md:23` 체크박스. **developer 권한 밖**이다(그 문구의
       원저자가 아니라 자기-반증형 소정정 예외에 해당하지 않는다). 이 PR 은 구현만 싣는다.
 - [x] **유저 가이드** — `password-and-sessions.{mdx,en.mdx}` 에 Callout 추가(리뷰 2R W5).
@@ -118,8 +119,9 @@ WARNING 3건 중 **1건만 이 작업 몫**이었다(형제 draft 체크리스�
       재개 신호: CI 나 로컬에서 이 테스트가 **한 번이라도 더** 실패하면 그때는 "알려진 flake"
       로 묻지 말고 원인을 끝까지 팔 것. 이 항목이 그 기록이다.
 
-- [ ] **`2-api-convention.md §10.4` 재연결 요약이 이제 오해를 부른다** (`--impl-done` W1,
-      planner 트랙).
+- [x] **`2-api-convention.md §10.4` — 완료.** 예외를 **위임**으로 한 줄 넣고 근거를 그 문서
+      `## Rationale` 에 정착시켰다.
+      ~~재연결 요약이 이제 오해를 부른다 (`--impl-done` W1, planner 트랙).~~
 
       §10.4 는 *"연결 끊김 시 지수 백오프로 재연결 + 마지막 수신 이벤트 ID 전달"* 이라고
       요약하는데, 서버발신 `disconnect()` 는 **자동 재연결 대상이 아니고**(§6.1 예외) 복구도

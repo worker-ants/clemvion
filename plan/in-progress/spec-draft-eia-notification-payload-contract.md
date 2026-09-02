@@ -11,7 +11,7 @@ spec_impact:
   - spec/5-system/15-chat-channel.md
 pending_plans:
   - plan/in-progress/spec-sync-external-interaction-api-gaps.md
-  - plan/in-progress/spec-sync-websocket-protocol-gaps.md
+  - plan/complete/spec-sync-websocket-protocol-gaps.md
 ---
 
 # spec draft — 종결 이벤트 payload: 필드 집합을 단일 SoT 로, 봉투는 채널별 1회

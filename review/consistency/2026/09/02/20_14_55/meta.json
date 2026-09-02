@@ -1,0 +1,13 @@
+{
+  "timestamp": "2026-09-02T20:14:55.560966",
+  "mode": "spec draft 검토 (--spec)",
+  "target_path": "plan/in-progress/spec-draft-ws-badge-flip-tracker-close.md",
+  "checkers": [
+    "cross_spec",
+    "rationale_continuity",
+    "convention_compliance",
+    "plan_coherence",
+    "naming_collision"
+  ],
+  "target_snapshot": "_target/spec-draft-ws-badge-flip-tracker-close.md"
+}
