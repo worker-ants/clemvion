@@ -79,8 +79,18 @@ WARNING 3건 중 **1건만 이 작업 몫**이었다(형제 draft 체크리스�
 - [x] lint / unit / build / e2e
 - [x] **`scripts/check-frontend-typecheck-ratchet.py`** — 4단계 wrapper 밖이라 별도로 돌린다.
       초판이 이걸 안 돌려 CI 를 깰 뻔했다(아래 리뷰 1R C2).
-- [ ] `/ai-review` + 조치
+- [x] `/ai-review` **5라운드** — 신규 WARNING **8 → 5 → 4 → 3 → 0**. 최종 Critical 0 · Warning 0.
 - [ ] PR
+
+- [ ] **이월 INFO — 다음에 이 파일을 만질 때 함께 정리** (5R 기준 3~5라운드 연속 지적).
+      개별로는 차단 사유가 아니라 매 라운드 다시 올라온다. 한 번에 닫는 게 싸다:
+      - `cutoff` clamp 에 근거 주석 한 줄 (인접 `notice` 에만 있음) — **5라운드 연속**
+      - `expiryTimers` 타이머 쌍 타입 non-optional 화 (항상 쌍인데 `?`)
+      - wire 메시지 `MSG_AUTH_TOKEN_EXPIRING` 상수 승격 + 테스트가 그 상수를 참조
+        (지금은 `expect.any(String)` 이라 문구가 바뀌어도 안 걸린다)
+      - `armExpiryTimers` 진입부 선제 `clearTimeout` (현재는 `connectionStateRecovery`
+        미사용이라 도달 불가 — 그 옵션을 켜면 그날 필요해진다)
+      - `setTimeout` 에 `.unref()` (셧다운 상호작용 가정 자체를 제거)
 - [ ] **머지 후 planner 턴** — spec 의 `_(계획·미구현)_` 배지 flip(§1.2·§4.6·Rationale·`:28`)과
       `spec-sync-websocket-protocol-gaps.md:23` 체크박스. **developer 권한 밖**이다(그 문구의
       원저자가 아니라 자기-반증형 소정정 예외에 해당하지 않는다). 이 PR 은 구현만 싣는다.
