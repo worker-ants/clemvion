@@ -106,6 +106,14 @@ spec_impact:
   `plan/in-progress/spec-sync-websocket-protocol-gaps.md`).
 ```
 
+## ✅ 완료 확인 (2026-09-02)
+
+이 draft 의 변경은 `#1264`(`36f2791a9`)로 **전부 반영**됐다 — spec 5곳 + tracker plan 5곳.
+이 문서엔 체크박스가 없고 번호 표로 서술하므로, 표 대신 이 노트가 완료 기록이다.
+
+후속으로 그 tracker 는 `auth.token_expired` 까지 닫히며 종결돼 `plan/complete/` 로 이동했고,
+`6-websocket-protocol.md` 는 `implemented` 로 승격했다.
+
 ## Rationale (본 draft 의 결정 근거)
 
 **왜 spec 본문에서 지우지 않고 _(비채택 won't-do)_ 표기로 남기는가** — 2026-07-08 선례가

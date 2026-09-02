@@ -6,6 +6,11 @@ owner: planner
 
 # websocket-protocol — spec 약속 대비 미구현 surface
 
+> ## ✅ 종결 (2026-09-02)
+> 2026-06-03 강등 시 분리한 항목이 **전부 처분**됐다 — 구현 완료 2종(`notification.new`·
+> `auth.token_expired`) · WS 에러 처리 하드닝 · 비채택 6종(2026-07-08 4종 + 2026-09-02 2종).
+> `6-websocket-protocol.md` 는 `partial` → **`implemented`** 로 승격했다.
+
 > 출처: 2026-06-03 spec-vs-code audit (review/spec-coverage/2026/06/03/08_05_49). 본 spec 을 `partial` 로 강등하며 분리한 미구현 항목 추적.
 > 관련 spec: spec/5-system/6-websocket-protocol.md
 
@@ -20,7 +25,7 @@ spec 초안은 raw/native WebSocket 프로토콜을 전제했으나 구현은 So
       2026-08-13 부터 필드 계약은 [EIA §6 도입부](../../spec/5-system/14-external-interaction-api.md#종결-이벤트의-필드-집합-normative)
       가 소유하며, 이 항목의 추적도 그쪽 트래커(`spec-sync-external-interaction-api-gaps.md`)가
       정본이다. 여기 남기는 것은 WS 쪽에서 찾는 사람을 위한 포인터다
-- [ ] 서버발신 `auth.token_expired` 시스템 이벤트 emit (§4.6 — 2026-08-31 절번호 이동 전 §4.5)
+- [x] 서버발신 `auth.token_expired` 시스템 이벤트 emit (§4.6) — **완료 (2026-09-02, `#1266`)**. 소켓별 만료 타이머(backend) + 구독·명시 재연결(frontend). spec 배지 flip 과 본 문서 종결은 같은 planner 턴에서 처리했다.
 
       > **⚠ "emit 한 줄 추가" 가 아니다 — 착수 전 결정이 필요하다 (2026-08-31 실측 등재).**
       >
