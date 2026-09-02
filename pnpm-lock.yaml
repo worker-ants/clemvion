@@ -154,8 +154,8 @@ importers:
         specifier: ^1.4.7
         version: 1.4.7
       cron-parser:
-        specifier: ^5.5.0
-        version: 5.5.0
+        specifier: ^5.10.0
+        version: 5.10.0
       csv-parse:
         specifier: ^7.0.1
         version: 7.0.1
@@ -486,8 +486,8 @@ importers:
         specifier: ^2.1.1
         version: 2.1.1
       cron-parser:
-        specifier: ^5.5.0
-        version: 5.5.0
+        specifier: ^5.10.0
+        version: 5.10.0
       cronstrue:
         specifier: ^3.14.0
         version: 3.20.0
@@ -5698,8 +5698,8 @@ packages:
     engines: {node: '>=12.0.0'}
     deprecated: v4 is no longer maintained, upgrade to v5
 
-  cron-parser@5.5.0:
-    resolution: {integrity: sha512-oML4lKUXxizYswqmxuOCpgFS8BNUJpIu6k/2HVHyaL8Ynnf3wdf9tkns0yRdJLSIjkJ+b0DXHMZEHGpMwjnPww==}
+  cron-parser@5.10.0:
+    resolution: {integrity: sha512-izNAxJyRWUP8ljBoDSub5WyrVOUlT4SLGShswE7eoRBpp6QUsSycYxLBMJlbshgPBMcPT/nrfgjNY2918ayv2A==}
     engines: {node: '>=18'}
 
   cronstrue@3.20.0:
@@ -15862,7 +15862,7 @@ snapshots:
     dependencies:
       luxon: 3.7.2
 
-  cron-parser@5.5.0:
+  cron-parser@5.10.0:
     dependencies:
       luxon: 3.7.2
 
