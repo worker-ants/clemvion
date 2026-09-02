@@ -1,0 +1,13 @@
+{
+  "timestamp": "2026-09-02T16:05:23.657045",
+  "mode": "spec draft 검토 (--spec)",
+  "target_path": "plan/in-progress/spec-draft-ws-wontdo-maintenance-appping.md",
+  "checkers": [
+    "cross_spec",
+    "rationale_continuity",
+    "convention_compliance",
+    "plan_coherence",
+    "naming_collision"
+  ],
+  "target_snapshot": "_target/spec-draft-ws-wontdo-maintenance-appping.md"
+}
