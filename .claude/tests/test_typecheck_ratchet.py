@@ -6,8 +6,10 @@
 
 - backend — `nest build` 는 `tsconfig.build.json` 이라 `test/`·`**/*spec.ts` 를 exclude 하고
   jest 는 타입을 strip 한다.
-- frontend — `tsconfig.json` **자신이** `src/test/**`·`*.test.ts(x)`·`**/__tests__/**` 를
-  exclude 하고 `vitest run` 은 타입을 strip 한다.
+- frontend — `tsconfig.json` **자신이** `src/test/**`·`*.test.ts(x)`·`*.spec.ts(x)`·
+  `**/__tests__/**` 를 exclude 하고 `vitest run` 은 타입을 strip 한다. 이 목록의 정본은
+  `FRONTEND_EXCLUDE_SAMPLES` 이고 `FrontendExcludeCoverageTest` 가 실제 tsconfig 와 대조한다
+  — 산문이 또 낡지 않도록 **세는 일은 코드에 맡긴다**.
 
 ratchet 이 그 사각의 유일한 관측 지점이므로, **ratchet 자신이 조용히 통과하기 시작하면 사각이
 그대로 돌아온다.** 그래서 "통과" 로 흘러갈 수 있는 경로를 우선 고정한다:

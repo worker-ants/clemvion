@@ -29,13 +29,17 @@ git 에 있으면 같은 워크플로의 `changes.pathspecs` 가 덮는지 본�
 from __future__ import annotations
 
 import re
-import subprocess
 import unittest
 
 import _harness  # noqa: F401  — side effect: harness path setup
 import yaml
 from _harness import REPO_ROOT
-from test_harness_checks_paths_coverage import filter_covers_file
+
+# **자매 모듈에서 가져온다.** `filter_covers_file` 은 import 해 놓고 `_tracked_files` 만
+# 다시 쓴 판이 있었는데(리뷰 3R maintainability WARNING), 그것이 정확히 이 PR 이 겨냥하는
+# "같은 목적의 독립 사본이 조용히 갈린다" 다 — 실제로 빈 줄 처리가 이미 미묘하게 달랐다.
+# 가드를 만들면서 그 가드가 막는 실수를 저지르지 않는다.
+from test_harness_checks_paths_coverage import _tracked_files, filter_covers_file
 
 WORKFLOWS = REPO_ROOT / ".github" / "workflows"
 
@@ -43,13 +47,6 @@ WORKFLOWS = REPO_ROOT / ".github" / "workflows"
 # 섞이지 않게 한다. 새 확장자가 필요해지면 여기 추가한다 — 넓히는 편집은 이 파일의 목적상
 # 안전하다(더 많이 검사하게 된다).
 _PATH_TOKEN = re.compile(r"(?<![\w./-])((?:scripts|\.github|codebase|\.claude)/[\w./-]+\.\w+)")
-
-
-def _tracked_files() -> set[str]:
-    out = subprocess.run(
-        ["git", "ls-files"], cwd=REPO_ROOT, capture_output=True, text=True, check=True
-    ).stdout
-    return set(out.splitlines())
 
 
 class WorkflowRunInputsAreCoveredTest(unittest.TestCase):
