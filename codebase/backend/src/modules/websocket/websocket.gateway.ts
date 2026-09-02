@@ -20,7 +20,11 @@ import {
 } from '../execution-engine/workflow-errors';
 import { ErrorCode } from '../../nodes/core/error-codes';
 import { ExecutionsService } from '../executions/executions.service';
-import { ExecutionEventType } from './websocket-events.types';
+import {
+  AuthEventType,
+  type AuthTokenExpiredPayload,
+  ExecutionEventType,
+} from './websocket-events.types';
 import { corsOriginCallback } from '../../common/utils/cors-origins';
 import { WsErrorCode } from './ws-error-codes';
 import { WsRateLimitGuard } from './ws-rate-limit.guard';
@@ -131,6 +135,80 @@ export class WebsocketGateway
     private readonly wsRateLimiter: WsRateLimiterService,
   ) {}
 
+  /**
+   * 만료 **사전 통지** lead time. spec §1.2 가 60초로 고정한다 — 클라이언트가 REST 재발급 →
+   * `auth.token` 교체 → 명시적 재연결을 마치기에 넉넉하면서(수백 ms 규모) 유효 창을 크게
+   * 깎지 않는 값이다(900초의 약 6.7%). **관측 가능한 계약이라 구현 자유도가 아니다** —
+   * 구현 자유도로 두면 클라이언트가 최악값을 가정하게 된다.
+   */
+  private static readonly TOKEN_EXPIRY_LEAD_MS = 60_000;
+
+  /**
+   * 소켓별 만료 타이머 (사전 통지 · 강제 종료). `handleDisconnect` 에서 **둘 다** 해제한다 —
+   * 해제 누락은 소켓당 타이머 누수이고, 이미 끊긴 소켓에 emit/disconnect 를 거는 것이다.
+   */
+  private readonly expiryTimers = new Map<
+    string,
+    { notice?: NodeJS.Timeout; cutoff?: NodeJS.Timeout }
+  >();
+
+  /**
+   * 소켓 수명을 토큰 수명에 종속시킨다 (§1.2, Rationale `R-ws-socket-lifetime-binds-token`).
+   *
+   * 종전에는 핸드셰이크 이후 토큰을 **한 번도 재검증하지 않아** 900초짜리 토큰으로 연결된
+   * 소켓이 만료 뒤에도 무기한 인가된 채 이벤트를 받았다. §1.2 의 복구 서술(`connect_error`
+   * → REST refresh → 재연결)은 **새 연결 시도에서만** 발화해 살아있는 소켓을 다루지 않았다.
+   *
+   * **닫는 범위는 자연 만료뿐이다.** 명시적 revoke 는 refresh family 만 무효화하므로 이미
+   * 발급된 access token 은 자연 `exp` 까지 유효하고, 그 소켓도 그때까지 산다 — spec Rationale
+   * 이 명시한 카브아웃이며 여기서 넓히지 않는다.
+   *
+   * `exp` 가 없으면 타이머를 걸지 않는다. 그런 토큰은 핸드셰이크 검증이 이미 통과시킨
+   * 것이라 이 자리에서 끊을 근거가 없다 — 만료 없는 토큰을 만료로 다루면 정책을 코드가
+   * 새로 만드는 것이 된다.
+   */
+  private armExpiryTimers(
+    client: Socket,
+    expSeconds: number | undefined,
+  ): void {
+    if (typeof expSeconds !== 'number' || !Number.isFinite(expSeconds)) return;
+
+    const expiresAtMs = expSeconds * 1000;
+    const untilCutoff = expiresAtMs - Date.now();
+    const expiresAt = new Date(expiresAtMs).toISOString();
+
+    // 남은 시간이 lead time 보다 짧으면 **즉시** 통지한다. 건너뛰면 그 소켓만 사전 통지
+    // 없이 끊겨, 짧은 토큰일수록 계약이 조용히 사라진다.
+    //
+    // `Math.max(0, …)` 는 **의도적으로 중복 방어**다 — Node 는 음수 지연을 1ms 로 강제하므로
+    // 이 clamp 를 빼도 동작이 같고 실제로 뮤테이션에서 살아남았다(M3). 그래도 남기는 이유는
+    // 그 강제가 런타임 구현 세부이지 이 코드가 표현하려는 계약이 아니기 때문이다 —
+    // "음수면 즉시" 를 읽는 사람이 Node 문서를 찾아가지 않아도 되게 한다.
+    const untilNotice = Math.max(
+      0,
+      untilCutoff - WebsocketGateway.TOKEN_EXPIRY_LEAD_MS,
+    );
+
+    const timers: { notice?: NodeJS.Timeout; cutoff?: NodeJS.Timeout } = {};
+    timers.notice = setTimeout(() => {
+      const payload: AuthTokenExpiredPayload = {
+        message: 'Access token expires soon — refresh and reconnect.',
+        expiresAt,
+      };
+      client.emit(AuthEventType.AUTH_TOKEN_EXPIRED, payload);
+    }, untilNotice);
+
+    timers.cutoff = setTimeout(
+      () => {
+        this.logger.log(`Token expired, disconnecting: ${client.id}`);
+        client.disconnect();
+      },
+      Math.max(0, untilCutoff),
+    );
+
+    this.expiryTimers.set(client.id, timers);
+  }
+
   handleConnection(client: Socket): void {
     try {
       const token =
@@ -153,11 +231,16 @@ export class WebsocketGateway
         sub: string;
         activeWorkspaceId?: string;
         workspaceId?: string;
+        // JWT 표준 만료 클레임(초). §1.2 의 소켓 타이머가 이 값을 쓴다.
+        exp?: number;
       } = this.jwtService.verify(token);
       const enrichedClient = client as AuthenticatedSocket;
       enrichedClient.userId = payload.sub;
       enrichedClient.workspaceId =
         payload.activeWorkspaceId ?? payload.workspaceId;
+
+      // §1.2 — 소켓 수명을 토큰 수명에 종속시킨다.
+      this.armExpiryTimers(client, payload.exp);
 
       this.subscriptions.set(client.id, new Set());
 
@@ -198,6 +281,14 @@ export class WebsocketGateway
     this.subscriptions.delete(client.id);
     // §7.1 — rate-limit 카운터 정리(누수 방지).
     this.wsRateLimiter.release(client.id);
+    // §1.2 — 만료 타이머 **둘 다** 해제. 하나만 지우면 나머지가 이미 끊긴 소켓에 emit 하거나
+    // disconnect 를 걸고, 소켓당 타이머가 남는다.
+    const timers = this.expiryTimers.get(client.id);
+    if (timers) {
+      if (timers.notice) clearTimeout(timers.notice);
+      if (timers.cutoff) clearTimeout(timers.cutoff);
+      this.expiryTimers.delete(client.id);
+    }
     this.logger.log(`Client disconnected: ${client.id}`);
   }
 

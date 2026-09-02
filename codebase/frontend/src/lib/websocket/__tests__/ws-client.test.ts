@@ -10,6 +10,9 @@ function createMockSocket() {
     once: vi.fn(),
     emit: vi.fn(),
     disconnect: vi.fn(),
+    // §1.2/§9.2 — 서버발신 disconnect 후의 **명시적** 재연결에 쓰인다.
+    connect: vi.fn(),
+    auth: { token: "old-token" } as { token: string },
   };
 }
 
@@ -17,6 +20,11 @@ let mockSocket = createMockSocket();
 
 vi.mock("socket.io-client", () => ({
   io: vi.fn(() => mockSocket),
+}));
+
+const mockRefresh = vi.fn(async () => "new-token");
+vi.mock("../../api/client", () => ({
+  refreshAccessToken: () => mockRefresh(),
 }));
 
 import { createWsClient, getWsClient, resetWsClient } from "../ws-client";
@@ -124,6 +132,54 @@ describe("ws-client", () => {
       client.disconnect();
       expect(mockSocket.disconnect).toHaveBeenCalled();
       expect(client.getSocket()).toBeNull();
+    });
+  });
+
+  // §1.2 · §9.2 — 소켓 수명이 토큰 수명에 종속되므로, 서버가 만료 통지 후 끊는다.
+  //
+  // **Socket.IO 자동 재연결은 서버발신 `disconnect()` 에 발화하지 않는다**(§6.1 예외,
+  // reason `"io server disconnect"`). 이 경로가 없으면 사용자는 조용히 연결을 잃는다 —
+  // 착수 시점 실측에서 이 구독이 **0건**이었다.
+  describe("토큰 만료 종료 대응 (§9.2)", () => {
+    function handlerFor(event: string): (arg: never) => void {
+      const call = mockSocket.on.mock.calls.find(([e]) => e === event);
+      if (!call) throw new Error(`no handler registered for "${event}"`);
+      return call[1] as (arg: never) => void;
+    }
+
+    it("auth.token_expired 를 받으면 재발급 → auth.token 교체 → 명시적 connect", async () => {
+      createWsClient().connect();
+      await (handlerFor("auth.token_expired") as (a: unknown) => Promise<void>)({
+        message: "expiring",
+        expiresAt: new Date().toISOString(),
+      });
+
+      expect(mockRefresh).toHaveBeenCalledTimes(1);
+      expect(mockSocket.auth.token).toBe("new-token");
+      expect(mockSocket.connect).toHaveBeenCalled();
+    });
+
+    it("통지를 놓쳐도 io server disconnect 면 같은 복구를 한다 (fallback)", async () => {
+      createWsClient().connect();
+      await (handlerFor("disconnect") as (r: string) => Promise<void>)(
+        "io server disconnect",
+      );
+
+      expect(mockRefresh).toHaveBeenCalledTimes(1);
+      expect(mockSocket.auth.token).toBe("new-token");
+      expect(mockSocket.connect).toHaveBeenCalled();
+    });
+
+    it("대조군 — 그 밖의 disconnect reason 은 건드리지 않는다 (내장 재연결 몫)", async () => {
+      createWsClient().connect();
+      await (handlerFor("disconnect") as (r: string) => Promise<void>)(
+        "transport close",
+      );
+
+      // 여기서 재연결을 가로채면 Socket.IO 내장 백오프와 이중으로 붙어
+      // 재연결 폭풍이 된다 — 이 분기가 **좁아야 하는** 이유다.
+      expect(mockRefresh).not.toHaveBeenCalled();
+      expect(mockSocket.connect).not.toHaveBeenCalled();
     });
   });
 

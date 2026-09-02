@@ -75,6 +75,39 @@ export function createWsClient(): WsClient {
         console.error("[ws] Token refresh failed:", refreshErr);
       }
     });
+
+    // §1.2/§9.2 — 소켓 수명이 토큰 수명에 종속된다. 서버가 만료 60초 전
+    // `auth.token_expired` 를 통지하고 `exp` 에 `disconnect()` 한다.
+    //
+    // **위 `connect_error` 경로로는 못 잡는다.** 그쪽은 *연결 시도가 실패*할 때 발화하고,
+    // 여기서 다루는 것은 *이미 연결된* 소켓이 서버에 의해 끊기는 경우다. 그리고
+    // **Socket.IO 자동 재연결은 서버발신 `disconnect()` 에 발화하지 않는다**
+    // (reason `"io server disconnect"`, §6.1 예외) — 명시적 `connect()` 가 필요하다.
+    // 이 두 경로가 없으면 사용자는 조용히 연결을 잃는다.
+    const refreshAndReconnect = async (why: string) => {
+      try {
+        const newToken = await refreshAccessToken();
+        if (newToken && socket) {
+          (socket.auth as { token: string }).token = newToken;
+          socket.connect();
+        }
+      } catch (refreshErr) {
+        console.error(`[ws] Token refresh failed (${why}):`, refreshErr);
+      }
+    };
+
+    // 정상 경로 — 통지 창(60초) 안에 갈아탄다. 성공하면 끊김이 보이지 않는다.
+    socket.on("auth.token_expired", () => {
+      void refreshAndReconnect("auth.token_expired");
+    });
+
+    // fallback — 백그라운드 탭 등으로 통지를 놓친 경우. **reason 을 좁게 본다**:
+    // 그 밖의 disconnect(transport close 등)까지 가로채면 Socket.IO 내장 백오프와
+    // 이중으로 붙어 재연결 폭풍이 된다.
+    socket.on("disconnect", (reason: string) => {
+      if (reason !== "io server disconnect") return;
+      void refreshAndReconnect("io server disconnect");
+    });
   };
 
   const disconnect = () => {
