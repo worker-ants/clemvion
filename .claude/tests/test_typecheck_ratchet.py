@@ -267,6 +267,24 @@ class RunTscFailClosedTest(unittest.TestCase):
         with mock.patch.object(CORE.subprocess, "run", return_value=proc):
             self.assertEqual(CORE.run_tsc(fake_config(tmp)), "")
 
+    def test_nonzero_exit_with_diagnostics_is_the_normal_path(self):
+        """**가장 흔한 실전 경로** — tsc 는 진단이 있으면 비-0 으로 끝난다.
+
+        위 세 분기가 전부 "비-0" 이나 "빈 stdout" 을 다루다 보니, 정작 *진단이 있는 정상
+        실패* 는 어떤 테스트도 태우지 않았다. 뮤테이션으로 실증됐다 — `:112` 조건에서
+        `and not out.strip()` 을 떼도 **35/35 GREEN** 이었다(리뷰 2R testing WARNING).
+
+        그 회귀가 실제로 들어오면 baseline 이 비어 있지 않은 한 게이트는 타입 오류 유무와
+        무관하게 **CI 에서 영구 exit 2** 가 된다 — 판단 불가가 상시화되면 아무도 그 게이트를
+        신뢰하지 않게 되고, 결국 꺼진다.
+        """
+        tmp = Path(tempfile.mkdtemp()) / "baseline.json"
+        out = "a.spec.ts(1,1): error TS2554: Expected 8 arguments, but got 7.\n"
+        proc = mock.Mock(returncode=2, stdout=out, stderr="")
+        with mock.patch.object(CORE.subprocess, "run", return_value=proc):
+            # 예외 없이 stdout 을 **그대로** 돌려줘야 한다.
+            self.assertEqual(CORE.run_tsc(fake_config(tmp)), out)
+
     def test_tsc_is_invoked_with_the_configured_tsconfig(self):
         """엔트리포인트의 `tsconfig` 설정이 실제 명령에 실린다.
 

@@ -38,7 +38,7 @@
 | 게이트 | 로컬 명령 | 언제 |
 | --- | --- | --- |
 | backend 타입체크 ratchet (`backend-checks.yml`) | `python3 scripts/check-backend-typecheck-ratchet.py` | backend `*.ts` 변경 시. **`nest build` 는 `*.spec.ts` 를 exclude 하고 jest 는 타입을 strip** 하므로 테스트 코드의 타입 오류는 이 검사 말고 아무도 못 본다. 오류가 **줄었을 때도 실패**하니 `--update` 로 baseline 을 낮춰 커밋한다 |
-| frontend 타입체크 ratchet (`frontend-checks.yml`) | `python3 scripts/check-frontend-typecheck-ratchet.py` | frontend `*.ts(x)` 변경 시. backend 와 **같은 사각**인데 원인이 다르다 — `tsconfig.json` **자신이** `src/test/**`·`*.test.ts(x)`·`**/__tests__/**` 를 exclude 하고 `vitest run` 은 타입을 strip 한다. 전용 `tsconfig.typecheck.json` 으로 전체 프로그램을 본다. 판정 규칙은 backend 와 **같은 코어**(`scripts/_typecheck_ratchet.py`) — 증가·감소 둘 다 실패 |
+| frontend 타입체크 ratchet (`frontend-checks.yml`) | `python3 scripts/check-frontend-typecheck-ratchet.py` | frontend `*.ts(x)` 변경 시. backend 와 **같은 사각**인데 원인이 다르다 — `tsconfig.json` **자신이** `src/test/**`·`*.test.ts(x)`·`*.spec.ts(x)`·`**/__tests__/**` 를 exclude 하고 `vitest run` 은 타입을 strip 한다. 전용 `tsconfig.typecheck.json` 으로 전체 프로그램을 본다. 판정 규칙은 backend 와 **같은 코어**(`scripts/_typecheck_ratchet.py`) — 증가·감소 둘 다 실패 |
 | 의존성 보안 (`deps-security-checks.yml`) | `python3 scripts/check-pnpm-security-config.py` · `python3 scripts/check-override-floors.py` · `pnpm audit --audit-level=moderate` | `pnpm-workspace.yaml`·lockfile·매니페스트 변경 시 |
 | 하네스 (`harness-checks.yml`) | `python3 -m unittest discover -s .claude/tests -p 'test_*.py'` | `.claude/**`·`scripts/**`·워크플로 변경 시 |
 
