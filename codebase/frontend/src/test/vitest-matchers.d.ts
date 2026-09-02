@@ -10,7 +10,8 @@
 // 아무도 못 본 이유: `tsconfig.json` 이 `src/test/**` 와 테스트 파일을 exclude 하고
 // vitest 는 타입을 strip 한다. **이 선언이 의도대로 동작한 적이 한 번도 없다** —
 // `toHaveNoViolations()` 의 타입 보장은 죽어 있었고, 런타임 matcher 만 살아 있었다.
-// 2026-09-02 실측: 이 파일을 프로그램에 넣으면 TS2305 가 **1,128건** 쏟아졌다.
+// 2026-09-02 실측: 전체 진단 **1,414건** 중 **1,256건**이 이 파일에서 나온 TS2305
+// (`Module '"vitest"' has no exported member …`)였다. 고친 뒤 전체는 **52건**이다.
 //
 // 아래 `import "vitest"` 가 이 파일을 모듈로 만든다 — 지우면 조용히 shadowing 으로
 // 되돌아간다.

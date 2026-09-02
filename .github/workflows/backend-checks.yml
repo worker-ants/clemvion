@@ -62,6 +62,10 @@ jobs:
         codebase/packages/**
         pnpm-lock.yaml
         pnpm-workspace.yaml
+        # 판정 규칙이 사는 공유 코어. 엔트리포인트는 설정만 담으므로 **동작을 바꾸는 것은
+        # 이 파일**이다 — 빠뜨리면 판정 규칙만 고친 PR 이 `relevant=false` 로 판정돼 이
+        # 게이트가 tsc 를 한 번도 안 돌리고 통과 보고한다.
+        scripts/_typecheck_ratchet.py
         scripts/check-backend-typecheck-ratchet.py
         scripts/backend-typecheck-baseline.json
         scripts/ci-paths-changed.sh

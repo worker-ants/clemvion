@@ -60,7 +60,11 @@ def load_module(path: Path, name: str):
     return mod
 
 
-CORE = load_module(CORE_PATH, "typecheck_ratchet_core")
+# **엔트리포인트가 쓰는 것과 같은 이름**으로 적재한다. 다른 이름을 주면 `sys.modules` 에
+# 두 벌이 생겨 `CORE.RatchetConfig` 와 엔트리포인트의 `CONFIG` 가 **다른 클래스**가 되고,
+# `mock.patch.object(CORE, "run_tsc", …)` 도 실제 실행 경로를 못 건드린다 — 테스트가 통과해도
+# 실제 배선은 무증거로 남는다(리뷰 testing WARNING). 아래 `EntrypointWiringTest` 가 고정한다.
+CORE = load_module(CORE_PATH, "_typecheck_ratchet")
 
 ENTRYPOINTS = {
     "backend": SCRIPTS / "check-backend-typecheck-ratchet.py",
@@ -76,7 +80,21 @@ CONFIGS = {
 # 다르므로 규칙도 갈라 적는다 — 각 패키지 tsconfig 의 exclude 목록과 짝을 이룬다.
 TEST_FILE_RULES = {
     "backend": re.compile(r"\.spec\.tsx?$"),
-    "frontend": re.compile(r"(?:^|/)__tests__/|\.test\.tsx?$|(?:^|/)src/test/"),
+    # frontend 는 `tsconfig.json` 의 exclude 목록과 **1:1** 로 맞춘다 — 한 패턴이라도
+    # 빠지면 그 형태의 테스트 파일이 "프로덕션" 으로 오분류돼 아래 단언이 거짓 실패한다.
+    # (초판은 `*.spec.ts(x)` 를 빠뜨렸다 — 이 PR 이 스스로 경고하는 "규칙이 갈린다" 의 축소판.)
+    "frontend": re.compile(r"(?:^|/)__tests__/|\.(?:test|spec)\.tsx?$|(?:^|/)src/test/"),
+}
+
+# `tsconfig.json` 의 exclude 글롭 ↔ 그 글롭이 겨냥하는 대표 경로. 위 정규식이 **전부**
+# 덮는지 아래 테스트가 전수로 확인한다 — 키워드를 넓히는 대신 열거해서 0 으로 만든다.
+FRONTEND_EXCLUDE_SAMPLES = {
+    "src/test/**": "src/test/setup.ts",
+    "src/**/*.test.ts": "src/lib/a.test.ts",
+    "src/**/*.test.tsx": "src/components/a.test.tsx",
+    "src/**/*.spec.ts": "src/lib/a.spec.ts",
+    "src/**/*.spec.tsx": "src/components/a.spec.tsx",
+    "src/**/__tests__/**": "src/lib/__tests__/a.ts",
 }
 
 SAMPLE = """src/modules/a/a.spec.ts(12,34): error TS2554: Expected 8 arguments, but got 7.
@@ -114,6 +132,32 @@ class ParseTest(unittest.TestCase):
     def test_empty_output_is_clean_not_an_error(self):
         # 진단이 하나도 없으면 tsc 는 아무것도 출력하지 않는다.
         self.assertEqual(CORE.count_by_file(""), {})
+
+    def test_paths_containing_parentheses_are_counted(self):
+        """Next.js App Router 의 **route group** 경로에는 리터럴 `(` 가 들어간다.
+
+        종전 패턴은 파일 부분을 `[^(]*` 로 잡아 첫 여는 괄호에서 끊었고, 그래서
+        `src/app/(main)/…` 아래 진단이 **한 건도 세어지지 않았다** — 이 저장소가 실제로 쓰는
+        구조라 그 트리 전체가 게이트의 사각이었다(리뷰 requirement CRITICAL, 실측 51 vs 52).
+
+        게이트가 조용히 통과하기 시작하는 형태라, 실제로 숨어 있던 그 경로를 픽스처로 고정한다.
+        """
+        line = (
+            "src/app/(main)/w/[slug]/integrations/[id]/__tests__/scope-tab.test.tsx"
+            "(44,3): error TS2322: Type 'X' is not assignable"
+        )
+        self.assertEqual(
+            CORE.count_by_file(line),
+            {"src/app/(main)/w/[slug]/integrations/[id]/__tests__/scope-tab.test.tsx": 1},
+        )
+
+    def test_indented_continuation_with_a_position_is_still_ignored(self):
+        """탐욕도를 낮추면서 **들여쓴 상세 줄**까지 잡지 않는지 — 반대 방향 대조군.
+
+        상세 줄이 우연히 `(1,1): error TS…` 형태를 담을 수 있는데, 그것을 진단으로 세면
+        baseline 이 부풀고 그 차이만큼 새 오류가 조용히 통과한다.
+        """
+        self.assertEqual(CORE.count_by_file("  상세가 이어지는 줄(1,1): error TS1: x"), {})
 
 
 class VerdictTest(unittest.TestCase):
@@ -322,7 +366,7 @@ class PerPackageShapeTest(unittest.TestCase):
 
     def test_baselines_only_list_test_files(self):
         """착수 시점 실측은 두 패키지 모두 진단이 **전부 테스트 파일**이었다
-        (backend 209건/40파일 2026-08-09 · frontend 51건/14파일 2026-09-02).
+        (backend 209건/40파일 2026-08-09 · frontend 52건/15파일 2026-09-02).
 
         프로덕션 파일이 baseline 에 들어오는 것은 "빌드가 통과하는데 전체 체크는 실패" 라는
         뜻이라 수용이 아니라 조사 대상이다.
@@ -337,6 +381,115 @@ class PerPackageShapeTest(unittest.TestCase):
                     [],
                     "프로덕션 파일이 타입 진단을 내고 있다 — baseline 에 수용하지 말고 조사할 것",
                 )
+
+
+class EntrypointWiringTest(unittest.TestCase):
+    """**실제 엔트리포인트의 `CONFIG` 가 실제 `main` 을 통과하는가.**
+
+    다른 테스트는 전부 합성 `fake_config` 를 쓴다 — 대조 규칙을 보는 데는 그것이 맞지만,
+    그러면 "엔트리포인트가 코어와 제대로 배선돼 있는가" 는 **한 번도 실행되지 않는다.**
+    초판이 정확히 그 상태였다: 테스트가 코어를 `typecheck_ratchet_core` 라는 다른 이름으로
+    적재해 `sys.modules` 에 두 벌이 생겼고, `CONFIG` 는 **다른 클래스**의 인스턴스였으며
+    `mock.patch.object(CORE, …)` 는 실제 경로를 못 건드렸다(리뷰 testing WARNING).
+    """
+
+    def test_configs_are_instances_of_the_core_dataclass(self):
+        """두 벌 적재를 직접 잡는다 — 이름이 갈리면 `isinstance` 가 곧바로 거짓이 된다."""
+        for label, cfg in CONFIGS.items():
+            with self.subTest(package=label):
+                self.assertIsInstance(cfg, CORE.RatchetConfig)
+
+    def test_committed_baseline_round_trips_through_real_main(self):
+        """커밋된 baseline 과 **정확히 같은** 진단을 주입하면 실제 `main` 이 0 이어야 한다.
+
+        합성 config 가 아니라 엔트리포인트가 실제로 들고 있는 `CONFIG` 를 태운다 — 경로·
+        tsconfig·baseline 이 서로 안 맞으면 여기서 드러난다. tsc 는 주입으로 대체하므로
+        느리지 않다.
+        """
+        for label, cfg in CONFIGS.items():
+            with self.subTest(package=label):
+                data = json.loads(cfg.baseline.read_text(encoding="utf-8"))
+                fake = "\n".join(
+                    f"{f}({i + 1},1): error TS9999: x"
+                    for f, n in data["files"].items()
+                    for i in range(n)
+                )
+                with mock.patch.object(CORE, "run_tsc", lambda c: fake):
+                    self.assertEqual(CORE.main(cfg, []), 0)
+
+
+class FrontendExcludeCoverageTest(unittest.TestCase):
+    """`TEST_FILE_RULES["frontend"]` 가 tsconfig 의 exclude 목록을 **전부** 덮는가.
+
+    한 패턴이라도 빠지면 그 형태의 테스트 파일이 baseline 에 들어왔을 때 "프로덕션 파일" 로
+    오분류돼 `test_baselines_only_list_test_files` 가 거짓 실패한다. 초판은 `*.spec.ts(x)` 를
+    빠뜨렸다 — 이 PR 이 스스로 경고하는 "같은 규칙의 사본이 갈린다" 의 축소판이다.
+
+    키워드를 넓히는 대신 **tsconfig 의 글롭을 전수 열거**해 0 으로 만든다.
+    """
+
+    def test_rule_covers_every_exclude_glob(self):
+        rule = TEST_FILE_RULES["frontend"]
+        for glob, sample in FRONTEND_EXCLUDE_SAMPLES.items():
+            with self.subTest(glob=glob):
+                self.assertRegex(
+                    sample,
+                    rule,
+                    f"exclude 글롭 {glob!r} 이 겨냥하는 {sample!r} 를 규칙이 못 잡는다",
+                )
+
+    def test_sample_set_matches_the_real_tsconfig(self):
+        """전제 테스트 — 위 표본이 **실제 tsconfig 의 exclude 목록**과 같은 집합인가.
+
+        표본이 낡으면 위 테스트는 통과하면서도 새로 추가된 exclude 를 못 본다. 입력 집합
+        자체가 커버리지라 줄이는 편집이 조용히 통과하는 자리다.
+        """
+        cfg = CONFIGS["frontend"]
+        base = json.loads(
+            (cfg.package_dir / "tsconfig.json").read_text(encoding="utf-8")
+        )
+        excludes = [g for g in base["exclude"] if g != "node_modules"]
+        self.assertEqual(
+            sorted(excludes),
+            sorted(FRONTEND_EXCLUDE_SAMPLES),
+            "tsconfig 의 exclude 목록이 바뀌었다 — 표본과 규칙을 함께 갱신할 것",
+        )
+
+    def test_production_paths_are_not_matched(self):
+        """대조군 — 규칙이 너무 넓어지면 프로덕션 오류가 baseline 에 조용히 수용된다."""
+        rule = TEST_FILE_RULES["frontend"]
+        for path in ("src/lib/docs/registry.ts", "src/components/button.tsx", "src/app/page.tsx"):
+            with self.subTest(path=path):
+                self.assertNotRegex(path, rule)
+
+
+class AmbientDeclarationIsAModuleTest(unittest.TestCase):
+    """`vitest-matchers.d.ts` 가 **모듈 파일**인가 — 이번 사고의 핵심 불변식.
+
+    `declare module "vitest"` 는 파일이 모듈일 때만 **augmentation** 이고, global script
+    문맥에서는 vitest 의 실제 타입을 통째로 덮는 **shadowing** 이다. 그 상태가 얼마나
+    오래갔는지 아무도 몰랐던 이유는 이 파일이 어떤 게이트에도 안 걸렸기 때문이다.
+
+    ratchet 이 이제 그것을 잡지만 40초짜리 tsc 를 돌려야 한다. top-level `import`/`export`
+    한 줄이 사라지는 것이 정확히 그 사고의 재발 조건이므로, **밀리초 안에 도는 가드**를
+    따로 둔다(리뷰 testing INFO).
+    """
+
+    def test_vitest_matchers_has_a_top_level_import_or_export(self):
+        path = (
+            CONFIGS["frontend"].package_dir / "src" / "test" / "vitest-matchers.d.ts"
+        )
+        self.assertTrue(path.is_file(), f"{path} 부재")
+        lines = path.read_text(encoding="utf-8").splitlines()
+        top_level = [
+            l for l in lines if l.startswith("import ") or l.startswith("export ")
+        ]
+        self.assertTrue(
+            top_level,
+            f"{path.name} 에 top-level `import`/`export` 가 없다 — 이 파일은 global script 가 "
+            "되고 `declare module \"vitest\"` 는 augmentation 이 아니라 **shadowing** 이 된다 "
+            "(2026-09-02 실측: 그 상태에서 TS2305 1,256건).",
+        )
 
 
 class FrontendTypecheckConfigTest(unittest.TestCase):

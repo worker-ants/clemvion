@@ -37,7 +37,18 @@ from typing import NoReturn, Sequence
 REPO_ROOT = pathlib.Path(__file__).resolve().parent.parent
 
 # `src/foo/bar.spec.ts(12,34): error TS2554: ...`
-DIAGNOSTIC = re.compile(r"^(?P<file>[^(\s][^(]*)\((?P<line>\d+),(?P<col>\d+)\): error (?P<code>TS\d+)")
+#
+# **경로에 `(` 가 들어갈 수 있다.** 종전 패턴은 파일 부분을 `[^(]*` 로 잡아 첫 여는 괄호에서
+# 끊었는데, Next.js App Router 의 route group 이 정확히 그 형태다 — `src/app/(main)/…` 의
+# 진단이 **한 건도 세어지지 않았다.** 게이트가 조용히 통과하기 시작하는, 이 파일이 스스로
+# 경고하는 바로 그 실패다(리뷰 requirement CRITICAL).
+#
+# 이제 파일 부분을 non-greedy 로 두고 **`(숫자,숫자): error TS` 라는 앵커**로 끝을 잡는다.
+# `(main)` 은 숫자가 아니라 backtrack 되고 진짜 위치 괄호에서 멈춘다. 첫 문자를 non-space 로
+# 요구하는 것은 유지한다 — 들여쓴 상세 줄을 진단으로 세면 baseline 이 부풀기 때문이다.
+DIAGNOSTIC = re.compile(
+    r"^(?P<file>[^\s].*?)\((?P<line>\d+),(?P<col>\d+)\): error (?P<code>TS\d+)"
+)
 
 # tsc 가 물려 안 끝나는 경우를 끊는다. 전체 프로그램 체크가 로컬에서 ~60s 라 넉넉한 값.
 TSC_TIMEOUT_SEC = 900

@@ -62,6 +62,14 @@ jobs:
         # 생긴 의존이라 등재를 빠뜨리기 쉬운 자리다.
         .github/actions/pnpm-workspace/action.yml
         .github/workflows/frontend-checks.yml
+        # 타입체크 ratchet 이 **실제로 실행하는** 파일들. 같은 이유가 아니라 **더 강한**
+        # 이유로 등재한다 — 이 셋만 바뀐 PR(예: `--update` 로 baseline 만 낮춘 커밋, 공유
+        # 코어의 판정 규칙 수정)은 여기 없으면 `relevant=false` 로 판정돼 `typecheck-ratchet`
+        # 잡이 **tsc 를 한 번도 안 돌리고** "무관한 변경 — 검사 생략" 으로 통과 보고한다.
+        # 게이트의 임계값과 판정 규칙을 고치는 커밋이 정작 그 게이트를 안 거치는 셈이다.
+        scripts/_typecheck_ratchet.py
+        scripts/check-frontend-typecheck-ratchet.py
+        scripts/frontend-typecheck-baseline.json
 
   test-and-build:
     needs: changes

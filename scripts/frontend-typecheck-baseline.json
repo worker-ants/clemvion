@@ -1,7 +1,8 @@
 {
   "//": "frontend 전체 프로그램(tsc --noEmit -p tsconfig.typecheck.json) 타입 진단의 파일별 baseline. 손으로 고치지 말고 `python3 scripts/check-frontend-typecheck-ratchet.py --update` 로 재생성할 것. 값을 **올리는** 변경은 새 타입 오류를 받아들이는 것이므로 PR 에 근거가 필요하다.",
-  "total": 51,
+  "total": 52,
   "files": {
+    "src/app/(main)/w/[slug]/integrations/[id]/__tests__/scope-tab.test.tsx": 1,
     "src/components/editor/assistant-panel/assistant-message.test.ts": 2,
     "src/components/editor/run-results/__tests__/assistant-presentations-block.test.tsx": 1,
     "src/components/editor/settings-panel/auto-form/__tests__/widgets.test.ts": 1,
