@@ -49,7 +49,17 @@ export function createWsClient(): WsClient {
     // 토큰 재발급 → `auth.token` 교체 → 재연결. **세 트리거의 공통 몸통**이다
     // (`connect_error` · `auth.token_expired` · 서버발신 `disconnect`). 재발급 정책이
     // 바뀔 때 한쪽만 고치는 shotgun surgery 를 막으려 한 곳에 둔다(리뷰 1R W1).
+    //
+    // **in-flight 가드가 이 안에 있다.** 종전에는 `refreshAttempted` 가 `connect_error`
+    // 트리거에만 있어 신규 두 트리거는 무가드였다(리뷰 2R W2). 재발급이 lead time 보다
+    // 오래 걸리면 통지 경로의 재연결이 진행 중인 채로 서버 cutoff 가 도착하고, fallback 이
+    // 두 번째 재연결을 기동해 **방금 성공한 연결을 다시 끊는다** — §9.2 계약을 좁은 타이밍
+    // 창에서 다시 깨는 경로다. 가드를 트리거가 아니라 **헬퍼 안**에 두면 트리거가 늘어도
+    // 자동으로 덮인다.
+    let inFlight: Promise<void> | null = null;
     const refreshAndReconnect = async (why: string) => {
+      if (inFlight) return inFlight;
+      const run = (async () => {
       try {
         const newToken = await refreshAccessToken();
         if (!newToken || !socket) return;
@@ -68,6 +78,11 @@ export function createWsClient(): WsClient {
       } catch (refreshErr) {
         console.error(`[ws] Token refresh failed (${why}):`, refreshErr);
       }
+      })();
+      inFlight = run.finally(() => {
+        inFlight = null;
+      });
+      return inFlight;
     };
 
     // Carousel disabled stuck 버그 fix — 첫 connect_error 시 일단 token refresh
