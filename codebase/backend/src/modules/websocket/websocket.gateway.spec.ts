@@ -713,6 +713,117 @@ describe('WebsocketGateway', () => {
       expect(getSubscriptions().has('client-valid')).toBe(true);
     });
 
+    // §1.2 — 소켓 수명은 토큰 수명에 종속된다 (Rationale `R-ws-socket-lifetime-binds-token`).
+    // 종전에는 핸드셰이크 이후 토큰을 **한 번도** 재검증하지 않아, 900초짜리 토큰으로 연결된
+    // 소켓이 만료 뒤에도 무기한 인가된 채 이벤트를 받았다.
+    describe('토큰 만료 — 사전 통지 후 disconnect (§1.2)', () => {
+      const NOW = 1_700_000_000_000;
+
+      beforeEach(() => {
+        jest.useFakeTimers();
+        jest.setSystemTime(NOW);
+      });
+      afterEach(() => {
+        jest.useRealTimers();
+      });
+
+      function connectWithExp(id: string, secondsFromNow: number) {
+        (module.get(JwtService).verify as jest.Mock).mockReturnValueOnce({
+          sub: 'user-1',
+          activeWorkspaceId: 'ws-1',
+          exp: Math.floor(NOW / 1000) + secondsFromNow,
+        });
+        const mock = createMockSocket({
+          id,
+          handshake: { query: { token: 'valid-jwt' }, auth: {} },
+        });
+        gateway.handleConnection(mock.socket);
+        return mock;
+      }
+
+      it('만료 60초 전에 auth.token_expired 를 1회 emit 한다', () => {
+        const { emit } = connectWithExp('client-exp', 900);
+
+        jest.advanceTimersByTime((900 - 60) * 1000 - 1);
+        expect(emit).not.toHaveBeenCalledWith(
+          'auth.token_expired',
+          expect.anything(),
+        );
+
+        jest.advanceTimersByTime(1);
+        expect(emit).toHaveBeenCalledWith('auth.token_expired', {
+          message: expect.any(String),
+          // §4.6 — ISO 8601. 이 소켓이 **강제 종료되는 시각**이다.
+          expiresAt: new Date(
+            (Math.floor(NOW / 1000) + 900) * 1000,
+          ).toISOString(),
+        });
+
+        // 통지 시점에는 아직 끊지 않는다 — 그 창이 재발급에 쓰인다.
+        jest.advanceTimersByTime(59_000);
+        expect(emit).toHaveBeenCalledTimes(1);
+      });
+
+      it('exp 도달 시 disconnect 한다', () => {
+        const { disconnect } = connectWithExp('client-exp-2', 900);
+
+        jest.advanceTimersByTime(900 * 1000 - 1);
+        expect(disconnect).not.toHaveBeenCalled();
+
+        jest.advanceTimersByTime(1);
+        expect(disconnect).toHaveBeenCalled();
+      });
+
+      it('handleDisconnect 가 두 타이머를 모두 해제한다 — 해제 누락은 소켓당 누수다', () => {
+        const { socket, emit, disconnect } = connectWithExp(
+          'client-exp-3',
+          900,
+        );
+
+        gateway.handleDisconnect(socket);
+        jest.advanceTimersByTime(900 * 1000 + 1);
+
+        expect(emit).not.toHaveBeenCalledWith(
+          'auth.token_expired',
+          expect.anything(),
+        );
+        expect(disconnect).not.toHaveBeenCalled();
+      });
+
+      it('lead time 보다 짧게 남은 토큰은 즉시 통지한다 — 창이 음수여도 타이머를 건너뛰지 않는다', () => {
+        const { emit, disconnect } = connectWithExp('client-exp-4', 30);
+
+        jest.advanceTimersByTime(0);
+        expect(emit).toHaveBeenCalledWith(
+          'auth.token_expired',
+          expect.objectContaining({ expiresAt: expect.any(String) }),
+        );
+        expect(disconnect).not.toHaveBeenCalled();
+
+        jest.advanceTimersByTime(30_000);
+        expect(disconnect).toHaveBeenCalled();
+      });
+
+      it('exp 가 없는 토큰이면 타이머를 걸지 않는다 — 끊지도 통지하지도 않는다', () => {
+        (module.get(JwtService).verify as jest.Mock).mockReturnValueOnce({
+          sub: 'user-1',
+          activeWorkspaceId: 'ws-1',
+        });
+        const { socket, emit, disconnect } = createMockSocket({
+          id: 'client-no-exp',
+          handshake: { query: { token: 'valid-jwt' }, auth: {} },
+        });
+        gateway.handleConnection(socket);
+
+        jest.advanceTimersByTime(24 * 60 * 60 * 1000);
+        expect(emit).not.toHaveBeenCalledWith(
+          'auth.token_expired',
+          expect.anything(),
+        );
+        expect(disconnect).not.toHaveBeenCalled();
+      });
+    });
+
     it('결정2: enriches socket workspaceId from activeWorkspaceId claim', () => {
       const jwt = module.get(JwtService);
       (jwt.verify as jest.Mock).mockReturnValueOnce({

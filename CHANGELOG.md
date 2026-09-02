@@ -1,5 +1,24 @@
 # Changelog
 
+## Unreleased — 소켓이 만료된 토큰으로 무기한 인가돼 있었다
+
+WS 소켓은 핸드셰이크 이후 토큰을 **한 번도 재검증하지 않았다** — 검증 1곳, `exp` 참조 0건,
+타이머 0건, auth guard 없음. access token 은 900초인데 **한 번 연결된 소켓은 만료 뒤에도
+계속 이벤트를 받았다.** 종전 복구 서술(`connect_error` → REST refresh → 재연결)은 *새 연결
+시도*에서만 발화해 살아있는 소켓을 다루지 않았다.
+
+이제 **소켓 수명이 토큰 수명에 종속된다.** 서버가 `exp` 60초 전 `auth.token_expired`
+`{ message, expiresAt }` 를 통지하고 `exp` 에 끊는다. 클라이언트는 그 창 안에 재발급 →
+`auth.token` 교체 → **재핸드셰이크**를 마쳐 사용자에게 끊김이 보이지 않는다.
+
+**`connect()` 만으로는 안 된다** — socket.io-client 는 이미 연결된 소켓에서 그 호출을 완전한
+no-op 으로 처리한다. 통지 시점의 소켓은 연결돼 있으므로 명시적으로 끊고 다시 붙는다. 통지를
+놓친 경우(백그라운드 탭)는 `reason === "io server disconnect"` 로 같은 복구를 한다 — Socket.IO
+자동 재연결은 서버발신 종료에 발화하지 않기 때문이다.
+
+**자연 만료만 닫는다.** 명시적 revoke 는 refresh family 만 무효화하므로 이미 발급된 access
+token 은 자연 `exp` 까지 유효하고 그 소켓도 그때까지 산다.
+
 ## Unreleased — 성공한 retry 가 옛 실패 메시지를 남기고 있었다
 
 `retry-turn-terminal-guard.md` · `ie-resume-turn-boundary-cancel.md` 잔여 항목.

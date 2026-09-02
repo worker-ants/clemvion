@@ -187,6 +187,9 @@ disconnect 만 하면 **현재 살아남던 소켓이 예고 없이 끊기는 �
 - [x] `--spec` 2R — **BLOCK: NO** (Critical 0 · WARNING 4). 넷 다 반영:
       revoke 카브아웃 · 죽은 선례(`auth.refreshed.expiresAt`) 교체 · `expiresAt` 3중 의미 표 ·
       §10.4 스코프 판단. INFO 의 산술 오류("4%" → **약 6.7%**)도 정정.
-- [ ] spec 반영 (§1.2 · §1.3 · §4.6 · §6.1 · §9.2 · Rationale 신설)
-- [ ] tracker plan 갱신 (`spec-sync-websocket-protocol-gaps.md` 2곳)
-- [ ] 구현 — **developer 트랙, 별 PR**. backend 타이머 + **frontend 구독·재연결**(현재 0건이라 전부 신규)
+- [x] spec 반영 (§1.2 · §1.3 · §4.6 · §6.1 · §9.2 · Rationale 신설) — `#1265` (`6ffadb1f4`)
+- [x] tracker plan 갱신 (`spec-sync-websocket-protocol-gaps.md` 2곳) — 같은 커밋
+- [ ] 구현 — **developer 트랙, 별 PR 로 이관**:
+      [`ws-token-expired-socket-lifetime-impl.md`](./ws-token-expired-socket-lifetime-impl.md).
+      이 항목은 그쪽에서 닫힌다(여기서는 포인터만 유지 — 지우면 이 draft 가 무엇을 남겼는지
+      추적이 끊긴다).

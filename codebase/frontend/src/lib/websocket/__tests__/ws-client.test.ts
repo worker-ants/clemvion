@@ -10,6 +10,9 @@ function createMockSocket() {
     once: vi.fn(),
     emit: vi.fn(),
     disconnect: vi.fn(),
+    // §1.2/§9.2 — 서버발신 disconnect 후의 **명시적** 재연결에 쓰인다.
+    connect: vi.fn(),
+    auth: { token: "old-token" } as { token: string },
   };
 }
 
@@ -17,6 +20,11 @@ let mockSocket = createMockSocket();
 
 vi.mock("socket.io-client", () => ({
   io: vi.fn(() => mockSocket),
+}));
+
+const mockRefresh = vi.fn(async () => "new-token");
+vi.mock("../../api/client", () => ({
+  refreshAccessToken: () => mockRefresh(),
 }));
 
 import { createWsClient, getWsClient, resetWsClient } from "../ws-client";
@@ -124,6 +132,204 @@ describe("ws-client", () => {
       client.disconnect();
       expect(mockSocket.disconnect).toHaveBeenCalled();
       expect(client.getSocket()).toBeNull();
+    });
+  });
+
+  // §1.2 · §9.2 — 소켓 수명이 토큰 수명에 종속되므로, 서버가 만료 통지 후 끊는다.
+  //
+  // **Socket.IO 자동 재연결은 서버발신 `disconnect()` 에 발화하지 않는다**(§6.1 예외,
+  // reason `"io server disconnect"`). 이 경로가 없으면 사용자는 조용히 연결을 잃는다 —
+  // 착수 시점 실측에서 이 구독이 **0건**이었다.
+  describe("토큰 만료 종료 대응 (§9.2)", () => {
+    function handlerFor(event: string): (arg: never) => void {
+      const call = mockSocket.on.mock.calls.find(([e]) => e === event);
+      if (!call) throw new Error(`no handler registered for "${event}"`);
+      return call[1] as (arg: never) => void;
+    }
+
+    // **통지 시점의 소켓은 연결돼 있다.** `connected: false` 로 검사하면 프로덕션에 없는
+    // 상태를 보는 것이고, socket.io-client 의 `connect()` 는 `if (this.connected) return this`
+    // 로 **완전한 no-op** 이라 그 차이가 곧 결함이 된다(리뷰 1R CRITICAL #1: 초판이 정확히
+    // 이 fixture 때문에 GREEN 이었고, 실제로는 §9.2 의 "끊김이 보이지 않는다" 가 매 900초
+    // 마다 깨졌다 — 재연결이 서버 강제 종료 뒤에야 일어났다).
+    it("auth.token_expired — 연결된 소켓을 재핸드셰이크한다 (disconnect → connect)", async () => {
+      createWsClient().connect("old-token");
+      mockSocket.connected = true;
+
+      await (handlerFor("auth.token_expired") as (a: unknown) => Promise<void>)({
+        message: "expiring",
+        expiresAt: new Date().toISOString(),
+      });
+
+      expect(mockRefresh).toHaveBeenCalledTimes(1);
+      expect(mockSocket.auth.token).toBe("new-token");
+      // 새 토큰으로 다시 붙으려면 기존 연결을 먼저 끊어야 한다 — `connect()` 단독은 no-op.
+      expect(mockSocket.disconnect).toHaveBeenCalled();
+      expect(mockSocket.connect).toHaveBeenCalled();
+      expect(mockSocket.disconnect.mock.invocationCallOrder[0]).toBeLessThan(
+        mockSocket.connect.mock.invocationCallOrder[0],
+      );
+    });
+
+    it("통지를 놓쳐도 io server disconnect 면 같은 복구를 한다 (fallback)", async () => {
+      createWsClient().connect("old-token");
+      await (handlerFor("disconnect") as (r: string) => Promise<void>)(
+        "io server disconnect",
+      );
+
+      expect(mockRefresh).toHaveBeenCalledTimes(1);
+      expect(mockSocket.auth.token).toBe("new-token");
+      expect(mockSocket.connect).toHaveBeenCalled();
+      // 이미 끊긴 상태다 — 불필요한 disconnect 를 덧붙이지 않는다.
+      expect(mockSocket.disconnect).not.toHaveBeenCalled();
+    });
+
+    // W2(2R) — 재진입 가드가 `connect_error` 에만 있어 신규 두 트리거는 무가드였다.
+    // 느린 재발급 중 서버 cutoff 가 겹치면 fallback 이 **방금 성공한 재연결을 다시 끊는다**.
+    it("겹친 트리거는 한 번만 재연결한다 — in-flight 가드", async () => {
+      let release!: (t: string) => void;
+      mockRefresh.mockImplementationOnce(
+        () => new Promise<string>((r) => (release = r)),
+      );
+      createWsClient().connect("old-token");
+      mockSocket.connected = true;
+
+      const first = (
+        handlerFor("auth.token_expired") as (a: unknown) => Promise<void>
+      )({ message: "m", expiresAt: new Date().toISOString() });
+      // 첫 재발급이 아직 안 끝난 사이 서버가 cutoff 로 끊는다.
+      const second = (handlerFor("disconnect") as (r: string) => Promise<void>)(
+        "io server disconnect",
+      );
+
+      release("new-token");
+      await Promise.all([first, second]);
+
+      // 두 번째는 진행 중인 것에 흡수돼야 한다 — 아니면 성공한 재연결을 다시 끊는다.
+      expect(mockRefresh).toHaveBeenCalledTimes(1);
+      expect(mockSocket.connect).toHaveBeenCalledTimes(1);
+    });
+
+    // W3(2R) — `connect_error` 위임 자체가 무검증이었다. 호출부를 no-op 으로 바꿔도
+    // 20/20 GREEN 이었다(리뷰어 실측).
+    it("connect_error 도 같은 헬퍼로 위임된다 — 1회차만 시도한다", async () => {
+      createWsClient().connect("old-token");
+
+      await (handlerFor("connect_error") as (e: Error) => Promise<void>)(
+        new Error("boom"),
+      );
+      expect(mockRefresh).toHaveBeenCalledTimes(1);
+      expect(mockSocket.connect).toHaveBeenCalledTimes(1);
+
+      // 2회차는 `refreshAttempted` 가드로 스킵 — 무한 루프 방지.
+      await (handlerFor("connect_error") as (e: Error) => Promise<void>)(
+        new Error("boom again"),
+      );
+      expect(mockRefresh).toHaveBeenCalledTimes(1);
+    });
+
+    // W4(2R) — 재발급 실패 경로가 미검증이었다. 가드를 `if (false)` 로 바꿔도 GREEN.
+    it("재발급이 토큰을 못 주면 소켓을 건드리지 않는다", async () => {
+      mockRefresh.mockResolvedValueOnce("" as unknown as string);
+      createWsClient().connect("old-token");
+      mockSocket.connected = true;
+
+      await (handlerFor("auth.token_expired") as (a: unknown) => Promise<void>)({
+        message: "m",
+        expiresAt: new Date().toISOString(),
+      });
+
+      expect(mockSocket.disconnect).not.toHaveBeenCalled();
+      expect(mockSocket.connect).not.toHaveBeenCalled();
+      expect(mockSocket.auth.token).toBe("old-token");
+    });
+
+    it("재발급이 throw 해도 소켓을 건드리지 않는다", async () => {
+      mockRefresh.mockRejectedValueOnce(new Error("network down"));
+      createWsClient().connect("old-token");
+      mockSocket.connected = true;
+
+      await (handlerFor("auth.token_expired") as (a: unknown) => Promise<void>)({
+        message: "m",
+        expiresAt: new Date().toISOString(),
+      });
+
+      expect(mockSocket.disconnect).not.toHaveBeenCalled();
+      expect(mockSocket.connect).not.toHaveBeenCalled();
+    });
+
+    // W2(3R) — `inFlight` 를 `.finally` 로 **초기화**하지 않으면 최초 1회 갱신 뒤 세 트리거가
+    // 영구히 무시돼, 두 번째 900초 주기부터 이 PR 이 고친 "만료 후 무기한 인가" 가 조용히
+    // 재발한다. 리셋 라인을 지워도 24/24 GREEN 이었다(리뷰어 실측).
+    it("가드는 완료 후 초기화된다 — 다음 주기에도 다시 갱신한다", async () => {
+      createWsClient().connect("old-token");
+      mockSocket.connected = true;
+
+      const fire = () =>
+        (handlerFor("auth.token_expired") as (a: unknown) => Promise<void>)({
+          message: "m",
+          expiresAt: new Date().toISOString(),
+        });
+
+      await fire();
+      expect(mockRefresh).toHaveBeenCalledTimes(1);
+
+      // 두 번째 주기 — 가드가 안 풀렸으면 여기서 아무 일도 안 일어난다.
+      mockSocket.connected = true;
+      await fire();
+      expect(mockRefresh).toHaveBeenCalledTimes(2);
+      expect(mockSocket.connect).toHaveBeenCalledTimes(2);
+    });
+
+    // W1(3R) — `socket` 은 클로저 공유 변수라 `await` 사이에 `connect()` 가 다시 불리면
+    // 다른 세대를 가리킨다. 옛 세대의 재발급이 **새 소켓을 끊고 다시 붙으면** 이 PR 이
+    // 막으려던 "보이는 끊김" 이 다른 경로로 재현된다.
+    it("옛 세대의 재발급은 새 소켓을 건드리지 않는다", async () => {
+      let release!: (t: string) => void;
+      mockRefresh.mockImplementationOnce(
+        () => new Promise<string>((r) => (release = r)),
+      );
+
+      const client = createWsClient();
+      client.connect("old-token");
+      const gen1 = mockSocket;
+      gen1.connected = true;
+
+      const pending = (
+        handlerFor("auth.token_expired") as (a: unknown) => Promise<void>
+      )({ message: "m", expiresAt: new Date().toISOString() });
+
+      // 재발급이 도는 사이 소켓 세대가 교체된다(재마운트 등).
+      gen1.connected = false;
+      gen1.active = false;
+      const gen2 = createMockSocket();
+      mockIo.mockReturnValue(gen2 as never);
+      client.connect("another-token");
+
+      release("new-token");
+      await pending;
+
+      // 새 세대는 옛 재발급의 영향을 받지 않아야 한다.
+      expect(gen2.disconnect).not.toHaveBeenCalled();
+      expect(gen2.connect).not.toHaveBeenCalled();
+      expect(gen2.auth.token).toBe("old-token");
+
+      // **그리고 옛 세대도 되살리면 안 된다.** 스냅샷만 있고 세대 비교가 없으면 이 재발급이
+      // `gen1.connect()` 를 불러 **버려진 소켓이 다시 붙고 소켓이 둘이 된다.** 스냅샷은
+      // 새 세대를 지키고, 세대 비교는 옛 세대의 부활을 막는다 — 둘 다 필요하다.
+      expect(gen1.connect).not.toHaveBeenCalled();
+    });
+
+    it("대조군 — 그 밖의 disconnect reason 은 건드리지 않는다 (내장 재연결 몫)", async () => {
+      createWsClient().connect("old-token");
+      await (handlerFor("disconnect") as (r: string) => Promise<void>)(
+        "transport close",
+      );
+
+      // 여기서 재연결을 가로채면 Socket.IO 내장 백오프와 이중으로 붙어
+      // 재연결 폭풍이 된다 — 이 분기가 **좁아야 하는** 이유다.
+      expect(mockRefresh).not.toHaveBeenCalled();
+      expect(mockSocket.connect).not.toHaveBeenCalled();
     });
   });
 
