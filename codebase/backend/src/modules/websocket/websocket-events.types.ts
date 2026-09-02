@@ -290,9 +290,14 @@ export enum AuthEventType {
  *
  * `expiresAt` 은 ISO 8601 이고 의미는 **이 소켓이 강제 종료되는 시각**이다 —
  * `_retryState.expiresAt`(AI retry TTL, §4.2)·`auth.refreshed.expiresAt`(§1.3 비채택)과
- * 이름만 같고 가리키는 대상이 다르다. 클라이언트는 이 값으로 남은 창을 계산해 재발급 +
- * **명시적 재연결**을 수행한다(§9.2) — Socket.IO 자동 재연결은 서버발신 disconnect 에
- * 발화하지 않는다(§6.1 예외).
+ * 이름만 같고 가리키는 대상이 다르다.
+ *
+ * **클라이언트는 이 값을 소비하지 않는다** — 통지를 받는 즉시 재발급 + **명시적 재연결**을
+ * 시작한다(§9.2). 즉시 처리는 "창 안에 처리" 의 상위집합이라 계약을 충족하며, 남은 창을
+ * 계산해 미루는 것보다 단순하고 실패 지점이 적다. 이 필드는 **진단·로깅용**이다.
+ *
+ * (초판 JSDoc 은 "클라이언트가 이 값으로 남은 창을 계산한다" 고 적었는데 구현이 그러지
+ * 않는다 — 문서가 구현보다 넓었다. 리뷰 4R documentation W3.)
  */
 export interface AuthTokenExpiredPayload {
   message: string;

@@ -129,7 +129,6 @@ export function createWsClient(): WsClient {
     // 서버발신 `disconnect()` 에 발화하지 않는다**(reason `"io server disconnect"`,
     // §6.1 예외). 이 두 경로가 없으면 사용자는 조용히 연결을 잃는다.
 
-
     // 정상 경로 — 통지 창(60초) 안에 갈아탄다. 성공하면 끊김이 보이지 않는다.
     socket.on("auth.token_expired", () => {
       return refreshAndReconnect("auth.token_expired");
