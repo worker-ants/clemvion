@@ -49,7 +49,10 @@ wss://{base_url}/ws        # Socket.IO namespace '/ws'
 
 **인증 실패 시:**
 - 핸드셰이크 단계: 토큰 부재/무효이면 서버가 `error` 이벤트(`{ message }`)를 emit 한 직후 `disconnect()` 로 연결을 끊는다 (raw HTTP `401` 이 아니라 Socket.IO connection error 경로).
-- 연결 중 토큰 만료: 클라이언트는 `connect_error` 를 받으면 REST `/auth/refresh` 로 토큰을 새로 받아 Socket.IO `auth` payload 를 교체한 뒤 재연결한다 (`ws-client.ts`). **서버발신 `auth.token_expired` 이벤트는 미구현 (Planned)** — §4.6 참조.
+- 연결 중 토큰 만료: **소켓 수명은 토큰 수명에 종속된다.** 서버는 핸드셰이크에서 검증한 토큰의 `exp` 를 읽어 소켓별 타이머를 걸고, 만료 **60초 전**에 `auth.token_expired` 를 1회 emit 한 뒤 `exp` 도달 시 `disconnect()` 한다 (`handleDisconnect` 에서 타이머 해제). **서버발신 emit 은 미구현 (Planned)** — 결정은 확정, 구현 대기 (근거 §Rationale `R-ws-socket-lifetime-binds-token`).
+  - **클라이언트 계약 (필수)**: 서버 동작만으로는 성립하지 않는다. 클라이언트는 `auth.token_expired` 를 구독해 통지 창(60초) 안에 REST `/auth/refresh` → `socket.auth.token` 교체 → **명시적 `socket.connect()`** 를 수행한다. 통지를 놓친 경우(백그라운드 탭 등)의 fallback 은 §9.2 를 따른다.
+  - **자동 재연결에 기대지 않는다**: Socket.IO 는 **서버가 `disconnect()` 를 호출한 경우** 자동 재연결을 발화하지 않는다 (§6.1 예외).
+  - **닫는 범위**: 이 모델은 **토큰 자연 만료** 경로만 닫는다. 명시적 revoke(비번 변경·`token_reuse_detected` 로 refresh family revoke — [`1-auth.md §1.4·§2.3`](./1-auth.md))는 **이미 발급된 access token 을 무효화하지 않으므로** 그 소켓은 자연 `exp` 까지(최대 15분) 살아 있다. "즉시 종료" 가 필요하면 소켓에 revoke 를 전파하는 별도 메커니즘이 필요하며, 본 결정은 그것을 약속하지 않는다.
 
 ### 1.3 토큰 갱신 (연결 유지)
 
@@ -65,6 +68,8 @@ wss://{base_url}/ws        # Socket.IO namespace '/ws'
 > ```
 >
 > 현재는 위 메시지 핸들러/emit 이 backend 에 없다. 클라이언트는 Access Token 갱신 후 (REST `/auth/refresh`) 재연결로 새 토큰을 전달한다.
+>
+> **연결 중 만료의 구체 동작은 §1.2 를 따른다** — 서버가 `exp` 60초 전 `auth.token_expired` 를 통지하고 `exp` 에 `disconnect()` 하며, 클라이언트는 그 창 안에 위 REST 재발급 + **명시적 재연결**을 마친다(§9.2).
 
 ---
 
@@ -868,7 +873,7 @@ provider tool 실행이 끝나면 (성공·실패 무관) 발송한다. `status`
 
 | 이벤트 type | payload | 설명 |
 |-------------|---------|------|
-| `auth.token_expired` _(계획·미구현)_ | `{ message }` | 토큰 만료 알림. **backend emit 없음** — 현재 만료는 클라이언트가 `connect_error` 로 감지해 REST refresh + 재연결 (§1.2). `TOKEN_EXPIRED` 는 REST/JWT 검증 에러 코드일 뿐 WS 이벤트로 발행되지 않는다 |
+| `auth.token_expired` _(계획·미구현)_ | `{ message, expiresAt }` | 토큰 만료 **사전 통지**. 만료 60초 전 1회 emit 하고 `exp` 도달 시 서버가 `disconnect()` 한다 (§1.2 — 결정 확정, **backend emit 은 구현 대기**). `expiresAt` 은 ISO 8601 문자열이며 **이 소켓이 강제 종료되는 시각**이다 — `_retryState.expiresAt`(AI retry TTL, §4.2)·`auth.refreshed.expiresAt`(비채택 §1.3)과 **별개**다. `TOKEN_EXPIRED` 는 REST/JWT 검증 에러 코드일 뿐 이 WS 이벤트와 다르다 |
 | `system.maintenance` _(비채택 won't-do)_ | `{ message, scheduledAt }` | 예정된 유지보수 알림. **발화 주체가 존재하지 않는다** — 유지보수를 선언하는 관리자 API·설정·스케줄이 없고 계획에도 없다. `scheduledAt` 은 사람이 미래 시점을 선언해야 성립하므로 그 표면을 만드는 것은 갭 메우기가 아니라 신규 제품 기능이다. 근거 §Rationale `R-wontdo-maintenance-appping`. payload 형태는 재도입 대비로 남긴다 |
 | `error` | `{ message }` | 핸드셰이크/연결 레벨 에러. 인증 실패 시 `handleConnection` 이 `{ message }` 를 emit 하고 disconnect 한다 (`{ code, message }` 형태 아님 — `message` 단일 필드) |
 
@@ -961,6 +966,8 @@ socket.emit("ping");
 
 > 추가로 클라이언트는 첫 `connect_error` 시 1회 REST `/auth/refresh` → `auth.token` 교체 → 명시적 재연결을 시도해 stale token auth race 를 차단한다 (`ws-client.ts`). 구체 backoff sequence (1/2/4/8/16s) 는 spec 초안 값이며 실제는 Socket.IO Manager 의 내장 알고리즘을 따른다.
 
+> **예외 — 서버발신 `disconnect()` 는 위 자동 재연결 대상이 아니다.** 서버가 `disconnect()` 를 호출하면 클라이언트는 reason `"io server disconnect"` 를 받고 Socket.IO 는 **재연결을 시도하지 않는다** — 클라이언트가 명시적으로 `socket.connect()` 를 불러야 한다. 토큰 만료 종료(§1.2)가 이 경로이므로, 그 처리는 §9.2 의 재연결 패턴을 따른다. 이 예외를 모르면 소켓이 조용히 끊긴 채 남는다.
+
 ### 6.2 놓친 이벤트 복구
 
 **native WebSocket 복구 모델 — `execution.snapshot`.** 재연결 후 채널을 다시 구독하면 서버는 해당 execution 의 **현재 전체 상태**를 1회성 `execution.snapshot` 이벤트로 발행한다 (`ExecutionEventType.EXECUTION_SNAPSHOT`, `websocket.gateway.ts`). 클라이언트는 이 스냅샷으로 노드별 최종 상태·terminal 상태를 재동기화한다 — 끊긴 동안의 모든 중간 이벤트를 순서대로 재생하는 대신, 재구독 시점의 권위 있는 현재 상태를 한 번에 받는 방식이다.
@@ -1050,7 +1057,10 @@ socket.emit("subscribe", { channel: "execution:550e8400..." });
 5. **Heartbeat**: Socket.IO 내장 transport ping/pong 이 자동 처리 (§5). app-level `ping` 은 클라이언트가 보내고 서버 `pong` ack 를 받는 선택적 경로
 6. **토큰 갱신**: `connect_error` 시 REST `/auth/refresh` 로 새 토큰 → `socket.auth.token` 교체 후 재연결 (§1.3). in-band `auth.refresh` 메시지는 비채택 (won't-do — §1.3, REST+재연결이 정식 모델)
 7. **재연결**: Socket.IO 내장 reconnection 에 위임 (`reconnection: true`) → 재구독 시 1회 수신되는 `execution.snapshot`(현재 상태)으로 재동기화 (§6.2). raw `onclose` 핸들링 불필요
-8. **정리**: 페이지 이탈 시 `unsubscribe` + `socket.disconnect()` (raw close code 1000 미사용)
+8. **토큰 만료 종료 대응 (§1.2)**: 위 7 의 자동 재연결은 **서버발신 `disconnect()` 에 발화하지 않는다**(§6.1 예외). 두 경로를 모두 구현한다 —
+   - **사전 통지 (정상)**: `socket.on('auth.token_expired', …)` 로 구독하고, `expiresAt` 까지의 창(60초) 안에 REST `/auth/refresh` → `socket.auth.token` 교체 → **명시적 `socket.connect()`**. 성공하면 사용자에게 끊김이 보이지 않는다.
+   - **fallback (통지를 놓친 경우)**: `socket.on('disconnect', reason => …)` 에서 `reason === 'io server disconnect'` 이면 같은 재발급 + 명시 재연결을 수행한다. 백그라운드 탭·일시 정지 등으로 통지를 못 받는 경우가 있으므로 이 경로가 없으면 소켓이 끊긴 채 남는다.
+9. **정리**: 페이지 이탈 시 `unsubscribe` + `socket.disconnect()` (raw close code 1000 미사용)
 
 ---
 
@@ -1087,7 +1097,7 @@ socket.emit("subscribe", { channel: "execution:550e8400..." });
   - **Planned → 구현 완료 (2026-07-07)**: 위 중 **WS 에러 처리 하드닝** — 전용 에러 코드 4종(`INVALID_MESSAGE`/`UNKNOWN_TYPE`/`SUBSCRIPTION_LIMIT_EXCEEDED`/`RATE_LIMITED`)과 socket 당 60 msg/min rate-limit — 이 구현됐다(§7.1/§3.3/§3.4/§7.2 본문 flip). subscribe ack 은 평문 `error` + 구조화 `code` additive, rate-limit 은 `WsRateLimitGuard`(class-level, in-memory per-socket), 미등록 이벤트는 `onAny`→`error{code}`.
   - **Planned → 비채택 won't-do (2026-07-08)**: 4종 항목을 정식 종결했다 (근거 §Rationale `R-wontdo-rawws-rest`) — **raw-WS 전제**(전송계층 구조적 부적용): `Sec-WebSocket-Protocol` 서브프로토콜 인증(§1.2)·raw close code 매핑(§8); **REST 대체 충분**(중복 경로 회피): in-band `auth.refresh`/`auth.refreshed`(§1.3)·`execution.start`/`stop`/`start.ack` WS 경로(§4.2). 본문 표기를 _(비채택 won't-do)_ 로 전환.
   - **Planned → 비채택 won't-do (2026-09-02)**: 위 잔여 중 **2종**을 추가 종결했다 (근거 §Rationale `R-wontdo-maintenance-appping`) — `system.maintenance` emit(§4.6)·서버발신 app ping(§5). 2026-07-08 결정이 이 둘을 "트리거 소스 설계 필요" 로 범위 밖에 뒀는데, 2026-08-31 착수 시도에서 **설계가 필요한 것이 아니라 대상이 없다**는 것이 실측됐다(유지보수 선언 주체 부재 · 전송 heartbeat 가 이미 그 자리를 채움). 본문 표기를 _(비채택 won't-do)_ 로 전환.
-  - **잔여(Planned, 실 기능 백로그)**: 서버발신 `auth.token_expired` emit(§4.6) **1종**. 이 항목만은 트리거가 아니라 **소켓 수명이 토큰 수명에 종속되는가** 라는 제품 결정이 선행한다 — 실측·선택지는 `plan/in-progress/spec-sync-websocket-protocol-gaps.md`.
+  - **잔여(Planned, 구현 대기)**: 서버발신 `auth.token_expired` emit(§4.6) **1종**. 선행하던 제품 결정(**소켓 수명이 토큰 수명에 종속되는가**)은 **2026-09-02 확정**됐다 — 종속시킨다 + 60초 사전 통지 (근거 §Rationale `R-ws-socket-lifetime-binds-token`). 남은 것은 구현뿐이며 **backend 타이머와 frontend 구독·명시 재연결 양쪽**이 필요하다(§1.2·§9.2).
 - **status 강등**: 본문이 약속한 다수 surface(WS start/stop 명령·auth.refresh·rate-limit 등)가 코드에 실재 부재하므로 `implemented` → `partial` 로 강등하고 `plan/in-progress/spec-sync-websocket-protocol-gaps.md` 로 추적한다. `code:` 글로브에 백엔드 SoT(`ws-error-codes.ts`)와 프론트 SoT(`ws-client.ts`)를 추가했다.
 - **drift 아닌 positive**: §4.2 의 continuation/retry 코드(`INVALID_EXECUTION_STATE`/`RESUME_*`/`RETRY_*`)는 코드와 정합 — 변경 없음.
 
@@ -1120,7 +1130,22 @@ socket.emit("subscribe", { channel: "execution:550e8400..." });
 - **폐기 대안**
   - *두 항목을 Planned 로 계속 두는 안* → 주인 없는 Planned 배지는 **잘못된 기대(언젠가 구현)** 를 남긴다. 본 문서가 2026-07-08 에 4종에 대해 이미 같은 판단을 했다.
   - *`system.maintenance` 를 위해 관리자 API 를 먼저 만드는 안* → 순서가 뒤집힌다. 운영상 필요가 생겨 관리자 표면이 만들어지면 그때 이 이벤트를 **재등재하는 비용은 작다** — payload 형태를 §4.6 에 남겨 두는 이유가 그것이다.
-- **범위 밖(잔여 유지)**: 서버발신 `auth.token_expired`(§4.6)는 **Planned 로 남는다.** 이 항목만은 "트리거 부재" 가 아니라 **실재하는 인가 갭**이다 — 소켓이 핸드셰이크 이후 토큰을 재검증하지 않아 만료된 토큰으로도 이벤트를 계속 받는다. 소켓 수명을 토큰 수명에 종속시킬지는 제품 결정이라 별도 planner 턴에서 다룬다(실측·선택지는 `plan/in-progress/spec-sync-websocket-protocol-gaps.md`).
+- **범위 밖(잔여 유지)**: 서버발신 `auth.token_expired`(§4.6)는 **Planned 로 남는다.** _(2026-09-02 갱신: 여기서 말한 제품 결정은 그 뒤 확정됐다 — `R-ws-socket-lifetime-binds-token`. 배지는 구현 전까지 Planned 다.)_ 이 항목만은 "트리거 부재" 가 아니라 **실재하는 인가 갭**이다 — 소켓이 핸드셰이크 이후 토큰을 재검증하지 않아 만료된 토큰으로도 이벤트를 계속 받는다. 소켓 수명을 토큰 수명에 종속시킬지는 제품 결정이라 별도 planner 턴에서 다룬다(실측·선택지는 `plan/in-progress/spec-sync-websocket-protocol-gaps.md`).
+
+### R-ws-socket-lifetime-binds-token. 소켓 수명을 토큰 수명에 종속 (결정 2026-09-02)
+
+`auth.token_expired`(§4.6)를 **emit 하고 끊는다**. 서버는 핸드셰이크에서 검증한 토큰의 `exp` 로 소켓별 타이머를 걸어 만료 **60초 전** 1회 통지하고 `exp` 에 `disconnect()` 한다.
+
+- **왜 필요한가 (실측 2026-09-02)**: `modules/websocket/` 의 `jwtService.verify` 호출부는 **1곳**(`handleConnection`)뿐이고 gateway 에 `exp` 참조·타이머·auth guard 가 **전부 0건**이다. access token 수명은 **900초**인데 **한 번 연결된 소켓은 만료 뒤에도 무기한 인가된 채 이벤트를 받는다.** §1.2 의 종전 복구 서술(`connect_error` → REST refresh → 재연결)은 **새 연결 시도에서만 발화**해 살아있는 소켓을 다루지 않았다.
+- **기각된 대안**
+  - *emit 만, disconnect 없음* → "만료됐다" 고 알리고도 그 소켓을 **인가된 채로 둔다**. 갭을 문서화할 뿐 닫지 않는다.
+  - *명령마다 재검증(guard)* → 명령은 막지만 **수신을 못 막는다.** WS 는 push 중심이라 구독만 하는 소켓은 만료 토큰으로 계속 데이터를 받는다.
+  - *won't-do* → 인가 갭을 알고도 방치하는 것.
+- **왜 lead time 60초인가**: disconnect 만 하면 살아남던 소켓이 예고 없이 끊기는 **동작 변경**이다. 사전 통지가 있으면 클라이언트가 만료 전에 재발급 + 재연결을 마쳐 끊김이 보이지 않는다. 60초는 900초의 약 6.7% 로, 재발급·재연결에 드는 시간(수백 ms 규모)의 넉넉한 배수이면서 유효 창을 크게 깎지 않는다.
+- **클라이언트 계약이 결정의 일부다**: Socket.IO 는 **서버발신 `disconnect()`** 에 자동 재연결을 발화하지 않는다(§6.1 예외). 착수 시점 실측으로 프론트에 `auth.token_expired` 구독이 **0건**이고 `disconnect` 재연결 경로도 없었다 — 서버만 바꾸면 사용자가 조용히 연결을 잃는다. 그래서 §9.2 에 사전 통지 경로와 통지를 놓친 경우의 fallback 을 함께 규정했다.
+- **닫지 않는 것 (범위 명시)**: 이 결정은 **토큰 자연 만료** 경로만 닫는다. 명시적 revoke(비번 변경·`token_reuse_detected` 로 refresh family revoke — [`1-auth.md §1.4·§2.3`](./1-auth.md))는 이미 발급된 access token 을 무효화하지 않으므로 그 소켓은 자연 `exp` 까지(최대 15분) 산다. "즉시 종료" 에는 소켓으로 revoke 를 전파하는 별도 메커니즘이 필요하며 **본 결정은 그것을 약속하지 않는다.**
+- **타이머의 내성 범위**: 이 타이머는 소켓을 들고 있는 **프로세스에 로컬**이다. 프로세스가 죽으면 소켓 자체가 끊겨 클라이언트가 새 핸드셰이크로 새 타이머를 받으므로, 다중 인스턴스 간 상태 불일치(R10/R15/R19 가 다루는 클래스)에 해당하지 않는다.
+- **payload `expiresAt`**: ISO 8601 문자열이며 **이 소켓이 강제 종료되는 시각**이다. 선례는 구현된 `_retryState.expiresAt`(§4.2)이고, `auth.refreshed.expiresAt`(§1.3 비채택)과는 이름만 같다. 미구현 이벤트라 wire 호환 부담 없이 지금 정의하는 것이 가장 싸다.
 
 ### 재연결 복구 — native WS 는 snapshot, seq 버퍼-replay 는 SSE 전송 (§6.2)
 

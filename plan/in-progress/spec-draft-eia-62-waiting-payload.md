@@ -252,6 +252,32 @@ strip 결정의 SoT 는 WS §4.4 Rationale 의 `### ai_message.llmCalls[] 외부
       → **planner 인계**: §6.2 재작성 시 top-level 을 리네임(`turnDebugSnapshot` 등)하거나
       disambiguation 문구를 예시 옆에 부착. 그대로 옮겨 적으면 spec 에 정식 충돌로 고착된다
       (`10_32_29` naming_collision CRITICAL 1).
+
+      > **처분 확정 (2026-09-02 사용자 결정): §6.2 재작성과 **함께** 간다 — 단독 착수하지 않는다.**
+      >
+      > 지금 단독으로 하면 같은 문서를 두 번 연다. 누출 자체는 이미 깊이 우선 strip 으로
+      > 닫혔으므로(`81f2c60d6`) **긴급하지 않다.**
+      >
+      > **착수 시 선택지 (실측 2026-09-02)**:
+      >
+      > | 이름 | shape | 위치 | FE 소비 |
+      > |---|---|---|---|
+      > | top-level `turnDebug` | 객체 `{llmCalls, metadata}` | `ai-turn-orchestrator.service.ts:643` | **0건** |
+      > | `nodeOutput.meta.turnDebug` | **배열** (WS §4.4 정본) | `ai-conversation-helpers.ts:97`(위 표의 정본) + `information-extractor.handler.ts:920,1287` · `ai-turn-executor.ts:3332` | 다수 (`result-detail.tsx`) |
+      >
+      > **(a) 리네임이 안전한 기본값** — 저장소 안엔 top-level 소비처가 0건이라 **(c) 제거**가
+      > 더 깨끗하지만, 이건 **EIA 외부 wire** 라 고객 소비처는 grep 으로 안 보인다. §6.2 재작성
+      > 시 외부 소비 여부를 확인하고 없으면 제거, 있으면 리네임.
+      > **(b) 둘 다 두고 disambiguation 문구만** 은 충돌을 spec 에 영구 고착시키므로 기각.
+      >
+      > **위 표는 2026-09-02 재실측이고, 이 문서의 기존 인용이 옳았다.** 재실측 중 내가
+      > `ai-conversation-helpers.ts` 를 `nodes/ai/*/` 아래에서 찾다 못 찾고 "그 경로에 파일이
+      > 없다" 고 단정할 뻔했다 — 실제 위치는 `modules/execution-engine/` 이고 `:97` 은
+      > `turnDebug: state.turnDebugHistory ?? []` 로 **정확하다.** 틀린 것은 문서가 아니라
+      > 내 글롭이었다.
+      >
+      > 다만 **적재 지점은 그 하나가 아니다** — 위 표의 나머지 둘이 같은 배열을 채운다.
+      > 착수 시 한 곳만 보고 고치지 말 것.
 - [x] **planner 인계 (선택)**: `6-websocket-protocol.md` `## Rationale` 의 "strip-only 결정"
       > ✅ **완료 확인 (2026-08-28 `plan-audit`)** — 6-websocket-protocol.md:1152-1159 `### llmCalls 외부 수신자 strip …` 아래 "**(2026-08-14 갱신)** … fanout 은 최상위 필드만 지웠고(depth-1) … 깊이 무관 strip 으로 바꾸고 … (`81f2c60d6`·`5df89cda6`·`34e32e62f`·`7fa12301c`)" — 요청한 문장 그대로 반영됨
       > 적대적 재검증 통과(반증 시도 실패). 원 서술은 이력이라 그대로 둔다.
