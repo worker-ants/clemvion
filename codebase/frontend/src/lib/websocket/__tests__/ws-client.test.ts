@@ -258,6 +258,68 @@ describe("ws-client", () => {
       expect(mockSocket.connect).not.toHaveBeenCalled();
     });
 
+    // W2(3R) — `inFlight` 를 `.finally` 로 **초기화**하지 않으면 최초 1회 갱신 뒤 세 트리거가
+    // 영구히 무시돼, 두 번째 900초 주기부터 이 PR 이 고친 "만료 후 무기한 인가" 가 조용히
+    // 재발한다. 리셋 라인을 지워도 24/24 GREEN 이었다(리뷰어 실측).
+    it("가드는 완료 후 초기화된다 — 다음 주기에도 다시 갱신한다", async () => {
+      createWsClient().connect("old-token");
+      mockSocket.connected = true;
+
+      const fire = () =>
+        (handlerFor("auth.token_expired") as (a: unknown) => Promise<void>)({
+          message: "m",
+          expiresAt: new Date().toISOString(),
+        });
+
+      await fire();
+      expect(mockRefresh).toHaveBeenCalledTimes(1);
+
+      // 두 번째 주기 — 가드가 안 풀렸으면 여기서 아무 일도 안 일어난다.
+      mockSocket.connected = true;
+      await fire();
+      expect(mockRefresh).toHaveBeenCalledTimes(2);
+      expect(mockSocket.connect).toHaveBeenCalledTimes(2);
+    });
+
+    // W1(3R) — `socket` 은 클로저 공유 변수라 `await` 사이에 `connect()` 가 다시 불리면
+    // 다른 세대를 가리킨다. 옛 세대의 재발급이 **새 소켓을 끊고 다시 붙으면** 이 PR 이
+    // 막으려던 "보이는 끊김" 이 다른 경로로 재현된다.
+    it("옛 세대의 재발급은 새 소켓을 건드리지 않는다", async () => {
+      let release!: (t: string) => void;
+      mockRefresh.mockImplementationOnce(
+        () => new Promise<string>((r) => (release = r)),
+      );
+
+      const client = createWsClient();
+      client.connect("old-token");
+      const gen1 = mockSocket;
+      gen1.connected = true;
+
+      const pending = (
+        handlerFor("auth.token_expired") as (a: unknown) => Promise<void>
+      )({ message: "m", expiresAt: new Date().toISOString() });
+
+      // 재발급이 도는 사이 소켓 세대가 교체된다(재마운트 등).
+      gen1.connected = false;
+      gen1.active = false;
+      const gen2 = createMockSocket();
+      mockIo.mockReturnValue(gen2 as never);
+      client.connect("another-token");
+
+      release("new-token");
+      await pending;
+
+      // 새 세대는 옛 재발급의 영향을 받지 않아야 한다.
+      expect(gen2.disconnect).not.toHaveBeenCalled();
+      expect(gen2.connect).not.toHaveBeenCalled();
+      expect(gen2.auth.token).toBe("old-token");
+
+      // **그리고 옛 세대도 되살리면 안 된다.** 스냅샷만 있고 세대 비교가 없으면 이 재발급이
+      // `gen1.connect()` 를 불러 **버려진 소켓이 다시 붙고 소켓이 둘이 된다.** 스냅샷은
+      // 새 세대를 지키고, 세대 비교는 옛 세대의 부활을 막는다 — 둘 다 필요하다.
+      expect(gen1.connect).not.toHaveBeenCalled();
+    });
+
     it("대조군 — 그 밖의 disconnect reason 은 건드리지 않는다 (내장 재연결 몫)", async () => {
       createWsClient().connect("old-token");
       await (handlerFor("disconnect") as (r: string) => Promise<void>)(
