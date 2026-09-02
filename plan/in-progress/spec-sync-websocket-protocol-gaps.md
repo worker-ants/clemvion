@@ -46,10 +46,28 @@ spec 초안은 raw/native WebSocket 프로토콜을 전제했으나 구현은 So
       >   뿐이고 disconnect 를 말하지 않으며, §1.3 이 *REST 재발급 + 재연결*을 정식 모델로
       >   확정했으므로 방향은 정합하지만 **spec 본문이 그 전이를 적고 있지 않다**.
       >
-      > developer 권한 밖(제품 semantics + 동작 변경)이라 여기서 멈춘다. planner 턴이
-      > §1.2·§4.6 에 (a) 소켓 수명이 토큰 수명에 종속되는가 (b) 사전 통지 lead time 이
-      > 있는가 두 가지를 적어 주면 구현은 작다(핸드셰이크에서 `exp` 를 읽어 소켓별 타이머,
-      > `handleDisconnect` 에서 해제).
+      > ~~developer 권한 밖(제품 semantics + 동작 변경)이라 여기서 멈춘다.~~
+      >
+      > **✅ 결정 완료 (2026-09-02 사용자 결정) — 구현 착수 가능.** spec 반영 완료:
+      > §1.2·§1.3·§4.6·§6.1·§9.2 + Rationale `R-ws-socket-lifetime-binds-token`.
+      >
+      > | 물었던 것 | 답 |
+      > |---|---|
+      > | (a) 소켓 수명이 토큰 수명에 종속되는가 | **종속시킨다** — `exp` 에 `disconnect()` |
+      > | (b) 사전 통지 lead time | **둔다 — 60초** (900초의 약 6.7%) |
+      >
+      > **⚠ 구현은 backend 만이 아니다.** `--spec` cross_spec 이 CRITICAL 로 잡았다 —
+      > Socket.IO 는 **서버발신 `disconnect()` 에 자동 재연결을 발화하지 않고**, 착수 시점
+      > 프론트에 `auth.token_expired` 구독이 **0건**이며 `disconnect` 재연결 경로도 없었다.
+      > 서버만 바꾸면 사용자가 조용히 연결을 잃는다.
+      >
+      > - **backend**: 핸드셰이크에서 `exp` → 소켓별 타이머 둘(통지·만료), `handleDisconnect`
+      >   에서 **둘 다 해제**(누락은 소켓당 타이머 누수).
+      > - **frontend**: `auth.token_expired` 구독 + `disconnect` reason 분기 → 둘 다 REST
+      >   재발급 → `auth.token` 교체 → **명시적 `connect()`** 로 수렴 (§9.2). **전부 신규다.**
+      >
+      > **닫는 범위**: 토큰 **자연 만료**만 닫는다. 명시적 revoke 는 이미 발급된 access token
+      > 을 무효화하지 않으므로 그 소켓은 자연 `exp` 까지(최대 15분) 산다 — 별건이다.
 - [x] `notifications:{userId}` 채널의 `notification.new` emit 경로 — **완료** (`spec-sync-data-flow-8-notifications-gaps.md` PR1, `WebsocketService.emitNotificationEvent`). §4.5 spec 본문 "계획·미구현" 배지 flip 은 `plan/in-progress/spec-update-notifications-ws-emit.md`(planner) 위임.
 - [x] WS 명령 rate-limit (socket 당 60 msg/min) + `RATE_LIMITED` 코드 (§7.1) — `WsRateLimiterService`(in-memory per-socket fixed-window) + `WsRateLimitGuard`(class-level, `WsException` → `exception` 이벤트). lint·unit·build·e2e 통과.
 - [x] 전용 WS 에러 코드 `INVALID_MESSAGE` / `UNKNOWN_TYPE` / `SUBSCRIPTION_LIMIT_EXCEEDED` (§3.3·§3.4·§7.1) — `WsErrorCode` enum 확장. subscribe ack `code` additive, 미등록 이벤트 `onAny` → `error{code}`. spec §7.1/§3.3/§3.4/§7.2 + `3-error-handling.md §1.5` 동기화. lint·unit·build·e2e 통과.
@@ -84,7 +102,6 @@ spec 초안은 raw/native WebSocket 프로토콜을 전제했으나 구현은 So
   > 각각 그 실측대로 won't-do 로 종결됐다(§비채택). 원 서술은 그 조사의 이력이라 취소선으로
   > 남긴다.
   >
-  > **남은 하나에만 적용된다**: `auth.token_expired` 는 여전히 착수 전 결정이 필요하다 —
-  > **소켓 수명이 토큰 수명에 종속되는가**(ⓐ)와 **사전 통지 lead time 을 두는가**(ⓑ). 둘 다
-  > 제품 semantics + 동작 변경이라 developer 권한 밖이다. 정해지면 구현은 작다(핸드셰이크에서
-  > `exp` 를 읽어 소켓별 타이머, `handleDisconnect` 에서 해제).
+  > **남은 하나도 결정됐다 (2026-09-02)**: `auth.token_expired` 의 ⓐ·ⓑ 가 확정돼 spec 에
+  > 반영됐다(`R-ws-socket-lifetime-binds-token`). **이 트래커에 결정 대기는 더 이상 없다** —
+  > 남은 것은 구현이고, backend 타이머와 **frontend 구독·명시 재연결** 양쪽이 필요하다.
