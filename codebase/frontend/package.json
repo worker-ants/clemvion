@@ -39,7 +39,7 @@
     "@workflow/graph-warning-rules": "workspace:*",
     "@workflow/masked-markers": "workspace:*",
     "@workflow/node-summary": "workspace:*",
-    "@xyflow/react": "^12.10.2",
+    "@xyflow/react": "^12.11.5",
     "axios": "^1.18.1",
     "clsx": "^2.1.1",
     "cron-parser": "^5.5.0",
