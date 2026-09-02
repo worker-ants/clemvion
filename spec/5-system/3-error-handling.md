@@ -20,7 +20,7 @@ code:
 
 본 문서는 제품 전반의 **에러 처리 정책**을 단일 진실로 정의한다 — 에러 코드 분류 체계(시스템·인증/인가·유효성·실행·WS commands·EIA REST·webhook·KB/Graph RAG 도메인, §1), 공식 에러 응답 봉투(`{ error: { code, message, requestId, details? } }`, §2), 노드 레벨 에러 처리 정책(Stop Workflow / Skip / Default Output / Retry / Route to Error Port, §3), 워크플로우 레벨 자동 재시도(§4), 클라이언트 에러 처리 흐름·토스트(§5), 로깅 레벨·민감정보 마스킹(§6), 헬스 체크(§7)다.
 
-에러 코드의 **명명 규율**(의미 기반 명명·rename 안정성·`UPPER_SNAKE_CASE`)의 SoT 는 [conventions/error-codes.md](../conventions/error-codes.md) 이고, 본 문서는 표기·카탈로그·응답 envelope·처리 정책을 정의한다. 정의·트리거 조건의 상세 SoT 가 도메인 spec 에 있는 코드(2FA/WebAuthn §1.2.1·WS commands §1.5·EIA REST §1.6·webhook §1.7·KB/Graph RAG §1.8·워크스페이스 멤버 직접추가 §1.9)는 해당 도메인 spec 을 SoT 로 참조하고 본 §1 에는 **공용 카탈로그 가시성**을 위해 등재만 한다 — 이 중 외부 표면(EIA `/api/external/*` §1.6·webhook `/api/hooks/*` §1.7)은 API 규약 기본 코드([API 규약 §5.3](./2-api-convention.md#53-에러-응답))를 의도적으로 override 하는 항목이다. 응답 봉투 형식의 cross-cutting 정의는 [API 규약 §5.3](./2-api-convention.md#53-에러-응답) 와 정합한다.
+에러 코드의 **명명 규율**(의미 기반 명명·rename 안정성·`UPPER_SNAKE_CASE`)의 SoT 는 [conventions/error-codes.md](../conventions/error-codes.md) 이고, 본 문서는 표기·카탈로그·응답 envelope·처리 정책을 정의한다. 정의·트리거 조건의 상세 SoT 가 도메인 spec 에 있는 코드(2FA/WebAuthn §1.2.1·WS commands §1.5·EIA REST §1.6·webhook §1.7·KB/Graph RAG §1.8·워크스페이스 멤버 직접추가 §1.9)는 해당 도메인 spec 을 SoT 로 참조하고 본 §1 에는 **공용 카탈로그 가시성**을 위해 등재만 한다 — 이 중 외부 표면(EIA `/api/external/*` §1.6·webhook `/api/hooks/*` §1.7)은 API 규약 기본 코드([API 규약 §5.3](./2-api-convention.md#53-에러-응답))를 의도적으로 override 하는 항목이다. **단 `410` 은 override 가 아니라 explicit-only 다** — §5.3 에 410 기본값이 아예 없어 덮어쓸 대상이 없고, 410 을 내는 경로는 코드를 명시할 의무가 있다(같은 절). 응답 봉투 형식의 cross-cutting 정의는 [API 규약 §5.3](./2-api-convention.md#53-에러-응답) 와 정합한다.
 
 ---
 
@@ -47,7 +47,7 @@ code:
 | `LOGIN_FAILED` | 로그인 실패 | 잘못된 자격 증명 | 401 |
 | `ACCOUNT_LOCKED` | 계정 잠김 | 로그인 시도 초과 (5회 → 10분). `UnauthorizedException` — 아래 Rationale "423 오기 정정" | 401 |
 | `NOT_A_MEMBER` | 워크스페이스 비멤버 | 대상 워크스페이스 멤버십 검증 실패 (전환 `/api/auth/workspaces/:id/switch`·탈퇴·멤버십 확인 경로, `auth.service`·`workspaces.service`) ([1-auth.md §5](./1-auth.md#5-api-엔드포인트) · [data-flow §1.5](../data-flow/12-workspace.md#15-워크스페이스-전환-토큰-재발급)) | 403 |
-| `INVALID_PASSWORD` | 비밀번호 재확인 실패 | `POST /users/me/change-password` 현재 비밀번호 미설정·불일치 ([1-auth.md §2.3](./1-auth.md#23-세션-정책)). 재인증 코드 `PASSWORD_INVALID`(§1.2.1)·`login_history.failure_reason` 동명값과 별개 | 401 |
+| `INVALID_PASSWORD` | 비밀번호 재확인 실패 | `POST /users/me/change-password` 현재 비밀번호 미설정·불일치 ([1-auth.md §2.3](./1-auth.md#23-세션-정책)). 재인증 코드 `PASSWORD_INVALID`(§1.2.1)·`login_history.failure_reason` 동명값과 별개. **이름이 실제 조건보다 좁다** — 미설정(OAuth-only)과 불일치 **둘 다**에 발행되므로 [`error-codes.md §3`](../conventions/error-codes.md#3-historical-artifact-예외-레지스트리) historical-artifact 로 등재 | 401 |
 
 #### 1.2.1 2FA / WebAuthn / 재인증 코드 (도메인 spec 참조)
 
