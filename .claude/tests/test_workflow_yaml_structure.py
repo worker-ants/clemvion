@@ -251,6 +251,7 @@ class WorkflowStructureTest(unittest.TestCase):
         ("deps-security-checks.yml", "audit"): "${{ !cancelled() }}",
         ("deps-security-checks.yml", "override-floors"): "${{ !cancelled() }}",
         ("frontend-checks.yml", "test-and-build"): "${{ !cancelled() }}",
+        ("frontend-checks.yml", "typecheck-ratchet"): "${{ !cancelled() }}",
         ("backend-checks.yml", "lint"): "${{ !cancelled() }}",
         ("backend-checks.yml", "unit"): "${{ !cancelled() }}",
         ("backend-checks.yml", "typecheck-ratchet"): "${{ !cancelled() }}",

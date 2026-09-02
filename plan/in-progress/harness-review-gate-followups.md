@@ -203,7 +203,27 @@ spec_impact: none
       "명문화할지 / 현행 유지할지" 를 결정한다. 판단 재료: 이 PR 의 두 사례와 `--impl-done`
       2회가 전부 BLOCK:NO 였다는 사실.
 
-- [ ] **frontend 테스트가 어떤 게이트에서도 타입체크되지 않는다** (리뷰 4R maintainability
+- [x] **frontend 테스트가 어떤 게이트에서도 타입체크되지 않는다 — 완료 (2026-09-02).**
+      `frontend-checks.yml` 에 `typecheck-ratchet` 잡 신설. 판정 규칙은 backend 와 **같은
+      코어**(`scripts/_typecheck_ratchet.py`)를 쓰고 엔트리포인트는 설정만 담는다 — 사본을
+      하나 더 만들면 바로 아래 `plan-stale-audit.sh` 항목과 같은 drift 를 재생산한다.
+
+      > **착수 전 실측이 등재문의 수치를 뒤집었다.** 등재문은 "전체 규모를 먼저 재라" 고
+      > 했고, 재보니 첫 수치가 **1,414건**이었다. 그런데 그중 **1,256건이 진짜 오류가
+      > 아니었다** — `src/test/jest-axe.d.ts` 의 `declare module "vitest"` 가 augmentation
+      > 의도인데 파일에 top-level import/export 가 없어 **global script** 였고, 그 문맥의
+      > `declare module` 은 augmentation 이 아니라 **shadowing** 이다. vitest 의 실제 타입이
+      > 통째로 덮여 있었다.
+      >
+      > **그 선언이 의도대로 동작한 적이 한 번도 없다** — `toHaveNoViolations()` 의 타입
+      > 보장은 죽어 있었고 런타임 matcher 만 살아 있었다. 아무도 못 본 이유가 바로 이
+      > 게이트의 부재다. 분리해 고친 뒤 실측은 **52건 / 15파일, 전부 테스트 파일**이고
+      > 그것이 커밋된 baseline 이다.
+      >
+      > 등재문의 "26파일 → 0건" 은 `src/lib/docs/__tests__/` 한 디렉터리만 잰 값이었다.
+      > 범위를 명시해 둔 덕에 전체를 다시 쟀고, 그 재측정이 shadowing 을 드러냈다.
+
+      ~~(원 등재문)~~ (리뷰 4R maintainability
       W1 의 근본 원인). `tsconfig.json` 이 `src/**/__tests__/**` · `src/**/*.test.ts` 를
       exclude 하고 `vitest run` 은 타입을 strip 한다 → **테스트 코드에 타입 오류가 들어가도
       아무 게이트가 안 문다.**

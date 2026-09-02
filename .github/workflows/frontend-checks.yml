@@ -62,6 +62,14 @@ jobs:
         # 생긴 의존이라 등재를 빠뜨리기 쉬운 자리다.
         .github/actions/pnpm-workspace/action.yml
         .github/workflows/frontend-checks.yml
+        # 타입체크 ratchet 이 **실제로 실행하는** 파일들. 같은 이유가 아니라 **더 강한**
+        # 이유로 등재한다 — 이 셋만 바뀐 PR(예: `--update` 로 baseline 만 낮춘 커밋, 공유
+        # 코어의 판정 규칙 수정)은 여기 없으면 `relevant=false` 로 판정돼 `typecheck-ratchet`
+        # 잡이 **tsc 를 한 번도 안 돌리고** "무관한 변경 — 검사 생략" 으로 통과 보고한다.
+        # 게이트의 임계값과 판정 규칙을 고치는 커밋이 정작 그 게이트를 안 거치는 셈이다.
+        scripts/_typecheck_ratchet.py
+        scripts/check-frontend-typecheck-ratchet.py
+        scripts/frontend-typecheck-baseline.json
 
   test-and-build:
     needs: changes
@@ -95,3 +103,34 @@ jobs:
       - name: Next build (prerender 검증)
         if: needs.changes.outputs.relevant != 'false'
         run: pnpm --filter frontend build
+
+  typecheck-ratchet:
+    name: frontend 타입체크 ratchet
+    needs: changes
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: 무관한 변경 — 검사 생략 (체크는 통과로 보고)
+        if: needs.changes.outputs.relevant == 'false'
+        run: echo "frontend/packages 관련 경로 변경 없음 — 이 잡은 no-op 으로 통과한다."
+      - uses: actions/checkout@v7
+        if: needs.changes.outputs.relevant != 'false'
+      - uses: ./.github/actions/pnpm-workspace
+        if: needs.changes.outputs.relevant != 'false'
+        with:
+          filter: 'frontend...'
+      # 이 잡만 python 이 더 필요하다(ratchet 스크립트). 공유 액션 **뒤**에 두는 것은
+      # 무관하다 — `pnpm install` 은 python 을 쓰지 않고, 아래 ratchet 스텝 전에만
+      # 준비되면 된다.
+      - uses: actions/setup-python@v7
+        if: needs.changes.outputs.relevant != 'false'
+        with:
+          python-version: '3.x'
+      # `tsconfig.json` 이 exclude 하는 테스트 파일까지 포함한 **전체 프로그램** 체크
+      # (`tsconfig.typecheck.json`). vitest 는 타입을 strip 하고 `next build` 는 그
+      # exclude 를 그대로 쓰므로, 테스트 코드의 타입 오류는 이 잡 말고 아무도 못 본다.
+      # baseline 대비 증가·감소 둘 다 실패다. 스크립트 헤더에 전체 근거.
+      - name: Typecheck ratchet
+        if: needs.changes.outputs.relevant != 'false'
+        run: python3 scripts/check-frontend-typecheck-ratchet.py

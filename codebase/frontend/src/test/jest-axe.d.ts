@@ -19,22 +19,3 @@ declare module "jest-axe" {
     };
   };
 }
-
-declare namespace Vi {
-  interface Assertion {
-    toHaveNoViolations(): void;
-  }
-  interface AsymmetricMatchersContaining {
-    toHaveNoViolations(): void;
-  }
-}
-
-// jest-dom / vitest matcher registration
-declare module "vitest" {
-  interface Assertion {
-    toHaveNoViolations(): void;
-  }
-  interface AsymmetricMatchersContaining {
-    toHaveNoViolations(): void;
-  }
-}

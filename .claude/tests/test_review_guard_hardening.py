@@ -1000,6 +1000,10 @@ class TempRepoFixturesGoThroughTheSharedHelperTest(unittest.TestCase):
         "test_install_gate_flags.py":
             "이 저장소의 추적 파일에서 `pnpm install` 실행 지점을 찾아 등재 목록과 대조한다 "
             "— 임시 저장소로는 '등재 안 된 지점이 생겼다' 를 물을 수 없다",
+        "test_workflow_run_inputs_covered.py":
+            "워크플로 `run:` 이 이름으로 부르는 파일이 **이 저장소에 실재하는지** 걸러 낸 뒤 "
+            "그 워크플로의 pathspecs 와 대조한다 — 임시 저장소에는 그 워크플로도 그 스크립트도 "
+            "없으므로 '등재가 빠졌다' 를 물을 대상 자체가 없다",
     }
 
     def _git_calls(self, tree):
