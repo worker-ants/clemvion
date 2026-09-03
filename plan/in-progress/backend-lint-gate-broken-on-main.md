@@ -790,6 +790,19 @@ PR 을 막는다" 고 적은 것은 **부정확**했다 — 막던 것은 그중
         > `node_modules/`·`dist/`·`*.d.ts` 를 합성해 제외 로직을 **직접 발화시키는** 케이스로
         > 닫는다 — `withPatchedSpec` 이 이미 그 패턴(저장소 밖 tmpdir)을 갖고 있다.
         >
+        > **닫힘 (2026-09-04, `repo-guard-walker` 브랜치).** 그 "다음에 만질 때" 가 왔다 —
+        > walker 사본 5개를 `collectTsFiles` 로 통합하면서 `listProductionSources` 도 그
+        > 위임이 됐고, `source-scan.spec.ts` 가 **tmpdir 에 `node_modules/pkg/index.ts` ·
+        > `dist/bundle.ts` · `types.d.ts` 를 합성**해 제외 분기를 직접 발화시킨다.
+        >
+        > **뮤테이션으로 관측 가능해진 것을 확인했다** — `.d.ts` 필터 제거 → **3 failed**,
+        > `node_modules`/`dist` skip 제거 → **3 failed** (종전에는 둘 다 GREEN 이었다).
+        > 위에 적어 둔 원인 진단("입력에 그 형태가 없어 분기가 발화하지 않는다")이 맞았고,
+        > 처방("합성 픽스처로 직접 발화")도 그대로 통했다.
+        >
+        > 이 항목이 열려 있던 것을 그 브랜치의 `--impl-done`(`05_05_14` plan_coherence W3)이
+        > 잡았다 — **가드를 고치면서 그 가드가 닫은 다른 plan 의 항목을 안 봤다.**
+        >
         > > 대안으로 "관측 불가한 절은 두지 않는다"(이 저장소가 `isIdempotencyEntry` 에서 내린
         > > 판단)를 적용해 **제외 절을 지우는** 것도 있다. 다만 그쪽은 가드가 나중에 `src` 밖을
         > > 스캔하게 될 때 조용히 오작동하는 방향이라, 지우기보다 **발화시키는** 쪽을 택한다.
