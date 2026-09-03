@@ -4,10 +4,24 @@ started: 2026-09-03
 owner: developer
 status: in-progress
 priority: P3
-spec_impact: none
+spec_impact:
+  - spec/1-data-model.md
+  - spec/data-flow/10-triggers.md
+  - spec/5-system/2-api-convention.md
 ---
 
 # `nullable: true` 컬럼인데 TS 타입은 non-null — 엔티티 전반
+
+> **`spec_impact` 주의** — 이 작업 자체는 `spec/` 을 1줄도 바꾸지 않는다(코드 전용).
+> 그럼에도 `none` 이 아닌 이유는 자매 plan `update-returning-tuple-shape.md`·
+> `backend-lint-gate-broken-on-main.md` 가 확립한 것과 같다: 본문이 **planner 위임으로 spec
+> 후속 2건을 스스로 명시**하는데 frontmatter 가 `none` 이면, `complete/` 이동 시
+> Gate C(`spec-plan-completion.test.ts`)가 그 값을 그대로 신뢰해 **"spec 영향 없음" 이 잘못
+> 확정된다**. **아래 §후속의 [planner 턴] 항목이 반영되기 전에는 완료 처리하지 말 것.**
+>
+> (처음엔 `none` 으로 두고 "이 배치가 바꾸는 spec 은 0건이라 리스트는 거짓" 이라 판단했는데,
+>  그 논거는 자매 plan 에서 이미 제기됐다 기각된 것이다 — 이 필드는 **PR 이 아니라 plan 의
+>  라이프사이클**을 가리킨다. `17_45_56` plan_coherence W1, 같은 세트에서 **3번째 재발**.)
 
 > 출처: `#1269`(`change-password` 코드 정렬) 작업 중 발견. `User.passwordHash` 하나를 고치려다
 > **같은 형태가 46건**임을 실측했다. 그 PR 은 캐스트를 fixture 팩토리 한 곳으로 모으는 선에서
