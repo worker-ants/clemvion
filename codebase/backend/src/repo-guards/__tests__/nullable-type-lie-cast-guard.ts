@@ -138,14 +138,19 @@ export interface StaleSpecCast {
  * 이고 다른 엔티티는 non-null 인 동명 필드가 있으면, **non-null 쪽 fixture 의 정당한
  * 캐스트**를 "불필요" 로 잡는다 — 처방대로 지우면 `tsc` 가 깨진다.
  *
- * 저장소 실측 **20건**이 그런 충돌이다 (`userId` 는 `login_history` 에서 nullable,
- * `audit_log` 에서 non-null · `workflowId` 는 `llm_usage_log`/`alert_rule` 에서 nullable,
- * `edge`/`execution` 에서 non-null · `trigger`·`triggerId`·`resourceType` 등).
+ * 그런 충돌이 실재한다 — `userId` 는 `login_history` 에서 nullable 인데 `audit_log` 에서
+ * non-null 이고, `workflowId` 는 `llm_usage_log`/`alert_rule` 에서 nullable 인데
+ * `edge`/`execution` 에서 non-null 이다 (`trigger`·`triggerId`·`resourceType` 등도 같다).
+ *
+ * > **개수는 적지 않는다.** 위 `collectScanTargets` docstring 이 같은 이유로 이미 정한
+ * > 규칙이다 — 종전 거기에 "실측 12건" 을 박았다가 같은 PR 안에서 낡았다. 지금 세고 싶으면
+ * > 엔티티 AST 를 훑어 `| null` 인 이름 집합과 아닌 이름 집합의 교집합을 보면 된다
+ * > (이 함수가 하는 일이 정확히 그것이고, `widened.size` 가 그 결과다).
  *
  * 그래서 **한 곳이라도 non-null 이면 그 이름은 판정에서 뺀다.** 재현율을 잃는 대신
  * **오탐을 0으로 유지**한다 — 가드의 처방이 "이 캐스트를 지워라" 이므로, 틀리면 사람이
  * 코드를 깨뜨리는 방향이다. 지금까지 실제로 제거한 캐스트 4건(`lastRunAt`·
- * `lastTriggeredAt`·`parentId`·`lockedUntil`)은 모두 충돌 목록 밖이라 그대로 잡힌다.
+ * `lastTriggeredAt`·`parentId`·`lockedUntil`)은 모두 충돌 밖이라 그대로 잡힌다.
  *
  * > **이건 내가 바로 앞 PR 에서 반증한 실패 모드다.** 자매 축("응답 DTO 가 nullable 필드를
  * > non-null 로 문서화")에서 필드 이름 매칭이 48건 중 44건을 오탐으로 만든 것을 확인해 놓고,
@@ -162,6 +167,21 @@ export interface StaleSpecCast {
 const WIDENED_DECL =
   /@(?:Column|ManyToOne|OneToOne)\((?:[^()]|\([^()]*\))*\)\s*\n(?:\s*@\w+\((?:[^()]|\([^()]*\))*\)\s*\n)?\s*(\w+)\s*:\s*([^;]+);/g;
 
+/**
+ * TS 타입 표기가 `null` 유니온인가.
+ *
+ * `includes('| null')` 로 하면 **표기 순서·공백에 걸린다** — `Date|null`(공백 없음)이나
+ * `null | Date`(순서 반대)를 놓친다. 놓치는 방향은 **위음성**이라, 조용한 누락을 막겠다는
+ * 이 가드의 존재 이유와 정면으로 어긋난다. 오늘 저장소는 전부 `T | null` 이라 미발현이지만
+ * (실측), 표기 하나만 달라지면 그 필드가 판정에서 사라진다 — 형태에 기대지 않는다.
+ */
+function isNullableType(tsType: string): boolean {
+  return tsType
+    .split('|')
+    .map((part) => part.trim())
+    .includes('null');
+}
+
 export function widenedEntityFields(entityFiles: string[]): Set<string> {
   const widened = new Set<string>();
   const nonNull = new Set<string>();
@@ -169,7 +189,7 @@ export function widenedEntityFields(entityFiles: string[]): Set<string> {
     const src = fs.readFileSync(file, 'utf8');
     for (const m of src.matchAll(WIDENED_DECL)) {
       const [, field, tsType] = m;
-      (tsType.includes('| null') ? widened : nonNull).add(field);
+      (isNullableType(tsType) ? widened : nonNull).add(field);
     }
   }
   // 동명 충돌 제거 — 아래 docstring §"이름 충돌" 참조.

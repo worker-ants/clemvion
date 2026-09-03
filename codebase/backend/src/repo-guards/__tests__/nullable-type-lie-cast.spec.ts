@@ -235,6 +235,34 @@ export class Probe {
     });
   });
 
+  /**
+   * `includes('| null')` 로 판정하면 아래 두 표기를 **놓친다**(위음성). 조용한 누락을
+   * 막겠다는 이 가드의 존재 이유와 정면으로 어긋나므로 표기 형태에 기대지 않는다.
+   * 오늘 저장소는 전부 `T | null` 이라 이 테스트가 유일한 방어다 (리뷰 3R INFO#4).
+   */
+  it.each([
+    ['공백 없음', 'Date|null'],
+    ['순서 반대', 'null | Date'],
+    ['표준 표기', 'Date | null'],
+  ])('`| null` 표기 변형을 모두 nullable 로 본다 — %s', (_label, tsType) => {
+    withFiles(
+      {
+        'probe.entity.ts': `
+@Entity('probe')
+export class Probe {
+  @Column({ type: 'timestamptz', nullable: true })
+  oddlyTyped: ${tsType};
+}
+`,
+      },
+      (p) => {
+        expect(
+          widenedEntityFields([p['probe.entity.ts']]).has('oddlyTyped'),
+        ).toBe(true);
+      },
+    );
+  });
+
   it('넓혀진 필드를 겨눈 캐스트를 잡는다', () => {
     withFiles(
       {
