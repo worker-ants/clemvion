@@ -2,7 +2,7 @@
 worktree: plan-in-progress-items-b0c80b
 started: 2026-09-02
 owner: planner
-status: in-progress
+status: complete
 priority: P3
 spec_impact:
   - spec/5-system/1-auth.md
@@ -14,7 +14,7 @@ spec_impact:
 # `change-password` 의 OAuth-only 조건에 별도 코드를 신설할 것인가 (`PASSWORD_NOT_SET`)
 
 > 출처: `--spec` W1 (`review/consistency/2026/09/02/20_43_54`). 그 라운드의 target 이었던
-> [`spec-draft-api-convention-status-and-password-codes.md`](../complete/spec-draft-api-convention-status-and-password-codes.md)
+> [`spec-draft-api-convention-status-and-password-codes.md`](./spec-draft-api-convention-status-and-password-codes.md)
 > 는 `INVALID_PASSWORD` 를 `error-codes.md §3` 에 **등재**하는 데까지만 갔고,
 > **신설 여부는 열어 둔 채** 여기로 이월한다.
 
@@ -155,11 +155,10 @@ RED" 가 아니다). 원복은 `cp` 로 했다(`git checkout` 은 미커밋 작�
 - [x] `spec/conventions/error-codes.md` — §3 행 **제거**(더 이상 active 가 아니다) + §5 에
       **등급 B** 은퇴 행 추가. §5 머리말의 *"코드베이스에서 완전 제거"* 전제가 이 행에는
       성립하지 않는다는 사실(감사 사유값 존속)을 행에 명시
-- [ ] **후속(별개 PR) — `User.passwordHash` 타입이 실제보다 좁다**: 컬럼은 `nullable: true` 이고
-      엔티티 자신의 `validatePasswordHashFormat` 이 `=== null` 을 검사하는데 TS 타입은
-      `string`(non-null) 이다. 그래서 OAuth-only fixture 가 캐스트 없이는 타입체크를 통과 못 한다
-      (backend ratchet 이 이번에 3건 잡았고, 캐스트를 팩토리 한 곳으로 모아 baseline 을
-      199/38 → **198/37** 로 낮췄다). `string | null` 로 넓히는 것은 전 사용처 파급이라 별개 작업.
+- [x] **후속 이월 완료** — `User.passwordHash` 타입 문제는 단독 사례가 아니라 **46건**의
+      클래스임을 실측해 [`entity-nullable-column-type-mismatch.md`](../in-progress/entity-nullable-column-type-mismatch.md)
+      로 분리했다. 이 plan 에 남겨 두면 결정이 끝난 문서가 무관한 항목 하나 때문에
+      계속 열려 있게 된다.
 - [x] **developer 턴 완료 (2026-09-03)** — backend 두 분기 + **공용 상수화**(`common/utils/password.util.ts`, 리터럴
       중복이 drift 의 원인이었다) + 단위/e2e + 유저 가이드 `password-and-sessions.mdx` ko/en
       `:80` 사실 오류 정정 (OAuth-only 도 forgot→reset 으로 비밀번호를 **설정할 수 있다** —

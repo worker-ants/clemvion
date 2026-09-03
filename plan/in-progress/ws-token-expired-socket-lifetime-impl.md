@@ -76,7 +76,7 @@ WARNING 3건 중 **1건만 이 작업 몫**이었다(형제 draft 체크리스�
       → **해소 (2026-09-02, planner 턴)**: §3 등재 완료. 등재 사유는 "혼동 소지" 가 아니라
       **이름이 실제 조건보다 좁다**는 것이다(미설정+불일치 통합) — 그래서 §3 의 현행 기준에
       그대로 들어가고 레지스트리를 넓힐 필요가 없었다. **미설정 조건 분리(`PASSWORD_NOT_SET`)
-      여부는 미결**이라 [`auth-change-password-oauth-only-code-split.md`](./auth-change-password-oauth-only-code-split.md)
+      여부는 미결**이라 [`auth-change-password-oauth-only-code-split.md`](../complete/auth-change-password-oauth-only-code-split.md)
       로 이월했다 — wire 코드가 바뀌는 B 등급 표면이라 사용자 결정이 필요하다.
 
 ## 체크리스트
