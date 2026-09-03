@@ -1,5 +1,31 @@
 # Changelog
 
+## Unreleased — 비밀번호가 없는 사람에게 "현재 비밀번호가 틀렸다" 고 말하고 있었다
+
+`POST /api/users/me/change-password` 는 **서로 다른 두 조건**에 같은 `INVALID_PASSWORD` 를
+던졌다 — 비밀번호가 **아예 없는 계정**(OAuth-only)과 단순 불일치. 형제 흐름
+(`AuthService.verifyPasswordForUser`)은 처음부터 그 둘을 갈라 두고 있었는데 변경 경로만
+합쳐져 있었다.
+
+FE 에는 "비밀번호 보유" 신호가 없고(전수 grep 0건) 에러도 서버 `message` 를 그대로 노출하므로,
+**에러 코드가 유일한 신호**였다. 코드가 합쳐진 동안 클라이언트는 두 상황을 구분할 방법이 없었다.
+
+**wire 에러 코드 변경 (breaking, `error-codes.md §5` 등급 B)**
+
+| 조건 | 종전 | 지금 |
+|---|---|---|
+| 비밀번호 미설정 (OAuth-only) | `INVALID_PASSWORD` 401 | **`PASSWORD_REQUIRED`** 401 |
+| 현재 비밀번호 불일치 | `INVALID_PASSWORD` 401 | **`PASSWORD_INVALID`** 401 |
+
+둘 다 **신규 코드가 아니라** 형제 흐름이 이미 쓰던 코드다. `INVALID_PASSWORD` 는 wire 에서
+은퇴했고 `login_history.failure_reason` 의 동명 감사값(로그인 실패 기록)은 레이어가 달라
+그대로 남는다. 사용자 미존재는 `USER_NOT_FOUND`(404) 그대로.
+
+OAuth-only 사용자에게는 이제 **비밀번호를 추가하는 경로**를 안내한다 — forgot-password →
+reset-password 는 `password_hash` 부재를 전제로 검사하지 않아 소셜 로그인 계정도 그대로
+동작한다. 유저 가이드가 *"직접 설정하는 기능은 제공되지 않아요"* 라고 반대로 적고 있어
+ko/en 함께 정정했다.
+
 ## Unreleased — 소켓이 만료된 토큰으로 무기한 인가돼 있었다
 
 WS 소켓은 핸드셰이크 이후 토큰을 **한 번도 재검증하지 않았다** — 검증 1곳, `exp` 참조 0건,

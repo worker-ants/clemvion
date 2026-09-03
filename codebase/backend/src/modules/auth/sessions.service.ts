@@ -8,7 +8,10 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import { MoreThan, Not, Repository } from 'typeorm';
 import { createHash } from 'crypto';
-import { comparePassword } from '../../common/utils/password.util';
+import {
+  PASSWORD_VERIFY_CODES,
+  comparePassword,
+} from '../../common/utils/password.util';
 import { RefreshToken } from './entities/refresh-token.entity';
 import { UsersService } from '../users/users.service';
 import { TotpService } from './totp.service';
@@ -264,7 +267,7 @@ export class SessionsService {
       const ok = await comparePassword(auth.password, user.passwordHash!);
       if (ok) return;
       throw new UnauthorizedException({
-        code: 'PASSWORD_INVALID',
+        code: PASSWORD_VERIFY_CODES.INVALID,
         message: '비밀번호가 일치하지 않아요.',
       });
     }

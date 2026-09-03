@@ -8,6 +8,33 @@ import * as bcrypt from 'bcrypt';
 export const BCRYPT_ROUNDS = 12;
 
 /**
+ * 비밀번호 재확인 실패 코드 — **두 조건의 단일 SoT**.
+ *
+ * `AuthService.verifyPasswordForUser`(2FA 비활성화·WebAuthn 관리 등 민감 동작 재확인)와
+ * `UsersService.changePassword`(비밀번호 변경) 가 같은 값을 발행하고,
+ * `SessionsService.verifyReauth`(세션 재인증)가 `.INVALID` 만 발행한다 — 그쪽의 미입력은
+ * `REAUTH_REQUIRED`(400)로 갈려 status 부터 다르다. 두 곳이 각자
+ * 문자열 리터럴을 들고 있던 것이 `INVALID_PASSWORD` drift 의 원인이었다 — 변경 경로만
+ * 두 조건을 한 코드로 합쳐 OAuth-only 사용자에게 "현재 비밀번호가 틀렸다" 고 말했다.
+ * (은퇴 이력: `spec/conventions/error-codes.md` §5, 등급 B)
+ *
+ * 헬퍼(`verifyPasswordForUser`) 자체를 공유하지 않는 이유는 **순환 의존이 아니다** —
+ * `UsersModule` 은 이미 `forwardRef(() => AuthModule)` 을 import 하고 `UsersController` 가
+ * 그 방식으로 `AuthService` 를 주입한다(refactor 04 A-1). 실제 이유는 셋이다:
+ *   (a) 그 헬퍼는 `findById` 를 스스로 하는데 `changePassword` 는 이미 `user` 를 들고 있어
+ *       재사용하면 **같은 조회가 2회**가 된다,
+ *   (b) 그 헬퍼는 `!user` 를 `PASSWORD_REQUIRED` 로 접지만 여기서는 `USER_NOT_FOUND`(404) 유지,
+ *   (c) 안내 문구가 흐름마다 다르다(OAuth-only 에게는 비밀번호 추가 경로를 안내한다).
+ * 그래서 **코드만** 공유하고 메시지는 각 호출부가 소유한다.
+ */
+export const PASSWORD_VERIFY_CODES = {
+  /** 비밀번호 미설정(OAuth-only) 또는 미입력 — 재확인할 대상이 없다. */
+  REQUIRED: 'PASSWORD_REQUIRED',
+  /** 비밀번호는 있으나 입력이 일치하지 않는다. */
+  INVALID: 'PASSWORD_INVALID',
+} as const;
+
+/**
  * 평문 비밀번호를 `BCRYPT_ROUNDS` cost 로 해시한다. bcrypt rounds 의 중복 정의를
  * 막기 위한 단일 진입점.
  */

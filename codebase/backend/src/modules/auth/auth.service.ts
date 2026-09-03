@@ -20,6 +20,7 @@ import { WorkspacesService } from '../workspaces/workspaces.service';
 import { WorkspaceInvitationsService } from '../workspaces/workspace-invitations.service';
 import { MailService } from '../mail/mail.service';
 import {
+  PASSWORD_VERIFY_CODES,
   comparePassword,
   hashPassword,
   validatePasswordStrength,
@@ -71,14 +72,14 @@ export class AuthService {
     // !user: 사용자 미존재 / !passwordHash: OAuth-only 계정 — 둘 다 비밀번호 재확인 불가
     if (!user || !user.passwordHash) {
       throw new UnauthorizedException({
-        code: 'PASSWORD_REQUIRED',
+        code: PASSWORD_VERIFY_CODES.REQUIRED,
         message: '비밀번호 확인이 필요합니다.',
       });
     }
     const ok = await comparePassword(plainPassword, user.passwordHash);
     if (!ok) {
       throw new UnauthorizedException({
-        code: 'PASSWORD_INVALID',
+        code: PASSWORD_VERIFY_CODES.INVALID,
         message: '비밀번호가 일치하지 않습니다.',
       });
     }

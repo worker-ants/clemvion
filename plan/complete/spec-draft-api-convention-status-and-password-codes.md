@@ -10,9 +10,14 @@ spec_impact:
 
 # spec draft — §6 상태 코드 표 누락 2종 · `INVALID_PASSWORD` 예외 등재
 
+> ✅ **종결 (2026-09-02)** — 변경안 spec 6곳·plan 3건 전량 반영, `#1268` 머지.
+> 후속: 결정③이 등재한 `INVALID_PASSWORD` §3 행은 그 직후 PR 에서 **§5 로 은퇴**했다
+> (`changePassword` 가 두 조건을 갈라 부정확의 원인이 사라졌다) — 등재가 뒤집힌 것이 아니라
+> 등재가 기록하던 원인이 제거된 것이다.
+
 > 착수 근거: `--impl-prep spec/5-system/` (`review/consistency/2026/09/02/17_13_02`) convention_compliance
 > **W1·W2**. `#1266` 구현과 무관한 **선재 규약 갭**이라 그 PR 에 섞지 않고
-> [`ws-token-expired-socket-lifetime-impl.md`](./ws-token-expired-socket-lifetime-impl.md) 에
+> [`ws-token-expired-socket-lifetime-impl.md`](../in-progress/ws-token-expired-socket-lifetime-impl.md) 에
 > 등재해 뒀던 두 건이다. 둘 다 요구사항·계약 표라 **developer 자기-반증형 소정정 대상이 아니다**.
 
 ## 결정 ① — `2-api-convention.md` §6 표에 `202 Accepted`·`410 Gone` 추가
@@ -165,7 +170,7 @@ W2 는 *"§3 를 lowercase 뿐 아니라 '부정확/혼동 소지 이름' 도 �
 2. backend 코드·테스트·FE 문구가 함께 움직이는 **developer 턴**이다 — 규약 문서 갭 해소와
    섞으면 둘 다 늦어진다.
 
-→ 신규 plan [`auth-change-password-oauth-only-code-split.md`](./auth-change-password-oauth-only-code-split.md)
+→ 신규 plan [`auth-change-password-oauth-only-code-split.md`](../in-progress/auth-change-password-oauth-only-code-split.md)
 에 결정 항목으로 등재한다. 기존 auth plan(`spec-sync-auth-gaps.md`)에 얹지 않는 이유는
 그 문서의 `worktree:` 가 **다른 워크트리**(`trigger-rotation-audit`)라 동시 편집 충돌을
 만들기 때문이다.

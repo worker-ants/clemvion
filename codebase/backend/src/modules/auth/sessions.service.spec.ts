@@ -180,6 +180,39 @@ describe('SessionsService', () => {
       ).rejects.toThrow(UnauthorizedException);
     });
 
+    /**
+     * 코드값까지 본다 — 위 테스트는 예외 *클래스*만 단언하는데 재인증 실패는 조건별로
+     * 다른 코드(`PASSWORD_INVALID`·`REAUTH_REQUIRED`·`REAUTH_NOT_AVAILABLE`)를 내므로
+     * 클래스만으로는 코드가 뒤바뀌어도 통과한다. `changePassword` 가 두 조건을 한 코드로
+     * 합친 채 오래 남아 있던 것이 정확히 이 사각이었다.
+     *
+     * 단언은 상수가 아니라 **리터럴**로 쓴다 — 상수를 참조하면 값이 통째로 바뀌어도
+     * 테스트와 소스가 함께 움직여 아무것도 못 잡는다.
+     */
+    it('비밀번호 불일치 실패 코드는 PASSWORD_INVALID 다', async () => {
+      repo.findOne.mockResolvedValue(makeToken({ familyId: 'fam-A' }));
+      // 가드 단언은 catch **밖**에서 한다 — try 안에서 throw 하면 "reject 하지 않는"
+      // 회귀가 났을 때 그 가드가 자기 catch 에 잡혀 `getResponse is not a function`
+      // 이라는 무관한 메시지로 실패한다(RED 이긴 하나 진단이 거짓말을 한다).
+      let thrown: unknown;
+      try {
+        await service.revokeFamily(
+          'user-1',
+          'fam-A',
+          { password: 'wrong' },
+          {},
+          null,
+        );
+      } catch (err) {
+        thrown = err;
+      }
+      expect(thrown).toBeInstanceOf(UnauthorizedException);
+      const body = (thrown as UnauthorizedException).getResponse() as {
+        code: string;
+      };
+      expect(body.code).toBe('PASSWORD_INVALID');
+    });
+
     it('requires reauth input (400) when neither password nor totp provided', async () => {
       repo.findOne.mockResolvedValue(makeToken({ familyId: 'fam-A' }));
       await expect(
