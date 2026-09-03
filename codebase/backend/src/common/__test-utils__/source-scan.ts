@@ -55,12 +55,6 @@ export function stripComments(src: string): string {
 }
 
 /**
- * 주석을 제외하고 `<name>(` 또는 `<name><` 호출 수를 센다.
- *
- * 주석 처리 규칙과 그 한계는 `stripComments` 참조 — 특히 문자열 리터럴 안의 `//`
- * (URL 등)도 주석으로 보고 잘라낸다. 의도된 선택이고, 틀리는 방향이 RED 다.
- */
-/**
  * 문자열·템플릿 리터럴 내용을 지운다(따옴표는 남긴다).
  *
  * ## 왜 필요한가 — 가드의 픽스처가 가드에 걸린다
@@ -87,6 +81,12 @@ export function stripLiterals(src: string): string {
     .replace(/"(?:[^"\\\n]|\\.)*"/g, '""');
 }
 
+/**
+ * 주석을 제외하고 `<name>(` 또는 `<name><` 호출 수를 센다.
+ *
+ * 주석 처리 규칙과 그 한계는 `stripComments` 참조 — 특히 문자열 리터럴 안의 `//`
+ * (URL 등)도 주석으로 보고 잘라낸다. 의도된 선택이고, 틀리는 방향이 RED 다.
+ */
 export function countCalls(src: string, name: string): number {
   const pattern = new RegExp(`\\b${name}[<(]`, 'g');
   return (stripComments(src).match(pattern) ?? []).length;
