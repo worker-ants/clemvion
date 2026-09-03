@@ -156,6 +156,11 @@ DB 를 실측해(`information_schema` → `character varying`) `type: 'varchar'`
       **developer 권한 밖**이다 — 내가 쓴 문장이 아니라 자기-반증형 소정정 예외에 해당하지
       않는다. 곁들여: `spec/data-flow/10-triggers.md §3.2` 에 "cron 파싱 실패 시 `next_run_at`
       은 NULL(정보성 컬럼이라 발사 무관)" 한 줄 보강.
+- [ ] **후속(planner 턴, 이 작업과 무관) — `2-api-convention.md §2.2` 에 `/api/auth/*`
+      액션 네임스페이스 예외 조항** (`--impl-done` 최종 라운드 W2). `/api/auth/{verb}` 15개
+      이상이 §2.2 명명 규칙의 명시된 두 예외(RPC-style `{id}` 필수 / `/api/external/*`)
+      어디에도 포섭되지 않는다. **이 PR 과 무관한 선재 gap 이고 이번 검토가 최초 기록**이라
+      여기 적어 둔다 — 다른 plan 에 등재된 곳이 없다.
 - [ ] **후속 — `repo-guards/__tests__/` 의 공용 walker 추출** (리뷰 W5). 디렉터리를 재귀
       스캔해 `.ts` 를 모으는 로직이 `collectScanTargets` 로 **5번째 사본**이 됐다.
       `source-scan.ts` 는 "**세는**" 축을 한 곳에 모았지만 "**모으는**" 축에는 같은 원칙이
