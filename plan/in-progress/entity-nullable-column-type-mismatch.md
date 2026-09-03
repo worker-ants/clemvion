@@ -192,6 +192,31 @@ DB 를 실측해(`information_schema` → `character varying`) `type: 'varchar'`
       이상이 §2.2 명명 규칙의 명시된 두 예외(RPC-style `{id}` 필수 / `/api/external/*`)
       어디에도 포섭되지 않는다. **이 PR 과 무관한 선재 gap 이고 이번 검토가 최초 기록**이라
       여기 적어 둔다 — 다른 plan 에 등재된 곳이 없다.
+- [ ] **후속 축 — 응답 DTO 가 엔티티 nullable 필드를 non-null 로 문서화한다 (48건 / 26파일)**
+      (`--impl-done` `19_02_06` INFO#3 이 체크박스 승격을 요구했다).
+      배치 3 에서 `AuthConfigDto.ipWhitelist` 한 건만 규약 §5.4 적용 조건에 걸려 조치했고
+      **나머지는 열려 있다.** 상세·측정·판단 근거는 §배치 3 「새로 드러난 축」.
+
+      > **왜 산문에서 체크박스로 올리는가**: 잔여가 §배치 3 절 서술로만 있어서 이 plan 이
+      > `complete/` 로 가는 순간 봉인된다. 이 세션에서 같은 매몰을 이미 두 번 밟았다
+      > (배치 1 의 "추적된다" 허위 주장 · 배치 3 의 (e) 를 "폐기됨" 으로 접을 뻔한 것).
+      > **미해결 항목은 체크박스로만 살아남는다.**
+
+      착수 시 두 가지를 함께 한다 — (1) 48건의 **엔티티별 귀속**(지금 수는 필드 *이름*
+      매칭이라 동명 필드가 섞여 있다), (2) **엔티티 nullable ↔ 응답 DTO 선언 대조 가드**
+      신설(`nullable-type-lie-cast` 는 엔티티↔TS 축만 본다 — DTO 가 다시 좁혀져도 못 잡는다).
+
+- [ ] **후속(planner 턴) — §5.4 의 `field?:` 표기와 기존 선례가 어긋난다**
+      (`--impl-done` `19_02_06` INFO#1). 규약 §5.4 는 `null`(상시 존재) 필드를
+      `@ApiPropertyOptional({ nullable: true })` + `field?: T | null` 로 쓰라고 하는데,
+      **`field?:` 는 "키가 없을 수 있다" 는 뜻이라 같은 절의 "상시 존재" 정의와 어긋난다.**
+      실제로 같은 파일의 선재 `AuthConfigUsageCallDto.sourceIp` 는 `@ApiProperty({ nullable:
+      true })` + `sourceIp: T | null`(non-optional) 로 반대 형태다.
+
+      > 배치 3 은 **규약 문면을 그대로 따랐다**(체커가 "되돌릴 필요 없음" 으로 확인).
+      > 선례가 아니라 규약을 따른 것이라 developer 판단으로 뒤집지 않는다. 규약 문장을 고칠지
+      > `sourceIp` 를 맞출지는 **planner 턴 결정**이다 — `spec_impact` 에 이미 포함돼 있다.
+
 - [ ] **후속 — `repo-guards/__tests__/` 의 공용 walker 추출** (리뷰 W5). 디렉터리를 재귀
       스캔해 `.ts` 를 모으는 로직이 `collectScanTargets` 로 **5번째 사본**이 됐다.
       `source-scan.ts` 는 "**세는**" 축을 한 곳에 모았지만 "**모으는**" 축에는 같은 원칙이
