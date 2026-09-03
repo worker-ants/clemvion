@@ -146,7 +146,7 @@ describe('HooksService', () => {
     config: { authType: 'none' },
     endpointPath: 'abc',
     authConfigId: null,
-    lastTriggeredAt: null as unknown as Date,
+    lastTriggeredAt: null,
     createdAt: new Date(),
     updatedAt: new Date(),
     workspace: undefined as never,

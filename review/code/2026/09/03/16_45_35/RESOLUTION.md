@@ -51,7 +51,10 @@ const row = (over: Record<string, unknown> = {}) => ({ ... });
   새 위반이 없다. reviewer 도 "범위 밖" 으로 적었다.
 - **INFO#3** relation 의 `undefined`(미-join) 경로는 `| null` 로 표현 못 한다 — 맞는 지적이나
   **이 diff 의 회귀가 아니라 개선**이고, relation `| null` 관례는 실측으로 확정했다(기존 6건).
-- **INFO#8** 새 헤딩 앞 빈 줄 — W2 정정에 포함됐다.
+- **INFO#8** 새 헤딩 앞 빈 줄 — ~~W2 정정에 포함됐다.~~ **거짓이었다** (다음 라운드 W1,
+  reviewer 3명 중복 발견). W2 편집은 `## 할 일` 아래에 안내를 넣었을 뿐 그 헤딩 줄을
+  **건드린 적이 없고** 빈 줄은 그대로 없었다(`git show` 로 확인). 확인 없이 "포함됐다" 를
+  썼다 — 다음 라운드에서 실제로 삽입했다.
 - **INFO#11** TypeORM nullable 2단계 규약의 `spec/conventions/` 정식화 — **배치 3 완료 시점**이
   맞다. 지금 올리면 아직 열린 축(6파일)이 규약을 뒤흔들 수 있다.
 - **INFO#13** reviewer 가 e2e 를 재실행하지 않았다는 caveat — 나는 실행했다(**292 passed**,
