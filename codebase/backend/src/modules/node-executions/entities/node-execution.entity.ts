@@ -61,22 +61,22 @@ export class NodeExecution {
   startedAt: Date;
 
   @Column({ name: 'finished_at', type: 'timestamptz', nullable: true })
-  finishedAt: Date;
+  finishedAt: Date | null;
 
-  @Column({ name: 'duration_ms', nullable: true })
-  durationMs: number;
+  @Column({ name: 'duration_ms', type: 'int', nullable: true })
+  durationMs: number | null;
 
   @Column({ name: 'input_data', type: 'jsonb', default: {} })
   inputData: Record<string, unknown>;
 
   @Column({ name: 'output_data', type: 'jsonb', nullable: true })
-  outputData: Record<string, unknown>;
+  outputData: Record<string, unknown> | null;
 
   @Column({ type: 'jsonb', nullable: true })
-  error: Record<string, unknown>;
+  error: Record<string, unknown> | null;
 
   @Column({ name: 'interaction_data', type: 'jsonb', nullable: true })
-  interactionData: Record<string, unknown>;
+  interactionData: Record<string, unknown> | null;
 
   @Column({ name: 'retry_count', default: 0 })
   retryCount: number;

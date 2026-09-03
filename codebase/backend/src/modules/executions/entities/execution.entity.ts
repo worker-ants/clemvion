@@ -33,11 +33,11 @@ export class Execution {
   workflow: Workflow;
 
   @Column({ name: 'trigger_id', nullable: true })
-  triggerId: string;
+  triggerId: string | null;
 
   @ManyToOne(() => Trigger, { nullable: true, onDelete: 'SET NULL' })
   @JoinColumn({ name: 'trigger_id' })
-  trigger: Trigger;
+  trigger: Trigger | null;
 
   @Column({ length: 30, default: ExecutionStatus.PENDING })
   status: ExecutionStatus;
@@ -57,10 +57,10 @@ export class Execution {
   startedAt: Date;
 
   @Column({ name: 'finished_at', type: 'timestamptz', nullable: true })
-  finishedAt: Date;
+  finishedAt: Date | null;
 
-  @Column({ name: 'duration_ms', nullable: true })
-  durationMs: number;
+  @Column({ name: 'duration_ms', type: 'int', nullable: true })
+  durationMs: number | null;
 
   /**
    * 누적 active-running 시간(ms) — active 세그먼트(worker 가 노드를 전진시킨 구간)의
@@ -72,27 +72,27 @@ export class Execution {
   activeRunningMs: number;
 
   @Column({ name: 'input_data', type: 'jsonb', nullable: true })
-  inputData: Record<string, unknown>;
+  inputData: Record<string, unknown> | null;
 
   @Column({ name: 'output_data', type: 'jsonb', nullable: true })
-  outputData: Record<string, unknown>;
+  outputData: Record<string, unknown> | null;
 
   @Column({ type: 'jsonb', nullable: true })
   error: Record<string, unknown> | null;
 
   @Column({ name: 'executed_by', nullable: true })
-  executedBy: string;
+  executedBy: string | null;
 
   @ManyToOne(() => User, { nullable: true })
   @JoinColumn({ name: 'executed_by' })
-  executor: User;
+  executor: User | null;
 
   @Column({ name: 'parent_execution_id', nullable: true })
-  parentExecutionId: string;
+  parentExecutionId: string | null;
 
   @ManyToOne(() => Execution, { nullable: true, onDelete: 'SET NULL' })
   @JoinColumn({ name: 'parent_execution_id' })
-  parentExecution: Execution;
+  parentExecution: Execution | null;
 
   @Column({ name: 'recursion_depth', default: 0 })
   recursionDepth: number;

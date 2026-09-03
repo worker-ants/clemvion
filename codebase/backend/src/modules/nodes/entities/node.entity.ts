@@ -61,21 +61,21 @@ export class Node {
   isDisabled: boolean;
 
   @Column({ type: 'text', nullable: true })
-  description: string;
+  description: string | null;
 
   @Column({ name: 'container_id', type: 'uuid', nullable: true })
   containerId: string | null;
 
   @ManyToOne(() => Node, { nullable: true, onDelete: 'SET NULL' })
   @JoinColumn({ name: 'container_id' })
-  container: Node;
+  container: Node | null;
 
   @Column({ name: 'tool_owner_id', type: 'uuid', nullable: true })
   toolOwnerId: string | null;
 
   @ManyToOne(() => Node, { nullable: true, onDelete: 'SET NULL' })
   @JoinColumn({ name: 'tool_owner_id' })
-  toolOwner: Node;
+  toolOwner: Node | null;
 
   @CreateDateColumn({ name: 'created_at', type: 'timestamptz' })
   createdAt: Date;

@@ -59,14 +59,19 @@ export class Trigger {
   @Column({ type: 'jsonb', default: {} })
   config: Record<string, unknown>;
 
-  @Column({ name: 'endpoint_path', nullable: true, length: 255 })
-  endpointPath: string;
+  @Column({
+    name: 'endpoint_path',
+    type: 'varchar',
+    nullable: true,
+    length: 255,
+  })
+  endpointPath: string | null;
 
   @Column({ name: 'auth_config_id', type: 'uuid', nullable: true })
   authConfigId: string | null;
 
   @Column({ name: 'last_triggered_at', type: 'timestamptz', nullable: true })
-  lastTriggeredAt: Date;
+  lastTriggeredAt: Date | null;
 
   /**
    * Outbound notification 발송 건강도. [Spec EIA §3.1 EIA-NX-07] — 5회 연속 실패 시 'degraded'

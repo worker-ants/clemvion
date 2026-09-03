@@ -27,7 +27,7 @@ export class KnowledgeBase {
   name: string;
 
   @Column({ type: 'text', nullable: true })
-  description: string;
+  description: string | null;
 
   @Column({ name: 'embedding_dimension', type: 'int', nullable: true })
   embeddingDimension: number | null;
