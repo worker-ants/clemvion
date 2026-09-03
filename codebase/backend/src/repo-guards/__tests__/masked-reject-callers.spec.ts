@@ -9,23 +9,6 @@ import {
 } from './masked-reject-callers-guard';
 
 /**
- * **Manual 실행 경로가 마커 거부를 건너뛰지 못하게 한다** (EIA §R17, `01_38_26` architecture W1).
- *
- * `resolveTriggerParameters`(base)와 `resolveTriggerParametersRejectingMasked`(wrapper)가 같은
- * `utils/` 폴더에 유사한 이름으로 나란히 있다. **어느 호출부가 어느 쪽을 써야 하는가** 는
- * 지금 JSDoc 으로만 강제된다 — 세 번째 Manual 경로가 생겼을 때 base 를 import 하면
- * 마커 재제출이 조용히 통과한다.
- *
- * > **주석은 규칙을 강제하지 못한다.** 이 시리즈에서 반복해 확인한 것이고(자매 중 하나만
- * > 고치는 형태가 네 번 나왔다), 재발이 멎은 지점은 늘 **행위 규칙이 아니라 산출물**이었다.
- * > 이 가드가 그 산출물이다 — 허용목록 밖에서 base 를 쓰면 여기가 RED 다.
- *
- * 새 파일이 걸리면 판단이 필요하다:
- * - **Manual 실행 경로**(사용자가 값을 저작) → wrapper 를 쓴다. 목록에 넣지 않는다.
- * - **외부 시스템이 저작하는 페이로드**(webhook·schedule 류) → 목록에 추가하고 **사유를
- *   같은 커밋에 적는다**.
- */
-/**
  * ## 이 가드는 `.spec.ts` 도 봐야 한다 — 그 배선을 직접 단언한다
  *
  * `listSourceFiles` 는 `collectTsFiles(root, { includeSpec: true })` 로 위임한다. 테스트
@@ -59,6 +42,23 @@ describe('스캔 대상에 `.spec.ts` 가 포함된다', () => {
   });
 });
 
+/**
+ * **Manual 실행 경로가 마커 거부를 건너뛰지 못하게 한다** (EIA §R17, `01_38_26` architecture W1).
+ *
+ * `resolveTriggerParameters`(base)와 `resolveTriggerParametersRejectingMasked`(wrapper)가 같은
+ * `utils/` 폴더에 유사한 이름으로 나란히 있다. **어느 호출부가 어느 쪽을 써야 하는가** 는
+ * 지금 JSDoc 으로만 강제된다 — 세 번째 Manual 경로가 생겼을 때 base 를 import 하면
+ * 마커 재제출이 조용히 통과한다.
+ *
+ * > **주석은 규칙을 강제하지 못한다.** 이 시리즈에서 반복해 확인한 것이고(자매 중 하나만
+ * > 고치는 형태가 네 번 나왔다), 재발이 멎은 지점은 늘 **행위 규칙이 아니라 산출물**이었다.
+ * > 이 가드가 그 산출물이다 — 허용목록 밖에서 base 를 쓰면 여기가 RED 다.
+ *
+ * 새 파일이 걸리면 판단이 필요하다:
+ * - **Manual 실행 경로**(사용자가 값을 저작) → wrapper 를 쓴다. 목록에 넣지 않는다.
+ * - **외부 시스템이 저작하는 페이로드**(webhook·schedule 류) → 목록에 추가하고 **사유를
+ *   같은 커밋에 적는다**.
+ */
 describe('resolveTriggerParameters 직접 호출부 허용목록', () => {
   const repoRoot = path.resolve(__dirname, '../../../../..');
   const srcDir = path.resolve(__dirname, '../..');
