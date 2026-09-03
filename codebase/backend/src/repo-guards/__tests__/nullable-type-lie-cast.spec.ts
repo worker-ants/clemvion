@@ -309,7 +309,7 @@ export class Probe {
    *
    * 판정 단위가 **필드 이름**이라, 한 엔티티는 nullable 이고 다른 엔티티는 non-null 인
    * 동명 필드가 있으면 non-null 쪽의 **정당한** 캐스트를 잡는다. 저장소에 그런 충돌이
-   * **20건** 실재한다(`userId`·`workflowId`·`triggerId` 등).
+   * 실재한다(`userId`·`workflowId`·`triggerId` 등). 개수는 적지 않는다 — 낡는다.
    *
    * 초판은 이 반례를 못 본 채 docstring 에 "왜 오탐이 없나" 를 적었다 — 자매 축(DTO 필드명
    * 매칭)에서 같은 실패 모드를 바로 앞 PR 에 반증해 놓고 그대로 재도입한 것이다(리뷰 2R W1).
