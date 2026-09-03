@@ -102,6 +102,13 @@ planner 가 결정해야 한다 — 그게 이 항목의 실제 무게다.
 - 발생 맥락: [`plan/complete/exec-intake-followups.md`](../complete/exec-intake-followups.md) ARCH#5
 - 검출: `review/consistency/2026/08/31/21_34_02` INFO 1 (cross_spec · rationale_continuity ·
   convention_compliance · naming_collision **4명 중복 지적**)
-- 같은 라운드의 별건 INFO 2 — repo-guard 3파일 패턴(`*-guard.ts`/`*-fixture.ts`/`*.spec.ts`)이
-  5쌍 이상 누적됐는데 소유 규약 문서가 없다. `spec/conventions/repo-guards.md` 신설 검토는
-  이 항목과 **독립**이며 더 큰 결정이라 여기 묶지 않는다(포인터만 남긴다).
+- 같은 라운드의 별건 INFO 2 — repo-guard 3파일 패턴(`*-guard.ts`/`*-fixture.ts`/`*.spec.ts`)에
+  소유 규약 문서가 없다. `spec/conventions/repo-guards.md` 신설 검토는 이 항목과 **독립**이며
+  더 큰 결정이라 여기 묶지 않는다(포인터만 남긴다).
+
+  > **수치 갱신 (2026-09-04 실측)**: 종전 "5쌍 이상" 이었다. 지금은 `*-guard.ts` **7** ·
+  > `*.spec.ts` **8** 이고, 그 사이 `entity-nullable-column-type-mismatch.md` 작업이 walker
+  > 사본 5개를 `collectTsFiles` 하나로 통합해 **공유 인프라가 생겼다**(`.spec.ts`/`.d.ts`
+  > 제외 · vendor skip · 정렬 4규칙). 규약 문서를 쓴다면 이제 그 공유 축도 대상이다.
+  >
+  > 이 갱신은 `--impl-done`(`05_05_14` plan_coherence W4)이 stale 수치를 지적해 이뤄졌다.

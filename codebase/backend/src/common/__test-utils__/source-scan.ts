@@ -1,5 +1,5 @@
 /**
- * 구조적 회귀 가드가 **소스를 세는** 방식의 단일 출처. 테스트 전용이다.
+ * 구조적 회귀 가드가 **소스를 세는·모으는** 방식의 단일 출처. 테스트 전용이다.
  *
  * jest 타입 비의존 — build tsc 가 `__test-utils__` 를 컴파일하므로 의도적으로 순수
  * 함수만 둔다 (`workspace-id-fixtures.ts`·`modules/integrations/__test-utils__` 와 같은 관례).
@@ -20,6 +20,9 @@
  *
  * 세 번째 가드가 생겨도 여기만 고치면 되도록 둘의 계산을 여기로 모은다.
  */
+
+import * as fs from 'node:fs';
+import * as path from 'node:path';
 
 /**
  * 블록 주석과 `//` 주석(줄 끝 포함)을 지운다.
@@ -42,9 +45,40 @@
  *
  * 가드의 존재 이유가 "조용히 통과" 를 막는 것이므로 그쪽을 닫는다. URL 과 호출이 같은
  * 줄에 놓이는 날이 오면 RED 로 드러나고, 그때 사람이 판단하면 된다.
+ *
+ * > **export 인 이유**: 주석 처리 규칙은 "세는" 가드만의 것이 아니다. 넓혀진 필드를 겨눈
+ * > 낡은 캐스트를 찾는 가드도 같은 규칙이 필요한데, 거기서 다시 구현하면 이 모듈이 막으려던
+ * > 비대칭이 그대로 재발한다 — 실제로 walker 가 그렇게 사본 5개가 됐다.
  */
-function stripComments(src: string): string {
+export function stripComments(src: string): string {
   return src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '');
+}
+
+/**
+ * 문자열·템플릿 리터럴 내용을 지운다(따옴표는 남긴다).
+ *
+ * ## 왜 필요한가 — 가드의 픽스처가 가드에 걸린다
+ *
+ * 구조적 가드의 spec 은 **검출 대상 코드를 문자열로 들고 있다**. 그 spec 자체를 전수 스캔의
+ * 대상에 넣으면 픽스처가 곧바로 offender 가 된다 — 실제로 `findStaleSpecCasts` 를 도입한
+ * 날 자기 spec 을 잡았다.
+ *
+ * 이걸 허용목록으로 덮으면 **오판을 목록으로 은폐**하는 것이다(형제 가드
+ * `masked-reject-callers-guard` 가 정확히 그 실수를 했다가 AST 로 옮기며 되돌렸다).
+ * 리터럴 안의 코드 모양은 **코드가 아니다** — 그건 술어의 참인 성질이므로 여기서 처리한다.
+ *
+ * ## 한계
+ *
+ * 정규식이라 템플릿 리터럴의 `${...}` 안에 백틱이 중첩되면 경계를 잘못 잡을 수 있다.
+ * 틀리는 방향은 **더 지우는 쪽**(= 덜 검출 → 조용히 통과)이므로 무해하지 않다. 그러나
+ * AST 로 옮기는 비용(spec 443개 파싱)을 지금 치를 근거가 없다 — 그 형태가 저장소에
+ * 실재하면 이 주석이 판단 기록으로 남는다.
+ */
+export function stripLiterals(src: string): string {
+  return src
+    .replace(/`(?:[^`\\]|\\[\s\S])*`/g, '``')
+    .replace(/'(?:[^'\\\n]|\\.)*'/g, "''")
+    .replace(/"(?:[^"\\\n]|\\.)*"/g, '""');
 }
 
 /**
@@ -170,4 +204,68 @@ export function hasNullAsUnknownAsCast(src: string): boolean {
 /** {@link countRawUpdateReturning} 의 "지점이 존재하는가" 만 필요할 때 쓰는 얇은 래퍼. */
 export function hasRawUpdateReturning(src: string): boolean {
   return countRawUpdateReturning(src) > 0;
+}
+
+/** {@link collectTsFiles} 옵션. */
+export interface CollectTsFilesOptions {
+  /**
+   * `*.spec.ts` 를 포함할지. **기본 `false`** — 대부분의 가드는 프로덕션 소스만 본다.
+   *
+   * `true` 가 필요한 실사례가 하나 있다: `masked-reject-callers-guard` 는 테스트 코드가
+   * 마커 거부를 안 하는 base 함수를 직접 부르는 것도 잡아야 해서 spec 을 스캔하고,
+   * 그래서 허용목록에 `*.spec.ts` 항목이 실제로 들어 있다.
+   */
+  includeSpec?: boolean;
+}
+
+/**
+ * 디렉터리를 재귀 스캔해 `.ts` 파일 절대경로를 **정렬해** 돌려준다.
+ *
+ * ## 왜 여기 있나
+ *
+ * 이 로직이 `repo-guards/__tests__/` 안에서 **사본 5개**가 됐다(`collectSourceFiles` ·
+ * `walkTsFiles` · `listSourceFiles` · `collectScanTargets` · `listProductionSources`).
+ * 위 §"왜 공유하나" 가 **세는** 축에 대해 말한 것이 **모으는** 축에도 그대로 적용된다 —
+ * 한쪽만 하드닝하면 나머지에 같은 결함이 남는다.
+ *
+ * ## 다섯 사본의 차이 중 살아있던 것은 하나뿐이다 (2026-09-04 실측)
+ *
+ * 사본들은 네 축에서 갈렸는데, 스캔 루트에 대해 실제로 결과를 바꾸는 것은 `.spec.ts`
+ * 포함 여부뿐이었다:
+ *
+ * | 축 | 살아있나 | 근거 |
+ * |---|---|---|
+ * | `.spec.ts` 제외 | **예** | 포함/제외가 `1261` vs `818` — 차이 **443** 이 `.spec.ts` 수와 일치 |
+ * | `.d.ts` 제외 | 아니오 | `src` 하위 `.d.ts` **0개** |
+ * | `node_modules`·`dist` skip | 아니오 | 스캔 루트가 `src` 하위라 애초에 없다 |
+ * | `sort()` | 순서만 | 5중 2개만 정렬했다 |
+ *
+ * `.d.ts` 제외와 vendor skip 은 **지금은 아무것도 안 거르지만 켜 둔다** — 어느 사본도
+ * 그것들을 *원한* 적이 없고(둘 다 "안 보고 싶다" 는 필터다), 나중에 `.d.ts` 가 생기면
+ * 끄고 있는 쪽이 조용히 틀린다. 정렬도 항상 한다: 가드 메시지가 결정적이어야 한다.
+ *
+ * 따라서 옵션은 **살아있는 축 하나**만 노출한다.
+ */
+export function collectTsFiles(
+  root: string,
+  { includeSpec = false }: CollectTsFilesOptions = {},
+): string[] {
+  const out: string[] = [];
+  const walk = (dir: string): void => {
+    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+      const full = path.join(dir, entry.name);
+      if (entry.isDirectory()) {
+        if (entry.name === 'node_modules' || entry.name === 'dist') continue;
+        walk(full);
+      } else if (
+        entry.name.endsWith('.ts') &&
+        !entry.name.endsWith('.d.ts') &&
+        (includeSpec || !entry.name.endsWith('.spec.ts'))
+      ) {
+        out.push(full);
+      }
+    }
+  };
+  walk(root);
+  return out.sort();
 }

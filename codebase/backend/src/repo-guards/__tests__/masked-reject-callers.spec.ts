@@ -5,7 +5,42 @@ import {
   ALLOWED_DIRECT_CALLERS,
   findUnexpectedCallers,
   importsBaseFn,
+  listSourceFiles,
 } from './masked-reject-callers-guard';
+
+/**
+ * ## 이 가드는 `.spec.ts` 도 봐야 한다 — 그 배선을 직접 단언한다
+ *
+ * `listSourceFiles` 는 `collectTsFiles(root, { includeSpec: true })` 로 위임한다. 테스트
+ * 코드가 마커 거부를 하지 않는 base 를 직접 부르는 것도 잡아야 하기 때문이고, 그래서
+ * `ALLOWED_DIRECT_CALLERS` 에 `*.spec.ts` 항목이 **실제로 두 개** 들어 있다.
+ *
+ * > **그 옵션이 빠져도 아무 테스트가 안 죽었다** — 리뷰어가 `includeSpec: true` 를 지우는
+ * > 뮤테이션으로 실증했다(15/15 GREEN 유지). 허용목록 캐너리가 `fs.readFileSync` 를 직접
+ * > 불러 `listSourceFiles` 를 우회하기 때문이다. 이 가드가 막으려는 실패 모드("가드가
+ * > 조용히 약해져도 아무도 모른다")가 **옵션 배선 층위에서** 재발할 수 있던 자리다.
+ *
+ * 픽스처는 tmpdir 에 만든다 — 실제 소스를 대상으로 삼으면 저장소가 바뀔 때 흔들린다.
+ */
+describe('스캔 대상에 `.spec.ts` 가 포함된다', () => {
+  it('`listSourceFiles` 가 `.spec.ts` 를 담는다', () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'masked-scope-'));
+    try {
+      fs.writeFileSync(path.join(dir, 'a.ts'), '');
+      fs.writeFileSync(path.join(dir, 'a.spec.ts'), '');
+      const names = listSourceFiles(dir).map((f) => path.basename(f));
+      expect(names).toEqual(['a.spec.ts', 'a.ts']);
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('[전제] 허용목록이 `.spec.ts` 를 실제로 담고 있다 — 안 담으면 위 배선이 무의미하다', () => {
+    expect(
+      ALLOWED_DIRECT_CALLERS.filter((f) => f.endsWith('.spec.ts')).length,
+    ).toBeGreaterThan(0);
+  });
+});
 
 /**
  * **Manual 실행 경로가 마커 거부를 건너뛰지 못하게 한다** (EIA §R17, `01_38_26` architecture W1).

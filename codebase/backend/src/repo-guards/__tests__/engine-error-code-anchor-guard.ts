@@ -7,6 +7,7 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as ts from 'typescript';
+import { collectTsFiles } from '../../common/__test-utils__/source-scan';
 
 /** 검사 대상 디렉터리 (저장소 루트 기준). */
 export const ENGINE_DIR = 'codebase/backend/src/modules/execution-engine';
@@ -103,17 +104,6 @@ export function readDeclaredCodes(repoRoot: string): Set<string> {
   return out;
 }
 
-function walkTsFiles(dir: string): string[] {
-  const out: string[] = [];
-  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
-    const p = path.join(dir, entry.name);
-    if (entry.isDirectory()) out.push(...walkTsFiles(p));
-    else if (entry.name.endsWith('.ts') && !entry.name.endsWith('.spec.ts'))
-      out.push(p);
-  }
-  return out;
-}
-
 /**
  * 엔진 모듈에서 `code`/`errorCode` 에 바인딩된 UPPER_SNAKE 문자열 리터럴을 **전수** 수집.
  *
@@ -164,7 +154,7 @@ export function collectBoundCodes(
   const root = path.join(repoRoot, relDir);
   const hits: BareCodeHit[] = [];
 
-  for (const abs of walkTsFiles(root)) {
+  for (const abs of collectTsFiles(root)) {
     const sf = ts.createSourceFile(
       abs,
       fs.readFileSync(abs, 'utf8'),

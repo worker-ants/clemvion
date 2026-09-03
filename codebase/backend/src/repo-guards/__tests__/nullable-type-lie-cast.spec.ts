@@ -27,14 +27,55 @@ import * as os from 'node:os';
 import * as path from 'node:path';
 
 import {
+  collectTsFiles,
   countNullAsUnknownAsCasts,
   hasNullAsUnknownAsCast,
 } from '../../common/__test-utils__/source-scan';
 import {
   collectScanTargets,
   findCastOffenders,
+  findStaleSpecCasts,
   findUntypedNullableColumns,
+  SRC_ROOT,
+  widenedEntityFields,
 } from './nullable-type-lie-cast-guard';
+
+/**
+ * tmpdir 픽스처. **실제 소스를 변형하지 않는다.**
+ *
+ * 처음엔 실제 `users.service.ts`·`user.entity.ts` 를 `writeFileSync` 로 변형했다가
+ * 복원했다. 두 가지가 잘못됐다: (a) 복원이 실패하면 **서비스 파일이 변조된 채 남고**,
+ * (b) `eslint --fix` 가 데코레이터를 여러 줄로 바꾸자 `.replace()` 가 **조용히 no-op** 이
+ * 돼 전체 스위트에서만 실패했다 — **무효 뮤턴트**다.
+ *
+ * > 종전에는 단일 파일용 `withFixture` 와 다중 파일용 `withFiles` 가 **따로** 있었다.
+ * > 골격(`mkdtempSync`→write→`try/finally` rmSync)이 같은데, **사본 5개를 없애는 diff
+ * > 안에서 새 사본을 만든 것**이었다(리뷰 W3). 하나로 합치고 단일 파일은 얇은 래퍼로 둔다.
+ */
+function withFiles<T>(
+  files: Record<string, string>,
+  fn: (paths: Record<string, string>) => T,
+): T {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'nullable-guard-'));
+  const paths: Record<string, string> = {};
+  for (const [name, content] of Object.entries(files)) {
+    const full = path.join(dir, name);
+    fs.writeFileSync(full, content);
+    paths[name] = full;
+  }
+  try {
+    return fn(paths);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+}
+
+/** 파일 하나짜리 픽스처 — {@link withFiles} 의 얇은 래퍼. */
+function withFixture<T>(content: string, fn: (file: string) => T): T {
+  return withFiles({ 'probe.entity.ts': content }, (paths) =>
+    fn(paths['probe.entity.ts']),
+  );
+}
 
 describe('nullable 타입 거짓말이 강제하는 이중 캐스트', () => {
   const files = collectScanTargets();
@@ -102,16 +143,7 @@ describe('nullable 타입 거짓말이 강제하는 이중 캐스트', () => {
      * (리뷰 W1), (b) `eslint --fix` 가 데코레이터를 여러 줄로 바꾸자 `.replace()` 가
      * **조용히 no-op** 이 돼 전체 스위트에서만 실패했다 — **무효 뮤턴트**다.
      */
-    function withFixture<T>(content: string, fn: (file: string) => T): T {
-      const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'nullable-guard-'));
-      const file = path.join(dir, 'probe.entity.ts');
-      fs.writeFileSync(file, content);
-      try {
-        return fn(file);
-      } finally {
-        fs.rmSync(dir, { recursive: true, force: true });
-      }
-    }
+    // 구현은 모듈 스코프의 `withFiles` — 단일 파일 호출은 그 얇은 래퍼다.
 
     it('캐스트가 있는 파일을 offender 로 잡고, 없으면 통과한다', () => {
       withFixture('const a = null as unknown as Date;\n', (file) => {
@@ -139,6 +171,32 @@ describe('nullable 타입 거짓말이 강제하는 이중 캐스트', () => {
       );
     });
 
+    /**
+     * 자매 `widenedEntityFields` 의 `it.each` 와 **대칭**이다. 3R 에서 그쪽만
+     * `isNullableType` 으로 하드닝하고 이쪽은 옛 `includes('| null')` 을 그대로 뒀는데
+     * (리뷰 8R), **이쪽이 막는 것이 더 비싸다** — 놓치면 앱이 부팅을 못 한다
+     * (`DataTypeNotSupportedError`, 배치 1 실제 사고).
+     *
+     * 두 함수가 다시 갈라지지 않게 하는 것은 판정 함수 공유가 아니라 **양쪽의 캐너리**다.
+     */
+    it.each([
+      ['공백 없음', 'string|null'],
+      ['순서 반대', 'null | string'],
+      ['표준 표기', 'string | null'],
+    ])(
+      '`| null` 표기 변형에서도 `type:` 누락을 잡는다 — %s',
+      (_label, tsType) => {
+        withFixture(
+          `@Column({ name: 'password_hash', nullable: true, length: 255 })\n  passwordHash: ${tsType};\n`,
+          (file) => {
+            expect(
+              findUntypedNullableColumns([file]).map((f) => f.field),
+            ).toEqual(['passwordHash']);
+          },
+        );
+      },
+    );
+
     it('여러 줄 데코레이터도 잡는다 — prettier 가 실제로 이 형태로 바꾼다', () => {
       withFixture(
         "@Column({\n    name: 'password_hash',\n    nullable: true,\n    length: 255,\n  })\n  passwordHash: string | null;\n",
@@ -164,6 +222,224 @@ describe('nullable 타입 거짓말이 강제하는 이중 캐스트', () => {
             findUntypedNullableColumns([file]).map((f) => f.field),
           ).toEqual(['parentId']);
         },
+      );
+    });
+  });
+});
+
+/**
+ * ## 넓혀진 필드를 겨눈 `.spec.ts` 의 낡은 캐스트
+ *
+ * 위 `findCastOffenders` 는 `.spec.ts` 를 **의도적으로 제외**한다 — fixture 가 부분 객체를
+ * 캐스트하는 것은 정당하다. 그런데 필드가 `| null` 로 넓혀지면 **그 필드에 대한 캐스트만은**
+ * 불필요해지는데, spec 을 안 보므로 구조적으로 못 잡는다.
+ *
+ * 배치 1~3 에서 이 잔재를 **손으로** 찾았고, 세 번째에는 훑는 대상을 *그 배치가 넓힌 필드*
+ * 로만 잡아 앞 배치가 남긴 것을 놓쳤다(`auth.service.spec.ts` 의 `lockedUntil`). 사람이
+ * 매번 대상 집합을 다시 정할 일이 아니다.
+ */
+describe('넓혀진 필드를 겨눈 낡은 spec 캐스트', () => {
+  const ENTITY = `
+@Entity('probe')
+export class Probe {
+  @Column({ type: 'timestamptz', nullable: true })
+  widenedAt: Date | null;
+
+  @Column({ type: 'varchar' })
+  notWidened: string;
+
+  @ManyToOne(() => Probe, { nullable: true })
+  @JoinColumn({ name: 'parent_id' })
+  parent: Probe | null;
+}
+`;
+
+  it('넓혀진 필드명을 전수로 뽑는다 — 관계(@ManyToOne + @JoinColumn)도 포함', () => {
+    withFiles({ 'probe.entity.ts': ENTITY }, (p) => {
+      const w = widenedEntityFields([p['probe.entity.ts']]);
+      expect([...w].sort()).toEqual(['parent', 'widenedAt']);
+    });
+  });
+
+  /**
+   * `includes('| null')` 로 판정하면 아래 두 표기를 **놓친다**(위음성). 조용한 누락을
+   * 막겠다는 이 가드의 존재 이유와 정면으로 어긋나므로 표기 형태에 기대지 않는다.
+   * 저장소는 전부 `T | null` 이라(2026-09-04 실측) 이 테스트가 유일한 방어다
+   * (리뷰 3R INFO#4).
+   */
+  it.each([
+    ['공백 없음', 'Date|null'],
+    ['순서 반대', 'null | Date'],
+    ['표준 표기', 'Date | null'],
+  ])('`| null` 표기 변형을 모두 nullable 로 본다 — %s', (_label, tsType) => {
+    withFiles(
+      {
+        'probe.entity.ts': `
+@Entity('probe')
+export class Probe {
+  @Column({ type: 'timestamptz', nullable: true })
+  oddlyTyped: ${tsType};
+}
+`,
+      },
+      (p) => {
+        expect(
+          widenedEntityFields([p['probe.entity.ts']]).has('oddlyTyped'),
+        ).toBe(true);
+      },
+    );
+  });
+
+  it('넓혀진 필드를 겨눈 캐스트를 잡는다', () => {
+    withFiles(
+      {
+        'probe.entity.ts': ENTITY,
+        'probe.spec.ts': `const f = { widenedAt: null as unknown as Date };\n`,
+      },
+      (p) => {
+        const w = widenedEntityFields([p['probe.entity.ts']]);
+        const found = findStaleSpecCasts([p['probe.spec.ts']], w);
+        expect(found).toHaveLength(1);
+        expect(found[0].field).toBe('widenedAt');
+      },
+    );
+  });
+
+  it('[대조군] 넓혀지지 않은 필드의 캐스트는 잡지 않는다 — 그건 정당한 fixture 다', () => {
+    withFiles(
+      {
+        'probe.entity.ts': ENTITY,
+        'probe.spec.ts': `const f = { notWidened: null as unknown as string };\n`,
+      },
+      (p) => {
+        const w = widenedEntityFields([p['probe.entity.ts']]);
+        expect(findStaleSpecCasts([p['probe.spec.ts']], w)).toHaveLength(0);
+      },
+    );
+  });
+
+  it('관계 필드를 겨눈 캐스트도 잡는다', () => {
+    withFiles(
+      {
+        'probe.entity.ts': ENTITY,
+        'probe.spec.ts': `const f = { parent: null as unknown as Probe };\n`,
+      },
+      (p) => {
+        const w = widenedEntityFields([p['probe.entity.ts']]);
+        expect(findStaleSpecCasts([p['probe.spec.ts']], w)).toHaveLength(1);
+      },
+    );
+  });
+
+  /**
+   * ## 이름 충돌 — 이 가드가 실제로 밟았던 오탐
+   *
+   * 판정 단위가 **필드 이름**이라, 한 엔티티는 nullable 이고 다른 엔티티는 non-null 인
+   * 동명 필드가 있으면 non-null 쪽의 **정당한** 캐스트를 잡는다. 저장소에 그런 충돌이
+   * 실재한다(`userId`·`workflowId`·`triggerId` 등). 개수는 적지 않는다 — 낡는다.
+   *
+   * 초판은 이 반례를 못 본 채 docstring 에 "왜 오탐이 없나" 를 적었다 — 자매 축(DTO 필드명
+   * 매칭)에서 같은 실패 모드를 바로 앞 PR 에 반증해 놓고 그대로 재도입한 것이다(리뷰 2R W1).
+   */
+  it('[대조군] 다른 엔티티에서 non-null 인 동명 필드는 판정에서 뺀다', () => {
+    withFiles(
+      {
+        'a.entity.ts': `
+@Entity('a')
+export class A {
+  @Column({ type: 'uuid', nullable: true })
+  userId: string | null;
+}
+`,
+        'b.entity.ts': `
+@Entity('b')
+export class B {
+  @Column({ type: 'uuid' })
+  userId: string;
+}
+`,
+        // B.userId 는 non-null 이므로 이 캐스트는 **정당하다**.
+        'b.spec.ts': `const f: Partial<B> = { userId: null as unknown as string };\n`,
+      },
+      (p) => {
+        const w = widenedEntityFields([p['a.entity.ts'], p['b.entity.ts']]);
+        expect(w.has('userId')).toBe(false);
+        expect(findStaleSpecCasts([p['b.spec.ts']], w)).toHaveLength(0);
+      },
+    );
+  });
+
+  it('충돌이 없으면 그대로 잡는다 — 건전성을 얻느라 전부 잃지는 않았다', () => {
+    withFiles(
+      {
+        'a.entity.ts': `
+@Entity('a')
+export class A {
+  @Column({ type: 'timestamptz', nullable: true })
+  onlyHereAt: Date | null;
+}
+`,
+        'a.spec.ts': `const f = { onlyHereAt: null as unknown as Date };\n`,
+      },
+      (p) => {
+        const w = widenedEntityFields([p['a.entity.ts']]);
+        expect(w.has('onlyHereAt')).toBe(true);
+        expect(findStaleSpecCasts([p['a.spec.ts']], w)).toHaveLength(1);
+      },
+    );
+  });
+
+  it('주석 속 캐스트 인용은 잡지 않는다 — 고칠 것이 없는 파일이 영구 RED 가 된다', () => {
+    withFiles(
+      {
+        'probe.entity.ts': ENTITY,
+        'probe.spec.ts':
+          `// 종전엔 widenedAt: null as unknown as Date 였다\n` +
+          `/* widenedAt: null as unknown as Date */\n` +
+          `const f = { widenedAt: null };\n`,
+      },
+      (p) => {
+        const w = widenedEntityFields([p['probe.entity.ts']]);
+        expect(findStaleSpecCasts([p['probe.spec.ts']], w)).toHaveLength(0);
+      },
+    );
+  });
+
+  it('`undefined as unknown as` 도 같은 잔재다', () => {
+    withFiles(
+      {
+        'probe.entity.ts': ENTITY,
+        'probe.spec.ts': `const f = { widenedAt: undefined as unknown as Date };\n`,
+      },
+      (p) => {
+        const w = widenedEntityFields([p['probe.entity.ts']]);
+        expect(findStaleSpecCasts([p['probe.spec.ts']], w)).toHaveLength(1);
+      },
+    );
+  });
+
+  describe('저장소 전수', () => {
+    // `includeSpec: true` 결과는 안 준 것의 **상위집합**이라 한 번만 훑고 파생한다.
+    // 두 번 부르면 저장소 트리를 통째로 두 번 걷는다(리뷰 9R W1).
+    // 파생 전후 집합이 동일함을 실측했다 — entities 41 · specs 443, 양쪽 같음.
+    const all = collectTsFiles(SRC_ROOT, { includeSpec: true });
+    const entities = all.filter((f) => f.endsWith('.entity.ts'));
+    const specs = all.filter((f) => f.endsWith('.spec.ts'));
+    const widened = widenedEntityFields(entities);
+
+    it('[전제] 엔티티·spec 대상이 비어 있지 않다 — 비면 아래가 공허하다', () => {
+      expect(entities.length).toBeGreaterThan(30);
+      expect(specs.length).toBeGreaterThan(300);
+    });
+
+    it('[전제] 넓혀진 필드가 실제로 있다', () => {
+      expect(widened.size).toBeGreaterThan(100);
+    });
+
+    it('낡은 캐스트가 남아 있지 않다', () => {
+      const offenders = findStaleSpecCasts(specs, widened);
+      expect(offenders.map((o) => `${o.file} :: ${o.field}`).sort()).toEqual(
+        [],
       );
     });
   });

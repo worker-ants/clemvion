@@ -7,6 +7,7 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as ts from 'typescript';
+import { collectTsFiles } from '../../common/__test-utils__/source-scan';
 
 /** base 함수 — 마커 거부를 **하지 않는다**. */
 export const BASE_FN = 'resolveTriggerParameters';
@@ -45,20 +46,9 @@ export const ALLOWED_DIRECT_CALLERS: readonly string[] = [
 
 /** `src/` 하위 `.ts` 전수 (node_modules·dist 제외). */
 export function listSourceFiles(rootDir: string): string[] {
-  const out: string[] = [];
-  const walk = (dir: string): void => {
-    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
-      const full = path.join(dir, entry.name);
-      if (entry.isDirectory()) {
-        if (entry.name === 'node_modules' || entry.name === 'dist') continue;
-        walk(full);
-      } else if (entry.name.endsWith('.ts')) {
-        out.push(full);
-      }
-    }
-  };
-  walk(rootDir);
-  return out;
+  // `includeSpec` — 테스트 코드가 base 함수를 직접 부르는 것도 잡아야 한다.
+  // 그래서 위 허용목록에 `*.spec.ts` 항목이 실제로 들어 있다.
+  return collectTsFiles(rootDir, { includeSpec: true });
 }
 
 /**

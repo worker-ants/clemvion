@@ -7,6 +7,7 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as ts from 'typescript';
+import { collectTsFiles } from '../../common/__test-utils__/source-scan';
 
 /** 유니온 타입이 선언된 파일 (저장소 루트 기준). */
 export const UNION_SOURCE =
@@ -90,24 +91,7 @@ export function readCatalogComponents(repoRoot: string): string[] {
 
 /** `src/` 하위 `.ts` 전수 (spec·dist 제외). */
 export function listProductionSources(srcDir: string): string[] {
-  const out: string[] = [];
-  const walk = (dir: string): void => {
-    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
-      const full = path.join(dir, entry.name);
-      if (entry.isDirectory()) {
-        if (entry.name === 'node_modules' || entry.name === 'dist') continue;
-        walk(full);
-      } else if (
-        entry.name.endsWith('.ts') &&
-        !entry.name.endsWith('.spec.ts') &&
-        !entry.name.endsWith('.d.ts')
-      ) {
-        out.push(full);
-      }
-    }
-  };
-  walk(srcDir);
-  return out;
+  return collectTsFiles(srcDir);
 }
 
 /**

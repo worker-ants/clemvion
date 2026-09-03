@@ -10,7 +10,12 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 
-import { countNullAsUnknownAsCasts } from '../../common/__test-utils__/source-scan';
+import {
+  collectTsFiles,
+  countNullAsUnknownAsCasts,
+  stripComments,
+  stripLiterals,
+} from '../../common/__test-utils__/source-scan';
 
 /** `src` 루트. 이 파일은 `src/repo-guards/__tests__/` 에 있다. */
 export const SRC_ROOT = path.resolve(__dirname, '..', '..');
@@ -31,17 +36,7 @@ export interface CastOffender {
  * > 숫자는 적지 않는다. 지금 세고 싶으면 `grep -rn 'null as unknown as' --include='*.spec.ts'`.
  */
 export function collectScanTargets(root: string = SRC_ROOT): string[] {
-  const out: string[] = [];
-  const walk = (dir: string): void => {
-    for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
-      const p = path.join(dir, e.name);
-      if (e.isDirectory()) walk(p);
-      else if (e.name.endsWith('.ts') && !e.name.endsWith('.spec.ts'))
-        out.push(p);
-    }
-  };
-  walk(root);
-  return out.sort();
+  return collectTsFiles(root);
 }
 
 /** 캐스트가 남아 있는 파일과 개수. 위반이 없으면 빈 배열. */
@@ -115,10 +110,139 @@ export function findUntypedNullableColumns(
     const joined = joinColumnNames(src);
     for (const m of src.matchAll(COLUMN_DECL)) {
       const [, deco, field, tsType] = m;
-      if (!tsType.includes('| null')) continue;
+      if (!isNullableType(tsType)) continue;
       if (/\btype:\s*'/.test(deco)) continue;
       const colName = COLUMN_NAME.exec(deco)?.[1];
       if (colName && joined.has(colName)) continue;
+      out.push({ file: path.relative(SRC_ROOT, file), field });
+    }
+  }
+  return out;
+}
+
+export interface StaleSpecCast {
+  readonly file: string;
+  readonly field: string;
+}
+
+/**
+ * 엔티티 선언에서 `| null` 로 **넓혀진** 필드명 — **단, 어느 엔티티에서도 non-null 이
+ * 아닌 것만.**
+ *
+ * `@Column` 뿐 아니라 `@ManyToOne`·`@OneToOne` 도 본다 — 관계도 `| null` 로 넓혀졌고,
+ * 그 필드를 겨눈 fixture 캐스트 역시 불필요해진다.
+ *
+ * ## 이름 충돌을 빼는 이유 — 안 빼면 정당한 캐스트를 오탐한다
+ *
+ * 판정 단위가 **필드 이름**이지 `(엔티티, 필드)` 쌍이 아니다. 그래서 한 엔티티는 nullable
+ * 이고 다른 엔티티는 non-null 인 동명 필드가 있으면, **non-null 쪽 fixture 의 정당한
+ * 캐스트**를 "불필요" 로 잡는다 — 처방대로 지우면 `tsc` 가 깨진다.
+ *
+ * 그런 충돌이 실재한다 — `userId` 는 `login_history` 에서 nullable 인데 `audit_log` 에서
+ * non-null 이고, `workflowId` 는 `llm_usage_log`/`alert_rule` 에서 nullable 인데
+ * `edge`/`execution` 에서 non-null 이다 (`trigger`·`triggerId`·`resourceType` 등도 같다).
+ *
+ * > **개수는 적지 않는다.** 위 `collectScanTargets` docstring 이 같은 이유로 이미 정한
+ * > 규칙이다 — 종전 거기에 "실측 12건" 을 박았다가 같은 PR 안에서 낡았다. 지금 세고 싶으면
+ * > 엔티티 AST 를 훑어 `| null` 인 이름 집합과 아닌 이름 집합의 교집합을 보면 된다
+ * > (이 함수가 하는 일이 정확히 그것이고, `widened.size` 가 그 결과다).
+ *
+ * 그래서 **한 곳이라도 non-null 이면 그 이름은 판정에서 뺀다.** 재현율을 잃는 대신
+ * **오탐을 0으로 유지**한다 — 가드의 처방이 "이 캐스트를 지워라" 이므로, 틀리면 사람이
+ * 코드를 깨뜨리는 방향이다. 지금까지 실제로 제거한 캐스트 4건(`lastRunAt`·
+ * `lastTriggeredAt`·`parentId`·`lockedUntil`)은 모두 충돌 밖이라 그대로 잡힌다.
+ *
+ * > **이건 내가 바로 앞 PR 에서 반증한 실패 모드다.** 자매 축("응답 DTO 가 nullable 필드를
+ * > non-null 로 문서화")에서 필드 이름 매칭이 48건 중 44건을 오탐으로 만든 것을 확인해 놓고,
+ * > 같은 판정을 여기에 그대로 썼다. 초판 docstring 은 "왜 오탐이 없나" 라는 절을 두고
+ * > "예외 없이 제거 가능" 이라 단언했는데 **반례가 재현됐다**(리뷰 2R W1).
+ *
+ * > **한계 — 추가 데코레이터는 1개까지만 본다** (리뷰 INFO#1, reviewer 3명 공통 지적).
+ * > 관계 뒤의 `@JoinColumn` 처럼 데코레이터가 하나 더 붙는 형태까지가 이 패턴의 범위다
+ * > (`?` 이지 `*` 가 아니다). 두 개 이상 스택되면 그 필드를 **조용히 누락**한다 —
+ * > **위음성** 방향이라 가드가 약해지는 쪽이다. 저장소 전수에 그런 조합은 **없다**
+ * > (2026-09-04 실측).
+ * > 넓히는 것은 검증 없이 표면만 키우는 일이라, 그 형태가 실재하는 날 이 주석을 근거로
+ * > `(?:...)*` 로 옮긴다.
+ */
+const WIDENED_DECL =
+  /@(?:Column|ManyToOne|OneToOne)\((?:[^()]|\([^()]*\))*\)\s*\n(?:\s*@\w+\((?:[^()]|\([^()]*\))*\)\s*\n)?\s*(\w+)\s*:\s*([^;]+);/g;
+
+/**
+ * TS 타입 표기가 `null` 유니온인가.
+ *
+ * `includes('| null')` 로 하면 **표기 순서·공백에 걸린다** — `Date|null`(공백 없음)이나
+ * `null | Date`(순서 반대)를 놓친다. 놓치는 방향은 **위음성**이라, 조용한 누락을 막겠다는
+ * 이 가드의 존재 이유와 정면으로 어긋난다. 저장소는 전부 `T | null` 이라 미발현이지만
+ * (2026-09-04 실측), 표기 하나만 달라지면 그 필드가 판정에서 사라진다 — 형태에 기대지
+ * 않는다.
+ *
+ * > **소비처는 둘이다** — {@link widenedEntityFields} 와 {@link findUntypedNullableColumns}.
+ * > 처음엔 앞의 것만 하드닝하고 뒤의 것은 옛 `includes('| null')` 을 그대로 뒀다(리뷰 8R).
+ * > 뒤엣것이 막는 건 **앱이 부팅을 못 하는 사고**(`DataTypeNotSupportedError`)라 더 비쌌다.
+ * > 이 파일이 내내 다룬 "자매 중 하나만 고친다" 가 판정 함수 자신에게 났다.
+ */
+function isNullableType(tsType: string): boolean {
+  return tsType
+    .split('|')
+    .map((part) => part.trim())
+    .includes('null');
+}
+
+export function widenedEntityFields(entityFiles: string[]): Set<string> {
+  const widened = new Set<string>();
+  const nonNull = new Set<string>();
+  for (const file of entityFiles) {
+    const src = fs.readFileSync(file, 'utf8');
+    for (const m of src.matchAll(WIDENED_DECL)) {
+      const [, field, tsType] = m;
+      (isNullableType(tsType) ? widened : nonNull).add(field);
+    }
+  }
+  // 동명 충돌 제거 — 아래 docstring §"이름 충돌" 참조.
+  for (const f of nonNull) widened.delete(f);
+  return widened;
+}
+
+/** `foo: null as unknown as Bar` 의 `foo`. `undefined` 형태도 같은 잔재다. */
+const SPEC_CAST = /(\w+)\s*:\s*(?:null|undefined)\s+as\s+unknown\s+as\b/g;
+
+/**
+ * **넓혀진 필드를 겨눈 `.spec.ts` 의 낡은 캐스트.**
+ *
+ * ## 왜 별도 술어인가 — {@link findCastOffenders} 는 이 자리를 구조적으로 못 본다
+ *
+ * 그 가드는 `.spec.ts` 를 **의도적으로 제외**한다. fixture 가 부분 객체를 엔티티로
+ * 캐스트하는 것은 정당하기 때문이다. 그런데 필드가 `| null` 로 넓혀지면 **그 필드에 대한
+ * 캐스트만은 불필요해지는데**, spec 을 아예 안 보므로 영원히 안 잡힌다.
+ *
+ * 배치 1~3 에서 이 잔재를 세 번 **손으로** 찾았다(`lastRunAt`·`lastTriggeredAt`·`parentId`·
+ * `lockedUntil`). 세 번째에는 훑는 대상 집합을 *그 배치가 넓힌 필드*로만 잡아서 앞 배치가
+ * 남긴 것을 놓쳤다 — 사람이 매번 다시 정할 일이 아니라 술어로 고정할 일이다.
+ *
+ * ## 오탐 없음은 {@link widenedEntityFields} 가 이름 충돌을 뺀 덕이다
+ *
+ * 그 함수가 **어느 엔티티에서도 non-null 이 아닌 이름만** 넘겨주므로, 여기 걸린 자리는
+ * 캐스트를 지워도 `tsc` 가 통과한다. 충돌을 안 뺐을 때 **오탐이 재현된다** — 그 근거는
+ * 그쪽 docstring 에 있다.
+ *
+ * 대신 **재현율을 잃는다**: 충돌 이름(`userId`·`workflowId` 등)에 낡은 캐스트가 생기면
+ * 이 가드는 못 잡는다. 처방이 "지워라" 라서 틀리면 사람이 코드를 깨뜨리는 방향이므로,
+ * 재현율보다 건전성을 택했다.
+ *
+ * 주석은 {@link stripComments} 로 지운다. 이 저장소에는 정리 이력을 설명하며 옛 캐스트를
+ * **인용한** 주석이 실재한다 — 그걸 세면 고칠 것이 없는 파일이 영구히 RED 가 된다.
+ */
+export function findStaleSpecCasts(
+  specFiles: string[],
+  widened: ReadonlySet<string>,
+): StaleSpecCast[] {
+  const out: StaleSpecCast[] = [];
+  for (const file of specFiles) {
+    const src = stripLiterals(stripComments(fs.readFileSync(file, 'utf8')));
+    for (const m of src.matchAll(SPEC_CAST)) {
+      const field = m[1];
+      if (!widened.has(field)) continue;
       out.push({ file: path.relative(SRC_ROOT, file), field });
     }
   }

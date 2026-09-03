@@ -1,7 +1,13 @@
+import * as fs from 'node:fs';
+import * as os from 'node:os';
+import * as path from 'node:path';
+
 import {
+  collectTsFiles,
   countCalls,
   countRawUpdateReturning,
   hasRawUpdateReturning,
+  stripLiterals,
 } from './source-scan';
 
 /**
@@ -170,5 +176,160 @@ describe('countRawUpdateReturning / hasRawUpdateReturning', () => {
     ].join('\n');
     expect(countRawUpdateReturning(src)).toBe(2);
     expect(hasRawUpdateReturning(src)).toBe(true);
+  });
+});
+
+/**
+ * `collectTsFiles` 는 `repo-guards/__tests__/` 의 walker **사본 5개**를 대체한다. 여기가
+ * 틀리면 다섯 가드가 **동시에** 다른 파일을 본다 — 그래서 각 필터를 직접 단언한다.
+ *
+ * 픽스처는 `os.tmpdir()` 에 만든다. 실제 소스 트리를 대상으로 삼으면 저장소가 바뀔 때마다
+ * 기대값이 흔들리고, 무엇보다 **가드 테스트가 실파일을 건드리는 사고**가 이 저장소에서
+ * 이미 한 번 있었다.
+ */
+describe('collectTsFiles', () => {
+  let root: string;
+
+  beforeEach(() => {
+    root = fs.mkdtempSync(path.join(os.tmpdir(), 'collect-ts-'));
+    const mk = (rel: string): void => {
+      const full = path.join(root, rel);
+      fs.mkdirSync(path.dirname(full), { recursive: true });
+      fs.writeFileSync(full, '// fixture\n');
+    };
+    mk('a.ts');
+    mk('nested/b.ts');
+    mk('nested/deep/c.ts');
+    mk('a.spec.ts');
+    mk('nested/b.spec.ts');
+    mk('types.d.ts');
+    mk('README.md');
+    // `-`(0x2D) 는 `/`(0x2F) 보다 앞선다 → 정렬은 이 파일을 `nested/*` **앞**에 두는데,
+    // DFS 는 `nested`(디렉터리)를 먼저 들어가므로 **뒤**에 온다. 이 한 줄이 정렬 분기를
+    // 관측 가능하게 만든다.
+    mk('nested-sibling.ts');
+    mk('node_modules/pkg/index.ts');
+    mk('dist/bundle.ts');
+  });
+
+  afterEach(() => {
+    fs.rmSync(root, { recursive: true, force: true });
+  });
+
+  const rel = (files: string[]): string[] =>
+    files.map((f) => path.relative(root, f).split(path.sep).join('/'));
+
+  it('기본값은 `.spec.ts` 를 제외한다 — 대부분의 가드가 프로덕션 소스만 본다', () => {
+    expect(rel(collectTsFiles(root))).toEqual([
+      'a.ts',
+      'nested-sibling.ts',
+      'nested/b.ts',
+      'nested/deep/c.ts',
+    ]);
+  });
+
+  /**
+   * ## 정렬은 `nested-sibling.ts` 한 줄이 관측 가능하게 만든다
+   *
+   * 위·아래 `toEqual` 의 기대 배열은 **정렬된 순서**다. 구현이 `sort()` 를 잃으면 결과는
+   * DFS 순회 순서가 되고, 픽스처의 `nested-sibling.ts` 덕분에 그 둘이 갈린다:
+   *
+   * | | 순서 |
+   * |---|---|
+   * | DFS | `… nested/b.ts, nested/deep/c.ts, nested-sibling.ts` |
+   * | 정렬 | `… nested-sibling.ts, nested/b.ts, nested/deep/c.ts` |
+   *
+   * `-`(0x2D) 가 `/`(0x2F) 보다 앞서기 때문이다.
+   *
+   * > **초판은 여기에 "이 환경에서는 원리적으로 못 잡는다" 고 적었다 — 틀렸다** (리뷰 W1).
+   * > 근거로 "정렬은 서브트리를 연속으로 유지하고 DFS 도 그러므로 둘이 같다" 를 댔는데,
+   * > 연속성은 유지되지만 **형제 파일과 그 서브트리의 상대 위치가 뒤집힌다.** 실측으로
+   * > 반증됐다 — 그 문장을 믿었으면 닫을 수 있는 커버리지를 영구히 열어 뒀을 것이다.
+   * >
+   * > (`fs.readdirSync` 를 spy 로 뒤집는 방법도 시도했으나 `node:fs` property 가
+   * > non-configurable 이라 실패했다. 픽스처 쪽이 어차피 더 단순하다.)
+   */
+  it('`includeSpec` 은 `.spec.ts` 를 되살린다 — masked-reject 가드가 쓰는 유일한 축', () => {
+    expect(rel(collectTsFiles(root, { includeSpec: true }))).toEqual([
+      'a.spec.ts',
+      'a.ts',
+      'nested-sibling.ts',
+      'nested/b.spec.ts',
+      'nested/b.ts',
+      'nested/deep/c.ts',
+    ]);
+  });
+
+  it('`.d.ts` 는 옵션과 무관하게 항상 제외한다', () => {
+    for (const opts of [{}, { includeSpec: true }]) {
+      expect(rel(collectTsFiles(root, opts))).not.toContain('types.d.ts');
+    }
+  });
+
+  it('`node_modules`·`dist` 는 옵션과 무관하게 항상 건너뛴다', () => {
+    for (const opts of [{}, { includeSpec: true }]) {
+      const files = rel(collectTsFiles(root, opts));
+      expect(files).not.toContain('node_modules/pkg/index.ts');
+      expect(files).not.toContain('dist/bundle.ts');
+    }
+  });
+
+  it('`.ts` 가 아닌 파일은 담지 않는다', () => {
+    expect(rel(collectTsFiles(root)).some((f) => f.endsWith('.md'))).toBe(
+      false,
+    );
+  });
+});
+
+/**
+ * `stripLiterals` 는 "다음 가드도 쓴다" 를 존재 이유로 export 됐다. 자매 `stripComments`
+ * 가 전용 테스트를 갖는데 이쪽만 간접 커버리지뿐이면 **같은 비대칭이 다시 생긴다** —
+ * 이 모듈이 애초에 막으려던 것이 그 비대칭이다 (리뷰 W2).
+ */
+describe('stripLiterals', () => {
+  it('작은따옴표 내용을 지우고 따옴표는 남긴다', () => {
+    expect(stripLiterals(`const a = 'null as unknown as Date';`)).toBe(
+      `const a = '';`,
+    );
+  });
+
+  it('큰따옴표도 같다', () => {
+    expect(stripLiterals(`const a = "x: null as unknown as Date";`)).toBe(
+      `const a = "";`,
+    );
+  });
+
+  it('템플릿 리터럴은 여러 줄이어도 통째로 지운다 — 가드 픽스처가 이 형태다', () => {
+    const src = ['const ENTITY = `', '  widenedAt: Date | null;', '`;'].join(
+      '\n',
+    );
+    expect(stripLiterals(src)).toBe('const ENTITY = ``;');
+  });
+
+  it('이스케이프된 따옴표에서 조기 종료하지 않는다', () => {
+    // 종료로 오인하면 뒤쪽 `null as unknown as` 가 코드로 남아 오탐이 된다.
+    expect(stripLiterals(`const a = 'it\\'s null as unknown as Date';`)).toBe(
+      `const a = '';`,
+    );
+  });
+
+  it('리터럴 밖의 코드는 건드리지 않는다', () => {
+    const src = `const f = { widenedAt: null as unknown as Date };`;
+    expect(stripLiterals(src)).toBe(src);
+  });
+
+  it('여러 리터럴을 각각 지운다', () => {
+    expect(stripLiterals(`f('a', "b", \`c\`);`)).toBe(`f('', "", \`\`);`);
+  });
+
+  /**
+   * docstring 이 스스로 적어 둔 한계를 **테스트로 고정**한다. 고쳐야 할 버그가 아니라
+   * 알려진 경계이고, 틀리는 방향이 "덜 검출" 이라 조용히 통과한다 — 그래서 여기 남긴다.
+   * 이 테스트가 깨지면 누군가 한계를 없앤 것이고, 그때 docstring 도 함께 고쳐야 한다.
+   */
+  it('[알려진 한계] 템플릿 `${}` 안의 중첩 백틱은 경계를 잘못 잡는다', () => {
+    const src = 'const a = `x${`y`}z`;';
+    // 이상적으로는 `` 하나여야 하지만, 첫 백틱 쌍이 `x${` 에서 닫힌다.
+    expect(stripLiterals(src)).not.toBe('const a = ``;');
   });
 });
