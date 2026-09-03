@@ -871,6 +871,13 @@ describe('WebsocketGateway', () => {
           expect.anything(),
         );
         expect(disconnect).toHaveBeenCalledTimes(1);
+
+        // **순서**까지 단언한다. 두 지연이 모두 0 으로 클램프되는 tie 상태에서는 Node 가
+        // **등록 순서**로 실행 순서를 정하므로, 두 `setTimeout` 블록을 뒤바꾸는 리팩터가
+        // "통지 없이 먼저 끊기는" 동작을 조용히 만들 수 있다. 존재만 단언하면 안 걸린다.
+        expect(emit.mock.invocationCallOrder[0]).toBeLessThan(
+          disconnect.mock.invocationCallOrder[0],
+        );
       });
 
       it('만료 타이머는 unref 된다 — 셧다운을 붙잡지 않는다', () => {
