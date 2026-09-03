@@ -230,8 +230,8 @@ export class AuthService {
     await this.dataSource.transaction(async (manager) => {
       await manager.getRepository(User).update(userByToken.id, {
         emailVerified: true,
-        emailVerifyToken: null as unknown as string,
-        emailVerifyExpiresAt: null as unknown as Date,
+        emailVerifyToken: null,
+        emailVerifyExpiresAt: null,
       });
 
       await this.workspacesService.createPersonalWorkspace(
@@ -749,8 +749,8 @@ export class AuthService {
     const passwordHash = await hashPassword(newPassword);
     await this.usersService.update(user.id, {
       passwordHash,
-      passwordResetToken: null as unknown as string,
-      passwordResetExpiresAt: null as unknown as Date,
+      passwordResetToken: null,
+      passwordResetExpiresAt: null,
     });
 
     // Revoke all refresh tokens for this user

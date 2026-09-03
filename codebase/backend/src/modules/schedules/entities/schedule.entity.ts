@@ -39,7 +39,7 @@ export class Schedule {
   isActive: boolean;
 
   @Column({ name: 'next_run_at', type: 'timestamptz', nullable: true })
-  nextRunAt: Date;
+  nextRunAt: Date | null;
 
   @Column({ name: 'last_run_at', type: 'timestamptz', nullable: true })
   lastRunAt: Date;

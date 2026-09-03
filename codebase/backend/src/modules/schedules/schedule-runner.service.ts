@@ -187,7 +187,7 @@ export class ScheduleRunnerService extends WorkerHost implements OnModuleInit {
         });
         schedule.nextRunAt = interval.next().toDate();
       } catch {
-        schedule.nextRunAt = null as unknown as Date;
+        schedule.nextRunAt = null;
       }
       await this.scheduleRepository.save(schedule);
     } catch (err) {

@@ -19,7 +19,7 @@ export class User {
   email: string;
 
   @Column({ name: 'password_hash', nullable: true, length: 255 })
-  passwordHash: string;
+  passwordHash: string | null;
 
   @Column({ length: 100 })
   name: string;
@@ -37,7 +37,7 @@ export class User {
   twoFactorEnabled: boolean;
 
   @Column({ name: 'two_factor_secret', nullable: true, length: 255 })
-  twoFactorSecret: string;
+  twoFactorSecret: string | null;
 
   /**
    * TOTP 복구 코드(SHA-256 해시 배열). 사용 시 해당 항목 제거.
@@ -68,24 +68,24 @@ export class User {
   emailVerified: boolean;
 
   @Column({ name: 'email_verify_token', nullable: true, length: 255 })
-  emailVerifyToken: string;
+  emailVerifyToken: string | null;
 
   @Column({
     name: 'email_verify_expires_at',
     type: 'timestamptz',
     nullable: true,
   })
-  emailVerifyExpiresAt: Date;
+  emailVerifyExpiresAt: Date | null;
 
   @Column({ name: 'password_reset_token', nullable: true, length: 255 })
-  passwordResetToken: string;
+  passwordResetToken: string | null;
 
   @Column({
     name: 'password_reset_expires_at',
     type: 'timestamptz',
     nullable: true,
   })
-  passwordResetExpiresAt: Date;
+  passwordResetExpiresAt: Date | null;
 
   /**
    * 이메일 변경 흐름의 pending 신규 이메일 (spec/5-system/1-auth.md §1.1.B).
@@ -127,7 +127,7 @@ export class User {
   loginAttempts: number;
 
   @Column({ name: 'locked_until', type: 'timestamptz', nullable: true })
-  lockedUntil: Date;
+  lockedUntil: Date | null;
 
   @Column({ name: 'oauth_provider', nullable: true, length: 50 })
   oauthProvider: string;
