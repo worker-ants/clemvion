@@ -940,6 +940,7 @@ describe('AuthService', () => {
       await service.resetPassword(rawToken, 'NewPass123!@#');
 
       expect(usersService.update).toHaveBeenCalledTimes(1);
+      expect(usersService.update.mock.calls[0][0]).toBe('user-uuid');
       const patch = usersService.update.mock.calls[0][1] as Record<
         string,
         unknown

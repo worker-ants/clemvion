@@ -322,8 +322,13 @@ describe('SchedulesService.runNow', () => {
      * 이 분기에 도달하는 테스트가 없었다(리뷰 W4).
      *
      * `undefined` 로 회귀하면 TypeORM 이 SET 절에서 생략해 **옛 시각이 남는다.**
+     *
+     * **현재 구현상 도달 불가능한 방어 분기다** — `computeNextRuns` 는 `Math.max(count, 1)`
+     * 로 하한을 고정하고 파싱 실패 시 throw 하므로 빈 배열을 반환할 수 없다. 그래서 private
+     * 메서드를 mock 해 **강제로** 그 분기를 실행한다. 실사용 시나리오가 아니라 **방어 분기의
+     * 계약**(비면 `null`)을 고정하는 테스트다.
      */
-    it('cron 이 바뀌고 다음 실행이 없으면 nextRunAt 을 null 로 명시 대입한다', async () => {
+    it('[방어 분기] 다음 실행 계산이 비면 nextRunAt 을 null 로 명시 대입한다', async () => {
       const saved: Schedule[] = [];
       scheduleRepo.findOne.mockResolvedValue({
         id: 'sch-1',
