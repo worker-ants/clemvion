@@ -419,12 +419,13 @@ export class A {
   });
 
   describe('저장소 전수', () => {
-    const entities = collectTsFiles(SRC_ROOT).filter((f) =>
-      f.endsWith('.entity.ts'),
-    );
-    const specs = collectTsFiles(SRC_ROOT, { includeSpec: true }).filter((f) =>
-      f.endsWith('.spec.ts'),
-    );
+    // `includeSpec: true` 결과는 안 준 것의 **상위집합**이라 한 번만 훑고 파생한다.
+    // 두 번 부르면 저장소 트리를 통째로 두 번 걷는다(리뷰 9R W1).
+    // 파생 전후 집합이 동일함을 실측했다 — entities 41 · specs 443, 양쪽 같음.
+    const all = collectTsFiles(SRC_ROOT, { includeSpec: true });
+    const entities = all.filter((f) => f.endsWith('.entity.ts'));
+    const specs = all.filter((f) => f.endsWith('.spec.ts'));
+    const widened = widenedEntityFields(entities);
 
     it('[전제] 엔티티·spec 대상이 비어 있지 않다 — 비면 아래가 공허하다', () => {
       expect(entities.length).toBeGreaterThan(30);
@@ -432,14 +433,11 @@ export class A {
     });
 
     it('[전제] 넓혀진 필드가 실제로 있다', () => {
-      expect(widenedEntityFields(entities).size).toBeGreaterThan(100);
+      expect(widened.size).toBeGreaterThan(100);
     });
 
     it('낡은 캐스트가 남아 있지 않다', () => {
-      const offenders = findStaleSpecCasts(
-        specs,
-        widenedEntityFields(entities),
-      );
+      const offenders = findStaleSpecCasts(specs, widened);
       expect(offenders.map((o) => `${o.file} :: ${o.field}`).sort()).toEqual(
         [],
       );
