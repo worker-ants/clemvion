@@ -230,6 +230,16 @@ DB 를 실측해(`information_schema` → `character varying`) `type: 'varchar'`
       > 잡는다. 뮤테이션으로 유효성 확인 — 핸들러에 `?? ''` 를 넣으면 **예측대로 null
       > 테스트만 RED**(실측 1 failed / 13 passed), 대조군은 GREEN 이다.
 
+- [ ] **후속 — 관계 데코레이터 동명 충돌에 캐너리가 없다** (리뷰 10R INFO#12).
+      `widenedEntityFields` 의 충돌 배제는 `@Column` 조합 fixture 로만 고정돼 있다.
+      **관계(`@ManyToOne`/`@OneToOne`) 끼리의 동명 충돌이 저장소에 3건 실재**한다 —
+      `integration`·`trigger`·`user` (2026-09-04 실측, 리뷰어 수치와 일치).
+
+      > **코드는 이미 이 축을 다룬다** — `WIDENED_DECL` 이 `@Column`·`@ManyToOne`·`@OneToOne`
+      > 을 모두 잡고 배제 로직은 데코레이터 종류를 구분하지 않는다. 없는 것은 **캐너리**다.
+      > 지금 넣으면 Warning 0 인 라운드를 다시 돌아야 해서 여기 적는다 — 이 파일을 다음에
+      > 만질 때 `[대조군]` 테스트에 관계 버전을 `it.each` 로 더한다.
+
 - [ ] **후속(planner 턴) — §5.4 의 `field?:` 표기와 기존 선례가 어긋난다**
       (`--impl-done` `19_02_06` INFO#1). 규약 §5.4 는 `null`(상시 존재) 필드를
       `@ApiPropertyOptional({ nullable: true })` + `field?: T | null` 로 쓰라고 하는데,
