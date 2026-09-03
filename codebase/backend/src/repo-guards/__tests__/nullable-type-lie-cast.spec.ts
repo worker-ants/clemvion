@@ -369,6 +369,80 @@ export class B {
     );
   });
 
+  /**
+   * ## 관계 데코레이터끼리의 충돌 — 위 `@Column` 대조군과 대칭
+   *
+   * 충돌 배제는 **데코레이터 종류를 구분하지 않는다**(`WIDENED_DECL` 이 `@Column`·
+   * `@ManyToOne`·`@OneToOne` 을 모두 잡고, 배제는 이름 단위로 한다). 그런데 대조군이
+   * `@Column` 조합으로만 있어서 **관계끼리의 충돌은 고정돼 있지 않았다**(리뷰 10R INFO#12).
+   *
+   * 저장소에 그런 충돌이 **3건 실재**한다 — `integration`(`integration_oauth_state` nullable
+   * ↔ `integration_usage_log` non-null) · `trigger`(`execution` ↔ `schedule`) ·
+   * `user`(`login_history` ↔ `audit_log`) (2026-09-04 실측).
+   *
+   * > **코드는 이미 옳았다.** 착수 전 프로브로 셋 다 제외됨을 확인했다 — 없던 것은 캐너리
+   * > 뿐이다. 그래서 이 테스트가 하는 일은 "고친 것을 지키는" 게 아니라 **이미 옳은 동작이
+   * > 조용히 갈라지지 않게 고정하는** 것이다.
+   */
+  it('[대조군] 관계 데코레이터끼리의 동명 충돌도 판정에서 뺀다', () => {
+    withFiles(
+      {
+        'a.entity.ts': `
+@Entity('a')
+export class A {
+  @ManyToOne(() => Target, { nullable: true })
+  @JoinColumn({ name: 'target_id' })
+  target: Target | null;
+}
+`,
+        'b.entity.ts': `
+@Entity('b')
+export class B {
+  @ManyToOne(() => Target)
+  @JoinColumn({ name: 'target_id' })
+  target: Target;
+}
+`,
+        // B.target 은 non-null 이므로 이 캐스트는 **정당하다**.
+        'b.spec.ts': `const f: Partial<B> = { target: null as unknown as Target };\n`,
+      },
+      (p) => {
+        const w = widenedEntityFields([p['a.entity.ts'], p['b.entity.ts']]);
+        expect(w.has('target')).toBe(false);
+        expect(findStaleSpecCasts([p['b.spec.ts']], w)).toHaveLength(0);
+      },
+    );
+  });
+
+  it('[대조군] `@Column` 과 관계가 섞인 충돌도 뺀다 — 종류를 구분하지 않는다', () => {
+    withFiles(
+      {
+        'a.entity.ts': `
+@Entity('a')
+export class A {
+  @ManyToOne(() => Target, { nullable: true })
+  @JoinColumn({ name: 'mixed_id' })
+  mixed: Target | null;
+}
+`,
+        'b.entity.ts': `
+@Entity('b')
+export class B {
+  @Column({ type: 'uuid' })
+  mixed: string;
+}
+`,
+      },
+      (p) => {
+        expect(
+          widenedEntityFields([p['a.entity.ts'], p['b.entity.ts']]).has(
+            'mixed',
+          ),
+        ).toBe(false);
+      },
+    );
+  });
+
   it('충돌이 없으면 그대로 잡는다 — 건전성을 얻느라 전부 잃지는 않았다', () => {
     withFiles(
       {
