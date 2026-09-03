@@ -23,6 +23,8 @@
  */
 
 import * as fs from 'node:fs';
+import * as os from 'node:os';
+import * as path from 'node:path';
 
 import {
   countNullAsUnknownAsCasts,
@@ -31,6 +33,7 @@ import {
 import {
   collectScanTargets,
   findCastOffenders,
+  findUntypedNullableColumns,
 } from './nullable-type-lie-cast-guard';
 
 describe('nullable 타입 거짓말이 강제하는 이중 캐스트', () => {
@@ -47,6 +50,17 @@ describe('nullable 타입 거짓말이 강제하는 이중 캐스트', () => {
   it('프로덕션 소스에 `null as unknown as` 가 없다', () => {
     const offenders = findCastOffenders(files);
     expect(offenders).toEqual([]);
+  });
+
+  /**
+   * 타입만 넓히면 **런타임이 깨진다** — TypeORM 이 `design:type` 으로 컬럼 타입을 추론하는데
+   * `string | null` 은 `Object` 로 방출돼 부팅이 `DataTypeNotSupportedError` 로 죽는다.
+   *
+   * 2026-09-03 에 실제로 그렇게 깨뜨렸고 **lint·unit·build·`tsc` 가 전부 통과했다.**
+   * 오직 e2e 만 잡았다 — 타입 검사로는 원리적으로 못 보는 자리다.
+   */
+  it('`| null` 컬럼은 @Column 에 type 을 명시한다 — 없으면 부팅이 죽는다', () => {
+    expect(findUntypedNullableColumns(files)).toEqual([]);
   });
 
   describe('[대조군] 술어가 실제로 무는가', () => {
@@ -79,22 +93,78 @@ describe('nullable 타입 거짓말이 강제하는 이중 캐스트', () => {
     it('평범한 null 대입은 안 잡는다', () => {
       expect(hasNullAsUnknownAsCast('a.b = null;')).toBe(false);
     });
-  });
 
-  it('[대조군] 캐스트를 주입한 파일을 넣으면 offender 로 잡힌다', () => {
-    const victim = files.find((f) => f.endsWith('users.service.ts'));
-    expect(victim).toBeDefined();
-    const original = fs.readFileSync(victim as string, 'utf8');
-    try {
-      fs.writeFileSync(
-        victim as string,
-        `${original}\n// eslint-disable-next-line\nconst __probe = null as unknown as Date;\n`,
-      );
-      expect(findCastOffenders([victim as string])).toHaveLength(1);
-    } finally {
-      fs.writeFileSync(victim as string, original);
+    /**
+     * 합성 fixture 를 쓴다 — 형제 가드(`masked-reject-callers.spec.ts`)의 관례다.
+     *
+     * 처음엔 실제 `users.service.ts`·`user.entity.ts` 를 `writeFileSync` 로 변형했다가
+     * 복원했다. 두 가지가 잘못됐다: (a) 복원이 실패하면 **서비스 파일이 변조된 채 남고**
+     * (리뷰 W1), (b) `eslint --fix` 가 데코레이터를 여러 줄로 바꾸자 `.replace()` 가
+     * **조용히 no-op** 이 돼 전체 스위트에서만 실패했다 — **무효 뮤턴트**다.
+     */
+    function withFixture<T>(content: string, fn: (file: string) => T): T {
+      const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'nullable-guard-'));
+      const file = path.join(dir, 'probe.entity.ts');
+      fs.writeFileSync(file, content);
+      try {
+        return fn(file);
+      } finally {
+        fs.rmSync(dir, { recursive: true, force: true });
+      }
     }
-    // 원복 확인 — 실패해도 다음 테스트가 조용히 깨지지 않게 여기서 못박는다.
-    expect(findCastOffenders([victim as string])).toEqual([]);
+
+    it('캐스트가 있는 파일을 offender 로 잡고, 없으면 통과한다', () => {
+      withFixture('const a = null as unknown as Date;\n', (file) => {
+        expect(findCastOffenders([file])).toHaveLength(1);
+      });
+      withFixture('const a = null;\n', (file) => {
+        expect(findCastOffenders([file])).toEqual([]);
+      });
+    });
+
+    it('type 없는 `| null` 컬럼을 잡는다 — 있으면 통과', () => {
+      withFixture(
+        "@Column({ name: 'password_hash', nullable: true, length: 255 })\n  passwordHash: string | null;\n",
+        (file) => {
+          expect(
+            findUntypedNullableColumns([file]).map((f) => f.field),
+          ).toEqual(['passwordHash']);
+        },
+      );
+      withFixture(
+        "@Column({ name: 'password_hash', type: 'varchar', nullable: true })\n  passwordHash: string | null;\n",
+        (file) => {
+          expect(findUntypedNullableColumns([file])).toEqual([]);
+        },
+      );
+    });
+
+    it('여러 줄 데코레이터도 잡는다 — prettier 가 실제로 이 형태로 바꾼다', () => {
+      withFixture(
+        "@Column({\n    name: 'password_hash',\n    nullable: true,\n    length: 255,\n  })\n  passwordHash: string | null;\n",
+        (file) => {
+          expect(
+            findUntypedNullableColumns([file]).map((f) => f.field),
+          ).toEqual(['passwordHash']);
+        },
+      );
+    });
+
+    it('[예외 경계] JoinColumn 이 같은 컬럼명이면 면제, 다르면 면제 안 된다', () => {
+      withFixture(
+        "@Column({ name: 'parent_id', nullable: true })\n  parentId: string | null;\n\n  @JoinColumn({ name: 'parent_id' })\n  parent: X | null;\n",
+        (file) => {
+          expect(findUntypedNullableColumns([file])).toEqual([]);
+        },
+      );
+      withFixture(
+        "@Column({ name: 'parent_id', nullable: true })\n  parentId: string | null;\n\n  @JoinColumn({ name: 'unrelated_col' })\n  other: X | null;\n",
+        (file) => {
+          expect(
+            findUntypedNullableColumns([file]).map((f) => f.field),
+          ).toEqual(['parentId']);
+        },
+      );
+    });
   });
 });

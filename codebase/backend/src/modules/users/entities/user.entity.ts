@@ -18,7 +18,12 @@ export class User {
   @Column({ unique: true, length: 255 })
   email: string;
 
-  @Column({ name: 'password_hash', nullable: true, length: 255 })
+  @Column({
+    name: 'password_hash',
+    type: 'varchar',
+    nullable: true,
+    length: 255,
+  })
   passwordHash: string | null;
 
   @Column({ length: 100 })
@@ -36,7 +41,12 @@ export class User {
   @Column({ name: 'two_factor_enabled', default: false })
   twoFactorEnabled: boolean;
 
-  @Column({ name: 'two_factor_secret', nullable: true, length: 255 })
+  @Column({
+    name: 'two_factor_secret',
+    type: 'varchar',
+    nullable: true,
+    length: 255,
+  })
   twoFactorSecret: string | null;
 
   /**
@@ -67,7 +77,12 @@ export class User {
   @Column({ name: 'email_verified', default: false })
   emailVerified: boolean;
 
-  @Column({ name: 'email_verify_token', nullable: true, length: 255 })
+  @Column({
+    name: 'email_verify_token',
+    type: 'varchar',
+    nullable: true,
+    length: 255,
+  })
   emailVerifyToken: string | null;
 
   @Column({
@@ -77,7 +92,12 @@ export class User {
   })
   emailVerifyExpiresAt: Date | null;
 
-  @Column({ name: 'password_reset_token', nullable: true, length: 255 })
+  @Column({
+    name: 'password_reset_token',
+    type: 'varchar',
+    nullable: true,
+    length: 255,
+  })
   passwordResetToken: string | null;
 
   @Column({

@@ -77,6 +77,33 @@ null 을 올바로 다루고 있었고 타입만 거짓말하고 있었다.** (r
 확인했다 — ratchet baseline 37파일에 **비-spec 소스가 0개**라 그것만으로는 프로덕션 타입
 오류를 못 본다.)
 
+## ⚠️ 타입만 넓히면 **런타임이 깨진다** — e2e 만 잡았다
+
+배치 1 을 커밋한 뒤 e2e 가 부팅 실패를 냈다:
+
+```
+DataTypeNotSupportedError: Data type "Object" in "User.passwordHash"
+is not supported by "postgres" database.
+```
+
+TypeORM 은 `design:type` 메타데이터로 컬럼 타입을 추론하는데 **`string | null` 은 `Object` 로
+방출된다**(실측: `length` 유무 무관, `Date | null` 도 동일). `@Column` 에 `type:` 이 없으면 그
+`Object` 가 그대로 쓰여 부팅이 죽는다.
+
+**lint · unit · build · `tsc` 가 전부 통과했다.** 오직 e2e 만 잡았다 — 타입 검사로는 원리적으로
+못 보는 **런타임 메타데이터** 문제다.
+
+> 저장소가 이미 넓혀 둔 컬럼(`Execution.error` · `llm-usage-log.workflowId` ·
+> `User.pendingEmail`)은 **전부 `type:` 을 명시**하고 있었다. **관례가 있었는데 안 따랐다.**
+
+DB 를 실측해(`information_schema` → `character varying`) `type: 'varchar'` 를 4건에 붙였다.
+나머지 4건은 이미 `timestamptz` 등을 명시하고 있었다.
+
+### 배치 규칙 — 이제 두 단계다
+
+1. 타입을 `| null` 로 넓힌다
+2. **같은 `@Column` 에 `type:` 이 있는지 확인한다** — 없으면 DB 실제 타입을 조회해 명시한다
+
 ## 회귀 가드 — 이 클래스는 이제 스스로 닫힌다
 
 캐스트 8건을 걷어내도 **조용히 돌아올 수 있다.** ratchet 이 그 자리를 안 보기 때문이다
@@ -97,14 +124,34 @@ null 을 올바로 다루고 있었고 타입만 거짓말하고 있었다.** (r
 > 이 저장소가 반복해 데인 *"게이트가 자기 자신을 트리거하지 못한다"* 의 변종이다 — 이번엔
 > 트리거 대상이 게이트 파일이 아니라 **게이트가 읽는 파일**이었다.
 
-**뮤테이션으로 확인**: 프로덕션 캐스트 1건을 되돌리면 **RED**, 원복하면 GREEN. 주석 전용
-줄은 통과하고 **코드 뒤 인라인 주석은 잡는다**(양방향 대조군).
+가드는 **두 술어**를 갖는다:
+
+| 술어 | 잡는 것 |
+|---|---|
+| `countNullAsUnknownAsCasts` | 이중 캐스트가 돌아오는 것 |
+| `findUntypedNullableColumns` | `\| null` 인데 `type:` 이 없는 것 — **위 부팅 실패의 클래스** |
+
+**뮤테이션**: 프로덕션 캐스트 되돌림 → **RED**. `type:` 제거 → **RED**. 주석 전용 줄은 통과,
+**코드 뒤 인라인 주석은 잡는다**(양방향 대조군).
+
+### 예외 하나 — 관계가 타입을 공급하는 컬럼
+
+`NodeExecution.parentNodeExecutionId` 는 `\| null` 이고 `type:` 이 없는데도 **정상 부팅한다**
+(오래 그 형태였고 e2e 가 계속 통과했다). 그 컬럼이 같은 엔티티의 `@ManyToOne` + `@JoinColumn`
+이 쓰는 컬럼이라 TypeORM 이 관계에서 타입을 얻기 때문이다.
+
+**허용목록이 아니라 기계적 예외**다 — `@JoinColumn({ name })` 과 컬럼명이 **정확히 일치**할
+때만 면제한다. 그 경계도 대조군이 지킨다(다른 컬럼명이면 면제되지 않는다).
 
 ## 할 일
 
 - [x] **일괄 vs 점진** — 점진 (사용자 결정 2026-09-03)
 - [x] **우선순위 기준** — "이중 캐스트를 강제하는 필드" 로 확정 (초안 기준은 측정 불가로 폐기)
 - [x] **배치 1** — 캐스트 강제 8필드 완료, 캐스트 8건 제거
+- [ ] **후속 — `repo-guards/__tests__/` 의 공용 walker 추출** (리뷰 W5). 디렉터리를 재귀
+      스캔해 `.ts` 를 모으는 로직이 `collectScanTargets` 로 **5번째 사본**이 됐다.
+      `source-scan.ts` 는 "**세는**" 축을 한 곳에 모았지만 "**모으는**" 축에는 같은 원칙이
+      적용돼 있지 않다. 형제 가드 4개를 함께 건드려야 해 이 배치에 넣지 않는다.
 - [ ] **배치 2 기준을 정한다** — 캐스트 축이 소진됐으므로 다음 축이 필요하다. 후보:
       (a) 엔티티 단위(`execution.entity.ts` 10건 · `user.entity.ts` 잔여 3건),
       (b) relation 7건(`ManyToOne`/`OneToOne` — `null` 대신 `undefined` 관례일 수 있어 별도 조사),

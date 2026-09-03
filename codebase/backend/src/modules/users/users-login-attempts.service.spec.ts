@@ -30,6 +30,7 @@ async function build(queryResult: unknown) {
   const query = jest.fn().mockResolvedValue(queryResult);
   const repo = {
     query,
+    update: jest.fn().mockResolvedValue({ affected: 1 }),
     // 이 셋이 호출되면 read-modify-write 로 되돌아간 것이다 — 시끄럽게 실패시킨다.
     findOne: jest.fn(() => {
       throw new Error('read-modify-write 로 회귀했다');
@@ -113,5 +114,31 @@ describe('UsersService.incrementLoginAttempts — 원자 UPDATE', () => {
     await expect(
       service.incrementLoginAttempts(USER_ID),
     ).rejects.toBeInstanceOf(NotFoundException);
+  });
+});
+
+/**
+ * `lockedUntil` 을 `null` 로 **명시 대입**하는지 본다.
+ *
+ * TypeORM `update()` 는 `undefined` 필드를 SET 절에서 **통째로 생략**한다 — `null` 과 의미가
+ * 다르다. 그래서 `lockedUntil: null` 이 `undefined` 로 회귀하면 **잠금이 안 풀린 채 조용히
+ * 통과**한다. 이 컬럼의 타입을 `Date | null` 로 넓히면서(2026-09-03) 그 자리를 건드렸는데
+ * 직접 단언하는 테스트가 저장소에 하나도 없었다(리뷰 W3).
+ */
+describe('UsersService.resetLoginAttempts — 잠금 해제 인자', () => {
+  it('loginAttempts 0 과 lockedUntil null 을 **명시적으로** 쓴다', async () => {
+    const { service, repo } = await build([[], 0]);
+    await service.resetLoginAttempts(USER_ID);
+
+    expect(repo.update).toHaveBeenCalledTimes(1);
+    const [id, patch] = repo.update.mock.calls[0] as [
+      string,
+      Record<string, unknown>,
+    ];
+    expect(id).toBe(USER_ID);
+    expect(patch.loginAttempts).toBe(0);
+    // `toBeNull()` 이어야 한다 — `toBeFalsy()` 면 `undefined` 회귀를 통과시킨다.
+    expect(patch.lockedUntil).toBeNull();
+    expect('lockedUntil' in patch).toBe(true);
   });
 });

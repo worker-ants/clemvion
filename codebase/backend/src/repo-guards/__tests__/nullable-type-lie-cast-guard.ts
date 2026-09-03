@@ -51,3 +51,72 @@ export function findCastOffenders(files: string[]): CastOffender[] {
   }
   return offenders;
 }
+
+/**
+ * `| null` 로 넓힌 컬럼인데 `@Column` 이 `type:` 을 명시하지 않은 자리.
+ *
+ * ## 왜 필요한가 — 타입만 넓히면 **런타임이 깨진다**
+ *
+ * TypeORM 은 `design:type` 메타데이터로 컬럼 타입을 추론한다. TS 타입이 `string` 이면
+ * `String` 이 방출되지만 `string | null` 이면 **`Object`** 가 방출되고, 그러면 부팅이
+ * `DataTypeNotSupportedError: Data type "Object" in "User.passwordHash" is not supported
+ * by "postgres" database.` 로 죽는다.
+ *
+ * 2026-09-03 에 실제로 그렇게 깨뜨렸다. **lint·unit·build·`tsc` 가 전부 통과했고 오직
+ * e2e 만 잡았다** — 타입 검사로는 원리적으로 못 보는 런타임 메타데이터 문제이기 때문이다.
+ * 저장소가 이미 넓혀 둔 컬럼(`Execution.error`·`llm-usage-log.workflowId`·`User.pendingEmail`)
+ * 은 전부 `type:` 을 명시하고 있었다 — 관례가 있었는데 내가 안 따랐다.
+ *
+ * 이 술어가 그 규칙을 못박는다: **`| null` 이면 `type:` 도 있어야 한다.**
+ */
+export interface UntypedNullableColumn {
+  readonly file: string;
+  readonly field: string;
+}
+
+/** `@Column(...)` 블록과 바로 뒤 필드 선언을 잡는다(한 단계 중첩 괄호까지). */
+const COLUMN_DECL =
+  /(@Column\((?:[^()]|\([^()]*\))*\))\s*\n\s*(\w+)\s*:\s*([^;]+);/g;
+
+/** `@Column({ name: 'x' })` 의 `x`. */
+const COLUMN_NAME = /\bname:\s*'([^']+)'/;
+
+/** 같은 파일에서 `@JoinColumn({ name: 'x' })` 로 쓰이는 DB 컬럼명들. */
+function joinColumnNames(src: string): Set<string> {
+  const names = new Set<string>();
+  for (const m of src.matchAll(/@JoinColumn\(\s*\{[^}]*\bname:\s*'([^']+)'/g)) {
+    names.add(m[1]);
+  }
+  return names;
+}
+
+/**
+ * 관계가 타입을 공급하는 컬럼은 제외한다 — **실측된 예외**이지 허용목록이 아니다.
+ *
+ * `NodeExecution.parentNodeExecutionId` 는 `string | null` 이고 `type:` 이 없는데도 앱이
+ * 정상 부팅한다(이 형태로 오래 살아 있었고 e2e 가 계속 통과했다). 그 컬럼
+ * (`parent_node_execution_id`)이 같은 엔티티의 `@ManyToOne` + `@JoinColumn` 이 쓰는
+ * 컬럼이라, TypeORM 이 관계의 참조 키에서 타입을 얻어 `design:type` 의 `Object` 를 쓰지
+ * 않기 때문이다.
+ *
+ * > `design:type` 자체는 판별자가 **아니다** — 실측하니 `string | null` 은 `length` 유무와
+ * > 무관하게 둘 다 `Object` 를 방출한다. 차이를 만드는 것은 관계의 존재다.
+ */
+export function findUntypedNullableColumns(
+  files: string[],
+): UntypedNullableColumn[] {
+  const out: UntypedNullableColumn[] = [];
+  for (const file of files) {
+    const src = fs.readFileSync(file, 'utf8');
+    const joined = joinColumnNames(src);
+    for (const m of src.matchAll(COLUMN_DECL)) {
+      const [, deco, field, tsType] = m;
+      if (!tsType.includes('| null')) continue;
+      if (/\btype:\s*'/.test(deco)) continue;
+      const colName = COLUMN_NAME.exec(deco)?.[1];
+      if (colName && joined.has(colName)) continue;
+      out.push({ file: path.relative(SRC_ROOT, file), field });
+    }
+  }
+  return out;
+}

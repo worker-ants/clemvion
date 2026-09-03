@@ -918,6 +918,37 @@ describe('AuthService', () => {
       expect(whereClause.passwordResetToken).not.toBe(rawToken);
       expect(whereClause.passwordResetToken).toMatch(/^[0-9a-f]{64}$/);
     });
+
+    /**
+     * **성공 경로 테스트가 아예 없었다**(리뷰 W2) — 실패 경로만 있었다.
+     *
+     * `passwordResetToken`/`passwordResetExpiresAt` 을 `null` 로 **명시** 대입해야 한다.
+     * TypeORM `update()` 는 `undefined` 필드를 SET 절에서 생략하므로, `undefined` 로
+     * 회귀하면 **소비된 재설정 토큰이 DB 에 남아 재사용 가능**해진다.
+     *
+     * 2026-09-03 에 이 두 줄의 `null as unknown as X` 캐스트를 걷어내며 건드린 자리다.
+     */
+    it('성공 시 소비된 재설정 토큰을 null 로 **명시** 대입한다', async () => {
+      const rawToken = '11111111-2222-3333-4444-555555555555';
+      refreshTokenRepo.manager.getRepository.mockReturnValue({
+        findOne: jest.fn().mockResolvedValue({
+          id: 'user-uuid',
+          passwordResetExpiresAt: new Date(Date.now() + 3_600_000),
+        }),
+      });
+
+      await service.resetPassword(rawToken, 'NewPass123!@#');
+
+      expect(usersService.update).toHaveBeenCalledTimes(1);
+      const patch = usersService.update.mock.calls[0][1] as Record<
+        string,
+        unknown
+      >;
+      expect(typeof patch.passwordHash).toBe('string');
+      // `toBeNull()` 이어야 한다 — `toBeFalsy()` 면 `undefined` 회귀를 통과시킨다.
+      expect(patch.passwordResetToken).toBeNull();
+      expect(patch.passwordResetExpiresAt).toBeNull();
+    });
   });
 
   describe('generateTokens (via login)', () => {
@@ -1044,6 +1075,43 @@ describe('AuthService', () => {
       expect(mockDataSource.transaction).toHaveBeenCalled();
       expect(result.accessToken).toBe('mock-access-token');
       expect(result.refreshToken).toBeDefined();
+    });
+
+    /**
+     * `emailVerifyToken`/`emailVerifyExpiresAt` 을 **`null` 로 명시 대입**하는지 본다.
+     *
+     * TypeORM `update()` 는 `undefined` 필드를 SET 절에서 **통째로 생략**한다 — `null` 과
+     * 의미가 다르다. `null` → `undefined` 로 회귀하면 **소비된 인증 토큰이 DB 에 남아**
+     * 재사용 가능해지는데, 위 테스트는 `transaction` 호출 여부만 봐서 못 잡는다(리뷰 W2).
+     *
+     * 2026-09-03 에 이 두 줄의 `null as unknown as X` 캐스트를 걷어내며 건드린 자리다.
+     */
+    it('소비된 인증 토큰을 null 로 **명시** 대입한다 — undefined 면 토큰이 남는다', async () => {
+      const unverifiedUser = {
+        ...mockUser,
+        emailVerified: false,
+        emailVerifyToken: 'valid-token',
+        emailVerifyExpiresAt: new Date(Date.now() + 86400000),
+      } as User;
+      usersService.findByEmail.mockResolvedValue(null);
+      jest
+        .spyOn(service as never, 'findUserByVerifyToken' as never)
+        .mockResolvedValue(unverifiedUser as never);
+
+      const update = jest.fn().mockResolvedValue(undefined);
+      mockDataSource.transaction.mockImplementation(
+        async (cb: (manager: unknown) => Promise<unknown>) =>
+          cb({ getRepository: jest.fn().mockReturnValue({ update }) }),
+      );
+
+      await service.verifyEmail('valid-token');
+
+      expect(update).toHaveBeenCalledTimes(1);
+      const patch = update.mock.calls[0][1] as Record<string, unknown>;
+      expect(patch.emailVerified).toBe(true);
+      // `toBeNull()` 이어야 한다 — `toBeFalsy()` 면 `undefined` 회귀를 통과시킨다.
+      expect(patch.emailVerifyToken).toBeNull();
+      expect(patch.emailVerifyExpiresAt).toBeNull();
     });
 
     it('should throw for invalid verification token', async () => {
