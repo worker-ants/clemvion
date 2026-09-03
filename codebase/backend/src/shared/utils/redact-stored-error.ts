@@ -125,9 +125,14 @@ export function redactStoredFieldsForResponse(row: {
  * > **인자**에서 추론되므로 그 경로가 없다. 나란히 놓여 오독을 부르던 자리라 명시한다
  * > (`15_16_28` rationale INFO 1).
  *
- * **시그니처가 `| null` 을 안 적는 것은 의도다** — 엔티티가 두 컬럼을 non-null 로 선언하므로
- * **정적으로는** null 이 올 수 없고, 반환 타입에 `| null` 을 얹으면 배정이 깨진다. 본문의
- * `== null` 은 TypeORM 이 런타임에 `undefined` 를 줄 수 있는 경로에 대한 **방어**다.
+ * ~~**시그니처가 `| null` 을 안 적는 것은 의도다** — 엔티티가 두 컬럼을 non-null 로 선언하므로
+ * **정적으로는** null 이 올 수 없고, 반환 타입에 `| null` 을 얹으면 배정이 깨진다.~~
+ * — **이 전제가 무너졌다** (2026-09-03, entity nullable 배치 2): 그 컬럼들은 DB 에서
+ * 처음부터 `nullable: true` 였고 타입만 그것을 안 적고 있었다. 이제 엔티티가 `| null` 을
+ * 적으므로 **정적으로도 null 이 온다.**
+ *
+ * 본문의 `== null` 은 종전에 *"TypeORM 이 런타임에 `undefined` 를 줄 수 있는 경로에 대한
+ * 방어"* 였는데, 이제 **`null` 도 정적으로 도달하는 실경로**다 — 방어가 아니라 계약의 일부다.
  *
  * ## `== null` 가드를 좁히는 뮤턴트는 **동치 뮤턴트**다 — 테스트 갭이 아니다
  *
@@ -149,9 +154,9 @@ export function redactStoredFieldsForResponse(row: {
  * 위해 넓히는 값이 이 방어의 값보다 크지 않다고 판단했다.
  */
 function maskIfPresent(
-  value: Record<string, unknown>,
+  value: Record<string, unknown> | null,
   mask: (v: Record<string, unknown>) => Record<string, unknown> | null,
-): Record<string, unknown> {
+): Record<string, unknown> | null {
   return value == null ? value : (mask(value) ?? value);
 }
 
@@ -170,9 +175,9 @@ function maskIfPresent(
  */
 export function redactNodeExecutionRowForResponse<
   T extends {
-    inputData: Record<string, unknown>;
-    outputData: Record<string, unknown>;
-    error: Record<string, unknown>;
+    inputData: Record<string, unknown> | null;
+    outputData: Record<string, unknown> | null;
+    error: Record<string, unknown> | null;
   },
 >(row: T): T {
   const inputData = maskIfPresent(row.inputData, redactStoredDataForResponse);

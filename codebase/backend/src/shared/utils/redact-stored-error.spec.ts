@@ -291,8 +291,18 @@ describe('redactNodeExecutionRowForResponse', () => {
   // 빠진다(`14_46_46` testing W2). 컬럼도 셋 다 도는데, 한 컬럼만 보면 나머지 둘이
   // 정규화로 갈려도 통과하기 때문이다(같은 라운드 INFO #5 의 대칭 갭).
   //
-  // 타입상 두 컬럼은 non-null 이라 **정적으로는** 도달 불가다. 캐스트로 TypeORM 이
-  // 런타임에 줄 수 있는 형태를 재현한다.
+  // ~~타입상 두 컬럼은 non-null 이라 **정적으로는** 도달 불가다. 캐스트로 TypeORM 이
+  // 런타임에 줄 수 있는 형태를 재현한다.~~ — 두 가지가 틀렸다(2026-09-03, entity nullable
+  // 배치 2, 리뷰 W4):
+  //
+  //  1. **캐스트는 애초에 불필요했다.** `row` 의 파라미터가 `Record<string, unknown>` 이라
+  //     `{ [column]: absent }` 를 그대로 받는다 — 이 자리에서 컬럼 타입이 강제된 적이 없다.
+  //     (제거하고 `tsc --noEmit` 실측: 오류 0.)
+  //  2. **`outputData`/`error` 는 이제 정적으로도 `null` 이 온다.** 두 컬럼을 `| null` 로
+  //     넓혔다. `inputData` 만 여전히 non-null 이다(`default: {}`, `nullable` 아님).
+  //
+  // `undefined` 분기는 여전히 어느 컬럼에서도 정적으로 오지 않는다 — TypeORM 런타임 경로에
+  // 대한 방어라는 원래 취지는 그쪽에 그대로 남는다.
   describe.each([
     ['undefined', undefined],
     ['null', null],
@@ -302,10 +312,7 @@ describe('redactNodeExecutionRowForResponse', () => {
       ['outputData' as const],
       ['error' as const],
     ])('%s 를 그대로 보존하고 행 참조도 유지한다', (column) => {
-      const input = row({ [column]: absent } as unknown as Record<
-        string,
-        unknown
-      >);
+      const input = row({ [column]: absent });
       const out = redactNodeExecutionRowForResponse(input);
       expect(out).toBe(input);
       expect(out[column]).toBe(absent);

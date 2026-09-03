@@ -29,8 +29,8 @@ export class User {
   @Column({ length: 100 })
   name: string;
 
-  @Column({ name: 'avatar_url', nullable: true, length: 500 })
-  avatarUrl: string;
+  @Column({ name: 'avatar_url', type: 'varchar', nullable: true, length: 500 })
+  avatarUrl: string | null;
 
   @Column({ length: 10, default: 'ko' })
   locale: string;
@@ -149,11 +149,21 @@ export class User {
   @Column({ name: 'locked_until', type: 'timestamptz', nullable: true })
   lockedUntil: Date | null;
 
-  @Column({ name: 'oauth_provider', nullable: true, length: 50 })
-  oauthProvider: string;
+  @Column({
+    name: 'oauth_provider',
+    type: 'varchar',
+    nullable: true,
+    length: 50,
+  })
+  oauthProvider: string | null;
 
-  @Column({ name: 'oauth_provider_id', nullable: true, length: 255 })
-  oauthProviderId: string;
+  @Column({
+    name: 'oauth_provider_id',
+    type: 'varchar',
+    nullable: true,
+    length: 255,
+  })
+  oauthProviderId: string | null;
 
   @Column({ name: 'notification_preferences', type: 'jsonb', default: {} })
   notificationPreferences: {

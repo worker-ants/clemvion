@@ -4,10 +4,24 @@ started: 2026-09-03
 owner: developer
 status: in-progress
 priority: P3
-spec_impact: none
+spec_impact:
+  - spec/1-data-model.md
+  - spec/data-flow/10-triggers.md
+  - spec/5-system/2-api-convention.md
 ---
 
 # `nullable: true` 컬럼인데 TS 타입은 non-null — 엔티티 전반
+
+> **`spec_impact` 주의** — 이 작업 자체는 `spec/` 을 1줄도 바꾸지 않는다(코드 전용).
+> 그럼에도 `none` 이 아닌 이유는 자매 plan `update-returning-tuple-shape.md`·
+> `backend-lint-gate-broken-on-main.md` 가 확립한 것과 같다: 본문이 **planner 위임으로 spec
+> 후속 2건을 스스로 명시**하는데 frontmatter 가 `none` 이면, `complete/` 이동 시
+> Gate C(`spec-plan-completion.test.ts`)가 그 값을 그대로 신뢰해 **"spec 영향 없음" 이 잘못
+> 확정된다**. **아래 §후속의 [planner 턴] 항목이 반영되기 전에는 완료 처리하지 말 것.**
+>
+> (처음엔 `none` 으로 두고 "이 배치가 바꾸는 spec 은 0건이라 리스트는 거짓" 이라 판단했는데,
+>  그 논거는 자매 plan 에서 이미 제기됐다 기각된 것이다 — 이 필드는 **PR 이 아니라 plan 의
+>  라이프사이클**을 가리킨다. `17_45_56` plan_coherence W1, 같은 세트에서 **3번째 재발**.)
 
 > 출처: `#1269`(`change-password` 코드 정렬) 작업 중 발견. `User.passwordHash` 하나를 고치려다
 > **같은 형태가 46건**임을 실측했다. 그 PR 은 캐스트를 fixture 팩토리 한 곳으로 모으는 선에서
@@ -104,6 +118,20 @@ DB 를 실측해(`information_schema` → `character varying`) `type: 'varchar'`
 1. 타입을 `| null` 로 넓힌다
 2. **같은 `@Column` 에 `type:` 이 있는지 확인한다** — 없으면 DB 실제 타입을 조회해 명시한다
 
+## 이 작업에서 세 번 반복된 실패 — "확인 없이 완료라고 썼다"
+
+| 라운드 | 내가 쓴 것 | 실제 |
+|---|---|---|
+| WS PR `12_16_24` | *"배포 런북에서 별도 추적 중"* | 그 자리 항목 2건은 **다른 주제** |
+| 배치 1 `15_17_01` | *"plan 이 배치 2 후보로 추적한다"* | plan 에 **이름이 없었다**(실측 0건) |
+| 배치 2 `17_09_06` | *"INFO#8 은 W2 정정에 포함됐다"* | 그 줄을 **건드린 적이 없다**(`git show`) |
+
+셋 다 **한 번의 `grep`/`git show` 로 반증되는 주장**이었고, 셋 다 리뷰어가 잡았다(마지막은
+3명 중복). 공통점은 "고쳤다/추적된다" 를 **편집 직후 확인 없이** 쓴 것이다.
+
+**규칙**: 완료·추적 주장은 그 문장을 쓰기 **전에** 검증 명령을 돌린다. 결과가 없으면 문장을
+바꾸는 게 아니라 **먼저 그 자리를 만든다.**
+
 ## 회귀 가드 — 이 클래스는 이제 스스로 닫힌다
 
 캐스트 8건을 걷어내도 **조용히 돌아올 수 있다.** ratchet 이 그 자리를 안 보기 때문이다
@@ -145,6 +173,9 @@ DB 를 실측해(`information_schema` → `character varying`) `type: 'varchar'`
 
 ## 할 일
 
+> 배치별 완료 체크박스는 각 배치 절(§배치 2 등)에 있다. 이 목록은 **배치를 가로지르는**
+> 항목(기준 결정·후속 위임·리팩터 이연)만 담는다.
+
 - [x] **일괄 vs 점진** — 점진 (사용자 결정 2026-09-03)
 - [x] **우선순위 기준** — "이중 캐스트를 강제하는 필드" 로 확정 (초안 기준은 측정 불가로 폐기)
 - [x] **배치 1** — 캐스트 강제 8필드 완료, 캐스트 8건 제거
@@ -165,12 +196,68 @@ DB 를 실측해(`information_schema` → `character varying`) `type: 'varchar'`
       스캔해 `.ts` 를 모으는 로직이 `collectScanTargets` 로 **5번째 사본**이 됐다.
       `source-scan.ts` 는 "**세는**" 축을 한 곳에 모았지만 "**모으는**" 축에는 같은 원칙이
       적용돼 있지 않다. 형제 가드 4개를 함께 건드려야 해 이 배치에 넣지 않는다.
-- [ ] **배치 2 기준을 정한다** — 캐스트 축이 소진됐으므로 다음 축이 필요하다. 후보:
+
+## 배치 2 — 비대칭 해소 (완료)
+
+**기준: 한 엔티티 파일 안에 `nullable: true` 인데 일부는 넓혀지고 일부는 안 넓혀진 것.**
+기계적으로 검출되고 그 술어로 **닫힌다**. 후속 (d) `Schedule.lastRunAt` 이 자연히 포함된다.
+
+| 측정 (AST) | 값 |
+|---|---|
+| `nullable:` 컬럼을 가진 엔티티 파일 | **33** |
+| 혼재(일부만 넓혀짐) | **9** ← 배치 2 대상 |
+| 전부 넓혀짐 | 18 |
+| 전부 안 넓혀짐 | **6** ← 배치 3 후보 |
+| 배치 2 가 넓힌 필드 | **30** (column 24 · relation 6) |
+
+### plan 의 우려 하나가 반증됐다
+
+*"relation 은 `null` 대신 `undefined` 관례일 수 있다"* 고 (b) 에 적어 뒀는데, 이미 넓혀진
+relation **6건 전부 `| null`** 이고 **전부 `type:` 없이** 프로덕션에서 돈다. 관례가 이미
+`| null` 로 확립돼 있어 따로 뺄 이유가 없었다 — relation 은 `design:type` 이 아니라 대상
+엔티티에서 타입을 얻으므로 `type:` 도 불요하다.
+
+### 배치 1 의 가드가 곧바로 값을 했다
+
+`findUntypedNullableColumns` 가 **`type:` 누락 7건**을 즉시 잡았다 — 배치 1 에서는 같은 클래스를
+**e2e 부팅 실패로만** 알았다. DB 를 실측해(`duration_ms`=integer, 나머지 varchar) 명시했다.
+
+### 타입 확장이 남의 전제를 무너뜨렸다
+
+`shared/utils/redact-stored-error.ts` 의 docstring 이 *"시그니처가 `| null` 을 안 적는 것은
+**의도**다 — 엔티티가 두 컬럼을 non-null 로 선언하므로 **정적으로는** null 이 올 수 없고"* 라며
+**전제를 명시**하고 있었다. `NodeExecution.outputData`/`error` **두 컬럼**을 넓히자 그 전제가 거짓이 됐고 `tsc` 가
+2건으로 잡았다.
+
+> **초판은 여기에 `inputData` 도 적었다** — 틀렸다(리뷰 W1). 그 컬럼은 `default: {}` 이고
+> `nullable: true` 가 **아예 없어** 애초에 대상이 아니었다. AST 스캔은 `nullable: true` 만
+> 고르므로 옳았고 **내 서술만** 틀렸다. 공교롭게도 원래 docstring 이 "**두** 컬럼" 이라
+> 적고 있어 대조하면 바로 드러나는 자리였다.
+
+시그니처(`maskIfPresent` · 제네릭 제약)를 넓히고 **원문을 취소선으로 보존한 채** 정정했다.
+그 파일의 `== null` 가드는 이제 *"런타임 방어"* 가 아니라 **정적으로 도달하는 실경로**다.
+
+- [x] **배치 2 기준** — "파일 내 비대칭" 으로 확정, 9파일 30필드 완료
+- [x] **(d) `Schedule.lastRunAt`** — 배치 2 에 포함돼 해소
+- [ ] **가드 사각지대 — `.spec.ts` 의 낡은 캐스트** (배치 2 리뷰 W2·W3). 가드는 spec 을
+      **의도적으로 제외**한다(fixture 가 부분 객체를 캐스트하는 것은 정당하다). 그런데 필드가
+      `| null` 로 넓혀지면 그 fixture 의 캐스트는 **불필요해지는데** 가드가 구조적으로 못 본다 —
+      이번에 3건(`lastRunAt` ×2 · `lastTriggeredAt`)을 손으로 찾았다.
+      잡으려면 캐스트가 겨누는 **엔티티·필드를 역추적**해야 해서 텍스트 스캔으로는 부족하다.
+      배치가 끝날 때마다 `grep 'as unknown as' --include='*.spec.ts'` 로 훑는 것이 현실적이다.
+
+- [ ] **`notification.entity.ts` 의 `resourceType` `@Column` 키 순서** (배치 2 리뷰 3R INFO#1).
+      이번 배치가 재포맷한 형제 3곳은 `name → type → nullable → length` 인데 이 하나만
+      `name → type → length → nullable` 이다. **내가 만든 불일치**이고 순수 cosmetic 이라
+      3R(Critical 0 · Warning 0)을 다시 돌릴 값이 없다고 판단했다 — 배치 3 이 엔티티
+      데코레이터를 어차피 만지므로 그때 함께 통일한다.
+
+- [ ] **배치 3 기준** — 남은 축은 **"전부 안 넓혀진 6파일"**. 배치 2 와 달리 파일 안에 비교
+      기준이 없어 **다른 술어가 필요하다**(그 6파일이 왜 하나도 안 넓혀졌는지 먼저 봐야 한다) — 캐스트 축이 소진됐으므로 다음 축이 필요하다. 후보:
       (a) 엔티티 단위(`execution.entity.ts` 10건 · `user.entity.ts` 잔여 3건),
       (b) relation 7건(`ManyToOne`/`OneToOne` — `null` 대신 `undefined` 관례일 수 있어 별도 조사),
       (c) null 검사가 실재하는 필드 — **단 이름 중복 문제를 먼저 해결해야 한다**(엔티티별로 세야 함),
-      **(d) `Schedule.lastRunAt`** — `nullable: true` 인데 타입은 `Date` 다. 같은 엔티티의
-      `nextRunAt` 만 배치 1 에서 넓혀 **한 파일 안에 비대칭**이 남았다,
+      ~~**(d) `Schedule.lastRunAt`**~~ — **배치 2 에서 해소됨**(아래 §배치 2 참조),
       **(e) `auth.service.spec.ts:58` 의 `lockedUntil: null as unknown as Date`** — 배치 1 이
       `User.lockedUntil` 을 넓혔으므로 이 캐스트는 **이제 불필요**하다(그 fixture 는
       `Partial<User>` 라 캐스트 없이 통과한다)

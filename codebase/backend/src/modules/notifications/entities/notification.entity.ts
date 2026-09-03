@@ -37,11 +37,16 @@ export class Notification {
   @Column({ type: 'text' })
   message: string;
 
-  @Column({ name: 'resource_type', length: 50, nullable: true })
-  resourceType: string;
+  @Column({
+    name: 'resource_type',
+    type: 'varchar',
+    length: 50,
+    nullable: true,
+  })
+  resourceType: string | null;
 
   @Column({ name: 'resource_id', type: 'uuid', nullable: true })
-  resourceId: string;
+  resourceId: string | null;
 
   // Background 본문 실패(background_failed) 알림의 per-run attribution 키.
   // 딥링크(resource_type/resource_id=workflow)와 분리된 내부 전용 컬럼.
@@ -64,7 +69,7 @@ export class Notification {
   channel: string;
 
   @Column({ name: 'email_sent_at', type: 'timestamptz', nullable: true })
-  emailSentAt: Date;
+  emailSentAt: Date | null;
 
   // soft delete — NULL=visible, 채워짐=사용자가 닫은 시각.
   // 목록·미읽음 카운트는 dismissed_at IS NULL 만 본다 (spec/data-flow/8-notifications.md §4).

@@ -27,7 +27,7 @@ export class Workflow {
   name: string;
 
   @Column({ type: 'text', nullable: true })
-  description: string;
+  description: string | null;
 
   @Column({ name: 'is_active', default: false })
   isActive: boolean;
@@ -40,7 +40,7 @@ export class Workflow {
 
   @ManyToOne(() => Folder, { nullable: true, onDelete: 'SET NULL' })
   @JoinColumn({ name: 'folder_id' })
-  folder: Folder;
+  folder: Folder | null;
 
   @Column({ type: 'jsonb', default: {} })
   settings: Record<string, unknown>;

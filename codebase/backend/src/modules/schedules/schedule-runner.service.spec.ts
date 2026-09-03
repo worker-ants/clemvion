@@ -80,7 +80,7 @@ describe('ScheduleRunnerService', () => {
       timezone: 'Asia/Seoul',
       isActive: true,
       nextRunAt: new Date(),
-      lastRunAt: null as unknown as Date,
+      lastRunAt: null,
       parameterValues: {
         region: 'kr',
         runAt: '{{ $now }}',
@@ -208,7 +208,7 @@ describe('ScheduleRunnerService', () => {
       timezone: 'Asia/Seoul',
       isActive: true,
       nextRunAt: new Date(),
-      lastRunAt: null as unknown as Date,
+      lastRunAt: null,
       parameterValues: {},
       createdAt: new Date(),
       updatedAt: new Date(),

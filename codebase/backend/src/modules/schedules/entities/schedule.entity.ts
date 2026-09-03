@@ -42,7 +42,7 @@ export class Schedule {
   nextRunAt: Date | null;
 
   @Column({ name: 'last_run_at', type: 'timestamptz', nullable: true })
-  lastRunAt: Date;
+  lastRunAt: Date | null;
 
   @Column({ name: 'parameter_values', type: 'jsonb', default: {} })
   parameterValues: Record<string, unknown>;
