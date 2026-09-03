@@ -232,6 +232,12 @@ relation **6건 전부 `| null`** 이고 **전부 `type:` 없이** 프로덕션�
       잡으려면 캐스트가 겨누는 **엔티티·필드를 역추적**해야 해서 텍스트 스캔으로는 부족하다.
       배치가 끝날 때마다 `grep 'as unknown as' --include='*.spec.ts'` 로 훑는 것이 현실적이다.
 
+- [ ] **`notification.entity.ts` 의 `resourceType` `@Column` 키 순서** (배치 2 리뷰 3R INFO#1).
+      이번 배치가 재포맷한 형제 3곳은 `name → type → nullable → length` 인데 이 하나만
+      `name → type → length → nullable` 이다. **내가 만든 불일치**이고 순수 cosmetic 이라
+      3R(Critical 0 · Warning 0)을 다시 돌릴 값이 없다고 판단했다 — 배치 3 이 엔티티
+      데코레이터를 어차피 만지므로 그때 함께 통일한다.
+
 - [ ] **배치 3 기준** — 남은 축은 **"전부 안 넓혀진 6파일"**. 배치 2 와 달리 파일 안에 비교
       기준이 없어 **다른 술어가 필요하다**(그 6파일이 왜 하나도 안 넓혀졌는지 먼저 봐야 한다) — 캐스트 축이 소진됐으므로 다음 축이 필요하다. 후보:
       (a) 엔티티 단위(`execution.entity.ts` 10건 · `user.entity.ts` 잔여 3건),
