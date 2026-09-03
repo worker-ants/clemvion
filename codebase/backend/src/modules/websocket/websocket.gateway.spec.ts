@@ -5,6 +5,7 @@ import { WebsocketGateway } from './websocket.gateway';
 import { WsRateLimiterService } from './ws-rate-limiter.service';
 import { WsRateLimitGuard } from './ws-rate-limit.guard';
 import { WsErrorCode } from './ws-error-codes';
+import { MSG_AUTH_TOKEN_EXPIRING } from './websocket-events.types';
 import { ExecutionEngineService } from '../execution-engine/execution-engine.service';
 import { RetryTurnService } from '../execution-engine/retry-turn.service';
 import {
@@ -788,6 +789,57 @@ describe('WebsocketGateway', () => {
           expect.anything(),
         );
         expect(disconnect).not.toHaveBeenCalled();
+      });
+
+      it('통지 payload 의 message 는 공용 상수와 일치한다 — 문구가 바뀌면 걸린다', () => {
+        const { emit } = connectWithExp('client-exp-msg', 900);
+        jest.advanceTimersByTime((900 - 60) * 1000);
+
+        expect(emit).toHaveBeenCalledWith(
+          'auth.token_expired',
+          expect.objectContaining({ message: MSG_AUTH_TOKEN_EXPIRING }),
+        );
+        // 상수 자체도 리터럴로 못박는다 — 테스트와 소스가 같은 상수만 보면
+        // 값이 통째로 바뀌어도 함께 움직여 아무것도 못 잡는다.
+        expect(MSG_AUTH_TOKEN_EXPIRING).toBe(
+          'Access token expires soon — refresh and reconnect.',
+        );
+      });
+
+      it('같은 client.id 로 재무장하면 옛 타이머를 먼저 해제한다 — 아니면 소켓당 누수다', () => {
+        const first = connectWithExp('client-exp-rearm', 900);
+        // 같은 id 로 다시 연결 — Socket.IO 는 연결마다 새 id 를 주므로 현재는 도달
+        // 불가하지만, `connectionStateRecovery` 를 켜면 그날 도달한다. 도달 불가라고
+        // 검증까지 미루면 그날 아무도 이 자리를 모른다.
+        const second = connectWithExp('client-exp-rearm', 900);
+
+        jest.advanceTimersByTime(900 * 1000 + 1);
+
+        // 옛 타이머가 살아 있으면 emit·disconnect 가 2회씩 난다.
+        const oldEmits = first.emit.mock.calls.filter(
+          ([evt]) => evt === 'auth.token_expired',
+        ).length;
+        const newEmits = second.emit.mock.calls.filter(
+          ([evt]) => evt === 'auth.token_expired',
+        ).length;
+        expect(oldEmits + newEmits).toBe(1);
+        expect(
+          first.disconnect.mock.calls.length +
+            second.disconnect.mock.calls.length,
+        ).toBe(1);
+      });
+
+      it('만료 타이머는 unref 된다 — 셧다운을 붙잡지 않는다', () => {
+        const spy = jest.spyOn(global, 'setTimeout');
+        connectWithExp('client-exp-unref', 900);
+        const created = spy.mock.results
+          .map((r) => r.value as NodeJS.Timeout)
+          .filter((t) => typeof t === 'object' && t !== null);
+        expect(created.length).toBeGreaterThanOrEqual(2);
+        for (const t of created.slice(-2)) {
+          expect(t.hasRef()).toBe(false);
+        }
+        spy.mockRestore();
       });
 
       it('lead time 보다 짧게 남은 토큰은 즉시 통지한다 — 창이 음수여도 타이머를 건너뛰지 않는다', () => {

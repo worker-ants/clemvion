@@ -22,8 +22,9 @@ import { ErrorCode } from '../../nodes/core/error-codes';
 import { ExecutionsService } from '../executions/executions.service';
 import {
   AuthEventType,
-  type AuthTokenExpiredPayload,
   ExecutionEventType,
+  MSG_AUTH_TOKEN_EXPIRING,
+  type AuthTokenExpiredPayload,
 } from './websocket-events.types';
 import { corsOriginCallback } from '../../common/utils/cors-origins';
 import { WsErrorCode } from './ws-error-codes';
@@ -147,9 +148,15 @@ export class WebsocketGateway
    * 소켓별 만료 타이머 (사전 통지 · 강제 종료). `handleDisconnect` 에서 **둘 다** 해제한다 —
    * 해제 누락은 소켓당 타이머 누수이고, 이미 끊긴 소켓에 emit/disconnect 를 거는 것이다.
    */
+  /**
+   * 소켓별 만료 타이머 **쌍**. 둘은 `armExpiryTimers` 에서 항상 함께 만들어지고
+   * `handleDisconnect` 에서 항상 함께 해제되므로 **optional 이 아니다** — `?` 로 두면
+   * 있을 수 없는 상태(한쪽만 존재)를 타입이 허용하고, 소비처가 그 분기를 방어하느라
+   * 죽은 코드를 들고 있게 된다.
+   */
   private readonly expiryTimers = new Map<
     string,
-    { notice?: NodeJS.Timeout; cutoff?: NodeJS.Timeout }
+    { notice: NodeJS.Timeout; cutoff: NodeJS.Timeout }
   >();
 
   /**
@@ -167,6 +174,19 @@ export class WebsocketGateway
    * 것이라 이 자리에서 끊을 근거가 없다 — 만료 없는 토큰을 만료로 다루면 정책을 코드가
    * 새로 만드는 것이 된다.
    */
+  /**
+   * 한 소켓의 만료 타이머 **쌍**을 해제하고 맵에서 지운다. 무장(`armExpiryTimers`) 과
+   * 해제(`handleDisconnect`) 두 자리가 같은 절차를 쓰도록 한 곳에 모은다 — 따로 두면
+   * 한쪽만 고쳐져 갈린다.
+   */
+  private clearExpiryTimers(clientId: string): void {
+    const timers = this.expiryTimers.get(clientId);
+    if (!timers) return;
+    clearTimeout(timers.notice);
+    clearTimeout(timers.cutoff);
+    this.expiryTimers.delete(clientId);
+  }
+
   private armExpiryTimers(
     client: Socket,
     expSeconds: number | undefined,
@@ -189,16 +209,23 @@ export class WebsocketGateway
       untilCutoff - WebsocketGateway.TOKEN_EXPIRY_LEAD_MS,
     );
 
-    const timers: { notice?: NodeJS.Timeout; cutoff?: NodeJS.Timeout } = {};
-    timers.notice = setTimeout(() => {
+    // 같은 `client.id` 로 다시 무장하면 옛 쌍을 먼저 해제한다. Socket.IO 는 연결마다 새
+    // id 를 주므로 현재는 도달 불가하지만, `connectionStateRecovery` 를 켜면 그날 도달하고
+    // 그때 옛 타이머가 이미 끊긴 소켓에 emit·disconnect 를 건다(소켓당 누수).
+    this.clearExpiryTimers(client.id);
+
+    const notice = setTimeout(() => {
       const payload: AuthTokenExpiredPayload = {
-        message: 'Access token expires soon — refresh and reconnect.',
+        message: MSG_AUTH_TOKEN_EXPIRING,
         expiresAt,
       };
       client.emit(AuthEventType.AUTH_TOKEN_EXPIRED, payload);
     }, untilNotice);
 
-    timers.cutoff = setTimeout(
+    // `Math.max(0, …)` — 위 `untilNotice` 와 **같은 이유**의 중복 방어다. 이미 만료된
+    // 토큰(음수 창)으로 재연결하면 여기가 음수가 되고, Node 는 그것을 1ms 로 강제하지만
+    // 그 강제는 런타임 구현 세부이지 이 코드가 표현하려는 계약이 아니다.
+    const cutoff = setTimeout(
       () => {
         this.logger.log(`Token expired, disconnecting: ${client.id}`);
         client.disconnect();
@@ -206,7 +233,12 @@ export class WebsocketGateway
       Math.max(0, untilCutoff),
     );
 
-    this.expiryTimers.set(client.id, timers);
+    // 셧다운을 붙잡지 않는다 — 이 타이머들이 event loop 를 살려 두면 프로세스 종료가
+    // 최대 토큰 수명만큼 늦어진다. 소켓 정리는 `handleDisconnect` 가 이미 담당한다.
+    notice.unref();
+    cutoff.unref();
+
+    this.expiryTimers.set(client.id, { notice, cutoff });
   }
 
   handleConnection(client: Socket): void {
@@ -283,12 +315,7 @@ export class WebsocketGateway
     this.wsRateLimiter.release(client.id);
     // §1.2 — 만료 타이머 **둘 다** 해제. 하나만 지우면 나머지가 이미 끊긴 소켓에 emit 하거나
     // disconnect 를 걸고, 소켓당 타이머가 남는다.
-    const timers = this.expiryTimers.get(client.id);
-    if (timers) {
-      if (timers.notice) clearTimeout(timers.notice);
-      if (timers.cutoff) clearTimeout(timers.cutoff);
-      this.expiryTimers.delete(client.id);
-    }
+    this.clearExpiryTimers(client.id);
     this.logger.log(`Client disconnected: ${client.id}`);
   }
 

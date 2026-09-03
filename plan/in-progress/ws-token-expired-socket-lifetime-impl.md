@@ -90,15 +90,20 @@ WARNING 3건 중 **1건만 이 작업 몫**이었다(형제 draft 체크리스�
 - [x] `/ai-review` **5라운드** — 신규 WARNING **8 → 5 → 4 → 3 → 0**. 최종 Critical 0 · Warning 0.
 - [x] PR — `#1266` 머지
 
-- [ ] **이월 INFO — 다음에 이 파일을 만질 때 함께 정리** (5R 기준 3~5라운드 연속 지적).
-      개별로는 차단 사유가 아니라 매 라운드 다시 올라온다. 한 번에 닫는 게 싸다:
-      - `cutoff` clamp 에 근거 주석 한 줄 (인접 `notice` 에만 있음) — **5라운드 연속**
-      - `expiryTimers` 타이머 쌍 타입 non-optional 화 (항상 쌍인데 `?`)
-      - wire 메시지 `MSG_AUTH_TOKEN_EXPIRING` 상수 승격 + 테스트가 그 상수를 참조
-        (지금은 `expect.any(String)` 이라 문구가 바뀌어도 안 걸린다)
-      - `armExpiryTimers` 진입부 선제 `clearTimeout` (현재는 `connectionStateRecovery`
-        미사용이라 도달 불가 — 그 옵션을 켜면 그날 필요해진다)
-      - `setTimeout` 에 `.unref()` (셧다운 상호작용 가정 자체를 제거)
+- [x] **이월 INFO 5건 — 한 번에 닫았다 (2026-09-03)**. 개별로는 차단 사유가 아니라 매 라운드
+      다시 올라오던 것들이다. 뮤테이션 **3축 RED** 로 새 단언이 실제로 무는 것을 확인했다:
+      - `cutoff` clamp 근거 주석 — 인접 `untilNotice` 에만 있어 `:206` 을 읽는 사람은 이유를
+        못 봤다. **5라운드 연속 지적**
+      - `expiryTimers` 타이머 쌍 **non-optional 화** — 둘은 항상 함께 생기고 함께 해제되는데
+        `?` 로 둬서 `handleDisconnect` 가 **닿을 수 없는 분기 둘**을 방어하고 있었다.
+        해제 절차는 `clearExpiryTimers` 로 모아 무장·해제 두 자리가 갈리지 않게 했다
+      - `MSG_AUTH_TOKEN_EXPIRING` **상수 승격** + 테스트가 그 상수와 **리터럴**을 함께 단언
+        (종전 `expect.any(String)` 은 문구가 바뀌어도 안 걸렸다) — 뮤턴트 **RED**
+      - `armExpiryTimers` 진입부 **선제 해제** — **내 이전 판단이 틀렸다.** "도달 불가라 검증
+        불가" 로 미뤘는데, 같은 id 로 두 번 무장하는 테스트가 곧바로 관측했다(emit 2회).
+        도달 불가한 것과 검증 불가한 것은 다르다 — 뮤턴트 **RED**
+      - `setTimeout` **`.unref()`** — 타이머가 event loop 를 붙잡아 셧다운이 최대 토큰 수명만큼
+        늦어질 수 있었다. `hasRef()` 로 단언 — 뮤턴트 **RED**
 - [x] **머지 후 planner 턴 — 완료.** spec 배지 flip + 트래커 종결 + `implemented` 승격.
       ~~spec 의 `_(계획·미구현)_` 배지 flip(§1.2·§4.6·Rationale·`:28`)과
       `spec-sync-websocket-protocol-gaps.md:23` 체크박스. **developer 권한 밖**이다(그 문구의
