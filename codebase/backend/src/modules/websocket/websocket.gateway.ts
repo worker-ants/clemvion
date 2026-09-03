@@ -145,14 +145,13 @@ export class WebsocketGateway
   private static readonly TOKEN_EXPIRY_LEAD_MS = 60_000;
 
   /**
-   * 소켓별 만료 타이머 (사전 통지 · 강제 종료). `handleDisconnect` 에서 **둘 다** 해제한다 —
+   * 소켓별 만료 타이머 **쌍** (사전 통지 · 강제 종료).
+   *
+   * 둘은 `armExpiryTimers` 에서 항상 함께 만들어지고 `clearExpiryTimers` 에서 항상 함께
+   * 해제되므로 **optional 이 아니다** — `?` 로 두면 있을 수 없는 상태(한쪽만 존재)를 타입이
+   * 허용하고, 소비처가 그 분기를 방어하느라 죽은 코드를 들고 있게 된다.
+   *
    * 해제 누락은 소켓당 타이머 누수이고, 이미 끊긴 소켓에 emit/disconnect 를 거는 것이다.
-   */
-  /**
-   * 소켓별 만료 타이머 **쌍**. 둘은 `armExpiryTimers` 에서 항상 함께 만들어지고
-   * `handleDisconnect` 에서 항상 함께 해제되므로 **optional 이 아니다** — `?` 로 두면
-   * 있을 수 없는 상태(한쪽만 존재)를 타입이 허용하고, 소비처가 그 분기를 방어하느라
-   * 죽은 코드를 들고 있게 된다.
    */
   private readonly expiryTimers = new Map<
     string,
@@ -174,23 +173,16 @@ export class WebsocketGateway
    * 것이라 이 자리에서 끊을 근거가 없다 — 만료 없는 토큰을 만료로 다루면 정책을 코드가
    * 새로 만드는 것이 된다.
    */
-  /**
-   * 한 소켓의 만료 타이머 **쌍**을 해제하고 맵에서 지운다. 무장(`armExpiryTimers`) 과
-   * 해제(`handleDisconnect`) 두 자리가 같은 절차를 쓰도록 한 곳에 모은다 — 따로 두면
-   * 한쪽만 고쳐져 갈린다.
-   */
-  private clearExpiryTimers(clientId: string): void {
-    const timers = this.expiryTimers.get(clientId);
-    if (!timers) return;
-    clearTimeout(timers.notice);
-    clearTimeout(timers.cutoff);
-    this.expiryTimers.delete(clientId);
-  }
 
   private armExpiryTimers(
     client: Socket,
     expSeconds: number | undefined,
   ): void {
+    // **조기 return 보다 먼저** 해제한다. `exp` 없는 토큰으로 재무장하면 새 타이머는 안
+    // 걸리지만 옛 쌍은 남아야 할 이유가 없다 — 해제를 return 뒤에 두면 그 조합에서만
+    // 누수가 살아남는다(리뷰 1R W3, 테스트로 관측했다).
+    this.clearExpiryTimers(client.id);
+
     if (typeof expSeconds !== 'number' || !Number.isFinite(expSeconds)) return;
 
     const expiresAtMs = expSeconds * 1000;
@@ -208,11 +200,6 @@ export class WebsocketGateway
       0,
       untilCutoff - WebsocketGateway.TOKEN_EXPIRY_LEAD_MS,
     );
-
-    // 같은 `client.id` 로 다시 무장하면 옛 쌍을 먼저 해제한다. Socket.IO 는 연결마다 새
-    // id 를 주므로 현재는 도달 불가하지만, `connectionStateRecovery` 를 켜면 그날 도달하고
-    // 그때 옛 타이머가 이미 끊긴 소켓에 emit·disconnect 를 건다(소켓당 누수).
-    this.clearExpiryTimers(client.id);
 
     const notice = setTimeout(() => {
       const payload: AuthTokenExpiredPayload = {
@@ -239,6 +226,19 @@ export class WebsocketGateway
     cutoff.unref();
 
     this.expiryTimers.set(client.id, { notice, cutoff });
+  }
+
+  /**
+   * 한 소켓의 만료 타이머 **쌍**을 해제하고 맵에서 지운다. 무장(`armExpiryTimers`) 과
+   * 해제(`handleDisconnect`) 두 자리가 같은 절차를 쓰도록 한 곳에 모은다 — 따로 두면
+   * 한쪽만 고쳐져 갈린다.
+   */
+  private clearExpiryTimers(clientId: string): void {
+    const timers = this.expiryTimers.get(clientId);
+    if (!timers) return;
+    clearTimeout(timers.notice);
+    clearTimeout(timers.cutoff);
+    this.expiryTimers.delete(clientId);
   }
 
   handleConnection(client: Socket): void {

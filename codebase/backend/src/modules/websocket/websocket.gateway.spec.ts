@@ -829,17 +829,48 @@ describe('WebsocketGateway', () => {
         ).toBe(1);
       });
 
+      it('exp 없는 토큰으로 재무장해도 옛 타이머는 해제된다 — 조기 return 이 해제를 건너뛰면 누수다', () => {
+        const first = connectWithExp('client-exp-noexp', 900);
+
+        // 두 번째는 `exp` 가 **없는** 토큰. `armExpiryTimers` 는 타이머를 걸지 않지만,
+        // 옛 쌍은 여전히 해제돼야 한다 — 조기 return 뒤에 해제를 두면 그대로 남는다.
+        (module.get(JwtService).verify as jest.Mock).mockReturnValueOnce({
+          sub: 'user-1',
+          activeWorkspaceId: 'ws-1',
+          // `exp` 없음 — armExpiryTimers 는 타이머를 걸지 않는다.
+        });
+        const second = createMockSocket({
+          id: 'client-exp-noexp',
+          handshake: { query: { token: 'valid-jwt' }, auth: {} },
+        });
+        gateway.handleConnection(second.socket);
+
+        jest.advanceTimersByTime(900 * 1000 + 1);
+
+        expect(first.emit).not.toHaveBeenCalledWith(
+          'auth.token_expired',
+          expect.anything(),
+        );
+        expect(first.disconnect).not.toHaveBeenCalled();
+        expect(second.disconnect).not.toHaveBeenCalled();
+      });
+
       it('만료 타이머는 unref 된다 — 셧다운을 붙잡지 않는다', () => {
         const spy = jest.spyOn(global, 'setTimeout');
-        connectWithExp('client-exp-unref', 900);
-        const created = spy.mock.results
-          .map((r) => r.value as NodeJS.Timeout)
-          .filter((t) => typeof t === 'object' && t !== null);
-        expect(created.length).toBeGreaterThanOrEqual(2);
-        for (const t of created.slice(-2)) {
-          expect(t.hasRef()).toBe(false);
+        try {
+          connectWithExp('client-exp-unref', 900);
+          const created = spy.mock.results
+            .map((r) => r.value as NodeJS.Timeout)
+            .filter((t) => typeof t === 'object' && t !== null);
+          // 정확히 **쌍**이다 — `>= 2` 로 두면 나중에 타이머가 늘어도 통과해
+          // "둘 다 unref 됐다" 를 더는 보장하지 않는다.
+          expect(created).toHaveLength(2);
+          for (const t of created) {
+            expect(t.hasRef()).toBe(false);
+          }
+        } finally {
+          spy.mockRestore();
         }
-        spy.mockRestore();
       });
 
       it('lead time 보다 짧게 남은 토큰은 즉시 통지한다 — 창이 음수여도 타이머를 건너뛰지 않는다', () => {

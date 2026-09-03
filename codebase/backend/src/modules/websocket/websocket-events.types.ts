@@ -299,6 +299,12 @@ export enum AuthEventType {
  * (초판 JSDoc 은 "클라이언트가 이 값으로 남은 창을 계산한다" 고 적었는데 구현이 그러지
  * 않는다 — 문서가 구현보다 넓었다. 리뷰 4R documentation W3.)
  */
+
+export interface AuthTokenExpiredPayload {
+  message: string;
+  expiresAt: string;
+}
+
 /**
  * `auth.token_expired` 통지의 wire 문구 — **단일 SoT**.
  *
@@ -308,8 +314,3 @@ export enum AuthEventType {
  */
 export const MSG_AUTH_TOKEN_EXPIRING =
   'Access token expires soon — refresh and reconnect.';
-
-export interface AuthTokenExpiredPayload {
-  message: string;
-  expiresAt: string;
-}
