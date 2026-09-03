@@ -110,7 +110,7 @@ export function findUntypedNullableColumns(
     const joined = joinColumnNames(src);
     for (const m of src.matchAll(COLUMN_DECL)) {
       const [, deco, field, tsType] = m;
-      if (!tsType.includes('| null')) continue;
+      if (!isNullableType(tsType)) continue;
       if (/\btype:\s*'/.test(deco)) continue;
       const colName = COLUMN_NAME.exec(deco)?.[1];
       if (colName && joined.has(colName)) continue;
@@ -176,6 +176,11 @@ const WIDENED_DECL =
  * 이 가드의 존재 이유와 정면으로 어긋난다. 저장소는 전부 `T | null` 이라 미발현이지만
  * (2026-09-04 실측), 표기 하나만 달라지면 그 필드가 판정에서 사라진다 — 형태에 기대지
  * 않는다.
+ *
+ * > **소비처는 둘이다** — {@link widenedEntityFields} 와 {@link findUntypedNullableColumns}.
+ * > 처음엔 앞의 것만 하드닝하고 뒤의 것은 옛 `includes('| null')` 을 그대로 뒀다(리뷰 8R).
+ * > 뒤엣것이 막는 건 **앱이 부팅을 못 하는 사고**(`DataTypeNotSupportedError`)라 더 비쌌다.
+ * > 이 파일이 내내 다룬 "자매 중 하나만 고친다" 가 판정 함수 자신에게 났다.
  */
 function isNullableType(tsType: string): boolean {
   return tsType

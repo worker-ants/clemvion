@@ -171,6 +171,32 @@ describe('nullable 타입 거짓말이 강제하는 이중 캐스트', () => {
       );
     });
 
+    /**
+     * 자매 `widenedEntityFields` 의 `it.each` 와 **대칭**이다. 3R 에서 그쪽만
+     * `isNullableType` 으로 하드닝하고 이쪽은 옛 `includes('| null')` 을 그대로 뒀는데
+     * (리뷰 8R), **이쪽이 막는 것이 더 비싸다** — 놓치면 앱이 부팅을 못 한다
+     * (`DataTypeNotSupportedError`, 배치 1 실제 사고).
+     *
+     * 두 함수가 다시 갈라지지 않게 하는 것은 판정 함수 공유가 아니라 **양쪽의 캐너리**다.
+     */
+    it.each([
+      ['공백 없음', 'string|null'],
+      ['순서 반대', 'null | string'],
+      ['표준 표기', 'string | null'],
+    ])(
+      '`| null` 표기 변형에서도 `type:` 누락을 잡는다 — %s',
+      (_label, tsType) => {
+        withFixture(
+          `@Column({ name: 'password_hash', nullable: true, length: 255 })\n  passwordHash: ${tsType};\n`,
+          (file) => {
+            expect(
+              findUntypedNullableColumns([file]).map((f) => f.field),
+            ).toEqual(['passwordHash']);
+          },
+        );
+      },
+    );
+
     it('여러 줄 데코레이터도 잡는다 — prettier 가 실제로 이 형태로 바꾼다', () => {
       withFixture(
         "@Column({\n    name: 'password_hash',\n    nullable: true,\n    length: 255,\n  })\n  passwordHash: string | null;\n",
