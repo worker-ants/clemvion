@@ -37,5 +37,5 @@ export class WorkspaceMember {
   invitedAt: Date;
 
   @Column({ name: 'joined_at', type: 'timestamptz', nullable: true })
-  joinedAt: Date;
+  joinedAt: Date | null;
 }

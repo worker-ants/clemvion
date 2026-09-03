@@ -27,11 +27,11 @@ export class Folder {
   name: string;
 
   @Column({ name: 'parent_id', nullable: true })
-  parentId: string;
+  parentId: string | null;
 
   @ManyToOne(() => Folder, { nullable: true, onDelete: 'CASCADE' })
   @JoinColumn({ name: 'parent_id' })
-  parent: Folder;
+  parent: Folder | null;
 
   @Column({ name: 'sort_order', default: 0 })
   sortOrder: number;

@@ -55,7 +55,7 @@ describe('AuthService', () => {
     passwordHash: '',
     emailVerified: true,
     loginAttempts: 0,
-    lockedUntil: null as unknown as Date,
+    lockedUntil: null,
   };
 
   beforeEach(async () => {

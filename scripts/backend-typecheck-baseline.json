@@ -1,6 +1,6 @@
 {
   "//": "backend 전체 프로그램(tsc --noEmit -p tsconfig.json) 타입 진단의 파일별 baseline. 손으로 고치지 말고 `python3 scripts/check-backend-typecheck-ratchet.py --update` 로 재생성할 것. 값을 **올리는** 변경은 새 타입 오류를 받아들이는 것이므로 PR 에 근거가 필요하다.",
-  "total": 198,
+  "total": 197,
   "files": {
     "src/modules/alerts/alerts-evaluator.service.spec.ts": 1,
     "src/modules/auth-configs/auth-configs.service.spec.ts": 5,
@@ -11,7 +11,6 @@
     "src/modules/execution-engine/expression/expression-resolver.service.spec.ts": 1,
     "src/modules/external-interaction/interaction-token.service.spec.ts": 2,
     "src/modules/external-interaction/interaction.service.spec.ts": 4,
-    "src/modules/folders/folders.service.spec.ts": 1,
     "src/modules/integrations/integration-expiry-scanner.service.spec.ts": 8,
     "src/modules/integrations/integration-oauth.service.cafe24.spec.ts": 12,
     "src/modules/integrations/integration-oauth.service.makeshop.spec.ts": 1,

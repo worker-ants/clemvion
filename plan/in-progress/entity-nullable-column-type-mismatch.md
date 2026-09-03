@@ -192,10 +192,114 @@ DB 를 실측해(`information_schema` → `character varying`) `type: 'varchar'`
       이상이 §2.2 명명 규칙의 명시된 두 예외(RPC-style `{id}` 필수 / `/api/external/*`)
       어디에도 포섭되지 않는다. **이 PR 과 무관한 선재 gap 이고 이번 검토가 최초 기록**이라
       여기 적어 둔다 — 다른 plan 에 등재된 곳이 없다.
+- [ ] **후속 축 — 응답 DTO 가 엔티티 nullable 필드를 non-null 로 문서화한다 (48건 / 26파일)**
+      (`--impl-done` `19_02_06` INFO#3 이 체크박스 승격을 요구했다).
+      배치 3 에서 `AuthConfigDto.ipWhitelist` 한 건만 규약 §5.4 적용 조건에 걸려 조치했고
+      **나머지는 열려 있다.** 상세·측정·판단 근거는 §배치 3 「새로 드러난 축」.
+
+      > **왜 산문에서 체크박스로 올리는가**: 잔여가 §배치 3 절 서술로만 있어서 이 plan 이
+      > `complete/` 로 가는 순간 봉인된다. 이 세션에서 같은 매몰을 이미 두 번 밟았다
+      > (배치 1 의 "추적된다" 허위 주장 · 배치 3 의 (e) 를 "폐기됨" 으로 접을 뻔한 것).
+      > **미해결 항목은 체크박스로만 살아남는다.**
+
+      착수 시 두 가지를 함께 한다 — (1) 48건의 **엔티티별 귀속**(지금 수는 필드 *이름*
+      매칭이라 동명 필드가 섞여 있다), (2) **엔티티 nullable ↔ 응답 DTO 선언 대조 가드**
+      신설(`nullable-type-lie-cast` 는 엔티티↔TS 축만 본다 — DTO 가 다시 좁혀져도 못 잡는다).
+
+- [ ] **후속(planner 턴) — §5.4 의 `field?:` 표기와 기존 선례가 어긋난다**
+      (`--impl-done` `19_02_06` INFO#1). 규약 §5.4 는 `null`(상시 존재) 필드를
+      `@ApiPropertyOptional({ nullable: true })` + `field?: T | null` 로 쓰라고 하는데,
+      **`field?:` 는 "키가 없을 수 있다" 는 뜻이라 같은 절의 "상시 존재" 정의와 어긋난다.**
+      실제로 같은 파일의 선재 `AuthConfigUsageCallDto.sourceIp` 는 `@ApiProperty({ nullable:
+      true })` + `sourceIp: T | null`(non-optional) 로 반대 형태다.
+
+      > 배치 3 은 **규약 문면을 그대로 따랐다**(체커가 "되돌릴 필요 없음" 으로 확인).
+      > 선례가 아니라 규약을 따른 것이라 developer 판단으로 뒤집지 않는다. 규약 문장을 고칠지
+      > `sourceIp` 를 맞출지는 **planner 턴 결정**이다 — `spec_impact` 에 이미 포함돼 있다.
+
 - [ ] **후속 — `repo-guards/__tests__/` 의 공용 walker 추출** (리뷰 W5). 디렉터리를 재귀
       스캔해 `.ts` 를 모으는 로직이 `collectScanTargets` 로 **5번째 사본**이 됐다.
       `source-scan.ts` 는 "**세는**" 축을 한 곳에 모았지만 "**모으는**" 축에는 같은 원칙이
       적용돼 있지 않다. 형제 가드 4개를 함께 건드려야 해 이 배치에 넣지 않는다.
+
+## 배치 3 — 잔여 전량 (완료 · 축 종결)
+
+**기준: "잔여 전량".** 배치 2 가 끝난 시점의 남은 축은 *"전부 안 넓혀진 6파일"* 이었는데,
+그 6파일의 nullable 필드가 **합해서 8개**뿐이라 따로 술어를 세울 대상이 아니었다.
+
+### 그 6파일이 왜 하나도 안 넓혀졌나 — 의미적 이유는 없다
+
+착수 전 이 질문을 먼저 봐야 한다고 plan 에 적어 뒀다. 답은 **"앞선 두 술어가 닿지 않았을
+뿐"** 이다. 배치 1 은 *캐스트를 강제하는 필드*, 배치 2 는 *파일 내 비대칭*을 골랐는데, 이
+6파일은 nullable 필드가 **전부** 안 넓혀져 있어 파일 안에 대비가 없었다. 넓히면 안 되는
+필드는 하나도 없었다.
+
+| 측정 (AST, 배치 3 전 → 후) | 값 |
+|---|---|
+| `nullable:` 필드를 가진 엔티티 파일 | **33 → 33** |
+| 전부 넓혀짐 | 27 → **33** |
+| 혼재 | 0 → 0 |
+| 전부 안 넓혀짐 | 6 → **0** |
+| 넓힌 필드 | **8** (column 7 · relation 1) |
+
+`tsc` 비-spec 오류 **0** · 가드 **12/12** · ratchet **198/37 → 197/36**.
+
+### `type:` 은 1건만 필요했다 — 나머지는 실증된 예외
+
+`audit_log.ip_address` 만 `type: 'varchar'` 를 붙였다. 마이그레이션(`V001:326` `VARCHAR(45)`)과
+형제 선례(`login-history`·`refresh-token` 가 같은 컬럼을 `type: 'varchar', length: 45` 로 선언)가
+일치한다.
+
+`folder.parentId` 는 `type:` 없이 넓혔다 — 같은 파일에 `@JoinColumn({ name: 'parent_id' })` 가
+있어 배치 1 의 **JoinColumn 예외**에 해당한다. 그 예외를 신뢰하기 전에 **실측했다**: 지금
+이 예외에 기대고 있는 컬럼이 **4개**(`execution.triggerId`·`executedBy`·`parentExecutionId`,
+`node-execution.parentNodeExecutionId`)이고 전부 배치 2 에서 넓혀져 **e2e 부팅(292 PASS)을
+통과한 채 프로덕션에 있다**. 예외는 문서상 주장이 아니라 4건으로 검증된 것이다.
+
+### 파급이 없던 것이 아니라, 소비처가 이미 방어하고 있었다
+
+배치 2 는 `redact-stored-error.ts` 가 `tsc` 로 터졌는데 이번엔 비-spec 오류가 **0** 이었다.
+"안 쓰는 필드였나" 를 갈라야 해서 소비처를 직접 봤다 — 아니었다:
+`auth-configs.service.ts:356` 은 `ac.ipWhitelist?.length` 로, `workflows.service.ts:733` 은
+`e.condition ?? null` 로 **이미 null 을 다루고 있었다**. 타입만 거짓말하고 있었던 것이다.
+
+**제거한 캐스트는 두 곳이다** (리뷰 INFO#4 — 초판은 spec 것만 적었다):
+
+| 위치 | 무엇 | 어떻게 드러났나 |
+|---|---|---|
+| `folders.controller.ts:114` | `dto as Partial<Folder>` (+ 유휴 `Folder` import) | **lint** `no-unnecessary-type-assertion` |
+| `folders.service.spec.ts:14` | `parentId: null as unknown as string` | 배치 말 캐스트 훑기 |
+
+`UpdateFolderDto.parentId` 는 **이미 `string | null`** 이었다 — 컨트롤러 캐스트는 순전히
+엔티티의 거짓말을 메우려던 것이었다. `tsc` 는 둘 다 못 잡았고 lint 와 손 훑기가 잡았다.
+
+### 새로 드러난 축 — 응답 DTO 가 nullable 필드를 non-null 로 문서화한다
+
+`AuthConfigDto.ipWhitelist: string[]` 인데 엔티티·spec(`1-data-model.md:621` `String[]?`) 은
+둘 다 nullable 이고, 서비스는 실제로 `null` 을 내보낸다. **같은 DTO 안의 `lastUsedAt?: string
+| null` 과도 비대칭**이다. Swagger 계약이 거짓인 셈이다.
+
+- ~~**이 PR 에서 고치지 않았다.**~~ **`ipWhitelist` 한 건은 리뷰 1R W1 로 조치했다**
+  (`af1651264`). 스코프 아웃했던 판단을 뒤집은 이유는 두 가지다 — (1) `AuthConfigsController`
+  가 엔티티를 **DTO 매핑 없이 그대로 반환**해 `null` 이 실제로 wire 에 나간다(리뷰어가 댄
+  사실, 내가 안 봤다), (2) [API 규약 §5.4](../../spec/5-system/2-api-convention.md) 가
+  *"앞으로 도입·**변경되는** 필드에 적용"* 이라 **이 diff 가 nullability 를 바꾼 필드는 규약
+  적용 대상**이다. 나머지는 이 diff 가 안 건드리므로 그 조건에 해당하지 않는다 — 자의적인
+  "한 자리만 고치기" 가 아니라 규약이 그은 선이다.
+- 잔여 실측(조치 후 **재측정**, 뺄셈 아님): 엔티티 nullable 필드명에 대해 응답 DTO 가
+  non-null 로 선언한 자리가 **48건 / 26파일**.
+
+  > **초판은 "49건(12파일)" 이라 적었다. 건수는 조치로 하나 줄어 맞지만 파일 수는 처음부터
+  > 틀렸다** — 그때 스크립트가 `most_common(12)` 로 **상위 12개만 출력**했는데 그 출력 길이를
+  > 파일 수로 읽었다. 내가 세지 않은 것을 세었다고 쓴 것이다. 실제 파일 수는 **26** 이다.
+
+- ⚠️ **이 48 은 아직 작업 항목이 아니다** — 필드 *이름* 매칭이라 서로 다른 엔티티의 동명
+  필드가 섞여 있다(`executionId`·`title` 등). 후보 (c) 의 **"이름 중복 문제를 먼저 해결해야
+  한다"** 가 그대로 적용된다. 엔티티별 귀속을 먼저 해야 수가 확정된다.
+- **이 축에는 가드가 없다** (리뷰 2R INFO#5). `nullable-type-lie-cast` 가드는 엔티티↔TS 축만
+  본다 — DTO 가 다시 좁혀져도 잡히지 않는다. 리뷰어는 `ipWhitelist: null` 회귀 테스트 1건을
+  제안했지만 **한 자리 캐너리는 이 축을 안 닫는다**(같은 형태가 48곳이다). 축을 열 때
+  **엔티티 nullable ↔ 응답 DTO 선언**을 대조하는 가드를 함께 만든다.
 
 ## 배치 2 — 비대칭 해소 (완료)
 
@@ -246,24 +350,57 @@ relation **6건 전부 `| null`** 이고 **전부 `type:` 없이** 프로덕션�
       잡으려면 캐스트가 겨누는 **엔티티·필드를 역추적**해야 해서 텍스트 스캔으로는 부족하다.
       배치가 끝날 때마다 `grep 'as unknown as' --include='*.spec.ts'` 로 훑는 것이 현실적이다.
 
-- [ ] **`notification.entity.ts` 의 `resourceType` `@Column` 키 순서** (배치 2 리뷰 3R INFO#1).
-      이번 배치가 재포맷한 형제 3곳은 `name → type → nullable → length` 인데 이 하나만
-      `name → type → length → nullable` 이다. **내가 만든 불일치**이고 순수 cosmetic 이라
-      3R(Critical 0 · Warning 0)을 다시 돌릴 값이 없다고 판단했다 — 배치 3 이 엔티티
-      데코레이터를 어차피 만지므로 그때 함께 통일한다.
+      > **배치 3 에서 수행 — 다만 첫 시도의 대상 집합이 좁았다.**
+      > 처음엔 *그 배치가 넓힌 8필드*만 훑어 `folders.service.spec.ts:14` 1건을 찾았다.
+      > 그런데 **낡은 캐스트는 어느 배치가 넓혔든 남는다** — 배치 1 이 넓힌
+      > `User.lockedUntil` 을 겨눈 `auth.service.spec.ts:58` 이 그대로 살아 있었다.
+      >
+      > **훑기의 대상은 "이 배치가 넓힌 것" 이 아니라 "지금 넓혀져 있는 것 전체"** 다.
+      > 엔티티에서 `| null` 필드명을 전수(**122종**) 뽑아 `.spec.ts` 의
+      > `<필드>: null as unknown as` 를 대조하면 기계적으로 닫힌다. 그렇게 돌리니 저장소
+      > 전체 잔존이 위 2건뿐이었고 둘 다 제거했다.
+      > 각각 대조군으로 유효성 확인 — 엔티티를 되돌리면 오류 **2건 · 7건**이 난다.
 
-- [ ] **배치 3 기준** — 남은 축은 **"전부 안 넓혀진 6파일"**. 배치 2 와 달리 파일 안에 비교
-      기준이 없어 **다른 술어가 필요하다**(그 6파일이 왜 하나도 안 넓혀졌는지 먼저 봐야 한다) — 캐스트 축이 소진됐으므로 다음 축이 필요하다. 후보:
-      (a) 엔티티 단위(`execution.entity.ts` 10건 · `user.entity.ts` 잔여 3건),
-      (b) relation 7건(`ManyToOne`/`OneToOne` — `null` 대신 `undefined` 관례일 수 있어 별도 조사),
-      (c) null 검사가 실재하는 필드 — **단 이름 중복 문제를 먼저 해결해야 한다**(엔티티별로 세야 함),
-      ~~**(d) `Schedule.lastRunAt`**~~ — **배치 2 에서 해소됨**(아래 §배치 2 참조),
-      **(e) `auth.service.spec.ts:58` 의 `lockedUntil: null as unknown as Date`** — 배치 1 이
-      `User.lockedUntil` 을 넓혔으므로 이 캐스트는 **이제 불필요**하다(그 fixture 는
-      `Partial<User>` 라 캐스트 없이 통과한다)
+- [x] ~~**`notification.entity.ts` 의 `resourceType` `@Column` 키 순서**~~ (배치 2 리뷰 3R
+      INFO#1) — **won't-do. 배치 3 에서 실측하니 지적이 거꾸로였다.**
+
+      > **전제 두 겹이 틀렸다.**
+      > (1) *"이번 배치가 재포맷했다"* — 배치 2 는 재정렬한 적이 없다. `git show 713b69483`
+      >     으로 보면 원래 `{name, nullable, length}` 였던 것에 **`type:` 한 키를 삽입**했을
+      >     뿐이고 `nullable`·`length` 의 상대 순서는 보존했다. `resource_type` 은 **원래부터**
+      >     `{name, length, nullable}` 이었다. 불일치는 배치 2 **이전부터** 있었다.
+      > (2) *"형제 3곳에 맞춰라"* — 전수로 세니 저장소 다수는 반대다:
+      >     `name→type→length→nullable` **17** vs `name→type→nullable→length` **10**
+      >     (그 밖에 `name→length→nullable→type` 3 등). 즉 `resourceType` 이 **다수 형태**이고,
+      >     맞추라고 지목된 쪽이 소수다.
+      >
+      > 무관한 키를 재정렬하는 편집은 scope 확대이기도 하다. **고치지 않는다.**
+
+- [x] **배치 3 기준** — **"잔여 전량"으로 확정.** 남은 것이 8필드뿐이라 축이 종결됐다.
+      상세는 §배치 3 참조.
+
+      > 아래는 **착수 전 적어 둔 원문 후보 검토**다. 실제 기준은 위 한 줄이고, 이 후보들은
+      > 이력으로 남긴다 — 다만 **(e) 는 살아 있는 항목이었다**(바로 아래 참조).
+      >
+      > 남은 축은 **"전부 안 넓혀진 6파일"**. 배치 2 와 달리 파일 안에 비교 기준이 없어
+      > **다른 술어가 필요하다**(그 6파일이 왜 하나도 안 넓혀졌는지 먼저 봐야 한다).
+      > 후보: (a) 엔티티 단위 · (b) relation 7건 · (c) null 검사가 실재하는 필드
+      > (**이름 중복 문제 선결 필요**) · ~~(d) `Schedule.lastRunAt`~~(배치 2 해소) ·
+      > **(e) `auth.service.spec.ts:58` 의 `lockedUntil: null as unknown as Date`**.
+
+- [x] **(e) `auth.service.spec.ts:58` 캐스트 제거** — 배치 3 에서 해소.
+
+      > **하마터면 묻을 뻔했다.** 위 후보 목록을 "폐기·흡수됨" 으로 접으려다 실측하니 (e) 는
+      > **아직 살아 있었다**. 원인은 내 훑기 방법이 좁았던 것 — 배치 말 캐스트 훑기를 *그
+      > 배치가 넓힌 필드*로만 돌려서, 배치 1 이 넓힌 `User.lockedUntil` 을 겨눈 캐스트를
+      > 못 봤다. **훑기는 넓혀진 필드 전체(122종)를 대상으로 해야 한다** — 그렇게 다시 돌리니
+      > 저장소 전체에서 이 1건이 유일한 잔존이었다.
+      > 대조군: `User.lockedUntil` 을 `Date` 로 되돌리면 그 spec 에 오류 **7건**.
 
       > **(d)·(e)는 리뷰가 내 거짓 주장을 잡아 추가됐다** (`15_17_01` W1). 배치 1 RESOLUTION 에서
       > 둘을 *"plan 이 배치 2 후보로 추적한다"* 고 썼는데 **plan 본문에 이름이 없었다**(`lastRunAt`
       > 실측 0건). 이번 세션에서 **두 번째**다 — WS PR 에서도 "배포 런북에서 추적 중" 이라 적고
       > 추적처를 안 만들었다. **"추적된다" 는 쓰기 전에 grep 으로 확인한다.**
-- [ ] 각 배치마다 `tsc` **비-spec 소스 오류 0** 을 직접 확인 (ratchet 만으로는 부족)
+- [x] 각 배치마다 `tsc` **비-spec 소스 오류 0** 을 직접 확인 (ratchet 만으로는 부족)
+      — **매 배치 반복 규칙이라 체크박스는 "세 배치 모두 지켰다" 는 뜻**이다(배치 1·2·3 각
+      절과 커밋 로그에 실측 기재). 새 배치가 생기면 그 배치에서 다시 확인한다.

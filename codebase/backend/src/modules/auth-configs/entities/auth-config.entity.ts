@@ -40,13 +40,13 @@ export class AuthConfig {
   config: Record<string, unknown>;
 
   @Column({ name: 'ip_whitelist', type: 'text', array: true, nullable: true })
-  ipWhitelist: string[];
+  ipWhitelist: string[] | null;
 
   @Column({ name: 'is_active', default: true })
   isActive: boolean;
 
   @Column({ name: 'last_used_at', type: 'timestamptz', nullable: true })
-  lastUsedAt: Date;
+  lastUsedAt: Date | null;
 
   @CreateDateColumn({ name: 'created_at', type: 'timestamptz' })
   createdAt: Date;

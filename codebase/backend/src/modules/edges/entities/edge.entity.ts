@@ -54,7 +54,7 @@ export class Edge {
   type: EdgeType;
 
   @Column({ type: 'jsonb', nullable: true })
-  condition: Record<string, unknown>;
+  condition: Record<string, unknown> | null;
 
   @CreateDateColumn({ name: 'created_at', type: 'timestamptz' })
   createdAt: Date;
