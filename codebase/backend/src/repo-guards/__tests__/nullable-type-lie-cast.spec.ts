@@ -432,13 +432,13 @@ export class B {
   mixed: string;
 }
 `,
+        // B.mixed 는 non-null 이므로 이 캐스트는 **정당하다**.
+        'b.spec.ts': `const f: Partial<B> = { mixed: null as unknown as string };\n`,
       },
       (p) => {
-        expect(
-          widenedEntityFields([p['a.entity.ts'], p['b.entity.ts']]).has(
-            'mixed',
-          ),
-        ).toBe(false);
+        const w = widenedEntityFields([p['a.entity.ts'], p['b.entity.ts']]);
+        expect(w.has('mixed')).toBe(false);
+        expect(findStaleSpecCasts([p['b.spec.ts']], w)).toHaveLength(0);
       },
     );
   });
