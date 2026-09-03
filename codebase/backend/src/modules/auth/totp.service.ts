@@ -121,7 +121,7 @@ export class TotpService {
   async disable(userId: string): Promise<void> {
     await this.usersService.update(userId, {
       twoFactorEnabled: false,
-      twoFactorSecret: null as unknown as string,
+      twoFactorSecret: null,
       totpRecoveryCodes: null,
     });
   }

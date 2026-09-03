@@ -132,6 +132,41 @@ export function countRawUpdateReturning(src: string): number {
   return count;
 }
 
+/**
+ * `null as unknown as X` — 엔티티 타입이 컬럼의 `nullable: true` 를 안 적어서 **강제되는**
+ * 이중 캐스트를 센다.
+ *
+ * ## 왜 이 형태를 세나
+ *
+ * 컬럼이 `nullable: true` 인데 TS 필드가 non-null 이면, `null` 을 대입하는 코드가 컴파일러를
+ * **두 단계로 우회**해야 한다. 그 캐스트는 "타입이 실제보다 좁다" 는 **기계적으로 검출 가능한
+ * 증거**다 — 사람이 판단할 필요가 없다.
+ *
+ * 2026-09-03 에 그런 8건(`User` 7 · `Schedule` 1)의 타입을 `| null` 로 넓혀 캐스트를 전부
+ * 걷어냈다. `strictNullChecks` 가 켜져 있는데도 **신규 타입 오류가 0** 이었다 — 런타임 코드는
+ * 이미 null 을 올바로 다루고 **타입만 거짓말하고 있었다.**
+ *
+ * ## 왜 backend ratchet 이 이 자리를 못 보나
+ *
+ * `scripts/backend-typecheck-baseline.json` 은 **`*.spec.ts` 만** 담는다(2026-09-03 실측:
+ * 37파일 중 비-spec **0개**). 설계상 그렇다 — spec 은 `nest build` 가 exclude 하고 jest 가
+ * 타입을 strip 해 "그 검사 말고는 아무도 못 보는" 자리를 메우는 게 그 ratchet 의 목적이다.
+ * 그래서 **프로덕션 소스의 타입 회피는 어떤 게이트도 안 잡는다.**
+ *
+ * 전수 목록·다음 배치 기준: `plan/in-progress/entity-nullable-column-type-mismatch.md`
+ */
+export function countNullAsUnknownAsCasts(src: string): number {
+  // 주석 속 언급은 세지 않는다 — 이 저장소에 정리 이력을 적어 둔 주석이 실재한다
+  // (`secret-resolver.service.ts`: "종전의 `as unknown as string` 은 …").
+  const pattern = /\bnull as unknown as\b/g;
+  return (stripComments(src).match(pattern) ?? []).length;
+}
+
+/** {@link countNullAsUnknownAsCasts} 의 "지점이 존재하는가" 만 필요할 때 쓰는 얇은 래퍼. */
+export function hasNullAsUnknownAsCast(src: string): boolean {
+  return countNullAsUnknownAsCasts(src) > 0;
+}
+
 /** {@link countRawUpdateReturning} 의 "지점이 존재하는가" 만 필요할 때 쓰는 얇은 래퍼. */
 export function hasRawUpdateReturning(src: string): boolean {
   return countRawUpdateReturning(src) > 0;

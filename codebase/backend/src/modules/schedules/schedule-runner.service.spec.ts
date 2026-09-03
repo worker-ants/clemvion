@@ -220,6 +220,39 @@ describe('ScheduleRunnerService', () => {
       data: { scheduleId: 's1', workspaceId: 'ws' },
     } as Job<{ scheduleId: string; workspaceId: string }>;
 
+    /**
+     * cron 파싱이 실패하면 `nextRunAt` 을 **`null` 로 명시 대입**하는 분기(catch).
+     *
+     * 2026-09-03 에 그 필드 타입을 `Date | null` 로 넓히며 이 대입에서
+     * `null as unknown as Date` 캐스트를 걷어냈는데, 그 분기에 도달하는 테스트가 없었다
+     * (리뷰 W4). `undefined` 로 회귀하면 TypeORM 이 SET 절에서 생략해 **옛 시각이 남는다.**
+     */
+    it('무효 cron 이면 nextRunAt 을 null 로 명시 대입한다 — 옛 시각이 남으면 안 된다', async () => {
+      const saved: Schedule[] = [];
+      scheduleRepo.findOne.mockResolvedValue({
+        ...baseSchedule,
+        cronExpression: 'not-a-cron',
+      });
+      scheduleRepo.save.mockImplementation((sch) => {
+        saved.push(sch as Schedule);
+        return Promise.resolve(sch as Schedule);
+      });
+      nodeRepo.findOne.mockResolvedValue({
+        id: 'n',
+        workflowId: 'wf1',
+        type: 'manual_trigger',
+        category: NodeCategory.TRIGGER,
+        config: {},
+      } as unknown as Node);
+      engine.execute.mockResolvedValue('exec-1');
+
+      await service.process(job);
+
+      expect(saved).toHaveLength(1);
+      // `toBeNull()` 이어야 한다 — `toBeFalsy()` 면 `undefined` 회귀를 통과시킨다.
+      expect(saved[0].nextRunAt).toBeNull();
+    });
+
     it('passes { triggerId: schedule.triggerId } to executionEngineService.execute and updates lastRunAt/nextRunAt', async () => {
       scheduleRepo.findOne.mockResolvedValue(baseSchedule);
       scheduleRepo.save.mockImplementation((s) =>

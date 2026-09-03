@@ -316,6 +316,53 @@ describe('SchedulesService.runNow', () => {
       expect(order).toEqual(['commit', 'audit', 'bullmq']);
     });
 
+    /**
+     * cron/timezone 을 바꾸면 `nextRunAt` 을 재계산하는 분기. 계산이 비면 **`null` 로 명시
+     * 대입**한다 — 2026-09-03 에 그 자리의 `null as unknown as Date` 캐스트를 걷어냈는데
+     * 이 분기에 도달하는 테스트가 없었다(리뷰 W4).
+     *
+     * `undefined` 로 회귀하면 TypeORM 이 SET 절에서 생략해 **옛 시각이 남는다.**
+     *
+     * **현재 구현상 도달 불가능한 방어 분기다** — `computeNextRuns` 는 `Math.max(count, 1)`
+     * 로 하한을 고정하고 파싱 실패 시 throw 하므로 빈 배열을 반환할 수 없다. 그래서 private
+     * 메서드를 mock 해 **강제로** 그 분기를 실행한다. 실사용 시나리오가 아니라 **방어 분기의
+     * 계약**(비면 `null`)을 고정하는 테스트다.
+     */
+    it('[방어 분기] 다음 실행 계산이 비면 nextRunAt 을 null 로 명시 대입한다', async () => {
+      const saved: Schedule[] = [];
+      scheduleRepo.findOne.mockResolvedValue({
+        id: 'sch-1',
+        workspaceId: 'ws-1',
+        isActive: false,
+        cronExpression: '0 9 * * *',
+        timezone: 'Asia/Seoul',
+        triggerId: 'trig-1',
+        nextRunAt: new Date('2020-01-01T00:00:00Z'),
+      } as unknown as Schedule);
+      scheduleRepo.save.mockImplementation((sch) => {
+        saved.push(sch as Schedule);
+        return Promise.resolve(sch as Schedule);
+      });
+      // 다음 실행이 계산되지 않는 상황을 만든다.
+      jest
+        .spyOn(
+          service as unknown as { computeNextRuns: () => string[] },
+          'computeNextRuns',
+        )
+        .mockReturnValue([]);
+
+      await service.update(
+        'sch-1',
+        'ws-1',
+        { cronExpression: '0 10 * * *' } as unknown as UpdateScheduleDto,
+        'u-upd',
+      );
+
+      expect(saved).toHaveLength(1);
+      // `toBeNull()` 이어야 한다 — `toBeFalsy()` 면 `undefined` 회귀를 통과시킨다.
+      expect(saved[0].nextRunAt).toBeNull();
+    });
+
     it('감사 로깅 — update 는 schedule.updated 를 남긴다', async () => {
       scheduleRepo.findOne.mockResolvedValue({
         id: 'sch-1',

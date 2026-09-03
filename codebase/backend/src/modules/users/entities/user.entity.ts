@@ -18,8 +18,13 @@ export class User {
   @Column({ unique: true, length: 255 })
   email: string;
 
-  @Column({ name: 'password_hash', nullable: true, length: 255 })
-  passwordHash: string;
+  @Column({
+    name: 'password_hash',
+    type: 'varchar',
+    nullable: true,
+    length: 255,
+  })
+  passwordHash: string | null;
 
   @Column({ length: 100 })
   name: string;
@@ -36,8 +41,13 @@ export class User {
   @Column({ name: 'two_factor_enabled', default: false })
   twoFactorEnabled: boolean;
 
-  @Column({ name: 'two_factor_secret', nullable: true, length: 255 })
-  twoFactorSecret: string;
+  @Column({
+    name: 'two_factor_secret',
+    type: 'varchar',
+    nullable: true,
+    length: 255,
+  })
+  twoFactorSecret: string | null;
 
   /**
    * TOTP 복구 코드(SHA-256 해시 배열). 사용 시 해당 항목 제거.
@@ -67,25 +77,35 @@ export class User {
   @Column({ name: 'email_verified', default: false })
   emailVerified: boolean;
 
-  @Column({ name: 'email_verify_token', nullable: true, length: 255 })
-  emailVerifyToken: string;
+  @Column({
+    name: 'email_verify_token',
+    type: 'varchar',
+    nullable: true,
+    length: 255,
+  })
+  emailVerifyToken: string | null;
 
   @Column({
     name: 'email_verify_expires_at',
     type: 'timestamptz',
     nullable: true,
   })
-  emailVerifyExpiresAt: Date;
+  emailVerifyExpiresAt: Date | null;
 
-  @Column({ name: 'password_reset_token', nullable: true, length: 255 })
-  passwordResetToken: string;
+  @Column({
+    name: 'password_reset_token',
+    type: 'varchar',
+    nullable: true,
+    length: 255,
+  })
+  passwordResetToken: string | null;
 
   @Column({
     name: 'password_reset_expires_at',
     type: 'timestamptz',
     nullable: true,
   })
-  passwordResetExpiresAt: Date;
+  passwordResetExpiresAt: Date | null;
 
   /**
    * 이메일 변경 흐름의 pending 신규 이메일 (spec/5-system/1-auth.md §1.1.B).
@@ -127,7 +147,7 @@ export class User {
   loginAttempts: number;
 
   @Column({ name: 'locked_until', type: 'timestamptz', nullable: true })
-  lockedUntil: Date;
+  lockedUntil: Date | null;
 
   @Column({ name: 'oauth_provider', nullable: true, length: 50 })
   oauthProvider: string;

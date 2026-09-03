@@ -384,7 +384,7 @@ export class UsersService {
   async resetLoginAttempts(id: string): Promise<void> {
     await this.userRepository.update(id, {
       loginAttempts: 0,
-      lockedUntil: null as unknown as Date,
+      lockedUntil: null,
     });
   }
 
