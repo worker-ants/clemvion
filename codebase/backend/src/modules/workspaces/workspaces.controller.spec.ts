@@ -81,6 +81,7 @@ describe('WorkspacesController', () => {
 
       const result = await controller.listInvitations(user, 'ws-1');
 
+      expect(invitations.listPending).toHaveBeenCalledWith('ws-1', user.sub);
       expect(result.data[0].invitedBy).toBeNull();
     });
 
