@@ -1,4 +1,9 @@
+import * as fs from 'node:fs';
+import * as os from 'node:os';
+import * as path from 'node:path';
+
 import {
+  collectTsFiles,
   countCalls,
   countRawUpdateReturning,
   hasRawUpdateReturning,
@@ -170,5 +175,97 @@ describe('countRawUpdateReturning / hasRawUpdateReturning', () => {
     ].join('\n');
     expect(countRawUpdateReturning(src)).toBe(2);
     expect(hasRawUpdateReturning(src)).toBe(true);
+  });
+});
+
+/**
+ * `collectTsFiles` 는 `repo-guards/__tests__/` 의 walker **사본 5개**를 대체한다. 여기가
+ * 틀리면 다섯 가드가 **동시에** 다른 파일을 본다 — 그래서 각 필터를 직접 단언한다.
+ *
+ * 픽스처는 `os.tmpdir()` 에 만든다. 실제 소스 트리를 대상으로 삼으면 저장소가 바뀔 때마다
+ * 기대값이 흔들리고, 무엇보다 **가드 테스트가 실파일을 건드리는 사고**가 이 저장소에서
+ * 이미 한 번 있었다.
+ */
+describe('collectTsFiles', () => {
+  let root: string;
+
+  beforeEach(() => {
+    root = fs.mkdtempSync(path.join(os.tmpdir(), 'collect-ts-'));
+    const mk = (rel: string): void => {
+      const full = path.join(root, rel);
+      fs.mkdirSync(path.dirname(full), { recursive: true });
+      fs.writeFileSync(full, '// fixture\n');
+    };
+    mk('a.ts');
+    mk('nested/b.ts');
+    mk('nested/deep/c.ts');
+    mk('a.spec.ts');
+    mk('nested/b.spec.ts');
+    mk('types.d.ts');
+    mk('README.md');
+    mk('node_modules/pkg/index.ts');
+    mk('dist/bundle.ts');
+  });
+
+  afterEach(() => {
+    fs.rmSync(root, { recursive: true, force: true });
+  });
+
+  const rel = (files: string[]): string[] =>
+    files.map((f) => path.relative(root, f).split(path.sep).join('/'));
+
+  it('기본값은 `.spec.ts` 를 제외한다 — 대부분의 가드가 프로덕션 소스만 본다', () => {
+    expect(rel(collectTsFiles(root))).toEqual([
+      'a.ts',
+      'nested/b.ts',
+      'nested/deep/c.ts',
+    ]);
+  });
+
+  /**
+   * ## 정렬은 여기서 검증된다 — 그리고 이 환경에서는 검증되지 않는다
+   *
+   * 위·아래 `toEqual` 의 기대 배열은 **정렬된 순서**다. 구현이 `sort()` 를 잃으면 결과는
+   * 순회 순서가 되고, 그게 정렬 순서와 다른 파일시스템에서는 이 단언이 RED 가 된다
+   * (ext4 는 `readdir` 이 해시 순서라 CI 가 그 환경이다).
+   *
+   * **그러나 이 개발 환경에서는 안 잡힌다.** 실측: `readdirSync` 가 알파벳순을 돌려주고
+   * (생성 순서 `z,m,a` → 반환 `a,m,z`), 깊이 우선 순회는 서브트리를 연속으로 내보내므로
+   * **순회 순서 == 정렬 순서**가 된다. 실제로 `sort()` 를 뺀 뮤턴트가 **생존했다**
+   * (156/156 GREEN).
+   *
+   * 처음엔 `expect(files).toEqual([...files].sort())` 라는 전용 테스트를 뒀는데 같은
+   * 이유로 vacuous 했다. `fs.readdirSync` 를 spy 로 뒤집으려 했으나 `node:fs` 의 property
+   * 가 non-configurable 이라 실패했다. **거짓 커버리지를 남기느니 한계를 적는다** —
+   * 픽스처를 아무리 키워도 이 환경에서는 가릴 수 없다(연속성 때문에 원리적으로 그렇다).
+   */
+  it('`includeSpec` 은 `.spec.ts` 를 되살린다 — masked-reject 가드가 쓰는 유일한 축', () => {
+    expect(rel(collectTsFiles(root, { includeSpec: true }))).toEqual([
+      'a.spec.ts',
+      'a.ts',
+      'nested/b.spec.ts',
+      'nested/b.ts',
+      'nested/deep/c.ts',
+    ]);
+  });
+
+  it('`.d.ts` 는 옵션과 무관하게 항상 제외한다', () => {
+    for (const opts of [{}, { includeSpec: true }]) {
+      expect(rel(collectTsFiles(root, opts))).not.toContain('types.d.ts');
+    }
+  });
+
+  it('`node_modules`·`dist` 는 옵션과 무관하게 항상 건너뛴다', () => {
+    for (const opts of [{}, { includeSpec: true }]) {
+      const files = rel(collectTsFiles(root, opts));
+      expect(files).not.toContain('node_modules/pkg/index.ts');
+      expect(files).not.toContain('dist/bundle.ts');
+    }
+  });
+
+  it('`.ts` 가 아닌 파일은 담지 않는다', () => {
+    expect(rel(collectTsFiles(root)).some((f) => f.endsWith('.md'))).toBe(
+      false,
+    );
   });
 });

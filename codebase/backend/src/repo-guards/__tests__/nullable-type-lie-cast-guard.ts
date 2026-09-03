@@ -10,7 +10,10 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 
-import { countNullAsUnknownAsCasts } from '../../common/__test-utils__/source-scan';
+import {
+  collectTsFiles,
+  countNullAsUnknownAsCasts,
+} from '../../common/__test-utils__/source-scan';
 
 /** `src` 루트. 이 파일은 `src/repo-guards/__tests__/` 에 있다. */
 export const SRC_ROOT = path.resolve(__dirname, '..', '..');
@@ -31,17 +34,7 @@ export interface CastOffender {
  * > 숫자는 적지 않는다. 지금 세고 싶으면 `grep -rn 'null as unknown as' --include='*.spec.ts'`.
  */
 export function collectScanTargets(root: string = SRC_ROOT): string[] {
-  const out: string[] = [];
-  const walk = (dir: string): void => {
-    for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
-      const p = path.join(dir, e.name);
-      if (e.isDirectory()) walk(p);
-      else if (e.name.endsWith('.ts') && !e.name.endsWith('.spec.ts'))
-        out.push(p);
-    }
-  };
-  walk(root);
-  return out.sort();
+  return collectTsFiles(root);
 }
 
 /** 캐스트가 남아 있는 파일과 개수. 위반이 없으면 빈 배열. */

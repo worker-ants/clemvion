@@ -5,9 +5,9 @@
 // 파서 순수 로직과 소비 spec 을 분리하는 규약은 형제 가드
 // `engine-error-code-anchor-guard.ts` 와 동일하다.
 
-import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as ts from 'typescript';
+import { collectTsFiles } from '../../common/__test-utils__/source-scan';
 
 /** 검사 대상 디렉터리 (저장소 루트 기준). */
 export const MODULES_DIR = 'codebase/backend/src/modules';
@@ -45,24 +45,7 @@ export interface AuditHelperSite {
 
 /** 대상 디렉터리의 `.ts` 소스를 모은다 (`.spec.ts`·`.d.ts` 제외). */
 export function collectSourceFiles(repoRoot: string): string[] {
-  const root = path.join(repoRoot, MODULES_DIR);
-  const out: string[] = [];
-  const walk = (dir: string): void => {
-    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
-      const full = path.join(dir, entry.name);
-      if (entry.isDirectory()) {
-        walk(full);
-      } else if (
-        entry.name.endsWith('.ts') &&
-        !entry.name.endsWith('.spec.ts') &&
-        !entry.name.endsWith('.d.ts')
-      ) {
-        out.push(full);
-      }
-    }
-  };
-  walk(root);
-  return out.sort();
+  return collectTsFiles(path.join(repoRoot, MODULES_DIR));
 }
 
 /**
