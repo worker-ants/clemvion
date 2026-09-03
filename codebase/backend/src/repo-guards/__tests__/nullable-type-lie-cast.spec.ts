@@ -276,6 +276,64 @@ export class Probe {
     );
   });
 
+  /**
+   * ## 이름 충돌 — 이 가드가 실제로 밟았던 오탐
+   *
+   * 판정 단위가 **필드 이름**이라, 한 엔티티는 nullable 이고 다른 엔티티는 non-null 인
+   * 동명 필드가 있으면 non-null 쪽의 **정당한** 캐스트를 잡는다. 저장소에 그런 충돌이
+   * **20건** 실재한다(`userId`·`workflowId`·`triggerId` 등).
+   *
+   * 초판은 이 반례를 못 본 채 docstring 에 "왜 오탐이 없나" 를 적었다 — 자매 축(DTO 필드명
+   * 매칭)에서 같은 실패 모드를 바로 앞 PR 에 반증해 놓고 그대로 재도입한 것이다(리뷰 2R W1).
+   */
+  it('[대조군] 다른 엔티티에서 non-null 인 동명 필드는 판정에서 뺀다', () => {
+    withFiles(
+      {
+        'a.entity.ts': `
+@Entity('a')
+export class A {
+  @Column({ type: 'uuid', nullable: true })
+  userId: string | null;
+}
+`,
+        'b.entity.ts': `
+@Entity('b')
+export class B {
+  @Column({ type: 'uuid' })
+  userId: string;
+}
+`,
+        // B.userId 는 non-null 이므로 이 캐스트는 **정당하다**.
+        'b.spec.ts': `const f: Partial<B> = { userId: null as unknown as string };\n`,
+      },
+      (p) => {
+        const w = widenedEntityFields([p['a.entity.ts'], p['b.entity.ts']]);
+        expect(w.has('userId')).toBe(false);
+        expect(findStaleSpecCasts([p['b.spec.ts']], w)).toHaveLength(0);
+      },
+    );
+  });
+
+  it('충돌이 없으면 그대로 잡는다 — 건전성을 얻느라 전부 잃지는 않았다', () => {
+    withFiles(
+      {
+        'a.entity.ts': `
+@Entity('a')
+export class A {
+  @Column({ type: 'timestamptz', nullable: true })
+  onlyHereAt: Date | null;
+}
+`,
+        'a.spec.ts': `const f = { onlyHereAt: null as unknown as Date };\n`,
+      },
+      (p) => {
+        const w = widenedEntityFields([p['a.entity.ts']]);
+        expect(w.has('onlyHereAt')).toBe(true);
+        expect(findStaleSpecCasts([p['a.spec.ts']], w)).toHaveLength(1);
+      },
+    );
+  });
+
   it('주석 속 캐스트 인용은 잡지 않는다 — 고칠 것이 없는 파일이 영구 RED 가 된다', () => {
     withFiles(
       {

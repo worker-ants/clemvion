@@ -126,10 +126,31 @@ export interface StaleSpecCast {
 }
 
 /**
- * 엔티티 선언에서 `| null` 로 **넓혀진** 필드명 전수.
+ * 엔티티 선언에서 `| null` 로 **넓혀진** 필드명 — **단, 어느 엔티티에서도 non-null 이
+ * 아닌 것만.**
  *
  * `@Column` 뿐 아니라 `@ManyToOne`·`@OneToOne` 도 본다 — 관계도 `| null` 로 넓혀졌고,
  * 그 필드를 겨눈 fixture 캐스트 역시 불필요해진다.
+ *
+ * ## 이름 충돌을 빼는 이유 — 안 빼면 정당한 캐스트를 오탐한다
+ *
+ * 판정 단위가 **필드 이름**이지 `(엔티티, 필드)` 쌍이 아니다. 그래서 한 엔티티는 nullable
+ * 이고 다른 엔티티는 non-null 인 동명 필드가 있으면, **non-null 쪽 fixture 의 정당한
+ * 캐스트**를 "불필요" 로 잡는다 — 처방대로 지우면 `tsc` 가 깨진다.
+ *
+ * 저장소 실측 **20건**이 그런 충돌이다 (`userId` 는 `login_history` 에서 nullable,
+ * `audit_log` 에서 non-null · `workflowId` 는 `llm_usage_log`/`alert_rule` 에서 nullable,
+ * `edge`/`execution` 에서 non-null · `trigger`·`triggerId`·`resourceType` 등).
+ *
+ * 그래서 **한 곳이라도 non-null 이면 그 이름은 판정에서 뺀다.** 재현율을 잃는 대신
+ * **오탐을 0으로 유지**한다 — 가드의 처방이 "이 캐스트를 지워라" 이므로, 틀리면 사람이
+ * 코드를 깨뜨리는 방향이다. 지금까지 실제로 제거한 캐스트 4건(`lastRunAt`·
+ * `lastTriggeredAt`·`parentId`·`lockedUntil`)은 모두 충돌 목록 밖이라 그대로 잡힌다.
+ *
+ * > **이건 내가 바로 앞 PR 에서 반증한 실패 모드다.** 자매 축("응답 DTO 가 nullable 필드를
+ * > non-null 로 문서화")에서 필드 이름 매칭이 48건 중 44건을 오탐으로 만든 것을 확인해 놓고,
+ * > 같은 판정을 여기에 그대로 썼다. 초판 docstring 은 "왜 오탐이 없나" 라는 절을 두고
+ * > "예외 없이 제거 가능" 이라 단언했는데 **반례가 재현됐다**(리뷰 2R W1).
  *
  * > **한계 — 추가 데코레이터는 1개까지만 본다** (리뷰 INFO#1, reviewer 3명 공통 지적).
  * > 관계 뒤의 `@JoinColumn` 처럼 데코레이터가 하나 더 붙는 형태까지가 이 패턴의 범위다
@@ -142,15 +163,18 @@ const WIDENED_DECL =
   /@(?:Column|ManyToOne|OneToOne)\((?:[^()]|\([^()]*\))*\)\s*\n(?:\s*@\w+\((?:[^()]|\([^()]*\))*\)\s*\n)?\s*(\w+)\s*:\s*([^;]+);/g;
 
 export function widenedEntityFields(entityFiles: string[]): Set<string> {
-  const out = new Set<string>();
+  const widened = new Set<string>();
+  const nonNull = new Set<string>();
   for (const file of entityFiles) {
     const src = fs.readFileSync(file, 'utf8');
     for (const m of src.matchAll(WIDENED_DECL)) {
       const [, field, tsType] = m;
-      if (tsType.includes('| null')) out.add(field);
+      (tsType.includes('| null') ? widened : nonNull).add(field);
     }
   }
-  return out;
+  // 동명 충돌 제거 — 아래 docstring §"이름 충돌" 참조.
+  for (const f of nonNull) widened.delete(f);
+  return widened;
 }
 
 /** `foo: null as unknown as Bar` 의 `foo`. `undefined` 형태도 같은 잔재다. */
@@ -169,13 +193,15 @@ const SPEC_CAST = /(\w+)\s*:\s*(?:null|undefined)\s+as\s+unknown\s+as\b/g;
  * `lockedUntil`). 세 번째에는 훑는 대상 집합을 *그 배치가 넓힌 필드*로만 잡아서 앞 배치가
  * 남긴 것을 놓쳤다 — 사람이 매번 다시 정할 일이 아니라 술어로 고정할 일이다.
  *
- * ## 왜 오탐이 없나
+ * ## 오탐 없음은 {@link widenedEntityFields} 가 이름 충돌을 뺀 덕이다
  *
- * 판정이 **기계적**이다. 필드가 `| null` 이면 `null` 을 넣는 데 캐스트가 필요 없다 —
- * 걸린 자리는 예외 없이 제거 가능하고, 실제로 제거하면 `tsc` 가 그대로 통과한다.
- * (자매 축인 "응답 DTO 가 nullable 필드를 non-null 로 문서화" 는 정반대다. 거기선 쿼리
- * 필터·액션 응답·다른 엔티티 세 형태가 전부 정당해 정적 판정이 불가능하다 —
- * `plan/in-progress/entity-nullable-column-type-mismatch.md` 에 근거를 적어 뒀다.)
+ * 그 함수가 **어느 엔티티에서도 non-null 이 아닌 이름만** 넘겨주므로, 여기 걸린 자리는
+ * 캐스트를 지워도 `tsc` 가 통과한다. 충돌을 안 뺐을 때 **오탐이 재현된다** — 그 근거와
+ * 실측 20건은 그쪽 docstring 에 있다.
+ *
+ * 대신 **재현율을 잃는다**: 충돌 이름(`userId`·`workflowId` 등)에 낡은 캐스트가 생기면
+ * 이 가드는 못 잡는다. 처방이 "지워라" 라서 틀리면 사람이 코드를 깨뜨리는 방향이므로,
+ * 재현율보다 건전성을 택했다.
  *
  * 주석은 {@link stripComments} 로 지운다. 이 저장소에는 정리 이력을 설명하며 옛 캐스트를
  * **인용한** 주석이 실재한다 — 그걸 세면 고칠 것이 없는 파일이 영구히 RED 가 된다.
