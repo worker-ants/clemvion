@@ -5,6 +5,7 @@ import { WebsocketGateway } from './websocket.gateway';
 import { WsRateLimiterService } from './ws-rate-limiter.service';
 import { WsRateLimitGuard } from './ws-rate-limit.guard';
 import { WsErrorCode } from './ws-error-codes';
+import { MSG_AUTH_TOKEN_EXPIRING } from './websocket-events.types';
 import { ExecutionEngineService } from '../execution-engine/execution-engine.service';
 import { RetryTurnService } from '../execution-engine/retry-turn.service';
 import {
@@ -788,6 +789,113 @@ describe('WebsocketGateway', () => {
           expect.anything(),
         );
         expect(disconnect).not.toHaveBeenCalled();
+      });
+
+      it('통지 payload 의 message 는 공용 상수와 일치한다 — 문구가 바뀌면 걸린다', () => {
+        const { emit } = connectWithExp('client-exp-msg', 900);
+        jest.advanceTimersByTime((900 - 60) * 1000);
+
+        expect(emit).toHaveBeenCalledWith(
+          'auth.token_expired',
+          expect.objectContaining({ message: MSG_AUTH_TOKEN_EXPIRING }),
+        );
+        // 상수 자체도 리터럴로 못박는다 — 테스트와 소스가 같은 상수만 보면
+        // 값이 통째로 바뀌어도 함께 움직여 아무것도 못 잡는다.
+        expect(MSG_AUTH_TOKEN_EXPIRING).toBe(
+          'Access token expires soon — refresh and reconnect.',
+        );
+      });
+
+      it('같은 client.id 로 재무장하면 옛 타이머를 먼저 해제한다 — 아니면 소켓당 누수다', () => {
+        const first = connectWithExp('client-exp-rearm', 900);
+        // 같은 id 로 다시 연결 — Socket.IO 는 연결마다 새 id 를 주므로 현재는 도달
+        // 불가하지만, `connectionStateRecovery` 를 켜면 그날 도달한다. 도달 불가라고
+        // 검증까지 미루면 그날 아무도 이 자리를 모른다.
+        const second = connectWithExp('client-exp-rearm', 900);
+
+        jest.advanceTimersByTime(900 * 1000 + 1);
+
+        // 옛 타이머가 살아 있으면 emit·disconnect 가 2회씩 난다.
+        const oldEmits = first.emit.mock.calls.filter(
+          ([evt]) => evt === 'auth.token_expired',
+        ).length;
+        const newEmits = second.emit.mock.calls.filter(
+          ([evt]) => evt === 'auth.token_expired',
+        ).length;
+        // 합계가 아니라 **개별**로 단언한다 — 합계만 보면 "옛 소켓이 냈고 새 소켓은
+        // 안 냈다" 는 반대 상황도 통과한다.
+        expect(oldEmits).toBe(0);
+        expect(newEmits).toBe(1);
+        expect(first.disconnect).not.toHaveBeenCalled();
+        expect(second.disconnect).toHaveBeenCalledTimes(1);
+      });
+
+      it('exp 없는 토큰으로 재무장해도 옛 타이머는 해제된다 — 조기 return 이 해제를 건너뛰면 누수다', () => {
+        const first = connectWithExp('client-exp-noexp', 900);
+
+        // 두 번째는 `exp` 가 **없는** 토큰. `armExpiryTimers` 는 타이머를 걸지 않지만,
+        // 옛 쌍은 여전히 해제돼야 한다 — 조기 return 뒤에 해제를 두면 그대로 남는다.
+        (module.get(JwtService).verify as jest.Mock).mockReturnValueOnce({
+          sub: 'user-1',
+          activeWorkspaceId: 'ws-1',
+          // `exp` 없음 — armExpiryTimers 는 타이머를 걸지 않는다.
+        });
+        const second = createMockSocket({
+          id: 'client-exp-noexp',
+          handshake: { query: { token: 'valid-jwt' }, auth: {} },
+        });
+        gateway.handleConnection(second.socket);
+
+        jest.advanceTimersByTime(900 * 1000 + 1);
+
+        expect(first.emit).not.toHaveBeenCalledWith(
+          'auth.token_expired',
+          expect.anything(),
+        );
+        expect(first.disconnect).not.toHaveBeenCalled();
+        expect(second.disconnect).not.toHaveBeenCalled();
+      });
+
+      it('이미 만료된 exp 로 연결하면 즉시 끊는다 — cutoff 의 음수 clamp', () => {
+        // 종전에 `cutoff` 의 음수 창 분기가 무검증이었다. 창이 **음수**여야 들어간다.
+        //
+        // **이 테스트는 `Math.max(0, …)` clamp 의 가드가 아니다** — clamp 를 지우는 뮤턴트가
+        // 생존한다(실측). Node 가 음수 지연을 1ms 로 강제하기 때문이고, 그래서 소스 주석도
+        // 그 clamp 를 "의도적 중복 방어" 로 적는다. 여기서 고정하는 것은 clamp 가 아니라
+        // **"이미 만료된 토큰으로 붙으면 즉시 통지 + 즉시 종료"** 라는 관측 가능한 동작이다.
+        const { emit, disconnect } = connectWithExp('client-exp-past', -10);
+
+        jest.advanceTimersByTime(0);
+        expect(emit).toHaveBeenCalledWith(
+          'auth.token_expired',
+          expect.anything(),
+        );
+        expect(disconnect).toHaveBeenCalledTimes(1);
+
+        // **순서**까지 단언한다. 두 지연이 모두 0 으로 클램프되는 tie 상태에서는 Node 가
+        // **등록 순서**로 실행 순서를 정하므로, 두 `setTimeout` 블록을 뒤바꾸는 리팩터가
+        // "통지 없이 먼저 끊기는" 동작을 조용히 만들 수 있다. 존재만 단언하면 안 걸린다.
+        expect(emit.mock.invocationCallOrder[0]).toBeLessThan(
+          disconnect.mock.invocationCallOrder[0],
+        );
+      });
+
+      it('만료 타이머는 unref 된다 — 셧다운을 붙잡지 않는다', () => {
+        const spy = jest.spyOn(global, 'setTimeout');
+        try {
+          connectWithExp('client-exp-unref', 900);
+          const created = spy.mock.results
+            .map((r) => r.value as NodeJS.Timeout)
+            .filter((t) => typeof t === 'object' && t !== null);
+          // 정확히 **쌍**이다 — `>= 2` 로 두면 나중에 타이머가 늘어도 통과해
+          // "둘 다 unref 됐다" 를 더는 보장하지 않는다.
+          expect(created).toHaveLength(2);
+          for (const t of created) {
+            expect(t.hasRef()).toBe(false);
+          }
+        } finally {
+          spy.mockRestore();
+        }
       });
 
       it('lead time 보다 짧게 남은 토큰은 즉시 통지한다 — 창이 음수여도 타이머를 건너뛰지 않는다', () => {

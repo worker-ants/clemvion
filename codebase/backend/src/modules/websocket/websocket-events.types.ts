@@ -303,3 +303,13 @@ export interface AuthTokenExpiredPayload {
   message: string;
   expiresAt: string;
 }
+
+/**
+ * `auth.token_expired` 통지의 wire 문구 — **단일 SoT**.
+ *
+ * 리터럴로 두면 테스트가 `expect.any(String)` 으로밖에 못 잡아 문구가 바뀌어도 아무도
+ * 모른다. 이 값은 클라이언트가 로그·디버깅에서 보는 관측 표면이므로 상수로 고정하고
+ * 테스트가 그것을 참조한다.
+ */
+export const MSG_AUTH_TOKEN_EXPIRING =
+  'Access token expires soon — refresh and reconnect.';
