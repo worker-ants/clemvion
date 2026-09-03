@@ -197,6 +197,61 @@ DB 를 실측해(`information_schema` → `character varying`) `type: 'varchar'`
       `source-scan.ts` 는 "**세는**" 축을 한 곳에 모았지만 "**모으는**" 축에는 같은 원칙이
       적용돼 있지 않다. 형제 가드 4개를 함께 건드려야 해 이 배치에 넣지 않는다.
 
+## 배치 3 — 잔여 전량 (완료 · 축 종결)
+
+**기준: "잔여 전량".** 배치 2 가 끝난 시점의 남은 축은 *"전부 안 넓혀진 6파일"* 이었는데,
+그 6파일의 nullable 필드가 **합해서 8개**뿐이라 따로 술어를 세울 대상이 아니었다.
+
+### 그 6파일이 왜 하나도 안 넓혀졌나 — 의미적 이유는 없다
+
+착수 전 이 질문을 먼저 봐야 한다고 plan 에 적어 뒀다. 답은 **"앞선 두 술어가 닿지 않았을
+뿐"** 이다. 배치 1 은 *캐스트를 강제하는 필드*, 배치 2 는 *파일 내 비대칭*을 골랐는데, 이
+6파일은 nullable 필드가 **전부** 안 넓혀져 있어 파일 안에 대비가 없었다. 넓히면 안 되는
+필드는 하나도 없었다.
+
+| 측정 (AST, 배치 3 전 → 후) | 값 |
+|---|---|
+| `nullable:` 필드를 가진 엔티티 파일 | **33 → 33** |
+| 전부 넓혀짐 | 27 → **33** |
+| 혼재 | 0 → 0 |
+| 전부 안 넓혀짐 | 6 → **0** |
+| 넓힌 필드 | **8** (column 7 · relation 1) |
+
+`tsc` 비-spec 오류 **0** · 가드 **12/12** · ratchet **198/37 → 197/36**.
+
+### `type:` 은 1건만 필요했다 — 나머지는 실증된 예외
+
+`audit_log.ip_address` 만 `type: 'varchar'` 를 붙였다. 마이그레이션(`V001:326` `VARCHAR(45)`)과
+형제 선례(`login-history`·`refresh-token` 가 같은 컬럼을 `type: 'varchar', length: 45` 로 선언)가
+일치한다.
+
+`folder.parentId` 는 `type:` 없이 넓혔다 — 같은 파일에 `@JoinColumn({ name: 'parent_id' })` 가
+있어 배치 1 의 **JoinColumn 예외**에 해당한다. 그 예외를 신뢰하기 전에 **실측했다**: 지금
+이 예외에 기대고 있는 컬럼이 **4개**(`execution.triggerId`·`executedBy`·`parentExecutionId`,
+`node-execution.parentNodeExecutionId`)이고 전부 배치 2 에서 넓혀져 **e2e 부팅(292 PASS)을
+통과한 채 프로덕션에 있다**. 예외는 문서상 주장이 아니라 4건으로 검증된 것이다.
+
+### 파급이 없던 것이 아니라, 소비처가 이미 방어하고 있었다
+
+배치 2 는 `redact-stored-error.ts` 가 `tsc` 로 터졌는데 이번엔 비-spec 오류가 **0** 이었다.
+"안 쓰는 필드였나" 를 갈라야 해서 소비처를 직접 봤다 — 아니었다:
+`auth-configs.service.ts:356` 은 `ac.ipWhitelist?.length` 로, `workflows.service.ts:733` 은
+`e.condition ?? null` 로 **이미 null 을 다루고 있었다**. 타입만 거짓말하고 있었던 것이다.
+
+### 새로 드러난 축 — 응답 DTO 가 nullable 필드를 non-null 로 문서화한다
+
+`AuthConfigDto.ipWhitelist: string[]` 인데 엔티티·spec(`1-data-model.md:621` `String[]?`) 은
+둘 다 nullable 이고, 서비스는 실제로 `null` 을 내보낸다. **같은 DTO 안의 `lastUsedAt?: string
+| null` 과도 비대칭**이다. Swagger 계약이 거짓인 셈이다.
+
+- **이 PR 에서 고치지 않았다.** `tsc` 가 강제하지 않는 **다른 계층**이고, OpenAPI 는 외부
+  계약이며, 무엇보다 **한 자리만 고치는 것이 이 plan 이 진단한 안티패턴**이다.
+- 개략 실측: 엔티티 nullable 필드명 122종에 대해 응답 DTO 가 non-null 로 선언한 자리가
+  **49건**(12파일).
+- ⚠️ **이 49 는 아직 작업 항목이 아니다** — 필드 *이름* 매칭이라 서로 다른 엔티티의 동명
+  필드가 섞여 있다(`executionId`·`title` 등). 이 plan 이 후보 (c) 에 적어 둔 **"이름 중복
+  문제를 먼저 해결해야 한다"** 가 그대로 적용된다. 엔티티별 귀속을 먼저 해야 수가 확정된다.
+
 ## 배치 2 — 비대칭 해소 (완료)
 
 **기준: 한 엔티티 파일 안에 `nullable: true` 인데 일부는 넓혀지고 일부는 안 넓혀진 것.**
@@ -246,13 +301,26 @@ relation **6건 전부 `| null`** 이고 **전부 `type:` 없이** 프로덕션�
       잡으려면 캐스트가 겨누는 **엔티티·필드를 역추적**해야 해서 텍스트 스캔으로는 부족하다.
       배치가 끝날 때마다 `grep 'as unknown as' --include='*.spec.ts'` 로 훑는 것이 현실적이다.
 
-- [ ] **`notification.entity.ts` 의 `resourceType` `@Column` 키 순서** (배치 2 리뷰 3R INFO#1).
-      이번 배치가 재포맷한 형제 3곳은 `name → type → nullable → length` 인데 이 하나만
-      `name → type → length → nullable` 이다. **내가 만든 불일치**이고 순수 cosmetic 이라
-      3R(Critical 0 · Warning 0)을 다시 돌릴 값이 없다고 판단했다 — 배치 3 이 엔티티
-      데코레이터를 어차피 만지므로 그때 함께 통일한다.
+      > **배치 3 에서 수행**: 넓힌 8필드를 겨눈 캐스트를 훑어 **1건**(`folders.service.spec.ts:14`
+      > `parentId: null as unknown as string`)을 찾아 제거했다. 무의미한 제거가 아님을
+      > **대조군으로 확인** — 엔티티를 `string` 으로 되돌리면 그 파일에 오류 **2건**이 난다.
 
-- [ ] **배치 3 기준** — 남은 축은 **"전부 안 넓혀진 6파일"**. 배치 2 와 달리 파일 안에 비교
+- [x] ~~**`notification.entity.ts` 의 `resourceType` `@Column` 키 순서**~~ (배치 2 리뷰 3R
+      INFO#1) — **won't-do. 배치 3 에서 실측하니 지적이 거꾸로였다.**
+
+      > **전제 두 겹이 틀렸다.**
+      > (1) *"이번 배치가 재포맷했다"* — 배치 2 는 재정렬한 적이 없다. `git show 713b69483`
+      >     으로 보면 원래 `{name, nullable, length}` 였던 것에 **`type:` 한 키를 삽입**했을
+      >     뿐이고 `nullable`·`length` 의 상대 순서는 보존했다. `resource_type` 은 **원래부터**
+      >     `{name, length, nullable}` 이었다. 불일치는 배치 2 **이전부터** 있었다.
+      > (2) *"형제 3곳에 맞춰라"* — 전수로 세니 저장소 다수는 반대다:
+      >     `name→type→length→nullable` **17** vs `name→type→nullable→length` **10**
+      >     (그 밖에 `name→length→nullable→type` 3 등). 즉 `resourceType` 이 **다수 형태**이고,
+      >     맞추라고 지목된 쪽이 소수다.
+      >
+      > 무관한 키를 재정렬하는 편집은 scope 확대이기도 하다. **고치지 않는다.**
+
+- [x] **배치 3 기준** — **"잔여 전량"으로 확정**(아래 §배치 3). 남은 것이 8필드뿐이라 축이 종결됐다. 원문 후보 검토 — 남은 축은 **"전부 안 넓혀진 6파일"**. 배치 2 와 달리 파일 안에 비교
       기준이 없어 **다른 술어가 필요하다**(그 6파일이 왜 하나도 안 넓혀졌는지 먼저 봐야 한다) — 캐스트 축이 소진됐으므로 다음 축이 필요하다. 후보:
       (a) 엔티티 단위(`execution.entity.ts` 10건 · `user.entity.ts` 잔여 3건),
       (b) relation 7건(`ManyToOne`/`OneToOne` — `null` 대신 `undefined` 관례일 수 있어 별도 조사),

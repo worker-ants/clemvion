@@ -11,7 +11,7 @@ describe('FoldersService', () => {
     id: 'folder-uuid-1',
     workspaceId: 'ws-uuid-1',
     name: 'Test Folder',
-    parentId: null as unknown as string,
+    parentId: null,
     sortOrder: 0,
   };
 

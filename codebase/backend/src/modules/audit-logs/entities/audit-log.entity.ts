@@ -40,8 +40,8 @@ export class AuditLog {
   @Column({ type: 'jsonb', default: {} })
   details: Record<string, unknown>;
 
-  @Column({ name: 'ip_address', length: 45, nullable: true })
-  ipAddress: string;
+  @Column({ name: 'ip_address', type: 'varchar', length: 45, nullable: true })
+  ipAddress: string | null;
 
   @CreateDateColumn({ name: 'created_at', type: 'timestamptz' })
   createdAt: Date;

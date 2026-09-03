@@ -30,7 +30,7 @@ export class WorkflowVersion {
   snapshot: Record<string, unknown>;
 
   @Column({ name: 'change_summary', type: 'text', nullable: true })
-  changeSummary: string;
+  changeSummary: string | null;
 
   @Column({ name: 'created_by' })
   createdBy: string;

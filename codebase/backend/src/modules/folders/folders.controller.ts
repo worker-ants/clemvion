@@ -33,7 +33,6 @@ import { WorkspaceId } from '../../common/decorators';
 import { CreateFolderDto } from './dto/create-folder.dto';
 import { UpdateFolderDto } from './dto/update-folder.dto';
 import { FolderDto } from './dto/responses/folder-response.dto';
-import { Folder } from './entities/folder.entity';
 
 @ApiTags('Folders')
 @ApiBearerAuth('access-token')
@@ -112,7 +111,7 @@ export class FoldersController {
     @WorkspaceId() workspaceId: string,
     @Body() dto: UpdateFolderDto,
   ) {
-    return this.foldersService.update(id, workspaceId, dto as Partial<Folder>);
+    return this.foldersService.update(id, workspaceId, dto);
   }
 
   @Delete(':id')
