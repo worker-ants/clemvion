@@ -822,11 +822,12 @@ describe('WebsocketGateway', () => {
         const newEmits = second.emit.mock.calls.filter(
           ([evt]) => evt === 'auth.token_expired',
         ).length;
-        expect(oldEmits + newEmits).toBe(1);
-        expect(
-          first.disconnect.mock.calls.length +
-            second.disconnect.mock.calls.length,
-        ).toBe(1);
+        // 합계가 아니라 **개별**로 단언한다 — 합계만 보면 "옛 소켓이 냈고 새 소켓은
+        // 안 냈다" 는 반대 상황도 통과한다.
+        expect(oldEmits).toBe(0);
+        expect(newEmits).toBe(1);
+        expect(first.disconnect).not.toHaveBeenCalled();
+        expect(second.disconnect).toHaveBeenCalledTimes(1);
       });
 
       it('exp 없는 토큰으로 재무장해도 옛 타이머는 해제된다 — 조기 return 이 해제를 건너뛰면 누수다', () => {
@@ -853,6 +854,23 @@ describe('WebsocketGateway', () => {
         );
         expect(first.disconnect).not.toHaveBeenCalled();
         expect(second.disconnect).not.toHaveBeenCalled();
+      });
+
+      it('이미 만료된 exp 로 연결하면 즉시 끊는다 — cutoff 의 음수 clamp', () => {
+        // 종전에 `cutoff` 의 음수 창 분기가 무검증이었다. 창이 **음수**여야 들어간다.
+        //
+        // **이 테스트는 `Math.max(0, …)` clamp 의 가드가 아니다** — clamp 를 지우는 뮤턴트가
+        // 생존한다(실측). Node 가 음수 지연을 1ms 로 강제하기 때문이고, 그래서 소스 주석도
+        // 그 clamp 를 "의도적 중복 방어" 로 적는다. 여기서 고정하는 것은 clamp 가 아니라
+        // **"이미 만료된 토큰으로 붙으면 즉시 통지 + 즉시 종료"** 라는 관측 가능한 동작이다.
+        const { emit, disconnect } = connectWithExp('client-exp-past', -10);
+
+        jest.advanceTimersByTime(0);
+        expect(emit).toHaveBeenCalledWith(
+          'auth.token_expired',
+          expect.anything(),
+        );
+        expect(disconnect).toHaveBeenCalledTimes(1);
       });
 
       it('만료 타이머는 unref 된다 — 셧다운을 붙잡지 않는다', () => {

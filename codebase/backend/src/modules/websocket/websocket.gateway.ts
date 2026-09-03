@@ -173,7 +173,6 @@ export class WebsocketGateway
    * 것이라 이 자리에서 끊을 근거가 없다 — 만료 없는 토큰을 만료로 다루면 정책을 코드가
    * 새로 만드는 것이 된다.
    */
-
   private armExpiryTimers(
     client: Socket,
     expSeconds: number | undefined,
