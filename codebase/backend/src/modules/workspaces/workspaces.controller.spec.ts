@@ -13,6 +13,7 @@ import type { JwtPayload } from '../../common/decorators';
 describe('WorkspacesController', () => {
   let controller: WorkspacesController;
   let service: jest.Mocked<WorkspacesService>;
+  let invitations: jest.Mocked<WorkspaceInvitationsService>;
 
   const user: JwtPayload = {
     sub: 'user-uuid-1',
@@ -53,6 +54,53 @@ describe('WorkspacesController', () => {
 
     controller = module.get(WorkspacesController);
     service = module.get(WorkspacesService);
+    invitations = module.get(WorkspaceInvitationsService);
+  });
+
+  describe('listInvitations', () => {
+    /**
+     * `invited_by` 는 `ON DELETE SET NULL`(V017) 이라 **초대자 계정이 삭제되면 NULL** 이
+     * 되고, 대기 중 초대는 그대로 남는다. 이 핸들러는 값을 **그대로 통과**시키므로 `null`
+     * 이 응답 본문에 실린다 — `WorkspaceInvitationDto.invitedBy` 가 nullable 로 선언돼야
+     * 하는 근거가 이것이다.
+     *
+     * 이 테스트가 고정하는 것은 **통과 동작**이다. 여기에 `?? ''` 같은 코어션을 넣으면
+     * 이 테스트가 깨지고, 그때 DTO 선언도 함께 재검토해야 한다.
+     */
+    it('초대자가 삭제된 초대의 `invitedBy: null` 을 코어션 없이 그대로 싣는다', async () => {
+      invitations.listPending.mockResolvedValue([
+        {
+          id: 'inv-1',
+          email: 'a@example.com',
+          role: 'editor',
+          expiresAt: '2026-12-31T00:00:00.000Z',
+          invitedBy: null,
+          createdAt: '2026-09-03T00:00:00.000Z',
+        },
+      ] as never);
+
+      const result = await controller.listInvitations(user, 'ws-1');
+
+      expect(invitations.listPending).toHaveBeenCalledWith('ws-1', user.sub);
+      expect(result.data[0].invitedBy).toBeNull();
+    });
+
+    it('[대조군] 초대자가 살아 있으면 그 id 를 싣는다', async () => {
+      invitations.listPending.mockResolvedValue([
+        {
+          id: 'inv-2',
+          email: 'b@example.com',
+          role: 'viewer',
+          expiresAt: '2026-12-31T00:00:00.000Z',
+          invitedBy: 'user-uuid-1',
+          createdAt: '2026-09-03T00:00:00.000Z',
+        },
+      ] as never);
+
+      const result = await controller.listInvitations(user, 'ws-1');
+
+      expect(result.data[0].invitedBy).toBe('user-uuid-1');
+    });
   });
 
   describe('update', () => {

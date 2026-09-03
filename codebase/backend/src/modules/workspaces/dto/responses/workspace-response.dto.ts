@@ -1,4 +1,4 @@
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 /** 워크스페이스 목록 아이템 (내 역할 포함) */
 export class WorkspaceListItemDto {
@@ -102,8 +102,12 @@ export class WorkspaceInvitationDto {
   @ApiProperty({ format: 'date-time' })
   expiresAt: string;
 
-  @ApiProperty({ format: 'uuid' })
-  invitedBy: string;
+  /**
+   * 초대한 사용자. `invited_by` 는 `ON DELETE SET NULL`(V017) 이라 **초대자 계정이
+   * 삭제되면 NULL** 이 되고, 대기 중 초대는 그대로 남아 이 값이 `null` 로 응답된다.
+   */
+  @ApiPropertyOptional({ format: 'uuid', nullable: true })
+  invitedBy?: string | null;
 
   @ApiProperty({ format: 'date-time' })
   createdAt: string;

@@ -192,19 +192,43 @@ DB 를 실측해(`information_schema` → `character varying`) `type: 'varchar'`
       이상이 §2.2 명명 규칙의 명시된 두 예외(RPC-style `{id}` 필수 / `/api/external/*`)
       어디에도 포섭되지 않는다. **이 PR 과 무관한 선재 gap 이고 이번 검토가 최초 기록**이라
       여기 적어 둔다 — 다른 plan 에 등재된 곳이 없다.
-- [ ] **후속 축 — 응답 DTO 가 엔티티 nullable 필드를 non-null 로 문서화한다 (48건 / 26파일)**
-      (`--impl-done` `19_02_06` INFO#3 이 체크박스 승격을 요구했다).
-      배치 3 에서 `AuthConfigDto.ipWhitelist` 한 건만 규약 §5.4 적용 조건에 걸려 조치했고
-      **나머지는 열려 있다.** 상세·측정·판단 근거는 §배치 3 「새로 드러난 축」.
+- [x] **후속 축 — 응답 DTO 가 엔티티 nullable 필드를 non-null 로 문서화한다** — **종결.**
+      **"48건" 은 계측 도구의 산물이었다. 실제 결함은 1건이다.**
 
-      > **왜 산문에서 체크박스로 올리는가**: 잔여가 §배치 3 절 서술로만 있어서 이 plan 이
-      > `complete/` 로 가는 순간 봉인된다. 이 세션에서 같은 매몰을 이미 두 번 밟았다
-      > (배치 1 의 "추적된다" 허위 주장 · 배치 3 의 (e) 를 "폐기됨" 으로 접을 뻔한 것).
-      > **미해결 항목은 체크박스로만 살아남는다.**
+      > **왜 48 이 나왔나**: 판정을 *필드 이름* 매칭으로 했다. `workflowId` 는 `llm_usage_log`
+      > 에서 nullable 이지만 `edge`/`trigger`/`statistics` DTO 의 `workflowId` 는 자기 것이라
+      > non-null 이 옳다. 44건이 이런 **모듈 간 동명 충돌**이었다.
 
-      착수 시 두 가지를 함께 한다 — (1) 48건의 **엔티티별 귀속**(지금 수는 필드 *이름*
-      매칭이라 동명 필드가 섞여 있다), (2) **엔티티 nullable ↔ 응답 DTO 선언 대조 가드**
-      신설(`nullable-type-lie-cast` 는 엔티티↔TS 축만 본다 — DTO 가 다시 좁혀져도 못 잡는다).
+      **더 중요한 것 — 전제 자체가 틀렸다.** "엔티티가 nullable 인데 DTO 가 non-null" 은
+      그 자체로 결함이 아니다. **쿼리·매퍼가 non-null 을 보장하면 DTO 가 좁은 것이 옳다.**
+      실제로 확인한 정당한 사례 셋:
+
+      | 사례 | 왜 정당한가 |
+      |---|---|
+      | `BackgroundRunNodeExecutionDto.parentNodeExecutionId` | 쿼리가 `WHERE ne.parentNodeExecutionId = ?` 로 **필터**한다 (+ 매퍼에 `?? ''`) |
+      | `DismissNotificationResponseDto.dismissedAt` | **dismiss 액션의 응답**이라 방금 `NOW()` 로 세팅한 값이다 (일반 조회용 형제 DTO 는 제대로 `?: string \| null`) |
+      | `SessionDto.familyId` | `toDto(row: RefreshToken)` 인데 `RefreshToken.familyId` 는 **non-null**. nullable 인 건 `login_history` 쪽 — **다른 엔티티**다 |
+
+      **판별 질문은 "엔티티가 nullable 인가" 가 아니라 "이 응답 경로가 non-null 을
+      보장하는가" 다.** 이건 데이터 흐름을 따라가야 답이 나오므로 정적 가드로 자동화할 수
+      없다 — 위 세 사례가 전부 오탐이 된다. **가드를 만들지 않는 이유를 여기 적어 둔다**
+      (`--impl-done` `19_02_06` INFO#5 가 제안했던 것).
+
+      **실제 결함 1건 — 조치함**: `WorkspaceInvitationDto.invitedBy`.
+      `invited_by` 는 `ON DELETE SET NULL`(V017:15) 이라 **초대자 계정이 삭제되면 NULL** 이
+      되는데, 대기 중 초대는 그대로 남고 `workspaces.controller.ts:402` 가 `i.invitedBy` 를
+      **그대로 통과**시킨다. Swagger 는 필수 uuid 라고 했다. `ipWhitelist` 와 같은 형태다.
+      → §5.4 형태(`@ApiPropertyOptional({ nullable: true })` + `field?: T | null`)로 정정.
+
+      > **FE 가 이미 옳았다** — `frontend/src/lib/api/workspaces.ts:154` 는 처음부터
+      > `invitedBy: string | null` 이다. 거짓말한 것은 백엔드 계약뿐이었다.
+
+      > 형제 `acceptedBy` 도 nullable 이지만 **응답 DTO 에 노출되지 않는다**(전수 확인).
+
+      > **캐너리로 고정했다** (`workspaces.controller.spec.ts`). DTO 선언이 옳은 *근거*는
+      > "핸들러가 `null` 을 코어션 없이 통과시킨다" 는 **동작**이므로, 그 동작을 테스트가
+      > 잡는다. 뮤테이션으로 유효성 확인 — 핸들러에 `?? ''` 를 넣으면 **예측대로 null
+      > 테스트만 RED**(실측 1 failed / 13 passed), 대조군은 GREEN 이다.
 
 - [ ] **후속(planner 턴) — §5.4 의 `field?:` 표기와 기존 선례가 어긋난다**
       (`--impl-done` `19_02_06` INFO#1). 규약 §5.4 는 `null`(상시 존재) 필드를
@@ -221,6 +245,39 @@ DB 를 실측해(`information_schema` → `character varying`) `type: 'varchar'`
       스캔해 `.ts` 를 모으는 로직이 `collectScanTargets` 로 **5번째 사본**이 됐다.
       `source-scan.ts` 는 "**세는**" 축을 한 곳에 모았지만 "**모으는**" 축에는 같은 원칙이
       적용돼 있지 않다. 형제 가드 4개를 함께 건드려야 해 이 배치에 넣지 않는다.
+
+## 정본(라이브 스키마) 대조 — 축이 실제로 닫혔음을 확인
+
+배치 1~3 은 전부 **`@Column` 데코레이터가 `nullable: true` 라고 말한 것**을 대상으로 삼았다.
+그런데 **진실의 출처는 DB 스키마**이고, 데코레이터는 그것을 미러링한 코드일 뿐이다. 데코레이터가
+DB 를 잘못 미러링하고 있으면 세 배치 전부가 그 컬럼을 못 본다.
+
+그래서 e2e 스택을 띄워 `information_schema` 와 전수 대조했다 (**엔티티 컬럼 424개 / DB 확인
+424개 = 100%**, 미확인 0).
+
+| 축 | 결과 |
+|---|---|
+| [A] DB 는 nullable 인데 `@Column` 에 `nullable: true` 가 없다 | **0건** |
+| [B] DB 는 nullable 인데 TS 타입이 non-null | **0건** |
+| [C] `@Column` 은 `nullable: true` 인데 DB 는 NOT NULL | **0건** |
+
+**[A] 가 0 이므로 "데코레이터만 봐서 좁았다" 는 내 의심은 반증됐다** — 세 배치의 대상 집합은
+정본과 일치했다. [B] 가 0 이므로 이 plan 의 축은 **정본 기준으로 닫혔다**(종전 주장은 AST
+스캔 기준이었다).
+
+> **여기서도 내 손 관측이 한 번 틀렸다.** `ON DELETE SET NULL` 을 grep 해 나온 줄들을 보고
+> `schedule.trigger_id` 가 nullable 이라고 판단했는데, 실제로는 `NOT NULL ... ON DELETE
+> CASCADE` 였다 — **테이블 없이 줄만 보고** 같은 이름의 컬럼에 갖다 붙인 것이다. 파서가
+> 나를 반증했고, 다시 라이브 스키마가 파서를 확정했다.
+>
+> 중간에 쓴 마이그레이션 SQL 파서는 **커버리지가 88%(424 중 374)** 에 그쳤다. 그 상태로
+> "1건" 이라 결론지었으면 나머지 12% 를 안 본 채 단정한 것이 된다. **정본이 접근 가능하면
+> 파서를 고치지 말고 정본을 써라.**
+
+**재현**: `make e2e-up` 후 `information_schema.columns` 를 덤프해 엔티티 AST 와 대조.
+가드로 만들지 않은 이유는 이 검사가 **라이브 DB 를 요구**하기 때문이다(단위 테스트 불가).
+현행 `nullable-type-lie-cast` 가드가 데코레이터↔TS 축을 상시로 막고 있고, [A] 가 0 이라
+데코레이터는 지금 DB 를 정확히 미러링한다.
 
 ## 배치 3 — 잔여 전량 (완료 · 축 종결)
 
@@ -293,13 +350,18 @@ DB 를 실측해(`information_schema` → `character varying`) `type: 'varchar'`
   > 틀렸다** — 그때 스크립트가 `most_common(12)` 로 **상위 12개만 출력**했는데 그 출력 길이를
   > 파일 수로 읽었다. 내가 세지 않은 것을 세었다고 쓴 것이다. 실제 파일 수는 **26** 이다.
 
-- ⚠️ **이 48 은 아직 작업 항목이 아니다** — 필드 *이름* 매칭이라 서로 다른 엔티티의 동명
-  필드가 섞여 있다(`executionId`·`title` 등). 후보 (c) 의 **"이름 중복 문제를 먼저 해결해야
-  한다"** 가 그대로 적용된다. 엔티티별 귀속을 먼저 해야 수가 확정된다.
-- **이 축에는 가드가 없다** (리뷰 2R INFO#5). `nullable-type-lie-cast` 가드는 엔티티↔TS 축만
-  본다 — DTO 가 다시 좁혀져도 잡히지 않는다. 리뷰어는 `ipWhitelist: null` 회귀 테스트 1건을
-  제안했지만 **한 자리 캐너리는 이 축을 안 닫는다**(같은 형태가 48곳이다). 축을 열 때
-  **엔티티 nullable ↔ 응답 DTO 선언**을 대조하는 가드를 함께 만든다.
+> ## ⚠️ 이 절의 결론은 **폐기됐다** — §할 일 체크리스트의 「후속 축」 항목을 보라
+>
+> 아래 두 문단은 이 축을 **미해결 48건 + 가드 신설 필요**로 판정했다. **둘 다 반증됐다**:
+> 48 은 이름 매칭이 만든 수이고 실제 결함은 **1건**(`WorkspaceInvitationDto.invitedBy`,
+> 조치 완료), 가드는 **원리적으로 만들 수 없다**(쿼리 필터·액션 응답·다른 엔티티 세 형태가
+> 전부 오탐이 된다). 근거·측정은 §할 일 쪽에 있다. 아래는 **당시 판단의 이력**으로만 남긴다.
+
+- ~~⚠️ **이 48 은 아직 작업 항목이 아니다** — 필드 *이름* 매칭이라 서로 다른 엔티티의 동명
+  필드가 섞여 있다. 엔티티별 귀속을 먼저 해야 수가 확정된다.~~ → **귀속했더니 1건이었다.**
+- ~~**이 축에는 가드가 없다** (리뷰 2R INFO#5). 축을 열 때 엔티티 nullable ↔ 응답 DTO 선언을
+  대조하는 가드를 함께 만든다.~~ → **만들지 않는다.** 판별 질문이 "엔티티가 nullable 인가"
+  가 아니라 "이 응답 경로가 non-null 을 보장하는가" 라서 정적으로 답이 안 나온다.
 
 ## 배치 2 — 비대칭 해소 (완료)
 

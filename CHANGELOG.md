@@ -1,5 +1,26 @@
 # Changelog
 
+## Unreleased — 초대자 계정을 지우면 `invitedBy` 가 null 인데 스키마는 필수 uuid 라고 했다
+
+`workspace_invitation.invited_by` 는 `ON DELETE SET NULL`(V017) 이다. 초대자 계정이 삭제되면
+**대기 중 초대는 그대로 남고 이 값만 NULL** 이 되는데,
+`GET /api/workspaces/:id/invitations` 핸들러는 값을 코어션 없이 그대로 싣는다.
+Swagger 는 `@ApiProperty({ format: 'uuid' })` — 필수·non-null 이라고 문서화하고 있었다.
+
+**동작 변경은 없다.** 스키마가 실제와 어긋나 있던 것을 바로잡는다.
+
+| | 종전 | 지금 |
+|---|---|---|
+| DTO | `invitedBy: string` | `invitedBy?: string \| null` |
+| Swagger | `@ApiProperty({ format: 'uuid' })` | `@ApiPropertyOptional({ format: 'uuid', nullable: true })` |
+
+형태는 [API 규약 §5.4](spec/5-system/2-api-convention.md) 를 따랐다 — 바로 앞
+`AuthConfig.ipWhitelist` 항목과 같은 형태다.
+
+**영향**: OpenAPI 로 타입을 생성하는 클라이언트에서 이 필드가 nullable 로 바뀐다. 완화
+방향(widening)이라 응답 바이트는 그대로다. 프론트엔드는 **이미**
+`invitedBy: string | null` 로 다루고 있었다 — 거짓이었던 것은 백엔드 계약뿐이다.
+
 ## Unreleased — `AuthConfig.ipWhitelist` 는 처음부터 `null` 일 수 있었는데 스키마가 아니라고 했다
 
 엔티티 nullable 타입 정합화(배치 3) 중에 드러났다. `auth_config.ip_whitelist` 는 DB 에서
