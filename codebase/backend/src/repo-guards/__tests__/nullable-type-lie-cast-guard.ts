@@ -23,8 +23,12 @@ export interface CastOffender {
 /**
  * 스캔 대상: `src` 아래 **비-spec** `.ts` 파일.
  *
- * `*.spec.ts` 는 제외한다 — 테스트 fixture 가 부분 객체를 엔티티로 캐스트하는 것은 정당하고
- * (2026-09-03 실측 12건), 그쪽은 backend typecheck ratchet 이 이미 덮는다.
+ * `*.spec.ts` 는 제외한다 — 테스트 fixture 가 부분 객체를 엔티티로 캐스트하는 것은 정당하고,
+ * 그쪽은 backend typecheck ratchet 이 이미 덮는다.
+ *
+ * > 종전 이 자리에 "실측 12건" 이라고 **개수를 박아 뒀다가 곧바로 낡았다** — 이 가드의 spec
+ * > 자신이 fixture 문자열로 그 패턴을 쓰기 때문이다(같은 PR 안에서 12→24). 검증되지 않는
+ * > 숫자는 적지 않는다. 지금 세고 싶으면 `grep -rn 'null as unknown as' --include='*.spec.ts'`.
  */
 export function collectScanTargets(root: string = SRC_ROOT): string[] {
   const out: string[] = [];

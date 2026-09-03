@@ -1093,7 +1093,6 @@ describe('AuthService', () => {
         emailVerifyToken: 'valid-token',
         emailVerifyExpiresAt: new Date(Date.now() + 86400000),
       } as User;
-      usersService.findByEmail.mockResolvedValue(null);
       jest
         .spyOn(service as never, 'findUserByVerifyToken' as never)
         .mockResolvedValue(unverifiedUser as never);

@@ -148,6 +148,14 @@ DB 를 실측해(`information_schema` → `character varying`) `type: 'varchar'`
 - [x] **일괄 vs 점진** — 점진 (사용자 결정 2026-09-03)
 - [x] **우선순위 기준** — "이중 캐스트를 강제하는 필드" 로 확정 (초안 기준은 측정 불가로 폐기)
 - [x] **배치 1** — 캐스트 강제 8필드 완료, 캐스트 8건 제거
+- [ ] **후속(planner 턴) — `spec/1-data-model.md` §2.9 `next_run_at` 표기 정정**
+      (`--impl-done` W1). `:260` 이 `Timestamp` 인데 바로 아래 `:261` `last_run_at` 은
+      `Timestamp?` 다(이 문서의 nullable 관례는 `?`, 총 26곳). **DB 는 처음부터
+      `nullable: true`** 였으므로 선재 문서 오류이고, 배치 1 이 그 nullable 을 코드·테스트로
+      **고정**하면서 간극이 드러났다.
+      **developer 권한 밖**이다 — 내가 쓴 문장이 아니라 자기-반증형 소정정 예외에 해당하지
+      않는다. 곁들여: `spec/data-flow/10-triggers.md §3.2` 에 "cron 파싱 실패 시 `next_run_at`
+      은 NULL(정보성 컬럼이라 발사 무관)" 한 줄 보강.
 - [ ] **후속 — `repo-guards/__tests__/` 의 공용 walker 추출** (리뷰 W5). 디렉터리를 재귀
       스캔해 `.ts` 를 모으는 로직이 `collectScanTargets` 로 **5번째 사본**이 됐다.
       `source-scan.ts` 는 "**세는**" 축을 한 곳에 모았지만 "**모으는**" 축에는 같은 원칙이
@@ -155,5 +163,15 @@ DB 를 실측해(`information_schema` → `character varying`) `type: 'varchar'`
 - [ ] **배치 2 기준을 정한다** — 캐스트 축이 소진됐으므로 다음 축이 필요하다. 후보:
       (a) 엔티티 단위(`execution.entity.ts` 10건 · `user.entity.ts` 잔여 3건),
       (b) relation 7건(`ManyToOne`/`OneToOne` — `null` 대신 `undefined` 관례일 수 있어 별도 조사),
-      (c) null 검사가 실재하는 필드 — **단 이름 중복 문제를 먼저 해결해야 한다**(엔티티별로 세야 함)
+      (c) null 검사가 실재하는 필드 — **단 이름 중복 문제를 먼저 해결해야 한다**(엔티티별로 세야 함),
+      **(d) `Schedule.lastRunAt`** — `nullable: true` 인데 타입은 `Date` 다. 같은 엔티티의
+      `nextRunAt` 만 배치 1 에서 넓혀 **한 파일 안에 비대칭**이 남았다,
+      **(e) `auth.service.spec.ts:58` 의 `lockedUntil: null as unknown as Date`** — 배치 1 이
+      `User.lockedUntil` 을 넓혔으므로 이 캐스트는 **이제 불필요**하다(그 fixture 는
+      `Partial<User>` 라 캐스트 없이 통과한다)
+
+      > **(d)·(e)는 리뷰가 내 거짓 주장을 잡아 추가됐다** (`15_17_01` W1). 배치 1 RESOLUTION 에서
+      > 둘을 *"plan 이 배치 2 후보로 추적한다"* 고 썼는데 **plan 본문에 이름이 없었다**(`lastRunAt`
+      > 실측 0건). 이번 세션에서 **두 번째**다 — WS PR 에서도 "배포 런북에서 추적 중" 이라 적고
+      > 추적처를 안 만들었다. **"추적된다" 는 쓰기 전에 grep 으로 확인한다.**
 - [ ] 각 배치마다 `tsc` **비-spec 소스 오류 0** 을 직접 확인 (ratchet 만으로는 부족)
