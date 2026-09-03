@@ -11,7 +11,9 @@ export const BCRYPT_ROUNDS = 12;
  * 비밀번호 재확인 실패 코드 — **두 조건의 단일 SoT**.
  *
  * `AuthService.verifyPasswordForUser`(2FA 비활성화·WebAuthn 관리 등 민감 동작 재확인)와
- * `UsersService.changePassword`(비밀번호 변경) 가 같은 값을 발행한다. 두 곳이 각자
+ * `UsersService.changePassword`(비밀번호 변경) 가 같은 값을 발행하고,
+ * `SessionsService.verifyReauth`(세션 재인증)가 `.INVALID` 만 발행한다 — 그쪽의 미입력은
+ * `REAUTH_REQUIRED`(400)로 갈려 status 부터 다르다. 두 곳이 각자
  * 문자열 리터럴을 들고 있던 것이 `INVALID_PASSWORD` drift 의 원인이었다 — 변경 경로만
  * 두 조건을 한 코드로 합쳐 OAuth-only 사용자에게 "현재 비밀번호가 틀렸다" 고 말했다.
  * (은퇴 이력: `spec/conventions/error-codes.md` §5, 등급 B)

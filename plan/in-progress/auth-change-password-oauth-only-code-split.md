@@ -109,6 +109,24 @@ spec_impact:
 drift 의 원인이다). `UsersService` 는 `AuthService` 를 주입할 수 없으므로(순환) 헬퍼 통합이
 아니라 **코드 상수 공유**로 간다 — 둘 다 이미 `common/utils/password.util.ts` 를 쓴다.
 
+## 검증 — 뮤테이션 (2026-09-02, 구현 후)
+
+**예측을 먼저 적고 실측했다.** 넷 다 예측대로 RED 다.
+
+| 뮤턴트 | 예측 | 실측 |
+|---|---|---|
+| M1 미설정 분기를 다시 `INVALID` 로 (= 종전 상태 복원) | RED | **RED 2** (전용 테스트 + 대조군) |
+| M2 공용 상수 값 드리프트 (`PASSWORD_REQUIRED`→`PASSWORD_REQD`) | RED, **두 파일 모두** | **RED 3** — `users.service.spec` 1 · `auth.service.spec` 2 |
+| M3 OAuth-only 메시지에서 재설정 안내 제거 | RED | **RED 1** |
+| M4 반대 방향 — 불일치 분기를 `REQUIRED` 로 | RED | **RED 2** |
+
+M2 가 양쪽에서 갈린 것이 요점이다 — 테스트가 상수를 **참조**했다면 값이 바뀌어도 테스트와
+소스가 함께 움직여 GREEN 이었을 것이다. **리터럴로 단언했기 때문에** 값 드리프트가 세 지점에서
+동시에 잡힌다.
+
+뮤턴트 유효성은 `tsc --noEmit` 으로 선검증했다(M1·M2 둘 다 타입 오류 0 — 즉 "구문이 깨져서
+RED" 가 아니다). 원복은 `cp` 로 했다(`git checkout` 은 미커밋 작업을 지운 전력이 있다).
+
 ## 할 일
 
 - [x] 사용자 결정 — **형제와 완전 정렬** (2026-09-02). 원안 B(`PASSWORD_NOT_SET` 신설)는 폐기

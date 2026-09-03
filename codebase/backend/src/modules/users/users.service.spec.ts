@@ -156,7 +156,7 @@ describe('UsersService', () => {
       throw new Error('expected changePassword to reject');
     }
 
-    it('OAuth-only 계정(passwordHash 부재)은 PASSWORD_REQUIRED 를 낸다', async () => {
+    it('OAuth-only 계정(passwordHash 부재)은 401 로 막고 저장하지 않는다', async () => {
       repo.findOne.mockResolvedValue(oauthOnlyUser());
       await expect(
         service.changePassword('user-uuid', 'anything', strongNewPassword),
@@ -173,7 +173,7 @@ describe('UsersService', () => {
       ).resolves.toBe('PASSWORD_REQUIRED');
     });
 
-    it('throws UnauthorizedException when current password does not match', async () => {
+    it('현재 비밀번호 불일치는 401 로 막고 저장하지 않는다', async () => {
       repo.findOne.mockResolvedValue(await userWithHash());
       await expect(
         service.changePassword('user-uuid', 'WrongPass1!', strongNewPassword),

@@ -83,6 +83,46 @@ describe('Change password — 세션 회전 + 감사 (e2e)', () => {
     expect(active.length).toBe(1);
   }, 60_000);
 
+  /**
+   * OAuth-only 계정(= `password_hash IS NULL`)은 **형제 코드** `PASSWORD_REQUIRED` 로 갈린다.
+   *
+   * unit 만으로는 부족하다 — 이 PR 이 바꾼 것은 **wire 계약**이고, 자매 분기(불일치 →
+   * `PASSWORD_INVALID`)는 이미 e2e 가 있는데 이쪽만 없으면 커버리지 계층이 비대칭이다.
+   * 정작 breaking 인 쪽(§5 등급 B)이 HTTP 레벨에서 무검증으로 남는다.
+   *
+   * 상태 만들기: 정상 가입 후 `password_hash` 를 NULL 로 비운다. 발급된 JWT 는 그대로
+   * 유효하므로 "인증은 되는데 비밀번호가 없는 계정" 이라는 관측 상태가 OAuth-only 와 동일하다.
+   */
+  it('OAuth-only 계정(password_hash NULL) → 401 PASSWORD_REQUIRED', async () => {
+    const oauthUser = await registerAndLogin(
+      BASE_URL,
+      uniqueEmail('pwchg-oauth'),
+      db,
+    );
+    await db.query(`UPDATE "user" SET password_hash = NULL WHERE id = $1`, [
+      oauthUser.userId,
+    ]);
+
+    const res = await request(BASE_URL)
+      .post('/api/users/me/change-password')
+      .set('Authorization', `Bearer ${oauthUser.accessToken}`)
+      .send({ currentPassword: 'anything!9', newPassword: 'An0therP@ss!7' });
+
+    expect(res.status).toBe(401);
+    // 리터럴로 단언한다 — 상수를 참조하면 값이 바뀌어도 테스트와 소스가 함께 움직인다.
+    expect(res.body.error.code).toBe('PASSWORD_REQUIRED');
+    // 불일치 분기와 **다른** 코드여야 한다(대조군).
+    expect(res.body.error.code).not.toBe('PASSWORD_INVALID');
+    // 안내 문구가 비밀번호 추가 경로를 가리킨다 — FE 가 서버 message 를 그대로 노출한다.
+    expect(res.body.error.message).toContain('재설정');
+
+    const audit = await db.query(
+      `SELECT 1 FROM audit_log WHERE user_id = $1 AND action = 'user.password_changed'`,
+      [oauthUser.userId],
+    );
+    expect(audit.rowCount).toBe(0);
+  }, 60_000);
+
   it('rejects wrong current password → 401 PASSWORD_INVALID, no session rotation', async () => {
     // 독립 사용자 — 첫 테스트의 부수효과(세션 revoke·비밀번호 변경)에 종속되지 않게 분리.
     const other = await registerAndLogin(BASE_URL, uniqueEmail('pwchg-x'), db);
