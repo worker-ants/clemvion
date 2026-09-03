@@ -1,5 +1,28 @@
 # Changelog
 
+## Unreleased — `AuthConfig.ipWhitelist` 는 처음부터 `null` 일 수 있었는데 스키마가 아니라고 했다
+
+엔티티 nullable 타입 정합화(배치 3) 중에 드러났다. `auth_config.ip_whitelist` 는 DB 에서
+줄곧 nullable 이었고 서비스도 `ac.ipWhitelist?.length` 로 **이미 null 을 다루고 있었다**.
+그런데 Swagger DTO 만 `ipWhitelist: string[]` (필수·non-null) 이라고 문서화했고,
+`AuthConfigsController` 는 엔티티를 별도 매핑 없이 그대로 반환한다 — 즉 `GET /auth-configs`
+응답에 **실제로 `null` 이 실려 나갈 수 있었다.**
+
+**동작 변경은 없다.** 스키마가 실제와 어긋나 있던 것을 바로잡는다.
+
+| | 종전 | 지금 |
+|---|---|---|
+| DTO | `ipWhitelist: string[]` | `ipWhitelist?: string[] \| null` |
+| Swagger | `@ApiProperty({ type: [String] })` | `@ApiPropertyOptional({ type: [String], nullable: true })` |
+
+형태는 [API 규약 §5.4](spec/5-system/2-api-convention.md) 를 따랐다 — *"`null` 을 쓰는 필드는
+`@ApiPropertyOptional({ nullable: true })` + `field?: T | null`"*. 같은 DTO 의 `lastUsedAt` 이
+이미 그 형태다.
+
+**영향**: OpenAPI 로 타입을 생성하는 클라이언트는 이 필드가 nullable 로 바뀐다. 스키마를
+믿고 무가드로 배열 메서드를 호출하던 코드가 있었다면 **그 코드는 종전에도 깨질 수 있었다** —
+이제 타입 검사에서 드러난다.
+
 ## Unreleased — 비밀번호가 없는 사람에게 "현재 비밀번호가 틀렸다" 고 말하고 있었다
 
 `POST /api/users/me/change-password` 는 **서로 다른 두 조건**에 같은 `INVALID_PASSWORD` 를

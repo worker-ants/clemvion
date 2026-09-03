@@ -24,8 +24,8 @@ export class AuthConfigDto {
   @ApiProperty({ type: 'object', additionalProperties: true })
   config: Record<string, unknown>;
 
-  @ApiProperty({ type: [String], example: [] })
-  ipWhitelist: string[];
+  @ApiPropertyOptional({ type: [String], nullable: true, example: [] })
+  ipWhitelist?: string[] | null;
 
   @ApiProperty()
   isActive: boolean;

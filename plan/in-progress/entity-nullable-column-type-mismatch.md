@@ -238,6 +238,16 @@ DB 를 실측해(`information_schema` → `character varying`) `type: 'varchar'`
 `auth-configs.service.ts:356` 은 `ac.ipWhitelist?.length` 로, `workflows.service.ts:733` 은
 `e.condition ?? null` 로 **이미 null 을 다루고 있었다**. 타입만 거짓말하고 있었던 것이다.
 
+**제거한 캐스트는 두 곳이다** (리뷰 INFO#4 — 초판은 spec 것만 적었다):
+
+| 위치 | 무엇 | 어떻게 드러났나 |
+|---|---|---|
+| `folders.controller.ts:114` | `dto as Partial<Folder>` (+ 유휴 `Folder` import) | **lint** `no-unnecessary-type-assertion` |
+| `folders.service.spec.ts:14` | `parentId: null as unknown as string` | 배치 말 캐스트 훑기 |
+
+`UpdateFolderDto.parentId` 는 **이미 `string | null`** 이었다 — 컨트롤러 캐스트는 순전히
+엔티티의 거짓말을 메우려던 것이었다. `tsc` 는 둘 다 못 잡았고 lint 와 손 훑기가 잡았다.
+
 ### 새로 드러난 축 — 응답 DTO 가 nullable 필드를 non-null 로 문서화한다
 
 `AuthConfigDto.ipWhitelist: string[]` 인데 엔티티·spec(`1-data-model.md:621` `String[]?`) 은
@@ -301,9 +311,16 @@ relation **6건 전부 `| null`** 이고 **전부 `type:` 없이** 프로덕션�
       잡으려면 캐스트가 겨누는 **엔티티·필드를 역추적**해야 해서 텍스트 스캔으로는 부족하다.
       배치가 끝날 때마다 `grep 'as unknown as' --include='*.spec.ts'` 로 훑는 것이 현실적이다.
 
-      > **배치 3 에서 수행**: 넓힌 8필드를 겨눈 캐스트를 훑어 **1건**(`folders.service.spec.ts:14`
-      > `parentId: null as unknown as string`)을 찾아 제거했다. 무의미한 제거가 아님을
-      > **대조군으로 확인** — 엔티티를 `string` 으로 되돌리면 그 파일에 오류 **2건**이 난다.
+      > **배치 3 에서 수행 — 다만 첫 시도의 대상 집합이 좁았다.**
+      > 처음엔 *그 배치가 넓힌 8필드*만 훑어 `folders.service.spec.ts:14` 1건을 찾았다.
+      > 그런데 **낡은 캐스트는 어느 배치가 넓혔든 남는다** — 배치 1 이 넓힌
+      > `User.lockedUntil` 을 겨눈 `auth.service.spec.ts:58` 이 그대로 살아 있었다.
+      >
+      > **훑기의 대상은 "이 배치가 넓힌 것" 이 아니라 "지금 넓혀져 있는 것 전체"** 다.
+      > 엔티티에서 `| null` 필드명을 전수(**122종**) 뽑아 `.spec.ts` 의
+      > `<필드>: null as unknown as` 를 대조하면 기계적으로 닫힌다. 그렇게 돌리니 저장소
+      > 전체 잔존이 위 2건뿐이었고 둘 다 제거했다.
+      > 각각 대조군으로 유효성 확인 — 엔티티를 되돌리면 오류 **2건 · 7건**이 난다.
 
 - [x] ~~**`notification.entity.ts` 의 `resourceType` `@Column` 키 순서**~~ (배치 2 리뷰 3R
       INFO#1) — **won't-do. 배치 3 에서 실측하니 지적이 거꾸로였다.**
@@ -320,18 +337,31 @@ relation **6건 전부 `| null`** 이고 **전부 `type:` 없이** 프로덕션�
       >
       > 무관한 키를 재정렬하는 편집은 scope 확대이기도 하다. **고치지 않는다.**
 
-- [x] **배치 3 기준** — **"잔여 전량"으로 확정**(아래 §배치 3). 남은 것이 8필드뿐이라 축이 종결됐다. 원문 후보 검토 — 남은 축은 **"전부 안 넓혀진 6파일"**. 배치 2 와 달리 파일 안에 비교
-      기준이 없어 **다른 술어가 필요하다**(그 6파일이 왜 하나도 안 넓혀졌는지 먼저 봐야 한다) — 캐스트 축이 소진됐으므로 다음 축이 필요하다. 후보:
-      (a) 엔티티 단위(`execution.entity.ts` 10건 · `user.entity.ts` 잔여 3건),
-      (b) relation 7건(`ManyToOne`/`OneToOne` — `null` 대신 `undefined` 관례일 수 있어 별도 조사),
-      (c) null 검사가 실재하는 필드 — **단 이름 중복 문제를 먼저 해결해야 한다**(엔티티별로 세야 함),
-      ~~**(d) `Schedule.lastRunAt`**~~ — **배치 2 에서 해소됨**(아래 §배치 2 참조),
-      **(e) `auth.service.spec.ts:58` 의 `lockedUntil: null as unknown as Date`** — 배치 1 이
-      `User.lockedUntil` 을 넓혔으므로 이 캐스트는 **이제 불필요**하다(그 fixture 는
-      `Partial<User>` 라 캐스트 없이 통과한다)
+- [x] **배치 3 기준** — **"잔여 전량"으로 확정.** 남은 것이 8필드뿐이라 축이 종결됐다.
+      상세는 §배치 3 참조.
+
+      > 아래는 **착수 전 적어 둔 원문 후보 검토**다. 실제 기준은 위 한 줄이고, 이 후보들은
+      > 이력으로 남긴다 — 다만 **(e) 는 살아 있는 항목이었다**(바로 아래 참조).
+      >
+      > 남은 축은 **"전부 안 넓혀진 6파일"**. 배치 2 와 달리 파일 안에 비교 기준이 없어
+      > **다른 술어가 필요하다**(그 6파일이 왜 하나도 안 넓혀졌는지 먼저 봐야 한다).
+      > 후보: (a) 엔티티 단위 · (b) relation 7건 · (c) null 검사가 실재하는 필드
+      > (**이름 중복 문제 선결 필요**) · ~~(d) `Schedule.lastRunAt`~~(배치 2 해소) ·
+      > **(e) `auth.service.spec.ts:58` 의 `lockedUntil: null as unknown as Date`**.
+
+- [x] **(e) `auth.service.spec.ts:58` 캐스트 제거** — 배치 3 에서 해소.
+
+      > **하마터면 묻을 뻔했다.** 위 후보 목록을 "폐기·흡수됨" 으로 접으려다 실측하니 (e) 는
+      > **아직 살아 있었다**. 원인은 내 훑기 방법이 좁았던 것 — 배치 말 캐스트 훑기를 *그
+      > 배치가 넓힌 필드*로만 돌려서, 배치 1 이 넓힌 `User.lockedUntil` 을 겨눈 캐스트를
+      > 못 봤다. **훑기는 넓혀진 필드 전체(122종)를 대상으로 해야 한다** — 그렇게 다시 돌리니
+      > 저장소 전체에서 이 1건이 유일한 잔존이었다.
+      > 대조군: `User.lockedUntil` 을 `Date` 로 되돌리면 그 spec 에 오류 **7건**.
 
       > **(d)·(e)는 리뷰가 내 거짓 주장을 잡아 추가됐다** (`15_17_01` W1). 배치 1 RESOLUTION 에서
       > 둘을 *"plan 이 배치 2 후보로 추적한다"* 고 썼는데 **plan 본문에 이름이 없었다**(`lastRunAt`
       > 실측 0건). 이번 세션에서 **두 번째**다 — WS PR 에서도 "배포 런북에서 추적 중" 이라 적고
       > 추적처를 안 만들었다. **"추적된다" 는 쓰기 전에 grep 으로 확인한다.**
-- [ ] 각 배치마다 `tsc` **비-spec 소스 오류 0** 을 직접 확인 (ratchet 만으로는 부족)
+- [x] 각 배치마다 `tsc` **비-spec 소스 오류 0** 을 직접 확인 (ratchet 만으로는 부족)
+      — **매 배치 반복 규칙이라 체크박스는 "세 배치 모두 지켰다" 는 뜻**이다(배치 1·2·3 각
+      절과 커밋 로그에 실측 기재). 새 배치가 생기면 그 배치에서 다시 확인한다.
