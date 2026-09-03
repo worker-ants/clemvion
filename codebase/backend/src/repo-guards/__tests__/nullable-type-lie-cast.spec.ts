@@ -27,13 +27,17 @@ import * as os from 'node:os';
 import * as path from 'node:path';
 
 import {
+  collectTsFiles,
   countNullAsUnknownAsCasts,
   hasNullAsUnknownAsCast,
 } from '../../common/__test-utils__/source-scan';
 import {
   collectScanTargets,
   findCastOffenders,
+  findStaleSpecCasts,
   findUntypedNullableColumns,
+  SRC_ROOT,
+  widenedEntityFields,
 } from './nullable-type-lie-cast-guard';
 
 describe('nullable 타입 거짓말이 강제하는 이중 캐스트', () => {
@@ -164,6 +168,157 @@ describe('nullable 타입 거짓말이 강제하는 이중 캐스트', () => {
             findUntypedNullableColumns([file]).map((f) => f.field),
           ).toEqual(['parentId']);
         },
+      );
+    });
+  });
+});
+
+/**
+ * ## 넓혀진 필드를 겨눈 `.spec.ts` 의 낡은 캐스트
+ *
+ * 위 `findCastOffenders` 는 `.spec.ts` 를 **의도적으로 제외**한다 — fixture 가 부분 객체를
+ * 캐스트하는 것은 정당하다. 그런데 필드가 `| null` 로 넓혀지면 **그 필드에 대한 캐스트만은**
+ * 불필요해지는데, spec 을 안 보므로 구조적으로 못 잡는다.
+ *
+ * 배치 1~3 에서 이 잔재를 **손으로** 찾았고, 세 번째에는 훑는 대상을 *그 배치가 넓힌 필드*
+ * 로만 잡아 앞 배치가 남긴 것을 놓쳤다(`auth.service.spec.ts` 의 `lockedUntil`). 사람이
+ * 매번 대상 집합을 다시 정할 일이 아니다.
+ */
+describe('넓혀진 필드를 겨눈 낡은 spec 캐스트', () => {
+  function withFiles<T>(
+    files: Record<string, string>,
+    fn: (paths: Record<string, string>) => T,
+  ): T {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'stale-cast-'));
+    const paths: Record<string, string> = {};
+    for (const [name, content] of Object.entries(files)) {
+      const full = path.join(dir, name);
+      fs.writeFileSync(full, content);
+      paths[name] = full;
+    }
+    try {
+      return fn(paths);
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  }
+
+  const ENTITY = `
+@Entity('probe')
+export class Probe {
+  @Column({ type: 'timestamptz', nullable: true })
+  widenedAt: Date | null;
+
+  @Column({ type: 'varchar' })
+  notWidened: string;
+
+  @ManyToOne(() => Probe, { nullable: true })
+  @JoinColumn({ name: 'parent_id' })
+  parent: Probe | null;
+}
+`;
+
+  it('넓혀진 필드명을 전수로 뽑는다 — 관계(@ManyToOne + @JoinColumn)도 포함', () => {
+    withFiles({ 'probe.entity.ts': ENTITY }, (p) => {
+      const w = widenedEntityFields([p['probe.entity.ts']]);
+      expect([...w].sort()).toEqual(['parent', 'widenedAt']);
+    });
+  });
+
+  it('넓혀진 필드를 겨눈 캐스트를 잡는다', () => {
+    withFiles(
+      {
+        'probe.entity.ts': ENTITY,
+        'probe.spec.ts': `const f = { widenedAt: null as unknown as Date };\n`,
+      },
+      (p) => {
+        const w = widenedEntityFields([p['probe.entity.ts']]);
+        const found = findStaleSpecCasts([p['probe.spec.ts']], w);
+        expect(found).toHaveLength(1);
+        expect(found[0].field).toBe('widenedAt');
+      },
+    );
+  });
+
+  it('[대조군] 넓혀지지 않은 필드의 캐스트는 잡지 않는다 — 그건 정당한 fixture 다', () => {
+    withFiles(
+      {
+        'probe.entity.ts': ENTITY,
+        'probe.spec.ts': `const f = { notWidened: null as unknown as string };\n`,
+      },
+      (p) => {
+        const w = widenedEntityFields([p['probe.entity.ts']]);
+        expect(findStaleSpecCasts([p['probe.spec.ts']], w)).toHaveLength(0);
+      },
+    );
+  });
+
+  it('관계 필드를 겨눈 캐스트도 잡는다', () => {
+    withFiles(
+      {
+        'probe.entity.ts': ENTITY,
+        'probe.spec.ts': `const f = { parent: null as unknown as Probe };\n`,
+      },
+      (p) => {
+        const w = widenedEntityFields([p['probe.entity.ts']]);
+        expect(findStaleSpecCasts([p['probe.spec.ts']], w)).toHaveLength(1);
+      },
+    );
+  });
+
+  it('주석 속 캐스트 인용은 잡지 않는다 — 고칠 것이 없는 파일이 영구 RED 가 된다', () => {
+    withFiles(
+      {
+        'probe.entity.ts': ENTITY,
+        'probe.spec.ts':
+          `// 종전엔 widenedAt: null as unknown as Date 였다\n` +
+          `/* widenedAt: null as unknown as Date */\n` +
+          `const f = { widenedAt: null };\n`,
+      },
+      (p) => {
+        const w = widenedEntityFields([p['probe.entity.ts']]);
+        expect(findStaleSpecCasts([p['probe.spec.ts']], w)).toHaveLength(0);
+      },
+    );
+  });
+
+  it('`undefined as unknown as` 도 같은 잔재다', () => {
+    withFiles(
+      {
+        'probe.entity.ts': ENTITY,
+        'probe.spec.ts': `const f = { widenedAt: undefined as unknown as Date };\n`,
+      },
+      (p) => {
+        const w = widenedEntityFields([p['probe.entity.ts']]);
+        expect(findStaleSpecCasts([p['probe.spec.ts']], w)).toHaveLength(1);
+      },
+    );
+  });
+
+  describe('저장소 전수', () => {
+    const entities = collectTsFiles(SRC_ROOT).filter((f) =>
+      f.endsWith('.entity.ts'),
+    );
+    const specs = collectTsFiles(SRC_ROOT, { includeSpec: true }).filter((f) =>
+      f.endsWith('.spec.ts'),
+    );
+
+    it('[전제] 엔티티·spec 대상이 비어 있지 않다 — 비면 아래가 공허하다', () => {
+      expect(entities.length).toBeGreaterThan(30);
+      expect(specs.length).toBeGreaterThan(300);
+    });
+
+    it('[전제] 넓혀진 필드가 실제로 있다', () => {
+      expect(widenedEntityFields(entities).size).toBeGreaterThan(100);
+    });
+
+    it('낡은 캐스트가 남아 있지 않다', () => {
+      const offenders = findStaleSpecCasts(
+        specs,
+        widenedEntityFields(entities),
+      );
+      expect(offenders.map((o) => `${o.file} :: ${o.field}`).sort()).toEqual(
+        [],
       );
     });
   });

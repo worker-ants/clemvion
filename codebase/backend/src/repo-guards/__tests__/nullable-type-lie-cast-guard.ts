@@ -13,6 +13,8 @@ import * as path from 'node:path';
 import {
   collectTsFiles,
   countNullAsUnknownAsCasts,
+  stripComments,
+  stripLiterals,
 } from '../../common/__test-utils__/source-scan';
 
 /** `src` 루트. 이 파일은 `src/repo-guards/__tests__/` 에 있다. */
@@ -112,6 +114,75 @@ export function findUntypedNullableColumns(
       if (/\btype:\s*'/.test(deco)) continue;
       const colName = COLUMN_NAME.exec(deco)?.[1];
       if (colName && joined.has(colName)) continue;
+      out.push({ file: path.relative(SRC_ROOT, file), field });
+    }
+  }
+  return out;
+}
+
+export interface StaleSpecCast {
+  readonly file: string;
+  readonly field: string;
+}
+
+/**
+ * 엔티티 선언에서 `| null` 로 **넓혀진** 필드명 전수.
+ *
+ * `@Column` 뿐 아니라 `@ManyToOne`·`@OneToOne` 도 본다 — 관계도 `| null` 로 넓혀졌고,
+ * 그 필드를 겨눈 fixture 캐스트 역시 불필요해진다.
+ */
+const WIDENED_DECL =
+  /@(?:Column|ManyToOne|OneToOne)\((?:[^()]|\([^()]*\))*\)\s*\n(?:\s*@\w+\((?:[^()]|\([^()]*\))*\)\s*\n)?\s*(\w+)\s*:\s*([^;]+);/g;
+
+export function widenedEntityFields(entityFiles: string[]): Set<string> {
+  const out = new Set<string>();
+  for (const file of entityFiles) {
+    const src = fs.readFileSync(file, 'utf8');
+    for (const m of src.matchAll(WIDENED_DECL)) {
+      const [, field, tsType] = m;
+      if (tsType.includes('| null')) out.add(field);
+    }
+  }
+  return out;
+}
+
+/** `foo: null as unknown as Bar` 의 `foo`. `undefined` 형태도 같은 잔재다. */
+const SPEC_CAST = /(\w+)\s*:\s*(?:null|undefined)\s+as\s+unknown\s+as\b/g;
+
+/**
+ * **넓혀진 필드를 겨눈 `.spec.ts` 의 낡은 캐스트.**
+ *
+ * ## 왜 별도 술어인가 — {@link findCastOffenders} 는 이 자리를 구조적으로 못 본다
+ *
+ * 그 가드는 `.spec.ts` 를 **의도적으로 제외**한다. fixture 가 부분 객체를 엔티티로
+ * 캐스트하는 것은 정당하기 때문이다. 그런데 필드가 `| null` 로 넓혀지면 **그 필드에 대한
+ * 캐스트만은 불필요해지는데**, spec 을 아예 안 보므로 영원히 안 잡힌다.
+ *
+ * 배치 1~3 에서 이 잔재를 세 번 **손으로** 찾았다(`lastRunAt`·`lastTriggeredAt`·`parentId`·
+ * `lockedUntil`). 세 번째에는 훑는 대상 집합을 *그 배치가 넓힌 필드*로만 잡아서 앞 배치가
+ * 남긴 것을 놓쳤다 — 사람이 매번 다시 정할 일이 아니라 술어로 고정할 일이다.
+ *
+ * ## 왜 오탐이 없나
+ *
+ * 판정이 **기계적**이다. 필드가 `| null` 이면 `null` 을 넣는 데 캐스트가 필요 없다 —
+ * 걸린 자리는 예외 없이 제거 가능하고, 실제로 제거하면 `tsc` 가 그대로 통과한다.
+ * (자매 축인 "응답 DTO 가 nullable 필드를 non-null 로 문서화" 는 정반대다. 거기선 쿼리
+ * 필터·액션 응답·다른 엔티티 세 형태가 전부 정당해 정적 판정이 불가능하다 —
+ * `plan/in-progress/entity-nullable-column-type-mismatch.md` 에 근거를 적어 뒀다.)
+ *
+ * 주석은 {@link stripComments} 로 지운다. 이 저장소에는 정리 이력을 설명하며 옛 캐스트를
+ * **인용한** 주석이 실재한다 — 그걸 세면 고칠 것이 없는 파일이 영구히 RED 가 된다.
+ */
+export function findStaleSpecCasts(
+  specFiles: string[],
+  widened: ReadonlySet<string>,
+): StaleSpecCast[] {
+  const out: StaleSpecCast[] = [];
+  for (const file of specFiles) {
+    const src = stripLiterals(stripComments(fs.readFileSync(file, 'utf8')));
+    for (const m of src.matchAll(SPEC_CAST)) {
+      const field = m[1];
+      if (!widened.has(field)) continue;
       out.push({ file: path.relative(SRC_ROOT, file), field });
     }
   }

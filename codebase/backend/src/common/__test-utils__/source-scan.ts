@@ -45,8 +45,12 @@ import * as path from 'node:path';
  *
  * 가드의 존재 이유가 "조용히 통과" 를 막는 것이므로 그쪽을 닫는다. URL 과 호출이 같은
  * 줄에 놓이는 날이 오면 RED 로 드러나고, 그때 사람이 판단하면 된다.
+ *
+ * > **export 인 이유**: 주석 처리 규칙은 "세는" 가드만의 것이 아니다. 넓혀진 필드를 겨눈
+ * > 낡은 캐스트를 찾는 가드도 같은 규칙이 필요한데, 거기서 다시 구현하면 이 모듈이 막으려던
+ * > 비대칭이 그대로 재발한다 — 실제로 walker 가 그렇게 사본 5개가 됐다.
  */
-function stripComments(src: string): string {
+export function stripComments(src: string): string {
   return src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '');
 }
 
@@ -56,6 +60,33 @@ function stripComments(src: string): string {
  * 주석 처리 규칙과 그 한계는 `stripComments` 참조 — 특히 문자열 리터럴 안의 `//`
  * (URL 등)도 주석으로 보고 잘라낸다. 의도된 선택이고, 틀리는 방향이 RED 다.
  */
+/**
+ * 문자열·템플릿 리터럴 내용을 지운다(따옴표는 남긴다).
+ *
+ * ## 왜 필요한가 — 가드의 픽스처가 가드에 걸린다
+ *
+ * 구조적 가드의 spec 은 **검출 대상 코드를 문자열로 들고 있다**. 그 spec 자체를 전수 스캔의
+ * 대상에 넣으면 픽스처가 곧바로 offender 가 된다 — 실제로 `findStaleSpecCasts` 를 도입한
+ * 날 자기 spec 을 잡았다.
+ *
+ * 이걸 허용목록으로 덮으면 **오판을 목록으로 은폐**하는 것이다(형제 가드
+ * `masked-reject-callers-guard` 가 정확히 그 실수를 했다가 AST 로 옮기며 되돌렸다).
+ * 리터럴 안의 코드 모양은 **코드가 아니다** — 그건 술어의 참인 성질이므로 여기서 처리한다.
+ *
+ * ## 한계
+ *
+ * 정규식이라 템플릿 리터럴의 `${...}` 안에 백틱이 중첩되면 경계를 잘못 잡을 수 있다.
+ * 틀리는 방향은 **더 지우는 쪽**(= 덜 검출 → 조용히 통과)이므로 무해하지 않다. 그러나
+ * AST 로 옮기는 비용(spec 443개 파싱)을 지금 치를 근거가 없다 — 그 형태가 저장소에
+ * 실재하면 이 주석이 판단 기록으로 남는다.
+ */
+export function stripLiterals(src: string): string {
+  return src
+    .replace(/`(?:[^`\\]|\\[\s\S])*`/g, '``')
+    .replace(/'(?:[^'\\\n]|\\.)*'/g, "''")
+    .replace(/"(?:[^"\\\n]|\\.)*"/g, '""');
+}
+
 export function countCalls(src: string, name: string): number {
   const pattern = new RegExp(`\\b${name}[<(]`, 'g');
   return (stripComments(src).match(pattern) ?? []).length;

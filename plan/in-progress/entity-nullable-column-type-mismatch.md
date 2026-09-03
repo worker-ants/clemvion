@@ -261,10 +261,20 @@ DB 를 실측해(`information_schema` → `character varying`) `type: 'varchar'`
       > **동작 불변을 실측으로 고정했다** — 리팩터 전 5개 walker 의 파일 목록을 캡처해 두고
       > 사후 대조: 507 / 818 / 1261 / 818 / 818 **전부 집합 동일**.
 
-- [ ] **후속 — 넓혀진 필드를 겨눈 낡은 `.spec.ts` 캐스트 가드** (배치 3 에서 방법 확립).
-      엔티티 AST 에서 `| null` 필드명을 뽑아 `.spec.ts` 의 `<필드>: null as unknown as` 를
-      대조한다. DTO 축과 달리 **오탐 문제가 없다** — 걸리면 실제로 불필요한 캐스트다.
-      walker 추출이 선행이었다(이걸 먼저 하면 사본이 6개가 된다).
+- [x] **후속 — 넓혀진 필드를 겨눈 낡은 `.spec.ts` 캐스트 가드** — **완료.**
+      `widenedEntityFields` + `findStaleSpecCasts` (`nullable-type-lie-cast-guard.ts`).
+      엔티티에서 `| null` 필드명을 전수(**135**, 관계 포함)로 뽑아 `.spec.ts` 의
+      `<필드>: null as unknown as` 를 대조한다. 저장소 잔존 **0**.
+
+      > **가드가 자기 spec 을 잡았다.** 픽스처의 템플릿 리터럴 안에 있는
+      > `parent: null as unknown as Probe` 를 코드로 봤다. 허용목록으로 덮으면 **오판을
+      > 목록으로 은폐**하는 것이라(형제 가드 `masked-reject-callers` 가 정확히 그 실수를
+      > 했다가 되돌렸다), `stripLiterals` 를 `source-scan.ts` 에 두고 술어에 넣었다 —
+      > **리터럴 안의 코드 모양은 코드가 아니다** 는 참인 성질이다.
+
+      > **탐지 능력을 뮤테이션으로 실증했다** (잔존 0 이라 GREEN 은 증거가 아니다):
+      > ① `auth.service.spec.ts` 의 `lockedUntil` 캐스트를 되살리니 **파일·필드를 지목하며
+      > RED**, ② `stripLiterals` 를 항등으로 바꾸니 자기 spec 을 다시 잡아 **RED**.
 
 ## 정본(라이브 스키마) 대조 — 축이 실제로 닫혔음을 확인
 
