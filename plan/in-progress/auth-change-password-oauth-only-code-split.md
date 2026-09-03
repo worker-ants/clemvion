@@ -106,8 +106,24 @@ spec_impact:
 형제 헬퍼(`AuthService.verifyPasswordForUser`)를 **재사용하지 않고 중복 구현**했다 — 같은
 `findById` + `passwordHash` 검사 + `comparePassword` 를 다시 쓰면서 두 조건을 한 코드로
 합쳤다. 그래서 구현 단계에서 **두 발행 지점이 같은 상수를 쓰도록** 묶는다(리터럴 중복이
-drift 의 원인이다). `UsersService` 는 `AuthService` 를 주입할 수 없으므로(순환) 헬퍼 통합이
-아니라 **코드 상수 공유**로 간다 — 둘 다 이미 `common/utils/password.util.ts` 를 쓴다.
+drift 의 원인이다).
+
+> ~~`UsersService` 는 `AuthService` 를 주입할 수 없으므로(순환) 헬퍼 통합이 아니라 코드 상수
+> 공유로 간다.~~ — **이 근거는 틀렸다** (`--impl-done` WARNING, 2026-09-03). `UsersModule` 은
+> 이미 `forwardRef(() => AuthModule)` 을 import 하고 `UsersController` 가 그 방식으로
+> `AuthService` 를 주입한다(refactor 04 A-1). 저장소 전체에서 `forwardRef` 를 쓰는 파일이
+> **34개**다 — 주입은 **가능하다.**
+
+헬퍼가 아니라 **코드 상수만** 공유하는 실제 이유는 셋이다:
+
+1. **조회가 2회가 된다** — `verifyPasswordForUser` 는 `findById` 를 스스로 하는데
+   (`auth.service.ts:71`) `changePassword` 는 이미 `user` 를 들고 있다(`users.service.ts:278`).
+2. **`!user` 처방이 다르다** — 그 헬퍼는 `PASSWORD_REQUIRED` 로 접지만 변경 경로는
+   `USER_NOT_FOUND`(404)를 유지한다(사용자 승인 범위 밖이라 건드리지 않는다).
+3. **안내 문구가 흐름마다 다르다** — OAuth-only 에게는 비밀번호 추가 경로를 안내해야 한다.
+
+**교훈**: "구조적으로 불가능하다" 는 검증 가능한 주장이고, 나는 그걸 확인 없이 세 곳
+(spec·JSDoc·이 문서)에 썼다. 게이트가 한 번에 셋을 반증했다.
 
 ## 검증 — 뮤테이션 (2026-09-02, 구현 후)
 
@@ -144,7 +160,7 @@ RED" 가 아니다). 원복은 `cp` 로 했다(`git checkout` 은 미커밋 작�
       `string`(non-null) 이다. 그래서 OAuth-only fixture 가 캐스트 없이는 타입체크를 통과 못 한다
       (backend ratchet 이 이번에 3건 잡았고, 캐스트를 팩토리 한 곳으로 모아 baseline 을
       199/38 → **198/37** 로 낮췄다). `string | null` 로 넓히는 것은 전 사용처 파급이라 별개 작업.
-- [ ] developer 턴 — backend 두 분기 + **공용 상수화**(`common/utils/password.util.ts`, 리터럴
+- [x] **developer 턴 완료 (2026-09-03)** — backend 두 분기 + **공용 상수화**(`common/utils/password.util.ts`, 리터럴
       중복이 drift 의 원인이었다) + 단위/e2e + 유저 가이드 `password-and-sessions.mdx` ko/en
       `:80` 사실 오류 정정 (OAuth-only 도 forgot→reset 으로 비밀번호를 **설정할 수 있다** —
       `1-auth.md §1.1.A` 와 구현 양쪽이 그렇게 말한다)

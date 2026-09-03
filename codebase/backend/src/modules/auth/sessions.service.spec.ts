@@ -191,6 +191,10 @@ describe('SessionsService', () => {
      */
     it('비밀번호 불일치 실패 코드는 PASSWORD_INVALID 다', async () => {
       repo.findOne.mockResolvedValue(makeToken({ familyId: 'fam-A' }));
+      // 가드 단언은 catch **밖**에서 한다 — try 안에서 throw 하면 "reject 하지 않는"
+      // 회귀가 났을 때 그 가드가 자기 catch 에 잡혀 `getResponse is not a function`
+      // 이라는 무관한 메시지로 실패한다(RED 이긴 하나 진단이 거짓말을 한다).
+      let thrown: unknown;
       try {
         await service.revokeFamily(
           'user-1',
@@ -199,13 +203,14 @@ describe('SessionsService', () => {
           {},
           null,
         );
-        throw new Error('expected revokeFamily to reject');
       } catch (err) {
-        const body = (err as UnauthorizedException).getResponse() as {
-          code: string;
-        };
-        expect(body.code).toBe('PASSWORD_INVALID');
+        thrown = err;
       }
+      expect(thrown).toBeInstanceOf(UnauthorizedException);
+      const body = (thrown as UnauthorizedException).getResponse() as {
+        code: string;
+      };
+      expect(body.code).toBe('PASSWORD_INVALID');
     });
 
     it('requires reauth input (400) when neither password nor totp provided', async () => {

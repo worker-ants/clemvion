@@ -267,7 +267,8 @@ export class UsersService {
    * @throws UnauthorizedException `PASSWORD_REQUIRED` — passwordHash 부재(OAuth-only). 비밀번호를
    *   추가하려면 forgot-password → reset-password 경로를 쓴다 (`spec/5-system/1-auth.md` §1.1.A)
    * @throws UnauthorizedException `PASSWORD_INVALID` — 현재 비밀번호 불일치
-   *   두 코드 모두 `AuthService.verifyPasswordForUser` 와 **공유**한다 (`PASSWORD_VERIFY_CODES`).
+   *   두 코드의 SoT 는 `PASSWORD_VERIFY_CODES` 다 — 발행처 열거는 그 JSDoc 이 소유한다
+   *   (여기서 다시 세면 갈릴 자리를 하나 더 만든다).
    * @throws BadRequestException — 새 비밀번호 강도 정책 위반(`validatePasswordStrength`)
    */
   async changePassword(

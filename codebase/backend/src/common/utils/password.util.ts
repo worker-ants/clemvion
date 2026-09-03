@@ -18,9 +18,14 @@ export const BCRYPT_ROUNDS = 12;
  * 두 조건을 한 코드로 합쳐 OAuth-only 사용자에게 "현재 비밀번호가 틀렸다" 고 말했다.
  * (은퇴 이력: `spec/conventions/error-codes.md` §5, 등급 B)
  *
- * 헬퍼 자체를 공유하지 않는 이유는 `UsersService` 가 `AuthService` 를 주입할 수 없기
- * 때문이다(역방향 의존 = 순환). 그래서 **코드만** 공유한다. 메시지는 흐름마다 안내가
- * 달라 각 호출부가 소유한다.
+ * 헬퍼(`verifyPasswordForUser`) 자체를 공유하지 않는 이유는 **순환 의존이 아니다** —
+ * `UsersModule` 은 이미 `forwardRef(() => AuthModule)` 을 import 하고 `UsersController` 가
+ * 그 방식으로 `AuthService` 를 주입한다(refactor 04 A-1). 실제 이유는 셋이다:
+ *   (a) 그 헬퍼는 `findById` 를 스스로 하는데 `changePassword` 는 이미 `user` 를 들고 있어
+ *       재사용하면 **같은 조회가 2회**가 된다,
+ *   (b) 그 헬퍼는 `!user` 를 `PASSWORD_REQUIRED` 로 접지만 여기서는 `USER_NOT_FOUND`(404) 유지,
+ *   (c) 안내 문구가 흐름마다 다르다(OAuth-only 에게는 비밀번호 추가 경로를 안내한다).
+ * 그래서 **코드만** 공유하고 메시지는 각 호출부가 소유한다.
  */
 export const PASSWORD_VERIFY_CODES = {
   /** 비밀번호 미설정(OAuth-only) 또는 미입력 — 재확인할 대상이 없다. */

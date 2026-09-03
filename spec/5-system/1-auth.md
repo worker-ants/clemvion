@@ -518,7 +518,7 @@ counter 역행이 감지되면 `verifyAuthenticationResponse` 가 reject 한다.
 
 `POST /api/auth/register` 는 본문에 `invitationToken?` 을 받아 [§1.5.2 흐름](#152-흐름-미가입자-가입-경로) 의 트랜잭션을 수행한다.
 
-> **민감 동작 비밀번호 재확인 코드**: 2FA 비활성화(`/api/auth/2fa/disable`)·WebAuthn 복구 코드 재발급(`/api/auth/2fa/webauthn/recovery-codes/regenerate`) 등 민감 동작의 비밀번호 재확인은 `AuthService.verifyPasswordForUser` 를 재사용한다 — 비밀번호 미설정(OAuth-only)·미입력 → `PASSWORD_REQUIRED`(401), 불일치 → `PASSWORD_INVALID`(401). **비밀번호 변경**(`UsersService.changePassword`, §2.3 note)도 같은 두 코드를 발행한다 — 헬퍼는 다르지만(순환 의존으로 재사용 불가) 코드는 공유한다. 세션-revoke·이메일 변경 재인증(`verifyReauth`, §2.3, missing→`REAUTH_REQUIRED` 400)과는 **별도 헬퍼**이며 status·코드가 다르다. 공용 카탈로그는 [3-error-handling §1.2.1](./3-error-handling.md#121-2fa--webauthn--재인증비밀번호-재확인-코드-도메인-spec-참조).
+> **민감 동작 비밀번호 재확인 코드**: 2FA 비활성화(`/api/auth/2fa/disable`)·WebAuthn 복구 코드 재발급(`/api/auth/2fa/webauthn/recovery-codes/regenerate`) 등 민감 동작의 비밀번호 재확인은 `AuthService.verifyPasswordForUser` 를 재사용한다 — 비밀번호 미설정(OAuth-only)·미입력 → `PASSWORD_REQUIRED`(401), 불일치 → `PASSWORD_INVALID`(401). **비밀번호 변경**(`UsersService.changePassword`, §2.3 note)도 같은 두 코드를 발행한다 — 헬퍼는 다르되 코드는 공유한다. 헬퍼를 재사용하지 않는 것은 **순환 의존 때문이 아니라**(`UsersModule` 은 이미 `forwardRef(AuthModule)` 을 쓴다) 그 헬퍼가 사용자를 **다시 조회**하고 `!user` 를 `PASSWORD_REQUIRED` 로 접기 때문이다 — 변경 경로는 이미 조회한 사용자를 쓰고 `USER_NOT_FOUND`(404)를 유지한다. 세션-revoke·이메일 변경 재인증(`verifyReauth`, §2.3, missing→`REAUTH_REQUIRED` 400)과는 **별도 헬퍼**이며 status·코드가 다르다. 공용 카탈로그는 [3-error-handling §1.2.1](./3-error-handling.md#121-2fa--webauthn--재인증비밀번호-재확인-코드-도메인-spec-참조).
 
 ---
 

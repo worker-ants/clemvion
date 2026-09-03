@@ -146,6 +146,21 @@ describe('UsersService', () => {
      * 단언은 상수가 아니라 **리터럴**로 쓴다 — 테스트와 소스가 같은 상수를 읽으면 값이
      * 통째로 바뀌어도 둘이 함께 움직여 아무것도 못 잡는다.
      */
+    async function rejectionOf(
+      promise: Promise<unknown>,
+    ): Promise<UnauthorizedException> {
+      let thrown: unknown;
+      try {
+        await promise;
+      } catch (err) {
+        thrown = err;
+      }
+      // 가드 단언은 catch **밖**에서 한다 — try 안에서 throw 하면 "reject 하지 않는"
+      // 회귀가 났을 때 그 가드가 자기 catch 에 잡혀 무관한 메시지로 실패한다.
+      expect(thrown).toBeInstanceOf(UnauthorizedException);
+      return thrown as UnauthorizedException;
+    }
+
     async function codeOf(promise: Promise<unknown>): Promise<string> {
       try {
         await promise;
@@ -204,21 +219,13 @@ describe('UsersService', () => {
 
     it('OAuth-only 메시지는 비밀번호 추가 경로를 안내한다', async () => {
       repo.findOne.mockResolvedValue(oauthOnlyUser());
-      try {
-        await service.changePassword(
-          'user-uuid',
-          'anything',
-          strongNewPassword,
-        );
-        throw new Error('expected rejection');
-      } catch (err) {
-        const body = (err as UnauthorizedException).getResponse() as {
-          message: string;
-        };
-        // 문구 전문이 아니라 "안내가 있다" 는 계약만 고정한다 — FE 가 서버 message 를
-        // 그대로 노출하므로(실측) 이 안내의 존재 자체가 관측 가능한 계약이다.
-        expect(body.message).toContain('재설정');
-      }
+      const err = await rejectionOf(
+        service.changePassword('user-uuid', 'anything', strongNewPassword),
+      );
+      const body = err.getResponse() as { message: string };
+      // 문구 전문이 아니라 "안내가 있다" 는 계약만 고정한다 — FE 가 서버 message 를
+      // 그대로 노출하므로(실측) 이 안내의 존재 자체가 관측 가능한 계약이다.
+      expect(body.message).toContain('재설정');
     });
 
     it('throws BadRequestException when new password violates strength policy', async () => {
