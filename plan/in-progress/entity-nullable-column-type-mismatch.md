@@ -145,6 +145,9 @@ DB 를 실측해(`information_schema` → `character varying`) `type: 'varchar'`
 
 ## 할 일
 
+> 배치별 완료 체크박스는 각 배치 절(§배치 2 등)에 있다. 이 목록은 **배치를 가로지르는**
+> 항목(기준 결정·후속 위임·리팩터 이연)만 담는다.
+
 - [x] **일괄 vs 점진** — 점진 (사용자 결정 2026-09-03)
 - [x] **우선순위 기준** — "이중 캐스트를 강제하는 필드" 로 확정 (초안 기준은 측정 불가로 폐기)
 - [x] **배치 1** — 캐스트 강제 8필드 완료, 캐스트 8건 제거
@@ -194,8 +197,13 @@ relation **6건 전부 `| null`** 이고 **전부 `type:` 없이** 프로덕션�
 
 `shared/utils/redact-stored-error.ts` 의 docstring 이 *"시그니처가 `| null` 을 안 적는 것은
 **의도**다 — 엔티티가 두 컬럼을 non-null 로 선언하므로 **정적으로는** null 이 올 수 없고"* 라며
-**전제를 명시**하고 있었다. `NodeExecution.inputData`/`outputData`/`error` 를 넓히자 그 전제가
-거짓이 됐고 `tsc` 가 2건으로 잡았다.
+**전제를 명시**하고 있었다. `NodeExecution.outputData`/`error` **두 컬럼**을 넓히자 그 전제가 거짓이 됐고 `tsc` 가
+2건으로 잡았다.
+
+> **초판은 여기에 `inputData` 도 적었다** — 틀렸다(리뷰 W1). 그 컬럼은 `default: {}` 이고
+> `nullable: true` 가 **아예 없어** 애초에 대상이 아니었다. AST 스캔은 `nullable: true` 만
+> 고르므로 옳았고 **내 서술만** 틀렸다. 공교롭게도 원래 docstring 이 "**두** 컬럼" 이라
+> 적고 있어 대조하면 바로 드러나는 자리였다.
 
 시그니처(`maskIfPresent` · 제네릭 제약)를 넓히고 **원문을 취소선으로 보존한 채** 정정했다.
 그 파일의 `== null` 가드는 이제 *"런타임 방어"* 가 아니라 **정적으로 도달하는 실경로**다.
@@ -207,8 +215,7 @@ relation **6건 전부 `| null`** 이고 **전부 `type:` 없이** 프로덕션�
       (a) 엔티티 단위(`execution.entity.ts` 10건 · `user.entity.ts` 잔여 3건),
       (b) relation 7건(`ManyToOne`/`OneToOne` — `null` 대신 `undefined` 관례일 수 있어 별도 조사),
       (c) null 검사가 실재하는 필드 — **단 이름 중복 문제를 먼저 해결해야 한다**(엔티티별로 세야 함),
-      **(d) `Schedule.lastRunAt`** — `nullable: true` 인데 타입은 `Date` 다. 같은 엔티티의
-      `nextRunAt` 만 배치 1 에서 넓혀 **한 파일 안에 비대칭**이 남았다,
+      ~~**(d) `Schedule.lastRunAt`**~~ — **배치 2 에서 해소됨**(아래 §배치 2 참조),
       **(e) `auth.service.spec.ts:58` 의 `lockedUntil: null as unknown as Date`** — 배치 1 이
       `User.lockedUntil` 을 넓혔으므로 이 캐스트는 **이제 불필요**하다(그 fixture 는
       `Partial<User>` 라 캐스트 없이 통과한다)
