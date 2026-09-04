@@ -244,6 +244,14 @@ field: T | null;
       않다. 일괄로 OpenAPI `required` 가 뒤집히므로 소비자 영향 확인이 선행 조건이다.
       새 가드는 이 형태를 **잡지 않는다**(선언과 TS 가 서로 일치하므로) — 판정은 "이 필드가
       상시 존재인가" 라는 **필드별 의미 판단**이라 기계화되지 않는다.
+
+      > ⛔ **요청 DTO 는 이 배치에서 카테고리째 제외한다** (`--impl-done` `11_33_21` cross_spec).
+      > §5.4 는 `## 5. 응답 형식` 하위 절이라 **응답 바디 전용**인데, 104곳에는
+      > `update-*.dto.ts` 류의 **PATCH tri-state** 필드가 섞여 있다 — 그쪽은 키 생략(=값 불변)과
+      > 명시적 `null`(=초기화)이 **서로 다른 의미**다. 기계적으로 `?` 를 떼면 "필드를 생략하면
+      > 값이 유지된다" 는 부분 업데이트 계약이 깨진다. **실제 회귀이지 표기 문제가 아니다.**
+      >
+      > 착수 시 첫 단계는 104곳을 **요청/응답으로 가르는 것**이고, 응답만 대상이다.
 - [ ] **`QueryExecutionDto.workflowId` 죽은 필드** (developer, 2026-09-04 발견).
       `findByWorkflow` 는 경로 파라미터를 쓰고 쿼리에서 `{page,limit,sort,order,status}` 만
       구조분해한다 — **이 필드는 읽히는 곳이 없다.** frontend `ExecutionListParams` 도 안
@@ -257,6 +265,12 @@ field: T | null;
 - [ ] **§2.2 단일 동사 action 패턴** (`--spec` W2). `3-workflow-editor/3-execution.md:757` 이
       이미 그 존재를 전제하는데 §2.2 에 문서화가 없다. **이번 범위는 `/api/auth/*` 뿐**이라
       분리한다 — 그쪽은 다른 영역의 경로 패턴이고 실측부터 다시 해야 한다.
+- [ ] **§5.4 에 "응답 바디 한정" 스코프 문구** (planner, `--impl-done` `11_33_21` cross_spec).
+      현재는 섹션 nesting(`## 5. 응답 형식`)으로만 암시돼 있어, 요청 DTO 에 이 규칙을 적용하는
+      오독이 실제로 일어났다 — 이 세션이 `llmConfigId`(요청 DTO) 정정을 CHANGELOG 에서
+      *"형태는 §5.4 를 따랐다"* 라고 적었다가 되돌렸다. 요청 바디의 tri-state(키 생략=불변,
+      `null`=초기화, 값=설정)는 이 절의 적용 대상이 아니며 optional+nullable 이 정당하다는
+      것을 본문에 명시한다.
 - [ ] **`spec/2-navigation/3-schedule.md` §2.1** 에 `next_run_at` NULL 표시 규칙
       (`--spec` INFO#2). FE 는 이미 `-` 로 방어 중이라 동작 위험은 없다.
 

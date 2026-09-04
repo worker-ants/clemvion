@@ -19,7 +19,10 @@
  * 아예 안 돌아 **가드가 발화하지 못한다.** 스캔 대상이 있는 곳에서 돌아야 한다:
  * `backend-checks.yml` 이 `codebase/backend/**` 를 덮는다.
  *
- * 전수 목록·다음 배치 기준: `plan/in-progress/entity-nullable-column-type-mismatch.md`
+ * 이 축의 전수 목록·완료 이력: `plan/complete/entity-nullable-column-type-mismatch.md`
+ * (33/33 파일로 종결). **다음 배치**는 그 plan 이 아니라
+ * `plan/in-progress/spec-draft-nullable-notation-followups.md` 의 "§5.4 drift 배치" 다 —
+ * 엔티티 컬럼 축은 닫혔고 남은 것은 DTO 선언 축이다.
  */
 
 import { withFiles } from '../../common/__test-utils__/temp-fixture';

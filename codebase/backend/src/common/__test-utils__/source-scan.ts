@@ -187,7 +187,10 @@ export function countRawUpdateReturning(src: string): number {
  * 타입을 strip 해 "그 검사 말고는 아무도 못 보는" 자리를 메우는 게 그 ratchet 의 목적이다.
  * 그래서 **프로덕션 소스의 타입 회피는 어떤 게이트도 안 잡는다.**
  *
- * 전수 목록·다음 배치 기준: `plan/in-progress/entity-nullable-column-type-mismatch.md`
+ * 이 축의 전수 목록·완료 이력: `plan/complete/entity-nullable-column-type-mismatch.md`
+ * (33/33 파일로 종결). **다음 배치**는 그 plan 이 아니라
+ * `plan/in-progress/spec-draft-nullable-notation-followups.md` 의 "§5.4 drift 배치" 다 —
+ * 엔티티 컬럼 축은 닫혔고 남은 것은 DTO 선언 축이다.
  */
 export function countNullAsUnknownAsCasts(src: string): number {
   // 주석 속 언급은 세지 않는다 — 이 저장소에 정리 이력을 적어 둔 주석이 실재한다

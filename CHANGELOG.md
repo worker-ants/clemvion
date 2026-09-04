@@ -41,7 +41,13 @@ optional-check 없이 접근할 수 있다.
 **영향**: 없음 — `@ApiPropertyOptional({ nullable: true })` 데코레이터는 이번 diff 이전부터
 그 값이었다. **생성된 OpenAPI 스키마는 바뀌지 않는다** — 바뀐 것은 TS 컴파일 타임 타입뿐이다.
 
-형태는 [API 규약 §5.4](spec/5-system/2-api-convention.md) 를 따랐다.
+> **이 필드에 대해 고친 것은 "OpenAPI 선언과 TS 타입의 내부 일치" 뿐이다.**
+> `@ApiPropertyOptional` 이냐 `@ApiProperty` 냐는 손대지 않았고, 손대지 않는 것이 맞다 —
+> [API 규약 §5.4](spec/5-system/2-api-convention.md) 의 DTO 선언 형태 규칙은 `## 5. 응답 형식`
+> 하위 절이고 본문도 *"한 **응답** 안에 섞여도 무방하나"* 로 응답 바디를 전제한다. 이건
+> **요청** DTO 이고, 키 생략과 `null` 이 둘 다 "워크스페이스 기본값 사용" 으로 수렴하므로
+> optional + nullable 조합이 정당하다. 자매 `update-assistant-session.dto.ts` 는 한 걸음 더
+> 나아가 키 생략(=값 불변)과 명시적 `null`(=초기화)을 **다른 의미**로 쓰는 PATCH tri-state 다.
 
 ## Unreleased — 초대자 계정을 지우면 `invitedBy` 가 null 인데 스키마는 필수 uuid 라고 했다
 
