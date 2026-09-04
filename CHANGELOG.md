@@ -1,5 +1,48 @@
 # Changelog
 
+## Unreleased — OpenAPI 선언과 TS 타입이 어긋난 9곳 — Background 실행 응답 8곳은 숨겼고, `llmConfigId` 는 반대로 좁혔다
+
+`#1277` 이 §5.4 를 정정하면서 세운 규칙("TS 가 `| null` 인데 `nullable` 미선언은 어느 쪽에서도
+틀렸다")을 실제로 무는 자리를 정본 `typescript` AST 로 훑어 고쳤다. 새 저장소 전수 가드
+`swagger-dto-contract.spec.ts` 가 두 축(OpenAPI `required` vs TS `?`, `nullable` vs TS
+`| null`)의 불일치를 앞으로 잡는다 — 바로 앞 두 항목(`invitedBy`·`ipWhitelist`)과 같은
+클래스의 결함이다.
+
+**동작 변경은 없다.** 스키마가 실제와 어긋나 있던 것을 바로잡는다.
+
+### `background-run-response.dto.ts` 8필드 — 상시 존재하는데 "생략 가능" 이라고 문서화됐다
+
+`finishedAt`·`durationMs`(×2)·`inputData`·`outputData`·`error`·`nextCursor`·`completedAt` 은
+전부 항상 응답에 실리는 `T | null` 필드인데 `@ApiPropertyOptional` 로 선언돼 있어 **두 가지를
+동시에 감췄다** — 키가 항상 온다는 것과 값이 `null` 일 수 있다는 것. `nextCursor` 의 설명은
+이미 *"없으면 null"* 이라 적고 있었다.
+
+| | 종전 | 지금 |
+|---|---|---|
+| DTO (8필드) | `@ApiPropertyOptional() field: T \| null` | `@ApiProperty({ nullable: true }) field: T \| null` |
+
+**영향**: OpenAPI 로 타입을 생성하는 클라이언트에서 이 8필드의 `required` 가 `false` →
+`true` 로 바뀐다 — 앞선 두 항목과 **반대 방향**이다(그쪽은 넓히는 쪽, 이쪽은 "키가 항상
+온다" 는 사실을 문서에 드러내는 쪽). 엄격한 코드 생성기를 쓰는 소비자는 이제 이 필드들에
+optional-check 없이 접근할 수 있다.
+
+### `create-assistant-session.dto.ts` `llmConfigId` — 반대 방향, OpenAPI 출력 변화 없음
+
+`@ApiPropertyOptional({ nullable: true })` 를 선언해 놓고 TS 는 `string` 이었다.
+`@IsOptional()` 은 `null` 에도 검증을 건너뛰므로 **`null` 이 실제로 도착**했고, 소비처
+(`workflow-assistant-session.service.ts` `dto.llmConfigId ?? null`)는 이미 그것을 받고
+있었다 — 자매 DTO(`update-assistant-session.dto.ts`)는 같은 필드를 `string | null` 로
+**맞게** 선언하고 있었다.
+
+| | 종전 | 지금 |
+|---|---|---|
+| DTO | `llmConfigId?: string` | `llmConfigId?: string \| null` |
+
+**영향**: 없음 — `@ApiPropertyOptional({ nullable: true })` 데코레이터는 이번 diff 이전부터
+그 값이었다. **생성된 OpenAPI 스키마는 바뀌지 않는다** — 바뀐 것은 TS 컴파일 타임 타입뿐이다.
+
+형태는 [API 규약 §5.4](spec/5-system/2-api-convention.md) 를 따랐다.
+
 ## Unreleased — 초대자 계정을 지우면 `invitedBy` 가 null 인데 스키마는 필수 uuid 라고 했다
 
 `workspace_invitation.invited_by` 는 `ON DELETE SET NULL`(V017) 이다. 초대자 계정이 삭제되면
