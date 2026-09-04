@@ -974,8 +974,9 @@ DocumentChunk·Entity 계열 선례를 따른다.)
 
 교체 비용은 부분→전체 전환에 따른 **+2.6 MB**(200,000행 기준)다.
 
-> 출처: `#1284` 후속으로 남아 있던 developer 항목. 실측·재현 절차는
-> `plan/complete/spec-draft-schedule-index.md`, 구현은 V110.
+> 출처: `#1277` 에서 등재된 developer 항목(`#1278` 에서 전제 교체). 그 트래커의 마지막
+> 열린 developer 항목이었다. 실측·재현 절차는 `plan/complete/spec-draft-schedule-index.md`,
+> 구현은 V110.
 
 ### `alert_rule` 을 §2.25 로 등재 (2026-08-31)
 
