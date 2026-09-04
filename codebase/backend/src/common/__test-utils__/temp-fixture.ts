@@ -50,6 +50,9 @@ export function withFiles<T>(
   const paths: Record<string, string> = {};
   for (const [name, content] of Object.entries(files)) {
     const full = path.join(dir, name);
+    // 중첩 이름(`sub/probe.ts`)을 허용한다 — 경로 정규화·상대경로 계산을 겨누는 캐너리는
+    // 구분자가 **실제로 나타나는** 픽스처가 있어야 뮤턴트를 문다(2026-09-04 리뷰 4R).
+    fs.mkdirSync(path.dirname(full), { recursive: true });
     fs.writeFileSync(full, content);
     paths[name] = full;
   }

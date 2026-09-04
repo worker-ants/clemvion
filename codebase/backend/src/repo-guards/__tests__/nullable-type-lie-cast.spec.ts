@@ -25,6 +25,7 @@
  * 엔티티 컬럼 축은 닫혔고 남은 것은 DTO 선언 축이다.
  */
 
+import * as nodePath from 'node:path';
 import {
   withFiles,
   withFixture as sharedWithFixture,
@@ -494,5 +495,71 @@ export class A {
         [],
       );
     });
+  });
+});
+
+/**
+ * ## 호출부의 인자 순서를 겨눈다 (리뷰 4R WARNING#1)
+ *
+ * 이 가드의 세 술어는 전부 `toPosixRelative(SRC_ROOT, file)` 로 `.file` 을 채운다.
+ * 그런데 저장소 단언이 전부 `toEqual([])`(위반 0건) 이라 **그 값이 관측되는 자리가
+ * 없었다** — 리뷰어가 인자 순서를 뒤집는 뮤턴트를 심어 관련 스위트가 전원 GREEN
+ * (18/18·12/12·31/31) 임을 실측했다. 헬퍼 자체는 `source-scan.spec.ts` 가 무는데,
+ * **호출부가 헬퍼를 어떻게 부르는지**는 아무도 안 봤다.
+ *
+ * 단언은 tautology 를 피한다 — 같은 함수를 같은 인자로 다시 부르면 무엇을 하든 통과한다.
+ * 대신 **되짚기 불변식**을 쓴다: 올바른 순서라면 `resolve(SRC_ROOT, .file)` 이 원본 절대
+ * 경로로 돌아온다. 순서가 뒤집히면 전혀 다른 경로가 나와 깨진다.
+ */
+describe('[대조군] 보고된 .file 이 SRC_ROOT 기준 상대경로인가 — 인자 순서', () => {
+  const backToAbsolute = (reported: string): string =>
+    nodePath.resolve(SRC_ROOT, reported);
+
+  it('findCastOffenders 의 .file', () => {
+    withFiles(
+      { 'nested/probe.service.ts': 'const u = null as unknown as User;' },
+      (paths) => {
+        const file = paths['nested/probe.service.ts'];
+        const [offender] = findCastOffenders([file]);
+        expect(offender).toBeDefined();
+        expect(backToAbsolute(offender.file)).toBe(file);
+        expect(offender.file).not.toContain('\\');
+      },
+    );
+  });
+
+  it('findUntypedNullableColumns 의 .file', () => {
+    withFiles(
+      {
+        'nested/probe.entity.ts': [
+          'export class Probe {',
+          '  @Column({ nullable: true })',
+          '  token: string | null;',
+          '}',
+        ].join('\n'),
+      },
+      (paths) => {
+        const file = paths['nested/probe.entity.ts'];
+        const [offender] = findUntypedNullableColumns([file]);
+        expect(offender).toBeDefined();
+        expect(backToAbsolute(offender.file)).toBe(file);
+      },
+    );
+  });
+
+  it('findStaleSpecCasts 의 .file', () => {
+    withFiles(
+      {
+        'nested/probe.spec.ts':
+          'const f = { token: null as unknown as string };\n',
+      },
+      (paths) => {
+        const file = paths['nested/probe.spec.ts'];
+        const widened = new Set(['token']);
+        const [offender] = findStaleSpecCasts([file], widened);
+        expect(offender).toBeDefined();
+        expect(backToAbsolute(offender.file)).toBe(file);
+      },
+    );
   });
 });
