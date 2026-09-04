@@ -11,8 +11,8 @@ export class KnowledgeBaseDto {
   @ApiProperty({ example: '고객 FAQ' })
   name: string;
 
-  @ApiPropertyOptional({ nullable: true })
-  description?: string | null;
+  @ApiProperty({ nullable: true })
+  description: string | null;
 
   @ApiProperty({
     example: 'text-embedding-3-small',
@@ -21,13 +21,13 @@ export class KnowledgeBaseDto {
   })
   embeddingModel: string;
 
-  @ApiPropertyOptional({
+  @ApiProperty({
     example: 1536,
     nullable: true,
     description:
       '저장된 청크들의 임베딩 차원. 첫 임베딩 후 자동으로 채워지며, 모델 변경 후 KB 재임베딩 시 재설정됩니다.',
   })
-  embeddingDimension?: number | null;
+  embeddingDimension: number | null;
 
   @ApiProperty({
     example: 'idle',
@@ -44,13 +44,13 @@ export class KnowledgeBaseDto {
   })
   ragMode: 'vector' | 'graph';
 
-  @ApiPropertyOptional({
+  @ApiProperty({
     nullable: true,
     format: 'uuid',
     description:
       'graph 모드 KB 의 추출 LLMConfig (NULL 이면 워크스페이스 default).',
   })
-  extractionLlmConfigId?: string | null;
+  extractionLlmConfigId: string | null;
 
   @ApiProperty({ example: 1, description: 'graph 검색 확장 깊이 (1 또는 2)' })
   maxHops: number;
@@ -125,43 +125,43 @@ export class DocumentDto {
   })
   embeddingRetryCount: number;
 
-  @ApiPropertyOptional({
+  @ApiProperty({
     nullable: true,
     format: 'date-time',
     description: '마지막 임베딩 시도 시각',
   })
-  embeddingLastAttemptedAt?: string | null;
+  embeddingLastAttemptedAt: string | null;
 
-  @ApiPropertyOptional({
+  @ApiProperty({
     nullable: true,
     description: '마지막 임베딩 오류 메시지 (성공 시 NULL)',
   })
-  embeddingErrorMessage?: string | null;
+  embeddingErrorMessage: string | null;
 
-  @ApiPropertyOptional({
+  @ApiProperty({
     nullable: true,
     enum: ['pending', 'processing', 'completed', 'error', 'failed'],
     description:
       "graph 모드 KB 의 그래프 추출 진행 상태. vector 모드 문서는 NULL. 'error'·'failed' 의미는 embeddingStatus 와 동일.",
   })
-  graphExtractionStatus?:
+  graphExtractionStatus:
     'pending' | 'processing' | 'completed' | 'error' | 'failed' | null;
 
   @ApiProperty({ example: 0, description: '그래프 추출 재시도 누적 횟수' })
   graphRetryCount: number;
 
-  @ApiPropertyOptional({
+  @ApiProperty({
     nullable: true,
     format: 'date-time',
     description: '마지막 그래프 추출 시도 시각',
   })
-  graphLastAttemptedAt?: string | null;
+  graphLastAttemptedAt: string | null;
 
-  @ApiPropertyOptional({
+  @ApiProperty({
     nullable: true,
     description: '마지막 그래프 추출 오류 메시지',
   })
-  graphErrorMessage?: string | null;
+  graphErrorMessage: string | null;
 
   @ApiProperty({ example: 12 })
   chunkCount: number;
@@ -253,8 +253,8 @@ export class GraphEntityDto {
   })
   type: string;
 
-  @ApiPropertyOptional({ nullable: true })
-  description?: string | null;
+  @ApiProperty({ nullable: true })
+  description: string | null;
 
   @ApiProperty({ example: 12 })
   mentionCount: number;

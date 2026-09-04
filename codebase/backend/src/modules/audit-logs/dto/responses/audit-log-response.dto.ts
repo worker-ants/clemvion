@@ -1,4 +1,4 @@
-import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { ApiProperty } from '@nestjs/swagger';
 
 export class AuditLogUserDto {
   @ApiProperty({ format: 'uuid' })
@@ -22,8 +22,8 @@ export class AuditLogDto {
   @ApiProperty({ format: 'uuid' })
   userId: string;
 
-  @ApiPropertyOptional({ type: () => AuditLogUserDto, nullable: true })
-  user?: AuditLogUserDto | null;
+  @ApiProperty({ type: () => AuditLogUserDto, nullable: true })
+  user: AuditLogUserDto | null;
 
   @ApiProperty({
     description:
@@ -49,8 +49,8 @@ export class AuditLogDto {
   @ApiProperty({ type: 'object', additionalProperties: true })
   details: Record<string, unknown>;
 
-  @ApiPropertyOptional({ nullable: true, example: '127.0.0.1' })
-  ipAddress?: string | null;
+  @ApiProperty({ nullable: true, example: '127.0.0.1' })
+  ipAddress: string | null;
 
   @ApiProperty({ format: 'date-time' })
   createdAt: string;

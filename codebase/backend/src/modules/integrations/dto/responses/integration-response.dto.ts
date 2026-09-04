@@ -42,11 +42,11 @@ export class IntegrationDto {
   status: IntegrationStatus;
 
   /** 상태 사유 코드 (snake_case). pending_install + callback 실패 시 `oauth_token_exchange_failed` 등 진단 단서. */
-  @ApiPropertyOptional({ nullable: true })
-  statusReason?: string | null;
+  @ApiProperty({ nullable: true })
+  statusReason: string | null;
 
   /** 마지막 에러 요약. callback / 노드 실행 실패의 진단 단서. */
-  @ApiPropertyOptional({
+  @ApiProperty({
     type: 'object',
     nullable: true,
     properties: {
@@ -55,7 +55,7 @@ export class IntegrationDto {
       at: { type: 'string', format: 'date-time' },
     },
   })
-  lastError?: { code?: string; message?: string; at?: string } | null;
+  lastError: { code?: string; message?: string; at?: string } | null;
 
   /**
    * Safe-to-expose hints derived from credentials. Frontend must use these
@@ -83,12 +83,12 @@ export class IntegrationDto {
   credentialsStatus: 'ok' | 'needs_reauth';
 
   /** 마지막 확인 시각 */
-  @ApiPropertyOptional({ format: 'date-time', nullable: true })
-  lastCheckedAt?: string | null;
+  @ApiProperty({ format: 'date-time', nullable: true })
+  lastCheckedAt: string | null;
 
   /** 만료 시각 */
-  @ApiPropertyOptional({ format: 'date-time', nullable: true })
-  expiresAt?: string | null;
+  @ApiProperty({ format: 'date-time', nullable: true })
+  expiresAt: string | null;
 
   /** 생성자 UUID */
   @ApiProperty({ format: 'uuid' })
@@ -374,23 +374,23 @@ export class IntegrationActivityItemDto {
   @ApiProperty({ enum: ['success', 'failure'], example: 'success' })
   status: string;
 
-  @ApiPropertyOptional({ nullable: true })
-  errorMessage?: string | null;
+  @ApiProperty({ nullable: true })
+  errorMessage: string | null;
 
-  @ApiPropertyOptional({ format: 'uuid', nullable: true })
-  executionId?: string | null;
+  @ApiProperty({ format: 'uuid', nullable: true })
+  executionId: string | null;
 
   /** 호출된 API 의 catalog key. cafe24 = `cafe24.<resource>.<operation>`. INT-US-05. */
-  @ApiPropertyOptional({ nullable: true })
-  apiLabel?: string | null;
+  @ApiProperty({ nullable: true })
+  apiLabel: string | null;
 
   /** HTTP method / SQL 동사 / `SEND` 등. INT-US-05 채우기 정책 참조. */
-  @ApiPropertyOptional({ nullable: true })
-  apiMethod?: string | null;
+  @ApiProperty({ nullable: true })
+  apiMethod: string | null;
 
   /** endpoint path / driver token / SMTP host 등. PII 제거 후 저장. INT-US-05. */
-  @ApiPropertyOptional({ nullable: true })
-  apiPath?: string | null;
+  @ApiProperty({ nullable: true })
+  apiPath: string | null;
 }
 
 export class IntegrationActivityDto {
@@ -409,8 +409,8 @@ export class TestConnectionResultDto {
   @ApiPropertyOptional()
   latencyMs?: number;
 
-  @ApiPropertyOptional({ nullable: true })
-  message?: string | null;
+  @ApiProperty({ nullable: true })
+  message: string | null;
 
   @ApiPropertyOptional({ type: 'object', additionalProperties: true })
   meta?: Record<string, unknown>;

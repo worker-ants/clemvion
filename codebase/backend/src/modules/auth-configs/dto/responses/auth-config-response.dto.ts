@@ -1,4 +1,4 @@
-import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { ApiProperty } from '@nestjs/swagger';
 
 /** 커스텀 인증 설정 응답 DTO */
 export class AuthConfigDto {
@@ -24,14 +24,14 @@ export class AuthConfigDto {
   @ApiProperty({ type: 'object', additionalProperties: true })
   config: Record<string, unknown>;
 
-  @ApiPropertyOptional({ type: [String], nullable: true, example: [] })
-  ipWhitelist?: string[] | null;
+  @ApiProperty({ type: [String], nullable: true, example: [] })
+  ipWhitelist: string[] | null;
 
   @ApiProperty()
   isActive: boolean;
 
-  @ApiPropertyOptional({ format: 'date-time', nullable: true })
-  lastUsedAt?: string | null;
+  @ApiProperty({ format: 'date-time', nullable: true })
+  lastUsedAt: string | null;
 
   @ApiProperty({ format: 'date-time' })
   createdAt: string;
@@ -106,8 +106,8 @@ export class AuthConfigUsageDto {
   @ApiProperty({ example: 42 })
   totalCalls: number;
 
-  @ApiPropertyOptional({ format: 'date-time', nullable: true })
-  lastUsedAt?: string | null;
+  @ApiProperty({ format: 'date-time', nullable: true })
+  lastUsedAt: string | null;
 
   @ApiProperty({ type: AuthConfigUsagePeriodCountsDto })
   periodCounts: AuthConfigUsagePeriodCountsDto;

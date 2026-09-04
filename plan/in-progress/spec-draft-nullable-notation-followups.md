@@ -240,20 +240,19 @@ field: T | null;
       (`background-run-response.dto.ts`) + `create-assistant-session.dto.ts` `llmConfigId`
       (반대 방향 — `nullable:true` 인데 TS 가 `string`). 재발 방지 가드
       `swagger-dto-contract.spec.ts` 를 함께 세웠다.
-- [ ] **§5.4 drift 배치** (developer, 계약 거짓 9곳 수정 후 **104곳** — 착수 시 재측정할 것).
-      첫 두 건은 위 `ipWhitelist`·`invitedBy`.
-      계약 거짓이 아니라 **규약 변경에 따른 drift** 이고 §5.4 소급 면제 아래 있다 — 급하지
-      않다. 일괄로 OpenAPI `required` 가 뒤집히므로 소비자 영향 확인이 선행 조건이다.
-      새 가드는 이 형태를 **잡지 않는다**(선언과 TS 가 서로 일치하므로) — 판정은 "이 필드가
-      상시 존재인가" 라는 **필드별 의미 판단**이라 기계화되지 않는다.
+- [x] **§5.4 drift 배치 — 응답측 83곳 완료 (2026-09-04).** 요청/응답을 먼저 갈랐다(§5.4 는
+      응답 바디 전용, `#1280`). 104 = 요청 21 + 응답 83.
 
-      > ⛔ **요청 DTO 는 이 배치에서 카테고리째 제외한다** (`--impl-done` `11_33_21` cross_spec).
-      > §5.4 는 `## 5. 응답 형식` 하위 절이라 **응답 바디 전용**인데, 104곳에는
-      > `update-*.dto.ts` 류의 **PATCH tri-state** 필드가 섞여 있다 — 그쪽은 키 생략(=값 불변)과
-      > 명시적 `null`(=초기화)이 **서로 다른 의미**다. 기계적으로 `?` 를 떼면 "필드를 생략하면
-      > 값이 유지된다" 는 부분 업데이트 계약이 깨진다. **실제 회귀이지 표기 문제가 아니다.**
-      >
-      > 착수 시 첫 단계는 104곳을 **요청/응답으로 가르는 것**이고, 응답만 대상이다.
+      **"기계화되지 않는다" 던 판정을 타입체커가 했다.** 응답 DTO 조립부가 `: SomeDto` 로
+      타입된 객체 리터럴을 반환하므로 `?` 를 떼면 키를 안 채우는 자리를 `tsc` 가 잡는다 —
+      83곳 뒤집고 **비-spec 오류 0건**이었다.
+
+      **분류를 한 번 틀렸다**: `@Body()`/`@Query()` + 상속만 닫으면 `ImportNodeDto`·
+      `SaveCanvasNodeDto`(요청 DTO 안에 **중첩된** 타입)를 놓쳐 tsc 가 54건을 냈다. 필드
+      타입 참조까지 전이 폐포로 닫아 정정했다.
+
+      **요청측 21곳은 대상이 아니다** — PATCH tri-state 라 `?` 를 떼면 부분 업데이트 계약이
+      깨진다.
 - [ ] **`QueryExecutionDto.workflowId` 죽은 필드** (developer, 2026-09-04 발견).
       `findByWorkflow` 는 경로 파라미터를 쓰고 쿼리에서 `{page,limit,sort,order,status}` 만
       구조분해한다 — **이 필드는 읽히는 곳이 없다.** frontend `ExecutionListParams` 도 안

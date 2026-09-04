@@ -40,16 +40,16 @@ export class NodeDto {
   isDisabled: boolean;
 
   /** 노드 설명 */
-  @ApiPropertyOptional({ nullable: true })
-  description?: string | null;
+  @ApiProperty({ nullable: true })
+  description: string | null;
 
   /** 소속 컨테이너 노드 UUID */
-  @ApiPropertyOptional({ format: 'uuid', nullable: true })
-  containerId?: string | null;
+  @ApiProperty({ format: 'uuid', nullable: true })
+  containerId: string | null;
 
   /** 도구 소유자 노드 UUID */
-  @ApiPropertyOptional({ format: 'uuid', nullable: true })
-  toolOwnerId?: string | null;
+  @ApiProperty({ format: 'uuid', nullable: true })
+  toolOwnerId: string | null;
 
   /** 생성 시각 */
   @ApiProperty({ format: 'date-time' })

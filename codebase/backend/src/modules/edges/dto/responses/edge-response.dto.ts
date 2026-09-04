@@ -1,4 +1,4 @@
-import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { ApiProperty } from '@nestjs/swagger';
 import { EdgeType } from '../../entities/edge.entity';
 
 /** 워크플로우 엣지(연결선) 응답 DTO */
@@ -32,12 +32,12 @@ export class EdgeDto {
   type: EdgeType;
 
   /** 조건부 엣지에 적용되는 조건식 */
-  @ApiPropertyOptional({
+  @ApiProperty({
     type: 'object',
     additionalProperties: true,
     nullable: true,
   })
-  condition?: Record<string, unknown> | null;
+  condition: Record<string, unknown> | null;
 
   /** 생성 시각 */
   @ApiProperty({ format: 'date-time' })
