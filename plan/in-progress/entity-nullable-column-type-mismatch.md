@@ -189,7 +189,7 @@ DB 를 실측해(`information_schema` → `character varying`) `type: 'varchar'`
       은 NULL(정보성 컬럼이라 발사 무관)" 한 줄 보강.
 - [ ] **후속(planner 턴, 이 작업과 무관) — `2-api-convention.md §2.2` 에 `/api/auth/*`
       액션 네임스페이스 예외 조항** (`--impl-done` 최종 라운드 W2). `/api/auth/{verb}` 15개
-      이상이 §2.2 명명 규칙의 명시된 두 예외(RPC-style `{id}` 필수 / `/api/external/*`)
+      이상이 §2.2 명명 규칙의 명시된 **당시** 두 예외(RPC-style `{id}` 필수 / `/api/external/*`)
       어디에도 포섭되지 않는다. **이 PR 과 무관한 선재 gap 이고 이번 검토가 최초 기록**이라
       여기 적어 둔다 — 다른 plan 에 등재된 곳이 없다.
 - [x] **후속 축 — 응답 DTO 가 엔티티 nullable 필드를 non-null 로 문서화한다** — **종결.**

@@ -1,0 +1,278 @@
+---
+title: nullable 표기 후속 3건 — 데이터 모델 오기·auth 명명 예외·§5.4 자기모순
+worktree: plan-in-progress-items-b0c80b
+started: 2026-09-04
+owner: planner
+status: in-progress
+priority: P2
+spec_impact:
+  - spec/1-data-model.md
+  - spec/data-flow/10-triggers.md
+  - spec/5-system/2-api-convention.md
+  - spec/conventions/swagger.md
+---
+
+# nullable 표기 후속 3건 (planner 턴)
+
+> 출처: `entity-nullable-column-type-mismatch.md` 가 developer 권한 밖으로 남긴 3건.
+> 세 건 모두 **developer 가 실측으로 발견했으나 `spec/` 쓰기 권한이 없어** 이월된 것이다.
+>
+> **`--spec` 검토(`09_34_59`) 반영 완료** — BLOCK: NO · WARNING 7건을 전부 처리했다. 그중
+> **W5 는 내 실측을 반박했고 맞았다**(아래 ③). `spec_impact` 에 `swagger.md` 를 추가한 것도
+> 그 검토(W1, 3개 checker 중복 지적)의 결과다.
+
+---
+
+## ① `spec/1-data-model.md` §2.9 — `next_run_at` 이 non-null 로 표기돼 있다
+
+### 실측
+
+| | 값 |
+|---|---|
+| 마이그레이션 (`V001:168`) | `next_run_at TIMESTAMPTZ` — **NOT NULL 없음** |
+| 엔티티 (`schedule.entity.ts:42`) | `nextRunAt: Date \| null` |
+| spec §2.9 (`:260`) | `next_run_at \| Timestamp` — **`?` 없음** |
+| 바로 아래 `last_run_at` (`:261`) | `Timestamp?` — 같은 표에서 표기가 갈린다 |
+
+**NULL 이 실제로 쓰이는 경로 2곳** (코드 실측):
+
+- `schedule-runner.service.ts:189-190` — 실행 직후 다음 tick 재계산에서
+  `CronExpressionParser.parse` 가 던지면 `catch { schedule.nextRunAt = null; }`
+- `schedules.service.ts:241` — cron/timezone 수정 시 `computeNextRuns` 가 빈 배열이면 `null`
+
+### 변경안 (A) — §2.9 표기 정정
+
+```
+| next_run_at | Timestamp? | 다음 실행 예정 시각. cron 파싱 실패 시 NULL — 발사는 BullMQ job scheduler 가 하므로 NULL 이어도 실행에는 영향이 없다 ([data-flow §3.2](./data-flow/10-triggers.md)) |
+```
+
+### 변경안 (B) — §3 인덱스 전략의 stale 서술 정정 (`--spec` W4)
+
+`:913` 이 `(next_run_at, is_active)` 인덱스의 용도를 **"스케줄러 다음 실행 대상 조회"** 로
+적는다. 그 서술은 **폴링 아키텍처를 전제**하는데 지금은 BullMQ job scheduler 가 발사한다.
+
+**실측**: 인덱스는 DB 에 실재하지만(`V002__indexes.sql:30` `idx_schedule_next_run`),
+**`nextRunAt` 으로 조회하는 코드가 0건**이다(`grep` 전수).
+
+용도 서술을 실제에 맞춘다:
+
+```
+| Schedule | (next_run_at, is_active) | 스케줄 목록의 "다음 실행" 정렬·필터 (UI 조회용). **발사 경로가 아니다** — 발사는 BullMQ job scheduler 가 한다 ([data-flow §3.2](./data-flow/10-triggers.md)) |
+```
+
+> **인덱스 자체를 없애자는 제안이 아니다.** 조회처가 0건이라 후보이긴 하나 DROP 은
+> 마이그레이션이라 developer 결정이다. 여기서는 **문서가 거짓 용도를 적지 않게** 하는 데서
+> 멈추고, 아래 §후속에 등재한다.
+
+### 변경안 (C) — `data-flow/10-triggers.md` §3.2 보강
+
+그 절은 이미 *"`next_run_at` 은 발사 트리거가 아니라 **UI 표시용 정보성 컬럼**"* 이라고
+적으므로, NULL 이 되는 조건 한 줄만 이으면 된다.
+
+---
+
+## ② `spec/5-system/2-api-convention.md` §2.2 — `/api/auth/*` 액션 네임스페이스 예외 부재
+
+### 실측 — 규칙에 포섭되지 않는 경로 **22개** (`--spec` W3 반영)
+
+§2.2 는 "리소스는 복수형 명사" 를 규칙으로 두고 **두 예외**만 명시한다
+(RPC-style sub-channel action · `/api/external/*` 인증 family).
+
+**상태 전이 액션 20개**
+
+```
+register · verify-email · resend-verification · login · login/totp
+2fa/setup · 2fa/verify · 2fa/disable · logout · refresh
+forgot-password · reset-password · check-email · oauth/:provider/callback
+2fa/webauthn/{register,authenticate}/{options,verify} · 2fa/webauthn/recovery
+2fa/webauthn/recovery-codes/regenerate
+```
+
+**read-only capability 조회 2개** — `--spec` W3 이 내 초판 실측에서 누락을 지적했다:
+
+```
+GET /api/auth/oauth/:provider              (OAuth 시작 — 리다이렉트 URL 발급)
+GET /api/auth/2fa/webauthn/availability    (WebAuthn 사용 가능 여부)
+```
+
+> 초판은 "상태 전이" 만으로 예외를 썼는데 **이 둘은 상태를 바꾸지 않아 포섭되지 않았다.**
+> 문구를 넓힌다.
+
+> `/api/auth/workspaces/:id/switch` 는 **이미 RPC-style 예외에 명시**돼 있다 — 대상 아님.
+> `oauth/providers` · `2fa/webauthn/credentials{,/:id}` 는 복수형 리소스라 규칙 준수다.
+
+### 변경안 — 세 번째 예외 조항
+
+```
+| **예외 — 인증 상태 전이·capability 액션**: `/api/auth/{action}` 은 자원 CRUD 가 아니라 **인증 상태 전이**(자격 검증·세션 발급/파기·비밀번호 재설정·2FA 등록/해제)이거나 그 전이에 필요한 **read-only capability 조회**(OAuth 시작, WebAuthn 가용성)다. 전이는 조작할 "자원" 이 없거나(로그인) 자원을 노출하면 안 되므로(비밀번호 재설정 토큰) 복수형 명사로 표현할 수 없다 — 규칙 위반이 아니라 명시된 예외다. SoT: [§1 인증/인가](./1-auth.md) | `/api/auth/login`, `/api/auth/refresh`, `/api/auth/2fa/verify`, `/api/auth/oauth/:provider` |
+```
+
+> **예외명에서 "인증 family" 와 겹치는 접두를 뺐다** (`--spec` W7). 기존 예외는
+> `/api/external/*` 를 가리키는 **"인증 family 전용 네임스페이스"** 이고 이번 것은
+> `/api/auth/*` 다 — 표에서 나란히 읽히므로 이름이 비슷하면 오독한다.
+
+**왜 예외로 성문화하는가** — 이 22개는 되돌릴 수 없다(공개 wire 계약이고 FE·SDK 가
+의존한다). 규칙이 현실을 설명하지 못하면 다음 사람은 둘 중 하나를 한다: 규칙을 무시하거나,
+지키려고 멀쩡한 경로를 바꾸거나. 예외를 적는 편이 둘 다 막는다.
+
+---
+
+## ③ `spec/5-system/2-api-convention.md` §5.4 — 자기 정의와 어긋나는 DTO 표기
+
+### 지적의 요점
+
+§5.4 는 부재 표현을 이렇게 정의한다 — `null`(키 present) = *"이 필드는 응답 계약에 **상시
+존재**하며, 지금은 값이 없다"*. 그런데 DTO 선언 규칙은:
+
+> `null` 을 쓰는 필드는 `@ApiPropertyOptional({ nullable: true })` + `field?: T | null`
+
+**`field?:` 와 `@ApiPropertyOptional` 은 "키가 없을 수 있다" 는 선언**이다. "상시 존재" 로
+정의한 필드에 그것을 쓰라니 같은 절 안에서 앞뒤가 맞지 않는다.
+
+### 취향이 아닌 근거 — 구현 실측
+
+```
+node_modules/@nestjs/swagger/.../api-property.decorator.js:52
+  return ApiProperty({ ...options, required: false });
+```
+
+`@ApiPropertyOptional` 은 **`required: false` 를 내보낸다.** 현행 문면을 따르면 "상시 존재"
+필드가 OpenAPI 에서 **`required: false`** 로 문서화되고, 생성기가 그 필드를 optional 로 만들어
+소비자가 **키 부재 분기를 쓰게 된다.** wire 사실과 다르다.
+
+의미상 옳은 형태는 `required: true` + `nullable: true`:
+
+```ts
+@ApiProperty({ nullable: true })
+field: T | null;
+```
+
+### 저장소 실측 — **집계 기준 명시** (`--spec` W5)
+
+> **초판은 "70 vs 16" 이라고 적었다 — 좁았다.** 내 정규식이 `\(([^)]*)\)` 라 **한 줄짜리
+> 데코레이터만** 잡았고, 여러 줄 데코레이터가 통째로 빠졌다. checker 가 재현해 다른 수를 냈고
+> (102 vs 17) 그게 맞았다. **수치를 밀어 올리는 대신 방법을 고쳤다.**
+
+**기준**: `codebase/backend/src/**/*.dto.ts` 전체 · 데코레이터 여러 줄 허용 · 중간 데코레이터
+(`@IsOptional` 등) 허용 · **TS 타입에 `null` 이 포함된 필드만**.
+
+| 형태 | 건수 | OpenAPI 결과 |
+|---|---|---|
+| `@ApiPropertyOptional({nullable:true})` + `field?` | **101** | `required:false` + `nullable` — **현행 문면** |
+| `@ApiProperty({nullable:true})` + `field` | **18** | `required:true` + `nullable` — **의미상 옳음** |
+| `@ApiPropertyOptional()` + `field` | **8** | `required:false`, **nullable 미선언** |
+| `@ApiPropertyOptional()` + `field?` | **1** | `required:false`, nullable 미선언 |
+| **합계** | **128** | |
+
+> **세 번째 형태(8건)는 초판이 아예 못 봤다.** `nullable: true` 가 없어 **OpenAPI 가 nullable
+> 을 말하지 않는데 TS 타입은 `| null`** 이다 — 소비자는 null 이 올 수 없다고 믿는다. 표기
+> 불일치가 아니라 **계약 거짓**이다.
+
+### 변경안 — §5.4 DTO 선언 규칙을 세 갈래로
+
+```
+- DTO 선언이 wire 를 반영해야 한다:
+  - **키를 생략**하는 필드 → `@ApiPropertyOptional()` + `field?: T` (`| null` 금지)
+  - **`null` 을 쓰는(상시 존재)** 필드 → `@ApiProperty({ nullable: true })` + `field: T | null`
+  - TS 타입이 `| null` 인데 `nullable: true` 를 **선언하지 않는 것은 어느 경우에도 틀렸다** —
+    OpenAPI 가 null 가능성을 감춘다.
+
+  > `@ApiPropertyOptional` 은 `ApiProperty({ required: false })` 의 별칭이라
+  > (`@nestjs/swagger` 구현) 상시 존재 필드에 쓰면 OpenAPI 가 `required: false` 로 나가
+  > 위 "상시 존재" 정의와 모순된다.
+```
+
+### 변경안 (B) — `spec/conventions/swagger.md` §1-4 정본 예제 (`--spec` W1)
+
+§1-4 의 "닫힌 union" 예제가 `@ApiPropertyOptional({ oneOf, nullable: true })` + `context?:`
+로 **정정이 폐기하는 형태를 시연**한다. 3개 checker 가 독립 지목했다.
+
+**그 필드가 상시 존재임을 확인했다** — EIA §5.3 응답 wire 형태가 `"context": { ... } | null`
+이고, 같은 블록의 `durationMs` 는 아예 *"종결 전에는 null (**키는 present** — API 규약 §5.4
+부재 표현)"* 이라고 적는다. 즉 `context` 는 null-present 이고 예제가 틀린 형태다.
+
+예제를 `@ApiProperty({ oneOf, nullable: true })` + `context: … | null` 로 바꾼다.
+
+### 마이그레이션은 **이 문서가 강제하지 않는다**
+
+정정하면 기존 **101 + 8 = 109곳**이 새 문면과 어긋난다. 그중 101곳은 *당시 규약을 정확히
+지킨 것*이라 "위반" 이 아니라 **규약 변경에 따른 drift** 다. 일괄 변경은 OpenAPI `required`
+를 109곳에서 동시에 바꾸는 일이라 별도 developer plan 으로 분리한다.
+
+> **형제 plan 이 이 세션에 만든 2건** (`--spec` W6): `AuthConfigDto.ipWhitelist`(#1273) ·
+> `WorkspaceInvitationDto.invitedBy`(#1274) 는 `entity-nullable-column-type-mismatch.md` 가
+> **바로 이 세션에서 옛 문면대로** 만든 것이다. 둘 다 상시 존재 필드라 새 문면에서는
+> `@ApiProperty({nullable:true})` + non-optional 이 맞다.
+>
+> **그럼에도 이 PR 에 포함하지 않는다** — 이 draft 는 `spec/` 전용(planner 턴)이고
+> `codebase/` 를 건드리면 역할 경계를 넘는다. 109곳 배치의 **첫 두 건으로 명시 등재**해
+> 그 배치가 시작될 때 가장 먼저 잡히게 한다.
+
+> **§5.4 의 소급 면제 조항** — *"본 규칙은 앞으로 도입·변경되는 필드에 적용한다"* 은 원문
+> 맥락이 *키 생략 필드의 사유 문구* 면제라 이번 건에는 **유추 적용**이다(`--spec` INFO#1).
+> 정정 시 그 조항의 적용 범위를 "DTO 선언 형태" 까지 명시해 유추를 없앤다.
+
+---
+
+## 후속 (이 draft 범위 밖 — 등재만)
+
+- [ ] **§5.4 정정에 따른 DTO 109곳 배치** (developer). 첫 두 건은 위 `ipWhitelist`·`invitedBy`.
+      `@ApiPropertyOptional()` + `| null` 8건은 **계약 거짓**이라 우선순위가 더 높다.
+- [ ] **`idx_schedule_next_run` 실사용 0건** (developer/DBA). 조회처가 없어 DROP 후보이나
+      마이그레이션 결정이다.
+- [ ] **§2.2 단일 동사 action 패턴** (`--spec` W2). `3-workflow-editor/3-execution.md:757` 이
+      이미 그 존재를 전제하는데 §2.2 에 문서화가 없다. **이번 범위는 `/api/auth/*` 뿐**이라
+      분리한다 — 그쪽은 다른 영역의 경로 패턴이고 실측부터 다시 해야 한다.
+- [ ] **`spec/2-navigation/3-schedule.md` §2.1** 에 `next_run_at` NULL 표시 규칙
+      (`--spec` INFO#2). FE 는 이미 `-` 로 방어 중이라 동작 위험은 없다.
+
+## 종결 조건
+
+이 draft 를 `complete/` 로 옮길 때 **형제 plan 의 세 체크박스를 함께 닫는다**
+(`--spec` INFO#3) — `entity-nullable-column-type-mismatch.md` 의 planner 턴 3건
+(`:182` `next_run_at` · `:190` `/api/auth/*` · `:247` §5.4). 그 plan 상단 경고문
+(*"planner 턴 항목이 반영되기 전에는 완료 처리하지 말 것"*)도 함께 해제한다.
+
+---
+
+## Rationale
+
+### ① 을 planner 턴으로 돌린 이유
+
+developer 가 `spec/` 을 고칠 수 있는 유일한 예외는 **자기가 쓴 예고 문장을 실측으로 반증**한
+경우다(CLAUDE.md §자기-반증형 소정정). §2.9 의 `next_run_at` 표기는 developer 가 쓴 문장이
+아니라 **선재 문서 오류**이므로 조건 1(내가 썼다)이 깨진다. 나머지 넷을 충족해도 통과시키지
+않는다 — 그 조건이 예외를 "실측했으니 고쳤다" 만능 통행증으로 넓히는 것을 막는 장치다.
+
+### ② 를 "규칙 완화" 가 아니라 "예외 성문화" 로 처리하는 이유
+
+§2.2 의 복수형 명사 규칙 자체는 유효하다 — 자원 CRUD 에서 그 규칙이 주는 예측 가능성은 크다.
+`/api/auth/*` 는 **자원이 없는 상태 전이**라 애초에 그 규칙의 적용 대상이 아니었다. 규칙을
+느슨하게 고치면 자원 CRUD 에서도 verb 경로가 정당화된다 — 그래서 **경계를 좁게 그은 예외**로
+적는다. 기존 두 예외가 같은 형태다.
+
+### ③ 에서 "다수를 따르지 않는" 이유
+
+101 vs 18 은 **관행의 증거이지 정합성의 증거가 아니다.** 101곳이 그 형태인 것은 규약이 그렇게
+적혀 있었기 때문이고, 규약이 자기 정의와 모순된다는 것이 이번 지적이다. 판정 근거는 다수결이
+아니라 **`@ApiPropertyOptional` = `ApiProperty({required:false})`** 라는 구현 사실이다.
+
+> **기각한 대안 — "선례(`@ApiProperty` 18곳)를 문면에 맞춘다"**: 그러면 "상시 존재" 필드가
+> OpenAPI 에서 optional 로 나가는 상태가 **규약의 승인 아래** 고착된다. 소비자가 키 부재
+> 분기를 쓰게 되고, 그건 §5.4 를 만든 이유(부재 표현을 필드별로 명시적으로 정하기)와 정면으로
+> 어긋난다.
+
+### `--spec` 검토가 내 실측을 반박한 것을 기록해 둔다
+
+W5 가 "70 vs 16" 의 집계 기준 부재를 지적하며 재현해 102 vs 17 을 냈다. 확인하니 **내
+정규식이 한 줄 데코레이터만 잡고 있었다.** 기준을 적었으면 그 자리에서 드러났을 결함이고,
+`swagger.md` §3 Rationale 이 이미 *"집계 기준을 적어 둔다"* 로 경고한 실수다.
+
+수치를 고치는 데서 멈추지 않고 **기준을 본문에 명시**했다 — 다음 사람이 재현해 다른 수를
+얻으면 그게 내 실수인지 저장소 변화인지 가릴 수 있어야 한다.
+
+### 세 건을 한 draft 로 묶은 이유
+
+셋 다 **같은 작업(entity nullable 정합화)이 발견한 표기 문제**이고, ①③ 은 "nullable 을 문서가
+어떻게 표기하는가" 라는 한 축이다. ② 만 축이 다르지만 같은 파일(`2-api-convention.md`)을
+건드리므로 분리하면 같은 파일에 두 PR 이 붙는다.

@@ -93,16 +93,22 @@ order?: 'asc' | 'desc';
 @ApiExtraModels(ButtonsContextDto, NodeOutputContextDto)
 export class ExecutionStatusDto {
   /** waiting_for_input 시의 인터랙션 표면. 노드 종류에 따라 두 변형 중 하나. */
-  @ApiPropertyOptional({
+  @ApiProperty({
     oneOf: [
       { $ref: getSchemaPath(ButtonsContextDto) },
       { $ref: getSchemaPath(NodeOutputContextDto) },
     ],
     nullable: true,
   })
-  context?: ButtonsContextDto | NodeOutputContextDto | null;
+  context: ButtonsContextDto | NodeOutputContextDto | null;
 }
 ```
+
+> **`@ApiPropertyOptional` 이 아니라 `@ApiProperty({ nullable: true })` 인 이유**: 이 필드는
+> **상시 존재**하고 값만 없을 수 있다 — EIA 응답 wire 가 `"context": { … } | null` 이다
+> ([§14 EIA §5.3](../5-system/14-external-interaction-api.md)). `@ApiPropertyOptional` 은
+> `ApiProperty({ required: false })` 의 별칭이라 쓰면 OpenAPI 가 키를 optional 로 문서화한다.
+> 부재 표현 판정과 선언 형태의 SoT: [API 규약 §5.4](../5-system/2-api-convention.md#54-부재-표현--null-vs-키-생략).
 
 - variant 를 **한 필드 값으로 무손실 판별**할 수 있을 때만 `discriminator: { propertyName }` 을 덧붙인다. 판별 필드가 variant 간에 값을 공유하면(= 판별자가 unsound) `discriminator` 를 **생략**한다 — 선언해 두면 SDK 생성기가 잘못 narrowing 해 런타임 `undefined` 접근을 만든다. 근거: [§Rationale — discriminator 는 판별자가 sound 할 때만](#discriminator-는-판별자가-sound-할-때만-1-4).
 - 응답 **body 전체**가 union 이면 property 레벨 대신 공용 헬퍼 `ApiOkWrappedOneOfResponse` (§5-2) 를 쓴다.

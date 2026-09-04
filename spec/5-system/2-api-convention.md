@@ -52,6 +52,7 @@ code:
 | 3단계 이상은 최상위로 분리 | `/api/documents/:docId` (필요 시) |
 | **예외 — RPC-style sub-channel action**: `/api/{resource}/{id}/{channel}/{action}` 형태의 동작 호출은 허용 (e.g. `/api/triggers/:id/notification/rotate-secret`, `/api/triggers/:id/interaction/revoke-token`, `/api/triggers/:id/chat-channel/rotate-bot-token`, `/api/auth/workspaces/:id/switch`). 자원 자체가 아닌 sub-channel 의 부작용 동작 (`rotate-*`, `revoke-*`, `disable-*`, `switch` 등) 이며 URL 만으로 자원·채널·동작을 식별 가능해야 하기 때문 | (좌측 예시 참조) |
 | **예외 — 인증 family 전용 네임스페이스**: `/api/external/{resource}` 는 세션/워크스페이스 인증이 아니라 **execution 단명 토큰(`iext_*`)** 으로만 접근하는 별도 인증 family 다. 같은 자원이라도 인증 주체·수신 인구가 달라 경로를 분리한다 — 규칙 위반이 아니라 명시된 예외다. SoT: [§14 External Interaction API](./14-external-interaction-api.md) (rate-limit 은 아래 [§7](#7-rate-limiting), 부재 표현은 [§5.4](#54-부재-표현--null-vs-키-생략)) | `/api/external/executions/:id`, `/api/external/executions/:id/interact` |
+| **예외 — 인증 상태 전이·capability 액션**: `/api/auth/{action}` 은 자원 CRUD 가 아니라 **인증 상태 전이**(자격 검증·세션 발급/파기·비밀번호 재설정·2FA 등록/해제)이거나 그 전이에 필요한 **read-only capability 조회**(OAuth 시작, WebAuthn 가용성)다. 전이는 조작할 "자원" 이 없거나(로그인) 자원을 노출하면 안 되므로(비밀번호 재설정 토큰) 복수형 명사로 표현할 수 없다 — 규칙 위반이 아니라 명시된 예외다. `/api/auth/workspaces/:id/switch` 는 위 RPC-style 예외 쪽이다. SoT: [§1 인증/인가](./1-auth.md) | `/api/auth/login`, `/api/auth/refresh`, `/api/auth/2fa/verify`, `/api/auth/oauth/:provider` |
 
 ### 2.3 워크스페이스 스코핑
 
@@ -181,9 +182,17 @@ GET /api/triggers?type=webhook&status=active
 | **키 생략** | present-when-available — 값이 있을 때만 동봉한다 | (a) 같은 데이터를 싣는 **다른 표면(SSE/WS wire)과 형식을 일치**시켜야 할 때, (b) 선택적 부가 컨텍스트라 소비자가 부재를 정상 경로로 다룰 때 |
 
 - **기본은 `null`** 이다. 키 생략은 (a)/(b) 중 하나에 해당할 때만 쓰고, **그 필드를 문서화하는 절에 사유를 명시**한다.
-- DTO 선언이 wire 를 반영해야 한다 — 키를 생략하는 필드는 `@ApiPropertyOptional` + `field?: T` (`| null` 금지), `null` 을 쓰는 필드는 `@ApiPropertyOptional({ nullable: true })` + `field?: T | null`. ([Swagger 규약 §1-3](../conventions/swagger.md#1-3-optional-필드))
+- DTO 선언이 wire 를 반영해야 한다 ([Swagger 규약 §1-3](../conventions/swagger.md#1-3-optional-필드)):
+  - **키를 생략**하는 필드 → `@ApiPropertyOptional()` + `field?: T` (`| null` 금지)
+  - **`null` 을 쓰는(상시 존재)** 필드 → `@ApiProperty({ nullable: true })` + `field: T | null`
+  - TS 타입이 `| null` 인데 `nullable: true` 를 **선언하지 않는 것은 어느 쪽에서도 틀렸다** — OpenAPI 가 null 가능성을 감춰 소비자가 null 이 올 수 없다고 믿는다.
+
+  > **왜 `null` 필드에 `@ApiPropertyOptional` 을 쓰지 않는가**: 그 데코레이터는
+  > `ApiProperty({ required: false })` 의 별칭이다(`@nestjs/swagger` 구현). 상시 존재 필드에
+  > 쓰면 OpenAPI 가 `required: false` 로 나가 **바로 위 "상시 존재" 정의와 모순**되고,
+  > 생성기가 그 필드를 optional 로 만들어 소비자가 키 부재 분기를 쓰게 된다.
 - 클라이언트는 두 표현 모두 안전하게 다뤄야 한다 — optional chaining(`a?.b`)은 `undefined` 와 `null` 을 함께 short-circuit 하므로 대개 단일 가드로 충분하다.
-- **소급 적용 대상 아님**: 본 규칙은 **앞으로 도입·변경되는 필드**에 적용한다. 이미 문서화된 키 생략 필드(`mcpDiagnostics`, cafe24 `status`·`requiresCafe24Approval`, chat-channel `details.statusCode` 등)는 기준 (b) 를 충족하는 것으로 간주하고 사유 문구를 소급 요구하지 않는다.
+- **소급 적용 대상 아님**: 본 규칙은 — 표현 선택과 **DTO 선언 형태 양쪽 모두** — **앞으로 도입·변경되는 필드**에 적용한다. 이미 문서화된 키 생략 필드(`mcpDiagnostics`, cafe24 `status`·`requiresCafe24Approval`, chat-channel `details.statusCode` 등)는 기준 (b) 를 충족하는 것으로 간주하고 사유 문구를 소급 요구하지 않는다.
 
 기존 선례 (본 절은 신규 발명이 아니라 관행의 성문화다):
 
