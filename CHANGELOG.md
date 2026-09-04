@@ -1,5 +1,43 @@
 # Changelog
 
+## Unreleased — `AlertRuleDto.threshold` 가 `number` 라고 했지만 wire 는 문자열이었다
+
+`GET /api/alerts` 의 OpenAPI 는 `threshold` 를 `number` 로 문서화했다. **실제 wire 는
+문자열이다** — 컬럼이 `numeric(12,4)` 이고 TypeORM 은 정밀도 손실을 피하려 numeric 을
+문자열로 넘기는데, 이 엔드포인트는 엔티티를 그대로 반환한다(예: `"10.0000"`).
+
+| | 종전 | 지금 |
+|---|---|---|
+| `AlertRuleDto.threshold` | `number` (`@ApiProperty({ example: 10 })`) | `string` (`@ApiProperty({ type: String, example: '10.0000' })`) |
+
+**wire 는 바뀌지 않는다.** 문서만 사실을 따라간다.
+
+### 프런트엔드는 이미 알고 있었다
+
+`codebase/frontend/src/lib/api/alerts.ts` 가 **읽기 타입을 `string`, 쓰기 DTO 를 `number` 로
+손수 갈라** 두었다. 즉 유일한 소비자는 진실을 반영하고 있었고 **OpenAPI 만 거짓말을 하고
+있었다.** 그래서 wire 를 바꾸는 대신 문서를 고쳤다 — 소비자가 이미 이 형태를 기대하고,
+`numeric` 을 숫자로 내보내면 정밀도 보존이라는 컬럼 타입의 존재 이유가 사라진다.
+
+읽기/쓰기 비대칭은 의도된 것이다 — 쓰기(`CreateAlertRuleDto.threshold`)는 `number` 를 받고
+서비스가 `String(...)` 으로 저장한다.
+
+**영향**: OpenAPI 로 타입을 생성하는 클라이언트에서 `threshold` 가 `number` → `string` 으로
+바뀐다. **wire 는 불변**이므로 이는 생성 타입을 **실제에 맞추는** 방향이다 — 종전 생성
+타입으로 산술하던 코드는 이미 문자열을 받고 있었다(런타임에서 이미 깨져 있었다는 뜻).
+
+### 왜 아무도 몰랐나
+
+`alerts.controller` 의 **`list`·`create`·`update` 세 응답 모두** 반환 타입 애노테이션이
+없다. 서비스가 `Promise<AlertRule[]>`/`Promise<AlertRule>`(엔티티)를 주고 컨트롤러가 그대로
+넘기므로, `tsc` 가 DTO 와 엔티티를 대조할 지점이 아예 없었다. DTO 를 공유하므로 이번 정정이
+세 응답을 함께 고친다.
+
+**재발 방지**: `swagger-dto-contract` 가드에 축을 하나 더 세웠다 —
+**`numeric`/`decimal` 컬럼을 엔티티 그대로 내보내는 응답 DTO 가 그 필드를 `number` 라고
+말하면 잡는다.** 기존 두 축(presence·null)은 원시 타입 차이를 보지 않아 이 자리를
+구조적으로 못 봤다.
+
 ## Unreleased — **Behavior change (breaking)**: `GET /api/executions/workflow/:workflowId` 의 `workflowId` **쿼리** 파라미터 제거
 
 이 엔드포인트는 **경로가 이미 하나의 워크플로우로 한정**한다. 그런데 쿼리 DTO 에도 같은

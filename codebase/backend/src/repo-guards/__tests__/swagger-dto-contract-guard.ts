@@ -7,7 +7,10 @@
 import * as fs from 'node:fs';
 
 import * as ts from 'typescript';
-import { toPosixRelative } from '../../common/__test-utils__/source-scan';
+import {
+  toPosixPath,
+  toPosixRelative,
+} from '../../common/__test-utils__/source-scan';
 
 /**
  * ## 왜 정규식이 아니라 AST 인가 — 정규식으로 세 번 틀렸다
@@ -55,22 +58,54 @@ function callDecorators(
     }));
 }
 
+/**
+ * 데코레이터 인자 객체들에서 `key` 프로퍼티를 찾아 `pick` 이 값을 돌려주는 **첫** 자리를
+ * 반환한다. 없으면 `undefined`.
+ *
+ * `pick` 이 `undefined` 를 주면 **계속 훑는다** — 같은 키가 여러 번 나오고 앞의 것이 원하는
+ * 리터럴 형태가 아닐 때(`required: someVar` 뒤에 `required: true`) 뒤엣것을 놓치지 않기
+ * 위해서다. boolean 리더가 `false` 를 돌려주는 것과 "못 찾음" 은 `undefined` 비교로 갈린다.
+ */
+function readOption<T>(
+  call: ts.CallExpression,
+  key: string,
+  sf: ts.SourceFile,
+  pick: (initializer: ts.Expression) => T | undefined,
+): T | undefined {
+  for (const arg of call.arguments) {
+    if (!ts.isObjectLiteralExpression(arg)) continue;
+    for (const prop of arg.properties) {
+      if (!ts.isPropertyAssignment(prop)) continue;
+      if (prop.name.getText(sf) !== key) continue;
+      const picked = pick(prop.initializer);
+      if (picked !== undefined) return picked;
+    }
+  }
+  return undefined;
+}
+
 /** 데코레이터 인자 객체에서 boolean 리터럴 프로퍼티를 읽는다. 없으면 `undefined`. */
 function readBooleanOption(
   call: ts.CallExpression,
   key: string,
   sf: ts.SourceFile,
 ): boolean | undefined {
-  for (const arg of call.arguments) {
-    if (!ts.isObjectLiteralExpression(arg)) continue;
-    for (const prop of arg.properties) {
-      if (!ts.isPropertyAssignment(prop)) continue;
-      if (prop.name.getText(sf) !== key) continue;
-      if (prop.initializer.kind === ts.SyntaxKind.TrueKeyword) return true;
-      if (prop.initializer.kind === ts.SyntaxKind.FalseKeyword) return false;
-    }
-  }
-  return undefined;
+  return readOption(call, key, sf, (init) => {
+    if (init.kind === ts.SyntaxKind.TrueKeyword) return true;
+    if (init.kind === ts.SyntaxKind.FalseKeyword) return false;
+    return undefined;
+  });
+}
+
+/** 데코레이터 인자 객체에서 문자열 리터럴 프로퍼티를 읽는다. 없으면 `undefined`. */
+function readStringOption(
+  call: ts.CallExpression,
+  key: string,
+  sf: ts.SourceFile,
+): string | undefined {
+  return readOption(call, key, sf, (init) =>
+    ts.isStringLiteralLike(init) ? init.text : undefined,
+  );
 }
 
 /**
@@ -182,4 +217,202 @@ export function findSwaggerContractMismatches(
     visit(sf);
   }
   return out;
+}
+
+/**
+ * `numeric`/`decimal` 컬럼을 **엔티티 그대로 내보내는** 응답 DTO 가 그 필드를 `number` 라고
+ * 말하는 자리.
+ *
+ * ## 왜 이 축이 별도인가
+ *
+ * TypeORM 은 `numeric`/`decimal` 을 **문자열**로 준다 — `Number` 로 받으면 정밀도가 깨지기
+ * 때문이다. 그런데 응답 DTO 가 같은 필드를 `number` 로 문서화하면 **OpenAPI 가 wire 와
+ * 다른 말을 한다.** 위 두 축(presence·null)은 이것을 못 본다 — 둘 다 `number` vs `string`
+ * 같은 **원시 타입 차이**를 보지 않기 때문이다.
+ *
+ * 2026-09-04 에 실제로 그랬다: `AlertRuleDto.threshold` 가 `number` 인데 wire 는
+ * `"10.0000"` 이었고, 프런트엔드는 이미 읽기 타입을 `string` 으로 손수 갈라 두고 있었다 —
+ * **OpenAPI 만 거짓말을 하고 있었다.** 컨트롤러에 반환 타입이 없어 `tsc` 가 대조할 지점이
+ * 없었던 것이 원인이다.
+ *
+ * ## 왜 DTO↔엔티티 전수 대조가 아닌가
+ *
+ * 같은 날 전수 대조를 해 보니 불일치 59건 중 **46건이 `Date` → `string`** 이었다 — JSON
+ * 직렬화의 정상 동작이다. DTO 는 **직렬화된 wire** 를, 엔티티는 **메모리 안의 값**을
+ * 기술하므로 전수 대조는 오탐 덩어리가 된다. 이 술어는 그 간극이 **정밀도 손실로 이어지는
+ * 한 축**만 좁게 겨눈다.
+ */
+export interface NumericAsNumberOffender {
+  readonly dto: string;
+  readonly field: string;
+  readonly entity: string;
+}
+
+/** `scanNumericExposure` 의 결과 — 위반 목록 + **스캔이 실제로 집은 것**. */
+export interface NumericExposureScan {
+  /** 엔티티에서 찾은 `numeric`/`decimal` 컬럼. `"AlertRule.threshold"` 형식, 정렬됨. */
+  readonly numericColumns: readonly string[];
+  /** 응답 DTO 디렉터리에서 찾은 클래스 이름. 정렬됨. */
+  readonly responseDtoClasses: readonly string[];
+  readonly offenders: NumericAsNumberOffender[];
+}
+
+/** 역할 판별용 디렉터리 표식. 경로는 **POSIX 로 정규화한 뒤** 검사한다. */
+const ENTITY_DIR = '/entities/';
+const RESPONSE_DTO_DIR = '/dto/responses/';
+
+/**
+ * `@Column(...)` 이 선언한 컬럼 타입.
+ *
+ * TypeORM 은 **두 형태**를 똑같이 받는다 — `@Column('numeric', { precision: 12, scale: 4 })`
+ * 의 포지셔널 첫 인자와 `@Column({ type: 'numeric' })` 의 `type:` 옵션. 옵션만 읽으면 앞
+ * 형태가 조용히 "numeric 아님" 으로 분류된다 (`20_39_25` W1). 저장소에는 지금 앞 형태가
+ * 없지만 — 이 가드의 존재 이유가 **미래의 재발 차단**이라 "지금 없다" 는 근거가 못 된다.
+ */
+function readColumnType(
+  call: ts.CallExpression,
+  sf: ts.SourceFile,
+): string | undefined {
+  const [first] = call.arguments;
+  if (first && ts.isStringLiteralLike(first)) return first.text;
+  return readStringOption(call, 'type', sf);
+}
+
+/**
+ * `@Column({ type: 'numeric' | 'decimal' })` 인 필드명을 모은다.
+ *
+ * > **처음엔 정규식으로 썼고 리뷰가 반박했다** (`20_16_17` W1). **바로 이 파일의 위쪽
+ * > docstring 이 "정규식으로 세 번 틀렸다 — 그래서 AST 로 갔다" 고 적어 둔 자리에서**
+ * > 같은 실수를 했다. 리뷰어들이 재현한 위음성 네 가지 — 옵션에 중첩 객체
+ * > (`transformer: {...}`)가 있으면 `[^}]*` 가 안쪽 `}` 에서 멈추고, 데코레이터와 선언이
+ * > 같은 줄이면 개행 강제에 걸리고, `public` 같은 접근 제한자나 사이에 낀 다른 데코레이터
+ * > (`@Index()`)에도 깨진다. 넷 다 **numeric 컬럼을 "numeric 아님" 으로 조용히 분류**해
+ * > 가드의 존재 이유를 무력화한다.
+ *
+ * > **AST 로 옮긴 뒤에도 한 칸 좁았다** (`20_39_25` W1): 옵션 객체의 `type:` 만 읽어서
+ * > TypeORM 이 똑같이 받는 **포지셔널 첫 인자** 형태를 못 봤다 — `readColumnType` 이 그
+ * > 자리를 메운다.
+ */
+function collectNumericFields(sf: ts.SourceFile): Map<string, Set<string>> {
+  const byClass = new Map<string, Set<string>>();
+  const visit = (node: ts.Node): void => {
+    if (ts.isClassDeclaration(node) && node.name) {
+      const cls = node.name.getText(sf);
+      const found = new Set<string>();
+      for (const member of node.members) {
+        if (!ts.isPropertyDeclaration(member)) continue;
+        for (const { name, call } of callDecorators(member, sf)) {
+          if (name !== 'Column') continue;
+          const columnType = readColumnType(call, sf);
+          if (columnType === 'numeric' || columnType === 'decimal')
+            found.add(member.name.getText(sf));
+        }
+      }
+      if (found.size) byClass.set(cls, found);
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(sf);
+  return byClass;
+}
+
+/** 응답 DTO 클래스의 필드명 → 선언 타입. */
+function collectDtoFieldTypes(
+  sf: ts.SourceFile,
+): Map<string, Map<string, string>> {
+  const byClass = new Map<string, Map<string, string>>();
+  const visit = (node: ts.Node): void => {
+    if (ts.isClassDeclaration(node) && node.name) {
+      const fields = new Map<string, string>();
+      for (const member of node.members)
+        if (ts.isPropertyDeclaration(member) && member.type)
+          fields.set(
+            member.name.getText(sf),
+            member.type.getText(sf).replace(/\s+/g, ' '),
+          );
+      byClass.set(node.name.getText(sf), fields);
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(sf);
+  return byClass;
+}
+
+/**
+ * `numeric`/`decimal` 컬럼을 엔티티 그대로 내보내는 응답 DTO 가 그 필드를 `number` 라고
+ * 말하는 자리.
+ *
+ * ## 짝짓기는 `<Entity>Dto` **이름 관례**에 의존한다 (알려진 한계)
+ *
+ * `AlertRuleDto` ↔ `AlertRule` 처럼 접미사만 떼어 짝짓는다. 그 관례를 벗어난 이름으로
+ * 엔티티를 그대로 내보내는 DTO 는 **이 술어가 보지 못한다** (`20_16_17` W3). 저장소에
+ * 실제로 그런 이름이 있다 — `StatisticsResponseDto` 가 자매 numeric 컬럼
+ * (`LlmUsageLog.costUsd`)을 노출하지만, 그쪽은 서비스가 `SUM(...)::float` + `Number(...)`
+ * 로 명시 변환해 무해하다. 음성 대조군으로 이 한계를 고정해 두었다.
+ */
+export function findNumericAsNumber(
+  files: string[],
+): NumericAsNumberOffender[] {
+  return scanNumericExposure(files).offenders;
+}
+
+/**
+ * `findNumericAsNumber` 와 **같은 스캔**을 돌리되 위반 목록뿐 아니라 **무엇을 실제로 봤는지**
+ * 도 함께 돌려준다.
+ *
+ * ## 왜 필요한가 — `expect([]).toEqual([])` 는 두 가지를 못 가른다
+ *
+ * 저장소 전수 스캔의 "위반 0건" 단언은 **위반이 없어서 0** 인지 **애초에 아무것도 스캔되지
+ * 않아서 0** 인지 구분하지 못한다. 실제로 `ENTITY_DIR`/`RESPONSE_DTO_DIR` 를 존재하지 않는
+ * 경로로 바꾸는 뮤턴트에서 대조군은 RED 인데 저장소 단언만 **GREEN 으로 살아남았다**
+ * (`20_39_25` W3 실측). 스캔이 실재하는 numeric 컬럼과 응답 DTO 를 집었다는 **전제**를
+ * 별도로 단언해야 그 구멍이 닫힌다.
+ */
+export function scanNumericExposure(files: string[]): NumericExposureScan {
+  const numericFields = new Map<string, Set<string>>();
+  const dtoFields = new Map<string, Map<string, string>>();
+
+  for (const file of files) {
+    // 경로 판별 전에 POSIX 로 정규화한다 — 이 파일이 세운 관례이고, 빠뜨리면 윈도우에서
+    // `\` 때문에 분류가 통째로 실패해 **가드가 조용히 "위반 0건" 이 된다** (`20_16_17` W2).
+    const posix = toPosixPath(file);
+    const isEntity = posix.includes(ENTITY_DIR);
+    const isResponseDto = posix.includes(RESPONSE_DTO_DIR);
+    if (!isEntity && !isResponseDto) continue;
+
+    const sf = ts.createSourceFile(
+      file,
+      fs.readFileSync(file, 'utf8'),
+      ts.ScriptTarget.Latest,
+      true,
+    );
+    if (isEntity)
+      for (const [cls, fields] of collectNumericFields(sf))
+        numericFields.set(cls, fields);
+    else
+      for (const [cls, fields] of collectDtoFieldTypes(sf))
+        dtoFields.set(cls, fields);
+  }
+
+  const out: NumericAsNumberOffender[] = [];
+  for (const [dto, fields] of dtoFields) {
+    const entity = dto.replace(/Dto$/, '');
+    const numeric = numericFields.get(entity);
+    if (!numeric) continue;
+    for (const [field, type] of fields) {
+      if (!numeric.has(field)) continue;
+      if (!/\bnumber\b/.test(type)) continue;
+      out.push({ dto, field, entity });
+    }
+  }
+
+  const numericColumns: string[] = [];
+  for (const [cls, fields] of numericFields)
+    for (const field of fields) numericColumns.push(`${cls}.${field}`);
+
+  return {
+    numericColumns: numericColumns.sort(),
+    responseDtoClasses: [...dtoFields.keys()].sort(),
+    offenders: out,
+  };
 }

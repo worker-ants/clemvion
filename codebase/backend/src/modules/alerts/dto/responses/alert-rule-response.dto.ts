@@ -17,9 +17,16 @@ export class AlertRuleDto {
   })
   type: string;
 
-  /** 임계값 */
-  @ApiProperty({ example: 10 })
-  threshold: number;
+  // 이 필드가 왜 문자열인지의 **경위**(2026-09-04 정정)는 CHANGELOG 에 있다. 아래 JSDoc 은
+  // `nest-cli.json` 의 `@nestjs/swagger` 플러그인이 **공개 OpenAPI `description` 으로 내보내므로**
+  // 소비자에게 필요한 것만 적는다 — 내부 서사를 넣으면 API 문서에 그대로 실린다
+  // (`--impl-done 20_05_42` W1).
+  /**
+   * 임계값. **문자열로 내려간다** — 컬럼이 `numeric(12,4)` 라 정밀도 보존을 위해 문자열로
+   * 직렬화된다(예: `"10.0000"`). 쓰기(`POST`/`PATCH`)는 `number` 를 받는다.
+   */
+  @ApiProperty({ type: String, example: '10.0000' })
+  threshold: string;
 
   /** 평가 윈도우 (ISO 8601 duration) */
   @ApiPropertyOptional({ nullable: true, example: 'PT1H' })

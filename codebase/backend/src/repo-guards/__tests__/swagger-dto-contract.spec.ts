@@ -34,9 +34,14 @@ import * as path from 'node:path';
 import { ApiProperty, ApiPropertyOptional, DECORATORS } from '@nestjs/swagger';
 
 import { collectTsFiles } from '../../common/__test-utils__/source-scan';
-import { withFixture } from '../../common/__test-utils__/temp-fixture';
 import {
+  withFiles,
+  withFixture,
+} from '../../common/__test-utils__/temp-fixture';
+import {
+  findNumericAsNumber,
   findSwaggerContractMismatches,
+  scanNumericExposure,
   type ContractMismatch,
 } from './swagger-dto-contract-guard';
 
@@ -272,5 +277,256 @@ describe('[캐너리] @nestjs/swagger 별칭 가정이 살아있는가', () => {
 
     expect(read('viaAlias')?.required).toBe(false);
     expect(read('viaAlias')?.required).toBe(read('viaExplicit')?.required);
+  });
+});
+
+/**
+ * ## 옵션 리더가 **리터럴을 만날 때까지 계속 훑는다**
+ *
+ * `readOption` 은 키가 맞아도 `pick` 이 값을 못 뽑으면 순회를 이어 간다. 그 분기는
+ * 테스트가 0건이라 `if (picked !== undefined) return picked;` 를 `return picked;` 로
+ * 바꿔도 스위트가 **32/32 GREEN 이었다** (`21_10_30` W1 실측) — 즉 JSDoc 이 약속한 동작이
+ * 실제로는 무방비였다.
+ *
+ * 이 분기를 가르는 입력은 **같은 키가 두 번 나오고 앞엣것이 리터럴이 아닌** 형태뿐이다.
+ * 실제 데코레이터에는 나오지 않는 모양이지만, 이 파일이 이미 `@Transform` 예외에 대해
+ * 세운 원칙 — **실사례 0건인 분기도 캐너리로 고정한다** — 을 여기에도 적용한다. 문서한
+ * 보장이 구현보다 넓어지지 않게 하는 것이 요점이다.
+ */
+describe('옵션 리더는 리터럴을 만날 때까지 훑는다', () => {
+  const DUPLICATE_KEY = [
+    'declare const dynamicRequired: boolean;',
+    'export class Probe {',
+    '  @ApiProperty({ required: dynamicRequired, required: false })',
+    '  field?: string;',
+    '}',
+  ].join('\n');
+
+  it('boolean 리더 — 앞의 비-리터럴을 건너뛰고 뒤의 리터럴을 집는다', () => {
+    // 뒤의 `required: false` 를 집으면 실효 required=false → TS 의 `?` 와 일치 → 불일치 0.
+    // 앞에서 멈추면 실효 required 가 데코레이터 이름 기본값(`ApiProperty` → true)으로
+    // 떨어져 presence 축 불일치가 생긴다.
+    expect(axes(DUPLICATE_KEY)).toEqual([]);
+  });
+
+  /**
+   * `readOption` 은 제네릭이고 두 인스턴스의 `pick` 이 **다르다** — boolean 은
+   * `TrueKeyword`/`FalseKeyword` 를, string 은 `isStringLiteralLike` 를 본다. 위 캐너리
+   * 하나로는 string 인스턴스의 회귀를 담보하지 못한다 (`21_45_58` W1).
+   *
+   * 이 PR 이 고친 결함이 **두 번 다 "가드가 한 칸 좁았다"** 였으므로, 캐너리도 한쪽만
+   * 세우지 않는다.
+   */
+  it('string 리더 — `readColumnType` 경로에서도 뒤의 리터럴을 집는다', () => {
+    withFiles(
+      {
+        'entities/probe.entity.ts': [
+          'declare const dynamicType: string;',
+          'export class Probe {',
+          "  @Column({ type: dynamicType, type: 'numeric' })",
+          '  amount: string;',
+          '}',
+        ].join('\n'),
+        'dto/responses/probe-response.dto.ts':
+          'export class ProbeDto {\n  amount: number;\n}\n',
+      },
+      (paths) => {
+        // 뒤의 `'numeric'` 을 집어야 numeric 컬럼으로 분류돼 위반이 잡힌다.
+        // 앞에서 멈추면 "numeric 아님" 이 되어 조용히 0건이 된다.
+        expect(findNumericAsNumber(Object.values(paths))).toEqual([
+          { dto: 'ProbeDto', field: 'amount', entity: 'Probe' },
+        ]);
+      },
+    );
+  });
+});
+
+/**
+ * ## `numeric` 컬럼을 `number` 라고 문서화하는 자리
+ *
+ * TypeORM 은 `numeric`/`decimal` 을 **문자열**로 준다(정밀도 보존). 엔티티를 그대로
+ * 내보내는 응답 DTO 가 그 필드를 `number` 라고 하면 **OpenAPI 가 wire 와 다른 말을 한다.**
+ *
+ * 위 두 축(presence·null)은 이것을 **구조적으로 못 본다** — 둘 다 원시 타입 차이를 보지
+ * 않기 때문이다. 2026-09-04 에 `AlertRuleDto.threshold` 가 정확히 그 사각지대에 있었다.
+ */
+describe('numeric 컬럼을 number 로 문서화한 응답 DTO', () => {
+  it('저장소에 그런 자리가 없다', () => {
+    expect(findNumericAsNumber(collectTsFiles(SRC_ROOT))).toEqual([]);
+  });
+
+  /**
+   * ## 위의 "없다" 가 **스캔이 돌았기 때문**임을 고정한다
+   *
+   * `expect([]).toEqual([])` 는 **위반이 없어서 0** 인지 **아무것도 스캔되지 않아서 0** 인지
+   * 구분하지 못한다. 실제로 `ENTITY_DIR`/`RESPONSE_DTO_DIR` 를 존재하지 않는 경로로 바꾸는
+   * 뮤턴트에서 아래 `[대조군]` 은 전부 RED 인데 **위 저장소 단언만 GREEN 으로 살아남았다**
+   * (`20_39_25` W3 실측). 스캔이 실재하는 numeric 컬럼과 응답 DTO 를 집었다는 전제를
+   * 따로 물어야 그 구멍이 닫힌다.
+   *
+   * 두 축을 **각각** 단언한다 — 엔티티 쪽만 보면 `RESPONSE_DTO_DIR` 이 깨져도 통과한다.
+   */
+  it('[전제] 스캔이 실재하는 numeric 컬럼과 응답 DTO 를 집는다', () => {
+    const scan = scanNumericExposure(collectTsFiles(SRC_ROOT));
+
+    // 실재 컬럼: `alert_rule.threshold` 는 `numeric(12,4)`, `llm_usage_log.cost_usd` 도 같은 축.
+    expect(scan.numericColumns).toContain('AlertRule.threshold');
+    expect(scan.numericColumns).toContain('LlmUsageLog.costUsd');
+    // 실재 응답 DTO: 위 엔티티와 이름 관례로 짝지어지는 쪽.
+    expect(scan.responseDtoClasses).toContain('AlertRuleDto');
+  });
+
+  /**
+   * 픽스처가 **중첩 경로**를 쓴다 — 이 술어는 `/entities/` 와 `/dto/responses/` 로 역할을
+   * 가르므로, 평평한 tmpdir 파일로는 분류 자체가 성립하지 않아 단언이 공허해진다.
+   * (`withFiles` 가 중첩 이름을 지원하도록 만든 이유가 이것이다.)
+   */
+  describe('[대조군] 술어가 실제로 무는가', () => {
+    const ENTITY =
+      "export class Probe {\n  @Column({ type: 'numeric', precision: 12, scale: 4 })\n  amount: string;\n}\n";
+
+    it('numeric 컬럼인데 DTO 가 number 면 잡는다', () => {
+      withFiles(
+        {
+          'entities/probe.entity.ts': ENTITY,
+          'dto/responses/probe-response.dto.ts':
+            'export class ProbeDto {\n  amount: number;\n}\n',
+        },
+        (paths) => {
+          expect(findNumericAsNumber(Object.values(paths))).toEqual([
+            { dto: 'ProbeDto', field: 'amount', entity: 'Probe' },
+          ]);
+        },
+      );
+    });
+
+    it('DTO 가 string 이면 안 잡는다 — 정상 형태', () => {
+      withFiles(
+        {
+          'entities/probe.entity.ts': ENTITY,
+          'dto/responses/probe-response.dto.ts':
+            'export class ProbeDto {\n  amount: string;\n}\n',
+        },
+        (paths) => {
+          expect(findNumericAsNumber(Object.values(paths))).toEqual([]);
+        },
+      );
+    });
+
+    /**
+     * ## 정규식이 놓쳤던 네 형태 — 리뷰어가 재현한 위음성 (`20_16_17` W1)
+     *
+     * 초판은 `@Column` 을 정규식으로 찾았고, 아래 넷에서 **numeric 컬럼을 "numeric 아님"
+     * 으로 조용히 분류**했다. AST 로 바꾼 뒤 넷 다 잡힌다 — 그 사실을 여기 고정한다.
+     * 이 픽스처들이 없으면 누군가 정규식으로 되돌려도 스위트가 초록으로 통과한다.
+     */
+    it.each([
+      [
+        '옵션에 중첩 객체가 있다',
+        "export class Probe {\n  @Column({ type: 'numeric', transformer: { to: (v) => v, from: (v) => v } })\n  amount: string;\n}\n",
+      ],
+      [
+        '데코레이터와 선언이 같은 줄이다',
+        "export class Probe {\n  @Column({ type: 'numeric' }) amount: string;\n}\n",
+      ],
+      [
+        '접근 제한자가 붙어 있다',
+        "export class Probe {\n  @Column({ type: 'numeric' })\n  public amount: string;\n}\n",
+      ],
+      [
+        '사이에 다른 데코레이터가 낀다',
+        "export class Probe {\n  @Column({ type: 'numeric' })\n  @Index()\n  amount: string;\n}\n",
+      ],
+    ])('%s — 그래도 잡는다', (_label, entitySource) => {
+      withFiles(
+        {
+          'entities/probe.entity.ts': entitySource,
+          'dto/responses/probe-response.dto.ts':
+            'export class ProbeDto {\n  amount: number;\n}\n',
+        },
+        (paths) => {
+          expect(findNumericAsNumber(Object.values(paths))).toEqual([
+            { dto: 'ProbeDto', field: 'amount', entity: 'Probe' },
+          ]);
+        },
+      );
+    });
+
+    /**
+     * AST 로 옮긴 뒤에도 **한 칸 좁았다** (`20_39_25` W1). TypeORM 은 컬럼 타입을 옵션
+     * 객체의 `type:` 으로도, **포지셔널 첫 인자**로도 받는다. 옵션만 읽던 초판은 뒤 형태를
+     * 조용히 "numeric 아님" 으로 분류했다 — 저장소에 지금 그 형태가 없다는 것은 근거가
+     * 못 된다. 이 가드의 존재 이유가 **미래의 재발 차단**이기 때문이다.
+     */
+    it.each([
+      [
+        '포지셔널 타입 인자 + 옵션 객체',
+        "export class Probe {\n  @Column('numeric', { precision: 12, scale: 4 })\n  amount: string;\n}\n",
+      ],
+      [
+        '포지셔널 타입 인자만',
+        "export class Probe {\n  @Column('decimal')\n  amount: string;\n}\n",
+      ],
+    ])('%s — 그래도 잡는다', (_label, entitySource) => {
+      withFiles(
+        {
+          'entities/probe.entity.ts': entitySource,
+          'dto/responses/probe-response.dto.ts':
+            'export class ProbeDto {\n  amount: number;\n}\n',
+        },
+        (paths) => {
+          expect(findNumericAsNumber(Object.values(paths))).toEqual([
+            { dto: 'ProbeDto', field: 'amount', entity: 'Probe' },
+          ]);
+        },
+      );
+    });
+
+    it('`decimal` 도 같은 축이다', () => {
+      withFiles(
+        {
+          'entities/probe.entity.ts':
+            "export class Probe {\n  @Column({ type: 'decimal' })\n  amount: string;\n}\n",
+          'dto/responses/probe-response.dto.ts':
+            'export class ProbeDto {\n  amount: number;\n}\n',
+        },
+        (paths) => {
+          expect(findNumericAsNumber(Object.values(paths))).toHaveLength(1);
+        },
+      );
+    });
+
+    /**
+     * 짝짓기가 `<Entity>Dto` 이름 관례에 의존한다는 **알려진 한계**를 고정한다
+     * (`20_16_17` W3). 저장소에 실제로 그 관례를 벗어난 이름이 있다
+     * (`StatisticsResponseDto`) — 지금은 무해하지만 술어가 못 본다는 사실 자체를 적어 둔다.
+     */
+    it('[알려진 한계] `<Entity>Dto` 관례를 벗어난 이름은 못 본다', () => {
+      withFiles(
+        {
+          'entities/probe.entity.ts':
+            "export class Probe {\n  @Column({ type: 'numeric' })\n  amount: string;\n}\n",
+          'dto/responses/probe-response.dto.ts':
+            'export class ProbeResponseDto {\n  amount: number;\n}\n',
+        },
+        (paths) => {
+          expect(findNumericAsNumber(Object.values(paths))).toEqual([]);
+        },
+      );
+    });
+
+    it('numeric 이 아닌 컬럼은 DTO 가 number 여도 안 잡는다', () => {
+      withFiles(
+        {
+          'entities/probe.entity.ts':
+            "export class Probe {\n  @Column({ type: 'int' })\n  amount: number;\n}\n",
+          'dto/responses/probe-response.dto.ts':
+            'export class ProbeDto {\n  amount: number;\n}\n',
+        },
+        (paths) => {
+          expect(findNumericAsNumber(Object.values(paths))).toEqual([]);
+        },
+      );
+    });
   });
 });
