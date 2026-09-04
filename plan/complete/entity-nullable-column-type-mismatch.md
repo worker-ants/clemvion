@@ -2,7 +2,7 @@
 worktree: plan-in-progress-items-b0c80b
 started: 2026-09-03
 owner: developer
-status: in-progress
+status: complete
 priority: P3
 spec_impact:
   - spec/1-data-model.md
@@ -17,7 +17,9 @@ spec_impact:
 > `backend-lint-gate-broken-on-main.md` 가 확립한 것과 같다: 본문이 **planner 위임으로 spec
 > 후속 2건을 스스로 명시**하는데 frontmatter 가 `none` 이면, `complete/` 이동 시
 > Gate C(`spec-plan-completion.test.ts`)가 그 값을 그대로 신뢰해 **"spec 영향 없음" 이 잘못
-> 확정된다**. **아래 §후속의 [planner 턴] 항목이 반영되기 전에는 완료 처리하지 말 것.**
+> 확정된다**. ~~아래 §후속의 [planner 턴] 항목이 반영되기 전에는 완료 처리하지 말 것.~~
+> **planner 턴 3건 반영 완료** (`spec-draft-nullable-notation-followups.md`, 2026-09-04) —
+> 이 조건은 해제됐다.
 >
 > (처음엔 `none` 으로 두고 "이 배치가 바꾸는 spec 은 0건이라 리스트는 거짓" 이라 판단했는데,
 >  그 논거는 자매 plan 에서 이미 제기됐다 기각된 것이다 — 이 필드는 **PR 이 아니라 plan 의
@@ -179,7 +181,9 @@ DB 를 실측해(`information_schema` → `character varying`) `type: 'varchar'`
 - [x] **일괄 vs 점진** — 점진 (사용자 결정 2026-09-03)
 - [x] **우선순위 기준** — "이중 캐스트를 강제하는 필드" 로 확정 (초안 기준은 측정 불가로 폐기)
 - [x] **배치 1** — 캐스트 강제 8필드 완료, 캐스트 8건 제거
-- [ ] **후속(planner 턴) — `spec/1-data-model.md` §2.9 `next_run_at` 표기 정정**
+- [x] **후속(planner 턴) — `spec/1-data-model.md` §2.9 `next_run_at` 표기 정정** — **완료**
+      (`spec-draft-nullable-notation-followups.md`). `Timestamp?` 로 정정했고, 부수로 §3 인덱스
+      용도 서술과 `2-trigger-list.md` 의 stale `sweep` 서술도 함께 고쳤다.
       (`--impl-done` W1). `:260` 이 `Timestamp` 인데 바로 아래 `:261` `last_run_at` 은
       `Timestamp?` 다(이 문서의 nullable 관례는 `?`, 총 26곳). **DB 는 처음부터
       `nullable: true`** 였으므로 선재 문서 오류이고, 배치 1 이 그 nullable 을 코드·테스트로
@@ -187,7 +191,7 @@ DB 를 실측해(`information_schema` → `character varying`) `type: 'varchar'`
       **developer 권한 밖**이다 — 내가 쓴 문장이 아니라 자기-반증형 소정정 예외에 해당하지
       않는다. 곁들여: `spec/data-flow/10-triggers.md §3.2` 에 "cron 파싱 실패 시 `next_run_at`
       은 NULL(정보성 컬럼이라 발사 무관)" 한 줄 보강.
-- [ ] **후속(planner 턴, 이 작업과 무관) — `2-api-convention.md §2.2` 에 `/api/auth/*`
+- [x] **후속(planner 턴, 이 작업과 무관) — `2-api-convention.md §2.2` 에 `/api/auth/*`
       액션 네임스페이스 예외 조항** (`--impl-done` 최종 라운드 W2). `/api/auth/{verb}` 15개
       이상이 §2.2 명명 규칙의 명시된 **당시** 두 예외(RPC-style `{id}` 필수 / `/api/external/*`)
       어디에도 포섭되지 않는다. **이 PR 과 무관한 선재 gap 이고 이번 검토가 최초 기록**이라
@@ -258,7 +262,7 @@ DB 를 실측해(`information_schema` → `character varying`) `type: 'varchar'`
       > 부수: 대조군을 고르며 `workflow` 를 "충돌 없는 관계" 로 예상했는데 **6곳 전부
       > non-null** 이라 애초에 판정 대상이 아니었다. 프로브가 그 가정을 반증했다.
 
-- [ ] **후속(planner 턴) — §5.4 의 `field?:` 표기와 기존 선례가 어긋난다**
+- [x] **후속(planner 턴) — §5.4 의 `field?:` 표기와 기존 선례가 어긋난다** — **완료**
       (`--impl-done` `19_02_06` INFO#1). 규약 §5.4 는 `null`(상시 존재) 필드를
       `@ApiPropertyOptional({ nullable: true })` + `field?: T | null` 로 쓰라고 하는데,
       **`field?:` 는 "키가 없을 수 있다" 는 뜻이라 같은 절의 "상시 존재" 정의와 어긋난다.**
