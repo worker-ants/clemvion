@@ -754,7 +754,7 @@ Background 노드의 타임라인 카드를 선택하면 상세 뷰에 본문 �
 
 §1.3 "단일 노드 테스트" 를 v1 으로 승격하며 구현했다 (이전 "계획·미구현"). 결정 사항:
 
-- **전용 엔드포인트 `POST /api/workflows/:id/nodes/:nodeId/execute`**: §1.2 부분실행은 `execute` body `input.fromNodeId` 로 "노드부터 하류 끝까지" 를 실행한다. 단일 노드는 의미(범위)가 명확히 달라(downstream 미진행) body 플래그로 분기하면 두 모드가 혼동되므로 별도 진입점으로 분리했다. 경로는 api-convention §2.2 의 단일 동사 action 패턴(`/execute`·`/stop` 선례)을 따라 노드 sub-resource 의 `execute` 액션으로 명명했다(`execute-node` 동사+명사 합성 회피).
+- **전용 엔드포인트 `POST /api/workflows/:id/nodes/:nodeId/execute`**: §1.2 부분실행은 `execute` body `input.fromNodeId` 로 "노드부터 하류 끝까지" 를 실행한다. 단일 노드는 의미(범위)가 명확히 달라(downstream 미진행) body 플래그로 분기하면 두 모드가 혼동되므로 별도 진입점으로 분리했다. 경로는 api-convention §2.2 의 **자원 액션** 패턴(`/execute`·`/stop` 선례)을 따라 노드 sub-resource 의 `execute` 액션으로 명명했다 — 그 패턴이 정하는 것은 동사의 개수가 아니라 **목적어의 위치**이며, 목적어(노드)를 경로에 두고 액션 이름에는 넣지 않는다(`execute-node` 회피).
 - **입력 = 직전 실행의 상류 출력 자동 주입**: 단일 노드를 의미 있게 테스트하려면 상류 입력이 필요하다. `previousExecutionId` 의 직속 predecessor `NodeExecution.output_data` 를 현재 실행 context 의 `nodeOutputCache`/`structuredOutputCache` 에 복원하면, `gatherNodeInput` 과 표현식 resolver 가 정상 실행과 **동일 경로**로 입력을 재구성한다(별도 입력 격리 로직 불필요 — 노드 완료 캐시 시퀀스를 그대로 재현). 미지정 시 body `input`(수동) 으로 대체해 "입력을 직접 지정한 단발 테스트" 도 지원한다.
 - **단일 노드만, downstream 미진행**: `single_node_id` 가 세팅되면 reachable seed 를 대상 노드로 한정하고 노드 실행 직후 loop 를 종결한다(propagateReachability·container body·parallel·back-edge 미수행). §1.2 와의 구분을 엔진 차원에서 보장.
 - **전용 call-log 엔티티 미도입 — Execution 행 재사용**: 단일 노드 실행도 일반 Execution 으로 기록해 기존 WS 이벤트·Run Results 드로어·`GET /executions/:id` surface 를 그대로 재사용한다. `single_node_id`/`previous_execution_id` 두 nullable 컬럼만 추가(dry_run/re_run_of mode-encoding 선례).

@@ -264,16 +264,21 @@ field: T | null;
       **400 을 새로 발생**시킨다. 공개 REST 표면 제거라 별건으로 둔다.
 - [ ] **`idx_schedule_next_run` 실사용 0건** (developer/DBA). 조회처가 없어 DROP 후보이나
       마이그레이션 결정이다.
-- [ ] **§2.2 단일 동사 action 패턴** (`--spec` W2). `3-workflow-editor/3-execution.md:757` 이
+- [x] **§2.2 자원 액션 패턴** — 반영 완료 (`spec-draft-scope-and-anchor-drift.md` ③). 이름이 틀렸었다: 33개 액션 중 9개가
+      하이픈 복합 동사구라 "단일 동사" 로 성문화하면 27%가 즉시 위반이 된다. 실제 규칙은
+      **목적어의 위치**다. 종전 서술: (`--spec` W2). `3-workflow-editor/3-execution.md:757` 이
       이미 그 존재를 전제하는데 §2.2 에 문서화가 없다. **이번 범위는 `/api/auth/*` 뿐**이라
       분리한다 — 그쪽은 다른 영역의 경로 패턴이고 실측부터 다시 해야 한다.
-- [ ] **§5.4 에 "응답 바디 한정" 스코프 문구** (planner, `--impl-done` `11_33_21` cross_spec).
+- [x] **§5.4 "응답 바디 한정" 스코프 문구** — 반영 완료 (`spec-draft-scope-and-anchor-drift.md` ①). PATCH tri-state 를
+      명시적으로 제외해 아래 drift 배치가 부분 업데이트 계약을 깨지 않게 했다. 종전 서술:
+      (planner, `--impl-done` `11_33_21` cross_spec).
       현재는 섹션 nesting(`## 5. 응답 형식`)으로만 암시돼 있어, 요청 DTO 에 이 규칙을 적용하는
       오독이 실제로 일어났다 — 이 세션이 `llmConfigId`(요청 DTO) 정정을 CHANGELOG 에서
       *"형태는 §5.4 를 따랐다"* 라고 적었다가 되돌렸다. 요청 바디의 tri-state(키 생략=불변,
       `null`=초기화, 값=설정)는 이 절의 적용 대상이 아니며 optional+nullable 이 정당하다는
       것을 본문에 명시한다.
-- [ ] **`spec/2-navigation/3-schedule.md` §2.1** 에 `next_run_at` NULL 표시 규칙
+- [x] **`spec/2-navigation/3-schedule.md` §2.1** `next_run_at` NULL 표시 규칙 — 반영 완료
+      (`spec-draft-scope-and-anchor-drift.md` ②). FE 는 이미 `-` 로 방어 중이었고 문서만 낡아 있었다. 종전 서술:
       (`--spec` INFO#2). FE 는 이미 `-` 로 방어 중이라 동작 위험은 없다.
 
 ## 종결 조건
