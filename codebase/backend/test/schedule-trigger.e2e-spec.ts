@@ -15,7 +15,7 @@ import { registerAndLogin, createTeamWorkspace } from './helpers/auth';
  *   - run-now → executionId 즉시 반환
  *   - delete 후 schedule·trigger 모두 사라짐
  *   - 비활성 스케줄은 trigger.isActive=false
- *   - 목록 조회가 워크스페이스로 격리되고 `sort=next_run_at` 정렬이 실제로 적용됨
+ *   - 목록 조회가 워크스페이스로 격리되고 `next_run_at`(asc·desc)·기본 `created_at` 정렬이 적용됨
  *   - V110: schedule 인덱스가 `(workspace_id, next_run_at)` 로 실재 (스키마 drift 방지)
  */
 
@@ -60,7 +60,7 @@ describe('Schedule trigger (e2e)', () => {
    * **양쪽 방향을 다 건다.** 새 인덱스의 존재만 보면, 누군가 옛 인덱스를 되살려도
    * (또는 V110 의 DROP 이 조용히 실패해도) 초록으로 통과한다 — 교체의 절반이 안 닫힌다.
    *
-   * 근거·실측: `plan/in-progress/spec-draft-schedule-index.md`,
+   * 근거·실측: `plan/complete/spec-draft-schedule-index.md`,
    * SoT: `spec/1-data-model.md` §3 · `spec/data-flow/10-triggers.md` §2.1.
    */
   it('schema: schedule 인덱스가 (workspace_id, next_run_at) 로 교체됨 (V110)', async () => {
@@ -309,6 +309,33 @@ describe('Schedule trigger (e2e)', () => {
     expect(after.rows[0].is_active).toBe(true);
   });
 
+  it('I. trigger DELETE (schedule 타입) → schedule row FK cascade 삭제 + 200 경로 정상 (removeJob 포함)', async () => {
+    const create = await request(BASE_URL)
+      .post('/api/schedules')
+      .set(authHeaders())
+      .send({
+        workflowId,
+        name: uniqueName('sched-i'),
+        cronExpression: '0 8 * * *',
+        timezone: 'UTC',
+      });
+    const scheduleId = create.body.data.id as string;
+    const trig = await db.query(
+      'SELECT trigger_id FROM schedule WHERE id = $1',
+      [scheduleId],
+    );
+    const triggerId = trig.rows[0].trigger_id as string;
+
+    const del = await request(BASE_URL)
+      .delete(`/api/triggers/${triggerId}`)
+      .set(authHeaders());
+    expect([200, 204]).toContain(del.status);
+
+    const after = await db.query('SELECT id FROM schedule WHERE id = $1', [
+      scheduleId,
+    ]);
+    expect(after.rows.length).toBe(0);
+  });
   /**
    * V110 이 최적화 대상으로 삼은 **바로 그 쿼리** — `GET /api/schedules` 의
    * `WHERE workspace_id = ? ORDER BY next_run_at ... LIMIT`.
@@ -361,6 +388,18 @@ describe('Schedule trigger (e2e)', () => {
       .map((v) => new Date(v).getTime());
     expect([...descTimes].sort((a, b) => b - a)).toEqual(descTimes);
 
+    // 기본 정렬(`sort` 생략 → created_at desc)도 인덱스 선두 컬럼 덕을 본다고 주장했으므로
+    // (6.89 → 1.08 ms) 그 경로의 결과 정확성도 함께 건다 (`23_26_09` INFO#8).
+    const byDefault = await request(BASE_URL)
+      .get('/api/schedules?limit=50')
+      .set(authHeaders());
+    expect(byDefault.status).toBe(200);
+    const createdTimes = (
+      byDefault.body.data as Array<{ createdAt: string }>
+    ).map((r) => new Date(r.createdAt).getTime());
+    expect(createdTimes.length).toBeGreaterThanOrEqual(2);
+    expect([...createdTimes].sort((a, b) => b - a)).toEqual(createdTimes);
+
     // 워크스페이스 격리 — 다른 워크스페이스에서는 이 스케줄들이 보이지 않는다.
     const otherWs = await createTeamWorkspace(
       BASE_URL,
@@ -376,32 +415,4 @@ describe('Schedule trigger (e2e)', () => {
       expect(mine.has(row.id)).toBe(false);
     }
   }, 60_000);
-
-  it('I. trigger DELETE (schedule 타입) → schedule row FK cascade 삭제 + 200 경로 정상 (removeJob 포함)', async () => {
-    const create = await request(BASE_URL)
-      .post('/api/schedules')
-      .set(authHeaders())
-      .send({
-        workflowId,
-        name: uniqueName('sched-i'),
-        cronExpression: '0 8 * * *',
-        timezone: 'UTC',
-      });
-    const scheduleId = create.body.data.id as string;
-    const trig = await db.query(
-      'SELECT trigger_id FROM schedule WHERE id = $1',
-      [scheduleId],
-    );
-    const triggerId = trig.rows[0].trigger_id as string;
-
-    const del = await request(BASE_URL)
-      .delete(`/api/triggers/${triggerId}`)
-      .set(authHeaders());
-    expect([200, 204]).toContain(del.status);
-
-    const after = await db.query('SELECT id FROM schedule WHERE id = $1', [
-      scheduleId,
-    ]);
-    expect(after.rows.length).toBe(0);
-  });
 });

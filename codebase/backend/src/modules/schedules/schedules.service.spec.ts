@@ -136,6 +136,16 @@ describe('SchedulesService.runNow', () => {
       expect(orderBy).toHaveBeenCalledWith('s.updated_at', 'ASC');
     });
 
+    // V110 이 `(workspace_id, next_run_at)` 인덱스로 최적화한 바로 그 축인데, 정작 이
+    // 파라미터화 목록에서만 빠져 있었다 (`23_26_09` INFO#9). e2e 로는 닫혀 있으나
+    // 빠른 회귀 방어선에 구멍을 남길 이유가 없다.
+    it('sort=next_run_at&order=desc 를 반영 (V110 최적화 축)', async () => {
+      const { qb, orderBy } = makeQb();
+      scheduleRepo.createQueryBuilder.mockReturnValue(qb as never);
+      await service.findAll('ws-1', { sort: 'next_run_at', order: 'desc' });
+      expect(orderBy).toHaveBeenCalledWith('s.next_run_at', 'DESC');
+    });
+
     it('sort=name 은 trigger 명(t.name)으로 매핑', async () => {
       const { qb, orderBy } = makeQb();
       scheduleRepo.createQueryBuilder.mockReturnValue(qb as never);

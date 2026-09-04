@@ -2,7 +2,7 @@
 --
 -- spec/1-data-model.md §3 인덱스 전략 (Schedule (workspace_id, next_run_at))
 -- spec/data-flow/10-triggers.md §2.1 Schema 매핑 (schedule 행)
--- 실측·기각 근거: plan/in-progress/spec-draft-schedule-index.md
+-- 실측·기각 근거: plan/complete/spec-draft-schedule-index.md
 --
 -- 종전 인덱스 `idx_schedule_next_run (next_run_at, is_active) WHERE is_active = TRUE` (V002:30) 는
 -- 어떤 쿼리도 쓰지 않았다. 스케줄 목록(SchedulesService.findAll)은 `WHERE workspace_id = ?` 로
@@ -49,6 +49,13 @@
 --   2) DROP 옛 인덱스 CONCURRENTLY
 -- 1) 이 실패해도 옛 인덱스는 2) 전이라 그대로 남는다 — 즉 어느 지점에서 멈추든 DB 는
 -- 마이그레이션 이전 상태이거나 완료 상태이고, "둘 다 없는" 상태로는 가지 않는다.
+--
+-- **비대칭 하나를 감수한다** (23_26_09 W3): 0) 은 대상이 **실패가 남긴 invalid 인덱스인지
+-- 정상 인덱스인지 구분하지 않는다. 그래서 **이미 성공한** 이 마이그레이션을 Flyway 정상
+-- 흐름 밖에서 수동 재실행하면 살아 있는 인덱스를 지우고 처음부터 다시 만든다 — 그 재빌드
+-- 구간 동안 목록 조회가 seq scan 으로 떨어진다. Flyway 는 성공한 마이그레이션을 다시 돌리지
+-- 않으므로 **정상 흐름에서는 발생하지 않고**, 트레이드오프의 반대편(실패 후 재실행이 인덱스를
+-- 0개로 만드는 것)이 훨씬 나쁘기 때문에 이쪽을 택했다.
 
 DROP INDEX CONCURRENTLY IF EXISTS idx_schedule_workspace_next_run;
 

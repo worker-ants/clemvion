@@ -376,7 +376,7 @@ field: T | null;
       (1,095 필드 중 `@Transform` 17개, null 축 불일치 0). 예외는 남기고 픽스처가 분기를
       고정함을 뮤테이션으로 확인했다.
 
-- [x] **`idx_schedule_next_run` → `(workspace_id, next_run_at)` 교체 완료 (2026-09-04, V110)**. 상세·수치·기각 근거는 **[`spec-draft-schedule-index.md`](./spec-draft-schedule-index.md)**.
+- [x] **`idx_schedule_next_run` → `(workspace_id, next_run_at)` 교체 완료 (2026-09-04, V110)**. 상세·수치·기각 근거는 **[`spec-draft-schedule-index.md`](../complete/spec-draft-schedule-index.md)**.
 
       | | 결과 |
       |---|---|
