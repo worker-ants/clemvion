@@ -1,6 +1,7 @@
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
+import { toPosixRelative } from '../../common/__test-utils__/source-scan';
 import {
   collectRuntimeModuleSpecifiers,
   findDevDepLeaks,
@@ -58,7 +59,7 @@ describe('프로덕션 빌드 devDependency 누출', () => {
   it('repo-guards 는 빌드 대상이 아니다', () => {
     const inBuild = resolveBuildFileNames(backendDir)
       .filter((f) => f.includes(`${path.sep}repo-guards${path.sep}`))
-      .map((f) => path.relative(backendDir, f).split(path.sep).join('/'));
+      .map((f) => toPosixRelative(backendDir, f));
     expect(inBuild).toEqual([]);
   });
 

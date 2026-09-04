@@ -272,3 +272,35 @@ export function collectTsFiles(
   walk(root);
   return out.sort();
 }
+
+/**
+ * 경로 문자열의 구분자를 POSIX(`/`)로 바꾼다 — **순수 문자열 변환**.
+ *
+ * `path.relative` 와 갈라 둔 이유는 **관측 가능성**이다. 합쳐 두면 POSIX CI 에서
+ * `path.relative` 가 애초에 `/` 만 내놓아 윈도우 분기를 **어떤 입력으로도 탈 수 없다**.
+ * 실제로 그렇게 짰다가 `toPosixRelative('C:\\a', 'C:\\a\\b\\c.ts', '\\')` 가
+ * `'../C:/a/b/c.ts'` 를 내며 실패했다 — POSIX `path.relative` 는 윈도우 경로를 모른다.
+ * 문자열 변환만 떼면 플랫폼과 무관하게 그 분기를 직접 겨눌 수 있다.
+ */
+export function toPosixPath(p: string, sep: string = path.sep): string {
+  return p.split(sep).join('/');
+}
+
+/**
+ * `root` 기준 상대 경로를 **POSIX 구분자로 정규화**해 돌려준다.
+ *
+ * ## 왜 필요한가 — `path.relative` 만으로는 플랫폼마다 다른 문자열이 나온다
+ *
+ * 윈도우에서 `path.relative` 는 `modules\executions\dto.ts` 를 준다. 저장소 가드들이
+ * 그 값을 보고서에 싣고 테스트가 문자열로 비교하므로, 정규화를 빠뜨리면 같은 위반이
+ * 플랫폼마다 다른 문자열로 보고된다.
+ *
+ * ## 왜 여기 있는가 — 같은 한 줄이 여덟 군데 복제돼 있었다
+ *
+ * 2026-09-04 실측: `path.relative(...).split(path.sep).join('/')` 가 저장소에 **8곳**.
+ * 그중 4곳은 **바로 앞 리뷰 라운드에서 "정규화가 빠졌다" 는 지적을 고치며 내가 늘린
+ * 것**이다 — 사본을 없애는 것이 주제인 PR 안에서 사본을 넷 더 만들었다. 추출이 맞다.
+ */
+export function toPosixRelative(root: string, file: string): string {
+  return toPosixPath(path.relative(root, file));
+}

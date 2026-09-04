@@ -25,7 +25,10 @@
  * 엔티티 컬럼 축은 닫혔고 남은 것은 DTO 선언 축이다.
  */
 
-import { withFiles } from '../../common/__test-utils__/temp-fixture';
+import {
+  withFiles,
+  withFixture as sharedWithFixture,
+} from '../../common/__test-utils__/temp-fixture';
 import {
   collectTsFiles,
   countNullAsUnknownAsCasts,
@@ -49,9 +52,7 @@ import {
  * 직후에 새 사본을 만들지 않기 위해서다.**
  */
 function withFixture<T>(content: string, fn: (file: string) => T): T {
-  return withFiles({ 'probe.entity.ts': content }, (paths) =>
-    fn(paths['probe.entity.ts']),
-  );
+  return sharedWithFixture(content, fn, 'probe.entity.ts');
 }
 
 describe('nullable 타입 거짓말이 강제하는 이중 캐스트', () => {

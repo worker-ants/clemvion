@@ -5,9 +5,11 @@
 // `eslint-unicorn-peer-guard.ts` · frontend `typescript-toolchain-guard.ts` 와 동일하다.
 
 import * as fs from 'node:fs';
-import * as path from 'node:path';
 import * as ts from 'typescript';
-import { collectTsFiles } from '../../common/__test-utils__/source-scan';
+import {
+  collectTsFiles,
+  toPosixRelative,
+} from '../../common/__test-utils__/source-scan';
 
 /** base 함수 — 마커 거부를 **하지 않는다**. */
 export const BASE_FN = 'resolveTriggerParameters';
@@ -137,7 +139,7 @@ export function findUnexpectedCallers(
 ): string[] {
   return listSourceFiles(srcDir)
     .filter((f) => importsBaseFn(fs.readFileSync(f, 'utf8')))
-    .map((f) => path.relative(repoRoot, f).split(path.sep).join('/'))
+    .map((f) => toPosixRelative(repoRoot, f))
     .filter((rel) => !ALLOWED_DIRECT_CALLERS.includes(rel))
     .sort();
 }

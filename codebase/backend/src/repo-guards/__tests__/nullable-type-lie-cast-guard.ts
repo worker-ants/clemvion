@@ -15,6 +15,7 @@ import {
   countNullAsUnknownAsCasts,
   stripComments,
   stripLiterals,
+  toPosixRelative,
 } from '../../common/__test-utils__/source-scan';
 
 /** `src` 루트. 이 파일은 `src/repo-guards/__tests__/` 에 있다. */
@@ -48,7 +49,7 @@ export function findCastOffenders(files: string[]): CastOffender[] {
       // 크로스플랫폼 정규화 — 형제 가드(`masked-reject-callers-guard.ts`·
       // `production-build-devdep-guard.ts`) 관례와 통일(리뷰 W3, 세 자리 동시 수정).
       offenders.push({
-        file: path.relative(SRC_ROOT, file).split(path.sep).join('/'),
+        file: toPosixRelative(SRC_ROOT, file),
         count,
       });
     }
@@ -121,7 +122,7 @@ export function findUntypedNullableColumns(
       if (colName && joined.has(colName)) continue;
       // 크로스플랫폼 정규화 — 리뷰 W3, 세 자리 동시 수정.
       out.push({
-        file: path.relative(SRC_ROOT, file).split(path.sep).join('/'),
+        file: toPosixRelative(SRC_ROOT, file),
         field,
       });
     }
@@ -254,7 +255,7 @@ export function findStaleSpecCasts(
       if (!widened.has(field)) continue;
       // 크로스플랫폼 정규화 — 리뷰 W3, 세 자리 동시 수정.
       out.push({
-        file: path.relative(SRC_ROOT, file).split(path.sep).join('/'),
+        file: toPosixRelative(SRC_ROOT, file),
         field,
       });
     }

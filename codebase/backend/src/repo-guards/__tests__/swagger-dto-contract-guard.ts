@@ -5,9 +5,9 @@
 // 파서 순수 로직과 소비 spec 을 분리하는 규약은 형제 가드
 // `production-build-devdep-guard.ts` · `masked-reject-callers-guard.ts` 와 동일하다.
 import * as fs from 'node:fs';
-import * as path from 'node:path';
 
 import * as ts from 'typescript';
+import { toPosixRelative } from '../../common/__test-utils__/source-scan';
 
 /**
  * ## 왜 정규식이 아니라 AST 인가 — 정규식으로 세 번 틀렸다
@@ -125,7 +125,7 @@ export function findSwaggerContractMismatches(
     // 크로스플랫폼 정규화 — 형제 가드(`masked-reject-callers-guard.ts`·
     // `production-build-devdep-guard.ts`)와 동일 관례. `path.relative` 단독이면 윈도우에서
     // `\` 를 남겨 `ContractMismatch.file` 이 플랫폼별로 달라진다(리뷰 W3).
-    const rel = path.relative(srcRoot, file).split(path.sep).join('/');
+    const rel = toPosixRelative(srcRoot, file);
     const visit = (node: ts.Node): void => {
       if (ts.isPropertyDeclaration(node) && node.type) {
         const decorators = callDecorators(node, sf);
