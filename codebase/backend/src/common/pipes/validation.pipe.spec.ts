@@ -68,3 +68,49 @@ describe('CustomValidationPipe', () => {
     }
   });
 });
+
+/**
+ * `forbidNonWhitelisted` — unknown keys are REJECTED, not silently stripped.
+ *
+ * The pipe runs with `whitelist: true` + `forbidNonWhitelisted: true`, so a key that the
+ * DTO does not declare produces a 400 rather than being quietly dropped. Nothing asserted
+ * that axis before.
+ *
+ * What it lets slip without this: the fact that **removing a field from a DTO is itself a
+ * public contract change.** `QueryExecutionDto.workflowId` (a dead parameter) was removed
+ * on 2026-09-04, and from that moment a request carrying `?workflowId=…` went from `200`
+ * (ignored) to `400`. No automated test pinned that behaviour.
+ *
+ * Tracking: `plan/in-progress/spec-draft-nullable-notation-followups.md` §후속.
+ */
+describe('CustomValidationPipe — forbidNonWhitelisted', () => {
+  const pipe = new CustomValidationPipe();
+
+  class NarrowDto {
+    @IsString()
+    known: string;
+  }
+
+  const narrowMeta = { metatype: NarrowDto, type: 'query' as const };
+
+  it('rejects a key the DTO does not declare', async () => {
+    try {
+      await pipe.transform(
+        { known: 'ok', removedParam: 'anything' },
+        narrowMeta,
+      );
+      throw new Error('should have thrown');
+    } catch (err) {
+      expect(err).toBeInstanceOf(BadRequestException);
+      const body = (err as BadRequestException).getResponse() as {
+        code: string;
+      };
+      expect(body.code).toBe('VALIDATION_ERROR');
+    }
+  });
+
+  it('accepts declared keys only — proves the assertion above is not vacuous', async () => {
+    const result = await pipe.transform({ known: 'ok' }, narrowMeta);
+    expect(result).toBeInstanceOf(NarrowDto);
+  });
+});
