@@ -2,7 +2,7 @@
 
 ## Unreleased — `AlertRuleDto.threshold` 가 `number` 라고 했지만 wire 는 문자열이었다
 
-`GET /api/alerts/rules` 의 OpenAPI 는 `threshold` 를 `number` 로 문서화했다. **실제 wire 는
+`GET /api/alerts` 의 OpenAPI 는 `threshold` 를 `number` 로 문서화했다. **실제 wire 는
 문자열이다** — 컬럼이 `numeric(12,4)` 이고 TypeORM 은 정밀도 손실을 피하려 numeric 을
 문자열로 넘기는데, 이 엔드포인트는 엔티티를 그대로 반환한다(예: `"10.0000"`).
 

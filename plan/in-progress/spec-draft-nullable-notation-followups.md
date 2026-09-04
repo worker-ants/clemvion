@@ -270,9 +270,13 @@ field: T | null;
       - ~~(a) 그 컨트롤러들의 반환 타입을 `Promise<XxxDto[]>` 로 명시 annotate~~ →
         **반증됐다 (2026-09-04 실측).** 아래 참조.
       - **(b) 대표 엔드포인트에 실제 응답 대조 테스트 — 이제 이것만 남았다.**
-        **첫 후보는 `GET /api/alerts/rules`** (`19_43_18` INFO#5) — 바로 이 축의 결함이
+        **첫 후보는 `GET /api/alerts`** (`19_43_18` INFO#5) — 바로 이 축의 결함이
         실제로 나온 자리다.
 
+- [ ] **`spec/conventions/swagger.md` 에 numeric 불변식 성문화** (planner, `20_05_42` W2).
+      `numeric`/`decimal` 컬럼을 엔티티 그대로 내보내는 응답은 **문자열**이라는 규칙이
+      가드로는 전역 강제되는데 규약 문서에는 없다. 기존 DTO 불변식은 §1/§5 소절로
+      규약화해 온 관행이 있다 — 최소한 가드로의 pointer 라도 넣는다.
 - [ ] **`spec/1-data-model.md:873` 이 `threshold` 를 `Float` 로 라벨링** (planner,
       `19_43_18` INFO#6). 실제는 `numeric(12,4)` 이고 엔티티·wire 모두 **문자열**이다
       (2026-09-04 정정으로 분명해졌다). 라벨을 DB 타입에 맞춘다.
