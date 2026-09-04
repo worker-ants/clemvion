@@ -31,6 +31,7 @@
 
 import * as fs from 'node:fs';
 import * as path from 'node:path';
+import { toPosixRelative } from '../../common/__test-utils__/source-scan';
 
 import {
   AUDIT_HELPER_NAMES,
@@ -59,7 +60,10 @@ const REPO_ROOT = path.resolve(__dirname, '../../../../..');
 describe('감사 helper 의 action 은 리소스에 묶인 타입이어야 한다', () => {
   const files = collectSourceFiles(REPO_ROOT);
   const sites = files.flatMap((f) =>
-    findAuditHelpers(fs.readFileSync(f, 'utf-8'), path.relative(REPO_ROOT, f)),
+    findAuditHelpers(
+      fs.readFileSync(f, 'utf-8'),
+      toPosixRelative(REPO_ROOT, f),
+    ),
   );
 
   it('[전제] helper 를 실제로 찾았다 — 0건이면 아래 단언이 vacuous 하다', () => {

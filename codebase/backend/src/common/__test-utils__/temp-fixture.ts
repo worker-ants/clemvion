@@ -56,6 +56,11 @@ export function withFiles<T>(
   try {
     const result = fn(paths);
     if (isThenable(result)) {
+      // 버리는 thenable 에 **rejection 핸들러를 붙인다.** 이게 없으면 콜백이 실제로
+      // reject 할 때 아무도 구독하지 않는 unhandled rejection 이 되어 **무관한 다음
+      // 테스트로 전이된다** — 아래에서 던지는 에러는 원인을 정확히 설명하지만, 원래
+      // rejection 은 그와 별개로 전역에 남는다. (2026-09-04 리뷰 3R WARNING#3)
+      result.then(undefined, () => {});
       throw new Error(
         'withFiles: fn 은 동기 콜백만 지원한다. async/Promise 를 반환하는 콜백을 넘기면 ' +
           'finally 의 rmSync 가 완료를 기다리지 않고 먼저 실행되어 tmpdir 이 조기 삭제된다 ' +

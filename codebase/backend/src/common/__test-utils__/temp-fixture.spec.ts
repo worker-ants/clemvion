@@ -60,14 +60,37 @@ describe('temp-fixture', () => {
     ).toThrow(/동기 콜백만 지원/);
   });
 
-  it('async 콜백이 실패해도 tmpdir 은 그대로 지워진다 — finally 는 여전히 돈다', () => {
+  /**
+   * ## 왜 "실제로 reject 하는" 콜백이어야 하는가
+   *
+   * 종전 이 테스트는 콜백이 `return 1` 이라 **resolve** 했다 — async 함수의 성공 반환도
+   * Promise 로 감싸이므로, 이름만 "실패해도" 일 뿐 바로 위 테스트와 **똑같은 경로**를
+   * 다시 검사했다(3R WARNING#3). 정작 위험한 경로 — 콜백이 reject 하고 그 rejection 을
+   * 아무도 구독하지 않아 **무관한 다음 테스트로 전이되는** 것 — 은 무방비였다.
+   */
+  it('async 콜백이 실제로 reject 해도 tmpdir 은 지워지고 unhandled rejection 이 새지 않는다', async () => {
+    const leaked: unknown[] = [];
+    const onUnhandled = (reason: unknown): void => {
+      leaked.push(reason);
+    };
+    process.on('unhandledRejection', onUnhandled);
     let capturedDir = '';
-    expect(() =>
-      withFiles({ 'a.ts': '' }, async (paths) => {
-        capturedDir = paths['a.ts'];
-        return 1;
-      }),
-    ).toThrow();
-    expect(fs.existsSync(capturedDir)).toBe(false);
+    try {
+      expect(() =>
+        withFiles({ 'a.ts': '' }, async (paths) => {
+          capturedDir = paths['a.ts'];
+          await Promise.resolve();
+          throw new Error('콜백이 실제로 reject 한다');
+        }),
+      ).toThrow(/동기 콜백만 지원/);
+
+      expect(fs.existsSync(capturedDir)).toBe(false);
+
+      // rejection 이 전파될 틈을 준다 — 핸들러가 없으면 여기서 잡힌다.
+      await new Promise((resolve) => setImmediate(resolve));
+      expect(leaked).toEqual([]);
+    } finally {
+      process.off('unhandledRejection', onUnhandled);
+    }
   });
 });

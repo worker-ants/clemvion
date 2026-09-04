@@ -51,22 +51,6 @@ owner: developer
   마킹 대신 다음 노드를 `execution-continuation` 큐로 enqueue 해야 함.
 - [ ] `shutdown-state.service.ts` 의 drain timeout 처리에 errorPolicy 분기 추가
 - [ ] `continue` 시 다음 노드 enqueue 경로 연결 + 테스트
-
-> **장애물 2·3 재실측 (2026-09-04).** 장애물 1이 조용히 낡아 있었으므로 나머지도 확인했다.
-> **둘 다 그대로 유효하다** — 유예를 유지한다.
->
-> - **장애물 2 (용어 매핑)**: 노드 수준 `errorHandling.policy` enum 에 `continue` 값은
->   여전히 없다. 저장소에서 `'continue'` 가 errorPolicy 로 쓰이는 자리는
->   `foreach-executor.spec.ts` 뿐인데 그것은 **컨테이너(foreach) 수준의 별개 개념**이라
->   spec §11 의 "continue" 와 같은 것이 아니다. 매핑을 정하는 일은 **spec 결정**이라
->   developer 가 열 수 없다 → planner 턴이 선행이다.
-> - **장애물 3 (인프라)**: `execution-continuation` 큐와 `applyContinuation` 은 실재하나
->   위 2026-06-04 주석대로 **부분 해소**에 그친다. interrupt 된 RUNNING(non-waiting) 노드를
->   다른 인스턴스가 이어받는 경로는 여전히 없고, 신규 continuation type 설계가 필요하다.
->
-> **이 두 체크박스는 "바로 착수 가능" 이 아니다.** 2026-09-04 에 잔여 작업을 훑으면서 이
-> 두 줄을 체크박스 문구만 보고 착수 가능으로 분류했다 — 바로 위의 `⛔ BLOCKED` 와 defer
-> 확정을 안 읽은 탓이다. 다음 사람이 같은 실수를 하지 않도록 여기 적어 둔다.
 - 위치: `codebase/backend/src/modules/execution-engine/shutdown/shutdown-state.service.ts`
 - **차단 사유 (2026-05-30 조사)** — 3중 장애물:
   1. ~~**전제 미해소**: errorPolicy schema 노출 선행 plan `parallel-p2.md §1` 이 아직

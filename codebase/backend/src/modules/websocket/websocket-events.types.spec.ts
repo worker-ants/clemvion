@@ -1,6 +1,7 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as ts from 'typescript';
+import { toPosixRelative } from '../../common/__test-utils__/source-scan';
 
 /**
  * `websocket-events.types.ts` 가 **의존성-프리**로 남는지 지키는 정적 가드.
@@ -308,7 +309,7 @@ function collectOffenders(
   const offenders: string[] = [];
   for (const file of allTsFiles(SRC_ROOT)) {
     for (const hit of probe(parse(file), file)) {
-      offenders.push(`${path.relative(SRC_ROOT, file)} → ${hit}`);
+      offenders.push(`${toPosixRelative(SRC_ROOT, file)} → ${hit}`);
     }
   }
   return offenders;
