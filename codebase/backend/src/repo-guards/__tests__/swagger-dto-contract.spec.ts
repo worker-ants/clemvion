@@ -27,8 +27,11 @@
  * (형제 가드 `nullable-type-lie-cast.spec.ts` 와 같은 판단.)
  */
 
+import 'reflect-metadata';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
+
+import { ApiProperty, ApiPropertyOptional, DECORATORS } from '@nestjs/swagger';
 
 import { collectTsFiles } from '../../common/__test-utils__/source-scan';
 import { withFixture } from '../../common/__test-utils__/temp-fixture';
@@ -199,5 +202,75 @@ describe('Swagger DTO 선언 vs TS 타입', () => {
     expect(
       axes(`class D { @ApiPropertyOptional() finishedAt: string | null; }`),
     ).toEqual(['null', 'presence']);
+  });
+
+  /**
+   * ## 실패 위치(`line`/`file`) 자체는 어떤 판정 테스트도 검증하지 않았다 (리뷰 W5)
+   *
+   * 위 대조군들은 전부 `axes()` 로 `axis` 만 뽑아 비교한다 — 가드가 실제로 offender 를
+   * 보고할 때 개발자가 보는 `ContractMismatch.line`/`.file` 이 맞는지는 무방비였다.
+   * `judge()` 원본(`ContractMismatch[]`)을 직접 단언해 이 자리를 고정한다.
+   *
+   * `node.getStart(sf)` 는 데코레이터를 포함한 위치를 돌려준다 — 프로퍼티 이름이 아니라
+   * **데코레이터 줄**이 `line` 이 된다(2026-09-04 실측, `ts.PropertyDeclaration.getStart`).
+   * 그래서 픽스처는 그 둘이 다른 줄이 되도록 일부러 나눠 썼다 — 같은 줄이면 이 구분을
+   * 못 잡는다.
+   */
+  describe('[대조군] 실패 위치(line/file) 보고', () => {
+    it('데코레이터가 있는 줄과 파일명을 정확히 돌려준다', () => {
+      const source = [
+        '',
+        'class D {',
+        '  @ApiPropertyOptional()',
+        '  finishedAt: string;',
+        '}',
+        '',
+      ].join('\n');
+      const mismatches = judge(source);
+      expect(mismatches).toHaveLength(1);
+      expect(mismatches[0]).toMatchObject({
+        file: 'probe.dto.ts',
+        line: 3,
+        field: 'finishedAt',
+        axis: 'presence',
+      });
+    });
+  });
+});
+
+/**
+ * ## `effectiveRequired` 는 `@nestjs/swagger` 비공개 구현에 하드 커플링돼 있다 (리뷰 W1)
+ *
+ * `swagger-dto-contract-guard.ts` 의 판정 근거: `ApiPropertyOptional` 은
+ * `ApiProperty({ required: false })` 의 **별칭**이다 — 이 라이브러리의 소스(`ApiPropertyOptional`
+ * 구현, `dist/decorators/api-property.decorator.js`)를 열어 확인한 사실이지, 공개된 타입 계약이
+ * 아니다. 별칭 관계가 바뀌면(예: 다음 메이저가 `required` 를 다른 메타데이터 키로 옮기면)
+ * `effectiveRequired` 계산이 조용히 틀린 값을 낸다 — 그런데 가드의 다른 테스트는 전부
+ * "가드가 그렇다고 가정한 값" 만 재확인할 뿐, 그 가정 자체를 라이브러리에 물어본 적이 없다.
+ *
+ * 이 캐너리는 **실제 `@nestjs/swagger` 데코레이터를 호출**해 `Reflect` 메타데이터를 읽는다 —
+ * 별칭을 없앨 수는 없다(§5.4 규약과 이 가드 판정의 토대이므로). 대신 그 가정이 깨지는 순간
+ * 여기서 먼저 RED 가 된다: 라이브러리를 업그레이드했는데 이 테스트가 실패하면, 원인은
+ * `swagger-dto-contract-guard.ts` 가 아니라 `ApiPropertyOptional` 의 별칭 구현이 바뀐 것이다.
+ */
+describe('[캐너리] @nestjs/swagger 별칭 가정이 살아있는가', () => {
+  it('ApiPropertyOptional() 은 실제로 ApiProperty({ required: false }) 와 같은 required 메타데이터를 남긴다', () => {
+    class Probe {
+      @ApiPropertyOptional()
+      viaAlias?: string;
+
+      @ApiProperty({ required: false })
+      viaExplicit?: string;
+    }
+
+    const read = (key: string) =>
+      Reflect.getMetadata(
+        DECORATORS.API_MODEL_PROPERTIES,
+        Probe.prototype,
+        key,
+      ) as { required?: boolean } | undefined;
+
+    expect(read('viaAlias')?.required).toBe(false);
+    expect(read('viaAlias')?.required).toBe(read('viaExplicit')?.required);
   });
 });
