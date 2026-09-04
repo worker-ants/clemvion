@@ -7,6 +7,7 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as ts from 'typescript';
+import { toPosixRelative } from '../../common/__test-utils__/source-scan';
 
 /** 한 건의 누출 — 어느 빌드 대상 파일이 어느 devDependency 를 끌어오는가. */
 export interface DevDepLeak {
@@ -116,7 +117,7 @@ export function findDevDepLeaks(backendDir: string): DevDepLeak[] {
       const root = packageRootOf(specifier);
       if (root && dev.has(root) && !prod.has(root)) {
         leaks.push({
-          file: path.relative(backendDir, absolute).split(path.sep).join('/'),
+          file: toPosixRelative(backendDir, absolute),
           pkg: root,
         });
       }

@@ -149,20 +149,38 @@ field: T | null;
 
 ### 저장소 실측 — **집계 기준 명시** (`--spec` W5)
 
-> **초판은 "70 vs 16" 이라고 적었다 — 좁았다.** 내 정규식이 `\(([^)]*)\)` 라 **한 줄짜리
-> 데코레이터만** 잡았고, 여러 줄 데코레이터가 통째로 빠졌다. checker 가 재현해 다른 수를 냈고
-> (102 vs 17) 그게 맞았다. **수치를 밀어 올리는 대신 방법을 고쳤다.**
+> **이 표를 두 번 틀렸다.** 초판은 "70 vs 16" — 정규식이 `\(([^)]*)\)` 라 **한 줄짜리
+> 데코레이터만** 잡았다. checker(W5)가 재현해 102 vs 17 을 냈고, 나는 정규식을 넓혀
+> "101 vs 18" 로 고쳤다 — **그것도 틀렸다.** 2026-09-04 에 `typescript` 정본 파서로 다시 세니
+> **103 vs 17** 이다. checker 쪽이 두 번째 수를 정확히 맞혔고 내가 그것을 덮어썼다.
+>
+> 정규식이 진 이유는 세 가지이고 전부 **중첩**이다 — ① 객체 리터럴 타입 안의 `;`
+> (`{ code?: string; … } | null` 이 잘려 `| null` 이 사라짐) ② 인자 안의 `() =>` 가 만드는 `)`
+> ③ `required` 를 인자가 아니라 **데코레이터 이름으로 추론**(저장소에 `@ApiProperty({required:
+> false})` 가 9곳 있고 출력이 `@ApiPropertyOptional()` 과 같다). 넓히는 것으로는 안 되고
+> 도구를 바꿔야 했다. 판정은 이제 `src/repo-guards/__tests__/swagger-dto-contract-guard.ts` 가
+> AST 로 한다.
 
-**기준**: `codebase/backend/src/**/*.dto.ts` 전체 · 데코레이터 여러 줄 허용 · 중간 데코레이터
-(`@IsOptional` 등) 허용 · **TS 타입에 `null` 이 포함된 필드만**.
+**기준** (2026-09-04, AST 재측정): `codebase/backend/src/**/*.ts` 중 비-spec 전체 ·
+`@ApiProperty`/`@ApiPropertyOptional` 가 붙은 **필드 선언 1,096개** 모집단 · `null` 은
+**최상위 유니온 항**만 (중첩 `{ appType: 'x' | null }` 은 제외) · `required` 는 **인자가 이기고
+없을 때만 데코레이터 이름**.
 
 | 형태 | 건수 | OpenAPI 결과 |
 |---|---|---|
-| `@ApiPropertyOptional({nullable:true})` + `field?` | **101** | `required:false` + `nullable` — **현행 문면** |
-| `@ApiProperty({nullable:true})` + `field` | **18** | `required:true` + `nullable` — **의미상 옳음** |
+| `@ApiPropertyOptional({nullable:true})` + `field?` | **103** | `required:false` + `nullable` — **현행 문면** |
+| `@ApiProperty({nullable:true})` + `field` | **17** | `required:true` + `nullable` — **의미상 옳음** |
 | `@ApiPropertyOptional()` + `field` | **8** | `required:false`, **nullable 미선언** |
 | `@ApiPropertyOptional()` + `field?` | **1** | `required:false`, nullable 미선언 |
-| **합계** | **128** | |
+| **합계** | **129** | |
+
+> **이 표는 계약 거짓 9곳 수정(`fix(dto)` 커밋) 적용 *전* 스냅샷이다.** 같은 세션이 곧바로 계약 거짓 9곳을 고쳐
+> 분포를 바꿨다 — 적용 후는 **104 / 25 / 0 / 1**(세 번째 줄이 0 이 된 것이 이 PR 의 성과다).
+>
+> 날짜를 박아 둔 실측이 **같은 PR 안에서** 낡았다. 정량 기록은 "잰 시점" 의 값이지
+> "PR 이 닫히는 시점" 의 값이 아니라는 것을 여기서 또 밟았다. 아래 drift 배치를 착수할
+> 때는 이 수를 그대로 쓰지 말고 **AST 가드로 재측정**하라 —
+> `findSwaggerContractMismatches` 가 이미 그 판정을 한다.
 
 > **세 번째 형태(8건)는 초판이 아예 못 봤다.** `nullable: true` 가 없어 **OpenAPI 가 nullable
 > 을 말하지 않는데 TS 타입은 `| null`** 이다 — 소비자는 null 이 올 수 없다고 믿는다. 표기
@@ -195,9 +213,11 @@ field: T | null;
 
 ### 마이그레이션은 **이 문서가 강제하지 않는다**
 
-정정하면 기존 **101 + 8 = 109곳**이 새 문면과 어긋난다. 그중 101곳은 *당시 규약을 정확히
+정정하면 기존 **103 + 8 = 111곳**이 새 문면과 어긋났다. **그중 8곳(계약 거짓)은 이 세션이
+이미 고쳤고 잔여는 103곳이다** — 아래 후속 항목의 "104곳" 은 여기에 `llmConfigId` 정정으로
+형태가 바뀐 1곳이 더해진 수다. 103곳은 *당시 규약을 정확히
 지킨 것*이라 "위반" 이 아니라 **규약 변경에 따른 drift** 다. 일괄 변경은 OpenAPI `required`
-를 109곳에서 동시에 바꾸는 일이라 별도 developer plan 으로 분리한다.
+를 103곳에서 동시에 바꾸는 일이라 별도 developer plan 으로 분리한다.
 
 > **형제 plan 이 이 세션에 만든 2건** (`--spec` W6): `AuthConfigDto.ipWhitelist`(#1273) ·
 > `WorkspaceInvitationDto.invitedBy`(#1274) 는 `entity-nullable-column-type-mismatch.md` 가
@@ -205,7 +225,7 @@ field: T | null;
 > `@ApiProperty({nullable:true})` + non-optional 이 맞다.
 >
 > **그럼에도 이 PR 에 포함하지 않는다** — 이 draft 는 `spec/` 전용(planner 턴)이고
-> `codebase/` 를 건드리면 역할 경계를 넘는다. 109곳 배치의 **첫 두 건으로 명시 등재**해
+> `codebase/` 를 건드리면 역할 경계를 넘는다. drift 배치의 **첫 두 건으로 명시 등재**해
 > 그 배치가 시작될 때 가장 먼저 잡히게 한다.
 
 > **§5.4 의 소급 면제 조항** — *"본 규칙은 앞으로 도입·변경되는 필드에 적용한다"* 은 원문
@@ -216,22 +236,56 @@ field: T | null;
 
 ## 후속 (이 draft 범위 밖 — 등재만)
 
-- [ ] **§5.4 정정에 따른 DTO 109곳 배치** (developer). 첫 두 건은 위 `ipWhitelist`·`invitedBy`.
-      `@ApiPropertyOptional()` + `| null` 8건은 **계약 거짓**이라 우선순위가 더 높다.
+- [x] **계약 거짓 9곳** (developer, 2026-09-04). `@ApiPropertyOptional()` + `| null` 8곳
+      (`background-run-response.dto.ts`) + `create-assistant-session.dto.ts` `llmConfigId`
+      (반대 방향 — `nullable:true` 인데 TS 가 `string`). 재발 방지 가드
+      `swagger-dto-contract.spec.ts` 를 함께 세웠다.
+- [ ] **§5.4 drift 배치** (developer, 계약 거짓 9곳 수정 후 **104곳** — 착수 시 재측정할 것).
+      첫 두 건은 위 `ipWhitelist`·`invitedBy`.
+      계약 거짓이 아니라 **규약 변경에 따른 drift** 이고 §5.4 소급 면제 아래 있다 — 급하지
+      않다. 일괄로 OpenAPI `required` 가 뒤집히므로 소비자 영향 확인이 선행 조건이다.
+      새 가드는 이 형태를 **잡지 않는다**(선언과 TS 가 서로 일치하므로) — 판정은 "이 필드가
+      상시 존재인가" 라는 **필드별 의미 판단**이라 기계화되지 않는다.
+
+      > ⛔ **요청 DTO 는 이 배치에서 카테고리째 제외한다** (`--impl-done` `11_33_21` cross_spec).
+      > §5.4 는 `## 5. 응답 형식` 하위 절이라 **응답 바디 전용**인데, 104곳에는
+      > `update-*.dto.ts` 류의 **PATCH tri-state** 필드가 섞여 있다 — 그쪽은 키 생략(=값 불변)과
+      > 명시적 `null`(=초기화)이 **서로 다른 의미**다. 기계적으로 `?` 를 떼면 "필드를 생략하면
+      > 값이 유지된다" 는 부분 업데이트 계약이 깨진다. **실제 회귀이지 표기 문제가 아니다.**
+      >
+      > 착수 시 첫 단계는 104곳을 **요청/응답으로 가르는 것**이고, 응답만 대상이다.
+- [ ] **`QueryExecutionDto.workflowId` 죽은 필드** (developer, 2026-09-04 발견).
+      `findByWorkflow` 는 경로 파라미터를 쓰고 쿼리에서 `{page,limit,sort,order,status}` 만
+      구조분해한다 — **이 필드는 읽히는 곳이 없다.** frontend `ExecutionListParams` 도 안
+      싣고, `spec/2-navigation/14-execution-history.md:345` 는 이 엔드포인트를 "페이지네이션,
+      상태 필터, 정렬" 로만 문서화한다. 그런데 OpenAPI 에는 필터로 노출되고 `@IsUUID()` 가
+      돌아 잘못된 값이면 400 이 난다 — **아무것도 안 하는 필터를 광고**한다.
+      제거는 `forbidNonWhitelisted: true` 때문에 이 파라미터를 보내던 외부 클라이언트에
+      **400 을 새로 발생**시킨다. 공개 REST 표면 제거라 별건으로 둔다.
 - [ ] **`idx_schedule_next_run` 실사용 0건** (developer/DBA). 조회처가 없어 DROP 후보이나
       마이그레이션 결정이다.
 - [ ] **§2.2 단일 동사 action 패턴** (`--spec` W2). `3-workflow-editor/3-execution.md:757` 이
       이미 그 존재를 전제하는데 §2.2 에 문서화가 없다. **이번 범위는 `/api/auth/*` 뿐**이라
       분리한다 — 그쪽은 다른 영역의 경로 패턴이고 실측부터 다시 해야 한다.
+- [ ] **§5.4 에 "응답 바디 한정" 스코프 문구** (planner, `--impl-done` `11_33_21` cross_spec).
+      현재는 섹션 nesting(`## 5. 응답 형식`)으로만 암시돼 있어, 요청 DTO 에 이 규칙을 적용하는
+      오독이 실제로 일어났다 — 이 세션이 `llmConfigId`(요청 DTO) 정정을 CHANGELOG 에서
+      *"형태는 §5.4 를 따랐다"* 라고 적었다가 되돌렸다. 요청 바디의 tri-state(키 생략=불변,
+      `null`=초기화, 값=설정)는 이 절의 적용 대상이 아니며 optional+nullable 이 정당하다는
+      것을 본문에 명시한다.
 - [ ] **`spec/2-navigation/3-schedule.md` §2.1** 에 `next_run_at` NULL 표시 규칙
       (`--spec` INFO#2). FE 는 이미 `-` 로 방어 중이라 동작 위험은 없다.
 
 ## 종결 조건
 
-이 draft 를 `complete/` 로 옮길 때 **형제 plan 의 세 체크박스를 함께 닫는다**
-(`--spec` INFO#3) — `entity-nullable-column-type-mismatch.md` 의 planner 턴 3건
-(`:182` `next_run_at` · `:190` `/api/auth/*` · `:247` §5.4). 그 plan 상단 경고문
-(*"planner 턴 항목이 반영되기 전에는 완료 처리하지 말 것"*)도 함께 해제한다.
+**형제 plan 은 이미 종결됐다** (`cce8a188b`, 2026-09-04). `entity-nullable-column-type-mismatch.md`
+의 planner 턴 3건(`next_run_at` · `/api/auth/*` · §5.4)을 반영하며 그 세 체크박스를 닫고,
+상단 경고문(*"planner 턴 항목이 반영되기 전에는 완료 처리하지 말 것"*)을 해제한 뒤
+`plan/complete/` 로 옮겼다 (`--spec` INFO#3 이 요구한 순서 그대로).
+
+**이 draft 자신의 종결 조건**은 위 `## 후속` 체크박스가 전부 닫히는 것이다. 현재 열려 있는
+것은 §5.4 drift 배치 · `idx_schedule_next_run` · §2.2 단일 동사 패턴 · §5.4 응답 바디 스코프
+문구 · `3-schedule.md` §2.1 다섯이며, 모두 별 턴을 요구한다.
 
 ---
 
@@ -253,11 +307,11 @@ developer 가 `spec/` 을 고칠 수 있는 유일한 예외는 **자기가 쓴 
 
 ### ③ 에서 "다수를 따르지 않는" 이유
 
-101 vs 18 은 **관행의 증거이지 정합성의 증거가 아니다.** 101곳이 그 형태인 것은 규약이 그렇게
+103 vs 17 은 **관행의 증거이지 정합성의 증거가 아니다.** 103곳이 그 형태인 것은 규약이 그렇게
 적혀 있었기 때문이고, 규약이 자기 정의와 모순된다는 것이 이번 지적이다. 판정 근거는 다수결이
 아니라 **`@ApiPropertyOptional` = `ApiProperty({required:false})`** 라는 구현 사실이다.
 
-> **기각한 대안 — "선례(`@ApiProperty` 18곳)를 문면에 맞춘다"**: 그러면 "상시 존재" 필드가
+> **기각한 대안 — "선례(`@ApiProperty` 17곳)를 문면에 맞춘다"**: 그러면 "상시 존재" 필드가
 > OpenAPI 에서 optional 로 나가는 상태가 **규약의 승인 아래** 고착된다. 소비자가 키 부재
 > 분기를 쓰게 되고, 그건 §5.4 를 만든 이유(부재 표현을 필드별로 명시적으로 정하기)와 정면으로
 > 어긋난다.

@@ -7,7 +7,10 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as ts from 'typescript';
-import { collectTsFiles } from '../../common/__test-utils__/source-scan';
+import {
+  collectTsFiles,
+  toPosixRelative,
+} from '../../common/__test-utils__/source-scan';
 
 /** 검사 대상 디렉터리 (저장소 루트 기준). */
 export const ENGINE_DIR = 'codebase/backend/src/modules/execution-engine';
@@ -167,7 +170,7 @@ export function collectBoundCodes(
       if (!UPPER_SNAKE.test(literal.text)) return;
       hits.push({
         code: literal.text,
-        file: path.relative(repoRoot, abs),
+        file: toPosixRelative(repoRoot, abs),
         line: sf.getLineAndCharacterOfPosition(literal.getStart(sf)).line + 1,
       });
     };
@@ -193,7 +196,7 @@ export function collectBoundCodes(
           if (ts.isStringLiteral(arg) && UPPER_SNAKE.test(arg.text)) {
             hits.push({
               code: arg.text,
-              file: path.relative(repoRoot, abs),
+              file: toPosixRelative(repoRoot, abs),
               line: sf.getLineAndCharacterOfPosition(arg.getStart(sf)).line + 1,
             });
           }

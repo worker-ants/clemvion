@@ -16,7 +16,7 @@ export class CreateAssistantSessionDto {
   })
   @IsOptional()
   @IsUUID()
-  llmConfigId?: string;
+  llmConfigId?: string | null;
 
   @ApiPropertyOptional({
     description: '세션 제목. 생략 시 첫 메시지로 자동 생성',

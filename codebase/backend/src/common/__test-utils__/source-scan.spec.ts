@@ -8,6 +8,8 @@ import {
   countRawUpdateReturning,
   hasRawUpdateReturning,
   stripLiterals,
+  toPosixPath,
+  toPosixRelative,
 } from './source-scan';
 
 /**
@@ -217,7 +219,7 @@ describe('collectTsFiles', () => {
   });
 
   const rel = (files: string[]): string[] =>
-    files.map((f) => path.relative(root, f).split(path.sep).join('/'));
+    files.map((f) => toPosixRelative(root, f));
 
   it('기본값은 `.spec.ts` 를 제외한다 — 대부분의 가드가 프로덕션 소스만 본다', () => {
     expect(rel(collectTsFiles(root))).toEqual([
@@ -331,5 +333,38 @@ describe('stripLiterals', () => {
     const src = 'const a = `x${`y`}z`;';
     // 이상적으로는 `` 하나여야 하지만, 첫 백틱 쌍이 `x${` 에서 닫힌다.
     expect(stripLiterals(src)).not.toBe('const a = ``;');
+  });
+});
+
+/**
+ * ## 왜 문자열 변환을 따로 겨누는가
+ *
+ * 2026-09-04 리뷰(2R WARNING#3)가 이 정규화에 뮤턴트를 심어 **관련 spec 50개가 전부
+ * GREEN** 임을 실측했다. 원인은 픽스처 파일명이 전부 단일 세그먼트라 `path.relative`
+ * 결과에 구분자가 **원리적으로 등장하지 않았기** 때문이다.
+ *
+ * 그런데 구분자를 주입하는 것만으로는 부족했다 — POSIX 의 `path.relative` 는 윈도우
+ * 경로를 모르므로 `toPosixRelative('C:\\a', …, '\\')` 는 `'../C:/a/b/c.ts'` 를 낸다.
+ * **문자열 변환(`toPosixPath`)을 떼어내야** 그 분기를 플랫폼과 무관하게 겨눌 수 있다.
+ */
+describe('toPosixPath / toPosixRelative', () => {
+  it('윈도우 구분자를 POSIX 로 바꾼다 — 이 단언이 정규화 뮤턴트를 잡는다', () => {
+    expect(toPosixPath('modules\\executions\\dto.ts', '\\')).toBe(
+      'modules/executions/dto.ts',
+    );
+  });
+
+  it('POSIX 구분자는 그대로 둔다', () => {
+    expect(toPosixPath('modules/executions/dto.ts', '/')).toBe(
+      'modules/executions/dto.ts',
+    );
+  });
+
+  it('중첩 상대 경로 — 구분자가 실제로 나타난다', () => {
+    expect(toPosixRelative('/a', '/a/b/c/d.ts')).toBe('b/c/d.ts');
+  });
+
+  it('단일 세그먼트는 그대로 — 여기서만 검사하면 공허하다', () => {
+    expect(toPosixRelative('/a', '/a/b.ts')).toBe('b.ts');
   });
 });

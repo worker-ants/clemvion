@@ -1,6 +1,8 @@
+import * as nodePath from 'node:path';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as ts from 'typescript';
+import { toPosixRelative } from '../../common/__test-utils__/source-scan';
 
 /**
  * `websocket-events.types.ts` 가 **의존성-프리**로 남는지 지키는 정적 가드.
@@ -308,7 +310,7 @@ function collectOffenders(
   const offenders: string[] = [];
   for (const file of allTsFiles(SRC_ROOT)) {
     for (const hit of probe(parse(file), file)) {
-      offenders.push(`${path.relative(SRC_ROOT, file)} → ${hit}`);
+      offenders.push(`${toPosixRelative(SRC_ROOT, file)} → ${hit}`);
     }
   }
   return offenders;
@@ -462,5 +464,25 @@ describe('hasDefaultExport — 합성 소스 테이블', () => {
       /* setParentNodes */ true,
     );
     expect(sf.statements.some(hasDefaultExport)).toBe(expected);
+  });
+});
+
+/**
+ * ## 호출부의 인자 순서를 겨눈다 (리뷰 4R WARNING#1)
+ *
+ * `collectOffenders` 는 `toPosixRelative(SRC_ROOT, file)` 로 offender 문자열 접두를
+ * 만드는데, 이 파일의 단언이 전부 `toEqual([])` 이라 **그 값이 관측되지 않았다** —
+ * 리뷰어가 인자 순서 뮤턴트를 심어 12/12 GREEN 임을 실측했다.
+ */
+describe('[대조군] offender 접두가 SRC_ROOT 기준 상대경로인가', () => {
+  it('되짚으면 원본 절대 경로가 나온다', () => {
+    const probed = allTsFiles(SRC_ROOT)[0];
+    const offenders = collectOffenders((_sf, file) =>
+      file === probed ? ['hit'] : [],
+    );
+    expect(offenders).toHaveLength(1);
+    const [reported] = offenders[0].split(' → ');
+    expect(nodePath.resolve(SRC_ROOT, reported)).toBe(probed);
+    expect(reported).not.toContain('\\');
   });
 });

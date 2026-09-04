@@ -19,13 +19,17 @@
  * 아예 안 돌아 **가드가 발화하지 못한다.** 스캔 대상이 있는 곳에서 돌아야 한다:
  * `backend-checks.yml` 이 `codebase/backend/**` 를 덮는다.
  *
- * 전수 목록·다음 배치 기준: `plan/in-progress/entity-nullable-column-type-mismatch.md`
+ * 이 축의 전수 목록·완료 이력: `plan/complete/entity-nullable-column-type-mismatch.md`
+ * (33/33 파일로 종결). **다음 배치**는 그 plan 이 아니라
+ * `plan/in-progress/spec-draft-nullable-notation-followups.md` 의 "§5.4 drift 배치" 다 —
+ * 엔티티 컬럼 축은 닫혔고 남은 것은 DTO 선언 축이다.
  */
 
-import * as fs from 'node:fs';
-import * as os from 'node:os';
-import * as path from 'node:path';
-
+import * as nodePath from 'node:path';
+import {
+  withFiles,
+  withFixture as sharedWithFixture,
+} from '../../common/__test-utils__/temp-fixture';
 import {
   collectTsFiles,
   countNullAsUnknownAsCasts,
@@ -41,40 +45,15 @@ import {
 } from './nullable-type-lie-cast-guard';
 
 /**
- * tmpdir 픽스처. **실제 소스를 변형하지 않는다.**
+ * 단일 파일 픽스처 — 공유 헬퍼에 엔티티 파일명을 고정한 얇은 래퍼.
  *
- * 처음엔 실제 `users.service.ts`·`user.entity.ts` 를 `writeFileSync` 로 변형했다가
- * 복원했다. 두 가지가 잘못됐다: (a) 복원이 실패하면 **서비스 파일이 변조된 채 남고**,
- * (b) `eslint --fix` 가 데코레이터를 여러 줄로 바꾸자 `.replace()` 가 **조용히 no-op** 이
- * 돼 전체 스위트에서만 실패했다 — **무효 뮤턴트**다.
- *
- * > 종전에는 단일 파일용 `withFixture` 와 다중 파일용 `withFiles` 가 **따로** 있었다.
- * > 골격(`mkdtempSync`→write→`try/finally` rmSync)이 같은데, **사본 5개를 없애는 diff
- * > 안에서 새 사본을 만든 것**이었다(리뷰 W3). 하나로 합치고 단일 파일은 얇은 래퍼로 둔다.
+ * 골격(`mkdtempSync`→write→`try/finally` rmSync)은
+ * `common/__test-utils__/temp-fixture.ts` 에 있다. 종전엔 이 파일 안의 지역 함수였는데,
+ * 두 번째 소비처(`swagger-dto-contract.spec.ts`)가 생기면서 옮겼다 — **사본 5개를 없앤
+ * 직후에 새 사본을 만들지 않기 위해서다.**
  */
-function withFiles<T>(
-  files: Record<string, string>,
-  fn: (paths: Record<string, string>) => T,
-): T {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'nullable-guard-'));
-  const paths: Record<string, string> = {};
-  for (const [name, content] of Object.entries(files)) {
-    const full = path.join(dir, name);
-    fs.writeFileSync(full, content);
-    paths[name] = full;
-  }
-  try {
-    return fn(paths);
-  } finally {
-    fs.rmSync(dir, { recursive: true, force: true });
-  }
-}
-
-/** 파일 하나짜리 픽스처 — {@link withFiles} 의 얇은 래퍼. */
 function withFixture<T>(content: string, fn: (file: string) => T): T {
-  return withFiles({ 'probe.entity.ts': content }, (paths) =>
-    fn(paths['probe.entity.ts']),
-  );
+  return sharedWithFixture(content, fn, 'probe.entity.ts');
 }
 
 describe('nullable 타입 거짓말이 강제하는 이중 캐스트', () => {
@@ -516,5 +495,71 @@ export class A {
         [],
       );
     });
+  });
+});
+
+/**
+ * ## 호출부의 인자 순서를 겨눈다 (리뷰 4R WARNING#1)
+ *
+ * 이 가드의 세 술어는 전부 `toPosixRelative(SRC_ROOT, file)` 로 `.file` 을 채운다.
+ * 그런데 저장소 단언이 전부 `toEqual([])`(위반 0건) 이라 **그 값이 관측되는 자리가
+ * 없었다** — 리뷰어가 인자 순서를 뒤집는 뮤턴트를 심어 관련 스위트가 전원 GREEN
+ * (18/18·12/12·31/31) 임을 실측했다. 헬퍼 자체는 `source-scan.spec.ts` 가 무는데,
+ * **호출부가 헬퍼를 어떻게 부르는지**는 아무도 안 봤다.
+ *
+ * 단언은 tautology 를 피한다 — 같은 함수를 같은 인자로 다시 부르면 무엇을 하든 통과한다.
+ * 대신 **되짚기 불변식**을 쓴다: 올바른 순서라면 `resolve(SRC_ROOT, .file)` 이 원본 절대
+ * 경로로 돌아온다. 순서가 뒤집히면 전혀 다른 경로가 나와 깨진다.
+ */
+describe('[대조군] 보고된 .file 이 SRC_ROOT 기준 상대경로인가 — 인자 순서', () => {
+  const backToAbsolute = (reported: string): string =>
+    nodePath.resolve(SRC_ROOT, reported);
+
+  it('findCastOffenders 의 .file', () => {
+    withFiles(
+      { 'nested/probe.service.ts': 'const u = null as unknown as User;' },
+      (paths) => {
+        const file = paths['nested/probe.service.ts'];
+        const [offender] = findCastOffenders([file]);
+        expect(offender).toBeDefined();
+        expect(backToAbsolute(offender.file)).toBe(file);
+        expect(offender.file).not.toContain('\\');
+      },
+    );
+  });
+
+  it('findUntypedNullableColumns 의 .file', () => {
+    withFiles(
+      {
+        'nested/probe.entity.ts': [
+          'export class Probe {',
+          '  @Column({ nullable: true })',
+          '  token: string | null;',
+          '}',
+        ].join('\n'),
+      },
+      (paths) => {
+        const file = paths['nested/probe.entity.ts'];
+        const [offender] = findUntypedNullableColumns([file]);
+        expect(offender).toBeDefined();
+        expect(backToAbsolute(offender.file)).toBe(file);
+      },
+    );
+  });
+
+  it('findStaleSpecCasts 의 .file', () => {
+    withFiles(
+      {
+        'nested/probe.spec.ts':
+          'const f = { token: null as unknown as string };\n',
+      },
+      (paths) => {
+        const file = paths['nested/probe.spec.ts'];
+        const widened = new Set(['token']);
+        const [offender] = findStaleSpecCasts([file], widened);
+        expect(offender).toBeDefined();
+        expect(backToAbsolute(offender.file)).toBe(file);
+      },
+    );
   });
 });

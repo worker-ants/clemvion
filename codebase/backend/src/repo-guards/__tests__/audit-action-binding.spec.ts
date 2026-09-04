@@ -29,8 +29,10 @@
  * 하고, 정작 "묶이지 않았다" 는 구조적 사실은 놓친다. 판정은 **형태**로 한다.
  */
 
+import * as nodePath from 'node:path';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
+import { toPosixRelative } from '../../common/__test-utils__/source-scan';
 
 import {
   AUDIT_HELPER_NAMES,
@@ -59,7 +61,10 @@ const REPO_ROOT = path.resolve(__dirname, '../../../../..');
 describe('감사 helper 의 action 은 리소스에 묶인 타입이어야 한다', () => {
   const files = collectSourceFiles(REPO_ROOT);
   const sites = files.flatMap((f) =>
-    findAuditHelpers(fs.readFileSync(f, 'utf-8'), path.relative(REPO_ROOT, f)),
+    findAuditHelpers(
+      fs.readFileSync(f, 'utf-8'),
+      toPosixRelative(REPO_ROOT, f),
+    ),
   );
 
   it('[전제] helper 를 실제로 찾았다 — 0건이면 아래 단언이 vacuous 하다', () => {
@@ -162,5 +167,31 @@ describe('판정은 형태로 한다 — fixture', () => {
     const [site] = parse(BOUND_SOURCE);
     expect(site.actionType).toContain(BOUND_TYPE_NAME);
     expect(site.line).toBeGreaterThan(0);
+  });
+});
+
+/**
+ * ## 호출부의 인자 순서를 겨눈다 (리뷰 4R WARNING#1)
+ *
+ * 위 `sites` 는 `toPosixRelative(REPO_ROOT, f)` 로 `fileLabel` 을 만드는데, 저장소 단언이
+ * 전부 `toEqual([])`(위반 0건) 이라 **그 값이 관측되는 자리가 없었다** — 리뷰어가 인자
+ * 순서 뮤턴트를 심어 18/18 GREEN 임을 실측했다.
+ *
+ * 같은 함수를 같은 인자로 다시 부르면 tautology 가 되므로, **되짚기 불변식**을 쓴다:
+ * 올바른 순서라면 `resolve(REPO_ROOT, .file)` 이 원본 절대 경로로 돌아온다.
+ */
+describe('[대조군] AuditHelperSite.file 이 REPO_ROOT 기준 상대경로인가', () => {
+  it('되짚으면 원본 절대 경로가 나온다', () => {
+    const scanned = collectSourceFiles(REPO_ROOT);
+    const withHelper = scanned.find(
+      (f) => findAuditHelpers(fs.readFileSync(f, 'utf-8'), 'x').length > 0,
+    );
+    expect(withHelper).toBeDefined();
+    const [site] = findAuditHelpers(
+      fs.readFileSync(withHelper as string, 'utf-8'),
+      toPosixRelative(REPO_ROOT, withHelper as string),
+    );
+    expect(nodePath.resolve(REPO_ROOT, site.file)).toBe(withHelper);
+    expect(site.file).not.toContain('\\');
   });
 });
