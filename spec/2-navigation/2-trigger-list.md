@@ -97,7 +97,7 @@ code:
 | Webhook Configuration | URL (전체) | read-only (자동 계산) | `endpointPath` 변경 시 자동 갱신, 직접 입력 불가 |
 | Schedule Configuration | `cronExpression` | read-only | 편집은 Schedule 화면에서만 ([Spec Schedule](./3-schedule.md)). 본 카드는 "스케줄 관리에서 편집" 링크만 표시 |
 | Schedule Configuration | `timezone` | read-only | 위 동일 |
-| Schedule Configuration | `nextRunAt` | read-only (시스템 계산) | sweep 시점에 갱신 |
+| Schedule Configuration | `nextRunAt` | read-only (시스템 계산) | 스케줄 생성·수정 시와 각 실행 완료 직후 재계산. cron 파싱 실패 시 **비어 있을 수 있다**(`-` 표시) — 발사와 무관한 정보성 값이다 ([data-flow §3.2](../data-flow/10-triggers.md#32-schedulenext_run_at-계산)) |
 | External Interaction (Notification) | `url` / `events` / `signing` / `retry` | edit | [Spec EIA §4](../5-system/14-external-interaction-api.md#4-trigger-등록-페이로드-확장) 참조 — 별 plan `eia-trigger-edit-ui` 가 구현 |
 | External Interaction (Interaction) | `enabled` / `tokenStrategy` | edit | 동상 |
 | Auth Config | `authConfigId` | edit | [Authentication 메뉴](./6-config.md#part-a-authentication-인증-설정) 에서 발급한 AuthConfig 셀렉터로 트리거에 binding. `PATCH /api/triggers/:id { authConfigId }` (소속 검증은 backend `triggers.service`). `null` = 인증 없음. 인증 자료(secret/token/password) 의 편집·Reveal·Regenerate 는 Authentication 메뉴에서만 — 본 drawer 는 binding 만 관리. 셀렉터는 워크스페이스 AuthConfig 목록 드롭다운 + "인증 없음" + "+ 새 인증 설정 만들기" (→ `/authentication`) 로 구성 (Rationale R-14) |

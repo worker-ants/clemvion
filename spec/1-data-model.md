@@ -257,7 +257,7 @@ WebAuthn (Passkey/보안 키) credential 자체는 별도 엔티티 [§2.21 WebA
 | cron_expression | String | Cron 표현식 |
 | timezone | String | 타임존 (IANA) |
 | is_active | Boolean | 활성 상태 |
-| next_run_at | Timestamp | 다음 실행 예정 시각 |
+| next_run_at | Timestamp? | 다음 실행 예정 시각. cron 파싱 실패 시 NULL — 발사는 BullMQ job scheduler 가 하므로 NULL 이어도 실행에는 영향이 없다 ([data-flow §3.2](./data-flow/10-triggers.md#32-schedulenext_run_at-계산)) |
 | last_run_at | Timestamp? | 마지막 실행 시각 |
 | parameter_values | JSONB | 워크플로우 Manual Trigger 노드 스키마에 대응하는 파라미터 값 맵. 값 문자열에 `{{ $now }}`, `{{ $schedule.* }}` 등 제한 표현식 사용 가능. 기본값 `{}`. |
 | created_at | Timestamp | 생성 시각 |
@@ -910,7 +910,7 @@ DocumentChunk·Entity 계열 선례를 따른다.)
 | ExecutionNodeLog | (execution_id, id) | 단일 실행의 노드 진행 순서 조회 |
 | Trigger | (workspace_id, type) | 유형별 트리거 조회 |
 | Trigger | (workspace_id, endpoint_path) UNIQUE | Webhook URL 라우팅 (워크스페이스 단위 유니크) |
-| Schedule | (next_run_at, is_active) | 스케줄러 다음 실행 대상 조회 |
+| Schedule | (next_run_at, is_active) | 스케줄 목록의 "다음 실행" 정렬·필터 (UI 조회용). **발사 경로가 아니다** — 발사는 BullMQ job scheduler 가 한다 ([data-flow §3.2](./data-flow/10-triggers.md#32-schedulenext_run_at-계산)) |
 | AuditLog | (workspace_id, created_at DESC) | 감사 로그 조회 |
 | RefreshToken | (user_id, family_id) WHERE is_revoked = false | 사용자별 활성 세션 그룹 조회 |
 | LoginHistory | (user_id, created_at DESC) | 사용자별 로그인 이력 조회 |

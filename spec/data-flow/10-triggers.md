@@ -212,6 +212,12 @@ job scheduler 가 결정하며, `next_run_at` 은 발사 트리거가 아니라 
 생성/수정 시(`computeNextRuns`)와 process() 완료 직후(`now` 기준 다음 cron tick) 재계산해 저장한다
 (`spec/2-navigation/3-schedule.md` 참조).
 
+**cron 파싱이 실패하면 `next_run_at` 은 NULL 이다** — 실행 직후 재계산에서 파서가 던지거나
+(`schedule-runner`), cron/timezone 수정 시 다음 발생 시각을 못 구하면(`computeNextRuns` 가 빈
+결과) NULL 로 저장한다. **정보성 컬럼이므로 NULL 이어도 발사에는 영향이 없다** — 발사는 BullMQ
+job scheduler 가 하고 이 컬럼을 읽지 않는다. 데이터 모델 표기는
+[§2.9 Schedule](../1-data-model.md#29-schedule) 의 `Timestamp?`.
+
 ---
 
 ## 4. 외부 의존
