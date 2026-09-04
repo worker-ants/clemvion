@@ -240,20 +240,23 @@ field: T | null;
       (`background-run-response.dto.ts`) + `create-assistant-session.dto.ts` `llmConfigId`
       (반대 방향 — `nullable:true` 인데 TS 가 `string`). 재발 방지 가드
       `swagger-dto-contract.spec.ts` 를 함께 세웠다.
-- [x] **§5.4 drift 배치 — 1단계: `tsc` 가 검증하는 15곳 완료 (2026-09-04).**
-      104 = 요청 21 + 응답 83. 응답 83 중 **타입체커가 실제로 검사하는 15곳**(`ExecutionDto`
-      10 · `ExecutionStatusDto` 5)만 반영했다.
+- [x] **§5.4 drift 배치 — 1단계: 노출 경로가 전부 검증되는 5곳 (2026-09-04).**
+      `ExecutionStatusDto` 의 `result`·`error`·`durationMs`·`currentNode`·`context`.
+      노출 경로가 `getStatus()` **하나뿐**이라 tsc 검증이 실제로 성립하는 유일한 묶음이다.
 
-      **"기계화되지 않는다" 를 두 번 뒤집었다.** 처음엔 "tsc 가 판정한다" 로 뒤집어 83곳을
-      전부 바꿨는데, 도달성을 재 보니 **tsc 가 검사한 것은 15뿐**이었다 — 나머지는 컨트롤러가
-      엔티티를 그대로 반환해 **DTO-typed 대입 지점이 없다.** 비-spec 오류 0건은 "전부 옳다"
-      가 아니라 **"대부분 검사되지 않았다"** 였다.
+      **"기계화되지 않는다" 를 뒤집었다가 두 번 좁혔다.**
+      1. "tsc 가 판정한다" 로 83곳을 전부 바꿨다. 도달성을 재니 **tsc 가 검사한 것은 15**뿐
+         — 나머지 68은 컨트롤러가 엔티티를 그대로 반환해 DTO-typed 대입 지점이 없다.
+         비-spec 오류 0건은 "전부 옳다" 가 아니라 **"대부분 검사되지 않았다"** 였다.
+      2. 그 15 중 `ExecutionDto` 10곳도 되돌렸다 — 노출 경로 4개 중 1개에서만 성립한다
+         (아래 2단계에 등재).
 
       **분류도 한 번 틀렸다**: `@Body()`/`@Query()` + 상속만 닫으면 `ImportNodeDto`·
       `SaveCanvasNodeDto`(요청 DTO 안에 **중첩된** 타입)를 놓쳐 tsc 가 54건을 냈다. 필드
-      타입 참조까지 전이 폐포로 닫아 21곳으로 정정했다.
+      타입 참조까지 전이 폐포로 닫아 요청 21곳으로 정정했다.
 
-- [ ] **§5.4 drift 배치 — 2단계: 패스스루 응답 DTO 68곳** (developer). 컨트롤러가 엔티티를
+- [ ] **§5.4 drift 배치 — 2단계: 검증자가 없는 응답 DTO 78곳** (developer). 패스스루 68곳
+      **+ `ExecutionDto` 10곳**. 컨트롤러가 엔티티를
       그대로 반환하는 경로라 **DTO 가 강제되지 않는 순수 문서**다. `required: true` 를
       주장하려면 검증자가 필요하다:
       - (a) 그 컨트롤러들의 반환 타입을 `Promise<XxxDto[]>` 로 명시 annotate → tsc 가 구조를
@@ -261,6 +264,16 @@ field: T | null;
         `AlertRuleDto.threshold: number` vs 엔티티 `AlertRule.threshold: string`(numeric 컬럼)을
         이미 짚었다. 그래서 이건 표기 정리가 아니라 **계약 검증 도입**이다.
       - (b) 또는 대표 엔드포인트에 실제 응답 대조 테스트.
+
+      **`ExecutionDto` 는 형태가 조금 다르다** (리뷰 2R W2). 노출 경로 4개 중 목록
+      (`toExecutionDto`)만 `ExecutionDto` 로 조립되고, `stop`/`getChain`/`reRun` 은 엔티티
+      파생 `Omit` 타입(`ResponseExecution`)을 반환해 DTO 선언과 **구조적으로 무관**하다.
+      네 경로를 한 타입으로 모으는 것이 선행이다.
+
+      **`ExecutionDto` 에는 스키마-레벨 테스트가 아예 없다** (리뷰 2R W4) —
+      `ExecutionStatusDto` 와 달리 `createDocument()` 기반 가드가 0건이라, 데코레이터와 TS
+      타입을 **동시에** optional 로 되돌리는 회귀는 AST 가드도 tsc 도 못 잡는다. 2단계
+      착수 시 `execution-status-response.dto.spec.ts` 패턴으로 신설한다.
 
       **"엔티티라 키가 항상 있다" 는 논거는 쓸 수 없다** — `notifications` 4곳 등이 부분
       `select:` 를 쓴다(2026-09-04 실측).
@@ -309,8 +322,15 @@ field: T | null;
 `plan/complete/` 로 옮겼다 (`--spec` INFO#3 이 요구한 순서 그대로).
 
 **이 draft 자신의 종결 조건**은 위 `## 후속` 체크박스가 전부 닫히는 것이다. 현재 열려 있는
-것은 §5.4 drift 배치 · `idx_schedule_next_run` · §2.2 단일 동사 패턴 · §5.4 응답 바디 스코프
-문구 · `3-schedule.md` §2.1 다섯이며, 모두 별 턴을 요구한다.
+것은 **넷**이다 (2026-09-04 갱신, `--ai-review` 2R W1 — 종전 서술이 이미 닫힌 3건을 열려
+있다고 적고 새로 연 2건을 빠뜨렸다):
+
+| 항목 | 트랙 | 선행 조건 |
+|---|---|---|
+| §5.4 drift 2단계 — 검증자 없는 응답 DTO 78곳 | developer | 검증자 도입(반환 타입 명시 또는 응답 대조 테스트) |
+| §5.4 가 WS wire 에도 적용되는가 | planner | "키 부재 ≠ null" 인지 판단 |
+| `QueryExecutionDto.workflowId` 죽은 필드 | developer | 공개 표면 제거 결정(`forbidNonWhitelisted` 로 400 발생) |
+| `idx_schedule_next_run` 실사용 0건 | developer/DBA | 마이그레이션 결정 |
 
 ---
 

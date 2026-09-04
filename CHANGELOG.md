@@ -1,38 +1,41 @@
 # Changelog
 
-## Unreleased — 응답 DTO 15곳의 `required` 가 `false` → `true` — `tsc` 가 검증한 만큼만
+## Unreleased — `ExecutionStatusDto` 5곳의 `required` 가 `false` → `true`
 
 `#1277` 이 §5.4 를 정정하고 `#1280` 이 그 절을 **"응답 바디 한정"** 으로 명시하면서, 남은
-drift 104곳 중 **검증 가능한 15곳**을 새 문면에 맞췄다.
+drift 104곳 중 **노출 경로 전체가 검증되는 5곳**을 새 문면에 맞췄다.
 
 **동작 변경은 없다.** 서버가 내보내는 값은 그대로이고 OpenAPI 가 그 사실을 따라간다.
 
 | | 종전 | 지금 |
 |---|---|---|
-| `ExecutionDto` 10필드 · `ExecutionStatusDto` 5필드 | `@ApiPropertyOptional({ nullable: true }) field?: T \| null` | `@ApiProperty({ nullable: true }) field: T \| null` |
+| `ExecutionStatusDto` 5필드 (`result`·`error`·`durationMs`·`currentNode`·`context`) | `@ApiPropertyOptional({ nullable: true }) field?: T \| null` | `@ApiProperty({ nullable: true }) field: T \| null` |
 
-**영향**: OpenAPI 로 타입을 생성하는 클라이언트에서 이 15필드의 `required` 가 `false` →
+**영향**: OpenAPI 로 타입을 생성하는 클라이언트에서 이 5필드의 `required` 가 `false` →
 `true`. 생성 타입이 좁아져 optional-check 없이 접근할 수 있게 된다. 런타임 wire 는 불변이다.
 
-### 왜 104곳이 아니라 15곳인가
+### 왜 104곳이 아니라 5곳인가 — 두 번 좁혔다
 
 먼저 **요청/응답을 갈랐다**(§5.4 는 응답 전용): 104 = 요청 21 + 응답 83.
 
-그 다음 83곳을 뒤집고 `tsc` 에 물었더니 **비-spec 오류 0건**이라 "전부 상시 존재" 로
-읽었다. **틀렸다** — 도달성을 재 보니 **83 중 tsc 가 실제로 검사한 것은 15뿐**이었다.
-나머지는 컨트롤러가 엔티티를 그대로 반환해 **DTO-typed 대입 지점이 아예 없어** 타입체커가
-발동하지 않는다. 오류 0건은 "전부 옳다" 가 아니라 **"대부분 검사되지 않았다"** 였다.
+83곳을 뒤집고 `tsc` 비-spec 오류 0건을 근거로 "전부 상시 존재" 로 읽었다. **틀렸다** —
+도달성을 재니 tsc 가 실제로 검사한 것은 15뿐이고, 나머지 68은 컨트롤러가 엔티티를 그대로
+반환해 **DTO-typed 대입 지점이 없다.** 오류 0건은 *"전부 옳다"* 가 아니라 **"대부분
+검사되지 않았다"** 였다.
 
-"엔티티라 모든 컬럼이 키로 실린다" 는 대체 논거도 실측이 부정했다 — `notifications` 4곳
-등에서 **부분 `select:`** 를 쓴다. 검증 없이 `required: true` 를 주장할 수 없어 68곳을
-되돌리고 별도 항목으로 등재했다.
+그 15 중 `ExecutionDto` 10곳도 되돌렸다 — 노출 경로 **4개 중 1개**(목록)에서만 `ExecutionDto`
+로 조립되고, `stop`/`getChain`/`reRun` 은 엔티티 파생 `Omit` 타입(`ResponseExecution`)을
+반환해 DTO 선언과 구조적으로 무관하다. **68곳에 적용한 "검증 없이는 주장 못한다" 를 나
+자신에게도 적용했다.**
+
+남은 5곳(`ExecutionStatusDto`)은 노출 경로가 `getStatus()` **하나뿐**이라 주장이 성립한다.
 
 ### 스키마 테스트가 이 축을 안 보고 있었다
 
 `SwaggerModule.createDocument()` 를 실제로 빌드하는 유일한 테스트가 `nullable` 만 단언하고
-**`required` 는 어디서도 검사하지 않았다.** `@ApiPropertyOptional` 로 되돌리면 `nullable` 은
-그대로인 채 `required` 만 빠지므로 그 회귀를 통째로 놓친다. 다섯 필드에 대한 `required`
-단언을 추가하고 뮤테이션으로 확인했다(RED 1건 — `nullable` 단언은 GREEN 유지).
+**`required` 는 어디서도 검사하지 않았다.** `@ApiPropertyOptional` 은 `nullable` 을 그대로
+둔 채 `required` 만 빼므로 그 회귀를 통째로 놓친다. `required` 단언을 추가하고 뮤테이션으로
+확인했다(RED 1건 — `nullable` 단언은 GREEN 유지). 두 단언은 필드 목록 상수를 공유한다.
 
 ## Unreleased — OpenAPI 선언과 TS 타입이 어긋난 9곳 — Background 실행 응답 8곳은 숨겼고, `llmConfigId` 는 반대로 좁혔다
 

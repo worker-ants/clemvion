@@ -105,21 +105,34 @@ describe('ExecutionStatusDto — OpenAPI 스키마 (EIA §5.3)', () => {
       },
     );
 
-    // 이 가드는 **손으로 고른 목록만** 순회한다 — 새 nullable 필드를 여기 넣지 않으면
-    // 규약을 어겨도 조용히 통과한다. 목록 자체가 커버리지다.
-    it.each([
-      ['result'],
-      ['error'],
-      ['durationMs'],
-      ['currentNode'],
-      ['context'],
-    ])('%s 는 null 을 쓰는 형제 필드다 — nullable 이다', (field) => {
-      const schema = executionStatus.properties?.[field] as SwaggerSchemaObject;
-      expect(schema.nullable).toBe(true);
-    });
+    /**
+     * `null` 을 쓰는(=상시 존재) 필드 목록. **아래 두 단언이 이 하나를 공유한다** —
+     * nullable 축과 required 축. 종전엔 각 단언이 목록을 따로 하드코딩해, 필드가 늘면
+     * 한쪽만 갱신되는 drift 경로가 열려 있었다(리뷰 2R W3).
+     *
+     * 이 가드는 **손으로 고른 목록만** 순회한다 — 새 nullable 필드를 여기 넣지 않으면
+     * 규약을 어겨도 조용히 통과한다. **목록 자체가 커버리지다.**
+     */
+    const NULL_PRESENT_FIELDS = [
+      'result',
+      'error',
+      'durationMs',
+      'currentNode',
+      'context',
+    ] as const;
+
+    it.each(NULL_PRESENT_FIELDS.map((f) => [f]))(
+      '%s 는 null 을 쓰는 형제 필드다 — nullable 이다',
+      (field) => {
+        const schema = executionStatus.properties?.[
+          field
+        ] as SwaggerSchemaObject;
+        expect(schema.nullable).toBe(true);
+      },
+    );
 
     /**
-     * ## `required` 축을 직접 단언한다 (리뷰 W2)
+     * ## `required` 축을 직접 단언한다 (리뷰 1R W2)
      *
      * 위 `it.each` 는 `nullable` 만 봤다. 그런데 §5.4 가 `null` 필드에 요구하는 것은
      * **두 가지**다 — `nullable: true` 이면서 **키가 상시 존재**(`required` 에 포함)라는
@@ -130,13 +143,7 @@ describe('ExecutionStatusDto — OpenAPI 스키마 (EIA §5.3)', () => {
      */
     it('null 을 쓰는 다섯 필드는 required 이기도 하다 — 상시 존재', () => {
       expect(executionStatus.required ?? []).toEqual(
-        expect.arrayContaining([
-          'result',
-          'error',
-          'durationMs',
-          'currentNode',
-          'context',
-        ]),
+        expect.arrayContaining([...NULL_PRESENT_FIELDS]),
       );
     });
   });

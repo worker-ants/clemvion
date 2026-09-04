@@ -16,8 +16,8 @@ export class ExecutionDto {
   workflowId: string;
 
   /** 트리거 UUID (수동/서브워크플로우 실행은 null) */
-  @ApiProperty({ format: 'uuid', nullable: true })
-  triggerId: string | null;
+  @ApiPropertyOptional({ format: 'uuid', nullable: true })
+  triggerId?: string | null;
 
   /**
    * 실행 출처 분류 — 우선순위: subworkflow > manual > schedule > webhook > unknown.
@@ -39,12 +39,12 @@ export class ExecutionDto {
   startedAt: string;
 
   /** 종료 시각 */
-  @ApiProperty({ format: 'date-time', nullable: true })
-  finishedAt: string | null;
+  @ApiPropertyOptional({ format: 'date-time', nullable: true })
+  finishedAt?: string | null;
 
   /** 소요 시간(ms) */
-  @ApiProperty({ nullable: true, example: 1820 })
-  durationMs: number | null;
+  @ApiPropertyOptional({ nullable: true, example: 1820 })
+  durationMs?: number | null;
 
   /**
    * 입력 데이터 — 트리거가 워크플로우에 주입한 input (manual parameters / webhook body / schedule context).
@@ -54,12 +54,12 @@ export class ExecutionDto {
    * ingestion 이 남긴 `[REDACTED]` 마커는 보존된다. 근거 정본: `toResponseExecution`.
    * SoT: EIA §R17 (`spec/5-system/14-external-interaction-api.md`).
    */
-  @ApiProperty({
+  @ApiPropertyOptional({
     type: 'object',
     additionalProperties: true,
     nullable: true,
   })
-  inputData: Record<string, unknown> | null;
+  inputData?: Record<string, unknown> | null;
 
   /**
    * 출력 데이터 — 워크플로우 최종 결과. 노드별 envelope 는 nodeExecutions[i].outputData 참조.
@@ -69,12 +69,12 @@ export class ExecutionDto {
    * ingestion 이 이미 남긴 `[REDACTED]` 마커는 **보존**된다. SoT: EIA §R17, 구현
    * `shared/utils/redact-stored-error.ts` 의 `redactStoredDataForResponse`.
    */
-  @ApiProperty({
+  @ApiPropertyOptional({
     type: 'object',
     additionalProperties: true,
     nullable: true,
   })
-  outputData: Record<string, unknown> | null;
+  outputData?: Record<string, unknown> | null;
 
   /**
    * 에러 객체.
@@ -85,20 +85,20 @@ export class ExecutionDto {
    * (`spec/5-system/14-external-interaction-api.md`), 구현
    * `shared/utils/redact-stored-error.ts`.
    */
-  @ApiProperty({
+  @ApiPropertyOptional({
     type: 'object',
     additionalProperties: true,
     nullable: true,
   })
-  error: Record<string, unknown> | null;
+  error?: Record<string, unknown> | null;
 
   /** 실행 시작자 UUID (수동 실행 시) */
-  @ApiProperty({ format: 'uuid', nullable: true })
-  executedBy: string | null;
+  @ApiPropertyOptional({ format: 'uuid', nullable: true })
+  executedBy?: string | null;
 
   /** 부모 실행 UUID (서브 워크플로우) */
-  @ApiProperty({ format: 'uuid', nullable: true })
-  parentExecutionId: string | null;
+  @ApiPropertyOptional({ format: 'uuid', nullable: true })
+  parentExecutionId?: string | null;
 
   /** 재귀 깊이 */
   @ApiProperty({ example: 0 })
@@ -109,12 +109,12 @@ export class ExecutionDto {
   executionPath: string[];
 
   /** 직계 부모 실행 UUID — Re-run 으로 생성된 실행만 세팅, 일반 실행은 null (spec §9.1) */
-  @ApiProperty({ format: 'uuid', nullable: true })
-  reRunOf: string | null;
+  @ApiPropertyOptional({ format: 'uuid', nullable: true })
+  reRunOf?: string | null;
 
   /** Re-run chain root 실행 UUID — Re-run 으로 생성된 실행만 세팅, 일반 실행은 null */
-  @ApiProperty({ format: 'uuid', nullable: true })
-  chainId: string | null;
+  @ApiPropertyOptional({ format: 'uuid', nullable: true })
+  chainId?: string | null;
 
   /** dry-run 모드로 생성된 실행 여부 (외부 부수효과 노드가 mock 출력, spec §7) */
   @ApiProperty({ example: false })
