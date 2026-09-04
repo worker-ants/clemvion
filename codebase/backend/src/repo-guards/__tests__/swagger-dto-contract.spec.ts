@@ -281,6 +281,36 @@ describe('[캐너리] @nestjs/swagger 별칭 가정이 살아있는가', () => {
 });
 
 /**
+ * ## 옵션 리더가 **리터럴을 만날 때까지 계속 훑는다**
+ *
+ * `readOption` 은 키가 맞아도 `pick` 이 값을 못 뽑으면 순회를 이어 간다. 그 분기는
+ * 테스트가 0건이라 `if (picked !== undefined) return picked;` 를 `return picked;` 로
+ * 바꿔도 스위트가 **32/32 GREEN 이었다** (`21_10_30` W1 실측) — 즉 JSDoc 이 약속한 동작이
+ * 실제로는 무방비였다.
+ *
+ * 이 분기를 가르는 입력은 **같은 키가 두 번 나오고 앞엣것이 리터럴이 아닌** 형태뿐이다.
+ * 실제 데코레이터에는 나오지 않는 모양이지만, 이 파일이 이미 `@Transform` 예외에 대해
+ * 세운 원칙 — **실사례 0건인 분기도 캐너리로 고정한다** — 을 여기에도 적용한다. 문서한
+ * 보장이 구현보다 넓어지지 않게 하는 것이 요점이다.
+ */
+describe('옵션 리더는 리터럴을 만날 때까지 훑는다', () => {
+  const DUPLICATE_KEY = [
+    'declare const dynamicRequired: boolean;',
+    'export class Probe {',
+    '  @ApiProperty({ required: dynamicRequired, required: false })',
+    '  field?: string;',
+    '}',
+  ].join('\n');
+
+  it('앞의 비-리터럴을 건너뛰고 뒤의 리터럴을 집는다', () => {
+    // 뒤의 `required: false` 를 집으면 실효 required=false → TS 의 `?` 와 일치 → 불일치 0.
+    // 앞에서 멈추면 실효 required 가 데코레이터 이름 기본값(`ApiProperty` → true)으로
+    // 떨어져 presence 축 불일치가 생긴다.
+    expect(axes(DUPLICATE_KEY)).toEqual([]);
+  });
+});
+
+/**
  * ## `numeric` 컬럼을 `number` 라고 문서화하는 자리
  *
  * TypeORM 은 `numeric`/`decimal` 을 **문자열**로 준다(정밀도 보존). 엔티티를 그대로
