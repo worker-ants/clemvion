@@ -68,3 +68,41 @@ describe('CustomValidationPipe', () => {
     }
   });
 });
+
+/**
+ * ## `forbidNonWhitelisted` — 알 수 없는 키를 **거절**한다
+ *
+ * 파이프가 `whitelist: true` + `forbidNonWhitelisted: true` 로 돌기 때문에, DTO 에 없는
+ * 키는 조용히 벗겨지는 것이 아니라 **400 이 된다.** 이 축을 단언하는 테스트가 없었다
+ * (리뷰 `18_34_04` W2).
+ *
+ * 없으면 무엇을 놓치나 — **DTO 에서 필드를 지우는 것이 곧 공개 계약 변경**이라는 사실이다.
+ * 2026-09-04 에 `QueryExecutionDto.workflowId`(죽은 파라미터)를 제거했고, 그 순간
+ * `?workflowId=…` 를 보내던 요청은 `200`(무시됨) → `400` 이 됐다. 그 동작을 고정하는
+ * 자동화가 저장소 어디에도 없었다.
+ */
+describe('CustomValidationPipe — forbidNonWhitelisted', () => {
+  const pipe = new CustomValidationPipe();
+
+  class NarrowDto {
+    @IsString()
+    known: string;
+  }
+
+  it('DTO 에 없는 키가 오면 400 이다 — 조용히 벗기지 않는다', async () => {
+    await expect(
+      pipe.transform(
+        { known: 'ok', removedParam: 'anything' },
+        { metatype: NarrowDto, type: 'query' as const },
+      ),
+    ).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it('[대조군] 알려진 키만 오면 통과한다 — 위 단언이 공허하지 않다', async () => {
+    const result = await pipe.transform(
+      { known: 'ok' },
+      { metatype: NarrowDto, type: 'query' as const },
+    );
+    expect(result).toBeInstanceOf(NarrowDto);
+  });
+});
