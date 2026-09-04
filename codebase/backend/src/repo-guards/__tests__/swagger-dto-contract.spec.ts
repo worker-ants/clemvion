@@ -302,11 +302,42 @@ describe('옵션 리더는 리터럴을 만날 때까지 훑는다', () => {
     '}',
   ].join('\n');
 
-  it('앞의 비-리터럴을 건너뛰고 뒤의 리터럴을 집는다', () => {
+  it('boolean 리더 — 앞의 비-리터럴을 건너뛰고 뒤의 리터럴을 집는다', () => {
     // 뒤의 `required: false` 를 집으면 실효 required=false → TS 의 `?` 와 일치 → 불일치 0.
     // 앞에서 멈추면 실효 required 가 데코레이터 이름 기본값(`ApiProperty` → true)으로
     // 떨어져 presence 축 불일치가 생긴다.
     expect(axes(DUPLICATE_KEY)).toEqual([]);
+  });
+
+  /**
+   * `readOption` 은 제네릭이고 두 인스턴스의 `pick` 이 **다르다** — boolean 은
+   * `TrueKeyword`/`FalseKeyword` 를, string 은 `isStringLiteralLike` 를 본다. 위 캐너리
+   * 하나로는 string 인스턴스의 회귀를 담보하지 못한다 (`21_45_58` W1).
+   *
+   * 이 PR 이 고친 결함이 **두 번 다 "가드가 한 칸 좁았다"** 였으므로, 캐너리도 한쪽만
+   * 세우지 않는다.
+   */
+  it('string 리더 — `readColumnType` 경로에서도 뒤의 리터럴을 집는다', () => {
+    withFiles(
+      {
+        'entities/probe.entity.ts': [
+          'declare const dynamicType: string;',
+          'export class Probe {',
+          "  @Column({ type: dynamicType, type: 'numeric' })",
+          '  amount: string;',
+          '}',
+        ].join('\n'),
+        'dto/responses/probe-response.dto.ts':
+          'export class ProbeDto {\n  amount: number;\n}\n',
+      },
+      (paths) => {
+        // 뒤의 `'numeric'` 을 집어야 numeric 컬럼으로 분류돼 위반이 잡힌다.
+        // 앞에서 멈추면 "numeric 아님" 이 되어 조용히 0건이 된다.
+        expect(findNumericAsNumber(Object.values(paths))).toEqual([
+          { dto: 'ProbeDto', field: 'amount', entity: 'Probe' },
+        ]);
+      },
+    );
   });
 });
 
