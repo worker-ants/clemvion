@@ -278,10 +278,14 @@ field: T | null;
 
 ## 종결 조건
 
-이 draft 를 `complete/` 로 옮길 때 **형제 plan 의 세 체크박스를 함께 닫는다**
-(`--spec` INFO#3) — `entity-nullable-column-type-mismatch.md` 의 planner 턴 3건
-(`:182` `next_run_at` · `:190` `/api/auth/*` · `:247` §5.4). 그 plan 상단 경고문
-(*"planner 턴 항목이 반영되기 전에는 완료 처리하지 말 것"*)도 함께 해제한다.
+**형제 plan 은 이미 종결됐다** (`cce8a188b`, 2026-09-04). `entity-nullable-column-type-mismatch.md`
+의 planner 턴 3건(`next_run_at` · `/api/auth/*` · §5.4)을 반영하며 그 세 체크박스를 닫고,
+상단 경고문(*"planner 턴 항목이 반영되기 전에는 완료 처리하지 말 것"*)을 해제한 뒤
+`plan/complete/` 로 옮겼다 (`--spec` INFO#3 이 요구한 순서 그대로).
+
+**이 draft 자신의 종결 조건**은 위 `## 후속` 체크박스가 전부 닫히는 것이다. 현재 열려 있는
+것은 §5.4 drift 배치 · `idx_schedule_next_run` · §2.2 단일 동사 패턴 · §5.4 응답 바디 스코프
+문구 · `3-schedule.md` §2.1 다섯이며, 모두 별 턴을 요구한다.
 
 ---
 
