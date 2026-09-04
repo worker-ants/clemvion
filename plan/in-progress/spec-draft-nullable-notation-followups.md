@@ -174,6 +174,14 @@ field: T | null;
 | `@ApiPropertyOptional()` + `field?` | **1** | `required:false`, nullable 미선언 |
 | **합계** | **129** | |
 
+> **이 표는 계약 거짓 9곳 수정(`fix(dto)` 커밋) 적용 *전* 스냅샷이다.** 같은 세션이 곧바로 계약 거짓 9곳을 고쳐
+> 분포를 바꿨다 — 적용 후는 **104 / 25 / 0 / 1**(세 번째 줄이 0 이 된 것이 이 PR 의 성과다).
+>
+> 날짜를 박아 둔 실측이 **같은 PR 안에서** 낡았다. 정량 기록은 "잰 시점" 의 값이지
+> "PR 이 닫히는 시점" 의 값이 아니라는 것을 여기서 또 밟았다. 아래 drift 배치를 착수할
+> 때는 이 수를 그대로 쓰지 말고 **AST 가드로 재측정**하라 —
+> `findSwaggerContractMismatches` 가 이미 그 판정을 한다.
+
 > **세 번째 형태(8건)는 초판이 아예 못 봤다.** `nullable: true` 가 없어 **OpenAPI 가 nullable
 > 을 말하지 않는데 TS 타입은 `| null`** 이다 — 소비자는 null 이 올 수 없다고 믿는다. 표기
 > 불일치가 아니라 **계약 거짓**이다.
@@ -230,7 +238,8 @@ field: T | null;
       (`background-run-response.dto.ts`) + `create-assistant-session.dto.ts` `llmConfigId`
       (반대 방향 — `nullable:true` 인데 TS 가 `string`). 재발 방지 가드
       `swagger-dto-contract.spec.ts` 를 함께 세웠다.
-- [ ] **§5.4 drift 103곳 배치** (developer). 첫 두 건은 위 `ipWhitelist`·`invitedBy`.
+- [ ] **§5.4 drift 배치** (developer, 계약 거짓 9곳 수정 후 **104곳** — 착수 시 재측정할 것).
+      첫 두 건은 위 `ipWhitelist`·`invitedBy`.
       계약 거짓이 아니라 **규약 변경에 따른 drift** 이고 §5.4 소급 면제 아래 있다 — 급하지
       않다. 일괄로 OpenAPI `required` 가 뒤집히므로 소비자 영향 확인이 선행 조건이다.
       새 가드는 이 형태를 **잡지 않는다**(선언과 TS 가 서로 일치하므로) — 판정은 "이 필드가
