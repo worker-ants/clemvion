@@ -70,16 +70,18 @@ describe('CustomValidationPipe', () => {
 });
 
 /**
- * ## `forbidNonWhitelisted` — 알 수 없는 키를 **거절**한다
+ * `forbidNonWhitelisted` — unknown keys are REJECTED, not silently stripped.
  *
- * 파이프가 `whitelist: true` + `forbidNonWhitelisted: true` 로 돌기 때문에, DTO 에 없는
- * 키는 조용히 벗겨지는 것이 아니라 **400 이 된다.** 이 축을 단언하는 테스트가 없었다
- * (리뷰 `18_34_04` W2).
+ * The pipe runs with `whitelist: true` + `forbidNonWhitelisted: true`, so a key that the
+ * DTO does not declare produces a 400 rather than being quietly dropped. Nothing asserted
+ * that axis before.
  *
- * 없으면 무엇을 놓치나 — **DTO 에서 필드를 지우는 것이 곧 공개 계약 변경**이라는 사실이다.
- * 2026-09-04 에 `QueryExecutionDto.workflowId`(죽은 파라미터)를 제거했고, 그 순간
- * `?workflowId=…` 를 보내던 요청은 `200`(무시됨) → `400` 이 됐다. 그 동작을 고정하는
- * 자동화가 저장소 어디에도 없었다.
+ * What it lets slip without this: the fact that **removing a field from a DTO is itself a
+ * public contract change.** `QueryExecutionDto.workflowId` (a dead parameter) was removed
+ * on 2026-09-04, and from that moment a request carrying `?workflowId=…` went from `200`
+ * (ignored) to `400`. No automated test pinned that behaviour.
+ *
+ * Tracking: `plan/in-progress/spec-draft-nullable-notation-followups.md` §후속.
  */
 describe('CustomValidationPipe — forbidNonWhitelisted', () => {
   const pipe = new CustomValidationPipe();
@@ -89,20 +91,26 @@ describe('CustomValidationPipe — forbidNonWhitelisted', () => {
     known: string;
   }
 
-  it('DTO 에 없는 키가 오면 400 이다 — 조용히 벗기지 않는다', async () => {
-    await expect(
-      pipe.transform(
+  const narrowMeta = { metatype: NarrowDto, type: 'query' as const };
+
+  it('rejects a key the DTO does not declare', async () => {
+    try {
+      await pipe.transform(
         { known: 'ok', removedParam: 'anything' },
-        { metatype: NarrowDto, type: 'query' as const },
-      ),
-    ).rejects.toBeInstanceOf(BadRequestException);
+        narrowMeta,
+      );
+      throw new Error('should have thrown');
+    } catch (err) {
+      expect(err).toBeInstanceOf(BadRequestException);
+      const body = (err as BadRequestException).getResponse() as {
+        code: string;
+      };
+      expect(body.code).toBe('VALIDATION_ERROR');
+    }
   });
 
-  it('[대조군] 알려진 키만 오면 통과한다 — 위 단언이 공허하지 않다', async () => {
-    const result = await pipe.transform(
-      { known: 'ok' },
-      { metatype: NarrowDto, type: 'query' as const },
-    );
+  it('accepts declared keys only — proves the assertion above is not vacuous', async () => {
+    const result = await pipe.transform({ known: 'ok' }, narrowMeta);
     expect(result).toBeInstanceOf(NarrowDto);
   });
 });
