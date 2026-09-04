@@ -331,6 +331,14 @@ field: T | null;
 - [ ] **`spec/1-data-model.md:873` 이 `threshold` 를 `Float` 로 라벨링** (planner,
       `19_43_18` INFO#6). 실제는 `numeric(12,4)` 이고 엔티티·wire 모두 **문자열**이다
       (2026-09-04 정정으로 분명해졌다). 라벨을 DB 타입에 맞춘다.
+- [ ] **`swagger.md` 에 "내부 서사는 `//`, 소비자용 설명은 JSDoc" 분리 가이드** (planner,
+      `21_10_30` INFO#3). `nest-cli.json` 의 swagger 플러그인이 **JSDoc 을 공개 OpenAPI
+      `description` 으로 내보내므로**, 정정 경위 같은 내부 서사를 JSDoc 에 적으면 API 문서에
+      그대로 실린다. `alert-rule-response.dto.ts` 가 이번에 그 분리를 실제로 적용했지만
+      (`20_05_42` W1) 규약에는 없다.
+
+      > 위 두 planner 항목(`swagger.md` numeric 불변식 · `Float` 라벨)과 **같은 편집
+      > 세션에 묶는다** — 셋 다 `swagger.md`/`1-data-model.md` 한 쌍을 건드린다.
 
 - [x] **§5.4 가 WS wire 에도 적용되는가 — 답: producer 는 이미 지킨다 (2026-09-04 종결).**
       **추가 spec 변경 없음.**
