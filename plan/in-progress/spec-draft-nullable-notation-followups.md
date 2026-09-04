@@ -51,8 +51,16 @@ spec_impact:
 `:913` 이 `(next_run_at, is_active)` 인덱스의 용도를 **"스케줄러 다음 실행 대상 조회"** 로
 적는다. 그 서술은 **폴링 아키텍처를 전제**하는데 지금은 BullMQ job scheduler 가 발사한다.
 
-**실측**: 인덱스는 DB 에 실재하지만(`V002__indexes.sql:30` `idx_schedule_next_run`),
-**`nextRunAt` 으로 조회하는 코드가 0건**이다(`grep` 전수).
+**실측**: 인덱스는 DB 에 실재한다(`V002__indexes.sql:30` `idx_schedule_next_run`).
+
+> ⚠️ **이 자리에 처음 적은 "`nextRunAt` 으로 조회하는 코드가 0건" 은 틀렸다** (2026-09-04
+> 재실측). `schedules.service.ts:119` 가 `next_run_at` 을 **정렬 화이트리스트**에 올려 두고
+> `qb.orderBy(this.resolveOrderBy(sort), …)`(`:96`)가 `ORDER BY s.next_run_at` 을 실제로
+> 낸다. 처음 grep 이 `where|order` 를 `next_run_at` 과 **같은 줄**에서 찾았는데, 매핑
+> 테이블과 `orderBy` 호출이 떨어져 있어 못 봤다.
+>
+> **위 spec 서술("스케줄 목록의 정렬·필터 (UI 조회용)")은 맞다** — 틀린 것은 그 아래 실측
+> 문장이고, 그것이 아래 후속 항목의 전제를 오염시켰다.
 
 용도 서술을 실제에 맞춘다:
 
@@ -278,15 +286,24 @@ field: T | null;
       **"엔티티라 키가 항상 있다" 는 논거는 쓸 수 없다** — `notifications` 4곳 등이 부분
       `select:` 를 쓴다(2026-09-04 실측).
 
-- [ ] **§5.4 가 WS wire 에도 적용되는가** (planner, `--impl-done` `15_16_28` cross_spec INFO#3).
-      `spec/conventions/chat-channel-adapter.md:149-151` 의 WS 이벤트 타입이
-      `durationMs?: number | null` 로 **키 생략과 nullable 을 병기**한다 — §5.4 가 응답 바디
-      전용(`#1280`)이라 **직접 충돌은 아니지만**, WS 도 서버가 내보내는 표면이라 같은 축의
-      판단이 필요하다. 세 이벤트(`execution.completed`/`failed`/`cancelled`) 전부 같은 형태다.
+- [x] **§5.4 가 WS wire 에도 적용되는가 — 답: producer 는 이미 지킨다 (2026-09-04 종결).**
+      **추가 spec 변경 없음.**
 
-      선행 질문: WS wire 에서 "키 부재" 와 "null" 이 **다른 의미인가**. 다르면 §5.4 를
-      확장하지 말고 WS 전용 규칙이 필요하고, 같으면 §5.4 를 WS 로 넓히는 것이 맞다.
-      **이번 diff 가 만든 것이 아니다** — pre-existing 이다.
+      `chat-channel-adapter.md:149-151` 의 `durationMs?: number | null` 을 §5.4 위반으로 볼
+      뻔했으나, **producer 와 consumer 의 계약이 다른 자리**였다:
+
+      | 축 | 실측 |
+      |---|---|
+      | producer | **항상 키를 싣고 값을 모르면 `null`** — EIA §6 표(`14-external-interaction-api.md:594`)가 *"알 수 없으면 `null`"* 로 명시. **§5.4 의 null-present 그대로다** |
+      | consumer 타입의 `?` | 배포 경계에서 **재생되는 레거시 이벤트에 키가 없어서**다. 필수로 만들면 타입이 현실보다 넓은 보장을 주장한다 — `chat-channel/types.ts:391-397` 이 근거를 적어 뒀고 **fixture 29개가 실제로 타입 오류를 냈다** |
+
+      **같은 지적이 이미 한 번 미채택됐다** (`09_58_31` cross_spec W1 — `error.nodeId` 건과
+      같은 판단). 이번 checker 도 INFO 로만 올리며 *"재-flag 하지 말 것"* 이라 적었다.
+
+      → **§5.4 를 WS 로 넓히지 않는다.** 넓히면 consumer 타입에 producer 보장을 강요하게
+      되고, 그건 이미 기각된 방향이다. 이 항목을 열 때 **기존 결정 기록을 먼저 읽지
+      않았다** — 코드 주석과 EIA 표에 답이 이미 있었다.
+
 - [ ] **`QueryExecutionDto.workflowId` 죽은 필드** (developer, 2026-09-04 발견).
       `findByWorkflow` 는 경로 파라미터를 쓰고 쿼리에서 `{page,limit,sort,order,status}` 만
       구조분해한다 — **이 필드는 읽히는 곳이 없다.** frontend `ExecutionListParams` 도 안
@@ -295,8 +312,25 @@ field: T | null;
       돌아 잘못된 값이면 400 이 난다 — **아무것도 안 하는 필터를 광고**한다.
       제거는 `forbidNonWhitelisted: true` 때문에 이 파라미터를 보내던 외부 클라이언트에
       **400 을 새로 발생**시킨다. 공개 REST 표면 제거라 별건으로 둔다.
-- [ ] **`idx_schedule_next_run` 실사용 0건** (developer/DBA). 조회처가 없어 DROP 후보이나
-      마이그레이션 결정이다.
+- [ ] **`idx_schedule_next_run` — 부분 조건이 어떤 쿼리와도 맞지 않는다** (developer/DBA,
+      2026-09-04 **전제 교체**). 종전 전제("조회처 0건")는 **틀렸다** — 위 §① 실측 참조.
+
+      | | 실측 |
+      |---|---|
+      | 인덱스 | `ON schedule (next_run_at, is_active)` **`WHERE is_active = TRUE`** (부분 인덱스) |
+      | `ORDER BY next_run_at` | **발생한다** — 목록 정렬 화이트리스트(`schedules.service.ts:119`) + `qb.orderBy(...)`(`:96`) |
+      | 목록 쿼리의 필터 | `workspace_id` · 선택적 `t.name ILIKE` · 선택적 `t.id` — **`is_active` 를 걸지 않는다**(`:82-94`) |
+
+      Postgres 는 쿼리 술어가 부분 인덱스 술어를 **함의할 때만** 그 인덱스를 쓴다. 목록이
+      `is_active = TRUE` 를 걸지 않으므로 **이 인덱스는 그 `ORDER BY` 를 서빙할 수 없다.**
+
+      선택지가 둘이고 어느 쪽이든 마이그레이션이다:
+      - **(a) DROP** — 지금 어떤 쿼리도 못 쓰므로 쓰기 비용만 낸다.
+      - **(b) 부분 조건을 떼고 재생성**(`ON schedule (next_run_at)`) — UI 정렬이 실제로 쓸 수
+        있는 인덱스를 준다. 이쪽이면 "쓸모없는 인덱스" 가 아니라 **정렬에 인덱스가 없는
+        상태**를 고치는 것이다.
+
+      **코드만으로는 못 고른다** — 실제 실행 계획(`EXPLAIN`)과 테이블 크기가 필요하다.
 - [x] **§2.2 자원 액션 패턴** — 반영 완료 (`spec-draft-scope-and-anchor-drift.md` ③). 이름이 틀렸었다: 33개 액션 중 9개가
       하이픈 복합 동사구라 "단일 동사" 로 성문화하면 27%가 즉시 위반이 된다. 실제 규칙은
       **목적어의 위치**다. 종전 서술: (`--spec` W2). `3-workflow-editor/3-execution.md:757` 이
@@ -328,9 +362,9 @@ field: T | null;
 | 항목 | 트랙 | 선행 조건 |
 |---|---|---|
 | §5.4 drift 2단계 — 검증자 없는 응답 DTO 78곳 | developer | 검증자 도입(반환 타입 명시 또는 응답 대조 테스트) |
-| §5.4 가 WS wire 에도 적용되는가 | planner | "키 부재 ≠ null" 인지 판단 |
+| ~~§5.4 가 WS wire 에도 적용되는가~~ | — | **종결(2026-09-04)** — producer 는 이미 §5.4 준수, consumer `?` 는 별개 축 |
 | `QueryExecutionDto.workflowId` 죽은 필드 | developer | 공개 표면 제거 결정(`forbidNonWhitelisted` 로 400 발생) |
-| `idx_schedule_next_run` 실사용 0건 | developer/DBA | 마이그레이션 결정 |
+| `idx_schedule_next_run` **부분 조건 불일치** | developer/DBA | `EXPLAIN`·테이블 크기 — (a) DROP 인가 (b) 조건 떼고 재생성인가 |
 
 ---
 
