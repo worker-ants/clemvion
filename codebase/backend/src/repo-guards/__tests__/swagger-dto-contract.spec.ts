@@ -41,6 +41,7 @@ import {
 import {
   findNumericAsNumber,
   findSwaggerContractMismatches,
+  scanNumericExposure,
   type ContractMismatch,
 } from './swagger-dto-contract-guard';
 
@@ -294,6 +295,27 @@ describe('numeric 컬럼을 number 로 문서화한 응답 DTO', () => {
   });
 
   /**
+   * ## 위의 "없다" 가 **스캔이 돌았기 때문**임을 고정한다
+   *
+   * `expect([]).toEqual([])` 는 **위반이 없어서 0** 인지 **아무것도 스캔되지 않아서 0** 인지
+   * 구분하지 못한다. 실제로 `ENTITY_DIR`/`RESPONSE_DTO_DIR` 를 존재하지 않는 경로로 바꾸는
+   * 뮤턴트에서 아래 `[대조군]` 은 전부 RED 인데 **위 저장소 단언만 GREEN 으로 살아남았다**
+   * (`20_39_25` W3 실측). 스캔이 실재하는 numeric 컬럼과 응답 DTO 를 집었다는 전제를
+   * 따로 물어야 그 구멍이 닫힌다.
+   *
+   * 두 축을 **각각** 단언한다 — 엔티티 쪽만 보면 `RESPONSE_DTO_DIR` 이 깨져도 통과한다.
+   */
+  it('[전제] 스캔이 실재하는 numeric 컬럼과 응답 DTO 를 집는다', () => {
+    const scan = scanNumericExposure(collectTsFiles(SRC_ROOT));
+
+    // 실재 컬럼: `alert_rule.threshold` 는 `numeric(12,4)`, `llm_usage_log.cost_usd` 도 같은 축.
+    expect(scan.numericColumns).toContain('AlertRule.threshold');
+    expect(scan.numericColumns).toContain('LlmUsageLog.costUsd');
+    // 실재 응답 DTO: 위 엔티티와 이름 관례로 짝지어지는 쪽.
+    expect(scan.responseDtoClasses).toContain('AlertRuleDto');
+  });
+
+  /**
    * 픽스처가 **중첩 경로**를 쓴다 — 이 술어는 `/entities/` 와 `/dto/responses/` 로 역할을
    * 가르므로, 평평한 tmpdir 파일로는 분류 자체가 성립하지 않아 단언이 공허해진다.
    * (`withFiles` 가 중첩 이름을 지원하도록 만든 이유가 이것이다.)
@@ -353,6 +375,36 @@ describe('numeric 컬럼을 number 로 문서화한 응답 DTO', () => {
       [
         '사이에 다른 데코레이터가 낀다',
         "export class Probe {\n  @Column({ type: 'numeric' })\n  @Index()\n  amount: string;\n}\n",
+      ],
+    ])('%s — 그래도 잡는다', (_label, entitySource) => {
+      withFiles(
+        {
+          'entities/probe.entity.ts': entitySource,
+          'dto/responses/probe-response.dto.ts':
+            'export class ProbeDto {\n  amount: number;\n}\n',
+        },
+        (paths) => {
+          expect(findNumericAsNumber(Object.values(paths))).toEqual([
+            { dto: 'ProbeDto', field: 'amount', entity: 'Probe' },
+          ]);
+        },
+      );
+    });
+
+    /**
+     * AST 로 옮긴 뒤에도 **한 칸 좁았다** (`20_39_25` W1). TypeORM 은 컬럼 타입을 옵션
+     * 객체의 `type:` 으로도, **포지셔널 첫 인자**로도 받는다. 옵션만 읽던 초판은 뒤 형태를
+     * 조용히 "numeric 아님" 으로 분류했다 — 저장소에 지금 그 형태가 없다는 것은 근거가
+     * 못 된다. 이 가드의 존재 이유가 **미래의 재발 차단**이기 때문이다.
+     */
+    it.each([
+      [
+        '포지셔널 타입 인자 + 옵션 객체',
+        "export class Probe {\n  @Column('numeric', { precision: 12, scale: 4 })\n  amount: string;\n}\n",
+      ],
+      [
+        '포지셔널 타입 인자만',
+        "export class Probe {\n  @Column('decimal')\n  amount: string;\n}\n",
       ],
     ])('%s — 그래도 잡는다', (_label, entitySource) => {
       withFiles(

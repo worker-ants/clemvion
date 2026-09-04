@@ -58,22 +58,43 @@ function callDecorators(
     }));
 }
 
+/**
+ * 데코레이터 인자 객체들에서 `key` 프로퍼티를 찾아 `pick` 이 값을 돌려주는 **첫** 자리를
+ * 반환한다. 없으면 `undefined`.
+ *
+ * `pick` 이 `undefined` 를 주면 **계속 훑는다** — 같은 키가 여러 번 나오고 앞의 것이 원하는
+ * 리터럴 형태가 아닐 때(`required: someVar` 뒤에 `required: true`) 뒤엣것을 놓치지 않기
+ * 위해서다. boolean 리더가 `false` 를 돌려주는 것과 "못 찾음" 은 `undefined` 비교로 갈린다.
+ */
+function readOption<T>(
+  call: ts.CallExpression,
+  key: string,
+  sf: ts.SourceFile,
+  pick: (initializer: ts.Expression) => T | undefined,
+): T | undefined {
+  for (const arg of call.arguments) {
+    if (!ts.isObjectLiteralExpression(arg)) continue;
+    for (const prop of arg.properties) {
+      if (!ts.isPropertyAssignment(prop)) continue;
+      if (prop.name.getText(sf) !== key) continue;
+      const picked = pick(prop.initializer);
+      if (picked !== undefined) return picked;
+    }
+  }
+  return undefined;
+}
+
 /** 데코레이터 인자 객체에서 boolean 리터럴 프로퍼티를 읽는다. 없으면 `undefined`. */
 function readBooleanOption(
   call: ts.CallExpression,
   key: string,
   sf: ts.SourceFile,
 ): boolean | undefined {
-  for (const arg of call.arguments) {
-    if (!ts.isObjectLiteralExpression(arg)) continue;
-    for (const prop of arg.properties) {
-      if (!ts.isPropertyAssignment(prop)) continue;
-      if (prop.name.getText(sf) !== key) continue;
-      if (prop.initializer.kind === ts.SyntaxKind.TrueKeyword) return true;
-      if (prop.initializer.kind === ts.SyntaxKind.FalseKeyword) return false;
-    }
-  }
-  return undefined;
+  return readOption(call, key, sf, (init) => {
+    if (init.kind === ts.SyntaxKind.TrueKeyword) return true;
+    if (init.kind === ts.SyntaxKind.FalseKeyword) return false;
+    return undefined;
+  });
 }
 
 /** 데코레이터 인자 객체에서 문자열 리터럴 프로퍼티를 읽는다. 없으면 `undefined`. */
@@ -82,16 +103,9 @@ function readStringOption(
   key: string,
   sf: ts.SourceFile,
 ): string | undefined {
-  for (const arg of call.arguments) {
-    if (!ts.isObjectLiteralExpression(arg)) continue;
-    for (const prop of arg.properties) {
-      if (!ts.isPropertyAssignment(prop)) continue;
-      if (prop.name.getText(sf) !== key) continue;
-      if (ts.isStringLiteralLike(prop.initializer))
-        return prop.initializer.text;
-    }
-  }
-  return undefined;
+  return readOption(call, key, sf, (init) =>
+    ts.isStringLiteralLike(init) ? init.text : undefined,
+  );
 }
 
 /**
@@ -234,9 +248,35 @@ export interface NumericAsNumberOffender {
   readonly entity: string;
 }
 
+/** `scanNumericExposure` 의 결과 — 위반 목록 + **스캔이 실제로 집은 것**. */
+export interface NumericExposureScan {
+  /** 엔티티에서 찾은 `numeric`/`decimal` 컬럼. `"AlertRule.threshold"` 형식, 정렬됨. */
+  readonly numericColumns: readonly string[];
+  /** 응답 DTO 디렉터리에서 찾은 클래스 이름. 정렬됨. */
+  readonly responseDtoClasses: readonly string[];
+  readonly offenders: NumericAsNumberOffender[];
+}
+
 /** 역할 판별용 디렉터리 표식. 경로는 **POSIX 로 정규화한 뒤** 검사한다. */
 const ENTITY_DIR = '/entities/';
 const RESPONSE_DTO_DIR = '/dto/responses/';
+
+/**
+ * `@Column(...)` 이 선언한 컬럼 타입.
+ *
+ * TypeORM 은 **두 형태**를 똑같이 받는다 — `@Column('numeric', { precision: 12, scale: 4 })`
+ * 의 포지셔널 첫 인자와 `@Column({ type: 'numeric' })` 의 `type:` 옵션. 옵션만 읽으면 앞
+ * 형태가 조용히 "numeric 아님" 으로 분류된다 (`20_39_25` W1). 저장소에는 지금 앞 형태가
+ * 없지만 — 이 가드의 존재 이유가 **미래의 재발 차단**이라 "지금 없다" 는 근거가 못 된다.
+ */
+function readColumnType(
+  call: ts.CallExpression,
+  sf: ts.SourceFile,
+): string | undefined {
+  const [first] = call.arguments;
+  if (first && ts.isStringLiteralLike(first)) return first.text;
+  return readStringOption(call, 'type', sf);
+}
 
 /**
  * `@Column({ type: 'numeric' | 'decimal' })` 인 필드명을 모은다.
@@ -248,6 +288,10 @@ const RESPONSE_DTO_DIR = '/dto/responses/';
  * > 같은 줄이면 개행 강제에 걸리고, `public` 같은 접근 제한자나 사이에 낀 다른 데코레이터
  * > (`@Index()`)에도 깨진다. 넷 다 **numeric 컬럼을 "numeric 아님" 으로 조용히 분류**해
  * > 가드의 존재 이유를 무력화한다.
+ *
+ * > **AST 로 옮긴 뒤에도 한 칸 좁았다** (`20_39_25` W1): 옵션 객체의 `type:` 만 읽어서
+ * > TypeORM 이 똑같이 받는 **포지셔널 첫 인자** 형태를 못 봤다 — `readColumnType` 이 그
+ * > 자리를 메운다.
  */
 function collectNumericFields(sf: ts.SourceFile): Map<string, Set<string>> {
   const byClass = new Map<string, Set<string>>();
@@ -259,7 +303,7 @@ function collectNumericFields(sf: ts.SourceFile): Map<string, Set<string>> {
         if (!ts.isPropertyDeclaration(member)) continue;
         for (const { name, call } of callDecorators(member, sf)) {
           if (name !== 'Column') continue;
-          const columnType = readStringOption(call, 'type', sf);
+          const columnType = readColumnType(call, sf);
           if (columnType === 'numeric' || columnType === 'decimal')
             found.add(member.name.getText(sf));
         }
@@ -309,6 +353,22 @@ function collectDtoFieldTypes(
 export function findNumericAsNumber(
   files: string[],
 ): NumericAsNumberOffender[] {
+  return scanNumericExposure(files).offenders;
+}
+
+/**
+ * `findNumericAsNumber` 와 **같은 스캔**을 돌리되 위반 목록뿐 아니라 **무엇을 실제로 봤는지**
+ * 도 함께 돌려준다.
+ *
+ * ## 왜 필요한가 — `expect([]).toEqual([])` 는 두 가지를 못 가른다
+ *
+ * 저장소 전수 스캔의 "위반 0건" 단언은 **위반이 없어서 0** 인지 **애초에 아무것도 스캔되지
+ * 않아서 0** 인지 구분하지 못한다. 실제로 `ENTITY_DIR`/`RESPONSE_DTO_DIR` 를 존재하지 않는
+ * 경로로 바꾸는 뮤턴트에서 대조군은 RED 인데 저장소 단언만 **GREEN 으로 살아남았다**
+ * (`20_39_25` W3 실측). 스캔이 실재하는 numeric 컬럼과 응답 DTO 를 집었다는 **전제**를
+ * 별도로 단언해야 그 구멍이 닫힌다.
+ */
+export function scanNumericExposure(files: string[]): NumericExposureScan {
   const numericFields = new Map<string, Set<string>>();
   const dtoFields = new Map<string, Map<string, string>>();
 
@@ -345,5 +405,14 @@ export function findNumericAsNumber(
       out.push({ dto, field, entity });
     }
   }
-  return out;
+
+  const numericColumns: string[] = [];
+  for (const [cls, fields] of numericFields)
+    for (const field of fields) numericColumns.push(`${cls}.${field}`);
+
+  return {
+    numericColumns: numericColumns.sort(),
+    responseDtoClasses: [...dtoFields.keys()].sort(),
+    offenders: out,
+  };
 }
