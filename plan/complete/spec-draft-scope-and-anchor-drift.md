@@ -2,7 +2,7 @@
 worktree: plan-in-progress-items-b0c80b
 started: 2026-09-04
 owner: project-planner
-status: in-progress
+status: complete
 spec_impact:
   - spec/5-system/2-api-convention.md
   - spec/2-navigation/3-schedule.md

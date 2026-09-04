@@ -120,22 +120,22 @@ export class ExecutionStatusDto {
    * ⚠️ 취소·타임아웃 종결 경로에서는 실행 시간이 아니라 **대기 경과 시간**이다
    * (EIA §6.5 캐비엇).
    */
-  @ApiPropertyOptional({
+  @ApiProperty({
     description:
       '종결 실행의 소요 시간(ms). 종결 전에는 null. 취소·타임아웃 경로에서는 대기 경과 시간이다 (EIA §6.5).',
     type: 'integer',
     example: 4242,
     nullable: true,
   })
-  durationMs?: number | null;
+  durationMs: number | null;
 
   /** waiting_for_input 상태에서만 실값. 그 외에는 `null`. */
-  @ApiPropertyOptional({
+  @ApiProperty({
     description: 'waiting_for_input 상태에서만. 현재 입력 대기 중인 노드.',
     type: () => CurrentNodeDto,
     nullable: true,
   })
-  currentNode?: CurrentNodeDto | null;
+  currentNode: CurrentNodeDto | null;
 
   /**
    * waiting_for_input 상태의 인터랙션 표면. 그 외에는 `null`.
@@ -144,7 +144,7 @@ export class ExecutionStatusDto {
    * `ButtonsContextDto` 로 narrowing 해 fallthrough 케이스에서 런타임 `undefined` 접근이 된다.
    * [Swagger 규약 §1-4](../../../../../../../spec/conventions/swagger.md).
    */
-  @ApiPropertyOptional({
+  @ApiProperty({
     description:
       'waiting_for_input 상태의 인터랙션 표면. buttonConfig 변형 또는 nodeOutput 변형 (키 존재로 분기).',
     oneOf: [
@@ -153,25 +153,25 @@ export class ExecutionStatusDto {
     ],
     nullable: true,
   })
-  context?: ButtonsContextDto | NodeOutputContextDto | null;
+  context: ButtonsContextDto | NodeOutputContextDto | null;
 
   /** completed 가 아니면 `null` (키 present — API 규약 §5.4). */
-  @ApiPropertyOptional({
+  @ApiProperty({
     description: 'completed 시점의 최종 결과 envelope.',
     type: 'object',
     additionalProperties: true,
     nullable: true,
   })
-  result?: Record<string, unknown> | null;
+  result: Record<string, unknown> | null;
 
   /** failed 가 아니면 `null` (키 present — API 규약 §5.4). */
-  @ApiPropertyOptional({
+  @ApiProperty({
     description: 'failed 시점의 에러 envelope.',
     type: 'object',
     additionalProperties: true,
     nullable: true,
   })
-  error?: Record<string, unknown> | null;
+  error: Record<string, unknown> | null;
 
   /**
    * REST 단발 응답에서는 항상 `0` placeholder — in-memory SSE seq 카운터에 접근하지 않는다.
