@@ -324,14 +324,19 @@ field: T | null;
       **"엔티티라 키가 항상 있다" 는 논거는 쓸 수 없다** — `notifications` 4곳 등이 부분
       `select:` 를 쓴다(2026-09-04 실측).
 
-- [ ] **`spec/conventions/swagger.md` 에 numeric 불변식 성문화** (planner, `20_05_42` W2).
+- [x] **`spec/conventions/swagger.md` 에 numeric 불변식 성문화** — 완료 (2026-09-05, §1-6).
+      상세는 [`spec-draft-numeric-wire-convention.md`](../complete/spec-draft-numeric-wire-convention.md).
+      종전 서술: (planner, `20_05_42` W2).
       `numeric`/`decimal` 컬럼을 엔티티 그대로 내보내는 응답은 **문자열**이라는 규칙이
       가드로는 전역 강제되는데 규약 문서에는 없다. 기존 DTO 불변식은 §1/§5 소절로
       규약화해 온 관행이 있다 — 최소한 가드로의 pointer 라도 넣는다.
-- [ ] **`spec/1-data-model.md:873` 이 `threshold` 를 `Float` 로 라벨링** (planner,
+- [x] **`spec/1-data-model.md` 의 `threshold` `Float` 라벨** — 완료 (2026-09-05).
+      `Numeric(12,4)` + wire 타입 명시. 자매 행 `cost_usd` 도 wire 타입을 잇도록 함께 손봤다.
+      종전 서술: (planner,
       `19_43_18` INFO#6). 실제는 `numeric(12,4)` 이고 엔티티·wire 모두 **문자열**이다
       (2026-09-04 정정으로 분명해졌다). 라벨을 DB 타입에 맞춘다.
-- [ ] **`swagger.md` 에 "내부 서사는 `//`, 소비자용 설명은 JSDoc" 분리 가이드** (planner,
+- [x] **`swagger.md` 의 JSDoc/`//` 분리 가이드** — 완료 (2026-09-05, §3).
+      종전 서술: (planner,
       `21_10_30` INFO#3). `nest-cli.json` 의 swagger 플러그인이 **JSDoc 을 공개 OpenAPI
       `description` 으로 내보내므로**, 정정 경위 같은 내부 서사를 JSDoc 에 적으면 API 문서에
       그대로 실린다. `alert-rule-response.dto.ts` 가 이번에 그 분리를 실제로 적용했지만

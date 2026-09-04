@@ -6,6 +6,7 @@ code:
   - codebase/backend/nest-cli.json
   - codebase/backend/src/common/config/production-guards.ts
   - codebase/backend/src/main.ts
+  - codebase/backend/src/repo-guards/__tests__/swagger-dto-contract*.ts
 ---
 
 # Swagger 문서화 일관된 패턴 가이드
@@ -158,6 +159,34 @@ hasBotToken: boolean;
 
 ---
 
+### 1-6. numeric 컬럼의 wire 타입
+
+TypeORM 은 `numeric`/`decimal` 컬럼을 **문자열**로 준다 — 정밀도 손실을 피하기 위한 것이고,
+JS `number` 로 받으면 그 컬럼 타입을 고른 이유가 사라진다.
+
+따라서 응답 DTO 의 타입은 **그 필드가 어떻게 나가는지**를 따른다:
+
+| 노출 경로 | wire 타입 | DTO 선언 |
+| --- | --- | --- |
+| 엔티티를 그대로 반환 (패스스루) | 문자열 | `field: string` + `@ApiProperty({ type: String, example: '10.0000' })` |
+| 서비스가 명시 변환 (`::float` / `Number(...)`) | 숫자 | `field: number` |
+
+**둘 다 정당하다.** 정하는 것은 컬럼 타입이 아니라 **변환이 있느냐**다.
+
+저장소의 두 실례가 각 갈래다 — `alert_rule.threshold`(패스스루 → 문자열),
+`llm_usage_log.cost_usd`(`statistics.service.ts` 가 `SUM(...)::float` + `Number(...)` →
+숫자). 데이터 모델 [§2.24](../1-data-model.md)·[§2.25](../1-data-model.md) 도 이 구분을 적는다.
+
+> **가드**: 패스스루 갈래는 `swagger-dto-contract.spec.ts` 의 `findNumericAsNumber` 가
+> 저장소 전역으로 강제한다 — `numeric`/`decimal` 컬럼을 그대로 내보내는 응답 DTO 가 그
+> 필드를 `number` 라고 하면 실패한다. 짝짓기는 `<Entity>Dto` 이름 관례에 의존하며 그
+> 한계는 술어 docstring 에 캐너리로 고정돼 있다. 명시 변환 갈래는 정적으로 판별할 수
+> 없으므로 **가드가 아니라 이 규약이 담당한다.**
+
+> 근거: [§Rationale — §1-6 numeric wire 타입](#1-6-numeric-wire-타입--가드와-규약의-책임-분리)
+
+---
+
 ## 2) Controller 패턴
 
 ### 2-1. 상단에 `@ApiTags` + `@ApiBearerAuth('access-token')`
@@ -273,6 +302,23 @@ DTO `description` 은 *"한 줄로 읽히는가"* 가 기준이지 글자 수가
 담느라 길어지는 것은 위반이 아니며, 아래 보안·정책 캐비엇은 애초에 길이 논의 밖이다.
 
 > 근거: [§Rationale — §3 DTO 길이는 왜 강제가 아닌가](#3-dto-길이는-왜-강제가-아닌가)
+
+**JSDoc 은 공개 OpenAPI 로 나간다 — 내부 서사를 담지 않는다** (2026-09-05 규약화):
+
+플러그인이 `introspectComments` 로 JSDoc 을 `description` 에 그대로 싣는다(문서 상단).
+즉 DTO 의 `/** ... */` 는 **API 소비자가 읽는 문장**이다. 정정 경위·리뷰 참조·"왜 이렇게
+바꿨는지" 같은 **내부 서사는 JSDoc 이 아니라 그 위의 `//` 주석**에 적는다 — `//` 는
+플러그인이 읽지 않는다.
+
+| 무엇 | 어디 |
+| --- | --- |
+| 소비자가 이 필드를 쓰려면 알아야 하는 것 | JSDoc `/** */` |
+| 왜 이 값이 이 타입인지의 경위, 리뷰·PR 참조 | 바로 위 `//` 주석 |
+
+`alert-rule-response.dto.ts` 의 `threshold` 가 이 분리를 적용한 예다.
+
+**기존 DTO 는 소급 정리 대상이 아니다** — §1-4 신설 때와 같은 원칙이다. 그 자리를 다음에
+건드릴 때 함께 맞춘다.
 
 > **반드시 적는다 — 보안·정책 캐비엇** (2026-08-17 규약화 · 2026-08-22 요청 필드까지 확장·
 > 2026-08-23 "예외"→"적극 지시" 재정의):
@@ -399,6 +445,18 @@ async create(...) { ... }
 ---
 
 ## Rationale
+
+### §1-6 numeric wire 타입 — 가드와 규약의 책임 분리
+
+**기각한 대안 — 가드가 명시 변환 경로까지 판정하게 하기.** 그러면 이 규약 절이 필요 없어진다.
+그러나 그 판정은 **서비스 코드의 데이터 흐름을 따라가야** 성립한다 — `SUM(...)::float` 가 어느
+필드로 흘러 어느 DTO 로 조립되는지를 정적으로 잇는 일이고, `findNumericAsNumber` 가 서 있는
+AST 수준에서 할 수 있는 판정이 아니다. 무리하게 넓히면 그 파일이 스스로 적어 둔 *"정규식으로
+세 번 틀렸다"* 는 자리로 되돌아간다.
+
+그래서 분업한다 — **정적으로 판별 가능한 갈래(패스스루)는 가드**, **변환 유무를 사람이 아는
+갈래는 이 규약**이 맡는다. 저장소의 numeric 컬럼이 둘뿐이고 그 둘이 각각 다른 갈래라는
+실측이 이 형태를 정했다 (`plan/complete/spec-draft-numeric-wire-convention.md`).
 
 ### §0 Swagger UI production 비노출 + opt-in (refactor 04 M-1)
 Swagger UI 의 production 기본 미노출은 무인증 API 표면 정찰(엔드포인트·DTO 구조 노출)을 차단하기 위함이다. 게이팅을 `isSwaggerEnabled(env)` 단일 함수로 분리한 이유는 OAUTH/LLM stub 가드와 **동형 패턴**(`NODE_ENV` 기반 분기 + opt-in env)으로 통일해 운영자 멘탈 모델을 단일화하고 단위 테스트로 분기를 고정하기 위함이다.

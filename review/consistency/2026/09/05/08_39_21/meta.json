@@ -1,0 +1,13 @@
+{
+  "timestamp": "2026-09-05T08:39:21.831003",
+  "mode": "spec draft 검토 (--spec)",
+  "target_path": "plan/in-progress/spec-draft-numeric-wire-convention.md",
+  "checkers": [
+    "cross_spec",
+    "rationale_continuity",
+    "convention_compliance",
+    "plan_coherence",
+    "naming_collision"
+  ],
+  "target_snapshot": "_target/spec-draft-numeric-wire-convention.md"
+}
