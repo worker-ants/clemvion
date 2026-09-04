@@ -1,0 +1,12 @@
+{
+  "timestamp": "2026-09-05T00:19:23.995027",
+  "mode": "구현 완료 후 검토 (--impl-done, scope=spec/, diff-base=origin/main)",
+  "target_path": "spec/",
+  "checkers": [
+    "cross_spec",
+    "rationale_continuity",
+    "convention_compliance",
+    "plan_coherence",
+    "naming_collision"
+  ]
+}

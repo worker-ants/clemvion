@@ -172,7 +172,7 @@ sequenceDiagram
 | `trigger` | 생성 | INSERT `workspace_id, workflow_id, type IN (webhook/schedule/manual), name, is_active, config, endpoint_path?, auth_config_id?` | `type` CHECK 제약은 V001 (`CHECK (type IN ('webhook','schedule','manual'))`). `(workspace_id, endpoint_path) UNIQUE` + `(workspace_id, type)` 인덱스는 V002. |
 | `trigger` | 발사 | UPDATE `last_triggered_at` | — |
 | `schedule` | 생성 | INSERT `workspace_id, trigger_id, cron_expression, timezone, is_active, next_run_at, parameter_values={}` (parameter_values 컬럼은 V011) | FK CASCADE on trigger_id |
-| `schedule` | 발사 후 | UPDATE `last_run_at, next_run_at` (process() 정보성 재계산; 발사 트리거 아님) | `(next_run_at, is_active)` |
+| `schedule` | 발사 후 | UPDATE `last_run_at, next_run_at` (process() 정보성 재계산; 발사 트리거 아님) | `(workspace_id, next_run_at)` — 이 UPDATE 가 쓰는 `next_run_at` 이 그 인덱스의 후행 컬럼이다 (V110). 종전 `(next_run_at, is_active)` 는 목록 조회가 `is_active` 를 걸지 않아 쓰이지 않았다 |
 | `auth_config` | 웹훅 인증 (read) | SELECT `type, config (decrypted), ip_whitelist, is_active` | FK from `trigger.auth_config_id` |
 | `auth_config` | 검증 성공 (write) | UPDATE `last_used_at` (fire-and-forget, 트랜잭션 외) | — |
 | `execution` | 진입 시 | INSERT (자세히는 [`execution.md`](./3-execution.md)) | `trigger_id` FK SET NULL (트리거 삭제 시 실행 이력 보존) |

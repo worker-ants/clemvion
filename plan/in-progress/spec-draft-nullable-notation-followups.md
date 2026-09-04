@@ -376,25 +376,75 @@ field: T | null;
       (1,095 필드 중 `@Transform` 17개, null 축 불일치 0). 예외는 남기고 픽스처가 분기를
       고정함을 뮤테이션으로 확인했다.
 
-- [ ] **`idx_schedule_next_run` — 부분 조건이 어떤 쿼리와도 맞지 않는다** (developer/DBA,
-      2026-09-04 **전제 교체**). 종전 전제("조회처 0건")는 **틀렸다** — 위 §① 실측 참조.
+- [x] **`idx_schedule_next_run` → `(workspace_id, next_run_at)` 교체 완료 (2026-09-04, V110)**. 상세·수치·기각 근거는 **[`spec-draft-schedule-index.md`](../complete/spec-draft-schedule-index.md)**.
 
-      | | 실측 |
+      | | 결과 |
       |---|---|
-      | 인덱스 | `ON schedule (next_run_at, is_active)` **`WHERE is_active = TRUE`** (부분 인덱스) |
-      | `ORDER BY next_run_at` | **발생한다** — 목록 정렬 화이트리스트(`schedules.service.ts:119`) + `qb.orderBy(...)`(`:96`) |
-      | 목록 쿼리의 필터 | `workspace_id` · 선택적 `t.name ILIKE` · 선택적 `t.id` — **`is_active` 를 걸지 않는다**(`:82-94`) |
+      | ~~(a) DROP~~ | 결론은 맞았으나 **근거가 틀렸다** — 부팅 쿼리(`WHERE is_active`)는 부분 인덱스 술어를 **함의한다**. 안 쓰이는 이유는 "못 써서" 가 아니라 활성 70%라 선택도가 낮아서다 |
+      | ~~(b) 부분 조건만 제거~~ | **실측이 반증** — 플래너가 집어 들고 **2.2배 느려진다**(12.77 vs 5.92 ms). 정렬 컬럼을 선두에 둔 것이 원인 |
+      | **(c) `(workspace_id, next_run_at)`** | **채택.** 5.99 → 0.30 ms (**20배**). 기본 정렬(`created_at`)도 6.89 → 1.08 ms |
 
-      Postgres 는 쿼리 술어가 부분 인덱스 술어를 **함의할 때만** 그 인덱스를 쓴다. 목록이
-      `is_active = TRUE` 를 걸지 않으므로 **이 인덱스는 그 `ORDER BY` 를 서빙할 수 없다.**
+      **등재된 두 선택지가 둘 다 답이 아니었다** — 진짜 갭은 이 인덱스가 아니라
+      **`workspace_id` 인덱스의 부재**였고, 목록 조회가 매번 전 테이블을 훑고 있었다.
 
-      선택지가 둘이고 어느 쪽이든 마이그레이션이다:
-      - **(a) DROP** — 지금 어떤 쿼리도 못 쓰므로 쓰기 비용만 낸다.
-      - **(b) 부분 조건을 떼고 재생성**(`ON schedule (next_run_at)`) — UI 정렬이 실제로 쓸 수
-        있는 인덱스를 준다. 이쪽이면 "쓸모없는 인덱스" 가 아니라 **정렬에 인덱스가 없는
-        상태**를 고치는 것이다.
+      spec 서술(`1-data-model.md` §3 + 미러 `data-flow/10-triggers.md` §2.1 + `## Rationale`)과
+      마이그레이션 `V110__schedule_workspace_next_run_index.sql` **모두 이 PR 에서 완료**했다.
+      e2e 가 인덱스 교체를 양방향으로 고정하고, 최적화 대상 쿼리(`GET /api/schedules`)의
+      격리·정렬도 함께 검증한다. **잔여 없음.**
 
-      **코드만으로는 못 고른다** — 실제 실행 계획(`EXPLAIN`)과 테이블 크기가 필요하다.
+- [ ] **`CREATE INDEX CONCURRENTLY IF NOT EXISTS` 재실행 위험 — 규약 차원 처리**
+      (developer, `23_02_51` W1). `IF NOT EXISTS` 는 **이름만 보고 `indisvalid` 를 보지
+      않는다.** 빌드가 실패해 남은 invalid 인덱스를 건너뛴 채 뒤이은 DROP 이 옛 인덱스를
+      지우면 **쓸 수 있는 인덱스가 0개**가 된다 — Postgres 는 invalid 인덱스를 쿼리에 쓰지
+      않으므로 seq scan 으로 조용히 회귀하면서 쓰기 비용만 낸다.
+
+      **실증했다** (2026-09-04): UNIQUE + 중복 데이터로 `CREATE INDEX CONCURRENTLY` 를
+      결정적으로 실패시켜 `indisvalid=false` 를 만든 뒤 종전 순서를 재현하니
+      `NOTICE: ... already exists, skipping` 뒤 옛 인덱스가 삭제돼 최종 상태가 위와 같았다.
+      CREATE 앞에 같은 이름의 DROP 을 두면 복구되는 것도 같은 프로브로 확인했다.
+
+      V110 은 그 DROP 을 넣었다. **선례 `V056`·`V106` 에는 없다** — 이미 적용된
+      마이그레이션은 append-only 라 수정 대상이 아니므로, 처리 위치는 다음 둘 중 하나다:
+      - (a) `migrations/README.md` §5 + `spec/conventions/migrations.md` 에 **패턴으로 성문화**
+        (앞으로 쓰는 CONCURRENTLY 교체는 DROP-먼저)
+      - (b) 배포 런북에 `SELECT indisvalid FROM pg_index ...` 확인 절차 추가
+
+      (a)(b) 는 배타적이지 않다. **`spec/conventions/` 쓰기는 planner 트랙**이라 이 항목은
+      두 트랙에 걸친다.
+
+      > **DROP-first 도 공짜가 아니다** (`23_26_09` W3). 그 DROP 은 대상이 invalid 잔재인지
+      > **정상 인덱스인지 구분하지 않는다** — 구분하려면 `indisvalid` 를 읽고 분기해야 하는데
+      > `DO` 블록은 트랜잭션이라 같은 파일에 `CONCURRENTLY` 와 둘 수 없다. 그래서 **이미 성공한**
+      > 마이그레이션을 Flyway 흐름 밖에서 수동 재실행하면 살아 있는 인덱스를 재빌드한다.
+      >
+      > 즉 규약은 **두 위험 중 하나를 고르는 문제**다:
+      >
+      > | | 실패 후 재실행 | 성공 후 수동 재실행 |
+      > |---|---|---|
+      > | DROP-first 없음 (V056·V106) | **인덱스 0개** | no-op |
+      > | DROP-first 있음 (V110) | 정상 복구 | 재빌드 구간 seq scan |
+      >
+      > V110 은 뒤쪽을 택했다(정상 흐름에서 발생하지 않고 스스로 회복하므로). 규약은 이 선택을
+      > 성문화하거나, `indisvalid` 확인을 런북 절차로 두어 **양쪽을 다 피하는** 길을 정해야 한다.
+- [ ] **코드 주석의 리뷰 세션 ID 인용 — 규약으로 결정하거나 관례를 성문화**
+      (planner, `00_06_38` W2). 리뷰가 *"영구 코드 주석에 일시적 프로세스 식별자가
+      새어 들어갔다"* 고 두 라운드 연속 지적했다. **실측하니 저장소의 오래된 관례였다**
+      (2026-09-05): `origin/main` 의 `codebase/` 안에 `hh_mm_ss` 형태 인용이
+      **104개 파일 · 508회** 있고, 가장 오래된 것은 `roles.guard.spec.ts` 의
+      `review/code/2026/08/08/20_53_48` 이다.
+
+      > **처음 이걸 세다가 "0건" 이라는 거짓 0 을 냈다** — `-E "\b[0-9]{2}_…"` 패턴이
+      > 안 물었는데 그것을 "선례 없음" 으로 읽을 뻔했다. 존재가 확실한 문자열
+      > (`20_16_17`)로 명령을 먼저 검증해서 잡았다.
+
+      즉 이건 이 PR 이 만든 일탈이 아니라 **저장소가 이미 택한 방식**이다. 한 파일만
+      다르게 쓰면 오히려 일관성이 깨진다. 결정이 필요한 것은 둘 중 하나다:
+      - (a) 관례를 `spec/conventions/` 에 **성문화**한다 (세션 ID 는 `review/**` 산출물의
+        영구 경로를 가리키므로 실제로는 해소 가능한 참조다)
+      - (b) 앞으로는 PR 번호·커밋 SHA 로 바꾸기로 하고, 기존 508회는 그대로 둔다
+
+      어느 쪽이든 **한 PR 이 단독으로 정할 일이 아니다** — 그래서 등재한다.
+
 - [x] **§2.2 자원 액션 패턴** — 반영 완료 (`spec-draft-scope-and-anchor-drift.md` ③). 이름이 틀렸었다: 33개 액션 중 9개가
       하이픈 복합 동사구라 "단일 동사" 로 성문화하면 27%가 즉시 위반이 된다. 실제 규칙은
       **목적어의 위치**다. 종전 서술: (`--spec` W2). `3-workflow-editor/3-execution.md:757` 이
@@ -431,7 +481,7 @@ field: T | null;
 | §5.4 drift 2단계 — 검증자 없는 응답 DTO 78곳 | developer | ~~반환 타입 명시~~는 반증됐고, **응답 대조 테스트는 첫 엔드포인트가 세워졌다**(2026-09-04). 남은 선행 조건은 그것을 77곳으로 넓힐 **일반 헬퍼** — 개별 단언 반복은 규모가 안 맞는다 |
 | ~~§5.4 가 WS wire 에도 적용되는가~~ | — | **종결(2026-09-04)** — producer 는 이미 §5.4 준수, consumer `?` 는 별개 축 |
 | ~~`QueryExecutionDto.workflowId` 죽은 필드~~ | — | **종결(2026-09-04)** — 옵션 A(제거) 채택 |
-| `idx_schedule_next_run` **부분 조건 불일치** | developer/DBA | `EXPLAIN`·테이블 크기 — (a) DROP 인가 (b) 조건 떼고 재생성인가 |
+| ~~`idx_schedule_next_run` → `(workspace_id, next_run_at)`~~ | — | **종결(2026-09-04)** — V110 적용 완료. (a)/(b) 는 둘 다 실측으로 기각됐고 답은 (c) 였다 |
 
 ---
 
