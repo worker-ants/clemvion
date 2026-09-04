@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased — `GET /api/executions/workflow/:workflowId` 의 `workflowId` **쿼리** 파라미터 제거
+## Unreleased — **Behavior change (breaking)**: `GET /api/executions/workflow/:workflowId` 의 `workflowId` **쿼리** 파라미터 제거
 
 이 엔드포인트는 **경로가 이미 하나의 워크플로우로 한정**한다. 그런데 쿼리 DTO 에도 같은
 이름의 필터가 선언돼 있었다 — 개념적으로 성립하지 않는 필터다(경로와 같으면 no-op,
@@ -30,6 +30,10 @@ spec(`2-navigation/14-execution-history.md:345`)도 "페이지네이션, 상태 
 
 > **이것은 "저장소 안에서 미발견" 이지 "소비자 부재 확인" 이 아니다.** 저장소 밖 제3자
 > 클라이언트는 관측 범위 밖이다 — 확인하려면 액세스 로그를 봐야 한다.
+
+**회귀 고정**: 이 동작(미선언 키 → 400)은 종전에 어떤 테스트도 붙잡지 않았다.
+`validation.pipe.spec.ts` 의 `forbidNonWhitelisted` describe 블록이 이제 고정한다 —
+**DTO 에서 필드를 지우는 것이 곧 공개 계약 변경**이라는 사실을 다음 사람이 테스트로 만난다.
 
 ### 부수 — `@Transform` 예외의 실사례가 0건이 됐다
 
