@@ -15,6 +15,8 @@ import { registerAndLogin, createTeamWorkspace } from './helpers/auth';
  *   - run-now → executionId 즉시 반환
  *   - delete 후 schedule·trigger 모두 사라짐
  *   - 비활성 스케줄은 trigger.isActive=false
+ *   - 목록 조회가 워크스페이스로 격리되고 `sort=next_run_at` 정렬이 실제로 적용됨
+ *   - V110: schedule 인덱스가 `(workspace_id, next_run_at)` 로 실재 (스키마 drift 방지)
  */
 
 const BASE_URL = process.env.E2E_BASE_URL ?? 'http://backend-e2e:3011';
@@ -76,7 +78,7 @@ describe('Schedule trigger (e2e)', () => {
     expect(created.rows[0].indexdef).not.toMatch(/WHERE/);
 
     const dropped = await db.query(
-      `SELECT 1 FROM pg_class WHERE relname = 'idx_schedule_next_run'`,
+      `SELECT 1 FROM pg_class WHERE relname = 'idx_schedule_next_run' AND relkind = 'i'`,
     );
     expect(dropped.rows).toHaveLength(0);
   });
@@ -306,6 +308,74 @@ describe('Schedule trigger (e2e)', () => {
     );
     expect(after.rows[0].is_active).toBe(true);
   });
+
+  /**
+   * V110 이 최적화 대상으로 삼은 **바로 그 쿼리** — `GET /api/schedules` 의
+   * `WHERE workspace_id = ? ORDER BY next_run_at ... LIMIT`.
+   *
+   * 인덱스의 존재·컬럼 순서는 위 schema 테스트가 고정하지만, **"그 인덱스로 서빙되는 API 가
+   * 올바른 결과를 낸다"는 별개 명제**다 (`23_02_51` W4). 특히 `workspace_id` 가 인덱스 선두
+   * 컬럼이 되면서 격리와 정렬이 같은 인덱스에 얹혔으므로, 둘 다 실제 응답으로 확인한다.
+   */
+  it('J. 목록 조회 — 워크스페이스 격리 + next_run_at 정렬 (V110 대상 쿼리)', async () => {
+    // 이 워크스페이스에 스케줄 2개를 서로 다른 다음 실행 시각으로 만든다.
+    for (const cron of ['0 3 * * *', '0 21 * * *']) {
+      const created = await request(BASE_URL)
+        .post('/api/schedules')
+        .set(authHeaders())
+        .send({
+          workflowId,
+          name: uniqueName('sched-j'),
+          cronExpression: cron,
+          timezone: 'Asia/Seoul',
+        });
+      expect(created.status).toBe(201);
+    }
+
+    const asc = await request(BASE_URL)
+      .get('/api/schedules?sort=next_run_at&order=asc&limit=50')
+      .set(authHeaders());
+    expect(asc.status).toBe(200);
+    const ascRows = asc.body.data as Array<{
+      id: string;
+      nextRunAt: string | null;
+    }>;
+    expect(ascRows.length).toBeGreaterThanOrEqual(2);
+
+    // 정렬이 실제로 적용됐는가 — 값이 서로 다른 행이 있어야 관측 가능하다.
+    const ascTimes = ascRows
+      .map((r) => r.nextRunAt)
+      .filter((v): v is string => v !== null)
+      .map((v) => new Date(v).getTime());
+    expect(new Set(ascTimes).size).toBeGreaterThanOrEqual(2);
+    expect([...ascTimes].sort((a, b) => a - b)).toEqual(ascTimes);
+
+    // 반대 방향도 건다 — 오름차순만 보면 정렬을 무시하는 구현도 통과할 수 있다.
+    const desc = await request(BASE_URL)
+      .get('/api/schedules?sort=next_run_at&order=desc&limit=50')
+      .set(authHeaders());
+    expect(desc.status).toBe(200);
+    const descTimes = (desc.body.data as Array<{ nextRunAt: string | null }>)
+      .map((r) => r.nextRunAt)
+      .filter((v): v is string => v !== null)
+      .map((v) => new Date(v).getTime());
+    expect([...descTimes].sort((a, b) => b - a)).toEqual(descTimes);
+
+    // 워크스페이스 격리 — 다른 워크스페이스에서는 이 스케줄들이 보이지 않는다.
+    const otherWs = await createTeamWorkspace(
+      BASE_URL,
+      token,
+      uniqueName('SCH-OTHER'),
+    );
+    const isolated = await request(BASE_URL)
+      .get('/api/schedules?limit=50')
+      .set({ Authorization: `Bearer ${token}`, 'X-Workspace-Id': otherWs });
+    expect(isolated.status).toBe(200);
+    const mine = new Set(ascRows.map((r) => r.id));
+    for (const row of isolated.body.data as Array<{ id: string }>) {
+      expect(mine.has(row.id)).toBe(false);
+    }
+  }, 60_000);
 
   it('I. trigger DELETE (schedule 타입) → schedule row FK cascade 삭제 + 200 경로 정상 (removeJob 포함)', async () => {
     const create = await request(BASE_URL)

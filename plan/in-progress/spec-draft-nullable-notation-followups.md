@@ -376,8 +376,7 @@ field: T | null;
       (1,095 필드 중 `@Transform` 17개, null 축 불일치 0). 예외는 남기고 픽스처가 분기를
       고정함을 뮤테이션으로 확인했다.
 
-- [ ] **`idx_schedule_next_run` — 실측 완료, 답은 (c). V110 적용만 남았다**
-      (2026-09-04). 상세·수치·기각 근거는 **[`spec-draft-schedule-index.md`](./spec-draft-schedule-index.md)**.
+- [x] **`idx_schedule_next_run` → `(workspace_id, next_run_at)` 교체 완료 (2026-09-04, V110)**. 상세·수치·기각 근거는 **[`spec-draft-schedule-index.md`](./spec-draft-schedule-index.md)**.
 
       | | 결과 |
       |---|---|
@@ -388,9 +387,30 @@ field: T | null;
       **등재된 두 선택지가 둘 다 답이 아니었다** — 진짜 갭은 이 인덱스가 아니라
       **`workspace_id` 인덱스의 부재**였고, 목록 조회가 매번 전 테이블을 훑고 있었다.
 
-      spec 서술(`1-data-model.md` §3 + 미러 `data-flow/10-triggers.md` §2.1)은 planner 턴에서
-      이미 반영했다. **잔여는 마이그레이션 V110 하나**(developer).
+      spec 서술(`1-data-model.md` §3 + 미러 `data-flow/10-triggers.md` §2.1 + `## Rationale`)과
+      마이그레이션 `V110__schedule_workspace_next_run_index.sql` **모두 이 PR 에서 완료**했다.
+      e2e 가 인덱스 교체를 양방향으로 고정하고, 최적화 대상 쿼리(`GET /api/schedules`)의
+      격리·정렬도 함께 검증한다. **잔여 없음.**
 
+- [ ] **`CREATE INDEX CONCURRENTLY IF NOT EXISTS` 재실행 위험 — 규약 차원 처리**
+      (developer, `23_02_51` W1). `IF NOT EXISTS` 는 **이름만 보고 `indisvalid` 를 보지
+      않는다.** 빌드가 실패해 남은 invalid 인덱스를 건너뛴 채 뒤이은 DROP 이 옛 인덱스를
+      지우면 **쓸 수 있는 인덱스가 0개**가 된다 — Postgres 는 invalid 인덱스를 쿼리에 쓰지
+      않으므로 seq scan 으로 조용히 회귀하면서 쓰기 비용만 낸다.
+
+      **실증했다** (2026-09-04): UNIQUE + 중복 데이터로 `CREATE INDEX CONCURRENTLY` 를
+      결정적으로 실패시켜 `indisvalid=false` 를 만든 뒤 종전 순서를 재현하니
+      `NOTICE: ... already exists, skipping` 뒤 옛 인덱스가 삭제돼 최종 상태가 위와 같았다.
+      CREATE 앞에 같은 이름의 DROP 을 두면 복구되는 것도 같은 프로브로 확인했다.
+
+      V110 은 그 DROP 을 넣었다. **선례 `V056`·`V106` 에는 없다** — 이미 적용된
+      마이그레이션은 append-only 라 수정 대상이 아니므로, 처리 위치는 다음 둘 중 하나다:
+      - (a) `migrations/README.md` §5 + `spec/conventions/migrations.md` 에 **패턴으로 성문화**
+        (앞으로 쓰는 CONCURRENTLY 교체는 DROP-먼저)
+      - (b) 배포 런북에 `SELECT indisvalid FROM pg_index ...` 확인 절차 추가
+
+      (a)(b) 는 배타적이지 않다. **`spec/conventions/` 쓰기는 planner 트랙**이라 이 항목은
+      두 트랙에 걸친다.
 - [x] **§2.2 자원 액션 패턴** — 반영 완료 (`spec-draft-scope-and-anchor-drift.md` ③). 이름이 틀렸었다: 33개 액션 중 9개가
       하이픈 복합 동사구라 "단일 동사" 로 성문화하면 27%가 즉시 위반이 된다. 실제 규칙은
       **목적어의 위치**다. 종전 서술: (`--spec` W2). `3-workflow-editor/3-execution.md:757` 이
@@ -427,7 +447,7 @@ field: T | null;
 | §5.4 drift 2단계 — 검증자 없는 응답 DTO 78곳 | developer | ~~반환 타입 명시~~는 반증됐고, **응답 대조 테스트는 첫 엔드포인트가 세워졌다**(2026-09-04). 남은 선행 조건은 그것을 77곳으로 넓힐 **일반 헬퍼** — 개별 단언 반복은 규모가 안 맞는다 |
 | ~~§5.4 가 WS wire 에도 적용되는가~~ | — | **종결(2026-09-04)** — producer 는 이미 §5.4 준수, consumer `?` 는 별개 축 |
 | ~~`QueryExecutionDto.workflowId` 죽은 필드~~ | — | **종결(2026-09-04)** — 옵션 A(제거) 채택 |
-| `idx_schedule_next_run` → `(workspace_id, next_run_at)` | developer | **실측·spec 서술 완료**(planner). 잔여는 **V110 마이그레이션 적용**뿐 — (a)/(b) 는 둘 다 기각됐다 |
+| ~~`idx_schedule_next_run` → `(workspace_id, next_run_at)`~~ | — | **종결(2026-09-04)** — V110 적용 완료. (a)/(b) 는 둘 다 실측으로 기각됐고 답은 (c) 였다 |
 
 ---
 

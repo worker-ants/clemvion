@@ -27,10 +27,30 @@
 -- 크기: 5,368 kB(부분) → 7,960 kB(전체 행). 200,000행 기준 +2.6 MB.
 --
 -- 비-트랜잭션 (executeInTransaction=false, 동봉 .conf) — CREATE/DROP INDEX CONCURRENTLY 가
--- transaction block 안에서 실행 불가하기 때문. 순서·재실행 안전성은 V056 선례를 따른다:
---   1) CREATE 새 인덱스 CONCURRENTLY (다른 이름)
+-- transaction block 안에서 실행 불가하기 때문. 교체 순서는 V056 선례를 따른다.
+--
+-- ## `IF NOT EXISTS` 만으로는 재실행이 안전하지 않다 (23_02_51 W1)
+--
+-- `CREATE INDEX CONCURRENTLY` 가 중간에 실패하면 `indisvalid = false` 인 **invalid 인덱스가
+-- 이름을 점유한 채 남는다**. `IF NOT EXISTS` 는 **이름 존재 여부만 보고 유효성은 보지
+-- 않으므로**, 그대로 재실행하면:
+--   1) CREATE 가 "이미 있다" 며 건너뛰고
+--   2) 뒤이은 DROP 은 정상 수행돼 **옛 인덱스가 사라진다**
+-- 결과는 "새 인덱스 invalid + 옛 인덱스 없음" — Postgres 는 invalid 인덱스를 쿼리에 쓰지
+-- 않으므로 **이 마이그레이션이 없애려던 seq scan 으로 조용히 회귀**하면서 쓰기 비용만 낸다.
+--
+-- 그래서 CREATE 앞에 같은 이름의 DROP 을 둔다. 정상 첫 실행에서는 대상이 없어 no-op 이고,
+-- 실패 후 재실행에서만 invalid 잔재를 치운다. (선례 V056/V106 은 이 줄이 없다 — 같은
+-- 위험이 남아 있으므로 규약 차원의 처리는 후속으로 등재했다.)
+--
+-- 순서:
+--   0) DROP 새 인덱스 이름 CONCURRENTLY — 앞선 실패가 남긴 invalid 잔재 정리 (첫 실행엔 no-op)
+--   1) CREATE 새 인덱스 CONCURRENTLY
 --   2) DROP 옛 인덱스 CONCURRENTLY
--- IF NOT EXISTS / IF EXISTS 로 CONCURRENTLY 실패 후 부분 상태에서도 재실행 안전.
+-- 1) 이 실패해도 옛 인덱스는 2) 전이라 그대로 남는다 — 즉 어느 지점에서 멈추든 DB 는
+-- 마이그레이션 이전 상태이거나 완료 상태이고, "둘 다 없는" 상태로는 가지 않는다.
+
+DROP INDEX CONCURRENTLY IF EXISTS idx_schedule_workspace_next_run;
 
 CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_schedule_workspace_next_run
     ON schedule (workspace_id, next_run_at);

@@ -944,6 +944,39 @@ DocumentChunk·Entity 계열 선례를 따른다.)
 
 ## Rationale
 
+### Schedule 인덱스 `(next_run_at, is_active)` → `(workspace_id, next_run_at)` (2026-09-04)
+
+§3 의 Schedule 행이 서술하던 부분 인덱스는 **어떤 쿼리도 쓰지 않았다**. 목록 조회는
+`WHERE workspace_id = ?` 로 진입하고 `is_active` 를 걸지 않아, Postgres 가 부분 인덱스를
+쓰기 위한 조건(쿼리 술어가 인덱스 술어를 함의)을 만족하지 못한다.
+
+네 후보를 실측 비교했다 (PostgreSQL 18.4, 200,000행, 5회 median). 목록 쿼리 기준:
+
+| 후보 | 계획 | 시간 |
+|---|---|---|
+| 종전 `(next_run_at, is_active) WHERE is_active` | Parallel Seq Scan | 5.99 ms |
+| DROP (인덱스 없음) | Parallel Seq Scan | 5.92 ms |
+| `(next_run_at)` — 부분 조건만 제거 | Index Scan Backward | **12.77 ms** |
+| **`(workspace_id, next_run_at)`** | Index Scan Backward | **0.30 ms** |
+
+**기각한 대안 — 부분 조건만 제거(`(next_run_at)`)**: 이 안이 직관적이지만 **실측이 반증**했다.
+정렬 컬럼이 선두라 플래너가 인덱스를 집어 든 뒤 `next_run_at` 순으로 훑으며 `workspace_id`
+로 거른다 — 20행을 채우려 39,797 엔트리를 버려 아무 인덱스도 없을 때보다 **2.2배 느리다**.
+이 쿼리의 술어는 `workspace_id` 등치이고 `next_run_at` 은 정렬일 뿐이므로 선두는
+`workspace_id` 여야 한다.
+
+**기각한 대안 — `(workspace_id)` 단독**: 크기는 작지만(1.02 ms) 정렬을 인덱스가 주지 못해
+워크스페이스의 전체 행을 읽고 top-N 정렬한다. 워크스페이스당 행이 늘수록 격차가 벌어진다.
+
+**기각한 대안 — 단순 DROP**: 쓰이지 않는 것을 치우는 데서 멈추면 진짜 갭이 남는다. schedule
+에는 `workspace_id` 인덱스가 **아예 없어** 목록 조회가 정렬 컬럼과 무관하게 매번 전 테이블을
+훑고 있었다. 부분 인덱스는 그 사실을 가리는 장식이었다.
+
+교체 비용은 부분→전체 전환에 따른 **+2.6 MB**(200,000행 기준)다.
+
+> 출처: `#1284` 후속으로 남아 있던 developer 항목. 실측·재현 절차는
+> `plan/in-progress/spec-draft-schedule-index.md`, 구현은 V110.
+
 ### `alert_rule` 을 §2.25 로 등재 (2026-08-31)
 
 V016 이 만든 `alert_rule` 이 이 문서에 없었다. 컬럼 정의는 `data-flow/9-observability.md`

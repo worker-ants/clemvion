@@ -3,7 +3,7 @@ title: schedule 인덱스 전략 정정 — 쓰이지 않는 부분 인덱스 �
 worktree: plan-in-progress-items-b0c80b
 started: 2026-09-04
 owner: planner
-status: in-progress
+status: complete
 priority: P2
 spec_impact:
   - spec/1-data-model.md
@@ -159,11 +159,25 @@ Q2 가 이 인덱스를 쓰게 되더라도, Q2 는 **부팅 시 1회** 도는 �
 
 ---
 
-## 6. 이 draft 가 구현을 포함하지 않는 이유
+## 6. 구현 — 같은 PR 의 developer 단계에서 완료
 
-인덱스 교체는 **마이그레이션**이라 `developer` 트랙이다. 이 draft 는 `spec/` 서술만 실제에
-맞춘다. 구현(V110)은 같은 PR 의 developer 단계에서 이어서 수행한다 — spec 과 마이그레이션이
-갈라진 채 머지되면 그것이 이 저장소가 반복해 싸워 온 drift 그 자체가 된다.
+인덱스 교체는 **마이그레이션**이라 `developer` 트랙이다. spec 과 마이그레이션이 갈라진 채
+머지되면 그것이 이 저장소가 반복해 싸워 온 drift 그 자체이므로, **같은 PR 에서** 이어
+수행했다.
+
+| 산출물 | 상태 |
+|---|---|
+| `spec/1-data-model.md` §3 + `## Rationale` | 완료 |
+| `spec/data-flow/10-triggers.md` §2.1 미러 | 완료 |
+| `codebase/backend/migrations/V110__schedule_workspace_next_run_index.{sql,conf}` | 완료 |
+| e2e — 인덱스 교체 **양방향** 고정 + 대상 쿼리(`GET /api/schedules`) 격리·정렬 | 완료 |
+
+> **재실행 안전성은 선례보다 한 걸음 더 갔다** (`23_02_51` W1). `CREATE INDEX CONCURRENTLY
+> IF NOT EXISTS` 는 이름만 보고 유효성을 안 보므로, 빌드가 실패해 남은 invalid 인덱스를
+> 건너뛴 뒤 옛 인덱스를 지워 **쓸 수 있는 인덱스가 0개**가 될 수 있다. 실제 Postgres 로
+> 그 상태를 재현해 확인했고(UNIQUE + 중복 데이터로 결정적 실패 유도), V110 은 CREATE 앞에
+> 같은 이름의 DROP 을 두어 복구된다는 것도 같은 프로브로 확인했다. 선례 V056/V106 에는
+> 이 줄이 없어 같은 위험이 남아 있다 — **규약 차원의 처리는 후속으로 등재**했다.
 
 ---
 
