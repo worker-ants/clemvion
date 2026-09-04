@@ -39,8 +39,8 @@
 |---|---|
 | lint | **PASS** (`_test_logs/lint-20260904-212255.log`) |
 | unit | **PASS** — backend jest **9,338 passed / 9,339 total** (직전 9,337 → **+1**, 신규 캐너리 1건) (`_test_logs/unit-20260904-212355.log`) |
-| build | (실행 중 — 완료 후 실측 기입) |
-| e2e | (실행 중 — 완료 후 실측 기입) |
+| build | **PASS** (`_test_logs/build-20260904-212545.log`) |
+| e2e | **통과** — **51 suites / 293 passed** (직전 라운드와 동일. 이번 fix 는 unit 캐너리 1건 + plan 문서라 e2e 수가 늘 이유가 없다) (`_test_logs/e2e-20260904-212820.log`) |
 
 ## 보류·후속 항목
 
