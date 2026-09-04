@@ -122,7 +122,10 @@ export function findSwaggerContractMismatches(
       ts.ScriptTarget.Latest,
       true,
     );
-    const rel = path.relative(srcRoot, file);
+    // 크로스플랫폼 정규화 — 형제 가드(`masked-reject-callers-guard.ts`·
+    // `production-build-devdep-guard.ts`)와 동일 관례. `path.relative` 단독이면 윈도우에서
+    // `\` 를 남겨 `ContractMismatch.file` 이 플랫폼별로 달라진다(리뷰 W3).
+    const rel = path.relative(srcRoot, file).split(path.sep).join('/');
     const visit = (node: ts.Node): void => {
       if (ts.isPropertyDeclaration(node) && node.type) {
         const decorators = callDecorators(node, sf);

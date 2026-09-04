@@ -45,7 +45,12 @@ export function findCastOffenders(files: string[]): CastOffender[] {
   for (const file of files) {
     const count = countNullAsUnknownAsCasts(fs.readFileSync(file, 'utf8'));
     if (count > 0) {
-      offenders.push({ file: path.relative(SRC_ROOT, file), count });
+      // 크로스플랫폼 정규화 — 형제 가드(`masked-reject-callers-guard.ts`·
+      // `production-build-devdep-guard.ts`) 관례와 통일(리뷰 W3, 세 자리 동시 수정).
+      offenders.push({
+        file: path.relative(SRC_ROOT, file).split(path.sep).join('/'),
+        count,
+      });
     }
   }
   return offenders;
@@ -114,7 +119,11 @@ export function findUntypedNullableColumns(
       if (/\btype:\s*'/.test(deco)) continue;
       const colName = COLUMN_NAME.exec(deco)?.[1];
       if (colName && joined.has(colName)) continue;
-      out.push({ file: path.relative(SRC_ROOT, file), field });
+      // 크로스플랫폼 정규화 — 리뷰 W3, 세 자리 동시 수정.
+      out.push({
+        file: path.relative(SRC_ROOT, file).split(path.sep).join('/'),
+        field,
+      });
     }
   }
   return out;
@@ -243,7 +252,11 @@ export function findStaleSpecCasts(
     for (const m of src.matchAll(SPEC_CAST)) {
       const field = m[1];
       if (!widened.has(field)) continue;
-      out.push({ file: path.relative(SRC_ROOT, file), field });
+      // 크로스플랫폼 정규화 — 리뷰 W3, 세 자리 동시 수정.
+      out.push({
+        file: path.relative(SRC_ROOT, file).split(path.sep).join('/'),
+        field,
+      });
     }
   }
   return out;
