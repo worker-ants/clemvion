@@ -22,11 +22,21 @@
 읽기/쓰기 비대칭은 의도된 것이다 — 쓰기(`CreateAlertRuleDto.threshold`)는 `number` 를 받고
 서비스가 `String(...)` 으로 저장한다.
 
+**영향**: OpenAPI 로 타입을 생성하는 클라이언트에서 `threshold` 가 `number` → `string` 으로
+바뀐다. **wire 는 불변**이므로 이는 생성 타입을 **실제에 맞추는** 방향이다 — 종전 생성
+타입으로 산술하던 코드는 이미 문자열을 받고 있었다(런타임에서 이미 깨져 있었다는 뜻).
+
 ### 왜 아무도 몰랐나
 
-`alerts.controller.list()` 에 **반환 타입 애노테이션이 없다.** 서비스가
-`Promise<AlertRule[]>`(엔티티)를 주고 컨트롤러가 그대로 넘기므로, `tsc` 가 DTO 와 엔티티를
-대조할 지점이 아예 없었다.
+`alerts.controller` 의 **`list`·`create`·`update` 세 응답 모두** 반환 타입 애노테이션이
+없다. 서비스가 `Promise<AlertRule[]>`/`Promise<AlertRule>`(엔티티)를 주고 컨트롤러가 그대로
+넘기므로, `tsc` 가 DTO 와 엔티티를 대조할 지점이 아예 없었다. DTO 를 공유하므로 이번 정정이
+세 응답을 함께 고친다.
+
+**재발 방지**: `swagger-dto-contract` 가드에 축을 하나 더 세웠다 —
+**`numeric`/`decimal` 컬럼을 엔티티 그대로 내보내는 응답 DTO 가 그 필드를 `number` 라고
+말하면 잡는다.** 기존 두 축(presence·null)은 원시 타입 차이를 보지 않아 이 자리를
+구조적으로 못 봤다.
 
 ## Unreleased — **Behavior change (breaking)**: `GET /api/executions/workflow/:workflowId` 의 `workflowId` **쿼리** 파라미터 제거
 

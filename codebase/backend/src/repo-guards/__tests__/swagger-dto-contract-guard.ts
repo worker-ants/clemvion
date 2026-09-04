@@ -183,3 +183,87 @@ export function findSwaggerContractMismatches(
   }
   return out;
 }
+
+/**
+ * `numeric`/`decimal` 컬럼을 **엔티티 그대로 내보내는** 응답 DTO 가 그 필드를 `number` 라고
+ * 말하는 자리.
+ *
+ * ## 왜 이 축이 별도인가
+ *
+ * TypeORM 은 `numeric`/`decimal` 을 **문자열**로 준다 — `Number` 로 받으면 정밀도가 깨지기
+ * 때문이다. 그런데 응답 DTO 가 같은 필드를 `number` 로 문서화하면 **OpenAPI 가 wire 와
+ * 다른 말을 한다.** 위 두 축(presence·null)은 이것을 못 본다 — 둘 다 `number` vs `string`
+ * 같은 **원시 타입 차이**를 보지 않기 때문이다.
+ *
+ * 2026-09-04 에 실제로 그랬다: `AlertRuleDto.threshold` 가 `number` 인데 wire 는
+ * `"10.0000"` 이었고, 프런트엔드는 이미 읽기 타입을 `string` 으로 손수 갈라 두고 있었다 —
+ * **OpenAPI 만 거짓말을 하고 있었다.** 컨트롤러에 반환 타입이 없어 `tsc` 가 대조할 지점이
+ * 없었던 것이 원인이다.
+ *
+ * ## 왜 DTO↔엔티티 전수 대조가 아닌가
+ *
+ * 같은 날 전수 대조를 해 보니 불일치 59건 중 **46건이 `Date` → `string`** 이었다 — JSON
+ * 직렬화의 정상 동작이다. DTO 는 **직렬화된 wire** 를, 엔티티는 **메모리 안의 값**을
+ * 기술하므로 전수 대조는 오탐 덩어리가 된다. 이 술어는 그 간극이 **정밀도 손실로 이어지는
+ * 한 축**만 좁게 겨눈다.
+ */
+export interface NumericAsNumberOffender {
+  readonly dto: string;
+  readonly field: string;
+  readonly entity: string;
+}
+
+const NUMERIC_COLUMN =
+  /@Column\(\{[^}]*type:\s*'(?:numeric|decimal)'[^}]*\}\)\s*\n\s*(?:readonly\s+)?([A-Za-z_$][\w$]*)\s*[!?]?\s*:/g;
+
+export function findNumericAsNumber(
+  files: string[],
+): NumericAsNumberOffender[] {
+  const numericFields = new Map<string, Set<string>>();
+  const dtoFields = new Map<string, Map<string, string>>();
+
+  for (const file of files) {
+    const src = fs.readFileSync(file, 'utf8');
+    const sourceFile = ts.createSourceFile(
+      file,
+      src,
+      ts.ScriptTarget.Latest,
+      true,
+    );
+    const visit = (node: ts.Node): void => {
+      if (ts.isClassDeclaration(node) && node.name) {
+        const cls = node.name.getText(sourceFile);
+        if (file.includes('/entities/')) {
+          const found = new Set<string>();
+          for (const m of src.matchAll(NUMERIC_COLUMN)) found.add(m[1]);
+          if (found.size) numericFields.set(cls, found);
+        } else if (file.includes('/dto/responses/')) {
+          const fields = new Map<string, string>();
+          for (const m of node.members)
+            if (ts.isPropertyDeclaration(m) && m.type)
+              fields.set(
+                m.name.getText(sourceFile),
+                m.type.getText(sourceFile).replace(/\s+/g, ' '),
+              );
+          dtoFields.set(cls, fields);
+        }
+      }
+      ts.forEachChild(node, visit);
+    };
+    visit(sourceFile);
+  }
+
+  const out: NumericAsNumberOffender[] = [];
+  for (const [dto, fields] of dtoFields) {
+    // `XxxDto` ↔ `Xxx` 로 짝짓는다 — 엔티티를 그대로 내보내는 형태만 대상이다.
+    const entity = dto.replace(/Dto$/, '');
+    const numeric = numericFields.get(entity);
+    if (!numeric) continue;
+    for (const [field, type] of fields) {
+      if (!numeric.has(field)) continue;
+      if (!/\bnumber\b/.test(type)) continue;
+      out.push({ dto, field, entity });
+    }
+  }
+  return out;
+}

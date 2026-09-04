@@ -270,6 +270,12 @@ field: T | null;
       - ~~(a) 그 컨트롤러들의 반환 타입을 `Promise<XxxDto[]>` 로 명시 annotate~~ →
         **반증됐다 (2026-09-04 실측).** 아래 참조.
       - **(b) 대표 엔드포인트에 실제 응답 대조 테스트 — 이제 이것만 남았다.**
+        **첫 후보는 `GET /api/alerts/rules`** (`19_43_18` INFO#5) — 바로 이 축의 결함이
+        실제로 나온 자리다.
+
+- [ ] **`spec/1-data-model.md:873` 이 `threshold` 를 `Float` 로 라벨링** (planner,
+      `19_43_18` INFO#6). 실제는 `numeric(12,4)` 이고 엔티티·wire 모두 **문자열**이다
+      (2026-09-04 정정으로 분명해졌다). 라벨을 DB 타입에 맞춘다.
 
       > #### (a) 가 왜 안 되는가 — DTO 와 엔티티는 **다른 것**을 기술한다
       >
@@ -281,7 +287,17 @@ field: T | null;
       > | `Date` → `string` | **46** | **정상** — JSON 직렬화가 `Date` 를 ISO 문자열로 바꾼다 |
       > | enum → `string` | 6 | 정상 (넓힘) |
       > | 관계 축소 (`User` → `XxxUserDto`) | 4 | 정상 (의도된 서브셋) |
-      > | **실제 불일치** | **1** | `AlertRuleDto.threshold` |
+      > | 그 밖 | **3** | 아래 참조 |
+      >
+      > **마지막 행을 처음엔 "실제 불일치 1" 로 적었다 — 표의 다른 행은 버킷 크기인데 그
+      > 행만 판정 결과였다.** 합이 57 이 되어 본문의 59 와 어긋났고 리뷰가 잡았다
+      > (`19_43_18` W4). 그 3건은 —
+      >
+      > | 필드 | 판정 |
+      > |---|---|
+      > | `AlertRuleDto.threshold` (`number` vs `string`) | **진짜 계약 거짓 — 이 PR 이 고쳤다** |
+      > | `IntegrationDto.lastError` | 정상 — JSONB blob 의 구체 형태를 문서화한 축소 |
+      > | `DocumentDto.graphExtractionStatus` | 정상 — 리터럴 유니온 vs enum, 값이 같다 |
       >
       > 반환 타입을 DTO 로 명시하면 **46건의 정상 케이스가 전부 타입 오류가 된다.** DTO 는
       > **직렬화된 wire** 를 기술하고 엔티티는 **메모리 안의 값**을 기술하므로, 타입 수준

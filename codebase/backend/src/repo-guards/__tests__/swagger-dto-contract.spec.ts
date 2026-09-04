@@ -34,8 +34,12 @@ import * as path from 'node:path';
 import { ApiProperty, ApiPropertyOptional, DECORATORS } from '@nestjs/swagger';
 
 import { collectTsFiles } from '../../common/__test-utils__/source-scan';
-import { withFixture } from '../../common/__test-utils__/temp-fixture';
 import {
+  withFiles,
+  withFixture,
+} from '../../common/__test-utils__/temp-fixture';
+import {
+  findNumericAsNumber,
   findSwaggerContractMismatches,
   type ContractMismatch,
 } from './swagger-dto-contract-guard';
@@ -272,5 +276,72 @@ describe('[캐너리] @nestjs/swagger 별칭 가정이 살아있는가', () => {
 
     expect(read('viaAlias')?.required).toBe(false);
     expect(read('viaAlias')?.required).toBe(read('viaExplicit')?.required);
+  });
+});
+
+/**
+ * ## `numeric` 컬럼을 `number` 라고 문서화하는 자리
+ *
+ * TypeORM 은 `numeric`/`decimal` 을 **문자열**로 준다(정밀도 보존). 엔티티를 그대로
+ * 내보내는 응답 DTO 가 그 필드를 `number` 라고 하면 **OpenAPI 가 wire 와 다른 말을 한다.**
+ *
+ * 위 두 축(presence·null)은 이것을 **구조적으로 못 본다** — 둘 다 원시 타입 차이를 보지
+ * 않기 때문이다. 2026-09-04 에 `AlertRuleDto.threshold` 가 정확히 그 사각지대에 있었다.
+ */
+describe('numeric 컬럼을 number 로 문서화한 응답 DTO', () => {
+  it('저장소에 그런 자리가 없다', () => {
+    expect(findNumericAsNumber(collectTsFiles(SRC_ROOT))).toEqual([]);
+  });
+
+  /**
+   * 픽스처가 **중첩 경로**를 쓴다 — 이 술어는 `/entities/` 와 `/dto/responses/` 로 역할을
+   * 가르므로, 평평한 tmpdir 파일로는 분류 자체가 성립하지 않아 단언이 공허해진다.
+   * (`withFiles` 가 중첩 이름을 지원하도록 만든 이유가 이것이다.)
+   */
+  describe('[대조군] 술어가 실제로 무는가', () => {
+    const ENTITY =
+      "export class Probe {\n  @Column({ type: 'numeric', precision: 12, scale: 4 })\n  amount: string;\n}\n";
+
+    it('numeric 컬럼인데 DTO 가 number 면 잡는다', () => {
+      withFiles(
+        {
+          'entities/probe.entity.ts': ENTITY,
+          'dto/responses/probe-response.dto.ts':
+            'export class ProbeDto {\n  amount: number;\n}\n',
+        },
+        (paths) => {
+          expect(findNumericAsNumber(Object.values(paths))).toEqual([
+            { dto: 'ProbeDto', field: 'amount', entity: 'Probe' },
+          ]);
+        },
+      );
+    });
+
+    it('DTO 가 string 이면 안 잡는다 — 정상 형태', () => {
+      withFiles(
+        {
+          'entities/probe.entity.ts': ENTITY,
+          'dto/responses/probe-response.dto.ts':
+            'export class ProbeDto {\n  amount: string;\n}\n',
+        },
+        (paths) => {
+          expect(findNumericAsNumber(Object.values(paths))).toEqual([]);
+        },
+      );
+    });
+
+    it('numeric 이 아닌 컬럼은 DTO 가 number 여도 안 잡는다', () => {
+      withFiles(
+        {
+          'entities/probe.entity.ts':
+            "export class Probe {\n  @Column({ type: 'int' })\n  amount: number;\n}\n",
+          'dto/responses/probe-response.dto.ts':
+            'export class ProbeDto {\n  amount: number;\n}\n',
+        },
+        (paths) => {
+          expect(findNumericAsNumber(Object.values(paths))).toEqual([]);
+        },
+      );
+    });
   });
 });
