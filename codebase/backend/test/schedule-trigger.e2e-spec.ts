@@ -51,6 +51,36 @@ describe('Schedule trigger (e2e)', () => {
     } as const;
   }
 
+  /**
+   * V110 이 `idx_schedule_next_run (next_run_at, is_active) WHERE is_active` 를
+   * `idx_schedule_workspace_next_run (workspace_id, next_run_at)` 으로 교체했다.
+   *
+   * **양쪽 방향을 다 건다.** 새 인덱스의 존재만 보면, 누군가 옛 인덱스를 되살려도
+   * (또는 V110 의 DROP 이 조용히 실패해도) 초록으로 통과한다 — 교체의 절반이 안 닫힌다.
+   *
+   * 근거·실측: `plan/in-progress/spec-draft-schedule-index.md`,
+   * SoT: `spec/1-data-model.md` §3 · `spec/data-flow/10-triggers.md` §2.1.
+   */
+  it('schema: schedule 인덱스가 (workspace_id, next_run_at) 로 교체됨 (V110)', async () => {
+    const created = await db.query<{ indexdef: string; indisvalid: boolean }>(
+      `SELECT i.indisvalid, pg_get_indexdef(i.indexrelid) AS indexdef
+       FROM pg_index i
+       JOIN pg_class c ON c.oid = i.indexrelid
+       WHERE c.relname = 'idx_schedule_workspace_next_run'`,
+    );
+    expect(created.rows).toHaveLength(1);
+    expect(created.rows[0].indisvalid).toBe(true);
+    // 컬럼 순서가 이 인덱스의 존재 이유다 — 뒤집으면 목록 쿼리가 오히려 느려진다(실측 2.2배).
+    expect(created.rows[0].indexdef).toMatch(/\(workspace_id,\s*next_run_at\)/);
+    // 부분 인덱스가 아니어야 한다 — 목록이 `is_active` 를 걸지 않는다.
+    expect(created.rows[0].indexdef).not.toMatch(/WHERE/);
+
+    const dropped = await db.query(
+      `SELECT 1 FROM pg_class WHERE relname = 'idx_schedule_next_run'`,
+    );
+    expect(dropped.rows).toHaveLength(0);
+  });
+
   it('A. preview 엔드포인트가 다음 실행 시각 N개 반환', async () => {
     const res = await request(BASE_URL)
       .post('/api/schedules/preview')
