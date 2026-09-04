@@ -1,0 +1,13 @@
+{
+  "timestamp": "2026-09-04T14:18:59.283475",
+  "mode": "spec draft 검토 (--spec)",
+  "target_path": "plan/in-progress/spec-draft-scope-and-anchor-drift.md",
+  "checkers": [
+    "cross_spec",
+    "rationale_continuity",
+    "convention_compliance",
+    "plan_coherence",
+    "naming_collision"
+  ],
+  "target_snapshot": "_target/spec-draft-scope-and-anchor-drift.md"
+}

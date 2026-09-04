@@ -55,7 +55,7 @@ code:
 | Cron 표현식 | 원본 Cron 표현식 |
 | 사람이 읽을 수 있는 설명 | Cron 표현식을 자연어로 변환한 설명 |
 | 연결된 워크플로우 | 워크플로우 이름 표기. 클릭 시 해당 워크플로우 에디터(`/workflows/{id}`)로 이동 |
-| 다음 실행 시각 | 다음 예정된 실행 시각 (절대 시간) |
+| 다음 실행 시각 | 다음 예정된 실행 시각 (절대 시간). **계산할 수 없으면 `-`** — cron 파싱 실패나 다음 발화 시각 부재로 `next_run_at` 이 NULL 인 경우다 ([트리거 데이터 흐름 §3.2](../data-flow/10-triggers.md) · [데이터 모델 §2.9](../1-data-model.md)) |
 | 행 액션 | 인라인 버튼: 즉시 실행(Run), 활성/비활성 토글(Toggle), 수정(Edit), 삭제(Delete). 토글·수정·삭제는 editor 이상 권한(RoleGate)에서만 노출 |
 
 > 더보기(⋮) 오버플로 메뉴는 "실행 이력"(트리거 호출 이력 Dialog)과 "트리거에서 보기"(→ `/triggers?triggerId=…` 딥링크로 Trigger 목록에서 해당 트리거 상세 drawer 오픈) 항목을 제공한다. 두 항목 모두 트리거가 연결된 스케줄에서만 활성화된다 (`codebase/frontend/src/app/(main)/w/[slug]/schedules/page.tsx`).

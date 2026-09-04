@@ -52,6 +52,7 @@ code:
 | 3단계 이상은 최상위로 분리 | `/api/documents/:docId` (필요 시) |
 | **예외 — RPC-style sub-channel action**: `/api/{resource}/{id}/{channel}/{action}` 형태의 동작 호출은 허용 (e.g. `/api/triggers/:id/notification/rotate-secret`, `/api/triggers/:id/interaction/revoke-token`, `/api/triggers/:id/chat-channel/rotate-bot-token`, `/api/auth/workspaces/:id/switch`). 자원 자체가 아닌 sub-channel 의 부작용 동작 (`rotate-*`, `revoke-*`, `disable-*`, `switch` 등) 이며 URL 만으로 자원·채널·동작을 식별 가능해야 하기 때문 | (좌측 예시 참조) |
 | **예외 — 인증 family 전용 네임스페이스**: `/api/external/{resource}` 는 세션/워크스페이스 인증이 아니라 **execution 단명 토큰(`iext_*`)** 으로만 접근하는 별도 인증 family 다. 같은 자원이라도 인증 주체·수신 인구가 달라 경로를 분리한다 — 규칙 위반이 아니라 명시된 예외다. SoT: [§14 External Interaction API](./14-external-interaction-api.md) (rate-limit 은 아래 [§7](#7-rate-limiting), 부재 표현은 [§5.4](#54-부재-표현--null-vs-키-생략)) | `/api/external/executions/:id`, `/api/external/executions/:id/interact` |
+| **자원 액션**: `/api/{resource}/{id}/{action}` 의 마지막 세그먼트는 자원이 아니라 **동사(구)** 다 — 앞의 경로가 가리키는 자원에 가하는 동작. 케밥 케이스 복합 동사구도 포함한다 (`run-now`, `transfer-ownership`, `set-default`). **목적어는 경로에 두고 액션 이름에 넣지 않는다** — `/workflows/:id/nodes/:nodeId/execute` 이지 `/workflows/:id/execute-node` 가 아니다. 위 RPC-style 예외는 `{channel}` 이 하나 더 끼는 자매 형태다. **Boolean 상태 필드의 단순 토글에는 적용하지 않는다** — [§12.1 상태 토글 패턴](#121-상태-토글-패턴)이 `PATCH /:id { field: value }` 를 규정하며 `POST /:id/activate` 류 전용 엔드포인트를 금지한다 | `/executions/:id/stop`, `/schedules/:id/run-now`, `/workflows/:id/nodes/:nodeId/execute` |
 | **예외 — 인증 상태 전이·capability 액션**: `/api/auth/{action}` 은 자원 CRUD 가 아니라 **인증 상태 전이**(자격 검증·세션 발급/파기·비밀번호 재설정·2FA 등록/해제)이거나 그 전이에 필요한 **read-only capability 조회**(OAuth 시작, WebAuthn 가용성)다. 전이는 조작할 "자원" 이 없거나(로그인) 자원을 노출하면 안 되므로(비밀번호 재설정 토큰) 복수형 명사로 표현할 수 없다 — 규칙 위반이 아니라 명시된 예외다. `/api/auth/workspaces/:id/switch` 는 위 RPC-style 예외 쪽이다. SoT: [§1 인증/인가](./1-auth.md) | `/api/auth/login`, `/api/auth/refresh`, `/api/auth/2fa/verify`, `/api/auth/oauth/:provider` |
 
 ### 2.3 워크스페이스 스코핑
@@ -173,6 +174,8 @@ GET /api/triggers?type=webhook&status=active
 - **`410` 에는 기본값이 없다.** 위 목록은 `GlobalExceptionFilter` 의 상태→코드 매핑이고 그 매핑에 410 항목이 없어, 코드를 명시하지 않은 `410` 응답은 4xx 인데도 `INTERNAL_ERROR` 로 떨어진다. 따라서 **`410` 을 반환하는 경로는 `code` 를 반드시 명시한다** (현행 발행 지점은 전부 명시 — §6 `410` 행의 코드들). 여기에 기본값을 새로 정의하지 않는 이유는 [Rationale](#rationale) 참조.
 
 ### 5.4 부재 표현 — `null` vs 키 생략
+
+> **적용 범위 — 응답 바디.** 본 절은 `## 5. 응답 형식` 하위 절이며 서버가 **내보내는** 표현을 정한다. **요청 바디는 대상이 아니다** — 특히 PATCH 부분 업데이트는 키 생략(=값 불변) · `null`(=초기화) · 값(=설정)의 **tri-state** 가 각각 의미를 갖는 별개 계약이라, 아래 "DTO 선언 형태" 규칙을 그대로 적용하면 `?` 가 사라져 **"필드를 생략하면 값이 유지된다" 는 계약이 깨진다.** 요청 DTO 에서는 `@ApiPropertyOptional({ nullable: true })` + `field?: T | null` 조합이 정당하다 (선례: `UpdateAssistantSessionDto.llmConfigId` — *"null 전달 시 workspace default 로 폴백"*).
 
 값이 없음을 나타내는 방식은 두 가지다. **한 응답 안에 섞여도 무방하나, 필드별로 근거가 있어야 한다.**
 
@@ -416,6 +419,8 @@ Content-Type: application/json
 | 패턴 | `PATCH /:id { field: value }` |
 | 전용 endpoint 불필요 | `POST /:id/activate`, `POST /:id/deactivate` 등의 전용 엔드포인트를 만들지 않음 |
 | 적용 대상 | `is_active` (Workflow, Trigger, Schedule), `is_disabled` (Node), `is_read` (Notification) 등 Boolean 토글 필드 |
+
+> 상태 토글이 **아닌** 동작(실행·중단·복제·권한 이양 등)의 경로 형태는 [§2.2 의 자원 액션 행](#22-명명-규칙)이 정한다.
 
 ### 12.2 유니크 제약 범위
 

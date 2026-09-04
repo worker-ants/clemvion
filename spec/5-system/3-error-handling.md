@@ -106,18 +106,26 @@ code:
 
 엔진 수준 에러 (execution status → `failed`):
 
-| 코드 | 설명 |
-|------|------|
-| `EXECUTION_TIMEOUT` | **Code 노드 스크립트 실행 타임아웃** (엔진 레벨 — execution status → `failed`, EIA `execution.failed.error.code`). **노드 출력 레이어**는 동일 타임아웃을 노드의 `output.error.code = CODE_TIMEOUT` 으로 발행한다 (핸들러 내부 분류 문자열 `EXECUTION_TIMEOUT` → `CODE_TIMEOUT` 정규화) — 두 레이어 구분 SoT: [`conventions/error-codes.md §4`](../conventions/error-codes.md#4-내부-전용-분류-코드-정규화-후-발행). 엔진 레벨 누적 실행시간 초과는 `EXECUTION_TIME_LIMIT_EXCEEDED` 를 쓴다 |
-| `EXECUTION_TIME_LIMIT_EXCEEDED` | 엔진 레벨 — 단일 Execution 의 **누적 active-running 시간**(wall-clock 아님, `waiting_for_input` 대기 제외) 초과 → `failed` ([4-execution-engine §8](./4-execution-engine.md#8-동시-실행-제한)) |
-| `WORKER_HEARTBEAT_TIMEOUT` | active 세그먼트 job 이 BullMQ stalled 재배달(`maxStalledCount=1`) attempts 를 모두 소진(terminal worker failure) → `failed`. **PR4 구현(2026-07-04)** — 부팅 `recoverStuckExecutions` re-drive(§7.5 case B)는 이 코드 미사용(재구동 불가=`RESUME_CHECKPOINT_MISSING`) ([4-execution-engine §7.1](./4-execution-engine.md#71-워커-크래시-복구--bullmq-stalled-job-target)) |
-| `RECURSION_DEPTH_EXCEEDED` | 서브 워크플로우 재귀 깊이 초과 |
-| `MAX_ITERATIONS_EXCEEDED` | Loop/ForEach 최대 반복 횟수 초과 |
-| `CYCLE_DETECTED` | 워크플로우 그래프에 순환 감지 |
-| `INVALID_EXPRESSION` | 표현식 평가 실패 |
-| `VARIABLE_NOT_FOUND` | 참조된 변수 없음 |
-| `TYPE_MISMATCH` | 데이터 타입 불일치 |
-| `ERROR_PORT_FALLBACK` | 에러 포트로 라우팅 시도했으나 연결된 엣지 없음 → Stop Workflow 폴백 |
+> **이 표는 단일 등재처를 뜻하지 않는다.** 아래 코드들은 앵커가 셋으로 갈린다 —
+> `ErrorCode` const(`EXECUTION_TIME_LIMIT_EXCEEDED`) · `EngineErrorCode` const
+> (`WORKER_HEARTBEAT_TIMEOUT`) · 에러 클래스 `readonly code`(`ERROR_PORT_FALLBACK`).
+> **나머지 7종은 앵커 없는 맨 문자열**이라 오탈자가 `tsc` 를 통과한다. 다른 모듈
+> (`shadow-workflow.ts` 의 유니온, `execution-failure-classifier.ts` 의 목록)에 같은 이름이
+> 나오지만 그것은 **소비자·분류기 쪽 어휘**이지 엔진 발행 경로의 앵커가 아니다.
+> 앵커 정책 SoT: [`conventions/error-codes.md`](../conventions/error-codes.md).
+
+| 코드 | 앵커 | 설명 |
+|------|------|------|
+| `EXECUTION_TIMEOUT` | 없음 | **Code 노드 스크립트 실행 타임아웃** (엔진 레벨 — execution status → `failed`, EIA `execution.failed.error.code`). **노드 출력 레이어**는 동일 타임아웃을 노드의 `output.error.code = CODE_TIMEOUT` 으로 발행한다 (핸들러 내부 분류 문자열 `EXECUTION_TIMEOUT` → `CODE_TIMEOUT` 정규화) — 두 레이어 구분 SoT: [`conventions/error-codes.md §4`](../conventions/error-codes.md#4-내부-전용-분류-코드-정규화-후-발행). 엔진 레벨 누적 실행시간 초과는 `EXECUTION_TIME_LIMIT_EXCEEDED` 를 쓴다 |
+| `EXECUTION_TIME_LIMIT_EXCEEDED` | `ErrorCode` | 엔진 레벨 — 단일 Execution 의 **누적 active-running 시간**(wall-clock 아님, `waiting_for_input` 대기 제외) 초과 → `failed` ([4-execution-engine §8](./4-execution-engine.md#8-동시-실행-제한)) |
+| `WORKER_HEARTBEAT_TIMEOUT` | `EngineErrorCode` | active 세그먼트 job 이 BullMQ stalled 재배달(`maxStalledCount=1`) attempts 를 모두 소진(terminal worker failure) → `failed`. **PR4 구현(2026-07-04)** — 부팅 `recoverStuckExecutions` re-drive(§7.5 case B)는 이 코드 미사용(재구동 불가=`RESUME_CHECKPOINT_MISSING`) ([4-execution-engine §7.1](./4-execution-engine.md#71-워커-크래시-복구--bullmq-stalled-job-target)) |
+| `RECURSION_DEPTH_EXCEEDED` | 없음 | 서브 워크플로우 재귀 깊이 초과 |
+| `MAX_ITERATIONS_EXCEEDED` | 없음 | Loop/ForEach 최대 반복 횟수 초과 |
+| `CYCLE_DETECTED` | 없음 | 워크플로우 그래프에 순환 감지 |
+| `INVALID_EXPRESSION` | 없음 | 표현식 평가 실패 |
+| `VARIABLE_NOT_FOUND` | 없음 | 참조된 변수 없음 |
+| `TYPE_MISMATCH` | 없음 | 데이터 타입 불일치 |
+| `ERROR_PORT_FALLBACK` | 클래스 `readonly code` | 에러 포트로 라우팅 시도했으나 연결된 엣지 없음 → Stop Workflow 폴백 |
 
 노드 수준 런타임 에러 (`output.error.code` 로 라우팅, §3.2 참조) — 정식 목록은 `codebase/backend/src/nodes/core/error-codes.ts` 의 `ErrorCode` enum. 주요 항목:
 

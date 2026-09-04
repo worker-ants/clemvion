@@ -48,7 +48,15 @@ developer 가 `spec/` 을 고칠 수 있는 좁은 예외(자기-반증형 소�
       매 라운드가 실재하는 오류를 잡았고 전부 내가 방금 쓴 문장에서 나왔다 — 경위는
       [`spec-draft-error-code-two-surfaces.md`](../complete/spec-draft-error-code-two-surfaces.md)
       §"세 번 고쳤다".
-- [ ] **후속 (별도 planner 턴) — 인접 문서의 선재 drift 2건** (`--spec` `21_39_47` cross_spec).
+- [x] **후속 — 인접 문서의 선재 drift: spec 쪽 2건 반영 완료 (2026-09-04)**
+      (`spec-draft-scope-and-anchor-drift.md` ④). `1-data-model.md` 는 6종의 등재처를 함께
+      적고 "복사가 유일한 채움 경로" 오독을 끊었으며, `3-error-handling.md` §1.4 는 앵커
+      열을 얻었다. **이 항목이 "삼분법" 이라 적은 전제는 실측이 정정했다** — 그 6종에
+      앵커 없는 맨 문자열은 하나도 없고 `RehydrationError.code` 클래스 필드 유니온이
+      세 번째 앵커 종류다.
+- [ ] **잔여 (developer 트랙) — `error-codes.ts` `EngineErrorCode` JSDoc 의 이분법 프레이밍.**
+      spec 이 아니라 코드 주석이라 planner 권한 밖이다. 위 spec 정정이 착지했으므로
+      대조 대상이 명확해졌다. 종전 서술: (`--spec` `21_39_47` cross_spec).
       이 병기가 만든 것이 아니고, 층 기반으로 쓰면서 충돌 주장도 사라졌다. 다만 같은 오독을
       계속 재생산하는 자리라 등재한다:
       - `spec/1-data-model.md:474` — 엔진 인프라 코드 6종을 **소속 구분 없이** 나열한다.
