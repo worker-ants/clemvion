@@ -22,10 +22,7 @@
  * 전수 목록·다음 배치 기준: `plan/in-progress/entity-nullable-column-type-mismatch.md`
  */
 
-import * as fs from 'node:fs';
-import * as os from 'node:os';
-import * as path from 'node:path';
-
+import { withFiles } from '../../common/__test-utils__/temp-fixture';
 import {
   collectTsFiles,
   countNullAsUnknownAsCasts,
@@ -41,36 +38,13 @@ import {
 } from './nullable-type-lie-cast-guard';
 
 /**
- * tmpdir 픽스처. **실제 소스를 변형하지 않는다.**
+ * 단일 파일 픽스처 — 공유 헬퍼에 엔티티 파일명을 고정한 얇은 래퍼.
  *
- * 처음엔 실제 `users.service.ts`·`user.entity.ts` 를 `writeFileSync` 로 변형했다가
- * 복원했다. 두 가지가 잘못됐다: (a) 복원이 실패하면 **서비스 파일이 변조된 채 남고**,
- * (b) `eslint --fix` 가 데코레이터를 여러 줄로 바꾸자 `.replace()` 가 **조용히 no-op** 이
- * 돼 전체 스위트에서만 실패했다 — **무효 뮤턴트**다.
- *
- * > 종전에는 단일 파일용 `withFixture` 와 다중 파일용 `withFiles` 가 **따로** 있었다.
- * > 골격(`mkdtempSync`→write→`try/finally` rmSync)이 같은데, **사본 5개를 없애는 diff
- * > 안에서 새 사본을 만든 것**이었다(리뷰 W3). 하나로 합치고 단일 파일은 얇은 래퍼로 둔다.
+ * 골격(`mkdtempSync`→write→`try/finally` rmSync)은
+ * `common/__test-utils__/temp-fixture.ts` 에 있다. 종전엔 이 파일 안의 지역 함수였는데,
+ * 두 번째 소비처(`swagger-dto-contract.spec.ts`)가 생기면서 옮겼다 — **사본 5개를 없앤
+ * 직후에 새 사본을 만들지 않기 위해서다.**
  */
-function withFiles<T>(
-  files: Record<string, string>,
-  fn: (paths: Record<string, string>) => T,
-): T {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'nullable-guard-'));
-  const paths: Record<string, string> = {};
-  for (const [name, content] of Object.entries(files)) {
-    const full = path.join(dir, name);
-    fs.writeFileSync(full, content);
-    paths[name] = full;
-  }
-  try {
-    return fn(paths);
-  } finally {
-    fs.rmSync(dir, { recursive: true, force: true });
-  }
-}
-
-/** 파일 하나짜리 픽스처 — {@link withFiles} 의 얇은 래퍼. */
 function withFixture<T>(content: string, fn: (file: string) => T): T {
   return withFiles({ 'probe.entity.ts': content }, (paths) =>
     fn(paths['probe.entity.ts']),

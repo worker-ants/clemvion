@@ -1,4 +1,4 @@
-import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { ApiProperty } from '@nestjs/swagger';
 
 /**
  * Background 본문 run 의 집계 상태. 현재 서버 경로상 발행되는 4개 상태만 정의.
@@ -40,33 +40,36 @@ export class BackgroundRunNodeExecutionDto {
   @ApiProperty({ description: '실행 시작 시각 (ISO8601)' })
   startedAt: string;
 
-  @ApiPropertyOptional({ description: '실행 종료 시각 (ISO8601)' })
+  @ApiProperty({ description: '실행 종료 시각 (ISO8601)', nullable: true })
   finishedAt: string | null;
 
-  @ApiPropertyOptional({ description: '실행 소요 시간 (ms)' })
+  @ApiProperty({ description: '실행 소요 시간 (ms)', nullable: true })
   durationMs: number | null;
 
-  @ApiPropertyOptional({
+  @ApiProperty({
     description:
       '입력 데이터 (JSON). 자격증명으로 판별된 값은 마스킹되어 반환된다(DB 원문과 다를 수 있음). `Execution.inputData` 도 2026-08-20 부터 같은 규칙이다 — 두 레벨이 갈리지 않는다. SoT: EIA §R17',
     type: 'object',
     additionalProperties: true,
+    nullable: true,
   })
   inputData: Record<string, unknown> | null;
 
-  @ApiPropertyOptional({
+  @ApiProperty({
     description:
       '출력 데이터 (JSON, NodeHandlerOutput shape). 자격증명으로 판별된 값은 마스킹되어 반환된다(DB 원문과 다를 수 있음) — 형제 필드 `error` 와 같은 정책. ingestion 이 남긴 `[REDACTED]` 마커는 보존된다. SoT: EIA §R17 (spec/5-system/14-external-interaction-api.md)',
     type: 'object',
     additionalProperties: true,
+    nullable: true,
   })
   outputData: Record<string, unknown> | null;
 
-  @ApiPropertyOptional({
+  @ApiProperty({
     description:
       '에러 정보. 자격증명으로 판별된 값은 마스킹되어 반환된다(DB 원문과 다를 수 있음) — 실행 상세의 `nodeExecutions[].error` 와 같은 관문. SoT: EIA §R17 "내부 읽기 경로" (spec/5-system/14-external-interaction-api.md)',
     type: 'object',
     additionalProperties: true,
+    nullable: true,
   })
   error: Record<string, unknown> | null;
 }
@@ -78,8 +81,9 @@ export class BackgroundRunNodeExecutionsPageDto {
   })
   data: BackgroundRunNodeExecutionDto[];
 
-  @ApiPropertyOptional({
+  @ApiProperty({
     description: '다음 페이지 cursor (opaque base64). 없으면 null.',
+    nullable: true,
   })
   nextCursor: string | null;
 
@@ -135,11 +139,12 @@ export class BackgroundRunResponseDto {
   @ApiProperty({ description: 'fork 시점 (ISO8601)' })
   startedAt: string;
 
-  @ApiPropertyOptional({ description: '본문 종료 시점 (ISO8601)' })
+  @ApiProperty({ description: '본문 종료 시점 (ISO8601)', nullable: true })
   completedAt: string | null;
 
-  @ApiPropertyOptional({
+  @ApiProperty({
     description: '본문 실행 시간 (ms). 진행 중이면 null',
+    nullable: true,
   })
   durationMs: number | null;
 
