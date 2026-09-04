@@ -100,14 +100,23 @@ function hasTopLevelNull(type: ts.TypeNode): boolean {
  *
  * ## `@Transform` 예외 — 허용목록이 아니라 원리
  *
- * `@Transform` 이 붙은 필드는 **wire 값과 인스턴스 값의 타입이 다르다**. 예를 들어
- * `QueryExecutionDto.workflowId` 는 `@Transform(v => v === '' ? null : v)` 로 빈 문자열을
- * `null` 로 정규화한다 — 쿼리스트링은 JSON `null` 을 실을 수 없으므로 OpenAPI 가
- * `nullable` 을 말하지 않는 것이 옳고, TS 타입이 `| null` 인 것도 (변환 뒤 값이므로) 옳다.
- * 두 문서가 **서로 다른 대상**을 기술하는 자리라 이 축의 판정 자체가 성립하지 않는다.
+ * `@Transform` 이 붙은 필드는 **wire 값과 인스턴스 값의 타입이 다를 수 있다** — 예컨대
+ * 쿼리스트링의 빈 문자열을 `null` 로 정규화하면, 쿼리스트링은 JSON `null` 을 실을 수 없으니
+ * OpenAPI 가 `nullable` 을 말하지 않는 것이 옳고 TS 타입이 `| null` 인 것도 (변환 뒤 값이
+ * 므로) 옳다. 두 선언이 **서로 다른 대상**을 기술하는 자리라 이 축의 판정 자체가 성립하지
+ * 않는다.
  *
- * 2026-09-04 실측: `Api*` 필드 1,096개 중 `@Transform` 동반은 **18개**이고, 그중 이 축에서
- * 갈리는 것은 **1개**(`workflowId`)다. presence 축은 면제하지 않는다 — `@Transform` 은
+ * > **현재 저장소에 이 예외가 면제하는 실사례는 0건이다** (2026-09-04 재실측: `Api*` 필드
+ * > 1,095개 중 `@Transform` 동반 17개, 그중 null 축이 갈리는 것 **0개**). 종전 이 자리는
+ * > `QueryExecutionDto.workflowId` 를 산 예시로 들었는데, 그 필드가 **죽은 파라미터로
+ * > 판명돼 제거**됐다(경로가 이미 워크플로우를 한정하므로 쿼리 필터가 성립하지 않았다).
+ * >
+ * > 실사례가 0 이어도 **예외는 남긴다.** 원리가 사라진 것이 아니라 그 형태의 필드가 지금
+ * > 없을 뿐이고, 지우면 다음에 그런 필드가 생길 때 오탐이 된다. 대신 분기가 죽지 않도록
+ * > `swagger-dto-contract.spec.ts` 의 `[대조군] @Transform 예외` 픽스처가 **양방향으로**
+ * > 고정한다(면제되는 null 축 · 면제되지 않는 presence 축).
+ *
+ * presence 축은 면제하지 않는다 — `@Transform` 은
  * 키의 존재 여부를 바꾸지 않는다.
  */
 export function findSwaggerContractMismatches(

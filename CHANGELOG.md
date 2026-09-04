@@ -1,5 +1,38 @@
 # Changelog
 
+## Unreleased — `GET /api/executions/workflow/:workflowId` 의 `workflowId` **쿼리** 파라미터 제거
+
+이 엔드포인트는 **경로가 이미 하나의 워크플로우로 한정**한다. 그런데 쿼리 DTO 에도 같은
+이름의 필터가 선언돼 있었다 — 개념적으로 성립하지 않는 필터다(경로와 같으면 no-op,
+다르면 항상 빈 결과).
+
+| | 종전 | 지금 |
+|---|---|---|
+| `QueryExecutionDto` | `workflowId?: string \| null` (`@IsUUID`, `@Transform`) | **제거** |
+| OpenAPI | 쿼리 파라미터로 노출 | 사라짐 |
+
+**"무시되니 무해하다" 가 아니었다.** `@IsOptional()` + `@IsUUID()` 가 붙어 있어, 값이
+UUID 가 아니면 **서버가 읽지도 않는 값 때문에 400** 을 냈다.
+
+### 영향 — 이 파라미터를 보내던 클라이언트는 400 을 받는다
+
+`forbidNonWhitelisted: true` 라 이제 알 수 없는 쿼리 키가 거절된다. 다만 **결과는 전후가
+같다** — 그 필터는 한 번도 적용된 적이 없으므로 응답은 늘 미필터였고, 바뀌는 것은 조용한
+무시가 명시적 에러가 된다는 점뿐이다.
+
+실측으로 확인한 소비자 현황: 서비스가 읽지 않고(`findByWorkflow` 는
+`{page, limit, sort, order, status}` 만 구조분해), 프런트엔드 `ExecutionListParams` 에 없고,
+spec(`2-navigation/14-execution-history.md:345`)도 "페이지네이션, 상태 필터, 정렬" 만
+약속하며, 저장소에 OpenAPI 코드젠 소비자가 없다.
+
+### 부수 — `@Transform` 예외의 실사례가 0건이 됐다
+
+`swagger-dto-contract` 가드의 `@Transform` 예외가 이 필드를 산 예시로 들고 있었다.
+재실측하면 `Api*` 필드 1,095개 중 `@Transform` 동반 17개, 그중 null 축이 갈리는 것 **0개**
+다. **예외는 남긴다** — 원리가 사라진 것이 아니라 그 형태의 필드가 지금 없을 뿐이고,
+지우면 다음에 생길 때 오탐이 된다. 분기가 죽지 않도록 `[대조군] @Transform 예외` 픽스처가
+양방향으로 고정하며, 예외를 무력화하는 뮤턴트로 그 픽스처만 RED 가 됨을 확인했다.
+
 ## Unreleased — `ExecutionStatusDto` 5곳의 `required` 가 `false` → `true`
 
 `#1277` 이 §5.4 를 정정하고 `#1280` 이 그 절을 **"응답 바디 한정"** 으로 명시하면서, 남은

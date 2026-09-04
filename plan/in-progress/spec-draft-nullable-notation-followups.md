@@ -304,14 +304,24 @@ field: T | null;
       되고, 그건 이미 기각된 방향이다. 이 항목을 열 때 **기존 결정 기록을 먼저 읽지
       않았다** — 코드 주석과 EIA 표에 답이 이미 있었다.
 
-- [ ] **`QueryExecutionDto.workflowId` 죽은 필드** (developer, 2026-09-04 발견).
-      `findByWorkflow` 는 경로 파라미터를 쓰고 쿼리에서 `{page,limit,sort,order,status}` 만
-      구조분해한다 — **이 필드는 읽히는 곳이 없다.** frontend `ExecutionListParams` 도 안
-      싣고, `spec/2-navigation/14-execution-history.md:345` 는 이 엔드포인트를 "페이지네이션,
-      상태 필터, 정렬" 로만 문서화한다. 그런데 OpenAPI 에는 필터로 노출되고 `@IsUUID()` 가
-      돌아 잘못된 값이면 400 이 난다 — **아무것도 안 하는 필터를 광고**한다.
-      제거는 `forbidNonWhitelisted: true` 때문에 이 파라미터를 보내던 외부 클라이언트에
-      **400 을 새로 발생**시킨다. 공개 REST 표면 제거라 별건으로 둔다.
+- [x] **`QueryExecutionDto.workflowId` 죽은 필드 — 제거 완료 (2026-09-04).**
+      사용자가 옵션 A(제거)를 선택했다.
+
+      **결정을 가른 것은 "안 읽힌다" 가 아니라 "성립하지 않는다" 였다.** 엔드포인트 경로
+      (`workflow/:workflowId`)가 이미 하나의 워크플로우로 한정하므로 쿼리 레벨 워크플로우
+      필터는 개념적으로 존재할 수 없다 — 같으면 no-op, 다르면 항상 빈 결과. 그래서
+      "고쳐서 살린다" 는 선택지가 애초에 배제됐고, 남은 것은 지우거나 두거나뿐이었다.
+
+      **"무시되니 무해" 도 틀렸다** — `@IsUUID()` 때문에 읽지도 않는 값으로 400 을 냈다.
+
+      영향: `forbidNonWhitelisted: true` 라 이 파라미터를 보내던 클라이언트는 200 → 400.
+      다만 **결과는 전후가 같다**(필터가 한 번도 적용된 적 없음). 저장소에 코드젠 소비자
+      없음·FE 미전송·spec 미약속을 실측 확인했다.
+
+      부수: `swagger-dto-contract` 가드의 `@Transform` 예외가 **실사례 0건**이 됐다
+      (1,095 필드 중 `@Transform` 17개, null 축 불일치 0). 예외는 남기고 픽스처가 분기를
+      고정함을 뮤테이션으로 확인했다.
+
 - [ ] **`idx_schedule_next_run` — 부분 조건이 어떤 쿼리와도 맞지 않는다** (developer/DBA,
       2026-09-04 **전제 교체**). 종전 전제("조회처 0건")는 **틀렸다** — 위 §① 실측 참조.
 
@@ -363,7 +373,7 @@ field: T | null;
 |---|---|---|
 | §5.4 drift 2단계 — 검증자 없는 응답 DTO 78곳 | developer | 검증자 도입(반환 타입 명시 또는 응답 대조 테스트) |
 | ~~§5.4 가 WS wire 에도 적용되는가~~ | — | **종결(2026-09-04)** — producer 는 이미 §5.4 준수, consumer `?` 는 별개 축 |
-| `QueryExecutionDto.workflowId` 죽은 필드 | developer | 공개 표면 제거 결정(`forbidNonWhitelisted` 로 400 발생) |
+| ~~`QueryExecutionDto.workflowId` 죽은 필드~~ | — | **종결(2026-09-04)** — 옵션 A(제거) 채택 |
 | `idx_schedule_next_run` **부분 조건 불일치** | developer/DBA | `EXPLAIN`·테이블 크기 — (a) DROP 인가 (b) 조건 떼고 재생성인가 |
 
 ---
