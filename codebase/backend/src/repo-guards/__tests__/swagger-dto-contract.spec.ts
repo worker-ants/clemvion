@@ -330,6 +330,78 @@ describe('numeric 컬럼을 number 로 문서화한 응답 DTO', () => {
       );
     });
 
+    /**
+     * ## 정규식이 놓쳤던 네 형태 — 리뷰어가 재현한 위음성 (`20_16_17` W1)
+     *
+     * 초판은 `@Column` 을 정규식으로 찾았고, 아래 넷에서 **numeric 컬럼을 "numeric 아님"
+     * 으로 조용히 분류**했다. AST 로 바꾼 뒤 넷 다 잡힌다 — 그 사실을 여기 고정한다.
+     * 이 픽스처들이 없으면 누군가 정규식으로 되돌려도 스위트가 초록으로 통과한다.
+     */
+    it.each([
+      [
+        '옵션에 중첩 객체가 있다',
+        "export class Probe {\n  @Column({ type: 'numeric', transformer: { to: (v) => v, from: (v) => v } })\n  amount: string;\n}\n",
+      ],
+      [
+        '데코레이터와 선언이 같은 줄이다',
+        "export class Probe {\n  @Column({ type: 'numeric' }) amount: string;\n}\n",
+      ],
+      [
+        '접근 제한자가 붙어 있다',
+        "export class Probe {\n  @Column({ type: 'numeric' })\n  public amount: string;\n}\n",
+      ],
+      [
+        '사이에 다른 데코레이터가 낀다',
+        "export class Probe {\n  @Column({ type: 'numeric' })\n  @Index()\n  amount: string;\n}\n",
+      ],
+    ])('%s — 그래도 잡는다', (_label, entitySource) => {
+      withFiles(
+        {
+          'entities/probe.entity.ts': entitySource,
+          'dto/responses/probe-response.dto.ts':
+            'export class ProbeDto {\n  amount: number;\n}\n',
+        },
+        (paths) => {
+          expect(findNumericAsNumber(Object.values(paths))).toEqual([
+            { dto: 'ProbeDto', field: 'amount', entity: 'Probe' },
+          ]);
+        },
+      );
+    });
+
+    it('`decimal` 도 같은 축이다', () => {
+      withFiles(
+        {
+          'entities/probe.entity.ts':
+            "export class Probe {\n  @Column({ type: 'decimal' })\n  amount: string;\n}\n",
+          'dto/responses/probe-response.dto.ts':
+            'export class ProbeDto {\n  amount: number;\n}\n',
+        },
+        (paths) => {
+          expect(findNumericAsNumber(Object.values(paths))).toHaveLength(1);
+        },
+      );
+    });
+
+    /**
+     * 짝짓기가 `<Entity>Dto` 이름 관례에 의존한다는 **알려진 한계**를 고정한다
+     * (`20_16_17` W3). 저장소에 실제로 그 관례를 벗어난 이름이 있다
+     * (`StatisticsResponseDto`) — 지금은 무해하지만 술어가 못 본다는 사실 자체를 적어 둔다.
+     */
+    it('[알려진 한계] `<Entity>Dto` 관례를 벗어난 이름은 못 본다', () => {
+      withFiles(
+        {
+          'entities/probe.entity.ts':
+            "export class Probe {\n  @Column({ type: 'numeric' })\n  amount: string;\n}\n",
+          'dto/responses/probe-response.dto.ts':
+            'export class ProbeResponseDto {\n  amount: number;\n}\n',
+        },
+        (paths) => {
+          expect(findNumericAsNumber(Object.values(paths))).toEqual([]);
+        },
+      );
+    });
+
     it('numeric 이 아닌 컬럼은 DTO 가 number 여도 안 잡는다', () => {
       withFiles(
         {

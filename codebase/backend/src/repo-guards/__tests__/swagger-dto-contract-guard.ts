@@ -7,7 +7,10 @@
 import * as fs from 'node:fs';
 
 import * as ts from 'typescript';
-import { toPosixRelative } from '../../common/__test-utils__/source-scan';
+import {
+  toPosixPath,
+  toPosixRelative,
+} from '../../common/__test-utils__/source-scan';
 
 /**
  * ## 왜 정규식이 아니라 AST 인가 — 정규식으로 세 번 틀렸다
@@ -68,6 +71,24 @@ function readBooleanOption(
       if (prop.name.getText(sf) !== key) continue;
       if (prop.initializer.kind === ts.SyntaxKind.TrueKeyword) return true;
       if (prop.initializer.kind === ts.SyntaxKind.FalseKeyword) return false;
+    }
+  }
+  return undefined;
+}
+
+/** 데코레이터 인자 객체에서 문자열 리터럴 프로퍼티를 읽는다. 없으면 `undefined`. */
+function readStringOption(
+  call: ts.CallExpression,
+  key: string,
+  sf: ts.SourceFile,
+): string | undefined {
+  for (const arg of call.arguments) {
+    if (!ts.isObjectLiteralExpression(arg)) continue;
+    for (const prop of arg.properties) {
+      if (!ts.isPropertyAssignment(prop)) continue;
+      if (prop.name.getText(sf) !== key) continue;
+      if (ts.isStringLiteralLike(prop.initializer))
+        return prop.initializer.text;
     }
   }
   return undefined;
@@ -213,9 +234,78 @@ export interface NumericAsNumberOffender {
   readonly entity: string;
 }
 
-const NUMERIC_COLUMN =
-  /@Column\(\{[^}]*type:\s*'(?:numeric|decimal)'[^}]*\}\)\s*\n\s*(?:readonly\s+)?([A-Za-z_$][\w$]*)\s*[!?]?\s*:/g;
+/** 역할 판별용 디렉터리 표식. 경로는 **POSIX 로 정규화한 뒤** 검사한다. */
+const ENTITY_DIR = '/entities/';
+const RESPONSE_DTO_DIR = '/dto/responses/';
 
+/**
+ * `@Column({ type: 'numeric' | 'decimal' })` 인 필드명을 모은다.
+ *
+ * > **처음엔 정규식으로 썼고 리뷰가 반박했다** (`20_16_17` W1). **바로 이 파일의 위쪽
+ * > docstring 이 "정규식으로 세 번 틀렸다 — 그래서 AST 로 갔다" 고 적어 둔 자리에서**
+ * > 같은 실수를 했다. 리뷰어들이 재현한 위음성 네 가지 — 옵션에 중첩 객체
+ * > (`transformer: {...}`)가 있으면 `[^}]*` 가 안쪽 `}` 에서 멈추고, 데코레이터와 선언이
+ * > 같은 줄이면 개행 강제에 걸리고, `public` 같은 접근 제한자나 사이에 낀 다른 데코레이터
+ * > (`@Index()`)에도 깨진다. 넷 다 **numeric 컬럼을 "numeric 아님" 으로 조용히 분류**해
+ * > 가드의 존재 이유를 무력화한다.
+ */
+function collectNumericFields(sf: ts.SourceFile): Map<string, Set<string>> {
+  const byClass = new Map<string, Set<string>>();
+  const visit = (node: ts.Node): void => {
+    if (ts.isClassDeclaration(node) && node.name) {
+      const cls = node.name.getText(sf);
+      const found = new Set<string>();
+      for (const member of node.members) {
+        if (!ts.isPropertyDeclaration(member)) continue;
+        for (const { name, call } of callDecorators(member, sf)) {
+          if (name !== 'Column') continue;
+          const columnType = readStringOption(call, 'type', sf);
+          if (columnType === 'numeric' || columnType === 'decimal')
+            found.add(member.name.getText(sf));
+        }
+      }
+      if (found.size) byClass.set(cls, found);
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(sf);
+  return byClass;
+}
+
+/** 응답 DTO 클래스의 필드명 → 선언 타입. */
+function collectDtoFieldTypes(
+  sf: ts.SourceFile,
+): Map<string, Map<string, string>> {
+  const byClass = new Map<string, Map<string, string>>();
+  const visit = (node: ts.Node): void => {
+    if (ts.isClassDeclaration(node) && node.name) {
+      const fields = new Map<string, string>();
+      for (const member of node.members)
+        if (ts.isPropertyDeclaration(member) && member.type)
+          fields.set(
+            member.name.getText(sf),
+            member.type.getText(sf).replace(/\s+/g, ' '),
+          );
+      byClass.set(node.name.getText(sf), fields);
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(sf);
+  return byClass;
+}
+
+/**
+ * `numeric`/`decimal` 컬럼을 엔티티 그대로 내보내는 응답 DTO 가 그 필드를 `number` 라고
+ * 말하는 자리.
+ *
+ * ## 짝짓기는 `<Entity>Dto` **이름 관례**에 의존한다 (알려진 한계)
+ *
+ * `AlertRuleDto` ↔ `AlertRule` 처럼 접미사만 떼어 짝짓는다. 그 관례를 벗어난 이름으로
+ * 엔티티를 그대로 내보내는 DTO 는 **이 술어가 보지 못한다** (`20_16_17` W3). 저장소에
+ * 실제로 그런 이름이 있다 — `StatisticsResponseDto` 가 자매 numeric 컬럼
+ * (`LlmUsageLog.costUsd`)을 노출하지만, 그쪽은 서비스가 `SUM(...)::float` + `Number(...)`
+ * 로 명시 변환해 무해하다. 음성 대조군으로 이 한계를 고정해 두었다.
+ */
 export function findNumericAsNumber(
   files: string[],
 ): NumericAsNumberOffender[] {
@@ -223,39 +313,29 @@ export function findNumericAsNumber(
   const dtoFields = new Map<string, Map<string, string>>();
 
   for (const file of files) {
-    const src = fs.readFileSync(file, 'utf8');
-    const sourceFile = ts.createSourceFile(
+    // 경로 판별 전에 POSIX 로 정규화한다 — 이 파일이 세운 관례이고, 빠뜨리면 윈도우에서
+    // `\` 때문에 분류가 통째로 실패해 **가드가 조용히 "위반 0건" 이 된다** (`20_16_17` W2).
+    const posix = toPosixPath(file);
+    const isEntity = posix.includes(ENTITY_DIR);
+    const isResponseDto = posix.includes(RESPONSE_DTO_DIR);
+    if (!isEntity && !isResponseDto) continue;
+
+    const sf = ts.createSourceFile(
       file,
-      src,
+      fs.readFileSync(file, 'utf8'),
       ts.ScriptTarget.Latest,
       true,
     );
-    const visit = (node: ts.Node): void => {
-      if (ts.isClassDeclaration(node) && node.name) {
-        const cls = node.name.getText(sourceFile);
-        if (file.includes('/entities/')) {
-          const found = new Set<string>();
-          for (const m of src.matchAll(NUMERIC_COLUMN)) found.add(m[1]);
-          if (found.size) numericFields.set(cls, found);
-        } else if (file.includes('/dto/responses/')) {
-          const fields = new Map<string, string>();
-          for (const m of node.members)
-            if (ts.isPropertyDeclaration(m) && m.type)
-              fields.set(
-                m.name.getText(sourceFile),
-                m.type.getText(sourceFile).replace(/\s+/g, ' '),
-              );
-          dtoFields.set(cls, fields);
-        }
-      }
-      ts.forEachChild(node, visit);
-    };
-    visit(sourceFile);
+    if (isEntity)
+      for (const [cls, fields] of collectNumericFields(sf))
+        numericFields.set(cls, fields);
+    else
+      for (const [cls, fields] of collectDtoFieldTypes(sf))
+        dtoFields.set(cls, fields);
   }
 
   const out: NumericAsNumberOffender[] = [];
   for (const [dto, fields] of dtoFields) {
-    // `XxxDto` ↔ `Xxx` 로 짝짓는다 — 엔티티를 그대로 내보내는 형태만 대상이다.
     const entity = dto.replace(/Dto$/, '');
     const numeric = numericFields.get(entity);
     if (!numeric) continue;
