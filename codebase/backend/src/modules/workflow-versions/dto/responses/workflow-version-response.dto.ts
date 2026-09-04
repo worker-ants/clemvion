@@ -1,4 +1,4 @@
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export class WorkflowVersionCreatorDto {
   /** 작성자 UUID */
@@ -34,19 +34,19 @@ export class WorkflowVersionListItemDto {
   version: number;
 
   /** 변경 요약 */
-  @ApiProperty({ nullable: true })
-  changeSummary: string | null;
+  @ApiPropertyOptional({ nullable: true })
+  changeSummary?: string | null;
 
   /** 작성자 UUID */
   @ApiProperty({ format: 'uuid' })
   createdBy: string;
 
   /** 작성자 정보 (조인 시 포함) */
-  @ApiProperty({
+  @ApiPropertyOptional({
     type: () => WorkflowVersionCreatorDto,
     nullable: true,
   })
-  creator: WorkflowVersionCreatorDto | null;
+  creator?: WorkflowVersionCreatorDto | null;
 
   /** 생성 시각 */
   @ApiProperty({ format: 'date-time' })
@@ -67,8 +67,8 @@ export class WorkflowVersionDto {
   version: number;
 
   /** 변경 요약 */
-  @ApiProperty({ nullable: true })
-  changeSummary: string | null;
+  @ApiPropertyOptional({ nullable: true })
+  changeSummary?: string | null;
 
   /** 버전 스냅샷 (노드/엣지 포함) */
   @ApiProperty({ type: 'object', additionalProperties: true })
@@ -79,11 +79,11 @@ export class WorkflowVersionDto {
   createdBy: string;
 
   /** 작성자 정보 (조인 시 포함) */
-  @ApiProperty({
+  @ApiPropertyOptional({
     type: () => WorkflowVersionCreatorDto,
     nullable: true,
   })
-  creator: WorkflowVersionCreatorDto | null;
+  creator?: WorkflowVersionCreatorDto | null;
 
   /** 생성 시각 */
   @ApiProperty({ format: 'date-time' })

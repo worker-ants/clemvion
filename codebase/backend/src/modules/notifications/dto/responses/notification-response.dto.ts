@@ -1,4 +1,4 @@
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 /** 알림 응답 DTO */
 export class NotificationDto {
@@ -33,17 +33,17 @@ export class NotificationDto {
    * `workspace_invitation` (팀 초대) 등이 들어간다. 클라이언트는 unknown 값을 dead link 로 처리한다.
    * (Background 본문 실패의 per-run attribution 은 REST 에 노출되지 않는 내부 컬럼 `background_run_id` 가 담당.)
    */
-  @ApiProperty({
+  @ApiPropertyOptional({
     nullable: true,
     example: 'workflow',
     description:
       '연관 리소스 종류 (딥링크 라우팅 키) — 현재 발행되는 값: `workflow`, `integration`, `workspace_invitation`',
   })
-  resourceType: string | null;
+  resourceType?: string | null;
 
   /** 관련 리소스 UUID (딥링크 대상 — 실패 알림은 workflow id) */
-  @ApiProperty({ format: 'uuid', nullable: true })
-  resourceId: string | null;
+  @ApiPropertyOptional({ format: 'uuid', nullable: true })
+  resourceId?: string | null;
 
   /** 읽음 여부 */
   @ApiProperty()
@@ -54,8 +54,8 @@ export class NotificationDto {
   channel: string;
 
   /** 이메일 발송 시각 (채널이 email 인 경우) */
-  @ApiProperty({ format: 'date-time', nullable: true })
-  emailSentAt: string | null;
+  @ApiPropertyOptional({ format: 'date-time', nullable: true })
+  emailSentAt?: string | null;
 
   /**
    * dismiss 시각 (soft delete) — `null` 이면 visible, 채워지면 사용자가 닫은 상태.
@@ -63,8 +63,8 @@ export class NotificationDto {
    * row 의 값은 일반적으로 `null` 이다. 자세한 라이프사이클은
    * spec/data-flow/8-notifications.md §4 참조.
    */
-  @ApiProperty({ format: 'date-time', nullable: true })
-  dismissedAt: string | null;
+  @ApiPropertyOptional({ format: 'date-time', nullable: true })
+  dismissedAt?: string | null;
 
   /** 생성 시각 */
   @ApiProperty({ format: 'date-time' })

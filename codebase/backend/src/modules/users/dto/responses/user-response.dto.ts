@@ -1,4 +1,4 @@
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { USER_THEMES } from '../update-me.dto';
 
 /** 사용자 프로필 응답 DTO */
@@ -12,8 +12,8 @@ export class UserProfileDto {
   @ApiProperty()
   name: string;
 
-  @ApiProperty({ nullable: true })
-  avatarUrl: string | null;
+  @ApiPropertyOptional({ nullable: true })
+  avatarUrl?: string | null;
 
   @ApiProperty({ example: 'ko' })
   locale: string;
@@ -21,12 +21,12 @@ export class UserProfileDto {
   @ApiProperty({ enum: USER_THEMES, example: 'light' })
   theme: string;
 
-  @ApiProperty({
+  @ApiPropertyOptional({
     nullable: true,
     description:
       '진행 중인 이메일 변경의 확인 대기 신규 이메일. 없으면 null (spec/5-system/1-auth.md §1.1.B).',
   })
-  pendingEmail: string | null;
+  pendingEmail?: string | null;
 }
 
 /** 단순 메시지 응답 (이메일 변경 request/resend/cancel). */

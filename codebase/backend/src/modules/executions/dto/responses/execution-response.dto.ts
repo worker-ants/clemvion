@@ -156,12 +156,12 @@ export class NodeExecutionSummaryDto {
   startedAt: string;
 
   /** 종료 시각 */
-  @ApiProperty({ format: 'date-time', nullable: true })
-  finishedAt: string | null;
+  @ApiPropertyOptional({ format: 'date-time', nullable: true })
+  finishedAt?: string | null;
 
   /** 소요 시간(ms) */
-  @ApiProperty({ nullable: true })
-  durationMs: number | null;
+  @ApiPropertyOptional({ nullable: true })
+  durationMs?: number | null;
 
   /**
    * 노드 입력 데이터.
@@ -170,12 +170,12 @@ export class NodeExecutionSummaryDto {
    * `ExecutionDto.inputData` 와 같은 정책이라 두 레벨이 갈리지 않는다.
    * SoT: EIA §R17 (`spec/5-system/14-external-interaction-api.md`).
    */
-  @ApiProperty({
+  @ApiPropertyOptional({
     type: 'object',
     additionalProperties: true,
     nullable: true,
   })
-  inputData: Record<string, unknown> | null;
+  inputData?: Record<string, unknown> | null;
 
   /**
    * 노드 실행 출력 — `NodeHandlerOutput` envelope 직렬화.
@@ -190,12 +190,12 @@ export class NodeExecutionSummaryDto {
    * **자격증명으로 판별된 값은 마스킹되어 반환된다** (2026-08-16) — 형제 필드 `error` 와
    * 같은 정책이다. SoT: EIA §R17.
    */
-  @ApiProperty({
+  @ApiPropertyOptional({
     type: 'object',
     additionalProperties: true,
     nullable: true,
   })
-  outputData: Record<string, unknown> | null;
+  outputData?: Record<string, unknown> | null;
 
   /**
    * 에러.
@@ -204,12 +204,12 @@ export class NodeExecutionSummaryDto {
    * `Execution.error` 와 **같은 관문**을 지난다. 데이터 모델 §2.14 가 둘을 원본/복사
    * 관계로 규정하므로 한쪽만 가리면 방어가 우회된다. SoT: EIA §R17.
    */
-  @ApiProperty({
+  @ApiPropertyOptional({
     type: 'object',
     additionalProperties: true,
     nullable: true,
   })
-  error: Record<string, unknown> | null;
+  error?: Record<string, unknown> | null;
 }
 
 /** 실행 상세 (노드 실행 이력 포함) */

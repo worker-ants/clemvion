@@ -1,4 +1,4 @@
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import {
   EXECUTION_TRIGGER_SOURCES,
   type ExecutionTriggerSource,
@@ -18,8 +18,8 @@ export class DashboardSummaryDto {
   @ApiProperty({ example: 102 })
   runs7dPrevious: number;
 
-  @ApiProperty({ nullable: true, example: 35.29 })
-  runs7dChangePercent: number | null;
+  @ApiPropertyOptional({ nullable: true, example: 35.29 })
+  runs7dChangePercent?: number | null;
 
   @ApiProperty({ example: 92.75 })
   successRate: number;
@@ -61,8 +61,8 @@ export class RecentExecutionDto {
   })
   status: string;
 
-  @ApiProperty({ nullable: true, example: 1540 })
-  durationMs: number | null;
+  @ApiPropertyOptional({ nullable: true, example: 1540 })
+  durationMs?: number | null;
 
   @ApiProperty({ format: 'date-time' })
   startedAt: string;

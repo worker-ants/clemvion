@@ -1,4 +1,4 @@
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 /** 알림 규칙 응답 DTO */
 export class AlertRuleDto {
@@ -22,16 +22,16 @@ export class AlertRuleDto {
   threshold: number;
 
   /** 평가 윈도우 (ISO 8601 duration) */
-  @ApiProperty({ nullable: true, example: 'PT1H' })
-  window: string | null;
+  @ApiPropertyOptional({ nullable: true, example: 'PT1H' })
+  window?: string | null;
 
   /** 알림 채널 */
   @ApiProperty({ enum: ['in_app', 'email'], example: 'in_app' })
   channel: string;
 
   /** 감시 대상 워크플로우 UUID (null 이면 워크스페이스 전체) */
-  @ApiProperty({ format: 'uuid', nullable: true })
-  workflowId: string | null;
+  @ApiPropertyOptional({ format: 'uuid', nullable: true })
+  workflowId?: string | null;
 
   /** 활성화 여부 */
   @ApiProperty()

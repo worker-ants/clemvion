@@ -1,4 +1,4 @@
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 /** 폴더 응답 DTO */
 export class FolderDto {
@@ -15,8 +15,8 @@ export class FolderDto {
   name: string;
 
   /** 부모 폴더 UUID (루트면 null) */
-  @ApiProperty({ format: 'uuid', nullable: true })
-  parentId: string | null;
+  @ApiPropertyOptional({ format: 'uuid', nullable: true })
+  parentId?: string | null;
 
   /** 같은 레벨에서의 정렬 순서 */
   @ApiProperty({ example: 0 })

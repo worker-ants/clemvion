@@ -1,39 +1,38 @@
 # Changelog
 
-## Unreleased — 응답 DTO 83곳의 `required` 가 `false` → `true` — "생략 가능" 이라던 필드가 실은 상시 존재였다
+## Unreleased — 응답 DTO 15곳의 `required` 가 `false` → `true` — `tsc` 가 검증한 만큼만
 
-`#1277` 이 §5.4 를 정정하고 `#1280` 이 그 절의 **적용 범위를 "응답 바디 한정"** 으로 명시하면서,
-남아 있던 drift 104곳을 요청/응답으로 가르고 **응답측 83곳**을 새 문면에 맞췄다.
+`#1277` 이 §5.4 를 정정하고 `#1280` 이 그 절을 **"응답 바디 한정"** 으로 명시하면서, 남은
+drift 104곳 중 **검증 가능한 15곳**을 새 문면에 맞췄다.
 
-**동작 변경은 없다.** 서버가 내보내는 값은 그대로이고, OpenAPI 가 그 사실을 뒤늦게 따라간다.
+**동작 변경은 없다.** 서버가 내보내는 값은 그대로이고 OpenAPI 가 그 사실을 따라간다.
 
 | | 종전 | 지금 |
 |---|---|---|
-| DTO (83필드) | `@ApiPropertyOptional({ nullable: true }) field?: T \| null` | `@ApiProperty({ nullable: true }) field: T \| null` |
+| `ExecutionDto` 10필드 · `ExecutionStatusDto` 5필드 | `@ApiPropertyOptional({ nullable: true }) field?: T \| null` | `@ApiProperty({ nullable: true }) field: T \| null` |
 
-**영향**: OpenAPI 로 타입을 생성하는 클라이언트에서 이 83필드의 `required` 가 `false` →
-`true` 로 바뀐다. 생성 타입이 좁아지므로 **optional-check 없이 접근**할 수 있게 된다.
-런타임 wire 는 불변이다.
+**영향**: OpenAPI 로 타입을 생성하는 클라이언트에서 이 15필드의 `required` 가 `false` →
+`true`. 생성 타입이 좁아져 optional-check 없이 접근할 수 있게 된다. 런타임 wire 는 불변이다.
 
-### "상시 존재" 를 손으로 판정하지 않았다
+### 왜 104곳이 아니라 15곳인가
 
-이 배치를 등재할 때 *"이 필드가 상시 존재인가 라는 필드별 의미 판단이라 기계화되지
-않는다"* 고 적었다. **틀렸다** — 응답 DTO 는 조립부가 `: SomeDto` 로 타입된 객체 리터럴을
-반환하므로, `?` 를 떼면 **키를 항상 채우지 않는 자리를 `tsc` 가 잡는다.**
+먼저 **요청/응답을 갈랐다**(§5.4 는 응답 전용): 104 = 요청 21 + 응답 83.
 
-83곳을 뒤집고 타입체크한 결과 **비-spec 오류 0건**이었다 — 83필드 전부 프로덕션 조립
-경로에서 항상 채워진다는 뜻이다. 타입체커가 판정자였다.
+그 다음 83곳을 뒤집고 `tsc` 에 물었더니 **비-spec 오류 0건**이라 "전부 상시 존재" 로
+읽었다. **틀렸다** — 도달성을 재 보니 **83 중 tsc 가 실제로 검사한 것은 15뿐**이었다.
+나머지는 컨트롤러가 엔티티를 그대로 반환해 **DTO-typed 대입 지점이 아예 없어** 타입체커가
+발동하지 않는다. 오류 0건은 "전부 옳다" 가 아니라 **"대부분 검사되지 않았다"** 였다.
 
-### 요청 DTO 21곳은 제외했다
+"엔티티라 모든 컬럼이 키로 실린다" 는 대체 논거도 실측이 부정했다 — `notifications` 4곳
+등에서 **부분 `select:`** 를 쓴다. 검증 없이 `required: true` 를 주장할 수 없어 68곳을
+되돌리고 별도 항목으로 등재했다.
 
-§5.4 는 응답 바디 전용이다([API 규약 §5.4](spec/5-system/2-api-convention.md)). 요청측은
-키 생략(=값 불변) · `null`(=초기화) · 값(=설정)의 **PATCH tri-state** 라 `?` 를 떼면
-부분 업데이트 계약이 깨진다.
+### 스키마 테스트가 이 축을 안 보고 있었다
 
-> **분류를 한 번 틀렸다.** 처음엔 `@Body()`/`@Query()` 파라미터 타입 + 상속만 닫아 15곳을
-> 제외했는데, `tsc` 가 `ImportNodeDto`·`SaveCanvasNodeDto` 픽스처에서 54건 오류를 냈다 —
-> **요청 DTO 안에 중첩된 타입**이라 그 폐포에 안 잡혔던 것이다. 필드 타입 참조까지 전이
-> 폐포로 닫아 21곳으로 정정했다. 타입체커가 없었으면 요청 계약 3종을 조용히 깨뜨렸다.
+`SwaggerModule.createDocument()` 를 실제로 빌드하는 유일한 테스트가 `nullable` 만 단언하고
+**`required` 는 어디서도 검사하지 않았다.** `@ApiPropertyOptional` 로 되돌리면 `nullable` 은
+그대로인 채 `required` 만 빠지므로 그 회귀를 통째로 놓친다. 다섯 필드에 대한 `required`
+단언을 추가하고 뮤테이션으로 확인했다(RED 1건 — `nullable` 단언은 GREEN 유지).
 
 ## Unreleased — OpenAPI 선언과 TS 타입이 어긋난 9곳 — Background 실행 응답 8곳은 숨겼고, `llmConfigId` 는 반대로 좁혔다
 

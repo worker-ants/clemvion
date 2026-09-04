@@ -240,19 +240,30 @@ field: T | null;
       (`background-run-response.dto.ts`) + `create-assistant-session.dto.ts` `llmConfigId`
       (반대 방향 — `nullable:true` 인데 TS 가 `string`). 재발 방지 가드
       `swagger-dto-contract.spec.ts` 를 함께 세웠다.
-- [x] **§5.4 drift 배치 — 응답측 83곳 완료 (2026-09-04).** 요청/응답을 먼저 갈랐다(§5.4 는
-      응답 바디 전용, `#1280`). 104 = 요청 21 + 응답 83.
+- [x] **§5.4 drift 배치 — 1단계: `tsc` 가 검증하는 15곳 완료 (2026-09-04).**
+      104 = 요청 21 + 응답 83. 응답 83 중 **타입체커가 실제로 검사하는 15곳**(`ExecutionDto`
+      10 · `ExecutionStatusDto` 5)만 반영했다.
 
-      **"기계화되지 않는다" 던 판정을 타입체커가 했다.** 응답 DTO 조립부가 `: SomeDto` 로
-      타입된 객체 리터럴을 반환하므로 `?` 를 떼면 키를 안 채우는 자리를 `tsc` 가 잡는다 —
-      83곳 뒤집고 **비-spec 오류 0건**이었다.
+      **"기계화되지 않는다" 를 두 번 뒤집었다.** 처음엔 "tsc 가 판정한다" 로 뒤집어 83곳을
+      전부 바꿨는데, 도달성을 재 보니 **tsc 가 검사한 것은 15뿐**이었다 — 나머지는 컨트롤러가
+      엔티티를 그대로 반환해 **DTO-typed 대입 지점이 없다.** 비-spec 오류 0건은 "전부 옳다"
+      가 아니라 **"대부분 검사되지 않았다"** 였다.
 
-      **분류를 한 번 틀렸다**: `@Body()`/`@Query()` + 상속만 닫으면 `ImportNodeDto`·
+      **분류도 한 번 틀렸다**: `@Body()`/`@Query()` + 상속만 닫으면 `ImportNodeDto`·
       `SaveCanvasNodeDto`(요청 DTO 안에 **중첩된** 타입)를 놓쳐 tsc 가 54건을 냈다. 필드
-      타입 참조까지 전이 폐포로 닫아 정정했다.
+      타입 참조까지 전이 폐포로 닫아 21곳으로 정정했다.
 
-      **요청측 21곳은 대상이 아니다** — PATCH tri-state 라 `?` 를 떼면 부분 업데이트 계약이
-      깨진다.
+- [ ] **§5.4 drift 배치 — 2단계: 패스스루 응답 DTO 68곳** (developer). 컨트롤러가 엔티티를
+      그대로 반환하는 경로라 **DTO 가 강제되지 않는 순수 문서**다. `required: true` 를
+      주장하려면 검증자가 필요하다:
+      - (a) 그 컨트롤러들의 반환 타입을 `Promise<XxxDto[]>` 로 명시 annotate → tsc 가 구조를
+        검사하게 만든다. **부수로 실재하는 DTO↔엔티티 불일치가 드러난다** — 리뷰가
+        `AlertRuleDto.threshold: number` vs 엔티티 `AlertRule.threshold: string`(numeric 컬럼)을
+        이미 짚었다. 그래서 이건 표기 정리가 아니라 **계약 검증 도입**이다.
+      - (b) 또는 대표 엔드포인트에 실제 응답 대조 테스트.
+
+      **"엔티티라 키가 항상 있다" 는 논거는 쓸 수 없다** — `notifications` 4곳 등이 부분
+      `select:` 를 쓴다(2026-09-04 실측).
 - [ ] **`QueryExecutionDto.workflowId` 죽은 필드** (developer, 2026-09-04 발견).
       `findByWorkflow` 는 경로 파라미터를 쓰고 쿼리에서 `{page,limit,sort,order,status}` 만
       구조분해한다 — **이 필드는 읽히는 곳이 없다.** frontend `ExecutionListParams` 도 안

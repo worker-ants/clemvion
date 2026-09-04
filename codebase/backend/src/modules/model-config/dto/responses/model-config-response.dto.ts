@@ -20,11 +20,11 @@ export class ModelConfigDto {
   name: string;
 
   /** 마스킹된 API Key (예: sk-****abcd). 자가호스팅 키 미설정 시 null. */
-  @ApiProperty({ nullable: true, example: 'sk-****abcd' })
-  apiKey: string | null;
+  @ApiPropertyOptional({ nullable: true, example: 'sk-****abcd' })
+  apiKey?: string | null;
 
-  @ApiProperty({ nullable: true })
-  baseUrl: string | null;
+  @ApiPropertyOptional({ nullable: true })
+  baseUrl?: string | null;
 
   @ApiProperty({ example: 'gpt-4o-mini' })
   defaultModel: string;
@@ -32,8 +32,8 @@ export class ModelConfigDto {
   @ApiPropertyOptional({ type: 'object', additionalProperties: true })
   defaultParams?: Record<string, unknown>;
 
-  @ApiProperty({ nullable: true, example: 1536 })
-  dimension: number | null;
+  @ApiPropertyOptional({ nullable: true, example: 1536 })
+  dimension?: number | null;
 
   @ApiProperty()
   isDefault: boolean;
@@ -53,8 +53,8 @@ export class ModelTestConnectionResultDto {
   @ApiPropertyOptional()
   latencyMs?: number;
 
-  @ApiProperty({ nullable: true })
-  message: string | null;
+  @ApiPropertyOptional({ nullable: true })
+  message?: string | null;
 
   @ApiPropertyOptional({
     description:

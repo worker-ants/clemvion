@@ -107,15 +107,38 @@ describe('ExecutionStatusDto — OpenAPI 스키마 (EIA §5.3)', () => {
 
     // 이 가드는 **손으로 고른 목록만** 순회한다 — 새 nullable 필드를 여기 넣지 않으면
     // 규약을 어겨도 조용히 통과한다. 목록 자체가 커버리지다.
-    it.each([['result'], ['error'], ['durationMs']])(
-      '%s 는 null 을 쓰는 형제 필드다 — nullable 이다',
-      (field) => {
-        const schema = executionStatus.properties?.[
-          field
-        ] as SwaggerSchemaObject;
-        expect(schema.nullable).toBe(true);
-      },
-    );
+    it.each([
+      ['result'],
+      ['error'],
+      ['durationMs'],
+      ['currentNode'],
+      ['context'],
+    ])('%s 는 null 을 쓰는 형제 필드다 — nullable 이다', (field) => {
+      const schema = executionStatus.properties?.[field] as SwaggerSchemaObject;
+      expect(schema.nullable).toBe(true);
+    });
+
+    /**
+     * ## `required` 축을 직접 단언한다 (리뷰 W2)
+     *
+     * 위 `it.each` 는 `nullable` 만 봤다. 그런데 §5.4 가 `null` 필드에 요구하는 것은
+     * **두 가지**다 — `nullable: true` 이면서 **키가 상시 존재**(`required` 에 포함)라는
+     * 것. `@ApiPropertyOptional` 을 쓰면 `nullable` 은 그대로인 채 `required` 만
+     * 빠지므로, `nullable` 만 보는 단언은 **그 회귀를 통째로 놓친다.**
+     *
+     * 실제로 이 다섯 필드가 그 상태였다(2026-09-04 정정 전).
+     */
+    it('null 을 쓰는 다섯 필드는 required 이기도 하다 — 상시 존재', () => {
+      expect(executionStatus.required ?? []).toEqual(
+        expect.arrayContaining([
+          'result',
+          'error',
+          'durationMs',
+          'currentNode',
+          'context',
+        ]),
+      );
+    });
   });
 
   describe('봉투만 스키마화 — 내부 payload 는 열린 map 으로 남는다', () => {

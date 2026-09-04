@@ -31,16 +31,16 @@ export class TriggerDto {
   config: Record<string, unknown>;
 
   /** 엔드포인트 경로 (webhook 타입) */
-  @ApiProperty({ nullable: true, example: 'abcd1234' })
-  endpointPath: string | null;
+  @ApiPropertyOptional({ nullable: true, example: 'abcd1234' })
+  endpointPath?: string | null;
 
   /** 인증 설정 UUID */
-  @ApiProperty({ format: 'uuid', nullable: true })
-  authConfigId: string | null;
+  @ApiPropertyOptional({ format: 'uuid', nullable: true })
+  authConfigId?: string | null;
 
   /** 마지막 실행 시각 */
-  @ApiProperty({ format: 'date-time', nullable: true })
-  lastTriggeredAt: string | null;
+  @ApiPropertyOptional({ format: 'date-time', nullable: true })
+  lastTriggeredAt?: string | null;
 
   /** Cron 식 (schedule 타입 트리거의 목록·단건 조회 모두 채워짐) */
   @ApiPropertyOptional({ example: '0 9 * * 1-5' })
@@ -51,8 +51,8 @@ export class TriggerDto {
   timezone?: string;
 
   /** 다음 실행 예정 시각 (schedule 타입 트리거의 목록·단건 조회 모두 채워짐) */
-  @ApiProperty({ format: 'date-time', nullable: true })
-  nextRunAt: string | null;
+  @ApiPropertyOptional({ format: 'date-time', nullable: true })
+  nextRunAt?: string | null;
 
   /** 생성 시각 */
   @ApiProperty({ format: 'date-time' })
@@ -88,6 +88,6 @@ export class TriggerHistoryItemDto {
   startedAt: string;
 
   /** 소요 시간(ms) */
-  @ApiProperty({ nullable: true })
-  durationMs: number | null;
+  @ApiPropertyOptional({ nullable: true })
+  durationMs?: number | null;
 }
