@@ -401,6 +401,11 @@ describe('Schedule trigger (e2e)', () => {
     expect([...createdTimes].sort((a, b) => b - a)).toEqual(createdTimes);
 
     // 워크스페이스 격리 — 다른 워크스페이스에서는 이 스케줄들이 보이지 않는다.
+    //
+    // **직접 단언한다** (`23_47_43` W1). 처음엔 `for (row of data) expect(내것아님)` 로 썼는데
+    // `otherWs` 에는 스케줄이 하나도 없어 **루프 바디가 한 번도 실행되지 않았다** — 정상
+    // 경로에서 관측되지 않는 단언은 통과해도 아무것도 말해 주지 않는다. 빈 목록이 기대값이면
+    // 기대값을 그대로 쓰는 것이 강한 형태이고, 이 저장소의 다른 격리 테스트도 그렇게 한다.
     const otherWs = await createTeamWorkspace(
       BASE_URL,
       token,
@@ -410,9 +415,6 @@ describe('Schedule trigger (e2e)', () => {
       .get('/api/schedules?limit=50')
       .set({ Authorization: `Bearer ${token}`, 'X-Workspace-Id': otherWs });
     expect(isolated.status).toBe(200);
-    const mine = new Set(ascRows.map((r) => r.id));
-    for (const row of isolated.body.data as Array<{ id: string }>) {
-      expect(mine.has(row.id)).toBe(false);
-    }
+    expect(isolated.body.data).toEqual([]);
   }, 60_000);
 });
