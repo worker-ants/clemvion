@@ -848,7 +848,7 @@ chat 계열 LLM 호출(`chat`/`chatStream`) 후 provider 응답 토큰 수를 ap
 | completion_tokens | Integer | 출력 토큰 (기본 0) |
 | total_tokens | Integer | 합계 토큰 (기본 0) |
 | thinking_tokens | Integer? | reasoning 토큰 (V018 — OpenAI reasoning·Gemini 2.5). **저장만** 하며 `cost_usd` 계산에는 미포함 |
-| cost_usd | Numeric(12,6)? | `pricing.ts` 단가표(`provider:model`)로 계산. 미등재 모델은 NULL (통계 `SUM` 에서 자연 제외) |
+| cost_usd | Numeric(12,6)? | `pricing.ts` 단가표(`provider:model`)로 계산. 미등재 모델은 NULL (통계 `SUM` 에서 자연 제외). 통계 응답에는 **숫자**로 실린다 — 서비스가 `::float` + `Number()` 로 명시 변환한다 ([swagger.md §1-6](./conventions/swagger.md#1-6-numeric-컬럼의-wire-타입)) |
 | created_at | Timestamp | 기록 시각 |
 
 **인덱스**: `(workspace_id, created_at DESC)` · `(provider, model, created_at DESC)` · `(workflow_id, created_at DESC) WHERE workflow_id IS NOT NULL` (통계용 partial). 마이그레이션 V014 (+ V018 `thinking_tokens`). 상태 머신 없는 append-only ([llm-usage.md §3](./data-flow/7-llm-usage.md)).
@@ -870,7 +870,7 @@ evaluator 가 cron 으로 평가해 알림을 발사한다.
 | workspace_id | UUID | FK → Workspace (CASCADE) |
 | workflow_id | UUID? | FK → Workflow (CASCADE). **NULL = 워크스페이스 전역 규칙** |
 | type | Enum | failure_rate / duration / llm_cost |
-| threshold | Float | 임계치 (DB 는 `NUMERIC(12,4)` 고정소수) |
+| threshold | Numeric(12,4) | 임계치. **응답에는 문자열로 실린다** — 엔티티를 그대로 내보내는 경로라 TypeORM 의 numeric 표현이 그대로 나간다 ([swagger.md §1-6](./conventions/swagger.md#1-6-numeric-컬럼의-wire-타입)). 쓰기는 `number` 를 받는다 |
 | window_iso | String | 평가 창, ISO-8601 기간. 기본 `PT1H` |
 | channel | Enum | in_app / email (기본 `in_app`). **§2.19 `Notification.channel` 과 값역이 다르다** — 그쪽은 `both` 를 포함한 3값이라 직접 매핑되지 않는다 |
 | enabled | Boolean | 평가 대상 여부 (기본: true) |
