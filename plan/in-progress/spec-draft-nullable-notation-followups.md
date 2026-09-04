@@ -264,6 +264,16 @@ field: T | null;
 
       **"엔티티라 키가 항상 있다" 는 논거는 쓸 수 없다** — `notifications` 4곳 등이 부분
       `select:` 를 쓴다(2026-09-04 실측).
+
+- [ ] **§5.4 가 WS wire 에도 적용되는가** (planner, `--impl-done` `15_16_28` cross_spec INFO#3).
+      `spec/conventions/chat-channel-adapter.md:149-151` 의 WS 이벤트 타입이
+      `durationMs?: number | null` 로 **키 생략과 nullable 을 병기**한다 — §5.4 가 응답 바디
+      전용(`#1280`)이라 **직접 충돌은 아니지만**, WS 도 서버가 내보내는 표면이라 같은 축의
+      판단이 필요하다. 세 이벤트(`execution.completed`/`failed`/`cancelled`) 전부 같은 형태다.
+
+      선행 질문: WS wire 에서 "키 부재" 와 "null" 이 **다른 의미인가**. 다르면 §5.4 를
+      확장하지 말고 WS 전용 규칙이 필요하고, 같으면 §5.4 를 WS 로 넓히는 것이 맞다.
+      **이번 diff 가 만든 것이 아니다** — pre-existing 이다.
 - [ ] **`QueryExecutionDto.workflowId` 죽은 필드** (developer, 2026-09-04 발견).
       `findByWorkflow` 는 경로 파라미터를 쓰고 쿼리에서 `{page,limit,sort,order,status}` 만
       구조분해한다 — **이 필드는 읽히는 곳이 없다.** frontend `ExecutionListParams` 도 안
