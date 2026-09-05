@@ -225,6 +225,26 @@ describe('response-contract — 실제 응답 vs DTO 선언 (§5.4)', () => {
       ).toEqual(['id:missing']);
     });
 
+    it('allowMissing 은 중첩 경로로 적는다 — 얕은 이름과는 매칭되지 않는다', () => {
+      // `child.nid` 는 중첩 required 다. 얕은 `nid` 로는 면제되면 안 된다.
+      const brokenChild = { ...VALID, child: {} };
+      expect(kinds(findContractViolations(brokenChild, contract))).toEqual([
+        'child.nid:missing',
+      ]);
+      expect(
+        kinds(
+          findContractViolations(brokenChild, contract, {
+            allowMissing: ['nid'],
+          }),
+        ),
+      ).toEqual(['child.nid:missing']);
+      expect(
+        findContractViolations(brokenChild, contract, {
+          allowMissing: ['child.nid'],
+        }),
+      ).toEqual([]);
+    });
+
     it('allowMissing 은 undeclared 를 면제하지 않는다 — 두 축은 갈려 있다', () => {
       expect(
         kinds(
@@ -478,5 +498,25 @@ describe('contractForDto 메모이제이션', () => {
     const first = await contractForDto(MemoProbeDto);
     const second = await contractForDto(MemoProbeDto);
     expect(second).toBe(first);
+  });
+
+  /**
+   * **실패는 캐시에 남기지 않는다** — JSDoc 이 내세우는 계약인데 종전 테스트 2건은 전부
+   * 성공 경로만 봐서, `catch` 의 `contractCache.delete` 를 지워도 GREEN 이었다
+   * (`review/code/2026/09/05/20_45_37` W4).
+   *
+   * 실패는 **클래스가 아닌 값**으로 만든다 — 프로브 컨트롤러가 어떤 DTO 도 참조하지 않아
+   * `schemaOf` 가 던진다. (빈 클래스는 스키마가 생겨서 **안 던진다** — 실측으로 확인했다.)
+   */
+  it('실패한 promise 는 캐시에 남지 않는다 — 다시 부르면 새로 시도한다', async () => {
+    const notADto = {} as never;
+
+    const firstAttempt = contractForDto(notADto);
+    await expect(firstAttempt).rejects.toThrow();
+
+    const secondAttempt = contractForDto(notADto);
+    // 캐시에 남았다면 **같은** promise 를 돌려받는다 — 그러면 원인이 사라져도 낫지 않는다.
+    expect(secondAttempt).not.toBe(firstAttempt);
+    await expect(secondAttempt).rejects.toThrow();
   });
 });

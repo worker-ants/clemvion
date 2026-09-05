@@ -173,6 +173,61 @@ describe('Schedule trigger (e2e)', () => {
     expect(trig.rows[0].is_active).toBe(true);
   });
 
+  it('C-3. `isActive` 는 응답의 `trigger` 형태를 바꾸지 않는다 (생성·비활성화 양쪽)', async () => {
+    // 종전 `create()`/`update()` 는 `saved.trigger` 대입이 `if (isActive)` 안에 있어,
+    // 비활성 경로에서만 트리거 행은 존재하는데 응답에서 키가 사라졌다
+    // (`review/code/2026/09/05/20_45_37` W1·W2). 두 자리를 각각 고정한다.
+    //
+    // **별도 `it()` 인 이유**: 이 케이스는 스케줄을 비활성화하므로, 같은 테스트 안에
+    // 두면 뒤따르는 `is_active = true` 단언을 깨뜨린다(실제로 그렇게 깨뜨렸다).
+    // ── `isActive` 축 — 응답 형태가 요청 값에 따라 갈리면 안 된다.
+    //
+    // 종전 `create()` 는 `saved.trigger` 대입이 `if (isActive)` 안에 있어, 비활성으로
+    // 만들면 트리거 행은 생겼는데 응답에서만 키가 사라졌다. `update()` 도 같은 형태였다
+    // (`review/code/2026/09/05/20_45_37` W1·W2). 두 자리를 각각 고정한다.
+    const inactive = await request(BASE_URL)
+      .post('/api/schedules')
+      .set(authHeaders())
+      .send({
+        workflowId,
+        name: uniqueName('sched-inactive'),
+        cronExpression: '0 3 * * *',
+        timezone: 'Asia/Seoul',
+        isActive: false,
+      });
+    expect(inactive.status).toBe(201);
+    expect(inactive.body.data.isActive).toBe(false);
+    // 트리거는 `isActive` 와 무관하게 생성됐으므로 응답에도 있어야 한다.
+    //
+    // `workflow` 는 없다 — 생성 경로가 방금 저장한 엔티티를 붙이므로 관계가 로드되지
+    // 않는다. 그래서 `ScheduleTriggerRefDto.workflow` 가 `@ApiPropertyOptional` 이고,
+    // 조회 경로(위 `GET /:id`)에서만 채워진다. 두 경로를 각각 고정한다.
+    expect(inactive.body.data.trigger).toBeDefined();
+    expect(Object.keys(inactive.body.data.trigger).sort()).toEqual([
+      'id',
+      'name',
+      'workflowId',
+    ]);
+    assertMatchesContract(
+      inactive.body.data,
+      await contractForDto(ScheduleDto),
+    );
+
+    // PATCH 로 비활성화해도 마찬가지다 (`update()` 의 else 분기).
+    // 방금 만든 비활성 스케줄을 쓴다 — 다른 테스트의 스케줄을 건드리지 않는다.
+    const deactivated = await request(BASE_URL)
+      .patch(`/api/schedules/${inactive.body.data.id as string}`)
+      .set(authHeaders())
+      .send({ isActive: false });
+    expect(deactivated.status).toBe(200);
+    expect(deactivated.body.data.isActive).toBe(false);
+    expect(deactivated.body.data.trigger).toBeDefined();
+    assertMatchesContract(
+      deactivated.body.data,
+      await contractForDto(ScheduleDto),
+    );
+  });
+
   it('C-2. GET /api/triggers 목록이 schedule 트리거의 cron·nextRunAt 을 포함 (V-10)', async () => {
     const cron = '15 8 * * *';
     const create = await request(BASE_URL)

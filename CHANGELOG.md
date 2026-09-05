@@ -47,9 +47,12 @@ unit 쪽에도 같은 뮤턴트를 무는 회귀를 뒀다 (`triggers.service.sp
 같은 스윕이 "응답에 있는데 DTO 가 선언하지 않은" 키를 5개 DTO 에서 더 찾았다. 프런트엔드가
 실제로 소비하고 있어 **빼면 계약 회귀**이므로, 선언을 실제에 맞췄다 (wire 변경 없음).
 
-전부 **엔티티 컬럼이라 응답에 상시 존재**하므로 §5.4 의 기본형(`@ApiProperty` + 컬럼이
-nullable 이면 `nullable: true`)으로 적었다. `appUrl` 만 예외다 — Cafe24 Private 흐름에서만
-동봉되는 부가 컨텍스트라 **키 생략형**(`@ApiPropertyOptional()`, `| null` 없음)이다.
+전부 §5.4 의 **기본형**(`@ApiProperty` + 컬럼이 nullable 이면 `nullable: true`)으로 적었다.
+엔티티 컬럼이라 응답에 상시 존재하기 때문이다.
+
+`appUrl` 은 엔티티 컬럼이 아니어서 처음엔 **키 생략형**으로 적었는데, **e2e 계약 대조가 그
+선언을 반증했다** — `appUrl [null] 키 생략형인데 null 이 왔다`. `IntegrationsService.toPublic`
+이 `{ appUrl: null }` 기저값 위에 얹어 **상시 존재**였다. 그래서 이것도 기본형이다.
 
 | DTO | 선언 추가 |
 |---|---|

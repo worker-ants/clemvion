@@ -257,9 +257,13 @@ export class SchedulesService {
       resourceId: id,
     });
 
+    // `create()` 와 같은 이유로 조건 밖에 둔다 — 트리거는 `isActive` 와 무관하게 존재하며,
+    // 대입이 `if` 안에 있으면 **비활성화 PATCH 응답에서만** `trigger` 키가 사라진다.
+    // `create()` 만 고치고 이 자매를 두었던 것을 `review/code/2026/09/05/20_45_37` W2 가 잡았다.
+    saved.trigger = trigger ?? schedule.trigger;
+
     // Update BullMQ job
     if (schedule.isActive) {
-      saved.trigger = trigger ?? schedule.trigger;
       await this.scheduleRunnerService.registerJob(saved);
     } else {
       await this.scheduleRunnerService.removeJob(saved.id);

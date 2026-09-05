@@ -382,6 +382,9 @@ export function assertMatchesContract(
   }
 }
 
+/** DTO 클래스 → 진행 중이거나 완료된 계약 promise. 아래 `contractForDto` 전용. */
+const contractCache = new Map<Type<unknown>, Promise<DtoContract>>();
+
 /**
  * DTO 하나의 **생성된 OpenAPI 계약**을 얻는다.
  *
@@ -404,8 +407,6 @@ export function assertMatchesContract(
  * **진행 중인 promise 를 캐시한다** (결과가 아니라). 같은 DTO 에 대한 동시 호출이
  * 프로브 모듈을 두 번 부트스트랩하지 않게 하기 위함이다.
  */
-const contractCache = new Map<Type<unknown>, Promise<DtoContract>>();
-
 export function contractForDto(Dto: Type<unknown>): Promise<DtoContract> {
   const cached = contractCache.get(Dto);
   if (cached) {
