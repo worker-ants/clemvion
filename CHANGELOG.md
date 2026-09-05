@@ -1,5 +1,46 @@
 # Changelog
 
+## Unreleased — `GET /api/audit-logs` 가 `user` 로 비밀번호 해시와 2FA 복구 코드를 내보냈다
+
+`AuditLogUserDto` 는 `id`·`name`·`email` **3필드**를 광고한다. 실제 응답의 `user` 객체에는
+**26개 키**가 실려 나갔다.
+
+| | 종전 | 지금 |
+|---|---|---|
+| `AuditLogDto.user` | `User` 엔티티 전 컬럼 (26키) | 광고된 3키 (`id`·`name`·`email`) |
+
+노출된 것 중 `passwordHash` · `twoFactorSecret` · `totpRecoveryCodes` ·
+`webauthnRecoveryCodes` 는 **자격증명**이고, `passwordResetToken` · `emailVerifyToken` ·
+`emailChangeToken` 은 **계정 탈취 수단**이다. 도달 권한은 해당 워크스페이스의 Admin 이상이다.
+
+**영향 — 이미 나간 것은 회수되지 않는다.** 이 응답을 저장·로깅·캐시하던 소비자가 있었다면
+그쪽에 민감정보가 **이미 남아 있을 수 있다**. 응답 본문을 기록하는 클라이언트 로그·APM·
+프록시 캐시를 점검할 것.
+
+### 원인 — 엔티티를 그대로 반환하는데 join 이 전 컬럼을 실었다
+
+`AuditLogsService.findAll` 이 `leftJoinAndSelect('al.user','user')` 로 `User` 를 통째로
+싣고, 컨트롤러가 그 엔티티를 그대로 반환한다. 거르는 층이 하나도 없었다 — `User` 에
+`select: false` 0건, `@Exclude()` 0건, 전역 `ClassSerializerInterceptor` 없음.
+
+수정은 필요한 3필드만 select 해 **데이터가 애초에 DB 밖으로 나가지 않게** 한다. `findAll`
+의 반환 타입도 그 형태(`AuditLogListItem`)로 좁혀 타입이 런타임보다 넓지 않게 했다.
+
+같은 클래스를 전수로 봤다: `*JoinAndSelect` 로 user 관계를 싣는 곳은 이 하나뿐이고,
+`relations: ['user']` 3곳은 워크스페이스 멤버 목록(명시 매핑)과 auth 내부 경로 2곳으로
+모두 안전하다.
+
+### 왜 아무도 몰랐나 — 그리고 왜 새 검증자도 못 잡았다
+
+같은 PR 이 바로 이 엔드포인트에 §5.4 계약 대조 단언을 새로 넣었는데도 **통과했다.** 그
+대조가 최상위 키만 봤기 때문이다 — 최상위에서는 `user` 키 하나가 선언대로 있을 뿐이다.
+
+**재발 방지**: 대조기(`src/shared/testing/response-contract.ts`)가 `$ref`/`allOf` 를 따라
+중첩 DTO 로 내려가게 했다. 배열은 원소마다 내려가고 위반 경로는 `user.passwordHash` 로
+찍힌다. 유출 상태로 되돌린 뮤턴트에서 23키를 전부 잡는 것을 확인했다. 단위 층에도 캐너리를
+따로 뒀다 — 이 유출을 놓친 것이 그 검증자였으므로, 검증자의 정확성에 기대지 않는 독립
+캐너리가 하나 있어야 한다.
+
 ## Unreleased — `AlertRuleDto.threshold` 가 `number` 라고 했지만 wire 는 문자열이었다
 
 `GET /api/alerts` 의 OpenAPI 는 `threshold` 를 `number` 로 문서화했다. **실제 wire 는

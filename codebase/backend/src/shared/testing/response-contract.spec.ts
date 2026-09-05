@@ -1,5 +1,10 @@
 import { describe, it, expect, beforeAll } from '@jest/globals';
-import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import {
+  ApiExtraModels,
+  ApiProperty,
+  ApiPropertyOptional,
+  getSchemaPath,
+} from '@nestjs/swagger';
 
 import {
   assertMatchesContract,
@@ -53,13 +58,39 @@ class ProbeDto {
   children?: NestedDto[];
 }
 
-/** 순환 참조 — 내려가기가 무한히 돌지 않는지 본다. */
+/** 자기참조 — 스키마가 자기를 가리켜도 내부가 검사돼야 한다. */
 class CycleDto {
   @ApiProperty()
   id: string;
 
   @ApiPropertyOptional({ type: () => CycleDto, nullable: true })
   self?: CycleDto | null;
+}
+
+class VariantADto {
+  @ApiProperty()
+  aOnly: string;
+}
+
+class VariantBDto {
+  @ApiProperty()
+  bOnly: string;
+}
+
+/** 판별자 없는 `oneOf` — 저장소가 `ExecutionStatusDto.context` 에서 쓰는 형태. */
+@ApiExtraModels(VariantADto, VariantBDto)
+class UnionDto {
+  @ApiProperty()
+  id: string;
+
+  @ApiProperty({
+    oneOf: [
+      { $ref: getSchemaPath(VariantADto) },
+      { $ref: getSchemaPath(VariantBDto) },
+    ],
+    nullable: true,
+  })
+  context: VariantADto | VariantBDto | null;
 }
 
 const VALID = {
@@ -245,7 +276,31 @@ describe('response-contract — 실제 응답 vs DTO 선언 (§5.4)', () => {
       ).toEqual([]);
     });
 
-    it('순환 참조에서 무한히 내려가지 않는다', async () => {
+    /**
+     * 종전 이 자리의 테스트는 **완전히 유효한** payload 만 대조해서, 자기참조 아래를
+     * 아무것도 검사하지 않아도 통과했다 — vacuous 캐너리였다
+     * (`review/code/2026/09/05/14_39_31` C1). 이제 위반을 실제로 주입한다.
+     */
+    it('자기참조 스키마의 첫 단계 내부가 검사된다', async () => {
+      const cycle = await contractForDto(CycleDto);
+      expect(
+        kinds(findContractViolations({ id: 'a', self: { leak: 1 } }, cycle)),
+      ).toEqual(['self.id:missing', 'self.leak:undeclared']);
+    });
+
+    it('자기참조는 깊이 제한 없이 내려간다 — 두 단계 아래도 잡는다', async () => {
+      const cycle = await contractForDto(CycleDto);
+      expect(
+        kinds(
+          findContractViolations(
+            { id: 'a', self: { id: 'b', self: { leak: 2 } } },
+            cycle,
+          ),
+        ),
+      ).toEqual(['self.self.id:missing', 'self.self.leak:undeclared']);
+    });
+
+    it('유효한 자기참조 payload 는 통과한다', async () => {
       const cycle = await contractForDto(CycleDto);
       expect(
         findContractViolations(
@@ -253,6 +308,57 @@ describe('response-contract — 실제 응답 vs DTO 선언 (§5.4)', () => {
           cycle,
         ),
       ).toEqual([]);
+    });
+
+    /**
+     * 진짜 무한 재귀 위험은 스키마가 아니라 **값 그래프**의 순환이다. HTTP 응답은 파싱된
+     * JSON 이라 이런 형태가 될 수 없지만, 가드가 실제로 그것을 막는지 여기서 확인한다.
+     */
+    it('자기를 가리키는 payload 객체에서도 끝난다', async () => {
+      const cycle = await contractForDto(CycleDto);
+      const looping: Record<string, unknown> = { id: 'a' };
+      looping.self = looping;
+      expect(findContractViolations(looping, cycle)).toEqual([]);
+    });
+  });
+
+  describe('판별자 없는 oneOf/anyOf', () => {
+    let union: DtoContract;
+
+    beforeAll(async () => {
+      union = await contractForDto(UnionDto);
+    });
+
+    it('[전제] 두 변형이 모두 schemas 로 해소된다', () => {
+      expect(Object.keys(union.schemas).sort()).toEqual(
+        expect.arrayContaining(['UnionDto', 'VariantADto', 'VariantBDto']),
+      );
+    });
+
+    it('어느 한 변형에 있는 키는 통과한다', () => {
+      expect(
+        findContractViolations({ id: 'x', context: { aOnly: 'a' } }, union),
+      ).toEqual([]);
+      expect(
+        findContractViolations({ id: 'x', context: { bOnly: 'b' } }, union),
+      ).toEqual([]);
+    });
+
+    it('어느 변형에도 없는 키는 undeclared — 패스스루 과다 노출이 여기서 걸린다', () => {
+      expect(
+        kinds(
+          findContractViolations(
+            { id: 'x', context: { aOnly: 'a', passwordHash: 'secret' } },
+            union,
+          ),
+        ),
+      ).toEqual(['context.passwordHash:undeclared']);
+    });
+
+    it('required 는 강제하지 않는다 — 어느 변형인지 알 수 없기 때문', () => {
+      expect(findContractViolations({ id: 'x', context: {} }, union)).toEqual(
+        [],
+      );
     });
   });
 

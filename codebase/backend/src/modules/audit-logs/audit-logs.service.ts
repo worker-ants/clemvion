@@ -6,6 +6,19 @@ import { QueryAuditLogDto } from './dto/query-audit-log.dto';
 import { PaginatedResponseDto } from '../../common/dto/paginated-response.dto';
 import { AuditAction } from './audit-action.const';
 import { BusinessMetricsService } from '../metrics/business-metrics.service';
+import type { User } from '../users/entities/user.entity';
+
+/**
+ * `findAll` 이 실제로 내보내는 형태.
+ *
+ * `user` 는 `AuditLogUserDto` 가 광고하는 3필드만 hydrate 된다. 엔티티의 `user: User` 를
+ * 그대로 반환 타입에 쓰면 **타입이 런타임보다 넓어져**, 이 메서드를 재사용하는 다음
+ * 코드가 `user.passwordHash` 를 컴파일 통과시키고 런타임엔 조용히 `undefined` 를 받는다.
+ * (`review/code/2026/09/05/14_39_31` W6.)
+ */
+export type AuditLogListItem = Omit<AuditLog, 'user'> & {
+  user: Pick<User, 'id' | 'name' | 'email'> | null;
+};
 
 @Injectable()
 export class AuditLogsService {
@@ -22,7 +35,7 @@ export class AuditLogsService {
   async findAll(
     workspaceId: string,
     query: QueryAuditLogDto,
-  ): Promise<PaginatedResponseDto<AuditLog>> {
+  ): Promise<PaginatedResponseDto<AuditLogListItem>> {
     const {
       page = 1,
       limit = 20,
@@ -69,10 +82,12 @@ export class AuditLogsService {
     qb.orderBy(`al.${sortColumn}`, order.toUpperCase() as 'ASC' | 'DESC');
 
     const totalItems = await qb.getCount();
-    const data = await qb
+    // `getMany()` 는 엔티티 타입을 내지만 위 `addSelect` 로 `user` 는 3필드만 채워진다.
+    // 이 캐스트가 그 사실을 타입에 반영하는 유일한 지점이다.
+    const data = (await qb
       .offset((page - 1) * limit)
       .limit(limit)
-      .getMany();
+      .getMany()) as AuditLogListItem[];
 
     return PaginatedResponseDto.create(data, totalItems, page, limit);
   }
