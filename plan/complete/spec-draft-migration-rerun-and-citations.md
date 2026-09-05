@@ -8,6 +8,8 @@ priority: P2
 spec_impact:
   - spec/conventions/migrations.md
   - spec/conventions/review-citations.md
+  - spec/conventions/spec-impl-evidence.md
+  - spec/data-flow/8-notifications.md
 ---
 
 # 규약 2건 (planner 묶음)
