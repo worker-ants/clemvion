@@ -33,7 +33,7 @@ secret://<scope>/<resourceId>/<name>
 | `secret://triggers/{triggerId}/bot-token.v2` | 봇 토큰 (rotation grace) |
 | `secret://triggers/{triggerId}/inbound-signing` | Chat Channel inbound webhook 출처 검증용 자료 (provider 공통 슬롯). provider 별 의미: Telegram = server-issued shared secret (`setWebhook.secret_token`, 어댑터가 randomBytes 발급) / Slack = HMAC-SHA256 signing secret (Slack 발급, 사용자 입력) / Discord = ed25519 application public key (Discord 발급, 사용자 입력). 검증 알고리즘 분기는 backend 의 provider 별 책임 — ref 슬롯은 단일. SoT: [`conventions/chat-channel-adapter.md §2.3`](./chat-channel-adapter.md#23-chatchannelconfig) |
 | `secret://triggers/{triggerId}/notification-signing` | EIA notification HMAC signing secret |
-| `secret://triggers/{triggerId}/notification-signing.v2` | EIA HMAC signing (rotation grace) |
+| `secret://triggers/{triggerId}/notification-signing.v2` | EIA HMAC signing (rotation grace). **현행 구현은 이 ref 를 쓰지 않는다** — grace 동안의 신규 secret 은 `Trigger.notification_secret_v2` 컬럼에 평문으로 두고, 승격 시 canonical ref(`notification-signing`)를 회전한다. 아래 비대상 3번째 항목 참조 |
 
 `name` 안에 `.v2` 접미사는 [CCH-SE-04](../5-system/15-chat-channel.md#34-신뢰성--보안) / [EIA-NX-12](../5-system/14-external-interaction-api.md#31-outbound-notification-notification-webhook) 의 24h grace rotation 기간 동안 병행 보관용. primary 와 동일 자원의 변형이라는 의미를 keep.
 
@@ -48,6 +48,29 @@ secret://<scope>/<resourceId>/<name>
 > **이 블록을 "평문 보관 일반의 선례" 로 인용하면 안 된다** — (a)~(c) 를 함께 만족하지 않는 세 번째 필드가 같은 문단을 근거로 예외를 얻는 것이 이 등재의 실패 모드다.
 >
 > **같은 `Trigger.config` 안의 `notification.signing.secretRef` 는 `SecretResolver` 를 경유한다** — 한 객체 안의 이 비대칭은 의도된 것이고 위 (a)~(c) 가 그 사유다 (그쪽은 사용자 입력 HMAC secret 이라 (c) 를 만족하지 않는다). 표면 서술은 [EIA §7.1](../5-system/14-external-interaction-api.md) 이 SoT 다.
+
+> **비대상 — `Trigger.notification_secret_v2`** (결정 2026-09-05): EIA HMAC signing secret 의
+> rotation grace(24h) 동안의 **신규 secret 을 컬럼에 평문으로** 보관하며 `secret://` 통합
+> 대상이 아니다. 발송 측은 이 값을 secondary 서명 키로 **직접** 쓴다(primary 는 `secretRef`
+> 경유). 표면 서술은 [EIA §7.1](../5-system/14-external-interaction-api.md) 이 SoT 다.
+>
+> **위 `itk_*` 문단의 (a)~(c) 를 근거로 삼지 않는다** — 그 문단 자신이 *"(a)~(c) 를 함께
+> 만족하지 않는 세 번째 필드가 **같은 문단을 근거로** 예외를 얻는 것이 이 등재의 실패
+> 모드"* 라 경고한다. 이 필드의 근거는 따로 세운다:
+>
+> 1. **평문이 종착지가 아니라 경유지다.** 승격되면 값은 `secrets.rotate` 로 secret store 에
+>    들어가고 컬럼은 `null` 로 초기화된다
+>    ([data-flow §1.5 승격 경로](../data-flow/15-external-interaction.md)). `AuthConfig.config`
+>    (영구·암호화)·`itk_*`(영구·평문) 어느 쪽과도 다른 세 번째 형태다.
+> 2. **노출 창이 정책으로 닫혀 있다** — grace 종료 cron 이 컬럼을 정리한다.
+> 3. **서버 발급·1회 노출·영향 범위가 트리거 하나** — `wsk_` + `randomBytes(32)` 이고
+>    rotate 응답에만 실린다. 사용자가 입력한 외부 자격증명이 아니다.
+> 4. **primary 경로는 그대로다** — 이 예외는 grace 창의 secondary 키에만 적용되며
+>    `signing.secretRef` 정책을 건드리지 않는다.
+>
+> **다음 필드가 이 문단을 인용하려면 (1) 을 만족해야 한다** — "승격되어 store 로 들어가고
+> 컬럼이 비워지는가". 그 조건 없이 이 문단을 "평문 보관 일반의 선례" 로 쓰는 것이 이
+> 등재의 실패 모드다 (위 `itk_*` 문단과 같은 취지).
 
 ---
 
