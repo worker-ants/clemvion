@@ -11,6 +11,7 @@ code:
   - codebase/backend/src/common/utils/throttler-skip.ts
   - codebase/backend/src/modules/hooks/hooks.controller.ts
   - codebase/backend/src/modules/hooks/hooks.service.ts
+  - codebase/backend/src/repo-guards/__tests__/swagger-dto-contract*.ts
   - codebase/backend/src/shared/testing/response-contract*.ts
   - codebase/backend/src/shared/testing/swagger-probe*.ts
 ---

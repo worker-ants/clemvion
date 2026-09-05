@@ -311,7 +311,7 @@ field: T | null;
       > 못 보는 것). `swagger.md §5-1` 에는 런타임 짝을 가리키는 blockquote 를 넣었다.
 
 - [x] **`2-api-convention.md` frontmatter `code:` 에 §5.4 검증자 등재** (planner,
-      2026-09-05 등재). `response-contract.ts` 는 §5.4 를 **시행하는** 유일한 코드인데
+      2026-09-05 등재). `response-contract.ts` 는 §5.4 를 **런타임으로 시행하는** 유일한 코드인데
       지금 어떤 spec 의 `code:` glob 에도 안 걸린다 — 즉 그 파일을 고쳐도
       `--impl-done` SPEC-CONSISTENCY 게이트가 안 문다.
 
@@ -332,6 +332,12 @@ field: T | null;
       **+ `ExecutionDto` 10곳**. 컨트롤러가 엔티티를
       그대로 반환하는 경로라 **DTO 가 강제되지 않는 순수 문서**다. `required: true` 를
       주장하려면 검증자가 필요하다:
+
+      > **`TriggerDto`/`ScheduleDto` 에 도달하면 주의** — 계약 대조가 RED 를 내더라도
+      > `notificationSecretV2`·`chatChannelTokenV2` 를 **DTO 에 선언해 해소하지 말 것.**
+      > [`secret-store.md §1.1`](../../spec/conventions/secret-store.md) 이 그 필드들의
+      > **응답 노출을 금지**한다(저장 형태 예외는 노출 예외가 아니다). RED 는 **응답
+      > 스트립**으로만 해소한다. 다른 미선언 필드를 선언으로 해소하는 것과 갈린다.
 
       > **진행 상태 (2026-09-05)**: 검증자 자체는 섰고 4개 DTO 가 배선됐다 — 아래 (b) 참조.
       > 남은 것은 **선행 조건이 아니라 스윕**이라 이 항목은 열어 둔다.
@@ -611,6 +617,35 @@ field: T | null;
       >
       > **실제 처분**: 이번 턴이 어차피 여는 `2-api-convention.md` 에만 추가.
       > `6-websocket-protocol.md` 는 아래 별도 항목으로 재등재.
+
+- [ ] **트리거 회전 secret 이 응답에 나간다 — 유출 차단 코드** (developer, 2026-09-05 등재,
+      `review/consistency/2026/09/05/19_59_16` **Critical 1**).
+
+      `Trigger.notification_secret_v2`(평문 서명 secret)와 `chat_channel_token_v2`(secret
+      store ref)가 `GET/POST/PATCH /api/triggers` · `GET /api/schedules`(트리거 조인) 응답에
+      **매 요청** 실린다. 엔티티를 그대로 반환하는데 컬럼 스트립이 없다(전역
+      `ClassSerializerInterceptor`·`select:false`·`@Exclude()` 모두 0건).
+
+      금지 규범은 이번 turn 이 `secret-store.md §1.1` 로 세웠다 — **저장 형태 예외(평문
+      보관)와 노출은 다른 문제**이고, 예외 등재가 노출까지 승인하는 것으로 읽히면 안 된다.
+
+      > **수정은 이미 병행 브랜치에 있다** — `claude/sweep-response-contract-5ba0ad` 가
+      > `sanitizeForResponse` 로 컬럼을 지우고 스케줄 컨트롤러에서 조인된 트리거를 참조
+      > 4필드로 좁힌다. **그 브랜치가 머지되면 이 항목은 닫힌다.** 머지되지 않으면 여기서
+      > 백포트한다 — 어느 쪽이든 이 체크박스가 그 사실을 확인한 뒤에 닫는다.
+
+- [ ] **`4-integration.md §9.1` — `IntegrationDto` 확장 필드 포인터** (planner,
+      2026-09-05 등재, `19_08_19` W3 / `19_59_16` W3).
+      대상 5필드 선언이 아직 `origin/main` 에 없다(`claude/sweep-response-contract-5ba0ad`).
+      **그 브랜치 머지 후** §9.1 에 `1-data-model.md §2.10` 포인터 한 줄을 넣는다.
+      `consecutiveNetworkFailures` 는 **FE 미소비 — 제거 후보로 별도 추적 중**이라는 캐비엇을
+      함께 적어 나머지 4개와 동급으로 문서화하지 않는다.
+
+- [ ] **`1-data-model.md §2.8` — `notification_secret_v2` 저장 형태 명시** (planner,
+      2026-09-05 등재, `19_59_16` INFO#2 / `20_17_57` W4). 그 행은 저장 형태를 안 적는데
+      자매 행(`chat_channel_token_v2`)은 *"reference"* 라고 적어 **서술 밀도가 비대칭**이다.
+      평문임을 한 줄로 명시하고 [`secret-store.md §1`](../../spec/conventions/secret-store.md)
+      비대상 등재로 링크한다.
 
 - [ ] **`6-websocket-protocol.md` 도입 산문** (planner, 2026-09-05 등재). 위 실측에서
       개요 내용이 **실제로 없는** 두 문서 중 남은 하나. `## 1. 연결` 로 바로 시작한다.
