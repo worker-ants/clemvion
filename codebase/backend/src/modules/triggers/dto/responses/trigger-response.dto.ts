@@ -4,7 +4,6 @@ import type {
   TriggerNotificationHealth,
 } from '../../entities/trigger.entity';
 
-/** 트리거 응답 DTO */
 /**
  * 트리거 응답에 동봉되는 **워크플로우 참조** — 목록 UI 가 쓰는 두 필드만 담는다.
  *
@@ -25,6 +24,7 @@ export class TriggerWorkflowRefDto {
   name: string;
 }
 
+/** 트리거 응답 DTO */
 export class TriggerDto {
   /** 트리거 UUID */
   @ApiProperty({ format: 'uuid' })

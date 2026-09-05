@@ -81,9 +81,21 @@ describe('SchedulesController — 행위자(userId) 배선', () => {
   it('update 는 id·workspaceId·dto·userId 순서를 지킨다', async () => {
     const dto = { name: 'S2' } as UpdateScheduleDto;
 
-    await controller.update('sch-1', WS, dto, USER);
+    const res = (await controller.update('sch-1', WS, dto, USER)) as {
+      trigger: Record<string, unknown>;
+    };
 
     expect(service.update).toHaveBeenCalledWith('sch-1', WS, dto, USER);
+
+    // `create` 와 **같은 단언** — mock 은 비밀을 채워 두는데 반환값을 안 보면 비대칭이다
+    // (`review/code/2026/09/05/22_24_58` INFO#15). 두 경로가 같은 경계를 지나므로 둘 다 문다.
+    expect(Object.keys(res.trigger).sort()).toEqual([
+      'id',
+      'name',
+      'workflowId',
+    ]);
+    expect(res.trigger).not.toHaveProperty('notificationSecretV2');
+    expect(res.trigger).not.toHaveProperty('chatChannelTokenV2');
   });
 
   it('remove 는 id·workspaceId·userId 순서를 지킨다', async () => {

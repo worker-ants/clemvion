@@ -99,9 +99,11 @@ export class ScheduleDto {
    * 응답을 내는 네 경로가 전부 채운다 — `findAll`(join) · `findById`(relations) ·
    * `create`/`update`(저장 직후 대입, `isActive` 무관). e2e 가 네 곳을 각각 단언한다.
    *
-   * 종전엔 키 생략형으로 선언했는데 §5.4 는 그 형태에 **사유 문서화**를 요구하고, 실측은
-   * 부재 경로가 없다고 말한다 (`review/consistency/2026/09/05/21_40_38` W1).
    */
+  // 종전엔 키 생략형으로 선언했는데 §5.4 는 그 형태에 **사유 문서화**를 요구하고, 실측은
+  // 부재 경로가 없다고 말한다 (`review/consistency/2026/09/05/21_40_38` W1).
+  // — 내부 참조라 `//` 에 둔다: 필드 JSDoc 은 `introspectComments` 로 **공개 OpenAPI
+  //   description** 이 된다 (`swagger.md §3`).
   @ApiProperty({ type: () => ScheduleTriggerRefDto })
   trigger: ScheduleTriggerRefDto;
 }

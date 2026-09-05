@@ -78,7 +78,6 @@ unit 쪽에도 같은 뮤턴트를 무는 회귀를 뒀다 (`triggers.service.sp
 **78건**을 목록으로 고정했다. 새로 생기면 목록에 없어 실패하고, 갚아서 줄이면 목록에서 빼야
 통과한다 — 양방향 래칫이다. (78 은 종전에 알려져 있던 10건보다 훨씬 크다.)
 
-
 ## Unreleased — `GET /api/audit-logs` 가 `user` 로 비밀번호 해시와 2FA 복구 코드를 내보냈다
 
 `AuditLogUserDto` 는 `id`·`name`·`email` **3필드**를 광고한다. 실제 응답의 `user` 객체에는

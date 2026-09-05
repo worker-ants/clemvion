@@ -772,6 +772,11 @@ field: T | null;
       `spec/2-navigation/3-schedule.md §4`(또는 `1-data-model.md §2.9.1`)에 옮기는 것이다.
       `IntegrationDto` 포인터 항목과 대칭으로 처리한다.
 
+      > **`TriggerDto.workflow` 도 같은 항목이다** (`22_25_00` W2). 같은 라운드에 신설된
+      > 자매 키-생략 필드인데 이 bullet 이 스케줄 쪽만 적고 있었다 — 두 DTO 의
+      > `trigger`/`workflow` 참조 필드를 한 묶음으로 다룬다. 반영 대상 spec 은
+      > `2-navigation/2-trigger-list.md` 와 `3-schedule.md §4` 둘이다.
+
 - [ ] **`6-websocket-protocol.md` 도입 산문** (planner, 2026-09-05 등재). 위 실측에서
       개요 내용이 **실제로 없는** 두 문서 중 남은 하나. `## 1. 연결` 로 바로 시작한다.
       그 문서를 다음에 열 때 두세 줄 도입문을 넣는다 — 형태는 그 문서 관행을 따르면 되고,

@@ -91,6 +91,23 @@ const NOTIFICATION_SIGNING_STRIP_KEYS = new Set<string>([
  * 경로가 `undefined` 를 받고 **예외 없이** 조용히 오작동한다 — fail-safe 가 아니라
  * fail-silent 다. 응답 경계에서 지우면 읽는 쪽은 그대로 둔 채 나가는 쪽만 막힌다.
  */
+/**
+ * `config.interaction` 에서 제거할 키.
+ *
+ * `triggerToken`(`itk_*`)은 **영구 평문**으로 JSONB 에 보관되는 per-trigger bearer 토큰이고,
+ * [`secret-store.md §1.1`](../../../../../spec/conventions/secret-store.md) 이 응답 노출을
+ * **명시적으로 금지**한 세 필드 중 하나다. 나머지 둘(`notification_secret_v2` ·
+ * `chat_channel_token_v2`)은 이 PR 이 닫았는데 **이것만 남아 있었다**
+ * (`review/consistency/2026/09/05/22_25_00` Critical 1).
+ *
+ * `§1` 이 이 필드를 secret store 비대상으로 인정한 근거 (c) 가 *"발급 응답에 1회만 노출"*
+ * 인데, 목록·상세 응답에 매번 실리면 **그 근거 자체가 무너진다.**
+ *
+ * 발급·재발급 경로(`revokePerTriggerToken`)의 1회성 평문 반환은 이 스트립과 무관하다 —
+ * 그쪽은 서비스가 값을 **직접 반환**하지 트리거 엔티티를 거치지 않는다.
+ */
+const INTERACTION_RESPONSE_STRIP_KEYS = new Set<string>(['triggerToken']);
+
 const TRIGGER_RESPONSE_STRIP_COLUMNS = [
   'notificationSecretV2',
   'chatChannelTokenV2',
@@ -555,13 +572,14 @@ export class TriggersService {
   }
 
   /**
-   * 트리거를 **응답 경계**에서 정화한다 — 비밀이 사는 **세 곳**을 모두 덮는다.
+   * 트리거를 **응답 경계**에서 정화한다 — 비밀이 사는 **네 곳**을 모두 덮는다.
    *
    * [Spec Chat Channel §5.4.2 + secret-store.md §5.5 SS-SE-01]
    *
    * 1. `config.chatChannel` JSONB 안의 키 (`CHAT_CHANNEL_RESPONSE_STRIP_KEYS`)
    * 2. `config.notification.signing` 안의 키 (`NOTIFICATION_SIGNING_STRIP_KEYS`)
-   * 3. `trigger` 행의 **엔티티 컬럼** (`TRIGGER_RESPONSE_STRIP_COLUMNS`)
+   * 3. `config.interaction` 안의 키 (`INTERACTION_RESPONSE_STRIP_KEYS`)
+   * 4. `trigger` 행의 **엔티티 컬럼** (`TRIGGER_RESPONSE_STRIP_COLUMNS`)
    *
    * 신규 plaintext / 내부 ref 필드를 추가할 때는 해당 상수에 키를 넣어야 정화가 걸린다
    * (destructure 대신 목록 — 누락 위험 회피). `hasBotToken` 은 `botTokenRef` 존재로부터
@@ -581,6 +599,11 @@ export class TriggersService {
    *
    * 그것을 고친 뒤에도 (2) 가 빠져 있었다 — `botTokenRef` 를 빼는 것과 **같은 등급·같은
    * 이유**인데 목록이 chat-channel 쪽에만 있었다 (`review/code/2026/09/05/18_23_02` W1).
+   * 그리고 (3) 이 또 빠져 있었다 — `secret-store.md §1.1` 이 **이름으로 열거한** 세 필드 중
+   * 둘만 닫은 상태였다 (`review/consistency/2026/09/05/22_25_00` Critical 1).
+   *
+   * **세 번 같은 형태로 좁았다.** 다음에 비밀 축이 하나 더 생기면 목록을 늘리지 말고
+   * 선언적 SoT(엔티티 데코레이터)로 옮길 것.
    */
   private sanitizeForResponse<T extends Trigger>(trigger: T): T {
     const cfg = trigger.config as
@@ -608,6 +631,18 @@ export class TriggersService {
         sanitizedChatChannel.hasBotToken =
           typeof botTokenRef === 'string' && botTokenRef.length > 0;
         nextConfig.chatChannel = sanitizedChatChannel;
+        configTouched = true;
+      }
+
+      const interaction = cfg.interaction as
+        Record<string, unknown> | undefined;
+      if (interaction && typeof interaction === 'object') {
+        const sanitizedInteraction: Record<string, unknown> = {};
+        for (const [key, value] of Object.entries(interaction)) {
+          if (INTERACTION_RESPONSE_STRIP_KEYS.has(key)) continue;
+          sanitizedInteraction[key] = value;
+        }
+        nextConfig.interaction = sanitizedInteraction;
         configTouched = true;
       }
 
