@@ -4,6 +4,12 @@ import request from 'supertest';
 
 import { createDbClient, uniqueEmail } from './helpers/db';
 import { TEST_PASSWORD, extractRefreshCookie } from './helpers/auth';
+import {
+  assertMatchesContract,
+  contractForDto,
+  type DtoContract,
+} from '../src/shared/testing/response-contract';
+import { SessionDto } from '../src/modules/auth/dto/responses/session.dto';
 
 /**
  * e2e: 사용자 세션(refresh token family) 라이프사이클을 실 인프라에서 검증.
@@ -35,7 +41,10 @@ async function loginAndGetCookie(
 describe('Session revocation (e2e)', () => {
   let db: Client;
 
+  let sessionContract: DtoContract;
+
   beforeAll(async () => {
+    sessionContract = await contractForDto(SessionDto);
     db = createDbClient();
     await db.connect();
   }, 30_000);
@@ -97,6 +106,9 @@ describe('Session revocation (e2e)', () => {
       isCurrent: boolean;
     }>;
     expect(sessions.length).toBeGreaterThanOrEqual(2);
+
+    // 응답 1건 vs `SessionDto` 선언 전수 대조 (API 규약 §5.4).
+    assertMatchesContract(sessions[0], sessionContract);
 
     const currents = sessions.filter((s) => s.isCurrent);
     expect(currents.length).toBe(1);

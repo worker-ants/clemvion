@@ -6,6 +6,24 @@ import { QueryAuditLogDto } from './dto/query-audit-log.dto';
 import { PaginatedResponseDto } from '../../common/dto/paginated-response.dto';
 import { AuditAction } from './audit-action.const';
 import { BusinessMetricsService } from '../metrics/business-metrics.service';
+import type { User } from '../users/entities/user.entity';
+
+/**
+ * `findAll` 이 실제로 내보내는 형태.
+ *
+ * `user` 는 `AuditLogUserDto` 가 광고하는 3필드만 hydrate 된다. 엔티티의 `user: User` 를
+ * 그대로 반환 타입에 쓰면 **타입이 런타임보다 넓어져**, 이 메서드를 재사용하는 다음
+ * 코드가 `user.passwordHash` 를 컴파일 통과시키고 런타임엔 조용히 `undefined` 를 받는다.
+ * (`review/code/2026/09/05/14_39_31` W6.)
+ *
+ * 자매 관계 필드 `workspace` 도 함께 뺀다. 이 쿼리는 그것을 join 하지 않아 **런타임에 항상
+ * `undefined`** 인데 엔티티 타입은 `Workspace` 라고 말한다 — `user` 만 좁히고 형제를 두면
+ * 같은 결함이 옆자리에 그대로 남는다 (`review/code/2026/09/05/15_31_41` W1). 나중에
+ * `workspace` 가 필요해지면 `user` 와 같은 형태로 join·투영을 함께 들여온다.
+ */
+export type AuditLogListItem = Omit<AuditLog, 'user' | 'workspace'> & {
+  user: Pick<User, 'id' | 'name' | 'email'> | null;
+};
 
 @Injectable()
 export class AuditLogsService {
@@ -22,7 +40,7 @@ export class AuditLogsService {
   async findAll(
     workspaceId: string,
     query: QueryAuditLogDto,
-  ): Promise<PaginatedResponseDto<AuditLog>> {
+  ): Promise<PaginatedResponseDto<AuditLogListItem>> {
     const {
       page = 1,
       limit = 20,
@@ -37,7 +55,15 @@ export class AuditLogsService {
 
     const qb = this.auditLogRepository
       .createQueryBuilder('al')
-      .leftJoinAndSelect('al.user', 'user')
+      // `AuditLogUserDto` 가 광고하는 3필드만 싣는다. `leftJoinAndSelect` 는 `User` 의
+      // **전 컬럼**을 실었고, 이 컨트롤러는 엔티티를 그대로 반환하므로 `passwordHash`·
+      // `twoFactorSecret`·`totpRecoveryCodes`·`webauthnRecoveryCodes` 와 계정 탈취에
+      // 쓰이는 `passwordResetToken`·`emailVerifyToken`·`emailChangeToken` 이 실 응답에
+      // 그대로 나갔다 (e2e 로 확인: user 키 26개). 필요한 것만 select 해 애초에 DB 밖으로
+      // 나가지 않게 한다 — 워크스페이스 멤버 목록(`workspaces.service.ts`)이 명시 매핑으로
+      // 같은 문제를 이미 피하고 있다.
+      .leftJoin('al.user', 'user')
+      .addSelect(['user.id', 'user.name', 'user.email'])
       .where('al.workspace_id = :workspaceId', { workspaceId });
 
     if (action) {
@@ -61,10 +87,12 @@ export class AuditLogsService {
     qb.orderBy(`al.${sortColumn}`, order.toUpperCase() as 'ASC' | 'DESC');
 
     const totalItems = await qb.getCount();
-    const data = await qb
+    // `getMany()` 는 엔티티 타입을 내지만 위 `addSelect` 로 `user` 는 3필드만 채워진다.
+    // 이 캐스트가 그 사실을 타입에 반영하는 유일한 지점이다.
+    const data = (await qb
       .offset((page - 1) * limit)
       .limit(limit)
-      .getMany();
+      .getMany()) as AuditLogListItem[];
 
     return PaginatedResponseDto.create(data, totalItems, page, limit);
   }
@@ -102,7 +130,7 @@ export class AuditLogsService {
       //    감사가 사라졌는지 알 수 없었다. 유실 사실만 알고 대상을 모르면 복구도 조사도
       //    시작할 수 없다.
       // **관측 호출도 삼킨다.** 이 메서드의 존재 이유가 "감사 실패가 본 요청을 절대
-      // 깨뜨리지 않는다" 인데, 여기서 던지면 그 예외가 12개+ 특권 CRUD producer 로
+      // 깨뜨리지 않는다" 인데, 여기서 던지면 그 예외가 12개 특권 CRUD producer 로
       // 전파돼 계약을 정면으로 역행한다 — 관측을 붙이면서 관측이 새 실패 경로가 되는 것은
       // 본말전도다. (OTel Counter 는 실측상 non-throwing 이라 발동 가능성은 낮지만,
       // 이 자리는 chokepoint 라 파급이 넓다.)

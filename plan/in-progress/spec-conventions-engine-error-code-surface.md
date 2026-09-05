@@ -59,18 +59,22 @@ developer 가 `spec/` 을 고칠 수 있는 좁은 예외(자기-반증형 소�
       대조 대상이 명확해졌다. 종전 서술: (`--spec` `21_39_47` cross_spec).
       이 병기가 만든 것이 아니고, 층 기반으로 쓰면서 충돌 주장도 사라졌다. 다만 같은 오독을
       계속 재생산하는 자리라 등재한다:
-      - `spec/1-data-model.md:474` — 엔진 인프라 코드 6종을 **소속 구분 없이** 나열한다.
-        실제로는 `EngineErrorCode` / `ErrorCode` / 둘 다 아님(raw literal) **삼분법**이다.
-        `:562` "복사" 서술도 `EXECUTION_QUEUE_WAIT_TIMEOUT` 의 admission-gate 직접 갱신 경로를
-        빠뜨려 "복사만이 유일한 채움 경로" 처럼 읽힌다.
+      - ~~`spec/1-data-model.md` — 엔진 인프라 코드 6종을 소속 구분 없이 나열~~ →
+        **이미 해소 (2026-09-05 실측).** 그 행은 지금 *"아래 6종은 등재처가 서로 다르다"* 로
+        `EngineErrorCode` const / `ErrorCode` const / `RehydrationError.code` 리터럴 유니온을
+        갈라 적는다. **줄 번호(`:474`)로 찾지 말 것** — 그 사이 위쪽에 줄이 늘어 이동했다.
+        내용으로 찾아야 한다.
       - `codebase/backend/src/nodes/core/error-codes.ts` — `EngineErrorCode` JSDoc(앵커:
         `**엔진 레이어** 에러 코드`)이
         **"엔진 레이어" 이분법**으로 프레이밍한다. 이 병기가 반증한 그 분류가 **소스 주석에는
         그대로 남는다**(6차 `--spec` cross_spec INFO #1). spec 이 아니라 코드 주석이라
         developer 트랙이다.
-      - `spec/5-system/3-error-handling.md` §1.4 — "엔진 수준 에러" 10종을 단일 집합처럼
-        나열하는데 named const 등재는 **2종뿐**이다. 두 surface 병기를 읽은 사람이 "이 카탈로그가
-        두 surface 로 다 설명된다" 고 오독할 수 있다.
+      - ~~`spec/5-system/3-error-handling.md` §1.4 — 10종을 단일 집합처럼 나열~~ →
+        **이미 해소 (2026-09-05 실측).** §1.4 표에 **앵커 열**이 생겨 코드별 등재처가 갈린다.
+
+      > **잔여는 `error-codes.ts` JSDoc 한 곳뿐이다** (`--impl-prep 12_48_13` W2).
+      > 위 두 spec 항목은 `spec-draft-scope-and-anchor-drift.md ④` 가 이미 닫았는데 이 목록만
+      > 안 따라왔다. 방치하면 다음 착수자가 **이미 고쳐진 spec 을 다시 편집한다**.
 - [x] **"판단 기준을 함께 적을지" 에 대한 답 (2026-09-01)** — §함께 볼 것이 "이 항목의 실제
       무게" 라 부른 질문이다. **답: 이번에는 안 쓴다.** 규약 문서에 기준을 쓰면 그 형태가
       규약으로 굳는데, 근거인 ARCH#5 ⑤ 가 스스로 *"의식적 이탈"·"해석의 여지가 있다"* 고

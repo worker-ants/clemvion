@@ -28,7 +28,8 @@ describe('AuditLogsController — Admin+ 가드 (V-03)', () => {
 describe('AuditLogsService.findAll — 필터 (Spec Auth §4.2)', () => {
   let service: AuditLogsService;
   let qb: {
-    leftJoinAndSelect: jest.Mock;
+    leftJoin: jest.Mock;
+    addSelect: jest.Mock;
     where: jest.Mock;
     andWhere: jest.Mock;
     orderBy: jest.Mock;
@@ -40,7 +41,8 @@ describe('AuditLogsService.findAll — 필터 (Spec Auth §4.2)', () => {
 
   beforeEach(async () => {
     qb = {
-      leftJoinAndSelect: jest.fn().mockReturnThis(),
+      leftJoin: jest.fn().mockReturnThis(),
+      addSelect: jest.fn().mockReturnThis(),
       where: jest.fn().mockReturnThis(),
       andWhere: jest.fn().mockReturnThis(),
       orderBy: jest.fn().mockReturnThis(),
@@ -76,6 +78,27 @@ describe('AuditLogsService.findAll — 필터 (Spec Auth §4.2)', () => {
     await service.findAll('ws-1', {} as never);
     const clauses = qb.andWhere.mock.calls.map((c: unknown[]) => c[0]);
     expect(clauses).not.toContain('al.user_id = :userId');
+  });
+
+  /**
+   * 이 컨트롤러는 엔티티를 그대로 반환하므로, join 이 `User` 를 통째로 실으면 그대로
+   * 응답에 나간다 — 실제로 `passwordHash`·`totpRecoveryCodes`·`webauthnRecoveryCodes`·
+   * `passwordResetToken` 을 포함한 26개 키가 나갔다(e2e 로 확인).
+   *
+   * e2e 에도 캐너리가 있지만 여기에도 두는 이유: 되돌리는 편집(`leftJoinAndSelect` 로
+   * 복귀)은 이 파일 바로 옆에서 일어나고, 단위 층이 훨씬 빨리 말해 준다.
+   */
+  it('user 조인은 AuditLogUserDto 가 광고하는 3필드만 select 한다', async () => {
+    await service.findAll('ws-1', {} as never);
+    expect(qb.leftJoin).toHaveBeenCalledWith('al.user', 'user');
+    expect(qb.addSelect).toHaveBeenCalledWith([
+      'user.id',
+      'user.name',
+      'user.email',
+    ]);
+    // `*AndSelect` 계열은 전 컬럼을 싣는다 — mock 에 그 키 자체를 두지 않아, 되돌리면
+    // "함수가 없다" 로 즉시 깨진다.
+    expect(qb).not.toHaveProperty('leftJoinAndSelect');
   });
 });
 

@@ -263,22 +263,102 @@ field: T | null;
       `SaveCanvasNodeDto`(요청 DTO 안에 **중첩된** 타입)를 놓쳐 tsc 가 54건을 냈다. 필드
       타입 참조까지 전이 폐포로 닫아 요청 21곳으로 정정했다.
 
+- [ ] **스윕 착수 시 `find → toBeDefined → assert` 3문장을 헬퍼로 접기** (developer,
+      2026-09-05 등재, `review/code/2026/09/05/13_49_54` W6). 목록 응답에서 내 것 한 건을
+      집어 대조하는 패턴이 지금 **2곳**에서 반복된다. 스윕이 56개로 늘리면 그만큼 는다.
+
+      **이번 PR 에서 만들지 않은 이유**: 지금 2곳이고, 어떤 시그니처가 맞는지는 스윕이
+      실제로 어떤 형태들을 만나는지 봐야 정해진다(목록/단건/중첩 배열이 섞인다). 시작도
+      안 한 스윕을 위해 API 를 먼저 굳히면 그 API 가 스윕을 규정한다. 대신 이번에
+      중복의 **절반**은 이미 걷어냈다 — 계약 캐싱을 `beforeAll` 로 통일했고 DTO 이름을
+      `DtoContract` 가 파생하므로 호출부가 문자열을 다시 치지 않는다.
+
+      **함께 볼 것** (`14_39_31` INFO#2): `contractForDto` 는 DTO 하나마다 in-process Nest
+      앱을 부트스트랩한다. 지금은 4곳이 전부 `beforeAll` 캐싱이라 무해하지만, 56개로 늘면
+      CI 시간에 누적된다 — 헬퍼를 만들 때 DTO 이름 키 메모이제이션을 같이 검토한다.
+
+- [ ] **`User` 엔티티에 컬럼 수준 방어를 둘지 결정** (developer + 보안 판단, 2026-09-05
+      등재, `review/code/2026/09/05/14_39_31` W2). 감사 로그 유출은 **그 쿼리 하나**를 좁혀
+      고쳤다. `User` 자체에는 여전히 마지막 방어선이 없다 — `select: false` 0건,
+      `@Exclude()` 0건, 전역 `ClassSerializerInterceptor` 없음. 다음에 `User` 를 조인하는
+      새 쿼리가 `leftJoinAndSelect` 를 무심코 쓰면 같은 클래스가 재발한다.
+
+      **이번 PR 에서 하지 않은 이유 — 되돌리기 어려운 방향이고 전수 확인이 선행돼야 한다.**
+      민감 7컬럼(`passwordHash`·`twoFactorSecret`·`totpRecoveryCodes`·
+      `webauthnRecoveryCodes`·`passwordResetToken`·`emailVerifyToken`·`emailChangeToken`)에
+      `select: false` 를 걸면 **로그인·2FA·비밀번호 재설정 경로가 전부 그 컬럼을 읽는다** —
+      각 쿼리에 `addSelect` 를 빠짐없이 넣어야 하고, 하나라도 놓치면 인증이 조용히
+      실패한다(값이 `undefined` 가 되지 예외가 나지 않는다). 즉 **fail-safe 가 아니라
+      fail-silent 방향**이라 착수 전에 읽는 자리를 전수 열거해야 한다.
+
+      착수 시 먼저 잴 것: 위 7컬럼을 읽는 모든 쿼리/서비스 전수 목록. 그 목록이 나온 뒤에
+      `select:false` vs 전역 `ClassSerializerInterceptor`+`@Exclude()` 를 고른다.
+
+- [ ] **§5.4 검증자 2종의 역할 경계를 spec 본문에 한 문장으로** (planner, 2026-09-05 등재,
+      `review/consistency/2026/09/05/15_53_59` W1). 이름이 인접한 검증자가 둘이 됐다:
+
+      | 파일 | 무엇을 대조하나 | 타입 |
+      |---|---|---|
+      | `repo-guards/__tests__/swagger-dto-contract-guard.ts` | **선언 vs 선언** — `@ApiProperty` 데코레이터와 TS 타입 (정적 AST) | `ContractMismatch` |
+      | `shared/testing/response-contract.ts` | **값 vs 선언** — 실 HTTP 응답과 생성된 OpenAPI 스키마 (런타임) | `ContractViolation` |
+
+      `"Contract"` 로 검색하면 어느 쪽인지 즉시 안 갈린다. **리네임은 하지 않는다** —
+      checker 도 강제하지 않았고, 4개 e2e 배선과 37개 스펙을 건드려 얻는 것보다 잃는 것이
+      크다. 대신 아래 `code:` 등재를 집행할 때 **같은 문장으로** 경계를 적는다.
+
+- [ ] **`2-api-convention.md` frontmatter `code:` 에 §5.4 검증자 등재** (planner,
+      2026-09-05 등재). `response-contract.ts` 는 §5.4 를 **시행하는** 유일한 코드인데
+      지금 어떤 spec 의 `code:` glob 에도 안 걸린다 — 즉 그 파일을 고쳐도
+      `--impl-done` SPEC-CONSISTENCY 게이트가 안 문다. `review-citations.md` 의
+      Rationale 이 `code:` 를 "준수 예시" 로 넓힌 선례가 있으니 그 형태를 따르면 된다.
+      developer 는 `spec/` 쓰기 권한이 없어 이 자리에 등재만 한다.
+
 - [ ] **§5.4 drift 배치 — 2단계: 검증자가 없는 응답 DTO 78곳** (developer). 패스스루 68곳
       **+ `ExecutionDto` 10곳**. 컨트롤러가 엔티티를
       그대로 반환하는 경로라 **DTO 가 강제되지 않는 순수 문서**다. `required: true` 를
       주장하려면 검증자가 필요하다:
+
+      > **진행 상태 (2026-09-05)**: 검증자 자체는 섰고 4개 DTO 가 배선됐다 — 아래 (b) 참조.
+      > 남은 것은 **선행 조건이 아니라 스윕**이라 이 항목은 열어 둔다.
+      >
+      > **모집단 — 세 숫자가 다 다르고, 각각 다른 것을 센다** (2026-09-05 실측):
+      >
+      > | 값 | 세는 대상 |
+      > |---|---|
+      > | **134** | `src/**/dto/responses/**` 의 `export class` 전체 (36개 파일) |
+      > | **60** | 그중 §5.4 관련 필드(`?` · `\| null` · `nullable:true`)를 **1개 이상** 가진 클래스 |
+      > | 78 | 종전 라운드가 요청/응답을 전이 폐포로 가른 뒤 센 **필드** 수 |
+      >
+      > **더하지 말 것.** 종전 이 자리에 *"DTO 60개 = `dto/responses/` 아래 클래스 수"* 라고
+      > 적었는데 **정의와 숫자가 어긋났다** — 그 정의대로 세면 134다
+      > (`review/code/2026/09/05/14_39_31` W4). 배선 대상으로 의미 있는 것은 **60** 이고,
+      > 그중 4개가 끝났다.
+      >
+      > 배선은 한 줄이지만 **기존 e2e 가 그 리소스를 이미 가져오는 자리**가 있어야 하고,
+      > RED 가 나면 그건 진짜 §5.4 위반이라 DTO 를 고칠지 코드를 고칠지 건별 판단이
+      > 붙는다. 모듈 단위로 끊어 진행한다.
       - ~~(a) 그 컨트롤러들의 반환 타입을 `Promise<XxxDto[]>` 로 명시 annotate~~ →
         **반증됐다 (2026-09-04 실측).** 아래 참조.
-      - **(b) 대표 엔드포인트에 실제 응답 대조 테스트 — 이제 이것만 남았다.**
-        **첫 후보 `GET /api/alerts` 는 착수 완료 (2026-09-04, `20_39_25` W4).**
-        `test/alerts-threshold-wire-type.e2e-spec.ts` 가 `POST → GET → PATCH` 세 응답을
-        실 HTTP 로 대조한다. **이로써 (b) 가 성립한다는 것 자체는 실증됐다** — 남은 것은
-        같은 형태를 나머지 엔드포인트로 넓히는 일이다.
+      - **(b) 실제 응답 대조 테스트 — 일반 헬퍼까지 완료 (2026-09-05).**
+        `src/shared/testing/response-contract.ts` 가 **응답 1건 vs DTO 선언**을 일반적으로
+        대조한다. §5.4 의 네 축(required+non-nullable · required+nullable · 키 생략형 ·
+        스키마에 없는 키)을 그대로 옮겼고, 호출부는 엔드포인트당 **한 줄**이다.
 
-        > **다만 이 e2e 가 문 것은 `threshold` **한 축**이다.** 78곳 전체를 이 방식으로
-        > 덮으려면 엔드포인트마다 스펙을 쓰게 되므로, 다음 착수 때는 **엔드포인트별 개별
-        > 단언이 아니라 "응답 1건 vs DTO 선언" 을 일반적으로 대조하는 헬퍼**를 먼저
-        > 검토한다. 개별 단언을 78번 쓰는 것은 규모가 맞지 않는다.
+        배선된 4개 DTO — required **37 필드**가 실 응답 대조 하에 들어왔다:
+
+        | DTO | 엔드포인트 | e2e | required |
+        |---|---|---|---|
+        | `ExecutionDto` | `GET /api/executions/workflow/:id` | `workflow-execution` | 12 |
+        | `WorkflowDto` | `GET /api/workflows` | `workflow-crud` | 10 |
+        | `AuditLogDto` | `GET /api/audit-logs` | `audit-logs` | 8 |
+        | `SessionDto` | `GET /api/users/me/sessions` | `session-revocation` | 7 |
+
+        네 자리 모두 payload 를 `{}` 로 바꾼 뮤턴트가 **그 자리만** RED 를 냈다(51개 중
+        1개 → 3개). 빌드 캐시를 prune 한 뒤 돌려 stale 이미지 가설도 배제했다.
+
+        > **선행 조건이 스윕으로 바뀌었다.** 종전 이 자리의 서술은 *"남은 것은 일반
+        > 헬퍼"* 였고 그것이 해소됐다. 남은 일은 같은 한 줄을 나머지 응답 DTO 로 넓히는
+        > 기계적 작업이다 — 아래 별 항목으로 등재한다.
 
       > #### (a) 가 왜 안 되는가 — DTO 와 엔티티는 **다른 것**을 기술한다
       >
@@ -316,10 +396,16 @@ field: T | null;
       파생 `Omit` 타입(`ResponseExecution`)을 반환해 DTO 선언과 **구조적으로 무관**하다.
       네 경로를 한 타입으로 모으는 것이 선행이다.
 
-      **`ExecutionDto` 에는 스키마-레벨 테스트가 아예 없다** (리뷰 2R W4) —
-      `ExecutionStatusDto` 와 달리 `createDocument()` 기반 가드가 0건이라, 데코레이터와 TS
-      타입을 **동시에** optional 로 되돌리는 회귀는 AST 가드도 tsc 도 못 잡는다. 2단계
-      착수 시 `execution-status-response.dto.spec.ts` 패턴으로 신설한다.
+      ~~**`ExecutionDto` 에는 스키마-레벨 테스트가 아예 없다** (리뷰 2R W4)~~ →
+      **신설 완료 (2026-09-05)**: `execution-response.dto.spec.ts` 가
+      `execution-status-response.dto.spec.ts` 패턴으로 섰다. 광고된 22 프로퍼티를 세
+      목록(required+non-nullable 11 · required+nullable 1 · **optional+nullable 10 =
+      §5.4 drift 로 추적 중인 기존 상태**)으로 갈라 고정하고, 세 목록의 합이 프로퍼티
+      전체를 덮는지 먼저 단언한다.
+
+      가드가 실제로 그 회귀를 잡는지 확인했다 — `triggerLabel` 의 데코레이터와 TS 타입을
+      **동시에** optional 로 되돌린 뮤턴트에 **RED 2건**. 이것이 종전 서술이 *"AST 가드도
+      tsc 도 못 잡는다"* 고 지목한 바로 그 형태다.
 
       **"엔티티라 키가 항상 있다" 는 논거는 쓸 수 없다** — `notifications` 4곳 등이 부분
       `select:` 를 쓴다(2026-09-04 실측).
@@ -479,6 +565,18 @@ field: T | null;
       8개 시각. 날짜를 코드 컨텍스트로 하나씩 특정해야 해서 기계적 치환이 안 된다 —
       그래서 §4 의 "소급 정리 안 함" 과 별개로 이 8건만 따로 둔다.
 
+- [ ] **`spec/5-system/` 의 `## Overview` 유무 불일치** (planner, `--impl-prep 12_48_13` W1
+      등재 2026-09-05). 12개 파일은 공유 `_product-overview.md` 와 **별개로** 로컬
+      `## Overview` 를 두는데 6개(`2-api-convention` · `5-expression-language` ·
+      `6-websocket-protocol` · `7-llm-client` · `11-mcp-client` · `16-system-status-api`)는 없다.
+      CLAUDE.md 상 **"권장"** 이라 CRITICAL 은 아니지만 영역 안에서 갈린다. 둘 중 하나다 —
+      - (a) 6개 파일에 로컬 Overview 를 추가해 맞춘다
+      - (b) `project-planner/SKILL.md` 에 *"영역 공유 Overview 가 있으면 파일별 로컬 Overview
+        는 생략 가능"* 을 명시해 **현 상태를 규약으로 인정**한다
+
+      (b) 가 저렴하지만, 12 대 6 이면 다수가 로컬 Overview 를 두고 있어 (a) 가 관행에 가깝다.
+      **한 PR 이 단독으로 정할 일이 아니라 등재한다.**
+
 - [x] **§2.2 자원 액션 패턴** — 반영 완료 (`spec-draft-scope-and-anchor-drift.md` ③). 이름이 틀렸었다: 33개 액션 중 9개가
       하이픈 복합 동사구라 "단일 동사" 로 성문화하면 27%가 즉시 위반이 된다. 실제 규칙은
       **목적어의 위치**다. 종전 서술: (`--spec` W2). `3-workflow-editor/3-execution.md:757` 이
@@ -512,7 +610,7 @@ field: T | null;
 
 | 항목 | 트랙 | 선행 조건 |
 |---|---|---|
-| §5.4 drift 2단계 — 검증자 없는 응답 DTO 78곳 | developer | ~~반환 타입 명시~~는 반증됐고, **응답 대조 테스트는 첫 엔드포인트가 세워졌다**(2026-09-04). 남은 선행 조건은 그것을 77곳으로 넓힐 **일반 헬퍼** — 개별 단언 반복은 규모가 안 맞는다 |
+| §5.4 drift 2단계 — 검증자 없는 응답 DTO | developer | ~~반환 타입 명시~~ 반증 · ~~일반 헬퍼~~ **완료(2026-09-05)** — `response-contract.ts` 가 섰고 4개 DTO 가 배선됐다. 남은 것은 **선행 조건이 아니라 스윕** — §5.4 관련 필드를 가진 응답 DTO 60개 중 56개 |
 | ~~§5.4 가 WS wire 에도 적용되는가~~ | — | **종결(2026-09-04)** — producer 는 이미 §5.4 준수, consumer `?` 는 별개 축 |
 | ~~`QueryExecutionDto.workflowId` 죽은 필드~~ | — | **종결(2026-09-04)** — 옵션 A(제거) 채택 |
 | ~~`idx_schedule_next_run` → `(workspace_id, next_run_at)`~~ | — | **종결(2026-09-04)** — V110 적용 완료. (a)/(b) 는 둘 다 실측으로 기각됐고 답은 (c) 였다 |

@@ -5,6 +5,12 @@ import request from 'supertest';
 
 import { createDbClient, uniqueEmail, uniqueName } from './helpers/db';
 import { registerAndLogin, createTeamWorkspace } from './helpers/auth';
+import {
+  assertMatchesContract,
+  contractForDto,
+  type DtoContract,
+} from '../src/shared/testing/response-contract';
+import { WorkflowDto } from '../src/modules/workflows/dto/responses/workflow-response.dto';
 
 /**
  * e2e: 워크플로우 CRUD 의 실 인프라 검증.
@@ -110,7 +116,10 @@ describe('Workflow CRUD (e2e)', () => {
   let ownerToken: string;
   let workspaceId: string;
 
+  let workflowContract: DtoContract;
+
   beforeAll(async () => {
+    workflowContract = await contractForDto(WorkflowDto);
     db = createDbClient();
     await db.connect();
 
@@ -148,6 +157,12 @@ describe('Workflow CRUD (e2e)', () => {
       (listRes.body.data as Array<{ id: string }>);
     const ids = items.map((w: { id: string }) => w.id);
     expect(ids).toContain(id);
+
+    // 목록 응답 1건이 `WorkflowDto` 선언과 맞는지 통째로 대조한다 (API 규약 §5.4).
+    // 이 컨트롤러는 엔티티를 그대로 반환하므로 DTO 선언을 강제하는 것이 이 단언뿐이다.
+    const mine = items.find((w: { id: string }) => w.id === id);
+    expect(mine).toBeDefined();
+    assertMatchesContract(mine, workflowContract);
 
     // Manual Trigger 노드 1개 자동 생성.
     const nodeRows = await db.query<{ type: string }>(

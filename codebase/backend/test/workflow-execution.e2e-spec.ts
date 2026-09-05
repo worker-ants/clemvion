@@ -4,6 +4,12 @@ import { Client } from 'pg';
 import request from 'supertest';
 
 import { createDbClient, uniqueEmail, uniqueName } from './helpers/db';
+import {
+  assertMatchesContract,
+  contractForDto,
+  type DtoContract,
+} from '../src/shared/testing/response-contract';
+import { ExecutionDto } from '../src/modules/executions/dto/responses/execution-response.dto';
 import { registerAndLogin, createTeamWorkspace } from './helpers/auth';
 
 /**
@@ -54,10 +60,12 @@ async function pollExecution(
 
 describe('Workflow Execution (e2e)', () => {
   let db: Client;
+  let executionContract: DtoContract;
   let ownerToken: string;
   let workspaceId: string;
 
   beforeAll(async () => {
+    executionContract = await contractForDto(ExecutionDto);
     db = createDbClient();
     await db.connect();
     const owner = await registerAndLogin(BASE_URL, uniqueEmail('wfexec'), db);
@@ -133,6 +141,18 @@ describe('Workflow Execution (e2e)', () => {
     const items = list.body.data as Array<{ id: string }>;
     expect(Array.isArray(items)).toBe(true);
     expect(items.some((i) => i.id === executionId)).toBe(true);
+
+    // §5.4 — 이 엔드포인트는 컨트롤러가 엔티티를 그대로 내보내는 경로라 `tsc` 가
+    // `ExecutionDto` 와 대조할 지점이 없다. 실제 응답 1건을 **생성된 OpenAPI 스키마**와
+    // 통째로 맞춘다 (개별 단언을 필드 수만큼 쓰지 않는 이유).
+    //
+    // 커버리지를 과장하지 않기 위해 적어 둔다: `ExecutionDto` 22필드 중 **required 12개**
+    // 는 존재와 non-null 까지 엄격히 물지만, 나머지 10개(키 생략형)는 **있을 때만** 검사
+    // 대상이고 그중 nullable 선언이 붙은 것은 null 도 허용된다. 반대 방향(선언에 없는 키가
+    // 응답에 있다)은 22필드와 무관하게 전부 잡는다.
+    const mine = items.find((i) => i.id === executionId);
+    expect(mine).toBeDefined();
+    assertMatchesContract(mine, executionContract);
   }, 30_000);
 
   it('C. cross-workspace stop → 404 IDOR 차단 (소속 워크스페이스 외 접근)', async () => {
