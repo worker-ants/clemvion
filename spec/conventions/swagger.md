@@ -7,6 +7,8 @@ code:
   - codebase/backend/src/common/config/production-guards.ts
   - codebase/backend/src/main.ts
   - codebase/backend/src/repo-guards/__tests__/swagger-dto-contract*.ts
+  - codebase/backend/src/shared/testing/response-contract*.ts
+  - codebase/backend/src/shared/testing/swagger-probe*.ts
 ---
 
 # Swagger 문서화 일관된 패턴 가이드
@@ -359,6 +361,14 @@ DTO `description` 은 *"한 줄로 읽히는가"* 가 기준이지 글자 수가
 - `codebase/backend/src/modules/<module>/dto/responses/*-response.dto.ts`
 - 엔티티(`entities/*.entity.ts`) 를 그대로 노출하지 말고, API 응답 형태에 맞춰 별도 DTO 를 만듭니다. 비밀값(credentials, passwordHash 등)은 마스킹하거나 제외합니다.
 - 중복 필드는 `PickType` / `OmitType` / `PartialType` (`@nestjs/swagger`) 로 재사용할 수 있습니다.
+
+> **무엇이 이 규칙을 강제하나**: 정적 가드(`swagger-dto-contract-guard.ts`, 위 `code:`)는 **선언끼리**만
+> 대조하므로 *엔티티를 그대로 노출했다* 는 사실 자체는 못 본다. 그 축은 런타임 짝인
+> [`shared/testing/response-contract.ts`](../../codebase/backend/src/shared/testing/response-contract.ts)
+> 가 문다 — 실 응답에 **스키마가 선언하지 않은 키**가 있으면 위반으로 보고한다. 실사례:
+> `GET /api/audit-logs` 가 3필드를 광고하면서 `User` 엔티티 26키(`passwordHash`·2FA 복구 코드·
+> 계정 탈취 토큰 포함)를 내보내고 있었다 (`CHANGELOG.md`).
+> 두 검증자의 경계는 [API 규약 §5.4 검증 층](../5-system/2-api-convention.md#검증-층--이-규칙을-무엇이-강제하는가) 이 소유한다.
 
 **형제 DTO 가 같은 enum 을 공유하면 `*.literal.ts` 로 뺍니다.** 두 개 이상의 응답 DTO 가
 동일한 값 집합을 노출할 때, 각 DTO 가 유니온 타입과 swagger `enum` 배열을 **각자 선언하면

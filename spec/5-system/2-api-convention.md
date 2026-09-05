@@ -11,11 +11,25 @@ code:
   - codebase/backend/src/common/utils/throttler-skip.ts
   - codebase/backend/src/modules/hooks/hooks.controller.ts
   - codebase/backend/src/modules/hooks/hooks.service.ts
+  - codebase/backend/src/shared/testing/response-contract*.ts
+  - codebase/backend/src/shared/testing/swagger-probe*.ts
 ---
 
 # Spec: API 설계 규칙
 
-> 관련 문서: [PRD 비기능 요구사항](./_product-overview.md) · [Spec 아키텍처 개요](../0-overview.md) · [Spec 에러 처리](./3-error-handling.md)
+> 관련 문서: [PRD 비기능 요구사항](./_product-overview.md) · [Spec 아키텍처 개요](../0-overview.md) · [Spec 에러 처리](./3-error-handling.md) · [Swagger 규약](../conventions/swagger.md)
+
+---
+
+## Overview (제품 정의)
+
+본 문서는 이 제품의 **HTTP API 가 밖에서 어떻게 보이는가**를 정하는 단일 진실이다 — URL 구조,
+요청/응답 봉투, 에러 형식, 페이지네이션, 그리고 **값이 없음을 어떻게 표현하는가**(§5.4).
+
+소비자는 웹 프런트엔드 하나가 아니다. 외부 연동(EIA)·웹훅·생성된 SDK 가 같은 계약을 읽으므로,
+**OpenAPI 문서가 실제 wire 와 어긋나면 그 어긋남이 소비자 코드로 전파된다.** 그래서 본 문서의
+규칙 상당수는 "무엇을 보내는가" 만이 아니라 **"보낸다고 문서에 적은 것과 실제가 같은가"** 를
+다룬다 — §5.4 와 그 검증 층이 그 자리다.
 
 ---
 
@@ -205,6 +219,28 @@ GET /api/triggers?type=webhook&status=active
 | 키 생략 | [§5.3](#53-에러-응답) `details`("선택 필드 — 존재 시에만 동봉") · [EIA §5.3](./14-external-interaction-api.md) `context.conversationThread` |
 
 > 실사례: [EIA §5.3](./14-external-interaction-api.md) 의 `getStatus` 응답은 `currentNode`/`result`/`error` 를 `null` 로, `context.conversationThread` 를 **키 생략**으로 둔다 — 후자는 기준 (a) 때문이다. 근거는 [Rationale](#왜-conversationthread-를-null-로-정규화하지-않는가-54).
+
+#### 검증 층 — 이 규칙을 무엇이 강제하는가
+
+본 절은 **선언과 실제가 같아야 한다**고 요구하지만, 컨트롤러가 엔티티를 그대로 반환하는
+경로에서는 `tsc` 가 대조할 지점이 없다. 그 자리를 **두 검증자**가 나눠 맡는다 — 이름이
+인접하니 어느 쪽인지 먼저 가려야 한다.
+
+| 검증자 | 무엇과 무엇을 대조하나 | 언제 | 못 보는 것 |
+|---|---|---|---|
+| [`repo-guards/__tests__/swagger-dto-contract-guard.ts`](../../codebase/backend/src/repo-guards/__tests__/swagger-dto-contract-guard.ts) | **선언 ↔ 선언** — `@ApiProperty` 데코레이터와 TS 타입 | 정적 (AST) | 선언이 **양쪽 다** 틀린 경우. 실제 응답 값 |
+| [`shared/testing/response-contract.ts`](../../codebase/backend/src/shared/testing/response-contract.ts) | **값 ↔ 선언** — 실 HTTP 응답과 생성된 OpenAPI 스키마 | 런타임 (e2e) | 배선되지 않은 엔드포인트 |
+
+**두 축이 서로 다른 규칙을 시행한다.** 후자의 판정 중 required/nullable 축은 본 절(§5.4)을,
+**"스키마에 선언되지 않은 키가 응답에 있다"** 축은 [Swagger 규약 §5-1](../conventions/swagger.md#5-1-응답-dto-위치)
+(*엔티티를 그대로 노출하지 말 것*)을 시행한다. 그래서 그 검증자는 **양쪽 문서의 `code:` 에
+모두 등재**돼 있다 — 한쪽만 등재하면 다른 축의 변경이 재검토 트리거를 못 건드린다.
+
+> 판정 규칙의 상세 표는 **코드의 JSDoc 이 단일 진실**이다. 여기에 옮겨 적으면 drift 소스가
+> 하나 늘 뿐이다.
+>
+> `swagger-probe.ts` 는 스키마 생성 자체를 담당하므로 §5.4 와 무관한 이유로도 바뀔 수 있다 —
+> 그 변경이 본 문서를 재검토 대상으로 만드는 것은 의도된 과포함이다(판정 근거가 바뀌므로).
 
 ---
 
