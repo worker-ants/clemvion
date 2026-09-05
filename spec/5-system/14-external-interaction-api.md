@@ -919,7 +919,26 @@ ALTER TABLE trigger
 }
 ```
 
-> `config.notification.signing.secretRef` 의 plaintext 는 [`SecretResolver`](../conventions/secret-store.md) 가 관리하는 `secret_store` 테이블에 backend AES-256-GCM 으로 암호화되어 보관 (DB 는 ciphertext 만) — config JSONB 에는 ref 만. `notification_secret_v2` 컬럼도 동일하게 ref 만 보관 (rotation grace 기간). `config.interaction.triggerToken` 는 JSONB 평문으로 보관하며, 이는 [`secret-store.md §1`](../conventions/secret-store.md#1-uri-scheme) 의 **명시적 비대상 예외**다 (결정 2026-08-16 — 근거는 그 문서). 종전 "향후 secret store 통합 검토" 서술은 의식적 예외로 결정된 이상 거짓이라 정정한다.
+> `config.notification.signing.secretRef` 의 plaintext 는 [`SecretResolver`](../conventions/secret-store.md) 가 관리하는 `secret_store` 테이블에 backend AES-256-GCM 으로 암호화되어 보관 (DB 는 ciphertext 만) — config JSONB 에는 ref 만. `notification_secret_v2` 컬럼은 **ref 가 아니라 신규 secret 평문 자체**를 보관한다 (rotation grace 24h). 이는 자매 컬럼 `chat_channel_token_v2`(ref 보관)와 **의도적으로 다르다**. [Chat Channel §R-K](./15-chat-channel.md#r-k-chat_channel_token_v2-컬럼-명명의-semantic-비대칭) 가 그 차이를 기록한다 — *"두 컬럼은 의미상 직교 (signing secret vs external bot token)"*. 다만 **R-K 가 소유한 결정은 컬럼 *명명*이고, 저장 형태 예외의 SoT 는** [`secret-store.md §1`](../conventions/secret-store.md#1-uri-scheme) **의 비대상 등재다.** 승격 시 그 값은 `secrets.rotate(canonical ref, v2)` 로 secret store 에 옮겨지고 컬럼은 `null` 로 초기화된다 ([data-flow §1.5 승격 경로](../data-flow/15-external-interaction.md)). 즉 이 컬럼은 비밀의 **종착지가 아니라 경유지**이며, 그 예외는 [`secret-store.md §1`](../conventions/secret-store.md#1-uri-scheme) 에 등재돼 있다. `config.interaction.triggerToken` 는 JSONB 평문으로 보관하며, 이는 [`secret-store.md §1`](../conventions/secret-store.md#1-uri-scheme) 의 **명시적 비대상 예외**다 (결정 2026-08-16 — 근거는 그 문서). 종전 "향후 secret store 통합 검토" 서술은 의식적 예외로 결정된 이상 거짓이라 정정한다.
+>
+> **정정 이력 (2026-09-05)** — 종전 이 자리는 *"`notification_secret_v2` 컬럼도 동일하게
+> ref 만 보관"* 이라 적었다. **사실이 아니었다.** `rotateNotificationSecret` 은
+> `` `wsk_${randomBytes(32).toString('hex')}` `` 를 컬럼에 그대로 저장하고, 발송 측
+> `notification-webhook.processor.ts` 는 그 값을 `SecretResolver` 를 거치지 않고 secondary
+> HMAC 키로 직접 쓴다(primary 만 `resolveSigningSecret` 경유). 두 Rationale(R-K · §1.5)은
+> 처음부터 이 동작을 전제하고 있었고, **이 문장 하나만 반대로 적혀 있었다.**
+>
+> 이 문장을 믿으면 *"ref 라 노출돼도 등급이 낮다"* 는 판단으로 이어진다 — §5.4 응답-계약
+> 스윕에서 실제로 그 문턱까지 갔다(자매 컬럼이 진짜 ref 라 더 그럴듯했다).
+>
+> **현재 이 컬럼은 응답에도 나간다** — `GET/POST/PATCH /api/triggers` 와
+> `GET /api/schedules`(트리거 조인)가 엔티티를 그대로 반환하는데 컬럼 스트립이 없다.
+> 이는 **미해결 결함**이며 [`secret-store.md §1.1`](../conventions/secret-store.md#11-비대상-필드도-응답-바디에는-나가지-않는다)
+> 이 금지 규범을, `plan/in-progress/spec-draft-nullable-notation-followups.md` 가 수정을
+> 추적한다. 저장 형태 예외(평문 보관)와 노출은 **다른 문제**다.
+>
+> **`EIA-NX-12` 의 "1회 평문 반환" 과 다른 것을 말한다** — 그쪽은 *rotate 응답*에 평문이
+> 한 번 실린다는 뜻이고, 이 절은 *DB 컬럼 자체*가 grace 동안 평문이라는 뜻이다.
 
 ### 7.2 Execution 엔티티 확장
 

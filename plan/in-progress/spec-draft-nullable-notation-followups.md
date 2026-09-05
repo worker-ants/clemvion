@@ -311,7 +311,7 @@ field: T | null;
       > 못 보는 것). `swagger.md §5-1` 에는 런타임 짝을 가리키는 blockquote 를 넣었다.
 
 - [x] **`2-api-convention.md` frontmatter `code:` 에 §5.4 검증자 등재** (planner,
-      2026-09-05 등재). `response-contract.ts` 는 §5.4 를 **시행하는** 유일한 코드인데
+      2026-09-05 등재). `response-contract.ts` 는 §5.4 를 **런타임으로 시행하는** 유일한 코드인데
       지금 어떤 spec 의 `code:` glob 에도 안 걸린다 — 즉 그 파일을 고쳐도
       `--impl-done` SPEC-CONSISTENCY 게이트가 안 문다.
 
@@ -332,6 +332,12 @@ field: T | null;
       **+ `ExecutionDto` 10곳**. 컨트롤러가 엔티티를
       그대로 반환하는 경로라 **DTO 가 강제되지 않는 순수 문서**다. `required: true` 를
       주장하려면 검증자가 필요하다:
+
+      > **`TriggerDto`/`ScheduleDto` 에 도달하면 주의** — 계약 대조가 RED 를 내더라도
+      > `notificationSecretV2`·`chatChannelTokenV2` 를 **DTO 에 선언해 해소하지 말 것.**
+      > [`secret-store.md §1.1`](../../spec/conventions/secret-store.md) 이 그 필드들의
+      > **응답 노출을 금지**한다(저장 형태 예외는 노출 예외가 아니다). RED 는 **응답
+      > 스트립**으로만 해소한다. 다른 미선언 필드를 선언으로 해소하는 것과 갈린다.
 
       > **진행 상태 (2026-09-05)**: 검증자 자체는 섰고 4개 DTO 가 배선됐다 — 아래 (b) 참조.
       > 남은 것은 **선행 조건이 아니라 스윕**이라 이 항목은 열어 둔다.
@@ -681,30 +687,52 @@ field: T | null;
       > **실제 처분**: 이번 턴이 어차피 여는 `2-api-convention.md` 에만 추가.
       > `6-websocket-protocol.md` 는 아래 별도 항목으로 재등재.
 
-- [ ] **`notification_secret_v2` 저장 형태 — spec 과 코드가 정면 모순** (planner,
-      2026-09-05 등재, `review/consistency/2026/09/05/19_08_19` **Critical 1 · BLOCK 사유**).
+- [x] ~~**`notification_secret_v2` 저장 형태 — spec 과 코드가 정면 모순**~~ (planner 인계,
+      `19_08_19` Critical 1). **완료 — [#1290](https://github.com/worker-ants/clemvion/pull/1290)**
+      (2026-09-05).
 
-      `spec/5-system/14-external-interaction-api.md §7.1` 이 그 컬럼을 *"ref 만 보관"* 이라
-      적는데, 실제로는 **rotation grace 24h 동안 평문**으로 DB 에 있고 SecretResolver 를
-      우회한다(`notification-webhook.processor.ts` 가 그대로 읽는다).
-      `spec/conventions/secret-store.md §1` 예외 목록(현재 2건)에도 없어, 그 문서가 스스로
-      경고한 *"세 번째 필드가 근거 없이 예외를 얻는 실패 모드"* 가 실현된 상태다.
+      > 인계 시 (a) 사실 정정+예외 등재 / (b) 코드측 ref 화 요구 를 planner 가 정하도록
+      > 적었고, planner 턴이 **(a)** 를 택했다 — 다만 그 과정에서 인계문의 전제도 반증됐다.
+      > 인계문은 *"§7.1 은 2026-05-22 에 확정된 보안 invariant"* 라 적었는데, 실제로는
+      > 그 커밋이 넣은 **aspirational 서술**이었고 평문 rotation 코드가 그보다 앞섰다.
+      > 두 컬럼의 비대칭도 `chat-channel.md` R-K 가 이미 결정해 둔 것이었다.
+      >
+      > 산출: §7.1 정정 · `secret-store.md §1` 세 번째 비대상 등재 · **§1.1 신설**
+      > (저장 위치 예외 ≠ 노출 예외) · 정적 가드 `code:` 등재. 아래 세 항목이 그 턴이
+      > 남긴 후속이다.
 
-      **developer 권한 밖이고 자기-반증형 소정정에도 해당하지 않는다** — 그 문장은 내가 쓴
-      예고가 아니라 2026-05-22 에 확정된 보안 invariant 다. 둘 중 하나를 planner 가 정한다:
+- [x] **트리거 회전 secret 이 응답에 나간다 — 유출 차단 코드** (developer, 2026-09-05 등재,
+      `review/consistency/2026/09/05/19_59_16` **Critical 1**). **완료 — 이 브랜치가 그
+      수정이다** (`dfb2664af` · `cb17f0870` · `a6f582680`).
 
-      - (a) **사실로 정정 + 예외 등재** — §7.1 문구를 실측으로 고치고 `secret-store.md §1`
-        에 독립 근거(예: dual-sign hot-path 비용)와 함께 세 번째 예외로 등재
-      - (b) **코드측 ref 화 요구** — 등재를 거부하고 별도 설계 변경 PR 로 전환 지시
+      `Trigger.notification_secret_v2`(평문 서명 secret)와 `chat_channel_token_v2`(secret
+      store ref)가 `GET/POST/PATCH /api/triggers` · `GET /api/schedules`(트리거 조인) 응답에
+      **매 요청** 실린다. 엔티티를 그대로 반환하는데 컬럼 스트립이 없다(전역
+      `ClassSerializerInterceptor`·`select:false`·`@Exclude()` 모두 0건).
 
-      같은 planner 턴에서 함께 처리할 것 (같은 라운드의 W2·W3):
+      금지 규범은 이번 turn 이 `secret-store.md §1.1` 로 세웠다 — **저장 형태 예외(평문
+      보관)와 노출은 다른 문제**이고, 예외 등재가 노출까지 승인하는 것으로 읽히면 안 된다.
 
-      - `2-api-convention.md` frontmatter `code:` 에 **정적 가드**
-        (`repo-guards/__tests__/swagger-dto-contract*.ts`) 등재 — 직전 planner 턴이
-        *"한쪽만 등재하면 사각지대가 남는다"* 며 런타임 검증자를 양쪽에 넣었는데, 그
-        원칙을 세운 문서가 **자기 짝을 빠뜨렸다.**
-      - `spec/2-navigation/4-integration.md §9.1` 에 `IntegrationDto` 확장 필드용
-        `1-data-model.md §2.10` 포인터 한 줄.
+      > **확인 후 닫는다** (등재문이 요구한 절차). `sanitizeForResponse` 가 엔티티 비밀
+      > 컬럼 2개 + `config.notification.signing` 키 2개를 지우고, 스케줄 컨트롤러가 조인된
+      > 트리거를 참조 4필드로 좁힌다. 두 자리 모두 뮤턴트로 RED 를 실측했고, unit 회귀도
+      > 있다(종전 fixture 에는 비밀 필드가 없어 스트립을 되돌려도 전부 그린이었다).
+      >
+      > `secret-store.md §1.1`(이번 planner 턴 신설)이 그 금지를 규범으로 세웠고, 이
+      > 커밋들이 그것을 시행한다.
+
+- [ ] **`4-integration.md §9.1` — `IntegrationDto` 확장 필드 포인터** (planner,
+      2026-09-05 등재, `19_08_19` W3 / `19_59_16` W3).
+      대상 5필드 선언이 아직 `origin/main` 에 없다(`claude/sweep-response-contract-5ba0ad`).
+      **그 브랜치 머지 후** §9.1 에 `1-data-model.md §2.10` 포인터 한 줄을 넣는다.
+      `consecutiveNetworkFailures` 는 **FE 미소비 — 제거 후보로 별도 추적 중**이라는 캐비엇을
+      함께 적어 나머지 4개와 동급으로 문서화하지 않는다.
+
+- [ ] **`1-data-model.md §2.8` — `notification_secret_v2` 저장 형태 명시** (planner,
+      2026-09-05 등재, `19_59_16` INFO#2 / `20_17_57` W4). 그 행은 저장 형태를 안 적는데
+      자매 행(`chat_channel_token_v2`)은 *"reference"* 라고 적어 **서술 밀도가 비대칭**이다.
+      평문임을 한 줄로 명시하고 [`secret-store.md §1`](../../spec/conventions/secret-store.md)
+      비대상 등재로 링크한다.
 
 - [ ] **`6-websocket-protocol.md` 도입 산문** (planner, 2026-09-05 등재). 위 실측에서
       개요 내용이 **실제로 없는** 두 문서 중 남은 하나. `## 1. 연결` 로 바로 시작한다.
