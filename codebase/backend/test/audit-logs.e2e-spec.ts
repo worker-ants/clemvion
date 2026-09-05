@@ -8,6 +8,11 @@ import {
   createTeamWorkspace,
   inviteAndAccept,
 } from './helpers/auth';
+import {
+  assertMatchesDtoSchema,
+  schemaForDto,
+} from '../src/shared/testing/response-contract';
+import { AuditLogDto } from '../src/modules/audit-logs/dto/responses/audit-log-response.dto';
 
 /**
  * e2e: spec/5-system/1-auth.md §4.2/§5 — GET /api/audit-logs 권한 경계 (감사 보고 V-03).
@@ -66,6 +71,13 @@ describe('Audit logs 권한 경계 (e2e)', () => {
     expect(res.status).toBe(200);
     const rows = res.body.data as Array<{ action: string }>;
     expect(rows.length).toBeGreaterThanOrEqual(1);
+
+    // 응답 1건 vs `AuditLogDto` 선언 전수 대조 (API 규약 §5.4).
+    assertMatchesDtoSchema(
+      rows[0],
+      await schemaForDto(AuditLogDto),
+      'AuditLogDto',
+    );
   });
 
   it('viewer 멤버 → 403', async () => {

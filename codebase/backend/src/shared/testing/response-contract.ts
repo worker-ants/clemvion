@@ -50,6 +50,11 @@ export interface ContractViolation {
   readonly detail: string;
 }
 
+/** 프로퍼티 스키마에서 이 검증자가 의존하는 유일한 축. */
+interface PropertyContract {
+  readonly nullable?: boolean;
+}
+
 export interface ContractCheckOptions {
   /**
    * 스키마에 없는 키를 위반으로 보지 않을 이름들.
@@ -82,7 +87,9 @@ export function findContractViolations(
   }
 
   const body = payload as Record<string, unknown>;
-  const props = schema.properties ?? {};
+  // `properties` 의 값 타입은 `SchemaObject | ReferenceObject` 라 `nullable` 을 바로
+  // 읽을 수 없다. 이 검증자가 실제로 보는 축은 그 한 칸뿐이므로 그만큼만 좁혀서 본다.
+  const props = (schema.properties ?? {}) as Record<string, PropertyContract>;
   const required = new Set(schema.required ?? []);
   const allowUndeclared = new Set(options.allowUndeclared ?? []);
   const out: ContractViolation[] = [];
