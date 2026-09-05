@@ -50,7 +50,7 @@ codebase/backend/migrations/V<번호>__<snake_case_descriptor>.conf  # 필요한
 
 - Flyway 는 부팅 시 각 적용된 마이그레이션의 SQL 내용 checksum 을 `flyway_schema_history` 와 비교한다. 파일이 한 글자라도 바뀌면 `Migration checksum mismatch for migration version NNN` 으로 부팅이 실패한다.
 - 컬럼/인덱스/제약 추가·변경·삭제가 필요하면 **새 V<N+k>** 로 `ALTER`·`DROP`·`CREATE` 를 작성한다.
-- 운영 사고로 어쩔 수 없이 checksum 을 재정렬해야 한다면 `migrate-repair` 서비스를 사용한다 (절차는 [`codebase/backend/migrations/README.md`](../../codebase/backend/migrations/README.md) §5 참고).
+- 운영 사고로 어쩔 수 없이 checksum 을 재정렬해야 한다면 `migrate-repair` 서비스를 사용한다 (절차는 [`codebase/backend/migrations/README.md`](../../codebase/backend/migrations/README.md) **§6** 말미 참고).
 
 ## 4. `outOfOrder=false` 유지
 
