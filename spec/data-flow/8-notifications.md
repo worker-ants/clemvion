@@ -272,6 +272,12 @@ URL 을 만들 수 없으며, §3.1 딥링크 계약 자체를 바꿔야 해 더
 순서로 적용한다 (`(workspace_id, created_at DESC)` 인덱스는 향후 admin/감사 조회에서 dismissed
 포함 전체 row 를 보는 여지를 두기 위해 partial 로 변환하지 않는다).
 
+> ⚠️ **위 2문장 순서는 V056 이 적용된 시점의 것이다.** 이후 **DROP-먼저** 패턴이 규약화됐다 —
+> `CREATE INDEX CONCURRENTLY IF NOT EXISTS` 는 이름만 보고 `indisvalid` 를 보지 않아, 빌드가
+> 실패한 뒤 재실행하면 **쓸 수 있는 인덱스가 0개**가 될 수 있다. 새로 쓰는 인덱스 교체는
+> [`migrations/README.md`](../../codebase/backend/migrations/README.md) §5 의 3문장 순서를
+> 따른다. V056 자신은 append-only 라 소급 수정 대상이 아니다.
+
 ### 중복 방지에 dismissed row 포함
 
 `hasRecentByResource(workspaceId, type, resourceId, title, withinMs)` 헬퍼는 같은 (workspace,
