@@ -124,19 +124,39 @@ Dockerfile 에서 `*.conf` 도 함께 COPY 되어야 합니다 (이미 V022 도�
 
 ### 5. `executeInTransaction=false` 파일은 한 statement 만 (컨벤션)
 
-`.conf` 로 비-트랜잭션 모드를 켠 마이그레이션 파일에는 **`CREATE INDEX CONCURRENTLY` 를 정확히 한 개만** 두는 것을 컨벤션으로 둡니다.
+`.conf` 로 비-트랜잭션 모드를 켠 마이그레이션 파일에는 **`CREATE INDEX CONCURRENTLY` 를 정확히 한 개만** 두는 것을 컨벤션으로 둡니다. 제한 대상은 **`CREATE` 의 개수**입니다 — 인덱스를 교체할 때 짝지어지는 `DROP INDEX CONCURRENTLY` 는 이 제한 밖이며, 그 패턴은 아래 §인덱스 교체에 있습니다.
 
 > **근본 원인은 §4 의 `FLYWAY_POSTGRESQL_TRANSACTIONAL_LOCK=false` 로 해결되어 있습니다.** 과거에는 같은 파일에 두 개 이상이면 두 번째부터 hang 하던 이슈 (V022 / V030 split 의 배경) 가 있었으나, transactional advisory lock 이 session lock 으로 폴백되어 더 이상 발생하지 않습니다.
 >
 > 그럼에도 한 파일 한 statement 컨벤션을 유지하는 이유:
 > - **롤백 단위가 명확**합니다 — 파일 = atomic forward step.
 > - **checksum / 적용 추적이 단순**합니다 — 차원·인덱스별 분리가 history 에 그대로 드러납니다.
-> - 같은 파일에 *transactional* statement (예: `ALTER TABLE`) 와 `CONCURRENTLY` 를 섞으면 PostgreSQL 자체 제약 (CONCURRENTLY 는 트랜잭션 안에서 실행 불가) 에 걸립니다.
+> - 같은 파일에 *transactional* statement (예: `ALTER TABLE`, `DO $$ ... $$`) 와 `CONCURRENTLY` 를 섞으면 **Flyway 의 mixed 판정**에 걸립니다 — `Detected both transactional and non-transactional statements within the same migration (even though mixed is false)`. `.conf` 의 `executeInTransaction=false` 를 둬도 이 판정은 면제되지 않습니다 (2026-09-05 실측, 있을 때·없을 때 각각 확인). 근본 이유는 PostgreSQL 제약(`CONCURRENTLY` 는 트랜잭션 안에서 실행 불가) 이지만, **거부를 내는 주체는 Flyway 가드**입니다 — `-mixed=true` 를 주면 통과합니다.
 
 **규칙**:
 - 한 차원당 한 마이그레이션 파일 (예: V0xx_dim_768.sql, V0yy_dim_1024.sql).
 - 각 파일에 동일한 `.conf executeInTransaction=false` 동봉.
 - 같은 파일 안에 *transactional* statement (예: `ALTER TABLE`) 와 `CONCURRENTLY` 를 섞지 않습니다.
+
+**인덱스 교체는 DROP-먼저** (2026-09-05 규약화):
+
+옛 인덱스를 새 것으로 갈아 끼우는 파일은 아래 **세 문장 순서**를 씁니다.
+
+```sql
+DROP INDEX CONCURRENTLY IF EXISTS <새 인덱스 이름>;   -- 0) 앞선 실패의 invalid 잔재 정리
+CREATE INDEX CONCURRENTLY IF NOT EXISTS <새 인덱스 이름> ON ...;
+DROP INDEX CONCURRENTLY IF EXISTS <옛 인덱스 이름>;
+```
+
+**0) 이 없으면 재실행이 인덱스를 0개로 만듭니다.** `CREATE INDEX CONCURRENTLY` 가 중간에 실패하면 `indisvalid = false` 인 인덱스가 **이름을 점유한 채** 남는데, `IF NOT EXISTS` 는 이름만 보고 유효성은 보지 않습니다. 그대로 재실행하면 `CREATE` 가 건너뛰고 뒤이은 `DROP` 이 옛 인덱스를 지워 **쓸 수 있는 인덱스가 하나도 없는 상태**로 끝납니다 — PostgreSQL 은 invalid 인덱스를 쿼리에 쓰지 않으므로 조용히 seq scan 으로 회귀하면서 쓰기 비용만 냅니다. (실증: `CREATE UNIQUE INDEX CONCURRENTLY` 를 중복 데이터에 걸어 결정적으로 실패시킨 뒤 재현.)
+
+**감수하는 비대칭**: 0) 은 대상이 invalid 잔재인지 정상 인덱스인지 구분하지 않습니다. 그래서 **이미 성공한** 마이그레이션을 Flyway 흐름 밖에서 수동 재실행하면 살아 있는 인덱스를 재빌드합니다(그 구간 seq scan). Flyway 는 성공한 마이그레이션을 다시 돌리지 않으므로 정상 흐름에서는 발생하지 않고, 반대편(인덱스 0개)이 훨씬 나쁩니다.
+
+> **`indisvalid` 로 분기하면 양쪽을 다 피할 수 있지만 `mixed=true` 가 필요합니다.** `DO $$ ... IF NOT indisvalid THEN DROP INDEX ... $$` 는 정상 인덱스를 건드리지 않아 성공 후 재실행도 완전 no-op 입니다 (실측: 재실행 전후 인덱스 oid 불변). 그러나 `DO` 는 transactional statement 라 같은 파일의 `CONCURRENTLY` 와 섞이는 순간 위 mixed 판정에 걸립니다. `-mixed=true` 를 주면 통과하지만 그 설정은 혼합 금지 가드를 **모든 마이그레이션에 대해** 풀므로, 도입 여부는 별도 결정 항목입니다.
+>
+> 파일을 둘로 쪼개는 우회는 성립하지 않습니다 — Flyway 는 **실패한 마이그레이션만** 재실행하므로, 앞 파일에 정리 코드를 두면 그 코드가 돌 기회가 없습니다. 정리와 생성은 같은 파일에 있어야 합니다.
+
+선례: `V110__schedule_workspace_next_run_index.sql`. 그 이전의 `V056`·`V106` 은 0) 이 없어 같은 위험을 갖습니다 — append-only 라 소급 수정 대상은 아니고, 재실행이 필요해지면 `SELECT indisvalid FROM pg_index ...` 확인을 **수동 절차**로 선행합니다.
 
 ### 6. 테이블-rewrite 형 `ALTER COLUMN TYPE`
 

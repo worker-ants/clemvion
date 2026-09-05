@@ -397,8 +397,10 @@ field: T | null;
       e2e 가 인덱스 교체를 양방향으로 고정하고, 최적화 대상 쿼리(`GET /api/schedules`)의
       격리·정렬도 함께 검증한다. **잔여 없음.**
 
-- [ ] **`CREATE INDEX CONCURRENTLY IF NOT EXISTS` 재실행 위험 — 규약 차원 처리**
-      (developer, `23_02_51` W1). `IF NOT EXISTS` 는 **이름만 보고 `indisvalid` 를 보지
+- [x] **`CREATE INDEX CONCURRENTLY IF NOT EXISTS` 재실행 위험** — 규약화 완료 (2026-09-05).
+      `migrations/README.md` §5 에 "인덱스 교체는 DROP-먼저" 패턴 + `migrations.md` §5 포인터.
+      상세·실측은 [`spec-draft-migration-rerun-and-citations.md`](../complete/spec-draft-migration-rerun-and-citations.md) ①.
+      종전 서술: (developer, `23_02_51` W1). `IF NOT EXISTS` 는 **이름만 보고 `indisvalid` 를 보지
       않는다.** 빌드가 실패해 남은 invalid 인덱스를 건너뛴 채 뒤이은 DROP 이 옛 인덱스를
       지우면 **쓸 수 있는 인덱스가 0개**가 된다 — Postgres 는 invalid 인덱스를 쿼리에 쓰지
       않으므로 seq scan 으로 조용히 회귀하면서 쓰기 비용만 낸다.
@@ -431,8 +433,10 @@ field: T | null;
       >
       > V110 은 뒤쪽을 택했다(정상 흐름에서 발생하지 않고 스스로 회복하므로). 규약은 이 선택을
       > 성문화하거나, `indisvalid` 확인을 런북 절차로 두어 **양쪽을 다 피하는** 길을 정해야 한다.
-- [ ] **코드 주석의 리뷰 세션 ID 인용 — 규약으로 결정하거나 관례를 성문화**
-      (planner, `00_06_38` W2). 리뷰가 *"영구 코드 주석에 일시적 프로세스 식별자가
+- [x] **코드 주석의 리뷰 세션 ID 인용** — 규약화 완료 (2026-09-05).
+      `spec/conventions/review-citations.md` 신설 — 인용은 **유지**하되 **날짜를 요구**한다.
+      상세는 [`spec-draft-migration-rerun-and-citations.md`](../complete/spec-draft-migration-rerun-and-citations.md) ②.
+      종전 서술: (planner, `00_06_38` W2). 리뷰가 *"영구 코드 주석에 일시적 프로세스 식별자가
       새어 들어갔다"* 고 두 라운드 연속 지적했다. **실측하니 저장소의 오래된 관례였다**
       (2026-09-05): `origin/main` 의 `codebase/` 안에 `hh_mm_ss` 형태 인용이
       **104개 파일 · 508회** 있고, 가장 오래된 것은 `roles.guard.spec.ts` 의
@@ -449,6 +453,17 @@ field: T | null;
       - (b) 앞으로는 PR 번호·커밋 SHA 로 바꾸기로 하고, 기존 508회는 그대로 둔다
 
       어느 쪽이든 **한 PR 이 단독으로 정할 일이 아니다** — 그래서 등재한다.
+
+- [ ] **Flyway `mixed=true` 도입 여부** (planner + 인프라, 2026-09-05 등재).
+      `CREATE INDEX CONCURRENTLY` 교체에서 **양쪽 위험을 다 피하는** 형태
+      (`indisvalid` 로 분기하는 `DO` 블록)는 이 설정 없이는 Flyway 가 거부한다 — 실측 확인.
+      대가는 *"한 파일에 transactional/non-transactional 을 섞지 마라"* 가드의 **전역 해제**다.
+      110개 마이그레이션을 가진 저장소에서 그 가드를 없애는 판단이라 단독 결정하지 않았다.
+      실측·형태 비교는 [`spec-draft-migration-rerun-and-citations.md`](../complete/spec-draft-migration-rerun-and-citations.md) §1.2 에 다 있고 **남은 것은 결정 하나**다.
+- [ ] **해소 불가 bare 인용 8건 채우기** (developer, 2026-09-05 등재).
+      `review-citations.md` §2 가 금지한 형태 중 **실제로 여러 날짜에 걸려 해소가 안 되는**
+      8개 시각. 날짜를 코드 컨텍스트로 하나씩 특정해야 해서 기계적 치환이 안 된다 —
+      그래서 §3 의 "소급 정리 안 함" 과 별개로 이 8건만 따로 둔다.
 
 - [x] **§2.2 자원 액션 패턴** — 반영 완료 (`spec-draft-scope-and-anchor-drift.md` ③). 이름이 틀렸었다: 33개 액션 중 9개가
       하이픈 복합 동사구라 "단일 동사" 로 성문화하면 27%가 즉시 위반이 된다. 실제 규칙은

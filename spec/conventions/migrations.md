@@ -69,6 +69,11 @@ Flyway 의 `outOfOrder=true` 옵션은 옛 V번호가 늦게 들어와도 실행
 5. `make e2e-test` 로 dry-run — e2e 컨테이너의 Flyway 가 실제 마이그레이션을 적용해 본다.
 6. PR 을 연다. CI 의 `migration-check` 가 동일한 검사를 다시 돌린다.
 
+- 기존 인덱스를 **교체**하는 마이그레이션은 재실행 안전성 패턴이 따로 있다 —
+  [`codebase/backend/migrations/README.md`](../../codebase/backend/migrations/README.md) §5 의
+  *"인덱스 교체는 DROP-먼저"* 참조. `IF NOT EXISTS` 만으로는 실패 후 재실행이 **인덱스를
+  0개로** 만들 수 있다.
+
 > PR open 후에는 가능한 빠르게 리뷰·머지하여 다른 PR 과의 V번호 점유 윈도우를 짧게 유지한다.
 
 ## 6. 충돌 검출 / 머지 race
