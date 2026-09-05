@@ -100,7 +100,7 @@ Successfully applied 2 migrations
 **(c) 는 `mixed=true` 를 전역으로 켜야 한다.** 그 설정은 *"transactional 과 non-transactional
 을 한 파일에 섞지 마라"* 는 가드를 **모든 마이그레이션에 대해** 푼다. 110개 마이그레이션을
 가진 저장소에서 그 가드를 없애는 것은 이 규약 문서 하나가 단독으로 정할 일이 아니다 —
-**별도 결정 항목으로 등재**한다(§3).
+**별도 결정 항목으로 등재**한다(아래 ③ 참조).
 
 ### 1.5 변경안 (A) — `codebase/backend/migrations/README.md` §5 **안에** 접어 넣는다
 
@@ -196,7 +196,7 @@ Successfully applied 2 migrations
 
 ## 부록 A — `migrations/README.md` §5 에 붙일 전문
 
-```markdown
+````markdown
 **인덱스 교체는 DROP-먼저** (2026-09-05 규약화)
 
 옛 인덱스를 새 것으로 갈아 끼우는 파일은 아래 **세 문장 순서**를 쓴다:
@@ -231,11 +231,11 @@ DROP INDEX CONCURRENTLY IF EXISTS <옛 인덱스 이름>;
 선례: `V110__schedule_workspace_next_run_index.sql`. 그 이전의 `V056`·`V106` 은 0) 이 없어
 같은 위험을 갖는다 — append-only 라 소급 수정 대상은 아니고, 재실행이 필요해지면 위
 `indisvalid` 확인을 **수동 절차**로 선행한다.
-```
+````
 
 ## 부록 B — `spec/conventions/review-citations.md` 전문
 
-```markdown
+````markdown
 ---
 id: review-citations
 status: implemented
@@ -300,4 +300,4 @@ PR 번호는 그 나름의 손실이 있다 — PR 은 라운드별 산출물을
 bare 인용의 날짜는 커밋 시각으로 근사할 수 있지만 **근사는 틀릴 수 있다** — 한 파일이 여러
 날의 라운드를 인용하는 경우가 흔하다. 잘못 채운 경로는 bare 인용보다 나쁘다(존재하는 다른
 세션을 가리킨다). 그 자리를 아는 사람이 손볼 때 맞추는 편이 옳다.
-```
+````

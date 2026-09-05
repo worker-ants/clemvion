@@ -156,7 +156,14 @@ DROP INDEX CONCURRENTLY IF EXISTS <옛 인덱스 이름>;
 >
 > 파일을 둘로 쪼개는 우회는 성립하지 않습니다 — Flyway 는 **실패한 마이그레이션만** 재실행하므로, 앞 파일에 정리 코드를 두면 그 코드가 돌 기회가 없습니다. 정리와 생성은 같은 파일에 있어야 합니다.
 
-선례: `V110__schedule_workspace_next_run_index.sql`. 그 이전의 `V056`·`V106` 은 0) 이 없어 같은 위험을 갖습니다 — append-only 라 소급 수정 대상은 아니고, 재실행이 필요해지면 `SELECT indisvalid FROM pg_index ...` 확인을 **수동 절차**로 선행합니다.
+선례: `V110__schedule_workspace_next_run_index.sql`. 그 이전 파일들은 0) 이 없어 같은 위험을 갖지만 **양상이 갈립니다** (실물 대조):
+
+| 파일 | 형태 | 재실행 시 |
+| --- | --- | --- |
+| `V056` | CREATE + DROP — **진짜 교체** | 새 인덱스가 invalid 인 채 **옛 인덱스가 삭제**돼 쓸 수 있는 인덱스가 0개 |
+| `V106` | CREATE 만 — **신규 추가**(짝이 되는 DROP 없음) | 잃을 옛 인덱스가 없는 대신, invalid 인덱스가 **영영 유효해지지 않습니다** |
+
+append-only 라 둘 다 소급 수정 대상은 아니고, 재실행이 필요해지면 `SELECT indisvalid FROM pg_index ...` 확인을 **수동 절차**로 선행합니다 — 처방은 양쪽 같습니다.
 
 ### 6. 테이블-rewrite 형 `ALTER COLUMN TYPE`
 
