@@ -261,6 +261,23 @@ export function isResponseDtoFile(file: string): boolean {
   return file.replace(/\\/g, '/').includes('/dto/responses/');
 }
 
+/**
+ * `srcRoot` 아래 응답 DTO 파일에서 **§5.4 금지 조합**을 전부 찾아 돌려준다.
+ *
+ * 판정은 **데코레이터만** 본다 — `required` 가 거짓(`@ApiPropertyOptional` 의 기본값이거나
+ * 명시된 `required: false`)이면서 `nullable: true` 인 필드. TS 타입(`?: T | null`)은 보지
+ * 않는다: 공개 계약을 만드는 것은 데코레이터고, 타입만 고친 채 선언이 남는 쪽이 실제
+ * 드리프트이기 때문이다. 키 생략형은 `null` 을 겸할 수 없다 — 부재를 두 가지로 표현하면
+ * 소비처가 둘 다 다뤄야 한다.
+ *
+ * @param files 검사할 절대 경로 목록. 응답 DTO 가 아닌 파일은 `isResponseDtoFile` 로
+ *   걸러내므로 호출부가 미리 좁힐 필요는 없다.
+ * @param srcRoot 보고용 상대 경로의 기준. 결과 `key` 는
+ *   `<basename>:<Class>.<field>` 형태라 이 값에 의존하지 않지만, `file` 은 이 기준으로
+ *   상대화된다.
+ * @returns 위반 필드 목록. 호출부(`*.spec.ts`)가 `EXPECTED_OPTIONAL_NULLABLE_DRIFT` 와
+ *   **양방향** 대조해 신규 위반과 이미 고쳐진 항목을 모두 잡는다.
+ */
 export function findOptionalNullableResponseFields(
   files: string[],
   srcRoot: string,

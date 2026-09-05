@@ -299,6 +299,42 @@ field: T | null;
       착수 시 먼저 잴 것: 위 7컬럼을 읽는 모든 쿼리/서비스 전수 목록. 그 목록이 나온 뒤에
       `select:false` vs 전역 `ClassSerializerInterceptor`+`@Exclude()` 를 고른다.
 
+- [ ] **트리거 비밀 스트립을 deny-list 4벌에서 선언적 SoT 로** (developer + 보안 판단,
+      2026-09-05 등재, `review/code/2026/09/05/23_30_00` security W1). 지금
+      `TriggersService.sanitizeForResponse` 는 **수기 `Set<string>` 네 벌**로 막는다 —
+      `CHAT_CHANNEL_RESPONSE_STRIP_KEYS`(JSONB) · `NOTIFICATION_SIGNING_STRIP_KEYS`(JSONB) ·
+      `INTERACTION_RESPONSE_STRIP_KEYS`(JSONB) · `TRIGGER_RESPONSE_STRIP_COLUMNS`(엔티티 컬럼).
+
+      **같은 병이 세 라운드 연속 났다** — 스윕 1차가 엔티티 컬럼 축을 열었고, `20_45_37` 이
+      `notification.signing` 누락을, `22_48_39` 가 `interaction.triggerToken` 누락을 잡았다.
+      매번 "이번엔 전수 열거했다" 고 적었는데 매번 한 축이 남아 있었다. 목록을 늘리는 방식은
+      **다음 축의 이름을 미리 알아야** 하므로 원리적으로 닫히지 않는다.
+
+      제안 방향: `Trigger` 엔티티 필드에 `@Sensitive()` 를 붙이고 `sanitizeForResponse` 가
+      리플렉션으로 걷어낸다. 그러면 "새 비밀 컬럼을 추가했는데 스트립 목록에 안 넣었다" 가
+      **선언 자리에서** 닫힌다.
+
+      **착수 전에 잴 것 — 데코레이터는 엔티티 컬럼만 덮는다.** 네 축 중 셋은 JSONB **안의
+      키**라 필드 데코레이터가 걸릴 자리가 없다. 그러니 이 항목은 네 축 중 **한 축만**
+      선언적으로 만든다 — 나머지 세 축을 어떻게 닫을지는 아래 열린-맵 항목과 함께 결정한다.
+      "데코레이터로 옮기면 다 해결된다" 는 서술을 그대로 믿지 말 것 (이 문단이 그 반증이다).
+
+- [ ] **열린 `config` 맵 안의 신규 비밀은 e2e `not.toHaveProperty` 를 동반해야 한다 — 규약에
+      명시** (planner, 2026-09-05 등재, `review/code/2026/09/05/23_30_00` security W2).
+      `TriggerDto.config` 는 `additionalProperties: true` 라 **런타임 계약 검증자와 정적
+      가드 양쪽 모두**가 그 안으로 내려가지 않는다. 즉 `config.interaction.triggerToken`,
+      `config.notification.signing.secret` 같은 필드의 스트립 여부는 **오직 손으로 짠 e2e
+      단언에만** 달려 있다 — 다른 필드들이 받는 자동 이중 안전망이 이 표면에는 없다.
+
+      이번 브랜치가 그 사각지대를 처음 문서화하고 수기 테스트로 메웠지만, **다음 사람이
+      같은 자리에 새 비밀을 넣을 때 그 사실을 기억해야만** 보호가 이어진다. `secret-store.md`
+      (§1.1 인접) 또는 `2-api-convention.md §5.4` "검증 층" 소절에 **한 문장**으로 못 박는다:
+      *열린 맵 안에 비밀을 두면 계약 검증자가 못 보므로, 그 필드는 부재를 단언하는 e2e 를
+      반드시 동반한다.*
+
+      > 위 `@Sensitive()` 항목과 **같은 병의 다른 얼굴**이다 — 그쪽은 엔티티 컬럼 축을,
+      > 이쪽은 JSONB 세 축을 겨눈다. 두 항목을 한 턴에 같이 여는 것이 낫다.
+
 - [x] **§5.4 검증자 2종의 역할 경계를 spec 본문에 한 문장으로** (planner, 2026-09-05 등재,
       `review/consistency/2026/09/05/15_53_59` W1). 이름이 인접한 검증자가 둘이 됐다:
 

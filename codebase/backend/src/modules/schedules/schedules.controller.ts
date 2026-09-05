@@ -71,7 +71,8 @@ export class SchedulesController {
     // 항상 싣는다. 관계가 로드되지 않은 채 여기 오면 `t.id` 에서 즉시 터지는데, 그것이
     // 조용히 키를 빠뜨리는 것보다 낫다 (§5.4 기본형 선언과 일치).
     //
-    // 반면 `trigger.workflow` 는 **키 생략형**이다 — 생성·수정 경로에서는 로드되지 않는다.
+    // 반면 `trigger.workflow` 는 **키 생략형**이다 — **생성 응답에만** 없다
+    // (방금 저장한 트리거라 관계 미로드). 조회·수정은 `findById` 를 타므로 채워진다.
     return {
       ...rest,
       trigger: {

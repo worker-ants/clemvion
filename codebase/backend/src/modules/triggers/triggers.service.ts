@@ -116,6 +116,25 @@ const INTERACTION_RESPONSE_STRIP_KEYS = new Set<string>(['triggerToken']);
 /** `audit_log.resource_type` 값 — 액션 prefix 와 동일 어휘. */
 const TRIGGER_RESOURCE_TYPE = 'trigger';
 
+/**
+ * `strip` 에 든 키를 뺀 **얕은 복사본**을 만든다.
+ *
+ * `config.interaction` 축과 `config.notification.signing` 축은 후처리가 없어 루프가 문자
+ * 그대로 같았다 (`review/code/2026/09/05/23_30_00` W2). `chatChannel` 축만 결과에
+ * `hasBotToken` 을 얹으므로 그쪽은 호출부에서 한 줄 더 한다.
+ */
+function omitKeys(
+  source: Record<string, unknown>,
+  strip: ReadonlySet<string>,
+): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(source)) {
+    if (strip.has(key)) continue;
+    out[key] = value;
+  }
+  return out;
+}
+
 @Injectable()
 export class TriggersService {
   private readonly logger = new Logger(TriggersService.name);
@@ -623,11 +642,11 @@ export class TriggersService {
 
       if (cfg.chatChannel) {
         const botTokenRef = cfg.chatChannel.botTokenRef;
-        const sanitizedChatChannel: Record<string, unknown> = {};
-        for (const [key, value] of Object.entries(cfg.chatChannel)) {
-          if (CHAT_CHANNEL_RESPONSE_STRIP_KEYS.has(key)) continue;
-          sanitizedChatChannel[key] = value;
-        }
+        const sanitizedChatChannel = omitKeys(
+          cfg.chatChannel,
+          CHAT_CHANNEL_RESPONSE_STRIP_KEYS,
+        );
+        // 이 축만 후처리가 있다 — 다른 두 축과 갈리는 지점.
         sanitizedChatChannel.hasBotToken =
           typeof botTokenRef === 'string' && botTokenRef.length > 0;
         nextConfig.chatChannel = sanitizedChatChannel;
@@ -637,12 +656,10 @@ export class TriggersService {
       const interaction = cfg.interaction as
         Record<string, unknown> | undefined;
       if (interaction && typeof interaction === 'object') {
-        const sanitizedInteraction: Record<string, unknown> = {};
-        for (const [key, value] of Object.entries(interaction)) {
-          if (INTERACTION_RESPONSE_STRIP_KEYS.has(key)) continue;
-          sanitizedInteraction[key] = value;
-        }
-        nextConfig.interaction = sanitizedInteraction;
+        nextConfig.interaction = omitKeys(
+          interaction,
+          INTERACTION_RESPONSE_STRIP_KEYS,
+        );
         configTouched = true;
       }
 
@@ -651,13 +668,10 @@ export class TriggersService {
       const signing = (cfg.notification as { signing?: unknown } | undefined)
         ?.signing;
       if (signing && typeof signing === 'object') {
-        const sanitizedSigning: Record<string, unknown> = {};
-        for (const [key, value] of Object.entries(
+        const sanitizedSigning = omitKeys(
           signing as Record<string, unknown>,
-        )) {
-          if (NOTIFICATION_SIGNING_STRIP_KEYS.has(key)) continue;
-          sanitizedSigning[key] = value;
-        }
+          NOTIFICATION_SIGNING_STRIP_KEYS,
+        );
         nextConfig.notification = {
           ...(cfg.notification as Record<string, unknown>),
           signing: sanitizedSigning,

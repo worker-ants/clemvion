@@ -32,6 +32,12 @@
 - 스케줄은 **컨트롤러(응답 경계)** 에서 `trigger` 를 참조 4필드(`id`·`name`·`workflowId`·
   `workflow.name` — 프런트엔드가 쓰는 전부)로 좁힌다. 서비스 반환 타입을 좁히지 않은 것은
   `update` 등 내부 로직이 같은 객체의 다른 필드를 소비하기 때문이다.
+
+  > **밖에서 이 축소를 맞는 소비자는 없다** (`review/code/2026/09/05/23_30_00` side-effect
+  > W1 확인 요청). `/api/schedules` 를 호출하는 자리를 저장소 전수로 훑으면 프런트엔드
+  > `lib/api/schedules.ts` 의 `RawSchedule` 하나뿐이고, 그 타입이 선언한 `trigger` 필드는
+  > 정확히 이번에 남긴 네 개다. 배포되는 `@workflow/sdk` 는 스케줄 API 를 아예 다루지
+  > 않는다(`packages/sdk/src` 에 `schedule` 문자열 0건 — webhook 트리거 호출 전용).
 - `select: false` 는 쓰지 않았다. 로테이션 스윕이 이 컬럼들을 읽어 승격·정리하므로, 컬럼
   수준에서 끄면 그 경로가 `undefined` 를 받고 **예외 없이 조용히** 오작동한다.
 

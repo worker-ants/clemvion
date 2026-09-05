@@ -432,6 +432,62 @@ describe('SchedulesService.runNow', () => {
       expect(order).toEqual(['commit', 'audit', 'bullmq']);
     });
 
+    /**
+     * `saved.trigger` 대입이 `if (isActive)` 안으로 되돌아가면 **비활성 경로에서만**
+     * 응답의 `trigger` 가 사라진다. 같은 버그가 `create()` → `update()` 순으로 **두 번**
+     * 났으므로(`20_45_37` W2, `review/code/2026/09/05/23_30_00` INFO#6) e2e C-3 에 더해
+     * unit 으로도 두 자매를 각각 문다 — e2e 는 느리고 이 분기는 한 줄의 위치 문제다.
+     */
+    it('생성 — isActive:false 여도 응답에 trigger 가 실린다', async () => {
+      const saved = await service.create(
+        'ws-1',
+        {
+          ...baseDto,
+          timezone: 'Asia/Seoul',
+          isActive: false,
+        } as unknown as CreateScheduleDto,
+        'u-tr',
+      );
+
+      // `scheduleRepo.save` 는 인자를 그대로 돌려주므로, 여기 `trigger` 가 있다는 것은
+      // **`saved.trigger = savedTrigger` 한 줄이 실행됐다**는 뜻이다.
+      expect(saved.trigger).toEqual({ id: 'trig-1' });
+    });
+
+    it('수정 — isActive:false 로 비활성화해도 응답에 trigger 가 실린다', async () => {
+      const persisted = {
+        id: 'sch-tr',
+        workspaceId: 'ws-1',
+        isActive: true,
+        cronExpression: '0 9 * * *',
+        timezone: 'Asia/Seoul',
+        triggerId: 'trig-tr',
+        trigger: { id: 'trig-tr', name: 'T' },
+      } as unknown as Schedule;
+      scheduleRepo.findOne.mockResolvedValue(persisted);
+      // **저장 결과에서 관계를 떨어뜨린다.** 인자를 그대로 돌려주면 `schedule.trigger` 가
+      // 이미 붙어 있어 대입 한 줄을 지워도 단언이 통과한다(vacuous). 관계를 뺀 사본을
+      // 돌려줘야 그 한 줄만이 `trigger` 를 채우는 유일한 경로가 된다.
+      scheduleRepo.save.mockImplementation(async (sch) => {
+        const copy = { ...(sch as Schedule) } as Record<string, unknown>;
+        delete copy.trigger;
+        return copy as unknown as Schedule;
+      });
+
+      const saved = await service.update(
+        'sch-tr',
+        'ws-1',
+        { isActive: false } as unknown as UpdateScheduleDto,
+        'u-tr',
+      );
+
+      expect(saved.trigger).toEqual({
+        id: 'trig-tr',
+        name: 'T',
+        isActive: false,
+      });
+    });
+
     it('감사 로깅 — remove 는 schedule.deleted 를 남긴다', async () => {
       scheduleRepo.findOne.mockResolvedValue({
         id: 'sch-2',
