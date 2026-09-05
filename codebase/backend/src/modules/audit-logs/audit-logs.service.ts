@@ -15,8 +15,13 @@ import type { User } from '../users/entities/user.entity';
  * 그대로 반환 타입에 쓰면 **타입이 런타임보다 넓어져**, 이 메서드를 재사용하는 다음
  * 코드가 `user.passwordHash` 를 컴파일 통과시키고 런타임엔 조용히 `undefined` 를 받는다.
  * (`review/code/2026/09/05/14_39_31` W6.)
+ *
+ * 자매 관계 필드 `workspace` 도 함께 뺀다. 이 쿼리는 그것을 join 하지 않아 **런타임에 항상
+ * `undefined`** 인데 엔티티 타입은 `Workspace` 라고 말한다 — `user` 만 좁히고 형제를 두면
+ * 같은 결함이 옆자리에 그대로 남는다 (`review/code/2026/09/05/15_31_41` W1). 나중에
+ * `workspace` 가 필요해지면 `user` 와 같은 형태로 join·투영을 함께 들여온다.
  */
-export type AuditLogListItem = Omit<AuditLog, 'user'> & {
+export type AuditLogListItem = Omit<AuditLog, 'user' | 'workspace'> & {
   user: Pick<User, 'id' | 'name' | 'email'> | null;
 };
 
@@ -125,7 +130,7 @@ export class AuditLogsService {
       //    감사가 사라졌는지 알 수 없었다. 유실 사실만 알고 대상을 모르면 복구도 조사도
       //    시작할 수 없다.
       // **관측 호출도 삼킨다.** 이 메서드의 존재 이유가 "감사 실패가 본 요청을 절대
-      // 깨뜨리지 않는다" 인데, 여기서 던지면 그 예외가 12개+ 특권 CRUD producer 로
+      // 깨뜨리지 않는다" 인데, 여기서 던지면 그 예외가 12개 특권 CRUD producer 로
       // 전파돼 계약을 정면으로 역행한다 — 관측을 붙이면서 관측이 새 실패 경로가 되는 것은
       // 본말전도다. (OTel Counter 는 실측상 non-throwing 이라 발동 가능성은 낮지만,
       // 이 자리는 chokepoint 라 파급이 넓다.)

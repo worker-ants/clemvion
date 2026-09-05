@@ -384,10 +384,16 @@ field: T | null;
       파생 `Omit` 타입(`ResponseExecution`)을 반환해 DTO 선언과 **구조적으로 무관**하다.
       네 경로를 한 타입으로 모으는 것이 선행이다.
 
-      **`ExecutionDto` 에는 스키마-레벨 테스트가 아예 없다** (리뷰 2R W4) —
-      `ExecutionStatusDto` 와 달리 `createDocument()` 기반 가드가 0건이라, 데코레이터와 TS
-      타입을 **동시에** optional 로 되돌리는 회귀는 AST 가드도 tsc 도 못 잡는다. 2단계
-      착수 시 `execution-status-response.dto.spec.ts` 패턴으로 신설한다.
+      ~~**`ExecutionDto` 에는 스키마-레벨 테스트가 아예 없다** (리뷰 2R W4)~~ →
+      **신설 완료 (2026-09-05)**: `execution-response.dto.spec.ts` 가
+      `execution-status-response.dto.spec.ts` 패턴으로 섰다. 광고된 22 프로퍼티를 세
+      목록(required+non-nullable 11 · required+nullable 1 · **optional+nullable 10 =
+      §5.4 drift 로 추적 중인 기존 상태**)으로 갈라 고정하고, 세 목록의 합이 프로퍼티
+      전체를 덮는지 먼저 단언한다.
+
+      가드가 실제로 그 회귀를 잡는지 확인했다 — `triggerLabel` 의 데코레이터와 TS 타입을
+      **동시에** optional 로 되돌린 뮤턴트에 **RED 2건**. 이것이 종전 서술이 *"AST 가드도
+      tsc 도 못 잡는다"* 고 지목한 바로 그 형태다.
 
       **"엔티티라 키가 항상 있다" 는 논거는 쓸 수 없다** — `notifications` 4곳 등이 부분
       `select:` 를 쓴다(2026-09-04 실측).
