@@ -91,6 +91,11 @@ const NOTIFICATION_SIGNING_STRIP_KEYS = new Set<string>([
  * 경로가 `undefined` 를 받고 **예외 없이** 조용히 오작동한다 — fail-safe 가 아니라
  * fail-silent 다. 응답 경계에서 지우면 읽는 쪽은 그대로 둔 채 나가는 쪽만 막힌다.
  */
+const TRIGGER_RESPONSE_STRIP_COLUMNS = [
+  'notificationSecretV2',
+  'chatChannelTokenV2',
+] as const satisfies readonly (keyof Trigger)[];
+
 /**
  * `config.interaction` 에서 제거할 키.
  *
@@ -107,11 +112,6 @@ const NOTIFICATION_SIGNING_STRIP_KEYS = new Set<string>([
  * 그쪽은 서비스가 값을 **직접 반환**하지 트리거 엔티티를 거치지 않는다.
  */
 const INTERACTION_RESPONSE_STRIP_KEYS = new Set<string>(['triggerToken']);
-
-const TRIGGER_RESPONSE_STRIP_COLUMNS = [
-  'notificationSecretV2',
-  'chatChannelTokenV2',
-] as const satisfies readonly (keyof Trigger)[];
 
 /** `audit_log.resource_type` 값 — 액션 prefix 와 동일 어휘. */
 const TRIGGER_RESOURCE_TYPE = 'trigger';

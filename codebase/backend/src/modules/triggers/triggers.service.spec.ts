@@ -219,10 +219,12 @@ describe('TriggersService.findOneDetail', () => {
 
     // DTO 인스턴스처럼 **값 없는 키가 `undefined` 로 존재**하는 입력.
     const dto = { name: undefined, isActive: false } as never;
-    const result = (await service.update('t1', 'ws', dto, 'user-1')) as Record<
-      string,
-      unknown
-    >;
+    const result = (await service.update(
+      't1',
+      'ws',
+      dto,
+      'user-1',
+    )) as unknown as Record<string, unknown>;
 
     expect(result.name).toBe('원래 이름');
     expect(result.isActive).toBe(false);

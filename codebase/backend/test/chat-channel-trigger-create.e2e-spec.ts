@@ -86,6 +86,59 @@ describe('POST /api/triggers — chat-channel multi-provider (e2e)', () => {
     return crypto.randomUUID();
   }
 
+  /**
+   * **열린 map 안의 비밀은 계약 대조가 못 본다.**
+   *
+   * `TriggerDto.config` 는 `additionalProperties: true` 라 `assertMatchesContract` 가 그
+   * 안으로 내려가지 않는다 — `config.interaction` 의 스트립은 계약 검증자·정적 가드
+   * **양쪽의 사각지대**다 (`review/code/2026/09/05/22_48_39` W1). `chatChannel` 축이 이미
+   * 쓰는 수기 `not.toHaveProperty` 패턴을 여기에도 적용한다.
+   *
+   * 아울러 `GET /api/triggers/:id` 는 트리거 네 경로 중 유일하게 계약 대조가 없던 자리다
+   * (W2) — 여기서 함께 문다.
+   *
+   * > **`notification.signing.secret` 축은 여기서 못 만든다** — `NotificationSigningDto` 에
+   * > 선언된 필드가 아니라 `forbidNonWhitelisted` 가 400 을 낸다(공개 API 로 도달 불가,
+   * > 레거시 config 마이그레이션 경로 전용). 그 축은 `triggers.service.spec.ts` 의 unit 이
+   * > fixture 로 만들어 덮고, 뮤턴트로 RED 를 확인해 뒀다.
+   */
+  it('단건 조회에서 config.interaction 의 발급 토큰이 제거된다', async () => {
+    const created = await postTrigger({
+      workflowId,
+      type: 'webhook',
+      name: uniqueName('cfg-secrets'),
+      endpointPath: uniqueEndpoint('cfg'),
+      interaction: { enabled: true, tokenStrategy: 'per_trigger' },
+    });
+    expect(created.status).toBe(201);
+    const triggerId = created.body.data.id as string;
+    createdTriggerIds.push(triggerId);
+
+    // **토큰을 실제로 발급시킨다** — 발급하지 않으면 아래 부재 단언이 vacuous 하다.
+    const issued = await request(BASE_URL)
+      .post(`/api/triggers/${triggerId}/interaction/revoke-token`)
+      .set('Authorization', `Bearer ${token}`)
+      .set('X-Workspace-Id', workspaceId);
+    expect(issued.status).toBe(200);
+    // 1회성 평문은 **이 응답에만** 실린다 (`secret-store.md §1` 근거 (c)).
+    expect(typeof issued.body.data.token).toBe('string');
+
+    const detail = await request(BASE_URL)
+      .get(`/api/triggers/${triggerId}`)
+      .set('Authorization', `Bearer ${token}`)
+      .set('X-Workspace-Id', workspaceId);
+    expect(detail.status).toBe(200);
+    assertMatchesContract(detail.body.data, await contractForDto(TriggerDto));
+
+    const cfg = detail.body.data.config as {
+      interaction?: Record<string, unknown>;
+    };
+    // `secret-store.md §1.1` 이 이름으로 금지한 필드.
+    expect(cfg.interaction ?? {}).not.toHaveProperty('triggerToken');
+    // 같은 블록의 비-비밀 필드는 살아 있어야 한다 — 통째로 지우는 구현으로 퇴행해도 잡힌다.
+    expect(cfg.interaction?.tokenStrategy).toBe('per_trigger');
+  });
+
   describe('telegram — server-issued inboundSigning (회귀)', () => {
     it('telegram trigger 생성 → 201 + hasBotToken=true + plaintext strip', async () => {
       const res = await postTrigger({

@@ -1,16 +1,15 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
+// 왜 좁혔나 — 종전 응답은 조인된 `Trigger` **엔티티 전체**를 실어 보냈고, 거기에는
+// `notificationSecretV2`(평문 서명 secret) 와 `chatChannelTokenV2`(secret store ref) 가
+// 들어 있었다. `TriggersService` 가 트리거 자신의 응답에서 빼는 바로 그 컬럼들이
+// **조인을 타고** 새어 나왔고, §5.4 응답-계약 스윕이 `trigger` 를 "선언되지 않은 키" 로
+// 검출해 드러났다. 소비처는 `schedules/page.tsx` 네 곳 (`name`·`id`·`workflowId`·
+// `workflow.name`).
+//
+// 내부 서사를 `//` 에 두는 이유: `swagger.md §3` · `review-citations.md §3`.
 /**
- * 스케줄 응답에 동봉되는 **트리거 참조** — 목록 UI 가 실제로 쓰는 필드만 담는다.
- *
- * 종전 응답은 조인된 `Trigger` **엔티티 전체**를 실어 보냈고, 거기에는
- * `notificationSecretV2`(평문 서명 secret) 와 `chatChannelTokenV2`(secret store ref) 가
- * 들어 있었다 — `TriggersService` 가 트리거 자신의 응답에서 빼는 바로 그 컬럼들이
- * **조인을 타고** 새어 나왔다. §5.4 응답-계약 스윕이 `trigger` 를 "선언되지 않은 키" 로
- * 검출해 드러났다.
- *
- * 프런트엔드 소비처는 `schedules/page.tsx` 의 네 곳뿐이다 (`name` · `id` ·
- * `workflowId` · `workflow.name`).
+ * 스케줄에 연결된 트리거의 워크플로우 **참조** — 이름만 담는다.
  */
 export class ScheduleTriggerWorkflowRefDto {
   /** 워크플로우 이름 */
@@ -35,9 +34,13 @@ export class ScheduleTriggerRefDto {
   /**
    * 연결된 워크플로우 — **키 생략형**이다 (§5.4 기준 (b): 선택적 부가 컨텍스트).
    *
-   * 생성·수정 응답은 방금 저장한 트리거를 붙이므로 이 관계가 **로드되지 않는다**. 조회
-   * 경로(`findById` 의 `relations: ['trigger','trigger.workflow']` · `findAll` 의 join)
-   * 에서만 채워진다 — e2e 가 두 형태(생성 3키 · 조회 4키)를 각각 고정한다.
+   * **생성 응답에만 없다.** `create()` 는 방금 저장한 트리거를 붙이므로 이 관계가 로드되지
+   * 않는다. 조회(`findById` 의 `relations: ['trigger','trigger.workflow']` · `findAll` 의
+   * join)와 **수정**(`update()` 가 `findById` 로 시작한다)에는 채워진다 — e2e 가 세 형태를
+   * 각각 고정한다.
+   *
+   * 종전 이 주석은 *"생성·수정 응답에는 로드되지 않는다"* 고 적었는데 **수정 쪽이
+   * 틀렸다** (`review/code/2026/09/05/22_48_39` W3).
    *
    * 소비처가 부재를 정상 경로로 다룬다 — `schedules/page.tsx` 는
    * `s.trigger?.workflow?.name ?? ""` 로 읽는다.
