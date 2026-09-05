@@ -773,8 +773,9 @@ field: T | null;
       > 남긴 후속이다.
 
 - [x] **트리거 회전 secret 이 응답에 나간다 — 유출 차단 코드** (developer, 2026-09-05 등재,
-      `review/consistency/2026/09/05/19_59_16` **Critical 1**). **완료 — 이 브랜치가 그
-      수정이다** (`dfb2664af` · `cb17f0870` · `a6f582680`).
+      `review/consistency/2026/09/05/19_59_16` **Critical 1**). **완료 — `sweep-response-contract`
+      브랜치 전체가 그 수정이다.** (커밋 SHA 를 열거하지 않는다 — 리뷰 라운드마다 늘어서
+      적는 순간 낡는다.)
 
       `Trigger.notification_secret_v2`(평문 서명 secret)와 `chat_channel_token_v2`(secret
       store ref)가 `GET/POST/PATCH /api/triggers` · `GET /api/schedules`(트리거 조인) 응답에
@@ -784,10 +785,24 @@ field: T | null;
       금지 규범은 이번 turn 이 `secret-store.md §1.1` 로 세웠다 — **저장 형태 예외(평문
       보관)와 노출은 다른 문제**이고, 예외 등재가 노출까지 승인하는 것으로 읽히면 안 된다.
 
-      > **확인 후 닫는다** (등재문이 요구한 절차). `sanitizeForResponse` 가 엔티티 비밀
-      > 컬럼 2개 + `config.notification.signing` 키 2개를 지우고, 스케줄 컨트롤러가 조인된
-      > 트리거를 참조 4필드로 좁힌다. 두 자리 모두 뮤턴트로 RED 를 실측했고, unit 회귀도
-      > 있다(종전 fixture 에는 비밀 필드가 없어 스트립을 되돌려도 전부 그린이었다).
+      > **확인 후 닫는다** (등재문이 요구한 절차). 최종 상태는 **네 축**이다 — 등재 시점의
+      > 이 문단은 둘만 적었는데, 같은 세션의 후속 리뷰가 나머지 둘을 찾았다:
+      >
+      > | 축 | 무엇 | 정화 함수 |
+      > |---|---|---|
+      > | 엔티티 컬럼 2개 | `notificationSecretV2`(평문) · `chatChannelTokenV2`(ref) | `deleteSecretColumns` |
+      > | `config.chatChannel` | `botToken` 등 5키 (+`hasBotToken` 파생) | `stripChatChannelSecrets` |
+      > | `config.notification.signing` | `secret` · `secretRef` | `stripNotificationSigningSecrets` |
+      > | `config.interaction` | `triggerToken` (**영구 평문** `itk_*`) | `stripInteractionSecrets` |
+      >
+      > 넷 다 뮤턴트로 RED 를 실측했다(정화 함수를 항등으로 바꿔 5/5 kill — `narrowWorkflowRef`
+      > 포함). 스케줄 컨트롤러는 조인된 트리거를 참조 4필드로 좁히고, 관계가 없으면 던진다.
+      > unit 회귀도 있다 — 종전 fixture 에는 비밀 필드가 없어 스트립을 되돌려도 전부
+      > 그린이었고, `chatChannel` 축은 리팩터 검증 중에야 같은 사각지대가 드러났다.
+      >
+      > **왜 넷이 한 번에 안 나왔나**: deny-list 를 목록으로 늘리는 방식은 **다음 축의
+      > 이름을 미리 알아야** 하므로 원리적으로 닫히지 않는다. 그 구조적 결함은 위
+      > 「트리거 비밀 스트립을 deny-list 4벌에서 선언적 SoT 로」 항목이 잇는다.
       >
       > `secret-store.md §1.1`(이번 planner 턴 신설)이 그 금지를 규범으로 세웠고, 이
       > 커밋들이 그것을 시행한다.
@@ -821,15 +836,32 @@ field: T | null;
       → `2-api-convention.md` frontmatter `code:` 에
       `codebase/backend/src/repo-guards/__tests__/fixtures/**` 를 추가한다.
 
-- [ ] **`secret-store.md §1` 의 "노출 창이 아직 닫혀 있지 않다" 가 낡는다** (planner,
-      2026-09-05 등재, `review/consistency/2026/09/05/21_40_38` W2).
+- [ ] **"노출 창이 아직 닫혀 있지 않다" 서술이 낡는다 — `secret-store.md §1` 과
+      `14-external-interaction-api.md §7.1` 두 곳** (planner, 2026-09-05 등재,
+      `review/consistency/2026/09/05/21_40_38` W2 · 대상 확장
+      `review/consistency/2026/09/06/01_38_47` W1).
 
       그 문장은 **내가 직전 planner 턴에 쓴 것**이고, `sweep-response-contract` 브랜치가
-      바로 그 창을 닫는다(`TRIGGER_RESPONSE_STRIP_COLUMNS` + 스케줄 컨트롤러 좁히기).
-      **그 브랜치가 머지되는 순간 현재형 서술이 거짓이 된다.**
+      바로 그 창을 닫는다(`TRIGGER_RESPONSE_STRIP_COLUMNS` + `deleteSecretColumns` +
+      스케줄 컨트롤러 좁히기). **그 브랜치가 머지되는 순간 현재형 서술이 거짓이 된다.**
 
-      → §7.1 이 쓴 "정정 이력" 패턴을 준용해 *"이 창은 `#…` 로 닫혔다"* 와 커밋 참조를
-      추가한다. 규범(§1.1)은 그대로 둔다 — 닫혔다고 규범이 사라지는 것이 아니다.
+      **대상이 하나가 아니다.** 종전 이 항목은 `secret-store.md §1` 만 지목하고 §7.1 은
+      *"정정 이력 패턴의 출처"* 로만 언급했는데, **같은 현재형 서술이 §7.1 에도 복제돼
+      있다** — *"현재 이 컬럼은 응답에도 나간다 … 이는 **미해결 결함**"*. 이 항목만 따라간
+      planner 턴은 §7.1 을 거짓인 채로 남긴다.
+
+      전수 확인 (2026-09-06):
+
+      ```
+      grep -rn "노출 창\|응답에도 나간다\|미해결 결함" spec/
+      ```
+
+      → 이 창을 서술하는 자리는 `secret-store.md §1`(2행)과
+      `14-external-interaction-api.md §7.1`(2행) **둘뿐**이다. 나머지 매치는 다른 맥락
+      (`2-navigation/6-config.md` 평문 hide 정책 · `5-system/1-auth.md` 초대 만료).
+
+      → 두 곳 모두 §7.1 이 쓴 "정정 이력" 패턴을 준용해 *"이 창은 `#…` 로 닫혔다"* 와 커밋
+      참조를 추가한다. 규범(§1.1)은 그대로 둔다 — 닫혔다고 규범이 사라지는 것이 아니다.
 
 - [ ] **`ScheduleDto.trigger`/`workflow` 를 nav-spec 에 문서화** (planner, 2026-09-05 등재,
       `21_40_38` W1). §5.4 는 **키 생략형에 사유 문서화**를 요구한다. 코드 쪽은 이번에
