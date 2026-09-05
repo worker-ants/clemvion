@@ -213,7 +213,7 @@ function descend(
   // `oneOf`/`anyOf` — 어느 변형인지 판별자 없이는 알 수 없다. 그래서 `required` 는 강제하지
   // 않고, **어느 변형에도 없는 키**만 undeclared 로 문다. 이 도구가 잡으려는 엔티티 패스스루
   // 과다 노출은 어느 변형에도 없는 키로 나타나므로 이 약한 판정으로도 걸린다.
-  visitUnion(value, nested, path, walk, deeper);
+  visitUnion(value, nested, path, walk);
 }
 
 function visit(
@@ -280,13 +280,13 @@ function visit(
  * 이 도구가 잡으려는 엔티티 패스스루 과다 노출은 정확히 그 형태로 나타난다.
  *
  * 더 내려가지는 않는다 — 어느 변형의 스키마로 내려가야 하는지가 정해지지 않기 때문이다.
+ * 그래서 `onPath`(순환 가드)를 받지 않는다.
  */
 function visitUnion(
   body: Record<string, unknown>,
   variants: readonly SwaggerSchemaObject[],
   prefix: string,
   walk: Walk,
-  _onPath: ReadonlySet<object>,
 ): void {
   const declared = new Set(
     variants.flatMap((v) => Object.keys(propertiesOf(v))),

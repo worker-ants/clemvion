@@ -360,6 +360,23 @@ describe('response-contract — 실제 응답 vs DTO 선언 (§5.4)', () => {
         [],
       );
     });
+
+    /**
+     * union 경로에도 면제가 있다. 이 캐너리가 없으면 `visitUnion` 의 `allowUndeclared`
+     * 분기를 통째로 지워도 스펙이 전부 통과한다 — 실측으로 확인했다
+     * (`review/code/2026/09/05/15_12_02` INFO#1).
+     */
+    it('allowUndeclared 는 union 아래에서도 먹는다', () => {
+      const payload = { id: 'x', context: { aOnly: 'a', wrapper: 1 } };
+      expect(kinds(findContractViolations(payload, union))).toEqual([
+        'context.wrapper:undeclared',
+      ]);
+      expect(
+        findContractViolations(payload, union, {
+          allowUndeclared: ['context.wrapper'],
+        }),
+      ).toEqual([]);
+    });
   });
 
   describe('payload 가 객체가 아닌 경우', () => {
