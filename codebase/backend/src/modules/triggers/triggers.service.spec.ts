@@ -97,7 +97,9 @@ describe('TriggersService.findOneDetail', () => {
         TriggersService,
         {
           provide: getRepositoryToken(Trigger),
-          useValue: { findOne: jest.fn() },
+          // `save` 는 `update()` 경로가 쓴다 — 이 describe 의 다른 테스트는 조회만 하지만
+          // 생략-필드 보존 회귀가 같은 서비스의 수정 경로를 탄다.
+          useValue: { findOne: jest.fn(), save: jest.fn() },
         },
         {
           provide: getRepositoryToken(Execution),
@@ -184,6 +186,137 @@ describe('TriggersService.findOneDetail', () => {
         nextRunAt,
       }),
     );
+  });
+
+  /**
+   * **생략된 필드가 지워지지 않는다.**
+   *
+   * `target: ES2023` 에서 DTO 의 optional 필드는 값이 없어도 `undefined` 인 own property
+   * 로 생성된다(`useDefineForClassFields`). 그대로 `Object.assign` 하면 로드된 값을
+   * 덮어써 **응답에서만** 필드가 사라진다(DB 는 TypeORM 이 undefined 를 건너뛰어 무사).
+   *
+   * e2e 가 `name [missing]` 으로 이 결함을 잡았고, 여기서 unit 으로도 고정한다
+   * (`review/code/2026/09/05/22_24_58` W1).
+   */
+  it('PATCH 에서 생략된 필드는 로드된 값을 유지한다', async () => {
+    const loaded = {
+      id: 't1',
+      workspaceId: 'ws',
+      type: 'webhook',
+      name: '원래 이름',
+      isActive: true,
+      config: {},
+    } as unknown as Trigger;
+    triggerRepo.findOne.mockResolvedValue(loaded);
+    triggerRepo.save.mockImplementation((t) => Promise.resolve(t as Trigger));
+
+    // DTO 인스턴스처럼 **값 없는 키가 `undefined` 로 존재**하는 입력.
+    const dto = { name: undefined, isActive: false } as never;
+    const result = (await service.update(
+      't1',
+      'ws',
+      dto,
+      'user-1',
+    )) as unknown as Record<string, unknown>;
+
+    expect(result.name).toBe('원래 이름');
+    expect(result.isActive).toBe(false);
+  });
+
+  /**
+   * 응답 정화 회귀 — **e2e 만이 이 결함을 물던 상태였다.**
+   *
+   * 종전 unit fixture 에는 `notificationSecretV2`/`chatChannelTokenV2` 필드가 아예 없어서,
+   * 스트립 로직을 통째로 되돌려도 이 파일의 테스트는 전부 그린으로 남았다
+   * (`review/code/2026/09/05/18_23_02` W3). fixture 에 비밀을 채워 그 사각지대를 없앤다.
+   */
+  it('응답에서 회전 secret 컬럼과 notification.signing 비밀이 제거된다', async () => {
+    triggerRepo.findOne.mockResolvedValue({
+      id: 't1',
+      workspaceId: 'ws',
+      type: 'webhook',
+      name: 'hook',
+      // 평문 서명 secret — 24h rotation grace 동안 non-null 이다.
+      notificationSecretV2: 'wsk_live_secret',
+      // secret store ref.
+      chatChannelTokenV2: 'secret://triggers/t1/bot-token.v2',
+      config: {
+        chatChannel: {
+          provider: 'telegram',
+          botToken: 'bot_plaintext_should_not_leak',
+          botTokenRef: 'secret://triggers/t1/bot-token.v2',
+          inboundSigningRef: 'secret://triggers/t1/inbound-signing',
+        },
+        interaction: {
+          tokenStrategy: 'per_trigger',
+          triggerToken: 'itk_should_not_leak',
+        },
+        notification: {
+          url: 'https://example.com/hook',
+          signing: {
+            // 두 키를 **모두** 채운다 — 종전에는 `secretRef` 만 넣고 `secret` 까지
+            // 단언해서, 스트립 목록에서 `'secret'` 을 빼는 뮤턴트가 GREEN 이었다
+            // (`review/code/2026/09/05/19_08_18` W4).
+            secret: 'plaintext-should-be-stripped',
+            secretRef: 'secret://triggers/t1/notification-signing',
+          },
+        },
+      },
+    } as unknown as Trigger);
+    scheduleRepo.findOne.mockResolvedValue(null);
+
+    const result = (await service.findOneDetail(
+      't1',
+      'ws',
+    )) as unknown as Record<string, unknown>;
+
+    expect(result).not.toHaveProperty('notificationSecretV2');
+    expect(result).not.toHaveProperty('chatChannelTokenV2');
+    // `config.interaction.triggerToken` — `secret-store.md §1.1` 이 이름으로 금지한 세
+    // 필드 중 셋째다. 종전엔 둘만 닫혀 있었다
+    // (`review/consistency/2026/09/05/22_25_00` Critical 1).
+    const interaction = ((result.config as { interaction?: unknown })
+      .interaction ?? {}) as Record<string, unknown>;
+    expect(interaction).not.toHaveProperty('triggerToken');
+    // 같은 블록의 비-비밀 필드는 살아 있어야 한다 — 통째로 지우는 것이 아니다.
+    expect(interaction.tokenStrategy).toBe('per_trigger');
+    const signing = ((result.config as { notification?: { signing?: unknown } })
+      .notification?.signing ?? {}) as Record<string, unknown>;
+    expect(signing).not.toHaveProperty('secretRef');
+    expect(signing).not.toHaveProperty('secret');
+    // 같은 config 의 비-비밀 필드는 살아 있어야 한다 — 통째로 지우는 것이 아니다.
+    expect(
+      (result.config as { notification?: { url?: string } }).notification?.url,
+    ).toBe('https://example.com/hook');
+    // 네 번째 축 — `config.chatChannel`. 종전 이 fixture 에는 이 블록이 없어서
+    // 스트립을 항등으로 바꾸는 뮤턴트가 **unit 에서만 GREEN** 이었다(e2e 만이 물었다).
+    const chatChannel = ((result.config as { chatChannel?: unknown })
+      .chatChannel ?? {}) as Record<string, unknown>;
+    expect(chatChannel).not.toHaveProperty('botToken');
+    expect(chatChannel).not.toHaveProperty('botTokenRef');
+    expect(chatChannel).not.toHaveProperty('inboundSigningRef');
+    // 비-비밀 필드 보존 + `botTokenRef` 존재에서 파생하는 플래그.
+    expect(chatChannel.provider).toBe('telegram');
+    expect(chatChannel.hasBotToken).toBe(true);
+  });
+
+  it('chat-channel 이 아닌 트리거도 정화를 거친다 — 조기 return 회귀 방지', async () => {
+    triggerRepo.findOne.mockResolvedValue({
+      id: 't2',
+      workspaceId: 'ws',
+      type: 'webhook',
+      name: 'plain',
+      notificationSecretV2: 'wsk_live_secret',
+      // `config.chatChannel` 이 **없다** — 종전 구현은 여기서 조기 return 했다.
+      config: { notification: { url: 'https://example.com/x' } },
+    } as unknown as Trigger);
+    scheduleRepo.findOne.mockResolvedValue(null);
+
+    const result = (await service.findOneDetail(
+      't2',
+      'ws',
+    )) as unknown as Record<string, unknown>;
+    expect(result).not.toHaveProperty('notificationSecretV2');
   });
 
   it('schedule 타입인데 매칭 schedule이 없으면 트리거를 그대로 반환 (cron 필드 없음)', async () => {
@@ -329,6 +462,33 @@ describe('TriggersService.findAll — schedule 목록 enrichment (V-10)', () => 
     service = moduleRef.get(TriggersService);
     triggerRepo = moduleRef.get(getRepositoryToken(Trigger));
     scheduleRepo = moduleRef.get(getRepositoryToken(Schedule));
+  });
+
+  /**
+   * **목록 경로**의 비밀 스트립 — `findOneDetail` 과 **다른 코드 경로**다(배열 `map`).
+   * 종전 unit fixture 에는 비밀 컬럼이 없어, 이 경로의 `sanitizeForResponse` 호출을
+   * 통째로 지워도 GREEN 이었다 (`review/code/2026/09/05/22_24_58` W2).
+   */
+  it('목록 응답에서도 회전 secret 컬럼과 workflow 가 좁혀진다', async () => {
+    mockQb([
+      {
+        id: 'w-trig',
+        workspaceId: 'ws',
+        type: 'webhook',
+        name: 'hook',
+        notificationSecretV2: 'wsk_should_not_leak',
+        chatChannelTokenV2: 'secret://triggers/w-trig/bot-token.v2',
+        workflow: { id: 'wf-1', name: 'WF', description: 'internal' },
+      } as unknown as Trigger,
+    ]);
+
+    const page = await service.findAll('ws', {} as never);
+    const row = (page.data as unknown as Record<string, unknown>[])[0];
+
+    expect(row).not.toHaveProperty('notificationSecretV2');
+    expect(row).not.toHaveProperty('chatChannelTokenV2');
+    // 조인된 workflow 는 참조 2필드로 좁혀진다 — `description` 은 남지 않는다.
+    expect(Object.keys(row.workflow as object).sort()).toEqual(['id', 'name']);
   });
 
   it('여러 schedule 행을 단일 IN 배치로 enrichment 하고 webhook 행은 건드리지 않는다 (N+1 회피)', async () => {

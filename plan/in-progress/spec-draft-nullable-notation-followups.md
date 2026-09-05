@@ -270,12 +270,17 @@ field: T | null;
       **이번 PR 에서 만들지 않은 이유**: 지금 2곳이고, 어떤 시그니처가 맞는지는 스윕이
       실제로 어떤 형태들을 만나는지 봐야 정해진다(목록/단건/중첩 배열이 섞인다). 시작도
       안 한 스윕을 위해 API 를 먼저 굳히면 그 API 가 스윕을 규정한다. 대신 이번에
-      중복의 **절반**은 이미 걷어냈다 — 계약 캐싱을 `beforeAll` 로 통일했고 DTO 이름을
-      `DtoContract` 가 파생하므로 호출부가 문자열을 다시 치지 않는다.
+      중복의 **절반**은 이미 걷어냈다 — DTO 이름을 `DtoContract` 가 파생하므로 호출부가
+      문자열을 다시 치지 않는다.
 
-      **함께 볼 것** (`14_39_31` INFO#2): `contractForDto` 는 DTO 하나마다 in-process Nest
-      앱을 부트스트랩한다. 지금은 4곳이 전부 `beforeAll` 캐싱이라 무해하지만, 56개로 늘면
-      CI 시간에 누적된다 — 헬퍼를 만들 때 DTO 이름 키 메모이제이션을 같이 검토한다.
+      > **메모이제이션은 스윕 1차에서 끝났다** (2026-09-05 정정). 종전 이 자리는
+      > *"헬퍼를 만들 때 … 같이 검토한다"* 로 미착수처럼 적혀 있었는데, `contractForDto`
+      > 는 이미 진행 중 promise 를 DTO 클래스별로 캐시한다(실패는 캐시에서 제거). 그래서
+      > 호출부는 `beforeAll` 변수 없이 **한 줄**이고, 남은 것은 **헬퍼 추출뿐**이다.
+      > (`20_45_39` INFO#5 — 같은 문서 안에서 "미착수" 와 "완료" 로 갈려 읽혔다.)
+
+      **여전히 2곳이 아니다** — 스윕 1차가 배선을 18개로 늘리며 이 패턴도 함께 늘었다.
+      다음에 이 항목을 열 때 **그 시점 실측치**로 다시 센다 (숫자를 지금 갱신하면 또 낡는다).
 
 - [ ] **`User` 엔티티에 컬럼 수준 방어를 둘지 결정** (developer + 보안 판단, 2026-09-05
       등재, `review/code/2026/09/05/14_39_31` W2). 감사 로그 유출은 **그 쿼리 하나**를 좁혀
@@ -293,6 +298,42 @@ field: T | null;
 
       착수 시 먼저 잴 것: 위 7컬럼을 읽는 모든 쿼리/서비스 전수 목록. 그 목록이 나온 뒤에
       `select:false` vs 전역 `ClassSerializerInterceptor`+`@Exclude()` 를 고른다.
+
+- [ ] **트리거 비밀 스트립을 deny-list 4벌에서 선언적 SoT 로** (developer + 보안 판단,
+      2026-09-05 등재, `review/code/2026/09/05/23_30_00` security W1). 지금
+      `TriggersService.sanitizeForResponse` 는 **수기 `Set<string>` 네 벌**로 막는다 —
+      `CHAT_CHANNEL_RESPONSE_STRIP_KEYS`(JSONB) · `NOTIFICATION_SIGNING_STRIP_KEYS`(JSONB) ·
+      `INTERACTION_RESPONSE_STRIP_KEYS`(JSONB) · `TRIGGER_RESPONSE_STRIP_COLUMNS`(엔티티 컬럼).
+
+      **같은 병이 세 라운드 연속 났다** — 스윕 1차가 엔티티 컬럼 축을 열었고, `20_45_37` 이
+      `notification.signing` 누락을, `22_48_39` 가 `interaction.triggerToken` 누락을 잡았다.
+      매번 "이번엔 전수 열거했다" 고 적었는데 매번 한 축이 남아 있었다. 목록을 늘리는 방식은
+      **다음 축의 이름을 미리 알아야** 하므로 원리적으로 닫히지 않는다.
+
+      제안 방향: `Trigger` 엔티티 필드에 `@Sensitive()` 를 붙이고 `sanitizeForResponse` 가
+      리플렉션으로 걷어낸다. 그러면 "새 비밀 컬럼을 추가했는데 스트립 목록에 안 넣었다" 가
+      **선언 자리에서** 닫힌다.
+
+      **착수 전에 잴 것 — 데코레이터는 엔티티 컬럼만 덮는다.** 네 축 중 셋은 JSONB **안의
+      키**라 필드 데코레이터가 걸릴 자리가 없다. 그러니 이 항목은 네 축 중 **한 축만**
+      선언적으로 만든다 — 나머지 세 축을 어떻게 닫을지는 아래 열린-맵 항목과 함께 결정한다.
+      "데코레이터로 옮기면 다 해결된다" 는 서술을 그대로 믿지 말 것 (이 문단이 그 반증이다).
+
+- [ ] **열린 `config` 맵 안의 신규 비밀은 e2e `not.toHaveProperty` 를 동반해야 한다 — 규약에
+      명시** (planner, 2026-09-05 등재, `review/code/2026/09/05/23_30_00` security W2).
+      `TriggerDto.config` 는 `additionalProperties: true` 라 **런타임 계약 검증자와 정적
+      가드 양쪽 모두**가 그 안으로 내려가지 않는다. 즉 `config.interaction.triggerToken`,
+      `config.notification.signing.secret` 같은 필드의 스트립 여부는 **오직 손으로 짠 e2e
+      단언에만** 달려 있다 — 다른 필드들이 받는 자동 이중 안전망이 이 표면에는 없다.
+
+      이번 브랜치가 그 사각지대를 처음 문서화하고 수기 테스트로 메웠지만, **다음 사람이
+      같은 자리에 새 비밀을 넣을 때 그 사실을 기억해야만** 보호가 이어진다. `secret-store.md`
+      (§1.1 인접) 또는 `2-api-convention.md §5.4` "검증 층" 소절에 **한 문장**으로 못 박는다:
+      *열린 맵 안에 비밀을 두면 계약 검증자가 못 보므로, 그 필드는 부재를 단언하는 e2e 를
+      반드시 동반한다.*
+
+      > 위 `@Sensitive()` 항목과 **같은 병의 다른 얼굴**이다 — 그쪽은 엔티티 컬럼 축을,
+      > 이쪽은 JSONB 세 축을 겨눈다. 두 항목을 한 턴에 같이 여는 것이 낫다.
 
 - [x] **§5.4 검증자 2종의 역할 경계를 spec 본문에 한 문장으로** (planner, 2026-09-05 등재,
       `review/consistency/2026/09/05/15_53_59` W1). 이름이 인접한 검증자가 둘이 됐다:
@@ -380,6 +421,105 @@ field: T | null;
         > **선행 조건이 스윕으로 바뀌었다.** 종전 이 자리의 서술은 *"남은 것은 일반
         > 헬퍼"* 였고 그것이 해소됐다. 남은 일은 같은 한 줄을 나머지 응답 DTO 로 넓히는
         > 기계적 작업이다 — 아래 별 항목으로 등재한다.
+
+        > #### 스윕 1차 (2026-09-05) — 4 → **18개 DTO**
+        >
+        > 기존 e2e 가 이미 그 리소스를 가져오는 자리 **14곳**을 배선했다. 배선은
+        > `contractForDto` 에 메모이제이션을 넣어 **한 줄**이 됐다 (종전에는 파일마다
+        > `beforeAll` 변수를 만들어야 했다).
+        >
+        > **스윕이 26건의 실제 drift 를 찾았다** — 그중 2건은 보안 결함이다:
+        >
+        > | 발견 | 성격 | 처분 |
+        > |---|---|---|
+        > | `TriggerDto` 가 `notificationSecretV2`(평문 서명 secret)·`chatChannelTokenV2` 노출 | **보안** | 응답 경계에서 스트립. 기존 sanitizer 가 `config` JSONB 만 덮고 **엔티티 컬럼은 안 덮었다** |
+        > | `ScheduleDto` 가 조인으로 Trigger 엔티티 **전체** 노출 (같은 secret 들) | **보안** | 컨트롤러에서 참조 4필드로 좁힘 |
+        > | 24필드가 "응답에 있는데 DTO 미선언" | 선언 지연 | FE 가 소비하므로 **선언을 실제에 맞춤** (wire 무변) |
+        > | `ExportWorkflowDto.formatVersion` 이 required 인데 부재 | 문서화된 Planned 갭 | `allowMissing` 옵션 신설 + spec 인용 주석 |
+        >
+        > 두 보안 수정 모두 뮤턴트로 확인했다 — 스트립을 되돌리면 `TriggerDto` 2건,
+        > `ScheduleDto` 18건(중첩 경로 `trigger.notificationSecretV2` 포함)이 RED.
+        >
+        > **잔여는 "41개" 가 아니다 — 그 수치는 상한이다.** 배선 대상을 고르려고 짠 정적
+        > 라우트 매퍼가 **라우트를 놓친다**(예: `GET /integrations/cafe24/precheck` 를
+        > 통째로 못 봤고, 그건 손으로 확인해 배선했다). 잔여 목록은 **census 가 아니라
+        > 출발점**으로 쓸 것. 잔여의 성격은 세 갈래다:
+        >
+        > - **중첩 전용 DTO** — 부모를 배선하면 검증자가 `$ref`/`allOf` 를 따라 내려가므로
+        >   별도 배선이 불필요하다. 다만 **`items: { type: 'object' }` 로 선언된 자리는
+        >   내려가지 않는다** (`CanvasSaveResultDto.nodes`/`.edges` 가 그렇다 — 아래 항목).
+        > - **엔드포인트인데 기존 e2e 가 안 때리는 것** — 새 e2e 시나리오가 선행이다.
+        > - **매퍼가 놓친 것** — 손으로 찾아야 한다.
+
+        > #### 스윕 1차의 자기 반박 (2026-09-05, `cb17f0870`)
+        >
+        > 위 배선과 함께 넣은 23필드 선언 중 **17개가 §5.4 금지 조합**
+        > (`@ApiPropertyOptional` + `nullable: true`)이었고, 나머지 **6개는 별개 축의
+        > 과소 선언**(상시 존재 + non-null 인데 `Optional`)이었다. 같은 세션의 두 리뷰가
+        > 그 둘을 이미 갈라 놓았는데 이 자리에서 합산해 적었다
+        > (`review/code/2026/09/05/22_48_39` W5). 같은 PR 이 다른 파일에서 "동결, 확대 금지" 라고 적어 둔
+        > 형태를 **내가 넓혔다** (`--impl-done 18_23_03` Critical 1, checker 2명이 독립 검출).
+        > 전부 §5.4 기본형으로 정정했다.
+        >
+        > **왜 아무도 못 잡았나**: 런타임 검증자는 **값**을 보는데 이 조합은 키가 없어도
+        > `null` 이어도 맞고, 정적 가드의 presence/null 축은 **선언과 TS 타입이 서로 맞는지**
+        > 만 보는데 이 조합은 일관되게 틀려 있다. **두 검증자 사이의 사각지대**였다.
+        >
+        > → `swagger-dto-contract-guard.ts` 에 세 번째 축을 더해 응답 DTO 전수를 훑고
+        > **78건**을 `EXPECTED_OPTIONAL_NULLABLE_DRIFT` 로 고정했다(양방향 래칫).
+        >
+        > **이 78 은 위 「스윕 1차」의 모집단과 다른 것을 센다** — 그쪽은 *배선 대상 DTO*
+        > 수이고, 이쪽은 *금지 조합을 쓰는 필드* 수다. 더하거나 비교하지 말 것.
+        >
+        > 부수: ~~`ScheduleDto.trigger` 의 wire 형태를 **키 생략**으로 확정했다~~ —
+        > **틀렸다. 확정된 것은 §5.4 기본형(`@ApiProperty`, 상시 존재)이다.**
+        > `Schedule.trigger_id` 가 NOT NULL 1:1 이고 응답을 내는 네 경로가 전부 채우므로
+        > 부재 경로가 없다 (`schedules.controller.ts` 의 `toResponse` 는 아예 던진다).
+        > 같은 문서 아래쪽 「`ScheduleDto.trigger`/`workflow` 를 nav-spec 에 문서화」
+        > bullet 이 *"`trigger` 는 상시 존재라 기본형으로 바꿨고"* 라고 옳게 적고 있으니
+        > **그쪽이 정본**이다 — 후속 planner 턴이 이 줄을 옮기지 않도록 여기서 정정한다
+        > (`review/consistency/2026/09/06/01_13_51` W1).
+        >
+        > 키 생략형인 것은 `trigger.workflow` **한 겹 아래**다 — 생성 응답에만 없다.
+        >
+        > 함께 확정한 것: `POST /api/schedules` 는 `isActive` 값과 무관하게 `trigger` 를
+        > 실어 보낸다 — 종전에는 `isActive: false` 면 트리거를 만들어 놓고 응답에서만
+        > 빠졌다.
+
+- [ ] **`INTERNAL_ERROR` 문구가 두 자리에서 언어가 갈린다** (developer, 2026-09-06 등재,
+      `review/consistency/2026/09/06/01_13_51` INFO#3). `3-error-handling.md` 는 이 코드의
+      문구를 **한국어**(*"서버 오류가 발생했습니다. 잠시 후 다시 시도해 주세요."*)로 정하는데,
+      `GlobalExceptionFilter` 는 영어다. **상수가 하나가 아니라 둘이다** — checker 는
+      `UNHANDLED_ERROR_MESSAGE`(*"An unexpected error occurred. Please try again later."*)만
+      짚었는데, 같은 클래스에 `UNKNOWN_ERROR_MESSAGE`(*"An unexpected error occurred"*)가
+      따로 있고 이쪽이 기본값이다. 한쪽만 고치면 같은 `INTERNAL_ERROR` 안에서 언어가
+      **세 갈래**가 된다.
+
+      **이 브랜치가 만든 회귀가 아니다** — 기존 drift 이고, 스케줄 가드가 규약 문구를 그대로
+      쓰면서 두 문구가 처음 나란히 드러났을 뿐이다. 그래서 여기서 고치지 않는다: 필터를
+      건드리면 **매핑되지 않은 모든 5xx** 의 문구가 바뀌어 이 PR 의 범위를 넘는다.
+
+      실측(2026-09-06): 두 문구를 문자열로 단언하는 자리는 `http-exception.filter.spec.ts`
+      **2곳**뿐이다 (`grep -rn "unexpected error occurred" src test`). 즉 문구 교체 자체는
+      작다 — 판단이 필요한 것은 **API 응답 문구의 언어 정책**이지 배선이 아니다.
+
+- [ ] **`CanvasSaveResultDto.nodes`/`.edges` 가 타입 없는 객체 배열** (developer,
+      2026-09-05 등재). `@ApiProperty({ type: 'array', items: { type: 'object' } })` 라
+      **검증자가 그 아래로 내려가지 않는다** — 캔버스 저장 응답에 어떤 엔티티 필드가
+      실려도 계약 검사를 통과한다. e2e 11개 스펙이 이 엔드포인트를 때리므로 배선 자체는
+      쉬운데, `NodeDto`/`EdgeDto` 로 선언을 바꾸는 것이 선행이다.
+
+- [ ] **`IntegrationDto.consecutiveNetworkFailures` 노출 중단 검토** (developer,
+      2026-09-05 등재). 내부 health 카운터인데 응답에 실려 나간다. **프런트엔드 참조
+      0곳**(실측)이라 빼도 소비자가 없지만 **wire 변경**이라 CHANGELOG 를 동반해야 한다.
+      이번 PR 은 "선언을 실제에 맞춘다" 범위라 선언만 했다.
+
+- [ ] **§5.4 스윕 2차 — 엔드포인트인데 e2e 미도달인 DTO** (developer, 2026-09-05 등재).
+      1차가 닿지 못한 자리다. 배선 한 줄이 아니라 **새 e2e 시나리오**가 선행이므로 모듈
+      단위로 끊는다. 후보(매퍼 기준, census 아님): `DashboardSummaryDto` ·
+      `StatisticsSummaryDto` · `LlmUsageSummaryDto` · `WorkflowVersionDto` ·
+      `WorkflowVersionListItemDto` · `GraphEntityDto` · `FolderDto` · `DocumentDto` ·
+      `NodeDto` · `EdgeDto` 등.
 
       > #### (a) 가 왜 안 되는가 — DTO 와 엔티티는 **다른 것**을 기술한다
       >
@@ -618,8 +758,24 @@ field: T | null;
       > **실제 처분**: 이번 턴이 어차피 여는 `2-api-convention.md` 에만 추가.
       > `6-websocket-protocol.md` 는 아래 별도 항목으로 재등재.
 
-- [ ] **트리거 회전 secret 이 응답에 나간다 — 유출 차단 코드** (developer, 2026-09-05 등재,
-      `review/consistency/2026/09/05/19_59_16` **Critical 1**).
+- [x] ~~**`notification_secret_v2` 저장 형태 — spec 과 코드가 정면 모순**~~ (planner 인계,
+      `19_08_19` Critical 1). **완료 — [#1290](https://github.com/worker-ants/clemvion/pull/1290)**
+      (2026-09-05).
+
+      > 인계 시 (a) 사실 정정+예외 등재 / (b) 코드측 ref 화 요구 를 planner 가 정하도록
+      > 적었고, planner 턴이 **(a)** 를 택했다 — 다만 그 과정에서 인계문의 전제도 반증됐다.
+      > 인계문은 *"§7.1 은 2026-05-22 에 확정된 보안 invariant"* 라 적었는데, 실제로는
+      > 그 커밋이 넣은 **aspirational 서술**이었고 평문 rotation 코드가 그보다 앞섰다.
+      > 두 컬럼의 비대칭도 `chat-channel.md` R-K 가 이미 결정해 둔 것이었다.
+      >
+      > 산출: §7.1 정정 · `secret-store.md §1` 세 번째 비대상 등재 · **§1.1 신설**
+      > (저장 위치 예외 ≠ 노출 예외) · 정적 가드 `code:` 등재. 아래 세 항목이 그 턴이
+      > 남긴 후속이다.
+
+- [x] **트리거 회전 secret 이 응답에 나간다 — 유출 차단 코드** (developer, 2026-09-05 등재,
+      `review/consistency/2026/09/05/19_59_16` **Critical 1**). **완료 — `sweep-response-contract`
+      브랜치 전체가 그 수정이다.** (커밋 SHA 를 열거하지 않는다 — 리뷰 라운드마다 늘어서
+      적는 순간 낡는다.)
 
       `Trigger.notification_secret_v2`(평문 서명 secret)와 `chat_channel_token_v2`(secret
       store ref)가 `GET/POST/PATCH /api/triggers` · `GET /api/schedules`(트리거 조인) 응답에
@@ -629,10 +785,27 @@ field: T | null;
       금지 규범은 이번 turn 이 `secret-store.md §1.1` 로 세웠다 — **저장 형태 예외(평문
       보관)와 노출은 다른 문제**이고, 예외 등재가 노출까지 승인하는 것으로 읽히면 안 된다.
 
-      > **수정은 이미 병행 브랜치에 있다** — `claude/sweep-response-contract-5ba0ad` 가
-      > `sanitizeForResponse` 로 컬럼을 지우고 스케줄 컨트롤러에서 조인된 트리거를 참조
-      > 4필드로 좁힌다. **그 브랜치가 머지되면 이 항목은 닫힌다.** 머지되지 않으면 여기서
-      > 백포트한다 — 어느 쪽이든 이 체크박스가 그 사실을 확인한 뒤에 닫는다.
+      > **확인 후 닫는다** (등재문이 요구한 절차). 최종 상태는 **네 축**이다 — 등재 시점의
+      > 이 문단은 둘만 적었는데, 같은 세션의 후속 리뷰가 나머지 둘을 찾았다:
+      >
+      > | 축 | 무엇 | 정화 함수 |
+      > |---|---|---|
+      > | 엔티티 컬럼 2개 | `notificationSecretV2`(평문) · `chatChannelTokenV2`(ref) | `deleteSecretColumns` |
+      > | `config.chatChannel` | `botToken` 등 5키 (+`hasBotToken` 파생) | `stripChatChannelSecrets` |
+      > | `config.notification.signing` | `secret` · `secretRef` | `stripNotificationSigningSecrets` |
+      > | `config.interaction` | `triggerToken` (**영구 평문** `itk_*`) | `stripInteractionSecrets` |
+      >
+      > 넷 다 뮤턴트로 RED 를 실측했다(정화 함수를 항등으로 바꿔 5/5 kill — `narrowWorkflowRef`
+      > 포함). 스케줄 컨트롤러는 조인된 트리거를 참조 4필드로 좁히고, 관계가 없으면 던진다.
+      > unit 회귀도 있다 — 종전 fixture 에는 비밀 필드가 없어 스트립을 되돌려도 전부
+      > 그린이었고, `chatChannel` 축은 리팩터 검증 중에야 같은 사각지대가 드러났다.
+      >
+      > **왜 넷이 한 번에 안 나왔나**: deny-list 를 목록으로 늘리는 방식은 **다음 축의
+      > 이름을 미리 알아야** 하므로 원리적으로 닫히지 않는다. 그 구조적 결함은 위
+      > 「트리거 비밀 스트립을 deny-list 4벌에서 선언적 SoT 로」 항목이 잇는다.
+      >
+      > `secret-store.md §1.1`(이번 planner 턴 신설)이 그 금지를 규범으로 세웠고, 이
+      > 커밋들이 그것을 시행한다.
 
 - [ ] **`4-integration.md §9.1` — `IntegrationDto` 확장 필드 포인터** (planner,
       2026-09-05 등재, `19_08_19` W3 / `19_59_16` W3).
@@ -646,6 +819,61 @@ field: T | null;
       자매 행(`chat_channel_token_v2`)은 *"reference"* 라고 적어 **서술 밀도가 비대칭**이다.
       평문임을 한 줄로 명시하고 [`secret-store.md §1`](../../spec/conventions/secret-store.md)
       비대상 등재로 링크한다.
+
+- [ ] **§5.4 래칫 canary fixture 를 `code:` 에 등재** (planner, 2026-09-05 등재,
+      `review/consistency/2026/09/05/20_45_39` W1).
+
+      `repo-guards/__tests__/fixtures/dto/responses/optional-nullable.fixture.ts` 는 래칫의
+      **양성 대조군**이다 — 그것이 없으면 술어가 죽어도 테스트가 통과한다(실제로 그 상태로
+      한 라운드를 지났다). 그런데 어떤 spec 의 `code:` glob 에도 안 걸린다 (게이트에 직접
+      물어 확인: 가드 본체는 ✓, fixture 는 ✗).
+
+      `swagger-dto-contract*.ts` 가 못 덮는 이유는 둘이다 — glob 의 `*` 가 `/` 를 넘지
+      않고, 파일명도 그 접두로 시작하지 않는다. **파일을 옮기거나 개명하는 것으로는
+      해결되지 않는다**: 술어가 `/dto/responses/` 경로를 요구하므로 fixture 는 그 아래
+      있어야 한다.
+
+      → `2-api-convention.md` frontmatter `code:` 에
+      `codebase/backend/src/repo-guards/__tests__/fixtures/**` 를 추가한다.
+
+- [ ] **"노출 창이 아직 닫혀 있지 않다" 서술이 낡는다 — `secret-store.md §1` 과
+      `14-external-interaction-api.md §7.1` 두 곳** (planner, 2026-09-05 등재,
+      `review/consistency/2026/09/05/21_40_38` W2 · 대상 확장
+      `review/consistency/2026/09/06/01_38_47` W1).
+
+      그 문장은 **내가 직전 planner 턴에 쓴 것**이고, `sweep-response-contract` 브랜치가
+      바로 그 창을 닫는다(`TRIGGER_RESPONSE_STRIP_COLUMNS` + `deleteSecretColumns` +
+      스케줄 컨트롤러 좁히기). **그 브랜치가 머지되는 순간 현재형 서술이 거짓이 된다.**
+
+      **대상이 하나가 아니다.** 종전 이 항목은 `secret-store.md §1` 만 지목하고 §7.1 은
+      *"정정 이력 패턴의 출처"* 로만 언급했는데, **같은 현재형 서술이 §7.1 에도 복제돼
+      있다** — *"현재 이 컬럼은 응답에도 나간다 … 이는 **미해결 결함**"*. 이 항목만 따라간
+      planner 턴은 §7.1 을 거짓인 채로 남긴다.
+
+      전수 확인 (2026-09-06):
+
+      ```
+      grep -rn "노출 창\|응답에도 나간다\|미해결 결함" spec/
+      ```
+
+      → 이 창을 서술하는 자리는 `secret-store.md §1`(2행)과
+      `14-external-interaction-api.md §7.1`(2행) **둘뿐**이다. 나머지 매치는 다른 맥락
+      (`2-navigation/6-config.md` 평문 hide 정책 · `5-system/1-auth.md` 초대 만료).
+
+      → 두 곳 모두 §7.1 이 쓴 "정정 이력" 패턴을 준용해 *"이 창은 `#…` 로 닫혔다"* 와 커밋
+      참조를 추가한다. 규범(§1.1)은 그대로 둔다 — 닫혔다고 규범이 사라지는 것이 아니다.
+
+- [ ] **`ScheduleDto.trigger`/`workflow` 를 nav-spec 에 문서화** (planner, 2026-09-05 등재,
+      `21_40_38` W1). §5.4 는 **키 생략형에 사유 문서화**를 요구한다. 코드 쪽은 이번에
+      정리했다 — `trigger` 는 상시 존재라 **기본형으로 바꿨고**, `workflow` 는 기준 (b)
+      (선택적 부가 컨텍스트)에 해당해 사유를 필드 주석에 적었다. 남은 것은 그 사유를
+      `spec/2-navigation/3-schedule.md §4`(또는 `1-data-model.md §2.9.1`)에 옮기는 것이다.
+      `IntegrationDto` 포인터 항목과 대칭으로 처리한다.
+
+      > **`TriggerDto.workflow` 도 같은 항목이다** (`22_25_00` W2). 같은 라운드에 신설된
+      > 자매 키-생략 필드인데 이 bullet 이 스케줄 쪽만 적고 있었다 — 두 DTO 의
+      > `trigger`/`workflow` 참조 필드를 한 묶음으로 다룬다. 반영 대상 spec 은
+      > `2-navigation/2-trigger-list.md` 와 `3-schedule.md §4` 둘이다.
 
 - [ ] **`6-websocket-protocol.md` 도입 산문** (planner, 2026-09-05 등재). 위 실측에서
       개요 내용이 **실제로 없는** 두 문서 중 남은 하나. `## 1. 연결` 로 바로 시작한다.
@@ -713,7 +941,7 @@ field: T | null;
 
 | 항목 | 트랙 | 선행 조건 |
 |---|---|---|
-| §5.4 drift 2단계 — 검증자 없는 응답 DTO | developer | ~~반환 타입 명시~~ 반증 · ~~일반 헬퍼~~ **완료(2026-09-05)** — `response-contract.ts` 가 섰고 4개 DTO 가 배선됐다. 남은 것은 **선행 조건이 아니라 스윕** — §5.4 관련 필드를 가진 응답 DTO 60개 중 56개 |
+| §5.4 drift 2단계 — 검증자 없는 응답 DTO | developer | ~~반환 타입 명시~~ 반증 · ~~일반 헬퍼~~ **완료** · 1차 스윕 **완료(2026-09-05)**. 남은 것은 선행 조건이 아니라 스윕이다 — **개수·잔여 목록은 본문 `§5.4 drift 배치 — 2단계` 의 「스윕 1차」 참조**(이 표에 숫자를 적지 않는 이유는 위 경고문) |
 | ~~§5.4 가 WS wire 에도 적용되는가~~ | — | **종결(2026-09-04)** — producer 는 이미 §5.4 준수, consumer `?` 는 별개 축 |
 | ~~`QueryExecutionDto.workflowId` 죽은 필드~~ | — | **종결(2026-09-04)** — 옵션 A(제거) 채택 |
 | ~~`idx_schedule_next_run` → `(workspace_id, next_run_at)`~~ | — | **종결(2026-09-04)** — V110 적용 완료. (a)/(b) 는 둘 다 실측으로 기각됐고 답은 (c) 였다 |

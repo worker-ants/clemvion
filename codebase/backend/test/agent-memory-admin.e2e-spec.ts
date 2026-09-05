@@ -9,6 +9,11 @@ import {
   createTeamWorkspace,
   inviteAndAccept,
 } from './helpers/auth';
+import {
+  assertMatchesContract,
+  contractForDto,
+} from '../src/shared/testing/response-contract';
+import { AgentMemoryItemDto } from '../src/modules/agent-memory/dto/responses/agent-memory-response.dto';
 
 /**
  * e2e: AI Agent 메모리 관리(조회·삭제) admin REST surface 를 실 인프라 위에서
@@ -106,6 +111,10 @@ describe('Agent Memory Admin (e2e, spec §6 AGM-12/13)', () => {
       .set('X-Workspace-Id', ws);
     expect(memories.status).toBe(200);
     expect(memories.body.pagination.totalItems).toBe(2);
+    assertMatchesContract(
+      (memories.body.data as unknown[])[0],
+      await contractForDto(AgentMemoryItemDto),
+    );
     const contents = (memories.body.data as { content: string }[]).map(
       (m) => m.content,
     );

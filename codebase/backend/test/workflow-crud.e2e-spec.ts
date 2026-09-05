@@ -10,6 +10,7 @@ import {
   contractForDto,
   type DtoContract,
 } from '../src/shared/testing/response-contract';
+import { ExportWorkflowDto } from '../src/modules/workflows/dto/responses/workflow-response.dto';
 import { WorkflowDto } from '../src/modules/workflows/dto/responses/workflow-response.dto';
 
 /**
@@ -428,6 +429,17 @@ describe('Workflow CRUD (e2e)', () => {
     expect(exportRes.status).toBe(200);
     expect(exportRes.body.data.name).toBeDefined();
     expect(Array.isArray(exportRes.body.data.nodes)).toBe(true);
+    assertMatchesContract(
+      exportRes.body.data,
+      await contractForDto(ExportWorkflowDto),
+      {
+        // `formatVersion` 은 DTO 가 required 로 선언하지만 export 구현이 emit 하지 않는다.
+        // **이미 문서화된 Planned 갭**이라 이 PR 에서 닫지 않는다 —
+        // spec/2-navigation/1-workflow-list.md: "포맷 버전 협상은 미구현 (Planned)".
+        // 그 갭을 닫는 PR 이 이 줄을 지우는 것이 완료 조건이다.
+        allowMissing: ['formatVersion'],
+      },
+    );
 
     const importRes = await request(BASE_URL)
       .post('/api/workflows/import')

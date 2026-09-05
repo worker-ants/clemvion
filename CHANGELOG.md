@@ -1,5 +1,125 @@
 # Changelog
 
+## Unreleased — 트리거 회전 secret 이 두 엔드포인트로 나갔다 (§5.4 스윕이 검출)
+
+응답-계약 검증자를 14개 엔드포인트로 넓히자, `trigger` 행의 **회전 secret** 이 선언되지 않은
+채 wire 로 나가고 있는 것이 드러났다.
+
+| 필드 | 무엇인가 | 나가던 곳 |
+|---|---|---|
+| `notificationSecretV2` | **평문 서명 secret** — 24h rotation grace 동안 non-null이며, 이 값으로 outbound notification 을 서명한다 | `GET/POST/PATCH /api/triggers`, `GET/POST/PATCH /api/schedules` (조인) |
+| `chatChannelTokenV2` | secret store ref (`secret://triggers/{id}/bot-token.v2`) — 평문은 아니나 내부 저장 위치를 드러낸다 | 〃 |
+| `config.notification.signing.secret` · `.secretRef` | **평문 서명 secret** 과 그 store ref — `config` JSONB 안에 산다 | 〃 |
+| `config.interaction.triggerToken` | **영구 평문 bearer 토큰** (`itk_*`) — per-trigger 외부 호출 인증에 쓴다 | 〃 |
+
+**네 자리를 한꺼번에 찾은 것이 아니다.** 위 두 줄은 스윕 1차가 엔티티 컬럼 축을 닫은 **뒤**
+같은 세션의 후속 리뷰가 차례로 찾아낸 것이다 — `secret-store.md §1.1` 이 **이름으로 열거한
+세 필드** 중 둘만 닫힌 상태였다. 방어가 세 번 연속 한 칸씩 좁았다는 뜻이고, 그 사실이
+아래 「원인」의 요지다.
+
+**영향 — 이미 나간 것은 회수되지 않는다.** 로테이션 유예 중에 이 응답을 저장·로깅·캐시한
+소비자가 있었다면 서명 secret 이 그쪽에 남아 있을 수 있다. 응답 본문을 기록하는 클라이언트
+로그·APM·프록시 캐시를 점검하고, 해당 트리거의 notification secret 회전을 권고한다.
+도달 권한은 해당 워크스페이스 멤버다.
+
+> **`config.interaction.triggerToken` 은 회전 유예가 없다.** 앞의 셋과 달리 이 토큰은
+> **영구 평문**이라 "유예 중에만 non-null" 이라는 완화가 걸리지 않는다 — 노출된 트리거는
+> `POST /api/triggers/:id/interaction/revoke-token` 으로 **재발급**해야 한다.
+
+### 원인 — 방어가 있었는데 **한 칸 좁았다**
+
+`TriggersService` 에는 이미 `sanitizeChatChannelForResponse` 가 있었다. 그러나 그것은
+`config.chatChannel` **JSONB 안의 키**만 지웠고, **같은 등급의 비밀이 사는 엔티티 컬럼**은
+손대지 않았다. 게다가 `config.chatChannel` 이 없으면 **조기 return** 해서, chat-channel 이
+아닌 트리거는 정화를 아예 거치지 않았다.
+
+`GET /api/schedules` 는 두 번째 경로다 — `leftJoinAndSelect('s.trigger', 't')` 가 **Trigger
+엔티티 전체**를 실어, 트리거 자신의 응답에서 빼는 컬럼이 **조인을 타고** 새어 나왔다.
+
+수정:
+
+- `sanitizeForResponse` 로 이름을 넓히고 **엔티티 컬럼까지** 지운다. 조기 return 을 없애
+  모든 트리거가 정화를 거친다.
+- 스케줄은 **컨트롤러(응답 경계)** 에서 `trigger` 를 참조 4필드(`id`·`name`·`workflowId`·
+  `workflow.name` — 프런트엔드가 쓰는 전부)로 좁힌다. 서비스 반환 타입을 좁히지 않은 것은
+  `update` 등 내부 로직이 같은 객체의 다른 필드를 소비하기 때문이다.
+
+  > **밖에서 이 축소를 맞는 소비자는 없다** (`review/code/2026/09/05/23_30_00` side-effect
+  > W1 확인 요청). `/api/schedules` 를 호출하는 자리를 저장소 전수로 훑으면 프런트엔드
+  > `lib/api/schedules.ts` 의 `RawSchedule` 하나뿐이고, 그 타입이 선언한 `trigger` 필드는
+  > 정확히 이번에 남긴 네 개다. 배포되는 `@workflow/sdk` 는 스케줄 API 를 아예 다루지
+  > 않는다(`packages/sdk/src` 에 `schedule` 문자열 0건 — webhook 트리거 호출 전용).
+- `select: false` 는 쓰지 않았다. 로테이션 스윕이 이 컬럼들을 읽어 승격·정리하므로, 컬럼
+  수준에서 끄면 그 경로가 `undefined` 를 받고 **예외 없이 조용히** 오작동한다.
+- **트리거 쪽도 같은 결함이 있었다** — `TriggerDto.workflow` 가 조인된 `Workflow` **엔티티
+  전체**를 선언 없이 실어 보냈다(`ScheduleDto.trigger` 와 구조가 같다). 참조
+  2필드(`id`·`name` — `triggers/page.tsx` 가 쓰는 전부)로 좁혔다.
+- 같은 커밋이 **`PATCH /api/triggers` 응답에서 필드가 사라지던 버그**도 고쳤다.
+  `useDefineForClassFields` 때문에 DTO 의 optional 필드는 값이 없어도 `undefined` 인 own
+  property 로 만들어지고, 그대로 `Object.assign` 하면 로드된 값을 덮어썼다 — DB 는 TypeORM 이
+  `undefined` 를 건너뛰어 무사했고 **응답에서만** 사라졌다(`name` 으로 관측).
+
+> **하나의 손상된 행이 목록 전체를 500 으로 만든다 — 의도된 트레이드오프다.**
+> 스케줄 응답 경계(`toResponse`)는 `trigger` 관계가 없으면 던진다. `findAll` 은 그것을
+> `map` 안에서 부르므로 **한 행만 어긋나도 목록 요청 전체가 실패**한다. 종전에는 그 행만
+> 필드가 빠지고 나머지는 200 이었다 (`review/code/2026/09/06/01_13_50` W3).
+>
+> 그래도 던지는 쪽을 택한 이유: `ScheduleDto.trigger` 는 §5.4 **기본형**(`@ApiProperty`,
+> 상시 존재) 선언이라 키를 빼면 **계약 위반**이고, 그 행만 조용히 건너뛰면 목록에서 행이
+> 사라진다. `Schedule.trigger_id` 는 NOT NULL 1:1 이고 FK 가 `onDelete: 'CASCADE'` 라
+> 정상 데이터로는 도달할 수 없으므로, 도달했다면 그것은 **가려서는 안 되는 데이터 손상**이다.
+> 응답 바디에는 고정 문구만 가고 진단은 서버 로그에만 남는다.
+
+두 자리 모두 회귀 테스트가 고정한다. 스트립을 되돌린 뮤턴트를 실제로 돌려 확인했다 —
+`chat-channel-trigger-create` 와 `schedule-trigger` 두 e2e 가 RED 이고, 위반 목록이
+`notificationSecretV2` · `chatChannelTokenV2` 를 이름으로 지목한다. 스케줄 쪽은 중첩 경로
+(`trigger.notificationSecretV2`)로 찍혀, **조인을 타고 새는 것**까지 잡힌다는 것이 보인다.
+unit 쪽에도 같은 뮤턴트를 무는 회귀를 뒀다 (`triggers.service.spec.ts` — 종전 fixture 에는
+비밀 필드가 아예 없어 스트립을 되돌려도 전부 그린이었다).
+
+### 함께 — 선언이 현실에 뒤처져 있던 23필드를 선언했다
+
+같은 스윕이 "응답에 있는데 DTO 가 선언하지 않은" 키를 5개 DTO 에서 더 찾았다. 프런트엔드가
+실제로 소비하고 있어 **빼면 계약 회귀**이므로, 선언을 실제에 맞췄다 (wire 변경 없음).
+
+전부 §5.4 의 **기본형**(`@ApiProperty` + 컬럼이 nullable 이면 `nullable: true`)으로 적었다.
+엔티티 컬럼이라 응답에 상시 존재하기 때문이다.
+
+`appUrl` 은 엔티티 컬럼이 아니어서 처음엔 **키 생략형**으로 적었는데, **e2e 계약 대조가 그
+선언을 반증했다** — `appUrl [null] 키 생략형인데 null 이 왔다`. `IntegrationsService.toPublic`
+이 `{ appUrl: null }` 기저값 위에 얹어 **상시 존재**였다. 그래서 이것도 기본형이다.
+
+| DTO | 선언 추가 |
+|---|---|
+| `TriggerDto` | `chatChannelHealth` · `chatChannelLastError` · `chatChannelSetupAt` · `chatChannelRotatedAt` · `notificationHealth` · `notificationLastError` · `notificationRotatedAt` |
+| `IntegrationDto` | `appUrl` · `mallId` · `tokenExpiresAt` · `lastRotatedAt` · `lastUsedAt` · `consecutiveNetworkFailures` |
+| `KnowledgeBaseDto` | `documentCount` · `embeddingModelConfigId` · `rerankMode` · `rerankCandidateK` · `rerankScoreThreshold` · `rerankConfigId` · `rerankLlmConfigId` |
+| `AlertRuleDto` | `createdBy` · `lastTriggeredAt` |
+| `ScheduleDto` | `trigger` (좁혀진 참조 형태) |
+
+`IntegrationDto.consecutiveNetworkFailures` 만 프런트엔드 참조가 0곳이다 — 내부 health
+카운터라 노출을 멈추는 편이 낫지만 그것은 wire 변경이라 별도 항목으로 남긴다.
+
+### 같은 조합이 조용히 넓어지지 못하게 래칫을 세웠다
+
+이 커밋의 **첫 판이 정확히 그 실수를 했다.** 위 23필드 중 **17개**를
+`@ApiPropertyOptional({ nullable: true })` + `field?: T | null` 로 선언했는데, 그것은 §5.4 가
+**응답 바디에서 금지**하는 조합(요청 바디 전용)이고 같은 커밋이 다른 파일에서 "동결, 확대
+금지" 라고 적어 둔 형태였다.
+
+**두 검증자 어느 쪽도 잡지 못했다** — 런타임 검증자는 값을 보는데 이 조합은 키가 없어도
+null 이어도 맞고, 정적 가드의 presence/null 축은 선언과 TS 타입이 서로 맞는지만 보는데 이
+조합은 일관되게 틀려 있다.
+
+> **나머지 6개는 다른 축이다** — `consecutiveNetworkFailures` · `documentCount` ·
+> `rerankMode` · `rerankCandidateK` · `chatChannelHealth` · `notificationHealth` 은 상시 존재
+> + non-null 인데 `Optional` 로 **과소 선언**한 것이었다. 금지 조합과 섞어 "23건" 으로 세면
+> 래칫이 무엇을 막는지가 흐려진다 (`review/code/2026/09/06/00_24_34` W3).
+
+`swagger-dto-contract-guard.ts` 에 세 번째 축을 더해 **응답 DTO 전수**를 훑고, 현재 존재하는
+**78건**을 목록으로 고정했다. 새로 생기면 목록에 없어 실패하고, 갚아서 줄이면 목록에서 빼야
+통과한다 — 양방향 래칫이다. (78 은 종전에 알려져 있던 10건보다 훨씬 크다.)
+
 ## Unreleased — `GET /api/audit-logs` 가 `user` 로 비밀번호 해시와 2FA 복구 코드를 내보냈다
 
 `AuditLogUserDto` 는 `id`·`name`·`email` **3필드**를 광고한다. 실제 응답의 `user` 객체에는

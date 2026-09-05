@@ -100,6 +100,16 @@ export interface ContractCheckOptions {
    * 가려진다. 정당한 용례는 응답 래퍼가 얹는 필드처럼 **그 DTO 의 계약이 아닌** 키다.
    */
   readonly allowUndeclared?: readonly string[];
+
+  /**
+   * required 로 선언됐지만 응답에 없어도 위반으로 보지 않을 이름들. 중첩은 경로로 적는다.
+   *
+   * `allowUndeclared` 의 거울상이고, **더 좁게 써야 한다** — 이쪽은 "문서가 약속한 것을
+   * 구현이 아직 안 지킨다" 는 뜻이라 소비자가 실제로 깨진다. 정당한 용례는 **그 갭이
+   * spec 본문에 Planned 로 이미 적혀 있는** 경우뿐이고, 호출부는 그 출처를 주석으로
+   * 함께 남긴다. 갭을 닫으면 이 목록에서 빼는 것이 그 PR 의 일부다.
+   */
+  readonly allowMissing?: readonly string[];
 }
 
 /**
@@ -155,6 +165,7 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
 interface Walk {
   readonly contract: DtoContract;
   readonly allowUndeclared: ReadonlySet<string>;
+  readonly allowMissing: ReadonlySet<string>;
   readonly out: ContractViolation[];
 }
 
@@ -234,7 +245,7 @@ function visit(
     const isRequired = required.has(name);
 
     if (!present || value === undefined) {
-      if (isRequired) {
+      if (isRequired && !walk.allowMissing.has(path)) {
         walk.out.push({
           property: path,
           kind: 'missing',
@@ -335,6 +346,7 @@ export function findContractViolations(
   const walk: Walk = {
     contract,
     allowUndeclared: new Set(options.allowUndeclared ?? []),
+    allowMissing: new Set(options.allowMissing ?? []),
     out: [],
   };
   visit(payload, contract.schema, '', walk, new Set([payload]));
@@ -370,6 +382,9 @@ export function assertMatchesContract(
   }
 }
 
+/** DTO 클래스 → 진행 중이거나 완료된 계약 promise. 아래 `contractForDto` 전용. */
+const contractCache = new Map<Type<unknown>, Promise<DtoContract>>();
+
 /**
  * DTO 하나의 **생성된 OpenAPI 계약**을 얻는다.
  *
@@ -377,10 +392,39 @@ export function assertMatchesContract(
  * 호출부는 DTO 클래스만 넘긴다. `buildSwaggerDocument` 가 스키마 생성의 SoT 이고 이
  * 함수는 그 위의 편의다.
  *
- * **`beforeAll` 에서 한 번 부르고 결과를 재사용할 것.** 호출마다 Nest 테스트 모듈을
- * 통째로 부트스트랩하므로 `it()` 안에서 반복 호출하면 값이 같은데도 비용만 든다.
+ * **결과는 DTO 클래스별로 메모이즈된다** — 호출마다 Nest 테스트 모듈을 통째로
+ * 부트스트랩하므로 그러지 않으면 호출부가 `beforeAll` 에 변수를 만들어 재사용하는
+ * 보일러플레이트를 매번 반복해야 한다. 계약은 그 클래스의 데코레이터에서만 나오는
+ * 결정적 값이라 캐시가 안전하다. **격리 단위는 테스트 파일**이다 — Jest 는 파일마다 모듈
+ * 레지스트리를 새로 만들므로, 캐시는 같은 파일 안의 반복 호출에서만 재사용된다
+ * (종전 이 자리는 "worker 단위" 라 적었는데 실측으로 반증됐다 —
+ * `review/code/2026/09/05/21_40_37` W2).
+ *
+ * 그래서 호출부는 한 줄이면 된다:
+ *
+ * ```ts
+ * assertMatchesContract(payload, await contractForDto(XxxDto));
+ * ```
+ *
+ * **진행 중인 promise 를 캐시한다** (결과가 아니라). 같은 DTO 에 대한 동시 호출이
+ * 프로브 모듈을 두 번 부트스트랩하지 않게 하기 위함이다.
  */
-export async function contractForDto(Dto: Type<unknown>): Promise<DtoContract> {
+export function contractForDto(Dto: Type<unknown>): Promise<DtoContract> {
+  const cached = contractCache.get(Dto);
+  if (cached) {
+    return cached;
+  }
+  const built = buildContractForDto(Dto).catch((err: unknown) => {
+    // 실패한 promise 를 캐시에 남기면 이후 호출이 전부 같은 실패를 되돌려 받아
+    // 원인이 사라진 뒤에도 낫지 않는다. 지우고 다시 던진다.
+    contractCache.delete(Dto);
+    throw err;
+  });
+  contractCache.set(Dto, built);
+  return built;
+}
+
+async function buildContractForDto(Dto: Type<unknown>): Promise<DtoContract> {
   @Controller('__contract_probe__')
   class ProbeController {
     @Get()

@@ -10,6 +10,8 @@ import {
   HttpCode,
   HttpStatus,
   ParseUUIDPipe,
+  InternalServerErrorException,
+  Logger,
 } from '@nestjs/common';
 import { Roles } from '../../common/guards/roles.guard';
 import {
@@ -42,12 +44,73 @@ import {
 } from './dto/responses/schedule-response.dto';
 import { CurrentUser, WorkspaceId } from '../../common/decorators';
 import type { JwtPayload } from '../../common/decorators';
+import type { Schedule } from './entities/schedule.entity';
 
 @ApiTags('Schedules')
 @ApiBearerAuth('access-token')
 @Controller('schedules')
 export class SchedulesController {
+  private readonly logger = new Logger(SchedulesController.name);
+
   constructor(private readonly schedulesService: SchedulesService) {}
+
+  /**
+   * 응답 경계에서 조인된 `trigger` 를 **참조 수준으로** 좁힌다.
+   *
+   * 서비스의 조회는 `leftJoinAndSelect('s.trigger', 't')` / `relations: ['trigger']` 로
+   * **Trigger 엔티티 전체**를 싣는다. 거기에는 `notificationSecretV2`(평문 서명 secret,
+   * 24h rotation grace 동안 non-null) 와 `chatChannelTokenV2`(secret store ref) 가 있다 —
+   * `TriggersService.sanitizeForResponse` 가 트리거 자신의 응답에서 빼는 바로 그 컬럼들이
+   * **조인을 타고** 여기로 새어 나왔다. §5.4 응답-계약 스윕이 `trigger` 를 "선언되지 않은
+   * 키" 로 검출해 드러났다.
+   *
+   * **서비스가 아니라 컨트롤러에서 좁히는 이유**: `findById`/`create`/`update` 는 응답
+   * 전용이 아니라 내부 로직도 소비한다(예: `update` 가 `trigger.isActive` 를 만진다).
+   * 서비스 반환 타입을 좁히면 그 경로가 깨진다 — 좁히기는 **나가는 자리**에서 한다.
+   */
+  private toResponse<T extends Schedule>(schedule: T) {
+    const t = schedule.trigger;
+    const { trigger: _drop, ...rest } = schedule;
+    // `trigger` 는 상시 존재한다 (NOT NULL 1:1 + 네 경로가 전부 채움) — 그래서 분기 없이
+    // 항상 싣는다. **조용히 키를 빠뜨리지 않는다**: DTO 가 §5.4 기본형(`@ApiProperty`)으로
+    // 선언하므로 키를 빼면 계약 위반이다. (프런트엔드는 `s.trigger?.name ?? ""` 로 방어
+    // 하지만, 그 방어는 부재를 정상으로 만들지 않는다 — 이름 없는 행이 조용히 남는다.)
+    //
+    // 종전에는 이 자리에서 `t.id` 접근이 그대로 `TypeError` 를 냈다 — 500 이 되는 것은
+    // 같지만 **왜** 인지가 스택트레이스에만 남았다. 불변식을 이름으로 던져, 다음 사람이
+    // 여기에 방어 분기(`t ? ... : ...`)를 넣어 계약을 조용히 깨지 않게 한다
+    // (`review/code/2026/09/06/00_24_34` W1). 정상 데이터로는 도달 불가다 —
+    // `Schedule.trigger_id` 가 NOT NULL 이고 FK 가 `onDelete: 'CASCADE'` 다.
+    //
+    // **진단은 로그에만.** `GlobalExceptionFilter` 는 `HttpException` 의 `message` 를
+    // 응답 바디로 그대로 흘린다(마스킹은 매핑되지 않은 순수 `Error` 에만 걸린다) —
+    // 첫 판이 `schedule.id` 와 조인 추론을 문자열 인자로 넘겨 500 바디에 실었다
+    // (`review/consistency/2026/09/06/00_48_52` W1, CWE-209). 클라이언트에게는
+    // `3-error-handling.md` 의 `INTERNAL_ERROR` 고정 문구만 간다.
+    if (!t) {
+      this.logger.error(
+        `Schedule ${schedule.id} has no loaded trigger — ` +
+          'schedule.trigger_id is NOT NULL, so the query forgot the ' +
+          'join/relation (or the row is orphaned).',
+      );
+      throw new InternalServerErrorException({
+        code: 'INTERNAL_ERROR',
+        message: '서버 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.',
+      });
+    }
+
+    // 반면 `trigger.workflow` 는 **키 생략형**이다 — **생성 응답에만** 없다
+    // (방금 저장한 트리거라 관계 미로드). 조회·수정은 `findById` 를 타므로 채워진다.
+    return {
+      ...rest,
+      trigger: {
+        id: t.id,
+        name: t.name,
+        workflowId: t.workflowId,
+        ...(t.workflow ? { workflow: { name: t.workflow.name } } : {}),
+      },
+    };
+  }
 
   @Get()
   @ApiOperation({
@@ -64,7 +127,8 @@ export class SchedulesController {
     @WorkspaceId() workspaceId: string,
     @Query() query: QueryScheduleDto,
   ) {
-    return this.schedulesService.findAll(workspaceId, query);
+    const page = await this.schedulesService.findAll(workspaceId, query);
+    return { ...page, data: page.data.map((s) => this.toResponse(s)) };
   }
 
   @Get(':id')
@@ -82,7 +146,9 @@ export class SchedulesController {
     @Param('id', ParseUUIDPipe) id: string,
     @WorkspaceId() workspaceId: string,
   ) {
-    return this.schedulesService.findById(id, workspaceId);
+    return this.toResponse(
+      await this.schedulesService.findById(id, workspaceId),
+    );
   }
 
   @Get(':id/preview')
@@ -155,7 +221,9 @@ export class SchedulesController {
     @Body() dto: CreateScheduleDto,
     @CurrentUser('sub') userId: string,
   ) {
-    return this.schedulesService.create(workspaceId, dto, userId);
+    return this.toResponse(
+      await this.schedulesService.create(workspaceId, dto, userId),
+    );
   }
 
   @Post(':id/run-now')
@@ -205,7 +273,9 @@ export class SchedulesController {
     @Body() dto: UpdateScheduleDto,
     @CurrentUser('sub') userId: string,
   ) {
-    return this.schedulesService.update(id, workspaceId, dto, userId);
+    return this.toResponse(
+      await this.schedulesService.update(id, workspaceId, dto, userId),
+    );
   }
 
   @Delete(':id')

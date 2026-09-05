@@ -4,6 +4,11 @@ import request from 'supertest';
 
 import { createDbClient, uniqueEmail } from './helpers/db';
 import { registerAndLogin } from './helpers/auth';
+import {
+  assertMatchesContract,
+  contractForDto,
+} from '../src/shared/testing/response-contract';
+import { UserProfileDto } from '../src/modules/users/dto/responses/user-response.dto';
 
 /**
  * e2e: spec/2-navigation/9-user-profile.md §6.1 아바타 업로드 (공개 버킷 + 공개 URL).
@@ -74,6 +79,7 @@ describe('아바타 업로드 — 공개 버킷 정책 (e2e)', () => {
     expect(res.status).toBe(200);
     avatarUrl = (res.body.data as { avatarUrl: string }).avatarUrl;
     expect(avatarUrl).toContain('avatars/');
+    assertMatchesContract(res.body.data, await contractForDto(UserProfileDto));
     // 키의 UUID 는 장식이 아니라 접근 통제다 — userId 만으로 완성되면 열거된다.
     expect(avatarUrl).toMatch(
       /avatars\/[0-9a-f-]{36}\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.png$/,
