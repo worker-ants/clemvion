@@ -32,7 +32,16 @@ export class ScheduleTriggerRefDto {
   @ApiProperty({ format: 'uuid' })
   workflowId: string;
 
-  /** 연결된 워크플로우 (조회 경로에 따라 없을 수 있다) */
+  /**
+   * 연결된 워크플로우 — **키 생략형**이다 (§5.4 기준 (b): 선택적 부가 컨텍스트).
+   *
+   * 생성·수정 응답은 방금 저장한 트리거를 붙이므로 이 관계가 **로드되지 않는다**. 조회
+   * 경로(`findById` 의 `relations: ['trigger','trigger.workflow']` · `findAll` 의 join)
+   * 에서만 채워진다 — e2e 가 두 형태(생성 3키 · 조회 4키)를 각각 고정한다.
+   *
+   * 소비처가 부재를 정상 경로로 다룬다 — `schedules/page.tsx` 는
+   * `s.trigger?.workflow?.name ?? ""` 로 읽는다.
+   */
   @ApiPropertyOptional({ type: () => ScheduleTriggerWorkflowRefDto })
   workflow?: ScheduleTriggerWorkflowRefDto;
 }
@@ -85,10 +94,16 @@ export class ScheduleDto {
 
   /**
    * 연결된 트리거 — **참조 수준으로 좁혀진** 형태다 (`ScheduleTriggerRefDto` 주석 참조).
-   * 조회 경로에 따라 없을 수 있다.
+   *
+   * **상시 존재한다.** `Schedule.trigger_id` 는 NOT NULL 1:1 이고(`1-data-model.md §2.9.1`),
+   * 응답을 내는 네 경로가 전부 채운다 — `findAll`(join) · `findById`(relations) ·
+   * `create`/`update`(저장 직후 대입, `isActive` 무관). e2e 가 네 곳을 각각 단언한다.
+   *
+   * 종전엔 키 생략형으로 선언했는데 §5.4 는 그 형태에 **사유 문서화**를 요구하고, 실측은
+   * 부재 경로가 없다고 말한다 (`review/consistency/2026/09/05/21_40_38` W1).
    */
-  @ApiPropertyOptional({ type: () => ScheduleTriggerRefDto })
-  trigger?: ScheduleTriggerRefDto;
+  @ApiProperty({ type: () => ScheduleTriggerRefDto })
+  trigger: ScheduleTriggerRefDto;
 }
 
 /** Cron 다음 실행 시각 프리뷰 */

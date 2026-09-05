@@ -368,7 +368,16 @@ export class TriggersService {
       interaction,
       safeChatChannel,
     );
-    Object.assign(trigger, rest, { config: mergedConfig });
+    // `rest` 에는 **값이 없는 optional 필드도 `undefined` 로 존재**한다 — `target: ES2023`
+    // 에서 클래스 필드가 own property 로 정의되기 때문이다(`useDefineForClassFields`).
+    // 그대로 `Object.assign` 하면 로드된 값을 `undefined` 로 **덮어쓴다** — DB 는 TypeORM
+    // 이 undefined 를 건너뛰어 무사하지만 **응답에서 필드가 사라진다.**
+    // `PATCH /api/triggers/:id` 응답에 `name` 이 없던 원인이고, §5.4 계약 대조를 그
+    // 경로로 넓히자 드러났다 (`review/code/2026/09/05/21_40_37` W1).
+    const defined = Object.fromEntries(
+      Object.entries(rest).filter(([, v]) => v !== undefined),
+    );
+    Object.assign(trigger, defined, { config: mergedConfig });
     const saved = await this.triggerRepository.save(trigger);
     // **커밋 직후** 기록한다 — 아래 세 가지(schedule 역동기화의 BullMQ 호출, secret
     // 마이그레이션, chatChannel setup)는 전부 실패할 수 있는 외부 호출이라, 그 뒤로 미루면
@@ -622,6 +631,14 @@ export class TriggersService {
       }
 
       if (configTouched) overrides.config = nextConfig;
+    }
+
+    // 조인된 `workflow` 는 **참조 2필드로** 좁힌다 — 엔티티 전체가 선언 없이 실려
+    // 나가고 있었다 (`review/code/2026/09/05/21_40_37` W1). 소비처는 `id`·`name` 뿐이다.
+    const wf = (trigger as { workflow?: { id: string; name: string } })
+      .workflow;
+    if (wf) {
+      overrides.workflow = { id: wf.id, name: wf.name };
     }
 
     // entity 의 메서드/getter 를 보존하기 위해 prototype 유지하면서 필드만 교체.

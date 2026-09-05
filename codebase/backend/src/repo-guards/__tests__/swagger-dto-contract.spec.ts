@@ -343,30 +343,6 @@ describe('옵션 리더는 리터럴을 만날 때까지 훑는다', () => {
   });
 });
 
-/**
- * ## `numeric` 컬럼을 `number` 라고 문서화하는 자리
- *
- * TypeORM 은 `numeric`/`decimal` 을 **문자열**로 준다(정밀도 보존). 엔티티를 그대로
- * 내보내는 응답 DTO 가 그 필드를 `number` 라고 하면 **OpenAPI 가 wire 와 다른 말을 한다.**
- *
- * 위 두 축(presence·null)은 이것을 **구조적으로 못 본다** — 둘 다 원시 타입 차이를 보지
- * 않기 때문이다. 2026-09-04 에 `AlertRuleDto.threshold` 가 정확히 그 사각지대에 있었다.
- */
-/**
- * §5.4 금지 조합(`required:false` + `nullable:true`)의 **래칫**.
- *
- * 목록은 "고쳐야 할 빚" 이지 허용목록이 아니다. 새 필드가 이 형태로 들어오면 목록에 없어
- * 실패하고, 빚을 갚아 줄이면 목록에서 빼야 통과한다 — 양방향으로 조인다.
- *
- * 이 목록은 응답 DTO **전수**를 덮는다. `execution-response.dto.spec.ts` 의
- * `OPTIONAL_NULLABLE_DRIFT`(`ExecutionDto` 10건)는 그 **부분집합**이고, 그쪽은 키뿐 아니라
- * required/nullable 의 정확한 형태까지 단언한다 — 한쪽만 상환하면 다른 쪽이 낡으니
- * **함께 줄인다** (`review/consistency/2026/09/05/19_08_19` W5).
- *
- * 실제로 조용히 넓어진 적이 있다: 2026-09-05 §5.4 스윕 커밋이 17개 필드를 이 형태로 새로
- * 선언했고, **두 검증자 어느 쪽도 잡지 못했다**(`response-contract.ts` 는 값을 보고,
- * presence/null 축은 선언과 타입이 서로 맞는지만 본다). 그 사건이 이 가드의 존재 이유다.
- */
 /** 양성 대조군 fixture — 일부러 §5.4 를 어긴다. 스캔 범위(`src/modules`) 밖에 둔다. */
 const RATCHET_FIXTURE = path.join(
   __dirname,
@@ -457,6 +433,21 @@ const EXPECTED_OPTIONAL_NULLABLE_DRIFT: readonly string[] = [
   'workspace-response.dto.ts:WorkspaceInvitationDto.invitedBy',
 ];
 
+/**
+ * §5.4 금지 조합(`required:false` + `nullable:true`)의 **래칫**.
+ *
+ * 목록은 "고쳐야 할 빚" 이지 허용목록이 아니다. 새 필드가 이 형태로 들어오면 목록에 없어
+ * 실패하고, 빚을 갚아 줄이면 목록에서 빼야 통과한다 — 양방향으로 조인다.
+ *
+ * 이 목록은 응답 DTO **전수**를 덮는다. `execution-response.dto.spec.ts` 의
+ * `OPTIONAL_NULLABLE_DRIFT`(`ExecutionDto` 10건)는 그 **부분집합**이고, 그쪽은 키뿐 아니라
+ * required/nullable 의 정확한 형태까지 단언한다 — 한쪽만 상환하면 다른 쪽이 낡으니
+ * **함께 줄인다** (`review/consistency/2026/09/05/19_08_19` W5).
+ *
+ * 실제로 조용히 넓어진 적이 있다: 2026-09-05 §5.4 스윕 커밋이 17개 필드를 이 형태로 새로
+ * 선언했고, **두 검증자 어느 쪽도 잡지 못했다**(`response-contract.ts` 는 값을 보고,
+ * presence/null 축은 선언과 타입이 서로 맞는지만 본다). 그 사건이 이 가드의 존재 이유다.
+ */
 describe('§5.4 금지 조합 래칫 — 응답 DTO 의 required:false + nullable:true', () => {
   // 스캔 범위는 `src/modules` 다 — 실제 응답 DTO 36개 파일이 전부 그 아래에 있고(실측),
   // 그래야 아래 양성 대조군 fixture(`repo-guards/__tests__/fixtures/dto/responses/`)가
@@ -514,6 +505,15 @@ describe('§5.4 금지 조합 래칫 — 응답 DTO 의 required:false + nullabl
   });
 });
 
+/**
+ * ## `numeric` 컬럼을 `number` 라고 문서화하는 자리
+ *
+ * TypeORM 은 `numeric`/`decimal` 을 **문자열**로 준다(정밀도 보존). 엔티티를 그대로
+ * 내보내는 응답 DTO 가 그 필드를 `number` 라고 하면 **OpenAPI 가 wire 와 다른 말을 한다.**
+ *
+ * 위 두 축(presence·null)은 이것을 **구조적으로 못 본다** — 둘 다 원시 타입 차이를 보지
+ * 않기 때문이다. 2026-09-04 에 `AlertRuleDto.threshold` 가 정확히 그 사각지대에 있었다.
+ */
 describe('numeric 컬럼을 number 로 문서화한 응답 DTO', () => {
   it('저장소에 그런 자리가 없다', () => {
     expect(findNumericAsNumber(collectTsFiles(SRC_ROOT))).toEqual([]);

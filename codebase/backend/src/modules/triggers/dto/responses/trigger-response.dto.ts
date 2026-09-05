@@ -5,6 +5,26 @@ import type {
 } from '../../entities/trigger.entity';
 
 /** 트리거 응답 DTO */
+/**
+ * 트리거 응답에 동봉되는 **워크플로우 참조** — 목록 UI 가 쓰는 두 필드만 담는다.
+ *
+ * `findAll` 의 `leftJoinAndSelect('t.workflow','w')` 와 `findById` 의
+ * `relations: ['workflow']` 가 **Workflow 엔티티 전체**를 실어 왔고, `TriggerDto` 는 그것을
+ * 선언조차 하지 않았다 — §5.4 응답-계약 대조를 목록·수정 경로로 넓히자 드러났다
+ * (`review/code/2026/09/05/21_40_37` W1). `ScheduleDto.trigger` 와 같은 처방이다.
+ *
+ * 소비처는 `triggers/page.tsx` 두 곳뿐이다 — `t.workflow?.id` · `t.workflow?.name`.
+ */
+export class TriggerWorkflowRefDto {
+  /** 워크플로우 UUID */
+  @ApiProperty({ format: 'uuid' })
+  id: string;
+
+  /** 워크플로우 이름 */
+  @ApiProperty()
+  name: string;
+}
+
 export class TriggerDto {
   /** 트리거 UUID */
   @ApiProperty({ format: 'uuid' })
@@ -65,6 +85,15 @@ export class TriggerDto {
   /** 수정 시각 */
   @ApiProperty({ format: 'date-time' })
   updatedAt: string;
+
+  /**
+   * 연결된 워크플로우 — **키 생략형**이다 (§5.4 기준 (b)).
+   *
+   * 목록·단건 조회 경로에서만 관계가 로드된다. 생성 응답에는 없다 — 그래서 소비처도
+   * `t.workflow?.name ?? ""` 로 읽는다.
+   */
+  @ApiPropertyOptional({ type: () => TriggerWorkflowRefDto })
+  workflow?: TriggerWorkflowRefDto;
 
   // ── 아래 필드는 **이미 응답에 실려 나가고 있었다** — 컨트롤러가 엔티티를 그대로
   // 반환하기 때문이다. §5.4 응답-계약 스윕이 "선언되지 않은 키" 로 검출했고,

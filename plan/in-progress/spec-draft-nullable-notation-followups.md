@@ -755,6 +755,23 @@ field: T | null;
       → `2-api-convention.md` frontmatter `code:` 에
       `codebase/backend/src/repo-guards/__tests__/fixtures/**` 를 추가한다.
 
+- [ ] **`secret-store.md §1` 의 "노출 창이 아직 닫혀 있지 않다" 가 낡는다** (planner,
+      2026-09-05 등재, `review/consistency/2026/09/05/21_40_38` W2).
+
+      그 문장은 **내가 직전 planner 턴에 쓴 것**이고, `sweep-response-contract` 브랜치가
+      바로 그 창을 닫는다(`TRIGGER_RESPONSE_STRIP_COLUMNS` + 스케줄 컨트롤러 좁히기).
+      **그 브랜치가 머지되는 순간 현재형 서술이 거짓이 된다.**
+
+      → §7.1 이 쓴 "정정 이력" 패턴을 준용해 *"이 창은 `#…` 로 닫혔다"* 와 커밋 참조를
+      추가한다. 규범(§1.1)은 그대로 둔다 — 닫혔다고 규범이 사라지는 것이 아니다.
+
+- [ ] **`ScheduleDto.trigger`/`workflow` 를 nav-spec 에 문서화** (planner, 2026-09-05 등재,
+      `21_40_38` W1). §5.4 는 **키 생략형에 사유 문서화**를 요구한다. 코드 쪽은 이번에
+      정리했다 — `trigger` 는 상시 존재라 **기본형으로 바꿨고**, `workflow` 는 기준 (b)
+      (선택적 부가 컨텍스트)에 해당해 사유를 필드 주석에 적었다. 남은 것은 그 사유를
+      `spec/2-navigation/3-schedule.md §4`(또는 `1-data-model.md §2.9.1`)에 옮기는 것이다.
+      `IntegrationDto` 포인터 항목과 대칭으로 처리한다.
+
 - [ ] **`6-websocket-protocol.md` 도입 산문** (planner, 2026-09-05 등재). 위 실측에서
       개요 내용이 **실제로 없는** 두 문서 중 남은 하나. `## 1. 연결` 로 바로 시작한다.
       그 문서를 다음에 열 때 두세 줄 도입문을 넣는다 — 형태는 그 문서 관행을 따르면 되고,

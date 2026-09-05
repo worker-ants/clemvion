@@ -8,6 +8,7 @@ import {
   assertMatchesContract,
   contractForDto,
 } from '../src/shared/testing/response-contract';
+import { TriggerDto } from '../src/modules/triggers/dto/responses/trigger-response.dto';
 import { ScheduleDto } from '../src/modules/schedules/dto/responses/schedule-response.dto';
 
 /**
@@ -180,11 +181,6 @@ describe('Schedule trigger (e2e)', () => {
     //
     // **별도 `it()` 인 이유**: 이 케이스는 스케줄을 비활성화하므로, 같은 테스트 안에
     // 두면 뒤따르는 `is_active = true` 단언을 깨뜨린다(실제로 그렇게 깨뜨렸다).
-    // ── `isActive` 축 — 응답 형태가 요청 값에 따라 갈리면 안 된다.
-    //
-    // 종전 `create()` 는 `saved.trigger` 대입이 `if (isActive)` 안에 있어, 비활성으로
-    // 만들면 트리거 행은 생겼는데 응답에서만 키가 사라졌다. `update()` 도 같은 형태였다
-    // (`review/code/2026/09/05/20_45_37` W1·W2). 두 자리를 각각 고정한다.
     const inactive = await request(BASE_URL)
       .post('/api/schedules')
       .set(authHeaders())
@@ -258,6 +254,12 @@ describe('Schedule trigger (e2e)', () => {
     expect(row!.timezone).toBe('Asia/Seoul');
     expect(row!.nextRunAt).toBeDefined();
     expect(row!.nextRunAt).not.toBeNull();
+
+    // **목록 경로**의 계약 대조 — CHANGELOG 가 지목한 유출 경로 둘 중 트리거 쪽이고,
+    // 종전엔 생성(POST) 한 곳만 대조하고 있었다 (`review/code/2026/09/05/21_40_37` W1).
+    // 여기서 걸리는 것: `notificationSecretV2`·`chatChannelTokenV2` 가 다시 실리면
+    // `TriggerDto` 미선언 키로 잡힌다.
+    assertMatchesContract(row, await contractForDto(TriggerDto));
   });
 
   it('D. PATCH cron → nextRunAt 재계산', async () => {
@@ -359,6 +361,8 @@ describe('Schedule trigger (e2e)', () => {
       .send({ isActive: false });
     expect(patch.status).toBe(200);
     expect(patch.body.data.isActive).toBe(false);
+    // **수정 경로**도 같은 정화를 거치는가 (`21_40_37` W1).
+    assertMatchesContract(patch.body.data, await contractForDto(TriggerDto));
 
     const after = await db.query(
       'SELECT is_active FROM schedule WHERE id = $1',

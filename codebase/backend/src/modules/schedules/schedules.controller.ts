@@ -67,19 +67,20 @@ export class SchedulesController {
   private toResponse<T extends Schedule>(schedule: T) {
     const t = schedule.trigger;
     const { trigger: _drop, ...rest } = schedule;
-    // §5.4 — `trigger` 는 **키 생략형**이다. 조회 경로에 따라 없을 수 있고, 없을 때
-    // `null` 을 내보내면 `@ApiPropertyOptional` + `| null` 금지 규칙과 어긋난다.
-    return t
-      ? {
-          ...rest,
-          trigger: {
-            id: t.id,
-            name: t.name,
-            workflowId: t.workflowId,
-            ...(t.workflow ? { workflow: { name: t.workflow.name } } : {}),
-          },
-        }
-      : rest;
+    // `trigger` 는 상시 존재한다 (NOT NULL 1:1 + 네 경로가 전부 채움) — 그래서 분기 없이
+    // 항상 싣는다. 관계가 로드되지 않은 채 여기 오면 `t.id` 에서 즉시 터지는데, 그것이
+    // 조용히 키를 빠뜨리는 것보다 낫다 (§5.4 기본형 선언과 일치).
+    //
+    // 반면 `trigger.workflow` 는 **키 생략형**이다 — 생성·수정 경로에서는 로드되지 않는다.
+    return {
+      ...rest,
+      trigger: {
+        id: t.id,
+        name: t.name,
+        workflowId: t.workflowId,
+        ...(t.workflow ? { workflow: { name: t.workflow.name } } : {}),
+      },
+    };
   }
 
   @Get()
