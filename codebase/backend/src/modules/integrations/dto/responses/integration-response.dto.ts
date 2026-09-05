@@ -124,13 +124,19 @@ export class IntegrationDto {
   // 은 `required: false` 의 별칭이라 상시 존재 필드에 쓰면 "상시 존재" 와 모순된다.
 
   // `appUrl` 은 엔티티 컬럼이 아니지만 **상시 존재**한다 — `IntegrationsService.toPublic`
-  // 이 `{ appType: null, appUrl: null }` 기저값 위에 얹으므로, cafe24 Private 이 아니면
+  // 이 `{ appType: null, appUrl: null }` 기저값 위에 얹으므로, 채우는 통합이 아니면
   // `null` 이 실린다. 그래서 키 생략형이 아니라 §5.4 기본형이다.
   //
   // (첫 판은 키 생략형으로 적었다가 e2e 계약 대조가 `appUrl [null] 키 생략형인데 null 이
   //  왔다` 로 잡았다 — 검증자가 제 선언을 반증한 자리다.)
 
-  /** cafe24 Private 앱의 관리자 URL — 그 외에는 `null` */
+  /**
+   * 설치용 App URL — `${APP_URL}/api/3rd-party/<provider>/install/:installToken`.
+   *
+   * **Cafe24 Private** (`app_type='private'`) 과 **MakeShop ShopStore 설치 통합** 두
+   * 갈래가 채운다. 그 외 통합과 `install_token` 이 없는 행은 `null`
+   * (`spec/2-navigation/4-integration.md §9.1`).
+   */
   @ApiProperty({ nullable: true, type: String, example: null })
   appUrl: string | null;
 

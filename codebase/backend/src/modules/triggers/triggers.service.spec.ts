@@ -189,13 +189,6 @@ describe('TriggersService.findOneDetail', () => {
   });
 
   /**
-   * 응답 정화 회귀 — **e2e 만이 이 결함을 물던 상태였다.**
-   *
-   * 종전 unit fixture 에는 `notificationSecretV2`/`chatChannelTokenV2` 필드가 아예 없어서,
-   * 스트립 로직을 통째로 되돌려도 이 파일의 테스트는 전부 그린으로 남았다
-   * (`review/code/2026/09/05/18_23_02` W3). fixture 에 비밀을 채워 그 사각지대를 없앤다.
-   */
-  /**
    * **생략된 필드가 지워지지 않는다.**
    *
    * `target: ES2023` 에서 DTO 의 optional 필드는 값이 없어도 `undefined` 인 own property
@@ -230,6 +223,13 @@ describe('TriggersService.findOneDetail', () => {
     expect(result.isActive).toBe(false);
   });
 
+  /**
+   * 응답 정화 회귀 — **e2e 만이 이 결함을 물던 상태였다.**
+   *
+   * 종전 unit fixture 에는 `notificationSecretV2`/`chatChannelTokenV2` 필드가 아예 없어서,
+   * 스트립 로직을 통째로 되돌려도 이 파일의 테스트는 전부 그린으로 남았다
+   * (`review/code/2026/09/05/18_23_02` W3). fixture 에 비밀을 채워 그 사각지대를 없앤다.
+   */
   it('응답에서 회전 secret 컬럼과 notification.signing 비밀이 제거된다', async () => {
     triggerRepo.findOne.mockResolvedValue({
       id: 't1',
@@ -241,6 +241,12 @@ describe('TriggersService.findOneDetail', () => {
       // secret store ref.
       chatChannelTokenV2: 'secret://triggers/t1/bot-token.v2',
       config: {
+        chatChannel: {
+          provider: 'telegram',
+          botToken: 'bot_plaintext_should_not_leak',
+          botTokenRef: 'secret://triggers/t1/bot-token.v2',
+          inboundSigningRef: 'secret://triggers/t1/inbound-signing',
+        },
         interaction: {
           tokenStrategy: 'per_trigger',
           triggerToken: 'itk_should_not_leak',
@@ -282,6 +288,16 @@ describe('TriggersService.findOneDetail', () => {
     expect(
       (result.config as { notification?: { url?: string } }).notification?.url,
     ).toBe('https://example.com/hook');
+    // 네 번째 축 — `config.chatChannel`. 종전 이 fixture 에는 이 블록이 없어서
+    // 스트립을 항등으로 바꾸는 뮤턴트가 **unit 에서만 GREEN** 이었다(e2e 만이 물었다).
+    const chatChannel = ((result.config as { chatChannel?: unknown })
+      .chatChannel ?? {}) as Record<string, unknown>;
+    expect(chatChannel).not.toHaveProperty('botToken');
+    expect(chatChannel).not.toHaveProperty('botTokenRef');
+    expect(chatChannel).not.toHaveProperty('inboundSigningRef');
+    // 비-비밀 필드 보존 + `botTokenRef` 존재에서 파생하는 플래그.
+    expect(chatChannel.provider).toBe('telegram');
+    expect(chatChannel.hasBotToken).toBe(true);
   });
 
   it('chat-channel 이 아닌 트리거도 정화를 거친다 — 조기 return 회귀 방지', async () => {

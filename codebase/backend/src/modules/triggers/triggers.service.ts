@@ -135,6 +135,65 @@ function omitKeys(
   return out;
 }
 
+/**
+ * 축 1 — `config.chatChannel`. **이 축만 후처리가 있다**: 남은 객체에 `botTokenRef` 존재
+ * 여부에서 파생한 `hasBotToken` 을 얹는다.
+ */
+function stripChatChannelSecrets(
+  chatChannel: Record<string, unknown>,
+): Record<string, unknown> {
+  const botTokenRef = chatChannel.botTokenRef;
+  const out = omitKeys(chatChannel, CHAT_CHANNEL_RESPONSE_STRIP_KEYS);
+  out.hasBotToken = typeof botTokenRef === 'string' && botTokenRef.length > 0;
+  return out;
+}
+
+/** 축 2 — `config.interaction`. 발급된 평문 `triggerToken` 을 뺀다. */
+function stripInteractionSecrets(
+  interaction: Record<string, unknown>,
+): Record<string, unknown> {
+  return omitKeys(interaction, INTERACTION_RESPONSE_STRIP_KEYS);
+}
+
+/**
+ * 축 3 — `config.notification.signing`. 감싸는 `notification` 을 통째로 새로 만들어
+ * 돌려준다 (원본을 제자리에서 고치지 않는다).
+ */
+function stripNotificationSigningSecrets(
+  notification: Record<string, unknown>,
+): Record<string, unknown> {
+  return {
+    ...notification,
+    signing: omitKeys(
+      notification.signing as Record<string, unknown>,
+      NOTIFICATION_SIGNING_STRIP_KEYS,
+    ),
+  };
+}
+
+/**
+ * 축 4 — 엔티티 컬럼. **제자리 변형**이라 정화 *사본*에만 부른다.
+ *
+ * `undefined` 대입이 아니라 **키 자체를 제거**한다 — `undefined` 로 두면
+ * `JSON.stringify` 는 지우더라도 중간 소비자(로깅·직렬화 우회)가 볼 수 있다.
+ */
+function deleteSecretColumns(target: Record<string, unknown>): void {
+  for (const column of TRIGGER_RESPONSE_STRIP_COLUMNS) {
+    delete target[column];
+  }
+}
+
+/**
+ * 조인된 `workflow` 를 **참조 2필드로** 좁힌다 — 엔티티 전체가 선언 없이 실려 나가고
+ * 있었다 (`review/code/2026/09/05/21_40_37` W1). 소비처는 `id`·`name` 뿐이다.
+ */
+function narrowWorkflowRef(wf: { id: string; name: string }): {
+  id: string;
+  name: string;
+} {
+  return { id: wf.id, name: wf.name };
+}
+
 @Injectable()
 export class TriggersService {
   private readonly logger = new Logger(TriggersService.name);
@@ -595,14 +654,19 @@ export class TriggersService {
    *
    * [Spec Chat Channel §5.4.2 + secret-store.md §5.5 SS-SE-01]
    *
-   * 1. `config.chatChannel` JSONB 안의 키 (`CHAT_CHANNEL_RESPONSE_STRIP_KEYS`)
-   * 2. `config.notification.signing` 안의 키 (`NOTIFICATION_SIGNING_STRIP_KEYS`)
-   * 3. `config.interaction` 안의 키 (`INTERACTION_RESPONSE_STRIP_KEYS`)
-   * 4. `trigger` 행의 **엔티티 컬럼** (`TRIGGER_RESPONSE_STRIP_COLUMNS`)
+   * | 축 | 어디 | 목록 | 정화 함수 |
+   * |---|---|---|---|
+   * | 1 | `config.chatChannel` JSONB | `CHAT_CHANNEL_RESPONSE_STRIP_KEYS` | `stripChatChannelSecrets` |
+   * | 2 | `config.notification.signing` | `NOTIFICATION_SIGNING_STRIP_KEYS` | `stripNotificationSigningSecrets` |
+   * | 3 | `config.interaction` | `INTERACTION_RESPONSE_STRIP_KEYS` | `stripInteractionSecrets` |
+   * | 4 | `trigger` 행의 **엔티티 컬럼** | `TRIGGER_RESPONSE_STRIP_COLUMNS` | `deleteSecretColumns` |
+   *
+   * **이 메서드는 얇은 오케스트레이터다** — 축마다 이름 있는 순수 함수를 부르고, 조인된
+   * `workflow` 좁히기(`narrowWorkflowRef`)까지 다섯 책임이 각자 함수로 갈려 있다
+   * (`review/code/2026/09/06/00_00_23` W2 — 78줄 단일 메서드였다).
    *
    * 신규 plaintext / 내부 ref 필드를 추가할 때는 해당 상수에 키를 넣어야 정화가 걸린다
-   * (destructure 대신 목록 — 누락 위험 회피). `hasBotToken` 은 `botTokenRef` 존재로부터
-   * 파생해 주입한다.
+   * (destructure 대신 목록 — 누락 위험 회피).
    *
    * **엔티티를 변경하지 않는다 — 항상 새 객체를 돌려준다** (DB 저장에 영향이 없도록).
    * 조기 return 을 없앤 뒤로는 정화할 것이 없는 트리거도 새 참조를 받는다, 그러니 호출부는
@@ -641,53 +705,36 @@ export class TriggersService {
       let configTouched = false;
 
       if (cfg.chatChannel) {
-        const botTokenRef = cfg.chatChannel.botTokenRef;
-        const sanitizedChatChannel = omitKeys(
-          cfg.chatChannel,
-          CHAT_CHANNEL_RESPONSE_STRIP_KEYS,
-        );
-        // 이 축만 후처리가 있다 — 다른 두 축과 갈리는 지점.
-        sanitizedChatChannel.hasBotToken =
-          typeof botTokenRef === 'string' && botTokenRef.length > 0;
-        nextConfig.chatChannel = sanitizedChatChannel;
+        nextConfig.chatChannel = stripChatChannelSecrets(cfg.chatChannel);
         configTouched = true;
       }
 
       const interaction = cfg.interaction as
         Record<string, unknown> | undefined;
       if (interaction && typeof interaction === 'object') {
-        nextConfig.interaction = omitKeys(
-          interaction,
-          INTERACTION_RESPONSE_STRIP_KEYS,
-        );
+        nextConfig.interaction = stripInteractionSecrets(interaction);
         configTouched = true;
       }
 
       // `chatChannel` 이 없어도 여기까지 온다 — 종전에는 조기 return 이라
       // chat-channel 이 아닌 트리거의 config 는 아예 정화되지 않았다.
-      const signing = (cfg.notification as { signing?: unknown } | undefined)
+      const notification = cfg.notification;
+      const signing = (notification as { signing?: unknown } | undefined)
         ?.signing;
       if (signing && typeof signing === 'object') {
-        const sanitizedSigning = omitKeys(
-          signing as Record<string, unknown>,
-          NOTIFICATION_SIGNING_STRIP_KEYS,
+        nextConfig.notification = stripNotificationSigningSecrets(
+          notification as Record<string, unknown>,
         );
-        nextConfig.notification = {
-          ...(cfg.notification as Record<string, unknown>),
-          signing: sanitizedSigning,
-        };
         configTouched = true;
       }
 
       if (configTouched) overrides.config = nextConfig;
     }
 
-    // 조인된 `workflow` 는 **참조 2필드로** 좁힌다 — 엔티티 전체가 선언 없이 실려
-    // 나가고 있었다 (`review/code/2026/09/05/21_40_37` W1). 소비처는 `id`·`name` 뿐이다.
     const wf = (trigger as { workflow?: { id: string; name: string } })
       .workflow;
     if (wf) {
-      overrides.workflow = { id: wf.id, name: wf.name };
+      overrides.workflow = narrowWorkflowRef(wf);
     }
 
     // entity 의 메서드/getter 를 보존하기 위해 prototype 유지하면서 필드만 교체.
@@ -696,11 +743,7 @@ export class TriggersService {
       trigger,
       overrides,
     ) as T;
-    // 비밀 컬럼은 `undefined` 대입이 아니라 **키 자체를 제거**한다 — `undefined` 로 두면
-    // `JSON.stringify` 는 지우더라도 중간 소비자(로깅·직렬화 우회)가 볼 수 있다.
-    for (const column of TRIGGER_RESPONSE_STRIP_COLUMNS) {
-      delete (sanitized as unknown as Record<string, unknown>)[column];
-    }
+    deleteSecretColumns(sanitized as unknown as Record<string, unknown>);
     return sanitized;
   }
 
