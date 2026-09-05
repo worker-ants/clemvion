@@ -2,6 +2,7 @@ import { SchedulesController } from './schedules.controller';
 import type { SchedulesService } from './schedules.service';
 import type { CreateScheduleDto } from './dto/create-schedule.dto';
 import type { UpdateScheduleDto } from './dto/update-schedule.dto';
+import { expectNarrowedScheduleTriggerRef } from '../../shared/testing/schedule-trigger-ref';
 
 /**
  * 컨트롤러 → 서비스 **행위자(userId) 배선** 검증.
@@ -69,13 +70,9 @@ describe('SchedulesController — 행위자(userId) 배선', () => {
     // 응답 경계가 조인된 트리거를 **참조 필드로 좁히는가** — 이 컨트롤러의 보안 경계다.
     // 종전 mock 은 `{ id: 'sch-1' }` 이라 `trigger` 가 아예 없어, `toResponse` 가 무엇을
     // 하든 이 테스트는 통과했다 (`review/code/2026/09/05/21_40_37` W3).
-    expect(Object.keys(res.trigger).sort()).toEqual([
-      'id',
-      'name',
-      'workflowId',
-    ]);
-    expect(res.trigger).not.toHaveProperty('notificationSecretV2');
-    expect(res.trigger).not.toHaveProperty('chatChannelTokenV2');
+    //
+    // mock 의 트리거에 `workflow` 관계가 없으므로 `withWorkflow: false` 다.
+    expectNarrowedScheduleTriggerRef(res.trigger, { withWorkflow: false });
   });
 
   it('update 는 id·workspaceId·dto·userId 순서를 지킨다', async () => {
@@ -89,13 +86,46 @@ describe('SchedulesController — 행위자(userId) 배선', () => {
 
     // `create` 와 **같은 단언** — mock 은 비밀을 채워 두는데 반환값을 안 보면 비대칭이다
     // (`review/code/2026/09/05/22_24_58` INFO#15). 두 경로가 같은 경계를 지나므로 둘 다 문다.
-    expect(Object.keys(res.trigger).sort()).toEqual([
-      'id',
-      'name',
-      'workflowId',
-    ]);
-    expect(res.trigger).not.toHaveProperty('notificationSecretV2');
-    expect(res.trigger).not.toHaveProperty('chatChannelTokenV2');
+    expectNarrowedScheduleTriggerRef(res.trigger, { withWorkflow: false });
+  });
+
+  /**
+   * **불변식 위반은 던지되, 진단은 새지 않는다.**
+   *
+   * `trigger` 가 없는 행이 응답 경계에 오면 던진다 — 키를 생략하면 `ScheduleDto.trigger`
+   * 의 §5.4 기본형 선언(`@ApiProperty`)을 깨기 때문이다. 다만 `GlobalExceptionFilter` 는
+   * `HttpException` 의 `message` 를 **응답 바디로 그대로 흘리므로**, 진단 문구를 예외
+   * 인자로 넘기면 `schedule.id` 와 내부 쿼리 구조가 500 바디에 실린다(CWE-209).
+   *
+   * 첫 판이 정확히 그렇게 했고 `review/consistency/2026/09/06/00_48_52` W1 이 잡았다.
+   * 여기서 **두 가지를 함께** 문다 — 던지는가, 그리고 무엇을 말하지 **않는가**.
+   */
+  it('trigger 미로드 행은 던지되 응답에 진단을 싣지 않는다', async () => {
+    service.update.mockResolvedValue({ id: 'sch-leak-probe' });
+
+    await expect(
+      controller.update('sch-leak-probe', WS, {} as UpdateScheduleDto, USER),
+    ).rejects.toMatchObject({
+      response: {
+        code: 'INTERNAL_ERROR',
+        message: '서버 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.',
+      },
+    });
+
+    // 예외가 실어 나르는 문자열 전체에 식별자·내부 구조가 없어야 한다. `message` 만 보면
+    // 다른 필드로 새는 변형을 놓친다 — 직렬화 전체를 본다.
+    let thrown: unknown;
+    await controller
+      .update('sch-leak-probe', WS, {} as UpdateScheduleDto, USER)
+      .catch((err: unknown) => {
+        thrown = err;
+      });
+    const serialized = JSON.stringify(
+      (thrown as { response?: unknown }).response,
+    );
+    expect(serialized).not.toContain('sch-leak-probe');
+    expect(serialized).not.toContain('trigger_id');
+    expect(serialized).not.toContain('join');
   });
 
   it('remove 는 id·workspaceId·userId 순서를 지킨다', async () => {

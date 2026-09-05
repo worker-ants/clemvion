@@ -9,7 +9,13 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 //
 // 내부 서사를 `//` 에 두는 이유: `swagger.md §3` · `review-citations.md §3`.
 /**
- * 스케줄에 연결된 트리거의 워크플로우 **참조** — 이름만 담는다.
+ * 스케줄에 연결된 트리거의 워크플로우 **참조** — `name` **하나만** 담는다.
+ *
+ * 트리거 응답의 자매 타입 `TriggerWorkflowRefDto` 는 `id` 도 싣는다 — **의도적으로 다르다.**
+ * 각 참조는 그 응답의 소비처가 실제로 읽는 필드만 담는다: 스케줄 화면은 워크플로우 이름만
+ * 표시하고, 트리거 화면은 이름으로 링크를 걸 `id` 가 더 필요하다. 이름이 접두어 하나만
+ * 다르므로 **한쪽을 다른 쪽으로 갈아 끼우지 말 것** (`review/consistency/2026/09/06/00_48_52`
+ * W2).
  */
 export class ScheduleTriggerWorkflowRefDto {
   /** 워크플로우 이름 */

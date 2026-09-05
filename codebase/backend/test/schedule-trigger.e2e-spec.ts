@@ -9,6 +9,7 @@ import {
   contractForDto,
 } from '../src/shared/testing/response-contract';
 import { TriggerDto } from '../src/modules/triggers/dto/responses/trigger-response.dto';
+import { expectNarrowedScheduleTriggerRef } from '../src/shared/testing/schedule-trigger-ref';
 import { ScheduleDto } from '../src/modules/schedules/dto/responses/schedule-response.dto';
 
 /**
@@ -145,9 +146,9 @@ describe('Schedule trigger (e2e)', () => {
     assertMatchesContract(detail.body.data, await contractForDto(ScheduleDto));
     // 좁혀진 참조가 실제로 4필드인가 — 계약 대조는 "선언에 없는 키" 를 잡지만, 여기서는
     // **무엇이 남아야 하는가**를 양성으로 고정한다.
-    expect(Object.keys(detail.body.data.trigger ?? {}).sort()).toEqual(
-      ['id', 'name', 'workflowId', 'workflow'].sort(),
-    );
+    expectNarrowedScheduleTriggerRef(detail.body.data.trigger, {
+      withWorkflow: true,
+    });
 
     // ── 목록 경로도 같은 정화를 거치는가 (배열 매핑은 별도 코드 경로다).
     const list = await request(BASE_URL)
@@ -163,11 +164,10 @@ describe('Schedule trigger (e2e)', () => {
     // 사라져 `workflow` 가 안 실려도 통과한다 — §5.4 키 생략형은 부재를 위반으로 보지
     // 않기 때문이다 (`review/code/2026/09/06/00_24_34` W2).
     expect(Object.keys(listed ?? {}).includes('trigger')).toBe(true);
-    expect(
-      Object.keys(
-        (listed as { trigger?: Record<string, unknown> }).trigger ?? {},
-      ).sort(),
-    ).toEqual(['id', 'name', 'workflowId', 'workflow'].sort());
+    expectNarrowedScheduleTriggerRef(
+      (listed as { trigger?: unknown }).trigger,
+      { withWorkflow: true },
+    );
 
     // schedule 행 + 동반된 trigger 행 확인.
     const sched = await db.query('SELECT id FROM schedule WHERE id = $1', [
@@ -208,12 +208,9 @@ describe('Schedule trigger (e2e)', () => {
     // 않는다. 그래서 `ScheduleTriggerRefDto.workflow` 가 `@ApiPropertyOptional` 이다.
     // **부재는 생성 응답에만** 있고 조회(`GET /:id`·목록)와 수정(PATCH, `findById` 로
     // 시작)은 채운다 — 세 형태를 각각 양성/음성으로 고정한다.
-    expect(inactive.body.data.trigger).toBeDefined();
-    expect(Object.keys(inactive.body.data.trigger).sort()).toEqual([
-      'id',
-      'name',
-      'workflowId',
-    ]);
+    expectNarrowedScheduleTriggerRef(inactive.body.data.trigger, {
+      withWorkflow: false,
+    });
     assertMatchesContract(
       inactive.body.data,
       await contractForDto(ScheduleDto),
@@ -299,12 +296,10 @@ describe('Schedule trigger (e2e)', () => {
     // 수정 경로도 **양성으로** 고정한다 — `update()` 는 `findById` 로 시작하므로
     // `trigger.workflow` 까지 로드된다. DTO JSDoc 이 "세 형태를 각각 고정한다" 고
     // 주장하는데 실제로는 상세 한 곳만 양성이었다 (`review/code/2026/09/06/00_24_34` W2).
-    expect(
-      Object.keys(
-        (patch.body.data as { trigger?: Record<string, unknown> }).trigger ??
-          {},
-      ).sort(),
-    ).toEqual(['id', 'name', 'workflowId', 'workflow'].sort());
+    expectNarrowedScheduleTriggerRef(
+      (patch.body.data as { trigger?: unknown }).trigger,
+      { withWorkflow: true },
+    );
   });
 
   it('E. run-now → 202 + executionId', async () => {

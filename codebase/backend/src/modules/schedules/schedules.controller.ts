@@ -11,6 +11,7 @@ import {
   HttpStatus,
   ParseUUIDPipe,
   InternalServerErrorException,
+  Logger,
 } from '@nestjs/common';
 import { Roles } from '../../common/guards/roles.guard';
 import {
@@ -49,6 +50,8 @@ import type { Schedule } from './entities/schedule.entity';
 @ApiBearerAuth('access-token')
 @Controller('schedules')
 export class SchedulesController {
+  private readonly logger = new Logger(SchedulesController.name);
+
   constructor(private readonly schedulesService: SchedulesService) {}
 
   /**
@@ -78,12 +81,22 @@ export class SchedulesController {
     // 여기에 방어 분기(`t ? ... : ...`)를 넣어 계약을 조용히 깨지 않게 한다
     // (`review/code/2026/09/06/00_24_34` W1). 정상 데이터로는 도달 불가다 —
     // `Schedule.trigger_id` 가 NOT NULL 이고 FK 가 `onDelete: 'CASCADE'` 다.
+    //
+    // **진단은 로그에만.** `GlobalExceptionFilter` 는 `HttpException` 의 `message` 를
+    // 응답 바디로 그대로 흘린다(마스킹은 매핑되지 않은 순수 `Error` 에만 걸린다) —
+    // 첫 판이 `schedule.id` 와 조인 추론을 문자열 인자로 넘겨 500 바디에 실었다
+    // (`review/consistency/2026/09/06/00_48_52` W1, CWE-209). 클라이언트에게는
+    // `3-error-handling.md` 의 `INTERNAL_ERROR` 고정 문구만 간다.
     if (!t) {
-      throw new InternalServerErrorException(
+      this.logger.error(
         `Schedule ${schedule.id} has no loaded trigger — ` +
-          'schedule.trigger_id is NOT NULL, so this means the query forgot ' +
-          'the join/relation (or the row is orphaned).',
+          'schedule.trigger_id is NOT NULL, so the query forgot the ' +
+          'join/relation (or the row is orphaned).',
       );
+      throw new InternalServerErrorException({
+        code: 'INTERNAL_ERROR',
+        message: '서버 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.',
+      });
     }
 
     // 반면 `trigger.workflow` 는 **키 생략형**이다 — **생성 응답에만** 없다

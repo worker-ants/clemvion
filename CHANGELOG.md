@@ -78,12 +78,14 @@ unit 쪽에도 같은 뮤턴트를 무는 회귀를 뒀다 (`triggers.service.sp
 **응답 바디에서 금지**하는 조합(요청 바디 전용)이고 같은 커밋이 다른 파일에서 "동결, 확대
 금지" 라고 적어 둔 형태였다.
 
+**두 검증자 어느 쪽도 잡지 못했다** — 런타임 검증자는 값을 보는데 이 조합은 키가 없어도
+null 이어도 맞고, 정적 가드의 presence/null 축은 선언과 TS 타입이 서로 맞는지만 보는데 이
+조합은 일관되게 틀려 있다.
+
 > **나머지 6개는 다른 축이다** — `consecutiveNetworkFailures` · `documentCount` ·
 > `rerankMode` · `rerankCandidateK` · `chatChannelHealth` · `notificationHealth` 은 상시 존재
 > + non-null 인데 `Optional` 로 **과소 선언**한 것이었다. 금지 조합과 섞어 "23건" 으로 세면
-> 래칫이 무엇을 막는지가 흐려진다 (`review/code/2026/09/06/00_24_34` W3). **두 검증자 어느 쪽도 잡지 못했다** — 런타임 검증자는 값을
-보는데 이 조합은 키가 없어도 null 이어도 맞고, 정적 가드의 presence/null 축은 선언과 TS
-타입이 서로 맞는지만 보는데 이 조합은 일관되게 틀려 있다.
+> 래칫이 무엇을 막는지가 흐려진다 (`review/code/2026/09/06/00_24_34` W3).
 
 `swagger-dto-contract-guard.ts` 에 세 번째 축을 더해 **응답 DTO 전수**를 훑고, 현재 존재하는
 **78건**을 목록으로 고정했다. 새로 생기면 목록에 없어 실패하고, 갚아서 줄이면 목록에서 빼야
