@@ -122,7 +122,7 @@ Successfully applied 2 migrations
    거부를 내는 주체가 아니다.
 
 §5 는 이미 *"`executeInTransaction=false` 파일은 한 statement 만"* 을 다룬다. 그 바로 뒤에
-인덱스 **교체**의 패턴을 잇는다 (전문은 `## 부록 A`).
+인덱스 **교체**의 패턴을 잇는다 (적용된 문언은 [`migrations/README.md`](../../codebase/backend/migrations/README.md) §5 — 아래 §부록 참조).
 
 ### 1.6 변경안 (B) — `spec/conventions/migrations.md` 에서 가리키기
 
@@ -180,7 +180,7 @@ Successfully applied 2 migrations
 
 기존 규약 문서 어디에도 맞는 자리가 없다 — `spec-impl-evidence.md` 는 **frontmatter**
 증거를 다루고, `migrations.md` 는 버전 정책이다. CLAUDE.md 가 *"정식 규약 →
-`spec/conventions/<name>.md`"* 를 지시하므로 짧은 문서를 신설한다 (전문은 `## 부록 B`).
+`spec/conventions/<name>.md`"* 를 지시하므로 짧은 문서를 신설한다 (적용된 문언은 [`review-citations.md`](../../spec/conventions/review-citations.md) — 아래 §부록 참조).
 
 ---
 
@@ -193,111 +193,29 @@ Successfully applied 2 migrations
   여러 파일에 흩어져 있어 별도 작업이다.
 
 ---
+## 부록 — 적용된 최종본은 실제 파일이다
 
-## 부록 A — `migrations/README.md` §5 에 붙일 전문
+> **처음엔 여기에 "붙일 전문" 을 통째로 실었다가 뺐다** (`review/code/2026/09/05/09_42_13`
+> W1·W2). 같은 세션의 후속 라운드가 README 의 V056/V106 서술을 표로 가르고
+> `review-citations.md` 에 §3(적용 범위)을 신설했는데, **부록만 구버전으로 남았다.**
+> 두 리뷰어가 독립적으로 같은 것을 지적했다.
+>
+> 동기화로 때우면 **다음에 또 갈라진다** — 한 세션 안에서도 갈라졌으니까. 그래서 중복
+> 자체를 없앤다. 이 draft 가 남기는 고유한 값은 **실측과 기각 근거**(§①·§②)이고,
+> 적용된 문언은 아래 두 파일이 단일 진실이다.
 
-````markdown
-**인덱스 교체는 DROP-먼저** (2026-09-05 규약화)
+| 무엇 | 어디 |
+|---|---|
+| CONCURRENTLY 인덱스 교체 패턴 (DROP-먼저) | [`codebase/backend/migrations/README.md`](../../codebase/backend/migrations/README.md) §5 |
+| `migrations.md` 에서의 포인터 | [`spec/conventions/migrations.md`](../../spec/conventions/migrations.md) §5 |
+| 리뷰 인용 규약 | [`spec/conventions/review-citations.md`](../../spec/conventions/review-citations.md) |
 
-옛 인덱스를 새 것으로 갈아 끼우는 파일은 아래 **세 문장 순서**를 쓴다:
+**적용 후 달라진 것** (이 draft 작성 시점 대비):
 
-```sql
-DROP INDEX CONCURRENTLY IF EXISTS <새 인덱스 이름>;   -- 0) 앞선 실패의 invalid 잔재 정리
-CREATE INDEX CONCURRENTLY IF NOT EXISTS <새 인덱스 이름> ON ...;
-DROP INDEX CONCURRENTLY IF EXISTS <옛 인덱스 이름>;
-```
-
-**0) 이 없으면 재실행이 인덱스를 0개로 만든다.** `CREATE INDEX CONCURRENTLY` 가 중간에
-실패하면 `indisvalid = false` 인 인덱스가 **이름을 점유한 채** 남는데, `IF NOT EXISTS` 는
-이름만 보고 유효성은 보지 않는다. 그대로 재실행하면 CREATE 가 건너뛰고 뒤이은 DROP 이
-옛 인덱스를 지워, **쓸 수 있는 인덱스가 하나도 없는 상태**로 끝난다 — Postgres 는 invalid
-인덱스를 쿼리에 쓰지 않으므로 조용히 seq scan 으로 회귀하면서 쓰기 비용만 낸다.
-(실증: `CREATE UNIQUE INDEX CONCURRENTLY` 를 중복 데이터에 걸어 실패시킨 뒤 재현.)
-
-**감수하는 비대칭**: 0) 은 대상이 invalid 잔재인지 정상 인덱스인지 구분하지 않는다. 그래서
-**이미 성공한** 마이그레이션을 Flyway 흐름 밖에서 수동 재실행하면 살아 있는 인덱스를
-재빌드한다(그 구간 seq scan). Flyway 는 성공한 마이그레이션을 다시 돌리지 않으므로 정상
-흐름에서는 발생하지 않고, 반대편(인덱스 0개)이 훨씬 나쁘다.
-
-> **`indisvalid` 를 보고 분기하면 양쪽을 다 피할 수 있다 — 단 `mixed=true` 가 필요하다.**
-> `DO $$ ... IF NOT indisvalid THEN DROP INDEX ... $$` 는 정상 인덱스를 건드리지 않아
-> 성공 후 재실행도 완전 no-op 이다. 그러나 `DO` 는 transactional statement 라 같은 파일의
-> `CONCURRENTLY` 와 섞이는 순간 Flyway 가 거부한다(`Detected both transactional and
-> non-transactional statements ... mixed is false`). `-mixed=true` 를 주면 통과하지만,
-> 그 설정은 §5 의 혼합 금지 가드를 **모든 마이그레이션에 대해** 푼다. 도입 여부는 별도
-> 결정 항목이다. 파일을 둘로 쪼개는 우회는 성립하지 않는다 — Flyway 는 **실패한
-> 마이그레이션만** 재실행하므로 앞 파일의 정리 코드가 돌 기회가 없다.
-
-선례: `V110__schedule_workspace_next_run_index.sql`. 그 이전의 `V056`·`V106` 은 0) 이 없어
-같은 위험을 갖는다 — append-only 라 소급 수정 대상은 아니고, 재실행이 필요해지면 위
-`indisvalid` 확인을 **수동 절차**로 선행한다.
-````
-
-## 부록 B — `spec/conventions/review-citations.md` 전문
-
-````markdown
----
-id: review-citations
-status: implemented
-code:
-  - codebase/backend/src/common/guards/roles.guard.spec.ts
-  - codebase/frontend/src/components/llm-config/sanitize-loader-error.ts
----
-
-# Convention: 코드 주석의 리뷰 산출물 인용
-
-## Overview (제품 정의)
-
-이 저장소의 코드·테스트 주석은 **왜 이 자리가 이렇게 생겼는지**를 리뷰 산출물로 가리킨다.
-`origin/main` 의 `codebase/` 안에 **107개 파일·514회** 쌓여 있다. 날짜를 확인할 수 있는
-인용(전체 경로 형태) 중 가장 이른 것은 **2026-05-26** 세션이다 — bare 형태는 날짜가 없어
-그보다 이른 것이 있는지는 알 수 없고, 그 점이 §2 의 근거이기도 하다. 이 문서는 그 관례를
-성문화하고 **인용 형태**를 정한다.
-
-> `code:` 는 **이 규약이 처방하는 형태를 실제로 쓰는 파일**을 가리킨다 — 저장소에 10개
-> 있고(전체 경로 형태), backend·frontend 에서 하나씩 골랐다. 이 저장소의 다른 규약 문서도
-> `code:` 를 넓은 트리가 아니라 좁고 구체적인 파일로 적는다.
-
-## 1. 인용은 유지한다
-
-`review/**` 는 커밋된다 — `.gitignore` 가 무시하는 것은 `review/**/_prompts/` 한 줄뿐이고
-`SUMMARY.md`·`<role>.md`·`meta.json`·`RESOLUTION.md` 는 저장소에 남는다. 따라서 세션 경로는
-**영구 참조**이며, 인용은 고아가 되지 않는다.
-
-## 2. 날짜를 포함한다 (2026-09-05 규약화)
-
-**bare `hh_mm_ss` 는 쓰지 않는다.** 세션 시각은 날짜를 넘어 충돌한다 — 실측(2026-09-05):
-저장소의 2,413개 세션 중 **46개 시각이 둘 이상의 날짜에** 있고, 코드가 인용한 197개 시각
-중 **8개가 이미 해소 불가**다.
-
-| 형태 | 예 | 판정 |
-| --- | --- | --- |
-| 전체 경로 | `review/code/2026/09/04/23_02_51` | **권장** |
-| 날짜 + 시각 | `2026-09-04 23_02_51` | 허용 |
-| bare 시각 | `23_02_51` | **금지** (날짜가 없으면 해소 불가) |
-
-지적 번호를 함께 적으면 더 좁혀진다: `review/code/2026/09/04/23_02_51 W1`.
-
-## 3. 기존 인용은 소급 정리 대상이 아니다
-
-499건의 bare 인용은 그 자리를 **다음에 건드릴 때** 함께 맞춘다. 일괄 치환은 하지 않는다 —
-날짜를 코드 컨텍스트로 하나씩 특정해야 하는 일이라 기계적 변환이 안 된다.
-
-## Rationale
-
-### 왜 PR 번호로 전환하지 않았나
-
-`00_06_38` 리뷰는 *"영구 코드 주석에 일시적 프로세스 식별자"* 라며 PR 번호·커밋 SHA 로의
-전환을 제안했다. 전환하면 **514회의 기존 인용이 전부 고아**가 된다. 그리고 전제가 틀렸다 —
-세션 ID 는 일시적이지 않다. `review/**` 가 커밋되므로 경로는 영구적이고, 문제는 **날짜가
-빠진 인용 형태**였지 인용 대상이 아니었다.
-
-PR 번호는 그 나름의 손실이 있다 — PR 은 라운드별 산출물을 담지 않아 *"어느 라운드의 어느
-지적"* 을 가리키지 못한다. 세션 경로는 그 입도를 그대로 준다.
-
-### 왜 소급 정리를 하지 않나
-
-bare 인용의 날짜는 커밋 시각으로 근사할 수 있지만 **근사는 틀릴 수 있다** — 한 파일이 여러
-날의 라운드를 인용하는 경우가 흔하다. 잘못 채운 경로는 bare 인용보다 나쁘다(존재하는 다른
-세션을 가리킨다). 그 자리를 아는 사람이 손볼 때 맞추는 편이 옳다.
-````
+- README §5 는 `V056`(진짜 교체 → 재실행 시 인덱스 0개) 과 `V106`(신규 추가, 짝 DROP 없음 →
+  invalid 가 영영 안 고쳐짐) 을 **표로 갈랐다**. 이 draft 는 둘을 *"같은 위험"* 으로
+  뭉뚱그렸는데 실물 대조가 반증했다 (`review/code/2026/09/05/09_27_04` INFO#1).
+- `review-citations.md` 에 **§3 적용 범위**가 생겼다 — `codebase/**` 는 적용, `plan/**`·
+  `review/**` 는 대상 아님, 근거는 읽히는 맥락의 차이 (`09_27_04` INFO#3).
+- 같은 문서 §2 에서 **세션 디렉터리 총수를 뺐다** — 라운드마다 늘어 고정값으로 적을 수
+  없다. 판단에 쓰이는 것은 "해소 불가 8건" 이다 (`09_42_13` INFO#1).
