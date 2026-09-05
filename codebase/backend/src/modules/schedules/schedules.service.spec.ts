@@ -435,7 +435,8 @@ describe('SchedulesService.runNow', () => {
     /**
      * `saved.trigger` 대입이 `if (isActive)` 안으로 되돌아가면 **비활성 경로에서만**
      * 응답의 `trigger` 가 사라진다. 같은 버그가 `create()` → `update()` 순으로 **두 번**
-     * 났으므로(`20_45_37` W2, `review/code/2026/09/05/23_30_00` INFO#6) e2e C-3 에 더해
+     * 났으므로(`review/code/2026/09/05/20_45_37` W2,
+     * `review/code/2026/09/05/23_30_00` INFO#6) e2e C-3 에 더해
      * unit 으로도 두 자매를 각각 문다 — e2e 는 느리고 이 분기는 한 줄의 위치 문제다.
      */
     it('생성 — isActive:false 여도 응답에 trigger 가 실린다', async () => {

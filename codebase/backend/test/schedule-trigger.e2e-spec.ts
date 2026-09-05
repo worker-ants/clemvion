@@ -159,6 +159,15 @@ describe('Schedule trigger (e2e)', () => {
     );
     expect(listed).toBeDefined();
     assertMatchesContract(listed, await contractForDto(ScheduleDto));
+    // 상세와 **같은 양성 대조**를 목록에도 건다. 계약 대조만으로는 좁히기 로직이 통째로
+    // 사라져 `workflow` 가 안 실려도 통과한다 — §5.4 키 생략형은 부재를 위반으로 보지
+    // 않기 때문이다 (`review/code/2026/09/06/00_24_34` W2).
+    expect(Object.keys(listed ?? {}).includes('trigger')).toBe(true);
+    expect(
+      Object.keys(
+        (listed as { trigger?: Record<string, unknown> }).trigger ?? {},
+      ).sort(),
+    ).toEqual(['id', 'name', 'workflowId', 'workflow'].sort());
 
     // schedule 행 + 동반된 trigger 행 확인.
     const sched = await db.query('SELECT id FROM schedule WHERE id = $1', [
@@ -196,8 +205,9 @@ describe('Schedule trigger (e2e)', () => {
     // 트리거는 `isActive` 와 무관하게 생성됐으므로 응답에도 있어야 한다.
     //
     // `workflow` 는 없다 — 생성 경로가 방금 저장한 엔티티를 붙이므로 관계가 로드되지
-    // 않는다. 그래서 `ScheduleTriggerRefDto.workflow` 가 `@ApiPropertyOptional` 이고,
-    // 조회 경로(위 `GET /:id`)에서만 채워진다. 두 경로를 각각 고정한다.
+    // 않는다. 그래서 `ScheduleTriggerRefDto.workflow` 가 `@ApiPropertyOptional` 이다.
+    // **부재는 생성 응답에만** 있고 조회(`GET /:id`·목록)와 수정(PATCH, `findById` 로
+    // 시작)은 채운다 — 세 형태를 각각 양성/음성으로 고정한다.
     expect(inactive.body.data.trigger).toBeDefined();
     expect(Object.keys(inactive.body.data.trigger).sort()).toEqual([
       'id',
@@ -286,6 +296,15 @@ describe('Schedule trigger (e2e)', () => {
     // 달라(`trigger ?? schedule.trigger`) 공유 헬퍼만으로 안전이 자동 보장되지 않는다
     // (`review/code/2026/09/05/19_08_18` W5).
     assertMatchesContract(patch.body.data, await contractForDto(ScheduleDto));
+    // 수정 경로도 **양성으로** 고정한다 — `update()` 는 `findById` 로 시작하므로
+    // `trigger.workflow` 까지 로드된다. DTO JSDoc 이 "세 형태를 각각 고정한다" 고
+    // 주장하는데 실제로는 상세 한 곳만 양성이었다 (`review/code/2026/09/06/00_24_34` W2).
+    expect(
+      Object.keys(
+        (patch.body.data as { trigger?: Record<string, unknown> }).trigger ??
+          {},
+      ).sort(),
+    ).toEqual(['id', 'name', 'workflowId', 'workflow'].sort());
   });
 
   it('E. run-now → 202 + executionId', async () => {
@@ -361,7 +380,7 @@ describe('Schedule trigger (e2e)', () => {
       .send({ isActive: false });
     expect(patch.status).toBe(200);
     expect(patch.body.data.isActive).toBe(false);
-    // **수정 경로**도 같은 정화를 거치는가 (`21_40_37` W1).
+    // **수정 경로**도 같은 정화를 거치는가 (`review/code/2026/09/05/21_40_37` W1).
     assertMatchesContract(patch.body.data, await contractForDto(TriggerDto));
 
     const after = await db.query(

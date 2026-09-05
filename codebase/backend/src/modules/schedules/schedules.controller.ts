@@ -10,6 +10,7 @@ import {
   HttpCode,
   HttpStatus,
   ParseUUIDPipe,
+  InternalServerErrorException,
 } from '@nestjs/common';
 import { Roles } from '../../common/guards/roles.guard';
 import {
@@ -68,9 +69,23 @@ export class SchedulesController {
     const t = schedule.trigger;
     const { trigger: _drop, ...rest } = schedule;
     // `trigger` 는 상시 존재한다 (NOT NULL 1:1 + 네 경로가 전부 채움) — 그래서 분기 없이
-    // 항상 싣는다. 관계가 로드되지 않은 채 여기 오면 `t.id` 에서 즉시 터지는데, 그것이
-    // 조용히 키를 빠뜨리는 것보다 낫다 (§5.4 기본형 선언과 일치).
+    // 항상 싣는다. **조용히 키를 빠뜨리지 않는다**: DTO 가 §5.4 기본형(`@ApiProperty`)으로
+    // 선언하므로 키를 빼면 계약 위반이다. (프런트엔드는 `s.trigger?.name ?? ""` 로 방어
+    // 하지만, 그 방어는 부재를 정상으로 만들지 않는다 — 이름 없는 행이 조용히 남는다.)
     //
+    // 종전에는 이 자리에서 `t.id` 접근이 그대로 `TypeError` 를 냈다 — 500 이 되는 것은
+    // 같지만 **왜** 인지가 스택트레이스에만 남았다. 불변식을 이름으로 던져, 다음 사람이
+    // 여기에 방어 분기(`t ? ... : ...`)를 넣어 계약을 조용히 깨지 않게 한다
+    // (`review/code/2026/09/06/00_24_34` W1). 정상 데이터로는 도달 불가다 —
+    // `Schedule.trigger_id` 가 NOT NULL 이고 FK 가 `onDelete: 'CASCADE'` 다.
+    if (!t) {
+      throw new InternalServerErrorException(
+        `Schedule ${schedule.id} has no loaded trigger — ` +
+          'schedule.trigger_id is NOT NULL, so this means the query forgot ' +
+          'the join/relation (or the row is orphaned).',
+      );
+    }
+
     // 반면 `trigger.workflow` 는 **키 생략형**이다 — **생성 응답에만** 없다
     // (방금 저장한 트리거라 관계 미로드). 조회·수정은 `findById` 를 타므로 채워진다.
     return {

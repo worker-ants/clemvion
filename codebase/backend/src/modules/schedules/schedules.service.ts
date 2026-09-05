@@ -196,10 +196,13 @@ export class SchedulesService {
     });
 
     // 트리거는 `isActive` 와 무관하게 **항상** 생성·연결됐다. 종전에는 이 대입이 아래
-    // `if (isActive)` 안에 있어서(`registerJob` 이 필요로 하므로), `isActive: false` 로
-    // 만들면 트리거 행은 존재하는데 응답에서 `trigger` 키가 사라졌다 — 응답 형태가
-    // 요청 값에 따라 갈리는데 그 사실이 어디에도 적혀 있지 않았다
-    // (`review/code/2026/09/05/19_08_18` W1).
+    // `if (isActive)` 안에 **함께 들어 있었을 뿐**이고, `isActive: false` 로 만들면 트리거
+    // 행은 존재하는데 응답에서 `trigger` 키가 사라졌다 — 응답 형태가 요청 값에 따라
+    // 갈리는데 그 사실이 어디에도 적혀 있지 않았다 (`review/code/2026/09/05/19_08_18` W1).
+    //
+    // 종전 이 주석은 그 자리를 *"`registerJob` 이 필요로 하므로"* 라고 설명했는데
+    // **틀렸다** — `registerJob` 은 `id`·`cronExpression`·`timezone`·`workspaceId` 넷만
+    // 읽고 `trigger` 를 보지 않는다 (`schedule-runner.service.ts`).
     saved.trigger = savedTrigger;
 
     // Register BullMQ repeatable job
