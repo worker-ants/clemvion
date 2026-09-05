@@ -294,7 +294,7 @@ field: T | null;
       착수 시 먼저 잴 것: 위 7컬럼을 읽는 모든 쿼리/서비스 전수 목록. 그 목록이 나온 뒤에
       `select:false` vs 전역 `ClassSerializerInterceptor`+`@Exclude()` 를 고른다.
 
-- [ ] **§5.4 검증자 2종의 역할 경계를 spec 본문에 한 문장으로** (planner, 2026-09-05 등재,
+- [x] **§5.4 검증자 2종의 역할 경계를 spec 본문에 한 문장으로** (planner, 2026-09-05 등재,
       `review/consistency/2026/09/05/15_53_59` W1). 이름이 인접한 검증자가 둘이 됐다:
 
       | 파일 | 무엇을 대조하나 | 타입 |
@@ -306,12 +306,27 @@ field: T | null;
       checker 도 강제하지 않았고, 4개 e2e 배선과 37개 스펙을 건드려 얻는 것보다 잃는 것이
       크다. 대신 아래 `code:` 등재를 집행할 때 **같은 문장으로** 경계를 적는다.
 
-- [ ] **`2-api-convention.md` frontmatter `code:` 에 §5.4 검증자 등재** (planner,
+      > **완료 (2026-09-05, `spec-draft-api-convention-verifier-registration`)** —
+      > `2-api-convention.md` §5.4 에 **"검증 층"** 소절을 신설했다(정적/런타임 · 각자
+      > 못 보는 것). `swagger.md §5-1` 에는 런타임 짝을 가리키는 blockquote 를 넣었다.
+
+- [x] **`2-api-convention.md` frontmatter `code:` 에 §5.4 검증자 등재** (planner,
       2026-09-05 등재). `response-contract.ts` 는 §5.4 를 **시행하는** 유일한 코드인데
       지금 어떤 spec 의 `code:` glob 에도 안 걸린다 — 즉 그 파일을 고쳐도
-      `--impl-done` SPEC-CONSISTENCY 게이트가 안 문다. `review-citations.md` 의
-      Rationale 이 `code:` 를 "준수 예시" 로 넓힌 선례가 있으니 그 형태를 따르면 된다.
-      developer 는 `spec/` 쓰기 권한이 없어 이 자리에 등재만 한다.
+      `--impl-done` SPEC-CONSISTENCY 게이트가 안 문다.
+
+      > **완료 (2026-09-05)** — `2-api-convention.md`(§5.4 축)와 `swagger.md`(§5-1
+      > undeclared 축) **양쪽**에 등재했다. 한쪽만 하면 사각지대가 남는다는 것을
+      > `--spec` W1 이 잡았다 — 감사 로그 26키 유출을 실제로 잡은 축이 §5-1 쪽이다.
+      >
+      > **`review-citations.md` 선례("준수 예시")는 근거로 쓰지 않았다** — 그것은 시행
+      > 코드가 *없는* 경우의 예외고, 이 건은 시행 코드가 *있는* 경우다. 실제 근거는
+      > 가드·테스트 등재 선례 **40건**이고 그중 자매 검증자가 이미
+      > `swagger.md` 에 있다.
+      >
+      > **게이트에 직접 물어 확인했다**: `_spec_linked_changes()` 가
+      > `shared/testing/` 4파일을 **4/4** spec-linked 로 판정한다. 문서에 "등재 완료" 라고
+      > 적는 것만으로는 등재가 아니다 — 아래 harness 항목 참조.
 
 - [ ] **§5.4 drift 배치 — 2단계: 검증자가 없는 응답 DTO 78곳** (developer). 패스스루 68곳
       **+ `ExecutionDto` 10곳**. 컨트롤러가 엔티티를
@@ -565,7 +580,7 @@ field: T | null;
       8개 시각. 날짜를 코드 컨텍스트로 하나씩 특정해야 해서 기계적 치환이 안 된다 —
       그래서 §4 의 "소급 정리 안 함" 과 별개로 이 8건만 따로 둔다.
 
-- [ ] **`spec/5-system/` 의 `## Overview` 유무 불일치** (planner, `--impl-prep 12_48_13` W1
+- [x] **`spec/5-system/` 의 `## Overview` 유무 불일치** (planner, `--impl-prep 12_48_13` W1
       등재 2026-09-05). 12개 파일은 공유 `_product-overview.md` 와 **별개로** 로컬
       `## Overview` 를 두는데 6개(`2-api-convention` · `5-expression-language` ·
       `6-websocket-protocol` · `7-llm-client` · `11-mcp-client` · `16-system-status-api`)는 없다.
@@ -573,6 +588,59 @@ field: T | null;
       - (a) 6개 파일에 로컬 Overview 를 추가해 맞춘다
       - (b) `project-planner/SKILL.md` 에 *"영역 공유 Overview 가 있으면 파일별 로컬 Overview
         는 생략 가능"* 을 명시해 **현 상태를 규약으로 인정**한다
+
+      > **처분 (2026-09-05) — 원 전제가 반증됐고, (a)도 (b)도 아닌 제3의 처분을 냈다.**
+      >
+      > **"6개에 Overview 가 없다" 는 내용 결여가 아니라 제목 표기 분열이다** (실측):
+      >
+      > | 문서 | 개요 내용 | 형태 |
+      > |---|---|---|
+      > | `5-expression-language` · `7-llm-client` · `11-mcp-client` | **있음** | `## 1. 개요` |
+      > | `16-system-status-api` | **있음** | 무제목 도입문 |
+      > | `6-websocket-protocol` · `2-api-convention` | 없음 | — |
+      >
+      > 그리고 **저장소 전체로 보면 개별 파일의 `## Overview` 는 규범이 아니다** —
+      > `_product-overview.md` 가 있는 영역은 안 두고(`2-navigation` 1/18 ·
+      > `3-workflow-editor` 0/7 · `4-nodes` 0/2), 없는 영역만 전 파일에 둔다
+      > (`data-flow` **16/16**). 지적의 전제는 **`5-system/` 한 영역만** 본 데서 나왔다.
+      >
+      > **(a) 기각**: 규칙 카탈로그형 문서에 제목만 얹고 아래 새 내용이 없으면 소음이다.
+      > **(b) 기각**: SKILL.md 는 `.claude/` 아래라 planner 쓰기 권한 밖이고, 무엇보다
+      > **그 문장이 이미 있다** — *"다중 spec 파일을 가진 영역은 `_product-overview.md`
+      > 별도 파일"*. 새로 인정할 것이 없다.
+      >
+      > **실제 처분**: 이번 턴이 어차피 여는 `2-api-convention.md` 에만 추가.
+      > `6-websocket-protocol.md` 는 아래 별도 항목으로 재등재.
+
+- [ ] **`6-websocket-protocol.md` 도입 산문** (planner, 2026-09-05 등재). 위 실측에서
+      개요 내용이 **실제로 없는** 두 문서 중 남은 하나. `## 1. 연결` 로 바로 시작한다.
+      그 문서를 다음에 열 때 두세 줄 도입문을 넣는다 — 형태는 그 문서 관행을 따르면 되고,
+      `## Overview` 헤딩이어야 할 이유는 없다(위 실측 참조).
+
+- [ ] **harness: `--spec` 번들이 `spec_impact` 의 `spec/conventions/*` 를 떨군다**
+      (harness, 2026-09-05 등재, `review/consistency/2026/09/05/16_21_52` INFO#2).
+      `spec_impact` 에 `spec/conventions/swagger.md` 를 명시했는데 **5개 프롬프트 어디에도
+      본문이 실리지 않았다** (그 문서에만 있는 헤딩 `### 5-1. 응답 DTO 위치` 로 판정:
+      전부 0건. 대조군인 draft 헤딩은 1건이라 판정 명령은 정상). checker 들이 직접 조회로
+      보완해 그 라운드는 유효했으나, **`spec_impact` 에 적힌 파일이 번들에서 빠지는 것은
+      구조적 결함**이다.
+
+      > 이것은 알려진 클래스의 재발이다 — *"consistency `--spec` 기본 예산이 conventions 를
+      > 통째로 떨군다"*. 이번엔 `spec_impact` 명시에도 불구하고 떨궈졌다는 점이 새롭다.
+
+- [ ] **harness: `code:` 블록 리스트의 YAML 주석이 게이트 파서를 조용히 끊는다**
+      (harness, 2026-09-05 등재). `review_guard._parse_frontmatter_code` 의 블록 리스트
+      루프가 `^\s*-\s*` 에 안 맞는 첫 줄에서 `break` 하므로, **주석 뒤 항목이 전부
+      사라진다**. 실측: 주석을 넣자 `2-api-convention.md` 가 9개(주석 앞까지)만 반환.
+
+      **두 파서가 서로 다른 답을 낸다** — 프런트엔드 `spec-frontmatter-parse.ts` 는
+      `matterNoCache`(gray-matter → 진짜 YAML)라 주석 뒤 항목을 **본다**. 즉 유효한 YAML 에
+      대해 `spec-code-paths.test.ts` 는 통과시키고 `--impl-done` 게이트는 못 본다.
+
+      **위험한 이유**: 이번에 그 주석을 남겼으면 *"등재 완료"* 라고 문서에 적어 놓고
+      게이트는 여전히 못 보는 상태로 머지될 뻔했다 — 이 항목이 고치려던 결함 그 자체다.
+      당장은 주석을 쓰지 않는 것으로 회피했다. 파서를 고치거나, 최소한 두 파서가 갈리는
+      입력을 가드로 잡아야 한다.
 
       (b) 가 저렴하지만, 12 대 6 이면 다수가 로컬 Overview 를 두고 있어 (a) 가 관행에 가깝다.
       **한 PR 이 단독으로 정할 일이 아니라 등재한다.**

@@ -1,0 +1,13 @@
+{
+  "timestamp": "2026-09-05T16:21:52.825601",
+  "mode": "spec draft 검토 (--spec)",
+  "target_path": "plan/in-progress/spec-draft-api-convention-verifier-registration.md",
+  "checkers": [
+    "cross_spec",
+    "rationale_continuity",
+    "convention_compliance",
+    "plan_coherence",
+    "naming_collision"
+  ],
+  "target_snapshot": "_target/spec-draft-api-convention-verifier-registration.md"
+}
