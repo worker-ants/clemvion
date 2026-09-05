@@ -471,10 +471,37 @@ field: T | null;
         > **이 78 은 위 「스윕 1차」의 모집단과 다른 것을 센다** — 그쪽은 *배선 대상 DTO*
         > 수이고, 이쪽은 *금지 조합을 쓰는 필드* 수다. 더하거나 비교하지 말 것.
         >
-        > 부수: `ScheduleDto.trigger` 의 wire 형태를 **키 생략**으로 확정했다(종전 `null`
-        > 을 내보내 §5.4 를 반대 방향으로 어겼다). `POST /api/schedules` 는 `isActive`
-        > 값과 무관하게 `trigger` 를 실어 보낸다 — 종전에는 `isActive: false` 면 트리거를
-        > 만들어 놓고 응답에서만 빠졌다.
+        > 부수: ~~`ScheduleDto.trigger` 의 wire 형태를 **키 생략**으로 확정했다~~ —
+        > **틀렸다. 확정된 것은 §5.4 기본형(`@ApiProperty`, 상시 존재)이다.**
+        > `Schedule.trigger_id` 가 NOT NULL 1:1 이고 응답을 내는 네 경로가 전부 채우므로
+        > 부재 경로가 없다 (`schedules.controller.ts` 의 `toResponse` 는 아예 던진다).
+        > 같은 문서 아래쪽 「`ScheduleDto.trigger`/`workflow` 를 nav-spec 에 문서화」
+        > bullet 이 *"`trigger` 는 상시 존재라 기본형으로 바꿨고"* 라고 옳게 적고 있으니
+        > **그쪽이 정본**이다 — 후속 planner 턴이 이 줄을 옮기지 않도록 여기서 정정한다
+        > (`review/consistency/2026/09/06/01_13_51` W1).
+        >
+        > 키 생략형인 것은 `trigger.workflow` **한 겹 아래**다 — 생성 응답에만 없다.
+        >
+        > 함께 확정한 것: `POST /api/schedules` 는 `isActive` 값과 무관하게 `trigger` 를
+        > 실어 보낸다 — 종전에는 `isActive: false` 면 트리거를 만들어 놓고 응답에서만
+        > 빠졌다.
+
+- [ ] **`INTERNAL_ERROR` 문구가 두 자리에서 언어가 갈린다** (developer, 2026-09-06 등재,
+      `review/consistency/2026/09/06/01_13_51` INFO#3). `3-error-handling.md` 는 이 코드의
+      문구를 **한국어**(*"서버 오류가 발생했습니다. 잠시 후 다시 시도해 주세요."*)로 정하는데,
+      `GlobalExceptionFilter` 는 영어다. **상수가 하나가 아니라 둘이다** — checker 는
+      `UNHANDLED_ERROR_MESSAGE`(*"An unexpected error occurred. Please try again later."*)만
+      짚었는데, 같은 클래스에 `UNKNOWN_ERROR_MESSAGE`(*"An unexpected error occurred"*)가
+      따로 있고 이쪽이 기본값이다. 한쪽만 고치면 같은 `INTERNAL_ERROR` 안에서 언어가
+      **세 갈래**가 된다.
+
+      **이 브랜치가 만든 회귀가 아니다** — 기존 drift 이고, 스케줄 가드가 규약 문구를 그대로
+      쓰면서 두 문구가 처음 나란히 드러났을 뿐이다. 그래서 여기서 고치지 않는다: 필터를
+      건드리면 **매핑되지 않은 모든 5xx** 의 문구가 바뀌어 이 PR 의 범위를 넘는다.
+
+      실측(2026-09-06): 두 문구를 문자열로 단언하는 자리는 `http-exception.filter.spec.ts`
+      **2곳**뿐이다 (`grep -rn "unexpected error occurred" src test`). 즉 문구 교체 자체는
+      작다 — 판단이 필요한 것은 **API 응답 문구의 언어 정책**이지 배선이 아니다.
 
 - [ ] **`CanvasSaveResultDto.nodes`/`.edges` 가 타입 없는 객체 배열** (developer,
       2026-09-05 등재). `@ApiProperty({ type: 'array', items: { type: 'object' } })` 라

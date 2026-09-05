@@ -503,8 +503,15 @@ export class TriggersService {
       await this.setupChatChannel(saved, chatChannel);
       // setupChatChannel 은 별도 triggerRepository.update — in-memory `saved` 는 stale.
       // 응답 hasBotToken / inboundSigningRef 가 최신 반영되도록 재조회.
+      //
+      // **`relations` 를 함께 실어야 한다.** 이 재조회가 `saved` 를 통째로 갈아치우므로,
+      // 관계를 빼고 읽으면 `chatChannel` 을 포함한 PATCH 응답에서만 `workflow` 가 사라진다
+      // — `TriggerDto.workflow` JSDoc 은 *"생성 응답에만 없다"* 고 보장하는데 그 보장이
+      // 구현보다 넓었다 (`review/code/2026/09/06/01_13_50` W4). 부재가 §5.4 키 생략형이라
+      // 계약 검증자도 못 잡는 자리다.
       const refreshed = await this.triggerRepository.findOne({
         where: { id: saved.id, workspaceId },
+        relations: ['workflow'],
       });
       if (refreshed) result = refreshed;
     }

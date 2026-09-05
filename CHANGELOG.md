@@ -9,11 +9,22 @@
 |---|---|---|
 | `notificationSecretV2` | **평문 서명 secret** — 24h rotation grace 동안 non-null이며, 이 값으로 outbound notification 을 서명한다 | `GET/POST/PATCH /api/triggers`, `GET/POST/PATCH /api/schedules` (조인) |
 | `chatChannelTokenV2` | secret store ref (`secret://triggers/{id}/bot-token.v2`) — 평문은 아니나 내부 저장 위치를 드러낸다 | 〃 |
+| `config.notification.signing.secret` · `.secretRef` | **평문 서명 secret** 과 그 store ref — `config` JSONB 안에 산다 | 〃 |
+| `config.interaction.triggerToken` | **영구 평문 bearer 토큰** (`itk_*`) — per-trigger 외부 호출 인증에 쓴다 | 〃 |
+
+**네 자리를 한꺼번에 찾은 것이 아니다.** 위 두 줄은 스윕 1차가 엔티티 컬럼 축을 닫은 **뒤**
+같은 세션의 후속 리뷰가 차례로 찾아낸 것이다 — `secret-store.md §1.1` 이 **이름으로 열거한
+세 필드** 중 둘만 닫힌 상태였다. 방어가 세 번 연속 한 칸씩 좁았다는 뜻이고, 그 사실이
+아래 「원인」의 요지다.
 
 **영향 — 이미 나간 것은 회수되지 않는다.** 로테이션 유예 중에 이 응답을 저장·로깅·캐시한
 소비자가 있었다면 서명 secret 이 그쪽에 남아 있을 수 있다. 응답 본문을 기록하는 클라이언트
 로그·APM·프록시 캐시를 점검하고, 해당 트리거의 notification secret 회전을 권고한다.
 도달 권한은 해당 워크스페이스 멤버다.
+
+> **`config.interaction.triggerToken` 은 회전 유예가 없다.** 앞의 셋과 달리 이 토큰은
+> **영구 평문**이라 "유예 중에만 non-null" 이라는 완화가 걸리지 않는다 — 노출된 트리거는
+> `POST /api/triggers/:id/interaction/revoke-token` 으로 **재발급**해야 한다.
 
 ### 원인 — 방어가 있었는데 **한 칸 좁았다**
 
@@ -40,6 +51,24 @@
   > 않는다(`packages/sdk/src` 에 `schedule` 문자열 0건 — webhook 트리거 호출 전용).
 - `select: false` 는 쓰지 않았다. 로테이션 스윕이 이 컬럼들을 읽어 승격·정리하므로, 컬럼
   수준에서 끄면 그 경로가 `undefined` 를 받고 **예외 없이 조용히** 오작동한다.
+- **트리거 쪽도 같은 결함이 있었다** — `TriggerDto.workflow` 가 조인된 `Workflow` **엔티티
+  전체**를 선언 없이 실어 보냈다(`ScheduleDto.trigger` 와 구조가 같다). 참조
+  2필드(`id`·`name` — `triggers/page.tsx` 가 쓰는 전부)로 좁혔다.
+- 같은 커밋이 **`PATCH /api/triggers` 응답에서 필드가 사라지던 버그**도 고쳤다.
+  `useDefineForClassFields` 때문에 DTO 의 optional 필드는 값이 없어도 `undefined` 인 own
+  property 로 만들어지고, 그대로 `Object.assign` 하면 로드된 값을 덮어썼다 — DB 는 TypeORM 이
+  `undefined` 를 건너뛰어 무사했고 **응답에서만** 사라졌다(`name` 으로 관측).
+
+> **하나의 손상된 행이 목록 전체를 500 으로 만든다 — 의도된 트레이드오프다.**
+> 스케줄 응답 경계(`toResponse`)는 `trigger` 관계가 없으면 던진다. `findAll` 은 그것을
+> `map` 안에서 부르므로 **한 행만 어긋나도 목록 요청 전체가 실패**한다. 종전에는 그 행만
+> 필드가 빠지고 나머지는 200 이었다 (`review/code/2026/09/06/01_13_50` W3).
+>
+> 그래도 던지는 쪽을 택한 이유: `ScheduleDto.trigger` 는 §5.4 **기본형**(`@ApiProperty`,
+> 상시 존재) 선언이라 키를 빼면 **계약 위반**이고, 그 행만 조용히 건너뛰면 목록에서 행이
+> 사라진다. `Schedule.trigger_id` 는 NOT NULL 1:1 이고 FK 가 `onDelete: 'CASCADE'` 라
+> 정상 데이터로는 도달할 수 없으므로, 도달했다면 그것은 **가려서는 안 되는 데이터 손상**이다.
+> 응답 바디에는 고정 문구만 가고 진단은 서버 로그에만 남는다.
 
 두 자리 모두 회귀 테스트가 고정한다. 스트립을 되돌린 뮤턴트를 실제로 돌려 확인했다 —
 `chat-channel-trigger-create` 와 `schedule-trigger` 두 e2e 가 RED 이고, 위반 목록이
