@@ -263,22 +263,49 @@ field: T | null;
       `SaveCanvasNodeDto`(요청 DTO 안에 **중첩된** 타입)를 놓쳐 tsc 가 54건을 냈다. 필드
       타입 참조까지 전이 폐포로 닫아 요청 21곳으로 정정했다.
 
+- [ ] **`2-api-convention.md` frontmatter `code:` 에 §5.4 검증자 등재** (planner,
+      2026-09-05 등재). `response-contract.ts` 는 §5.4 를 **시행하는** 유일한 코드인데
+      지금 어떤 spec 의 `code:` glob 에도 안 걸린다 — 즉 그 파일을 고쳐도
+      `--impl-done` SPEC-CONSISTENCY 게이트가 안 문다. `review-citations.md` 의
+      Rationale 이 `code:` 를 "준수 예시" 로 넓힌 선례가 있으니 그 형태를 따르면 된다.
+      developer 는 `spec/` 쓰기 권한이 없어 이 자리에 등재만 한다.
+
 - [ ] **§5.4 drift 배치 — 2단계: 검증자가 없는 응답 DTO 78곳** (developer). 패스스루 68곳
       **+ `ExecutionDto` 10곳**. 컨트롤러가 엔티티를
       그대로 반환하는 경로라 **DTO 가 강제되지 않는 순수 문서**다. `required: true` 를
       주장하려면 검증자가 필요하다:
+
+      > **진행 상태 (2026-09-05)**: 검증자 자체는 섰고 4개 DTO 가 배선됐다 — 아래 (b) 참조.
+      > 남은 것은 **선행 조건이 아니라 스윕**이라 이 항목은 열어 둔다. 모집단 실측:
+      > `src/**/dto/responses/**` 의 DTO **60개** 중 4개 배선 완료. **이 60 을 위 78 과
+      > 더하지 말 것** — 78 은 요청/응답을 전이 폐포로 가른 뒤 센 **필드** 수고, 60 은
+      > `dto/responses/` 아래 **클래스** 수다. 같은 문제를 다른 단위로 잰 것이다.
+      >
+      > 배선은 한 줄이지만 **기존 e2e 가 그 리소스를 이미 가져오는 자리**가 있어야 하고,
+      > RED 가 나면 그건 진짜 §5.4 위반이라 DTO 를 고칠지 코드를 고칠지 건별 판단이
+      > 붙는다. 모듈 단위로 끊어 진행한다.
       - ~~(a) 그 컨트롤러들의 반환 타입을 `Promise<XxxDto[]>` 로 명시 annotate~~ →
         **반증됐다 (2026-09-04 실측).** 아래 참조.
-      - **(b) 대표 엔드포인트에 실제 응답 대조 테스트 — 이제 이것만 남았다.**
-        **첫 후보 `GET /api/alerts` 는 착수 완료 (2026-09-04, `20_39_25` W4).**
-        `test/alerts-threshold-wire-type.e2e-spec.ts` 가 `POST → GET → PATCH` 세 응답을
-        실 HTTP 로 대조한다. **이로써 (b) 가 성립한다는 것 자체는 실증됐다** — 남은 것은
-        같은 형태를 나머지 엔드포인트로 넓히는 일이다.
+      - **(b) 실제 응답 대조 테스트 — 일반 헬퍼까지 완료 (2026-09-05).**
+        `src/shared/testing/response-contract.ts` 가 **응답 1건 vs DTO 선언**을 일반적으로
+        대조한다. §5.4 의 네 축(required+non-nullable · required+nullable · 키 생략형 ·
+        스키마에 없는 키)을 그대로 옮겼고, 호출부는 엔드포인트당 **한 줄**이다.
 
-        > **다만 이 e2e 가 문 것은 `threshold` **한 축**이다.** 78곳 전체를 이 방식으로
-        > 덮으려면 엔드포인트마다 스펙을 쓰게 되므로, 다음 착수 때는 **엔드포인트별 개별
-        > 단언이 아니라 "응답 1건 vs DTO 선언" 을 일반적으로 대조하는 헬퍼**를 먼저
-        > 검토한다. 개별 단언을 78번 쓰는 것은 규모가 맞지 않는다.
+        배선된 4개 DTO — required **37 필드**가 실 응답 대조 하에 들어왔다:
+
+        | DTO | 엔드포인트 | e2e | required |
+        |---|---|---|---|
+        | `ExecutionDto` | `GET /api/executions/workflow/:id` | `workflow-execution` | 12 |
+        | `WorkflowDto` | `GET /api/workflows` | `workflow-crud` | 10 |
+        | `AuditLogDto` | `GET /api/audit-logs` | `audit-logs` | 8 |
+        | `SessionDto` | `GET /api/users/me/sessions` | `session-revocation` | 7 |
+
+        네 자리 모두 payload 를 `{}` 로 바꾼 뮤턴트가 **그 자리만** RED 를 냈다(51개 중
+        1개 → 3개). 빌드 캐시를 prune 한 뒤 돌려 stale 이미지 가설도 배제했다.
+
+        > **선행 조건이 스윕으로 바뀌었다.** 종전 이 자리의 서술은 *"남은 것은 일반
+        > 헬퍼"* 였고 그것이 해소됐다. 남은 일은 같은 한 줄을 나머지 응답 DTO 로 넓히는
+        > 기계적 작업이다 — 아래 별 항목으로 등재한다.
 
       > #### (a) 가 왜 안 되는가 — DTO 와 엔티티는 **다른 것**을 기술한다
       >
@@ -524,7 +551,7 @@ field: T | null;
 
 | 항목 | 트랙 | 선행 조건 |
 |---|---|---|
-| §5.4 drift 2단계 — 검증자 없는 응답 DTO 78곳 | developer | ~~반환 타입 명시~~는 반증됐고, **응답 대조 테스트는 첫 엔드포인트가 세워졌다**(2026-09-04). 남은 선행 조건은 그것을 77곳으로 넓힐 **일반 헬퍼** — 개별 단언 반복은 규모가 안 맞는다 |
+| §5.4 drift 2단계 — 검증자 없는 응답 DTO | developer | ~~반환 타입 명시~~ 반증 · ~~일반 헬퍼~~ **완료(2026-09-05)** — `response-contract.ts` 가 섰고 4개 DTO 가 배선됐다. 남은 것은 **선행 조건이 아니라 스윕** — 응답 DTO 60개 중 56개 |
 | ~~§5.4 가 WS wire 에도 적용되는가~~ | — | **종결(2026-09-04)** — producer 는 이미 §5.4 준수, consumer `?` 는 별개 축 |
 | ~~`QueryExecutionDto.workflowId` 죽은 필드~~ | — | **종결(2026-09-04)** — 옵션 A(제거) 채택 |
 | ~~`idx_schedule_next_run` → `(workspace_id, next_run_at)`~~ | — | **종결(2026-09-04)** — V110 적용 완료. (a)/(b) 는 둘 다 실측으로 기각됐고 답은 (c) 였다 |
