@@ -186,6 +186,68 @@ describe('TriggersService.findOneDetail', () => {
     );
   });
 
+  /**
+   * 응답 정화 회귀 — **e2e 만이 이 결함을 물던 상태였다.**
+   *
+   * 종전 unit fixture 에는 `notificationSecretV2`/`chatChannelTokenV2` 필드가 아예 없어서,
+   * 스트립 로직을 통째로 되돌려도 이 파일의 테스트는 전부 그린으로 남았다
+   * (`review/code/2026/09/05/18_23_02` W3). fixture 에 비밀을 채워 그 사각지대를 없앤다.
+   */
+  it('응답에서 회전 secret 컬럼과 notification.signing 비밀이 제거된다', async () => {
+    triggerRepo.findOne.mockResolvedValue({
+      id: 't1',
+      workspaceId: 'ws',
+      type: 'webhook',
+      name: 'hook',
+      // 평문 서명 secret — 24h rotation grace 동안 non-null 이다.
+      notificationSecretV2: 'wsk_live_secret',
+      // secret store ref.
+      chatChannelTokenV2: 'secret://triggers/t1/bot-token.v2',
+      config: {
+        notification: {
+          url: 'https://example.com/hook',
+          signing: { secretRef: 'secret://triggers/t1/notification-signing' },
+        },
+      },
+    } as unknown as Trigger);
+    scheduleRepo.findOne.mockResolvedValue(null);
+
+    const result = (await service.findOneDetail(
+      't1',
+      'ws',
+    )) as unknown as Record<string, unknown>;
+
+    expect(result).not.toHaveProperty('notificationSecretV2');
+    expect(result).not.toHaveProperty('chatChannelTokenV2');
+    const signing = ((result.config as { notification?: { signing?: unknown } })
+      .notification?.signing ?? {}) as Record<string, unknown>;
+    expect(signing).not.toHaveProperty('secretRef');
+    expect(signing).not.toHaveProperty('secret');
+    // 같은 config 의 비-비밀 필드는 살아 있어야 한다 — 통째로 지우는 것이 아니다.
+    expect(
+      (result.config as { notification?: { url?: string } }).notification?.url,
+    ).toBe('https://example.com/hook');
+  });
+
+  it('chat-channel 이 아닌 트리거도 정화를 거친다 — 조기 return 회귀 방지', async () => {
+    triggerRepo.findOne.mockResolvedValue({
+      id: 't2',
+      workspaceId: 'ws',
+      type: 'webhook',
+      name: 'plain',
+      notificationSecretV2: 'wsk_live_secret',
+      // `config.chatChannel` 이 **없다** — 종전 구현은 여기서 조기 return 했다.
+      config: { notification: { url: 'https://example.com/x' } },
+    } as unknown as Trigger);
+    scheduleRepo.findOne.mockResolvedValue(null);
+
+    const result = (await service.findOneDetail(
+      't2',
+      'ws',
+    )) as unknown as Record<string, unknown>;
+    expect(result).not.toHaveProperty('notificationSecretV2');
+  });
+
   it('schedule 타입인데 매칭 schedule이 없으면 트리거를 그대로 반환 (cron 필드 없음)', async () => {
     triggerRepo.findOne.mockResolvedValue({
       id: 't1',

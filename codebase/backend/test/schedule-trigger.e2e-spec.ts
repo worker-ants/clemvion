@@ -135,6 +135,30 @@ describe('Schedule trigger (e2e)', () => {
     expect(res.body.data.nextRunAt).toBeDefined();
     assertMatchesContract(res.body.data, await contractForDto(ScheduleDto));
 
+    // ── `GET /api/schedules/:id` — 이 PR 이 트리거 secret narrowing 을 배선한 자리인데
+    // 테스트가 unit·e2e 어디에도 없었다 (`review/code/2026/09/05/18_23_02` Critical 1).
+    const detail = await request(BASE_URL)
+      .get(`/api/schedules/${scheduleId}`)
+      .set(authHeaders());
+    expect(detail.status).toBe(200);
+    assertMatchesContract(detail.body.data, await contractForDto(ScheduleDto));
+    // 좁혀진 참조가 실제로 4필드인가 — 계약 대조는 "선언에 없는 키" 를 잡지만, 여기서는
+    // **무엇이 남아야 하는가**를 양성으로 고정한다.
+    expect(Object.keys(detail.body.data.trigger ?? {}).sort()).toEqual(
+      ['id', 'name', 'workflowId', 'workflow'].sort(),
+    );
+
+    // ── 목록 경로도 같은 정화를 거치는가 (배열 매핑은 별도 코드 경로다).
+    const list = await request(BASE_URL)
+      .get('/api/schedules?limit=50')
+      .set(authHeaders());
+    expect(list.status).toBe(200);
+    const listed = (list.body.data as Array<Record<string, unknown>>).find(
+      (r) => r.id === scheduleId,
+    );
+    expect(listed).toBeDefined();
+    assertMatchesContract(listed, await contractForDto(ScheduleDto));
+
     // schedule 행 + 동반된 trigger 행 확인.
     const sched = await db.query('SELECT id FROM schedule WHERE id = $1', [
       scheduleId,

@@ -74,6 +74,22 @@ const CHAT_CHANNEL_RESPONSE_STRIP_KEYS = new Set<string>([
  * 경로가 `undefined` 를 받고 **예외 없이** 조용히 오작동한다 — fail-safe 가 아니라
  * fail-silent 다. 응답 경계에서 지우면 읽는 쪽은 그대로 둔 채 나가는 쪽만 막힌다.
  */
+/**
+ * `config.notification.signing` 에서 제거할 키.
+ *
+ * `secretRef` 는 secret store 참조이고 `secret` 은 정규화 전 평문이 스쳐 가는 자리다
+ * (`normalizeNotificationSecretRef` 참조). `botTokenRef`/`inboundSigningRef` 를 이미
+ * 빼는 것과 **같은 등급·같은 이유**인데 chat-channel 쪽만 목록에 있었다
+ * (`review/code/2026/09/05/18_23_02` W1).
+ *
+ * 파생 플래그(`hasBotToken` 같은)는 두지 않는다 — 프런트엔드 소비처가 0곳이라
+ * 새 필드를 만들 이유가 없다.
+ */
+const NOTIFICATION_SIGNING_STRIP_KEYS = new Set<string>([
+  'secret',
+  'secretRef',
+]);
+
 const TRIGGER_RESPONSE_STRIP_COLUMNS = [
   'notificationSecretV2',
   'chatChannelTokenV2',
@@ -555,26 +571,51 @@ export class TriggersService {
     const cfg = trigger.config as
       | {
           chatChannel?: Record<string, unknown>;
+          notification?: Record<string, unknown>;
           [k: string]: unknown;
         }
       | null
       | undefined;
 
     const overrides: Record<string, unknown> = {};
-    for (const column of TRIGGER_RESPONSE_STRIP_COLUMNS) {
-      overrides[column] = undefined;
-    }
 
-    if (cfg?.chatChannel) {
-      const botTokenRef = cfg.chatChannel.botTokenRef;
-      const sanitizedChatChannel: Record<string, unknown> = {};
-      for (const [key, value] of Object.entries(cfg.chatChannel)) {
-        if (CHAT_CHANNEL_RESPONSE_STRIP_KEYS.has(key)) continue;
-        sanitizedChatChannel[key] = value;
+    if (cfg) {
+      const nextConfig: Record<string, unknown> = { ...cfg };
+      let configTouched = false;
+
+      if (cfg.chatChannel) {
+        const botTokenRef = cfg.chatChannel.botTokenRef;
+        const sanitizedChatChannel: Record<string, unknown> = {};
+        for (const [key, value] of Object.entries(cfg.chatChannel)) {
+          if (CHAT_CHANNEL_RESPONSE_STRIP_KEYS.has(key)) continue;
+          sanitizedChatChannel[key] = value;
+        }
+        sanitizedChatChannel.hasBotToken =
+          typeof botTokenRef === 'string' && botTokenRef.length > 0;
+        nextConfig.chatChannel = sanitizedChatChannel;
+        configTouched = true;
       }
-      sanitizedChatChannel.hasBotToken =
-        typeof botTokenRef === 'string' && botTokenRef.length > 0;
-      overrides.config = { ...cfg, chatChannel: sanitizedChatChannel };
+
+      // `chatChannel` 이 없어도 여기까지 온다 — 종전에는 조기 return 이라
+      // chat-channel 이 아닌 트리거의 config 는 아예 정화되지 않았다.
+      const signing = (cfg.notification as { signing?: unknown } | undefined)
+        ?.signing;
+      if (signing && typeof signing === 'object') {
+        const sanitizedSigning: Record<string, unknown> = {};
+        for (const [key, value] of Object.entries(
+          signing as Record<string, unknown>,
+        )) {
+          if (NOTIFICATION_SIGNING_STRIP_KEYS.has(key)) continue;
+          sanitizedSigning[key] = value;
+        }
+        nextConfig.notification = {
+          ...(cfg.notification as Record<string, unknown>),
+          signing: sanitizedSigning,
+        };
+        configTouched = true;
+      }
+
+      if (configTouched) overrides.config = nextConfig;
     }
 
     // entity 의 메서드/getter 를 보존하기 위해 prototype 유지하면서 필드만 교체.
@@ -583,8 +624,8 @@ export class TriggersService {
       trigger,
       overrides,
     ) as T;
-    // `undefined` 대입만으로는 키가 남아 `JSON.stringify` 가 지우더라도 중간 소비자
-    // (로깅·직렬화 우회)가 볼 수 있다. 키 자체를 없앤다.
+    // 비밀 컬럼은 `undefined` 대입이 아니라 **키 자체를 제거**한다 — `undefined` 로 두면
+    // `JSON.stringify` 는 지우더라도 중간 소비자(로깅·직렬화 우회)가 볼 수 있다.
     for (const column of TRIGGER_RESPONSE_STRIP_COLUMNS) {
       delete (sanitized as unknown as Record<string, unknown>)[column];
     }

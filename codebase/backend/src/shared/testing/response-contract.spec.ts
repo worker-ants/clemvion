@@ -455,3 +455,28 @@ describe('response-contract — 실제 응답 vs DTO 선언 (§5.4)', () => {
     expect(msg).toContain('id');
   });
 });
+
+/**
+ * `contractForDto` 메모이제이션 — 설계 근거("호출마다 Nest 모듈을 부트스트랩하므로
+ * 캐시한다", "실패는 캐시에 남기지 않는다")를 실제로 고정한다. 종전에는 근거만 있고
+ * 검증이 없었다 (`review/code/2026/09/05/18_23_02` W4).
+ */
+describe('contractForDto 메모이제이션', () => {
+  class MemoProbeDto {
+    @ApiProperty()
+    id: string;
+  }
+
+  it('같은 DTO 는 같은 promise 를 돌려준다 — 두 번 부트스트랩하지 않는다', () => {
+    const a = contractForDto(MemoProbeDto);
+    const b = contractForDto(MemoProbeDto);
+    expect(a).toBe(b);
+    return a.then((c) => expect(c.name).toBe('MemoProbeDto'));
+  });
+
+  it('해소된 뒤에도 같은 계약을 돌려준다', async () => {
+    const first = await contractForDto(MemoProbeDto);
+    const second = await contractForDto(MemoProbeDto);
+    expect(second).toBe(first);
+  });
+});

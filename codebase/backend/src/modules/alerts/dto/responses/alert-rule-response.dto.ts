@@ -55,13 +55,16 @@ export class AlertRuleDto {
   // ── 아래 필드는 **이미 응답에 실려 나가고 있었다** — 컨트롤러가 엔티티를 그대로
   // 반환하기 때문이다. §5.4 응답-계약 스윕이 "선언되지 않은 키" 로 검출했고,
   // 프런트엔드가 실제로 소비하므로 빼면 계약 회귀다. 선언을 실제에 맞춘다.
-  // (FE 참조 수 — createdBy 14 · lastTriggeredAt 은 목록 UI 의 '마지막 발화')
+  //
+  // 전부 **엔티티 컬럼이라 응답에 상시 존재**한다 → §5.4 의 기본형
+  // (`@ApiProperty` + 컬럼이 nullable 이면 `nullable: true`). `@ApiPropertyOptional`
+  // 은 `required: false` 의 별칭이라 상시 존재 필드에 쓰면 "상시 존재" 와 모순된다.
 
   /** 생성한 사용자 ID (없으면 `null`) */
-  @ApiPropertyOptional({ format: 'uuid', nullable: true })
-  createdBy?: string | null;
+  @ApiProperty({ format: 'uuid', nullable: true, type: String })
+  createdBy: string | null;
 
   /** 마지막 발화 시각 (없으면 `null`) */
-  @ApiPropertyOptional({ format: 'date-time', nullable: true })
-  lastTriggeredAt?: string | null;
+  @ApiProperty({ format: 'date-time', nullable: true, type: String })
+  lastTriggeredAt: string | null;
 }

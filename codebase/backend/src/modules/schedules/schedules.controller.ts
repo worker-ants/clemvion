@@ -66,17 +66,20 @@ export class SchedulesController {
    */
   private toResponse<T extends Schedule>(schedule: T) {
     const t = schedule.trigger;
-    return {
-      ...schedule,
-      trigger: t
-        ? {
+    const { trigger: _drop, ...rest } = schedule;
+    // §5.4 — `trigger` 는 **키 생략형**이다. 조회 경로에 따라 없을 수 있고, 없을 때
+    // `null` 을 내보내면 `@ApiPropertyOptional` + `| null` 금지 규칙과 어긋난다.
+    return t
+      ? {
+          ...rest,
+          trigger: {
             id: t.id,
             name: t.name,
             workflowId: t.workflowId,
             ...(t.workflow ? { workflow: { name: t.workflow.name } } : {}),
-          }
-        : t,
-    };
+          },
+        }
+      : rest;
   }
 
   @Get()

@@ -35,13 +35,21 @@
 - `select: false` 는 쓰지 않았다. 로테이션 스윕이 이 컬럼들을 읽어 승격·정리하므로, 컬럼
   수준에서 끄면 그 경로가 `undefined` 를 받고 **예외 없이 조용히** 오작동한다.
 
-두 자리 모두 회귀 테스트가 고정한다 — 스트립을 되돌린 뮤턴트에 `TriggerDto` 2건,
-`ScheduleDto` 18건(중첩 경로 `trigger.notificationSecretV2` 포함)이 RED.
+두 자리 모두 회귀 테스트가 고정한다. 스트립을 되돌린 뮤턴트를 실제로 돌려 확인했다 —
+`chat-channel-trigger-create` 와 `schedule-trigger` 두 e2e 가 RED 이고, 위반 목록이
+`notificationSecretV2` · `chatChannelTokenV2` 를 이름으로 지목한다. 스케줄 쪽은 중첩 경로
+(`trigger.notificationSecretV2`)로 찍혀, **조인을 타고 새는 것**까지 잡힌다는 것이 보인다.
+unit 쪽에도 같은 뮤턴트를 무는 회귀를 뒀다 (`triggers.service.spec.ts` — 종전 fixture 에는
+비밀 필드가 아예 없어 스트립을 되돌려도 전부 그린이었다).
 
-### 함께 — 선언이 현실에 뒤처져 있던 24필드를 선언했다
+### 함께 — 선언이 현실에 뒤처져 있던 23필드를 선언했다
 
 같은 스윕이 "응답에 있는데 DTO 가 선언하지 않은" 키를 5개 DTO 에서 더 찾았다. 프런트엔드가
 실제로 소비하고 있어 **빼면 계약 회귀**이므로, 선언을 실제에 맞췄다 (wire 변경 없음).
+
+전부 **엔티티 컬럼이라 응답에 상시 존재**하므로 §5.4 의 기본형(`@ApiProperty` + 컬럼이
+nullable 이면 `nullable: true`)으로 적었다. `appUrl` 만 예외다 — Cafe24 Private 흐름에서만
+동봉되는 부가 컨텍스트라 **키 생략형**(`@ApiPropertyOptional()`, `| null` 없음)이다.
 
 | DTO | 선언 추가 |
 |---|---|
@@ -53,6 +61,19 @@
 
 `IntegrationDto.consecutiveNetworkFailures` 만 프런트엔드 참조가 0곳이다 — 내부 health
 카운터라 노출을 멈추는 편이 낫지만 그것은 wire 변경이라 별도 항목으로 남긴다.
+
+### 같은 조합이 조용히 넓어지지 못하게 래칫을 세웠다
+
+이 커밋의 **첫 판이 정확히 그 실수를 했다.** 위 필드들을
+`@ApiPropertyOptional({ nullable: true })` + `field?: T | null` 로 선언했는데, 그것은 §5.4 가
+**응답 바디에서 금지**하는 조합(요청 바디 전용)이고 같은 커밋이 다른 파일에서 "동결, 확대
+금지" 라고 적어 둔 형태였다. **두 검증자 어느 쪽도 잡지 못했다** — 런타임 검증자는 값을
+보는데 이 조합은 키가 없어도 null 이어도 맞고, 정적 가드의 presence/null 축은 선언과 TS
+타입이 서로 맞는지만 보는데 이 조합은 일관되게 틀려 있다.
+
+`swagger-dto-contract-guard.ts` 에 세 번째 축을 더해 **응답 DTO 전수**를 훑고, 현재 존재하는
+**78건**을 목록으로 고정했다. 새로 생기면 목록에 없어 실패하고, 갚아서 줄이면 목록에서 빼야
+통과한다 — 양방향 래칫이다. (78 은 종전에 알려져 있던 10건보다 훨씬 크다.)
 
 
 ## Unreleased — `GET /api/audit-logs` 가 `user` 로 비밀번호 해시와 2FA 복구 코드를 내보냈다

@@ -87,8 +87,8 @@ export class ScheduleDto {
    * 연결된 트리거 — **참조 수준으로 좁혀진** 형태다 (`ScheduleTriggerRefDto` 주석 참조).
    * 조회 경로에 따라 없을 수 있다.
    */
-  @ApiPropertyOptional({ type: () => ScheduleTriggerRefDto, nullable: true })
-  trigger?: ScheduleTriggerRefDto | null;
+  @ApiPropertyOptional({ type: () => ScheduleTriggerRefDto })
+  trigger?: ScheduleTriggerRefDto;
 }
 
 /** Cron 다음 실행 시각 프리뷰 */

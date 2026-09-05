@@ -1,4 +1,8 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import type {
+  TriggerChatChannelHealth,
+  TriggerNotificationHealth,
+} from '../../entities/trigger.entity';
 
 /** 트리거 응답 DTO */
 export class TriggerDto {
@@ -62,44 +66,41 @@ export class TriggerDto {
   @ApiProperty({ format: 'date-time' })
   updatedAt: string;
 
-  // ── 관측 필드 (chat-channel / outbound notification)
+  // ── 아래 필드는 **이미 응답에 실려 나가고 있었다** — 컨트롤러가 엔티티를 그대로
+  // 반환하기 때문이다. §5.4 응답-계약 스윕이 "선언되지 않은 키" 로 검출했고,
+  // 프런트엔드가 실제로 소비하므로 빼면 계약 회귀다. 선언을 실제에 맞춘다.
   //
-  // 아래 7개는 **이미 응답에 실려 나가고 있었다** — 컨트롤러가 엔티티를 그대로 반환하기
-  // 때문이다. §5.4 응답-계약 스윕이 "선언되지 않은 키" 로 검출했고, 그중 5개는 프런트엔드가
-  // 실제로 소비한다(`chatChannelHealth` 7곳 · `notificationHealth` 6곳 ·
-  // `chatChannelLastError` 4곳 · `chatChannelRotatedAt`·`chatChannelSetupAt` 각 2곳).
-  // 나가는 것을 막는 대신 **선언을 실제에 맞춘다** — 소비 중인 필드를 빼면 계약 회귀다.
-  //
-  // 같은 스윕이 검출한 `notificationSecretV2`·`chatChannelTokenV2` 는 **선언하지 않는다.**
-  // 그쪽은 비밀이라 응답에서 제거했다 (`TRIGGER_RESPONSE_STRIP_COLUMNS`).
+  // 전부 **엔티티 컬럼이라 응답에 상시 존재**한다 → §5.4 의 기본형
+  // (`@ApiProperty` + 컬럼이 nullable 이면 `nullable: true`). `@ApiPropertyOptional`
+  // 은 `required: false` 의 별칭이라 상시 존재 필드에 쓰면 "상시 존재" 와 모순된다.
 
   /** chat-channel 연동 상태 */
-  @ApiPropertyOptional({ example: 'healthy' })
-  chatChannelHealth?: string;
+  @ApiProperty({ enum: ['unknown', 'healthy', 'degraded'], example: 'healthy' })
+  chatChannelHealth: TriggerChatChannelHealth;
 
   /** chat-channel 마지막 오류 메시지 (없으면 `null`) */
-  @ApiPropertyOptional({ nullable: true, type: String })
-  chatChannelLastError?: string | null;
+  @ApiProperty({ nullable: true, type: String })
+  chatChannelLastError: string | null;
 
   /** chat-channel 최초 설정 시각 (없으면 `null`) */
-  @ApiPropertyOptional({ format: 'date-time', nullable: true })
-  chatChannelSetupAt?: string | null;
+  @ApiProperty({ format: 'date-time', nullable: true, type: String })
+  chatChannelSetupAt: string | null;
 
   /** chat-channel bot token 최종 회전 시각 (없으면 `null`) */
-  @ApiPropertyOptional({ format: 'date-time', nullable: true })
-  chatChannelRotatedAt?: string | null;
+  @ApiProperty({ format: 'date-time', nullable: true, type: String })
+  chatChannelRotatedAt: string | null;
 
   /** outbound notification 발송 상태 */
-  @ApiPropertyOptional({ example: 'healthy' })
-  notificationHealth?: string;
+  @ApiProperty({ enum: ['unknown', 'healthy', 'degraded'], example: 'healthy' })
+  notificationHealth: TriggerNotificationHealth;
 
   /** outbound notification 마지막 오류 메시지 (없으면 `null`) */
-  @ApiPropertyOptional({ nullable: true, type: String })
-  notificationLastError?: string | null;
+  @ApiProperty({ nullable: true, type: String })
+  notificationLastError: string | null;
 
   /** outbound notification secret 최종 회전 시각 (없으면 `null`) */
-  @ApiPropertyOptional({ format: 'date-time', nullable: true })
-  notificationRotatedAt?: string | null;
+  @ApiProperty({ format: 'date-time', nullable: true, type: String })
+  notificationRotatedAt: string | null;
 }
 
 /** 트리거 실행 이력 아이템 */

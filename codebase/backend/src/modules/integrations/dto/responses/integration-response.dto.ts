@@ -118,28 +118,37 @@ export class IntegrationDto {
   // ── 아래 필드는 **이미 응답에 실려 나가고 있었다** — 컨트롤러가 엔티티를 그대로
   // 반환하기 때문이다. §5.4 응답-계약 스윕이 "선언되지 않은 키" 로 검출했고,
   // 프런트엔드가 실제로 소비하므로 빼면 계약 회귀다. 선언을 실제에 맞춘다.
-  // (FE 참조 수 — appUrl 10 · lastRotatedAt 9 · lastUsedAt 16 · mallId 6 ·
-  //  tokenExpiresAt 10 · consecutiveNetworkFailures 0)
+  //
+  // 전부 **엔티티 컬럼이라 응답에 상시 존재**한다 → §5.4 의 기본형
+  // (`@ApiProperty` + 컬럼이 nullable 이면 `nullable: true`). `@ApiPropertyOptional`
+  // 은 `required: false` 의 별칭이라 상시 존재 필드에 쓰면 "상시 존재" 와 모순된다.
 
-  /** 연동 대상 서비스의 앱 URL (없으면 `null`) */
-  @ApiPropertyOptional({ nullable: true, type: String })
-  appUrl?: string | null;
+  // `appUrl` 은 엔티티 컬럼이 아니지만 **상시 존재**한다 — `IntegrationsService.toPublic`
+  // 이 `{ appType: null, appUrl: null }` 기저값 위에 얹으므로, cafe24 Private 이 아니면
+  // `null` 이 실린다. 그래서 키 생략형이 아니라 §5.4 기본형이다.
+  //
+  // (첫 판은 키 생략형으로 적었다가 e2e 계약 대조가 `appUrl [null] 키 생략형인데 null 이
+  //  왔다` 로 잡았다 — 검증자가 제 선언을 반증한 자리다.)
+
+  /** cafe24 Private 앱의 관리자 URL — 그 외에는 `null` */
+  @ApiProperty({ nullable: true, type: String, example: null })
+  appUrl: string | null;
 
   /** 쇼핑몰 식별자 — cafe24/makeshop 계열에서만 채워진다 (없으면 `null`) */
-  @ApiPropertyOptional({ nullable: true, type: String })
-  mallId?: string | null;
+  @ApiProperty({ nullable: true, type: String })
+  mallId: string | null;
 
   /** 액세스 토큰 만료 시각 (없으면 `null`) */
-  @ApiPropertyOptional({ format: 'date-time', nullable: true })
-  tokenExpiresAt?: string | null;
+  @ApiProperty({ format: 'date-time', nullable: true, type: String })
+  tokenExpiresAt: string | null;
 
   /** 자격 증명 최종 회전 시각 (없으면 `null`) */
-  @ApiPropertyOptional({ format: 'date-time', nullable: true })
-  lastRotatedAt?: string | null;
+  @ApiProperty({ format: 'date-time', nullable: true, type: String })
+  lastRotatedAt: string | null;
 
   /** 최종 사용 시각 (없으면 `null`) */
-  @ApiPropertyOptional({ format: 'date-time', nullable: true })
-  lastUsedAt?: string | null;
+  @ApiProperty({ format: 'date-time', nullable: true, type: String })
+  lastUsedAt: string | null;
 
   /**
    * 연속 네트워크 실패 횟수 — health 판정의 내부 카운터다.
@@ -148,8 +157,8 @@ export class IntegrationDto {
    * 이미 나가고 있어서이고, 빼는 것은 wire 변경(파괴적)이라 CHANGELOG 를 동반해야
    * 한다 — 별도 항목으로 트래커에 남긴다.
    */
-  @ApiPropertyOptional({ example: 0 })
-  consecutiveNetworkFailures?: number;
+  @ApiProperty({ example: 0 })
+  consecutiveNetworkFailures: number;
 }
 
 /** 지원 서비스 카탈로그 엔트리 */

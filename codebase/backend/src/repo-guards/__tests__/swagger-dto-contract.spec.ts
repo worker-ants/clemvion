@@ -43,6 +43,8 @@ import {
   findSwaggerContractMismatches,
   scanNumericExposure,
   type ContractMismatch,
+  findOptionalNullableResponseFields,
+  isResponseDtoFile,
 } from './swagger-dto-contract-guard';
 
 const SRC_ROOT = path.resolve(__dirname, '..', '..');
@@ -350,6 +352,130 @@ describe('옵션 리더는 리터럴을 만날 때까지 훑는다', () => {
  * 위 두 축(presence·null)은 이것을 **구조적으로 못 본다** — 둘 다 원시 타입 차이를 보지
  * 않기 때문이다. 2026-09-04 에 `AlertRuleDto.threshold` 가 정확히 그 사각지대에 있었다.
  */
+/**
+ * §5.4 금지 조합(`required:false` + `nullable:true`)의 **래칫**.
+ *
+ * 목록은 "고쳐야 할 빚" 이지 허용목록이 아니다. 새 필드가 이 형태로 들어오면 목록에 없어
+ * 실패하고, 빚을 갚아 줄이면 목록에서 빼야 통과한다 — 양방향으로 조인다.
+ *
+ * 실제로 조용히 넓어진 적이 있다: 2026-09-05 §5.4 스윕 커밋이 17개 필드를 이 형태로 새로
+ * 선언했고, **두 검증자 어느 쪽도 잡지 못했다**(`response-contract.ts` 는 값을 보고,
+ * presence/null 축은 선언과 타입이 서로 맞는지만 본다). 그 사건이 이 가드의 존재 이유다.
+ */
+const EXPECTED_OPTIONAL_NULLABLE_DRIFT: readonly string[] = [
+  'alert-rule-response.dto.ts:AlertRuleDto.window',
+  'alert-rule-response.dto.ts:AlertRuleDto.workflowId',
+  'audit-log-response.dto.ts:AuditLogDto.ipAddress',
+  'audit-log-response.dto.ts:AuditLogDto.user',
+  'auth-config-response.dto.ts:AuthConfigDto.ipWhitelist',
+  'auth-config-response.dto.ts:AuthConfigDto.lastUsedAt',
+  'auth-config-response.dto.ts:AuthConfigUsageDto.lastUsedAt',
+  'dashboard-response.dto.ts:DashboardSummaryDto.runs7dChangePercent',
+  'dashboard-response.dto.ts:RecentExecutionDto.durationMs',
+  'edge-response.dto.ts:EdgeDto.condition',
+  'execution-response.dto.ts:ExecutionDto.chainId',
+  'execution-response.dto.ts:ExecutionDto.durationMs',
+  'execution-response.dto.ts:ExecutionDto.error',
+  'execution-response.dto.ts:ExecutionDto.executedBy',
+  'execution-response.dto.ts:ExecutionDto.finishedAt',
+  'execution-response.dto.ts:ExecutionDto.inputData',
+  'execution-response.dto.ts:ExecutionDto.outputData',
+  'execution-response.dto.ts:ExecutionDto.parentExecutionId',
+  'execution-response.dto.ts:ExecutionDto.reRunOf',
+  'execution-response.dto.ts:ExecutionDto.triggerId',
+  'execution-response.dto.ts:NodeExecutionSummaryDto.durationMs',
+  'execution-response.dto.ts:NodeExecutionSummaryDto.error',
+  'execution-response.dto.ts:NodeExecutionSummaryDto.finishedAt',
+  'execution-response.dto.ts:NodeExecutionSummaryDto.inputData',
+  'execution-response.dto.ts:NodeExecutionSummaryDto.outputData',
+  'folder-response.dto.ts:FolderDto.parentId',
+  'integration-response.dto.ts:IntegrationActivityItemDto.apiLabel',
+  'integration-response.dto.ts:IntegrationActivityItemDto.apiMethod',
+  'integration-response.dto.ts:IntegrationActivityItemDto.apiPath',
+  'integration-response.dto.ts:IntegrationActivityItemDto.errorMessage',
+  'integration-response.dto.ts:IntegrationActivityItemDto.executionId',
+  'integration-response.dto.ts:IntegrationDto.expiresAt',
+  'integration-response.dto.ts:IntegrationDto.lastCheckedAt',
+  'integration-response.dto.ts:IntegrationDto.lastError',
+  'integration-response.dto.ts:IntegrationDto.statusReason',
+  'integration-response.dto.ts:TestConnectionResultDto.message',
+  'knowledge-base-response.dto.ts:DocumentDto.embeddingErrorMessage',
+  'knowledge-base-response.dto.ts:DocumentDto.embeddingLastAttemptedAt',
+  'knowledge-base-response.dto.ts:DocumentDto.graphErrorMessage',
+  'knowledge-base-response.dto.ts:DocumentDto.graphExtractionStatus',
+  'knowledge-base-response.dto.ts:DocumentDto.graphLastAttemptedAt',
+  'knowledge-base-response.dto.ts:GraphEntityDto.description',
+  'knowledge-base-response.dto.ts:KnowledgeBaseDto.description',
+  'knowledge-base-response.dto.ts:KnowledgeBaseDto.embeddingDimension',
+  'knowledge-base-response.dto.ts:KnowledgeBaseDto.extractionLlmConfigId',
+  'model-config-response.dto.ts:ModelConfigDto.apiKey',
+  'model-config-response.dto.ts:ModelConfigDto.baseUrl',
+  'model-config-response.dto.ts:ModelConfigDto.dimension',
+  'model-config-response.dto.ts:ModelTestConnectionResultDto.message',
+  'node-response.dto.ts:NodeDto.containerId',
+  'node-response.dto.ts:NodeDto.description',
+  'node-response.dto.ts:NodeDto.toolOwnerId',
+  'notification-response.dto.ts:NotificationDto.dismissedAt',
+  'notification-response.dto.ts:NotificationDto.emailSentAt',
+  'notification-response.dto.ts:NotificationDto.resourceId',
+  'notification-response.dto.ts:NotificationDto.resourceType',
+  'schedule-response.dto.ts:ScheduleDto.lastRunAt',
+  'schedule-response.dto.ts:ScheduleDto.nextRunAt',
+  'statistics-response.dto.ts:LlmUsageByModelDto.costUsd',
+  'statistics-response.dto.ts:LlmUsageSummaryDto.topProvider',
+  'statistics-response.dto.ts:LlmUsageSummaryDto.totalCostUsd',
+  'statistics-response.dto.ts:LlmUsageTimeseriesItemDto.costUsd',
+  'statistics-response.dto.ts:StatisticsSummaryDto.totalExecutionsChangeRate',
+  'trigger-response.dto.ts:TriggerDto.authConfigId',
+  'trigger-response.dto.ts:TriggerDto.endpointPath',
+  'trigger-response.dto.ts:TriggerDto.lastTriggeredAt',
+  'trigger-response.dto.ts:TriggerDto.nextRunAt',
+  'trigger-response.dto.ts:TriggerHistoryItemDto.durationMs',
+  'user-response.dto.ts:UserProfileDto.avatarUrl',
+  'user-response.dto.ts:UserProfileDto.pendingEmail',
+  'workflow-response.dto.ts:ExportWorkflowDto.description',
+  'workflow-response.dto.ts:WorkflowDto.description',
+  'workflow-response.dto.ts:WorkflowDto.folderId',
+  'workflow-version-response.dto.ts:WorkflowVersionDto.changeSummary',
+  'workflow-version-response.dto.ts:WorkflowVersionDto.creator',
+  'workflow-version-response.dto.ts:WorkflowVersionListItemDto.changeSummary',
+  'workflow-version-response.dto.ts:WorkflowVersionListItemDto.creator',
+  'workspace-response.dto.ts:WorkspaceInvitationDto.invitedBy',
+];
+
+describe('§5.4 금지 조합 래칫 — 응답 DTO 의 required:false + nullable:true', () => {
+  const offenders = findOptionalNullableResponseFields(
+    collectTsFiles(SRC_ROOT),
+    SRC_ROOT,
+  );
+
+  it('알려진 목록과 정확히 일치한다 (새로 생겨도, 남몰래 줄어도 실패)', () => {
+    expect(offenders.map((o) => o.key).sort()).toEqual(
+      [...EXPECTED_OPTIONAL_NULLABLE_DRIFT].sort(),
+    );
+  });
+
+  it('[대조군] 요청 DTO 는 대상이 아니다 — §5.4 가 명시적으로 제외한다', () => {
+    expect(isResponseDtoFile('/x/src/modules/a/dto/update-a.dto.ts')).toBe(
+      false,
+    );
+    expect(
+      isResponseDtoFile('/x/src/modules/a/dto/responses/a-response.dto.ts'),
+    ).toBe(true);
+  });
+
+  it('[대조군] 술어가 실제로 그 조합을 집는다', () => {
+    const fixture = path.join(
+      __dirname,
+      'optional-nullable-ratchet-fixture.ts',
+    );
+    const found = findOptionalNullableResponseFields([fixture], SRC_ROOT);
+    // 픽스처 경로가 `dto/responses/` 를 포함하지 않으므로 스킵된다 — 그것 자체가
+    // 응답-DTO 한정 판정의 증거다.
+    expect(found).toEqual([]);
+  });
+});
+
 describe('numeric 컬럼을 number 로 문서화한 응답 DTO', () => {
   it('저장소에 그런 자리가 없다', () => {
     expect(findNumericAsNumber(collectTsFiles(SRC_ROOT))).toEqual([]);

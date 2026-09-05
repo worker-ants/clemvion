@@ -109,7 +109,7 @@ describe('POST /api/triggers — chat-channel multi-provider (e2e)', () => {
       expect(chatChannel.provider).toBe('telegram');
       assertMatchesContract(trigger, await contractForDto(TriggerDto));
       expect(chatChannel.hasBotToken).toBe(true);
-      // plaintext / ref 는 응답에 절대 없어야 함 (sanitizeChatChannelForResponse).
+      // plaintext / ref 는 응답에 절대 없어야 함 (sanitizeForResponse).
       expect(chatChannel).not.toHaveProperty('botToken');
       expect(chatChannel).not.toHaveProperty('botTokenRef');
       expect(chatChannel).not.toHaveProperty('inboundSigningRef');
