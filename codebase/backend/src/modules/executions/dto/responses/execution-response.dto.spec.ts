@@ -59,6 +59,15 @@ const REQUIRED_NULLABLE = ['triggerLabel'];
  * (키 생략형에는 `| null` 을 붙이지 않는다). 이 10개는 트래커가 §5.4 drift 로 추적 중인
  * 기존 상태이고, 이 가드는 **고치는 것이 아니라 고정한다** — 값이 바뀌면 그것이 의도된
  * 정정인지 사고인지 이 목록의 diff 로 드러난다.
+ *
+ * > **저장소 전체 판은 따로 있다** — `repo-guards/__tests__/swagger-dto-contract.spec.ts`
+ * > 의 `EXPECTED_OPTIONAL_NULLABLE_DRIFT` 가 응답 DTO **전수**를 훑어 같은 조합을 고정한다
+ * > (78건). 아래 10개는 그 부분집합이므로, **한쪽만 상환하면 다른 쪽이 조용히 낡는다** —
+ * > `ExecutionDto` 의 drift 를 갚을 때는 두 목록을 함께 줄여야 한다
+ * > (`review/consistency/2026/09/05/19_08_19` W5).
+ * >
+ * > 이 목록을 남겨 두는 이유: 전수 래칫은 `<파일>:<클래스>.<필드>` 키만 고정하고
+ * > **required/nullable 의 정확한 형태**는 보지 않는다. 아래 스펙은 그 형태까지 단언한다.
  */
 const OPTIONAL_NULLABLE_DRIFT = [
   'chainId',

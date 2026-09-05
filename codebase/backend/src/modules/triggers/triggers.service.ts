@@ -61,20 +61,6 @@ const CHAT_CHANNEL_RESPONSE_STRIP_KEYS = new Set<string>([
 ]);
 
 /**
- * 응답에서 제거할 **엔티티 컬럼**. 위 목록이 `config.chatChannel` JSONB 안을 지우는 것과
- * 달리 이쪽은 `trigger` 행의 컬럼이다 — **같은 등급의 비밀이 두 곳에 산다.**
- *
- * `notification_secret_v2` 는 참조가 아니라 **평문 서명 secret** 이다(24h rotation grace
- * 동안 non-null; 엔티티 주석 "본 컬럼이 새 secret 으로 승격" 참조). `chat_channel_token_v2`
- * 는 secret store ref 라 등급이 한 단계 낮지만, 내부 저장 위치를 드러내므로 같이 뺀다 —
- * `botTokenRef` 를 이미 빼는 것과 같은 이유다.
- *
- * **왜 `select: false` 가 아닌가**: 로테이션 스윕(`sweepNotificationRotation` ·
- * `sweepChatChannelRotation`)이 이 컬럼들을 읽어 승격/정리한다. 컬럼 수준에서 끄면 그
- * 경로가 `undefined` 를 받고 **예외 없이** 조용히 오작동한다 — fail-safe 가 아니라
- * fail-silent 다. 응답 경계에서 지우면 읽는 쪽은 그대로 둔 채 나가는 쪽만 막힌다.
- */
-/**
  * `config.notification.signing` 에서 제거할 키.
  *
  * `secretRef` 는 secret store 참조이고 `secret` 은 정규화 전 평문이 스쳐 가는 자리다
@@ -90,6 +76,21 @@ const NOTIFICATION_SIGNING_STRIP_KEYS = new Set<string>([
   'secretRef',
 ]);
 
+/**
+ * 응답에서 제거할 **엔티티 컬럼**. `CHAT_CHANNEL_RESPONSE_STRIP_KEYS` ·
+ * `NOTIFICATION_SIGNING_STRIP_KEYS` 가 `config` JSONB **안의 키**를 지우는 것과 달리
+ * 이쪽은 `trigger` 행의 **컬럼**이다 — 같은 등급의 비밀이 **세 곳**에 산다.
+ *
+ * `notification_secret_v2` 는 참조가 아니라 **평문 서명 secret** 이다(24h rotation grace
+ * 동안 non-null; 엔티티 주석 "본 컬럼이 새 secret 으로 승격" 참조). `chat_channel_token_v2`
+ * 는 secret store ref 라 등급이 한 단계 낮지만, 내부 저장 위치를 드러내므로 같이 뺀다 —
+ * `botTokenRef` 를 이미 빼는 것과 같은 이유다.
+ *
+ * **왜 `select: false` 가 아닌가**: 로테이션 스윕(`sweepNotificationRotation` ·
+ * `sweepChatChannelRotation`)이 이 컬럼들을 읽어 승격/정리한다. 컬럼 수준에서 끄면 그
+ * 경로가 `undefined` 를 받고 **예외 없이** 조용히 오작동한다 — fail-safe 가 아니라
+ * fail-silent 다. 응답 경계에서 지우면 읽는 쪽은 그대로 둔 채 나가는 쪽만 막힌다.
+ */
 const TRIGGER_RESPONSE_STRIP_COLUMNS = [
   'notificationSecretV2',
   'chatChannelTokenV2',
@@ -545,27 +546,32 @@ export class TriggersService {
   }
 
   /**
-   * [Spec Chat Channel §5.4.2 + secret-store.md §5.5 SS-SE-01] — 응답 DTO 전용 derived 필드
-   * + 내부 ref + plaintext strip.
+   * 트리거를 **응답 경계**에서 정화한다 — 비밀이 사는 **세 곳**을 모두 덮는다.
    *
-   * Strip 키 집합 (`CHAT_CHANNEL_RESPONSE_STRIP_KEYS`) 은 module-level 상수로 단일 진실.
-   * 신규 plaintext / 내부 ref 필드 추가 시 본 상수에 키를 추가해야 응답 sanitize 가 적용됨
-   * (allow-list 패턴 — destructure 시 누락 위험 회피).
-   *
-   * - `hasBotToken: boolean` derived 필드 주입 (`botTokenRef IS NOT NULL → true`).
-   * - Trigger entity 는 변경하지 않음 — 새 객체로 반환 (DB 저장에 영향 없도록).
-   */
-  /**
-   * 트리거를 **응답 경계**에서 정화한다 — 비밀이 사는 두 곳을 **모두** 덮는다.
+   * [Spec Chat Channel §5.4.2 + secret-store.md §5.5 SS-SE-01]
    *
    * 1. `config.chatChannel` JSONB 안의 키 (`CHAT_CHANNEL_RESPONSE_STRIP_KEYS`)
-   * 2. `trigger` 행의 **엔티티 컬럼** (`TRIGGER_RESPONSE_STRIP_COLUMNS`)
+   * 2. `config.notification.signing` 안의 키 (`NOTIFICATION_SIGNING_STRIP_KEYS`)
+   * 3. `trigger` 행의 **엔티티 컬럼** (`TRIGGER_RESPONSE_STRIP_COLUMNS`)
    *
-   * 종전 이 메서드는 (1) 만 했고, `config.chatChannel` 이 없으면 **조기 return** 했다.
-   * 그래서 chat-channel 이 아닌 트리거는 정화를 아예 거치지 않았고, chat-channel 트리거도
-   * 컬럼 쪽 비밀은 그대로 나갔다 — `GET /api/triggers` 의 `createQueryBuilder('t')` 가
-   * 전 컬럼을 select 하므로 로테이션 유예 중이면 `notificationSecretV2` 가 wire 로 나간다.
+   * 신규 plaintext / 내부 ref 필드를 추가할 때는 해당 상수에 키를 넣어야 정화가 걸린다
+   * (destructure 대신 목록 — 누락 위험 회피). `hasBotToken` 은 `botTokenRef` 존재로부터
+   * 파생해 주입한다.
+   *
+   * **엔티티를 변경하지 않는다 — 항상 새 객체를 돌려준다** (DB 저장에 영향이 없도록).
+   * 조기 return 을 없앤 뒤로는 정화할 것이 없는 트리거도 새 참조를 받는다, 그러니 호출부는
+   * 참조 동일성을 전제하지 말 것.
+   *
+   * ## 왜 세 목록인가 — 이 메서드가 두 번 좁게 틀렸다
+   *
+   * 처음엔 (1) 만 했고 `config.chatChannel` 이 없으면 **조기 return** 했다. 그래서
+   * chat-channel 이 아닌 트리거는 정화를 아예 거치지 않았고, chat-channel 트리거도 컬럼 쪽
+   * 비밀(3)은 그대로 나갔다 — `GET /api/triggers` 의 `createQueryBuilder('t')` 가 전 컬럼을
+   * select 하므로 로테이션 유예 중이면 `notificationSecretV2` 가 wire 로 나간다.
    * (§5.4 응답-계약 스윕이 `TriggerDto` 미선언 9필드로 검출.)
+   *
+   * 그것을 고친 뒤에도 (2) 가 빠져 있었다 — `botTokenRef` 를 빼는 것과 **같은 등급·같은
+   * 이유**인데 목록이 chat-channel 쪽에만 있었다 (`review/code/2026/09/05/18_23_02` W1).
    */
   private sanitizeForResponse<T extends Trigger>(trigger: T): T {
     const cfg = trigger.config as

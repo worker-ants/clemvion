@@ -404,6 +404,28 @@ field: T | null;
         > - **엔드포인트인데 기존 e2e 가 안 때리는 것** — 새 e2e 시나리오가 선행이다.
         > - **매퍼가 놓친 것** — 손으로 찾아야 한다.
 
+        > #### 스윕 1차의 자기 반박 (2026-09-05, `cb17f0870`)
+        >
+        > 위 배선과 함께 넣은 **23필드 선언이 §5.4 금지 조합**(`@ApiPropertyOptional` +
+        > `nullable: true`)이었다. 같은 PR 이 다른 파일에서 "동결, 확대 금지" 라고 적어 둔
+        > 형태를 **내가 넓혔다** (`--impl-done 18_23_03` Critical 1, checker 2명이 독립 검출).
+        > 전부 §5.4 기본형으로 정정했다.
+        >
+        > **왜 아무도 못 잡았나**: 런타임 검증자는 **값**을 보는데 이 조합은 키가 없어도
+        > `null` 이어도 맞고, 정적 가드의 presence/null 축은 **선언과 TS 타입이 서로 맞는지**
+        > 만 보는데 이 조합은 일관되게 틀려 있다. **두 검증자 사이의 사각지대**였다.
+        >
+        > → `swagger-dto-contract-guard.ts` 에 세 번째 축을 더해 응답 DTO 전수를 훑고
+        > **78건**을 `EXPECTED_OPTIONAL_NULLABLE_DRIFT` 로 고정했다(양방향 래칫).
+        >
+        > **이 78 은 위 「스윕 1차」의 모집단과 다른 것을 센다** — 그쪽은 *배선 대상 DTO*
+        > 수이고, 이쪽은 *금지 조합을 쓰는 필드* 수다. 더하거나 비교하지 말 것.
+        >
+        > 부수: `ScheduleDto.trigger` 의 wire 형태를 **키 생략**으로 확정했다(종전 `null`
+        > 을 내보내 §5.4 를 반대 방향으로 어겼다). `POST /api/schedules` 는 `isActive`
+        > 값과 무관하게 `trigger` 를 실어 보낸다 — 종전에는 `isActive: false` 면 트리거를
+        > 만들어 놓고 응답에서만 빠졌다.
+
 - [ ] **`CanvasSaveResultDto.nodes`/`.edges` 가 타입 없는 객체 배열** (developer,
       2026-09-05 등재). `@ApiProperty({ type: 'array', items: { type: 'object' } })` 라
       **검증자가 그 아래로 내려가지 않는다** — 캔버스 저장 응답에 어떤 엔티티 필드가
@@ -658,6 +680,31 @@ field: T | null;
       >
       > **실제 처분**: 이번 턴이 어차피 여는 `2-api-convention.md` 에만 추가.
       > `6-websocket-protocol.md` 는 아래 별도 항목으로 재등재.
+
+- [ ] **`notification_secret_v2` 저장 형태 — spec 과 코드가 정면 모순** (planner,
+      2026-09-05 등재, `review/consistency/2026/09/05/19_08_19` **Critical 1 · BLOCK 사유**).
+
+      `spec/5-system/14-external-interaction-api.md §7.1` 이 그 컬럼을 *"ref 만 보관"* 이라
+      적는데, 실제로는 **rotation grace 24h 동안 평문**으로 DB 에 있고 SecretResolver 를
+      우회한다(`notification-webhook.processor.ts` 가 그대로 읽는다).
+      `spec/conventions/secret-store.md §1` 예외 목록(현재 2건)에도 없어, 그 문서가 스스로
+      경고한 *"세 번째 필드가 근거 없이 예외를 얻는 실패 모드"* 가 실현된 상태다.
+
+      **developer 권한 밖이고 자기-반증형 소정정에도 해당하지 않는다** — 그 문장은 내가 쓴
+      예고가 아니라 2026-05-22 에 확정된 보안 invariant 다. 둘 중 하나를 planner 가 정한다:
+
+      - (a) **사실로 정정 + 예외 등재** — §7.1 문구를 실측으로 고치고 `secret-store.md §1`
+        에 독립 근거(예: dual-sign hot-path 비용)와 함께 세 번째 예외로 등재
+      - (b) **코드측 ref 화 요구** — 등재를 거부하고 별도 설계 변경 PR 로 전환 지시
+
+      같은 planner 턴에서 함께 처리할 것 (같은 라운드의 W2·W3):
+
+      - `2-api-convention.md` frontmatter `code:` 에 **정적 가드**
+        (`repo-guards/__tests__/swagger-dto-contract*.ts`) 등재 — 직전 planner 턴이
+        *"한쪽만 등재하면 사각지대가 남는다"* 며 런타임 검증자를 양쪽에 넣었는데, 그
+        원칙을 세운 문서가 **자기 짝을 빠뜨렸다.**
+      - `spec/2-navigation/4-integration.md §9.1` 에 `IntegrationDto` 확장 필드용
+        `1-data-model.md §2.10` 포인터 한 줄.
 
 - [ ] **`6-websocket-protocol.md` 도입 산문** (planner, 2026-09-05 등재). 위 실측에서
       개요 내용이 **실제로 없는** 두 문서 중 남은 하나. `## 1. 연결` 로 바로 시작한다.

@@ -206,7 +206,13 @@ describe('TriggersService.findOneDetail', () => {
       config: {
         notification: {
           url: 'https://example.com/hook',
-          signing: { secretRef: 'secret://triggers/t1/notification-signing' },
+          signing: {
+            // 두 키를 **모두** 채운다 — 종전에는 `secretRef` 만 넣고 `secret` 까지
+            // 단언해서, 스트립 목록에서 `'secret'` 을 빼는 뮤턴트가 GREEN 이었다
+            // (`review/code/2026/09/05/19_08_18` W4).
+            secret: 'plaintext-should-be-stripped',
+            secretRef: 'secret://triggers/t1/notification-signing',
+          },
         },
       },
     } as unknown as Trigger);

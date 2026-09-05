@@ -225,6 +225,10 @@ describe('Schedule trigger (e2e)', () => {
     expect(patch.status).toBe(200);
     expect(patch.body.data.nextRunAt).toBeDefined();
     expect(patch.body.data.nextRunAt).not.toBe(originalNext);
+    // PATCH 도 `toResponse` 를 타지만 `update()` 의 trigger 대입 로직이 `findOne` 과
+    // 달라(`trigger ?? schedule.trigger`) 공유 헬퍼만으로 안전이 자동 보장되지 않는다
+    // (`review/code/2026/09/05/19_08_18` W5).
+    assertMatchesContract(patch.body.data, await contractForDto(ScheduleDto));
   });
 
   it('E. run-now → 202 + executionId', async () => {
