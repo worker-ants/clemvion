@@ -63,11 +63,43 @@ secret://<scope>/<resourceId>/<name>
 >    ([data-flow §1.5 승격 경로](../data-flow/15-external-interaction.md)). `AuthConfig.config`
 >    (영구·암호화)·`itk_*`(영구·평문) 어느 쪽과도 다른 세 번째 형태다.
 > 2. **노출 창이 정책으로 닫혀 있다** — grace 종료 cron 이 컬럼을 정리한다.
-> 3. **서버 발급·1회 노출·영향 범위가 트리거 하나** — `wsk_` + `randomBytes(32)` 이고
->    rotate 응답에만 실린다. 사용자가 입력한 외부 자격증명이 아니다.
+> 3. **서버 발급·영향 범위가 트리거 하나** — `wsk_` + `randomBytes(32)` 이고 사용자가
+>    입력한 외부 자격증명이 아니다.
+>
+>    > **노출 창은 아직 설계대로 닫혀 있지 않다.** 정책상 평문이 나가는 자리는 rotate
+>    > 응답 1회지만, **현행 구현은 `GET/POST/PATCH /api/triggers` 와 `GET /api/schedules`
+>    > (트리거 조인) 응답에도 이 컬럼을 그대로 싣는다** — 엔티티를 그대로 반환하는데
+>    > 컬럼 단위 스트립이 없기 때문이다(전역 `ClassSerializerInterceptor`·`select:false`·
+>    > `@Exclude()` 모두 없음). 즉 grace 24h 동안 **매 요청** 노출된다.
+>    >
+>    > **이 등재는 그 상태를 승인하지 않는다.** 예외의 대상은 *"컬럼에 평문으로 보관"*
+>    > 이지 *"응답에 실어도 된다"* 가 아니다 — 아래 §1.1 이 그 경계를 규범으로 적는다.
+>    > 유출을 닫는 코드 수정은 `plan/in-progress/spec-draft-nullable-notation-followups.md`
+>    > 가 추적한다.
 > 4. **primary 경로는 그대로다** — 이 예외는 grace 창의 secondary 키에만 적용되며
 >    `signing.secretRef` 정책을 건드리지 않는다.
 >
+### 1.1 비대상 필드도 **응답 바디에는 나가지 않는다**
+
+위 비대상 등재는 **저장 위치**에 대한 예외이지 **노출**에 대한 예외가 아니다. `secret://`
+밖에 사는 필드(`AuthConfig.config` 자격증명 · `Trigger.config.interaction.triggerToken` ·
+`Trigger.notification_secret_v2`)와 secret store ref(`Trigger.chat_channel_token_v2` ·
+`config.*.botTokenRef` · `config.notification.signing.secretRef`)는 **응답 DTO 에 선언되어서도,
+응답 바디에 실려서도 안 된다.**
+
+- ref 도 대상이다 — 평문은 아니지만 내부 저장 위치를 드러낸다.
+- 시행 축은 두 개다: [API 규약 §5.4](../5-system/2-api-convention.md) 의 **응답-계약 검증**
+  (선언되지 않은 키를 위반으로 본다)과 [Swagger 규약 §5-1](./swagger.md) 의 **엔티티
+  패스스루 금지**.
+- 엔티티를 그대로 반환하는 경로에서는 **응답 경계에서 지운다**. 컬럼 수준
+  (`select: false`)은 그 컬럼을 읽는 내부 경로(회전 승격·정리 스윕)가 예외 없이 `undefined`
+  를 받아 **조용히 오작동**하므로 쓰지 않는다.
+
+> 이 절은 2026-09-05 에 추가됐다. 그 전까지 *"이 컬럼들이 응답에 나가면 안 된다"* 는 요구가
+> `spec/**` 어디에도 정규 문장으로 없었고(실측 0건), 실제로 두 엔드포인트에서 나가고 있었다.
+
+---
+
 > **다음 필드가 이 문단을 인용하려면 (1) 을 만족해야 한다** — "승격되어 store 로 들어가고
 > 컬럼이 비워지는가". 그 조건 없이 이 문단을 "평문 보관 일반의 선례" 로 쓰는 것이 이
 > 등재의 실패 모드다 (위 `itk_*` 문단과 같은 취지).
