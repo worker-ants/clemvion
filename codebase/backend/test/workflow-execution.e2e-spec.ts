@@ -4,6 +4,12 @@ import { Client } from 'pg';
 import request from 'supertest';
 
 import { createDbClient, uniqueEmail, uniqueName } from './helpers/db';
+import {
+  assertMatchesDtoSchema,
+  schemaForDto,
+} from '../src/shared/testing/response-contract';
+import { ExecutionDto } from '../src/modules/executions/dto/responses/execution-response.dto';
+import type { SwaggerSchemaObject } from '../src/shared/testing/swagger-probe';
 import { registerAndLogin, createTeamWorkspace } from './helpers/auth';
 
 /**
@@ -54,10 +60,12 @@ async function pollExecution(
 
 describe('Workflow Execution (e2e)', () => {
   let db: Client;
+  let executionSchema: SwaggerSchemaObject;
   let ownerToken: string;
   let workspaceId: string;
 
   beforeAll(async () => {
+    executionSchema = await schemaForDto(ExecutionDto);
     db = createDbClient();
     await db.connect();
     const owner = await registerAndLogin(BASE_URL, uniqueEmail('wfexec'), db);
@@ -133,6 +141,13 @@ describe('Workflow Execution (e2e)', () => {
     const items = list.body.data as Array<{ id: string }>;
     expect(Array.isArray(items)).toBe(true);
     expect(items.some((i) => i.id === executionId)).toBe(true);
+
+    // §5.4 — 이 엔드포인트는 컨트롤러가 엔티티를 그대로 내보내는 경로라 `tsc` 가
+    // `ExecutionDto` 와 대조할 지점이 없다. 실제 응답 1건을 **생성된 OpenAPI 스키마**와
+    // 맞춰 그 DTO 의 22개 필드를 한 번에 문다 (개별 단언 22개를 쓰지 않는 이유).
+    const mine = items.find((i) => i.id === executionId);
+    expect(mine).toBeDefined();
+    assertMatchesDtoSchema(mine, executionSchema, 'ExecutionDto');
   }, 30_000);
 
   it('C. cross-workspace stop → 404 IDOR 차단 (소속 워크스페이스 외 접근)', async () => {
