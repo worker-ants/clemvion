@@ -4,6 +4,11 @@ import request from 'supertest';
 
 import { createDbClient, uniqueEmail, uniqueName } from './helpers/db';
 import { registerAndLogin, createTeamWorkspace } from './helpers/auth';
+import {
+  assertMatchesContract,
+  contractForDto,
+} from '../src/shared/testing/response-contract';
+import { IntegrationDto } from '../src/modules/integrations/dto/responses/integration-response.dto';
 
 /**
  * e2e: AI Agent 도구 정의 payload 예산 저장 시점 경고(backend-only graph warning
@@ -91,6 +96,7 @@ describe('AI Agent tool-payload budget — config-time graph warning (e2e)', () 
       });
     expect(res.status).toBe(201);
     const id = (res.body.data as { id: string }).id;
+    assertMatchesContract(res.body.data, await contractForDto(IntegrationDto));
     await db.query(
       `UPDATE integration SET service_type = 'makeshop', status = 'connected' WHERE id = $1`,
       [id],

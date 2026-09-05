@@ -1,5 +1,60 @@
 # Changelog
 
+## Unreleased — 트리거 회전 secret 이 두 엔드포인트로 나갔다 (§5.4 스윕이 검출)
+
+응답-계약 검증자를 14개 엔드포인트로 넓히자, `trigger` 행의 **회전 secret** 이 선언되지 않은
+채 wire 로 나가고 있는 것이 드러났다.
+
+| 필드 | 무엇인가 | 나가던 곳 |
+|---|---|---|
+| `notificationSecretV2` | **평문 서명 secret** — 24h rotation grace 동안 non-null이며, 이 값으로 outbound notification 을 서명한다 | `GET/POST/PATCH /api/triggers`, `GET/POST/PATCH /api/schedules` (조인) |
+| `chatChannelTokenV2` | secret store ref (`secret://triggers/{id}/bot-token.v2`) — 평문은 아니나 내부 저장 위치를 드러낸다 | 〃 |
+
+**영향 — 이미 나간 것은 회수되지 않는다.** 로테이션 유예 중에 이 응답을 저장·로깅·캐시한
+소비자가 있었다면 서명 secret 이 그쪽에 남아 있을 수 있다. 응답 본문을 기록하는 클라이언트
+로그·APM·프록시 캐시를 점검하고, 해당 트리거의 notification secret 회전을 권고한다.
+도달 권한은 해당 워크스페이스 멤버다.
+
+### 원인 — 방어가 있었는데 **한 칸 좁았다**
+
+`TriggersService` 에는 이미 `sanitizeChatChannelForResponse` 가 있었다. 그러나 그것은
+`config.chatChannel` **JSONB 안의 키**만 지웠고, **같은 등급의 비밀이 사는 엔티티 컬럼**은
+손대지 않았다. 게다가 `config.chatChannel` 이 없으면 **조기 return** 해서, chat-channel 이
+아닌 트리거는 정화를 아예 거치지 않았다.
+
+`GET /api/schedules` 는 두 번째 경로다 — `leftJoinAndSelect('s.trigger', 't')` 가 **Trigger
+엔티티 전체**를 실어, 트리거 자신의 응답에서 빼는 컬럼이 **조인을 타고** 새어 나왔다.
+
+수정:
+
+- `sanitizeForResponse` 로 이름을 넓히고 **엔티티 컬럼까지** 지운다. 조기 return 을 없애
+  모든 트리거가 정화를 거친다.
+- 스케줄은 **컨트롤러(응답 경계)** 에서 `trigger` 를 참조 4필드(`id`·`name`·`workflowId`·
+  `workflow.name` — 프런트엔드가 쓰는 전부)로 좁힌다. 서비스 반환 타입을 좁히지 않은 것은
+  `update` 등 내부 로직이 같은 객체의 다른 필드를 소비하기 때문이다.
+- `select: false` 는 쓰지 않았다. 로테이션 스윕이 이 컬럼들을 읽어 승격·정리하므로, 컬럼
+  수준에서 끄면 그 경로가 `undefined` 를 받고 **예외 없이 조용히** 오작동한다.
+
+두 자리 모두 회귀 테스트가 고정한다 — 스트립을 되돌린 뮤턴트에 `TriggerDto` 2건,
+`ScheduleDto` 18건(중첩 경로 `trigger.notificationSecretV2` 포함)이 RED.
+
+### 함께 — 선언이 현실에 뒤처져 있던 24필드를 선언했다
+
+같은 스윕이 "응답에 있는데 DTO 가 선언하지 않은" 키를 5개 DTO 에서 더 찾았다. 프런트엔드가
+실제로 소비하고 있어 **빼면 계약 회귀**이므로, 선언을 실제에 맞췄다 (wire 변경 없음).
+
+| DTO | 선언 추가 |
+|---|---|
+| `TriggerDto` | `chatChannelHealth` · `chatChannelLastError` · `chatChannelSetupAt` · `chatChannelRotatedAt` · `notificationHealth` · `notificationLastError` · `notificationRotatedAt` |
+| `IntegrationDto` | `appUrl` · `mallId` · `tokenExpiresAt` · `lastRotatedAt` · `lastUsedAt` · `consecutiveNetworkFailures` |
+| `KnowledgeBaseDto` | `documentCount` · `embeddingModelConfigId` · `rerankMode` · `rerankCandidateK` · `rerankScoreThreshold` · `rerankConfigId` · `rerankLlmConfigId` |
+| `AlertRuleDto` | `createdBy` · `lastTriggeredAt` |
+| `ScheduleDto` | `trigger` (좁혀진 참조 형태) |
+
+`IntegrationDto.consecutiveNetworkFailures` 만 프런트엔드 참조가 0곳이다 — 내부 health
+카운터라 노출을 멈추는 편이 낫지만 그것은 wire 변경이라 별도 항목으로 남긴다.
+
+
 ## Unreleased — `GET /api/audit-logs` 가 `user` 로 비밀번호 해시와 2FA 복구 코드를 내보냈다
 
 `AuditLogUserDto` 는 `id`·`name`·`email` **3필드**를 광고한다. 실제 응답의 `user` 객체에는

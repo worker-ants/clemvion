@@ -5,6 +5,11 @@ import request from 'supertest';
 
 import { createDbClient, uniqueEmail, uniqueName } from './helpers/db';
 import { registerAndLogin, createTeamWorkspace } from './helpers/auth';
+import {
+  assertMatchesContract,
+  contractForDto,
+} from '../src/shared/testing/response-contract';
+import { NotificationDto } from '../src/modules/notifications/dto/responses/notification-response.dto';
 
 /**
  * e2e: Background 본문 모니터링 API + WebSocket 채널 + 알림 attribution
@@ -368,6 +373,7 @@ describe('Background body monitoring (e2e)', () => {
     const listed = listRes.body.data as Array<Record<string, unknown>>;
     const bgFailed = listed.find((n) => n.type === 'background_failed');
     expect(bgFailed).toBeDefined();
+    assertMatchesContract(bgFailed, await contractForDto(NotificationDto));
     // resource_id 는 딥링크용 workflow id 로 노출되나, backgroundRunId 는 미노출.
     expect(bgFailed).not.toHaveProperty('backgroundRunId');
     expect(bgFailed?.resourceId).toBe(workflowId);

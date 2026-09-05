@@ -2,6 +2,11 @@ import { describe, it, expect, beforeAll, afterAll } from '@jest/globals';
 import { Client } from 'pg';
 import crypto from 'node:crypto';
 import request from 'supertest';
+import {
+  assertMatchesContract,
+  contractForDto,
+} from '../src/shared/testing/response-contract';
+import { TriggerDto } from '../src/modules/triggers/dto/responses/trigger-response.dto';
 
 import { createDbClient, uniqueEmail, uniqueName } from './helpers/db';
 import { registerAndLogin, createTeamWorkspace } from './helpers/auth';
@@ -102,6 +107,7 @@ describe('POST /api/triggers — chat-channel multi-provider (e2e)', () => {
 
       const chatChannel = trigger.config.chatChannel;
       expect(chatChannel.provider).toBe('telegram');
+      assertMatchesContract(trigger, await contractForDto(TriggerDto));
       expect(chatChannel.hasBotToken).toBe(true);
       // plaintext / ref 는 응답에 절대 없어야 함 (sanitizeChatChannelForResponse).
       expect(chatChannel).not.toHaveProperty('botToken');

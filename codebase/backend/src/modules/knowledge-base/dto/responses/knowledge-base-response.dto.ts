@@ -89,6 +89,40 @@ export class KnowledgeBaseDto {
 
   @ApiProperty({ format: 'date-time' })
   updatedAt: string;
+
+  // ── 아래 필드는 **이미 응답에 실려 나가고 있었다** — 컨트롤러가 엔티티를 그대로
+  // 반환하기 때문이다. §5.4 응답-계약 스윕이 "선언되지 않은 키" 로 검출했고,
+  // 프런트엔드가 실제로 소비하므로 빼면 계약 회귀다. 선언을 실제에 맞춘다.
+  // (FE 참조 수 — embeddingModelConfigId 10 · rerankMode 9 · rerankCandidateK 6 ·
+  //  rerankScoreThreshold 6 · documentCount 5 · rerankConfigId 3 · rerankLlmConfigId 3)
+
+  /** 적재된 문서 수 */
+  @ApiPropertyOptional({ example: 12 })
+  documentCount?: number;
+
+  /** 임베딩에 쓰는 모델 설정 ID (없으면 `null`) */
+  @ApiPropertyOptional({ format: 'uuid', nullable: true })
+  embeddingModelConfigId?: string | null;
+
+  /** 리랭크 모드 */
+  @ApiPropertyOptional({ example: 'off' })
+  rerankMode?: string;
+
+  /** 리랭크 후보 수 */
+  @ApiPropertyOptional({ example: 20 })
+  rerankCandidateK?: number;
+
+  /** 리랭크 점수 임계값 (없으면 `null`) */
+  @ApiPropertyOptional({ nullable: true, type: Number })
+  rerankScoreThreshold?: number | null;
+
+  /** 리랭크 전용 설정 ID (없으면 `null`) */
+  @ApiPropertyOptional({ format: 'uuid', nullable: true })
+  rerankConfigId?: string | null;
+
+  /** 리랭크에 쓰는 LLM 설정 ID (없으면 `null`) */
+  @ApiPropertyOptional({ format: 'uuid', nullable: true })
+  rerankLlmConfigId?: string | null;
 }
 
 /** 문서 응답 DTO */

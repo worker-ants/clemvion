@@ -202,6 +202,39 @@ describe('response-contract — 실제 응답 vs DTO 선언 (§5.4)', () => {
       ).toEqual([]);
     });
 
+    it('allowMissing 으로 required 누락을 면제할 수 있다', () => {
+      const { id: _drop, ...withoutId } = VALID;
+      // 면제 없이는 위반이다 — 이 줄이 없으면 아래 단언이 "원래 통과하는 입력" 을
+      // 확인하는 vacuous 캐너리가 된다.
+      expect(kinds(findContractViolations(withoutId, contract))).toEqual([
+        'id:missing',
+      ]);
+      expect(
+        findContractViolations(withoutId, contract, { allowMissing: ['id'] }),
+      ).toEqual([]);
+    });
+
+    it('allowMissing 은 이름이 정확히 맞을 때만 면제한다', () => {
+      const { id: _drop, ...withoutId } = VALID;
+      expect(
+        kinds(
+          findContractViolations(withoutId, contract, {
+            allowMissing: ['ID', 'id2', 'note'],
+          }),
+        ),
+      ).toEqual(['id:missing']);
+    });
+
+    it('allowMissing 은 undeclared 를 면제하지 않는다 — 두 축은 갈려 있다', () => {
+      expect(
+        kinds(
+          findContractViolations({ ...VALID, ghost: 1 }, contract, {
+            allowMissing: ['ghost'],
+          }),
+        ),
+      ).toEqual(['ghost:undeclared']);
+    });
+
     it('여러 위반이 한 번에 다 나온다 — 첫 건에서 멈추지 않는다', () => {
       const { id: _drop, ...rest } = VALID;
       expect(

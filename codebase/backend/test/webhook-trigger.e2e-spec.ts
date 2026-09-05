@@ -6,6 +6,11 @@ import request from 'supertest';
 import { createDbClient, uniqueEmail, uniqueName } from './helpers/db';
 import { registerAndLogin, createTeamWorkspace } from './helpers/auth';
 import { GLOBAL_MAX_BODY_BYTES } from '../src/bootstrap/hooks-body-parser';
+import {
+  assertMatchesContract,
+  contractForDto,
+} from '../src/shared/testing/response-contract';
+import { AuthConfigDto } from '../src/modules/auth-configs/dto/responses/auth-config-response.dto';
 
 /**
  * e2e: 외부 인입(웹훅 수신) 흐름 — spec/5-system/12-webhook.md.
@@ -485,6 +490,10 @@ describe('Webhook trigger (e2e)', () => {
       .set('Authorization', `Bearer ${token}`)
       .set('X-Workspace-Id', workspaceId);
     expect(before.body.data.lastUsedAt ?? null).toBeNull();
+    assertMatchesContract(
+      before.body.data,
+      await contractForDto(AuthConfigDto),
+    );
 
     await request(BASE_URL)
       .post(`/api/hooks/${path}`)

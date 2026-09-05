@@ -4,6 +4,11 @@ import request from 'supertest';
 
 import { createDbClient, uniqueEmail, uniqueName } from './helpers/db';
 import { registerAndLogin, createTeamWorkspace } from './helpers/auth';
+import {
+  assertMatchesContract,
+  contractForDto,
+} from '../src/shared/testing/response-contract';
+import { ScheduleDto } from '../src/modules/schedules/dto/responses/schedule-response.dto';
 
 /**
  * e2e: spec/2-navigation/3-schedule.md — Cron 스케줄 라이프사이클.
@@ -128,6 +133,7 @@ describe('Schedule trigger (e2e)', () => {
     const scheduleId = res.body.data.id as string;
     expect(scheduleId).toBeDefined();
     expect(res.body.data.nextRunAt).toBeDefined();
+    assertMatchesContract(res.body.data, await contractForDto(ScheduleDto));
 
     // schedule 행 + 동반된 trigger 행 확인.
     const sched = await db.query('SELECT id FROM schedule WHERE id = $1', [

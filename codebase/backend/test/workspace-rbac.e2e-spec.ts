@@ -8,6 +8,11 @@ import {
   createTeamWorkspace,
   inviteAndAccept,
 } from './helpers/auth';
+import {
+  assertMatchesContract,
+  contractForDto,
+} from '../src/shared/testing/response-contract';
+import { WorkspaceSettingsDto } from '../src/modules/workspaces/dto/responses/workspace-response.dto';
 
 /**
  * e2e: spec/5-system/1-auth.md §1.3 의 RBAC 계약을 실 인프라 위에서 검증한다.
@@ -381,6 +386,10 @@ describe('Workspace RBAC (e2e)', () => {
     expect(ok.body.data.settings.interactionAllowedOrigins).toEqual([
       'https://example.com',
     ]);
+    assertMatchesContract(
+      ok.body.data.settings,
+      await contractForDto(WorkspaceSettingsDto),
+    );
 
     // DB 에도 반영.
     const persisted = await db.query<{ settings: Record<string, unknown> }>(

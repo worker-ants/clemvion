@@ -47,7 +47,7 @@ export type TriggerDetail = Trigger & {
 /**
  * [Spec Chat Channel §5.4.2 + secret-store.md §5.5 SS-SE-01] 응답에서 strip 해야 하는
  * chat-channel 필드 allow-list. 신규 plaintext / 내부 ref 필드 추가 시 본 상수에
- * 반드시 키 추가 — destructure 누락 위험 회피. `sanitizeChatChannelForResponse` 가
+ * 반드시 키 추가 — destructure 누락 위험 회피. `sanitizeForResponse` 가
  * 단일 진실로 참조한다.
  */
 const CHAT_CHANNEL_RESPONSE_STRIP_KEYS = new Set<string>([
@@ -59,6 +59,25 @@ const CHAT_CHANNEL_RESPONSE_STRIP_KEYS = new Set<string>([
   'inboundSigning',
   'inboundSigningPlaintext',
 ]);
+
+/**
+ * 응답에서 제거할 **엔티티 컬럼**. 위 목록이 `config.chatChannel` JSONB 안을 지우는 것과
+ * 달리 이쪽은 `trigger` 행의 컬럼이다 — **같은 등급의 비밀이 두 곳에 산다.**
+ *
+ * `notification_secret_v2` 는 참조가 아니라 **평문 서명 secret** 이다(24h rotation grace
+ * 동안 non-null; 엔티티 주석 "본 컬럼이 새 secret 으로 승격" 참조). `chat_channel_token_v2`
+ * 는 secret store ref 라 등급이 한 단계 낮지만, 내부 저장 위치를 드러내므로 같이 뺀다 —
+ * `botTokenRef` 를 이미 빼는 것과 같은 이유다.
+ *
+ * **왜 `select: false` 가 아닌가**: 로테이션 스윕(`sweepNotificationRotation` ·
+ * `sweepChatChannelRotation`)이 이 컬럼들을 읽어 승격/정리한다. 컬럼 수준에서 끄면 그
+ * 경로가 `undefined` 를 받고 **예외 없이** 조용히 오작동한다 — fail-safe 가 아니라
+ * fail-silent 다. 응답 경계에서 지우면 읽는 쪽은 그대로 둔 채 나가는 쪽만 막힌다.
+ */
+const TRIGGER_RESPONSE_STRIP_COLUMNS = [
+  'notificationSecretV2',
+  'chatChannelTokenV2',
+] as const satisfies readonly (keyof Trigger)[];
 
 /** `audit_log.resource_type` 값 — 액션 prefix 와 동일 어휘. */
 const TRIGGER_RESOURCE_TYPE = 'trigger';
@@ -155,7 +174,7 @@ export class TriggersService {
       if (t.type === 'schedule') {
         const schedule = scheduleByTriggerId.get(t.id);
         if (schedule) {
-          return this.sanitizeChatChannelForResponse(
+          return this.sanitizeForResponse(
             Object.assign(t, {
               cronExpression: schedule.cronExpression,
               timezone: schedule.timezone,
@@ -164,7 +183,7 @@ export class TriggersService {
           );
         }
       }
-      return this.sanitizeChatChannelForResponse(t);
+      return this.sanitizeForResponse(t);
     });
 
     return PaginatedResponseDto.create(enriched, totalItems, page, limit);
@@ -187,13 +206,13 @@ export class TriggersService {
   async findOneDetail(id: string, workspaceId: string): Promise<TriggerDetail> {
     const trigger = await this.findById(id, workspaceId);
     if (trigger.type !== 'schedule') {
-      return this.sanitizeChatChannelForResponse(trigger);
+      return this.sanitizeForResponse(trigger);
     }
     const schedule = await this.scheduleRepository.findOne({
       where: { triggerId: id, workspaceId },
     });
-    if (!schedule) return this.sanitizeChatChannelForResponse(trigger);
-    return this.sanitizeChatChannelForResponse(
+    if (!schedule) return this.sanitizeForResponse(trigger);
+    return this.sanitizeForResponse(
       Object.assign(trigger, {
         cronExpression: schedule.cronExpression,
         timezone: schedule.timezone,
@@ -283,7 +302,7 @@ export class TriggersService {
       });
       if (refreshed) result = refreshed;
     }
-    return this.sanitizeChatChannelForResponse(result);
+    return this.sanitizeForResponse(result);
   }
 
   async update(
@@ -368,7 +387,7 @@ export class TriggersService {
       });
       if (refreshed) result = refreshed;
     }
-    return this.sanitizeChatChannelForResponse(result);
+    return this.sanitizeForResponse(result);
   }
 
   /**
@@ -520,7 +539,19 @@ export class TriggersService {
    * - `hasBotToken: boolean` derived 필드 주입 (`botTokenRef IS NOT NULL → true`).
    * - Trigger entity 는 변경하지 않음 — 새 객체로 반환 (DB 저장에 영향 없도록).
    */
-  private sanitizeChatChannelForResponse<T extends Trigger>(trigger: T): T {
+  /**
+   * 트리거를 **응답 경계**에서 정화한다 — 비밀이 사는 두 곳을 **모두** 덮는다.
+   *
+   * 1. `config.chatChannel` JSONB 안의 키 (`CHAT_CHANNEL_RESPONSE_STRIP_KEYS`)
+   * 2. `trigger` 행의 **엔티티 컬럼** (`TRIGGER_RESPONSE_STRIP_COLUMNS`)
+   *
+   * 종전 이 메서드는 (1) 만 했고, `config.chatChannel` 이 없으면 **조기 return** 했다.
+   * 그래서 chat-channel 이 아닌 트리거는 정화를 아예 거치지 않았고, chat-channel 트리거도
+   * 컬럼 쪽 비밀은 그대로 나갔다 — `GET /api/triggers` 의 `createQueryBuilder('t')` 가
+   * 전 컬럼을 select 하므로 로테이션 유예 중이면 `notificationSecretV2` 가 wire 로 나간다.
+   * (§5.4 응답-계약 스윕이 `TriggerDto` 미선언 9필드로 검출.)
+   */
+  private sanitizeForResponse<T extends Trigger>(trigger: T): T {
     const cfg = trigger.config as
       | {
           chatChannel?: Record<string, unknown>;
@@ -528,27 +559,36 @@ export class TriggersService {
         }
       | null
       | undefined;
-    if (!cfg?.chatChannel) return trigger;
-    const botTokenRef = cfg.chatChannel.botTokenRef;
-    const sanitizedChatChannel: Record<string, unknown> = {};
-    for (const [key, value] of Object.entries(cfg.chatChannel)) {
-      if (CHAT_CHANNEL_RESPONSE_STRIP_KEYS.has(key)) continue;
-      sanitizedChatChannel[key] = value;
+
+    const overrides: Record<string, unknown> = {};
+    for (const column of TRIGGER_RESPONSE_STRIP_COLUMNS) {
+      overrides[column] = undefined;
     }
-    sanitizedChatChannel.hasBotToken =
-      typeof botTokenRef === 'string' && botTokenRef.length > 0;
-    const sanitizedConfig = {
-      ...cfg,
-      chatChannel: sanitizedChatChannel,
-    };
-    // entity 의 메서드/getter 를 보존하기 위해 prototype 유지하면서 config 만 교체.
-    return Object.assign(
+
+    if (cfg?.chatChannel) {
+      const botTokenRef = cfg.chatChannel.botTokenRef;
+      const sanitizedChatChannel: Record<string, unknown> = {};
+      for (const [key, value] of Object.entries(cfg.chatChannel)) {
+        if (CHAT_CHANNEL_RESPONSE_STRIP_KEYS.has(key)) continue;
+        sanitizedChatChannel[key] = value;
+      }
+      sanitizedChatChannel.hasBotToken =
+        typeof botTokenRef === 'string' && botTokenRef.length > 0;
+      overrides.config = { ...cfg, chatChannel: sanitizedChatChannel };
+    }
+
+    // entity 의 메서드/getter 를 보존하기 위해 prototype 유지하면서 필드만 교체.
+    const sanitized = Object.assign(
       Object.create(Object.getPrototypeOf(trigger) as object),
       trigger,
-      {
-        config: sanitizedConfig,
-      },
+      overrides,
     ) as T;
+    // `undefined` 대입만으로는 키가 남아 `JSON.stringify` 가 지우더라도 중간 소비자
+    // (로깅·직렬화 우회)가 볼 수 있다. 키 자체를 없앤다.
+    for (const column of TRIGGER_RESPONSE_STRIP_COLUMNS) {
+      delete (sanitized as unknown as Record<string, unknown>)[column];
+    }
+    return sanitized;
   }
 
   /**

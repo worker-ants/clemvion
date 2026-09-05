@@ -375,6 +375,53 @@ field: T | null;
         > 헬퍼"* 였고 그것이 해소됐다. 남은 일은 같은 한 줄을 나머지 응답 DTO 로 넓히는
         > 기계적 작업이다 — 아래 별 항목으로 등재한다.
 
+        > #### 스윕 1차 (2026-09-05) — 4 → **18개 DTO**
+        >
+        > 기존 e2e 가 이미 그 리소스를 가져오는 자리 **14곳**을 배선했다. 배선은
+        > `contractForDto` 에 메모이제이션을 넣어 **한 줄**이 됐다 (종전에는 파일마다
+        > `beforeAll` 변수를 만들어야 했다).
+        >
+        > **스윕이 26건의 실제 drift 를 찾았다** — 그중 2건은 보안 결함이다:
+        >
+        > | 발견 | 성격 | 처분 |
+        > |---|---|---|
+        > | `TriggerDto` 가 `notificationSecretV2`(평문 서명 secret)·`chatChannelTokenV2` 노출 | **보안** | 응답 경계에서 스트립. 기존 sanitizer 가 `config` JSONB 만 덮고 **엔티티 컬럼은 안 덮었다** |
+        > | `ScheduleDto` 가 조인으로 Trigger 엔티티 **전체** 노출 (같은 secret 들) | **보안** | 컨트롤러에서 참조 4필드로 좁힘 |
+        > | 24필드가 "응답에 있는데 DTO 미선언" | 선언 지연 | FE 가 소비하므로 **선언을 실제에 맞춤** (wire 무변) |
+        > | `ExportWorkflowDto.formatVersion` 이 required 인데 부재 | 문서화된 Planned 갭 | `allowMissing` 옵션 신설 + spec 인용 주석 |
+        >
+        > 두 보안 수정 모두 뮤턴트로 확인했다 — 스트립을 되돌리면 `TriggerDto` 2건,
+        > `ScheduleDto` 18건(중첩 경로 `trigger.notificationSecretV2` 포함)이 RED.
+        >
+        > **잔여는 "41개" 가 아니다 — 그 수치는 상한이다.** 배선 대상을 고르려고 짠 정적
+        > 라우트 매퍼가 **라우트를 놓친다**(예: `GET /integrations/cafe24/precheck` 를
+        > 통째로 못 봤고, 그건 손으로 확인해 배선했다). 잔여 목록은 **census 가 아니라
+        > 출발점**으로 쓸 것. 잔여의 성격은 세 갈래다:
+        >
+        > - **중첩 전용 DTO** — 부모를 배선하면 검증자가 `$ref`/`allOf` 를 따라 내려가므로
+        >   별도 배선이 불필요하다. 다만 **`items: { type: 'object' }` 로 선언된 자리는
+        >   내려가지 않는다** (`CanvasSaveResultDto.nodes`/`.edges` 가 그렇다 — 아래 항목).
+        > - **엔드포인트인데 기존 e2e 가 안 때리는 것** — 새 e2e 시나리오가 선행이다.
+        > - **매퍼가 놓친 것** — 손으로 찾아야 한다.
+
+- [ ] **`CanvasSaveResultDto.nodes`/`.edges` 가 타입 없는 객체 배열** (developer,
+      2026-09-05 등재). `@ApiProperty({ type: 'array', items: { type: 'object' } })` 라
+      **검증자가 그 아래로 내려가지 않는다** — 캔버스 저장 응답에 어떤 엔티티 필드가
+      실려도 계약 검사를 통과한다. e2e 11개 스펙이 이 엔드포인트를 때리므로 배선 자체는
+      쉬운데, `NodeDto`/`EdgeDto` 로 선언을 바꾸는 것이 선행이다.
+
+- [ ] **`IntegrationDto.consecutiveNetworkFailures` 노출 중단 검토** (developer,
+      2026-09-05 등재). 내부 health 카운터인데 응답에 실려 나간다. **프런트엔드 참조
+      0곳**(실측)이라 빼도 소비자가 없지만 **wire 변경**이라 CHANGELOG 를 동반해야 한다.
+      이번 PR 은 "선언을 실제에 맞춘다" 범위라 선언만 했다.
+
+- [ ] **§5.4 스윕 2차 — 엔드포인트인데 e2e 미도달인 DTO** (developer, 2026-09-05 등재).
+      1차가 닿지 못한 자리다. 배선 한 줄이 아니라 **새 e2e 시나리오**가 선행이므로 모듈
+      단위로 끊는다. 후보(매퍼 기준, census 아님): `DashboardSummaryDto` ·
+      `StatisticsSummaryDto` · `LlmUsageSummaryDto` · `WorkflowVersionDto` ·
+      `WorkflowVersionListItemDto` · `GraphEntityDto` · `FolderDto` · `DocumentDto` ·
+      `NodeDto` · `EdgeDto` 등.
+
       > #### (a) 가 왜 안 되는가 — DTO 와 엔티티는 **다른 것**을 기술한다
       >
       > 엔티티와 짝지어지는 응답 DTO 23개의 필드 타입을 전수 대조했다 — **불일치 59건**.

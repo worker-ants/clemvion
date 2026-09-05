@@ -61,6 +61,45 @@ export class TriggerDto {
   /** 수정 시각 */
   @ApiProperty({ format: 'date-time' })
   updatedAt: string;
+
+  // ── 관측 필드 (chat-channel / outbound notification)
+  //
+  // 아래 7개는 **이미 응답에 실려 나가고 있었다** — 컨트롤러가 엔티티를 그대로 반환하기
+  // 때문이다. §5.4 응답-계약 스윕이 "선언되지 않은 키" 로 검출했고, 그중 5개는 프런트엔드가
+  // 실제로 소비한다(`chatChannelHealth` 7곳 · `notificationHealth` 6곳 ·
+  // `chatChannelLastError` 4곳 · `chatChannelRotatedAt`·`chatChannelSetupAt` 각 2곳).
+  // 나가는 것을 막는 대신 **선언을 실제에 맞춘다** — 소비 중인 필드를 빼면 계약 회귀다.
+  //
+  // 같은 스윕이 검출한 `notificationSecretV2`·`chatChannelTokenV2` 는 **선언하지 않는다.**
+  // 그쪽은 비밀이라 응답에서 제거했다 (`TRIGGER_RESPONSE_STRIP_COLUMNS`).
+
+  /** chat-channel 연동 상태 */
+  @ApiPropertyOptional({ example: 'healthy' })
+  chatChannelHealth?: string;
+
+  /** chat-channel 마지막 오류 메시지 (없으면 `null`) */
+  @ApiPropertyOptional({ nullable: true, type: String })
+  chatChannelLastError?: string | null;
+
+  /** chat-channel 최초 설정 시각 (없으면 `null`) */
+  @ApiPropertyOptional({ format: 'date-time', nullable: true })
+  chatChannelSetupAt?: string | null;
+
+  /** chat-channel bot token 최종 회전 시각 (없으면 `null`) */
+  @ApiPropertyOptional({ format: 'date-time', nullable: true })
+  chatChannelRotatedAt?: string | null;
+
+  /** outbound notification 발송 상태 */
+  @ApiPropertyOptional({ example: 'healthy' })
+  notificationHealth?: string;
+
+  /** outbound notification 마지막 오류 메시지 (없으면 `null`) */
+  @ApiPropertyOptional({ nullable: true, type: String })
+  notificationLastError?: string | null;
+
+  /** outbound notification secret 최종 회전 시각 (없으면 `null`) */
+  @ApiPropertyOptional({ format: 'date-time', nullable: true })
+  notificationRotatedAt?: string | null;
 }
 
 /** 트리거 실행 이력 아이템 */

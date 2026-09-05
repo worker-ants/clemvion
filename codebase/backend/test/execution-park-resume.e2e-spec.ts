@@ -6,6 +6,11 @@ import request from 'supertest';
 
 import { createDbClient, uniqueEmail, uniqueName } from './helpers/db';
 import { registerAndLogin, createTeamWorkspace } from './helpers/auth';
+import {
+  assertMatchesContract,
+  contractForDto,
+} from '../src/shared/testing/response-contract';
+import { ModelConfigDto } from '../src/modules/model-config/dto/responses/model-config-response.dto';
 
 /**
  * e2e: spec/5-system/4-execution-engine.md §4.x(park = 세그먼트 종료) · §7.5
@@ -924,6 +929,10 @@ describe('Top-level multi-turn AI turn-park → cold rehydration resume (e2e, PR
     expect(llmCreateRes.status).toBe(201);
     const llmConfigId = (llmCreateRes.body.data as { id: string }).id;
     expect(llmConfigId).toBeDefined();
+    assertMatchesContract(
+      llmCreateRes.body.data,
+      await contractForDto(ModelConfigDto),
+    );
 
     // 2. manual_trigger → ai_agent(multi_turn) 워크플로우.
     const workflowId = await createWorkflow();

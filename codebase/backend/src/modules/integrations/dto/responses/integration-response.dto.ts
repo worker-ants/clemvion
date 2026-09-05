@@ -114,6 +114,42 @@ export class IntegrationDto {
    */
   @ApiProperty({ type: 'boolean', example: true })
   autoRefresh: boolean;
+
+  // ── 아래 필드는 **이미 응답에 실려 나가고 있었다** — 컨트롤러가 엔티티를 그대로
+  // 반환하기 때문이다. §5.4 응답-계약 스윕이 "선언되지 않은 키" 로 검출했고,
+  // 프런트엔드가 실제로 소비하므로 빼면 계약 회귀다. 선언을 실제에 맞춘다.
+  // (FE 참조 수 — appUrl 10 · lastRotatedAt 9 · lastUsedAt 16 · mallId 6 ·
+  //  tokenExpiresAt 10 · consecutiveNetworkFailures 0)
+
+  /** 연동 대상 서비스의 앱 URL (없으면 `null`) */
+  @ApiPropertyOptional({ nullable: true, type: String })
+  appUrl?: string | null;
+
+  /** 쇼핑몰 식별자 — cafe24/makeshop 계열에서만 채워진다 (없으면 `null`) */
+  @ApiPropertyOptional({ nullable: true, type: String })
+  mallId?: string | null;
+
+  /** 액세스 토큰 만료 시각 (없으면 `null`) */
+  @ApiPropertyOptional({ format: 'date-time', nullable: true })
+  tokenExpiresAt?: string | null;
+
+  /** 자격 증명 최종 회전 시각 (없으면 `null`) */
+  @ApiPropertyOptional({ format: 'date-time', nullable: true })
+  lastRotatedAt?: string | null;
+
+  /** 최종 사용 시각 (없으면 `null`) */
+  @ApiPropertyOptional({ format: 'date-time', nullable: true })
+  lastUsedAt?: string | null;
+
+  /**
+   * 연속 네트워크 실패 횟수 — health 판정의 내부 카운터다.
+   *
+   * **프런트엔드 참조가 0곳**이라 유일하게 소비되지 않는 필드다. 그래도 선언하는 것은
+   * 이미 나가고 있어서이고, 빼는 것은 wire 변경(파괴적)이라 CHANGELOG 를 동반해야
+   * 한다 — 별도 항목으로 트래커에 남긴다.
+   */
+  @ApiPropertyOptional({ example: 0 })
+  consecutiveNetworkFailures?: number;
 }
 
 /** 지원 서비스 카탈로그 엔트리 */
