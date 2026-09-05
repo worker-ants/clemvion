@@ -479,6 +479,18 @@ field: T | null;
       8개 시각. 날짜를 코드 컨텍스트로 하나씩 특정해야 해서 기계적 치환이 안 된다 —
       그래서 §4 의 "소급 정리 안 함" 과 별개로 이 8건만 따로 둔다.
 
+- [ ] **`spec/5-system/` 의 `## Overview` 유무 불일치** (planner, `--impl-prep 12_48_13` W1
+      등재 2026-09-05). 12개 파일은 공유 `_product-overview.md` 와 **별개로** 로컬
+      `## Overview` 를 두는데 6개(`2-api-convention` · `5-expression-language` ·
+      `6-websocket-protocol` · `7-llm-client` · `11-mcp-client` · `16-system-status-api`)는 없다.
+      CLAUDE.md 상 **"권장"** 이라 CRITICAL 은 아니지만 영역 안에서 갈린다. 둘 중 하나다 —
+      - (a) 6개 파일에 로컬 Overview 를 추가해 맞춘다
+      - (b) `project-planner/SKILL.md` 에 *"영역 공유 Overview 가 있으면 파일별 로컬 Overview
+        는 생략 가능"* 을 명시해 **현 상태를 규약으로 인정**한다
+
+      (b) 가 저렴하지만, 12 대 6 이면 다수가 로컬 Overview 를 두고 있어 (a) 가 관행에 가깝다.
+      **한 PR 이 단독으로 정할 일이 아니라 등재한다.**
+
 - [x] **§2.2 자원 액션 패턴** — 반영 완료 (`spec-draft-scope-and-anchor-drift.md` ③). 이름이 틀렸었다: 33개 액션 중 9개가
       하이픈 복합 동사구라 "단일 동사" 로 성문화하면 27%가 즉시 위반이 된다. 실제 규칙은
       **목적어의 위치**다. 종전 서술: (`--spec` W2). `3-workflow-editor/3-execution.md:757` 이
