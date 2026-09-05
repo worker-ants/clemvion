@@ -294,6 +294,18 @@ field: T | null;
       착수 시 먼저 잴 것: 위 7컬럼을 읽는 모든 쿼리/서비스 전수 목록. 그 목록이 나온 뒤에
       `select:false` vs 전역 `ClassSerializerInterceptor`+`@Exclude()` 를 고른다.
 
+- [ ] **§5.4 검증자 2종의 역할 경계를 spec 본문에 한 문장으로** (planner, 2026-09-05 등재,
+      `review/consistency/2026/09/05/15_53_59` W1). 이름이 인접한 검증자가 둘이 됐다:
+
+      | 파일 | 무엇을 대조하나 | 타입 |
+      |---|---|---|
+      | `repo-guards/__tests__/swagger-dto-contract-guard.ts` | **선언 vs 선언** — `@ApiProperty` 데코레이터와 TS 타입 (정적 AST) | `ContractMismatch` |
+      | `shared/testing/response-contract.ts` | **값 vs 선언** — 실 HTTP 응답과 생성된 OpenAPI 스키마 (런타임) | `ContractViolation` |
+
+      `"Contract"` 로 검색하면 어느 쪽인지 즉시 안 갈린다. **리네임은 하지 않는다** —
+      checker 도 강제하지 않았고, 4개 e2e 배선과 37개 스펙을 건드려 얻는 것보다 잃는 것이
+      크다. 대신 아래 `code:` 등재를 집행할 때 **같은 문장으로** 경계를 적는다.
+
 - [ ] **`2-api-convention.md` frontmatter `code:` 에 §5.4 검증자 등재** (planner,
       2026-09-05 등재). `response-contract.ts` 는 §5.4 를 **시행하는** 유일한 코드인데
       지금 어떤 spec 의 `code:` glob 에도 안 걸린다 — 즉 그 파일을 고쳐도
