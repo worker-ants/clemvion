@@ -37,7 +37,15 @@ export class AuditLogsService {
 
     const qb = this.auditLogRepository
       .createQueryBuilder('al')
-      .leftJoinAndSelect('al.user', 'user')
+      // `AuditLogUserDto` 가 광고하는 3필드만 싣는다. `leftJoinAndSelect` 는 `User` 의
+      // **전 컬럼**을 실었고, 이 컨트롤러는 엔티티를 그대로 반환하므로 `passwordHash`·
+      // `twoFactorSecret`·`totpRecoveryCodes`·`webauthnRecoveryCodes` 와 계정 탈취에
+      // 쓰이는 `passwordResetToken`·`emailVerifyToken`·`emailChangeToken` 이 실 응답에
+      // 그대로 나갔다 (e2e 로 확인: user 키 26개). 필요한 것만 select 해 애초에 DB 밖으로
+      // 나가지 않게 한다 — 워크스페이스 멤버 목록(`workspaces.service.ts`)이 명시 매핑으로
+      // 같은 문제를 이미 피하고 있다.
+      .leftJoin('al.user', 'user')
+      .addSelect(['user.id', 'user.name', 'user.email'])
       .where('al.workspace_id = :workspaceId', { workspaceId });
 
     if (action) {
