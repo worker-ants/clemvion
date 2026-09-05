@@ -136,7 +136,7 @@ Dockerfile 에서 `*.conf` 도 함께 COPY 되어야 합니다 (이미 V022 도�
 **규칙**:
 - 한 차원당 한 마이그레이션 파일 (예: V0xx_dim_768.sql, V0yy_dim_1024.sql).
 - 각 파일에 동일한 `.conf executeInTransaction=false` 동봉.
-- 같은 파일 안에 *transactional* statement (예: `ALTER TABLE`) 와 `CONCURRENTLY` 를 섞지 않습니다.
+- 같은 파일 안에 *transactional* statement (예: `ALTER TABLE`, `DO $$ ... $$`) 와 `CONCURRENTLY` 를 섞지 않습니다.
 
 **인덱스 교체는 DROP-먼저** (2026-09-05 규약화):
 
@@ -150,7 +150,16 @@ DROP INDEX CONCURRENTLY IF EXISTS <옛 인덱스 이름>;
 
 **0) 이 없으면 재실행이 인덱스를 0개로 만듭니다.** `CREATE INDEX CONCURRENTLY` 가 중간에 실패하면 `indisvalid = false` 인 인덱스가 **이름을 점유한 채** 남는데, `IF NOT EXISTS` 는 이름만 보고 유효성은 보지 않습니다. 그대로 재실행하면 `CREATE` 가 건너뛰고 뒤이은 `DROP` 이 옛 인덱스를 지워 **쓸 수 있는 인덱스가 하나도 없는 상태**로 끝납니다 — PostgreSQL 은 invalid 인덱스를 쿼리에 쓰지 않으므로 조용히 seq scan 으로 회귀하면서 쓰기 비용만 냅니다. (실증: `CREATE UNIQUE INDEX CONCURRENTLY` 를 중복 데이터에 걸어 결정적으로 실패시킨 뒤 재현.)
 
-**감수하는 비대칭**: 0) 은 대상이 invalid 잔재인지 정상 인덱스인지 구분하지 않습니다. 그래서 **이미 성공한** 마이그레이션을 Flyway 흐름 밖에서 수동 재실행하면 살아 있는 인덱스를 재빌드합니다(그 구간 seq scan). Flyway 는 성공한 마이그레이션을 다시 돌리지 않으므로 정상 흐름에서는 발생하지 않고, 반대편(인덱스 0개)이 훨씬 나쁩니다.
+**감수하는 비대칭**: 0) 은 대상이 invalid 잔재인지 **정상 인덱스인지 구분하지 않습니다.** 그래서 이 파일이 다시 돌면 살아 있는 인덱스를 지우고 재빌드합니다(그 구간 seq scan).
+
+재실행이 일어나는 경로는 두 가지이고, **둘째는 이 문서가 지시하는 정상 절차 안에 있습니다**:
+
+| 경로 | 재빌드 | |
+| --- | --- | --- |
+| 이미 성공한 마이그레이션을 Flyway 흐름 **밖에서** 수동 재실행 | 발생 | Flyway 는 성공한 마이그레이션을 다시 돌리지 않으므로 운영자가 일부러 돌린 경우 |
+| **CREATE 성공 후 2) DROP(old) 이 실패** → 마이그레이션 전체가 실패로 기록 → `repair` + 재실행 | **발생** | 아래 §checksum 보정 절차가 그 경로다 — "정상 흐름 밖" 이 아닙니다 |
+
+그래도 이 순서를 택하는 이유는 반대편이 훨씬 나쁘기 때문입니다 — 재빌드는 끝나면 스스로 정상으로 돌아오지만, 0) 이 없을 때의 결과(**쓸 수 있는 인덱스 0개**)는 다음 재실행에서도 스스로 낫지 않습니다.
 
 > **`indisvalid` 로 분기하면 양쪽을 다 피할 수 있지만 `mixed=true` 가 필요합니다.** `DO $$ ... IF NOT indisvalid THEN DROP INDEX ... $$` 는 정상 인덱스를 건드리지 않아 성공 후 재실행도 완전 no-op 입니다 (실측: 재실행 전후 인덱스 oid 불변). 그러나 `DO` 는 transactional statement 라 같은 파일의 `CONCURRENTLY` 와 섞이는 순간 위 mixed 판정에 걸립니다. `-mixed=true` 를 주면 통과하지만 그 설정은 혼합 금지 가드를 **모든 마이그레이션에 대해** 풀므로, 도입 여부는 별도 결정 항목입니다.
 >
