@@ -510,7 +510,7 @@ describe('Workflow CRUD (e2e)', () => {
    * 두 축을 여기에 건다. 이름 축을 먼저 두는 이유는 자매 e2e(`workspace-rbac` J)와 같다 —
    * 선언 대조가 앞서면 그것이 먼저 던져 이름 축이 실행조차 되지 않는다.
    */
-  it('버전 단건 조회 — `creator` 가 참조 3필드로 좁혀지고 `User` 비밀이 없다', async () => {
+  it('H. 버전 단건 조회 — `creator` 가 참조 3필드로 좁혀지고 `User` 비밀이 없다', async () => {
     const created = await request(BASE_URL)
       .post('/api/workflows')
       .set('Authorization', `Bearer ${ownerToken}`)

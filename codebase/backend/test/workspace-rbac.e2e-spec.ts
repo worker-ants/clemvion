@@ -271,58 +271,6 @@ describe('Workspace RBAC (e2e)', () => {
     expect(stillEditor.rows[0].role).toBe('editor');
   });
 
-  /**
-   * **`GET /:id/members` 는 `User` 를 통째로 로드하는 세 자리 중 하나다.**
-   *
-   * `WorkspacesService.listMembers` 가 `relations: ['user']` 로 멤버의 `User` 엔티티를
-   * 전부 싣고, 지금은 `email`·`name` 만 뽑아 새 객체로 돌려준다. 그 투영이 사라지거나
-   * 필드가 하나 늘면 `passwordHash`·2FA 복구 코드·계정 탈취용 토큰이 그대로 나간다 —
-   * `GET /api/audit-logs` 에서 실제로 그렇게 새어 나갔다(user 키 26개).
-   *
-   * 종전에 이 엔드포인트의 **응답 형태를 무는 e2e 가 없었다**. 두 축으로 건다:
-   * 선언 대조(`assertMatchesContract`)와 **이름 기반 부재**(`expectNoUserSecrets`).
-   * 후자는 선언과 무관하므로, 누가 실수로 비밀 필드를 DTO 에 *선언까지* 해도 잡는다 —
-   * 감사 로그 유출을 놓친 것이 바로 선언 기반 검증자였다.
-   */
-  it('J. GET /:id/members — 멤버 목록에 `User` 비밀 컬럼이 실리지 않는다', async () => {
-    const owner = await registerAndLogin(
-      BASE_URL,
-      uniqueEmail('rbac-f-own'),
-      db,
-    );
-    const ws = await createTeamWorkspace(
-      BASE_URL,
-      owner.accessToken,
-      uniqueName('F'),
-    );
-    await inviteAndAccept(
-      BASE_URL,
-      owner.accessToken,
-      ws,
-      uniqueEmail('rbac-f-mem'),
-      'editor',
-      db,
-    );
-
-    const res = await request(BASE_URL)
-      .get(`/api/workspaces/${ws}/members`)
-      .set('Authorization', `Bearer ${owner.accessToken}`);
-    expect(res.status).toBe(200);
-
-    const rows = res.body.data as Array<Record<string, unknown>>;
-    // 두 명(owner + 초대된 editor) — 한 명만 나오면 아래 단언이 절반만 훑는다.
-    expect(rows).toHaveLength(2);
-
-    // **이름 축을 먼저 문다.** 선언 대조가 앞서면 그것이 먼저 던져, 이름 축이 실제로
-    // 무는지를 이 테스트로는 확인할 수 없다(실측: 유출 뮤턴트가 `user [undeclared]` 로
-    // 먼저 잡혀 이름 축은 실행조차 안 됐다). 두 축은 **다른 것을 잡으려고** 있으므로
-    // 각자 관측 가능해야 한다.
-    //
-    // 봉투째 넘긴다 — `data` 만 보면 봉투의 다른 가지로 새는 형태를 놓친다.
-    expectNoUserSecrets(res.body);
-    assertMatchesContract(rows[0], await contractForDto(WorkspaceMemberDto));
-  });
-
   it('E. transfer-ownership — 옛 owner 는 editor 로 강등, 새 owner 가 워크스페이스 삭제 가능', async () => {
     const oldOwner = await registerAndLogin(
       BASE_URL,
@@ -636,5 +584,57 @@ describe('Workspace RBAC (e2e)', () => {
       .set('Authorization', `Bearer ${ownerA.accessToken}`)
       .set('X-Workspace-Id', wsA);
     expect(ownDetailMissing.status).toBe(404);
+  });
+
+  /**
+   * **`GET /:id/members` 는 `User` 를 통째로 로드하는 세 자리 중 하나다.**
+   *
+   * `WorkspacesService.listMembers` 가 `relations: ['user']` 로 멤버의 `User` 엔티티를
+   * 전부 싣고, 지금은 `email`·`name` 만 뽑아 새 객체로 돌려준다. 그 투영이 사라지거나
+   * 필드가 하나 늘면 `passwordHash`·2FA 복구 코드·계정 탈취용 토큰이 그대로 나간다 —
+   * `GET /api/audit-logs` 에서 실제로 그렇게 새어 나갔다(user 키 26개).
+   *
+   * 종전에 이 엔드포인트의 **응답 형태를 무는 e2e 가 없었다**. 두 축으로 건다:
+   * 선언 대조(`assertMatchesContract`)와 **이름 기반 부재**(`expectNoUserSecrets`).
+   * 후자는 선언과 무관하므로, 누가 실수로 비밀 필드를 DTO 에 *선언까지* 해도 잡는다 —
+   * 감사 로그 유출을 놓친 것이 바로 선언 기반 검증자였다.
+   */
+  it('J. GET /:id/members — 멤버 목록에 `User` 비밀 컬럼이 실리지 않는다', async () => {
+    const owner = await registerAndLogin(
+      BASE_URL,
+      uniqueEmail('rbac-f-own'),
+      db,
+    );
+    const ws = await createTeamWorkspace(
+      BASE_URL,
+      owner.accessToken,
+      uniqueName('F'),
+    );
+    await inviteAndAccept(
+      BASE_URL,
+      owner.accessToken,
+      ws,
+      uniqueEmail('rbac-f-mem'),
+      'editor',
+      db,
+    );
+
+    const res = await request(BASE_URL)
+      .get(`/api/workspaces/${ws}/members`)
+      .set('Authorization', `Bearer ${owner.accessToken}`);
+    expect(res.status).toBe(200);
+
+    const rows = res.body.data as Array<Record<string, unknown>>;
+    // 두 명(owner + 초대된 editor) — 한 명만 나오면 아래 단언이 절반만 훑는다.
+    expect(rows).toHaveLength(2);
+
+    // **이름 축을 먼저 문다.** 선언 대조가 앞서면 그것이 먼저 던져, 이름 축이 실제로
+    // 무는지를 이 테스트로는 확인할 수 없다(실측: 유출 뮤턴트가 `user [undeclared]` 로
+    // 먼저 잡혀 이름 축은 실행조차 안 됐다). 두 축은 **다른 것을 잡으려고** 있으므로
+    // 각자 관측 가능해야 한다.
+    //
+    // 봉투째 넘긴다 — `data` 만 보면 봉투의 다른 가지로 새는 형태를 놓친다.
+    expectNoUserSecrets(res.body);
+    assertMatchesContract(rows[0], await contractForDto(WorkspaceMemberDto));
   });
 });

@@ -15,6 +15,29 @@ import { Workflow } from '../workflows/entities/workflow.entity';
  */
 export type WorkflowVersionListItem = Omit<WorkflowVersion, 'snapshot'>;
 
+/**
+ * `creator` 관계에서 **응답에 실을 컬럼**. 두 조회 메서드가 공유한다.
+ *
+ * ## 왜 상수인가 — 이것이 보안 경계다
+ *
+ * `WorkflowVersion.creator` 는 `@ManyToOne(() => User)` 이고, 이 투영이 없으면 TypeORM 이
+ * `User` **전 컬럼**을 싣는다. 컨트롤러가 결과를 가공 없이 반환하므로 그대로
+ * `passwordHash`·2FA secret·복구 코드·계정 탈취용 토큰이 wire 로 나간다 — 실제로 나갔다
+ * (`review/code/2026/09/06/10_13_22` Critical 1). `findByWorkflow` 는 투영이 있었고
+ * `findOne` 은 없었다: **자매 중 하나만 옳았고, 같은 리터럴이 두 곳에 손으로 복제돼
+ * 있었기 때문**이다 (`review/code/2026/09/06/10_53_48` W1).
+ *
+ * 집합은 `WorkflowVersionCreatorDto` 가 광고하는 것과 같아야 한다. 그 일치는 주석이 아니라
+ * **테스트가 강제한다** — `workflow-versions.service.spec.ts` 가 이 상수의 키를 그 DTO 의
+ * OpenAPI 스키마 프로퍼티와 대조한다. DTO 에 필드를 더하고 여기를 안 고치면 그 자리에서
+ * 걸린다(반대 방향도).
+ */
+export const CREATOR_PROJECTION = {
+  id: true,
+  name: true,
+  email: true,
+} as const;
+
 @Injectable()
 export class WorkflowVersionsService {
   constructor(
@@ -59,7 +82,7 @@ export class WorkflowVersionsService {
         changeSummary: true,
         createdBy: true,
         createdAt: true,
-        creator: { id: true, name: true, email: true },
+        creator: CREATOR_PROJECTION,
       },
     });
   }
@@ -86,7 +109,7 @@ export class WorkflowVersionsService {
         snapshot: true,
         createdBy: true,
         createdAt: true,
-        creator: { id: true, name: true, email: true },
+        creator: CREATOR_PROJECTION,
       },
     });
     if (!version) {

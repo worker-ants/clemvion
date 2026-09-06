@@ -1,9 +1,53 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { NotFoundException } from '@nestjs/common';
-import { WorkflowVersionsService } from './workflow-versions.service';
+import {
+  CREATOR_PROJECTION,
+  WorkflowVersionsService,
+} from './workflow-versions.service';
+import { Controller, Get } from '@nestjs/common';
+import { ApiOkResponse } from '@nestjs/swagger';
+import type { OpenAPIObject } from '@nestjs/swagger';
+import {
+  buildSwaggerDocument,
+  schemasOf,
+} from '../../shared/testing/swagger-probe';
+import { WorkflowVersionCreatorDto } from './dto/responses/workflow-version-response.dto';
 import { WorkflowVersion } from './entities/workflow-version.entity';
 import { Workflow } from '../workflows/entities/workflow.entity';
+
+@Controller('probe-wv-creator')
+class CreatorProbeController {
+  @Get()
+  @ApiOkResponse({ type: WorkflowVersionCreatorDto })
+  get(): WorkflowVersionCreatorDto {
+    return {} as WorkflowVersionCreatorDto;
+  }
+}
+
+/**
+ * **투영 상수와 DTO 가 갈리지 않게 코드로 묶는다.**
+ *
+ * `CREATOR_PROJECTION` 은 `WorkflowVersionCreatorDto` 가 광고하는 집합과 같아야 한다.
+ * 그 일치를 주석으로만 두면 한쪽만 늘어난다 — 이 PR 자신이 그 실패를 겪었다
+ * (같은 리터럴이 두 곳에 복제돼 있어 `findOne` 만 투영을 잃었다).
+ *
+ * 목록끼리 비교하지 않고 **DTO 의 OpenAPI 스키마**에서 뽑는다 — 손으로 적은 두 목록을
+ * 맞대면 둘 다 같이 틀린 경우를 못 잡는다.
+ */
+describe('CREATOR_PROJECTION ↔ WorkflowVersionCreatorDto', () => {
+  it('투영 키가 DTO 가 광고하는 프로퍼티와 정확히 일치한다', async () => {
+    const doc: OpenAPIObject = await buildSwaggerDocument({
+      controllers: [CreatorProbeController],
+    });
+    const schema = schemasOf(doc).WorkflowVersionCreatorDto;
+    const declared = Object.keys(schema.properties ?? {}).sort();
+
+    // 스키마가 비면 아래 비교가 빈 배열끼리라 조용히 통과한다.
+    expect(declared.length).toBeGreaterThan(0);
+    expect(Object.keys(CREATOR_PROJECTION).sort()).toEqual(declared);
+  });
+});
 
 describe('WorkflowVersionsService', () => {
   let service: WorkflowVersionsService;
@@ -57,7 +101,7 @@ describe('WorkflowVersionsService', () => {
           changeSummary: true,
           createdBy: true,
           createdAt: true,
-          creator: { id: true, name: true, email: true },
+          creator: CREATOR_PROJECTION,
         },
       });
       // m-3 — snapshot 은 목록 select 에서 비적재 (over-fetch 방지).
@@ -82,7 +126,7 @@ describe('WorkflowVersionsService', () => {
           snapshot: true,
           createdBy: true,
           createdAt: true,
-          creator: { id: true, name: true, email: true },
+          creator: CREATOR_PROJECTION,
         },
       });
     });

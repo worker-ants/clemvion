@@ -10,7 +10,7 @@
 
 interface FakeOpts {
   where: unknown;
-  relations?: string[] | Record<string, boolean>;
+  relations?: string[] | Record<string, unknown>;
   select?: Record<string, unknown>;
 }
 
@@ -90,6 +90,47 @@ export async function violationTwiceInOneFunction(): Promise<unknown[]> {
   const a = await repo.findOne({ where: { id: 'a' }, relations: ['user'] });
   const b = await repo.findOne({ where: { id: 'b' }, relations: ['user'] });
   return [a, b];
+}
+
+/**
+ * 위반 9 — **중첩 객체 형태.** 배열 쪽은 `'member.user'` 로 중첩을 잡으면서 객체 쪽은
+ * 최상위만 보던 사각지대 (`review/code/2026/09/06/10_53_48` W2).
+ */
+export async function violationNestedObjectRelations(): Promise<unknown> {
+  return repo.findOne({
+    where: { id: 'x' },
+    relations: { workflow: { creator: true } },
+  });
+}
+
+/**
+ * 위반 10 — 감싸는 **변수**가 있어도 키가 메서드/함수 이름으로 잡히는가.
+ * `enclosingName` 의 "메서드가 변수보다 우선" 설계를 관측 가능하게 만든다 — 그 우선순위를
+ * 뒤집어도 스위트가 초록이던 상태를 리뷰가 잡았다 (`10_53_48` INFO#4).
+ */
+export async function violationViaIntermediateVariable(): Promise<unknown> {
+  const stored = await repo.findOne({
+    where: { id: 'x' },
+    relations: ['owner'],
+  });
+  return stored;
+}
+
+/**
+ * 위반 11 — **타입 연산을 한 겹 씌운** 형태. 객체 리터럴이 `as`/`satisfies`/괄호로 감싸이면
+ * `ts.isObjectLiteralExpression` 이 거짓이 되어 술어가 눈을 감는다 — 이 fixture 를 처음 쓸
+ * 때 `as unknown as …` 로 실제로 그랬다.
+ *
+ * 여기서는 `satisfies` 를 쓴다. `as` 로 쓰면 저장소 lint
+ * (`@typescript-eslint/no-unnecessary-type-assertion`)가 **중복 단언**으로 막는다 — 즉
+ * 이 저장소의 프로덕션 코드에 남을 수 있는 형태는 `satisfies` 쪽이다. 가드는 두 형태를
+ * 같은 `unwrap` 으로 벗기므로 이 하나가 두 경로를 함께 태운다.
+ */
+export async function violationSatisfiesRelations(): Promise<unknown> {
+  return repo.findOne({
+    where: { id: 'x' },
+    relations: { creator: true } satisfies Record<string, unknown>,
+  });
 }
 
 // ── 준수 형태 (대조군) ──────────────────────────────────────────────────────

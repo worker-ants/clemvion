@@ -132,7 +132,7 @@ describe('`User` 관계 전체 로드 래칫', () => {
       'owner',
     ]);
 
-    it('위반 8형태를 전부 잡는다 (한 함수 안 두 번은 두 건으로)', () => {
+    it('위반 10형태를 전부 잡는다 (한 함수 안 두 번은 두 건으로)', () => {
       expect(found.map((f) => f.method).sort()).toEqual(
         [
           'violationRelationsUser',
@@ -144,6 +144,9 @@ describe('`User` 관계 전체 로드 래칫', () => {
           'violationInnerJoinAndSelect',
           'violationTwiceInOneFunction',
           'violationTwiceInOneFunction',
+          'violationNestedObjectRelations',
+          'violationViaIntermediateVariable',
+          'violationSatisfiesRelations',
         ].sort(),
       );
     });
@@ -151,7 +154,33 @@ describe('`User` 관계 전체 로드 래칫', () => {
     it('두 종류를 각각 잡는다 — 한 축만 물면 다른 축으로 샌다', () => {
       const kinds = found.map((f) => f.kind);
       expect(kinds.filter((k) => k === 'joinAndSelect')).toHaveLength(2);
-      expect(kinds.filter((k) => k === 'relations')).toHaveLength(7);
+      expect(kinds.filter((k) => k === 'relations')).toHaveLength(10);
+    });
+
+    it('중첩 **객체** 형태도 잡는다 — 배열 중첩만 잡으면 반쪽이다', () => {
+      // `relations: { workflow: { creator: true } }`. 배열 쪽은 `'member.user'` 로
+      // 중첩을 잡으면서 객체 쪽은 최상위만 보던 사각지대였다.
+      const nested = found.find(
+        (f) => f.method === 'violationNestedObjectRelations',
+      );
+      expect(nested?.relation).toBe('creator');
+    });
+
+    it('타입 연산을 한 겹 씌워도 잡는다 — 술어가 눈 감는 자리였다', () => {
+      const wrapped = found.find(
+        (f) => f.method === 'violationSatisfiesRelations',
+      );
+      expect(wrapped?.relation).toBe('creator');
+    });
+
+    it('감싸는 변수가 있어도 키는 **함수 이름**으로 잡힌다', () => {
+      // `const stored = await repo.findOne(...)` — `enclosingName` 이 변수보다 메서드를
+      // 먼저 보지 않으면 키가 `#stored` 가 되어 같은 이름이 여러 파일에서 겹친다.
+      const viaVar = found.find(
+        (f) => f.method === 'violationViaIntermediateVariable',
+      );
+      expect(viaVar).toBeDefined();
+      expect(viaVar?.key).toMatch(/#violationViaIntermediateVariable$/);
     });
 
     it('이름이 `user` 가 아닌 `User` 관계도 잡는다 — Critical 1 의 형태', () => {

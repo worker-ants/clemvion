@@ -128,12 +128,34 @@ function enclosingName(node: ts.Node, sf: ts.SourceFile): string {
   return fallback ?? '<module>';
 }
 
+/**
+ * `as`·`satisfies`·괄호를 벗겨 **안쪽 식**을 돌려준다.
+ *
+ * 캐스트가 한 겹만 있어도 `ts.isObjectLiteralExpression` 이 거짓이 되어 술어가 통째로
+ * 눈을 감는다 — fixture 에 `as unknown as Record<…>` 를 쓰자마자 중첩 객체 위반이
+ * 검출되지 않는 것을 실측으로 확인했다 (`review/code/2026/09/06/10_53_48` W2 대응 중).
+ * 실제 코드도 TypeORM 타입을 맞추려 캐스트를 쓰므로 같은 구멍이 프로덕션에도 열린다.
+ */
+function unwrap(expr: ts.Expression): ts.Expression {
+  let cur = expr;
+  while (
+    ts.isAsExpression(cur) ||
+    ts.isSatisfiesExpression(cur) ||
+    ts.isParenthesizedExpression(cur) ||
+    ts.isTypeAssertionExpression(cur)
+  ) {
+    cur = cur.expression;
+  }
+  return cur;
+}
+
 /** `relations` 초기자에서 처음 발견되는 `User` 관계 이름. 없으면 `null`. */
 function userRelationInInitializer(
-  init: ts.Expression,
+  rawInit: ts.Expression,
   sf: ts.SourceFile,
   names: ReadonlySet<string>,
 ): string | null {
+  const init = unwrap(rawInit);
   // 형태 1 — 배열 리터럴.
   if (ts.isArrayLiteralExpression(init)) {
     for (const el of init.elements) {
@@ -143,12 +165,23 @@ function userRelationInInitializer(
     }
     return null;
   }
-  // 형태 2 — 객체 리터럴 (TypeORM 0.3).
+  // 형태 2 — 객체 리터럴 (TypeORM 0.3). **중첩까지 내려간다** —
+  // `relations: { workflow: { creator: true } }` 도 `creator` 를 통째로 싣는다.
+  // 최상위만 보면 배열 형태의 `'member.user'` 는 잡으면서 객체 형태의 같은 중첩은
+  // 놓친다 — 이 가드가 막으려는 결함 클래스를 자신이 반복하는 자리였다
+  // (`review/code/2026/09/06/10_53_48` W2).
   if (ts.isObjectLiteralExpression(init)) {
     for (const prop of init.properties) {
       if (!prop.name) continue;
       const key = prop.name.getText(sf).replace(/['"]/g, '');
       if (names.has(key.toLowerCase())) return key;
+      if (ts.isPropertyAssignment(prop)) {
+        const inner = unwrap(prop.initializer);
+        if (ts.isObjectLiteralExpression(inner)) {
+          const nested = userRelationInInitializer(inner, sf, names);
+          if (nested !== null) return nested;
+        }
+      }
     }
     return null;
   }
