@@ -103,10 +103,36 @@ describe('`User` 관계 전체 로드 래칫', () => {
     });
   });
 
-  it('`User` 관계에 `eager: true` 를 붙인 자리는 하나도 없다', () => {
-    // eager 관계는 **호출부에 아무 텍스트도 남기지 않아** 위 스캔이 원리적으로 못 본다.
-    // 0을 유지하는 것이 이 축의 계약이다 (`review/code/2026/09/06/11_27_53` W1).
-    expect(findEagerUserRelations(entityFiles, SRC_ROOT)).toEqual([]);
+  describe('eager 관계 축', () => {
+    it('프로덕션 엔티티에 `eager: true` 인 `User` 관계는 하나도 없다', () => {
+      // eager 관계는 **호출부에 아무 텍스트도 남기지 않아** 위 스캔이 원리적으로 못 본다.
+      // 0을 유지하는 것이 이 축의 계약이다 (`review/code/2026/09/06/11_27_53` W1).
+      expect(findEagerUserRelations(entityFiles, SRC_ROOT)).toEqual([]);
+    });
+
+    /**
+     * **"현재 0건이다" 와 "이 함수가 잡는다" 는 다른 주장이다.**
+     *
+     * 위 단언만 있을 때 `hasEagerDecorator` 를 `return false` 로 무력화해도 스위트가
+     * 15/15 초록이었다 (`review/code/2026/09/06/11_55_36` W1 — 리뷰어가 직접 뮤테이션).
+     * 술어가 죽어 있어도 0건은 0건이기 때문이다. 이 대조군이 그 구멍을 막는다.
+     */
+    it('[대조군] eager `User` 관계를 잡고, 아닌 것은 놓아 준다', () => {
+      const fixture = path.join(
+        __dirname,
+        'fixtures',
+        'user-eager-relation.fixture.ts',
+      );
+      const found = findEagerUserRelations([fixture], SRC_ROOT);
+      const props = found.map((k) => k.split('#')[1]).sort();
+
+      // 양성 — eager 인 `User` 관계 둘.
+      expect(props).toEqual(['eagerCreator', 'eagerOwner']);
+      // 음성 — 옵션 없음 · `eager:false` · `User` 아님. 셋 다 안 걸려야 한다.
+      expect(props).not.toContain('lazyUser');
+      expect(props).not.toContain('explicitlyLazy');
+      expect(props).not.toContain('eagerButNotUser');
+    });
   });
 
   it('알려진 목록과 정확히 일치한다 (새로 생겨도, 남몰래 줄어도 실패)', () => {

@@ -10,7 +10,7 @@ import { ApiOkResponse } from '@nestjs/swagger';
 import type { OpenAPIObject } from '@nestjs/swagger';
 import {
   buildSwaggerDocument,
-  schemasOf,
+  schemaOf,
 } from '../../shared/testing/swagger-probe';
 import { WorkflowVersionCreatorDto } from './dto/responses/workflow-version-response.dto';
 import { WorkflowVersion } from './entities/workflow-version.entity';
@@ -40,7 +40,9 @@ describe('CREATOR_PROJECTION ↔ WorkflowVersionCreatorDto', () => {
     const doc: OpenAPIObject = await buildSwaggerDocument({
       controllers: [CreatorProbeController],
     });
-    const schema = schemasOf(doc).WorkflowVersionCreatorDto;
+    // `schemasOf(doc).X` 로 직접 인덱싱하면 이름이 틀렸을 때 무명 `TypeError` 가 난다 —
+    // `schemaOf` 는 정확히 그것을 막으려고 있는 헬퍼다 (`11_55_36` INFO#10).
+    const schema = schemaOf(doc, 'WorkflowVersionCreatorDto');
     const declared = Object.keys(schema.properties ?? {}).sort();
 
     // 스키마가 비면 아래 비교가 빈 배열끼리라 조용히 통과한다.

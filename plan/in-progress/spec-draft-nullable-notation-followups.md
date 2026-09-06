@@ -591,6 +591,29 @@ field: T | null;
         > 실어 보낸다 — 종전에는 `isActive: false` 면 트리거를 만들어 놓고 응답에서만
         > 빠졌다.
 
+- [ ] **`Ref` DTO **클래스** JSDoc 두 곳에 리뷰 인용이 남아 있다** (developer, 2026-09-06
+      등재, `review/consistency/2026/09/06/11_55_37` W3 을 고치다 전수 grep 으로 발견).
+
+      `review-citations.md §3` 은 *"DTO·컨트롤러의 `/** */` JSDoc 은 대상 아님 — 그 JSDoc 은
+      **공개 OpenAPI description** 으로 나가므로 리뷰 인용을 애초에 거기 쓰지 않는다"* 고
+      적는다. 그런데 두 자리가 클래스 JSDoc 안에 인용을 담고 있다:
+
+      | 파일 | 클래스 |
+      |---|---|
+      | `schedules/dto/responses/schedule-response.dto.ts` | `ScheduleTriggerWorkflowRefDto` |
+      | `triggers/dto/responses/trigger-response.dto.ts` | `TriggerWorkflowRefDto` |
+
+      둘 다 **#1291 이 넣었고 그 PR 의 게이트를 통과했다** — 그때 checker 가 "필드 JSDoc" 만
+      보고 클래스 쪽은 안 봤다. 이번 라운드 checker 도 클래스 쪽은 지적하지 않았다.
+
+      **이 브랜치에서 고치지 않는 이유**: 두 파일 모두 이 브랜치 diff 밖이다. 손대면 scope
+      이탈이고, `review-citations.md §4`(기존 인용은 소급 정리 대상 아님)의 취지에도 맞지
+      않는다 — *"그 자리를 다음에 건드릴 때 함께 맞춘다."*
+
+      착수 시 함께 볼 것: **클래스 JSDoc 도 대상인가**를 `review-citations.md §3` 표가
+      명시하지 않는다(그 행은 "DTO·컨트롤러의 JSDoc" 이라고만 적어 필드/클래스를 안 가른다).
+      고치기 전에 그 문장부터 갈라야 같은 질문이 또 안 생긴다 — 그쪽은 planner 몫이다.
+
 - [ ] **`INTERNAL_ERROR` 문구가 두 자리에서 언어가 갈린다** (developer, 2026-09-06 등재,
       `review/consistency/2026/09/06/01_13_51` INFO#3). `3-error-handling.md` 는 이 코드의
       문구를 **한국어**(*"서버 오류가 발생했습니다. 잠시 후 다시 시도해 주세요."*)로 정하는데,

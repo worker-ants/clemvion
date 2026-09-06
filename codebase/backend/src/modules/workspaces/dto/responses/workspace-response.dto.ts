@@ -78,17 +78,17 @@ export class WorkspaceMemberDto {
   @ApiProperty({ enum: ['owner', 'admin', 'editor', 'viewer'] })
   role: string;
 
-  /**
-   * 멤버가 워크스페이스에 합류한 시각.
-   *
-   * **상시 존재**한다 — `WorkspacesService.listMembers` 가 `joinedAt: m.joinedAt` 으로
-   * 무조건 실으므로, 값이 없어도 키는 `null` 로 온다. 그래서 §5.4 **기본형**
-   * (`@ApiProperty` + `nullable: true`)이지 키 생략형이 아니다.
-   *
-   * `nullable` 은 **스키마를 따른 것**이지 현행 코드의 도달 가능한 상태가 아니다 — 실측
-   * (2026-09-06): `workspace_member` 행을 만드는 네 자리가 전부 `joinedAt: new Date()` 로
-   * 즉시 채운다. 수락 전 초대는 이 테이블이 아니라 `WorkspaceInvitation` 에 산다.
-   */
+  /** 멤버가 워크스페이스에 합류한 시각. 상시 존재하며, 값이 없으면 `null`. */
+  // 왜 §5.4 **기본형**인가 — `WorkspacesService.listMembers` 가 `joinedAt: m.joinedAt` 으로
+  // 무조건 실으므로 값이 없어도 키는 온다. 키 생략형이 아니다.
+  //
+  // `nullable` 은 **스키마를 따른 것**이지 현행 코드의 도달 가능한 상태가 아니다 — 실측
+  // (2026-09-06): `workspace_member` 행을 만드는 네 자리가 전부 `joinedAt: new Date()` 로
+  // 즉시 채운다. 수락 전 초대는 이 테이블이 아니라 `WorkspaceInvitation` 에 산다.
+  //
+  // 내부 서사를 `//` 에 두는 이유: 필드 JSDoc 은 `introspectComments` 로 **공개 OpenAPI
+  // description** 이 된다 (`swagger.md §3`). 이 브랜치가 같은 위반을 세 번째 했다
+  // (`review/consistency/2026/09/06/11_55_37` W3).
   @ApiProperty({ format: 'date-time', nullable: true, type: String })
   joinedAt: string | null;
 }

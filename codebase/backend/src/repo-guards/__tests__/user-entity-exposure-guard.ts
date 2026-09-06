@@ -44,23 +44,42 @@ function referencesUserType(type: ts.TypeNode): boolean {
 }
 
 /**
- * `*.entity.ts` 에서 **타입이 `User` 인 관계 속성 이름**을 전부 모은다.
+ * `*.entity.ts` 를 훑어 **타입이 `User` 인 속성**마다 콜백을 부른다.
  *
- * ## 왜 이름을 손으로 적지 않는가
- *
- * 첫 판은 관계 경로의 마지막 세그먼트가 `'user'` 인지만 봤다. 그래서
- * `WorkflowVersion.creator`(`@ManyToOne(() => User)`)를 통째로 싣는 자리를 **놓쳤고**, 그
- * 자리는 실제로 `GET /api/workflows/:wfId/versions/:versionId` 로 `User` 전 컬럼을
- * 내보내고 있었다 (`review/code/2026/09/06/10_13_22` Critical 1).
- *
- * 목록을 `['user','creator','owner']` 로 **늘리는** 것은 같은 결함의 다음 판이다 — 다음에
- * 누가 `approver: User` 를 만들면 또 놓친다. 목록을 넓히지 말고 **출처를 바꾼다**:
- * 엔티티 선언이 SoT 이고 이 함수가 거기서 파생시킨다.
- *
- * 판정 축은 **속성의 타입 주석**이다 — 데코레이터 인자(`() => User`)가 아니다. 엔티티가
- * 그 타입을 실제로 약속하는 자리가 타입 주석이고, 배열·nullable 형태까지 같은 술어로
- * 덮인다.
+ * 두 축(`collectUserRelationNames` · `findEagerUserRelations`)이 같은 순회를 필요로 한다.
+ * 순회를 각자 복제하면 한쪽만 고쳐지는 자리가 생긴다 — 이 가드가 다른 곳에서 강조한
+ * *"출처를 바꿔라"* 를 순회 로직 자체에는 안 쓴 셈이었다
+ * (`review/code/2026/09/06/11_55_36` W5).
  */
+function forEachUserTypedProperty(
+  entityFiles: readonly string[],
+  visit: (
+    node: ts.PropertyDeclaration,
+    sf: ts.SourceFile,
+    file: string,
+  ) => void,
+): void {
+  for (const file of entityFiles) {
+    const sf = ts.createSourceFile(
+      file,
+      fs.readFileSync(file, 'utf8'),
+      ts.ScriptTarget.Latest,
+      true,
+    );
+    const walk = (node: ts.Node): void => {
+      if (
+        ts.isPropertyDeclaration(node) &&
+        node.type &&
+        referencesUserType(node.type)
+      ) {
+        visit(node, sf, file);
+      }
+      ts.forEachChild(node, walk);
+    };
+    walk(sf);
+  }
+}
+
 /**
  * `@ManyToOne(() => User, { eager: true })` 처럼 **엔티티 선언만으로 항상 로드되는**
  * `User` 관계. `<파일>#<속성명>` 키로 돌려준다.
@@ -75,33 +94,22 @@ function referencesUserType(type: ts.TypeNode): boolean {
  *
  * 실측(2026-09-06): 현재 저장소에 `User` 를 가리키는 eager 관계는 **0건**이다. 0을
  * 유지하는 것이 이 축의 계약이다 — 붙이려면 그때 투영 전략을 함께 정해야 한다.
+ *
+ * > **0건이라는 사실과 이 함수가 실제로 잡는다는 사실은 다른 주장이다.** 첫 판은 전자만
+ * > 확인했고, `hasEagerDecorator` 를 `return false` 로 무력화해도 스위트가 **15/15 초록**
+ * > 이었다 (`review/code/2026/09/06/11_55_36` W1 — 리뷰어가 직접 뮤테이션해 확인). 지금은
+ * > `fixtures/user-eager-relation.fixture.ts` 가 양성/음성을 모두 물어 검출력을 고정한다.
  */
 export function findEagerUserRelations(
   entityFiles: readonly string[],
   srcRoot: string,
 ): string[] {
   const out: string[] = [];
-  for (const file of entityFiles) {
-    const sf = ts.createSourceFile(
-      file,
-      fs.readFileSync(file, 'utf8'),
-      ts.ScriptTarget.Latest,
-      true,
-    );
-    const rel = toPosixRelative(srcRoot, file);
-    const visit = (node: ts.Node): void => {
-      if (
-        ts.isPropertyDeclaration(node) &&
-        node.type &&
-        referencesUserType(node.type) &&
-        hasEagerDecorator(node, sf)
-      ) {
-        out.push(`${rel}#${node.name.getText(sf)}`);
-      }
-      ts.forEachChild(node, visit);
-    };
-    visit(sf);
-  }
+  forEachUserTypedProperty(entityFiles, (node, sf, file) => {
+    if (hasEagerDecorator(node, sf)) {
+      out.push(`${toPosixRelative(srcRoot, file)}#${node.name.getText(sf)}`);
+    }
+  });
   return out.sort();
 }
 
@@ -129,29 +137,31 @@ function hasEagerDecorator(
   return false;
 }
 
+/**
+ * `*.entity.ts` 에서 **타입이 `User` 인 관계 속성 이름**을 전부 모은다.
+ *
+ * ## 왜 이름을 손으로 적지 않는가
+ *
+ * 첫 판은 관계 경로의 마지막 세그먼트가 `'user'` 인지만 봤다. 그래서
+ * `WorkflowVersion.creator`(`@ManyToOne(() => User)`)를 통째로 싣는 자리를 **놓쳤고**, 그
+ * 자리는 실제로 `GET /api/workflows/:wfId/versions/:versionId` 로 `User` 전 컬럼을
+ * 내보내고 있었다 (`review/code/2026/09/06/10_13_22` Critical 1).
+ *
+ * 목록을 `['user','creator','owner']` 로 **늘리는** 것은 같은 결함의 다음 판이다 — 다음에
+ * 누가 `approver: User` 를 만들면 또 놓친다. 목록을 넓히지 말고 **출처를 바꾼다**:
+ * 엔티티 선언이 SoT 이고 이 함수가 거기서 파생시킨다.
+ *
+ * 판정 축은 **속성의 타입 주석**이다 — 데코레이터 인자(`() => User`)가 아니다. 엔티티가
+ * 그 타입을 실제로 약속하는 자리가 타입 주석이고, 배열·nullable 형태까지 같은 술어로
+ * 덮인다.
+ */
 export function collectUserRelationNames(
   entityFiles: readonly string[],
 ): string[] {
   const names = new Set<string>();
-  for (const file of entityFiles) {
-    const sf = ts.createSourceFile(
-      file,
-      fs.readFileSync(file, 'utf8'),
-      ts.ScriptTarget.Latest,
-      true,
-    );
-    const visit = (node: ts.Node): void => {
-      if (
-        ts.isPropertyDeclaration(node) &&
-        node.type &&
-        referencesUserType(node.type)
-      ) {
-        names.add(node.name.getText(sf));
-      }
-      ts.forEachChild(node, visit);
-    };
-    visit(sf);
-  }
+  forEachUserTypedProperty(entityFiles, (node, sf) => {
+    names.add(node.name.getText(sf));
+  });
   return [...names].sort();
 }
 

@@ -21,19 +21,33 @@ import type { User } from '../users/entities/user.entity';
 export type ProjectedCreator = Pick<User, 'id' | 'name' | 'email'>;
 
 /**
+ * 두 조회가 **로드하지 않는** 관계. 타입에서 뺀다.
+ *
+ * `WorkflowVersion.workflow` 는 `@ManyToOne(() => Workflow)` 로 선언돼 있지만 이 서비스의
+ * 두 조회는 `relations: { creator: true }` 만 준다 — 즉 런타임에는 **항상 `undefined`**
+ * 인데 엔티티 타입은 `Workflow` 라고 말한다. `creator` 에 대해 방금 고친 것과 **같은
+ * 형태의 타입-런타임 간극**이 옆자리에 남아 있었다 (`review/code/2026/09/06/11_55_36` W3).
+ *
+ * 나중에 `workflow` 가 필요해지면 `creator` 와 같은 형태로 로드·투영을 함께 들여온다 —
+ * `audit-logs.service.ts` 의 `AuditLogListItem` 이 같은 이유로 `workspace` 를 뺐다.
+ */
+type UnloadedRelations = 'workflow';
+
+/**
  * 목록 조회 반환 타입 — `snapshot` 을 제외해 호출부에서 컴파일 타임에 접근 차단.
  * 엔티티 필드 타입(Date 등)을 그대로 유지해 TypeORM 반환값과 호환 유지.
  * `creator` 는 투영된 3필드로 좁힌다 — 위 `ProjectedCreator` 참조.
  */
 export type WorkflowVersionListItem = Omit<
   WorkflowVersion,
-  'snapshot' | 'creator'
+  'snapshot' | 'creator' | UnloadedRelations
 > & { creator: ProjectedCreator };
 
 /** 단건 조회 반환 타입 — 목록과 달리 `snapshot` 을 싣고, `creator` 는 같이 좁힌다. */
-export type WorkflowVersionDetail = Omit<WorkflowVersion, 'creator'> & {
-  creator: ProjectedCreator;
-};
+export type WorkflowVersionDetail = Omit<
+  WorkflowVersion,
+  'creator' | UnloadedRelations
+> & { creator: ProjectedCreator };
 
 /**
  * `creator` 관계에서 **응답에 실을 컬럼**. 두 조회 메서드가 공유한다.
@@ -52,11 +66,11 @@ export type WorkflowVersionDetail = Omit<WorkflowVersion, 'creator'> & {
  * OpenAPI 스키마 프로퍼티와 대조한다. DTO 에 필드를 더하고 여기를 안 고치면 그 자리에서
  * 걸린다(반대 방향도).
  */
-export const CREATOR_PROJECTION = {
+export const CREATOR_PROJECTION = Object.freeze({
   id: true,
   name: true,
   email: true,
-} as const;
+} as const);
 
 @Injectable()
 export class WorkflowVersionsService {
