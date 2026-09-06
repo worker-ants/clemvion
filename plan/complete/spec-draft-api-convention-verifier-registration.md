@@ -3,7 +3,7 @@ title: §5.4 검증자 2종을 spec 에 등재하고 역할 경계를 명문화�
 worktree: spec-api-convention-code-and-overview-d81cd6
 started: 2026-09-05
 owner: planner
-status: in-progress
+status: complete
 priority: P2
 spec_impact:
   - spec/5-system/2-api-convention.md

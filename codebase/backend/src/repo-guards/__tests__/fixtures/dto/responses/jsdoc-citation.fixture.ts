@@ -43,6 +43,20 @@ export class ViolationFieldCitationDto {
   avatarUrl: string;
 }
 
+// 위반 5 — **백틱 없는 bare 시각.** 가드는 "세 형태를 센다" 고 적어 놓고 bare 축만
+// 백틱 두른 형태를 요구하고 있었다 — 백틱 없이 쓴 인용은 통째로 빠졌다
+// (review/code/2026/09/06/16_58_14 W4, 리뷰어가 무수정 프로브로 재현).
+//
+// JSDoc 에 남을 확률이 높은 쪽이 오히려 이 형태다 — 백틱은 마크다운 습관이고 주석에
+// 급히 적을 땐 안 붙는다.
+//
+// **설명을 `//` 에 둔 것도 의도다**: 클래스 JSDoc 에 인용을 적으면 그 자리도 위반이 돼
+// 이 fixture 가 두 가지를 동시에 시험하게 된다. 여기서 물으려는 것은 **필드** 축이다.
+export class ViolationBareTimeNoBacktickDto {
+  /** 근거: 12_28_02 W2 — 백틱 없이 적었다. */
+  id: string;
+}
+
 /** 정상 — 인용이 아예 없다. */
 export class CompliantPlainDto {
   /** 워크플로우 이름. */

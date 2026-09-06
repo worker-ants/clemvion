@@ -77,6 +77,7 @@ describe('응답 DTO JSDoc 리뷰 인용 래칫', () => {
 
     // 양성 — 클래스 JSDoc · 필드 JSDoc · bare 시각 · 날짜+시각.
     expect(owners).toEqual([
+      'ViolationBareTimeNoBacktickDto.id',
       'ViolationClassCitationDto',
       'ViolationFieldCitationDto.avatarUrl',
       'ViolationFieldCitationDto.email',
@@ -105,7 +106,8 @@ describe('응답 DTO JSDoc 리뷰 인용 래칫', () => {
 
     // 전체 경로 · bare 시각 · 날짜+시각.
     expect(cited.some((c) => c.startsWith('review/'))).toBe(true);
-    expect(cited.some((c) => /^`\d{2}_\d{2}_\d{2}`$/.test(c))).toBe(true);
+    // bare 축은 백틱을 요구하지 않으므로 매치 텍스트에도 백틱이 없다.
+    expect(cited.some((c) => /^\d{2}_\d{2}_\d{2}$/.test(c))).toBe(true);
     expect(cited.some((c) => /^\d{4}-\d{2}-\d{2}\s/.test(c))).toBe(true);
   });
 

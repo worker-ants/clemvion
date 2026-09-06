@@ -487,6 +487,42 @@ field: T | null;
       > 수정에 의존한다**(수정 전에는 `workspace-response.dto.ts` 가 spec-linked 로 안
       > 잡혔다). 두 PR 로 가르면 서로를 기다리는 순환이 된다.
 
+- [ ] **전역 예외 필터가 `pg-error.ts` SoT 를 안 쓴다 — 가장 넓은 fallback 이 좁다**
+      (developer, 2026-09-06 등재, `review/code/2026/09/06/16_58_14` W6).
+
+      `http-exception.filter.ts` 의 로컬 `isUniqueViolation` 은 **`err instanceof
+      QueryFailedError` 를 먼저 요구**한다. 그래서 raw(`err.code`) 표면으로 올라온
+      23505 는 걸러져 409 가 아니라 **500** 이 된다. 이 PR 이 `pg-error.ts` 를 SoT 로
+      세운 이유가 정확히 그 표면 분기인데, **국소 처리가 없는 대다수 서비스가 지나는
+      fallback 에는 좁은 판이 그대로 남았다.**
+
+      **실측한 blast radius 는 지금 ~0 이다** — 우리 스키마를 치는 raw query 가 요청
+      경로에 없다(grep: `database-query.handler.ts` 는 사용자 외부 DB, `scripts/**` 는
+      요청 경로 아님). 즉 **구조적 불일치이지 현재 버그는 아니다.**
+
+      → `isPostgresUniqueViolation(err)` 호출로 교체(2줄). `http-exception.filter.spec.ts`
+      에 23505 케이스가 이미 있으므로 **최상위 표면 케이스만 더하면** 회귀가 고정된다.
+
+      **이 PR 에서 하지 않은 이유는 범위다** — `integration-oauth` 건과 같은 규율이다.
+      다만 그쪽은 동작이 옳고(두 표면을 본다) 이쪽은 **좁다**는 점이 다르므로, 둘 중
+      먼저 처리할 것은 이쪽이다.
+
+- [ ] **`src/common/__test-utils__/` 5파일이 dist 로 나간다** (developer, 2026-09-06 등재,
+      이번 PR 의 W3 을 고치다 발견).
+
+      `tsconfig.build.json` 의 exclude 는 `*spec.ts` · `src/repo-guards/**` ·
+      `src/shared/testing/**` 셋이다. `__test-utils__` 는 어디에도 안 걸린다 — **실측**:
+      `tsc --listFiles -p tsconfig.build.json | grep __test-utils__` → **5건**
+      (`source-scan.ts` · `temp-fixture.ts` · `workspace-id-fixtures.ts` 외).
+
+      **지금은 지뢰가 아니다** — 전 파일의 import 가 node 내장 + 로컬뿐이라, exclude 목록
+      주석이 경고하는 형태(`require("typescript")` 같은 devDependency 지뢰)는 없다.
+      **죽은 코드가 dist 에 실릴 뿐**이다.
+
+      → exclude 에 `**/__test-utils__/**` 를 더한다. 경로가 아니라 **디렉터리 이름 규약**
+      으로 막으면 다음에 어디에 만들어도 걸린다 — 이번에 내가 `common/db/__test-utils__/`
+      에 파일을 만들었다가 같은 함정에 빠졌고, 그때는 자리를 옮겨 회피했다.
+
 - [ ] **`integration-oauth.service.ts` 의 손-작성 constraint 추출 2곳** (developer,
       2026-09-06 등재, `review/code/2026/09/06/16_28_58` INFO#9 — **의도적 보류**).
 

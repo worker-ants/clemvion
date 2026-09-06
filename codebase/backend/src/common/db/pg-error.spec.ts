@@ -35,9 +35,18 @@ describe('pg-error — 두 wrap 표면', () => {
     expect(pgErrorConstraint(err)).toBe('idx_a');
   });
 
-  it('제약 이름이 없으면 undefined — 호출부가 좁히지 않고 전역 매핑에 맡기게 한다', () => {
-    expect(pgErrorConstraint(wrapped({ code: '23505' }))).toBeUndefined();
-  });
+  it.each([
+    ['driverError 표면', wrapped({ code: '23505' })],
+    ['최상위 표면', flat({ code: '23505' })],
+  ])(
+    '%s — 제약 이름이 없으면 undefined (호출부가 좁히지 않고 전역 매핑에 맡기게 한다)',
+    (_label, err) => {
+      // 종전엔 `driverError` 표면만 이름 붙여 태우고 최상위 표면은 범용 테이블에
+      // **우연히만** 덮였다 — 라벨과 커버리지가 어긋난 상태였다
+      // (`review/code/2026/09/06/16_58_14` INFO#6).
+      expect(pgErrorConstraint(err)).toBeUndefined();
+    },
+  );
 
   it.each([
     ['null', null],
