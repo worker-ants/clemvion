@@ -4,6 +4,13 @@ import request from 'supertest';
 
 import { createDbClient, uniqueEmail, uniqueName } from './helpers/db';
 import { registerAndLogin, createTeamWorkspace } from './helpers/auth';
+import {
+  assertMatchesContract,
+  contractForDto,
+} from '../src/shared/testing/response-contract';
+import { TriggerDto } from '../src/modules/triggers/dto/responses/trigger-response.dto';
+import { expectNarrowedScheduleTriggerRef } from '../src/shared/testing/schedule-trigger-ref';
+import { ScheduleDto } from '../src/modules/schedules/dto/responses/schedule-response.dto';
 
 /**
  * e2e: spec/2-navigation/3-schedule.md — Cron 스케줄 라이프사이클.
@@ -128,6 +135,39 @@ describe('Schedule trigger (e2e)', () => {
     const scheduleId = res.body.data.id as string;
     expect(scheduleId).toBeDefined();
     expect(res.body.data.nextRunAt).toBeDefined();
+    assertMatchesContract(res.body.data, await contractForDto(ScheduleDto));
+
+    // ── `GET /api/schedules/:id` — 이 PR 이 트리거 secret narrowing 을 배선한 자리인데
+    // 테스트가 unit·e2e 어디에도 없었다 (`review/code/2026/09/05/18_23_02` Critical 1).
+    const detail = await request(BASE_URL)
+      .get(`/api/schedules/${scheduleId}`)
+      .set(authHeaders());
+    expect(detail.status).toBe(200);
+    assertMatchesContract(detail.body.data, await contractForDto(ScheduleDto));
+    // 좁혀진 참조가 실제로 4필드인가 — 계약 대조는 "선언에 없는 키" 를 잡지만, 여기서는
+    // **무엇이 남아야 하는가**를 양성으로 고정한다.
+    expectNarrowedScheduleTriggerRef(detail.body.data.trigger, {
+      withWorkflow: true,
+    });
+
+    // ── 목록 경로도 같은 정화를 거치는가 (배열 매핑은 별도 코드 경로다).
+    const list = await request(BASE_URL)
+      .get('/api/schedules?limit=50')
+      .set(authHeaders());
+    expect(list.status).toBe(200);
+    const listed = (list.body.data as Array<Record<string, unknown>>).find(
+      (r) => r.id === scheduleId,
+    );
+    expect(listed).toBeDefined();
+    assertMatchesContract(listed, await contractForDto(ScheduleDto));
+    // 상세와 **같은 양성 대조**를 목록에도 건다. 계약 대조만으로는 좁히기 로직이 통째로
+    // 사라져 `workflow` 가 안 실려도 통과한다 — §5.4 키 생략형은 부재를 위반으로 보지
+    // 않기 때문이다 (`review/code/2026/09/06/00_24_34` W2).
+    expect(Object.keys(listed ?? {}).includes('trigger')).toBe(true);
+    expectNarrowedScheduleTriggerRef(
+      (listed as { trigger?: unknown }).trigger,
+      { withWorkflow: true },
+    );
 
     // schedule 행 + 동반된 trigger 행 확인.
     const sched = await db.query('SELECT id FROM schedule WHERE id = $1', [
@@ -141,6 +181,54 @@ describe('Schedule trigger (e2e)', () => {
     );
     expect(trig.rows.length).toBeGreaterThanOrEqual(1);
     expect(trig.rows[0].is_active).toBe(true);
+  });
+
+  it('C-3. `isActive` 는 응답의 `trigger` 형태를 바꾸지 않는다 (생성·비활성화 양쪽)', async () => {
+    // 종전 `create()`/`update()` 는 `saved.trigger` 대입이 `if (isActive)` 안에 있어,
+    // 비활성 경로에서만 트리거 행은 존재하는데 응답에서 키가 사라졌다
+    // (`review/code/2026/09/05/20_45_37` W1·W2). 두 자리를 각각 고정한다.
+    //
+    // **별도 `it()` 인 이유**: 이 케이스는 스케줄을 비활성화하므로, 같은 테스트 안에
+    // 두면 뒤따르는 `is_active = true` 단언을 깨뜨린다(실제로 그렇게 깨뜨렸다).
+    const inactive = await request(BASE_URL)
+      .post('/api/schedules')
+      .set(authHeaders())
+      .send({
+        workflowId,
+        name: uniqueName('sched-inactive'),
+        cronExpression: '0 3 * * *',
+        timezone: 'Asia/Seoul',
+        isActive: false,
+      });
+    expect(inactive.status).toBe(201);
+    expect(inactive.body.data.isActive).toBe(false);
+    // 트리거는 `isActive` 와 무관하게 생성됐으므로 응답에도 있어야 한다.
+    //
+    // `workflow` 는 없다 — 생성 경로가 방금 저장한 엔티티를 붙이므로 관계가 로드되지
+    // 않는다. 그래서 `ScheduleTriggerRefDto.workflow` 가 `@ApiPropertyOptional` 이다.
+    // **부재는 생성 응답에만** 있고 조회(`GET /:id`·목록)와 수정(PATCH, `findById` 로
+    // 시작)은 채운다 — 세 형태를 각각 양성/음성으로 고정한다.
+    expectNarrowedScheduleTriggerRef(inactive.body.data.trigger, {
+      withWorkflow: false,
+    });
+    assertMatchesContract(
+      inactive.body.data,
+      await contractForDto(ScheduleDto),
+    );
+
+    // PATCH 로 비활성화해도 마찬가지다 (`update()` 의 else 분기).
+    // 방금 만든 비활성 스케줄을 쓴다 — 다른 테스트의 스케줄을 건드리지 않는다.
+    const deactivated = await request(BASE_URL)
+      .patch(`/api/schedules/${inactive.body.data.id as string}`)
+      .set(authHeaders())
+      .send({ isActive: false });
+    expect(deactivated.status).toBe(200);
+    expect(deactivated.body.data.isActive).toBe(false);
+    expect(deactivated.body.data.trigger).toBeDefined();
+    assertMatchesContract(
+      deactivated.body.data,
+      await contractForDto(ScheduleDto),
+    );
   });
 
   it('C-2. GET /api/triggers 목록이 schedule 트리거의 cron·nextRunAt 을 포함 (V-10)', async () => {
@@ -173,6 +261,12 @@ describe('Schedule trigger (e2e)', () => {
     expect(row!.timezone).toBe('Asia/Seoul');
     expect(row!.nextRunAt).toBeDefined();
     expect(row!.nextRunAt).not.toBeNull();
+
+    // **목록 경로**의 계약 대조 — CHANGELOG 가 지목한 유출 경로 둘 중 트리거 쪽이고,
+    // 종전엔 생성(POST) 한 곳만 대조하고 있었다 (`review/code/2026/09/05/21_40_37` W1).
+    // 여기서 걸리는 것: `notificationSecretV2`·`chatChannelTokenV2` 가 다시 실리면
+    // `TriggerDto` 미선언 키로 잡힌다.
+    assertMatchesContract(row, await contractForDto(TriggerDto));
   });
 
   it('D. PATCH cron → nextRunAt 재계산', async () => {
@@ -195,6 +289,17 @@ describe('Schedule trigger (e2e)', () => {
     expect(patch.status).toBe(200);
     expect(patch.body.data.nextRunAt).toBeDefined();
     expect(patch.body.data.nextRunAt).not.toBe(originalNext);
+    // PATCH 도 `toResponse` 를 타지만 `update()` 의 trigger 대입 로직이 `findOne` 과
+    // 달라(`trigger ?? schedule.trigger`) 공유 헬퍼만으로 안전이 자동 보장되지 않는다
+    // (`review/code/2026/09/05/19_08_18` W5).
+    assertMatchesContract(patch.body.data, await contractForDto(ScheduleDto));
+    // 수정 경로도 **양성으로** 고정한다 — `update()` 는 `findById` 로 시작하므로
+    // `trigger.workflow` 까지 로드된다. DTO JSDoc 이 "세 형태를 각각 고정한다" 고
+    // 주장하는데 실제로는 상세 한 곳만 양성이었다 (`review/code/2026/09/06/00_24_34` W2).
+    expectNarrowedScheduleTriggerRef(
+      (patch.body.data as { trigger?: unknown }).trigger,
+      { withWorkflow: true },
+    );
   });
 
   it('E. run-now → 202 + executionId', async () => {
@@ -270,6 +375,8 @@ describe('Schedule trigger (e2e)', () => {
       .send({ isActive: false });
     expect(patch.status).toBe(200);
     expect(patch.body.data.isActive).toBe(false);
+    // **수정 경로**도 같은 정화를 거치는가 (`review/code/2026/09/05/21_40_37` W1).
+    assertMatchesContract(patch.body.data, await contractForDto(TriggerDto));
 
     const after = await db.query(
       'SELECT is_active FROM schedule WHERE id = $1',

@@ -1,6 +1,11 @@
 import { describe, it, expect, beforeAll, afterAll } from '@jest/globals';
 import { Client } from 'pg';
 import request from 'supertest';
+import {
+  assertMatchesContract,
+  contractForDto,
+} from '../src/shared/testing/response-contract';
+import { Cafe24PrecheckResultDto } from '../src/modules/integrations/dto/responses/integration-response.dto';
 
 import { createDbClient, uniqueEmail, uniqueName } from './helpers/db';
 import { registerAndLogin, createTeamWorkspace } from './helpers/auth';
@@ -82,6 +87,10 @@ describe('Cafe24 precheck endpoint (e2e)', () => {
       .set('X-Workspace-Id', workspaceId);
     expect(res.status).toBe(200);
     expect(res.body.data).toEqual({ conflict: false });
+    assertMatchesContract(
+      res.body.data,
+      await contractForDto(Cafe24PrecheckResultDto),
+    );
   });
 
   it('returns conflict=true with status=connected when a connected row exists', async () => {

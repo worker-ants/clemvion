@@ -220,6 +220,114 @@ export function findSwaggerContractMismatches(
 }
 
 /**
+ * §5.4 가 **응답 바디에서 금지한** 조합 — `required: false` + `nullable: true`.
+ *
+ * ## 왜 별도 축인가
+ *
+ * 위 두 축(presence·null)은 **선언과 TS 타입이 서로 맞는가**만 본다. 그래서
+ * `@ApiPropertyOptional({ nullable: true })` + `field?: T | null` 은 **양쪽 축을 모두
+ * 통과한다** — 선언과 타입이 일관되게 틀려 있기 때문이다. 런타임 검증자
+ * (`response-contract.ts`) 도 못 본다: 그쪽은 **값**이 선언에 맞는지 보는데, 이 조합은
+ * 키가 없어도 되고 null 이어도 되니 어떤 값이 와도 맞는다.
+ *
+ * 즉 이 조합은 **두 검증자 사이의 사각지대**였고, 실제로 조용히 넓어졌다 —
+ * 2026-09-05 의 §5.4 스윕 커밋이 17개 필드를 이 형태로 새로 선언했고
+ * (`review/consistency/2026/09/05/18_23_03` Critical 1), 그 커밋 자신이 같은 조합을
+ * "동결, 확대 금지" 라고 적어 둔 상태였다.
+ *
+ * ## 래칫이다
+ *
+ * 기존 drift 는 `EXPECTED_OPTIONAL_NULLABLE_DRIFT`(스펙 쪽)가 **정확히 열거**해 고정한다.
+ * 새로 생기면 목록에 없으므로 실패하고, 고쳐서 줄이면 목록에서 빼야 통과한다 — 양방향으로
+ * 조인다.
+ *
+ * ## 요청 DTO 는 대상이 아니다
+ *
+ * §5.4 자신이 *"요청 바디는 대상이 아니다"* 라고 적는다 — PATCH 부분 업데이트는 키 생략
+ * (=불변) · `null`(=초기화) · 값(=설정)의 tri-state 가 각각 의미를 갖는 별개 계약이라 이
+ * 조합이 **정당하다**. 그래서 이 술어는 `dto/responses/` 아래만 본다.
+ */
+export interface OptionalNullableOffender {
+  /** backend `src` 기준 상대 경로. */
+  readonly file: string;
+  readonly line: number;
+  readonly field: string;
+  /** `<파일 basename>:<클래스>.<필드>` — 베이스라인 대조용 안정 키. */
+  readonly key: string;
+}
+
+/** 응답 DTO 파일인가 — 요청 DTO 는 이 규칙의 대상이 아니다. */
+export function isResponseDtoFile(file: string): boolean {
+  return file.replace(/\\/g, '/').includes('/dto/responses/');
+}
+
+/**
+ * `srcRoot` 아래 응답 DTO 파일에서 **§5.4 금지 조합**을 전부 찾아 돌려준다.
+ *
+ * 판정은 **데코레이터만** 본다 — `required` 가 거짓(`@ApiPropertyOptional` 의 기본값이거나
+ * 명시된 `required: false`)이면서 `nullable: true` 인 필드. TS 타입(`?: T | null`)은 보지
+ * 않는다: 공개 계약을 만드는 것은 데코레이터고, 타입만 고친 채 선언이 남는 쪽이 실제
+ * 드리프트이기 때문이다. 키 생략형은 `null` 을 겸할 수 없다 — 부재를 두 가지로 표현하면
+ * 소비처가 둘 다 다뤄야 한다.
+ *
+ * @param files 검사할 절대 경로 목록. 응답 DTO 가 아닌 파일은 `isResponseDtoFile` 로
+ *   걸러내므로 호출부가 미리 좁힐 필요는 없다.
+ * @param srcRoot 보고용 상대 경로의 기준. 결과 `key` 는
+ *   `<basename>:<Class>.<field>` 형태라 이 값에 의존하지 않지만, `file` 은 이 기준으로
+ *   상대화된다.
+ * @returns 위반 필드 목록. 호출부(`*.spec.ts`)가 `EXPECTED_OPTIONAL_NULLABLE_DRIFT` 와
+ *   **양방향** 대조해 신규 위반과 이미 고쳐진 항목을 모두 잡는다.
+ */
+export function findOptionalNullableResponseFields(
+  files: string[],
+  srcRoot: string,
+): OptionalNullableOffender[] {
+  const out: OptionalNullableOffender[] = [];
+  for (const file of files) {
+    if (!isResponseDtoFile(file)) continue;
+    const sf = ts.createSourceFile(
+      file,
+      fs.readFileSync(file, 'utf8'),
+      ts.ScriptTarget.Latest,
+      true,
+    );
+    const rel = toPosixRelative(srcRoot, file);
+    const base = rel.split('/').pop() ?? rel;
+    const visit = (node: ts.Node): void => {
+      if (ts.isPropertyDeclaration(node) && node.type) {
+        const decorators = callDecorators(node, sf);
+        const api = decorators.find((d) => API_DECORATORS.has(d.name));
+        if (api) {
+          const declaredRequired = readBooleanOption(api.call, 'required', sf);
+          const effectiveRequired =
+            declaredRequired ?? api.name === 'ApiProperty';
+          const nullable = readBooleanOption(api.call, 'nullable', sf) === true;
+          if (!effectiveRequired && nullable) {
+            const field = node.name.getText(sf);
+            // 같은 파일에 여러 DTO 클래스가 살고 필드명이 겹칠 수 있다
+            // (`execution-response.dto.ts` 의 `durationMs` 가 그렇다) — 클래스명을
+            // 넣지 않으면 베이스라인 키가 충돌해 두 건이 한 건으로 접힌다.
+            const owner = ts.isClassDeclaration(node.parent)
+              ? (node.parent.name?.getText(sf) ?? '?')
+              : '?';
+            out.push({
+              file: rel,
+              line:
+                sf.getLineAndCharacterOfPosition(node.getStart(sf)).line + 1,
+              field,
+              key: `${base}:${owner}.${field}`,
+            });
+          }
+        }
+      }
+      ts.forEachChild(node, visit);
+    };
+    visit(sf);
+  }
+  return out;
+}
+
+/**
  * `numeric`/`decimal` 컬럼을 **엔티티 그대로 내보내는** 응답 DTO 가 그 필드를 `number` 라고
  * 말하는 자리.
  *

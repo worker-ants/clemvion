@@ -9,6 +9,8 @@ import {
   type SwaggerSchemaObject,
 } from '../../../../shared/testing/swagger-probe';
 import { ExecutionDto } from './execution-response.dto';
+import * as path from 'node:path';
+import { findOptionalNullableResponseFields } from '../../../../repo-guards/__tests__/swagger-dto-contract-guard';
 
 /**
  * `ExecutionDto` 의 OpenAPI 스키마 표현 회귀 가드.
@@ -59,6 +61,15 @@ const REQUIRED_NULLABLE = ['triggerLabel'];
  * (키 생략형에는 `| null` 을 붙이지 않는다). 이 10개는 트래커가 §5.4 drift 로 추적 중인
  * 기존 상태이고, 이 가드는 **고치는 것이 아니라 고정한다** — 값이 바뀌면 그것이 의도된
  * 정정인지 사고인지 이 목록의 diff 로 드러난다.
+ *
+ * > **저장소 전체 판은 따로 있다** — `repo-guards/__tests__/swagger-dto-contract.spec.ts`
+ * > 의 `EXPECTED_OPTIONAL_NULLABLE_DRIFT` 가 응답 DTO **전수**를 훑어 같은 조합을 고정한다
+ * > (78건). 아래 10개는 그 부분집합이므로, **한쪽만 상환하면 다른 쪽이 조용히 낡는다** —
+ * > `ExecutionDto` 의 drift 를 갚을 때는 두 목록을 함께 줄여야 한다
+ * > (`review/consistency/2026/09/05/19_08_19` W5).
+ * >
+ * > 이 목록을 남겨 두는 이유: 전수 래칫은 `<파일>:<클래스>.<필드>` 키만 고정하고
+ * > **required/nullable 의 정확한 형태**는 보지 않는다. 아래 스펙은 그 형태까지 단언한다.
  */
 const OPTIONAL_NULLABLE_DRIFT = [
   'chainId',
@@ -102,6 +113,37 @@ describe('ExecutionDto — OpenAPI 스키마 (§5.4)', () => {
         ...OPTIONAL_NULLABLE_DRIFT,
       ].sort(),
     );
+  });
+
+  /**
+   * **부분집합 관계를 주석이 아니라 코드로 묶는다.**
+   *
+   * 위 JSDoc 은 이 10건이 저장소 전수 래칫(`swagger-dto-contract.spec.ts` 의
+   * `EXPECTED_OPTIONAL_NULLABLE_DRIFT`, 78건)의 부분집합이라고 선언하지만, 종전에는 그것을
+   * **아무도 강제하지 않았다** — 한쪽만 갱신해도 두 스펙이 각자는 그린이었다
+   * (`review/code/2026/09/06/01_13_50` W5).
+   *
+   * 두 목록을 서로 비교하는 대신 **양쪽의 공통 출처**(전수 래칫이 쓰는 바로 그 스캐너)에
+   * 이 파일을 물린다. 그러면 어느 쪽을 손대든 실제 선언과 어긋나는 순간 여기서 걸린다 —
+   * 목록끼리 비교하면 둘 다 같이 틀린 경우를 못 잡는다.
+   */
+  it('전수 래칫 스캐너가 이 파일에서 보는 것과 아래 목록이 일치한다', () => {
+    const srcRoot = path.resolve(__dirname, '..', '..', '..', '..');
+    const scanned = findOptionalNullableResponseFields(
+      [path.join(__dirname, 'execution-response.dto.ts')],
+      srcRoot,
+    );
+
+    // 이 파일에는 `ExecutionDto` 말고 다른 클래스도 산다 — 이 목록의 주어는 `ExecutionDto` 다.
+    expect(
+      scanned
+        .filter((o) => o.key.includes(':ExecutionDto.'))
+        .map((o) => o.field)
+        .sort(),
+    ).toEqual([...OPTIONAL_NULLABLE_DRIFT].sort());
+
+    // 스캔이 0건이면 위 단언은 빈 목록끼리 비교해 조용히 통과한다.
+    expect(scanned.length).toBeGreaterThan(0);
   });
 
   it('required 목록이 정확히 12개다 — 하나라도 optional 로 되돌아가면 여기서 걸린다', () => {

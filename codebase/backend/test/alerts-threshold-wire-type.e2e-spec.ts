@@ -4,6 +4,11 @@ import request from 'supertest';
 
 import { createDbClient, uniqueEmail, uniqueName } from './helpers/db';
 import { registerAndLogin, createTeamWorkspace } from './helpers/auth';
+import {
+  assertMatchesContract,
+  contractForDto,
+} from '../src/shared/testing/response-contract';
+import { AlertRuleDto } from '../src/modules/alerts/dto/responses/alert-rule-response.dto';
 
 /**
  * e2e: `AlertRuleDto.threshold` 가 **wire 에서 문자열**임을 실 HTTP 응답으로 고정한다.
@@ -95,6 +100,7 @@ describe('알림 규칙 threshold 의 wire 타입 (e2e)', () => {
     const rows = listed.body.data as Array<{ id: string; threshold: unknown }>;
     const mine = rows.find((r) => r.id === createdRule.id);
     expect(mine).toBeDefined();
+    assertMatchesContract(mine, await contractForDto(AlertRuleDto));
     expect(typeof mine?.threshold).toBe('string');
     // 소수부까지 정확히 왕복한다 — scale 4 를 꽉 채운 값이라 반올림·절삭이 있으면 어긋난다.
     expect(mine?.threshold).toBe('12.3456');

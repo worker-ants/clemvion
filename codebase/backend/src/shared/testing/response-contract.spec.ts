@@ -202,6 +202,59 @@ describe('response-contract — 실제 응답 vs DTO 선언 (§5.4)', () => {
       ).toEqual([]);
     });
 
+    it('allowMissing 으로 required 누락을 면제할 수 있다', () => {
+      const { id: _drop, ...withoutId } = VALID;
+      // 면제 없이는 위반이다 — 이 줄이 없으면 아래 단언이 "원래 통과하는 입력" 을
+      // 확인하는 vacuous 캐너리가 된다.
+      expect(kinds(findContractViolations(withoutId, contract))).toEqual([
+        'id:missing',
+      ]);
+      expect(
+        findContractViolations(withoutId, contract, { allowMissing: ['id'] }),
+      ).toEqual([]);
+    });
+
+    it('allowMissing 은 이름이 정확히 맞을 때만 면제한다', () => {
+      const { id: _drop, ...withoutId } = VALID;
+      expect(
+        kinds(
+          findContractViolations(withoutId, contract, {
+            allowMissing: ['ID', 'id2', 'note'],
+          }),
+        ),
+      ).toEqual(['id:missing']);
+    });
+
+    it('allowMissing 은 중첩 경로로 적는다 — 얕은 이름과는 매칭되지 않는다', () => {
+      // `child.nid` 는 중첩 required 다. 얕은 `nid` 로는 면제되면 안 된다.
+      const brokenChild = { ...VALID, child: {} };
+      expect(kinds(findContractViolations(brokenChild, contract))).toEqual([
+        'child.nid:missing',
+      ]);
+      expect(
+        kinds(
+          findContractViolations(brokenChild, contract, {
+            allowMissing: ['nid'],
+          }),
+        ),
+      ).toEqual(['child.nid:missing']);
+      expect(
+        findContractViolations(brokenChild, contract, {
+          allowMissing: ['child.nid'],
+        }),
+      ).toEqual([]);
+    });
+
+    it('allowMissing 은 undeclared 를 면제하지 않는다 — 두 축은 갈려 있다', () => {
+      expect(
+        kinds(
+          findContractViolations({ ...VALID, ghost: 1 }, contract, {
+            allowMissing: ['ghost'],
+          }),
+        ),
+      ).toEqual(['ghost:undeclared']);
+    });
+
     it('여러 위반이 한 번에 다 나온다 — 첫 건에서 멈추지 않는다', () => {
       const { id: _drop, ...rest } = VALID;
       expect(
@@ -420,5 +473,50 @@ describe('response-contract — 실제 응답 vs DTO 선언 (§5.4)', () => {
     expect(msg).toContain('ProbeDto');
     expect(msg).toContain('(1건)');
     expect(msg).toContain('id');
+  });
+});
+
+/**
+ * `contractForDto` 메모이제이션 — 설계 근거("호출마다 Nest 모듈을 부트스트랩하므로
+ * 캐시한다", "실패는 캐시에 남기지 않는다")를 실제로 고정한다. 종전에는 근거만 있고
+ * 검증이 없었다 (`review/code/2026/09/05/18_23_02` W4).
+ */
+describe('contractForDto 메모이제이션', () => {
+  class MemoProbeDto {
+    @ApiProperty()
+    id: string;
+  }
+
+  it('같은 DTO 는 같은 promise 를 돌려준다 — 두 번 부트스트랩하지 않는다', () => {
+    const a = contractForDto(MemoProbeDto);
+    const b = contractForDto(MemoProbeDto);
+    expect(a).toBe(b);
+    return a.then((c) => expect(c.name).toBe('MemoProbeDto'));
+  });
+
+  it('해소된 뒤에도 같은 계약을 돌려준다', async () => {
+    const first = await contractForDto(MemoProbeDto);
+    const second = await contractForDto(MemoProbeDto);
+    expect(second).toBe(first);
+  });
+
+  /**
+   * **실패는 캐시에 남기지 않는다** — JSDoc 이 내세우는 계약인데 종전 테스트 2건은 전부
+   * 성공 경로만 봐서, `catch` 의 `contractCache.delete` 를 지워도 GREEN 이었다
+   * (`review/code/2026/09/05/20_45_37` W4).
+   *
+   * 실패는 **클래스가 아닌 값**으로 만든다 — 프로브 컨트롤러가 어떤 DTO 도 참조하지 않아
+   * `schemaOf` 가 던진다. (빈 클래스는 스키마가 생겨서 **안 던진다** — 실측으로 확인했다.)
+   */
+  it('실패한 promise 는 캐시에 남지 않는다 — 다시 부르면 새로 시도한다', async () => {
+    const notADto = {} as never;
+
+    const firstAttempt = contractForDto(notADto);
+    await expect(firstAttempt).rejects.toThrow();
+
+    const secondAttempt = contractForDto(notADto);
+    // 캐시에 남았다면 **같은** promise 를 돌려받는다 — 그러면 원인이 사라져도 낫지 않는다.
+    expect(secondAttempt).not.toBe(firstAttempt);
+    await expect(secondAttempt).rejects.toThrow();
   });
 });

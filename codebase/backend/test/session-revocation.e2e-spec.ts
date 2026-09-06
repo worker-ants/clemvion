@@ -10,6 +10,7 @@ import {
   type DtoContract,
 } from '../src/shared/testing/response-contract';
 import { SessionDto } from '../src/modules/auth/dto/responses/session.dto';
+import { LoginHistoryPageDto } from '../src/modules/auth/dto/responses/login-history.dto';
 
 /**
  * e2e: 사용자 세션(refresh token family) 라이프사이클을 실 인프라에서 검증.
@@ -234,6 +235,10 @@ describe('Session revocation (e2e)', () => {
     // 외부 wrapping 까지 합치면 res.body.data.items 가 배열.
     const items = hist.body.data.items as Array<{ event: string }>;
     expect(items.length).toBeGreaterThanOrEqual(2); // 두 번 로그인 했음
+    assertMatchesContract(
+      hist.body.data,
+      await contractForDto(LoginHistoryPageDto),
+    );
     expect(items.every((i) => typeof i.event === 'string')).toBe(true);
     expect(items.some((i) => i.event === 'login_success')).toBe(true);
   });

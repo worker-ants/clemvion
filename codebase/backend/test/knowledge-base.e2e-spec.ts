@@ -4,6 +4,11 @@ import request from 'supertest';
 
 import { createDbClient, uniqueEmail, uniqueName } from './helpers/db';
 import { registerAndLogin, createTeamWorkspace } from './helpers/auth';
+import {
+  assertMatchesContract,
+  contractForDto,
+} from '../src/shared/testing/response-contract';
+import { KnowledgeBaseDto } from '../src/modules/knowledge-base/dto/responses/knowledge-base-response.dto';
 
 /**
  * e2e: Knowledge Base CRUD + 격리 — spec/5-system/8-embedding-pipeline.md /
@@ -71,6 +76,10 @@ describe('Knowledge Base (e2e)', () => {
       .set(authHeaders());
     expect(get.status).toBe(200);
     expect(get.body.data.name).toBe(name);
+    assertMatchesContract(
+      get.body.data,
+      await contractForDto(KnowledgeBaseDto),
+    );
   });
 
   it('B. PATCH 이름 → 200, GET 반영', async () => {
