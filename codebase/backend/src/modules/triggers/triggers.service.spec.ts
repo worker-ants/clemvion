@@ -8,7 +8,8 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { Provider } from '@nestjs/common';
-import { In, QueryFailedError, Repository } from 'typeorm';
+import { In, Repository } from 'typeorm';
+import { makePgUniqueViolation } from '../../shared/testing/pg-error-fixtures';
 import {
   TriggersService,
   isEndpointPathUniqueViolation,
@@ -2791,30 +2792,15 @@ describe('TriggersService — endpoint_path UNIQUE 충돌 계약', () => {
   } as unknown as Trigger;
 
   /**
-   * 드라이버가 내는 형태 그대로. `constraint` 는 `V002__indexes.sql` 의 인덱스명.
-   *
    * **두 wrap 표면을 각각 만든다** — TypeORM 은 호출 경로(raw / `insert` / `save`)에 따라
    * `err.code` 로 올리기도 하고 `err.driverError.code` 로 올리기도 한다. 첫 판의 술어는
    * `driverError` 만 봤고, fixture 도 그 표면만 만들어서 **반쪽인 것이 관측되지 않았다**
    * (`review/code/2026/09/06/14_59_48` W1).
+   *
+   * 그 fixture 를 여기서 다시 짜면 `pg-error.spec.ts` 와 두 벌이 된다 — 이 PR 이
+   * 프로덕션에서 막은 중복이 테스트에 재발한다 (`15_52_58` W3). 공유 모듈을 쓴다.
    */
-  function uniqueViolation(
-    constraint: string,
-    surface: 'driverError' | 'top' = 'driverError',
-  ): unknown {
-    if (surface === 'top') {
-      return Object.assign(new Error('duplicate key'), {
-        code: '23505',
-        constraint,
-      });
-    }
-    const err = new QueryFailedError('INSERT', [], new Error('duplicate key'));
-    (err as QueryFailedError & { driverError: unknown }).driverError = {
-      code: '23505',
-      constraint,
-    };
-    return err;
-  }
+  const uniqueViolation = makePgUniqueViolation;
 
   beforeEach(async () => {
     const moduleRef = await Test.createTestingModule({
@@ -2889,23 +2875,40 @@ describe('TriggersService — endpoint_path UNIQUE 충돌 계약', () => {
    * **반대 방향 대조군.** 이게 없으면 술어가 `23505` 만 보는 쪽으로 넓어져도 통과해,
    * 이 테이블의 **다른** UNIQUE 위반까지 `endpoint_path` 충돌로 오보한다.
    */
-  it('다른 UNIQUE 인덱스 위반은 가로채지 않고 그대로 흘려보낸다', async () => {
-    const other = uniqueViolation('idx_trigger_workspace_name');
-    (triggerRepo.save as jest.Mock).mockRejectedValue(other);
+  /**
+   * **부정 케이스도 두 경로를 대칭으로 문다.** 종전엔 `update` 에만 있었다 — 두 경로가
+   * 같은 헬퍼를 공유하니 지금은 위험이 낮지만, 한쪽이 자기 판정으로 갈라져도 관측되지
+   * 않는 상태였다 (`review/code/2026/09/06/15_52_58` INFO#8).
+   */
+  const callFor = (method: 'update' | 'create') =>
+    method === 'update'
+      ? () => service.update('trg-1', 'ws-1', { name: 'W2' } as never, 'u-1')
+      : () =>
+          service.create(
+            'ws-1',
+            { workflowId: 'wf-1', type: 'webhook', name: 'W' } as never,
+            'u-1',
+          );
 
-    await expect(
-      service.update('trg-1', 'ws-1', { name: 'W2' } as never, 'u-1'),
-    ).rejects.toBe(other);
-  });
+  it.each([['update'], ['create']] as const)(
+    '%s — 다른 UNIQUE 인덱스 위반은 가로채지 않고 그대로 흘려보낸다',
+    async (method) => {
+      const other = uniqueViolation('idx_trigger_workspace_name');
+      (triggerRepo.save as jest.Mock).mockRejectedValue(other);
 
-  it('unique 위반이 아닌 오류도 그대로 흘려보낸다', async () => {
-    const boom = new Error('db down');
-    (triggerRepo.save as jest.Mock).mockRejectedValue(boom);
+      await expect(callFor(method)()).rejects.toBe(other);
+    },
+  );
 
-    await expect(
-      service.update('trg-1', 'ws-1', { name: 'W2' } as never, 'u-1'),
-    ).rejects.toBe(boom);
-  });
+  it.each([['update'], ['create']] as const)(
+    '%s — unique 위반이 아닌 오류도 그대로 흘려보낸다',
+    async (method) => {
+      const boom = new Error('db down');
+      (triggerRepo.save as jest.Mock).mockRejectedValue(boom);
+
+      await expect(callFor(method)()).rejects.toBe(boom);
+    },
+  );
 
   it.each([['driverError'], ['top']] as const)(
     '[술어] %s 표면에서도 인덱스명으로 가른다',

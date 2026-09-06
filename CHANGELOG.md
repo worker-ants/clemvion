@@ -150,7 +150,7 @@ Critical 을 냈다 — `2-trigger-list.md §3` 이 약속한
 
 **문서를 낮추지 않고 구현했다.** 문구를 실측대로 정정하는 쪽은 클라이언트에게 한 약속을
 조용히 줄인다. `POST /api/triggers` 와 `PATCH /api/triggers/:id` 가 이제 그 충돌에
-`details: { field: 'endpoint_path', subCode: 'TRIGGER_ENDPOINT_PATH_CONFLICT' }` 를
+`details: { field: 'endpoint_path', code: 'TRIGGER_ENDPOINT_PATH_CONFLICT' }` 를
 싣는다 — 상태 코드와 top-level `code` 는 그대로다(순수 additive).
 
 술어는 SQLSTATE 23505 **+ 인덱스명**(`idx_trigger_workspace_endpoint`)으로 좁혔다. 23505

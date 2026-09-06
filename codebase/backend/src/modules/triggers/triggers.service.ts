@@ -219,7 +219,6 @@ const TRIGGER_ENDPOINT_PATH_UNIQUE_INDEX = 'idx_trigger_workspace_endpoint';
  * wrap 깊이가 달라서 `err.code` 로 올라오는 경우가 있고, SoT 는 정확히 그 이유로
  * 두 표면을 모두 흡수한다 (`review/code/2026/09/06/14_59_48` W1).
  */
-
 export function isEndpointPathUniqueViolation(err: unknown): boolean {
   return (
     isPostgresUniqueViolation(err) &&

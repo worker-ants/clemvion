@@ -1,4 +1,4 @@
-import { QueryFailedError } from 'typeorm';
+import { makePgError } from '../../shared/testing/pg-error-fixtures';
 import {
   isPostgresUniqueViolation,
   pgErrorCode,
@@ -12,13 +12,13 @@ import {
  * 저장소에 넷 있었다 — `review/code/2026/09/06/14_59_48` W1).
  */
 describe('pg-error — 두 wrap 표면', () => {
-  const wrapped = (props: Record<string, unknown>): QueryFailedError => {
-    const err = new QueryFailedError('INSERT', [], new Error('duplicate key'));
-    (err as QueryFailedError & { driverError: unknown }).driverError = props;
-    return err;
-  };
+  // fixture 는 `__test-utils__/pg-error-fixtures.ts` 가 SoT 다 — 표면을 손으로 다시
+  // 만들면 이 PR 이 프로덕션에서 막은 중복이 테스트에 재발한다
+  // (`review/code/2026/09/06/15_52_58` W3).
+  const wrapped = (props: Record<string, unknown>): unknown =>
+    makePgError(props, 'driverError');
   const flat = (props: Record<string, unknown>): unknown =>
-    Object.assign(new Error('duplicate key'), props);
+    makePgError(props, 'top');
 
   it.each([
     ['driverError 표면', wrapped({ code: '23505' })],

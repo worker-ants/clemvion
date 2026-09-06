@@ -1172,21 +1172,36 @@ describe('WorkspacesService', () => {
       expect(findUserSecretLeaks(rows)).toEqual([]);
     });
 
-    it('관계가 안 실려 와도(`user` 부재) 터지지 않고 빈 문자열로 채운다', async () => {
-      memberRepo.find.mockResolvedValue([
-        { id: 'm-2', userId: 'u-2', role: 'viewer', joinedAt: null },
-      ]);
+    it.each([
+      ['관계가 `null`', { user: null }],
+      ['키 자체가 없음', {}],
+    ])(
+      '%s 이어도 터지지 않고 빈 문자열로 채운다',
+      async (_label, userShape) => {
+        // TypeORM 은 로드 실패한 관계를 **`null`** 로 돌려준다 — 키가 아예 없는 형태만
+        // mock 하면 실제 경로를 안 태운다 (`review/code/2026/09/06/15_52_58` INFO#7).
+        // 둘 다 옵셔널 체이닝으로 같은 결과여야 한다.
+        memberRepo.find.mockResolvedValue([
+          {
+            id: 'm-2',
+            userId: 'u-2',
+            role: 'viewer',
+            joinedAt: null,
+            ...userShape,
+          },
+        ]);
 
-      const rows = await service.listMembers('ws-uuid-1', 'user-uuid-1');
+        const rows = await service.listMembers('ws-uuid-1', 'user-uuid-1');
 
-      expect(rows[0]).toEqual({
-        id: 'm-2',
-        userId: 'u-2',
-        email: '',
-        name: '',
-        role: 'viewer',
-        joinedAt: null,
-      });
-    });
+        expect(rows[0]).toEqual({
+          id: 'm-2',
+          userId: 'u-2',
+          email: '',
+          name: '',
+          role: 'viewer',
+          joinedAt: null,
+        });
+      },
+    );
   });
 });
