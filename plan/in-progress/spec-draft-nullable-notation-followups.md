@@ -434,6 +434,41 @@ field: T | null;
       **새 개수를 적어 넣지 말 것.** 이 문서가 이미 두 번 겪은 실패다 — 축이 늘 때마다
       숫자가 낡는다. 표로 **나열**하고 문장은 개수를 말하지 않게 고친다.
 
+- [ ] **도메인 세부 에러 코드의 표현 방식을 정식화한다** (planner, 2026-09-06 등재,
+      `review/consistency/2026/09/06/14_59_49` W1).
+
+      저장소에 **두 관례**가 있다 — (1) top-level `code` 자체를 특화 코드로 **교체**
+      (`DUPLICATE_NODE_LABEL`·`WORKFLOW_VERSION_CONFLICT`·`ALREADY_A_MEMBER` 등 7건),
+      (2) 세부 사유는 **`details[].code`** (`error-codes.md §4.2`,
+      `trigger-parameter.types.ts`). `2-api-convention.md §5.3` 은 어느 쪽도 명문화하지
+      않는다.
+
+      `TRIGGER_ENDPOINT_PATH_CONFLICT` 는 spec 이 *"409 `RESOURCE_CONFLICT` (세부 코드 …)"*
+      로 **두 층을 나눠** 적었으므로 (2)로 구현했다(`details.code`). 그러나 (1)이 다수
+      선례라, *"어느 쪽이 기본인가"* 를 문서가 답하지 않으면 다음 구현자가 또 고른다.
+
+      → `2-api-convention.md §5.3` 에 택일 기준을 적고, `3-error-handling.md §1` 카탈로그에
+      이 코드를 등재한다. **개수를 쓰지 말고 나열형으로.**
+
+      > `details` 가 object(단일 도메인 예외) / array(ValidationPipe 다중 필드) 두 형태인
+      > 것도 §5.3 에 미명문화다 (`review/consistency/2026/09/06/14_59_49` INFO#4).
+      > 같은 턴에 함께 적는다.
+
+- [ ] **`2-trigger-list.md:106` botToken 행의 자기모순** (planner, 2026-09-06 등재,
+      `review/consistency/2026/09/06/14_59_49` W2).
+
+      한 문장이 *"응답에는 `hasBotToken: boolean` 만 노출"* 과 *"마스킹 placeholder
+      (`•••• <last4>`)"* 를 **동시에** 말한다. boolean 만 나가면 서버가 last4 를 보낼
+      방법이 없다. `15-chat-channel.md §5.4.2`(ref·plaintext 모두 응답 미포함)와도,
+      실제 구현(rotate 입력창 placeholder 는 형식 예시 `"123456789:ABCdef..."`)과도
+      어긋난다.
+
+      AuthConfig 의 `***<last4>` 마스킹 규약을 성격이 다른 **write-only** 필드에 잘못
+      차용한 것으로 보인다. **방치하면 다음 구현자가 실제 last4 노출 필드를 신설해
+      `secret-store.md §1.1` 을 위반할 소지**가 있다 — 그것이 이 항목의 실질이다.
+
+      (이 PR 이 만든 결함이 아니다. 게이트가 넓어지며 드러났다.)
+
 - [ ] **`code:` 파서 두 벌을 golden fixture 코퍼스로 묶는다** (harness, 2026-09-06 등재,
       `review/code/2026/09/06/14_25_40` W2).
 

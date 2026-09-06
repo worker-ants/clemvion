@@ -409,6 +409,41 @@ class GlobAndFrontmatterTest(unittest.TestCase):
             ["codebase/backend/a.ts", "codebase/frontend/b.ts"],
         )
 
+    def test_parse_strips_trailing_comment_after_quoted_scalar(self):
+        """**따옴표로 감싼 값 + 트레일링 주석**도 같다.
+
+        언쿼트 세 형태만 닫았더니 이 인접 변형이 남았다 — 닫는 따옴표와 주석이 값에 붙어
+        `a.ts"  # note` 라는 **죽은 glob** 이 재생산된다(재현 확인). 같은 결함 클래스를
+        **세 번째**로 한 칸씩 좁게 닫은 셈이라, 이번엔 인용 부호 안팎을 갈라 처리한다
+        (`review/code/2026/09/06/14_59_48` W3).
+        """
+        sp = self._spec('---\nid: a\ncode:\n'
+                        '  - "codebase/backend/a.ts"  # note\n'
+                        "  - 'codebase/frontend/b.ts'  # note\n"
+                        "status: partial\n---\n# x\n")
+        self.assertEqual(
+            rg._parse_frontmatter_code(sp),
+            ["codebase/backend/a.ts", "codebase/frontend/b.ts"],
+        )
+
+    def test_parse_quoted_scalar_keeps_inner_hash(self):
+        """따옴표 **안**의 `#` 은 주석이 아니다 — 반대 방향 대조군."""
+        sp = self._spec('---\nid: a\ncode:\n'
+                        '  - "codebase/backend/a #b.ts"\n'
+                        "status: partial\n---\n# x\n")
+        self.assertEqual(
+            rg._parse_frontmatter_code(sp), ["codebase/backend/a #b.ts"]
+        )
+
+    def test_parse_unterminated_quote_falls_back(self):
+        """닫는 따옴표가 없으면 잘라내지 않는다 — 추측해서 자르면 값이 사라진다."""
+        sp = self._spec('---\nid: a\ncode:\n'
+                        '  - "codebase/backend/a.ts\n'
+                        "status: partial\n---\n# x\n")
+        self.assertEqual(
+            rg._parse_frontmatter_code(sp), ["codebase/backend/a.ts"]
+        )
+
     def test_parse_hash_without_leading_space_is_not_a_comment(self):
         """**앞에 공백이 없는 `#` 은 주석이 아니다** — YAML 규칙 그대로.
 

@@ -2790,8 +2790,24 @@ describe('TriggersService — endpoint_path UNIQUE 충돌 계약', () => {
     config: {},
   } as unknown as Trigger;
 
-  /** 드라이버가 내는 형태 그대로. `constraint` 는 `V002__indexes.sql` 의 인덱스명. */
-  function uniqueViolation(constraint: string): QueryFailedError {
+  /**
+   * 드라이버가 내는 형태 그대로. `constraint` 는 `V002__indexes.sql` 의 인덱스명.
+   *
+   * **두 wrap 표면을 각각 만든다** — TypeORM 은 호출 경로(raw / `insert` / `save`)에 따라
+   * `err.code` 로 올리기도 하고 `err.driverError.code` 로 올리기도 한다. 첫 판의 술어는
+   * `driverError` 만 봤고, fixture 도 그 표면만 만들어서 **반쪽인 것이 관측되지 않았다**
+   * (`review/code/2026/09/06/14_59_48` W1).
+   */
+  function uniqueViolation(
+    constraint: string,
+    surface: 'driverError' | 'top' = 'driverError',
+  ): unknown {
+    if (surface === 'top') {
+      return Object.assign(new Error('duplicate key'), {
+        code: '23505',
+        constraint,
+      });
+    }
     const err = new QueryFailedError('INSERT', [], new Error('duplicate key'));
     (err as QueryFailedError & { driverError: unknown }).driverError = {
       code: '23505',
@@ -2845,13 +2861,14 @@ describe('TriggersService — endpoint_path UNIQUE 충돌 계약', () => {
       uniqueViolation('idx_trigger_workspace_endpoint'),
     );
 
-    await expect(call()).rejects.toBeInstanceOf(ConflictException);
-    await expect(call()).rejects.toMatchObject({
+    const rejected = call();
+    await expect(rejected).rejects.toBeInstanceOf(ConflictException);
+    await expect(rejected).rejects.toMatchObject({
       response: {
         code: 'RESOURCE_CONFLICT',
         details: {
           field: 'endpoint_path',
-          subCode: 'TRIGGER_ENDPOINT_PATH_CONFLICT',
+          code: 'TRIGGER_ENDPOINT_PATH_CONFLICT',
         },
       },
     });
@@ -2879,15 +2896,24 @@ describe('TriggersService — endpoint_path UNIQUE 충돌 계약', () => {
     ).rejects.toBe(boom);
   });
 
-  it('[술어] 인덱스명이 다르거나 SQLSTATE 가 다르면 false', () => {
-    expect(
-      isEndpointPathUniqueViolation(
-        uniqueViolation('idx_trigger_workspace_endpoint'),
-      ),
-    ).toBe(true);
-    expect(
-      isEndpointPathUniqueViolation(uniqueViolation('some_other_index')),
-    ).toBe(false);
+  it.each([['driverError'], ['top']] as const)(
+    '[술어] %s 표면에서도 인덱스명으로 가른다',
+    (surface) => {
+      expect(
+        isEndpointPathUniqueViolation(
+          uniqueViolation('idx_trigger_workspace_endpoint', surface),
+        ),
+      ).toBe(true);
+      expect(
+        isEndpointPathUniqueViolation(
+          uniqueViolation('some_other_index', surface),
+        ),
+      ).toBe(false);
+    },
+  );
+
+  it('[술어] unique 위반이 아니면 false', () => {
     expect(isEndpointPathUniqueViolation(new Error('nope'))).toBe(false);
+    expect(isEndpointPathUniqueViolation(null)).toBe(false);
   });
 });

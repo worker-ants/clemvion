@@ -630,8 +630,14 @@ def _parse_frontmatter_code(path: str) -> list[str]:
         이번엔 값을 잘라 먹는 쪽으로 같은 유실이 난다.
         """
         t = tok.strip()
-        if t.startswith('"') or t.startswith("'"):
-            return t
+        quote = t[0] if t[:1] in ('"', "'") else ""
+        if quote:
+            # 인용 스칼라는 **닫는 따옴표 뒤**를 잘라낸다. 종전에는 통째로 돌려줘서
+            # `"a.ts"  # note` 가 `a.ts"  # note` 라는 죽은 glob 이 됐다
+            # (`review/code/2026/09/06/14_59_48` W3). 닫는 따옴표가 없으면 **자르지
+            # 않는다** — 추측해서 자르면 값이 사라진다.
+            end = t.find(quote, 1)
+            return t[: end + 1] if end > 0 else t
         return re.split(r"\s+#", t, maxsplit=1)[0].rstrip()
 
     def _clean(tok: str) -> str:

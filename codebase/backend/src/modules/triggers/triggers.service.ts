@@ -12,7 +12,11 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
-import { In, QueryFailedError, Repository } from 'typeorm';
+import { In, Repository } from 'typeorm';
+import {
+  isPostgresUniqueViolation,
+  pgErrorConstraint,
+} from '../../common/db/pg-error';
 import { randomBytes } from 'crypto';
 import { Trigger, TriggerChatChannelHealth } from './entities/trigger.entity';
 import { Execution } from '../executions/entities/execution.entity';
@@ -208,16 +212,18 @@ function narrowWorkflowRef(wf: { id: string; name: string }): {
  */
 const TRIGGER_ENDPOINT_PATH_UNIQUE_INDEX = 'idx_trigger_workspace_endpoint';
 
+/**
+ * **SQLSTATE·인덱스명 추출은 `common/db/pg-error.ts` 가 SoT 다.** 첫 판은 여기서
+ * `err.driverError?.code` 를 손으로 읽었는데, 그것은 저장소의 **4번째 사본**이었고
+ * 게다가 **한 표면만** 봤다 — TypeORM 은 호출 경로(raw / `insert` / `save`)에 따라
+ * wrap 깊이가 달라서 `err.code` 로 올라오는 경우가 있고, SoT 는 정확히 그 이유로
+ * 두 표면을 모두 흡수한다 (`review/code/2026/09/06/14_59_48` W1).
+ */
+
 export function isEndpointPathUniqueViolation(err: unknown): boolean {
-  if (!(err instanceof QueryFailedError)) return false;
-  const driverError = (
-    err as QueryFailedError & {
-      driverError?: { code?: string; constraint?: string };
-    }
-  ).driverError;
   return (
-    driverError?.code === '23505' &&
-    driverError?.constraint === TRIGGER_ENDPOINT_PATH_UNIQUE_INDEX
+    isPostgresUniqueViolation(err) &&
+    pgErrorConstraint(err) === TRIGGER_ENDPOINT_PATH_UNIQUE_INDEX
   );
 }
 
@@ -1605,13 +1611,21 @@ export class TriggersService {
         code: 'RESOURCE_CONFLICT',
         message:
           '같은 워크스페이스에 그 엔드포인트 경로를 쓰는 트리거가 이미 있어요.',
-        // **세부 코드는 `details` 안에 둔다.** 봉투 top-level 에 `subCode` 를 실으면
-        // `GlobalExceptionFilter` 가 `code`·`message`·`requestId`·`details` 만 복사하므로
-        // **wire 에 도달하지 않는다** — 문서한 보장이 구현보다 넓어지는 그 형태다.
-        // 봉투 스키마 자체는 `2-api-convention.md §5.3` 소유라 여기서 넓히지 않는다.
+        // **세부 코드는 `details.code` 다.**
+        //
+        // 두 번 좁혔다. 처음엔 봉투 top-level 에 `subCode` 를 실었는데
+        // `GlobalExceptionFilter` 가 `code`·`message`·`requestId`·`details` 만 복사해
+        // **wire 에 닿지 않았다**. 그래서 `details` 안으로 옮겼는데, 이번엔 `subCode` 라는
+        // **저장소 유일 키**를 새로 만든 꼴이었다 — 도메인 세부 사유는 이미
+        // `error-codes.md §4.2` 와 `trigger-parameter.types.ts` 가 **`code`** 로 쓴다
+        // (`review/consistency/2026/09/06/14_59_49` W1).
+        //
+        // top-level `code` 를 특화 코드로 **교체**하는 선례도 7건 있으나, 이 자리는
+        // spec 이 *"409 `RESOURCE_CONFLICT` (세부 코드 …)"* 라고 두 층을 나눠 적었으므로
+        // 그 서술을 그대로 실현한다. 표현 방식의 정식화는 planner 항목으로 등재했다.
         details: {
           field: 'endpoint_path',
-          subCode: 'TRIGGER_ENDPOINT_PATH_CONFLICT',
+          code: 'TRIGGER_ENDPOINT_PATH_CONFLICT',
         },
       });
     }

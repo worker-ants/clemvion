@@ -1,5 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
+import { findUserSecretLeaks } from '../../shared/testing/user-secret-absence';
 import { WorkspacesService } from './workspaces.service';
 import { Workspace } from './entities/workspace.entity';
 import { WorkspaceMember } from './entities/workspace-member.entity';
@@ -1116,6 +1117,76 @@ describe('WorkspacesService', () => {
       expect(
         Object.values(AUDIT_ACTIONS as Record<string, string>),
       ).not.toContain('workspace.deleted');
+    });
+  });
+
+  /**
+   * **이 저장소에서 `User` 를 통째로 로드하고도 가드가 지키지 못하는 유일한 자리.**
+   *
+   * `user-entity-exposure-guard` 는 **로드 형태**만 본다. `listMembers` 는 `relations:
+   * ['user']` 로 전 컬럼을 싣고 **JS 단 수동 매핑**으로 필드를 고르므로, 그 매핑이
+   * 넓어져도(`...m.user` 스프레드 등) 가드는 초록이다. 그래서 화이트리스트 주석이
+   * *"안전망은 e2e `workspace-rbac` J. 뿐"* 이라고 적고 있었는데 — **단위 테스트가
+   * 0건이면 그 하나가 깨질 때 원인을 좁힐 방법이 없다**
+   * (`review/code/2026/09/06/14_59_48` W5).
+   */
+  describe('listMembers — 수동 투영이 좁은지', () => {
+    const memberRow = (user: Record<string, unknown>) => ({
+      id: 'm-1',
+      userId: 'u-1',
+      role: 'admin',
+      joinedAt: new Date('2026-01-02T03:04:05.000Z'),
+      user,
+    });
+
+    beforeEach(() => {
+      memberRepo.findOne.mockResolvedValue({ id: 'm-req', role: 'owner' });
+    });
+
+    it('로드된 `User` 에 비밀 컬럼이 실려 와도 반환 키는 6개로 좁는다', async () => {
+      memberRepo.find.mockResolvedValue([
+        memberRow({
+          id: 'u-1',
+          email: 'a@b.c',
+          name: 'A',
+          // 실제로 로드되는 것 — 투영이 없으므로 전 컬럼이 온다.
+          passwordHash: '$2b$10$x',
+          twoFactorSecret: 's',
+          totpRecoveryCodes: ['r1'],
+          emailChangeToken: 't',
+        }),
+      ]);
+
+      const rows = await service.listMembers('ws-uuid-1', 'user-uuid-1');
+
+      expect(Object.keys(rows[0]).sort()).toEqual([
+        'email',
+        'id',
+        'joinedAt',
+        'name',
+        'role',
+        'userId',
+      ]);
+      // 이름 축과 같은 그물을 단위 레벨에서도 건다 — 키 목록만 보면 중첩으로 새는
+      // 형태를 놓친다.
+      expect(findUserSecretLeaks(rows)).toEqual([]);
+    });
+
+    it('관계가 안 실려 와도(`user` 부재) 터지지 않고 빈 문자열로 채운다', async () => {
+      memberRepo.find.mockResolvedValue([
+        { id: 'm-2', userId: 'u-2', role: 'viewer', joinedAt: null },
+      ]);
+
+      const rows = await service.listMembers('ws-uuid-1', 'user-uuid-1');
+
+      expect(rows[0]).toEqual({
+        id: 'm-2',
+        userId: 'u-2',
+        email: '',
+        name: '',
+        role: 'viewer',
+        joinedAt: null,
+      });
     });
   });
 });
