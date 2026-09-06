@@ -487,6 +487,21 @@ field: T | null;
       > 수정에 의존한다**(수정 전에는 `workspace-response.dto.ts` 가 spec-linked 로 안
       > 잡혔다). 두 PR 로 가르면 서로를 기다리는 순환이 된다.
 
+- [ ] **`endpointPath` 를 쓰는 다음 `save()` 가 충돌 래핑을 빠뜨릴 수 있다** (developer,
+      2026-09-06 등재, `review/code/2026/09/06/19_31_04` INFO#2).
+
+      `TriggersService` 의 `save()` 호출은 8곳인데 `rethrowEndpointPathConflict` 로 감싼
+      것은 `create`/`update` **둘뿐**이다. 나머지 여섯(schedule 동기화·secret 승격·
+      chatChannel 설정 등)은 `endpointPath` 를 건드리지 않으므로 지금은 옳다.
+
+      **비대칭이 남는다** — 앞으로 `endpointPath` 를 쓰는 `save()` 가 새로 생기면 그 경로만
+      미가공 500 이 된다. 지금 상태로는 **아무도 알려 주지 않는다.**
+
+      → 두 방향 중 하나: (a) 저장 직전 `endpointPath` 변경 여부를 보는 한 자리로 모으거나,
+      (b) `user-entity-exposure-guard` 처럼 *"`endpointPath` 를 쓰는 `save()` 는 래핑돼야
+      한다"* 를 AST 로 세는 래칫. **(b) 가 이 저장소의 관행에 가깝다** — 화이트리스트가
+      비대칭을 문서가 아니라 테스트로 들고 있게 된다.
+
 - [ ] **전역 예외 필터가 `pg-error.ts` SoT 를 안 쓴다 — 가장 넓은 fallback 이 좁다**
       (developer, 2026-09-06 등재, `review/code/2026/09/06/16_58_14` W6).
 
