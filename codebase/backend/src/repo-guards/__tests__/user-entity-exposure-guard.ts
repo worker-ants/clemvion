@@ -61,6 +61,74 @@ function referencesUserType(type: ts.TypeNode): boolean {
  * 그 타입을 실제로 약속하는 자리가 타입 주석이고, 배열·nullable 형태까지 같은 술어로
  * 덮인다.
  */
+/**
+ * `@ManyToOne(() => User, { eager: true })` 처럼 **엔티티 선언만으로 항상 로드되는**
+ * `User` 관계. `<파일>#<속성명>` 키로 돌려준다.
+ *
+ * ## 왜 별도 축인가
+ *
+ * eager 관계는 **호출부에 아무 텍스트도 남기지 않는다** — `relations` 옵션도
+ * `*JoinAndSelect` 도 없이 TypeORM 이 자동으로 조인해 전 컬럼을 싣는다. 호출부만 훑는
+ * `findUserRelationLoads` 는 원리적으로 볼 수 없고, 그래서 이 자리에 성능 목적의
+ * `eager: true` 가 하나 붙으면 검출망이 **영구히** 놓친다
+ * (`review/code/2026/09/06/11_27_53` W1).
+ *
+ * 실측(2026-09-06): 현재 저장소에 `User` 를 가리키는 eager 관계는 **0건**이다. 0을
+ * 유지하는 것이 이 축의 계약이다 — 붙이려면 그때 투영 전략을 함께 정해야 한다.
+ */
+export function findEagerUserRelations(
+  entityFiles: readonly string[],
+  srcRoot: string,
+): string[] {
+  const out: string[] = [];
+  for (const file of entityFiles) {
+    const sf = ts.createSourceFile(
+      file,
+      fs.readFileSync(file, 'utf8'),
+      ts.ScriptTarget.Latest,
+      true,
+    );
+    const rel = toPosixRelative(srcRoot, file);
+    const visit = (node: ts.Node): void => {
+      if (
+        ts.isPropertyDeclaration(node) &&
+        node.type &&
+        referencesUserType(node.type) &&
+        hasEagerDecorator(node, sf)
+      ) {
+        out.push(`${rel}#${node.name.getText(sf)}`);
+      }
+      ts.forEachChild(node, visit);
+    };
+    visit(sf);
+  }
+  return out.sort();
+}
+
+/** 관계 데코레이터 인자에 `eager: true` 가 있는가. */
+function hasEagerDecorator(
+  node: ts.PropertyDeclaration,
+  sf: ts.SourceFile,
+): boolean {
+  for (const dec of ts.getDecorators(node) ?? []) {
+    if (!ts.isCallExpression(dec.expression)) continue;
+    for (const arg of dec.expression.arguments) {
+      const inner = unwrap(arg);
+      if (!ts.isObjectLiteralExpression(inner)) continue;
+      for (const prop of inner.properties) {
+        if (
+          ts.isPropertyAssignment(prop) &&
+          prop.name.getText(sf) === 'eager' &&
+          prop.initializer.kind === ts.SyntaxKind.TrueKeyword
+        ) {
+          return true;
+        }
+      }
+    }
+  }
+  return false;
+}
+
 export function collectUserRelationNames(
   entityFiles: readonly string[],
 ): string[] {
@@ -189,11 +257,22 @@ function userRelationInInitializer(
 }
 
 /**
- * 같은 옵션 객체에 그 관계를 좁히는 `select` 가 있는가.
+ * 같은 옵션 객체에 그 관계를 **실제로 좁히는** `select` 가 있는가.
  *
- * `select: { creator: { id: true, … } }` 가 있으면 컬럼이 이미 좁혀졌으므로 위반이 아니다 —
+ * `select: { creator: { id: true, … } }` 가 있으면 컬럼이 좁혀졌으므로 위반이 아니다 —
  * 이것을 안 보면 `findByWorkflow` 처럼 **처음부터 옳게 짜인 자리**가 베이스라인을 채워
  * 래칫이 무엇을 막는지 흐려진다.
+ *
+ * **값이 불리언이면 투영이 아니다.** `select: { creator: true }` 는 키는 있지만 컬럼을
+ * 하나도 좁히지 않는다 — `relations: { creator: true }` 단독과 같은 오버페치다. 키 존재만
+ * 보면 *"겉은 투영인데 실은 전체 노출"* 을 통과시키는데, 그것이 정확히 이 가드가 막으려는
+ * 결함 클래스다 (`review/code/2026/09/06/11_27_53` W2).
+ *
+ * **왜 "객체인가" 가 아니라 "불리언이 아닌가" 인가**: 처음엔 `isObjectLiteralExpression`
+ * 을 요구했는데, 그러자 `select: { creator: CREATOR_PROJECTION }` 처럼 **이름 있는 상수**를
+ * 쓰는 정상 형태가 위반으로 잡혔다(이 저장소가 실제로 쓰는 형태다). 식별자를 따라가려면
+ * 타입 체커가 필요하고 이 가드는 단일 파일 AST 만 본다. 결함의 실제 형태는 **불리언**이므로
+ * 그것만 배제한다 — 모르는 것을 통과시키되 아는 결함은 확실히 잡는, 좁고 눈먼 술어다.
  */
 function hasProjectionFor(
   relationsProp: ts.PropertyAssignment,
@@ -213,7 +292,14 @@ function hasProjectionFor(
     for (const sel of prop.initializer.properties) {
       if (!sel.name) continue;
       const key = sel.name.getText(sf).replace(/['"]/g, '');
-      if (key.toLowerCase() === relation.toLowerCase()) return true;
+      if (key.toLowerCase() !== relation.toLowerCase()) continue;
+      if (!ts.isPropertyAssignment(sel)) return true;
+      const value = unwrap(sel.initializer);
+      // `true`/`false` 는 컬럼을 안 좁힌다. 그 밖(객체·식별자·스프레드)은 좁힌 것으로 본다.
+      return (
+        value.kind !== ts.SyntaxKind.TrueKeyword &&
+        value.kind !== ts.SyntaxKind.FalseKeyword
+      );
     }
   }
   return false;

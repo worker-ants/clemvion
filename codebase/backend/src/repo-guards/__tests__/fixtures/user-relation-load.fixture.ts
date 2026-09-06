@@ -133,6 +133,20 @@ export async function violationSatisfiesRelations(): Promise<unknown> {
   });
 }
 
+/**
+ * 위반 12 — **`select` 키는 있는데 값이 `true`.** 컬럼을 하나도 좁히지 않으므로
+ * `relations` 단독과 같은 오버페치다. 키 존재만 보면 *"겉은 투영, 실은 전체 노출"* 을
+ * 통과시킨다 — 이 가드가 막으려는 결함 클래스 그 자체다
+ * (`review/code/2026/09/06/11_27_53` W2).
+ */
+export async function violationSelectBooleanNotObject(): Promise<unknown> {
+  return repo.findOne({
+    where: { id: 'x' },
+    relations: { creator: true },
+    select: { id: true, creator: true },
+  });
+}
+
 // ── 준수 형태 (대조군) ──────────────────────────────────────────────────────
 
 /**
@@ -159,12 +173,27 @@ export async function compliantProjectedRelations(): Promise<unknown> {
   });
 }
 
-/** 준수 3 — `User` 가 아닌 관계는 대상이 아니다. */
+/**
+ * 준수 3 — **이름 있는 상수**로 투영. `workflow-versions.service.ts` 가 실제로 쓰는
+ * 형태(`select: { creator: CREATOR_PROJECTION }`)다. 값이 객체 리터럴이어야 한다고
+ * 요구하면 이 정상 형태가 위반으로 잡힌다 — 실제로 그렇게 잡혔다.
+ */
+const NAMED_PROJECTION = { id: true, name: true, email: true } as const;
+
+export async function compliantNamedConstProjection(): Promise<unknown> {
+  return repo.findOne({
+    where: { id: 'x' },
+    relations: { creator: true },
+    select: { id: true, creator: NAMED_PROJECTION },
+  });
+}
+
+/** 준수 4 — `User` 가 아닌 관계는 대상이 아니다. */
 export async function compliantOtherRelation(): Promise<unknown> {
   return repo.findOne({ where: { id: 'x' }, relations: ['workflow'] });
 }
 
-/** 준수 4 — 이름이 `user` 로 *시작*할 뿐인 관계도 대상이 아니다. */
+/** 준수 5 — 이름이 `user` 로 *시작*할 뿐인 관계도 대상이 아니다. */
 export async function compliantUserPrefixedRelation(): Promise<unknown> {
   return repo.findOne({ where: { id: 'x' }, relations: ['userSettings'] });
 }

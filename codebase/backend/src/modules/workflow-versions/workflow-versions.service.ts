@@ -7,13 +7,33 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { EntityManager, QueryFailedError, Repository } from 'typeorm';
 import { WorkflowVersion } from './entities/workflow-version.entity';
 import { Workflow } from '../workflows/entities/workflow.entity';
+import type { User } from '../users/entities/user.entity';
 
 /**
- * 목록 조회 반환 타입 — `snapshot` 필드를 제외해 호출부에서 컴파일 타임에 접근 차단.
- * 엔티티 필드 타입(Date 등)을 그대로 유지해 TypeORM 반환값과 호환 유지.
- * (#4 — SUMMARY warning: 타입-런타임 불일치 수정)
+ * 응답에 실리는 `creator` — `CREATOR_PROJECTION` 이 싣는 것과 **같은 집합**.
+ *
+ * 엔티티 타입은 `creator: User` 라고 말하지만 런타임 값은 3필드뿐이다. 그 간극을 그대로
+ * 두면 새 소비자가 `version.creator.passwordHash` 를 써도 **컴파일러가 막지 않는다**
+ * (`tsc --noEmit` 오류 0건으로 실측됨). 값이 좁고 타입이 넓은 방향이라 유출은 아니지만,
+ * 이 PR 이 `select:false` 를 기각한 이유(*"undefined 를 받고 조용히 실패"*)와 **같은 형태의
+ * 위험을 읽기 쪽에 재생산**한다 (`review/code/2026/09/06/11_27_53` W4).
  */
-export type WorkflowVersionListItem = Omit<WorkflowVersion, 'snapshot'>;
+export type ProjectedCreator = Pick<User, 'id' | 'name' | 'email'>;
+
+/**
+ * 목록 조회 반환 타입 — `snapshot` 을 제외해 호출부에서 컴파일 타임에 접근 차단.
+ * 엔티티 필드 타입(Date 등)을 그대로 유지해 TypeORM 반환값과 호환 유지.
+ * `creator` 는 투영된 3필드로 좁힌다 — 위 `ProjectedCreator` 참조.
+ */
+export type WorkflowVersionListItem = Omit<
+  WorkflowVersion,
+  'snapshot' | 'creator'
+> & { creator: ProjectedCreator };
+
+/** 단건 조회 반환 타입 — 목록과 달리 `snapshot` 을 싣고, `creator` 는 같이 좁힌다. */
+export type WorkflowVersionDetail = Omit<WorkflowVersion, 'creator'> & {
+  creator: ProjectedCreator;
+};
 
 /**
  * `creator` 관계에서 **응답에 실을 컬럼**. 두 조회 메서드가 공유한다.
@@ -90,7 +110,7 @@ export class WorkflowVersionsService {
   async findOne(
     workflowId: string,
     versionId: string,
-  ): Promise<WorkflowVersion> {
+  ): Promise<WorkflowVersionDetail> {
     const version = await this.workflowVersionRepository.findOne({
       where: { id: versionId, workflowId },
       relations: { creator: true },

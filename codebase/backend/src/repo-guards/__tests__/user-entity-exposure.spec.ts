@@ -5,6 +5,7 @@ import { collectTsFiles } from '../../common/__test-utils__/source-scan';
 import {
   SRC_ROOT,
   collectUserRelationNames,
+  findEagerUserRelations,
   findUserRelationLoads,
 } from './user-entity-exposure-guard';
 
@@ -102,6 +103,12 @@ describe('`User` 관계 전체 로드 래칫', () => {
     });
   });
 
+  it('`User` 관계에 `eager: true` 를 붙인 자리는 하나도 없다', () => {
+    // eager 관계는 **호출부에 아무 텍스트도 남기지 않아** 위 스캔이 원리적으로 못 본다.
+    // 0을 유지하는 것이 이 축의 계약이다 (`review/code/2026/09/06/11_27_53` W1).
+    expect(findEagerUserRelations(entityFiles, SRC_ROOT)).toEqual([]);
+  });
+
   it('알려진 목록과 정확히 일치한다 (새로 생겨도, 남몰래 줄어도 실패)', () => {
     expect(loads.map((l) => l.key).sort()).toEqual(
       [...EXPECTED_USER_RELATION_LOADS].sort(),
@@ -132,7 +139,13 @@ describe('`User` 관계 전체 로드 래칫', () => {
       'owner',
     ]);
 
-    it('위반 10형태를 전부 잡는다 (한 함수 안 두 번은 두 건으로)', () => {
+    /**
+     * 제목에 **개수를 적지 않는다.** 종전 이 자리는 "위반 10형태" 였는데 fixture 에 하나를
+     * 더하자 곧바로 낡았고, 같은 브랜치의 RESOLUTION 은 "11형태" 라고 적어 두 문서가
+     * 갈렸다 (`review/code/2026/09/06/11_27_53` W3). 단언 자체가 전체 목록을 비교하므로
+     * 숫자는 애초에 필요 없다.
+     */
+    it('fixture 의 위반 함수를 하나도 빠짐없이 잡는다', () => {
       expect(found.map((f) => f.method).sort()).toEqual(
         [
           'violationRelationsUser',
@@ -147,6 +160,7 @@ describe('`User` 관계 전체 로드 래칫', () => {
           'violationNestedObjectRelations',
           'violationViaIntermediateVariable',
           'violationSatisfiesRelations',
+          'violationSelectBooleanNotObject',
         ].sort(),
       );
     });
@@ -154,7 +168,7 @@ describe('`User` 관계 전체 로드 래칫', () => {
     it('두 종류를 각각 잡는다 — 한 축만 물면 다른 축으로 샌다', () => {
       const kinds = found.map((f) => f.kind);
       expect(kinds.filter((k) => k === 'joinAndSelect')).toHaveLength(2);
-      expect(kinds.filter((k) => k === 'relations')).toHaveLength(10);
+      expect(kinds.filter((k) => k === 'relations')).toHaveLength(11);
     });
 
     it('중첩 **객체** 형태도 잡는다 — 배열 중첩만 잡으면 반쪽이다', () => {
@@ -199,10 +213,22 @@ describe('`User` 관계 전체 로드 래칫', () => {
       expect(keys[1]).toMatch(/#violationTwiceInOneFunction#2$/);
     });
 
-    it('준수 4형태는 놓아 준다 — 투영 join · 투영 relations · 다른 관계 · 접두어', () => {
+    it('`select` 값이 `true` 면 투영으로 인정하지 않는다', () => {
+      // `select: { creator: true }` 는 키만 있고 컬럼을 안 좁힌다. 값이 객체인지까지
+      // 봐야 "겉은 투영, 실은 전체 노출" 을 잡는다.
+      const boolSelect = found.find(
+        (f) => f.method === 'violationSelectBooleanNotObject',
+      );
+      expect(boolSelect?.relation).toBe('creator');
+    });
+
+    it('fixture 의 준수 함수는 하나도 잡지 않는다', () => {
       const methods = found.map((f) => f.method);
       expect(methods).not.toContain('compliantProjectedJoin');
       expect(methods).not.toContain('compliantProjectedRelations');
+      // 이름 있는 상수로 투영하는 형태 — 저장소가 실제로 쓰는 모양이다. "값이 객체
+      // 리터럴이어야 한다" 로 좁히면 이 정상 형태가 위반으로 잡힌다(실제로 잡혔다).
+      expect(methods).not.toContain('compliantNamedConstProjection');
       expect(methods).not.toContain('compliantOtherRelation');
       expect(methods).not.toContain('compliantUserPrefixedRelation');
     });
