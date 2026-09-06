@@ -601,7 +601,16 @@ def _parse_frontmatter_code(path: str) -> list[str]:
     """Extract the `code:` glob list from a markdown file's YAML frontmatter.
     Handles inline (`code: [a, b]`), single-value (`code: a`) and block-list
     (`code:\\n  - a\\n  - b`) forms. Returns [] when there is no frontmatter or
-    no `code:` field."""
+    no `code:` field.
+
+    **YAML 주석은 값이 아니다.** 블록 리스트 안의 빈 줄·줄 전체 주석은 건너뛰고
+    (`break` 는 다음 키에서만), 항목과 같은 줄의 트레일링 ` #...` 은 잘라낸다.
+    앞에 공백이 없는 `#`(`a#b.ts`)은 YAML 규칙대로 값의 일부로 남긴다.
+
+    두 처리 모두 **entry 가 조용히 사라지는 것**을 막는다 — 사라진 entry 는
+    "게이트가 안 무는 쪽" 이 기본값이 되게 하고, 실제로 41개가 그렇게 유실 중이었다.
+    이 파서는 프런트엔드 `spec-frontmatter-parse.ts`(gray-matter)와 **같은 답을
+    내야 한다** (2026-09-06 기준 731 대 731, 갈리는 파일 0)."""
     try:
         with open(path, "r", encoding="utf-8", errors="replace") as f:
             if f.readline().strip() != "---":
@@ -614,8 +623,19 @@ def _parse_frontmatter_code(path: str) -> list[str]:
     except OSError:
         return []
 
+    def _strip_comment(tok: str) -> str:
+        """따옴표 없는 스칼라의 트레일링 YAML 주석(` #` 이후)을 잘라낸다.
+
+        `#` **앞에 공백이 있어야** 주석이다 — `a#b.ts` 는 값이다. 무조건 자르면
+        이번엔 값을 잘라 먹는 쪽으로 같은 유실이 난다.
+        """
+        t = tok.strip()
+        if t.startswith('"') or t.startswith("'"):
+            return t
+        return re.split(r"\s+#", t, maxsplit=1)[0].rstrip()
+
     def _clean(tok: str) -> str:
-        return tok.strip().strip('"').strip("'")
+        return _strip_comment(tok).strip('"').strip("'")
 
     globs: list[str] = []
     i, n = 0, len(fm)
@@ -624,7 +644,9 @@ def _parse_frontmatter_code(path: str) -> list[str]:
         if not m:
             i += 1
             continue
-        rest = m.group(1).strip()
+        # 인라인 리스트는 `[...]` 를 벗기기 **전에** 주석을 걷는다 — 나중에 걷으면
+        # `[a, b]  # 비고` 의 마지막 항목에 `]` 가 남는다.
+        rest = _strip_comment(m.group(1))
         if rest.startswith("["):
             for part in rest.strip("[]").split(","):
                 g = _clean(part)

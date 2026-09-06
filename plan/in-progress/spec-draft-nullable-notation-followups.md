@@ -434,6 +434,34 @@ field: T | null;
       **새 개수를 적어 넣지 말 것.** 이 문서가 이미 두 번 겪은 실패다 — 축이 늘 때마다
       숫자가 낡는다. 표로 **나열**하고 문장은 개수를 말하지 않게 고친다.
 
+- [ ] **`code:` 파서 두 벌을 golden fixture 코퍼스로 묶는다** (harness, 2026-09-06 등재,
+      `review/code/2026/09/06/14_25_40` W2).
+
+      같은 YAML 을 Python(`review_guard._parse_frontmatter_code`)과
+      TypeScript(`spec-frontmatter-parse.ts`, gray-matter)가 **각자 재구현**한다. 이
+      발산이 41개 entry 유실을 냈고, 이번에 닫은 것은 그중 **두 형태**(줄 전체 주석·빈
+      줄, 트레일링 주석)뿐이다. 다음 형태(앵커 `&a`/`*a` · 여러 줄 문자열 `>`/`|` ·
+      따옴표 안의 `#`)는 여전히 갈릴 수 있다.
+
+      **한 형태씩 쫓는 것이 이 항목의 문제다** — 트레일링 주석은 직전 수정이 **한 칸
+      좁아서** 남은 것이고, 두 reviewer 가 정규식을 직접 돌려 찾았다.
+
+      → 두 언어 테스트가 **같은 fixture 코퍼스**를 읽고 *"같은 입력 → 같은 출력"* 을
+      계약으로 단언한다. 형태를 추가하면 양쪽이 동시에 물린다.
+
+      > **당장의 안전망은 있다**: 저장소 전수 대조(387개 파일, 731 대 731, 갈리는 파일
+      > 0)를 실측으로 확인했다. 이 항목은 그 대조를 **테스트로 상시화**하는 것이다.
+
+- [ ] **`workflow-versions.service.ts` 의 공유 `select` 6키를 상수로**
+      (developer, 2026-09-06 등재, `review/code/2026/09/06/14_25_40` INFO#3).
+
+      `findByWorkflow`/`findOne` 이 `id`·`workflowId`·`version`·`changeSummary`·
+      `createdBy`·`createdAt` 를 손으로 두 번 나열한다. **이 PR 이 고친 결함 클래스가
+      축소된 범위로 남은 것**이다 — 자매 메서드 중 하나만 바뀌면 응답이 갈린다.
+
+      `creator` 는 이미 `CREATOR_PROJECTION` 으로 공유한다(그쪽이 보안 경계였다).
+      남은 6키는 갈려도 **표시 버그**지 유출이 아니라, 이번 PR 범위 밖으로 미룬다.
+
 - [ ] **`WorkflowVersion*Dto.creator` 의 §5.4 금지 조합을 갚는다** (developer, 2026-09-06
       등재, `review/code/2026/09/06/13_39_20` INFO#16 + `review/consistency/2026/09/06/13_39_25`
       INFO#2 — 두 게이트가 독립 지적).

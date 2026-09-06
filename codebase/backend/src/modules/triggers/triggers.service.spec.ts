@@ -2,10 +2,17 @@ import { AuditLogsService } from '../audit-logs/audit-logs.service';
 import { Test } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { ConfigService } from '@nestjs/config';
-import { BadRequestException, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  NotFoundException,
+} from '@nestjs/common';
 import { Provider } from '@nestjs/common';
-import { In, Repository } from 'typeorm';
-import { TriggersService } from './triggers.service';
+import { In, QueryFailedError, Repository } from 'typeorm';
+import {
+  TriggersService,
+  isEndpointPathUniqueViolation,
+} from './triggers.service';
 import { Trigger } from './entities/trigger.entity';
 import { Execution } from '../executions/entities/execution.entity';
 import { Schedule } from '../schedules/entities/schedule.entity';
@@ -2759,5 +2766,128 @@ describe('TriggersService — 감사 로깅 (trigger.*)', () => {
         details: { type: 'webhook' },
       }),
     );
+  });
+});
+
+/**
+ * `(workspace_id, endpoint_path)` UNIQUE 충돌의 **문서한 형태**.
+ *
+ * `2-trigger-list.md §3` 은 *"409 `RESOURCE_CONFLICT` (세부 코드
+ * `TRIGGER_ENDPOINT_PATH_CONFLICT`, `details.field='endpoint_path'`)"* 를 계약으로
+ * 적어 뒀는데 **그 문자열이 저장소 어디에도 없었다** — 전역 필터의 `isUniqueViolation`
+ * 분기가 `details` 없이 `RESOURCE_CONFLICT` 만 내고 있었다
+ * (`review/consistency/2026/09/06/14_26_32` Critical 1).
+ */
+describe('TriggersService — endpoint_path UNIQUE 충돌 계약', () => {
+  let service: TriggersService;
+  let triggerRepo: jest.Mocked<Repository<Trigger>>;
+
+  const webhookTrigger = {
+    id: 'trg-1',
+    workspaceId: 'ws-1',
+    type: 'webhook',
+    name: 'W',
+    config: {},
+  } as unknown as Trigger;
+
+  /** 드라이버가 내는 형태 그대로. `constraint` 는 `V002__indexes.sql` 의 인덱스명. */
+  function uniqueViolation(constraint: string): QueryFailedError {
+    const err = new QueryFailedError('INSERT', [], new Error('duplicate key'));
+    (err as QueryFailedError & { driverError: unknown }).driverError = {
+      code: '23505',
+      constraint,
+    };
+    return err;
+  }
+
+  beforeEach(async () => {
+    const moduleRef = await Test.createTestingModule({
+      providers: createBaseProviders({
+        findOne: jest.fn().mockResolvedValue(webhookTrigger),
+        update: jest.fn().mockResolvedValue(undefined),
+        save: jest.fn(),
+        create: jest.fn((t: Partial<Trigger>) => t as Trigger),
+        remove: jest.fn().mockResolvedValue(undefined),
+        createQueryBuilder: jest.fn(),
+      }),
+    }).compile();
+    service = moduleRef.get(TriggersService);
+    triggerRepo = moduleRef.get(getRepositoryToken(Trigger));
+  });
+
+  /**
+   * **wire 에 실제로 도달하는 자리를 문는다.** `GlobalExceptionFilter` 는 봉투에
+   * `code`·`message`·`requestId`·`details` 만 복사한다 — 세부 코드를 top-level
+   * `subCode` 로 실으면 클라이언트에 **닿지 않는다**. 그래서 `details` 안에 둔다.
+   */
+  it.each([
+    [
+      'update',
+      async () =>
+        service.update('trg-1', 'ws-1', { endpointPath: 'p' } as never, 'u-1'),
+    ],
+    [
+      'create',
+      async () =>
+        service.create(
+          'ws-1',
+          {
+            workflowId: 'wf-1',
+            type: 'webhook',
+            name: 'W',
+            endpointPath: 'p',
+          } as never,
+          'u-1',
+        ),
+    ],
+  ])('%s — 409 + RESOURCE_CONFLICT + details 두 키', async (_label, call) => {
+    (triggerRepo.save as jest.Mock).mockRejectedValue(
+      uniqueViolation('idx_trigger_workspace_endpoint'),
+    );
+
+    await expect(call()).rejects.toBeInstanceOf(ConflictException);
+    await expect(call()).rejects.toMatchObject({
+      response: {
+        code: 'RESOURCE_CONFLICT',
+        details: {
+          field: 'endpoint_path',
+          subCode: 'TRIGGER_ENDPOINT_PATH_CONFLICT',
+        },
+      },
+    });
+  });
+
+  /**
+   * **반대 방향 대조군.** 이게 없으면 술어가 `23505` 만 보는 쪽으로 넓어져도 통과해,
+   * 이 테이블의 **다른** UNIQUE 위반까지 `endpoint_path` 충돌로 오보한다.
+   */
+  it('다른 UNIQUE 인덱스 위반은 가로채지 않고 그대로 흘려보낸다', async () => {
+    const other = uniqueViolation('idx_trigger_workspace_name');
+    (triggerRepo.save as jest.Mock).mockRejectedValue(other);
+
+    await expect(
+      service.update('trg-1', 'ws-1', { name: 'W2' } as never, 'u-1'),
+    ).rejects.toBe(other);
+  });
+
+  it('unique 위반이 아닌 오류도 그대로 흘려보낸다', async () => {
+    const boom = new Error('db down');
+    (triggerRepo.save as jest.Mock).mockRejectedValue(boom);
+
+    await expect(
+      service.update('trg-1', 'ws-1', { name: 'W2' } as never, 'u-1'),
+    ).rejects.toBe(boom);
+  });
+
+  it('[술어] 인덱스명이 다르거나 SQLSTATE 가 다르면 false', () => {
+    expect(
+      isEndpointPathUniqueViolation(
+        uniqueViolation('idx_trigger_workspace_endpoint'),
+      ),
+    ).toBe(true);
+    expect(
+      isEndpointPathUniqueViolation(uniqueViolation('some_other_index')),
+    ).toBe(false);
+    expect(isEndpointPathUniqueViolation(new Error('nope'))).toBe(false);
   });
 });

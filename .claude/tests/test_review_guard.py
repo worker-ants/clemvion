@@ -373,6 +373,54 @@ class GlobAndFrontmatterTest(unittest.TestCase):
             rg._parse_frontmatter_code(sp), ["codebase/backend/a.ts"]
         )
 
+    def test_parse_block_list_starting_with_comment(self):
+        """리스트의 **첫 줄**이 주석인 경우 (`review/code/2026/09/06/14_25_40` INFO#8)."""
+        sp = self._spec("---\nid: a\ncode:\n  # 범주 주석\n"
+                        "  - codebase/backend/a.ts\nstatus: partial\n---\n# x\n")
+        self.assertEqual(
+            rg._parse_frontmatter_code(sp), ["codebase/backend/a.ts"]
+        )
+
+    def test_parse_strips_trailing_comment_block_list(self):
+        """항목과 **같은 줄**에 붙은 주석은 값이 아니다.
+
+        줄 전체 주석만 건너뛰던 판은 트레일링 주석을 값에 붙여 **어떤 파일과도 매치되지
+        않는 죽은 glob** 을 만들었다 — 항목이 사라지는 것과 같은 등급의 조용한 유실이다.
+        직전 수정이 한 칸 좁았다 (`review/code/2026/09/06/14_25_40` W1 — maintainability·
+        testing 두 reviewer 가 정규식을 직접 실행해 독립 재현).
+        """
+        sp = self._spec("---\nid: a\ncode:\n"
+                        "  - codebase/backend/a.ts  # 시행 코드\n"
+                        "  - codebase/frontend/b.ts\nstatus: partial\n---\n# x\n")
+        self.assertEqual(
+            rg._parse_frontmatter_code(sp),
+            ["codebase/backend/a.ts", "codebase/frontend/b.ts"],
+        )
+
+    def test_parse_strips_trailing_comment_single_and_inline(self):
+        """단일값·인라인 리스트 형태도 같다 — 세 분기 전부 같은 경로를 탄다."""
+        sp = self._spec("---\ncode: codebase/backend/a.ts  # 비고\n---\n# x\n")
+        self.assertEqual(rg._parse_frontmatter_code(sp), ["codebase/backend/a.ts"])
+
+        sp2 = self._spec("---\ncode: [codebase/backend/a.ts, codebase/frontend/b.ts]  # 비고\n"
+                         "---\n# x\n")
+        self.assertEqual(
+            rg._parse_frontmatter_code(sp2),
+            ["codebase/backend/a.ts", "codebase/frontend/b.ts"],
+        )
+
+    def test_parse_hash_without_leading_space_is_not_a_comment(self):
+        """**앞에 공백이 없는 `#` 은 주석이 아니다** — YAML 규칙 그대로.
+
+        넓힌 술어의 반대 방향 대조군이다. 이게 없으면 `#` 을 무조건 자르는 방향으로
+        넓어져도 통과해, 이번엔 **값을 잘라 먹는** 쪽으로 같은 유실이 난다.
+        """
+        sp = self._spec("---\nid: a\ncode:\n"
+                        "  - codebase/backend/a#b.ts\nstatus: partial\n---\n# x\n")
+        self.assertEqual(
+            rg._parse_frontmatter_code(sp), ["codebase/backend/a#b.ts"]
+        )
+
     def test_parse_single_value(self):
         sp = self._spec("---\ncode: codebase/backend/a.ts\n---\n# x\n")
         self.assertEqual(rg._parse_frontmatter_code(sp), ["codebase/backend/a.ts"])

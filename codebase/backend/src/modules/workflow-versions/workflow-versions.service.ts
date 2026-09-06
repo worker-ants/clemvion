@@ -116,8 +116,11 @@ export class WorkflowVersionsService {
   // vs §7.2(상세 "+ snapshot 포함") 의 대비 구조가 '목록 비포함' 의도를 명시하며,
   // 목록 UI(version-history-panel)도 메타만 소비한다. snapshot 은 §7.2 상세
   // (findOne) / §6 복원에서만 필요. (m-3 — 목록 호출당 전체 snapshot over-fetch 제거)
-  // 반환 타입을 WorkflowVersionListItem(Omit<WorkflowVersion,'snapshot'>) 로 좁혀
-  // `snapshot` 접근을 컴파일 타임에 차단 (#4 — SUMMARY warning: 타입-런타임 불일치 수정).
+  // 반환 타입 `WorkflowVersionListItem` 이 `snapshot` 접근을 컴파일 타임에 차단한다
+  // (#4 — SUMMARY warning: 타입-런타임 불일치 수정). **그 타입은 이제 `snapshot` 만
+  // 빼는 것이 아니다** — `creator` 는 투영된 3필드로 좁고, 로드하지 않는 `workflow` 도
+  // 뺀다. 정의를 여기 옮겨 적지 않는다(옮겨 적은 문장이 곧 낡았다,
+  // `review/code/2026/09/06/14_25_40` INFO#2) — 타입 선언이 SoT 다.
   async findByWorkflow(workflowId: string): Promise<WorkflowVersionListItem[]> {
     return this.workflowVersionRepository.find({
       where: { workflowId },

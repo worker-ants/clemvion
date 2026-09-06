@@ -124,6 +124,32 @@ developer 자신이 썼을 것"* 을 요구하는데, `git log -S` 로 보면 �
 
 7개 spec 파일은 손대지 않았다. 고칠 것이 문서가 아니었기 때문이다.
 
+### 넓어진 게이트가 곧바로 부채 하나를 물었다
+
+파서를 고치자 `workspace-response.dto.ts` 가 처음으로 spec-linked 로 잡혔고, 그래서
+`spec/2-navigation/` 이 게이트 범위에 들어왔다. 그 영역의 `--impl-done` 라운드가 곧바로
+Critical 을 냈다 — `2-trigger-list.md §3` 이 약속한
+
+> `(workspace_id, endpoint_path)` UNIQUE 위반 시 409 `RESOURCE_CONFLICT`
+> (세부 코드 `TRIGGER_ENDPOINT_PATH_CONFLICT`, `details.field='endpoint_path'`)
+
+가 **코드에 0건**이었다. 실제로는 전역 필터의 unique-violation 분기가 `details` 없이
+`RESOURCE_CONFLICT` 만 내고 있었다.
+
+**문서를 낮추지 않고 구현했다.** 문구를 실측대로 정정하는 쪽은 클라이언트에게 한 약속을
+조용히 줄인다. `POST /api/triggers` 와 `PATCH /api/triggers/:id` 가 이제 그 충돌에
+`details: { field: 'endpoint_path', subCode: 'TRIGGER_ENDPOINT_PATH_CONFLICT' }` 를
+싣는다 — 상태 코드와 top-level `code` 는 그대로다(순수 additive).
+
+술어는 SQLSTATE 23505 **+ 인덱스명**(`idx_trigger_workspace_endpoint`)으로 좁혔다. 23505
+만 보면 이 테이블의 다른 UNIQUE 위반까지 `endpoint_path` 충돌로 오보한다. 맞지 않는
+오류는 그대로 흘려보내 전역 매핑이 하던 일을 가로채지 않는다.
+
+> **세부 코드는 `details` 안에 둔다.** 처음엔 봉투 top-level 에 `subCode` 를 실었는데,
+> `GlobalExceptionFilter` 는 `code`·`message`·`requestId`·`details` 만 복사한다 — **wire
+> 에 닿지 않는다.** 그대로 뒀으면 "문서한 보장이 구현보다 넓다" 를 고치면서 같은 결함을
+> 새로 만들 뻔했다. 봉투 스키마는 `2-api-convention.md §5.3` 소유라 넓히지 않았다.
+
 ## Unreleased — 트리거 회전 secret 이 두 엔드포인트로 나갔다 (§5.4 스윕이 검출)
 
 응답-계약 검증자를 14개 엔드포인트로 넓히자, `trigger` 행의 **회전 secret** 이 선언되지 않은
