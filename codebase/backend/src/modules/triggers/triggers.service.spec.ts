@@ -2872,13 +2872,8 @@ describe('TriggersService — endpoint_path UNIQUE 충돌 계약', () => {
   );
 
   /**
-   * **반대 방향 대조군.** 이게 없으면 술어가 `23505` 만 보는 쪽으로 넓어져도 통과해,
-   * 이 테이블의 **다른** UNIQUE 위반까지 `endpoint_path` 충돌로 오보한다.
-   */
-  /**
-   * **부정 케이스도 두 경로를 대칭으로 문다.** 종전엔 `update` 에만 있었다 — 두 경로가
-   * 같은 헬퍼를 공유하니 지금은 위험이 낮지만, 한쪽이 자기 판정으로 갈라져도 관측되지
-   * 않는 상태였다 (`review/code/2026/09/06/15_52_58` INFO#8).
+   * 부정 케이스 두 경로의 호출부. `update`/`create` 를 대칭으로 태우려고 뽑았다
+   * (`review/code/2026/09/06/15_52_58` INFO#8).
    */
   const callFor = (method: 'update' | 'create') =>
     method === 'update'
@@ -2890,6 +2885,13 @@ describe('TriggersService — endpoint_path UNIQUE 충돌 계약', () => {
             'u-1',
           );
 
+  /**
+   * **반대 방향 대조군.** 이게 없으면 술어가 `23505` 만 보는 쪽으로 넓어져도 통과해,
+   * 이 테이블의 **다른** UNIQUE 위반까지 `endpoint_path` 충돌로 오보한다.
+   *
+   * 두 경로를 대칭으로 문는다 — 종전엔 `update` 에만 있었다. 지금은 헬퍼를 공유하니
+   * 위험이 낮지만, 한쪽이 자기 판정으로 갈라져도 관측되지 않는 상태였다.
+   */
   it.each([['update'], ['create']] as const)(
     '%s — 다른 UNIQUE 인덱스 위반은 가로채지 않고 그대로 흘려보낸다',
     async (method) => {

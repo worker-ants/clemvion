@@ -10,6 +10,14 @@ spec_impact:
   - spec/data-flow/10-triggers.md
   - spec/5-system/2-api-convention.md
   - spec/conventions/swagger.md
+  # 아래 셋은 본문 항목이 정정을 요구하는 파일 — 빠지면 `--spec`/`--impl-done` 번들
+  # 스코프에서 누락된다 (`review/consistency/2026/09/06/16_29_00` INFO#2).
+  - spec/2-navigation/2-trigger-list.md
+  - spec/2-navigation/3-schedule.md
+  - spec/5-system/15-chat-channel.md
+  - spec/conventions/review-citations.md
+  - spec/conventions/spec-impl-evidence.md
+  - spec/conventions/secret-store.md
 ---
 
 # nullable 표기 후속 3건 (planner 턴)
@@ -407,9 +415,15 @@ field: T | null;
       > `user-entity-exposure-guard.ts` + `user-entity-exposure.spec.ts` **2/2**,
       > `-guard*` 는 1/2. `user-secret-absence*.ts` 도 `.ts` + `.spec.ts` **2/2**.
       >
-      > **`code:` 에 YAML 주석을 넣지 마라** — 게이트 파서가 그 줄에서 끊는다. 범주 구분이
-      > 필요하면 산문·표로 적는다 (`review/code/2026/09/06/13_39_20` Critical 1 — 같은 함정을
-      > 이 브랜치 계열이 **두 번** 밟았다).
+      > ~~**`code:` 에 YAML 주석을 넣지 마라** — 게이트 파서가 그 줄에서 끊는다.~~
+      >
+      > **해소됨 (2026-09-06, `8b67300b5`)** — 파서가 빈 줄·`#` 주석·트레일링 주석·인용
+      > 스칼라를 모두 처리한다. 이 문서 아래쪽 harness 항목에 실측(690→731, 갈리는 파일
+      > 7→0)과 회귀 테스트가 있다. `review-citations.md` 는 실제로 인라인 주석을 쓴다.
+      >
+      > **캐비아트를 지우지 않고 남긴다** — 이것이 왜 한때 금지였는지가 다음 사람에게
+      > 필요하다. 다만 **지금은 유효하지 않다** (`review/code/2026/09/06/16_28_58` W5 —
+      > 시점이 다른 두 서술이 공존해 오도할 수 있다는 지적).
 
       > **JSDoc 축은 `spec-draft-review-citations-enforcement.md` 가 선행 집행했다**
       > (2026-09-06, `--spec` 게이트 `review/consistency/2026/09/06/13_18_59` BLOCK:NO).
@@ -459,6 +473,34 @@ field: T | null;
       → planner 가 Skill 표에 harness 항목을 **명시**한다(허용이든 금지든). 금지로 정하면
       이 브랜치의 파서 수정을 되돌리고 **다른 처분**(7개 파일 스윕 + 재발 방지)을 planner
       턴으로 집행해야 하며, 그 비용 차이가 결정의 실질이다.
+
+      > **사용자 결정 (2026-09-06)**: **파서 수정을 남긴다.** 세 선택지(남긴다+명시 /
+      > 별도 PR 로 분리 / 되돌리고 spec 7파일 스윕) 중 첫째를 택했다
+      > (`review/code/2026/09/06/16_28_58` Critical 1 이 결정을 요구했다).
+      >
+      > **따라서 이 항목에 남은 것은 코드가 아니라 `CLAUDE.md` 다.** Skill 표에 harness
+      > (`.claude/**`) 행을 넣어, 다음 사람이 같은 판단을 처음부터 다시 하지 않게 한다.
+      > 지금 상태는 *"관행으로는 허용, 문서로는 미기술"* 이고 — 그것이 이 브랜치가 계속
+      > 지적받은 결함의 형태다.
+      >
+      > 분리안을 택하지 않은 이유도 남긴다: **이 PR 의 `--impl-done` 게이트가 그 파서
+      > 수정에 의존한다**(수정 전에는 `workspace-response.dto.ts` 가 spec-linked 로 안
+      > 잡혔다). 두 PR 로 가르면 서로를 기다리는 순환이 된다.
+
+- [ ] **`integration-oauth.service.ts` 의 손-작성 constraint 추출 2곳** (developer,
+      2026-09-06 등재, `review/code/2026/09/06/16_28_58` INFO#9 — **의도적 보류**).
+
+      신설한 `pgErrorConstraint()` 가 정확히 대체할 수 있는 패턴이 남아 있다. **실측**:
+      2곳(cafe24·makeshop 설치 경로), 각각 `(err as {...})?.constraint ?? (err as
+      {...})?.driverError?.constraint` 4줄, 둘 다 이미 `isPostgresUniqueViolation` 을
+      import 해 쓰고 있으므로 치환은 **import 한 줄 + 표현 2개**다.
+
+      **이 PR 에서 하지 않은 이유는 비용이 아니라 범위다.** scope reviewer 가 이 브랜치의
+      관심사 확산을 반복 지적했고(4단 연쇄), 여기서 다섯 번째 모듈을 여는 것은 그 지적을
+      정면으로 무시하는 것이다. 두 자리는 **동작이 옳고**(같은 두 표면을 본다) 위험이
+      없다 — 남은 것은 중복뿐이다.
+
+      → 그 파일을 다음에 건드릴 때 치환한다.
 
 - [ ] **트리거 `endpoint_path` 409 충돌에 e2e 가 없다** (developer, 2026-09-06 등재,
       `review/code/2026/09/06/15_52_58` INFO#11).
@@ -523,8 +565,17 @@ field: T | null;
       **Admin+ 전용**이다(근거 `5-system/1-auth.md §3.2`). editor 는 눌러서 도달해도
       만들 수 없다.
 
-      → 링크를 `admin+` 노출로 제한하거나, editor 도달 시 읽기 전용임을 명시한다.
-      **어느 쪽이 제품 의도인지 확인이 먼저다** — 이 항목은 문구 정정이 아니라 결정이다.
+      ~~어느 쪽이 제품 의도인지 확인이 먼저다 — 이 항목은 문구 정정이 아니라 결정이다.~~
+
+      > **정정 (2026-09-06)**: 실측하니 **결정할 것이 없다.**
+      > `6-config.md:125` 가 *"Add Config(헤더) … 는 Admin+ 에만 UI 노출"* 을
+      > **`1-auth.md §3.2` 권한 매트릭스를 근거로 인용**해 적는다 — 그쪽이 SoT 이고
+      > 제품 의도는 이미 확정돼 있다 (`review/consistency/2026/09/06/16_29_00` W4 가
+      > 두 문서를 대조해 확인, 나도 양쪽을 직접 열어 재확인했다). 남은 것은
+      > `2-trigger-list.md:103` 셀렉터 서술을 그 경계에 맞추는 **문구 정정**이다.
+      >
+      > 유예 근거를 "확인이 먼저" 로 적어 둔 것이 틀렸다 — 그 확인은 문서 두 개를 여는
+      > 일이었고, 미룰수록 다음 사람이 같은 판단을 반복한다.
 
 - [ ] **`WorkflowVersionDetail` 동명 미러를 코드 주석에서 트래커로 격상** (developer,
       2026-09-06 등재, `review/consistency/2026/09/06/15_31_00` W4).
