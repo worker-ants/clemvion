@@ -191,6 +191,7 @@ describe('`User` 관계 전체 로드 래칫', () => {
           'violationViaIntermediateVariable',
           'violationSatisfiesRelations',
           'violationSelectBooleanNotObject',
+          'violationSelectBooleanWrapped',
           'violationAsCastRelations',
         ].sort(),
       );
@@ -199,7 +200,7 @@ describe('`User` 관계 전체 로드 래칫', () => {
     it('두 종류를 각각 잡는다 — 한 축만 물면 다른 축으로 샌다', () => {
       const kinds = found.map((f) => f.kind);
       expect(kinds.filter((k) => k === 'joinAndSelect')).toHaveLength(2);
-      expect(kinds.filter((k) => k === 'relations')).toHaveLength(12);
+      expect(kinds.filter((k) => k === 'relations')).toHaveLength(13);
     });
 
     it('중첩 **객체** 형태도 잡는다 — 배열 중첩만 잡으면 반쪽이다', () => {
@@ -257,6 +258,17 @@ describe('`User` 관계 전체 로드 래칫', () => {
         (f) => f.method === 'violationSelectBooleanNotObject',
       );
       expect(boolSelect?.relation).toBe('creator');
+    });
+
+    it('`select` 값에 씌운 타입 연산도 벗기고 본다', () => {
+      // `select: { creator: true satisfies boolean }`. `relations` 쪽 `unwrap` 만
+      // fixture 로 관측되고 있어서, `hasProjectionFor` 안의 `unwrap` 호출을 지워도
+      // 스위트가 초록이었다 (`review/code/2026/09/06/12_53_28` INFO#11).
+      // 같은 헬퍼라도 **호출 지점마다** 관측돼야 한다.
+      const wrapped = found.find(
+        (f) => f.method === 'violationSelectBooleanWrapped',
+      );
+      expect(wrapped?.relation).toBe('creator');
     });
 
     it('fixture 의 준수 함수는 하나도 잡지 않는다', () => {

@@ -351,10 +351,10 @@ field: T | null;
       >    관계 이름 집합은 **손으로 적지 않고 `*.entity.ts` 의 타입 주석에서 파생**한다 —
       >    첫 판이 이름으로 매칭해 Critical 을 놓쳤고, 파생은 내 grep 이 놓친 `executor`
       >    까지 찾아냈다.
-      > 3. `dto-jsdoc-citation-guard.ts` — 응답 DTO 의 **JSDoc 안 리뷰 인용**을 센다.
+      > 2. `dto-jsdoc-citation-guard.ts` — 응답 DTO 의 **JSDoc 안 리뷰 인용**을 센다.
       >    그 JSDoc 은 공개 OpenAPI `description` 이 된다. 같은 위반이 세 번 났고 매번
       >    사람이 잡았다. 이미 있던 2건(아래 별 항목)은 동결.
-      > 2. `user-secret-absence.ts` — 응답 본문을 깊이 훑어 7컬럼 이름의 부재를 단언.
+      > 3. `user-secret-absence.ts` — 응답 본문을 깊이 훑어 7컬럼 이름의 부재를 단언.
       >    **선언과 무관**하므로 누가 비밀 필드를 DTO 에 *선언까지* 해도 잡는다 — 감사 로그
       >    유출을 놓친 것이 바로 선언 기반 검증자였다.
       >
@@ -372,7 +372,7 @@ field: T | null;
       > **이 항목은 닫히지만 후속 두 건이 따라온다** — 아래 별 항목으로 등재했다. 여기에
       > 적어 두지 않으면 draft 종결 조건(`## 후속` 체크박스 전부 닫힘)이 조용히 거짓이 된다.
 
-- [ ] **신규 검출 2축을 §5.4 「검증 층」과 `code:` 에 등재** (planner, 2026-09-06 등재,
+- [ ] **신규 검출 3축을 §5.4 「검증 층」과 `code:` 에 등재** (planner, 2026-09-06 등재,
       `review/consistency/2026/09/06/10_13_23` W1 — **5개 checker 중 4개가 독립 보고**).
 
       `user-entity-exposure-guard.ts`(구조 축)·`user-secret-absence.ts`(이름 축)·
@@ -388,8 +388,30 @@ field: T | null;
       `2-api-convention.md`·`swagger.md` **양쪽**에 등재한 그 건. 한쪽만 하면 사각지대가
       남는다는 것도 그때 실측으로 확인됐다.
 
-      → §5.4 「검증 층」 소절에 **두 행**(구조 축 / 이름 축)을 더하고, 두 문서 frontmatter
-      `code:` 에 신규 파일 패턴을 넣는다.
+      → §5.4 「검증 층」 소절에 **세 행**을 더하고, 각 문서 frontmatter `code:` 에 신규
+      파일 패턴을 넣는다:
+
+      | 축 | 파일 | 등재할 문서 |
+      |---|---|---|
+      | 구조 (관계 로드 형태) | `user-entity-exposure-guard*.ts` | `2-api-convention.md` §5.4 · `swagger.md` §5-1 |
+      | 이름 (응답 값 부재) | `user-secret-absence*.ts` | 〃 |
+      | JSDoc 인용 | `dto-jsdoc-citation*.ts` | ~~**`review-citations.md`**~~ — **2026-09-06 집행 완료** (아래 참조) |
+
+      **glob 은 `-guard` 를 붙이지 않는다** — 붙이면 `.spec.ts` 가 빠지는데, 베이스라인과
+      fixture 대조군이 사는 곳이 그 파일이다 (`review/consistency/2026/09/06/13_06_22` W2).
+
+      > **JSDoc 축은 `spec-draft-review-citations-enforcement.md` 가 선행 집행했다**
+      > (2026-09-06, `--spec` 게이트 `review/consistency/2026/09/06/13_18_59` BLOCK:NO).
+      > `review-citations.md` 의 frontmatter `code:` 에 `dto-jsdoc-citation*.ts` 가
+      > **범주 주석과 함께** 들어갔고 Rationale 도 축 단위로 정정됐다.
+      >
+      > **이 항목에 남은 것은 §5.4 쪽 두 축**(구조·이름)이다.
+
+      **셋째 축은 등재할 문서가 다르다.** §5.4 가 아니라 `review-citations.md` 다 — 그 가드가
+      강제하는 것은 응답 계약이 아니라 **주석 형태 규약**이기 때문이다. 그리고 그 문서의
+      `## Rationale` 이 *"이 규약에는 시행하는 코드가 없다"* 고 적는데 **이제 있다**
+      (`review/consistency/2026/09/06/12_53_29` Critical 1). 그 문장은 developer 가 쓴
+      예고가 아니므로 자기-반증형 소정정 대상이 아니다.
 
       **"두 검증자" 라고 못 박은 문장이 둘 있다** — 그 표현이 이제 거짓이다:
 

@@ -62,7 +62,7 @@ describe('응답 DTO JSDoc 리뷰 인용 래칫', () => {
     expect(found.map((c) => c.key)).toEqual([...EXPECTED_DTO_JSDOC_CITATIONS]);
   });
 
-  it('[대조군] 위반 3형태를 잡고 준수 3형태는 놓아 준다', () => {
+  it('[대조군] fixture 의 위반을 전부 잡고 준수는 놓아 준다', () => {
     const fixture = path.join(
       __dirname,
       'fixtures',
@@ -73,9 +73,10 @@ describe('응답 DTO JSDoc 리뷰 인용 래칫', () => {
     const hits = findDtoJsDocCitations([fixture], SRC_ROOT);
     const owners = hits.map((h) => h.owner).sort();
 
-    // 양성 — 클래스 JSDoc · 필드 JSDoc · bare 시각.
+    // 양성 — 클래스 JSDoc · 필드 JSDoc · bare 시각 · 날짜+시각.
     expect(owners).toEqual([
       'ViolationClassCitationDto',
+      'ViolationFieldCitationDto.avatarUrl',
       'ViolationFieldCitationDto.email',
       'ViolationFieldCitationDto.name',
     ]);
@@ -84,6 +85,33 @@ describe('응답 DTO JSDoc 리뷰 인용 래칫', () => {
     expect(owners).not.toContain('CompliantPlainDto');
     expect(owners).not.toContain('CompliantLineCommentDto');
     expect(owners).not.toContain('CompliantLineCommentDto.id');
+  });
+
+  /**
+   * **선언한 세 형태가 각각 관측되어야 한다.**
+   *
+   * 첫 판은 "세 형태를 센다" 고 적어 놓고 **둘만** fixture 에 넣었다 — 날짜+시각 정규식을
+   * 통째로 지워도 스위트가 초록이었다 (`review/code/2026/09/06/12_53_28` W1, 리뷰어가
+   * 직접 뮤테이션). 한 라운드 전 eager 축에서 겪은 것과 **같은 형태**의 실수다.
+   *
+   * 그래서 목록 비교로 끝내지 않고, **어떤 텍스트가 매치됐는지**를 형태별로 문다.
+   */
+  it('세 인용 형태가 각각 최소 한 번씩 관측된다', () => {
+    const fixture = path.join(
+      __dirname,
+      'fixtures',
+      'dto',
+      'responses',
+      'jsdoc-citation.fixture.ts',
+    );
+    const cited = findDtoJsDocCitations([fixture], SRC_ROOT).flatMap(
+      (h) => h.citations,
+    );
+
+    // 전체 경로 · bare 시각 · 날짜+시각.
+    expect(cited.some((c) => c.startsWith('review/'))).toBe(true);
+    expect(cited.some((c) => /^`\d{2}_\d{2}_\d{2}`$/.test(c))).toBe(true);
+    expect(cited.some((c) => /^\d{4}-\d{2}-\d{2}\s/.test(c))).toBe(true);
   });
 
   it('[전제] fixture 스캔이 비어 있지 않다 — 0건이면 위 단언이 조용히 통과한다', () => {

@@ -170,6 +170,23 @@ export async function violationAsCastRelations(): Promise<unknown> {
   });
 }
 
+/**
+ * 위반 14 — **`select` 값에 타입 연산을 한 겹.** 위반 12 와 같은 결함(`creator: true`)인데
+ * `satisfies` 로 감싸져 있다.
+ *
+ * 이 케이스가 없으면 `hasProjectionFor` 안의 `unwrap(sel.initializer)` 호출을 통째로
+ * 지워도 스위트가 초록이다 — `relations` 쪽 `unwrap` 만 fixture 로 관측되고 있었다
+ * (`review/code/2026/09/06/12_53_28` INFO#11). 같은 함수의 같은 헬퍼라도 **호출 지점마다**
+ * 관측돼야 한다는 것이 이 브랜치에서 세 번 배운 것이다.
+ */
+export async function violationSelectBooleanWrapped(): Promise<unknown> {
+  return repo.findOne({
+    where: { id: 'x' },
+    relations: { creator: true },
+    select: { id: true, creator: true satisfies boolean },
+  });
+}
+
 // ── 준수 형태 (대조군) ──────────────────────────────────────────────────────
 
 /**

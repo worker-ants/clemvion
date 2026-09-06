@@ -7,6 +7,11 @@ import * as path from 'node:path';
 import * as ts from 'typescript';
 
 import { toPosixRelative } from '../../common/__test-utils__/source-scan';
+// 응답 DTO 판정은 **한 곳이 소유한다.** 같은 이름·같은 로직을 여기 다시 쓰면 한쪽만
+// 바뀌었을 때 두 가드의 판정이 조용히 갈린다 (`review/consistency/2026/09/06/12_53_29` W4).
+import { isResponseDtoFile } from './swagger-dto-contract-guard';
+
+export { isResponseDtoFile };
 
 /** `src` 루트. 이 파일은 `src/repo-guards/__tests__/` 에 있다. */
 export const SRC_ROOT = path.resolve(__dirname, '..', '..');
@@ -16,8 +21,15 @@ export interface JsDocCitation {
   readonly file: string;
   /** 인용을 담은 선언의 이름 — 클래스명 또는 `<클래스>.<필드>`. */
   readonly owner: string;
-  /** 실제로 매치된 텍스트. 실패 메시지가 무엇을 지웠는지 말하게 한다. */
-  readonly citation: string;
+  /**
+   * 매치된 텍스트 **전부**. 실패 메시지가 무엇을 지워야 하는지 말하게 한다.
+   *
+   * 첫 매치만 돌려주던 판은 두 가지를 동시에 망쳤다 — 한 JSDoc 에 두 형태가 섞이면
+   * (a) 진단이 하나만 보여 주고, (b) **뒤 형태가 영영 관측되지 않는다.** 실제로 그래서
+   * "날짜+시각" 정규식을 통째로 지워도 스위트가 초록이었다
+   * (`review/code/2026/09/06/12_53_28` W1 · INFO#9 — 같은 뿌리의 두 지적).
+   */
+  readonly citations: readonly string[];
   readonly key: string;
 }
 
@@ -34,17 +46,14 @@ const CITATION_PATTERNS: readonly RegExp[] = [
   /`\d{2}_\d{2}_\d{2}`/,
 ];
 
-function findCitation(text: string): string | null {
+/** 텍스트에서 인용 형태 **전부**를 찾는다. 형태당 첫 매치 하나씩. */
+function findCitations(text: string): string[] {
+  const out: string[] = [];
   for (const re of CITATION_PATTERNS) {
     const m = re.exec(text);
-    if (m) return m[0];
+    if (m) out.push(m[0]);
   }
-  return null;
-}
-
-/** 응답 DTO 파일인가 — `swagger-dto-contract-guard` 와 같은 판정. */
-export function isResponseDtoFile(file: string): boolean {
-  return file.replace(/\\/g, '/').includes('/dto/responses/');
+  return out;
 }
 
 /**
@@ -82,9 +91,9 @@ export function findDtoJsDocCitations(
     const rel = toPosixRelative(srcRoot, file);
 
     const push = (owner: string, node: ts.Node): void => {
-      const citation = findCitation(jsDocText(node));
-      if (citation) {
-        out.push({ file: rel, owner, citation, key: `${rel}#${owner}` });
+      const citations = findCitations(jsDocText(node));
+      if (citations.length > 0) {
+        out.push({ file: rel, owner, citations, key: `${rel}#${owner}` });
       }
     };
 
