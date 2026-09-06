@@ -30,6 +30,15 @@ describe('findUserSecretLeaks', () => {
     }
   });
 
+  it('**최상위**(봉투 없음)에 와도 잡는다 — 경로가 빈 문자열이 되는 자리다', () => {
+    // 실 응답은 전부 `{ data: … }` 봉투라 이 분기가 fixture 로 관측되지 않고 있었다
+    // (`review/code/2026/09/06/13_39_20` INFO#15). 봉투를 벗기는 헬퍼나 raw 반환이
+    // 생기면 곧바로 이 형태가 되므로, 경로 조립이 depth 0 에서도 성립하는지 문는다.
+    expect(findUserSecretLeaks({ passwordHash: 'x' })).toEqual([
+      'passwordHash',
+    ]);
+  });
+
   it('중첩·배열 안쪽도 훑는다 — 유출은 최상위가 아니라 거기서 났다', () => {
     const body = {
       data: { items: [{ id: 'a' }, { id: 'b', user: { passwordHash: 'x' } }] },

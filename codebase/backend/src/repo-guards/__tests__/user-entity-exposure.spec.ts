@@ -66,13 +66,30 @@ import {
  *
  * 로드 자체가 결함은 아니므로 지우지 않고 **동결**한다 — 새로 생기면 목록에 없어 실패하고,
  * 투영으로 바꿔 없애면 목록에서 빼야 통과한다. 양방향 래칫이다.
+ *
+ * ## 이 목록의 항목들은 방어 강도가 같지 않다
+ *
+ * 이 가드는 **로드 형태**만 본다. 로드한 뒤 무엇을 반환하는지는 안 본다. 그래서 여기 실린
+ * 자리는 전부 *"지금은 안전하다"* 일 뿐이고, **무엇이 그 안전을 지키는지**가 항목마다 다르다
+ * (`review/code/2026/09/06/13_39_20` W2):
+ *
+ * | 항목 | 로드된 `User` 가 나가지 않는 이유 | 넓어지면 잡는 것 |
+ * |---|---|---|
+ * | `logout` · `refresh` | 응답이 아니라 **로그인 이력 컬럼**에 두 값만 쓴다 — 애초에 wire 로 가는 경로가 아니다 | 해당 없음 (반환 경로 없음) |
+ * | `listMembers` | **JS 단 수동 매핑**으로 필드를 골라 새 객체를 만든다. 그 매핑이 넓어지면(`...m.user` 스프레드 등) 이 가드는 **여전히 초록**이다 | `workspace-rbac.e2e-spec.ts` 의 `J.` — 이름 축(`expectNoUserSecrets`)이 유일한 안전망 |
+ *
+ * 대비되는 것이 이번에 고친 `WorkflowVersionsService.findOne` 이다 — 거기는 **DB 레벨
+ * `select` 투영**이라 컬럼이 애초에 로드되지 않는다. 그래서 목록에서 아예 빠졌다. 그것이
+ * 이 목록의 항목들이 지향할 형태다.
  */
 const EXPECTED_USER_RELATION_LOADS: readonly string[] = [
   // `logout` — `stored.user` 에서 `id`·`email` 만 읽어 로그인 이력에 기록한다.
+  // 반환 경로 없음 — 응답으로 새는 형태가 아니다.
   'modules/auth/auth.service.ts#logout',
   // 리프레시 회전 — 같은 파일의 자매 경로. `stored.user` 를 이력 기록에만 쓴다.
   'modules/auth/auth.service.ts#refresh',
   // 멤버 목록 — `m.user?.email`·`m.user?.name` 만 뽑아 새 객체로 돌려준다.
+  // **JS 단 수동 매핑**이라 이 가드가 지키지 못한다. 안전망은 e2e `workspace-rbac` J. 뿐.
   'modules/workspaces/workspaces.service.ts#listMembers',
 ];
 

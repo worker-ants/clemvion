@@ -52,6 +52,15 @@ const EXPECTED_DTO_JSDOC_CITATIONS: readonly string[] = [
   'modules/triggers/dto/responses/trigger-response.dto.ts#TriggerWorkflowRefDto',
 ];
 
+/** 양성/음성 대조군 fixture — 스캔 범위(`src/modules`) 밖에 둔다. */
+const CITATION_FIXTURE = path.join(
+  __dirname,
+  'fixtures',
+  'dto',
+  'responses',
+  'jsdoc-citation.fixture.ts',
+);
+
 describe('응답 DTO JSDoc 리뷰 인용 래칫', () => {
   const found = findDtoJsDocCitations(
     collectTsFiles(path.join(SRC_ROOT, 'modules')),
@@ -63,14 +72,7 @@ describe('응답 DTO JSDoc 리뷰 인용 래칫', () => {
   });
 
   it('[대조군] fixture 의 위반을 전부 잡고 준수는 놓아 준다', () => {
-    const fixture = path.join(
-      __dirname,
-      'fixtures',
-      'dto',
-      'responses',
-      'jsdoc-citation.fixture.ts',
-    );
-    const hits = findDtoJsDocCitations([fixture], SRC_ROOT);
+    const hits = findDtoJsDocCitations([CITATION_FIXTURE], SRC_ROOT);
     const owners = hits.map((h) => h.owner).sort();
 
     // 양성 — 클래스 JSDoc · 필드 JSDoc · bare 시각 · 날짜+시각.
@@ -97,14 +99,7 @@ describe('응답 DTO JSDoc 리뷰 인용 래칫', () => {
    * 그래서 목록 비교로 끝내지 않고, **어떤 텍스트가 매치됐는지**를 형태별로 문다.
    */
   it('세 인용 형태가 각각 최소 한 번씩 관측된다', () => {
-    const fixture = path.join(
-      __dirname,
-      'fixtures',
-      'dto',
-      'responses',
-      'jsdoc-citation.fixture.ts',
-    );
-    const cited = findDtoJsDocCitations([fixture], SRC_ROOT).flatMap(
+    const cited = findDtoJsDocCitations([CITATION_FIXTURE], SRC_ROOT).flatMap(
       (h) => h.citations,
     );
 
@@ -115,16 +110,9 @@ describe('응답 DTO JSDoc 리뷰 인용 래칫', () => {
   });
 
   it('[전제] fixture 스캔이 비어 있지 않다 — 0건이면 위 단언이 조용히 통과한다', () => {
-    const fixture = path.join(
-      __dirname,
-      'fixtures',
-      'dto',
-      'responses',
-      'jsdoc-citation.fixture.ts',
-    );
-    expect(findDtoJsDocCitations([fixture], SRC_ROOT).length).toBeGreaterThan(
-      0,
-    );
+    expect(
+      findDtoJsDocCitations([CITATION_FIXTURE], SRC_ROOT).length,
+    ).toBeGreaterThan(0);
   });
 
   it('`dto/responses/` 밖 파일은 대상이 아니다', () => {

@@ -43,7 +43,21 @@ export type WorkflowVersionListItem = Omit<
   'snapshot' | 'creator' | UnloadedRelations
 > & { creator: ProjectedCreator };
 
-/** 단건 조회 반환 타입 — 목록과 달리 `snapshot` 을 싣고, `creator` 는 같이 좁힌다. */
+/**
+ * 단건 조회 반환 타입 — 목록과 달리 `snapshot` 을 싣고, `creator` 는 같이 좁힌다.
+ *
+ * **프런트엔드에 같은 이름의 별도 선언이 있다** —
+ * `codebase/frontend/src/lib/api/workflows.ts` 의 `WorkflowVersionDetail`. 공유 타입
+ * 패키지를 거치지 않는 **손으로 맞춘 미러**라, 이 타입을 바꿔도 저쪽은 조용히 남는다.
+ *
+ * 두 선언은 이미 갈려 있다: 저쪽은 `creator?: { id, name?, email? } | null` 로
+ * 옵셔널인데 이 PR 이 wire 를 `{ id, name, email }` **3필드 고정**으로 좁혔다. 저쪽이
+ * 더 넓으므로 런타임 오류는 안 나지만, 앞으로 이 타입을 좁히거나 넓힐 때 **이름이 같아서
+ * grep 이 두 자리를 같은 것으로 보여 준다** — 그것이 실제로 세 라운드 연속 "유일 정의"
+ * 오판을 만들었다 (`review/consistency/2026/09/06/13_39_25` W3).
+ *
+ * 개명이나 공유 패키지화는 이 PR 범위 밖이다. 다음에 이 타입을 만지면 저쪽도 열어라.
+ */
 export type WorkflowVersionDetail = Omit<
   WorkflowVersion,
   'creator' | UnloadedRelations

@@ -393,12 +393,23 @@ field: T | null;
 
       | 축 | 파일 | 등재할 문서 |
       |---|---|---|
-      | 구조 (관계 로드 형태) | `user-entity-exposure-guard*.ts` | `2-api-convention.md` §5.4 · `swagger.md` §5-1 |
+      | 구조 (관계 로드 형태) | `user-entity-exposure*.ts` | `2-api-convention.md` §5.4 · `swagger.md` §5-1 |
       | 이름 (응답 값 부재) | `user-secret-absence*.ts` | 〃 |
       | JSDoc 인용 | `dto-jsdoc-citation*.ts` | ~~**`review-citations.md`**~~ — **2026-09-06 집행 완료** (아래 참조) |
 
       **glob 은 `-guard` 를 붙이지 않는다** — 붙이면 `.spec.ts` 가 빠지는데, 베이스라인과
       fixture 대조군이 사는 곳이 그 파일이다 (`review/consistency/2026/09/06/13_06_22` W2).
+
+      > **표 1행이 그 경고를 스스로 어기고 있었다** — 세 줄 위에서 `-guard*` 를 지시해 놓고
+      > 세 줄 아래에서 그것을 금지하고 있었다 (`review/code/2026/09/06/13_39_20` W4).
+      > 이 표는 다음 planner 턴이 **문자 그대로 집행할 지시문**이라, 캐비아트가 아래 있어도
+      > 표를 먼저 읽으면 틀린 glob 이 그대로 들어간다. 실측 — `user-entity-exposure*.ts` 는
+      > `user-entity-exposure-guard.ts` + `user-entity-exposure.spec.ts` **2/2**,
+      > `-guard*` 는 1/2. `user-secret-absence*.ts` 도 `.ts` + `.spec.ts` **2/2**.
+      >
+      > **`code:` 에 YAML 주석을 넣지 마라** — 게이트 파서가 그 줄에서 끊는다. 범주 구분이
+      > 필요하면 산문·표로 적는다 (`review/code/2026/09/06/13_39_20` Critical 1 — 같은 함정을
+      > 이 브랜치 계열이 **두 번** 밟았다).
 
       > **JSDoc 축은 `spec-draft-review-citations-enforcement.md` 가 선행 집행했다**
       > (2026-09-06, `--spec` 게이트 `review/consistency/2026/09/06/13_18_59` BLOCK:NO).
@@ -422,6 +433,26 @@ field: T | null;
 
       **새 개수를 적어 넣지 말 것.** 이 문서가 이미 두 번 겪은 실패다 — 축이 늘 때마다
       숫자가 낡는다. 표로 **나열**하고 문장은 개수를 말하지 않게 고친다.
+
+- [ ] **`WorkflowVersion*Dto.creator` 의 §5.4 금지 조합을 갚는다** (developer, 2026-09-06
+      등재, `review/code/2026/09/06/13_39_20` INFO#16 + `review/consistency/2026/09/06/13_39_25`
+      INFO#2 — 두 게이트가 독립 지적).
+
+      두 DTO 가 `@ApiPropertyOptional({ nullable: true })` + `creator?: T | null` 로
+      **§5.4 가 금지한 조합**을 쓴다. 이미 동결돼 있다 —
+      `swagger-dto-contract.spec.ts` 의 `EXPECTED_OPTIONAL_NULLABLE_DRIFT` 4행 중 2행
+      (`WorkflowVersionDto.creator` · `WorkflowVersionListItemDto.creator`). 즉 **추적
+      안 되는 갭이 아니라 등재된 부채**다.
+
+      **새로워진 것은 방향이다.** #1292 가 `findOne`/`findByWorkflow` 의 런타임을
+      `creator: ProjectedCreator`(항상 존재 · 3필드 전부 필수)로 좁혔다. 이제 선언이
+      런타임보다 **넓다** — 소비자는 없을 수도 있다고 읽는데 실제로는 늘 온다. 갚는 방향은
+      `@ApiProperty()` + `creator: WorkflowVersionCreatorDto` 이고, 갚으면 래칫 2행이
+      함께 빠진다.
+
+      **wire 를 바꾸지 않는다** — 선언만 좁힌다. 다만 프런트엔드
+      `lib/api/workflows.ts` 의 손수 맞춘 미러(`creator?: {…} | null`)도 같은 턴에 봐야
+      한다(같은 이름의 별도 선언 — `workflow-versions.service.ts` 의 JSDoc 참조).
 
 - [ ] **`User` 민감 7컬럼의 응답 노출 금지를 규약 문장으로** (planner, 2026-09-06 등재,
       `review/consistency/2026/09/06/10_13_23` W2).
@@ -1053,7 +1084,8 @@ field: T | null;
       > 이것은 알려진 클래스의 재발이다 — *"consistency `--spec` 기본 예산이 conventions 를
       > 통째로 떨군다"*. 이번엔 `spec_impact` 명시에도 불구하고 떨궈졌다는 점이 새롭다.
 
-- [ ] **harness: `code:` 블록 리스트의 YAML 주석이 게이트 파서를 조용히 끊는다**
+- [x] **harness: `code:` 블록 리스트의 YAML 주석이 게이트 파서를 조용히 끊는다**
+      ✅ **2026-09-06 해소** — 파서가 빈 줄·`#` 주석을 건너뛴다.
       (harness, 2026-09-05 등재). `review_guard._parse_frontmatter_code` 의 블록 리스트
       루프가 `^\s*-\s*` 에 안 맞는 첫 줄에서 `break` 하므로, **주석 뒤 항목이 전부
       사라진다**. 실측: 주석을 넣자 `2-api-convention.md` 가 9개(주석 앞까지)만 반환.
@@ -1066,6 +1098,50 @@ field: T | null;
       게이트는 여전히 못 보는 상태로 머지될 뻔했다 — 이 항목이 고치려던 결함 그 자체다.
       당장은 주석을 쓰지 않는 것으로 회피했다. 파서를 고치거나, 최소한 두 파서가 갈리는
       입력을 가드로 잡아야 한다.
+
+      > **2026-09-06 — 하루 만에 재발했다. 우선순위를 올린다.**
+      > `review-citations.md` 에 시행 코드를 등재하면서 같은 주석을 넣었고, 이번엔
+      > 파싱 결과가 **2개 → 0개**로 떨어졌다. 등재하려던 파일이 안 걸린 것은 물론이고
+      > **이미 걸려 있던 `sanitize-loader-error.ts` 까지 감사망에서 빠지는 회귀**였다
+      > (`review/code/2026/09/06/13_39_20` Critical 1 — 리뷰어가 게이트를 직접 실행해 잡았다).
+      >
+      > **회피책이 작동하지 않는다는 증거다.** "주석을 쓰지 않는다" 는 이 문서에 적혀
+      > 있었는데도, 다른 문서의 checker 가 *"인라인 YAML 주석으로 범주를 가르라"* 고
+      > 제안하자(`review/consistency/2026/09/06/13_18_59` INFO#2) 그대로 채택했다 —
+      > **checker 의 제안이 이미 등재된 harness 결함과 충돌할 수 있다.** 산문 규율로는
+      > 다음 제안을 못 막는다. 파서를 고치거나(`#`·빈 줄 스킵), 두 파서가 갈리는 입력을
+      > 가드로 잡아야 한다.
+      >
+      > 두 번 다 **게이트에 직접 물어서** 발견됐다(`_parse_frontmatter_code` 실행). 문서에
+      > "등재 완료" 라고 쓰는 것은 등재의 증거가 아니다.
+
+      > **해소 (2026-09-06, `user-entity-column-defense`)** — 회피가 아니라 파서를 고쳤다.
+      >
+      > 회피로 넘어가려다 저장소 전수를 재 봤다. **spec 387개 중 7개 파일에서 41개 entry
+      > 가 이미 유실 중**이었고 — `2-navigation/{_layout,9-user-profile,10-auth-flow,
+      > 11-error-empty-states}.md` · `7-channel-web-chat/{2-sdk,3-auth-session}.md` ·
+      > `conventions/user-guide-evidence.md` — 그중 하나
+      > (`9-user-profile.md` 의 `codebase/backend/src/modules/workspaces/**`)가 **그 PR
+      > 자신이 고치던 `workspace-response.dto.ts` 를 덮고 있었다.** 즉 이 결함은
+      > "언젠가 문제가 될 것" 이 아니라 **그 순간 게이트를 끄고 있었다**
+      > (`review/consistency/2026/09/06/13_52_23` Critical 1).
+      >
+      > 세 번째 재발이 확정된 시점에서 **회피책이 작동하지 않는다는 것이 증명됐다** —
+      > 산문 규율은 다음 checker 의 제안을 못 막는다. 그래서 `_parse_frontmatter_code`
+      > 의 블록 리스트 루프가 **빈 줄·`#` 주석을 건너뛰도록** 고쳤다(`break` 는 다음 키에서만).
+      >
+      > | | 수정 전 | 수정 후 |
+      > |---|---|---|
+      > | 게이트 파서가 본 entry | 690 | **731** |
+      > | 진짜 YAML(gray-matter) entry | 731 | 731 |
+      > | 답이 갈리는 파일 | 7 | **0** |
+      >
+      > 회귀 테스트 3건 — 주석 · 빈 줄 · **다음 키에서는 여전히 멈춘다**(넓힌 술어의 반대
+      > 방향 대조군). 앞 둘은 수정 전 RED, 셋째는 수정 전에도 GREEN 이라 과확장 방지용이다.
+      > harness 스위트 1,124 pass + 1,254 subtest.
+      >
+      > **7개 파일은 손대지 않았다** — 고칠 것이 문서가 아니라 파서였기 때문이다. 파서가
+      > 고쳐지자 41개 entry 가 그대로 살아났다.
 
       (b) 가 저렴하지만, 12 대 6 이면 다수가 로컬 Overview 를 두고 있어 (a) 가 관행에 가깝다.
       **한 PR 이 단독으로 정할 일이 아니라 등재한다.**

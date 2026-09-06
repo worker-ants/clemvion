@@ -326,6 +326,53 @@ class GlobAndFrontmatterTest(unittest.TestCase):
             ["codebase/backend/a.ts", "codebase/frontend/b.ts"],
         )
 
+    def test_parse_block_list_survives_yaml_comment(self):
+        """`#` 주석 뒤 항목이 사라지면 안 된다.
+
+        블록 리스트 루프가 `- ` 가 아닌 첫 줄에서 break 하던 판은, 유효한 YAML 인
+        인라인 주석 하나에 **뒤 항목을 전부** 떨궜다. 그러면 `code:` 에 등재된 파일이
+        spec-linked 판정에서 조용히 빠진다 — 게이트가 안 무는 것이 기본값이 된다.
+
+        실측(2026-09-06): 저장소 spec 387개 중 7개 파일이 이 형태였고 **41개 entry**
+        가 유실 중이었다. 그중 하나(`spec/2-navigation/9-user-profile.md` 의
+        `codebase/backend/src/modules/workspaces/**`)는 당시 작업 중이던 PR 자신의
+        수정 파일을 덮고 있었다 (`review/consistency/2026/09/06/13_52_23` Critical 1).
+
+        gray-matter 를 쓰는 프런트엔드 파서(`spec-frontmatter-parse.ts`)는 처음부터
+        주석 뒤를 봤다 — 두 파서가 유효한 YAML 에 서로 다른 답을 내고 있었다.
+        """
+        sp = self._spec("---\nid: a\ncode:\n  - codebase/backend/a.ts\n"
+                        "  # 범주 구분 주석\n"
+                        "  - codebase/frontend/b.ts\nstatus: partial\n---\n# x\n")
+        self.assertEqual(
+            rg._parse_frontmatter_code(sp),
+            ["codebase/backend/a.ts", "codebase/frontend/b.ts"],
+        )
+
+    def test_parse_block_list_survives_blank_line(self):
+        """빈 줄도 같은 이유로 리스트를 끊으면 안 된다."""
+        sp = self._spec("---\nid: a\ncode:\n  - codebase/backend/a.ts\n"
+                        "\n"
+                        "  - codebase/frontend/b.ts\nstatus: partial\n---\n# x\n")
+        self.assertEqual(
+            rg._parse_frontmatter_code(sp),
+            ["codebase/backend/a.ts", "codebase/frontend/b.ts"],
+        )
+
+    def test_parse_block_list_still_stops_at_next_key(self):
+        """주석·빈 줄만 건너뛴다 — **다음 키에서는 여전히 멈춘다.**
+
+        이 단언이 없으면 위 두 수정이 리스트를 다음 키의 항목까지 삼키는 방향으로
+        넓어져도 통과한다. 넓힌 술어에는 반대 방향 대조군이 필요하다.
+        """
+        sp = self._spec("---\nid: a\ncode:\n  - codebase/backend/a.ts\n"
+                        "\n"
+                        "  # 주석\n"
+                        "pending_plans:\n  - plan/in-progress/x.md\n---\n# x\n")
+        self.assertEqual(
+            rg._parse_frontmatter_code(sp), ["codebase/backend/a.ts"]
+        )
+
     def test_parse_single_value(self):
         sp = self._spec("---\ncode: codebase/backend/a.ts\n---\n# x\n")
         self.assertEqual(rg._parse_frontmatter_code(sp), ["codebase/backend/a.ts"])

@@ -637,9 +637,21 @@ def _parse_frontmatter_code(path: str) -> list[str]:
         else:  # block list on following `  - <glob>` lines
             j = i + 1
             while j < n:
+                # 빈 줄·`#` 주석은 **건너뛴다**. 종전에는 여기서 break 했는데, 유효한
+                # YAML 인 인라인 주석 하나가 **뒤 항목을 전부** 떨궈 등재된 파일이
+                # spec-linked 판정에서 조용히 빠졌다 — 게이트가 안 무는 쪽이 기본값이
+                # 됐다. 실측(2026-09-06): spec 387개 중 7개 파일에서 **41개 entry** 유실,
+                # 그중 하나가 당시 작업 중이던 PR 자신의 수정 파일을 덮고 있었다
+                # (`review/consistency/2026/09/06/13_52_23` Critical 1).
+                # gray-matter 를 쓰는 프런트엔드 파서는 처음부터 주석 뒤를 봤다 —
+                # 두 파서가 유효한 YAML 에 다른 답을 내던 상태를 여기서 닫는다.
+                stripped = fm[j].strip()
+                if not stripped or stripped.startswith("#"):
+                    j += 1
+                    continue
                 mm = re.match(r"^\s*-\s*(.+)$", fm[j])
                 if not mm:
-                    break
+                    break  # 다음 키 — 리스트는 여기서 끝난다
                 g = _clean(mm.group(1))
                 if g:
                     globs.append(g)
