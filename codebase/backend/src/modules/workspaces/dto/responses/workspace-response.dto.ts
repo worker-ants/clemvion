@@ -77,6 +77,16 @@ export class WorkspaceMemberDto {
 
   @ApiProperty({ enum: ['owner', 'admin', 'editor', 'viewer'] })
   role: string;
+
+  /**
+   * 멤버가 초대를 수락한 시각. 아직 수락 전이면 `null`.
+   *
+   * **상시 존재**한다 — `WorkspacesService.listMembers` 가 `joinedAt: m.joinedAt` 으로
+   * 무조건 실으므로, 값이 없어도 키는 `null` 로 온다. 그래서 §5.4 **기본형**
+   * (`@ApiProperty` + `nullable: true`)이지 키 생략형이 아니다.
+   */
+  @ApiProperty({ format: 'date-time', nullable: true, type: String })
+  joinedAt: string | null;
 }
 
 /** 간단한 멤버 ID + role 응답 */

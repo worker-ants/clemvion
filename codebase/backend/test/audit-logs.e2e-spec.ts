@@ -14,6 +14,7 @@ import {
   type DtoContract,
 } from '../src/shared/testing/response-contract';
 import { AuditLogDto } from '../src/modules/audit-logs/dto/responses/audit-log-response.dto';
+import { expectNoUserSecrets } from '../src/shared/testing/user-secret-absence';
 
 /**
  * e2e: spec/5-system/1-auth.md §4.2/§5 — GET /api/audit-logs 권한 경계 (감사 보고 V-03).
@@ -89,6 +90,10 @@ describe('Audit logs 권한 경계 (e2e)', () => {
     const user = (rows[0] as { user?: Record<string, unknown> | null }).user;
     expect(user).toBeTruthy();
     expect(Object.keys(user!).sort()).toEqual(['email', 'id', 'name']);
+
+    // 세 번째 축 — **이름으로** 훑는 그물. 위 두 단언은 `rows[0]` 한 건만 보는데, 이것은
+    // 봉투 전체를 깊이 훑어 다른 행·다른 가지로 새는 형태까지 문다.
+    expectNoUserSecrets(res.body);
   });
 
   it('viewer 멤버 → 403', async () => {
