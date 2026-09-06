@@ -426,6 +426,25 @@ class GlobAndFrontmatterTest(unittest.TestCase):
             ["codebase/backend/a.ts", "codebase/frontend/b.ts"],
         )
 
+    def test_parse_quoted_scalar_trailing_comment_single_and_inline(self):
+        """인용+주석을 **세 분기 모두**에서 문는다.
+
+        직전 판은 블록 리스트 형태만 태웠다. 같은 `_strip_comment` 를 타므로 구현은
+        맞았지만, **관측되지 않는 분기는 다음 편집에서 조용히 죽는다** — 이 파일이
+        이미 세 번 겪은 형태다 (`review/code/2026/09/06/15_30_59` W2).
+        """
+        sp = self._spec('---\ncode: "codebase/backend/a.ts"  # note\n---\n# x\n')
+        self.assertEqual(rg._parse_frontmatter_code(sp), ["codebase/backend/a.ts"])
+
+        sp2 = self._spec(
+            '---\ncode: ["codebase/backend/a.ts", "codebase/frontend/b.ts"]  # note\n'
+            "---\n# x\n"
+        )
+        self.assertEqual(
+            rg._parse_frontmatter_code(sp2),
+            ["codebase/backend/a.ts", "codebase/frontend/b.ts"],
+        )
+
     def test_parse_quoted_scalar_keeps_inner_hash(self):
         """따옴표 **안**의 `#` 은 주석이 아니다 — 반대 방향 대조군."""
         sp = self._spec('---\nid: a\ncode:\n'

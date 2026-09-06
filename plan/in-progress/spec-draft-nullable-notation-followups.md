@@ -434,6 +434,77 @@ field: T | null;
       **새 개수를 적어 넣지 말 것.** 이 문서가 이미 두 번 겪은 실패다 — 축이 늘 때마다
       숫자가 낡는다. 표로 **나열**하고 문장은 개수를 말하지 않게 고친다.
 
+- [ ] **`listMembers` 를 DB 레벨 투영으로 옮겨 구조 가드 보호 범위에 넣는다**
+      (developer, 2026-09-06 등재, `review/code/2026/09/06/15_30_59` W1 —
+      여러 라운드가 반복 지적).
+
+      지금은 `relations: ['user']` 로 `User` 전 컬럼을 싣고 **JS 단 수동 매핑**으로
+      좁힌다. `user-entity-exposure-guard` 는 **로드 형태**만 보므로 이 자리는 보호
+      범위 밖이고, 방어가 **검출**(단위 테스트 2건 + e2e `workspace-rbac` J.)이지
+      **강제**가 아니다.
+
+      → `select: { user: { id: true, email: true, name: true } }` 로 전환하면
+      `WorkflowVersionsService.findOne` 과 같은 등급이 되고, 화이트리스트
+      `EXPECTED_USER_RELATION_LOADS` 에서 이 항목이 **빠진다**(래칫이 양방향이므로
+      목록에서 지워야 통과한다 — 그것이 전환 완료의 기계적 증거다).
+
+      **이 PR 에서 하지 않은 이유**: `listMembers` 는 원래 목표(유출 차단) 밖이고
+      응답은 이미 안전하다. DB→앱 전송 낭비와 *"가드가 못 지킨다"* 는 구조적 사실만
+      남는데, 그것을 이번 라운드에 단위 테스트로 고정했다.
+
+- [ ] **`2-trigger-list.md` R-2 가 폐기된 설계를 유효한 것처럼 남기고 있다** (planner,
+      2026-09-06 등재, `review/consistency/2026/09/06/15_31_00` W1).
+
+      R-2 는 `hmacSecret` 의 "입력 변경(v1) vs rotate 액션(v1.1)" 분리를 근거로 적고
+      `POST /api/triggers/:id/auth/rotate-secret` 를 v1.1 API 로 예고한다. 그런데 **같은
+      문서 §3 각주가** *"과거 v1.1 예약 행 `POST /api/triggers/:id/auth/rotate-secret` 은
+      신설되지 않은 채 본 PR 에서 폐기됐다 (Rationale R-14)"* 라고 적는다 — 한 문서 안에서
+      자기모순이다. (실측: R-2 는 226행, 폐기 각주는 §3 블록쿼트.)
+
+      **파급이 문서 밖으로 나간다** — `spec/5-system/15-chat-channel.md` R-CC-10(610행)이
+      R-2 를 **현재 유효한 설계**로 인용하며 botToken single-path 결정의 대조군으로 쓴다.
+      R-2 를 고치면 그 인용도 "과거(폐기된) 설계" 로 함께 갱신해야 한다.
+
+      → R-2 본문에 취소선 + `> **정정 (날짜)**: authConfigId 단일 경로로 대체됨 — R-14 참조`
+      콜아웃. `15-chat-channel.md` R-CC-10 의 인용 문구 동시 갱신. **두 파일 같은 턴에.**
+
+- [ ] **`2-trigger-list.md` frontmatter `status` 가 본문의 자백과 모순** (planner,
+      2026-09-06 등재, `review/consistency/2026/09/06/15_31_00` W3).
+
+      frontmatter 는 `status: implemented` 인데 본문 §3(151행)이 *"`PaginationQueryDto` 가
+      `sort`/`order` 를 받긴 하나 `findAll` 은 이를 무시하고 `created_at DESC` 로 고정
+      정렬한다. sort/order 반영은 **미구현/Planned**"* 라고 적는다.
+      `spec-impl-evidence.md §3` 라이프사이클 위반이다.
+
+      → `status: partial` + `pending_plans:` 등재, **또는** sort/order whitelist 정렬을
+      구현하고 현행 유지. 자매 문서 `3-schedule.md` 가 전자의 선례다.
+
+- [ ] **트리거 drawer 의 "새 인증 설정 만들기" 링크가 editor 에게 dead-end** (planner,
+      2026-09-06 등재, `review/consistency/2026/09/06/15_31_00` W2).
+
+      `2-trigger-list.md §2.3.1` Auth Config 행이 그 링크를 `editor+` 노출로 적는데,
+      목적지 `/authentication` 의 "Add Config" 생성 액션은 `6-config.md §A.4` 에서
+      **Admin+ 전용**이다(근거 `5-system/1-auth.md §3.2`). editor 는 눌러서 도달해도
+      만들 수 없다.
+
+      → 링크를 `admin+` 노출로 제한하거나, editor 도달 시 읽기 전용임을 명시한다.
+      **어느 쪽이 제품 의도인지 확인이 먼저다** — 이 항목은 문구 정정이 아니라 결정이다.
+
+- [ ] **`WorkflowVersionDetail` 동명 미러를 코드 주석에서 트래커로 격상** (developer,
+      2026-09-06 등재, `review/consistency/2026/09/06/15_31_00` W4).
+
+      백엔드 `workflow-versions.service.ts` 와 프런트엔드 `lib/api/workflows.ts:109` 가
+      같은 이름의 **손-미러** 타입을 각자 선언하고, 이 PR 이 백엔드 쪽을 3필드 고정으로
+      좁히면서 형태가 더 갈렸다(프런트는 전부 옵셔널).
+
+      **이름이 같아서 이 세션에서만 3라운드 연속 "유일 정의" 오판이 났다** — grep 이 두
+      자리를 같은 것으로 보여 준다. 지금 방어는 백엔드 타입 JSDoc 의 *"다음에 만지면
+      저쪽도 열어라"* 한 줄뿐이고, 그것은 **그 파일을 여는 사람에게만** 닿는다.
+
+      → 개명(`WorkflowVersionDetailProjection` 등) 또는 `codebase/packages/` 공유 타입
+      승격. 개명은 프런트 소비처 2곳(`version-detail-dialog.tsx`·`version-diff-dialog.tsx`)
+      과 무관하므로 백엔드 단독으로 가능하다.
+
 - [ ] **도메인 세부 에러 코드의 표현 방식을 정식화한다** (planner, 2026-09-06 등재,
       `review/consistency/2026/09/06/14_59_49` W1).
 

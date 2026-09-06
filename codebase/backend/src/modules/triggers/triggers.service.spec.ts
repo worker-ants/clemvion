@@ -2837,42 +2837,53 @@ describe('TriggersService — endpoint_path UNIQUE 충돌 계약', () => {
    * `subCode` 로 실으면 클라이언트에 **닿지 않는다**. 그래서 `details` 안에 둔다.
    */
   it.each([
-    [
-      'update',
-      async () =>
-        service.update('trg-1', 'ws-1', { endpointPath: 'p' } as never, 'u-1'),
-    ],
-    [
-      'create',
-      async () =>
-        service.create(
-          'ws-1',
-          {
-            workflowId: 'wf-1',
-            type: 'webhook',
-            name: 'W',
-            endpointPath: 'p',
-          } as never,
-          'u-1',
-        ),
-    ],
-  ])('%s — 409 + RESOURCE_CONFLICT + details 두 키', async (_label, call) => {
-    (triggerRepo.save as jest.Mock).mockRejectedValue(
-      uniqueViolation('idx_trigger_workspace_endpoint'),
-    );
+    ['update', 'driverError'],
+    ['update', 'top'],
+    ['create', 'driverError'],
+    ['create', 'top'],
+  ] as const)(
+    '%s (%s 표면) — 409 + RESOURCE_CONFLICT + details 두 키',
+    async (method, surface) => {
+      // **표면 축을 여기에도 건다.** 술어 테스트만 두 표면을 태우고 통합 경로는
+      // `driverError` 하나였다 — 서비스가 술어를 안 거치고 자기 판정으로 돌아가도
+      // 통합 테스트가 안 보는 상태였다 (`review/code/2026/09/06/15_30_59` INFO#11).
+      const call =
+        method === 'update'
+          ? () =>
+              service.update(
+                'trg-1',
+                'ws-1',
+                { endpointPath: 'p' } as never,
+                'u-1',
+              )
+          : () =>
+              service.create(
+                'ws-1',
+                {
+                  workflowId: 'wf-1',
+                  type: 'webhook',
+                  name: 'W',
+                  endpointPath: 'p',
+                } as never,
+                'u-1',
+              );
+      (triggerRepo.save as jest.Mock).mockRejectedValue(
+        uniqueViolation('idx_trigger_workspace_endpoint', surface),
+      );
 
-    const rejected = call();
-    await expect(rejected).rejects.toBeInstanceOf(ConflictException);
-    await expect(rejected).rejects.toMatchObject({
-      response: {
-        code: 'RESOURCE_CONFLICT',
-        details: {
-          field: 'endpoint_path',
-          code: 'TRIGGER_ENDPOINT_PATH_CONFLICT',
+      const rejected = call();
+      await expect(rejected).rejects.toBeInstanceOf(ConflictException);
+      await expect(rejected).rejects.toMatchObject({
+        response: {
+          code: 'RESOURCE_CONFLICT',
+          details: {
+            field: 'endpoint_path',
+            code: 'TRIGGER_ENDPOINT_PATH_CONFLICT',
+          },
         },
-      },
-    });
-  });
+      });
+    },
+  );
 
   /**
    * **반대 방향 대조군.** 이게 없으면 술어가 `23505` 만 보는 쪽으로 넓어져도 통과해,
