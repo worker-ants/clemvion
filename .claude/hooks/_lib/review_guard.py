@@ -601,7 +601,16 @@ def _parse_frontmatter_code(path: str) -> list[str]:
     """Extract the `code:` glob list from a markdown file's YAML frontmatter.
     Handles inline (`code: [a, b]`), single-value (`code: a`) and block-list
     (`code:\\n  - a\\n  - b`) forms. Returns [] when there is no frontmatter or
-    no `code:` field."""
+    no `code:` field.
+
+    **YAML 주석은 값이 아니다.** 블록 리스트 안의 빈 줄·줄 전체 주석은 건너뛰고
+    (`break` 는 다음 키에서만), 항목과 같은 줄의 트레일링 ` #...` 은 잘라낸다.
+    앞에 공백이 없는 `#`(`a#b.ts`)은 YAML 규칙대로 값의 일부로 남긴다.
+
+    두 처리 모두 **entry 가 조용히 사라지는 것**을 막는다 — 사라진 entry 는
+    "게이트가 안 무는 쪽" 이 기본값이 되게 하고, 실제로 41개가 그렇게 유실 중이었다.
+    이 파서는 프런트엔드 `spec-frontmatter-parse.ts`(gray-matter)와 **같은 답을
+    내야 한다** (2026-09-06 기준 731 대 731, 갈리는 파일 0)."""
     try:
         with open(path, "r", encoding="utf-8", errors="replace") as f:
             if f.readline().strip() != "---":
@@ -614,8 +623,32 @@ def _parse_frontmatter_code(path: str) -> list[str]:
     except OSError:
         return []
 
+    def _strip_comment(tok: str) -> str:
+        """트레일링 YAML 주석을 잘라낸다 — **따옴표 유무로 갈라** 처리한다.
+
+        - 언쿼트 스칼라: ` #` **이후**를 자른다. `#` 앞에 공백이 있어야 주석이므로
+          `a#b.ts` 는 값이다. 무조건 자르면 이번엔 값을 잘라 먹는 쪽으로 같은 유실이 난다.
+        - 인용 스칼라: **닫는 따옴표 뒤**를 자른다. 따옴표 **안**의 `#` 은 값이고,
+          닫는 따옴표가 없으면 자르지 않는다.
+
+        이 docstring 이 분기와 어긋나면 다음 사람이 없는 동작을 믿는다 — 실제로 인용
+        분기를 더하고도 첫 줄이 *"따옴표 없는 스칼라의"* 로 남아 있었다
+        (`review/code/2026/09/06/15_30_59` W3). 같은 결함 클래스를 이미 세 번 좁게
+        닫아 온 자리라 서술이 특히 앞서면 안 된다.
+        """
+        t = tok.strip()
+        quote = t[0] if t[:1] in ('"', "'") else ""
+        if quote:
+            # 인용 스칼라는 **닫는 따옴표 뒤**를 잘라낸다. 종전에는 통째로 돌려줘서
+            # `"a.ts"  # note` 가 `a.ts"  # note` 라는 죽은 glob 이 됐다
+            # (`review/code/2026/09/06/14_59_48` W3). 닫는 따옴표가 없으면 **자르지
+            # 않는다** — 추측해서 자르면 값이 사라진다.
+            end = t.find(quote, 1)
+            return t[: end + 1] if end > 0 else t
+        return re.split(r"\s+#", t, maxsplit=1)[0].rstrip()
+
     def _clean(tok: str) -> str:
-        return tok.strip().strip('"').strip("'")
+        return _strip_comment(tok).strip('"').strip("'")
 
     globs: list[str] = []
     i, n = 0, len(fm)
@@ -624,7 +657,9 @@ def _parse_frontmatter_code(path: str) -> list[str]:
         if not m:
             i += 1
             continue
-        rest = m.group(1).strip()
+        # 인라인 리스트는 `[...]` 를 벗기기 **전에** 주석을 걷는다 — 나중에 걷으면
+        # `[a, b]  # 비고` 의 마지막 항목에 `]` 가 남는다.
+        rest = _strip_comment(m.group(1))
         if rest.startswith("["):
             for part in rest.strip("[]").split(","):
                 g = _clean(part)
@@ -637,9 +672,21 @@ def _parse_frontmatter_code(path: str) -> list[str]:
         else:  # block list on following `  - <glob>` lines
             j = i + 1
             while j < n:
+                # 빈 줄·`#` 주석은 **건너뛴다**. 종전에는 여기서 break 했는데, 유효한
+                # YAML 인 인라인 주석 하나가 **뒤 항목을 전부** 떨궈 등재된 파일이
+                # spec-linked 판정에서 조용히 빠졌다 — 게이트가 안 무는 쪽이 기본값이
+                # 됐다. 실측(2026-09-06): spec 387개 중 7개 파일에서 **41개 entry** 유실,
+                # 그중 하나가 당시 작업 중이던 PR 자신의 수정 파일을 덮고 있었다
+                # (`review/consistency/2026/09/06/13_52_23` Critical 1).
+                # gray-matter 를 쓰는 프런트엔드 파서는 처음부터 주석 뒤를 봤다 —
+                # 두 파서가 유효한 YAML 에 다른 답을 내던 상태를 여기서 닫는다.
+                stripped = fm[j].strip()
+                if not stripped or stripped.startswith("#"):
+                    j += 1
+                    continue
                 mm = re.match(r"^\s*-\s*(.+)$", fm[j])
                 if not mm:
-                    break
+                    break  # 다음 키 — 리스트는 여기서 끝난다
                 g = _clean(mm.group(1))
                 if g:
                     globs.append(g)

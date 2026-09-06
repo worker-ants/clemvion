@@ -10,6 +10,14 @@ spec_impact:
   - spec/data-flow/10-triggers.md
   - spec/5-system/2-api-convention.md
   - spec/conventions/swagger.md
+  # 아래 셋은 본문 항목이 정정을 요구하는 파일 — 빠지면 `--spec`/`--impl-done` 번들
+  # 스코프에서 누락된다 (`review/consistency/2026/09/06/16_29_00` INFO#2).
+  - spec/2-navigation/2-trigger-list.md
+  - spec/2-navigation/3-schedule.md
+  - spec/5-system/15-chat-channel.md
+  - spec/conventions/review-citations.md
+  - spec/conventions/spec-impl-evidence.md
+  - spec/conventions/secret-store.md
 ---
 
 # nullable 표기 후속 3건 (planner 턴)
@@ -282,7 +290,7 @@ field: T | null;
       **여전히 2곳이 아니다** — 스윕 1차가 배선을 18개로 늘리며 이 패턴도 함께 늘었다.
       다음에 이 항목을 열 때 **그 시점 실측치**로 다시 센다 (숫자를 지금 갱신하면 또 낡는다).
 
-- [ ] **`User` 엔티티에 컬럼 수준 방어를 둘지 결정** (developer + 보안 판단, 2026-09-05
+- [x] **`User` 엔티티에 컬럼 수준 방어를 둘지 결정** (developer + 보안 판단, 2026-09-05
       등재, `review/code/2026/09/05/14_39_31` W2). 감사 로그 유출은 **그 쿼리 하나**를 좁혀
       고쳤다. `User` 자체에는 여전히 마지막 방어선이 없다 — `select: false` 0건,
       `@Exclude()` 0건, 전역 `ClassSerializerInterceptor` 없음. 다음에 `User` 를 조인하는
@@ -298,6 +306,456 @@ field: T | null;
 
       착수 시 먼저 잴 것: 위 7컬럼을 읽는 모든 쿼리/서비스 전수 목록. 그 목록이 나온 뒤에
       `select:false` vs 전역 `ClassSerializerInterceptor`+`@Exclude()` 를 고른다.
+
+      > **완료 (2026-09-06) — 전수 열거 후 셋째 길을 택했다.**
+      >
+      > 등재문이 요구한 목록을 먼저 냈다:
+      >
+      > | 잰 것 | 값 |
+      > |---|---|
+      > | 민감 7컬럼을 **읽는** 자리 | 6개 서비스 파일 **19곳** |
+      > | 그 자리들이 지나는 로더 | `UsersService.findById`/`findByEmail` **공유 깔때기** |
+      > | 그 깔때기의 호출 지점 | 저장소 전체 **46곳** |
+      > | ~~`User` 를 통째로 싣는 자리~~ | ~~`relations:['user']` 3곳 · `leftJoinAndSelect` 0곳~~ |
+      > | ~~그 3곳이 응답에 엔티티를 싣는가~~ | ~~**아니오** — 셋 다 반환 전 명시 투영~~ |
+      >
+      > **위 두 줄은 틀렸다** (`review/code/2026/09/06/10_13_22` Critical 1). 그 열거는
+      > 관계 **이름**이 `user` 인 것만 셌다 — `User` **타입**인 관계는 `creator`·`owner`·
+      > `executor` 도 있다. 타입으로 다시 세니 `WorkflowVersionsService.findOne` 이
+      > `relations: ['creator']` 를 **투영 없이** 로드해 컨트롤러가 그대로 반환하고 있었다:
+      > `GET /api/workflows/:wfId/versions/:versionId` 가 버전 작성자의 `User` 전 컬럼을
+      > 내보내는 **살아있는 유출**이었다. 자매 메서드 `findByWorkflow` 는 처음부터 투영이
+      > 있었다 — 한쪽만 옳았다.
+      >
+      > | 다시 잰 것 | 값 |
+      > |---|---|
+      > | `User` **타입** 관계 이름 (엔티티에서 파생) | `creator` · `executor` · `owner` · `user` |
+      > | 투영 없이 통째로 싣는 자리 | **4곳** — 그중 **1곳이 실제 유출** |
+      > | 유출 자리 | `workflow-versions.service.ts#findOne` (이 PR 이 투영 추가로 닫았다) |
+      > | 나머지 3곳 | 반환 전 명시 투영 (코드 확인) — 래칫에 동결 |
+      > | `@Exclude()` · `@Expose()` · `ClassSerializerInterceptor` | **각 0건** |
+      >
+      > **두 선택지가 실측 후 성격이 바뀌었다.**
+      >
+      > `select:false` — 19곳이 전부 **공유 깔때기**를 지난다. 깔때기에 `addSelect` 를 넣으면
+      > 46곳이 다시 컬럼을 받아 방어가 무의미하고, 안 넣으면 로더를 "비밀 포함/미포함" 으로
+      > 쪼개 19곳을 재배선해야 한다. 등재문이 예상한 대로 **fail-silent** 이고, 비용은
+      > 예상보다 크다(깔때기가 하나라 국소 수정이 불가능하다).
+      >
+      > 전역 `ClassSerializerInterceptor` — 이 저장소는 응답 직렬화를 **한 번도 켠 적이
+      > 없다**(위 0건). 도입이 곧 API 전체 wire 의 동작 변경이라, 유출 0인 현 상태를 고치려고
+      > 298개 e2e 가 보는 표면 전부를 흔든다.
+      >
+      > **택한 것 — 원인 형태를 구조로 잡고, 결과를 이름으로 잡는다** (사용자 결정 2026-09-06):
+      >
+      > 1. `user-entity-exposure-guard.ts` — 두 축이다.
+      >    - **호출부 축**: `User` 관계를 **투영 없이 통째로** 싣는 세 형태(`relations`
+      >      배열 · `relations` 객체(0.3, 중첩·캐스트 포함) · `leftJoinAndSelect`/`inner`)를
+      >      AST 로 세고, 투영해 쓰는 3곳을 양방향 래칫으로 동결. `leftJoinAndSelect` 축은
+      >      **0을 유지**한다.
+      >    - **엔티티 축**: `@ManyToOne(() => User, { eager: true })`. 호출부에 아무 텍스트도
+      >      안 남겨 위 스캔이 **원리적으로** 못 본다. 프로덕션 0건을 계약으로 고정.
+      >
+      >    관계 이름 집합은 **손으로 적지 않고 `*.entity.ts` 의 타입 주석에서 파생**한다 —
+      >    첫 판이 이름으로 매칭해 Critical 을 놓쳤고, 파생은 내 grep 이 놓친 `executor`
+      >    까지 찾아냈다.
+      > 2. `dto-jsdoc-citation-guard.ts` — 응답 DTO 의 **JSDoc 안 리뷰 인용**을 센다.
+      >    그 JSDoc 은 공개 OpenAPI `description` 이 된다. 같은 위반이 세 번 났고 매번
+      >    사람이 잡았다. 이미 있던 2건(아래 별 항목)은 동결.
+      > 3. `user-secret-absence.ts` — 응답 본문을 깊이 훑어 7컬럼 이름의 부재를 단언.
+      >    **선언과 무관**하므로 누가 비밀 필드를 DTO 에 *선언까지* 해도 잡는다 — 감사 로그
+      >    유출을 놓친 것이 바로 선언 기반 검증자였다.
+      >
+      > 런타임 위험 0, 인증 경로 무손상, 위 두 선택지를 나중에 배제하지 않는다. **다만
+      > 이것은 "방어" 가 아니라 "검출" 이다** — 실행 시점에 막지는 않는다.
+      >
+      > 곁가지 성과: 새 e2e 가 `GET /api/workspaces/:id/members` 의 미선언 필드
+      > (`joinedAt`)를 즉시 찾아냈다. 그 엔드포인트는 응답 형태를 무는 테스트가 아예 없었다.
+      > 이 배선으로 §5.4 계약 대조를 받는 DTO 가 **둘** 늘었다 (`WorkspaceMemberDto` ·
+      > `WorkflowVersionDto`) — 종전 이 자리는 "하나" 라고 적었는데, 같은 브랜치가 Critical 을
+      > 닫으며 버전 단건 조회 e2e 를 더하면서 둘이 됐다 (`review/code/2026/09/06/10_53_48`
+      > W4). 아래 「§5.4 drift 배치 —
+      > 2단계」의 수치는 다음에 그 항목을 열 때 **그 시점 실측치**로 다시 센다.
+      >
+      > **이 항목은 닫히지만 후속 두 건이 따라온다** — 아래 별 항목으로 등재했다. 여기에
+      > 적어 두지 않으면 draft 종결 조건(`## 후속` 체크박스 전부 닫힘)이 조용히 거짓이 된다.
+
+- [ ] **신규 검출 3축을 §5.4 「검증 층」과 `code:` 에 등재** (planner, 2026-09-06 등재,
+      `review/consistency/2026/09/06/10_13_23` W1 — **5개 checker 중 4개가 독립 보고**).
+
+      `user-entity-exposure-guard.ts`(구조 축)·`user-secret-absence.ts`(이름 축)·
+      `dto-jsdoc-citation-guard.ts`(JSDoc 인용 축)가 어떤 spec 의 `code:` glob 에도 안
+      걸린다. **정본 게이트에 직접 물어 확인했다** —
+      `review_guard._spec_linked_changes()` 가 신규 4파일 중 **0건**을 spec-linked 로
+      판정한다(재구현한 `fnmatch` 가 아니라 게이트 자신에게 물었다).
+
+      즉 **이 가드들을 약화·삭제해도 `--impl-done` SPEC-CONSISTENCY 게이트가 안 문다.**
+      래칫 fixture 가 없어 술어가 죽어도 그린이었던 것과 같은 등급의 사각지대다.
+
+      **하루 전 자매 항목이 이미 겪은 패턴의 재발**이다 — `response-contract.ts` 를
+      `2-api-convention.md`·`swagger.md` **양쪽**에 등재한 그 건. 한쪽만 하면 사각지대가
+      남는다는 것도 그때 실측으로 확인됐다.
+
+      → §5.4 「검증 층」 소절에 **세 행**을 더하고, 각 문서 frontmatter `code:` 에 신규
+      파일 패턴을 넣는다:
+
+      | 축 | 파일 | 등재할 문서 |
+      |---|---|---|
+      | 구조 (관계 로드 형태) | `user-entity-exposure*.ts` | `2-api-convention.md` §5.4 · `swagger.md` §5-1 |
+      | 이름 (응답 값 부재) | `user-secret-absence*.ts` | 〃 |
+      | JSDoc 인용 | `dto-jsdoc-citation*.ts` | ~~**`review-citations.md`**~~ — **2026-09-06 집행 완료** (아래 참조) |
+
+      **glob 은 `-guard` 를 붙이지 않는다** — 붙이면 `.spec.ts` 가 빠지는데, 베이스라인과
+      fixture 대조군이 사는 곳이 그 파일이다 (`review/consistency/2026/09/06/13_06_22` W2).
+
+      > **표 1행이 그 경고를 스스로 어기고 있었다** — 세 줄 위에서 `-guard*` 를 지시해 놓고
+      > 세 줄 아래에서 그것을 금지하고 있었다 (`review/code/2026/09/06/13_39_20` W4).
+      > 이 표는 다음 planner 턴이 **문자 그대로 집행할 지시문**이라, 캐비아트가 아래 있어도
+      > 표를 먼저 읽으면 틀린 glob 이 그대로 들어간다. 실측 — `user-entity-exposure*.ts` 는
+      > `user-entity-exposure-guard.ts` + `user-entity-exposure.spec.ts` **2/2**,
+      > `-guard*` 는 1/2. `user-secret-absence*.ts` 도 `.ts` + `.spec.ts` **2/2**.
+      >
+      > ~~**`code:` 에 YAML 주석을 넣지 마라** — 게이트 파서가 그 줄에서 끊는다.~~
+      >
+      > **해소됨 (2026-09-06, `8b67300b5`)** — 파서가 빈 줄·`#` 주석·트레일링 주석·인용
+      > 스칼라를 모두 처리한다. 이 문서 아래쪽 harness 항목에 실측(690→731, 갈리는 파일
+      > 7→0)과 회귀 테스트가 있다. `review-citations.md` 는 실제로 인라인 주석을 쓴다.
+      >
+      > **캐비아트를 지우지 않고 남긴다** — 이것이 왜 한때 금지였는지가 다음 사람에게
+      > 필요하다. 다만 **지금은 유효하지 않다** (`review/code/2026/09/06/16_28_58` W5 —
+      > 시점이 다른 두 서술이 공존해 오도할 수 있다는 지적).
+
+      > **JSDoc 축은 `spec-draft-review-citations-enforcement.md` 가 선행 집행했다**
+      > (2026-09-06, `--spec` 게이트 `review/consistency/2026/09/06/13_18_59` BLOCK:NO).
+      > `review-citations.md` 의 frontmatter `code:` 에 `dto-jsdoc-citation*.ts` 가
+      > **범주 주석과 함께** 들어갔고 Rationale 도 축 단위로 정정됐다.
+      >
+      > **이 항목에 남은 것은 §5.4 쪽 두 축**(구조·이름)이다.
+
+      **셋째 축은 등재할 문서가 다르다.** §5.4 가 아니라 `review-citations.md` 다 — 그 가드가
+      강제하는 것은 응답 계약이 아니라 **주석 형태 규약**이기 때문이다. 그리고 그 문서의
+      `## Rationale` 이 *"이 규약에는 시행하는 코드가 없다"* 고 적는데 **이제 있다**
+      (`review/consistency/2026/09/06/12_53_29` Critical 1). 그 문장은 developer 가 쓴
+      예고가 아니므로 자기-반증형 소정정 대상이 아니다.
+
+      **"두 검증자" 라고 못 박은 문장이 둘 있다** — 그 표현이 이제 거짓이다:
+
+      | 파일 | 문장 |
+      |---|---|
+      | `spec/5-system/2-api-convention.md` §5.4 검증 층 | *"그 자리를 **두 검증자**가 나눠 맡는다"* |
+      | `spec/conventions/swagger.md` §5-1 | *"**두 검증자**의 경계는 … 이 소유한다"* |
+
+      **새 개수를 적어 넣지 말 것.** 이 문서가 이미 두 번 겪은 실패다 — 축이 늘 때마다
+      숫자가 낡는다. 표로 **나열**하고 문장은 개수를 말하지 않게 고친다.
+
+- [ ] **`CLAUDE.md` 에 harness(`.claude/**`) 수정 권한 조항이 없다** (planner, 2026-09-06
+      등재, `review/code/2026/09/06/15_52_58` W1).
+
+      Skill 표는 세 역할의 쓰기 범위를 `spec/**`·`plan/**`·`codebase/**`·`review/**` 로
+      적는다. **`.claude/**` 는 어느 역할에도 배정돼 있지 않다.** 그런데 이 브랜치가
+      `review_guard.py` 와 그 테스트를 고쳤다.
+
+      **왜 고쳤는가**: `--impl-done` 게이트가 spec 387개 중 7개 파일의 41개 entry 를 조용히
+      떨구고 있었고, **그중 하나가 이 PR 자신이 고치던 파일을 덮고 있었다**
+      (`review/consistency/2026/09/06/13_52_23` Critical 1). 그 checker 는 처분으로
+      *"파서가 `#` 주석·빈 줄을 스킵하도록 고친다(developer 권한 내, harness 코드)"* 를
+      제시했다. 대안(7개 spec 파일 주석 제거)은 인스턴스를 고치고 **클래스를 남긴다.**
+
+      **그러나 checker 는 `CLAUDE.md` 의 해석 권한이 아니다.** 나는 스스로에게 권한을
+      부여할 수 없으므로 판단 근거를 남긴다:
+
+      - 이 저장소는 harness 가드 작업 이력이 있다(`.claude/docs/` 백로그·`test_*.py` 스위트).
+      - Skill 표는 **spec/plan/codebase 세 축의 역할 분담**을 정하는 표이고, harness 는
+        그 축 밖이라 "금지" 가 아니라 **미기술**로 보인다.
+      - 그래도 미기술을 근거로 넓히는 것은 이 브랜치가 계속 지적받은 *"문서한 보장이
+        구현보다 넓다"* 의 거울상이다 — **적혀 있지 않은 권한을 행사한 것**이다.
+
+      → planner 가 Skill 표에 harness 항목을 **명시**한다(허용이든 금지든). 금지로 정하면
+      이 브랜치의 파서 수정을 되돌리고 **다른 처분**(7개 파일 스윕 + 재발 방지)을 planner
+      턴으로 집행해야 하며, 그 비용 차이가 결정의 실질이다.
+
+      > **사용자 결정 (2026-09-06)**: **파서 수정을 남긴다.** 세 선택지(남긴다+명시 /
+      > 별도 PR 로 분리 / 되돌리고 spec 7파일 스윕) 중 첫째를 택했다
+      > (`review/code/2026/09/06/16_28_58` Critical 1 이 결정을 요구했다).
+      >
+      > **따라서 이 항목에 남은 것은 코드가 아니라 `CLAUDE.md` 다.** Skill 표에 harness
+      > (`.claude/**`) 행을 넣어, 다음 사람이 같은 판단을 처음부터 다시 하지 않게 한다.
+      > 지금 상태는 *"관행으로는 허용, 문서로는 미기술"* 이고 — 그것이 이 브랜치가 계속
+      > 지적받은 결함의 형태다.
+      >
+      > 분리안을 택하지 않은 이유도 남긴다: **이 PR 의 `--impl-done` 게이트가 그 파서
+      > 수정에 의존한다**(수정 전에는 `workspace-response.dto.ts` 가 spec-linked 로 안
+      > 잡혔다). 두 PR 로 가르면 서로를 기다리는 순환이 된다.
+
+- [ ] **`endpointPath` 를 쓰는 다음 `save()` 가 충돌 래핑을 빠뜨릴 수 있다** (developer,
+      2026-09-06 등재, `review/code/2026/09/06/19_31_04` INFO#2).
+
+      `TriggersService` 의 `save()` 호출은 8곳인데 `rethrowEndpointPathConflict` 로 감싼
+      것은 `create`/`update` **둘뿐**이다. 나머지 여섯(schedule 동기화·secret 승격·
+      chatChannel 설정 등)은 `endpointPath` 를 건드리지 않으므로 지금은 옳다.
+
+      **비대칭이 남는다** — 앞으로 `endpointPath` 를 쓰는 `save()` 가 새로 생기면 그 경로만
+      미가공 500 이 된다. 지금 상태로는 **아무도 알려 주지 않는다.**
+
+      → 두 방향 중 하나: (a) 저장 직전 `endpointPath` 변경 여부를 보는 한 자리로 모으거나,
+      (b) `user-entity-exposure-guard` 처럼 *"`endpointPath` 를 쓰는 `save()` 는 래핑돼야
+      한다"* 를 AST 로 세는 래칫. **(b) 가 이 저장소의 관행에 가깝다** — 화이트리스트가
+      비대칭을 문서가 아니라 테스트로 들고 있게 된다.
+
+- [ ] **전역 예외 필터가 `pg-error.ts` SoT 를 안 쓴다 — 가장 넓은 fallback 이 좁다**
+      (developer, 2026-09-06 등재, `review/code/2026/09/06/16_58_14` W6).
+
+      `http-exception.filter.ts` 의 로컬 `isUniqueViolation` 은 **`err instanceof
+      QueryFailedError` 를 먼저 요구**한다. 그래서 raw(`err.code`) 표면으로 올라온
+      23505 는 걸러져 409 가 아니라 **500** 이 된다. 이 PR 이 `pg-error.ts` 를 SoT 로
+      세운 이유가 정확히 그 표면 분기인데, **국소 처리가 없는 대다수 서비스가 지나는
+      fallback 에는 좁은 판이 그대로 남았다.**
+
+      **실측한 blast radius 는 지금 ~0 이다** — 우리 스키마를 치는 raw query 가 요청
+      경로에 없다(grep: `database-query.handler.ts` 는 사용자 외부 DB, `scripts/**` 는
+      요청 경로 아님). 즉 **구조적 불일치이지 현재 버그는 아니다.**
+
+      → `isPostgresUniqueViolation(err)` 호출로 교체(2줄). `http-exception.filter.spec.ts`
+      에 23505 케이스가 이미 있으므로 **최상위 표면 케이스만 더하면** 회귀가 고정된다.
+
+      **이 PR 에서 하지 않은 이유는 범위다** — `integration-oauth` 건과 같은 규율이다.
+      다만 그쪽은 동작이 옳고(두 표면을 본다) 이쪽은 **좁다**는 점이 다르므로, 둘 중
+      먼저 처리할 것은 이쪽이다.
+
+- [ ] **`run-test.sh` 4단계가 타입체크 ratchet 을 안 돈다** (harness, 2026-09-06 등재,
+      `#1292` CI 실패로 발각).
+
+      `PROJECT.md:40-41` 은 두 ratchet 을 *"backend/frontend `*.ts(x)` 변경 시"* 필수로
+      적는다. 그런데 `run-test.sh` 의 4단계(lint/unit/build/e2e)에는 **없다.** developer
+      SKILL 의 TEST WORKFLOW 는 그 4단계를 강제하므로, **문서가 요구하는 검사를 워크플로가
+      빠뜨린다.**
+
+      **실제로 샜다** — `#1292` 가 14라운드 로컬 검증을 전부 통과하고 CI 에서 처음 걸렸다
+      (`src/shared/testing/pg-error-fixtures.ts: 0 → 1`, TS2739).
+
+      **원리적으로 못 보는 자리다**: `run-test.sh build` 는 `tsconfig.build.json` 을 쓰는데
+      그 파일이 `src/shared/testing/**` 를 exclude 하고, jest 는 타입을 strip 한다. 즉
+      *"빌드에서 제외된 자리는 아무도 안 본다"* — 이 브랜치가 내내 쫓던 클래스이고,
+      `__test-utils__` dist 누출도 **같은 exclude 목록**에서 나왔다.
+
+      → `.claude/test-stages.sh` 의 `cmd_build()`(또는 별도 5번째 단계)에 두 ratchet 을
+      넣는다. **`.claude/**` 쓰기라 위 harness 권한 항목의 결정을 따른다.**
+
+- [ ] **`src/common/__test-utils__/` 5파일이 dist 로 나간다** (developer, 2026-09-06 등재,
+      이번 PR 의 W3 을 고치다 발견).
+
+      `tsconfig.build.json` 의 exclude 는 `*spec.ts` · `src/repo-guards/**` ·
+      `src/shared/testing/**` 셋이다. `__test-utils__` 는 어디에도 안 걸린다 — **실측**:
+      `tsc --listFiles -p tsconfig.build.json | grep __test-utils__` → **5건**
+      (`source-scan.ts` · `temp-fixture.ts` · `workspace-id-fixtures.ts` 외).
+
+      **지금은 지뢰가 아니다** — 전 파일의 import 가 node 내장 + 로컬뿐이라, exclude 목록
+      주석이 경고하는 형태(`require("typescript")` 같은 devDependency 지뢰)는 없다.
+      **죽은 코드가 dist 에 실릴 뿐**이다.
+
+      → exclude 에 `**/__test-utils__/**` 를 더한다. 경로가 아니라 **디렉터리 이름 규약**
+      으로 막으면 다음에 어디에 만들어도 걸린다 — 이번에 내가 `common/db/__test-utils__/`
+      에 파일을 만들었다가 같은 함정에 빠졌고, 그때는 자리를 옮겨 회피했다.
+
+- [ ] **`integration-oauth.service.ts` 의 손-작성 constraint 추출 2곳** (developer,
+      2026-09-06 등재, `review/code/2026/09/06/16_28_58` INFO#9 — **의도적 보류**).
+
+      신설한 `pgErrorConstraint()` 가 정확히 대체할 수 있는 패턴이 남아 있다. **실측**:
+      2곳(cafe24·makeshop 설치 경로), 각각 `(err as {...})?.constraint ?? (err as
+      {...})?.driverError?.constraint` 4줄, 둘 다 이미 `isPostgresUniqueViolation` 을
+      import 해 쓰고 있으므로 치환은 **import 한 줄 + 표현 2개**다.
+
+      **이 PR 에서 하지 않은 이유는 비용이 아니라 범위다.** scope reviewer 가 이 브랜치의
+      관심사 확산을 반복 지적했고(4단 연쇄), 여기서 다섯 번째 모듈을 여는 것은 그 지적을
+      정면으로 무시하는 것이다. 두 자리는 **동작이 옳고**(같은 두 표면을 본다) 위험이
+      없다 — 남은 것은 중복뿐이다.
+
+      → 그 파일을 다음에 건드릴 때 치환한다.
+
+- [ ] **트리거 `endpoint_path` 409 충돌에 e2e 가 없다** (developer, 2026-09-06 등재,
+      `review/code/2026/09/06/15_52_58` INFO#11).
+
+      단위 mock 검증은 촘촘한데 **실 DB 유니크 제약을 타는 경로**가 없다. 같은 PR 의 다른
+      두 갈래(`WorkflowVersions`·`WorkspaceMember`)는 e2e 를 보강했으므로 형평이 어긋난다.
+
+      → `webhook-trigger.e2e-spec.ts` 에 중복 `endpointPath` 생성 시도 1건 —
+      409 + `code` + `details` 두 키 단언. 단위 테스트가 mock 하는 드라이버 형태가
+      **실제와 같은지**를 이 케이스만 확인할 수 있다(그것이 mock 의 사각지대다).
+
+- [ ] **`listMembers` 를 DB 레벨 투영으로 옮겨 구조 가드 보호 범위에 넣는다**
+      (developer, 2026-09-06 등재, `review/code/2026/09/06/15_30_59` W1 —
+      여러 라운드가 반복 지적).
+
+      지금은 `relations: ['user']` 로 `User` 전 컬럼을 싣고 **JS 단 수동 매핑**으로
+      좁힌다. `user-entity-exposure-guard` 는 **로드 형태**만 보므로 이 자리는 보호
+      범위 밖이고, 방어가 **검출**(단위 테스트 2건 + e2e `workspace-rbac` J.)이지
+      **강제**가 아니다.
+
+      → `select: { user: { id: true, email: true, name: true } }` 로 전환하면
+      `WorkflowVersionsService.findOne` 과 같은 등급이 되고, 화이트리스트
+      `EXPECTED_USER_RELATION_LOADS` 에서 이 항목이 **빠진다**(래칫이 양방향이므로
+      목록에서 지워야 통과한다 — 그것이 전환 완료의 기계적 증거다).
+
+      **이 PR 에서 하지 않은 이유**: `listMembers` 는 원래 목표(유출 차단) 밖이고
+      응답은 이미 안전하다. DB→앱 전송 낭비와 *"가드가 못 지킨다"* 는 구조적 사실만
+      남는데, 그것을 이번 라운드에 단위 테스트로 고정했다.
+
+- [ ] **`2-trigger-list.md` R-2 가 폐기된 설계를 유효한 것처럼 남기고 있다** (planner,
+      2026-09-06 등재, `review/consistency/2026/09/06/15_31_00` W1).
+
+      R-2 는 `hmacSecret` 의 "입력 변경(v1) vs rotate 액션(v1.1)" 분리를 근거로 적고
+      `POST /api/triggers/:id/auth/rotate-secret` 를 v1.1 API 로 예고한다. 그런데 **같은
+      문서 §3 각주가** *"과거 v1.1 예약 행 `POST /api/triggers/:id/auth/rotate-secret` 은
+      신설되지 않은 채 본 PR 에서 폐기됐다 (Rationale R-14)"* 라고 적는다 — 한 문서 안에서
+      자기모순이다. (실측: R-2 는 226행, 폐기 각주는 §3 블록쿼트.)
+
+      **파급이 문서 밖으로 나간다** — `spec/5-system/15-chat-channel.md` R-CC-10(610행)이
+      R-2 를 **현재 유효한 설계**로 인용하며 botToken single-path 결정의 대조군으로 쓴다.
+      R-2 를 고치면 그 인용도 "과거(폐기된) 설계" 로 함께 갱신해야 한다.
+
+      → R-2 본문에 취소선 + `> **정정 (날짜)**: authConfigId 단일 경로로 대체됨 — R-14 참조`
+      콜아웃. `15-chat-channel.md` R-CC-10 의 인용 문구 동시 갱신. **두 파일 같은 턴에.**
+
+- [ ] **`2-trigger-list.md` frontmatter `status` 가 본문의 자백과 모순** (planner,
+      2026-09-06 등재, `review/consistency/2026/09/06/15_31_00` W3).
+
+      frontmatter 는 `status: implemented` 인데 본문 §3(151행)이 *"`PaginationQueryDto` 가
+      `sort`/`order` 를 받긴 하나 `findAll` 은 이를 무시하고 `created_at DESC` 로 고정
+      정렬한다. sort/order 반영은 **미구현/Planned**"* 라고 적는다.
+      `spec-impl-evidence.md §3` 라이프사이클 위반이다.
+
+      → `status: partial` + `pending_plans:` 등재, **또는** sort/order whitelist 정렬을
+      구현하고 현행 유지. 자매 문서 `3-schedule.md` 가 전자의 선례다.
+
+- [ ] **트리거 drawer 의 "새 인증 설정 만들기" 링크가 editor 에게 dead-end** (planner,
+      2026-09-06 등재, `review/consistency/2026/09/06/15_31_00` W2).
+
+      `2-trigger-list.md §2.3.1` Auth Config 행이 그 링크를 `editor+` 노출로 적는데,
+      목적지 `/authentication` 의 "Add Config" 생성 액션은 `6-config.md §A.4` 에서
+      **Admin+ 전용**이다(근거 `5-system/1-auth.md §3.2`). editor 는 눌러서 도달해도
+      만들 수 없다.
+
+      ~~어느 쪽이 제품 의도인지 확인이 먼저다 — 이 항목은 문구 정정이 아니라 결정이다.~~
+
+      > **정정 (2026-09-06)**: 실측하니 **결정할 것이 없다.**
+      > `6-config.md:125` 가 *"Add Config(헤더) … 는 Admin+ 에만 UI 노출"* 을
+      > **`1-auth.md §3.2` 권한 매트릭스를 근거로 인용**해 적는다 — 그쪽이 SoT 이고
+      > 제품 의도는 이미 확정돼 있다 (`review/consistency/2026/09/06/16_29_00` W4 가
+      > 두 문서를 대조해 확인, 나도 양쪽을 직접 열어 재확인했다). 남은 것은
+      > `2-trigger-list.md:103` 셀렉터 서술을 그 경계에 맞추는 **문구 정정**이다.
+      >
+      > 유예 근거를 "확인이 먼저" 로 적어 둔 것이 틀렸다 — 그 확인은 문서 두 개를 여는
+      > 일이었고, 미룰수록 다음 사람이 같은 판단을 반복한다.
+
+- [ ] **`WorkflowVersionDetail` 동명 미러를 코드 주석에서 트래커로 격상** (developer,
+      2026-09-06 등재, `review/consistency/2026/09/06/15_31_00` W4).
+
+      백엔드 `workflow-versions.service.ts` 와 프런트엔드 `lib/api/workflows.ts:109` 가
+      같은 이름의 **손-미러** 타입을 각자 선언하고, 이 PR 이 백엔드 쪽을 3필드 고정으로
+      좁히면서 형태가 더 갈렸다(프런트는 전부 옵셔널).
+
+      **이름이 같아서 이 세션에서만 3라운드 연속 "유일 정의" 오판이 났다** — grep 이 두
+      자리를 같은 것으로 보여 준다. 지금 방어는 백엔드 타입 JSDoc 의 *"다음에 만지면
+      저쪽도 열어라"* 한 줄뿐이고, 그것은 **그 파일을 여는 사람에게만** 닿는다.
+
+      → 개명(`WorkflowVersionDetailProjection` 등) 또는 `codebase/packages/` 공유 타입
+      승격. 개명은 프런트 소비처 2곳(`version-detail-dialog.tsx`·`version-diff-dialog.tsx`)
+      과 무관하므로 백엔드 단독으로 가능하다.
+
+- [ ] **도메인 세부 에러 코드의 표현 방식을 정식화한다** (planner, 2026-09-06 등재,
+      `review/consistency/2026/09/06/14_59_49` W1).
+
+      저장소에 **두 관례**가 있다 — (1) top-level `code` 자체를 특화 코드로 **교체**
+      (`DUPLICATE_NODE_LABEL`·`WORKFLOW_VERSION_CONFLICT`·`ALREADY_A_MEMBER` 등 7건),
+      (2) 세부 사유는 **`details[].code`** (`error-codes.md §4.2`,
+      `trigger-parameter.types.ts`). `2-api-convention.md §5.3` 은 어느 쪽도 명문화하지
+      않는다.
+
+      `TRIGGER_ENDPOINT_PATH_CONFLICT` 는 spec 이 *"409 `RESOURCE_CONFLICT` (세부 코드 …)"*
+      로 **두 층을 나눠** 적었으므로 (2)로 구현했다(`details.code`). 그러나 (1)이 다수
+      선례라, *"어느 쪽이 기본인가"* 를 문서가 답하지 않으면 다음 구현자가 또 고른다.
+
+      → `2-api-convention.md §5.3` 에 택일 기준을 적고, `3-error-handling.md §1` 카탈로그에
+      이 코드를 등재한다. **개수를 쓰지 말고 나열형으로.**
+
+      > `details` 가 object(단일 도메인 예외) / array(ValidationPipe 다중 필드) 두 형태인
+      > 것도 §5.3 에 미명문화다 (`review/consistency/2026/09/06/14_59_49` INFO#4).
+      > 같은 턴에 함께 적는다.
+
+- [ ] **`2-trigger-list.md:106` botToken 행의 자기모순** (planner, 2026-09-06 등재,
+      `review/consistency/2026/09/06/14_59_49` W2).
+
+      한 문장이 *"응답에는 `hasBotToken: boolean` 만 노출"* 과 *"마스킹 placeholder
+      (`•••• <last4>`)"* 를 **동시에** 말한다. boolean 만 나가면 서버가 last4 를 보낼
+      방법이 없다. `15-chat-channel.md §5.4.2`(ref·plaintext 모두 응답 미포함)와도,
+      실제 구현(rotate 입력창 placeholder 는 형식 예시 `"123456789:ABCdef..."`)과도
+      어긋난다.
+
+      AuthConfig 의 `***<last4>` 마스킹 규약을 성격이 다른 **write-only** 필드에 잘못
+      차용한 것으로 보인다. **방치하면 다음 구현자가 실제 last4 노출 필드를 신설해
+      `secret-store.md §1.1` 을 위반할 소지**가 있다 — 그것이 이 항목의 실질이다.
+
+      (이 PR 이 만든 결함이 아니다. 게이트가 넓어지며 드러났다.)
+
+- [ ] **`code:` 파서 두 벌을 golden fixture 코퍼스로 묶는다** (harness, 2026-09-06 등재,
+      `review/code/2026/09/06/14_25_40` W2).
+
+      같은 YAML 을 Python(`review_guard._parse_frontmatter_code`)과
+      TypeScript(`spec-frontmatter-parse.ts`, gray-matter)가 **각자 재구현**한다. 이
+      발산이 41개 entry 유실을 냈고, 이번에 닫은 것은 그중 **두 형태**(줄 전체 주석·빈
+      줄, 트레일링 주석)뿐이다. 다음 형태(앵커 `&a`/`*a` · 여러 줄 문자열 `>`/`|` ·
+      따옴표 안의 `#`)는 여전히 갈릴 수 있다.
+
+      **한 형태씩 쫓는 것이 이 항목의 문제다** — 트레일링 주석은 직전 수정이 **한 칸
+      좁아서** 남은 것이고, 두 reviewer 가 정규식을 직접 돌려 찾았다.
+
+      → 두 언어 테스트가 **같은 fixture 코퍼스**를 읽고 *"같은 입력 → 같은 출력"* 을
+      계약으로 단언한다. 형태를 추가하면 양쪽이 동시에 물린다.
+
+      > **당장의 안전망은 있다**: 저장소 전수 대조(387개 파일, 731 대 731, 갈리는 파일
+      > 0)를 실측으로 확인했다. 이 항목은 그 대조를 **테스트로 상시화**하는 것이다.
+
+- [ ] **`workflow-versions.service.ts` 의 공유 `select` 6키를 상수로**
+      (developer, 2026-09-06 등재, `review/code/2026/09/06/14_25_40` INFO#3).
+
+      `findByWorkflow`/`findOne` 이 `id`·`workflowId`·`version`·`changeSummary`·
+      `createdBy`·`createdAt` 를 손으로 두 번 나열한다. **이 PR 이 고친 결함 클래스가
+      축소된 범위로 남은 것**이다 — 자매 메서드 중 하나만 바뀌면 응답이 갈린다.
+
+      `creator` 는 이미 `CREATOR_PROJECTION` 으로 공유한다(그쪽이 보안 경계였다).
+      남은 6키는 갈려도 **표시 버그**지 유출이 아니라, 이번 PR 범위 밖으로 미룬다.
+
+- [ ] **`WorkflowVersion*Dto.creator` 의 §5.4 금지 조합을 갚는다** (developer, 2026-09-06
+      등재, `review/code/2026/09/06/13_39_20` INFO#16 + `review/consistency/2026/09/06/13_39_25`
+      INFO#2 — 두 게이트가 독립 지적).
+
+      두 DTO 가 `@ApiPropertyOptional({ nullable: true })` + `creator?: T | null` 로
+      **§5.4 가 금지한 조합**을 쓴다. 이미 동결돼 있다 —
+      `swagger-dto-contract.spec.ts` 의 `EXPECTED_OPTIONAL_NULLABLE_DRIFT` 4행 중 2행
+      (`WorkflowVersionDto.creator` · `WorkflowVersionListItemDto.creator`). 즉 **추적
+      안 되는 갭이 아니라 등재된 부채**다.
+
+      **새로워진 것은 방향이다.** #1292 가 `findOne`/`findByWorkflow` 의 런타임을
+      `creator: ProjectedCreator`(항상 존재 · 3필드 전부 필수)로 좁혔다. 이제 선언이
+      런타임보다 **넓다** — 소비자는 없을 수도 있다고 읽는데 실제로는 늘 온다. 갚는 방향은
+      `@ApiProperty()` + `creator: WorkflowVersionCreatorDto` 이고, 갚으면 래칫 2행이
+      함께 빠진다.
+
+      **wire 를 바꾸지 않는다** — 선언만 좁힌다. 다만 프런트엔드
+      `lib/api/workflows.ts` 의 손수 맞춘 미러(`creator?: {…} | null`)도 같은 턴에 봐야
+      한다(같은 이름의 별도 선언 — `workflow-versions.service.ts` 의 JSDoc 참조).
+
+- [ ] **`User` 민감 7컬럼의 응답 노출 금지를 규약 문장으로** (planner, 2026-09-06 등재,
+      `review/consistency/2026/09/06/10_13_23` W2).
+
+      지금 그 불변식의 SoT 는 **코드뿐**이다 — `USER_SECRET_KEYS` 배열. Trigger·AuthConfig
+      계열은 `secret-store.md §1.1` 이 *"비대상 필드도 응답 바디에는 나가지 않는다"* 로
+      규범을 세워 뒀는데 `User` 에는 대응 절이 없다.
+
+      → `1-data-model.md §2.1` 또는 `secret-store.md §1.1` 에 7컬럼 노출 금지를 적고, 위
+      두 가드를 그 절의 `code:`/본문 링크로 잇는다. 결정 근거(전수 열거 수치 · 기각한 두
+      대안 · 채택 이유)는 지금 `plan`·`CHANGELOG` 에만 있으므로 해당 문서의 `## Rationale`
+      로 옮긴다 (`10_13_23` INFO#1).
 
 - [ ] **트리거 비밀 스트립을 deny-list 4벌에서 선언적 SoT 로** (developer + 보안 판단,
       2026-09-05 등재, `review/code/2026/09/05/23_30_00` security W1). 지금
@@ -485,6 +943,32 @@ field: T | null;
         > 함께 확정한 것: `POST /api/schedules` 는 `isActive` 값과 무관하게 `trigger` 를
         > 실어 보낸다 — 종전에는 `isActive: false` 면 트리거를 만들어 놓고 응답에서만
         > 빠졌다.
+
+- [ ] **`Ref` DTO **클래스** JSDoc 두 곳에 리뷰 인용이 남아 있다** (developer, 2026-09-06
+      등재, `review/consistency/2026/09/06/11_55_37` W3 을 고치다 전수 grep 으로 발견).
+
+      `review-citations.md §3` 은 *"DTO·컨트롤러의 `/** */` JSDoc 은 대상 아님 — 그 JSDoc 은
+      **공개 OpenAPI description** 으로 나가므로 리뷰 인용을 애초에 거기 쓰지 않는다"* 고
+      적는다. 그런데 두 자리가 클래스 JSDoc 안에 인용을 담고 있다:
+
+      | 파일 | 클래스 |
+      |---|---|
+      | `schedules/dto/responses/schedule-response.dto.ts` | `ScheduleTriggerWorkflowRefDto` |
+      | `triggers/dto/responses/trigger-response.dto.ts` | `TriggerWorkflowRefDto` |
+
+      둘 다 **#1291 이 넣었고 그 PR 의 게이트를 통과했다** — 그때 checker 가 "필드 JSDoc" 만
+      보고 클래스 쪽은 안 봤다. 이번 라운드 checker 도 클래스 쪽은 지적하지 않았다.
+
+      > **이제 가드가 이 둘을 동결한다** — `dto-jsdoc-citation.spec.ts` 의
+      > `EXPECTED_DTO_JSDOC_CITATIONS`. 갚아서 없애면 그 목록에서도 빼야 통과한다.
+
+      **이 브랜치에서 고치지 않는 이유**: 두 파일 모두 이 브랜치 diff 밖이다. 손대면 scope
+      이탈이고, `review-citations.md §4`(기존 인용은 소급 정리 대상 아님)의 취지에도 맞지
+      않는다 — *"그 자리를 다음에 건드릴 때 함께 맞춘다."*
+
+      착수 시 함께 볼 것: **클래스 JSDoc 도 대상인가**를 `review-citations.md §3` 표가
+      명시하지 않는다(그 행은 "DTO·컨트롤러의 JSDoc" 이라고만 적어 필드/클래스를 안 가른다).
+      고치기 전에 그 문장부터 갈라야 같은 질문이 또 안 생긴다 — 그쪽은 planner 몫이다.
 
 - [ ] **`INTERNAL_ERROR` 문구가 두 자리에서 언어가 갈린다** (developer, 2026-09-06 등재,
       `review/consistency/2026/09/06/01_13_51` INFO#3). `3-error-handling.md` 는 이 코드의
@@ -891,7 +1375,8 @@ field: T | null;
       > 이것은 알려진 클래스의 재발이다 — *"consistency `--spec` 기본 예산이 conventions 를
       > 통째로 떨군다"*. 이번엔 `spec_impact` 명시에도 불구하고 떨궈졌다는 점이 새롭다.
 
-- [ ] **harness: `code:` 블록 리스트의 YAML 주석이 게이트 파서를 조용히 끊는다**
+- [x] **harness: `code:` 블록 리스트의 YAML 주석이 게이트 파서를 조용히 끊는다**
+      ✅ **2026-09-06 해소** — 파서가 빈 줄·`#` 주석을 건너뛴다.
       (harness, 2026-09-05 등재). `review_guard._parse_frontmatter_code` 의 블록 리스트
       루프가 `^\s*-\s*` 에 안 맞는 첫 줄에서 `break` 하므로, **주석 뒤 항목이 전부
       사라진다**. 실측: 주석을 넣자 `2-api-convention.md` 가 9개(주석 앞까지)만 반환.
@@ -904,6 +1389,50 @@ field: T | null;
       게이트는 여전히 못 보는 상태로 머지될 뻔했다 — 이 항목이 고치려던 결함 그 자체다.
       당장은 주석을 쓰지 않는 것으로 회피했다. 파서를 고치거나, 최소한 두 파서가 갈리는
       입력을 가드로 잡아야 한다.
+
+      > **2026-09-06 — 하루 만에 재발했다. 우선순위를 올린다.**
+      > `review-citations.md` 에 시행 코드를 등재하면서 같은 주석을 넣었고, 이번엔
+      > 파싱 결과가 **2개 → 0개**로 떨어졌다. 등재하려던 파일이 안 걸린 것은 물론이고
+      > **이미 걸려 있던 `sanitize-loader-error.ts` 까지 감사망에서 빠지는 회귀**였다
+      > (`review/code/2026/09/06/13_39_20` Critical 1 — 리뷰어가 게이트를 직접 실행해 잡았다).
+      >
+      > **회피책이 작동하지 않는다는 증거다.** "주석을 쓰지 않는다" 는 이 문서에 적혀
+      > 있었는데도, 다른 문서의 checker 가 *"인라인 YAML 주석으로 범주를 가르라"* 고
+      > 제안하자(`review/consistency/2026/09/06/13_18_59` INFO#2) 그대로 채택했다 —
+      > **checker 의 제안이 이미 등재된 harness 결함과 충돌할 수 있다.** 산문 규율로는
+      > 다음 제안을 못 막는다. 파서를 고치거나(`#`·빈 줄 스킵), 두 파서가 갈리는 입력을
+      > 가드로 잡아야 한다.
+      >
+      > 두 번 다 **게이트에 직접 물어서** 발견됐다(`_parse_frontmatter_code` 실행). 문서에
+      > "등재 완료" 라고 쓰는 것은 등재의 증거가 아니다.
+
+      > **해소 (2026-09-06, `user-entity-column-defense`)** — 회피가 아니라 파서를 고쳤다.
+      >
+      > 회피로 넘어가려다 저장소 전수를 재 봤다. **spec 387개 중 7개 파일에서 41개 entry
+      > 가 이미 유실 중**이었고 — `2-navigation/{_layout,9-user-profile,10-auth-flow,
+      > 11-error-empty-states}.md` · `7-channel-web-chat/{2-sdk,3-auth-session}.md` ·
+      > `conventions/user-guide-evidence.md` — 그중 하나
+      > (`9-user-profile.md` 의 `codebase/backend/src/modules/workspaces/**`)가 **그 PR
+      > 자신이 고치던 `workspace-response.dto.ts` 를 덮고 있었다.** 즉 이 결함은
+      > "언젠가 문제가 될 것" 이 아니라 **그 순간 게이트를 끄고 있었다**
+      > (`review/consistency/2026/09/06/13_52_23` Critical 1).
+      >
+      > 세 번째 재발이 확정된 시점에서 **회피책이 작동하지 않는다는 것이 증명됐다** —
+      > 산문 규율은 다음 checker 의 제안을 못 막는다. 그래서 `_parse_frontmatter_code`
+      > 의 블록 리스트 루프가 **빈 줄·`#` 주석을 건너뛰도록** 고쳤다(`break` 는 다음 키에서만).
+      >
+      > | | 수정 전 | 수정 후 |
+      > |---|---|---|
+      > | 게이트 파서가 본 entry | 690 | **731** |
+      > | 진짜 YAML(gray-matter) entry | 731 | 731 |
+      > | 답이 갈리는 파일 | 7 | **0** |
+      >
+      > 회귀 테스트 3건 — 주석 · 빈 줄 · **다음 키에서는 여전히 멈춘다**(넓힌 술어의 반대
+      > 방향 대조군). 앞 둘은 수정 전 RED, 셋째는 수정 전에도 GREEN 이라 과확장 방지용이다.
+      > harness 스위트 1,124 pass + 1,254 subtest.
+      >
+      > **7개 파일은 손대지 않았다** — 고칠 것이 문서가 아니라 파서였기 때문이다. 파서가
+      > 고쳐지자 41개 entry 가 그대로 살아났다.
 
       (b) 가 저렴하지만, 12 대 6 이면 다수가 로컬 Overview 를 두고 있어 (a) 가 관행에 가깝다.
       **한 PR 이 단독으로 정할 일이 아니라 등재한다.**

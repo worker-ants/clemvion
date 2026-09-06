@@ -2,8 +2,11 @@
 id: review-citations
 status: implemented
 code:
+  # 준수 예시 — 이 규약이 처방하는 인용 형태를 실제로 쓰는 파일
   - codebase/backend/src/common/guards/roles.guard.spec.ts
   - codebase/frontend/src/components/llm-config/sanitize-loader-error.ts
+  # 시행 코드 — §3 의 **응답 DTO** 축을 AST 로 강제한다 (컨트롤러 축은 미강제)
+  - codebase/backend/src/repo-guards/__tests__/dto-jsdoc-citation*.ts
 ---
 
 # Convention: 코드 주석의 리뷰 산출물 인용
@@ -89,9 +92,56 @@ code:
 ### `code:` 가 "구현 경로" 가 아니라 "준수 예시" 를 가리키는 이유
 
 `spec-impl-evidence.md` 는 `code:` 를 *"본 spec 이 약속한 surface 의 구현 경로"* 로 정의한다.
-이 규약에는 **시행하는 코드가 없다** — 주석 형태를 강제하는 가드가 없기 때문이다. 그래서
-`code:` 에 **이 규약이 처방하는 형태를 실제로 쓰는 파일**을 적었다 (저장소에 10개 있고
+~~이 규약에는 **시행하는 코드가 없다** — 주석 형태를 강제하는 가드가 없기 때문이다.~~
+
+> **정정 (2026-09-06)**: 이제 **한 축의 절반이 강제된다.**
+> `codebase/backend/src/repo-guards/__tests__/dto-jsdoc-citation-guard.ts` 가
+> *"**응답 DTO** 의 `/** */` JSDoc 에 리뷰 인용을 쓰지 않는다"* 를 AST 로 센다. 같은 위반이
+> **세 번** 났고 세 번 다 사람이 읽고 잡은 것이 계기다 (`review/code/2026/09/06/12_28_02` W2).
+>
+> | 절 | 강제되나 | 근거 |
+> |---|---|---|
+> | §2 (bare `hh_mm_ss` 금지) — `codebase/**` 전반 | **아니오** | 가드 없음 |
+> | §3 — **응답 DTO** JSDoc | **예** | 위 가드 |
+> | §3 — **컨트롤러** JSDoc | **아니오** | 위 가드는 `isResponseDtoFile()` 로 `dto/responses/**` 만 훑는다. 컨트롤러는 여전히 사람이 본다 |
+>
+> **§3 을 한 덩어리로 "강제됨" 이라 적지 않는다.** 그 절은 DTO 와 컨트롤러를 함께 묶는데
+> 가드는 절반만 본다 — 묶어서 적으면 **문서한 보장이 구현보다 넓어진다.**
+>
+> 그래서 `code:` 는 이제 **두 종류**를 담는다:
+>
+> | entry | 범주 |
+> |---|---|
+> | `roles.guard.spec.ts` · `sanitize-loader-error.ts` | 준수 예시 |
+> | `dto-jsdoc-citation*.ts` | **시행 코드** — 위 표의 "응답 DTO" 행을 강제한다 |
+>
+> frontmatter 에도 같은 구분을 인라인 YAML 주석으로 적어 두었다
+> (`review/consistency/2026/09/06/13_18_59` INFO#2 의 제안).
+>
+> > **그 주석이 게이트를 껐다 — 그리고 그것이 이 규약보다 큰 결함을 드러냈다.**
+> > 주석을 넣자 `review_guard._parse_frontmatter_code` 의 파싱 결과가 **2개에서 0개**로
+> > 떨어졌다. 블록 리스트 루프가 `- ` 로 시작하지 않는 첫 줄에서 `break` 했기 때문이다.
+> > 등재하려던 파일이 안 걸린 것은 물론이고 **이미 걸려 있던
+> > `sanitize-loader-error.ts` 까지 감사망에서 빠지는 회귀**였다
+> > (`review/code/2026/09/06/13_39_20` Critical 1).
+> >
+> > 회피(주석을 걷는다)로 넘어가려다 저장소 전수를 재 봤다 —
+> > **spec 387개 중 7개 파일에서 41개 entry 가 이미 유실 중**이었고, 그중 하나
+> > (`spec/2-navigation/9-user-profile.md` 의 `.../modules/workspaces/**`)는 **그 PR
+> > 자신이 고치던 파일**을 덮고 있었다 (`review/consistency/2026/09/06/13_52_23`
+> > Critical 1). 하루 전에도 같은 함정을 밟고 *"주석을 쓰지 않는 것으로 회피했다"* 고
+> > 적어 뒀는데, 그 산문 규율은 **다음 제안을 막지 못했다.**
+> >
+> > 그래서 문서 규율이 아니라 **파서를 고쳤다** — 블록 리스트가 빈 줄·`#` 주석을
+> > 건너뛴다. gray-matter 를 쓰는 프런트엔드 파서는 처음부터 주석 뒤를 봤으므로, 이
+> > 수정은 **두 파서를 일치시키는 것**이기도 하다: 수정 후 731 대 731, 갈리는 파일 0.
+> > 회귀 테스트 3건(주석 · 빈 줄 · **다음 키에서는 여전히 멈춘다**)이 고정한다.
+
+그래서 `code:` 에 **이 규약이 처방하는 형태를 실제로 쓰는 파일**을 적었다 (저장소에 10개 있고
 backend·frontend 에서 하나씩).
+
+> 이 "10개" 는 **저장소 전체의 준수 예시 파일 수**이지 `code:` entry 개수가 아니다 — 위
+> 정정으로 entry 가 하나 늘면서 나란히 읽히게 됐다 (`review/consistency/2026/09/06/13_18_59` INFO#3).
 
 이 예외는 `spec-impl-evidence.md` §2.1 의 `code:` **필드 정의 설명 안에** 함께 등재했다 — 한쪽만 재해석하면 SoT 가 그 사실을 모른다.
 

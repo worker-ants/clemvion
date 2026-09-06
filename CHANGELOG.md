@@ -1,5 +1,181 @@
 # Changelog
 
+## Unreleased — `User` 엔티티에 마지막 방어선을 세운다 (검출 2축)
+
+`GET /api/audit-logs` 가 `User` **26키**를 내보낸 유출은 그 쿼리 하나를 좁혀 고쳤다. 그러나
+`User` 자체에는 방어선이 없었다 — 실측(2026-09-06): `select: false` **0건** · `@Exclude()`
+**0건** · `@Expose()` **0건** · 전역 `ClassSerializerInterceptor` **0건**.
+
+### 전수 열거가 두 선택지를 다시 그렸다
+
+| 잰 것 | 값 |
+|---|---|
+| 민감 7컬럼을 **읽는** 자리 | 6개 서비스 파일 **19곳** |
+| 그 자리들이 지나는 로더 | `UsersService.findById`/`findByEmail` **공유 깔때기** |
+| 그 깔때기의 호출 지점 | 저장소 전체 **46곳** |
+| `User` **타입** 관계 이름 (엔티티에서 파생) | `creator` · `executor` · `owner` · `user` |
+| 투영 없이 통째로 싣는 자리 | **4곳** — 그중 **1곳이 실제 유출이었다** |
+
+### 🔴 그 열거가 한 칸 좁았다 — 살아있는 유출을 하나 찾았다
+
+첫 열거는 관계 **이름**이 `user` 인 것만 셌다. `User` **타입**인 관계는 `creator`·`owner`·
+`executor` 도 있다. 타입으로 다시 세니 **`WorkflowVersionsService.findOne`** 이
+`relations: ['creator']` 를 **투영 없이** 로드하고 컨트롤러가 그대로 반환하고 있었다 —
+`GET /api/workflows/:wfId/versions/:versionId` 가 버전 작성자의 `passwordHash`·
+`twoFactorSecret`·복구 코드·계정 탈취용 토큰을 전부 내보냈다. 도달 권한은 해당 워크스페이스
+멤버(viewer 포함)다.
+
+자매 메서드 `findByWorkflow` 는 처음부터 `select` 투영을 갖고 있었다 — **한쪽만 옳았다.**
+`findOne` 에 같은 투영(`creator: { id, name, email }`)을 넣어 닫았고, 그 엔드포인트에는
+e2e 가 **한 건도 없었으므로** 세 축(이름 부재 · 계약 대조 · 참조 3필드 양성)을 함께 걸었다.
+
+**영향** — 이미 나간 것은 회수되지 않는다. 이 응답을 저장·로깅·캐시한 소비자가 있었다면
+버전 작성자의 비밀번호 해시와 2FA 복구 코드가 그쪽에 남아 있을 수 있다.
+
+**`select: false`** 는 19곳이 공유 깔때기를 지나므로 국소 수정이 불가능하다 — 깔때기에
+`addSelect` 를 넣으면 46곳이 다시 컬럼을 받고, 안 넣으면 로더를 쪼개 19곳을 재배선해야 한다.
+놓치면 `comparePassword(x, undefined)` 가 되어 **인증이 예외 없이 조용히 실패**한다.
+
+**전역 `ClassSerializerInterceptor`** 는 이 저장소가 응답 직렬화를 한 번도 켠 적이 없어(위
+0건), 도입 자체가 298개 e2e 가 보는 wire 전체의 동작 변경이다.
+
+### 택한 것 — 원인은 구조로, 결과는 이름으로
+
+- **`user-entity-exposure-guard.ts`** — `User` 관계를 **투영 없이 통째로** 싣는 세 형태
+  (`relations` 배열 · `relations` 객체(0.3) · `leftJoinAndSelect`/`inner`)를 AST 로 세고,
+  투영해 쓰는 3곳을 양방향 래칫으로 동결한다. `leftJoinAndSelect` 축은 **0을 유지**한다 —
+  그 형태는 투영할 자리가 없어 언제나 전 컬럼을 싣는다. `select` 로 좁힌 자리와
+  `leftJoin` + `addSelect`(정상 형태)는 세지 않는다.
+
+  관계 이름 집합은 **손으로 적지 않는다** — `*.entity.ts` 의 타입 주석에서 파생한다.
+  목록을 `['user','creator','owner']` 로 늘리는 것은 같은 결함의 다음 판이기 때문이다.
+  실제로 파생이 내 grep 보다 넓었다: `Execution.executor: User | null` 을 하나 더 찾았다.
+
+  **호출부만 보면 반쪽이다.** `@ManyToOne(() => User, { eager: true })` 는 호출부에
+  `relations` 도 `*JoinAndSelect` 도 남기지 않고 TypeORM 이 자동으로 조인한다 — 위 스캔이
+  **원리적으로** 못 보는 형태다. 엔티티 데코레이터를 직접 보는 축을 따로 두고, 프로덕션
+  **0건**을 계약으로 고정했다.
+
+**이 두 축이 `User` 컬럼 방어의 전부다.** 아래 JSDoc 인용 가드는 **별개 관심사**이고,
+이 브랜치에 합류한 경위는 그 절에 적었다.
+
+### 곁가지 — DTO JSDoc 주석 위생 (User 컬럼과 무관)
+
+- **`dto-jsdoc-citation-guard.ts`** — 응답 DTO 의 **JSDoc 안에 리뷰 인용**이 들어갔는지
+  센다. DTO 의 JSDoc 은 공개 OpenAPI `description` 이 되므로 내부 서사가 거기 들어가면
+  그대로 소비자에게 나간다(`swagger.md §3` · `review-citations.md §3`). 같은 위반이 **세 번**
+  났고 매번 사람이 읽고 잡았다 — 규약이 정한 형태는 결정 가능하므로 세는 편이 낫다.
+  `//` 주석은 보지 않는다(그것이 규약이 처방하는 회피처다). 이미 있던 2건은 동결한다.
+  (`review/code/2026/09/06/16_58_14` W2 가 두 관심사를 한 제목으로 묶지 말라고 지적했다 —
+  판정 대상도 방어 원리도 다르다.)
+
+### 다시 `User` 컬럼 축
+
+- **`user-secret-absence.ts`** — 응답 본문을 **깊이** 훑어 7컬럼 이름의 부재를 단언한다.
+  유출은 최상위가 아니라 중첩(`data.items[].user.passwordHash`)에서 났다. **선언과
+  무관**하므로 누가 비밀 필드를 DTO 에 *선언까지* 해도 잡는다 — 감사 로그 유출을 놓친 것이
+  바로 선언 기반 검증자였다.
+
+**이것은 방어가 아니라 검출이다.** 실행 시점에 막지 않는다. 대신 런타임 위험이 0이고 인증
+경로를 건드리지 않으며, 위 두 선택지를 나중에 배제하지도 않는다.
+
+### 뮤테이션으로 두 축을 각각 확인했다
+
+`listMembers` 의 투영을 걷어내고 로드된 `User` 를 그대로 싣는 뮤턴트를 돌렸다. 처음에는
+**선언 대조가 먼저 던져 이름 축이 실행조차 되지 않았다** — 두 축은 다른 것을 잡으려고
+있으므로 각자 관측 가능해야 한다. 순서를 바꾸니 이름 축이 **14개 경로**(7컬럼 × 멤버 2행)를
+지목했다.
+
+### 곁가지 — 응답 형태를 무는 테스트가 없던 엔드포인트
+
+`GET /api/workspaces/:id/members` 는 `User` 를 통째로 로드하는 세 자리 중 하나인데 응답
+형태를 확인하는 e2e 가 **없었다**. 추가하자마자 `WorkspaceMemberDto` 가 `joinedAt` 을
+선언하지 않는다는 것이 드러났다(프런트엔드는 `joinedAt: string | null` 로 소비 중). 상시
+존재 + nullable 이므로 §5.4 **기본형**으로 선언했다 — wire 는 그대로다.
+
+### 가드를 세우자 규약 문서가 거짓이 됐다
+
+`review-citations.md` 의 `## Rationale` 이 *"이 규약에는 **시행하는 코드가 없다**"* 라고
+적고 있었다. 위 `dto-jsdoc-citation-guard.ts` 가 그 문장을 반증한다.
+
+**developer 가 고칠 수 없는 자리였다.** `CLAUDE.md` 의 자기-반증형 소정정 예외는 *"그 문장을
+developer 자신이 썼을 것"* 을 요구하는데, `git log -S` 로 보면 그 문장은 **planner 턴**
+(`90c1751e8`)이 등재했다. 그래서 우회하지 않고 planner 턴을 열어 정정했다.
+
+정정은 **축 단위**로 한다 — §2(bare 시각 금지)는 여전히 미강제, §3 은 **응답 DTO 축만**
+강제되고 **컨트롤러 축은 미강제**다. §3 을 한 덩어리로 "강제됨" 이라 적으면 **문서한 보장이
+구현보다 넓어진다.** `spec-impl-evidence.md §2.1` 의 선례 인용도 같은 이유로 좁혔고, 그
+문서에 *"한 문서의 `code:` 는 준수 예시와 시행 코드를 섞어 담아도 된다"* 를 명시했다.
+
+### 그 등재가 게이트를 껐다 — 그리고 그것이 이미 꺼져 있었다
+
+`code:` 에 범주 구분 YAML 주석을 넣자 게이트 파서(`review_guard._parse_frontmatter_code`)
+가 그 줄에서 `break` 해 **파싱 결과가 2개 → 0개**로 떨어졌다. 등재하려던 파일이 안 걸린 것은
+물론이고 **이미 걸려 있던 파일까지 감사망에서 빠지는 회귀**였다.
+
+*"주석을 쓰지 않는다"* 는 회피책은 하루 전 같은 함정을 밟고 이미 적어 둔 것이었다. 그런데
+다른 라운드의 checker 가 인라인 주석을 제안하자 그대로 채택했다 — **산문 규율은 다음 제안을
+막지 못한다.** 그래서 회피 대신 전수로 쟀다:
+
+| | 수정 전 | 수정 후 |
+|---|---|---|
+| 게이트 파서가 본 `code:` entry (spec 387개) | 690 | **731** |
+| 진짜 YAML(gray-matter)이 본 entry | 731 | 731 |
+| 두 파서의 답이 갈리는 파일 | **7** | **0** |
+
+**7개 파일에서 41개 entry 가 이미 유실 중이었고, 그중 하나가 이 PR 자신을 덮고 있었다** —
+`spec/2-navigation/9-user-profile.md` 의 `codebase/backend/src/modules/workspaces/**` 가
+주석 뒤라, 이 PR 이 고친 `workspace-response.dto.ts` 를 `--impl-done` 게이트가 **애초에
+보고 있지 않았다**.
+
+문서가 아니라 **파서를 고쳤다** — 블록 리스트가 빈 줄·`#` 주석을 건너뛴다(`break` 는 다음
+키에서만). 프런트엔드 `spec-frontmatter-parse.ts` 는 gray-matter 라 처음부터 주석 뒤를 봤으니,
+이 수정은 **두 파서를 일치시키는 것**이기도 하다. 회귀 테스트 3건 — 주석 · 빈 줄 · **다음
+키에서는 여전히 멈춘다**(넓힌 술어의 반대 방향 대조군; 앞 둘은 수정 전 RED).
+
+7개 spec 파일은 손대지 않았다. 고칠 것이 문서가 아니었기 때문이다.
+
+**그 수정이 한 칸 좁았다 — 두 번 더 좁혔다.** 처음엔 *줄 전체* 주석·빈 줄만 건너뛰어,
+항목과 **같은 줄**의 트레일링 `# comment` 는 여전히 값에 붙어 **어떤 파일과도 매치되지
+않는 죽은 glob** 이 됐다(entry 가 사라지는 것과 같은 등급의 조용한 유실). 다음엔 그것을
+고치면서 **따옴표로 감싼 값**(`"a.ts"  # note`)을 빠뜨려 같은 형태가 남았다. 두 번 다
+리뷰어가 정규식을 직접 실행해 재현했다.
+
+지금은 인용 부호 안팎을 갈라 처리한다 — 언쿼트는 ` #` 이후를 자르고, 인용 스칼라는
+**닫는 따옴표 뒤**를 자른다(닫는 따옴표가 없으면 자르지 않는다). 반대 방향 대조군도
+함께 건다: 앞에 공백 없는 `#`(`a#b.ts`)과 따옴표 **안**의 `#` 은 값이다. 이것이 없으면
+술어가 `#` 을 무조건 자르는 쪽으로 넓어져도 통과해, 이번엔 값을 잘라 먹는 쪽으로 같은
+유실이 난다. 회귀 테스트 7건, 전수 재확인 731 대 731.
+
+### 넓어진 게이트가 곧바로 부채 하나를 물었다
+
+파서를 고치자 `workspace-response.dto.ts` 가 처음으로 spec-linked 로 잡혔고, 그래서
+`spec/2-navigation/` 이 게이트 범위에 들어왔다. 그 영역의 `--impl-done` 라운드가 곧바로
+Critical 을 냈다 — `2-trigger-list.md §3` 이 약속한
+
+> `(workspace_id, endpoint_path)` UNIQUE 위반 시 409 `RESOURCE_CONFLICT`
+> (세부 코드 `TRIGGER_ENDPOINT_PATH_CONFLICT`, `details.field='endpoint_path'`)
+
+가 **코드에 0건**이었다. 실제로는 전역 필터의 unique-violation 분기가 `details` 없이
+`RESOURCE_CONFLICT` 만 내고 있었다.
+
+**문서를 낮추지 않고 구현했다.** 문구를 실측대로 정정하는 쪽은 클라이언트에게 한 약속을
+조용히 줄인다. `POST /api/triggers` 와 `PATCH /api/triggers/:id` 가 이제 그 충돌에
+`details: { field: 'endpoint_path', code: 'TRIGGER_ENDPOINT_PATH_CONFLICT' }` 를
+싣는다 — 상태 코드와 top-level `code` 는 그대로다(순수 additive).
+
+술어는 SQLSTATE 23505 **+ 인덱스명**(`idx_trigger_workspace_endpoint`)으로 좁혔다. 23505
+만 보면 이 테이블의 다른 UNIQUE 위반까지 `endpoint_path` 충돌로 오보한다. 맞지 않는
+오류는 그대로 흘려보내 전역 매핑이 하던 일을 가로채지 않는다.
+
+> **세부 코드는 `details.code` 다 — 여기서도 두 번 좁혔다.** 처음엔 봉투 top-level 에
+> `subCode` 를 실었는데 `GlobalExceptionFilter` 는 `code`·`message`·`requestId`·`details`
+> 만 복사한다 — **wire 에 닿지 않는다.** `details` 안으로 옮겼더니 이번엔 `subCode` 라는
+> **저장소 유일 키**를 새로 만든 꼴이었다. 도메인 세부 사유는 이미 `error-codes.md §4.2`
+> 와 `trigger-parameter.types.ts` 가 **`code`** 로 쓴다. 봉투 스키마는
+> `2-api-convention.md §5.3` 소유라 넓히지 않았고, 표현 방식의 정식화는 planner 항목으로
+> 등재했다.
+
 ## Unreleased — 트리거 회전 secret 이 두 엔드포인트로 나갔다 (§5.4 스윕이 검출)
 
 응답-계약 검증자를 14개 엔드포인트로 넓히자, `trigger` 행의 **회전 secret** 이 선언되지 않은

@@ -20,6 +20,7 @@ import {
   ApiParam,
   ApiNoContentResponse,
   ApiBadRequestResponse,
+  ApiConflictResponse,
   ApiUnauthorizedResponse,
   ApiForbiddenResponse,
   ApiNotFoundResponse,
@@ -94,6 +95,10 @@ export class TriggersController {
   @ApiBadRequestResponse({ description: '입력값 검증 실패' })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
   @ApiForbiddenResponse({ description: 'editor 이상 권한 필요' })
+  @ApiConflictResponse({
+    description:
+      '동일 워크스페이스에 같은 `endpointPath` 를 쓰는 트리거가 이미 존재. `code=RESOURCE_CONFLICT`, `details.field="endpoint_path"`, `details.code="TRIGGER_ENDPOINT_PATH_CONFLICT"`.',
+  })
   async create(
     @WorkspaceId() workspaceId: string,
     @Body() dto: CreateTriggerDto,
@@ -119,6 +124,10 @@ export class TriggersController {
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
   @ApiForbiddenResponse({ description: 'editor 이상 권한 필요' })
   @ApiNotFoundResponse({ description: '해당 트리거를 찾을 수 없음' })
+  @ApiConflictResponse({
+    description:
+      '동일 워크스페이스에 같은 `endpointPath` 를 쓰는 트리거가 이미 존재. `code=RESOURCE_CONFLICT`, `details.field="endpoint_path"`, `details.code="TRIGGER_ENDPOINT_PATH_CONFLICT"`.',
+  })
   async update(
     @Param('id', ParseUUIDPipe) id: string,
     @WorkspaceId() workspaceId: string,

@@ -12,6 +12,8 @@ import {
 } from '../src/shared/testing/response-contract';
 import { ExportWorkflowDto } from '../src/modules/workflows/dto/responses/workflow-response.dto';
 import { WorkflowDto } from '../src/modules/workflows/dto/responses/workflow-response.dto';
+import { WorkflowVersionDto } from '../src/modules/workflow-versions/dto/responses/workflow-version-response.dto';
+import { expectNoUserSecrets } from '../src/shared/testing/user-secret-absence';
 
 /**
  * e2e: 워크플로우 CRUD 의 실 인프라 검증.
@@ -494,5 +496,77 @@ describe('Workflow CRUD (e2e)', () => {
       .set('X-Workspace-Id', workspaceId)
       .send({ ...exportRes.body.data, settings: { bogusKey: 1 } });
     expect(badImport.status).toBe(400);
+  });
+
+  /**
+   * **`GET /workflows/:wfId/versions/:versionId` 는 `User` 전 컬럼을 내보내고 있었다.**
+   *
+   * `WorkflowVersion.creator` 는 `@ManyToOne(() => User)` 이고, `findOne` 이
+   * `relations: ['creator']` 로 투영 없이 로드한 것을 컨트롤러가 **가공 없이** 돌려줬다.
+   * 자매 메서드 `findByWorkflow` 는 처음부터 `select` 투영을 갖고 있었다 — **한쪽만
+   * 있었다** (`review/code/2026/09/06/10_13_22` Critical 1).
+   *
+   * 이 엔드포인트에는 e2e 가 **한 건도 없어서** 계약 축·이름 축 어느 그물도 닿지 않았다.
+   * 두 축을 여기에 건다. 이름 축을 먼저 두는 이유는 자매 e2e(`workspace-rbac` J)와 같다 —
+   * 선언 대조가 앞서면 그것이 먼저 던져 이름 축이 실행조차 되지 않는다.
+   */
+  it('H. 버전 단건 조회 — `creator` 가 참조 3필드로 좁혀지고 `User` 비밀이 없다', async () => {
+    const created = await request(BASE_URL)
+      .post('/api/workflows')
+      .set('Authorization', `Bearer ${ownerToken}`)
+      .set('X-Workspace-Id', workspaceId)
+      .send({ name: uniqueName('wf-version-leak') });
+    expect(created.status).toBe(201);
+    const workflowId = (created.body.data as { id: string }).id;
+
+    // 캔버스 저장이 스냅샷 버전을 만든다 — Manual Trigger 가 정확히 하나여야 한다.
+    const saved = await request(BASE_URL)
+      .post(`/api/workflows/${workflowId}/save`)
+      .set('Authorization', `Bearer ${ownerToken}`)
+      .set('X-Workspace-Id', workspaceId)
+      .send({
+        nodes: [
+          {
+            id: randomUUID(),
+            type: 'manual_trigger',
+            category: 'trigger',
+            label: 'Start',
+            positionX: 0,
+            positionY: 0,
+          },
+        ],
+        edges: [],
+        changeSummary: 'v1',
+      });
+    expect([200, 201]).toContain(saved.status);
+
+    const list = await request(BASE_URL)
+      .get(`/api/workflows/${workflowId}/versions`)
+      .set('Authorization', `Bearer ${ownerToken}`)
+      .set('X-Workspace-Id', workspaceId);
+    expect(list.status).toBe(200);
+    const versions = list.body.data as Array<{ id: string }>;
+    // 버전이 0개면 아래 단언이 통째로 vacuous 하다.
+    expect(versions.length).toBeGreaterThanOrEqual(1);
+
+    const detail = await request(BASE_URL)
+      .get(`/api/workflows/${workflowId}/versions/${versions[0].id}`)
+      .set('Authorization', `Bearer ${ownerToken}`)
+      .set('X-Workspace-Id', workspaceId);
+    expect(detail.status).toBe(200);
+
+    // 축 1 — 이름 기반 부재 (봉투째).
+    expectNoUserSecrets(detail.body);
+    // 축 2 — 선언 대조.
+    assertMatchesContract(
+      detail.body.data,
+      await contractForDto(WorkflowVersionDto),
+    );
+    // 축 3 — `creator` 가 실제로 참조 3필드인가. 계약 대조는 키 생략형의 **부재**를
+    // 위반으로 보지 않으므로, 무엇이 남아야 하는지를 양성으로 고정한다.
+    const creator = (detail.body.data as { creator?: Record<string, unknown> })
+      .creator;
+    expect(creator).toBeTruthy();
+    expect(Object.keys(creator!).sort()).toEqual(['email', 'id', 'name']);
   });
 });

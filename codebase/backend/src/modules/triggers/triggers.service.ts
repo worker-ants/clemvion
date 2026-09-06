@@ -5,6 +5,7 @@ import {
 import { AuditLogsService } from '../audit-logs/audit-logs.service';
 import {
   BadRequestException,
+  ConflictException,
   Injectable,
   Logger,
   NotFoundException,
@@ -12,6 +13,10 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
 import { In, Repository } from 'typeorm';
+import {
+  isPostgresUniqueViolation,
+  pgErrorConstraint,
+} from '../../common/db/pg-error';
 import { randomBytes } from 'crypto';
 import { Trigger, TriggerChatChannelHealth } from './entities/trigger.entity';
 import { Execution } from '../executions/entities/execution.entity';
@@ -192,6 +197,33 @@ function narrowWorkflowRef(wf: { id: string; name: string }): {
   name: string;
 } {
   return { id: wf.id, name: wf.name };
+}
+
+/**
+ * `(workspace_id, endpoint_path)` UNIQUE 인덱스 위반인가.
+ *
+ * `V002__indexes.sql` 의 `idx_trigger_workspace_endpoint` — partial unique
+ * (`WHERE endpoint_path IS NOT NULL`). **인덱스 이름으로 좁힌다**: SQLSTATE 23505 만
+ * 보면 이 테이블의 다른 UNIQUE 위반까지 `endpoint_path` 충돌로 오보한다.
+ *
+ * 이름이 바뀌면 이 술어는 **조용히 false 를 돌려주고** 전역 `RESOURCE_CONFLICT` 로
+ * 되돌아간다 — 안전한 방향이지만 계약이 조용히 좁아지므로, 그 이름을 상수로 고정하고
+ * 단위 테스트가 두 방향(맞는 이름 → 좁힘 / 다른 이름 → 통과)을 모두 문다.
+ */
+const TRIGGER_ENDPOINT_PATH_UNIQUE_INDEX = 'idx_trigger_workspace_endpoint';
+
+/**
+ * **SQLSTATE·인덱스명 추출은 `common/db/pg-error.ts` 가 SoT 다.** 첫 판은 여기서
+ * `err.driverError?.code` 를 손으로 읽었는데, 그것은 저장소의 **4번째 사본**이었고
+ * 게다가 **한 표면만** 봤다 — TypeORM 은 호출 경로(raw / `insert` / `save`)에 따라
+ * wrap 깊이가 달라서 `err.code` 로 올라오는 경우가 있고, SoT 는 정확히 그 이유로
+ * 두 표면을 모두 흡수한다 (`review/code/2026/09/06/14_59_48` W1).
+ */
+export function isEndpointPathUniqueViolation(err: unknown): boolean {
+  return (
+    isPostgresUniqueViolation(err) &&
+    pgErrorConstraint(err) === TRIGGER_ENDPOINT_PATH_UNIQUE_INDEX
+  );
 }
 
 @Injectable()
@@ -389,7 +421,9 @@ export class TriggersService {
       config: mergedConfig,
       workspaceId,
     });
-    const saved = await this.triggerRepository.save(trigger);
+    const saved = await this.triggerRepository
+      .save(trigger)
+      .catch((err: unknown) => this.rethrowEndpointPathConflict(err));
     // **커밋 직후** 기록한다. 아래 secret store 마이그레이션·chatChannel setup 은 실패할 수
     // 있는 외부 호출이라, 그 뒤로 미루면 트리거는 생겼는데 감사는 안 남는다 (리뷰 W6).
     // resourceId 는 커밋된 id 로 확정이고, chatChannel 재조회는 응답 형태만 바꾼다.
@@ -473,7 +507,9 @@ export class TriggersService {
       Object.entries(rest).filter(([, v]) => v !== undefined),
     );
     Object.assign(trigger, defined, { config: mergedConfig });
-    const saved = await this.triggerRepository.save(trigger);
+    const saved = await this.triggerRepository
+      .save(trigger)
+      .catch((err: unknown) => this.rethrowEndpointPathConflict(err));
     // **커밋 직후** 기록한다 — 아래 세 가지(schedule 역동기화의 BullMQ 호출, secret
     // 마이그레이션, chatChannel setup)는 전부 실패할 수 있는 외부 호출이라, 그 뒤로 미루면
     // 트리거는 바뀌었는데 감사는 안 남는다 (리뷰 W6). chatChannel 재조회는 응답 형태만
@@ -1553,6 +1589,46 @@ export class TriggersService {
       startedAt: e.startedAt,
       durationMs: e.durationMs,
     }));
+  }
+
+  /**
+   * `(workspace_id, endpoint_path)` UNIQUE 위반을 **문서한 형태**로 바꿔 던진다.
+   *
+   * `2-trigger-list.md §3` 이 *"409 `RESOURCE_CONFLICT` (세부 코드
+   * `TRIGGER_ENDPOINT_PATH_CONFLICT`, `details.field='endpoint_path'`)"* 를 계약으로
+   * 적어 뒀는데 **그 문자열이 저장소 어디에도 없었다** — 실제로는 전역 필터의
+   * `isUniqueViolation` 분기가 `details` 없이 `RESOURCE_CONFLICT` 만 발행하고 있었다.
+   * 즉 **문서한 보장이 구현보다 넓었다** (`review/consistency/2026/09/06/14_26_32`
+   * Critical 1).
+   *
+   * 전역 분기는 어느 컬럼이 부딪혔는지 모르므로 여기서만 좁힐 수 있다. 다른 UNIQUE
+   * 위반은 **그대로 흘려보낸다** — 삼키면 전역 매핑이 하던 일까지 이 자리가 가로챈다.
+   */
+  private rethrowEndpointPathConflict(err: unknown): never {
+    if (isEndpointPathUniqueViolation(err)) {
+      throw new ConflictException({
+        code: 'RESOURCE_CONFLICT',
+        message:
+          '같은 워크스페이스에 그 엔드포인트 경로를 쓰는 트리거가 이미 있어요.',
+        // **세부 코드는 `details.code` 다.**
+        //
+        // 두 번 좁혔다. 처음엔 봉투 top-level 에 `subCode` 를 실었는데
+        // `GlobalExceptionFilter` 가 `code`·`message`·`requestId`·`details` 만 복사해
+        // **wire 에 닿지 않았다**. 그래서 `details` 안으로 옮겼는데, 이번엔 `subCode` 라는
+        // **저장소 유일 키**를 새로 만든 꼴이었다 — 도메인 세부 사유는 이미
+        // `error-codes.md §4.2` 와 `trigger-parameter.types.ts` 가 **`code`** 로 쓴다
+        // (`review/consistency/2026/09/06/14_59_49` W1).
+        //
+        // top-level `code` 를 특화 코드로 **교체**하는 선례도 7건 있으나, 이 자리는
+        // spec 이 *"409 `RESOURCE_CONFLICT` (세부 코드 …)"* 라고 두 층을 나눠 적었으므로
+        // 그 서술을 그대로 실현한다. 표현 방식의 정식화는 planner 항목으로 등재했다.
+        details: {
+          field: 'endpoint_path',
+          code: 'TRIGGER_ENDPOINT_PATH_CONFLICT',
+        },
+      });
+    }
+    throw err;
   }
 
   async findByEndpointPath(

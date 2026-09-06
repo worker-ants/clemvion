@@ -326,6 +326,155 @@ class GlobAndFrontmatterTest(unittest.TestCase):
             ["codebase/backend/a.ts", "codebase/frontend/b.ts"],
         )
 
+    def test_parse_block_list_survives_yaml_comment(self):
+        """`#` 주석 뒤 항목이 사라지면 안 된다.
+
+        블록 리스트 루프가 `- ` 가 아닌 첫 줄에서 break 하던 판은, 유효한 YAML 인
+        인라인 주석 하나에 **뒤 항목을 전부** 떨궜다. 그러면 `code:` 에 등재된 파일이
+        spec-linked 판정에서 조용히 빠진다 — 게이트가 안 무는 것이 기본값이 된다.
+
+        실측(2026-09-06): 저장소 spec 387개 중 7개 파일이 이 형태였고 **41개 entry**
+        가 유실 중이었다. 그중 하나(`spec/2-navigation/9-user-profile.md` 의
+        `codebase/backend/src/modules/workspaces/**`)는 당시 작업 중이던 PR 자신의
+        수정 파일을 덮고 있었다 (`review/consistency/2026/09/06/13_52_23` Critical 1).
+
+        gray-matter 를 쓰는 프런트엔드 파서(`spec-frontmatter-parse.ts`)는 처음부터
+        주석 뒤를 봤다 — 두 파서가 유효한 YAML 에 서로 다른 답을 내고 있었다.
+        """
+        sp = self._spec("---\nid: a\ncode:\n  - codebase/backend/a.ts\n"
+                        "  # 범주 구분 주석\n"
+                        "  - codebase/frontend/b.ts\nstatus: partial\n---\n# x\n")
+        self.assertEqual(
+            rg._parse_frontmatter_code(sp),
+            ["codebase/backend/a.ts", "codebase/frontend/b.ts"],
+        )
+
+    def test_parse_block_list_survives_blank_line(self):
+        """빈 줄도 같은 이유로 리스트를 끊으면 안 된다."""
+        sp = self._spec("---\nid: a\ncode:\n  - codebase/backend/a.ts\n"
+                        "\n"
+                        "  - codebase/frontend/b.ts\nstatus: partial\n---\n# x\n")
+        self.assertEqual(
+            rg._parse_frontmatter_code(sp),
+            ["codebase/backend/a.ts", "codebase/frontend/b.ts"],
+        )
+
+    def test_parse_block_list_still_stops_at_next_key(self):
+        """주석·빈 줄만 건너뛴다 — **다음 키에서는 여전히 멈춘다.**
+
+        이 단언이 없으면 위 두 수정이 리스트를 다음 키의 항목까지 삼키는 방향으로
+        넓어져도 통과한다. 넓힌 술어에는 반대 방향 대조군이 필요하다.
+        """
+        sp = self._spec("---\nid: a\ncode:\n  - codebase/backend/a.ts\n"
+                        "\n"
+                        "  # 주석\n"
+                        "pending_plans:\n  - plan/in-progress/x.md\n---\n# x\n")
+        self.assertEqual(
+            rg._parse_frontmatter_code(sp), ["codebase/backend/a.ts"]
+        )
+
+    def test_parse_block_list_starting_with_comment(self):
+        """리스트의 **첫 줄**이 주석인 경우 (`review/code/2026/09/06/14_25_40` INFO#8)."""
+        sp = self._spec("---\nid: a\ncode:\n  # 범주 주석\n"
+                        "  - codebase/backend/a.ts\nstatus: partial\n---\n# x\n")
+        self.assertEqual(
+            rg._parse_frontmatter_code(sp), ["codebase/backend/a.ts"]
+        )
+
+    def test_parse_strips_trailing_comment_block_list(self):
+        """항목과 **같은 줄**에 붙은 주석은 값이 아니다.
+
+        줄 전체 주석만 건너뛰던 판은 트레일링 주석을 값에 붙여 **어떤 파일과도 매치되지
+        않는 죽은 glob** 을 만들었다 — 항목이 사라지는 것과 같은 등급의 조용한 유실이다.
+        직전 수정이 한 칸 좁았다 (`review/code/2026/09/06/14_25_40` W1 — maintainability·
+        testing 두 reviewer 가 정규식을 직접 실행해 독립 재현).
+        """
+        sp = self._spec("---\nid: a\ncode:\n"
+                        "  - codebase/backend/a.ts  # 시행 코드\n"
+                        "  - codebase/frontend/b.ts\nstatus: partial\n---\n# x\n")
+        self.assertEqual(
+            rg._parse_frontmatter_code(sp),
+            ["codebase/backend/a.ts", "codebase/frontend/b.ts"],
+        )
+
+    def test_parse_strips_trailing_comment_single_and_inline(self):
+        """단일값·인라인 리스트 형태도 같다 — 세 분기 전부 같은 경로를 탄다."""
+        sp = self._spec("---\ncode: codebase/backend/a.ts  # 비고\n---\n# x\n")
+        self.assertEqual(rg._parse_frontmatter_code(sp), ["codebase/backend/a.ts"])
+
+        sp2 = self._spec("---\ncode: [codebase/backend/a.ts, codebase/frontend/b.ts]  # 비고\n"
+                         "---\n# x\n")
+        self.assertEqual(
+            rg._parse_frontmatter_code(sp2),
+            ["codebase/backend/a.ts", "codebase/frontend/b.ts"],
+        )
+
+    def test_parse_strips_trailing_comment_after_quoted_scalar(self):
+        """**따옴표로 감싼 값 + 트레일링 주석**도 같다.
+
+        언쿼트 세 형태만 닫았더니 이 인접 변형이 남았다 — 닫는 따옴표와 주석이 값에 붙어
+        `a.ts"  # note` 라는 **죽은 glob** 이 재생산된다(재현 확인). 같은 결함 클래스를
+        **세 번째**로 한 칸씩 좁게 닫은 셈이라, 이번엔 인용 부호 안팎을 갈라 처리한다
+        (`review/code/2026/09/06/14_59_48` W3).
+        """
+        sp = self._spec('---\nid: a\ncode:\n'
+                        '  - "codebase/backend/a.ts"  # note\n'
+                        "  - 'codebase/frontend/b.ts'  # note\n"
+                        "status: partial\n---\n# x\n")
+        self.assertEqual(
+            rg._parse_frontmatter_code(sp),
+            ["codebase/backend/a.ts", "codebase/frontend/b.ts"],
+        )
+
+    def test_parse_quoted_scalar_trailing_comment_single_and_inline(self):
+        """인용+주석을 **세 분기 모두**에서 문는다.
+
+        직전 판은 블록 리스트 형태만 태웠다. 같은 `_strip_comment` 를 타므로 구현은
+        맞았지만, **관측되지 않는 분기는 다음 편집에서 조용히 죽는다** — 이 파일이
+        이미 세 번 겪은 형태다 (`review/code/2026/09/06/15_30_59` W2).
+        """
+        sp = self._spec('---\ncode: "codebase/backend/a.ts"  # note\n---\n# x\n')
+        self.assertEqual(rg._parse_frontmatter_code(sp), ["codebase/backend/a.ts"])
+
+        sp2 = self._spec(
+            '---\ncode: ["codebase/backend/a.ts", "codebase/frontend/b.ts"]  # note\n'
+            "---\n# x\n"
+        )
+        self.assertEqual(
+            rg._parse_frontmatter_code(sp2),
+            ["codebase/backend/a.ts", "codebase/frontend/b.ts"],
+        )
+
+    def test_parse_quoted_scalar_keeps_inner_hash(self):
+        """따옴표 **안**의 `#` 은 주석이 아니다 — 반대 방향 대조군."""
+        sp = self._spec('---\nid: a\ncode:\n'
+                        '  - "codebase/backend/a #b.ts"\n'
+                        "status: partial\n---\n# x\n")
+        self.assertEqual(
+            rg._parse_frontmatter_code(sp), ["codebase/backend/a #b.ts"]
+        )
+
+    def test_parse_unterminated_quote_falls_back(self):
+        """닫는 따옴표가 없으면 잘라내지 않는다 — 추측해서 자르면 값이 사라진다."""
+        sp = self._spec('---\nid: a\ncode:\n'
+                        '  - "codebase/backend/a.ts\n'
+                        "status: partial\n---\n# x\n")
+        self.assertEqual(
+            rg._parse_frontmatter_code(sp), ["codebase/backend/a.ts"]
+        )
+
+    def test_parse_hash_without_leading_space_is_not_a_comment(self):
+        """**앞에 공백이 없는 `#` 은 주석이 아니다** — YAML 규칙 그대로.
+
+        넓힌 술어의 반대 방향 대조군이다. 이게 없으면 `#` 을 무조건 자르는 방향으로
+        넓어져도 통과해, 이번엔 **값을 잘라 먹는** 쪽으로 같은 유실이 난다.
+        """
+        sp = self._spec("---\nid: a\ncode:\n"
+                        "  - codebase/backend/a#b.ts\nstatus: partial\n---\n# x\n")
+        self.assertEqual(
+            rg._parse_frontmatter_code(sp), ["codebase/backend/a#b.ts"]
+        )
+
     def test_parse_single_value(self):
         sp = self._spec("---\ncode: codebase/backend/a.ts\n---\n# x\n")
         self.assertEqual(rg._parse_frontmatter_code(sp), ["codebase/backend/a.ts"])

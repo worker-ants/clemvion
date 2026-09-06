@@ -106,6 +106,21 @@ export interface WorkflowVersionSummary {
   creator?: { id: string; name?: string; email?: string } | null;
 }
 
+/**
+ * ⚠️ **백엔드에 같은 이름의 별도 선언이 있다** —
+ * `codebase/backend/src/modules/workflow-versions/workflow-versions.service.ts` 의
+ * `WorkflowVersionDetail`. 공유 타입 패키지를 거치지 않는 **손으로 맞춘 미러**다.
+ *
+ * 두 선언은 이미 갈려 있다: 여기 `creator` 는 옵셔널·nullable 인데 백엔드는
+ * `{ id, name, email }` **3필드 고정**으로 좁혔다(더 좁으므로 런타임 오류는 안 난다).
+ *
+ * **이름이 같아서 grep 이 두 자리를 같은 것으로 보여 준다** — 실제로 한 세션에서 세
+ * 라운드 연속 "유일 정의" 오판을 만들었다 (`review/consistency/2026/09/06/16_29_00` W5).
+ * 종전에는 백엔드 쪽에만 역참조가 있어 **이 파일을 여는 사람에게는 안 닿았다.**
+ *
+ * 개명·공유 패키지화는 `plan/in-progress/spec-draft-nullable-notation-followups.md` 항목.
+ * 그때까지는 둘 중 하나를 만지면 저쪽도 열어라.
+ */
 export interface WorkflowVersionDetail extends WorkflowVersionSummary {
   snapshot: VersionSnapshot;
 }
