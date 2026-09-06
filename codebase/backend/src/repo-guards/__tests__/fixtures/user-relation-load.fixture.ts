@@ -147,6 +147,29 @@ export async function violationSelectBooleanNotObject(): Promise<unknown> {
   });
 }
 
+/**
+ * 위반 13 — **`as` 캐스트.** `unwrap` 이 벗기는 두 형태 중 나머지 하나다
+ * (`review/code/2026/09/06/12_28_02` W1 — `satisfies` 만 관측되고 있었다).
+ *
+ * 여기서만 `strictRepo` 를 쓴다: `relations` 를 `string[]` 으로만 받는 시그니처라야
+ * `as unknown as string[]` 이 **필요한** 단언이 되고, 그래야 저장소 lint
+ * (`@typescript-eslint/no-unnecessary-type-assertion`)가 막지 않는다.
+ */
+interface StrictOpts {
+  where: unknown;
+  relations?: string[];
+}
+declare const strictRepo: {
+  findOne(opts: StrictOpts): Promise<unknown>;
+};
+
+export async function violationAsCastRelations(): Promise<unknown> {
+  return strictRepo.findOne({
+    where: { id: 'x' },
+    relations: { creator: true } as unknown as string[],
+  });
+}
+
 // ── 준수 형태 (대조군) ──────────────────────────────────────────────────────
 
 /**

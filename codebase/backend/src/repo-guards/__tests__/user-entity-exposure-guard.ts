@@ -126,7 +126,7 @@ function hasEagerDecorator(
       for (const prop of inner.properties) {
         if (
           ts.isPropertyAssignment(prop) &&
-          prop.name.getText(sf) === 'eager' &&
+          propKeyText(prop.name, sf) === 'eager' &&
           prop.initializer.kind === ts.SyntaxKind.TrueKeyword
         ) {
           return true;
@@ -163,6 +163,16 @@ export function collectUserRelationNames(
     names.add(node.name.getText(sf));
   });
   return [...names].sort();
+}
+
+/**
+ * 프로퍼티 이름 텍스트에서 따옴표를 벗긴다 — `creator` 도 `'creator'` 도 같은 키다.
+ *
+ * 종전에는 두 함수가 각자 인라인으로 벗겼고, `relations`/`select` 키를 비교하는 자리
+ * 둘은 아예 안 벗겼다 (`review/code/2026/09/06/12_28_02` INFO#2·#12).
+ */
+function propKeyText(name: ts.PropertyName, sf: ts.SourceFile): string {
+  return name.getText(sf).replace(/['"]/g, '');
 }
 
 /** 관계 경로가 `User` 관계를 가리키는가 — `'creator'` 또는 `'x.creator'`. */
@@ -213,15 +223,20 @@ function enclosingName(node: ts.Node, sf: ts.SourceFile): string {
  * 눈을 감는다 — fixture 에 `as unknown as Record<…>` 를 쓰자마자 중첩 객체 위반이
  * 검출되지 않는 것을 실측으로 확인했다 (`review/code/2026/09/06/10_53_48` W2 대응 중).
  * 실제 코드도 TypeORM 타입을 맞추려 캐스트를 쓰므로 같은 구멍이 프로덕션에도 열린다.
+ *
+ * **두 형태만 벗긴다.** 처음엔 괄호(`ts.isParenthesizedExpression`)와 구식 단언
+ * (`<T>expr`)도 벗겼는데, 그 두 분기는 **fixture 로 관측할 수 없다**
+ * (`review/code/2026/09/06/12_28_02` W1):
+ *
+ * - 괄호 — prettier 가 불필요한 괄호를 지운다. fixture 에 써도 포맷 단계에서 사라진다.
+ * - `<T>expr` — 저장소 전체에 **0건**이고 lint 가 `as` 를 권한다.
+ *
+ * 관측할 수 없는 분기는 지워져도 아무도 모른다. 남기면 "덮었다" 는 인상만 주므로 잘라냈다 —
+ * 필요해지면 그때 fixture 와 함께 되살린다.
  */
 function unwrap(expr: ts.Expression): ts.Expression {
   let cur = expr;
-  while (
-    ts.isAsExpression(cur) ||
-    ts.isSatisfiesExpression(cur) ||
-    ts.isParenthesizedExpression(cur) ||
-    ts.isTypeAssertionExpression(cur)
-  ) {
+  while (ts.isAsExpression(cur) || ts.isSatisfiesExpression(cur)) {
     cur = cur.expression;
   }
   return cur;
@@ -251,7 +266,7 @@ function userRelationInInitializer(
   if (ts.isObjectLiteralExpression(init)) {
     for (const prop of init.properties) {
       if (!prop.name) continue;
-      const key = prop.name.getText(sf).replace(/['"]/g, '');
+      const key = propKeyText(prop.name, sf);
       if (names.has(key.toLowerCase())) return key;
       if (ts.isPropertyAssignment(prop)) {
         const inner = unwrap(prop.initializer);
@@ -294,14 +309,14 @@ function hasProjectionFor(
   for (const prop of options.properties) {
     if (
       !ts.isPropertyAssignment(prop) ||
-      prop.name.getText(sf) !== 'select' ||
+      propKeyText(prop.name, sf) !== 'select' ||
       !ts.isObjectLiteralExpression(prop.initializer)
     ) {
       continue;
     }
     for (const sel of prop.initializer.properties) {
       if (!sel.name) continue;
-      const key = sel.name.getText(sf).replace(/['"]/g, '');
+      const key = propKeyText(sel.name, sf);
       if (key.toLowerCase() !== relation.toLowerCase()) continue;
       if (!ts.isPropertyAssignment(sel)) return true;
       const value = unwrap(sel.initializer);
@@ -369,7 +384,7 @@ export function findUserRelationLoads(
     const visit = (node: ts.Node): void => {
       if (
         ts.isPropertyAssignment(node) &&
-        node.name.getText(sf) === 'relations'
+        propKeyText(node.name, sf) === 'relations'
       ) {
         const relation = userRelationInInitializer(node.initializer, sf, names);
         if (relation !== null && !hasProjectionFor(node, relation, sf)) {

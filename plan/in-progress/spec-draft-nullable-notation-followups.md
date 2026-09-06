@@ -340,12 +340,20 @@ field: T | null;
       >
       > **택한 것 — 원인 형태를 구조로 잡고, 결과를 이름으로 잡는다** (사용자 결정 2026-09-06):
       >
-      > 1. `user-entity-exposure-guard.ts` — `User` 관계를 **투영 없이 통째로** 싣는 세 형태
-      >    (`relations` 배열 · `relations` 객체(0.3) · `leftJoinAndSelect`/`inner`)를 AST 로
-      >    세고 투영해 쓰는 3곳을 양방향 래칫으로 동결. `leftJoinAndSelect` 축은 **0을
-      >    유지**한다. 관계 이름 집합은 **손으로 적지 않고 `*.entity.ts` 의 타입 주석에서
-      >    파생**한다 — 첫 판이 이름으로 매칭해 Critical 을 놓쳤고, 파생은 내 grep 이
-      >    놓친 `executor` 까지 찾아냈다.
+      > 1. `user-entity-exposure-guard.ts` — 두 축이다.
+      >    - **호출부 축**: `User` 관계를 **투영 없이 통째로** 싣는 세 형태(`relations`
+      >      배열 · `relations` 객체(0.3, 중첩·캐스트 포함) · `leftJoinAndSelect`/`inner`)를
+      >      AST 로 세고, 투영해 쓰는 3곳을 양방향 래칫으로 동결. `leftJoinAndSelect` 축은
+      >      **0을 유지**한다.
+      >    - **엔티티 축**: `@ManyToOne(() => User, { eager: true })`. 호출부에 아무 텍스트도
+      >      안 남겨 위 스캔이 **원리적으로** 못 본다. 프로덕션 0건을 계약으로 고정.
+      >
+      >    관계 이름 집합은 **손으로 적지 않고 `*.entity.ts` 의 타입 주석에서 파생**한다 —
+      >    첫 판이 이름으로 매칭해 Critical 을 놓쳤고, 파생은 내 grep 이 놓친 `executor`
+      >    까지 찾아냈다.
+      > 3. `dto-jsdoc-citation-guard.ts` — 응답 DTO 의 **JSDoc 안 리뷰 인용**을 센다.
+      >    그 JSDoc 은 공개 OpenAPI `description` 이 된다. 같은 위반이 세 번 났고 매번
+      >    사람이 잡았다. 이미 있던 2건(아래 별 항목)은 동결.
       > 2. `user-secret-absence.ts` — 응답 본문을 깊이 훑어 7컬럼 이름의 부재를 단언.
       >    **선언과 무관**하므로 누가 비밀 필드를 DTO 에 *선언까지* 해도 잡는다 — 감사 로그
       >    유출을 놓친 것이 바로 선언 기반 검증자였다.
@@ -367,8 +375,9 @@ field: T | null;
 - [ ] **신규 검출 2축을 §5.4 「검증 층」과 `code:` 에 등재** (planner, 2026-09-06 등재,
       `review/consistency/2026/09/06/10_13_23` W1 — **5개 checker 중 4개가 독립 보고**).
 
-      `user-entity-exposure-guard.ts`(구조 축)와 `user-secret-absence.ts`(이름 축)가 어떤
-      spec 의 `code:` glob 에도 안 걸린다. **정본 게이트에 직접 물어 확인했다** —
+      `user-entity-exposure-guard.ts`(구조 축)·`user-secret-absence.ts`(이름 축)·
+      `dto-jsdoc-citation-guard.ts`(JSDoc 인용 축)가 어떤 spec 의 `code:` glob 에도 안
+      걸린다. **정본 게이트에 직접 물어 확인했다** —
       `review_guard._spec_linked_changes()` 가 신규 4파일 중 **0건**을 spec-linked 로
       판정한다(재구현한 `fnmatch` 가 아니라 게이트 자신에게 물었다).
 
@@ -605,6 +614,9 @@ field: T | null;
 
       둘 다 **#1291 이 넣었고 그 PR 의 게이트를 통과했다** — 그때 checker 가 "필드 JSDoc" 만
       보고 클래스 쪽은 안 봤다. 이번 라운드 checker 도 클래스 쪽은 지적하지 않았다.
+
+      > **이제 가드가 이 둘을 동결한다** — `dto-jsdoc-citation.spec.ts` 의
+      > `EXPECTED_DTO_JSDOC_CITATIONS`. 갚아서 없애면 그 목록에서도 빼야 통과한다.
 
       **이 브랜치에서 고치지 않는 이유**: 두 파일 모두 이 브랜치 diff 밖이다. 손대면 scope
       이탈이고, `review-citations.md §4`(기존 인용은 소급 정리 대상 아님)의 취지에도 맞지

@@ -52,9 +52,13 @@ import {
  *
  * ## 무엇을 세는가
  *
- * `User` 관계를 **투영 없이 통째로** 싣는 세 형태 — `relations` 배열 · `relations` 객체
- * (0.3) · `leftJoinAndSelect`/`inner`. `select` 로 좁힌 자리와 `leftJoin`(AndSelect 없음)은
- * 세지 않는다.
+ * **호출부 축** — `User` 관계를 **투영 없이 통째로** 싣는 세 형태: `relations` 배열 ·
+ * `relations` 객체(0.3, 중첩 포함) · `leftJoinAndSelect`/`inner`. `select` 로 좁힌 자리와
+ * `leftJoin`(AndSelect 없음)은 세지 않는다.
+ *
+ * **엔티티 축** — `@ManyToOne(() => User, { eager: true })`. 이쪽은 **호출부에 아무 텍스트도
+ * 남기지 않아** 위 스캔이 원리적으로 못 본다. `findEagerUserRelations` 가 데코레이터를
+ * 직접 보고, 프로덕션 0건을 계약으로 고정한다.
  */
 
 /**
@@ -187,6 +191,7 @@ describe('`User` 관계 전체 로드 래칫', () => {
           'violationViaIntermediateVariable',
           'violationSatisfiesRelations',
           'violationSelectBooleanNotObject',
+          'violationAsCastRelations',
         ].sort(),
       );
     });
@@ -194,7 +199,7 @@ describe('`User` 관계 전체 로드 래칫', () => {
     it('두 종류를 각각 잡는다 — 한 축만 물면 다른 축으로 샌다', () => {
       const kinds = found.map((f) => f.kind);
       expect(kinds.filter((k) => k === 'joinAndSelect')).toHaveLength(2);
-      expect(kinds.filter((k) => k === 'relations')).toHaveLength(11);
+      expect(kinds.filter((k) => k === 'relations')).toHaveLength(12);
     });
 
     it('중첩 **객체** 형태도 잡는다 — 배열 중첩만 잡으면 반쪽이다', () => {
@@ -206,11 +211,17 @@ describe('`User` 관계 전체 로드 래칫', () => {
       expect(nested?.relation).toBe('creator');
     });
 
-    it('타입 연산을 한 겹 씌워도 잡는다 — 술어가 눈 감는 자리였다', () => {
-      const wrapped = found.find(
-        (f) => f.method === 'violationSatisfiesRelations',
-      );
-      expect(wrapped?.relation).toBe('creator');
+    it('`unwrap` 이 벗기는 **두 형태 모두** 잡는다 — 한쪽만 태우면 반쪽이다', () => {
+      // `satisfies` 만 fixture 에 있어 `as` 분기가 무검증이었다
+      // (`review/code/2026/09/06/12_28_02` W1). 두 형태를 각각 문다.
+      for (const method of [
+        'violationSatisfiesRelations',
+        'violationAsCastRelations',
+      ]) {
+        expect(found.find((f) => f.method === method)?.relation).toBe(
+          'creator',
+        );
+      }
     });
 
     it('감싸는 변수가 있어도 키는 **함수 이름**으로 잡힌다', () => {

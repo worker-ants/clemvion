@@ -19,7 +19,7 @@ import {
 import { expectNoUserSecrets } from '../src/shared/testing/user-secret-absence';
 
 /**
- * e2e: spec/5-system/1-auth.md §1.3 의 RBAC 계약을 실 인프라 위에서 검증한다.
+ * e2e: spec/5-system/1-auth.md §3(인가) 의 RBAC 계약을 실 인프라 위에서 검증한다.
  *
  * 보호 대상 invariants:
  *   - 워크스페이스 격리 — A 워크스페이스 멤버가 B 워크스페이스 자원에 접근 불가
@@ -602,19 +602,19 @@ describe('Workspace RBAC (e2e)', () => {
   it('J. GET /:id/members — 멤버 목록에 `User` 비밀 컬럼이 실리지 않는다', async () => {
     const owner = await registerAndLogin(
       BASE_URL,
-      uniqueEmail('rbac-f-own'),
+      uniqueEmail('rbac-j-own'),
       db,
     );
     const ws = await createTeamWorkspace(
       BASE_URL,
       owner.accessToken,
-      uniqueName('F'),
+      uniqueName('J'),
     );
     await inviteAndAccept(
       BASE_URL,
       owner.accessToken,
       ws,
-      uniqueEmail('rbac-f-mem'),
+      uniqueEmail('rbac-j-mem'),
       'editor',
       db,
     );

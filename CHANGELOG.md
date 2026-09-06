@@ -50,6 +50,16 @@ e2e 가 **한 건도 없었으므로** 세 축(이름 부재 · 계약 대조 ·
   관계 이름 집합은 **손으로 적지 않는다** — `*.entity.ts` 의 타입 주석에서 파생한다.
   목록을 `['user','creator','owner']` 로 늘리는 것은 같은 결함의 다음 판이기 때문이다.
   실제로 파생이 내 grep 보다 넓었다: `Execution.executor: User | null` 을 하나 더 찾았다.
+
+  **호출부만 보면 반쪽이다.** `@ManyToOne(() => User, { eager: true })` 는 호출부에
+  `relations` 도 `*JoinAndSelect` 도 남기지 않고 TypeORM 이 자동으로 조인한다 — 위 스캔이
+  **원리적으로** 못 보는 형태다. 엔티티 데코레이터를 직접 보는 축을 따로 두고, 프로덕션
+  **0건**을 계약으로 고정했다.
+- **`dto-jsdoc-citation-guard.ts`** — 응답 DTO 의 **JSDoc 안에 리뷰 인용**이 들어갔는지
+  센다. DTO 의 JSDoc 은 공개 OpenAPI `description` 이 되므로 내부 서사가 거기 들어가면
+  그대로 소비자에게 나간다(`swagger.md §3` · `review-citations.md §3`). 같은 위반이 **세 번**
+  났고 매번 사람이 읽고 잡았다 — 규약이 정한 형태는 결정 가능하므로 세는 편이 낫다.
+  `//` 주석은 보지 않는다(그것이 규약이 처방하는 회피처다). 이미 있던 2건은 동결한다.
 - **`user-secret-absence.ts`** — 응답 본문을 **깊이** 훑어 7컬럼 이름의 부재를 단언한다.
   유출은 최상위가 아니라 중첩(`data.items[].user.passwordHash`)에서 났다. **선언과
   무관**하므로 누가 비밀 필드를 DTO 에 *선언까지* 해도 잡는다 — 감사 로그 유출을 놓친 것이
