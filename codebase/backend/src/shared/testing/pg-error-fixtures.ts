@@ -49,6 +49,10 @@ export function makePgError(
     return err;
   }
   const err = new QueryFailedError('INSERT', [], new Error('duplicate key'));
-  (err as QueryFailedError & { driverError: unknown }).driverError = props;
+  // **`QueryFailedError & { driverError: unknown }` 로 캐스트하면 안 된다.** 교차는
+  // 프로퍼티를 넓히지 않고 **좁힌다** — `driverError: Error` 와 `unknown` 의 교차는
+  // 여전히 `Error` 라, 여기에 `Record<string, unknown>` 을 넣으면 TS2739 다.
+  // `unknown` 을 한 번 거쳐 구조를 새로 선언한다.
+  (err as unknown as { driverError: unknown }).driverError = props;
   return err;
 }

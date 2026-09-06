@@ -522,6 +522,25 @@ field: T | null;
       다만 그쪽은 동작이 옳고(두 표면을 본다) 이쪽은 **좁다**는 점이 다르므로, 둘 중
       먼저 처리할 것은 이쪽이다.
 
+- [ ] **`run-test.sh` 4단계가 타입체크 ratchet 을 안 돈다** (harness, 2026-09-06 등재,
+      `#1292` CI 실패로 발각).
+
+      `PROJECT.md:40-41` 은 두 ratchet 을 *"backend/frontend `*.ts(x)` 변경 시"* 필수로
+      적는다. 그런데 `run-test.sh` 의 4단계(lint/unit/build/e2e)에는 **없다.** developer
+      SKILL 의 TEST WORKFLOW 는 그 4단계를 강제하므로, **문서가 요구하는 검사를 워크플로가
+      빠뜨린다.**
+
+      **실제로 샜다** — `#1292` 가 14라운드 로컬 검증을 전부 통과하고 CI 에서 처음 걸렸다
+      (`src/shared/testing/pg-error-fixtures.ts: 0 → 1`, TS2739).
+
+      **원리적으로 못 보는 자리다**: `run-test.sh build` 는 `tsconfig.build.json` 을 쓰는데
+      그 파일이 `src/shared/testing/**` 를 exclude 하고, jest 는 타입을 strip 한다. 즉
+      *"빌드에서 제외된 자리는 아무도 안 본다"* — 이 브랜치가 내내 쫓던 클래스이고,
+      `__test-utils__` dist 누출도 **같은 exclude 목록**에서 나왔다.
+
+      → `.claude/test-stages.sh` 의 `cmd_build()`(또는 별도 5번째 단계)에 두 ratchet 을
+      넣는다. **`.claude/**` 쓰기라 위 harness 권한 항목의 결정을 따른다.**
+
 - [ ] **`src/common/__test-utils__/` 5파일이 dist 로 나간다** (developer, 2026-09-06 등재,
       이번 PR 의 W3 을 고치다 발견).
 
