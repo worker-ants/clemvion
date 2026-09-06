@@ -284,7 +284,7 @@ describe('Workspace RBAC (e2e)', () => {
    * 후자는 선언과 무관하므로, 누가 실수로 비밀 필드를 DTO 에 *선언까지* 해도 잡는다 —
    * 감사 로그 유출을 놓친 것이 바로 선언 기반 검증자였다.
    */
-  it('F. GET /:id/members — 멤버 목록에 `User` 비밀 컬럼이 실리지 않는다', async () => {
+  it('J. GET /:id/members — 멤버 목록에 `User` 비밀 컬럼이 실리지 않는다', async () => {
     const owner = await registerAndLogin(
       BASE_URL,
       uniqueEmail('rbac-f-own'),

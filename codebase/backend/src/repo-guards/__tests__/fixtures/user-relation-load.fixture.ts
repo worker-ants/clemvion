@@ -8,9 +8,15 @@
  * 컴파일만 되면 되므로 TypeORM 을 import 하지 않는다. 가드는 **구문 형태**만 본다.
  */
 
+interface FakeOpts {
+  where: unknown;
+  relations?: string[] | Record<string, boolean>;
+  select?: Record<string, unknown>;
+}
+
 interface FakeRepo {
-  findOne(opts: { where: unknown; relations?: string[] }): Promise<unknown>;
-  find(opts: { where: unknown; relations?: string[] }): Promise<unknown>;
+  findOne(opts: FakeOpts): Promise<unknown>;
+  find(opts: FakeOpts): Promise<unknown>;
   createQueryBuilder(alias: string): FakeQb;
 }
 
@@ -26,17 +32,41 @@ declare const repo: FakeRepo;
 
 // ── 위반 형태 ───────────────────────────────────────────────────────────────
 
-/** 위반 1 — `relations` 에 `'user'`. 엔티티 전 컬럼이 실린다. */
+/** 위반 1 — `relations` 배열에 `'user'`. 엔티티 전 컬럼이 실린다. */
 export async function violationRelationsUser(): Promise<unknown> {
   return repo.findOne({ where: { id: 'x' }, relations: ['user'] });
 }
 
-/** 위반 2 — 중첩 경로도 같다. 마지막 세그먼트가 `user` 면 같은 등급이다. */
+/** 위반 2 — 중첩 경로도 같다. 마지막 세그먼트가 `User` 관계면 같은 등급이다. */
 export async function violationNestedRelationPath(): Promise<unknown> {
   return repo.find({ where: { id: 'x' }, relations: ['member.user'] });
 }
 
-/** 위반 3 — QueryBuilder 로 관계를 통째로 싣는 형태. 감사 로그 유출이 이 모양이었다. */
+/**
+ * 위반 3 — **이름이 `user` 가 아닌 `User` 관계**. 첫 판이 이 형태를 놓쳐
+ * `WorkflowVersion.creator` 유출이 검출망 밖에 살아 있었다.
+ */
+export async function violationCreatorRelation(): Promise<unknown> {
+  return repo.findOne({ where: { id: 'x' }, relations: ['creator'] });
+}
+
+/**
+ * 위반 4 — **TypeORM 0.3 객체 형태.** 첫 판은 배열 리터럴만 순회해서 이 형태를 통째로
+ * 놓쳤다. 하필 실제 유출 지점의 자매 메서드가 이 형태를 쓰고 있었다.
+ */
+export async function violationObjectRelations(): Promise<unknown> {
+  return repo.findOne({ where: { id: 'x' }, relations: { owner: true } });
+}
+
+/**
+ * 위반 5 — 대소문자. `.toLowerCase()` 분기를 **관측 가능**하게 만든다 — 그 분기를 지워도
+ * 통과하던 상태를 뮤테이션이 잡아냈다 (`review/code/2026/09/06/10_13_22` W4).
+ */
+export async function violationUppercaseRelation(): Promise<unknown> {
+  return repo.findOne({ where: { id: 'x' }, relations: ['User'] });
+}
+
+/** 위반 6 — QueryBuilder 로 관계를 통째로 싣는 형태. 감사 로그 유출이 이 모양이었다. */
 export async function violationLeftJoinAndSelect(): Promise<unknown> {
   return repo
     .createQueryBuilder('al')
@@ -44,16 +74,16 @@ export async function violationLeftJoinAndSelect(): Promise<unknown> {
     .getMany();
 }
 
-/** 위반 4 — `inner` 도 같다. 한쪽만 막으면 다른 쪽으로 새 나간다. */
+/** 위반 7 — `inner` 도, 이름이 `creator` 인 것도 같다. 한쪽만 막으면 다른 쪽으로 샌다. */
 export async function violationInnerJoinAndSelect(): Promise<unknown> {
   return repo
     .createQueryBuilder('al')
-    .innerJoinAndSelect('al.user', 'u')
+    .innerJoinAndSelect('al.creator', 'u')
     .getMany();
 }
 
 /**
- * 위반 5 — **한 함수 안에서 두 번** 싣는다. 키가 `<파일>#<메서드>` 뿐이면 두 자리가 한
+ * 위반 8 — **한 함수 안에서 두 번** 싣는다. 키가 `<파일>#<메서드>` 뿐이면 두 자리가 한
  * 항목으로 접혀, 하나를 지워도 베이스라인이 그대로 통과한다. 접미 번호가 그것을 막는다.
  */
 export async function violationTwiceInOneFunction(): Promise<unknown[]> {
@@ -76,12 +106,24 @@ export async function compliantProjectedJoin(): Promise<unknown> {
     .getMany();
 }
 
-/** 준수 2 — `User` 가 아닌 관계는 대상이 아니다. */
+/**
+ * 준수 2 — `relations` + **같은 옵션의 `select` 투영**. `findByWorkflow` 가 처음부터
+ * 이렇게 짜여 있었다. 이것을 세면 옳게 짜인 자리가 베이스라인을 채워 래칫이 흐려진다.
+ */
+export async function compliantProjectedRelations(): Promise<unknown> {
+  return repo.findOne({
+    where: { id: 'x' },
+    relations: { creator: true },
+    select: { id: true, creator: { id: true, name: true, email: true } },
+  });
+}
+
+/** 준수 3 — `User` 가 아닌 관계는 대상이 아니다. */
 export async function compliantOtherRelation(): Promise<unknown> {
   return repo.findOne({ where: { id: 'x' }, relations: ['workflow'] });
 }
 
-/** 준수 3 — 이름이 `user` 로 *시작*할 뿐인 관계도 대상이 아니다. */
+/** 준수 4 — 이름이 `user` 로 *시작*할 뿐인 관계도 대상이 아니다. */
 export async function compliantUserPrefixedRelation(): Promise<unknown> {
   return repo.findOne({ where: { id: 'x' }, relations: ['userSettings'] });
 }

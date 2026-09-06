@@ -13,8 +13,24 @@
 | 민감 7컬럼을 **읽는** 자리 | 6개 서비스 파일 **19곳** |
 | 그 자리들이 지나는 로더 | `UsersService.findById`/`findByEmail` **공유 깔때기** |
 | 그 깔때기의 호출 지점 | 저장소 전체 **46곳** |
-| `User` 를 통째로 싣는 자리 | `relations:['user']` **3곳** · `leftJoinAndSelect` **0곳** |
-| 그 3곳이 엔티티를 응답에 싣는가 | **아니오** — 셋 다 반환 전 명시 투영 |
+| `User` **타입** 관계 이름 (엔티티에서 파생) | `creator` · `executor` · `owner` · `user` |
+| 투영 없이 통째로 싣는 자리 | **4곳** — 그중 **1곳이 실제 유출이었다** |
+
+### 🔴 그 열거가 한 칸 좁았다 — 살아있는 유출을 하나 찾았다
+
+첫 열거는 관계 **이름**이 `user` 인 것만 셌다. `User` **타입**인 관계는 `creator`·`owner`·
+`executor` 도 있다. 타입으로 다시 세니 **`WorkflowVersionsService.findOne`** 이
+`relations: ['creator']` 를 **투영 없이** 로드하고 컨트롤러가 그대로 반환하고 있었다 —
+`GET /api/workflows/:wfId/versions/:versionId` 가 버전 작성자의 `passwordHash`·
+`twoFactorSecret`·복구 코드·계정 탈취용 토큰을 전부 내보냈다. 도달 권한은 해당 워크스페이스
+멤버(viewer 포함)다.
+
+자매 메서드 `findByWorkflow` 는 처음부터 `select` 투영을 갖고 있었다 — **한쪽만 옳았다.**
+`findOne` 에 같은 투영(`creator: { id, name, email }`)을 넣어 닫았고, 그 엔드포인트에는
+e2e 가 **한 건도 없었으므로** 세 축(이름 부재 · 계약 대조 · 참조 3필드 양성)을 함께 걸었다.
+
+**영향** — 이미 나간 것은 회수되지 않는다. 이 응답을 저장·로깅·캐시한 소비자가 있었다면
+버전 작성자의 비밀번호 해시와 2FA 복구 코드가 그쪽에 남아 있을 수 있다.
 
 **`select: false`** 는 19곳이 공유 깔때기를 지나므로 국소 수정이 불가능하다 — 깔때기에
 `addSelect` 를 넣으면 46곳이 다시 컬럼을 받고, 안 넣으면 로더를 쪼개 19곳을 재배선해야 한다.
@@ -25,10 +41,15 @@
 
 ### 택한 것 — 원인은 구조로, 결과는 이름으로
 
-- **`user-entity-exposure-guard.ts`** — `User` 를 **투영 없이 통째로** 싣는 두 형태
-  (`relations:[…'user'…]` · `leftJoinAndSelect`/`inner`)를 AST 로 세고, 투영해 쓰는 3곳을
-  양방향 래칫으로 동결한다. `leftJoinAndSelect` 축은 **0을 유지**한다 — 그 형태는 투영할
-  자리가 없어 언제나 전 컬럼을 싣는다. `leftJoin` + `addSelect`(정상 형태)는 세지 않는다.
+- **`user-entity-exposure-guard.ts`** — `User` 관계를 **투영 없이 통째로** 싣는 세 형태
+  (`relations` 배열 · `relations` 객체(0.3) · `leftJoinAndSelect`/`inner`)를 AST 로 세고,
+  투영해 쓰는 3곳을 양방향 래칫으로 동결한다. `leftJoinAndSelect` 축은 **0을 유지**한다 —
+  그 형태는 투영할 자리가 없어 언제나 전 컬럼을 싣는다. `select` 로 좁힌 자리와
+  `leftJoin` + `addSelect`(정상 형태)는 세지 않는다.
+
+  관계 이름 집합은 **손으로 적지 않는다** — `*.entity.ts` 의 타입 주석에서 파생한다.
+  목록을 `['user','creator','owner']` 로 늘리는 것은 같은 결함의 다음 판이기 때문이다.
+  실제로 파생이 내 grep 보다 넓었다: `Execution.executor: User | null` 을 하나 더 찾았다.
 - **`user-secret-absence.ts`** — 응답 본문을 **깊이** 훑어 7컬럼 이름의 부재를 단언한다.
   유출은 최상위가 아니라 중첩(`data.items[].user.passwordHash`)에서 났다. **선언과
   무관**하므로 누가 비밀 필드를 DTO 에 *선언까지* 해도 잡는다 — 감사 로그 유출을 놓친 것이

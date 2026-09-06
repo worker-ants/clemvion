@@ -24,15 +24,76 @@ export interface UserRelationLoad {
   readonly file: string;
   readonly method: string;
   readonly kind: 'relations' | 'joinAndSelect';
-  /** 보고용. 베이스라인 키에는 **들어가지 않는다**. */
-  readonly line: number;
+  /** 어떤 관계 이름으로 걸렸나 — `user` · `creator` · `owner` 등. */
+  readonly relation: string;
   readonly key: string;
 }
 
-/** 관계 경로가 `User` 를 가리키는가 — `'user'` 또는 `'x.user'` (대소문자 무시). */
-function isUserRelationPath(value: string): boolean {
+/** `User` · `User | null` · `User[]` — 어느 형태든 `User` 를 가리키는가. */
+function referencesUserType(type: ts.TypeNode): boolean {
+  if (ts.isTypeReferenceNode(type)) {
+    return type.typeName.getText() === 'User';
+  }
+  if (ts.isArrayTypeNode(type)) {
+    return referencesUserType(type.elementType);
+  }
+  if (ts.isUnionTypeNode(type)) {
+    return type.types.some((t) => referencesUserType(t));
+  }
+  return false;
+}
+
+/**
+ * `*.entity.ts` 에서 **타입이 `User` 인 관계 속성 이름**을 전부 모은다.
+ *
+ * ## 왜 이름을 손으로 적지 않는가
+ *
+ * 첫 판은 관계 경로의 마지막 세그먼트가 `'user'` 인지만 봤다. 그래서
+ * `WorkflowVersion.creator`(`@ManyToOne(() => User)`)를 통째로 싣는 자리를 **놓쳤고**, 그
+ * 자리는 실제로 `GET /api/workflows/:wfId/versions/:versionId` 로 `User` 전 컬럼을
+ * 내보내고 있었다 (`review/code/2026/09/06/10_13_22` Critical 1).
+ *
+ * 목록을 `['user','creator','owner']` 로 **늘리는** 것은 같은 결함의 다음 판이다 — 다음에
+ * 누가 `approver: User` 를 만들면 또 놓친다. 목록을 넓히지 말고 **출처를 바꾼다**:
+ * 엔티티 선언이 SoT 이고 이 함수가 거기서 파생시킨다.
+ *
+ * 판정 축은 **속성의 타입 주석**이다 — 데코레이터 인자(`() => User`)가 아니다. 엔티티가
+ * 그 타입을 실제로 약속하는 자리가 타입 주석이고, 배열·nullable 형태까지 같은 술어로
+ * 덮인다.
+ */
+export function collectUserRelationNames(
+  entityFiles: readonly string[],
+): string[] {
+  const names = new Set<string>();
+  for (const file of entityFiles) {
+    const sf = ts.createSourceFile(
+      file,
+      fs.readFileSync(file, 'utf8'),
+      ts.ScriptTarget.Latest,
+      true,
+    );
+    const visit = (node: ts.Node): void => {
+      if (
+        ts.isPropertyDeclaration(node) &&
+        node.type &&
+        referencesUserType(node.type)
+      ) {
+        names.add(node.name.getText(sf));
+      }
+      ts.forEachChild(node, visit);
+    };
+    visit(sf);
+  }
+  return [...names].sort();
+}
+
+/** 관계 경로가 `User` 관계를 가리키는가 — `'creator'` 또는 `'x.creator'`. */
+function isUserRelationPath(
+  value: string,
+  names: ReadonlySet<string>,
+): boolean {
   const last = value.split('.').pop() ?? value;
-  return last.toLowerCase() === 'user';
+  return names.has(last.toLowerCase());
 }
 
 /**
@@ -67,25 +128,87 @@ function enclosingName(node: ts.Node, sf: ts.SourceFile): string {
   return fallback ?? '<module>';
 }
 
+/** `relations` 초기자에서 처음 발견되는 `User` 관계 이름. 없으면 `null`. */
+function userRelationInInitializer(
+  init: ts.Expression,
+  sf: ts.SourceFile,
+  names: ReadonlySet<string>,
+): string | null {
+  // 형태 1 — 배열 리터럴.
+  if (ts.isArrayLiteralExpression(init)) {
+    for (const el of init.elements) {
+      if (ts.isStringLiteralLike(el) && isUserRelationPath(el.text, names)) {
+        return el.text.split('.').pop() ?? el.text;
+      }
+    }
+    return null;
+  }
+  // 형태 2 — 객체 리터럴 (TypeORM 0.3).
+  if (ts.isObjectLiteralExpression(init)) {
+    for (const prop of init.properties) {
+      if (!prop.name) continue;
+      const key = prop.name.getText(sf).replace(/['"]/g, '');
+      if (names.has(key.toLowerCase())) return key;
+    }
+    return null;
+  }
+  return null;
+}
+
 /**
- * `files` 에서 `User` 엔티티 **전체**를 싣는 자리를 전부 찾는다.
+ * 같은 옵션 객체에 그 관계를 좁히는 `select` 가 있는가.
  *
- * 두 형태를 본다:
+ * `select: { creator: { id: true, … } }` 가 있으면 컬럼이 이미 좁혀졌으므로 위반이 아니다 —
+ * 이것을 안 보면 `findByWorkflow` 처럼 **처음부터 옳게 짜인 자리**가 베이스라인을 채워
+ * 래칫이 무엇을 막는지 흐려진다.
+ */
+function hasProjectionFor(
+  relationsProp: ts.PropertyAssignment,
+  relation: string,
+  sf: ts.SourceFile,
+): boolean {
+  const options = relationsProp.parent;
+  if (!ts.isObjectLiteralExpression(options)) return false;
+  for (const prop of options.properties) {
+    if (
+      !ts.isPropertyAssignment(prop) ||
+      prop.name.getText(sf) !== 'select' ||
+      !ts.isObjectLiteralExpression(prop.initializer)
+    ) {
+      continue;
+    }
+    for (const sel of prop.initializer.properties) {
+      if (!sel.name) continue;
+      const key = sel.name.getText(sf).replace(/['"]/g, '');
+      if (key.toLowerCase() === relation.toLowerCase()) return true;
+    }
+  }
+  return false;
+}
+
+/**
+ * `files` 에서 `User` 관계를 **투영 없이 통째로** 싣는 자리를 전부 찾는다.
  *
- * 1. `relations: [... 'user' ...]` — 객체 리터럴의 `relations` 속성이 배열이고, 그 안에
- *    `User` 를 가리키는 문자열이 있는 경우. `find`/`findOne` 어느 쪽이든 같다.
- * 2. `leftJoinAndSelect('x.user', …)` / `innerJoinAndSelect(…)` — QueryBuilder 로
- *    관계를 **투영 없이** 통째로 싣는 형태. 감사 로그 유출이 정확히 이 모양이었고,
- *    지금은 그 자리가 `leftJoin` + 컬럼 3개 `addSelect` 로 바뀌어 있다.
+ * 세 형태를 본다 — TypeORM 이 관계를 지정하는 방식이 셋이기 때문이다:
  *
- * **`leftJoin`(AndSelect 없음)은 대상이 아니다** — 그것은 조인만 하고 컬럼을 안 싣는다.
- * 투영해 쓰는 정상 형태이므로 세면 오탐이 된다.
+ * 1. `relations: [… 'creator' …]` — 배열 리터럴.
+ * 2. `relations: { creator: true }` — **0.3 객체 형태.** 첫 판이 이것을 빠뜨렸는데, 하필
+ *    실제 유출 지점의 자매 메서드가 이 형태를 쓰고 있었다.
+ * 3. `leftJoinAndSelect('x.creator', …)` / `innerJoinAndSelect(…)` — QueryBuilder.
+ *
+ * **`select` 로 투영한 자리는 대상이 아니다.** `leftJoin`(AndSelect 없음)도 같은 이유로
+ * 대상이 아니다 — 조인만 하고 컬럼을 싣지 않는다.
+ *
+ * @param userRelationNames `collectUserRelationNames` 가 엔티티에서 파생시킨 집합.
  */
 export function findUserRelationLoads(
   files: readonly string[],
   srcRoot: string,
+  userRelationNames: readonly string[],
 ): UserRelationLoad[] {
+  const names = new Set(userRelationNames.map((n) => n.toLowerCase()));
   const out: UserRelationLoad[] = [];
+
   for (const file of files) {
     const sf = ts.createSourceFile(
       file,
@@ -96,7 +219,11 @@ export function findUserRelationLoads(
     const rel = toPosixRelative(srcRoot, file);
     const seen = new Map<string, number>();
 
-    const push = (node: ts.Node, kind: UserRelationLoad['kind']): void => {
+    const push = (
+      node: ts.Node,
+      kind: UserRelationLoad['kind'],
+      relation: string,
+    ): void => {
       const method = enclosingName(node, sf);
       const base = `${rel}#${method}`;
       const n = (seen.get(base) ?? 0) + 1;
@@ -105,27 +232,22 @@ export function findUserRelationLoads(
         file: rel,
         method,
         kind,
-        line: sf.getLineAndCharacterOfPosition(node.getStart(sf)).line + 1,
+        relation,
         key: n === 1 ? base : `${base}#${n}`,
       });
     };
 
     const visit = (node: ts.Node): void => {
-      // (1) `relations: [...]`
       if (
         ts.isPropertyAssignment(node) &&
-        node.name.getText(sf) === 'relations' &&
-        ts.isArrayLiteralExpression(node.initializer)
+        node.name.getText(sf) === 'relations'
       ) {
-        for (const el of node.initializer.elements) {
-          if (ts.isStringLiteralLike(el) && isUserRelationPath(el.text)) {
-            push(node, 'relations');
-            break;
-          }
+        const relation = userRelationInInitializer(node.initializer, sf, names);
+        if (relation !== null && !hasProjectionFor(node, relation, sf)) {
+          push(node, 'relations', relation);
         }
       }
 
-      // (2) `*.leftJoinAndSelect('x.user', …)` / `*.innerJoinAndSelect(…)`
       if (
         ts.isCallExpression(node) &&
         ts.isPropertyAccessExpression(node.expression)
@@ -136,9 +258,9 @@ export function findUserRelationLoads(
           if (
             first &&
             ts.isStringLiteralLike(first) &&
-            isUserRelationPath(first.text)
+            isUserRelationPath(first.text, names)
           ) {
-            push(node, 'joinAndSelect');
+            push(node, 'joinAndSelect', first.text.split('.').pop() ?? '');
           }
         }
       }

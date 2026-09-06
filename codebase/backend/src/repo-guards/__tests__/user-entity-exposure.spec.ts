@@ -2,7 +2,11 @@ import { describe, it, expect } from '@jest/globals';
 import * as path from 'node:path';
 
 import { collectTsFiles } from '../../common/__test-utils__/source-scan';
-import { SRC_ROOT, findUserRelationLoads } from './user-entity-exposure-guard';
+import {
+  SRC_ROOT,
+  collectUserRelationNames,
+  findUserRelationLoads,
+} from './user-entity-exposure-guard';
 
 /**
  * `User` 엔티티 전체가 응답에 실릴 수 있는 자리를 **양방향으로 조인다.**
@@ -16,8 +20,7 @@ import { SRC_ROOT, findUserRelationLoads } from './user-entity-exposure-guard';
  *
  * 그 자리는 고쳤지만 **`User` 자체에는 마지막 방어선이 없다** — 실측(2026-09-06):
  * `@Exclude()` 0건 · `@Expose()` 0건 · 전역 `ClassSerializerInterceptor` 0건 ·
- * 민감 7컬럼에 `select: false` 0건. 다음에 누가 `User` 를 통째로 싣는 쿼리를 쓰면 같은
- * 클래스가 그대로 재발한다.
+ * 민감 7컬럼에 `select: false` 0건.
  *
  * ## 왜 `select: false` 가 아닌가 (2026-09-06 실측 후 결정)
  *
@@ -31,19 +34,31 @@ import { SRC_ROOT, findUserRelationLoads } from './user-entity-exposure-guard';
  * 전역 `ClassSerializerInterceptor` 도 택하지 않았다 — 이 저장소는 응답 직렬화를 한 번도
  * 켠 적이 없어(위 0건 실측) 도입 자체가 API 전체의 wire 를 건드린다.
  *
- * 그래서 **실행 시점에 막는 대신 구조가 생기는 순간 잡는다.** 이 가드는 유출의 *원인 형태*를
- * 겨눈다. 런타임 위험 0이고 인증 경로를 건드리지 않으며, 위 두 선택지를 나중에 배제하지도
- * 않는다.
+ * 그래서 **실행 시점에 막는 대신 구조가 생기는 순간 잡는다.** 런타임 위험 0이고 인증 경로를
+ * 건드리지 않으며, 위 두 선택지를 나중에 배제하지도 않는다.
+ *
+ * ## 첫 판은 한 칸 좁았다 — 이름이 아니라 타입으로 본다
+ *
+ * 처음에는 관계 경로의 마지막 세그먼트가 `'user'` 인지만 봤다. 그래서 `creator`·`owner`
+ * 처럼 **이름만 다른 `User` 관계**를 전부 놓쳤고, 그중 `WorkflowVersionsService.findOne`
+ * (`relations: ['creator']`, 투영 없음)은 실제로
+ * `GET /api/workflows/:wfId/versions/:versionId` 로 `User` 전 컬럼을 내보내고 있었다
+ * (`review/code/2026/09/06/10_13_22` Critical 1 — security·requirement 두 reviewer 가
+ * 독립 발견).
+ *
+ * 목록을 `['user','creator','owner']` 로 늘리는 것은 같은 결함의 다음 판이다. 대신
+ * **출처를 바꿨다** — `collectUserRelationNames` 가 `*.entity.ts` 의 타입 주석에서 파생한다.
  *
  * ## 무엇을 세는가
  *
- * `User` 를 **투영 없이 통째로** 싣는 두 형태 — `relations: [… 'user' …]` 와
- * `leftJoinAndSelect`/`innerJoinAndSelect`. `leftJoin` + `addSelect`(정상 형태)는 세지
- * 않는다.
+ * `User` 관계를 **투영 없이 통째로** 싣는 세 형태 — `relations` 배열 · `relations` 객체
+ * (0.3) · `leftJoinAndSelect`/`inner`. `select` 로 좁힌 자리와 `leftJoin`(AndSelect 없음)은
+ * 세지 않는다.
+ */
+
+/**
+ * 관계를 통째로 싣지만 **반환 전에 명시 투영**하는 자리 (전부 코드로 확인).
  *
- * ## 베이스라인이 "0" 이 아닌 이유
- *
- * 아래 세 자리는 `User` 를 통째로 싣지만 **반환 전에 명시 투영**한다(전부 코드로 확인).
  * 로드 자체가 결함은 아니므로 지우지 않고 **동결**한다 — 새로 생기면 목록에 없어 실패하고,
  * 투영으로 바꿔 없애면 목록에서 빼야 통과한다. 양방향 래칫이다.
  */
@@ -56,13 +71,36 @@ const EXPECTED_USER_RELATION_LOADS: readonly string[] = [
   'modules/workspaces/workspaces.service.ts#listMembers',
 ];
 
-describe('`User` 엔티티 전체 로드 래칫', () => {
+describe('`User` 관계 전체 로드 래칫', () => {
+  const moduleFiles = collectTsFiles(path.join(SRC_ROOT, 'modules'));
+  const entityFiles = moduleFiles.filter((f) => f.endsWith('.entity.ts'));
+  const userRelationNames = collectUserRelationNames(entityFiles);
+
   // 스캔 범위는 `src/modules` — 서비스가 전부 그 아래에 있고(실측), 그래야 아래
   // 양성 대조군 fixture(`repo-guards/__tests__/fixtures/`)가 베이스라인을 오염시키지 않는다.
-  const loads = findUserRelationLoads(
-    collectTsFiles(path.join(SRC_ROOT, 'modules')),
-    SRC_ROOT,
-  );
+  const loads = findUserRelationLoads(moduleFiles, SRC_ROOT, userRelationNames);
+
+  describe('관계 이름 집합은 엔티티에서 파생한다', () => {
+    it('타입이 `User` 인 속성 이름을 전부 모은다', () => {
+      // 손으로 적은 목록이 아니라 **엔티티 선언**이 SoT 다. 새 `User` 관계가 다른 이름으로
+      // 생기면 이 집합이 자동으로 넓어지고, 그 순간 아래 래칫이 그 자리를 본다.
+      //
+      // **파생이 손 열거보다 넓었다.** 이 목록을 쓰기 전에 `grep '=> User)'` 로 세어
+      // `user`·`creator`·`owner` 셋을 얻었는데, 파생은 `executor`(`Execution.executor:
+      // User | null`)를 하나 더 찾았다 — 그쪽은 데코레이터 인자 형태가 달라 grep 이
+      // 놓쳤다. 목록을 넓히는 대신 출처를 바꾼 이유가 바로 이것이다.
+      expect(userRelationNames).toEqual([
+        'creator',
+        'executor',
+        'owner',
+        'user',
+      ]);
+    });
+
+    it('[전제] 엔티티 파일을 실제로 읽었다 — 0개면 술어가 통째로 죽는다', () => {
+      expect(entityFiles.length).toBeGreaterThan(0);
+    });
+  });
 
   it('알려진 목록과 정확히 일치한다 (새로 생겨도, 남몰래 줄어도 실패)', () => {
     expect(loads.map((l) => l.key).sort()).toEqual(
@@ -74,9 +112,9 @@ describe('`User` 엔티티 전체 로드 래칫', () => {
     expect(loads.length).toBeGreaterThan(0);
   });
 
-  it('`leftJoinAndSelect` 로 `User` 를 싣는 자리는 하나도 없다', () => {
+  it('`leftJoinAndSelect` 로 `User` 관계를 싣는 자리는 하나도 없다', () => {
     // 감사 로그 유출이 정확히 이 형태였다. `relations` 축과 달리 **0을 유지**한다 —
-    // 이 형태는 투영할 자리가 없어 언제나 전 컬럼을 싣기 때문이다.
+    // 이 형태는 `select` 로 좁힐 자리가 없어 언제나 전 컬럼을 싣는다.
     expect(loads.filter((l) => l.kind === 'joinAndSelect')).toEqual([]);
   });
 
@@ -86,13 +124,22 @@ describe('`User` 엔티티 전체 로드 래칫', () => {
       'fixtures',
       'user-relation-load.fixture.ts',
     );
-    const found = findUserRelationLoads([fixture], SRC_ROOT);
+    // 여기서는 **파생 집합을 쓰지 않는다** — 이 블록이 검증하는 것은 매칭 술어이지
+    // 파생이 아니다. 파생은 위 describe 가 따로 문다.
+    const found = findUserRelationLoads([fixture], SRC_ROOT, [
+      'user',
+      'creator',
+      'owner',
+    ]);
 
-    it('위반 5형태를 전부 잡는다 (한 함수 안 두 번은 두 건으로)', () => {
+    it('위반 8형태를 전부 잡는다 (한 함수 안 두 번은 두 건으로)', () => {
       expect(found.map((f) => f.method).sort()).toEqual(
         [
           'violationRelationsUser',
           'violationNestedRelationPath',
+          'violationCreatorRelation',
+          'violationObjectRelations',
+          'violationUppercaseRelation',
           'violationLeftJoinAndSelect',
           'violationInnerJoinAndSelect',
           'violationTwiceInOneFunction',
@@ -102,17 +149,15 @@ describe('`User` 엔티티 전체 로드 래칫', () => {
     });
 
     it('두 종류를 각각 잡는다 — 한 축만 물면 다른 축으로 샌다', () => {
-      const kinds = found.map((f) => f.kind).sort();
-      expect(kinds).toEqual(
-        [
-          'joinAndSelect',
-          'joinAndSelect',
-          'relations',
-          'relations',
-          'relations',
-          'relations',
-        ].sort(),
-      );
+      const kinds = found.map((f) => f.kind);
+      expect(kinds.filter((k) => k === 'joinAndSelect')).toHaveLength(2);
+      expect(kinds.filter((k) => k === 'relations')).toHaveLength(7);
+    });
+
+    it('이름이 `user` 가 아닌 `User` 관계도 잡는다 — Critical 1 의 형태', () => {
+      const relations = found.map((f) => f.relation);
+      expect(relations).toContain('creator');
+      expect(relations).toContain('owner');
     });
 
     it('한 함수 안의 두 번째 로드에 `#2` 가 붙어 키가 갈린다', () => {
@@ -125,9 +170,10 @@ describe('`User` 엔티티 전체 로드 래칫', () => {
       expect(keys[1]).toMatch(/#violationTwiceInOneFunction#2$/);
     });
 
-    it('준수 3형태는 놓아 준다 — 투영 join · 다른 관계 · 접두어만 같은 이름', () => {
+    it('준수 4형태는 놓아 준다 — 투영 join · 투영 relations · 다른 관계 · 접두어', () => {
       const methods = found.map((f) => f.method);
       expect(methods).not.toContain('compliantProjectedJoin');
+      expect(methods).not.toContain('compliantProjectedRelations');
       expect(methods).not.toContain('compliantOtherRelation');
       expect(methods).not.toContain('compliantUserPrefixedRelation');
     });

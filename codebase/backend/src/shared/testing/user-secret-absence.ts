@@ -63,8 +63,18 @@ export function findUserSecretLeaks(body: unknown): string[] {
 /**
  * @param body 응답 본문 전체 (`res.body`). 봉투째 넘긴다 — `data` 만 보면 봉투의 다른
  *   가지로 새는 형태를 놓친다.
+ *
+ * **`expect` 를 쓰지 않고 직접 던진다.** 자매 헬퍼 `assertMatchesContract` 와 같은 형태다 —
+ * jest 전역 주입에 의존하면 `injectGlobals:false` 로 바뀌는 날 **호출부 전체가 조용히**
+ * 깨진다 (`review/code/2026/09/06/10_13_22` INFO#7). 메시지에는 **어느 경로에서** 샜는지를
+ * 전부 싣는다: 하나만 고치고 끝내지 않도록.
  */
 export function expectNoUserSecrets(body: unknown): void {
-  // 실패 메시지가 **어느 경로에서** 샜는지 말하도록 경로 배열로 단언한다.
-  expect(findUserSecretLeaks(body)).toEqual([]);
+  const leaks = findUserSecretLeaks(body);
+  if (leaks.length > 0) {
+    throw new Error(
+      `응답에 \`User\` 민감 컬럼이 실렸다 (${leaks.length}건):\n` +
+        leaks.map((p) => `  - ${p}`).join('\n'),
+    );
+  }
 }

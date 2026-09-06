@@ -308,8 +308,23 @@ field: T | null;
       > | 민감 7컬럼을 **읽는** 자리 | 6개 서비스 파일 **19곳** |
       > | 그 자리들이 지나는 로더 | `UsersService.findById`/`findByEmail` **공유 깔때기** |
       > | 그 깔때기의 호출 지점 | 저장소 전체 **46곳** |
-      > | `User` 를 통째로 싣는 자리 | `relations:['user']` **3곳** · `leftJoinAndSelect` **0곳** |
-      > | 그 3곳이 응답에 엔티티를 싣는가 | **아니오** — 셋 다 반환 전 명시 투영 (코드 확인) |
+      > | ~~`User` 를 통째로 싣는 자리~~ | ~~`relations:['user']` 3곳 · `leftJoinAndSelect` 0곳~~ |
+      > | ~~그 3곳이 응답에 엔티티를 싣는가~~ | ~~**아니오** — 셋 다 반환 전 명시 투영~~ |
+      >
+      > **위 두 줄은 틀렸다** (`review/code/2026/09/06/10_13_22` Critical 1). 그 열거는
+      > 관계 **이름**이 `user` 인 것만 셌다 — `User` **타입**인 관계는 `creator`·`owner`·
+      > `executor` 도 있다. 타입으로 다시 세니 `WorkflowVersionsService.findOne` 이
+      > `relations: ['creator']` 를 **투영 없이** 로드해 컨트롤러가 그대로 반환하고 있었다:
+      > `GET /api/workflows/:wfId/versions/:versionId` 가 버전 작성자의 `User` 전 컬럼을
+      > 내보내는 **살아있는 유출**이었다. 자매 메서드 `findByWorkflow` 는 처음부터 투영이
+      > 있었다 — 한쪽만 옳았다.
+      >
+      > | 다시 잰 것 | 값 |
+      > |---|---|
+      > | `User` **타입** 관계 이름 (엔티티에서 파생) | `creator` · `executor` · `owner` · `user` |
+      > | 투영 없이 통째로 싣는 자리 | **4곳** — 그중 **1곳이 실제 유출** |
+      > | 유출 자리 | `workflow-versions.service.ts#findOne` (이 PR 이 투영 추가로 닫았다) |
+      > | 나머지 3곳 | 반환 전 명시 투영 (코드 확인) — 래칫에 동결 |
       > | `@Exclude()` · `@Expose()` · `ClassSerializerInterceptor` | **각 0건** |
       >
       > **두 선택지가 실측 후 성격이 바뀌었다.**
@@ -325,9 +340,12 @@ field: T | null;
       >
       > **택한 것 — 원인 형태를 구조로 잡고, 결과를 이름으로 잡는다** (사용자 결정 2026-09-06):
       >
-      > 1. `user-entity-exposure-guard.ts` — `User` 를 **투영 없이 통째로** 싣는 두 형태
-      >    (`relations:[…'user'…]` · `leftJoinAndSelect`/`inner`)를 AST 로 세고 위 3곳을
-      >    양방향 래칫으로 동결. `leftJoinAndSelect` 축은 **0을 유지**한다.
+      > 1. `user-entity-exposure-guard.ts` — `User` 관계를 **투영 없이 통째로** 싣는 세 형태
+      >    (`relations` 배열 · `relations` 객체(0.3) · `leftJoinAndSelect`/`inner`)를 AST 로
+      >    세고 투영해 쓰는 3곳을 양방향 래칫으로 동결. `leftJoinAndSelect` 축은 **0을
+      >    유지**한다. 관계 이름 집합은 **손으로 적지 않고 `*.entity.ts` 의 타입 주석에서
+      >    파생**한다 — 첫 판이 이름으로 매칭해 Critical 을 놓쳤고, 파생은 내 grep 이
+      >    놓친 `executor` 까지 찾아냈다.
       > 2. `user-secret-absence.ts` — 응답 본문을 깊이 훑어 7컬럼 이름의 부재를 단언.
       >    **선언과 무관**하므로 누가 비밀 필드를 DTO 에 *선언까지* 해도 잡는다 — 감사 로그
       >    유출을 놓친 것이 바로 선언 기반 검증자였다.
@@ -337,6 +355,42 @@ field: T | null;
       >
       > 곁가지 성과: 새 e2e 가 `GET /api/workspaces/:id/members` 의 미선언 필드
       > (`joinedAt`)를 즉시 찾아냈다. 그 엔드포인트는 응답 형태를 무는 테스트가 아예 없었다.
+      > 이 배선으로 §5.4 계약 대조를 받는 DTO 가 하나 늘었다 — 아래 「§5.4 drift 배치 —
+      > 2단계」의 수치는 다음에 그 항목을 열 때 **그 시점 실측치**로 다시 센다.
+      >
+      > **이 항목은 닫히지만 후속 두 건이 따라온다** — 아래 별 항목으로 등재했다. 여기에
+      > 적어 두지 않으면 draft 종결 조건(`## 후속` 체크박스 전부 닫힘)이 조용히 거짓이 된다.
+
+- [ ] **신규 검출 2축을 §5.4 「검증 층」과 `code:` 에 등재** (planner, 2026-09-06 등재,
+      `review/consistency/2026/09/06/10_13_23` W1 — **5개 checker 중 4개가 독립 보고**).
+
+      `user-entity-exposure-guard.ts`(구조 축)와 `user-secret-absence.ts`(이름 축)가 어떤
+      spec 의 `code:` glob 에도 안 걸린다. **정본 게이트에 직접 물어 확인했다** —
+      `review_guard._spec_linked_changes()` 가 신규 4파일 중 **0건**을 spec-linked 로
+      판정한다(재구현한 `fnmatch` 가 아니라 게이트 자신에게 물었다).
+
+      즉 **이 가드들을 약화·삭제해도 `--impl-done` SPEC-CONSISTENCY 게이트가 안 문다.**
+      래칫 fixture 가 없어 술어가 죽어도 그린이었던 것과 같은 등급의 사각지대다.
+
+      **하루 전 자매 항목이 이미 겪은 패턴의 재발**이다 — `response-contract.ts` 를
+      `2-api-convention.md`·`swagger.md` **양쪽**에 등재한 그 건. 한쪽만 하면 사각지대가
+      남는다는 것도 그때 실측으로 확인됐다.
+
+      → §5.4 「검증 층」 소절에 **두 행**(구조 축 / 이름 축)을 더하고, 두 문서 frontmatter
+      `code:` 에 신규 파일 패턴을 넣는다. 검증자가 이제 셋이므로 *"정확히 두 검증자"* 로
+      읽히는 인접 서술도 함께 본다.
+
+- [ ] **`User` 민감 7컬럼의 응답 노출 금지를 규약 문장으로** (planner, 2026-09-06 등재,
+      `review/consistency/2026/09/06/10_13_23` W2).
+
+      지금 그 불변식의 SoT 는 **코드뿐**이다 — `USER_SECRET_KEYS` 배열. Trigger·AuthConfig
+      계열은 `secret-store.md §1.1` 이 *"비대상 필드도 응답 바디에는 나가지 않는다"* 로
+      규범을 세워 뒀는데 `User` 에는 대응 절이 없다.
+
+      → `1-data-model.md §2.1` 또는 `secret-store.md §1.1` 에 7컬럼 노출 금지를 적고, 위
+      두 가드를 그 절의 `code:`/본문 링크로 잇는다. 결정 근거(전수 열거 수치 · 기각한 두
+      대안 · 채택 이유)는 지금 `plan`·`CHANGELOG` 에만 있으므로 해당 문서의 `## Rationale`
+      로 옮긴다 (`10_13_23` INFO#1).
 
 - [ ] **트리거 비밀 스트립을 deny-list 4벌에서 선언적 SoT 로** (developer + 보안 판단,
       2026-09-05 등재, `review/code/2026/09/05/23_30_00` security W1). 지금

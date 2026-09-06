@@ -73,7 +73,42 @@ describe('WorkflowVersionsService', () => {
       await service.findOne('wf-1', 'v-1');
       expect(mockRepo.findOne).toHaveBeenCalledWith({
         where: { id: 'v-1', workflowId: 'wf-1' },
-        relations: ['creator'],
+        relations: { creator: true },
+        select: {
+          id: true,
+          workflowId: true,
+          version: true,
+          changeSummary: true,
+          snapshot: true,
+          createdBy: true,
+          createdAt: true,
+          creator: { id: true, name: true, email: true },
+        },
+      });
+    });
+
+    /**
+     * **`creator` 투영이 이 메서드의 보안 경계다.**
+     *
+     * 컨트롤러가 이 반환값을 가공 없이 돌려주므로, 투영이 없으면 `User` 전 컬럼
+     * (`passwordHash`·2FA secret·복구 코드·계정 탈취용 토큰)이 그대로 wire 로 나간다 —
+     * 실제로 나가고 있었다 (`review/code/2026/09/06/10_13_22` Critical 1).
+     *
+     * 위 테스트는 옵션 **전체**를 비교하므로 이 단언과 겹치지만, 겹치는 쪽을 남긴다:
+     * 위 단언은 형태가 바뀌면 통째로 갈아엎히는데, 그때 무엇이 **양보하면 안 되는
+     * 성질**인지가 이 이름에 남아 있어야 한다. `findByWorkflow` 는 처음부터 투영이
+     * 있었고 `findOne` 만 없었다 — 자매 중 하나만 옳았다.
+     */
+    it('creator 를 참조 3필드로 투영한다 — 없으면 `User` 전 컬럼이 나간다', async () => {
+      mockRepo.findOne.mockResolvedValue({ id: 'v-1', workflowId: 'wf-1' });
+      await service.findOne('wf-1', 'v-1');
+      const opts = mockRepo.findOne.mock.calls[0][0] as {
+        select?: { creator?: Record<string, unknown> };
+      };
+      expect(opts.select?.creator).toEqual({
+        id: true,
+        name: true,
+        email: true,
       });
     });
 

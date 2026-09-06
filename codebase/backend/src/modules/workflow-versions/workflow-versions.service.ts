@@ -70,7 +70,24 @@ export class WorkflowVersionsService {
   ): Promise<WorkflowVersion> {
     const version = await this.workflowVersionRepository.findOne({
       where: { id: versionId, workflowId },
-      relations: ['creator'],
+      relations: { creator: true },
+      // **투영이 없으면 `User` 전 컬럼이 그대로 나간다.** 이 메서드의 반환값을 컨트롤러가
+      // 가공 없이 돌려주므로, `creator` 를 통째로 실으면 `passwordHash`·`twoFactorSecret`·
+      // 복구 코드·계정 탈취용 토큰이 `GET /api/workflows/:wfId/versions/:versionId` 응답에
+      // 실린다 (`review/code/2026/09/06/10_13_22` Critical 1).
+      //
+      // 자매 메서드 `findByWorkflow` 는 처음부터 이 투영을 갖고 있었다 — **한쪽만 있었다.**
+      // `WorkflowVersionCreatorDto` 가 광고하는 세 필드와 같은 집합이다.
+      select: {
+        id: true,
+        workflowId: true,
+        version: true,
+        changeSummary: true,
+        snapshot: true,
+        createdBy: true,
+        createdAt: true,
+        creator: { id: true, name: true, email: true },
+      },
     });
     if (!version) {
       throw new NotFoundException({
