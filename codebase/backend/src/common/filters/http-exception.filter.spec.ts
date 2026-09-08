@@ -124,6 +124,40 @@ describe('GlobalExceptionFilter', () => {
     );
   });
 
+  it('raw 표면(최상위 `err.code`) 23505 도 409 RESOURCE_CONFLICT 로 간다', () => {
+    // **회귀 고정** — 종전 로컬 `isUniqueViolation` 은 `err instanceof QueryFailedError` 를
+    // 먼저 요구해 이 형태를 통째로 놓쳤고, 그래서 500 으로 떨어졌다. `pg-error.ts` 를 SoT 로
+    // 세운 이유가 정확히 **두 표면**(`err.code` / `err.driverError.code`)인데, 국소 처리가
+    // 없는 대다수 서비스가 지나는 이 fallback 에만 좁은 판이 남아 있었다.
+    //
+    // 위 QueryFailedError 케이스와 **다른 것을 단언한다**: 저쪽은 wrap 된 표면,
+    // 이쪽은 wrap 되지 않은 표면이다. 한쪽만 있으면 판정이 좁아져도 초록이다.
+    const { host, status, json } = mockHost();
+    const err = Object.assign(new Error('duplicate key value'), {
+      code: '23505',
+    });
+    new GlobalExceptionFilter().catch(err, host);
+
+    expect(status).toHaveBeenCalledWith(409);
+    const body = bodyOf(json);
+    expect(body.error.code).toBe('RESOURCE_CONFLICT');
+    expect(body.error.message).not.toContain('duplicate key value');
+  });
+
+  it('raw 표면의 non-23505 는 409 로 새지 않는다', () => {
+    // 위 단언의 짝 — 넓힌 판이 **아무 에러나** 409 로 만들지 않는지 확인한다.
+    const error = jest.spyOn(Logger.prototype, 'error').mockImplementation();
+    const { host, status, json } = mockHost();
+    const err = Object.assign(new Error('null value violation'), {
+      code: '23502',
+    });
+    new GlobalExceptionFilter().catch(err, host);
+
+    expect(status).toHaveBeenCalledWith(500);
+    expect(bodyOf(json).error.code).toBe('INTERNAL_ERROR');
+    error.mockRestore();
+  });
+
   it('non-23505 QueryFailedError → 500 INTERNAL_ERROR (RESOURCE_CONFLICT 분기 회피)', () => {
     // 23505(unique) 가 아닌 제약 위반(예 23502 not-null)은 409 가 아니라 generic 500 으로 마스킹된다.
     const error = jest.spyOn(Logger.prototype, 'error').mockImplementation();

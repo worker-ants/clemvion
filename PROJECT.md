@@ -37,10 +37,23 @@
 
 | 게이트 | 로컬 명령 | 언제 |
 | --- | --- | --- |
-| backend 타입체크 ratchet (`backend-checks.yml`) | `python3 scripts/check-backend-typecheck-ratchet.py` | backend `*.ts` 변경 시. **`nest build` 는 `*.spec.ts` 를 exclude 하고 jest 는 타입을 strip** 하므로 테스트 코드의 타입 오류는 이 검사 말고 아무도 못 본다. 오류가 **줄었을 때도 실패**하니 `--update` 로 baseline 을 낮춰 커밋한다 |
-| frontend 타입체크 ratchet (`frontend-checks.yml`) | `python3 scripts/check-frontend-typecheck-ratchet.py` | frontend `*.ts(x)` 변경 시. backend 와 **같은 사각**인데 원인이 다르다 — `tsconfig.json` **자신이** `src/test/**`·`*.test.ts(x)`·`*.spec.ts(x)`·`**/__tests__/**` 를 exclude 하고 `vitest run` 은 타입을 strip 한다. 전용 `tsconfig.typecheck.json` 으로 전체 프로그램을 본다. 판정 규칙은 backend 와 **같은 코어**(`scripts/_typecheck_ratchet.py`) — 증가·감소 둘 다 실패 |
 | 의존성 보안 (`deps-security-checks.yml`) | `python3 scripts/check-pnpm-security-config.py` · `python3 scripts/check-override-floors.py` · `pnpm audit --audit-level=moderate` | `pnpm-workspace.yaml`·lockfile·매니페스트 변경 시 |
 | 하네스 (`harness-checks.yml`) | `python3 -m unittest discover -s .claude/tests -p 'test_*.py'` | `.claude/**`·`scripts/**`·워크플로 변경 시 |
+
+> **타입체크 ratchet 둘은 2026-09-08 부터 `build` 단계 안에서 함께 돈다** — 이 표에서 내려왔다.
+> `.claude/test-stages.sh` 의 `_cmd_typecheck_ratchets()`.
+>
+> **왜 옮겼나**: 두 ratchet 이 대조하는 대상이 정확히 *"build 가 exclude 한 자리"* 다.
+> `tsconfig.build.json` 은 `*spec.ts`·`src/repo-guards/**`·`src/shared/testing/**`·
+> `**/__test-utils__/**` 를 빼고 jest 는 타입을 strip 하며, frontend 는 `tsconfig.json`
+> 자신이 테스트 경로를 빼고 `vitest run` 이 타입을 strip 한다. 즉 **그 자리의 타입 오류는
+> 4단계가 원리적으로 못 본다.** 실제로 `#1292` 가 14라운드 로컬 검증을 통과하고 CI 에서 처음
+> 걸렸다 (`src/shared/testing/pg-error-fixtures.ts`, TS2739).
+>
+> 두 검사의 성질은 그대로다 — **증가·감소 둘 다 실패**한다(공용 코어
+> `scripts/_typecheck_ratchet.py`). 오류를 줄였으면 `--update` 로 baseline 을 낮춰 커밋한다.
+> frontend 쪽은 전용 `tsconfig.typecheck.json` 으로 전체 프로그램을 본다.
+> 개별 실행이 필요하면 `python3 scripts/check-{backend,frontend}-typecheck-ratchet.py`.
 
 **e2e 도 cross-stack 의무**: `run-test.sh e2e` 는 `make e2e-test-full` 을 호출해 **backend supertest + frontend playwright 를 함께** 돌린다 — CI(`.github/workflows/e2e.yml`)가 `e2e`(backend supertest)·`e2e-frontend`(playwright) 두 잡으로 양쪽을 반드시 돌리므로, 로컬 wrapper 도 같은 커버리지를 가져야 한다. (~2026-07-17 이전에는 `make e2e-test`(backend only)를 불러, 프론트 변경이 로컬에서 `status=PASS` 를 받아도 브라우저 테스트가 한 번도 실행되지 않고 CI 에서야 회귀가 드러났다. 사이드바 `/docs` slug 무한 중첩 회귀가 이 갭에서 나왔다 — frontend 라우팅은 unit 이 `useParams` 를 mock 하므로 실제 라우트 매칭·클라이언트 `notFound()` 동작을 **원리적으로** 검증할 수 없고 playwright 가 유일한 검증 계층이다.) backend 만 빠르게 확인하려면 `make e2e-test` 를 직접 호출하되, **TEST WORKFLOW 의 e2e 단계 통과 근거로는 인정되지 않는다**.
 

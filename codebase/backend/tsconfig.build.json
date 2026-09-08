@@ -17,6 +17,14 @@
     // 같은 이유의 두 번째 자리 (2026-08-27). `src/shared/testing/**` 은 Swagger DTO
     // 캐너리용 프로브 헬퍼이고 **devDependency 인 `@nestjs/testing` 을 import** 한다.
     // `*spec.ts` 패턴에 안 걸리는 이름이라 명시하지 않으면 dist 로 나간다.
-    "src/shared/testing/**"
+    "src/shared/testing/**",
+    // 같은 이유의 세 번째 자리 (2026-09-08). `__test-utils__/` 는 테스트 전용 헬퍼인데
+    // 위 세 패턴 어디에도 안 걸려 dist 로 나가고 있었다(실측 5파일). devDependency 를
+    // 끌어오지 않아 `production-build-devdep.spec.ts` 의 누출 축에는 안 잡히는 — 즉
+    // **죽은 코드가 번들에 실릴 뿐인** 형태다.
+    //
+    // **경로가 아니라 디렉터리 이름으로 막는다.** 그 5파일은 `common/` 과
+    // `modules/integrations/` 두 곳에 흩어져 있었고, 경로를 열거하면 네 번째 자리가 생긴다.
+    "**/__test-utils__/**"
   ]
 }

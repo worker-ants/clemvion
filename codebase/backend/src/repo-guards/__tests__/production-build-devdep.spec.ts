@@ -64,6 +64,25 @@ describe('프로덕션 빌드 devDependency 누출', () => {
   });
 
   /**
+   * 같은 이유의 세 번째 자리 (2026-09-08). `__test-utils__/` 는 테스트 전용 헬퍼인데
+   * `*spec.ts` 패턴에도 `repo-guards/**`·`shared/testing/**` 에도 안 걸려 **dist 로 나가고
+   * 있었다**(실측 5파일).
+   *
+   * **지금은 지뢰가 아니다** — 그 파일들의 import 가 node 내장 + 로컬뿐이라 위 devDep 단언은
+   * 초록이다. 그래서 *"devDependency 누출"* 축만으로는 이 자리가 영원히 안 보인다. 죽은 코드가
+   * 프로덕션 번들에 실리는 것 자체를 별도 축으로 못박는다.
+   *
+   * **경로가 아니라 디렉터리 이름으로 막는다** — 실측한 5파일은 `common/` 과
+   * `modules/integrations/` **두 곳**에 흩어져 있었다. 경로를 열거하면 세 번째 자리가 또 생긴다.
+   */
+  it('`__test-utils__` 는 빌드 대상이 아니다', () => {
+    const inBuild = resolveBuildFileNames(backendDir)
+      .filter((f) => f.includes(`${path.sep}__test-utils__${path.sep}`))
+      .map((f) => toPosixRelative(backendDir, f));
+    expect(inBuild).toEqual([]);
+  });
+
+  /**
    * **`findDevDepLeaks` 가 진짜 누출을 지목하는가** — 배선 전체(설정 해석 → 파일 순회 →
    * package.json 분류)를 한 번에 건다. 아래 단위 캐너리들은 스캐너와 분류기를 각각 재지만,
    * 그 둘을 잇는 함수가 조용히 `[]` 를 뱉어도 잡지 못한다. 형제 가드가 정확히 이 갭에

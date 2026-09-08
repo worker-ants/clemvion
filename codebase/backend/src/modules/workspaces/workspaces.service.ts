@@ -213,6 +213,22 @@ export class WorkspacesService {
     const members = await this.memberRepository.find({
       where: { workspaceId },
       relations: ['user'],
+      // **DB 레벨 투영이다 — JS 단 매핑이 아니라.** 아래 `.map` 이 이미 응답을 좁히고
+      // 있었지만, `user-entity-exposure-guard` 는 **로드 형태**만 보므로 그 자리는 보호
+      // 범위 밖이었다(방어가 검출이지 강제가 아니었다). 여기서 컬럼을 좁히면 `User` 의
+      // 민감 7컬럼([데이터 모델 §2.1.1](../../../../../spec/1-data-model.md))이 애초에
+      // 로드되지 않는다.
+      //
+      // 엔티티 전역 `select: false` 와는 **다른 것**이다 — 그쪽은 그 컬럼을 값으로 읽는
+      // 내부 경로를 fail-silent 로 만들어 기각됐다(같은 문서 `## Rationale`).
+      // 이것은 **이 쿼리 하나**의 투영이라 다른 경로를 건드리지 않는다.
+      select: {
+        id: true,
+        userId: true,
+        role: true,
+        joinedAt: true,
+        user: { id: true, email: true, name: true },
+      },
     });
     return members.map((m) => ({
       id: m.id,
