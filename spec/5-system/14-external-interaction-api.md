@@ -931,11 +931,15 @@ ALTER TABLE trigger
 > 이 문장을 믿으면 *"ref 라 노출돼도 등급이 낮다"* 는 판단으로 이어진다 — §5.4 응답-계약
 > 스윕에서 실제로 그 문턱까지 갔다(자매 컬럼이 진짜 ref 라 더 그럴듯했다).
 >
-> **현재 이 컬럼은 응답에도 나간다** — `GET/POST/PATCH /api/triggers` 와
+> **정정 (2026-09-08)**: **이 컬럼은 더 이상 응답에 나가지 않는다.** `#1291` 이 응답 경계
+> 스트립(`TriggersService` 의 `TRIGGER_RESPONSE_STRIP_COLUMNS`)을 세웠고, 스케줄 조인 축은
+> `shared/testing/schedule-trigger-ref.ts` 가 같은 목록으로 단언한다. 금지 규범은
+> [`secret-store.md §1.1`](../conventions/secret-store.md#11-비대상-필드도-응답-바디에는-나가지-않는다)
+> 이 그대로 소유한다 — **닫혔다고 규범이 사라지는 것이 아니다.**
+>
+> ~~**현재 이 컬럼은 응답에도 나간다** — `GET/POST/PATCH /api/triggers` 와
 > `GET /api/schedules`(트리거 조인)가 엔티티를 그대로 반환하는데 컬럼 스트립이 없다.
-> 이는 **미해결 결함**이며 [`secret-store.md §1.1`](../conventions/secret-store.md#11-비대상-필드도-응답-바디에는-나가지-않는다)
-> 이 금지 규범을, `plan/in-progress/spec-draft-nullable-notation-followups.md` 가 수정을
-> 추적한다. 저장 형태 예외(평문 보관)와 노출은 **다른 문제**다.
+> 이는 **미해결 결함**이다.~~ 저장 형태 예외(평문 보관)와 노출은 **다른 문제**다.
 >
 > **`EIA-NX-12` 의 "1회 평문 반환" 과 다른 것을 말한다** — 그쪽은 *rotate 응답*에 평문이
 > 한 번 실린다는 뜻이고, 이 절은 *DB 컬럼 자체*가 grace 동안 평문이라는 뜻이다.

@@ -84,6 +84,16 @@ User ──┬── Workspace (1:N)
 
 WebAuthn (Passkey/보안 키) credential 자체는 별도 엔티티 [§2.21 WebAuthnCredential](#221-webauthncredential) 에 보관한다. User 행에는 위 `webauthn_recovery_codes` 와 (간접적으로) credential 개수만 영향을 준다.
 
+#### 2.1.1 응답 노출 금지 (민감 7컬럼)
+
+> **표기 주의** — 아래는 **API 응답·엔티티 프로퍼티의 camelCase** 다. 위 §2.1 표의 DB 컬럼(snake_case)과 1:1 대응한다(`password_hash` ↔ `passwordHash` 등). 시행 코드(`USER_SECRET_KEYS`)가 camelCase 를 쓰므로 대조 가능하도록 그 표기를 그대로 옮긴다. (레이어 병기 선례: [`2-trigger-list.md §2.1`](./2-navigation/2-trigger-list.md).)
+
+**다음 7컬럼은 어떤 API 응답에도 실리지 않는다** — `passwordHash` · `twoFactorSecret` · `totpRecoveryCodes` · `webauthnRecoveryCodes` · `emailVerifyToken` · `passwordResetToken` · `emailChangeToken`. 해시·토큰이라 평문은 아니지만 오프라인 크래킹·재설정 토큰 탈취·2FA 우회의 **입력**이 된다. 응답 DTO 에 **선언되어서도** 안 되고 바디에 실려서도 안 된다.
+
+- **컬럼 수준 `select: false` 를 쓰지 않는다** — 그 7컬럼을 읽는 내부 경로(로그인 검증·토큰 소비·복구 코드 대조)가 값을 **직접 소비**하므로 예외 없이 `undefined` 를 받아 **조용히 오작동**한다. 같은 근거를 [secret-store §1.1](./conventions/secret-store.md#11-비대상-필드도-응답-바디에는-나가지-않는다) 이 Trigger 계열에 대해 이미 적고 있다. **응답 경계에서 지운다.**
+- **시행 축은 두 개다** — [API 규약 §5.4 검증 층](./5-system/2-api-convention.md#검증-층--이-규칙을-무엇이-강제하는가) 표의 **구조 축**(`User` 를 투영 없이 관계로 싣는 자리)과 **이름 축**(응답 바디에 그 이름이 있는가). 목록의 SoT 는 코드(`shared/testing/user-secret-absence.ts` 의 `USER_SECRET_KEYS`)이며, 엔티티에 민감 컬럼을 추가하면 **그 배열에도 넣는다** — 이름 축은 이름으로만 걸리므로 새 이름을 저절로 알지 못한다.
+- [`WebAuthnCredential`](#221-webauthncredential) 의 `public_key`·`counter` 는 이 목록에 **없다** — 공개키는 설계상 노출 가능하다. 목록을 "인증 관련 전부" 로 넓히지 않는 경계다.
+
 ### 2.2 Workspace
 
 | 필드 | 타입 | 설명 |
@@ -943,6 +953,35 @@ DocumentChunk·Entity 계열 선례를 따른다.)
 | Notification | (workspace_id, created_at DESC) | 워크스페이스별 알림 조회 — partial 미적용 (향후 admin/감사 쿼리가 dismissed 포함 전체 row 를 볼 여지) |
 
 ## Rationale
+
+### `User` 민감 컬럼 방어를 `select: false` 가 아니라 응답 경계에 둔 이유 (2026-09-06)
+
+`GET /api/audit-logs` 가 3필드를 광고하면서 `User` 엔티티를 통째로 내보내고 있었고, 같은 형태가
+워크플로우 버전 상세에서도 났다. 처분으로 세 안을 놓고 골랐다.
+
+| 안 | 채택/기각 사유 |
+|---|---|
+| 컬럼 `select: false` | **기각 — fail-silent.** [§2.1.1](#211-응답-노출-금지-민감-7컬럼) 의 7컬럼은 내부 경로가 **값을 직접 소비**한다(로그인 검증·토큰 소비·복구 코드 대조). 컬럼 수준에서 끄면 그 경로가 예외 없이 `undefined` 를 받는다. 실측: `user.entity.ts` 에 `select: false`·`@Exclude()` **0건**(2026-09-06) |
+| 응답 DTO 를 손으로 좁힌다 (단독) | **기각 — 다음 자리가 열린다.** 유출은 최상위가 아니라 **중첩**(`data.items[].user.…`)에서 났고, 새 엔드포인트마다 같은 판단을 반복해야 한다 |
+| **응답 경계 투영 + 검출 2축** | **채택.** 구조 축이 *"엔티티를 통째로 실었다"* 를, 이름 축이 *"그 이름이 응답에 있다"* 를 각각 본다 |
+
+**두 축을 다 세운 이유**: 계약 검증자([API 규약 §5.4](./5-system/2-api-convention.md#검증-층--이-규칙을-무엇이-강제하는가) 의
+`response-contract.ts`)는 **배선된 엔드포인트에서만** 동작하고 배선은 아직 전 엔드포인트에 닿지
+않았다. 이름 축은 선언·배선과 독립이라 *"실수로 `passwordHash` 를 DTO 에 **선언까지** 해 버린"*
+경우도 잡는다.
+
+> **`select: false` 기각은 이 저장소의 일반 규칙이 아니다 — 컬럼별 소비 패턴이 가른다.**
+> 반례가 같은 문서 안에 있다: [§2.19 Notification](#219-notification) 의 `background_run_id` 는
+> `select: false` 로 선언돼 있고(V107) **그것이 옳다** — 그 컬럼의 유일한 내부 소비자
+> (`findByBackgroundRun`)가 **WHERE 절에만** 쓰고 값을 읽지 않기 때문이다.
+>
+> | 내부 소비 패턴 | 처분 | 사례 |
+> |---|---|---|
+> | 값을 **읽는다** | 응답 경계에서 지운다 (`select: false` 금지) | `User` 민감 7컬럼 · `Trigger.notification_secret_v2`(로테이션 스윕이 승격에 쓴다) |
+> | **WHERE 절에만** 쓴다 | `select: false` 유효 | `Notification.background_run_id` |
+>
+> **이 문단을 *"`select: false` 를 쓰지 마라"* 의 선례로 인용하려면 그 컬럼의 소비 패턴이
+> 전자임을 먼저 보여야 한다.** 조건 없이 인용하는 것이 이 등재의 실패 모드다.
 
 ### Schedule 인덱스 `(next_run_at, is_active)` → `(workspace_id, next_run_at)` (2026-09-04)
 

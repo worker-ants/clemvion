@@ -9,6 +9,8 @@ code:
   - codebase/backend/src/repo-guards/__tests__/swagger-dto-contract*.ts
   - codebase/backend/src/shared/testing/response-contract*.ts
   - codebase/backend/src/shared/testing/swagger-probe*.ts
+  - codebase/backend/src/repo-guards/__tests__/user-entity-exposure*.ts
+  - codebase/backend/src/shared/testing/user-secret-absence*.ts
 ---
 
 # Swagger 문서화 일관된 패턴 가이드
@@ -368,7 +370,7 @@ DTO `description` 은 *"한 줄로 읽히는가"* 가 기준이지 글자 수가
 > 가 문다 — 실 응답에 **스키마가 선언하지 않은 키**가 있으면 위반으로 보고한다. 실사례:
 > `GET /api/audit-logs` 가 3필드를 광고하면서 `User` 엔티티 26키(`passwordHash`·2FA 복구 코드·
 > 계정 탈취 토큰 포함)를 내보내고 있었다 (`CHANGELOG.md`).
-> 두 검증자의 경계는 [API 규약 §5.4 검증 층](../5-system/2-api-convention.md#검증-층--이-규칙을-무엇이-강제하는가) 이 소유한다.
+> 이 검증자들의 경계는 [API 규약 §5.4 검증 층](../5-system/2-api-convention.md#검증-층--이-규칙을-무엇이-강제하는가) 이 소유한다 — **개수를 적지 않는다.** 그쪽 표가 인벤토리이고, 축이 늘 때마다 숫자를 고쳐야 하는 자리를 만들지 않기 위해서다.
 
 **형제 DTO 가 같은 enum 을 공유하면 `*.literal.ts` 로 뺍니다.** 두 개 이상의 응답 DTO 가
 동일한 값 집합을 노출할 때, 각 DTO 가 유니온 타입과 swagger `enum` 배열을 **각자 선언하면

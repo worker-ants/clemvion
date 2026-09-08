@@ -31,6 +31,8 @@ model: opus
 | `codebase/**` | Read/Write — 구현 주 영역 |
 | `review/` | Read/Write — 라운드 산출물 **전체**(`SUMMARY.md`·`<role>.md`·`meta.json`·`RESOLUTION.md`)를 커밋한다(`_prompts/` 만 gitignored). `RESOLUTION.md` 는 구현자 (또는 resolution-applier sub-agent) 가 작성 |
 | `README.md`, `PROJECT.md` | Read/Write |
+| `.claude/hooks/**`, `.claude/tools/**`, `.claude/tests/**` | Read/Write — harness **실행물**. 검증은 `python3 -m pytest .claude/tests -q` — 리뷰 게이트(`/ai-review`·`--impl-done`)의 스코프는 `codebase/**` 라 harness-only 변경은 **push 가 차단되지 않는다** |
+| `.claude/docs/**`, `.claude/skills/**/SKILL.md`, `CLAUDE.md` | Read only — **거버넌스 문서**(역할 정의·워크플로 규약). 수정은 `project-planner` 위임 ([`CLAUDE.md` §Skill 체계](../../../CLAUDE.md#skill-체계) 가 SoT) |
 
 ## 작업 워크플로
 

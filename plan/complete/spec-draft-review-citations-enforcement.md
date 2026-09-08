@@ -3,7 +3,7 @@ title: review-citations.md — "시행 코드가 없다" 는 전제가 반증됐
 worktree: user-entity-column-defense
 started: 2026-09-06
 owner: planner
-status: in-progress
+status: complete
 priority: P1
 spec_impact:
   - spec/conventions/review-citations.md
@@ -131,7 +131,16 @@ code:
       등재」 항목에서 **JSDoc 축 행을 이 draft 가 선행 집행**한다는 사실과 같은 glob 폭을
       반영 (`13_06_22` W1·W2). 안 하면 두 문서가 같은 `code:` 슬롯에 다른 폭을 지시한다
 - [x] `--spec` 게이트 BLOCK:NO 확인 후 `spec/` 반영 (`review/consistency/2026/09/06/13_18_59` — Critical 0 · WARNING 0)
-- [ ] `--impl-done` 재실행으로 Critical 해소 확인
+- [x] `--impl-done` 재실행으로 Critical 해소 확인
+      (`review/consistency/2026/09/06/13_52_23` — **`scope=spec/conventions/`**, 즉
+      `12_53_29` Critical 1 의 두 대상 파일이 실제로 번들에 들어간 유일한 후속 라운드다.
+      그 라운드의 Critical 표에 이 항목은 **없다**. 대신 올라온 Critical 1건은 다른 사안
+      (`code:` 블록의 YAML 주석을 파서가 떨구던 7파일·41 entry)이고 `8b67300b5` 의 파서
+      수정으로 별도 해소됐다 — 자매 plan 소관.
+      그 라운드 `plan_coherence.md` INFO#1 이 *"반영되면 이 체크박스를 본 라운드 근거로
+      닫을 것"* 이라 지정했고, 반영은 `08fbf133d`(#1292) 로 `origin/main` 에 착지했다.
+      **`13_39_25` 를 근거로 쓰지 않는다** — 그 라운드는 `scope=spec/5-system/` 이라
+      대상 문서가 번들 밖이었고, 그 SUMMARY 자신이 권장조치 #3 으로 그렇게 못 박았다.)
 
 > 위 「함께 처리할 것」 3건은 **이 draft 의 종결 조건이 아니다** — 자매 plan 이 소유하고
 > 있고 이 draft 가 단독 머지돼도 그쪽 체크박스가 남는다. 여기 적은 것은 *"같은 턴에 하면
