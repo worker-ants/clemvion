@@ -59,7 +59,8 @@ export type WorkflowVersionListItem = Omit<
  *
  * **문제는 형태가 아니라 이름이었다.** 같은 이름이라 `grep` 이 두 자리를 같은 것으로
  * 보여 줬고, 한 세션에서 **세 라운드 연속** *"유일 정의"* 오판이 났다
- * (`review/consistency/2026/09/06/13_39_25` W3 · `16_29_00` W5).
+ * (`review/consistency/2026/09/06/13_39_25` W3 ·
+ * `review/consistency/2026/09/06/16_29_00` W5).
  *
  * 그래서 **공유 패키지로 합치지 않고 개명했다.** 합치려면 wire 계약(`Date` vs `string`,
  * `creator` 의 nullability)을 한쪽으로 맞춰야 하는데, 그것은 이 결함이 요구하는 것보다

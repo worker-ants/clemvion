@@ -5,8 +5,7 @@ started: 2026-09-08
 owner: developer
 status: in-progress
 priority: P1
-spec_impact:
-  - spec/2-navigation/2-trigger-list.md
+spec_impact: none
 ---
 
 # 배치 B — developer 턴
@@ -14,6 +13,13 @@ spec_impact:
 `plan/in-progress/spec-draft-nullable-notation-followups.md` 의 **developer/harness 항목 8건**.
 배치 A(`#1299`, `ee96a90de`)가 머지돼 harness 권한 조항이 `origin/main` 에 있으므로 B-1·B-2 의
 차단이 풀렸다 — 실측: `git show origin/main:CLAUDE.md | grep harness` 로 확인.
+
+> **`spec_impact` 는 `none` 이다 — 처음에 `2-trigger-list.md` 라고 적었던 것을 정정했다.**
+> 상위 트래커의 값을 그대로 옮겨 붙인 오기였다. 실측: 이 브랜치의 `git diff origin/main...HEAD
+> -- spec/` 은 **0 파일**이고, 그 spec 의 `code:` glob 에 걸리는 파일도 건드리지 않았다.
+> 그대로 두면 *"batch-b 가 그 spec 영향을 이미 다뤘다"* 는 거짓 기록이 남아, 아직 열려 있는
+> sort/order 항목의 `pending_plans` 포인터를 다음 세션이 조기 해소로 오판할 수 있다
+> (`review/consistency/2026/09/08/13_22_38` WARNING#1 — plan_coherence·cross_spec 독립 지적).
 
 **착수 전 재판정 (2026-09-08)**: `origin/main` = `ee96a90de`(#1299). 배치 A 이후 다른 세션의
 머지 **0건**. 8건 모두 유효.
@@ -122,18 +128,21 @@ spec_impact:
 
 ## 체크리스트
 
-- [ ] `--impl-prep` 게이트 통과
-- [ ] B-1 `.claude/test-stages.sh` + `PROJECT.md` 동반 갱신
-- [ ] B-2 `tsconfig.build.json` exclude (디렉터리 이름 규약)
-- [ ] B-3 필터 → `isPostgresUniqueViolation` + 최상위 표면 회귀 테스트
-- [ ] B-4 `listMembers` 투영 + **화이트리스트에서 항목 제거**
-- [ ] B-5 `pgErrorConstraint()` 치환 2곳
-- [ ] B-6 `endpointPath` save() 래핑 래칫
-- [ ] B-7 트리거 409 e2e 1건
-- [ ] B-8 백엔드 타입 개명 + 양쪽 JSDoc 갱신
-- [ ] TEST WORKFLOW (lint / unit / build / e2e)
-- [ ] **두 타입체크 ratchet 직접 실행** (B-1 이 4단계에 넣더라도 이번 PR 은 그 변경 자체를 검증해야 한다)
-- [ ] `python3 -m pytest .claude/tests -q` (B-1 이 harness 를 건드린다)
-- [ ] `/ai-review` + Critical/Warning fix
+- [x] `--impl-prep` 게이트 통과 (`review/consistency/2026/09/08/12_21_11` — BLOCK: NO,
+      5 checker 전원 Critical 0. INFO#5·#6 은 구현에 반영, INFO#4 는 planner 항목으로 신설)
+- [x] B-1 `.claude/test-stages.sh` + `PROJECT.md` 동반 갱신 — build 로그에 ratchet 두 줄 실측
+- [x] B-2 `tsconfig.build.json` exclude (디렉터리 이름 규약) + `shared/testing` 빈 축 발견·보완
+- [x] B-3 필터 → `isPostgresUniqueViolation` + 두 방향 회귀(23505→409 / 23502→500). RED 확인
+- [x] B-4 `listMembers` 투영 + 화이트리스트 항목 제거(래칫이 요구) + 투영 단언 뮤테이션 검증
+- [x] B-5 `pgErrorConstraint()` 치환 2곳 + wrap 표면 회귀 파라미터화(리뷰 INFO#7)
+- [x] B-6 `endpointPath` save() 래핑 래칫 — **술어를 뒤집었다**(등재된 처방은 vacuous)
+- [x] B-7 트리거 409 e2e 1건 — 실행 사실을 skipped 0 · `.skip` 부재로 확인
+- [x] B-8 백엔드 타입 개명 + 양쪽 JSDoc 갱신
+- [x] TEST WORKFLOW 4/4 — fix 후 재수행. backend **9,505** · frontend **6,347** ·
+      e2e backend **300** + playwright **51**
+- [x] **두 타입체크 ratchet 직접 실행** — backend 197건/36파일, frontend 52건/15파일 baseline 일치
+- [x] `python3 -m pytest .claude/tests -q` → **1,132 passed / 1,254 subtests**
+- [x] `/ai-review` + fix (`review/code/2026/09/08/12_53_08` — Critical 0 · Warning 1,
+      forced 7/7. W1 + INFO 4건 수정, won't-do 2건 사유 기록. RESOLUTION.md 참조)
 - [ ] `--impl-done`
-- [ ] 자매 트래커 체크박스 플립 (개별 열거로 확인)
+- [x] 자매 트래커 체크박스 **8건** 플립 + planner 후속 **2건** 신규 등재 (30 → 24 open)

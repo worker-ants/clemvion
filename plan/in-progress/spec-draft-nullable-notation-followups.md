@@ -505,7 +505,7 @@ field: T | null;
       > 고치는 것이 관측되면, 규칙을 유지할지 관례에 맞춰 되돌릴지 그 시점에 재판정한다
       > (`review/consistency/2026/09/08/11_28_04` rationale_continuity INFO#1).
 
-- [ ] **`endpointPath` 를 쓰는 다음 `save()` 가 충돌 래핑을 빠뜨릴 수 있다** (developer,
+- [x] **`endpointPath` 를 쓰는 다음 `save()` 가 충돌 래핑을 빠뜨릴 수 있다** (developer,
       2026-09-06 등재, `review/code/2026/09/06/19_31_04` INFO#2).
 
       `TriggersService` 의 `save()` 호출은 8곳인데 `rethrowEndpointPathConflict` 로 감싼
@@ -520,7 +520,19 @@ field: T | null;
       한다"* 를 AST 로 세는 래칫. **(b) 가 이 저장소의 관행에 가깝다** — 화이트리스트가
       비대칭을 문서가 아니라 테스트로 들고 있게 된다.
 
-- [ ] **전역 예외 필터가 `pg-error.ts` SoT 를 안 쓴다 — 가장 넓은 fallback 이 좁다**
+      > **완료 (2026-09-08, 배치 B-6)** — **다만 등재된 처방의 술어는 폐기했다.**
+      > 처방은 *"`endpointPath` 를 대입·갱신하는 메서드의 `save()`"* 였는데 실측하니 **두 정답
+      > 사이트를 하나도 못 잡는다**: `create` 는 `create({ ...rest })`, `update` 는
+      > `Object.assign(trigger, defined)` 로 **스프레드**라 두 메서드 본문에 `endpointPath` 토큰이
+      > 없다. 단일 파일 AST 로는 스프레드를 못 따라가므로 그 가드는 **양성 0건 vacuous** 가 된다.
+      > → 술어를 뒤집어 **모든** `triggerRepository.save()` 를 세고 *래핑됐거나 사유와 함께
+      > 목록에 있거나* 를 요구한다. 미래핑 6곳은 각각 열어 무엇을 쓰는지 확인 후 등재.
+      > **두 번 자기 결함을 냈다**: (1) `enclosingMethodName` 이 `const saved = …` 를 이름으로
+      > 삼아 정답 두 자리가 `saved` 로 잡혔다. (2) 래핑 판정이 `.catch` **텍스트에 이름 등장**만
+      > 봐서 fail-**open** 이었다(내 JSDoc 은 그것을 fail-safe 라 불렀다) — 리뷰가 잡았고
+      > (`12_53_08` INFO#6) **호출식**을 요구하도록 좁혔다.
+
+- [x] **전역 예외 필터가 `pg-error.ts` SoT 를 안 쓴다 — 가장 넓은 fallback 이 좁다**
       (developer, 2026-09-06 등재, `review/code/2026/09/06/16_58_14` W6).
 
       `http-exception.filter.ts` 의 로컬 `isUniqueViolation` 은 **`err instanceof
@@ -540,7 +552,12 @@ field: T | null;
       다만 그쪽은 동작이 옳고(두 표면을 본다) 이쪽은 **좁다**는 점이 다르므로, 둘 중
       먼저 처리할 것은 이쪽이다.
 
-- [ ] **`run-test.sh` 4단계가 타입체크 ratchet 을 안 돈다** (harness, 2026-09-06 등재,
+      > **완료 (2026-09-08, 배치 B-3)**. `isPostgresUniqueViolation` 으로 교체(`QueryFailedError`
+      > import 도 함께 사라졌다). **RED→GREEN 확인** — 새 테스트가 수정 전 500 을 받았다.
+      > 짝 단언(raw 표면 23502 는 409 로 새지 않는다)도 함께 넣어 넓힌 판이 아무 에러나 409 로
+      > 만들지 않는 것을 고정했다. `CHANGELOG.md` 에 동작 변경으로 등재.
+
+- [x] **`run-test.sh` 4단계가 타입체크 ratchet 을 안 돈다** (harness, 2026-09-06 등재,
       `#1292` CI 실패로 발각).
 
       `PROJECT.md:40-41` 은 두 ratchet 을 *"backend/frontend `*.ts(x)` 변경 시"* 필수로
@@ -559,7 +576,14 @@ field: T | null;
       → `.claude/test-stages.sh` 의 `cmd_build()`(또는 별도 5번째 단계)에 두 ratchet 을
       넣는다. **`.claude/**` 쓰기라 위 harness 권한 항목의 결정을 따른다.**
 
-- [ ] **`src/common/__test-utils__/` 5파일이 dist 로 나간다** (developer, 2026-09-06 등재,
+      > **완료 (2026-09-08, 배치 B-1)**. `.claude/test-stages.sh` 의 `cmd_build()` 에
+      > `_cmd_typecheck_ratchets()` 를 넣었다. **`PROJECT.md` 도 함께 고쳤다** — 그 문서는 이 갭을
+      > *미문서화 결함이 아니라* **문서화된 결함**으로 적고 있었으므로("wrapper 4단계 밖의 CI
+      > 게이트"), 안 고치면 그 문장이 거짓이 된다. 표에서 두 행을 내리고 왜 옮겼는지를 남겼다.
+      > **실측**: `run-test.sh build` 로그에 `OK: backend 타입 진단 197건 / 36파일` ·
+      > `OK: frontend 타입 진단 52건 / 15파일` 두 줄이 남았다 — 배선을 추론이 아니라 실행으로 확인.
+
+- [x] **`src/common/__test-utils__/` 5파일이 dist 로 나간다** (developer, 2026-09-06 등재,
       이번 PR 의 W3 을 고치다 발견).
 
       `tsconfig.build.json` 의 exclude 는 `*spec.ts` · `src/repo-guards/**` ·
@@ -575,7 +599,14 @@ field: T | null;
       으로 막으면 다음에 어디에 만들어도 걸린다 — 이번에 내가 `common/db/__test-utils__/`
       에 파일을 만들었다가 같은 함정에 빠졌고, 그때는 자리를 옮겨 회피했다.
 
-- [ ] **`integration-oauth.service.ts` 의 손-작성 constraint 추출 2곳** (developer,
+      > **완료 (2026-09-08, 배치 B-2)**. `tsconfig.build.json` 에 `**/__test-utils__/**` 추가 +
+      > `production-build-devdep.spec.ts` 에 대응 단언. **제목이 한 칸 좁았다** — 실측 5파일은
+      > `common/` 3 + `modules/integrations/` 2 로 **두 디렉터리**에 흩어져 있었다. 그래서 경로가
+      > 아니라 **디렉터리 이름**으로 막았다.
+      > **부수 소득**: 단언을 `it.each` 로 접다가 `shared/testing` 축이 2026-08-27 에 **exclude 만
+      > 추가되고 대응 단언이 없었다**는 것을 발견했다 — 그 축이 이번에 처음 생겼다.
+
+- [x] **`integration-oauth.service.ts` 의 손-작성 constraint 추출 2곳** (developer,
       2026-09-06 등재, `review/code/2026/09/06/16_28_58` INFO#9 — **의도적 보류**).
 
       신설한 `pgErrorConstraint()` 가 정확히 대체할 수 있는 패턴이 남아 있다. **실측**:
@@ -590,7 +621,12 @@ field: T | null;
 
       → 그 파일을 다음에 건드릴 때 치환한다.
 
-- [ ] **트리거 `endpoint_path` 409 충돌에 e2e 가 없다** (developer, 2026-09-06 등재,
+      > **완료 (2026-09-08, 배치 B-5)**. `pgErrorConstraint()` 로 치환. 리뷰가 **callsite 테스트가
+      > flat 표면만 태우고 있었다**는 것을 잡아(`12_53_08` INFO#7) 두 spec 을 `it.each` 로 두 표면
+      > 파라미터화했다 — 실전에서 TypeORM 이 주는 것은 wrap 된 쪽이다.
+      > **뮤테이션**: `pgErrorConstraint` 를 flat-only 로 바꾸면 **정확히 새 2건만** RED.
+
+- [x] **트리거 `endpoint_path` 409 충돌에 e2e 가 없다** (developer, 2026-09-06 등재,
       `review/code/2026/09/06/15_52_58` INFO#11).
 
       단위 mock 검증은 촘촘한데 **실 DB 유니크 제약을 타는 경로**가 없다. 같은 PR 의 다른
@@ -600,7 +636,13 @@ field: T | null;
       409 + `code` + `details` 두 키 단언. 단위 테스트가 mock 하는 드라이버 형태가
       **실제와 같은지**를 이 케이스만 확인할 수 있다(그것이 mock 의 사각지대다).
 
-- [ ] **`listMembers` 를 DB 레벨 투영으로 옮겨 구조 가드 보호 범위에 넣는다**
+      > **완료 (2026-09-08, 배치 B-7)**. `webhook-trigger.e2e-spec.ts` 에 `B4.` 1건 — 409 + 봉투
+      > `code` + `details` **두 키를 함께** 단언(하나만 보면 `details` 를 통째로 잃어도 초록이다).
+      > 계약 SoT 는 `#1299` 가 세운 `3-error-handling.md §1.10`.
+      > **실행 확인**: 스위트 PASS + `300 passed, 300 total`(skipped 0) + 파일에 `.skip`/`.only`
+      > 없음 — 요약 숫자만 보지 않고 실제 실행을 확인했다.
+
+- [x] **`listMembers` 를 DB 레벨 투영으로 옮겨 구조 가드 보호 범위에 넣는다**
       (developer, 2026-09-06 등재, `review/code/2026/09/06/15_30_59` W1 —
       여러 라운드가 반복 지적).
 
@@ -617,6 +659,15 @@ field: T | null;
       **이 PR 에서 하지 않은 이유**: `listMembers` 는 원래 목표(유출 차단) 밖이고
       응답은 이미 안전하다. DB→앱 전송 낭비와 *"가드가 못 지킨다"* 는 구조적 사실만
       남는데, 그것을 이번 라운드에 단위 테스트로 고정했다.
+
+      > **완료 (2026-09-08, 배치 B-4)**. **예고된 기계적 증거가 그대로 나왔다** — 전환하자
+      > `user-entity-exposure-guard` 가 이 자리를 더는 찾지 못해 화이트리스트 단언이 깨졌고,
+      > 항목을 지워야 통과했다. 가드 헤더의 *"`listMembers` 는 JS 단 매핑이라 이 가드는 초록"*
+      > 표 행도 이제 거짓이라 함께 정정했다.
+      > **단위 단언을 하나 더 세웠다** — 반환 키만 보면 **투영을 되돌려도 초록**이다. 뮤테이션으로
+      > 확인: `select` 를 지우면 새 단언 **1건만** RED, 반환 키 단언은 초록으로 남는다.
+      > **쿼리 범위 투영 ≠ 엔티티 전역 `select: false`** — 후자는 `1-data-model.md ## Rationale`
+      > 이 기각했다. 그 구분을 Rationale 표에 정식 등재하는 것은 위 planner 항목으로 신설했다.
 
 - [x] **`2-trigger-list.md` R-2 가 폐기된 설계를 유효한 것처럼 남기고 있다** (planner,
       2026-09-06 등재, `review/consistency/2026/09/06/15_31_00` W1).
@@ -694,6 +745,36 @@ field: T | null;
       `spec_impact` 대상이 아니다"* 를 한 줄로 성문화 · (b) `governance_impact` 별 키 신설 ·
       (c) `makeSpecExists` 를 거버넌스 경로까지 넓힌다(게이트가 무는 방향이 흐려지므로 비추천).
       **(a) 가 가장 싸고, 지금 상태를 그대로 문장으로 만든다.**
+
+- [ ] **"쿼리 범위 `select` 투영" 을 `1-data-model.md ## Rationale` 에 정식 등재** (planner,
+      2026-09-08 등재, `review/consistency/2026/09/08/13_22_38` rationale_continuity INFO#1).
+
+      `#1299` 가 `1-data-model.md ## Rationale` 에 세 선택지 표(컬럼 `select: false` 기각 /
+      응답 DTO 손질 단독 기각 / 응답 경계 투영 + 검출 2축 채택)를 넣었다. 그런데 실제로 두 번
+      쓰인 패턴은 그 셋 중 어느 것도 아닌 **네 번째** — `WorkflowVersionsService.findOne`(#1292)
+      과 `WorkspacesService.listMembers`(배치 B)의 **쿼리 범위 `select` 투영**이다.
+
+      **왜 등재해야 하나**: 표의 1행이 *"컬럼 `select: false` — 기각"* 이라 적는데, 코드 주석
+      이력을 못 본 다음 검토자는 `select: { user: {...} }` 를 보고 **기각된 대안의 재도입**으로
+      오판할 수 있다. 둘은 이름만 비슷하고 성질이 반대다 — 전자는 **엔티티 전역**이라 값을 읽는
+      내부 경로를 fail-silent 로 만들고, 후자는 **이 쿼리 하나**라 다른 경로를 건드리지 않는다.
+
+      → 그 표에 네 번째 행(또는 채택 행의 하위 각주)으로 *"쿼리 범위 `select` 투영 — 엔티티
+      전역과 구분"* 을 넣고 두 사례를 인용한다. developer 권한 밖(`spec/` 쓰기)이라 planner 턴.
+
+- [ ] **`2-api-convention.md §5.4` 의 `swagger.md` 인용이 한 절 앞을 가리킨다** (planner,
+      2026-09-08 등재, `review/consistency/2026/09/08/12_21_11` convention_compliance INFO#4).
+
+      §5.4 는 *"DTO 선언이 wire 를 반영해야 한다"* 의 근거로 [`swagger.md §1-3`](
+      ../../spec/conventions/swagger.md) 을 인용하는데, §1-3 은 **일반 optional 필드 예시**만
+      보여 준다. `null` vs 키-생략에 따른 `@ApiPropertyOptional()` / `@ApiProperty({nullable})`
+      선택 근거와 예시는 **§1-4**(닫힌 union)에 있다.
+
+      **깨진 링크는 아니다** — 앵커는 실재하는 heading 에 착지한다. 다만 `swagger.md §1-4` 자신은
+      *"부재 표현 판정과 선언 형태의 SoT: API 규약 §5.4"* 로 **역방향 링크**를 걸어 두어 서로를
+      가리키는데, 정방향만 한 절 어긋나 있다.
+
+      → 인용을 `swagger.md#1-4-nested--enum--union` 로 바꾸거나 §1-3·§1-4 병기.
 - [x] **트리거 drawer 의 "새 인증 설정 만들기" 링크가 editor 에게 dead-end** (planner,
       2026-09-06 등재, `review/consistency/2026/09/06/15_31_00` W2).
 
@@ -718,7 +799,7 @@ field: T | null;
       > Admin+ 에만 노출" 을 SoT 링크(`6-config.md#권한` → `1-auth.md §3.2`)와 함께 적었다.
       > binding 편집 자체는 editor+ 그대로다.
 
-- [ ] **`WorkflowVersionDetail` 동명 미러를 코드 주석에서 트래커로 격상** (developer,
+- [x] **`WorkflowVersionDetail` 동명 미러를 코드 주석에서 트래커로 격상** (developer,
       2026-09-06 등재, `review/consistency/2026/09/06/15_31_00` W4).
 
       백엔드 `workflow-versions.service.ts` 와 프런트엔드 `lib/api/workflows.ts:109` 가
@@ -732,6 +813,12 @@ field: T | null;
       → 개명(`WorkflowVersionDetailProjection` 등) 또는 `codebase/packages/` 공유 타입
       승격. 개명은 프런트 소비처 2곳(`version-detail-dialog.tsx`·`version-diff-dialog.tsx`)
       과 무관하므로 백엔드 단독으로 가능하다.
+
+      > **완료 (2026-09-08, 배치 B-8)** — 격상이 아니라 **해소**했다. 백엔드를
+      > `WorkflowVersionDetailProjection` 으로 개명(소비처 0건, wire 계약 무변).
+      > **공유 패키지로 합치지 않았다** — 두 타입은 실제로 형태가 다르다(`createdAt` Date vs
+      > string, `creator` 3필드 고정 vs 옵셔널·nullable). 합치려면 wire 계약을 한쪽으로 맞춰야
+      > 하는데, 이 결함이 요구한 것은 **형태 통일이 아니라 이름 충돌 해소**다. 양쪽 JSDoc 갱신.
 
 - [x] **도메인 세부 에러 코드의 표현 방식을 정식화한다** (planner, 2026-09-06 등재,
       `review/consistency/2026/09/06/14_59_49` W1).
