@@ -1,6 +1,8 @@
 ---
 id: trigger-list
-status: implemented
+status: partial
+pending_plans:
+  - plan/in-progress/spec-draft-nullable-notation-followups.md
 code:
   - codebase/frontend/src/app/(main)/w/[slug]/triggers/page.tsx
   - codebase/frontend/src/components/triggers/*.tsx
@@ -100,10 +102,10 @@ code:
 | Schedule Configuration | `nextRunAt` | read-only (시스템 계산) | 스케줄 생성·수정 시와 각 실행 완료 직후 재계산. cron 파싱 실패 시 **비어 있을 수 있다**(`-` 표시) — 발사와 무관한 정보성 값이다 ([data-flow §3.2](../data-flow/10-triggers.md#32-schedulenext_run_at-계산)) |
 | External Interaction (Notification) | `url` / `events` / `signing` / `retry` | edit | [Spec EIA §4](../5-system/14-external-interaction-api.md#4-trigger-등록-페이로드-확장) 참조 — 별 plan `eia-trigger-edit-ui` 가 구현 |
 | External Interaction (Interaction) | `enabled` / `tokenStrategy` | edit | 동상 |
-| Auth Config | `authConfigId` | edit | [Authentication 메뉴](./6-config.md#part-a-authentication-인증-설정) 에서 발급한 AuthConfig 셀렉터로 트리거에 binding. `PATCH /api/triggers/:id { authConfigId }` (소속 검증은 backend `triggers.service`). `null` = 인증 없음. 인증 자료(secret/token/password) 의 편집·Reveal·Regenerate 는 Authentication 메뉴에서만 — 본 drawer 는 binding 만 관리. 셀렉터는 워크스페이스 AuthConfig 목록 드롭다운 + "인증 없음" + "+ 새 인증 설정 만들기" (→ `/authentication`) 로 구성 (Rationale R-14) |
+| Auth Config | `authConfigId` | edit | [Authentication 메뉴](./6-config.md#part-a-authentication-인증-설정) 에서 발급한 AuthConfig 셀렉터로 트리거에 binding. `PATCH /api/triggers/:id { authConfigId }` (소속 검증은 backend `triggers.service`). `null` = 인증 없음. 인증 자료(secret/token/password) 의 편집·Reveal·Regenerate 는 Authentication 메뉴에서만 — 본 drawer 는 binding 만 관리. 셀렉터는 워크스페이스 AuthConfig 목록 드롭다운 + "인증 없음" + "+ 새 인증 설정 만들기" (→ `/authentication`) 로 구성 (Rationale R-14). **단 "+ 새 인증 설정 만들기" 항목은 Admin+ 에만 노출한다** — 목적지의 Add Config 액션 자체가 Admin+ 전용이라([Spec 설정 §A 권한](./6-config.md#권한), SoT [Spec 인증 §3.2](../5-system/1-auth.md#32-리소스별-권한-매트릭스)) editor/viewer 에게는 눌러도 만들 수 없는 dead-end 가 된다. editor 는 기존 AuthConfig 목록 + "인증 없음" 만 본다. binding 자체(`authConfigId` 편집)는 editor+ 그대로다 |
 | Chat Channel | `provider` | read-only (생성 후 변경 불가) | v1 은 `telegram` / `slack` / `discord` ([`providers/_overview.md §1`](../4-nodes/7-trigger/providers/_overview.md#1-supported-providers-v1) 단일 진실). 변경하려면 트리거 삭제·재생성 |
 | Chat Channel | `inboundSigning` (provider-issued plaintext) | edit (입력) — 생성 시점만 | slack / discord 한정. 사용자가 외부 portal (Slack 앱 Basic Information / Discord Developer Portal General Information) 에서 발급된 값을 입력. 응답에 strip — 내부 `inboundSigningRef` 만 보관 ([Spec Chat Channel §4.1](../5-system/15-chat-channel.md#41-triggerconfigchatchannel)). telegram 은 server-issued 라 본 필드 미사용. 변경 (rotation) 은 v1 미정의 — 별 spec 대기. PATCH body 의 `config.chatChannel.inboundSigning` / `inboundSigningPlaintext` 직접 변경은 400 `VALIDATION_ERROR` (`details.field='inboundSigningPlaintext'`). 정당화 — [R-CC-10](../5-system/15-chat-channel.md#r-cc-10-bot-token-변경-single-path-rotate-api-only) 의 외부 provider 등록 token 패턴과 자원 성격이 달라 single-path 가 아니라 별 결정 사안 |
-| Chat Channel | `botToken` | edit (입력) + rotate 액션 (single-path) | write-only — 응답에는 `hasBotToken: boolean` 만 노출 ([Spec Chat Channel §5.4.2](../5-system/15-chat-channel.md#542-응답-dto-derived-필드--hasbottoken)). 마스킹 placeholder ("•••• \<last4\>"). 형식 검증 `^\d{6,}:[A-Za-z0-9_-]{30,}$` ([Spec Chat Channel §5.4](../5-system/15-chat-channel.md#54-bot-token-rotation-api-응답-계약)). 변경 시 **항상 `POST /api/triggers/:id/chat-channel/rotate-bot-token`** 만 사용 (24h grace). PATCH body 의 `botTokenRef` 변경은 차단 — 400 `VALIDATION_ERROR` (`details.field='botTokenRef'`). 정당화 Rationale [R-CC-10](../5-system/15-chat-channel.md#r-cc-10-bot-token-변경-single-path-rotate-api-only) |
+| Chat Channel | `botToken` | edit (입력) + rotate 액션 (single-path) | **write-only** — 응답에는 `hasBotToken: boolean` 만 노출 ([Spec Chat Channel §5.4.2](../5-system/15-chat-channel.md#542-응답-dto-derived-필드--hasbottoken)). **마스킹 값도 last4 도 응답에 싣지 않는다** — AuthConfig 의 `***<last4>` 마스킹 규약([데이터 모델 §2.17.2](../1-data-model.md#2172-마스킹노출-정책))은 *Reveal 로 읽을 수 있는* 자격증명용이라 write-only 필드에 차용하지 않는다([secret-store §1.1](../conventions/secret-store.md#11-비대상-필드도-응답-바디에는-나가지-않는다)). 입력창 placeholder 는 형식 예시(`123456789:ABCdef...`)이지 서버가 보낸 값이 아니다. 형식 검증 `^\d{6,}:[A-Za-z0-9_-]{30,}$` ([Spec Chat Channel §5.4](../5-system/15-chat-channel.md#54-bot-token-rotation-api-응답-계약)). 변경 시 **항상 `POST /api/triggers/:id/chat-channel/rotate-bot-token`** 만 사용 (24h grace). PATCH body 의 `botTokenRef` 변경은 차단 — 400 `VALIDATION_ERROR` (`details.field='botTokenRef'`). 정당화 Rationale [R-CC-10](../5-system/15-chat-channel.md#r-cc-10-bot-token-변경-single-path-rotate-api-only) |
 | Chat Channel | `botIdentity.username` | read-only | `setupChannel()` 의 `getMe` 캐시 결과. trigger 활성화 시점에 자동 갱신 |
 | Chat Channel | `uiMapping.formMode` | edit | enum: `multi_step` / `native_modal` / `auto`, default `auto`. `auto`=지원 provider+전 필드 modal 수용+fields≤5 면 native modal, 아니면 다단계. `native_modal`=modal 우선 (미충족 시 다단계 fallback). `multi_step`=강제 다단계 opt-out. 상세 [Convention §2.3](../conventions/chat-channel-adapter.md#23-chatchannelconfig) |
 | Chat Channel | `uiMapping.visualNode` | edit | enum: `text` / `photo` / `auto`, default `auto`. Carousel/Chart/Table 시각 렌더 모드. 상세 [Convention §2.3](../conventions/chat-channel-adapter.md#23-chatchannelconfig) + [Spec Chat Channel R-CC-11](../5-system/15-chat-channel.md#r-cc-11-uimappingvisualnode-enum-교체-text_onlytext--auto-신설) |
@@ -223,15 +225,23 @@ API 게이트는 [Spec 인증 §3.2 리소스별 권한 매트릭스](../5-syste
 
 v1.1 이후 위 영향을 해소할 마이그레이션 계획이 마련되면 본 조항 해제.
 
-### R-2. Webhook HMAC secret 입력 vs. rotate 분리
+### R-2. Webhook HMAC secret 입력 vs. rotate 분리 (폐기 — R-14 로 대체)
 
-§2.3.1 의 `hmacSecret` 행은 "입력 변경 (v1)" 과 "rotate 액션 (v1.1 후속)" 을 분리했다. 이유:
+> **정정 (2026-09-08)**: **본 절의 설계는 [R-14](#r-14-authconfigid-v1--inline-인증-필드-제거) 로 대체됐다.** 아래 원문은 이력으로만 남긴다.
+>
+> - 전제였던 `config.hmacSecret` inline 입력이 R-14 로 **제거됐다** ([§3 PATCH body](#3-api) — *"인증 관련 inline 키 (`config.authType` / `hmacHeader` / `hmacSecret` / `bearerToken`) 는 제거됨"*).
+> - 예고했던 `POST /api/triggers/:id/auth/rotate-secret` 은 **신설되지 않은 채 폐기**됐다 ([§3 하단](#3-api)). 웹훅 자격증명 회전은 `POST /api/auth-configs/:id/regenerate` ([Spec 설정 §3](./6-config.md#3-api)) 로 일원화됐다.
+> - 따라서 아래 **TBD 세 항목(응답 shape · grace 기간 · 경로 세그먼트)도 함께 소멸**했다 — 결정되지 않은 것이 아니라 **결정할 대상이 없어졌다.**
+>
+> **본 절을 지우지 않는 이유**: [Chat Channel R-CC-10](../5-system/15-chat-channel.md#r-cc-10-bot-token-변경-single-path-rotate-api-only) 이 *"우리가 보유한 server-side secret ↔ 외부 provider 에 등록된 token"* 대조군으로 이 절을 인용한다. 그 대조는 **자원 성격의 대조**라 설계가 폐기돼도 유효하다.
 
-- EIA notification secret 은 외부 수신자가 보유한 키를 사전에 교체 동기화하기 위한 grace 기간이 필요 ([Spec EIA §7.1 (Trigger 엔티티 확장)](../5-system/14-external-interaction-api.md#71-trigger-엔티티-확장)) — 단순 입력 교체는 grace 가 없어 즉시 단절.
-- v1 은 secret 을 모르는 채로 분실·재발급 시나리오만 다룬다 (UX 가 단순). grace 패턴이 필요한 운영 환경은 v1.1 후속.
-- API 도 동일 분리: `PATCH /api/triggers/:id { config.hmacSecret }` (v1) vs `POST /api/triggers/:id/auth/rotate-secret` (v1.1).
+~~§2.3.1 의 `hmacSecret` 행은 "입력 변경 (v1)" 과 "rotate 액션 (v1.1 후속)" 을 분리했다. 이유:~~
 
-**TBD (미결정)**: v1.1 rotate 의 응답 shape (신규 secret 평문 반환 vs masked digest), grace 기간 (24h 표준 vs 가변), 경로 세그먼트 (`/auth/` vs `/webhook-auth/`) 는 아직 확정하지 않는다. EIA outbound notification secret 의 rotate 응답 형식이 먼저 합의되면 본 spec 의 v1.1 행도 동일 패턴을 차용한다.
+- ~~EIA notification secret 은 외부 수신자가 보유한 키를 사전에 교체 동기화하기 위한 grace 기간이 필요 ([Spec EIA §7.1 (Trigger 엔티티 확장)](../5-system/14-external-interaction-api.md#71-trigger-엔티티-확장)) — 단순 입력 교체는 grace 가 없어 즉시 단절.~~
+- ~~v1 은 secret 을 모르는 채로 분실·재발급 시나리오만 다룬다 (UX 가 단순). grace 패턴이 필요한 운영 환경은 v1.1 후속.~~
+- ~~API 도 동일 분리: `PATCH /api/triggers/:id { config.hmacSecret }` (v1) vs `POST /api/triggers/:id/auth/rotate-secret` (v1.1).~~
+
+~~**TBD (미결정)**: v1.1 rotate 의 응답 shape (신규 secret 평문 반환 vs masked digest), grace 기간 (24h 표준 vs 가변), 경로 세그먼트 (`/auth/` vs `/webhook-auth/`) 는 아직 확정하지 않는다. EIA outbound notification secret 의 rotate 응답 형식이 먼저 합의되면 본 spec 의 v1.1 행도 동일 패턴을 차용한다.~~
 
 ### R-3. 삭제 confirmation 텍스트를 type 별로 분기한 이유
 

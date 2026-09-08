@@ -229,6 +229,16 @@ code:
 
 > 위 UPPER_SNAKE 코드는 초대 흐름(`workspace-invitations.service.ts`)의 lowercase `already_a_member`·`workspace_type_mismatch`(§1.2 초대 발급·수락, [error-codes.md §3](../conventions/error-codes.md#3-historical-artifact-예외-레지스트리) historical-artifact)와 **동일 의미·별개 wire 코드**다(다른 모듈·케이스 컨벤션, 의도적 분리·통합 금지). 같은 경로의 `USER_NOT_FOUND`(404, 미가입 이메일)·`WORKSPACE_NOT_FOUND`(404, 워크스페이스 미존재)는 `workspaces.service` 전역 CRUD 공통 generic 코드라 직접-추가 distinctive 가 아니어서 본 절 미등재다. 전환·탈퇴 경로의 `NOT_A_MEMBER`(403)는 §1.2.
 
+### 1.10 트리거 endpointPath 충돌 세부 코드 (도메인 spec 참조)
+
+`POST /api/triggers` · `PATCH /api/triggers/:id` 가 `(workspace_id, endpoint_path)` UNIQUE 제약을 위반할 때 발행한다. **top-level `code` 는 상태 기본값 `RESOURCE_CONFLICT` 를 유지**하고 세부 사유는 `details` 에 싣는다 — 어느 필드가 충돌했는지가 정보의 일부이기 때문이다([API 규약 §5.3 택일 기준](./2-api-convention.md#도메인-세부-사유를-어디에-싣는가--top-level-code-교체-vs-detailscode)). 정의·트리거 SoT 는 [2-trigger-list.md §3](../2-navigation/2-trigger-list.md#3-api) 이고 본 절은 공용 카탈로그 가시성 등재다. `UPPER_SNAKE_CASE` 규약([conventions/error-codes.md](../conventions/error-codes.md))을 따른다.
+
+| 세부 코드 (`details.code`) | 봉투 `code` / status | 설명 | 도메인 SoT |
+|------|--------|------|-----------|
+| `TRIGGER_ENDPOINT_PATH_CONFLICT` | `RESOURCE_CONFLICT` / 409 | 동일 워크스페이스에 같은 `endpointPath` 를 쓰는 트리거가 이미 존재. `details.field='endpoint_path'` | [2-trigger-list §3](../2-navigation/2-trigger-list.md#3-api) |
+
+> `details` 가 **객체 형태**인 사례다(배열이 아니다) — 형태 구분은 [API 규약 §5.3](./2-api-convention.md#도메인-세부-사유를-어디에-싣는가--top-level-code-교체-vs-detailscode) 의 표 참조. 같은 경로의 길이·이름 검증 실패는 400 `VALIDATION_ERROR` 로 [§1.3](#13-유효성-검증-에러) 소관이다.
+
 ---
 
 ## 2. 에러 응답 형식

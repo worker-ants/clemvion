@@ -23,6 +23,7 @@ model: opus
 | `plan/**` | Read/Write — draft, in-progress, complete 라이프사이클 ([`.claude/docs/plan-lifecycle.md`](../../docs/plan-lifecycle.md)) |
 | `codebase/**` | Read only — 구현 영향 파악용. 수정 금지 |
 | `review/**` | Read — consistency 결과 확인용 |
+| `.claude/docs/**`, `.claude/skills/**/SKILL.md`, `CLAUDE.md` | Read/Write — **거버넌스 문서**(역할 정의·워크플로 규약). harness **실행물**(`hooks/`·`tools/`·`tests/`)은 `developer` 소유라 대상 아님 ([`CLAUDE.md` §Skill 체계](../../../CLAUDE.md#skill-체계) 가 SoT) |
 
 ## 작업 워크플로
 

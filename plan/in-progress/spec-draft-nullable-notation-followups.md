@@ -380,7 +380,7 @@ field: T | null;
       > **이 항목은 닫히지만 후속 두 건이 따라온다** — 아래 별 항목으로 등재했다. 여기에
       > 적어 두지 않으면 draft 종결 조건(`## 후속` 체크박스 전부 닫힘)이 조용히 거짓이 된다.
 
-- [ ] **신규 검출 3축을 §5.4 「검증 층」과 `code:` 에 등재** (planner, 2026-09-06 등재,
+- [x] **신규 검출 3축을 §5.4 「검증 층」과 `code:` 에 등재** (planner, 2026-09-06 등재,
       `review/consistency/2026/09/06/10_13_23` W1 — **5개 checker 중 4개가 독립 보고**).
 
       `user-entity-exposure-guard.ts`(구조 축)·`user-secret-absence.ts`(이름 축)·
@@ -448,7 +448,13 @@ field: T | null;
       **새 개수를 적어 넣지 말 것.** 이 문서가 이미 두 번 겪은 실패다 — 축이 늘 때마다
       숫자가 낡는다. 표로 **나열**하고 문장은 개수를 말하지 않게 고친다.
 
-- [ ] **`CLAUDE.md` 에 harness(`.claude/**`) 수정 권한 조항이 없다** (planner, 2026-09-06
+      > **완료 (2026-09-08, 배치 A-4)**. §5.4 검증 층 표를 4행으로 넓히고 "두 검증자" 문구를
+      > 개수 없는 나열형으로 바꿨다(`swagger.md §5-1` 동반). `code:` 는 **양쪽 문서에**
+      > `user-entity-exposure*.ts`·`user-secret-absence*.ts` 두 줄씩 등재.
+      > **기계적 증거 — 정본 게이트에 직접 물었다**: `review_guard._spec_linked_changes()` 가
+      > 네 파일을 **0/4 → 4/4** spec-linked 로 판정한다.
+
+- [x] **`CLAUDE.md` 에 harness(`.claude/**`) 수정 권한 조항이 없다** (planner, 2026-09-06
       등재, `review/code/2026/09/06/15_52_58` W1).
 
       Skill 표는 세 역할의 쓰기 범위를 `spec/**`·`plan/**`·`codebase/**`·`review/**` 로
@@ -486,6 +492,18 @@ field: T | null;
       > 분리안을 택하지 않은 이유도 남긴다: **이 PR 의 `--impl-done` 게이트가 그 파서
       > 수정에 의존한다**(수정 전에는 `workspace-response.dto.ts` 가 spec-linked 로 안
       > 잡혔다). 두 PR 로 가르면 서로를 기다리는 순환이 된다.
+
+      > **완료 (2026-09-08, 배치 A-1)**. 사용자 결정대로 파서 수정을 남기고 문서로 명시했다.
+      > harness 를 **두 축**으로 갈랐다 — 실행물(`hooks/`·`tools/`·`tests/`)은 developer,
+      > 거버넌스 문서(`CLAUDE.md`·`SKILL.md`·`.claude/docs/**`)는 planner. **세 문서 동시 갱신**
+      > (`CLAUDE.md` 표 2행 + 규칙 2줄, `developer/SKILL.md` 2행, `project-planner/SKILL.md` 1행) —
+      > 권한을 갖는 쪽 문서에 그 권한이 없으면 이 항목이 고치려는 결함을 재생산한다.
+      > 리뷰 게이트 스코프(`codebase/**`)가 harness 를 안 문다는 **비대칭도 함께 적었다.**
+      >
+      > **재확인 조건**: 거버넌스 축(planner 소유)은 **관례가 아니라 신설 규칙**이고 강제하는
+      > 게이트가 없다. 앞으로 `fix(harness)` 커밋이 다시 `.claude/docs/**`·`SKILL.md` 를 함께
+      > 고치는 것이 관측되면, 규칙을 유지할지 관례에 맞춰 되돌릴지 그 시점에 재판정한다
+      > (`review/consistency/2026/09/08/11_28_04` rationale_continuity INFO#1).
 
 - [ ] **`endpointPath` 를 쓰는 다음 `save()` 가 충돌 래핑을 빠뜨릴 수 있다** (developer,
       2026-09-06 등재, `review/code/2026/09/06/19_31_04` INFO#2).
@@ -600,7 +618,7 @@ field: T | null;
       응답은 이미 안전하다. DB→앱 전송 낭비와 *"가드가 못 지킨다"* 는 구조적 사실만
       남는데, 그것을 이번 라운드에 단위 테스트로 고정했다.
 
-- [ ] **`2-trigger-list.md` R-2 가 폐기된 설계를 유효한 것처럼 남기고 있다** (planner,
+- [x] **`2-trigger-list.md` R-2 가 폐기된 설계를 유효한 것처럼 남기고 있다** (planner,
       2026-09-06 등재, `review/consistency/2026/09/06/15_31_00` W1).
 
       R-2 는 `hmacSecret` 의 "입력 변경(v1) vs rotate 액션(v1.1)" 분리를 근거로 적고
@@ -616,7 +634,12 @@ field: T | null;
       → R-2 본문에 취소선 + `> **정정 (날짜)**: authConfigId 단일 경로로 대체됨 — R-14 참조`
       콜아웃. `15-chat-channel.md` R-CC-10 의 인용 문구 동시 갱신. **두 파일 같은 턴에.**
 
-- [ ] **`2-trigger-list.md` frontmatter `status` 가 본문의 자백과 모순** (planner,
+      > **완료 (2026-09-08, 배치 A-2-1)**. R-2 제목에 `(폐기 — R-14 로 대체)` + 정정 콜아웃,
+      > 본문 전체 취소선 보존. `15-chat-channel.md` R-CC-10 인용을 같은 커밋에서 갱신했다 —
+      > 앵커가 바뀌므로. **인입 실측**: `grep -rn "r-2-webhook-hmac-secret" spec` → R-CC-10 **1건뿐**.
+      > 앵커 해소는 `spec-link-integrity` 가드가 확인(3,195 tests GREEN).
+
+- [x] **`2-trigger-list.md` frontmatter `status` 가 본문의 자백과 모순** (planner,
       2026-09-06 등재, `review/consistency/2026/09/06/15_31_00` W3).
 
       frontmatter 는 `status: implemented` 인데 본문 §3(151행)이 *"`PaginationQueryDto` 가
@@ -627,7 +650,51 @@ field: T | null;
       → `status: partial` + `pending_plans:` 등재, **또는** sort/order whitelist 정렬을
       구현하고 현행 유지. 자매 문서 `3-schedule.md` 가 전자의 선례다.
 
-- [ ] **트리거 drawer 의 "새 인증 설정 만들기" 링크가 editor 에게 dead-end** (planner,
+      > **부분 완료 (2026-09-08, 배치 A-2-2)** — `status: partial` + `pending_plans` 로 현 상태를
+      > 정직하게 적었다. **등재된 선례 주장은 틀렸다**: `3-schedule.md` 는 `status: implemented`
+      > 이고 `pending_plans` 가 없다 — 그쪽은 **구현으로** 표기를 뗐다(Rationale 2026-06-10,
+      > `schedules.service.ts` `resolveOrderBy` whitelist). 즉 종착지는 `partial` 유지가 아니라
+      > 구현이며, 그 항목을 아래에 developer 로 신설했다.
+
+
+- [ ] **`GET /api/triggers` 의 `sort`/`order` 를 whitelist `orderBy` 로 구현한다** (developer,
+      2026-09-08 등재, 위 A-2-2 항목이 낳은 후속).
+
+      `spec/2-navigation/2-trigger-list.md` 는 2026-09-08 부터 `status: partial` +
+      `pending_plans: [이 파일]` 이다. **이 항목이 그 포인터의 실체다** — 닫히면 그 문서를
+      `status: implemented` 로 되돌리고 §3 의 *"sort/order 반영은 미구현/Planned"* 문구를
+      제거한다.
+
+      **선례를 그대로 따른다**: `schedules.service.ts` 의 `resolveOrderBy` 가 허용 값 맵
+      (`allowed: Record<string, string>`)으로 `sort` 를 컬럼에 매핑하고 미허용 값은
+      `s.created_at` 로 폴백한다. `3-schedule.md` Rationale(2026-06-10)이 *"Planned 해제는
+      기능 약속의 번복이 아니라 구현 완료에 따른 문서 동기화"* 라고 그 처분을 이미 적었다.
+
+      > **게이트가 이 연결을 보증하지 않는다.** `spec-pending-plan-existence.test.ts` 는
+      > `fs.existsSync(in-progress) || fs.existsSync(complete)` 만 본다(2026-09-08 소스 확인) —
+      > **파일 존재만** 확인하고 "그 plan 이 이 항목을 책임지는가" 는 안 본다. 이 항목을
+      > 지우면 `pending_plans` 가 아무것도 가리키지 않은 채 초록이 된다.
+
+- [ ] **Gate C 의 `spec_impact` 에 거버넌스 문서를 적을 어휘가 없다** (harness, 2026-09-08 등재,
+      배치 A 적용 중 발각).
+
+      `plan-scan.ts` 의 `makeSpecExists` 는 `spec_impact` 원소가 **`spec/` 하위 파일**일 것을
+      요구하고 `CLAUDE.md` 를 **의도적으로** 거부한다(그 함수 주석이 그 예를 든다). 그 거부는
+      옳다 — 게이트의 존재 이유가 *"어느 spec 을 건드렸는지 기록하게 한다"* 이기 때문이다.
+
+      **그런데 2026-09-08 부터 거버넌스 문서(`CLAUDE.md`·`.claude/skills/**/SKILL.md`·
+      `.claude/docs/**`)가 planner 의 명시적 쓰기 축이 됐다**(위 A-1). 즉 planner 가 완료한
+      작업의 일부를 `spec_impact` 가 **표현할 수 없다** — 배치 A 자신이 그 자리를 밟았고,
+      본문 산문으로 기록해 우회했다.
+
+      **지금 실질 피해는 없다** — Gate C 는 `spec/` 영향의 기록을 강제하는 게이트이지 변경
+      전수 목록이 아니다. 다만 다음 planner 가 같은 자리에서 같은 판단을 반복한다.
+
+      → 세 갈래 중 택일: (a) 현행 유지 + `spec-impl-evidence.md` 에 *"거버넌스 문서는
+      `spec_impact` 대상이 아니다"* 를 한 줄로 성문화 · (b) `governance_impact` 별 키 신설 ·
+      (c) `makeSpecExists` 를 거버넌스 경로까지 넓힌다(게이트가 무는 방향이 흐려지므로 비추천).
+      **(a) 가 가장 싸고, 지금 상태를 그대로 문장으로 만든다.**
+- [x] **트리거 drawer 의 "새 인증 설정 만들기" 링크가 editor 에게 dead-end** (planner,
       2026-09-06 등재, `review/consistency/2026/09/06/15_31_00` W2).
 
       `2-trigger-list.md §2.3.1` Auth Config 행이 그 링크를 `editor+` 노출로 적는데,
@@ -647,6 +714,10 @@ field: T | null;
       > 유예 근거를 "확인이 먼저" 로 적어 둔 것이 틀렸다 — 그 확인은 문서 두 개를 여는
       > 일이었고, 미룰수록 다음 사람이 같은 판단을 반복한다.
 
+      > **완료 (2026-09-08, 배치 A-2-3)**. `2-trigger-list.md §2.3.1` Auth Config 셀에 "이 항목은
+      > Admin+ 에만 노출" 을 SoT 링크(`6-config.md#권한` → `1-auth.md §3.2`)와 함께 적었다.
+      > binding 편집 자체는 editor+ 그대로다.
+
 - [ ] **`WorkflowVersionDetail` 동명 미러를 코드 주석에서 트래커로 격상** (developer,
       2026-09-06 등재, `review/consistency/2026/09/06/15_31_00` W4).
 
@@ -662,7 +733,7 @@ field: T | null;
       승격. 개명은 프런트 소비처 2곳(`version-detail-dialog.tsx`·`version-diff-dialog.tsx`)
       과 무관하므로 백엔드 단독으로 가능하다.
 
-- [ ] **도메인 세부 에러 코드의 표현 방식을 정식화한다** (planner, 2026-09-06 등재,
+- [x] **도메인 세부 에러 코드의 표현 방식을 정식화한다** (planner, 2026-09-06 등재,
       `review/consistency/2026/09/06/14_59_49` W1).
 
       저장소에 **두 관례**가 있다 — (1) top-level `code` 자체를 특화 코드로 **교체**
@@ -682,7 +753,13 @@ field: T | null;
       > 것도 §5.3 에 미명문화다 (`review/consistency/2026/09/06/14_59_49` INFO#4).
       > 같은 턴에 함께 적는다.
 
-- [ ] **`2-trigger-list.md:106` botToken 행의 자기모순** (planner, 2026-09-06 등재,
+      > **완료 (2026-09-08, 배치 A-3)**. `2-api-convention.md §5.3` 에 택일 기준 소절을 신설했다 —
+      > 판정 기준은 "소비자가 그 값으로 무엇을 하는가"(결과 그 자체 → top-level 교체 / 어느
+      > 필드에 붙는지가 정보 → `details[].code`). `details` 의 **객체 vs 배열** 두 형태도 같은
+      > 절에 적었다. `3-error-handling.md §1.10` 에 `TRIGGER_ENDPOINT_PATH_CONFLICT` 등재
+      > (§1.8·§1.9 와 동형). **개수는 쓰지 않았다.**
+
+- [x] **`2-trigger-list.md:106` botToken 행의 자기모순** (planner, 2026-09-06 등재,
       `review/consistency/2026/09/06/14_59_49` W2).
 
       한 문장이 *"응답에는 `hasBotToken: boolean` 만 노출"* 과 *"마스킹 placeholder
@@ -696,6 +773,11 @@ field: T | null;
       `secret-store.md §1.1` 을 위반할 소지**가 있다 — 그것이 이 항목의 실질이다.
 
       (이 PR 이 만든 결함이 아니다. 게이트가 넓어지며 드러났다.)
+
+      > **완료 (2026-09-08, 배치 A-2-4)**. 마스킹 placeholder 구를 제거하고 "마스킹 값도 last4 도
+      > 응답에 싣지 않는다" 로 못 박았다. AuthConfig 의 `***<last4>` 규약은 **Reveal 로 읽을 수
+      > 있는** 자격증명용이라 write-only 필드에 차용하지 않는다는 경계를 함께 적어, 다음
+      > 구현자가 last4 노출 필드를 신설할 여지를 닫았다.
 
 - [ ] **`code:` 파서 두 벌을 golden fixture 코퍼스로 묶는다** (harness, 2026-09-06 등재,
       `review/code/2026/09/06/14_25_40` W2).
@@ -745,7 +827,7 @@ field: T | null;
       `lib/api/workflows.ts` 의 손수 맞춘 미러(`creator?: {…} | null`)도 같은 턴에 봐야
       한다(같은 이름의 별도 선언 — `workflow-versions.service.ts` 의 JSDoc 참조).
 
-- [ ] **`User` 민감 7컬럼의 응답 노출 금지를 규약 문장으로** (planner, 2026-09-06 등재,
+- [x] **`User` 민감 7컬럼의 응답 노출 금지를 규약 문장으로** (planner, 2026-09-06 등재,
       `review/consistency/2026/09/06/10_13_23` W2).
 
       지금 그 불변식의 SoT 는 **코드뿐**이다 — `USER_SECRET_KEYS` 배열. Trigger·AuthConfig
@@ -756,6 +838,15 @@ field: T | null;
       두 가드를 그 절의 `code:`/본문 링크로 잇는다. 결정 근거(전수 열거 수치 · 기각한 두
       대안 · 채택 이유)는 지금 `plan`·`CHANGELOG` 에만 있으므로 해당 문서의 `## Rationale`
       로 옮긴다 (`10_13_23` INFO#1).
+
+      > **완료 (2026-09-08, 배치 A-5)**. `1-data-model.md` 에 **`#### 2.1.1 응답 노출 금지 (민감 7컬럼)`**
+      > 신설 + `## Rationale` 에 결정 근거(기각한 두 대안 포함) 승격. `secret-store.md §1.1` 에는
+      > 상호 참조 한 줄만 — 그 문서는 스스로를 "외부 provider 자격증명 보관 추상화" 로 한정하는데
+      > `User` 컬럼은 provider 자격증명이 아니라 관할을 넓히게 된다.
+      > **`--spec` 1차가 Critical 을 냈다**: 초안이 "이 저장소는 `select: false` 를 쓰지 않는다"
+      > 로 범위를 넓혀 적었는데 같은 문서 §2.19(`Notification.background_run_id`, V107)가 즉시
+      > 반례였다. 실제 원리는 **컬럼별 소비 패턴**(값을 읽는다 vs WHERE 절에만 쓴다)이고, 그
+      > 표와 인용 조건을 Rationale 에 넣었다.
 
 - [ ] **트리거 비밀 스트립을 deny-list 4벌에서 선언적 SoT 로** (developer + 보안 판단,
       2026-09-05 등재, `review/code/2026/09/05/23_30_00` security W1). 지금
@@ -1320,7 +1411,7 @@ field: T | null;
       → `2-api-convention.md` frontmatter `code:` 에
       `codebase/backend/src/repo-guards/__tests__/fixtures/**` 를 추가한다.
 
-- [ ] **"노출 창이 아직 닫혀 있지 않다" 서술이 낡는다 — `secret-store.md §1` 과
+- [x] **"노출 창이 아직 닫혀 있지 않다" 서술이 낡는다 — `secret-store.md §1` 과
       `14-external-interaction-api.md §7.1` 두 곳** (planner, 2026-09-05 등재,
       `review/consistency/2026/09/05/21_40_38` W2 · 대상 확장
       `review/consistency/2026/09/06/01_38_47` W1).
@@ -1346,6 +1437,11 @@ field: T | null;
 
       → 두 곳 모두 §7.1 이 쓴 "정정 이력" 패턴을 준용해 *"이 창은 `#…` 로 닫혔다"* 와 커밋
       참조를 추가한다. 규범(§1.1)은 그대로 둔다 — 닫혔다고 규범이 사라지는 것이 아니다.
+
+      > **완료 (2026-09-08, 배치 A-6)**. 두 자리 모두 원문 취소선 + "이 창은 `#1291` 로 닫혔다"
+      > 정정. 근거 실측: `triggers.service.ts` 의 `TRIGGER_RESPONSE_STRIP_COLUMNS` +
+      > `shared/testing/schedule-trigger-ref.ts`(스케줄 조인 축). 규범(§1.1)은 건드리지 않았다.
+      > **전수 재확인**: `grep -rn` 3패턴 → 취소선 밖 잔존 **0건**.
 
 - [ ] **`ScheduleDto.trigger`/`workflow` 를 nav-spec 에 문서화** (planner, 2026-09-05 등재,
       `21_40_38` W1). §5.4 는 **키 생략형에 사유 문서화**를 요구한다. 코드 쪽은 이번에

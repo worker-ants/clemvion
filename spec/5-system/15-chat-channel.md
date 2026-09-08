@@ -607,7 +607,7 @@ Fan-out facade 는 코드 구조상 이미 분리되어 있고, 본 결정은 **
 
 ### R-CC-10. Bot Token 변경 single-path (rotate API only)
 
-single-path 채택: 토큰 변경은 항상 `POST /api/triggers/:id/chat-channel/rotate-bot-token` 이며 PATCH body 의 `botTokenRef` 변경은 차단한다. PATCH + rotate 양쪽 허용은 [`spec/2-navigation/2-trigger-list.md` Rationale R-2](../2-navigation/2-trigger-list.md#r-2-webhook-hmac-secret-입력-vs-rotate-분리) 의 hmacSecret 패턴과 정렬되나 자원 성격이 다르다 — hmacSecret 는 우리가 보유한 server-side HMAC signing secret 으로 PATCH 직접 교체 시 외부 수신자 (cafe24 등) 가 새 키를 동기화하기 전에 검증 실패 ↔ botToken 은 외부 provider (텔레그램) 측에 등록된 토큰으로 PATCH 직접 교체는 우리 DB 만 갱신하고 텔레그램 측은 그대로라 수신이 즉시 깨지며, 두 경로 공존 시 grace 24h 정책 일관성이 깨지고 audit log 가 mixing 된다. PATCH 만 허용하면 rotate API 의 24h grace 기능 (CCH-SE-04) 이 제공하는 무중단 회전을 잃는다.
+single-path 채택: 토큰 변경은 항상 `POST /api/triggers/:id/chat-channel/rotate-bot-token` 이며 PATCH body 의 `botTokenRef` 변경은 차단한다. PATCH + rotate 양쪽 허용은 [`spec/2-navigation/2-trigger-list.md` Rationale R-2](../2-navigation/2-trigger-list.md#r-2-webhook-hmac-secret-입력-vs-rotate-분리-폐기--r-14-로-대체) 의 hmacSecret 패턴과 정렬되나 자원 성격이 다르다 — (**R-2 의 설계 자체는 이후 R-14 로 폐기됐다** — `config.hmacSecret` inline 입력과 `auth/rotate-secret` 예약 행 모두 사라졌다. 여기서 인용하는 것은 그 API 형태가 아니라 *"우리가 보유한 server-side secret"* 이라는 **자원 성격**이며, 그 대조는 폐기와 무관하게 성립한다.) hmacSecret 는 우리가 보유한 server-side HMAC signing secret 으로 PATCH 직접 교체 시 외부 수신자 (cafe24 등) 가 새 키를 동기화하기 전에 검증 실패 ↔ botToken 은 외부 provider (텔레그램) 측에 등록된 토큰으로 PATCH 직접 교체는 우리 DB 만 갱신하고 텔레그램 측은 그대로라 수신이 즉시 깨지며, 두 경로 공존 시 grace 24h 정책 일관성이 깨지고 audit log 가 mixing 된다. PATCH 만 허용하면 rotate API 의 24h grace 기능 (CCH-SE-04) 이 제공하는 무중단 회전을 잃는다.
 
 근거: R-2 와 다른 결론을 내리는 정당화는 **자원의 위치 (server-side 보유 vs external provider 측 등록)** 차이. single-path 는 grace 정책 일관성·audit log 단일성·UX 명확성 모두 확보.
 

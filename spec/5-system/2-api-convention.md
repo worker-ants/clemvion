@@ -14,6 +14,8 @@ code:
   - codebase/backend/src/repo-guards/__tests__/swagger-dto-contract*.ts
   - codebase/backend/src/shared/testing/response-contract*.ts
   - codebase/backend/src/shared/testing/swagger-probe*.ts
+  - codebase/backend/src/repo-guards/__tests__/user-entity-exposure*.ts
+  - codebase/backend/src/shared/testing/user-secret-absence*.ts
 ---
 
 # Spec: API 설계 규칙
@@ -188,6 +190,29 @@ GET /api/triggers?type=webhook&status=active
 - `code` 의 상태코드별 기본값: 400=`VALIDATION_ERROR`, 401=`AUTH_REQUIRED`, 403=`FORBIDDEN`, 404=`RESOURCE_NOT_FOUND`, 409=`RESOURCE_CONFLICT`, 413=`PAYLOAD_TOO_LARGE`, 422=`INVALID_STATE`, 429=`RATE_LIMITED`, 5xx=`INTERNAL_ERROR`.
 - **`410` 에는 기본값이 없다.** 위 목록은 `GlobalExceptionFilter` 의 상태→코드 매핑이고 그 매핑에 410 항목이 없어, 코드를 명시하지 않은 `410` 응답은 4xx 인데도 `INTERNAL_ERROR` 로 떨어진다. 따라서 **`410` 을 반환하는 경로는 `code` 를 반드시 명시한다** (현행 발행 지점은 전부 명시 — §6 `410` 행의 코드들). 여기에 기본값을 새로 정의하지 않는 이유는 [Rationale](#rationale) 참조.
 
+#### 도메인 세부 사유를 어디에 싣는가 — top-level `code` 교체 vs `details[].code`
+
+두 관례가 모두 실재한다. 판정 기준은 **소비자가 그 값으로 무엇을 하는가**다.
+
+| 싣는 자리 | 쓸 때 | 선례 |
+|---|---|---|
+| **top-level `code` 교체** | 그 사유가 **엔드포인트의 결과 그 자체**라 소비자가 `code` 하나로 분기하면 되는 경우. 한 요청에 사유가 **하나뿐**이다 | `DUPLICATE_NODE_LABEL` · `WORKFLOW_VERSION_CONFLICT` · `ALREADY_A_MEMBER`([§1.9](./3-error-handling.md#19-워크스페이스-멤버-직접-추가-에러-코드-도메인-spec-참조)) · `KB_REEXTRACT_IN_PROGRESS`([§1.8](./3-error-handling.md#18-kb--graph-rag-도메인-에러-코드-도메인-spec-참조)) |
+| **`details[].code`** (top-level 은 위 상태 기본값 유지) | 사유가 **어느 필드·항목에 붙는지**가 정보의 일부이거나, 한 응답에 **여러 사유**가 함께 실릴 수 있는 경우 | 검증 오류 `INVALID_FIELD` · [error-codes §4.2](../conventions/error-codes.md#42-trigger-파라미터-검증-사유--봉투-errordetailscode) · `TRIGGER_ENDPOINT_PATH_CONFLICT`([§1.10](./3-error-handling.md#110-트리거-endpointpath-충돌-세부-코드-도메인-spec-참조)) |
+
+- **둘을 겹쳐 쓰지 않는다** — top-level 을 특화 코드로 바꾸면서 같은 사유를 `details[].code` 에도 넣으면 소비자가 어느 쪽으로 분기할지 갈린다.
+- 어느 쪽을 택하든 **[에러 처리 §1](./3-error-handling.md#1-에러-분류) 카탈로그에 등재**한다. 등재되지 않은 코드는 소비자가 존재를 알 방법이 없다.
+- 명명은 [error-codes 규약](../conventions/error-codes.md) 의 `UPPER_SNAKE_CASE` 를 따른다.
+
+**`details` 의 형태는 두 가지이고 둘 다 유효하다.**
+
+| 형태 | 쓰임 | 예 |
+|---|---|---|
+| **배열** `details: [{ field, message, code }]` | 여러 항목이 각각 실패할 수 있을 때 (ValidationPipe 다중 필드) | 위 §5.3 예시 본문 |
+| **객체** `details: { field, code, … }` | 단일 도메인 예외가 사유 하나를 붙일 때 | `TRIGGER_ENDPOINT_PATH_CONFLICT` (`{ field: 'endpoint_path', code: … }`) |
+
+`GlobalExceptionFilter` 는 `details` 를 **그대로 통과**시키며(값이 있을 때만 동봉) 형태를 강제하지 않고, OpenAPI 선언도 `type: 'object', additionalProperties: true` 로 열려 있다. 따라서 **형태 선택은 발행 지점의 책임**이며, 그 엔드포인트를 문서화하는 절에 어느 형태인지 적는다.
+
+
 ### 5.4 부재 표현 — `null` vs 키 생략
 
 > **적용 범위 — 응답 바디.** 본 절은 `## 5. 응답 형식` 하위 절이며 서버가 **내보내는** 표현을 정한다. **요청 바디는 대상이 아니다** — 특히 PATCH 부분 업데이트는 키 생략(=값 불변) · `null`(=초기화) · 값(=설정)의 **tri-state** 가 각각 의미를 갖는 별개 계약이라, 아래 "DTO 선언 형태" 규칙을 그대로 적용하면 `?` 가 사라져 **"필드를 생략하면 값이 유지된다" 는 계약이 깨진다.** 요청 DTO 에서는 `@ApiPropertyOptional({ nullable: true })` + `field?: T | null` 조합이 정당하다 (선례: `UpdateAssistantSessionDto.llmConfigId` — *"null 전달 시 workspace default 로 폴백"*).
@@ -224,13 +249,18 @@ GET /api/triggers?type=webhook&status=active
 #### 검증 층 — 이 규칙을 무엇이 강제하는가
 
 본 절은 **선언과 실제가 같아야 한다**고 요구하지만, 컨트롤러가 엔티티를 그대로 반환하는
-경로에서는 `tsc` 가 대조할 지점이 없다. 그 자리를 **두 검증자**가 나눠 맡는다 — 이름이
+경로에서는 `tsc` 가 대조할 지점이 없다. 그 자리를 **아래 검증자들이** 나눠 맡는다 — 이름이
 인접하니 어느 쪽인지 먼저 가려야 한다.
 
 | 검증자 | 무엇과 무엇을 대조하나 | 언제 | 못 보는 것 |
 |---|---|---|---|
 | [`repo-guards/__tests__/swagger-dto-contract-guard.ts`](../../codebase/backend/src/repo-guards/__tests__/swagger-dto-contract-guard.ts) | **선언 ↔ 선언** — `@ApiProperty` 데코레이터와 TS 타입 | 정적 (AST) | 선언이 **양쪽 다** 틀린 경우. 실제 응답 값 |
 | [`shared/testing/response-contract.ts`](../../codebase/backend/src/shared/testing/response-contract.ts) | **값 ↔ 선언** — 실 HTTP 응답과 생성된 OpenAPI 스키마 | 런타임 (e2e) | 배선되지 않은 엔드포인트 |
+| [`repo-guards/__tests__/user-entity-exposure-guard.ts`](../../codebase/backend/src/repo-guards/__tests__/user-entity-exposure-guard.ts) | **구조** — `User` 엔티티를 투영 없이 관계로 싣는 자리를 센다 | 정적 (AST) | 엔티티를 거치지 않고 손으로 조립한 유출 |
+| [`shared/testing/user-secret-absence.ts`](../../codebase/backend/src/shared/testing/user-secret-absence.ts) | **이름** — 응답 바디 어디에도 `User` 민감 컬럼 이름이 없다 ([데이터 모델 §2.1.1](../1-data-model.md#211-응답-노출-금지-민감-7컬럼)) | 런타임 (e2e) | 이름이 다른 **신규** 비밀 컬럼 — 목록(`USER_SECRET_KEYS`)에 넣어야 걸린다 |
+
+**개수를 세지 않는다.** 축이 늘 때마다 숫자가 낡는다 — 이 문서가 두 번 겪은 실패다. 문장은
+나열을 가리키고, 인벤토리는 위 표가 갖는다.
 
 **두 축이 서로 다른 규칙을 시행한다.** 후자의 판정 중 required/nullable 축은 본 절(§5.4)을,
 **"스키마에 선언되지 않은 키가 응답에 있다"** 축은 [Swagger 규약 §5-1](../conventions/swagger.md#5-1-응답-dto-위치)
