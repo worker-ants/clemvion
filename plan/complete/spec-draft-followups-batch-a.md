@@ -3,20 +3,17 @@ title: 배치 A — harness 권한 명시 · 트리거 목록 자기모순 4건 
 worktree: spec-followups-batch-a-ea9961
 started: 2026-09-08
 owner: planner
-status: in-progress
+status: complete
 priority: P1
 spec_impact:
-  - CLAUDE.md
-  - .claude/skills/developer/SKILL.md
-  - .claude/skills/project-planner/SKILL.md
-  - spec/5-system/14-external-interaction-api.md
+  - spec/1-data-model.md
   - spec/2-navigation/2-trigger-list.md
-  - spec/5-system/15-chat-channel.md
   - spec/5-system/2-api-convention.md
   - spec/5-system/3-error-handling.md
-  - spec/conventions/swagger.md
+  - spec/5-system/14-external-interaction-api.md
+  - spec/5-system/15-chat-channel.md
   - spec/conventions/secret-store.md
-  - spec/1-data-model.md
+  - spec/conventions/swagger.md
 ---
 
 # 배치 A — planner 턴 draft
@@ -31,6 +28,13 @@ spec_impact:
 ---
 
 ## A-1. `CLAUDE.md` Skill 표에 harness(`.claude/**`) 행을 명시한다
+
+> **`spec_impact` 는 이 항목의 파일을 담지 못한다 — 의도된 것이고, 그래서 여기 적는다.**
+> Gate C(`makeSpecExists`)는 `spec_impact` 원소가 **`spec/` 하위 파일**일 것을 요구하고
+> `CLAUDE.md`·`.claude/skills/**/SKILL.md` 를 명시적으로 거부한다(그 함수 주석이 바로 그
+> 예를 든다 — *"어느 spec 을 건드렸는지 기록하게 한다"* 가 게이트의 존재 이유이기 때문).
+> 그래서 이 plan 의 `spec_impact` 에는 **spec 8개만** 적었고, A-1 이 건드린 거버넌스 문서
+> 3개는 이 본문이 기록한다. 자매 트래커에 후속 항목으로 등재했다.
 
 ### 무엇이 문제인가
 
@@ -483,15 +487,22 @@ write-only 필드에 차용하지 않는다([secret-store §1.1](../conventions/
 
 ## 체크리스트
 
-- [ ] `--spec` 게이트 BLOCK:NO 확인
-- [ ] A-1 `CLAUDE.md` + `developer/SKILL.md` + `project-planner/SKILL.md` **동시** 갱신
-- [ ] A-2 `2-trigger-list.md` 4건 + `15-chat-channel.md` R-CC-10 동반 (앵커 인입 링크 전수 갱신)
-- [ ] A-2-2 자매 트래커에 sort/order 구현 developer 항목 신설 (`pending_plans` 대상 실재화)
-- [ ] A-3 `2-api-convention.md §5.3` + `3-error-handling.md §1.10`
-- [ ] A-4 §5.4 검증 층 4행 + `swagger.md §5-1` 문구 + 양쪽 `code:` 2줄
-- [ ] A-5 `1-data-model.md §2.1` 규범 + `## Rationale` + `secret-store.md §1.1` 상호 참조
-- [ ] A-6 `secret-store.md §1` + `14-external-interaction-api.md §7.1` 낡은 현재형 정정
-- [ ] 자매 트래커(`spec-draft-nullable-notation-followups.md`) 체크박스 **9개 전부** 플립 —
+- [x] `--spec` 게이트 BLOCK:NO 확인 — **2라운드**. `review/consistency/2026/09/08/11_14_39`
+      **BLOCK: YES**(Critical 1: A-5 의 `select: false` 과잉일반화) → 전부 반영 →
+      `review/consistency/2026/09/08/11_28_04` **BLOCK: NO** (5 checker 전원 Critical 0).
+      2라운드 WARNING 2건(`CLAUDE.md` 기획자 행 · 체크박스 개수)도 같은 커밋에 반영했다.
+- [x] A-1 `CLAUDE.md` + `developer/SKILL.md` + `project-planner/SKILL.md` **동시** 갱신
+- [x] A-2 `2-trigger-list.md` 4건 + `15-chat-channel.md` R-CC-10 동반 — 인입 실측 **1건**,
+      앵커 해소는 `spec-link-integrity` 가드가 확인
+- [x] A-2-2 자매 트래커에 sort/order 구현 developer 항목 신설 (`pending_plans` 대상 실재화)
+- [x] A-3 `2-api-convention.md §5.3` + `3-error-handling.md §1.10`
+- [x] A-4 §5.4 검증 층 4행 + `swagger.md §5-1` 문구 + 양쪽 `code:` 2줄 —
+      **`_spec_linked_changes()` 0/4 → 4/4** 로 확인
+- [x] A-5 `1-data-model.md` **`#### 2.1.1`** 규범 + `## Rationale` + `secret-store.md §1.1` 상호 참조
+      (번호 있는 하위 절로 승격 — `11_28_04` convention_compliance INFO#3, 앵커로 인용되므로)
+- [x] A-6 `secret-store.md §1` + `14-external-interaction-api.md §7.1` 낡은 현재형 정정 —
+      전수 재확인 결과 취소선 밖 잔존 **0건**
+- [x] 자매 트래커(`spec-draft-nullable-notation-followups.md`) 체크박스 **9개 전부** 플립 —
       **숫자로 종료 판단 금지, 아래 열거로 확인** (`11_28_04` plan_coherence WARNING).
       A-2 하나가 4개 bullet 로 쪼개져 있고 A-6 은 원래 "5건" 서술 밖이었다:
 
@@ -511,4 +522,15 @@ write-only 필드에 차용하지 않는다([secret-store §1.1](../conventions/
       > 9개(969·1121·1137·…)는 **전부 소스 파일과 어긋난다**(실제 383·451·603·619·630·665·
       > 748·685·1323). 조립 프롬프트 오프셋을 인용한 것으로 보인다 — **건수 판정은 옳고 위치만
       > 틀렸다.** 여기서는 제목 문구로 고정해 같은 실패를 물려받지 않는다.
-- [ ] `--impl-done` 재실행 (scope 에 편집한 spec 이 실제로 들어가는지 확인)
+- [x] `--impl-done` — **대상 아님**, 추정이 아니라 정본 게이트에 직접 물어 확인했다:
+
+      ```
+      review_guard.evaluate_review(<worktree>)
+        → blocked = False
+        → reason  = "no codebase/ changes on this branch — allowed"
+      ```
+
+      이 브랜치의 `codebase/**` diff 는 **0줄**이라 SPEC-CONSISTENCY 게이트가 발화하지 않는다.
+      대신 문서 가드를 돌렸다 — `npx vitest run src/lib/docs/__tests__` → **21 files /
+      3,195 tests 전원 GREEN** (앵커 무결성 · `code:` 경로 존재 · frontmatter 스키마 ·
+      status 라이프사이클 · `pending_plans` 실재).

@@ -499,6 +499,11 @@ field: T | null;
       > (`CLAUDE.md` 표 2행 + 규칙 2줄, `developer/SKILL.md` 2행, `project-planner/SKILL.md` 1행) —
       > 권한을 갖는 쪽 문서에 그 권한이 없으면 이 항목이 고치려는 결함을 재생산한다.
       > 리뷰 게이트 스코프(`codebase/**`)가 harness 를 안 문다는 **비대칭도 함께 적었다.**
+      >
+      > **재확인 조건**: 거버넌스 축(planner 소유)은 **관례가 아니라 신설 규칙**이고 강제하는
+      > 게이트가 없다. 앞으로 `fix(harness)` 커밋이 다시 `.claude/docs/**`·`SKILL.md` 를 함께
+      > 고치는 것이 관측되면, 규칙을 유지할지 관례에 맞춰 되돌릴지 그 시점에 재판정한다
+      > (`review/consistency/2026/09/08/11_28_04` rationale_continuity INFO#1).
 
 - [ ] **`endpointPath` 를 쓰는 다음 `save()` 가 충돌 래핑을 빠뜨릴 수 있다** (developer,
       2026-09-06 등재, `review/code/2026/09/06/19_31_04` INFO#2).
@@ -669,6 +674,26 @@ field: T | null;
       > `fs.existsSync(in-progress) || fs.existsSync(complete)` 만 본다(2026-09-08 소스 확인) —
       > **파일 존재만** 확인하고 "그 plan 이 이 항목을 책임지는가" 는 안 본다. 이 항목을
       > 지우면 `pending_plans` 가 아무것도 가리키지 않은 채 초록이 된다.
+
+- [ ] **Gate C 의 `spec_impact` 에 거버넌스 문서를 적을 어휘가 없다** (harness, 2026-09-08 등재,
+      배치 A 적용 중 발각).
+
+      `plan-scan.ts` 의 `makeSpecExists` 는 `spec_impact` 원소가 **`spec/` 하위 파일**일 것을
+      요구하고 `CLAUDE.md` 를 **의도적으로** 거부한다(그 함수 주석이 그 예를 든다). 그 거부는
+      옳다 — 게이트의 존재 이유가 *"어느 spec 을 건드렸는지 기록하게 한다"* 이기 때문이다.
+
+      **그런데 2026-09-08 부터 거버넌스 문서(`CLAUDE.md`·`.claude/skills/**/SKILL.md`·
+      `.claude/docs/**`)가 planner 의 명시적 쓰기 축이 됐다**(위 A-1). 즉 planner 가 완료한
+      작업의 일부를 `spec_impact` 가 **표현할 수 없다** — 배치 A 자신이 그 자리를 밟았고,
+      본문 산문으로 기록해 우회했다.
+
+      **지금 실질 피해는 없다** — Gate C 는 `spec/` 영향의 기록을 강제하는 게이트이지 변경
+      전수 목록이 아니다. 다만 다음 planner 가 같은 자리에서 같은 판단을 반복한다.
+
+      → 세 갈래 중 택일: (a) 현행 유지 + `spec-impl-evidence.md` 에 *"거버넌스 문서는
+      `spec_impact` 대상이 아니다"* 를 한 줄로 성문화 · (b) `governance_impact` 별 키 신설 ·
+      (c) `makeSpecExists` 를 거버넌스 경로까지 넓힌다(게이트가 무는 방향이 흐려지므로 비추천).
+      **(a) 가 가장 싸고, 지금 상태를 그대로 문장으로 만든다.**
 - [x] **트리거 drawer 의 "새 인증 설정 만들기" 링크가 editor 에게 dead-end** (planner,
       2026-09-06 등재, `review/consistency/2026/09/06/15_31_00` W2).
 
