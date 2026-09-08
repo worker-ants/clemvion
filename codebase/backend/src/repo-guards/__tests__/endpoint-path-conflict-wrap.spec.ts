@@ -108,6 +108,7 @@ describe('`endpoint_path` 충돌 래핑 래칫', () => {
       expect(unwrapped.sort()).toEqual(
         [
           'catchButNotWrapping',
+          'mentionsButDoesNotCall',
           'twoSaves',
           'twoSaves#2',
           'unwrappedSave',
@@ -126,6 +127,12 @@ describe('`endpoint_path` 충돌 래핑 래칫', () => {
     it(`\`.catch\` 가 있어도 \`${CONFLICT_WRAPPER}\` 를 안 부르면 미래핑이다`, () => {
       // 술어가 "`.catch` 체인이 있는가" 로 넓어지는 것을 막는 대조군.
       expect(unwrapped).toContain('catchButNotWrapping');
+    });
+
+    it('이름만 등장하고 호출하지 않으면 미래핑이다 (fail-open 방지)', () => {
+      // 첫 판은 `.catch` **전체 텍스트**에 이름이 있는지만 봐서 이 형태를 통과시켰다
+      // (`review/code/2026/09/08/12_53_08` INFO#6). 지금은 **호출식**을 요구한다.
+      expect(unwrapped).toContain('mentionsButDoesNotCall');
     });
   });
 });

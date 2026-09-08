@@ -599,27 +599,55 @@ describe('IntegrationOAuthService — Cafe24', () => {
       };
     }
 
-    it('translates idx_integration_workspace_service_mall violation → CAFE24_PRIVATE_APP_ALREADY_CONNECTED (409)', async () => {
-      // No existing row in the pre-check (in-memory guard passes), but the
-      // concurrent INSERT triggers the unified UNIQUE constraint.
-      integrationRepo.find = jest.fn().mockResolvedValue([]);
-      integrationRepo.create.mockImplementation((d: unknown) => d);
-      const dbRaceError = Object.assign(
-        new Error('duplicate key value violates unique constraint'),
-        {
-          code: '23505',
-          constraint: 'idx_integration_workspace_service_mall',
-        },
-      );
-      integrationRepo.save = jest.fn().mockRejectedValueOnce(dbRaceError);
+    // **두 표면을 모두 건다.** `pgErrorConstraint()` 는 `err.constraint` 와
+    // `err.driverError.constraint` 를 함께 흡수하는데, 이 callsite 테스트는 오랫동안
+    // **flat 표면만** 태우고 있었다 — 실전에서 TypeORM 이 실제로 주는 것은 wrap 된 쪽이다
+    // (`review/code/2026/09/08/12_53_08` INFO#7). 헬퍼 유닛 테스트(`pg-error.spec.ts`)가
+    // 두 표면을 보장해도, **이 호출부가 헬퍼를 쓰는지**는 별개 주장이다.
+    const raceErrorSurfaces: ReadonlyArray<[string, () => Error]> = [
+      [
+        'flat (err.code / err.constraint)',
+        () =>
+          Object.assign(
+            new Error('duplicate key value violates unique constraint'),
+            {
+              code: '23505',
+              constraint: 'idx_integration_workspace_service_mall',
+            },
+          ),
+      ],
+      [
+        'wrapped (err.driverError.*) — TypeORM 실제 형태',
+        () =>
+          Object.assign(
+            new Error('duplicate key value violates unique constraint'),
+            {
+              driverError: {
+                code: '23505',
+                constraint: 'idx_integration_workspace_service_mall',
+              },
+            },
+          ),
+      ],
+    ];
 
-      const error = await service
-        .begin(privateBeginParams())
-        .catch((err) => err);
-      expect((error as { response?: { code?: string } }).response?.code).toBe(
-        'CAFE24_PRIVATE_APP_ALREADY_CONNECTED',
-      );
-    });
+    it.each(raceErrorSurfaces)(
+      'translates idx_integration_workspace_service_mall violation → CAFE24_PRIVATE_APP_ALREADY_CONNECTED (409) — %s',
+      async (_label, makeError) => {
+        // No existing row in the pre-check (in-memory guard passes), but the
+        // concurrent INSERT triggers the unified UNIQUE constraint.
+        integrationRepo.find = jest.fn().mockResolvedValue([]);
+        integrationRepo.create.mockImplementation((d: unknown) => d);
+        integrationRepo.save = jest.fn().mockRejectedValueOnce(makeError());
+
+        const error = await service
+          .begin(privateBeginParams())
+          .catch((err) => err);
+        expect((error as { response?: { code?: string } }).response?.code).toBe(
+          'CAFE24_PRIVATE_APP_ALREADY_CONNECTED',
+        );
+      },
+    );
 
     it('re-throws non-unique-violation errors from the race-backstop catch', async () => {
       integrationRepo.find = jest.fn().mockResolvedValue([]);

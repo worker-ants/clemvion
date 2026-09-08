@@ -37,13 +37,18 @@ describe('프로덕션 빌드 devDependency 누출', () => {
    * 비면 아래 두 단언은 **무엇도 검사하지 않고 통과**한다. 이 저장소가 반복해 겪은 형태라
    * 하한을 먼저 못박는다.
    */
+  /**
+   * 빌드 대상 목록은 **한 번만 해석한다.** `it` 마다 부르면 `tsconfig.build.json` 재파싱 +
+   * 800여 파일 glob 재해석이 반복된다(`review/code/2026/09/08/12_53_08` INFO#4).
+   */
+  const buildFiles = resolveBuildFileNames(backendDir);
+
   it('[캐너리] 빌드 대상 파일 목록이 비어 있지 않다', () => {
-    const files = resolveBuildFileNames(backendDir);
     // 하한 500 의 근거: 도입 시점 실측 **805 파일**. 정확값을 박으면 파일이 하나 늘 때마다
     // 깨지므로 여유를 두되, "설정이 깨져 목록이 비었다" 와는 확실히 갈리는 값이어야 한다.
     // 실측이 이 아래로 떨어지면 파일이 준 게 아니라 **설정 해석이 고장난 것**을 의심할 것.
-    expect(files.length).toBeGreaterThan(500);
-    expect(files.some((f) => f.endsWith('/src/main.ts'))).toBe(true);
+    expect(buildFiles.length).toBeGreaterThan(500);
+    expect(buildFiles.some((f) => f.endsWith('/src/main.ts'))).toBe(true);
   });
 
   it('빌드 대상 중 devDependency 를 끌어오는 파일이 없다', () => {
@@ -52,32 +57,26 @@ describe('프로덕션 빌드 devDependency 누출', () => {
   });
 
   /**
-   * 위 불변식이 성립하는 **이유** 중 하나를 따로 고정한다 — repo-guards 는 테스트 전용이라
-   * 애초에 빌드 대상이 아니어야 한다. 이게 깨지면 위 단언도 곧 깨지지만, 원인이 여기라는
-   * 것이 실패 메시지에 바로 드러난다.
-   */
-  it('repo-guards 는 빌드 대상이 아니다', () => {
-    const inBuild = resolveBuildFileNames(backendDir)
-      .filter((f) => f.includes(`${path.sep}repo-guards${path.sep}`))
-      .map((f) => toPosixRelative(backendDir, f));
-    expect(inBuild).toEqual([]);
-  });
-
-  /**
-   * 같은 이유의 세 번째 자리 (2026-09-08). `__test-utils__/` 는 테스트 전용 헬퍼인데
-   * `*spec.ts` 패턴에도 `repo-guards/**`·`shared/testing/**` 에도 안 걸려 **dist 로 나가고
-   * 있었다**(실측 5파일).
+   * 위 불변식이 성립하는 **이유** 를 디렉터리 축으로 따로 고정한다 — 아래 이름들은 테스트
+   * 전용이라 애초에 빌드 대상이 아니어야 한다. 이게 깨지면 위 devDep 단언도 곧 깨지지만,
+   * 원인이 여기라는 것이 실패 메시지에 바로 드러난다.
    *
-   * **지금은 지뢰가 아니다** — 그 파일들의 import 가 node 내장 + 로컬뿐이라 위 devDep 단언은
-   * 초록이다. 그래서 *"devDependency 누출"* 축만으로는 이 자리가 영원히 안 보인다. 죽은 코드가
-   * 프로덕션 번들에 실리는 것 자체를 별도 축으로 못박는다.
+   * **같은 형태가 세 번 반복됐다** — `repo-guards`(최초) → `shared/testing`(2026-08-27,
+   * exclude 만 추가) → `__test-utils__`(2026-09-08). 세 번째에서야 이 목록으로 접었다:
+   * 손으로 복제한 `it` 블록은 네 번째 자리에서 또 복제된다
+   * (`review/code/2026/09/08/12_53_08` INFO#3 — 이 파일 자신이 그 재발을 예견하고 있었다).
    *
-   * **경로가 아니라 디렉터리 이름으로 막는다** — 실측한 5파일은 `common/` 과
-   * `modules/integrations/` **두 곳**에 흩어져 있었다. 경로를 열거하면 세 번째 자리가 또 생긴다.
+   * **경로가 아니라 디렉터리 이름으로 센다.** `__test-utils__` 실측 5파일은 `common/` 과
+   * `modules/integrations/` **두 곳**에 흩어져 있었다 — 경로를 열거하면 자리마다 새로 놓친다.
+   * `shared/testing` 은 이름이 아니라 고정 경로라 세그먼트로 적는다.
    */
-  it('`__test-utils__` 는 빌드 대상이 아니다', () => {
-    const inBuild = resolveBuildFileNames(backendDir)
-      .filter((f) => f.includes(`${path.sep}__test-utils__${path.sep}`))
+  it.each([
+    ['repo-guards', `${path.sep}repo-guards${path.sep}`],
+    ['shared/testing', `${path.sep}shared${path.sep}testing${path.sep}`],
+    ['__test-utils__', `${path.sep}__test-utils__${path.sep}`],
+  ])('%s 는 빌드 대상이 아니다', (_label, segment) => {
+    const inBuild = buildFiles
+      .filter((f) => f.includes(segment))
       .map((f) => toPosixRelative(backendDir, f));
     expect(inBuild).toEqual([]);
   });

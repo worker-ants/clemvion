@@ -1,5 +1,53 @@
 # Changelog
 
+## Unreleased — 가장 넓은 fallback 이 가장 좁았다 (raw 23505 가 500 이었다) + 멤버 목록 투영
+
+### 🔴 전역 예외 필터가 unique 위반의 절반만 보고 있었다
+
+`http-exception.filter.ts` 의 로컬 `isUniqueViolation` 이 **`err instanceof QueryFailedError` 를
+먼저 요구**했다. 그래서 TypeORM 이 감싸지 않은 **raw 표면**(`err.code === '23505'`)으로 올라온
+unique 위반은 그 분기를 통과하지 못하고 **500 `INTERNAL_ERROR`** 로 떨어졌다 — 클라이언트에게는
+409 여야 하는 상황이다.
+
+`pg-error.ts` 를 SoT 로 세운 이유가 정확히 그 **두 표면**(`err.code` / `err.driverError.code`)
+인데, 국소 처리가 없는 **대다수 서비스가 지나는 fallback** 에만 좁은 판이 남아 있었다.
+
+| | 판정 대상 | raw 표면 23505 |
+|---|---|---|
+| 종전 로컬 `isUniqueViolation` | `QueryFailedError` 로 감싼 것만 | **500** |
+| `isPostgresUniqueViolation` (SoT) | 두 표면 모두 | **409 `RESOURCE_CONFLICT`** |
+
+**실측한 blast radius 는 0 이다** — 우리 스키마를 치는 raw query 가 요청 경로에 없다
+(`database-query.handler.ts` 는 사용자 외부 DB, `scripts/**` 는 요청 경로 아님). 즉 **구조적
+불일치이지 사용자에게 드러난 버그는 아니었다.** 그래도 `@Catch()` 전수 필터의 상태코드 매핑이
+넓어지는 변경이므로 여기 적는다.
+
+회귀는 양방향으로 고정했다 — raw 표면 23505 → 409, raw 표면 23502 → 500(넓힌 판이 아무 에러나
+409 로 만들지 않는지). 수정 전 새 테스트가 실제로 500 을 받는 것을 확인하고 고쳤다.
+
+### 멤버 목록이 `User` 를 통째로 싣고 JS 에서 좁히고 있었다
+
+`WorkspacesService.listMembers` 는 `relations: ['user']` 로 전 컬럼을 로드한 뒤 `.map` 으로
+6키를 골랐다. **응답은 안전했지만** `user-entity-exposure-guard` 는 *로드 형태*만 보므로 이
+자리는 보호 범위 밖이었다 — 방어가 **검출**이었지 **강제**가 아니었다. 그 매핑이 넓어져도
+(`...m.user` 스프레드 등) 가드는 초록이다.
+
+DB 레벨 `select` 투영으로 옮겼다. 민감 컬럼이 애초에 로드되지 않고, 가드의 화이트리스트에서도
+빠졌다 — **목록에서 사라지는 것 자체가 전환 완료의 기계적 증거다**(래칫이 양방향이라 남겨 두면
+실패한다).
+
+> **쿼리 레벨 투영 ≠ 엔티티 전역 `select: false`.** 후자는 그 컬럼을 값으로 읽는 내부 경로를
+> fail-silent 로 만들어 [데이터 모델 `## Rationale`](spec/1-data-model.md) 이 기각했다. 이것은
+> **이 쿼리 하나**의 투영이라 다른 경로를 건드리지 않는다.
+
+응답 wire 계약(6키)은 그대로다 — breaking change 가 아니다.
+
+단위 단언을 하나 더 세웠다: *"쿼리가 `select` 로 좁혀 요청했는가"*. 반환 키 단언만 두면
+**투영을 되돌려도 초록**이기 때문이다(`.map` 이 여전히 좁힌다). 뮤테이션으로 확인했다 —
+`select` 를 지우면 새 단언 **1건만** RED 이고 반환 키 단언은 초록으로 남는다.
+
+---
+
 ## Unreleased — `User` 엔티티에 마지막 방어선을 세운다 (검출 2축)
 
 `GET /api/audit-logs` 가 `User` **26키**를 내보낸 유출은 그 쿼리 하나를 좁혀 고쳤다. 그러나

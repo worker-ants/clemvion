@@ -73,13 +73,44 @@ function isPropertyAccessNamed(expr: ts.Expression, prop: string): boolean {
   return ts.isPropertyAccessExpression(expr) && expr.name.getText() === prop;
 }
 
+/** `node` 하위에 `<...>.rethrowEndpointPathConflict(...)` **호출**이 있는가. */
+function callsConflictWrapper(node: ts.Node, sf: ts.SourceFile): boolean {
+  let found = false;
+  const walk = (n: ts.Node): void => {
+    if (found) return;
+    if (ts.isCallExpression(n)) {
+      const callee = n.expression;
+      const name = ts.isPropertyAccessExpression(callee)
+        ? callee.name.getText(sf)
+        : ts.isIdentifier(callee)
+          ? callee.getText(sf)
+          : '';
+      if (name === CONFLICT_WRAPPER) {
+        found = true;
+        return;
+      }
+    }
+    ts.forEachChild(n, walk);
+  };
+  walk(node);
+  return found;
+}
+
 /**
- * `save()` 호출을 감싸는 `.catch(...)` 가 충돌 래퍼를 부르는가.
+ * `save()` 호출을 감싸는 `.catch(...)` 가 충돌 래퍼를 **부르는가**.
  *
- * **텍스트로 확인한다 — 이름 해석을 하지 않는다.** 이 가드는 단일 파일 AST 만 보므로
- * `this.rethrowEndpointPathConflict` 가 실제로 무엇인지 따라갈 수 없다. 이름이 나타나는지만
- * 묻는 **좁고 눈먼 술어**다 (형제 가드 `hasProjectionFor` 와 같은 규율). 이름을 바꾸면 이
- * 상수도 함께 바꿔야 하고, 안 바꾸면 전부 미래핑으로 잡혀 **fail-safe 방향으로** 시끄러워진다.
+ * **이름 해석은 하지 않는다 — 그러나 "텍스트에 등장" 보다는 좁다.** 이 가드는 단일 파일 AST
+ * 만 보므로 `this.rethrowEndpointPathConflict` 가 실제로 무엇인지 따라갈 수 없다. 그래서
+ * *"그 이름의 **호출식**이 catch 콜백 안에 있는가"* 까지만 묻는다 (형제 가드
+ * `hasProjectionFor` 와 같은 규율 — 모르는 것은 통과시키되 아는 결함은 확실히 잡는다).
+ *
+ * > 첫 판은 `.catch(...)` **전체 텍스트에 이름이 들어 있는가** 였다. 그러면 주석·문자열에
+ * > 이름만 적어 두고 정작 안 부르는 콜백이 **래핑됨으로 통과**한다 — fail-**open** 이다
+ * > (`review/code/2026/09/08/12_53_08` INFO#6). fixture 의 `mentionsButDoesNotCall` 가 그
+ * > 경계를 고정한다.
+ *
+ * 이름을 바꾸면 이 상수도 함께 바꿔야 한다. 안 바꾸면 전부 미래핑으로 잡혀 **fail-safe
+ * 방향으로** 시끄러워진다.
  */
 function isWrappedByConflictCatch(
   saveCall: ts.CallExpression,
@@ -91,7 +122,7 @@ function isWrappedByConflictCatch(
       ts.isCallExpression(cur) &&
       isPropertyAccessNamed(cur.expression, 'catch')
     ) {
-      return cur.getText(sf).includes(CONFLICT_WRAPPER);
+      return cur.arguments.some((arg) => callsConflictWrapper(arg, sf));
     }
     // 체인을 벗어나면(문장 경계) 더 볼 것이 없다.
     if (ts.isStatement(cur)) return false;

@@ -505,27 +505,55 @@ describe('IntegrationOAuthService — MakeShop', () => {
     // UNIQUE 위반을 발생시키면 409(MAKESHOP_ALREADY_CONNECTED) 로 변환한다.
     // ALREADY_CONNECTED_BY_SERVICE['makeshop'] 레지스트리 경유 — 에러 코드·메시지를
     // throwIfUniqueViolation 과 공유.
-    it('translates idx_integration_workspace_service_mall violation → MAKESHOP_ALREADY_CONNECTED (409) on concurrent save', async () => {
-      const row = buildFakeMakeshopIntegration({ mallId: null });
-      integrationRepo.findOne = jest.fn().mockResolvedValue(row);
-      integrationRepo.find = jest.fn().mockResolvedValue([]); // pre-check: no connected dup
-      const dbRaceError = Object.assign(
-        new Error('duplicate key value violates unique constraint'),
-        {
-          code: '23505',
-          constraint: 'idx_integration_workspace_service_mall',
-        },
-      );
-      integrationRepo.save = jest.fn().mockRejectedValueOnce(dbRaceError);
+    // **두 표면을 모두 건다.** `pgErrorConstraint()` 는 `err.constraint` 와
+    // `err.driverError.constraint` 를 함께 흡수하는데, 이 callsite 테스트는 오랫동안
+    // **flat 표면만** 태우고 있었다 — 실전에서 TypeORM 이 실제로 주는 것은 wrap 된 쪽이다
+    // (`review/code/2026/09/08/12_53_08` INFO#7). 헬퍼 유닛 테스트(`pg-error.spec.ts`)가
+    // 두 표면을 보장해도, **이 호출부가 헬퍼를 쓰는지**는 별개 주장이다.
+    const raceErrorSurfaces: ReadonlyArray<[string, () => Error]> = [
+      [
+        'flat (err.code / err.constraint)',
+        () =>
+          Object.assign(
+            new Error('duplicate key value violates unique constraint'),
+            {
+              code: '23505',
+              constraint: 'idx_integration_workspace_service_mall',
+            },
+          ),
+      ],
+      [
+        'wrapped (err.driverError.*) — TypeORM 실제 형태',
+        () =>
+          Object.assign(
+            new Error('duplicate key value violates unique constraint'),
+            {
+              driverError: {
+                code: '23505',
+                constraint: 'idx_integration_workspace_service_mall',
+              },
+            },
+          ),
+      ],
+    ];
 
-      const query = makeInstallQuery('myshop', 'mk-client-secret');
-      const error = await service
-        .handleMakeshopInstall(INSTALL_TOKEN, query)
-        .catch((err) => err);
-      expect((error as { response?: { code?: string } }).response?.code).toBe(
-        'MAKESHOP_ALREADY_CONNECTED',
-      );
-    });
+    it.each(raceErrorSurfaces)(
+      'translates idx_integration_workspace_service_mall violation → MAKESHOP_ALREADY_CONNECTED (409) on concurrent save — %s',
+      async (_label, makeError) => {
+        const row = buildFakeMakeshopIntegration({ mallId: null });
+        integrationRepo.findOne = jest.fn().mockResolvedValue(row);
+        integrationRepo.find = jest.fn().mockResolvedValue([]); // pre-check: no connected dup
+        integrationRepo.save = jest.fn().mockRejectedValueOnce(makeError());
+
+        const query = makeInstallQuery('myshop', 'mk-client-secret');
+        const error = await service
+          .handleMakeshopInstall(INSTALL_TOKEN, query)
+          .catch((err) => err);
+        expect((error as { response?: { code?: string } }).response?.code).toBe(
+          'MAKESHOP_ALREADY_CONNECTED',
+        );
+      },
+    );
 
     it('re-throws non-unique-violation errors from the makeshop race-backstop catch', async () => {
       const row = buildFakeMakeshopIntegration({ mallId: null });

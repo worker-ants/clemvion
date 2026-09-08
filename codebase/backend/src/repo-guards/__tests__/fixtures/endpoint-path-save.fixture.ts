@@ -43,6 +43,17 @@ export class FixtureService {
     await this.triggerRepository.save(t).catch(() => undefined);
   }
 
+  /**
+   * 양성 — 콜백이 래퍼 **이름만 언급**하고 부르지는 않는다. `.catch` 전체 텍스트에 이름이
+   * 들어 있는지만 보면 이 형태가 **래핑됨으로 통과**한다(fail-open).
+   */
+  async mentionsButDoesNotCall(t: unknown): Promise<void> {
+    await this.triggerRepository.save(t).catch(() => {
+      // rethrowEndpointPathConflict 를 여기서 부르는 게 맞지만 아직 안 했다.
+      return undefined;
+    });
+  }
+
   /** 음성 — **다른 리포지토리**의 save 는 이 가드 대상이 아니다. */
   async otherRepositorySave(s: unknown): Promise<void> {
     await this.scheduleRepository.save(s);
