@@ -91,16 +91,24 @@ export function stripComments(src: string): string {
  * 판정 순서:
  *
  * 1. 감싸는 **메서드/함수/getter** 이름 — 그 자체로 무엇을 하는 자리인지 말한다.
- * 2. 없으면, **초기자가 함수/화살표인 변수** 이름 — 그 변수가 곧 함수다.
- * 3. 그것도 없으면 **아무 변수** 이름(fallback) — 모듈 스코프의 `const x = repo.find(…)`
- *    같은 자리에서는 변수명이 최선의 라벨이다.
- * 4. `'<module>'`.
+ * 2. 없으면 **감싸는 변수** 이름(fallback) — 모듈 스코프의 `const x = repo.find(…)` 같은
+ *    자리에서는 변수명이 최선의 라벨이다.
+ * 3. `'<module>'`.
+ *
+ * > **한 갈래를 넣었다가 뺐다 (같은 날).** 승격하면서 *"초기자가 함수/화살표인 변수를
+ * > 우선"* 하는 분기를 하나 더 얹었는데, 리뷰가 **뮤테이션으로 그것이 죽은 코드임을
+ * > 실측**했다 — `isFn` 계산을 `false` 로 바꿔도 두 소비 가드 스위트가 24/24 GREEN
+ * > (`review/code/2026/09/08/14_01_56` testing WARNING#1).
+ * >
+ * > fixture 를 만들어 정당화하는 대신 **지웠다.** 그 분기는 *"감싸는 변수가 둘 이상이고
+ * > 그중 하나만 함수 초기자"* 일 때만 다른 답을 내는데, 그런 형태가 저장소에 없다.
+ * > 없는 경우를 위해 검증되지 않은 코드를 두는 것보다, 두 가드가 **실제로 검증한**
+ * > 알고리즘 하나만 남기는 편이 낫다.
  *
  * **줄 번호를 쓰지 않는 이유**: 위쪽에 줄이 하나만 들어가도 베이스라인이 통째로 낡는다.
  */
 export function enclosingScopeName(node: ts.Node, sf: ts.SourceFile): string {
-  let functionVar: string | null = null;
-  let plainVar: string | null = null;
+  let fallback: string | null = null;
 
   for (let cur: ts.Node | undefined = node.parent; cur; cur = cur.parent) {
     if (
@@ -112,18 +120,14 @@ export function enclosingScopeName(node: ts.Node, sf: ts.SourceFile): string {
       return cur.name.getText(sf);
     }
     if (
-      (ts.isVariableDeclaration(cur) || ts.isPropertyDeclaration(cur)) &&
+      fallback === null &&
+      ts.isVariableDeclaration(cur) &&
       ts.isIdentifier(cur.name)
     ) {
-      const isFn =
-        cur.initializer !== undefined &&
-        (ts.isArrowFunction(cur.initializer) ||
-          ts.isFunctionExpression(cur.initializer));
-      if (isFn && functionVar === null) functionVar = cur.name.text;
-      else if (plainVar === null) plainVar = cur.name.text;
+      fallback = cur.name.text;
     }
   }
-  return functionVar ?? plainVar ?? '<module>';
+  return fallback ?? '<module>';
 }
 
 /**

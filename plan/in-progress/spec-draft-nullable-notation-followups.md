@@ -785,6 +785,34 @@ field: T | null;
 
       → 예시 값을 UUID placeholder 로 교체. **이 배치가 쓴 문장이 아니므로** 자기-반증형
       소정정 대상이 아니다(조건 1 불충족) — planner 턴.
+
+- [ ] **"안전한 `User` 투영" 을 공용 상수로 승격할지 결정** (developer, 2026-09-08 등재,
+      `review/code/2026/09/08/14_01_56` architecture WARNING#2 — **이번 배치는 defer 했다**).
+
+      리뷰: *"`{id, email, name}` 이 `CREATOR_PROJECTION`(이름 있는 SoT)이 있는데도
+      `listMembers` 에 인라인으로 또 적혔다 — 이 PR 이 `pg-error.ts` 에서 실천한 원칙과 반대"*.
+
+      **defer 한 이유 — 같아 보이는 넷이 서로 다른 계약에 묶여 있다.** 실측
+      (2026-09-08, `grep` 전수):
+
+      | 자리 | 모양 | 무엇에 묶여 있나 |
+      |---|---|---|
+      | `CREATOR_PROJECTION` | `{id, name, email}` | **`WorkflowVersionCreatorDto` 와 대조 테스트로 고정** |
+      | `listMembers` | `{id, email, name}` | 그 메서드의 6키 반환 형태 |
+      | `notifications.service.ts:449` | `{id, email}` | 알림 발송 대상 |
+      | `notifications.service.ts:353·367·417` | `{id, notificationPreferences}` | 용도 자체가 다름 |
+
+      **넷 중 값이 겹치는 것은 둘뿐이고, 그 둘은 서로 다른 계약에 고정돼 있다.** 하나로
+      묶으면 `WorkflowVersionCreatorDto` 에 필드가 늘 때 `listMembers` 가 **조용히** 그
+      컬럼을 함께 싣는다 — 리뷰가 말한 "서로 다른 바운디드 컨텍스트" 가 오히려 그 결합의
+      이유다. 우연한 동일성이지 공유할 개념이 아니다.
+
+      **대신 다른 축으로 닫혔다**: B-4 가 `listMembers` 를 `user-entity-exposure-guard` 의
+      보호 범위에 넣었으므로, 이 자리가 **넓어지면** 이제 래칫이 문다. 리뷰가 걱정한
+      *"다음 사람이 더 넓은 투영을 손으로 적는다"* 는 값의 공유가 아니라 그 가드가 막는다.
+
+      → **재개 신호**: 같은 값에 묶인 자리가 **셋째**로 생기거나, 두 계약이 실제로 한
+      개념으로 수렴하면 그때 승격한다. 지금 묶으면 되돌릴 때 두 계약을 다시 갈라야 한다.
 - [x] **트리거 drawer 의 "새 인증 설정 만들기" 링크가 editor 에게 dead-end** (planner,
       2026-09-06 등재, `review/consistency/2026/09/06/15_31_00` W2).
 

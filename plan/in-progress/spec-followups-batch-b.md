@@ -142,7 +142,22 @@ spec_impact: none
       e2e backend **300** + playwright **51**
 - [x] **두 타입체크 ratchet 직접 실행** — backend 197건/36파일, frontend 52건/15파일 baseline 일치
 - [x] `python3 -m pytest .claude/tests -q` → **1,132 passed / 1,254 subtests**
-- [x] `/ai-review` + fix (`review/code/2026/09/08/12_53_08` — Critical 0 · Warning 1,
-      forced 7/7. W1 + INFO 4건 수정, won't-do 2건 사유 기록. RESOLUTION.md 참조)
+- [x] `/ai-review` + fix — **3라운드**. 각 라운드에 RESOLUTION.md 동반, forced 7/7 전원 확보.
+
+      | 라운드 | 결과 | 무엇이 나왔나 |
+      |---|---|---|
+      | `review/code/2026/09/08/12_53_08` | Critical 0 · **Warning 1** | 문서(CHANGELOG 누락) + INFO 4건 수정 |
+      | `review/code/2026/09/08/13_34_28` (`--route=all`) | Critical 0 · **Warning 2** | 구조(워커 중복) + 문서(orphan JSDoc) |
+      | `review/code/2026/09/08/14_01_56` (`--route=all`) | Critical 0 · **Warning 4** | 죽은 분기 · 낡은 docstring 2개 · plan 자기서술 |
+
+      > **왜 3라운드인가**: fix 가 `codebase/**` 를 건드릴 때마다 리뷰가 stale 이 된다
+      > (이 저장소가 기록해 둔 "fix→리뷰 stale 루프"). 매번 **수정을 모아서** 끝낸 뒤
+      > 한 번씩 돌렸다. 라운드마다 발견의 **성격**이 내려갔다 — 동작 결함은 1라운드에도
+      > 없었고(Critical 0), 2·3라운드가 문 것은 전부 **그 라운드의 fix 자신**이다.
 - [ ] `--impl-done`
-- [x] 자매 트래커 체크박스 **8건** 플립 + planner 후속 **2건** 신규 등재 (30 → 24 open)
+- [x] 자매 트래커 체크박스 **8건** 플립 + 후속 **3건** 신규 등재 (30 → **25 open**)
+      > **처음에 "2건 / 24 open" 이라 적었다 — 실측으로 정정한다**
+      > (`review/consistency/2026/09/08/14_01_57` INFO#3). 이 배치가 등재한 것은
+      > 쿼리-범위 select 투영 · `swagger.md` 인용 절 · `requestId` 예시 형식 **셋**이다.
+      > 리뷰 라운드가 늘면서 항목이 하나 더 붙었는데 숫자를 갱신하지 않았다 —
+      > **PR 안의 정량 기록은 PR 이 닫히는 시점의 값**이라는 이 저장소 교훈 그대로다.

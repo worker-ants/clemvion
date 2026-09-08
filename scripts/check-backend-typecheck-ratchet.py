@@ -32,7 +32,11 @@ baseline 은 **199건 / 38파일**이다. 나머지는 대부분 mock 캐스팅�
 
 ## 로컬에서 돌리는 법
 
-`.claude/tools/run-test.sh` 의 4단계에는 **없다**(그 wrapper 는 lint/unit/build/e2e 고정).
+~~`.claude/tools/run-test.sh` 의 4단계에는 **없다**(그 wrapper 는 lint/unit/build/e2e 고정).~~
+**정정 (2026-09-08)**: 이제 `run-test.sh build` 단계 안에서 자동 실행된다
+(`.claude/test-stages.sh` 의 `_cmd_typecheck_ratchets`). 위 문장은 그 전 상태다 —
+`#1292` 가 14라운드 로컬 검증을 통과하고 CI 에서 처음 걸린 것이 편입 계기다.
+개별 실행이 필요하면 아래 명령을 직접 호출한다.
 
     python3 scripts/check-backend-typecheck-ratchet.py            # 검사
     python3 scripts/check-backend-typecheck-ratchet.py --update   # 줄었을 때 baseline 낮추기
