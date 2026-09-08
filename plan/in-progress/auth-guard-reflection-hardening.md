@@ -318,7 +318,7 @@ Postgres `uuid` 컬럼으로 흘러가는 이상 프로덕션에서 존재할 �
       > 둘 있었다 — "이 둘이 유일한 방어선"(실측: 프로덕션 호출부가
       > `workspace-context.util.ts:74` 한 곳)과 "`roles.guard.spec.ts` 는 전역 라우트라
       > 방어선으로 세면 안 된다". 그건 그 자리에 남겼다. 중복은 근거 쪽이지 이 사실이 아니다.
-- [ ] `__test-utils__` 디렉터리가 **devDependency 를 import 하기 시작하면**
+- [x] `__test-utils__` 디렉터리가 **devDependency 를 import 하기 시작하면**
       `tsconfig.build.json` 의 `exclude` 에
       > **트리거 축을 갈았다 (2026-08-29, `plan-audit` 2026-08-28 발단).** 종전 트리거는
       > "**3곳째** 생기면" 이라는 **개수**였는데, 그 사이 저장소가 같은 문제에 **다른 축**을
@@ -343,6 +343,23 @@ Postgres `uuid` 컬럼으로 흘러가는 이상 프로덕션에서 존재할 �
       이유**: 지금 exclude 를 넣으면 그 디렉터리들이 타입체크 대상에서 빠져 `__test-utils__`
       의 타입 오류를 아무도 못 보게 된다(이 저장소가 이미 겪은 "테스트 코드는 어떤 게이트도
       타입체크하지 않는다" 와 같은 클래스).
+
+      > **종결 (2026-09-08) — 트리거는 미충족인데 처방이 먼저 들어갔다.**
+      > 배치 B-2(`spec-followups-batch-b.md`)가 **다른 사유**로 `tsconfig.build.json` 에
+      > `__test-utils__` 글로브 exclude 를 추가했다. 이 항목의 트리거(devDependency import)는
+      > **여전히 미충족**이고, B-2 의 사유는 *"죽은 코드가 dist 에 실린다"* 다.
+      > 처방이 같으므로 남은 작업은 없다 (`review/consistency/2026/09/08/13_34_30` WARNING#1 —
+      > 두 plan 이 같은 대상에 상호 참조 없이 다른 결론을 들고 있다는 지적).
+      >
+      > **타입체크 사각 우려는 실측으로 해소됐다** — backend ratchet 은
+      > `tsconfig.build.json` 이 아니라 **`tsconfig.json`**(테스트 포함)을 쓴다
+      > (`scripts/check-backend-typecheck-ratchet.py:57`). 게다가 B-1 이 그 ratchet 을
+      > `run-test.sh build` 안으로 들여왔으므로 검사가 오히려 앞당겨졌다.
+      >
+      > **자매 세 파일의 docstring 계약은 함께 고쳤다** — `source-scan.ts`·
+      > `workspace-id-fixtures.ts`·`oauth-config-mock.ts` 가 *"build tsc 가 컴파일한다"* 를
+      > 전제로 적고 있었고, 그중 하나는 **이전 저자가 정확히 이 exclude 를 되돌린 이력**까지
+      > 적어 두었다. 그 문장들을 취소선 + 정정으로 갈았다.
 - [x] 캐너리 주석의 "73건" 수치를 정정 (2차 impl-done INFO 2). 그 수는 **`@Roles()` 미부착
       서브셋**인데 캐너리가 세는 것은 `@WorkspaceId()` 소비 라우트 **전체**라 상위집합이다 —
       전체 수치를 실측해 넣거나 서브셋임을 명시할 것. **이 PR 에서 고치지 않는 이유**:

@@ -775,6 +775,16 @@ field: T | null;
       가리키는데, 정방향만 한 절 어긋나 있다.
 
       → 인용을 `swagger.md#1-4-nested--enum--union` 로 바꾸거나 §1-3·§1-4 병기.
+
+- [ ] **`3-error-handling.md §2.1` 예시의 `requestId` 가 UUID 형식이 아니다** (planner,
+      2026-09-08 등재, `review/consistency/2026/09/08/13_34_30` convention_compliance INFO#2).
+
+      §2.1 JSON 예시가 `"requestId": "req_abc123"` 로 적는데, 같은 필드를
+      `2-api-convention.md §5.3` 은 *"추적용 **UUID**"* 로 정의하고 구현도 `uuidv4()` 다
+      (`GlobalExceptionFilter`). 예시만 다른 형식이라 소비자가 prefix 형태를 기대할 수 있다.
+
+      → 예시 값을 UUID placeholder 로 교체. **이 배치가 쓴 문장이 아니므로** 자기-반증형
+      소정정 대상이 아니다(조건 1 불충족) — planner 턴.
 - [x] **트리거 drawer 의 "새 인증 설정 만들기" 링크가 editor 에게 dead-end** (planner,
       2026-09-06 등재, `review/consistency/2026/09/06/15_31_00` W2).
 

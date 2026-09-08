@@ -117,9 +117,12 @@ describe('`endpoint_path` 충돌 래핑 래칫', () => {
     });
 
     it('래핑된 save 와 다른 리포지토리는 놓아 준다', () => {
-      expect(found.filter((s) => s.wrapped).map((s) => s.method)).toEqual([
-        'wrappedSave',
-      ]);
+      expect(
+        found
+          .filter((s) => s.wrapped)
+          .map((s) => s.method)
+          .sort(),
+      ).toEqual(['wrappedSave', 'wrappedViaVariable']);
       // `scheduleRepository.save` 는 애초에 스캔되지 않는다 — 목록 어디에도 없어야 한다.
       expect(found.map((s) => s.method)).not.toContain('otherRepositorySave');
     });

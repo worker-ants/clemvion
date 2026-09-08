@@ -54,6 +54,19 @@ export class FixtureService {
     });
   }
 
+  /**
+   * 음성 — **변수 선언을 경유하는 wrap.** `const saved = await repo.save(t).catch(...)` 는
+   * 프로덕션 `create`/`update` 가 실제로 쓰는 형태이고, 신규 가드가 처음에 이 자리를
+   * `#saved` 로 잘못 이름 붙였던 회귀 형태이기도 하다. 프로덕션 파일의 **우연한 모양**에
+   * 기대지 않도록 여기서 직접 고정한다 (`review/code/2026/09/08/13_34_28` testing INFO#4).
+   */
+  async wrappedViaVariable(t: unknown): Promise<unknown> {
+    const saved = await this.triggerRepository
+      .save(t)
+      .catch((err: unknown) => this.rethrowEndpointPathConflict(err));
+    return saved;
+  }
+
   /** 음성 — **다른 리포지토리**의 save 는 이 가드 대상이 아니다. */
   async otherRepositorySave(s: unknown): Promise<void> {
     await this.scheduleRepository.save(s);

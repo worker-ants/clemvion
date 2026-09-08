@@ -9,7 +9,10 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as ts from 'typescript';
 
-import { toPosixRelative } from '../../common/__test-utils__/source-scan';
+import {
+  enclosingScopeName,
+  toPosixRelative,
+} from '../../common/__test-utils__/source-scan';
 
 /** `src` 루트. 이 파일은 `src/repo-guards/__tests__/` 에 있다. */
 export const SRC_ROOT = path.resolve(__dirname, '..', '..');
@@ -31,36 +34,6 @@ export interface TriggerSaveSite {
    * 들어가도 베이스라인이 통째로 낡는다. 한 메서드 안에서 두 번 저장하면 `#2` 가 붙는다.
    */
   readonly key: string;
-}
-
-/**
- * `node` 를 감싸는 가장 가까운 메서드/함수 이름. 없으면 `<top-level>`.
- *
- * > **`const x = ...` 을 이름으로 삼지 않는다.** 첫 판이 `VariableDeclaration` 을 무조건
- * > 받아들여, 저장소의 두 정답 사이트(`const saved = await repo.save(t).catch(...)`)가
- * > 메서드 이름이 아니라 **`saved`** 로 키가 잡혔다 — 베이스라인을 그대로 굳혔으면
- * > `create`/`update` 를 지목하지 못하는 목록이 됐다. 변수 선언은 **초기자가 함수일 때만**
- * > 함수의 이름이다.
- */
-function enclosingMethodName(node: ts.Node, sf: ts.SourceFile): string {
-  for (let cur: ts.Node | undefined = node.parent; cur; cur = cur.parent) {
-    if (ts.isMethodDeclaration(cur) || ts.isMethodSignature(cur)) {
-      return cur.name.getText(sf);
-    }
-    if (ts.isFunctionDeclaration(cur) && cur.name) {
-      return cur.name.getText(sf);
-    }
-    if (
-      (ts.isPropertyDeclaration(cur) || ts.isVariableDeclaration(cur)) &&
-      cur.name &&
-      cur.initializer &&
-      (ts.isArrowFunction(cur.initializer) ||
-        ts.isFunctionExpression(cur.initializer))
-    ) {
-      return cur.name.getText(sf);
-    }
-  }
-  return '<top-level>';
 }
 
 /**
@@ -159,8 +132,13 @@ export function findTriggerRepositorySaves(
       ) {
         const receiver = (node.expression as ts.PropertyAccessExpression)
           .expression;
-        if (receiver.getText(sf).includes(TRIGGER_REPOSITORY)) {
-          const method = enclosingMethodName(node, sf);
+        // **정확 프로퍼티 매칭이다 — 부분 문자열이 아니다.** 첫 판은
+        // `receiver.getText(sf).includes(TRIGGER_REPOSITORY)` 였는데, 그러면
+        // `someTriggerRepositoryWrapper.save(...)` 같은 변형까지 걸린다. 바로 아래에서
+        // `save` 는 정확 이름으로 비교하면서 수신자만 느슨한 비대칭이었다
+        // (`review/code/2026/09/08/13_34_28` architecture INFO#5).
+        if (isPropertyAccessNamed(receiver, TRIGGER_REPOSITORY)) {
+          const method = enclosingScopeName(node, sf);
           const base = `${rel}#${method}`;
           const n = (seen.get(base) ?? 0) + 1;
           seen.set(base, n);
