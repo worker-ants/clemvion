@@ -3,7 +3,7 @@ title: 배치 B — 타입체크 사각 봉인 · pg-error SoT 단일화 · list
 worktree: spec-followups-batch-b-7c31ad
 started: 2026-09-08
 owner: developer
-status: in-progress
+status: complete
 priority: P1
 spec_impact: none
 ---
@@ -149,6 +149,8 @@ spec_impact: none
       | `review/code/2026/09/08/12_53_08` | Critical 0 · **Warning 1** | 문서(CHANGELOG 누락) + INFO 4건 수정 |
       | `review/code/2026/09/08/13_34_28` (`--route=all`) | Critical 0 · **Warning 2** | 구조(워커 중복) + 문서(orphan JSDoc) |
       | `review/code/2026/09/08/14_01_56` (`--route=all`) | Critical 0 · **Warning 4** | 죽은 분기 · 낡은 docstring 2개 · plan 자기서술 |
+      | `review/code/2026/09/08/14_29_12` (`--route=all`) | Critical 0 · **Warning 3** | 전부 "문서·근거 서술이 실측과 어긋남" |
+      | `review/code/2026/09/08/14_49_38` (`--route=all`) | Critical 0 · **Warning 0** | **수렴** — INFO 16건 전부 확인/기유예 |
 
       > **왜 3라운드인가**: fix 가 `codebase/**` 를 건드릴 때마다 리뷰가 stale 이 된다
       > (이 저장소가 기록해 둔 "fix→리뷰 stale 루프"). 매번 **수정을 모아서** 끝낸 뒤
@@ -163,6 +165,7 @@ spec_impact: none
       | `review/consistency/2026/09/08/13_34_30` | BLOCK: NO · **Warning 1** | 자매 plan 의 조건부 유예를 앞지름 |
       | `review/consistency/2026/09/08/14_01_57` | BLOCK: NO · Warning 0 | INFO 3(그중 하나가 내 숫자 오기) |
       | `review/consistency/2026/09/08/14_29_13` | BLOCK: NO · **위험도 NONE** | INFO 1 — 이미 등재된 planner 항목 재확인뿐 |
+      | `review/consistency/2026/09/08/14_49_40` | BLOCK: NO · Warning 1 | 코드 주석은 고치고 **같은 전제의 plan 두 자리를 빠뜨림** → 정정 |
 - [x] 자매 트래커 체크박스 **8건** 플립 + 후속 **3건** 신규 등재 (30 → **25 open**)
       > **처음에 "2건 / 24 open" 이라 적었다 — 실측으로 정정한다**
       > (`review/consistency/2026/09/08/14_01_57` INFO#3). 이 배치가 등재한 것은

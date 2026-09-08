@@ -344,12 +344,23 @@ Postgres `uuid` 컬럼으로 흘러가는 이상 프로덕션에서 존재할 �
       의 타입 오류를 아무도 못 보게 된다(이 저장소가 이미 겪은 "테스트 코드는 어떤 게이트도
       타입체크하지 않는다" 와 같은 클래스).
 
-      > **종결 (2026-09-08) — 트리거는 미충족인데 처방이 먼저 들어갔다.**
-      > 배치 B-2(`spec-followups-batch-b.md`)가 **다른 사유**로 `tsconfig.build.json` 에
-      > `__test-utils__` 글로브 exclude 를 추가했다. 이 항목의 트리거(devDependency import)는
-      > **여전히 미충족**이고, B-2 의 사유는 *"죽은 코드가 dist 에 실린다"* 다.
-      > 처방이 같으므로 남은 작업은 없다 (`review/consistency/2026/09/08/13_34_30` WARNING#1 —
-      > 두 plan 이 같은 대상에 상호 참조 없이 다른 결론을 들고 있다는 지적).
+      > **종결 (2026-09-08).** 배치 B-2(`spec-followups-batch-b.md`)가 `tsconfig.build.json` 에
+      > `__test-utils__` 글로브 exclude 를 추가했다. 처방이 같으므로 남은 작업은 없다
+      > (`review/consistency/2026/09/08/13_34_30` WARNING#1 — 두 plan 이 같은 대상에 상호
+      > 참조 없이 다른 결론을 들고 있다는 지적).
+      >
+      > ~~**트리거는 미충족인데 처방이 먼저 들어갔다** — B-2 의 사유는 *"죽은 코드가 dist 에
+      > 실린다"* 이고 이 항목의 트리거(devDependency import)는 여전히 미충족이다.~~
+      >
+      > **정정 (2026-09-08, 같은 날) — 트리거는 이제 충족됐다.** 위 문장을 쓴 **바로 그
+      > 커밋**(`d80583700`)이 `source-scan.ts` 에 `import * as ts from 'typescript'`
+      > (devDependency)를 추가했다. 즉 그 각주는 **작성 순간부터 자기 커밋에 의해 거짓**이었다
+      > (`review/consistency/2026/09/08/14_49_40` WARNING#1).
+      >
+      > **결론은 바뀌지 않는다** — 처방(exclude)이 이미 들어갔고 순서도 안전하다(exclude 가
+      > import 보다 **먼저**). 바뀌는 것은 이 축의 **등급**이다: 이제 첫 번째 자리
+      > (`repo-guards/**`)와 같은 devDependency 격리를 겸한다. 정본 서술은
+      > `tsconfig.build.json` 의 exclude 주석(`76bd51aab` 정정분).
       >
       > **타입체크 사각 우려는 실측으로 해소됐다** — backend ratchet 은
       > `tsconfig.build.json` 이 아니라 **`tsconfig.json`**(테스트 포함)을 쓴다

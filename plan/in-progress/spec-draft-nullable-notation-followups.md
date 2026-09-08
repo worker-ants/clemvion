@@ -591,9 +591,14 @@ field: T | null;
       `tsc --listFiles -p tsconfig.build.json | grep __test-utils__` → **5건**
       (`source-scan.ts` · `temp-fixture.ts` · `workspace-id-fixtures.ts` 외).
 
-      **지금은 지뢰가 아니다** — 전 파일의 import 가 node 내장 + 로컬뿐이라, exclude 목록
+      ~~**지금은 지뢰가 아니다** — 전 파일의 import 가 node 내장 + 로컬뿐이라, exclude 목록
       주석이 경고하는 형태(`require("typescript")` 같은 devDependency 지뢰)는 없다.
-      **죽은 코드가 dist 에 실릴 뿐**이다.
+      **죽은 코드가 dist 에 실릴 뿐**이다.~~
+
+      > **정정 (2026-09-08)**: 등재 시점에는 참이었으나 **같은 배치가 뒤집었다** — B-6 의 AST
+      > 워커를 공용화하면서 `source-scan.ts` 가 `import * as ts from 'typescript'`
+      > (devDependency)를 갖게 됐다. 이 축은 이제 첫 번째 자리(`repo-guards/**`)와 같은 등급의
+      > 격리를 겸한다 (`review/consistency/2026/09/08/14_49_40` WARNING#1).
 
       → exclude 에 `**/__test-utils__/**` 를 더한다. 경로가 아니라 **디렉터리 이름 규약**
       으로 막으면 다음에 어디에 만들어도 걸린다 — 이번에 내가 `common/db/__test-utils__/`
@@ -605,6 +610,10 @@ field: T | null;
       > 아니라 **디렉터리 이름**으로 막았다.
       > **부수 소득**: 단언을 `it.each` 로 접다가 `shared/testing` 축이 2026-08-27 에 **exclude 만
       > 추가되고 대응 단언이 없었다**는 것을 발견했다 — 그 축이 이번에 처음 생겼다.
+      > **처방 사유가 배치 도중 한 등급 올라갔다** — 위 취소선 참조. exclude 가 import 보다
+      > **먼저** 들어가 노출 구간은 없었고, `production-build-devdep-guard` 가 디렉터리 단위로
+      > 막으므로 빌드 안전성도 그대로다. 자매 plan
+      > (`auth-guard-reflection-hardening.md`)의 같은 전제도 함께 정정했다.
 
 - [x] **`integration-oauth.service.ts` 의 손-작성 constraint 추출 2곳** (developer,
       2026-09-06 등재, `review/code/2026/09/06/16_28_58` INFO#9 — **의도적 보류**).
