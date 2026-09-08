@@ -63,6 +63,27 @@ cmd_unit() {
   _run_internal test
 }
 
+# **타입체크 ratchet 두 개를 이 단계가 함께 돈다.**
+#
+# `pnpm --filter backend build` 는 `tsconfig.build.json` 을 쓰는데 그 파일이 테스트 경로
+# (`*spec.ts`·`src/repo-guards/**`·`src/shared/testing/**`·`**/__test-utils__/**`)를 exclude
+# 하고, jest 는 타입을 strip 한다. frontend 는 원인이 다르지만 같은 사각이다 —
+# `tsconfig.json` 자신이 테스트 경로를 exclude 하고 `vitest run` 이 타입을 strip 한다.
+# 즉 **빌드에서 제외된 자리의 타입 오류는 4단계가 원리적으로 못 본다.**
+#
+# 실제로 샜다: #1292 가 14라운드 로컬 검증을 전부 통과하고 CI 에서 처음 걸렸다
+# (`src/shared/testing/pg-error-fixtures.ts`, TS2739). 두 ratchet 이 대조하는 대상이 정확히
+# "build 가 제외한 자리" 이므로 build 단계에 둔다 — "이 단계는 타입을 본다" 가 한 자리에 모인다.
+#
+# **증가·감소 둘 다 실패한다**(`scripts/_typecheck_ratchet.py` 공용 코어). 오류를 줄였으면
+# `--update` 로 baseline 을 낮춰 커밋한다 — 그 실패는 회귀가 아니라 갱신 요구다.
+_cmd_typecheck_ratchets() {
+  local root
+  root="$(git rev-parse --show-toplevel)"
+  python3 "$root/scripts/check-backend-typecheck-ratchet.py" && \
+  python3 "$root/scripts/check-frontend-typecheck-ratchet.py"
+}
+
 cmd_build() {
   _ensure_deps && \
   pnpm --filter backend build && \
@@ -71,6 +92,7 @@ cmd_build() {
   pnpm --filter channel-web-chat build && \
   pnpm --filter channel-web-chat typecheck && \
   _run_internal build && \
+  _cmd_typecheck_ratchets && \
   _cmd_build_docker_images
 }
 

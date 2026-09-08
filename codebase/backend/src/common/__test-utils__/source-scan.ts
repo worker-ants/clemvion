@@ -1,8 +1,25 @@
 /**
  * 구조적 회귀 가드가 **소스를 세는·모으는** 방식의 단일 출처. 테스트 전용이다.
  *
- * jest 타입 비의존 — build tsc 가 `__test-utils__` 를 컴파일하므로 의도적으로 순수
- * 함수만 둔다 (`workspace-id-fixtures.ts`·`modules/integrations/__test-utils__` 와 같은 관례).
+ * ~~jest 타입 비의존 — build tsc 가 `__test-utils__` 를 컴파일하므로 의도적으로 순수
+ * 함수만 둔다.~~
+ *
+ * > **정정 (2026-09-08)**: `tsconfig.build.json` 이 `__test-utils__` 글로브 를 **제외한다** —
+ * > 위 전제는 더 이상 참이 아니다. 순수 함수만 두는 관례는 유지하되, 근거가 바뀌었다:
+ * >
+ * > | | 종전 | 지금 |
+ * > |---|---|---|
+ * > | 이 파일을 컴파일하는 프로그램 | `tsc -p tsconfig.build.json` | `tsc -p tsconfig.json` (타입체크 ratchet) |
+ * > | jest 타입 의존을 금지한 이유 | dist 에 실리므로 런타임 지뢰 | **dist 에 안 실린다 — 제약이 불필요해졌다** |
+ * >
+ * > **타입체크는 잃지 않았다.** ratchet 은 테스트를 포함하는 `tsconfig.json` 을 쓰고
+ * > (`scripts/check-backend-typecheck-ratchet.py`), 2026-09-08 부터 그 ratchet 이
+ * > `run-test.sh build` 안에서 함께 돈다. 즉 검사 주체만 바뀌었다.
+ * >
+ * > **이전 저자의 판단을 뒤집는 것이므로 남긴다.** 아래 원문이 적듯 그때는 *"제외를 넓히는
+ * > 건 남의 계약을 바꾸는 일"* 이라 되돌렸다. 지금 넓히는 근거는 다르다 — devDependency
+ * > 지뢰가 아니라 **죽은 코드가 dist 에 실리는 것** 이고, 그 계약이 지키려던 위험 자체가
+ * > 제외로 사라진다.
  *
  * > 처음엔 `common/utils/__testing__/` 라는 **새 디렉토리**에 두고 `tsconfig.build.json`
  * > 에서 제외했다. 저장소에 이미 `__test-utils__`(2곳)·`__tests__`·`__test__` 가 있어
@@ -22,6 +39,7 @@
  */
 
 import * as fs from 'node:fs';
+import * as ts from 'typescript';
 import * as path from 'node:path';
 
 /**
@@ -52,6 +70,64 @@ import * as path from 'node:path';
  */
 export function stripComments(src: string): string {
   return src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '');
+}
+
+/**
+ * `node` 를 감싸는 **스코프의 이름** — 구조 가드가 위반 자리를 사람이 읽을 수 있는 키로
+ * 적을 때 쓴다. 없으면 `'<module>'`.
+ *
+ * ## 왜 여기 있나 (2026-09-08 승격)
+ *
+ * 같은 책임의 AST 워커가 `user-entity-exposure-guard.ts` 와
+ * `endpoint-path-conflict-wrap-guard.ts` 에 **각자 손으로** 있었다
+ * (`review/code/2026/09/08/13_34_28` architecture WARNING#1).
+ *
+ * > **그 지적의 진단은 절반만 맞았다 — 기록해 둔다.** 리뷰는 *"형제 `enclosingName` 에도
+ * > 같은 결함이 남아 있다"* 고 적었지만 아니다. 신규 가드의 버그는 **순서**였다(변수 선언이
+ * > 메서드를 이겼다). 형제는 처음부터 메서드를 먼저 보고 변수는 **fallback 으로 미뤘으므로**
+ * > 그 버그가 없었다. 맞는 것은 *"중복"* 쪽이다 — 그래서 규칙을 바꾸지 않고 **형제의
+ * > 알고리즘을 그대로 여기로 옮긴 뒤** 한 갈래만 더 넣었다.
+ *
+ * 판정 순서:
+ *
+ * 1. 감싸는 **메서드/함수/getter** 이름 — 그 자체로 무엇을 하는 자리인지 말한다.
+ * 2. 없으면 **감싸는 변수** 이름(fallback) — 모듈 스코프의 `const x = repo.find(…)` 같은
+ *    자리에서는 변수명이 최선의 라벨이다.
+ * 3. `'<module>'`.
+ *
+ * > **한 갈래를 넣었다가 뺐다 (같은 날).** 승격하면서 *"초기자가 함수/화살표인 변수를
+ * > 우선"* 하는 분기를 하나 더 얹었는데, 리뷰가 **뮤테이션으로 그것이 죽은 코드임을
+ * > 실측**했다 — `isFn` 계산을 `false` 로 바꿔도 두 소비 가드 스위트가 24/24 GREEN
+ * > (`review/code/2026/09/08/14_01_56` testing WARNING#1).
+ * >
+ * > fixture 를 만들어 정당화하는 대신 **지웠다.** 그 분기는 *"감싸는 변수가 둘 이상이고
+ * > 그중 하나만 함수 초기자"* 일 때만 다른 답을 내는데, 그런 형태가 저장소에 없다.
+ * > 없는 경우를 위해 검증되지 않은 코드를 두는 것보다, 두 가드가 **실제로 검증한**
+ * > 알고리즘 하나만 남기는 편이 낫다.
+ *
+ * **줄 번호를 쓰지 않는 이유**: 위쪽에 줄이 하나만 들어가도 베이스라인이 통째로 낡는다.
+ */
+export function enclosingScopeName(node: ts.Node, sf: ts.SourceFile): string {
+  let fallback: string | null = null;
+
+  for (let cur: ts.Node | undefined = node.parent; cur; cur = cur.parent) {
+    if (
+      (ts.isMethodDeclaration(cur) ||
+        ts.isFunctionDeclaration(cur) ||
+        ts.isGetAccessorDeclaration(cur)) &&
+      cur.name
+    ) {
+      return cur.name.getText(sf);
+    }
+    if (
+      fallback === null &&
+      ts.isVariableDeclaration(cur) &&
+      ts.isIdentifier(cur.name)
+    ) {
+      fallback = cur.name.text;
+    }
+  }
+  return fallback ?? '<module>';
 }
 
 /**

@@ -1121,16 +1121,18 @@ describe('WorkspacesService', () => {
   });
 
   /**
-   * **이 저장소에서 `User` 를 통째로 로드하고도 가드가 지키지 못하는 유일한 자리.**
+   * **2026-09-08 에 DB 레벨 투영으로 옮겼다.**
    *
-   * `user-entity-exposure-guard` 는 **로드 형태**만 본다. `listMembers` 는 `relations:
-   * ['user']` 로 전 컬럼을 싣고 **JS 단 수동 매핑**으로 필드를 고르므로, 그 매핑이
-   * 넓어져도(`...m.user` 스프레드 등) 가드는 초록이다. 그래서 화이트리스트 주석이
-   * *"안전망은 e2e `workspace-rbac` J. 뿐"* 이라고 적고 있었는데 — **단위 테스트가
-   * 0건이면 그 하나가 깨질 때 원인을 좁힐 방법이 없다**
-   * (`review/code/2026/09/06/14_59_48` W5).
+   * 종전에는 `relations: ['user']` 로 `User` 전 컬럼을 싣고 **JS 단 수동 매핑**으로 필드를
+   * 골랐다. `user-entity-exposure-guard` 는 **로드 형태**만 보므로 그 매핑이 넓어져도
+   * (`...m.user` 스프레드 등) 초록이었고, 안전망이 e2e `workspace-rbac` J. 하나뿐이었다.
+   * 이제 `select` 투영이라 컬럼이 애초에 오지 않고, 그 가드의 화이트리스트에서도 빠졌다.
+   *
+   * **아래 두 축을 다 유지한다.** 반환 키 단언(수동 매핑 축)만 두면 **투영을 되돌려도
+   * 초록**이다 — `.map` 이 여전히 좁히기 때문이다. 그래서 *"쿼리가 투영을 요청했는가"* 를
+   * 따로 단언한다. 반대로 투영 단언만 두면 `.map` 이 넓어지는 것을 놓친다.
    */
-  describe('listMembers — 수동 투영이 좁은지', () => {
+  describe('listMembers — DB 투영 + 반환 키', () => {
     const memberRow = (user: Record<string, unknown>) => ({
       id: 'm-1',
       userId: 'u-1',
@@ -1170,6 +1172,27 @@ describe('WorkspacesService', () => {
       // 이름 축과 같은 그물을 단위 레벨에서도 건다 — 키 목록만 보면 중첩으로 새는
       // 형태를 놓친다.
       expect(findUserSecretLeaks(rows)).toEqual([]);
+    });
+
+    it('쿼리가 `user` 관계를 `select` 로 좁혀 요청한다', async () => {
+      // **위 단언만으로는 이 사실이 고정되지 않는다** — `select` 를 지워 전 컬럼을 로드해도
+      // 아래 `.map` 이 여전히 6키로 좁히므로 반환 키 단언은 초록이다. 실제로 그 상태가
+      // 2026-09-08 이전의 코드였고, 그때 이 자리는 `user-entity-exposure-guard` 의
+      // 화이트리스트에 실려 있었다. 방어가 **어느 층에 있는지**를 단언한다.
+      memberRepo.find.mockResolvedValue([]);
+
+      await service.listMembers('ws-uuid-1', 'user-uuid-1');
+
+      const opts = memberRepo.find.mock.calls[0][0] as {
+        select?: { user?: Record<string, boolean> };
+      };
+      // 불리언이 아니라 **객체**여야 한다 — `select: { user: true }` 는 컬럼을 하나도
+      // 좁히지 않아 투영이 아니다(그 형태는 구조 가드도 위반으로 본다).
+      expect(opts.select?.user).toEqual({
+        id: true,
+        email: true,
+        name: true,
+      });
     });
 
     it.each([

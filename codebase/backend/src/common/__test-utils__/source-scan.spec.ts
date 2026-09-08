@@ -2,10 +2,13 @@ import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
 
+import * as ts from 'typescript';
+
 import {
   collectTsFiles,
   countCalls,
   countRawUpdateReturning,
+  enclosingScopeName,
   hasRawUpdateReturning,
   stripLiterals,
   toPosixPath,
@@ -366,5 +369,96 @@ describe('toPosixPath / toPosixRelative', () => {
 
   it('단일 세그먼트는 그대로 — 여기서만 검사하면 공허하다', () => {
     expect(toPosixRelative('/a', '/a/b.ts')).toBe('b.ts');
+  });
+});
+
+/**
+ * `enclosingScopeName` — **세 갈래를 각각 관측한다.**
+ *
+ * ## 왜 여기 직접 테스트가 필요한가
+ *
+ * 이 함수는 두 구조 가드(`user-entity-exposure-guard`·`endpoint-path-conflict-wrap-guard`)가
+ * 위반 자리에 붙이는 **키를 정한다** — 틀리면 베이스라인이 엉뚱한 이름으로 굳고, 어느 자리가
+ * 남았는지 사람이 읽을 수 없게 된다.
+ *
+ * 그런데 두 소비 spec 의 fixture 는 **전부 클래스 메서드 안**이라 `메서드 우선` 갈래만
+ * 관측했다. 나머지 둘(변수명 fallback · `'<module>'`)은 실행은 되지만 **어떤 단언도 그 결과가
+ * 옳은지 보지 않았다** (`review/code/2026/09/08/14_29_12` testing WARNING).
+ *
+ * 같은 세션에서 이 함수의 **자매 갈래**(`isFn` 우선)가 정확히 그 상태로 죽은 코드였다는 것을
+ * 리뷰가 뮤테이션으로 잡아냈다 — 그쪽은 저장소에 대응 형태가 없어 **지웠고**, 이 둘은
+ * 실재하는 형태(모듈 스코프 로드)를 다루므로 **여기서 관측한다.** 같은 지적에 두 처분이
+ * 갈리는 기준은 *"그 갈래가 답해야 할 코드 형태가 저장소에 있는가"* 다.
+ */
+describe('enclosingScopeName', () => {
+  /** `src` 안의 첫 `repo.find(...)` 호출 노드를 찾아 스코프 이름을 묻는다. */
+  function scopeOfFirstFind(src: string): string {
+    const sf = ts.createSourceFile(
+      'fixture.ts',
+      src,
+      ts.ScriptTarget.Latest,
+      true,
+    );
+    let found: ts.Node | null = null;
+    const walk = (n: ts.Node): void => {
+      if (
+        found === null &&
+        ts.isCallExpression(n) &&
+        n.expression.getText(sf).endsWith('.find')
+      ) {
+        found = n;
+      }
+      ts.forEachChild(n, walk);
+    };
+    walk(sf);
+    if (found === null) throw new Error('fixture 에 find 호출이 없다');
+    return enclosingScopeName(found, sf);
+  }
+
+  it('메서드 안이면 **메서드 이름** — 감싸는 변수보다 우선한다', () => {
+    // 실제 코드가 `const stored = await repo.findOne({…})` 형태라, 가까운 것부터 집으면
+    // `#stored` 가 나온다. 그 순서 역전이 이 세션에서 실제로 났던 버그다.
+    expect(
+      scopeOfFirstFind(`
+        class S {
+          async listMembers() {
+            const rows = repo.find({ relations: ['user'] });
+            return rows;
+          }
+        }
+      `),
+    ).toBe('listMembers');
+  });
+
+  it('감싸는 함수가 없으면 **변수 이름**으로 떨어진다', () => {
+    // 모듈 스코프 로드 — 여기서는 변수명이 그 자리를 가리키는 최선의 라벨이다.
+    expect(
+      scopeOfFirstFind(`const preloaded = repo.find({ relations: ['user'] });`),
+    ).toBe('preloaded');
+  });
+
+  it('함수도 변수도 없으면 `<module>`', () => {
+    expect(scopeOfFirstFind(`repo.find({ relations: ['user'] });`)).toBe(
+      '<module>',
+    );
+  });
+
+  it('일반 함수 선언·getter 도 이름으로 잡는다', () => {
+    expect(
+      scopeOfFirstFind(`
+        function loadUsers() {
+          return repo.find({ relations: ['user'] });
+        }
+      `),
+    ).toBe('loadUsers');
+    expect(
+      scopeOfFirstFind(`
+        class S {
+          get members() {
+            return repo.find({ relations: ['user'] });
+          }
+        }
+      `),
+    ).toBe('members');
   });
 });

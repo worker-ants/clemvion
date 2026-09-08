@@ -178,6 +178,40 @@ describe('Webhook trigger (e2e)', () => {
     expect(res.body.error.code).toBe('VALIDATION_ERROR');
   });
 
+  it('B4. 같은 워크스페이스에 같은 endpointPath → 409 RESOURCE_CONFLICT + details.code (§1.10)', async () => {
+    // **단위 테스트가 mock 하는 드라이버 에러 형태가 실제와 같은지는 이 케이스만 확인한다.**
+    // `triggers.service.spec.ts` 는 `QueryFailedError` 를 손으로 만들어 `rethrowEndpointPathConflict`
+    // 를 태우는데, 실 DB 가 그 형태(제약 이름·SQLSTATE)를 정말 돌려주는지는 mock 이 원리적으로
+    // 말해 주지 못한다 — `(workspace_id, endpoint_path)` UNIQUE 를 실제로 밟는 유일한 자리다.
+    //
+    // 계약 SoT: [에러 처리 §1.10](spec/5-system/3-error-handling.md) — 봉투 `code` 는 상태
+    // 기본값 `RESOURCE_CONFLICT` 를 유지하고 세부 사유는 `details` 에 싣는다(객체 형태).
+    const path = crypto.randomUUID();
+    await createWebhookTrigger(uniqueName('hook-b4'), path);
+
+    const dup = await request(BASE_URL)
+      .post('/api/triggers')
+      .set('Authorization', `Bearer ${token}`)
+      .set('X-Workspace-Id', workspaceId)
+      .send({
+        workflowId,
+        type: 'webhook',
+        name: uniqueName('hook-b4-dup'),
+        endpointPath: path,
+        isActive: true,
+      });
+
+    expect(dup.status).toBe(409);
+    expect(dup.body.error.code).toBe('RESOURCE_CONFLICT');
+    // 두 키를 **함께** 단언한다 — 하나만 보면 `details` 를 통째로 잃어도 초록이다.
+    expect(dup.body.error.details).toEqual({
+      field: 'endpoint_path',
+      code: 'TRIGGER_ENDPOINT_PATH_CONFLICT',
+    });
+    // 드라이버 원문(제약명·SQL)이 새지 않는지 — 전역 필터의 마스킹 계약과 같은 축.
+    expect(JSON.stringify(dup.body)).not.toContain('duplicate key');
+  });
+
   it('B3. 필수 파라미터 누락 → 400 INVALID_WEBHOOK_PAYLOAD + 공식 봉투 error.details[] (WH-EP-05-2 §5.2)', async () => {
     // 전용 워크플로 — manual_trigger 에 required 파라미터 부여. 공유 workflowId 를
     // 오염시키지 않도록 분리(다른 테스트의 무-파라미터 webhook 이 깨지지 않게).

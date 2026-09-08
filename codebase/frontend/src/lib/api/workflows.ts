@@ -107,19 +107,18 @@ export interface WorkflowVersionSummary {
 }
 
 /**
- * ⚠️ **백엔드에 같은 이름의 별도 선언이 있다** —
- * `codebase/backend/src/modules/workflow-versions/workflow-versions.service.ts` 의
- * `WorkflowVersionDetail`. 공유 타입 패키지를 거치지 않는 **손으로 맞춘 미러**다.
+ * **백엔드 대응 타입은 `WorkflowVersionDetailProjection`** —
+ * `codebase/backend/src/modules/workflow-versions/workflow-versions.service.ts`.
+ * 공유 타입 패키지를 거치지 않는 **손으로 맞춘 미러**이므로, 이 타입을 바꾸면 저쪽도 연다.
  *
- * 두 선언은 이미 갈려 있다: 여기 `creator` 는 옵셔널·nullable 인데 백엔드는
- * `{ id, name, email }` **3필드 고정**으로 좁혔다(더 좁으므로 런타임 오류는 안 난다).
+ * 두 선언은 형태가 다르다 (의도된 것이고 합치지 않았다): 여기 `creator` 는 옵셔널·nullable
+ * 이고 `createdAt` 은 `string` 인데, 백엔드는 `creator` 를 `{ id, name, email }` **3필드
+ * 고정**으로 좁혔고 `createdAt` 은 `Date` 다. 백엔드가 더 좁으므로 런타임 오류는 안 난다.
  *
- * **이름이 같아서 grep 이 두 자리를 같은 것으로 보여 준다** — 실제로 한 세션에서 세
- * 라운드 연속 "유일 정의" 오판을 만들었다 (`review/consistency/2026/09/06/16_29_00` W5).
- * 종전에는 백엔드 쪽에만 역참조가 있어 **이 파일을 여는 사람에게는 안 닿았다.**
- *
- * 개명·공유 패키지화는 `plan/in-progress/spec-draft-nullable-notation-followups.md` 항목.
- * 그때까지는 둘 중 하나를 만지면 저쪽도 열어라.
+ * **종전에는 이름까지 같았다.** 그래서 `grep` 이 두 자리를 같은 것으로 보여 줬고 한 세션에서
+ * 세 라운드 연속 "유일 정의" 오판이 났다 (`review/consistency/2026/09/06/16_29_00` W5).
+ * 2026-09-08 에 백엔드를 개명해 그 축을 닫았다 — 공유 패키지화는 wire 계약을 한쪽으로
+ * 맞춰야 해서 하지 않았다.
  */
 export interface WorkflowVersionDetail extends WorkflowVersionSummary {
   snapshot: VersionSnapshot;

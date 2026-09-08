@@ -12,7 +12,12 @@ import {
  * 시점에 `configService.get('oauth')` 를 읽으므로, 테스트는 호출 직전 `mock.env.*` 를
  * 수정하면 된다 (생성자 5번째 인자로 `mock.configService` 전달).
  *
- * jest 타입 비의존 (build tsc 가 `__test-utils__` 를 컴파일하므로 의도적으로 plain 함수).
+ * ~~jest 타입 비의존 (build tsc 가 `__test-utils__` 를 컴파일하므로 의도적으로 plain 함수).~~
+ *
+ * > **정정 (2026-09-08)**: `tsconfig.build.json` 이 `__test-utils__` 글로브 를 제외하므로
+ * > *"build tsc 가 컴파일한다"* 는 더 이상 참이 아니다. 순수 함수만 두는 관례는 유지하되,
+ * > 타입체크 주체는 이제 `tsconfig.json`(타입체크 ratchet, `run-test.sh build` 안에서 실행)
+ * > 이다. 근거 전문은 `common/__test-utils__/source-scan.ts` 헤더.
  */
 export interface OAuthConfigMock {
   /** 가변 oauth env — 테스트가 직접 필드를 수정한다. */

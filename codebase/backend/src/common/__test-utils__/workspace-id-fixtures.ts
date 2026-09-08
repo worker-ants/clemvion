@@ -18,7 +18,12 @@
  * **이름은 역할이고 값은 불투명하다** — 테스트가 의존하는 것은 값 자체가 아니라 서로
  * 다르다는 사실뿐이라, 파일 간 값이 어긋나던 것은 무의미한 차이였다.
  *
- * jest 타입 비의존 — build tsc 가 `__test-utils__` 를 컴파일하므로 의도적으로 상수만 둔다
+ * ~~jest 타입 비의존 — build tsc 가 `__test-utils__` 를 컴파일하므로 의도적으로 상수만 둔다~~
+ *
+ * > **정정 (2026-09-08)**: `tsconfig.build.json` 이 `__test-utils__` 글로브 를 제외하므로
+ * > *"build tsc 가 컴파일한다"* 는 더 이상 참이 아니다. 순수 함수만 두는 관례는 유지하되,
+ * > 타입체크 주체는 이제 `tsconfig.json`(타입체크 ratchet, `run-test.sh build` 안에서 실행)
+ * > 이다. 근거 전문은 `common/__test-utils__/source-scan.ts` 헤더.
  * (`modules/integrations/__test-utils__` 와 같은 관례).
  */
 

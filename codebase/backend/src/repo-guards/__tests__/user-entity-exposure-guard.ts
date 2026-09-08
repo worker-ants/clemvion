@@ -8,7 +8,10 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as ts from 'typescript';
 
-import { toPosixRelative } from '../../common/__test-utils__/source-scan';
+import {
+  enclosingScopeName,
+  toPosixRelative,
+} from '../../common/__test-utils__/source-scan';
 
 /** `src` 루트. 이 파일은 `src/repo-guards/__tests__/` 에 있다. */
 export const SRC_ROOT = path.resolve(__dirname, '..', '..');
@@ -185,38 +188,6 @@ function isUserRelationPath(
 }
 
 /**
- * 감싸는 **메서드/함수** 이름. 없으면 감싸는 변수 이름, 그것도 없으면 `'<module>'`.
- *
- * **메서드를 변수보다 먼저 본다.** 실제 코드는 `const stored = await repo.findOne({…})`
- * 형태라, 가까운 것부터 집으면 `#stored` 가 나온다 — 같은 파일에 `stored` 가 둘이면
- * 베이스라인 키가 겹쳐 `#2` 로 접히고, **어느 자리가 남았는지 사람이 읽을 수 없다**.
- * 메서드 이름은 그 자체로 무엇을 하는 자리인지 말한다.
- */
-function enclosingName(node: ts.Node, sf: ts.SourceFile): string {
-  let fallback: string | null = null;
-  let cur: ts.Node | undefined = node.parent;
-  while (cur) {
-    if (
-      (ts.isMethodDeclaration(cur) ||
-        ts.isFunctionDeclaration(cur) ||
-        ts.isGetAccessorDeclaration(cur)) &&
-      cur.name
-    ) {
-      return cur.name.getText(sf);
-    }
-    if (
-      fallback === null &&
-      ts.isVariableDeclaration(cur) &&
-      ts.isIdentifier(cur.name)
-    ) {
-      fallback = cur.name.text;
-    }
-    cur = cur.parent;
-  }
-  return fallback ?? '<module>';
-}
-
-/**
  * `as`·`satisfies`·괄호를 벗겨 **안쪽 식**을 돌려준다.
  *
  * 캐스트가 한 겹만 있어도 `ts.isObjectLiteralExpression` 이 거짓이 되어 술어가 통째로
@@ -368,7 +339,7 @@ export function findUserRelationLoads(
       kind: UserRelationLoad['kind'],
       relation: string,
     ): void => {
-      const method = enclosingName(node, sf);
+      const method = enclosingScopeName(node, sf);
       const base = `${rel}#${method}`;
       const n = (seen.get(base) ?? 0) + 1;
       seen.set(base, n);

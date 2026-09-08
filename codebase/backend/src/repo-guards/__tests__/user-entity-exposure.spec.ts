@@ -76,11 +76,15 @@ import {
  * | 항목 | 로드된 `User` 가 나가지 않는 이유 | 넓어지면 잡는 것 |
  * |---|---|---|
  * | `logout` · `refresh` | 응답이 아니라 **로그인 이력 컬럼**에 두 값만 쓴다 — 애초에 wire 로 가는 경로가 아니다 | 해당 없음 (반환 경로 없음) |
- * | `listMembers` | **JS 단 수동 매핑**으로 필드를 골라 새 객체를 만든다. 그 매핑이 넓어지면(`...m.user` 스프레드 등) 이 가드는 **여전히 초록**이다 | `workspace-rbac.e2e-spec.ts` 의 `J.` — 이름 축(`expectNoUserSecrets`)이 유일한 안전망 |
  *
- * 대비되는 것이 이번에 고친 `WorkflowVersionsService.findOne` 이다 — 거기는 **DB 레벨
- * `select` 투영**이라 컬럼이 애초에 로드되지 않는다. 그래서 목록에서 아예 빠졌다. 그것이
- * 이 목록의 항목들이 지향할 형태다.
+ * 대비되는 것이 `WorkflowVersionsService.findOne` 이다 — 거기는 **DB 레벨 `select` 투영**
+ * 이라 컬럼이 애초에 로드되지 않는다. 그래서 목록에서 아예 빠졌다. 그것이 이 목록의 항목들이
+ * 지향할 형태다.
+ *
+ * > **`listMembers` 가 그 길을 갔다 (2026-09-08).** 이 표에는 *"JS 단 수동 매핑이라 매핑이
+ * > 넓어져도 이 가드는 초록이고, 안전망은 e2e `workspace-rbac` J. 뿐"* 이라는 행이 있었다.
+ * > 그 자리를 `select` 투영으로 옮겨 목록에서 뺐다 — **표에서 행이 사라진 것 자체가 전환의
+ * > 증거다.** 남은 두 항목(`logout`·`refresh`)은 반환 경로가 없어 성격이 다르다.
  */
 const EXPECTED_USER_RELATION_LOADS: readonly string[] = [
   // `logout` — `stored.user` 에서 `id`·`email` 만 읽어 로그인 이력에 기록한다.
@@ -88,9 +92,10 @@ const EXPECTED_USER_RELATION_LOADS: readonly string[] = [
   'modules/auth/auth.service.ts#logout',
   // 리프레시 회전 — 같은 파일의 자매 경로. `stored.user` 를 이력 기록에만 쓴다.
   'modules/auth/auth.service.ts#refresh',
-  // 멤버 목록 — `m.user?.email`·`m.user?.name` 만 뽑아 새 객체로 돌려준다.
-  // **JS 단 수동 매핑**이라 이 가드가 지키지 못한다. 안전망은 e2e `workspace-rbac` J. 뿐.
-  'modules/workspaces/workspaces.service.ts#listMembers',
+  // `listMembers` 는 2026-09-08 에 **DB 레벨 `select` 투영**으로 옮겨져 이 목록에서 빠졌다.
+  // 그 전에는 `relations: ['user']` 로 전 컬럼을 싣고 JS 단에서 좁혔고, 이 가드는 **로드
+  // 형태**만 보므로 지키지 못했다. 목록에서 빠지는 것 자체가 전환 완료의 증거다 — 래칫이
+  // 양방향이라 남겨 두면 실패한다.
 ];
 
 describe('`User` 관계 전체 로드 래칫', () => {

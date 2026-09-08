@@ -28,7 +28,10 @@ import {
 import { IntegrationOAuthPreview } from './entities/integration-oauth-preview.entity';
 import { findService } from './services/service-registry';
 import { decryptJson } from './services/credentials-transformer';
-import { isPostgresUniqueViolation } from '../../common/db/pg-error';
+import {
+  isPostgresUniqueViolation,
+  pgErrorConstraint,
+} from '../../common/db/pg-error';
 import {
   STORE_IDENTIFIER_UNIQUE_CONSTRAINT,
   ALREADY_CONNECTED_BY_SERVICE,
@@ -1265,14 +1268,9 @@ export class IntegrationOAuthService {
       // Translate to the same 409 the in-memory check would have raised,
       // using the shared ALREADY_CONNECTED_BY_SERVICE registry so the error
       // code/message stays in sync with throwIfUniqueViolation.
-      const constraint =
-        (err as { constraint?: string; driverError?: { constraint?: string } })
-          ?.constraint ??
-        (err as { driverError?: { constraint?: string } })?.driverError
-          ?.constraint;
       if (
         isPostgresUniqueViolation(err) &&
-        constraint === STORE_IDENTIFIER_UNIQUE_CONSTRAINT
+        pgErrorConstraint(err) === STORE_IDENTIFIER_UNIQUE_CONSTRAINT
       ) {
         const mapped = ALREADY_CONNECTED_BY_SERVICE['cafe24'];
         throw new ConflictException({
@@ -1824,14 +1822,9 @@ export class IntegrationOAuthService {
       // — another install for the same shop_uid won.
       // Uses the shared ALREADY_CONNECTED_BY_SERVICE registry so the error
       // code/message stays in sync with throwIfUniqueViolation.
-      const constraint =
-        (err as { constraint?: string; driverError?: { constraint?: string } })
-          ?.constraint ??
-        (err as { driverError?: { constraint?: string } })?.driverError
-          ?.constraint;
       if (
         isPostgresUniqueViolation(err) &&
-        constraint === STORE_IDENTIFIER_UNIQUE_CONSTRAINT
+        pgErrorConstraint(err) === STORE_IDENTIFIER_UNIQUE_CONSTRAINT
       ) {
         const mapped = ALREADY_CONNECTED_BY_SERVICE['makeshop'];
         throw new ConflictException({

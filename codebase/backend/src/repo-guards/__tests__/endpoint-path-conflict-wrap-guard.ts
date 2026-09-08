@@ -1,0 +1,168 @@
+// `triggerRepository.save()` 호출이 `endpoint_path` UNIQUE 충돌 래핑을 갖췄는지 세는 가드
+// — 스캔·판정 순수 로직.
+//
+// 소비처는 형제 파일 `endpoint-path-conflict-wrap.spec.ts`. 배경·근거는 그 파일 헤더에 있다.
+// 파서 순수 로직과 소비 spec 을 분리하는 규약은 형제 가드 `user-entity-exposure-guard.ts`·
+// `swagger-dto-contract-guard.ts` 와 동일하다.
+
+import * as fs from 'node:fs';
+import * as path from 'node:path';
+import * as ts from 'typescript';
+
+import {
+  enclosingScopeName,
+  toPosixRelative,
+} from '../../common/__test-utils__/source-scan';
+
+/** `src` 루트. 이 파일은 `src/repo-guards/__tests__/` 에 있다. */
+export const SRC_ROOT = path.resolve(__dirname, '..', '..');
+
+/** 래핑 여부를 판정하는 헬퍼 이름. 오탈자가 fail-open 방향으로 죽지 않도록 상수로 둔다. */
+export const CONFLICT_WRAPPER = 'rethrowEndpointPathConflict';
+
+/** 스캔 대상 리포지토리 프로퍼티 이름. */
+export const TRIGGER_REPOSITORY = 'triggerRepository';
+
+/** 한 `save()` 호출 자리. */
+export interface TriggerSaveSite {
+  readonly file: string;
+  readonly method: string;
+  /** `.catch(… rethrowEndpointPathConflict …)` 로 감싸였는가. */
+  readonly wrapped: boolean;
+  /**
+   * `<상대경로>#<감싸는 메서드 이름>` — **줄 번호를 쓰지 않는다.** 위쪽에 줄이 하나만
+   * 들어가도 베이스라인이 통째로 낡는다. 한 메서드 안에서 두 번 저장하면 `#2` 가 붙는다.
+   */
+  readonly key: string;
+}
+
+/**
+ * `expr` 가 `<무언가>.<prop>` 형태의 프로퍼티 접근인가.
+ *
+ * `?.` (optional chaining) 도 같은 노드 종류이므로 함께 걸린다 — 저장 호출이
+ * `repo?.save(...)` 로 쓰여도 놓치지 않는다.
+ */
+function isPropertyAccessNamed(expr: ts.Expression, prop: string): boolean {
+  return ts.isPropertyAccessExpression(expr) && expr.name.getText() === prop;
+}
+
+/** `node` 하위에 `<...>.rethrowEndpointPathConflict(...)` **호출**이 있는가. */
+function callsConflictWrapper(node: ts.Node, sf: ts.SourceFile): boolean {
+  let found = false;
+  const walk = (n: ts.Node): void => {
+    if (found) return;
+    if (ts.isCallExpression(n)) {
+      const callee = n.expression;
+      const name = ts.isPropertyAccessExpression(callee)
+        ? callee.name.getText(sf)
+        : ts.isIdentifier(callee)
+          ? callee.getText(sf)
+          : '';
+      if (name === CONFLICT_WRAPPER) {
+        found = true;
+        return;
+      }
+    }
+    ts.forEachChild(n, walk);
+  };
+  walk(node);
+  return found;
+}
+
+/**
+ * `save()` 호출을 감싸는 `.catch(...)` 가 충돌 래퍼를 **부르는가**.
+ *
+ * **이름 해석은 하지 않는다 — 그러나 "텍스트에 등장" 보다는 좁다.** 이 가드는 단일 파일 AST
+ * 만 보므로 `this.rethrowEndpointPathConflict` 가 실제로 무엇인지 따라갈 수 없다. 그래서
+ * *"그 이름의 **호출식**이 catch 콜백 안에 있는가"* 까지만 묻는다 (형제 가드
+ * `hasProjectionFor` 와 같은 규율 — 모르는 것은 통과시키되 아는 결함은 확실히 잡는다).
+ *
+ * > 첫 판은 `.catch(...)` **전체 텍스트에 이름이 들어 있는가** 였다. 그러면 주석·문자열에
+ * > 이름만 적어 두고 정작 안 부르는 콜백이 **래핑됨으로 통과**한다 — fail-**open** 이다
+ * > (`review/code/2026/09/08/12_53_08` INFO#6). fixture 의 `mentionsButDoesNotCall` 가 그
+ * > 경계를 고정한다.
+ *
+ * 이름을 바꾸면 이 상수도 함께 바꿔야 한다. 안 바꾸면 전부 미래핑으로 잡혀 **fail-safe
+ * 방향으로** 시끄러워진다.
+ */
+function isWrappedByConflictCatch(
+  saveCall: ts.CallExpression,
+  sf: ts.SourceFile,
+): boolean {
+  // `repo.save(x).catch(cb)` — save 호출이 `.catch` 프로퍼티 접근의 수신자다.
+  for (let cur: ts.Node | undefined = saveCall.parent; cur; cur = cur.parent) {
+    if (
+      ts.isCallExpression(cur) &&
+      isPropertyAccessNamed(cur.expression, 'catch')
+    ) {
+      return cur.arguments.some((arg) => callsConflictWrapper(arg, sf));
+    }
+    // 체인을 벗어나면(문장 경계) 더 볼 것이 없다.
+    if (ts.isStatement(cur)) return false;
+  }
+  return false;
+}
+
+/**
+ * `files` 안의 **`triggerRepository.save(...)` 호출을 전부** 찾아 래핑 여부와 함께 돌려준다.
+ *
+ * `await` 유무·`.catch` 체인 유무와 무관하게 **모든** 호출을 센다 — 그것이 이 가드의 요점이다
+ * (아래 spec 헤더 참조).
+ */
+export function findTriggerRepositorySaves(
+  files: readonly string[],
+  srcRoot: string,
+): TriggerSaveSite[] {
+  const out: TriggerSaveSite[] = [];
+  const seen = new Map<string, number>();
+
+  for (const file of files) {
+    const sf = ts.createSourceFile(
+      file,
+      fs.readFileSync(file, 'utf8'),
+      ts.ScriptTarget.Latest,
+      true,
+    );
+    const rel = toPosixRelative(srcRoot, file);
+
+    const walk = (node: ts.Node): void => {
+      if (
+        ts.isCallExpression(node) &&
+        isPropertyAccessNamed(node.expression, 'save')
+      ) {
+        const receiver = (node.expression as ts.PropertyAccessExpression)
+          .expression;
+        // **정확 프로퍼티 매칭이다 — 부분 문자열이 아니다.** 첫 판은
+        // `receiver.getText(sf).includes(TRIGGER_REPOSITORY)` 였는데, 그러면
+        // `someTriggerRepositoryWrapper.save(...)` 같은 변형까지 걸린다. 바로 아래에서
+        // `save` 는 정확 이름으로 비교하면서 수신자만 느슨한 비대칭이었다
+        // (`review/code/2026/09/08/13_34_28` architecture INFO#5).
+        if (isPropertyAccessNamed(receiver, TRIGGER_REPOSITORY)) {
+          const method = enclosingScopeName(node, sf);
+          const base = `${rel}#${method}`;
+          const n = (seen.get(base) ?? 0) + 1;
+          seen.set(base, n);
+          out.push({
+            file: rel,
+            method,
+            wrapped: isWrappedByConflictCatch(node, sf),
+            key: n === 1 ? base : `${base}#${n}`,
+          });
+        }
+      }
+      ts.forEachChild(node, walk);
+    };
+    walk(sf);
+  }
+  return out.sort((a, b) => a.key.localeCompare(b.key));
+}
+
+/** 래핑되지 않은 자리의 키 목록. */
+export function findUnwrappedTriggerSaves(
+  files: readonly string[],
+  srcRoot: string,
+): string[] {
+  return findTriggerRepositorySaves(files, srcRoot)
+    .filter((s) => !s.wrapped)
+    .map((s) => s.key);
+}

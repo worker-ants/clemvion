@@ -17,6 +17,21 @@
     // 같은 이유의 두 번째 자리 (2026-08-27). `src/shared/testing/**` 은 Swagger DTO
     // 캐너리용 프로브 헬퍼이고 **devDependency 인 `@nestjs/testing` 을 import** 한다.
     // `*spec.ts` 패턴에 안 걸리는 이름이라 명시하지 않으면 dist 로 나간다.
-    "src/shared/testing/**"
+    "src/shared/testing/**",
+    // 같은 이유의 세 번째 자리 (2026-09-08). `__test-utils__/` 는 테스트 전용 헬퍼인데
+    // 위 세 패턴 어디에도 안 걸려 dist 로 나가고 있었다(실측 5파일).
+    //
+    // 도입 당시 사유는 **"devDependency 를 끌어오지 않아 누출 축에는 안 잡히는, 죽은 코드가
+    // 번들에 실릴 뿐인 형태"** 였다. ~~그 전제~~ 는 **같은 배치의 뒷 커밋이 반증했다** —
+    // `source-scan.ts` 가 AST 워커를 승격받으면서 `import * as ts from 'typescript'`
+    // (devDependency)를 갖게 됐다. 즉 이 축은 이제 **첫 번째 자리(`repo-guards/**`)와 같은
+    // 등급**의 devDependency 격리를 겸한다.
+    //
+    // 빌드 안전성이 깨진 구간은 없다 — `production-build-devdep-guard.ts` 가 tsconfig 해석
+    // 기반 **디렉터리 단위**로 막으므로 exclude 가 먼저 들어간 뒤에 import 가 추가됐다.
+    //
+    // **경로가 아니라 디렉터리 이름으로 막는다.** 그 5파일은 `common/` 과
+    // `modules/integrations/` 두 곳에 흩어져 있었고, 경로를 열거하면 네 번째 자리가 생긴다.
+    "**/__test-utils__/**"
   ]
 }

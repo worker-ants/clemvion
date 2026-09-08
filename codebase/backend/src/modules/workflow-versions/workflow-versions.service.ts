@@ -46,19 +46,28 @@ export type WorkflowVersionListItem = Omit<
 /**
  * 단건 조회 반환 타입 — 목록과 달리 `snapshot` 을 싣고, `creator` 는 같이 좁힌다.
  *
- * **프런트엔드에 같은 이름의 별도 선언이 있다** —
- * `codebase/frontend/src/lib/api/workflows.ts` 의 `WorkflowVersionDetail`. 공유 타입
- * 패키지를 거치지 않는 **손으로 맞춘 미러**라, 이 타입을 바꿔도 저쪽은 조용히 남는다.
+ * ## 왜 `…Projection` 접미인가 (2026-09-08 개명)
  *
- * 두 선언은 이미 갈려 있다: 저쪽은 `creator?: { id, name?, email? } | null` 로
- * 옵셔널인데 이 PR 이 wire 를 `{ id, name, email }` **3필드 고정**으로 좁혔다. 저쪽이
- * 더 넓으므로 런타임 오류는 안 나지만, 앞으로 이 타입을 좁히거나 넓힐 때 **이름이 같아서
- * grep 이 두 자리를 같은 것으로 보여 준다** — 그것이 실제로 세 라운드 연속 "유일 정의"
- * 오판을 만들었다 (`review/consistency/2026/09/06/13_39_25` W3).
+ * 프런트엔드에 **형태가 다른 동명 타입**이 있었다 —
+ * [`codebase/frontend/src/lib/api/workflows.ts`](../../../../frontend/src/lib/api/workflows.ts)
+ * 의 `WorkflowVersionDetail`. 공유 타입 패키지를 거치지 않는 손-미러다.
  *
- * 개명이나 공유 패키지화는 이 PR 범위 밖이다. 다음에 이 타입을 만지면 저쪽도 열어라.
+ * 두 선언은 실제로 갈려 있다 — 저쪽 `creator` 는 `{ id, name?, email? } | null` 로
+ * 옵셔널이고 `createdAt` 은 `string` 인데, 이쪽은 `creator` 를 `{ id, name, email }`
+ * **3필드 고정**으로 좁혔고 `createdAt` 은 `Date` 다. 저쪽이 더 넓으므로 런타임 오류는
+ * 나지 않는다.
+ *
+ * **문제는 형태가 아니라 이름이었다.** 같은 이름이라 `grep` 이 두 자리를 같은 것으로
+ * 보여 줬고, 한 세션에서 **세 라운드 연속** *"유일 정의"* 오판이 났다
+ * (`review/consistency/2026/09/06/13_39_25` W3 ·
+ * `review/consistency/2026/09/06/16_29_00` W5).
+ *
+ * 그래서 **공유 패키지로 합치지 않고 개명했다.** 합치려면 wire 계약(`Date` vs `string`,
+ * `creator` 의 nullability)을 한쪽으로 맞춰야 하는데, 그것은 이 결함이 요구하는 것보다
+ * 넓은 변경이다. `Projection` 접미는 이 타입이 **DB 투영 결과**라는 사실도 함께 말한다 —
+ * 아래 `CREATOR_PROJECTION` 이 그 투영이다.
  */
-export type WorkflowVersionDetail = Omit<
+export type WorkflowVersionDetailProjection = Omit<
   WorkflowVersion,
   'creator' | UnloadedRelations
 > & { creator: ProjectedCreator };
@@ -141,7 +150,7 @@ export class WorkflowVersionsService {
   async findOne(
     workflowId: string,
     versionId: string,
-  ): Promise<WorkflowVersionDetail> {
+  ): Promise<WorkflowVersionDetailProjection> {
     const version = await this.workflowVersionRepository.findOne({
       where: { id: versionId, workflowId },
       relations: { creator: true },
