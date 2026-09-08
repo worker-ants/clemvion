@@ -587,12 +587,21 @@ describe('Workspace RBAC (e2e)', () => {
   });
 
   /**
-   * **`GET /:id/members` 는 `User` 를 통째로 로드하는 세 자리 중 하나다.**
+   * ~~**`GET /:id/members` 는 `User` 를 통째로 로드하는 세 자리 중 하나다.**~~
    *
-   * `WorkspacesService.listMembers` 가 `relations: ['user']` 로 멤버의 `User` 엔티티를
-   * 전부 싣고, 지금은 `email`·`name` 만 뽑아 새 객체로 돌려준다. 그 투영이 사라지거나
-   * 필드가 하나 늘면 `passwordHash`·2FA 복구 코드·계정 탈취용 토큰이 그대로 나간다 —
-   * `GET /api/audit-logs` 에서 실제로 그렇게 새어 나갔다(user 키 26개).
+   * ~~`WorkspacesService.listMembers` 가 `relations: ['user']` 로 멤버의 `User` 엔티티를
+   * 전부 싣고, 지금은 `email`·`name` 만 뽑아 새 객체로 돌려준다.~~
+   *
+   * > **정정 (2026-09-08)**: `listMembers` 는 **DB 레벨 `select` 투영**으로 옮겼다 —
+   * > `user: { id, email, name }` 만 로드하므로 민감 컬럼이 애초에 오지 않고, 방어가
+   * > *검출*에서 *강제*로 올라갔다. `user-entity-exposure-guard` 의 화이트리스트에서도
+   * > 빠졌다(그 목록에서 사라지는 것이 전환 완료의 기계적 증거다).
+   * >
+   * > **이 e2e 의 역할은 없어지지 않고 2차 방어선으로 바뀐다** — 투영이 넓어지거나
+   * > JS 매핑이 필드를 늘리는 것은 여전히 여기서 잡는다. 아래 두 축은 그대로 유효하다.
+   *
+   * 그 투영이 사라지거나 필드가 하나 늘면 `passwordHash`·2FA 복구 코드·계정 탈취용 토큰이
+   * 그대로 나간다 — `GET /api/audit-logs` 에서 실제로 그렇게 새어 나갔다(user 키 26개).
    *
    * 종전에 이 엔드포인트의 **응답 형태를 무는 e2e 가 없었다**. 두 축으로 건다:
    * 선언 대조(`assertMatchesContract`)와 **이름 기반 부재**(`expectNoUserSecrets`).

@@ -154,7 +154,15 @@ spec_impact: none
       > (이 저장소가 기록해 둔 "fix→리뷰 stale 루프"). 매번 **수정을 모아서** 끝낸 뒤
       > 한 번씩 돌렸다. 라운드마다 발견의 **성격**이 내려갔다 — 동작 결함은 1라운드에도
       > 없었고(Critical 0), 2·3라운드가 문 것은 전부 **그 라운드의 fix 자신**이다.
-- [ ] `--impl-done`
+- [x] `--impl-done` — **4라운드**, 전부 `scope=spec/5-system/`. spec 델타는 내내 **0 파일**이라
+      `spec_impact: none` 과 합치한다.
+
+      | 라운드 | 결과 | 무엇이 나왔나 |
+      |---|---|---|
+      | `review/consistency/2026/09/08/13_22_38` | BLOCK: NO · **Warning 2** | `spec_impact` 오기 · 신규 bare 인용 |
+      | `review/consistency/2026/09/08/13_34_30` | BLOCK: NO · **Warning 1** | 자매 plan 의 조건부 유예를 앞지름 |
+      | `review/consistency/2026/09/08/14_01_57` | BLOCK: NO · Warning 0 | INFO 3(그중 하나가 내 숫자 오기) |
+      | `review/consistency/2026/09/08/14_29_13` | BLOCK: NO · **위험도 NONE** | INFO 1 — 이미 등재된 planner 항목 재확인뿐 |
 - [x] 자매 트래커 체크박스 **8건** 플립 + 후속 **3건** 신규 등재 (30 → **25 open**)
       > **처음에 "2건 / 24 open" 이라 적었다 — 실측으로 정정한다**
       > (`review/consistency/2026/09/08/14_01_57` INFO#3). 이 배치가 등재한 것은
