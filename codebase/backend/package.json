@@ -63,7 +63,7 @@
     "class-validator": "^0.15.1",
     "cookie-parser": "^1.4.7",
     "cron-parser": "^5.10.0",
-    "csv-parse": "^7.0.1",
+    "csv-parse": "^7.0.2",
     "dayjs": "^1.11.20",
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
