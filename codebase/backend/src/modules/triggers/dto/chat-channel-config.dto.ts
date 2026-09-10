@@ -16,7 +16,7 @@ import {
   ValidationArguments,
 } from 'class-validator';
 import { Type, Transform } from 'class-transformer';
-import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional, OmitType } from '@nestjs/swagger';
 
 /**
  * Trigger.config.chatChannel — webhook 트리거에 외부 chat 플랫폼 어댑터를 부착하는 옵션.
@@ -342,4 +342,63 @@ export class ChatChannelConfigDto {
   @IsObject()
   @Validate(LanguageHintsPlaceholderValidator)
   languageHints?: Record<string, string>;
+}
+
+/**
+ * PATCH 전용 `chatChannel` — **사용자가 보낸 비밀을 받지 않는다** (R-CC-21 / D-1).
+ *
+ * 생성용 {@link ChatChannelConfigDto} 와 딱 두 필드가 다르다:
+ *
+ * | 필드 | 생성 (POST) | 수정 (PATCH) |
+ * |---|---|---|
+ * | `botToken` | **필수** (`@IsString`) | **금지** (`@IsEmpty`) — 변경은 rotate 엔드포인트 |
+ * | `inboundSigningPlaintext` | slack/discord **필수** (service 분기) | **금지** — 회전은 v1 미정의 |
+ *
+ * **왜 `OmitType` 인가**: 상속만 하면 부모의 `@IsString()`(botToken 필수)이 그대로 따라와
+ * `@IsEmpty()` 와 충돌한다 — 값을 안 보내면 `@IsString()` 이, 보내면 `@IsEmpty()` 가 터져
+ * **어느 쪽으로도 통과할 수 없는 DTO** 가 된다. `OmitType` 은 그 두 필드의 상속 메타데이터를
+ * 떼어낸 뒤 새로 선언하게 해 준다.
+ *
+ * **왜 optional 로 두고 무시하지 않는가**: 사용자가 설정했다고 믿은 비밀을 말없이 버리게 된다 —
+ * R-CC-21 「기각한 대안」이 명시적으로 기각한 설계다. 거부가 아니라 침묵은 이 자원에 맞지 않는다.
+ *
+ * **왜 `Patch` 가 아니라 `Update` 인가**: 이 저장소에 `Patch` 접두 클래스는 0건이고 관례가
+ * `Create`/`Update` 축이다 (`UpdateTriggerDto` · `NotificationConfigDto`).
+ *
+ * @see spec/5-system/15-chat-channel.md §5.4.1 (bot token single-path)
+ * @see spec/5-system/15-chat-channel.md §5.4.1.1 (inboundSigning — 회전 주체별 분기)
+ * @see spec/5-system/15-chat-channel.md R-CC-21 (PATCH 는 비밀을 쓰지 않는다)
+ */
+export class ChatChannelUpdateConfigDto extends OmitType(ChatChannelConfigDto, [
+  'botToken',
+  'inboundSigningPlaintext',
+] as const) {
+  @ApiPropertyOptional({
+    description:
+      '(PATCH 금지) Bot token 변경은 POST /api/triggers/:id/chat-channel/rotate-bot-token 만 사용한다. ' +
+      'PATCH body 에 실리면 400 VALIDATION_ERROR — 24h grace 백업·전용 audit action·' +
+      'chatChannelRotatedAt 갱신을 건너뛰기 때문이다 (Spec Chat Channel §5.4.1 / R-CC-21).',
+    writeOnly: true,
+  })
+  @IsOptional()
+  @IsEmpty({
+    message:
+      'botToken 은 PATCH 로 변경할 수 없습니다. 토큰 변경은 POST /api/triggers/:id/chat-channel/rotate-bot-token 을 사용하세요.',
+  })
+  botToken?: string;
+
+  @ApiPropertyOptional({
+    description:
+      '(PATCH 금지) provider-issued inbound signing 회전은 v1 미정의다. PATCH body 에 실리면 ' +
+      '400 VALIDATION_ERROR — 필요하면 트리거를 삭제·재생성한다 ' +
+      '(Spec Chat Channel §5.4.1.1). telegram 의 server-issued 값은 본 필드와 무관하게 ' +
+      'setupChannel() 이 자동 재발급한다.',
+    writeOnly: true,
+  })
+  @IsOptional()
+  @IsEmpty({
+    message:
+      'inboundSigningPlaintext 는 PATCH 로 변경할 수 없습니다. 회전이 필요하면 트리거를 삭제 후 재생성하세요 (v1 미정의).',
+  })
+  inboundSigningPlaintext?: string;
 }

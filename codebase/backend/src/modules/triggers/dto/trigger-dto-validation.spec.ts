@@ -4,6 +4,8 @@ import { CreateTriggerDto } from './create-trigger.dto';
 import { UpdateTriggerDto } from './update-trigger.dto';
 import { WebChatAppearanceDto } from './web-chat-appearance.dto';
 import { QueryTriggerDto } from './query-trigger.dto';
+import { CustomValidationPipe } from '../../../common/pipes/validation.pipe';
+import { ArgumentMetadata, BadRequestException } from '@nestjs/common';
 
 const VALID_UUID = '550e8400-e29b-41d4-a716-446655440000';
 const VALIDATE_OPTIONS = { whitelist: true, forbidNonWhitelisted: true };
@@ -749,5 +751,130 @@ describe('QueryTriggerDto — interactionEnabled Transform (SUMMARY#5)', () => {
     expect(
       errors.find((e) => e.property === 'interactionEnabled'),
     ).toBeUndefined();
+  });
+});
+
+/**
+ * PATCH 전용 `chatChannel` DTO — D-1.
+ *
+ * 여기서는 `validate()` 를 직접 부르지 않고 **전역 `CustomValidationPipe` 를 통과시킨다.**
+ * 그래야 `details.field` 가 실제로 어떤 경로 문자열로 나가는지 볼 수 있다 — 그것이
+ * `spec-draft-nullable-notation-followups.md` 의 미해결 질문이었다(*"§5.4.1 문면이 flat
+ * `botTokenRef` 라고 적는데 파이프는 중첩 경로를 만들지 않는가"*).
+ */
+describe('ChatChannelUpdateConfigDto — PATCH 는 비밀을 받지 않는다 (R-CC-21 / D-1)', () => {
+  const pipe = new CustomValidationPipe();
+  const meta = {
+    type: 'body',
+    metatype: UpdateTriggerDto,
+  } as unknown as ArgumentMetadata;
+
+  const run = async (chatChannel: Record<string, unknown>) => {
+    try {
+      await pipe.transform({ chatChannel }, meta);
+      return null;
+    } catch (err) {
+      return (err as BadRequestException).getResponse() as {
+        code: string;
+        details: { field: string; message: string }[];
+      };
+    }
+  };
+
+  /** `ChatChannelCard` 가 실제로 보내는 바디 — 이것이 **통과해야** 두 CRITICAL 이 닫힌다. */
+  const cardBody = (provider: string) => ({
+    provider,
+    uiMapping: { formMode: 'multi_step', visualNode: 'auto' },
+    rateLimitPerMinute: 30,
+    languageLocale: 'ko',
+  });
+
+  it.each(['telegram', 'slack', 'discord'])(
+    '%s — 카드 편집 바디가 통과한다 (종전에는 세 provider 모두 400 이었다)',
+    async (provider) => {
+      expect(await run(cardBody(provider))).toBeNull();
+    },
+  );
+
+  it('botToken 이 실리면 거부한다', async () => {
+    const res = await run({ ...cardBody('telegram'), botToken: '111:New' });
+    expect(res?.code).toBe('VALIDATION_ERROR');
+    expect(res?.details.map((d) => d.field)).toContain('chatChannel.botToken');
+  });
+
+  it('inboundSigningPlaintext 가 실리면 거부한다 — slack 도 예외가 아니다', async () => {
+    const res = await run({
+      ...cardBody('slack'),
+      inboundSigningPlaintext: 'a'.repeat(32),
+    });
+    expect(res?.code).toBe('VALIDATION_ERROR');
+    expect(res?.details.map((d) => d.field)).toContain(
+      'chatChannel.inboundSigningPlaintext',
+    );
+  });
+
+  /**
+   * **`details.field` 실측 — 다섯 필드 전부.**
+   *
+   * 결론: 전역 파이프의 `flattenErrors` 는 **중첩 경로**(`chatChannel.<field>`)를 만든다.
+   * `3-error-handling.md §2.1` 의 *"중첩/배열 경로를 유지한다"* 규약을 **구현이 지키고 있고**,
+   * flat 이름(`details.field='botTokenRef'`)을 적은 **spec 문면 쪽이 낡았다.**
+   *
+   * 이 단언이 그 실측의 정본이다 — 후속 planner 턴이 §5.4.1·§5.4.1.1 의 표기를 고칠 때
+   * 여기 값을 근거로 쓴다. 서비스 층 가드(`assertChatChannelInputSafe`)는 **flat** 이름을
+   * 쓰지만, 전역 파이프가 먼저 거부하므로 HTTP 응답에 나가는 것은 아래 중첩 경로다.
+   */
+  it('[실측] 차단 5필드의 details.field 는 전부 중첩 경로다', async () => {
+    const observed: Record<string, string[]> = {};
+    for (const field of [
+      'botToken',
+      'inboundSigningPlaintext',
+      'botTokenRef',
+      'inboundSigningRef',
+      'inboundSigning',
+    ]) {
+      const res = await run({
+        ...cardBody('telegram'),
+        [field]: 'x'.repeat(40),
+      });
+      observed[field] = (res?.details ?? []).map((d) => d.field);
+    }
+    expect(observed).toEqual({
+      botToken: ['chatChannel.botToken'],
+      inboundSigningPlaintext: ['chatChannel.inboundSigningPlaintext'],
+      botTokenRef: ['chatChannel.botTokenRef'],
+      inboundSigningRef: ['chatChannel.inboundSigningRef'],
+      inboundSigning: ['chatChannel.inboundSigning'],
+    });
+  });
+
+  /**
+   * **생성 경로는 안 건드렸다.** `CreateTriggerDto` 는 여전히 `botToken` 을 필수로 요구한다 —
+   * D-1 을 공유 DTO 에 넣었으면 여기가 깨졌을 자리다(R-CC-21 「구현 시」 경고).
+   */
+  it('CreateTriggerDto 는 여전히 botToken 을 요구한다 (생성 경로 무회귀)', async () => {
+    const createMeta = {
+      type: 'body',
+      metatype: CreateTriggerDto,
+    } as unknown as ArgumentMetadata;
+    let thrown: unknown = null;
+    try {
+      await pipe.transform(
+        {
+          workflowId: VALID_UUID,
+          type: 'webhook',
+          name: 'T',
+          chatChannel: cardBody('telegram'),
+        },
+        createMeta,
+      );
+    } catch (err) {
+      thrown = (err as BadRequestException).getResponse();
+    }
+    expect(
+      (thrown as { details?: { field: string }[] } | null)?.details?.map(
+        (d) => d.field,
+      ),
+    ).toContain('chatChannel.botToken');
   });
 });

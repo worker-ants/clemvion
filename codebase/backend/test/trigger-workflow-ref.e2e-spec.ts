@@ -220,23 +220,19 @@ describe('TriggerDto.workflow 응답 경로 (e2e)', () => {
    * 실제로 통과해야 하므로 `chatChannel` 을 바디에 실어 보낸다 — 그 분기의 `relations: ['workflow']`
    * 를 지우면 **이 케이스만** RED 여야 한다(A~D 는 그 분기를 타지 않는다).
    *
-   * > ## ⚠️ 이 요청 바디는 **판정된 결함을 그대로 재현한다** — 정상 계약이 아니다
+   * > ## 이 바디는 한때 R-CC-10 우회를 재현했다 — 2026-09-10 해소됨
    * >
-   * > 아래 `botToken` 은 편의가 아니라 **`ChatChannelConfigDto` 가 필수로 요구해서** 넣은 것이고,
-   * > 그 필수 요구 자체가 `spec/5-system/15-chat-channel.md` 의 **R-CC-10(Bot Token 변경은
-   * > `POST /api/triggers/:id/chat-channel/rotate-bot-token` single-path)** 를 우회한다. 서비스는 이
-   * > 값을 비교 없이 `secrets.rotate()` 로 덮어써 **24h grace 백업 · 전용 audit action ·
-   * > `chatChannelRotatedAt` 갱신**을 모두 건너뛴다
-   * > (`review/code/2026/09/10/14_34_18` api_contract ④ — CRITICAL 판정, 사전 존재 결함).
+   * > 종전 이 자리에는 `botToken: '111:…'` 이 실려 있었다. 편의가 아니라 **`ChatChannelConfigDto`
+   * > 가 필수로 요구해서** 넣은 것이었고, 그 필수 요구 자체가 R-CC-10(bot token single-path)을
+   * > 우회했다 — 서비스가 그 값을 비교 없이 `secrets.rotate()` 로 덮어써 24h grace 백업 · 전용
+   * > audit action · `chatChannelRotatedAt` 갱신을 모두 건너뛰었다
+   * > (`review/code/2026/09/10/14_34_18` api_contract ④).
    * >
-   * > **그래서 이 테스트의 200 을 "PATCH + `botToken` 은 정상" 으로 읽지 말 것.** 여기서 고정하는
-   * > 것은 `workflow` 관계의 유무 한 축뿐이고, 바디는 오늘의 DTO 를 통과시키기 위한 최소 형태다.
-   * >
-   * > 그 결함의 처방(**PATCH 전용 `ChatChannelConfigDto` 변형 — `botToken` 제외**)이 들어오면
-   * > 이 요청은 400 이 되므로 **이 케이스의 바디도 같은 PR 에서 함께 바뀌어야 한다.** 추적 항목은
-   * > `plan/in-progress/spec-draft-nullable-notation-followups.md` 의 *"CRITICAL: chatChannel
-   * > PATCH 가 bot token single-path 를 우회한다"* 다. 이 참조가 없으면 캐너리가 **고쳐야 할
-   * > 동작을 지키는 쪽으로 작동**한다 (`--impl-done` `15_23_41` rationale_continuity W1).
+   * > **이제 PATCH 는 `botToken` 을 받지 않는다** (R-CC-21 / D-1 — `ChatChannelUpdateConfigDto`).
+   * > 그래서 바디에서 뺐고, **이 캐너리는 더 이상 결함을 재현하지 않는다.** 계약 자체는
+   * > `triggers.service.spec.ts` 의 *"chatChannel PATCH 는 사용자 비밀을 쓰지 않는다"* suite 와
+   * > `trigger-dto-validation.spec.ts` 가 본다 — 여기서 고정하는 것은 여전히 **`workflow` 관계의
+   * > 유무 한 축**뿐이다.
    */
   it(
     'E. PATCH /api/triggers/:id — chatChannel 포함 수정도 채운다 (재조회 분기, W4 회귀)',
@@ -248,10 +244,10 @@ describe('TriggerDto.workflow 응답 경로 (e2e)', () => {
         .send({
           chatChannel: {
             provider: 'telegram',
-            // **`botToken` 은 생략할 수 없다** — `ChatChannelConfigDto` 가 필수 문자열로 요구한다
-            // (실측: 빼면 400 `VALIDATION_ERROR` / `chatChannel.botToken must be a string`).
-            // 그 필수 요구가 R-CC-10 single-path 를 우회한다 — 위 docstring 의 경고 참조.
-            botToken: '111:e2eWfRefBotToken',
+            // `botToken` 없음 — PATCH 는 비밀을 받지 않는다 (R-CC-21 / D-1).
+            // 이 바디가 **200 이 되는 것 자체**가 두 CRITICAL 이 닫혔다는 신호다:
+            // 종전에는 `ChatChannelUpdateConfigDto` 이전이라 400 이었고, 그래서
+            // `ChatChannelCard` 의 편집-저장도 항상 실패했다.
             uiMapping: { formMode: 'auto' },
           },
         });

@@ -11,7 +11,7 @@ import { Transform, Type } from 'class-transformer';
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { NotificationConfigDto } from './notification-config.dto';
 import { InteractionConfigDto } from './interaction-config.dto';
-import { ChatChannelConfigDto } from './chat-channel-config.dto';
+import { ChatChannelUpdateConfigDto } from './chat-channel-config.dto';
 
 export class UpdateTriggerDto {
   /** 트리거 이름 */
@@ -97,10 +97,14 @@ export class UpdateTriggerDto {
   interaction?: InteractionConfigDto;
 
   /** Chat Channel 어댑터 설정. [Spec Chat Channel §4.1]. 부분 갱신 — 전체 객체 다시 send. */
-  @ApiPropertyOptional({ type: () => ChatChannelConfigDto })
+  /**
+   * **생성용과 다른 DTO 다** — PATCH 는 `botToken`·`inboundSigningPlaintext` 를 받지 않는다
+   * (R-CC-21 / D-1). 두 필드가 실리면 400 `VALIDATION_ERROR`.
+   */
+  @ApiPropertyOptional({ type: () => ChatChannelUpdateConfigDto })
   @IsOptional()
   @IsObject()
   @ValidateNested()
-  @Type(() => ChatChannelConfigDto)
-  chatChannel?: ChatChannelConfigDto;
+  @Type(() => ChatChannelUpdateConfigDto)
+  chatChannel?: ChatChannelUpdateConfigDto;
 }

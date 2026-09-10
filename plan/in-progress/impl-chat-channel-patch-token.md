@@ -5,7 +5,7 @@ owner: developer
 worktree: .claude/worktrees/impl-chat-channel-patch-token-a17c4e
 spec_impact:
   - none
-created: 2026-09-10
+started: 2026-09-10
 ---
 
 ## 무엇을 닫는가
@@ -33,11 +33,27 @@ SoT: [`spec/5-system/15-chat-channel.md` §5.4.1 · §5.4.1.1 · R-CC-21](../../
 
 ## 설계
 
-- **D-1** — `ChatChannelPatchConfigDto` 신설. `botToken`·`inboundSigningPlaintext` 에
+- **D-1** — `ChatChannelUpdateConfigDto` 신설 (**`Patch` 접두 아님** — 저장소에 `Patch` 접두
+  클래스가 0건이고 관례가 `Create`/`Update` 축이다. `--spec` `22_04_23` `naming_collision`). `botToken`·`inboundSigningPlaintext` 에
   `@IsEmpty()`. 나머지 필드는 생성용 DTO 와 동일. `UpdateTriggerDto.chatChannel` 만 이 타입으로
   바꾼다 (`CreateTriggerDto` 는 손대지 않는다 — 생성에서는 두 값이 여전히 필수다).
 - **D-2** — `setupChatChannel` 에 비밀 쓰기 여부를 **인자로** 받는다. PATCH 경로는 bot token
   rotate 와 provider-issued signing 저장을 **둘 다 건너뛴다.**
+
+  > **⚠️ 게이팅 대상은 두 곳뿐이다 — 세 번째 쓰기 지점은 무조건 유지한다.**
+  > `setupChatChannel` 안에 secret 쓰기가 **셋** 있다:
+  >
+  > | 자리 | 무엇 | PATCH 에서 |
+  > |---|---|---|
+  > | `:948-952` | bot token rotate (무조건) | **게이팅** |
+  > | `:957-969` | slack/discord provider-issued signing | **게이팅** |
+  > | `:981-993` | telegram server-issued `result.issuedInboundSigning` | **무조건 유지** |
+  >
+  > 단일 boolean 인자가 우발적으로 세 번째까지 덮으면 **그 트리거의 인입 웹훅이 전부 401** 이
+  > 된다 — telegram adapter 가 `setupChannel` 마다 새 `secret_token` 을 Telegram 에 등록하므로
+  > 저장을 건너뛰면 DB 는 옛 값이 된다. SoT: [Chat Channel §5.4.1.1](../../spec/5-system/15-chat-channel.md#5411-inboundsigning-patch-정책--회전-주체별-분기)
+  > (planner PR #1313, `c0f2a885c`). **인자 이름을 `writeSecrets` 처럼 뭉뚱그리지 말고 무엇을
+  > 게이팅하는지 드러나게 짓는다.**
 - **D-3** — `botTokenRef`/`inboundSigningRef` 는 config 보존이 아니라 `buildSecretRef(trigger.id)`
   재유도로 살아남는다. 이미 그렇게 구현돼 있으므로 **회귀 테스트로 고정**한다.
 - **검증 경로 분리** — D-1 을 공유 함수에 넣으면 slack/discord **생성**이 깨진다. PATCH 전용
@@ -59,16 +75,24 @@ Telegram adapter 는 **매 `setupChannel` 마다 새 `issuedInboundSigning` 을 
   diff · `--spec` 게이트 · planner plan owner). 자기-반증형 소정정의 조건 1 이 성립하지 않으므로
   **planner 턴으로 분리**한다. 후속에 등재한다.
 
+## 이 턴에 실측해 planner 로 넘길 것
+
+| 발견 | 실측 | 처분 |
+|---|---|---|
+| **spec 9곳이 `SecretResolver.store()` 라 적는데 chat-channel 경로는 `rotate()` 만 쓴다** (`--impl-prep` `22_45_26` `cross_spec` W) | `triggers.service.ts` 의 chat-channel 비밀 저장 호출 **전수**가 `secrets.rotate(...)` 다 — `secrets.store(` 는 **0건**. `store()` 는 `secret-resolver.service.ts:112` 에 존재하지만 이 경로가 안 부른다 | **planner 후속** — `15-chat-channel.md:200,201,373,390` 등 9자리 정정. `spec/` 은 developer 소관 아님 |
+| **`details.field` 는 flat 이 아니라 중첩 경로다** | 5필드 전부 `chatChannel.<field>` 로 emit — `trigger-dto-validation.spec.ts` 의 `[실측]` 케이스가 정본 | **planner 후속** — §5.4.1·§5.4.1.1 의 placeholder 와 flat 표기(`details.field='botTokenRef'`)를 이 값으로 확정 |
+| **`assertChatChannelInputSafe` 의 기존 3분기는 도달 불가에 가깝다** | 전역 파이프가 먼저 거부한다(위 실측이 그 증거 — HTTP 응답에 나가는 것은 파이프의 중첩 경로다). 다만 서비스 직접 호출 경로는 남아 있어 **삭제하지 않았다** | 트래커 기존 항목에 이 실측을 덧붙임 |
+
 ## 체크리스트
 
-- [ ] `/consistency-check --impl-prep spec/5-system`
-- [ ] 재현 — 세 provider 각각 현재 400 임을 e2e 로 고정
-- [ ] 테스트 선작성 (D-1 · D-2 · D-3)
-- [ ] 구현
-- [ ] 캐너리 e2e case E 바디 갱신 + R-CC-10 우회 경고 블록 정리
-- [ ] `details.field` 실제 페이로드 캡처 (planner 후속 항목에 실측 인계)
+- [x] `/consistency-check --impl-prep spec/5-system` `22_45_26` — **BLOCK: NO** (Critical 0 / Warning 1)
+- [x] 테스트 선작성 (D-1 · D-2 · D-3) — **RED 6/8 확인 후** 구현
+- [x] 구현 — DTO(`ChatChannelUpdateConfigDto`) · 검증 경로 분리 · 쓰기 게이팅 ①② (③ 유지)
+- [x] 기존 10 케이스를 **생성 경로로 재조준** — PATCH 로는 더 이상 비밀을 실을 수 없다
+- [x] 캐너리 e2e case E 바디 갱신 + R-CC-10 우회 경고 블록 → 해소 기록으로 교체
+- [x] `details.field` 5필드 실측 — **전부 중첩 경로** (위 표)
 - [ ] TEST WORKFLOW (lint · unit · build · e2e)
 - [ ] 타입체크 ratchet 2종 (backend · frontend)
 - [ ] `/ai-review` + Critical/Warning 0
 - [ ] `/consistency-check --impl-done spec/5-system`
-- [ ] R-CC-21 산문 폭 정정을 planner 후속으로 등재
+- [x] R-CC-21 산문 폭 정정 — **planner PR #1313 으로 완료** (이 plan 이 발견 → 별 턴에서 처리)
