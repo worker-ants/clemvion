@@ -22,7 +22,7 @@
     "esbuild": "^0.25.0",
     "eslint": "^10.9.1",
     "globals": "^17.9.0",
-    "jest": "^30.0.0",
+    "jest": "^30.5.1",
     "jest-environment-jsdom": "^30.0.0",
     "ts-jest": "^29.2.5",
     "typescript-eslint": "^8.65.0",
