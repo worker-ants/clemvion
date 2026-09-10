@@ -116,7 +116,7 @@ Chat Channel을 통해 아래 인터랙션 노드 유형을 사용할 수 있어
 
 ## 6. Bot Token 회전 (single-path)
 
-토큰 변경은 **항상 아래 rotate API 만** 사용해요. PATCH 본문으로 `config.chatChannel.botTokenRef` 를 직접 변경하면 400 `VALIDATION_ERROR` 가 돌아와요 (`details.field='botTokenRef'`).
+토큰 변경은 **항상 아래 rotate API 만** 사용해요. PATCH 본문에 `config.chatChannel.botToken` 을 실으면 400 `VALIDATION_ERROR` 가 돌아와요 (`details.field='chatChannel.botToken'`). 내부 식별자인 `botTokenRef` 도 마찬가지로 받지 않아요 — 그건 애초에 입력 필드가 아니에요.
 
 ```bash
 curl -X POST https://<your-host>/api/triggers/<trigger-id>/chat-channel/rotate-bot-token \

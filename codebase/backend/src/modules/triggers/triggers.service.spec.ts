@@ -3228,45 +3228,39 @@ describe('TriggersService — chatChannel PATCH 는 사용자 비밀을 쓰지 �
   // `@IsEmpty()` 는 `null`·`''` 를 **통과**시킨다. 그래서 그 두 값에 대한 실제 방어선은
   // 서비스의 `assertPatchCarriesNoSecrets`(`typeof x !== 'undefined'`)다. 종전 테스트는
   // 비어있지 않은 값만 넣어 **그 방어선 자체를 한 번도 안 밟았다**.
+  //
+  // **두 필드 × 두 값 네 조합을 전부 건다.** 한쪽 필드에만 `null` 을 걸었더니
+  // *"자매 필드 검사만 `if (carried.x)` 같은 falsy 체크로 바뀌어도 두 spec 이 GREEN"* 이라는
+  // 지적을 받았다 — 이 세션이 반복한 **"축은 대칭인데 한쪽만 고정"** 의 또 다른 사례다
+  // (`/ai-review` `review/code/2026/09/10/23_55_23` W5).
   it.each([
-    ['null', null],
-    ['빈 문자열', ''],
-  ])('botToken: %s 도 서비스가 400 으로 잡는다', async (_label, value) => {
-    await setup('x');
-    triggerRepo.findOne.mockResolvedValue(existing('telegram'));
+    ['botToken', 'telegram', 'null', null],
+    ['botToken', 'telegram', '빈 문자열', ''],
+    ['inboundSigningPlaintext', 'slack', 'null', null],
+    ['inboundSigningPlaintext', 'slack', '빈 문자열', ''],
+  ])(
+    '%s: %s 인 경우도 서비스가 400 으로 잡는다 (%s)',
+    async (field, provider, _label, value) => {
+      await setup('x');
+      triggerRepo.findOne.mockResolvedValue(existing(provider as string));
 
-    await expect(
-      service.update(
-        'trig-p',
-        'ws-1',
-        { chatChannel: { ...cardBody('telegram'), botToken: value } } as never,
-        'u-1',
-      ),
-    ).rejects.toMatchObject({
-      response: { code: 'VALIDATION_ERROR', details: { field: 'botToken' } },
-    });
-  });
-
-  it("inboundSigningPlaintext: '' 도 서비스가 400 으로 잡는다", async () => {
-    await setup();
-    triggerRepo.findOne.mockResolvedValue(existing('slack'));
-
-    await expect(
-      service.update(
-        'trig-p',
-        'ws-1',
-        {
-          chatChannel: { ...cardBody('slack'), inboundSigningPlaintext: '' },
-        } as never,
-        'u-1',
-      ),
-    ).rejects.toMatchObject({
-      response: {
-        code: 'VALIDATION_ERROR',
-        details: { field: 'inboundSigningPlaintext' },
-      },
-    });
-  });
+      await expect(
+        service.update(
+          'trig-p',
+          'ws-1',
+          {
+            chatChannel: {
+              ...cardBody(provider as string),
+              [field as string]: value,
+            },
+          } as never,
+          'u-1',
+        ),
+      ).rejects.toMatchObject({
+        response: { code: 'VALIDATION_ERROR', details: { field } },
+      });
+    },
+  );
 
   // ── WARNING: provider 전환은 PATCH 로 못 한다 ────────────────────────────
   //

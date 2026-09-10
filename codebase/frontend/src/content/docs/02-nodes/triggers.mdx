@@ -426,7 +426,7 @@ Discord v1 한계: 일반 DM 자유 텍스트는 수신할 수 없어요. AI 대
 
 ### Bot Token 회전 (single-path)
 
-토큰 변경은 **항상 rotate API 만** 사용해요. PATCH 본문으로 `config.chatChannel.botTokenRef` 를 직접 변경하면 400 `VALIDATION_ERROR` (`details.field='botTokenRef'`) 가 돌아와요.
+토큰 변경은 **항상  rotate API 만** 사용해요. PATCH 본문에 `config.chatChannel.botToken` 을 실으면 400 `VALIDATION_ERROR` 가 돌아와요 (`details.field='chatChannel.botToken'`). 내부 식별자인 `botTokenRef` 도 마찬가지로 받지 않아요 — 그건 애초에 입력 필드가 아니에요.
 
 ```bash
 curl -X POST https://<your-host>/api/triggers/<trigger-id>/chat-channel/rotate-bot-token \

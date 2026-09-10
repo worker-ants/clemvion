@@ -629,6 +629,18 @@ export class TriggersService {
    * 그 축은 `assertPatchCarriesNoSecrets` 가 본다 — R-CC-21 / D-1. 즉 위 "slack: 필수 /
    * discord: 필수" 서술의 주어는 **생성(POST) 한정**이다.
    */
+  // 오버로드로 `mode` 와 DTO 타입을 **컴파일 타임에 묶는다.** 문자열 판별자만 두면
+  // `('update' 인데 생성용 DTO)` 같은 짝 깨짐을 컴파일러가 못 잡고, 아래 좁히기 캐스팅이
+  // 조용히 통과한다 — 이 함수가 지키는 것이 바로 이 PR 이 닫은 보안 결함 클래스라
+  // 그 재발은 검출 없이 되살아난다 (`/ai-review` `review/code/2026/09/10/23_55_23` W4).
+  private assertChatChannelInputSafe(
+    chatChannel: ChatChannelConfigDto | undefined,
+    mode: 'create',
+  ): void;
+  private assertChatChannelInputSafe(
+    chatChannel: ChatChannelUpdateConfigDto | undefined,
+    mode: 'update',
+  ): void;
   private assertChatChannelInputSafe(
     chatChannel: ChatChannelInput | undefined,
     mode: ChatChannelInputMode,
