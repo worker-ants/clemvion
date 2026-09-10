@@ -1741,8 +1741,70 @@ field: T | null;
       > `trigger`/`workflow` 참조 필드를 한 묶음으로 다룬다. 반영 대상 spec 은
       > `2-navigation/2-trigger-list.md` 와 `3-schedule.md §4` 둘이다.
 
-- [ ] **`TriggerDto.workflow` 의 "생성 응답에만 부재" 를 캐너리로 고정** (developer,
-      2026-09-10 등재, `--spec` `11_13_14` 중 실측). **전제는 이미 한 번 깨졌다**:
+- [x] **`TriggerDto.workflow` 캐너리 — 완료 (2026-09-10, developer 턴).**
+      `shared/testing/trigger-workflow-ref.ts`(헬퍼) + `.spec.ts`(self-guard 8건) +
+      `test/trigger-workflow-ref.e2e-spec.ts`(**양성 4 + 생성 음성 1**).
+
+      **완료의 기계적 증거 — 예측대로 나왔다**: `chatChannel` 재조회에서 `relations: ['workflow']`
+      를 지운 뮤턴트에서 **#5 만 RED**(`Object.hasOwn(…,'workflow')` false), **#1~#4 는 GREEN**,
+      원복 후 5/5 GREEN. 넷이 같이 RED 면 캐너리가 다른 것을 물고 있다는 뜻이라 **세 번째 줄이
+      판별 증거**다. `backend-e2e` 가 baked 이미지라 뮤턴트마다 재빌드했고 원복은 `cp` 로 했다.
+      4단계 전부 PASS(lint · build(ratchet 2개 baseline 일치) · unit 454스위트/9,517 ·
+      e2e 52스위트/305 + playwright 51).
+
+      > **등재 시 내가 쓴 처방 두 개가 틀렸다.** ① *"`webhook-trigger.e2e-spec.ts` 에 건다"* —
+      > 그 파일은 수신 경로 전용이라 GET/PATCH 테스트가 없다(`it()` 18개 전수 확인). ② 네 자리에
+      > 흩뿌리면 "이 축은 다섯 형태로 고정된다" 가 어느 파일에서도 안 읽힌다 → **전용 파일 신설**.
+      > 그리고 `cross_spec` 이 **생성의 chatChannel 서브경로**(그쪽도 `relations` 없이 재조회)를
+      > 짚어 음성 단언이 하나 늘었다.
+
+      > **구현 중 사전 분석이 한 층 얕았다.** #5 PATCH 를 `{provider, uiMapping}` 으로 보냈다가
+      > 400 이었다 — `ChatChannelConfigDto` 가 **`botToken` 을 필수**로 요구한다. 서비스 층
+      > 검증 세 곳만 훑고 **DTO 층을 안 봤다.** 실측을 e2e 주석에 남겼다.
+
+      > **비용 추정도 실측이 낮췄다.** telegram client 의 5초×3회 백오프를 근거로 #5 에 ~36초를
+      > 예상했는데 **실측 271~302ms** 다 — e2e 망에서 DNS 가 즉시 실패해 timeout 까지 안 간다.
+      > 넉넉한 타임아웃은 보험으로 유지했다(CI 망에서는 실제로 태울 수 있고, 그때 flaky 실패를
+      > 재조회 분기 결함으로 오진하게 된다).
+
+- [ ] **planner: 캐너리 착지 후속 3건 (한 턴으로 묶임)** (planner, 2026-09-10 등재).
+      위 캐너리가 서면서 `spec/` 쪽에 남은 세 가지. **developer 가 직접 못 한다** —
+      `--impl-prep` 의 세 checker 가 독립적으로 CRITICAL 을 올렸다: 자기-반증형 소정정 **조건 1
+      불성립**(그 문장은 planner 가 썼다).
+
+      | # | 대상 | 내용 |
+      |---|---|---|
+      | 1 | `2-trigger-list.md §3` | *"자매 스케줄 축과 달리 이 축에는 캐너리가 아직 없다 — … 이 비대칭을 함께 적는다"* 를 취소선 + 실측으로 정정. **비대칭 자체가 없어지므로 뒤 근거절까지 한 단위로** 낡는다 |
+      | 2 | `2-trigger-list.md` frontmatter `code:` | `codebase/backend/test/trigger-workflow-ref.e2e-spec.ts` 등재. `3-schedule.md` 선례 — *"註에 'e2e 가 고정한다' 고 적으면서 그 파일을 등재하지 않으면 보장의 근거가 추적 불가다"* |
+      | 3 | `PROJECT.md` §e2e 파일 위치 | *"self-spec 을 동반하는 assertion 헬퍼는 `test/helpers/` 가 아니라 `src/shared/testing/`"* 한 줄. **현 문면을 따르면 self-spec 이 어느 러너에도 안 걸려 죽은 테스트가 된다** — unit jest 는 `rootDir: 'src'`, e2e jest 는 `.e2e-spec.ts$` 만 잡는다 |
+
+      > **왜 조건 1 이 깨졌나 — 판별 방법 자체가 틀렸다.** 초안은 *"`git blame` 으로 확인 가능"* 을
+      > 근거로 들었는데, 이 저장소는 모든 역할의 커밋이 같은 author 라 **blame 은 역할을 구분하지
+      > 못한다.** 실제 판별은 세 신호다 — diff 스코프(`codebase/` 0건) · 게이트 종류(`--spec`) ·
+      > 소유 plan 의 `owner: planner`. 셋 다 planner 를 가리켰다.
+      >
+      > `#1292` 가 같은 패턴을 *"우회하지 않고 planner 턴을 열었다"* 로 올바르게 처리한 선례가
+      > 있는데, 그 판단을 몇 시간 뒤 뒤집었다. **등재 문장 자체가 자기모순**이었던 것이 원인이다 —
+      > *"조건 1~5 해당 — 그 문장은 planner 가 썼으므로…"*. **등재할 때 조항 해당 여부를 단정하지
+      > 말 것.**
+      >
+      > 1번을 반영할 때 `rationale_continuity` 가 지적한 **조건 2 경계**(그 문장이 §5.4 판정 근거·
+      > `id`/`name` 비대칭 계약과 한 문단에 섞여 있어 "예고 vs 계약" 이 애매하다)도 한 줄로 판정해
+      > 기록할 것. 그리고 `3-schedule.md §4` 에 있는 **재검토 신호**(optimistic update 로 create
+      > 응답을 소비하면 전제가 무너진다)가 트리거 축에는 없으니 그때 맞춘다.
+
+- [ ] **질문: chatChannel PATCH 가 bot token single-path 를 우회하나** (planner + developer 판단
+      필요, 2026-09-10 등재, 캐너리 구현 중 실측).
+      §5.4.1/R-CC-10 은 bot token 변경을 `POST /triggers/:id/chat-channel/rotate-bot-token`
+      **단일 경로**로 규정하고 PATCH 의 `botTokenRef` 를 400 으로 막는다. 그런데 실측하니
+      `ChatChannelConfigDto` 는 PATCH 에서 **plaintext `botToken` 을 필수로 받고**,
+      `setupChatChannel` 이 그것을 `secrets.rotate(botTokenRef, …, chatChannel.botToken ?? '')`
+      로 저장한다.
+
+      **단정하지 않는다** — 두 갈래 다 가능하다: (a) 정책이 "ref 지정 금지" 만 뜻하고 값 교체는
+      PATCH 로도 정상이다, (b) 24h grace 를 우회하는 실제 갭이다. **판정에 필요한 것**은
+      `rotate-bot-token` 의 grace 처리와 이 경로의 `secrets.rotate` 가 같은 일을 하는지 대조하는
+      것이다. 캐너리 스코프를 넓히지 않기 위해 질문으로만 등재한다. **전제는 이미 한 번 깨졌다**:
       `triggers.service.ts` 의 PATCH chatChannel 재조회 분기가 관계를 빼고 읽어
       **chatChannel 을 포함한 PATCH 응답에서만** `workflow` 가 사라졌다(리뷰
       `review/code/2026/09/06/01_13_50` W4). 구현은 그 재조회에 `relations: ['workflow']` 를
