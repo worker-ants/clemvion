@@ -792,7 +792,7 @@ Please replace or remove these node references first.
 |--------|------|------|
 | GET | `/api/integrations` | 목록 조회. 쿼리: `q`, `scope`, `serviceType`, `status`, `page`, `limit`. `status` 허용값 = `connected` / `expiring` / `expired` / `error` / `attention` — 이 중 `expiring` 과 `attention` 은 **가상 필터값** 으로 DB Enum 에는 없고 백엔드 쿼리 빌더가 합집합 WHERE 절로 변환한다. `expiring` = `status='connected' AND token_expires_at within 7d AND NOT integration.autoRefresh`, `attention` = `Expired ∪ Expiring ∪ Error` (`Expiring` 의 autoRefresh 제외가 자동 전파). 목록 응답의 각 row 는 상세 응답과 동일한 `IntegrationDto` 형식이라 derived 필드 `autoRefresh` 와 `appUrl` 이 모두 포함된다. 페이지네이션 응답 형식은 [API 규약 §5.2](../5-system/2-api-convention.md#52-목록-응답) 준수. |
 | POST | `/api/integrations` | 연동 생성. OAuth는 `preview_token`으로 서버 임시 저장 토큰 참조 |
-| GET | `/api/integrations/:id` | 상세 조회. credentials 는 마스킹. 응답 envelope 는 [API 규약 §5.1](../5-system/2-api-convention.md#51-단일-리소스) 의 `{ data: IntegrationDto }` 형식이며, `IntegrationDto` 는 다음 두 derived 필드를 포함한다 — (a) `appUrl: string \| null` — Cafe24 Private 통합 (`service_type='cafe24' AND credentials.app_type='private'`) 은 `${APP_URL}/api/3rd-party/cafe24/install/:installToken` 값, **MakeShop ShopStore 설치 통합**은 동일 패턴의 `${APP_URL}/api/3rd-party/makeshop/install/...`, 그 외 통합은 `null`. `install_token` 자체는 응답에 별도 필드로 노출되지 않고 App URL path segment 안에만 포함된다 (식별자 분산 방지 — Rationale "Cafe24 App URL 상세 페이지 표시" 참조). (b) **`autoRefresh: boolean`** — 자동 갱신 가능 통합 식별자. 백엔드 service registry 의 `ServiceDefinition.supportsTokenAutoRefresh` (`codebase/backend/src/modules/integrations/services/service-registry.ts`) 에서 파생되는 derived 필드로 DB 컬럼이 아니며 매 응답 시점에 계산된다. 현재 `service_type='cafe24'`, `service_type='google'`, `service_type='makeshop'` (auth-code+refresh) 이 `true`, 그 외(`github` 포함 — Refresh ✗, §10.3) 는 `false`. 사이드바 카운트(§11.4) / `Need attention` 배너(§2.4) / `Expiring`·`Attention` 칩(§2.3) / 상세 페이지 헤더·Overview(§4.1·§4.2) 의 UI 분기 신호로 사용된다. 권한 레벨 무관 — 모든 인증된 요청에서 동일하게 포함된다. **derived 필드 일반화 (C-6, 구현 완료)**: `appUrl`·`autoRefresh` 의 service 별 파생은 makeshop(2번째 provider) 도입과 함께 `buildIntegrationMeta` 의 cafe24 하드코딩에서 `Map<serviceType, fn>` service registry 기반으로 일반화 완료됐다 ([cafe24 백로그 C-6](../../plan/in-progress/cafe24-backlog-residual.md), [MakeShop 노드 §9.8](../4-nodes/4-integration/5-makeshop.md#98-buildintegrationmeta-derived-필드-일반화-c-6-동반-해소)). |
+| GET | `/api/integrations/:id` | 상세 조회. credentials 는 마스킹. 응답 envelope 는 [API 규약 §5.1](../5-system/2-api-convention.md#51-단일-리소스) 의 `{ data: IntegrationDto }` 형식이며, `IntegrationDto` 는 다음 두 derived 필드를 포함한다 — (a) `appUrl: string \| null` — Cafe24 Private 통합 (`service_type='cafe24' AND credentials.app_type='private'`) 은 `${APP_URL}/api/3rd-party/cafe24/install/:installToken` 값, **MakeShop ShopStore 설치 통합**은 동일 패턴의 `${APP_URL}/api/3rd-party/makeshop/install/...`, 그 외 통합은 `null`. `install_token` 자체는 응답에 별도 필드로 노출되지 않고 App URL path segment 안에만 포함된다 (식별자 분산 방지 — Rationale "Cafe24 App URL 상세 페이지 표시" 참조). (b) **`autoRefresh: boolean`** — 자동 갱신 가능 통합 식별자. 백엔드 service registry 의 `ServiceDefinition.supportsTokenAutoRefresh` (`codebase/backend/src/modules/integrations/services/service-registry.ts`) 에서 파생되는 derived 필드로 DB 컬럼이 아니며 매 응답 시점에 계산된다. 현재 `service_type='cafe24'`, `service_type='google'`, `service_type='makeshop'` (auth-code+refresh) 이 `true`, 그 외(`github` 포함 — Refresh ✗, §10.3) 는 `false`. 사이드바 카운트(§11.4) / `Need attention` 배너(§2.4) / `Expiring`·`Attention` 칩(§2.3) / 상세 페이지 헤더·Overview(§4.1·§4.2) 의 UI 분기 신호로 사용된다. 권한 레벨 무관 — 모든 인증된 요청에서 동일하게 포함된다. **derived 필드 일반화 (C-6, 구현 완료)**: `appUrl`·`autoRefresh` 의 service 별 파생은 makeshop(2번째 provider) 도입과 함께 `buildIntegrationMeta` 의 cafe24 하드코딩에서 `Map<serviceType, fn>` service registry 기반으로 일반화 완료됐다 ([cafe24 백로그 C-6](../../plan/in-progress/cafe24-backlog-residual.md), [MakeShop 노드 §9.8](../4-nodes/4-integration/5-makeshop.md#98-buildintegrationmeta-derived-필드-일반화-c-6-동반-해소)). **derived 는 위 둘뿐이고, `IntegrationDto` 는 그 밖에 엔티티 컬럼 투영도 싣는다** — `mallId` · `tokenExpiresAt` · `lastRotatedAt` · `lastUsedAt` · `consecutiveNetworkFailures`. 그 컬럼들의 **의미·마이그레이션**은 [데이터 모델 §2.10](../1-data-model.md#210-integration) 이 SoT 이며 여기 복제하지 않는다. 단 **전이 규칙은 §2.10 이 아니다** — 그 컬럼들이 관여하는 상태 전이는 [§6](#6-상태-전이), 만료·회전 스캐너 판정은 [§11.1](#111-스캐너-잡) 이 SoT 이고 §2.10 자신도 *"spec §6 전이의 구현 기반"* 이라며 그쪽을 되짚는다. 위 두 derived 필드는 DB 컬럼이 아니라 매 응답 시점 계산이라 본 절이 소유한다. 단 **`consecutiveNetworkFailures` 는 나머지 넷과 동급이 아니다** — health 판정의 내부 카운터이고 **프런트엔드 참조가 0곳**(2026-09-10 재측정)이라 노출 중단이 [별도 트래커 항목](../../plan/in-progress/spec-draft-nullable-notation-followups.md)으로 추적 중이다. 새 소비자를 만들지 말 것. 이 경계를 명시한 근거는 Rationale "§9.1 의 `IntegrationDto` 인벤토리 주장 경계" 참조. |
 | PATCH | `/api/integrations/:id` | 별칭 등 메타 수정 |
 | DELETE | `/api/integrations/:id` | 삭제 (사용처 있으면 409) |
 | POST | `/api/integrations/:id/test` | 현재 저장된 자격 증명으로 연결 테스트. ※ `status='pending_install'` row 는 외부 호출 없이 `200 + { success:false, code:'INTEGRATION_INCOMPLETE' }` 로 즉시 거부 — 토큰 미발급 상태라 외부 API 호출 자체가 무의미. service_type 무관 status 기반 가드 (현재 `pending_install` 은 Cafe24 Private 전용이지만 향후 다른 provider 도입 시 자동 적용). UI 측 버튼 비활성 (§4.2) 의 백엔드 backstop. 응답 형식은 인접 가드 (`INTEGRATION_CREDENTIALS_UNREADABLE`, cafe24 incomplete credentials) 와 동일한 `IntegrationTestResult` shape — 자세한 근거는 Rationale "연결 테스트 endpoint 의 `pending_install` 가드 — 응답 형식" 참고. |
@@ -1127,6 +1127,39 @@ Integration 생성·수정·삭제·회전·재인증·scope 전환 이벤트를
 ---
 
 ## Rationale
+### §9.1 의 `IntegrationDto` 인벤토리 주장 경계 (2026-09-10)
+
+§9.1 `GET /api/integrations/:id` 행은 *"`IntegrationDto` 는 다음 **두** derived 필드를 포함한다"*
+로 시작한다. 그 문장은 **문자적으로 참**이다 — 나머지는 derived 가 아니라 엔티티 컬럼 투영이다.
+그래서 어떤 가드도 이것을 잡지 않는다(`spec-links` 는 앵커만 보고, 응답-계약 검증자는 선언과
+실제를 대조하지 spec 산문을 읽지 않는다).
+
+**그런데 그 행을 읽는 소비자에게는 응답 형태의 전수 목록으로 보인다.** 실제 DTO 는 컬럼 투영
+다섯(`mallId`·`tokenExpiresAt`·`lastRotatedAt`·`lastUsedAt`·`consecutiveNetworkFailures`)을 더
+싣는다. 그래서 경계 문장을 덧붙였다 — 원문을 지우지 않은 이유는 그 문장이 **왜 그 둘만 이 절이
+소유하는가**(계산 필드 vs 컬럼 투영)를 담고 있어서다.
+
+**§2.10 을 복제하지 않는다.** 그 다섯의 의미·마이그레이션은 §2.10 이 이미 5/5 로 갖고 있고,
+`mall_id`·`consecutive_network_failures` 항목은 UNIQUE 인덱스·마이그레이션 번호까지 담는 긴
+서술이다. 옮기면 두 자리가 갈리는 drift 소스가 하나 늘 뿐이다.
+
+**단 SoT 를 §2.10 에 통째로 넘기지도 않았다.** 초안은 *"의미·**전이 규칙**·마이그레이션은 §2.10
+이 SoT"* 라고 적었는데 `--spec` 이 반증했다(`review/consistency/2026/09/10/10_47_01` W1):
+§2.10 의 `consecutive_network_failures` 행 자신이 *"spec §6 `connected → error(network)` 전이의
+구현 기반"* 이라며 **본 문서 §6 을 전이 SoT 로 되짚는다.** `tokenExpiresAt`(스캐너 판정)·
+`lastRotatedAt`(refresh 임계)도 같다. 좁은 인벤토리 주장을 고치면서 **반대 방향의 넓은 SoT
+주장**을 만들 뻔한 것이라, 범위를 의미·마이그레이션으로 좁히고 전이 축은 §6·§11.1 로 명시했다.
+
+**§9.4 가 아닌 이유**: §9.4(공통 응답 포맷)는 봉투와 에러 코드 카탈로그 소관이고, 좁은 인벤토리
+주장이 실제로 있는 자리는 `GET /:id` 행이다.
+
+> **캐비엇의 유지 비용을 알고 둔다.** `consecutiveNetworkFailures` 는 FE 참조가 0곳이라 노출
+> 중단이 트래커에서 추적 중이다. 실제로 제거되면 **여기 문장과 DTO JSDoc
+> (`integration-response.dto.ts` 의 그 필드 주석) 두 자리를 함께 지워야 한다** — 그 사실을 트래커
+> 항목에도 적었다. 그 비용을 감수하는 이유는, 캐비엇이 없으면 다음 FE 작업자가 이 목록을 보고
+> 그 필드를 소비할 수 있고 그러면 제거가 파괴적 변경으로 승격되어 그 항목이 영구히 닫히지
+> 못하기 때문이다.
+
 
 ### `cafe24-token-refresh` worker 의 에러 격리 정책 — re-throw + `attempts: 1` (2026-07-17)
 
