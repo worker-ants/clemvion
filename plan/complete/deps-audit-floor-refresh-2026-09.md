@@ -3,7 +3,7 @@ title: deps-security-checks 가 main 에서 이미 빨간불이었다 — overri
 worktree: dependabot-pr-ci-fix-138fba
 started: 2026-09-10
 owner: developer
-status: in-progress
+status: complete
 priority: P1
 spec_impact: none
 ---
