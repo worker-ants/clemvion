@@ -1,0 +1,87 @@
+{
+  "router_version": 2,
+  "decided_at": "2026-09-10T16:55:52Z",
+  "decisions": [
+    {
+      "name": "security",
+      "selected": true,
+      "reason": "agents_forced (router_safety): 소스 코드 변경 — 코드 변경 시 항상 적용"
+    },
+    {
+      "name": "performance",
+      "selected": false,
+      "reason": "Test 헬퍼 전용, 알고리즘 성능 관심사 없음"
+    },
+    {
+      "name": "architecture",
+      "selected": false,
+      "reason": "Test 헬퍼 전용, 모듈 경계·인터페이스 변경 없음"
+    },
+    {
+      "name": "requirement",
+      "selected": true,
+      "reason": "agents_forced (router_safety): 소스 코드 변경 — 코드 변경 시 항상 적용"
+    },
+    {
+      "name": "scope",
+      "selected": true,
+      "reason": "agents_forced (router_safety): 소스 코드 변경 — 코드 변경 시 항상 적용"
+    },
+    {
+      "name": "side_effect",
+      "selected": true,
+      "reason": "agents_forced (router_safety): 소스 코드 변경 — 코드 변경 시 항상 적용"
+    },
+    {
+      "name": "maintainability",
+      "selected": true,
+      "reason": "agents_forced (router_safety): 소스 코드 변경 — 코드 변경 시 항상 적용"
+    },
+    {
+      "name": "testing",
+      "selected": true,
+      "reason": "agents_forced (router_safety): 소스 코드 변경 — 코드 변경 시 항상 적용"
+    },
+    {
+      "name": "documentation",
+      "selected": true,
+      "reason": "agents_forced (router_safety): 문서 파일(.md) 변경"
+    },
+    {
+      "name": "dependency",
+      "selected": false,
+      "reason": "package.json·lock 파일 변경 없음"
+    },
+    {
+      "name": "database",
+      "selected": false,
+      "reason": "마이그레이션·스키마·ORM 변경 없음"
+    },
+    {
+      "name": "concurrency",
+      "selected": false,
+      "reason": "비동기는 표준 테스트 인프라 패턴, 동시성 동기화 문제 없음"
+    },
+    {
+      "name": "api_contract",
+      "selected": true,
+      "reason": "E2E가 API 응답 계약을 검증: TriggerDto.workflow 필드 유무·값 순회"
+    },
+    {
+      "name": "user_guide_sync",
+      "selected": false,
+      "reason": "테스트 파일은 doc-sync-matrix trigger에 매칭 안 됨"
+    }
+  ],
+  "selected_count": 8,
+  "skipped_count": 6,
+  "forced": [
+    "documentation",
+    "maintainability",
+    "requirement",
+    "scope",
+    "security",
+    "side_effect",
+    "testing"
+  ]
+}

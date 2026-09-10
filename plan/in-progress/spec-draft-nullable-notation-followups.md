@@ -1741,8 +1741,102 @@ field: T | null;
       > `trigger`/`workflow` 참조 필드를 한 묶음으로 다룬다. 반영 대상 spec 은
       > `2-navigation/2-trigger-list.md` 와 `3-schedule.md §4` 둘이다.
 
-- [ ] **`TriggerDto.workflow` 의 "생성 응답에만 부재" 를 캐너리로 고정** (developer,
-      2026-09-10 등재, `--spec` `11_13_14` 중 실측). **전제는 이미 한 번 깨졌다**:
+- [x] **`TriggerDto.workflow` 캐너리 — 완료 (2026-09-10, developer 턴).**
+      계획서: [`../complete/trigger-workflow-ref-canary.md`](../complete/trigger-workflow-ref-canary.md).
+      `shared/testing/trigger-workflow-ref.ts`(헬퍼) + `.spec.ts`(self-guard **12건**) +
+      `test/trigger-workflow-ref.e2e-spec.ts`(**양성 4 + 생성 음성 1**, 라벨 `A.`~`E.`).
+
+      **완료의 기계적 증거 — 예측대로 나왔다**: `chatChannel` 재조회에서 `relations: ['workflow']`
+      를 지운 뮤턴트에서 **E 만 RED**(`Object.hasOwn(…,'workflow')` false), **A~D 는 GREEN**,
+      원복 후 5/5 GREEN. 넷이 같이 RED 면 캐너리가 다른 것을 물고 있다는 뜻이라 **세 번째 줄이
+      판별 증거**다. `backend-e2e` 가 baked 이미지라 뮤턴트마다 재빌드했고 원복은 `cp` 로 했다.
+      4단계 전부 PASS(lint · build(ratchet 2개 baseline 일치) · unit 454스위트/**9,521** ·
+      e2e 52스위트/305 + playwright 51).
+
+      > **리뷰 반영으로 헬퍼를 바꾼 뒤 같은 실험을 다시 했다.** `expectedWorkflowId` 와 단언
+      > 세 개를 더했으니 위 측정은 **옛 헬퍼에 대한 것**이 된다 — 그대로 두면 "판별한다" 가
+      > 현재 코드에 대해 미검증이다. 뮤턴트 재주입 → `make e2e-up` → 재실행: **`Tests: 1 failed,
+      > 4 passed`**(E 만 RED, 288ms) → 원복·재빌드 후 **5/5 GREEN**. 판별 속성 유지.
+      > 늘어난 단언이 전부 `present: true` 분기 안쪽이라 부재 판정에 영향을 주지 않는다.
+
+      > **`/ai-review`(`review/code/2026/09/10/14_34_18`) 가 내 근거 문장 셋을 반증했다.**
+      > ① *"부재가 §5.4 키 생략형이라 `assertMatchesContract` 는 그 자리를 물지 못한다"* —
+      > 그 검증자는 optional-non-nullable 필드의 `null` 을 **잡는다**. 참인 사실은 **"이 분기에
+      > 그 검증자를 거는 기존 호출이 0건"**(무능이 아니라 미배선). ② *"`tsconfig.build.json`
+      > exclude 라 dist 유출 없다"* — `exclude` 는 root 후보만 거르고, 프로덕션 파일이 `import`
+      > 하면 **`dist/` 로 emit 된다**(reviewer 가 실제 `tsc` 로 재현). ③ *"`User` 투영 상수
+      > 선례"* — 문면 일치 커밋 없음, 소급 부여였으므로 철회. **셋 다 "내가 쓴 근거" 였다.**
+      >
+      > **단언 하나는 vacuous 였다** (`testing` W3): `expect(typeof ref.name).toBe('string')` 을
+      > 지워도 self-spec 8/8 GREEN — 뒤따르는 `String(ref.name).length` 가 `String(42)` 를
+      > 통과시킨다. `id` 는 `isUuidShaped` 가 간접 방어하는데 `name` 엔 그것이 없다(**비대칭**).
+      > 비-문자열 케이스 4건을 추가해 대조군을 만들고, 새 단언 셋을 각각 지우는 뮤턴트에서
+      > **정확히 1건씩 RED** 임을 확인했다. self-spec 8 → 12.
+      >
+      > 그 밖에: 손으로 짠 UUID 정규식 → 정본 `isUuidShaped`(내 grep 이 `common/utils/` 를
+      > 빠뜨렸다) · `it()` 라벨 숫자→문자(실측 — `origin/main` 의 e2e 순번 라벨은 20파일/132개가 전부 문자, 숫자는 내 파일 하나뿐) · identity 고정
+      > (shape 만 보면 엉뚱한 relation 의 그럴듯한 UUID+이름이 통과) · 최상위 `null` 거부
+      > (`toBeDefined()` 는 `null` 을 안 거른다) · 비밀 컬럼 목록을 self-spec 에 **일부러**
+      > 다시 적는다는 명시(헬퍼 상수를 import 하면 목록이 줄어도 통과해 vacuous 가 된다).
+      > `documentation` 은 이 세션의 **`--impl-prep` SUMMARY.md 누락**을 잡았다.
+
+      > **등재 시 내가 쓴 처방 두 개가 틀렸다.** ① *"`webhook-trigger.e2e-spec.ts` 에 건다"* —
+      > 그 파일은 수신 경로 전용이라 GET/PATCH 테스트가 없다(`it()` 18개 전수 확인). ② 네 자리에
+      > 흩뿌리면 "이 축은 다섯 형태로 고정된다" 가 어느 파일에서도 안 읽힌다 → **전용 파일 신설**.
+      > 그리고 `cross_spec` 이 **생성의 chatChannel 서브경로**(그쪽도 `relations` 없이 재조회)를
+      > 짚어 음성 단언이 하나 늘었다.
+
+      > **구현 중 사전 분석이 한 층 얕았다.** #5 PATCH 를 `{provider, uiMapping}` 으로 보냈다가
+      > 400 이었다 — `ChatChannelConfigDto` 가 **`botToken` 을 필수**로 요구한다. 서비스 층
+      > 검증 세 곳만 훑고 **DTO 층을 안 봤다.** 실측을 e2e 주석에 남겼다.
+
+      > **비용 추정도 실측이 낮췄다.** telegram client 의 5초×3회 백오프를 근거로 #5 에 ~36초를
+      > 예상했는데 **실측 271~302ms** 다 — e2e 망에서 DNS 가 즉시 실패해 timeout 까지 안 간다.
+      > 넉넉한 타임아웃은 보험으로 유지했다(CI 망에서는 실제로 태울 수 있고, 그때 flaky 실패를
+      > 재조회 분기 결함으로 오진하게 된다).
+
+- [ ] **planner: 캐너리 착지 후속 5건 (한 턴으로 묶임)** (planner, 2026-09-10 등재,
+      `--impl-done` `15_23_41` 이 2번을 넓히고 5번을 추가했다).
+      위 캐너리가 서면서 `spec/` 쪽에 남은 세 가지. **developer 가 직접 못 한다** —
+      `--impl-prep` 의 세 checker 가 독립적으로 CRITICAL 을 올렸다: 자기-반증형 소정정 **조건 1
+      불성립**(그 문장은 planner 가 썼다).
+
+      | # | 대상 | 내용 |
+      |---|---|---|
+      | 1 | `2-trigger-list.md §3` | *"자매 스케줄 축과 달리 이 축에는 캐너리가 아직 없다 — … 이 비대칭을 함께 적는다"* 를 취소선 + 실측으로 정정. **비대칭 자체가 없어지므로 뒤 근거절까지 한 단위로** 낡는다 |
+      | 2 | `2-trigger-list.md` frontmatter `code:` | `codebase/backend/test/trigger-workflow-ref.e2e-spec.ts` **+ `codebase/backend/src/shared/testing/trigger-workflow-ref*.ts`**(헬퍼·self-spec) 등재. `3-schedule.md` 선례 — *"註에 'e2e 가 고정한다' 고 적으면서 그 파일을 등재하지 않으면 보장의 근거가 추적 불가다"*. **헬퍼까지 넣는 것은 `--impl-done` `15_23_41` convention_compliance W1 이 넓힌 범위다** — e2e 만 넣으면 단언의 정본(키셋·비밀 컬럼 목록)이 `code:` 밖에 남는다 |
+      | 3 | `PROJECT.md` §e2e 파일 위치 | *"self-spec 을 동반하는 assertion 헬퍼는 `test/helpers/` 가 아니라 `src/shared/testing/`"* 한 줄. **현 문면을 따르면 self-spec 이 어느 러너에도 안 걸려 죽은 테스트가 된다** — unit jest 는 `rootDir: 'src'`, e2e jest 는 `.e2e-spec.ts$` 만 잡는다 |
+      | 4 | `2-trigger-list.md §3` 註 | **캐너리가 고정하는 것이 계약인지 구현인지** 한 줄. *"생성 응답에만 `workflow` 가 없다"* 는 §5.4 가 요구하는 계약이 아니라 **현재 구현의 반영**이고, 생성 응답도 싣도록 강화하는 것은 additive 개선이다 — 그런데 지금 캐너리는 그 강화를 RED 로 막는다. 프로세스 게이트로는 바람직하나 **spec 이 계약처럼 읽히게 두면 안 된다** (`api_contract` W2) |
+      | 5 | `spec/5-system/14-external-interaction-api.md` §7.1 | **인벤토리가 낡았다.** 그 절의 2026-09-08 정정 문단은 *"`#1291` 이 응답 경계 스트립을 세웠고, 스케줄 조인 축은 `schedule-trigger-ref.ts` 가 같은 목록으로 단언한다"* 로 **단언 자리를 하나만 열거**한다 — 이제 트리거 직접 축에도 같은 두 컬럼의 부재를 무는 캐너리가 생겼다. 모순은 아니지만(그 문단이 "런타임 캐너리는 없다" 고 단언한 적은 없다) **열거가 불완전하면 다음 사람이 직접 축엔 정적 스트립만 있다고 읽는다** (`--impl-done` `15_23_41` cross_spec INFO) |
+
+      > **왜 조건 1 이 깨졌나 — 판별 방법 자체가 틀렸다.** 초안은 *"`git blame` 으로 확인 가능"* 을
+      > 근거로 들었는데, 이 저장소는 모든 역할의 커밋이 같은 author 라 **blame 은 역할을 구분하지
+      > 못한다.** 실제 판별은 세 신호다 — diff 스코프(`codebase/` 0건) · 게이트 종류(`--spec`) ·
+      > 소유 plan 의 `owner: planner`. 셋 다 planner 를 가리켰다.
+      >
+      > `#1292` 가 같은 패턴을 *"우회하지 않고 planner 턴을 열었다"* 로 올바르게 처리한 선례가
+      > 있는데, 그 판단을 몇 시간 뒤 뒤집었다. **등재 문장 자체가 자기모순**이었던 것이 원인이다 —
+      > *"조건 1~5 해당 — 그 문장은 planner 가 썼으므로…"*. **등재할 때 조항 해당 여부를 단정하지
+      > 말 것.**
+      >
+      > 1번을 반영할 때 `rationale_continuity` 가 지적한 **조건 2 경계**(그 문장이 §5.4 판정 근거·
+      > `id`/`name` 비대칭 계약과 한 문단에 섞여 있어 "예고 vs 계약" 이 애매하다)도 한 줄로 판정해
+      > 기록할 것. 그리고 `3-schedule.md §4` 에 있는 **재검토 신호**(optimistic update 로 create
+      > 응답을 소비하면 전제가 무너진다)가 트리거 축에는 없으니 그때 맞춘다.
+
+- [ ] **CRITICAL: chatChannel PATCH 가 bot token single-path 를 우회한다** — 질문으로 등재했고
+      **같은 날 판정이 나왔다: 예, 실제 갭이다** (2026-09-10 등재 → `/ai-review`
+      `14_34_18` `api_contract` ④ + `security` W2 가 독립 판정, developer 수정 대기).
+      §5.4.1/R-CC-10 은 bot token 변경을 `POST /triggers/:id/chat-channel/rotate-bot-token`
+      **단일 경로**로 규정하고 PATCH 의 `botTokenRef` 를 400 으로 막는다. 그런데 실측하니
+      `ChatChannelConfigDto` 는 PATCH 에서 **plaintext `botToken` 을 필수로 받고**,
+      `setupChatChannel` 이 그것을 `secrets.rotate(botTokenRef, …, chatChannel.botToken ?? '')`
+      로 저장한다.
+
+      **단정하지 않는다** — 두 갈래 다 가능하다: (a) 정책이 "ref 지정 금지" 만 뜻하고 값 교체는
+      PATCH 로도 정상이다, (b) 24h grace 를 우회하는 실제 갭이다. **판정에 필요한 것**은
+      `rotate-bot-token` 의 grace 처리와 이 경로의 `secrets.rotate` 가 같은 일을 하는지 대조하는
+      것이다. 캐너리 스코프를 넓히지 않기 위해 질문으로만 등재한다. **전제는 이미 한 번 깨졌다**:
       `triggers.service.ts` 의 PATCH chatChannel 재조회 분기가 관계를 빼고 읽어
       **chatChannel 을 포함한 PATCH 응답에서만** `workflow` 가 사라졌다(리뷰
       `review/code/2026/09/06/01_13_50` W4). 구현은 그 재조회에 `relations: ['workflow']` 를
@@ -1763,6 +1857,152 @@ field: T | null;
       그리고 `spec/2-navigation/2-trigger-list.md §3` 註가 *"이 축에는 캐너리가 아직 없다"* 고
       적고 있으니, 캐너리를 세우면 **그 문장도 함께 정정**해야 한다(자기-반증형 소정정 조건 1~5
       해당 — 그 문장은 planner 가 썼으므로 planner 턴이거나 `--impl-done` 스코프로 훑는다).
+
+      > **위 두 단락은 등재 시점 서술이고 지금은 낡았다.** 캐너리 처방은 별도 항목으로 완료됐고
+      > (거기 적힌 `webhook-trigger.e2e-spec.ts` 배치는 실측으로 기각), 마지막 문장의
+      > *"조건 1~5 해당"* 판정은 **틀렸다**(그 문장은 planner 가 썼다 → planner 후속으로 이관).
+      > 남는 것은 **bot token 우회 판정**뿐이고, 그 판정이 아래에 있다.
+
+      ### 판정: **예** — `botTokenRef` 만 막히고 값을 나르는 `botToken` 은 안 막힌다
+
+      `assertChatChannelInputSafe` 는 `botTokenRef`·`inboundSigningRef`·`inboundSigning`
+      **세 필드만** 400 으로 막는다. 그런데 실제 토큰 **값**을 나르는 `botToken` 은
+      `ChatChannelConfigDto` 에서 **필수**(`@IsOptional()` 없음)이고 PATCH·POST 가 같은 DTO 를
+      쓴다(`UpdateTriggerDto.chatChannel` 도 `PartialType` 이 아니다). `update()` 는 바디에
+      `chatChannel` 이 있으면 무조건 `setupChatChannel` 을 부르고, 거기서 **기존 값과 비교 없이**
+      `secrets.rotate(botTokenRef, ws, cfg.botToken ?? '')` 로 같은 ref 의 plaintext 를 덮는다.
+      최종 효과가 `rotateBotToken` 과 **동일**한데 다음 셋을 건너뛴다:
+
+      | 건너뛴 것 | 정식 경로 | PATCH 경로 |
+      |---|---|---|
+      | 24h grace 백업 | 교체 전 기존 토큰을 `v2Ref` 에 백업 | **백업 단계 자체가 없다** — 새 토큰이 401/403 이어도 되돌릴 수단이 없고 `chatChannelHealth=degraded` 로만 남는다 |
+      | 전용 audit action | `TRIGGER_CHAT_CHANNEL_BOT_TOKEN_ROTATED` | 일반 `TRIGGER_UPDATED` 만. **§5.4.1 이 PATCH 차단의 이유 (c) 로 든 "audit 이 mixed 된다" 가 지금도 재현된다** |
+      | `chatChannelRotatedAt` | 갱신 | 미갱신 — 응답 DTO 의 "마지막 회전 시각" 이 거짓이 된다 |
+
+      **처방은 DTO 분리가 유일하게 일관된 해법이다.** (a) 기존 plaintext 와 비교해 차단하려면
+      resolve 비용이 들고, (b) **PATCH 전용 `ChatChannelConfigDto` 변형(`botToken` 제외)** 은
+      R-CC-10 의 의도와 정확히 일치하며 아래 `ChatChannelCard` 버그까지 같은 수정으로 닫힌다.
+      POST 만 `botToken` 을 받고 PATCH 는 `uiMapping`·`rateLimitPerMinute`·`languageLocale`·
+      `languageHints` 만 받는다.
+
+      **착수 시 함께 정리할 것 두 가지.** ① `test/trigger-workflow-ref.e2e-spec.ts` 의 case E
+      요청 바디는 이 결함을 재현하는 형태라 처방이 들어오면 **400 이 된다** — 같은 PR 에서
+      바디를 고쳐야 한다. ② 그 case E docstring 에 붙인 R-CC-10 우회 경고 블록도 그때
+      **정리 대상**이다. 지금 그 블록은 *이 저장소에서 우회 메커니즘을 서술한 유일한 `codebase/`
+      자리*이고(그 전엔 plan·review 문서에만 있었다), 결함이 닫히면 존재 이유가 사라진다
+      (`review/code/2026/09/10/15_52_06` security INFO).
+
+      > **판정 전 내 서술이 한 칸 좁았다.** 등재문은 *"24h grace 를 우회하는지 아니면 정책이
+      > 'ref 지정 금지' 만 뜻하는지"* 로 두 갈래를 세웠는데, **실제 답은 둘 다**였다 — 정책이
+      > 강제되는 층은 필드명 수준이고(ref 금지), 정책이 **보호하려는 대상**(값 교체 자체)은
+      > 강제되지 않는다. "어느 쪽이냐" 가 아니라 **"강제되는 층과 보호 대상이 다른 층에 있다"**
+      > 가 판정이다. 캐너리 스코프를 넓히지 않고 질문으로 등재한 판단 자체는 reviewer 도
+      > *"적절하다"* 고 확인했다.
+
+- [ ] **버그: `ChatChannelCard` 편집-저장이 항상 400 이다** (developer, 2026-09-10 등재,
+      `/ai-review` `14_34_18` `api_contract` ⑤ — 위 ④ 조사 중 부수 발견).
+      `codebase/frontend/src/components/triggers/cards/chat-channel-card.tsx` 의 `saveMutation`
+      은 uiMapping·rateLimitPerMinute·languageLocale·languageHints 만 편집하는 UI 인데, PATCH
+      바디에서 `botToken` 을 **의도적으로 생략**한다. 코드 주석이 그 가정을 적고 있다 —
+      *"botToken 없으면 botTokenRef 유지"* · *"single-path 정책상 PATCH 로 토큰 변경 불가"*.
+      **그런데 서버 DTO 는 `botToken` 을 필수로 요구한다**(위 ④). 즉 사용자가 그 카드에서
+      무엇이든 편집하고 저장하면 **항상 400** 이고 `onError` 의 "저장 실패" 토스트만 뜬다.
+
+      **두 축이 서로 다른 방향에서 같은 결론을 가리킨다** — DTO 선언(정적) + 이 캐너리 e2e 를
+      쓰며 내가 부딪힌 실측(런타임, 같은 필드: `{provider, uiMapping}` 으로 보냈다가 400
+      `chatChannel.botToken must be a string`). 이 컴포넌트에는 단위 테스트가 없고 backend e2e·
+      Playwright 어디에도 "uiMapping 만 PATCH" 경로가 없어 지금까지 감지되지 않았다.
+
+      > **프런트를 고치는 방향은 막혀 있다.** 서버가 `botToken` 을 응답에서 strip 하므로
+      > (`writeOnly: true`) 프런트는 재전송할 값을 **가질 수 없다**. 위 ④ 의 DTO 분리가
+      > 프런트 코드를 그대로 두고 백엔드 검증을 프런트의 (원래 의도했던) 가정에 맞추는
+      > 유일한 해법이다 — **두 항목은 한 수정으로 닫힌다.**
+      >
+      > reviewer 는 정적 대조로만 확인했다(뮤테이션 규약상 저장소를 건드리지 않음). 나도 그
+      > 컴포넌트 코드를 직접 열어 `botToken` 생략과 두 주석을 확인했지만 **브라우저에서
+      > 재현하지는 않았다.** 착수 시 먼저 재현할 것 — 재현 실패는 부재의 증거가 아니지만,
+      > 반대로 재현 없이 "항상 400" 을 확정으로 적는 것도 한 칸 넓다.
+
+- [ ] **하드닝: 트리거 비밀 컬럼 목록이 3중 독립 사본이다** (developer, 2026-09-10 등재,
+      `maintainability` W1 + `security` W1 이 같은 자리를 독립 지적).
+      정본은 `triggers.service.ts` 의 `TRIGGER_RESPONSE_STRIP_COLUMNS`(비-export), 사본은
+      `shared/testing/schedule-trigger-ref.ts` 와 신규 `trigger-workflow-ref.ts`.
+      **값·순서가 현재 완전히 일치함을 실측했지만 결속 장치가 없다** — 정본이 네 번째 비밀
+      컬럼을 추가해도 두 헬퍼는 조용히 통과한다.
+
+      처방: **repo-guard 로 세 목록 동일성을 강제한다.** 정본이 `export` 되지 않아 import 할
+      수 없고, 서비스 모듈을 테스트 헬퍼로 끌어오는 것은 의존 그래프상 과하다 — 그래서
+      런타임 공유가 아니라 정적 가드다. `CREATOR_PROJECTION` 선례(동일 리터럴 4중 복사가
+      실제 Critical 로 터진 뒤 단일 상수로 통합)가 이 형태의 가까운 이력이다.
+
+      > **self-spec 쪽 사본은 이 항목의 대상이 아니다.** `trigger-workflow-ref.spec.ts` 가
+      > 같은 이름들을 또 적고 있는 것은 **일부러**다 — 헬퍼 상수를 import 해 순회하면 누가
+      > 목록을 줄여도 스펙이 그대로 통과해 대조군이 사라진다. 헬퍼↔프로덕션 중복은 드리프트
+      > 위험이지만 **스펙↔헬퍼 중복은 독립 대조군**이다. 그 구분을 스펙 헤더에 명시했다.
+
+- [ ] **회귀 방어: `type: 'schedule'` 트리거의 `workflow` 양성 커버리지가 저장소 전체에 0건**
+      (developer, 2026-09-10 등재, `testing` INFO).
+      캐너리 다섯 케이스는 전부 `type: 'webhook'` 이다. 소스를 추적하면 schedule enrichment
+      (`Object.assign(t, {cronExpression, timezone, nextRunAt})`)는 **제자리 mutate** 라서 이미
+      로드된 `workflow` own property 를 건드리지 않고 같은 `sanitizeForResponse` 를 타므로
+      **지금 동작은 webhook 과 동일하다** — 현재 정확성은 코드로 확인됐다.
+
+      문제는 **방어력**이다. `schedule-trigger.e2e-spec.ts` C-2 는 cron/timezone/nextRunAt 과
+      `assertMatchesContract` 만 보는데, §5.4 키 생략형이라 그 검증자는 부재를 위반으로 보지
+      않는다. 그래서 장래 enrichment 가 in-place mutate 대신 **새 plain object 를 spread** 로
+      만드는(흔한 리팩터 패턴) 순간 **두 파일 다 못 잡는다.** 처방: `schedule-trigger.e2e-spec.ts`
+      의 목록·단건 케이스에 `expectTriggerWorkflowRef(…, {present: true, expectedWorkflowId})`
+      한 줄씩. 헬퍼가 이미 있으므로 비용은 두 줄이다.
+
+- [ ] **하드닝: `production-build-devdep-guard` 가 "exclude 된 디렉터리를 import 로 도달"
+      형태를 못 본다** (developer, 2026-09-10 등재, `side_effect` W1 — **reviewer 가 실제 `tsc`
+      로 재현**).
+      `ts.parseJsonConfigFileContent()`(가드의 `resolveBuildFileNames` 가 쓰는 그 API)는 glob
+      include/exclude 만 평가하고 **어떤 파일이 다른 root 파일에서 `import` 되는지는 보지
+      않는다.** 그래서 `src/shared/testing/**` 아래 파일은 그 함수 반환값에 **항상** 없고,
+      가드는 `it.each(['shared/testing', …])` 로 그 부재만 확인한다. 그런데 exclude 되지 않은
+      프로덕션 파일이 그 경로를 import 하면 tsc 는 프로그램에 편입시켜 **`dist/` 로 emit 한다.**
+      게다가 `@types/jest` 가 ambient 라 **컴파일 에러도 나지 않고**, 그 함수가 실제로 호출될
+      때 `ReferenceError` 로 죽는다.
+
+      현재 `shared/testing/**` 를 import 하는 프로덕션 파일은 **0건**이라 이론 단계다. 처방:
+      가드를 "exclude 목록에 없다" 에서 **"emit 된 `dist/` 에 그 경로가 없다"** 또는 "프로덕션
+      파일의 import 그래프에 그 경로가 없다" 로 바꾼다 — **존재 검사가 아니라 도달 검사**여야
+      한다. 내 헬퍼 docstring 은 이 실측으로 이미 좁혔다.
+
+- [ ] **정리: 캐너리 두 파일의 주석 표기·성격** (developer, 2026-09-10 등재, `/ai-review` 4라운드
+      `16_55_52` 가 낸 주석-수준 발견 3건. **브랜치에서 고치지 않고 등재한 것은 미리 선언한 정지
+      규칙 때문이다** — 게이트 산술상 코드를 고치면 라운드가 하나 더 필요하고, 4라운드를 마지막으로
+      한다고 3라운드 SUMMARY 에 적었다. 세 건 다 캐너리를 틀리게 하거나 테스트를 약화시키지 않는다).
+
+      | # | 지적 | 처방 |
+      |---|---|---|
+      | 1 | **표기가 갈렸다** (`maintainability` W1). 케이스 헤딩 8개는 아라비아 숫자인데 `## 가드 ③·⑤` 하나만 원문자다 — `grep '가드 [0-9]'` 로는 "5" 가 안 잡히고 `⑤` 로만 존재한다. 헤더가 *"위에서 아래로 읽으며 대응 테스트를 찾는다"* 를 목적으로 내세우는데 그 도구가 한 케이스에서만 바뀐다 | 한쪽으로 통일하고, **어느 표기가 어디 쓰이는지 한 문장**을 헤더에 명시(원문자=마스터 목록, 아라비아=케이스 라벨 — 또는 반대) |
+      | 2 | **헤더에 리뷰 이력이 누적된다** (`maintainability` W2). 3라운드가 *"다음에 또 얹기 전 분량 재점검"* 을 남겼는데 재점검 없이 23→34줄(+48%)이 됐다. 핵심은 분량이 아니라 **성격**이다 — *"처음 10개로 적었다"* 류는 RESOLUTION·커밋·plan 에 durable 하게 남는데 소스에 또 박으면 매 라운드 자기수정 로그가 쌓인다. 같은 패턴이 헬퍼 `//` 註에도 있다 | 소스에는 **계약 정의만** 남긴다(가드 11단계 · ⑤ 를 왜 남기는가). *"몇 라운드 전엔 몇 개로 잘못 적었다"* 는 소스에서 빼고 커밋/RESOLUTION/트래커로 |
+      | 3 | 인용 `"keys [] ≠ ['id','name']"` 은 Jest 실제 출력의 리터럴이 아니라 **의역**이다 (`requirement` INFO). 논지는 훼손 없음 | 의역임을 표시하거나 실제 출력 형태로 교체 |
+
+      > **2번이 이 셋 중 유일하게 습관 차원이다.** 1·3 은 한 자리 고치면 끝나지만, 2 는 *"리뷰가
+      > 지적하면 그 사실을 소스 주석에 적는다"* 는 내 기본 반응 자체를 지목한다. 그 반응이 이 브랜치
+      > 네 라운드 동안 두 파일의 주석을 계속 키웠다. **판별 질문은 "이 문장이 없으면 다음 사람이
+      > 코드를 잘못 쓰는가" 다** — 예면 소스, 아니면 트래커.
+
+- [ ] **관례 정비: e2e teardown 이 `secret_store` 고아 row 를 남긴다** (developer, 2026-09-10
+      등재, `side_effect` W2 + `testing` INFO).
+      `chatChannel` 이 붙은 트리거는 `setupChatChannel` 이 외부 호출 **이전에**
+      `secrets.rotate()` 로 `secret_store` 에 row 를 쓴다 — provider 호출이 실패해도 남는다.
+      그 정리는 `TriggersService.remove()` 의 `deleteByPrefix` 만 하고, `secret_store` 는 FK 가
+      없어(application-level cascade) raw `DELETE FROM trigger` 로는 **지워지지 않는다.**
+      해당 파일 둘(`chat-channel-trigger-create.e2e-spec.ts` · 신규 `trigger-workflow-ref.e2e-spec.ts`)
+      이 같은 관례를 쓰므로 신규 회귀는 아니다.
+
+      > **여기서 정정할 것은 관례보다 근거다.** `--impl-prep` 의 `convention_compliance` 는
+      > *"ephemeral schema 가 자동 truncate 하므로 row 삭제가 불필요하다"* 고 봤는데, 그 추론은
+      > **`trigger` 테이블만 보고 `secret_store` 를 안 덮는다.** 결론(불필요)은 세션 경계에서
+      > 참일 수 있지만 **검증 범위가 결론보다 좁았다** — 그 경계를 두 e2e 파일의 `afterAll`
+      > 주석과 이 항목에 적었다. 처방 후보: (a) raw DELETE 대신 `DELETE /api/triggers/:id` 를
+      > 태워 서비스 경로가 정리하게 한다(관례 변경, 두 파일), (b) `PROJECT.md` §e2e 작성 패턴에
+      > *"secret 을 만드는 e2e 는 raw DELETE 로 정리되지 않는다"* 한 줄. **(a) 가 근본이지만
+      > 캐너리의 음성 케이스는 삭제 순서에 민감하니 착수 시 실측할 것.**
 
 - [x] **`6-websocket-protocol.md` 도입 산문 — 완료 (2026-09-10, planner 턴).**
       순수 `## Overview` 4단락(1,767자) + `## Rationale` 에 표기 선택 근거 1항목.
