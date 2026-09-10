@@ -94,7 +94,7 @@ lockfile 에서 사라진 것을 잡았다. 최초 감사가 못 본 이유는 �
 버전 번호만 비교하는 프록시**였고 이 클래스는 그 밖에 있었다.
 
 실측으로 원인과 영향을 좁혔다(상세 표는 `CHANGELOG.md` 와
-[`deps-guard-hardening.md` §후속 libc](deps-guard-hardening.md) 에):
+[`deps-guard-hardening.md` §후속 libc](../in-progress/deps-guard-hardening.md) 에):
 
 - **원인은 재해소가 아니라 핀한 pnpm 버전.** 10.23.0 은 기존 `libc:` 를 보존만 하고 재해소한
   엔트리에는 다시 쓰지 않는다(대조군: 매니페스트 변경 0 → lockfile diff **0줄**). macOS·Linux
@@ -162,5 +162,5 @@ main 이 초록이 된 뒤 각 PR 을 rebase 한다 (`@dependabot rebase`). 대�
 경우라, 미충족 상태로 `in-progress/` 에 남겨 다음 사람이 "안 한 일" 로 읽게 두는 대신
 사유를 적고 닫는다.
 
-후속 2건은 이 plan 이 아니라 [`deps-guard-hardening.md`](deps-guard-hardening.md) 에 있다
+후속 2건은 이 plan 이 아니라 [`deps-guard-hardening.md`](../in-progress/deps-guard-hardening.md) 에 있다
 (pnpm 핀 상향 + lockfile `libc:` 회귀 가드 · `check-pnpm-security-config.py` 전용 테스트).
