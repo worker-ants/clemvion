@@ -110,9 +110,9 @@ main 이 초록이 된 뒤 각 PR 을 rebase 한다 (`@dependabot rebase`). 대�
 - [x] `python3 scripts/check-override-floors.py` exit 0
 - [x] `python3 scripts/check-pnpm-security-config.py` exit 0
 - [x] `python3 scripts/check-unmet-peers.py` exit 0 — 미충족 peer 2건, 전부 기존 등재 수용 항목(신규 0건)
-- [ ] TEST WORKFLOW — lint
-- [ ] TEST WORKFLOW — unit
-- [ ] TEST WORKFLOW — build
-- [ ] TEST WORKFLOW — e2e
+- [x] TEST WORKFLOW — lint — PASS 63s (`_test_logs/lint-20260910-200552.log`)
+- [x] TEST WORKFLOW — unit — PASS (`_test_logs/unit-20260910-200659.log`; backend 454 suites / 9,521 tests · frontend 289 files · channel-web-chat 23 files / 451 tests · 내부 패키지 8개)
+- [x] TEST WORKFLOW — build — PASS 187s (`_test_logs/build-20260910-200850.log`) + 타입체크 ratchet 양쪽 직접 실행 (backend 197건/36파일 · frontend 52건/15파일, baseline 일치)
+- [x] TEST WORKFLOW — e2e — PASS 269s (`_test_logs/e2e-20260910-201258.log`; backend jest 52 suites / 305 tests + playwright **51 passed**)
 - [ ] `/ai-review` + SUMMARY Critical/Warning 0
 - [ ] dependabot PR 7건 rebase 요청
