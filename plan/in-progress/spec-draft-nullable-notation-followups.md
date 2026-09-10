@@ -2181,6 +2181,19 @@ field: T | null;
       **생성(POST) 경로**에서 빈 문자열 bot token 이 통과한다 — 이번 PR 은 PATCH 축만 게이팅해
       스코프 밖이었다. 처방: `@MinLength(1)` 또는 provider 별 정규식.
 
+- [ ] **DTO `@IsEmpty()` 메시지와 서비스 가드 메시지가 5필드 모두 리터럴 복붙이다** (developer,
+      2026-09-11 등재, `/ai-review` `review/code/2026/09/11/01_52_59` `architecture` W3).
+      한쪽만 고치면 **값의 형태에 따라 다른 문구가 나간다** — `null`/`''` 는 서비스 가드가,
+      비어있지 않은 값은 DTO 가 거부하기 때문이다(그 두 갈래는 이미 실측으로 확정돼 있다).
+      처방: 5개 메시지를 `chat-channel-config.dto.ts` 의 `export const` 맵으로 빼고 두 층이
+      import 한다.
+
+- [ ] **chat-channel 도메인 규칙이 제네릭 `TriggersService`(1855줄)에 계속 쌓인다** (developer,
+      2026-09-11 등재, `/ai-review` `01_52_59` `architecture` W2 — 기존 "함수 비대" 항목의
+      **모듈 경계 관점**이다). `chat-channel/` 하위에 adapter 계층이 따로 있는데 검증·secret
+      쓰기·ref 보존 규칙은 triggers 쪽에 남아 경계가 어긋난다. 처방 후보:
+      `ChatChannelTriggerBinder` 협력자 추출.
+
 - [ ] **`SecretResolver.rotate` 에 빈 값 가드가 없다** (developer + 보안 판단, 2026-09-10 등재).
       `rotate(ref, ws, '')` 가 빈 문자열을 그대로 암호화해 row 를 덮어쓴다(`:129-145`, 가드 0).
       chatChannel PATCH 경로는 위 CRITICAL 의 D-2 로 닫히지만 **`rotate` 자체는 다른 호출부에도 열린
