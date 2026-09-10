@@ -20,7 +20,6 @@ pending_plans:
   - plan/in-progress/chat-channel-discord-gateway.md
   - plan/in-progress/chat-channel-slack-socket-mode.md
   - plan/in-progress/chat-channel-visual-ssr-png.md
-  - plan/in-progress/spec-sync-chat-channel-gaps.md
 ---
 
 # Spec: Chat Channel (외부 chat 플랫폼 ↔ 워크플로우 서버사이드 어댑터)
@@ -373,11 +372,14 @@ Bot token 의 신규 등록·변경은 **single-path** 로 일원화된다:
 |---|---|---|
 | 최초 트리거 생성 (`POST /api/triggers`) | `setupChannel()` 의 부수효과로 `botTokenRef` 신설. 입력 body 의 `config.chatChannel.botToken` plaintext 를 받아 `SecretResolver.store()` 로 저장 후 ref 로 교체 | 처음 한 번 |
 | 트리거 활성화 (`PATCH /api/triggers/:id` body `{ isActive: true }`) | `setupChannel()` 재호출 — 기존 `botTokenRef` 그대로 사용 | token 변경 없음 |
-| 토큰 변경 (rotation) | **항상 `POST /api/triggers/:id/chat-channel/rotate-bot-token` 만 사용**. PATCH body 의 `config.chatChannel.botTokenRef` 변경은 400 `VALIDATION_ERROR` (`details.field='botTokenRef'`) 로 차단 | 24h grace 적용 |
+| 토큰 변경 (rotation) | **항상 `POST /api/triggers/:id/chat-channel/rotate-bot-token` 만 사용**. PATCH body 에서 **ref 와 값 둘 다** 차단 — `config.chatChannel.botTokenRef`(ref) 는 400 `VALIDATION_ERROR` (`details.field='botTokenRef'`), **`config.chatChannel.botToken`(plaintext) 도 400** (`details.field` 는 **미확정 — 후속 e2e 확인 대기**, [R-CC-21](#r-cc-21-patch-는-비밀을-쓰지-않는다--차단이-필드명-층에만-걸려-있었다)) | 24h grace 적용 |
+| **`chatChannel` 이 실린 PATCH** (uiMapping · rateLimit 등 편집) | `setupChannel()` 재호출로 provider 등록만 갱신한다. **secret store 에 저장된 bot token 을 바꾸지 않는다** — 그 요청 전후로 값이 동일하다. `botTokenRef` 는 config 에서 보존되는 것이 아니라 trigger id 에서 **재유도**된다(`buildSecretRef`) | **token 변경 없음** |
 
 PATCH 차단의 정당화: PATCH 로 직접 `botTokenRef` 교체 시 (a) 외부 provider (텔레그램) 측에 등록된 webhook 은 그대로라 즉시 수신 단절, (b) rotate API 의 24h grace 정책 일관성이 깨짐, (c) audit log 가 `trigger.updated` 와 `trigger.chat_channel_bot_token_rotated` 로 mixed. *(2026-08-11 정정 — 이 자리에 `chat-channel.rotate-bot-token` 이라 적혀 있었다. `<resource>.<verb>` 구조(resource dot-prefix 필수)·언더스코어 구분자·과거분사 시제를 동시에 어겼고, `chat-channel` 이라는 resource 는 감사 모델에 존재하지 않는다 — 세 회전 엔드포인트 모두 `/api/triggers/:id/…` 하위라 resource 는 `trigger` 다. [`conventions/audit-actions.md`](../conventions/audit-actions.md))* 따라서 single-path.
 
-[`spec/2-navigation/2-trigger-list.md §3`](../2-navigation/2-trigger-list.md#3-api) 의 PATCH 설명에는 "`config.chatChannel.botTokenRef` 는 PATCH 로 변경 불가 — rotate API 사용" cross-link 가 추가된다.
+**차단의 기준은 필드명이 아니라 「토큰 값이 바뀌는가」다.** 위 (a)(b)(c) 는 *값이 교체될 때* 생기는 피해를 말하는데, 종전 문면은 그 차단을 `botTokenRef` 라는 **필드명 하나**에만 걸어 두었다 — 정책이 **강제되는 층**(필드명)과 정책이 **보호하려는 대상**(값 교체)이 다른 층에 있었고, 값을 나르는 `botToken` 이 그 사이로 열려 있었다. 두 필드를 함께 막는 것은 규칙 확장이 아니라 **원래 의도의 복원**이다. 이 확장은 [§5.4.1.1](#5411-inboundsigning-patch-정책-slack--discord-한정--v1-차단) 의 botToken↔inboundSigning **자원-성격 대조를 바꾸지 않는다** — 그 대조축(외부 provider 등록 여부)과 이 축(필드명 vs 값)은 직교한다.
+
+[`spec/2-navigation/2-trigger-list.md §3`](../2-navigation/2-trigger-list.md#3-api) 의 PATCH 설명에는 "`config.chatChannel.botTokenRef`·`botToken` 은 PATCH 로 변경 불가 — rotate API 사용" cross-link 가 추가된다.
 
 #### 5.4.1.1 `inboundSigning` PATCH 정책 (slack / discord 한정 — v1 차단)
 
@@ -387,7 +389,9 @@ PATCH 차단의 정당화: PATCH 로 직접 `botTokenRef` 교체 시 (a) 외부 
 |---|---|---|
 | 최초 트리거 생성 (`POST /api/triggers`) | 입력 body 의 `chatChannel.inboundSigningPlaintext` plaintext → `SecretResolver.store(inboundSigningRef, plaintext)` 후 strip. config 에는 `inboundSigningRef` 만 보관 (SS-SE-01) | 처음 한 번 |
 | 트리거 활성화 (`PATCH /api/triggers/:id` body `{ isActive: true }`) | 기존 `inboundSigningRef` 그대로 사용 | 변경 없음 |
-| **회전 (rotation)** | **v1 미정의 — PATCH body 의 `config.chatChannel.inboundSigningPlaintext` / `inboundSigning` 직접 변경은 400 `VALIDATION_ERROR` (`details.field='inboundSigningPlaintext'` 또는 `'inboundSigning'`) 로 차단.** rotation 이 필요하면 트리거 삭제·재생성 | v2 후속 결정 — 별 spec |
+| **회전 (rotation)** | **v1 미정의 — PATCH body 에서 `config.chatChannel.inboundSigningPlaintext` / `inboundSigning` 은 400 `VALIDATION_ERROR` 로 차단한다.** slack/discord 도 예외가 아니다 — 생성(POST)에서만 `inboundSigningPlaintext` 를 받고, **PATCH 에서는 그 필드가 있으면 거부**한다. `chatChannel` 이 실린 PATCH 는 저장된 signing 값을 **바꾸지 않는다**(요청 전후 동일). rotation 이 필요하면 트리거 삭제·재생성 (`details.field` 는 **미확정 — 후속 e2e 확인 대기**) | v2 후속 결정 — 별 spec |
+
+> **(2026-09-10 정합화)** 위 행은 처음부터 v1 차단을 선언하고 있었으나 **구현이 정반대였다** — `assertInboundSigningPlaintextByProvider` 가 slack/discord 에서 `inboundSigningPlaintext` **부재를** 400 으로 막고, 값이 있으면 통과시켜 `setupChatChannel` 이 그 값으로 `inboundSigningRef` 를 회전시켰다. 즉 **매 chatChannel PATCH 마다 이 절이 금지한 회전이 강제**되고 있었다. 문면을 바꾼 것이 아니라 그 규칙이 PATCH 전 구간에 걸린다는 것을 명시했다 — 상세는 [R-CC-21](#r-cc-21-patch-는-비밀을-쓰지-않는다--차단이-필드명-층에만-걸려-있었다). **v2 회전 후보 결정(아래 불릿)은 손대지 않는다.**
 
 v1 차단의 정당화 — R-CC-10 (`botToken` single-path) 와 자원 성격이 달라 같은 single-path 패턴을 자동 적용하지 않는다:
 
@@ -607,7 +611,7 @@ Fan-out facade 는 코드 구조상 이미 분리되어 있고, 본 결정은 **
 
 ### R-CC-10. Bot Token 변경 single-path (rotate API only)
 
-single-path 채택: 토큰 변경은 항상 `POST /api/triggers/:id/chat-channel/rotate-bot-token` 이며 PATCH body 의 `botTokenRef` 변경은 차단한다. PATCH + rotate 양쪽 허용은 [`spec/2-navigation/2-trigger-list.md` Rationale R-2](../2-navigation/2-trigger-list.md#r-2-webhook-hmac-secret-입력-vs-rotate-분리-폐기--r-14-로-대체) 의 hmacSecret 패턴과 정렬되나 자원 성격이 다르다 — (**R-2 의 설계 자체는 이후 R-14 로 폐기됐다** — `config.hmacSecret` inline 입력과 `auth/rotate-secret` 예약 행 모두 사라졌다. 여기서 인용하는 것은 그 API 형태가 아니라 *"우리가 보유한 server-side secret"* 이라는 **자원 성격**이며, 그 대조는 폐기와 무관하게 성립한다.) hmacSecret 는 우리가 보유한 server-side HMAC signing secret 으로 PATCH 직접 교체 시 외부 수신자 (cafe24 등) 가 새 키를 동기화하기 전에 검증 실패 ↔ botToken 은 외부 provider (텔레그램) 측에 등록된 토큰으로 PATCH 직접 교체는 우리 DB 만 갱신하고 텔레그램 측은 그대로라 수신이 즉시 깨지며, 두 경로 공존 시 grace 24h 정책 일관성이 깨지고 audit log 가 mixing 된다. PATCH 만 허용하면 rotate API 의 24h grace 기능 (CCH-SE-04) 이 제공하는 무중단 회전을 잃는다.
+single-path 채택: 토큰 변경은 항상 `POST /api/triggers/:id/chat-channel/rotate-bot-token` 이며 PATCH body 의 `botTokenRef` 변경은 차단한다. *(2026-09-10 확장 — 차단 대상이 `botTokenRef` 뿐 아니라 값 필드 `botToken` 까지 포함하고, `chatChannel` 이 실린 PATCH 는 저장된 비밀을 아예 쓰지 않는다. 상세: [R-CC-21](#r-cc-21-patch-는-비밀을-쓰지-않는다--차단이-필드명-층에만-걸려-있었다).)* PATCH + rotate 양쪽 허용은 [`spec/2-navigation/2-trigger-list.md` Rationale R-2](../2-navigation/2-trigger-list.md#r-2-webhook-hmac-secret-입력-vs-rotate-분리-폐기--r-14-로-대체) 의 hmacSecret 패턴과 정렬되나 자원 성격이 다르다 — (**R-2 의 설계 자체는 이후 R-14 로 폐기됐다** — `config.hmacSecret` inline 입력과 `auth/rotate-secret` 예약 행 모두 사라졌다. 여기서 인용하는 것은 그 API 형태가 아니라 *"우리가 보유한 server-side secret"* 이라는 **자원 성격**이며, 그 대조는 폐기와 무관하게 성립한다.) hmacSecret 는 우리가 보유한 server-side HMAC signing secret 으로 PATCH 직접 교체 시 외부 수신자 (cafe24 등) 가 새 키를 동기화하기 전에 검증 실패 ↔ botToken 은 외부 provider (텔레그램) 측에 등록된 토큰으로 PATCH 직접 교체는 우리 DB 만 갱신하고 텔레그램 측은 그대로라 수신이 즉시 깨지며, 두 경로 공존 시 grace 24h 정책 일관성이 깨지고 audit log 가 mixing 된다. PATCH 만 허용하면 rotate API 의 24h grace 기능 (CCH-SE-04) 이 제공하는 무중단 회전을 잃는다.
 
 근거: R-2 와 다른 결론을 내리는 정당화는 **자원의 위치 (server-side 보유 vs external provider 측 등록)** 차이. single-path 는 grace 정책 일관성·audit log 단일성·UX 명확성 모두 확보.
 
@@ -726,3 +730,49 @@ AI Agent handler 가 빈 string ai_message 를 emit 하지 못하게 차단하�
 - **게이트 위치**: `parseUpdate` 직후(키 확정 시점)이자 **CCH-NF-03 rate-limit 앞**. 재도착은 새 트래픽이 아니라 같은 트래픽이므로 쿼터를 소비하면 안 된다.
 - **fail-open**: Redis 미가용/에러 시 통과(+warn). 같은 모듈 rate-limiter·`PublicWebhookQuotaService` 와 동일 정책이며, 그 구간에는 중복 처리가 가능하다는 뜻이라 조용히 넘어가지 않는다.
 - **왜 필요한가**: provider 는 webhook 이 2xx 를 못 받으면 같은 update 를 재전송한다([R-CC-12](#r-cc-12-inbound-http-contract--202-accepted-고정--401-auth--404-endpointpath-예외)). 억제가 없으면 사용자의 같은 입력이 두 번 dispatch 돼 workflow 가 중복 재개된다.
+
+### R-CC-21. PATCH 는 비밀을 쓰지 않는다 — 차단이 필드명 층에만 걸려 있었다
+
+[R-CC-10](#r-cc-10-bot-token-변경-single-path-rotate-api-only) 은 *"토큰 변경은 rotate 단일 경로"* 를
+결정했다. **그 결정은 유효하고 이 항목이 번복하지 않는다.** 여기 적는 것은 **그 결정이 어떻게
+우회됐는지**와, 그 우회를 고치는 처방에 숨어 있던 함정이다.
+
+#### 우회의 형태 — 강제되는 층과 보호 대상이 갈렸다
+
+§5.4.1 의 차단은 `botTokenRef` 라는 **필드명**에 걸려 있었다. 그런데 정책이 보호하려는 것은 **토큰 값이
+교체되는 것**이고, 값을 나르는 필드는 `botToken` 이다. 그 필드는 PATCH·POST 공용 DTO 에서 **필수**였고,
+`chatChannel` 이 실린 PATCH 는 그 값으로 secret store 를 덮어썼다 — rotate 엔드포인트가 제공하는
+24h grace 백업 · 전용 audit action · `chatChannelRotatedAt` 갱신을 **모두 건너뛴 채로**.
+
+같은 형태가 [§5.4.1.1](#5411-inboundsigning-patch-정책-slack--discord-한정--v1-차단) 에도 있었다.
+그 절은 v1 회전 차단을 선언했지만 구현은 slack/discord 에서 `inboundSigningPlaintext` **부재를** 400 으로
+막았다 — 즉 **매 PATCH 마다 금지된 회전을 강제**했다. 그래서 이 결정은 두 필드를 함께 다룬다:
+**PATCH 는 어떤 비밀도 받지 않고, 어떤 비밀도 쓰지 않는다.**
+
+#### 처방의 함정 — 필드만 빼면 **비밀이 파괴된다**
+
+리뷰가 처음 제시한 처방은 *"PATCH 전용 DTO 에서 `botToken` 제외"* 였다. **그것만 하면 지금보다 나쁘다.**
+`setupChatChannel` 은 `secrets.rotate(botTokenRef, ws, cfg.botToken ?? '')` 를 **조건 없이** 실행하고
+`SecretResolver.rotate` 에는 **빈 값 가드가 없다** — 필드가 없으면 **빈 문자열로 회전**해 저장된 토큰을
+지운다. 이어지는 `setupChannel` 은 빈 토큰으로 401 을 받아 `chatChannelHealth=degraded` 로 조용히 앉는다.
+
+**오늘 그 일이 안 일어나는 이유가 버그다** — `botToken` 이 필수라 요청이 서비스에 닿기 전에 400 이 난다.
+*"`ChatChannelCard` 저장이 항상 400"* 이라는 결함이 **토큰을 지키고 있었다.** 그래서 D-1(필드를 받지
+않는다)과 **D-2(경로가 비밀을 쓰지 않는다)를 함께** 결정한다 — 전자만으로는 실패가 보이는 형태에서
+조용한 형태로 바뀔 뿐이다.
+
+> **구현 시**: 검증 함수가 생성·수정 경로에 공유돼 있다. 차단을 그 공유 함수에 넣으면 **slack/discord
+> 생성이 깨진다** — 생성에서는 `inboundSigningPlaintext` 가 여전히 필수다. PATCH 전용 경로를 갈라야 한다.
+
+#### 기각한 대안
+
+- **`botToken` 을 optional 로 두고 값이 오면 무시** — 사용자가 설정했다고 믿은 **비밀을 말없이 버린다.**
+  거부가 아니라 침묵은 이 자원에 맞지 않는다.
+- **`SecretResolver.rotate` 에 빈 값 가드를 넣어 이 경로만 막기** — 증상을 가리고 원인(PATCH 가 비밀
+  쓰기 경로를 탄다)을 남긴다. 그 가드 자체는 **다른 호출부를 위해 별도로** 검토한다.
+
+#### 재검토 신호
+
+`inboundSigning` 회전이 v2 에서 정의되면 §5.4.1.1 의 v1 차단이 풀린다. 그때 이 항목의 *"어떤 비밀도
+쓰지 않는다"* 는 **bot token 축에는 그대로 유효**하고 signing 축만 그 결정으로 대체된다 — 두 축을 한
+문장으로 묶어 함께 푸는 실수를 하지 말 것.
