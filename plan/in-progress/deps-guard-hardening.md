@@ -400,9 +400,52 @@ glibc 변종이 함께 설치될 수 있다(낭비 — 오선택은 sharp 로더
 
 - [ ] 진동을 한쪽으로 고정 — (a) dependabot 이 `packageManager` 를 따르게 하거나,
       (b) 저장소 pnpm 핀을 `libc` 를 쓰는 버전으로 올리거나, (c) 진동을 명시 수용하고
-      lockfile 검토 시 무시할 노이즈로 문서화. **(b) 를 고르려면 그 버전이 실제로 쓰는지
+      lockfile 검토 시 무시할 노이즈로 문서화. ~~**(b) 를 고르려면 그 버전이 실제로 쓰는지
       먼저 실증할 것** — 여기서는 "dependabot 쪽이 더 새 버전일 것" 이라고 추정만 했고
-      확인하지 않았다.
+      확인하지 않았다.~~
+
+> **(b) 의 전제가 실증됐다 (2026-09-10, `deps-audit-floor-refresh-2026-09` 작업 중).**
+> 그리고 위 "지금 당장의 위험은 낮다" 의 근거 두 개가 **둘 다 한 칸 좁았다.**
+>
+> **① 더 새 pnpm 이 실제로 쓴다** — 같은 매니페스트(이번 override 편집본)로 재해소했을 때:
+>
+> | pnpm | libc 필드 | `lockfileVersion` |
+> | --- | --- | --- |
+> | 10.23.0 (현재 핀) | 57 → **0** | `'9.0'` |
+> | 10.34.5 | 57 → **57** | `'9.0'` (동일) |
+>
+> 대조군(매니페스트 변경 0 + 10.23.0)은 lockfile diff **0줄** — 즉 10.23.0 은 **보존은 하되
+> 재해소한 엔트리에는 다시 쓰지 않는다**. macOS·Linux(`node:24` 컨테이너) 양쪽에서 동일해
+> 플랫폼 요인이 아니다. `lockfileVersion` 이 그대로라 10.34.5 산출물을 10.23.0 이
+> `--frozen-lockfile --strict-peer-dependencies` 로 받아들이고 재작성하지 않는 것도 확인했다.
+>
+> **② 영향은 `sharp` 하나가 아니다** — Alpine(musl) 컨테이너에서 프론트엔드 의존을 실제로
+> 설치해 센 결과, `libc` 가 없으면 **`@tailwindcss/oxide`·`@img/sharp`·
+> `@unrs/resolver-binding`·`lightningcss` 넷 모두** gnu+musl 두 변형이 함께 깔린다
+> (있으면 musl only). 위 문단은 "sharp 로더가 런타임에 다시 판별" 이라 적었지만, 나머지 셋은
+> sharp 의 로더를 지나지 않는다 — 낭비의 크기가 추정보다 넓다.
+>
+> **판정**: (b) 가 유력하지만 pnpm 핀 상향은 install 호출부 5곳 전부의 툴체인을 바꾸므로
+> **별도 PR 로 판단해야 한다**. `deps-audit-floor-refresh-2026-09` 는 그 사이 진동을
+> **main 쪽(= `libc` 있음)으로 맞추는** 선택을 했다 — lockfile 을 10.34.5 로 생성해
+> 57개를 보존했다. 그 PR 이 진동을 없애지는 않는다.
+- [ ] (b) 채택 시 동반: lockfile `libc:` 개수 회귀 가드. 이번엔 `/ai-review` 의
+      scope·dependency reviewer 가 잡았지만 **가드는 없다** — "버전 하향 0건" 류의
+      버전-비교 감사는 이 클래스를 원리적으로 못 본다.
+
+### 후속 — `check-pnpm-security-config.py` 에 전용 테스트가 없다 (2026-09-10 등재, P3)
+
+형제 스크립트 `check-override-floors.py` 는 값 약화·키 부재·비-dict 타입·YAML 파싱 실패 등
+실패 클래스를 고정한 테스트 스위트(`.claude/tests/test_override_floors.py`)를 갖는데,
+`EXPECTED_OVERRIDES` **baseline 을 들고 있는 쪽**에는 그런 스위트가 없다. `main()` 은
+`overrides` 가 dict 가 아닌 경우의 타입 검증 없이 바로 순회한다.
+
+이 저장소가 반복해 배운 것이 "가드가 자기 실패 클래스에 조용히 통과한다" 이므로, 2-place
+규약의 한쪽만 테스트가 있는 비대칭은 그 자체가 위험이다.
+
+- 출처: `deps-audit-floor-refresh-2026-09` 의 `/ai-review` INFO 6
+  (`review/code/2026/09/10/20_17_59/testing.md`).
+- [ ] `check-override-floors.py` 의 fail-closed 테스트 패턴을 옮겨 적용
 
 ### 후속 — GitHub Actions 서드파티 핀이 태그다 (2026-08-09 이관, P3)
 

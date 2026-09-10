@@ -1,5 +1,127 @@
 # Changelog
 
+## Unreleased — 주간 가드가 사흘 전에 이미 빨간불이었다 (audit 25건 → 0건)
+
+### 🔴 `deps-security-checks` 가 main 에서 실패 중이었는데 PR 은 초록으로 보였다
+
+open dependabot PR 7건(#1293~#1298, #1301)이 전부 `pnpm audit (moderate+)` 과
+`override 바닥 침식 검출` 두 잡에서 실패하고 있었다. **PR 들의 결함이 아니다** — main 자체가
+그 상태였다. 주간 스케줄 런이 **2026-09-07 에 같은 두 잡으로 이미 실패**했다(run
+`34122013987`, branch `main`).
+
+그런데 그 뒤 main 에 올라간 커밋들(#1304~#1308)은 전부 초록이었다. `deps-security-checks.yml`
+이 `_changed-paths.yml` 로 관련성을 판정해 **무관한 변경에서는 각 잡을 no-op 으로 통과**시키기
+때문이다(required check 데드락 회피 — 그 파일 헤더가 설명하는 의도된 설계). `spec/`·`plan/`·
+backend 테스트만 바뀐 커밋은 검사를 돌리지 않는다. 그래서 "main 은 초록, deps 를 건드리는 PR 만
+빨강" 이라는 그림이 나왔고, 원인이 PR 쪽에 있는 것처럼 보였다.
+
+실측 (수정 전, `origin/main` 5b458b1ec):
+
+```
+pnpm audit --audit-level=moderate  → exit 1
+25 vulnerabilities: 1 low | 10 moderate | 12 high | 2 critical
+```
+
+### 조치 — override 바닥 8건 상향 · 신설 1건 · 직접 의존 선언 4건 상향
+
+**바닥 침식**(이미 override 로 관리 선언한 패키지가 다시 취약해진 것 — 판단할 게 없고 값만
+올리면 된다):
+
+| 패키지 | 바닥 | → | 근거 |
+| --- | --- | --- | --- |
+| `fast-uri` | `^3.1.5` | `^3.1.6` | GHSA-jqff-g426-hqxp 외 3건 (high) |
+| `hono` | `^4.12.34` | `^4.13.5` | GHSA-crvj-82cr-hjcx 외 2건 |
+| `multer` | `^2.2.0` | `^2.3.0` | GHSA-535w-7cp7-47q4 외 2건 (high) |
+| `nodemailer` | `^9.0.1` | `^9.1.1` | GHSA-8m3c-c648-2xjj 외 3건 (high) |
+| `sharp` | `^0.35.0` | `^0.35.4` | GHSA-rgj7-g3m4-5g8c (high) |
+| `svgo` | `^4.0.2` | `^4.1.0` | GHSA-4vpr-x523-8j87 · GHSA-w27v-7q3p-w38r |
+| `js-yaml@>=4.0.0 <4.3.1` | `^4.3.1` | `^4.3.2` | GHSA-2883-xcg3-v3hh (high) |
+| `js-yaml@>=3.0.0 <3.15.1` | `^3.15.1` | `^3.15.2` | 〃 |
+
+`js-yaml` 두 건은 값만으로 끝나지 않았다 — **키의 상한도 함께** 올렸다
+(`<4.3.1`→`<4.3.2`, `<3.15.1`→`<3.15.2`). 값만 `^4.3.2` 로 올리고 키를 `<4.3.1` 로 두면
+취약한 4.3.1 은 키 범위 밖이라 override 가 적용되지 않는다 — 스코프 override 의 함정이고,
+이 저장소가 `#1038` 에서 한 칸 어긋난 상한으로 이미 한 번 겪은 형태다.
+
+**신설**: `qs: ^6.16.0` (GHSA-4mjr-xmp4-gh2g · GHSA-x5fp-wj9c-mxmx). 소비처는 셋이고
+그중 둘이 **프로덕션**이라 수용(`ignoreCves`) 대상이 아니다 — `express@5.2.1 > qs`,
+`express@5.2.1 > body-parser@2.3.0 > qs`(prod), `supertest > superagent@10.3.0 > qs`(dev).
+부모 선언 범위(`express` → `^6.14.0`, `body-parser` → `^6.15.2`, `superagent` → `^6.14.1`)를
+`^6.16.0` 이 전부 만족하므로 override 가 부모의 계약을 깨지 않는다.
+
+**직접 의존은 override 로 덮지 않고 선언을 올린다**(`pnpm-workspace.yaml` 주석 규약 — 덮으면
+매니페스트가 거짓말을 한다): `csv-parse ^7.0.1 → ^7.0.2`(GHSA-8cw4-87c7-c6xx) ·
+`nodemailer ^9.0.5 → ^9.1.1` · **`next` 코어** `^16.2.12 → ^16.3.3`(frontend·channel-web-chat
+**양쪽** — 같은 lockfile 엔트리를 공유하므로 한쪽만 올리면 재해소 때 되돌아온다.
+GHSA-p293-qw3h-jr36 · GHSA-2xp9-vwfh-vxw4, **critical** 2건).
+
+`next` 계열 중 **코어만** 올렸다. `@next/mdx`(`^16.2.12`)·`eslint-config-next`(`^16.3.2`)는
+해당 advisory 대상이 아니고 caret 이 최신을 해소하므로 선언은 그대로 두었다.
+
+`csv-parse` 는 dependabot #1301 과 같은 내용이다. 그 PR 을 먼저 머지할 수는 없었다 — 그쪽도
+나머지 24건 때문에 빨간불이라 순환이다.
+
+### 검증
+
+```
+pnpm audit --audit-level=moderate            → exit 0, No known vulnerabilities found
+python3 scripts/check-override-floors.py     → exit 0 (override 대상 30개 패키지, 재유입 0건)
+python3 scripts/check-pnpm-security-config.py → exit 0 (overrides 33건 값까지 baseline 일치)
+python3 scripts/check-unmet-peers.py         → exit 0 (미충족 peer 2건, 전부 기존 등재 수용 항목)
+pnpm install --frozen-lockfile --strict-peer-dependencies → exit 0
+```
+
+### 🔴 그 재해소가 조용히 `libc:` 메타데이터 57개를 지웠다 — Alpine 이미지가 네이티브 바이너리를 두 배로 받고 있었다
+
+override 를 바꾸면 pnpm 이 트리를 통째로 재해소한다. 그 과정에서 **버전이 전혀 바뀌지 않은**
+패키지들의 `libc:` 필드가 lockfile 에서 사라졌다 — 57개 전부. 처음 감사는 이것을 못 봤다.
+**"버전 하향 0건" 은 버전 번호만 비교하는 프록시였고, 이 종류의 변화는 그 프록시 밖에 있었다.**
+`/ai-review` 의 scope·dependency reviewer 가 이것을 잡았다.
+
+원인은 재해소 자체가 아니라 **이 저장소가 핀한 pnpm 버전**이다. `packageManager` 는
+`pnpm@10.23.0` 인데, 이 버전은 lockfile 에 이미 있는 `libc:` 를 **보존은 하지만 재해소한
+엔트리에는 다시 쓰지 않는다**:
+
+| 실험 | 매니페스트 변경 | pnpm | libc 필드 |
+| --- | --- | --- | --- |
+| 대조군 | 없음 | 10.23.0 | 57 → 57 (lockfile diff **0줄**) |
+| 이 PR 최초 | overrides 편집 | 10.23.0 | 57 → **0** |
+| 〃 (Linux 재현) | 〃 | 10.23.0 (`node:24` 컨테이너) | 57 → **0** — 플랫폼 문제가 아니다 |
+| 채택 | 〃 | 10.34.5 | 57 → **57** (`lockfileVersion` 그대로 `'9.0'`) |
+
+**기능 영향은 "낮음" 이 아니었다.** Alpine(musl) 컨테이너에서 프론트엔드 의존을 실제로 설치해
+어떤 네이티브 변형이 선택되는지 셌다:
+
+| | `@tailwindcss/oxide` | `@img/sharp` | `@unrs/resolver-binding` | `lightningcss` |
+| --- | --- | --- | --- | --- |
+| `libc:` 있음 (main·수정본) | musl only | musl only | musl only | musl only |
+| `libc:` 없음 (최초 상태) | **gnu + musl** | **gnu + musl** | **gnu + musl** | **gnu + musl** |
+
+즉 프로덕션 이미지(`node:24-alpine`)가 쓰지도 않는 glibc 바이너리까지 받는다. 동작은 했다
+(musl 변형이 함께 있으므로 — 실제로 `codebase/frontend/Dockerfile` 빌드가 통과했다) —
+**그래서 테스트로는 안 드러났고, 그것이 이 결함이 조용한 이유다.**
+
+조치: lockfile 을 pnpm 10.34.5 로 재생성해 `libc:` 57개를 복원했다. 핀된 10.23.0 이 그
+lockfile 을 `--frozen-lockfile --strict-peer-dependencies` 로 받아들이고 재작성하지 않는 것을
+확인했다(exit 0). 두 lockfile 의 차이는 `libc:` 57줄 + `caniuse-lite`·
+`baseline-browser-mapping`(해소 시각에 따라 최신을 따라가는 데이터 패키지) 두 건뿐이다.
+
+> **남은 것**: 핀이 10.23.0 인 한 다음 재해소가 같은 자리를 다시 지운다. 이번엔 리뷰어가
+> 잡았지만 가드는 없다. pnpm 핀 상향 + lockfile `libc:` 회귀 가드를
+> `plan/in-progress/deps-guard-hardening.md §5` 에 등재했다.
+
+### 곁가지 — 재해소가 함께 정리한 중복
+
+전수 대조 결과 **버전 하향은 0건**이다:
+
+- `@radix-ui/*` 11개(`react-arrow`·`react-dismissable-layer`·`react-focus-guards`·
+  `react-focus-scope`·`react-id`·`react-popper`·`react-portal`·`react-presence`·
+  `react-use-callback-ref`·`react-use-rect`·`rect`) 와 `postcss@8.5.25` 는 **이미 같은 트리에
+  있던 상위 버전으로 흡수**됐다(예: `react-arrow` 1.1.10+1.1.15 → 1.1.15).
+- `@radix-ui/react-use-escape-keydown@1.1.2` 는 **트리에서 완전히 사라진 유일한 항목**이다.
+  HEAD 에서 이 패키지의 소비자는 `react-dismissable-layer@1.1.13` **하나뿐**이었고(실측),
+  그 1.1.13 이 위 흡수로 1.1.19 에 밀려나면서 함께 빠졌다. 쓰이던 것이 빠진 게 아니다.
+
 ## Unreleased — 가장 넓은 fallback 이 가장 좁았다 (raw 23505 가 500 이었다) + 멤버 목록 투영
 
 ### 🔴 전역 예외 필터가 unique 위반의 절반만 보고 있었다
