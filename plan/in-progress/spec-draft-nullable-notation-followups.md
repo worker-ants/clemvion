@@ -2078,6 +2078,24 @@ field: T | null;
       처방: 도달 가능성을 실측(뮤테이션 또는 e2e)하고, 도달 불가면 **가드를 지우고 그 사실을 주석으로
       남기거나** 파이프 선언과 가드 중 하나를 SoT 로 정한다.
 
+      > **✅ 2026-09-11 실측 — 추측을 확정으로 바꾼다. 단 결론은 「도달 불가」가 아니다.**
+      >
+      > | 보낸 값 | 어디서 거부 | `details.field` |
+      > |---|---|---|
+      > | 비어있지 않은 문자열 | **전역 파이프가 먼저** | 중첩 `chatChannel.<field>` (배열) |
+      > | `null` · `''` | `@IsEmpty()` **통과** → **서비스 가드** | flat `<field>` (단일 object) |
+      >
+      > 즉 **세 분기는 dead code 가 아니다** — `null`/`''` 갈래에서 실제로 도달한다(그 갈래를
+      > 고정한 테스트가 `trigger-dto-validation.spec.ts` 의 *"값이 null/빈 문자열이면 DTO 를
+      > 통과한다"* 와 `triggers.service.spec.ts` 의 두 필드 × 두 값 4조합이다).
+      > **그래서 가드를 지우지 않았다.** 이 항목이 세운 *"도달 가능성이 높다(=파이프가 먼저
+      > 거부한다)"* 는 전제는 **비어있지 않은 값 갈래에만** 참이었다 — 한 갈래만 보고 전체를
+      > 판정하려던 것이 이 항목 자체의 결함이다.
+      >
+      > **남은 것**: 파이프 선언과 서비스 가드가 **서로 다른 `details.field` 형식**을 낸다는
+      > 사실 자체(위 표). 어느 쪽을 SoT 로 할지는 아직 결정하지 않았다 — 그 결정은 spec 표기
+      > 정정(위 `details.field` 항목)과 같은 planner 턴에서 함께 하는 것이 맞다.
+
 - [ ] **§5.4.1 표 2행(활성화 PATCH 가 `setupChannel` 재호출)이 구현과 어긋날 수 있다** (planner + 조사,
       2026-09-10 등재, `--spec` `20_13_39` `cross_spec` W2).
       그 행은 *"트리거 활성화(`PATCH {isActive:true}`) — `setupChannel()` 재호출, 기존 `botTokenRef`
@@ -2102,7 +2120,7 @@ field: T | null;
       **draft 이전부터 있던 갭**이고 telegram carve-out 이 새로 만든 것이 아니다 — §4.1 또는 CCH-SE-03
       근처에 *"server-issued 재발급은 전용 audit action 대상 제외"* caveat 한 줄이면 닫힌다.
 
-- [ ] **spec 7곳이 `SecretResolver.store()` 라 적는데 실제 호출은 전부 `rotate()` 다**
+- [ ] **spec 9곳이 `SecretResolver.store()` 라 적는데 실제 호출은 전부 `rotate()` 다**
       (planner, 2026-09-11 등재, `--impl-prep` `review/consistency/2026/09/10/22_45_26` +
       `--impl-done` `review/consistency/2026/09/10/23_54_09` `cross_spec` W2).
       **실측**: chat-channel 비밀 저장 호출 6개 지점이 **전수 `rotate()`** 이고 `secrets.store(` 는
@@ -2112,6 +2130,15 @@ field: T | null;
       라면 두 번째 호출부터 깨져야 한다. 대상: `15-chat-channel.md:200,201,373,390` ·
       `chat-channel-adapter.md:354,359` · `providers/telegram.md:58,219` · `providers/slack.md:278`.
       정답 표기 선례는 `data-flow/14-chat-channel.md` 의 *"secret store UPSERT"*.
+
+      > **개수 확정 (2026-09-11 실측).** 이 항목이 한때 제목에 *"7곳"*, 본문 표에 *"9곳"* 을
+      > 동시에 적어 어긋나 있었다(`--impl-done` `review/consistency/2026/09/11/01_10_44` INFO).
+      > 줄이 아니라 **출현 횟수**로 전수 세면 `spec/` 전체에 `(SecretResolver|secrets|this.secrets).store`
+      > 가 **10회 / 10줄**이고, 그중 **9곳이 chat-channel 경로**다:
+      > `15-chat-channel.md:200,201,373,390` · `chat-channel-adapter.md:354,359` ·
+      > `providers/telegram.md:58,219` · `providers/slack.md:278`.
+      > 나머지 1곳 `conventions/secret-store.md:301` 은 **notification signing 예시**다 —
+      > 그 경로가 `store()` 를 쓰는지는 **측정하지 않았다.** 정정 대상은 chat-channel 9곳뿐이다.
       **같은 턴에 병기할 것**: `15-chat-channel.md` frontmatter `code:` 가 이번 PR 의 배선 파일
       (`update-trigger.dto.ts` · `trigger-dto-validation.spec.ts` · `triggers.service.spec.ts` ·
       `trigger-workflow-ref.e2e-spec.ts`)을 아직 안 가리킨다 — 3라운드 연속 관측, 가드는 통과.
@@ -2149,13 +2176,23 @@ field: T | null;
       `allowEmpty` 옵션 (c) 그대로 두고 호출부 책임으로 문서화. **(a) 가 fail-closed 지만 정당한 빈
       값 사용처가 있는지 먼저 세야 한다.**
 
-- [ ] **생성/수정 검증 함수를 분리해야 한다 — 안 하면 D-1 구현이 생성 경로를 깬다** (developer,
+- [x] **생성/수정 검증 함수를 분리해야 한다 — 안 하면 D-1 구현이 생성 경로를 깬다** (developer,
       2026-09-10 등재, `--spec` `20_29_00` `cross_spec` INFO).
       `assertInboundSigningPlaintextByProvider` 는 `create()`(`:401`)와 `update()`(`:482`)가 **같은
       코드를 공유**한다. D-1("present 면 400")을 그 함수에 문자 그대로 넣으면 **slack/discord 의 생성
       (POST)에서도 존재를 막아 트리거 생성 자체가 깨진다** — 생성에서는 그 값이 여전히 필수다.
       처방: PATCH 전용 검증 경로를 갈라 D-1 을 거기에만 적용한다. **원 처방이 위험했던 것과 같은
       종류의 함정**이라 구현 착수 전 이 항목을 먼저 읽을 것.
+
+      > **✅ 2026-09-11 해소.** `assertChatChannelInputSafe` 를 `mode: 'create' | 'update'` 로
+      > 갈랐고, **오버로드 두 개**로 `mode` 와 DTO 타입을 컴파일 타임에 묶었다(문자열 판별자만
+      > 두면 짝이 깨져도 컴파일러가 못 잡는다 — `/ai-review`
+      > `review/code/2026/09/10/23_55_23` W4). PATCH 축은 신설 `assertPatchCarriesNoSecrets` 가
+      > 보고, **생성 전용 검증(`assertInboundSigningPlaintextByProvider`)은 좁은 타입을 그대로
+      > 둬서 "PATCH 에서 부르면 안 된다" 를 타입이 말하게** 했다.
+      > 회귀: *"slack/discord 의 plaintext 부재는 더 이상 400 이 아니다"* +
+      > *"CreateTriggerDto 는 여전히 botToken 을 요구한다"* 두 케이스가 양쪽을 고정한다.
+      > 구현 PR `plan/{in-progress → complete}/impl-chat-channel-patch-token.md`.
 
 - [ ] **docs 가드가 spec frontmatter 의 dangling `pending_plans` 를 안 잡는다** (harness, 2026-09-10
       등재, `--spec` `20_29_00` `plan_coherence` INFO).

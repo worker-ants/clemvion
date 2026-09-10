@@ -1,10 +1,9 @@
 ---
 title: chatChannel PATCH 가 비밀을 쓰지 못하게 한다 — 두 CRITICAL 구현 (D-1·D-2·D-3)
-status: in-progress
+status: applied
 owner: developer
 worktree: .claude/worktrees/impl-chat-channel-patch-token-a17c4e
-spec_impact:
-  - none
+spec_impact: none
 started: 2026-09-10
 ---
 
@@ -103,5 +102,44 @@ Telegram adapter 는 **매 `setupChannel` 마다 새 `issuedInboundSigning` 을 
 - [ ] 수렴 예외로 남긴 INFO 5건 (`update()` 길이 · 캐스팅 중복 · 메시지 중복 · fixture 중복 ·
       degraded 경계 테스트) — reviewer 자신이 *"이 PR 신규 아님/비긴급"* 분류, 전부 동작 결함
       아님. SKILL §수렴 예외 (a)(b)(c) 적용
-- [ ] `/consistency-check --impl-done spec/5-system`
+- [x] `/consistency-check --impl-done spec/5-system` — 4회 전부 **BLOCK: NO**
+      (`23_54_09` · `00_21_57` · `00_45_19` · `01_10_44`). 잔여 WARNING 은 전부 `spec/**` 라
+      developer 권한 밖이고 중앙 트래커에 등재됨 — checker 도 *"신규 등재 불요"* 로 확인
 - [x] R-CC-21 산문 폭 정정 — **planner PR #1313 으로 완료** (이 plan 이 발견 → 별 턴에서 처리)
+- [x] `CHANGELOG.md` — 루트 CHANGELOG 갱신. 선례 실측(코드 커밋 `08fbf133d`·`bfa124920`·
+      `f5d97aa39` 3건 다 갱신 / 내 spec-only PR `df1962e25`·`c0f2a885c` 는 안 함 — 일관됨)
+- [x] `plan/complete/` 이동
+
+## 리뷰 라운드 요약 — 발견의 성격이 단조 이동했다
+
+| 라운드 | 세션 | Critical | 성격 |
+|---|---|---|---|
+| 1R | `review/code/2026/09/10/23_21_57` | **1** | **동작** — `inboundSigningRef` 소실로 인입 서명 fail-open |
+| 2R | `review/code/2026/09/10/23_55_23` | 0 | **측정 범위 · 사용자 문서** |
+| 3R | `review/code/2026/09/11/00_21_55` | 0 | **문서**(slack/discord 가이드) |
+| 4R | `review/code/2026/09/11/00_45_18` (타겟 4명) | 0 | **주석 배치**(orphan JSDoc · JSDoc 유출) |
+| 5R | `review/code/2026/09/11/01_10_43` (타겟 2명) | 0 | **CHANGELOG** |
+
+수렴 판정은 개수가 아니라 이 성격 이동으로 했다. 각 라운드의 처분은 그 세션의 `RESOLUTION.md`.
+
+> **타겟 라운드는 push 게이트를 닫지 못한다 (2026-09-11 실측).** 4R·5R 을 reviewer 4명·2명으로
+> 좁혀 돌렸는데, `review_guard._summary_is_resolved()` 는 **forced 7명 커버리지**를 요구하므로
+> 그 세션들은 "resolved" 로 집계되지 않는다 — 게이트에 직접 물으니
+> *"15 codebase/ file(s) changed AFTER the most recent resolved review"* 였고, 그 기준 세션은
+> 마지막 **전수** 라운드(`23_55_23`)였다. 타겟 라운드는 **정보로는 유용하고 실제로 결함도
+> 잡았지만**(4R 이 orphan JSDoc·JSDoc 유출을, 5R 이 CHANGELOG 를 잡았다) 종결에는 쓸 수 없다.
+> 그래서 코드를 고정한 뒤 **전수 라운드를 한 번 더** 돌려 닫았다.
+>
+> 교훈: 타겟 재실행은 *"이 축만 다시 보고 싶다"* 에 쓰고, **종결은 반드시 전수**로 한다.
+
+## 이 턴에 다섯 번 같은 병을 앓았다 — 전부 "축은 대칭인데 한쪽만"
+
+| # | 어디 | 무엇을 놓쳤나 |
+|---|---|---|
+| 1 | D-3 캐너리 | `botTokenRef` 만 걸고 **자매 `inboundSigningRef`** 를 안 봤다 → **CRITICAL** |
+| 2 | 그 CRITICAL 의 첫 fix | 옛 ref 를 **이미 병합된** `saved` 에서 읽었다 (테스트 3건이 잡았다) |
+| 3 | `details.field` 실측 | **비어있지 않은 값** 갈래만 재고 전체로 일반화해 트래커에 확정 인계 |
+| 4 | 사용자 가이드 | telegram·triggers 만 고치고 **slack/discord** 를 빼먹었다 |
+| 5 | 같은 실측 반영 | Swagger·가이드 4곳은 고치고 **같은 파일 JSDoc 하나**를 놓쳤다 |
+
+부수로 **orphan JSDoc 이 네 번째**(메모리에 세 번 기록된 클래스), 개수 오기 1건(`9곳`↔`7곳`).

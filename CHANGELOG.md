@@ -1,5 +1,69 @@
 # Changelog
 
+## Unreleased — 카드 저장이 항상 400 이던 게 봇 토큰을 지키고 있었다 (chatChannel PATCH)
+
+두 결함이 같은 뿌리였다. `botToken` 이 PATCH·POST **공용 DTO 에서 필수**라:
+
+- `chatChannel` 이 실린 PATCH 가 R-CC-10 single-path 를 우회해 **24h grace 백업 · 전용 audit
+  action · `chatChannelRotatedAt` 갱신을 모두 건너뛴 채** secret store 를 덮어썼다.
+- 그 필드를 안 싣는 `ChatChannelCard` 의 편집-저장은 **세 provider 모두 항상 400** 이었다.
+
+### 필드만 막으면 더 나빠진다
+
+리뷰가 처음 제시한 처방은 *"PATCH 전용 DTO 에서 `botToken` 제외"* 였다. 그것만 하면
+`secrets.rotate(botTokenRef, ws, botToken ?? '')` 가 조건 없이 실행되고
+`SecretResolver.rotate` 에 **빈 값 가드가 없어** 저장된 토큰이 **빈 문자열로 지워진다**.
+이어지는 `setupChannel` 은 빈 토큰으로 401 을 받아 `chatChannelHealth=degraded` 로 조용히
+앉는다. **오늘 그 일이 안 일어나는 이유가 바로 그 400 버그였다.**
+
+그래서 필드 차단(D-1)과 **경로 차단(D-2)을 함께** 했다.
+
+### 쓰기 3개 중 2개만 막는다
+
+| 쓰기 | 자원 | PATCH |
+|---|---|---|
+| bot token rotate | 사용자가 body 로 보낸 값 | **건너뛴다** |
+| provider-issued signing (slack/discord) | 사용자가 body 로 보낸 값 | **건너뛴다** |
+| server-issued signing (telegram) | adapter 가 provider 와 합의해 발급 | **무조건 쓴다** |
+
+세 번째를 함께 막으면 **그 트리거의 인입 웹훅이 전부 401** 이 된다 — telegram adapter 가
+`setupChannel` 마다 새 `secret_token` 을 Telegram 에 등록하므로 저장을 건너뛰면 DB 는 옛 값이
+된다. 플래그를 `writeSecrets` 가 아니라 `storeUserSuppliedSecrets` 로 지어 게이팅 대상이
+*"사용자가 보낸"* 비밀임을 이름이 말하게 했다.
+
+### 리뷰가 그 비대칭에서 두 번째 결함을 찾았다
+
+`inboundSigningRef` 는 `botTokenRef` 와 달리 *"이번 호출에서 값을 새로 썼을 때만"* config 에
+실렸다. D-2 가 그 쓰기를 게이팅하자 **slack/discord PATCH 에서 조건이 구조적으로 항상 거짓**이
+되어 ref 가 사라졌고, `ChatChannelInboundAuthenticator` 는 세 provider 모두
+`if (!config.inboundSigningRef) return;` — **fail-open** 이다. 즉 카드 편집 한 번으로 인입
+웹훅이 **서명 없이 통과**하게 됐다. reviewer 셋이 독립 발견했고, 보존 항을 제거한 뮤턴트가
+캐너리를 RED 로 만드는 것까지 확인했다.
+
+무조건 싣지는 **않았다** — 이 ref 의 존재는 *"signing 비밀이 저장돼 있다"* 는 신호이기도 해서,
+행이 없는 legacy 트리거에 붙이면 fail-open 을 fail-closed 로 바꾸는 **별개의 동작 변경**이 된다.
+
+### wire 계약 — 의도된 breaking change 3축
+
+`PATCH /api/triggers/:id` 가 이제 다음 셋을 400 `VALIDATION_ERROR` 로 거부한다:
+
+| 사유 | `details.field` |
+|---|---|
+| 비밀 필드를 실었다 | 비어있지 않은 값 → `chatChannel.botToken` / `chatChannel.inboundSigningPlaintext` (전역 파이프, 배열). `null`·`''` → flat `botToken` / `inboundSigningPlaintext` (서비스 가드, 단일 object) |
+| `chatChannel` 이 없는 트리거에 처음 붙이려 했다 | `chatChannel` — 최초 설정은 생성 POST 한정 |
+| `provider` 를 바꾸려 했다 | `provider` — 다른 provider 의 토큰을 넘기게 된다 |
+
+유일하게 알려진 소비자(`ChatChannelCard`)는 세 필드 어느 것도 보내지 않아 **영향 없다** —
+오히려 이 PR 로 그 카드의 저장이 처음 동작하게 된다.
+
+세 번째는 종전에 `chatChannelHealth=degraded` 로 **조용히 200** 이던 자리다. 사용자에겐
+"저장됐다" 로 보이고 봇은 죽어 있었다.
+
+### spec 은 두 planner PR 로 먼저 고쳤다
+
+`#1311` 이 결정을 세우고, `#1313` 이 그 결정문이 telegram 에서 거짓이었던 것을 정정했다
+(§5.4.1.1 telegram 행 신설 · R-CC-21 두 축 한정 caveat).
+
 ## Unreleased — 주간 가드가 사흘 전에 이미 빨간불이었다 (audit 25건 → 0건)
 
 ### 🔴 `deps-security-checks` 가 main 에서 실패 중이었는데 PR 은 초록으로 보였다
