@@ -51,7 +51,7 @@ pending_plans:
 | ID | 요구사항 | 우선순위 |
 |----|---------|---------|
 | CCH-AD-01 | Webhook 트리거 `config.chatChannel` 의 `provider` 필드로 어댑터 선택. supported provider 는 [`providers/_overview.md §1`](../4-nodes/7-trigger/providers/_overview.md#1-supported-providers-v1) 단일 진실 (v1 supported: `telegram` / `slack` / `discord`) | 필수 |
-| CCH-AD-02 | Trigger enable / 신규 생성 시 어댑터의 `setupChannel()` 자동 호출 (텔레그램은 `setWebhook`) | 필수 |
+| CCH-AD-02 | Trigger enable / 신규 생성 **및 `chatChannel` 이 실린 일반 PATCH** 시 어댑터의 `setupChannel()` 자동 호출 (텔레그램은 `setWebhook`). 세 갈래 모두 [§5.4.1](#541-bot-token-변경-single-path-정책) 가 SoT — 멱등 재호출 전제는 §7 `R8` | 필수 |
 | CCH-AD-03 | Trigger disable / 삭제 시 어댑터의 `teardownChannel()` 자동 호출 | 필수 |
 | CCH-AD-04 | Webhook 진입점 ([`POST /api/hooks/:endpointPath`](./12-webhook.md#31-webhook-수신-엔드포인트)) 핸들러는 `config.chatChannel` 가 있으면 raw body 를 `parseUpdate(raw)` 로 통과시켜 워크플로우 input 으로 변환. [WH-NF-01](./12-webhook.md#비기능-요구사항) 의 200ms 응답 시한을 깨지 않도록 `parseUpdate` 50ms (CCH-NF-01) + 트리거 조회 + `202 Accepted` 반환의 순서로 처리 | 필수 |
 | CCH-AD-05 | EIA outbound notification 의 `execution.waiting_for_input` / `execution.ai_message` / `execution.completed` / `execution.failed` / `execution.cancelled` 이벤트를 어댑터(`ChatChannelDispatcher`)가 **실행 엔진 §4.4 의 단일 sink `WebsocketService.executionEvents$` 에 `onModuleInit` 직접 subscribe** → `renderNode(payload)` → `sendMessage()` 호출. 실행 엔진의 단일 sink 정책을 깨지 않음 (어댑터는 NotificationDispatcher·SseAdapter 와 동일 facade 계층의 형제 listener). [EIA §R10](./14-external-interaction-api.md#r10-websocketservice-단일-sink-정책의-확장) | 필수 |
@@ -371,27 +371,28 @@ Bot token 의 신규 등록·변경은 **single-path** 로 일원화된다:
 | 시점 | 메커니즘 | 비고 |
 |---|---|---|
 | 최초 트리거 생성 (`POST /api/triggers`) | `setupChannel()` 의 부수효과로 `botTokenRef` 신설. 입력 body 의 `config.chatChannel.botToken` plaintext 를 받아 `SecretResolver.store()` 로 저장 후 ref 로 교체 | 처음 한 번 |
-| 트리거 활성화 (`PATCH /api/triggers/:id` body `{ isActive: true }`) | `setupChannel()` 재호출 — 기존 `botTokenRef` 그대로 사용 | token 변경 없음 |
+| 트리거 활성화 (`PATCH /api/triggers/:id` body `{ isActive: true }`) | `setupChannel()` 재호출 — 기존 `botTokenRef` 그대로 사용. **(2026-09-10 — 이 재호출이 실제로 일어나는지 미확정.** `update()` 가 `if (chatChannel)` 로 게이트돼 있어 순수 `isActive` 토글이 이 행을 안 탈 수 있다 — 확인 중: `plan/in-progress/spec-draft-nullable-notation-followups.md` 의 「§5.4.1 표 2행이 구현과 어긋날 수 있다」 항목**)** | token 변경 없음 |
 | 토큰 변경 (rotation) | **항상 `POST /api/triggers/:id/chat-channel/rotate-bot-token` 만 사용**. PATCH body 에서 **ref 와 값 둘 다** 차단 — `config.chatChannel.botTokenRef`(ref) 는 400 `VALIDATION_ERROR` (`details.field='botTokenRef'`), **`config.chatChannel.botToken`(plaintext) 도 400** (`details.field` 는 **미확정 — 후속 e2e 확인 대기**, [R-CC-21](#r-cc-21-patch-는-비밀을-쓰지-않는다--차단이-필드명-층에만-걸려-있었다)) | 24h grace 적용 |
-| **`chatChannel` 이 실린 PATCH** (uiMapping · rateLimit 등 편집) | `setupChannel()` 재호출로 provider 등록만 갱신한다. **secret store 에 저장된 bot token 을 바꾸지 않는다** — 그 요청 전후로 값이 동일하다. `botTokenRef` 는 config 에서 보존되는 것이 아니라 trigger id 에서 **재유도**된다(`buildSecretRef`) | **token 변경 없음** |
+| **`chatChannel` 이 실린 PATCH** (uiMapping · rateLimit 등 편집) | `setupChannel()` 재호출로 provider 등록만 갱신한다. **secret store 에 저장된 bot token 을 바꾸지 않는다** — 그 요청 전후로 값이 동일하다. `botTokenRef` 는 config 에서 보존되는 것이 아니라 trigger id 에서 **재유도**된다(`buildSecretRef`). **이 행은 bot token 축만 말한다** — inbound signing 축은 provider 마다 다르고 그 SoT 는 [§5.4.1.1](#5411-inboundsigning-patch-정책--회전-주체별-분기) 이다 | **token 변경 없음** |
 
 PATCH 차단의 정당화: PATCH 로 직접 `botTokenRef` 교체 시 (a) 외부 provider (텔레그램) 측에 등록된 webhook 은 그대로라 즉시 수신 단절, (b) rotate API 의 24h grace 정책 일관성이 깨짐, (c) audit log 가 `trigger.updated` 와 `trigger.chat_channel_bot_token_rotated` 로 mixed. *(2026-08-11 정정 — 이 자리에 `chat-channel.rotate-bot-token` 이라 적혀 있었다. `<resource>.<verb>` 구조(resource dot-prefix 필수)·언더스코어 구분자·과거분사 시제를 동시에 어겼고, `chat-channel` 이라는 resource 는 감사 모델에 존재하지 않는다 — 세 회전 엔드포인트 모두 `/api/triggers/:id/…` 하위라 resource 는 `trigger` 다. [`conventions/audit-actions.md`](../conventions/audit-actions.md))* 따라서 single-path.
 
-**차단의 기준은 필드명이 아니라 「토큰 값이 바뀌는가」다.** 위 (a)(b)(c) 는 *값이 교체될 때* 생기는 피해를 말하는데, 종전 문면은 그 차단을 `botTokenRef` 라는 **필드명 하나**에만 걸어 두었다 — 정책이 **강제되는 층**(필드명)과 정책이 **보호하려는 대상**(값 교체)이 다른 층에 있었고, 값을 나르는 `botToken` 이 그 사이로 열려 있었다. 두 필드를 함께 막는 것은 규칙 확장이 아니라 **원래 의도의 복원**이다. 이 확장은 [§5.4.1.1](#5411-inboundsigning-patch-정책-slack--discord-한정--v1-차단) 의 botToken↔inboundSigning **자원-성격 대조를 바꾸지 않는다** — 그 대조축(외부 provider 등록 여부)과 이 축(필드명 vs 값)은 직교한다.
+**차단의 기준은 필드명이 아니라 「토큰 값이 바뀌는가」다** — 더 정확히는 **「PATCH 요청자가 자신의 비밀로 갈아끼우는가」**다. provider 가 등록 행위의 일부로 강제하는 재발급(telegram `secret_token`)은 이 물음의 대상이 아니다. 상세 [§5.4.1.1](#5411-inboundsigning-patch-정책--회전-주체별-분기) · [R-CC-21](#r-cc-21-patch-는-비밀을-쓰지-않는다--차단이-필드명-층에만-걸려-있었다). 위 (a)(b)(c) 는 *값이 교체될 때* 생기는 피해를 말하는데, 종전 문면은 그 차단을 `botTokenRef` 라는 **필드명 하나**에만 걸어 두었다 — 정책이 **강제되는 층**(필드명)과 정책이 **보호하려는 대상**(값 교체)이 다른 층에 있었고, 값을 나르는 `botToken` 이 그 사이로 열려 있었다. 두 필드를 함께 막는 것은 규칙 확장이 아니라 **원래 의도의 복원**이다. 이 확장은 [§5.4.1.1](#5411-inboundsigning-patch-정책--회전-주체별-분기) 의 botToken↔inboundSigning **자원-성격 대조를 바꾸지 않는다** — 그 대조축(외부 provider 등록 여부)과 이 축(필드명 vs 값)은 직교한다. **직교 축이 하나 더 있다 — 「회전 주체가 누구인가」.** botToken 은 우리가 등록한 값을 provider 가 *보관*하고, telegram 의 inbound signing 은 provider 가 *매 등록마다 교체를 요구*한다. **이 축은 컨벤션 문서가 이미 쓰는 `server-issued`(telegram) ↔ `provider-issued`(slack/discord) 구분과 같은 축이다** ([`secret-store.md §5.5`](../conventions/secret-store.md) · [`chat-channel-adapter.md §2.4`](../conventions/chat-channel-adapter.md#24-setupresult--sendresult)) — 새 어휘를 만든 것이 아니라 그 구분이 PATCH 정책에도 걸린다는 것을 적는 것이다. 그 축에서 telegram signing 만 「우리가 아님」 이고, 그래서 §5.4.1.1 이 telegram 을 따로 가른다.
 
 [`spec/2-navigation/2-trigger-list.md §3`](../2-navigation/2-trigger-list.md#3-api) 의 PATCH 설명에는 "`config.chatChannel.botTokenRef`·`botToken` 은 PATCH 로 변경 불가 — rotate API 사용" cross-link 가 추가된다.
 
-#### 5.4.1.1 `inboundSigning` PATCH 정책 (slack / discord 한정 — v1 차단)
+#### 5.4.1.1 `inboundSigning` PATCH 정책 — 회전 주체별 분기
 
 `inboundSigning` 자원 (slack signing secret / discord ed25519 public key — provider-issued, server-stored) 의 변경 정책은 다음과 같다:
 
 | 시점 | 메커니즘 | 비고 |
 |---|---|---|
 | 최초 트리거 생성 (`POST /api/triggers`) | 입력 body 의 `chatChannel.inboundSigningPlaintext` plaintext → `SecretResolver.store(inboundSigningRef, plaintext)` 후 strip. config 에는 `inboundSigningRef` 만 보관 (SS-SE-01) | 처음 한 번 |
-| 트리거 활성화 (`PATCH /api/triggers/:id` body `{ isActive: true }`) | 기존 `inboundSigningRef` 그대로 사용 | 변경 없음 |
+| 트리거 활성화 (`PATCH /api/triggers/:id` body `{ isActive: true }`) | 기존 `inboundSigningRef` 그대로 사용 **(slack/discord). telegram 은 아래 행 참조.** **(2026-09-10 — §5.4.1 표 2행과 같은 미확정: 이 재호출이 실제로 일어나는지 확인 중)** | 변경 없음 |
 | **회전 (rotation)** | **v1 미정의 — PATCH body 에서 `config.chatChannel.inboundSigningPlaintext` / `inboundSigning` 은 400 `VALIDATION_ERROR` 로 차단한다.** slack/discord 도 예외가 아니다 — 생성(POST)에서만 `inboundSigningPlaintext` 를 받고, **PATCH 에서는 그 필드가 있으면 거부**한다. `chatChannel` 이 실린 PATCH 는 저장된 signing 값을 **바꾸지 않는다**(요청 전후 동일). rotation 이 필요하면 트리거 삭제·재생성 (`details.field` 는 **미확정 — 후속 e2e 확인 대기**) | v2 후속 결정 — 별 spec |
+| **telegram — server-issued (본 절의 v1 차단 대상 아님)** | `setupChannel()` 이 호출될 때마다 `randomBytes` 로 **새 값을 발급해 Telegram `setWebhook` 의 `secret_token` 으로 등록**하고, caller 가 그것을 `inboundSigningRef` 에 **재저장한다**. 따라서 `chatChannel` 이 실린 PATCH 는 telegram 의 signing 값을 **바꾼다** — 이는 우회가 아니라 provider 등록과 한 동작이며, **저장을 건너뛰면 오히려 인입 서명 검증이 전부 깨진다**(`X-Telegram-Bot-Api-Secret-Token` 불일치 → 401). SoT: [`providers/telegram.md §3.1`](../4-nodes/7-trigger/providers/telegram.md#31-setupchannel-구체) | **v1/v2 결정 대상 아님** — 아래 v2 후보(A/B/C)는 slack/discord 축 전용 |
 
-> **(2026-09-10 정합화)** 위 행은 처음부터 v1 차단을 선언하고 있었으나 **구현이 정반대였다** — `assertInboundSigningPlaintextByProvider` 가 slack/discord 에서 `inboundSigningPlaintext` **부재를** 400 으로 막고, 값이 있으면 통과시켜 `setupChatChannel` 이 그 값으로 `inboundSigningRef` 를 회전시켰다. 즉 **매 chatChannel PATCH 마다 이 절이 금지한 회전이 강제**되고 있었다. 문면을 바꾼 것이 아니라 그 규칙이 PATCH 전 구간에 걸린다는 것을 명시했다 — 상세는 [R-CC-21](#r-cc-21-patch-는-비밀을-쓰지-않는다--차단이-필드명-층에만-걸려-있었다). **v2 회전 후보 결정(아래 불릿)은 손대지 않는다.**
+> **(2026-09-10 정합화 — slack/discord 축)** 아래 서술의 주어는 **slack/discord** 다. telegram 의 server-issued 축은 위 telegram 행이 SoT 다. 회전 행은 처음부터 v1 차단을 선언하고 있었으나 **구현이 정반대였다** — `assertInboundSigningPlaintextByProvider` 가 slack/discord 에서 `inboundSigningPlaintext` **부재를** 400 으로 막고, 값이 있으면 통과시켜 `setupChatChannel` 이 그 값으로 `inboundSigningRef` 를 회전시켰다. 즉 **매 chatChannel PATCH 마다 이 절이 금지한 회전이 강제**되고 있었다. 문면을 바꾼 것이 아니라 그 규칙이 PATCH 전 구간에 걸린다는 것을 명시했다 — 상세는 [R-CC-21](#r-cc-21-patch-는-비밀을-쓰지-않는다--차단이-필드명-층에만-걸려-있었다). **v2 회전 후보 결정(아래 불릿)은 손대지 않는다.**
 
 v1 차단의 정당화 — R-CC-10 (`botToken` single-path) 와 자원 성격이 달라 같은 single-path 패턴을 자동 적용하지 않는다:
 
@@ -399,7 +400,7 @@ v1 차단의 정당화 — R-CC-10 (`botToken` single-path) 와 자원 성격이
 - `inboundSigning` (slack signing secret / discord public key) 은 외부 provider 가 발급하지만 우리 측에 저장만 됨 — 외부 provider 자체가 회전 API 를 제공하지 않거나 (Slack signing secret 은 manual 재발급 후 사용자가 재입력), 회전이 사용자 워크플로우 외부에서 일어남.
 - v1 단계는 회전 빈도가 낮을 것으로 가정 — rotation API 신설 비용 (24h grace + revoke + audit) 대비 사용 빈도 검증 후 v2 결정. 그 사이 보수적 차단으로 정책 모호성 회피.
 
-v2 시점의 결정 후보:
+v2 시점의 결정 후보 — **주어는 slack/discord 의 provider-issued signing 이다.** telegram 의 server-issued 축은 이 결정에 포함되지 않는다([R-CC-21 재검토 신호](#r-cc-21-patch-는-비밀을-쓰지-않는다--차단이-필드명-층에만-걸려-있었다)):
 - (A) `botToken` single-path 패턴 그대로 차용 — `POST /api/triggers/:id/chat-channel/rotate-inbound-signing` 신설.
 - (B) PATCH body 허용 (grace 없음, 즉시 교체) — 외부 provider 가 grace 를 제공하지 않으므로 우리 측 grace 도 무의미.
 - (C) 트리거 삭제·재생성 강제 (v1 동일) — UX 부담 있으나 단순.
@@ -611,7 +612,7 @@ Fan-out facade 는 코드 구조상 이미 분리되어 있고, 본 결정은 **
 
 ### R-CC-10. Bot Token 변경 single-path (rotate API only)
 
-single-path 채택: 토큰 변경은 항상 `POST /api/triggers/:id/chat-channel/rotate-bot-token` 이며 PATCH body 의 `botTokenRef` 변경은 차단한다. *(2026-09-10 확장 — 차단 대상이 `botTokenRef` 뿐 아니라 값 필드 `botToken` 까지 포함하고, `chatChannel` 이 실린 PATCH 는 저장된 비밀을 아예 쓰지 않는다. 상세: [R-CC-21](#r-cc-21-patch-는-비밀을-쓰지-않는다--차단이-필드명-층에만-걸려-있었다).)* PATCH + rotate 양쪽 허용은 [`spec/2-navigation/2-trigger-list.md` Rationale R-2](../2-navigation/2-trigger-list.md#r-2-webhook-hmac-secret-입력-vs-rotate-분리-폐기--r-14-로-대체) 의 hmacSecret 패턴과 정렬되나 자원 성격이 다르다 — (**R-2 의 설계 자체는 이후 R-14 로 폐기됐다** — `config.hmacSecret` inline 입력과 `auth/rotate-secret` 예약 행 모두 사라졌다. 여기서 인용하는 것은 그 API 형태가 아니라 *"우리가 보유한 server-side secret"* 이라는 **자원 성격**이며, 그 대조는 폐기와 무관하게 성립한다.) hmacSecret 는 우리가 보유한 server-side HMAC signing secret 으로 PATCH 직접 교체 시 외부 수신자 (cafe24 등) 가 새 키를 동기화하기 전에 검증 실패 ↔ botToken 은 외부 provider (텔레그램) 측에 등록된 토큰으로 PATCH 직접 교체는 우리 DB 만 갱신하고 텔레그램 측은 그대로라 수신이 즉시 깨지며, 두 경로 공존 시 grace 24h 정책 일관성이 깨지고 audit log 가 mixing 된다. PATCH 만 허용하면 rotate API 의 24h grace 기능 (CCH-SE-04) 이 제공하는 무중단 회전을 잃는다.
+single-path 채택: 토큰 변경은 항상 `POST /api/triggers/:id/chat-channel/rotate-bot-token` 이며 PATCH body 의 `botTokenRef` 변경은 차단한다. *(2026-09-10 확장 — 차단 대상이 `botTokenRef` 뿐 아니라 값 필드 `botToken` 까지 포함하고, `chatChannel` 이 실린 PATCH 는 **저장된 bot token 값을 쓰지 않는다**. **telegram 의 server-issued inbound signing 은 이 문장의 대상이 아니다** — `setupChannel()` 재호출마다 재발급·재저장된다([§5.4.1.1](#5411-inboundsigning-patch-정책--회전-주체별-분기)). 상세: [R-CC-21](#r-cc-21-patch-는-비밀을-쓰지-않는다--차단이-필드명-층에만-걸려-있었다).)* PATCH + rotate 양쪽 허용은 [`spec/2-navigation/2-trigger-list.md` Rationale R-2](../2-navigation/2-trigger-list.md#r-2-webhook-hmac-secret-입력-vs-rotate-분리-폐기--r-14-로-대체) 의 hmacSecret 패턴과 정렬되나 자원 성격이 다르다 — (**R-2 의 설계 자체는 이후 R-14 로 폐기됐다** — `config.hmacSecret` inline 입력과 `auth/rotate-secret` 예약 행 모두 사라졌다. 여기서 인용하는 것은 그 API 형태가 아니라 *"우리가 보유한 server-side secret"* 이라는 **자원 성격**이며, 그 대조는 폐기와 무관하게 성립한다.) hmacSecret 는 우리가 보유한 server-side HMAC signing secret 으로 PATCH 직접 교체 시 외부 수신자 (cafe24 등) 가 새 키를 동기화하기 전에 검증 실패 ↔ botToken 은 외부 provider (텔레그램) 측에 등록된 토큰으로 PATCH 직접 교체는 우리 DB 만 갱신하고 텔레그램 측은 그대로라 수신이 즉시 깨지며, 두 경로 공존 시 grace 24h 정책 일관성이 깨지고 audit log 가 mixing 된다. PATCH 만 허용하면 rotate API 의 24h grace 기능 (CCH-SE-04) 이 제공하는 무중단 회전을 잃는다.
 
 근거: R-2 와 다른 결론을 내리는 정당화는 **자원의 위치 (server-side 보유 vs external provider 측 등록)** 차이. single-path 는 grace 정책 일관성·audit log 단일성·UX 명확성 모두 확보.
 
@@ -737,6 +738,13 @@ AI Agent handler 가 빈 string ai_message 를 emit 하지 못하게 차단하�
 결정했다. **그 결정은 유효하고 이 항목이 번복하지 않는다.** 여기 적는 것은 **그 결정이 어떻게
 우회됐는지**와, 그 우회를 고치는 처방에 숨어 있던 함정이다.
 
+> **⚠️ 이 항목의 「비밀」은 두 축 한정이다 (2026-09-10 정정).** (1) `botToken`(rotate 대상) ·
+> (2) slack/discord 의 `inboundSigningPlaintext`(사용자 입력). **telegram 의 server-issued
+> `issuedInboundSigning` 은 대상이 아니다** — `setupChannel()` 이 Telegram 에 새 `secret_token` 을
+> 등록하므로 재저장은 필수이고, 건너뛰면 그 트리거의 인입이 전부 401 이 된다. 제목이 여전히
+> *"비밀을 쓰지 않는다"* 인 것은 **인입 앵커를 깨지 않기 위해서**이지 범위가 넓어서가 아니다.
+> 상세 [§5.4.1.1](#5411-inboundsigning-patch-정책--회전-주체별-분기) · 아래 「기각한 대안」.
+
 #### 우회의 형태 — 강제되는 층과 보호 대상이 갈렸다
 
 §5.4.1 의 차단은 `botTokenRef` 라는 **필드명**에 걸려 있었다. 그런데 정책이 보호하려는 것은 **토큰 값이
@@ -744,10 +752,11 @@ AI Agent handler 가 빈 string ai_message 를 emit 하지 못하게 차단하�
 `chatChannel` 이 실린 PATCH 는 그 값으로 secret store 를 덮어썼다 — rotate 엔드포인트가 제공하는
 24h grace 백업 · 전용 audit action · `chatChannelRotatedAt` 갱신을 **모두 건너뛴 채로**.
 
-같은 형태가 [§5.4.1.1](#5411-inboundsigning-patch-정책-slack--discord-한정--v1-차단) 에도 있었다.
+같은 형태가 [§5.4.1.1](#5411-inboundsigning-patch-정책--회전-주체별-분기) 에도 있었다.
 그 절은 v1 회전 차단을 선언했지만 구현은 slack/discord 에서 `inboundSigningPlaintext` **부재를** 400 으로
 막았다 — 즉 **매 PATCH 마다 금지된 회전을 강제**했다. 그래서 이 결정은 두 필드를 함께 다룬다:
-**PATCH 는 어떤 비밀도 받지 않고, 어떤 비밀도 쓰지 않는다.**
+**PATCH 는 `botToken` 도 slack/discord 의 `inboundSigningPlaintext` 도 받지 않고, 그 두 비밀을
+쓰지도 않는다.** (telegram 의 server-issued 축은 위 caveat 대로 대상이 아니다.)
 
 #### 처방의 함정 — 필드만 빼면 **비밀이 파괴된다**
 
@@ -758,7 +767,7 @@ AI Agent handler 가 빈 string ai_message 를 emit 하지 못하게 차단하�
 
 **오늘 그 일이 안 일어나는 이유가 버그다** — `botToken` 이 필수라 요청이 서비스에 닿기 전에 400 이 난다.
 *"`ChatChannelCard` 저장이 항상 400"* 이라는 결함이 **토큰을 지키고 있었다.** 그래서 D-1(필드를 받지
-않는다)과 **D-2(경로가 비밀을 쓰지 않는다)를 함께** 결정한다 — 전자만으로는 실패가 보이는 형태에서
+않는다)과 **D-2(경로가 그 두 비밀을 쓰지 않는다)를 함께** 결정한다 — 전자만으로는 실패가 보이는 형태에서
 조용한 형태로 바뀔 뿐이다.
 
 > **구현 시**: 검증 함수가 생성·수정 경로에 공유돼 있다. 차단을 그 공유 함수에 넣으면 **slack/discord
@@ -771,8 +780,28 @@ AI Agent handler 가 빈 string ai_message 를 emit 하지 못하게 차단하�
 - **`SecretResolver.rotate` 에 빈 값 가드를 넣어 이 경로만 막기** — 증상을 가리고 원인(PATCH 가 비밀
   쓰기 경로를 탄다)을 남긴다. 그 가드 자체는 **다른 호출부를 위해 별도로** 검토한다.
 
+**telegram carve-out 을 정하며 함께 기각한 것** (2026-09-10 — `--spec` 검토
+  `review/consistency/2026/09/10/22_04_23` · `review/consistency/2026/09/10/22_14_27`):
+
+- **telegram 도 `rotate-inbound-signing` 전용 API 로 분리** — 회전 주체가 우리가 아니라 **Telegram
+  등록 행위**다. `setWebhook` 을 부르는 순간 새 `secret_token` 이 등록되므로 별도 엔드포인트를 만들어도
+  `setupChannel` 재호출 경로가 그대로 남는다 — 원인이 아니라 증상에 API 를 붙이는 것.
+- **adapter 가 기존 서명을 재사용하게 바꿔 "값 불변" 을 참으로 만든다** — §5.4.1.1 의 **slack/discord
+  전용** v2 유예 패턴을 telegram 에 **유추 적용**하는 것이라 사전 집행이 된다. 게다가
+  [`providers/telegram.md §3.1`](../4-nodes/7-trigger/providers/telegram.md#31-setupchannel-구체) ·
+  [`conventions/chat-channel-adapter.md §2.3`](../conventions/chat-channel-adapter.md#23-chatchannelconfig)
+  두 정본을 동시에 뒤집는다.
+- **`chatChannel` 이 실린 PATCH 에서 `setupChannel` 을 아예 안 부른다** — §5.4.1 표가 *"재호출로
+  provider 등록만 갱신"* 을 명시하고 `CCH-AD-02` 멱등성이 그 전제다. **endpointPath 변경 PATCH 의
+  webhook 재등록 경로를 끊는다.**
+
 #### 재검토 신호
 
-`inboundSigning` 회전이 v2 에서 정의되면 §5.4.1.1 의 v1 차단이 풀린다. 그때 이 항목의 *"어떤 비밀도
-쓰지 않는다"* 는 **bot token 축에는 그대로 유효**하고 signing 축만 그 결정으로 대체된다 — 두 축을 한
-문장으로 묶어 함께 푸는 실수를 하지 말 것.
+`inboundSigning` 회전이 v2 에서 정의되면 §5.4.1.1 의 v1 차단이 풀린다. **축은 둘이 아니라 셋이다**
+— 한 문장으로 묶어 함께 푸는 실수를 하지 말 것:
+
+| 축 | v2 결정이 닿는가 |
+|---|---|
+| **bot token** | **아니다** — R-CC-10 single-path 가 그대로 유효 |
+| **slack/discord `inboundSigningPlaintext`** | **그렇다** — §5.4.1.1 의 v2 후보(A/B/C)가 이 축 전용 |
+| **telegram server-issued `issuedInboundSigning`** | **아니다** — 회전 주체가 Telegram 등록 행위라 우리 정책의 대상이 아니다. v2 가 이 축을 휩쓸면 인입 서명 검증이 깨진다 |

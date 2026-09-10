@@ -1,0 +1,13 @@
+{
+  "timestamp": "2026-09-10T22:24:30.381065",
+  "mode": "spec draft 검토 (--spec)",
+  "target_path": "plan/in-progress/spec-draft-telegram-signing-carveout.md",
+  "checkers": [
+    "cross_spec",
+    "rationale_continuity",
+    "convention_compliance",
+    "plan_coherence",
+    "naming_collision"
+  ],
+  "target_snapshot": "_target/spec-draft-telegram-signing-carveout.md"
+}
