@@ -102,13 +102,14 @@ main 이 초록이 된 뒤 각 PR 을 rebase 한다 (`@dependabot rebase`). 대�
 
 ## 체크리스트
 
-- [ ] `pnpm-workspace.yaml` overrides 갱신 (바닥 8건 + `qs` 신설)
-- [ ] `scripts/check-pnpm-security-config.py` `EXPECTED_OVERRIDES` 동반 갱신
-- [ ] 직접 의존 선언 4건 상향 (`next` ×2 · `nodemailer` · `csv-parse`)
-- [ ] `pnpm-lock.yaml` 재생성 + `--frozen-lockfile --strict-peer-dependencies` 통과
-- [ ] `pnpm audit --audit-level=moderate` exit 0
-- [ ] `python3 scripts/check-override-floors.py` exit 0
-- [ ] `python3 scripts/check-pnpm-security-config.py` exit 0
+- [x] `pnpm-workspace.yaml` overrides 갱신 (바닥 8건 + `qs` 신설)
+- [x] `scripts/check-pnpm-security-config.py` `EXPECTED_OVERRIDES` 동반 갱신
+- [x] 직접 의존 선언 4건 상향 (`next` ×2 · `nodemailer` · `csv-parse`)
+- [x] `pnpm-lock.yaml` 재생성 + `--frozen-lockfile --strict-peer-dependencies` 통과
+- [x] `pnpm audit --audit-level=moderate` exit 0
+- [x] `python3 scripts/check-override-floors.py` exit 0
+- [x] `python3 scripts/check-pnpm-security-config.py` exit 0
+- [x] `python3 scripts/check-unmet-peers.py` exit 0 — 미충족 peer 2건, 전부 기존 등재 수용 항목(신규 0건)
 - [ ] TEST WORKFLOW — lint
 - [ ] TEST WORKFLOW — unit
 - [ ] TEST WORKFLOW — build

@@ -40,8 +40,8 @@ overrides:
   ip-address: ^10.2.0
   express-rate-limit: ^8.5.1
   protobufjs: ^7.6.5
-  fast-uri: ^3.1.5
-  hono: ^4.12.34
+  fast-uri: ^3.1.6
+  hono: ^4.13.5
   # socket.io@4.8.3 이 `socket.io-parser: ~4.2.4` 를 요구한다 — 이 저장소의 다른 override 와
   # 달리 `^` 가 아니라 `~` 인 이유다. `^4.2.7` 로 두면 4.3.x 가 나왔을 때 override 가 부모의
   # 범위 계약을 깨고 강제 해소한다. GHSA-2m8v-j782-fhvr(high) 은 4.2.7 에서 패치됐다.
@@ -49,9 +49,9 @@ overrides:
   uuid: ^13.0.2
   ws: ^8.21.0
   "@grpc/grpc-js": ^1.14.4
-  multer: ^2.2.0
+  multer: ^2.3.0
   form-data: ^4.0.6
-  nodemailer: ^9.0.1
+  nodemailer: ^9.1.1
   next>postcss: ^8.5.18
   # GHSA-2v37-7h3g-55p8 (high). frontend 이 postcss 를 **직접** 의존하는데 그 경로가
   # lockfile 에서 낮은 nanoid 로 고정돼 있었다 — 같은 트리의 `next>postcss` 경로는 이미
@@ -82,11 +82,23 @@ overrides:
   "@babel/core": ^7.29.7
   "@hono/node-server": ^2.0.5
   linkify-it: ^5.0.2
-  svgo: ^4.0.2
-  sharp: ^0.35.0
+  # GHSA-4mjr-xmp4-gh2g · GHSA-x5fp-wj9c-mxmx (moderate) — `qs` 6.15.2 가 두 경로로
+  # 해소되고 있었다. 한쪽은 **프로덕션**이라 수용(`auditConfig.ignoreCves`) 대상이 아니다:
+  #   codebase/backend > express@5.2.1 > qs        (prod)
+  #   codebase/backend > supertest > superagent > qs (dev)
+  # 부모 선언 범위가 각각 `^6.14.0` · `^6.14.1` 이라 `^6.16.0` 은 그 계약 안에 들어온다
+  # (실측: `npm view express@5.2.1 dependencies.qs` · `npm view superagent@10.3.0 dependencies.qs`).
+  # 즉 override 가 부모의 범위를 깨고 강제 해소하는 형태가 아니다.
+  qs: ^6.16.0
+  svgo: ^4.1.0
+  sharp: ^0.35.4
   "@opentelemetry/propagator-jaeger": ^2.9.0
-  "js-yaml@>=4.0.0 <4.3.1": ^4.3.1
-  "js-yaml@>=3.0.0 <3.15.1": ^3.15.1
+  # advisory 범위가 넓어질 때는 **값뿐 아니라 키의 상한도** 함께 올린다 —
+  # `js-yaml@>=4.0.0 <4.3.1` 로 두고 값만 `^4.3.2` 로 올리면 4.3.1 은 키 범위 밖이라
+  # override 가 적용되지 않고, 취약한 4.3.1 이 그대로 해소된다(스코프 override 의 함정).
+  # GHSA-2883-xcg3-v3hh (high) — 두 메이저 계열이 각각 3.15.2 · 4.3.2 에서 패치됐다.
+  "js-yaml@>=4.0.0 <4.3.2": ^4.3.2
+  "js-yaml@>=3.0.0 <3.15.2": ^3.15.2
   "brace-expansion@<2.0.0": ^1.1.16
   "brace-expansion@>=2.0.0 <3.0.0": ^5.0.9
   "brace-expansion@>=3.0.0 <5.0.8": ^5.0.8
