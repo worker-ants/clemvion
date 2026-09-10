@@ -189,7 +189,9 @@ export class ChatChannelConfigDto {
   /**
    * 외부 입력 금지 — [Spec Chat Channel §5.4.1 single-path](../../../../../../spec/5-system/15-chat-channel.md#541-bot-token-변경-single-path-정책).
    * 토큰 변경은 항상 `POST /api/triggers/:id/chat-channel/rotate-bot-token` 로만 가능.
-   * PATCH body 또는 POST body 에 본 필드가 포함되면 400 VALIDATION_ERROR (details.field='botTokenRef').
+   * PATCH body 또는 POST body 에 본 필드가 포함되면 400 VALIDATION_ERROR
+   * (`details.field='chatChannel.botTokenRef'` — 비어있지 않은 값일 때. `null`/`''` 는
+   * `@IsEmpty()` 를 통과해 서비스 층에서 flat `'botTokenRef'` 로 거부된다).
    * 응답에는 strip — 사용자에게 노출되지 않고 `hasBotToken: boolean` derived 필드로만 존재 여부 알림.
    */
   @ApiPropertyOptional({
@@ -354,21 +356,25 @@ export class ChatChannelConfigDto {
  * | `botToken` | **필수** (`@IsString`) | **금지** (`@IsEmpty`) — 변경은 rotate 엔드포인트 |
  * | `inboundSigningPlaintext` | slack/discord **필수** (service 분기) | **금지** — 회전은 v1 미정의 |
  *
- * **왜 `OmitType` 인가**: 상속만 하면 부모의 `@IsString()`(botToken 필수)이 그대로 따라와
- * `@IsEmpty()` 와 충돌한다 — 값을 안 보내면 `@IsString()` 이, 보내면 `@IsEmpty()` 가 터져
- * **어느 쪽으로도 통과할 수 없는 DTO** 가 된다. `OmitType` 은 그 두 필드의 상속 메타데이터를
- * 떼어낸 뒤 새로 선언하게 해 준다.
- *
- * **왜 optional 로 두고 무시하지 않는가**: 사용자가 설정했다고 믿은 비밀을 말없이 버리게 된다 —
- * R-CC-21 「기각한 대안」이 명시적으로 기각한 설계다. 거부가 아니라 침묵은 이 자원에 맞지 않는다.
- *
- * **왜 `Patch` 가 아니라 `Update` 인가**: 이 저장소에 `Patch` 접두 클래스는 0건이고 관례가
- * `Create`/`Update` 축이다 (`UpdateTriggerDto` · `NotificationConfigDto`).
- *
  * @see spec/5-system/15-chat-channel.md §5.4.1 (bot token single-path)
  * @see spec/5-system/15-chat-channel.md §5.4.1.1 (inboundSigning — 회전 주체별 분기)
  * @see spec/5-system/15-chat-channel.md R-CC-21 (PATCH 는 비밀을 쓰지 않는다)
  */
+// 아래 세 단락은 **내부 서사**라 JSDoc 이 아니라 `//` 에 둔다 — 플러그인이
+// `introspectComments` 로 JSDoc 을 공개 OpenAPI `description` 에 그대로 싣는다
+// (`spec/conventions/swagger.md:315`, 2026-09-05 규약화. 선례: `schedule-response.dto.ts` ·
+// `workspace-response.dto.ts`).
+//
+// **왜 `OmitType` 인가**: 상속만 하면 부모의 `@IsString()`(botToken 필수)이 그대로 따라와
+// `@IsEmpty()` 와 충돌한다 — 값을 안 보내면 `@IsString()` 이, 보내면 `@IsEmpty()` 가 터져
+// **어느 쪽으로도 통과할 수 없는 DTO** 가 된다. `OmitType` 은 그 두 필드의 상속 메타데이터를
+// 떼어낸 뒤 새로 선언하게 해 준다.
+//
+// **왜 optional 로 두고 무시하지 않는가**: 사용자가 설정했다고 믿은 비밀을 말없이 버리게 된다 —
+// R-CC-21 「기각한 대안」이 명시적으로 기각한 설계다. 거부가 아니라 침묵은 이 자원에 맞지 않는다.
+//
+// **왜 `Patch` 가 아니라 `Update` 인가**: 이 저장소에 `Patch` 접두 클래스는 0건이고 관례가
+// `Create`/`Update` 축이다 (`UpdateTriggerDto` · `NotificationConfigDto`).
 export class ChatChannelUpdateConfigDto extends OmitType(ChatChannelConfigDto, [
   'botToken',
   'inboundSigningPlaintext',

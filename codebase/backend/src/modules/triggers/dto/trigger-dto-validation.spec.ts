@@ -814,19 +814,6 @@ describe('ChatChannelUpdateConfigDto — PATCH 는 비밀을 받지 않는다 (R
   });
 
   /**
-   * **`details.field` 실측 — 다섯 필드 전부.**
-   *
-   * 결론: 전역 파이프의 `flattenErrors` 는 **중첩 경로**(`chatChannel.<field>`)를 만든다.
-   * **단 이 결론은 「비어있지 않은 값」 갈래에 한정된다** — `null`/`''` 는 `@IsEmpty()` 를
-   * 통과해 서비스 층에서 **flat** 이름으로 거부된다(바로 위 케이스가 그것을 고정한다).
-   * `3-error-handling.md §2.1` 의 *"중첩/배열 경로를 유지한다"* 규약을 **구현이 지키고 있고**,
-   * flat 이름(`details.field='botTokenRef'`)을 적은 **spec 문면 쪽이 낡았다.**
-   *
-   * 이 단언이 그 실측의 정본이다 — 후속 planner 턴이 §5.4.1·§5.4.1.1 의 표기를 고칠 때
-   * 여기 값을 근거로 쓴다. 서비스 층 가드(`assertChatChannelInputSafe`)는 **flat** 이름을
-   * 쓰지만, 전역 파이프가 먼저 거부하므로 HTTP 응답에 나가는 것은 아래 중첩 경로다.
-   */
-  /**
    * **`null`/`''` 는 DTO 를 통과한다** — `@IsEmpty()` 가 그 둘을 유효로 보기 때문이다.
    * 그래서 같은 논리적 위반이 **값의 형태에 따라 다른 레이어에서 거부**되고, `details.field`
    * 표현도 갈린다. 위 `[실측]` 케이스는 비어있지 않은 값만 써서 **한 갈래만 쟀다** —
@@ -843,6 +830,19 @@ describe('ChatChannelUpdateConfigDto — PATCH 는 비밀을 받지 않는다 (R
     ).toBeNull();
   });
 
+  /**
+   * **`details.field` 실측 — 다섯 필드 전부.**
+   *
+   * 결론: 전역 파이프의 `flattenErrors` 는 **중첩 경로**(`chatChannel.<field>`)를 만든다.
+   * **단 이 결론은 「비어있지 않은 값」 갈래에 한정된다** — `null`/`''` 는 `@IsEmpty()` 를
+   * 통과해 서비스 층에서 **flat** 이름으로 거부된다(바로 위 케이스가 그것을 고정한다).
+   * `3-error-handling.md §2.1` 의 *"중첩/배열 경로를 유지한다"* 규약을 **구현이 지키고 있고**,
+   * flat 이름(`details.field='botTokenRef'`)을 적은 **spec 문면 쪽이 낡았다.**
+   *
+   * 이 단언이 그 실측의 정본이다 — 후속 planner 턴이 §5.4.1·§5.4.1.1 의 표기를 고칠 때
+   * 여기 값을 근거로 쓴다. 서비스 층 가드(`assertChatChannelInputSafe`)는 **flat** 이름을
+   * 쓰지만, 전역 파이프가 먼저 거부하므로 HTTP 응답에 나가는 것은 아래 중첩 경로다.
+   */
   it('[실측] 차단 5필드의 details.field 는 **비어있지 않은 값일 때** 중첩 경로다', async () => {
     const observed: Record<string, string[]> = {};
     for (const field of [
