@@ -35,6 +35,18 @@ import {
   ChatChannelUpdateConfigDto,
 } from './dto/chat-channel-config.dto';
 
+import { ChannelAdapterRegistry } from '../chat-channel/channel-adapter.registry';
+import { ChannelListenerRegistry } from '../chat-channel/channel-listener.registry';
+import { ChatChannelConfig, SetupResult } from '../chat-channel/types';
+import { SecretResolverService } from '../secret-store/secret-resolver.service';
+import { buildSecretRef } from '../secret-store/secret-ref';
+import { PaginatedResponseDto } from '../../common/dto/paginated-response.dto';
+import { PaginationQueryDto } from '../../common/dto/pagination.dto';
+import {
+  SLACK_SIGNING_SECRET_REGEX,
+  DISCORD_PUBLIC_KEY_REGEX,
+} from '@workflow/chat-channel-validation';
+
 /**
  * 두 진입점이 보내는 `chatChannel` 을 함께 받는 자리의 타입.
  *
@@ -59,17 +71,6 @@ type ChatChannelInput = ChatChannelConfigDto | ChatChannelUpdateConfigDto;
  * 함수에 넣으면 **slack/discord 생성이 깨졌다.**
  */
 type ChatChannelInputMode = 'create' | 'update';
-import { ChannelAdapterRegistry } from '../chat-channel/channel-adapter.registry';
-import { ChannelListenerRegistry } from '../chat-channel/channel-listener.registry';
-import { ChatChannelConfig, SetupResult } from '../chat-channel/types';
-import { SecretResolverService } from '../secret-store/secret-resolver.service';
-import { buildSecretRef } from '../secret-store/secret-ref';
-import { PaginatedResponseDto } from '../../common/dto/paginated-response.dto';
-import { PaginationQueryDto } from '../../common/dto/pagination.dto';
-import {
-  SLACK_SIGNING_SECRET_REGEX,
-  DISCORD_PUBLIC_KEY_REGEX,
-} from '@workflow/chat-channel-validation';
 
 export type TriggerDetail = Trigger & {
   cronExpression?: string;
@@ -517,8 +518,14 @@ export class TriggersService {
     // R-CC-21 이 경고한 *"실패가 보이는 형태에서 조용한 형태로 바뀐다"* 와 같은 함정이라
     // 여기서 명시적으로 400 을 낸다. 최초 setup 은 생성 POST 한정 (§5.4.1 표 1행).
     if (chatChannel) {
-      this.assertChatChannelAlreadySetUp(trigger);
+      this.assertChatChannelAlreadySetUp(trigger, chatChannel);
     }
+    // [ref 보존] `mergeExternalConfig` 가 `config.chatChannel` 을 통째로 교체하기 **전에**
+    // 집어 둔다. `botTokenRef` 는 trigger id 로 재유도되지만 `inboundSigningRef` 는 그렇지
+    // 않아, 여기서 안 집으면 slack/discord PATCH 마다 사라진다 → 인입 서명 검증 fail-open.
+    const previousInboundSigningRef = (
+      trigger.config as { chatChannel?: { inboundSigningRef?: string } }
+    )?.chatChannel?.inboundSigningRef;
     // authConfigId 를 새로 set 하는 경우 같은 워크스페이스의 AuthConfig 인지 검증.
     // null 로 set (인증 제거) 은 검증 대상 아님.
     if (rest.authConfigId) {
@@ -579,6 +586,8 @@ export class TriggersService {
       // 이 플래그와 무관하게 계속 재저장된다 — 위 setupChatChannel 문서의 3-쓰기 표 참조.
       await this.setupChatChannel(saved, chatChannel, {
         storeUserSuppliedSecrets: false,
+        // 병합 **전**의 값이다 — `saved.config.chatChannel` 은 이미 요청 바디로 교체됐다.
+        preservedInboundSigningRef: previousInboundSigningRef,
       });
       // setupChatChannel 은 별도 triggerRepository.update — in-memory `saved` 는 stale.
       // 응답 hasBotToken / inboundSigningRef 가 최신 반영되도록 재조회.
@@ -614,6 +623,11 @@ export class TriggersService {
    *
    * DTO 단에서도 @IsEmpty / @IsString / @MaxLength 로 1차 검증되지만, error envelope 형식을
    * spec 의 VALIDATION_ERROR 와 정합시키기 위해 service 단 추가 검증 + provider 분기.
+   *
+   * **`mode === 'update'` 에서는 위 provider 분기가 적용되지 않는다.** PATCH 에서는
+   * `inboundSigningPlaintext` 가 *필수*가 아니라 **금지**로 뒤집히고(`botToken` 도 함께),
+   * 그 축은 `assertPatchCarriesNoSecrets` 가 본다 — R-CC-21 / D-1. 즉 위 "slack: 필수 /
+   * discord: 필수" 서술의 주어는 **생성(POST) 한정**이다.
    */
   private assertChatChannelInputSafe(
     chatChannel: ChatChannelInput | undefined,
@@ -672,7 +686,7 @@ export class TriggersService {
       throw new BadRequestException({
         code: 'VALIDATION_ERROR',
         message:
-          'botToken 은 PATCH 로 변경할 수 없습니다. 토큰 변경은 POST /api/triggers/:id/chat-channel/rotate-bot-token 을 사용하세요.',
+          'botToken 은 PATCH 로 바꿀 수 없어요. 토큰 변경은 POST /api/triggers/:id/chat-channel/rotate-bot-token 을 사용해 주세요.',
         details: { field: 'botToken' },
       });
     }
@@ -680,7 +694,7 @@ export class TriggersService {
       throw new BadRequestException({
         code: 'VALIDATION_ERROR',
         message:
-          'inboundSigningPlaintext 는 PATCH 로 변경할 수 없습니다. 회전이 필요하면 트리거를 삭제 후 재생성하세요 (v1 미정의).',
+          'inboundSigningPlaintext 는 PATCH 로 바꿀 수 없어요. 회전이 필요하면 트리거를 삭제 후 다시 만들어 주세요 (v1 미정의).',
         details: { field: 'inboundSigningPlaintext' },
       });
     }
@@ -693,16 +707,31 @@ export class TriggersService {
    * 그 실패가 `setupChatChannel` 의 best-effort catch 에 삼켜지면 `degraded` 로 조용히 앉는다.
    * 사용자에게는 "저장됐다" 로 보이고 봇은 죽어 있다 — 그래서 여기서 먼저 거부한다.
    */
-  private assertChatChannelAlreadySetUp(trigger: Trigger): void {
+  private assertChatChannelAlreadySetUp(
+    trigger: Trigger,
+    incoming: ChatChannelInput,
+  ): void {
     const current = (trigger.config as { chatChannel?: { provider?: string } })
       ?.chatChannel;
-    if (current?.provider) return;
-    throw new BadRequestException({
-      code: 'VALIDATION_ERROR',
-      message:
-        'chatChannel 최초 설정은 트리거 생성(POST /api/triggers)에서만 할 수 있어요. PATCH 는 bot token 을 받지 않으므로 채널을 새로 붙일 수 없습니다.',
-      details: { field: 'chatChannel' },
-    });
+    if (!current?.provider) {
+      throw new BadRequestException({
+        code: 'VALIDATION_ERROR',
+        message:
+          'chatChannel 최초 설정은 트리거 생성(POST /api/triggers)에서만 할 수 있어요. PATCH 는 bot token 을 받지 않으므로 채널을 새로 붙일 수 없어요.',
+        details: { field: 'chatChannel' },
+      });
+    }
+    // provider 전환도 막는다. 허용하면 **다른 provider 의 토큰을 넘기게 된다** —
+    // `botTokenRef` 는 trigger id 로만 재유도되므로 그 ref 뒤의 평문은 여전히 옛 provider 의
+    // 토큰이고, 새 adapter 가 그것으로 외부 API 를 때린다. `2-trigger-list.md` `R-12` 도
+    // *"변경하려면 트리거 삭제·재생성"* 이라 적는다.
+    if (incoming.provider && incoming.provider !== current.provider) {
+      throw new BadRequestException({
+        code: 'VALIDATION_ERROR',
+        message: `provider 는 PATCH 로 바꿀 수 없어요 (현재 ${current.provider}). 다른 provider 로 옮기려면 트리거를 삭제 후 다시 만들어 주세요.`,
+        details: { field: 'provider' },
+      });
+    }
   }
 
   /**
@@ -717,15 +746,15 @@ export class TriggersService {
   private stripChatChannelPlaintext(
     chatChannel: ChatChannelInput,
   ): ChatChannelInput {
+    // 캐스팅이 필요 없다 — `ChatChannelInput` 의 두 갈래가 이미 두 필드를 갖는다
+    // (생성용은 `botToken: string` 필수 · PATCH 용은 둘 다 optional). 종전 `as` 는 좁은
+    // 타입 하나만 받던 시절의 잔재라 지금은 lint 가 불필요 단언으로 잡는다.
     const {
       botToken: _bt,
       inboundSigningPlaintext: _isp,
       ...rest
-    } = chatChannel as ChatChannelInput & {
-      botToken?: string;
-      inboundSigningPlaintext?: string;
-    };
-    return rest as ChatChannelInput;
+    } = chatChannel;
+    return rest;
   }
 
   /**
@@ -1034,7 +1063,17 @@ export class TriggersService {
   private async setupChatChannel(
     trigger: Trigger,
     chatChannelCfg: ChatChannelInput,
-    { storeUserSuppliedSecrets }: { storeUserSuppliedSecrets: boolean },
+    {
+      storeUserSuppliedSecrets,
+      preservedInboundSigningRef,
+    }: {
+      storeUserSuppliedSecrets: boolean;
+      /**
+       * 이 PATCH **이전에** config 에 있던 `inboundSigningRef`. 호출자가 병합 전에 집어 준다
+       * — 병합 후에는 사라져 있어 이 함수가 스스로 알 수 없다. 생성 경로는 `undefined`.
+       */
+      preservedInboundSigningRef?: string;
+    },
   ): Promise<void> {
     if (!this.channelAdapterRegistry.has(chatChannelCfg.provider)) {
       this.logger.warn(
@@ -1101,10 +1140,32 @@ export class TriggersService {
     // create()/update() 의 stripChatChannelPlaintext 와 의도적으로 이중 방어 — adapter
     // 코드가 dto.botToken 을 직접 mutate 하는 회귀에 대비.
     const sanitizedCfg = this.stripChatChannelPlaintext(chatChannelCfg);
+
+    // [ref 보존 — 두 ref 는 **대칭**이어야 한다]
+    //
+    // `mergeExternalConfig` 가 `config.chatChannel` 을 **통째로 교체**하므로, 요청 바디에 없는
+    // 필드는 전부 사라진다. `botTokenRef` 는 `buildSecretRef(trigger.id)` 로 매번 재유도돼
+    // 무조건 다시 실리는데, `inboundSigningRef` 는 종전에 *"이번 호출에서 값을 새로 썼을 때만"*
+    // 실렸다. D-2 가 그 쓰기를 게이팅하자 **slack/discord PATCH 에서 그 조건이 구조적으로 항상
+    // 거짓**이 되어 ref 가 사라졌고, `ChatChannelInboundAuthenticator` 는 세 provider 모두
+    // `if (!config.inboundSigningRef) return;` 으로 검증을 건너뛴다 — 카드 편집 PATCH 한 번으로
+    // 그 트리거의 인입 웹훅이 **서명 없이 통과**하게 된다(fail-open).
+    //
+    // **그렇다고 `botTokenRef` 처럼 무조건 싣지는 않는다.** 이 ref 의 존재는 *"signing 비밀이
+    // 저장돼 있다"* 는 신호이기도 해서, 행이 없는 트리거(legacy · setupChannel 이전)에 ref 를
+    // 붙이면 검증이 resolve 실패로 넘어가 **fail-open 을 fail-closed 로 바꾸는 별개의 동작
+    // 변경**이 된다. 그래서 "새로 썼거나 · 이미 있었으면 보존" 으로 좁힌다.
+    // **`trigger.config` 에서 읽으면 안 된다** — `update()` 는 `mergeExternalConfig` 로
+    // `config.chatChannel` 을 통째로 교체한 뒤 저장하고, 그 결과를 이 함수에 넘긴다. 즉 여기
+    // 도착한 시점의 `trigger.config.chatChannel` 은 **이미 요청 바디로 갈아치워져** 옛 ref 가
+    // 없다. 그래서 호출자가 **병합 전에** 집어 인자로 넘긴다.
+    const inboundSigningRefSurvives =
+      providerIssuedStored || Boolean(preservedInboundSigningRef);
+
     const internalCfg: ChatChannelConfig = {
       ...(sanitizedCfg as ChatChannelConfig),
       botTokenRef,
-      ...(providerIssuedStored ? { inboundSigningRef } : {}),
+      ...(inboundSigningRefSurvives ? { inboundSigningRef } : {}),
     };
 
     try {
@@ -1133,7 +1194,9 @@ export class TriggersService {
         ...internalCfg,
         ...(result.configUpdates ?? {}),
         botTokenRef,
-        ...(result.issuedInboundSigning || providerIssuedStored
+        // 위 `inboundSigningRefSurvives` 와 같은 술어 + 이번 호출의 server-issued 발급.
+        // 회귀 캐너리: *"slack/discord — 카드 편집 PATCH 후에도 inboundSigningRef 가 살아남는다"*.
+        ...(result.issuedInboundSigning || inboundSigningRefSurvives
           ? { inboundSigningRef }
           : {}),
       };
@@ -1166,7 +1229,9 @@ export class TriggersService {
       this.logger.warn(
         `TriggersService: setupChannel 실패 (trigger=${trigger.id}, provider=${chatChannelCfg.provider}): ${message}`,
       );
-      // fallbackConfig: botTokenRef + (provider-issued 라면 inboundSigningRef 도) config 에 반영.
+      // fallbackConfig: `internalCfg` 를 그대로 쓴다 — 위 `inboundSigningRefSurvives` 가
+      // 거기서 이미 적용되므로 **실패 경로에서도 두 ref 가 함께 보존된다**.
+      // 회귀 캐너리: *"setupChannel 이 실패해도(degraded) inboundSigningRef 를 잃지 않는다"*.
       const fallbackConfig = {
         ...(trigger.config ?? {}),
         chatChannel: internalCfg,

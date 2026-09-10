@@ -3156,4 +3156,136 @@ describe('TriggersService — chatChannel PATCH 는 사용자 비밀을 쓰지 �
     });
     expect(secrets.rotate).not.toHaveBeenCalled();
   });
+
+  // ── CRITICAL 회귀: 두 ref 가 **대칭으로** 살아남아야 한다 ────────────────
+  //
+  // D-3 테스트를 `botTokenRef` 하나만 걸었더니 **자매 ref 를 잃는 결함**을 못 잡았다.
+  // `botTokenRef` 는 `buildSecretRef(trigger.id)` 로 매번 재유도돼 무조건 실리는 반면,
+  // `inboundSigningRef` 는 *"이번 호출에서 값을 새로 썼을 때만"* 실리게 짜여 있었다 —
+  // D-2 가 그 쓰기를 게이팅하자 slack/discord PATCH 에서 그 조건이 **구조적으로 항상 거짓**이
+  // 되어 ref 가 config 에서 통째로 사라졌다. 그리고 `ChatChannelInboundAuthenticator` 는
+  // 세 provider 모두 `if (!config.inboundSigningRef) return;` 으로 **검증을 건너뛴다** —
+  // 즉 카드 편집 PATCH 한 번으로 그 트리거의 인입 웹훅이 **서명 없이 통과**하게 된다.
+  // (`/ai-review` `review/code/2026/09/10/23_21_57` — security·requirement·side_effect 3인 독립 발견)
+  const persistedChannel = () =>
+    triggerRepo.update.mock.calls
+      .map(
+        ([, patch]) =>
+          patch as { config?: { chatChannel?: Record<string, unknown> } },
+      )
+      .filter((p) => p.config?.chatChannel)
+      .pop()?.config?.chatChannel;
+
+  it.each(['slack', 'discord'])(
+    '%s — 카드 편집 PATCH 후에도 inboundSigningRef 가 살아남는다 (fail-open 회귀)',
+    async (provider) => {
+      await setup(); // provider-issued 축 — issuedInboundSigning 없음
+      triggerRepo.findOne.mockResolvedValue(existing(provider));
+
+      await service.update(
+        'trig-p',
+        'ws-1',
+        { chatChannel: cardBody(provider) } as never,
+        'u-1',
+      );
+
+      expect(persistedChannel()?.inboundSigningRef).toBe(SIGNING_REF);
+    },
+  );
+
+  it('telegram — server-issued 재발급 경로에서도 ref 가 실린다', async () => {
+    await setup('issued-new-xyz');
+    triggerRepo.findOne.mockResolvedValue(existing('telegram'));
+
+    await service.update(
+      'trig-p',
+      'ws-1',
+      { chatChannel: cardBody('telegram') } as never,
+      'u-1',
+    );
+
+    expect(persistedChannel()?.inboundSigningRef).toBe(SIGNING_REF);
+  });
+
+  it('setupChannel 이 실패해도(degraded) inboundSigningRef 를 잃지 않는다', async () => {
+    await setup();
+    mockAdapter.setupChannel.mockRejectedValue(new Error('provider down'));
+    triggerRepo.findOne.mockResolvedValue(existing('slack'));
+
+    await service.update(
+      'trig-p',
+      'ws-1',
+      { chatChannel: cardBody('slack') } as never,
+      'u-1',
+    );
+
+    expect(persistedChannel()?.inboundSigningRef).toBe(SIGNING_REF);
+    expect(persistedChannel()?.botTokenRef).toBe(BOT_TOKEN_REF);
+  });
+
+  // ── WARNING: `@IsEmpty()` 가 통과시키는 null/'' 를 서비스가 잡는가 ───────
+  //
+  // `@IsEmpty()` 는 `null`·`''` 를 **통과**시킨다. 그래서 그 두 값에 대한 실제 방어선은
+  // 서비스의 `assertPatchCarriesNoSecrets`(`typeof x !== 'undefined'`)다. 종전 테스트는
+  // 비어있지 않은 값만 넣어 **그 방어선 자체를 한 번도 안 밟았다**.
+  it.each([
+    ['null', null],
+    ['빈 문자열', ''],
+  ])('botToken: %s 도 서비스가 400 으로 잡는다', async (_label, value) => {
+    await setup('x');
+    triggerRepo.findOne.mockResolvedValue(existing('telegram'));
+
+    await expect(
+      service.update(
+        'trig-p',
+        'ws-1',
+        { chatChannel: { ...cardBody('telegram'), botToken: value } } as never,
+        'u-1',
+      ),
+    ).rejects.toMatchObject({
+      response: { code: 'VALIDATION_ERROR', details: { field: 'botToken' } },
+    });
+  });
+
+  it("inboundSigningPlaintext: '' 도 서비스가 400 으로 잡는다", async () => {
+    await setup();
+    triggerRepo.findOne.mockResolvedValue(existing('slack'));
+
+    await expect(
+      service.update(
+        'trig-p',
+        'ws-1',
+        {
+          chatChannel: { ...cardBody('slack'), inboundSigningPlaintext: '' },
+        } as never,
+        'u-1',
+      ),
+    ).rejects.toMatchObject({
+      response: {
+        code: 'VALIDATION_ERROR',
+        details: { field: 'inboundSigningPlaintext' },
+      },
+    });
+  });
+
+  // ── WARNING: provider 전환은 PATCH 로 못 한다 ────────────────────────────
+  //
+  // 전환을 허용하면 telegram 용으로 재유도된 `botTokenRef` 를 slack adapter 에 그대로
+  // 넘기게 된다 — 그 ref 뒤의 평문은 telegram 토큰이다. `2-trigger-list.md` R-12 도
+  // *"변경하려면 트리거 삭제·재생성"* 이라 적는다.
+  it('PATCH 로 provider 를 바꾸면 400 (다른 provider 의 토큰을 넘기게 된다)', async () => {
+    await setup('x');
+    triggerRepo.findOne.mockResolvedValue(existing('telegram'));
+
+    await expect(
+      service.update(
+        'trig-p',
+        'ws-1',
+        { chatChannel: cardBody('slack') } as never,
+        'u-1',
+      ),
+    ).rejects.toMatchObject({
+      response: { code: 'VALIDATION_ERROR', details: { field: 'provider' } },
+    });
+  });
 });

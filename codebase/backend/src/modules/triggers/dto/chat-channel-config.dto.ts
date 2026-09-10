@@ -383,7 +383,7 @@ export class ChatChannelUpdateConfigDto extends OmitType(ChatChannelConfigDto, [
   @IsOptional()
   @IsEmpty({
     message:
-      'botToken 은 PATCH 로 변경할 수 없습니다. 토큰 변경은 POST /api/triggers/:id/chat-channel/rotate-bot-token 을 사용하세요.',
+      'botToken 은 PATCH 로 바꿀 수 없어요. 토큰 변경은 POST /api/triggers/:id/chat-channel/rotate-bot-token 을 사용해 주세요.',
   })
   botToken?: string;
 
@@ -398,7 +398,7 @@ export class ChatChannelUpdateConfigDto extends OmitType(ChatChannelConfigDto, [
   @IsOptional()
   @IsEmpty({
     message:
-      'inboundSigningPlaintext 는 PATCH 로 변경할 수 없습니다. 회전이 필요하면 트리거를 삭제 후 재생성하세요 (v1 미정의).',
+      'inboundSigningPlaintext 는 PATCH 로 바꿀 수 없어요. 회전이 필요하면 트리거를 삭제 후 다시 만들어 주세요 (v1 미정의).',
   })
   inboundSigningPlaintext?: string;
 }

@@ -45,9 +45,12 @@ SoT: [`spec/5-system/15-chat-channel.md` §5.4.1 · §5.4.1.1 · R-CC-21](../../
   >
   > | 자리 | 무엇 | PATCH 에서 |
   > |---|---|---|
-  > | `:948-952` | bot token rotate (무조건) | **게이팅** |
-  > | `:957-969` | slack/discord provider-issued signing | **게이팅** |
-  > | `:981-993` | telegram server-issued `result.issuedInboundSigning` | **무조건 유지** |
+  > | `// [쓰기 ①]` | bot token rotate (무조건) | **게이팅** |
+  > | `// [쓰기 ②]` | slack/discord provider-issued signing | **게이팅** |
+  > | `// [쓰기 ③]` | telegram server-issued `result.issuedInboundSigning` | **무조건 유지** |
+  >
+  > (줄 번호 대신 **코드가 스스로 다는 앵커 주석**으로 인용한다 — 같은 PR 의 편집이 줄을
+  > 밀어 작성 시점엔 옳고 커밋 시점엔 틀리는 것을 막는다.)
   >
   > 단일 boolean 인자가 우발적으로 세 번째까지 덮으면 **그 트리거의 인입 웹훅이 전부 401** 이
   > 된다 — telegram adapter 가 `setupChannel` 마다 새 `secret_token` 을 Telegram 에 등록하므로
@@ -91,8 +94,14 @@ Telegram adapter 는 **매 `setupChannel` 마다 새 `issuedInboundSigning` 을 
 - [x] 기존 10 케이스를 **생성 경로로 재조준** — PATCH 로는 더 이상 비밀을 실을 수 없다
 - [x] 캐너리 e2e case E 바디 갱신 + R-CC-10 우회 경고 블록 → 해소 기록으로 교체
 - [x] `details.field` 5필드 실측 — **전부 중첩 경로** (위 표)
-- [ ] TEST WORKFLOW (lint · unit · build · e2e)
-- [ ] 타입체크 ratchet 2종 (backend · frontend)
-- [ ] `/ai-review` + Critical/Warning 0
+- [x] TEST WORKFLOW — lint PASS · unit PASS(backend 9,536 / frontend 6,379) · build PASS ·
+      **e2e PASS 305** (`trigger-workflow-ref.e2e-spec.ts` PASS 확인 — 캐너리 case E 가 실제로 돌았다)
+- [x] 타입체크 ratchet 2종 — backend 197건/36파일 · frontend 52건/15파일, 둘 다 baseline 일치
+      (정본 `scripts/check-*-typecheck-ratchet.py` 를 재현 말고 그대로 실행)
+- [x] `/ai-review` `review/code/2026/09/10/23_21_57` — **CRITICAL 1 / WARNING 6** →
+      전부 조치. `RESOLUTION.md` 참조. 뮤테이션으로 캐너리 유효성 확인(보존 항 제거 → RED 3)
+- [ ] 수렴 예외로 남긴 INFO 5건 (`update()` 길이 · 캐스팅 중복 · 메시지 중복 · fixture 중복 ·
+      degraded 경계 테스트) — reviewer 자신이 *"이 PR 신규 아님/비긴급"* 분류, 전부 동작 결함
+      아님. SKILL §수렴 예외 (a)(b)(c) 적용
 - [ ] `/consistency-check --impl-done spec/5-system`
 - [x] R-CC-21 산문 폭 정정 — **planner PR #1313 으로 완료** (이 plan 이 발견 → 별 턴에서 처리)
