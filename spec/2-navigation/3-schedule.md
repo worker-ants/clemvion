@@ -15,6 +15,9 @@ code:
   # 응답 형태 시행 — §4 註가 주장하는 네 응답 형태를 양성 3 + 생성 음성 대조 1 로 고정한다.
   # 註에 "e2e 가 고정한다" 고 적으면서 그 파일을 등재하지 않으면 보장의 근거가 추적 불가다.
   - codebase/backend/test/schedule-trigger.e2e-spec.ts
+  # 헬퍼도 등재 — 위 e2e 가 쓰는 단언의 정본(좁힌 참조 키셋 · 비밀 컬럼 목록)이 여기 있다.
+  # 트리거 축(`2-trigger-list.md`)과 같은 규칙이며, glob 이 self-spec 까지 무는 것도 의도다.
+  - codebase/backend/src/shared/testing/schedule-trigger-ref*.ts
 ---
 
 # Spec: 스케줄 관리 화면

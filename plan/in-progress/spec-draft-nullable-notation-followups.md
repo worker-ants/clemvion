@@ -1795,8 +1795,9 @@ field: T | null;
       > 넉넉한 타임아웃은 보험으로 유지했다(CI 망에서는 실제로 태울 수 있고, 그때 flaky 실패를
       > 재조회 분기 결함으로 오진하게 된다).
 
-- [ ] **planner: 캐너리 착지 후속 5건 (한 턴으로 묶임)** (planner, 2026-09-10 등재,
-      `--impl-done` `15_23_41` 이 2번을 넓히고 5번을 추가했다).
+- [x] **planner: 캐너리 착지 후속 — 5건 중 4건 적용, 1건은 developer 로 재배정** (planner,
+      2026-09-10 등재 → 같은 날 적용). **3번(`PROJECT.md`)만 이 표에서 빠져 아래 별 항목이 됐다** —
+      역할 배정이 틀렸었다(그 문서는 developer 소유). 1·2·4·5 는 반영 완료.
       위 캐너리가 서면서 `spec/` 쪽에 남은 세 가지. **developer 가 직접 못 한다** —
       `--impl-prep` 의 세 checker 가 독립적으로 CRITICAL 을 올렸다: 자기-반증형 소정정 **조건 1
       불성립**(그 문장은 planner 가 썼다).
@@ -1805,7 +1806,7 @@ field: T | null;
       |---|---|---|
       | 1 | `2-trigger-list.md §3` | *"자매 스케줄 축과 달리 이 축에는 캐너리가 아직 없다 — … 이 비대칭을 함께 적는다"* 를 취소선 + 실측으로 정정. **비대칭 자체가 없어지므로 뒤 근거절까지 한 단위로** 낡는다 |
       | 2 | `2-trigger-list.md` frontmatter `code:` | `codebase/backend/test/trigger-workflow-ref.e2e-spec.ts` **+ `codebase/backend/src/shared/testing/trigger-workflow-ref*.ts`**(헬퍼·self-spec) 등재. `3-schedule.md` 선례 — *"註에 'e2e 가 고정한다' 고 적으면서 그 파일을 등재하지 않으면 보장의 근거가 추적 불가다"*. **헬퍼까지 넣는 것은 `--impl-done` `15_23_41` convention_compliance W1 이 넓힌 범위다** — e2e 만 넣으면 단언의 정본(키셋·비밀 컬럼 목록)이 `code:` 밖에 남는다 |
-      | 3 | `PROJECT.md` §e2e 파일 위치 | *"self-spec 을 동반하는 assertion 헬퍼는 `test/helpers/` 가 아니라 `src/shared/testing/`"* 한 줄. **현 문면을 따르면 self-spec 이 어느 러너에도 안 걸려 죽은 테스트가 된다** — unit jest 는 `rootDir: 'src'`, e2e jest 는 `.e2e-spec.ts$` 만 잡는다 |
+      | ~~3~~ | ~~`PROJECT.md` §e2e 파일 위치~~ | **이 표에서 제외 — developer 소유 문서다.** 아래 별 항목으로 이관했다. 내용 자체는 그대로 유효하다 |
       | 4 | `2-trigger-list.md §3` 註 | **캐너리가 고정하는 것이 계약인지 구현인지** 한 줄. *"생성 응답에만 `workflow` 가 없다"* 는 §5.4 가 요구하는 계약이 아니라 **현재 구현의 반영**이고, 생성 응답도 싣도록 강화하는 것은 additive 개선이다 — 그런데 지금 캐너리는 그 강화를 RED 로 막는다. 프로세스 게이트로는 바람직하나 **spec 이 계약처럼 읽히게 두면 안 된다** (`api_contract` W2) |
       | 5 | `spec/5-system/14-external-interaction-api.md` §7.1 | **인벤토리가 낡았다.** 그 절의 2026-09-08 정정 문단은 *"`#1291` 이 응답 경계 스트립을 세웠고, 스케줄 조인 축은 `schedule-trigger-ref.ts` 가 같은 목록으로 단언한다"* 로 **단언 자리를 하나만 열거**한다 — 이제 트리거 직접 축에도 같은 두 컬럼의 부재를 무는 캐너리가 생겼다. 모순은 아니지만(그 문단이 "런타임 캐너리는 없다" 고 단언한 적은 없다) **열거가 불완전하면 다음 사람이 직접 축엔 정적 스트립만 있다고 읽는다** (`--impl-done` `15_23_41` cross_spec INFO) |
 
@@ -1823,6 +1824,72 @@ field: T | null;
       > `id`/`name` 비대칭 계약과 한 문단에 섞여 있어 "예고 vs 계약" 이 애매하다)도 한 줄로 판정해
       > 기록할 것. 그리고 `3-schedule.md §4` 에 있는 **재검토 신호**(optimistic update 로 create
       > 응답을 소비하면 전제가 무너진다)가 트리거 축에는 없으니 그때 맞춘다.
+
+      **적용 결과** (draft: `spec-draft-trigger-canary-nav.md`, `--spec` `19_35_47` BLOCK: NO):
+
+      - **1·4** — §3 註의 *"캐너리가 아직 없다"* 와 뒤 근거절을 한 단위로 교체하고, **캐너리가
+        고정하는 것이 계약이 아니라 현재 구현**임을 새 문단 + 신설 **`R-17`** 로 못박았다.
+      - **2** — e2e + 헬퍼 glob 등재. **`3-schedule.md` 에도 헬퍼를 넣어 범위를 넓혔다**(아래).
+      - **5** — EIA §7.1 인벤토리 보강. **`cross_spec` 이 같은 문장의 쌍둥이를
+        `secret-store.md §1` 에서 찾아** 두 자리를 함께 고쳤다.
+      - **조건 2 경계 판정**: *그 문장만 떼면 예고가 맞다 — 조건 2 는 충족했고 깨진 것은 조건 1
+        뿐이다.* 문단 혼재는 조건 2 가 아니라 **조건 4**(정정 범위)가 다루는 문제다. 둘을 합쳐
+        "애매하다" 로 두면 다음 사람이 조건 2 를 커버리지 진술에까지 넓게 해석한다.
+
+      > **범위를 한 곳 넓혔다** — 헬퍼를 `code:` 에 넣는 근거("단언의 정본이 헬퍼에 있다")는
+      > 축과 무관한 일반 규칙인데 트래커는 트리거 축만 적었다. 스케줄 축도 같은 gap 이 있어
+      > (`schedule-trigger.e2e-spec.ts:12` 가 헬퍼를 import 하는데 `code:` 엔 e2e 만) 트리거
+      > 축에만 넣으면 **두 문서 사이에 새 비대칭**이 생긴다 — 하필 §3 註가 원래 비대칭을 정직하게
+      > 적으려던 자리다. `cross_spec` 이 이 확장을 관례 부합으로 확인했다.
+      >
+      > **`--spec` 게이트가 Warning 6건을 냈고 전부 내 근거 문장이었다**(편집 내용이 아니라).
+      > 가장 아픈 것: *"취소선 보존은 자기-반증형 소정정 전용"* 이라는 내 일반화가 **같은 문서
+      > R-2**(`#1299`, 순수 planner 턴)에 반증됐다 — 실제 판정축은 **교차문서 인용 의존**이다.
+      > 그 축으로 실측하니 그 문장을 대조군으로 인용하는 문서가 0건이라 결론(교체)은 유지됐다.
+      > 그리고 **W4 를 잘못 귀속**했다 — 음성 케이스를 지워도 W4 는 양성 case E 가 잡는다.
+      > 개수도 틀렸다("양성 4건 … 셋 다" — 4+1=5). **spec 에 쓰기 전이라 수정 비용이 0 이었다.**
+
+- [ ] **`PROJECT.md` §e2e 파일 위치 — self-spec 동반 헬퍼는 `src/shared/testing/`** (developer,
+      2026-09-10 재배정. **원래 planner 후속 5건의 3번이었는데 역할 배정이 틀렸다**).
+
+      현 문면(`PROJECT.md:315`)은 `신규 헬퍼: codebase/backend/test/helpers/<name>.ts` 뿐이다.
+      **그 자리에 두면 self-spec 이 어느 러너에도 안 걸려 죽은 테스트가 된다** — unit jest 는
+      `rootDir: 'src'` 라 `test/` 를 스캔하지 않고, `test/jest-e2e.json` 은 `testRegex:
+      '.e2e-spec.ts$'` 라 평범한 `*.spec.ts` 를 안 잡는다. 즉 `test/helpers/*.spec.ts` 는
+      **존재하지만 영구히 돌지 않는다.** `#1308` 이 그래서 `src/shared/testing/` 을 골랐고 근거를
+      헬퍼 파일 스코프 註에 남겼다 — `PROJECT.md` 는 아직 그 예외를 모른다.
+
+      처방: §파일 위치·명명 에 한 줄. *"self-spec(`*.spec.ts`)을 동반하는 assertion 헬퍼는
+      `codebase/backend/src/shared/testing/<name>.ts` — `test/helpers/` 에 두면 그 self-spec 이
+      어느 러너에도 안 걸린다"*.
+
+      > **왜 developer 인가 — 실측이다.** `.claude/skills/developer/SKILL.md:33` 이
+      > `| README.md, PROJECT.md | Read/Write |` 로 명시하고, `project-planner/SKILL.md` 경로 표에는
+      > **항목 자체가 없다**(planner 거버넌스는 `.claude/docs/**`·`SKILL.md`·`CLAUDE.md` 뿐).
+      > `--spec` `19_35_47` 의 세 checker 가 각각 독립으로 확인했다.
+      >
+      > **등재 근거였던 reviewer 문장이 틀렸다** — `--impl-done` `15_23_41` 의
+      > `convention_compliance` 가 *"PROJECT.md 갱신은 planner 턴 권고"* 라 적었고 내가 그것을
+      > **실측 없이 트래커로 옮겼다.** `#1308` 의 T-4 와 같은 클래스이고 방향만 반대다(그때는
+      > planner 문장을 developer 턴에서 고치려 했다). 공통 원인은 **역할 배정을 실측 없이 단정한
+      > 것**이고, 이 트래커에 이미 *"등재할 때 조항 해당 여부를 단정하지 말 것"* 이라 적혀 있었다.
+
+- [ ] **질문: 비밀-부재 헬퍼를 `secret-store.md` 의 `code:` 에도 등재해야 하나** (planner 또는
+      developer, 2026-09-10 등재, `--spec` `19_35_47` `cross_spec` INFO 에서 갈라 나옴).
+      §5.4 의 원칙은 *"검증자가 **서로 다른 두 문서의 규칙**을 시행하면 그 두 문서 모두에 등재"* 이고
+      사유는 *"한쪽만 등재하면 다른 축의 변경이 재검토 트리거를 못 건드린다"* 다
+      (`2-api-convention.md:272`).
+
+      두 헬퍼(`trigger-workflow-ref.ts` · `schedule-trigger-ref.ts`)가 시행하는 규칙은 (i) 각 nav
+      문서의 참조 shape 와 (ii) **`secret-store.md §1.1`** 의 비밀 미노출인데, **(ii) 쪽 문서에는
+      등재가 없다.** 판정에 필요한 것은 선례 실측이다 — `user-secret-absence.ts` 축이 규범 소유자로
+      `1-data-model.md §2.1.1` 을 인용하는데 **그 문서 `code:` 에 등재돼 있는지** 확인하면 이
+      원칙의 실제 적용 범위가 나온다.
+
+      > **EIA `code:` 는 이 질문에 포함하지 않는다** — EIA §7.1 은 그 규칙의 **소유자가 아니라
+      > 인용자**다(그 문단 자신이 *"금지 규범은 `secret-store.md §1.1` 이 그대로 소유한다"* 고 적는다).
+      > `cross_spec` 은 EIA `code:` 등재도 INFO 로 제안했지만, 원칙 문면을 직접 읽으니 요구 범위가
+      > 더 좁았다. **추측으로 넣지 않고 질문으로 등재한다.**
 
 - [ ] **CRITICAL: chatChannel PATCH 가 bot token single-path 를 우회한다** — 질문으로 등재했고
       **같은 날 판정이 나왔다: 예, 실제 갭이다** (2026-09-10 등재 → `/ai-review`
@@ -1885,7 +1952,10 @@ field: T | null;
       POST 만 `botToken` 을 받고 PATCH 는 `uiMapping`·`rateLimitPerMinute`·`languageLocale`·
       `languageHints` 만 받는다.
 
-      **착수 시 함께 정리할 것 두 가지.** ① `test/trigger-workflow-ref.e2e-spec.ts` 의 case E
+      **착수 시 함께 정리할 것 세 가지.** ⓪ `2-trigger-list.md §3` 註의 "다섯 케이스" 서술을
+      재확인한다 — 처방이 case E 의 요청 바디를 바꾸지만 그 구조 자체는 무효화되지 않는다는 것이
+      `--spec` `19_35_47` `plan_coherence` 의 판정이고, 그래도 문구는 그 PR 에서 확인할 것.
+      ① `test/trigger-workflow-ref.e2e-spec.ts` 의 case E
       요청 바디는 이 결함을 재현하는 형태라 처방이 들어오면 **400 이 된다** — 같은 PR 에서
       바디를 고쳐야 한다. ② 그 case E docstring 에 붙인 R-CC-10 우회 경고 블록도 그때
       **정리 대상**이다. 지금 그 블록은 *이 저장소에서 우회 메커니즘을 서술한 유일한 `codebase/`

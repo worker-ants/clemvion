@@ -17,6 +17,13 @@ code:
   - codebase/backend/src/repo-guards/__tests__/endpoint-path-conflict-wrap*.ts
   # 대조군(negative fixture) — 위 가드가 잡아야 하는 미래핑 형태의 실례
   - codebase/backend/src/repo-guards/__tests__/fixtures/endpoint-path-save*.ts
+  # 응답 형태 시행 — §3 註가 주장하는 `TriggerDto.workflow` 의 다섯 케이스를 고정한다.
+  # 註에 "e2e 가 고정한다" 고 적으면서 그 파일을 등재하지 않으면 보장의 근거가 추적 불가다.
+  - codebase/backend/test/trigger-workflow-ref.e2e-spec.ts
+  # 헬퍼도 등재 — 단언의 정본(키셋 `['id','name']` · 비밀 컬럼 목록)이 헬퍼에 있어 e2e 만
+  # 넣으면 그 정본이 `code:` 밖에 남는다. glob 이 self-spec 까지 무는 것은 의도이며,
+  # 위 `endpoint-path-conflict-wrap*.ts` 가 정본+테스트를 함께 무는 선례와 같다.
+  - codebase/backend/src/shared/testing/trigger-workflow-ref*.ts
 ---
 
 # Spec: 트리거 목록 화면
@@ -179,9 +186,16 @@ code:
 > **이 "생성 응답에만" 은 한 번 거짓이었다.** PATCH 의 chatChannel 재조회 분기가 관계를 빼고
 > 읽어 **chatChannel 을 포함한 PATCH 응답에서만** `workflow` 가 사라졌다 — 부재가 §5.4 키
 > 생략형이라 응답-계약 검증자도 물지 못하는 자리다. 구현은 그 재조회에 `relations: ['workflow']`
-> 를 실어 닫았지만, **자매 스케줄 축과 달리 이 축에는 캐너리가 아직 없다** — 그쪽은 네 응답
-> 형태를 양성/음성으로 고정한다([`3-schedule.md §4`](./3-schedule.md#4-api)). 보장을 구현보다
-> 넓게 적지 않기 위해 이 비대칭을 함께 적는다.
+> 를 실어 닫았고, **이제 e2e 가 네 반환 경로를 다섯 케이스(양성 4 + 생성 음성 1)로 고정한다** —
+> PATCH 만 일반/chatChannel 두 케이스이며, 후자가 정확히 그때 깨졌던 분기다. 자매 스케줄 축도
+> 같은 방식으로 고정한다([`3-schedule.md §4`](./3-schedule.md#4-api)).
+>
+> **단 캐너리가 고정하는 것은 계약이 아니라 현재 구현이다**
+> ([R-17](#r-17-이-축의-캐너리가-고정하는-것은-구현이지-계약이-아니다)). §5.4 는 이 필드를 키
+> 생략형으로 **선언**하라고 요구할 뿐 *"어느 경로에서 생략되는가"* 는 규정하지 않는다 — 생성
+> 응답도 `workflow` 를 싣도록 강화하는 것은 계약 위반이 아니라 additive 개선이다. 그런데 지금
+> 캐너리의 음성 케이스가 그 강화를 RED 로 막는다. **의도된 프로세스 게이트**이지만(이 문장을
+> 함께 고치지 않고는 동작을 못 바꾼다) 계약으로 읽지 말 것.
 >
 > 이 참조는 `id` 와 `name` 을 담는다 — 스케줄 응답의 자매 참조는 `name` 하나만 담고
 > **의도적으로 다르다**(그쪽 화면은 이름만 표시한다). 한쪽을 다른 쪽으로 갈아 끼우지 말 것.
@@ -363,3 +377,29 @@ Webhook 수신 인증은 `/authentication` (AuthConfig) 자격증명을 binding 
 - **단일 편집 경로**: detail drawer 는 `isActive` 를 read-only Badge 로 렌더하고, 토글은 목록 ⋮ 행 액션 (→ `PATCH /api/triggers/:id { isActive }`) 으로 동작한다.
 - **§2.1 동등 선언과 정합**: §2.1 은 ⋮ 행 액션이 "동일 API" 로 동등 기능을 제공함을 이미 명시한다. 따라서 drawer 안에 별도 토글이 없어도 사용자는 전환 수단을 잃지 않으며, 편집 진입점을 한 곳으로 모아 "어디서 켜고 끄는지" 가 명확해진다.
 - **R-4 와의 구분**: [R-4](#r-4-isactive-편집-경로는-patch-apitriggersid-body-단일-경로-toggle-미채택) 는 **API 편집 경로** (PATCH body 단일 경로, `/toggle` 미채택) 결정이고, 본 R-16 은 **drawer UI 표현** 결정이다. 두 축은 독립 — API 계약상 PATCH body `{ isActive }` 경로가 유일한 전환 경로다.
+
+### R-17. 이 축의 캐너리가 고정하는 것은 구현이지 계약이 아니다
+
+[§3 응답 형태 註](#3-api)의 e2e 캐너리(`trigger-workflow-ref.e2e-spec.ts`)는 `TriggerDto.workflow`
+가 **생성 응답에만 부재**함을 양성 4 + 음성 1 로 고정한다. 그 음성 단언이 무엇을 고정하는지 적어
+둔다 — **계약이 아니라 현재 구현이다.**
+
+[§5.4](../5-system/2-api-convention.md#54-부재-표현--null-vs-키-생략) 는 이 필드를 키 생략형으로
+**선언**하라고 요구할 뿐(`@ApiPropertyOptional()` + `field?: T`) *"어느 응답 경로에서 생략되는가"*
+는 규정하지 않는다. 그러므로 생성 응답도 `workflow` 를 싣도록 강화하는 것은 **계약 위반이 아니라
+additive 개선**이다 — optional 로 선언된 필드가 항상 실려도 선언은 여전히 참이다.
+
+**기각한 대안 — 음성 케이스를 지우는 것.** *"계약이 아니라면 그 단언을 빼면 되지 않나"* 는 성립하지
+않는다. 음성 케이스가 없으면 **「부재는 생성 응답에만 있다」는 경계 주장 자체가 무근거로 남는다** —
+양성 4건은 *"채워진다"* 만 말하고 *"어디서는 안 채워진다"* 는 말하지 않기 때문이다. 즉 고칠 대상은
+캐너리가 아니라 **spec 이 그 사실을 계약처럼 읽히게 두는 것**이고, 그래서 처방이 이 항목이다.
+
+> **W4 회귀 방지는 이 음성 케이스가 아니라 양성 케이스가 맡는다.** PATCH 의 chatChannel 재조회에서
+> 관계가 빠졌던 그 결함은 **chatChannel 포함 PATCH 케이스**(양성)가 잡는다 — 음성 케이스를 지워도
+> 그 방어는 남는다. 두 축을 섞어 *"음성 케이스가 없으면 W4 가 다시 샌다"* 로 적지 말 것.
+
+**재검토 신호.** 생성 응답에도 `workflow` 가 필요해지는 구체적 계기가 있다 — 목록·상세를 기다리지
+않고 **create 응답을 optimistic update 로 그대로 화면에 쓰기 시작하면** `workflow.name` 이 필요해진다.
+그때 캐너리의 음성 케이스가 RED 가 되는데, 맞는 판단은 *"테스트가 막으니 못 한다"* 가 아니라
+**"§3 註와 이 항목을 함께 고치면 된다"** 이다. 자매 스케줄 축은 같은 신호를
+[`3-schedule.md §4`](./3-schedule.md#4-api) 본문에 이미 갖고 있다.
