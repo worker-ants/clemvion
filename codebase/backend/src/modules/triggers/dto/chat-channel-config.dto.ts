@@ -249,7 +249,7 @@ export class ChatChannelConfigDto {
    * Provider-issued inbound webhook 인증 자료의 plaintext 입력 — Slack signing secret /
    * Discord ed25519 application public key. 사용자가 외부 portal 에서 발급된 값을 그대로 입력.
    *
-   * 입력 후 service 가 `SecretResolver.store(inboundSigningRef, plaintext)` 로 옮긴 뒤
+   * 입력 후 service 가 `SecretResolver.rotate(inboundSigningRef, ws, plaintext)` (UPSERT) 로 옮긴 뒤
    * trigger.config 에는 절대 흘러가지 않음 (SS-SE-01) — `inboundSigningRef` 만 보관.
    *
    * provider 별 분기:

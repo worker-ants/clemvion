@@ -2085,9 +2085,16 @@ field: T | null;
       > | 비어있지 않은 문자열 | **전역 파이프가 먼저** | 중첩 `chatChannel.<field>` (배열) |
       > | `null` · `''` | `@IsEmpty()` **통과** → **서비스 가드** | flat `<field>` (단일 object) |
       >
-      > 즉 **세 분기는 dead code 가 아니다** — `null`/`''` 갈래에서 실제로 도달한다(그 갈래를
-      > 고정한 테스트가 `trigger-dto-validation.spec.ts` 의 *"값이 null/빈 문자열이면 DTO 를
-      > 통과한다"* 와 `triggers.service.spec.ts` 의 두 필드 × 두 값 4조합이다).
+      > 즉 **세 분기는 dead code 가 아니다** — `null`/`''` 갈래에서 실제로 도달한다.
+      >
+      > **(2026-09-11 재정정 — 위 문장의 첫 판본이 거짓이었다.)** 처음에 근거로 든
+      > `triggers.service.spec.ts` 의 4조합은 **신규 2필드**(`botToken`·`inboundSigningPlaintext`)
+      > 만 덮고 **이 항목의 대상인 내부 3필드는 하나도 걸지 않았다.** 세 가드를 전부 falsy
+      > 체크로 완화한 뮤턴트에 **207개가 그대로 GREEN** 이었다(reviewer 가 먼저 실측했고 나도
+      > 재현했다 — `/ai-review` `review/code/2026/09/11/01_27_26` testing W).
+      > **그 뒤 3필드 × 2값 6조합을 추가했고, 같은 뮤턴트에 RED 6건**을 확인했다.
+      > 신규 2필드만 채우고 자매 3필드를 안 본 것이라, 이 세션이 반복한
+      > **"축은 대칭인데 한쪽만"** 의 또 한 번이다.
       > **그래서 가드를 지우지 않았다.** 이 항목이 세운 *"도달 가능성이 높다(=파이프가 먼저
       > 거부한다)"* 는 전제는 **비어있지 않은 값 갈래에만** 참이었다 — 한 갈래만 보고 전체를
       > 판정하려던 것이 이 항목 자체의 결함이다.
@@ -2130,6 +2137,11 @@ field: T | null;
       라면 두 번째 호출부터 깨져야 한다. 대상: `15-chat-channel.md:200,201,373,390` ·
       `chat-channel-adapter.md:354,359` · `providers/telegram.md:58,219` · `providers/slack.md:278`.
       정답 표기 선례는 `data-flow/14-chat-channel.md` 의 *"secret store UPSERT"*.
+
+      > **(2026-09-11) `codebase/**` 3곳은 이 PR 에서 이미 고쳤다** — 원 열거가 `spec/` 만
+      > grep 해서 놓쳤던 자리다(`/ai-review` `review/code/2026/09/11/01_27_26` documentation W):
+      > `slack.adapter.ts:65` · `triggers.service.ts:755` · `chat-channel-config.dto.ts:252`.
+      > **남은 것은 `spec/` 9곳뿐이고 그것이 planner 몫이다.**
 
       > **개수 확정 (2026-09-11 실측).** 이 항목이 한때 제목에 *"7곳"*, 본문 표에 *"9곳"* 을
       > 동시에 적어 어긋나 있었다(`--impl-done` `review/consistency/2026/09/11/01_10_44` INFO).

@@ -3244,6 +3244,16 @@ describe('TriggersService — chatChannel PATCH 는 사용자 비밀을 쓰지 �
     ['botToken', 'telegram', '빈 문자열', ''],
     ['inboundSigningPlaintext', 'slack', 'null', null],
     ['inboundSigningPlaintext', 'slack', '빈 문자열', ''],
+    // 기존 **내부 3필드**도 같은 `typeof !== 'undefined'` 형태인데 `null`/`''` 케이스가
+    // 없었다. 세 가드를 전부 falsy 체크로 완화한 뮤턴트에 **207개가 그대로 GREEN** 이었다
+    // (실측, `/ai-review` `review/code/2026/09/11/01_27_26` testing W). 신규 2필드만 채우고
+    // 자매 3필드를 안 본 것이라 — 이 세션이 반복한 **"축은 대칭인데 한쪽만"** 의 또 한 번이다.
+    ['botTokenRef', 'telegram', 'null', null],
+    ['botTokenRef', 'telegram', '빈 문자열', ''],
+    ['inboundSigningRef', 'telegram', 'null', null],
+    ['inboundSigningRef', 'telegram', '빈 문자열', ''],
+    ['inboundSigning', 'telegram', 'null', null],
+    ['inboundSigning', 'telegram', '빈 문자열', ''],
   ])(
     '%s: %s 인 경우도 서비스가 400 으로 잡는다 (%s)',
     async (field, provider, _label, value) => {

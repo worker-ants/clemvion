@@ -752,8 +752,8 @@ export class TriggersService {
    * 흘러가는 것을 차단해 첫 triggerRepository.save 시 DB JSONB 에 일시 기록되는 시간 창을
    * 제거한다. adapter 미등록 early-return 경로에서도 plaintext 가 영구 잔류하지 않음을 보장.
    *
-   * 원본 plaintext 는 호출자가 별도 변수로 보관해 setupChatChannel 에 전달 — SecretResolver.store
-   * 로 옮긴 뒤 ref 만 config 에 반영.
+   * 원본 plaintext 는 호출자가 별도 변수로 보관해 setupChatChannel 에 전달 — SecretResolver.rotate
+   * (UPSERT) 로 옮긴 뒤 ref 만 config 에 반영.
    */
   private stripChatChannelPlaintext(
     chatChannel: ChatChannelInput,
