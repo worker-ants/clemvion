@@ -3,7 +3,7 @@ title: notification_secret_v2 — 내 첫 진단이 반증됐다. 이탈한 것�
 worktree: spec-notification-secret-storage-7768dd
 started: 2026-09-05
 owner: planner
-status: in-progress
+status: complete
 priority: P1
 spec_impact:
   - spec/5-system/14-external-interaction-api.md
@@ -215,7 +215,13 @@ frontmatter `code:` 에 **정적 가드** 등재:
 
 - ~~**미머지 브랜치 문구 정정**~~ → **2차 반영 I6 에서 해소.** 그 문장은 `983fd0ade` 로
   이 브랜치에 이미 있었고 여기서 고쳤다 — *"미머지라 못 고친다"* 는 내 사유가 틀렸다.
-- **`1-data-model.md §2.8`** 의 `notification_secret_v2` 행에 저장 형태 한 줄 (INFO#2).
+- ~~**`1-data-model.md §2.8`** 의 `notification_secret_v2` 행에 저장 형태 한 줄 (INFO#2).~~
+  → **해소 (2026-09-10, 배치 C-2)**. 그 행에 *"`secret://` ref 가 아니라 컬럼에 담긴 평문,
+  승격 시 `null` 로 비워진다"* + [§1 비대상 등재](../../spec/conventions/secret-store.md#1-uri-scheme)
+  링크 + 자매 행(`chat_channel_token_v2` = reference)과의 등급 차이를 적었다.
+  **자매 트래커에 같은 항목이 독자적으로 등재돼 있었고**(`spec-draft-nullable-notation-followups.md`,
+  같은 날 같은 INFO#2 근거), 배치 C 의 `--spec` 이 그 이중 등재를 잡아 양쪽을 함께 닫았다
+  (`review/consistency/2026/09/10/10_23_42` WARNING#1).
 
 ## `--spec` 2차 반영 (`19_59_16` — BLOCK: YES · C1 · W3 · I6)
 
@@ -299,3 +305,15 @@ R-K 는 **semantic**(무엇의 v2 인가)을 결정했지 **저장 정책**(왜 
 행이 있으니 "설계는 ref" 라고 결론지었는데, 그 의도를 실제로 결정한 문서는 따로 있었고
 반대를 말했다. 규약의 **카탈로그**(무엇이 정의됐나)와 **결정**(왜 그렇게 하나)은 다른
 층이고, 후자를 안 읽으면 전자만으로 반대 결론에 닿을 수 있다.
+
+---
+
+## 종결 (2026-09-10)
+
+`## 후속 (이 PR 밖)` 의 두 bullet 이 모두 닫혔다 — 첫째는 2차 반영 I6 에서, 둘째는 위
+배치 C-2 에서. `4-integration.md §9.1` 은 **이 plan 의 항목이 아니다**: 2차 반영 W3 이
+*"트래커에 항목 등재"* 로 위임했고(`spec-draft-nullable-notation-followups.md`), 그 항목은
+차단 전제(대상 5필드가 미머지 브랜치에 있음)가 `#1291` 머지로 풀린 상태로 **여전히 열려
+있다** — 이 plan 이 아니라 그쪽에서 처리한다.
+
+체크박스 `[ ]` 0건, 미해결 follow-up 0건.

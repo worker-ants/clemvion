@@ -1,0 +1,13 @@
+{
+  "timestamp": "2026-09-10T10:23:42.872147",
+  "mode": "spec draft 검토 (--spec)",
+  "target_path": "plan/in-progress/spec-draft-doc-precision-batch-c.md",
+  "checkers": [
+    "cross_spec",
+    "rationale_continuity",
+    "convention_compliance",
+    "plan_coherence",
+    "naming_collision"
+  ],
+  "target_snapshot": "_target/spec-draft-doc-precision-batch-c.md"
+}

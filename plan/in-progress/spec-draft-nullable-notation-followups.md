@@ -755,7 +755,7 @@ field: T | null;
       (c) `makeSpecExists` 를 거버넌스 경로까지 넓힌다(게이트가 무는 방향이 흐려지므로 비추천).
       **(a) 가 가장 싸고, 지금 상태를 그대로 문장으로 만든다.**
 
-- [ ] **"쿼리 범위 `select` 투영" 을 `1-data-model.md ## Rationale` 에 정식 등재** (planner,
+- [x] **"쿼리 범위 `select` 투영" 을 `1-data-model.md ## Rationale` 에 정식 등재** (planner,
       2026-09-08 등재, `review/consistency/2026/09/08/13_22_38` rationale_continuity INFO#1).
 
       `#1299` 가 `1-data-model.md ## Rationale` 에 세 선택지 표(컬럼 `select: false` 기각 /
@@ -771,7 +771,35 @@ field: T | null;
       → 그 표에 네 번째 행(또는 채택 행의 하위 각주)으로 *"쿼리 범위 `select` 투영 — 엔티티
       전역과 구분"* 을 넣고 두 사례를 인용한다. developer 권한 밖(`spec/` 쓰기)이라 planner 턴.
 
-- [ ] **`2-api-convention.md §5.4` 의 `swagger.md` 인용이 한 절 앞을 가리킨다** (planner,
+      > **완료 (2026-09-10, 배치 C-1)**. 채택 행 아래 블록쿼트로 넣었다 — **별 행으로 넣지
+      > 않았다.** 그 표는 *"세 안을 놓고 골랐다"* 는 당시의 선택지 집합이라, 네 번째 행을 더하면
+      > *"넷을 놓고 골랐다"* 가 되어 이력이 사후 편집된다. 각주는 *"채택안이 코드에서 어떤
+      > 형태인가"* 를 적는 자리다.
+      > 적용 범위(모든 쿼리 vs 그 쿼리 하나) · 다른 내부 경로 영향(fail-silent vs 무영향)을
+      > 2행 표로 대비시키고, `listMembers` 가 전환되며 래칫 화이트리스트에서 **빠진 것**이
+      > 기계적 증거임을 함께 적었다. 3라운드 연속 지적(`13_22_38`·`14_01_57`·`14_29_13`) 종결.
+
+
+- [ ] **`production-build-devdep*` 가드는 소유할 spec 이 없다** (planner + 결정, 2026-09-10 등재,
+      배치 C-4 실측 중 발각).
+
+      배치 C-4 가 미등재 가드 4개 중 2개(`endpoint-path-conflict-wrap*`)를 등재하고 나머지 둘을
+      **일부러 남겼다.** 실측: `tsconfig.build.json`·`dist`·`devDependency` 를 언급하는 spec 파일
+      **0건**(`grep -rln` 전수). 그 가드가 강제하는 것은 제품 계약이 아니라 **빌드 위생**이다
+      (프로덕션 번들에 테스트 전용 코드·devDependency 가 실리지 않는다).
+
+      `spec-impl-evidence.md §2.1` 은 *"시행 코드가 없는 순수 문서형 convention"* 의 예외를
+      다루는데, 이건 **그 반대** — 시행 코드는 있고 규약 문서가 없다. 그 축이 성문화돼 있지 않다.
+
+      **지금 실질 피해는 없다** — 그 가드는 harness CI(`harness-checks.yml` 아님,
+      backend unit)에서 돌고 `--impl-done` 게이트는 spec 연결 코드만 본다. 다만 **약화·삭제해도
+      SPEC-CONSISTENCY 게이트가 안 문다**는 점에서 A-4 가 고친 것과 같은 등급의 사각이다.
+
+      → 택일: (a) `spec/conventions/` 에 빌드 산출물 위생 규약 신설 후 등재 ·
+      (b) 그 축을 `spec_impact` 밖(harness 축)으로 성문화하고 게이트 대상이 아님을 명문화 ·
+      (c) 현행 유지 + 사유를 그 가드 헤더에 적기. **(b) 가 가장 정직해 보인다** — 그 불변식의
+      소비자는 배포이지 제품 spec 이 아니다.
+- [x] **`2-api-convention.md §5.4` 의 `swagger.md` 인용이 한 절 앞을 가리킨다** (planner,
       2026-09-08 등재, `review/consistency/2026/09/08/12_21_11` convention_compliance INFO#4).
 
       §5.4 는 *"DTO 선언이 wire 를 반영해야 한다"* 의 근거로 [`swagger.md §1-3`](
@@ -785,7 +813,12 @@ field: T | null;
 
       → 인용을 `swagger.md#1-4-nested--enum--union` 로 바꾸거나 §1-3·§1-4 병기.
 
-- [ ] **`3-error-handling.md §2.1` 예시의 `requestId` 가 UUID 형식이 아니다** (planner,
+      > **완료 (2026-09-10, 배치 C-3)**. §1-3·§1-4 **병기**로 고쳤다 — §1-4 로 갈아치우지 않았다.
+      > 그 불릿 아래 두 항목이 `@ApiPropertyOptional()` 형태와 `@ApiProperty({ nullable: true })`
+      > 형태를 **둘 다** 규정하므로, 한쪽만 가리키면 반대쪽이 근거를 잃는다. §1-4 가 이 절을 SoT 로
+      > 역참조한다는 사실도 인용 안에 적어 두 방향이 서로를 가리키게 했다.
+
+- [x] **`3-error-handling.md §2.1` 예시의 `requestId` 가 UUID 형식이 아니다** (planner,
       2026-09-08 등재, `review/consistency/2026/09/08/13_34_30` convention_compliance INFO#2).
 
       §2.1 JSON 예시가 `"requestId": "req_abc123"` 로 적는데, 같은 필드를
@@ -794,6 +827,16 @@ field: T | null;
 
       → 예시 값을 UUID placeholder 로 교체. **이 배치가 쓴 문장이 아니므로** 자기-반증형
       소정정 대상이 아니다(조건 1 불충족) — planner 턴.
+
+      > **완료 (2026-09-10, 배치 C-5) — 항목은 §2.1 을 지목했는데 실측은 3곳이었다.**
+      > `req_abc123` 는 §2.1(기본 형식) · §2.2(실행 에러 형식) · §6.2(로그 형식) 세 자리에 있었고,
+      > 셋 다 정본(`2-api-convention.md` = `12-webhook.md` 와 같은 UUID)으로 바꿨다.
+      > §6.2 를 포함한 이유: 그 필드는 API 응답의 `requestId` 와 **같은 상관관계 id** 라
+      > (`GlobalExceptionFilter` 발급값이 로그로 흐른다) 형식이 갈리면 로그↔응답 대조가
+      > *"같은 필드인가"* 부터 의심된다.
+      > **`14-external-interaction-api.md:340` 의 `"3f2a…"` 는 측정하고 제외했다** — 다른 형식이
+      > 아니라 UUID 접두의 생략 표기이고, 이 항목이 막으려는 *"`req_` 접두 스키마 오해"* 를
+      > 만들지 않는다.
 
 - [ ] **"안전한 `User` 투영" 을 공용 상수로 승격할지 결정** (developer, 2026-09-08 등재,
       `review/code/2026/09/08/14_01_56` architecture WARNING#2 — **이번 배치는 defer 했다**).
@@ -1523,13 +1566,23 @@ field: T | null;
       `consecutiveNetworkFailures` 는 **FE 미소비 — 제거 후보로 별도 추적 중**이라는 캐비엇을
       함께 적어 나머지 4개와 동급으로 문서화하지 않는다.
 
-- [ ] **`1-data-model.md §2.8` — `notification_secret_v2` 저장 형태 명시** (planner,
+- [x] **`1-data-model.md §2.8` — `notification_secret_v2` 저장 형태 명시** (planner,
       2026-09-05 등재, `19_59_16` INFO#2 / `20_17_57` W4). 그 행은 저장 형태를 안 적는데
       자매 행(`chat_channel_token_v2`)은 *"reference"* 라고 적어 **서술 밀도가 비대칭**이다.
       평문임을 한 줄로 명시하고 [`secret-store.md §1`](../../spec/conventions/secret-store.md)
       비대상 등재로 링크한다.
 
-- [ ] **§5.4 래칫 canary fixture 를 `code:` 에 등재** (planner, 2026-09-05 등재,
+      > **완료 (2026-09-10, 배치 C-2)**. *"`secret://` ref 가 아니라 컬럼에 담긴 평문, 승격 시
+      > `null` 로 비워진다"* + `secret-store.md §1` 비대상 등재 링크 + 자매 행
+      > (`chat_channel_token_v2` = **reference**)과의 등급 차이(§R-K)를 적었다.
+      > **노출 금지는 다시 적지 않았다** — `secret-store.md §1.1` 이 소유하고 `#1300` 이 그 창이
+      > 닫혔음을 이미 정정했다. 저장 형태만 적는 것이 이 항목의 실질이다.
+      > **같은 항목이 자매 plan 에 독자적으로 등재돼 있었다** —
+      > `spec-draft-notification-secret-storage.md` 의 「후속 (이 PR 밖)」 마지막 bullet(같은 날,
+      > 같은 INFO#2 근거). 배치 C 의 `--spec` 이 그 이중 등재를 잡아(`10_23_42` WARNING#1) 양쪽을
+      > 함께 닫았고, 그 plan 은 잔여 0건이 되어 `plan/complete/` 로 이관했다.
+
+- [x] **§5.4 래칫 canary fixture 를 `code:` 에 등재** (planner, 2026-09-05 등재,
       `review/consistency/2026/09/05/20_45_39` W1).
 
       `repo-guards/__tests__/fixtures/dto/responses/optional-nullable.fixture.ts` 는 래칫의
@@ -1544,6 +1597,21 @@ field: T | null;
 
       → `2-api-convention.md` frontmatter `code:` 에
       `codebase/backend/src/repo-guards/__tests__/fixtures/**` 를 추가한다.
+
+      > **완료 (2026-09-10, 배치 C-4) — 항목은 1개를 지목했는데 실측은 6개였다.**
+      > 정본 게이트(`review_guard._spec_linked_changes()`)에 직접 물었다: fixture **0/5**,
+      > 가드 본체 **9/13**. 미등재 가드에 `endpoint-path-conflict-wrap*.ts` 가 있었다 —
+      > **`#1299` 의 A-4 가 고친 그 결함을, 이틀 뒤 `#1300` 에서 세 번째 가드를 만들며 다시
+      > 비웠다.**
+      >
+      > **처방도 바꿨다.** 항목은 `fixtures/**` 한 줄을 지시했는데, `spec-impl-evidence.md` 자신이
+      > *"넓은 트리 글롭으로 가드만 통과시키는 것은 아무것도 가리키지 않는 것과 같다"* 고 적고,
+      > 실제로 `jsdoc-citation.fixture.ts` 의 소유자는 `review-citations.md` 라 다른 문서로 끌려간다.
+      > → **소유 문서별 정밀 glob** 으로 4개 문서에 6항목 등재(`review-citations.md` 선례를 따라
+      > `# 대조군(negative fixture) — …` 인라인 주석 부기).
+      >
+      > **결과 (게이트 재질의)**: fixture **0/5 → 5/5**, 가드 **9/13 → 11/13**.
+      > 남은 2개는 아래 신규 항목이다.
 
 - [x] **"노출 창이 아직 닫혀 있지 않다" 서술이 낡는다 — `secret-store.md §1` 과
       `14-external-interaction-api.md §7.1` 두 곳** (planner, 2026-09-05 등재,

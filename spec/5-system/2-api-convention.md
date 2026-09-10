@@ -16,6 +16,11 @@ code:
   - codebase/backend/src/shared/testing/swagger-probe*.ts
   - codebase/backend/src/repo-guards/__tests__/user-entity-exposure*.ts
   - codebase/backend/src/shared/testing/user-secret-absence*.ts
+  # 대조군(negative fixture) — 위 두 가드가 강제하는 **위반 형태의 실례**.
+  # 없으면 술어가 죽어도 테스트가 통과한다(실제로 그 상태로 한 라운드를 지났다).
+  - codebase/backend/src/repo-guards/__tests__/fixtures/dto/responses/optional-nullable*.ts
+  - codebase/backend/src/repo-guards/__tests__/fixtures/user-eager-relation*.ts
+  - codebase/backend/src/repo-guards/__tests__/fixtures/user-relation-load*.ts
 ---
 
 # Spec: API 설계 규칙
@@ -225,7 +230,7 @@ GET /api/triggers?type=webhook&status=active
 | **키 생략** | present-when-available — 값이 있을 때만 동봉한다 | (a) 같은 데이터를 싣는 **다른 표면(SSE/WS wire)과 형식을 일치**시켜야 할 때, (b) 선택적 부가 컨텍스트라 소비자가 부재를 정상 경로로 다룰 때 |
 
 - **기본은 `null`** 이다. 키 생략은 (a)/(b) 중 하나에 해당할 때만 쓰고, **그 필드를 문서화하는 절에 사유를 명시**한다.
-- DTO 선언이 wire 를 반영해야 한다 ([Swagger 규약 §1-3](../conventions/swagger.md#1-3-optional-필드)):
+- DTO 선언이 wire 를 반영해야 한다 — 선언 형태의 표준 예시는 [Swagger 규약 §1-3](../conventions/swagger.md#1-3-optional-필드), `nullable` vs optional 판단의 근거는 [§1-4](../conventions/swagger.md#1-4-nested--enum--union) 다 (§1-4 가 이 절을 SoT 로 역참조한다):
   - **키를 생략**하는 필드 → `@ApiPropertyOptional()` + `field?: T` (`| null` 금지)
   - **`null` 을 쓰는(상시 존재)** 필드 → `@ApiProperty({ nullable: true })` + `field: T | null`
   - TS 타입이 `| null` 인데 `nullable: true` 를 **선언하지 않는 것은 어느 쪽에서도 틀렸다** — OpenAPI 가 null 가능성을 감춰 소비자가 null 이 올 수 없다고 믿는다.

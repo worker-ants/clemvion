@@ -12,6 +12,11 @@ code:
   - codebase/backend/src/modules/triggers/triggers.module.ts
   - codebase/backend/src/modules/triggers/dto/**
   - codebase/packages/chat-channel-validation/src/index.ts
+  # 시행 코드 — §3 의 409 `RESOURCE_CONFLICT` + `details.code=TRIGGER_ENDPOINT_PATH_CONFLICT`
+  # 계약을 AST 로 강제한다: `endpointPath` 를 쓰는 `save()` 는 래핑돼야 한다
+  - codebase/backend/src/repo-guards/__tests__/endpoint-path-conflict-wrap*.ts
+  # 대조군(negative fixture) — 위 가드가 잡아야 하는 미래핑 형태의 실례
+  - codebase/backend/src/repo-guards/__tests__/fixtures/endpoint-path-save*.ts
 ---
 
 # Spec: 트리거 목록 화면

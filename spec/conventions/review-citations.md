@@ -7,6 +7,8 @@ code:
   - codebase/frontend/src/components/llm-config/sanitize-loader-error.ts
   # 시행 코드 — §3 의 **응답 DTO** 축을 AST 로 강제한다 (컨트롤러 축은 미강제)
   - codebase/backend/src/repo-guards/__tests__/dto-jsdoc-citation*.ts
+  # 대조군(negative fixture) — 위 시행 코드가 잡아야 하는 위반 형태의 실례
+  - codebase/backend/src/repo-guards/__tests__/fixtures/dto/responses/jsdoc-citation*.ts
 ---
 
 # Convention: 코드 주석의 리뷰 산출물 인용
