@@ -2121,6 +2121,13 @@ field: T | null;
       (planner + 결정, 2026-09-10 등재, `--spec` `review/consistency/2026/09/10/22_04_23`
       `naming_collision` INFO). 현재 저장소에 `Patch` 접두 클래스는 **0건**이고 관례는 `Create`/`Update`
       축인데 **명문 규칙은 없다**(실측). 규약 신설은 별 결정 사안이라 이 자리에만 등재한다.
+      **함께 결정할 것 (2026-09-11)**: `Update` 가 **접두어여야 하는가**도 같이 정한다 —
+      저장소의 기존 Update DTO 18개는 전부 접두어인데 `ChatChannelUpdateConfigDto` 는 중간에
+      둔다(형제 nested DTO 의 로컬 `ChatChannel<Role>Dto` 패턴을 따랐다). checker 도
+      *"명문 규칙 부재라 위반은 아님"* 으로 판정했다.
+      **부수**: `chat-channel-config.dto.ts:365` 의 `swagger.md:315` 인용을 **`§3` 절 참조로**
+      바꾼다 — 인용 자체는 실측상 **정확하지만**(315 가 규약 제목 줄, 317 은 다음 문단) checker 가
+      두 라운드 연속 오탐을 냈다. 줄 번호가 읽는 쪽에 모호하다는 신호다.
 
 - [ ] **telegram inbound-signing 재발급이 `1-auth.md §4.1` 전용 audit action 카탈로그 밖이다**
       (planner, 2026-09-10 등재, `--spec` `review/consistency/2026/09/10/22_14_27` `cross_spec` INFO).
