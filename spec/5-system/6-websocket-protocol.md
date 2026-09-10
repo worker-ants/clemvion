@@ -21,6 +21,42 @@ code:
 
 ---
 
+## Overview
+
+본 문서는 **서버와 프런트엔드 사이의 양방향 실시간 채널**을 정의한다. 무게중심은 실행이다 —
+서버가 실행 진행 상황을 밀어 보내고(§4.1), 클라이언트가 실행 제어 명령을 보내고(§4.2), 노드가
+사용자 입력을 기다릴 때 그 왕복을 중개한다(§4.4). 실행 외에 **KB 문서 처리 상태**(§4.3)와
+**사용자 알림**(§4.5)도 같은 채널 위에 있다. 이벤트는 구독한 리소스에 대해서만 전달되며, 채널은
+`execution:` · `workflow:` · `kb:` · `notifications:` · `background:run:` 다섯 종이다(§3.2).
+끊긴 동안 놓친 것은 재구독 시 **1회성 `execution.snapshot`** 으로 재동기화한다(§6.2) —
+`seq` 기반 replay 버퍼는 **native WS 에 없다**(SSE 어댑터 소유, §4.7).
+
+읽기 전에 두 가지를 알아야 한다. **첫째, 전송 계층은 Socket.IO 다** — 본문의
+`{ type, id, payload }` 프레임 표기는 논리적 메시지 형태를 보이기 위한 추상화다. raw WebSocket
+프레이밍을 전제한 항목 중 **§1.2 서브프로토콜 인증과 §8 close 코드는 비채택**이다. 다만 "raw-WS
+전제니까 다 비채택" 으로 뭉치지 말 것 — §4.6 한 절 안에서도 `system.maintenance` emit 은 비채택인데
+서버발신 `auth.token_expired` 는 **구현 완료**다. 어느 항목이 어느 갈래인지는 바로 아래 §1 의
+「전송 계층 (구현 현실)」 註가 세 갈래로 갈라 적어 두었고, 그 註가 SoT 다.
+
+**둘째, 같은 실행을 두 표면이 보고한다** — 내부 WS 와 외부 EIA 의 REST + SSE + Outbound
+Notification 이며, 명령·이벤트 매핑의 권위는 §4.7 이 갖는다. 외부 표면은 내부 WS 경로를 facade 로
+감싼 **단일 구현 경로**여야 하므로, **이벤트나 명령의 형태를 고칠 때 한 표면만 보고 고치면 두
+표면의 의미가 갈린다.** 단 **같은 실행을 보고한다는 것이 같은 페이로드를 보낸다는 뜻은 아니다** —
+§4.7 표는 대칭이 아니라 **선택적** 매핑이고(명령 표는 `외부 미노출`·`외부 미지원`·`해당 없음` 로
+갈리고, 이벤트 표의 Outbound Notification 열은 12행이 `—` 다), 디버그 필드
+(`llmCalls`·`requestPayload`·`responsePayload`)는 **외부 수신자에게 strip 된다**. 그 비대칭은
+누락이 아니라 **보안 목적의 결정**이므로, 두 표면을 맞추려다 지우지 말 것.
+
+실행 상태 전이 자체(Execution/NodeExecution 상태 머신·블로킹/재개 계약)는
+[실행 엔진](./4-execution-engine.md) 이, 외부 호출자용 표면(REST + SSE + Outbound Notification)은
+[External Interaction API](./14-external-interaction-api.md) 가 SoT 다. 에러는 두 갈래로 갈린다 —
+**명명 규율**은 [conventions/error-codes.md](../conventions/error-codes.md), **카탈로그·응답
+봉투·처리 정책**은 [에러 처리](./3-error-handling.md)(WS 명령 코드는 그 문서 §1.5)이며, 본 문서
+§7.1 은 그중 **transport 계층의 `WsErrorCode`** 를 다룬다. 본 문서는 이것들이 **wire 에서 어떤
+프레임으로 보이는가**를 정한다.
+
+---
+
 ## 1. 연결
 
 > **전송 계층 (구현 현실)**: 본 채널은 **Socket.IO** 로 구현되어 있다 (`@WebSocketGateway({ namespace: '/ws' })`, 클라이언트 `socket.io-client`). 따라서 메시지는 Socket.IO 의 이벤트/ack 모델을 따른다 — 클라이언트는 `socket.emit('<event>', data)` 로 보내고, 명령 ack 는 `{ event, data }` 형태의 callback payload 로 돌려받는다 (아래 §3.3 / §4.2 의 ack 예시 참조). 본 문서의 `{ type, id, payload }` JSON 프레임 표기는 **논리적 메시지 형태를 보이기 위한 추상화** 이며, 실제 wire 는 Socket.IO 가 감싼다 (raw WebSocket 프레임 / `Sec-WebSocket-Protocol` 서브프로토콜 / raw close code 를 직접 다루지 않는다). 본 §1~§9 중 raw-WS 전제 항목은 두 갈래다 — 서브프로토콜 인증(§1.2)·raw close 코드(§8) 및 REST 대체 항목(§1.3 in-band 갱신·§4.2 WS start/stop)은 **비채택 (won't-do)** (근거 §Rationale `R-wontdo-rawws-rest`), 서버발신 app ping(§5)·`system.maintenance` emit(§4.6) 역시 **비채택 (won't-do)** (근거 §Rationale `R-wontdo-maintenance-appping`), 서버발신 `auth.token_expired` emit(§4.6)은 **구현 완료** 다 (2026-09-02, 근거 §Rationale `R-ws-socket-lifetime-binds-token`). **이 갈래에 남은 미구현은 없다** — 추적하던 `spec-sync-websocket-protocol-gaps.md` 는 종결돼 `plan/complete/` 로 이동했다.
@@ -1270,3 +1306,23 @@ retry 는 "노드 단위 재시도" 라는 표현 때문에 일부 독자가 "do
 > **왜 `spec/conventions/` 신설이 아닌가**: 이 규칙의 적용 범위가 **WS 이벤트 enum 한 모듈**이다. `conventions/` 는 여러 영역이 참조하는 규약의 자리이고, 한 파일에만 걸리는 규칙을 거기 올리면 저장소가 `#1188`~`#1191` 네 PR 을 들여 걷어낸 **미러를 문서 레이어에 되살린다**([`egress-masking.md`](../conventions/egress-masking.md) 신설 시 `#1194` 가 같은 판단을 기록했다 — "신설이 자동으로 옳지 않다"). 적용 범위가 넓어지면 그때 승격한다.
 >
 > 코드 쪽 근거는 `websocket-events.types.ts` 의 `InAppNotificationEventType` JSDoc — 같은 규칙이 두 곳에 살므로 상호 포인터로 drift 를 잡는다.
+
+### `## Overview` 표기 선택 — 번호 밖 + PRD 진술이 아닌 절 (2026-09-10)
+
+본 문서에는 로컬 개요가 없었다(`## 1. 연결` 로 바로 시작). 추가하며 표기를 세 후보에서 골랐다.
+
+**`## 1. 개요`(번호형)는 비용 때문에 배제했다.** 이 문서의 §1 이 이미 `## 1. 연결` 이라 개요를
+§1 로 넣으면 §1~§9 가 한 칸씩 밀린다. 저장소가 본 문서의 번호 앵커를 인용하는 자리가 **96건**
+(`spec/` 89 · `plan/` 7 · `codebase/` 0, 서로 다른 앵커 13종)이라 전부 깨진다. 번호 밖의
+`## Overview` 는 기존 번호를 하나도 건드리지 않는다.
+
+**`(제품 정의)` 접미사는 붙이지 않는다.** [`project-planner/SKILL.md`](../../.claude/skills/project-planner/SKILL.md) 가 그 접미사를 "영역의
+사용자 가치·요구사항·목표 (옛 PRD 자리)" 로 정의한다 — **문서의 주제가 아니라 그 절이 담는
+내용**을 표시하는 것이다. 본 절은 범위 선언·섹션 맵·SoT 경계만 담고 사용자 가치·요구사항을
+담지 않으므로 접미사 대상이 아니다. `5-system/` 에서 접미사 없는 셋(`1-auth` · `3-error-handling`
+· `4-execution-engine`)이 모두 같은 형태다 — 특히 `1-auth.md` 는 주제가 제품 표면(로그인·2FA)
+인데도 그 절이 PRD 진술이 아니라 접미사를 안 쓴다.
+
+**단 이 기준이 `5-system/` 의 표기 분열(접미사 9 / 무접미사 3) 전체를 설명하지는 않는다** —
+`2-api-convention.md` 는 접미사가 있는데도 그 절이 `1-auth.md` 와 같은 스코프 선언 문형이다.
+분열의 상당 부분은 역사적 비일관성이며, 본 항목은 **이 문서의 선택 근거**만 기록한다.
