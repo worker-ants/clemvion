@@ -247,7 +247,7 @@ WebAuthn (Passkey/보안 키) credential 자체는 별도 엔티티 [§2.21 WebA
 | last_triggered_at | Timestamp? | 마지막 실행 시각 |
 | notification_health | Enum | unknown / healthy / degraded. Outbound notification 발송 건강도. default=`unknown`. [Spec EIA §3.1 EIA-NX-07](./5-system/14-external-interaction-api.md#31-outbound-notification-notification-webhook) |
 | notification_last_error | Text? | Outbound notification 최종 실패 시 마지막 에러 메시지 (truncate 가능) |
-| notification_secret_v2 | Text? | Secret rotation 기간 (24h grace) 동안 사용되는 신규 secret (NOT NULL 이면 `config.notification.signing.secret` 와 둘 다 검증) |
+| notification_secret_v2 | Text? | Secret rotation 기간 (24h grace) 동안 사용되는 신규 secret (NOT NULL 이면 `config.notification.signing.secret` 와 둘 다 검증). **저장 형태는 `secret://` ref 가 아니라 컬럼에 담긴 평문**이며, 승격 시 컬럼은 `null` 로 비워진다 — 그 예외의 조건·근거는 [secret-store §1 비대상 등재](./conventions/secret-store.md#1-uri-scheme). 자매 행 `chat_channel_token_v2` 는 **reference** 라 등급이 다르다 ([§R-K](./5-system/15-chat-channel.md#r-k-chat_channel_token_v2-컬럼-명명의-semantic-비대칭)) |
 | notification_rotated_at | Timestamp? | Secret rotation 시작 시각 (grace 종료 판정용) |
 | chat_channel_health | Enum | unknown / healthy / degraded. Chat Channel 어댑터의 외부 채널 호출 건강도. default=`unknown`. [Spec Chat Channel §3.4 CCH-SE-01](./5-system/15-chat-channel.md#34-신뢰성--보안). `notification_health` 와 enum 값 집합이 동일 — 향후 공용 DB 타입 통합 검토 |
 | chat_channel_last_error | Text? | Chat Channel 어댑터 외부 호출 최종 실패 시 마지막 에러 메시지 (truncate 가능) |
@@ -969,6 +969,27 @@ DocumentChunk·Entity 계열 선례를 따른다.)
 `response-contract.ts`)는 **배선된 엔드포인트에서만** 동작하고 배선은 아직 전 엔드포인트에 닿지
 않았다. 이름 축은 선언·배선과 독립이라 *"실수로 `passwordHash` 를 DTO 에 **선언까지** 해 버린"*
 경우도 잡는다.
+
+> **채택안이 코드에서 갖는 형태는 "쿼리 범위 `select` 투영" 이다 — 위 표 1행이 기각한 것과
+> 이름이 닮았으니 갈라 둔다.**
+>
+> 실제 코드는 `select: { creator: { id, name, email } }` 처럼 **그 쿼리 하나**의 컬럼을
+> 좁힌다. 1행이 기각한 것은 엔티티 선언의 `@Column({ select: false })` 이고, 둘은 이름만
+> 비슷하고 성질이 반대다:
+>
+> | | 1행 (기각) | 3행 (채택) 의 구현 형태 |
+> |---|---|---|
+> | 적용 범위 | 엔티티 컬럼 선언 — **모든 쿼리** | `find`/`findOne` 옵션 — **그 쿼리 하나** |
+> | 값을 읽는 다른 내부 경로 | `undefined` 를 받는다 (fail-silent) | 건드리지 않는다 |
+>
+> 사례 둘 — `WorkflowVersionsService.findOne`(`CREATOR_PROJECTION`) ·
+> `WorkspacesService.listMembers`. **후자는 전환하자 `user-entity-exposure-guard` 의
+> 화이트리스트에서 빠졌다**: 그 래칫은 양방향이라 목록에 남겨 두면 실패하므로, 항목이 사라지는
+> 것 자체가 전환의 기계적 증거다.
+>
+> 이 구분을 적어 두는 이유: 표만 읽은 다음 검토자가 `select: { … }` 를 보고 **1행이 기각한
+> 대안의 재도입**으로 오판할 수 있다. `--impl-done` 이 그 위험을 세 라운드 연속 지적했다
+> (`review/consistency/2026/09/08` 의 `13_22_38` · `14_01_57` · `14_29_13`).
 
 > **`select: false` 기각은 이 저장소의 일반 규칙이 아니다 — 컬럼별 소비 패턴이 가른다.**
 > 반례가 같은 문서 안에 있다: [§2.19 Notification](#219-notification) 의 `background_run_id` 는

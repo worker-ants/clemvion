@@ -262,7 +262,7 @@ code:
         "code": "INVALID_FIELD"
       }
     ],
-    "requestId": "req_abc123"
+    "requestId": "f3b6d2e0-9d4a-4b77-9d19-7a0f8f4c1e2b"
   }
 }
 ```
@@ -281,7 +281,7 @@ code:
     "nodeType": "ai_agent",
     "executionId": "uuid-of-execution",
     "stack": "...",
-    "requestId": "req_abc123"
+    "requestId": "f3b6d2e0-9d4a-4b77-9d19-7a0f8f4c1e2b"
   }
 }
 ```
@@ -472,7 +472,7 @@ API 호출 → 응답 확인
   "level": "ERROR",
   "service": "execution-engine",
   "message": "Node execution failed",
-  "requestId": "req_abc123",
+  "requestId": "f3b6d2e0-9d4a-4b77-9d19-7a0f8f4c1e2b",
   "userId": "uuid",
   "workspaceId": "uuid",
   "context": {
