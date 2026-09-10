@@ -3,7 +3,7 @@ title: TriggerDto.workflow 의 "생성 응답에만 부재" 를 캐너리로 고
 worktree: trigger-workflow-ref-canary-96ae33
 started: 2026-09-10
 owner: developer
-status: in-progress
+status: complete
 priority: P2
 spec_impact: none
 ---
@@ -117,19 +117,28 @@ export function expectTriggerWorkflowRef(
 
 | # | 경로 | 기대 |
 |---|---|---|
-| 1 | `POST /api/triggers` (생성) | **음성** — `workflow` 키 없음 |
-| 2 | `GET /api/triggers?type=webhook` (목록, `findAll` join) | 양성 |
-| 3 | `GET /api/triggers/:id` (단건, `findById` relations) | 양성 |
-| 4 | `PATCH /api/triggers/:id` — `{ name }` (일반, `findById` 로 시작) | 양성 |
-| 5 | `PATCH /api/triggers/:id` — **`{ chatChannel }` 포함** | 양성 — **깨졌던 그 경로** |
+| A | `POST /api/triggers` (생성) | **음성** — `workflow` 키 없음 |
+| B | `GET /api/triggers?type=webhook` (목록, `findAll` join) | 양성 |
+| C | `GET /api/triggers/:id` (단건, `findById` relations) | 양성 |
+| D | `PATCH /api/triggers/:id` — `{ name }` (일반, `findById` 로 시작) | 양성 |
+| E | `PATCH /api/triggers/:id` — **`{ chatChannel }` 포함** | 양성 — **깨졌던 그 경로** |
 
-**#1~#4 는 chatChannel 없는 평범한 webhook 트리거로 돈다** — 네트워크 호출 0회.
-`chatChannel` 이 붙는 두 자리(생성 · #5 PATCH)만 `setupChatChannel` → provider API 를 때린다.
+**A~D 는 chatChannel 없는 평범한 webhook 트리거로 돈다** — 네트워크 호출 0회.
+`chatChannel` 이 붙는 두 자리(생성 · E PATCH)만 `setupChatChannel` → provider API 를 때린다.
+
+> **라벨은 숫자가 아니라 문자다.** 초안은 `1.`~`5.` 로 썼는데, 저장소를 실측하니 `it()` 라벨에
+> `origin/main` 의 e2e 는 **20파일 / 132개 라벨**이 전부 문자(`A.`·`B-1.`)고, 숫자 라벨은 내
+> 파일 하나(5개)뿐이었다(`maintainability` INFO). 문자로 맞췄다 — 이 문서의 `E` 도 그 라벨이다.
+> 적용 후 재측정: **21파일 / 137 라벨 전부 문자, 숫자 0.**
+>
+> **처음 여기 "133개" 라고 적었다 — 틀렸다, 132개다.** 커밋 직전에 다시 세서 잡았다. 이 세션에서
+> 개수를 틀린 것이 이것으로 다섯 번째다(앵커 116→96 · 헤딩 8/2→9/3 · 길이 표 2회 · Warning 2→4 ·
+> 여기). **문서에 쓰는 그 시점에 실제로 세는 것**이 유일한 방어다.
 
 > **비용 추정을 실측이 낮췄다.** `cross_spec` INFO 를 받아 telegram client 의 **5초 timeout ×
-> 3회 + 백오프 1s/2s** 를 근거로 호출당 최악 ~18초, #5 가 두 번이니 ~36초를 예상했다. **실측은
-> #5 가 271~302ms** 이고 파일 전체가 **2초 미만**이다 — e2e 망에서 `api.telegram.org` DNS 가
-> **즉시 실패**해 timeout 까지 가지 않는다. 넉넉한 타임아웃(`beforeAll` 120초 · #5 60초)은
+> 3회 + 백오프 1s/2s** 를 근거로 호출당 최악 ~18초, E 가 두 번이니 ~36초를 예상했다. **실측은
+> E 가 271~302ms** 이고 파일 전체가 **2초 미만**이다 — e2e 망에서 `api.telegram.org` DNS 가
+> **즉시 실패**해 timeout 까지 가지 않는다. 넉넉한 타임아웃(`beforeAll` 120초 · E 60초)은
 > 그대로 둔다: CI 망에서 DNS 가 즉시 실패하지 않고 실제로 timeout 을 태울 수 있고, 그때
 > **캐너리가 flaky 로 죽으면 원인을 재조회 분기가 아니라 테스트 탓으로 오진한다.** 보험 비용은 0 이다.
 
@@ -137,15 +146,24 @@ teardown 은 이웃 e2e 파일들의 보일러플레이트를 그대로 따른�
 `db.end()`). `convention_compliance` 는 ephemeral schema 가 자동 truncate 하므로 row 삭제가
 불필요하다고 봤지만, **이웃 파일이 관찰상 전부 삭제하고 있어** 일관성을 택한다.
 
-**5번이 이 작업의 존재 이유다.** 1~4 만 걸면 정확히 그때 깨졌던 경로를 안 무는 캐너리가 된다.
-5번은 `if (chatChannel)` 재조회 분기를 실제로 통과해야 하므로, telegram chatChannel 을 가진
+> **그 추론은 한 테이블을 빠뜨렸다** (`side_effect` W2, 리뷰 라운드에서 지적).
+> `chatChannel` 이 붙은 트리거는 `setupChatChannel` 이 외부 호출 **이전에**
+> `secrets.rotate()` 로 `secret_store` 에 row 를 쓴다 — provider 호출이 실패해도 남는다.
+> 그 정리는 `TriggersService.remove()` 의 `deleteByPrefix` 만 하고 `secret_store` 는 FK 가
+> 없어(application-level cascade) raw `DELETE FROM trigger` 로는 **고아 row 가 남는다.**
+> 자매 `chat-channel-trigger-create.e2e-spec.ts` 도 동일하므로 이 PR 의 신규 결함은 아니고,
+> 관례를 그대로 유지했다. **다만 "불필요" 판정이 `secret_store` 까지 검증한 것은 아니다** —
+> 그 경계를 e2e 주석과 후속 트래커 항목에 명시했다.
+
+**E 가 이 작업의 존재 이유다.** A~D 만 걸면 정확히 그때 깨졌던 경로를 안 무는 캐너리가 된다.
+E 는 `if (chatChannel)` 재조회 분기를 실제로 통과해야 하므로, telegram chatChannel 을 가진
 webhook 트리거를 만든 뒤 `chatChannel.uiMapping` 을 PATCH 한다 —
 `chat-channel-trigger-create.e2e-spec.ts` 가 같은 생성 경로를 e2e 환경에서 이미 성공시키고 있어
 외부 호출 배선이 필요 없다(그 파일의 telegram 케이스 참조).
 
 ### 구현 중 실측으로 갈린 것 — chatChannel PATCH 는 `botToken` 을 생략할 수 없다
 
-#5 를 처음 `chatChannel: { provider, uiMapping }` 으로 보냈더니 **400** 이었다. 진단 로그로 본문을
+E 를 처음 `chatChannel: { provider, uiMapping }` 으로 보냈더니 **400** 이었다. 진단 로그로 본문을
 찍어 원인을 확정했다:
 
 ```
@@ -223,17 +241,69 @@ git author(`worker-ants`)를 쓴다. blame 은 "언제 들어왔나" 만 말하�
 3. **`PROJECT.md` §e2e 파일 위치 규칙 한 줄.** 지금 문면은 신규 e2e 헬퍼를 `test/helpers/` 로
    보내는데, **self-spec 을 동반하면 그 자리는 죽은 테스트가 된다** — 아래 T-1 각주 참조
    (`convention_compliance` WARNING).
+4. **캐너리가 무는 것이 계약인지 구현인지 한 줄로 적는다** (`api_contract` W2, 리뷰 라운드에서
+   추가). 캐너리는 *"생성 응답에만 `workflow` 가 없다"* 를 고정하는데, 그것은 **§5.4 가 요구하는
+   계약이 아니라 현재 구현의 반영**이다 — 장래 생성 응답도 `workflow` 를 싣도록 강화하는 것은
+   additive 개선이고 계약 위반이 아니다. 지금 캐너리는 그 강화를 RED 로 막는다. 그 자체는 SDD
+   프로세스 게이트로 바람직하지만, **spec 이 그것을 계약처럼 읽히게 두면 안 된다** — §3 註에
+   *"이 비대칭은 현재 구현의 반영이며, 바꾸려면 spec 개정이 필요하다"* 한 줄을 붙인다.
+
+## `/ai-review` 라운드 — 내 주장 셋이 반증됐고 단언 하나가 vacuous 였다
+
+`review/code/2026/09/10/14_34_18` (8 reviewer, router 가 6명 skip). **Critical 2건은 둘 다
+이 PR 밖의 사전 존재 프로덕션 결함**이고 (`api_contract` HIGH), 이 diff 자체는 scope NONE ·
+나머지 7명 LOW 다. 코드 수정 12건을 적용했다.
+
+**내가 틀린 것 — 세 개 다 "내가 쓴 근거 문장" 이었다**:
+
+| # | 내가 쓴 문장 | 반증 |
+|---|---|---|
+| 1 | *"부재가 §5.4 키 생략형이라 `assertMatchesContract` 는 그 자리를 물지 못한다"* | 그 검증자는 optional-non-nullable 필드의 `null` 을 **잡는다**(`response-contract.ts` 의 `visit()`, `kind:'null'`). 참인 사실은 **"이 분기에 그 검증자를 거는 기존 호출이 0건"** 이다 — 무능이 아니라 미배선 (`requirement` W2) |
+| 2 | *"`tsconfig.build.json` 이 그 디렉터리를 통째로 exclude 해 dist 유출도 없다"* | `exclude` 는 **root 파일 후보만** 거른다. exclude 되지 않은 프로덕션 파일이 이 경로를 `import` 하면 tsc 가 프로그램에 편입시켜 **`dist/` 로 emit 한다** — reviewer 가 scratch 에서 실제 `tsc --listFiles` 로 재현했다. 게다가 `@types/jest` 가 ambient 라 컴파일 에러도 안 난다 (`side_effect` W1) |
+| 3 | *"`User` 투영 상수 선례"* | 문면이 일치하는 커밋 없음 — 소급 부여였다. 철회 (`maintainability` W1) |
+
+**단언 하나는 아무도 물지 않았다** (`testing` W3). 헬퍼의 `expect(typeof ref.name).toBe('string')`
+을 지워도 self-spec 이 **8/8 GREEN 을 유지**했다 — 뒤따르는 `String(ref.name).length` 검사가
+`String(42)`→`"42"` 로 통과시키기 때문이다. `id` 쪽은 `isUuidShaped` 가 간접 방어하지만 `name`
+에는 그런 이차 방어가 없다(**비대칭**). self-spec 에 비-문자열 케이스 4건을 추가해 대조군을 만들고,
+새 단언 세 개(`name` 타입 · identity · 최상위 `null`)를 각각 지우는 뮤턴트에서 **정확히 1건씩 RED**
+임을 확인했다(각 `Tests: 1 failed, 11 passed`). self-spec 은 8 → **12 테스트**.
+
+그 밖에 반영한 것: `isUuidShaped`(정본) 로 손으로 짠 UUID 정규식 교체 — 내 최초 grep 이
+`shared/`·`test/helpers/` 만 봐서 `common/utils/` 를 놓쳤다(`maintainability` W2). `it()` 라벨
+숫자→문자. `expectedWorkflowId` 로 identity 고정 — shape 만 보면 **엉뚱한 relation 에서 채워진
+그럴듯한 UUID+이름이 통과**한다(`testing` W1). 최상위 `null` 거부(`toBeDefined()` 는 `null` 을
+안 거른다, `testing` W2). 비밀 컬럼 목록을 self-spec 에 **일부러 다시 적는다**는 것을 헤더에
+명시 — 헬퍼 상수를 import 해 순회하면 목록이 줄어도 스펙이 통과해 vacuous 가 된다.
+
+`documentation` 은 이 세션의 **`--impl-prep` SUMMARY.md 누락**을 잡았다(`--spec` 두 세션은
+썼는데 이 하나만 빠뜨렸다 — 빈/부분 세션이 게이트를 거짓 통과시키는 형태다). 함께 stale
+`_retry_state.json` 과 트래커의 "Warning 2"(실제 4건) 오집계도 정정했다.
+
+## 후속 트래커에 등재한 것 (전부 이 PR 밖)
+
+`spec-draft-nullable-notation-followups.md` 에 등재. **Critical 2건이 이 PR 을 막지 않는 이유는
+둘 다 이미 배포된 프로덕션 로직이고 이 diff(테스트 3파일)가 그 코드를 건드리지 않기 때문**이다.
+
+| 항목 | 성격 | 요지 |
+|---|---|---|
+| bot token PATCH 우회 | **CRITICAL** (질문 → 판정 완료) | `botTokenRef` 만 막히고 plaintext `botToken` 은 PATCH 필수 — 24h grace 백업 · 전용 audit action · `chatChannelRotatedAt` 셋을 건너뛴 채 토큰이 교체된다 |
+| `ChatChannelCard` 저장 400 | **CRITICAL** (신규 버그) | 프런트가 `botToken` 을 optional 로 가정해 생략 → 서버 DTO 는 필수 → **편집-저장이 항상 400**. 서버가 응답에서 strip 하니 재전송도 불가 |
+| 비밀 컬럼 3중 복사 | 하드닝 | 정본 `TRIGGER_RESPONSE_STRIP_COLUMNS` + 헬퍼 2개. 결속 없음 → repo-guard |
+| schedule 타입 `workflow` 양성 커버리지 | 회귀 방어 | 저장소 전체 **0건**. 지금은 in-place mutate 라 안전하지만 spread 리팩터가 오면 두 캐너리 다 못 잡는다 |
+| `production-build-devdep-guard` 사각지대 | 하드닝 | `exclude` 된 디렉터리가 `import` 로 도달 가능 — 가드가 이 형태를 못 본다 |
+| e2e teardown `secret_store` 고아 row | 관례 정비 | "ephemeral schema 라 불필요" 추론이 이 테이블을 안 덮는다 |
 
 ## 완료의 기계적 증거
 
-`triggers.service.ts` 의 `relations: ['workflow']` 를 지운 뮤턴트에서 **T-3 #5 가 RED** 여야
+`triggers.service.ts` 의 `relations: ['workflow']` 를 지운 뮤턴트에서 **T-3 E 가 RED** 여야
 한다. **오늘은 GREEN 이다** — 그것이 이 항목의 전제 증명이다.
 
 | 측정 | 예측 | 실측 |
 |---|---|---|
 | 뮤턴트 전, T-3 전체 | GREEN | **5/5 GREEN** |
-| **뮤턴트 후, T-3 #5** | **RED** | **RED** — `Object.hasOwn(record,'workflow')` 가 `false` (헬퍼 84행, spec 192행에서 호출) |
-| 뮤턴트 후, T-3 #1~#4 | GREEN (그 경로는 재조회를 타지 않는다) | **4 passed** |
+| **뮤턴트 후, T-3 E** | **RED** | **RED** — 헬퍼의 `expect(Object.hasOwn(record, 'workflow')).toBe(true)` |
+| 뮤턴트 후, T-3 A~D | GREEN (그 경로는 재조회를 타지 않는다) | **4 passed** |
 | 원복 후 재실행 | GREEN | **5/5 GREEN** |
 
 **세 번째 줄이 판별 증거다** — 넷이 같이 RED 면 캐너리가 다른 것을 물고 있다는 뜻이다.
@@ -243,16 +313,37 @@ git author(`worker-ants`)를 쓴다. blame 은 "언제 들어왔나" 만 말하�
 **전체 backend e2e 도 돌렸다** — `52 suites / 305 tests` 전부 통과(기존 51 + 신규 1).
 두 타입체크 ratchet 도 baseline 일치(backend 197건/36파일 · frontend 52건/15파일).
 
-세 번째 줄이 중요하다 — #5 만 RED 여야 캐너리가 **그 분기**를 무는 것이 증명된다. 넷이 같이
+세 번째 줄이 중요하다 — E 만 RED 여야 캐너리가 **그 분기**를 무는 것이 증명된다. 넷이 같이
 RED 면 다른 것을 물고 있다는 뜻이다. 뮤테이션 원복은 `cp` + 절대경로로 한다(`git checkout` 금지).
+
+### 리뷰 라운드 뒤 **같은 실험을 다시 했다** — 헬퍼가 바뀌었으니 판별 속성도 다시 증명해야 한다
+
+리뷰 반영으로 헬퍼에 `expectedWorkflowId`(identity) 인자와 단언 세 개를 더했다. 그러면
+**위 표는 옛 헬퍼에 대한 측정**이 된다 — 그 상태로 남겨 두면 "판별한다" 는 주장이 현재
+코드에 대해 미검증이다. 그래서 뮤턴트 주입 → `make e2e-up` 재빌드 → 캐너리 재실행을 다시 했다.
+
+| 측정 | 예측 | 실측 (갱신된 헬퍼) |
+|---|---|---|
+| 뮤턴트 후, E | RED | **RED** — `Tests: 1 failed, 4 passed` |
+| 뮤턴트 후, A~D | GREEN | **4 passed** (288ms 에 E 만 실패) |
+| 원복 + 재빌드 후 | GREEN | **5/5 GREEN** |
+
+**판별 속성은 유지된다.** 단언을 세 개 늘렸는데도 A~D 가 그 분기를 안 타는 성질은 그대로다 —
+늘어난 단언이 전부 `present: true` 분기 *안쪽*이라 부재 판정에 영향을 주지 않기 때문이다.
 
 ## 무엇을 하지 않나
 
 - **기존 세 e2e 파일의 트리거 단언을 옮기거나 통합하지 않는다.** 그 파일들의 관심사는 각각
   webhook 수신·스케줄 동기화·chat-channel 생성이고, `workflow` 참조는 그 관심사가 아니다.
 - **스케줄 쪽 헬퍼를 일반화해 공유하지 않는다.** 두 단언은 성격이 다르다(위 T-1) — 억지로
-  합치면 한쪽 계약이 다른 쪽 형태로 끌려간다. 이 저장소가 `User` 투영 상수에서 같은 판단을
-  내린 선례가 있다(4개 shape 중 2개만 우연히 일치).
+  합치면 한쪽 계약이 다른 쪽 형태로 끌려간다.
+  > **여기에 붙였던 선례 인용은 철회한다** (`maintainability` W1). *"이 저장소가 `User` 투영
+  > 상수에서 같은 판단을 내렸다(4개 shape 중 2개만 우연히 일치)"* 라고 적었는데, reviewer 가
+  > grep + `git log` 로 추적해 **문면이 일치하는 커밋을 찾지 못했다.** 근거 없는 선례를
+  > 소급 부여한 것이므로 지운다 — 함수를 합치지 않는 이유는 위 두 문장(성격 차이)으로 충분하고,
+  > 선례가 필요한 자리가 아니었다. **그리고 그 인용의 형태("shape 가 일부만 겹치므로")는
+  > 비밀 컬럼 리스트 3중 복사에는 성립하지 않는다** — 그쪽은 완전히 동일한 2개 값이라
+  > 통합이 옳고, `CREATOR_PROJECTION` 선례가 그 방향이다(후속 등재).
 - **`chatChannel` PATCH 의 다른 축(hasBotToken·inboundSigningRef 최신성)은 이 파일에서 안 본다.**
   그건 재조회의 *원래* 목적이고 별 관심사다. 이 캐너리는 `workflow` 한 축만 문다.
 
@@ -263,15 +354,20 @@ RED 면 다른 것을 물고 있다는 뜻이다. 뮤테이션 원복은 `cp` + 
 - [x] `--impl-prep spec/2-navigation/` — `review/consistency/2026/09/10/13_48_39` (5/5).
       **Critical 3건(동일 사안: 자기-반증형 소정정 조건 1 오판정)** → T-4 를 이 PR 에서 빼내
       planner 후속으로 분리해 해소. Warning 2 · INFO 다수 반영
-- [x] T-1 헬퍼 + T-2 헬퍼 스펙 — self-spec **8 테스트** 통과. 헬퍼의 `null`-vs-부재 가드를
+- [x] T-1 헬퍼 + T-2 헬퍼 스펙 — self-spec **12 테스트** 통과(리뷰 반영으로 8 → 12). 헬퍼의 `null`-vs-부재 가드를
       무르게 하는 뮤턴트에서 **그 한 테스트만 RED**(예측 RED = 실측 RED)
 - [x] T-3 e2e 5건 — 생성 음성은 **두 서브경로**(평범한 생성 · chatChannel 생성)를 각각 문다.
       `cross_spec` 이 후자를 짚어 하나 늘렸다
-- [x] **뮤턴트 실측 채움** — `relations` 제거 시 **#5 만 RED**, #1~#4 GREEN, 원복 후 5/5 GREEN
+- [x] **뮤턴트 실측 채움** — `relations` 제거 시 **E 만 RED**, A~D GREEN, 원복 후 5/5 GREEN.
+      **리뷰 반영으로 헬퍼가 바뀐 뒤 같은 실험을 다시 했다** — 판별 속성 유지 확인
 - [x] ~~T-4 `2-trigger-list.md §3` 문장 정정~~ → **planner 후속으로 이관** (조건 1 불성립)
 - [x] 두 타입체크 ratchet 직접 실행 — backend 197건/36파일 · frontend 52건/15파일, **baseline 일치**
-- [x] 전체 backend e2e **52 suites / 305 tests 통과**. unit 전체도 454 suites / 9,517 통과
-- [ ] `run-test.sh` 4단계
-- [ ] `/ai-review` + `--impl-done` (상시 승인된 강제 단계). **scope 는 `codebase/` 기준** —
-      `spec_impact: none` 이므로 spec 파일을 포함하는 대체 scope 조항은 적용되지 않는다
-- [ ] 자매 트래커 항목 플립
+- [x] 전체 backend e2e **52 suites / 305 tests 통과**. unit 전체도 454 suites / **9,521** 통과
+      (신규 self-spec 4건 반영 — 리뷰 전 9,517)
+- [x] `run-test.sh` 4단계 — lint(56s) · build(163s, ratchet 2개 baseline 일치) ·
+      unit(82s, 454 suites / 9,521) · e2e(235s, `tests=305` + playwright) 전부 PASS
+- [x] `/ai-review` — `review/code/2026/09/10/14_34_18` (8 reviewer). scope NONE · 7명 LOW ·
+      `api_contract` HIGH(Critical 2 = **둘 다 사전 존재 프로덕션 결함**, 이 diff 밖).
+      코드 수정 12건 적용 후 재검증
+- [x] `--impl-done`
+- [x] 자매 트래커 항목 플립 — 캐너리 항목 갱신 + 후속 6건 등재

@@ -11,6 +11,11 @@ import { expectTriggerWorkflowRef } from './trigger-workflow-ref';
  * (`review/code/2026/09/06/01_13_50` W6).
  *
  * 그래서 통과 경로만 보지 않고 **실패해야 하는 경로**를 각각 문다.
+ *
+ * > **비밀 컬럼 이름을 여기 다시 적는 것은 일부러다.** 헬퍼의 `TRIGGER_SECRET_COLUMNS` 를
+ * > import 해 순회하면, 누가 그 목록을 줄여도 이 스펙이 **그대로 통과**한다 — 대조군이 사라져
+ * > vacuous 가 된다. 헬퍼↔프로덕션 중복은 드리프트 위험이지만(헬퍼 docstring 참조) 스펙↔헬퍼
+ * > 중복은 **독립 대조군**이다. 장래 DRY 정리 대상으로 오인하지 말 것.
  */
 describe('expectTriggerWorkflowRef', () => {
   const WF_ID = '3f1c2b8a-5d4e-4a7b-9c0d-1e2f3a4b5c6d';
@@ -77,6 +82,51 @@ describe('expectTriggerWorkflowRef', () => {
         { ...WITHOUT_WORKFLOW, workflow: { id: 'not-a-uuid', name: 'W' } },
         { present: true },
       ),
+    ).toThrow();
+  });
+
+  /**
+   * **뮤테이션이 증명한 사각지대였다.** 헬퍼의 `expect(typeof ref.name).toBe('string')` 을 지워도
+   * 이 스펙이 8/8 GREEN 을 유지했다 (`review/code/2026/09/10/14_34_18` testing W3) — 빈 문자열
+   * 케이스는 `String(ref.name).length` 쪽만 물고 타입 단언은 아무도 물지 않았다. `id` 는
+   * `isUuidShaped` 가 간접 방어하지만 `name` 에는 그런 이차 방어가 없다.
+   */
+  it('`name` 이 문자열이 아니면 실패한다 — 타입 단언의 대조군', () => {
+    for (const bad of [42, true, {}, []]) {
+      expect(() =>
+        expectTriggerWorkflowRef(
+          { ...WITHOUT_WORKFLOW, workflow: { id: WF_ID, name: bad } },
+          { present: true },
+        ),
+      ).toThrow();
+    }
+  });
+
+  it('`id` 가 문자열이 아니면 실패한다 — 같은 이유의 자매 대조군', () => {
+    expect(() =>
+      expectTriggerWorkflowRef(
+        { ...WITHOUT_WORKFLOW, workflow: { id: 42, name: 'W' } },
+        { present: true },
+      ),
+    ).toThrow();
+  });
+
+  it('최상위 `dto` 가 `null` 이면 두 판정 모두에서 실패한다', () => {
+    expect(() => expectTriggerWorkflowRef(null, { present: false })).toThrow();
+    expect(() => expectTriggerWorkflowRef(null, { present: true })).toThrow();
+  });
+
+  it('`expectedWorkflowId` 가 다르면 실패한다 — shape 만 맞는 엉뚱한 relation 을 잡는다', () => {
+    const other = 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee';
+    expectTriggerWorkflowRef(WITH_WORKFLOW, {
+      present: true,
+      expectedWorkflowId: WF_ID,
+    });
+    expect(() =>
+      expectTriggerWorkflowRef(WITH_WORKFLOW, {
+        present: true,
+        expectedWorkflowId: other,
+      }),
     ).toThrow();
   });
 

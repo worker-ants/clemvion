@@ -34,16 +34,47 @@
       "output_file": "/Volumes/project/private/clemvion/.claude/worktrees/trigger-workflow-ref-canary-96ae33/review/consistency/2026/09/10/13_48_39/naming_collision.md"
     }
   ],
-  "agents_pending": [
+  "agents_pending": [],
+  "agents_success": [
     "cross_spec",
     "rationale_continuity",
     "convention_compliance",
     "plan_coherence",
     "naming_collision"
   ],
-  "agents_success": [],
   "agents_fatal": [],
-  "agent_history": {},
+  "agent_history": {
+    "cross_spec": [
+      {
+        "ts": "2026-09-10T05:51:08.151403Z",
+        "status": "success"
+      }
+    ],
+    "rationale_continuity": [
+      {
+        "ts": "2026-09-10T05:51:08.192246Z",
+        "status": "success"
+      }
+    ],
+    "convention_compliance": [
+      {
+        "ts": "2026-09-10T05:51:08.231850Z",
+        "status": "success"
+      }
+    ],
+    "plan_coherence": [
+      {
+        "ts": "2026-09-10T05:51:08.270734Z",
+        "status": "success"
+      }
+    ],
+    "naming_collision": [
+      {
+        "ts": "2026-09-10T05:51:08.307408Z",
+        "status": "success"
+      }
+    ]
+  },
   "rate_limit_episodes": 0,
   "total_wait_sec": 0,
   "wake_history": [],
