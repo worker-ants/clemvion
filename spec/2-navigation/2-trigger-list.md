@@ -60,7 +60,7 @@ code:
 | 트리거 이름 | 사용자가 지정한 트리거 이름 |
 | 유형 뱃지 | Webhook / Schedule / Manual |
 | 인증 (AuthConfig 연결 상태) | 연결된 AuthConfig 의 타입 뱃지 (HMAC / Bearer / API Key / Basic Auth). 데이터 출처: 목록 응답의 `authConfigId` ([§3 GET /api/triggers](#3-api)) 와 워크스페이스 AuthConfig 목록([`GET /api/auth-configs`](./6-config.md#3-api))을 사전 조회한 `id → type` 매핑. **미설정 (`authConfigId == null`)**: `webhook` 타입은 외부 HTTP 노출 + 무인증이라 보안에 취약 → 경고 아이콘(⚠) + "인증 없음" 표시 (Rationale R-15). `schedule` / `manual` 타입은 inbound HTTP 인증이 해당 없음(N/A)이므로 `-` 로 표시 (경고 비대상). 셀의 "인증" 은 §2.3 의 "인증 설정" 상세 카드(AuthConfig binding 편집)와 동일 자원을 가리키는 목록 요약 표시다 |
-| 연결된 워크플로우 | "→ 워크플로우 이름" 형태로 표시. 클릭 시 해당 에디터로 이동 |
+| 연결된 워크플로우 | "→ 워크플로우 이름" 형태로 표시. 클릭 시 해당 에디터로 이동. 데이터 출처: 목록 응답의 `workflow.name` ([§3 GET /api/triggers](#3-api) — 키 생략형이지만 목록 응답에는 채워진다) |
 | 상세 정보 | Webhook: HTTP 메서드 + 경로, Schedule: Cron 표현식 |
 | Schedule 태그 | Schedule 유형 트리거에 `[Schedule]` 태그 표시 + Cron 표현식 + 다음 실행 시각 |
 | Chat Channel 칩 / Health 배지 | Webhook 트리거 중 `config.chatChannel` 가 설정된 행에만 표시. provider 칩 (`Telegram` 등 — provider 별 brand color) + `chatChannelHealth` 배지 (healthy / degraded / unknown). [WH-MG-09](../5-system/12-webhook.md) 의 "동일 영역" 은 본 §2.1 행 표시를 의미 (drawer 카드 분리와 독립). `notificationHealth` 배지와 동일 영역·동일 형식으로 나란히 배치. `degraded` 도 트리거 자동 비활성화 안 함 (CCH-SE-01) |
@@ -170,6 +170,21 @@ code:
 > Schedule 타입 트리거에 대한 PATCH 는 `name`, `isActive` 만 허용한다 — `endpointPath` / `config` / `authConfigId` 변경은 400 `VALIDATION_ERROR` (`details.field='type'`, Schedule 동기화 [Spec 데이터 모델 §2.9.1](../1-data-model.md#291-trigger--schedule-동기화-규칙) 보호).
 > `(workspace_id, endpoint_path)` UNIQUE 위반 시 409 `RESOURCE_CONFLICT` (세부 코드 `TRIGGER_ENDPOINT_PATH_CONFLICT`, `details.field='endpoint_path'`). 길이/이름 검증 실패는 400 `VALIDATION_ERROR` ([Spec 에러 처리](../5-system/3-error-handling.md)).
 > Webhook 인증 자격증명 (secret/token/password) 은 trigger 응답에 노출되지 않는다 — AuthConfig 응답에서 `***<last4>` 마스킹 ([Spec 데이터 모델 §2.17.2](../1-data-model.md#2172-마스킹노출-정책)).
+
+> **응답 형태 — `TriggerDto.workflow` 는 키 생략형이다** ([§5.4](../5-system/2-api-convention.md#54-부재-표현--null-vs-키-생략) 기준 (b)).
+> (b) 의 판정 근거는 소비자가 부재를 정상 경로로 다룬다는 것이다 — 상세 매핑이
+> `workflow?.name ?? workflowName ?? ""` 로 읽는다(`lib/api/triggers.ts`). 부재는 **생성 응답에만**
+> 있고 목록·상세·**수정**(`update()` 가 `findById` 로 시작한다)에는 채워진다.
+>
+> **이 "생성 응답에만" 은 한 번 거짓이었다.** PATCH 의 chatChannel 재조회 분기가 관계를 빼고
+> 읽어 **chatChannel 을 포함한 PATCH 응답에서만** `workflow` 가 사라졌다 — 부재가 §5.4 키
+> 생략형이라 응답-계약 검증자도 물지 못하는 자리다. 구현은 그 재조회에 `relations: ['workflow']`
+> 를 실어 닫았지만, **자매 스케줄 축과 달리 이 축에는 캐너리가 아직 없다** — 그쪽은 네 응답
+> 형태를 양성/음성으로 고정한다([`3-schedule.md §4`](./3-schedule.md#4-api)). 보장을 구현보다
+> 넓게 적지 않기 위해 이 비대칭을 함께 적는다.
+>
+> 이 참조는 `id` 와 `name` 을 담는다 — 스케줄 응답의 자매 참조는 `name` 하나만 담고
+> **의도적으로 다르다**(그쪽 화면은 이름만 표시한다). 한쪽을 다른 쪽으로 갈아 끼우지 말 것.
 
 > **참고**: 목록 화면은 `webhook` 트리거 생성 ([§2.5](#25-트리거-생성)) + 전체 트리거 관리(조회/수정/삭제)를 담당한다. 워크플로우 에디터에서도 트리거를 만들 수 있다 (동일 `POST /api/triggers`).
 > **참고**: Schedule 유형 트리거는 Trigger 화면에서 직접 생성할 수 없다 (`POST /api/triggers` 도 `schedule` 타입 미지원). Schedule 화면에서만 생성 가능하며, 생성 시 자동으로 Trigger가 등록된다. ([스케줄 관리](./3-schedule.md#3-trigger-자동-생성-규칙) 참조)

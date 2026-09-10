@@ -1678,8 +1678,25 @@ field: T | null;
       > `shared/testing/schedule-trigger-ref.ts`(스케줄 조인 축). 규범(§1.1)은 건드리지 않았다.
       > **전수 재확인**: `grep -rn` 3패턴 → 취소선 밖 잔존 **0건**.
 
-- [ ] **`ScheduleDto.trigger`/`workflow` 를 nav-spec 에 문서화** (planner, 2026-09-05 등재,
-      `21_40_38` W1). §5.4 는 **키 생략형에 사유 문서화**를 요구한다. 코드 쪽은 이번에
+- [x] **`ScheduleDto.trigger`/`workflow` 를 nav-spec 에 문서화 — 완료 (2026-09-10, planner 턴).**
+      반영: `3-schedule.md §4` 응답 형태 註(2행 표) + `2-trigger-list.md §3` 자매 註 +
+      `§2.1` "연결된 워크플로우" 행에 데이터 출처. `--spec` `11_13_14` BLOCK:NO.
+      `1-data-model.md §2.9.1` 은 택일에서 **탈락** — 키 생략은 wire 표현이고 §2.9.1 은 DB
+      관계라, §4 에서 §2.9.1 을 NOT NULL 근거로 **인용**하는 쪽이 경계에 맞다.
+
+      > **§5.4 (b) 의 위계를 한 번 뒤집어 적었다.** 초안은 *"생성 응답을 프런트엔드가 읽지
+      > 않는다"* 를 **(b) 를 대체하는** 진짜 근거로 적었는데, `rationale_continuity` 와
+      > `convention_compliance` 가 **독립적으로 같은 지점**을 짚었다: (b) 의 판정 기준은
+      > "소비자가 부재를 정상 경로로 다룬다" 이고, "안 읽는다" 는 optimistic update 하나로
+      > 무너지는 **우발적** 사실이다. 반영문은 (b) 의 기준(`?? ""` 폴백)을 먼저 세우고
+      > "안 읽는다" 를 **극단적 인스턴스 + 재검토 신호**로 강등했다. 두 checker 가 같은 곳에
+      > 수렴하면 등급(INFO)이 아니라 **수렴 자체**가 신호다.
+
+      > **부수 등재 — 트리거 축에는 캐너리가 없다** (아래 신규 항목). 註를 쓰다가
+      > 스케줄 축은 e2e 4건(양성 3 + 생성 음성 1)으로 고정되는데 **트리거 축은 0건**임을
+      > 실측했다. 註는 그 비대칭을 숨기지 않고 적었고, 고정은 developer 항목으로 넘긴다.
+
+      §5.4 는 **키 생략형에 사유 문서화**를 요구한다. 코드 쪽은 이번에
       정리했다 — `trigger` 는 상시 존재라 **기본형으로 바꿨고**, `workflow` 는 기준 (b)
       (선택적 부가 컨텍스트)에 해당해 사유를 필드 주석에 적었다. 남은 것은 그 사유를
       `spec/2-navigation/3-schedule.md §4`(또는 `1-data-model.md §2.9.1`)에 옮기는 것이다.
@@ -1689,6 +1706,29 @@ field: T | null;
       > 자매 키-생략 필드인데 이 bullet 이 스케줄 쪽만 적고 있었다 — 두 DTO 의
       > `trigger`/`workflow` 참조 필드를 한 묶음으로 다룬다. 반영 대상 spec 은
       > `2-navigation/2-trigger-list.md` 와 `3-schedule.md §4` 둘이다.
+
+- [ ] **`TriggerDto.workflow` 의 "생성 응답에만 부재" 를 캐너리로 고정** (developer,
+      2026-09-10 등재, `--spec` `11_13_14` 중 실측). **전제는 이미 한 번 깨졌다**:
+      `triggers.service.ts` 의 PATCH chatChannel 재조회 분기가 관계를 빼고 읽어
+      **chatChannel 을 포함한 PATCH 응답에서만** `workflow` 가 사라졌다(리뷰
+      `review/code/2026/09/06/01_13_50` W4). 구현은 그 재조회에 `relations: ['workflow']` 를
+      실어 닫았지만 **회귀 테스트는 세우지 않았다** — 실측: `relations: ['workflow']` 를
+      단언하는 테스트 0건(유일한 등장은 무관한 가드의 fixture
+      `repo-guards/__tests__/fixtures/user-relation-load.fixture.ts`).
+
+      부재가 §5.4 키 생략형이라 **응답-계약 검증자도 이 자리를 물지 못한다** — 값이 없어도
+      계약 위반이 아니기 때문이다. 그래서 양성 대조가 유일한 방어다.
+
+      처방: 자매 축의 정본을 그대로 답습한다 —
+      `shared/testing/schedule-trigger-ref.ts` 의 `expectNarrowedScheduleTriggerRef(x, {withWorkflow})`
+      패턴으로 트리거용 헬퍼를 만들고, `webhook-trigger.e2e-spec.ts` 에
+      **목록·상세·PATCH(일반)·PATCH(chatChannel 포함) 양성 4 + 생성 음성 1** 을 건다.
+      `chatChannel` 포함 PATCH 를 빼면 **정확히 그때 깨졌던 경로를 안 무는** 캐너리가 된다.
+
+      **완료의 기계적 증거**: `relations` 를 지운 뮤턴트가 RED 여야 한다 — 오늘은 GREEN 이다.
+      그리고 `spec/2-navigation/2-trigger-list.md §3` 註가 *"이 축에는 캐너리가 아직 없다"* 고
+      적고 있으니, 캐너리를 세우면 **그 문장도 함께 정정**해야 한다(자기-반증형 소정정 조건 1~5
+      해당 — 그 문장은 planner 가 썼으므로 planner 턴이거나 `--impl-done` 스코프로 훑는다).
 
 - [ ] **`6-websocket-protocol.md` 도입 산문** (planner, 2026-09-05 등재). 위 실측에서
       개요 내용이 **실제로 없는** 두 문서 중 남은 하나. `## 1. 연결` 로 바로 시작한다.

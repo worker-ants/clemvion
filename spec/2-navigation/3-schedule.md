@@ -12,6 +12,9 @@ code:
   - codebase/backend/src/modules/workspaces/dto/update-workspace-settings.dto.ts
   - codebase/backend/src/common/utils/timezone.ts
   - codebase/backend/src/modules/schedules/dto/**
+  # 응답 형태 시행 — §4 註가 주장하는 네 응답 형태를 양성 3 + 생성 음성 대조 1 로 고정한다.
+  # 註에 "e2e 가 고정한다" 고 적으면서 그 파일을 등재하지 않으면 보장의 근거가 추적 불가다.
+  - codebase/backend/test/schedule-trigger.e2e-spec.ts
 ---
 
 # Spec: 스케줄 관리 화면
@@ -136,6 +139,28 @@ Schedule은 [Trigger의 서브타입](../1-data-model.md#291-trigger--schedule-�
 | DELETE | /api/schedules/:id | 삭제 |
 | GET | /api/schedules/:id/preview | 등록된 스케줄 기준 다음 N회 실행 시각 미리보기 |
 | POST | /api/schedules/preview | 임의 cron 식·타임존으로 다음 실행 시각 계산 (스케줄 생성 전 UI 검증용 — schedules.controller.ts:117) |
+
+> **응답 형태 — `ScheduleDto` 의 참조 필드.** 스케줄 응답은 연결된 트리거를 **참조 수준으로
+> 좁혀** 동봉한다(엔티티 전체가 아니다 — 조인을 타고 트리거 비밀 컬럼이 새던 것을 닫은
+> 결과다, [API 규약 §5.4 검증 층](../5-system/2-api-convention.md#검증-층--이-규칙을-무엇이-강제하는가)).
+>
+> | 필드 | 부재 표현 | 근거 |
+> |---|---|---|
+> | `trigger` | **상시 존재**(기본형) | `Schedule.trigger_id` 가 NOT NULL 1:1 이고([데이터 모델 §2.9.1](../1-data-model.md#291-trigger--schedule-동기화-규칙)) 응답을 내는 네 경로가 전부 채운다 — `findAll`(join) · `findById`(relations) · `create`/`update`(저장 직후 대입, **`isActive` 무관**) |
+> | `trigger.workflow` | **키 생략** ([§5.4](../5-system/2-api-convention.md#54-부재-표현--null-vs-키-생략) 기준 (b)) | (b) 의 판정 근거는 **소비자가 부재를 정상 경로로 다룬다**는 것이다 — 목록 매핑이 `trigger?.workflow?.name ?? ""` 로 읽는다. 부재는 **생성 응답에만** 있고(`create()` 는 방금 저장한 트리거를 붙이므로 그 관계가 로드되지 않는다) 목록·상세·수정에는 채워지며, e2e 가 네 응답 형태를 **양성 3 + 생성 음성 대조 1** 로 고정한다 |
+>
+> **보강 — 지금은 그 폴백에 닿지도 않는다.** 키가 빠지는 유일한 응답(생성)을 프런트엔드가
+> 아예 읽지 않는다: `schedulesApi.create` 는 `Promise<void>` 로 바디를 버리고 호출부가
+> `schedules` queryKey 무효화로 재조회한다. **읽히지 않는 응답에는 부재를 다뤄야 할 코드 경로
+> 자체가 없으니 (b) 를 자명하게 충족한다** — 즉 이것은 (b) 를 **대체하는** 제3의 근거가 아니라
+> 그 극단적 인스턴스다. 동시에 **재검토 신호**이기도 하다: optimistic update 등으로 생성 응답을
+> 소비하기 시작하면 이 문장이 먼저 거짓이 되고, 그때 (b) 를 지탱하는 것은 위 `?? ""` 폴백
+> 하나뿐이다.
+>
+> `trigger.workflow` 는 **`name` 하나만** 담는다. 트리거 응답의 자매 참조
+> ([`2-trigger-list.md §3`](./2-trigger-list.md#3-api))는 `id` 도 싣는데 **의도적으로 다르다** —
+> 각 참조는 그 응답의 소비처가 실제로 읽는 필드만 담는다(스케줄 화면은 이름만 표시, 트리거
+> 화면은 이름에 링크를 걸 `id` 가 더 필요하다). 한쪽을 다른 쪽으로 갈아 끼우지 말 것.
 
 ---
 
