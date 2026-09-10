@@ -298,7 +298,7 @@ async createTrigger(dto: CreateTriggerDto, workspaceId: string) {
   const trigger = await this.repo.save({ ...dto, workspaceId });
   if (dto.notification?.signing?.secret) {
     const ref = `secret://triggers/${trigger.id}/notification-signing`;
-    await this.secrets.store(ref, workspaceId, dto.notification.signing.secret);
+    await this.secrets.rotate(ref, workspaceId, dto.notification.signing.secret);
     trigger.config.notification.signing = { algorithm: dto.notification.signing.algorithm, secretRef: ref };
     await this.repo.save(trigger);
   }

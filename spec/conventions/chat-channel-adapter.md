@@ -351,12 +351,12 @@ interface SetupResult {
   /**
    * setupChannel 직후 1회만 노출되는 inbound-signing 자료의 plaintext (server-issued 한정 — 현재
    * v1 에서는 Telegram 만 `setWebhook.secret_token` 을 어댑터가 `randomBytes` 로 발급). caller
-   * (`TriggersService.setupChatChannel`) 가 즉시 `SecretResolver.store(secret://triggers/{id}/inbound-signing, ...)`
+   * (`TriggersService.setupChatChannel`) 가 즉시 `SecretResolver.rotate(secret://triggers/{id}/inbound-signing, ...)`
    * 로 보관 후 ref 를 config 의 `inboundSigningRef` 에 set 한다. plaintext 가 config 에
    * 흘러들어가지 않도록 분리 — SS-SE-01 정책 적용.
    *
    * Slack / Discord 처럼 사용자가 manual 입력 (provider-issued) 하는 provider 는 본 필드를 채우지
-   * 않는다 — 사용자 입력값이 직접 caller 의 `SecretResolver.store` 로 들어가고 ref 만 config 에 set.
+   * 않는다 — 사용자 입력값이 직접 caller 의 `SecretResolver.rotate` 로 들어가고 ref 만 config 에 set.
    */
   issuedInboundSigning?: string;
 }

@@ -2031,7 +2031,7 @@ field: T | null;
       > **한 수정으로 함께 닫혔다.** 근거: `plan/{in-progress → complete}/impl-chat-channel-patch-token.md` (마무리 커밋에서 이동) ·
       > `review/code/2026/09/10/23_55_23` · `review/consistency/2026/09/10/23_54_09`(`--impl-done` BLOCK: NO).
 
-- [ ] **§5.4.1 · §5.4.1.1 의 `details.field` 문면이 실제 페이로드와 다를 수 있다** (planner,
+- [x] **§5.4.1 · §5.4.1.1 의 `details.field` 문면이 실제 페이로드와 다를 수 있다** (planner,
       2026-09-10 등재, `--spec` `20_13_39` `cross_spec` W1 + `20_29_00` `convention_compliance` INFO).
       두 절은 `details.field='botTokenRef'` 처럼 **접두어 없는 flat** 이름을 적는데, 그 세 내부 필드는
       DTO 에 `@IsEmpty()` 가 붙어 있고 `CustomValidationPipe` 가 **전역 `APP_PIPE`**(`app.module.ts:202`)라
@@ -2057,7 +2057,16 @@ field: T | null;
       > 정본은 `trigger-dto-validation.spec.ts` 의 **두 `[실측]` 케이스** — 전역
       > `CustomValidationPipe` 에 실제 바디를 통과시켜 잰 값이라 추측이 아니다.
       > **planner 는 두 갈래를 다 적어야 한다** — 한쪽만 적으면 이 각주가 처음에 그랬듯
-      > 다음 사람이 반대 갈래에서 틀린 문서를 읽는다. 서비스 가드(`assertChatChannelInputSafe`)는 **flat** 이름을 쓰지만
+      > 다음 사람이 반대 갈래에서 틀린 문서를 읽는다.
+      >
+      > **✅ 2026-09-11 해소** — planner 턴 `plan/complete/spec-draft-chat-channel-drift-3.md` (`--spec` `review/consistency/2026/09/11/{07_11_12,07_22_40}`).
+      > **축은 둘이 아니라 셋이었다** — 반영하며 `details[].code` 를 새로 쟀다: 파이프는
+      > 원소마다 `INVALID_FIELD` 를 싣고 **서비스 가드는 `code` 를 아예 안 넣는다**
+      > (`validation.pipe.ts:58` vs `triggers.service.ts:655,662,670,702,710`).
+      > 반영 자리: `15-chat-channel.md` §5.4.1·§5.4.1.1 · `2-trigger-list.md` PATCH 註·§2.3.1.
+      > **`providers/{slack,discord}.md` 의 flat 표기는 손대지 않았다** — 그 둘은 **생성 시점
+      > 서비스 가드**(hex 정규식)를 서술하므로 flat 이 맞다. 형식만 보고 일괄 치환했으면
+      > 맞는 문서를 틀리게 만들었다. 서비스 가드(`assertChatChannelInputSafe`)는 **flat** 이름을 쓰지만
       > 파이프가 먼저 거부하므로 **HTTP 응답에 나가는 것은 중첩 경로**다.
       > **남은 것은 planner 의 문면 정정뿐**: `15-chat-channel.md` §5.4.1·§5.4.1.1 의
       > placeholder 와 flat 표기, `2-trigger-list.md:119-120,176`.
@@ -2099,9 +2108,15 @@ field: T | null;
       > 거부한다)"* 는 전제는 **비어있지 않은 값 갈래에만** 참이었다 — 한 갈래만 보고 전체를
       > 판정하려던 것이 이 항목 자체의 결함이다.
       >
-      > **남은 것**: 파이프 선언과 서비스 가드가 **서로 다른 `details.field` 형식**을 낸다는
-      > 사실 자체(위 표). 어느 쪽을 SoT 로 할지는 아직 결정하지 않았다 — 그 결정은 spec 표기
-      > 정정(위 `details.field` 항목)과 같은 planner 턴에서 함께 하는 것이 맞다.
+      > **✅ 2026-09-11 그 결정을 했다 — 답은 「정하지 않는다」다.**
+      > 두 층은 **서로 다른 입력**을 받는다(비어있지 않은 값 vs `null`/`''`). 하나를 SoT 로
+      > 고르면 **다른 입력에서 문서가 거짓**이 되므로, *"갈린다"* 는 사실 자체가 확정 설계다.
+      > 그 문장을 `15-chat-channel.md` §5.4.1 에 명시했다
+      > (`plan/complete/spec-draft-chat-channel-drift-3.md`).
+      >
+      > **이 항목은 아직 열려 있다** — 남은 것은 **가드 자체의 처분**(도달하므로 지우지 않는다는
+      > 것은 확정됐고, 서비스 가드가 `details[].code` 를 안 싣는 갭은 **코드 사안**이다).
+      > 아래 신규 항목으로 갈라 두었다.
 
 - [ ] **§5.4.1 표 2행(활성화 PATCH 가 `setupChannel` 재호출)이 구현과 어긋날 수 있다** (planner + 조사,
       2026-09-10 등재, `--spec` `20_13_39` `cross_spec` W2).
@@ -2134,7 +2149,7 @@ field: T | null;
       **draft 이전부터 있던 갭**이고 telegram carve-out 이 새로 만든 것이 아니다 — §4.1 또는 CCH-SE-03
       근처에 *"server-issued 재발급은 전용 audit action 대상 제외"* caveat 한 줄이면 닫힌다.
 
-- [ ] **spec 9곳이 `SecretResolver.store()` 라 적는데 실제 호출은 전부 `rotate()` 다**
+- [x] **spec 10곳이 `SecretResolver.store()` 라 적는데 실제 호출은 전부 `rotate()` 다**
       (planner, 2026-09-11 등재, `--impl-prep` `review/consistency/2026/09/10/22_45_26` +
       `--impl-done` `review/consistency/2026/09/10/23_54_09` `cross_spec` W2).
       **실측**: chat-channel 비밀 저장 호출 6개 지점이 **전수 `rotate()`** 이고 `secrets.store(` 는
@@ -2157,7 +2172,14 @@ field: T | null;
       > `15-chat-channel.md:200,201,373,390` · `chat-channel-adapter.md:354,359` ·
       > `providers/telegram.md:58,219` · `providers/slack.md:278`.
       > 나머지 1곳 `conventions/secret-store.md:301` 은 **notification signing 예시**다 —
-      > 그 경로가 `store()` 를 쓰는지는 **측정하지 않았다.** 정정 대상은 chat-channel 9곳뿐이다.
+      > ~~그 경로가 `store()` 를 쓰는지는 **측정하지 않았다.** 정정 대상은 chat-channel 9곳뿐이다.~~
+      >
+      > **✅ 2026-09-11 해소** — planner 턴 `plan/complete/spec-draft-chat-channel-drift-3.md` (`--spec` `review/consistency/2026/09/11/{07_11_12,07_22_40}`).
+      > **2026-09-11 에 그 10번째를 측정했다 — 그것도 틀렸다.**
+      > `normalizeNotificationSecretRef` 도 `secrets.rotate(...)` 를 쓴다
+      > (`triggers.service.ts`). `secret-store.md §2.1` 자신이 *"`rotate()` 권장"* 이라 적으므로
+      > 그 예시는 **자기 문서 안에서 모순**이었다. **정정 대상은 9곳이 아니라 10곳**이고
+      > 전부 고쳤다(잔여 0 — 출현 횟수로 전수 재확인).
       **같은 턴에 병기할 것**: `15-chat-channel.md` frontmatter `code:` 가 이번 PR 의 배선 파일
       (`update-trigger.dto.ts` · `trigger-dto-validation.spec.ts` · `triggers.service.spec.ts` ·
       `trigger-workflow-ref.e2e-spec.ts`)을 아직 안 가리킨다 — 3라운드 연속 관측, 가드는 통과.
@@ -2200,6 +2222,20 @@ field: T | null;
       **모듈 경계 관점**이다). `chat-channel/` 하위에 adapter 계층이 따로 있는데 검증·secret
       쓰기·ref 보존 규칙은 triggers 쪽에 남아 경계가 어긋난다. 처방 후보:
       `ChatChannelTriggerBinder` 협력자 추출.
+
+- [ ] **서비스 가드가 `details[].code` 를 안 싣는다 — 파이프는 싣는다** (developer,
+      2026-09-11 등재, `--spec` `review/consistency/2026/09/11/07_11_12` `convention_compliance` INFO 2).
+      `validation.pipe.ts:58` 은 원소마다 `code: 'INVALID_FIELD'` 를 넣는데
+      `triggers.service.ts:655,662,670,702,710` 의 가드는 `details: { field: … }` 만 던진다.
+      `2-api-convention.md:205` 는 `details[].code` 를 *"사유가 어느 필드에 붙는지가 정보의
+      일부일 때"* 쓰라고 한다 — 두 층이 같은 논리적 위반을 다르게 표현하는 셈이다.
+      **코드 사안**이라 planner 턴에서 못 닫는다. 기존 `botTokenRef` 등 선례도 동일한
+      비대칭을 갖고 있어 **일괄 판단**이 맞다(`--spec` `07_22_40` `cross_spec` INFO 3).
+
+- [ ] **`chat-channel-adapter.md §1.1` 의 `setupChannel` "멱등 = yes" 에 각주가 필요하다**
+      (planner, 2026-09-10 등재 · 2026-09-11 재확인). 멱등성은 **레지스트리 등록 안전성**이지
+      **시크릿 값 불변**이 아니다 — telegram 은 매 호출 새 `secret_token` 을 발급한다.
+      `15-chat-channel.md §5.4.1.2` 신설로 PATCH 축은 정리됐지만 이 각주는 남아 있다.
 
 - [ ] **`SecretResolver.rotate` 에 빈 값 가드가 없다** (developer + 보안 판단, 2026-09-10 등재).
       `rotate(ref, ws, '')` 가 빈 문자열을 그대로 암호화해 row 를 덮어쓴다(`:129-145`, 가드 0).
