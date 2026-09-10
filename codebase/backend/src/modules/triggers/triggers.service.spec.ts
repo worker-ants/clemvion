@@ -3151,8 +3151,14 @@ describe('TriggersService — chatChannel PATCH 는 사용자 비밀을 쓰지 �
         { chatChannel: cardBody('telegram') } as never,
         'u-1',
       ),
+      // `details.field` 까지 박는다. `code` 만 보면 **인접 가드가 같은 입력을 다른 이유로
+      // 거부해도 GREEN** 이라 이 분기를 실제로 밟았는지 알 수 없다 — 이 저장소가 반복 겪은
+      // vacuous 형태다 (`/ai-review` `review/code/2026/09/11/00_21_55` requirement W).
     ).rejects.toMatchObject({
-      response: { code: 'VALIDATION_ERROR' },
+      response: {
+        code: 'VALIDATION_ERROR',
+        details: { field: 'chatChannel' },
+      },
     });
     expect(secrets.rotate).not.toHaveBeenCalled();
   });

@@ -106,6 +106,21 @@ Form nodes use **native modal** by default — clicking "Fill out form" opens a 
 - **Form `file` field largely unsupported** — file upload needs Gateway attachment. Workaround: external storage URL (text + url validation).
 - **Native typing** — `POST /channels/{id}/typing` (10s). Long LLM latency repeats every 5s.
 
+## 6.5 Changing the bot token or public key
+
+**Bot token** changes go through the rotate API only —
+`POST /api/triggers/:id/chat-channel/rotate-bot-token`. Sending `config.chatChannel.botToken`
+in a trigger PATCH returns 400 `VALIDATION_ERROR` (`details.field='chatChannel.botToken'`).
+
+**The public key cannot be changed yet.** Sending `config.chatChannel.inboundSigningPlaintext` in a
+PATCH also returns 400 (`details.field='chatChannel.inboundSigningPlaintext'`). If you
+regenerated it in Discord, delete the trigger and create it again.
+
+<Callout type="info">
+  Saving display options or the rate limit from the Chat Channel card is unaffected — that
+  PATCH does not touch stored secrets.
+</Callout>
+
 ## 7. Customizing notification messages (`languageHints` / `languageLocale`)
 
 You can override the bot's built-in notification messages via `config.chatChannel.languageHints`.

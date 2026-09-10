@@ -1973,7 +1973,7 @@ field: T | null;
 
       > **✅ 2026-09-11 해소.** 구현 PR `impl-chat-channel-patch-token` — D-1(`ChatChannelUpdateConfigDto`)·
       > D-2(`storeUserSuppliedSecrets` 게이팅, 쓰기 ①② 만)·D-3(ref 재유도) 적용. 두 항목은 예고대로
-      > **한 수정으로 함께 닫혔다.** 근거: `plan/complete/impl-chat-channel-patch-token.md` ·
+      > **한 수정으로 함께 닫혔다.** 근거: `plan/{in-progress → complete}/impl-chat-channel-patch-token.md` (마무리 커밋에서 이동) ·
       > `review/code/2026/09/10/23_55_23` · `review/consistency/2026/09/10/23_54_09`(`--impl-done` BLOCK: NO).
 
       **착수 시 함께 정리할 것 세 가지.** ⓪ `2-trigger-list.md §3` 註의 "다섯 케이스" 서술을
@@ -2028,7 +2028,7 @@ field: T | null;
       > 세 provider 전부 통과한다. 그 대조가 `it.each(['telegram','slack','discord'])` 로 고정돼 있다.
       > **✅ 2026-09-11 해소.** 구현 PR `impl-chat-channel-patch-token` — D-1(`ChatChannelUpdateConfigDto`)·
       > D-2(`storeUserSuppliedSecrets` 게이팅, 쓰기 ①② 만)·D-3(ref 재유도) 적용. 두 항목은 예고대로
-      > **한 수정으로 함께 닫혔다.** 근거: `plan/complete/impl-chat-channel-patch-token.md` ·
+      > **한 수정으로 함께 닫혔다.** 근거: `plan/{in-progress → complete}/impl-chat-channel-patch-token.md` (마무리 커밋에서 이동) ·
       > `review/code/2026/09/10/23_55_23` · `review/consistency/2026/09/10/23_54_09`(`--impl-done` BLOCK: NO).
 
 - [ ] **§5.4.1 · §5.4.1.1 의 `details.field` 문면이 실제 페이로드와 다를 수 있다** (planner,
@@ -2112,6 +2112,12 @@ field: T | null;
       라면 두 번째 호출부터 깨져야 한다. 대상: `15-chat-channel.md:200,201,373,390` ·
       `chat-channel-adapter.md:354,359` · `providers/telegram.md:58,219` · `providers/slack.md:278`.
       정답 표기 선례는 `data-flow/14-chat-channel.md` 의 *"secret store UPSERT"*.
+      **같은 턴에 병기할 것**: `15-chat-channel.md` frontmatter `code:` 가 이번 PR 의 배선 파일
+      (`update-trigger.dto.ts` · `trigger-dto-validation.spec.ts` · `triggers.service.spec.ts` ·
+      `trigger-workflow-ref.e2e-spec.ts`)을 아직 안 가리킨다 — 3라운드 연속 관측, 가드는 통과.
+      또한 **신규 검증 분기 2건**(`chatChannel` 최초 부착 차단 → `details.field='chatChannel'` ·
+      provider 전환 차단 → `details.field='provider'`)이 §5.4.1 표와 `2-trigger-list.md` PATCH
+      에러 표에 미등재다(`--impl-done` `review/consistency/2026/09/11/00_21_57` W3).
 
 - [ ] **동시 PATCH 가 `trigger.config` 를 잃을 수 있다 (lost update) — 방금 닫은 fail-open 이 이 경로로 재발 가능**
       (developer + 동시성, 2026-09-11 등재, `/ai-review` `review/code/2026/09/10/23_55_23` `concurrency` W1
