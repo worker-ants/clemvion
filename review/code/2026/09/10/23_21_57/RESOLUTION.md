@@ -13,16 +13,16 @@
 
 | # | 등급 | 사안 | 처분 | commit |
 |---|---|---|---|---|
-| 1 | **CRITICAL** | slack/discord PATCH 후 `inboundSigningRef` 가 config 에서 사라져 인입 서명 검증이 **fail-open** | **수정 + 캐너리 4건** | `4ce07b1` |
-| 2 | WARNING | `assertChatChannelAlreadySetUp` 이 provider 전환을 안 막는다 | **수정** — 전환 시 400 (`details.field='provider'`) | `4ce07b1` |
-| 3 | WARNING | `botToken`/`inboundSigningPlaintext` 의 `null`·`''` 변형이 미검증 | **테스트 3건 추가** — 서비스 가드가 실제로 잡는 것을 확인(둘 다 즉시 GREEN — 방어선은 있었고 **관측만 없었다**) | `4ce07b1` |
-| 4 | WARNING | `assertChatChannelInputSafe` JSDoc 이 `mode` 분기를 반영 못 함 ("필수" ↔ 실제 "금지") | **수정** — `mode==='update'` 절 추가 | `4ce07b1` |
-| 5 | WARNING | 컨트롤러 `@ApiBadRequestResponse` 가 신규 400 사유 미반영 | **수정** — 3사유(비밀 필드 · 최초 setup · provider 전환) 명시 | `4ce07b1` |
-| 6 | WARNING | `type` 선언 2개가 import 블록 한가운데 | **수정** — import 뒤로 이동 | `4ce07b1` |
+| 1 | **CRITICAL** | slack/discord PATCH 후 `inboundSigningRef` 가 config 에서 사라져 인입 서명 검증이 **fail-open** | **수정 + 캐너리 4건** | `771801fca` |
+| 2 | WARNING | `assertChatChannelAlreadySetUp` 이 provider 전환을 안 막는다 | **수정** — 전환 시 400 (`details.field='provider'`) | `771801fca` |
+| 3 | WARNING | `botToken`/`inboundSigningPlaintext` 의 `null`·`''` 변형이 미검증 | **테스트 3건 추가** — 서비스 가드가 실제로 잡는 것을 확인(둘 다 즉시 GREEN — 방어선은 있었고 **관측만 없었다**) | `771801fca` |
+| 4 | WARNING | `assertChatChannelInputSafe` JSDoc 이 `mode` 분기를 반영 못 함 ("필수" ↔ 실제 "금지") | **수정** — `mode==='update'` 절 추가 | `771801fca` |
+| 5 | WARNING | 컨트롤러 `@ApiBadRequestResponse` 가 신규 400 사유 미반영 | **수정** — 3사유(비밀 필드 · 최초 setup · provider 전환) 명시 | `771801fca` |
+| 6 | WARNING | `type` 선언 2개가 import 블록 한가운데 | **수정** — import 뒤로 이동 | `771801fca` |
 | 7 | WARNING (SPEC-DRIFT) | R-CC-21 산문이 telegram carve-out 을 포괄 못 함 | **이미 닫혀 있다 — 오탐**. 아래 §오탐 참조 | — |
 | 8–12 | INFO | `update()` 길이 · 캐스팅 중복 · 메시지 중복 · fixture 중복 · degraded 경계 테스트 | **미조치** — 전부 "이 PR 신규 아님/비긴급" 으로 reviewer 자신이 분류 | — |
-| 13 | INFO | 신설 에러 메시지 어투 혼용 | **수정** — 해요체로 통일 (DTO 쪽 동일 문구도 함께) | `4ce07b1` |
-| 14 | INFO | plan 의 D-2 줄 번호 인용이 stale | **수정** — `// [쓰기 ①②③]` 앵커 표기로 교체 | `4ce07b1` |
+| 13 | INFO | 신설 에러 메시지 어투 혼용 | **수정** — 해요체로 통일 (DTO 쪽 동일 문구도 함께) | `771801fca` |
+| 14 | INFO | plan 의 D-2 줄 번호 인용이 stale | **수정** — `// [쓰기 ①②③]` 앵커 표기로 교체 | `771801fca` |
 | 15–17 | INFO | 의도된 breaking change · 관측성 개선 · `details.field` 중첩 경로 | **조치 불요/이미 등재** | — |
 | 18 | 절차 | 리뷰 중 plan 파일이 외부에서 갱신되는 것을 두 reviewer 가 관측 | **설명 가능** — main 이 TEST WORKFLOW 통과를 그 시각에 기록했다. 리뷰 대상 코드가 아니라 plan 체크박스다 | — |
 
@@ -65,7 +65,7 @@ reviewer 가 plan 체크리스트의 서술을 보고 미해소로 읽은 것으
 | 단계 | 결과 |
 |---|---|
 | lint | **PASS** (불필요 타입 단언 2건을 제거해 통과 — `ChatChannelInput` 도입으로 캐스팅이 redundant 해졌다) |
-| unit | **PASS** — backend 9,5xx / frontend 6,3xx, triggers 모듈 205 |
+| unit | **PASS** — backend jest **9,544** · frontend vitest **6,378** · packages 48+451, triggers 모듈 205 |
 | build | **PASS** |
 | e2e | **통과** — 305, `trigger-workflow-ref.e2e-spec.ts` PASS |
 
