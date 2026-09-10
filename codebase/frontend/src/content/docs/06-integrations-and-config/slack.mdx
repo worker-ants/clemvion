@@ -131,6 +131,21 @@ Slack 은 모든 필드 타입 (`text`, `email`, `textarea`, `select` 등) 을 m
 - **시각형 노드** (Chart / Table / Carousel) — 현재는 mrkdwn monospace 텍스트로 표현돼요.
 - **Socket Mode 미지원** — 현재는 Webhook 모드만 지원해요.
 
+## 5.5 Bot Token · Signing Secret 변경
+
+**Bot Token** 은 rotate API 로만 바꿔요 — `POST /api/triggers/:id/chat-channel/rotate-bot-token`.
+트리거 수정(PATCH)에 `config.chatChannel.botToken` 을 실으면 400 `VALIDATION_ERROR` 가 돌아와요
+(`details.field='chatChannel.botToken'`).
+
+**Signing Secret 는 지금은 바꿀 수 없어요.** PATCH 에 `config.chatChannel.inboundSigningPlaintext` 를
+실으면 마찬가지로 400 이에요 (`details.field='chatChannel.inboundSigningPlaintext'`).
+Slack에서 Signing Secret 를 재발급했다면 **트리거를 삭제하고 다시 만들어** 주세요.
+
+<Callout type="info">
+  Chat Channel 카드에서 표시 옵션·rate limit 같은 값만 바꿔 저장하는 것은 이 제한과 무관해요 —
+  그 PATCH 는 저장된 비밀을 **건드리지 않아요**.
+</Callout>
+
 ## 6. 안내 메시지 커스터마이즈 (`languageHints` / `languageLocale`)
 
 봇이 사용자에게 보내는 자체 안내 문구는 `config.chatChannel.languageHints` 로 override 할 수 있어요.

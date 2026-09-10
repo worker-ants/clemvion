@@ -1173,7 +1173,7 @@ describe('TriggersService — Secret rotation / itk revoke [Spec EIA §3.1·§3.
   });
 });
 
-describe('TriggersService — setupChatChannel secret store 경로 (SUMMARY#12)', () => {
+describe('TriggersService — setupChatChannel secret store 경로 — **생성(POST)** (SUMMARY#12)', () => {
   let service: TriggersService;
   let triggerRepo: jest.Mocked<Repository<Trigger>>;
   let secrets: jest.Mocked<SecretResolverService>;
@@ -1208,6 +1208,9 @@ describe('TriggersService — setupChatChannel secret store 경로 (SUMMARY#12)'
       findOne: jest.fn().mockResolvedValue(baseTrigger),
       update: jest.fn().mockResolvedValue(undefined),
       save: jest.fn((t: Trigger) => Promise.resolve(t)),
+      // 이 suite 는 **생성 경로**를 탄다 — `create()` 가 엔티티를 만든 뒤 저장하므로
+      // repo.create 가 필요하다. id/endpointPath 는 baseTrigger 에서 가져온다.
+      create: jest.fn((t: object) => ({ ...baseTrigger, ...t })),
       createQueryBuilder: jest.fn(),
     });
     const overrideIdx = (token: unknown) =>
@@ -1238,18 +1241,35 @@ describe('TriggersService — setupChatChannel secret store 경로 (SUMMARY#12)'
     secrets = moduleRef.get(SecretResolverService);
   });
 
+  /**
+   * **이 suite 의 모든 케이스는 생성(POST) 경로다.**
+   *
+   * 종전에는 같은 케이스들을 `service.update()` 로 태웠다 — 그때는 PATCH·POST 가 DTO 와
+   * 검증 함수를 공유했기 때문이다. R-CC-21(D-1/D-2) 이후 **PATCH 는 `botToken` 도
+   * `inboundSigningPlaintext` 도 받지 않으므로**, 비밀 저장을 검증하려면 생성 경로여야 한다.
+   * PATCH 쪽 계약은 별도 suite(*"chatChannel PATCH 는 사용자 비밀을 쓰지 않는다"*)가 본다.
+   */
+  const createWithChannel = (chatChannel: unknown) =>
+    service.create(
+      'ws-1',
+      {
+        workflowId: 'wf-1',
+        type: 'webhook',
+        name: 'T',
+        endpointPath: 'hook-abc',
+        chatChannel,
+      } as never,
+      'u-spec',
+    );
+
   it('setupChatChannel 성공 — secrets.rotate 2회 호출 (botToken + webhookSecret) (SUMMARY#12-a)', async () => {
     const trigger = { ...baseTrigger, config: {} } as unknown as Trigger;
     triggerRepo.findOne.mockResolvedValue(trigger);
 
-    await service.update(
-      'trig-1',
-      'ws-1',
-      {
-        chatChannel: { provider: 'telegram', botToken: '111:TestToken' },
-      },
-      'u-spec',
-    );
+    await createWithChannel({
+      provider: 'telegram',
+      botToken: '111:TestToken',
+    });
 
     // botToken 저장
     expect(secrets.rotate).toHaveBeenCalledWith(
@@ -1278,14 +1298,10 @@ describe('TriggersService — setupChatChannel secret store 경로 (SUMMARY#12)'
     const trigger = { ...baseTrigger, config: {} } as unknown as Trigger;
     triggerRepo.findOne.mockResolvedValue(trigger);
 
-    await service.update(
-      'trig-1',
-      'ws-1',
-      {
-        chatChannel: { provider: 'telegram', botToken: '111:TestToken' },
-      },
-      'u-spec',
-    );
+    await createWithChannel({
+      provider: 'telegram',
+      botToken: '111:TestToken',
+    });
 
     const rotateCalls = (secrets.rotate as jest.Mock).mock.calls;
     const webhookCalls = rotateCalls.filter(([ref]) =>
@@ -1301,14 +1317,10 @@ describe('TriggersService — setupChatChannel secret store 경로 (SUMMARY#12)'
     const trigger = { ...baseTrigger, config: {} } as unknown as Trigger;
     triggerRepo.findOne.mockResolvedValue(trigger);
 
-    await service.update(
-      'trig-1',
-      'ws-1',
-      {
-        chatChannel: { provider: 'telegram', botToken: '111:TestToken' },
-      },
-      'u-spec',
-    );
+    await createWithChannel({
+      provider: 'telegram',
+      botToken: '111:TestToken',
+    });
 
     // botToken 은 이미 저장됨 (setupChannel 실패 이전)
     expect(secrets.rotate).toHaveBeenCalledWith(
@@ -1342,18 +1354,11 @@ describe('TriggersService — setupChatChannel secret store 경로 (SUMMARY#12)'
       const trigger = { ...baseTrigger, config: {} } as unknown as Trigger;
       triggerRepo.findOne.mockResolvedValue(trigger);
 
-      await service.update(
-        'trig-1',
-        'ws-1',
-        {
-          chatChannel: {
-            provider: 'slack',
-            botToken: 'xoxb-fake-token',
-            inboundSigningPlaintext: SLACK_SIGNING_SECRET,
-          },
-        },
-        'u-spec',
-      );
+      await createWithChannel({
+        provider: 'slack',
+        botToken: 'xoxb-fake-token',
+        inboundSigningPlaintext: SLACK_SIGNING_SECRET,
+      });
 
       // botToken 저장
       expect(secrets.rotate).toHaveBeenCalledWith(
@@ -1386,14 +1391,7 @@ describe('TriggersService — setupChatChannel secret store 경로 (SUMMARY#12)'
       triggerRepo.findOne.mockResolvedValue(trigger);
 
       await expect(
-        service.update(
-          'trig-1',
-          'ws-1',
-          {
-            chatChannel: { provider: 'slack', botToken: 'xoxb-fake-token' },
-          },
-          'u-spec',
-        ),
+        createWithChannel({ provider: 'slack', botToken: 'xoxb-fake-token' }),
       ).rejects.toMatchObject({
         response: expect.objectContaining({
           code: 'VALIDATION_ERROR',
@@ -1407,18 +1405,11 @@ describe('TriggersService — setupChatChannel secret store 경로 (SUMMARY#12)'
       triggerRepo.findOne.mockResolvedValue(trigger);
 
       await expect(
-        service.update(
-          'trig-1',
-          'ws-1',
-          {
-            chatChannel: {
-              provider: 'slack',
-              botToken: 'xoxb-fake-token',
-              inboundSigningPlaintext: 'too-short-not-hex',
-            },
-          },
-          'u-spec',
-        ),
+        createWithChannel({
+          provider: 'slack',
+          botToken: 'xoxb-fake-token',
+          inboundSigningPlaintext: 'too-short-not-hex',
+        }),
       ).rejects.toMatchObject({
         response: expect.objectContaining({
           code: 'VALIDATION_ERROR',
@@ -1431,18 +1422,11 @@ describe('TriggersService — setupChatChannel secret store 경로 (SUMMARY#12)'
       const trigger = { ...baseTrigger, config: {} } as unknown as Trigger;
       triggerRepo.findOne.mockResolvedValue(trigger);
 
-      await service.update(
-        'trig-1',
-        'ws-1',
-        {
-          chatChannel: {
-            provider: 'discord',
-            botToken: 'discord-bot-token',
-            inboundSigningPlaintext: DISCORD_PUBLIC_KEY,
-          },
-        },
-        'u-spec',
-      );
+      await createWithChannel({
+        provider: 'discord',
+        botToken: 'discord-bot-token',
+        inboundSigningPlaintext: DISCORD_PUBLIC_KEY,
+      });
 
       expect(secrets.rotate).toHaveBeenCalledWith(
         'secret://triggers/trig-1/inbound-signing',
@@ -1460,18 +1444,11 @@ describe('TriggersService — setupChatChannel secret store 경로 (SUMMARY#12)'
       triggerRepo.findOne.mockResolvedValue(trigger);
 
       await expect(
-        service.update(
-          'trig-1',
-          'ws-1',
-          {
-            chatChannel: {
-              provider: 'discord',
-              botToken: 'discord-bot-token',
-              inboundSigningPlaintext: SLACK_SIGNING_SECRET, // hex 32 — too short for discord
-            },
-          },
-          'u-spec',
-        ),
+        createWithChannel({
+          provider: 'discord',
+          botToken: 'discord-bot-token',
+          inboundSigningPlaintext: SLACK_SIGNING_SECRET, // hex 32 — too short for discord
+        }),
       ).rejects.toMatchObject({
         response: expect.objectContaining({
           code: 'VALIDATION_ERROR',
@@ -1485,18 +1462,11 @@ describe('TriggersService — setupChatChannel secret store 경로 (SUMMARY#12)'
       triggerRepo.findOne.mockResolvedValue(trigger);
 
       await expect(
-        service.update(
-          'trig-1',
-          'ws-1',
-          {
-            chatChannel: {
-              provider: 'telegram',
-              botToken: '111:TestToken',
-              inboundSigningPlaintext: SLACK_SIGNING_SECRET,
-            },
-          },
-          'u-spec',
-        ),
+        createWithChannel({
+          provider: 'telegram',
+          botToken: '111:TestToken',
+          inboundSigningPlaintext: SLACK_SIGNING_SECRET,
+        }),
       ).rejects.toMatchObject({
         response: expect.objectContaining({
           code: 'VALIDATION_ERROR',
@@ -1509,18 +1479,11 @@ describe('TriggersService — setupChatChannel secret store 경로 (SUMMARY#12)'
       const trigger = { ...baseTrigger, config: {} } as unknown as Trigger;
       triggerRepo.findOne.mockResolvedValue(trigger);
 
-      await service.update(
-        'trig-1',
-        'ws-1',
-        {
-          chatChannel: {
-            provider: 'slack',
-            botToken: 'xoxb-fake-token',
-            inboundSigningPlaintext: SLACK_SIGNING_SECRET,
-          },
-        },
-        'u-spec',
-      );
+      await createWithChannel({
+        provider: 'slack',
+        botToken: 'xoxb-fake-token',
+        inboundSigningPlaintext: SLACK_SIGNING_SECRET,
+      });
 
       // (a) 최종 update 시 plaintext 가 config 에 없어야 함.
       const updateCalls = (triggerRepo.update as jest.Mock).mock.calls;
@@ -1560,13 +1523,21 @@ describe('TriggersService — webhook callbackUrl 조립 (app.url 사용 회귀 
   let mockAdapter: { setupChannel: jest.Mock };
   let configGet: jest.Mock;
 
+  // 이 suite 는 **callback URL 조립**만 본다 — 비밀 저장은 대상이 아니다. R-CC-21(D-1) 이후
+  // PATCH 는 `botToken` 을 받지 않고 최초 setup 도 못 하므로, **이미 setup 된 채널** 위에서
+  // 편집 PATCH 를 태우는 것이 이 검증의 올바른 형태다.
   const baseTrigger = {
     id: 'trig-tg',
     workspaceId: 'ws-1',
     type: 'webhook',
     endpointPath: 'hook-abc',
-    config: {},
-    chatChannelHealth: 'unknown',
+    config: {
+      chatChannel: {
+        provider: 'telegram',
+        botTokenRef: 'secret://triggers/trig-tg/bot-token',
+      },
+    },
+    chatChannelHealth: 'healthy',
     chatChannelLastError: null,
   } as unknown as Trigger;
 
@@ -1656,7 +1627,8 @@ describe('TriggersService — webhook callbackUrl 조립 (app.url 사용 회귀 
       'trig-tg',
       'ws-1',
       {
-        chatChannel: { provider: 'telegram', botToken: '111:TestToken' },
+        // `botToken` 을 싣지 않는다 — PATCH 는 비밀을 받지 않는다 (R-CC-21 / D-1).
+        chatChannel: { provider: 'telegram' },
       },
       'u-spec',
     );
@@ -1684,7 +1656,8 @@ describe('TriggersService — webhook callbackUrl 조립 (app.url 사용 회귀 
       'trig-tg',
       'ws-1',
       {
-        chatChannel: { provider: 'telegram', botToken: '111:TestToken' },
+        // `botToken` 을 싣지 않는다 — PATCH 는 비밀을 받지 않는다 (R-CC-21 / D-1).
+        chatChannel: { provider: 'telegram' },
       },
       'u-spec',
     );
@@ -1710,7 +1683,8 @@ describe('TriggersService — webhook callbackUrl 조립 (app.url 사용 회귀 
       'trig-tg',
       'ws-1',
       {
-        chatChannel: { provider: 'telegram', botToken: '111:TestToken' },
+        // `botToken` 을 싣지 않는다 — PATCH 는 비밀을 받지 않는다 (R-CC-21 / D-1).
+        chatChannel: { provider: 'telegram' },
       },
       'u-spec',
     );
@@ -2931,5 +2905,397 @@ describe('TriggersService — endpoint_path UNIQUE 충돌 계약', () => {
   it('[술어] unique 위반이 아니면 false', () => {
     expect(isEndpointPathUniqueViolation(new Error('nope'))).toBe(false);
     expect(isEndpointPathUniqueViolation(null)).toBe(false);
+  });
+});
+
+/**
+ * `chatChannel` 이 실린 PATCH 는 **사용자가 보낸 비밀을 쓰지 않는다** — D-1·D-2·D-3.
+ * SoT: Chat Channel §5.4.1 · §5.4.1.1 · R-CC-21 (planner PR #1311 · #1313).
+ *
+ * **이 suite 의 존재 이유는 "쓰기 3개 중 2개만 막는다" 는 비대칭을 고정하는 것이다.**
+ * `setupChatChannel` 안의 secret 쓰기는 셋이고 PATCH 에서의 처분이 서로 다르다:
+ *
+ * | 쓰기 | 자원 | PATCH |
+ * |---|---|---|
+ * | bot token rotate | 사용자 입력 | **안 쓴다** |
+ * | provider-issued signing (slack/discord) | 사용자 입력 | **안 쓴다** |
+ * | server-issued signing (telegram) | adapter 가 provider 와 합의해 발급 | **무조건 쓴다** |
+ *
+ * 세 번째를 함께 막으면 DB 는 옛 `secret_token`, Telegram 은 새 값으로 서명하게 되어
+ * **그 트리거의 인입 웹훅이 전부 401** 이 된다. 그래서 telegram 케이스는 rotate 가
+ * 호출됐다는 것을 **적극적으로** 단언한다 — 빠뜨리면 조용히 깨지는 자리다.
+ */
+describe('TriggersService — chatChannel PATCH 는 사용자 비밀을 쓰지 않는다 (R-CC-21)', () => {
+  let service: TriggersService;
+  let triggerRepo: jest.Mocked<Repository<Trigger>>;
+  let secrets: jest.Mocked<SecretResolverService>;
+  let mockAdapter: { setupChannel: jest.Mock };
+
+  const BOT_TOKEN_REF = 'secret://triggers/trig-p/bot-token';
+  const SIGNING_REF = 'secret://triggers/trig-p/inbound-signing';
+
+  /** 이미 setup 이 끝난 트리거 — PATCH 는 이 상태 위에서만 정당하다 (§5.4.1 표 1행: 생성 POST 한정). */
+  const existing = (provider: string) =>
+    ({
+      id: 'trig-p',
+      workspaceId: 'ws-1',
+      type: 'webhook',
+      endpointPath: 'hook-p',
+      config: {
+        chatChannel: {
+          provider,
+          botTokenRef: BOT_TOKEN_REF,
+          inboundSigningRef: SIGNING_REF,
+        },
+      },
+      chatChannelHealth: 'healthy',
+      chatChannelLastError: null,
+    }) as unknown as Trigger;
+
+  const setup = async (issuedInboundSigning?: string) => {
+    mockAdapter = {
+      setupChannel: jest.fn().mockResolvedValue({
+        configUpdates: { botIdentity: { botId: 111, username: 'bot' } },
+        ...(issuedInboundSigning ? { issuedInboundSigning } : {}),
+      }),
+    };
+    const baseProviders = createBaseProviders({
+      findOne: jest.fn(),
+      update: jest.fn().mockResolvedValue(undefined),
+      save: jest.fn((t: Trigger) => Promise.resolve(t)),
+      create: jest.fn((t: unknown) => t),
+      createQueryBuilder: jest.fn(),
+    });
+    const at = (token: unknown) =>
+      baseProviders.findIndex(
+        (p) => 'provide' in p && (p as { provide: unknown }).provide === token,
+      );
+    baseProviders[at(ChannelAdapterRegistry)] = {
+      provide: ChannelAdapterRegistry,
+      useValue: {
+        has: jest.fn().mockReturnValue(true),
+        get: jest.fn().mockReturnValue(mockAdapter),
+      },
+    };
+    baseProviders[at(SecretResolverService)] = {
+      provide: SecretResolverService,
+      useValue: {
+        resolve: jest.fn(),
+        store: jest.fn(),
+        rotate: jest.fn().mockResolvedValue(undefined),
+        delete: jest.fn(),
+        deleteByPrefix: jest.fn().mockResolvedValue(0),
+        exists: jest.fn().mockResolvedValue(true),
+      },
+    };
+    const moduleRef = await Test.createTestingModule({
+      providers: baseProviders,
+    }).compile();
+    service = moduleRef.get(TriggersService);
+    triggerRepo = moduleRef.get(getRepositoryToken(Trigger));
+    secrets = moduleRef.get(SecretResolverService);
+  };
+
+  /** `ChatChannelCard` 가 실제로 보내는 바디 — 비밀 필드가 하나도 없다. */
+  const cardBody = (provider: string) => ({
+    provider,
+    uiMapping: { formMode: 'multi_step', visualNode: 'auto' },
+    rateLimitPerMinute: 30,
+    languageLocale: 'ko',
+  });
+
+  // ── D-2: 사용자 입력 두 축은 안 쓴다 ────────────────────────────────────
+  it('telegram — 카드 편집 PATCH 가 bot token 을 rotate 하지 않는다', async () => {
+    await setup('issued-new-xyz');
+    triggerRepo.findOne.mockResolvedValue(existing('telegram'));
+
+    await service.update(
+      'trig-p',
+      'ws-1',
+      { chatChannel: cardBody('telegram') } as never,
+      'u-1',
+    );
+
+    const refs = secrets.rotate.mock.calls.map((c) => c[0]);
+    expect(refs).not.toContain(BOT_TOKEN_REF);
+  });
+
+  it('slack — 카드 편집 PATCH 가 두 비밀 중 어느 것도 쓰지 않는다', async () => {
+    await setup(); // slack adapter 는 issuedInboundSigning 을 비운다
+    triggerRepo.findOne.mockResolvedValue(existing('slack'));
+
+    await service.update(
+      'trig-p',
+      'ws-1',
+      { chatChannel: cardBody('slack') } as never,
+      'u-1',
+    );
+
+    expect(secrets.rotate).not.toHaveBeenCalled();
+  });
+
+  // ── carve-out: telegram server-issued 는 **무조건 쓴다** ─────────────────
+  it('telegram — server-issued 서명은 PATCH 에서도 재저장된다 (건너뛰면 인입 401)', async () => {
+    await setup('issued-new-xyz');
+    triggerRepo.findOne.mockResolvedValue(existing('telegram'));
+
+    await service.update(
+      'trig-p',
+      'ws-1',
+      { chatChannel: cardBody('telegram') } as never,
+      'u-1',
+    );
+
+    expect(secrets.rotate).toHaveBeenCalledWith(
+      SIGNING_REF,
+      'ws-1',
+      'issued-new-xyz',
+    );
+  });
+
+  // ── D-1: 값 필드는 서비스 층에서도 거부한다 (전역 파이프와 이중 방어) ────
+  it('botToken 이 실리면 400 — DTO 뿐 아니라 서비스도 막는다', async () => {
+    await setup('x');
+    triggerRepo.findOne.mockResolvedValue(existing('telegram'));
+
+    await expect(
+      service.update(
+        'trig-p',
+        'ws-1',
+        {
+          chatChannel: { ...cardBody('telegram'), botToken: '111:New' },
+        } as never,
+        'u-1',
+      ),
+    ).rejects.toMatchObject({
+      response: { code: 'VALIDATION_ERROR', details: { field: 'botToken' } },
+    });
+  });
+
+  it('inboundSigningPlaintext 가 실리면 400 — slack 도 예외가 아니다', async () => {
+    await setup();
+    triggerRepo.findOne.mockResolvedValue(existing('slack'));
+
+    await expect(
+      service.update(
+        'trig-p',
+        'ws-1',
+        {
+          chatChannel: {
+            ...cardBody('slack'),
+            inboundSigningPlaintext: 'a'.repeat(32),
+          },
+        } as never,
+        'u-1',
+      ),
+    ).rejects.toMatchObject({
+      response: {
+        code: 'VALIDATION_ERROR',
+        details: { field: 'inboundSigningPlaintext' },
+      },
+    });
+  });
+
+  it('slack/discord 의 plaintext **부재**는 더 이상 400 이 아니다 (생성 전용 요구였다)', async () => {
+    await setup();
+    triggerRepo.findOne.mockResolvedValue(existing('discord'));
+
+    await expect(
+      service.update(
+        'trig-p',
+        'ws-1',
+        { chatChannel: cardBody('discord') } as never,
+        'u-1',
+      ),
+    ).resolves.toBeDefined();
+  });
+
+  // ── D-3: ref 는 보존이 아니라 재유도로 살아남는다 ────────────────────────
+  it('config 를 통째로 교체해도 botTokenRef 가 재유도돼 살아남는다', async () => {
+    await setup('issued-new-xyz');
+    triggerRepo.findOne.mockResolvedValue(existing('telegram'));
+
+    await service.update(
+      'trig-p',
+      'ws-1',
+      { chatChannel: cardBody('telegram') } as never,
+      'u-1',
+    );
+
+    const merged = triggerRepo.update.mock.calls
+      .map(
+        ([, patch]) =>
+          patch as { config?: { chatChannel?: Record<string, unknown> } },
+      )
+      .find((p) => p.config?.chatChannel);
+    expect(merged?.config?.chatChannel?.botTokenRef).toBe(BOT_TOKEN_REF);
+  });
+
+  // ── 회귀: 실패가 보이는 형태에서 조용한 형태로 바뀌면 안 된다 ────────────
+  it('setup 안 된 트리거에 PATCH 로 chatChannel 을 처음 붙이면 400 (조용한 degraded 금지)', async () => {
+    await setup('x');
+    triggerRepo.findOne.mockResolvedValue({
+      id: 'trig-p',
+      workspaceId: 'ws-1',
+      type: 'webhook',
+      endpointPath: 'hook-p',
+      config: {},
+      chatChannelHealth: 'unknown',
+      chatChannelLastError: null,
+    } as unknown as Trigger);
+
+    await expect(
+      service.update(
+        'trig-p',
+        'ws-1',
+        { chatChannel: cardBody('telegram') } as never,
+        'u-1',
+      ),
+      // `details.field` 까지 박는다. `code` 만 보면 **인접 가드가 같은 입력을 다른 이유로
+      // 거부해도 GREEN** 이라 이 분기를 실제로 밟았는지 알 수 없다 — 이 저장소가 반복 겪은
+      // vacuous 형태다 (`/ai-review` `review/code/2026/09/11/00_21_55` requirement W).
+    ).rejects.toMatchObject({
+      response: {
+        code: 'VALIDATION_ERROR',
+        details: { field: 'chatChannel' },
+      },
+    });
+    expect(secrets.rotate).not.toHaveBeenCalled();
+  });
+
+  // ── CRITICAL 회귀: 두 ref 가 **대칭으로** 살아남아야 한다 ────────────────
+  //
+  // D-3 테스트를 `botTokenRef` 하나만 걸었더니 **자매 ref 를 잃는 결함**을 못 잡았다.
+  // `botTokenRef` 는 `buildSecretRef(trigger.id)` 로 매번 재유도돼 무조건 실리는 반면,
+  // `inboundSigningRef` 는 *"이번 호출에서 값을 새로 썼을 때만"* 실리게 짜여 있었다 —
+  // D-2 가 그 쓰기를 게이팅하자 slack/discord PATCH 에서 그 조건이 **구조적으로 항상 거짓**이
+  // 되어 ref 가 config 에서 통째로 사라졌다. 그리고 `ChatChannelInboundAuthenticator` 는
+  // 세 provider 모두 `if (!config.inboundSigningRef) return;` 으로 **검증을 건너뛴다** —
+  // 즉 카드 편집 PATCH 한 번으로 그 트리거의 인입 웹훅이 **서명 없이 통과**하게 된다.
+  // (`/ai-review` `review/code/2026/09/10/23_21_57` — security·requirement·side_effect 3인 독립 발견)
+  const persistedChannel = () =>
+    triggerRepo.update.mock.calls
+      .map(
+        ([, patch]) =>
+          patch as { config?: { chatChannel?: Record<string, unknown> } },
+      )
+      .filter((p) => p.config?.chatChannel)
+      .pop()?.config?.chatChannel;
+
+  it.each(['slack', 'discord'])(
+    '%s — 카드 편집 PATCH 후에도 inboundSigningRef 가 살아남는다 (fail-open 회귀)',
+    async (provider) => {
+      await setup(); // provider-issued 축 — issuedInboundSigning 없음
+      triggerRepo.findOne.mockResolvedValue(existing(provider));
+
+      await service.update(
+        'trig-p',
+        'ws-1',
+        { chatChannel: cardBody(provider) } as never,
+        'u-1',
+      );
+
+      expect(persistedChannel()?.inboundSigningRef).toBe(SIGNING_REF);
+    },
+  );
+
+  it('telegram — server-issued 재발급 경로에서도 ref 가 실린다', async () => {
+    await setup('issued-new-xyz');
+    triggerRepo.findOne.mockResolvedValue(existing('telegram'));
+
+    await service.update(
+      'trig-p',
+      'ws-1',
+      { chatChannel: cardBody('telegram') } as never,
+      'u-1',
+    );
+
+    expect(persistedChannel()?.inboundSigningRef).toBe(SIGNING_REF);
+  });
+
+  it('setupChannel 이 실패해도(degraded) inboundSigningRef 를 잃지 않는다', async () => {
+    await setup();
+    mockAdapter.setupChannel.mockRejectedValue(new Error('provider down'));
+    triggerRepo.findOne.mockResolvedValue(existing('slack'));
+
+    await service.update(
+      'trig-p',
+      'ws-1',
+      { chatChannel: cardBody('slack') } as never,
+      'u-1',
+    );
+
+    expect(persistedChannel()?.inboundSigningRef).toBe(SIGNING_REF);
+    expect(persistedChannel()?.botTokenRef).toBe(BOT_TOKEN_REF);
+  });
+
+  // ── WARNING: `@IsEmpty()` 가 통과시키는 null/'' 를 서비스가 잡는가 ───────
+  //
+  // `@IsEmpty()` 는 `null`·`''` 를 **통과**시킨다. 그래서 그 두 값에 대한 실제 방어선은
+  // 서비스의 `assertPatchCarriesNoSecrets`(`typeof x !== 'undefined'`)다. 종전 테스트는
+  // 비어있지 않은 값만 넣어 **그 방어선 자체를 한 번도 안 밟았다**.
+  //
+  // **두 필드 × 두 값 네 조합을 전부 건다.** 한쪽 필드에만 `null` 을 걸었더니
+  // *"자매 필드 검사만 `if (carried.x)` 같은 falsy 체크로 바뀌어도 두 spec 이 GREEN"* 이라는
+  // 지적을 받았다 — 이 세션이 반복한 **"축은 대칭인데 한쪽만 고정"** 의 또 다른 사례다
+  // (`/ai-review` `review/code/2026/09/10/23_55_23` W5).
+  it.each([
+    ['botToken', 'telegram', 'null', null],
+    ['botToken', 'telegram', '빈 문자열', ''],
+    ['inboundSigningPlaintext', 'slack', 'null', null],
+    ['inboundSigningPlaintext', 'slack', '빈 문자열', ''],
+    // 기존 **내부 3필드**도 같은 `typeof !== 'undefined'` 형태인데 `null`/`''` 케이스가
+    // 없었다. 세 가드를 전부 falsy 체크로 완화한 뮤턴트에 **207개가 그대로 GREEN** 이었다
+    // (실측, `/ai-review` `review/code/2026/09/11/01_27_26` testing W). 신규 2필드만 채우고
+    // 자매 3필드를 안 본 것이라 — 이 세션이 반복한 **"축은 대칭인데 한쪽만"** 의 또 한 번이다.
+    ['botTokenRef', 'telegram', 'null', null],
+    ['botTokenRef', 'telegram', '빈 문자열', ''],
+    ['inboundSigningRef', 'telegram', 'null', null],
+    ['inboundSigningRef', 'telegram', '빈 문자열', ''],
+    ['inboundSigning', 'telegram', 'null', null],
+    ['inboundSigning', 'telegram', '빈 문자열', ''],
+  ])(
+    '%s: %s 인 경우도 서비스가 400 으로 잡는다 (%s)',
+    async (field, provider, _label, value) => {
+      await setup('x');
+      triggerRepo.findOne.mockResolvedValue(existing(provider as string));
+
+      await expect(
+        service.update(
+          'trig-p',
+          'ws-1',
+          {
+            chatChannel: {
+              ...cardBody(provider as string),
+              [field as string]: value,
+            },
+          } as never,
+          'u-1',
+        ),
+      ).rejects.toMatchObject({
+        response: { code: 'VALIDATION_ERROR', details: { field } },
+      });
+    },
+  );
+
+  // ── WARNING: provider 전환은 PATCH 로 못 한다 ────────────────────────────
+  //
+  // 전환을 허용하면 telegram 용으로 재유도된 `botTokenRef` 를 slack adapter 에 그대로
+  // 넘기게 된다 — 그 ref 뒤의 평문은 telegram 토큰이다. `2-trigger-list.md` R-12 도
+  // *"변경하려면 트리거 삭제·재생성"* 이라 적는다.
+  it('PATCH 로 provider 를 바꾸면 400 (다른 provider 의 토큰을 넘기게 된다)', async () => {
+    await setup('x');
+    triggerRepo.findOne.mockResolvedValue(existing('telegram'));
+
+    await expect(
+      service.update(
+        'trig-p',
+        'ws-1',
+        { chatChannel: cardBody('slack') } as never,
+        'u-1',
+      ),
+    ).rejects.toMatchObject({
+      response: { code: 'VALIDATION_ERROR', details: { field: 'provider' } },
+    });
   });
 });

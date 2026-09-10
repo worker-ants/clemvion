@@ -131,6 +131,21 @@ Slack supports all field types (`text`, `email`, `textarea`, `select`, etc.) in 
 - **Visual nodes** (Chart / Table / Carousel) — currently rendered as mrkdwn monospace text.
 - **No Socket Mode** — only Webhook mode is supported right now.
 
+## 5.5 Changing the bot token or signing secret
+
+**Bot token** changes go through the rotate API only —
+`POST /api/triggers/:id/chat-channel/rotate-bot-token`. Sending `config.chatChannel.botToken`
+in a trigger PATCH returns 400 `VALIDATION_ERROR` (`details.field='chatChannel.botToken'`).
+
+**The signing secret cannot be changed yet.** Sending `config.chatChannel.inboundSigningPlaintext` in a
+PATCH also returns 400 (`details.field='chatChannel.inboundSigningPlaintext'`). If you
+regenerated it in Slack, delete the trigger and create it again.
+
+<Callout type="info">
+  Saving display options or the rate limit from the Chat Channel card is unaffected — that
+  PATCH does not touch stored secrets.
+</Callout>
+
 ## 6. Customizing notification messages (`languageHints` / `languageLocale`)
 
 You can override the bot's built-in notification messages via `config.chatChannel.languageHints`.

@@ -1891,7 +1891,7 @@ field: T | null;
       > `cross_spec` 은 EIA `code:` 등재도 INFO 로 제안했지만, 원칙 문면을 직접 읽으니 요구 범위가
       > 더 좁았다. **추측으로 넣지 않고 질문으로 등재한다.**
 
-- [ ] **CRITICAL: chatChannel PATCH 가 bot token single-path 를 우회한다** — 질문으로 등재했고
+- [x] **CRITICAL: chatChannel PATCH 가 bot token single-path 를 우회한다** — 질문으로 등재했고
       **같은 날 판정이 나왔다: 예, 실제 갭이다** (2026-09-10 등재 → `/ai-review`
       `14_34_18` `api_contract` ④ + `security` W2 가 독립 판정, developer 수정 대기).
       §5.4.1/R-CC-10 은 bot token 변경을 `POST /triggers/:id/chat-channel/rotate-bot-token`
@@ -1971,6 +1971,11 @@ field: T | null;
       > planner 턴 `plan/complete/spec-draft-telegram-signing-carveout.md`
       > (`--impl-prep` `review/consistency/2026/09/10/21_37_56` 가 이 결함을 CRITICAL 로 잡았다).
 
+      > **✅ 2026-09-11 해소.** 구현 PR `impl-chat-channel-patch-token` — D-1(`ChatChannelUpdateConfigDto`)·
+      > D-2(`storeUserSuppliedSecrets` 게이팅, 쓰기 ①② 만)·D-3(ref 재유도) 적용. 두 항목은 예고대로
+      > **한 수정으로 함께 닫혔다.** 근거: `plan/{in-progress → complete}/impl-chat-channel-patch-token.md` (마무리 커밋에서 이동) ·
+      > `review/code/2026/09/10/23_55_23` · `review/consistency/2026/09/10/23_54_09`(`--impl-done` BLOCK: NO).
+
       **착수 시 함께 정리할 것 세 가지.** ⓪ `2-trigger-list.md §3` 註의 "다섯 케이스" 서술을
       재확인한다 — 처방이 case E 의 요청 바디를 바꾸지만 그 구조 자체는 무효화되지 않는다는 것이
       `--spec` `19_35_47` `plan_coherence` 의 판정이고, 그래도 문구는 그 PR 에서 확인할 것.
@@ -1988,7 +1993,7 @@ field: T | null;
       > 가 판정이다. 캐너리 스코프를 넓히지 않고 질문으로 등재한 판단 자체는 reviewer 도
       > *"적절하다"* 고 확인했다.
 
-- [ ] **버그: `ChatChannelCard` 편집-저장이 항상 400 이다** (developer, 2026-09-10 등재,
+- [x] **버그: `ChatChannelCard` 편집-저장이 항상 400 이다** (developer, 2026-09-10 등재,
       `/ai-review` `14_34_18` `api_contract` ⑤ — 위 ④ 조사 중 부수 발견).
       `codebase/frontend/src/components/triggers/cards/chat-channel-card.tsx` 의 `saveMutation`
       은 uiMapping·rateLimitPerMinute·languageLocale·languageHints 만 편집하는 UI 인데, PATCH
@@ -2017,6 +2022,14 @@ field: T | null;
       > 컴포넌트 코드를 직접 열어 `botToken` 생략과 두 주석을 확인했지만 **브라우저에서
       > 재현하지는 않았다.** 착수 시 먼저 재현할 것 — 재현 실패는 부재의 증거가 아니지만,
       > 반대로 재현 없이 "항상 400" 을 확정으로 적는 것도 한 칸 넓다.
+      >
+      > **(2026-09-11 재현 결과)** 브라우저 대신 **전역 파이프에 카드 바디를 그대로 통과시켜**
+      > 실측했다(`trigger-dto-validation.spec.ts`) — 세 provider 전부 400 이었고, 구현 후에는
+      > 세 provider 전부 통과한다. 그 대조가 `it.each(['telegram','slack','discord'])` 로 고정돼 있다.
+      > **✅ 2026-09-11 해소.** 구현 PR `impl-chat-channel-patch-token` — D-1(`ChatChannelUpdateConfigDto`)·
+      > D-2(`storeUserSuppliedSecrets` 게이팅, 쓰기 ①② 만)·D-3(ref 재유도) 적용. 두 항목은 예고대로
+      > **한 수정으로 함께 닫혔다.** 근거: `plan/{in-progress → complete}/impl-chat-channel-patch-token.md` (마무리 커밋에서 이동) ·
+      > `review/code/2026/09/10/23_55_23` · `review/consistency/2026/09/10/23_54_09`(`--impl-done` BLOCK: NO).
 
 - [ ] **§5.4.1 · §5.4.1.1 의 `details.field` 문면이 실제 페이로드와 다를 수 있다** (planner,
       2026-09-10 등재, `--spec` `20_13_39` `cross_spec` W1 + `20_29_00` `convention_compliance` INFO).
@@ -2027,6 +2040,28 @@ field: T | null;
       *"중첩/배열 경로를 유지한다"*)을 벗어난 것은 **구현이 아니라 spec 문장**일 수 있다.
 
       **추측으로 고치지 않는다** — e2e 로 실제 400 페이로드를 캡처해 확정한 뒤 두 절을 정정한다.
+      > **✅ 2026-09-11 실측 완료 — 단 답은 하나가 아니라 「값의 형태에 따라 둘」이다.**
+      >
+      > | 보낸 값 | 어디서 거부되나 | `details.field` |
+      > |---|---|---|
+      > | 비어있지 않은 문자열 | 전역 `CustomValidationPipe` | **중첩 경로** (`chatChannel.botToken`), `details` 는 **배열** |
+      > | `null` · `''` | `@IsEmpty()` 를 **통과**해 서비스 가드 | **flat** (`botToken`), `details` 는 **단일 object** |
+      >
+      > **처음에 이 각주는 "다섯 필드 전부 중첩 경로" 라고만 적었다 — 비어있지 않은 값만
+      > 재고 일반화한 것이라 과했다**(`/ai-review` `review/code/2026/09/10/23_55_23`
+      > `requirement` W 가 잡았다). 정정한 값이 위 표다.
+      >
+      > 비어있지 않은 값 갈래의 다섯 필드: `chatChannel.botToken` ·
+      > `chatChannel.inboundSigningPlaintext` · `chatChannel.botTokenRef` ·
+      > `chatChannel.inboundSigningRef` · `chatChannel.inboundSigning`.
+      > 정본은 `trigger-dto-validation.spec.ts` 의 **두 `[실측]` 케이스** — 전역
+      > `CustomValidationPipe` 에 실제 바디를 통과시켜 잰 값이라 추측이 아니다.
+      > **planner 는 두 갈래를 다 적어야 한다** — 한쪽만 적으면 이 각주가 처음에 그랬듯
+      > 다음 사람이 반대 갈래에서 틀린 문서를 읽는다. 서비스 가드(`assertChatChannelInputSafe`)는 **flat** 이름을 쓰지만
+      > 파이프가 먼저 거부하므로 **HTTP 응답에 나가는 것은 중첩 경로**다.
+      > **남은 것은 planner 의 문면 정정뿐**: `15-chat-channel.md` §5.4.1·§5.4.1.1 의
+      > placeholder 와 flat 표기, `2-trigger-list.md:119-120,176`.
+
       **(2026-09-10 범위 확대)** 캡처 대상은 신규 2필드(`botToken`·`inboundSigningPlaintext`)뿐
       아니라 **기존 3필드**(`botTokenRef`·`inboundSigningRef`·`inboundSigning`)까지 **5필드 전체**다
       — 기존 3필드의 표기(`details.field='botTokenRef'` 등)는 캐비아트 없이 확정 서술이라 더 위험하다
@@ -2042,6 +2077,31 @@ field: T | null;
       다음 사람이 그 자리를 방어선으로 오인하고 파이프 쪽 선언을 지우면 실제 구멍이 열린다.
       처방: 도달 가능성을 실측(뮤테이션 또는 e2e)하고, 도달 불가면 **가드를 지우고 그 사실을 주석으로
       남기거나** 파이프 선언과 가드 중 하나를 SoT 로 정한다.
+
+      > **✅ 2026-09-11 실측 — 추측을 확정으로 바꾼다. 단 결론은 「도달 불가」가 아니다.**
+      >
+      > | 보낸 값 | 어디서 거부 | `details.field` |
+      > |---|---|---|
+      > | 비어있지 않은 문자열 | **전역 파이프가 먼저** | 중첩 `chatChannel.<field>` (배열) |
+      > | `null` · `''` | `@IsEmpty()` **통과** → **서비스 가드** | flat `<field>` (단일 object) |
+      >
+      > 즉 **세 분기는 dead code 가 아니다** — `null`/`''` 갈래에서 실제로 도달한다.
+      >
+      > **(2026-09-11 재정정 — 위 문장의 첫 판본이 거짓이었다.)** 처음에 근거로 든
+      > `triggers.service.spec.ts` 의 4조합은 **신규 2필드**(`botToken`·`inboundSigningPlaintext`)
+      > 만 덮고 **이 항목의 대상인 내부 3필드는 하나도 걸지 않았다.** 세 가드를 전부 falsy
+      > 체크로 완화한 뮤턴트에 **207개가 그대로 GREEN** 이었다(reviewer 가 먼저 실측했고 나도
+      > 재현했다 — `/ai-review` `review/code/2026/09/11/01_27_26` testing W).
+      > **그 뒤 3필드 × 2값 6조합을 추가했고, 같은 뮤턴트에 RED 6건**을 확인했다.
+      > 신규 2필드만 채우고 자매 3필드를 안 본 것이라, 이 세션이 반복한
+      > **"축은 대칭인데 한쪽만"** 의 또 한 번이다.
+      > **그래서 가드를 지우지 않았다.** 이 항목이 세운 *"도달 가능성이 높다(=파이프가 먼저
+      > 거부한다)"* 는 전제는 **비어있지 않은 값 갈래에만** 참이었다 — 한 갈래만 보고 전체를
+      > 판정하려던 것이 이 항목 자체의 결함이다.
+      >
+      > **남은 것**: 파이프 선언과 서비스 가드가 **서로 다른 `details.field` 형식**을 낸다는
+      > 사실 자체(위 표). 어느 쪽을 SoT 로 할지는 아직 결정하지 않았다 — 그 결정은 spec 표기
+      > 정정(위 `details.field` 항목)과 같은 planner 턴에서 함께 하는 것이 맞다.
 
 - [ ] **§5.4.1 표 2행(활성화 PATCH 가 `setupChannel` 재호출)이 구현과 어긋날 수 있다** (planner + 조사,
       2026-09-10 등재, `--spec` `20_13_39` `cross_spec` W2).
@@ -2061,11 +2121,85 @@ field: T | null;
       (planner + 결정, 2026-09-10 등재, `--spec` `review/consistency/2026/09/10/22_04_23`
       `naming_collision` INFO). 현재 저장소에 `Patch` 접두 클래스는 **0건**이고 관례는 `Create`/`Update`
       축인데 **명문 규칙은 없다**(실측). 규약 신설은 별 결정 사안이라 이 자리에만 등재한다.
+      **함께 결정할 것 (2026-09-11)**: `Update` 가 **접두어여야 하는가**도 같이 정한다 —
+      저장소의 기존 Update DTO 18개는 전부 접두어인데 `ChatChannelUpdateConfigDto` 는 중간에
+      둔다(형제 nested DTO 의 로컬 `ChatChannel<Role>Dto` 패턴을 따랐다). checker 도
+      *"명문 규칙 부재라 위반은 아님"* 으로 판정했다.
+      **부수**: `chat-channel-config.dto.ts:365` 의 `swagger.md:315` 인용을 **`§3` 절 참조로**
+      바꾼다 — 인용 자체는 실측상 **정확하지만**(315 가 규약 제목 줄, 317 은 다음 문단) checker 가
+      두 라운드 연속 오탐을 냈다. 줄 번호가 읽는 쪽에 모호하다는 신호다.
 
 - [ ] **telegram inbound-signing 재발급이 `1-auth.md §4.1` 전용 audit action 카탈로그 밖이다**
       (planner, 2026-09-10 등재, `--spec` `review/consistency/2026/09/10/22_14_27` `cross_spec` INFO).
       **draft 이전부터 있던 갭**이고 telegram carve-out 이 새로 만든 것이 아니다 — §4.1 또는 CCH-SE-03
       근처에 *"server-issued 재발급은 전용 audit action 대상 제외"* caveat 한 줄이면 닫힌다.
+
+- [ ] **spec 9곳이 `SecretResolver.store()` 라 적는데 실제 호출은 전부 `rotate()` 다**
+      (planner, 2026-09-11 등재, `--impl-prep` `review/consistency/2026/09/10/22_45_26` +
+      `--impl-done` `review/consistency/2026/09/10/23_54_09` `cross_spec` W2).
+      **실측**: chat-channel 비밀 저장 호출 6개 지점이 **전수 `rotate()`** 이고 `secrets.store(` 는
+      **0건**이다(`store()` 자체는 `secret-resolver.service.ts:112` 에 존재하나 이 경로가 안 부른다).
+      canonical 정의(`conventions/secret-store.md §2`)도 `rotate()` 를 권장한다 — `setupChannel()` 은
+      생성·활성화·`chatChannel` PATCH 세 갈래에서 반복 호출되는 멱등 함수라, 문자 그대로 `store()`
+      라면 두 번째 호출부터 깨져야 한다. 대상: `15-chat-channel.md:200,201,373,390` ·
+      `chat-channel-adapter.md:354,359` · `providers/telegram.md:58,219` · `providers/slack.md:278`.
+      정답 표기 선례는 `data-flow/14-chat-channel.md` 의 *"secret store UPSERT"*.
+
+      > **(2026-09-11) `codebase/**` 3곳은 이 PR 에서 이미 고쳤다** — 원 열거가 `spec/` 만
+      > grep 해서 놓쳤던 자리다(`/ai-review` `review/code/2026/09/11/01_27_26` documentation W):
+      > `slack.adapter.ts:65` · `triggers.service.ts:755` · `chat-channel-config.dto.ts:252`.
+      > **남은 것은 `spec/` 9곳뿐이고 그것이 planner 몫이다.**
+
+      > **개수 확정 (2026-09-11 실측).** 이 항목이 한때 제목에 *"7곳"*, 본문 표에 *"9곳"* 을
+      > 동시에 적어 어긋나 있었다(`--impl-done` `review/consistency/2026/09/11/01_10_44` INFO).
+      > 줄이 아니라 **출현 횟수**로 전수 세면 `spec/` 전체에 `(SecretResolver|secrets|this.secrets).store`
+      > 가 **10회 / 10줄**이고, 그중 **9곳이 chat-channel 경로**다:
+      > `15-chat-channel.md:200,201,373,390` · `chat-channel-adapter.md:354,359` ·
+      > `providers/telegram.md:58,219` · `providers/slack.md:278`.
+      > 나머지 1곳 `conventions/secret-store.md:301` 은 **notification signing 예시**다 —
+      > 그 경로가 `store()` 를 쓰는지는 **측정하지 않았다.** 정정 대상은 chat-channel 9곳뿐이다.
+      **같은 턴에 병기할 것**: `15-chat-channel.md` frontmatter `code:` 가 이번 PR 의 배선 파일
+      (`update-trigger.dto.ts` · `trigger-dto-validation.spec.ts` · `triggers.service.spec.ts` ·
+      `trigger-workflow-ref.e2e-spec.ts`)을 아직 안 가리킨다 — 3라운드 연속 관측, 가드는 통과.
+      또한 **신규 검증 분기 2건**(`chatChannel` 최초 부착 차단 → `details.field='chatChannel'` ·
+      provider 전환 차단 → `details.field='provider'`)이 §5.4.1 표와 `2-trigger-list.md` PATCH
+      에러 표에 미등재다(`--impl-done` `review/consistency/2026/09/11/00_21_57` W3).
+
+- [ ] **동시 PATCH 가 `trigger.config` 를 잃을 수 있다 (lost update) — 방금 닫은 fail-open 이 이 경로로 재발 가능**
+      (developer + 동시성, 2026-09-11 등재, `/ai-review` `review/code/2026/09/10/23_55_23` `concurrency` W1
+      + `database` INFO 가 같은 지점을 TOCTOU 로 독립 확인).
+      `update()` → `setupChatChannel()`(외부 adapter 호출 포함, `await` 여러 개) 전 구간이 트랜잭션·
+      낙관적 잠금·행 잠금 **없이** 요청 시작 시점의 `trigger.config` 스냅샷을 신뢰한다. 같은 트리거에
+      동시 PATCH 가 겹치면 나중에 커밋되는 쪽이 먼저 반영된 `inboundSigningRef` 를 **옛 스냅샷으로
+      되돌려 쓴다** — 즉 이번 PR 이 막 닫은 인입 서명 fail-open 이 동시성 경로로 되살아난다.
+      **사전 존재 설계다**(CCH-SE-01 의 best-effort 2단계 커밋) — 이 diff 가 만든 것이 아니라 그 위에
+      새 상태(`previousInboundSigningRef` 캡처)를 얹은 것이라 등재한다. 처방 후보: 트리거 단위
+      advisory lock · `SELECT … FOR UPDATE` · `config` 낙관적 버전 비교. 자매 패턴
+      `rotateChatChannelBotToken()` 도 같은 구간을 가진다.
+
+- [ ] **`setupChatChannel` 이 6~8가지 관심사를 한 함수에 담고 있다** (developer, 2026-09-11 등재,
+      `/ai-review` `review/code/2026/09/10/23_55_23` `maintainability` W6). 133 → 186줄(+40%).
+      reviewer 자신이 *"JSDoc·근거 주석·대칭 테스트가 위험을 상쇄해 즉시 차단 사유는 아님 —
+      다음에 손댈 때"* 로 분류했다. 처방: 앞쪽 절반(secret 쓰기 게이팅 + ref 생존 판정)을
+      `resolveChatChannelSecretWrites(...)` 로 분리.
+
+- [ ] **`ChatChannelConfigDto.botToken` 이 swagger 로 `minLength:1` 을 약속하는데 validator 가 없다**
+      (developer, 2026-09-11 등재, `/ai-review` `review/code/2026/09/10/23_55_23` `security` INFO1).
+      **생성(POST) 경로**에서 빈 문자열 bot token 이 통과한다 — 이번 PR 은 PATCH 축만 게이팅해
+      스코프 밖이었다. 처방: `@MinLength(1)` 또는 provider 별 정규식.
+
+- [ ] **DTO `@IsEmpty()` 메시지와 서비스 가드 메시지가 5필드 모두 리터럴 복붙이다** (developer,
+      2026-09-11 등재, `/ai-review` `review/code/2026/09/11/01_52_59` `architecture` W3).
+      한쪽만 고치면 **값의 형태에 따라 다른 문구가 나간다** — `null`/`''` 는 서비스 가드가,
+      비어있지 않은 값은 DTO 가 거부하기 때문이다(그 두 갈래는 이미 실측으로 확정돼 있다).
+      처방: 5개 메시지를 `chat-channel-config.dto.ts` 의 `export const` 맵으로 빼고 두 층이
+      import 한다.
+
+- [ ] **chat-channel 도메인 규칙이 제네릭 `TriggersService`(1855줄)에 계속 쌓인다** (developer,
+      2026-09-11 등재, `/ai-review` `01_52_59` `architecture` W2 — 기존 "함수 비대" 항목의
+      **모듈 경계 관점**이다). `chat-channel/` 하위에 adapter 계층이 따로 있는데 검증·secret
+      쓰기·ref 보존 규칙은 triggers 쪽에 남아 경계가 어긋난다. 처방 후보:
+      `ChatChannelTriggerBinder` 협력자 추출.
 
 - [ ] **`SecretResolver.rotate` 에 빈 값 가드가 없다** (developer + 보안 판단, 2026-09-10 등재).
       `rotate(ref, ws, '')` 가 빈 문자열을 그대로 암호화해 row 를 덮어쓴다(`:129-145`, 가드 0).
@@ -2074,13 +2208,23 @@ field: T | null;
       `allowEmpty` 옵션 (c) 그대로 두고 호출부 책임으로 문서화. **(a) 가 fail-closed 지만 정당한 빈
       값 사용처가 있는지 먼저 세야 한다.**
 
-- [ ] **생성/수정 검증 함수를 분리해야 한다 — 안 하면 D-1 구현이 생성 경로를 깬다** (developer,
+- [x] **생성/수정 검증 함수를 분리해야 한다 — 안 하면 D-1 구현이 생성 경로를 깬다** (developer,
       2026-09-10 등재, `--spec` `20_29_00` `cross_spec` INFO).
       `assertInboundSigningPlaintextByProvider` 는 `create()`(`:401`)와 `update()`(`:482`)가 **같은
       코드를 공유**한다. D-1("present 면 400")을 그 함수에 문자 그대로 넣으면 **slack/discord 의 생성
       (POST)에서도 존재를 막아 트리거 생성 자체가 깨진다** — 생성에서는 그 값이 여전히 필수다.
       처방: PATCH 전용 검증 경로를 갈라 D-1 을 거기에만 적용한다. **원 처방이 위험했던 것과 같은
       종류의 함정**이라 구현 착수 전 이 항목을 먼저 읽을 것.
+
+      > **✅ 2026-09-11 해소.** `assertChatChannelInputSafe` 를 `mode: 'create' | 'update'` 로
+      > 갈랐고, **오버로드 두 개**로 `mode` 와 DTO 타입을 컴파일 타임에 묶었다(문자열 판별자만
+      > 두면 짝이 깨져도 컴파일러가 못 잡는다 — `/ai-review`
+      > `review/code/2026/09/10/23_55_23` W4). PATCH 축은 신설 `assertPatchCarriesNoSecrets` 가
+      > 보고, **생성 전용 검증(`assertInboundSigningPlaintextByProvider`)은 좁은 타입을 그대로
+      > 둬서 "PATCH 에서 부르면 안 된다" 를 타입이 말하게** 했다.
+      > 회귀: *"slack/discord 의 plaintext 부재는 더 이상 400 이 아니다"* +
+      > *"CreateTriggerDto 는 여전히 botToken 을 요구한다"* 두 케이스가 양쪽을 고정한다.
+      > 구현 PR `plan/{in-progress → complete}/impl-chat-channel-patch-token.md`.
 
 - [ ] **docs 가드가 spec frontmatter 의 dangling `pending_plans` 를 안 잡는다** (harness, 2026-09-10
       등재, `--spec` `20_29_00` `plan_coherence` INFO).

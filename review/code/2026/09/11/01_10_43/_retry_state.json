@@ -1,0 +1,45 @@
+{
+  "session_dir": "/Volumes/project/private/clemvion/.claude/worktrees/impl-chat-channel-patch-token-a17c4e/review/code/2026/09/11/01_10_43",
+  "summary_subagent_type": "code-review-summary",
+  "summary_output_file": "/Volumes/project/private/clemvion/.claude/worktrees/impl-chat-channel-patch-token-a17c4e/review/code/2026/09/11/01_10_43/SUMMARY.md",
+  "router_subagent_type": "review-router",
+  "router_prompt_file": null,
+  "router_output_file": "/Volumes/project/private/clemvion/.claude/worktrees/impl-chat-channel-patch-token-a17c4e/review/code/2026/09/11/01_10_43/_routing_decision.json",
+  "routing_status": "skipped",
+  "routing_skip_reason": "REVIEW_AGENTS explicitly set",
+  "agents_forced": [
+    "documentation"
+  ],
+  "agents_forced_reasons": {
+    "documentation": [
+      "문서 파일(.md/.txt/.rst/.adoc/LICENSE/CHANGELOG 등) 변경: plan/in-progress/impl-chat-channel-patch-token.md, plan/in-progress/spec-draft-nullable-notation-followups.md, review/code/2026/09/10/23_21_57/RESOLUTION.md (외 76건)"
+    ]
+  },
+  "agents_skipped": [],
+  "subagent_invocations": [
+    {
+      "name": "documentation",
+      "subagent_type": "documentation-reviewer",
+      "prompt_file": "/Volumes/project/private/clemvion/.claude/worktrees/impl-chat-channel-patch-token-a17c4e/review/code/2026/09/11/01_10_43/_prompts/documentation.md",
+      "output_file": "/Volumes/project/private/clemvion/.claude/worktrees/impl-chat-channel-patch-token-a17c4e/review/code/2026/09/11/01_10_43/documentation.md"
+    },
+    {
+      "name": "user_guide_sync",
+      "subagent_type": "user-guide-sync-reviewer",
+      "prompt_file": "/Volumes/project/private/clemvion/.claude/worktrees/impl-chat-channel-patch-token-a17c4e/review/code/2026/09/11/01_10_43/_prompts/user_guide_sync.md",
+      "output_file": "/Volumes/project/private/clemvion/.claude/worktrees/impl-chat-channel-patch-token-a17c4e/review/code/2026/09/11/01_10_43/user_guide_sync.md"
+    }
+  ],
+  "agents_pending": [
+    "documentation",
+    "user_guide_sync"
+  ],
+  "agents_success": [],
+  "agents_fatal": [],
+  "agent_history": {},
+  "rate_limit_episodes": 0,
+  "total_wait_sec": 0,
+  "wake_history": [],
+  "last_reset_hint_sec": null,
+  "loop_mode": false
+}

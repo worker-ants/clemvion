@@ -415,7 +415,9 @@ Check `chatChannelHealth` on the trigger detail view:
 
 ### Rotating the bot token (single-path)
 
-Token changes go through the rotate API only. PATCHing `config.chatChannel.botTokenRef` directly returns 400 `VALIDATION_ERROR` (`details.field='botTokenRef'`).
+A chat channel can only be configured **when the trigger is created**. PATCHing a `chatChannel` onto a trigger that does not have one returns 400 `VALIDATION_ERROR` (`details.field='chatChannel'`), and changing `provider` returns 400 (`details.field='provider'`) — to switch providers, delete the trigger and create it again.
+
+Token changes go through the rotate API only. Sending `config.chatChannel.botToken` in a PATCH body returns 400 `VALIDATION_ERROR` (`details.field='chatChannel.botToken'`). The internal identifier `botTokenRef` is rejected too — it was never an input field.
 
 ```bash
 curl -X POST https://<your-host>/api/triggers/<trigger-id>/chat-channel/rotate-bot-token \

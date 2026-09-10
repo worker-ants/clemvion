@@ -119,7 +119,15 @@ export class TriggersController {
   @ApiOkWrappedResponse(TriggerDto, { description: '수정된 트리거 정보' })
   @ApiBadRequestResponse({
     description:
-      '입력값 검증 실패. schedule 타입에 허용되지 않는 필드가 포함된 경우 code=VALIDATION_ERROR, details.field="type", details.disallowed=[...] 를 반환합니다.',
+      '입력값 검증 실패. schedule 타입에 허용되지 않는 필드가 포함된 경우 code=VALIDATION_ERROR, details.field="type", details.disallowed=[...] 를 반환합니다. ' +
+      'chatChannel 관련 3가지 사유가 추가로 400 을 냅니다 — (1) 비밀 필드를 실은 경우 ' +
+      '(변경은 rotate 엔드포인트 / 회전은 v1 미정의 — Spec Chat Channel §5.4.1·§5.4.1.1). ' +
+      'details.field 형식이 값에 따라 갈립니다: 비어있지 않은 값이면 전역 파이프가 거부해 ' +
+      'details 는 배열이고 field 는 중첩 경로("chatChannel.botToken"), null 또는 빈 문자열이면 ' +
+      '@IsEmpty() 를 통과해 서비스가 거부하므로 details 는 단일 object 이고 field 는 ' +
+      'flat("botToken") 입니다, ' +
+      '(2) chatChannel 이 없는 트리거에 처음 붙이려는 경우: details.field="chatChannel" ' +
+      '(최초 설정은 생성 POST 한정), (3) provider 를 바꾸려는 경우: details.field="provider".',
   })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
   @ApiForbiddenResponse({ description: 'editor 이상 권한 필요' })

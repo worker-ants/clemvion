@@ -62,7 +62,9 @@ export class SlackAdapter implements NativeFormAdapter {
    * Spec §3.1 — `auth.test` 로 bot identity 캐시.
    * Events API Request URL 은 Slack 앱 manifest 의 사전 등록 — 어댑터가 API 로 등록 안 함 (R-S-2).
    * `issuedInboundSigning` 은 비움 — Slack 의 signing secret 은 provider-issued (사용자 입력),
-   * caller (TriggersService) 가 사용자 입력값을 직접 SecretResolver.store 로 보관.
+   * caller (TriggersService) 가 사용자 입력값을 직접 SecretResolver.rotate 로 보관
+   * (UPSERT — `setupChannel` 은 생성·활성화·PATCH 세 갈래에서 재호출되는 멱등 함수라
+   * 중복 시 throw 하는 `store` 로는 두 번째 호출부터 깨진다).
    */
   async setupChannel(
     config: ChatChannelConfig,
