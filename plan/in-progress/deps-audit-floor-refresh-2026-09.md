@@ -86,6 +86,36 @@ main 을 먼저 초록으로 만들지 않으면 dependabot PR 을 아무리 reb
 `EXPECTED_OVERRIDES` 를 **같은 커밋에서** 갱신한다 (`PROJECT.md §의존성 취약점 audit·핀 거버넌스`).
 한쪽만 고치면 `pnpm 보안 설정 스냅샷 가드` 잡이 실패한다.
 
+## 2.5 리뷰 라운드 1 이 잡은 것 — 재해소가 `libc:` 57개를 지웠다
+
+`/ai-review` (`review/code/2026/09/10/20_17_59`, RISK=LOW · Critical 0 · **WARNING 1**) 의
+scope·dependency reviewer 가, 이 PR 이 **버전을 건드리지 않은** 패키지들의 `libc:` 메타데이터가
+lockfile 에서 사라진 것을 잡았다. 최초 감사가 못 본 이유는 명확하다 — **"버전 하향 0건" 은
+버전 번호만 비교하는 프록시**였고 이 클래스는 그 밖에 있었다.
+
+실측으로 원인과 영향을 좁혔다(상세 표는 `CHANGELOG.md` 와
+[`deps-guard-hardening.md` §후속 libc](deps-guard-hardening.md) 에):
+
+- **원인은 재해소가 아니라 핀한 pnpm 버전.** 10.23.0 은 기존 `libc:` 를 보존만 하고 재해소한
+  엔트리에는 다시 쓰지 않는다(대조군: 매니페스트 변경 0 → lockfile diff **0줄**). macOS·Linux
+  동일 — 플랫폼 요인 아님. 10.34.5 는 같은 편집으로 재해소해도 57개를 **전부 보존**하고
+  `lockfileVersion` 은 `'9.0'` 그대로다.
+- **영향은 "낮음" 이 아니었다.** Alpine(musl) 에서 실제 설치해 세어 보니 `libc:` 가 없으면
+  `@tailwindcss/oxide`·`@img/sharp`·`@unrs/resolver-binding`·`lightningcss` 넷 모두
+  **gnu+musl 두 변형**이 깔린다(있으면 musl only). 동작은 하므로
+  (`codebase/frontend/Dockerfile` 빌드 통과) **테스트가 원리적으로 못 잡는다.**
+- **조치**: lockfile 을 pnpm 10.34.5 로 재생성해 57개 복원. 핀된 10.23.0 이
+  `--frozen-lockfile --strict-peer-dependencies` 로 받아들이고 재작성하지 않음을 확인(exit 0).
+  두 lockfile 의 차이는 `libc:` 57줄 + `caniuse-lite`·`baseline-browser-mapping` 두 건뿐.
+- **남은 것**: 핀이 10.23.0 인 한 다음 재해소가 같은 자리를 다시 지운다. 이 진동은 이미
+  `deps-guard-hardening.md` 에 P3 로 등재돼 있었고 그 항목의 미실증 전제 (b) 를 이번에
+  실증했다 — 핀 상향은 install 호출부 5곳의 툴체인을 바꾸므로 **별도 PR**.
+
+INFO 처분: #1(`@next/mdx` 는 코어와 별개 — CHANGELOG 문구 한정) · #2(`qs` 세 번째 소비처
+`body-parser@2.3.0` → `^6.15.2`, `^6.16.0` 이 만족 — 서술 보강) · #5(CHANGELOG 표 열 정리)
+는 이 PR 에서 반영. #6(`check-pnpm-security-config.py` 전용 테스트 부재) 은
+`deps-guard-hardening.md` 에 등재. #3·#4·#7 은 조치 불요(참고).
+
 ## 3. dependabot PR 갱신
 
 main 이 초록이 된 뒤 각 PR 을 rebase 한다 (`@dependabot rebase`). 대상:
@@ -110,9 +140,10 @@ main 이 초록이 된 뒤 각 PR 을 rebase 한다 (`@dependabot rebase`). 대�
 - [x] `python3 scripts/check-override-floors.py` exit 0
 - [x] `python3 scripts/check-pnpm-security-config.py` exit 0
 - [x] `python3 scripts/check-unmet-peers.py` exit 0 — 미충족 peer 2건, 전부 기존 등재 수용 항목(신규 0건)
-- [x] TEST WORKFLOW — lint — PASS 63s (`_test_logs/lint-20260910-200552.log`)
-- [x] TEST WORKFLOW — unit — PASS (`_test_logs/unit-20260910-200659.log`; backend 454 suites / 9,521 tests · frontend 289 files · channel-web-chat 23 files / 451 tests · 내부 패키지 8개)
-- [x] TEST WORKFLOW — build — PASS 187s (`_test_logs/build-20260910-200850.log`) + 타입체크 ratchet 양쪽 직접 실행 (backend 197건/36파일 · frontend 52건/15파일, baseline 일치)
-- [x] TEST WORKFLOW — e2e — PASS 269s (`_test_logs/e2e-20260910-201258.log`; backend jest 52 suites / 305 tests + playwright **51 passed**)
-- [ ] `/ai-review` + SUMMARY Critical/Warning 0
+- [ ] TEST WORKFLOW — lint (라운드 1 PASS `lint-20260910-200552.log` — **lockfile 교체로 재수행 필요**)
+- [ ] TEST WORKFLOW — unit (라운드 1 PASS `unit-20260910-200659.log` — **재수행 필요**)
+- [ ] TEST WORKFLOW — build + 타입체크 ratchet 2종 (라운드 1 PASS `build-20260910-200850.log` — **재수행 필요**)
+- [ ] TEST WORKFLOW — e2e (라운드 1 PASS `e2e-20260910-201258.log` — **재수행 필요**)
+- [x] `/ai-review` 라운드 1 — `review/code/2026/09/10/20_17_59` (RISK=LOW · Critical 0 · WARNING 1)
+- [ ] WARNING 1 조치 후 RESOLUTION.md + 재검증
 - [ ] dependabot PR 7건 rebase 요청

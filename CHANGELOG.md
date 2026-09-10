@@ -35,23 +35,28 @@ pnpm audit --audit-level=moderate  → exit 1
 | `nodemailer` | `^9.0.1` | `^9.1.1` | GHSA-8m3c-c648-2xjj 외 3건 (high) |
 | `sharp` | `^0.35.0` | `^0.35.4` | GHSA-rgj7-g3m4-5g8c (high) |
 | `svgo` | `^4.0.2` | `^4.1.0` | GHSA-4vpr-x523-8j87 · GHSA-w27v-7q3p-w38r |
-| `js-yaml@>=4.0.0 <4.3.1` | `^4.3.1` | `js-yaml@>=4.0.0 <4.3.2`: `^4.3.2` | GHSA-2883-xcg3-v3hh (high) |
-| `js-yaml@>=3.0.0 <3.15.1` | `^3.15.1` | `js-yaml@>=3.0.0 <3.15.2`: `^3.15.2` | 〃 |
+| `js-yaml@>=4.0.0 <4.3.1` | `^4.3.1` | `^4.3.2` | GHSA-2883-xcg3-v3hh (high) |
+| `js-yaml@>=3.0.0 <3.15.1` | `^3.15.1` | `^3.15.2` | 〃 |
 
-`js-yaml` 두 건은 **키의 상한까지** 올려야 했다. 값만 `^4.3.2` 로 올리고 키를 `<4.3.1` 로 두면
+`js-yaml` 두 건은 값만으로 끝나지 않았다 — **키의 상한도 함께** 올렸다
+(`<4.3.1`→`<4.3.2`, `<3.15.1`→`<3.15.2`). 값만 `^4.3.2` 로 올리고 키를 `<4.3.1` 로 두면
 취약한 4.3.1 은 키 범위 밖이라 override 가 적용되지 않는다 — 스코프 override 의 함정이고,
 이 저장소가 `#1038` 에서 한 칸 어긋난 상한으로 이미 한 번 겪은 형태다.
 
-**신설**: `qs: ^6.16.0` (GHSA-4mjr-xmp4-gh2g · GHSA-x5fp-wj9c-mxmx). 두 경로 중 하나가
-`express@5.2.1 > qs` 로 **프로덕션**이라 수용(`ignoreCves`) 대상이 아니다. 부모 선언 범위
-(`express` → `^6.14.0`, `superagent` → `^6.14.1`)를 `^6.16.0` 이 만족하므로 override 가 부모의
-계약을 깨지 않는다.
+**신설**: `qs: ^6.16.0` (GHSA-4mjr-xmp4-gh2g · GHSA-x5fp-wj9c-mxmx). 소비처는 셋이고
+그중 둘이 **프로덕션**이라 수용(`ignoreCves`) 대상이 아니다 — `express@5.2.1 > qs`,
+`express@5.2.1 > body-parser@2.3.0 > qs`(prod), `supertest > superagent@10.3.0 > qs`(dev).
+부모 선언 범위(`express` → `^6.14.0`, `body-parser` → `^6.15.2`, `superagent` → `^6.14.1`)를
+`^6.16.0` 이 전부 만족하므로 override 가 부모의 계약을 깨지 않는다.
 
 **직접 의존은 override 로 덮지 않고 선언을 올린다**(`pnpm-workspace.yaml` 주석 규약 — 덮으면
 매니페스트가 거짓말을 한다): `csv-parse ^7.0.1 → ^7.0.2`(GHSA-8cw4-87c7-c6xx) ·
-`nodemailer ^9.0.5 → ^9.1.1` · `next ^16.2.12 → ^16.3.3`(frontend·channel-web-chat **양쪽** —
-같은 lockfile 엔트리를 공유하므로 한쪽만 올리면 재해소 때 되돌아온다. GHSA-p293-qw3h-jr36 ·
-GHSA-2xp9-vwfh-vxw4, **critical** 2건).
+`nodemailer ^9.0.5 → ^9.1.1` · **`next` 코어** `^16.2.12 → ^16.3.3`(frontend·channel-web-chat
+**양쪽** — 같은 lockfile 엔트리를 공유하므로 한쪽만 올리면 재해소 때 되돌아온다.
+GHSA-p293-qw3h-jr36 · GHSA-2xp9-vwfh-vxw4, **critical** 2건).
+
+`next` 계열 중 **코어만** 올렸다. `@next/mdx`(`^16.2.12`)·`eslint-config-next`(`^16.3.2`)는
+해당 advisory 대상이 아니고 caret 이 최신을 해소하므로 선언은 그대로 두었다.
 
 `csv-parse` 는 dependabot #1301 과 같은 내용이다. 그 PR 을 먼저 머지할 수는 없었다 — 그쪽도
 나머지 24건 때문에 빨간불이라 순환이다.
@@ -66,8 +71,48 @@ python3 scripts/check-unmet-peers.py         → exit 0 (미충족 peer 2건, �
 pnpm install --frozen-lockfile --strict-peer-dependencies → exit 0
 ```
 
-override 가 바뀌면 pnpm 이 트리를 재해소하므로, lockfile 변경에는 보안 대상 외에 **중복 제거**가
-함께 실렸다. 전수 대조 결과 **버전 하향은 0건**이다:
+### 🔴 그 재해소가 조용히 `libc:` 메타데이터 57개를 지웠다 — Alpine 이미지가 네이티브 바이너리를 두 배로 받고 있었다
+
+override 를 바꾸면 pnpm 이 트리를 통째로 재해소한다. 그 과정에서 **버전이 전혀 바뀌지 않은**
+패키지들의 `libc:` 필드가 lockfile 에서 사라졌다 — 57개 전부. 처음 감사는 이것을 못 봤다.
+**"버전 하향 0건" 은 버전 번호만 비교하는 프록시였고, 이 종류의 변화는 그 프록시 밖에 있었다.**
+`/ai-review` 의 scope·dependency reviewer 가 이것을 잡았다.
+
+원인은 재해소 자체가 아니라 **이 저장소가 핀한 pnpm 버전**이다. `packageManager` 는
+`pnpm@10.23.0` 인데, 이 버전은 lockfile 에 이미 있는 `libc:` 를 **보존은 하지만 재해소한
+엔트리에는 다시 쓰지 않는다**:
+
+| 실험 | 매니페스트 변경 | pnpm | libc 필드 |
+| --- | --- | --- | --- |
+| 대조군 | 없음 | 10.23.0 | 57 → 57 (lockfile diff **0줄**) |
+| 이 PR 최초 | overrides 편집 | 10.23.0 | 57 → **0** |
+| 〃 (Linux 재현) | 〃 | 10.23.0 (`node:24` 컨테이너) | 57 → **0** — 플랫폼 문제가 아니다 |
+| 채택 | 〃 | 10.34.5 | 57 → **57** (`lockfileVersion` 그대로 `'9.0'`) |
+
+**기능 영향은 "낮음" 이 아니었다.** Alpine(musl) 컨테이너에서 프론트엔드 의존을 실제로 설치해
+어떤 네이티브 변형이 선택되는지 셌다:
+
+| | `@tailwindcss/oxide` | `@img/sharp` | `@unrs/resolver-binding` | `lightningcss` |
+| --- | --- | --- | --- | --- |
+| `libc:` 있음 (main·수정본) | musl only | musl only | musl only | musl only |
+| `libc:` 없음 (최초 상태) | **gnu + musl** | **gnu + musl** | **gnu + musl** | **gnu + musl** |
+
+즉 프로덕션 이미지(`node:24-alpine`)가 쓰지도 않는 glibc 바이너리까지 받는다. 동작은 했다
+(musl 변형이 함께 있으므로 — 실제로 `codebase/frontend/Dockerfile` 빌드가 통과했다) —
+**그래서 테스트로는 안 드러났고, 그것이 이 결함이 조용한 이유다.**
+
+조치: lockfile 을 pnpm 10.34.5 로 재생성해 `libc:` 57개를 복원했다. 핀된 10.23.0 이 그
+lockfile 을 `--frozen-lockfile --strict-peer-dependencies` 로 받아들이고 재작성하지 않는 것을
+확인했다(exit 0). 두 lockfile 의 차이는 `libc:` 57줄 + `caniuse-lite`·
+`baseline-browser-mapping`(해소 시각에 따라 최신을 따라가는 데이터 패키지) 두 건뿐이다.
+
+> **남은 것**: 핀이 10.23.0 인 한 다음 재해소가 같은 자리를 다시 지운다. 이번엔 리뷰어가
+> 잡았지만 가드는 없다. pnpm 핀 상향 + lockfile `libc:` 회귀 가드를
+> `plan/in-progress/deps-guard-hardening.md §5` 에 등재했다.
+
+### 곁가지 — 재해소가 함께 정리한 중복
+
+전수 대조 결과 **버전 하향은 0건**이다:
 
 - `@radix-ui/*` 11개(`react-arrow`·`react-dismissable-layer`·`react-focus-guards`·
   `react-focus-scope`·`react-id`·`react-popper`·`react-portal`·`react-presence`·
