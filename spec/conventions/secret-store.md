@@ -71,6 +71,11 @@ secret://<scope>/<resourceId>/<name>
 >    > `shared/testing/schedule-trigger-ref.ts` 가 같은 목록으로 단언한다. 아래 원문은
 >    > **그 전 상태의 기록**이다 — 등재의 근거(저장 형태 예외)는 그대로 유효하다.
 >    >
+>    > **(2026-09-10 보강)** — 단언 자리는 이제 **둘**이다. 트리거 직접 축은
+>    > `shared/testing/trigger-workflow-ref.ts`(`#1308`) 가 같은 컬럼 목록의 부재를 단언한다.
+>    > 이 문단과 [EIA §7.1](../5-system/14-external-interaction-api.md#71-trigger-엔티티-확장)
+>    > 이 같은 나열을 갖고 있어 **한쪽만 보강하면 다른 쪽이 낡는다** — 함께 갱신한다.
+>    >
 >    > ~~**노출 창은 아직 설계대로 닫혀 있지 않다.** 정책상 평문이 나가는 자리는 rotate
 >    > 응답 1회지만, **현행 구현은 `GET/POST/PATCH /api/triggers` 와 `GET /api/schedules`
 >    > (트리거 조인) 응답에도 이 컬럼을 그대로 싣는다** — 엔티티를 그대로 반환하는데
