@@ -15,11 +15,17 @@
 | Checker | 위험도 | Critical | Warning | INFO |
 |---|---|---|---|---|
 | `cross_spec` | LOW | 0 | 1 | 2 |
-| `rationale_continuity` | LOW | 0 | 1 | 3 |
+| `rationale_continuity` | LOW | 0 | 1 | 2 |
 | `convention_compliance` | LOW | 0 | 2 | 0 |
 | `plan_coherence` | LOW | 0 | 0 | 2 |
 | `naming_collision` | **NONE** | 0 | 0 | 2 |
-| **합계** | — | **0** | **4** | **9** |
+| **합계** | — | **0** | **4** | **8** |
+
+> **처음 `rationale_continuity` INFO 를 3, 합계를 9 라 적었다 — 틀렸다.** 그 리포트의 `[INFO]`
+> 태그는 2건이고, 내가 *"그 외 확인한 항목 — 문제 없음"* 절을 세 번째 INFO 로 세었다.
+> `review/code/2026/09/10/15_52_06` documentation W1 이 전수 재계산으로 잡았다. **이 세션에서
+> 개수를 틀린 것이 이것으로 여섯 번째다** — 앵커 116→96 · 헤딩 8/2→9/3 · 길이 표 2회 ·
+> Warning 2→4 · 라벨 133→132 · 여기. 여섯 번 다 *"세어 보지 않고 기억으로 적었다"* 가 원인이다.
 
 ## Warning 1 — 이 턴에 코드로 반영했다
 

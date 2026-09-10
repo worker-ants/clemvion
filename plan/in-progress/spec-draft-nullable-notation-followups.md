@@ -1885,6 +1885,13 @@ field: T | null;
       POST 만 `botToken` 을 받고 PATCH 는 `uiMapping`·`rateLimitPerMinute`·`languageLocale`·
       `languageHints` 만 받는다.
 
+      **착수 시 함께 정리할 것 두 가지.** ① `test/trigger-workflow-ref.e2e-spec.ts` 의 case E
+      요청 바디는 이 결함을 재현하는 형태라 처방이 들어오면 **400 이 된다** — 같은 PR 에서
+      바디를 고쳐야 한다. ② 그 case E docstring 에 붙인 R-CC-10 우회 경고 블록도 그때
+      **정리 대상**이다. 지금 그 블록은 *이 저장소에서 우회 메커니즘을 서술한 유일한 `codebase/`
+      자리*이고(그 전엔 plan·review 문서에만 있었다), 결함이 닫히면 존재 이유가 사라진다
+      (`review/code/2026/09/10/15_52_06` security INFO).
+
       > **판정 전 내 서술이 한 칸 좁았다.** 등재문은 *"24h grace 를 우회하는지 아니면 정책이
       > 'ref 지정 금지' 만 뜻하는지"* 로 두 갈래를 세웠는데, **실제 답은 둘 다**였다 — 정책이
       > 강제되는 층은 필드명 수준이고(ref 금지), 정책이 **보호하려는 대상**(값 교체 자체)은

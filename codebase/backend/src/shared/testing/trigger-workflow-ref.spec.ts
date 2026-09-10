@@ -12,6 +12,14 @@ import { expectTriggerWorkflowRef } from './trigger-workflow-ref';
  *
  * 그래서 통과 경로만 보지 않고 **실패해야 하는 경로**를 각각 문다.
  *
+ * > **케이스 순서는 헬퍼의 가드 실행 순서를 따른다 — 명시 규약이다.**
+ * > `dto` not-null → 비밀 컬럼 → `present:false` → `present:true` → 키셋 → `id` 타입 →
+ * > `id` UUID → `name` 타입 → `name` 길이 → `expectedWorkflowId`. 헬퍼를 위에서 아래로 읽으며
+ * > 대응 테스트를 찾을 수 있게 하는 것이 목적이다. **이 규약은 원래 암묵적이었고 내가 신규 4건을
+ * > 파일 뒤에 뭉텅이로 붙이며 두 지점에서 깼다** (`review/code/2026/09/10/15_52_06`
+ * > maintainability W3) — 그래서 여기 글로 못박는다. 새 가드를 추가하면 그 가드의 자리에 테스트도
+ * > 넣을 것.
+ *
  * > **비밀 컬럼 이름을 여기 다시 적는 것은 일부러다.** 헬퍼의 `TRIGGER_SECRET_COLUMNS` 를
  * > import 해 순회하면, 누가 그 목록을 줄여도 이 스펙이 **그대로 통과**한다 — 대조군이 사라져
  * > vacuous 가 된다. 헬퍼↔프로덕션 중복은 드리프트 위험이지만(헬퍼 docstring 참조) 스펙↔헬퍼
@@ -37,6 +45,31 @@ describe('expectTriggerWorkflowRef', () => {
     expectTriggerWorkflowRef(WITHOUT_WORKFLOW, { present: false });
   });
 
+  // ── 가드 1: 최상위 `dto` ──
+  it('최상위 `dto` 가 `null` 이면 두 판정 모두에서 실패한다', () => {
+    expect(() => expectTriggerWorkflowRef(null, { present: false })).toThrow();
+    expect(() => expectTriggerWorkflowRef(null, { present: true })).toThrow();
+  });
+
+  // ── 가드 2: 비밀 컬럼 ──
+  it('비밀 컬럼이 섞여 들어오면 실패한다 — 두 판정 모두에서', () => {
+    for (const secret of ['notificationSecretV2', 'chatChannelTokenV2']) {
+      expect(() =>
+        expectTriggerWorkflowRef(
+          { ...WITH_WORKFLOW, [secret]: 'leaked' },
+          { present: true },
+        ),
+      ).toThrow();
+      expect(() =>
+        expectTriggerWorkflowRef(
+          { ...WITHOUT_WORKFLOW, [secret]: 'leaked' },
+          { present: false },
+        ),
+      ).toThrow();
+    }
+  });
+
+  // ── 가드 3·4: `present` 판정 양방향 ──
   it('`present: false` 인데 키가 있으면 실패한다', () => {
     expect(() =>
       expectTriggerWorkflowRef(WITH_WORKFLOW, { present: false }),
@@ -61,6 +94,7 @@ describe('expectTriggerWorkflowRef', () => {
     expect(() => expectTriggerWorkflowRef(nulled, { present: true })).toThrow();
   });
 
+  // ── 가드 5: 참조 키셋 ──
   it('workflow shape 이 어긋나면 실패한다 — 여분 키·누락 키 각각', () => {
     expect(() =>
       expectTriggerWorkflowRef(
@@ -76,6 +110,34 @@ describe('expectTriggerWorkflowRef', () => {
     ).toThrow();
   });
 
+  /**
+   * ## 가드 6: `id` **타입** — fixture 가 `isUuidShaped` 와 축이 겹치지 않아야 한다
+   *
+   * **처음 이 케이스를 `id: 42` 로 썼고 그것은 vacuous 였다.** `expect(typeof ref.id)` 를 지운
+   * 뮤턴트에서 self-spec 이 **12/12 GREEN 을 유지**했다 — 다음 줄 `isUuidShaped(String(42))` 가
+   * `'42'` 를 거부해 `.toThrow()` 를 어차피 만족시키기 때문이다. 즉 그 fixture 는 타입 단언이
+   * 아니라 **기존 「`id` 가 UUID 가 아니면」 테스트와 같은 축**을 재검증할 뿐이었다
+   * (`review/code/2026/09/10/15_52_06` testing W1 이 뮤테이션으로 실증).
+   *
+   * 판별 fixture 는 **`String()` 변환이 UUID 모양이면서 `typeof` 는 문자열이 아닌** 값이다.
+   * 이 값에서만 두 가드가 갈린다 — 타입 단언이 있으면 거부, 없으면 조용히 통과.
+   *
+   * *vacuous 를 고치려 넣은 케이스가 그 자체로 vacuous 했다* — 대조군 없는 단언은 값을 넣어
+   * 실제로 갈라 보기 전까지 판별력을 주장할 수 없다.
+   */
+  it('`id` 가 문자열이 아니면 실패한다 — `String()` 이 UUID 모양인 값으로만 갈린다', () => {
+    expect(() =>
+      expectTriggerWorkflowRef(
+        {
+          ...WITHOUT_WORKFLOW,
+          workflow: { id: { toString: () => WF_ID }, name: 'W' },
+        },
+        { present: true },
+      ),
+    ).toThrow();
+  });
+
+  // ── 가드 7: `id` UUID 형태 ──
   it('`id` 가 UUID 가 아니면 실패한다', () => {
     expect(() =>
       expectTriggerWorkflowRef(
@@ -86,10 +148,15 @@ describe('expectTriggerWorkflowRef', () => {
   });
 
   /**
-   * **뮤테이션이 증명한 사각지대였다.** 헬퍼의 `expect(typeof ref.name).toBe('string')` 을 지워도
-   * 이 스펙이 8/8 GREEN 을 유지했다 (`review/code/2026/09/10/14_34_18` testing W3) — 빈 문자열
-   * 케이스는 `String(ref.name).length` 쪽만 물고 타입 단언은 아무도 물지 않았다. `id` 는
-   * `isUuidShaped` 가 간접 방어하지만 `name` 에는 그런 이차 방어가 없다.
+   * ## 가드 8: `name` 타입 — 뮤테이션이 증명한 사각지대였다
+   *
+   * 헬퍼의 `expect(typeof ref.name).toBe('string')` 을 지워도 이 스펙이 **8/8 GREEN 을 유지**했다
+   * (`review/code/2026/09/10/14_34_18` testing W3) — 빈 문자열 케이스는
+   * `String(ref.name).length` 쪽만 물고 타입 단언은 아무도 물지 않았다.
+   *
+   * `id` 쪽은 `isUuidShaped` 가 간접 방어하지만 `name` 에는 그런 이차 방어가 **없다** — 그래서
+   * 여기는 평범한 non-string 값(숫자·불리언·객체·배열)으로도 갈린다. 위 가드 6 이 특수한 fixture
+   * 를 써야 하는 것과 **이유가 다르다.**
    */
   it('`name` 이 문자열이 아니면 실패한다 — 타입 단언의 대조군', () => {
     for (const bad of [42, true, {}, []]) {
@@ -102,20 +169,17 @@ describe('expectTriggerWorkflowRef', () => {
     }
   });
 
-  it('`id` 가 문자열이 아니면 실패한다 — 같은 이유의 자매 대조군', () => {
+  // ── 가드 9: `name` 길이 ──
+  it('`name` 이 빈 문자열이면 실패한다 — 좁히기가 값을 잃은 형태', () => {
     expect(() =>
       expectTriggerWorkflowRef(
-        { ...WITHOUT_WORKFLOW, workflow: { id: 42, name: 'W' } },
+        { ...WITHOUT_WORKFLOW, workflow: { id: WF_ID, name: '' } },
         { present: true },
       ),
     ).toThrow();
   });
 
-  it('최상위 `dto` 가 `null` 이면 두 판정 모두에서 실패한다', () => {
-    expect(() => expectTriggerWorkflowRef(null, { present: false })).toThrow();
-    expect(() => expectTriggerWorkflowRef(null, { present: true })).toThrow();
-  });
-
+  // ── 가드 10: identity ──
   it('`expectedWorkflowId` 가 다르면 실패한다 — shape 만 맞는 엉뚱한 relation 을 잡는다', () => {
     const other = 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee';
     expectTriggerWorkflowRef(WITH_WORKFLOW, {
@@ -128,31 +192,5 @@ describe('expectTriggerWorkflowRef', () => {
         expectedWorkflowId: other,
       }),
     ).toThrow();
-  });
-
-  it('`name` 이 빈 문자열이면 실패한다 — 좁히기가 값을 잃은 형태', () => {
-    expect(() =>
-      expectTriggerWorkflowRef(
-        { ...WITHOUT_WORKFLOW, workflow: { id: WF_ID, name: '' } },
-        { present: true },
-      ),
-    ).toThrow();
-  });
-
-  it('비밀 컬럼이 섞여 들어오면 실패한다 — 두 판정 모두에서', () => {
-    for (const secret of ['notificationSecretV2', 'chatChannelTokenV2']) {
-      expect(() =>
-        expectTriggerWorkflowRef(
-          { ...WITH_WORKFLOW, [secret]: 'leaked' },
-          { present: true },
-        ),
-      ).toThrow();
-      expect(() =>
-        expectTriggerWorkflowRef(
-          { ...WITHOUT_WORKFLOW, [secret]: 'leaked' },
-          { present: false },
-        ),
-      ).toThrow();
-    }
   });
 });

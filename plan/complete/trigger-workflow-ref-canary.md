@@ -254,6 +254,11 @@ git author(`worker-ants`)를 쓴다. blame 은 "언제 들어왔나" 만 말하�
 이 PR 밖의 사전 존재 프로덕션 결함**이고 (`api_contract` HIGH), 이 diff 자체는 scope NONE ·
 나머지 7명 LOW 다. 코드 수정 12건을 적용했다.
 
+> **이 절의 "12건" 은 1라운드 시점 값이다.** 이후 `--impl-done` 이 1건, 2라운드가 5건을 더
+> 요구해 **누적 18건**이 됐다 — 아래 두 절 참조. 처음 이 문서를 12건에서 갱신하지 않아
+> `review/**` 세 문서가 13번째를 기록하는데 **1차 사료인 이 plan 만 12건에 머물러 문서 권위가
+> 역전**됐고, `review/code/2026/09/10/15_52_06` documentation W2 가 그것을 잡았다.
+
 **내가 틀린 것 — 세 개 다 "내가 쓴 근거 문장" 이었다**:
 
 | # | 내가 쓴 문장 | 반증 |
@@ -293,6 +298,43 @@ git author(`worker-ants`)를 쓴다. blame 은 "언제 들어왔나" 만 말하�
 | schedule 타입 `workflow` 양성 커버리지 | 회귀 방어 | 저장소 전체 **0건**. 지금은 in-place mutate 라 안전하지만 spread 리팩터가 오면 두 캐너리 다 못 잡는다 |
 | `production-build-devdep-guard` 사각지대 | 하드닝 | `exclude` 된 디렉터리가 `import` 로 도달 가능 — 가드가 이 형태를 못 본다 |
 | e2e teardown `secret_store` 고아 row | 관례 정비 | "ephemeral schema 라 불필요" 추론이 이 테이블을 안 덮는다 |
+
+## 2라운드가 잡은 것 — **내 수정 자체가 vacuous 했다**
+
+`testing` 이 1라운드에서 vacuous 단언을 찾았고, 내가 그것을 고치려 넣은 `id` 비-문자열 케이스가
+**그 자체로 vacuous** 했다. 헬퍼의 `expect(typeof ref.id).toBe('string')` 을 지워도 self-spec 이
+**12/12 GREEN 을 유지**한다 — fixture 가 `id: 42` 라 다음 줄 `isUuidShaped(String(42))` 가 `'42'`
+를 어차피 거부해 `.toThrow()` 를 만족시키기 때문이다. 즉 그 케이스는 타입 단언이 아니라 **기존
+「`id` 가 UUID 가 아니면」 테스트와 같은 축**을 재검증할 뿐이었다.
+
+reviewer 가 판별 fixture 까지 실증했다 — `{ id: { toString: () => WF_ID } }` 는 `String()` 변환이
+UUID 모양이면서 `typeof` 는 문자열이 아니라, **두 가드가 이 값에서만 갈린다.** 교체 후 재측정:
+
+| 측정 | 예측 | 실측 |
+|---|---|---|
+| 뮤턴트 전 | GREEN | **12/12 GREEN** |
+| `typeof ref.id` 제거 | **RED 1건** | **`Tests: 1 failed, 11 passed`** — 그 케이스만 |
+| 원복 후 | GREEN | **12/12 GREEN** |
+
+**`.toThrow()` 는 "무엇이 던졌는지" 를 안 본다** — 그래서 인접 가드가 같은 입력을 다른 이유로
+거부하면 대조군이 조용히 사라진다. *vacuous 를 고치려 넣은 케이스가 그 자체로 vacuous 했다.*
+
+나머지 4건도 전부 내 산출물에 대한 지적이었다:
+
+| # | reviewer | 지적 | 반영 |
+|---|---|---|---|
+| 14 | `maintainability` W1 | **고아 JSDoc.** 62줄짜리 핵심 설계 근거가 함수 선언에 안 붙어 있어(중간에 상수 2개+docstring 이 낀다) 에디터 hover 에 `@param` 10줄만 보인다. 게다가 **내 13건 수정이 정확히 그 고아 블록을 38→62줄로 키웠다.** 이 저장소가 세 번 겪은 결함 클래스다 | 파일 스코프 서술(배치 근거)은 `//` 註로, 함수 서술은 함수 docstring 으로 분리 |
+| 15 | `requirement` W1 | 내가 방금 쓴 R-CC-10 경고문의 엔드포인트 경로에 **`/api/` 가 빠졌다**. spec 원문과 코드 6곳은 전부 포함 | 정정. **내 근거 문장이 부정확한 네 번째 사례** |
+| 16 | `maintainability` W2 | `assertMatchesContract` 근거와 identity 근거가 헬퍼·e2e 양쪽에 있는데 **13건 수정이 두 사본을 각각 따로 확장**해 드리프트 표면을 넓혔다 | 헬퍼를 SoT 로 두고 e2e 쪽을 포인터로 축약 |
+| 17 | `maintainability` W3 | 신규 4케이스가 기존 8케이스의 암묵 관례(**테스트 순서 = 가드 실행 순서**)를 두 지점에서 깼다 | 전체를 가드 순서로 재배열하고 **그 관례를 describe docstring 에 명시**했다 — 암묵을 명시로 바꾸는 것이 재발 방어다 |
+
+`documentation` 은 **개수를 또 틀린 것**(이 세션 여섯 번째)과 **문서 권위 역전**을 잡았다 —
+13번째 수정이 `review/**` 세 문서엔 있는데 1차 사료인 이 plan 엔 없었다. 둘 다 정정했다.
+
+> **수렴 판단.** 1라운드는 **동작**(vacuous 단언 · identity 구멍 · `null` 구멍), 2라운드는
+> **구조·문서**(고아 JSDoc · 중복 · 조립 순서 · 집계)다. 발견의 성격이 동작→구조→문서로
+> 이동했으므로 수렴으로 본다 — "발견 0" 이 아니라 성격이 기준이다. 다만 2라운드가 **동작**
+> 결함(vacuous fixture)을 하나 냈으므로 그것만은 뮤턴트로 다시 증명했다(위 표).
 
 ## 완료의 기계적 증거
 
@@ -369,5 +411,12 @@ RED 면 다른 것을 물고 있다는 뜻이다. 뮤테이션 원복은 `cp` + 
 - [x] `/ai-review` — `review/code/2026/09/10/14_34_18` (8 reviewer). scope NONE · 7명 LOW ·
       `api_contract` HIGH(Critical 2 = **둘 다 사전 존재 프로덕션 결함**, 이 diff 밖).
       코드 수정 12건 적용 후 재검증
-- [x] `--impl-done`
+- [x] `--impl-done` — `review/consistency/2026/09/10/15_23_41` (5/5, **BLOCK: NO**, Critical 0).
+      `rationale_continuity` W1 이 **13번째 코드 수정**을 요구했다 — case E docstring 에
+      R-CC-10 위반 재현 경고. 그 파일에 `R-CC-10`·`rotate-bot-token`·`우회` 가 grep **0건**
+      이었다: CRITICAL 1 의 맥락이 plan 에만 있고 코드엔 없었다
+- [x] **`/ai-review` 2라운드** — `review/code/2026/09/10/15_52_06` (7 reviewer, router 가 7명 skip).
+      1라운드 수정을 검토한 리뷰가 없었기 때문에 게이트가 push 를 막았고, 그것이 옳았다.
+      Critical 0 · scope/security/side_effect **NONE** · testing/requirement/maintainability LOW ·
+      documentation MEDIUM. **코드 수정 5건 추가 → 누적 18건**
 - [x] 자매 트래커 항목 플립 — 캐너리 항목 갱신 + 후속 6건 등재

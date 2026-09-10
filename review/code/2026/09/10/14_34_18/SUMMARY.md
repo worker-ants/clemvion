@@ -29,6 +29,11 @@
 
 16건. **코드 수정 12건은 이 턴에 적용**했고, 나머지는 트래커·planner 후속으로 이관했다 (`RESOLUTION.md`).
 
+> **표의 16행은 reviewer 태그 16건과 1:1 이 아니다.** 행 13 은 `maintainability` 가 INFO 로 낸 것을
+> 내가 적용했으므로 승격해 실었고, 행 16 은 같은 사안을 두 reviewer 가 낸 것을 한 행으로 합쳤다.
+> 두 조정이 +1/−1 로 상쇄돼 총계가 우연히 16 과 같아진다 — 재구성하려는 다음 사람을 위해 적어 둔다
+> (`review/code/2026/09/10/15_52_06` documentation INFO).
+
 | # | 카테고리 | 발견사항 | 위치 | 처분 |
 |---|----------|----------|------|------|
 | 1 | testing W3 | **단언 하나가 vacuous 였다 — reviewer 가 뮤테이션으로 실증.** 헬퍼의 `expect(typeof ref.name).toBe('string')` 을 지워도 self-spec 이 **8/8 GREEN** 을 유지했다. 뒤따르는 `String(ref.name).length` 검사가 `String(42)`→`"42"` 로 통과시키기 때문이다. `id` 는 `isUuidShaped` 가 간접 방어하지만 `name` 에는 그런 이차 방어가 없다 — **비대칭적 취약점** | `trigger-workflow-ref.ts`(`name` 타입 단언) · `trigger-workflow-ref.spec.ts` | **수정.** 비-문자열 `name` 4값 + 비-문자열 `id` 케이스 추가. 신규 단언 3개를 각각 지우는 뮤턴트에서 **정확히 1건씩 RED** 확인 |

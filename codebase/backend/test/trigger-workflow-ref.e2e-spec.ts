@@ -24,9 +24,10 @@ import { registerAndLogin, createTeamWorkspace } from './helpers/auth';
  * 넓었다** — PATCH 의 chatChannel 재조회 분기가 `relations` 를 빼고 읽어 그 응답에서만 `workflow`
  * 가 사라졌다 (`review/code/2026/09/06/01_13_50` W4).
  *
- * `assertMatchesContract` 가 무능해서가 아니다 — 그 검증자는 optional-non-nullable 필드의 `null`
- * 은 잡는다. **이 분기에 그 검증자를 거는 기존 호출이 하나도 없다**는 것이 이유이고, 부재 자체는
- * §5.4 키 생략형이라 그 축으로는 애초에 위반이 아니다. 그래서 양성 대조가 필요하다.
+ * **왜 계약 검증자로 안 되는지는 헬퍼(`src/shared/testing/trigger-workflow-ref.ts`) docstring 이
+ * SoT 다** — 요지만 적으면 `assertMatchesContract` 가 무능해서가 아니라 이 분기에 그 검증자를
+ * 거는 호출이 하나도 없기 때문이다. 상세를 여기 복사해 두면 한쪽만 고쳐지고 다른 쪽이 조용히
+ * 낡는다 (`review/code/2026/09/10/15_52_06` maintainability W2).
  *
  * ## 경로 전수 (`TriggerDto` shape 를 내보내는 곳은 네 개뿐)
  *
@@ -39,10 +40,8 @@ import { registerAndLogin, createTeamWorkspace } from './helpers/auth';
  *
  * `history`·`DELETE`·rotate 3종은 트리거 shape 가 아니라 대상 밖이다.
  *
- * 양성 케이스는 **shape 만이 아니라 identity 도** 문다 — `expectedWorkflowId` 를 넘겨
- * `workflow.id` 가 그 트리거가 실제로 가리키는 워크플로우인지 확인한다. shape 만 보면
- * 엉뚱한 relation 에서 채워진 그럴듯한 UUID+이름이 통과한다
- * (`review/code/2026/09/10/14_34_18` testing W1).
+ * 양성 케이스는 **shape 만이 아니라 identity 도** 문다 — `expectedWorkflowId` 를 넘긴다.
+ * 그 인자가 왜 필요한지는 헬퍼 docstring 의 `@param` 이 SoT 다(위와 같은 이유로 복사하지 않는다).
  *
  * ## 외부 호출 비용 — 두 자리에서만 발생한다
  *
@@ -225,7 +224,7 @@ describe('TriggerDto.workflow 응답 경로 (e2e)', () => {
    * >
    * > 아래 `botToken` 은 편의가 아니라 **`ChatChannelConfigDto` 가 필수로 요구해서** 넣은 것이고,
    * > 그 필수 요구 자체가 `spec/5-system/15-chat-channel.md` 의 **R-CC-10(Bot Token 변경은
-   * > `POST /triggers/:id/chat-channel/rotate-bot-token` single-path)** 를 우회한다. 서비스는 이
+   * > `POST /api/triggers/:id/chat-channel/rotate-bot-token` single-path)** 를 우회한다. 서비스는 이
    * > 값을 비교 없이 `secrets.rotate()` 로 덮어써 **24h grace 백업 · 전용 audit action ·
    * > `chatChannelRotatedAt` 갱신**을 모두 건너뛴다
    * > (`review/code/2026/09/10/14_34_18` api_contract ④ — CRITICAL 판정, 사전 존재 결함).
