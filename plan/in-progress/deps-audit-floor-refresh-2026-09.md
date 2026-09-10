@@ -140,10 +140,10 @@ main 이 초록이 된 뒤 각 PR 을 rebase 한다 (`@dependabot rebase`). 대�
 - [x] `python3 scripts/check-override-floors.py` exit 0
 - [x] `python3 scripts/check-pnpm-security-config.py` exit 0
 - [x] `python3 scripts/check-unmet-peers.py` exit 0 — 미충족 peer 2건, 전부 기존 등재 수용 항목(신규 0건)
-- [ ] TEST WORKFLOW — lint (라운드 1 PASS `lint-20260910-200552.log` — **lockfile 교체로 재수행 필요**)
-- [ ] TEST WORKFLOW — unit (라운드 1 PASS `unit-20260910-200659.log` — **재수행 필요**)
-- [ ] TEST WORKFLOW — build + 타입체크 ratchet 2종 (라운드 1 PASS `build-20260910-200850.log` — **재수행 필요**)
-- [ ] TEST WORKFLOW — e2e (라운드 1 PASS `e2e-20260910-201258.log` — **재수행 필요**)
+- [x] TEST WORKFLOW — lint — PASS 60s (`_test_logs/lint-20260910-204230.log`, lockfile 교체 후 재수행)
+- [x] TEST WORKFLOW — unit — PASS 91s (`_test_logs/unit-20260910-204330.log`; backend 454 suites / 9,521 tests · frontend 289 files · channel-web-chat 23 files / 451 tests · 내부 패키지 8개)
+- [x] TEST WORKFLOW — build — PASS 191s (`_test_logs/build-20260910-204510.log`) + 타입체크 ratchet 2종 (backend 197건/36파일 · frontend 52건/15파일, baseline 일치)
+- [x] TEST WORKFLOW — e2e — PASS 225s (`_test_logs/e2e-20260910-204841.log`; backend jest 52 suites / 305 tests + playwright **51 passed**)
 - [x] `/ai-review` 라운드 1 — `review/code/2026/09/10/20_17_59` (RISK=LOW · Critical 0 · WARNING 1)
-- [ ] WARNING 1 조치 후 RESOLUTION.md + 재검증
+- [x] WARNING 1 조치(`ff94b54ce`) + RESOLUTION.md + deps 게이트 4종·TEST 4단계 재검증
 - [ ] dependabot PR 7건 rebase 요청
