@@ -1960,6 +1960,17 @@ field: T | null;
       **`inboundSigningPlaintext` 도 함께 막는 이유**는 slack/discord 가 그 값을 매 PATCH 마다
       필수로 요구하고 회전시켜 §5.4.1.1 의 "v1 차단" 을 어기고 있기 때문이다(구조 동일한 두 번째 우회).
 
+      > **(2026-09-10 정정 — telegram 은 D-2 의 대상이 아니다.)** 위 D-2 를 문자 그대로
+      > *"PATCH 경로는 비밀을 안 쓴다"* 로 읽어 `setupChatChannel` 의 **세 번째** 쓰기 지점
+      > (`triggers.service.ts:987-993`, `result.issuedInboundSigning` 재저장)까지 게이팅하면
+      > **그 트리거의 인입 웹훅이 전부 401 이 된다** — telegram adapter 가 `setupChannel` 마다
+      > 새 `secret_token` 을 Telegram 에 등록하므로(`telegram.adapter.ts:73`) 저장을 건너뛰면
+      > DB 는 옛 값, Telegram 은 새 값이 된다. **게이팅 대상은 `:948-952`(bot token rotate)와
+      > `:957-969`(slack/discord provider-issued) 둘뿐이고 `:981-993` 은 무조건 유지한다.**
+      > SoT: [Chat Channel §5.4.1.1](../../spec/5-system/15-chat-channel.md#5411-inboundsigning-patch-정책--회전-주체별-분기) ·
+      > planner 턴 `plan/complete/spec-draft-telegram-signing-carveout.md`
+      > (`--impl-prep` `review/consistency/2026/09/10/21_37_56` 가 이 결함을 CRITICAL 로 잡았다).
+
       **착수 시 함께 정리할 것 세 가지.** ⓪ `2-trigger-list.md §3` 註의 "다섯 케이스" 서술을
       재확인한다 — 처방이 case E 의 요청 바디를 바꾸지만 그 구조 자체는 무효화되지 않는다는 것이
       `--spec` `19_35_47` `plan_coherence` 의 판정이고, 그래도 문구는 그 PR 에서 확인할 것.
@@ -2016,6 +2027,10 @@ field: T | null;
       *"중첩/배열 경로를 유지한다"*)을 벗어난 것은 **구현이 아니라 spec 문장**일 수 있다.
 
       **추측으로 고치지 않는다** — e2e 로 실제 400 페이로드를 캡처해 확정한 뒤 두 절을 정정한다.
+      **(2026-09-10 범위 확대)** 캡처 대상은 신규 2필드(`botToken`·`inboundSigningPlaintext`)뿐
+      아니라 **기존 3필드**(`botTokenRef`·`inboundSigningRef`·`inboundSigning`)까지 **5필드 전체**다
+      — 기존 3필드의 표기(`details.field='botTokenRef'` 등)는 캐비아트 없이 확정 서술이라 더 위험하다
+      (`--spec` `review/consistency/2026/09/10/22_04_23` `convention_compliance`+`plan_coherence` INFO).
       `spec-draft-chat-channel-patch-token.md` 의 변경안 A·C 는 그래서 그 칸에 값을 쓰지 않고
       *"미확정 — 후속 e2e 확인 대기"* placeholder 를 남겼다(`3-error-handling.md §2.1` 의 "계획(Planned)"
       표기 선례).
@@ -2036,6 +2051,21 @@ field: T | null;
       판정에 필요한 것: 활성화 시 provider webhook 재등록이 필요한지(필요하면 구현 결함, 불필요하면
       spec 문장 결함). `spec-draft-chat-channel-patch-token.md` 는 이 불확실성 때문에 그 행을 **D-2 의
       선례로 인용하지 않았다.**
+
+- [ ] **`chat-channel-adapter.md §1.1` 의 `setupChannel` "멱등 = yes" 표기에 각주가 필요하다**
+      (planner, 2026-09-10 등재, `--spec` `review/consistency/2026/09/10/22_04_23` `cross_spec` INFO).
+      멱등성은 **레지스트리 등록 안전성**을 뜻하지 **시크릿 값 불변**이 아니다 — telegram 은 매 호출
+      새 `secret_token` 을 발급한다. 표 셀에 그 한 줄을 붙인다.
+
+- [ ] **`swagger.md §1` 에 "부분 갱신 DTO 는 `Update` 접두 — `Patch` 금지" 를 규약으로 승격할지**
+      (planner + 결정, 2026-09-10 등재, `--spec` `review/consistency/2026/09/10/22_04_23`
+      `naming_collision` INFO). 현재 저장소에 `Patch` 접두 클래스는 **0건**이고 관례는 `Create`/`Update`
+      축인데 **명문 규칙은 없다**(실측). 규약 신설은 별 결정 사안이라 이 자리에만 등재한다.
+
+- [ ] **telegram inbound-signing 재발급이 `1-auth.md §4.1` 전용 audit action 카탈로그 밖이다**
+      (planner, 2026-09-10 등재, `--spec` `review/consistency/2026/09/10/22_14_27` `cross_spec` INFO).
+      **draft 이전부터 있던 갭**이고 telegram carve-out 이 새로 만든 것이 아니다 — §4.1 또는 CCH-SE-03
+      근처에 *"server-issued 재발급은 전용 audit action 대상 제외"* caveat 한 줄이면 닫힌다.
 
 - [ ] **`SecretResolver.rotate` 에 빈 값 가드가 없다** (developer + 보안 판단, 2026-09-10 등재).
       `rotate(ref, ws, '')` 가 빈 문자열을 그대로 암호화해 row 를 덮어쓴다(`:129-145`, 가드 0).
