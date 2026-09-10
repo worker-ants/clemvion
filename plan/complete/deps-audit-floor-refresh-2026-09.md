@@ -120,15 +120,18 @@ INFO 처분: #1(`@next/mdx` 는 코어와 별개 — CHANGELOG 문구 한정) ·
 
 main 이 초록이 된 뒤 각 PR 을 rebase 한다 (`@dependabot rebase`). 대상:
 
-| PR | 내용 | 예상 결과 |
-| --- | --- | --- |
-| #1293 | `pnpm/action-setup` 6.0.10 → 6.1.0 | rebase 후 통과 |
-| #1294 | `p-limit` 7.3.1 → 7.3.2 | rebase 후 통과 |
-| #1295 | `jest` 30.4.2 → 30.5.1 | rebase 후 통과 |
-| #1296 | `dompurify` 3.4.13 → 3.4.14 | rebase 후 통과 |
-| #1297 | `@radix-ui/react-label` 2.1.10 → 2.1.15 | rebase 후 통과 |
-| #1298 | `@vitejs/plugin-react` 6.0.2 → 6.1.1 | rebase 후 통과 |
-| #1301 | `csv-parse` 7.0.1 → 7.0.2 | 본 PR 에 흡수 → dependabot 자동 종료 |
+| PR | 내용 | 예상 | **실측 (2026-09-10, `#1310` 머지 `2886910de` 이후)** |
+| --- | --- | --- | --- |
+| #1293 | `pnpm/action-setup` 6.0.10 → 6.1.0 | rebase 후 통과 | 체크 30건 / **실패 0** |
+| #1294 | `p-limit` 7.3.1 → 7.3.2 | 〃 | 체크 34건 / **실패 0** |
+| #1295 | `jest` 30.4.2 → 30.5.1 | 〃 | 체크 34건 / **실패 0** |
+| #1296 | `dompurify` 3.4.13 → 3.4.14 | 〃 | 체크 34건 / **실패 0** |
+| #1297 | `@radix-ui/react-label` 2.1.10 → 2.1.15 | 〃 | 체크 34건 / **실패 0** |
+| #1298 | `@vitejs/plugin-react` 6.0.2 → 6.1.1 | 〃 | 체크 34건 / **실패 0** |
+| #1301 | `csv-parse` 7.0.1 → 7.0.2 | 흡수 → 자동 종료 | **CLOSED** — dependabot 이 델타 0 판정 |
+
+6건 전부에서 `pnpm audit (moderate+)`·`override 바닥 침식 검출` 두 잡이 **pass** 다 —
+차단 원인이 실제로 제거됐음을 PR 쪽에서 확인한 것이다.
 
 ## 체크리스트
 
@@ -146,4 +149,18 @@ main 이 초록이 된 뒤 각 PR 을 rebase 한다 (`@dependabot rebase`). 대�
 - [x] TEST WORKFLOW — e2e — PASS 225s (`_test_logs/e2e-20260910-204841.log`; backend jest 52 suites / 305 tests + playwright **51 passed**)
 - [x] `/ai-review` 라운드 1 — `review/code/2026/09/10/20_17_59` (RISK=LOW · Critical 0 · WARNING 1)
 - [x] WARNING 1 조치(`ff94b54ce`) + RESOLUTION.md + deps 게이트 4종·TEST 4단계 재검증
-- [ ] dependabot PR 7건 rebase 요청
+- [x] dependabot PR 7건 rebase 요청 + 결과 확인 — 6건 초록(실패 0), #1301 자동 종료
+
+## 종결
+
+`#1310` (`2886910de`) 로 머지. dependabot PR 결과 확인까지 완료.
+
+**이 항목만 별도 PR 로 닫는 이유**: `developer/SKILL.md §단계별 자동 commit 10` 은 plan 이동을
+"같은 PR 안 별 commit" 으로 요구하고 plan-only PR 을 금지한다. 그런데 마지막 체크박스
+(dependabot rebase)는 **`#1310` 이 main 에 들어간 뒤에야 수행 가능**하다 — 그 PR 시점에는
+원리적으로 `[x]` 가 될 수 없었다. 규칙의 전제("본 PR 의 모든 체크박스 `[x]`")가 성립하지 않는
+경우라, 미충족 상태로 `in-progress/` 에 남겨 다음 사람이 "안 한 일" 로 읽게 두는 대신
+사유를 적고 닫는다.
+
+후속 2건은 이 plan 이 아니라 [`deps-guard-hardening.md`](deps-guard-hardening.md) 에 있다
+(pnpm 핀 상향 + lockfile `libc:` 회귀 가드 · `check-pnpm-security-config.py` 전용 테스트).
