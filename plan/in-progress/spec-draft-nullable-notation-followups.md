@@ -1946,11 +1946,19 @@ field: T | null;
       | 전용 audit action | `TRIGGER_CHAT_CHANNEL_BOT_TOKEN_ROTATED` | 일반 `TRIGGER_UPDATED` 만. **§5.4.1 이 PATCH 차단의 이유 (c) 로 든 "audit 이 mixed 된다" 가 지금도 재현된다** |
       | `chatChannelRotatedAt` | 갱신 | 미갱신 — 응답 DTO 의 "마지막 회전 시각" 이 거짓이 된다 |
 
-      **처방은 DTO 분리가 유일하게 일관된 해법이다.** (a) 기존 plaintext 와 비교해 차단하려면
-      resolve 비용이 들고, (b) **PATCH 전용 `ChatChannelConfigDto` 변형(`botToken` 제외)** 은
-      R-CC-10 의 의도와 정확히 일치하며 아래 `ChatChannelCard` 버그까지 같은 수정으로 닫힌다.
-      POST 만 `botToken` 을 받고 PATCH 는 `uiMapping`·`rateLimitPerMinute`·`languageLocale`·
-      `languageHints` 만 받는다.
+      **처방은 `spec-draft-chat-channel-patch-token.md` 의 D-1·D-2·D-3 을 따른다** (planner 턴
+      2026-09-10 확정, `--spec` `20_29_00`). **종전에 이 자리에 적혀 있던 처방("PATCH 전용
+      `ChatChannelConfigDto` 변형(`botToken` 제외)")만 구현하면 저장된 봇 토큰이 파괴된다** —
+      `update()` 가 `chatChannel` 있으면 무조건 `setupChatChannel` 을 부르고, 그 안에서 조건 없이
+      `secrets.rotate(botTokenRef, ws, cfg.botToken ?? '')` 를 실행하며, `SecretResolver.rotate` 에
+      **빈 값 가드가 없다**(`cross_spec` 이 세 고리를 독립 재현). 즉 **오늘 토큰을 지키고 있는 것이
+      바로 이 400 버그**이고, 필드만 빼면 보이는 실패가 조용히 비밀을 지우는 실패로 바뀐다.
+
+      요약: **D-1** PATCH 의 `chatChannel` 은 비밀 값(`botToken`·`inboundSigningPlaintext`)을 받지
+      않는다(present → 400, **PATCH 한정**) · **D-2** PATCH 경로는 비밀을 쓰지 않는다(관측 계약:
+      그 요청 전후로 두 비밀이 동일) · **D-3** ref 는 보존이 아니라 `buildSecretRef` 재유도로 살아남는다.
+      **`inboundSigningPlaintext` 도 함께 막는 이유**는 slack/discord 가 그 값을 매 PATCH 마다
+      필수로 요구하고 회전시켜 §5.4.1.1 의 "v1 차단" 을 어기고 있기 때문이다(구조 동일한 두 번째 우회).
 
       **착수 시 함께 정리할 것 세 가지.** ⓪ `2-trigger-list.md §3` 註의 "다섯 케이스" 서술을
       재확인한다 — 처방이 case E 의 요청 바디를 바꾸지만 그 구조 자체는 무효화되지 않는다는 것이
@@ -1988,10 +1996,70 @@ field: T | null;
       > 프런트 코드를 그대로 두고 백엔드 검증을 프런트의 (원래 의도했던) 가정에 맞추는
       > 유일한 해법이다 — **두 항목은 한 수정으로 닫힌다.**
       >
+      > **(2026-09-10 정정)** *"프런트 무수정 통과"* 는 **telegram 한정으로만 참이었다.**
+      > slack/discord 는 `inboundSigningPlaintext` 필수-누락으로 **여전히 400** 이다 — 그 카드는
+      > 그 필드도 안 싣는다. 세 provider 모두 통과하려면 위 처방의 **D-1 이 그 필드까지 포함**해야
+      > 한다(`--spec` `20_13_39` `rationale_continuity` W2). 이 항목은 **구현 전까지 열려 있다** —
+      > spec 변경만으로는 닫히지 않는다.
+      >
       > reviewer 는 정적 대조로만 확인했다(뮤테이션 규약상 저장소를 건드리지 않음). 나도 그
       > 컴포넌트 코드를 직접 열어 `botToken` 생략과 두 주석을 확인했지만 **브라우저에서
       > 재현하지는 않았다.** 착수 시 먼저 재현할 것 — 재현 실패는 부재의 증거가 아니지만,
       > 반대로 재현 없이 "항상 400" 을 확정으로 적는 것도 한 칸 넓다.
+
+- [ ] **§5.4.1 · §5.4.1.1 의 `details.field` 문면이 실제 페이로드와 다를 수 있다** (planner,
+      2026-09-10 등재, `--spec` `20_13_39` `cross_spec` W1 + `20_29_00` `convention_compliance` INFO).
+      두 절은 `details.field='botTokenRef'` 처럼 **접두어 없는 flat** 이름을 적는데, 그 세 내부 필드는
+      DTO 에 `@IsEmpty()` 가 붙어 있고 `CustomValidationPipe` 가 **전역 `APP_PIPE`**(`app.module.ts:202`)라
+      서비스 가드보다 먼저 거부한다. 파이프의 `flattenErrors` 는 중첩 경로(`parent.child`)를 만들므로
+      **실제 emit 은 `chatChannel.botTokenRef` 형태일 가능성이 높다** — 즉 규약(`3-error-handling.md §2.1`
+      *"중첩/배열 경로를 유지한다"*)을 벗어난 것은 **구현이 아니라 spec 문장**일 수 있다.
+
+      **추측으로 고치지 않는다** — e2e 로 실제 400 페이로드를 캡처해 확정한 뒤 두 절을 정정한다.
+      `spec-draft-chat-channel-patch-token.md` 의 변경안 A·C 는 그래서 그 칸에 값을 쓰지 않고
+      *"미확정 — 후속 e2e 확인 대기"* placeholder 를 남겼다(`3-error-handling.md §2.1` 의 "계획(Planned)"
+      표기 선례).
+
+- [ ] **`assertChatChannelInputSafe` 의 세 분기가 dead code 일 수 있다** (developer, 2026-09-10 등재,
+      위 항목과 같은 실측에서 갈라졌다).
+      `botTokenRef`·`inboundSigningRef`·`inboundSigning` 은 DTO `@IsEmpty()` + 전역 파이프가 먼저
+      거부하므로 그 서비스 가드에 도달하지 못할 가능성이 높다. **살아 있다는 착시가 위험하다** —
+      다음 사람이 그 자리를 방어선으로 오인하고 파이프 쪽 선언을 지우면 실제 구멍이 열린다.
+      처방: 도달 가능성을 실측(뮤테이션 또는 e2e)하고, 도달 불가면 **가드를 지우고 그 사실을 주석으로
+      남기거나** 파이프 선언과 가드 중 하나를 SoT 로 정한다.
+
+- [ ] **§5.4.1 표 2행(활성화 PATCH 가 `setupChannel` 재호출)이 구현과 어긋날 수 있다** (planner + 조사,
+      2026-09-10 등재, `--spec` `20_13_39` `cross_spec` W2).
+      그 행은 *"트리거 활성화(`PATCH {isActive:true}`) — `setupChannel()` 재호출, 기존 `botTokenRef`
+      그대로 사용"* 이라 적는데, `update()` 는 `if (chatChannel)` 로 게이트돼 있고 isActive 토글의 실
+      호출부는 `chatChannel` 을 싣지 않는다. **그러면 그 재호출이 일어나지 않는다.**
+      판정에 필요한 것: 활성화 시 provider webhook 재등록이 필요한지(필요하면 구현 결함, 불필요하면
+      spec 문장 결함). `spec-draft-chat-channel-patch-token.md` 는 이 불확실성 때문에 그 행을 **D-2 의
+      선례로 인용하지 않았다.**
+
+- [ ] **`SecretResolver.rotate` 에 빈 값 가드가 없다** (developer + 보안 판단, 2026-09-10 등재).
+      `rotate(ref, ws, '')` 가 빈 문자열을 그대로 암호화해 row 를 덮어쓴다(`:129-145`, 가드 0).
+      chatChannel PATCH 경로는 위 CRITICAL 의 D-2 로 닫히지만 **`rotate` 자체는 다른 호출부에도 열린
+      표면**이다. 처방 후보: (a) 빈 문자열을 거부(throw) — 호출부 전수 확인 선행 (b) 명시적
+      `allowEmpty` 옵션 (c) 그대로 두고 호출부 책임으로 문서화. **(a) 가 fail-closed 지만 정당한 빈
+      값 사용처가 있는지 먼저 세야 한다.**
+
+- [ ] **생성/수정 검증 함수를 분리해야 한다 — 안 하면 D-1 구현이 생성 경로를 깬다** (developer,
+      2026-09-10 등재, `--spec` `20_29_00` `cross_spec` INFO).
+      `assertInboundSigningPlaintextByProvider` 는 `create()`(`:401`)와 `update()`(`:482`)가 **같은
+      코드를 공유**한다. D-1("present 면 400")을 그 함수에 문자 그대로 넣으면 **slack/discord 의 생성
+      (POST)에서도 존재를 막아 트리거 생성 자체가 깨진다** — 생성에서는 그 값이 여전히 필수다.
+      처방: PATCH 전용 검증 경로를 갈라 D-1 을 거기에만 적용한다. **원 처방이 위험했던 것과 같은
+      종류의 함정**이라 구현 착수 전 이 항목을 먼저 읽을 것.
+
+- [ ] **docs 가드가 spec frontmatter 의 dangling `pending_plans` 를 안 잡는다** (harness, 2026-09-10
+      등재, `--spec` `20_29_00` `plan_coherence` INFO).
+      `15-chat-channel.md` 의 `pending_plans:` 가 `plan/in-progress/spec-sync-chat-channel-gaps.md` 를
+      가리키는데 그 파일은 **`plan/complete/` 로 이동했다**(실측). `plan-lifecycle.md §3` 의 "인입 참조
+      갱신" 의무를 옮긴 쪽이 놓쳤고 **docs 가드 21파일이 main 에서 통과**했다 — 즉 그 축을 아무도 안 본다.
+      dangling 항목 자체는 `spec-draft-chat-channel-patch-token.md` 가 함께 지웠다(`status: partial` 은
+      나머지 셋이 살아 있어 유효). 처방: `spec/**` frontmatter 의 `pending_plans` 경로가 실재하는지
+      검사하는 가드 한 줄. **`findBrokenPlanLinks` 는 마크다운 링크만 보고 frontmatter 는 안 본다.**
 
 - [ ] **하드닝: 트리거 비밀 컬럼 목록이 3중 독립 사본이다** (developer, 2026-09-10 등재,
       `maintainability` W1 + `security` W1 이 같은 자리를 독립 지적).
