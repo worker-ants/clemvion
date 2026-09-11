@@ -1,6 +1,6 @@
 ---
 title: details[].code 배선 + botToken MinLength + 메시지 리터럴 상수화 + 인용 정정
-status: in-progress
+status: complete
 owner: developer
 worktree: .claude/worktrees/impl-details-code-c8f31a
 started: 2026-09-11
@@ -265,3 +265,67 @@ I10(메시지 문체 통일).
 > **리뷰어 계약 이탈 1건 기록**: `code-review-summary` 가 `summary_status` 에 `STATUS=` 라인
 > 대신 산문을 반환했다. SUMMARY 전문·`risk`·`critical_count` 는 정상이라 판정에 영향 없고
 > main 이 디스크에 영속화했다(14/14 · forced 누락 0 확인).
+
+## 4라운드 리뷰 처분 (`/ai-review` `review/code/2026/09/11/12_41_25`, `--route=all`) — **루프 종결**
+
+**CRITICAL 0 · WARNING 2 · SPEC-DRIFT 1 · RISK LOW · reviewer 14/14 · forced 누락 0.**
+3라운드 WARNING 전부 해소 확인. **`codebase/**` 수정 0 — 선언한 종료 조건이다.**
+상세 처분: `review/code/2026/09/11/12_41_25/RESOLUTION.md`.
+
+### 3라운드 상한을 넘긴 사유 (선언한 정지 규칙 초과)
+
+정지 규칙은 *"최대 3라운드. 4라운드가 필요해지면 멈추고 사용자에게 보고한다"* 였다.
+**한 번 넘겼다** — 3라운드 뒤 `--impl-done`(`12_18_21`)이 **내가 그 턴에 넣은 주석 2곳이
+`review-citations.md §2`(bare 시각 금지)를 어긴 것**을 잡았다. 여기서 멈추면 **내가 방금 만든
+규약 위반을 그대로 머지**하게 되므로, 상한 준수보다 그것이 나쁘다고 판단해 고치고 4라운드를
+돌렸다(커밋 `9fcce3f47` 본문에 사유 기록).
+
+**그 초과가 값을 했다** — 4라운드가 내 **자기-과잉주장 2건**을 새로 찾았다:
+① e2e 헤더의 커버리지 주장 범위(주장 자체는 정확했으나 배열 갈래 증거 0건), ② `authConfigId`
+테스트 주석이 §5.3 판정을 **결론처럼 단정**(소스 주석은 "미해결" — 소스가 맞다).
+
+### 수렴 궤적 — 성격으로 판단했다
+
+| 라운드 | CRITICAL | WARNING | 발견의 성격 |
+|---|---|---|---|
+| R1 `11_05_27` | 0 | 5 | **구조** — canonical 상수 · 거짓 주석 · fixture 중복 |
+| R2 `11_33_35` | 0 | 2 | **문서** — 유저 가이드 `code` 누락(`--route=all` 이 router 판단을 반증) |
+| R3 `12_00_40` | 0 | 2 | **내 일괄적용** — `authConfigId` 한 자리의 top-level 불일치 |
+| R4 `12_41_25` | 0 | 2 | **내 산문의 정밀도** — 주장 범위 · 주석 확신도 |
+
+종료 조건은 *"발견 0"* 이 아니라 **"`codebase/**` 수정 0 으로 끝나는 라운드"** 이고 R4 가
+그것이다. R4 의 두 항목은 **§5.3 planner 판정이 나오면 어차피 다시 손대야 하는 자리**라 지금
+고치면 판정 뒤에 또 고친다.
+
+## 최종 `--impl-done` (`review/consistency/2026/09/11/12_58_03`) — **BLOCK: NO**
+
+CRITICAL 0. WARNING 4건 중 `plan/**` 지적 3건을 **이 마무리 커밋에서** 닫았다(코드 freshness
+무영향):
+
+- **W3** — 이 PR 이 실제로 해소한 트래커 항목 **4개가 `[ ]` 로 남아 있었다** → 체크 + 실측
+  각주. (`botToken` `@MinLength` · 메시지 리터럴 복붙 · `details[].code` 미배선 ·
+  `swagger.md:315` 인용)
+- **W4** — 이 plan 이 *"3라운드 종결"* 로 끝나 실제 4라운드 이력이 **git log 에만** 있었다 →
+  위 절 신설. `complete/` 로 옮기면 plan 이력에서 사라질 자리였다.
+- **INFO 5** — `botToken` 형식 검증 항목이 이 plan 에만 있었다 → durable 트래커로 이관.
+  **이관하며 실측을 보강했다**: 그 정규식은 docs·i18n **4곳에만** 있고 코드에 없으며,
+  문서가 약속하는 `BOT_TOKEN_INVALID` 는 **형식 검사가 아니라 외부 API 401/403** 에서 나온다 —
+  *"형식 위반 시 400"* 은 **메커니즘이 틀린 서술**이다.
+
+W1·W2(spec 시제 · `authConfigId` §5.3 판정)는 **planner 권한**이고 durable 트래커에 등재돼 있다.
+
+## 종결 체크리스트
+
+- [x] `/consistency-check --impl-prep` BLOCK: NO (`10_28_52`)
+- [x] A/B/C/D 구현 — `details[].code` **15자리** · `botToken` `@MinLength(1)` · 상수화 5쌍 ·
+      인용 앵커화
+- [x] 뮤테이션 **15/15 개별 RED** (1차 4자리 생존 → 단언 보강) + `Record` 양방향 `tsc` 2방향 +
+      fixture 집합 캐너리 + `ErrorCode` 스왑
+- [x] `run-test.sh` 4단계 — 매 라운드 재실행, 전부 PASS
+- [x] 타입체크 ratchet 둘 — `build` 단계 내 실행 확인(baseline 197 / 52)
+- [x] `/ai-review` **4라운드** + 각 라운드 `RESOLUTION.md`
+- [x] `--impl-done` BLOCK: NO (`12_58_03`)
+- [x] durable 트래커: 4항목 종결 + 신규 6항목 등재 + E 방향 실측 정정
+- [x] `plan/complete/` 이동
+- [ ] **E 후속 PR** — durable 트래커의 *"chat-channel 도메인 규칙이 제네릭 `TriggersService` 에
+      계속 쌓인다"* 항목으로 이관했다(방향 정정 각주 포함). 이 plan 에서 추적하지 않는다

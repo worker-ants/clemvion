@@ -2216,10 +2216,19 @@ field: T | null;
       다음에 손댈 때"* 로 분류했다. 처방: 앞쪽 절반(secret 쓰기 게이팅 + ref 생존 판정)을
       `resolveChatChannelSecretWrites(...)` 로 분리.
 
-- [ ] **`ChatChannelConfigDto.botToken` 이 swagger 로 `minLength:1` 을 약속하는데 validator 가 없다**
+- [x] **`ChatChannelConfigDto.botToken` 이 swagger 로 `minLength:1` 을 약속하는데 validator 가 없다**
       (developer, 2026-09-11 등재, `/ai-review` `review/code/2026/09/10/23_55_23` `security` INFO1).
       **생성(POST) 경로**에서 빈 문자열 bot token 이 통과한다 — 이번 PR 은 PATCH 축만 게이팅해
       스코프 밖이었다. 처방: `@MinLength(1)` 또는 provider 별 정규식.
+      > **✅ 2026-09-11 해소** — developer 턴 `plan/complete/impl-details-code-wiring.md` (`--impl-done` `review/consistency/2026/09/11/12_58_03` BLOCK: NO · `/ai-review` 4라운드 CRITICAL 0).
+      > `@MinLength(1)` 로 닫았다. **피해 경로를 실측했다** — `''` 가 통과하면
+      > `setupChatChannel` 의 `[쓰기 ①]` 이 `rotate(botTokenRef, ws, '')` 로 **빈 시크릿을 먼저
+      > 저장**하고 provider 호출 실패(401 → `BOT_TOKEN_INVALID`)는 그 **뒤**다. 요청은 실패하는데
+      > 시크릿 행은 남는다.
+      >
+      > **공백 전용 문자열(`'   '`)은 여전히 통과한다** — `@MinLength(1)` 은 길이만 본다. trim
+      > 정책은 아래 「잔여 개선」 (a) 로 분리했다. **provider 별 정규식은 하지 않았다** —
+      > 그 정규식이 docs·i18n 4곳에만 있고 코드에 없다는 것을 실측했다(아래 별 항목).
 
 - [ ] **DTO `@IsEmpty()` 메시지와 서비스 가드 메시지가 5필드 모두 리터럴 복붙이다** (developer,
       2026-09-11 등재, `/ai-review` `review/code/2026/09/11/01_52_59` `architecture` W3).
@@ -2227,14 +2236,34 @@ field: T | null;
       비어있지 않은 값은 DTO 가 거부하기 때문이다(그 두 갈래는 이미 실측으로 확정돼 있다).
       처방: 5개 메시지를 `chat-channel-config.dto.ts` 의 `export const` 맵으로 빼고 두 층이
       import 한다.
+      > **✅ 2026-09-11 해소** — developer 턴 `plan/complete/impl-details-code-wiring.md` (`--impl-done` `review/consistency/2026/09/11/12_58_03` BLOCK: NO · `/ai-review` 4라운드 CRITICAL 0).
+      > **처방 위치를 바꿨다** — `chat-channel-config.dto.ts` 안이 아니라 신규
+      > `modules/triggers/chat-channel-rejection-messages.const.ts` 로 뺐다(선례
+      > `embedding-dimensions.const.ts`). DTO 안에 두면 서비스가 DTO 를 import 하게 되어 방향이
+      > 어긋난다.
+      >
+      > **등가성을 테스트로 고정했다** — 두 층에 하나씩 `[등가성]` 단언을 두어 둘이 같은 상수를
+      > 가리키게 했다(전이적 고정). 필드 배열을 1차 SoT 로 올리고 메시지를
+      > `Record<ChatChannelBlockedField, string>` 으로 선언해 **양방향**을 컴파일러가 본다 —
+      > 종전 `satisfies` 안은 편도였다(`tsc` 로 양방향 RED 확인).
 
 - [ ] **chat-channel 도메인 규칙이 제네릭 `TriggersService`(1855줄)에 계속 쌓인다** (developer,
       2026-09-11 등재, `/ai-review` `01_52_59` `architecture` W2 — 기존 "함수 비대" 항목의
       **모듈 경계 관점**이다). `chat-channel/` 하위에 adapter 계층이 따로 있는데 검증·secret
       쓰기·ref 보존 규칙은 triggers 쪽에 남아 경계가 어긋난다. 처방 후보:
       `ChatChannelTriggerBinder` 협력자 추출.
+      > **⚠️ 처방의 방향이 실측으로 뒤집혔다 (2026-09-11).** *"`chat-channel/` 로 옮긴다"* 는
+      > 읽기는 **순환을 되살린다** — `#676`(`e827ed2a7`) 이 `chat-channel→triggers` 역방향 의존
+      > 2곳을 **의도적으로 제거해 `forwardRef` 순환을 끊었고**(`triggers.module.ts` 주석 + 잔존
+      > `forwardRef` **0건** 실측), 되돌리면 그 작업이 무효가 된다. 따라서 추출은
+      > **`triggers/` 안의 협력자**여야 한다.
+      >
+      > **`details[].code` 배선 PR(A/B/C/D)에서 의도적으로 갈랐다** — 그 PR 이 13개 throw 자리를
+      > **고치고** 이 항목은 같은 자리를 **옮기므로**, 한 diff 에 섞으면 리뷰가 동작 델타를
+      > 분리할 수 없다. 이 표면은 `#1314` 에서 리뷰어 3명이 독립으로 CRITICAL 을 찾은 자리다.
+      > **동작 보존이 유일한 주장이 되도록** 별 PR 로 낸다.
 
-- [ ] **서비스 가드가 `details[].code` 를 안 싣는다 — 파이프는 싣는다** (developer,
+- [x] **서비스 가드가 `details[].code` 를 안 싣는다 — 파이프는 싣는다** (developer,
       2026-09-11 등재, `--spec` `review/consistency/2026/09/11/07_11_12` `convention_compliance` INFO 2).
       `validation.pipe.ts:58` 은 원소마다 `code: 'INVALID_FIELD'` 를 넣는데
       `triggers.service.ts:655,662,670,702,710` 의 가드는 `details: { field: … }` 만 던진다.
@@ -2261,8 +2290,18 @@ field: T | null;
       > **`conventions/audit-actions.md` 가 아니다** — 그 문서는 `action` 문자열의 명명·시제만
       > 소유한다고 스스로 한정한다(`--spec` `09_29_33` WARNING 1 이 내 오인용을 잡았다).
       >
-      > **남은 것 = 15곳 배선** (developer). 강제 가드는 없다(§5.3 에 그 상태를 명시했다) —
-      > 신규 발행 지점부터 적용되고 기존 자리는 이 항목이 유일한 추적점이다.
+      > ~~**남은 것 = 15곳 배선** (developer).~~
+      > **✅ 2026-09-11 해소** — developer 턴 `plan/complete/impl-details-code-wiring.md` (`--impl-done` `review/consistency/2026/09/11/12_58_03` BLOCK: NO · `/ai-review` 4라운드 CRITICAL 0).
+      > **15자리 전부 배선했다** — `triggers.service.ts` 객체 13곳 +
+      > `password.util.ts` **배열 2곳**. 뮤테이션으로 **15/15 개별 RED** 확인했고, **1차에
+      > 4자리가 생존**했다(`toMatchObject` 재귀 부분일치 3곳 + `details` 미단언 1곳 +
+      > `.toThrow()` 만 보는 2곳) — 단언을 보강해 닫았다.
+      >
+      > `modules/` 13곳은 canonical `ErrorCode.INVALID_FIELD`, `common/` 2곳은 **리터럴 유지**
+      > (`common/`→`nodes/` 선례 0곳 + 같은 층 파이프도 리터럴 — 층을 갈라 적용했다).
+      >
+      > **강제 가드는 여전히 없다** — §5.3 에 그 상태를 적어 뒀고 신규 발행 지점부터 적용된다.
+      > `authConfigId` 한 자리는 top-level 이 특화 코드라 §5.3 판정이 필요하다(별 항목).
 
 - [x] **`chat-channel-adapter.md §1.1` 의 `setupChannel` "멱등 = yes" 에 각주가 필요하다**
       (planner, 2026-09-10 등재 · 2026-09-11 재확인). 멱등성은 **레지스트리 등록 안전성**이지
@@ -2275,7 +2314,7 @@ field: T | null;
       > 세 곳으로 cross-link 했다(`--spec` `09_29_33` INFO 3 — 같은 사실을 두 문서가 독립
       > 서술하면 한쪽만 갱신되는 drift 가 재발한다).
 
-- [ ] **`chat-channel-config.dto.ts` 의 `swagger.md:315` 줄-번호 인용이 stale 해졌다**
+- [x] **`chat-channel-config.dto.ts` 의 `swagger.md:315` 줄-번호 인용이 stale 해졌다**
       (developer, 2026-09-11 등재 · `--spec` `09_29_33` `plan_coherence` WARNING 2).
       같은 날 planner 턴이 `swagger.md` `§1` 안에 신규 `§1-7` 을 삽입했고 그 삽입점은 315줄보다
       **위**라 인용 대상이 밀렸다. 정정은 **줄 번호를 다시 재는 것이 아니라 절 참조**로
@@ -2284,6 +2323,9 @@ field: T | null;
       `:NNN` 은 안 본다, `dto-jsdoc-citation-guard.ts` 는 날짜만 센다).
       > **원래 `Update` 접두 항목의 "부수" 로 딸려 있었다.** 그 항목을 종결하면 함께 사라지므로
       > 별 항목으로 갈랐다 — checker 가 정확히 그 유실을 경고했다.
+      > **✅ 2026-09-11 해소** — developer 턴 `plan/complete/impl-details-code-wiring.md` (`--impl-done` `review/consistency/2026/09/11/12_58_03` BLOCK: NO · `/ai-review` 4라운드 CRITICAL 0).
+      > 절 제목 앵커(「JSDoc 은 공개 OpenAPI 로 나간다 — 내부 서사를 담지 않는다」)로 바꿨다.
+      > `codebase/` 에 남은 `swagger.md:NNN` 인용 **0건** 확인.
 
 - [ ] **spec 을 향한 줄-번호 인용 15곳 — 앵커 문구로 전환** (planner + developer 분담,
       2026-09-11 등재). 위 항목의 **클래스**다. `2-api-convention.md`·`swagger.md`·
@@ -2395,6 +2437,22 @@ field: T | null;
       (`/ai-review` `review/code/2026/09/11/12_41_25` W2)
       (k) `password.util.spec.ts` 의 `it.each` JSDoc 이 `'P@ss1'` 을 *"3종"* 이라 적는데 실제로는
       **4종**이다(`P`·`@`·`ss`·`1`). 결론(길이 분기만 발동)은 맞고 개수만 틀렸다.
+
+- [ ] **`botToken` provider 별 형식 검증이 문서에만 있고 코드에 없다** (planner + developer,
+      2026-09-11 등재 · `--impl-prep` `review/consistency/2026/09/11/10_28_52` WARNING 2 + INFO 2).
+      **실측**: `^\d{6,}:[A-Za-z0-9_-]{30,}$` 는 **docs·i18n 4곳에만** 있고
+      (`content/docs/06-integrations-and-config/telegram{,.en}.mdx` · `i18n/dict/{ko,en}/triggers.ts`)
+      **코드에 구현이 없다**. 그리고 그 문서들이 약속하는 `BOT_TOKEN_INVALID` 는 **형식 검사에서
+      나오지 않는다** — `triggers.service.ts` 가 `setupChannel` 의 **외부 API 401/403** 을 그
+      코드로 번역한다. 즉 *"형식 위반 시 400 `BOT_TOKEN_INVALID`"* 는 **메커니즘이 틀린 서술**이다.
+
+      두 갈래가 있다:
+      - **planner**: `2-navigation/2-trigger-list.md` §3 `botToken` 행이 그 정규식을
+        **provider 무자격**으로 인용하고(telegram 전용 형식인데 행의 주어는 3 provider),
+        인용 target(`15-chat-channel.md §5.4`)에는 **그 정규식이 아예 없다**(실측 0건).
+        스코프를 telegram 전용으로 좁히거나 인용을 `§4.1` 로 정정.
+      - **developer**: provider 별 형식 검증을 실제로 구현할지 — 하면 docs 의 서술이 참이 되고,
+        안 하면 docs 를 *"형식은 검증하지 않는다"* 로 고쳐야 한다. **지금은 문서가 구현보다 넓다.**
 
 - [ ] **`SecretResolver.rotate` 에 빈 값 가드가 없다** (developer + 보안 판단, 2026-09-10 등재).
       `rotate(ref, ws, '')` 가 빈 문자열을 그대로 암호화해 row 를 덮어쓴다(`:129-145`, 가드 0).
