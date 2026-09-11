@@ -426,7 +426,7 @@ Discord v1 한계: 일반 DM 자유 텍스트는 수신할 수 없어요. AI 대
 
 ### Bot Token 회전 (single-path)
 
-Chat Channel 은 **트리거를 만들 때만** 설정할 수 있어요. 이미 만든 트리거에 PATCH 로 `chatChannel` 을 새로 붙이면 400 `VALIDATION_ERROR` (`details.field='chatChannel'`), `provider` 를 다른 값으로 바꾸면 400 (`details.field='provider'`) 이에요 — provider 를 바꾸려면 트리거를 삭제하고 다시 만들어 주세요.
+Chat Channel 은 **트리거를 만들 때만** 설정할 수 있어요. 이미 만든 트리거에 PATCH 로 `chatChannel` 을 새로 붙이면 400 `VALIDATION_ERROR` (`details.field='chatChannel'`, `details.code='INVALID_FIELD'`), `provider` 를 다른 값으로 바꾸면 400 (`details.field='provider'`, `details.code='INVALID_FIELD'`) 이에요 — provider 를 바꾸려면 트리거를 삭제하고 다시 만들어 주세요.
 
 토큰 변경은 **항상 rotate API 만** 사용해요. PATCH 본문에 `config.chatChannel.botToken` 을 실으면 400 `VALIDATION_ERROR` 가 돌아와요 (`details.field='chatChannel.botToken'`). 내부 식별자인 `botTokenRef` 도 마찬가지로 받지 않아요 — 그건 애초에 입력 필드가 아니에요.
 

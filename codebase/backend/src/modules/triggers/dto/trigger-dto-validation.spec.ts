@@ -980,10 +980,11 @@ describe('ChatChannelUpdateConfigDto — PATCH 는 비밀을 받지 않는다 (R
     } catch (err) {
       thrown = (err as BadRequestException).getResponse();
     }
-    expect(
-      (thrown as { details?: { field: string }[] } | null)?.details?.map(
-        (d) => d.field,
-      ),
-    ).toContain('chatChannel.botToken');
+    const details = (thrown as { details?: { field: string }[] } | null)
+      ?.details;
+    // 같은 파일의 `[A]`·`[등가성]` 이 `toHaveLength(1)` 을 갖추었으므로 여기도 맞춘다 —
+    // `toContain` 만으로는 **다른 필드가 함께 터져도** 통과한다(파일 내 엄격도 불일치였다).
+    expect(details).toHaveLength(1);
+    expect(details?.map((d) => d.field)).toContain('chatChannel.botToken');
   });
 });

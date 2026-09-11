@@ -196,3 +196,24 @@ I8(`TriggersService` 누적 — E 후속 PR) · I10(외부 소비자용 릴리�
 
 **2라운드가 필요한 이유**: W3·W4·W5 + INFO 4건이 `codebase/**` 라 원 리뷰가 stale 해졌다.
 정지 규칙대로 **모아서 한 번에** 고치고 전수 라운드를 다시 돈다.
+
+## 2라운드 리뷰 처분 (`/ai-review` `review/code/2026/09/11/11_33_35`, `--route=all`)
+
+**CRITICAL 0 · WARNING 2 · RISK LOW · forced 7명 전원 확보 · unfinished 0.** 1라운드
+WARNING 4건(W2~W5)은 reviewer 가 코드로 **해소 확인**했다.
+
+| # | 지적 | 처분 |
+|---|---|---|
+| W1 | **SPEC-DRIFT** 재지적 — 다만 **reviewer 둘이 잔존 범위를 다르게 보고**했다: `requirement` 는 *"§5.4.1 은 이미 시제 중립, §5.4.1.2 만 남음"*, `documentation` 은 *"세 곳 모두"* | **직접 실측해 종결**: 세 자리(375·411-416·426) **전부** *"**배선 전 관측값**이다"* / *"배선 뒤에는 … 싣는다"* 라고 적는다 → **`documentation` 이 맞다.** planner PR 대상은 3곳 |
+| W2 | **user_guide_sync (신규)** — `triggers.mdx`·`triggers.en.mdx` 가 `details.field` 만 인용하고 이번 PR 이 실은 `details.code` 를 빠뜨렸다. `doc-sync-matrix` `backend-api-change` 대상 | **반영** (KO/EN 2줄). 같은 문서가 이미 `{ field, message, code }` 3필드 인용 관례를 갖고 있어 그 둘만 뒤처져 있었다 |
+
+**`--route=all` 이 값을 했다**: `user_guide_sync` 는 1라운드에서 router 가 *"doc-sync-matrix
+트리거 매칭 없음"* 으로 **제외**했던 reviewer 다. 전수로 돌리자 그 판단이 틀렸음이 드러났다 —
+API 응답 shape 변경은 유저 가이드 동반 갱신 대상이다.
+
+저비용 INFO 반영: I7(`[C]` 에 `toHaveLength(1)` — 파일 내 엄격도 불일치였다).
+
+후속 등재: I1(`rotate`/`store` 빈 값 가드) · I2(공백 전용 trim 정책) · I3(`it.each` 두 블록
+병합해 모듈 컴파일 10→5회, CI 시간만) · I4(메시지 문체 통일) · I5(E 후속 PR) ·
+I6(PATCH e2e wire 증거) · I8(DTO JSDoc 에 `code` 언급) · I11(`error-codes.ts` 역참조 주석) ·
+I12(provider 문서 6개의 `code` 표기 — 이번 diff 의 직접 trigger 아님).
