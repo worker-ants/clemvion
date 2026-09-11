@@ -90,16 +90,34 @@ CRITICAL 0 · WARNING 5. **WARNING 1·2 가 내가 고려하지 않은 제약을
 | `assertInboundSigningPlaintextByProvider` | **5곳** (`slack.md:275` · `discord.md:297` · `2-trigger-list.md:155` · `discord.md:76` · `15-chat-channel.md:432`) |
 | `setupChatChannel` | **9곳** (`15-chat-channel.md` 2 · `secret-store.md` 3 · `chat-channel-adapter.md:369` · `data-flow/14-chat-channel.md` 3) |
 
-### 처방 — 문서화된 진입점 2개는 **얇은 delegator** 로 남긴다
+### ~~처방 — 문서화된 진입점 2개는 **얇은 delegator** 로 남긴다~~ **← 철회됨**
 
-로직은 옮기고, `TriggersService.setupChatChannel` ·
-`TriggersService.assertInboundSigningPlaintextByProvider` 는 **한 줄 위임 메서드로 남긴다.**
-그 14개 spec 문장은 *"그 진입점이 무엇을 하는가"* 를 서술하므로 **위임 뒤에도 전부 참이다** —
-drift 가 **0** 이다.
+> ~~로직은 옮기고, `TriggersService.setupChatChannel` ·
+> `TriggersService.assertInboundSigningPlaintextByProvider` 는 **한 줄 위임 메서드로 남긴다.**
+> 그 14개 spec 문장은 *"그 진입점이 무엇을 하는가"* 를 서술하므로 **위임 뒤에도 전부 참이다** —
+> drift 가 **0** 이다.~~
 
-**이것이 어중간한 타협이 아닌 이유**: 지적이 말한 문제는 *"도메인 규칙이 제네릭 서비스에
-쌓인다"* 이고, 규칙이 한 파일로 모이면 그것은 해소된다. 진입점의 **이름**이 남는 것은 문제가
-아니다 — 그것이 spec 이 가리키는 계약 표면이기 때문이다.
+**구현 중 이 처방이 틀렸음이 드러났다 (2026-09-11).** `assertInboundSigningPlaintextByProvider`
+의 **호출부도 함께 옮겨졌다** — 부르던 것이 `assertChatChannelInputSafe` 였고 그것도 이동
+대상이었다. 그래서 delegator 를 남기면 **아무도 부르지 않는 메서드**가 되고, 그것은
+*"문서를 문자적으로 참으로 만들기 위한 잔재"* 다. 린트도 미사용으로 잡는다.
+
+### 실제 결정 — delegator 를 남기지 않는다. drift 는 **0 이 아니라 2곳**이다
+
+| | 상태 |
+|---|---|
+| 옮긴 6개 중 **5개** | spec 귀속 **0곳** → drift 없음 |
+| `assertInboundSigningPlaintextByProvider` | `slack.md:275` · `discord.md:297` 의 **`TriggersService.X` 표기가 부정확**해진다 (나머지 3곳은 클래스 접두 없이 함수명만 인용 → 여전히 참) |
+| `setupChatChannel` (9곳) | 이 PR 이 **안 옮긴다** → 영향 없음 |
+
+**실질은 여전히 참이다** — `TriggersService` 가 그 규칙을 호출하고 생성 시점에 검증한다.
+부정확한 것은 **심볼 경로**뿐이다. planner 턴 대상으로 **durable 트래커에 등재했다**
+(`spec-draft-nullable-notation-followups.md` — 이 plan 은 `complete/` 로 봉인되므로 여기 적는
+것만으로는 유실된다).
+
+> **`spec_impact` 는 `none` 을 유지한다.** 이 PR 은 **spec 을 한 줄도 바꾸지 않는다** — 편집하지
+> 않는 파일을 `spec_impact` 에 적으면 그 목록이 거짓이 된다(`#1316` 에서 같은 판단을 했다).
+> drift 는 `spec_impact` 가 아니라 **트래커**가 추적할 일이다.
 
 **대안을 기각한 이유**:
 - *"옮기고 spec 을 나중에 고친다"* — 머지되는 순간 **14개 SoT 문장이 거짓**이 된다. 내가 그것을
@@ -138,11 +156,11 @@ drift 가 **0** 이다.
 
 ## 체크리스트
 
-- [ ] `/consistency-check --impl-prep` BLOCK: NO
-- [ ] T1 이동 + 테스트 diff 0줄 확인
-- [ ] T2 이동 + 단언 diff 0줄 확인
-- [ ] 뮤테이션으로 커버리지 이동 없음 확인
-- [ ] `run-test.sh` 4단계 GREEN
+- [x] `/consistency-check --impl-prep` **BLOCK: NO** (`14_59_33`)
+- [x] T1 이동 + **테스트 diff 0줄** 확인 (`git diff --numstat -- '*.spec.ts'` = 0)
+- [ ] ~~T2 이동~~ — **이 PR 범위 밖**. 트래커에 이미 별 항목으로 있다
+- [x] 뮤테이션 **5/5 RED** — 옮긴 가드 무력화 시 이동 전과 같은 테스트가 RED
+- [x] `run-test.sh` 4단계 GREEN (backend 9,568 · e2e 305 + playwright 51 · ratchet 197/52)
 - [ ] `/ai-review` + `--impl-done`
 - [ ] 트래커 *"chat-channel 도메인 규칙이 …"* 항목 종결 (남긴 3메서드는 사유와 함께 명시)
 - [ ] `plan/complete/` 이동

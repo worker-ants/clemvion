@@ -2520,6 +2520,45 @@ field: T | null;
       > (`printf 'R-D-3' | grep "\bD-3\b"` 가 매치한다). 레지스트리를 만들면 **판정 명령도
       > 같이 적어야** 한다 — 종전 같은 병은 패턴이 **좁아서** 났는데 이번엔 **넓어서** 났다.
 
+- [ ] **`slack.md`·`discord.md` 의 `TriggersService.assertInboundSigningPlaintextByProvider`
+      귀속 표기가 부정확해졌다** (planner, 2026-09-11 등재 · `/ai-review`
+      `review/code/2026/09/11/15_31_54` SPEC-DRIFT). 그 함수가 `TriggersService` private 메서드
+      에서 **module-level 함수**(`modules/triggers/chat-channel-input-rules.ts`)로 이동했다.
+      **실질은 여전히 참이다** — `TriggersService` 가 그 규칙을 호출하고 생성 시점에 검증하며
+      위반 시 400 `VALIDATION_ERROR` 다. 부정확한 것은 **심볼 경로**뿐이다.
+      처방: *"`TriggersService` 가 `chat-channel-input-rules` 의 … 를 호출해 검증"* 형태로
+      호출자/정의처를 갈라 적는다. **자기-반증형 소정정 조건 1 불성립**(그 문장은 이전 planner
+      턴이 썼다) → planner 턴.
+      > **드리프트 범위는 2곳이다.** 같은 함수를 **클래스 접두 없이 함수명만** 인용하는 3곳
+      > (`2-trigger-list.md:155` · `discord.md:76` · `15-chat-channel.md:432`)은 이동 후에도
+      > 참이라 대상이 아니다 — 주어를 확인해 가른 결과다.
+
+- [ ] **`translateSetupChannelError` 가 discord verify_key 불일치를 502 로 떨어뜨린다**
+      (developer, 2026-09-11 등재 · `/ai-review` `review/code/2026/09/11/15_31_54` W3).
+      **재현했다**: `discord.adapter.ts` 는 `'BOT_TOKEN_INVALID: Discord verify_key 가 등록된
+      public key 와 불일치'` 를 던지는데 **숫자가 없어서** 판별식 `/\b(401|403)\b/` 에 안 걸리고
+      fallback `CHAT_CHANNEL_SETUP_FAILED`(502) 로 간다. 의도는 400 `BOT_TOKEN_INVALID` 다.
+      **이동이 만든 회귀가 아니다**(이동 전부터 테스트 0건) — 캐너리로 현재 동작을 고정해
+      뒀으므로 고치면 그 테스트가 RED 가 된다.
+      처방 후보: (a) 판별식을 `BOT_TOKEN_INVALID` 리터럴까지 보게 확장 (b) adapter 가 status 를
+      메시지에 싣게 통일. **(b) 가 근본이다** — 판별식이 문자열을 추측하는 구조 자체가 이 결함의
+      원인이고, (a) 는 다음 provider 에서 같은 일이 난다.
+
+- [ ] **`chat-channel-input-rules.ts` 의 구조 정리 6건** (developer, 2026-09-11 등재 ·
+      `/ai-review` `review/code/2026/09/11/15_31_54` W4 + INFO). 전부 비차단:
+      (a) `BadRequestException({code, message, details:{field, code}})` 봉투 생성이 **7회 이상**
+      거의 동일하게 반복 — 파일 docstring 이 그 봉투를 계약으로 선언하므로 신규 필드를 복붙하다
+      `details.code` 를 빠뜨리면 **컴파일 타임에 안 잡히고** 계약이 조용히 깨진다.
+      `throwValidationError(field, message, code?)` 헬퍼로 한 곳에 모은다.
+      (b) 파일명·docstring 이 *"입력 규칙"* 인데 출력측 변환(`translateSetupChannelError`)이
+      섞여 있다 — 이름을 넓히거나 분리.
+      (c) 에러 절단 길이 `256` 이 매직 넘버로 2회 하드코딩.
+      (d) `chatChannel as unknown as Record<string, unknown>` 이중 캐스팅 2곳 → `hasField` 헬퍼.
+      (e)·(f) 인접 주석 2곳이 이동으로 부정확해졌다 —
+      `chat-channel-rejection-messages.const.ts`(*"TriggersService 가드"*) ·
+      `dto/chat-channel-config.dto.ts`(*"provider별 추가 검증은 TriggersService 가 수행"*).
+      이제 규칙은 클래스 밖에 있고 `TriggersService` 는 **호출만** 한다.
+
 - [ ] **`SecretResolver.rotate` 에 빈 값 가드가 없다** (developer + 보안 판단, 2026-09-10 등재).
       `rotate(ref, ws, '')` 가 빈 문자열을 그대로 암호화해 row 를 덮어쓴다(`:129-145`, 가드 0).
       chatChannel PATCH 경로는 위 CRITICAL 의 D-2 로 닫히지만 **`rotate` 자체는 다른 호출부에도 열린
