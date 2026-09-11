@@ -239,6 +239,37 @@ code:
 
 > `details` 가 **객체 형태**인 사례다(배열이 아니다) — 형태 구분은 [API 규약 §5.3](./2-api-convention.md#도메인-세부-사유를-어디에-싣는가--top-level-code-교체-vs-detailscode) 의 표 참조. 같은 경로의 길이·이름 검증 실패는 400 `VALIDATION_ERROR` 로 [§1.3](#13-유효성-검증-에러) 소관이다.
 
+### 1.11 트리거 AuthConfig binding 에러 코드 (도메인 spec 참조)
+
+`POST /api/triggers` · `PATCH /api/triggers/:id` 가 `authConfigId` 를 받을 때, 그 AuthConfig 가
+**호출자의 워크스페이스에 속하는지** 검증한다(`TriggersService.assertAuthConfigInWorkspace`).
+cross-workspace 참조 — 다른 워크스페이스의 자격증명에 트리거를 binding 하는 것 — 을 막는다.
+정의·트리거 SoT 는 [2-trigger-list.md §3](../2-navigation/2-trigger-list.md#3-api) 이고 본 절은
+공용 카탈로그 가시성 등재다. `UPPER_SNAKE_CASE` 규약([conventions/error-codes.md](../conventions/error-codes.md)).
+
+| 코드 | status | 설명 | 도메인 SoT |
+|------|--------|------|-----------|
+| `AUTH_CONFIG_NOT_FOUND` | **400** | `authConfigId` 가 호출자 워크스페이스의 AuthConfig 가 아님(미존재 또는 타 워크스페이스 소속 — 구분하지 않는다: 존재 여부 노출 차단). `details: { field: 'authConfigId', code: 'INVALID_FIELD' }` 동봉 | [2-trigger-list §3](../2-navigation/2-trigger-list.md#3-api) |
+
+> **이름은 `_NOT_FOUND` 지만 404 가 아니다 — 이 저장소에서 유일한 예외다.** 다른
+> `*_NOT_FOUND` 는 전부 404 이고(`RESOURCE_NOT_FOUND` · `MODEL_CONFIG_NOT_FOUND` ·
+> `USER_NOT_FOUND` · `WORKSPACE_NOT_FOUND`), **바로 이 status 일관성을 위해 코드를 쪼갠 선례**도
+> 있다 — `MODEL_CONFIG_NOT_FOUND`(404) 와 `MODEL_CONFIG_DEFAULT_MISSING`(400) 분리
+> ([Rationale](#rationale), 2026-06-12 사용자 결정).
+>
+> 이 자리가 400 인 근거: cross-workspace 참조는 **리소스 부재**가 아니라 **입력값 유효성**
+> 문제다 — 요청이 자기 워크스페이스 밖을 가리켰다. 그래서 `details.field='authConfigId'` 로
+> 필드를 지목하고 `BadRequestException` 으로 던진다.
+>
+> **`_NOT_FOUND` = 404 를 이 표에서 일반화하지 말 것.** 개명(또는 404 전환) 판단은 살아 있는
+> wire 코드의 소비자 분기에 영향하므로 별 결정이며
+> `plan/in-progress/spec-draft-nullable-notation-followups.md` 에 등재돼 있다.
+>
+> top-level 특화 코드와 generic `details[].code` 를 함께 싣는 것이 「둘을 겹쳐 쓰지 않는다」에
+> 걸리지 않는 근거: [API 규약 §5.3 의 판별 기준](./2-api-convention.md#53-에러-응답).
+
+---
+
 ---
 
 ## 2. 에러 응답 형식

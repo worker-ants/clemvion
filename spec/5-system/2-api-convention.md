@@ -235,6 +235,26 @@ shape (`{ field, message, code }` · `{ field, code, … }`) 이 **예시로 읽
   `code`(`GRAPH_VALIDATION_FAILED` 등)에 있다. 거기에 `details.code` 를 얹으면 위
   **「둘을 겹쳐 쓰지 않는다」** 를 어긴다.
 
+**top-level 이 이미 도메인 특화 코드인 자리는 어떻게 되는가 — 판별은 「사유의 중복」이다
+(2026-09-11 판정).**
+
+위 「둘을 겹쳐 쓰지 않는다」가 막는 해악은 **소비자가 어느 값으로 분기할지 갈리는 것**이고,
+그것은 **같은 사유가 두 자리에 실릴 때** 생긴다. 따라서 `details[].code` 가 **generic 표지**일
+때는 해당하지 않는다:
+
+| `details[].code` | top-level 이 특화 코드일 때 | 왜 |
+|---|---|---|
+| **top-level 과 같은 사유를 반복** (예: 둘 다 `KB_REEXTRACT_IN_PROGRESS`) | **금지** | 분기 대상이 둘이 되어 갈린다 |
+| **generic 표지** (`INVALID_FIELD`) | **허용** | 사유를 싣지 않는다 — *"이것은 필드 수준 문제다"* 만 말한다 |
+
+실례: `AUTH_CONFIG_NOT_FOUND` + `details: { field: 'authConfigId', code: 'INVALID_FIELD' }`
+(`triggers.service.ts` `assertAuthConfigInWorkspace`). 소비자는 **top-level 로 분기**하고,
+`details` 는 *"어느 필드"* 와 *"필드 수준 문제"* 를 덧붙인다 — 경쟁하는 사유가 없다.
+
+> **그래서 위 「`field` 를 실으면 `code` 도 싣는다」는 좁히지 않는다.** 좁혀서 이 자리를
+> 예외로 빼면 `authConfigId` 만 `details.field` 에 generic 표지가 없는 **특례**가 되어, 소비자가
+> 필드 수준 문제를 균일하게 판정할 수 없게 된다 — 그 균일성이 그 규칙이 사는 것이다.
+
 **이 절의 `details` 는 에러 봉투의 것만 가리킨다.** 같은 키 이름이 두 층에 더 있고, 둘 다 이
 규칙의 대상이 아니다:
 
