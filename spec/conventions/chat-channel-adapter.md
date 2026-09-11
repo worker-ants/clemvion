@@ -366,7 +366,8 @@ interface SetupResult {
   /**
    * setupChannel 직후 1회만 노출되는 inbound-signing 자료의 plaintext (server-issued 한정 — 현재
    * v1 에서는 Telegram 만 `setWebhook.secret_token` 을 어댑터가 `randomBytes` 로 발급). caller
-   * (`TriggersService.setupChatChannel`) 가 즉시 `SecretResolver.rotate(secret://triggers/{id}/inbound-signing, ...)`
+   * (`ChatChannelBinderService.setupChatChannel` — `TriggersService` 가 생성/수정 경로에서
+   * 호출한다) 가 즉시 `SecretResolver.rotate(secret://triggers/{id}/inbound-signing, ...)`
    * 로 보관 후 ref 를 config 의 `inboundSigningRef` 에 set 한다. plaintext 가 config 에
    * 흘러들어가지 않도록 분리 — SS-SE-01 정책 적용.
    *

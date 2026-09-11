@@ -26,7 +26,8 @@ webhook 진입의 chatChannel 분기 자체는 [트리거 data-flow](./10-trigge
 - `codebase/backend/src/modules/chat-channel/channel-conversation.service.ts` — Redis ConversationState CRUD + form-submit lock
 - `codebase/backend/src/modules/chat-channel/chat-channel.dispatcher.ts` — outbound subscription (`WebsocketService.executionEvents$`)
 - `codebase/backend/src/modules/triggers/chat-channel-token-rotator.service.ts` — `chat-channel-token-rotator` 큐 (매시간 cleanup; C-2 로 triggers 모듈로 이전 — cleanup 로직 `TriggersService` 와 co-location)
-- `codebase/backend/src/modules/triggers/triggers.service.ts` — `setupChatChannel` / `rotateBotToken` / `cleanupRotatedChatChannelTokens`
+- `codebase/backend/src/modules/triggers/chat-channel-binder.service.ts` — `setupChatChannel` / `teardownChatChannel` (adapter 바인딩 + secret 쓰기·ref 보존)
+- `codebase/backend/src/modules/triggers/triggers.service.ts` — `rotateBotToken` / `cleanupRotatedChatChannelTokens` (엔드포인트 오케스트레이션. 위 binder 를 호출한다)
 - `codebase/backend/src/modules/web-chat-cors/web-chat-cors-origin.resolver.ts` + `codebase/backend/src/modules/hooks/embed-config.service.ts` — web-chat 경로 (§1.4)
 
 ---
@@ -145,7 +146,11 @@ sequenceDiagram
 plaintext bot token 은 DB `trigger.config` 에 저장되지 않고 secret store ref 로만 참조된다
 (SS-SE-01 — [Convention Secret Store](../conventions/secret-store.md)).
 
-| 단계 | 흐름 (`triggers.service.ts`) | sink |
+> **표의 세 행은 소유 파일이 다르다** — 최초 setup/teardown 은 `chat-channel-binder.service.ts`,
+> PATCH 검증(비밀 차단 · 사후 부착 차단 · provider 불변)은 `chat-channel-input-rules.ts`,
+> 회전·cleanup 은 `triggers.service.ts` 다. 헤더에 파일명을 박아 두면 행이 늘 때마다 낡는다.
+
+| 단계 | 흐름 | sink |
 | --- | --- | --- |
 | 최초 setup (**생성 `POST /api/triggers` 한정**) | `setupChatChannel`: plaintext (`botToken`, provider-issued `inboundSigningPlaintext`) → secret store UPSERT → `adapter.setupChannel(config, callbackUrl)` (Telegram 은 server-issued `issuedInboundSigning` 을 돌려줘 추가 저장) → config 에 `botTokenRef`/`inboundSigningRef`/`botIdentity` 머지 | `secret_store` rows + UPDATE `trigger.config`, `chat_channel_setup_at`, `chat_channel_health='healthy'` + listener registry register |
 | **`chatChannel` 이 실린 PATCH** | `setupChannel()` 재호출로 provider 등록만 갱신. **사용자가 보낸 비밀을 secret store 에 쓰지 않는다** — bot token 과 slack/discord inbound signing 값은 요청 전후로 동일하다. **telegram 은 예외다**: `setupChannel()` 이 Telegram 에 새 `secret_token` 을 등록하므로 `inboundSigningRef` 가 **매번 갱신된다**(건너뛰면 인입 401). `botTokenRef`/`inboundSigningRef` 는 config 에서 보존되는 것이 아니라 trigger id 에서 **재유도**된다(`buildSecretRef`). SoT: [Chat Channel §5.4.1 · R-CC-21](../5-system/15-chat-channel.md#r-cc-21-patch-는-비밀을-쓰지-않는다--차단이-필드명-층에만-걸려-있었다) | UPDATE `trigger.config`, `chat_channel_setup_at`, health — **`secret_store` 는 bot token·slack/discord signing 축 무변경. telegram 은 `inbound-signing` row 가 갱신된다** |
