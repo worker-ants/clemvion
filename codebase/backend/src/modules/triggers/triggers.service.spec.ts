@@ -1720,6 +1720,7 @@ describe('TriggersService.remove — deleteByPrefix 호출 검증 (SUMMARY#13)',
   let service: TriggersService;
   let triggerRepo: jest.Mocked<Repository<Trigger>>;
   let secrets: jest.Mocked<SecretResolverService>;
+  let binder: ChatChannelBinderService;
 
   const trigger = {
     id: 'trig-42',
@@ -1796,6 +1797,7 @@ describe('TriggersService.remove — deleteByPrefix 호출 검증 (SUMMARY#13)',
     service = moduleRef.get(TriggersService);
     triggerRepo = moduleRef.get(getRepositoryToken(Trigger));
     secrets = moduleRef.get(SecretResolverService);
+    binder = moduleRef.get(ChatChannelBinderService);
   });
 
   it('remove 시 deleteByPrefix 를 올바른 prefix 로 호출 (SUMMARY#13)', async () => {
@@ -1805,6 +1807,29 @@ describe('TriggersService.remove — deleteByPrefix 호출 검증 (SUMMARY#13)',
       'secret://triggers/trig-42/',
     );
     expect(triggerRepo.remove).toHaveBeenCalledWith(trigger);
+  });
+
+  /**
+   * **배선 자체를 고정한다.** `remove()` 에서 이 한 줄을 통째로 지워도 **backend 9,598개가
+   * 전부 GREEN** 이었다 — 직접 뮤테이션으로 실증했다
+   * (`/ai-review` `review/code/2026/09/11/19_06_54` W1).
+   *
+   * 사전 존재 갭이다 — 옮기기 전에도 `this.teardownChatChannel(trigger)` 호출을 아무도
+   * 단언하지 않았다. 다만 **클래스 경계가 생겨 이제 싸게 닫힌다**: 협력자를 spy 하면 된다.
+   *
+   * 자매 호출부(`create`/`update` → `setupChatChannel`)는 adapter mock 값까지 두껍게
+   * 단언하는데 이쪽만 비어 있던 **비대칭**을 없앤다.
+   *
+   * `config` 에 `chatChannel` 이 없어도 성립한다 — 그 분기는 binder **안**에 있고
+   * (`chat-channel-binder.service.spec.ts` 가 따로 덮는다), 여기서 보는 것은 **위임 여부**다.
+   */
+  it('remove 는 chat-channel teardown 을 binder 에 위임한다', async () => {
+    const teardown = jest.spyOn(binder, 'teardownChatChannel');
+
+    await service.remove('trig-42', 'ws-1', 'u-spec');
+
+    expect(teardown).toHaveBeenCalledTimes(1);
+    expect(teardown).toHaveBeenCalledWith(trigger);
   });
 });
 

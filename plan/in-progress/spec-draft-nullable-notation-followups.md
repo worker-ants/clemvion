@@ -2732,6 +2732,13 @@ field: T | null;
       > 오염되지 않았지만, **한 명이라도 `git restore` 를 쓰면 남의 작업이 사라진다**(선례 있음).
       > 이건 `.claude/skills/code-review-agents/**` 수정이라 **harness 축**이고 리뷰 게이트가
       > 안 무니 검증은 `python3 -m pytest .claude/tests -q`.
+      >
+      > **4회째 (`review/code/2026/09/11/19_06_54`) — 이제 하네스가 잡는다.** reviewer 3명이
+      > `remove()` 의 teardown 호출이 `// MUTATED-OUT: …` 로 치환된 것을 각각 관측했고,
+      > **`testing` reviewer 는 보안 분류기에 차단**됐다(`Blocked by classifier`).
+      > 즉 *"reviewer 가 유령을 본다"* 단계를 넘어 **정책 위반으로 걸리는** 단계다 —
+      > 차단되면 그 reviewer 의 커버리지가 통째로 신뢰 불가가 되므로 **결과 품질 문제**이기도
+      > 하다(이번엔 그 지적을 내가 직접 재현해 확인했다). 우선순위를 올린다.
 
 - [ ] **`SecretResolver.rotate` 에 빈 값 가드가 없다** (developer + 보안 판단, 2026-09-10 등재).
       `rotate(ref, ws, '')` 가 빈 문자열을 그대로 암호화해 row 를 덮어쓴다(`:129-145`, 가드 0).

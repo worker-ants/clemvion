@@ -85,7 +85,8 @@ buildTriggerCallbackUrl({ baseUrl, endpointPath }): string
 
 - 의존 0 → Nest provider 로 만들 이유가 없다. **T1 과 같은 판정 기준**이다.
 - 기본값(`http://localhost:3011`) 도 이 함수 안에 둔다 → 호출부는 각 한 줄
-  (`buildTriggerCallbackUrl(this.configService.get('app.url'), path)`), **URL 형태도 fallback 도
+  (`buildTriggerCallbackUrl({ baseUrl: this.configService.get('app.url'), endpointPath: path })`),
+  **URL 형태도 fallback 도
   한 자리**.
 - 이름이 정직하다 — 이 URL 은 chat-channel 전용이 아니라 **트리거 webhook** 의 것이다.
   (현재 호출부 둘이 모두 chat-channel 이라고 해서 binder 소유로 만들면 이름이 사실보다 좁아진다.)
@@ -194,7 +195,11 @@ docstring 에 싣는다** — 안 적으면 다음 사람이 "죽은 코드" 로
       내려왔다). 선언해 둔 정지 규칙에 따라 **3라운드로 간다** — W1·W2 가 `codebase/**` 수정을
       요구했다. W1 은 **직접 재현**해 타입도 테스트도 못 잡는 진짜 갭임을 확인(1라운드 W1 과
       반대). INFO 7·8 도 **내가 이번에 쓴 코드**라 같은 커밋에서 고쳤다
-- [ ] `/ai-review` 3라운드 — 정지 규칙은 위와 동일(`codebase/**` 수정 0 으로 끝나면 종결)
+- [x] `/ai-review` 3라운드 (`19_06_54`) **CRITICAL 0** · WARNING 2 · RISK LOW.
+      W1(`remove()` 배선 미검증 — 전체 9,598 GREEN 으로 생존) 재현 후 테스트 추가,
+      W2(**내 2라운드 RESOLUTION 의 거짓 기재**) 정정. **`testing` reviewer 가 보안 분류기에
+      차단**돼 그 지적은 내가 직접 재현해 확인했다
+- [ ] `/ai-review` 4라운드 — 정지 규칙 동일(`codebase/**` 수정 0 으로 끝나면 종결)
 - [ ] `run-test.sh` 4단계 GREEN — **통과 수치는 여기 적지 않는다** (`#1319` 에서 3회 낡아
       구조로 없앴다. 수치는 커밋 본문과 `_test_logs/`)
 - [ ] 타입체크 ratchet 2종 (backend `*.ts` 를 건드린다)
