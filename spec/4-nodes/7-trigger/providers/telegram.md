@@ -55,7 +55,7 @@ user_guide:
 POST https://api.telegram.org/bot{token}/setWebhook
 {
   "url": "{callbackUrl}",                   // = `${BASE_URL}/api/hooks/${trigger.endpointPath}`
-  "secret_token": "{randomly_generated}",   // 32 chars [A-Za-z0-9_-]. plaintext 는 SetupResult.issuedInboundSigning 로 1회만 노출 → caller (TriggersService) 가 SecretResolver.rotate(secret://triggers/{id}/inbound-signing, ...) 로 보관 후 ref 만 config.chatChannel.inboundSigningRef 에 set
+  "secret_token": "{randomly_generated}",   // 32 chars [A-Za-z0-9_-]. plaintext 는 SetupResult.issuedInboundSigning 로 1회만 노출 → caller (ChatChannelBinderService) 가 SecretResolver.rotate(secret://triggers/{id}/inbound-signing, ...) 로 보관 후 ref 만 config.chatChannel.inboundSigningRef 에 set
   "allowed_updates": ["message", "callback_query"],  // 필요한 update 만 — group 관련 update 는 미구독
   "drop_pending_updates": true              // 기존 봇이 있던 경우 stale update 폐기
 }

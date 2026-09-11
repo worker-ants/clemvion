@@ -2230,9 +2230,20 @@ field: T | null;
       > 신규 3파일(T1 1 + T2 2)이 없다. **거짓은 아니다**(`triggers.service.ts` 행이
       > *"…호출 추가"* 라 이동 후에도 참) — **누락**이다
       > (`--impl-prep` `17_39_32` INFO#1).
+      > **✅ 2026-09-11 `code:` 축 해소** — planner 턴
+      > `plan/complete/spec-draft-chat-channel-binder-drift.md`. 개별 경로를 더하지 않고
+      > **좁은 glob 3개**(`chat-channel-*.ts` · `dto/chat-channel-*.dto.ts` ·
+      > `trigger-callback-url*.ts`)로 갈아 **재발 자체를 없앴다** — 정본 매처로 검증해
+      > 의도한 10파일을 정확히 덮고(차집합 0) 무관 파일 유입 0. 근거는 신설 `R-CC-22`.
+      > §7 구현 파일 구조도 같은 턴에 5파일 채웠다(**3개가 아니라 5개**였다 — `#1317` 의 상수
+      > 파일과 `chat-channel-config.dto.ts` 가 처음부터 빠져 있었고, 후자는 `code:` 엔 있는데
+      > §7 엔 없어 **두 목록이 서로 어긋나 있었다**).
       또한 **신규 검증 분기 2건**(`chatChannel` 최초 부착 차단 → `details.field='chatChannel'` ·
       provider 전환 차단 → `details.field='provider'`)이 §5.4.1 표와 `2-trigger-list.md` PATCH
       에러 표에 미등재다(`--impl-done` `review/consistency/2026/09/11/00_21_57` W3).
+      > **✅ 이 축은 `f947b49f4` 에서 이미 해소됐다** — `15-chat-channel.md §5.4.1.2` 가 신설돼
+      > 두 분기를 담고 있다. 완료 주석이 누락돼 있던 것을 2026-09-11 에 채웠다
+      > (`--spec` `review/consistency/2026/09/11/20_47_56` INFO 4).
 
 - [ ] **동시 PATCH 가 `trigger.config` 를 잃을 수 있다 (lost update) — 방금 닫은 fail-open 이 이 경로로 재발 가능**
       (developer + 동시성, 2026-09-11 등재, `/ai-review` `review/code/2026/09/10/23_55_23` `concurrency` W1
@@ -2332,7 +2343,7 @@ field: T | null;
       그 목록 자체가 거짓이 된다(`spec_impact` 는 *"이 plan 이 건드리는 파일"* 이다).
       harness 축이라 리뷰 게이트가 안 무니 검증은 `python3 -m pytest .claude/tests -q`.
 
-- [ ] **`setupChatChannel` 귀속 표기 3곳이 T2 이동으로 낡는다** (planner, 2026-09-11 등재 ·
+- [x] **`setupChatChannel` 귀속 표기 3곳이 T2 이동으로 낡는다** (planner, 2026-09-11 등재 ·
       `--impl-prep` `review/consistency/2026/09/11/17_39_32` W2 — `rationale_continuity` 와
       `plan_coherence` 가 **독립으로 같은 지점**을 짚었다). T2 가 `setupChatChannel` 을
       `TriggersService` → `ChatChannelBinderService`(`modules/triggers/chat-channel-binder.service.ts`)
@@ -2353,6 +2364,20 @@ field: T | null;
       > **주어를 확인해 가른 결과**이고, T1 이 `assertInboundSigningPlaintextByProvider` 에 쓴
       > 것과 같은 판별법이다.
       > **자기-반증형 소정정 조건 1 불성립**(그 문장들은 이전 planner 턴이 썼다) → planner 턴.
+      > **✅ 2026-09-11 해소** — planner 턴 `plan/complete/spec-draft-chat-channel-binder-drift.md` (`--spec` `review/consistency/2026/09/11/{20_33_26,20_47_56}` BLOCK: NO).
+      > **제목의 "3곳" 이 틀렸다 — 실제는 7곳이었다.** 나는 `setupChatChannel` **문자열 하나**로
+      > 전수 분류했는데, `--spec` `20_33_26` W1·W2 가 **재현 검증으로 반증**했다: T1 이 옮긴
+      > **다른 함수**(`assertInboundSigningPlaintextByProvider`)의 같은 드리프트가 있었고,
+      > 편집 대상 파일 **내부**(`data-flow/14-chat-channel.md` §1.3 표 헤더)에도 있었다.
+      >
+      > 술어를 바꿔 다시 쟀다 — 기준을 문자열이 아니라 **이동한 심볼 집합 전체**(T1 6 + T2 3 =
+      > 9개, 두 머지 커밋에서 확정된 유한 집합)로, 축을 **3개**(심볼×접두 · 파일 지목×문맥 ·
+      > 편집 대상 파일 내부)로 넓혔다. 결과 **7곳**이고 반영 후 재스캔해 **대상 0**을 확인했다.
+      > 비대상도 주어로 갈랐다 — `TriggersService.update()`·`.remove`·`rotateBotToken` 귀속은
+      > **그 메서드들이 그대로 있으니** 참이다.
+      >
+      > **교훈: 키워드를 하나 더 넣는 것은 처방이 아니다**(다음 키워드를 모른다). 이동 리팩터의
+      > 귀속 드리프트는 **옮긴 심볼 집합**을 기준으로 열거해야 0이 된다.
 
 - [ ] **`rotate-bot-token` 엔드포인트에 OpenAPI 데코레이터가 전무하다** (developer, 2026-09-11
       등재 · `--impl-prep` `review/consistency/2026/09/11/17_39_32` W3). spec `15-chat-channel.md`
@@ -2700,7 +2725,7 @@ field: T | null;
       > (`printf 'R-D-3' | grep "\bD-3\b"` 가 매치한다). 레지스트리를 만들면 **판정 명령도
       > 같이 적어야** 한다 — 종전 같은 병은 패턴이 **좁아서** 났는데 이번엔 **넓어서** 났다.
 
-- [ ] **`slack.md`·`discord.md` 의 `TriggersService.assertInboundSigningPlaintextByProvider`
+- [x] **`slack.md`·`discord.md` 의 `TriggersService.assertInboundSigningPlaintextByProvider`
       귀속 표기가 부정확해졌다** (planner, 2026-09-11 등재 · `/ai-review`
       `review/code/2026/09/11/15_31_54` SPEC-DRIFT). 그 함수가 `TriggersService` private 메서드
       에서 **module-level 함수**(`modules/triggers/chat-channel-input-rules.ts`)로 이동했다.
@@ -2712,6 +2737,12 @@ field: T | null;
       > **드리프트 범위는 2곳이다.** 같은 함수를 **클래스 접두 없이 함수명만** 인용하는 3곳
       > (`2-trigger-list.md:155` · `discord.md:76` · `15-chat-channel.md:432`)은 이동 후에도
       > 참이라 대상이 아니다 — 주어를 확인해 가른 결과다.
+      > **✅ 2026-09-11 해소** — planner 턴 `plan/complete/spec-draft-chat-channel-binder-drift.md` (`--spec` `review/consistency/2026/09/11/{20_33_26,20_47_56}` BLOCK: NO).
+      > 위 `setupChatChannel` 항목과 **같은 턴에 함께 닫았다** — `--spec` 이 *"둘은 같은 이동이
+      > 만든 같은 드리프트 클래스"* 임을 짚어, 심볼 하나가 아니라 **옮긴 심볼 9개 전체**로
+      > 다시 열거한 결과 이 두 곳이 그 스캔에 걸렸다. 처방대로 호출자/정의처를 갈라 적었다 —
+      > `assertInboundSigningPlaintextByProvider` (`chat-channel-input-rules.ts` —
+      > `TriggersService` 가 생성 경로에서 호출).
 
 - [ ] **`translateSetupChannelError` 가 discord verify_key 불일치를 502 로 떨어뜨린다**
       (developer, 2026-09-11 등재 · `/ai-review` `review/code/2026/09/11/15_31_54` W3).

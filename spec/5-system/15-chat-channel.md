@@ -3,10 +3,13 @@ id: chat-channel
 status: partial
 code:
   - codebase/backend/src/modules/chat-channel/**
-  - codebase/backend/src/modules/triggers/dto/chat-channel-config.dto.ts
+  # `triggers/` 안의 chat-channel 부분은 **glob 으로 잡는다** — 명시 경로로 두었더니 새 파일이
+  # 세 번 연속(#1317·#1319·#1320) 누락됐다. 근거는 R-CC-22.
+  - codebase/backend/src/modules/triggers/chat-channel-*.ts
+  - codebase/backend/src/modules/triggers/dto/chat-channel-*.dto.ts
+  - codebase/backend/src/modules/triggers/trigger-callback-url*.ts
   - codebase/backend/src/modules/triggers/triggers.service.ts
   - codebase/backend/src/modules/triggers/triggers.controller.ts
-  - codebase/backend/src/modules/triggers/chat-channel-token-rotator.service.ts
   - codebase/backend/src/modules/hooks/hooks.service.ts
   - codebase/backend/src/modules/hooks/hooks.controller.ts
   - codebase/backend/test/chat-channel-slack.e2e-spec.ts
@@ -507,6 +510,10 @@ v2 시점의 결정 후보 — **주어는 slack/discord 의 provider-issued sig
 
 ## 7. 구현 파일 구조
 
+> **이 절과 frontmatter `code:` 는 역할이 다르다.** `code:` 는 **기계 술어**(glob — 게이트가
+> spec-linked 를 판정하는 데 쓴다)이고, 아래 트리는 **사람이 읽는 열거**(파일마다 무엇을 하는지)다.
+> 새 파일을 만들면 `code:` 는 glob 이 자동으로 덮지만 **이 트리는 손으로 채워야 한다.**
+
 ```
 codebase/backend/src/modules/
   chat-channel/
@@ -529,10 +536,15 @@ codebase/backend/src/modules/
     hooks.controller.ts                    # 기존 — config.chatChannel 분기 추가
     hooks.service.ts                       # 기존 — adapter dispatch 추가
   triggers/
-    triggers.service.ts                    # 기존 — setupChannel / teardownChannel / rotateBotToken 호출 추가
-    triggers.controller.ts                 # C-2: rotateBotToken 엔드포인트 이전 (chat-channel→triggers forwardRef 순환 해소)
-    chat-channel-token-rotator.service.ts  # C-2: chat-channel 에서 이전 — bot token 회전 hourly 워커
-    dto/create-trigger.dto.ts              # 기존 — chatChannel 필드 추가
+    triggers.service.ts                      # chat-channel 은 호출만 한다 — setup/teardown 은 아래 binder, 회전·cleanup 은 자기 메서드
+    triggers.controller.ts                   # C-2: rotateBotToken 엔드포인트 이전 (chat-channel→triggers forwardRef 순환 해소)
+    chat-channel-binder.service.ts           # adapter setup/teardown + secret 쓰기·ref 보존 (TriggersService 에서 이전)
+    chat-channel-input-rules.ts              # 입력 검증·변환 순수 함수 (R-CC-21 정본. DI 없음 — 외부 의존 0)
+    chat-channel-rejection-messages.const.ts # PATCH 금지 필드 목록 + 거부 문구 (DTO·서비스 두 층의 단일 SoT)
+    trigger-callback-url.ts                  # webhook callback URL 조립 순수 함수 (binder·rotateBotToken 공용)
+    chat-channel-token-rotator.service.ts    # C-2: chat-channel 에서 이전 — bot token 회전 hourly 워커
+    dto/chat-channel-config.dto.ts           # chatChannel 설정 DTO (생성/수정 검증 분리)
+    dto/create-trigger.dto.ts                # 기존 — chatChannel 필드 추가
 ```
 
 > v1 supported provider 는 `telegram` / `slack` / `discord` 3종 (각 provider 디렉토리에 adapter·client·parser·renderer 구현). Slack/Discord 는 signing 검증 모듈 (`*-signing.ts`) 을 추가로 가진다.
@@ -842,3 +854,41 @@ AI Agent handler 가 빈 string ai_message 를 emit 하지 못하게 차단하�
 | **bot token** | **아니다** — R-CC-10 single-path 가 그대로 유효 |
 | **slack/discord `inboundSigningPlaintext`** | **그렇다** — §5.4.1.1 의 v2 후보(A/B/C)가 이 축 전용 |
 | **telegram server-issued `issuedInboundSigning`** | **아니다** — 회전 주체가 Telegram 등록 행위라 우리 정책의 대상이 아니다. v2 가 이 축을 휩쓸면 인입 서명 검증이 깨진다 |
+
+### R-CC-22. `triggers/` 안의 chat-channel 구현 경로를 `code:` 에서 **glob 으로** 잡는다
+
+**결정**: frontmatter `code:` 의 `modules/triggers/` 항목을 명시 파일 나열에서 **좁은 glob 3개**로
+바꾼다 — `chat-channel-*.ts` · `dto/chat-channel-*.dto.ts` · `trigger-callback-url*.ts`.
+
+**계기 — 같은 누락이 세 번 연속 났다.** `#1317`(거부 문구 상수) · `#1319`(입력 검증 규칙 모듈) ·
+`#1320`(binder + callback URL) 이 각각 새 파일을 만들었고 **세 번 모두 `code:` 에 안 들어갔다.**
+그 사이 `code:` 미등재 파일은 **8개**까지 늘었고, 그중에는 R-CC-21 의 **검증 규칙 정본**과
+secret 쓰기·ref 보존의 정본이 들어 있었다. `code:` 에 없으면 `review_guard` 의 spec-linked
+술어에 걸리지 않아 **그 파일만 바뀐 변경은 `--impl-done` 요구 자체를 받지 않는다.**
+
+원인은 사람의 부주의가 아니라 **술어의 형태**다 — 명시 나열은 새 파일을 자동으로 포함하지 않고,
+이 모듈은 파일이 계속 늘어난다(남은 백로그도 파일을 더 만든다). **증가가 예정된 집합은 열거가
+아니라 술어로 잡는다.**
+
+**왜 통짜 `modules/triggers/**` 가 아닌가.** 정본 매처(`review_guard._glob_to_regex`)로 컴파일해
+실측했다 — 통짜는 **27개**를 잡아 chat-channel 과 무관한 17개(`notification-secret-rotator` ·
+`web-chat-appearance.dto` · `query-trigger.dto` 등)까지 끌어들이고, 좁은 glob 3개는 의도한
+**10개를 정확히** 덮는다(차집합 0 · 무관 파일 유입 0). 게이트가 무는 범위는 *"그 spec 이 서술하는
+표면"* 이어야 한다 — 근거 없이 넓히면 요구가 늘고, 근거 없는 요구는 우회를 부른다.
+
+이 판단은 새 원칙이 아니라 기존 원칙의 집행이다. [`spec-impl-evidence.md`](../conventions/spec-impl-evidence.md)
+의 **두 절**이 각각 한쪽을 말한다 — **R-1** 은 *"글로브 허용을 채택"* 하고, **§2.1 `code` 필드
+정의**는 *"넓은 트리 글롭으로 가드만 통과시키는 것은 아무것도 가리키지 않는 것과 같다"* 로 그
+허용의 **한계**를 긋는다. 좁은 glob 채택 + 통짜 기각이 그 한계선이다.
+
+**문서 내부 선례**: 이 파일의 `code:` 는 최초부터 `modules/chat-channel/**` 를 glob 으로 갖고
+있었다. 이번 변경은 **`triggers/` 쪽만 명시 경로로 남아 있던 비대칭을 없애는 것**이다.
+
+**남는 위험** (R-1 이 경고하는 것): stale glob — 없어진 파일을 가리키는 glob 이 다른 파일에
+매칭돼 조용히 통과한다. 접두가 구체적이라 표면은 작지만 0은 아니고, 보완은 `/spec-coverage`
+standing audit 다.
+
+**측정 기록** (2026-09-11, `77f4a88e5`): `spec/**/*.md` 중 `code:` 보유 **137파일 · entry 748개**,
+그중 `*` 없는 명시 경로가 **607개(81%)**. 즉 glob 은 이 저장소에서 **소수 선택**이고, 그래서
+여기 근거를 남긴다. (측정은 `review_guard._parse_frontmatter_code` 를 전 spec 에 실행한 값이다 —
+`review_guard.py` 주석의 `633/528` 은 과거 측정이라 쓰지 않았다.)
