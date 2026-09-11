@@ -31,6 +31,20 @@
 | e2e stale project 일괄 정리 (worktree 삭제 후) | — | `make e2e-prune` |
 | git hook 등록 (clone 후 1회) | — | `make setup-githooks` |
 
+**네 단계를 한 번에**: `.claude/tools/run-test-all.sh` (인자 없으면 `lint unit build e2e`,
+`run-test-all.sh lint unit` 처럼 부분집합도 가능). 첫 실패에서 멈추고 **그 단계의 종료 코드를
+그대로** 전파한다.
+
+> **왜 별 진입점이 있나 — 파이프가 종료 코드를 먹는다.** 단계를 하나씩 돌리면 출력이 길어
+> `| tail` 을 붙이게 되는데, 그러면 **파이프라인의 종료 코드는 `tail` 의 것**(거의 항상 0)이 된다.
+> `run-test.sh` 는 실패에 정확히 비-0 을 내지만 그 신호가 호출자에게 닿지 않는다:
+> `run-test.sh lint` 는 exit 1 인데 `run-test.sh lint | tail -2` 는 **exit 0** 이다.
+> 2026-09-11 에 이 형태로 두 번 속았다(lint 실패가 `&&` 체인을 통과 · 오타의 `NOT_DEFINED`
+> exit 2 가 `| tail` 에 먹혀 "4단계 통과" 로 보임).
+> 그래서 이 래퍼는 **판정을 stdout 에도 적는다** — 마지막 줄이 `run-test-all: ALL PASS …`
+> 또는 `run-test-all: FAILED stage=<name> exit=<n>` 이라 **`| tail -1` 로 읽어도 참이다.**
+> 알 수 없는 단계 이름은 **한 단계도 돌기 전에** 거른다.
+
 **순서 근거**: e2e 는 `docker-compose.e2e.yml` 에서 backend 이미지를 빌드해 실행하므로, 로컬 `pnpm --filter backend build` 가 통과해야 e2e 도 의미가 있다. build 실패를 먼저 잡으면 docker 빌드 시간(분 단위) 낭비를 피한다.
 
 **wrapper 4단계 밖의 CI 게이트** — `run-test.sh` 는 lint/unit/build/e2e 고정이라 아래는 포함되지 않는다. push 후 CI 에서 처음 빨간불을 보지 않으려면 해당 영역을 만졌을 때 직접 돌린다:
