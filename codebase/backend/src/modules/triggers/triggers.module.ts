@@ -17,6 +17,7 @@ import {
   ChatChannelTokenRotatorService,
   CHAT_CHANNEL_TOKEN_ROTATOR_QUEUE,
 } from './chat-channel-token-rotator.service';
+import { ChatChannelBinderService } from './chat-channel-binder.service';
 import { ChatChannelModule } from '../chat-channel/chat-channel.module';
 import { SecretStoreModule } from '../secret-store/secret-store.module';
 import { SchedulesModule } from '../schedules/schedules.module';
@@ -31,7 +32,9 @@ import { SchedulesModule } from '../schedules/schedules.module';
       { name: NOTIFICATION_SECRET_ROTATOR_QUEUE },
       { name: CHAT_CHANNEL_TOKEN_ROTATOR_QUEUE },
     ),
-    // TriggersService 가 ChannelAdapterRegistry/ChannelListenerRegistry 를 주입(단방향).
+    // TriggersService 와 ChatChannelBinderService 가 ChannelAdapterRegistry/
+    // ChannelListenerRegistry 를 주입(단방향). 이동 후에도 **둘 다** 쓴다 —
+    // TriggersService 는 rotateBotToken·remove 경로에서, Binder 는 setup/teardown 에서.
     // (C-2: chat-channel→triggers 역방향 의존 2곳[rotate-bot-token 엔드포인트 +
     //  ChatChannelTokenRotatorService→cleanupRotatedChatChannelTokens]을 triggers 로
     //  이전해 제거 → forwardRef → 일반 import, chat-channel↔triggers 순환 해소.)
@@ -43,6 +46,9 @@ import { SchedulesModule } from '../schedules/schedules.module';
   controllers: [TriggersController],
   providers: [
     TriggersService,
+    // chat-channel adapter 바인딩(setup/teardown) 협력자. `TriggersService` 에서 떼어낸 것이라
+    // **export 하지 않는다** — 이 모듈 안에서만 쓰인다.
+    ChatChannelBinderService,
     NotificationSecretRotatorService,
     ChatChannelTokenRotatorService,
   ],

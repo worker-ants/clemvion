@@ -14,6 +14,7 @@ import {
   TriggersService,
   isEndpointPathUniqueViolation,
 } from './triggers.service';
+import { ChatChannelBinderService } from './chat-channel-binder.service';
 import { Trigger } from './entities/trigger.entity';
 import { Execution } from '../executions/entities/execution.entity';
 import { Schedule } from '../schedules/entities/schedule.entity';
@@ -37,6 +38,7 @@ function createBaseProviders(
 ): Provider[] {
   return [
     TriggersService,
+    ChatChannelBinderService,
     {
       provide: getRepositoryToken(Trigger),
       useValue: triggerRepoMock,
@@ -107,6 +109,7 @@ describe('TriggersService.findOneDetail', () => {
         // 실제 기록 여부는 audit 전용 describe 가 따로 단언한다.
         { provide: AuditLogsService, useValue: { record: jest.fn() } },
         TriggersService,
+        ChatChannelBinderService,
         {
           provide: getRepositoryToken(Trigger),
           // `save` 는 `update()` 경로가 쓴다 — 이 describe 의 다른 테스트는 조회만 하지만
@@ -422,6 +425,7 @@ describe('TriggersService.findAll — schedule 목록 enrichment (V-10)', () => 
         // 실제 기록 여부는 audit 전용 describe 가 따로 단언한다.
         { provide: AuditLogsService, useValue: { record: jest.fn() } },
         TriggersService,
+        ChatChannelBinderService,
         {
           provide: getRepositoryToken(Trigger),
           useValue: { createQueryBuilder: jest.fn() },
@@ -608,6 +612,7 @@ describe('TriggersService — notification/interaction config 병합 (External I
         // 실제 기록 여부는 audit 전용 describe 가 따로 단언한다.
         { provide: AuditLogsService, useValue: { record: jest.fn() } },
         TriggersService,
+        ChatChannelBinderService,
         {
           provide: getRepositoryToken(Trigger),
           useValue: {
@@ -1569,6 +1574,7 @@ describe('TriggersService — webhook callbackUrl 조립 (app.url 사용 회귀 
         // 실제 기록 여부는 audit 전용 describe 가 따로 단언한다.
         { provide: AuditLogsService, useValue: { record: jest.fn() } },
         TriggersService,
+        ChatChannelBinderService,
         {
           provide: getRepositoryToken(Trigger),
           useValue: {
@@ -1728,6 +1734,7 @@ describe('TriggersService.remove — deleteByPrefix 호출 검증 (SUMMARY#13)',
         // 실제 기록 여부는 audit 전용 describe 가 따로 단언한다.
         { provide: AuditLogsService, useValue: { record: jest.fn() } },
         TriggersService,
+        ChatChannelBinderService,
         {
           provide: getRepositoryToken(Trigger),
           useValue: {
@@ -1835,6 +1842,7 @@ describe('TriggersService.rotateBotToken — 6단계 오케스트레이션', () 
         // 실제 기록 여부는 audit 전용 describe 가 따로 단언한다.
         { provide: AuditLogsService, useValue: { record: jest.fn() } },
         TriggersService,
+        ChatChannelBinderService,
         {
           provide: getRepositoryToken(Trigger),
           useValue: {
@@ -2128,6 +2136,7 @@ describe('TriggersService — Schedule 역방향 동기화 (data-flow 10-trigger
         // 실제 기록 여부는 audit 전용 describe 가 따로 단언한다.
         { provide: AuditLogsService, useValue: { record: jest.fn() } },
         TriggersService,
+        ChatChannelBinderService,
         {
           provide: getRepositoryToken(Trigger),
           useValue: {
@@ -2323,6 +2332,7 @@ describe('TriggersService.promoteRotatedNotificationSecrets — secret store 경
         // 실제 기록 여부는 audit 전용 describe 가 따로 단언한다.
         { provide: AuditLogsService, useValue: { record: jest.fn() } },
         TriggersService,
+        ChatChannelBinderService,
         { provide: getRepositoryToken(Trigger), useValue: triggerRepo },
         { provide: getRepositoryToken(Execution), useValue: {} },
         {

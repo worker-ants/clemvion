@@ -4,6 +4,7 @@ import { getRepositoryToken } from '@nestjs/typeorm';
 import { ConfigService } from '@nestjs/config';
 import { Provider } from '@nestjs/common';
 import { TriggersService } from './triggers.service';
+import { ChatChannelBinderService } from './chat-channel-binder.service';
 import { Trigger } from './entities/trigger.entity';
 import { Execution } from '../executions/entities/execution.entity';
 import { Schedule } from '../schedules/entities/schedule.entity';
@@ -76,6 +77,7 @@ async function makeService(
       // 실제 기록 여부는 audit 전용 describe 가 따로 단언한다.
       { provide: AuditLogsService, useValue: { record: jest.fn() } },
       TriggersService,
+      ChatChannelBinderService,
       { provide: getRepositoryToken(Trigger), useValue: triggerRepoMock },
       ...otherProviders(),
     ],
