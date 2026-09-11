@@ -194,6 +194,24 @@ JS `number` 로 받으면 그 컬럼 타입을 고른 이유가 사라진다.
 
 > 근거: [§Rationale — §1-6 numeric wire 타입](#1-6-numeric-wire-타입--가드와-규약의-책임-분리)
 
+### 1-7. 요청 DTO 명명 — `Update` 접두는 **top-level 요청 바디**에만 건다
+
+| 대상 | 명명 | 예 |
+| --- | --- | --- |
+| 컨트롤러 `@Body()` 로 받는 **엔티티의 부분 갱신 요청 바디** | **`Update<Entity>Dto`** (접두) | `UpdateTriggerDto` · `UpdateAuthConfigDto` · `UpdateModelConfigDto` |
+| 그 바디 **안의 nested 필드** DTO 와 그 갱신용 변형 | 그 필드의 로컬 패턴 **`<Domain><Role>Dto`** | `ChatChannelConfigDto` · `ChatChannelUiMappingDto` · **`ChatChannelUpdateConfigDto`** |
+
+- **`Patch` 접두는 쓰지 않습니다.** 부분 갱신이라는 뜻은 `Update` 가 이미 담당하고, 저장소에
+  `Patch` 접두 클래스는 없습니다.
+- **접두 규칙을 nested 변형으로 넓히지 않습니다.** `ChatChannelUpdateConfigDto` 는
+  `OmitType(ChatChannelConfigDto, …)` 로 만든 **nested 필드의 갱신용 변형**이라 형제
+  (`ChatChannelUiMappingDto` 등)와 같은 계열입니다. `UpdateChatChannelConfigDto` 로 바꾸면
+  top-level 요청 바디처럼 보여 **`@Body()` 로 받는 것이라는 오해**를 만듭니다.
+- **규칙에 범위를 함께 적습니다** — 접두 집합과 로컬-패턴 집합 중 어디에 거는지를 적지 않으면
+  "18개가 전부 접두니 이것도 접두여야 한다" 는 식의 오독이 반복됩니다.
+
+> 근거: [§Rationale — §1-7 Update 접두의 범위](#1-7-update-접두의-범위--왜-nested-변형에는-걸지-않는가)
+
 ---
 
 ## 2) Controller 패턴
@@ -449,6 +467,7 @@ async create(...) { ... }
       필요"처럼 요구 역할을 명시하고, `@Roles()` 없이 `@WorkspaceId()` 만 쓰면
       "워크스페이스 멤버가 아님"으로 통일한다. (`@Public()` 라우트는 대상 아님.)
 - [ ] 경로 UUID 파라미터는 `@ApiParam({ format: 'uuid' })` 일관 적용
+- [ ] 요청 DTO 명명 — `Update` 접두는 **top-level 요청 바디**에만, nested 변형은 로컬 패턴 ([§1-7](#1-7-요청-dto-명명--update-접두는-top-level-요청-바디에만-건다))
 
 ### 5-5. 에러 응답 참조
 `codebase/backend/src/common/swagger/error-response.dto.ts` 의 `ErrorResponseDto` 는 `GlobalExceptionFilter` 출력을 1:1 로 표현합니다. 필요 시 `@ApiBadRequestResponse({ type: ErrorResponseDto })` 등으로 참조할 수 있습니다.
@@ -474,6 +493,23 @@ AST 수준에서 할 수 있는 판정이 아니다. 무리하게 넓히면 그 
 그래서 분업한다 — **정적으로 판별 가능한 갈래(패스스루)는 가드**, **변환 유무를 사람이 아는
 갈래는 이 규약**이 맡는다. 저장소의 numeric 컬럼이 둘뿐이고 그 둘이 각각 다른 갈래라는
 실측이 이 형태를 정했다 (`plan/complete/spec-draft-numeric-wire-convention.md`).
+
+### §1-7 `Update` 접두의 범위 — 왜 nested 변형에는 걸지 않는가
+
+실측이 규칙의 **범위**를 정했습니다. `Update*Dto` 는 18개이고 **예외 없이 전부 접두**인데,
+동시에 **예외 없이 전부 컨트롤러 `@Body()` 로 받는 top-level 요청 바디**입니다 — 이름에
+`Config` 가 들어간 `UpdateModelConfigDto` · `UpdateAuthConfigDto` 도 그렇습니다. 즉 "18/18 이
+접두" 라는 사실은 **그 집합이 top-level 요청 바디라는 성질과 붙어 있습니다.**
+
+그래서 `ChatChannelUpdateConfigDto`(2026-09-11 신설, `OmitType` nested 변형)를 두고
+*"18/18 이 접두니 이것도 접두여야 한다"* 는 지적이 나왔을 때, 그것은 **집합을 넘은
+일반화**였습니다. nested 필드 DTO 는 `<Domain><Role>Dto` 라는 다른 축을 쓰고 있고
+(`ChatChannelConfigDto` · `ChatChannelUiMappingDto` · `ChatChannelBotIdentityDto`),
+접두로 개명하면 그 형제들과 어긋나면서 **호출 규약(top-level 바디인가)을 이름으로 거짓
+신호**하게 됩니다.
+
+기각한 대안 — **개명**(`UpdateChatChannelConfigDto`): 위 이유로 기각. 규칙을 넓히는 대신
+**규칙에 범위를 적는 것**이 같은 오독을 반복하지 않게 하는 최소 조치입니다.
 
 ### §0 Swagger UI production 비노출 + opt-in (refactor 04 M-1)
 Swagger UI 의 production 기본 미노출은 무인증 API 표면 정찰(엔드포인트·DTO 구조 노출)을 차단하기 위함이다. 게이팅을 `isSwaggerEnabled(env)` 단일 함수로 분리한 이유는 OAUTH/LLM stub 가드와 **동형 패턴**(`NODE_ENV` 기반 분기 + opt-in env)으로 통일해 운영자 멘탈 모델을 단일화하고 단위 테스트로 분기를 고정하기 위함이다.

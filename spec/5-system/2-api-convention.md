@@ -217,6 +217,40 @@ GET /api/triggers?type=webhook&status=active
 
 `GlobalExceptionFilter` 는 `details` 를 **그대로 통과**시키며(값이 있을 때만 동봉) 형태를 강제하지 않고, OpenAPI 선언도 `type: 'object', additionalProperties: true` 로 열려 있다. 따라서 **형태 선택은 발행 지점의 책임**이며, 그 엔드포인트를 문서화하는 절에 어느 형태인지 적는다.
 
+**`field` 를 실으면 `code` 도 싣는다 — 형태와 무관하다 (2026-09-11 규약화).**
+
+`details` 항목에 `field` 가 있으면 그 항목은 **어느 필드가 왜 거부됐는지**를 말하는 것이고,
+위 택일 기준표가 그 경우를 `details[].code` 갈래로 이미 배정한다. 그런데 위 두 형태 행의
+shape (`{ field, message, code }` · `{ field, code, … }`) 이 **예시로 읽혀** `code` 를 빼고
+`field` 만 싣는 관례가 양쪽 형태에 다 생겼다. `field` 만 싣으면 사유가 **기계가 읽을 수 있는
+자리에 아예 없다** — `message` 는 이 절 첫 불릿이 규정한 대로 *사람이 읽을 짧은 설명*이라
+소비자가 분기에 쓸 수 없다.
+
+- 기본값은 **`INVALID_FIELD`** — `CustomValidationPipe` 가 이미 쓰는 generic 코드이고
+  [§2.1 기본 형식](./3-error-handling.md#21-기본-형식)에 등재돼 있어 신규 등재가 필요 없다.
+- 도메인 특화 사유가 있으면 그 코드를 쓴다 (선례 `TRIGGER_ENDPOINT_PATH_CONFLICT`). 그때는
+  위 불릿대로 [에러 처리 §1 카탈로그](./3-error-handling.md#1-에러-분류) 등재가 함께 필요하다.
+- **`field` 가 없는 진단 payload 는 대상이 아니다** — `details: { errors }` · `{ offenders }` ·
+  `{ reason }` 처럼 요청 전체나 집계를 서술하는 자리는 사유가 이미 top-level 특화
+  `code`(`GRAPH_VALIDATION_FAILED` 등)에 있다. 거기에 `details.code` 를 얹으면 위
+  **「둘을 겹쳐 쓰지 않는다」** 를 어긴다.
+
+**이 절의 `details` 는 에러 봉투의 것만 가리킨다.** 같은 키 이름이 두 층에 더 있고, 둘 다 이
+규칙의 대상이 아니다:
+
+| 층 | 무엇인가 | SoT |
+|---|---|---|
+| 감사 로그 `AuditLog.details` | 액션별 **자유형** 페이로드 (정상 완료 경로에 기록된다) | [`1-auth.md §4.1`](./1-auth.md#41-기록-대상-액션) (액션별 예시) · [`data-flow/1-audit.md §1.1`](../data-flow/1-audit.md#11-워크스페이스-액션--audit_log) (적재) |
+| 노드 출력 `output.error.details` | 노드 실행 실패의 진단 payload — HTTP 봉투가 아니다. 사유는 형제 `error.code` 가 싣는다 | 각 노드 spec |
+
+> **이 규칙을 강제하는 가드는 없다.** 위 문단대로 `GlobalExceptionFilter` 는 `details` 를 그대로
+> 통과시키고 OpenAPI 선언도 열려 있어, [§5.4 검증 층](#검증-층--이-규칙을-무엇이-강제하는가)이
+> 열거하는 정적·런타임 검증자 어느 것도 이 축을 보지 않는다. 따라서 **신규 발행 지점부터
+> 적용**하고, 기존에 `field` 만 싣는 자리는 `plan/in-progress/spec-draft-nullable-notation-followups.md`
+> 의 배선 항목으로 추적한다. 강제 없는 규칙이 조용히 미준수로 굳는 실패는 이 저장소가 이미
+> 기록해 뒀다 — [`swagger.md` §3 Rationale](../conventions/swagger.md#3-dto-길이는-왜-강제가-아닌가)
+> 의 *"37% 미준수는 규칙이 안 지켜진다가 아니라 그건 규칙이 아니었다는 뜻"*.
+
 
 ### 5.4 부재 표현 — `null` vs 키 생략
 
