@@ -296,6 +296,12 @@ export function assertInboundSigningPlaintextByProvider(
  * - 401 / 403 (외부 provider 인증 실패) → `BOT_TOKEN_INVALID` 400
  * - 기타 (5xx / 네트워크 등) → `CHAT_CHANNEL_SETUP_FAILED` 502
  *
+ * **알려진 예외 — discord verify_key 불일치는 502 로 떨어진다.** adapter 가 던지는
+ * `'BOT_TOKEN_INVALID: Discord verify_key …'` 에는 **숫자가 없어서** 아래 판별식에
+ * 걸리지 않는다. 의도는 400 이다. `chat-channel-input-rules.spec.ts` 의 **캐너리**가
+ * 현재 동작을 고정하고 있으니 고치면 그 테스트가 RED 가 된다 — 근본 처방(adapter 가
+ * status 를 메시지에 싣게 통일)은 `spec-draft-nullable-notation-followups.md` 에 있다.
+ *
  * adapter 가 throw 하는 Error 의 message 에 status code 가 포함됨을 가정 (provider client 들의
  * 표준 error message 패턴: "Slack auth.test failed: 401", "Discord getApplicationMe failed:
  * 403", "Telegram setWebhook failed: ..." 등). 정확도가 낮을 경우 default 가 SETUP_FAILED 라

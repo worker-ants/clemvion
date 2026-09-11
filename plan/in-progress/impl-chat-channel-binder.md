@@ -160,7 +160,7 @@ CRITICAL 0 · WARNING 5. **WARNING 1·2 가 내가 고려하지 않은 제약을
 - [x] T1 이동 + **테스트 diff 0줄** 확인 (`git diff --numstat -- '*.spec.ts'` = 0)
 - [ ] ~~T2 이동~~ — **이 PR 범위 밖**. 트래커에 이미 별 항목으로 있다
 - [x] 뮤테이션 **5/5 RED** — 옮긴 가드 무력화 시 이동 전과 같은 테스트가 RED
-- [x] `run-test.sh` 4단계 GREEN (backend 9,568 · e2e 305 + playwright 51 · ratchet 197/52)
+- [x] `run-test.sh` 4단계 GREEN (backend **9,580** — T1 이동 시점 9,568 + 신규 spec 12 · e2e 305 + playwright 51 · ratchet 197/52)
 - [ ] `/ai-review` + `--impl-done`
 - [ ] 트래커 *"chat-channel 도메인 규칙이 …"* 항목 종결 (남긴 3메서드는 사유와 함께 명시)
 - [ ] `plan/complete/` 이동

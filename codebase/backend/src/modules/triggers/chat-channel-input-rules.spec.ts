@@ -79,27 +79,101 @@ describe('chat-channel-input-rules — 내부 필드 차단 (R-CC-21)', () => {
       ),
     ).toBeNull();
   });
-});
 
-describe('chat-channel-input-rules — provider 분기 (생성 전용)', () => {
-  it('slack 은 hex32 를 요구한다', () => {
+  /**
+   * **대칭 필드도 막는다.** 첫 판본은 `botToken` 만 봤는데, 이 함수가 막는 것은 R-CC-21 의
+   * **두 값 필드**다 — 한쪽만 검증하면 다른 쪽 가드가 사라져도 GREEN 이다(실측 커버리지 미달,
+   * `/ai-review` `review/code/2026/09/11/15_57_42` W1).
+   */
+  it('PATCH 는 inboundSigningPlaintext 도 거부한다', () => {
     expect(
       thrown(() =>
-        assertInboundSigningPlaintextByProvider(
-          cfg({ provider: 'slack', inboundSigningPlaintext: 'Z'.repeat(32) }),
+        assertPatchCarriesNoSecrets(
+          cfg({ inboundSigningPlaintext: 'a'.repeat(32) }),
         ),
       ),
     ).toMatchObject({
       details: { field: 'inboundSigningPlaintext', code: 'INVALID_FIELD' },
     });
+  });
+
+  // `mode==='update'` 디스패치 — 공개 진입점 경유로는 한 번도 안 돌던 분기 (INFO 2)
+  it('update 모드는 공개 진입점을 통해서도 값 필드를 막는다', () => {
     expect(
       thrown(() =>
-        assertInboundSigningPlaintextByProvider(
-          cfg({ provider: 'slack', inboundSigningPlaintext: 'a'.repeat(32) }),
-        ),
+        assertChatChannelInputSafe(cfg({ botToken: '1:a' }) as never, 'update'),
       ),
+    ).toMatchObject({ details: { field: 'botToken', code: 'INVALID_FIELD' } });
+  });
+
+  // 조기 반환 — PATCH 바디에 `chatChannel` 키 자체가 없는 흔한 실사용 경로 (INFO 4)
+  it('chatChannel 이 undefined 면 그냥 통과한다', () => {
+    expect(
+      thrown(() => assertChatChannelInputSafe(undefined, 'create')),
     ).toBeNull();
   });
+});
+
+describe('chat-channel-input-rules — provider 분기 (생성 전용)', () => {
+  /**
+   * **두 provider 를 대칭으로 돌린다.** 첫 판본은 slack 만 봤는데, 두 분기는 **서로 다른
+   * 정규식**을 쓰므로 slack 통과가 discord 안전을 보장하지 않는다 — reviewer 가
+   * *"정규식이 뒤바뀌는 뮤테이션도 GREEN"* 이라고 실측했다
+   * (`/ai-review` `review/code/2026/09/11/15_57_42` W2).
+   *
+   * **길이가 판별자다**: slack=hex32 / discord=hex64 라, 한쪽의 유효값을 다른 쪽에 넣으면
+   * 반드시 거부돼야 한다. 그 교차 케이스가 정규식 스왑을 잡는다.
+   */
+  it.each([
+    ['slack', 32, 64],
+    ['discord', 64, 32],
+  ] as const)(
+    '%s 는 hex%d 를 요구한다 — 다른 provider 의 길이(hex%d)는 거부한다',
+    (provider, ownLen, otherLen) => {
+      // 유효
+      expect(
+        thrown(() =>
+          assertInboundSigningPlaintextByProvider(
+            cfg({ provider, inboundSigningPlaintext: 'a'.repeat(ownLen) }),
+          ),
+        ),
+      ).toBeNull();
+      // 비-hex (길이는 맞음)
+      expect(
+        thrown(() =>
+          assertInboundSigningPlaintextByProvider(
+            cfg({ provider, inboundSigningPlaintext: 'Z'.repeat(ownLen) }),
+          ),
+        ),
+      ).toMatchObject({
+        details: { field: 'inboundSigningPlaintext', code: 'INVALID_FIELD' },
+      });
+      // **교차** — 다른 provider 의 유효 길이는 이쪽에서 거부돼야 한다(정규식 스왑 검출)
+      expect(
+        thrown(() =>
+          assertInboundSigningPlaintextByProvider(
+            cfg({ provider, inboundSigningPlaintext: 'a'.repeat(otherLen) }),
+          ),
+        ),
+      ).toMatchObject({
+        details: { field: 'inboundSigningPlaintext', code: 'INVALID_FIELD' },
+      });
+    },
+  );
+
+  // 필드 **부재**(필수 위반) 분기 — label 이 틀려도 안 잡히던 자리 (INFO 1)
+  it.each(['slack', 'discord'] as const)(
+    '%s 는 inboundSigningPlaintext 부재를 거부한다',
+    (provider) => {
+      expect(
+        thrown(() =>
+          assertInboundSigningPlaintextByProvider(cfg({ provider })),
+        ),
+      ).toMatchObject({
+        details: { field: 'inboundSigningPlaintext', code: 'INVALID_FIELD' },
+      });
+    },
+  );
 
   it('telegram 은 그 필드 자체를 금지한다 (server-issued)', () => {
     expect(
@@ -129,6 +203,15 @@ describe('chat-channel-input-rules — 정화·존재성', () => {
     ).toMatchObject({
       details: { field: 'chatChannel', code: 'INVALID_FIELD' },
     });
+  });
+
+  it('provider 가 같으면 통과한다 (양성 경로)', () => {
+    const existing = {
+      config: { chatChannel: { provider: 'telegram' } },
+    } as unknown as Trigger;
+    expect(
+      thrown(() => assertChatChannelAlreadySetUp(existing, cfg())),
+    ).toBeNull();
   });
 
   it('provider 전환도 거부한다', () => {
