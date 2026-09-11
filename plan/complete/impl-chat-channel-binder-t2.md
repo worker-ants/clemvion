@@ -1,6 +1,6 @@
 ---
 title: T2 — chat-channel secret 쓰기·ref 보존을 ChatChannelBinderService 로 뺀다
-status: in-progress
+status: complete
 owner: developer
 worktree: .claude/worktrees/impl-chat-channel-binder-t2-7e9b70
 started: 2026-09-11
@@ -181,7 +181,7 @@ docstring 에 싣는다** — 안 적으면 다음 사람이 "죽은 코드" 로
 ## 체크리스트
 
 - [x] `/consistency-check --impl-prep` **BLOCK: NO** (`17_39_32`)
-- [ ] `--impl-prep` W1~W4 후속 등재 (planner 3건 · developer 2건)
+- [x] `--impl-prep` W1~W4 후속 등재 (planner 3건 · developer 2건) — 커밋 `7e9aaa736`
 - [x] `trigger-callback-url.ts` 추출 + 호출부 2곳 — 트리거 단위 **246 passed**, ratchet 일치
 - [x] `ChatChannelBinderService` 이동 + 호출부 3곳 + module 등록 + 테스트 provider **10줄**
       (14블록을 덮는다) — 이동 후에도 **246 passed** (이동 전과 같은 수)
@@ -202,12 +202,22 @@ docstring 에 싣는다** — 안 적으면 다음 사람이 "죽은 코드" 로
 - [x] `/ai-review` 4라운드 (`19_30_49`) — **CRITICAL 0 · WARNING 0** · RISK LOW ·
       `codebase/**` 수정 **0**. 선언해 둔 정지 규칙을 충족해 **루프 종결**.
       남은 INFO 3건(e·f·g)은 **일부러 안 고쳤다** — 고치면 그 라운드가 다시 stale 된다.
-- [ ] `run-test.sh` 4단계 GREEN — **통과 수치는 여기 적지 않는다** (`#1319` 에서 3회 낡아
+- [x] `run-test.sh` 4단계 GREEN (**라운드마다 재수행** — 총 4회) — **통과 수치는 여기 적지
+      않는다** (`#1319` 에서 3회 낡아
       구조로 없앴다. 수치는 커밋 본문과 `_test_logs/`)
-- [ ] 타입체크 ratchet 2종 (backend `*.ts` 를 건드린다)
-- [ ] `/ai-review` + `--impl-done`
-- [ ] 트래커 항목 종결 (T1·T2 둘 다 끝나므로 **이번엔 닫는다**) + 잔류 3메서드 사유 명시
-- [ ] `plan/complete/` 이동
-- [ ] **이동 후 `plan/complete/impl-chat-channel-binder-t2.md` 실재 확인** —
+- [x] 타입체크 ratchet 2종 — backend·frontend 모두 **baseline 일치**. `build` 단계가 둘을
+      포함하지만 push 전에 **직접도 한 번** 돌렸다
+- [x] `--impl-done` **BLOCK: NO** (`review/consistency/2026/09/11/19_41_52`) — CRITICAL 0 ·
+      WARNING 4. **W1·W2 는 `plan/**` 이라 이 턴에 닫았다**: 트래커 `spec_impact` 2경로 누락
+      (같은 세션 3번째 재발 → **가드 후보로 등재**), 완료된 체크박스 stale.
+      W3·W4 는 `spec/` 쓰기라 planner 항목(기등재).
+      > **W1 을 고치면서 후보 4건 중 2건만 대상임을 갈랐다** — 나머지 2건은 `[x]` 닫힌 항목이
+      > 언급한 경로라 넣으면 목록이 거짓이 된다. 고친 뒤 *"열린 항목이 언급하는 미등재 경로"*
+      > 를 재측정해 **0건**을 확인했다.
+- [x] 트래커 *"chat-channel 도메인 규칙이 …"* 항목 **종결** — T1·T2 둘 다 끝났다.
+      최종 상태(1,881 → **1,351줄**)와 **영구 잔류 3메서드의 사유**를 그 항목에 적었다
+      (*"이 셋은 이동 대상이 아니다 — 항목을 다시 열 사유가 아니다"* 를 명시).
+- [x] `plan/complete/` 이동
+- [x] **이동 후 `plan/complete/impl-chat-channel-binder-t2.md` 실재 확인** —
       `chat-channel-binder.service.ts` JSDoc 이 그 경로를 인용한다. 이동을 빠뜨리면 **깨진
       링크가 남는다** (`/ai-review` `18_04_36` W4 — *"내가 기억하는 것에 달려 있다"*).

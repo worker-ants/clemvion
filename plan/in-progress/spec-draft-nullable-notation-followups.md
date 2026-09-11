@@ -24,6 +24,14 @@ spec_impact:
   # 재발 원인은 **항목을 추가할 때 frontmatter 를 함께 보지 않는 것**이다.
   - spec/4-nodes/7-trigger/providers/slack.md
   - spec/4-nodes/7-trigger/providers/discord.md
+  # 「… 귀속 표기 3곳이 T2 이동으로 낡는다」 항목의 나머지 두 파일.
+  # **같은 세션에서 같은 실패를 두 번 했다** — 위 두 줄을 넣을 때 frontmatter 를 열었는데,
+  # 그 뒤에 3파일을 지목하는 **새 항목**을 추가하면서 그중 하나(`secret-store.md`)만 이미
+  # 있다는 걸 확인하고 넘어갔다. "항목을 넣을 때 frontmatter 를 본다" 는 산문 규율이
+  # **항목 단위로는 지켜지고 파일 단위로는 안 지켜진다.**
+  # (`--impl-done` `review/consistency/2026/09/11/19_41_52` W1.)
+  - spec/conventions/chat-channel-adapter.md
+  - spec/data-flow/14-chat-channel.md
 ---
 
 # nullable 표기 후속 3건 (planner 턴)
@@ -2310,6 +2318,20 @@ field: T | null;
       > **`codebase/**` 수정 0 으로 끝나는 종료 조건**을 막 충족한 시점이라, 한 줄이라도 건드리면
       > 리뷰가 stale 돼 라운드가 한 번 더 돈다. *"루프를 끊는 지렛대는 파일 위치"* 를 적용했다.
 
+- [ ] **트래커 `spec_impact` 누락을 산문 대신 스크립트로 잡는다** (developer/harness,
+      2026-09-11 등재). 같은 실패가 **세 번** 났다 — `2026/09/06/16_29_00` INFO#2 ·
+      `2026/09/11/17_39_32` W2 · `2026/09/11/19_41_52` W1. 세 번째는 **두 번째를 고친 같은
+      세션 안에서** 났다: 항목 하나를 넣을 때 frontmatter 를 열었지만, 그 뒤 **3파일을 지목하는
+      새 항목**을 추가하면서 그중 1개만 이미 있다는 것을 확인하고 넘어갔다.
+      → **술어가 검사 가능하다**: *"열린(`[ ]`) 항목 본문이 정정 대상으로 지목하는 실재 spec
+      경로가 frontmatter `spec_impact` 에 다 있는가"*. 이번 턴에 그 판정을 실제로 돌려
+      **미등재 4건 중 2건만 대상**임을 갈랐다(나머지 2건은 `[x]` 항목 소속이라 비대상) —
+      즉 **주어 확인까지 기계화할 수 있다.**
+      처방: `.claude/hooks/` 또는 `.claude/tools/` 에 plan frontmatter 검사 추가.
+      **함정 — 전수 추가는 답이 아니다**: 닫힌 항목이나 단순 참조로 언급된 경로까지 넣으면
+      그 목록 자체가 거짓이 된다(`spec_impact` 는 *"이 plan 이 건드리는 파일"* 이다).
+      harness 축이라 리뷰 게이트가 안 무니 검증은 `python3 -m pytest .claude/tests -q`.
+
 - [ ] **`setupChatChannel` 귀속 표기 3곳이 T2 이동으로 낡는다** (planner, 2026-09-11 등재 ·
       `--impl-prep` `review/consistency/2026/09/11/17_39_32` W2 — `rationale_continuity` 와
       `plan_coherence` 가 **독립으로 같은 지점**을 짚었다). T2 가 `setupChatChannel` 을
@@ -2368,7 +2390,7 @@ field: T | null;
       처방: `NOT_DEFINED`(및 `CONFIG_MISSING`)는 비-0 종료. harness 라 리뷰 게이트가 안 무니
       검증은 `python3 -m pytest .claude/tests -q`.
 
-- [ ] **chat-channel 도메인 규칙이 제네릭 `TriggersService`(1855줄)에 계속 쌓인다** (developer,
+- [x] **chat-channel 도메인 규칙이 제네릭 `TriggersService`(1855줄)에 계속 쌓인다** (developer,
       2026-09-11 등재, `/ai-review` `01_52_59` `architecture` W2 — 기존 "함수 비대" 항목의
       **모듈 경계 관점**이다). `chat-channel/` 하위에 adapter 계층이 따로 있는데 검증·secret
       쓰기·ref 보존 규칙은 triggers 쪽에 남아 경계가 어긋난다. 처방 후보:
@@ -2393,12 +2415,26 @@ field: T | null;
       > | 계층 | 대상 | 외부 `this.*` | 상태 |
       > |---|---|---|---|
       > | **T1 — 검증·변환** | `assertChatChannelInputSafe`(+오버로드 2) · `assertPatchCarriesNoSecrets` · `assertChatChannelAlreadySetUp` · `stripChatChannelPlaintext` · `assertInboundSigningPlaintextByProvider` · `translateSetupChannelError` | **0개** | **완료** — `modules/triggers/chat-channel-input-rules.ts` 순수 함수 모듈(DI 없음) |
-      > | **T2 — secret 쓰기·ref 보존** | `setupChatChannel` · `teardownChatChannel` | **6개** | **이월** — `ChatChannelBinderService`(Nest provider, `triggers/` 안) |
+      > | **T2 — secret 쓰기·ref 보존** | `setupChatChannel` · `teardownChatChannel` | **6개** | ✅ **완료** — `ChatChannelBinderService`(Nest provider, `triggers/` 안) |
       > | (범위 밖) | `rotateBotToken` · `cleanupRotatedChatChannelTokens` · `tryRevokeOldBotToken` | repo·audit·BullMQ | **영구 잔류** — 엔드포인트 오케스트레이션이라 옮기면 그 협력자까지 끌고 간다 |
       >
       > 따라서 이 PR 뒤 `TriggersService` 의 chat-channel 메서드는 **5개**(이월 2 + 잔류 3)이고
       > `TriggersService` 는 1,881 → **1,585줄**이다(이동 커밋 `2ae81077c` 시점에 측정 —
       > 이후 세 커밋은 이 파일을 건드리지 않았다).
+      >
+      > **✅ 2026-09-11 T2 완료 — 이 항목을 닫는다.** developer 턴
+      > `plan/complete/impl-chat-channel-binder-t2.md` (`--impl-prep` `17_39_32` BLOCK: NO ·
+      > `/ai-review` **4라운드** 끝에 CRITICAL 0 · WARNING 0 · `codebase/**` 수정 0 ·
+      > `--impl-done` `19_41_52` BLOCK: NO).
+      >
+      > **최종 상태**: `triggers.service.ts` 1,881 → **1,351줄**. chat-channel 잔존은
+      > **영구 잔류 3메서드**뿐이다 — `rotateBotToken`(`this.findById`·`this.recordAudit` 사용) ·
+      > `cleanupRotatedChatChannelTokens`(BullMQ 워커 진입) · `tryRevokeOldBotToken`.
+      > 셋 다 **엔드포인트 오케스트레이션**이라 옮기면 감사·큐 협력자까지 끌고 온다.
+      > **이 셋은 이동 대상이 아니다** — 이 항목을 다시 열 사유가 아니다.
+      >
+      > 이동 중 갈라 나온 것: `trigger-callback-url.ts`(순수 함수 — 이동 대상과 잔류 대상이
+      > `buildCallbackUrl` 을 공유해서 SoT 를 쪼개지 않으려고 뽑았다).
       >
       > **T2 의 증거 방식은 T1 과 다르다** — T1 은 의존이 0이라 *"테스트 파일 **무편집**"* 으로
       > 증명했다: **그 이동 커밋 하나의** `*.spec.ts` diff 가 0줄이다(base 를 `2ae81077c^` 로
