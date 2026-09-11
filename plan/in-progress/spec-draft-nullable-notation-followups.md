@@ -2383,6 +2383,18 @@ field: T | null;
       (h) PATCH 경로의 `details.code` **e2e wire 증거** — 현재 POST 생성 경로 전용이다.
       (i) `common/` 리터럴 vs `modules/` canonical 상수 비대칭의 **spec Rationale** 한 줄
       (`error-codes.md` 또는 `2-api-convention.md §5.3`).
+      (h·확장) e2e wire 증거를 **두 갈래(배열/객체) × 두 경로(POST/PATCH)** 축으로 본다 — 지금
+      덮인 것은 **객체×POST 하나**다. 배열 갈래(파이프 층)의 `code` 는 이 PR 이 배선한 것이
+      아니지만(`validation.pipe.ts` 가 이전부터 싣는다) 한 줄이면 고정된다:
+      `chat-channel-trigger-create.e2e-spec.ts` 의 *"너무 짧은 plaintext"* 케이스가
+      `details[0].field` 만 `.toBe()` 로 본다 (`/ai-review` `review/code/2026/09/11/12_41_25` W1).
+      (j) `triggers.service.spec.ts` 의 `authConfigId` 테스트 주석이 *"§5.3 의 「둘을 겹쳐 쓰지
+      않는다」를 **어기지 않는다**"* 로 **결론을 단정**하는데, 같은 자리의 소스 주석은
+      *"판정 미해결"* 이라 적는다 — 소스가 맞고 **2라운드에 쓴 테스트 주석이 과했다**. 위
+      §5.3 판정 항목과 **함께** 처리해야 한다(판정이 나오면 어차피 다시 바뀐다).
+      (`/ai-review` `review/code/2026/09/11/12_41_25` W2)
+      (k) `password.util.spec.ts` 의 `it.each` JSDoc 이 `'P@ss1'` 을 *"3종"* 이라 적는데 실제로는
+      **4종**이다(`P`·`@`·`ss`·`1`). 결론(길이 분기만 발동)은 맞고 개수만 틀렸다.
 
 - [ ] **`SecretResolver.rotate` 에 빈 값 가드가 없다** (developer + 보안 판단, 2026-09-10 등재).
       `rotate(ref, ws, '')` 가 빈 문자열을 그대로 암호화해 row 를 덮어쓴다(`:129-145`, 가드 0).
