@@ -2300,6 +2300,15 @@ field: T | null;
       (d) **테스트가 binder 를 mock 없이 실제 클래스로 주입한다**(14블록) — *"단언 diff 0줄"*
       증거 전략과 일치하는 **의도된** 선택이지만, 클래스 경계가 생겼는데 격리에는 아직 안 쓴다.
       chat-channel 무관 describe 는 stub 으로 바꿀 수 있다.
+      (e) `teardownChatChannel` **성공 경로**가 `Logger.warn` **미호출**을 단언하지 않는다
+      (`/ai-review` `19_30_49` INFO 8) — `expect(warn).not.toHaveBeenCalled()` 한 줄.
+      실패 경로만 warn 을 보고 있어 *"성공인데 경고가 난다"* 는 회귀를 못 잡는다.
+      (f) `trigger-callback-url.ts` docstring 안의 **내용 없는 빈 줄 1개** (`19_30_49` INFO 9).
+      (g) `buildTriggerCallbackUrl` 순수 함수 테스트의 경계값 2종 — 연속 슬래시(`//hook-abc`) ·
+      빈 baseUrl + 후행 슬래시 겹침 (`18_42_05` INFO 14). 실무 위험은 낮다.
+      > **(e)~(g)는 T2 PR 의 4라운드에서 INFO 로 나왔지만 고치지 않았다** — 그 라운드가
+      > **`codebase/**` 수정 0 으로 끝나는 종료 조건**을 막 충족한 시점이라, 한 줄이라도 건드리면
+      > 리뷰가 stale 돼 라운드가 한 번 더 돈다. *"루프를 끊는 지렛대는 파일 위치"* 를 적용했다.
 
 - [ ] **`setupChatChannel` 귀속 표기 3곳이 T2 이동으로 낡는다** (planner, 2026-09-11 등재 ·
       `--impl-prep` `review/consistency/2026/09/11/17_39_32` W2 — `rationale_continuity` 와
@@ -2739,6 +2748,13 @@ field: T | null;
       > 즉 *"reviewer 가 유령을 본다"* 단계를 넘어 **정책 위반으로 걸리는** 단계다 —
       > 차단되면 그 reviewer 의 커버리지가 통째로 신뢰 불가가 되므로 **결과 품질 문제**이기도
       > 하다(이번엔 그 지적을 내가 직접 재현해 확인했다). 우선순위를 올린다.
+      >
+      > **5회째 (`review/code/2026/09/11/19_30_49`)** — 이번엔 `triggers.service.ts:855` 가
+      > `MUTATION-TEST-REMOVED` 로 치환된 것이 관측됐다. **4개 라운드 전부에서 1회 이상 났다**
+      > (`18_04_36` · `18_42_05` · `19_06_54` · `19_30_49`). 매번 자연 복구됐고 워킹트리도
+      > 매번 실측으로 깨끗함을 확인했지만, **재발률 100%** 이므로 *"가끔 있는 일"* 이 아니라
+      > **reviewer 의 기본 동작**이다. 치환 마커 문자열이 라운드마다 다른 것
+      > (`// MUTATED-OUT:` / `MUTATION-TEST-REMOVED`)도 여러 reviewer 가 각자 하고 있다는 뜻이다.
 
 - [ ] **`SecretResolver.rotate` 에 빈 값 가드가 없다** (developer + 보안 판단, 2026-09-10 등재).
       `rotate(ref, ws, '')` 가 빈 문자열을 그대로 암호화해 row 를 덮어쓴다(`:129-145`, 가드 0).

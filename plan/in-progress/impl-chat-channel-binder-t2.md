@@ -199,7 +199,9 @@ docstring 에 싣는다** — 안 적으면 다음 사람이 "죽은 코드" 로
       W1(`remove()` 배선 미검증 — 전체 9,598 GREEN 으로 생존) 재현 후 테스트 추가,
       W2(**내 2라운드 RESOLUTION 의 거짓 기재**) 정정. **`testing` reviewer 가 보안 분류기에
       차단**돼 그 지적은 내가 직접 재현해 확인했다
-- [ ] `/ai-review` 4라운드 — 정지 규칙 동일(`codebase/**` 수정 0 으로 끝나면 종결)
+- [x] `/ai-review` 4라운드 (`19_30_49`) — **CRITICAL 0 · WARNING 0** · RISK LOW ·
+      `codebase/**` 수정 **0**. 선언해 둔 정지 규칙을 충족해 **루프 종결**.
+      남은 INFO 3건(e·f·g)은 **일부러 안 고쳤다** — 고치면 그 라운드가 다시 stale 된다.
 - [ ] `run-test.sh` 4단계 GREEN — **통과 수치는 여기 적지 않는다** (`#1319` 에서 3회 낡아
       구조로 없앴다. 수치는 커밋 본문과 `_test_logs/`)
 - [ ] 타입체크 ratchet 2종 (backend `*.ts` 를 건드린다)
