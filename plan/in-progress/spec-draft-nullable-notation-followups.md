@@ -2209,6 +2209,19 @@ field: T | null;
       > **왜 중요한가**: `code:` 미등재는 그 파일을 **spec-linked 에서 제외**하므로
       > `--impl-done` 게이트가 그 파일만 바뀐 변경을 아예 요구하지 않는다. 지금 R-CC-21 의
       > **검증 규칙 정본**이 그 상태다.
+      >
+      > **2026-09-11 재갱신 — 대상은 6개가 아니라 8개다.** T2(`impl-chat-channel-binder-t2`)가
+      > `chat-channel-binder.service.ts` 와 `trigger-callback-url.ts` 를 더 신설했다
+      > (`--impl-prep` `review/consistency/2026/09/11/17_39_32` W1 — *"T1 이 만든 같은 결함
+      > 클래스의 재발"*). **세 번째 관측이므로 산문 대신 구조를 바꾸는 쪽을 권한다**:
+      > `code:` 에 `codebase/backend/src/modules/triggers/**` **glob** 을 넣으면 재발 자체가
+      > 막힌다(`modules/chat-channel/**` 는 이미 glob 이다). 다만 그러면 스코프가 넓어져
+      > `--impl-done` 번들이 커지므로 그 트레이드오프는 planner 판단.
+      >
+      > **같은 턴에 §7 도 본다** — `15-chat-channel.md §7 구현 파일 구조` 의 `triggers/` 블록에
+      > 신규 3파일(T1 1 + T2 2)이 없다. **거짓은 아니다**(`triggers.service.ts` 행이
+      > *"…호출 추가"* 라 이동 후에도 참) — **누락**이다
+      > (`--impl-prep` `17_39_32` INFO#1).
       또한 **신규 검증 분기 2건**(`chatChannel` 최초 부착 차단 → `details.field='chatChannel'` ·
       provider 전환 차단 → `details.field='provider'`)이 §5.4.1 표와 `2-trigger-list.md` PATCH
       에러 표에 미등재다(`--impl-done` `review/consistency/2026/09/11/00_21_57` W3).
@@ -2224,6 +2237,11 @@ field: T | null;
       새 상태(`previousInboundSigningRef` 캡처)를 얹은 것이라 등재한다. 처방 후보: 트리거 단위
       advisory lock · `SELECT … FOR UPDATE` · `config` 낙관적 버전 비교. 자매 패턴
       `rotateChatChannelBotToken()` 도 같은 구간을 가진다.
+      > **2026-09-11 — 그 구간이 이제 서비스 경계를 건넌다.** T2 가 `setupChatChannel` 을
+      > `ChatChannelBinderService` 로 옮겼으므로 `update()` → **다른 provider** → 외부 adapter
+      > 호출이 된다. 락을 어느 층에 두는지가 설계 선택으로 추가된다 — 호출자(`TriggersService`)가
+      > 트랜잭션/락을 열고 binder 를 그 안에서 부를지, binder 가 스스로 잠글지.
+      > (`--impl-prep` `review/consistency/2026/09/11/17_39_32` INFO#3.)
 
 - [ ] **`setupChatChannel` 이 6~8가지 관심사를 한 함수에 담고 있다** (developer, 2026-09-11 등재,
       `/ai-review` `review/code/2026/09/10/23_55_23` `maintainability` W6). 133 → 186줄(+40%).
@@ -2266,6 +2284,64 @@ field: T | null;
       > 가리키게 했다(전이적 고정). 필드 배열을 1차 SoT 로 올리고 메시지를
       > `Record<ChatChannelBlockedField, string>` 으로 선언해 **양방향**을 컴파일러가 본다 —
       > 종전 `satisfies` 안은 편도였다(`tsc` 로 양방향 RED 확인).
+
+- [ ] **`setupChatChannel` 귀속 표기 3곳이 T2 이동으로 낡는다** (planner, 2026-09-11 등재 ·
+      `--impl-prep` `review/consistency/2026/09/11/17_39_32` W2 — `rationale_continuity` 와
+      `plan_coherence` 가 **독립으로 같은 지점**을 짚었다). T2 가 `setupChatChannel` 을
+      `TriggersService` → `ChatChannelBinderService`(`modules/triggers/chat-channel-binder.service.ts`)
+      로 옮기므로, **클래스·파일 접두를 붙여 현재형으로 서술하는** 아래 3곳이 없는 심볼을 가리킨다:
+
+      | 파일 | 서술 |
+      |---|---|
+      | `spec/conventions/secret-store.md` | *"`triggers.service.ts.setupChatChannel` 구현체"* |
+      | `spec/conventions/chat-channel-adapter.md` | *"(`TriggersService.setupChatChannel`)"* |
+      | `spec/data-flow/14-chat-channel.md` | 구현 파일 목록에서 `triggers.service.ts` 에 귀속 |
+
+      **실질은 여전히 참이다** — 그 규칙은 `TriggersService` 가 호출해 같은 시점에 돈다.
+      부정확한 것은 **심볼 경로**뿐이다. 처방: *"`TriggersService` 가 `ChatChannelBinderService` 의
+      … 를 호출해"* 형태로 호출자/정의처를 갈라 적는다.
+      > **드리프트 범위는 이 3곳뿐이다.** `spec/` 전수 분류(9 출현) 결과 접두 없이
+      > `setupChatChannel` 만 인용하는 **6곳**(`15-chat-channel.md` 2 · `secret-store.md` 2 —
+      > 그중 하나는 코드 예시 · `data-flow/14-chat-channel.md` 2)은 이동 후에도 참이라 대상이 아니다 —
+      > **주어를 확인해 가른 결과**이고, T1 이 `assertInboundSigningPlaintextByProvider` 에 쓴
+      > 것과 같은 판별법이다.
+      > **자기-반증형 소정정 조건 1 불성립**(그 문장들은 이전 planner 턴이 썼다) → planner 턴.
+
+- [ ] **`rotate-bot-token` 엔드포인트에 OpenAPI 데코레이터가 전무하다** (developer, 2026-09-11
+      등재 · `--impl-prep` `review/consistency/2026/09/11/17_39_32` W3). spec `15-chat-channel.md`
+      §5.4 가 성공 응답 DTO · 요청 DTO · **에러 코드 6종**을 문서화하는데
+      `triggers.controller.ts` 의 `rotateBotToken` 에는 `@ApiOkResponse`/`@ApiBody`/
+      `@ApiBadRequestResponse` 가 **하나도 없다**. **형제 엔드포인트 `revokePerTriggerToken` 은
+      갖추고 있어** 같은 컨트롤러 안에서 비대칭이다.
+      **사전 존재 갭이고 T2 diff 범위 밖**이라 그 PR 에서 닫지 않았다. 처방: 응답 DTO 신설 +
+      `RotateBotTokenDto` 요청 DTO 승격 + 에러 데코레이터. `swagger.md §1/§2-4/§5` 가 SoT.
+
+- [ ] **`buildTriggerCallbackUrl` 과 `getAppBaseUrl()` 이 같은 fallback 을 두 벌 갖는다**
+      (developer, 2026-09-11 등재 · `--impl-prep` `review/consistency/2026/09/11/17_39_32` W4).
+      `common/utils/app-base-url.ts` 는 스스로 *"APP_URL 의 **단일 표준** fallback"* 이라
+      선언하고(옛 6곳 중복 제거의 산물, W-28) 기본값 리터럴·후행 슬래시 제거가 동일하다.
+      **T2 가 합치지 않은 이유는 읽는 소스가 다르기 때문**이다 — `getAppBaseUrl()` 은
+      `process.env.APP_URL` **직접**, 트리거 경로는 `ConfigService`. 갈아끼우면 트리거 단위
+      테스트 **14블록**이 `ConfigService` mock 으로 쥔 통제권이 사라져 **순수 이동이 아니라
+      DI 변경**이 된다.
+      > **먼저 판정할 것**: `'http://localhost:3011'` 리터럴은 src 에 **4곳**
+      > (`app.config.ts` · `app-base-url.ts` · `auth-oauth.service.ts` · `trigger-callback-url.ts`).
+      > 그리고 `app.config.ts` 가 이미 기본값을 박으므로 `trigger-callback-url.ts` 의 `??` 는
+      > **프로덕션에서 발화하지 않는다**(mock ConfigService 전용, 캐너리 있음). 통합의 진짜
+      > 질문은 "중복 제거" 가 아니라 **"env 를 읽는 층을 ConfigService 로 통일할 것인가"** 다.
+
+- [ ] **옮긴 로그 메시지가 아직 `TriggersService:` 접두를 달고 있다** (developer, 2026-09-11 등재).
+      `chat-channel-binder.service.ts` 의 경고 4개가 `` `TriggersService: …` `` 리터럴로 시작한다 —
+      logger 컨텍스트는 `ChatChannelBinderService` 인데 메시지가 다른 클래스를 말한다.
+      **T2 가 일부러 남겼다**: 바꾸면 관측 가능한 출력이 달라져 *"순수 이동"* 주장이 약해진다.
+      이 리터럴을 단언하는 테스트는 **0건**이라(실측) 정정은 안전하다. 다음에 그 파일을 손댈 때.
+
+- [ ] **`run-test.sh <미정의 단계>` 가 exit 0 을 낸다** (developer/harness, 2026-09-11 등재).
+      `.claude/tools/run-test.sh all` 을 돌리니 `status=NOT_DEFINED` 를 **stderr 로만** 찍고
+      **종료 코드 0** 으로 끝났다 — usage 는 `<lint|unit|build|e2e>` 다. 오타 한 번이
+      *"4단계 통과"* 로 보이는 **거짓 GREEN** 이고, 실제로 이 턴에서 한 번 속을 뻔했다.
+      처방: `NOT_DEFINED`(및 `CONFIG_MISSING`)는 비-0 종료. harness 라 리뷰 게이트가 안 무니
+      검증은 `python3 -m pytest .claude/tests -q`.
 
 - [ ] **chat-channel 도메인 규칙이 제네릭 `TriggersService`(1855줄)에 계속 쌓인다** (developer,
       2026-09-11 등재, `/ai-review` `01_52_59` `architecture` W2 — 기존 "함수 비대" 항목의
