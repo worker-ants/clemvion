@@ -2360,7 +2360,7 @@ field: T | null;
       규약 확정 턴의 범위를 넘겼다. 판정에 필요한 것: **소비자가 실제로 이 셋을 갈라 다르게
       행동하는가** — 갈라 쓰지 않으면 코드만 늘고 카탈로그가 커진다.
 
-- [ ] **`15-chat-channel.md` 의 「배선 전 관측값」 서술 3곳이 배선 완료로 stale 해졌다**
+- [x] **`15-chat-channel.md` 의 「배선 전 관측값」 서술 3곳이 배선 완료로 stale 해졌다**
       (planner, 2026-09-11 등재 · `--impl-done` `review/consistency/2026/09/11/12_18_21` W1 ·
       `/ai-review` `review/code/2026/09/11/12_00_40` W2). `details[].code` 배선이 머지되면서
       그 문단들이 낡는다. **술어를 갈라 잔존 범위를 확정했다** — reviewer 둘이 서로 다르게
@@ -2374,8 +2374,15 @@ field: T | null;
       **②가 필수, ①은 일관성.** 자기-반증형 소정정은 못 쓴다 — 그 문장은 `#1316` **planner
       턴**이 썼고 역할은 blame 이 아니라 **diff 스코프·게이트 종류·plan owner** 로 갈린다
       (조건 1 불성립 → 규약대로 두 PR 로 분리).
+      > **✅ 2026-09-11 해소** — planner 턴 `plan/complete/spec-draft-details-code-landed.md` (`--spec` `review/consistency/2026/09/11/13_52_49` BLOCK: NO).
+      > 세 자리를 **배선 완료** 상태로 고쳤다(배선 PR `#1317` 과 날짜를 함께 적었다).
+      > **취소선으로 원문을 남기지 않았다** — 그 형식은 자기-반증형 소정정의 조건 4 요구이고
+      > 이 턴은 정규 planner 턴이다.
+      >
+      > 편집 순서는 **문서의 물리적 순서**(§5.4.1 → §5.4.1.2 → §5.4.1.1)로 했다 — 절 번호가
+      > 역순이라 번호대로 가면 문서를 두 번 오간다(`--spec` `13_52_49` INFO 4).
 
-- [ ] **`authConfigId` 자리가 top-level 특화 코드 + generic `details.code` 를 병기한다 — §5.3
+- [x] **`authConfigId` 자리가 top-level 특화 코드 + generic `details.code` 를 병기한다 — §5.3
       판정 필요** (planner + 결정, 2026-09-11 등재 · `--impl-done` `12_18_21` W2 ·
       `/ai-review` `12_00_40` W1). 실측: `details[].code` 를 실은 13자리 중 **12곳은 top-level 이
       400 상태 기본값 `VALIDATION_ERROR`** 이고 **`assertAuthConfigInWorkspace` 한 곳만
@@ -2395,14 +2402,39 @@ field: T | null;
       넓다(내가 `#1316` 에서 그렇게 썼다). 코드 사이트에는 앵커 주석을 남겨 뒀다.
       **부수**: `AUTH_CONFIG_NOT_FOUND` 자체가 `3-error-handling.md §1` 카탈로그 **미등재**다
       (pre-existing). §5.3 이 등재 의무를 걸므로 같은 턴 후보.
+      > **✅ 2026-09-11 해소** — planner 턴 `plan/complete/spec-draft-details-code-landed.md` (`--spec` `review/consistency/2026/09/11/13_52_49` BLOCK: NO).
+      > **판정: 걸리지 않는다.** 금지가 막는 해악은 **사유의 중복**이고 그것이 낳는 것은
+      > **분기 대상의 모호성**이다. `INVALID_FIELD` 는 *"이것은 필드 수준 문제다"* 라는 generic
+      > 표지로 **경쟁하는 사유를 싣지 않으므로** 모호성이 없다. §5.3 에 **판별 기준 표**를 넣었다
+      > (같은 사유 반복 = 금지 / generic 표지 = 허용) + `authConfigId` 를 실례로 인용.
+      >
+      > **「형태와 무관하다」는 좁히지 않았다** — 좁혀 이 자리를 예외로 빼면 `authConfigId` 만
+      > generic 표지가 없는 특례가 되어 소비자가 필드 수준 문제를 균일하게 판정할 수 없다.
+      > 코드는 그대로 두고 **spec 이 그 조합을 허용한다는 것**을 명시했다.
+      >
+      > 부수도 닫았다 — `3-error-handling.md` **신규 §1.11** 로 등재(§1.9 의 top-level 코드 표
+      > 형태). **그리고 `--spec` 이 새 문제를 찾았다**: 이 코드는 **400** 인데 저장소의
+      > `*_NOT_FOUND` 는 전부 404 이고(`RESOURCE_NOT_FOUND`·`MODEL_CONFIG_NOT_FOUND`·
+      > `USER_NOT_FOUND`·`WORKSPACE_NOT_FOUND`), **바로 그 status 일관성을 위해 코드를 쪼갠
+      > 선례**(`MODEL_CONFIG_NOT_FOUND`/`MODEL_CONFIG_DEFAULT_MISSING`)도 있다. 이탈을 캡션으로
+      > 밝히고 *"이 표에서 `_NOT_FOUND`=404 를 일반화하지 말 것"* 을 적었다. 개명 판단은 아래
+      > 신규 항목.
 
-- [ ] **`details.code` 배선을 다른 spec 문서 3곳이 예시에서 누락한다** (planner, 2026-09-11 등재 ·
+- [x] **`details.code` 배선을 다른 spec 문서 3곳이 예시에서 누락한다** (planner, 2026-09-11 등재 ·
       `--impl-done` `12_18_21` W3). `providers/slack.md`·`providers/discord.md` 의
       `inboundSigningPlaintext` 거부 예시와 `2-navigation/2-trigger-list.md` 의 PATCH 註·`R-12` ·
       §2.3.1 이 `details.field` 만 인용한다. **코드 변경 불요** — SoT(§5.3)와 문서 동기화다.
       (`2-trigger-list.md` 는 `#1316` 에서 *"주어가 `field` 라 CV-1 이 거짓으로 만들지 않는다"*
       로 무편집 판정했는데, **배선이 끝난 지금은 「불완전」 축이 생겼다** — 그 판정은 여전히
       참이지만 예시를 보강하는 것이 낫다.)
+      > **✅ 2026-09-11 해소** — planner 턴 `plan/complete/spec-draft-details-code-landed.md` (`--spec` `review/consistency/2026/09/11/13_52_49` BLOCK: NO).
+      > `slack.md` 1 · `discord.md` 1 · `2-trigger-list.md` **7곳**(총 8 출현 중
+      > `endpoint_path` 제외 — 그 자리는 자기 세부 코드 `TRIGGER_ENDPOINT_PATH_CONFLICT` 를 갖고
+      > §1.10 이 SoT 다). **`#1315` 의 「flat 이 맞다」 판정을 뒤집은 것이 아니다** — 그것은
+      > **경로 형태 축**이고 이번은 **`code` 축**이다.
+      >
+      > **developer 트래커의 user-guide MDX 6파일과는 별개 파일 집합이다** — `spec/**` 대
+      > `codebase/frontend/**` (`--spec` `13_52_49` INFO 6 이 표현 유사성을 지적).
 
 - [ ] **`triggers.service.spec.ts` 의 pre-existing bare 시각 인용 3건** (developer, 2026-09-11
       등재). `#1145`(`77e0347d2`) 이 넣은 `` `12_37_14` `` · `` `12_56_06` `` 등이
@@ -2453,6 +2485,40 @@ field: T | null;
         스코프를 telegram 전용으로 좁히거나 인용을 `§4.1` 로 정정.
       - **developer**: provider 별 형식 검증을 실제로 구현할지 — 하면 docs 의 서술이 참이 되고,
         안 하면 docs 를 *"형식은 검증하지 않는다"* 로 고쳐야 한다. **지금은 문서가 구현보다 넓다.**
+      > **✅ 2026-09-11 해소** — planner 턴 `plan/complete/spec-draft-details-code-landed.md` (`--spec` `review/consistency/2026/09/11/13_52_49` BLOCK: NO).
+      > **planner 갈래만 닫았다.** `2-trigger-list.md` §2.3.1 행을 *"서버는 형식을 검증하지
+      > 않는다 — 잘못된 토큰은 `setupChannel` 의 외부 provider API 401/403 에서
+      > `BOT_TOKEN_INVALID` 로 드러난다"* 로 고치고, telegram 형식은 **입력 안내 · telegram
+      > 전용**임을 밝혔다. 죽은 인용(`§5.4` 에 그 정규식 0건)도 교체했다.
+      > `15-chat-channel.md §4.1` JSON 주석의 느슨한 변형에도 같은 단서를 붙였다
+      > (`--spec` `13_52_49` INFO 3).
+      >
+      > **developer 갈래는 존속한다** — user-guide MDX·i18n **4곳**이 아직
+      > *"형식 위반 시 400 `BOT_TOKEN_INVALID`"* 라고 적는다(메커니즘이 틀린 서술). spec 과
+      > **같은 사실**을 말하므로 반드시 짝으로 처리돼야 한다. 구현 여부 결정도 여기 남는다.
+
+- [ ] **`AUTH_CONFIG_NOT_FOUND` 가 400 인데 이름이 `_NOT_FOUND` 다 — 개명 또는 404 전환**
+      (planner + 결정, 2026-09-11 등재 · `--spec` `review/consistency/2026/09/11/13_52_49` WARNING 1).
+      이 저장소의 `*_NOT_FOUND` 는 **전부 404** 이고, **그 status 일관성을 위해 코드를 쪼갠
+      선례**가 있다 — `MODEL_CONFIG_NOT_FOUND`(404) / `MODEL_CONFIG_DEFAULT_MISSING`(400) 분리
+      (2026-06-12 사용자 결정). `3-error-handling.md §1.11` 등재 시 **이탈을 캡션으로 밝혔지만**,
+      이름 자체는 여전히 오독을 유발한다.
+      판정에 필요한 것: **살아 있는 wire 코드의 소비자가 이미 분기하고 있는가.** 그렇다면
+      개명은 파괴적 변경이고, 그 경우 선택지는 (a) 이름 유지 + 캡션으로 계속 가르기
+      (b) 새 코드 신설 + deprecate 2단계. 선례의 처방은 (b) 쪽이었다.
+
+- [ ] **결정 라벨 네임스페이스가 3회 충돌했다 — 구조적 처분 검토** (planner,
+      2026-09-11 등재 · `--spec` `13_52_49` WARNING 2). `D-*`(`R-CC-21` 하위 결정과 충돌,
+      `codebase/**` 10여 곳 인용) → `CV-*`(`CCH-CV-0N`·`ED-CV-0N` 요구사항 ID 계열과 토큰 공유)
+      → (세 번째는 **라벨 자체를 안 쓰고** 변경안 번호로 통합). **매번 국소 회피였다** — checker 가
+      *"세 번째 재발이면 구조로"* 를 지적했다.
+      처분 후보: `spec/conventions/` 에 **예약 접두 레지스트리** 짧은 문서(어느 접두가 어느
+      네임스페이스에 속하는지 + 신규 라벨 도입 시 판정 절차). 규약 문서 신설까지 갈지는 별 판단.
+      > **함께 고정할 것 — 판정 패턴의 함정.** 3회째 조사에서 `\bD-[0-9A-Z]\b` 로 재고
+      > *"`D-3`·`D-9` 도 살아 있다"* 고 적었는데 그 둘은 **`R-D-3`/`R-D-9` 의 부분 문자열**이었다.
+      > **`-` 는 단어 경계라 `\b` 가 하이픈 접두를 막지 않는다**
+      > (`printf 'R-D-3' | grep "\bD-3\b"` 가 매치한다). 레지스트리를 만들면 **판정 명령도
+      > 같이 적어야** 한다 — 종전 같은 병은 패턴이 **좁아서** 났는데 이번엔 **넓어서** 났다.
 
 - [ ] **`SecretResolver.rotate` 에 빈 값 가드가 없다** (developer + 보안 판단, 2026-09-10 등재).
       `rotate(ref, ws, '')` 가 빈 문자열을 그대로 암호화해 row 를 덮어쓴다(`:129-145`, 가드 0).

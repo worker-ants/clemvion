@@ -197,7 +197,7 @@ pending_plans:
 {
   "chatChannel": {
     "provider": "telegram",                    // 어댑터 식별자 — providers/_overview.md §1 단일 진실 (v1 supported: telegram / slack / discord)
-    "botToken": "<provider 발급 plaintext>",   // 입력 전용 — POST /api/triggers 요청 body 한정. service 가 SecretResolver.rotate 로 옮긴 뒤 strip — 응답·DB JSONB 미노출 (SS-SE-01). telegram=BotFather `\d+:[A-Za-z0-9_-]+` / slack=`xoxb-*` / discord=Developer Portal Bot Token
+    "botToken": "<provider 발급 plaintext>",   // 입력 전용 — POST /api/triggers 요청 body 한정. service 가 SecretResolver.rotate 로 옮긴 뒤 strip — 응답·DB JSONB 미노출 (SS-SE-01). telegram=BotFather `\d+:[A-Za-z0-9_-]+` — **입력 안내이고 서버 검증이 아니다**(형식 게이트 없음. 잘못된 토큰은 `setupChannel` 의 외부 API 401/403 에서 `BOT_TOKEN_INVALID` 로 드러난다) / slack=`xoxb-*` / discord=Developer Portal Bot Token
     "inboundSigningPlaintext": "<provider-issued plaintext>",  // 입력 전용, slack/discord 한정 (telegram 은 server-issued 자동 발급). slack=lowercase hex 32 chars (signing secret) / discord=lowercase hex 64 chars (ed25519 application public key). 입력 후 service 가 SecretResolver.rotate(inboundSigningRef, ws, plaintext) → strip. telegram 입력 시 400 VALIDATION_ERROR(field='inboundSigningPlaintext'). SoT: conventions/secret-store.md §5.5 (b)
     "botTokenRef":      "secret://triggers/{triggerId}/bot-token",       // 응답·DB JSONB 보관 ref. provider 공통 (CCH-SE-03 / conventions/secret-store.md). botToken plaintext 는 응답 strip
     "inboundSigningRef": "secret://triggers/{triggerId}/inbound-signing",  // 응답·DB JSONB 보관 ref. provider 공통 단일 슬롯 — 검증 알고리즘은 backend 의 provider 분기 책임. Telegram: server-issued shared secret (setupChannel 의 randomBytes 발급) / Slack: HMAC-SHA256 signing secret (사용자 inboundSigningPlaintext 입력) / Discord: ed25519 public key (사용자 inboundSigningPlaintext 입력). SoT: conventions/chat-channel-adapter.md §2.3
@@ -372,7 +372,7 @@ Bot token 의 신규 등록·변경은 **single-path** 로 일원화된다:
 |---|---|---|
 | 최초 트리거 생성 (`POST /api/triggers`) | `setupChannel()` 의 부수효과로 `botTokenRef` 신설. 입력 body 의 `config.chatChannel.botToken` plaintext 를 받아 `SecretResolver.rotate()` **(UPSERT)** 로 저장 후 ref 로 교체. `setupChannel()` 은 생성·활성화·`chatChannel` PATCH 세 갈래에서 재호출되는 **멱등** 함수라 중복 시 throw 하는 `store()` 로는 두 번째 호출부터 깨진다 — SoT: [`secret-store.md §2.1`](../conventions/secret-store.md) | 처음 한 번 |
 | 트리거 활성화 (`PATCH /api/triggers/:id` body `{ isActive: true }`) | `setupChannel()` 재호출 — 기존 `botTokenRef` 그대로 사용. **(2026-09-10 — 이 재호출이 실제로 일어나는지 미확정.** `update()` 가 `if (chatChannel)` 로 게이트돼 있어 순수 `isActive` 토글이 이 행을 안 탈 수 있다 — 확인 중: `plan/in-progress/spec-draft-nullable-notation-followups.md` 의 「§5.4.1 표 2행이 구현과 어긋날 수 있다」 항목**)** | token 변경 없음 |
-| 토큰 변경 (rotation) | **항상 `POST /api/triggers/:id/chat-channel/rotate-bot-token` 만 사용**. PATCH body 에서 **ref 와 값 둘 다** 차단 — `config.chatChannel.botTokenRef`(ref)·`config.chatChannel.botToken`(plaintext) 모두 400 `VALIDATION_ERROR`. `details.field` 는 **보낸 값의 형태에 따라 갈린다**: 비어있지 않은 문자열이면 전역 `CustomValidationPipe` 가 거부해 **중첩 경로**(`chatChannel.<field>`)·**배열**·`details[].code='INVALID_FIELD'`, `null`/`''` 이면 `@IsEmpty()` 를 통과해 서비스 가드가 거부하므로 **flat**(`<field>`)·**단일 object**·`code` **없음** (**단위 테스트 실측** — `trigger-dto-validation.spec.ts` 의 `[실측]` 2건. 실제 HTTP round-trip 은 아직 e2e 로 확인하지 않았다. [R-CC-21](#r-cc-21-patch-는-비밀을-쓰지-않는다--차단이-필드명-층에만-걸려-있었다)) **계약값은 `INVALID_FIELD` 다** — [`2-api-convention.md §5.3`](./2-api-convention.md#53-에러-응답) 이 *「`field` 를 실으면 `code` 도 싣는다」* 를 규약화했으므로(2026-09-11) **배선 뒤에는 두 갈래 모두 `code` 를 싣는다.** 위 「`code` 없음」은 **배선 전 관측값**이다 | 24h grace 적용 |
+| 토큰 변경 (rotation) | **항상 `POST /api/triggers/:id/chat-channel/rotate-bot-token` 만 사용**. PATCH body 에서 **ref 와 값 둘 다** 차단 — `config.chatChannel.botTokenRef`(ref)·`config.chatChannel.botToken`(plaintext) 모두 400 `VALIDATION_ERROR`. `details.field` 는 **보낸 값의 형태에 따라 갈린다**: 비어있지 않은 문자열이면 전역 `CustomValidationPipe` 가 거부해 **중첩 경로**(`chatChannel.<field>`)·**배열**·`details[].code='INVALID_FIELD'`, `null`/`''` 이면 `@IsEmpty()` 를 통과해 서비스 가드가 거부하므로 **flat**(`<field>`)·**단일 object**·`code` **없음** (**단위 테스트 실측** — `trigger-dto-validation.spec.ts` 의 `[실측]` 2건. 실제 HTTP round-trip 은 아직 e2e 로 확인하지 않았다. [R-CC-21](#r-cc-21-patch-는-비밀을-쓰지-않는다--차단이-필드명-층에만-걸려-있었다)) **두 갈래 모두 `code: 'INVALID_FIELD'` 를 싣는다** — [`2-api-convention.md §5.3`](./2-api-convention.md#53-에러-응답) 의 *「`field` 를 실으면 `code` 도 싣는다」* 를 `#1317`(2026-09-11)이 **15자리에 배선**했다. 위 「`code` 없음」은 그 배선 **전**의 관측값이다(`#1314` 단위 테스트) | 24h grace 적용 |
 | **`chatChannel` 이 실린 PATCH** (uiMapping · rateLimit 등 편집) | `setupChannel()` 재호출로 provider 등록만 갱신한다. **secret store 에 저장된 bot token 을 바꾸지 않는다** — 그 요청 전후로 값이 동일하다. `botTokenRef` 는 config 에서 보존되는 것이 아니라 trigger id 에서 **재유도**된다(`buildSecretRef`). **이 행은 bot token 축만 말한다** — inbound signing 축은 provider 마다 다르고 그 SoT 는 [§5.4.1.1](#5411-inboundsigning-patch-정책--회전-주체별-분기) 이다 | **token 변경 없음** |
 
 PATCH 차단의 정당화: PATCH 로 직접 `botTokenRef` 교체 시 (a) 외부 provider (텔레그램) 측에 등록된 webhook 은 그대로라 즉시 수신 단절, (b) rotate API 의 24h grace 정책 일관성이 깨짐, (c) audit log 가 `trigger.updated` 와 `trigger.chat_channel_bot_token_rotated` 로 mixed. *(2026-08-11 정정 — 이 자리에 `chat-channel.rotate-bot-token` 이라 적혀 있었다. `<resource>.<verb>` 구조(resource dot-prefix 필수)·언더스코어 구분자·과거분사 시제를 동시에 어겼고, `chat-channel` 이라는 resource 는 감사 모델에 존재하지 않는다 — 세 회전 엔드포인트 모두 `/api/triggers/:id/…` 하위라 resource 는 `trigger` 다. [`conventions/audit-actions.md`](../conventions/audit-actions.md))* 따라서 single-path.
@@ -408,12 +408,15 @@ PATCH 차단의 정당화: PATCH 로 직접 `botTokenRef` 교체 시 (a) 외부 
 **top-level code 는 기존 `VALIDATION_ERROR` 재사용**이라
 [§1 카탈로그](./3-error-handling.md) 신규 등재는 필요 없다.
 
-`details[].code` 는 **현재** 두 항목 모두 **서비스 가드 갈래**라 싣지 않는다 — 위 §5.4.1 의
-두-갈래 서술 참조, `#1314` 단위 테스트 실측. **그러나 그것은 관측값이고 계약이 아니다**:
-[`2-api-convention.md §5.3`](./2-api-convention.md#53-에러-응답) 이 *「`field` 를 실으면 `code`
-도 싣는다」* 를 규약화했으므로(2026-09-11) **계약값은 `INVALID_FIELD`** 이고, 두 항목의 배선은
-뒤따르는 developer PR 이 한다. 그 PR 이 머지되기 전까지 이 문단은 *"아직 안 실린다"* 를
-서술할 뿐 *"싣지 않기로 했다"* 가 아니다.
+`details[].code` 는 두 항목 모두 **`INVALID_FIELD`** 를 싣는다 —
+[`2-api-convention.md §5.3`](./2-api-convention.md#53-에러-응답) 의 *「`field` 를 실으면 `code`
+도 싣는다」* 를 `#1317`(2026-09-11)이 배선했다. 그 전까지는 서비스 가드 갈래가 `code` 를 싣지
+않았고(`#1314` 단위 테스트 실측), 이 문단은 그 배선 **전** 상태를 서술하고 있었다.
+
+> **`AUTH_CONFIG_NOT_FOUND` 자리와 혼동하지 말 것.** 이 두 항목은 top-level 이 400 상태
+> 기본값 `VALIDATION_ERROR` 이므로 §5.3 의 「겹쳐 쓰지 않는다」와 무관하다. top-level 이 **이미
+> 도메인 특화 코드**인 자리(`authConfigId`)의 판정은
+> [§5.3 의 판별 기준](./2-api-convention.md#53-에러-응답)이 다룬다.
 
 #### 5.4.1.1 `inboundSigning` PATCH 정책 — 회전 주체별 분기
 
@@ -423,7 +426,7 @@ PATCH 차단의 정당화: PATCH 로 직접 `botTokenRef` 교체 시 (a) 외부 
 |---|---|---|
 | 최초 트리거 생성 (`POST /api/triggers`) | 입력 body 의 `chatChannel.inboundSigningPlaintext` plaintext → `SecretResolver.rotate(inboundSigningRef, ws, plaintext)` 후 strip. config 에는 `inboundSigningRef` 만 보관 (SS-SE-01) | 처음 한 번 |
 | 트리거 활성화 (`PATCH /api/triggers/:id` body `{ isActive: true }`) | 기존 `inboundSigningRef` 그대로 사용 **(slack/discord). telegram 은 아래 행 참조.** **(2026-09-10 — §5.4.1 표 2행과 같은 미확정: 이 재호출이 실제로 일어나는지 확인 중)** | 변경 없음 |
-| **회전 (rotation)** | **v1 미정의 — PATCH body 에서 `config.chatChannel.inboundSigningPlaintext` / `inboundSigning` 은 400 `VALIDATION_ERROR` 로 차단한다.** slack/discord 도 예외가 아니다 — 생성(POST)에서만 `inboundSigningPlaintext` 를 받고, **PATCH 에서는 그 필드가 있으면 거부**한다. `chatChannel` 이 실린 PATCH 는 저장된 signing 값을 **바꾸지 않는다**(요청 전후 동일). rotation 이 필요하면 트리거 삭제·재생성. `details.field` 는 **보낸 값의 형태에 따라 갈린다**: 비어있지 않은 문자열이면 전역 `CustomValidationPipe` 가 거부해 **중첩 경로**(`chatChannel.<field>`)·**배열**·`details[].code='INVALID_FIELD'`, `null`/`''` 이면 `@IsEmpty()` 를 통과해 서비스 가드가 거부하므로 **flat**(`<field>`)·**단일 object**·`code` **없음** (**단위 테스트 실측**). **계약값은 `INVALID_FIELD` 다** — `2-api-convention.md §5.3` 이 *「`field` 를 실으면 `code` 도 싣는다」* 를 규약화했으므로(2026-09-11) **배선 뒤에는 두 갈래 모두 `code` 를 싣는다.** 위 「`code` 없음」은 **배선 전 관측값**이다 | v2 후속 결정 — 별 spec |
+| **회전 (rotation)** | **v1 미정의 — PATCH body 에서 `config.chatChannel.inboundSigningPlaintext` / `inboundSigning` 은 400 `VALIDATION_ERROR` 로 차단한다.** slack/discord 도 예외가 아니다 — 생성(POST)에서만 `inboundSigningPlaintext` 를 받고, **PATCH 에서는 그 필드가 있으면 거부**한다. `chatChannel` 이 실린 PATCH 는 저장된 signing 값을 **바꾸지 않는다**(요청 전후 동일). rotation 이 필요하면 트리거 삭제·재생성. `details.field` 는 **보낸 값의 형태에 따라 갈린다**: 비어있지 않은 문자열이면 전역 `CustomValidationPipe` 가 거부해 **중첩 경로**(`chatChannel.<field>`)·**배열**·`details[].code='INVALID_FIELD'`, `null`/`''` 이면 `@IsEmpty()` 를 통과해 서비스 가드가 거부하므로 **flat**(`<field>`)·**단일 object**·`code` **없음** (**단위 테스트 실측**). **두 갈래 모두 `code: 'INVALID_FIELD'` 를 싣는다** — `2-api-convention.md §5.3` 의 *「`field` 를 실으면 `code` 도 싣는다」* 를 `#1317`(2026-09-11)이 배선했다. 위 「`code` 없음」은 그 배선 **전**의 관측값이다 | v2 후속 결정 — 별 spec |
 | **telegram — server-issued (본 절의 v1 차단 대상 아님)** | `setupChannel()` 이 호출될 때마다 `randomBytes` 로 **새 값을 발급해 Telegram `setWebhook` 의 `secret_token` 으로 등록**하고, caller 가 그것을 `inboundSigningRef` 에 **재저장한다**. 따라서 `chatChannel` 이 실린 PATCH 는 telegram 의 signing 값을 **바꾼다** — 이는 우회가 아니라 provider 등록과 한 동작이며, **저장을 건너뛰면 오히려 인입 서명 검증이 전부 깨진다**(`X-Telegram-Bot-Api-Secret-Token` 불일치 → 401). SoT: [`providers/telegram.md §3.1`](../4-nodes/7-trigger/providers/telegram.md#31-setupchannel-구체) | **v1/v2 결정 대상 아님** — 아래 v2 후보(A/B/C)는 slack/discord 축 전용 |
 
 > **(2026-09-10 정합화 — slack/discord 축)** 아래 서술의 주어는 **slack/discord** 다. telegram 의 server-issued 축은 위 telegram 행이 SoT 다. 회전 행은 처음부터 v1 차단을 선언하고 있었으나 **구현이 정반대였다** — `assertInboundSigningPlaintextByProvider` 가 slack/discord 에서 `inboundSigningPlaintext` **부재를** 400 으로 막고, 값이 있으면 통과시켜 `setupChatChannel` 이 그 값으로 `inboundSigningRef` 를 회전시켰다. 즉 **매 chatChannel PATCH 마다 이 절이 금지한 회전이 강제**되고 있었다. 문면을 바꾼 것이 아니라 그 규칙이 PATCH 전 구간에 걸린다는 것을 명시했다 — 상세는 [R-CC-21](#r-cc-21-patch-는-비밀을-쓰지-않는다--차단이-필드명-층에만-걸려-있었다). **v2 회전 후보 결정(아래 불릿)은 손대지 않는다.**
