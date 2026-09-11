@@ -1360,7 +1360,7 @@ field: T | null;
 - [x] **§5.4 가 WS wire 에도 적용되는가 — 답: producer 는 이미 지킨다 (2026-09-04 종결).**
       **추가 spec 변경 없음.**
 
-      `chat-channel-adapter.md:149-151` 의 `durationMs?: number | null` 을 §5.4 위반으로 볼
+      `chat-channel-adapter.md` §1.2 `EiaEvent` 종결 3종의 `durationMs?: number | null` 을 §5.4 위반으로 볼
       뻔했으나, **producer 와 consumer 의 계약이 다른 자리**였다:
 
       | 축 | 실측 |
@@ -1878,7 +1878,7 @@ field: T | null;
       developer, 2026-09-10 등재, `--spec` `19_35_47` `cross_spec` INFO 에서 갈라 나옴).
       §5.4 의 원칙은 *"검증자가 **서로 다른 두 문서의 규칙**을 시행하면 그 두 문서 모두에 등재"* 이고
       사유는 *"한쪽만 등재하면 다른 축의 변경이 재검토 트리거를 못 건드린다"* 다
-      (`2-api-convention.md:272`).
+      (`2-api-convention.md` 의 「엔티티를 그대로 노출하지 말 것」 시행 서술).
 
       두 헬퍼(`trigger-workflow-ref.ts` · `schedule-trigger-ref.ts`)가 시행하는 규칙은 (i) 각 nav
       문서의 참조 shape 와 (ii) **`secret-store.md §1.1`** 의 비밀 미노출인데, **(ii) 쪽 문서에는
@@ -2127,12 +2127,13 @@ field: T | null;
       spec 문장 결함). `spec-draft-chat-channel-patch-token.md` 는 이 불확실성 때문에 그 행을 **D-2 의
       선례로 인용하지 않았다.**
 
-- [ ] **`chat-channel-adapter.md §1.1` 의 `setupChannel` "멱등 = yes" 표기에 각주가 필요하다**
-      (planner, 2026-09-10 등재, `--spec` `review/consistency/2026/09/10/22_04_23` `cross_spec` INFO).
-      멱등성은 **레지스트리 등록 안전성**을 뜻하지 **시크릿 값 불변**이 아니다 — telegram 은 매 호출
-      새 `secret_token` 을 발급한다. 표 셀에 그 한 줄을 붙인다.
+- [x] **`chat-channel-adapter.md §1.1` 의 `setupChannel` "멱등 = yes" 표기에 각주가 필요하다**
+      (planner, 2026-09-10 등재).
+      > **중복 등재였다 — 아래 같은 항목으로 병합해 거기서 종결했다.** 2026-09-11 에 같은 내용이
+      > 한 번 더 등재돼 이 트래커 안에 두 줄로 존재했다(`--spec` `09_29_33` plan_coherence 확인).
+      > 처분은 아래 「`setupChannel` "멱등 = yes" 에 각주가 필요하다」 항목을 볼 것.
 
-- [ ] **`swagger.md §1` 에 "부분 갱신 DTO 는 `Update` 접두 — `Patch` 금지" 를 규약으로 승격할지**
+- [x] **`swagger.md §1` 에 "부분 갱신 DTO 는 `Update` 접두 — `Patch` 금지" 를 규약으로 승격할지**
       (planner + 결정, 2026-09-10 등재, `--spec` `review/consistency/2026/09/10/22_04_23`
       `naming_collision` INFO). 현재 저장소에 `Patch` 접두 클래스는 **0건**이고 관례는 `Create`/`Update`
       축인데 **명문 규칙은 없다**(실측). 규약 신설은 별 결정 사안이라 이 자리에만 등재한다.
@@ -2140,9 +2141,19 @@ field: T | null;
       저장소의 기존 Update DTO 18개는 전부 접두어인데 `ChatChannelUpdateConfigDto` 는 중간에
       둔다(형제 nested DTO 의 로컬 `ChatChannel<Role>Dto` 패턴을 따랐다). checker 도
       *"명문 규칙 부재라 위반은 아님"* 으로 판정했다.
-      **부수**: `chat-channel-config.dto.ts:365` 의 `swagger.md:315` 인용을 **`§3` 절 참조로**
-      바꾼다 — 인용 자체는 실측상 **정확하지만**(315 가 규약 제목 줄, 317 은 다음 문단) checker 가
-      두 라운드 연속 오탐을 냈다. 줄 번호가 읽는 쪽에 모호하다는 신호다.
+      > **✅ 2026-09-11 해소** — planner 턴 `plan/complete/spec-draft-chat-channel-conventions.md` (`--spec` `review/consistency/2026/09/11/09_29_33`, BLOCK: NO).
+      > **결정: 접두는 「top-level 요청 바디」 집합에만 건다.** `swagger.md` 신규 `§1-7` +
+      > `## Rationale` 대응 절. `Update*Dto` 18개가 전부 접두인데 **동시에 전부 컨트롤러
+      > `@Body()` top-level 요청 바디**라는 것이 실측이고, 그것이 그 집합의 성질이다 —
+      > `ChatChannelUpdateConfigDto` 는 `OmitType` nested 변형이라 다른 집합이다. 개명은 기각.
+      > `§5-4` 새 엔드포인트 체크리스트에도 한 줄 넣었다. 반례로 `ChatChannelUpdateConfigDto`
+      > 를 규약 본문에 직접 인용했다(`--spec` `09_29_33` INFO 2 — 다음 편집자가 같은 조사를
+      > 반복하지 않게).
+      >
+      > **부수는 여기서 닫지 않는다 — 아래 별 항목으로 갈랐다.** 원래 이 항목에 "부수" 로
+      > 딸려 있던 `chat-channel-config.dto.ts` 의 `swagger.md:315` 인용 정정은 `codebase/**`
+      > 라 planner 권한 밖이고, **이 항목을 종결하면 함께 사라진다**(`--spec` `09_29_33`
+      > plan_coherence WARNING 2 의 핵심 지적).
 
 - [ ] **telegram inbound-signing 재발급이 `1-auth.md §4.1` 전용 audit action 카탈로그 밖이다**
       (planner, 2026-09-10 등재, `--spec` `review/consistency/2026/09/10/22_14_27` `cross_spec` INFO).
@@ -2157,7 +2168,7 @@ field: T | null;
       canonical 정의(`conventions/secret-store.md §2`)도 `rotate()` 를 권장한다 — `setupChannel()` 은
       생성·활성화·`chatChannel` PATCH 세 갈래에서 반복 호출되는 멱등 함수라, 문자 그대로 `store()`
       라면 두 번째 호출부터 깨져야 한다. 대상: `15-chat-channel.md:200,201,373,390` ·
-      `chat-channel-adapter.md:354,359` · `providers/telegram.md:58,219` · `providers/slack.md:278`.
+      `chat-channel-adapter.md` §2.4 `SetupResult` 서술 · `providers/telegram.md:58,219` · `providers/slack.md:278`.
       정답 표기 선례는 `data-flow/14-chat-channel.md` 의 *"secret store UPSERT"*.
 
       > **(2026-09-11) `codebase/**` 3곳은 이 PR 에서 이미 고쳤다** — 원 열거가 `spec/` 만
@@ -2227,15 +2238,85 @@ field: T | null;
       2026-09-11 등재, `--spec` `review/consistency/2026/09/11/07_11_12` `convention_compliance` INFO 2).
       `validation.pipe.ts:58` 은 원소마다 `code: 'INVALID_FIELD'` 를 넣는데
       `triggers.service.ts:655,662,670,702,710` 의 가드는 `details: { field: … }` 만 던진다.
-      `2-api-convention.md:205` 는 `details[].code` 를 *"사유가 어느 필드에 붙는지가 정보의
-      일부일 때"* 쓰라고 한다 — 두 층이 같은 논리적 위반을 다르게 표현하는 셈이다.
-      **코드 사안**이라 planner 턴에서 못 닫는다. 기존 `botTokenRef` 등 선례도 동일한
-      비대칭을 갖고 있어 **일괄 판단**이 맞다(`--spec` `07_22_40` `cross_spec` INFO 3).
+      `2-api-convention.md` §5.3 의 「도메인 세부 사유를 어디에 싣는가」 표는 `details[].code` 를
+      *"사유가 어느 필드에 붙는지가 정보의 일부일 때"* 쓰라고 한다 — 두 층이 같은 논리적 위반을
+      다르게 표현하는 셈이다. **코드 사안**이라 planner 턴에서 못 닫는다. 기존 `botTokenRef` 등
+      선례도 동일한 비대칭을 갖고 있어 **일괄 판단**이 맞다(`--spec` `07_22_40` `cross_spec` INFO 3).
+      > **✅ 2026-09-11 규약은 확정됐다 — 배선은 이 항목에 남는다.**
+      > planner 턴 `plan/complete/spec-draft-chat-channel-conventions.md` 가
+      > `2-api-convention.md §5.3` 에 *「`field` 를 실으면 `code` 도 싣는다 — 형태와 무관」* 을
+      > 명문화했다(기본값 `INVALID_FIELD`, 이미 카탈로그 등재).
+      >
+      > **그 턴의 실측이 내 "11곳" 을 반증했다.** `details:` 는 **세 층**에 걸쳐 있고
+      > (에러 봉투 22 · 감사 로그 22 · 노드 출력 payload 16, 전수 60곳, 기준 `f947b49f4`),
+      > 종전 수치는 앞의 두 층을 섞은 grep 이었다. `field` 를 싣는 에러 봉투 자리는 **16곳**,
+      > 그중 `code` 가 있는 것은 1곳(`rethrowEndpointPathConflict`) → **갭은 15곳**이고
+      > `triggers.service.ts` 객체 13곳 + **`password.util.ts` 배열 2곳**이다(배열 형태에도
+      > 같은 갭이 있어 규칙이 형태 무관이 됐다).
+      >
+      > **범위 밖으로 확정된 것 둘**: (a) `field` 가 없는 진단 payload 6곳
+      > (`{errors}`·`{offenders}`·`{reason}`) — 사유가 이미 top-level 특화 `code` 에 있어
+      > `details.code` 를 얹으면 §5.3 자신의 *"둘을 겹쳐 쓰지 않는다"* 를 어긴다. (b) 감사 로그
+      > `details` 22곳 — SoT 는 `1-auth.md §4.1` · `data-flow/1-audit.md §1.1` 다.
+      > **`conventions/audit-actions.md` 가 아니다** — 그 문서는 `action` 문자열의 명명·시제만
+      > 소유한다고 스스로 한정한다(`--spec` `09_29_33` WARNING 1 이 내 오인용을 잡았다).
+      >
+      > **남은 것 = 15곳 배선** (developer). 강제 가드는 없다(§5.3 에 그 상태를 명시했다) —
+      > 신규 발행 지점부터 적용되고 기존 자리는 이 항목이 유일한 추적점이다.
 
-- [ ] **`chat-channel-adapter.md §1.1` 의 `setupChannel` "멱등 = yes" 에 각주가 필요하다**
+- [x] **`chat-channel-adapter.md §1.1` 의 `setupChannel` "멱등 = yes" 에 각주가 필요하다**
       (planner, 2026-09-10 등재 · 2026-09-11 재확인). 멱등성은 **레지스트리 등록 안전성**이지
       **시크릿 값 불변**이 아니다 — telegram 은 매 호출 새 `secret_token` 을 발급한다.
       `15-chat-channel.md §5.4.1.2` 신설로 PATCH 축은 정리됐지만 이 각주는 남아 있다.
+      > **✅ 2026-09-11 해소** — planner 턴 `plan/complete/spec-draft-chat-channel-conventions.md` (`--spec` `review/consistency/2026/09/11/09_29_33`, BLOCK: NO).
+      > 신규 소절 `§1.1.1` 로 붙였다(표 셀은 그 소절을 링크). 각주에 `#1313` 이력을 함께 실었다 —
+      > *"이 혼동이 실제로 CRITICAL 을 만들었다"* 가 이 각주의 존재 이유이므로.
+      > `providers/telegram.md §3.1` · `15-chat-channel.md §5.4.1.1` telegram 행 · `R-CC-21`
+      > 세 곳으로 cross-link 했다(`--spec` `09_29_33` INFO 3 — 같은 사실을 두 문서가 독립
+      > 서술하면 한쪽만 갱신되는 drift 가 재발한다).
+
+- [ ] **`chat-channel-config.dto.ts` 의 `swagger.md:315` 줄-번호 인용이 stale 해졌다**
+      (developer, 2026-09-11 등재 · `--spec` `09_29_33` `plan_coherence` WARNING 2).
+      같은 날 planner 턴이 `swagger.md` `§1` 안에 신규 `§1-7` 을 삽입했고 그 삽입점은 315줄보다
+      **위**라 인용 대상이 밀렸다. 정정은 **줄 번호를 다시 재는 것이 아니라 절 참조**로
+      (`swagger.md` 의 「JSDoc 은 공개 OpenAPI 로 나간다」 절) — 숫자를 갱신하면 다음 삽입에
+      또 깨진다. **이 drift 를 잡는 CI 가드는 없다** (`spec-link-integrity` 는 `#anchor` 는 보지만
+      `:NNN` 은 안 본다, `dto-jsdoc-citation-guard.ts` 는 날짜만 센다).
+      > **원래 `Update` 접두 항목의 "부수" 로 딸려 있었다.** 그 항목을 종결하면 함께 사라지므로
+      > 별 항목으로 갈랐다 — checker 가 정확히 그 유실을 경고했다.
+
+- [ ] **spec 을 향한 줄-번호 인용 15곳 — 앵커 문구로 전환** (planner + developer 분담,
+      2026-09-11 등재). 위 항목의 **클래스**다. `2-api-convention.md`·`swagger.md`·
+      `chat-channel-adapter.md`·`15-chat-channel.md` 를 `:NNN` 으로 인용하는 자리를 전수
+      판정했다(각 파일의 2026-09-11 삽입점과 대조 + 인용이 주장하는 키워드가 그 줄에 실제로
+      있는지 확인):
+
+      | 판정 | 자리 | 소유 |
+      |---|---|---|
+      | **이미 깨져 있었다 (4)** | `15-chat-channel.md:377`·`:390` (둘 다 **빈 줄**) · `chat-channel-adapter.md:159`·`:367` (키워드 불일치) | `spec-sync-auth-gaps.md` · 본 트래커 · `eia-terminal-payload.md` |
+      | **2026-09-11 planner 턴이 밀었다 (7)** | `chat-channel-adapter.md:145`·`:149`(2건)·`:354`·`:359` · `2-api-convention.md:272` · **`swagger.md:315`** | `spec-draft-eia-notification-payload-contract.md` · `spec-sync-external-interaction-api-gaps.md` · 본 트래커 · **`codebase/**`**(위 항목) |
+      | 영향 없음 (4) | `2-api-convention.md:205` · `15-chat-channel.md:200`·`:201`·`:373` | — |
+
+      **본 트래커 자신의 3건은 그 턴에서 앵커로 바꿨다.** 다른 세션이 진행 중인 트래커
+      (`eia-terminal-payload.md` · `spec-sync-external-interaction-api-gaps.md` ·
+      `spec-draft-eia-notification-payload-contract.md` · `spec-sync-auth-gaps.md`)는 병행 작업과
+      충돌하므로 **건드리지 않았다** — 각 소유자가 위 표를 보고 앵커로 바꾼다.
+      > **교훈은 규율의 거울상이다.** *"내가 편집하는 파일을 줄 번호로 인용하지 마라"* 는 이미
+      > 알고 있었는데, **내가 편집하는 파일을 남이 줄 번호로 인용하고 있으면 내 편집이 그것을
+      > 깨뜨린다**는 반대 방향은 이번에 처음 쟀다. 그리고 그 방향에서 4건은 **내가 손대기 전에
+      > 이미 깨져 있었다** — 이 저장소에서 spec 을 향한 `:NNN` 인용은 이미 신뢰할 수 없다.
+
+- [ ] **`details` 의 도메인 특화 세부 코드를 신설할지 — `INVALID_FIELD` 하나로는 사유가 안
+      갈린다** (planner + 결정, 2026-09-11 등재). 위 `details[].code` 규약이 기본값을
+      `INVALID_FIELD` 로 정했지만, 그것만으로는 `triggers.service.ts` 의 세 가지 거부 사유가
+      **여전히 구분되지 않는다**: (a) 내부 필드라 외부 입력 금지(`botTokenRef` 등) ·
+      (b) PATCH 로 변경 불가(`botToken`·`inboundSigningPlaintext`) · (c) 최초 설정이 생성 POST
+      한정(`chatChannel`) · provider 불변(`provider`). 지금은 이 구분이 **한국어 `message` 에만**
+      있고 `2-api-convention.md §5.3` 자신이 `message` 를 *"사람이 읽을 짧은 설명"* 으로
+      규정한다 — 소비자가 분기에 쓸 수 없다.
+      신설하면 `3-error-handling.md §1` **카탈로그 등재가 함께 필요**하므로(§5.3 의 등재 의무)
+      규약 확정 턴의 범위를 넘겼다. 판정에 필요한 것: **소비자가 실제로 이 셋을 갈라 다르게
+      행동하는가** — 갈라 쓰지 않으면 코드만 늘고 카탈로그가 커진다.
 
 - [ ] **`SecretResolver.rotate` 에 빈 값 가드가 없다** (developer + 보안 판단, 2026-09-10 등재).
       `rotate(ref, ws, '')` 가 빈 문자열을 그대로 암호화해 row 를 덮어쓴다(`:129-145`, 가드 0).

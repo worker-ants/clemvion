@@ -124,7 +124,7 @@ interface ChatChannelAdapter {
 
 | 함수 | 책임 | 부작용 | 멱등성 |
 |---|---|---|---|
-| `setupChannel` | 외부 채널의 inbound hook 등록 (텔레그램 `setWebhook`) + bot identity 조회 | 외부 API 호출 1회 이상 | yes — 같은 config 재호출 OK |
+| `setupChannel` | 외부 채널의 inbound hook 등록 (텔레그램 `setWebhook`) + bot identity 조회 | 외부 API 호출 1회 이상 | yes — 같은 config 재호출 OK. **뜻은 [§1.1.1](#111-setupchannel-멱등의-뜻--등록-안전성이지-시크릿-값-불변이-아니다)** |
 | `teardownChannel` | 외부 채널의 hook 해제. 부분 실패 OK (best-effort) | 외부 API 호출 | yes |
 | `parseUpdate` | raw body → `ChannelUpdate \| null`. DB 미접근, 외부 API 미호출. 무시 대상은 `null` — **`null` 의 의미는 "어댑터가 해석 불가/무시"** 단일 의미. 호출자(`HooksService`) 가 raw body 에서 provider-specific 메타 (예: 텔레그램 `chat.type`, `from.is_bot`) 를 확인해 안내 메시지 발송 여부를 결정한다 (어댑터는 side-effect free 유지). 안내 발송 책임 = 호출자 | none | pure |
 | `renderNode` | `EiaEvent \| ChatChannelInternalEvent` payload → `ChannelMessage[]`. side-effect free. 입력 union 은 §1.2 / §1.3 정의. SoT: §R-CCA-7 (union 확장 근거) | none | pure |
@@ -134,6 +134,21 @@ interface ChatChannelAdapter {
 | `revokeBotToken?` (옵션) | 이전 bot token 의 외부 provider 측 revocation (Slack `auth.revoke` 등). provider 가 revocation API 를 제공하면 구현, 아니면 미구현 (`undefined`). best-effort — 실패는 swallow | 외부 API 호출 (provider 의존, 옵션) | yes |
 | `openFormModal?` (옵션, `supportsNativeForm=true` 한정) | §4.1 native modal 게이팅 — `form_modal` 버튼 클릭 (`open_form_modal` command) 시 modal open. Slack 은 `views.open(trigger_id, view)` API 호출, Discord 는 webhook HTTP 응답 body `{ type: 9 }` MODAL 반환 (`OpenFormModalResult.httpResponse`). 호출자 = `HooksService` (modal 합성에 conversation state 의 `pendingFormModal.fields` 가 필요하므로 — `ackInteraction(update, config)` 시그니처는 form 필드 미보유, §R-CCA-8 b 참조) | 외부 API 호출 또는 HTTP 응답 body 합성 (provider 의존) | yes |
 | `buildFormSubmissionResponse?` (옵션, `supportsNativeForm=true` 한정) | §4.1 modal 제출 (`form_submission` command) 의 provider HTTP 응답 합성 — EIA `submit_form` 호출은 `HooksService` 담당, 본 메서드는 ack (Slack 빈 200 / Discord `{ type: 4 }` ephemeral) 또는 검증 실패 재표시 body (Slack `response_action: errors`) 만 합성. pure (외부 호출 없음, body 합성만) | none | pure |
+
+#### 1.1.1 `setupChannel` 멱등의 뜻 — 등록 안전성이지 시크릿 값 불변이 아니다
+
+[§1.1](#11-어댑터-함수-책임--부작용--멱등성) 표의 `setupChannel | 멱등 = yes` 는 **같은 config 로 다시 불러도 등록이 깨지지 않는다**는
+뜻입니다. **발급되는 시크릿 값이 그대로라는 뜻이 아닙니다** — telegram 어댑터는 호출마다
+`randomBytes` 로 **새 `secret_token` 을 발급해** `setWebhook` 에 등록하고, 호출자가 그것을
+`inboundSigningRef` 에 재저장합니다. 그것이 정상 동작이며 저장을 건너뛰면 인입 서명 검증이
+전부 깨집니다. SoT: [`providers/telegram.md §3.1`](../4-nodes/7-trigger/providers/telegram.md#31-setupchannel-구체) ·
+[`15-chat-channel.md §5.4.1.1`](../5-system/15-chat-channel.md#5411-inboundsigning-patch-정책--회전-주체별-분기) telegram 행 ·
+[`15-chat-channel.md R-CC-21`](../5-system/15-chat-channel.md#r-cc-21-patch-는-비밀을-쓰지-않는다--차단이-필드명-층에만-걸려-있었다).
+
+**이 혼동이 실제로 CRITICAL 을 만들었습니다** (2026-09-10, `#1313`): *"PATCH 는 비밀을 쓰지
+않는다"* 는 결정이 「멱등」을 값-불변으로 읽고 telegram 의 재저장까지 막으려 해, 그대로
+구현하면 모든 telegram 인입이 401 이 될 상태였습니다. 그래서 이 각주는 표현 정리가 아니라
+**두 층(등록 / 값)을 가르는 규약**입니다.
 
 ### 1.2 EiaEvent 입력
 
