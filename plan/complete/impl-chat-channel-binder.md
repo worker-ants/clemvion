@@ -1,6 +1,6 @@
 ---
 title: chat-channel 도메인 규칙을 TriggersService 에서 떼어낸다 — 검증(의존 0) + secret 쓰기(협력자)
-status: in-progress
+status: complete
 owner: developer
 worktree: .claude/worktrees/impl-chat-channel-binder-9d3f1e
 started: 2026-09-11
@@ -157,8 +157,17 @@ CRITICAL 0 · WARNING 5. **WARNING 1·2 가 내가 고려하지 않은 제약을
 ## 체크리스트
 
 - [x] `/consistency-check --impl-prep` **BLOCK: NO** (`14_59_33`)
-- [x] T1 이동 + **테스트 diff 0줄** 확인 (`git diff --numstat -- '*.spec.ts'` = 0)
-- [ ] ~~T2 이동~~ — **이 PR 범위 밖**. 트래커에 이미 별 항목으로 있다
+- [x] T1 이동 + **테스트 diff 0줄** 확인 — **그 이동 커밋 하나**(`2ae81077c`)가 대상이고,
+      base 를 `2ae81077c^` 로 고정해 `*.spec.ts` 를 재면 빈 출력이다.
+      > 처음엔 base 없이 적어 **어느 시점을 잰 것인지가 문장에 없었다.** 브랜치 전체로 재면
+      > 0이 아니다 — 뒤 세 커밋이 신규 spec 파일과 보강을 더했다.
+- [ ] ~~T2 이동~~ — **이 PR 범위 밖**. 트래커의 `setupChatChannel` 항목에 **이번에 합쳤다**
+      (`spec-draft-nullable-notation-followups.md`).
+      > **정정**: 처음엔 *"트래커에 이미 별 항목으로 있다"* 고 적었는데 **실측상 틀렸다** —
+      > 그 항목의 처방은 `resolveChatChannelSecretWrites(...)` 라는 **함수 내부** 분리였고
+      > T2 의 **provider 추출**은 담고 있지 않았다(`--impl-done`
+      > `review/consistency/2026/09/11/16_31_47` W3). 항목의 범위를 T2 까지 넓혀 실제로
+      > 이월했다.
 - [x] 뮤테이션 **5/5 RED** — 옮긴 가드 무력화 시 이동 전과 같은 테스트가 RED
 - [x] `run-test.sh` 4단계 GREEN — **통과 수치는 여기 적지 않는다.**
       > **세 번째 재발이라 숫자를 지웠다.** 9,568 → 9,580 → 9,587 로 세 번 낡았고, 매번 **그
@@ -166,6 +175,23 @@ CRITICAL 0 · WARNING 5. **WARNING 1·2 가 내가 고려하지 않은 제약을
       > (`/ai-review` `review/code/2026/09/11/15_57_42` W3 · `16_16_44` W1).
       > 산문 규율(*"마지막에 채워라"*)로는 세 번 실패했으므로 **구조를 바꾼다** — plan 은
       > **통과 여부**만 적고 수치는 **커밋 본문**(그 시점에 확정된다)과 `_test_logs/` 가 갖는다.
-- [ ] `/ai-review` + `--impl-done`
-- [ ] 트래커 *"chat-channel 도메인 규칙이 …"* 항목 종결 (남긴 3메서드는 사유와 함께 명시)
-- [ ] `plan/complete/` 이동
+- [x] `/ai-review` **3라운드** (`15_31_54` · `15_57_42` · `16_16_44`, 전부 `--route=all`) —
+      **CRITICAL 0 으로 종결**. 종료 조건은 *"발견 0"* 이 아니라 **`codebase/**` 수정 0 으로
+      끝나는 라운드**이고 3라운드가 그것이다 (`review/code/2026/09/11/16_16_44/RESOLUTION.md`).
+- [x] `--impl-done` **BLOCK: NO** (`review/consistency/2026/09/11/16_31_47`) — CRITICAL 0 ·
+      WARNING 3 · INFO 1. **셋 다 `plan/**` 층이라 이 턴에 전부 반영했다**(아래).
+      > **W2·W3 은 내 산출물의 사실 오류였다.** W2 = 새 항목을 등재하면서 그 트래커의
+      > `spec_impact` frontmatter 를 함께 안 봤다(같은 파일이 `09/06 16_29_00` INFO#2 로 이미
+      > 한 번 겪은 실패 모드의 **재발**). W3 = *"T2 는 트래커에 이미 별 항목으로 있다"* 가
+      > **틀렸고**(그 항목은 함수 **내부** 분리였다), *"남긴 3메서드"* 도 실제 잔존 **5개**와
+      > 어긋났다. W1·INFO 1 은 기등재 항목 확인 — 그 확인도 grep 으로 실재를 봤다
+      > (R1 의 CRITICAL 이 정확히 *"등재했다"* 는 거짓 주장이었다).
+- [x] 트래커 *"chat-channel 도메인 규칙이 …"* 항목을 **T1 완료 / T2 이월**로 재기술 —
+      **항목은 닫지 않았다.** 이 PR 뒤 `TriggersService` 에 남는 chat-channel 메서드는
+      **5개**다: **T2 이월 2개**(`setupChatChannel` · `teardownChatChannel`) + **영구 잔류
+      3개**(`rotateBotToken` · `cleanupRotatedChatChannelTokens` · `tryRevokeOldBotToken`).
+      > **정정**: 처음엔 *"남긴 3메서드"* 라고만 적었다 — 그것은 **T2 가 끝난 뒤**의 상태이지
+      > 이 PR 이 남기는 상태가 아니다. 이월분 2개를 빠뜨려 실제 잔존(5)과 어긋났다.
+      > T1/T2/범위-밖 3단 표와 T2 의 증거 방식을 트래커 항목 안에 옮겨 적었다 — **이 plan 은
+      > `complete/` 로 봉인되므로 T2 를 집는 사람이 여기를 읽을 거라고 가정할 수 없다.**
+- [x] `plan/complete/` 이동
