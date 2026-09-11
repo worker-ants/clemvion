@@ -24,6 +24,14 @@ spec_impact:
   # 재발 원인은 **항목을 추가할 때 frontmatter 를 함께 보지 않는 것**이다.
   - spec/4-nodes/7-trigger/providers/slack.md
   - spec/4-nodes/7-trigger/providers/discord.md
+  # 「… 귀속 표기 3곳이 T2 이동으로 낡는다」 항목의 나머지 두 파일.
+  # **같은 세션에서 같은 실패를 두 번 했다** — 위 두 줄을 넣을 때 frontmatter 를 열었는데,
+  # 그 뒤에 3파일을 지목하는 **새 항목**을 추가하면서 그중 하나(`secret-store.md`)만 이미
+  # 있다는 걸 확인하고 넘어갔다. "항목을 넣을 때 frontmatter 를 본다" 는 산문 규율이
+  # **항목 단위로는 지켜지고 파일 단위로는 안 지켜진다.**
+  # (`--impl-done` `review/consistency/2026/09/11/19_41_52` W1.)
+  - spec/conventions/chat-channel-adapter.md
+  - spec/data-flow/14-chat-channel.md
 ---
 
 # nullable 표기 후속 3건 (planner 턴)
@@ -2209,6 +2217,19 @@ field: T | null;
       > **왜 중요한가**: `code:` 미등재는 그 파일을 **spec-linked 에서 제외**하므로
       > `--impl-done` 게이트가 그 파일만 바뀐 변경을 아예 요구하지 않는다. 지금 R-CC-21 의
       > **검증 규칙 정본**이 그 상태다.
+      >
+      > **2026-09-11 재갱신 — 대상은 6개가 아니라 8개다.** T2(`impl-chat-channel-binder-t2`)가
+      > `chat-channel-binder.service.ts` 와 `trigger-callback-url.ts` 를 더 신설했다
+      > (`--impl-prep` `review/consistency/2026/09/11/17_39_32` W1 — *"T1 이 만든 같은 결함
+      > 클래스의 재발"*). **세 번째 관측이므로 산문 대신 구조를 바꾸는 쪽을 권한다**:
+      > `code:` 에 `codebase/backend/src/modules/triggers/**` **glob** 을 넣으면 재발 자체가
+      > 막힌다(`modules/chat-channel/**` 는 이미 glob 이다). 다만 그러면 스코프가 넓어져
+      > `--impl-done` 번들이 커지므로 그 트레이드오프는 planner 판단.
+      >
+      > **같은 턴에 §7 도 본다** — `15-chat-channel.md §7 구현 파일 구조` 의 `triggers/` 블록에
+      > 신규 3파일(T1 1 + T2 2)이 없다. **거짓은 아니다**(`triggers.service.ts` 행이
+      > *"…호출 추가"* 라 이동 후에도 참) — **누락**이다
+      > (`--impl-prep` `17_39_32` INFO#1).
       또한 **신규 검증 분기 2건**(`chatChannel` 최초 부착 차단 → `details.field='chatChannel'` ·
       provider 전환 차단 → `details.field='provider'`)이 §5.4.1 표와 `2-trigger-list.md` PATCH
       에러 표에 미등재다(`--impl-done` `review/consistency/2026/09/11/00_21_57` W3).
@@ -2224,6 +2245,11 @@ field: T | null;
       새 상태(`previousInboundSigningRef` 캡처)를 얹은 것이라 등재한다. 처방 후보: 트리거 단위
       advisory lock · `SELECT … FOR UPDATE` · `config` 낙관적 버전 비교. 자매 패턴
       `rotateChatChannelBotToken()` 도 같은 구간을 가진다.
+      > **2026-09-11 — 그 구간이 이제 서비스 경계를 건넌다.** T2 가 `setupChatChannel` 을
+      > `ChatChannelBinderService` 로 옮겼으므로 `update()` → **다른 provider** → 외부 adapter
+      > 호출이 된다. 락을 어느 층에 두는지가 설계 선택으로 추가된다 — 호출자(`TriggersService`)가
+      > 트랜잭션/락을 열고 binder 를 그 안에서 부를지, binder 가 스스로 잠글지.
+      > (`--impl-prep` `review/consistency/2026/09/11/17_39_32` INFO#3.)
 
 - [ ] **`setupChatChannel` 이 6~8가지 관심사를 한 함수에 담고 있다** (developer, 2026-09-11 등재,
       `/ai-review` `review/code/2026/09/10/23_55_23` `maintainability` W6). 133 → 186줄(+40%).
@@ -2267,7 +2293,104 @@ field: T | null;
       > `Record<ChatChannelBlockedField, string>` 으로 선언해 **양방향**을 컴파일러가 본다 —
       > 종전 `satisfies` 안은 편도였다(`tsc` 로 양방향 RED 확인).
 
-- [ ] **chat-channel 도메인 규칙이 제네릭 `TriggersService`(1855줄)에 계속 쌓인다** (developer,
+- [ ] **`chat-channel-binder.service.ts` 구조 정리 4건** (developer, 2026-09-11 등재 ·
+      `/ai-review` `review/code/2026/09/11/18_04_36` INFO 2·4·6·9). 전부 비차단이고 **이동이
+      만든 것이 아니라 이관되거나 드러난 것**이다. 같은 파일이라 한 번에 처리한다:
+      (a) **secret store 쓰기 2건이 순차 `await`** — botToken rotate 와 provider-issued
+      inbound-signing rotate 는 서로 독립인데 왕복이 누적된다. `storeUserSuppliedSecrets`
+      게이팅을 유지한 채 `Promise.all` 로 병렬화 검토.
+      (b) **`preservedInboundSigningRef` 의 "병합 전 캡처" 불변식이 JSDoc 산문에만 있다** —
+      이동으로 그것이 **두 서비스 사이의 암묵 계약**이 됐다. 지금은 테스트·캐너리가 막는다.
+      **세 번째 호출 지점이 생길 조짐이 보이면** `PreMergeChatChannelSnapshot` 류 래핑 타입으로.
+      (c) **secret ref 생성과 `trigger.config` 캐스팅이 이제 두 파일에 걸쳐 중복** — 같은 파일
+      안 중복이었을 땐 눈에 띄었는데 이동으로 발견 가능성이 낮아졌다.
+      `buildChatChannelSecretRefs(triggerId)` 공유 헬퍼 후보.
+      (d) **테스트가 binder 를 mock 없이 실제 클래스로 주입한다**(14블록) — *"단언 diff 0줄"*
+      증거 전략과 일치하는 **의도된** 선택이지만, 클래스 경계가 생겼는데 격리에는 아직 안 쓴다.
+      chat-channel 무관 describe 는 stub 으로 바꿀 수 있다.
+      (e) `teardownChatChannel` **성공 경로**가 `Logger.warn` **미호출**을 단언하지 않는다
+      (`/ai-review` `19_30_49` INFO 8) — `expect(warn).not.toHaveBeenCalled()` 한 줄.
+      실패 경로만 warn 을 보고 있어 *"성공인데 경고가 난다"* 는 회귀를 못 잡는다.
+      (f) `trigger-callback-url.ts` docstring 안의 **내용 없는 빈 줄 1개** (`19_30_49` INFO 9).
+      (g) `buildTriggerCallbackUrl` 순수 함수 테스트의 경계값 2종 — 연속 슬래시(`//hook-abc`) ·
+      빈 baseUrl + 후행 슬래시 겹침 (`18_42_05` INFO 14). 실무 위험은 낮다.
+      > **(e)~(g)는 T2 PR 의 4라운드에서 INFO 로 나왔지만 고치지 않았다** — 그 라운드가
+      > **`codebase/**` 수정 0 으로 끝나는 종료 조건**을 막 충족한 시점이라, 한 줄이라도 건드리면
+      > 리뷰가 stale 돼 라운드가 한 번 더 돈다. *"루프를 끊는 지렛대는 파일 위치"* 를 적용했다.
+
+- [ ] **트래커 `spec_impact` 누락을 산문 대신 스크립트로 잡는다** (developer/harness,
+      2026-09-11 등재). 같은 실패가 **세 번** 났다 — `2026/09/06/16_29_00` INFO#2 ·
+      `2026/09/11/17_39_32` W2 · `2026/09/11/19_41_52` W1. 세 번째는 **두 번째를 고친 같은
+      세션 안에서** 났다: 항목 하나를 넣을 때 frontmatter 를 열었지만, 그 뒤 **3파일을 지목하는
+      새 항목**을 추가하면서 그중 1개만 이미 있다는 것을 확인하고 넘어갔다.
+      → **술어가 검사 가능하다**: *"열린(`[ ]`) 항목 본문이 정정 대상으로 지목하는 실재 spec
+      경로가 frontmatter `spec_impact` 에 다 있는가"*. 이번 턴에 그 판정을 실제로 돌려
+      **미등재 4건 중 2건만 대상**임을 갈랐다(나머지 2건은 `[x]` 항목 소속이라 비대상) —
+      즉 **주어 확인까지 기계화할 수 있다.**
+      처방: `.claude/hooks/` 또는 `.claude/tools/` 에 plan frontmatter 검사 추가.
+      **함정 — 전수 추가는 답이 아니다**: 닫힌 항목이나 단순 참조로 언급된 경로까지 넣으면
+      그 목록 자체가 거짓이 된다(`spec_impact` 는 *"이 plan 이 건드리는 파일"* 이다).
+      harness 축이라 리뷰 게이트가 안 무니 검증은 `python3 -m pytest .claude/tests -q`.
+
+- [ ] **`setupChatChannel` 귀속 표기 3곳이 T2 이동으로 낡는다** (planner, 2026-09-11 등재 ·
+      `--impl-prep` `review/consistency/2026/09/11/17_39_32` W2 — `rationale_continuity` 와
+      `plan_coherence` 가 **독립으로 같은 지점**을 짚었다). T2 가 `setupChatChannel` 을
+      `TriggersService` → `ChatChannelBinderService`(`modules/triggers/chat-channel-binder.service.ts`)
+      로 옮기므로, **클래스·파일 접두를 붙여 현재형으로 서술하는** 아래 3곳이 없는 심볼을 가리킨다:
+
+      | 파일 | 서술 |
+      |---|---|
+      | `spec/conventions/secret-store.md` | *"`triggers.service.ts.setupChatChannel` 구현체"* |
+      | `spec/conventions/chat-channel-adapter.md` | *"(`TriggersService.setupChatChannel`)"* |
+      | `spec/data-flow/14-chat-channel.md` | 구현 파일 목록에서 `triggers.service.ts` 에 귀속 |
+
+      **실질은 여전히 참이다** — 그 규칙은 `TriggersService` 가 호출해 같은 시점에 돈다.
+      부정확한 것은 **심볼 경로**뿐이다. 처방: *"`TriggersService` 가 `ChatChannelBinderService` 의
+      … 를 호출해"* 형태로 호출자/정의처를 갈라 적는다.
+      > **드리프트 범위는 이 3곳뿐이다.** `spec/` 전수 분류(9 출현) 결과 접두 없이
+      > `setupChatChannel` 만 인용하는 **6곳**(`15-chat-channel.md` 2 · `secret-store.md` 2 —
+      > 그중 하나는 코드 예시 · `data-flow/14-chat-channel.md` 2)은 이동 후에도 참이라 대상이 아니다 —
+      > **주어를 확인해 가른 결과**이고, T1 이 `assertInboundSigningPlaintextByProvider` 에 쓴
+      > 것과 같은 판별법이다.
+      > **자기-반증형 소정정 조건 1 불성립**(그 문장들은 이전 planner 턴이 썼다) → planner 턴.
+
+- [ ] **`rotate-bot-token` 엔드포인트에 OpenAPI 데코레이터가 전무하다** (developer, 2026-09-11
+      등재 · `--impl-prep` `review/consistency/2026/09/11/17_39_32` W3). spec `15-chat-channel.md`
+      §5.4 가 성공 응답 DTO · 요청 DTO · **에러 코드 6종**을 문서화하는데
+      `triggers.controller.ts` 의 `rotateBotToken` 에는 `@ApiOkResponse`/`@ApiBody`/
+      `@ApiBadRequestResponse` 가 **하나도 없다**. **형제 엔드포인트 `revokePerTriggerToken` 은
+      갖추고 있어** 같은 컨트롤러 안에서 비대칭이다.
+      **사전 존재 갭이고 T2 diff 범위 밖**이라 그 PR 에서 닫지 않았다. 처방: 응답 DTO 신설 +
+      `RotateBotTokenDto` 요청 DTO 승격 + 에러 데코레이터. `swagger.md §1/§2-4/§5` 가 SoT.
+
+- [ ] **`buildTriggerCallbackUrl` 과 `getAppBaseUrl()` 이 같은 fallback 을 두 벌 갖는다**
+      (developer, 2026-09-11 등재 · `--impl-prep` `review/consistency/2026/09/11/17_39_32` W4).
+      `common/utils/app-base-url.ts` 는 스스로 *"APP_URL 의 **단일 표준** fallback"* 이라
+      선언하고(옛 6곳 중복 제거의 산물, W-28) 기본값 리터럴·후행 슬래시 제거가 동일하다.
+      **T2 가 합치지 않은 이유는 읽는 소스가 다르기 때문**이다 — `getAppBaseUrl()` 은
+      `process.env.APP_URL` **직접**, 트리거 경로는 `ConfigService`. 갈아끼우면 트리거 단위
+      테스트 **14블록**이 `ConfigService` mock 으로 쥔 통제권이 사라져 **순수 이동이 아니라
+      DI 변경**이 된다.
+      > **먼저 판정할 것**: `'http://localhost:3011'` 리터럴은 src 에 **4곳**
+      > (`app.config.ts` · `app-base-url.ts` · `auth-oauth.service.ts` · `trigger-callback-url.ts`).
+      > 그리고 `app.config.ts` 가 이미 기본값을 박으므로 `trigger-callback-url.ts` 의 `??` 는
+      > **프로덕션에서 발화하지 않는다**(mock ConfigService 전용, 캐너리 있음). 통합의 진짜
+      > 질문은 "중복 제거" 가 아니라 **"env 를 읽는 층을 ConfigService 로 통일할 것인가"** 다.
+
+- [ ] **옮긴 로그 메시지가 아직 `TriggersService:` 접두를 달고 있다** (developer, 2026-09-11 등재).
+      `chat-channel-binder.service.ts` 의 경고 4개가 `` `TriggersService: …` `` 리터럴로 시작한다 —
+      logger 컨텍스트는 `ChatChannelBinderService` 인데 메시지가 다른 클래스를 말한다.
+      **T2 가 일부러 남겼다**: 바꾸면 관측 가능한 출력이 달라져 *"순수 이동"* 주장이 약해진다.
+      이 리터럴을 단언하는 테스트는 **0건**이라(실측) 정정은 안전하다. 다음에 그 파일을 손댈 때.
+
+- [ ] **`run-test.sh <미정의 단계>` 가 exit 0 을 낸다** (developer/harness, 2026-09-11 등재).
+      `.claude/tools/run-test.sh all` 을 돌리니 `status=NOT_DEFINED` 를 **stderr 로만** 찍고
+      **종료 코드 0** 으로 끝났다 — usage 는 `<lint|unit|build|e2e>` 다. 오타 한 번이
+      *"4단계 통과"* 로 보이는 **거짓 GREEN** 이고, 실제로 이 턴에서 한 번 속을 뻔했다.
+      처방: `NOT_DEFINED`(및 `CONFIG_MISSING`)는 비-0 종료. harness 라 리뷰 게이트가 안 무니
+      검증은 `python3 -m pytest .claude/tests -q`.
+
+- [x] **chat-channel 도메인 규칙이 제네릭 `TriggersService`(1855줄)에 계속 쌓인다** (developer,
       2026-09-11 등재, `/ai-review` `01_52_59` `architecture` W2 — 기존 "함수 비대" 항목의
       **모듈 경계 관점**이다). `chat-channel/` 하위에 adapter 계층이 따로 있는데 검증·secret
       쓰기·ref 보존 규칙은 triggers 쪽에 남아 경계가 어긋난다. 처방 후보:
@@ -2292,12 +2415,26 @@ field: T | null;
       > | 계층 | 대상 | 외부 `this.*` | 상태 |
       > |---|---|---|---|
       > | **T1 — 검증·변환** | `assertChatChannelInputSafe`(+오버로드 2) · `assertPatchCarriesNoSecrets` · `assertChatChannelAlreadySetUp` · `stripChatChannelPlaintext` · `assertInboundSigningPlaintextByProvider` · `translateSetupChannelError` | **0개** | **완료** — `modules/triggers/chat-channel-input-rules.ts` 순수 함수 모듈(DI 없음) |
-      > | **T2 — secret 쓰기·ref 보존** | `setupChatChannel` · `teardownChatChannel` | **6개** | **이월** — `ChatChannelBinderService`(Nest provider, `triggers/` 안) |
+      > | **T2 — secret 쓰기·ref 보존** | `setupChatChannel` · `teardownChatChannel` | **6개** | ✅ **완료** — `ChatChannelBinderService`(Nest provider, `triggers/` 안) |
       > | (범위 밖) | `rotateBotToken` · `cleanupRotatedChatChannelTokens` · `tryRevokeOldBotToken` | repo·audit·BullMQ | **영구 잔류** — 엔드포인트 오케스트레이션이라 옮기면 그 협력자까지 끌고 간다 |
       >
       > 따라서 이 PR 뒤 `TriggersService` 의 chat-channel 메서드는 **5개**(이월 2 + 잔류 3)이고
       > `TriggersService` 는 1,881 → **1,585줄**이다(이동 커밋 `2ae81077c` 시점에 측정 —
       > 이후 세 커밋은 이 파일을 건드리지 않았다).
+      >
+      > **✅ 2026-09-11 T2 완료 — 이 항목을 닫는다.** developer 턴
+      > `plan/complete/impl-chat-channel-binder-t2.md` (`--impl-prep` `17_39_32` BLOCK: NO ·
+      > `/ai-review` **4라운드** 끝에 CRITICAL 0 · WARNING 0 · `codebase/**` 수정 0 ·
+      > `--impl-done` `19_41_52` BLOCK: NO).
+      >
+      > **최종 상태**: `triggers.service.ts` 1,881 → **1,351줄**. chat-channel 잔존은
+      > **영구 잔류 3메서드**뿐이다 — `rotateBotToken`(`this.findById`·`this.recordAudit` 사용) ·
+      > `cleanupRotatedChatChannelTokens`(BullMQ 워커 진입) · `tryRevokeOldBotToken`.
+      > 셋 다 **엔드포인트 오케스트레이션**이라 옮기면 감사·큐 협력자까지 끌고 온다.
+      > **이 셋은 이동 대상이 아니다** — 이 항목을 다시 열 사유가 아니다.
+      >
+      > 이동 중 갈라 나온 것: `trigger-callback-url.ts`(순수 함수 — 이동 대상과 잔류 대상이
+      > `buildCallbackUrl` 을 공유해서 SoT 를 쪼개지 않으려고 뽑았다).
       >
       > **T2 의 증거 방식은 T1 과 다르다** — T1 은 의존이 0이라 *"테스트 파일 **무편집**"* 으로
       > 증명했다: **그 이동 커밋 하나의** `*.spec.ts` diff 가 0줄이다(base 를 `2ae81077c^` 로
@@ -2621,6 +2758,39 @@ field: T | null;
       이번엔 전원이 복원 명령 없이 관측만 했고 판정도 커밋 상태 기준이라 영향이 없었지만,
       **reviewer 가 유령을 쫓을 수 있다**(기존 교훈: 병렬 리뷰어가 서로를 오염시킨 사고).
       처방 후보: 뮤테이션을 별 워크트리에서 돌리거나, 리뷰 완료 후로 순서를 고정.
+      > **2026-09-11 재발(2회).** `impl-chat-channel-binder-t2` 의 `/ai-review`
+      > `review/code/2026/09/11/18_04_36` 에서 또 관측돼, 처방을 **"뮤테이션은 리뷰 완료
+      > 후에만"** (= 내 규율)으로 적었다.
+      >
+      > **그 처방이 다음 라운드에 곧바로 반증됐다 (3회).** `18_42_05` 에서 나는 뮤테이션을
+      > **한 번도 안 돌렸는데** reviewer 둘이 각각 관측했다 — 하나는 `triggers.service.ts` 에
+      > **미커밋 +555/-38**(이 PR 의 리팩터를 부분적으로 되감는 형태), 다른 하나는 teardown
+      > 테스트가 **일시적으로 실패**했다가 재실행 시 통과하는 것. 두 세션 모두 판정 후
+      > `git status --short` 로 워킹트리가 깨끗함을 확인했고, 나도 직접 확인했다
+      > (`triggers.service.ts` 가 HEAD 와 1,351줄 동일).
+      >
+      > → **원인은 내 규율이 아니라 reviewer sub-agent 들이 공유 워크트리를 직접 뮤테이션하는
+      > 것**이다. 내 행동을 바꿔도 안 없어진다. 처방을 그 방향으로 옮긴다:
+      > **reviewer 프롬프트에 「검증용 변경은 scratch 사본에서, 공유 체크아웃 write 금지」를
+      > 명시**하고(기존 교훈 `feedback_reviewer_mutates_shared_worktree` 와 같은 처방),
+      > 14명이 **동시 실행**된다는 사실도 함께 고지한다. 지금은 판정이 커밋 기준이라 결과가
+      > 오염되지 않았지만, **한 명이라도 `git restore` 를 쓰면 남의 작업이 사라진다**(선례 있음).
+      > 이건 `.claude/skills/code-review-agents/**` 수정이라 **harness 축**이고 리뷰 게이트가
+      > 안 무니 검증은 `python3 -m pytest .claude/tests -q`.
+      >
+      > **4회째 (`review/code/2026/09/11/19_06_54`) — 이제 하네스가 잡는다.** reviewer 3명이
+      > `remove()` 의 teardown 호출이 `// MUTATED-OUT: …` 로 치환된 것을 각각 관측했고,
+      > **`testing` reviewer 는 보안 분류기에 차단**됐다(`Blocked by classifier`).
+      > 즉 *"reviewer 가 유령을 본다"* 단계를 넘어 **정책 위반으로 걸리는** 단계다 —
+      > 차단되면 그 reviewer 의 커버리지가 통째로 신뢰 불가가 되므로 **결과 품질 문제**이기도
+      > 하다(이번엔 그 지적을 내가 직접 재현해 확인했다). 우선순위를 올린다.
+      >
+      > **5회째 (`review/code/2026/09/11/19_30_49`)** — 이번엔 `triggers.service.ts:855` 가
+      > `MUTATION-TEST-REMOVED` 로 치환된 것이 관측됐다. **4개 라운드 전부에서 1회 이상 났다**
+      > (`18_04_36` · `18_42_05` · `19_06_54` · `19_30_49`). 매번 자연 복구됐고 워킹트리도
+      > 매번 실측으로 깨끗함을 확인했지만, **재발률 100%** 이므로 *"가끔 있는 일"* 이 아니라
+      > **reviewer 의 기본 동작**이다. 치환 마커 문자열이 라운드마다 다른 것
+      > (`// MUTATED-OUT:` / `MUTATION-TEST-REMOVED`)도 여러 reviewer 가 각자 하고 있다는 뜻이다.
 
 - [ ] **`SecretResolver.rotate` 에 빈 값 가드가 없다** (developer + 보안 판단, 2026-09-10 등재).
       `rotate(ref, ws, '')` 가 빈 문자열을 그대로 암호화해 row 를 덮어쓴다(`:129-145`, 가드 0).

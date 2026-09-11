@@ -45,6 +45,8 @@ import {
   translateSetupChannelError,
 } from './chat-channel-input-rules';
 import type { ChatChannelInput } from './chat-channel-input-rules';
+import { buildTriggerCallbackUrl } from './trigger-callback-url';
+import { ChatChannelBinderService } from './chat-channel-binder.service';
 
 export type TriggerDetail = Trigger & {
   cronExpression?: string;
@@ -248,6 +250,7 @@ export class TriggersService {
     private readonly secrets: SecretResolverService,
     private readonly auditLogsService: AuditLogsService,
     private readonly scheduleRunner: ScheduleRunnerService,
+    private readonly chatChannelBinder: ChatChannelBinderService,
   ) {}
 
   async findAll(
@@ -442,7 +445,7 @@ export class TriggersService {
     let result = saved;
     // Chat Channel 어댑터 setup — CCH-AD-02.
     if (chatChannel) {
-      await this.setupChatChannel(saved, chatChannel, {
+      await this.chatChannelBinder.setupChatChannel(saved, chatChannel, {
         storeUserSuppliedSecrets: true,
       });
       // setupChatChannel 은 별도 triggerRepository.update 로 botTokenRef / inboundSigningRef /
@@ -557,8 +560,9 @@ export class TriggersService {
     if (chatChannel) {
       // chatChannel 갱신 — 새 webhook URL 등록 (idempotent).
       // **사용자 비밀은 쓰지 않는다** (R-CC-21 / D-2). telegram 의 server-issued 서명은
-      // 이 플래그와 무관하게 계속 재저장된다 — 위 setupChatChannel 문서의 3-쓰기 표 참조.
-      await this.setupChatChannel(saved, chatChannel, {
+      // 이 플래그와 무관하게 계속 재저장된다 — 3-쓰기 표는
+      // `chat-channel-binder.service.ts` 의 `setupChatChannel` JSDoc 에 있다.
+      await this.chatChannelBinder.setupChatChannel(saved, chatChannel, {
         storeUserSuppliedSecrets: false,
         // 병합 **전**의 값이다 — `saved.config.chatChannel` 은 이미 요청 바디로 교체됐다.
         preservedInboundSigningRef: previousInboundSigningRef,
@@ -809,235 +813,6 @@ export class TriggersService {
   }
 
   /**
-   * Chat Channel adapter setupChannel 호출 + 결과를 trigger.config 와 health 컬럼에 반영.
-   * Spec CCH-AD-02. best-effort — 실패 시 chat_channel_health=degraded, last_error 저장하되 trigger
-   * 자체는 비활성화 X (CCH-SE-01 / WH-MG-04).
-   *
-   * ## secret store 쓰기는 셋이고, PATCH 에서의 처분이 서로 다르다
-   *
-   * | 쓰기 | 자원 | `storeUserSuppliedSecrets: false` 일 때 |
-   * |---|---|---|
-   * | bot token rotate | 사용자가 body 로 보낸 값 | **건너뛴다** |
-   * | provider-issued signing (slack/discord) | 사용자가 body 로 보낸 값 | **건너뛴다** |
-   * | server-issued signing (telegram) | adapter 가 provider 와 합의해 발급 | **그대로 쓴다** |
-   *
-   * **세 번째를 함께 막으면 안 된다.** telegram adapter 는 `setupChannel` 마다 새
-   * `secret_token` 을 Telegram 에 등록하므로, 저장을 건너뛰면 DB 는 옛 값이 되고
-   * `X-Telegram-Bot-Api-Secret-Token` 검증이 어긋나 **그 트리거의 인입이 전부 401** 이 된다.
-   * 플래그 이름을 `writeSecrets` 처럼 뭉뚱그리지 않고 `storeUserSuppliedSecrets` 로 둔 이유가
-   * 이것이다 — 게이팅 대상이 *"사용자가 보낸"* 비밀임을 이름이 말하게 한다.
-   *
-   * @see spec/5-system/15-chat-channel.md §5.4.1.1 (inboundSigning — 회전 주체별 분기)
-   * @see spec/5-system/15-chat-channel.md R-CC-21 (PATCH 는 비밀을 쓰지 않는다)
-   */
-  private async setupChatChannel(
-    trigger: Trigger,
-    chatChannelCfg: ChatChannelInput,
-    {
-      storeUserSuppliedSecrets,
-      preservedInboundSigningRef,
-    }: {
-      storeUserSuppliedSecrets: boolean;
-      /**
-       * 이 PATCH **이전에** config 에 있던 `inboundSigningRef`. 호출자가 병합 전에 집어 준다
-       * — 병합 후에는 사라져 있어 이 함수가 스스로 알 수 없다. 생성 경로는 `undefined`.
-       */
-      preservedInboundSigningRef?: string;
-    },
-  ): Promise<void> {
-    if (!this.channelAdapterRegistry.has(chatChannelCfg.provider)) {
-      this.logger.warn(
-        `TriggersService: chatChannel.provider="${chatChannelCfg.provider}" 미등록 — setupChannel skip`,
-      );
-      return;
-    }
-    if (!trigger.endpointPath) {
-      throw new BadRequestException({
-        code: 'CHAT_CHANNEL_ENDPOINT_REQUIRED',
-        message:
-          'Chat channel trigger requires endpointPath (callback URL을 만들기 위해 필요).',
-      });
-    }
-    const adapter = this.channelAdapterRegistry.get(chatChannelCfg.provider);
-    const callbackUrl = this.buildCallbackUrl(trigger.endpointPath);
-
-    // secret store ref 생성 — spec/conventions/secret-store.md §1 URI scheme 단일 진입점.
-    const botTokenRef = buildSecretRef({
-      scope: 'triggers',
-      resourceId: trigger.id,
-      name: 'bot-token',
-    });
-    const inboundSigningRef = buildSecretRef({
-      scope: 'triggers',
-      resourceId: trigger.id,
-      name: 'inbound-signing',
-    });
-
-    // [쓰기 ①] secret store 에 botToken 저장 (UPSERT — 재시도 안전).
-    // **PATCH 에서는 건너뛴다.** 종전에는 조건이 없어서, 값이 없으면 `?? ''` 가 빈 문자열로
-    // 회전해 저장된 토큰을 지웠다 — `SecretResolver.rotate` 에 빈 값 가드가 없기 때문이다
-    // (R-CC-21 「처방의 함정」). 필드를 막는 것만으로는 그 파괴를 못 막으므로 경로를 막는다.
-    if (storeUserSuppliedSecrets) {
-      await this.secrets.rotate(
-        botTokenRef,
-        trigger.workspaceId,
-        chatChannelCfg.botToken ?? '',
-      );
-    }
-
-    // [secret-store.md §5.5 (b)] provider-issued inbound-signing plaintext 처리.
-    // Slack signing secret / Discord public key — 사용자가 외부 portal 에서 입력한 값을
-    // secret store 로 옮기고 plaintext 는 config 에 절대 흘리지 않음 (SS-SE-01).
-    // [쓰기 ②] **PATCH 에서는 건너뛴다** — §5.4.1.1 이 v1 에서 이 회전을 차단한다.
-    // 종전 구현은 slack/discord 에서 이 값을 **필수로 요구**해 매 PATCH 마다 회전시켰다.
-    const providerIssuedPlaintext = storeUserSuppliedSecrets
-      ? chatChannelCfg.inboundSigningPlaintext
-      : undefined;
-    let providerIssuedStored = false;
-    if (
-      typeof providerIssuedPlaintext === 'string' &&
-      providerIssuedPlaintext.length > 0
-    ) {
-      await this.secrets.rotate(
-        inboundSigningRef,
-        trigger.workspaceId,
-        providerIssuedPlaintext,
-      );
-      providerIssuedStored = true;
-    }
-
-    // chatChannelCfg 에서 plaintext 필드들을 제거 — config 에 흘러가지 않음 (SS-SE-01).
-    // create()/update() 의 stripChatChannelPlaintext 와 의도적으로 이중 방어 — adapter
-    // 코드가 dto.botToken 을 직접 mutate 하는 회귀에 대비.
-    const sanitizedCfg = stripChatChannelPlaintext(chatChannelCfg);
-
-    // [ref 보존 — 두 ref 는 **대칭**이어야 한다]
-    //
-    // `mergeExternalConfig` 가 `config.chatChannel` 을 **통째로 교체**하므로, 요청 바디에 없는
-    // 필드는 전부 사라진다. `botTokenRef` 는 `buildSecretRef(trigger.id)` 로 매번 재유도돼
-    // 무조건 다시 실리는데, `inboundSigningRef` 는 종전에 *"이번 호출에서 값을 새로 썼을 때만"*
-    // 실렸다. D-2 가 그 쓰기를 게이팅하자 **slack/discord PATCH 에서 그 조건이 구조적으로 항상
-    // 거짓**이 되어 ref 가 사라졌고, `ChatChannelInboundAuthenticator` 는 세 provider 모두
-    // `if (!config.inboundSigningRef) return;` 으로 검증을 건너뛴다 — 카드 편집 PATCH 한 번으로
-    // 그 트리거의 인입 웹훅이 **서명 없이 통과**하게 된다(fail-open).
-    //
-    // **그렇다고 `botTokenRef` 처럼 무조건 싣지는 않는다.** 이 ref 의 존재는 *"signing 비밀이
-    // 저장돼 있다"* 는 신호이기도 해서, 행이 없는 트리거(legacy · setupChannel 이전)에 ref 를
-    // 붙이면 검증이 resolve 실패로 넘어가 **fail-open 을 fail-closed 로 바꾸는 별개의 동작
-    // 변경**이 된다. 그래서 "새로 썼거나 · 이미 있었으면 보존" 으로 좁힌다.
-    // **`trigger.config` 에서 읽으면 안 된다** — `update()` 는 `mergeExternalConfig` 로
-    // `config.chatChannel` 을 통째로 교체한 뒤 저장하고, 그 결과를 이 함수에 넘긴다. 즉 여기
-    // 도착한 시점의 `trigger.config.chatChannel` 은 **이미 요청 바디로 갈아치워져** 옛 ref 가
-    // 없다. 그래서 호출자가 **병합 전에** 집어 인자로 넘긴다.
-    const inboundSigningRefSurvives =
-      providerIssuedStored || Boolean(preservedInboundSigningRef);
-
-    const internalCfg: ChatChannelConfig = {
-      ...(sanitizedCfg as ChatChannelConfig),
-      botTokenRef,
-      ...(inboundSigningRefSurvives ? { inboundSigningRef } : {}),
-    };
-
-    try {
-      const result = await adapter.setupChannel(internalCfg, callbackUrl);
-
-      // [쓰기 ③] issuedInboundSigning (server-issued, Telegram) → secret store 저장.
-      // provider-issued (slack/discord) 인 경우 setupChannel 의 issuedInboundSigning 은 비어 있음
-      // — 이미 위에서 사용자 입력 plaintext 를 저장했으므로 noop.
-      //
-      // **`storeUserSuppliedSecrets` 로 게이팅하지 않는다 — 의도적이다.** 이 값은 사용자가
-      // 보낸 것이 아니라 adapter 가 방금 Telegram 에 등록한 값이다. PATCH 에서 저장을
-      // 건너뛰면 DB 는 옛 `secret_token`, Telegram 은 새 값으로 서명하게 되어 그 트리거의
-      // 인입 웹훅이 **전부 401** 이 된다 (Spec §5.4.1.1 telegram 행 / R-CC-21 caveat).
-      // 회귀 캐너리: `triggers.service.spec.ts` 의 *"server-issued 서명은 PATCH 에서도
-      // 재저장된다"*.
-      if (result.issuedInboundSigning) {
-        await this.secrets.rotate(
-          inboundSigningRef,
-          trigger.workspaceId,
-          result.issuedInboundSigning,
-        );
-      }
-
-      // setupChannel 결과 — botIdentity 등을 config 에 머지.
-      const mergedChannel: ChatChannelConfig = {
-        ...internalCfg,
-        ...(result.configUpdates ?? {}),
-        botTokenRef,
-        // 위 `inboundSigningRefSurvives` 와 같은 술어 + 이번 호출의 server-issued 발급.
-        // 회귀 캐너리: *"slack/discord — 카드 편집 PATCH 후에도 inboundSigningRef 가 살아남는다"*.
-        ...(result.issuedInboundSigning || inboundSigningRefSurvives
-          ? { inboundSigningRef }
-          : {}),
-      };
-      const newConfig = {
-        ...(trigger.config ?? {}),
-        chatChannel: mergedChannel,
-      };
-      await this.triggerRepository.update(
-        { id: trigger.id },
-        {
-          config: newConfig,
-          chatChannelSetupAt: new Date(),
-          chatChannelHealth: 'healthy',
-          chatChannelLastError: null,
-        },
-      );
-      // [Spec R8 v1 적용 (2026-05-24)] setup success path 에서만 listener registry register.
-      // setupChannel 멱등성 — 동일 triggerId 재호출 시 entry overwrite.
-      this.channelListenerRegistry.register(
-        trigger.id,
-        chatChannelCfg.provider,
-      );
-    } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      // SUMMARY#24: secret_store 에 botToken 저장 완료 후 setupChannel 실패 — trigger 는
-      // degraded 로 저장되지만 secret_store row 는 남아 있음. remove() 시 deleteByPrefix 로 정리.
-      this.logger.warn(
-        `TriggersService: secret_store 에 botToken 저장 완료 후 setupChannel 실패 — trigger=${trigger.id} 는 degraded 상태로 저장됨.`,
-      );
-      this.logger.warn(
-        `TriggersService: setupChannel 실패 (trigger=${trigger.id}, provider=${chatChannelCfg.provider}): ${message}`,
-      );
-      // fallbackConfig: `internalCfg` 를 그대로 쓴다 — 위 `inboundSigningRefSurvives` 가
-      // 거기서 이미 적용되므로 **실패 경로에서도 두 ref 가 함께 보존된다**.
-      // 회귀 캐너리: *"setupChannel 이 실패해도(degraded) inboundSigningRef 를 잃지 않는다"*.
-      const fallbackConfig = {
-        ...(trigger.config ?? {}),
-        chatChannel: internalCfg,
-      };
-      await this.triggerRepository.update(
-        { id: trigger.id },
-        {
-          config: fallbackConfig,
-          chatChannelHealth: 'degraded',
-          chatChannelLastError: message.slice(0, 1024),
-        },
-      );
-    }
-  }
-
-  /**
-   * Chat Channel adapter teardownChannel 호출 — trigger 삭제 / chatChannel 제거 시. best-effort.
-   * Spec CCH-AD-03.
-   */
-  private async teardownChatChannel(trigger: Trigger): Promise<void> {
-    const chatChannelCfg = (
-      trigger.config as { chatChannel?: ChatChannelConfig }
-    ).chatChannel;
-    if (!chatChannelCfg) return;
-    if (!this.channelAdapterRegistry.has(chatChannelCfg.provider)) return;
-    const adapter = this.channelAdapterRegistry.get(chatChannelCfg.provider);
-    try {
-      await adapter.teardownChannel(chatChannelCfg);
-    } catch (err) {
-      this.logger.warn(
-        `TriggersService: teardownChannel 실패 (best-effort, trigger=${trigger.id}): ${err instanceof Error ? err.message : String(err)}`,
-      );
-    }
-  }
-
-  /**
    * [Spec 1-data-model §2.9.1 / data-flow 10-triggers §1.4] Trigger 측 토글의 schedule 동기.
    * schedule row 의 is_active 를 맞추고 BullMQ job scheduler 를 등록/해제한다.
    * 고아 trigger (생성 2-step 중간 실패로 schedule row 부재) 는 graceful skip — 동기 대상이 없다.
@@ -1077,7 +852,7 @@ export class TriggersService {
         await this.scheduleRunner.removeJob(schedule.id);
       }
     }
-    await this.teardownChatChannel(trigger);
+    await this.chatChannelBinder.teardownChatChannel(trigger);
     // [Spec R8 v1 적용 (2026-05-24)] listener registry unregister — trigger 삭제 후 race
     // event 가 dispatcher 에 도달했을 때 안전 가드. unregister 는 graceful (미등록 noop).
     this.channelListenerRegistry.unregister(trigger.id);
@@ -1283,7 +1058,10 @@ export class TriggersService {
     // [Spec Chat Channel §5.4] 외부 API 401/403 (인증 실패) 은 BOT_TOKEN_INVALID 400 으로,
     // 그 외 setupChannel 실패는 CHAT_CHANNEL_SETUP_FAILED 502 로 변환.
     const mergedConfig: ChatChannelConfig = { ...chatChannelCfg, botTokenRef };
-    const callbackUrl = this.buildCallbackUrl(trigger.endpointPath);
+    const callbackUrl = buildTriggerCallbackUrl({
+      baseUrl: this.configService.get<string>('app.url'),
+      endpointPath: trigger.endpointPath,
+    });
     let result: SetupResult;
     try {
       result = await adapter.setupChannel(mergedConfig, callbackUrl);
@@ -1335,18 +1113,6 @@ export class TriggersService {
       chatChannelHealth: 'healthy',
       botIdentity: mergedChannel.botIdentity ?? null,
     };
-  }
-
-  /**
-   * APP_URL 기반 webhook callback URL 조립. setupChatChannel / rotateChatChannelBotToken 공용.
-   *
-   * `app.url` 은 `common/config/app.config.ts` 가 `APP_URL` env 로부터 등록한 canonical key.
-   * Telegram setWebhook 은 HTTPS 만 허용하므로 운영 env 는 반드시 https:// 로 시작해야 한다.
-   */
-  private buildCallbackUrl(endpointPath: string): string {
-    const baseUrl =
-      this.configService.get<string>('app.url') ?? 'http://localhost:3011';
-    return `${baseUrl.replace(/\/$/, '')}/api/hooks/${endpointPath.replace(/^\//, '')}`;
   }
 
   /**
