@@ -47,6 +47,7 @@ import {
   DISCORD_PUBLIC_KEY_REGEX,
 } from '@workflow/chat-channel-validation';
 import { CHAT_CHANNEL_BLOCKED_FIELD_MESSAGES } from './chat-channel-rejection-messages.const';
+import { ErrorCode } from '../../nodes/core/error-codes';
 
 /**
  * 두 진입점이 보내는 `chatChannel` 을 함께 받는 자리의 타입.
@@ -506,7 +507,7 @@ export class TriggersService {
         throw new BadRequestException({
           code: 'VALIDATION_ERROR',
           message: `Schedule 타입 트리거는 name·isActive 만 수정할 수 있어요 (거부 필드: ${disallowed.join(', ')}). cron·timezone 등 스케줄 메타는 Schedule 화면에서 편집하세요.`,
-          details: { field: 'type', disallowed, code: 'INVALID_FIELD' },
+          details: { field: 'type', disallowed, code: ErrorCode.INVALID_FIELD },
         });
       }
     }
@@ -652,21 +653,21 @@ export class TriggersService {
       throw new BadRequestException({
         code: 'VALIDATION_ERROR',
         message: CHAT_CHANNEL_BLOCKED_FIELD_MESSAGES.botTokenRef,
-        details: { field: 'botTokenRef', code: 'INVALID_FIELD' },
+        details: { field: 'botTokenRef', code: ErrorCode.INVALID_FIELD },
       });
     }
     if (typeof blocked.inboundSigningRef !== 'undefined') {
       throw new BadRequestException({
         code: 'VALIDATION_ERROR',
         message: CHAT_CHANNEL_BLOCKED_FIELD_MESSAGES.inboundSigningRef,
-        details: { field: 'inboundSigningRef', code: 'INVALID_FIELD' },
+        details: { field: 'inboundSigningRef', code: ErrorCode.INVALID_FIELD },
       });
     }
     if (typeof blocked.inboundSigning !== 'undefined') {
       throw new BadRequestException({
         code: 'VALIDATION_ERROR',
         message: CHAT_CHANNEL_BLOCKED_FIELD_MESSAGES.inboundSigning,
-        details: { field: 'inboundSigning', code: 'INVALID_FIELD' },
+        details: { field: 'inboundSigning', code: ErrorCode.INVALID_FIELD },
       });
     }
     if (mode === 'update') {
@@ -697,14 +698,17 @@ export class TriggersService {
       throw new BadRequestException({
         code: 'VALIDATION_ERROR',
         message: CHAT_CHANNEL_BLOCKED_FIELD_MESSAGES.botToken,
-        details: { field: 'botToken', code: 'INVALID_FIELD' },
+        details: { field: 'botToken', code: ErrorCode.INVALID_FIELD },
       });
     }
     if (typeof carried.inboundSigningPlaintext !== 'undefined') {
       throw new BadRequestException({
         code: 'VALIDATION_ERROR',
         message: CHAT_CHANNEL_BLOCKED_FIELD_MESSAGES.inboundSigningPlaintext,
-        details: { field: 'inboundSigningPlaintext', code: 'INVALID_FIELD' },
+        details: {
+          field: 'inboundSigningPlaintext',
+          code: ErrorCode.INVALID_FIELD,
+        },
       });
     }
   }
@@ -727,7 +731,7 @@ export class TriggersService {
         code: 'VALIDATION_ERROR',
         message:
           'chatChannel 최초 설정은 트리거 생성(POST /api/triggers)에서만 할 수 있어요. PATCH 는 bot token 을 받지 않으므로 채널을 새로 붙일 수 없어요.',
-        details: { field: 'chatChannel', code: 'INVALID_FIELD' },
+        details: { field: 'chatChannel', code: ErrorCode.INVALID_FIELD },
       });
     }
     // provider 전환도 막는다. 허용하면 **다른 provider 의 토큰을 넘기게 된다** —
@@ -738,7 +742,7 @@ export class TriggersService {
       throw new BadRequestException({
         code: 'VALIDATION_ERROR',
         message: `provider 는 PATCH 로 바꿀 수 없어요 (현재 ${current.provider}). 다른 provider 로 옮기려면 트리거를 삭제 후 다시 만들어 주세요.`,
-        details: { field: 'provider', code: 'INVALID_FIELD' },
+        details: { field: 'provider', code: ErrorCode.INVALID_FIELD },
       });
     }
   }
@@ -791,7 +795,10 @@ export class TriggersService {
           code: 'VALIDATION_ERROR',
           message:
             'Telegram inboundSigning 은 server-issued 입니다. inboundSigningPlaintext 를 입력하지 마세요 (setupChannel 의 randomBytes 가 자동 발급).',
-          details: { field: 'inboundSigningPlaintext', code: 'INVALID_FIELD' },
+          details: {
+            field: 'inboundSigningPlaintext',
+            code: ErrorCode.INVALID_FIELD,
+          },
         });
       }
       return;
@@ -806,7 +813,10 @@ export class TriggersService {
       throw new BadRequestException({
         code: 'VALIDATION_ERROR',
         message: `${label} 가 필요합니다. inboundSigningPlaintext 를 입력하세요.`,
-        details: { field: 'inboundSigningPlaintext', code: 'INVALID_FIELD' },
+        details: {
+          field: 'inboundSigningPlaintext',
+          code: ErrorCode.INVALID_FIELD,
+        },
       });
     }
 
@@ -818,7 +828,10 @@ export class TriggersService {
         code: 'VALIDATION_ERROR',
         message:
           'Slack signing secret 형식이 올바르지 않습니다 (lowercase hex 32 chars 필요).',
-        details: { field: 'inboundSigningPlaintext', code: 'INVALID_FIELD' },
+        details: {
+          field: 'inboundSigningPlaintext',
+          code: ErrorCode.INVALID_FIELD,
+        },
       });
     }
 
@@ -827,7 +840,10 @@ export class TriggersService {
         code: 'VALIDATION_ERROR',
         message:
           'Discord application public key 형식이 올바르지 않습니다 (ed25519 public key lowercase hex 64 chars 필요).',
-        details: { field: 'inboundSigningPlaintext', code: 'INVALID_FIELD' },
+        details: {
+          field: 'inboundSigningPlaintext',
+          code: ErrorCode.INVALID_FIELD,
+        },
       });
     }
   }
@@ -992,7 +1008,7 @@ export class TriggersService {
       throw new BadRequestException({
         code: 'AUTH_CONFIG_NOT_FOUND',
         message: 'Auth config not found in this workspace',
-        details: { field: 'authConfigId', code: 'INVALID_FIELD' },
+        details: { field: 'authConfigId', code: ErrorCode.INVALID_FIELD },
       });
     }
   }

@@ -1,3 +1,13 @@
+// **`error.details.code` 단언이 이 파일에 다섯 번 나온다 — 그것이 규약의 유일한 wire 증거다.**
+//
+// `2-api-convention.md` §5.3 이 *「`details` 항목이 `field` 를 실으면 `code` 도 싣는다 —
+// 형태 무관」* 을 규약화했고(2026-09-11), unit 테스트는 `getResponse()` 를 보지만 **여기만
+// 실제 HTTP round-trip 을 본다**. spec `15-chat-channel.md` §5.4.1 이 *"실제 HTTP round-trip
+// 은 아직 e2e 로 확인하지 않았다"* 고 적었던 축이 바로 이 자리다.
+//
+// 각 `it()` 의 `toEqual` 은 **정확 일치**라 `code` 가 빠지면 RED 가 된다 — 의도된 엄격함이다.
+// 커버리지는 **POST 생성 경로 전용**이고 PATCH 경로의 wire 증거는 아직 없다(후속 항목).
+
 import { describe, it, expect, beforeAll, afterAll } from '@jest/globals';
 import { Client } from 'pg';
 import crypto from 'node:crypto';
@@ -184,10 +194,7 @@ describe('POST /api/triggers — chat-channel multi-provider (e2e)', () => {
       });
       expect(res.status).toBe(400);
       expect(res.body.error.code).toBe('VALIDATION_ERROR');
-      // `code` 는 2026-09-11 배선분 — `2-api-convention.md` §5.3 이 *「`details` 항목이
-      // `field` 를 실으면 `code` 도 싣는다」* 를 규약화했다. **이 단언이 그 규약의 유일한
-      // 실제 wire 증거다** — unit 은 `getResponse()` 를 보지만 여기는 HTTP round-trip 을 본다
-      // (spec §5.4.1 이 *"실제 HTTP round-trip 은 아직 e2e 로 확인하지 않았다"* 고 적었던 축).
+      // `details.code` 는 wire 증거다 — 파일 상단 주석 참조.
       expect(res.body.error.details).toEqual({
         field: 'inboundSigningPlaintext',
         code: 'INVALID_FIELD',
@@ -240,10 +247,7 @@ describe('POST /api/triggers — chat-channel multi-provider (e2e)', () => {
       });
       expect(res.status).toBe(400);
       expect(res.body.error.code).toBe('VALIDATION_ERROR');
-      // `code` 는 2026-09-11 배선분 — `2-api-convention.md` §5.3 이 *「`details` 항목이
-      // `field` 를 실으면 `code` 도 싣는다」* 를 규약화했다. **이 단언이 그 규약의 유일한
-      // 실제 wire 증거다** — unit 은 `getResponse()` 를 보지만 여기는 HTTP round-trip 을 본다
-      // (spec §5.4.1 이 *"실제 HTTP round-trip 은 아직 e2e 로 확인하지 않았다"* 고 적었던 축).
+      // `details.code` 는 wire 증거다 — 파일 상단 주석 참조.
       expect(res.body.error.details).toEqual({
         field: 'inboundSigningPlaintext',
         code: 'INVALID_FIELD',
@@ -265,10 +269,7 @@ describe('POST /api/triggers — chat-channel multi-provider (e2e)', () => {
       });
       expect(res.status).toBe(400);
       expect(res.body.error.code).toBe('VALIDATION_ERROR');
-      // `code` 는 2026-09-11 배선분 — `2-api-convention.md` §5.3 이 *「`details` 항목이
-      // `field` 를 실으면 `code` 도 싣는다」* 를 규약화했다. **이 단언이 그 규약의 유일한
-      // 실제 wire 증거다** — unit 은 `getResponse()` 를 보지만 여기는 HTTP round-trip 을 본다
-      // (spec §5.4.1 이 *"실제 HTTP round-trip 은 아직 e2e 로 확인하지 않았다"* 고 적었던 축).
+      // `details.code` 는 wire 증거다 — 파일 상단 주석 참조.
       expect(res.body.error.details).toEqual({
         field: 'inboundSigningPlaintext',
         code: 'INVALID_FIELD',
@@ -341,10 +342,7 @@ describe('POST /api/triggers — chat-channel multi-provider (e2e)', () => {
       });
       expect(res.status).toBe(400);
       expect(res.body.error.code).toBe('VALIDATION_ERROR');
-      // `code` 는 2026-09-11 배선분 — `2-api-convention.md` §5.3 이 *「`details` 항목이
-      // `field` 를 실으면 `code` 도 싣는다」* 를 규약화했다. **이 단언이 그 규약의 유일한
-      // 실제 wire 증거다** — unit 은 `getResponse()` 를 보지만 여기는 HTTP round-trip 을 본다
-      // (spec §5.4.1 이 *"실제 HTTP round-trip 은 아직 e2e 로 확인하지 않았다"* 고 적었던 축).
+      // `details.code` 는 wire 증거다 — 파일 상단 주석 참조.
       expect(res.body.error.details).toEqual({
         field: 'inboundSigningPlaintext',
         code: 'INVALID_FIELD',
@@ -364,10 +362,7 @@ describe('POST /api/triggers — chat-channel multi-provider (e2e)', () => {
       });
       expect(res.status).toBe(400);
       expect(res.body.error.code).toBe('VALIDATION_ERROR');
-      // `code` 는 2026-09-11 배선분 — `2-api-convention.md` §5.3 이 *「`details` 항목이
-      // `field` 를 실으면 `code` 도 싣는다」* 를 규약화했다. **이 단언이 그 규약의 유일한
-      // 실제 wire 증거다** — unit 은 `getResponse()` 를 보지만 여기는 HTTP round-trip 을 본다
-      // (spec §5.4.1 이 *"실제 HTTP round-trip 은 아직 e2e 로 확인하지 않았다"* 고 적었던 축).
+      // `details.code` 는 wire 증거다 — 파일 상단 주석 참조.
       expect(res.body.error.details).toEqual({
         field: 'inboundSigningPlaintext',
         code: 'INVALID_FIELD',

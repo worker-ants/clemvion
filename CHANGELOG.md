@@ -1,5 +1,48 @@
 # Changelog
 
+## Unreleased — 거부 사유가 사람만 읽을 수 있었다 (`details[].code` 15자리) + 빈 botToken
+
+### 사유가 기계가 읽을 수 있는 자리에 없었다
+
+에러 봉투의 `details` 가 `{ field }` 만 실으면 top-level 은 400 기본값 `VALIDATION_ERROR`,
+사유는 **한국어 `message` 뿐**이다 — API 규약이 `message` 를 *"사람이 읽을 짧은 설명"* 으로
+규정한 자리다. 그래서 소비자는 *"내부 필드라 금지"* 와 *"PATCH 로 변경 불가"* 와
+*"최초 설정은 생성 POST 한정"* 을 **구분할 수 없었다**.
+
+규약(`2-api-convention.md` §5.3, *「`field` 를 실으면 `code` 도 싣는다 — 형태 무관」*)을
+15자리에 배선했다 — `triggers.service.ts` 객체 13곳 + `password.util.ts` **배열 2곳**.
+배열 형태에도 같은 갭이 있었다.
+
+**범위 밖을 함께 적는다**: `field` 가 없는 진단 payload(`{ errors }`·`{ offenders }`·
+`{ reason }`) 6곳은 사유가 이미 top-level 특화 코드에 있어 손대지 않았다 — 얹으면 규약 자신의
+*"둘을 겹쳐 쓰지 않는다"* 를 어긴다. 감사 로그 `details`(22곳)도 별 층이다.
+
+**이 배선이 사유를 구분해 주지는 않는다.** 전부 generic `INVALID_FIELD` 라 위 세 사유는
+여전히 안 갈린다 — 도메인 특화 코드 신설은 카탈로그 등재를 요구하는 별개 결정이다.
+
+### 빈 `botToken` 이 시크릿을 먼저 저장하고 있었다
+
+`@ApiProperty` 가 `minLength: 1` 을 광고하는데 검증 체인에는 `@MinLength` 이 없었다 —
+**선언이 구현보다 넓었다.** `''` 는 문자열이라 통과하고, `setupChatChannel` 의 `[쓰기 ①]` 이
+`rotate(botTokenRef, ws, '')` 로 **빈 시크릿을 먼저 저장**한다. provider 호출 실패(401 →
+`BOT_TOKEN_INVALID`)는 그 **뒤**다 — 요청은 실패하는데 시크릿 행은 남는다.
+
+> **공백 전용 문자열(`'   '`)은 아직 안 막힌다** — `@MinLength(1)` 은 길이만 본다. trim 정책은
+> 별개 결정으로 남겼고 테스트 주석에 그 경계를 적었다.
+
+### 뮤테이션에서 4자리가 살아남았다 — 테스트가 그 축을 안 보고 있었다
+
+`code` 를 한 자리씩 빼고 RED 를 봤는데 처음엔 4자리가 통과했다:
+
+- `toMatchObject` 의 **재귀 부분일치** — 기대 객체에 `code` 가 없으면 소스에 없어도 통과한다
+  (`type`·`chatChannel`·`provider`).
+- `authConfigId` 는 `details` 를 **아예 단언하지 않았다**.
+- `password.util.spec.ts` 는 `.toThrow(BadRequestException)` 뿐 — **무엇이 던졌는지도 페이로드도
+  안 본다.**
+
+단언을 보강해 **15/15 개별 RED**. `inboundSigningPlaintext` 는 소스 자리가 5곳이라 5곳을
+각각 뮤테이션했다.
+
 ## Unreleased — 카드 저장이 항상 400 이던 게 봇 토큰을 지키고 있었다 (chatChannel PATCH)
 
 두 결함이 같은 뿌리였다. `botToken` 이 PATCH·POST **공용 DTO 에서 필수**라:

@@ -53,7 +53,16 @@ export function comparePassword(plain: string, hash: string): Promise<boolean> {
 /**
  * 비밀번호 정책: 최소 8자, 영문 대/소문자·숫자·특수문자 중 3종 이상 포함.
  * 정책에 위배되면 `BadRequestException`(VALIDATION_ERROR)을 던진다.
+ *
+ * `details[]` 원소는 `{ field, message, code }` 세 키를 싣는다 — `2-api-convention.md` §5.3
+ * 의 *「`details` 항목이 `field` 를 실으면 `code` 도 싣는다 — 형태 무관」*.
  */
+// **`code` 를 `ErrorCode.INVALID_FIELD` 로 안 쓰는 것은 의도다.** canonical 상수는
+// `nodes/core/error-codes.ts` 에 있는데 **`common/` 이 `nodes/` 를 import 하는 선례가 0건**
+// 이고(실측), 같은 층의 canonical 생산자인 `common/pipes/validation.pipe.ts` 도 리터럴을
+// 쓴다. 층을 거슬러 올라가는 대신 리터럴을 유지한다 — 상수를 `common/` 으로 승격하는 것은
+// 9개 모듈의 import 경로를 건드리는 별개 작업이라 트래커 항목이다.
+// (`modules/triggers/triggers.service.ts` 는 `modules/**` 라 선례가 있어 상수를 쓴다.)
 export function validatePasswordStrength(password: string): void {
   if (password.length < 8) {
     throw new BadRequestException({

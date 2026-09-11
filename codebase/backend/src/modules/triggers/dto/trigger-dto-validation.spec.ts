@@ -919,6 +919,9 @@ describe('ChatChannelUpdateConfigDto — PATCH 는 비밀을 받지 않는다 (R
         ...cardBody('telegram'),
         [field]: 'x'.repeat(40),
       });
+      // 「정확히 이 필드 하나만 거부됐다」를 명시한다 — 길이를 안 보면 `[0]` 만 맞고
+      // 다른 필드가 함께 터져도 통과한다(`/ai-review` `11_05_27` testing INFO 3).
+      expect(res?.details).toHaveLength(1);
       observed[field] = res?.details?.[0]?.message;
     }
     expect(observed).toEqual({ ...CHAT_CHANNEL_BLOCKED_FIELD_MESSAGES });
@@ -953,6 +956,10 @@ describe('ChatChannelUpdateConfigDto — PATCH 는 비밀을 받지 않는다 (R
    * `OmitType` 으로 부모 데코레이터를 떼고 `@IsEmpty()` 를 새로 선언하기 때문이다. 위
    * *"값이 null/빈 문자열이면 DTO 를 통과한다"* 케이스가 그 방향의 캐너리이므로, 만약
    * `@MinLength(1)` 이 `OmitType` 을 넘어 새면 그 테스트가 RED 가 된다.
+   *
+   * **공백 전용 문자열(`'   '`)은 이 가드가 막지 못한다** — `@MinLength(1)` 은 길이만 본다.
+   * 그 경계는 이 PR 이 의도적으로 스코프 아웃했다(trim 정책은 별개 결정). *"빈 문자열 문제가
+   * 전부 닫혔다"* 로 읽지 말 것.
    */
   it('[C] CreateTriggerDto 는 botToken 빈 문자열을 거부한다', async () => {
     const createMeta = {

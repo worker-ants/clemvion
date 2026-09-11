@@ -22,7 +22,10 @@ import { ChannelAdapterRegistry } from '../chat-channel/channel-adapter.registry
 import { ChannelListenerRegistry } from '../chat-channel/channel-listener.registry';
 import { SecretResolverService } from '../secret-store/secret-resolver.service';
 import { ScheduleRunnerService } from '../schedules/schedule-runner.service';
-import { CHAT_CHANNEL_BLOCKED_FIELD_MESSAGES } from './chat-channel-rejection-messages.const';
+import {
+  CHAT_CHANNEL_BLOCKED_FIELDS,
+  CHAT_CHANNEL_BLOCKED_FIELD_MESSAGES,
+} from './chat-channel-rejection-messages.const';
 
 /**
  * [SUMMARY W-3] createBaseProviders — Secret rotation / itk revoke / setupChatChannel
@@ -3084,6 +3087,41 @@ describe('TriggersService — chatChannel PATCH 는 사용자 비밀을 쓰지 �
   });
 
   /**
+   * 차단 5필드 × (payload, provider) — **아래 두 `it.each` 가 공유한다.**
+   *
+   * 종전에는 이 배열이 두 블록에 바이트 그대로 복제돼 있었다. 6번째 차단 필드가 생겼을 때
+   * **한쪽만 갱신해도 컴파일되고 기존 케이스는 전부 통과**하므로 커버리지 drift 가 조용히
+   * 난다(`/ai-review` `11_05_27` maintainability WARNING). 한 번만 선언해 그 갈래를 없앤다.
+   *
+   * 필드 집합의 SoT 는 `CHAT_CHANNEL_BLOCKED_FIELDS` 다 — 아래 `toEqual` 단언이 그 배열과
+   * 이 fixture 가 같은 집합인지 고정한다.
+   */
+  const BLOCKED_FIELD_CASES = [
+    ['botToken', { botToken: '111:New' }, 'telegram'],
+    [
+      'inboundSigningPlaintext',
+      { inboundSigningPlaintext: 'a'.repeat(32) },
+      'slack',
+    ],
+    ['botTokenRef', { botTokenRef: 'secret://x' }, 'telegram'],
+    ['inboundSigningRef', { inboundSigningRef: 'secret://y' }, 'telegram'],
+    ['inboundSigning', { inboundSigning: 'z'.repeat(40) }, 'slack'],
+  ] as const;
+
+  /**
+   * **fixture 가 차단 필드 집합 전체를 덮는지 고정한다.**
+   *
+   * 위 배열은 손으로 적은 것이라 `CHAT_CHANNEL_BLOCKED_FIELDS` 에 6번째 필드가 추가되면
+   * 조용히 한 필드를 안 보게 된다 — 그때 이 단언이 RED 가 된다. **중복을 지우는 것만으로는
+   * 그 갈래가 닫히지 않는다**(한 배열이 되었을 뿐 여전히 손으로 적은 목록이다).
+   */
+  it('[A] fixture 가 차단 5필드 전체를 덮는다', () => {
+    expect(BLOCKED_FIELD_CASES.map(([f]) => f).sort()).toEqual(
+      [...CHAT_CHANNEL_BLOCKED_FIELDS].sort(),
+    );
+  });
+
+  /**
    * **[A] 서비스 가드의 `details` 는 `field` 와 `code` 를 함께 싣는다.**
    *
    * `2-api-convention.md` §5.3 이 *「`details` 항목이 `field` 를 실으면 `code` 도 싣는다 —
@@ -3097,17 +3135,7 @@ describe('TriggersService — chatChannel PATCH 는 사용자 비밀을 쓰지 �
    * 최초 설정 한정)는 전부 generic `INVALID_FIELD` 라 소비자가 여전히 못 가른다 — 도메인
    * 특화 세부 코드 신설은 `spec-draft-nullable-notation-followups.md` 의 별개 미결정 항목이다.
    */
-  it.each([
-    ['botToken', { botToken: '111:New' }, 'telegram'],
-    [
-      'inboundSigningPlaintext',
-      { inboundSigningPlaintext: 'a'.repeat(32) },
-      'slack',
-    ],
-    ['botTokenRef', { botTokenRef: 'secret://x' }, 'telegram'],
-    ['inboundSigningRef', { inboundSigningRef: 'secret://y' }, 'telegram'],
-    ['inboundSigning', { inboundSigning: 'z'.repeat(40) }, 'slack'],
-  ] as const)(
+  it.each(BLOCKED_FIELD_CASES)(
     '[A] %s — 서비스 가드가 details 를 { field, code } 로 낸다',
     async (field, payload, provider) => {
       await setup('x');
@@ -3139,17 +3167,7 @@ describe('TriggersService — chatChannel PATCH 는 사용자 비밀을 쓰지 �
    * 상수에서 온다"* 다. 두 단언이 같은 상수를 가리키므로 **두 층의 등가성이 전이적으로**
    * 고정된다 — 한쪽만 고치면 그쪽 단언이 RED 가 된다.
    */
-  it.each([
-    ['botToken', { botToken: '111:New' }, 'telegram'],
-    [
-      'inboundSigningPlaintext',
-      { inboundSigningPlaintext: 'a'.repeat(32) },
-      'slack',
-    ],
-    ['botTokenRef', { botTokenRef: 'secret://x' }, 'telegram'],
-    ['inboundSigningRef', { inboundSigningRef: 'secret://y' }, 'telegram'],
-    ['inboundSigning', { inboundSigning: 'z'.repeat(40) }, 'slack'],
-  ] as const)(
+  it.each(BLOCKED_FIELD_CASES)(
     '[등가성] %s — 서비스 message 는 공유 상수에서 온다',
     async (field, payload, provider) => {
       await setup('x');
