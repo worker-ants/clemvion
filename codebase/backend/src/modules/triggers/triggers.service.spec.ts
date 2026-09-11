@@ -22,6 +22,7 @@ import { ChannelAdapterRegistry } from '../chat-channel/channel-adapter.registry
 import { ChannelListenerRegistry } from '../chat-channel/channel-listener.registry';
 import { SecretResolverService } from '../secret-store/secret-resolver.service';
 import { ScheduleRunnerService } from '../schedules/schedule-runner.service';
+import { CHAT_CHANNEL_BLOCKED_FIELD_MESSAGES } from './chat-channel-rejection-messages.const';
 
 /**
  * [SUMMARY W-3] createBaseProviders — Secret rotation / itk revoke / setupChatChannel
@@ -706,6 +707,12 @@ describe('TriggersService — notification/interaction config 병합 (External I
     expect(err).toBeInstanceOf(BadRequestException);
     expect((err as BadRequestException).getResponse()).toMatchObject({
       code: 'AUTH_CONFIG_NOT_FOUND',
+      // 종전에는 `code` 만 보고 `details` 를 아예 단언하지 않아, 이 자리의 페이로드가
+      // 어떤 모양이든 통과했다 — `code: 'INVALID_FIELD'` 배선이 뮤테이션에서 **생존**한 것이
+      // 그 사각지대의 증거다. top-level 은 도메인 코드(`AUTH_CONFIG_NOT_FOUND`)를 쓰고
+      // `details` 는 어느 필드가 문제인지 + generic 사유를 싣는다 — §5.3 의
+      // *「둘을 겹쳐 쓰지 않는다」* 를 어기지 않는다(서로 다른 층의 서로 다른 정보다).
+      details: { field: 'authConfigId', code: 'INVALID_FIELD' },
     });
     expect(triggerRepo.create).not.toHaveBeenCalled();
   });
@@ -868,6 +875,9 @@ describe('TriggersService — notification/interaction config 병합 (External I
         details: {
           field: 'type',
           disallowed: expect.arrayContaining(['endpointPath']),
+          // `code` 를 기대에 박는다 — 없으면 `toMatchObject` 의 재귀 부분일치가
+          // 조용히 통과한다(§5.3 「field 를 실으면 code 도」 회귀 캐너리).
+          code: 'INVALID_FIELD',
         },
       },
     });
@@ -898,6 +908,7 @@ describe('TriggersService — notification/interaction config 병합 (External I
         details: {
           field: 'type',
           disallowed: expect.arrayContaining(['endpointPath', 'config']),
+          code: 'INVALID_FIELD',
         },
       },
     });
@@ -1395,7 +1406,7 @@ describe('TriggersService — setupChatChannel secret store 경로 — **생성(
       ).rejects.toMatchObject({
         response: expect.objectContaining({
           code: 'VALIDATION_ERROR',
-          details: { field: 'inboundSigningPlaintext' },
+          details: { field: 'inboundSigningPlaintext', code: 'INVALID_FIELD' },
         }),
       });
     });
@@ -1413,7 +1424,7 @@ describe('TriggersService — setupChatChannel secret store 경로 — **생성(
       ).rejects.toMatchObject({
         response: expect.objectContaining({
           code: 'VALIDATION_ERROR',
-          details: { field: 'inboundSigningPlaintext' },
+          details: { field: 'inboundSigningPlaintext', code: 'INVALID_FIELD' },
         }),
       });
     });
@@ -1452,7 +1463,7 @@ describe('TriggersService — setupChatChannel secret store 경로 — **생성(
       ).rejects.toMatchObject({
         response: expect.objectContaining({
           code: 'VALIDATION_ERROR',
-          details: { field: 'inboundSigningPlaintext' },
+          details: { field: 'inboundSigningPlaintext', code: 'INVALID_FIELD' },
         }),
       });
     });
@@ -1470,7 +1481,7 @@ describe('TriggersService — setupChatChannel secret store 경로 — **생성(
       ).rejects.toMatchObject({
         response: expect.objectContaining({
           code: 'VALIDATION_ERROR',
-          details: { field: 'inboundSigningPlaintext' },
+          details: { field: 'inboundSigningPlaintext', code: 'INVALID_FIELD' },
         }),
       });
     });
@@ -3072,6 +3083,95 @@ describe('TriggersService — chatChannel PATCH 는 사용자 비밀을 쓰지 �
     });
   });
 
+  /**
+   * **[A] 서비스 가드의 `details` 는 `field` 와 `code` 를 함께 싣는다.**
+   *
+   * `2-api-convention.md` §5.3 이 *「`details` 항목이 `field` 를 실으면 `code` 도 싣는다 —
+   * 형태 무관」* 을 규약화했다(`94e19be8d`). 종전 이 가드들은 `{ field }` 만 던져 **사유가
+   * 기계가 읽을 수 있는 자리에 전혀 없었다** — `message` 뿐이고, 그 `message` 는 규약이
+   * *"사람이 읽을 짧은 설명"* 으로 규정한 자리다.
+   *
+   * `toEqual` 로 **객체 전체**를 고정한다 — `toMatchObject` 는 `code` 가 빠져도 통과한다.
+   *
+   * **이것이 사유를 구분해 주지는 않는다.** 세 거부 사유(내부 필드 금지 / PATCH 불변 /
+   * 최초 설정 한정)는 전부 generic `INVALID_FIELD` 라 소비자가 여전히 못 가른다 — 도메인
+   * 특화 세부 코드 신설은 `spec-draft-nullable-notation-followups.md` 의 별개 미결정 항목이다.
+   */
+  it.each([
+    ['botToken', { botToken: '111:New' }, 'telegram'],
+    [
+      'inboundSigningPlaintext',
+      { inboundSigningPlaintext: 'a'.repeat(32) },
+      'slack',
+    ],
+    ['botTokenRef', { botTokenRef: 'secret://x' }, 'telegram'],
+    ['inboundSigningRef', { inboundSigningRef: 'secret://y' }, 'telegram'],
+    ['inboundSigning', { inboundSigning: 'z'.repeat(40) }, 'slack'],
+  ] as const)(
+    '[A] %s — 서비스 가드가 details 를 { field, code } 로 낸다',
+    async (field, payload, provider) => {
+      await setup('x');
+      triggerRepo.findOne.mockResolvedValue(existing(provider));
+
+      let thrown: unknown = null;
+      try {
+        await service.update(
+          'trig-p',
+          'ws-1',
+          { chatChannel: { ...cardBody(provider), ...payload } } as never,
+          'u-1',
+        );
+      } catch (err) {
+        thrown = (err as BadRequestException).getResponse();
+      }
+      expect(thrown).toMatchObject({ code: 'VALIDATION_ERROR' });
+      expect((thrown as { details?: unknown }).details).toEqual({
+        field,
+        code: 'INVALID_FIELD',
+      });
+    },
+  );
+
+  /**
+   * **[등가성] 서비스 층의 `message` 는 공유 상수와 바이트 동일하다 (D) — 자매 단언.**
+   *
+   * 파이프 쪽 절반은 `trigger-dto-validation.spec.ts` 의 *"차단 5필드의 message 는 공유
+   * 상수에서 온다"* 다. 두 단언이 같은 상수를 가리키므로 **두 층의 등가성이 전이적으로**
+   * 고정된다 — 한쪽만 고치면 그쪽 단언이 RED 가 된다.
+   */
+  it.each([
+    ['botToken', { botToken: '111:New' }, 'telegram'],
+    [
+      'inboundSigningPlaintext',
+      { inboundSigningPlaintext: 'a'.repeat(32) },
+      'slack',
+    ],
+    ['botTokenRef', { botTokenRef: 'secret://x' }, 'telegram'],
+    ['inboundSigningRef', { inboundSigningRef: 'secret://y' }, 'telegram'],
+    ['inboundSigning', { inboundSigning: 'z'.repeat(40) }, 'slack'],
+  ] as const)(
+    '[등가성] %s — 서비스 message 는 공유 상수에서 온다',
+    async (field, payload, provider) => {
+      await setup('x');
+      triggerRepo.findOne.mockResolvedValue(existing(provider));
+
+      let thrown: unknown = null;
+      try {
+        await service.update(
+          'trig-p',
+          'ws-1',
+          { chatChannel: { ...cardBody(provider), ...payload } } as never,
+          'u-1',
+        );
+      } catch (err) {
+        thrown = (err as BadRequestException).getResponse();
+      }
+      expect((thrown as { message?: string }).message).toBe(
+        CHAT_CHANNEL_BLOCKED_FIELD_MESSAGES[field],
+      );
+    },
+  );
+
   it('inboundSigningPlaintext 가 실리면 400 — slack 도 예외가 아니다', async () => {
     await setup();
     triggerRepo.findOne.mockResolvedValue(existing('slack'));
@@ -3157,7 +3257,7 @@ describe('TriggersService — chatChannel PATCH 는 사용자 비밀을 쓰지 �
     ).rejects.toMatchObject({
       response: {
         code: 'VALIDATION_ERROR',
-        details: { field: 'chatChannel' },
+        details: { field: 'chatChannel', code: 'INVALID_FIELD' },
       },
     });
     expect(secrets.rotate).not.toHaveBeenCalled();
@@ -3295,7 +3395,10 @@ describe('TriggersService — chatChannel PATCH 는 사용자 비밀을 쓰지 �
         'u-1',
       ),
     ).rejects.toMatchObject({
-      response: { code: 'VALIDATION_ERROR', details: { field: 'provider' } },
+      response: {
+        code: 'VALIDATION_ERROR',
+        details: { field: 'provider', code: 'INVALID_FIELD' },
+      },
     });
   });
 });

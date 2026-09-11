@@ -6,6 +6,10 @@ import { WebChatAppearanceDto } from './web-chat-appearance.dto';
 import { QueryTriggerDto } from './query-trigger.dto';
 import { CustomValidationPipe } from '../../../common/pipes/validation.pipe';
 import { ArgumentMetadata, BadRequestException } from '@nestjs/common';
+import {
+  CHAT_CHANNEL_BLOCKED_FIELDS,
+  CHAT_CHANNEL_BLOCKED_FIELD_MESSAGES,
+} from '../chat-channel-rejection-messages.const';
 
 const VALID_UUID = '550e8400-e29b-41d4-a716-446655440000';
 const VALIDATE_OPTIONS = { whitelist: true, forbidNonWhitelisted: true };
@@ -884,6 +888,85 @@ describe('ChatChannelUpdateConfigDto — PATCH 는 비밀을 받지 않는다 (R
           type: 'webhook',
           name: 'T',
           chatChannel: cardBody('telegram'),
+        },
+        createMeta,
+      );
+    } catch (err) {
+      thrown = (err as BadRequestException).getResponse();
+    }
+    expect(
+      (thrown as { details?: { field: string }[] } | null)?.details?.map(
+        (d) => d.field,
+      ),
+    ).toContain('chatChannel.botToken');
+  });
+
+  /**
+   * **[등가성] 파이프 층의 `message` 는 공유 상수와 바이트 동일하다 (D).**
+   *
+   * 이 5필드는 **두 층**에서 거부되고 어느 층이 잡느냐는 사용자가 보낸 값의 형태로 갈린다
+   * (비어있지 않은 값 → 파이프 / `null`·`''` → 서비스 가드, 위 두 `[실측]` 케이스가 고정).
+   * 두 층의 문면이 갈리면 **같은 거부에 두 가지 설명**이 되므로, 양쪽을 하나의 상수에 묶었다.
+   * 이 단언이 파이프 쪽 절반이고, `triggers.service.spec.ts` 의 자매 단언이 서비스 쪽 절반이다
+   * — 둘이 같은 상수를 가리키므로 등가성이 전이적으로 고정된다.
+   *
+   * **리터럴을 복사해 적지 않는다** — 그러면 상수를 고쳐도 이 테스트가 통과해 버린다.
+   */
+  it('[등가성] 차단 5필드의 message 는 공유 상수에서 온다 (D)', async () => {
+    const observed: Record<string, string | undefined> = {};
+    for (const field of CHAT_CHANNEL_BLOCKED_FIELDS) {
+      const res = await run({
+        ...cardBody('telegram'),
+        [field]: 'x'.repeat(40),
+      });
+      observed[field] = res?.details?.[0]?.message;
+    }
+    expect(observed).toEqual({ ...CHAT_CHANNEL_BLOCKED_FIELD_MESSAGES });
+  });
+
+  /**
+   * **[A] 파이프가 내는 `details[]` 원소는 `code: 'INVALID_FIELD'` 를 싣는다.**
+   *
+   * 이 층은 원래부터 싣고 있었다(`flattenErrors`) — 이 단언은 **회귀 캐너리**다. 같은 PR 이
+   * 서비스 가드 쪽에 `code` 를 새로 배선했으므로, 두 층이 이제 같은 키 집합을 낸다는 것이
+   * 규약(`2-api-convention.md` §5.3 「`field` 를 실으면 `code` 도 싣는다」)의 요구다.
+   */
+  it('[A] 파이프 details 원소는 field·message·code 세 키를 모두 싣는다', async () => {
+    const res = await run({ ...cardBody('telegram'), botToken: '111:New' });
+    expect(res?.details?.[0]).toEqual({
+      field: 'chatChannel.botToken',
+      message: CHAT_CHANNEL_BLOCKED_FIELD_MESSAGES.botToken,
+      code: 'INVALID_FIELD',
+    });
+  });
+
+  /**
+   * **[C] 생성 경로의 `botToken: ''` 는 거부된다.**
+   *
+   * 종전에는 통과했다 — `@ApiProperty` 가 `minLength: 1` 을 광고하는데 검증 체인에는
+   * `@MinLength` 이 없었다(**선언이 구현보다 넓었다**). 통과하면 `setupChatChannel` 의
+   * `[쓰기 ①]` 이 `SecretResolver.rotate(botTokenRef, ws, '')` 로 **빈 시크릿을 먼저 저장**하고,
+   * provider 호출 실패(401 → `BOT_TOKEN_INVALID`)는 그 **뒤**다 — 요청은 실패하는데 시크릿
+   * 행은 남는다.
+   *
+   * **PATCH 경로는 반대로 `''` 를 통과시켜야 한다** — `ChatChannelUpdateConfigDto` 가
+   * `OmitType` 으로 부모 데코레이터를 떼고 `@IsEmpty()` 를 새로 선언하기 때문이다. 위
+   * *"값이 null/빈 문자열이면 DTO 를 통과한다"* 케이스가 그 방향의 캐너리이므로, 만약
+   * `@MinLength(1)` 이 `OmitType` 을 넘어 새면 그 테스트가 RED 가 된다.
+   */
+  it('[C] CreateTriggerDto 는 botToken 빈 문자열을 거부한다', async () => {
+    const createMeta = {
+      type: 'body',
+      metatype: CreateTriggerDto,
+    } as unknown as ArgumentMetadata;
+    let thrown: unknown = null;
+    try {
+      await pipe.transform(
+        {
+          workflowId: VALID_UUID,
+          type: 'webhook',
+          name: 'T',
+          chatChannel: { ...cardBody('telegram'), botToken: '' },
         },
         createMeta,
       );

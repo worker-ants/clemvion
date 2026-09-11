@@ -60,7 +60,11 @@ export function validatePasswordStrength(password: string): void {
       code: 'VALIDATION_ERROR',
       message: 'Password must be at least 8 characters',
       details: [
-        { field: 'password', message: 'Minimum 8 characters required' },
+        {
+          field: 'password',
+          message: 'Minimum 8 characters required',
+          code: 'INVALID_FIELD',
+        },
       ],
     });
   }
@@ -76,7 +80,13 @@ export function validatePasswordStrength(password: string): void {
       code: 'VALIDATION_ERROR',
       message:
         'Password must contain at least 3 of: lowercase, uppercase, numbers, special characters',
-      details: [{ field: 'password', message: 'Requires 3+ character types' }],
+      details: [
+        {
+          field: 'password',
+          message: 'Requires 3+ character types',
+          code: 'INVALID_FIELD',
+        },
+      ],
     });
   }
 }

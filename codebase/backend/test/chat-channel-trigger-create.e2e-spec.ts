@@ -184,8 +184,13 @@ describe('POST /api/triggers — chat-channel multi-provider (e2e)', () => {
       });
       expect(res.status).toBe(400);
       expect(res.body.error.code).toBe('VALIDATION_ERROR');
+      // `code` 는 2026-09-11 배선분 — `2-api-convention.md` §5.3 이 *「`details` 항목이
+      // `field` 를 실으면 `code` 도 싣는다」* 를 규약화했다. **이 단언이 그 규약의 유일한
+      // 실제 wire 증거다** — unit 은 `getResponse()` 를 보지만 여기는 HTTP round-trip 을 본다
+      // (spec §5.4.1 이 *"실제 HTTP round-trip 은 아직 e2e 로 확인하지 않았다"* 고 적었던 축).
       expect(res.body.error.details).toEqual({
         field: 'inboundSigningPlaintext',
+        code: 'INVALID_FIELD',
       });
     });
   });
@@ -235,8 +240,13 @@ describe('POST /api/triggers — chat-channel multi-provider (e2e)', () => {
       });
       expect(res.status).toBe(400);
       expect(res.body.error.code).toBe('VALIDATION_ERROR');
+      // `code` 는 2026-09-11 배선분 — `2-api-convention.md` §5.3 이 *「`details` 항목이
+      // `field` 를 실으면 `code` 도 싣는다」* 를 규약화했다. **이 단언이 그 규약의 유일한
+      // 실제 wire 증거다** — unit 은 `getResponse()` 를 보지만 여기는 HTTP round-trip 을 본다
+      // (spec §5.4.1 이 *"실제 HTTP round-trip 은 아직 e2e 로 확인하지 않았다"* 고 적었던 축).
       expect(res.body.error.details).toEqual({
         field: 'inboundSigningPlaintext',
+        code: 'INVALID_FIELD',
       });
     });
 
@@ -255,8 +265,13 @@ describe('POST /api/triggers — chat-channel multi-provider (e2e)', () => {
       });
       expect(res.status).toBe(400);
       expect(res.body.error.code).toBe('VALIDATION_ERROR');
+      // `code` 는 2026-09-11 배선분 — `2-api-convention.md` §5.3 이 *「`details` 항목이
+      // `field` 를 실으면 `code` 도 싣는다」* 를 규약화했다. **이 단언이 그 규약의 유일한
+      // 실제 wire 증거다** — unit 은 `getResponse()` 를 보지만 여기는 HTTP round-trip 을 본다
+      // (spec §5.4.1 이 *"실제 HTTP round-trip 은 아직 e2e 로 확인하지 않았다"* 고 적었던 축).
       expect(res.body.error.details).toEqual({
         field: 'inboundSigningPlaintext',
+        code: 'INVALID_FIELD',
       });
     });
 
@@ -326,8 +341,13 @@ describe('POST /api/triggers — chat-channel multi-provider (e2e)', () => {
       });
       expect(res.status).toBe(400);
       expect(res.body.error.code).toBe('VALIDATION_ERROR');
+      // `code` 는 2026-09-11 배선분 — `2-api-convention.md` §5.3 이 *「`details` 항목이
+      // `field` 를 실으면 `code` 도 싣는다」* 를 규약화했다. **이 단언이 그 규약의 유일한
+      // 실제 wire 증거다** — unit 은 `getResponse()` 를 보지만 여기는 HTTP round-trip 을 본다
+      // (spec §5.4.1 이 *"실제 HTTP round-trip 은 아직 e2e 로 확인하지 않았다"* 고 적었던 축).
       expect(res.body.error.details).toEqual({
         field: 'inboundSigningPlaintext',
+        code: 'INVALID_FIELD',
       });
     });
 
@@ -344,8 +364,13 @@ describe('POST /api/triggers — chat-channel multi-provider (e2e)', () => {
       });
       expect(res.status).toBe(400);
       expect(res.body.error.code).toBe('VALIDATION_ERROR');
+      // `code` 는 2026-09-11 배선분 — `2-api-convention.md` §5.3 이 *「`details` 항목이
+      // `field` 를 실으면 `code` 도 싣는다」* 를 규약화했다. **이 단언이 그 규약의 유일한
+      // 실제 wire 증거다** — unit 은 `getResponse()` 를 보지만 여기는 HTTP round-trip 을 본다
+      // (spec §5.4.1 이 *"실제 HTTP round-trip 은 아직 e2e 로 확인하지 않았다"* 고 적었던 축).
       expect(res.body.error.details).toEqual({
         field: 'inboundSigningPlaintext',
+        code: 'INVALID_FIELD',
       });
     });
   });
