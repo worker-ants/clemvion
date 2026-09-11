@@ -217,3 +217,51 @@ API 응답 shape 변경은 유저 가이드 동반 갱신 대상이다.
 병합해 모듈 컴파일 10→5회, CI 시간만) · I4(메시지 문체 통일) · I5(E 후속 PR) ·
 I6(PATCH e2e wire 증거) · I8(DTO JSDoc 에 `code` 언급) · I11(`error-codes.ts` 역참조 주석) ·
 I12(provider 문서 6개의 `code` 표기 — 이번 diff 의 직접 trigger 아님).
+
+## 3라운드 리뷰 처분 (`/ai-review` `review/code/2026/09/11/12_00_40`, `--route=all`) — **종결**
+
+**CRITICAL 0 · WARNING 2 · RISK LOW · reviewer 14/14 결과 확보 · forced 누락 0 · unfinished 0.**
+1·2라운드 WARNING 전부 reviewer 가 코드로 **해소 확인**했다.
+
+### `codebase/**` 수정 0 으로 끝낸다 — 그것이 선언한 종료 조건이다
+
+신규 WARNING 1건은 **내가 만든 것**이고, 그 처분은 **spec 결정**이라 developer PR 에서
+단독으로 못 한다:
+
+- **실측**: `code: ErrorCode.INVALID_FIELD` 를 실은 13자리 중 **12곳은 top-level 이 상태
+  기본값 `VALIDATION_ERROR`** 이고, **`authConfigId` 한 곳만 특화 코드
+  `AUTH_CONFIG_NOT_FOUND`** 다. 정규식을 13자리에 일괄 적용하면서 **각 자리의 top-level 을
+  확인하지 않았다** — 「자리」를 보고 「형태」를 안 본 그 클래스다.
+- **왜 지금 안 고치나**: §5.3 의 택일 기준표는 *"top-level `code` 교체"* 와
+  *"`details[].code`"* 를 **갈라 쓰라**고 하고 *"둘을 겹쳐 쓰지 않는다"* 고 적는다. 그런데
+  `INVALID_FIELD` 는 `AUTH_CONFIG_NOT_FOUND` 와 **같은 사유가 아니다**(하나는 도메인 사유,
+  하나는 *"이 필드가 잘못됐다"* 는 generic 표지). 즉 **금지 조항에 걸리는지 자체가 판정 사안**
+  이고, 그 판정은 §5.3 을 고치는 **planner 결정**이다. developer 가 코드로 선점하면 규약을
+  코드가 정하는 셈이 된다.
+- **그리고 주석-only `codebase/**` 편집은 라운드를 무한히 늘리는 지렛대다** — 동작 변화 0인
+  편집이 리뷰를 stale 시킨다. 아래 planner PR 이 §5.3 에 그 갈래를 명문화하고, 같은 결정으로
+  코드 처분(주석 유지 / `code` 제거)을 함께 정한다.
+
+### SPEC-DRIFT — 술어를 갈라 R2 의 내 판정을 정정한다
+
+R2 에서 나는 *"`documentation` 이 맞고 `requirement` 가 틀렸다"* 고 적었다. **너무 단호했다** —
+두 reviewer 는 **서로 다른 술어**를 재고 있었다:
+
+| 술어 | 자리 | 배선 후 상태 |
+|---|---|---|
+| ① *"배선 전 관측값"* 라벨 | §5.4.1(375) · §5.4.1.1(426) — **2곳** | **거짓은 아니다**(측정은 실제로 배선 전이었다). 다만 현재형으로 읽혀 낡아 보인다 |
+| ② 명시적 시한 절 — *"그 PR 이 머지되기 전까지 이 문단은 「아직 안 실린다」를 서술할 뿐"* | §5.4.1.2(415) — **1곳** | **명백히 거짓이 된다** |
+
+→ `requirement`(*"§5.4.1.2 만"*)는 **술어 ②에 대해 맞고**, `documentation`(*"세 곳"*)은
+**술어 ①까지 세어 맞다**. planner PR 은 **§5.4.1.2 를 필수로, 나머지 2곳을 일관성으로** 고친다.
+
+후속 등재(전부 이번 PR 범위 밖): I1(공백 전용 trim 정책) · I2(`rotate`/`store` 빈 값 가드) ·
+I4(`rejectBlocked(field)` 헬퍼로 예외 보일러플레이트 축소) · I5(`it.each` 병합 — CI 시간) ·
+I6(상수 `Readonly`/`Object.freeze`) · I7(`triggers.mdx` 인접 문장 + provider 6파일 `code` 표기) ·
+I8(*"`field` 없는 진단 payload 는 `code` 를 안 싣는다"* 회귀 캐너리 — `not.toHaveProperty`) ·
+I9(`AUTH_CONFIG_NOT_FOUND` 자체가 `3-error-handling.md §1` 카탈로그 미등재, pre-existing) ·
+I10(메시지 문체 통일).
+
+> **리뷰어 계약 이탈 1건 기록**: `code-review-summary` 가 `summary_status` 에 `STATUS=` 라인
+> 대신 산문을 반환했다. SUMMARY 전문·`risk`·`critical_count` 는 정상이라 판정에 영향 없고
+> main 이 디스크에 영속화했다(14/14 · forced 누락 0 확인).
