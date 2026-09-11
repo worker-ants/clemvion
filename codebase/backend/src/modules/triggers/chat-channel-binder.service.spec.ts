@@ -25,9 +25,23 @@ import type { SecretResolverService } from '../secret-store/secret-resolver.serv
 
 type AdapterMock = { teardownChannel: jest.Mock; setupChannel: jest.Mock };
 
-function makeBinder(adapter: AdapterMock, has: boolean) {
+/**
+ * **두 번째 인자도 이름으로 받는다.** 첫 판본은 두 번째 자리에 그냥 `true`/`false` 를 넘기는
+ * 위치 기반 boolean 이었는데, **같은 PR 이 프로덕션 코드(`buildTriggerCallbackUrl`)에서는 정확히 그
+ * 형태를 없앴다** — 테스트 헬퍼에만 안 지키면 원칙이 아니라 그때그때가 된다
+ * (`/ai-review` `review/code/2026/09/11/18_42_05` INFO 7).
+ * 호출부에서 `true`/`false` 가 무엇을 뜻하는지 읽히는 부수 효과도 있다.
+ */
+function makeBinder({
+  adapter,
+  providerRegistered,
+}: {
+  adapter: AdapterMock;
+  /** `ChannelAdapterRegistry.has(provider)` 가 돌려줄 값. */
+  providerRegistered: boolean;
+}) {
   const registry = {
-    has: jest.fn(() => has),
+    has: jest.fn(() => providerRegistered),
     get: jest.fn(() => adapter),
   };
   const svc = new ChatChannelBinderService(
@@ -54,9 +68,17 @@ function makeTrigger(config: unknown): Trigger {
 }
 
 describe('ChatChannelBinderService.teardownChatChannel', () => {
+  // **복원을 단언 뒤에 두지 않는다.** `warn.mockRestore()` 를 테스트 본문 끝에 두면 그 앞의
+  // 단언이 실패했을 때 spy 가 전역에 남아 **다음 테스트를 오염**시킨다. 지금은 마지막 테스트라
+  // 전파가 없지만, 그건 파일이 커지면 사라지는 안전장치다
+  // (`/ai-review` `review/code/2026/09/11/18_42_05` INFO 8).
+  afterEach(() => {
+    jest.restoreAllMocks();
+  });
+
   it('config 에 chatChannel 이 없으면 registry 를 조회조차 하지 않는다', async () => {
     const adapter = makeAdapter();
-    const { svc, registry } = makeBinder(adapter, true);
+    const { svc, registry } = makeBinder({ adapter, providerRegistered: true });
 
     await svc.teardownChatChannel(makeTrigger({}));
 
@@ -66,7 +88,10 @@ describe('ChatChannelBinderService.teardownChatChannel', () => {
 
   it('provider 가 미등록이면 adapter 를 가져오지 않는다', async () => {
     const adapter = makeAdapter();
-    const { svc, registry } = makeBinder(adapter, false);
+    const { svc, registry } = makeBinder({
+      adapter,
+      providerRegistered: false,
+    });
 
     await svc.teardownChatChannel(makeTrigger({ chatChannel: TELEGRAM_CFG }));
 
@@ -81,7 +106,7 @@ describe('ChatChannelBinderService.teardownChatChannel', () => {
    */
   it('provider 가 등록돼 있으면 그 config 로 adapter.teardownChannel 을 부른다', async () => {
     const adapter = makeAdapter();
-    const { svc, registry } = makeBinder(adapter, true);
+    const { svc, registry } = makeBinder({ adapter, providerRegistered: true });
 
     await svc.teardownChatChannel(makeTrigger({ chatChannel: TELEGRAM_CFG }));
 
@@ -102,7 +127,7 @@ describe('ChatChannelBinderService.teardownChatChannel', () => {
     const warn = jest
       .spyOn(Logger.prototype, 'warn')
       .mockImplementation(() => undefined);
-    const { svc } = makeBinder(adapter, true);
+    const { svc } = makeBinder({ adapter, providerRegistered: true });
 
     await expect(
       svc.teardownChatChannel(makeTrigger({ chatChannel: TELEGRAM_CFG })),
@@ -112,6 +137,5 @@ describe('ChatChannelBinderService.teardownChatChannel', () => {
     const [message] = warn.mock.calls[0] as [string];
     expect(message).toContain('trig-1');
     expect(message).toContain('telegram down');
-    warn.mockRestore();
   });
 });

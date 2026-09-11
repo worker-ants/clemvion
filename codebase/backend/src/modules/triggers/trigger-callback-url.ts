@@ -42,14 +42,14 @@
  * 그때 이 자리를 보는 것은 **아무것도 없다**. 테스트를 한 겹 더 얹는 대신 **애초에 순서가 없는
  * 형태**로 바꿨다.
  *
- * @param baseUrl `configService.get<string>('app.url')` 의 값. `undefined` 허용.
- * @param endpointPath `Trigger.endpointPath`. 선행 슬래시는 있어도 된다.
  */
 export function buildTriggerCallbackUrl({
   baseUrl,
   endpointPath,
 }: {
+  /** `configService.get<string>('app.url')` 의 값. `undefined` 허용. */
   baseUrl: string | undefined;
+  /** `Trigger.endpointPath`. 선행 슬래시는 있어도 된다. */
   endpointPath: string;
 }): string {
   const resolved = baseUrl ?? 'http://localhost:3011';

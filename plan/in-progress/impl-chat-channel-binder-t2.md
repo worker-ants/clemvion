@@ -76,8 +76,12 @@ web-chat 의 헬퍼 간접은 알아채고 적었으면서 **같은 파일 안�
 ### 결정 — 순수 함수로 뽑는다 (T1 이 세운 idiom)
 
 ```
-buildTriggerCallbackUrl(baseUrl: string | undefined, endpointPath: string): string
+buildTriggerCallbackUrl({ baseUrl, endpointPath }): string
 ```
+
+> **이 스케치는 착수 시점 판본이 아니다 — 1라운드에서 바꿨다.** 처음엔 위치 인자
+> `(baseUrl, endpointPath)` 로 냈는데 `/ai-review` `review/code/2026/09/11/18_04_36` W1 이
+> 인자 순서 표면을 지적해 **이름 인자**로 고쳤다. 사유·실측은 그 세션의 `RESOLUTION.md` 에 있다.
 
 - 의존 0 → Nest provider 로 만들 이유가 없다. **T1 과 같은 판정 기준**이다.
 - 기본값(`http://localhost:3011`) 도 이 함수 안에 둔다 → 호출부는 각 한 줄
@@ -124,7 +128,8 @@ docstring 에 싣는다** — 안 적으면 다음 사람이 "죽은 코드" 로
 
 ### 새 파일 2개
 
-1. `modules/triggers/trigger-callback-url.ts` — 순수 함수 1개 + 근거 docstring.
+1. `modules/triggers/trigger-callback-url.ts` — 순수 함수 1개(**이름 인자**) + 근거 docstring
+   + 직접 spec 7케이스.
 2. `modules/triggers/chat-channel-binder.service.ts` — `@Injectable() ChatChannelBinderService`.
    - 생성자: `@InjectRepository(Trigger)` · `ChannelAdapterRegistry` · `ChannelListenerRegistry` ·
      `SecretResolverService` · `ConfigService`.
@@ -185,8 +190,11 @@ docstring 에 싣는다** — 안 적으면 다음 사람이 "죽은 코드" 로
 - [x] `/ai-review` 1라운드 (`18_04_36`, `--route=all` 14/14) **CRITICAL 0** · WARNING 4 →
       W1·W2 해소, W3 부분 해소, W4 는 마무리 단계 확인 항목으로.
       `RESOLUTION.md` 작성. 신규 테스트의 뮤턴트 **5/5 RED**
-- [ ] `/ai-review` 2라운드 — **정지 규칙(결과 보기 전 선언)**: CRITICAL 0 이고 발견이
-      ⑴ 기등재 항목이거나 ⑵ `codebase/**` 수정을 요구하지 않으면 **종결**. 요구하면 3라운드
+- [x] `/ai-review` 2라운드 (`18_42_05`) **CRITICAL 0** · WARNING 3 · RISK **LOW**(MEDIUM 에서
+      내려왔다). 선언해 둔 정지 규칙에 따라 **3라운드로 간다** — W1·W2 가 `codebase/**` 수정을
+      요구했다. W1 은 **직접 재현**해 타입도 테스트도 못 잡는 진짜 갭임을 확인(1라운드 W1 과
+      반대). INFO 7·8 도 **내가 이번에 쓴 코드**라 같은 커밋에서 고쳤다
+- [ ] `/ai-review` 3라운드 — 정지 규칙은 위와 동일(`codebase/**` 수정 0 으로 끝나면 종결)
 - [ ] `run-test.sh` 4단계 GREEN — **통과 수치는 여기 적지 않는다** (`#1319` 에서 3회 낡아
       구조로 없앴다. 수치는 커밋 본문과 `_test_logs/`)
 - [ ] 타입체크 ratchet 2종 (backend `*.ts` 를 건드린다)

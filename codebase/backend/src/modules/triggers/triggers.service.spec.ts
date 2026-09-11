@@ -1896,7 +1896,14 @@ describe('TriggersService.rotateBotToken — 6단계 오케스트레이션', () 
         },
         {
           provide: ConfigService,
-          useValue: { get: jest.fn(() => 'http://localhost:3000') },
+          // **키를 본다.** 종전엔 아무 키에나 같은 값을 돌려줘서, 코드가 `app.url` 대신
+          // 다른 키를 읽도록 바뀌어도 callback URL 이 그대로라 아무도 못 잡았다
+          // (`/ai-review` `review/code/2026/09/11/18_42_05` W1 — 뮤테이션으로 실증).
+          useValue: {
+            get: jest.fn((key: string) =>
+              key === 'app.url' ? 'http://localhost:3000' : undefined,
+            ),
+          },
         },
         {
           provide: ScheduleRunnerService,
@@ -1980,7 +1987,13 @@ describe('TriggersService.rotateBotToken — 6단계 오케스트레이션', () 
       WORKSPACE_ID,
       NEW_TOKEN,
     );
-    expect(mockAdapter.setupChannel).toHaveBeenCalled();
+    // **호출 여부가 아니라 넘긴 URL 을 본다.** `rotateBotToken` 은
+    // `buildTriggerCallbackUrl` 의 두 호출부 중 하나인데, 자매 경로
+    // (`setupChatChannel`)만 URL 을 단언하고 있어 커버리지가 비대칭이었다.
+    expect(mockAdapter.setupChannel).toHaveBeenCalledWith(
+      expect.anything(),
+      'http://localhost:3000/api/hooks/hook-abc',
+    );
     expect(secrets.rotate).toHaveBeenCalledWith(
       SECRET_TOKEN_REF,
       WORKSPACE_ID,
