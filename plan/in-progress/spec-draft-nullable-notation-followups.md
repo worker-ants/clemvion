@@ -2318,6 +2318,72 @@ field: T | null;
       규약 확정 턴의 범위를 넘겼다. 판정에 필요한 것: **소비자가 실제로 이 셋을 갈라 다르게
       행동하는가** — 갈라 쓰지 않으면 코드만 늘고 카탈로그가 커진다.
 
+- [ ] **`15-chat-channel.md` 의 「배선 전 관측값」 서술 3곳이 배선 완료로 stale 해졌다**
+      (planner, 2026-09-11 등재 · `--impl-done` `review/consistency/2026/09/11/12_18_21` W1 ·
+      `/ai-review` `review/code/2026/09/11/12_00_40` W2). `details[].code` 배선이 머지되면서
+      그 문단들이 낡는다. **술어를 갈라 잔존 범위를 확정했다** — reviewer 둘이 서로 다르게
+      보고한 것이 서로 다른 술어를 재고 있었기 때문이다:
+
+      | 술어 | 자리 | 배선 후 |
+      |---|---|---|
+      | ① *"배선 전 관측값"* 라벨 | §5.4.1 「토큰 변경 (rotation)」 행 · §5.4.1.1 「회전 (rotation)」 행 | **거짓은 아니다**(그 측정은 실제로 배선 전이었다). 현재형으로 읽혀 낡아 보인다 |
+      | ② 명시적 시한 절 — *"그 PR 이 머지되기 전까지 이 문단은 「아직 안 실린다」를 서술할 뿐"* | §5.4.1.2 닫는 문단 | **명백히 거짓**이 된다 |
+
+      **②가 필수, ①은 일관성.** 자기-반증형 소정정은 못 쓴다 — 그 문장은 `#1316` **planner
+      턴**이 썼고 역할은 blame 이 아니라 **diff 스코프·게이트 종류·plan owner** 로 갈린다
+      (조건 1 불성립 → 규약대로 두 PR 로 분리).
+
+- [ ] **`authConfigId` 자리가 top-level 특화 코드 + generic `details.code` 를 병기한다 — §5.3
+      판정 필요** (planner + 결정, 2026-09-11 등재 · `--impl-done` `12_18_21` W2 ·
+      `/ai-review` `12_00_40` W1). 실측: `details[].code` 를 실은 13자리 중 **12곳은 top-level 이
+      400 상태 기본값 `VALIDATION_ERROR`** 이고 **`assertAuthConfigInWorkspace` 한 곳만
+      `AUTH_CONFIG_NOT_FOUND`** 다.
+
+      `2-api-convention.md §5.3` 은 *"둘을 겹쳐 쓰지 않는다"* 고 적지만 그 문면은 **「같은 사유」**
+      를 양쪽에 넣는 것을 금지한다 — `INVALID_FIELD` 는 *"이 필드가 잘못됐다"* 는 generic
+      표지라 도메인 사유와 같지 않다. **그래서 금지에 걸리는지 자체가 판정 사안**이다:
+
+      - **제거 근거**: 같은 파일 선례 `rethrowEndpointPathConflict` 는 top-level 을 상태
+        기본값으로 두고 특화 코드를 `details.code` 에 싣는다 — 이 자리는 **반대 모양**이다.
+      - **유지 근거**: 벗기면 `authConfigId` 만 `details.field` 에 generic 표지가 없는 특례가
+        되어 소비자가 이 필드를 따로 처리해야 한다.
+
+      **같은 결정으로 §5.3 의 「`field` 를 실으면 `code` 도 싣는다 — 형태 무관」 문면도 정정해야
+      한다** — 그 규칙에 *"top-level 이 이미 특화 코드인 경우"* carve-out 이 없어 지금 과도하게
+      넓다(내가 `#1316` 에서 그렇게 썼다). 코드 사이트에는 앵커 주석을 남겨 뒀다.
+      **부수**: `AUTH_CONFIG_NOT_FOUND` 자체가 `3-error-handling.md §1` 카탈로그 **미등재**다
+      (pre-existing). §5.3 이 등재 의무를 걸므로 같은 턴 후보.
+
+- [ ] **`details.code` 배선을 다른 spec 문서 3곳이 예시에서 누락한다** (planner, 2026-09-11 등재 ·
+      `--impl-done` `12_18_21` W3). `providers/slack.md`·`providers/discord.md` 의
+      `inboundSigningPlaintext` 거부 예시와 `2-navigation/2-trigger-list.md` 의 PATCH 註·`R-12` ·
+      §2.3.1 이 `details.field` 만 인용한다. **코드 변경 불요** — SoT(§5.3)와 문서 동기화다.
+      (`2-trigger-list.md` 는 `#1316` 에서 *"주어가 `field` 라 CV-1 이 거짓으로 만들지 않는다"*
+      로 무편집 판정했는데, **배선이 끝난 지금은 「불완전」 축이 생겼다** — 그 판정은 여전히
+      참이지만 예시를 보강하는 것이 낫다.)
+
+- [ ] **`triggers.service.spec.ts` 의 pre-existing bare 시각 인용 3건** (developer, 2026-09-11
+      등재). `#1145`(`77e0347d2`) 이 넣은 `` `12_37_14` `` · `` `12_56_06` `` 등이
+      `review-citations.md §2`(날짜 포함 의무)를 어긴다. 이번 PR 이 넣은 2건은 고쳤다.
+      **`dto-jsdoc-citation-guard.ts` 는 이걸 못 잡는다** — 스코프가 `isResponseDtoFile` 한정
+      이라 spec 파일은 대상 밖이다(실측). 가드 스코프 확대 여부도 함께 판단.
+
+- [ ] **`details[].code` 배선의 잔여 개선 9건** (developer, 2026-09-11 등재 · `/ai-review`
+      `review/code/2026/09/11/12_00_40` INFO). 전부 비차단:
+      (a) `botToken` **공백 전용 문자열**(`'   '`) 미차단 — `@MinLength(1)` 은 길이만 본다.
+      trim 정책 결정 필요.
+      (b) `SecretResolver.rotate`/`store` 자체의 빈 값 가드 — 위 별 항목과 동일 뿌리.
+      (c) `rejectBlocked(field)` 헬퍼로 `BadRequestException` 보일러플레이트 ~10곳 축소.
+      (d) `[A]`/`[등가성]` 두 `it.each` 병합 — NestJS 테스트 모듈 컴파일 10→5회 (CI 시간만).
+      (e) `CHAT_CHANNEL_BLOCKED_FIELD_MESSAGES` 를 `Readonly<…>`/`Object.freeze`.
+      (f) `triggers.mdx` 인접 문장(`botToken`/`botTokenRef`) + `providers/{slack,discord,telegram}`
+      6파일의 `details.code` 표기 — 같은 단락 안에서 표기가 불균일해졌다.
+      (g) *"`field` 없는 진단 payload 는 `code` 를 안 싣는다"* 회귀 캐너리
+      (`not.toHaveProperty('code')`) — 이 PR 이 세운 **스코프 경계가 주석으로만** 지켜진다.
+      (h) PATCH 경로의 `details.code` **e2e wire 증거** — 현재 POST 생성 경로 전용이다.
+      (i) `common/` 리터럴 vs `modules/` canonical 상수 비대칭의 **spec Rationale** 한 줄
+      (`error-codes.md` 또는 `2-api-convention.md §5.3`).
+
 - [ ] **`SecretResolver.rotate` 에 빈 값 가드가 없다** (developer + 보안 판단, 2026-09-10 등재).
       `rotate(ref, ws, '')` 가 빈 문자열을 그대로 암호화해 row 를 덮어쓴다(`:129-145`, 가드 0).
       chatChannel PATCH 경로는 위 CRITICAL 의 D-2 로 닫히지만 **`rotate` 자체는 다른 호출부에도 열린

@@ -1005,6 +1005,19 @@ export class TriggersService {
       where: { id: authConfigId, workspaceId },
     });
     if (!found) {
+      // **이 자리만 top-level 이 도메인 특화 코드다 — §5.3 판정 미해결.**
+      //
+      // `details[].code` 를 실은 13자리 중 12곳은 top-level 이 400 상태 기본값
+      // `VALIDATION_ERROR` 인데 여기만 `AUTH_CONFIG_NOT_FOUND` 다. `2-api-convention.md` §5.3
+      // 은 *"둘을 겹쳐 쓰지 않는다"* 고 적지만 그 문면은 **「같은 사유」** 를 양쪽에 넣는 것을
+      // 금지한다 — `INVALID_FIELD` 는 *"이 필드가 잘못됐다"* 는 generic 표지라 도메인 사유와
+      // 같지 않다. 즉 **이 자리가 그 금지에 걸리는지 자체가 판정 사안**이고 그것은 §5.3 을
+      // 고치는 planner 결정이다(`review/code/2026/09/11/12_00_40` W1 ·
+      // `review/consistency/2026/09/11/12_18_21` W2).
+      //
+      // 그때까지 `code` 를 **유지**한다 — 벗기면 `authConfigId` 만 `details.field` 에 generic
+      // 표지가 없는 특례가 되어 소비자가 이 필드를 따로 처리해야 한다. 추적:
+      // `plan/in-progress/spec-draft-nullable-notation-followups.md`.
       throw new BadRequestException({
         code: 'AUTH_CONFIG_NOT_FOUND',
         message: 'Auth config not found in this workspace',

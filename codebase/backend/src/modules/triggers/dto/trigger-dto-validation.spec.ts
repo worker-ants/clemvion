@@ -920,7 +920,7 @@ describe('ChatChannelUpdateConfigDto — PATCH 는 비밀을 받지 않는다 (R
         [field]: 'x'.repeat(40),
       });
       // 「정확히 이 필드 하나만 거부됐다」를 명시한다 — 길이를 안 보면 `[0]` 만 맞고
-      // 다른 필드가 함께 터져도 통과한다(`/ai-review` `11_05_27` testing INFO 3).
+      // 다른 필드가 함께 터져도 통과한다(`/ai-review` `review/code/2026/09/11/11_05_27` testing INFO 3).
       expect(res?.details).toHaveLength(1);
       observed[field] = res?.details?.[0]?.message;
     }

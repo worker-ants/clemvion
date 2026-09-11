@@ -3091,7 +3091,7 @@ describe('TriggersService — chatChannel PATCH 는 사용자 비밀을 쓰지 �
    *
    * 종전에는 이 배열이 두 블록에 바이트 그대로 복제돼 있었다. 6번째 차단 필드가 생겼을 때
    * **한쪽만 갱신해도 컴파일되고 기존 케이스는 전부 통과**하므로 커버리지 drift 가 조용히
-   * 난다(`/ai-review` `11_05_27` maintainability WARNING). 한 번만 선언해 그 갈래를 없앤다.
+   * 난다(`/ai-review` `review/code/2026/09/11/11_05_27` maintainability WARNING). 한 번만 선언해 그 갈래를 없앤다.
    *
    * 필드 집합의 SoT 는 `CHAT_CHANNEL_BLOCKED_FIELDS` 다 — 아래 `toEqual` 단언이 그 배열과
    * 이 fixture 가 같은 집합인지 고정한다.
