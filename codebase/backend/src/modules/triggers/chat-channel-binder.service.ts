@@ -109,10 +109,10 @@ export class ChatChannelBinderService {
       });
     }
     const adapter = this.channelAdapterRegistry.get(chatChannelCfg.provider);
-    const callbackUrl = buildTriggerCallbackUrl(
-      this.configService.get<string>('app.url'),
-      trigger.endpointPath,
-    );
+    const callbackUrl = buildTriggerCallbackUrl({
+      baseUrl: this.configService.get<string>('app.url'),
+      endpointPath: trigger.endpointPath,
+    });
 
     // secret store ref 생성 — spec/conventions/secret-store.md §1 URI scheme 단일 진입점.
     const botTokenRef = buildSecretRef({

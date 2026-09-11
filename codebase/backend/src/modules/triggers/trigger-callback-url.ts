@@ -26,18 +26,32 @@
  * *"APP_URL 의 단일 표준 fallback"* 이라고 선언하고 있고, 기본값 리터럴과 후행 슬래시 제거가
  * 여기와 동일하다. 지금 합치지 않는 이유는 **읽는 소스가 다르기** 때문이다 —
  * `getAppBaseUrl()` 은 `process.env.APP_URL` 을 직접 읽고 이 경로는 `ConfigService` 를 거친다.
- * 갈아끼우면 트리거 단위 테스트 9개 모듈이 `ConfigService` mock 으로 쥐고 있는 통제권이
+ * 갈아끼우면 트리거 단위 테스트 **14블록**이 `ConfigService` mock 으로 쥐고 있는 통제권이
  * 사라진다(예: `'https://workflow-api.getit.co.kr'` 주입 후 단언). 즉 순수 이동이 아니라
  * **DI 변경**이라 별 PR 로 갈랐다.
  * (`--impl-prep` `review/consistency/2026/09/11/17_39_32` W4.)
  *
+ * **인자를 이름으로 받는 이유 — 순서 실수를 형태로 없앤다.**
+ * 첫 판본은 `(baseUrl, endpointPath)` 위치 인자였는데, 리뷰어가 호출부에서 둘을 뒤바꾸는
+ * 뮤테이션이 **jest 전량 GREEN** 으로 살아남는다고 지적했다
+ * (`/ai-review` `review/code/2026/09/11/18_04_36` W1).
+ *
+ * 재현하니 절반만 맞았다 — **두 호출부 모두 `tsc` 가 TS2345 로 잡는다**(`build` 단계가 돌므로
+ * main 에 갈 수 없다). 다만 그 방어는 **두 인자의 타입이 마침 다르기 때문**(`string | undefined`
+ * vs `string`)에만 성립한다. `baseUrl` 을 언젠가 non-optional 로 좁히면 스왑이 타입-유효해지고
+ * 그때 이 자리를 보는 것은 **아무것도 없다**. 테스트를 한 겹 더 얹는 대신 **애초에 순서가 없는
+ * 형태**로 바꿨다.
+ *
  * @param baseUrl `configService.get<string>('app.url')` 의 값. `undefined` 허용.
  * @param endpointPath `Trigger.endpointPath`. 선행 슬래시는 있어도 된다.
  */
-export function buildTriggerCallbackUrl(
-  baseUrl: string | undefined,
-  endpointPath: string,
-): string {
+export function buildTriggerCallbackUrl({
+  baseUrl,
+  endpointPath,
+}: {
+  baseUrl: string | undefined;
+  endpointPath: string;
+}): string {
   const resolved = baseUrl ?? 'http://localhost:3011';
   return `${resolved.replace(/\/$/, '')}/api/hooks/${endpointPath.replace(/^\//, '')}`;
 }

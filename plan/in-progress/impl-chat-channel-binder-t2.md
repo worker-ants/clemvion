@@ -180,10 +180,19 @@ docstring 에 싣는다** — 안 적으면 다음 사람이 "죽은 코드" 로
 - [x] `ChatChannelBinderService` 이동 + 호출부 3곳 + module 등록 + 테스트 provider **10줄**
       (14블록을 덮는다) — 이동 후에도 **246 passed** (이동 전과 같은 수)
 - [x] **단언 diff 0줄** 실측 — `*.spec.ts` 는 `+12 / -0`, 전부 import 2 + provider 등록 10
-- [ ] 뮤테이션 3곳 RED
+- [x] 뮤테이션 **3/3 RED** — 예측을 먼저 적고 실행했다(게이팅 · `inboundSigningRefSurvives`
+      술어 · 실패 경로 `fallbackConfig`)
+- [x] `/ai-review` 1라운드 (`18_04_36`, `--route=all` 14/14) **CRITICAL 0** · WARNING 4 →
+      W1·W2 해소, W3 부분 해소, W4 는 마무리 단계 확인 항목으로.
+      `RESOLUTION.md` 작성. 신규 테스트의 뮤턴트 **5/5 RED**
+- [ ] `/ai-review` 2라운드 — **정지 규칙(결과 보기 전 선언)**: CRITICAL 0 이고 발견이
+      ⑴ 기등재 항목이거나 ⑵ `codebase/**` 수정을 요구하지 않으면 **종결**. 요구하면 3라운드
 - [ ] `run-test.sh` 4단계 GREEN — **통과 수치는 여기 적지 않는다** (`#1319` 에서 3회 낡아
       구조로 없앴다. 수치는 커밋 본문과 `_test_logs/`)
 - [ ] 타입체크 ratchet 2종 (backend `*.ts` 를 건드린다)
 - [ ] `/ai-review` + `--impl-done`
 - [ ] 트래커 항목 종결 (T1·T2 둘 다 끝나므로 **이번엔 닫는다**) + 잔류 3메서드 사유 명시
 - [ ] `plan/complete/` 이동
+- [ ] **이동 후 `plan/complete/impl-chat-channel-binder-t2.md` 실재 확인** —
+      `chat-channel-binder.service.ts` JSDoc 이 그 경로를 인용한다. 이동을 빠뜨리면 **깨진
+      링크가 남는다** (`/ai-review` `18_04_36` W4 — *"내가 기억하는 것에 달려 있다"*).

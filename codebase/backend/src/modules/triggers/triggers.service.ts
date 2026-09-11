@@ -1058,10 +1058,10 @@ export class TriggersService {
     // [Spec Chat Channel §5.4] 외부 API 401/403 (인증 실패) 은 BOT_TOKEN_INVALID 400 으로,
     // 그 외 setupChannel 실패는 CHAT_CHANNEL_SETUP_FAILED 502 로 변환.
     const mergedConfig: ChatChannelConfig = { ...chatChannelCfg, botTokenRef };
-    const callbackUrl = buildTriggerCallbackUrl(
-      this.configService.get<string>('app.url'),
-      trigger.endpointPath,
-    );
+    const callbackUrl = buildTriggerCallbackUrl({
+      baseUrl: this.configService.get<string>('app.url'),
+      endpointPath: trigger.endpointPath,
+    });
     let result: SetupResult;
     try {
       result = await adapter.setupChannel(mergedConfig, callbackUrl);

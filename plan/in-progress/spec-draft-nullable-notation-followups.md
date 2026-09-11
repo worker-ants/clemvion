@@ -2285,6 +2285,22 @@ field: T | null;
       > `Record<ChatChannelBlockedField, string>` 으로 선언해 **양방향**을 컴파일러가 본다 —
       > 종전 `satisfies` 안은 편도였다(`tsc` 로 양방향 RED 확인).
 
+- [ ] **`chat-channel-binder.service.ts` 구조 정리 4건** (developer, 2026-09-11 등재 ·
+      `/ai-review` `review/code/2026/09/11/18_04_36` INFO 2·4·6·9). 전부 비차단이고 **이동이
+      만든 것이 아니라 이관되거나 드러난 것**이다. 같은 파일이라 한 번에 처리한다:
+      (a) **secret store 쓰기 2건이 순차 `await`** — botToken rotate 와 provider-issued
+      inbound-signing rotate 는 서로 독립인데 왕복이 누적된다. `storeUserSuppliedSecrets`
+      게이팅을 유지한 채 `Promise.all` 로 병렬화 검토.
+      (b) **`preservedInboundSigningRef` 의 "병합 전 캡처" 불변식이 JSDoc 산문에만 있다** —
+      이동으로 그것이 **두 서비스 사이의 암묵 계약**이 됐다. 지금은 테스트·캐너리가 막는다.
+      **세 번째 호출 지점이 생길 조짐이 보이면** `PreMergeChatChannelSnapshot` 류 래핑 타입으로.
+      (c) **secret ref 생성과 `trigger.config` 캐스팅이 이제 두 파일에 걸쳐 중복** — 같은 파일
+      안 중복이었을 땐 눈에 띄었는데 이동으로 발견 가능성이 낮아졌다.
+      `buildChatChannelSecretRefs(triggerId)` 공유 헬퍼 후보.
+      (d) **테스트가 binder 를 mock 없이 실제 클래스로 주입한다**(14블록) — *"단언 diff 0줄"*
+      증거 전략과 일치하는 **의도된** 선택이지만, 클래스 경계가 생겼는데 격리에는 아직 안 쓴다.
+      chat-channel 무관 describe 는 stub 으로 바꿀 수 있다.
+
 - [ ] **`setupChatChannel` 귀속 표기 3곳이 T2 이동으로 낡는다** (planner, 2026-09-11 등재 ·
       `--impl-prep` `review/consistency/2026/09/11/17_39_32` W2 — `rationale_continuity` 와
       `plan_coherence` 가 **독립으로 같은 지점**을 짚었다). T2 가 `setupChatChannel` 을
@@ -2697,6 +2713,11 @@ field: T | null;
       이번엔 전원이 복원 명령 없이 관측만 했고 판정도 커밋 상태 기준이라 영향이 없었지만,
       **reviewer 가 유령을 쫓을 수 있다**(기존 교훈: 병렬 리뷰어가 서로를 오염시킨 사고).
       처방 후보: 뮤테이션을 별 워크트리에서 돌리거나, 리뷰 완료 후로 순서를 고정.
+      > **2026-09-11 재발.** `impl-chat-channel-binder-t2` 의 `/ai-review`
+      > `review/code/2026/09/11/18_04_36` 에서 또 관측됐다 — 이번엔 summary agent 가
+      > **`git status --short` 로 원복까지 확인**해 INFO 로 내렸지만, **등재만 하고
+      > 행동을 안 바꿨다는 뜻**이다. 산문 규율로 두 번 실패했으니 처방을 고른다:
+      > **뮤테이션은 리뷰 완료 후에만** 돌린다(이번 라운드의 W1 검증이 정확히 그 위반).
 
 - [ ] **`SecretResolver.rotate` 에 빈 값 가드가 없다** (developer + 보안 판단, 2026-09-10 등재).
       `rotate(ref, ws, '')` 가 빈 문자열을 그대로 암호화해 row 를 덮어쓴다(`:129-145`, 가드 0).
