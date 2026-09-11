@@ -18,6 +18,12 @@ spec_impact:
   - spec/conventions/review-citations.md
   - spec/conventions/spec-impl-evidence.md
   - spec/conventions/secret-store.md
+  # 본문 「… 귀속 표기가 부정확해졌다」 항목이 정정을 요구하는 두 파일(그 항목이 **2곳 한정**이라고
+  # 범위까지 적고 있다). 같은 실패 모드를 이 파일이 이미 한 번
+  # 겪었다 (`review/consistency/2026/09/06/16_29_00` INFO#2 — 소급 등재로 고쳤다) —
+  # 재발 원인은 **항목을 추가할 때 frontmatter 를 함께 보지 않는 것**이다.
+  - spec/4-nodes/7-trigger/providers/slack.md
+  - spec/4-nodes/7-trigger/providers/discord.md
 ---
 
 # nullable 표기 후속 3건 (planner 턴)
@@ -2194,6 +2200,15 @@ field: T | null;
       **같은 턴에 병기할 것**: `15-chat-channel.md` frontmatter `code:` 가 이번 PR 의 배선 파일
       (`update-trigger.dto.ts` · `trigger-dto-validation.spec.ts` · `triggers.service.spec.ts` ·
       `trigger-workflow-ref.e2e-spec.ts`)을 아직 안 가리킨다 — 3라운드 연속 관측, 가드는 통과.
+      > **2026-09-11 추가 — 대상은 4개가 아니라 6개다.** `impl-chat-channel-binder` 가
+      > `modules/triggers/chat-channel-input-rules.ts` 와 `…-input-rules.spec.ts` 를 신설했는데
+      > 이 `code:` 목록은 **glob 이 아니라 명시 경로**라(`modules/chat-channel/**` 만 glob)
+      > 새 파일이 자동으로 들어오지 않는다. `--impl-done` `16_31_47` INFO#1 은 5개라 했으나
+      > **실측은 6개** — `.spec.ts` 를 빠뜨린 수치다.
+      >
+      > **왜 중요한가**: `code:` 미등재는 그 파일을 **spec-linked 에서 제외**하므로
+      > `--impl-done` 게이트가 그 파일만 바뀐 변경을 아예 요구하지 않는다. 지금 R-CC-21 의
+      > **검증 규칙 정본**이 그 상태다.
       또한 **신규 검증 분기 2건**(`chatChannel` 최초 부착 차단 → `details.field='chatChannel'` ·
       provider 전환 차단 → `details.field='provider'`)이 §5.4.1 표와 `2-trigger-list.md` PATCH
       에러 표에 미등재다(`--impl-done` `review/consistency/2026/09/11/00_21_57` W3).
@@ -2215,6 +2230,11 @@ field: T | null;
       reviewer 자신이 *"JSDoc·근거 주석·대칭 테스트가 위험을 상쇄해 즉시 차단 사유는 아님 —
       다음에 손댈 때"* 로 분류했다. 처방: 앞쪽 절반(secret 쓰기 게이팅 + ref 생존 판정)을
       `resolveChatChannelSecretWrites(...)` 로 분리.
+      > **2026-09-11 — 아래 「chat-channel 도메인 규칙이 … 계속 쌓인다」 항목의 T2 와 같은
+      > 코드를 만진다.** 그쪽은 `setupChatChannel`·`teardownChatChannel` 을 **파일 밖 협력자로**
+      > 빼고, 이 항목은 그 **함수 안**을 가른다. **T2 를 먼저 하고 이 분리를 그 안에서 하는 것**이
+      > 맞다 — 순서를 뒤집으면 방금 만든 `resolveChatChannelSecretWrites` 를 곧바로 다른 파일로
+      > 다시 옮기게 된다.
 
 - [x] **`ChatChannelConfigDto.botToken` 이 swagger 로 `minLength:1` 을 약속하는데 validator 가 없다**
       (developer, 2026-09-11 등재, `/ai-review` `review/code/2026/09/10/23_55_23` `security` INFO1).
@@ -2262,6 +2282,29 @@ field: T | null;
       > **고치고** 이 항목은 같은 자리를 **옮기므로**, 한 diff 에 섞으면 리뷰가 동작 델타를
       > 분리할 수 없다. 이 표면은 `#1314` 에서 리뷰어 3명이 독립으로 CRITICAL 을 찾은 자리다.
       > **동작 보존이 유일한 주장이 되도록** 별 PR 로 낸다.
+      >
+      > **✅ 2026-09-11 T1 완료 / ⏸ T2 이월 — 항목은 열어 둔다.** developer 턴
+      > `plan/complete/impl-chat-channel-binder.md` (`--impl-prep` `14_59_33` BLOCK: NO ·
+      > `/ai-review` 3라운드 CRITICAL 0 · `--impl-done` `16_31_47` BLOCK: NO).
+      >
+      > **갈린 기준은 의존 방향이다** — 각 메서드가 쓰는 외부 `this.*` 를 전수로 셌다:
+      >
+      > | 계층 | 대상 | 외부 `this.*` | 상태 |
+      > |---|---|---|---|
+      > | **T1 — 검증·변환** | `assertChatChannelInputSafe`(+오버로드 2) · `assertPatchCarriesNoSecrets` · `assertChatChannelAlreadySetUp` · `stripChatChannelPlaintext` · `assertInboundSigningPlaintextByProvider` · `translateSetupChannelError` | **0개** | **완료** — `modules/triggers/chat-channel-input-rules.ts` 순수 함수 모듈(DI 없음) |
+      > | **T2 — secret 쓰기·ref 보존** | `setupChatChannel` · `teardownChatChannel` | **6개** | **이월** — `ChatChannelBinderService`(Nest provider, `triggers/` 안) |
+      > | (범위 밖) | `rotateBotToken` · `cleanupRotatedChatChannelTokens` · `tryRevokeOldBotToken` | repo·audit·BullMQ | **영구 잔류** — 엔드포인트 오케스트레이션이라 옮기면 그 협력자까지 끌고 간다 |
+      >
+      > 따라서 이 PR 뒤 `TriggersService` 의 chat-channel 메서드는 **5개**(이월 2 + 잔류 3)이고
+      > `TriggersService` 는 1,881 → **1,585줄**이다(이동 커밋 `2ae81077c` 시점에 측정 —
+      > 이후 세 커밋은 이 파일을 건드리지 않았다).
+      >
+      > **T2 의 증거 방식은 T1 과 다르다** — T1 은 의존이 0이라 *"테스트 파일 **무편집**"* 으로
+      > 증명했다: **그 이동 커밋 하나의** `*.spec.ts` diff 가 0줄이다(base 를 `2ae81077c^` 로
+      > 고정해 측정). 브랜치 전체로는 0이 아니다 — 뒤 커밋들이 신규 spec 파일과 보강을 더했다.
+      > T2 는 협력자 주입이 생기므로 3개
+      > `createTestingModule` 의 **provider 등록**이 바뀐다. 그때의 주장은 *"**단언** diff 0줄"*
+      > 이다. **한 커밋에 섞으면 약한 쪽으로 뭉개지므로** 별 PR 로 낸 것이다.
 
 - [x] **서비스 가드가 `details[].code` 를 안 싣는다 — 파이프는 싣는다** (developer,
       2026-09-11 등재, `--spec` `review/consistency/2026/09/11/07_11_12` `convention_compliance` INFO 2).
@@ -2519,6 +2562,65 @@ field: T | null;
       > **`-` 는 단어 경계라 `\b` 가 하이픈 접두를 막지 않는다**
       > (`printf 'R-D-3' | grep "\bD-3\b"` 가 매치한다). 레지스트리를 만들면 **판정 명령도
       > 같이 적어야** 한다 — 종전 같은 병은 패턴이 **좁아서** 났는데 이번엔 **넓어서** 났다.
+
+- [ ] **`slack.md`·`discord.md` 의 `TriggersService.assertInboundSigningPlaintextByProvider`
+      귀속 표기가 부정확해졌다** (planner, 2026-09-11 등재 · `/ai-review`
+      `review/code/2026/09/11/15_31_54` SPEC-DRIFT). 그 함수가 `TriggersService` private 메서드
+      에서 **module-level 함수**(`modules/triggers/chat-channel-input-rules.ts`)로 이동했다.
+      **실질은 여전히 참이다** — `TriggersService` 가 그 규칙을 호출하고 생성 시점에 검증하며
+      위반 시 400 `VALIDATION_ERROR` 다. 부정확한 것은 **심볼 경로**뿐이다.
+      처방: *"`TriggersService` 가 `chat-channel-input-rules` 의 … 를 호출해 검증"* 형태로
+      호출자/정의처를 갈라 적는다. **자기-반증형 소정정 조건 1 불성립**(그 문장은 이전 planner
+      턴이 썼다) → planner 턴.
+      > **드리프트 범위는 2곳이다.** 같은 함수를 **클래스 접두 없이 함수명만** 인용하는 3곳
+      > (`2-trigger-list.md:155` · `discord.md:76` · `15-chat-channel.md:432`)은 이동 후에도
+      > 참이라 대상이 아니다 — 주어를 확인해 가른 결과다.
+
+- [ ] **`translateSetupChannelError` 가 discord verify_key 불일치를 502 로 떨어뜨린다**
+      (developer, 2026-09-11 등재 · `/ai-review` `review/code/2026/09/11/15_31_54` W3).
+      **재현했다**: `discord.adapter.ts` 는 `'BOT_TOKEN_INVALID: Discord verify_key 가 등록된
+      public key 와 불일치'` 를 던지는데 **숫자가 없어서** 판별식 `/\b(401|403)\b/` 에 안 걸리고
+      fallback `CHAT_CHANNEL_SETUP_FAILED`(502) 로 간다. 의도는 400 `BOT_TOKEN_INVALID` 다.
+      **이동이 만든 회귀가 아니다**(이동 전부터 테스트 0건) — 캐너리로 현재 동작을 고정해
+      뒀으므로 고치면 그 테스트가 RED 가 된다.
+      처방 후보: (a) 판별식을 `BOT_TOKEN_INVALID` 리터럴까지 보게 확장 (b) adapter 가 status 를
+      메시지에 싣게 통일. **(b) 가 근본이다** — 판별식이 문자열을 추측하는 구조 자체가 이 결함의
+      원인이고, (a) 는 다음 provider 에서 같은 일이 난다.
+
+- [ ] **`chat-channel-input-rules.ts` 의 구조 정리 6건** (developer, 2026-09-11 등재 ·
+      `/ai-review` `review/code/2026/09/11/15_31_54` W4 + INFO). 전부 비차단:
+      (a) `BadRequestException({code, message, details:{field, code}})` 봉투 생성이 **7회 이상**
+      거의 동일하게 반복 — 파일 docstring 이 그 봉투를 계약으로 선언하므로 신규 필드를 복붙하다
+      `details.code` 를 빠뜨리면 **컴파일 타임에 안 잡히고** 계약이 조용히 깨진다.
+      `throwValidationError(field, message, code?)` 헬퍼로 한 곳에 모은다.
+      (b) 파일명·docstring 이 *"입력 규칙"* 인데 출력측 변환(`translateSetupChannelError`)이
+      섞여 있다 — 이름을 넓히거나 분리.
+      (c) 에러 절단 길이 `256` 이 매직 넘버로 2회 하드코딩.
+      (d) `chatChannel as unknown as Record<string, unknown>` 이중 캐스팅 2곳 → `hasField` 헬퍼.
+      (e)·(f) 인접 주석 2곳이 이동으로 부정확해졌다 —
+      `chat-channel-rejection-messages.const.ts`(*"TriggersService 가드"*) ·
+      `dto/chat-channel-config.dto.ts`(*"provider별 추가 검증은 TriggersService 가 수행"*).
+      이제 규칙은 클래스 밖에 있고 `TriggersService` 는 **호출만** 한다.
+
+- [ ] **`chat-channel-input-rules.spec.ts` 잔여 보강 5건** (developer, 2026-09-11 등재 ·
+      `/ai-review` `review/code/2026/09/11/16_16_44` W2 + INFO 3~6). 전부 같은 파일·같은 성격이라
+      한 번에 처리한다:
+      (a) `as never` 캐스팅 제거 — `tsc --noEmit` 실측상 **불필요**하고(진단 197건 동일)
+      *"오버로드는 캐스팅 없이 못 부른다"* 는 오해를 준다.
+      (b) `mode:'update'` × 내부 필드 3종(`botTokenRef`/`inboundSigningRef`/`inboundSigning`)
+      조합 — 통합 스펙이 이미 잡지만 이 파일 단독으로는 R-CC-21 표면을 못 덮는다.
+      (c) `assertChatChannelAlreadySetUp` 의 `incoming.provider &&` falsy-guard — 뮤테이션 시
+      142건 GREEN. 다만 DTO 검증이 선행 차단해 **도달 불가능한 방어 코드**로 보인다(그 판정도 함께).
+      (d) `translateSetupChannelError` 의 non-Error 입력 분기 + `details.reason` **값** 단언.
+      (e) provider별 **label 문구** 미단언 — label 스왑 뮤턴트가 아직 통과한다.
+
+- [ ] **리뷰 in-flight 중에 같은 워크트리에서 뮤테이션을 돌리지 않는다** (프로세스,
+      2026-09-11 등재 · `/ai-review` `review/code/2026/09/11/16_16_44` 관측). 그 라운드에서
+      reviewer **8명 이상**이 *"자신이 만들지 않은 일시적 뮤테이션"*(정규식 스왑 등)을 공유
+      워킹트리에서 관측했다 — **내가 검증용 뮤테이션을 리뷰와 겹쳐 돌린 결과**다.
+      이번엔 전원이 복원 명령 없이 관측만 했고 판정도 커밋 상태 기준이라 영향이 없었지만,
+      **reviewer 가 유령을 쫓을 수 있다**(기존 교훈: 병렬 리뷰어가 서로를 오염시킨 사고).
+      처방 후보: 뮤테이션을 별 워크트리에서 돌리거나, 리뷰 완료 후로 순서를 고정.
 
 - [ ] **`SecretResolver.rotate` 에 빈 값 가드가 없다** (developer + 보안 판단, 2026-09-10 등재).
       `rotate(ref, ws, '')` 가 빈 문자열을 그대로 암호화해 row 를 덮어쓴다(`:129-145`, 가드 0).
