@@ -2559,6 +2559,26 @@ field: T | null;
       `dto/chat-channel-config.dto.ts`(*"provider별 추가 검증은 TriggersService 가 수행"*).
       이제 규칙은 클래스 밖에 있고 `TriggersService` 는 **호출만** 한다.
 
+- [ ] **`chat-channel-input-rules.spec.ts` 잔여 보강 5건** (developer, 2026-09-11 등재 ·
+      `/ai-review` `review/code/2026/09/11/16_16_44` W2 + INFO 3~6). 전부 같은 파일·같은 성격이라
+      한 번에 처리한다:
+      (a) `as never` 캐스팅 제거 — `tsc --noEmit` 실측상 **불필요**하고(진단 197건 동일)
+      *"오버로드는 캐스팅 없이 못 부른다"* 는 오해를 준다.
+      (b) `mode:'update'` × 내부 필드 3종(`botTokenRef`/`inboundSigningRef`/`inboundSigning`)
+      조합 — 통합 스펙이 이미 잡지만 이 파일 단독으로는 R-CC-21 표면을 못 덮는다.
+      (c) `assertChatChannelAlreadySetUp` 의 `incoming.provider &&` falsy-guard — 뮤테이션 시
+      142건 GREEN. 다만 DTO 검증이 선행 차단해 **도달 불가능한 방어 코드**로 보인다(그 판정도 함께).
+      (d) `translateSetupChannelError` 의 non-Error 입력 분기 + `details.reason` **값** 단언.
+      (e) provider별 **label 문구** 미단언 — label 스왑 뮤턴트가 아직 통과한다.
+
+- [ ] **리뷰 in-flight 중에 같은 워크트리에서 뮤테이션을 돌리지 않는다** (프로세스,
+      2026-09-11 등재 · `/ai-review` `review/code/2026/09/11/16_16_44` 관측). 그 라운드에서
+      reviewer **8명 이상**이 *"자신이 만들지 않은 일시적 뮤테이션"*(정규식 스왑 등)을 공유
+      워킹트리에서 관측했다 — **내가 검증용 뮤테이션을 리뷰와 겹쳐 돌린 결과**다.
+      이번엔 전원이 복원 명령 없이 관측만 했고 판정도 커밋 상태 기준이라 영향이 없었지만,
+      **reviewer 가 유령을 쫓을 수 있다**(기존 교훈: 병렬 리뷰어가 서로를 오염시킨 사고).
+      처방 후보: 뮤테이션을 별 워크트리에서 돌리거나, 리뷰 완료 후로 순서를 고정.
+
 - [ ] **`SecretResolver.rotate` 에 빈 값 가드가 없다** (developer + 보안 판단, 2026-09-10 등재).
       `rotate(ref, ws, '')` 가 빈 문자열을 그대로 암호화해 row 를 덮어쓴다(`:129-145`, 가드 0).
       chatChannel PATCH 경로는 위 CRITICAL 의 D-2 로 닫히지만 **`rotate` 자체는 다른 호출부에도 열린
