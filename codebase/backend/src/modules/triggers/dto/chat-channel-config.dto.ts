@@ -17,6 +17,7 @@ import {
 } from 'class-validator';
 import { Type, Transform } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional, OmitType } from '@nestjs/swagger';
+import { CHAT_CHANNEL_BLOCKED_FIELD_MESSAGES } from '../chat-channel-rejection-messages.const';
 
 /**
  * Trigger.config.chatChannel — webhook 트리거에 외부 chat 플랫폼 어댑터를 부착하는 옵션.
@@ -183,6 +184,12 @@ export class ChatChannelConfigDto {
     writeOnly: true,
   })
   @IsString()
+  // `@ApiProperty` 가 `minLength: 1` 을 광고하는데 검증 체인에는 없었다 — **선언이
+  // 구현보다 넓었다.** `''` 는 문자열이라 통과하고, 그 값이 `setupChatChannel` 의
+  // `[쓰기 ①]` 에서 `SecretResolver.rotate(botTokenRef, ws, '')` 로 들어가 **빈 시크릿이
+  // 먼저 저장된다** — provider 호출(그리고 401 → `BOT_TOKEN_INVALID`)은 그 뒤다.
+  // 즉 요청은 실패하는데 시크릿 행은 남는다. `rotate` 자체의 빈 값 가드는 별개 항목이다.
+  @MinLength(1)
   @MaxLength(256)
   botToken: string;
 
@@ -204,8 +211,7 @@ export class ChatChannelConfigDto {
   })
   @IsOptional()
   @IsEmpty({
-    message:
-      'botTokenRef 는 외부 입력이 금지된 내부 필드입니다. 토큰 변경은 POST /api/triggers/:id/chat-channel/rotate-bot-token 을 사용하세요.',
+    message: CHAT_CHANNEL_BLOCKED_FIELD_MESSAGES.botTokenRef,
   })
   botTokenRef?: string;
 
@@ -222,7 +228,7 @@ export class ChatChannelConfigDto {
   })
   @IsOptional()
   @IsEmpty({
-    message: 'inboundSigningRef 는 외부 입력이 금지된 내부 필드입니다.',
+    message: CHAT_CHANNEL_BLOCKED_FIELD_MESSAGES.inboundSigningRef,
   })
   inboundSigningRef?: string;
 
@@ -240,8 +246,7 @@ export class ChatChannelConfigDto {
   })
   @IsOptional()
   @IsEmpty({
-    message:
-      'inboundSigning 은 setupChannel 시 자동 발급되는 내부 필드입니다. provider-issued (Slack signing secret / Discord public key) 입력은 inboundSigningPlaintext 를 사용하세요.',
+    message: CHAT_CHANNEL_BLOCKED_FIELD_MESSAGES.inboundSigning,
   })
   inboundSigning?: string;
 
@@ -362,7 +367,8 @@ export class ChatChannelConfigDto {
  */
 // 아래 세 단락은 **내부 서사**라 JSDoc 이 아니라 `//` 에 둔다 — 플러그인이
 // `introspectComments` 로 JSDoc 을 공개 OpenAPI `description` 에 그대로 싣는다
-// (`spec/conventions/swagger.md:315`, 2026-09-05 규약화. 선례: `schedule-response.dto.ts` ·
+// (`spec/conventions/swagger.md` 의 「JSDoc 은 공개 OpenAPI 로 나간다 — 내부 서사를 담지
+// 않는다」 절, 2026-09-05 규약화. 선례: `schedule-response.dto.ts` ·
 // `workspace-response.dto.ts`).
 //
 // **왜 `OmitType` 인가**: 상속만 하면 부모의 `@IsString()`(botToken 필수)이 그대로 따라와
@@ -388,8 +394,7 @@ export class ChatChannelUpdateConfigDto extends OmitType(ChatChannelConfigDto, [
   })
   @IsOptional()
   @IsEmpty({
-    message:
-      'botToken 은 PATCH 로 바꿀 수 없어요. 토큰 변경은 POST /api/triggers/:id/chat-channel/rotate-bot-token 을 사용해 주세요.',
+    message: CHAT_CHANNEL_BLOCKED_FIELD_MESSAGES.botToken,
   })
   botToken?: string;
 
@@ -403,8 +408,7 @@ export class ChatChannelUpdateConfigDto extends OmitType(ChatChannelConfigDto, [
   })
   @IsOptional()
   @IsEmpty({
-    message:
-      'inboundSigningPlaintext 는 PATCH 로 바꿀 수 없어요. 회전이 필요하면 트리거를 삭제 후 다시 만들어 주세요 (v1 미정의).',
+    message: CHAT_CHANNEL_BLOCKED_FIELD_MESSAGES.inboundSigningPlaintext,
   })
   inboundSigningPlaintext?: string;
 }
