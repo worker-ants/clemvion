@@ -269,6 +269,58 @@ describe('Background body monitoring (e2e)', () => {
   // 2) Cross-workspace IDOR 차단
   // -------------------------------------------------------------------------
 
+  /**
+   * **mock 이 원리적으로 말해 주지 못하는 것을 여기서만 확인한다.**
+   *
+   * `background-runs.service.spec.ts` 는 `createQueryBuilder` 를 mock 해 *"검증이 값을
+   * 거부하는가"* 만 본다. 그 값을 **통과시켰을 때 Postgres 가 정말 SQLSTATE 22P02 를 내는지**,
+   * 그래서 응답이 정말 500 이 됐는지는 실 DB 를 태워야 알 수 있다 — 이 결함의 전제가 통째로 그
+   * 사슬에 걸려 있었다. 같은 판단의 선례: `webhook-trigger.e2e-spec.ts` B4.
+   *
+   * 계약: 이 엔드포인트는 잘못된 커서를 **400 `INVALID_CURSOR`** 로 거부한다(base64·JSON·날짜
+   * 오류와 같은 처분). 형제 `GET /api/users/me/login-history` 는 같은 상황에서 무시하고
+   * 1페이지를 준다 — 비대칭은 의도이며 통일 여부는 planner 항목으로 등재돼 있다.
+   */
+  it('커서 i 가 비-UUID 면 500 이 아니라 400 INVALID_CURSOR (22P02 마스킹 회귀)', async () => {
+    const workflowId = await createBackgroundFailingWorkflow();
+    const { executionId, backgroundRunId } =
+      await executeAndGetBackgroundRunId(workflowId);
+
+    // base64·JSON·날짜는 **전부 멀쩡하고** `i` 만 파싱 불가 — 이 조합이 종전에 `ne.id`
+    // (uuid 컬럼)까지 흘러 22P02 → 500 이 됐다.
+    const cursor = Buffer.from(
+      JSON.stringify({ s: '2026-05-01T00:00:00.000Z', i: 'not-a-uuid' }),
+      'utf8',
+    ).toString('base64');
+
+    const res = await request(BASE_URL)
+      .get(`/api/executions/${executionId}/background-runs/${backgroundRunId}`)
+      .query({ cursor })
+      .set('Authorization', `Bearer ${owner.accessToken}`)
+      .set('X-Workspace-Id', workspaceId);
+
+    expect(res.status).toBe(400);
+    // **클래스만 보지 않는다** — 소유권·limit 가드도 400 을 내므로 무엇이 거부했는지까지 본다.
+    expect(res.body.error.code).toBe('INVALID_CURSOR');
+
+    // **대조군** — 유효한 UUID 커서는 이 관문을 통과한다(무조건 400 이 아니다).
+    const validCursor = Buffer.from(
+      JSON.stringify({
+        s: '2026-05-01T00:00:00.000Z',
+        i: '00000000-0000-0000-0000-000000000000',
+      }),
+      'utf8',
+    ).toString('base64');
+
+    const ok = await request(BASE_URL)
+      .get(`/api/executions/${executionId}/background-runs/${backgroundRunId}`)
+      .query({ cursor: validCursor })
+      .set('Authorization', `Bearer ${owner.accessToken}`)
+      .set('X-Workspace-Id', workspaceId);
+
+    expect(ok.status).toBe(200);
+  });
+
   it('cross-workspace GET → 404 (워크스페이스 mismatch 시 ID enumeration 차단)', async () => {
     const workflowId = await createBackgroundFailingWorkflow();
     const { executionId, backgroundRunId } =

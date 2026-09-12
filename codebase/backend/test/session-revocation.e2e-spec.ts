@@ -242,4 +242,55 @@ describe('Session revocation (e2e)', () => {
     expect(items.every((i) => typeof i.event === 'string')).toBe(true);
     expect(items.some((i) => i.event === 'login_success')).toBe(true);
   });
+
+  /**
+   * **mock 이 원리적으로 말해 주지 못하는 것을 여기서만 확인한다.**
+   *
+   * `login-history.service.spec.ts` 는 `createQueryBuilder` 를 mock 해 *"검증이 값을
+   * 거부하는가"* 만 본다. 그 값을 **통과시켰을 때 Postgres 가 정말 SQLSTATE 22P02 를 내는지**,
+   * 그래서 응답이 정말 500 이 됐는지는 실 DB 를 태우지 않으면 알 수 없다 — 이 결함의 전제가
+   * 통째로 그 사슬에 걸려 있었다. 같은 판단의 선례가 `webhook-trigger.e2e-spec.ts` B4 다
+   * (*"단위 테스트가 mock 하는 드라이버 에러 형태가 실제와 같은지는 이 케이스만 확인한다"*).
+   *
+   * 계약: 이 엔드포인트는 잘못된 커서를 **무시하고 1페이지**를 준다(날짜·구분자 오류와 같은
+   * 처분). 형제 `background-runs` 는 같은 상황에서 400 `INVALID_CURSOR` 다 — 비대칭은 의도이며
+   * 통일 여부는 planner 항목으로 등재돼 있다.
+   */
+  it('F. 커서 id 가 비-UUID 여도 500 이 아니라 200 + 1페이지 (22P02 마스킹 회귀)', async () => {
+    const { cookieA, accessTokenA } = await setupUser('sess-f');
+
+    // 날짜·구분자는 **멀쩡하고** id 만 파싱 불가 — 이 조합이 종전에 `lh.id`(uuid 컬럼)까지
+    // 흘러 22P02 → 500 이 됐다.
+    const res = await request(BASE_URL)
+      .get('/api/users/me/login-history')
+      .query({ cursor: '2026-05-01T00:00:00.000Z|not-a-uuid' })
+      .set('Authorization', `Bearer ${accessTokenA}`)
+      .set('Cookie', cookieA);
+
+    expect(res.status).toBe(200);
+    const items = res.body.data.items as Array<{ event: string }>;
+    expect(Array.isArray(items)).toBe(true);
+    expect(items.length).toBeGreaterThanOrEqual(1);
+
+    // **대조군** — 유효한 커서는 실제로 필터링한다(무조건 1페이지를 주는 게 아니다).
+    // 이게 없으면 위 단언은 "커서를 아예 안 본다" 로도 참이 된다.
+    const first = await request(BASE_URL)
+      .get('/api/users/me/login-history')
+      .query({ limit: 1 })
+      .set('Authorization', `Bearer ${accessTokenA}`)
+      .set('Cookie', cookieA);
+    expect(first.status).toBe(200);
+    const nextCursor = first.body.data.nextCursor as string | null;
+    expect(nextCursor).toBeTruthy();
+
+    const second = await request(BASE_URL)
+      .get('/api/users/me/login-history')
+      .query({ limit: 1, cursor: nextCursor })
+      .set('Authorization', `Bearer ${accessTokenA}`)
+      .set('Cookie', cookieA);
+    expect(second.status).toBe(200);
+    const firstId = (first.body.data.items as Array<{ id: string }>)[0].id;
+    const secondId = (second.body.data.items as Array<{ id: string }>)[0].id;
+    expect(secondId).not.toBe(firstId);
+  });
 });

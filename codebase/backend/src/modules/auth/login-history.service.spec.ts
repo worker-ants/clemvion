@@ -162,23 +162,22 @@ describe('LoginHistoryService', () => {
       );
     });
 
-    it('[대조군] nil UUID 처럼 느슨한 형태도 통과시킨다 (엄격한 술어를 쓰면 안 되는 이유)', () => {
+    it('[대조군] nil UUID 처럼 느슨한 형태도 통과시킨다 (엄격한 술어를 쓰면 안 되는 이유)', async () => {
       // `isValidUuid`(RFC v1–v5)로 조이면 Postgres 가 **정상 조회하는** 커서를 거부하게 된다.
       // 이 케이스가 그 회귀를 고정한다 — 술어 교체 시 RED.
-      return service
-        .findForUser({
-          userId: 'u',
-          cursor:
-            '2026-05-01T00:00:00.000Z|00000000-0000-0000-0000-000000000000',
-        })
-        .then(() => {
-          expect(selectQb.andWhere).toHaveBeenCalledWith(
-            '(lh.created_at, lh.id) < (:cursorTs, :cursorId)',
-            expect.objectContaining({
-              cursorId: '00000000-0000-0000-0000-000000000000',
-            }),
-          );
-        });
+      //
+      // `.then()` 체이닝이 아니라 `async/await` 를 쓴다 — 이 파일의 나머지 11개가 그 형태이고,
+      // 섞여 있으면 복사-붙여넣기로 `return` 이 빠져 **단언이 실행되기 전에 테스트가 끝나는**
+      // vacuous 형태가 나온다 (`review/code/2026/09/12/23_40_57` maintainability WARNING).
+      const NIL_UUID = '00000000-0000-0000-0000-000000000000';
+      await service.findForUser({
+        userId: 'u',
+        cursor: `2026-05-01T00:00:00.000Z|${NIL_UUID}`,
+      });
+      expect(selectQb.andWhere).toHaveBeenCalledWith(
+        '(lh.created_at, lh.id) < (:cursorTs, :cursorId)',
+        expect.objectContaining({ cursorId: NIL_UUID }),
+      );
     });
 
     it('caps limit at 100', async () => {
