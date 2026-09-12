@@ -172,3 +172,25 @@ spec §1.1.2 는 *"`code: 'BOT_TOKEN_INVALID'` 프로퍼티를 가진 에러"* �
 
 **"발견 0" 이 아니라 "`codebase/**` 수정 0 으로 끝나는 라운드" 가 종료 조건이다** — 발견 0 을
 기다리면 문서 다듬기로 무한히 돈다(선례: 8라운드).
+
+
+## CI 후속 (PR `#1324`)
+
+**실패 3건 중 1건이 내 것이었다.**
+
+| job | 원인 | 처분 |
+|---|---|---|
+| `test-and-build` | **Gate C RED** — `plan/complete/spec-update-chat-channel-adapter-status.md` 의 frontmatter 에 `spec_impact` 가 없다 | **고쳤다** (`spec_impact` + `status`/`title`/`completed` 보강) |
+| `e2e` · `e2e-frontend` | Docker Hub 익명 pull 거부 (`minio/minio`·`minio/mc` — *"pull access denied … may require 'docker login'"*) | **내 변경과 무관.** 트래커의 won't-do 항목이 처분을 이미 정해 뒀다 → **실패 job 재실행** |
+
+### 왜 로컬 4단계가 못 잡았나 — **측정 시점이 틀렸다**
+
+`run-test-all: ALL PASS` 를 받은 것은 **draft 를 `plan/complete/` 로 옮기기 전**이다. Gate C 는
+그 디렉토리를 검사하고 **frontend unit 안에** 있어서, 이동 이후로는 로컬 결과가 무효였다.
+*"`codebase/` 를 안 건드렸으니 4단계는 유효하다"* 는 추론이 틀렸다 — `plan/`·`spec/` 의
+이동·frontmatter 편집도 프론트 unit 의 문서 게이트를 깬다. **마지막 커밋 뒤에 한 번 더
+돌리는 것**이 유일한 방어다(재실행 후 frontend 289파일 / 6,408 통과).
+
+> resolution-applier 가 만든 draft 의 frontmatter 에는 `spec_impact` 가 없었고, 나는 그 파일을
+> **읽지 않고** 옮겼다. `plan/complete/` 로 옮기는 동작은 그 파일에 **새 계약(Gate C)을
+> 부과**한다 — 옮기기 전에 frontmatter 를 보는 것이 절차의 일부다.

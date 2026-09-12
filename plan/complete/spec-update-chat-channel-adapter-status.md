@@ -1,7 +1,12 @@
 ---
+title: chat-channel-adapter 의 "미구현" 서술 정정 — SPEC-DRIFT (ESCALATE=spec)
+status: complete
 worktree: impl-setup-error-code-ddd078
 started: 2026-09-12
+completed: 2026-09-12
 owner: resolution-applier
+spec_impact:
+  - spec/conventions/chat-channel-adapter.md
 ---
 # Spec Update Draft — chat-channel-adapter 미구현 서술 정정
 
