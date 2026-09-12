@@ -800,6 +800,27 @@ describe('ChatChannelUpdateConfigDto — PATCH 는 비밀을 받지 않는다 (R
     },
   );
 
+  /**
+   * **`provider` 는 PATCH 에서도 필수다** — `OmitType(ChatChannelConfigDto, ['botToken',
+   * 'inboundSigningPlaintext'])` 이 그 두 필드만 떼어내므로 `provider` 의
+   * `@IsString() @IsIn(...)` 은 **상속된다.**
+   *
+   * 이 테스트가 있어야 `chat-channel-input-rules.ts` 의 `incoming.provider &&` falsy-guard 를
+   * *"HTTP 경로에서는 도달 불가"* 라고 부르는 주석이 **근거를 갖는다**. 근거 없이 적으면
+   * 그 문장은 다음 사람이 가드를 지우는 허가증이 된다 — 가드는 DTO 를 우회한 호출자를 위해
+   * 남아 있는 것이고, 지우면 그쪽이 **틀린 메시지**(`provider 는 PATCH 로 바꿀 수 없어요`)를
+   * 받는다.
+   */
+  it.each([
+    ['미지정', {}],
+    ['빈 문자열', { provider: '' }],
+  ])('provider 가 %s 면 DTO 층에서 거부된다', async (_label, over) => {
+    const { provider: _drop, ...noProvider } = cardBody('telegram');
+    const res = await run({ ...noProvider, ...over });
+    expect(res?.code).toBe('VALIDATION_ERROR');
+    expect(res?.details.map((d) => d.field)).toContain('chatChannel.provider');
+  });
+
   it('botToken 이 실리면 거부한다', async () => {
     const res = await run({ ...cardBody('telegram'), botToken: '111:New' });
     expect(res?.code).toBe('VALIDATION_ERROR');

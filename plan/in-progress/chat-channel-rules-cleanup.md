@@ -1,0 +1,100 @@
+---
+title: chat-channel-input-rules 구조 정리 + 테스트 보강 — 트래커 잔여 배치
+status: in-progress
+owner: developer
+worktree: chat-channel-rules-cleanup
+started: 2026-09-12
+spec_impact: none
+---
+
+## 왜 이 턴인가
+
+`#1319`(T1 이동) · `#1320`(T2) · `#1324`(§5.4 구현)가 남긴 **developer 축 잔여**를 한 배치로
+닫는다. 세 항목이 전부 같은 파일 쌍(`chat-channel-input-rules.{ts,spec.ts}`)에 걸려 있어
+따로 열면 리뷰·게이트 비용만 3배가 된다.
+
+트래커(`plan/in-progress/spec-draft-nullable-notation-followups.md`):
+「`chat-channel-input-rules.ts` 의 구조 정리 6건」 · 「`chat-channel-input-rules.spec.ts` 잔여
+보강 5건」(그중 (d) 는 `#1324` 완료) · 「`rotateBotToken` 의 swagger 응답 문서화 잔여」.
+
+## 착수 전 재판정 — **한 항목은 이미 사라졌다**
+
+`origin/main` = `c9bc5dca6` 기준 전수 실측:
+
+| 항목 | 트래커 기록 | 재판정 |
+|---|---|---|
+| (a) 에러 봉투 반복 | *"7회 이상"* | **11곳** (`throw` 기준. `translateSetupChannelError` 의 2곳은 형태가 달라 비대상) |
+| (b) 파일 성격 불일치 | 입력 규칙 파일에 출력 변환 | 유효 |
+| **(c) 절단 길이 `256` 매직 넘버 2회** | 유효 | **⛔ 소멸** — `#1324` 가 `details.reason` 을 없애며 같이 사라졌다(`grep "256"` **0건**) |
+| (d) 이중 캐스팅 | 2곳 | 2곳 (L100 · L145) |
+| (e)(f) stale 주석 | 2곳 | **3곳** — `chat-channel-rejection-messages.const.ts:8` · `dto/chat-channel-config.dto.ts:36` · `:283` |
+| spec (a) `as never` | 1곳 | 1곳 |
+| spec (c) falsy-guard | 판정 필요 | 아래 §설계 판단 (3) |
+| spec (e) label 미단언 | 유효 | 유효 (L254) |
+| swagger 404/200 | 유효 | 유효 (`rotateBotToken` 에 `@ApiNotFoundResponse`·`@ApiOkWrappedResponse` 부재) |
+
+> **(c) 가 이 재판정의 값어치다** — 기록만 믿고 착수했으면 존재하지 않는 매직 넘버를 찾느라
+> 시간을 썼을 것이다. 종결 처리하고 사유(다른 PR 이 부수적으로 해소)를 남긴다.
+
+## 설계 판단 — 착수 전에 정한다
+
+### (1) 헬퍼는 `throwInvalidField(field, message)` — **세 번째 인자를 두지 않는다**
+
+트래커는 `throwValidationError(field, message, code?)` 를 제안했다. 그런데 **11곳이 전부**
+`code: ErrorCode.INVALID_FIELD` 다(실측). 선택 인자를 두면 **한 번도 안 쓰이는 매개변수**가
+계약으로 남고, 다음 사람은 "여기 다른 코드도 올 수 있나" 를 묻게 된다. 필요해지는 날 넓히는
+쪽이 싸다 — *정의를 한 칸 좁게*.
+
+반환 타입은 `never` 로 둔다. `throw throwInvalidField(...)` 가 아니라 `throwInvalidField(...)`
+한 줄로 끝나야 호출부가 실제로 짧아진다.
+
+### (2) (b) 는 **주석을 넓힌다. 파일을 쪼개지 않는다** — 이번 턴에는
+
+분리(`chat-channel-error-translation.ts`)가 더 정직하지만 **spec 편집을 부른다** —
+`15-chat-channel.md §7` 파일 트리가 이 모듈의 파일을 열거하고, 트리 추가는 planner 축이다
+(같은 사실의 planner 쌍둥이 항목이 이미 등재돼 있다). developer 턴이 그걸 건드리면
+`ESCALATE=spec` 을 한 번 더 태워야 하고, 그 비용이 이 정리의 값어치보다 크다.
+
+→ 헤더 주석이 **입력 규칙 + §5.4 출력 계약** 둘 다 이 파일의 책임임을 명시하도록 넓힌다.
+분리는 planner 항목이 §7 을 손볼 때 **같이** 결정한다(그 항목 본문에 이 판단을 적어 둔다).
+
+### (3) spec (c) `incoming.provider &&` — **살린다. 다만 도달 불가임을 실측으로 적는다**
+
+`ChatChannelUpdateConfigDto` 는 `OmitType(ChatChannelConfigDto, ['botToken',
+'inboundSigningPlaintext'])` 이라 `provider` 의 `@IsString() @IsIn(...)` 을 **그대로 상속**한다
+— PATCH 에서도 필수다. 즉 HTTP 파이프를 지나온 입력에서 이 falsy-guard 는 **도달할 수 없다**.
+
+그래도 지우지 않는다: 지우면 DTO 를 우회한 호출자(`provider` 미지정)가
+*"provider 는 PATCH 로 바꿀 수 없어요"* 라는 **틀린 메시지**를 받는다. 뮤테이션이 살아남는 것이
+정상인 자리이므로 **그 사유를 주석과 plan 에 적고**, DTO 층이 실제로 막는다는 것을 테스트로
+고정한다(그래야 "도달 불가" 주장이 vacuous 하지 않다).
+
+## 작업
+
+| # | 파일 | 무엇 |
+|---|---|---|
+| 1 | `chat-channel-input-rules.ts` | `throwInvalidField` 헬퍼 + 11곳 치환 |
+| 2 | `chat-channel-input-rules.ts` | `hasField` 헬퍼 — 이중 캐스팅 2곳 |
+| 3 | `chat-channel-input-rules.ts` | 헤더 주석에 출력측 책임 명시 · falsy-guard 사유 |
+| 4 | `chat-channel-rejection-messages.const.ts` · `dto/chat-channel-config.dto.ts` | stale `TriggersService` 귀속 3곳 |
+| 5 | `chat-channel-input-rules.spec.ts` | `as never` 제거 · `mode:'update'` 조합 · provider label 단언 · DTO 도달 불가 고정 |
+| 6 | `triggers.controller.ts` | `@ApiNotFoundResponse` + `@ApiOkWrappedResponse` |
+
+## 증거
+
+- **뮤테이션**: `throwInvalidField` 가 `details.code` 를 빠뜨리면 RED · `details.field` 를
+  고정값으로 바꾸면 RED · provider label 스왑이면 RED(spec (e) 의 존재 이유).
+- **동작 보존**: 이 배치는 응답 형태를 **한 바이트도** 바꾸지 않는다. 기존 테스트가 무편집으로
+  통과하는 것이 그 증거다(#1319 와 같은 기준).
+
+## 체크리스트
+
+- [ ] `/consistency-check --impl-prep`
+- [ ] 1~4 (프로덕션)
+- [ ] 5 (테스트 보강)
+- [ ] 6 (swagger)
+- [ ] 뮤테이션 3종
+- [ ] `run-test-all.sh` 4단계
+- [ ] `/ai-review` + `--impl-done`
+- [ ] 트래커 항목 종결 ((c) 는 **소멸**로 종결) + 잔여 등재
+- [ ] `plan/complete/` 이동 — **이동 뒤 문서 게이트 재실행** (`#1324` 에서 Gate C 를 CI 에서 맞았다)

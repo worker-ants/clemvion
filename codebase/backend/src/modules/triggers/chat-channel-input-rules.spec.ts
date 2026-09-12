@@ -99,12 +99,34 @@ describe('chat-channel-input-rules — 내부 필드 차단 (R-CC-21)', () => {
   });
 
   // `mode==='update'` 디스패치 — 공개 진입점 경유로는 한 번도 안 돌던 분기 (INFO 2)
+  //
+  // **`as never` 를 뺐다**: 오버로드는 캐스팅 없이 불린다(제거 후 `tsc --noEmit` 진단 197건
+  // 불변 — baseline 과 동일). 남겨 두면 *"오버로드는 캐스팅 없이 못 부른다"* 는 **틀린 인상**을
+  // 다음 사람에게 준다.
   it('update 모드는 공개 진입점을 통해서도 값 필드를 막는다', () => {
     expect(
       thrown(() =>
-        assertChatChannelInputSafe(cfg({ botToken: '1:a' }) as never, 'update'),
+        assertChatChannelInputSafe(cfg({ botToken: '1:a' }), 'update'),
       ),
     ).toMatchObject({ details: { field: 'botToken', code: 'INVALID_FIELD' } });
+  });
+
+  /**
+   * **(b) `update` × 내부 필드 3종.** 위 케이스는 *값* 필드(`botToken`) 하나만 태운다 —
+   * 내부 필드 3종은 `update` 분기가 `assertPatchCarriesNoSecrets` 로 넘어가기 **전에** 걸러야
+   * 하는데, 그 순서를 이 파일 단독으로는 아무도 안 봤다. 한 필드라도 순서가 뒤집히면
+   * PATCH 가 내부 필드를 **값 필드 메시지로** 거부하게 된다.
+   */
+  it.each([
+    ['botTokenRef', 'secret://x'],
+    ['inboundSigningRef', 'secret://y'],
+    ['inboundSigning', 'plain'],
+  ])('update 모드도 내부 필드 %s 를 제 이름으로 거부한다', (field, value) => {
+    expect(
+      thrown(() =>
+        assertChatChannelInputSafe(cfg({ [field]: value }), 'update'),
+      ),
+    ).toMatchObject({ details: { field, code: 'INVALID_FIELD' } });
   });
 
   // 조기 반환 — PATCH 바디에 `chatChannel` 키 자체가 없는 흔한 실사용 경로 (INFO 4)
@@ -162,17 +184,29 @@ describe('chat-channel-input-rules — provider 분기 (생성 전용)', () => {
     },
   );
 
-  // 필드 **부재**(필수 위반) 분기 — label 이 틀려도 안 잡히던 자리 (INFO 1)
-  it.each(['slack', 'discord'] as const)(
-    '%s 는 inboundSigningPlaintext 부재를 거부한다',
-    (provider) => {
-      expect(
-        thrown(() =>
-          assertInboundSigningPlaintextByProvider(cfg({ provider })),
-        ),
-      ).toMatchObject({
+  /**
+   * 필드 **부재**(필수 위반) 분기.
+   *
+   * **(e) label 까지 단언한다.** 종전에는 `details` 만 봐서 두 provider 의 label 을 맞바꾸는
+   * 뮤턴트가 통과했다 — Slack 사용자가 *"Discord application public key 가 필요합니다"* 를
+   * 보게 되는 회귀인데 테스트는 초록이었다. `details` 가 두 provider 에서 **동일**하기 때문에
+   * 그 필드만으로는 원리적으로 못 가른다. 판별자는 `message` 다.
+   */
+  it.each([
+    ['slack', 'Slack signing secret', 'Discord'],
+    ['discord', 'Discord application public key', 'Slack'],
+  ] as const)(
+    '%s 는 부재를 거부하고 **자기 provider 의 이름**으로 안내한다',
+    (provider, ownLabel, otherVendor) => {
+      const res = thrown(() =>
+        assertInboundSigningPlaintextByProvider(cfg({ provider })),
+      );
+      expect(res).toMatchObject({
         details: { field: 'inboundSigningPlaintext', code: 'INVALID_FIELD' },
       });
+      expect(res?.message).toContain(ownLabel);
+      // 스왑 검출 — 남의 provider 이름이 섞이면 RED.
+      expect(res?.message).not.toContain(otherVendor);
     },
   );
 

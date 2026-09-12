@@ -33,7 +33,8 @@ import { CHAT_CHANNEL_BLOCKED_FIELD_MESSAGES } from '../chat-channel-rejection-m
  *
  * 본 DTO 는 입력 형식만 검증. provider 별 추가 검증 (Telegram bot token 형식, Slack signing
  * secret hex32, Discord ed25519 public key hex64) 과 inboundSigningPlaintext 의 provider별
- * 요구/금지 분기는 TriggersService 가 수행.
+ * 요구/금지 분기는 `chat-channel-input-rules` 의
+ * `assertInboundSigningPlaintextByProvider` 가 수행한다 (`TriggersService` 가 호출).
  */
 export const CHAT_CHANNEL_PROVIDERS = ['telegram', 'slack', 'discord'] as const;
 export type ChatChannelProvider = (typeof CHAT_CHANNEL_PROVIDERS)[number];
@@ -280,7 +281,7 @@ export class ChatChannelConfigDto {
       '응답에서 strip — config 에는 inboundSigningRef 만 보관 ' +
       '(spec/conventions/secret-store.md §4 SS-SE-01). ' +
       'minLength 는 Slack 최소 (32). Discord (64) 와 형식 (lowercase hex) 는 ' +
-      'TriggersService 의 provider 별 분기 검증.',
+      'chat-channel-input-rules 의 provider 별 분기 검증.',
     minLength: 32,
     maxLength: 128,
     example: 'a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6',
