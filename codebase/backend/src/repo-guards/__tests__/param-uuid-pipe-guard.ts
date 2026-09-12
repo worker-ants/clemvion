@@ -7,6 +7,13 @@ import * as ts from 'typescript';
 
 import { toPosixRelative } from '../../common/__test-utils__/source-scan';
 
+/**
+ * UUID 경로 파라미터가 지켜야 하는 두 축. 이름을 붙여 선언·사용 지점을 대칭으로 둔다 —
+ * 종전엔 인덱스드 액세스(`UuidParamViolation['missing'][number][]`)로 써서 이 저장소의 다른
+ * 가드와 형태가 달랐다 (`20_53_01` maintainability INFO).
+ */
+export type UuidParamAxis = 'ParseUUIDPipe' | "@ApiParam format:'uuid'";
+
 /** 위반 한 건 — 어느 축이 빠졌는지까지 싣는다. */
 export interface UuidParamViolation {
   /** `src` 기준 POSIX 상대경로. */
@@ -16,7 +23,7 @@ export interface UuidParamViolation {
   /** `@Param('<name>')` 의 이름. 이것이 라우트 경로의 `:name` 이다. */
   readonly param: string;
   /** 빠진 축 (정렬). */
-  readonly missing: readonly ('ParseUUIDPipe' | "@ApiParam format:'uuid'")[];
+  readonly missing: readonly UuidParamAxis[];
 }
 
 /** 한 번의 스캔 결과 — 위반 목록과 **그 판정이 실제로 본 대상 수**를 함께 돌려준다. */
@@ -105,6 +112,53 @@ function isExcludedFromOpenApi(
 }
 
 /**
+ * 핸들러 **하나**의 id-형 경로 파라미터를 판정한다 — 순회에서 떼어 낸 판정 본체.
+ *
+ * `idParams` 를 함께 돌려주는 것이 핵심이다: vacuity floor 가 세는 수와 위반을 세는 수가
+ * **같은 루프에서** 나와야 조건이 갈리지 않는다(별 함수로 다시 세다가 지적받은 자리다).
+ */
+function collectMethodViolations(
+  method: ts.MethodDeclaration,
+  sf: ts.SourceFile,
+  rel: string,
+): { violations: UuidParamViolation[]; idParams: number } {
+  const name = method.name?.getText(sf) ?? '<anonymous>';
+  const declared = apiParamUuidFlags(method, sf);
+  const excluded = isExcludedFromOpenApi(method, sf);
+  const violations: UuidParamViolation[] = [];
+  let idParams = 0;
+
+  for (const parameter of method.parameters) {
+    for (const d of ts.getDecorators(parameter) ?? []) {
+      if (decoratorCallName(d, sf) !== 'Param') continue;
+      const call = d.expression as ts.CallExpression;
+      const first = call.arguments[0];
+      // 인자 없는 `@Param()` 은 파라미터 객체 전체를 받는 형태라 이름이 없다.
+      if (!first || !ts.isStringLiteralLike(first)) continue;
+      const param = first.text;
+      if (!isIdShaped(param)) continue;
+      idParams++;
+
+      const missing: UuidParamAxis[] = [];
+      const pipes = call.arguments
+        .slice(1)
+        .map((a) => a.getText(sf))
+        .join(',');
+      // `ParseUUIDPipe` · `new ParseUUIDPipe({ version: '4' })` 둘 다 받는다 —
+      // 실측 135건이 107 : 28 로 갈린다.
+      if (!pipes.includes('ParseUUIDPipe')) missing.push('ParseUUIDPipe');
+      if (!excluded && declared.get(param) !== true) {
+        missing.push("@ApiParam format:'uuid'");
+      }
+      if (missing.length > 0) {
+        violations.push({ file: rel, method: name, param, missing });
+      }
+    }
+  }
+  return { violations, idParams };
+}
+
+/**
  * `*.controller.ts` 들에서 **UUID 계약이 빠진 id-형 경로 파라미터**를 찾는다.
  *
  * 두 축을 함께 본다:
@@ -143,40 +197,14 @@ export function scanUuidParams(
       true,
     );
     const rel = toPosixRelative(srcRoot, file);
+    // 순회는 순회만, 판정은 `collectMethodViolations` 가 한다 — 한 함수 안에
+    // "파일→노드→메서드→파라미터→데코레이터" 5단이 쌓여 있었다 (`20_53_01` maintainability W3).
+    // **판정과 카운트는 여전히 한 루프**다 (`20_01_18` W2 의 이유는 그대로 유효하다).
     const visit = (node: ts.Node): void => {
       if (ts.isMethodDeclaration(node) && node.name) {
-        const method = node.name.getText(sf);
-        const declared = apiParamUuidFlags(node, sf);
-        const excluded = isExcludedFromOpenApi(node, sf);
-        for (const parameter of node.parameters) {
-          for (const d of ts.getDecorators(parameter) ?? []) {
-            if (decoratorCallName(d, sf) !== 'Param') continue;
-            const call = d.expression as ts.CallExpression;
-            const first = call.arguments[0];
-            // 인자 없는 `@Param()` 은 파라미터 객체 전체를 받는 형태라 이름이 없다.
-            if (!first || !ts.isStringLiteralLike(first)) continue;
-            const param = first.text;
-            if (!isIdShaped(param)) continue;
-            // **판정과 같은 순회에서 센다.** 종전엔 vacuity floor 용 카운터가 별 함수로
-            // 같은 순회를 재구현하고 있었는데, 그러면 판정 조건을 한쪽만 고쳤을 때 두 수가
-            // 조용히 갈리고 그 드리프트를 잡을 테스트가 없다 (`20_01_18` maintainability W2).
-            scanned++;
-            const missing: UuidParamViolation['missing'][number][] = [];
-            const pipes = call.arguments
-              .slice(1)
-              .map((a) => a.getText(sf))
-              .join(',');
-            // `ParseUUIDPipe` · `new ParseUUIDPipe({ version: '4' })` 둘 다 받는다 —
-            // 실측 135건이 107 : 28 로 갈린다.
-            if (!pipes.includes('ParseUUIDPipe')) missing.push('ParseUUIDPipe');
-            if (!excluded && declared.get(param) !== true) {
-              missing.push("@ApiParam format:'uuid'");
-            }
-            if (missing.length > 0) {
-              out.push({ file: rel, method, param, missing });
-            }
-          }
-        }
+        const { violations, idParams } = collectMethodViolations(node, sf, rel);
+        scanned += idParams;
+        out.push(...violations);
       }
       ts.forEachChild(node, visit);
     };

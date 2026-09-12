@@ -114,7 +114,7 @@ curl -X POST https://<your-host>/api/triggers/<trigger-id>/chat-channel/rotate-b
 
 - The old token is honored for a **24-hour grace window** alongside the new one, so in-flight updates are not lost. After 24h the old token is cleaned up automatically.
 - Response: `{ data: { triggerId, rotatedAt, chatChannelHealth, botIdentity } }`
-- Errors: 400 `BOT_TOKEN_INVALID`, 404 `RESOURCE_NOT_FOUND` (trigger not found, or no access to that workspace), 502 `CHAT_CHANNEL_SETUP_FAILED`, etc.
+- Errors: 400 `VALIDATION_ERROR` (`<trigger-id>` is not a UUID), 400 `BOT_TOKEN_INVALID`, 404 `RESOURCE_NOT_FOUND` (trigger not found, or no access to that workspace), 502 `CHAT_CHANNEL_SETUP_FAILED`, etc.
 
 ## 7. Customizing notification messages (`languageHints` / `languageLocale`)
 

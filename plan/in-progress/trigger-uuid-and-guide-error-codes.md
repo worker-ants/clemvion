@@ -201,7 +201,8 @@ AST 로 다시 재니 **문서 축 미충족이 3건**이었다 — 파이프 �
 - [x] C: 트래커 2건 등재 + 원 항목 2건 종결 표기
 - [x] `/consistency-check --impl-prep spec/5-system/` — **BLOCK: NO** (`19_34_19`),
       WARNING 1건은 §A 의 `@ApiParam` 축으로 반영
-- [ ] `.claude/tools/run-test-all.sh`
+- [x] `.claude/tools/run-test-all.sh` lint·unit·build·e2e — 라운드마다 ALL PASS
+      (backend 460 suites · e2e 305 tests)
 - [x] `/ai-review` `review/code/2026/09/12/20_01_18` — **Critical 0 · WARNING 4** (forced 7 전원
       산출물 확보, 미이행 0). 넷 다 실측으로 확인하고 처분했다:
       | # | 지적 | 처분 |
@@ -219,10 +220,19 @@ AST 로 다시 재니 **문서 축 미충족이 3건**이었다 — 파이프 �
       | 2 | `LLM_AUTH_ERROR` 를 "근접 오기" 로 오진단 | **참 — `7-llm-client.md:345` 가 Planned 로 등재** | plan·트래커 두 곳 진단 정정 |
       | 3 | docstring 수치 127 이 틀림 | 참 — AST 재측정 **144** (내 정규식이 첫 `}` 에서 끊겼다) | 시점·범위 병기해 정정 |
       | 4 | 500→400 행위 변경의 실행 테스트 부재 | 참 — 내 "e2e 가 필요하다" 가 틀렸다 | HTTP 왕복 3케이스 추가, M9·M10 으로 고정 |
-- [ ] 3라운드 `/ai-review` — **정지 규칙을 결과 보기 전에 선언한다**: Critical 0 이고
-      `codebase/**` 수정이 필요한 WARNING 이 없으면(= spec/planner 항목·`plan/**` 만 남으면)
-      그 라운드로 종료한다. `codebase/**` WARNING 이 하나라도 있으면 고치고 같은 규칙으로
-      한 라운드 더.
+- [x] 3라운드 `/ai-review` `review/code/2026/09/12/20_53_01` — **Critical 0 · WARNING 3**.
+      선언해 둔 정지 규칙("`codebase/**` 수정이 필요한 WARNING 이 하나라도 있으면 한 라운드
+      더")에 따라 **종료하지 않고** 셋 다 처리했다:
+      | # | 지적 | 위치 | 처분 |
+      |---|---|---|---|
+      | 1 | 신규 `400 VALIDATION_ERROR` 가 가이드 4곳에 미반영 — **바로 그 줄을 다른 이유로 편집했으면서** 놓쳤다 | `codebase/**` | 네 곳에 추가 |
+      | 2 | 두 결함 클래스 중 가이드 식별자 쪽만 가드를 못 얻었다 (1회성 정규식 스윕) | `plan/**` | 후속 가드 항목 등재 (비대상 설계까지 적어서) |
+      | 3 | 판정 함수 AST 중첩 5단 | `codebase/**` | `collectMethodViolations` 추출 — 순회와 판정 분리 |
+      INFO 둘도 같은 라운드에 반영: 인덱스드 액세스 타입 → `UuidParamAxis` 별칭,
+      *"위반 3건을 전부 고쳤다"* → *"둘은 고치고 하나는 구조로 면제"* 로 표현 정밀화
+      (셋째는 코드를 안 고쳤는데 "고쳤다" 가 그 사실을 가리고 있었다).
+- [ ] 4라운드 `/ai-review` — **같은 정지 규칙**. Critical 0 이고 남은 WARNING 이 전부
+      spec(planner)·`plan/**` 이면 종료한다.
 - [ ] `--impl-done`
 
 ## 뮤테이션 3차 — HTTP 왕복 (행위 층)

@@ -39,11 +39,12 @@ import { scanUuidParams } from './param-uuid-pipe-guard';
  *
  * ## 베이스라인은 0이다 — 동결 목록을 두지 않는다
  *
- * 실측 시점(2026-09-12) 위반 3건을 **전부 고쳐서** 0으로 만들었다:
- * `rotateBotToken`(두 축) · `switchWorkspace`(문서 축 — `format` 키만 없었다) ·
- * `simulateExecutionRunRedeliveryForTest`(문서 축). 셋째는 `@ApiExcludeEndpoint()` 라
- * OpenAPI 에 실리지 않으므로 **목록이 아니라 구조로** 면제한다 — 판정 함수가 그 데코레이터를
- * 직접 본다. 목록이 없으면 위반이 생기는 순간 실패하고, 통과시키려면 이 단언 자체를 지워야 해
+ * 실측 시점(2026-09-12) 위반 3건을 **전부 처리해** 0으로 만들었다 — 둘은 고쳤고 하나는
+ * 구조로 면제했다: `rotateBotToken`(두 축 추가) · `switchWorkspace`(문서 축 — `format` 키만
+ * 없었다) · `simulateExecutionRunRedeliveryForTest`(**코드를 고치지 않았다** —
+ * `@ApiExcludeEndpoint()` 라 OpenAPI 에 실리지 않으므로 판정 함수가 그 데코레이터를 보고
+ * 문서 축을 묻지 않는다). 셋을 "전부 고쳤다" 로 뭉뚱그리면 셋째의 처리 방식이 가려진다
+ * (`20_53_01` documentation INFO). 목록이 없으면 위반이 생기는 순간 실패하고, 통과시키려면 이 단언 자체를 지워야 해
  * diff 에 남는다.
  */
 describe('경로 UUID 파라미터 계약 가드', () => {
