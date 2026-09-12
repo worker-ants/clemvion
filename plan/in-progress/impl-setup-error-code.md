@@ -29,7 +29,16 @@ spec 은 한 줄도 건드리지 않는다 (`spec_impact: none`).
 | 2 | `slack.adapter.ts` | `auth.test` 실패에 `code` 부착 (자격 증명 값 한정) |
 | 3 | `discord.adapter.ts` | message 접두 → `code` 교체 |
 | 4 | `telegram.adapter.ts` | 401/403 경로에 `code` 부착 |
-| 5 | `triggers.controller.ts` | `@ApiBadGatewayResponse` |
+| 5 | `triggers.controller.ts` | `@ApiBadGatewayResponse` (+ `@ApiBadRequestResponse` — §5.4 가 **가르는** 두 축이라 함께) |
+| 6 | `backend-labels.ts` | `BOT_TOKEN_INVALID` 한국어 안내에서 *"(제공자 인증 401/403)"* 제거 |
+
+> **6행은 착수 후에 추가됐다** (`/ai-review` scope INFO). 위 5건은 planner 계약이 지목한 파일이고,
+> 6행은 그 계약이 *"transport 로 분류하지 않는다"* 로 바뀌면서 **사용자 노출 문구가 거짓이 된**
+> 자리다 — Slack/Discord 경로 사용자에게 401/403 은 화면에도 로그에도 없는 숫자다.
+>
+> **리뷰 후속으로 더 붙은 것** (`review/code/2026/09/12/13_41_55` RESOLUTION):
+> `http-exception.filter.spec.ts`(502 통과 캐너리) · `CHANGELOG.md`(breaking 공지) ·
+> 유저가이드 `{slack,discord}{,.en}.mdx` 4파일 · `discord-client.spec.ts`(뮤테이션 생존 자리).
 
 ## 설계 판단 — 착수 전에 정한다
 
@@ -100,15 +109,26 @@ spec §1.1.2 는 *"`code: 'BOT_TOKEN_INVALID'` 프로퍼티를 가진 에러"* �
 
 ## 체크리스트
 
-- [ ] `/consistency-check --impl-prep`
-- [ ] (e) `http-exception.filter` 의 502 처리 실측
-- [ ] (1) `translateSetupChannelError` + 호출자 로깅
-- [ ] (2)(3)(4) adapter 3종 `code` 부착 (헬퍼 경유)
-- [ ] (5) `@ApiBadGatewayResponse`
-- [ ] 캐너리 뒤집기 + `getStatus()` 단언 + `details.reason` 부재 + 인접 백로그 (d)
-- [ ] 뮤테이션 — `code` 판별 제거 / fallback 제거 / 502→400 각각 RED
-- [ ] `run-test-all.sh` (신규 도구 — `#1322`)
-- [ ] 타입체크 ratchet 2종
-- [ ] `/ai-review` + `--impl-done`
+- [x] `/consistency-check --impl-prep` — `review/consistency/2026/09/12/12_54_15` BLOCK: NO
+- [x] (e) `http-exception.filter` 의 502 처리 실측 — `exception.getStatus()` + `resp.code` 라
+      **필터 변경 불요**. `getCodeFromStatus` 에 502 행이 없지만 `code` 를 항상 실으므로 도달
+      불가 → 후속 등재
+- [x] (1) `translateSetupChannelError` + 호출자 로깅
+- [x] (2)(3)(4) adapter 3종 `code` 부착 (헬퍼 경유)
+- [x] (5) `@ApiBadGatewayResponse` (+ `@ApiBadRequestResponse`)
+- [x] 캐너리 뒤집기 + `getStatus()` 단언 + `details.reason` 부재 + 인접 백로그 (d)
+- [x] 뮤테이션 8종 — 8/8 RED. **1종은 처음에 생존**했다(discord-client `status` 배선) →
+      `discord-client.spec.ts` 신설 후 재측정 RED
+- [x] `run-test-all.sh` (신규 도구 — `#1322`) — ALL PASS (lint·unit·build·e2e 305)
+- [x] 타입체크 ratchet 2종 — `build` 단계에 포함. backend 197건/36파일 baseline 일치
+      (경유 중 TS2322·TS2352 각 1건을 **이 게이트가 잡았다** — lint·jest 는 통과했다)
+- [x] `/ai-review` — `review/code/2026/09/12/13_41_55` CRITICAL 0 · WARNING 7 → RESOLUTION
+- [ ] `--impl-done` BLOCK: NO
 - [ ] 트래커 항목 종결 + 잔여 등재
 - [ ] `plan/complete/` 이동
+
+> **완료 시 착수 신호가 켜지는 다른 항목** (`--impl-prep` WARNING 4): 트래커
+> `plan/in-progress/spec-draft-nullable-notation-followups.md` 의 **「CCA §1.1.2 의 401/403
+> fallback 제거 판정」** 은 *"v1 provider 3종이 모두 `code` 를 부착하면"* 을 착수 신호로
+> 적어 뒀고 이 PR 이 그 신호를 켠다. **판정 결과까지 미리 적지는 않는다** — 실측상 아직
+> 제거하면 안 된다(그 근거는 트래커 항목 본문에 옮겼다).

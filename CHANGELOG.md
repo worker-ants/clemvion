@@ -12,7 +12,8 @@ BOT_TOKEN_INVALID`, 그 밖(provider 5xx·네트워크·타임아웃)은 `502 CH
 |---|---|---|
 | 자격 증명 거부가 아닌 실패 | `400` (일괄) | **`502`** |
 | 응답 `details.reason` | provider 원문 최대 256자 echo | **제거** — 원문은 `Logger.warn` 으로만 |
-| `BOT_TOKEN_INVALID` 사용자 메시지 | (구현 편차 있던 문구) | 고정 문구 `'Bot token was rejected by the provider.'` |
+| `BOT_TOKEN_INVALID` 응답 message | `'Bot token is invalid (401/403 from provider).'` | `'Bot token was rejected by the provider.'` |
+| 같은 코드의 한국어 안내 (`backend-labels.ts`) | `"…(제공자 인증 401/403). 토큰을 확인해 주세요."` | `"봇 토큰이 제공자에게 거부됐어요…"` |
 
 **⚠️ 배포 시 확인**: 자격 증명 거부가 아닌 `rotateBotToken` 실패를 받던 클라이언트/프록시/모니터링은
 이제 `400` 이 아니라 `502` 를 본다. `code` 문자열(`CHAT_CHANNEL_SETUP_FAILED`)은 유지되므로
@@ -23,6 +24,10 @@ status 를 분기하지 않아 영향 없음을 확인했다. status 로 재시�
 **응답 본문에서 provider 원문이 사라진 이유**: `details.reason` 이 provider 원문(예:
 `getaddrinfo ENOTFOUND api.telegram.org`)을 그대로 실었다 — `§7.5.2` 보안 게이트가 금지하는
 정보 노출이다. 원문은 여전히 `Logger.warn` 로 서버 로그에 남아 진단 가능하다.
+
+두 문구에서 **401/403 을 뺀 이유**: 분류 기준이 transport 가 아니다(`R-CC-23`). Slack 은 자격
+증명 거부를 `HTTP 200 + {ok:false,error:'invalid_auth'}` 로, Discord 는 `verify_key` 불일치로
+알린다 — 그 사용자에게 *"401/403"* 은 화면에도 로그에도 없는 숫자다.
 
 Discord/Slack/Telegram 3-provider 전부 자격 증명 거부를 `Error.code` 로 **선언**하도록
 어댑터를 갖췄다 — `translateSetupChannelError` 는 이제 그 `code` 를 우선 판별하고, `code` 가

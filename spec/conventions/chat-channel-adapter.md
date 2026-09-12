@@ -4,8 +4,12 @@ status: partial
 code:
   - codebase/backend/src/modules/chat-channel/**
 pending_plans:
-  # §1.1.2 의 `code` 선언 계약은 **미구현**이다 (adapter 3종 전부 developer 후속) —
-  # `status: partial` spec 의 미구현 surface 추적 의무(`spec-impl-evidence.md §2.1`).
+  # §1.1.2 의 `code` 선언 계약은 **구현됐다** (2026-09-12 — telegram·slack·discord 3종 전부).
+  # 남은 것은 §1.1.2 의 401/403 message fallback **제거 판정**이고, 그 판정은
+  # `spec-draft-nullable-notation-followups.md` 의 「CCA §1.1.2 의 401/403 fallback 제거 판정」
+  # 항목이 추적한다. 아래 나머지 3개 plan (discord gateway 등) 은 여전히 미구현이라
+  # `status: partial` 은 유지된다 — `status: partial` spec 의 미구현 surface 추적 의무
+  # (`spec-impl-evidence.md §2.1`).
   - plan/in-progress/spec-draft-nullable-notation-followups.md
   - plan/in-progress/chat-channel-discord-gateway.md
   - plan/in-progress/chat-channel-slack-socket-mode.md
@@ -188,6 +192,13 @@ status 숫자를 찾는 방식은 **2/3 provider 에서 원리적으로 실패**
 > **제거 조건**: v1 provider 3종(telegram·slack·discord)이 모두 `code` 를 부착하면 이 fallback 은
 > 삭제 후보다. 조건만 적고 추적하지 않으면 한시적 예외가 영구 예외가 되므로, 그 판정을 별
 > 후속 항목으로 추적한다.
+>
+> **2026-09-12 갱신 — 신호는 켜졌고, 실측 판정은 「아직 제거하지 말 것」이다.** 3종 전부 부착이
+> 끝났다. 그런데 부착은 각 provider 의 **주 경로**에 한정되고, fallback 이 아직 **유일한 방어**인
+> 경로가 남아 있다 — 대표적으로 Slack 4xx 응답이 JSON 이 아닐 때 client 가 합성하는
+> `error: 'HTTP 401'` 은 자격 증명 값 화이트리스트에 없다. 즉 **위 조건문은 제거의 충분조건이
+> 아니다**: 남은 경로의 전수와 판정은 위 후속 항목이 갖고 있다. 조건만 보고 지우면 그 경로들이
+> 조용히 502 로 바뀐다.
 
 ### 1.2 EiaEvent 입력
 

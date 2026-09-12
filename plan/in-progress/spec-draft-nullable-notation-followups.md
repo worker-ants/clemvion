@@ -2815,7 +2815,23 @@ field: T | null;
       모두 `code` 를 부착하면 삭제 후보**. 조건만 적고 추적하지 않으면 한시적 예외가 영구가 되므로
       여기서 추적한다. 착수 신호: 위 「setupChannel 실패 분류」 항목의 developer 후속 2~4 완료.
 
-- [ ] **`setupChannel` 실패 분류 — spec 은 planner 턴에서 고쳤고 **구현이 남았다**
+      > ### 🔔 **2026-09-12 — 착수 신호는 켜졌다. 실측 판정은 「아직 제거하지 말 것」**
+      >
+      > 3종 전부 `code` 를 부착했다(위 항목). 그런데 **부착은 provider 별 *주 경로*에 한정**되고,
+      > fallback 이 아직 **유일한 방어**인 경로가 남아 있다 — 지금 지우면 이것들이 **조용히
+      > 502 로** 바뀐다:
+      >
+      > | 경로 | 왜 `code` 가 없나 | 지금 fallback 이 하는 일 |
+      > |---|---|---|
+      > | Slack 4xx 가 **JSON 이 아닐 때** | client 가 `error: 'HTTP 401'` 을 **합성**한다 — 화이트리스트 5값에 없다 | message 의 `401` 을 보고 400 |
+      > | Telegram body 파싱 실패 / 재시도 소진 | 합성 응답에 `error_code` 가 **없다** | description 에 숫자가 있으면 400 |
+      > | 향후 신규 provider | 부착 전 기본 상태 | 400 (조용한 502 보다 낫다) |
+      >
+      > **제거의 선행 조건은 "3종 부착" 이 아니라 "위 세 경로가 닫힘" 이다.** 조건문을 이렇게
+      > 좁혀 적어 두지 않으면 다음 사람이 신호만 보고 지운다 — 그 함정이 이 표의 존재 이유다.
+      > (spec §1.1.2 의 조건문 자체는 planner 턴이 갱신한다.)
+
+- [x] **`setupChannel` 실패 분류 — spec 은 planner 턴에서 고쳤고 **구현이 남았다**
       (원 제목: *"`translateSetupChannelError` 가 discord verify_key 불일치를 502 로 떨어뜨린다"*)**
       (developer, 2026-09-11 등재 · `/ai-review` `review/code/2026/09/11/15_31_54` W3).
       **재현했다**: `discord.adapter.ts` 는 `'BOT_TOKEN_INVALID: Discord verify_key 가 등록된
@@ -2864,6 +2880,89 @@ field: T | null;
       >    같은 커밋에서 처리**한다 — (d) 의 `details.reason` 단언은 이 결정으로 뜻이 바뀌어
       >    **부재**를 단언해야 한다.
 
+      > ### ✅ **2026-09-12 구현 완료 — developer 후속 1~5 전부**
+      >
+      > `feat(chat-channel): setupChannel 실패를 code 로 선언하고 502 를 실현한다` +
+      > 리뷰 후속 (`/ai-review` `review/code/2026/09/12/13_41_55` CRITICAL 0 · WARNING 7 → RESOLUTION).
+      >
+      > **실측 몇 가지가 착수 전 예상과 달랐다 — 그쪽이 이 항목의 잔여를 만든다:**
+      >
+      > 1. **필터는 안 고쳤다.** `http-exception.filter` 가 `exception.getStatus()` 를 쓰고
+      >    `code` 를 던진 객체에서 집으므로 502 가 표준 봉투로 그대로 나간다. 다만
+      >    `getCodeFromStatus` 에 502 행이 **없다** — 우리가 항상 `code` 를 실어 도달 불가라
+      >    건드리지 않고 별 항목으로 등재했다(없는 코드 `BAD_GATEWAY` 를 발명하면 spec drift).
+      > 2. **telegram 은 client 가 아니라 adapter 에 붙였다.** Bot API 가 status 를 **body 의
+      >    `error_code`** 에 싣고 client 가 4xx body 를 그대로 반환하므로 adapter 에서 보인다.
+      > 3. **`code` 는 네 뜻이다.** spec §1.1.2 표의 셋에 더해 **Node/undici 시스템 에러**
+      >    (`ENOTFOUND`·`ECONNREFUSED`·`UND_ERR_*`)도 `.code` 를 갖는다 — `--impl-prep` INFO 4 가
+      >    코드를 쓰기 **전에** 잡았다. 판별은 화이트리스트 **정확 일치**이고 `ENOTFOUND → 502`
+      >    캐너리가 그것을 고정한다.
+      > 4. **뮤테이션 1종이 생존했다** — `discord-client.ts` 의 `status` 배선을 지웠는데 434개가
+      >    전부 GREEN(adapter 테스트가 `status` 를 **자기가 넣어** 준다). `discord-client.spec.ts`
+      >    를 신설해 8/8 RED.
+
+- [ ] **`teardownChannel`·`revokeBotToken` 은 아직 `code` 를 선언하지 않는다** (developer,
+      2026-09-12 등재). [CCA §1.1.2](../../spec/conventions/chat-channel-adapter.md) 의 계약은
+      *"`setupChannel`(및 `teardownChannel`·`revokeBotToken`)"* 세 함수를 지목하는데, 이번 PR 은
+      **`setupChannel` 만** 부착했다. **의도적 스코프**다 — 나머지 둘은 best-effort 경로라
+      현재 클라이언트로 오류를 올리지 않는다(`teardownChannel` 은 삼키고 warn). 즉 지금은
+      **부착해도 소비자가 없다.** 착수 신호: 그 둘 중 하나가 응답 계약을 갖게 될 때.
+
+- [ ] **`getCodeFromStatus` 에 502 케이스가 없다 — 지금은 도달 불가** (developer,
+      2026-09-12 등재). `common/filters/http-exception.filter.ts` 의 status→code 기본 매핑에
+      502 행이 없어 `default: 'INTERNAL_ERROR'` 로 떨어진다. **현재 도달 불가**다 —
+      `translateSetupChannelError` 가 항상 `code` 를 실어 던지므로 필터가 `resp.code` 를 먼저
+      집는다(실측: 502 응답의 code 는 `CHAT_CHANNEL_SETUP_FAILED`). 그래서 이번 PR 은 건드리지
+      않았다. **`code` 없이 `BadGatewayException` 을 던지는 두 번째 호출자가 생기면** 그때
+      502 가 `INTERNAL_ERROR` 로 표기되므로, 그 시점에 행을 추가한다. 지금 `BAD_GATEWAY` 를
+      발명하면 `3-error-handling.md` 카탈로그에 없는 코드가 생겨 spec drift 다.
+
+- [ ] **`rotateBotToken` 의 swagger 응답 문서화 잔여 — 404 와 200 봉투** (developer,
+      2026-09-12 등재). 이번 PR 이 `@ApiBadRequestResponse` + `@ApiBadGatewayResponse` 를
+      달았지만(§5.4 가 **가르는** 두 축이라 함께 문서화), 같은 표의 `404 RESOURCE_NOT_FOUND`
+      와 200 응답 봉투(`ApiOkWrappedResponse`)는 **이 PR 의 계약 축이 아니라** 손대지 않았다.
+      `swagger.md §2-4` 기준으로는 둘 다 있어야 한다.
+
+- [ ] **CCA frontmatter 의 *"§1.1.2 계약은 미구현"* 주석이 stale 이다** (planner,
+      2026-09-12 등재). `spec/conventions/chat-channel-adapter.md` frontmatter `pending_plans`
+      위 주석이 *"§1.1.2 의 `code` 선언 계약은 **미구현**이다 (adapter 3종 전부 developer 후속)"*
+      라고 적는데, 이 PR 이 3종 모두에 부착했다. **planner 가 쓴 문장**이라 자기-반증형 소정정
+      조건 1 불성립 → planner 턴. 함께 볼 것: `status: partial` 의 나머지 미구현 surface 목록이
+      여전히 맞는지.
+
+- [ ] **`slack.md §3.1` 의 개방형 열거를 확정 5값으로** (planner, 2026-09-12 등재 ·
+      `--impl-prep` `review/consistency/2026/09/12/12_54_15` INFO 2). 코드가
+      `invalid_auth`·`not_authed`·`account_inactive`·`token_revoked`·`token_expired` **5값**을
+      자격 증명 거부로 확정했는데(`slack.adapter.ts` 의 `SLACK_CREDENTIAL_REJECTED_ERRORS`),
+      spec 은 *"..."* 로 열어 두고 있다. **이 목록은 저장소 안에서 실측 불가**(외부 API 응답)라
+      코드 주석에 출처를 적었고, spec 이 그것을 정본으로 받아야 다음 사람이 임의로 늘리지 않는다.
+
+- [ ] **CCA §1.1.2 다의성 표에 Node 시스템 `.code` 행을 추가한다** (planner, 2026-09-12 등재 ·
+      `--impl-prep` `12_54_15` INFO 6). 표가 `code` 의 세 뜻을 적는데 **네 번째**가 있다 —
+      Node/undici 시스템 에러(`ENOTFOUND`·`ECONNREFUSED`·`UND_ERR_*`)도 `.code` 를 갖는다.
+      `telegram-client.ts` 주석이 그 경로의 실재를 이미 적고 있었다. 구현은 **화이트리스트 정확
+      일치**로 막았고 `ENOTFOUND → 502` 캐너리로 고정했으나(`chat-channel-input-rules.spec.ts`),
+      **원칙이 spec 에 없으면** 다음 사람이 `if (err.code)` 로 쓴다.
+
+- [ ] **`2-api-convention.md §7` rate-limit 표에 chat-channel per-chat 행이 없다** (planner,
+      2026-09-12 등재 · `--impl-prep` `12_54_15` WARNING 2). `CCH-NF-03`(기본 60 req/min,
+      1–600 override, `ChatChannelRateLimiterService`)이 §7 *"throttle 수치의 단일 진실은 본 표"*
+      에 미등재. 형제 사례(EIA inbound·SSE 동시연결)는 이미 행으로 있다. 이번 PR 의 계약 축이
+      아니라 스코프 밖으로 뒀다.
+
+- [ ] **`15-chat-channel.md` 가 "3.x" 절 번호를 두 계층에서 중복 사용한다** (planner,
+      2026-09-12 등재 · `--impl-prep` `12_54_15` WARNING 3). Overview 안의 `### 3. 요구사항`
+      (§3.1~§3.6)과 Overview 밖 `## 3. 처리 흐름`(자체 §3.1~§3.3)이 겹쳐 *"§3.3"* 이 문서 안에
+      두 곳을 가리킨다. **링크·인용의 오배송 위험**이라 문서 구조 문제로 등재한다.
+
+- [ ] **`15-chat-channel.md §7` 파일 트리가 `chat-channel-input-rules.ts` 를 "입력" 으로만
+      적는다** (planner, 2026-09-12 등재 · `--impl-prep` `12_54_15` INFO 1). 그 파일은
+      `translateSetupChannelError`(출력측 에러 변환)도 담는데 §7 서술은 *"입력 검증·변환 순수
+      함수"* 다 — developer 가 서술만 보고 오배치할 여지. **코드 쪽 쌍둥이는 이미 등재돼 있다**:
+      「`chat-channel-input-rules.ts` 의 구조 정리 6건」의 (b)(*"파일명·docstring 이 '입력 규칙'
+      인데 출력측 변환이 섞여 있다 — 이름을 넓히거나 분리"*). 둘은 **같은 사실**이라 짝으로
+      처리한다 — 분리를 택하면 §7 서술은 자동으로 참이 된다.
+
 - [ ] **`chat-channel-input-rules.ts` 의 구조 정리 6건** (developer, 2026-09-11 등재 ·
       `/ai-review` `review/code/2026/09/11/15_31_54` W4 + INFO). 전부 비차단:
       (a) `BadRequestException({code, message, details:{field, code}})` 봉투 생성이 **7회 이상**
@@ -2888,7 +2987,10 @@ field: T | null;
       조합 — 통합 스펙이 이미 잡지만 이 파일 단독으로는 R-CC-21 표면을 못 덮는다.
       (c) `assertChatChannelAlreadySetUp` 의 `incoming.provider &&` falsy-guard — 뮤테이션 시
       142건 GREEN. 다만 DTO 검증이 선행 차단해 **도달 불가능한 방어 코드**로 보인다(그 판정도 함께).
-      (d) `translateSetupChannelError` 의 non-Error 입력 분기 + `details.reason` **값** 단언.
+      ~~(d) `translateSetupChannelError` 의 non-Error 입력 분기 + `details.reason` **값** 단언.~~
+      **✅ 2026-09-12 완료 — 단 뜻이 바뀌었다.** `R-CC-23` 이 응답 본문의 원문 echo 를 중단시켜
+      단언 대상이 **값이 아니라 부재**가 됐다(`details` 부재 + 본문에 provider 문자열 0건).
+      non-Error 입력 분기도 같은 블록에서 덮었다. **남은 4건 (a)(b)(c)(e) 은 유효하다.**
       (e) provider별 **label 문구** 미단언 — label 스왑 뮤턴트가 아직 통과한다.
 
 - [ ] **리뷰 in-flight 중에 같은 워크트리에서 뮤테이션을 돌리지 않는다** (프로세스,

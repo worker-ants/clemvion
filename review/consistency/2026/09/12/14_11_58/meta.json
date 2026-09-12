@@ -1,0 +1,13 @@
+{
+  "timestamp": "2026-09-12T14:11:58.707678",
+  "mode": "spec draft 검토 (--spec)",
+  "target_path": "plan/in-progress/spec-update-chat-channel-adapter-status.md",
+  "checkers": [
+    "cross_spec",
+    "rationale_continuity",
+    "convention_compliance",
+    "plan_coherence",
+    "naming_collision"
+  ],
+  "target_snapshot": "_target/spec-update-chat-channel-adapter-status.md"
+}
