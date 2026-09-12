@@ -14,13 +14,19 @@ Postgres 가 SQLSTATE **22P02** 로 거부하는데 `GlobalExceptionFilter` 에 
 **두 엔드포인트의 처분이 다른 것은 의도다** — 각 디코더가 *다른* 실패 모드(잘못된 날짜·형태)에
 이미 하던 일에 맞췄다. 계약 통일은 관측 가능한 동작 변경이라 별 건으로 등재했다.
 
-**⚠️ 배포 시 확인**: 잘못된 커서로 5xx 를 받던 모니터링은 이제 그 신호를 못 본다. 정상 커서의
-동작은 무변이다. 검증 술어는 `isUuidShaped`(**`isValidUuid` 아님**)라 nil UUID·v7 처럼
-Postgres 가 정상 조회하는 값은 그대로 통과한다 —
-`spec/data-flow/12-workspace.md §"UUID 검증 강도 비대칭"`.
+**⚠️ 배포 시 확인**
+
+- 잘못된 커서로 **5xx 를 받던 모니터링은 이제 그 신호를 못 본다**. 정상 커서의 동작은 무변이다.
+- **`background-runs` 는 404 가 400 으로 바뀌는 조합이 하나 더 있다** — 커서 검증이 워크스페이스
+  소유권 검사보다 **먼저** 돌기 때문에(기존 `resolveLimit` 과 같은 관행), *타 워크스페이스 요청이
+  형태 오류 커서를 함께 보내면* 종전 404 대신 400 `INVALID_CURSOR` 다. **정보 누설이 아니다** —
+  커서는 리소스를 조회하기 전에 형태만으로 거부되므로 존재 여부를 구별해 주지 않는다. 그 우선순위는
+  `background-runs.service.spec.ts` 의 테스트가 고정한다.
+- 검증 술어는 `isUuidShaped`(**`isValidUuid` 아님**)라 nil UUID·v7 처럼 Postgres 가 정상 조회하는
+  값은 그대로 통과한다 — `spec/data-flow/12-workspace.md §"UUID 검증 강도 비대칭"`.
 
 > **`GlobalExceptionFilter` 에 22P02 → 400 분기를 넣는 안은 기각했다.** 필터는 값의 출처를
-> 모르는데, `3-error-handling.md §1` 이 *"서버가 서명한 값에 400 을 내면 서버 버그를
+> 모르는데, `spec/5-system/3-error-handling.md §1` 이 *"서버가 서명한 값에 400 을 내면 서버 버그를
 > 클라이언트 오류로 보고하게 된다"* 를 이미 원칙으로 적어 두었다. 게다가 그 500 이 *"어느
 > 입구가 검증을 빠뜨렸다"* 는 알람이고, 이번 두 결함을 찾은 실마리가 바로 그것이었다.
 > 근거 전문: `plan/in-progress/keyset-cursor-uuid-validation.md §A`.
