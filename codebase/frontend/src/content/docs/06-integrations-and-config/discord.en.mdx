@@ -112,6 +112,10 @@ Form nodes use **native modal** by default — clicking "Fill out form" opens a 
 `POST /api/triggers/:id/chat-channel/rotate-bot-token`. Sending `config.chatChannel.botToken`
 in a trigger PATCH returns 400 `VALIDATION_ERROR` (`details.field='chatChannel.botToken'`).
 
+- Errors: credential rejection (invalid bot token, or a `verify_key` mismatch) → 400
+  `BOT_TOKEN_INVALID`; anything else (Discord response failure, network error, etc.) → 502
+  `CHAT_CHANNEL_SETUP_FAILED`
+
 **The public key cannot be changed yet.** Sending `config.chatChannel.inboundSigningPlaintext` in a
 PATCH also returns 400 (`details.field='chatChannel.inboundSigningPlaintext'`). If you
 regenerated it in Discord, delete the trigger and create it again.

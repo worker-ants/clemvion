@@ -1,5 +1,6 @@
 import {
   ArgumentsHost,
+  BadGatewayException,
   BadRequestException,
   HttpException,
   HttpStatus,
@@ -215,6 +216,23 @@ describe('GlobalExceptionFilter', () => {
     expect(body.error.details).toEqual([
       { field: 'orderId', code: 'MISSING_REQUIRED_FIELD' },
     ]);
+  });
+
+  it('passes through a 502 BadGatewayException without masking (chat-channel setupChannel §5.4)', () => {
+    // 이 저장소의 첫 502 실사용 경로 — mapHttpErrorLike 의 "5xx-ish 는 의심해 500 으로
+    // 마스킹" 철학이 HttpException 분기까지 조용히 확장되는 회귀를 캐너리로 잠근다.
+    const { host, status, json } = mockHost();
+    new GlobalExceptionFilter().catch(
+      new BadGatewayException({
+        code: 'CHAT_CHANNEL_SETUP_FAILED',
+        message: 'Chat channel setup failed',
+      }),
+      host,
+    );
+
+    expect(status).toHaveBeenCalledWith(502);
+    const body = bodyOf(json);
+    expect(body.error.code).toBe('CHAT_CHANNEL_SETUP_FAILED');
   });
 
   it('defaults unknown errors to 500 INTERNAL_ERROR', () => {

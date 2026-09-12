@@ -126,6 +126,41 @@ describe('SlackAdapter', () => {
       ).rejects.toThrow(/invalid_auth/);
     });
 
+    /**
+     * §1.1.2 — 자격 증명 거부만 `code` 를 부착한다.
+     *
+     * Slack 은 이 거부를 **HTTP 200 + `{ok:false, error}`** 로 알리므로 호출자의 401/403
+     * message fallback 이 **원리적으로** 못 잡던 자리다 — 이 PR 의 실질 동기.
+     */
+    const thrownFor = async (error: string): Promise<unknown> => {
+      const client = makeClient();
+      jest.spyOn(client, 'authTest').mockResolvedValue({ ok: false, error });
+      const adapter = new SlackAdapter(client, makeSecretsMock());
+      return adapter
+        .setupChannel(SLACK_CONFIG, 'https://x/hook')
+        .then(() => null)
+        .catch((err: unknown) => err);
+    };
+
+    it.each([
+      'invalid_auth',
+      'not_authed',
+      'account_inactive',
+      'token_revoked',
+      'token_expired',
+    ])('auth.test error=%s → code BOT_TOKEN_INVALID 부착', async (error) => {
+      expect(await thrownFor(error)).toMatchObject({
+        code: 'BOT_TOKEN_INVALID',
+        message: expect.stringContaining(error),
+      });
+    });
+
+    it('ratelimited 처럼 자격 증명과 무관한 실패는 code 미부착 (호출자가 502)', async () => {
+      const err = await thrownFor('ratelimited');
+      expect(err).toBeInstanceOf(Error);
+      expect((err as { code?: unknown }).code).toBeUndefined();
+    });
+
     it('user_id / bot_id 모두 없음 → throw', async () => {
       const client = makeClient();
       jest.spyOn(client, 'authTest').mockResolvedValue({ ok: true });

@@ -978,8 +978,9 @@ export class TriggersService {
    * Controller 는 input validation + workspaceId 검증 + 본 메서드 호출만 담당.
    *
    * @throws BadRequestException `CHAT_CHANNEL_NOT_CONFIGURED` / `CHAT_CHANNEL_PROVIDER_UNKNOWN` /
-   *   `CHAT_CHANNEL_ENDPOINT_REQUIRED` / `BOT_TOKEN_INVALID` (setupChannel 401/403) /
-   *   `CHAT_CHANNEL_SETUP_FAILED` (기타 setupChannel 실패)
+   *   `CHAT_CHANNEL_ENDPOINT_REQUIRED` / `BOT_TOKEN_INVALID` (setupChannel 이 **자격 증명 거부**로
+   *   실패 — §5.4)
+   * @throws BadGatewayException `CHAT_CHANNEL_SETUP_FAILED` (그 밖의 setupChannel 실패 — 502)
    */
   async rotateBotToken(
     id: string,
@@ -1055,8 +1056,8 @@ export class TriggersService {
     await this.secrets.rotate(botTokenRef, trigger.workspaceId, newBotToken);
 
     // 4. 새 token 으로 setupChannel 재호출 — adapter 가 resolveBotToken 으로 신 token 자동 사용.
-    // [Spec Chat Channel §5.4] 외부 API 401/403 (인증 실패) 은 BOT_TOKEN_INVALID 400 으로,
-    // 그 외 setupChannel 실패는 CHAT_CHANNEL_SETUP_FAILED 502 로 변환.
+    // [Spec Chat Channel §5.4] **자격 증명 거부**는 BOT_TOKEN_INVALID 400, 그 밖의 실패는
+    // CHAT_CHANNEL_SETUP_FAILED 502 로 변환. 판별은 adapter 가 부착한 `code` (CCA §1.1.2).
     const mergedConfig: ChatChannelConfig = { ...chatChannelCfg, botTokenRef };
     const callbackUrl = buildTriggerCallbackUrl({
       baseUrl: this.configService.get<string>('app.url'),
@@ -1066,6 +1067,14 @@ export class TriggersService {
     try {
       result = await adapter.setupChannel(mergedConfig, callbackUrl);
     } catch (err) {
+      // **provider 원문은 여기서만 남는다** — §5.4 가 응답 본문에 원문을 싣지 못하게 하므로
+      // (§7.5.2 보안 게이트와 같은 이유) 진단 단서를 서버 로그로 옮긴다. 변환 함수는
+      // `chat-channel-input-rules.ts` 의 순수 함수라 logger 를 갖지 않는다.
+      this.logger.warn(
+        `rotateBotToken setupChannel 실패 (trigger=${trigger.id} provider=${chatChannelCfg.provider}): ${
+          err instanceof Error ? err.message : String(err)
+        }`,
+      );
       throw translateSetupChannelError(err);
     }
     const mergedChannel: ChatChannelConfig = {

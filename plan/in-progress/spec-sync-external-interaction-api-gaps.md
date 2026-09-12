@@ -1069,6 +1069,35 @@ checker 가 독립적으로** "인용이 가리키는 절이 오히려 반대를
       > 실행되는 형태다(로그에 `Tests:`/`FAIL` 없음). **조치는 실패 job 재실행**이다.
       > 같은 run 의 다른 job(`e2e-frontend`)이 통과했다면 일시적 현상이 확정된다.
 
+      > ### ⚠️ **2026-09-12 — 이 처분의 전제가 반증됐다. 재실행은 이제 안 듣는다**
+      >
+      > `#1324` 의 e2e 2종이 같은 자리에서 죽었고 **재실행해도 같은 지점에서 죽었다**
+      > (`gh run rerun --failed` 1회). 증상 문구도 다르다 — 옛 기록은
+      > *"unauthorized: authentication required"*(rate limit) 인데 이번은
+      > ***"pull access denied for minio/minio, repository does not exist or may require
+      > 'docker login'"*** 이다.
+      >
+      > **레지스트리를 직접 재 봤다** (익명 pull 토큰 + manifest `HEAD`, 자격증명 없음):
+      >
+      > | 이미지 | Docker Hub | quay.io |
+      > |---|---|---|
+      > | `minio/minio:RELEASE.2025-04-22T22-12-26Z` | **401** | **200** |
+      > | `minio/mc:RELEASE.2025-04-16T18-13-26Z` | **401** | **200** |
+      > | `minio/minio:latest` | **401** | 200 |
+      > | `redis:7-alpine` | 200 | — |
+      > | `pgvector/pgvector:pg18` | 200 | — |
+      >
+      > **rate limit 이 아니다** — 같은 시각 같은 클라이언트로 다른 두 이미지는 200 이다.
+      > `minio/*` **저장소만** 익명 pull 이 막혔다. 즉 이 저장소의 **모든 e2e 실행이
+      > 상시 차단**된다(main 포함). 마지막 초록은 2026-09-11.
+      >
+      > **처분 후보** (사용자 결정 필요 — 인프라 변경):
+      > (a) `docker-compose.e2e.yml` 의 두 줄을 `quay.io/minio/{minio,mc}` 로 — **같은 태그가
+      > quay 에 있다**(위 표). 가장 작다. (b) CI 에 Docker Hub 로그인 시크릿 추가.
+      > (c) 이미지를 GHCR 로 미러링.
+      >
+      > **"재실행" 지침은 이 형태에 쓰지 말 것** — 증상 문구로 두 형태를 가른다.
+
 - [x] **`developer` 의 자기-예측 반증형 spec 소정정 — 권한 경계를 정한다** (2026-08-23 등재 ·
       **같은 날 종결**. `14_23_44` scope W2 → `15_16_28` plan_coherence W1).
       `masking-gate-consolidation` 에서 developer 턴이

@@ -1,5 +1,41 @@
 # Changelog
 
+## Unreleased — **Behavior change (breaking)**: `rotateBotToken` 실패가 `502` 를 처음 쓴다 + provider 원문 echo 중단
+
+`setupChannel` 재시도 실패의 HTTP status 를 **transport 가 아니라 원인**으로 분류한다
+([spec/5-system/15-chat-channel.md §5.4], 근거 `R-CC-23`) — "자격 증명 거부" 는 `400
+BOT_TOKEN_INVALID`, 그 밖(provider 5xx·네트워크·타임아웃)은 `502 CHAT_CHANNEL_SETUP_FAILED`.
+**`502` 는 이 저장소의 첫 사용**이다 — `BadGatewayException` 과 `@ApiBadGatewayResponse` 가
+각각 **0건 → 1건**. (`HttpStatus.BAD_GATEWAY` 는 **여전히 0건**이다. 셋을 한 문장으로 묶어
+*"각 0건 → 각 1건"* 이라 적었던 것은 과잉 일반화였다 — 0건이던 것은 셋 다 맞지만, 코드는
+enum 리터럴이 아니라 `BadGatewayException` 클래스를 쓴다.)
+
+| | 종전 | 지금 |
+|---|---|---|
+| 자격 증명 거부가 아닌 실패 | `400` (일괄) | **`502`** |
+| 응답 `details.reason` | provider 원문 최대 256자 echo | **제거** — 원문은 `Logger.warn` 으로만 |
+| `BOT_TOKEN_INVALID` 응답 message | `'Bot token is invalid (401/403 from provider).'` | `'Bot token was rejected by the provider.'` |
+| 같은 코드의 한국어 안내 (`backend-labels.ts`) | `"…(제공자 인증 401/403). 토큰을 확인해 주세요."` | `"봇 토큰이 제공자에게 거부됐어요…"` |
+
+**⚠️ 배포 시 확인**: 자격 증명 거부가 아닌 `rotateBotToken` 실패를 받던 클라이언트/프록시/모니터링은
+이제 `400` 이 아니라 `502` 를 본다. `code` 문자열(`CHAT_CHANNEL_SETUP_FAILED`)은 유지되므로
+`code` 로 분기하는 소비자는 영향받지 않는다 — 저장소 안의 유일한 소비자(프런트엔드 토스트)는
+status 를 분기하지 않아 영향 없음을 확인했다. status 로 재시도·알림 정책을 가르는 외부/제3자
+소비자가 있다면 이 변경을 반영해야 한다.
+
+**응답 본문에서 provider 원문이 사라진 이유**: `details.reason` 이 provider 원문(예:
+`getaddrinfo ENOTFOUND api.telegram.org`)을 그대로 실었다 — `§7.5.2` 보안 게이트가 금지하는
+정보 노출이다. 원문은 여전히 `Logger.warn` 로 서버 로그에 남아 진단 가능하다.
+
+두 문구에서 **401/403 을 뺀 이유**: 분류 기준이 transport 가 아니다(`R-CC-23`). Slack 은 자격
+증명 거부를 `HTTP 200 + {ok:false,error:'invalid_auth'}` 로, Discord 는 `verify_key` 불일치로
+알린다 — 그 사용자에게 *"401/403"* 은 화면에도 로그에도 없는 숫자다.
+
+Discord/Slack/Telegram 3-provider 전부 자격 증명 거부를 `Error.code` 로 **선언**하도록
+어댑터를 갖췄다 — `translateSetupChannelError` 는 이제 그 `code` 를 우선 판별하고, `code` 가
+아직 없는 한시적 경로만 message 의 `401`/`403` fallback 정규식을 쓴다(제거 조건은
+[spec/conventions/chat-channel-adapter.md §1.1.2]).
+
 ## Unreleased — 거부 사유가 사람만 읽을 수 있었다 (`details[].code` 15자리) + 빈 botToken
 
 ### 사유가 기계가 읽을 수 있는 자리에 없었다

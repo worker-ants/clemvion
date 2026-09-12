@@ -20,6 +20,7 @@ import {
   ApiParam,
   ApiNoContentResponse,
   ApiBadRequestResponse,
+  ApiBadGatewayResponse,
   ApiConflictResponse,
   ApiUnauthorizedResponse,
   ApiForbiddenResponse,
@@ -261,6 +262,16 @@ export class TriggersController {
       'Spec CCH-SE-04 — 외부 provider bot token 회전. 기존 token 은 24h grace 동안 chat_channel_token_v2 (secret store v2 ref) 로 보관, CCH-SE-04-C cron 이 grace 만료 시 정리.',
   })
   @ApiForbiddenResponse({ description: 'editor 이상 권한 필요' })
+  // §5.4 실패 응답 표의 두 축을 함께 문서화한다 — 400 과 502 를 **가르는 것**이 이 엔드포인트의
+  // 계약이라(R-CC-23) 한쪽만 적으면 나머지 절반이 문서에 없는 상태로 남는다.
+  @ApiBadRequestResponse({
+    description:
+      'INVALID_BOT_TOKEN (newBotToken 누락/비-string) · BOT_TOKEN_INVALID (provider 가 자격 증명을 거부) · CHAT_CHANNEL_NOT_CONFIGURED · CHAT_CHANNEL_PROVIDER_UNKNOWN · CHAT_CHANNEL_ENDPOINT_REQUIRED',
+  })
+  @ApiBadGatewayResponse({
+    description:
+      'CHAT_CHANNEL_SETUP_FAILED — 외부 provider 호출 실패 (5xx·네트워크·타임아웃). 클라이언트가 입력으로 고칠 수 없는 실패 (spec §5.4)',
+  })
   async rotateBotToken(
     @Param('id') triggerId: string,
     @Body() body: { newBotToken?: string },

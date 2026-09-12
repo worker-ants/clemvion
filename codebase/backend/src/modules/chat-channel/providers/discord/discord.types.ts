@@ -66,8 +66,19 @@ export const DISCORD_CHANNEL_TYPE_DM = 1;
 /** Discord REST API generic 응답 — 4xx/5xx 는 별 형태. */
 export interface DiscordApiError {
   ok: false;
+  /**
+   * **Discord 원본 응답의 숫자 error code** — 우리 `Error.code` 판별자와 **다른 네임스페이스**다
+   * ([spec/conventions/chat-channel-adapter.md §1.1.2] 3중 표). 인증 실패 시 `0` 이 올 수 있어
+   * 값만으로는 자격 증명 거부를 알 수 없다 — 그래서 `status` 를 따로 싣는다.
+   */
   code?: number;
   message?: string;
+  /**
+   * HTTP status. Discord 의 body `code` 는 자격 증명 거부(`401`/`403`)를 구별해 주지 않으므로,
+   * 어댑터가 `code: 'BOT_TOKEN_INVALID'` 를 부착할지 판단하려면 status 가 필요하다. client 가
+   * 4xx 를 반환할 때 채운다 ([spec/conventions/chat-channel-adapter.md §1.1.2]).
+   */
+  status?: number;
 }
 
 export interface DiscordMessage {

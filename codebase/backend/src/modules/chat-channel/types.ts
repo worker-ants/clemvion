@@ -476,6 +476,61 @@ export interface EiaNodeCompletedEvent extends ChatChannelEventBase {
   meta?: Record<string, unknown>;
 }
 
+/**
+ * 자격 증명 거부를 선언하는 `Error.code` 값 — [spec/conventions/chat-channel-adapter.md §1.1.2] 의 계약.
+ *
+ * 값은 [spec/5-system/15-chat-channel.md §5.4] 의 API error code 와 **같은 문자열**이다 (호출자가 그대로
+ * 응답 `code` 로 쓴다). 이름을 `CREDENTIAL_REJECTED_*` 로 둔 것은 분류 기준이 *"봇 토큰"* 이
+ * 아니라 **자격 증명 거부**이기 때문이다 — discord 는 public key 불일치로도 이 코드를 낸다.
+ */
+export const CREDENTIAL_REJECTED_CODE = 'BOT_TOKEN_INVALID';
+
+/** `CREDENTIAL_REJECTED_CODE` 가 부착된 `Error`. 서브클래스가 아니라 **프로퍼티**다. */
+export type CredentialRejectedError = Error & {
+  code: typeof CREDENTIAL_REJECTED_CODE;
+};
+
+/**
+ * 자격 증명 거부 `Error` 생성 — provider 별 신호(Telegram `HTTP 401` · Slack `HTTP 200` +
+ * `{ok:false,error:'invalid_auth'}` · Discord `verify_key` 불일치)를 **하나의 `code`** 로
+ * 통일한다. 호출자는 `message` 를 파싱하지 않는다 ([spec/conventions/chat-channel-adapter.md §1.1.2]).
+ *
+ * **왜 `Error` 서브클래스가 아닌가**: spec 이 정한 계약이 `code` **프로퍼티**이고, 판별자를
+ * 클래스로 두면 provider 3종이 공통 클래스를 import 해야 한다. 프로퍼티 + 이 팩토리는
+ * 문자열 리터럴 3벌을 막으면서 결합을 늘리지 않는다.
+ */
+export function credentialRejectedError(
+  message: string,
+): CredentialRejectedError {
+  // `as const` 없이는 fresh object literal 의 `code` 가 `string` 으로 widening 되어 선언 타입
+  // (`'BOT_TOKEN_INVALID'` 리터럴)에 대입되지 않는다 — `build` 단계가 TS2322 로 잡는다.
+  return Object.assign(new Error(message), {
+    code: CREDENTIAL_REJECTED_CODE,
+  } as const);
+}
+
+/**
+ * `code` **정확 일치**로만 판별한다 — `code` 라는 프로퍼티 이름은 이 콜스택에서 네 뜻으로
+ * 쓰이고, 그중 둘은 우리가 만들지 않은 값이다:
+ *
+ *   1. 본 계약의 `code` (우리 문자열)
+ *   2. Discord 원본 응답의 `app.code` / `res.code` (**숫자**)
+ *   3. EIA `event.error.code` (실행 실패 분류 — 별 네임스페이스)
+ *   4. **Node/undici 시스템 에러의 `code`** — `ENOTFOUND` / `ECONNREFUSED` / `UND_ERR_*`.
+ *      DNS 실패한 `Error` 도 `code` 를 갖는다.
+ *
+ * 그래서 `if (err.code)` 같은 truthiness 판별은 **네트워크 단절을 "토큰이 잘못됐다" 로
+ * 보고**한다. 화이트리스트 정확 일치가 그 오분류를 구조적으로 막는다.
+ */
+export function isCredentialRejectedError(
+  err: unknown,
+): err is CredentialRejectedError {
+  return (
+    err instanceof Error &&
+    (err as { code?: unknown }).code === CREDENTIAL_REJECTED_CODE
+  );
+}
+
 export interface SetupResult {
   registeredAt: string;
   externalHookUrl?: string;

@@ -83,7 +83,9 @@ describe('DiscordAdapter', () => {
     });
 
     // C-11 §3.1: 응답 verify_key 가 등록된 public key 와 불일치하면 BOT_TOKEN_INVALID.
-    it('verify_key 불일치 → BOT_TOKEN_INVALID throw', async () => {
+    // 판별자는 **message 접두가 아니라 `code` 프로퍼티**다 (§1.1.2) — 접두는 호출자의
+    // 숫자 판별식에 안 걸려 이 실패를 조용히 502 로 보냈다.
+    it('verify_key 불일치 → code BOT_TOKEN_INVALID 로 선언', async () => {
       const client = new DiscordClient();
       jest.spyOn(client, 'getApplicationMe').mockResolvedValue({
         id: 'A123',
@@ -96,9 +98,51 @@ describe('DiscordAdapter', () => {
       const adapter = new DiscordAdapter(client, makeSecretsMock());
       await expect(
         adapter.setupChannel(DISCORD_CONFIG, 'https://x/hook'),
-      ).rejects.toThrow(/BOT_TOKEN_INVALID/);
+      ).rejects.toMatchObject({
+        code: 'BOT_TOKEN_INVALID',
+        message: expect.stringContaining('verify_key'),
+      });
       // 검증 실패 시 slash command 등록까지 가지 않는다.
       expect(cmdSpy).not.toHaveBeenCalled();
+    });
+
+    /**
+     * getApplicationMe 인증 실패 — **body 의 `code` 는 못 쓴다.** Discord 는 인증 실패에
+     * `{message:'401: Unauthorized', code:0}` 을 주므로 숫자 `code` 로는 자격 증명 거부를
+     * 가를 수 없다(§1.1.2 네임스페이스 표). client 가 함께 싣는 HTTP `status` 가 판별자다.
+     */
+    it.each([401, 403])(
+      'getApplicationMe HTTP %i → code BOT_TOKEN_INVALID 부착',
+      async (status) => {
+        const client = new DiscordClient();
+        jest.spyOn(client, 'getApplicationMe').mockResolvedValue({
+          ok: false,
+          code: 0,
+          message: `${status}: Unauthorized`,
+          status,
+        });
+        const adapter = new DiscordAdapter(client, makeSecretsMock());
+        await expect(
+          adapter.setupChannel(DISCORD_CONFIG, 'https://x/hook'),
+        ).rejects.toMatchObject({ code: 'BOT_TOKEN_INVALID' });
+      },
+    );
+
+    it('getApplicationMe HTTP 404 → code 미부착 (호출자가 502)', async () => {
+      const client = new DiscordClient();
+      jest.spyOn(client, 'getApplicationMe').mockResolvedValue({
+        ok: false,
+        code: 10002,
+        message: 'Unknown application',
+        status: 404,
+      });
+      const adapter = new DiscordAdapter(client, makeSecretsMock());
+      const caught: unknown = await adapter
+        .setupChannel(DISCORD_CONFIG, 'https://x/hook')
+        .then(() => null)
+        .catch((err: unknown) => err);
+      expect(caught).toBeInstanceOf(Error);
+      expect((caught as { code?: unknown }).code).toBeUndefined();
     });
 
     it('§3.1 verify_key 부재 → botIdentity.publicKey undefined', async () => {

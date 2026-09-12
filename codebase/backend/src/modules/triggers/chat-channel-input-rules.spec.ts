@@ -8,6 +8,7 @@ import {
   stripChatChannelPlaintext,
   translateSetupChannelError,
 } from './chat-channel-input-rules';
+import { credentialRejectedError } from '../chat-channel/types';
 import { CHAT_CHANNEL_BLOCKED_FIELD_MESSAGES } from './chat-channel-rejection-messages.const';
 import type { ChatChannelConfigDto } from './dto/chat-channel-config.dto';
 import type { Trigger } from './entities/trigger.entity';
@@ -226,43 +227,102 @@ describe('chat-channel-input-rules — 정화·존재성', () => {
   });
 });
 
-describe('translateSetupChannelError — 이동 전 테스트가 0건이던 자리', () => {
-  const res = (message: string) =>
-    translateSetupChannelError(new Error(message)).getResponse() as {
-      code: string;
+describe('translateSetupChannelError — §5.4 응답 계약', () => {
+  /** 던져진 예외에서 status + 응답 본문을 함께 본다 — `code` 만 보면 status 가 안 보인다. */
+  const translate = (err: unknown) => {
+    const ex = translateSetupChannelError(err);
+    return {
+      status: ex.getStatus(),
+      body: ex.getResponse() as { code: string; message: string },
     };
+  };
+  const fromMessage = (message: string) => translate(new Error(message));
 
-  it('메시지에 401/403 이 있으면 400 BOT_TOKEN_INVALID 로 옮긴다', () => {
-    expect(res('Slack auth.test failed: 401').code).toBe('BOT_TOKEN_INVALID');
-    expect(res('Discord getApplicationMe failed: 403').code).toBe(
-      'BOT_TOKEN_INVALID',
-    );
+  describe('자격 증명 거부 → 400 BOT_TOKEN_INVALID', () => {
+    /**
+     * **주 경로** — 어댑터가 `code` 로 선언한다 (CCA §1.1.2). Slack 은 자격 증명 거부를
+     * HTTP 200 + `{ok:false,error:'invalid_auth'}` 로 알리므로 **message 에 숫자가 없다**:
+     * 옛 판별식 `/\b(401|403)\b/` 이 원리적으로 못 잡던 자리이고, 이 PR 의 실질 동기다.
+     */
+    it('code 선언 — Slack invalid_auth (message 에 숫자 없음)', () => {
+      const { status, body } = translate(
+        credentialRejectedError('Slack auth.test failed: invalid_auth'),
+      );
+      expect(status).toBe(400);
+      expect(body.code).toBe('BOT_TOKEN_INVALID');
+    });
+
+    /**
+     * **캐너리 뒤집기.** 이 자리는 이동 전부터 *"discord verify_key 불일치는 지금 502(실은
+     * `CHAT_CHANNEL_SETUP_FAILED`) 로 떨어진다 — 의도는 400"* 을 고정하고 있었다
+     * (`#1319` T1 이 옮긴 캐너리). `#1323` 이 계약을 확정했고 adapter 가 `code` 를 붙였으므로
+     * **이제 400 이 정답**이다 — 뒤집힌 이 단언이 그 변경이 의도된 것임을 diff 에서 보여준다.
+     */
+    it('code 선언 — discord verify_key 불일치 (status 자체가 없는 실패)', () => {
+      const { status, body } = translate(
+        credentialRejectedError(
+          'Discord verify_key 가 등록된 public key 와 불일치',
+        ),
+      );
+      expect(status).toBe(400);
+      expect(body.code).toBe('BOT_TOKEN_INVALID');
+    });
+
+    /** **한시적 fallback** — 아직 `code` 를 안 붙인 경로 (§1.1.2 의 의도적 예외). */
+    it('message 의 401/403 fallback — code 가 없어도 400', () => {
+      expect(fromMessage('Slack auth.test failed: HTTP 401').body.code).toBe(
+        'BOT_TOKEN_INVALID',
+      );
+      expect(
+        fromMessage('Discord getApplicationMe failed: 403: Forbidden').body
+          .code,
+      ).toBe('BOT_TOKEN_INVALID');
+    });
   });
 
-  it('그 외는 502 CHAT_CHANNEL_SETUP_FAILED 로 떨어진다', () => {
-    expect(res('ECONNRESET').code).toBe('CHAT_CHANNEL_SETUP_FAILED');
+  describe('그 밖 → 502 CHAT_CHANNEL_SETUP_FAILED', () => {
+    it('네트워크 실패는 502 다 — status 를 단언한다 (옛 테스트는 code 만 봤다)', () => {
+      const { status, body } = fromMessage('ECONNRESET');
+      expect(status).toBe(502);
+      expect(body.code).toBe('CHAT_CHANNEL_SETUP_FAILED');
+    });
+
+    /**
+     * **Node/undici 시스템 에러도 `code` 를 갖는다** (`ENOTFOUND`·`ECONNREFUSED`·`UND_ERR_*`)
+     * — `telegram-client.ts` 주석이 이 경로가 실재함을 적어 두고 있다. 그래서 판별은
+     * truthiness 가 아니라 **화이트리스트 정확 일치**여야 한다. 느슨하게 고치면 이 단언이
+     * RED 가 되어 "DNS 실패를 잘못된 토큰으로 보고" 하는 회귀를 막는다.
+     */
+    it('`.code` 가 있어도 우리 값이 아니면 502 — DNS 실패를 토큰 문제로 보고하지 않는다', () => {
+      const dnsFailure = Object.assign(new Error('fetch failed'), {
+        code: 'ENOTFOUND',
+      });
+      expect(translate(dnsFailure).status).toBe(502);
+      expect(translate(dnsFailure).body.code).toBe('CHAT_CHANNEL_SETUP_FAILED');
+    });
+
+    /** 백로그 (d) — non-Error 입력 분기. `String(err)` 로 떨어져도 502 봉투를 유지한다. */
+    it('non-Error 입력 (문자열 throw) 도 502 봉투', () => {
+      const { status, body } = translate('상류가 문자열을 던졌다');
+      expect(status).toBe(502);
+      expect(body.code).toBe('CHAT_CHANNEL_SETUP_FAILED');
+    });
   });
 
   /**
-   * **캐너리 — 현재 동작이 의도와 다르다.** 고치면 이 테스트가 RED 가 된다.
-   *
-   * `discord.adapter.ts` 는 verify_key 불일치에 `'BOT_TOKEN_INVALID: Discord verify_key 가
-   * 등록된 public key 와 불일치'` 를 던진다 — **숫자가 없어서** 위 판별식 `/\b(401|403)\b/` 에
-   * 걸리지 않고 fallback 으로 간다. 즉 사용자는 **400 대신 502** 를 받는다.
-   *
-   * **이 PR 이 만든 회귀가 아니다** — 이동 전부터 그랬고 테스트가 0건이라 아무도 몰랐다.
-   * 이 PR 의 주장은 **동작 보존**이므로 여기서 고치지 않는다. 현재 동작을 고정해 두면
-   * 처방이 정해졌을 때 그 변경이 **의도된 것임이 diff 에서 보인다**.
-   *
-   * 추적: `plan/in-progress/spec-draft-nullable-notation-followups.md`
-   * (`/ai-review` `review/code/2026/09/11/15_31_54` W3 — 근본 처방은 adapter 가 status 를
-   * 메시지에 싣게 통일하는 쪽이다. 판별식이 문자열을 추측하는 구조가 원인이다).
+   * 백로그 (d) 의 뜻이 `#1323` 으로 바뀐 자리 — 옛 항목은 `details.reason` **값**을 단언하라고
+   * 했지만 §5.4 가 *"응답 본문에 provider 원문을 싣지 않는다"* 로 정했다. 그래서 단언 대상이
+   * **부재**다 (§7.5.2 보안 게이트와 같은 이유 — 원문은 호출자가 로그로 남긴다).
    */
-  it('[캐너리] discord verify_key 불일치는 **지금은** 502 로 떨어진다 (의도는 400)', () => {
-    expect(
-      res(
-        'BOT_TOKEN_INVALID: Discord verify_key 가 등록된 public key 와 불일치',
-      ).code,
-    ).toBe('CHAT_CHANNEL_SETUP_FAILED');
+  it('provider 원문을 응답 본문에 싣지 않는다 — details 부재 + message 는 고정 문구', () => {
+    const raw = 'Slack auth.test failed: invalid_auth at https://slack.com/api';
+    for (const ex of [
+      translate(credentialRejectedError(raw)),
+      fromMessage(raw.replace('invalid_auth', 'boom')),
+    ]) {
+      expect(ex.body).not.toHaveProperty('details');
+      expect(JSON.stringify(ex.body)).not.toContain('slack.com');
+      expect(ex.body.message).not.toContain(raw);
+    }
   });
 });
