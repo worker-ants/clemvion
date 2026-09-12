@@ -1,9 +1,10 @@
 ---
 title: chat-channel-input-rules 구조 정리 + 테스트 보강 — 트래커 잔여 배치
-status: in-progress
+status: complete
 owner: developer
 worktree: chat-channel-rules-cleanup
 started: 2026-09-12
+completed: 2026-09-12
 spec_impact: none
 ---
 
@@ -91,15 +92,18 @@ spec_impact: none
 
 ## 체크리스트
 
-- [ ] `/consistency-check --impl-prep`
-- [ ] 1~4 (프로덕션)
-- [ ] 5 (테스트 보강)
-- [ ] 6 (swagger)
-- [x] 뮤테이션 **6종** (예고 3 + 설계 판단 파생 2 + 리뷰 후속 1 — 표는 §실측 기록)
-- [ ] `run-test-all.sh` 4단계
-- [ ] `/ai-review` + `--impl-done`
-- [ ] 트래커 항목 종결 ((c) 는 **소멸**로 종결) + 잔여 등재
-- [ ] `plan/complete/` 이동 — **이동 뒤 문서 게이트 재실행** (`#1324` 에서 Gate C 를 CI 에서 맞았다)
+- [x] `/consistency-check --impl-prep` — `review/consistency/2026/09/12/15_53_35` BLOCK: NO
+- [x] 1~4 (프로덕션) — 헬퍼 3종 + 봉투 11곳 + stale 주석 3곳
+- [x] 5 (테스트 보강) — (a)(b)(c)(e) + 두-층 등가성 + provider label 두 분기
+- [x] 6 (swagger) — `@ApiNotFoundResponse`·`@ApiOkWrappedResponse`·`@ApiUnauthorizedResponse`
+      + 신규 응답 DTO (`dto/responses/`)
+- [x] **7. `repo-guards` DTO 클래스명 충돌 가드** — 작업표에 없던 항목. 라운드 1 에서 **내가 낸
+      CRITICAL** 의 재발 방지로 라운드 3 리뷰가 요구했다
+- [x] 뮤테이션 **9종** (예고 3 + 설계 판단 파생 2 + 리뷰 후속 4 — 표는 §실측 기록)
+- [x] `run-test-all.sh` 4단계 — `ALL PASS` (lint · unit · build · e2e 305)
+- [x] `/ai-review` **6라운드** + `--impl-done` `review/consistency/2026/09/12/18_08_30` BLOCK: NO
+- [x] 트래커 항목 종결 ((c) 는 **소멸**로 종결) + 잔여 등재 — 종결 4 · 신규 6
+- [x] `plan/complete/` 이동 — **이동 뒤 문서 게이트 재실행**
 
 
 ## 정지 규칙 — **라운드 1 결과를 보기 전에 선언한다**
@@ -123,10 +127,29 @@ spec_impact: none
 | 4 | 차단 필드 메시지 고정 | RED | **RED** (8건) |
 | 5 | `incoming.provider &&` 제거 | **GREEN(정상)** | **GREEN** |
 | 6 | `hasField` 를 truthy 판별로 (리뷰 후속) | — (조치 전 **GREEN** 이 결함이었다) | **RED** (14건) |
+| 7 | DTO 클래스명을 기존 것과 동일하게 (신규 가드) | RED | **RED** |
+| 8 | `botIdentity` 를 명시 필드 나열로 (부가 필드 탈락) | RED | **RED** (2건) |
+| 9 | 형식 불일치 메시지 Slack↔Discord 스왑 | — (조치 전 **30/30 GREEN**) | **RED** (2건) |
 
 1~5 는 예측과 실측이 **5/5 일치**했고, 5번의 GREEN 이 정답인 사유는 §설계 판단 (3).
-6번은 리뷰(`16_17_57` testing WARNING)가 **조치 전 GREEN** 임을 지적해서 생긴 자리다 —
-`null`/`''` 케이스를 넣은 뒤 RED 가 됐다.
+
+**6·9 는 리뷰가 "조치 전 GREEN" 을 실측해서 생긴 자리다** — 내가 예고하지 못한 뮤턴트이고,
+그게 리뷰의 값어치다. 특히 **9번은 1번(부재 분기)을 닫고도 형제 분기(형식 불일치)가 열려
+있었다**는 뜻이다 — *"인접 변형을 못 열거하면 한 칸씩 닫는 중"*.
+
+## 리뷰 6라운드 궤적
+
+| 라운드 | 결과 | 그 라운드가 잡은 것 |
+|---|---|---|
+| 1 `16_17_57` | **C1** · W3 | **내가 만든** swagger 스키마 이름 충돌 · publicKey 누락 · 401 · 두-층 등가성 |
+| 2 `16_39_18` | C0 · W3 | 응답 DTO 규약 자리 · **내 orphan 주석** · plan 수치 모순 |
+| 3 `17_02_19` | C0 · W1 | 재발 방지 가드 부재 → 가드 신설 |
+| 4 `17_23_34` | C0 · W1 | **내가 새로 넣은** bare 인용 5곳 |
+| 5 `17_39_51` | C0 · W1 | `publicKey` 회귀 테스트 부재 (3회 지적 끝에 내 유예 근거가 틀렸음을 인정) |
+| 6 `17_52_34` | C0 · W1 | label 단언의 **형제 분기** 누락 → 수렴 |
+
+라운드 3~5 는 이월 INFO 의 승격이라 §정지 규칙을 **보정**했고, 6라운드는 새 실측(스왑 30/30
+GREEN)이 붙어 조치 후 수렴했다.
 
 
 ## 정지 규칙 **보정** — 라운드 6 결과를 보기 전에 선언한다

@@ -3058,6 +3058,20 @@ field: T | null;
       > 형제 가드가 *"fixture 는 스캔 범위 밖에 둔다"* 고 적어 둔 이유를 몸으로 확인했고,
       > 스캔 루트를 실측(`*.dto.ts` 는 `modules/` 111 · `common/` 3)으로 좁혔다.
 
+- [ ] **`swagger.md §5-1` 에 "DTO 클래스명은 저장소 전체에서 유일하다" 규칙이 없다 — 코드가
+      먼저 강제하고 있다** (planner, 2026-09-12 등재 · `--impl-done`
+      `review/consistency/2026/09/12/18_08_30` WARNING 2).
+      `chat-channel-rules-cleanup` 이 그 불변식을 **build-blocking 가드**로 세웠는데
+      (`repo-guards/__tests__/dto-class-name-collision{,-guard}.ts`), 규약 본문에는 프로즈가 없다.
+      §5-1 의 기존 *"이름 충돌을 피합니다"* 문단은 **`*.literal.ts` 상수 한정**이라 이 규칙을
+      덮지 않는다(checker 실측).
+      처분: (a) §5-1 에 규칙 한 문단 + **왜**(`@nestjs/swagger` 가 스키마를 클래스 `.name` 으로
+      등재해 동명 둘이 서로를 덮어쓴다) (b) frontmatter `code:` 에 신규 가드 2파일 등재 —
+      지금은 **어느 spec 도 그 가드를 자기 것으로 보지 않는다**.
+      > **가드가 규약보다 먼저 있는 상태는 위험하다** — 다음 사람이 가드를 "누가 왜 넣었는지
+      > 모르는 검사" 로 보고 지울 수 있다. 이 저장소가 `#244` 에서 겪은 *"문서화됐는데 미구현"*
+      > 의 거울상이다.
+
 - [ ] **frontend 가 `botIdentity` 의 provider 부가 필드를 아직 안 읽는다** (developer,
       2026-09-12 등재 · `/ai-review` `review/code/2026/09/12/17_52_34` user_guide_sync INFO).
       backend 는 이 PR 로 Slack `teamId` · Discord `publicKey` 를 **응답 계약으로 명문화**했는데
