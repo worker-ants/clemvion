@@ -1,17 +1,30 @@
 ---
 title: setupChannel 실패 분류 구현 — typed code · 502 실현 · 원문 echo 중단
-status: in-progress
+status: complete
 owner: developer
 worktree: impl-setup-error-code-ddd078
 started: 2026-09-12
-spec_impact: none
+completed: 2026-09-12
+spec_impact:
+  # 착수 시점엔 `none` 이었고 그것이 이 턴의 전제였다. 리뷰(`/ai-review` SUMMARY#7)가
+  # **구현이 반증한 spec 서술**(frontmatter 의 "§1.1.2 계약은 미구현")을 찾아냈고,
+  # `code-review-agents` SKILL 의 `ESCALATE=spec` 경로로 `--spec` 게이트를 밟아 정정했다
+  # (`review/consistency/2026/09/12/14_11_58` BLOCK: NO → 커밋 `3c47885a3`).
+  # **자기-반증형 소정정 예외가 아니다** — 그 조건 1(작성자=developer)이 불성립이라
+  # draft + `--spec` 경로를 탔다.
+  - spec/conventions/chat-channel-adapter.md
 ---
 
 ## 왜 이 턴인가
 
 `#1323`(planner) 이 `15-chat-channel.md §5.4` · `chat-channel-adapter.md §1.1.2` ·
 `2-api-convention.md §6` · `swagger.md §2-4` 에 계약을 확정했다. **구현이 그것을 따라가는 턴**이다.
-spec 은 한 줄도 건드리지 않는다 (`spec_impact: none`).
+
+> **착수 시점의 전제 `spec_impact: none` 은 끝까지 가지 못했다** — 리뷰가 *"§1.1.2 계약은
+> **미구현**"* 이라는 frontmatter 서술을 찾아냈고, 그 문장을 반증한 것이 바로 이 구현이다.
+> `ESCALATE=spec` 경로로 `--spec` 를 밟아 1파일 15줄을 정정했다(위 frontmatter 주석).
+> **예고를 남겨 두면 다음 사람이 있지도 않은 작업을 쫓는다** — 그 원칙이 `spec/` 경계보다
+> 우선한 것이 아니라, 경계가 정한 절차(draft → `--spec`)를 밟아서 처리했다.
 
 ## 계약 요약 (SoT = spec, 여기 복제하지 않는다)
 
@@ -123,9 +136,21 @@ spec §1.1.2 는 *"`code: 'BOT_TOKEN_INVALID'` 프로퍼티를 가진 에러"* �
 - [x] 타입체크 ratchet 2종 — `build` 단계에 포함. backend 197건/36파일 baseline 일치
       (경유 중 TS2322·TS2352 각 1건을 **이 게이트가 잡았다** — lint·jest 는 통과했다)
 - [x] `/ai-review` — `review/code/2026/09/12/13_41_55` CRITICAL 0 · WARNING 7 → RESOLUTION
-- [ ] `--impl-done` BLOCK: NO
-- [ ] 트래커 항목 종결 + 잔여 등재
-- [ ] `plan/complete/` 이동
+- [x] `--impl-done` BLOCK: NO — `review/consistency/2026/09/12/14_38_02`
+      (**CRITICAL 0 · WARNING 0**, 5 checker 전원 NONE. `spec/5-system/` 델타 **0파일** —
+      이 PR 의 spec 변경은 `spec/conventions/` 한 곳뿐이고 그쪽은 `--spec` 이 이미 봤다)
+- [x] 트래커 항목 종결 + 잔여 등재 — 종결 1 · 부분완료 1 · 갱신 1 · 신규 9
+- [x] `plan/complete/` 이동
+
+## 결과 요약
+
+| | |
+|---|---|
+| 리뷰 | 라운드 1 `13_41_55` CRITICAL 0 · WARNING 7 → RESOLUTION / 라운드 2 `14_23_31` CRITICAL 0 · WARNING 3 (**`codebase/**` 수정 0**) → 수렴 |
+| 게이트 | `--impl-prep` `12_54_15` BLOCK: NO · `--spec` `14_11_58` BLOCK: NO (SPEC-DRIFT 정정) · `--impl-done` `14_38_02` BLOCK: NO |
+| 4단계 | `run-test-all: ALL PASS` (lint · unit backend 458 suites + frontend 289 files · build · e2e 305) |
+| 뮤테이션 | 8종 중 **1종 생존** → 테스트 신설 후 **8/8 RED**. 리팩터(상수 추출) 후 재측정도 RED |
+| spec | 1파일 15줄 (`ESCALATE=spec` 경로 — `--spec` 게이트를 밟았고 자기-반증형 소정정 예외가 **아니다**) |
 
 > **완료 시 착수 신호가 켜지는 다른 항목** (`--impl-prep` WARNING 4): 트래커
 > `plan/in-progress/spec-draft-nullable-notation-followups.md` 의 **「CCA §1.1.2 의 401/403
