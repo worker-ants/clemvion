@@ -1,4 +1,8 @@
-import { BadRequestException } from '@nestjs/common';
+import { BadRequestException, INestApplication } from '@nestjs/common';
+import { Test } from '@nestjs/testing';
+import request from 'supertest';
+
+import { GlobalExceptionFilter } from '../../common/filters/http-exception.filter';
 import { TriggersController } from './triggers.controller';
 import { TriggersService } from './triggers.service';
 
@@ -192,5 +196,105 @@ describe('TriggersController — 행위자(userId) 배선', () => {
       'tok',
       USER,
     );
+  });
+});
+
+/**
+ * `rotate-bot-token` 의 `:id` 파이프 — **HTTP 왕복으로** 본다.
+ *
+ * ## 왜 위 describe 로는 안 되나
+ *
+ * 위 두 describe 는 `new TriggersController(...)` 로 인스턴스를 직접 만든다. 그러면 Nest 의
+ * 파라미터 파이프가 **아예 실행되지 않으므로** 거기에 "비-UUID → 400" 단언을 넣으면
+ * 그 단언은 항상 참이거나 항상 거짓일 뿐 파이프를 검사하지 않는다(vacuous).
+ *
+ * 처음엔 그 이유로 *"행위 테스트는 못 쓴다, e2e 가 필요하다"* 고 적었는데 **틀렸다**
+ * (`review/code/2026/09/12/20_26_58` testing WARNING). `Test.createTestingModule` +
+ * `supertest` 면 DB·Redis 없이도 **진짜 Nest 파이프라인**을 태울 수 있다 — 형제
+ * `health.controller.spec.ts` 가 이미 그 형태다. `ParseUUIDPipe` 가 던진 뒤 응답 **봉투**까지
+ * 보려면 `GlobalExceptionFilter` 를 붙여야 하고, 그래야 `code` 가 실제로 무엇인지 단언할 수
+ * 있다(가드는 선언의 존재만 볼 수 있다).
+ *
+ * ## 대조군이 왜 세 개인가
+ *
+ * 400 하나만 보면 **무엇이 거부했는지**를 모른다 — 라우트 오타·다른 가드·본문 검증 전부
+ * 400 을 낼 수 있다. 그래서 세 입력이 서로 다른 결과로 갈리는 것까지 본다:
+ *
+ * | 입력 | 기대 | 무엇을 가르나 |
+ * |---|---|---|
+ * | 비-UUID id + 정상 본문 | 400 `VALIDATION_ERROR`, 서비스 미호출 | 파이프가 거부했다 |
+ * | 정상 UUID + 본문 누락 | 400 `INVALID_BOT_TOKEN`, 서비스 미호출 | 핸들러가 거부했다 (파이프는 통과) |
+ * | 정상 UUID + 정상 본문 | 200, 서비스 호출 | 파이프가 정상 입력까지 막지는 않는다 |
+ */
+describe('POST /triggers/:id/chat-channel/rotate-bot-token — :id 파이프 (HTTP)', () => {
+  let app: INestApplication;
+  let rotateBotToken: jest.Mock;
+
+  const VALID_UUID = '11111111-2222-4333-8444-555555555555';
+  const WORKSPACE_UUID = '99999999-8888-4777-8666-555555555555';
+  const ROUTE = (id: string): string =>
+    `/triggers/${id}/chat-channel/rotate-bot-token`;
+  // `@WorkspaceId()` 는 헤더나 JWT 클레임이 없으면 400 `WORKSPACE_ID_REQUIRED` 를 먼저
+  // 던진다 — 첫 판본이 그것 때문에 세 케이스가 전부 같은 코드로 수렴해 **대조군이 무의미**
+  // 했다. 헤더를 실어 그 축을 고정하고 `:id` 축만 갈리게 한다.
+  const post = (id: string) =>
+    request(app.getHttpServer())
+      .post(ROUTE(id))
+      .set('X-Workspace-Id', WORKSPACE_UUID);
+
+  beforeAll(async () => {
+    rotateBotToken = jest.fn().mockResolvedValue({
+      rotatedAt: new Date('2026-05-22T00:00:00.000Z').toISOString(),
+      triggerId: VALID_UUID,
+      chatChannelHealth: 'healthy',
+      botIdentity: { botId: 111, username: 'bot' },
+    });
+    const moduleRef = await Test.createTestingModule({
+      controllers: [TriggersController],
+      providers: [{ provide: TriggersService, useValue: { rotateBotToken } }],
+    }).compile();
+
+    app = moduleRef.createNestApplication();
+    // 봉투(`error.code`)는 이 필터가 만든다 — 붙이지 않으면 상태 코드만 보게 된다.
+    app.useGlobalFilters(new GlobalExceptionFilter());
+    await app.init();
+  });
+
+  afterAll(async () => {
+    await app.close();
+  });
+
+  beforeEach(() => {
+    rotateBotToken.mockClear();
+  });
+
+  it('비-UUID id → 400 VALIDATION_ERROR, 서비스는 호출되지 않는다', async () => {
+    const res = await post('not-a-uuid').send({
+      newBotToken: '222222222:NewToken',
+    });
+
+    expect(res.status).toBe(400);
+    expect(res.body?.error?.code).toBe('VALIDATION_ERROR');
+    expect(rotateBotToken).not.toHaveBeenCalled();
+  });
+
+  it('[대조군] 정상 UUID + 본문 누락 → 같은 400 이지만 코드가 다르다', async () => {
+    const res = await post(VALID_UUID).send({});
+
+    expect(res.status).toBe(400);
+    // 파이프가 아니라 **핸들러**가 거부한 것 — 두 400 이 구분되지 않으면 위 단언은
+    // "무언가가 400 을 냈다" 이상을 말하지 못한다.
+    expect(res.body?.error?.code).toBe('INVALID_BOT_TOKEN');
+    expect(rotateBotToken).not.toHaveBeenCalled();
+  });
+
+  it('[대조군] 정상 UUID + 정상 본문 → 200, 서비스에 그 id 가 그대로 간다', async () => {
+    const res = await post(VALID_UUID).send({
+      newBotToken: '222222222:NewToken',
+    });
+
+    expect(res.status).toBe(200);
+    expect(rotateBotToken).toHaveBeenCalledTimes(1);
+    expect(rotateBotToken.mock.calls[0][0]).toBe(VALID_UUID);
   });
 });

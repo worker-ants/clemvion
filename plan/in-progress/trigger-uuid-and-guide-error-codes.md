@@ -79,11 +79,22 @@ AST 로 다시 재니 **문서 축 미충족이 3건**이었다 — 파이프 �
   - `repo-guards/__tests__/param-uuid-pipe-guard.ts` (순수 AST 판정)
   - `repo-guards/__tests__/param-uuid-pipe.spec.ts` (전수 단언 + vacuity floor + 대조군 4종)
   - `repo-guards/__tests__/fixtures/param-uuid-pipe/sample.controller.ts` (스캔 루트 밖)
-- 행위 테스트는 **쓰지 않는다.** `triggers.controller.spec.ts` 는 `new TriggersController(...)`
-  직접 생성이라 **파이프가 아예 실행되지 않는다** — 거기에 400 단언을 넣으면 vacuous 하다.
-  HTTP 왕복을 보려면 e2e 가 필요한데 `rotate-bot-token` 를 타는 e2e 가 현재 0개다(실측).
-  `ParseUUIDPipe` 자체의 동작은 Nest 의 계약이므로, 이 저장소가 질 책임은 **선언의 존재**이고
-  그것을 가드가 전수로 센다.
+- ~~행위 테스트는 **쓰지 않는다.**~~ **2라운드에 반증됐다** (`20_26_58` testing WARNING).
+  전제("`new TriggersController(...)` 라 파이프가 안 돈다 → HTTP 왕복은 e2e 가 필요하다")의
+  앞 절은 참이지만 뒤 절이 틀렸다 — `Test.createTestingModule` + `supertest` 면 **DB·Redis
+  없이** 진짜 Nest 파이프라인을 태울 수 있고, 형제 `health.controller.spec.ts` 가 이미 그
+  형태다. 내가 *"e2e 가 없으니 못 한다"* 로 결론을 건너뛴 것이다.
+  지금은 `triggers.controller.spec.ts` 에 HTTP 왕복 3케이스가 있다 —
+  `GlobalExceptionFilter` 를 붙여 **봉투의 `code` 까지** 단언하므로 가드가 못 보는 층을 덮는다.
+
+  | 입력 | 기대 | 무엇을 가르나 |
+  |---|---|---|
+  | 비-UUID id | 400 `VALIDATION_ERROR`, 서비스 미호출 | 파이프가 거부했다 |
+  | 정상 UUID + 본문 누락 | 400 `INVALID_BOT_TOKEN`, 서비스 미호출 | 핸들러가 거부했다 |
+  | 정상 UUID + 정상 본문 | 200, 서비스에 그 id 전달 | 정상 입력을 막지 않는다 |
+
+  첫 판본은 `@WorkspaceId()` 가 헤더 부재로 먼저 400 을 던져 **세 케이스가 같은 코드로
+  수렴**했다 — 대조군이 무의미해지는 형태라 `X-Workspace-Id` 를 실어 그 축을 고정했다.
 
 ## B. 유저 가이드가 없는 이름을 적는다 — 두 종
 
@@ -164,10 +175,12 @@ AST 로 다시 재니 **문서 축 미충족이 3건**이었다 — 파이프 �
 ## C. 이번 배치에서 **하지 않는 것** — 등재만 한다
 
 - **가이드가 적은 없는 에러 코드 5종** (`LLM_AUTH_ERROR`·`LLM_MODEL_NOT_FOUND`·
-  `INTEGRATION_ERROR`·`NODE_EXECUTION_FAILED`·`MAKESHOP_API_ERROR`). `LLM_AUTH_ERROR` 는
-  실재 `LLM_AUTH_FAILED` 의 근접 오기로 보이지만 나머지는 **대응하는 실재 코드를 먼저
-  정해야 한다** — `Test Connection` 이 모델 부재에 실제로 무엇을 내는지, 노드 에러 포트가
-  일반 실패에 무엇을 싣는지를 실측해야 고칠 수 있다. 이름만 바꾸면 또 하나의 추측이 된다.
+  `INTEGRATION_ERROR`·`NODE_EXECUTION_FAILED`·`MAKESHOP_API_ERROR`).
+  **LLM 쪽 둘은 오기가 아니었다** — `7-llm-client.md:345` 가 `LLM_AUTH_ERROR`(401)·
+  `LLM_MODEL_NOT_FOUND`(404) 를 **Planned(미구현)** 로 등재하고 *"현재는
+  `LLM_CONNECTION_ERROR` 로 수렴"* 한다고 적는다. 근접 오기로 진단했던 첫 판단은 틀렸고,
+  고칠 방향이 정반대다(철자가 아니라 **미구현을 기구현처럼 서술**한 것). 나머지 셋은 여전히
+  **대응하는 실재 코드를 먼저 실측해야** 한다. 이름만 바꾸면 또 하나의 추측이 된다.
 - **`ERROR_KO` 매핑을 아무도 읽지 않는다.** 등재하려던 문장은 *"일반 API 코드가 맵에 없어
   ko 화면에 영문이 뜬다"* 였는데 **그 전제가 반증됐다** — `translateBackendError` 의 프로덕션
   호출부가 0건이라 영문조차 안 뜬다(고정 실패 문구가 뜬다). 맵에 줄을 더하는 것은 아무것도
@@ -198,8 +211,28 @@ AST 로 다시 재니 **문서 축 미충족이 3건**이었다 — 파이프 �
       | 3 | 면제가 런타임 축까지 끄는 방향의 캐너리 없음 | `excludedPipeless` fixture + 단언 추가 — **M7 뮤턴트가 RED** 로 그 방향을 고정 |
       | 4 | 500→400 은 관측 가능한 변경인데 CHANGELOG 누락 | 선례(`raw 23505 가 500 이었다` 항목) 형식으로 항목 추가 |
       INFO 중 둘(텍스트 부분일치 한계 · fixture 의 스캔 루트 서술 부정확)도 같은 라운드에 반영.
-- [ ] 2라운드 `/ai-review` (fix 반영분)
+- [x] 2라운드 `/ai-review` `review/code/2026/09/12/20_26_58` (`--route=all`, 14명) —
+      **Critical 0 · WARNING 4**. 넷 다 실측 확인:
+      | # | 지적 | 실측 | 처분 |
+      |---|---|---|---|
+      | 1 | `15-chat-channel.md §5.4` 표에 신규 400 행 없음 | 참 | **planner 항목 등재** (조건 1 미충족) |
+      | 2 | `LLM_AUTH_ERROR` 를 "근접 오기" 로 오진단 | **참 — `7-llm-client.md:345` 가 Planned 로 등재** | plan·트래커 두 곳 진단 정정 |
+      | 3 | docstring 수치 127 이 틀림 | 참 — AST 재측정 **144** (내 정규식이 첫 `}` 에서 끊겼다) | 시점·범위 병기해 정정 |
+      | 4 | 500→400 행위 변경의 실행 테스트 부재 | 참 — 내 "e2e 가 필요하다" 가 틀렸다 | HTTP 왕복 3케이스 추가, M9·M10 으로 고정 |
+- [ ] 3라운드 `/ai-review` — **정지 규칙을 결과 보기 전에 선언한다**: Critical 0 이고
+      `codebase/**` 수정이 필요한 WARNING 이 없으면(= spec/planner 항목·`plan/**` 만 남으면)
+      그 라운드로 종료한다. `codebase/**` WARNING 이 하나라도 있으면 고치고 같은 규칙으로
+      한 라운드 더.
 - [ ] `--impl-done`
+
+## 뮤테이션 3차 — HTTP 왕복 (행위 층)
+
+가드(정적)와 달리 이쪽은 실제 요청을 태운다.
+
+| 뮤턴트 | 예측 | 실측 |
+|---|---|---|
+| M9 `rotateBotToken` 의 `ParseUUIDPipe` 제거 | RED | RED |
+| M10 핸들러의 `newBotToken` 가드 제거 (두 400 을 가르는 대조군) | RED | RED |
 
 ## 뮤테이션 2차 (fix 반영 후)
 

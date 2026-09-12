@@ -3152,10 +3152,27 @@ field: T | null;
       가 *"구 에러 코드 `NODE_EXECUTION_FAILED` / `INTEGRATION_ERROR` / `LLM_ERROR` 는 노드
       수준 envelope 에 더 이상 사용하지 않는다"* 고 이미 선언해 두었다(`--impl-prep`
       `19_34_19` rationale_continuity INFO#2 가 지목). 즉 가이드가 SoT 보다 낡았다.
-      **그래도 이름만 바꾸면 안 된다** — `LLM_AUTH_ERROR` 는 실재 `LLM_AUTH_FAILED` 의 근접
-      오기로 보이지만, 나머지는 *"모델이 없을 때 `Test Connection` 이 실제로 무엇을 내는가"* ·
+      **LLM 쪽 둘은 오기가 아니라 *미구현*이다 — 내 첫 진단이 틀렸다.**
+      `spec/5-system/7-llm-client.md:345` 가 *"미구현(Planned) — 세분화 에러 코드:
+      `LLM_AUTH_ERROR`(401), `LLM_MODEL_NOT_FOUND`(404), `LLM_CONTEXT_EXCEEDED`(400) 는
+      향후 클라이언트 계층에서 분기 예정이나 **현재는 `LLM_CONNECTION_ERROR` 로 수렴**한다"*
+      라고 명시 등재하고 있다(`/ai-review` `20_26_58` requirement WARNING 이 지목).
+      처음엔 `LLM_AUTH_ERROR` 를 `LLM_AUTH_FAILED` 의 근접 오기로 진단했는데, 그러면
+      **고칠 방향이 정반대**가 된다 — 가이드의 잘못은 철자가 아니라 **미구현 기능을 이미
+      나온 것처럼 서술한 것**이다. 처분은 "이름 치환" 이 아니라 *"수렴 코드
+      (`LLM_CONNECTION_ERROR`)를 적고 세분화는 Planned 로 표시"* 다.
+      나머지 셋(`INTEGRATION_ERROR`·`NODE_EXECUTION_FAILED`·`MAKESHOP_API_ERROR`)은
       *"노드 에러 포트가 일반 실패에 무엇을 싣는가"* 를 **실측해야** 대응 코드가 정해진다.
       추측으로 치환하면 오기를 다른 오기로 바꾸는 것이다.
+
+- [ ] **`15-chat-channel.md` §5.4 실패 응답 표에 `rotate-bot-token` 의 신규 400 행이 없다**
+      (**planner 항목** — developer 가 등재, 2026-09-12 · `/ai-review` `20_26_58`
+      requirement WARNING). 이 표는 CCH-SE-04 가 낼 수 있는 `error.code` 를 나열하는
+      canonical 문서인데, `trigger-uuid-and-guide-codes` 가 `ParseUUIDPipe` 를 붙이면서
+      **관측 가능한 새 분기**(`:id` 가 UUID 형식이 아님 → `400 VALIDATION_ERROR`)가 생겼다.
+      컨트롤러의 `@ApiBadRequestResponse` 와 CHANGELOG 에는 반영했으나 spec 표는 못 건드린다
+      (자기-반증형 소정정 **조건 1** 미충족 — 내가 쓴 문장이 아니다).
+      처분 제안: 표에 `400 | VALIDATION_ERROR | :id 가 UUID 형식이 아님 (ParseUUIDPipe)` 행 추가.
 
 - [ ] **`swagger.md §5-4` 체크리스트가 UUID 경로 파라미터의 **런타임 축**을 안 적는다**
       (**planner 항목** — developer 가 등재, 2026-09-12 · `/ai-review`
