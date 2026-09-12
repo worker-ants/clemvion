@@ -6,7 +6,10 @@ code:
   # `triggers/` 안의 chat-channel 부분은 **glob 으로 잡는다** — 명시 경로로 두었더니 새 파일이
   # 세 번 연속(#1317·#1319·#1320) 누락됐다. 근거는 R-CC-22.
   - codebase/backend/src/modules/triggers/chat-channel-*.ts
-  - codebase/backend/src/modules/triggers/dto/chat-channel-*.dto.ts
+  # `**/` 를 쓴다 — 응답 DTO 의 자리는 `swagger.md §5-1` 이 `dto/responses/` 로 정하는데
+  # `*` 는 `/` 를 넘지 않아 그 하위를 못 덮었다(`#1326` 실측). `**/` 는 평평한 `dto/` 도 함께
+  # 덮으므로 종전 경로가 빠지지 않는다 — R-CC-22 하단 캐비엇에 재측정 수치.
+  - codebase/backend/src/modules/triggers/dto/**/chat-channel-*.dto.ts
   - codebase/backend/src/modules/triggers/trigger-callback-url*.ts
   - codebase/backend/src/modules/triggers/triggers.service.ts
   - codebase/backend/src/modules/triggers/triggers.controller.ts
@@ -48,6 +51,11 @@ pending_plans:
 | 텔레그램 봇 위의 데이터 시각화 | 사용자 명령 → 워크플로우가 Chart / Table / Carousel 렌더 → v1: MarkdownV2 monospace 텍스트 표현 + 선택 버튼 (v2: SSR PNG `sendPhoto`) |
 
 ### 3. 요구사항 (CCH-* prefix)
+
+> **이 문서의 `3.x` 는 두 계층에 있다** — Overview 의 **요구사항** `3.1~3.6`(CCH-* ID 소유)과
+> 본문의 **처리 흐름** `3.1~3.3`. 제목이 달라 **앵커는 충돌하지 않지만 번호만으로는 가려지지
+> 않는다** — 인용할 때 `§3.4 신뢰성/보안` 처럼 **제목을 함께** 적는다.
+> (번호 정렬은 인바운드 앵커 34~48개를 건드리는 일이라 [R-CC-24](#r-cc-24-3x-절-번호-중복은-번호-정렬-대신-인용-규칙으로-닫는다) 에서 측정과 함께 기각했다.)
 
 #### 3.1 어댑터 라이프사이클
 
@@ -117,6 +125,11 @@ pending_plans:
 ---
 
 ## 3. 처리 흐름
+
+> **이 문서의 `3.x` 는 두 계층에 있다** — Overview 의 **요구사항** `3.1~3.6`(CCH-* ID 소유)과
+> 본문의 **처리 흐름** `3.1~3.3`. 제목이 달라 **앵커는 충돌하지 않지만 번호만으로는 가려지지
+> 않는다** — 인용할 때 `§3.4 신뢰성/보안` 처럼 **제목을 함께** 적는다.
+> (번호 정렬은 인바운드 앵커 34~48개를 건드리는 일이라 [R-CC-24](#r-cc-24-3x-절-번호-중복은-번호-정렬-대신-인용-규칙으로-닫는다) 에서 측정과 함께 기각했다.)
 
 ### 3.1 전체 시퀀스 (Telegram 예시)
 
@@ -541,11 +554,14 @@ codebase/backend/src/modules/
     triggers.service.ts                      # chat-channel 은 호출만 한다 — setup/teardown 은 아래 binder, 회전·cleanup 은 자기 메서드
     triggers.controller.ts                   # C-2: rotateBotToken 엔드포인트 이전 (chat-channel→triggers forwardRef 순환 해소)
     chat-channel-binder.service.ts           # adapter setup/teardown + secret 쓰기·ref 보존 (TriggersService 에서 이전)
-    chat-channel-input-rules.ts              # 입력 검증·변환 순수 함수 (R-CC-21 정본. DI 없음 — 외부 의존 0)
+    chat-channel-input-rules.ts              # chat-channel 입·출력 도메인 규칙 순수 함수 (DI 없음 — 외부 의존 0)
+                                             #   입력: R-CC-21 정본 / 출력: translateSetupChannelError (§5.4 응답 계약)
     chat-channel-rejection-messages.const.ts # PATCH 금지 필드 목록 + 거부 문구 (DTO·서비스 두 층의 단일 SoT)
     trigger-callback-url.ts                  # webhook callback URL 조립 순수 함수 (binder·rotateBotToken 공용)
     chat-channel-token-rotator.service.ts    # C-2: chat-channel 에서 이전 — bot token 회전 hourly 워커
     dto/chat-channel-config.dto.ts           # chatChannel 설정 DTO (생성/수정 검증 분리)
+    dto/responses/chat-channel-rotate-bot-token-response.dto.ts
+                                             # rotate 200 응답 DTO (§5.4). 자리는 swagger.md §5-1 이 정한다
     dto/create-trigger.dto.ts                # 기존 — chatChannel 필드 추가
 ```
 
@@ -886,6 +902,16 @@ secret 쓰기·ref 보존의 정본이 들어 있었다. `code:` 에 없으면 `
 **문서 내부 선례**: 이 파일의 `code:` 는 최초부터 `modules/chat-channel/**` 를 glob 으로 갖고
 있었다. 이번 변경은 **`triggers/` 쪽만 명시 경로로 남아 있던 비대칭을 없애는 것**이다.
 
+> **2026-09-12 확장 — 두 번째 glob 이 `dto/**/chat-channel-*.dto.ts` 로 넓어졌다.**
+> `swagger.md §5-1` 이 응답 DTO 의 자리로 정한 `dto/responses/` 하위를 종전 `*` 가 넘지 못해
+> `#1326` 의 신규 응답 DTO 를 **이 spec 이 못 보고 있었다**.
+>
+> **정본 매처로 재측정**(`modules/triggers/**/*.ts`, `.spec.ts` 포함 — 위 수치와 같은 기준):
+> 좁은 glob 3개 **10 → 11**(`+dto/responses/chat-channel-rotate-bot-token-response.dto.ts`),
+> 통짜는 **28**(무관 17). 위 본문의 *"통짜 27개"* 는 결정 당시 값이고 파일이 늘어 28이 됐다 —
+> **그 증가가 바로 이 결정의 근거**다(증가가 예정된 집합은 열거가 아니라 술어로 잡는다).
+> 차집합 0 · 무관 파일 유입 0 은 확장 뒤에도 유지된다(`dto/create-trigger.dto.ts` 미매칭 확인).
+
 **남는 위험** (R-1 이 경고하는 것): stale glob — 없어진 파일을 가리키는 glob 이 다른 파일에
 매칭돼 조용히 통과한다. 접두가 구체적이라 표면은 작지만 0은 아니고, 보완은 `/spec-coverage`
 standing audit 다.
@@ -940,7 +966,10 @@ provider 가 그것을 어떤 transport 로 알리는지는 **우리 계약의 �
 
 **같은 턴에 고친 두 번째 사실**: §5.4 는 `502` 라 적고 있었지만 구현은 **두 분기 모두 400** 을
 돌려줬다(`BadRequestException`). 테스트는 `code` 만 단언해 `getStatus()` 를 본 적이 없어 아무도
-몰랐다 — *"문서한 보장이 구현보다 넓으면 안 된다"* 의 사례다. 구현 정정은 developer 후속이다.
+몰랐다 — *"문서한 보장이 구현보다 넓으면 안 된다"* 의 사례다.
+~~구현 정정은 developer 후속이다.~~ **완료** — `e4e259530`(#1324)이 `BadGatewayException` 배선 ·
+`details.reason` 제거 · `getStatus()` 단언까지 끝냈다. 남은 한시적 예외(401/403 message
+fallback)의 제거 조건은 [CCA §1.1.2](../conventions/chat-channel-adapter.md#112-setupchannel-실패-판별--자격-증명-거부는-code-로-선언한다) 가 갖는다.
 
 **응답 본문에서 provider 원문 echo 를 중단한다.** 종전 구현은 두 분기 모두
 `details.reason: message.slice(0, 256)` 으로 외부 원문을 응답에 실었다.
@@ -954,3 +983,29 @@ client 에 전달하지 않는다"* 를 **보안 게이트**로 명시하고
 [`data-flow/14-chat-channel.md`](../data-flow/14-chat-channel.md) **3곳에 복제**돼 있었다. 셋 다
 §5.4 를 SoT 로 인용하면서 내용을 본문에 다시 적어, SoT 가 바뀌면 조용히 거짓이 되는 구조였다 —
 원인 기반으로 **다시 적는 대신 복제 자체를 없애고** §5.4 링크만 남겼다.
+
+### R-CC-24. `3.x` 절 번호 중복은 **번호 정렬 대신 인용 규칙**으로 닫는다
+
+**증상**: 이 문서는 `3.x` 를 두 계층에서 쓴다 — Overview 의 `#### 3.1~3.6`(요구사항)과 본문의
+`### 3.1~3.3`(처리 흐름). 형제 문서(`14-external-interaction-api.md`)는 요구사항이 **최상위
+`## 3`** 이라 이 문서만 어긋난다.
+
+**앵커는 이미 충돌하지 않는다** — 제목이 달라 슬러그가 다르다(`#31-어댑터-라이프사이클` vs
+`#31-전체-시퀀스-telegram-예시`). 실제 해는 사람이 *"§3.3"* 이라고만 쓸 때 어느 쪽인지 모르는 것이다.
+
+**결정**: 번호를 그대로 두고 **인용 규칙**(제목 병기)을 두 자리에 명문화한다.
+
+**기각한 두 구조 처방과 그 비용** (저장소 전체 인바운드 앵커 링크 실측, 2026-09-12):
+
+| 처방 | 깨지는 링크 | 비고 |
+|---|---|---|
+| (a) 요구사항을 `## 3` 으로 승격 + 본문 `## 4~9` cascade | **48+** (`#54*` 23 · `#55*` 13 · `#4x` 12) | 코드 주석·`CHANGELOG` 의 **비-링크 `§5.4` 인용**은 이 수에 안 들어간다 |
+| (b) Overview 요구사항 소절 재번호 | **34** (`#34` 17 · `#32` 6 · `#35` 4 · `#33` 3 · `#31` 3 · `#36` 1) | |
+
+둘 다 **표시 번호의 미관**을 위해 34~48개 링크를 건드린다. 이 저장소는 *"유한한 문제를 무한한
+문제와 바꾸지 않는다"* 를 이미 한 번 결정했다(`#970` push 가드 정밀화 철회). 인용 규칙은 실제
+해(잘못된 인용)를 막으면서 링크를 **0개** 건드린다.
+
+**되살릴 조건**: 이 문서를 다른 이유로 크게 재구성하게 되면, 그때 (a) 를 **함께** 한다 — 링크
+갱신 비용이 그 작업에 흡수되고, `spec-link-integrity` 가 누락을 잡아 준다. 지금처럼 이것만을
+위해 열지는 않는다.
