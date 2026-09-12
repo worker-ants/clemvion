@@ -6,10 +6,12 @@ import {
   ChatChannelAdapter,
   ChatChannelConfig,
   ChatChannelInternalEvent,
+  credentialRejectedError,
   EiaEvent,
   SendResult,
   SetupResult,
 } from '../../types';
+import type { TelegramApiResponse } from './telegram-client';
 import { TelegramClient } from './telegram-client';
 import { parseTelegramUpdate } from './telegram-update.parser';
 import {
@@ -35,6 +37,34 @@ import { SecretResolverService } from '../../../secret-store/secret-resolver.ser
  * Phase 4: Form.
  * Phase 5: Chart sendPhoto.
  */
+/**
+ * Telegram 이 **자격 증명 거부**로 쓰는 `error_code` 값 — Bot API 는 HTTP status 를 응답
+ * **body 의 `error_code`** 에 그대로 싣는다(`{"ok":false,"error_code":401,…}`). client 가 4xx
+ * body 를 그대로 반환하므로 어댑터에서 status 를 볼 수 있다.
+ *
+ * `error_code` 는 **Telegram 원본 응답 필드**이고 우리 `Error.code` 판별자와 다른 이름이다
+ * ([spec/conventions/chat-channel-adapter.md §1.1.2] 의 네임스페이스 표).
+ */
+const TELEGRAM_CREDENTIAL_REJECTED_STATUSES: readonly number[] = [401, 403];
+
+/**
+ * Bot API 실패 응답 → throw 할 `Error`. 자격 증명 거부면 `code` 를 부착한다 (§1.1.2).
+ *
+ * message 형식은 **바꾸지 않는다** — 호출자의 한시적 401/403 fallback 과 기존 테스트가 그
+ * 문구를 본다. `error_code` 가 없는 경우(body 파싱 실패·재시도 소진 합성 응답)는 generic 이라
+ * 호출자가 502 로 다룬다.
+ */
+function telegramApiError(
+  method: string,
+  res: TelegramApiResponse<unknown>,
+): Error {
+  const message = `Telegram ${method} failed: ${res.description ?? 'unknown'}`;
+  return res.error_code !== undefined &&
+    TELEGRAM_CREDENTIAL_REJECTED_STATUSES.includes(res.error_code)
+    ? credentialRejectedError(message)
+    : new Error(message);
+}
+
 @Injectable()
 export class TelegramAdapter implements ChatChannelAdapter {
   readonly provider = 'telegram';
@@ -80,13 +110,11 @@ export class TelegramAdapter implements ChatChannelAdapter {
       drop_pending_updates: true,
     });
     if (!setup.ok) {
-      throw new Error(
-        `Telegram setWebhook failed: ${setup.description ?? 'unknown'}`,
-      );
+      throw telegramApiError('setWebhook', setup);
     }
     const me = await this.client.getMe(botToken);
     if (!me.ok || !me.result) {
-      throw new Error(`Telegram getMe failed: ${me.description ?? 'unknown'}`);
+      throw telegramApiError('getMe', me);
     }
     return {
       registeredAt: new Date().toISOString(),

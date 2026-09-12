@@ -5,6 +5,7 @@ import { ConfigService } from '@nestjs/config';
 import {
   BadRequestException,
   ConflictException,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { Provider } from '@nestjs/common';
@@ -14,6 +15,7 @@ import {
   TriggersService,
   isEndpointPathUniqueViolation,
 } from './triggers.service';
+import { credentialRejectedError } from '../chat-channel/types';
 import { ChatChannelBinderService } from './chat-channel-binder.service';
 import { Trigger } from './entities/trigger.entity';
 import { Execution } from '../executions/entities/execution.entity';
@@ -1992,6 +1994,56 @@ describe('TriggersService.rotateBotToken — 6단계 오케스트레이션', () 
     ).rejects.toBeDefined();
 
     expect(auditLogs.record).not.toHaveBeenCalled();
+  });
+
+  /**
+   * §5.4 — setupChannel 실패의 **상태 코드**까지 서비스 경유로 고정한다.
+   *
+   * 변환 자체는 `chat-channel-input-rules.spec.ts` 가 단위로 덮지만, **배선**(호출부가 그
+   * 변환을 쓰는가)은 여기서만 관측된다. 그리고 `502` 는 이 저장소의 첫 사용이다.
+   */
+  it('setupChannel 이 자격 증명 거부(code) 로 실패 → 400 BOT_TOKEN_INVALID', async () => {
+    mockAdapter.setupChannel.mockRejectedValueOnce(
+      credentialRejectedError('Slack auth.test failed: invalid_auth'),
+    );
+
+    const err: unknown = await service
+      .rotateBotToken(TRIGGER_ID, WORKSPACE_ID, NEW_TOKEN, 'u-bot')
+      .then(() => null)
+      .catch((e: unknown) => e);
+
+    expect((err as BadRequestException).getStatus()).toBe(400);
+    expect((err as BadRequestException).getResponse()).toMatchObject({
+      code: 'BOT_TOKEN_INVALID',
+    });
+  });
+
+  /**
+   * **원문은 응답이 아니라 로그로 간다** (§5.4 + §7.5.2 보안 게이트). 응답 본문의 부재만
+   * 단언하면 *"어디에도 남지 않는다"* 와 구별되지 않아, 로그 쪽을 함께 고정한다 — 이 warn 을
+   * 지우면 진단 단서가 **아무 데도** 없다.
+   */
+  it('그 밖의 실패 → 502 + provider 원문은 응답이 아니라 warn 로그에만', async () => {
+    const warn = jest
+      .spyOn(Logger.prototype, 'warn')
+      .mockImplementation(() => undefined);
+    mockAdapter.setupChannel.mockRejectedValueOnce(
+      new Error('getaddrinfo ENOTFOUND api.telegram.org'),
+    );
+
+    const err: unknown = await service
+      .rotateBotToken(TRIGGER_ID, WORKSPACE_ID, NEW_TOKEN, 'u-bot')
+      .then(() => null)
+      .catch((e: unknown) => e);
+
+    expect((err as BadRequestException).getStatus()).toBe(502);
+    const body = (err as BadRequestException).getResponse();
+    expect(body).toMatchObject({ code: 'CHAT_CHANNEL_SETUP_FAILED' });
+    expect(JSON.stringify(body)).not.toContain('api.telegram.org');
+    const logged = warn.mock.calls.map(([m]) => String(m)).join('\n');
+    expect(logged).toContain('api.telegram.org');
+    expect(logged).toContain(TRIGGER_ID);
+    warn.mockRestore();
   });
 
   it('정상 — old token resolve → v2 백업 → primary rotate → setupChannel → webhook secret store → trigger 갱신', async () => {

@@ -151,6 +151,45 @@ describe('TelegramAdapter', () => {
       ).rejects.toThrow(/getMe failed/i);
     });
 
+    /**
+     * §1.1.2 — Telegram 은 HTTP status 를 응답 **body 의 `error_code`** 에 싣는다
+     * (`{"ok":false,"error_code":401,…}`). 위 두 테스트의 fixture 는 `error_code: 400` 이라
+     * 자격 증명 거부가 아니다 — 그래서 `code` 가 붙지 않는 것이 정답이다.
+     */
+    const rejectedWith = async (
+      res: TelegramApiResponse<never>,
+    ): Promise<unknown> => {
+      client.setWebhook.mockResolvedValue(res);
+      return adapter
+        .setupChannel(baseConfig, callbackUrl)
+        .then(() => null)
+        .catch((err: unknown) => err);
+    };
+
+    it.each([401, 403])(
+      'setWebhook error_code=%i → code BOT_TOKEN_INVALID 부착',
+      async (error_code) => {
+        expect(
+          await rejectedWith({
+            ok: false,
+            description: 'Unauthorized',
+            error_code,
+          }),
+        ).toMatchObject({ code: 'BOT_TOKEN_INVALID' });
+      },
+    );
+
+    it('error_code 400 / 부재 → code 미부착 (호출자가 502)', async () => {
+      for (const res of [
+        { ok: false as const, description: 'Bad Request', error_code: 400 },
+        { ok: false as const, description: 'fetch failed' },
+      ]) {
+        const err = await rejectedWith(res as TelegramApiResponse<never>);
+        expect(err).toBeInstanceOf(Error);
+        expect((err as { code?: unknown }).code).toBeUndefined();
+      }
+    });
+
     it('setupChannel 반환값의 configUpdates 에 botIdentity 가 포함된다 (inboundSigning 은 issuedInboundSigning 으로 분리)', async () => {
       const result = await adapter.setupChannel(baseConfig, callbackUrl);
       expect(result.issuedInboundSigning).toBeTruthy();

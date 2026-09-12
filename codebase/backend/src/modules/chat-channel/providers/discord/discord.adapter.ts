@@ -14,6 +14,7 @@ import type {
   SendResult,
   SetupResult,
 } from '../../types';
+import { credentialRejectedError } from '../../types';
 import { DiscordClient } from './discord-client';
 import { renderDiscordEvent } from './discord-message.renderer';
 import { parseDiscordUpdate } from './discord-update.parser';
@@ -67,9 +68,13 @@ export class DiscordAdapter implements NativeFormAdapter {
     const botToken = await this.resolveBotToken(config);
     const app = await this.client.getApplicationMe(botToken);
     if ('code' in app && app.code != null) {
-      throw new Error(
-        `Discord getApplicationMe failed: ${app.message ?? 'unknown'}`,
-      );
+      // `app.code` 는 **Discord 원본 응답의 숫자** 필드다 (§1.1.2 3중 표) — 우리 판별자
+      // `Error.code` 와 다른 네임스페이스이고, 인증 실패에 `0` 이 와서 값으로는 못 가른다.
+      // 자격 증명 거부 판정은 client 가 실어 준 HTTP `status` 로 한다.
+      const message = `Discord getApplicationMe failed: ${app.message ?? 'unknown'}`;
+      throw app.status === 401 || app.status === 403
+        ? credentialRejectedError(message)
+        : new Error(message);
     }
     const application = app as {
       id: string;
@@ -90,8 +95,10 @@ export class DiscordAdapter implements NativeFormAdapter {
         application.verify_key &&
         application.verify_key !== expectedPublicKey
       ) {
-        throw new Error(
-          'BOT_TOKEN_INVALID: Discord verify_key 가 등록된 public key 와 불일치',
+        // message 접두(`'BOT_TOKEN_INVALID: …'`)는 **규칙 부재의 흔적**이었다 — 호출자가
+        // 문자열에서 숫자를 찾는 판별식에 안 걸려 조용히 502 로 갔다. 이제 `code` 로 선언한다.
+        throw credentialRejectedError(
+          'Discord verify_key 가 등록된 public key 와 불일치',
         );
       }
       // inboundSigningRef 가 있는데 resolve 결과 또는 verify_key 가 비어 cross-verify 를 못 한 경우

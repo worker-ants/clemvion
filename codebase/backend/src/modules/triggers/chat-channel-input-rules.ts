@@ -1,4 +1,4 @@
-import { BadRequestException } from '@nestjs/common';
+import { BadGatewayException, BadRequestException } from '@nestjs/common';
 
 import { ErrorCode } from '../../nodes/core/error-codes';
 import {
@@ -10,6 +10,10 @@ import type {
   ChatChannelConfigDto,
   ChatChannelUpdateConfigDto,
 } from './dto/chat-channel-config.dto';
+import {
+  CREDENTIAL_REJECTED_CODE,
+  isCredentialRejectedError,
+} from '../chat-channel/types';
 import type { Trigger } from './entities/trigger.entity';
 
 // chat-channel **입력 규칙** — `TriggersService` 에서 떼어낸 도메인 검증·정화 계층.
@@ -290,35 +294,43 @@ export function assertInboundSigningPlaintextByProvider(
 }
 
 /**
- * [Spec Chat Channel §5.4 에러 표] adapter.setupChannel 의 외부 API 에러를 spec 에 정의된
- * BadRequestException 으로 변환.
+ * setupChannel 실패를 `§5.4` 의 응답 계약으로 옮긴다.
  *
- * - 401 / 403 (외부 provider 인증 실패) → `BOT_TOKEN_INVALID` 400
- * - 기타 (5xx / 네트워크 등) → `CHAT_CHANNEL_SETUP_FAILED` 502
+ * - **자격 증명 거부** → `400 BOT_TOKEN_INVALID`
+ * - 그 밖 (provider 5xx · 네트워크 · 타임아웃) → `502 CHAT_CHANNEL_SETUP_FAILED`
  *
- * **알려진 예외 — discord verify_key 불일치는 502 로 떨어진다.** adapter 가 던지는
- * `'BOT_TOKEN_INVALID: Discord verify_key …'` 에는 **숫자가 없어서** 아래 판별식에
- * 걸리지 않는다. 의도는 400 이다. `chat-channel-input-rules.spec.ts` 의 **캐너리**가
- * 현재 동작을 고정하고 있으니 고치면 그 테스트가 RED 가 된다 — 근본 처방(adapter 가
- * status 를 메시지에 싣게 통일)은 `spec-draft-nullable-notation-followups.md` 에 있다.
+ * 판별 기준은 transport 가 아니라 **누가 고칠 수 있는가**다. provider 들이 자격 증명 거부를
+ * 알리는 방식은 서로 다르므로(Slack 은 `HTTP 200` + `{ok:false,error:'invalid_auth'}`, Discord 는
+ * `verify_key` 불일치로 **status 자체가 없다**) 어댑터가 `code` 로 **선언**하고 이 함수는 그
+ * `code` 만 본다 — [spec/conventions/chat-channel-adapter.md §1.1.2].
  *
- * adapter 가 throw 하는 Error 의 message 에 status code 가 포함됨을 가정 (provider client 들의
- * 표준 error message 패턴: "Slack auth.test failed: 401", "Discord getApplicationMe failed:
- * 403", "Telegram setWebhook failed: ..." 등). 정확도가 낮을 경우 default 가 SETUP_FAILED 라
- * fail-safe.
+ * **한시적 예외 — message 의 401/403 fallback.** `code` 를 아직 안 붙인 경로(예: discord 의
+ * `getApplicationMe` 이외 실패, telegram 의 body 파싱 실패)가 **조용히 502 로 빠지는 것보다**
+ * 400 을 주는 편이 낫다는 §1.1.2 의 의도적 예외다. 제거 조건도 그 절에 있다.
+ *
+ * **응답 본문에 provider 원문을 싣지 않는다** (~~`details.reason`~~ 제거). `message` 는 고정
+ * client-safe 문자열이고 원문은 **호출자가 서버 로그에** 남긴다 — 이 함수가 순수하게 남아야
+ * 하는 이유(모듈 전체가 의존 0)와 `§7.5.2` 보안 게이트가 같은 방향이다.
+ *
+ * SoT: [spec/5-system/15-chat-channel.md §5.4] 실패 응답 표 · 근거 `R-CC-23`.
  */
-export function translateSetupChannelError(err: unknown): BadRequestException {
+export function translateSetupChannelError(
+  err: unknown,
+): BadRequestException | BadGatewayException {
   const message = err instanceof Error ? err.message : String(err);
-  if (/\b(401|403)\b/.test(message)) {
+  const credentialRejected =
+    // 어댑터의 선언 — 정확 일치. `code` 는 Node 시스템 에러도 갖는 이름이다 (헬퍼 주석).
+    isCredentialRejectedError(err) ||
+    // 한시적 fallback — 아직 `code` 를 안 붙인 경로.
+    /\b(401|403)\b/.test(message);
+  if (credentialRejected) {
     return new BadRequestException({
-      code: 'BOT_TOKEN_INVALID',
-      message: 'Bot token is invalid (401/403 from provider).',
-      details: { reason: message.slice(0, 256) },
+      code: CREDENTIAL_REJECTED_CODE,
+      message: 'Bot token was rejected by the provider.',
     });
   }
-  return new BadRequestException({
+  return new BadGatewayException({
     code: 'CHAT_CHANNEL_SETUP_FAILED',
     message: 'Chat channel setup failed after rotation.',
-    details: { reason: message.slice(0, 256) },
   });
 }

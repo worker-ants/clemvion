@@ -14,6 +14,7 @@ import type {
   SendResult,
   SetupResult,
 } from '../../types';
+import { credentialRejectedError } from '../../types';
 import { SlackClient } from './slack-client';
 import { renderSlackEvent, escapeSlackMrkdwn } from './slack-message.renderer';
 import { parseSlackUpdate } from './slack-update.parser';
@@ -37,6 +38,27 @@ import type { ChannelButton } from '../../types';
  * Phase 3: renderNode + sendMessage (chat.postMessage / Block Kit / 시각형 v1 text).
  * Phase 4: bot token rotation 의 Slack 분기 + auth.revoke.
  */
+/**
+ * Slack 이 **자격 증명 거부**로 채우는 `auth.test` 의 `error` 값 — 이 값들에만 `code` 를
+ * 부착한다 ([spec/conventions/chat-channel-adapter.md §1.1.2]).
+ *
+ * Slack 은 자격 증명 거부를 **`HTTP 200` + `{ok:false, error}`** 로 알린다 — status 로는
+ * 원리적으로 판별할 수 없어서 호출자의 401/403 fallback 이 Slack 에서는 한 번도 걸리지
+ * 않았다(2026-09-12 실측). 그것이 이 부착의 동기다.
+ *
+ * **열거에 없는 값은 지금 동작 그대로 502 로 둔다.** *"당신 토큰이 잘못됐다"* 를 잘못 말하는
+ * 것이 502 보다 나쁘다 — `ratelimited` 처럼 자격 증명 문제가 아닌 값이 여기 없는 이유다. 이
+ * 목록은 Slack 이 문서화한 표준 auth 에러이고 **이 저장소 안에서 실측할 방법이 없다**(외부 API
+ * 응답). 빠진 값이 드러나면 이 상수 한 곳만 늘린다.
+ */
+const SLACK_CREDENTIAL_REJECTED_ERRORS: ReadonlySet<string> = new Set([
+  'invalid_auth',
+  'not_authed',
+  'account_inactive',
+  'token_revoked',
+  'token_expired',
+]);
+
 @Injectable()
 export class SlackAdapter implements NativeFormAdapter {
   private readonly logger = new Logger(SlackAdapter.name);
@@ -73,7 +95,12 @@ export class SlackAdapter implements NativeFormAdapter {
     const botToken = await this.resolveBotToken(config);
     const result = await this.client.authTest(botToken);
     if (!result.ok) {
-      throw new Error(`Slack auth.test failed: ${result.error ?? 'unknown'}`);
+      const reason = result.error ?? 'unknown';
+      const message = `Slack auth.test failed: ${reason}`;
+      // 자격 증명 축만 `code` 로 선언 — 그 밖은 generic(호출자가 502).
+      throw SLACK_CREDENTIAL_REJECTED_ERRORS.has(reason)
+        ? credentialRejectedError(message)
+        : new Error(message);
     }
     const botId = result.user_id ?? result.bot_id;
     const username = result.user ?? result.bot_id ?? 'slack-bot';

@@ -610,9 +610,12 @@ export const ERROR_KO: Record<string, string> = {
     "알 수 없는 채팅 채널 제공자예요. 지원되는 제공자를 선택해 주세요.",
   CHAT_CHANNEL_ENDPOINT_REQUIRED:
     "채팅 채널 트리거에는 콜백 URL(엔드포인트 경로)이 필요해요.",
-  // setupChannel(봇 토큰 회전 등) 실패 — provider 인증 401/403 (spec §5.4).
+  // setupChannel(봇 토큰 회전 등) 실패 — provider 가 **자격 증명을 거부** (spec §5.4).
+  // 401/403 을 문구에서 뺀 이유: 분류 기준이 transport 가 아니다 (R-CC-23). Slack 은 이 거부를
+  // HTTP 200 + `{ok:false,error:'invalid_auth'}` 로, Discord 는 verify_key 불일치로 알린다 —
+  // 그 사용자에게 "401/403" 은 화면에도 로그에도 없는 숫자다.
   BOT_TOKEN_INVALID:
-    "봇 토큰이 유효하지 않아요 (제공자 인증 401/403). 토큰을 확인해 주세요.",
+    "봇 토큰이 제공자에게 거부됐어요. 토큰을 확인해 주세요.",
   // setupChannel 의 기타 실패(5xx·네트워크 등) → 502 (spec §5.4).
   CHAT_CHANNEL_SETUP_FAILED:
     "채팅 채널 설정에 실패했어요. 잠시 후 다시 시도하거나 토큰·설정을 확인해 주세요.",

@@ -120,7 +120,9 @@ export class DiscordClient {
             message: `HTTP ${res.status}`,
           }))) as DiscordApiError;
           if (res.status >= 400 && res.status < 500) {
-            return { ...errBody, ok: false };
+            // status 를 함께 싣는다 — body 의 `code` 는 인증 실패에 `0` 이 오므로 자격 증명
+            // 거부 판별에 못 쓴다 (어댑터가 `§1.1.2` 의 `code` 부착에 사용).
+            return { ...errBody, ok: false, status: res.status };
           }
           lastError = new Error(`Discord ${method} ${path} HTTP ${res.status}`);
         } else {
