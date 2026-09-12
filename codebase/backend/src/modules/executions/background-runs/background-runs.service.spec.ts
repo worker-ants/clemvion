@@ -630,6 +630,56 @@ describe('BackgroundRunsService', () => {
       ).rejects.toThrow(BadRequestException);
     });
 
+    it('i 성분이 UUID 가 아니면 400 INVALID_CURSOR (22P02 → 500 마스킹 방지)', async () => {
+      // `ne.id` 는 `uuid` 컬럼이라 파싱 불가 값이 바인딩되면 Postgres 가 SQLSTATE 22P02 로
+      // 거부하는데, `GlobalExceptionFilter` 에 그 분기가 없어 **500 INTERNAL_ERROR 로
+      // 마스킹**된다. 이 디코더는 형태·날짜를 이미 검증하므로 **`i` 만 빠져 있었다** —
+      // base64·JSON·날짜가 전부 멀쩡한 커서로 5xx 를 만들 수 있었다.
+      executionRepo.createQueryBuilder.mockReturnValueOnce(
+        buildOwnershipQB('ws-1'),
+      );
+      const cursor = Buffer.from(
+        JSON.stringify({ s: '2026-05-01T00:00:00.000Z', i: 'not-a-uuid' }),
+        'utf8',
+      ).toString('base64');
+
+      // **클래스만 보지 않는다** — 인접 가드(소유권·limit)도 같은 400 을 내므로,
+      // 무엇이 거부했는지까지 단언해야 대조군이 조용히 흡수되지 않는다.
+      await expect(
+        service.getBackgroundRun('exec-1', 'bg-run-id', { cursor }, 'ws-1'),
+      ).rejects.toMatchObject({
+        response: { code: 'INVALID_CURSOR' },
+      });
+    });
+
+    it('[대조군] nil UUID 처럼 느슨한 형태는 커서 검증을 통과한다 (엄격한 술어 금지)', async () => {
+      // `isValidUuid`(RFC v1–v5)로 조이면 Postgres 가 **정상 조회하는** 커서를 거부한다
+      // (`spec/data-flow/12-workspace.md §"UUID 검증 강도 비대칭"`). 술어를 바꾸면 RED.
+      //
+      // **완주를 단언하지 않는다** — 이 describe 의 mock 체인은 커서 분기 뒤의 조회까지는
+      // 세워져 있지 않아서, 완주를 요구하면 이 테스트가 *커서 축이 아니라 mock 완성도*를
+      // 재게 된다. 물어야 할 것은 하나다: **커서 검증이 이 값을 거부했는가.**
+      executionRepo.createQueryBuilder.mockReturnValueOnce(
+        buildOwnershipQB('ws-1'),
+      );
+      const cursor = Buffer.from(
+        JSON.stringify({
+          s: '2026-05-01T00:00:00.000Z',
+          i: '00000000-0000-0000-0000-000000000000',
+        }),
+        'utf8',
+      ).toString('base64');
+
+      const code = await service
+        .getBackgroundRun('exec-1', 'bg-run-id', { cursor }, 'ws-1')
+        .then(
+          () => null,
+          (err: { response?: { code?: string } }) =>
+            err?.response?.code ?? null,
+        );
+      expect(code).not.toBe('INVALID_CURSOR');
+    });
+
     it('rejects out-of-range limit', async () => {
       await expect(
         service.getBackgroundRun('exec-1', 'bg-run-id', { limit: 999 }, 'ws-1'),

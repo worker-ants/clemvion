@@ -118,6 +118,9 @@ describe('LoginHistoryService', () => {
   });
 
   describe('findForUser', () => {
+    // 실제 커서의 id 성분은 `LoginHistory.id`(= `@PrimaryGeneratedColumn('uuid')`) 다.
+    const CURSOR_UUID = '3fa85f64-5717-4562-b3fc-2c963f66afa6';
+
     it('returns one page with no cursor when rows ≤ limit', async () => {
       selectQb.getMany.mockResolvedValue([
         makeRow({ id: '1', createdAt: new Date('2026-05-12T00:00:00Z') }),
@@ -142,18 +145,40 @@ describe('LoginHistoryService', () => {
     });
 
     it('applies composite cursor filter when provided', async () => {
+      // **fixture 가 `'cursor-id'` 였다** — `lh.id` 가 `uuid` 컬럼인데 그 값이 그대로
+      // 바인딩되는 것을 이 테스트가 **정상으로 고정**하고 있었다(아래 새 케이스가 그 자리를
+      // RED 로 드러냈다). 실제 커서가 갖는 형태(UUID)로 바꾼다.
       await service.findForUser({
         userId: 'u',
-        cursor: '2026-05-01T00:00:00.000Z|cursor-id',
+        cursor: `2026-05-01T00:00:00.000Z|${CURSOR_UUID}`,
         limit: 5,
       });
       expect(selectQb.andWhere).toHaveBeenCalledWith(
         '(lh.created_at, lh.id) < (:cursorTs, :cursorId)',
         expect.objectContaining({
           cursorTs: expect.any(Date),
-          cursorId: 'cursor-id',
+          cursorId: CURSOR_UUID,
         }),
       );
+    });
+
+    it('[대조군] nil UUID 처럼 느슨한 형태도 통과시킨다 (엄격한 술어를 쓰면 안 되는 이유)', () => {
+      // `isValidUuid`(RFC v1–v5)로 조이면 Postgres 가 **정상 조회하는** 커서를 거부하게 된다.
+      // 이 케이스가 그 회귀를 고정한다 — 술어 교체 시 RED.
+      return service
+        .findForUser({
+          userId: 'u',
+          cursor:
+            '2026-05-01T00:00:00.000Z|00000000-0000-0000-0000-000000000000',
+        })
+        .then(() => {
+          expect(selectQb.andWhere).toHaveBeenCalledWith(
+            '(lh.created_at, lh.id) < (:cursorTs, :cursorId)',
+            expect.objectContaining({
+              cursorId: '00000000-0000-0000-0000-000000000000',
+            }),
+          );
+        });
     });
 
     it('caps limit at 100', async () => {
@@ -163,6 +188,18 @@ describe('LoginHistoryService', () => {
 
     it('ignores malformed cursor and returns first page', async () => {
       await service.findForUser({ userId: 'u', cursor: 'not-a-cursor' });
+      expect(selectQb.andWhere).not.toHaveBeenCalled();
+    });
+
+    it('id 성분이 UUID 가 아니면 커서를 무시한다 (22P02 → 500 마스킹 방지)', async () => {
+      // `lh.id` 는 `uuid` 컬럼이라, 파싱 불가 값이 바인딩되면 Postgres 가 SQLSTATE 22P02 로
+      // 거부한다. `GlobalExceptionFilter` 에는 그 분기가 없어 **500 INTERNAL_ERROR 로
+      // 마스킹**된다 — 인증된 사용자가 임의로 5xx 를 만들 수 있다는 뜻이다.
+      // 날짜·구분자가 잘못됐을 때와 **같은 처분**(무시하고 1페이지)으로 맞춘다.
+      await service.findForUser({
+        userId: 'u',
+        cursor: '2026-05-01T00:00:00.000Z|not-a-uuid',
+      });
       expect(selectQb.andWhere).not.toHaveBeenCalled();
     });
   });

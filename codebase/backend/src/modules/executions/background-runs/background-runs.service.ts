@@ -19,6 +19,7 @@ import {
 } from './dto/background-run-response.dto';
 import { QueryBackgroundRunDto } from './dto/query-background-run.dto';
 import { redactStoredFieldsForResponse } from '../../../shared/utils/redact-stored-error';
+import { isUuidShaped } from '../../../common/utils/uuid';
 
 const NODE_EXECUTIONS_DEFAULT_LIMIT = 50;
 const NODE_EXECUTIONS_MAX_LIMIT = 200;
@@ -160,6 +161,22 @@ export class BackgroundRunsService {
       const parsedDate = new Date(parsed.s);
       if (Number.isNaN(parsedDate.getTime())) {
         throw new Error('cursor invalid date');
+      }
+      // **`i` 도 검증한다** — `ne.id` 는 `uuid` 컬럼이라 파싱 불가 값이 바인딩되면 Postgres 가
+      // SQLSTATE 22P02 로 거부하는데, `GlobalExceptionFilter` 에 그 분기가 없어 **500
+      // INTERNAL_ERROR 로 마스킹**된다. 이 디코더는 base64·JSON·날짜를 이미 검증하고 있어서
+      // **`i` 하나만 빠져 있었다** — 나머지가 전부 멀쩡한 커서로 5xx 를 만들 수 있었다.
+      //
+      // 술어는 `isUuidShaped` 다(`isValidUuid` 가 아니다) — 물어야 할 것은 *"Postgres 가
+      // `uuid` 컬럼 값으로 파싱하는가"* 뿐이고, 더 엄격한 술어는 nil UUID·v7 처럼 **정상
+      // 조회되는 커서를 거부**한다. 근거: `spec/data-flow/12-workspace.md §Rationale
+      // "UUID 검증 강도 비대칭"`.
+      //
+      // 처분은 이 디코더의 다른 실패 모드와 같다 — 400 `INVALID_CURSOR`. 형제
+      // `auth/login-history.service.ts` 의 `decodeCursor` 는 같은 상황에서 **무시하고 1페이지**를
+      // 준다(계약이 다르다). 통일은 관측 가능한 동작 변경이라 제품 결정이고, 별 건으로 등재했다.
+      if (!isUuidShaped(parsed.i)) {
+        throw new Error('cursor id is not uuid-shaped');
       }
       return parsed;
     } catch {

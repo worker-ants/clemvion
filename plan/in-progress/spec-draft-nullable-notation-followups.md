@@ -3165,6 +3165,40 @@ field: T | null;
       *"노드 에러 포트가 일반 실패에 무엇을 싣는가"* 를 **실측해야** 대응 코드가 정해진다.
       추측으로 치환하면 오기를 다른 오기로 바꾸는 것이다.
 
+- [ ] **두 keyset 커서 디코더의 실패 계약이 다르다 — 무시 vs 400** (developer, 2026-09-12
+      등재 · `keyset-cursor-uuid-validation.md §C`). `auth/login-history.service.ts` 는 잘못된
+      커서를 **무시하고 1페이지**를 주고, `executions/background-runs/background-runs.service.ts`
+      는 **400 `INVALID_CURSOR`** 를 던진다. 같은 개념에 두 계약이다.
+      `keyset-cursor-uuid-validation` 은 각자의 계약을 **유지한 채** id 검증만 넣었다 —
+      통일은 관측 가능한 동작 변경이라 제품 결정이 필요하기 때문이다. 어느 쪽으로 통일할지가
+      이 항목이다. 두 코드 주석에 *"형제는 다르게 동작한다"* 를 남겨 두었다.
+
+- [ ] **두 keyset 커서 디코더가 손으로 각각 구현돼 있다** (developer, 2026-09-12 등재 ·
+      같은 문서 §C). 인코딩이 달라(평문 `<iso>|<id>` vs base64 JSON) 단순 추출이 아니다.
+      위 계약 통일 결정이 선행되면 함께 묶는 편이 싸다.
+
+- [ ] **Background Runs REST 의 에러 코드 4종이 중앙 카탈로그에 없다** (**planner 항목** —
+      developer 가 등재, 2026-09-12 · `/consistency-check --impl-prep`
+      `review/consistency/2026/09/12/22_51_25` cross_spec·convention_compliance WARNING).
+      `INVALID_CURSOR` · `INVALID_LIMIT` · `EXECUTION_NOT_FOUND` · `BACKGROUND_RUN_NOT_FOUND`
+      가 `3-error-handling.md §1` 에 미등재다 — §1.5~§1.12 가 예외 없이 지켜 온 *"도메인 SoT +
+      카탈로그 가시성 등재"* 관행에서 이 도메인만 빠졌다. 제안: §1.13 신설 +
+      `4-nodes/1-logic/12-background.md §8.7` 을 SoT 로 역링크.
+
+- [ ] **`2-api-convention.md §8.2` 가 cursor 페이지네이션을 단일 표준으로만 적는다**
+      (**planner 항목** — developer 가 등재, 2026-09-12 · 같은 세션 cross_spec WARNING).
+      §8.2 는 opaque base64 + 실패 시 400 `INVALID_CURSOR` 하나만 서술하는데 `login_history`
+      는 평문 `<iso>|<id>` + 실패 시 무시다. **그 예외가 어디에도 없다.**
+      > `keyset-cursor-uuid-validation` 이 두 계약을 통일 없이 각각 강화했으므로 이 비대칭은
+      > 사실상 **고정**됐다(checker 의 표현). 위 "계약 통일" 항목과 **같이 결정**해야 한다 —
+      > 통일하면 §8.2 가 그대로 맞고, 유지하면 §8.2 에 예외 각주가 필요하다.
+
+- [ ] **`3-error-handling.md §1.6` 각주의 `EXECUTION_NOT_FOUND` 분류가 §1.9 기준과 어긋난다**
+      (**planner 항목** — developer 가 등재, 2026-09-12 · 같은 세션 convention_compliance).
+      각주는 *"§1.2~§1.3 표준 코드 재사용"* 이라 적는데, 같은 문서 §1.9 가 세운 기준
+      (*제네릭 문자열 그대로 wire = 재사용 / 도메인 특화 wire 리터럴 = 직접 등재*)으로는
+      **직접 등재** 쪽이다. 위 카탈로그 항목과 한 턴에 처리하면 비용이 낮다.
+
 - [ ] **UUID 경로 파라미터의 두 축을 `@ApiUuidParam()` 합성 데코레이터로 묶는다** (developer,
       2026-09-12 등재 · `/ai-review` `review/code/2026/09/12/22_03_45` architecture WARNING,
       **non-blocking 제안**). 지금은 런타임 축(`ParseUUIDPipe`)과 문서 축
@@ -3187,18 +3221,39 @@ field: T | null;
       > (`newest_code` 는 `codebase/**` 만 센다). 산문 두 줄에 14명을 다시 돌리는 것이
       > 이 항목을 미루는 것보다 비싸다.
 
-- [ ] **`GlobalExceptionFilter` 가 SQLSTATE 22P02 를 분류하지 않는다 — 파이프 밖 유입 경로는
+- [x] ~~**`GlobalExceptionFilter` 가 SQLSTATE 22P02 를 분류하지 않는다 — 파이프 밖 유입 경로는
       여전히 500 마스킹** (developer, 2026-09-12 등재 · `/ai-review`
       `review/code/2026/09/12/21_20_01` architecture WARNING). `#1328`
       은 `@Param()` 축을 파이프 + 전수 가드로 닫았지만, **필터 자체는 그대로다** —
       `HttpException` · http-error-like · unique-violation(23505) 세 분기뿐이라
       `@Query()` · body 필드 조회 등 다른 경로로 비-UUID 가 들어가면 같은 500 마스킹이 난다.
       즉 지금 방어는 **호출부마다 반복 배치**된 형태이고 공유 seam 이 비어 있다.
-      처분 제안: 필터에 `invalid_text_representation`(22P02) → `400 VALIDATION_ERROR` 분기.
+      처분 제안: 필터에 `invalid_text_representation`(22P02) → `400 VALIDATION_ERROR` 분기.~~
       > **이 배치에서 안 한 이유**: 그 한 줄은 **저장소의 모든 엔드포인트**의 실패 분류를
       > 바꾼다 — 지금 22P02 로 500 을 받는 자리가 어디이고 그중 400 이 맞지 않은 곳이 있는지를
       > 먼저 세야 한다(예: 사용자 입력이 아닌 내부 조회 실패). 착수 전 그 전수가 선행 조건이다.
       > 파이프·가드는 이 필터가 생겨도 유지한다 — fail-fast 가 더 앞이다.
+      >
+      > **종결 — won't-do (2026-09-12, `keyset-cursor-uuid-validation.md §A`).** 선행 조건으로
+      > 걸어 둔 그 전수를 실제로 세니 **처방이 틀렸다**:
+      >
+      > 1. `3-error-handling.md §1` 이 이미 반례를 적어 두었다 — *"**JWT 클레임은 검증하지
+      >    않는다** — 서버가 서명한 값이라 거기서 400 을 내면 **서버 버그를 클라이언트 오류로
+      >    보고**하게 된다."* 필터는 값의 **출처를 모르므로** 일괄 400 은 이 원칙을 어긴다.
+      >    같은 축의 정식 Rationale: `spec/data-flow/12-workspace.md §"UUID 검증 강도 비대칭"`.
+      > 2. 필터의 기존 분기가 이미 그 구분을 한다 — 23505(클라이언트 경합) → 409,
+      >    **23502(앱이 만든 잘못된 row) → 500 유지**(캐너리 2개가 고정 중). 22P02 는 출처에
+      >    따라 양쪽 다 될 수 있다.
+      > 3. **신호가 사라진다.** 이 항목을 파고들어 진짜 결함 2건을 찾은 실마리가 정확히
+      >    *"22P02 가 500 으로 뜬다"* 였다. 500 은 *"어느 입구가 검증을 빠뜨렸다"* 는 알람이고,
+      >    조용한 400 으로 바꾸면 다음 입구 누락은 아무도 모른다.
+      > 4. 유일한 반례 후보(사용자가 SQL 을 쓰는 **DB Query 노드**)는 `mapDbError` 로 자체
+      >    catch 해 error 포트로 가므로 **필터에 도달하지 않는다** — 반례가 아니다.
+      >
+      > 저장소의 전략은 **입구마다 조기 거부**이고(`workspace-context.util.ts` 가 선례),
+      > 필터의 500 은 그 전략의 **미이행 알람**이다. 그래서 필터 대신 **입구**를 고쳤다 —
+      > 커서 2곳(`#-` keyset-cursor-uuid-validation). 다음 사람이 같은 제안을 다시 하지 않도록
+      > 근거를 남긴다.
 
 - [ ] **가이드가 적는 식별자(에러 코드·환경변수)가 실재하는지 세는 가드가 없다** (developer,
       2026-09-12 등재 · `/ai-review` `review/code/2026/09/12/20_53_01` testing WARNING).

@@ -5,6 +5,7 @@ import {
   LoginHistory,
   LoginHistoryEvent,
 } from './entities/login-history.entity';
+import { isUuidShaped } from '../../common/utils/uuid';
 import { deriveDeviceLabel } from './utils/device-label';
 import {
   LoginHistoryItemDto,
@@ -49,6 +50,19 @@ function decodeCursor(
   if (!iso || !id) return null;
   const ts = new Date(iso);
   if (Number.isNaN(ts.getTime())) return null;
+  // **id 도 검증한다** — `lh.id` 는 `uuid` 컬럼이라 파싱 불가 값이 바인딩되면 Postgres 가
+  // SQLSTATE 22P02 로 거부하는데, `GlobalExceptionFilter` 에 그 분기가 없어 **500
+  // INTERNAL_ERROR 로 마스킹**된다. 즉 인증된 사용자가 커서 한 줄로 5xx 를 만들 수 있었다.
+  //
+  // 술어는 `isUuidShaped` 다(`isValidUuid` 가 아니다) — 물어야 할 것은 *"Postgres 가 `uuid`
+  // 컬럼 값으로 파싱하는가"* 뿐이고, 더 엄격한 술어를 쓰면 nil UUID·v7 처럼 **정상 조회되는
+  // 커서를 거부**하게 된다. 근거: `spec/data-flow/12-workspace.md §Rationale
+  // "UUID 검증 강도 비대칭"`.
+  //
+  // 처분은 이 디코더의 **다른 실패 모드와 같다** — 무시하고 1페이지. 형제
+  // `background-runs.service.ts` 의 `decodeCursor` 는 같은 상황에서 400 `INVALID_CURSOR` 를
+  // 던진다(계약이 다르다). 통일은 관측 가능한 동작 변경이라 제품 결정이고, 별 건으로 등재했다.
+  if (!isUuidShaped(id)) return null;
   return { ts, id };
 }
 
