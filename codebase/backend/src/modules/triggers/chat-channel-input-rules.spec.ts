@@ -191,11 +191,11 @@ describe('chat-channel-input-rules — provider 분기 (생성 전용)', () => {
    * 반드시 거부돼야 한다. 그 교차 케이스가 정규식 스왑을 잡는다.
    */
   it.each([
-    ['slack', 32, 64],
-    ['discord', 64, 32],
+    ['slack', 32, 64, 'Slack signing secret', 'Discord'],
+    ['discord', 64, 32, 'Discord application public key', 'Slack'],
   ] as const)(
     '%s 는 hex%d 를 요구한다 — 다른 provider 의 길이(hex%d)는 거부한다',
-    (provider, ownLen, otherLen) => {
+    (provider, ownLen, otherLen, ownLabel, otherVendor) => {
       // 유효
       expect(
         thrown(() =>
@@ -205,25 +205,32 @@ describe('chat-channel-input-rules — provider 분기 (생성 전용)', () => {
         ),
       ).toBeNull();
       // 비-hex (길이는 맞음)
-      expect(
-        thrown(() =>
-          assertInboundSigningPlaintextByProvider(
-            cfg({ provider, inboundSigningPlaintext: 'Z'.repeat(ownLen) }),
-          ),
+      //
+      // **`message` 까지 본다.** 형식 불일치 분기의 두 메시지를 Slack↔Discord 로 맞바꿔도
+      // `details` 는 두 provider 가 **동일**해서 이 단언이 없으면 스왑이 통과한다 — 실측으로
+      // 30/30 GREEN 이었다(`review/code/2026/09/12/17_52_34` testing WARNING).
+      // 바로 위 "부재" 분기는 앞선 라운드에서 같은 하드닝을 받았는데 **형제 분기를 빠뜨렸다** —
+      // 한 칸 좁게 고친 전형이다.
+      const badHex = thrown(() =>
+        assertInboundSigningPlaintextByProvider(
+          cfg({ provider, inboundSigningPlaintext: 'Z'.repeat(ownLen) }),
         ),
-      ).toMatchObject({
+      );
+      expect(badHex).toMatchObject({
         details: { field: 'inboundSigningPlaintext', code: 'INVALID_FIELD' },
       });
+      expect(badHex?.message).toContain(ownLabel);
+      expect(badHex?.message).not.toContain(otherVendor);
       // **교차** — 다른 provider 의 유효 길이는 이쪽에서 거부돼야 한다(정규식 스왑 검출)
-      expect(
-        thrown(() =>
-          assertInboundSigningPlaintextByProvider(
-            cfg({ provider, inboundSigningPlaintext: 'a'.repeat(otherLen) }),
-          ),
+      const crossed = thrown(() =>
+        assertInboundSigningPlaintextByProvider(
+          cfg({ provider, inboundSigningPlaintext: 'a'.repeat(otherLen) }),
         ),
-      ).toMatchObject({
+      );
+      expect(crossed).toMatchObject({
         details: { field: 'inboundSigningPlaintext', code: 'INVALID_FIELD' },
       });
+      expect(crossed?.message).toContain(ownLabel);
     },
   );
 

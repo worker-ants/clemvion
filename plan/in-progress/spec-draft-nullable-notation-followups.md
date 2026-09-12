@@ -3058,6 +3058,14 @@ field: T | null;
       > 형제 가드가 *"fixture 는 스캔 범위 밖에 둔다"* 고 적어 둔 이유를 몸으로 확인했고,
       > 스캔 루트를 실측(`*.dto.ts` 는 `modules/` 111 · `common/` 3)으로 좁혔다.
 
+- [ ] **frontend 가 `botIdentity` 의 provider 부가 필드를 아직 안 읽는다** (developer,
+      2026-09-12 등재 · `/ai-review` `review/code/2026/09/12/17_52_34` user_guide_sync INFO).
+      backend 는 이 PR 로 Slack `teamId` · Discord `publicKey` 를 **응답 계약으로 명문화**했는데
+      (`ChatChannelRotateBotIdentityDto`), 소비 계층(`lib/api/triggers.ts` ·
+      `chat-channel-card.tsx` · `dict/{ko,en}/triggers.ts`)은 두 필드를 모른다.
+      **wire 포맷 자체는 이전부터 실려 있었다**(스프레드 반환) — 즉 이 PR 이 만든 갭이 아니라
+      **드러낸** 갭이다. 표시할지 말지는 UX 판단이므로 등재만 한다.
+
 - [ ] **유저 가이드 MDX 4곳이 rotate-bot-token 404 를 `TRIGGER_NOT_FOUND` 로 적는다 —
       실제 코드는 `RESOURCE_NOT_FOUND`** (developer, 2026-09-12 등재 · `/ai-review`
       `review/code/2026/09/12/17_39_51` user_guide_sync INFO). 2026-05-23 `#282` 에서 유입된
