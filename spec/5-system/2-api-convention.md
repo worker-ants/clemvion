@@ -359,6 +359,11 @@ shape (`{ field, message, code }` · `{ field, code, … }`) 이 **예시로 읽
 
 ## 7. Rate Limiting
 
+> **한 행만 초과 응답이 다르다.** Chat Channel inbound 는 429 가 아니라 **`202 Accepted` +
+> `{ executionId: 'ignored' }`** 를 돌려준다 — Telegram 이 비-2xx 를 재시도·webhook 해제로
+> 다루기 때문이다(근거 [R-CC-19](./15-chat-channel.md#r-cc-19-cch-nf-03-rate-limit--replay-큐-대신-skip--degraded)).
+> 이 예외를 적어 두지 않으면 다음 사람이 *"429 로 통일"* 을 정합성 개선으로 착각한다.
+
 | 범위 | 제한 | 헤더 |
 |------|------|------|
 | 일반 API | 100 req/min (사용자 기준) | `X-RateLimit-Limit`, `X-RateLimit-Remaining`, `X-RateLimit-Reset` |
@@ -370,6 +375,7 @@ shape (`{ field, message, code }` · `{ field, code, … }`) 이 **예시로 읽
 | 초대 발송/재발송 (`POST /api/workspaces/:id/invitations` · `.../invitations/:invitationId/resend`) | 10 req/min (사용자 기준) — email-bombing 방지 `@Throttle`. provider probe 와 공통 tier 상수 `SENSITIVE_ACTION_THROTTLE`(별칭 `INVITATION_THROTTLE`) | 동일 |
 | External Interaction inbound (`POST /api/external/executions/:id/interact` · `GET /api/external/executions/:id`) | interact 60 req/min · status 조회 120 req/min — **execution 당** (IP 아님). 글로벌 100/min 위에 얹히는 층. `InteractionRateLimiterService`(Redis fixed-window) + `InteractionRateLimitGuard`, 초과 시 `429 RATE_LIMITED` + `Retry-After`. SoT: [§14 External Interaction API §8.4](./14-external-interaction-api.md#84-rate-limit) | `Retry-After` |
 | External Interaction SSE 동시연결 (`GET /api/external/executions/:id/stream`) | execution 당 3 동시연결 — 초과 시 `429 TOO_MANY_CONNECTIONS`(EIA 전용). SoT: [§14 §5.2](./14-external-interaction-api.md) | — |
+| Chat Channel inbound (per-chat) | **chat 당** 분당 60건 (기본값 — `config.chatChannel.rateLimitPerMinute` 로 1–600 override). 초과분은 **버퍼링·재발사 없이 처리 생략** + `chat_channel_health=degraded`. `ChatChannelRateLimiterService`(Redis fixed-window), Redis 미가용 시 **fail-open**. SoT: [Chat Channel §3.6 CCH-NF-03](./15-chat-channel.md#36-비기능-요구사항) | — (아래 캐비엇) |
 | WebSocket 명령 (`/ws` namespace 의 `@SubscribeMessage`) | **socket 당** 60 msg/min (in-memory fixed-window, HTTP 아님). `WsRateLimitGuard`, 초과 시 `WsException(RATE_LIMITED)` → 클라이언트 `exception` 이벤트(HTTP status 없음). `ping` 포함 전 핸들러 + 미등록 이벤트(onAny)에 적용. SoT: [§6 WS 프로토콜 §7.1](./6-websocket-protocol.md#71-에러-코드) | — (transport: socket `exception`) |
 
 Rate Limit 초과 시 `429` 응답 + `Retry-After` 헤더.

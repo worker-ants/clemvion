@@ -71,11 +71,25 @@ POST https://slack.com/api/auth.test
 Authorization: Bearer {botToken}
 → { ok: true, team_id, user_id, bot_id, url, team, user, ... }
 # 실패(자격 증명 거부): HTTP **200** + { ok: false, error: 'invalid_auth' | 'not_authed'
-#                                    | 'account_inactive' | 'token_revoked' | ... }
+#                                    | 'account_inactive' | 'token_revoked' | 'token_expired' }
 #   → Slack Web API 는 인증 실패도 200 으로 준다. 어댑터는 이것을 **자격 증명 거부 신호**로
 #     읽어 `code: 'BOT_TOKEN_INVALID'` 를 실어 throw 한다 (CCA §1.1.2).
   → config.chatChannel.botIdentity = { botId: hashStringToInt(user_id ?? bot_id), username: (user ?? bot_id), teamId: team_id }
 ```
+
+> **위 5값이 `BOT_TOKEN_INVALID` 판별의 전부다** — 목록을 열어 두지 않는다
+> ([CCA §1.1.2](../../../conventions/chat-channel-adapter.md#112-setupchannel-실패-판별--자격-증명-거부는-code-로-선언한다)).
+> `ratelimited` 처럼 자격 증명과 무관한 값은 **의도적으로 제외**한다 — *"당신 토큰이 잘못됐다"*
+> 를 잘못 말하는 것이 `502`(그 밖의 실패)보다 나쁘기 때문이다. 열거에 없는 값은 502 로 간다.
+>
+> **이 목록은 저장소 안에서 실측할 수 없다**(외부 API 응답이다). 늘리려면 *Slack 이 문서화한
+> 표준 auth 에러*임을 근거로 대고 코드 상수(`slack.adapter.ts` 의
+> `SLACK_CREDENTIAL_REJECTED_ERRORS`)와 **함께** 늘린다 — 한쪽만 바꾸면 판별이 조용히 갈린다.
+>
+> **`token_expired` 는 동명 이물과 무관하다**: `Integration.status_reason` 의
+> `'token_expired'`([1-data-model.md §2.10](../../../1-data-model.md#210-integration))과 글자만
+> 같고 **별 네임스페이스**다 — 이쪽은 Slack API 응답 문자열, 저쪽은 우리 DB 컬럼 값이다.
+> (같은 문서가 `TOKEN_EXPIRED`/`auth.token_expired` 에 대해 이미 같은 각주를 달아 뒀다.)
 
 Slack 의 식별자 (`user_id` `U…` / `bot_id` `B…`) 는 문자열이지만 `botIdentity.botId` 슬롯이 `number` (Convention §2.3 SoT) 이므로 `slack.adapter.ts` 의 `hashStringToInt` 로 deterministic int 변환하여 저장한다 — Slack identity 의 실제 식별자는 `username` + `teamId` 이고 `botId` 는 키로 쓰이지 않는다.
 

@@ -7,6 +7,7 @@ code:
   - codebase/backend/src/common/config/production-guards.ts
   - codebase/backend/src/main.ts
   - codebase/backend/src/repo-guards/__tests__/swagger-dto-contract*.ts
+  - codebase/backend/src/repo-guards/__tests__/dto-class-name-collision*.ts
   - codebase/backend/src/shared/testing/response-contract*.ts
   - codebase/backend/src/shared/testing/swagger-probe*.ts
   - codebase/backend/src/repo-guards/__tests__/user-entity-exposure*.ts
@@ -16,6 +17,7 @@ code:
   - codebase/backend/src/repo-guards/__tests__/fixtures/dto/responses/optional-nullable*.ts
   - codebase/backend/src/repo-guards/__tests__/fixtures/user-eager-relation*.ts
   - codebase/backend/src/repo-guards/__tests__/fixtures/user-relation-load*.ts
+  - codebase/backend/src/repo-guards/__tests__/fixtures/dto-class-collision/*.ts
 ---
 
 # Swagger 문서화 일관된 패턴 가이드
@@ -395,6 +397,27 @@ DTO `description` 은 *"한 줄로 읽히는가"* 가 기준이지 글자 수가
 > `GET /api/audit-logs` 가 3필드를 광고하면서 `User` 엔티티 26키(`passwordHash`·2FA 복구 코드·
 > 계정 탈취 토큰 포함)를 내보내고 있었다 (`CHANGELOG.md`).
 > 이 검증자들의 경계는 [API 규약 §5.4 검증 층](../5-system/2-api-convention.md#검증-층--이-규칙을-무엇이-강제하는가) 이 소유한다 — **개수를 적지 않는다.** 그쪽 표가 인벤토리이고, 축이 늘 때마다 숫자를 고쳐야 하는 자리를 만들지 않기 위해서다.
+
+**응답 DTO 클래스명은 저장소 전체에서 유일해야 합니다.** `@nestjs/swagger` 는 스키마를
+**클래스 `.name` 문자열**로 `components.schemas` 에 등록하므로, 서로 다른 두 클래스가 같은
+이름을 쓰면 **한쪽이 다른 쪽을 덮어씁니다** — 어느 쪽이 남는지는 스캔 순서에 달렸고, 남지 못한
+엔드포인트의 문서는 실제 응답과 다른 형태를 광고합니다. **컴파일은 통과합니다**(서로 다른
+모듈의 서로 다른 클래스이므로) — 타입이 막아 주지 않는 축입니다.
+
+같은 개념을 층별로 나눠 선언해야 할 때(입력 검증 DTO vs 응답 DTO)는 **이름을 다르게** 둡니다.
+선례: `ChatChannelBotIdentityDto`(입력 — 전 필드 optional, 어댑터가 덮어쓰는 캐시) vs
+`ChatChannelRotateBotIdentityDto`(응답 — `botId`·`username` 필수 + provider 부가 필드).
+**합치지 않는 이유**: 두 자리의 계약이 다르므로 하나로 묶으면 한쪽이 반드시 거짓말을 합니다
+(같은 판단의 선례 — `TriggerWorkflowRefDto` vs `ScheduleTriggerWorkflowRefDto`).
+
+> **강제**: [`repo-guards/__tests__/dto-class-name-collision.spec.ts`](../../codebase/backend/src/repo-guards/__tests__/dto-class-name-collision.spec.ts)
+> 가 `modules/`·`common/` 의 `*.dto.ts` 를 **AST 로** 훑어 `export class` 이름 중복 0을
+> 고정합니다(2026-09-12 신설). 정규식이 아니라 AST 인 이유는 주석·문자열·JSDoc 예제 안의
+> `export class` 를 세면 가드가 자기 오탐으로 죽기 때문입니다.
+>
+> 이 규칙은 **가드가 먼저 생기고 규약이 나중에 온 자리**입니다 — 첫 위반(`#1326` 이 스스로 낸
+> 동명 클래스 CRITICAL)이 가드를 불렀고, 그 가드가 무엇을 강제하는지 여기 적지 않으면 다음
+> 사람이 *"누가 왜 넣었는지 모르는 검사"* 로 보고 지웁니다.
 
 **형제 DTO 가 같은 enum 을 공유하면 `*.literal.ts` 로 뺍니다.** 두 개 이상의 응답 DTO 가
 동일한 값 집합을 노출할 때, 각 DTO 가 유니온 타입과 swagger `enum` 배열을 **각자 선언하면

@@ -2803,12 +2803,14 @@ field: T | null;
       > 컬럼엔 코드 (c) 컬럼은 유지하고 **응답에서만** 제외. 응답 축의 형제 결정은
       > `15-chat-channel.md R-CC-23`(§5.4 응답 본문에서 원문 echo 중단)이다.
 
-- [ ] **`3-error-handling.md §1` 중앙 카탈로그에 chat-channel rotate 에러 코드군이 없다**
+- [x] **`3-error-handling.md §1` 중앙 카탈로그에 chat-channel rotate 에러 코드군이 없다**
       (planner, 2026-09-12 등재 · `--spec` `review/consistency/2026/09/12/12_05_58` INFO 6).
       `BOT_TOKEN_INVALID` · `CHAT_CHANNEL_SETUP_FAILED` 등이 다른 도메인과 달리 중앙 카탈로그에
       등재 자리가 없다. 기존 갭이고 `R-CC-23` 턴의 동기가 아니라 스코프 밖으로 뒀다 —
       **그 유예 근거가 봉인되지 않도록** 여기 옮겨 적는다(`§1.12` 가칭).
 
+      > **✅ 2026-09-12 해소** — `spec-draft-chat-channel-doc-batch` (`--spec` `review/consistency/2026/09/12/18_55_57` BLOCK: NO). `§1.12` 신설(6종 + status + SoT). §1.11 의
+      > 형식을 그대로 따랐고, `INVALID_BOT_TOKEN`/`BOT_TOKEN_INVALID` 어순 혼동 경고를 달았다.
 - [ ] **CCA §1.1.2 의 401/403 fallback 제거 판정** (developer, 2026-09-12 등재 ·
       `--spec` `12_22_24` INFO 3). `R-CCA-9` 가 그 fallback 을 *"message 원문으로 분기하지 않는다"*
       에 대한 **한시적 예외**로 두고 제거 조건을 적었다 — **v1 provider 3종(telegram·slack·discord)이
@@ -2945,32 +2947,45 @@ field: T | null;
       > mode·visual SSR)가 여전히 미구현이라 `status: partial` 이 유효하다는 사실뿐이고, 그건
       > 위 커밋의 주석이 이미 적고 있다.
 
-- [ ] **`slack.md §3.1` 의 개방형 열거를 확정 5값으로** (planner, 2026-09-12 등재 ·
+- [x] **`slack.md §3.1` 의 개방형 열거를 확정 5값으로** (planner, 2026-09-12 등재 ·
       `--impl-prep` `review/consistency/2026/09/12/12_54_15` INFO 2). 코드가
       `invalid_auth`·`not_authed`·`account_inactive`·`token_revoked`·`token_expired` **5값**을
       자격 증명 거부로 확정했는데(`slack.adapter.ts` 의 `SLACK_CREDENTIAL_REJECTED_ERRORS`),
       spec 은 *"..."* 로 열어 두고 있다. **이 목록은 저장소 안에서 실측 불가**(외부 API 응답)라
       코드 주석에 출처를 적었고, spec 이 그것을 정본으로 받아야 다음 사람이 임의로 늘리지 않는다.
 
-- [ ] **CCA §1.1.2 다의성 표에 Node 시스템 `.code` 행을 추가한다** (planner, 2026-09-12 등재 ·
+      > **✅ 2026-09-12 해소** — `spec-draft-chat-channel-doc-batch` (`--spec` `review/consistency/2026/09/12/18_55_57` BLOCK: NO). `...` 를 `token_expired` 로 닫고, *"열거에
+      > 없으면 502"* 와 *"코드 상수와 함께 늘린다"* 를 각주로. `Integration.status_reason`
+      > 의 동명 값과 **별 네임스페이스**임도 함께 적었다(`--spec` naming_collision W3).
+- [x] **CCA §1.1.2 다의성 표에 Node 시스템 `.code` 행을 추가한다** (planner, 2026-09-12 등재 ·
       `--impl-prep` `12_54_15` INFO 6). 표가 `code` 의 세 뜻을 적는데 **네 번째**가 있다 —
       Node/undici 시스템 에러(`ENOTFOUND`·`ECONNREFUSED`·`UND_ERR_*`)도 `.code` 를 갖는다.
       `telegram-client.ts` 주석이 그 경로의 실재를 이미 적고 있었다. 구현은 **화이트리스트 정확
       일치**로 막았고 `ENOTFOUND → 502` 캐너리로 고정했으나(`chat-channel-input-rules.spec.ts`),
       **원칙이 spec 에 없으면** 다음 사람이 `if (err.code)` 로 쓴다.
 
-- [ ] **`2-api-convention.md §7` rate-limit 표에 chat-channel per-chat 행이 없다** (planner,
+      > **✅ 2026-09-12 해소** — `spec-draft-chat-channel-doc-batch` (`--spec` `review/consistency/2026/09/12/18_55_57` BLOCK: NO). 표가 **네 뜻**이 됐고, *"truthiness 판별은
+      > 네트워크 단절을 토큰 문제로 보고한다"* 와 정확 일치 원칙을 함께 적었다.
+- [x] **`2-api-convention.md §7` rate-limit 표에 chat-channel per-chat 행이 없다** (planner,
       2026-09-12 등재 · `--impl-prep` `12_54_15` WARNING 2). `CCH-NF-03`(기본 60 req/min,
       1–600 override, `ChatChannelRateLimiterService`)이 §7 *"throttle 수치의 단일 진실은 본 표"*
       에 미등재. 형제 사례(EIA inbound·SSE 동시연결)는 이미 행으로 있다. 이번 PR 의 계약 축이
       아니라 스코프 밖으로 뒀다.
 
-- [ ] **`15-chat-channel.md` 가 "3.x" 절 번호를 두 계층에서 중복 사용한다** (planner,
+      > **✅ 2026-09-12 해소** — `spec-draft-chat-channel-doc-batch` (`--spec` `review/consistency/2026/09/12/18_55_57` BLOCK: NO). 행 신설 + **이 행만 429 가 아니라 202** 라는
+      > 예외를 표 위 캐비엇으로 적었다(R-CC-19) — 안 적으면 *"429 로 통일"* 이 정합성
+      > 개선으로 오인된다.
+- [x] **`15-chat-channel.md` 가 "3.x" 절 번호를 두 계층에서 중복 사용한다** (planner,
       2026-09-12 등재 · `--impl-prep` `12_54_15` WARNING 3). Overview 안의 `### 3. 요구사항`
       (§3.1~§3.6)과 Overview 밖 `## 3. 처리 흐름`(자체 §3.1~§3.3)이 겹쳐 *"§3.3"* 이 문서 안에
       두 곳을 가리킨다. **링크·인용의 오배송 위험**이라 문서 구조 문제로 등재한다.
 
-- [ ] **`15-chat-channel.md §7` 파일 트리가 `chat-channel-input-rules.ts` 를 "입력" 으로만
+      > **✅ 2026-09-12 — 구조 변경을 *기각*으로 종결** (`spec-draft-chat-channel-doc-batch` (`--spec` `review/consistency/2026/09/12/18_55_57` BLOCK: NO)).
+      > 두 처방의 비용을 실측했다: (a) 최상위 승격+cascade **48+** 링크 · (b) Overview 재번호
+      > **34** 링크. 표시 번호의 미관을 위해 그만큼을 건드리지 않는다(`#970` 선례).
+      > 대신 **인용 규칙**(제목 병기)을 두 자리에 명문화하고 기각을 `R-CC-24` 로 정식화했다
+      > — 그래야 다음 checker 가 같은 측정을 반복하지 않는다. 되살릴 조건도 함께 적었다.
+- [x] **`15-chat-channel.md §7` 파일 트리가 `chat-channel-input-rules.ts` 를 "입력" 으로만
       적는다** (planner, 2026-09-12 등재 · `--impl-prep` `12_54_15` INFO 1). 그 파일은
       `translateSetupChannelError`(출력측 에러 변환)도 담는데 §7 서술은 *"입력 검증·변환 순수
       함수"* 다 — developer 가 서술만 보고 오배치할 여지. **코드 쪽 쌍둥이는 이미 등재돼 있다**:
@@ -2978,6 +2993,9 @@ field: T | null;
       인데 출력측 변환이 섞여 있다 — 이름을 넓히거나 분리"*). 둘은 **같은 사실**이라 짝으로
       처리한다 — 분리를 택하면 §7 서술은 자동으로 참이 된다.
 
+      > **✅ 2026-09-12 해소** — `spec-draft-chat-channel-doc-batch` (`--spec` `review/consistency/2026/09/12/18_55_57` BLOCK: NO). 서술을 *"입·출력 도메인 규칙"* 으로 고치고
+      > 신규 응답 DTO 도 트리에 넣었다. **파일 분리는 하지 않았다** — 코드 쪽 쌍둥이 항목이
+      > 그 결정을 갖고, 그 파일을 다음에 만질 때 함께 한다.
 - [x] **`chat-channel-input-rules.ts` 의 구조 정리 6건** (developer, 2026-09-11 등재 ·
       `/ai-review` `review/code/2026/09/11/15_31_54` W4 + INFO). 전부 비차단:
       (a) `BadRequestException({code, message, details:{field, code}})` 봉투 생성이 **7회 이상**
@@ -3058,7 +3076,7 @@ field: T | null;
       > 형제 가드가 *"fixture 는 스캔 범위 밖에 둔다"* 고 적어 둔 이유를 몸으로 확인했고,
       > 스캔 루트를 실측(`*.dto.ts` 는 `modules/` 111 · `common/` 3)으로 좁혔다.
 
-- [ ] **`swagger.md §5-1` 에 "DTO 클래스명은 저장소 전체에서 유일하다" 규칙이 없다 — 코드가
+- [x] **`swagger.md §5-1` 에 "DTO 클래스명은 저장소 전체에서 유일하다" 규칙이 없다 — 코드가
       먼저 강제하고 있다** (planner, 2026-09-12 등재 · `--impl-done`
       `review/consistency/2026/09/12/18_08_30` WARNING 2).
       `chat-channel-rules-cleanup` 이 그 불변식을 **build-blocking 가드**로 세웠는데
@@ -3071,6 +3089,15 @@ field: T | null;
       > **가드가 규약보다 먼저 있는 상태는 위험하다** — 다음 사람이 가드를 "누가 왜 넣었는지
       > 모르는 검사" 로 보고 지울 수 있다. 이 저장소가 `#244` 에서 겪은 *"문서화됐는데 미구현"*
       > 의 거울상이다.
+
+      > **✅ 2026-09-12 해소** — `spec-draft-chat-channel-doc-batch` (`--spec` `review/consistency/2026/09/12/18_55_57` BLOCK: NO). §5-1 에 규칙 + **왜**(클래스 `.name` 등재)를
+      > 적고, frontmatter `code:` 에 가드 2파일 + 대조군 fixture 를 등재했다.
+- [x] **`R-CC-23` 이 *"구현 정정은 developer 후속이다"* 를 현재형으로 남기고 있었다** (planner,
+      2026-09-12 등재 · **같은 턴 해소**). `e4e259530`(#1324)이 그 구현을 끝냈는데 Rationale 은
+      미래형이라, 다음 사람이 **이미 끝난 작업을 쫓을** 자리였다.
+      > 이 항목은 트래커에 없던 **draft 고유 발견**이다 — 등재와 해소를 같은 줄에 적는다(등재만
+      > 하고 미체크로 남기면 `#1326` 에서 겪은 *"태어날 때 이미 반증된 항목"* 이 된다).
+      > 취소선으로 원문을 남기고 완료 커밋을 병기했다(자기-반증형 소정정의 4번 조건과 같은 형식).
 
 - [ ] **frontend 가 `botIdentity` 의 provider 부가 필드를 아직 안 읽는다** (developer,
       2026-09-12 등재 · `/ai-review` `review/code/2026/09/12/17_52_34` user_guide_sync INFO).
@@ -3094,7 +3121,7 @@ field: T | null;
       `@Param('id')` 다. 이 PR 이전부터 있던 상태라 스코프 밖으로 뒀다. 비-UUID 가 들어오면
       `findById` 가 DB 레벨에서 실패하는지 400 이 나가는지 **먼저 실측**할 것.
 
-- [ ] **`15-chat-channel.md` 의 `code:` glob 이 `dto/responses/` 를 못 잡는다** (planner,
+- [x] **`15-chat-channel.md` 의 `code:` glob 이 `dto/responses/` 를 못 잡는다** (planner,
       2026-09-12 등재). glob `.../triggers/dto/chat-channel-*.dto.ts` 의 `*` 는 `/` 를 넘지 않아
       **`dto/responses/` 하위가 시야 밖**이다(정본 매처 실측). 그런데 `swagger.md §5-1` 은 응답
       DTO 의 자리를 `dto/responses/*-response.dto.ts` 로 **정식 규약**으로 못박는다.
@@ -3108,6 +3135,9 @@ field: T | null;
       > **지금 spec-link 판정이 깨진 상태는 아니다** — `2-trigger-list.md` 의 `dto/**` 가 그 자리를
       > 덮는다. 남은 것은 *"chat-channel spec 이 자기 파일을 보는가"* 한 축이다.
 
+      > **✅ 2026-09-12 해소** — `spec-draft-chat-channel-doc-batch` (`--spec` `review/consistency/2026/09/12/18_55_57` BLOCK: NO). glob 을 `dto/**/chat-channel-*.dto.ts` 로
+      > 넓혔고, `R-CC-22` 의 정량 진술을 **재측정해 캐비엇**으로 달았다(좁은 glob 10→11 ·
+      > 통짜 27→28). 과잉 포획 0 확인(`dto/create-trigger.dto.ts` 미매칭).
 - [ ] **리뷰 in-flight 중에 같은 워크트리에서 뮤테이션을 돌리지 않는다** (프로세스,
       2026-09-11 등재 · `/ai-review` `review/code/2026/09/11/16_16_44` 관측). 그 라운드에서
       reviewer **8명 이상**이 *"자신이 만들지 않은 일시적 뮤테이션"*(정규식 스왑 등)을 공유

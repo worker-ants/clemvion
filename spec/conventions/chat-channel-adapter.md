@@ -166,15 +166,22 @@ interface ChatChannelAdapter {
 SoT: [`15-chat-channel.md §5.4`](../5-system/15-chat-channel.md#54-bot-token-rotation-api-응답-계약)
 에러 표 · 근거 [§R-CCA-9](#r-cca-9-실패-사유를-message-가-아니라-code-로-선언하는-이유).
 
-> **`code` 라는 이름이 이 저장소에서 세 뜻으로 쓰인다 — 혼동하면 조용히 잘못 분기한다.**
+> **`code` 라는 이름이 이 콜스택에서 네 뜻으로 쓰인다 — 혼동하면 조용히 잘못 분기한다.**
 >
 > | 무엇 | 소유 | 값 도메인 |
 > |---|---|---|
 > | **본 절의 `code`** | **어댑터가 새로 throw 하는 `Error` 의 프로퍼티** | 우리 문자열 (`'BOT_TOKEN_INVALID'`) |
 > | [§3.1](#31-execution-failed-분류-알고리즘) 의 `event.error.code` | EIA 이벤트 payload | 실행 실패 분류용 — **별 네임스페이스** |
 > | `app.code` / `res.code` | **provider 원본 API 응답 필드** (Discord) | **숫자** |
+> | **Node/undici 시스템 에러의 `code`** | **런타임이 붙인다 — 우리가 만들지 않는다** | `'ENOTFOUND'` · `'ECONNREFUSED'` · `'UND_ERR_*'` |
 >
 > 세 번째가 특히 가깝다 — discord 어댑터는 이미 `'code' in app` 으로 **원본 응답**을 검사한다.
+>
+> **네 번째는 판별을 뒤집는다.** DNS 가 죽은 `Error` 도 `.code` 를 갖기 때문에 `if (err.code)`
+> 같은 truthiness 판별은 **네트워크 단절을 *"토큰이 잘못됐다"* 로 보고**한다. 그래서 이 계약의
+> 판별은 **화이트리스트 정확 일치**여야 한다 — `err.code === 'BOT_TOKEN_INVALID'`. 이 경로가
+> 가상이 아님은 `telegram-client.ts` 주석이 이미 적고 있었고(undici 가 `ENOTFOUND` 를 이 자리로
+> 보낸다), 구현은 `ENOTFOUND → 502` 캐너리로 그 오분류를 고정한다.
 
 **왜 provider 가 신호하는 방식을 호출자가 추측하지 않는가**: provider 들이 자격 증명 거부를
 알리는 방식이 서로 다르다 — Slack 은 **HTTP 200 + `{ok:false, error:'invalid_auth'}`**,

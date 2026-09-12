@@ -268,6 +268,31 @@ cross-workspace 참조 — 다른 워크스페이스의 자격증명에 트리�
 > top-level 특화 코드와 generic `details[].code` 를 함께 싣는 것이 「둘을 겹쳐 쓰지 않는다」에
 > 걸리지 않는 근거: [API 규약 §5.3 의 판별 기준](./2-api-convention.md#53-에러-응답).
 
+### 1.12 Chat Channel bot token 회전 에러 코드 (도메인 spec 참조)
+
+`POST /api/triggers/:id/chat-channel/rotate-bot-token` 의 실패 응답. 정의·트리거 SoT 는
+[15-chat-channel.md §5.4](./15-chat-channel.md#54-bot-token-rotation-api-응답-계약) 이고 본 절은
+공용 카탈로그 가시성 등재다 — [API 규약 §5.3](./2-api-convention.md#53-에러-응답) 이
+*"등재되지 않으면 소비자가 존재를 알 방법이 없다"* 고 그 의무를 정한다.
+`UPPER_SNAKE_CASE` 규약([conventions/error-codes.md](../conventions/error-codes.md)).
+
+| 코드 | status | 설명 | 도메인 SoT |
+|------|--------|------|-----------|
+| `INVALID_BOT_TOKEN` | **400** | `newBotToken` 누락/비-string (컨트롤러 입력 검증) | [§5.4](./15-chat-channel.md#54-bot-token-rotation-api-응답-계약) |
+| `CHAT_CHANNEL_NOT_CONFIGURED` | **400** | `config.chatChannel` 미설정 트리거 | 〃 |
+| `CHAT_CHANNEL_PROVIDER_UNKNOWN` | **400** | registry 에 미등록 provider | 〃 |
+| `CHAT_CHANNEL_ENDPOINT_REQUIRED` | **400** | trigger `endpointPath` 부재 | 〃 |
+| `BOT_TOKEN_INVALID` | **400** | `setupChannel` 이 **자격 증명 거부**로 실패. provider 가 `401`/`403` · `{ok:false,error:'invalid_auth'}`(HTTP 200) · `verify_key` 불일치 중 무엇으로 알리든 **같은 분류**다 — 판별은 어댑터가 [CCA §1.1.2](../conventions/chat-channel-adapter.md#112-setupchannel-실패-판별--자격-증명-거부는-code-로-선언한다) 로 선언한다 | 〃 |
+| `CHAT_CHANNEL_SETUP_FAILED` | **502** | 그 밖의 `setupChannel` 실패 — provider 5xx · 네트워크 · 타임아웃. **이 저장소의 첫 502** (근거 [R-CC-23](./15-chat-channel.md#r-cc-23-setupchannel-실패는-transport-가-아니라-원인으로-분류한다)) | 〃 |
+
+> **이름이 두 갈래라 헷갈리기 쉽다** — `INVALID_BOT_TOKEN`(입력 **형식**이 틀렸다)과
+> `BOT_TOKEN_INVALID`(provider 가 **거부**했다). 어순만 다르고 뜻이 다르다. 합치거나 개명하지
+> 않는 이유는 [§2 rename 금지](../conventions/error-codes.md) 와 같다 — 둘 다 이미 wire 에
+> 나갔고 프런트엔드 i18n(`backend-labels.ts`)이 각각을 매핑한다.
+>
+> **응답 본문에 provider 원문을 싣지 않는다** — `message` 는 고정 client-safe 문자열이고 원문은
+> 서버 로그에만 남는다. `4-execution-engine.md §7.5.2` 의 보안 게이트와 같은 이유다.
+
 ---
 
 ---
