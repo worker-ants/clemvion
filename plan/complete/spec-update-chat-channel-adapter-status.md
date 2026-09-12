@@ -126,6 +126,7 @@ planner 턴에서 plan lifecycle 규칙에 따라 별도 판단 필요.
     **충분조건이 아니다**"* 를 함께 적었다 — 조건만 보고 지우면 그 경로들이 조용히 502 가 된다.
     남은 경로의 전수는 트래커 항목 본문에 표로 옮겼다.
 - **WARNING 1 해소** — `impl-setup-error-code.md` 체크리스트를 실측 상태로 갱신했다(checker 가
-  본 스냅샷은 그 갱신 **전**이다). `plan/complete/` 이동은 PR 마무리 커밋에서 한다.
+  본 스냅샷은 그 갱신 **전**이다). 이 draft 자신은 같은 커밋에서 `plan/complete/` 로 옮겼다
+  — 반영이 끝난 planner draft 의 보존 관례(`plan/complete/` 69 중 66)를 따른다.
 - **제안 3(다른 트래커 cross-link) 도 같은 턴에 처리** — `spec-draft-nullable-notation-followups.md`
   의 「setupChannel 실패 분류」 항목을 종결하고, 「fallback 제거 판정」 항목에 실측 판정을 실었다.
