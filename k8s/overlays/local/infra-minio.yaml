@@ -35,7 +35,10 @@ spec:
     spec:
       containers:
         - name: minio
-          image: minio/minio:latest
+          # 레지스트리는 quay.io — Docker Hub 의 `minio/*` 는 익명 pull 이 막혔다(2026-09-12
+          # 실측: Hub 401 / quay 200). 같은 이유로 두 compose 파일도 옮겼다.
+          # **태그는 이 PR 의 대상이 아니다** — `:latest` 고정(W-59)은 별 후속 항목.
+          image: quay.io/minio/minio:latest
           args: ["server", "/data", "--console-address", ":9001"]
           ports:
             - containerPort: 9000
@@ -96,7 +99,8 @@ spec:
       restartPolicy: OnFailure
       containers:
         - name: mc
-          image: minio/mc:latest
+          # 레지스트리 사유는 위 minio 컨테이너 주석 참조.
+          image: quay.io/minio/mc:latest
           envFrom:
             - configMapRef:
                 name: backend-config

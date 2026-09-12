@@ -1091,10 +1091,16 @@ checker 가 독립적으로** "인용이 가리키는 절이 오히려 반대를
       > `minio/*` **저장소만** 익명 pull 이 막혔다. 즉 이 저장소의 **모든 e2e 실행이
       > 상시 차단**된다(main 포함). 마지막 초록은 2026-09-11.
       >
-      > **처분 후보** (사용자 결정 필요 — 인프라 변경):
+      > ~~**처분 후보** (사용자 결정 필요 — 인프라 변경):
       > (a) `docker-compose.e2e.yml` 의 두 줄을 `quay.io/minio/{minio,mc}` 로 — **같은 태그가
       > quay 에 있다**(위 표). 가장 작다. (b) CI 에 Docker Hub 로그인 시크릿 추가.
-      > (c) 이미지를 GHCR 로 미러링.
+      > (c) 이미지를 GHCR 로 미러링.~~
+      >
+      > **✅ 2026-09-12 — (a) 실행됨**: `plan/in-progress/e2e-minio-registry.md`
+      > (별 PR, 사용자 결정). 범위는 두 compose 파일이 아니라 **세 곳**이다 —
+      > `docker-compose.e2e.yml` · `docker-compose.yml`(dev) · `k8s/overlays/local/infra-minio.yaml`.
+      > 받아 보니 **image ID 가 Hub 캐시본과 byte-동일**이라 동작 변경이 없고, `run-test.sh e2e`
+      > 가 305/305 로 통과했다. (b)·(c) 는 **재검토 불요** — 다시 열지 말 것.
       >
       > **"재실행" 지침은 이 형태에 쓰지 말 것** — 증상 문구로 두 형태를 가른다.
 
