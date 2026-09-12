@@ -3,6 +3,7 @@ import { Test } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { ConfigService } from '@nestjs/config';
 import {
+  BadGatewayException,
   BadRequestException,
   ConflictException,
   Logger,
@@ -2024,26 +2025,31 @@ describe('TriggersService.rotateBotToken — 6단계 오케스트레이션', () 
    * 지우면 진단 단서가 **아무 데도** 없다.
    */
   it('그 밖의 실패 → 502 + provider 원문은 응답이 아니라 warn 로그에만', async () => {
+    // afterEach 없이 mockRestore() 를 마지막 줄 하나에만 맡기면 앞선 expect 실패 시
+    // spy 가 파일 전체(다른 describe 포함)로 누출된다 — try/finally 로 원복을 보장.
     const warn = jest
       .spyOn(Logger.prototype, 'warn')
       .mockImplementation(() => undefined);
-    mockAdapter.setupChannel.mockRejectedValueOnce(
-      new Error('getaddrinfo ENOTFOUND api.telegram.org'),
-    );
+    try {
+      mockAdapter.setupChannel.mockRejectedValueOnce(
+        new Error('getaddrinfo ENOTFOUND api.telegram.org'),
+      );
 
-    const caught: unknown = await service
-      .rotateBotToken(TRIGGER_ID, WORKSPACE_ID, NEW_TOKEN, 'u-bot')
-      .then(() => null)
-      .catch((err: unknown) => err);
+      const caught: unknown = await service
+        .rotateBotToken(TRIGGER_ID, WORKSPACE_ID, NEW_TOKEN, 'u-bot')
+        .then(() => null)
+        .catch((err: unknown) => err);
 
-    expect((caught as BadRequestException).getStatus()).toBe(502);
-    const body = (caught as BadRequestException).getResponse();
-    expect(body).toMatchObject({ code: 'CHAT_CHANNEL_SETUP_FAILED' });
-    expect(JSON.stringify(body)).not.toContain('api.telegram.org');
-    const logged = warn.mock.calls.map(([m]) => String(m)).join('\n');
-    expect(logged).toContain('api.telegram.org');
-    expect(logged).toContain(TRIGGER_ID);
-    warn.mockRestore();
+      expect((caught as BadGatewayException).getStatus()).toBe(502);
+      const body = (caught as BadGatewayException).getResponse();
+      expect(body).toMatchObject({ code: 'CHAT_CHANNEL_SETUP_FAILED' });
+      expect(JSON.stringify(body)).not.toContain('api.telegram.org');
+      const logged = warn.mock.calls.map(([m]) => String(m)).join('\n');
+      expect(logged).toContain('api.telegram.org');
+      expect(logged).toContain(TRIGGER_ID);
+    } finally {
+      warn.mockRestore();
+    }
   });
 
   it('정상 — old token resolve → v2 백업 → primary rotate → setupChannel → webhook secret store → trigger 갱신', async () => {
