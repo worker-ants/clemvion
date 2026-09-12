@@ -82,6 +82,49 @@ describe('chat-channel-input-rules — 내부 필드 차단 (R-CC-21)', () => {
   });
 
   /**
+   * **두-층 등가성의 서비스 쪽 절반.** `chat-channel-rejection-messages.const.ts` 는
+   * *"`null`/`''` 는 `@IsEmpty()` 를 통과하고 서비스 가드가 거부한다"* 를 설계로 선언하는데,
+   * 그 **DTO 가 통과시킨다** 는 절반만 `trigger-dto-validation.spec.ts` 가 고정하고 있었다
+   * (`review/code/2026/09/12/16_17_57` testing WARNING).
+   *
+   * 그래서 `hasField` 의 `typeof … !== 'undefined'` 를 falsy 판별(`!value`)로 바꾸는 뮤턴트가
+   * **아무 테스트도 깨지 않았다** — 그러면 `null`/`''` 로 보낸 비밀이 **두 층 모두를 통과**한다.
+   * 이번 PR 이 그 판별식을 `hasField` 로 옮겼으니 고정도 여기서 한다.
+   */
+  it.each([
+    ['null', null],
+    ['빈 문자열', ''],
+  ])(
+    'PATCH 는 %s 로 보낸 botToken 도 거부한다 — DTO 가 통과시키는 값이다',
+    (_label, value) => {
+      expect(
+        thrown(() => assertPatchCarriesNoSecrets(cfg({ botToken: value }))),
+      ).toMatchObject({
+        details: { field: 'botToken', code: 'INVALID_FIELD' },
+      });
+    },
+  );
+
+  it.each([
+    ['null', null],
+    ['빈 문자열', ''],
+  ])(
+    'PATCH 는 %s 로 보낸 inboundSigningPlaintext 도 거부한다',
+    (_label, value) => {
+      expect(
+        thrown(() =>
+          assertPatchCarriesNoSecrets(cfg({ inboundSigningPlaintext: value })),
+        ),
+      ).toMatchObject({
+        details: {
+          field: 'inboundSigningPlaintext',
+          code: 'INVALID_FIELD',
+        },
+      });
+    },
+  );
+
+  /**
    * **대칭 필드도 막는다.** 첫 판본은 `botToken` 만 봤는데, 이 함수가 막는 것은 R-CC-21 의
    * **두 값 필드**다 — 한쪽만 검증하면 다른 쪽 가드가 사라져도 GREEN 이다(실측 커버리지 미달,
    * `/ai-review` `review/code/2026/09/11/15_57_42` W1).
@@ -99,12 +142,34 @@ describe('chat-channel-input-rules — 내부 필드 차단 (R-CC-21)', () => {
   });
 
   // `mode==='update'` 디스패치 — 공개 진입점 경유로는 한 번도 안 돌던 분기 (INFO 2)
+  //
+  // **`as never` 를 뺐다**: 오버로드는 캐스팅 없이 불린다(제거 후 `tsc --noEmit` 진단 197건
+  // 불변 — baseline 과 동일). 남겨 두면 *"오버로드는 캐스팅 없이 못 부른다"* 는 **틀린 인상**을
+  // 다음 사람에게 준다.
   it('update 모드는 공개 진입점을 통해서도 값 필드를 막는다', () => {
     expect(
       thrown(() =>
-        assertChatChannelInputSafe(cfg({ botToken: '1:a' }) as never, 'update'),
+        assertChatChannelInputSafe(cfg({ botToken: '1:a' }), 'update'),
       ),
     ).toMatchObject({ details: { field: 'botToken', code: 'INVALID_FIELD' } });
+  });
+
+  /**
+   * **(b) `update` × 내부 필드 3종.** 위 케이스는 *값* 필드(`botToken`) 하나만 태운다 —
+   * 내부 필드 3종은 `update` 분기가 `assertPatchCarriesNoSecrets` 로 넘어가기 **전에** 걸러야
+   * 하는데, 그 순서를 이 파일 단독으로는 아무도 안 봤다. 한 필드라도 순서가 뒤집히면
+   * PATCH 가 내부 필드를 **값 필드 메시지로** 거부하게 된다.
+   */
+  it.each([
+    ['botTokenRef', 'secret://x'],
+    ['inboundSigningRef', 'secret://y'],
+    ['inboundSigning', 'plain'],
+  ])('update 모드도 내부 필드 %s 를 제 이름으로 거부한다', (field, value) => {
+    expect(
+      thrown(() =>
+        assertChatChannelInputSafe(cfg({ [field]: value }), 'update'),
+      ),
+    ).toMatchObject({ details: { field, code: 'INVALID_FIELD' } });
   });
 
   // 조기 반환 — PATCH 바디에 `chatChannel` 키 자체가 없는 흔한 실사용 경로 (INFO 4)
@@ -126,11 +191,11 @@ describe('chat-channel-input-rules — provider 분기 (생성 전용)', () => {
    * 반드시 거부돼야 한다. 그 교차 케이스가 정규식 스왑을 잡는다.
    */
   it.each([
-    ['slack', 32, 64],
-    ['discord', 64, 32],
+    ['slack', 32, 64, 'Slack signing secret', 'Discord'],
+    ['discord', 64, 32, 'Discord application public key', 'Slack'],
   ] as const)(
     '%s 는 hex%d 를 요구한다 — 다른 provider 의 길이(hex%d)는 거부한다',
-    (provider, ownLen, otherLen) => {
+    (provider, ownLen, otherLen, ownLabel, otherVendor) => {
       // 유효
       expect(
         thrown(() =>
@@ -140,39 +205,58 @@ describe('chat-channel-input-rules — provider 분기 (생성 전용)', () => {
         ),
       ).toBeNull();
       // 비-hex (길이는 맞음)
-      expect(
-        thrown(() =>
-          assertInboundSigningPlaintextByProvider(
-            cfg({ provider, inboundSigningPlaintext: 'Z'.repeat(ownLen) }),
-          ),
+      //
+      // **`message` 까지 본다.** 형식 불일치 분기의 두 메시지를 Slack↔Discord 로 맞바꿔도
+      // `details` 는 두 provider 가 **동일**해서 이 단언이 없으면 스왑이 통과한다 — 실측으로
+      // 30/30 GREEN 이었다(`review/code/2026/09/12/17_52_34` testing WARNING).
+      // 바로 위 "부재" 분기는 앞선 라운드에서 같은 하드닝을 받았는데 **형제 분기를 빠뜨렸다** —
+      // 한 칸 좁게 고친 전형이다.
+      const badHex = thrown(() =>
+        assertInboundSigningPlaintextByProvider(
+          cfg({ provider, inboundSigningPlaintext: 'Z'.repeat(ownLen) }),
         ),
-      ).toMatchObject({
+      );
+      expect(badHex).toMatchObject({
         details: { field: 'inboundSigningPlaintext', code: 'INVALID_FIELD' },
       });
+      expect(badHex?.message).toContain(ownLabel);
+      expect(badHex?.message).not.toContain(otherVendor);
       // **교차** — 다른 provider 의 유효 길이는 이쪽에서 거부돼야 한다(정규식 스왑 검출)
-      expect(
-        thrown(() =>
-          assertInboundSigningPlaintextByProvider(
-            cfg({ provider, inboundSigningPlaintext: 'a'.repeat(otherLen) }),
-          ),
+      const crossed = thrown(() =>
+        assertInboundSigningPlaintextByProvider(
+          cfg({ provider, inboundSigningPlaintext: 'a'.repeat(otherLen) }),
         ),
-      ).toMatchObject({
+      );
+      expect(crossed).toMatchObject({
         details: { field: 'inboundSigningPlaintext', code: 'INVALID_FIELD' },
       });
+      expect(crossed?.message).toContain(ownLabel);
     },
   );
 
-  // 필드 **부재**(필수 위반) 분기 — label 이 틀려도 안 잡히던 자리 (INFO 1)
-  it.each(['slack', 'discord'] as const)(
-    '%s 는 inboundSigningPlaintext 부재를 거부한다',
-    (provider) => {
-      expect(
-        thrown(() =>
-          assertInboundSigningPlaintextByProvider(cfg({ provider })),
-        ),
-      ).toMatchObject({
+  /**
+   * 필드 **부재**(필수 위반) 분기.
+   *
+   * **(e) label 까지 단언한다.** 종전에는 `details` 만 봐서 두 provider 의 label 을 맞바꾸는
+   * 뮤턴트가 통과했다 — Slack 사용자가 *"Discord application public key 가 필요합니다"* 를
+   * 보게 되는 회귀인데 테스트는 초록이었다. `details` 가 두 provider 에서 **동일**하기 때문에
+   * 그 필드만으로는 원리적으로 못 가른다. 판별자는 `message` 다.
+   */
+  it.each([
+    ['slack', 'Slack signing secret', 'Discord'],
+    ['discord', 'Discord application public key', 'Slack'],
+  ] as const)(
+    '%s 는 부재를 거부하고 **자기 provider 의 이름**으로 안내한다',
+    (provider, ownLabel, otherVendor) => {
+      const res = thrown(() =>
+        assertInboundSigningPlaintextByProvider(cfg({ provider })),
+      );
+      expect(res).toMatchObject({
         details: { field: 'inboundSigningPlaintext', code: 'INVALID_FIELD' },
       });
+      expect(res?.message).toContain(ownLabel);
+      // 스왑 검출 — 남의 provider 이름이 섞이면 RED.
+      expect(res?.message).not.toContain(otherVendor);
     },
   );
 

@@ -37,6 +37,7 @@ import { CreateTriggerDto } from './dto/create-trigger.dto';
 import { UpdateTriggerDto } from './dto/update-trigger.dto';
 import { CurrentUser, WorkspaceId } from '../../common/decorators';
 import { QueryTriggerDto } from './dto/query-trigger.dto';
+import { ChatChannelRotateBotTokenDto } from './dto/responses/chat-channel-rotate-bot-token-response.dto';
 import {
   TriggerDto,
   TriggerHistoryItemDto,
@@ -261,6 +262,7 @@ export class TriggersController {
     description:
       'Spec CCH-SE-04 — 외부 provider bot token 회전. 기존 token 은 24h grace 동안 chat_channel_token_v2 (secret store v2 ref) 로 보관, CCH-SE-04-C cron 이 grace 만료 시 정리.',
   })
+  @ApiUnauthorizedResponse({ description: '인증 실패' })
   @ApiForbiddenResponse({ description: 'editor 이상 권한 필요' })
   // §5.4 실패 응답 표의 두 축을 함께 문서화한다 — 400 과 502 를 **가르는 것**이 이 엔드포인트의
   // 계약이라(R-CC-23) 한쪽만 적으면 나머지 절반이 문서에 없는 상태로 남는다.
@@ -272,12 +274,23 @@ export class TriggersController {
     description:
       'CHAT_CHANNEL_SETUP_FAILED — 외부 provider 호출 실패 (5xx·네트워크·타임아웃). 클라이언트가 입력으로 고칠 수 없는 실패 (spec §5.4)',
   })
+  @ApiNotFoundResponse({
+    description:
+      'RESOURCE_NOT_FOUND — trigger 미존재 또는 워크스페이스 권한 없음',
+  })
+  @ApiOkWrappedResponse(ChatChannelRotateBotTokenDto, {
+    description:
+      '회전 결과 — rotatedAt · triggerId · chatChannelHealth · botIdentity',
+  })
   async rotateBotToken(
     @Param('id') triggerId: string,
     @Body() body: { newBotToken?: string },
     @WorkspaceId() workspaceId: string,
     @CurrentUser('sub') userId: string,
-  ): Promise<Awaited<ReturnType<TriggersService['rotateBotToken']>>> {
+    // 반환 타입을 **DTO 로 선언**한다 — 종전 `Awaited<ReturnType<...>>` 은 서비스가 무엇을
+    // 돌려주든 따라가므로 swagger 선언과 실제 응답이 갈려도 조용하다. DTO 로 받으면 서비스
+    // 반환 형태가 바뀌는 순간 `tsc` 가 이 자리를 가리킨다.
+  ): Promise<ChatChannelRotateBotTokenDto> {
     if (!body?.newBotToken || typeof body?.newBotToken !== 'string') {
       throw new BadRequestException({
         code: 'INVALID_BOT_TOKEN',

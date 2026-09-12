@@ -5,7 +5,10 @@ import {
   SLACK_SIGNING_SECRET_REGEX,
   DISCORD_PUBLIC_KEY_REGEX,
 } from '@workflow/chat-channel-validation';
-import { CHAT_CHANNEL_BLOCKED_FIELD_MESSAGES } from './chat-channel-rejection-messages.const';
+import {
+  CHAT_CHANNEL_BLOCKED_FIELD_MESSAGES,
+  type ChatChannelBlockedField,
+} from './chat-channel-rejection-messages.const';
 import type {
   ChatChannelConfigDto,
   ChatChannelUpdateConfigDto,
@@ -28,8 +31,65 @@ import type { Trigger } from './entities/trigger.entity';
 // **언제 요구하고 언제 금지하는가** 라는 **도메인 규칙**이며, 위반 시 던지는 **에러 봉투 형태**
 // (`details.field` · `details.code`)까지 정한다.
 //
-// **SoT**: `spec/5-system/15-chat-channel.md` §5.4.1 · §5.4.1.1 · §5.4.1.2 · R-CC-21 ·
+// **입력만 있는 파일이 아니다** — `translateSetupChannelError` 는 adapter 실패를 §5.4 의
+// **응답 계약**으로 옮기는 출력측 함수다. 여기 같이 사는 이유는 셋이 한 몸이기 때문이다:
+// 같은 기능(chat-channel 트리거)의 도메인 규칙이고, 둘 다 **에러 봉투 형태를 정하며**,
+// 둘 다 외부 협력자가 0이라 `TriggersService` 밖에서 순수하게 검증된다. 파일을 쪼개는 선택지는
+// 살아 있지만 그 결정은 `15-chat-channel.md §7` 파일 트리(planner 축)와 **함께** 내려야 한다 —
+// 트래커 「§7 파일 트리가 … 입력으로만 적는다」 항목이 그 쌍을 추적한다.
+//
+// **SoT**: `spec/5-system/15-chat-channel.md` §5.4.1 · §5.4.1.1 · §5.4.1.2 · §5.4 · R-CC-21 ·
 // `spec/4-nodes/7-trigger/providers/{slack,discord}.md` §6.
+
+/**
+ * `VALIDATION_ERROR` 봉투를 한 곳에서 만든다 — 이 파일 안에서 **11곳**이 글자 하나까지 같은
+ * 형태였다(2026-09-12 실측).
+ *
+ * **왜 세 번째 인자(`code`)를 두지 않나**: 11곳이 전부 `ErrorCode.INVALID_FIELD` 다. 선택
+ * 인자를 두면 한 번도 안 쓰이는 채로 계약이 되고, 다음 사람은 *"여기 다른 코드도 오나"* 를
+ * 묻게 된다. 필요해지는 날 넓히는 쪽이 싸다.
+ *
+ * **왜 `never` 인가**: 호출부가 `throw` 없이 한 줄로 끝나야 실제로 짧아진다. 봉투를 손으로
+ * 복붙하다 `details.code` 를 빠뜨리면 **컴파일 타임에 안 잡히고** 계약이 조용히 깨지는데,
+ * 그 자리를 하나로 모으는 것이 이 헬퍼의 목적이다.
+ */
+function throwInvalidField(field: string, message: string): never {
+  throw new BadRequestException({
+    code: 'VALIDATION_ERROR',
+    message,
+    details: { field, code: ErrorCode.INVALID_FIELD },
+  });
+}
+
+/**
+ * `chatChannel` 에 **선언에 없는 필드**가 실려 왔는지.
+ *
+ * 두 갈래 DTO 어디에도 없는 필드를 보려면 인덱스 시그니처가 필요한데, 그 캐스팅을 호출부마다
+ * 쓰면 `as unknown as Record<string, unknown>` 이 복제된다(종전 2곳). 한 곳에 가둔다.
+ */
+function hasField(chatChannel: ChatChannelInput, field: string): boolean {
+  return (
+    typeof (chatChannel as unknown as Record<string, unknown>)[field] !==
+    'undefined'
+  );
+}
+
+/**
+ * 차단 5필드 중 하나가 실려 있으면 거부한다.
+ *
+ * 필드 이름을 **한 번만** 쓰게 하는 것이 요점이다 — 종전에는 존재 검사(`blocked.botTokenRef`)와
+ * 봉투(`field: 'botTokenRef'`)가 따로 적혀 있었고, `Record<string, unknown>` 위의 오타는
+ * `undefined` 로 조용히 통과한다(가드가 사라져도 아무도 모른다). 인자를
+ * `ChatChannelBlockedField` 로 받으면 오타가 **컴파일 에러**이고 메시지도 같은 키로 따라온다.
+ */
+function rejectBlockedField(
+  chatChannel: ChatChannelInput,
+  field: ChatChannelBlockedField,
+): void {
+  if (hasField(chatChannel, field)) {
+    throwInvalidField(field, CHAT_CHANNEL_BLOCKED_FIELD_MESSAGES[field]);
+  }
+}
 
 /**
  * 두 진입점이 보내는 `chatChannel` 을 함께 받는 자리의 타입.
@@ -97,28 +157,10 @@ export function assertChatChannelInputSafe(
   mode: ChatChannelInputMode,
 ): void {
   if (!chatChannel) return;
-  const blocked = chatChannel as unknown as Record<string, unknown>;
-  if (typeof blocked.botTokenRef !== 'undefined') {
-    throw new BadRequestException({
-      code: 'VALIDATION_ERROR',
-      message: CHAT_CHANNEL_BLOCKED_FIELD_MESSAGES.botTokenRef,
-      details: { field: 'botTokenRef', code: ErrorCode.INVALID_FIELD },
-    });
-  }
-  if (typeof blocked.inboundSigningRef !== 'undefined') {
-    throw new BadRequestException({
-      code: 'VALIDATION_ERROR',
-      message: CHAT_CHANNEL_BLOCKED_FIELD_MESSAGES.inboundSigningRef,
-      details: { field: 'inboundSigningRef', code: ErrorCode.INVALID_FIELD },
-    });
-  }
-  if (typeof blocked.inboundSigning !== 'undefined') {
-    throw new BadRequestException({
-      code: 'VALIDATION_ERROR',
-      message: CHAT_CHANNEL_BLOCKED_FIELD_MESSAGES.inboundSigning,
-      details: { field: 'inboundSigning', code: ErrorCode.INVALID_FIELD },
-    });
-  }
+  // 내부 필드 3종 — 생성·PATCH 양쪽에서 금지.
+  rejectBlockedField(chatChannel, 'botTokenRef');
+  rejectBlockedField(chatChannel, 'inboundSigningRef');
+  rejectBlockedField(chatChannel, 'inboundSigning');
   if (mode === 'update') {
     // [R-CC-21 / D-1] PATCH 는 **값 필드**도 받지 않는다. 전역 `CustomValidationPipe` +
     // `ChatChannelUpdateConfigDto` 의 `@IsEmpty()` 가 1차로 막지만, 여기서 한 번 더 막는
@@ -142,24 +184,8 @@ export function assertChatChannelInputSafe(
 export function assertPatchCarriesNoSecrets(
   chatChannel: ChatChannelInput,
 ): void {
-  const carried = chatChannel as unknown as Record<string, unknown>;
-  if (typeof carried.botToken !== 'undefined') {
-    throw new BadRequestException({
-      code: 'VALIDATION_ERROR',
-      message: CHAT_CHANNEL_BLOCKED_FIELD_MESSAGES.botToken,
-      details: { field: 'botToken', code: ErrorCode.INVALID_FIELD },
-    });
-  }
-  if (typeof carried.inboundSigningPlaintext !== 'undefined') {
-    throw new BadRequestException({
-      code: 'VALIDATION_ERROR',
-      message: CHAT_CHANNEL_BLOCKED_FIELD_MESSAGES.inboundSigningPlaintext,
-      details: {
-        field: 'inboundSigningPlaintext',
-        code: ErrorCode.INVALID_FIELD,
-      },
-    });
-  }
+  rejectBlockedField(chatChannel, 'botToken');
+  rejectBlockedField(chatChannel, 'inboundSigningPlaintext');
 }
 
 /**
@@ -176,23 +202,28 @@ export function assertChatChannelAlreadySetUp(
   const current = (trigger.config as { chatChannel?: { provider?: string } })
     ?.chatChannel;
   if (!current?.provider) {
-    throw new BadRequestException({
-      code: 'VALIDATION_ERROR',
-      message:
-        'chatChannel 최초 설정은 트리거 생성(POST /api/triggers)에서만 할 수 있어요. PATCH 는 bot token 을 받지 않으므로 채널을 새로 붙일 수 없어요.',
-      details: { field: 'chatChannel', code: ErrorCode.INVALID_FIELD },
-    });
+    throwInvalidField(
+      'chatChannel',
+      'chatChannel 최초 설정은 트리거 생성(POST /api/triggers)에서만 할 수 있어요. PATCH 는 bot token 을 받지 않으므로 채널을 새로 붙일 수 없어요.',
+    );
   }
   // provider 전환도 막는다. 허용하면 **다른 provider 의 토큰을 넘기게 된다** —
   // `botTokenRef` 는 trigger id 로만 재유도되므로 그 ref 뒤의 평문은 여전히 옛 provider 의
   // 토큰이고, 새 adapter 가 그것으로 외부 API 를 때린다. `2-trigger-list.md` `R-12` 도
   // *"변경하려면 트리거 삭제·재생성"* 이라 적는다.
+  //
+  // **`incoming.provider &&` 는 HTTP 경로에서 도달할 수 없다** — `ChatChannelUpdateConfigDto`
+  // 가 `OmitType(ChatChannelConfigDto, ['botToken','inboundSigningPlaintext'])` 이라
+  // `provider` 의 `@IsString() @IsIn(...)` 을 **상속**해 PATCH 에서도 필수다(2026-09-12 실측).
+  // 그래서 이 falsy 분기를 지우는 뮤턴트는 **살아남는 것이 정상**이다. 그럼에도 남기는 이유:
+  // 지우면 DTO 를 우회한 호출자(`provider` 미지정)가 *"provider 는 PATCH 로 바꿀 수 없어요"*
+  // 라는 **틀린 메시지**를 받는다. DTO 층이 실제로 막는다는 사실은
+  // `dto/trigger-dto-validation.spec.ts` 가 고정한다.
   if (incoming.provider && incoming.provider !== current.provider) {
-    throw new BadRequestException({
-      code: 'VALIDATION_ERROR',
-      message: `provider 는 PATCH 로 바꿀 수 없어요 (현재 ${current.provider}). 다른 provider 로 옮기려면 트리거를 삭제 후 다시 만들어 주세요.`,
-      details: { field: 'provider', code: ErrorCode.INVALID_FIELD },
-    });
+    throwInvalidField(
+      'provider',
+      `provider 는 PATCH 로 바꿀 수 없어요 (현재 ${current.provider}). 다른 provider 로 옮기려면 트리거를 삭제 후 다시 만들어 주세요.`,
+    );
   }
 }
 
@@ -236,15 +267,10 @@ export function assertInboundSigningPlaintextByProvider(
 
   if (provider === 'telegram') {
     if (typeof plaintext === 'string' && plaintext.length > 0) {
-      throw new BadRequestException({
-        code: 'VALIDATION_ERROR',
-        message:
-          'Telegram inboundSigning 은 server-issued 입니다. inboundSigningPlaintext 를 입력하지 마세요 (setupChannel 의 randomBytes 가 자동 발급).',
-        details: {
-          field: 'inboundSigningPlaintext',
-          code: ErrorCode.INVALID_FIELD,
-        },
-      });
+      throwInvalidField(
+        'inboundSigningPlaintext',
+        'Telegram inboundSigning 은 server-issued 입니다. inboundSigningPlaintext 를 입력하지 마세요 (setupChannel 의 randomBytes 가 자동 발급).',
+      );
     }
     return;
   }
@@ -255,41 +281,27 @@ export function assertInboundSigningPlaintextByProvider(
       provider === 'slack'
         ? 'Slack signing secret'
         : 'Discord application public key';
-    throw new BadRequestException({
-      code: 'VALIDATION_ERROR',
-      message: `${label} 가 필요합니다. inboundSigningPlaintext 를 입력하세요.`,
-      details: {
-        field: 'inboundSigningPlaintext',
-        code: ErrorCode.INVALID_FIELD,
-      },
-    });
+    throwInvalidField(
+      'inboundSigningPlaintext',
+      `${label} 가 필요합니다. inboundSigningPlaintext 를 입력하세요.`,
+    );
   }
 
   // [provider 발급 표준] Slack signing secret / Discord public key 는 모두 lowercase hex 로
   // 발급된다. uppercase 입력은 외부 provider HMAC / ed25519 검증 실패를 유발하므로 사전 차단.
   // SoT: `@workflow/chat-channel-validation` 패키지 — backend / frontend 가 동일 정규식 사용.
   if (provider === 'slack' && !SLACK_SIGNING_SECRET_REGEX.test(plaintext)) {
-    throw new BadRequestException({
-      code: 'VALIDATION_ERROR',
-      message:
-        'Slack signing secret 형식이 올바르지 않습니다 (lowercase hex 32 chars 필요).',
-      details: {
-        field: 'inboundSigningPlaintext',
-        code: ErrorCode.INVALID_FIELD,
-      },
-    });
+    throwInvalidField(
+      'inboundSigningPlaintext',
+      'Slack signing secret 형식이 올바르지 않습니다 (lowercase hex 32 chars 필요).',
+    );
   }
 
   if (provider === 'discord' && !DISCORD_PUBLIC_KEY_REGEX.test(plaintext)) {
-    throw new BadRequestException({
-      code: 'VALIDATION_ERROR',
-      message:
-        'Discord application public key 형식이 올바르지 않습니다 (ed25519 public key lowercase hex 64 chars 필요).',
-      details: {
-        field: 'inboundSigningPlaintext',
-        code: ErrorCode.INVALID_FIELD,
-      },
-    });
+    throwInvalidField(
+      'inboundSigningPlaintext',
+      'Discord application public key 형식이 올바르지 않습니다 (ed25519 public key lowercase hex 64 chars 필요).',
+    );
   }
 }
 

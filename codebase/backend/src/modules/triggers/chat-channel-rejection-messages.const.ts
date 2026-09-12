@@ -5,8 +5,9 @@
 //
 //   - 비어있지 않은 값 → 전역 `CustomValidationPipe` 가 DTO 의 `@IsEmpty({ message })` 로 거부
 //     (중첩 경로 `chatChannel.<field>` · 배열 `details` · `code: 'INVALID_FIELD'`)
-//   - `null` / `''`    → `@IsEmpty()` 를 **통과**하고 `TriggersService` 가드가 거부
-//     (flat `<field>` · 단일 object `details`)
+//   - `null` / `''`    → `@IsEmpty()` 를 **통과**하고 `chat-channel-input-rules` 의 가드가 거부
+//     (flat `<field>` · 단일 object `details`). 그 가드는 `#1319` 이후 `TriggersService` 의
+//     private 메서드가 아니라 **module-level 함수**이고 서비스는 호출만 한다.
 //
 // 즉 **같은 필드를 같은 이유로** 거부하는데 표현 층만 다르다. 두 문면이 갈리면 사용자는
 // 같은 거부에 두 가지 설명을 보게 된다 — 보낸 값이 `''` 였는지에 따라. 그 등가성을 상수로
