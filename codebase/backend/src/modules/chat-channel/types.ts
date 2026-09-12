@@ -502,9 +502,11 @@ export type CredentialRejectedError = Error & {
 export function credentialRejectedError(
   message: string,
 ): CredentialRejectedError {
+  // `as const` 없이는 fresh object literal 의 `code` 가 `string` 으로 widening 되어 선언 타입
+  // (`'BOT_TOKEN_INVALID'` 리터럴)에 대입되지 않는다 — `build` 단계가 TS2322 로 잡는다.
   return Object.assign(new Error(message), {
     code: CREDENTIAL_REJECTED_CODE,
-  });
+  } as const);
 }
 
 /**

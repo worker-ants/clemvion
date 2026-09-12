@@ -2007,13 +2007,13 @@ describe('TriggersService.rotateBotToken — 6단계 오케스트레이션', () 
       credentialRejectedError('Slack auth.test failed: invalid_auth'),
     );
 
-    const err: unknown = await service
+    const caught: unknown = await service
       .rotateBotToken(TRIGGER_ID, WORKSPACE_ID, NEW_TOKEN, 'u-bot')
       .then(() => null)
-      .catch((e: unknown) => e);
+      .catch((err: unknown) => err);
 
-    expect((err as BadRequestException).getStatus()).toBe(400);
-    expect((err as BadRequestException).getResponse()).toMatchObject({
+    expect((caught as BadRequestException).getStatus()).toBe(400);
+    expect((caught as BadRequestException).getResponse()).toMatchObject({
       code: 'BOT_TOKEN_INVALID',
     });
   });
@@ -2031,13 +2031,13 @@ describe('TriggersService.rotateBotToken — 6단계 오케스트레이션', () 
       new Error('getaddrinfo ENOTFOUND api.telegram.org'),
     );
 
-    const err: unknown = await service
+    const caught: unknown = await service
       .rotateBotToken(TRIGGER_ID, WORKSPACE_ID, NEW_TOKEN, 'u-bot')
       .then(() => null)
-      .catch((e: unknown) => e);
+      .catch((err: unknown) => err);
 
-    expect((err as BadRequestException).getStatus()).toBe(502);
-    const body = (err as BadRequestException).getResponse();
+    expect((caught as BadRequestException).getStatus()).toBe(502);
+    const body = (caught as BadRequestException).getResponse();
     expect(body).toMatchObject({ code: 'CHAT_CHANNEL_SETUP_FAILED' });
     expect(JSON.stringify(body)).not.toContain('api.telegram.org');
     const logged = warn.mock.calls.map(([m]) => String(m)).join('\n');

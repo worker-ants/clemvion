@@ -137,12 +137,12 @@ describe('DiscordAdapter', () => {
         status: 404,
       });
       const adapter = new DiscordAdapter(client, makeSecretsMock());
-      const err: unknown = await adapter
+      const caught: unknown = await adapter
         .setupChannel(DISCORD_CONFIG, 'https://x/hook')
         .then(() => null)
-        .catch((e: unknown) => e);
-      expect(err).toBeInstanceOf(Error);
-      expect((err as { code?: unknown }).code).toBeUndefined();
+        .catch((err: unknown) => err);
+      expect(caught).toBeInstanceOf(Error);
+      expect((caught as { code?: unknown }).code).toBeUndefined();
     });
 
     it('§3.1 verify_key 부재 → botIdentity.publicKey undefined', async () => {
