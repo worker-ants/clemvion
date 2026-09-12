@@ -3054,16 +3054,19 @@ field: T | null;
       `@Param('id')` 다. 이 PR 이전부터 있던 상태라 스코프 밖으로 뒀다. 비-UUID 가 들어오면
       `findById` 가 DB 레벨에서 실패하는지 400 이 나가는지 **먼저 실측**할 것.
 
-- [ ] **응답 DTO 의 `responses/` 관례가 `code:` glob 과 충돌한다** (planner, 2026-09-12 등재).
-      `15-chat-channel.md` 의 glob 은 `.../triggers/dto/chat-channel-*.dto.ts` 인데 glob 의 `*` 는
-      `/` 를 넘지 않아 **`dto/responses/` 하위를 못 잡는다**(정본 매처 실측). 그래서
-      `ChatChannelRotateBotTokenDto` 를 평평한 `dto/` 에 두었다 — 소유 spec 이 자기 파일을
-      못 보는 것(`R-CC-22` 가 막으려던 형태)보다 관례를 어기는 쪽이 낫다고 판단했다.
-      처분 후보: (a) glob 을 `dto/**/chat-channel-*.dto.ts` 로 넓힌다 (b) chat-channel 응답 DTO 는
-      평평한 자리를 관례로 명문화한다. **둘 다 spec 편집이라 planner 축**이다.
-      > 지금 상태도 틀리진 않았다 — `2-trigger-list.md` 의 `dto/**` 가 두 자리를 모두 덮으므로
-      > `--impl-done` 의 spec-link 판정 자체는 어느 쪽에서도 성립한다. 문제는 **어느 spec 이
-      > 그 파일을 자기 것으로 보는가** 다.
+- [ ] **`15-chat-channel.md` 의 `code:` glob 이 `dto/responses/` 를 못 잡는다** (planner,
+      2026-09-12 등재). glob `.../triggers/dto/chat-channel-*.dto.ts` 의 `*` 는 `/` 를 넘지 않아
+      **`dto/responses/` 하위가 시야 밖**이다(정본 매처 실측). 그런데 `swagger.md §5-1` 은 응답
+      DTO 의 자리를 `dto/responses/*-response.dto.ts` 로 **정식 규약**으로 못박는다.
+      처분: glob 을 **`dto/**/chat-channel-*.dto.ts`** 로 넓힌다.
+      > **내가 이 판단을 한 번 뒤집었다.** 처음엔 glob 에 맞추려고 응답 DTO 를 평평한 `dto/` 에
+      > 두었는데(`chat-channel-rotate-bot-token.dto.ts`), `/ai-review` `16_39_18` requirement
+      > WARNING 이 규약 위반을 지적했다. **규약이 자리를 정하고 glob 은 그 자리를 덮도록 고치는
+      > 도구**다 — 반대로 하면 다음 응답 DTO 도 같은 선택을 한다. 파일은
+      > `dto/responses/chat-channel-rotate-bot-token-response.dto.ts` 로 옮겼다.
+      >
+      > **지금 spec-link 판정이 깨진 상태는 아니다** — `2-trigger-list.md` 의 `dto/**` 가 그 자리를
+      > 덮는다. 남은 것은 *"chat-channel spec 이 자기 파일을 보는가"* 한 축이다.
 
 - [ ] **리뷰 in-flight 중에 같은 워크트리에서 뮤테이션을 돌리지 않는다** (프로세스,
       2026-09-11 등재 · `/ai-review` `review/code/2026/09/11/16_16_44` 관측). 그 라운드에서
@@ -3072,6 +3075,14 @@ field: T | null;
       이번엔 전원이 복원 명령 없이 관측만 했고 판정도 커밋 상태 기준이라 영향이 없었지만,
       **reviewer 가 유령을 쫓을 수 있다**(기존 교훈: 병렬 리뷰어가 서로를 오염시킨 사고).
       처방 후보: 뮤테이션을 별 워크트리에서 돌리거나, 리뷰 완료 후로 순서를 고정.
+
+      > **2026-09-12 — 방향이 하나 더 있다. `reviewer` 도 같은 트리를 뮤테이션한다.**
+      > `review/code/2026/09/12/16_39_18` 요약의 §관측된 이상 상태가 미커밋 뮤테이션을
+      > 보고했는데, **내 뮤테이션은 그 라운드 준비(16:39:18)보다 앞선 16:26 에 끝나고 원복까지
+      > assert 했다.** 같은 요약이 `testing` reviewer 가 **자기 검증으로 동일 뮤테이션을
+      > 재현·원복**했다고 적는다 — 즉 이 항목의 처방은 *"내가 안 돌린다"* 로는 부족하고,
+      > **reviewer 프롬프트가 scratch 사본을 쓰게** 하는 쪽이어야 한다.
+      > (요약이 그 잔여물을 "실결함으로 오인하지 말 것" 으로 처리한 것은 올바른 대응이다.)
       > **2026-09-11 재발(2회).** `impl-chat-channel-binder-t2` 의 `/ai-review`
       > `review/code/2026/09/11/18_04_36` 에서 또 관측돼, 처방을 **"뮤테이션은 리뷰 완료
       > 후에만"** (= 내 규율)으로 적었다.

@@ -82,11 +82,6 @@ describe('chat-channel-input-rules — 내부 필드 차단 (R-CC-21)', () => {
   });
 
   /**
-   * **대칭 필드도 막는다.** 첫 판본은 `botToken` 만 봤는데, 이 함수가 막는 것은 R-CC-21 의
-   * **두 값 필드**다 — 한쪽만 검증하면 다른 쪽 가드가 사라져도 GREEN 이다(실측 커버리지 미달,
-   * `/ai-review` `review/code/2026/09/11/15_57_42` W1).
-   */
-  /**
    * **두-층 등가성의 서비스 쪽 절반.** `chat-channel-rejection-messages.const.ts` 는
    * *"`null`/`''` 는 `@IsEmpty()` 를 통과하고 서비스 가드가 거부한다"* 를 설계로 선언하는데,
    * 그 **DTO 가 통과시킨다** 는 절반만 `trigger-dto-validation.spec.ts` 가 고정하고 있었다
@@ -129,6 +124,11 @@ describe('chat-channel-input-rules — 내부 필드 차단 (R-CC-21)', () => {
     },
   );
 
+  /**
+   * **대칭 필드도 막는다.** 첫 판본은 `botToken` 만 봤는데, 이 함수가 막는 것은 R-CC-21 의
+   * **두 값 필드**다 — 한쪽만 검증하면 다른 쪽 가드가 사라져도 GREEN 이다(실측 커버리지 미달,
+   * `/ai-review` `review/code/2026/09/11/15_57_42` W1).
+   */
   it('PATCH 는 inboundSigningPlaintext 도 거부한다', () => {
     expect(
       thrown(() =>

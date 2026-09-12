@@ -37,7 +37,7 @@ import { CreateTriggerDto } from './dto/create-trigger.dto';
 import { UpdateTriggerDto } from './dto/update-trigger.dto';
 import { CurrentUser, WorkspaceId } from '../../common/decorators';
 import { QueryTriggerDto } from './dto/query-trigger.dto';
-import { ChatChannelRotateBotTokenDto } from './dto/chat-channel-rotate-bot-token.dto';
+import { ChatChannelRotateBotTokenDto } from './dto/responses/chat-channel-rotate-bot-token-response.dto';
 import {
   TriggerDto,
   TriggerHistoryItemDto,

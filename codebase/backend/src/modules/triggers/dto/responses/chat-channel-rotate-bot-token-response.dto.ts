@@ -1,13 +1,18 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
-import type { TriggerChatChannelHealth } from '../entities/trigger.entity';
+import type { TriggerChatChannelHealth } from '../../entities/trigger.entity';
 
-// **왜 `dto/responses/` 가 아니라 여기인가** — `15-chat-channel.md` 의 `code:` glob 이
-// `.../triggers/dto/chat-channel-*.dto.ts` 이고 glob 의 `*` 는 `/` 를 넘지 않는다. 실측:
-// `dto/responses/chat-channel-rotate-bot-token.dto.ts` 는 `2-trigger-list.md`(`dto/**`)에만
-// 잡히고 **정작 이 파일을 소유한 `15-chat-channel.md` 에는 안 잡힌다**. 그 형태가 `R-CC-22`
-// 가 세 번(#1317·#1319·#1320)의 누락 끝에 막으려던 바로 그 결함이라 평평한 자리를 택했다.
-// (`responses/` 관례와의 충돌을 glob 확장으로 풀지는 planner 판단 — 트래커에 등재.)
+// **자리와 이름은 `swagger.md §5-1` 이 정한다** — `dto/responses/*-response.dto.ts`.
+//
+// 첫 판본은 평평한 `dto/` 에 두었다. `15-chat-channel.md` 의 `code:` glob 이
+// `dto/chat-channel-*.dto.ts` 인데 glob 의 `*` 는 `/` 를 안 넘어 `responses/` 하위를 못 잡기
+// 때문이었다(정본 매처로 실측). **그 판단을 뒤집었다** (`/ai-review` `16_39_18` requirement
+// WARNING): 정식 규약이 자리를 정하고, glob 은 그 자리를 **덮도록 고치면 되는 도구**다.
+// 규약을 어겨 도구를 맞추면 다음 응답 DTO 도 같은 선택을 하게 된다.
+//
+// 지금도 spec-link 판정 자체는 성립한다 — `2-trigger-list.md` 의 `dto/**` 가 이 자리를 덮는다.
+// 남은 것은 *"chat-channel spec 이 자기 파일을 보는가"* 이고, glob 을
+// `dto/**/chat-channel-*.dto.ts` 로 넓히는 planner 항목이 트래커에 있다.
 //
 // 내부 서사를 `//` 에 두는 이유: JSDoc 은 공개 OpenAPI `description` 으로 나간다
 // (`spec/conventions/swagger.md §3`).
@@ -45,13 +50,14 @@ export class ChatChannelRotateBotIdentityDto {
   @ApiPropertyOptional({ example: 'T0123ABC' })
   teamId?: string;
 
-  /**
-   * Discord 전용 — `GET /applications/@me` 의 `verify_key`(ed25519 public key, **비민감**).
-   *
-   * 첫 판본은 이 필드를 빠뜨려 **문서가 실제 응답보다 좁았다** — `TransformInterceptor` 는
-   * 클래스 기반으로 필드를 지우지 않으므로 Discord 트리거의 wire 응답에는 실려 나간다
-   * (`/ai-review` `16_17_57` api_contract WARNING).
-   */
+  // 첫 판본은 이 필드를 빠뜨려 **문서가 실제 응답보다 좁았다** — `TransformInterceptor` 는
+  // 클래스 기반으로 필드를 지우지 않으므로 Discord 트리거의 wire 응답에는 실려 나간다
+  // (`/ai-review` `16_17_57` api_contract WARNING).
+  //
+  // 이 서사가 JSDoc 이 아니라 `//` 인 이유는 이 파일 머리말과 같다 — **JSDoc 은 공개 OpenAPI
+  // `description` 으로 나간다**(`swagger.md §3` · `review-citations.md §3`). 첫 판본은 그것을
+  // 머리말에 적어 놓고 정작 이 필드에서 어겼고, `dto-jsdoc-citation` 래칫이 잡았다.
+  /** Discord 전용 — `GET /applications/@me` 의 `verify_key` (ed25519 public key, 비민감). */
   @ApiPropertyOptional({ example: 'a1b2…' })
   publicKey?: string;
 }
