@@ -21,6 +21,13 @@ import { parseDiscordUpdate } from './discord-update.parser';
 import { NATIVE_MODAL_MAX_FIELDS } from '../../shared/form-mode';
 
 /**
+ * `GET /applications/@me` 가 실어 준 HTTP status 중 "자격 증명 거부" 로 판정하는 값.
+ * Telegram(`TELEGRAM_CREDENTIAL_REJECTED_STATUSES`)·Slack(`SLACK_CREDENTIAL_REJECTED_ERRORS`)
+ * 과 같은 이름 있는 상수 관례를 따른다 — 인라인 리터럴은 판정 기준이 바뀔 때 스타일 혼선을 낳는다.
+ */
+const DISCORD_CREDENTIAL_REJECTED_STATUSES: readonly number[] = [401, 403];
+
+/**
  * Discord Chat Channel Adapter.
  *
  * Spec [providers/discord.md] — REST + Interactions Webhook 기반.
@@ -72,7 +79,8 @@ export class DiscordAdapter implements NativeFormAdapter {
       // `Error.code` 와 다른 네임스페이스이고, 인증 실패에 `0` 이 와서 값으로는 못 가른다.
       // 자격 증명 거부 판정은 client 가 실어 준 HTTP `status` 로 한다.
       const message = `Discord getApplicationMe failed: ${app.message ?? 'unknown'}`;
-      throw app.status === 401 || app.status === 403
+      throw typeof app.status === 'number' &&
+        DISCORD_CREDENTIAL_REJECTED_STATUSES.includes(app.status)
         ? credentialRejectedError(message)
         : new Error(message);
     }
