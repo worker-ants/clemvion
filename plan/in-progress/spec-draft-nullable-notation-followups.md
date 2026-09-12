@@ -3058,6 +3058,14 @@ field: T | null;
       > 형제 가드가 *"fixture 는 스캔 범위 밖에 둔다"* 고 적어 둔 이유를 몸으로 확인했고,
       > 스캔 루트를 실측(`*.dto.ts` 는 `modules/` 111 · `common/` 3)으로 좁혔다.
 
+- [ ] **유저 가이드 MDX 4곳이 rotate-bot-token 404 를 `TRIGGER_NOT_FOUND` 로 적는다 —
+      실제 코드는 `RESOURCE_NOT_FOUND`** (developer, 2026-09-12 등재 · `/ai-review`
+      `review/code/2026/09/12/17_39_51` user_guide_sync INFO). 2026-05-23 `#282` 에서 유입된
+      **4개월 선재 결함**이라 이번 PR 과 무관하다(그 diff 는 해당 MDX 를 안 건드린다).
+      대상: `content/docs/06-integrations-and-config/telegram{,.en}.mdx` ·
+      `02-nodes/triggers{,.en}.mdx`. 고치기 전에 **다른 엔드포인트에도 같은 오기가 있는지**
+      전수로 셀 것 — 네 곳만 고치면 같은 클래스가 남는다.
+
 - [ ] **`rotateBotToken` 의 `:id` 에 `ParseUUIDPipe` 가 없다** (developer, 2026-09-12 등재 ·
       `/ai-review` `16_17_57` api_contract INFO). 형제 rotate 계열(`rotateNotificationSecret` ·
       `revokePerTriggerToken`)은 `@Param('id', ParseUUIDPipe)` 인데 이 엔드포인트만 맨

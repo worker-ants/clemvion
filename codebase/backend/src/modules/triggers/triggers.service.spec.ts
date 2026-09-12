@@ -2114,6 +2114,41 @@ describe('TriggersService.rotateBotToken — 6단계 오케스트레이션', () 
     expect(typeof result.rotatedAt).toBe('string');
   });
 
+  /**
+   * **provider 별 부가 필드가 응답까지 살아 오는가** — Slack `teamId` · Discord `publicKey`.
+   *
+   * 세 라운드 연속 지적된 자리다(`review/code/2026/09/12/17_02_19` INFO 9 →
+   * `review/code/2026/09/12/17_23_34` INFO 8 → `review/code/2026/09/12/17_39_51` WARNING).
+   * 내 유예 근거는 *"전체 스프레드라 지금은 안전하다"* 였는데, 그 말은 **지금 형태에 대한
+   * 진술**이지 계약이 아니다 — 누가 `botIdentity` 를 명시 필드 나열로 바꾸면 두 필드가
+   * 조용히 사라지고, 그게 바로 이 PR 이 고친 결함(**선언이 실제 반환보다 좁다**)의 재발이다.
+   * 유예를 네 번째로 방어하는 것보다 열 줄을 쓰는 쪽이 싸다.
+   */
+  it.each([
+    ['slack', { botId: 1, username: 'slackbot', teamId: 'T0123ABC' }],
+    ['discord', { botId: 2, username: 'discordbot', publicKey: 'a1b2c3' }],
+  ])(
+    '§5.4 — %s 의 부가 identity 필드가 응답까지 그대로 온다',
+    async (_provider, botIdentity) => {
+      mockAdapter.setupChannel.mockResolvedValueOnce({
+        registeredAt: new Date().toISOString(),
+        configUpdates: { botIdentity },
+        issuedInboundSigning: ISSUED_SECRET,
+      });
+
+      const result = await service.rotateBotToken(
+        TRIGGER_ID,
+        WORKSPACE_ID,
+        NEW_TOKEN,
+        'user-1',
+      );
+
+      // `toEqual` 이라 **필드가 하나라도 빠지면 RED** 다 — `objectContaining` 이면
+      // 누락을 못 본다(그 차이가 이 테스트의 존재 이유다).
+      expect(result.botIdentity).toEqual(botIdentity);
+    },
+  );
+
   it('§5.4 — setupChannel 이 botIdentity 미반환 시 botIdentity=null', async () => {
     mockAdapter.setupChannel.mockResolvedValueOnce({
       registeredAt: new Date().toISOString(),
