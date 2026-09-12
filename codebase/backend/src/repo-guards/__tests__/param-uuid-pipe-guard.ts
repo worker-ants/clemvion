@@ -145,7 +145,14 @@ function collectMethodViolations(
         .map((a) => a.getText(sf))
         .join(',');
       // `ParseUUIDPipe` · `new ParseUUIDPipe({ version: '4' })` 둘 다 받는다 —
-      // 실측 135건이 107 : 28 로 갈린다.
+      // 2026-09-12 실측(`modules/` 전수, **이 PR 이 마지막 1건을 채운 뒤**): 파이프를 가진
+      // id-형 136건이 맨 식별자 108 : 인스턴스화 28 로 갈린다.
+      //
+      // > **이 수치를 `135건 107 : 28` 로 적었다가 정정했다**
+      // > (`review/code/2026/09/12/21_41_49` documentation WARNING). 그건 파이프를 **붙이기
+      // > 전** 값이라 **내 수정이 스스로 무효화**한 숫자다 — 저장소가 이미 적어 둔
+      // > *"PR 안의 정량 기록은 PR 이 닫히는 시점의 값"* 을 같은 PR 안에서 어긴 셈이다.
+      // > 그래서 지금은 **어느 시점의 값인지**를 문장에 박아 둔다.
       if (!pipes.includes('ParseUUIDPipe')) missing.push('ParseUUIDPipe');
       if (!excluded && declared.get(param) !== true) {
         missing.push("@ApiParam format:'uuid'");
