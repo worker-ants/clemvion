@@ -447,7 +447,9 @@ Group chats are not supported — the bot only operates in 1:1 (private) convers
 </Callout>
 
 <Callout type="warn">
-Error codes the Chat Channel API can return: `INVALID_BOT_TOKEN`, `WORKSPACE_ID_REQUIRED`, `TRIGGER_NOT_FOUND`, `CHAT_CHANNEL_NOT_CONFIGURED`, `CHAT_CHANNEL_PROVIDER_UNKNOWN`, `CHAT_CHANNEL_ENDPOINT_REQUIRED`, `BOT_TOKEN_INVALID`, `CHAT_CHANNEL_SETUP_FAILED`. All codes are shown as localized Korean messages when the interface language is set to Korean.
+Error codes the Chat Channel API can carry in its response body: `INVALID_BOT_TOKEN`, `WORKSPACE_ID_REQUIRED`, `CHAT_CHANNEL_NOT_CONFIGURED`, `CHAT_CHANNEL_PROVIDER_UNKNOWN`, `CHAT_CHANNEL_ENDPOINT_REQUIRED`, `BOT_TOKEN_INVALID`, `CHAT_CHANNEL_SETUP_FAILED`. When the trigger doesn't exist or you have no access to that workspace, the response is 404 `RESOURCE_NOT_FOUND`.
+
+These codes are what you see when you **call the API directly**. In the UI, a failed bot-token rotation shows a message such as "Bot Token rotation failed" instead of the code — check the API response when you need the exact reason.
 </Callout>
 
 For step-by-step setup and advanced settings, see the individual integration guides: [Telegram](/docs/06-integrations-and-config/telegram) · [Slack](/docs/06-integrations-and-config/slack) · [Discord](/docs/06-integrations-and-config/discord).

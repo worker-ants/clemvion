@@ -25,7 +25,7 @@ MCP servers are registered the same way as other integrations under [Integration
 <FieldTable rows={[
   { name: "Bearer Token", type: "Auth", required: "Optional", description: "Sent as `Authorization: Bearer <token>`. Stored under the `token` secret key." },
   { name: "API Key", type: "Auth", required: "Optional", description: "Sent in the header expected by the server, with the key value (`value`). Stored under the `value` secret key." },
-  { name: "None", type: "Auth", required: "Optional", description: "Used in trusted networks where no auth is needed. Plain-HTTP URLs are only allowed when `MCP_INSECURE_URL_ALLOWED` is enabled — otherwise calls are blocked." }
+  { name: "None", type: "Auth", required: "Optional", description: "Used in trusted networks where no auth is needed. Plain-HTTP URLs are only allowed when `MCP_ALLOW_INSECURE_URL` is enabled — otherwise calls are blocked." }
 ]} />
 
 <Callout type="warn">

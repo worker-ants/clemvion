@@ -3107,19 +3107,73 @@ field: T | null;
       **wire 포맷 자체는 이전부터 실려 있었다**(스프레드 반환) — 즉 이 PR 이 만든 갭이 아니라
       **드러낸** 갭이다. 표시할지 말지는 UX 판단이므로 등재만 한다.
 
-- [ ] **유저 가이드 MDX 4곳이 rotate-bot-token 404 를 `TRIGGER_NOT_FOUND` 로 적는다 —
+- [x] **유저 가이드 MDX 4곳이 rotate-bot-token 404 를 `TRIGGER_NOT_FOUND` 로 적는다 —
       실제 코드는 `RESOURCE_NOT_FOUND`** (developer, 2026-09-12 등재 · `/ai-review`
       `review/code/2026/09/12/17_39_51` user_guide_sync INFO). 2026-05-23 `#282` 에서 유입된
       **4개월 선재 결함**이라 이번 PR 과 무관하다(그 diff 는 해당 MDX 를 안 건드린다).
       대상: `content/docs/06-integrations-and-config/telegram{,.en}.mdx` ·
       `02-nodes/triggers{,.en}.mdx`. 고치기 전에 **다른 엔드포인트에도 같은 오기가 있는지**
       전수로 셀 것 — 네 곳만 고치면 같은 클래스가 남는다.
+      > **해소** — 본 배치(`trigger-uuid-and-guide-codes`). 전수로 세니 **네 곳이 아니라
+      > 여섯 곳**이었다: MDX 4곳 + `backend-labels.ts` 의 `ERROR_KO` 주석 블록 +
+      > `backend-labels.test.ts` 의 `LOCALIZED_ERROR_CODES` 주석. 뒤 둘은 **코드**에 있는
+      > 같은 오귀속이라 트래커가 몰랐다 — 그리고 같은 테스트 파일 아래쪽 주석은 처음부터
+      > 맞게(*"hooks webhook inbound 경로"*) 적고 있어 한 파일이 자기를 반증하고 있었다.
+      > 축 2(`NNN \`CODE\`` 29건 전수)에서 다른 오기는 나오지 않았다 —
+      > `VALIDATION_ERROR` 16 · `BOT_TOKEN_INVALID` 6 · `CHAT_CHANNEL_SETUP_FAILED` 5 는
+      > 전부 참. 축 1(UPPER_SNAKE 97토큰)이 **다른 클래스**를 드러내 위 두 항목으로 등재했다.
 
-- [ ] **`rotateBotToken` 의 `:id` 에 `ParseUUIDPipe` 가 없다** (developer, 2026-09-12 등재 ·
+- [x] **`rotateBotToken` 의 `:id` 에 `ParseUUIDPipe` 가 없다** (developer, 2026-09-12 등재 ·
       `/ai-review` `16_17_57` api_contract INFO). 형제 rotate 계열(`rotateNotificationSecret` ·
       `revokePerTriggerToken`)은 `@Param('id', ParseUUIDPipe)` 인데 이 엔드포인트만 맨
       `@Param('id')` 다. 이 PR 이전부터 있던 상태라 스코프 밖으로 뒀다. 비-UUID 가 들어오면
       `findById` 가 DB 레벨에서 실패하는지 400 이 나가는지 **먼저 실측**할 것.
+      > **해소** — 본 배치(`trigger-uuid-and-guide-codes`). 선실측 결과는 **500 마스킹**이다
+      > (`uuid` 컬럼 → SQLSTATE 22P02 → `GlobalExceptionFilter` 의 세 분기 어디에도 안 걸림).
+      > 즉 클라이언트 입력 오류가 서버 장애로 보이던 자리였고, 이제 400 `VALIDATION_ERROR` 다.
+      > **한 자리를 고치는 대신 가드로 고정**했다(`param-uuid-pipe`) — AST 전수, 베이스라인 0,
+      > 허용목록 없음. `--impl-prep` convention_compliance WARNING 이 *"같은 조항의 절반만
+      > 겨냥한다"* 고 지적해 `@ApiParam({format:'uuid'})` 축을 함께 넣었고, 그 축 실측이 3건
+      > (`rotateBotToken`·`switchWorkspace`·`simulateExecutionRunRedeliveryForTest`)이라
+      > 파이프 축만 닫았으면 둘이 남았을 것이다. 셋째는 `@ApiExcludeEndpoint()` 라 목록이
+      > 아니라 **구조로** 면제한다.
+
+- [ ] **유저 가이드가 존재하지 않는 에러 코드 5종을 이름으로 적는다** (developer, 2026-09-12
+      등재 · 위 두 항목을 닫으며 돌린 **전수 스윕**이 발견). `content/docs/**` 의 UPPER_SNAKE
+      토큰 97개 중 코드베이스 어디에도 없는 것이 17개인데, 그중 **에러 코드로 제시된** 것이
+      다섯이다 — `LLM_AUTH_ERROR`·`LLM_MODEL_NOT_FOUND` (`06-integrations-and-config/
+      models{,.en}.mdx` 의 `FieldTable`) · `INTEGRATION_ERROR`·`NODE_EXECUTION_FAILED`
+      (`05-run-and-debug/run-results{,.en}.mdx` · `error-handling{,.en}.mdx` 의 예시 payload) ·
+      `MAKESHOP_API_ERROR` (`02-nodes/integrations{,.en}.mdx` 의 error 포트 예시).
+      나머지 12개는 대상이 아니다(프런트엔드 전용 3 · `_glossary.md` 플레이스홀더 6 ·
+      Discord Gateway 어휘 `MESSAGE_CREATE` · 범주어 `SUB_WORKFLOW` · 환경변수 오기 1건은
+      본 배치(`trigger-uuid-and-guide-codes`)에서 해소).
+      **둘은 없는 이름이 아니라 은퇴한 이름이다** — `spec/5-system/3-error-handling.md §1.4`
+      가 *"구 에러 코드 `NODE_EXECUTION_FAILED` / `INTEGRATION_ERROR` / `LLM_ERROR` 는 노드
+      수준 envelope 에 더 이상 사용하지 않는다"* 고 이미 선언해 두었다(`--impl-prep`
+      `19_34_19` rationale_continuity INFO#2 가 지목). 즉 가이드가 SoT 보다 낡았다.
+      **그래도 이름만 바꾸면 안 된다** — `LLM_AUTH_ERROR` 는 실재 `LLM_AUTH_FAILED` 의 근접
+      오기로 보이지만, 나머지는 *"모델이 없을 때 `Test Connection` 이 실제로 무엇을 내는가"* ·
+      *"노드 에러 포트가 일반 실패에 무엇을 싣는가"* 를 **실측해야** 대응 코드가 정해진다.
+      추측으로 치환하면 오기를 다른 오기로 바꾸는 것이다.
+
+- [ ] **`ERROR_KO` 의 API 에러 코드 매핑을 **아무도 읽지 않는다**** (developer, 2026-09-12
+      등재 · 같은 스윕). 처음엔 *"일반 API 코드(`RESOURCE_NOT_FOUND` 등)가 맵에 없어 ko 화면에
+      영문이 뜬다"* 로 등재하려 했는데, 그 전제가 **실측에 반증됐다** — 더 큰 결함이 그 아래
+      있었다.
+      | 축 | 실측 |
+      |---|---|
+      | `ERROR_KO` 의 chat-channel 코드 7종 | 존재 |
+      | 일반 API 코드 5종(`RESOURCE_NOT_FOUND`·`AUTH_REQUIRED`·`FORBIDDEN`·`VALIDATION_ERROR`·`RESOURCE_CONFLICT`) | 전부 부재 |
+      | `ERROR_KO` 를 읽는 유일한 함수 `translateBackendError` 의 **프로덕션 호출부** | **0건** (정의 + 자기 테스트뿐. 형제 `translateGraphWarning`·`translateBackendHint`·`translateBackendWarning` 은 배선돼 있다) |
+      | 봇 토큰 회전 실패 시 화면에 뜨는 것 | `chat-channel-card.tsx` `onError` 가 에러를 **버리고** 고정 문자열 `rotateBotTokenFailed`("Bot Token 회전에 실패했어요") |
+      즉 코드가 화면에 **아예 안 나온다** — 한국어도 영어도 아니다. 그래서 맵에 줄을 더하는
+      것은 아무것도 바꾸지 않는다. 결정해야 할 것은 *"에러 코드를 UI 에 노출할 것인가,
+      노출한다면 `translateBackendError` 를 어디에 배선할 것인가"* 다.
+      > 본 배치(`trigger-uuid-and-guide-codes`)는 이 갭을 **고치지 않고 문면만 진실로 맞췄다** —
+      > `02-nodes/triggers{,.en}.mdx` 의 *"한국어 화면에서는 모두 한국어 안내 메시지로
+      > 표시돼요"* 는 8종 전부에 대해 거짓이었다. 지금은 *"API 를 직접 호출할 때 보이는 값"*
+      > 이라고 적는다. 문서가 구현보다 넓게 말하는 것을 좁힌 것이지 기능을 넣은 것이 아니다.
 
 - [x] **`15-chat-channel.md` 의 `code:` glob 이 `dto/responses/` 를 못 잡는다** (planner,
       2026-09-12 등재). glob `.../triggers/dto/chat-channel-*.dto.ts` 의 `*` 는 `/` 를 넘지 않아

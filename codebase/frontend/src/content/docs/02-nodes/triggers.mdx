@@ -460,7 +460,9 @@ Chat Channel 을 통해 아래 노드 유형이 동작해요:
 </Callout>
 
 <Callout type="warn">
-Chat Channel API가 반환할 수 있는 error code: `INVALID_BOT_TOKEN`, `WORKSPACE_ID_REQUIRED`, `TRIGGER_NOT_FOUND`, `CHAT_CHANNEL_NOT_CONFIGURED`, `CHAT_CHANNEL_PROVIDER_UNKNOWN`, `CHAT_CHANNEL_ENDPOINT_REQUIRED`, `BOT_TOKEN_INVALID`, `CHAT_CHANNEL_SETUP_FAILED`. 한국어 화면에서는 모두 한국어 안내 메시지로 표시돼요.
+Chat Channel API가 응답 본문에 실을 수 있는 error code: `INVALID_BOT_TOKEN`, `WORKSPACE_ID_REQUIRED`, `CHAT_CHANNEL_NOT_CONFIGURED`, `CHAT_CHANNEL_PROVIDER_UNKNOWN`, `CHAT_CHANNEL_ENDPOINT_REQUIRED`, `BOT_TOKEN_INVALID`, `CHAT_CHANNEL_SETUP_FAILED`. 트리거가 없거나 워크스페이스 권한이 없으면 404 `RESOURCE_NOT_FOUND`가 떨어져요.
+
+이 코드들은 **API를 직접 호출할 때** 보이는 값이에요. 화면에서 봇 토큰 회전이 실패하면 코드 대신 "Bot Token 회전에 실패했어요" 같은 안내 메시지가 떠요 — 정확한 사유가 필요하면 API 응답을 확인해요.
 </Callout>
 
 자세한 설정과 단계별 안내는 각 통합 가이드를 참고해요: [Telegram](/docs/06-integrations-and-config/telegram) · [Slack](/docs/06-integrations-and-config/slack) · [Discord](/docs/06-integrations-and-config/discord).

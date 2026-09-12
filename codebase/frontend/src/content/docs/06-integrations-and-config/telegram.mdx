@@ -127,7 +127,7 @@ curl -X POST https://<your-host>/api/triggers/<trigger-id>/chat-channel/rotate-b
 
 - 기존 token 은 **24시간 동안 grace 기간** 으로 같이 받아요 (그 사이 진행 중인 update 는 유실 없이 처리). 24시간 후 자동 정리.
 - 응답: `{ data: { triggerId, rotatedAt, chatChannelHealth, botIdentity } }`
-- 에러: 400 `BOT_TOKEN_INVALID`, 404 `TRIGGER_NOT_FOUND`, 502 `CHAT_CHANNEL_SETUP_FAILED` 등
+- 에러: 400 `BOT_TOKEN_INVALID`, 404 `RESOURCE_NOT_FOUND`(트리거 미존재 또는 워크스페이스 권한 없음), 502 `CHAT_CHANNEL_SETUP_FAILED` 등
 
 ## 7. 안내 메시지 커스터마이즈 (`languageHints` / `languageLocale`)
 
