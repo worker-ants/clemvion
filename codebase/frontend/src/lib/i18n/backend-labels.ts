@@ -602,8 +602,16 @@ export const ERROR_KO: Record<string, string> = {
   // 사용자가 채팅 채널 트리거 설정·봇 토큰 회전 시 노출. 영문 SoT 는 각 throw-site.
   INVALID_BOT_TOKEN:
     "봇 토큰이 올바르지 않아요. 새 봇 토큰을 입력해 주세요.",
+  // **`TRIGGER_NOT_FOUND` 는 chat-channel API 의 코드가 아니다** — 위 주석 블록 안에 섞여
+  // 있었지만, 이 코드의 유일한 발신처는 `hooks.service.ts` 의 **인입 webhook** 경로다
+  // (`spec/data-flow/10-triggers.md`). 트리거 REST API 의 404 는 `RESOURCE_NOT_FOUND` 이고
+  // `triggers.controller.ts` 의 `@ApiNotFoundResponse` 가 그렇게 선언한다. 메시지 문면이
+  // "웹훅 엔드포인트" 인 것이 원래 귀속을 이미 말하고 있었다.
+  // 형제 테스트(`backend-labels.test.ts` 의 `CHAT_CHANNEL_CODES` 위 주석)는 처음부터 맞게
+  // 적고 있어서, 한 축의 두 주석이 서로를 반증하는 상태였다.
   TRIGGER_NOT_FOUND:
     "해당 웹훅 엔드포인트를 찾을 수 없어요.",
+  // 아래부터 다시 chat-channel API 코드 (spec §5.4).
   CHAT_CHANNEL_NOT_CONFIGURED:
     "이 트리거에는 채팅 채널이 설정되어 있지 않아요.",
   CHAT_CHANNEL_PROVIDER_UNKNOWN:

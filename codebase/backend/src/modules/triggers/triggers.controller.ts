@@ -262,13 +262,14 @@ export class TriggersController {
     description:
       'Spec CCH-SE-04 — 외부 provider bot token 회전. 기존 token 은 24h grace 동안 chat_channel_token_v2 (secret store v2 ref) 로 보관, CCH-SE-04-C cron 이 grace 만료 시 정리.',
   })
+  @ApiParam({ name: 'id', description: '트리거 UUID', format: 'uuid' })
   @ApiUnauthorizedResponse({ description: '인증 실패' })
   @ApiForbiddenResponse({ description: 'editor 이상 권한 필요' })
   // §5.4 실패 응답 표의 두 축을 함께 문서화한다 — 400 과 502 를 **가르는 것**이 이 엔드포인트의
   // 계약이라(R-CC-23) 한쪽만 적으면 나머지 절반이 문서에 없는 상태로 남는다.
   @ApiBadRequestResponse({
     description:
-      'INVALID_BOT_TOKEN (newBotToken 누락/비-string) · BOT_TOKEN_INVALID (provider 가 자격 증명을 거부) · CHAT_CHANNEL_NOT_CONFIGURED · CHAT_CHANNEL_PROVIDER_UNKNOWN · CHAT_CHANNEL_ENDPOINT_REQUIRED',
+      'VALIDATION_ERROR (:id 가 UUID 형식이 아님 — ParseUUIDPipe) · INVALID_BOT_TOKEN (newBotToken 누락/비-string) · BOT_TOKEN_INVALID (provider 가 자격 증명을 거부) · CHAT_CHANNEL_NOT_CONFIGURED · CHAT_CHANNEL_PROVIDER_UNKNOWN · CHAT_CHANNEL_ENDPOINT_REQUIRED',
   })
   @ApiBadGatewayResponse({
     description:
@@ -283,7 +284,11 @@ export class TriggersController {
       '회전 결과 — rotatedAt · triggerId · chatChannelHealth · botIdentity',
   })
   async rotateBotToken(
-    @Param('id') triggerId: string,
+    // 형제 6곳과 같은 형태. 파이프가 없으면 비-UUID 가 그대로 `findById` 까지 흘러
+    // Postgres 가 SQLSTATE 22P02 로 거부하는데, `GlobalExceptionFilter` 에 그 분기가 없어
+    // **500 INTERNAL_ERROR 로 마스킹**된다 — 클라이언트 입력 오류가 서버 장애로 보인다
+    // (`common/utils/uuid.ts` 가 같은 사슬을 이미 적어 두었다). 이제 400 VALIDATION_ERROR.
+    @Param('id', ParseUUIDPipe) triggerId: string,
     @Body() body: { newBotToken?: string },
     @WorkspaceId() workspaceId: string,
     @CurrentUser('sub') userId: string,

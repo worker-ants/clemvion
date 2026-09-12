@@ -3107,19 +3107,165 @@ field: T | null;
       **wire 포맷 자체는 이전부터 실려 있었다**(스프레드 반환) — 즉 이 PR 이 만든 갭이 아니라
       **드러낸** 갭이다. 표시할지 말지는 UX 판단이므로 등재만 한다.
 
-- [ ] **유저 가이드 MDX 4곳이 rotate-bot-token 404 를 `TRIGGER_NOT_FOUND` 로 적는다 —
+- [x] **유저 가이드 MDX 4곳이 rotate-bot-token 404 를 `TRIGGER_NOT_FOUND` 로 적는다 —
       실제 코드는 `RESOURCE_NOT_FOUND`** (developer, 2026-09-12 등재 · `/ai-review`
       `review/code/2026/09/12/17_39_51` user_guide_sync INFO). 2026-05-23 `#282` 에서 유입된
       **4개월 선재 결함**이라 이번 PR 과 무관하다(그 diff 는 해당 MDX 를 안 건드린다).
       대상: `content/docs/06-integrations-and-config/telegram{,.en}.mdx` ·
       `02-nodes/triggers{,.en}.mdx`. 고치기 전에 **다른 엔드포인트에도 같은 오기가 있는지**
       전수로 셀 것 — 네 곳만 고치면 같은 클래스가 남는다.
+      > **해소** — `#1328`. 전수로 세니 **네 곳이 아니라
+      > 여섯 곳**이었다: MDX 4곳 + `backend-labels.ts` 의 `ERROR_KO` 주석 블록 +
+      > `backend-labels.test.ts` 의 `LOCALIZED_ERROR_CODES` 주석. 뒤 둘은 **코드**에 있는
+      > 같은 오귀속이라 트래커가 몰랐다 — 그리고 같은 테스트 파일 아래쪽 주석은 처음부터
+      > 맞게(*"hooks webhook inbound 경로"*) 적고 있어 한 파일이 자기를 반증하고 있었다.
+      > 축 2(`NNN \`CODE\`` 29건 전수)에서 다른 오기는 나오지 않았다 —
+      > `VALIDATION_ERROR` 16 · `BOT_TOKEN_INVALID` 6 · `CHAT_CHANNEL_SETUP_FAILED` 5 는
+      > 전부 참. 축 1(UPPER_SNAKE 97토큰)이 **다른 클래스**를 드러내 위 두 항목으로 등재했다.
 
-- [ ] **`rotateBotToken` 의 `:id` 에 `ParseUUIDPipe` 가 없다** (developer, 2026-09-12 등재 ·
+- [x] **`rotateBotToken` 의 `:id` 에 `ParseUUIDPipe` 가 없다** (developer, 2026-09-12 등재 ·
       `/ai-review` `16_17_57` api_contract INFO). 형제 rotate 계열(`rotateNotificationSecret` ·
       `revokePerTriggerToken`)은 `@Param('id', ParseUUIDPipe)` 인데 이 엔드포인트만 맨
       `@Param('id')` 다. 이 PR 이전부터 있던 상태라 스코프 밖으로 뒀다. 비-UUID 가 들어오면
       `findById` 가 DB 레벨에서 실패하는지 400 이 나가는지 **먼저 실측**할 것.
+      > **해소** — `#1328`. 선실측 결과는 **500 마스킹**이다
+      > (`uuid` 컬럼 → SQLSTATE 22P02 → `GlobalExceptionFilter` 의 세 분기 어디에도 안 걸림).
+      > 즉 클라이언트 입력 오류가 서버 장애로 보이던 자리였고, 이제 400 `VALIDATION_ERROR` 다.
+      > **한 자리를 고치는 대신 가드로 고정**했다(`param-uuid-pipe`) — AST 전수, 베이스라인 0,
+      > 허용목록 없음. `--impl-prep` convention_compliance WARNING 이 *"같은 조항의 절반만
+      > 겨냥한다"* 고 지적해 `@ApiParam({format:'uuid'})` 축을 함께 넣었고, 그 축 실측이 3건
+      > (`rotateBotToken`·`switchWorkspace`·`simulateExecutionRunRedeliveryForTest`)이라
+      > 파이프 축만 닫았으면 둘이 남았을 것이다. 셋째는 `@ApiExcludeEndpoint()` 라 목록이
+      > 아니라 **구조로** 면제한다.
+
+- [ ] **유저 가이드가 존재하지 않는 에러 코드 5종을 이름으로 적는다** (developer, 2026-09-12
+      등재 · 위 두 항목을 닫으며 돌린 **전수 스윕**이 발견). `content/docs/**` 의 UPPER_SNAKE
+      토큰 97개 중 코드베이스 어디에도 없는 것이 17개인데, 그중 **에러 코드로 제시된** 것이
+      다섯이다 — `LLM_AUTH_ERROR`·`LLM_MODEL_NOT_FOUND` (`06-integrations-and-config/
+      models{,.en}.mdx` 의 `FieldTable`) · `INTEGRATION_ERROR`·`NODE_EXECUTION_FAILED`
+      (`05-run-and-debug/run-results{,.en}.mdx` · `error-handling{,.en}.mdx` 의 예시 payload) ·
+      `MAKESHOP_API_ERROR` (`02-nodes/integrations{,.en}.mdx` 의 error 포트 예시).
+      나머지 12개는 대상이 아니다(프런트엔드 전용 3 · `_glossary.md` 플레이스홀더 6 ·
+      Discord Gateway 어휘 `MESSAGE_CREATE` · 범주어 `SUB_WORKFLOW` · 환경변수 오기 1건은
+      `#1328` 에서 해소).
+      **둘은 없는 이름이 아니라 은퇴한 이름이다** — `spec/5-system/3-error-handling.md §1.4`
+      가 *"구 에러 코드 `NODE_EXECUTION_FAILED` / `INTEGRATION_ERROR` / `LLM_ERROR` 는 노드
+      수준 envelope 에 더 이상 사용하지 않는다"* 고 이미 선언해 두었다(`--impl-prep`
+      `19_34_19` rationale_continuity INFO#2 가 지목). 즉 가이드가 SoT 보다 낡았다.
+      **LLM 쪽 둘은 오기가 아니라 *미구현*이다 — 내 첫 진단이 틀렸다.**
+      `spec/5-system/7-llm-client.md:345` 가 *"미구현(Planned) — 세분화 에러 코드:
+      `LLM_AUTH_ERROR`(401), `LLM_MODEL_NOT_FOUND`(404), `LLM_CONTEXT_EXCEEDED`(400) 는
+      향후 클라이언트 계층에서 분기 예정이나 **현재는 `LLM_CONNECTION_ERROR` 로 수렴**한다"*
+      라고 명시 등재하고 있다(`/ai-review` `20_26_58` requirement WARNING 이 지목).
+      처음엔 `LLM_AUTH_ERROR` 를 `LLM_AUTH_FAILED` 의 근접 오기로 진단했는데, 그러면
+      **고칠 방향이 정반대**가 된다 — 가이드의 잘못은 철자가 아니라 **미구현 기능을 이미
+      나온 것처럼 서술한 것**이다. 처분은 "이름 치환" 이 아니라 *"수렴 코드
+      (`LLM_CONNECTION_ERROR`)를 적고 세분화는 Planned 로 표시"* 다.
+      나머지 셋(`INTEGRATION_ERROR`·`NODE_EXECUTION_FAILED`·`MAKESHOP_API_ERROR`)은
+      *"노드 에러 포트가 일반 실패에 무엇을 싣는가"* 를 **실측해야** 대응 코드가 정해진다.
+      추측으로 치환하면 오기를 다른 오기로 바꾸는 것이다.
+
+- [ ] **UUID 경로 파라미터의 두 축을 `@ApiUuidParam()` 합성 데코레이터로 묶는다** (developer,
+      2026-09-12 등재 · `/ai-review` `review/code/2026/09/12/22_03_45` architecture WARNING,
+      **non-blocking 제안**). 지금은 런타임 축(`ParseUUIDPipe`)과 문서 축
+      (`@ApiParam({format:'uuid'})`)이 **독립 데코레이터 둘 + 사후 AST 가드**로만 짝지어진다 —
+      *"빠뜨리면 테스트가 잡는다"* 구조이고, *"애초에 빠뜨릴 수 없다"* 보다 약하다.
+      저장소에 `common/swagger` 합성 데코레이터 선례가 있다(`@ApiOkWrappedResponse` 등).
+      > **가드를 대체하는 것이 아니라 줄이는 것이다.** 합성 데코레이터가 생겨도 `@Param` 을
+      > 맨손으로 쓰는 길은 남으므로 `param-uuid-pipe` 가드는 유지해야 한다 — 다만 감시 표면이
+      > "두 축을 각각" 에서 "합성을 썼는가" 로 좁아진다. 착수 시 기존 136곳의 이행 비용을
+      > 먼저 재는 것이 선행이다.
+
+- [ ] **`param-uuid-pipe` 잔여 산문 2건** (developer, 2026-09-12 등재 · 같은 세션 INFO
+      #10·#12, **동작·커버리지·계약 무관**). (a) HTTP 왕복 describe 의 제목이 통합테스트처럼
+      읽히는데 실제로는 인증·인가 체인을 태우지 않는다 — *"인증·인가는 이 스위트 범위 밖"*
+      한 줄이 빠져 있다. (b) `param-uuid-pipe.spec.ts` 의 `--impl-prep` 인용이 게이트명만
+      적고 세션 경로(`review/consistency/2026/09/12/19_34_19`)가 없어 같은 파일 다른 인용과
+      형태가 다르다.
+      > **이번 배치에서 안 고친 이유는 게이트다.** 리뷰가 수렴 선언된 뒤 `codebase/**` 를
+      > 만지면 push 게이트의 freshness 가 뒤집혀 리뷰를 한 바퀴 더 돌려야 한다
+      > (`newest_code` 는 `codebase/**` 만 센다). 산문 두 줄에 14명을 다시 돌리는 것이
+      > 이 항목을 미루는 것보다 비싸다.
+
+- [ ] **`GlobalExceptionFilter` 가 SQLSTATE 22P02 를 분류하지 않는다 — 파이프 밖 유입 경로는
+      여전히 500 마스킹** (developer, 2026-09-12 등재 · `/ai-review`
+      `review/code/2026/09/12/21_20_01` architecture WARNING). `#1328`
+      은 `@Param()` 축을 파이프 + 전수 가드로 닫았지만, **필터 자체는 그대로다** —
+      `HttpException` · http-error-like · unique-violation(23505) 세 분기뿐이라
+      `@Query()` · body 필드 조회 등 다른 경로로 비-UUID 가 들어가면 같은 500 마스킹이 난다.
+      즉 지금 방어는 **호출부마다 반복 배치**된 형태이고 공유 seam 이 비어 있다.
+      처분 제안: 필터에 `invalid_text_representation`(22P02) → `400 VALIDATION_ERROR` 분기.
+      > **이 배치에서 안 한 이유**: 그 한 줄은 **저장소의 모든 엔드포인트**의 실패 분류를
+      > 바꾼다 — 지금 22P02 로 500 을 받는 자리가 어디이고 그중 400 이 맞지 않은 곳이 있는지를
+      > 먼저 세야 한다(예: 사용자 입력이 아닌 내부 조회 실패). 착수 전 그 전수가 선행 조건이다.
+      > 파이프·가드는 이 필터가 생겨도 유지한다 — fail-fast 가 더 앞이다.
+
+- [ ] **가이드가 적는 식별자(에러 코드·환경변수)가 실재하는지 세는 가드가 없다** (developer,
+      2026-09-12 등재 · `/ai-review` `review/code/2026/09/12/20_53_01` testing WARNING).
+      `#1328` 은 **두 결함 클래스**를 같은 배치에서 고쳤는데 가드는
+      한쪽만 얻었다 — `ParseUUIDPipe` 누락은 AST 전수 가드(`param-uuid-pipe`)로 고정됐지만,
+      **가이드·`backend-labels.ts` 의 잘못된 식별자**(`TRIGGER_NOT_FOUND` 6곳 ·
+      `MCP_INSECURE_URL_ALLOWED` 2곳)는 **1회성 정규식 스윕**으로 손으로 고쳤을 뿐이다.
+      그 스윕 스크립트는 커밋되지 않으므로 다음 사람은 같은 발견을 같은 방식으로 다시 해야 한다.
+      게다가 이 클래스는 **4개월간 아무도 몰랐다** — 재발 위험의 근거가 그것이다.
+      처분 제안: `content/docs/**` 의 UPPER_SNAKE 토큰이 backend 소스에 실재하는지 세는 경량
+      가드. **비대상이 많다는 것이 설계의 핵심**이다(실측 97토큰 중 부재 17, 그중 진짜 결함은
+      2클래스뿐 — 나머지는 프런트 전용 3 · 문서 플레이스홀더 6 · 외부 어휘 1 · 범주어 1).
+      허용목록으로 덮으면 은폐가 되므로, **판정 축을 "에러 코드/환경변수 문맥에 놓인 토큰"**
+      으로 좁히는 쪽이 맞다(백틱만 보면 안 된다 — 이번에 따옴표 형태를 놓쳤다).
+
+- [ ] **`15-chat-channel.md` §5.4 실패 응답 표에 `rotate-bot-token` 의 신규 400 행이 없다**
+      (**planner 항목** — developer 가 등재, 2026-09-12 · `/ai-review` `20_26_58`
+      requirement WARNING). 이 표는 CCH-SE-04 가 낼 수 있는 `error.code` 를 나열하는
+      canonical 문서인데, `#1328` 이 `ParseUUIDPipe` 를 붙이면서
+      **관측 가능한 새 분기**(`:id` 가 UUID 형식이 아님 → `400 VALIDATION_ERROR`)가 생겼다.
+      컨트롤러의 `@ApiBadRequestResponse` 와 CHANGELOG 에는 반영했으나 spec 표는 못 건드린다
+      (자기-반증형 소정정 **조건 1** 미충족 — 내가 쓴 문장이 아니다).
+      처분 제안: 표에 `400 | VALIDATION_ERROR | :id 가 UUID 형식이 아님 (ParseUUIDPipe)` 행 추가.
+      > **같은 턴에 볼 것 (`--impl-done` `review/consistency/2026/09/12/22_14_31`
+      > plan_coherence INFO)**: `15-chat-channel.md` frontmatter 의 `pending_plans:` 에 이
+      > 트래커가 cross-reference 돼 있지 않다(지금은 chat-channel 전용 plan 3개뿐).
+      > 다만 그 필드가 *"구현은 끝났고 문서만 지연"* 인 경우까지 대상으로 하는지는 문면이
+      > 모호해 checker 도 **판단을 planner 에게 넘겼다** — 등재 여부를 함께 결정할 것.
+      > 위 `swagger.md §5-4` 항목과 **같은 실측(`param-uuid-pipe` 가드)에서 나왔으므로
+      > 한 턴에 닫는 편이 싸다**(리뷰 권고).
+
+- [ ] **`swagger.md §5-4` 체크리스트가 UUID 경로 파라미터의 **런타임 축**을 안 적는다**
+      (**planner 항목** — developer 가 등재, 2026-09-12 · `/ai-review`
+      `review/code/2026/09/12/20_01_18` requirement·documentation 공통 SPEC-DRIFT WARNING).
+      §5-4 는 `@ApiParam({ format: 'uuid' })` **문서 축 한 줄**만 요구하고
+      `ParseUUIDPipe` 는 그 문서 전체에 **0건**이다(실측). §2-3 예시 코드도 파이프 없이
+      쓰여 있다. 그런데 저장소 실측은 id-형 `@Param` **136/136** 이 파이프를 갖고 있고
+      (`#1328` 이 마지막 1건을 채웠다), 그 관례를 가드
+      (`repo-guards/__tests__/param-uuid-pipe`)가 베이스라인 0 으로 강제한다.
+      즉 **가드가 규약보다 넓게 문다.**
+      처분 제안: §5-4 체크리스트에 `@Param('<id>', ParseUUIDPipe)` 항목 추가 + §2-3 예시에
+      반영. 근거는 위 실측과 22P02 마스킹 사슬(`common/utils/uuid.ts`).
+      > **왜 developer 턴에서 안 고쳤나.** `ESCALATE=spec` 는 *"구현이 spec 을 의도적으로
+      > 개선해 spec 이 낡은"* 경우의 역류 경로이고, 자기-반증형 소정정은 **조건 1**(그 문장을
+      > developer 자신이 썼다)을 요구한다. 여기는 둘 다 아니다 — §5-4 는 내가 쓴 문장이
+      > 아니고, 드리프트도 이 PR 이 만든 것이 아니라 **이전부터 있던 규약 공백**이다.
+      > 조건이 깨지면 예외가 아니라 **분리**다. 대신 이 배치는 *내가 쓴 쪽*을 고쳤다 —
+      > 가드·spec 주석 2곳이 *"§5-4 의 한 조항이 두 축을 요구한다"* 고 적고 있었는데,
+      > *"런타임 축은 실측 관례를 가드로 승격한 것"* 으로 출처를 갈랐다.
+
+- [ ] **`ERROR_KO` 의 API 에러 코드 매핑을 **아무도 읽지 않는다**** (developer, 2026-09-12
+      등재 · 같은 스윕). 처음엔 *"일반 API 코드(`RESOURCE_NOT_FOUND` 등)가 맵에 없어 ko 화면에
+      영문이 뜬다"* 로 등재하려 했는데, 그 전제가 **실측에 반증됐다** — 더 큰 결함이 그 아래
+      있었다.
+      | 축 | 실측 |
+      |---|---|
+      | `ERROR_KO` 의 chat-channel 코드 7종 | 존재 |
+      | 일반 API 코드 5종(`RESOURCE_NOT_FOUND`·`AUTH_REQUIRED`·`FORBIDDEN`·`VALIDATION_ERROR`·`RESOURCE_CONFLICT`) | 전부 부재 |
+      | `ERROR_KO` 를 읽는 유일한 함수 `translateBackendError` 의 **프로덕션 호출부** | **0건** (정의 + 자기 테스트뿐. 형제 `translateGraphWarning`·`translateBackendHint`·`translateBackendWarning` 은 배선돼 있다) |
+      | 봇 토큰 회전 실패 시 화면에 뜨는 것 | `chat-channel-card.tsx` `onError` 가 에러를 **버리고** 고정 문자열 `rotateBotTokenFailed`("Bot Token 회전에 실패했어요") |
+      즉 코드가 화면에 **아예 안 나온다** — 한국어도 영어도 아니다. 그래서 맵에 줄을 더하는
+      것은 아무것도 바꾸지 않는다. 결정해야 할 것은 *"에러 코드를 UI 에 노출할 것인가,
+      노출한다면 `translateBackendError` 를 어디에 배선할 것인가"* 다.
+      > `#1328` 은 이 갭을 **고치지 않고 문면만 진실로 맞췄다** —
+      > `02-nodes/triggers{,.en}.mdx` 의 *"한국어 화면에서는 모두 한국어 안내 메시지로
+      > 표시돼요"* 는 8종 전부에 대해 거짓이었다. 지금은 *"API 를 직접 호출할 때 보이는 값"*
+      > 이라고 적는다. 문서가 구현보다 넓게 말하는 것을 좁힌 것이지 기능을 넣은 것이 아니다.
 
 - [x] **`15-chat-channel.md` 의 `code:` glob 이 `dto/responses/` 를 못 잡는다** (planner,
       2026-09-12 등재). glob `.../triggers/dto/chat-channel-*.dto.ts` 의 `*` 는 `/` 를 넘지 않아

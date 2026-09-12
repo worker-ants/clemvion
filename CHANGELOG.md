@@ -1,5 +1,28 @@
 # Changelog
 
+## Unreleased — **Behavior change**: `rotate-bot-token` 의 비-UUID `:id` 가 500 이 아니라 400 이다
+
+`POST /api/triggers/:id/chat-channel/rotate-bot-token` 만 `@Param('id')` 에 `ParseUUIDPipe` 가
+없었다. 파싱 불가 값이 `findById` 까지 흘러 Postgres 가 SQLSTATE **22P02** 로 거부하는데,
+`GlobalExceptionFilter` 는 `HttpException` · http-error-like · unique-violation(23505) 세
+갈래만 분기하므로 **기본값 500 `INTERNAL_ERROR` 로 마스킹**됐다.
+
+| | 종전 | 지금 |
+|---|---|---|
+| 비-UUID `:id` | `500 INTERNAL_ERROR` (메시지 마스킹) | **`400 VALIDATION_ERROR`** |
+| OpenAPI `:id` 선언 | `@ApiParam` 없음 | `@ApiParam({ name:'id', format:'uuid' })` |
+
+**⚠️ 배포 시 확인**: 잘못된 트리거 id 로 이 엔드포인트를 호출하던 클라이언트·모니터링은 이제
+5xx 가 아니라 4xx 를 본다. 5xx 를 재시도·알림 신호로 쓰는 소비자가 있다면 그 값이 사라진다 —
+저장소 안의 유일한 소비자(프런트엔드 토스트)는 status 를 분기하지 않아 영향 없음을 확인했다.
+정상 UUID 요청의 동작은 무변이다.
+
+형제 6개 엔드포인트는 처음부터 파이프를 갖고 있었다(`*.controller.ts` 35개 AST 전수: id-형
+`@Param` 136건 중 파이프 없는 자리 1건). 같은 실수가 다시 생기지 않도록 두 축을 전수로 세는
+가드(`repo-guards/__tests__/param-uuid-pipe`)를 베이스라인 0 으로 두었고, 그 과정에서
+`auth.controller.ts` 의 `switchWorkspace` 도 `@ApiParam` 에 `format: 'uuid'` 를 채웠다
+(런타임 축은 이미 있었다 — 순수 문서 보강).
+
 ## Unreleased — **Behavior change (breaking)**: `rotateBotToken` 실패가 `502` 를 처음 쓴다 + provider 원문 echo 중단
 
 `setupChannel` 재시도 실패의 HTTP status 를 **transport 가 아니라 원인**으로 분류한다

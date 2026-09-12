@@ -336,10 +336,13 @@ describe("i18n Principle 3-C — 코드/동적 메시지 매핑 parity", () => {
       // 공용 @WorkspaceId() 데코레이터 코드 — chat-channel 전용 아니나 다수
       // user-facing 엔드포인트에서 노출되고 triggers 안내에도 등재 (spec §1.3 canonical).
       "WORKSPACE_ID_REQUIRED",
-      // chat-channel API 에러 코드 (spec/5-system/15-chat-channel.md §5.4).
-      // 채팅 채널 트리거 설정·봇 토큰 회전 흐름에서 사용자에게 노출.
-      "INVALID_BOT_TOKEN",
+      // hooks webhook **인입** 경로 코드 (spec/data-flow/10-triggers.md) — chat-channel
+      // API 코드가 아니다. 아래 `CHAT_CHANNEL_CODES` 위 주석은 처음부터 이렇게 적고
+      // 있었는데 이 목록의 주석만 §5.4 블록에 묶어 두어 서로를 반증하고 있었다.
       "TRIGGER_NOT_FOUND",
+      // chat-channel API 에러 코드 (spec/5-system/15-chat-channel.md §5.4).
+      // 채팅 채널 트리거 설정·봇 토큰 회전 흐름에서 반환.
+      "INVALID_BOT_TOKEN",
       "CHAT_CHANNEL_NOT_CONFIGURED",
       "CHAT_CHANNEL_PROVIDER_UNKNOWN",
       "CHAT_CHANNEL_ENDPOINT_REQUIRED",

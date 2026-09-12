@@ -430,7 +430,14 @@ export class AuthController {
     description:
       '대상 워크스페이스 멤버십을 검증하고 Access Token 만 activeWorkspaceId=대상 으로 재발급합니다. Refresh Token 은 워크스페이스와 무관한 opaque UUID 라 회전하지 않습니다(쿠키 불변). 전환기 하위호환으로 X-Workspace-Id 헤더가 있으면 header-first 로 우선하며, 헤더가 없으면 토큰의 활성 워크스페이스 클레임이 적용됩니다. 비멤버면 403 NOT_A_MEMBER.',
   })
-  @ApiParam({ name: 'id', description: '전환할 워크스페이스 ID (UUID)' })
+  // `format: 'uuid'` 는 산문의 "(UUID)" 와 다르다 — 생성된 OpenAPI 스키마에 실리는 것은
+  // 이쪽이고, `swagger.md §5-4` 가 요구하는 것도 이쪽이다. 이 한 줄이 빠져 있어서
+  // `param-uuid-pipe` 가드의 두 번째 축이 예외 목록을 갖게 될 뻔했다 — 목록 대신 자리를 고친다.
+  @ApiParam({
+    name: 'id',
+    description: '전환할 워크스페이스 ID (UUID)',
+    format: 'uuid',
+  })
   @ApiOkWrappedResponse(AccessTokenDto, {
     description: '전환된 워크스페이스로 재발급된 Access Token',
   })
