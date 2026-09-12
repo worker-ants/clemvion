@@ -85,7 +85,7 @@ describe('chat-channel-input-rules — 내부 필드 차단 (R-CC-21)', () => {
    * **두-층 등가성의 서비스 쪽 절반.** `chat-channel-rejection-messages.const.ts` 는
    * *"`null`/`''` 는 `@IsEmpty()` 를 통과하고 서비스 가드가 거부한다"* 를 설계로 선언하는데,
    * 그 **DTO 가 통과시킨다** 는 절반만 `trigger-dto-validation.spec.ts` 가 고정하고 있었다
-   * (`/ai-review` `16_17_57` testing WARNING).
+   * (`review/code/2026/09/12/16_17_57` testing WARNING).
    *
    * 그래서 `hasField` 의 `typeof … !== 'undefined'` 를 falsy 판별(`!value`)로 바꾸는 뮤턴트가
    * **아무 테스트도 깨지 않았다** — 그러면 `null`/`''` 로 보낸 비밀이 **두 층 모두를 통과**한다.

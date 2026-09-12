@@ -6,7 +6,7 @@ import type { TriggerChatChannelHealth } from '../../entities/trigger.entity';
 //
 // 첫 판본은 평평한 `dto/` 에 두었다. `15-chat-channel.md` 의 `code:` glob 이
 // `dto/chat-channel-*.dto.ts` 인데 glob 의 `*` 는 `/` 를 안 넘어 `responses/` 하위를 못 잡기
-// 때문이었다(정본 매처로 실측). **그 판단을 뒤집었다** (`/ai-review` `16_39_18` requirement
+// 때문이었다(정본 매처로 실측). **그 판단을 뒤집었다** (`review/code/2026/09/12/16_39_18` requirement
 // WARNING): 정식 규약이 자리를 정하고, glob 은 그 자리를 **덮도록 고치면 되는 도구**다.
 // 규약을 어겨 도구를 맞추면 다음 응답 DTO 도 같은 선택을 하게 된다.
 //
@@ -20,7 +20,7 @@ import type { TriggerChatChannelHealth } from '../../entities/trigger.entity';
 // **`chat-channel-config.dto.ts` 의 `ChatChannelBotIdentityDto` 와 이름이 달라야 한다.**
 // `@nestjs/swagger` 는 스키마를 **클래스 `.name` 으로** 등록하므로 동명 클래스 둘은
 // `components.schemas` 에서 서로를 덮어쓴다 — 첫 판본이 그 이름을 그대로 썼고
-// `/ai-review` `16_17_57` documentation CRITICAL 이 잡았다.
+// `review/code/2026/09/12/16_17_57` documentation CRITICAL 이 잡았다.
 //
 // **왜 합치지 않고 둘로 두나**: 두 자리는 같은 값을 다른 계약으로 본다.
 //   - config 쪽 — **입력 검증** DTO(`@IsOptional`·`@IsInt`). 클라이언트가 보낼 수도 있고
@@ -52,7 +52,7 @@ export class ChatChannelRotateBotIdentityDto {
 
   // 첫 판본은 이 필드를 빠뜨려 **문서가 실제 응답보다 좁았다** — `TransformInterceptor` 는
   // 클래스 기반으로 필드를 지우지 않으므로 Discord 트리거의 wire 응답에는 실려 나간다
-  // (`/ai-review` `16_17_57` api_contract WARNING).
+  // (`review/code/2026/09/12/16_17_57` api_contract WARNING).
   //
   // 이 서사가 JSDoc 이 아니라 `//` 인 이유는 이 파일 머리말과 같다 — **JSDoc 은 공개 OpenAPI
   // `description` 으로 나간다**(`swagger.md §3` · `review-citations.md §3`). 첫 판본은 그것을

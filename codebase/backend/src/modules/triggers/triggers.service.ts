@@ -992,7 +992,7 @@ export class TriggersService {
     triggerId: string;
     chatChannelHealth: TriggerChatChannelHealth;
     // **형태를 여기 다시 적지 않는다.** 손으로 적었더니 Discord 가 채우는 `publicKey` 가
-    // 빠져 **선언이 실제 반환보다 좁았다**(`/ai-review` `16_17_57` api_contract WARNING).
+    // 빠져 **선언이 실제 반환보다 좁았다**(`review/code/2026/09/12/16_17_57` api_contract WARNING).
     // `mergedChannel.botIdentity` 를 그대로 돌려주므로 그 타입을 그대로 참조한다.
     botIdentity: NonNullable<ChatChannelConfig['botIdentity']> | null;
   }> {
