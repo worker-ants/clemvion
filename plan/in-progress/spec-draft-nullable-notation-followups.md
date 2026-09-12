@@ -3038,7 +3038,7 @@ field: T | null;
       >   DTO 층이 실제로 막는다는 사실은 `trigger-dto-validation.spec.ts` 의 신규 케이스가
       >   고정한다 — 그 근거가 없으면 주석의 *"도달 불가"* 가 다음 사람에게 **삭제 허가증**이 된다.
 
-- [ ] **사전 naming 게이트는 "예고한 이름" 만 본다 — 구현 중 태어난 식별자는 사각지대**
+- [x] **사전 naming 게이트는 "예고한 이름" 만 본다 — 구현 중 태어난 식별자는 사각지대**
       (harness 또는 프로세스, 2026-09-12 등재 · `/ai-review` `16_17_57` CRITICAL 계기).
       `--impl-prep` 의 `naming_collision` 은 plan 이 예고한 헬퍼 2종만 grep 했고, 구현 중 태어난
       DTO 클래스명(`ChatChannelBotIdentityDto`)이 **기존 동명 클래스와 충돌**하는 것을 못 봤다.
@@ -3047,6 +3047,16 @@ field: T | null;
       > 1초가 안 걸린다(이번 턴에 스크립트로 돌려 잔여 0 확인). 이 형태는 **정적으로 판정
       > 가능**하므로 harness 테스트나 lint 룰로 고정할 수 있다 — 산문 규율로 두면 다음에 또
       > 사후 리뷰가 잡는다.
+      >
+      > **✅ 2026-09-12 같은 PR 에서 처방까지 넣었다** (`/ai-review` `17_02_19` testing WARNING 이
+      > *"1회성 grep 에만 의존한다"* 고 다시 지적). `repo-guards/__tests__/dto-class-name-collision`
+      > — `modules/`·`common/` 의 `*.dto.ts` 114개를 **AST 로** 훑어 `export class` 중복을 센다.
+      > 베이스라인 **0건**이라 동결 목록 없이 빈 배열과 대조한다. 라운드 1 의 CRITICAL 을 그대로
+      > 되돌리는 뮤테이션으로 **RED** 확인.
+      >
+      > **가드 자신이 첫 판본에서 자기 fixture 를 잡고 죽었다** — `src` 전체를 훑은 탓이다.
+      > 형제 가드가 *"fixture 는 스캔 범위 밖에 둔다"* 고 적어 둔 이유를 몸으로 확인했고,
+      > 스캔 루트를 실측(`*.dto.ts` 는 `modules/` 111 · `common/` 3)으로 좁혔다.
 
 - [ ] **`rotateBotToken` 의 `:id` 에 `ParseUUIDPipe` 가 없다** (developer, 2026-09-12 등재 ·
       `/ai-review` `16_17_57` api_contract INFO). 형제 rotate 계열(`rotateNotificationSecret` ·
