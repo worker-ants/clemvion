@@ -200,7 +200,7 @@ pending_plans:
 {
   "chatChannel": {
     "provider": "telegram",                    // 어댑터 식별자 — providers/_overview.md §1 단일 진실 (v1 supported: telegram / slack / discord)
-    "botToken": "<provider 발급 plaintext>",   // 입력 전용 — POST /api/triggers 요청 body 한정. service 가 SecretResolver.rotate 로 옮긴 뒤 strip — 응답·DB JSONB 미노출 (SS-SE-01). telegram=BotFather `\d+:[A-Za-z0-9_-]+` — **입력 안내이고 서버 검증이 아니다**(형식 게이트 없음. 잘못된 토큰은 `setupChannel` 의 외부 API 401/403 에서 `BOT_TOKEN_INVALID` 로 드러난다) / slack=`xoxb-*` / discord=Developer Portal Bot Token
+    "botToken": "<provider 발급 plaintext>",   // 입력 전용 — POST /api/triggers 요청 body 한정. service 가 SecretResolver.rotate 로 옮긴 뒤 strip — 응답·DB JSONB 미노출 (SS-SE-01). telegram=BotFather `\d+:[A-Za-z0-9_-]+` — **입력 안내이고 서버 검증이 아니다**(형식 게이트 없음. 잘못된 토큰은 `setupChannel` 실패 시 [§5.4](#54-bot-token-rotation-api-응답-계약) 의 분류에 따라 `BOT_TOKEN_INVALID` 로 드러난다 — 신호 방식은 provider 별로 다르므로 여기 복제하지 않는다) / slack=`xoxb-*` / discord=Developer Portal Bot Token
     "inboundSigningPlaintext": "<provider-issued plaintext>",  // 입력 전용, slack/discord 한정 (telegram 은 server-issued 자동 발급). slack=lowercase hex 32 chars (signing secret) / discord=lowercase hex 64 chars (ed25519 application public key). 입력 후 service 가 SecretResolver.rotate(inboundSigningRef, ws, plaintext) → strip. telegram 입력 시 400 VALIDATION_ERROR(field='inboundSigningPlaintext'). SoT: conventions/secret-store.md §5.5 (b)
     "botTokenRef":      "secret://triggers/{triggerId}/bot-token",       // 응답·DB JSONB 보관 ref. provider 공통 (CCH-SE-03 / conventions/secret-store.md). botToken plaintext 는 응답 strip
     "inboundSigningRef": "secret://triggers/{triggerId}/inbound-signing",  // 응답·DB JSONB 보관 ref. provider 공통 단일 슬롯 — 검증 알고리즘은 backend 의 provider 분기 책임. Telegram: server-issued shared secret (setupChannel 의 randomBytes 발급) / Slack: HMAC-SHA256 signing secret (사용자 inboundSigningPlaintext 입력) / Discord: ed25519 public key (사용자 inboundSigningPlaintext 입력). SoT: conventions/chat-channel-adapter.md §2.3
@@ -362,8 +362,10 @@ EIA §R5 의 "외부 WebSocket 보류" 결정은 **외부 표면** 의 채널 �
 | 400 | `CHAT_CHANNEL_NOT_CONFIGURED` | `config.chatChannel` 미설정 트리거 |
 | 400 | `CHAT_CHANNEL_PROVIDER_UNKNOWN` | registry 에 미등록 provider |
 | 400 | `CHAT_CHANNEL_ENDPOINT_REQUIRED` | trigger `endpointPath` 부재 |
-| 400 | `BOT_TOKEN_INVALID` | 신규 토큰으로 `setupChannel` (`getMe`/`setWebhook`) 401/403 |
-| 502 | `CHAT_CHANNEL_SETUP_FAILED` | `setupChannel` (Telegram `setWebhook` 등) API 호출 실패 (재시도 후에도 실패) |
+| 400 | `BOT_TOKEN_INVALID` | `setupChannel` 이 **자격 증명 거부**로 실패. provider 가 그것을 401/403 · `{ok:false, error:'invalid_auth'}`(HTTP 200) · `verify_key` 불일치 중 무엇으로 알리든 **같은 분류**다 — 신호 방식은 transport 세부이고 분류 기준이 아니다. 판별은 어댑터가 [CCA §1.1.2](../conventions/chat-channel-adapter.md#112-setupchannel-실패-판별--자격-증명-거부는-code-로-선언한다) 로 **선언**한다. 근거 [R-CC-23](#r-cc-23-setupchannel-실패는-transport-가-아니라-원인으로-분류한다) |
+| 502 | `CHAT_CHANNEL_SETUP_FAILED` | 그 밖의 `setupChannel` 실패 — provider 5xx · 네트워크 · 타임아웃 등 **클라이언트가 입력으로 고칠 수 없는** 것 (재시도 후에도 실패). 우리 인프라 일시 장애인 `503` 과 구분한다 — [API Convention §6](./2-api-convention.md) |
+
+> **실패 응답 본문에는 provider 원문을 싣지 않는다.** `message` 는 고정 client-safe 문자열, `code` 가 판별자이며, adapter/provider 의 원본 오류 문구는 **서버 로그에만** 남긴다. 이유는 [`4-execution-engine.md §7.5.2`](./4-execution-engine.md) 의 보안 게이트와 동일하다 — 외부·내부 오류 원문은 URL·query·DB 컬럼명·stack·API key 조각을 흘릴 수 있다 ([R-CC-15](#r-cc-15-execution-failed-안내--분류-입력-화이트리스트--placeholder-1종-정책) 가 같은 이유로 화이트리스트를 정의한다).
 
 24h grace 동안 old token 병행 수신은 [CCH-SE-04](#34-신뢰성--보안) 규약에 따라 `chat_channel_token_v2` 컬럼 (§4.2) + setWebhook 재호출 (텔레그램 특성) 으로 구현한다.
 
@@ -892,3 +894,63 @@ standing audit 다.
 그중 `*` 없는 명시 경로가 **607개(81%)**. 즉 glob 은 이 저장소에서 **소수 선택**이고, 그래서
 여기 근거를 남긴다. (측정은 `review_guard._parse_frontmatter_code` 를 전 spec 에 실행한 값이다 —
 `review_guard.py` 주석의 `633/528` 은 과거 측정이라 쓰지 않았다.)
+
+### R-CC-23. `setupChannel` 실패는 transport 가 아니라 **원인**으로 분류한다
+
+**결정**: §5.4 의 실패 분류 기준을 *"401/403 이면 `BOT_TOKEN_INVALID`"* 에서
+*"**자격 증명 거부**면 `BOT_TOKEN_INVALID`, 그 밖이면 `CHAT_CHANNEL_SETUP_FAILED` 502"* 로 바꾼다.
+판별은 호출자가 추측하지 않고 **어댑터가 `code` 로 선언**한다
+([CCA §1.1.2](../conventions/chat-channel-adapter.md#112-setupchannel-실패-판별--자격-증명-거부는-code-로-선언한다)).
+
+**계기 — 옛 술어가 2/3 provider 에서 원리적으로 실패했다** (2026-09-12 실측):
+
+| provider | 자격 증명 거부 신호 | 옛 판별식 `/\b(401\|403)\b/` |
+|---|---|---|
+| Slack | **HTTP 200** + `{ok:false, error:'invalid_auth'}` — Slack Web API 의 문서화된 스타일 | **안 걸림** |
+| Discord | `verify_key` 불일치 — 응답 200, **status 자체가 없다** | **안 걸림** |
+| Telegram | client 가 `HTTP {status}` 를 메시지에 싣는다 | 걸림 |
+
+즉 rotate 엔드포인트의 **가장 흔한 실패**(잘못된 토큰)가 Slack 에서 `CHAT_CHANNEL_SETUP_FAILED`
+로 나갔다. 그 코드는 *"상류가 고장났다"* 는 뜻이라 사용자는 **토큰이 문제라는 것을 알 수 없고**
+재시도만 반복한다.
+
+**왜 원인 기준인가**: 4xx/5xx 경계의 판정 기준은 **누가 고칠 수 있는가**다. 잘못된 토큰은
+클라이언트가 입력을 고쳐 해결하므로 4xx 이고, provider 장애는 재시도밖에 없으므로 5xx 다.
+provider 가 그것을 어떤 transport 로 알리는지는 **우리 계약의 관심사가 아니다** — 그것을 분류
+기준으로 쓰면 provider 가 방식을 바꾸는 순간 규칙이 조용히 거짓이 된다.
+
+**기존 502/503 축과 충돌하지 않는다.**
+[`4-execution-engine.md` C-1](./4-execution-engine.md) 이 *"Redis 의존성 장애이므로 502 가 아니라
+503"* 이라 결정해 뒀는데, 그 판정의 대상은 전부 **우리 쪽**이다 — 실제 HTTP 503 사용처 3곳
+(`WEBAUTHN_DISABLED`=우리 기능 플래그 · `SERVER_SHUTTING_DOWN`=우리 서버 ·
+`EXECUTION_ENQUEUE_FAILED`=우리 continuation bus) 이 그것을 보인다. 즉 *"응답 유효성 vs 일시
+가용성"* 축과 *"외부 제3자 vs 우리 인프라"* 축은 **현재 사례 전부에서 같은 결론**을 낸다.
+이 결정은 축을 바꾸는 것이 아니라 **어느 축으로도 비어 있던 자리**(외부 provider 가 실패했다)를
+채운다.
+
+> **경계 사례 인지**: provider **타임아웃**은 두 축이 갈릴 수 있다(외부이므로 502, 그러나
+> "일시 가용성" 이므로 503 로 읽을 여지). 현재 구현은 타임아웃을 재시도 후 generic 실패로
+> 넘기므로 이 결정에서는 502 다 — 실제로 갈리는 사례가 생기면 그때 판정한다.
+
+**502 는 이 저장소의 첫 사용이다** (2026-09-12 실측: `BadGatewayException` ·
+`HttpStatus.BAD_GATEWAY` · `@ApiBadGatewayResponse` 각 **0건**). 그래서 도입은
+[API Convention §6](./2-api-convention.md) 카탈로그와 [`swagger.md §2-4`](../conventions/swagger.md)
+데코레이터 표에 **각각 행을 신설**해야 완결된다 — 표가 없으면 컨트롤러가 그 응답을 문서화할
+방법이 없다.
+
+**같은 턴에 고친 두 번째 사실**: §5.4 는 `502` 라 적고 있었지만 구현은 **두 분기 모두 400** 을
+돌려줬다(`BadRequestException`). 테스트는 `code` 만 단언해 `getStatus()` 를 본 적이 없어 아무도
+몰랐다 — *"문서한 보장이 구현보다 넓으면 안 된다"* 의 사례다. 구현 정정은 developer 후속이다.
+
+**응답 본문에서 provider 원문 echo 를 중단한다.** 종전 구현은 두 분기 모두
+`details.reason: message.slice(0, 256)` 으로 외부 원문을 응답에 실었다.
+[`4-execution-engine.md §7.5.2`](./4-execution-engine.md) 가 *"plain `Error` 의 `error.message` 를
+client 에 전달하지 않는다"* 를 **보안 게이트**로 명시하고
+[R-CC-15](#r-cc-15-execution-failed-안내--분류-입력-화이트리스트--placeholder-1종-정책) 도 같은
+이유(URL·query·DB 컬럼명·stack·API key 조각)로 화이트리스트를 두는데, 이 경로만 예외였다.
+
+**복제를 남기지 않는다.** 옛 *"401/403 에서 드러난다"* 서술이 §4.1 ·
+[`2-trigger-list.md`](../2-navigation/2-trigger-list.md) ·
+[`data-flow/14-chat-channel.md`](../data-flow/14-chat-channel.md) **3곳에 복제**돼 있었다. 셋 다
+§5.4 를 SoT 로 인용하면서 내용을 본문에 다시 적어, SoT 가 바뀌면 조용히 거짓이 되는 구조였다 —
+원인 기반으로 **다시 적는 대신 복제 자체를 없애고** §5.4 링크만 남겼다.
