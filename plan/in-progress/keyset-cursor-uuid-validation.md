@@ -111,6 +111,10 @@ GET /api/users/me/login-history?cursor=2026-01-01T00:00:00Z|not-a-uuid
 
 - **두 커서 디코더의 실패 계약이 다르다** (무시 vs 400). 통일은 관측 가능한 동작 변경이라
   제품 결정이 필요하다 — 이번 배치는 각자의 계약을 **유지**했다.
+  > **완전히 해소된 상태가 아니다** (`/ai-review` `review/code/2026/09/12/23_19_03`
+  > api_contract·architecture WARNING). 이 배치가 두 계약을 각각 강화했으므로 비대칭은 사실상
+  > **굳었다** — `2-api-convention.md §8.2` 의 단일 표준과도 어긋난 채로. 트래커의 planner
+  > 항목(§8.2 예외 각주 여부)과 **같이 결정**해야 닫힌다.
 - **두 디코더가 손으로 각각 구현돼 있다.** 공용 keyset-cursor 헬퍼로 묶을 여지가 있으나
   인코딩이 달라(파이프 vs base64) 단순 추출이 아니다.
 
@@ -157,6 +161,33 @@ spec 문서 갭이고, 하나(체크리스트 대상 미명시)는 위에서 고
       `review/consistency/2026/09/12/22_51_25` — **BLOCK: NO** (Critical 0 · WARNING 4).
       셋은 spec 갭(§D 등재), 하나는 이 plan 의 체크리스트 결함이라 위에서 고쳤다.
 - [x] D: spec 항목 3건 트래커 등재 (전부 **planner 항목**으로 표기)
-- [ ] CHANGELOG (완료 — 관측 가능한 변경 2건)
-- [ ] `.claude/tools/run-test-all.sh`
-- [ ] `/ai-review` + `--impl-done`
+- [x] CHANGELOG — 관측 가능한 변경 2건 (500→200 · 500→400) + 필터 기각 근거 병기
+- [x] `.claude/tools/run-test-all.sh` lint·unit·build·e2e — ALL PASS (e2e 305 tests)
+- [x] 1라운드 `/ai-review` `review/code/2026/09/12/23_19_03` (`--route=all` 14명) —
+      **Critical 0 · WARNING 3**. 정지 규칙은 `#1328` 에서 검증된 형태를 그대로 쓴다(결과 보기
+      전 선언): *Critical 0 이고 남은 발견이 **동작·테스트 커버리지·공개 계약** 중 어느 것도
+      바꾸지 않으면 종료, 주석·산문은 등재.*
+      | # | 지적 | 실측/판정 | 처분 |
+      |---|---|---|---|
+      | 1 | *"`isUuidShaped` 호출부 조건이 뒤집혀도 unit/e2e 어느 쪽에서도 잡히지 않는다"* | **절반이 반증됐다** — 조건 반전 뮤턴트 M5·M6 이 **둘 다 RED** 다. 다만 나머지 절반(background-runs 에 **유효 커서를 넣는 테스트가 아예 없다**, `lastId` grep 0건)은 참이었다 | 대조군을 **완주 + `lastId` 소비 단언**으로 강화 |
+      | 2 | plan 체크박스가 서술("완료")과 불일치 | 참 — 내가 `- [ ] … (완료 …)` 로 적었다 | 정정 |
+      | 3 | 실패 계약 비대칭이 통일 없이 굳어짐 | 참 — 리뷰도 *"후속 조치로 충분"* | 기등재 + **"완전 해소 아님"** 을 §C 에 명시 |
+      INFO 중 CHANGELOG 의 라우트 파라미터명 축약(`:id`/`:runId` → `:executionId`/`:backgroundRunId`)도
+      정정했다. 근거 주석 복제(INFO#1)는 **주석-only** 라 등재한다.
+- [ ] 2라운드 `/ai-review` (커버리지 보강 반영분)
+- [ ] `--impl-done`
+
+## 뮤테이션 — 6/6 예측 일치 (원복 후 baseline GREEN)
+
+| 뮤턴트 | 예측 | 실측 |
+|---|---|---|
+| M1 login-history 의 id 검증 제거 | RED | RED |
+| M2 background-runs 의 `i` 검증 제거 | RED | RED |
+| M3 [대조군] login-history 를 **엄격한** 술어로 교체 | RED | RED |
+| M4 [대조군] background-runs 를 **엄격한** 술어로 교체 | RED | RED |
+| M5 background-runs 의 조건 **반전** | RED | RED |
+| M6 login-history 의 조건 **반전** | RED | RED |
+
+M5·M6 은 리뷰 W1 의 주장을 겨눈 것이다 — *"조건이 뒤집혀도 안 잡힌다"* 가 **참이 아님**을
+보인다(프로브 테스트가 비-UUID 를 거부하므로 반전 시 그 테스트가 깨진다). 리뷰 지적을 그대로
+받지 않고 뮤턴트로 물어본 결과다.

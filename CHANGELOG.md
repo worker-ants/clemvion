@@ -9,7 +9,7 @@ Postgres 가 SQLSTATE **22P02** 로 거부하는데 `GlobalExceptionFilter` 에 
 | 엔드포인트 | 잘못된 커서 id | 종전 | 지금 |
 |---|---|---|---|
 | `GET /api/users/me/login-history` | `<유효한 ISO>\|not-a-uuid` | **500** | **200** — 커서 무시, 1페이지 |
-| `GET /api/executions/:id/background-runs/:runId` | base64 `{"s":"<유효한 ISO>","i":"not-a-uuid"}` | **500** | **400 `INVALID_CURSOR`** |
+| `GET /api/executions/:executionId/background-runs/:backgroundRunId` | base64 `{"s":"<유효한 ISO>","i":"not-a-uuid"}` | **500** | **400 `INVALID_CURSOR`** |
 
 **두 엔드포인트의 처분이 다른 것은 의도다** — 각 디코더가 *다른* 실패 모드(잘못된 날짜·형태)에
 이미 하던 일에 맞췄다. 계약 통일은 관측 가능한 동작 변경이라 별 건으로 등재했다.

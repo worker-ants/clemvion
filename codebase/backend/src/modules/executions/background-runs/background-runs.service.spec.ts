@@ -652,32 +652,58 @@ describe('BackgroundRunsService', () => {
       });
     });
 
-    it('[대조군] nil UUID 처럼 느슨한 형태는 커서 검증을 통과한다 (엄격한 술어 금지)', async () => {
-      // `isValidUuid`(RFC v1–v5)로 조이면 Postgres 가 **정상 조회하는** 커서를 거부한다
-      // (`spec/data-flow/12-workspace.md §"UUID 검증 강도 비대칭"`). 술어를 바꾸면 RED.
+    it('[대조군] 유효한 커서는 완주하고 그 id 로 필터링한다 (nil UUID — 엄격한 술어 금지)', async () => {
+      // **두 가지를 한 번에 고정한다.**
       //
-      // **완주를 단언하지 않는다** — 이 describe 의 mock 체인은 커서 분기 뒤의 조회까지는
-      // 세워져 있지 않아서, 완주를 요구하면 이 테스트가 *커서 축이 아니라 mock 완성도*를
-      // 재게 된다. 물어야 할 것은 하나다: **커서 검증이 이 값을 거부했는가.**
+      // 1. `isValidUuid`(RFC v1–v5)로 조이면 Postgres 가 **정상 조회하는** 커서를 거부한다
+      //    (`spec/data-flow/12-workspace.md §"UUID 검증 강도 비대칭"`) — 그래서 fixture 가
+      //    **nil UUID** 다. 술어를 바꾸면 RED.
+      // 2. 유효한 커서가 실제로 `fetchBodyPage` 의 `lastId` 까지 도달하는가. 이 describe 에는
+      //    **유효 커서를 넣는 테스트가 없었다**(`lastId` grep 0건) — 인코딩 쪽만 검증됐다.
+      //    첫 판본은 mock 체인을 다 세우지 않아 완주를 단언하지 못했는데, 그러면 *"조건이
+      //    뒤집혀도 못 잡는다"* 는 지적의 절반이 실제로 맞게 된다
+      //    (`review/code/2026/09/12/23_19_03` testing WARNING).
+      const NIL_UUID = '00000000-0000-0000-0000-000000000000';
+      const bgNode = makeBgNodeExec();
+      const bodyPageQB = buildBodyPageQB([makeBodyNodeExec({ id: 'b9' })]);
+
       executionRepo.createQueryBuilder.mockReturnValueOnce(
         buildOwnershipQB('ws-1'),
       );
+      nodeExecutionRepo.createQueryBuilder
+        .mockReturnValueOnce(buildBgNodeExecQB(bgNode))
+        .mockReturnValueOnce(bodyPageQB)
+        .mockReturnValueOnce(
+          buildAggregateQB({
+            total: '1',
+            pending: '0',
+            running: '0',
+            completed: '1',
+            failed: '0',
+            skipped: '0',
+            waiting: '0',
+            latestFinished: new Date('2026-05-15T05:04:50.000Z'),
+          }),
+        );
+
       const cursor = Buffer.from(
-        JSON.stringify({
-          s: '2026-05-01T00:00:00.000Z',
-          i: '00000000-0000-0000-0000-000000000000',
-        }),
+        JSON.stringify({ s: '2026-05-01T00:00:00.000Z', i: NIL_UUID }),
         'utf8',
       ).toString('base64');
 
-      const code = await service
-        .getBackgroundRun('exec-1', 'bg-run-id', { cursor }, 'ws-1')
-        .then(
-          () => null,
-          (err: { response?: { code?: string } }) =>
-            err?.response?.code ?? null,
-        );
-      expect(code).not.toBe('INVALID_CURSOR');
+      const result = await service.getBackgroundRun(
+        'exec-1',
+        'bg-run-id',
+        { cursor },
+        'ws-1',
+      );
+
+      expect(result.nodeExecutions.data).toHaveLength(1);
+      // 커서가 **소비됐다** — 조건이 뒤집히면 `INVALID_CURSOR` 로 던져 여기 못 온다.
+      expect(bodyPageQB.andWhere).toHaveBeenCalledWith(
+        expect.stringContaining('ne.id > :lastId'),
+        expect.objectContaining({ lastId: NIL_UUID }),
+      );
     });
 
     it('rejects out-of-range limit', async () => {
