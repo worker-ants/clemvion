@@ -5,6 +5,7 @@ import {
   LoginHistory,
   LoginHistoryEvent,
 } from './entities/login-history.entity';
+import { isUuidShaped } from '../../common/utils/uuid';
 import { deriveDeviceLabel } from './utils/device-label';
 import {
   LoginHistoryItemDto,
@@ -49,6 +50,15 @@ function decodeCursor(
   if (!iso || !id) return null;
   const ts = new Date(iso);
   if (Number.isNaN(ts.getTime())) return null;
+  // **id 도 검증한다** — `lh.id` 는 `uuid` 컬럼이라 파싱 불가 값이 바인딩되면 22P02 → 500
+  // 마스킹이 된다. 왜 `isUuidShaped` 이고 `isValidUuid` 가 아닌지, 왜 필터 대신 입구에서
+  // 막는지는 **`isUuidShaped` 의 JSDoc 이 SoT** 다 (같은 근거를 세 곳에 복제해 세 라운드
+  // 연속 지적받았다 — `review/code/2026/09/13/00_13_51` maintainability W2).
+  //
+  // 처분은 이 디코더의 **다른 실패 모드와 같다** — 무시하고 1페이지. 형제
+  // `background-runs.service.ts` 의 `decodeCursor` 는 같은 상황에서 400 `INVALID_CURSOR` 를
+  // 던진다(계약이 다르다). 통일은 관측 가능한 동작 변경이라 제품 결정이고, 별 건으로 등재했다.
+  if (!isUuidShaped(id)) return null;
   return { ts, id };
 }
 

@@ -50,9 +50,28 @@ describe('isUuidShaped', () => {
    * 이 세 값이 **두 술어의 경계**다. 왜 느슨한 술어를 골랐는가(403→400 뒤바뀜)와 앵커
    * 정정 이력은 `uuid.ts` 의 `isUuidShaped` docstring 이 SoT 다.
    *
-   * **이 테스트 자체가 그 회귀 캐너리고, 자매는 `workspace-context.util.spec.ts` 의 nil
-   * UUID 통과 테스트다. 그리고 이 둘이 유일한 방어선이다** — 실측: `isUuidShaped` 의
-   * 프로덕션 호출부는 `workspace-context.util.ts:74` 한 곳뿐이다.
+   * **이 테스트가 그 회귀 캐너리다.** 자매는 `workspace-context.util.spec.ts` 의 nil UUID
+   * 통과 테스트이고, 2026-09-12 부터 keyset 커서 쪽 캐너리 둘이 더 있다
+   * (`login-history.service.spec.ts` · `background-runs.service.spec.ts` 의 `[대조군]`).
+   *
+   * > **"호출부는 한 곳뿐" 이라고 적혀 있었다 — `#1328` 후속 배치가 그 문장을 거짓으로
+   * > 만들었다**(`review/code/2026/09/12/23_40_57` testing WARNING). 커서 검증이 소비처를
+   * > 둘 더 만들었기 때문이다. **개수를 다시 박지 않는다** — 또 낡는다. 세는 법을 적는다:
+   * >
+   * > ```bash
+   * > grep -rn 'isUuidShaped(' --include='*.ts' codebase/backend/src \
+   * >   | grep -v '\.spec\.ts' | grep -v 'shared/testing/' | grep -v 'utils/uuid.ts:'
+   * > ```
+   * >
+   * > **마지막 필터가 없으면 함수 *정의부*가 함께 잡혀 4줄이 나온다** — 첫 판본이 그랬고,
+   * > *"다음 사람이 이 명령으로 재검증한다"* 는 이 docstring 의 존재 이유가 **첫 실행부터**
+   * > 무너져 있었다 (`review/code/2026/09/13/00_13_51` requirement WARNING). 측정 명령
+   * > 자체가 틀릴 수 있다는 것을 이 자리가 다시 보여 준다.
+   * >
+   * > 2026-09-13 실측은 3곳(`workspace-context.util.ts` · `login-history.service.ts` ·
+   * > `background-runs.service.ts`)이다. 소비처가 늘면 **그 자리의 캐너리도 함께** 있어야
+   * > 이 경계가 지켜진다 — 이 파일만으로는 부족하다.
+   *
    * `roles.guard.spec.ts` 도 nil UUID 를 쓰지만 그쪽은 **전역 라우트** 케이스라 같은
    * 단축에 걸려 술어에 닿지 않으므로 이 경계의 방어선으로 세면 안 된다.
    */

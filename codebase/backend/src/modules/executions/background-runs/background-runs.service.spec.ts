@@ -630,6 +630,108 @@ describe('BackgroundRunsService', () => {
       ).rejects.toThrow(BadRequestException);
     });
 
+    it('i 성분이 UUID 가 아니면 400 INVALID_CURSOR (22P02 → 500 마스킹 방지)', async () => {
+      // `ne.id` 는 `uuid` 컬럼이라 파싱 불가 값이 바인딩되면 Postgres 가 SQLSTATE 22P02 로
+      // 거부하는데, `GlobalExceptionFilter` 에 그 분기가 없어 **500 INTERNAL_ERROR 로
+      // 마스킹**된다. 이 디코더는 형태·날짜를 이미 검증하므로 **`i` 만 빠져 있었다** —
+      // base64·JSON·날짜가 전부 멀쩡한 커서로 5xx 를 만들 수 있었다.
+      //
+      // **소유권 QB mock 을 세우지 않는다** — `decodeCursor` 가 `verifyExecutionAccess` 보다
+      // 먼저 돌아 여기서 던지므로 그 mock 은 소비되지 않는다(첫 판본이 세워 두었고 리뷰가
+      // 죽은 mock 으로 지적했다 — `review/code/2026/09/13/00_13_51` testing W1). 세워 두면
+      // *"이 테스트가 소유권 검사를 통과했다"* 로 오독된다.
+      const cursor = Buffer.from(
+        JSON.stringify({ s: '2026-05-01T00:00:00.000Z', i: 'not-a-uuid' }),
+        'utf8',
+      ).toString('base64');
+
+      // **클래스만 보지 않는다** — 인접 가드(소유권·limit)도 같은 400 을 내므로,
+      // 무엇이 거부했는지까지 단언해야 대조군이 조용히 흡수되지 않는다.
+      await expect(
+        service.getBackgroundRun('exec-1', 'bg-run-id', { cursor }, 'ws-1'),
+      ).rejects.toMatchObject({
+        response: { code: 'INVALID_CURSOR' },
+      });
+    });
+
+    it('커서 검증이 소유권 검사보다 먼저 돈다 — 타 워크스페이스 + 잘못된 커서는 400 (404 아님)', async () => {
+      // **이 diff 가 만든 관측 가능한 우선순위 변화**를 고정한다
+      // (`review/code/2026/09/13/00_13_51` testing W1).
+      //
+      // `getBackgroundRun` 은 `resolveLimit` → `decodeCursor` → `verifyExecutionAccess` 순이라
+      // (기존 관행), 타 워크스페이스 요청이 잘못된 커서를 함께 보내면 종전 404 대신 400 이 된다.
+      // **정보 누설이 아니다** — 커서는 리소스를 조회하기 **전에** 형태만으로 거부되므로
+      // 존재 여부를 구별해 주지 않는다. 소유권 mock 을 아예 세우지 않는 것이 그 증거다:
+      // 소유권 검사에 도달하면 이 테스트는 mock 부재로 깨진다.
+      const cursor = Buffer.from(
+        JSON.stringify({ s: '2026-05-01T00:00:00.000Z', i: 'not-a-uuid' }),
+        'utf8',
+      ).toString('base64');
+
+      await expect(
+        service.getBackgroundRun(
+          'exec-1',
+          'bg-run-id',
+          { cursor },
+          'another-workspace',
+        ),
+      ).rejects.toMatchObject({ response: { code: 'INVALID_CURSOR' } });
+    });
+
+    it('[대조군] 유효한 커서는 완주하고 그 id 로 필터링한다 (nil UUID — 엄격한 술어 금지)', async () => {
+      // **두 가지를 한 번에 고정한다.**
+      //
+      // 1. `isValidUuid`(RFC v1–v5)로 조이면 Postgres 가 **정상 조회하는** 커서를 거부한다
+      //    (`spec/data-flow/12-workspace.md §"UUID 검증 강도 비대칭"`) — 그래서 fixture 가
+      //    **nil UUID** 다. 술어를 바꾸면 RED.
+      // 2. 유효한 커서가 실제로 `fetchBodyPage` 의 `lastId` 까지 도달하는가. 이 describe 에는
+      //    **유효 커서를 넣는 테스트가 없었다**(`lastId` grep 0건) — 인코딩 쪽만 검증됐다.
+      //    첫 판본은 mock 체인을 다 세우지 않아 완주를 단언하지 못했는데, 그러면 *"조건이
+      //    뒤집혀도 못 잡는다"* 는 지적의 절반이 실제로 맞게 된다
+      //    (`review/code/2026/09/12/23_19_03` testing WARNING).
+      const NIL_UUID = '00000000-0000-0000-0000-000000000000';
+      const bgNode = makeBgNodeExec();
+      const bodyPageQB = buildBodyPageQB([makeBodyNodeExec({ id: 'b9' })]);
+
+      executionRepo.createQueryBuilder.mockReturnValueOnce(
+        buildOwnershipQB('ws-1'),
+      );
+      nodeExecutionRepo.createQueryBuilder
+        .mockReturnValueOnce(buildBgNodeExecQB(bgNode))
+        .mockReturnValueOnce(bodyPageQB)
+        .mockReturnValueOnce(
+          buildAggregateQB({
+            total: '1',
+            pending: '0',
+            running: '0',
+            completed: '1',
+            failed: '0',
+            skipped: '0',
+            waiting: '0',
+            latestFinished: new Date('2026-05-15T05:04:50.000Z'),
+          }),
+        );
+
+      const cursor = Buffer.from(
+        JSON.stringify({ s: '2026-05-01T00:00:00.000Z', i: NIL_UUID }),
+        'utf8',
+      ).toString('base64');
+
+      const result = await service.getBackgroundRun(
+        'exec-1',
+        'bg-run-id',
+        { cursor },
+        'ws-1',
+      );
+
+      expect(result.nodeExecutions.data).toHaveLength(1);
+      // 커서가 **소비됐다** — 조건이 뒤집히면 `INVALID_CURSOR` 로 던져 여기 못 온다.
+      expect(bodyPageQB.andWhere).toHaveBeenCalledWith(
+        expect.stringContaining('ne.id > :lastId'),
+        expect.objectContaining({ lastId: NIL_UUID }),
+      );
+    });
+
     it('rejects out-of-range limit', async () => {
       await expect(
         service.getBackgroundRun('exec-1', 'bg-run-id', { limit: 999 }, 'ws-1'),
