@@ -158,8 +158,10 @@ plaintext bot token 은 DB `trigger.config` 에 저장되지 않고 secret store
 | 회전 | `POST /api/triggers/:id/chat-channel/rotate-bot-token` → `rotateBotToken` 6단계: ① 기존 token resolve (없으면 백업 skip) ② v2 ref (`secret://triggers/{id}/bot-token.v2`) 에 백업 ③ primary ref 에 새 token UPSERT ④ 새 token 으로 `setupChannel` 재호출 (inbound-signing 재발급) ⑤ issuedInboundSigning 저장 ⑥ trigger 컬럼 갱신 | UPDATE `chat_channel_token_v2`(=v2 ref), `chat_channel_rotated_at`, `chat_channel_health='healthy'` |
 | grace 종료 cleanup | BullMQ `chat-channel-token-rotator` 큐의 repeatable job (`0 * * * *`, `upsertJobScheduler` — 멀티 인스턴스에서 전역 1회) → `cleanupRotatedChatChannelTokens`: `chat_channel_token_v2 IS NOT NULL AND chat_channel_rotated_at <= now-24h` 후보별로 provider `revokeBotToken?` best-effort (Slack `auth.revoke` 만 — Telegram/Discord 는 revocation API 미지원) → `secrets.delete(v2Ref)` | `secret_store` v2 row DELETE + UPDATE `chat_channel_token_v2=NULL`, `chat_channel_rotated_at=NULL` |
 
-> 회전 실패 분기: `setupChannel` 의 외부 API 401/403 은 `BOT_TOKEN_INVALID` 400, 그 외는
-> `CHAT_CHANNEL_SETUP_FAILED` 로 변환 ([Spec Chat Channel §5.4](../5-system/15-chat-channel.md) 에러 표).
+> 회전 실패 분기: **자격 증명 거부**는 `BOT_TOKEN_INVALID` 400, 그 밖의 실패는
+> `CHAT_CHANNEL_SETUP_FAILED` 502 로 변환 — 분류 기준과 provider 별 신호 방식은
+> [Spec Chat Channel §5.4](../5-system/15-chat-channel.md#54-bot-token-rotation-api-응답-계약)
+> 에러 표가 SoT 다(**여기 복제하지 않는다**).
 > bot token 변경은 rotate API 단일 경로다 (R-CC-10 — config PATCH 로 변경 불가).
 
 ### 1.4 web-chat 경로 — 위젯은 chat-channel 모듈을 거치지 않는다

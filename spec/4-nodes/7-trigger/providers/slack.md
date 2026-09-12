@@ -70,6 +70,10 @@ user_guide:
 POST https://slack.com/api/auth.test
 Authorization: Bearer {botToken}
 → { ok: true, team_id, user_id, bot_id, url, team, user, ... }
+# 실패(자격 증명 거부): HTTP **200** + { ok: false, error: 'invalid_auth' | 'not_authed'
+#                                    | 'account_inactive' | 'token_revoked' | ... }
+#   → Slack Web API 는 인증 실패도 200 으로 준다. 어댑터는 이것을 **자격 증명 거부 신호**로
+#     읽어 `code: 'BOT_TOKEN_INVALID'` 를 실어 throw 한다 (CCA §1.1.2).
   → config.chatChannel.botIdentity = { botId: hashStringToInt(user_id ?? bot_id), username: (user ?? bot_id), teamId: team_id }
 ```
 

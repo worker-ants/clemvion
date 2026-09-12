@@ -4,6 +4,9 @@ status: partial
 code:
   - codebase/backend/src/modules/chat-channel/**
 pending_plans:
+  # §1.1.2 의 `code` 선언 계약은 **미구현**이다 (adapter 3종 전부 developer 후속) —
+  # `status: partial` spec 의 미구현 surface 추적 의무(`spec-impl-evidence.md §2.1`).
+  - plan/in-progress/spec-draft-nullable-notation-followups.md
   - plan/in-progress/chat-channel-discord-gateway.md
   - plan/in-progress/chat-channel-slack-socket-mode.md
   - plan/in-progress/chat-channel-visual-ssr-png.md
@@ -124,7 +127,7 @@ interface ChatChannelAdapter {
 
 | 함수 | 책임 | 부작용 | 멱등성 |
 |---|---|---|---|
-| `setupChannel` | 외부 채널의 inbound hook 등록 (텔레그램 `setWebhook`) + bot identity 조회 | 외부 API 호출 1회 이상 | yes — 같은 config 재호출 OK. **뜻은 [§1.1.1](#111-setupchannel-멱등의-뜻--등록-안전성이지-시크릿-값-불변이-아니다)** |
+| `setupChannel` | 외부 채널의 inbound hook 등록 (텔레그램 `setWebhook`) + bot identity 조회. **실패 시 사유를 `code` 로 선언한다 — [§1.1.2](#112-setupchannel-실패-판별--자격-증명-거부는-code-로-선언한다)** | 외부 API 호출 1회 이상 | yes — 같은 config 재호출 OK. **뜻은 [§1.1.1](#111-setupchannel-멱등의-뜻--등록-안전성이지-시크릿-값-불변이-아니다)** |
 | `teardownChannel` | 외부 채널의 hook 해제. 부분 실패 OK (best-effort) | 외부 API 호출 | yes |
 | `parseUpdate` | raw body → `ChannelUpdate \| null`. DB 미접근, 외부 API 미호출. 무시 대상은 `null` — **`null` 의 의미는 "어댑터가 해석 불가/무시"** 단일 의미. 호출자(`HooksService`) 가 raw body 에서 provider-specific 메타 (예: 텔레그램 `chat.type`, `from.is_bot`) 를 확인해 안내 메시지 발송 여부를 결정한다 (어댑터는 side-effect free 유지). 안내 발송 책임 = 호출자 | none | pure |
 | `renderNode` | `EiaEvent \| ChatChannelInternalEvent` payload → `ChannelMessage[]`. side-effect free. 입력 union 은 §1.2 / §1.3 정의. SoT: §R-CCA-7 (union 확장 근거) | none | pure |
@@ -149,6 +152,42 @@ interface ChatChannelAdapter {
 않는다"* 는 결정이 「멱등」을 값-불변으로 읽고 telegram 의 재저장까지 막으려 해, 그대로
 구현하면 모든 telegram 인입이 401 이 될 상태였습니다. 그래서 이 각주는 표현 정리가 아니라
 **두 층(등록 / 값)을 가르는 규약**입니다.
+
+#### 1.1.2 `setupChannel` 실패 판별 — 자격 증명 거부는 `code` 로 **선언**한다
+
+`setupChannel`(및 `teardownChannel`·`revokeBotToken`)이 **자격 증명 거부**로 실패하면, 던지는
+`Error` 에 `code: 'BOT_TOKEN_INVALID'` 프로퍼티를 실어 **사유를 선언**한다. 호출자는 **그 `code`
+로만** 분류하고 `message` 를 파싱하지 않는다. `code` 가 없는 에러는 호출자가 generic 실패로 다룬다.
+
+SoT: [`15-chat-channel.md §5.4`](../5-system/15-chat-channel.md#54-bot-token-rotation-api-응답-계약)
+에러 표 · 근거 [§R-CCA-9](#r-cca-9-실패-사유를-message-가-아니라-code-로-선언하는-이유).
+
+> **`code` 라는 이름이 이 저장소에서 세 뜻으로 쓰인다 — 혼동하면 조용히 잘못 분기한다.**
+>
+> | 무엇 | 소유 | 값 도메인 |
+> |---|---|---|
+> | **본 절의 `code`** | **어댑터가 새로 throw 하는 `Error` 의 프로퍼티** | 우리 문자열 (`'BOT_TOKEN_INVALID'`) |
+> | [§3.1](#31-execution-failed-분류-알고리즘) 의 `event.error.code` | EIA 이벤트 payload | 실행 실패 분류용 — **별 네임스페이스** |
+> | `app.code` / `res.code` | **provider 원본 API 응답 필드** (Discord) | **숫자** |
+>
+> 세 번째가 특히 가깝다 — discord 어댑터는 이미 `'code' in app` 으로 **원본 응답**을 검사한다.
+
+**왜 provider 가 신호하는 방식을 호출자가 추측하지 않는가**: provider 들이 자격 증명 거부를
+알리는 방식이 서로 다르다 — Slack 은 **HTTP 200 + `{ok:false, error:'invalid_auth'}`**,
+Discord 는 `verify_key` 불일치(**status 자체가 없다**), Telegram 은 `HTTP 401`. 호출자가 문자열에서
+status 숫자를 찾는 방식은 **2/3 provider 에서 원리적으로 실패**한다(2026-09-12 실측).
+
+**한시적 예외 — 호출자의 401/403 fallback.** `code` 가 없는 에러에 대해 호출자는 message 의
+401/403 을 보고 `BOT_TOKEN_INVALID` 로 분류한다. 이는 *"message 원문으로 분기하지 않는다"*
+(§R-CCA-5 → [R-CC-15](../5-system/15-chat-channel.md#r-cc-15-execution-failed-안내--분류-입력-화이트리스트--placeholder-1종-정책) ·
+[`4-execution-engine.md §7.5.2`](../5-system/4-execution-engine.md) ·
+[`3-error-handling.md §1.3`](../5-system/3-error-handling.md) 의 `FILE_REQUIRED` 주석)에 대한
+**의도적 예외**다. `code` 를 아직 안 붙인 경로가 **조용히 502 로 빠지는 것보다** 400 을 주는 편이
+사용자에게 낫기 때문이다.
+
+> **제거 조건**: v1 provider 3종(telegram·slack·discord)이 모두 `code` 를 부착하면 이 fallback 은
+> 삭제 후보다. 조건만 적고 추적하지 않으면 한시적 예외가 영구 예외가 되므로, 그 판정을 별
+> 후속 항목으로 추적한다.
 
 ### 1.2 EiaEvent 입력
 
@@ -622,3 +661,25 @@ formMode capability 기반 분기 + 버튼 게이팅 + 5 fields 한계를 택한
 - (b) **modal open 은 전용 옵션 메서드 `openFormModal?` (+ `buildFormSubmissionResponse?`)** — `supportsNativeForm=true` provider 한정 옵션. `ackInteraction(update, config)` 시그니처는 **modal view 합성에 필요한 form 필드 (conversation state 의 `pendingFormModal.fields`) 를 받지 못하므로** (modal 합성은 fields + provider token 둘 다 필요, ack 시점엔 token 만), modal open 은 ackInteraction 내부 분기가 아닌 전용 옵션 메서드로 분리한다. R-CCA-5/R-CCA-7 의 "함수 추가 = 모든 provider contract 변경" 정신은 **옵션(`?`) 시그니처** 로 보존 — modal 미지원 provider (Telegram) 는 미구현, 기존 필수 함수 계약 불변. `supportsNativeForm` 은 함수가 아닌 capability 플래그.
 - (c) **server-side 검증 재표시**: §4.2 의 "잘못된 필드만 다시" 정신을 modal 에서도 유지 — Slack `response_action: errors`, Discord modal 재open (§4.1 step 5).
 - (d) **production data 없음**: `formMode` default 를 `auto` 로 전환해도 기존 DB 의 `"multi_step"` 값은 의미 동일 (상위 호환 확장). production data 부재로 마이그레이션 불필요.
+
+### R-CCA-9. 실패 사유를 `message` 가 아니라 `code` 로 **선언**하는 이유
+
+**결정**: [§1.1.2](#112-setupchannel-실패-판별--자격-증명-거부는-code-로-선언한다) — 어댑터가
+자격 증명 거부를 `Error` 의 `code` 프로퍼티로 선언하고, 호출자는 `message` 를 파싱하지 않는다.
+
+**기각한 대안 두 개**를 남긴다:
+
+| 대안 | 기각 사유 |
+|---|---|
+| 호출자가 `message` 에서 **status 숫자**를 찾는다 (종전 구현) | provider 가 숫자를 주지 않으면 원리적으로 실패한다 — v1 3종 중 **2종**이 그랬다. 규칙이 조용히 거짓이 되고 **다음 provider 에서 같은 일이 난다** |
+| 어댑터가 `message` 를 **`'BOT_TOKEN_INVALID:'` 접두**로 시작한다 | discord 어댑터가 실제로 쓰던 방식이라 *"관례의 승격"* 으로 제안했다가 기각했다. 여전히 **문자열 파싱으로 제어흐름을 가르는** 형태이고, 이 저장소는 같은 문제에 이미 세 번 반대 방향으로 결정했다 — [§R-CCA-5](#r-cca-5-execution-failed-분류-helper-를-convention-에-두는-이유)(→[R-CC-15](../5-system/15-chat-channel.md#r-cc-15-execution-failed-안내--분류-입력-화이트리스트--placeholder-1종-정책)) · [`4-execution-engine.md §7.5.2`](../5-system/4-execution-engine.md) · [`3-error-handling.md §1.3`](../5-system/3-error-handling.md) 의 `FILE_REQUIRED` 주석. **그 접두는 관례가 아니라 규칙 부재의 흔적**이었다 |
+
+`code` 가 나은 이유는 단순하다 — **컴파일러와 리팩터가 볼 수 있다.** 문자열 접두는 오타·번역·
+문구 정리에 조용히 깨지고, 깨졌다는 신호가 나지 않는다.
+
+**§7 「모든 구체 어댑터 명세 동시 갱신」의 해석**: 이 결정은 provider spec 중
+[`slack.md §3.1`](../4-nodes/7-trigger/providers/slack.md) 만 갱신한다 — Slack 의 실패 응답 형태
+(HTTP 200 + `{ok:false}`)가 이 결정의 실질 동기이고 그것이 spec 트리에 없었기 때문이다. §7 의
+문면은 **「영향받는 모든」** 으로 읽는다. 선례가 있다 —
+[§1.1.1](#111-setupchannel-멱등의-뜻--등록-안전성이지-시크릿-값-불변이-아니다) 도 telegram 한
+파일만 갱신했다.

@@ -288,6 +288,7 @@ async findAll(@Query() query: QueryWorkflowDto) { ... }
 | 403 권한 부족 | `@ApiForbiddenResponse` |
 | 404 없음 | `@ApiNotFoundResponse` |
 | 409 중복/충돌 | `@ApiConflictResponse` |
+| 502 외부 provider 호출 실패 | `@ApiBadGatewayResponse` |
 
 보호된 엔드포인트는 기본적으로 `@ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })`를 포함합니다.
 

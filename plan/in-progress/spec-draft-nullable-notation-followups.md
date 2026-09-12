@@ -18,6 +18,24 @@ spec_impact:
   - spec/conventions/review-citations.md
   - spec/conventions/spec-impl-evidence.md
   - spec/conventions/secret-store.md
+  # 신규 항목 「중앙 카탈로그에 chat-channel rotate 코드군이 없다」의 편집 대상.
+  # **내 검증 스크립트가 이걸 놓쳤다** — 본문에 `spec/` 접두 없이 `3-error-handling.md` 라
+  # 적었고 스캐너가 `spec/…` 만 찾았다. 검증 명령이 주장보다 좁았던 사례.
+  - spec/5-system/3-error-handling.md
+  # 아래 넷은 **내 턴이 만든 게 아니라 사전 존재 갭**이다 — 검증기를 bare 파일명까지 보게
+  # 넓히자 드러났다(종전 스캐너는 `spec/…` 전체 경로만 봤다). 각각 소속 항목의 **처방이
+  # 그 파일을 고치라고 말한다**:
+  #   1-auth.md          ← 「telegram inbound-signing 재발급이 §4.1 카탈로그 밖이다」
+  #   error-codes.md · 4-execution-engine.md · 6-websocket-protocol.md
+  #                      ← 「"에러 코드 어휘 규약" vs "명명 규율" — 세 문서 표현 통일」
+  - spec/5-system/1-auth.md
+  - spec/conventions/error-codes.md
+  - spec/5-system/4-execution-engine.md
+  - spec/5-system/6-websocket-protocol.md
+  # **`4-integration.md` 는 의도적으로 넣지 않았다** — 그 항목(`consecutiveNetworkFailures`
+  # 노출 중단 **검토**)의 결정 대상은 DTO 필드이고, §9.1 캐비엇 수정은 결정이 "중단" 으로
+  # 기울 때만 따라오는 **하류**다. 조건부 대상을 넣으면 이 목록이 "이 plan 이 건드리는 파일" 이
+  # 아니게 된다. 판단을 적어 침묵과 구분한다.
   # 본문 「… 귀속 표기가 부정확해졌다」 항목이 정정을 요구하는 두 파일(그 항목이 **2곳 한정**이라고
   # 범위까지 적고 있다). 같은 실패 모드를 이 파일이 이미 한 번
   # 겪었다 (`review/consistency/2026/09/06/16_29_00` INFO#2 — 소급 등재로 고쳤다) —
@@ -2695,6 +2713,9 @@ field: T | null;
       **4종**이다(`P`·`@`·`ss`·`1`). 결론(길이 분기만 발동)은 맞고 개수만 틀렸다.
 
 - [ ] **`botToken` provider 별 형식 검증이 문서에만 있고 코드에 없다** (planner + developer,
+      <!-- 2026-09-12: 이 항목이 인용할 「정답 문장」이 바뀌었다 — `2-trigger-list.md` 의
+           *"401/403 에서 드러난다"* 는 **삭제됐다**(복제 제거). 이제 인용할 것은
+           `15-chat-channel.md §5.4` 의 **원인 기반** 서술이고 "401/403" 이 아니다. -->
       2026-09-11 등재 · `--impl-prep` `review/consistency/2026/09/11/10_28_52` WARNING 2 + INFO 2).
       **실측**: `^\d{6,}:[A-Za-z0-9_-]{30,}$` 는 **docs·i18n 4곳에만** 있고
       (`content/docs/06-integrations-and-config/telegram{,.en}.mdx` · `i18n/dict/{ko,en}/triggers.ts`)
@@ -2763,16 +2784,85 @@ field: T | null;
       > `assertInboundSigningPlaintextByProvider` (`chat-channel-input-rules.ts` —
       > `TriggersService` 가 생성 경로에서 호출).
 
-- [ ] **`translateSetupChannelError` 가 discord verify_key 불일치를 502 로 떨어뜨린다**
+- [ ] **`chatChannelLastError` 에 외부 adapter 오류 **원문**이 저장·노출된다** (developer + 보안,
+      2026-09-12 등재). `setupChatChannel` 의 실패 경로가 `message.slice(0, 1024)` 를 DB 컬럼에
+      쓰고, 그 값은 트리거 상세 응답으로 **워크스페이스 멤버에게 노출**된다. 외부 오류 원문은
+      URL·query·내부 식별자·API key 조각을 담을 수 있다.
+      > ### 이 항목은 **22개 리뷰 세션에서 제기되고 3개월간 매번 유실됐다**
+      >
+      > 2026-09-12 실측: `review/**` 에서 `chatChannelLastError` 를 언급한 **코드 리뷰 세션이
+      > 22개**(2026-06-12 ~ 2026-09-11)인데, `plan/` 전체에는 **한 번도 등재되지 않았다.**
+      > RESOLUTION 마다 *"이미 트래커 등재"* 라고 적혀 있었고 **그게 매번 거짓이었다.**
+      >
+      > **원인은 알려진 것이다 — `review/**` 는 SoT 가 아니다.** 그 문장은 증거처럼 보이지만
+      > 다음 세션은 `review/` 를 읽지 않는다. 그래서 규율을 좁힌다: ***"이미 등재됨" 을 쓰기 전에
+      > grep 해서 그 항목 제목을 인용한다. 인용할 수 없으면 등재되지 않은 것이다.***
+      >
+      > 처방 판단에 필요한 것: 이 값은 **운영자용 진단**이라 단순 제거가 답이 아닐 수 있다.
+      > 후보 — (a) 분류 코드만 저장(`R-CC-15` 의 화이트리스트 패턴) (b) 원문은 서버 로그,
+      > 컬럼엔 코드 (c) 컬럼은 유지하고 **응답에서만** 제외. 응답 축의 형제 결정은
+      > `15-chat-channel.md R-CC-23`(§5.4 응답 본문에서 원문 echo 중단)이다.
+
+- [ ] **`3-error-handling.md §1` 중앙 카탈로그에 chat-channel rotate 에러 코드군이 없다**
+      (planner, 2026-09-12 등재 · `--spec` `review/consistency/2026/09/12/12_05_58` INFO 6).
+      `BOT_TOKEN_INVALID` · `CHAT_CHANNEL_SETUP_FAILED` 등이 다른 도메인과 달리 중앙 카탈로그에
+      등재 자리가 없다. 기존 갭이고 `R-CC-23` 턴의 동기가 아니라 스코프 밖으로 뒀다 —
+      **그 유예 근거가 봉인되지 않도록** 여기 옮겨 적는다(`§1.12` 가칭).
+
+- [ ] **CCA §1.1.2 의 401/403 fallback 제거 판정** (developer, 2026-09-12 등재 ·
+      `--spec` `12_22_24` INFO 3). `R-CCA-9` 가 그 fallback 을 *"message 원문으로 분기하지 않는다"*
+      에 대한 **한시적 예외**로 두고 제거 조건을 적었다 — **v1 provider 3종(telegram·slack·discord)이
+      모두 `code` 를 부착하면 삭제 후보**. 조건만 적고 추적하지 않으면 한시적 예외가 영구가 되므로
+      여기서 추적한다. 착수 신호: 위 「setupChannel 실패 분류」 항목의 developer 후속 2~4 완료.
+
+- [ ] **`setupChannel` 실패 분류 — spec 은 planner 턴에서 고쳤고 **구현이 남았다**
+      (원 제목: *"`translateSetupChannelError` 가 discord verify_key 불일치를 502 로 떨어뜨린다"*)**
       (developer, 2026-09-11 등재 · `/ai-review` `review/code/2026/09/11/15_31_54` W3).
       **재현했다**: `discord.adapter.ts` 는 `'BOT_TOKEN_INVALID: Discord verify_key 가 등록된
       public key 와 불일치'` 를 던지는데 **숫자가 없어서** 판별식 `/\b(401|403)\b/` 에 안 걸리고
       fallback `CHAT_CHANNEL_SETUP_FAILED`(502) 로 간다. 의도는 400 `BOT_TOKEN_INVALID` 다.
       **이동이 만든 회귀가 아니다**(이동 전부터 테스트 0건) — 캐너리로 현재 동작을 고정해
       뒀으므로 고치면 그 테스트가 RED 가 된다.
-      처방 후보: (a) 판별식을 `BOT_TOKEN_INVALID` 리터럴까지 보게 확장 (b) adapter 가 status 를
+      ~~처방 후보: (a) 판별식을 `BOT_TOKEN_INVALID` 리터럴까지 보게 확장 (b) adapter 가 status 를
       메시지에 싣게 통일. **(b) 가 근본이다** — 판별식이 문자열을 추측하는 구조 자체가 이 결함의
-      원인이고, (a) 는 다음 provider 에서 같은 일이 난다.
+      원인이고, (a) 는 다음 provider 에서 같은 일이 난다.~~
+
+      > ### ⚠️ **2026-09-12 — 위 처방은 기각됐다. 되살리지 말 것**
+      >
+      > **(b) 는 이 케이스를 못 고친다** — discord 는 200 을 주고 `verify_key` 만 다른 것이라
+      > **실을 status 자체가 없다**. 그리고 Slack 은 자격 증명 거부를 **HTTP 200 +
+      > `{ok:false, error:'invalid_auth'}`** 로 주므로 status 를 싣는 방식이 원리적으로 안 된다.
+      > 채택된 근본 처방은 **typed `code` 프로퍼티**다
+      > ([CCA §1.1.2](../../spec/conventions/chat-channel-adapter.md) · `R-CCA-9`).
+      > (b) 와 유사한 "message 에 싣는다" 계열은 **전부 기각**이다 — 문자열 파싱으로 제어흐름을
+      > 가르는 형태이고 이 저장소는 같은 문제에 세 번 반대로 결정해 뒀다.
+      >
+      > **취소선으로 남기는 이유**: 이 문장을 지우면 다음 사람이 같은 결론에 다시 도달하느라
+      > 같은 조사를 반복한다. 남기면 **기각 사실과 근거가 함께 보인다.**
+
+      > ### ✅ **spec 은 닫혔다 — 남은 것은 구현이다** (planner 턴 `plan/complete/spec-draft-setup-error-classification.md` (`--spec` `review/consistency/2026/09/12/{11_50_28,12_05_58,12_22_24}` — 1회차 BLOCK: YES 후 2·3회차 BLOCK: NO))
+      >
+      > **결함은 셋이었다.** ① 분류 술어가 2/3 provider 에서 구현 불가능(Slack 의
+      > `invalid_auth` 가 **실질 동기** — discord 한 건이 아니다) ② §5.4 가 `502` 라 적는데
+      > **구현은 두 분기 모두 400**(런타임 실측 — `getStatus()` 를 단언한 테스트가 0건이라
+      > 아무도 몰랐다) ③ 반증된 서술이 **3곳에 복제**.
+      >
+      > **developer 후속 (이 항목이 추적한다)**:
+      > 1. `translateSetupChannelError` — `err.code` 우선 판별 · 401/403 fallback 유지 ·
+      >    **`BadGatewayException`(502)** 로 정정 · `details.reason` 원문 제거 → `logger.warn`.
+      >    컨트롤러에 `@ApiBadGatewayResponse` 부착(**저장소 최초 502**) ·
+      >    `http-exception.filter` 가 502 를 표준 봉투로 싸는지 **실측 확인**(한 번도 지나간 적 없는 경로).
+      > 2. `slack.adapter.ts` — `auth.test` 실패에 `code`. **`ratelimited` 류 제외**(자격 증명 문제가
+      >    아니다). 어느 `result.error` 가 자격 증명 거부인지 **실측해 열거**할 것.
+      > 3. `discord.adapter.ts` — verify_key 불일치의 **message 접두를 `code` 로 교체**.
+      >    ⚠️ 그 파일엔 **Discord 원본 응답의 숫자형 `code`**(`app.code`/`res.code`)가 이미 있다 —
+      >    두 개를 헷갈리면 조용히 잘못 분기한다.
+      > 4. `telegram.adapter.ts` — 401/403 경로에 `code` 부착(fallback 의존 해소).
+      > 5. 캐너리 뒤집기 — *"discord verify_key → 502"* 가 RED 가 되는 것이 **의도**다.
+      >    그 자리에 verify_key → 400 · **Slack `invalid_auth` → 400** · **`getStatus()` 단언**.
+      >    **아래 「`chat-channel-input-rules.spec.ts` 잔여 보강 5건」의 (d) 와 같은 블록이므로
+      >    같은 커밋에서 처리**한다 — (d) 의 `details.reason` 단언은 이 결정으로 뜻이 바뀌어
+      >    **부재**를 단언해야 한다.
 
 - [ ] **`chat-channel-input-rules.ts` 의 구조 정리 6건** (developer, 2026-09-11 등재 ·
       `/ai-review` `review/code/2026/09/11/15_31_54` W4 + INFO). 전부 비차단:
