@@ -86,6 +86,49 @@ describe('chat-channel-input-rules — 내부 필드 차단 (R-CC-21)', () => {
    * **두 값 필드**다 — 한쪽만 검증하면 다른 쪽 가드가 사라져도 GREEN 이다(실측 커버리지 미달,
    * `/ai-review` `review/code/2026/09/11/15_57_42` W1).
    */
+  /**
+   * **두-층 등가성의 서비스 쪽 절반.** `chat-channel-rejection-messages.const.ts` 는
+   * *"`null`/`''` 는 `@IsEmpty()` 를 통과하고 서비스 가드가 거부한다"* 를 설계로 선언하는데,
+   * 그 **DTO 가 통과시킨다** 는 절반만 `trigger-dto-validation.spec.ts` 가 고정하고 있었다
+   * (`/ai-review` `16_17_57` testing WARNING).
+   *
+   * 그래서 `hasField` 의 `typeof … !== 'undefined'` 를 falsy 판별(`!value`)로 바꾸는 뮤턴트가
+   * **아무 테스트도 깨지 않았다** — 그러면 `null`/`''` 로 보낸 비밀이 **두 층 모두를 통과**한다.
+   * 이번 PR 이 그 판별식을 `hasField` 로 옮겼으니 고정도 여기서 한다.
+   */
+  it.each([
+    ['null', null],
+    ['빈 문자열', ''],
+  ])(
+    'PATCH 는 %s 로 보낸 botToken 도 거부한다 — DTO 가 통과시키는 값이다',
+    (_label, value) => {
+      expect(
+        thrown(() => assertPatchCarriesNoSecrets(cfg({ botToken: value }))),
+      ).toMatchObject({
+        details: { field: 'botToken', code: 'INVALID_FIELD' },
+      });
+    },
+  );
+
+  it.each([
+    ['null', null],
+    ['빈 문자열', ''],
+  ])(
+    'PATCH 는 %s 로 보낸 inboundSigningPlaintext 도 거부한다',
+    (_label, value) => {
+      expect(
+        thrown(() =>
+          assertPatchCarriesNoSecrets(cfg({ inboundSigningPlaintext: value })),
+        ),
+      ).toMatchObject({
+        details: {
+          field: 'inboundSigningPlaintext',
+          code: 'INVALID_FIELD',
+        },
+      });
+    },
+  );
+
   it('PATCH 는 inboundSigningPlaintext 도 거부한다', () => {
     expect(
       thrown(() =>

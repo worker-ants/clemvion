@@ -2917,11 +2917,20 @@ field: T | null;
       502 가 `INTERNAL_ERROR` 로 표기되므로, 그 시점에 행을 추가한다. 지금 `BAD_GATEWAY` 를
       발명하면 `3-error-handling.md` 카탈로그에 없는 코드가 생겨 spec drift 다.
 
-- [ ] **`rotateBotToken` 의 swagger 응답 문서화 잔여 — 404 와 200 봉투** (developer,
+- [x] **`rotateBotToken` 의 swagger 응답 문서화 잔여 — 404 와 200 봉투** (developer,
       2026-09-12 등재). 이번 PR 이 `@ApiBadRequestResponse` + `@ApiBadGatewayResponse` 를
       달았지만(§5.4 가 **가르는** 두 축이라 함께 문서화), 같은 표의 `404 RESOURCE_NOT_FOUND`
       와 200 응답 봉투(`ApiOkWrappedResponse`)는 **이 PR 의 계약 축이 아니라** 손대지 않았다.
       `swagger.md §2-4` 기준으로는 둘 다 있어야 한다.
+      > **✅ 2026-09-12 완료** (`chat-channel-rules-cleanup`). `@ApiNotFoundResponse` +
+      > `@ApiOkWrappedResponse(ChatChannelRotateBotTokenDto)`. 컨트롤러 반환 타입도
+      > `Awaited<ReturnType<...>>` → **DTO** 로 바꿨다 — 종전 형태는 서비스가 무엇을 돌려주든
+      > 따라가므로 선언과 실제가 갈려도 조용했다.
+      >
+      > **신규 DTO 를 `dto/responses/` 에 두지 않았다** — `15-chat-channel.md` 의 glob
+      > `dto/chat-channel-*.dto.ts` 는 `*` 가 `/` 를 안 넘어 `responses/` 하위를 **못 잡는다**
+      > (정본 매처로 실측). 소유 spec 이 자기 파일을 못 보는 그 형태가 `R-CC-22` 가 막으려던
+      > 것이라 평평한 자리를 택했다. 관례 충돌은 아래 신규 항목으로 등재.
 
 - [x] **CCA frontmatter 의 *"§1.1.2 계약은 미구현"* 주석이 stale 이다** (planner,
       2026-09-12 등재 · **같은 날 해소**). `spec/conventions/chat-channel-adapter.md` frontmatter
@@ -2969,7 +2978,7 @@ field: T | null;
       인데 출력측 변환이 섞여 있다 — 이름을 넓히거나 분리"*). 둘은 **같은 사실**이라 짝으로
       처리한다 — 분리를 택하면 §7 서술은 자동으로 참이 된다.
 
-- [ ] **`chat-channel-input-rules.ts` 의 구조 정리 6건** (developer, 2026-09-11 등재 ·
+- [x] **`chat-channel-input-rules.ts` 의 구조 정리 6건** (developer, 2026-09-11 등재 ·
       `/ai-review` `review/code/2026/09/11/15_31_54` W4 + INFO). 전부 비차단:
       (a) `BadRequestException({code, message, details:{field, code}})` 봉투 생성이 **7회 이상**
       거의 동일하게 반복 — 파일 docstring 이 그 봉투를 계약으로 선언하므로 신규 필드를 복붙하다
@@ -2984,7 +2993,22 @@ field: T | null;
       `dto/chat-channel-config.dto.ts`(*"provider별 추가 검증은 TriggersService 가 수행"*).
       이제 규칙은 클래스 밖에 있고 `TriggersService` 는 **호출만** 한다.
 
-- [ ] **`chat-channel-input-rules.spec.ts` 잔여 보강 5건** (developer, 2026-09-11 등재 ·
+      > ### ✅ **2026-09-12 종결** (`chat-channel-rules-cleanup`) — 단 두 항목의 판정이 다르다
+      >
+      > | 항목 | 처분 |
+      > |---|---|
+      > | (a) 봉투 반복 | `throwInvalidField` + `rejectBlockedField`. **기록은 "7회 이상", 실측은 11곳** |
+      > | (b) 파일 성격 불일치 | **주석만 넓혔다 — 파일은 안 쪼갰다.** 분리는 `§7` 파일 트리(planner 축)와 **함께** 결정해야 해서, 아래 planner 항목이 그 쌍을 갖는다 |
+      > | **(c) 매직 넘버 `256`** | **⛔ 소멸** — `#1324` 가 `details.reason` 을 없애며 같이 사라졌다(`grep` **0건**). 착수 전 재판정이 아니었으면 없는 것을 찾았다 |
+      > | (d) 이중 캐스팅 | `hasField` 로 한 곳에 |
+      > | (e)(f) stale 주석 | **기록은 2곳, 실측은 3곳** (`dto/chat-channel-config.dto.ts` 가 두 군데) |
+      >
+      > **오타가 조용히 통과하던 자리를 닫았다** — 종전에는 존재 검사(`blocked.botTokenRef`)와
+      > 봉투(`field: 'botTokenRef'`)가 따로 적혀 있었고 `Record<string, unknown>` 위의 오타는
+      > `undefined` 로 통과한다(가드가 사라져도 아무도 모른다). 인자를
+      > `ChatChannelBlockedField` 로 받으니 이제 컴파일 에러다.
+
+- [x] **`chat-channel-input-rules.spec.ts` 잔여 보강 5건** (developer, 2026-09-11 등재 ·
       `/ai-review` `review/code/2026/09/11/16_16_44` W2 + INFO 3~6). 전부 같은 파일·같은 성격이라
       한 번에 처리한다:
       (a) `as never` 캐스팅 제거 — `tsc --noEmit` 실측상 **불필요**하고(진단 197건 동일)
@@ -2998,6 +3022,48 @@ field: T | null;
       단언 대상이 **값이 아니라 부재**가 됐다(`details` 부재 + 본문에 provider 문자열 0건).
       non-Error 입력 분기도 같은 블록에서 덮었다. **남은 4건 (a)(b)(c)(e) 은 유효하다.**
       (e) provider별 **label 문구** 미단언 — label 스왑 뮤턴트가 아직 통과한다.
+
+      > ### ✅ **2026-09-12 종결** — (d) 는 `#1324`, 나머지 넷은 `chat-channel-rules-cleanup`
+      >
+      > - **(e) 가 이 항목의 값어치였다.** 부재 분기는 두 provider 의 `details` 가 **동일**해서
+      >   그 필드만으로는 **원리적으로** 못 가른다 — 판별자는 `message` 다. 단언을 넣으니 label
+      >   스왑 뮤턴트가 **2건 RED**(종전 0건). Slack 사용자가 *"Discord application public key 가
+      >   필요합니다"* 를 보는 회귀가 그 자리였다.
+      > - (a) `as never` 제거 — 오버로드는 캐스팅 없이 불린다(제거 후 진단 **197건 불변**).
+      > - (b) `update` × 내부 필드 3종 — 값 필드 하나만 태우던 자리.
+      > - **(c) 는 "고치지 않는다" 가 결론이다.** `OmitType` 이 `provider` 의 `@IsIn` 을 상속해
+      >   PATCH 에서도 필수라 **HTTP 경로에서 도달 불가**이고, 그래서 그 falsy 분기를 지우는
+      >   뮤턴트는 **살아남는 것이 정상**이다(실측 확인). 그럼에도 남긴다 — 지우면 DTO 를 우회한
+      >   호출자가 *"provider 는 PATCH 로 바꿀 수 없어요"* 라는 **틀린 메시지**를 받는다.
+      >   DTO 층이 실제로 막는다는 사실은 `trigger-dto-validation.spec.ts` 의 신규 케이스가
+      >   고정한다 — 그 근거가 없으면 주석의 *"도달 불가"* 가 다음 사람에게 **삭제 허가증**이 된다.
+
+- [ ] **사전 naming 게이트는 "예고한 이름" 만 본다 — 구현 중 태어난 식별자는 사각지대**
+      (harness 또는 프로세스, 2026-09-12 등재 · `/ai-review` `16_17_57` CRITICAL 계기).
+      `--impl-prep` 의 `naming_collision` 은 plan 이 예고한 헬퍼 2종만 grep 했고, 구현 중 태어난
+      DTO 클래스명(`ChatChannelBotIdentityDto`)이 **기존 동명 클래스와 충돌**하는 것을 못 봤다.
+      `@nestjs/swagger` 는 스키마를 클래스 `.name` 으로 등재하므로 동명 둘은 서로를 덮어쓴다.
+      > **싼 처방이 있다**: `*.dto.ts` 의 `export class` 이름 중복을 세는 전수 스캔은 256개 대상에
+      > 1초가 안 걸린다(이번 턴에 스크립트로 돌려 잔여 0 확인). 이 형태는 **정적으로 판정
+      > 가능**하므로 harness 테스트나 lint 룰로 고정할 수 있다 — 산문 규율로 두면 다음에 또
+      > 사후 리뷰가 잡는다.
+
+- [ ] **`rotateBotToken` 의 `:id` 에 `ParseUUIDPipe` 가 없다** (developer, 2026-09-12 등재 ·
+      `/ai-review` `16_17_57` api_contract INFO). 형제 rotate 계열(`rotateNotificationSecret` ·
+      `revokePerTriggerToken`)은 `@Param('id', ParseUUIDPipe)` 인데 이 엔드포인트만 맨
+      `@Param('id')` 다. 이 PR 이전부터 있던 상태라 스코프 밖으로 뒀다. 비-UUID 가 들어오면
+      `findById` 가 DB 레벨에서 실패하는지 400 이 나가는지 **먼저 실측**할 것.
+
+- [ ] **응답 DTO 의 `responses/` 관례가 `code:` glob 과 충돌한다** (planner, 2026-09-12 등재).
+      `15-chat-channel.md` 의 glob 은 `.../triggers/dto/chat-channel-*.dto.ts` 인데 glob 의 `*` 는
+      `/` 를 넘지 않아 **`dto/responses/` 하위를 못 잡는다**(정본 매처 실측). 그래서
+      `ChatChannelRotateBotTokenDto` 를 평평한 `dto/` 에 두었다 — 소유 spec 이 자기 파일을
+      못 보는 것(`R-CC-22` 가 막으려던 형태)보다 관례를 어기는 쪽이 낫다고 판단했다.
+      처분 후보: (a) glob 을 `dto/**/chat-channel-*.dto.ts` 로 넓힌다 (b) chat-channel 응답 DTO 는
+      평평한 자리를 관례로 명문화한다. **둘 다 spec 편집이라 planner 축**이다.
+      > 지금 상태도 틀리진 않았다 — `2-trigger-list.md` 의 `dto/**` 가 두 자리를 모두 덮으므로
+      > `--impl-done` 의 spec-link 판정 자체는 어느 쪽에서도 성립한다. 문제는 **어느 spec 이
+      > 그 파일을 자기 것으로 보는가** 다.
 
 - [ ] **리뷰 in-flight 중에 같은 워크트리에서 뮤테이션을 돌리지 않는다** (프로세스,
       2026-09-11 등재 · `/ai-review` `review/code/2026/09/11/16_16_44` 관측). 그 라운드에서

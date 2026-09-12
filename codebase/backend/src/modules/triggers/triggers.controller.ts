@@ -262,6 +262,7 @@ export class TriggersController {
     description:
       'Spec CCH-SE-04 — 외부 provider bot token 회전. 기존 token 은 24h grace 동안 chat_channel_token_v2 (secret store v2 ref) 로 보관, CCH-SE-04-C cron 이 grace 만료 시 정리.',
   })
+  @ApiUnauthorizedResponse({ description: '인증 실패' })
   @ApiForbiddenResponse({ description: 'editor 이상 권한 필요' })
   // §5.4 실패 응답 표의 두 축을 함께 문서화한다 — 400 과 502 를 **가르는 것**이 이 엔드포인트의
   // 계약이라(R-CC-23) 한쪽만 적으면 나머지 절반이 문서에 없는 상태로 남는다.
