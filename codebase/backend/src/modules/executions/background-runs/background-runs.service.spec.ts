@@ -635,9 +635,11 @@ describe('BackgroundRunsService', () => {
       // 거부하는데, `GlobalExceptionFilter` 에 그 분기가 없어 **500 INTERNAL_ERROR 로
       // 마스킹**된다. 이 디코더는 형태·날짜를 이미 검증하므로 **`i` 만 빠져 있었다** —
       // base64·JSON·날짜가 전부 멀쩡한 커서로 5xx 를 만들 수 있었다.
-      executionRepo.createQueryBuilder.mockReturnValueOnce(
-        buildOwnershipQB('ws-1'),
-      );
+      //
+      // **소유권 QB mock 을 세우지 않는다** — `decodeCursor` 가 `verifyExecutionAccess` 보다
+      // 먼저 돌아 여기서 던지므로 그 mock 은 소비되지 않는다(첫 판본이 세워 두었고 리뷰가
+      // 죽은 mock 으로 지적했다 — `review/code/2026/09/13/00_13_51` testing W1). 세워 두면
+      // *"이 테스트가 소유권 검사를 통과했다"* 로 오독된다.
       const cursor = Buffer.from(
         JSON.stringify({ s: '2026-05-01T00:00:00.000Z', i: 'not-a-uuid' }),
         'utf8',
@@ -650,6 +652,30 @@ describe('BackgroundRunsService', () => {
       ).rejects.toMatchObject({
         response: { code: 'INVALID_CURSOR' },
       });
+    });
+
+    it('커서 검증이 소유권 검사보다 먼저 돈다 — 타 워크스페이스 + 잘못된 커서는 400 (404 아님)', async () => {
+      // **이 diff 가 만든 관측 가능한 우선순위 변화**를 고정한다
+      // (`review/code/2026/09/13/00_13_51` testing W1).
+      //
+      // `getBackgroundRun` 은 `resolveLimit` → `decodeCursor` → `verifyExecutionAccess` 순이라
+      // (기존 관행), 타 워크스페이스 요청이 잘못된 커서를 함께 보내면 종전 404 대신 400 이 된다.
+      // **정보 누설이 아니다** — 커서는 리소스를 조회하기 **전에** 형태만으로 거부되므로
+      // 존재 여부를 구별해 주지 않는다. 소유권 mock 을 아예 세우지 않는 것이 그 증거다:
+      // 소유권 검사에 도달하면 이 테스트는 mock 부재로 깨진다.
+      const cursor = Buffer.from(
+        JSON.stringify({ s: '2026-05-01T00:00:00.000Z', i: 'not-a-uuid' }),
+        'utf8',
+      ).toString('base64');
+
+      await expect(
+        service.getBackgroundRun(
+          'exec-1',
+          'bg-run-id',
+          { cursor },
+          'another-workspace',
+        ),
+      ).rejects.toMatchObject({ response: { code: 'INVALID_CURSOR' } });
     });
 
     it('[대조군] 유효한 커서는 완주하고 그 id 로 필터링한다 (nil UUID — 엄격한 술어 금지)', async () => {

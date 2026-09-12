@@ -60,10 +60,15 @@ describe('isUuidShaped', () => {
    * >
    * > ```bash
    * > grep -rn 'isUuidShaped(' --include='*.ts' codebase/backend/src \
-   * >   | grep -v '\.spec\.ts' | grep -v 'shared/testing/'
+   * >   | grep -v '\.spec\.ts' | grep -v 'shared/testing/' | grep -v 'utils/uuid.ts:'
    * > ```
    * >
-   * > 2026-09-12 실측은 3곳(`workspace-context.util.ts` · `login-history.service.ts` ·
+   * > **마지막 필터가 없으면 함수 *정의부*가 함께 잡혀 4줄이 나온다** — 첫 판본이 그랬고,
+   * > *"다음 사람이 이 명령으로 재검증한다"* 는 이 docstring 의 존재 이유가 **첫 실행부터**
+   * > 무너져 있었다 (`review/code/2026/09/13/00_13_51` requirement WARNING). 측정 명령
+   * > 자체가 틀릴 수 있다는 것을 이 자리가 다시 보여 준다.
+   * >
+   * > 2026-09-13 실측은 3곳(`workspace-context.util.ts` · `login-history.service.ts` ·
    * > `background-runs.service.ts`)이다. 소비처가 늘면 **그 자리의 캐너리도 함께** 있어야
    * > 이 경계가 지켜진다 — 이 파일만으로는 부족하다.
    *
