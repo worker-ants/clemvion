@@ -3165,6 +3165,28 @@ field: T | null;
       *"노드 에러 포트가 일반 실패에 무엇을 싣는가"* 를 **실측해야** 대응 코드가 정해진다.
       추측으로 치환하면 오기를 다른 오기로 바꾸는 것이다.
 
+- [ ] **UUID 경로 파라미터의 두 축을 `@ApiUuidParam()` 합성 데코레이터로 묶는다** (developer,
+      2026-09-12 등재 · `/ai-review` `review/code/2026/09/12/22_03_45` architecture WARNING,
+      **non-blocking 제안**). 지금은 런타임 축(`ParseUUIDPipe`)과 문서 축
+      (`@ApiParam({format:'uuid'})`)이 **독립 데코레이터 둘 + 사후 AST 가드**로만 짝지어진다 —
+      *"빠뜨리면 테스트가 잡는다"* 구조이고, *"애초에 빠뜨릴 수 없다"* 보다 약하다.
+      저장소에 `common/swagger` 합성 데코레이터 선례가 있다(`@ApiOkWrappedResponse` 등).
+      > **가드를 대체하는 것이 아니라 줄이는 것이다.** 합성 데코레이터가 생겨도 `@Param` 을
+      > 맨손으로 쓰는 길은 남으므로 `param-uuid-pipe` 가드는 유지해야 한다 — 다만 감시 표면이
+      > "두 축을 각각" 에서 "합성을 썼는가" 로 좁아진다. 착수 시 기존 136곳의 이행 비용을
+      > 먼저 재는 것이 선행이다.
+
+- [ ] **`param-uuid-pipe` 잔여 산문 2건** (developer, 2026-09-12 등재 · 같은 세션 INFO
+      #10·#12, **동작·커버리지·계약 무관**). (a) HTTP 왕복 describe 의 제목이 통합테스트처럼
+      읽히는데 실제로는 인증·인가 체인을 태우지 않는다 — *"인증·인가는 이 스위트 범위 밖"*
+      한 줄이 빠져 있다. (b) `param-uuid-pipe.spec.ts` 의 `--impl-prep` 인용이 게이트명만
+      적고 세션 경로(`review/consistency/2026/09/12/19_34_19`)가 없어 같은 파일 다른 인용과
+      형태가 다르다.
+      > **이번 배치에서 안 고친 이유는 게이트다.** 리뷰가 수렴 선언된 뒤 `codebase/**` 를
+      > 만지면 push 게이트의 freshness 가 뒤집혀 리뷰를 한 바퀴 더 돌려야 한다
+      > (`newest_code` 는 `codebase/**` 만 센다). 산문 두 줄에 14명을 다시 돌리는 것이
+      > 이 항목을 미루는 것보다 비싸다.
+
 - [ ] **`GlobalExceptionFilter` 가 SQLSTATE 22P02 를 분류하지 않는다 — 파이프 밖 유입 경로는
       여전히 500 마스킹** (developer, 2026-09-12 등재 · `/ai-review`
       `review/code/2026/09/12/21_20_01` architecture WARNING). `trigger-uuid-and-guide-codes`
@@ -3200,6 +3222,13 @@ field: T | null;
       컨트롤러의 `@ApiBadRequestResponse` 와 CHANGELOG 에는 반영했으나 spec 표는 못 건드린다
       (자기-반증형 소정정 **조건 1** 미충족 — 내가 쓴 문장이 아니다).
       처분 제안: 표에 `400 | VALIDATION_ERROR | :id 가 UUID 형식이 아님 (ParseUUIDPipe)` 행 추가.
+      > **같은 턴에 볼 것 (`--impl-done` `review/consistency/2026/09/12/22_14_31`
+      > plan_coherence INFO)**: `15-chat-channel.md` frontmatter 의 `pending_plans:` 에 이
+      > 트래커가 cross-reference 돼 있지 않다(지금은 chat-channel 전용 plan 3개뿐).
+      > 다만 그 필드가 *"구현은 끝났고 문서만 지연"* 인 경우까지 대상으로 하는지는 문면이
+      > 모호해 checker 도 **판단을 planner 에게 넘겼다** — 등재 여부를 함께 결정할 것.
+      > 위 `swagger.md §5-4` 항목과 **같은 실측(`param-uuid-pipe` 가드)에서 나왔으므로
+      > 한 턴에 닫는 편이 싸다**(리뷰 권고).
 
 - [ ] **`swagger.md §5-4` 체크리스트가 UUID 경로 파라미터의 **런타임 축**을 안 적는다**
       (**planner 항목** — developer 가 등재, 2026-09-12 · `/ai-review`
