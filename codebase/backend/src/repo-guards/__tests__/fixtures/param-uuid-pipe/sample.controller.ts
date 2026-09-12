@@ -5,7 +5,7 @@
 //
 // **그게 "아무 가드도 안 본다" 는 뜻은 아니다** — `swagger-dto-contract` ·
 // `nullable-type-lie-cast` 처럼 `src/` 전체를 훑는 형제 가드는 이 파일도 순회한다. 지금은
-// 그들이 찾는 패턴이 여기 없어 통과할 뿐이다(`20_01_18` side_effect INFO). 이 fixture 에
+// 그들이 찾는 패턴이 여기 없어 통과할 뿐이다(`review/code/2026/09/12/20_01_18` side_effect INFO). 이 fixture 에
 // DTO 나 `null as unknown as` 를 더할 일이 생기면 그쪽 가드부터 확인할 것.
 
 import { Controller, Get, Param, ParseUUIDPipe, Post } from '@nestjs/common';
@@ -75,7 +75,7 @@ export class ParamUuidFixtureController {
    * 위 `excluded` 만으로는 *"면제가 문서 축만 끄는가, 판정 전체를 끄는가"* 를 가를 수 없다
    * (둘 다 0건이 나온다). 면제가 넓어져 런타임 축까지 스킵하면 이 자리가 조용해지므로,
    * e2e 백도어라도 파싱 불가 입력에 500 을 내면 안 된다는 계약이 그때 소리 없이 사라진다
-   * (`20_01_18` testing WARNING). 이 fixture 는 **파이프 축만** 위반으로 잡혀야 한다.
+   * (`review/code/2026/09/12/20_01_18` testing WARNING). 이 fixture 는 **파이프 축만** 위반으로 잡혀야 한다.
    */
   @Post(':workspaceId/_test/backdoor-pipeless')
   @ApiExcludeEndpoint()

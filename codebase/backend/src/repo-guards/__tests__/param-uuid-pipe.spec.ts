@@ -31,7 +31,7 @@ import { scanUuidParams } from './param-uuid-pipe-guard';
  * *"같은 조항의 절반만 겨냥한다"* 고 지적했다. 실측하니 문서 축 미충족이 **3건**이었다 —
  * 파이프 축(1건)만 닫았으면 나머지 둘이 남았을 것이다.
  *
- * > **출처 칸을 나눈 이유 (`20_01_18` requirement·documentation 공통 SPEC-DRIFT).**
+ * > **출처 칸을 나눈 이유 (`review/code/2026/09/12/20_01_18` requirement·documentation 공통 SPEC-DRIFT).**
  * > 처음엔 두 축 다 *"`swagger.md §5-4` 가 요구한다"* 고 적었는데, 그 문서에
  * > `ParseUUIDPipe` 는 **0건**이고 §5-4 체크리스트는 `@ApiParam({format:'uuid'})` 한 줄뿐이다.
  * > 런타임 축은 spec 조항이 아니라 **실측 관례를 가드로 승격한 것**이다 — 그렇게 적는다.
@@ -44,7 +44,7 @@ import { scanUuidParams } from './param-uuid-pipe-guard';
  * 없었다) · `simulateExecutionRunRedeliveryForTest`(**코드를 고치지 않았다** —
  * `@ApiExcludeEndpoint()` 라 OpenAPI 에 실리지 않으므로 판정 함수가 그 데코레이터를 보고
  * 문서 축을 묻지 않는다). 셋을 "전부 고쳤다" 로 뭉뚱그리면 셋째의 처리 방식이 가려진다
- * (`20_53_01` documentation INFO). 목록이 없으면 위반이 생기는 순간 실패하고, 통과시키려면 이 단언 자체를 지워야 해
+ * (`review/code/2026/09/12/20_53_01` documentation INFO). 목록이 없으면 위반이 생기는 순간 실패하고, 통과시키려면 이 단언 자체를 지워야 해
  * diff 에 남는다.
  */
 describe('경로 UUID 파라미터 계약 가드', () => {

@@ -3165,6 +3165,19 @@ field: T | null;
       *"노드 에러 포트가 일반 실패에 무엇을 싣는가"* 를 **실측해야** 대응 코드가 정해진다.
       추측으로 치환하면 오기를 다른 오기로 바꾸는 것이다.
 
+- [ ] **`GlobalExceptionFilter` 가 SQLSTATE 22P02 를 분류하지 않는다 — 파이프 밖 유입 경로는
+      여전히 500 마스킹** (developer, 2026-09-12 등재 · `/ai-review`
+      `review/code/2026/09/12/21_20_01` architecture WARNING). `trigger-uuid-and-guide-codes`
+      는 `@Param()` 축을 파이프 + 전수 가드로 닫았지만, **필터 자체는 그대로다** —
+      `HttpException` · http-error-like · unique-violation(23505) 세 분기뿐이라
+      `@Query()` · body 필드 조회 등 다른 경로로 비-UUID 가 들어가면 같은 500 마스킹이 난다.
+      즉 지금 방어는 **호출부마다 반복 배치**된 형태이고 공유 seam 이 비어 있다.
+      처분 제안: 필터에 `invalid_text_representation`(22P02) → `400 VALIDATION_ERROR` 분기.
+      > **이 배치에서 안 한 이유**: 그 한 줄은 **저장소의 모든 엔드포인트**의 실패 분류를
+      > 바꾼다 — 지금 22P02 로 500 을 받는 자리가 어디이고 그중 400 이 맞지 않은 곳이 있는지를
+      > 먼저 세야 한다(예: 사용자 입력이 아닌 내부 조회 실패). 착수 전 그 전수가 선행 조건이다.
+      > 파이프·가드는 이 필터가 생겨도 유지한다 — fail-fast 가 더 앞이다.
+
 - [ ] **가이드가 적는 식별자(에러 코드·환경변수)가 실재하는지 세는 가드가 없다** (developer,
       2026-09-12 등재 · `/ai-review` `review/code/2026/09/12/20_53_01` testing WARNING).
       `trigger-uuid-and-guide-codes` 는 **두 결함 클래스**를 같은 배치에서 고쳤는데 가드는

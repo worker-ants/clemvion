@@ -10,7 +10,7 @@ import { toPosixRelative } from '../../common/__test-utils__/source-scan';
 /**
  * UUID 경로 파라미터가 지켜야 하는 두 축. 이름을 붙여 선언·사용 지점을 대칭으로 둔다 —
  * 종전엔 인덱스드 액세스(`UuidParamViolation['missing'][number][]`)로 써서 이 저장소의 다른
- * 가드와 형태가 달랐다 (`20_53_01` maintainability INFO).
+ * 가드와 형태가 달랐다 (`review/code/2026/09/12/20_53_01` maintainability INFO).
  */
 export type UuidParamAxis = 'ParseUUIDPipe' | "@ApiParam format:'uuid'";
 
@@ -70,7 +70,7 @@ function decoratorCallName(
  * (2026-09-12 실측: `modules/` 의 `@ApiParam` **144건 중 144건**이 인라인 리터럴),
  * 정적으로 따라가려면 데이터플로 분석이 된다.
  *
- * > **이 수치를 한 번 틀렸다** (`20_26_58` documentation WARNING). 처음 적은 127 은
+ * > **이 수치를 한 번 틀렸다** (`review/code/2026/09/12/20_26_58` documentation WARNING). 처음 적은 127 은
  * > `@ApiParam\(\{[^}]*\}` 정규식이 낸 값인데, 그 패턴은 **첫 `}` 에서 끊겨** 여러 줄·중첩
  * > 형태를 놓친다. 같은 파일의 판정은 AST 인데 그 근거 수치만 정규식이었다 — 정본 파서로
  * > 다시 세니 144 다. 수치에 **측정 시점과 범위**를 함께 적어 두면 다음 사람이 재현해
@@ -198,8 +198,8 @@ export function scanUuidParams(
     );
     const rel = toPosixRelative(srcRoot, file);
     // 순회는 순회만, 판정은 `collectMethodViolations` 가 한다 — 한 함수 안에
-    // "파일→노드→메서드→파라미터→데코레이터" 5단이 쌓여 있었다 (`20_53_01` maintainability W3).
-    // **판정과 카운트는 여전히 한 루프**다 (`20_01_18` W2 의 이유는 그대로 유효하다).
+    // "파일→노드→메서드→파라미터→데코레이터" 5단이 쌓여 있었다 (`review/code/2026/09/12/20_53_01` maintainability W3).
+    // **판정과 카운트는 여전히 한 루프**다 (`review/code/2026/09/12/20_01_18` W2 의 이유는 그대로 유효하다).
     const visit = (node: ts.Node): void => {
       if (ts.isMethodDeclaration(node) && node.name) {
         const { violations, idParams } = collectMethodViolations(node, sf, rel);
