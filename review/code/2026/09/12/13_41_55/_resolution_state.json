@@ -2,9 +2,9 @@
   "version": 1,
   "started_at": "2026-09-12T00:00:00Z",
   "summary_items_total": 7,
-  "items_resolved_ids": [1, 2, 3, 4, 5, 6],
+  "items_resolved_ids": [1, 2, 3, 4, 5, 6, 7],
   "items_pending_ids": [],
-  "items_escalated_ids": {"7": "spec"},
+  "items_escalated_ids": {},
   "commits_made": [
     {"sha": "8847b6736", "summary_id": 1, "scope": "triggers"},
     {"sha": "eda10e051", "summary_id": 2, "scope": "common"},
@@ -12,14 +12,16 @@
     {"sha": "0adc3d577", "summary_id": 4, "scope": "changelog"},
     {"sha": "0adc3d577", "summary_id": 5, "scope": "changelog"},
     {"sha": "15504662d", "summary_id": 6, "scope": "user-guide"},
-    {"sha": "8d1da07d9", "summary_id": 7, "scope": "plan-draft (spec delegation, no code change)"}
+    {"sha": "8d1da07d9", "summary_id": 7, "scope": "plan-draft (spec delegation, no code change)"},
+    {"sha": "3c47885a3", "summary_id": 7, "scope": "spec (applied by main after consistency-check BLOCK:NO, review/consistency/2026/09/12/14_11_58)"},
+    {"sha": "a9f626a9b", "summary_id": 7, "scope": "plan (draft moved in-progress -> complete)"}
   ],
-  "spec_drafts_pending": ["plan/in-progress/spec-update-chat-channel-adapter-status.md"],
-  "spec_drafts_applied": [],
+  "spec_drafts_pending": [],
+  "spec_drafts_applied": ["plan/complete/spec-update-chat-channel-adapter-status.md"],
   "e2e_attempts": 1,
   "e2e_last_status": "pass",
   "e2e_log_paths": ["_test_logs/e2e-20260912-140527.log"],
   "auto_fix_iterations": {},
-  "escalation_reason": "spec draft pending for SUMMARY#7 (chat-channel-adapter frontmatter stale)",
+  "escalation_reason": null,
   "last_reset_hint_sec": null
 }

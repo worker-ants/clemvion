@@ -8,3 +8,5 @@
 2026-09-12T14:00:23Z lint attempt=1 status=pass
 2026-09-12T14:01:16Z unit attempt=1 status=pass (backend 458/458 9621 tests, frontend 289/289 6406 tests)
 2026-09-12T14:08:44Z e2e attempt=1 status=pass duration=217s tests=305
+2026-09-12T14:22:00Z item=SUMMARY#7 type=spec action=applied commit=3c47885a3 consistency_session=review/consistency/2026/09/12/14_11_58 block=NO
+2026-09-12T14:22:00Z item=SUMMARY#7 type=spec action=draft-moved path=plan/complete/spec-update-chat-channel-adapter-status.md commit=a9f626a9b
