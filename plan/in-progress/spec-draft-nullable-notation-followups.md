@@ -3114,7 +3114,7 @@ field: T | null;
       대상: `content/docs/06-integrations-and-config/telegram{,.en}.mdx` ·
       `02-nodes/triggers{,.en}.mdx`. 고치기 전에 **다른 엔드포인트에도 같은 오기가 있는지**
       전수로 셀 것 — 네 곳만 고치면 같은 클래스가 남는다.
-      > **해소** — 본 배치(`trigger-uuid-and-guide-codes`). 전수로 세니 **네 곳이 아니라
+      > **해소** — `#1328`. 전수로 세니 **네 곳이 아니라
       > 여섯 곳**이었다: MDX 4곳 + `backend-labels.ts` 의 `ERROR_KO` 주석 블록 +
       > `backend-labels.test.ts` 의 `LOCALIZED_ERROR_CODES` 주석. 뒤 둘은 **코드**에 있는
       > 같은 오귀속이라 트래커가 몰랐다 — 그리고 같은 테스트 파일 아래쪽 주석은 처음부터
@@ -3128,7 +3128,7 @@ field: T | null;
       `revokePerTriggerToken`)은 `@Param('id', ParseUUIDPipe)` 인데 이 엔드포인트만 맨
       `@Param('id')` 다. 이 PR 이전부터 있던 상태라 스코프 밖으로 뒀다. 비-UUID 가 들어오면
       `findById` 가 DB 레벨에서 실패하는지 400 이 나가는지 **먼저 실측**할 것.
-      > **해소** — 본 배치(`trigger-uuid-and-guide-codes`). 선실측 결과는 **500 마스킹**이다
+      > **해소** — `#1328`. 선실측 결과는 **500 마스킹**이다
       > (`uuid` 컬럼 → SQLSTATE 22P02 → `GlobalExceptionFilter` 의 세 분기 어디에도 안 걸림).
       > 즉 클라이언트 입력 오류가 서버 장애로 보이던 자리였고, 이제 400 `VALIDATION_ERROR` 다.
       > **한 자리를 고치는 대신 가드로 고정**했다(`param-uuid-pipe`) — AST 전수, 베이스라인 0,
@@ -3147,7 +3147,7 @@ field: T | null;
       `MAKESHOP_API_ERROR` (`02-nodes/integrations{,.en}.mdx` 의 error 포트 예시).
       나머지 12개는 대상이 아니다(프런트엔드 전용 3 · `_glossary.md` 플레이스홀더 6 ·
       Discord Gateway 어휘 `MESSAGE_CREATE` · 범주어 `SUB_WORKFLOW` · 환경변수 오기 1건은
-      본 배치(`trigger-uuid-and-guide-codes`)에서 해소).
+      `#1328` 에서 해소).
       **둘은 없는 이름이 아니라 은퇴한 이름이다** — `spec/5-system/3-error-handling.md §1.4`
       가 *"구 에러 코드 `NODE_EXECUTION_FAILED` / `INTEGRATION_ERROR` / `LLM_ERROR` 는 노드
       수준 envelope 에 더 이상 사용하지 않는다"* 고 이미 선언해 두었다(`--impl-prep`
@@ -3189,8 +3189,8 @@ field: T | null;
 
 - [ ] **`GlobalExceptionFilter` 가 SQLSTATE 22P02 를 분류하지 않는다 — 파이프 밖 유입 경로는
       여전히 500 마스킹** (developer, 2026-09-12 등재 · `/ai-review`
-      `review/code/2026/09/12/21_20_01` architecture WARNING). `trigger-uuid-and-guide-codes`
-      는 `@Param()` 축을 파이프 + 전수 가드로 닫았지만, **필터 자체는 그대로다** —
+      `review/code/2026/09/12/21_20_01` architecture WARNING). `#1328`
+      은 `@Param()` 축을 파이프 + 전수 가드로 닫았지만, **필터 자체는 그대로다** —
       `HttpException` · http-error-like · unique-violation(23505) 세 분기뿐이라
       `@Query()` · body 필드 조회 등 다른 경로로 비-UUID 가 들어가면 같은 500 마스킹이 난다.
       즉 지금 방어는 **호출부마다 반복 배치**된 형태이고 공유 seam 이 비어 있다.
@@ -3202,7 +3202,7 @@ field: T | null;
 
 - [ ] **가이드가 적는 식별자(에러 코드·환경변수)가 실재하는지 세는 가드가 없다** (developer,
       2026-09-12 등재 · `/ai-review` `review/code/2026/09/12/20_53_01` testing WARNING).
-      `trigger-uuid-and-guide-codes` 는 **두 결함 클래스**를 같은 배치에서 고쳤는데 가드는
+      `#1328` 은 **두 결함 클래스**를 같은 배치에서 고쳤는데 가드는
       한쪽만 얻었다 — `ParseUUIDPipe` 누락은 AST 전수 가드(`param-uuid-pipe`)로 고정됐지만,
       **가이드·`backend-labels.ts` 의 잘못된 식별자**(`TRIGGER_NOT_FOUND` 6곳 ·
       `MCP_INSECURE_URL_ALLOWED` 2곳)는 **1회성 정규식 스윕**으로 손으로 고쳤을 뿐이다.
@@ -3217,7 +3217,7 @@ field: T | null;
 - [ ] **`15-chat-channel.md` §5.4 실패 응답 표에 `rotate-bot-token` 의 신규 400 행이 없다**
       (**planner 항목** — developer 가 등재, 2026-09-12 · `/ai-review` `20_26_58`
       requirement WARNING). 이 표는 CCH-SE-04 가 낼 수 있는 `error.code` 를 나열하는
-      canonical 문서인데, `trigger-uuid-and-guide-codes` 가 `ParseUUIDPipe` 를 붙이면서
+      canonical 문서인데, `#1328` 이 `ParseUUIDPipe` 를 붙이면서
       **관측 가능한 새 분기**(`:id` 가 UUID 형식이 아님 → `400 VALIDATION_ERROR`)가 생겼다.
       컨트롤러의 `@ApiBadRequestResponse` 와 CHANGELOG 에는 반영했으나 spec 표는 못 건드린다
       (자기-반증형 소정정 **조건 1** 미충족 — 내가 쓴 문장이 아니다).
@@ -3236,7 +3236,7 @@ field: T | null;
       §5-4 는 `@ApiParam({ format: 'uuid' })` **문서 축 한 줄**만 요구하고
       `ParseUUIDPipe` 는 그 문서 전체에 **0건**이다(실측). §2-3 예시 코드도 파이프 없이
       쓰여 있다. 그런데 저장소 실측은 id-형 `@Param` **136/136** 이 파이프를 갖고 있고
-      (`trigger-uuid-and-guide-codes` 가 마지막 1건을 채웠다), 그 관례를 가드
+      (`#1328` 이 마지막 1건을 채웠다), 그 관례를 가드
       (`repo-guards/__tests__/param-uuid-pipe`)가 베이스라인 0 으로 강제한다.
       즉 **가드가 규약보다 넓게 문다.**
       처분 제안: §5-4 체크리스트에 `@Param('<id>', ParseUUIDPipe)` 항목 추가 + §2-3 예시에
@@ -3262,7 +3262,7 @@ field: T | null;
       즉 코드가 화면에 **아예 안 나온다** — 한국어도 영어도 아니다. 그래서 맵에 줄을 더하는
       것은 아무것도 바꾸지 않는다. 결정해야 할 것은 *"에러 코드를 UI 에 노출할 것인가,
       노출한다면 `translateBackendError` 를 어디에 배선할 것인가"* 다.
-      > 본 배치(`trigger-uuid-and-guide-codes`)는 이 갭을 **고치지 않고 문면만 진실로 맞췄다** —
+      > `#1328` 은 이 갭을 **고치지 않고 문면만 진실로 맞췄다** —
       > `02-nodes/triggers{,.en}.mdx` 의 *"한국어 화면에서는 모두 한국어 안내 메시지로
       > 표시돼요"* 는 8종 전부에 대해 거짓이었다. 지금은 *"API 를 직접 호출할 때 보이는 값"*
       > 이라고 적는다. 문서가 구현보다 넓게 말하는 것을 좁힌 것이지 기능을 넣은 것이 아니다.
