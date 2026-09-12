@@ -2923,12 +2923,18 @@ field: T | null;
       와 200 응답 봉투(`ApiOkWrappedResponse`)는 **이 PR 의 계약 축이 아니라** 손대지 않았다.
       `swagger.md §2-4` 기준으로는 둘 다 있어야 한다.
 
-- [ ] **CCA frontmatter 의 *"§1.1.2 계약은 미구현"* 주석이 stale 이다** (planner,
-      2026-09-12 등재). `spec/conventions/chat-channel-adapter.md` frontmatter `pending_plans`
-      위 주석이 *"§1.1.2 의 `code` 선언 계약은 **미구현**이다 (adapter 3종 전부 developer 후속)"*
-      라고 적는데, 이 PR 이 3종 모두에 부착했다. **planner 가 쓴 문장**이라 자기-반증형 소정정
-      조건 1 불성립 → planner 턴. 함께 볼 것: `status: partial` 의 나머지 미구현 surface 목록이
-      여전히 맞는지.
+- [x] **CCA frontmatter 의 *"§1.1.2 계약은 미구현"* 주석이 stale 이다** (planner,
+      2026-09-12 등재 · **같은 날 해소**). `spec/conventions/chat-channel-adapter.md` frontmatter
+      `pending_plans` 위 주석이 *"§1.1.2 의 `code` 선언 계약은 **미구현**이다"* 라고 적었는데 이
+      PR 이 3종 모두에 부착했다. **planner 가 쓴 문장**이라 자기-반증형 소정정 조건 1 불성립 →
+      `ESCALATE=spec` 경로로 draft → `--spec` (`review/consistency/2026/09/12/14_11_58` BLOCK: NO)
+      → 커밋 `3c47885a3` 에서 정정.
+      > **이 항목은 등재되는 순간 이미 반증돼 있었다** (`/ai-review` `14_23_31` documentation
+      > WARNING 2 가 잡았다). 내가 항목 문안을 spec 을 고치기 **전에** 써 두고 같은 커밋에 함께
+      > 실은 탓이다 — 미체크로 남으면 다음 사람이 **끝난 일을 쫓는다**. 처분: 등재와 해소를
+      > 같은 줄에 적는다. 남은 것은 `pending_plans` 나머지 3개(discord gateway·slack socket
+      > mode·visual SSR)가 여전히 미구현이라 `status: partial` 이 유효하다는 사실뿐이고, 그건
+      > 위 커밋의 주석이 이미 적고 있다.
 
 - [ ] **`slack.md §3.1` 의 개방형 열거를 확정 5값으로** (planner, 2026-09-12 등재 ·
       `--impl-prep` `review/consistency/2026/09/12/12_54_15` INFO 2). 코드가

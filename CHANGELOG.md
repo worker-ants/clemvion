@@ -5,8 +5,10 @@
 `setupChannel` 재시도 실패의 HTTP status 를 **transport 가 아니라 원인**으로 분류한다
 ([spec/5-system/15-chat-channel.md §5.4], 근거 `R-CC-23`) — "자격 증명 거부" 는 `400
 BOT_TOKEN_INVALID`, 그 밖(provider 5xx·네트워크·타임아웃)은 `502 CHAT_CHANNEL_SETUP_FAILED`.
-**`502` 는 이 저장소의 첫 사용**이다(`BadGatewayException`·`HttpStatus.BAD_GATEWAY`·
-`@ApiBadGatewayResponse` 각 0건 → 각 1건).
+**`502` 는 이 저장소의 첫 사용**이다 — `BadGatewayException` 과 `@ApiBadGatewayResponse` 가
+각각 **0건 → 1건**. (`HttpStatus.BAD_GATEWAY` 는 **여전히 0건**이다. 셋을 한 문장으로 묶어
+*"각 0건 → 각 1건"* 이라 적었던 것은 과잉 일반화였다 — 0건이던 것은 셋 다 맞지만, 코드는
+enum 리터럴이 아니라 `BadGatewayException` 클래스를 쓴다.)
 
 | | 종전 | 지금 |
 |---|---|---|
