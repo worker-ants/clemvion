@@ -1,0 +1,25 @@
+{
+  "version": 1,
+  "started_at": "2026-09-12T00:00:00Z",
+  "summary_items_total": 7,
+  "items_resolved_ids": [1, 2, 3, 4, 5, 6],
+  "items_pending_ids": [],
+  "items_escalated_ids": {"7": "spec"},
+  "commits_made": [
+    {"sha": "8847b6736", "summary_id": 1, "scope": "triggers"},
+    {"sha": "eda10e051", "summary_id": 2, "scope": "common"},
+    {"sha": "a07c91b64", "summary_id": 3, "scope": "chat-channel"},
+    {"sha": "0adc3d577", "summary_id": 4, "scope": "changelog"},
+    {"sha": "0adc3d577", "summary_id": 5, "scope": "changelog"},
+    {"sha": "15504662d", "summary_id": 6, "scope": "user-guide"},
+    {"sha": "8d1da07d9", "summary_id": 7, "scope": "plan-draft (spec delegation, no code change)"}
+  ],
+  "spec_drafts_pending": ["plan/in-progress/spec-update-chat-channel-adapter-status.md"],
+  "spec_drafts_applied": [],
+  "e2e_attempts": 1,
+  "e2e_last_status": "pass",
+  "e2e_log_paths": ["_test_logs/e2e-20260912-140527.log"],
+  "auto_fix_iterations": {},
+  "escalation_reason": "spec draft pending for SUMMARY#7 (chat-channel-adapter frontmatter stale)",
+  "last_reset_hint_sec": null
+}
