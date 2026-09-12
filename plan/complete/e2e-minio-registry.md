@@ -1,9 +1,10 @@
 ---
 title: minio 이미지를 quay.io 로 옮긴다 — Docker Hub 익명 pull 이 막혀 e2e 가 상시 실패
-status: in-progress
+status: complete
 owner: developer
 worktree: e2e-minio-registry
 started: 2026-09-12
+completed: 2026-09-12
 spec_impact: none
 ---
 
@@ -98,5 +99,5 @@ required"* 였고, 이번은 *"pull access denied … may require 'docker login'
 - [x] e2e 305/305
 - [x] `/ai-review` — `review/code/2026/09/12/15_24_14` **CRITICAL 0 · WARNING 2** →
       RESOLUTION (세 번째 위치 수정 + 트래커 SoT 닫기). 두 건 다 같은 턴에 조치했다
-- [ ] PR
-- [ ] `plan/complete/` 이동
+- [x] PR
+- [x] `plan/complete/` 이동
