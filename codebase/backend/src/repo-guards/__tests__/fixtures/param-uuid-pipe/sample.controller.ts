@@ -1,7 +1,12 @@
 // 대조군 fixture — 가드가 **가르는** 자리를 한 파일에 모아 둔다.
 //
-// 프로덕션 스캔 루트는 `src/modules` 라 이 파일은 거기 걸리지 않는다 (형제 가드
-// `dto-class-name-collision` 이 자기 fixture 를 잡고 죽은 뒤 적어 둔 규칙).
+// `param-uuid-pipe` 의 프로덕션 스캔 루트는 `src/modules` 라 이 파일은 그 판정에 안 걸린다
+// (형제 가드 `dto-class-name-collision` 이 자기 fixture 를 잡고 죽은 뒤 적어 둔 규칙).
+//
+// **그게 "아무 가드도 안 본다" 는 뜻은 아니다** — `swagger-dto-contract` ·
+// `nullable-type-lie-cast` 처럼 `src/` 전체를 훑는 형제 가드는 이 파일도 순회한다. 지금은
+// 그들이 찾는 패턴이 여기 없어 통과할 뿐이다(`20_01_18` side_effect INFO). 이 fixture 에
+// DTO 나 `null as unknown as` 를 더할 일이 생기면 그쪽 가드부터 확인할 것.
 
 import { Controller, Get, Param, ParseUUIDPipe, Post } from '@nestjs/common';
 import { ApiExcludeEndpoint, ApiParam } from '@nestjs/swagger';
@@ -62,6 +67,20 @@ export class ParamUuidFixtureController {
   @ApiExcludeEndpoint()
   excluded(@Param('id', ParseUUIDPipe) id: string): string {
     return id;
+  }
+
+  /**
+   * **면제의 반대 방향 캐너리** — `@ApiExcludeEndpoint()` 인데 파이프가 **없다**.
+   *
+   * 위 `excluded` 만으로는 *"면제가 문서 축만 끄는가, 판정 전체를 끄는가"* 를 가를 수 없다
+   * (둘 다 0건이 나온다). 면제가 넓어져 런타임 축까지 스킵하면 이 자리가 조용해지므로,
+   * e2e 백도어라도 파싱 불가 입력에 500 을 내면 안 된다는 계약이 그때 소리 없이 사라진다
+   * (`20_01_18` testing WARNING). 이 fixture 는 **파이프 축만** 위반으로 잡혀야 한다.
+   */
+  @Post(':workspaceId/_test/backdoor-pipeless')
+  @ApiExcludeEndpoint()
+  excludedPipeless(@Param('workspaceId') workspaceId: string): string {
+    return workspaceId;
   }
 
   /** 인자 없는 `@Param()` 은 이름이 없어 판정 대상이 아니다. */

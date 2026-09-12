@@ -189,7 +189,29 @@ AST 로 다시 재니 **문서 축 미충족이 3건**이었다 — 파이프 �
 - [x] `/consistency-check --impl-prep spec/5-system/` — **BLOCK: NO** (`19_34_19`),
       WARNING 1건은 §A 의 `@ApiParam` 축으로 반영
 - [ ] `.claude/tools/run-test-all.sh`
-- [ ] `/ai-review` + `--impl-done`
+- [x] `/ai-review` `review/code/2026/09/12/20_01_18` — **Critical 0 · WARNING 4** (forced 7 전원
+      산출물 확보, 미이행 0). 넷 다 실측으로 확인하고 처분했다:
+      | # | 지적 | 처분 |
+      |---|---|---|
+      | 1 | SPEC-DRIFT — *"`swagger.md §5-4` 가 두 축을 요구한다"* 는 서술이 과장 | **참이었다**: `ParseUUIDPipe` 가 그 문서에 0건. 가드·spec 주석 2곳의 **출처를 갈랐고**, §5-4 확장은 planner 항목으로 등재(조건 1 미충족이라 분리) |
+      | 2 | vacuity 카운터가 판정 순회를 재구현 | `scanUuidParams` 가 `{violations, scanned}` 를 **같은 루프에서** 반환하도록 통합, `countIdShapedParams` 제거 |
+      | 3 | 면제가 런타임 축까지 끄는 방향의 캐너리 없음 | `excludedPipeless` fixture + 단언 추가 — **M7 뮤턴트가 RED** 로 그 방향을 고정 |
+      | 4 | 500→400 은 관측 가능한 변경인데 CHANGELOG 누락 | 선례(`raw 23505 가 500 이었다` 항목) 형식으로 항목 추가 |
+      INFO 중 둘(텍스트 부분일치 한계 · fixture 의 스캔 루트 서술 부정확)도 같은 라운드에 반영.
+- [ ] 2라운드 `/ai-review` (fix 반영분)
+- [ ] `--impl-done`
+
+## 뮤테이션 2차 (fix 반영 후)
+
+| 뮤턴트 | 예측 | 실측 |
+|---|---|---|
+| M1~M6 (1차와 동일) | RED | RED |
+| M7 면제를 넓혀 런타임 축까지 스킵 | RED | RED |
+| M8 `scanned` 를 판정과 분리(상수 고정) | **GREEN** | GREEN |
+
+M8 은 구멍이 아니라 **floor 의 범위를 적은 것**이다 — floor 가 잡는 것은 *"아무것도 안 셌다"*
+이지 *"거짓말하는 카운터"* 가 아니고, 후자를 막는 것은 두 값이 같은 루프에서 나온다는 **구조**다.
+예측 GREEN 을 먼저 적어 두었으므로 이 GREEN 도 증거다.
 
 ## 뮤테이션 — 가드가 그 자리를 실제로 보는가
 

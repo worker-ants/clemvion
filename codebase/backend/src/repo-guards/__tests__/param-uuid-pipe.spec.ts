@@ -2,10 +2,7 @@ import { describe, it, expect } from '@jest/globals';
 import * as path from 'node:path';
 
 import { collectTsFiles } from '../../common/__test-utils__/source-scan';
-import {
-  countIdShapedParams,
-  findUuidParamViolations,
-} from './param-uuid-pipe-guard';
+import { scanUuidParams } from './param-uuid-pipe-guard';
 
 /**
  * 컨트롤러의 **id-형 경로 파라미터**가 UUID 계약 두 축을 다 갖췄는지 조인다.
@@ -25,16 +22,20 @@ import {
  *
  * ## 두 축을 함께 센다 — 절반만 닫으면 나머지 절반이 조용하다
  *
- * `spec/conventions/swagger.md` §5-4 의 한 조항이 두 가지를 요구한다:
- *
- * | 축 | 무엇을 지키나 | 빠지면 |
- * |---|---|---|
- * | `@Param('id', ParseUUIDPipe)` | 런타임 400 차단 | 500 마스킹 |
- * | `@ApiParam({ format: 'uuid' })` | 생성된 OpenAPI 의 형식 광고 | 문서가 계약보다 느슨 |
+ * | 축 | 무엇을 지키나 | 빠지면 | 출처 |
+ * |---|---|---|---|
+ * | `@Param('id', ParseUUIDPipe)` | 런타임 400 차단 | 500 마스킹 | **저장소 실측 관례** |
+ * | `@ApiParam({ format: 'uuid' })` | 생성된 OpenAPI 의 형식 광고 | 문서가 계약보다 느슨 | `swagger.md §5-4` |
  *
  * 처음엔 파이프 축만 세려 했는데 `--impl-prep` convention_compliance WARNING 이
  * *"같은 조항의 절반만 겨냥한다"* 고 지적했다. 실측하니 문서 축 미충족이 **3건**이었다 —
  * 파이프 축(1건)만 닫았으면 나머지 둘이 남았을 것이다.
+ *
+ * > **출처 칸을 나눈 이유 (`20_01_18` requirement·documentation 공통 SPEC-DRIFT).**
+ * > 처음엔 두 축 다 *"`swagger.md §5-4` 가 요구한다"* 고 적었는데, 그 문서에
+ * > `ParseUUIDPipe` 는 **0건**이고 §5-4 체크리스트는 `@ApiParam({format:'uuid'})` 한 줄뿐이다.
+ * > 런타임 축은 spec 조항이 아니라 **실측 관례를 가드로 승격한 것**이다 — 그렇게 적는다.
+ * > (§5-4 를 넓히는 것은 planner 소관이라 별 건으로 등재했다.)
  *
  * ## 베이스라인은 0이다 — 동결 목록을 두지 않는다
  *
@@ -57,13 +58,17 @@ describe('경로 UUID 파라미터 계약 가드', () => {
     const controllers = files.filter((f) => f.endsWith('.controller.ts'));
     expect(controllers.length).toBeGreaterThan(30);
     // 파일은 있는데 파라미터를 하나도 못 읽는 경우(파서 오작동)도 같은 공허함이다.
-    expect(countIdShapedParams(files)).toBeGreaterThan(100);
+    // **판정과 같은 순회가 센 값**이라 조건이 갈릴 여지가 없다 — 이 보장은 구조적이고,
+    // 뮤테이션으로는 확인되지 않는다(`scanned` 를 상수로 고정하면 floor 는 통과한다. 예측
+    // GREEN·실측 GREEN). floor 가 잡는 것은 *"아무것도 안 셌다"* 이지 *"거짓말하는 카운터"*
+    // 가 아니다 — 후자를 막는 것은 두 값이 같은 루프에서 나온다는 사실이다.
+    expect(scanUuidParams(files, SRC_ROOT).scanned).toBeGreaterThan(100);
   });
 
   it("id-형 경로 파라미터는 ParseUUIDPipe 와 @ApiParam({format:'uuid'}) 를 모두 갖는다", () => {
     // **실패 메시지를 값에 싣는다.** jest 의 `expect` 는 두 번째 인자를 받지 않으므로
     // (vitest 와 다르다), 무엇을 고쳐야 하는지는 비교 대상 자체가 말하게 한다.
-    const violations = findUuidParamViolations(files, SRC_ROOT).map(
+    const violations = scanUuidParams(files, SRC_ROOT).violations.map(
       (v) =>
         `${v.file} ${v.method}() @Param('${v.param}') — 빠짐: ${v.missing.join(' · ')}`,
     );
@@ -73,13 +78,14 @@ describe('경로 UUID 파라미터 계약 가드', () => {
   describe('[대조군] 판정 함수가 실제로 가른다', () => {
     const FIXTURE_DIR = path.join(__dirname, 'fixtures', 'param-uuid-pipe');
     const fixtures = collectTsFiles(FIXTURE_DIR);
-    const found = findUuidParamViolations(fixtures, FIXTURE_DIR);
+    const found = scanUuidParams(fixtures, FIXTURE_DIR).violations;
     const key = (v: (typeof found)[number]): string =>
       `${v.method}:${v.missing.join('+')}`;
 
     it('세 형태의 위반을 각각 다른 사유로 잡는다', () => {
       expect(found.map(key).sort()).toEqual([
         "bare:ParseUUIDPipe+@ApiParam format:'uuid'",
+        'excludedPipeless:ParseUUIDPipe',
         'pipeless:ParseUUIDPipe',
         "undocumented:@ApiParam format:'uuid'",
       ]);
@@ -90,9 +96,20 @@ describe('경로 UUID 파라미터 계약 가드', () => {
       expect(found.filter((v) => clean.includes(v.method))).toEqual([]);
     });
 
-    it('@ApiExcludeEndpoint 핸들러는 문서 축을 면제받는다 (런타임 축은 아니다)', () => {
+    it('@ApiExcludeEndpoint 핸들러는 문서 축을 면제받는다', () => {
       // fixture 의 `excluded` 는 파이프가 있고 `@ApiParam` 이 없다 — 면제가 작동하면 0건.
       expect(found.filter((v) => v.method === 'excluded')).toEqual([]);
+    });
+
+    it('그 면제가 런타임 축까지 끄지는 않는다 (반대 방향 캐너리)', () => {
+      // 위 케이스만으로는 "문서 축만 끄는가 / 판정 전체를 끄는가" 를 가를 수 없다 —
+      // 둘 다 0건이 나온다. `excludedPipeless` 는 파이프가 없으므로 **파이프 축만** 남아야
+      // 하고, 면제가 넓어지면 이 단언이 빈 배열을 받아 RED 다.
+      expect(
+        found
+          .filter((v) => v.method === 'excludedPipeless')
+          .map((v) => v.missing),
+      ).toEqual([['ParseUUIDPipe']]);
     });
 
     it('AST 로 읽는다 — 주석·문자열 속 `@Param` 은 안 센다', () => {
