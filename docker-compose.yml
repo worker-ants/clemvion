@@ -30,7 +30,12 @@ services:
   minio:
     # W-59 — 'latest' 는 silent breaking change 위험. 검증된 RELEASE 태그로 고정.
     # 갱신 시 mc 이미지 (createbuckets) 와 동시에 올린다.
-    image: minio/minio:RELEASE.2025-04-22T22-12-26Z
+    # **레지스트리는 quay.io 다** (2026-09-12) — Docker Hub 의 `minio/*` 는 익명 pull 이
+    # 막혀 CI 가 `pull access denied … may require 'docker login'` 로 죽었다. 실측: 같은 시각
+    # 같은 클라이언트로 Docker Hub `minio/minio` **401** vs quay.io **200**,
+    # `redis:7-alpine`·`pgvector/pgvector:pg18` 은 Hub 에서 200 — rate limit 이 아니라
+    # `minio/*` 저장소 한정이다. **태그는 그대로** 유지한다(quay 에 동일 태그 존재).
+    image: quay.io/minio/minio:RELEASE.2025-04-22T22-12-26Z
     ports:
       - "${MINIO_API_PORT:-9000}:9000"
       - "${MINIO_CONSOLE_PORT:-9001}:9001"
@@ -47,8 +52,8 @@ services:
       retries: 5
 
   createbuckets:
-    # W-59 — minio 서버 이미지와 동일 release 라인으로 고정.
-    image: minio/mc:RELEASE.2025-04-16T18-13-26Z
+    # W-59 — minio 서버 이미지와 동일 release 라인으로 고정. 레지스트리도 위와 같이 quay.io.
+    image: quay.io/minio/mc:RELEASE.2025-04-16T18-13-26Z
     depends_on:
       minio:
         condition: service_healthy
