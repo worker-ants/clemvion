@@ -173,11 +173,13 @@ A failed node's Error tab is shaped like this:
 | Node kind | Codes |
 |---|---|
 | HTTP Request | `HTTP_TRANSPORT_FAILED` · `HTTP_4XX` · `HTTP_5XX` · `HTTP_BLOCKED` |
-| Database | `DB_QUERY_FAILED` · `DB_CONNECTION_ERROR` · `DB_CONSTRAINT_VIOLATION` · `DB_PERMISSION_DENIED` |
-| Email | `EMAIL_SEND_FAILED` |
-| AI · LLM | `LLM_CALL_FAILED` · `LLM_RATE_LIMIT` · `LLM_RESPONSE_INVALID` · `LLM_TIMEOUT` |
+| Database | `DB_QUERY_FAILED` · `DB_CONNECTION_ERROR` · `DB_CONSTRAINT_VIOLATION` · `DB_PERMISSION_DENIED` · `DB_HOST_BLOCKED` |
+| Email | `EMAIL_SEND_FAILED` · `EMAIL_HOST_BLOCKED` |
+| AI · LLM | `LLM_CALL_FAILED` · `LLM_RATE_LIMIT` · `LLM_RESPONSE_INVALID` · `LLM_TIMEOUT` · `MAX_COLLECTION_RETRIES_EXCEEDED` |
 | Code | `CODE_EXECUTION_FAILED` · `CODE_TIMEOUT` · `CODE_MEMORY_LIMIT` |
-| Sub-workflow | `SUB_WORKFLOW_FAILED` · `SUB_WORKFLOW_NOT_FOUND` · `SUB_WORKFLOW_TIMEOUT` |
+| Sub-workflow | `SUB_WORKFLOW_FAILED` · `SUB_WORKFLOW_NOT_FOUND` · `SUB_WORKFLOW_TIMEOUT` · `SUB_WORKFLOW_QUEUE_FAILED` · `WORKFLOW_FORBIDDEN_WORKSPACE` |
+
+`*_HOST_BLOCKED` means the server blocked the request **before** it left — the node tried to reach a private or loopback address that workflows may not call. Point it at a public host and it clears.
 
 Codes attached at the run (engine) level are separate:
 

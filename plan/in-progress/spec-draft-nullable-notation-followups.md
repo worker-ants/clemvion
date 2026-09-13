@@ -3230,6 +3230,15 @@ field: T | null;
       `{ success:false, message }`, `message` 는 `sanitizeLlmErrorMessage` 의 8갈래 중 하나)
       spec 에 자리가 없으면 다음 사람이 같은 자리에서 또 지어낸다. 8갈래 문장 목록은
       `codebase/backend/src/modules/llm/utils/sanitize-error.util.ts` 가 SoT.
+      > **함께 명문화할 것** (`--impl-done` `11_08_03` rationale_continuity INFO#2):
+      > *"HTTP 200 결과 객체의 필드명은 에러 봉투(`{ error: { code, message } }`)와 겹치면
+      > 안 된다"* 는 원칙이 지금 `llm.service.ts` 의 **JSDoc 한 곳에만** 산다. 이 PR 이
+      > `error` → `message` 를 고른 근거가 그것인데, 규약으로 적혀 있지 않으면 다음 사람이
+      > 같은 판단을 다시 해야 한다 — `7-llm-client.md` 또는 `2-api-convention.md` Rationale.
+      >
+      > 그리고 두 표에 실패 shape 을 적을 때 **형제와 다른 이유**를 병기할 것:
+      > `/api/integrations/:id/test` 는 `code` 를 싣지만 이쪽은 **코드가 없다**(8갈래 문장뿐).
+      > 같은 "테스트 엔드포인트" 인데 형태가 다른 것은 의도다.
 
 - [ ] **`user-guide-evidence.md §2.1` 관계표에 새 가드 **2건**이 빠져 있다** (planner,
       2026-09-13 등재 · `--impl-prep` `01_15_40` naming_collision WARNING#4·#5 ·
@@ -3243,19 +3252,31 @@ field: T | null;
       | `guide-sanitized-message-parity.test.ts` | 가이드가 옮겨 적은 **실패 문장**이 `sanitize-error.util.ts` 와 글자까지 같은가 (양방향) |
       셋 다 방향은 같고(가이드 → 코드) 표면이 다르다 — 자매 `impl-anchor-existence` 는
       `<ImplAnchor>` 의 `symbol`, 위 둘은 각각 코드 토큰과 문장이다. 그 직교성이 관계표의 형식이다.
-      > **등재를 한 번 좁게 썼다.** 첫 판은 가드 하나만 적었는데 같은 PR 의 리뷰 라운드가
-      > 둘째 가드를 낳았고 등재 문구는 스냅샷에 멈춰 있었다 — planner 가 그 노트만 보고
-      > 처리하면 관계표가 **4건으로 마감**된다. 양 게이트가 같은 것을 독립으로 짚었다.
+      **같은 파일의 frontmatter `code:` 목록도 갱신 대상이다** — 현재 7개 경로가 있고 신규
+      3파일이 빠져 있다: `guide-error-code-scan.ts`(순수 스캐너) ·
+      `guide-error-code-existence.test.ts` · `guide-sanitized-message-parity.test.ts`.
+      > **등재를 두 번 좁게 썼다.** (1) 첫 판은 가드 하나만 적었는데 같은 PR 의 리뷰 라운드가
+      > 둘째 가드를 낳았고 등재 문구는 스냅샷에 멈춰 있었다 — 양 게이트가 독립으로 짚었다.
+      > (2) 고친 뒤에도 **산문 관계표(§2.1)만** 겨냥하고 같은 파일의 frontmatter 를 빠뜨렸다
+      > (`--impl-done` `11_08_03` plan_coherence WARNING#3). 같은 문서 안에서도 "어디까지가
+      > 이 등재의 대상인가" 를 두 번 좁게 잡은 것이다 — 이 저장소가 반복해 지적해 온 형태다.
       `spec/conventions/error-codes.md` 에는 **적지 않는다**: 그 문서가 소유 범위를
       *명명원칙/rename/historical-artifact* 로 스스로 못박았다(`--impl-prep` 판정).
 
 - [ ] **`/api/integrations/:id/test` 의 MCP 전용 응답 필드 3종이 미선언 + 계약 검증자 미배선**
       (developer, 2026-09-13 등재 · `/ai-review` `review/code/2026/09/13/10_12_19`
       api_contract WARNING#3 의 잔여분). `#1330` 이 같은 DTO 에 `code?: string` 을 넣어 **가장
-      넓은 미선언**(26곳 발행, spec §9.1 이 이미 문서화)을 닫았지만, `IntegrationTestResult` 의
+      넓은 미선언**(spec §9.1 이 이미 문서화하던 필드)을 닫았지만, `IntegrationTestResult` 의
       `capabilities`·`serverInfo`·`preview` 는 여전히 `TestConnectionResultDto` 선언 밖이다.
       셋은 `service_type='mcp'` 전용이고 타입이 무거워(`ServerCapabilities`·`ServerInfo`·
       `ConnectionPreview`) DTO 클래스를 새로 세워야 하므로 한 줄로 끝나지 않는다.
+      > **한 번 틀린 숫자를 전재했다.** 리뷰 SUMMARY 의 *"26곳에서 반환"* 을 그대로 옮겨
+      > 적었는데, 실측하니 그건 `integrations.service.ts` 안 `code:` **원시 grep 수**이고
+      > **그중 22곳은 throw 되는 `HttpException` 의 code** — 이 DTO 와 다른 축이다.
+      > 결과 객체(`success:false` 동반)에 싣는 자리는 그 파일에 **4곳**, 서비스가 1593행에서
+      > 호출하는 MCP 테스터(`mcp-test-connection.service.ts`)에 **6곳**이다. 저장소 전체로 같은
+      > 형태를 세면 27곳이지만 cafe24/makeshop 클라이언트 분이 이 엔드포인트까지 올라오는지는
+      > 확인하지 않았다 — **그래서 숫자가 아니라 「무엇을 비교했는지」를 적는다.**
       **함께 할 일**: 이 엔드포인트에 `assertMatchesContract` 배선. `#1330` 이 자매
       `/api/model-configs/:id/test` 에서 겪은 대로 **배선이 없으면 이 불일치는 런타임으로도
       안 잡힌다** — 지금 남은 셋은 정적 grep 으로만 보인다.
@@ -3264,6 +3285,35 @@ field: T | null;
       > `latencyMs` 와 같은 유령이라 **추가가 아니라 제거**가 답이었고 `#1330` 이 제거했다.
       > 남은 셋은 반대로 **생산자가 있는데 선언이 없는** 방향이다 — 두 방향이 한 DTO 에
       > 섞여 있었다.
+
+- [ ] **가이드 에러 코드 가드가 한 방향만 본다 — "코드 → 가이드" 누락은 못 잡는다**
+      (developer, 2026-09-13 등재 · `/ai-review` `review/code/2026/09/13/11_07_36`
+      requirement WARNING#1). `#1330` 의 `guide-error-code-existence` 는 *"가이드가 적은 코드가
+      실재하는가"* 만 본다. 반대 방향(*"실재하는 코드가 가이드에 있는가"*)은 설계상 비대상이고,
+      **그 사각지대가 같은 PR 안에서 즉시 발현했다** — 새로 만든 노드-종류별 표가 spec §1.4 대비
+      5종을 빠뜨렸다(`DB_HOST_BLOCKED`·`EMAIL_HOST_BLOCKED`·`MAX_COLLECTION_RETRIES_EXCEEDED`·
+      `SUB_WORKFLOW_QUEUE_FAILED`·`WORKFLOW_FORBIDDEN_WORKSPACE`). 앞의 둘은 SSRF 방어 코드다.
+      누락 자체는 `#1330` 이 고쳤지만 **가드가 없으니 다음 편집에서 또 빠진다.**
+      > 형태는 이미 있다 — 같은 PR 의 `guide-sanitized-message-parity.test.ts` 가 8갈래 문장을
+      > **양방향**(표→SoT · SoT→표)으로 대조한다. 같은 패턴을 §1.4 카테고리 표에 적용하면 된다.
+      > **선실측할 것**: SoT 가 소스가 아니라 **spec 마크다운 표**라 파싱 대상이 다르다. 그리고
+      > 그 표는 코드 아닌 토큰(env 변수 2종 · `details.integrationCode` 하위값 3종 · 명시적
+      > 미발행 `HTTP_TIMEOUT`)을 섞어 담고 있어 **그대로 미러링하면 오탐 6건**이다 — 실제로
+      > 내 조잡한 정규식이 11종 차이를 냈고 리뷰어의 5종이 맞았다. 「어느 토큰이 대상인가」를
+      > 먼저 정해야 한다.
+
+- [ ] **선언은 있는데 결코 발행되지 않는 "유령 필드" 를 잡는 자동 가드가 없다**
+      (developer, 2026-09-13 등재 · `/ai-review` `11_07_36` architecture WARNING#3).
+      `assertMatchesContract` 는 *"선언에 없는 키가 나간다"* 방향만 본다. 거울상(선언은 있고
+      생산자가 0건)은 **원리적으로** 못 보고 현재 방어는 수동 grep 뿐이다.
+      **같은 PR 안에서 이 방향의 결함이 서로 다른 두 DTO 에 독립적으로 3건 났다** —
+      `ModelTestConnectionResultDto.latencyMs` · `TestConnectionResultDto.latencyMs` ·
+      `TestConnectionResultDto.meta`. 리뷰는 *"세 번째 재발 시 정적 스캐너 검토"* 라 했는데
+      **이미 세 번째다**(한 PR 안에서).
+      > 형태: DTO 선언 필드 vs 그 DTO 를 반환하는 서비스의 return 리터럴 키를 AST 로 대조.
+      > `#1328` 의 `param-uuid-pipe` 가 같은 저장소에서 AST 가드의 선례다.
+      > **선실측할 것**: "그 DTO 를 반환하는 서비스" 를 기계적으로 특정할 수 있는가.
+      > `@ApiOkWrappedResponse(XxxDto)` ↔ 핸들러 반환 타입이 앵커가 될 수 있다 — 전수 확인 후 착수.
 
 - [ ] **두 keyset 커서 디코더의 실패 계약이 다르다 — 무시 vs 400** (developer, 2026-09-12
       등재 · `keyset-cursor-uuid-validation.md §C`). `auth/login-history.service.ts` 는 잘못된

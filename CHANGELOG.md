@@ -30,7 +30,9 @@
 
 - **`latencyMs`·`meta` 제거** — 둘 다 생산자 0건(실측). `meta` 는 이 DTO 를 쓰는 유일한
   엔드포인트의 반환 타입(`IntegrationTestResult`)에 아예 없는 필드였다.
-- **`code` 추가** — 반대 방향이다. 실제로는 26곳에서 발행되고
+- **`code` 추가** — 반대 방향이다. 실패 응답에 **실제로 실리고 있었고**
+  (`integrations.service.ts` 4곳 + 그 서비스가 호출하는 MCP 테스터 6곳 — `success:false` 와
+  같은 객체에 `code` 를 싣는 자리 기준),
   `spec/2-navigation/4-integration.md §9.1` 이 `200 + { success:false, code:… }` 로
   **이미 문서화**하고 있었는데 DTO 선언에만 없었다. 즉 **없던 필드가 생기는 게 아니라,
   나가고 있던 필드가 이제 문서에 보인다.**

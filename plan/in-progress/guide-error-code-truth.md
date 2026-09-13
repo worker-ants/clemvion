@@ -207,7 +207,9 @@ error 포트 예시가 `{ error: { code: "MAKESHOP_API_ERROR" } }` 다. 실재�
       (노드 수준은 **카테고리별**이라 대표 코드 행을 지우고 종류별 표로)
 - [x] C: `integrations{,.en}.mdx` 의 `MAKESHOP_API_ERROR` → `MAKESHOP_404` + 계열 설명
 - [x] D: 가드 + 대조군 fixture (`guide-error-code-{scan,existence}`) — 베이스라인 0
-- [x] D: 뮤테이션 — **전 16건 중 RED 12 · GREEN 4**, 넷 다 사유 기록
+- [x] D: 뮤테이션 — **구현 배치 16건 중 RED 12 · GREEN 4**, 넷 다 사유 기록
+      (PR 전체로는 21건 — 리뷰 라운드 1 이 3건, 라운드 2 가 2건을 더했다. "전" 이라고
+      쓰면 PR 이 닫히는 시점엔 거짓이 되므로 배치 단위로 적는다)
       | 생존 | 왜 정상인가 |
       |---|---|
       | DTO 에 생산자 0건인 키를 되살림 | **선언** 쪽 변경이라 런타임 검사가 원리적으로 못 본다. grep 이 유일한 그물 — 이 GREEN 이 내가 테스트 주석에 쓴 반대 주장을 반증했다 |
@@ -219,7 +221,11 @@ error 포트 예시가 `{ error: { code: "MAKESHOP_API_ERROR" } }` 다. 실재�
       `review/consistency/2026/09/13/01_15_40` — **BLOCK: NO** (Critical 0 · WARNING 6).
       둘은 §D 설계에 반영(가드 위치·Planned 방침), 넷은 §E.
 - [x] E: planner 항목 3건 등재 (§1 카탈로그 누락 · `testConnection` shape 미문서 · §2.1 관계표)
-- [ ] `.claude/tools/run-test-all.sh`
+- [x] `.claude/tools/run-test-all.sh` — 4회 실행 전부 ALL PASS
+      (lint · unit · build · e2e 307). 마지막: 라운드 3 처분 후.
+      타입체크 ratchet 둘도 baseline 일치(backend 197/36 · frontend 52/15).
+      > 실행은 했는데 **체크박스를 안 고쳤다**(`/ai-review` `11_07_36` testing INFO#3).
+      > "plan 체크박스 = 실제 상태" 규칙을 내가 어긴 자리다.
 - [x] `/ai-review` (`review/code/2026/09/13/10_12_19` — 14 reviewer 전원, **Critical 0** ·
       WARNING 5 · LOW) + `--impl-done spec/5-system/`
       (`review/consistency/2026/09/13/10_12_54` — **BLOCK: NO** · Critical 0 · WARNING 5)
@@ -273,6 +279,44 @@ error 포트 예시가 `{ error: { code: "MAKESHOP_API_ERROR" } }` 다. 실재�
 
 - [x] 라운드 2 뮤테이션 2건 — `code` 선언 제거 **RED**(새 배선이 문다) · `meta` 되살리기
       **GREEN**(선언-쪽 과잉은 런타임이 원리적으로 못 본다 — 세 번째 재확인)
+
+## I. 리뷰 라운드 3 — 내 가드의 사각지대가 같은 PR 안에서 발현했다
+
+`review/code/2026/09/13/11_07_36` (Critical 0 · WARNING 3 · **MEDIUM**) +
+`review/consistency/2026/09/13/11_08_03` (**BLOCK: NO** · Critical 0 · WARNING 3).
+
+**consistency 는 수렴했다** — `convention_compliance` 가 NONE 으로 떨어졌고(라운드 2 위반 2건
+정정 확인, 신규 0), 새 발견은 `plan/**` 만 고쳐 닫히는 1건뿐이었다.
+
+**code review 는 위험도를 LOW → MEDIUM 으로 올렸다.** 이유가 뼈아프다:
+
+> 이 PR 이 새로 만든 노드-종류별 표가 spec §1.4 대비 **실재 코드 5종을 누락**해,
+> 이 PR 자신의 핵심 취지(*"사용자가 마주칠 코드를 어디서도 못 찾는다"*)를 **한 단계 좁은
+> 스코프에서 재현**한다. 그중 둘은 SSRF 방어 코드(`DB_HOST_BLOCKED`·`EMAIL_HOST_BLOCKED`)다.
+
+지어낸 이름을 없애면서 **실재하는 이름을 빠뜨렸다** — 축을 바꿔 같은 병을 옮긴 것이다.
+그리고 내 가드는 *"가이드 → 코드"* 한 방향만 보므로 **이 클래스를 원리적으로 못 잡는다.**
+
+| 지적 | 처분 |
+|---|---|
+| requirement W#1 — 표가 spec §1.4 대비 5종 누락 | **고침**. 5종 보강 + `*_HOST_BLOCKED` 가 무엇인지 한 줄(사용자가 만나면 "왜 막혔지" 를 알아야 하는 코드다) |
+| requirement·documentation W#2 — MakeShop 11종 중 7종만 | **경계를 명시**. 나머지 넷은 *"호출이 나가기 전"* 설정 검증 실패라 성격이 다르다 — 목록을 늘리는 대신 **두 갈래라는 사실**을 적었다 |
+| architecture W#3 — 유령 필드 방향 무가드 | **등재**. 리뷰는 *"세 번째 재발 시"* 라 했는데 **이미 세 번째다**(한 PR 안에서 `latencyMs`×2 · `meta`) — 그 사실을 등재 문구에 적었다 |
+| testing INFO#3 — `run-test-all.sh` 체크박스 미갱신 | **고침**. 3회 다 돌려 놓고 체크를 안 했다 |
+
+### 정지 규칙에 대한 판단 — 규칙의 문자를 따르지 않았다
+
+내가 선언한 규칙은 *"라운드 3 이 또 `codebase/**` 발견을 내되 그 성격이 **주석·문서**면
+고치지 않고 등재하고 멈춘다"* 였다. W#1·W#2 는 문자 그대로는 **문서**다. 그런데 고쳤다.
+
+근거는 규칙이 스스로 밝힌 **이유**다 — *"그 지점부터는 수렴이 아니라 무한 루프다"*. W#1 은
+(a) 이 PR 의 **산출물 자체**가 틀린 것이지 부수적 주석 정리가 아니고, (b) 5행을 spec 표에
+맞추는 **유계·기계적** 작업이라 새 발견을 낳지 않으며, (c) 사용자가 SSRF 차단을 만났을 때
+가이드에서 못 찾는 것은 이 PR 이 존재하는 이유와 정확히 같은 결함이다.
+
+**규칙을 넓힌 것이 아니라 이번 건이 규칙의 전제(부수적 정리)에 해당하지 않는다고 판단했다.**
+대신 규칙의 목적을 지키려고 **이번 라운드에 새 가드를 만들지 않았다** — 역방향 가드도,
+유령 필드 스캐너도 등재만 했다. 그게 유계화의 실제 수단이다.
 
 ### 정지 규칙 (라운드 2 **결과를 보기 전에** 선언)
 
