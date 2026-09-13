@@ -3413,6 +3413,22 @@ field: T | null;
       > 시점부터 오인용이다. 링크 무결성 가드는 평문 인용이라 못 잡는다.
       > `#1331` 과 **무관한 선재 결함**이고 `spec/**` 이라 developer 권한 밖이다.
 
+- [ ] **`guide-identifier-scan.ts` 의 `lastIndex` 리셋 보일러플레이트가 4곳에 복제됐다**
+      (developer, 2026-09-13 등재 · `/ai-review` `review/code/2026/09/13/16_04_15`
+      maintainability WARNING#2). *"`rx.lastIndex = 0` → `while ((m = rx.exec(t)))` → 적재"*
+      가 서로 다른 세 함수(`scanIdentifierCitations`·`collectSourceTokens`·
+      `collectEnvDeclarations`)에 걸쳐 **4곳**에 있다.
+      > **위험은 «리셋 누락» 이고 그것을 겨냥한 테스트가 없다** — `g` 플래그 정규식은
+      > `lastIndex` 가 남아 있으면 **두 번째 호출부터 매치가 조용히 누락**된다. 한 파일 안에서
+      > 네 번 손으로 반복하므로 새 축을 더할 때 다섯 번째를 빠뜨릴 표면이 계속 늘어난다.
+      >
+      > 처분안: `String.prototype.matchAll` 로 전환하거나 `collectMatches(texts, rx)` 공유
+      > 헬퍼로 추출해 리셋을 **한 곳**으로 모은다. 이 폴더의 형제 가드들도 같은 패턴을 쓰므로
+      > (`impl-anchor-parse.ts`·`spec-links.ts`) **폴더 공용 유틸**로 올리는 것이 자연스럽다 —
+      > 다만 그건 이 가드 하나의 범위를 넘어 별 배치다.
+      > **선실측할 것**: 공유 헬퍼로 옮긴 뒤 *"리셋을 지우면 RED"* 가 실제로 관측되는지.
+      > 지금은 그 뮤턴트를 겨냥하는 테스트가 없어 리팩터의 성공 여부를 판정할 기준이 없다.
+
 - [ ] **두 keyset 커서 디코더의 실패 계약이 다르다 — 무시 vs 400** (developer, 2026-09-12
       등재 · `keyset-cursor-uuid-validation.md §C`). `auth/login-history.service.ts` 는 잘못된
       커서를 **무시하고 1페이지**를 주고, `executions/background-runs/background-runs.service.ts`

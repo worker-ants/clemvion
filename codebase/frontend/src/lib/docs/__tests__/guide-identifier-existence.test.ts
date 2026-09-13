@@ -203,6 +203,38 @@ describe("유저 가이드 식별자 실재성 가드", () => {
  * 기준집합 합계가 바뀌지 않았다. 즉 분기는 일을 하는데 **아무도 그 일에 의존하지 않아서**
  * 죽어도 티가 안 났다. 코퍼스 의존 단언만으로는 이 분기를 영원히 못 겨눈다.
  */
+describe("collectSourceTokens — 경계 대조군", () => {
+  // 세 exported 함수 중 **유일하게** 합성 대조군이 없었다(`/ai-review`
+  // `review/code/2026/09/13/16_04_15` testing WARNING#3). `\b` 를 지우는 뮤턴트가 26/26
+  // GREEN 으로 생존했다 — 형제 둘은 라운드 2·4 에서 같은 클래스로 대조군을 얻었는데
+  // 세 번째만 빠진 불균등이었다.
+  it("워드 경계 안쪽의 부분 문자열은 안 센다", () => {
+    // 이 방향이 위험하다 — 기준집합이 부풀면 가짜 토큰이 **우연히** 통과한다(거짓 PASS).
+    expect([...collectSourceTokens(["const xMY_TOKEN = 1;"])]).toEqual([]);
+    expect([...collectSourceTokens(["prefixFOO_BAR"])]).toEqual([]);
+  });
+
+  it("독립된 토큰은 센다", () => {
+    expect([...collectSourceTokens(["const MY_TOKEN = 1;"])]).toEqual(["MY_TOKEN"]);
+    expect([...collectSourceTokens(["process.env.SOME_FLAG"])]).toEqual(["SOME_FLAG"]);
+  });
+
+  it("긴 토큰은 통째로 센다 (내부 조각을 따로 세지 않는다)", () => {
+    expect([...collectSourceTokens(["FOO_BAR_BAZ"])]).toEqual(["FOO_BAR_BAZ"]);
+  });
+
+  it("여러 텍스트에 걸친 중복은 한 번만", () => {
+    expect([...collectSourceTokens(["A_B", "A_B", "C_D"])].sort()).toEqual([
+      "A_B",
+      "C_D",
+    ]);
+  });
+
+  it("[비대상] 밑줄 없는 약어는 안 센다", () => {
+    expect([...collectSourceTokens(["const LLM = 1; const HTTP = 2;"])]).toEqual([]);
+  });
+});
+
 describe("collectEnvDeclarations — 분기별 대조군", () => {
   it("주석 처리된 선언을 받는다 (`#VAR=` · `# VAR=`)", () => {
     const got = collectEnvDeclarations(
@@ -287,6 +319,11 @@ describe("scanIdentifierCitations — 축별 대조군", () => {
     // `statusCode` 를 넣어 보고 "안 걸리네" 하며 진짜 갭을 오탐으로 닫았을 것이다.
     expect(tokens('{ "mycode": "NOT_A_CODE_FIELD" }')).toEqual([]);
     expect(tokens('{ "statusCode": "ALSO_NOT" }')).toEqual([]);
+    // **스네이크케이스는 첫 경계 판(`(?<![A-Za-z])`)을 통과했다** — `_` 가 `[A-Za-z]` 가
+    // 아니기 때문이다. 그때 주석은 "위험한 형태는 전부 소문자 `code` 접미" 라고 단정했는데
+    // 고친 범위보다 넓은 주장이었다. `(?<!\w)` 로 넓히고 이 두 줄로 고정한다.
+    expect(tokens('{ "error_code": "SNAKE_ONE" }')).toEqual([]);
+    expect(tokens('{ "http_code": "SNAKE_TWO" }')).toEqual([]);
     // 대조군 — 정확히 `code` 인 키는 집는다(두 판정이 갈리는 값).
     expect(tokens('{ "code": "REAL_ONE" }')).toEqual(["code-field:REAL_ONE"]);
     expect(tokens("{ error: { code: \"BARE_FORM\" } }")).toEqual([
