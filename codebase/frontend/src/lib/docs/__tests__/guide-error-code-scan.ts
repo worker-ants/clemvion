@@ -39,6 +39,25 @@
 // frontend 소스를 기준집합에 넣으면 **가이드가 인용한 이름이 프런트 라벨 맵으로 자기를
 // 증명**하게 된다. backend-only 기준집합이 옳은 것은 대상이 **에러 코드**일 때뿐이다.
 
+// ## 이 가드가 **못** 보는 것 — 존재 검사이지 방출 검사가 아니다
+//
+// 술어는 *"backend 소스에 그 토큰이 UPPER_SNAKE 문자열로 있는가"* 다. 그래서 **에러 메시지
+// 접두로만 쓰이는 토큰도 통과한다** — `throw new Error('X_UNRESOLVED: …')` 의 `X_UNRESOLVED`
+// 는 실재하지만 `output.error.code` 로는 **나가지 않는다**(catch 가
+// `err instanceof IntegrationError ? err.code : 'INTEGRATION_CALL_FAILED'` 라 공용 fallback).
+//
+// **이 한계가 가정이 아니라 실측이다**: 이 가드를 만든 바로 그 PR 이 그 구멍으로
+// `MAKESHOP_UNRESOLVED_PATH_PARAM` 을 가이드에 적었고, `--impl-done`
+// (`review/consistency/2026/09/13/11_33_51`)의 naming_collision 이 **CRITICAL** 로 잡았다.
+// 가드는 통과시켰다.
+//
+// 술어를 *"통째로 따옴표에 싸인 리터럴 / enum 키"* 로 좁히는 안은 **실측 후 기각**했다 —
+// 인용 101종 중 8종이 새로 RED 인데 6은 오탐(env 변수 4 · 외부 어휘 1 · …)이라 허용목록이
+// 필요해진다. 방출 위치를 AST 로 특정하는 다른 축이 필요하고, 트래커에 등재돼 있다.
+//
+// **이 주석을 지우지 말 것**: 가드가 무엇을 보장하지 *않는지* 가 적혀 있지 않으면 다음 사람이
+// "가드가 통과했으니 이 코드는 실재한다" 로 읽는다 — 그게 이 PR 에서 실제로 벌어진 일이다.
+
 export type CitationAxis = "field-table" | "code-field" | "prose";
 
 export interface ErrorCodeCitation {

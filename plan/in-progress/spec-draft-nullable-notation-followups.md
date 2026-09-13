@@ -3315,6 +3315,47 @@ field: T | null;
       > **선실측할 것**: "그 DTO 를 반환하는 서비스" 를 기계적으로 특정할 수 있는가.
       > `@ApiOkWrappedResponse(XxxDto)` ↔ 핸들러 반환 타입이 앵커가 될 수 있다 — 전수 확인 후 착수.
 
+- [ ] **가이드 에러 코드 가드가 "존재" 만 보고 "방출" 을 안 본다 — CRITICAL 을 통과시켰다**
+      (developer, 2026-09-13 등재 · `--impl-done` `review/consistency/2026/09/13/11_33_51`
+      naming_collision **CRITICAL**). `guide-error-code-existence` 의 술어는 *"backend 소스에
+      UPPER_SNAKE 문자열로 존재하는가"* 다. `MAKESHOP_UNRESOLVED_PATH_PARAM` 은 존재하지만
+      **`throw new Error('MAKESHOP_UNRESOLVED_PATH_PARAM: …')` 의 메시지 접두**일 뿐이고, catch
+      (`makeshop.handler.ts:359`)가 `err instanceof IntegrationError ? err.code :
+      'INTEGRATION_CALL_FAILED'` 라 실제 `output.error.code` 는 공용 fallback 이다. 가드는
+      통과시켰고 `#1330` 이 그 이름을 가이드에 적었다 — **가드가 막으라고 만든 바로 그 결함**.
+      > **단순 좁히기는 답이 아니다 (실측함).** 술어를 *"통째로 따옴표에 싸인 리터럴 또는 enum
+      > 키"* 로 좁히면 현재 인용 101종 중 **8종이 새로 RED** 인데 그중 6은 오탐이다 —
+      > env 변수 4(`MCP_CALL_TIMEOUT_MS`·`MCP_MAX_RESPONSE_BYTES`·`SYSTEM_STATUS_*` 는
+      > `process.env.X` 접근이라 리터럴이 아니다) · 외부 어휘 1(`ACTION_ROW`) · 그리고
+      > **진짜 같은 클래스 2**(`CONTAINER_MISSING_EMIT`·`CONTAINER_MULTIPLE_EMIT`).
+      > 즉 좁히면 허용목록이 필요해지고, 그건 이 가드가 처음부터 피한 설계다.
+      > **다른 축을 찾아야 한다** — 예: `IntegrationError(` 첫 인자 · `code:` 할당 · `ErrorCode`
+      > enum 값처럼 **방출 위치**를 AST 로 특정하고, env 변수는 `process.env` 접근으로 배제.
+      > `#1328` 의 `param-uuid-pipe` 가 같은 저장소의 AST 가드 선례다.
+
+- [ ] **`CONTAINER_MISSING_EMIT`·`CONTAINER_MULTIPLE_EMIT` 도 방출 코드가 아니다 (선재)**
+      (developer, 2026-09-13 등재 · 위 항목의 술어 프로브가 부수적으로 찾았다).
+      `02-nodes/logic{,.mdx,.en.mdx}` 가 *"…로 실행 실패해요"* 라고 적는데, 실제로는
+      `execution-engine.service.ts:7121·7125` 의 **메시지 접두**이고 `.code` 로 방출되지 않는다.
+      `#908` 에서 들어온 **선재 문장**이라 `#1330` 스코프 밖이고, MakeShop 건과 달리 *"코드"* 라고
+      명시하지 않아(*"…로 실패"*) 오독 여지가 더 좁다 — 그래서 등재만 한다.
+      > 처분 시 선택지는 둘: (A) 문장을 *"메시지에 이 접두가 붙는다"* 로 정정, 또는
+      > (B) 엔진이 전용 코드를 방출하도록(동작 변경 + spec). 같은 갈림이 MakeShop 건에도 있었고
+      > `#1330` 은 (A)를 택했다 — 가이드는 *현재 동작*을 서술하는 문서이기 때문이다.
+
+- [ ] **`CAFE24_UNRESOLVED_PATH_PARAM` 도 같은 형태 — 다만 가이드가 아직 인용하지 않는다**
+      (developer, 2026-09-13 등재 · `--impl-done` `11_33_51` 권고 #2).
+      `cafe24.handler.ts:453` 이 makeshop 자매(`:435`)와 **동형**으로 일반 `Error` 에 접두만
+      붙인다. `cafe24{,.en}.mdx` 는 이 이름을 인용하지 않아 오늘 가이드 결함은 **없다**(실측:
+      `content/docs/` 전수 grep 0건). 두 handler 를 함께 고칠 때 같이 본다.
+
+- [ ] **`/api/integrations/:id/test` 에 HTTP 와이어-레벨 계약 검증이 없다**
+      (developer, 2026-09-13 등재 · `/ai-review` `review/code/2026/09/13/11_33_23`
+      testing WARNING#2). `#1330` 이 자매 `/api/model-configs/:id/test` 에는 supertest 왕복
+      (전역 `TransformInterceptor` 포함) 검증을 신설했지만 형제는 **서비스 레벨
+      `assertMatchesContract` 뿐**이다 — 봉투를 만지는 인터셉터가 끼어도 못 본다.
+      위 "MCP 전용 3종 미선언" 항목은 **서비스 레벨 축**이라 이 와이어 축을 덮지 않는다.
+
 - [ ] **두 keyset 커서 디코더의 실패 계약이 다르다 — 무시 vs 400** (developer, 2026-09-12
       등재 · `keyset-cursor-uuid-validation.md §C`). `auth/login-history.service.ts` 는 잘못된
       커서를 **무시하고 1페이지**를 주고, `executions/background-runs/background-runs.service.ts`
