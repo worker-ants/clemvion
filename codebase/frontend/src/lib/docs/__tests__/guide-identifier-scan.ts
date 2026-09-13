@@ -452,6 +452,40 @@ export function isMessagePrefixOnly(
   return messagePrefixes.has(token) && !quotedLiterals.has(token);
 }
 
+/**
+ * 발행 축의 **판정 정본** — 인용 토큰 중 «등록이 필요한» 것을 낸다.
+ *
+ * ```
+ * offender = 인용됨 ∧ 접두-전용 ∧ ¬카탈로그 ∧ ¬등록
+ * ```
+ *
+ * **테스트가 이 체인을 손으로 다시 쓰고 있었다.** 베이스라인 단언은 `.filter(...)` 를
+ * 네 번 이어 붙였고, `[한계]`·`[대조군]` 테스트는 **그것과 분리된 병렬 구현**이었다.
+ * 그래서 실제 체인에서 카탈로그 필터 한 줄을 지워도 **71/71 GREEN 이 유지됐다**
+ * (`/ai-review` `review/code/2026/09/13/20_57_13` testing WARNING#1 · 리뷰어가 뮤테이션으로
+ * 관측). 이 저장소가 이름 붙여 둔 형태다 — **헬퍼 테스트 ≠ 호출부 테스트.**
+ *
+ * 정본을 하나로 모아 **베이스라인과 대조군이 같은 함수를 부르게** 한다. 이제 이 안의 어떤
+ * 항을 지워도 양쪽이 함께 RED 다.
+ */
+export function computeNonEmittedOffenders(
+  citedTokens: Iterable<string>,
+  sets: {
+    messagePrefixes: ReadonlySet<string>;
+    quotedLiterals: ReadonlySet<string>;
+    catalogCodes: ReadonlySet<string>;
+    registered: ReadonlySet<string>;
+  },
+): string[] {
+  return [...new Set(citedTokens)]
+    .filter((t) =>
+      isMessagePrefixOnly(t, sets.messagePrefixes, sets.quotedLiterals),
+    )
+    .filter((t) => !sets.catalogCodes.has(t))
+    .filter((t) => !sets.registered.has(t))
+    .sort();
+}
+
 /** 한 MDX 본문에서 식별자 인용을 전부 걷는다. 같은 줄의 중복 축은 각각 보고된다. */
 export function scanIdentifierCitations(mdx: string): IdentifierCitation[] {
   const out: IdentifierCitation[] = [];

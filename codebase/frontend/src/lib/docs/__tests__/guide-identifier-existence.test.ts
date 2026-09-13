@@ -12,6 +12,7 @@ import {
   collectMessagePrefixes,
   collectCatalogCodes,
   isMessagePrefixOnly,
+  computeNonEmittedOffenders,
   GUIDE_EXTERNAL_VOCABULARY,
   GUIDE_NON_EMITTED_VOCABULARY,
   type CitationAxis,
@@ -63,7 +64,7 @@ function parseWhereRefs(where: string): { file: string; line: number }[] {
 /**
  * 목록의 모든 항목이 **여전히 가이드에 인용되는지**. 두 목록이 같은 판정을 쓴다.
  *
- * **`staleGuideEntries` 로 이름을 바꿨다** — 첫 판은 `staleGuideEntries` 였는데
+ * **`staleGuideEntries` 로 이름을 바꿨다** — 첫 판은 `staleEntries` 였는데
  * `repo-guards/__tests__/internal-package-registration-guard.ts:129` 에 **export 된 동명
  * 함수**가 이미 있었고 시그니처가 다르다(`(string[], string[])` vs 여기)
  * (`--impl-done` `review/consistency/2026/09/13/20_34_48` naming_collision WARNING#5).
@@ -130,6 +131,14 @@ describe("유저 가이드 식별자 실재성 가드", () => {
   const prefixOnly = (token: string): boolean =>
     isMessagePrefixOnly(token, messagePrefixes, quotedLiterals);
 
+  /** 판정 정본에 넘길 네 집합. 베이스라인과 대조군이 **같은 번들**을 쓴다. */
+  const sets = {
+    messagePrefixes,
+    quotedLiterals,
+    catalogCodes,
+    registered: registeredNonEmitted,
+  };
+
   // ── vacuity floors ──────────────────────────────────────────────────────────
   it("코퍼스를 실제로 적재한다 (vacuity floor)", () => {
     expect(mdxFiles.length).toBeGreaterThan(50); // 실측 92
@@ -190,12 +199,11 @@ describe("유저 가이드 식별자 실재성 가드", () => {
   // ── 발행 축 (베이스라인) ────────────────────────────────────────────────────
   describe("발행 축 — 가이드가 «코드» 로 부르는 것이 코드인가", () => {
     it("접두 전용이면서 카탈로그에도 없는 인용은 **등록돼 있다** (베이스라인 0)", () => {
-      const offenders = [...new Set(citations.map((c) => c.token))]
-        .filter(prefixOnly)
-        .filter((t) => !catalogCodes.has(t))
-        .filter((t) => !registeredNonEmitted.has(t))
-        .sort();
-      expect(offenders).toEqual([]);
+      // **정본을 부른다.** 종전엔 이 자리에서 `.filter(...)` 네 개를 손으로 이어 붙였고,
+      // 아래 `[한계]`·`[대조군]` 은 그것과 **분리된 병렬 구현**이었다 — 그래서 실제 체인에서
+      // 카탈로그 필터를 지워도 71/71 GREEN 이었다
+      // (`review/code/2026/09/13/20_57_13` testing WARNING#1, 리뷰어가 뮤테이션으로 관측).
+      expect(computeNonEmittedOffenders(citations.map((c) => c.token), sets)).toEqual([]);
     });
 
     it("[vacuity] 세 수집기가 실제로 뭔가를 걷었다", () => {
@@ -333,9 +341,19 @@ describe("유저 가이드 식별자 실재성 가드", () => {
       //
       // **언젠가 이 수가 0이 아니게 되면 이 단언이 RED 로 알린다** — 그때는 등록 항목을
       // 지울 수 있다는 신호다.
-      const rescuedByCatalog = [...new Set(citations.map((c) => c.token))]
-        .filter(prefixOnly)
-        .filter((t) => catalogCodes.has(t));
+      // **정본으로 센다** — 카탈로그를 비운 집합으로 한 번 더 돌려, 그 차이가 곧
+      // «탈출구가 구한 토큰» 이다. 손 계산이 아니라 판정 함수 자신의 출력 차이다.
+      const withCatalog = computeNonEmittedOffenders(
+        citations.map((c) => c.token),
+        { ...sets, registered: new Set<string>() },
+      );
+      const withoutCatalog = computeNonEmittedOffenders(
+        citations.map((c) => c.token),
+        { ...sets, catalogCodes: new Set<string>(), registered: new Set<string>() },
+      );
+      const rescuedByCatalog = withoutCatalog.filter(
+        (t) => !withCatalog.includes(t),
+      );
       expect(rescuedByCatalog).toEqual([]);
     });
 
@@ -515,6 +533,50 @@ describe("collectSourceTokens — 경계 대조군", () => {
 
   it("[비대상] 밑줄 없는 약어는 안 센다", () => {
     expect([...collectSourceTokens(["const LLM = 1; const HTTP = 2;"])]).toEqual([]);
+  });
+});
+
+describe("computeNonEmittedOffenders — 네 항이 각각 무는가", () => {
+  // **정본으로 합치는 것만으로는 부족했다.** 리뷰어가 카탈로그 필터 한 줄을 지워
+  // 71/71 GREEN 을 관측했고(`review/code/2026/09/13/20_57_13` testing WARNING#1),
+  // 제안대로 판정을 정본 하나로 모은 뒤 **같은 뮤턴트를 다시 걸었더니 여전히 생존**했다.
+  //
+  // 이유는 테스트 구조가 아니라 **데이터**다 — 그 필터는 오늘 실코퍼스에서 **한 번도
+  // 발화하지 않는다**(«접두 전용 ∩ 카탈로그» = 공집합, 라운드 1 실측). 즉 실코퍼스로는
+  // 어떤 테스트도 그 뮤턴트를 잡을 수 없다. **합성 입력만이 두 판정을 가른다.**
+  const T = "SYNTH_TOKEN";
+  const base = {
+    messagePrefixes: new Set([T]),
+    quotedLiterals: new Set<string>(),
+    catalogCodes: new Set<string>(),
+    registered: new Set<string>(),
+  };
+
+  it("접두 전용 + 카탈로그 없음 + 미등록 → offender", () => {
+    expect(computeNonEmittedOffenders([T], base)).toEqual([T]);
+  });
+
+  it("[카탈로그 항] 카탈로그에 있으면 offender 가 아니다", () => {
+    // 이 케이스가 **카탈로그 필터를 지우는 뮤턴트와 갈리는 유일한 값**이다.
+    expect(
+      computeNonEmittedOffenders([T], { ...base, catalogCodes: new Set([T]) }),
+    ).toEqual([]);
+  });
+
+  it("[등록 항] 등록돼 있으면 offender 가 아니다", () => {
+    expect(
+      computeNonEmittedOffenders([T], { ...base, registered: new Set([T]) }),
+    ).toEqual([]);
+  });
+
+  it("[접두-전용 항] 토큰-단독 리터럴이 있으면 offender 가 아니다", () => {
+    expect(
+      computeNonEmittedOffenders([T], { ...base, quotedLiterals: new Set([T]) }),
+    ).toEqual([]);
+  });
+
+  it("[인용 항] 인용되지 않은 토큰은 애초에 후보가 아니다", () => {
+    expect(computeNonEmittedOffenders([], base)).toEqual([]);
   });
 });
 
