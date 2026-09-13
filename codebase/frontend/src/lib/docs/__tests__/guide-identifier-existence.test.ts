@@ -280,6 +280,20 @@ describe("scanIdentifierCitations — 축별 대조군", () => {
     ]);
   });
 
+  it("[비대상] `code` 로 끝나는 다른 키는 안 집는다", () => {
+    // **리뷰어가 든 예시는 틀렸고 우려는 맞았다.** `"statusCode"` 는 camelCase 대문자 `C`
+    // 라 원래부터 안 걸린다(실측). 실제로 걸리던 형태는 **전부 소문자**로 `code` 로 끝나는
+    // 키다 — 그래서 fixture 를 `mycode` 로 짠다. 틀린 예시로 등재했다면 다음 사람이
+    // `statusCode` 를 넣어 보고 "안 걸리네" 하며 진짜 갭을 오탐으로 닫았을 것이다.
+    expect(tokens('{ "mycode": "NOT_A_CODE_FIELD" }')).toEqual([]);
+    expect(tokens('{ "statusCode": "ALSO_NOT" }')).toEqual([]);
+    // 대조군 — 정확히 `code` 인 키는 집는다(두 판정이 갈리는 값).
+    expect(tokens('{ "code": "REAL_ONE" }')).toEqual(["code-field:REAL_ONE"]);
+    expect(tokens("{ error: { code: \"BARE_FORM\" } }")).toEqual([
+      "code-field:BARE_FORM",
+    ]);
+  });
+
   it("축 3 — 백틱 토큰을 **문맥과 무관하게** 집는다", () => {
     // `#1330` 은 여기에 실패-문맥 게이팅이 있었고 그래서 과거 결함을 놓쳤다.
     expect(tokens("환경변수 `SOME_ENV_FLAG` 로 켜요.")).toEqual([

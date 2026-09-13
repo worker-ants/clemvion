@@ -101,8 +101,21 @@ const UPPER_SNAKE = "[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+";
  */
 const FIELD_TABLE_NAME = new RegExp(`\\{\\s*name:\\s*"(${UPPER_SNAKE})"`, "g");
 
-/** 축 2 — 예시 코드펜스의 `"code": "CODE"` / `code: "CODE"`. */
-const CODE_FIELD = new RegExp(`"?code"?\\s*:\\s*"(${UPPER_SNAKE})"`, "g");
+/**
+ * 축 2 — 예시 코드펜스의 `"code": "CODE"` / `code: "CODE"`.
+ *
+ * **왼쪽 경계가 필요하다.** 경계가 없으면 `code` 로 **끝나는** 키가 전부 걸린다 —
+ * `"mycode": "X"` 가 `code"` 부분에서 매치된다(실측). camelCase 인 `"statusCode"` 는
+ * 대문자 `C` 라 애초에 안 걸리므로, 위험한 형태는 **전부 소문자로 `code` 로 끝나는 키**다.
+ *
+ * 오늘 코퍼스에 그런 키는 0건이라 현재 오탐은 없지만, 같은 파일의 다른 두 축에는 판별
+ * fixture 를 붙여 놓고 이 축만 빠져 있었다(`/ai-review`
+ * `review/code/2026/09/13/15_42_54` testing WARNING#2). 경계를 넣고 음성 fixture 로 고정한다.
+ */
+const CODE_FIELD = new RegExp(
+  `(?<![A-Za-z])"?code"?\\s*:\\s*"(${UPPER_SNAKE})"`,
+  "g",
+);
 
 /**
  * 축 3 — **모든** 백틱 UPPER_SNAKE. 문맥으로 게이팅하지 않는다.
