@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased — **Behavior change**: 모델 연결 테스트의 실패 사유가 화면에 도달한다 (+ 응답 필드 2종 제거)
+## Unreleased — **Behavior change**: 모델 연결 테스트의 실패 사유가 화면에 도달한다 (+ 두 테스트 엔드포인트의 응답 필드 정리)
 
 `POST /api/model-configs/:id/test` 가 실패하면 백엔드는 정규화된 사유 문장을 만들어 실었는데
 **필드 이름이 세 층에서 갈려 사용자에게 한 글자도 도달하지 않았다.**
@@ -16,14 +16,25 @@
 문장은 `sanitizeLlmErrorMessage` 의 **8갈래 고정 문구**이며 provider 원문은 싣지 않는다
 (키 조각·내부 엔드포인트 유출 방지).
 
-**⚠️ 배포 시 확인 — 응답에서 사라지는 필드**
+**⚠️ 배포 시 확인 — 응답 필드 변경 (두 엔드포인트)**
 
-- **`latencyMs` 제거** (`ModelTestConnectionResultDto` · 형제 `TestConnectionResultDto`).
-  두 DTO 모두 **생산자가 0건**이었다 — 선언만 있고 한 번도 발행된 적이 없어 OpenAPI 가 없는
-  필드를 광고하던 상태다. 이 값을 읽던 클라이언트는 원래도 항상 `undefined` 를 받았다.
-- **`error` 제거** — 같은 응답의 `message` 로 이름이 바뀌었다. `error` 를 읽던 코드가 있다면
-  `message` 로 옮겨야 한다. 저장소 안 소비처는 없었다(프런트엔드는 이미 `message` 를 읽고 있었다).
-- HTTP 상태는 **변하지 않는다** — 실패도 200 이고 `success: false` 로 구분한다.
+`POST /api/model-configs/:id/test` (`ModelTestConnectionResultDto`):
+
+- **`error` → `message`** — 이름이 바뀌었다. `error` 를 읽던 코드가 있다면 옮겨야 한다.
+  저장소 안 소비처는 없었다(프런트엔드는 이미 `message` 를 읽고 있었다).
+- **`latencyMs` 제거** — **생산자가 0건**이었다. 선언만 있고 한 번도 발행된 적이 없어
+  OpenAPI 가 없는 필드를 광고하던 상태다. 읽던 클라이언트는 원래도 항상 `undefined` 를 받았다.
+
+형제 `POST /api/integrations/:id/test` (`TestConnectionResultDto`) — 같은 "값 vs 선언"
+점검을 형제에도 돌린 결과 **양쪽 방향이 다 나왔다**:
+
+- **`latencyMs`·`meta` 제거** — 둘 다 생산자 0건(실측). `meta` 는 이 DTO 를 쓰는 유일한
+  엔드포인트의 반환 타입(`IntegrationTestResult`)에 아예 없는 필드였다.
+- **`code` 추가** — 반대 방향이다. 실제로는 26곳에서 발행되고
+  `spec/2-navigation/4-integration.md §9.1` 이 `200 + { success:false, code:… }` 로
+  **이미 문서화**하고 있었는데 DTO 선언에만 없었다. 즉 **없던 필드가 생기는 게 아니라,
+  나가고 있던 필드가 이제 문서에 보인다.**
+- HTTP 상태는 **양쪽 다 변하지 않는다** — 실패도 200 이고 `success: false` 로 구분한다.
 
 > **왜 안 잡혔나.** 이 저장소에는 *값 vs 선언* 을 런타임에 대조하는 정본 검사기
 > `assertMatchesContract` 가 있는데 **이 엔드포인트에 배선돼 있지 않았다**. 배선하자마자

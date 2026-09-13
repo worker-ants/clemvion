@@ -10,6 +10,11 @@ import {
   buildIntegrationMeta,
   type PublicIntegration,
 } from './integrations.service';
+import {
+  assertMatchesContract,
+  contractForDto,
+} from '../../shared/testing/response-contract';
+import { TestConnectionResultDto } from './dto/responses/integration-response.dto';
 import type { Integration } from './entities/integration.entity';
 import { AUDIT_ACTIONS } from '../audit-logs/audit-action.const';
 import { UNREADABLE_KEY } from './services/credentials-transformer';
@@ -680,6 +685,18 @@ describe('IntegrationsService', () => {
         code: 'INTEGRATION_INCOMPLETE',
         message: expect.stringContaining('pending_install'),
       });
+      // 값 vs 선언 — `code` 는 여기서 실제로 나가는데 `TestConnectionResultDto` 가 오랫동안
+      // **선언하지 않고** 있었다(`spec/2-navigation/4-integration.md §9.1` 은 이미 문서화 중).
+      // 자매 `/api/model-configs/:id/test` 가 정확히 이 배선이 없어서 3층 필드명 불일치를
+      // 놓쳤으므로, 같은 배치에서 형제 엔드포인트도 같은 그물에 넣는다.
+      //
+      // **성공 경로에는 아직 걸 수 없다** — MCP 성공 응답이 싣는 `capabilities`·`serverInfo`·
+      // `preview` 3종이 여전히 미선언이라 지금 걸면 그 자리에서 RED 가 난다. 그 셋은 DTO 신설이
+      // 필요해 트래커에 등재했고, 닫히면 이 배선을 성공 경로로도 넓힌다.
+      assertMatchesContract(
+        result,
+        await contractForDto(TestConnectionResultDto),
+      );
     });
 
     it('pending_install guard is service_type-agnostic — same response for non-cafe24 row', async () => {

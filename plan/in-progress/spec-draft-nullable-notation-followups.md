@@ -3231,12 +3231,21 @@ field: T | null;
       spec 에 자리가 없으면 다음 사람이 같은 자리에서 또 지어낸다. 8갈래 문장 목록은
       `codebase/backend/src/modules/llm/utils/sanitize-error.util.ts` 가 SoT.
 
-- [ ] **`user-guide-evidence.md §2.1` 관계표에 새 가드가 빠져 있다** (planner, 2026-09-13 등재 ·
-      `--impl-prep` `01_15_40` naming_collision WARNING#4·#5). `#1330` 이
-      `guide-error-code-existence.test.ts` 를 그 컨벤션의 가드 가족(`codebase/frontend/src/lib/
-      docs/__tests__/`)에 넣었는데, **§2 는 "가드 3건" 이라고 세고 §2.1 관계표에도 행이 없다.**
-      자매 `impl-anchor-existence` 와 **방향은 같고(가이드 → 코드) 표면이 다르다**
-      (자매는 `<ImplAnchor>` 의 `symbol`, 이쪽은 에러 코드 토큰) — 그 직교성이 관계표의 형식이다.
+- [ ] **`user-guide-evidence.md §2.1` 관계표에 새 가드 **2건**이 빠져 있다** (planner,
+      2026-09-13 등재 · `--impl-prep` `01_15_40` naming_collision WARNING#4·#5 ·
+      **등재 범위 정정**: `/ai-review` `10_40_34` user_guide_sync WARNING#3 +
+      `--impl-done` `10_41_13` convention_compliance WARNING#2). `#1330` 이 가드 **둘**을 그
+      컨벤션의 가드 가족(`codebase/frontend/src/lib/docs/__tests__/`)에 넣었는데,
+      **§2 는 "가드 3건" 이라고 세고 §2.1 관계표에도 행이 없다** → **3건 → 5건**.
+      | 신규 가드 | 무엇을 보나 |
+      |---|---|
+      | `guide-error-code-existence.test.ts` | 가이드가 적은 **에러 코드 토큰**이 backend 소스에 실재하는가 |
+      | `guide-sanitized-message-parity.test.ts` | 가이드가 옮겨 적은 **실패 문장**이 `sanitize-error.util.ts` 와 글자까지 같은가 (양방향) |
+      셋 다 방향은 같고(가이드 → 코드) 표면이 다르다 — 자매 `impl-anchor-existence` 는
+      `<ImplAnchor>` 의 `symbol`, 위 둘은 각각 코드 토큰과 문장이다. 그 직교성이 관계표의 형식이다.
+      > **등재를 한 번 좁게 썼다.** 첫 판은 가드 하나만 적었는데 같은 PR 의 리뷰 라운드가
+      > 둘째 가드를 낳았고 등재 문구는 스냅샷에 멈춰 있었다 — planner 가 그 노트만 보고
+      > 처리하면 관계표가 **4건으로 마감**된다. 양 게이트가 같은 것을 독립으로 짚었다.
       `spec/conventions/error-codes.md` 에는 **적지 않는다**: 그 문서가 소유 범위를
       *명명원칙/rename/historical-artifact* 로 스스로 못박았다(`--impl-prep` 판정).
 

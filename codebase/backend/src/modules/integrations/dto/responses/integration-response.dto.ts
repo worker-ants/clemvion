@@ -461,19 +461,17 @@ export class TestConnectionResultDto {
   // `ModelTestConnectionResultDto` 를 고치며 같은 유령을 함께 걷어낸다 — 한쪽만 고치면
   // 같은 거짓 광고가 남는다.
 
+  // 이 선언은 `latencyMs` 의 **정반대 방향** 결함을 닫는다 — 그쪽은 선언만 있고 생산자가
+  // 0건이었고, 이쪽은 **생산자가 있는데 선언이 없었다**(`IntegrationTestResult.code`,
+  // `integrations.service.ts`). `spec/2-navigation/4-integration.md §9.1` 이 이 엔드포인트의
+  // `200 + { success:false, code:'INTEGRATION_INCOMPLETE' }` 를 **이미 문서화**하고 있었으므로
+  // spec 이 아니라 DTO 가 낡은 상태였다.
+  //
+  // 같은 인터페이스의 MCP 전용 필드(`capabilities`·`serverInfo`·`preview`)도 미선언이지만
+  // 타입이 무거워 별도 등재했다 — `plan/in-progress/spec-draft-nullable-notation-followups.md`.
   /**
-   * 실패 분류 코드 (`MCP_*` · `EMAIL_CONNECT_FAILED` · `INTEGRATION_INCOMPLETE` 등).
-   * 성공 시 부재.
-   *
-   * **이 선언은 `latencyMs` 의 정반대 방향 결함을 닫는다** — 그쪽은 선언만 있고 생산자가
-   * 0건이었고, 이쪽은 **생산자가 있는데 선언이 없었다**(`IntegrationTestResult.code`,
-   * `integrations.service.ts`). `spec/2-navigation/4-integration.md §9.1` 은 이 엔드포인트가
-   * `200 + { success:false, code:'INTEGRATION_INCOMPLETE' }` 를 낸다고 **이미 문서화**하고
-   * 있었으므로 spec 쪽이 아니라 DTO 쪽이 낡은 상태였다.
-   *
-   * 같은 인터페이스의 MCP 전용 필드(`capabilities`·`serverInfo`·`preview`)도 미선언이지만
-   * 그쪽은 타입이 무거워 별도 등재했다 —
-   * `plan/in-progress/spec-draft-nullable-notation-followups.md`.
+   * 실패 분류 코드. `MCP_*` · `EMAIL_CONNECT_FAILED` · `INTEGRATION_INCOMPLETE` 등이며,
+   * 성공 응답에는 실리지 않습니다.
    */
   @ApiPropertyOptional()
   code?: string;
