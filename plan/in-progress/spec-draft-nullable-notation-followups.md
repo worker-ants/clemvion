@@ -3194,9 +3194,13 @@ field: T | null;
       > 광고하고 있었고, 프런트엔드 테스트 하나는 그 **없는 필드를 픽스처로 지어내** 통과
       > 중이었다(가이드가 코드를 지어낸 것과 같은 병이다).
       >
-      > **가드로 고정**(`guide-error-code-existence`) — `user-guide-evidence.md` 의 가드
+      > **가드로 고정**(`guide-error-code-existence` — `#1331` 에서 `guide-identifier-*` 로
+      > 리네임) — `user-guide-evidence.md` 의 가드
       > 가족에 합류, 3축(FieldTable `name` · `code:` 값 · 실패 문맥 산문), 베이스라인 0,
-      > 허용목록 없음. 문맥 신호를 좁게 잡은 첫 판은 chat-channel 의 `executionFailed*` 키
+      > 허용목록 없음. **이 두 성질은 `#1331` 이 뒤집었다** — 문맥 게이팅이 이 가드를
+      > 등재시킨 과거 결함(`MCP_INSECURE_URL_ALLOWED`)을 못 잡는다는 것이 실측됐고, 축은
+      > 백틱 전수로, 허용목록은 4강제가 붙은 외부 어휘 목록으로 바뀌었다. 아래 서술은
+      > `#1330` 시점의 기록이다. 문맥 신호를 좁게 잡은 첫 판은 chat-channel 의 `executionFailed*` 키
       > 표(6파일)를 통째로 놓쳤다(39종) — 실패 어휘를 넣어 66종, 부재는 그대로 0. 뮤테이션
       > 전 16건 중 RED 12 · GREEN 4 이고 생존 넷은 전부 사유가 기록돼 있다(선언-쪽 변경은
       > 런타임이 원리적으로 못 봄 · 의미 동등 no-op · 기준집합 축소/확대 2건은 기각 근거).
@@ -3248,13 +3252,19 @@ field: T | null;
       **§2 는 "가드 3건" 이라고 세고 §2.1 관계표에도 행이 없다** → **3건 → 5건**.
       | 신규 가드 | 무엇을 보나 |
       |---|---|
-      | `guide-error-code-existence.test.ts` | 가이드가 적은 **에러 코드 토큰**이 backend 소스에 실재하는가 |
+      | `guide-identifier-existence.test.ts` | 가이드가 적은 **식별자**(에러 코드 + 환경변수)가 실재하는가 |
       | `guide-sanitized-message-parity.test.ts` | 가이드가 옮겨 적은 **실패 문장**이 `sanitize-error.util.ts` 와 글자까지 같은가 (양방향) |
       셋 다 방향은 같고(가이드 → 코드) 표면이 다르다 — 자매 `impl-anchor-existence` 는
       `<ImplAnchor>` 의 `symbol`, 위 둘은 각각 코드 토큰과 문장이다. 그 직교성이 관계표의 형식이다.
       **같은 파일의 frontmatter `code:` 목록도 갱신 대상이다** — 현재 7개 경로가 있고 신규
-      3파일이 빠져 있다: `guide-error-code-scan.ts`(순수 스캐너) ·
-      `guide-error-code-existence.test.ts` · `guide-sanitized-message-parity.test.ts`.
+      3파일이 빠져 있다: `guide-identifier-scan.ts`(순수 스캐너) ·
+      `guide-identifier-existence.test.ts` · `guide-sanitized-message-parity.test.ts`.
+      > **파일명이 `#1331` 에서 바뀌었다** (`guide-error-code-*` → `guide-identifier-*`) —
+      > 스코프가 에러 코드를 넘어 환경변수까지 넓어졌기 때문이다. 등재 시 새 이름을 쓸 것.
+      > **함께 등재할 Rationale**: `#1330` 이 세운 *"허용목록 없음"* 원칙을 `#1331` 이
+      > 실측으로 번복했다(문맥 게이팅은 이 가드를 만들게 한 과거 결함을 못 잡는다).
+      > 그 근거가 지금 plan·코드 주석에만 있고 spec `## Rationale` 에는 없다 —
+      > **표·frontmatter·Rationale 을 한 턴에** 처리해야 표가 두 번 미완결이 되지 않는다.
       > **등재를 두 번 좁게 썼다.** (1) 첫 판은 가드 하나만 적었는데 같은 PR 의 리뷰 라운드가
       > 둘째 가드를 낳았고 등재 문구는 스냅샷에 멈춰 있었다 — 양 게이트가 독립으로 짚었다.
       > (2) 고친 뒤에도 **산문 관계표(§2.1)만** 겨냥하고 같은 파일의 frontmatter 를 빠뜨렸다
@@ -3288,7 +3298,7 @@ field: T | null;
 
 - [ ] **가이드 에러 코드 가드가 한 방향만 본다 — "코드 → 가이드" 누락은 못 잡는다**
       (developer, 2026-09-13 등재 · `/ai-review` `review/code/2026/09/13/11_07_36`
-      requirement WARNING#1). `#1330` 의 `guide-error-code-existence` 는 *"가이드가 적은 코드가
+      requirement WARNING#1). `guide-identifier-existence`(`#1330` 당시 `guide-error-code-*`) 는 *"가이드가 적은 코드가
       실재하는가"* 만 본다. 반대 방향(*"실재하는 코드가 가이드에 있는가"*)은 설계상 비대상이고,
       **그 사각지대가 같은 PR 안에서 즉시 발현했다** — 새로 만든 노드-종류별 표가 spec §1.4 대비
       5종을 빠뜨렸다(`DB_HOST_BLOCKED`·`EMAIL_HOST_BLOCKED`·`MAX_COLLECTION_RETRIES_EXCEEDED`·
@@ -3317,7 +3327,7 @@ field: T | null;
 
 - [ ] **가이드 에러 코드 가드가 "존재" 만 보고 "방출" 을 안 본다 — CRITICAL 을 통과시켰다**
       (developer, 2026-09-13 등재 · `--impl-done` `review/consistency/2026/09/13/11_33_51`
-      naming_collision **CRITICAL**). `guide-error-code-existence` 의 술어는 *"backend 소스에
+      naming_collision **CRITICAL**). `guide-identifier-existence`(리네임 전 `guide-error-code-*`) 의 술어는 *"backend 소스에
       UPPER_SNAKE 문자열로 존재하는가"* 다. `MAKESHOP_UNRESOLVED_PATH_PARAM` 은 존재하지만
       **`throw new Error('MAKESHOP_UNRESOLVED_PATH_PARAM: …')` 의 메시지 접두**일 뿐이고, catch
       (`makeshop.handler.ts:359`)가 `err instanceof IntegrationError ? err.code :
@@ -3388,10 +3398,20 @@ field: T | null;
       unresolved path placeholder(s): ...`"* 는 `makeshop.handler.ts:436` 의 템플릿 리터럴을
       **손으로 옮긴 것**이고 대조 가드가 없다 — 같은 PR 이 LLM 8갈래 문장에는 정확히 이 위험을
       막는 `guide-sanitized-message-parity` 를 만들었으면서 MakeShop 쪽엔 적용하지 않았다.
-      `guide-error-code-existence` 는 **토큰 존재**만 보므로 문구 drift 를 못 잡는다.
+      `guide-identifier-existence` 는 **토큰 존재**만 보므로 문구 drift 를 못 잡는다.
       > 형태는 이미 있다 — `guide-sanitized-message-parity` 의 "SoT 반환 리터럴 추출 후 양방향
       > 대조" 를 템플릿 접두로 일반화하면 된다. **선실측할 것**: 그 문구는 `${...}` 보간을
       > 포함하므로 8갈래 문장처럼 완전 일치로는 못 본다 — **접두까지만** 대조하는 축이 필요하다.
+
+- [ ] **`cafe24-api-metadata.md §4` 가 노드 출력 envelope 정의처를 오인용한다**
+      (**planner 항목** — developer 가 등재, 2026-09-13 · `--impl-prep`
+      `review/consistency/2026/09/13/12_33_41` convention_compliance WARNING#4).
+      §4 "용어 주의" 박스가 envelope 5필드 정의처를 **Principle 7** 로 적는데, 실제 정의는
+      `node-output.md` 의 **Principle 0** 소유다(Principle 7 은 config echo 전용).
+      인용한 필드 목록에 `status` 도 빠져 있다.
+      > **재넘버링 탓이 아니다** — checker 가 `git log -S` 로 확인한 결과 2026-05-16 작성
+      > 시점부터 오인용이다. 링크 무결성 가드는 평문 인용이라 못 잡는다.
+      > `#1331` 과 **무관한 선재 결함**이고 `spec/**` 이라 developer 권한 밖이다.
 
 - [ ] **두 keyset 커서 디코더의 실패 계약이 다르다 — 무시 vs 400** (developer, 2026-09-12
       등재 · `keyset-cursor-uuid-validation.md §C`). `auth/login-history.service.ts` 는 잘못된
@@ -3512,7 +3532,7 @@ field: T | null;
       > 커서 2곳(`#-` keyset-cursor-uuid-validation). 다음 사람이 같은 제안을 다시 하지 않도록
       > 근거를 남긴다.
 
-- [ ] **가이드가 적는 식별자(에러 코드·환경변수)가 실재하는지 세는 가드가 없다** (developer,
+- [x] **가이드가 적는 식별자(에러 코드·환경변수)가 실재하는지 세는 가드가 없다** (developer,
       2026-09-12 등재 · `/ai-review` `review/code/2026/09/12/20_53_01` testing WARNING).
       `#1328` 은 **두 결함 클래스**를 같은 배치에서 고쳤는데 가드는
       한쪽만 얻었다 — `ParseUUIDPipe` 누락은 AST 전수 가드(`param-uuid-pipe`)로 고정됐지만,
@@ -3523,8 +3543,29 @@ field: T | null;
       처분 제안: `content/docs/**` 의 UPPER_SNAKE 토큰이 backend 소스에 실재하는지 세는 경량
       가드. **비대상이 많다는 것이 설계의 핵심**이다(실측 97토큰 중 부재 17, 그중 진짜 결함은
       2클래스뿐 — 나머지는 프런트 전용 3 · 문서 플레이스홀더 6 · 외부 어휘 1 · 범주어 1).
-      허용목록으로 덮으면 은폐가 되므로, **판정 축을 "에러 코드/환경변수 문맥에 놓인 토큰"**
-      으로 좁히는 쪽이 맞다(백틱만 보면 안 된다 — 이번에 따옴표 형태를 놓쳤다).
+      ~~허용목록으로 덮으면 은폐가 되므로, **판정 축을 "에러 코드/환경변수 문맥에 놓인 토큰"**
+      으로 좁히는 쪽이 맞다(백틱만 보면 안 된다 — 이번에 따옴표 형태를 놓쳤다).~~
+      > **위 취소선: 이 처분 제안이 실측에 반증됐다.** `#1330` 이 정확히 그 제안대로
+      > 문맥으로 좁혔고(허용목록 없이 오탐 0 달성), 그 결과 **이 항목을 등재시킨 바로 그
+      > 과거 결함을 못 잡게 됐다** — `MCP_INSECURE_URL_ALLOWED` 는 `<FieldTable>` 의
+      > `description` 안에 있고 그 줄에 실패 어휘가 없어 세 축 전부 미포착이다(실측).
+      >
+      > *"백틱만 보면 안 된다"* 도 절반만 맞았다 — 따옴표 형태(축 1·2)는 **함께** 봐야 하는
+      > 것이지 백틱 대신 보는 것이 아니었다. `#1331` 은 셋을 모두 본다.
+      >
+      > 은폐 우려는 타당하지만, 대가가 **결함 클래스 전체**였다. 허용목록을 없애는 대신
+      > **깨뜨리기 어렵게** 만들었다 — 외부 시스템 이름 의무 · 상한 · 여전히 인용될 것 ·
+      > 기준집합에 없을 것. 넷 다 뮤턴트로 확인했고 은폐 시도 2종(실재 식별자 넣기 · 죽은
+      > 항목 쌓기)이 각각 RED 다.
+
+      > **해소** — `#1331`. `guide-identifier-existence`(리네임 전 `guide-error-code-*`)가
+      > 에러 코드 + 환경변수 두 축을 모두 덮는다. 기준집합 = 소스 토큰 ∪ env 선언처.
+      > 과거 결함 재현 테스트가 *"오기를 잡는다 / 정정된 이름은 통과한다 / `#1330` 술어였다면
+      > 놓쳤다"* 세 갈래로 고정돼 있다.
+      >
+      > **env 선언처 병합은 오늘 판정을 지탱하지 않는다**(뮤턴트가 내 예측을 반증했다) —
+      > 인용된 env 변수 8종이 전부 소스에도 있고, env-only 21종 중 인용은 0종이다. 내일의
+      > 오탐을 막으려 남겼고 그 전환 시점을 단언으로 고정했다.
 
 - [ ] **`15-chat-channel.md` §5.4 실패 응답 표에 `rotate-bot-token` 의 신규 400 행이 없다**
       (**planner 항목** — developer 가 등재, 2026-09-12 · `/ai-review` `20_26_58`
