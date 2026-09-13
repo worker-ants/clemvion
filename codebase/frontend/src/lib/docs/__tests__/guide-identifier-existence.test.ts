@@ -34,7 +34,8 @@ const NON_EMITTED_VOCABULARY_CAP = 5;
  * 대상이다. 후자는 `#1328` 이 손으로 고친 뒤 4개월간 아무도 몰랐던 클래스이고,
  * `#1330` 의 문맥-게이팅 축은 **그것을 못 잡았다**(스캐너 상단의 실측표).
  *
- * 가족·위치의 근거는 `spec/conventions/user-guide-evidence.md`. 자매
+ * 가족·위치의 근거는 `spec/conventions/user-guide-evidence.md` 인데 **이 가드는 아직
+ * 그 문서 §2 표에 없다**(등재는 planner 트래커 항목). 자매
  * `impl-anchor-existence.test.ts` 와 **방향이 같고(가이드 → 코드) 표면이 다르다**.
  */
 const root = repoRoot();
@@ -555,6 +556,31 @@ describe("collectSourceTokens — 경계 대조군", () => {
 
   it("[비대상] 밑줄 없는 약어는 안 센다", () => {
     expect([...collectSourceTokens(["const LLM = 1; const HTTP = 2;"])]).toEqual([]);
+  });
+});
+
+describe("resolveSourceLines — 유일성 가드", () => {
+  // `/ai-review`(`review/code/2026/09/13/21_41_23` testing WARNING#2): 라운드 6 이 넣은
+  // 캐시의 `found.length === 1` 가드에 **판별 fixture 가 없었다** — 리뷰어가 `>= 1` 로
+  // 바꾸는 뮤테이션으로 76/76 GREEN 생존을 관측했다.
+  //
+  // 내가 라운드 6 에 돌린 뮤턴트는 *"파일명을 없는 것으로"*(0건 분기)였고, **2건 이상**
+  // 분기는 겨누지 못했다. 이 파일이 네 번째로 밟는 «헬퍼 테스트 ≠ 호출부 테스트» 다.
+  //
+  // 다중 매치는 가상이 아니다 — `backend/src` 에 `index.ts` 가 **46개** 있다(실측).
+  // 등록이 늘어 그런 basename 을 가리키면 **조용히 엉뚱한 파일**을 읽게 된다.
+  it("[0건] 없는 basename 은 null", () => {
+    expect(resolveSourceLines("definitely-not-a-real-file.ts")).toBeNull();
+  });
+
+  it("[2건 이상] 다중 매치도 null — 아무거나 고르지 않는다", () => {
+    expect(resolveSourceLines("index.ts")).toBeNull();
+  });
+
+  it("[1건] 유일하면 줄 배열을 준다 (대조군)", () => {
+    const lines = resolveSourceLines("execution-engine.service.ts");
+    expect(lines).not.toBeNull();
+    expect(lines!.length).toBeGreaterThan(1000);
   });
 });
 

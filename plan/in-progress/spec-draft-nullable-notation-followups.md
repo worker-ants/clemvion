@@ -3443,7 +3443,7 @@ field: T | null;
       ✅ **2026-09-13 해소** — `(A) 문장 정정` 을 택했다(`logic{,.en}.mdx` KO/EN). 그리고
       같은 배치가 **가드로 고정**했다: `GUIDE_NON_EMITTED_VOCABULARY` 에 두 토큰을 등록해,
       누가 다시 *"이 코드로 실패해요"* 라고 쓰면 발행 축이 RED 를 낸다.
-      **실측 근거**: `execution-engine.service.ts:8016` 이 `nodeExec.error = { message }` 로
+      **실측 근거**: `execution-engine.service.ts:8017` 이 `nodeExec.error = { message }` 로
       기록한다 — `code` 필드가 **아예 없다**. 가이드의 *"전용 에러 코드는 없어요"* 는 정확하다.
       (developer, 2026-09-13 등재 · 위 항목의 술어 프로브가 부수적으로 찾았다).
       `02-nodes/logic{,.mdx,.en.mdx}` 가 *"…로 실행 실패해요"* 라고 적는데, 실제로는
@@ -3472,7 +3472,7 @@ field: T | null;
       > **발행 문자열 전문**을 인용한다(`` `CONTAINER_MISSING_EMIT: Container "<label>" has no
       > body node wired to …` ``). 형태를 새로 발명할 필요가 없고 형제 문서에 맞추면 된다.
       >
-      > **실측**: `execution-engine.service.ts:8016` 이 `nodeExec.error = { message }` —
+      > **실측**: `execution-engine.service.ts:8017` 이 `nodeExec.error = { message }` —
       > `code` 필드가 없다. 즉 6파일의 서술이 틀렸고 `3-loop.md` 가 맞다.
 
 - [ ] **`3-error-handling.md §1.4` 의 «앵커 없는 코드» 7종이 실제로는 메시지 접두다 — 카탈로그
@@ -3491,6 +3491,14 @@ field: T | null;
       > **탈출구**로 쓴다 — 그래야 `MAX_ITERATIONS_EXCEEDED` 가 통과한다. 다만 *"왜 이 둘만
       > 밖인가"* 는 여전히 무기재다.
       >
+      > **이 항목을 처분하면 `error-code-emission-axis` 의 가드 등록도 재검토 대상이다**
+      > (역참조 · `--impl-done` `review/consistency/2026/09/13/21_41_25` plan_coherence
+      > INFO#7). 그 배치의 forward-note 는 **그 plan 안에만** 있었는데 그 plan 은
+      > `complete/` 로 봉인되므로, 결정이 내려질 이쪽에 역참조가 없으면 **유실된다**:
+      > (a) 를 택해 `CONTAINER_*` 가 카탈로그에 들어오면 **카탈로그 탈출구가 그 둘을 구해**
+      > `GUIDE_NON_EMITTED_VOCABULARY` 등록 2건이 불필요해지고, 반대로 이 항목이 won't-do 로
+      > 닫히면 **탈출구 분기 자체가 죽은 코드**가 되어 대응 테스트 3건과 함께 제거 대상이다.
+
       > **같은 절(`3-error-handling.md §1`)을 겨냥하는 plan 이 이미 셋 있고 «한 턴에 묶어라»
       > 합의가 이 문서 위쪽에 있다** — 이 항목이 **넷째**다 (2026-09-13 · `--impl-done`
       > `review/consistency/2026/09/13/21_19_52` plan_coherence WARNING#4).

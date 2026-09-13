@@ -1,7 +1,13 @@
 // 유저 가이드가 이름으로 적은 **식별자가 실재하는가** 를 판정하는 순수 스캐너.
 // 테스트는 `guide-identifier-existence.test.ts`.
 //
-// SoT: spec/conventions/user-guide-evidence.md (가드 가족) · spec/conventions/error-codes.md
+// SoT: spec/conventions/error-codes.md (코드 명명·발행) ·
+//      spec/5-system/3-error-handling.md §1 (카탈로그)
+// 가드 «가족» 규약은 spec/conventions/user-guide-evidence.md 인데 **이 가드는 아직 그
+// 문서 §2 표에 없다**(실측: `grep -c guide-identifier` → 0). `#1330` 이 가족을 만든
+// 시점부터 그랬고 등재는 planner 몫으로 트래커에 있다 — 그래서 «SoT» 로 단정하지 않고
+// 여기 적는다 (`--impl-done` `review/consistency/2026/09/13/21_41_25`
+// convention_compliance WARNING#3: 인용이 착지하지 않는다).
 // (코드 명명·은퇴 이력) · spec/5-system/3-error-handling.md §1 (카탈로그).
 //
 // ## 왜 "에러 코드" 가 아니라 "식별자" 인가
