@@ -603,8 +603,8 @@ field: T | null;
 - [x] **`run-test.sh` 4단계가 타입체크 ratchet 을 안 돈다** (harness, 2026-09-06 등재,
       `#1292` CI 실패로 발각).
 
-      `PROJECT.md:40-41` 은 두 ratchet 을 *"backend/frontend `*.ts(x)` 변경 시"* 필수로
-      적는다. 그런데 `run-test.sh` 의 4단계(lint/unit/build/e2e)에는 **없다.** developer
+      등재 시점의 `PROJECT.md` 4단계 표는 두 ratchet 을 *"backend/frontend `*.ts(x)`
+      변경 시"* 별도 필수로 적었다. 그런데 `run-test.sh` 의 4단계(lint/unit/build/e2e)에는 **없다.** developer
       SKILL 의 TEST WORKFLOW 는 그 4단계를 강제하므로, **문서가 요구하는 검사를 워크플로가
       빠뜨린다.**
 
@@ -1895,7 +1895,8 @@ field: T | null;
 - [ ] **`PROJECT.md` §e2e 파일 위치 — self-spec 동반 헬퍼는 `src/shared/testing/`** (developer,
       2026-09-10 재배정. **원래 planner 후속 5건의 3번이었는데 역할 배정이 틀렸다**).
 
-      현 문면(`PROJECT.md:315`)은 `신규 헬퍼: codebase/backend/test/helpers/<name>.ts` 뿐이다.
+      현 문면(`PROJECT.md` §e2e 테스트 작성 가이드의 *"신규 헬퍼"* 줄)은
+      `codebase/backend/test/helpers/<name>.ts` 뿐이다.
       **그 자리에 두면 self-spec 이 어느 러너에도 안 걸려 죽은 테스트가 된다** — unit jest 는
       `rootDir: 'src'` 라 `test/` 를 스캔하지 않고, `test/jest-e2e.json` 은 `testRegex:
       '.e2e-spec.ts$'` 라 평범한 `*.spec.ts` 를 안 잡는다. 즉 `test/helpers/*.spec.ts` 는
@@ -3359,7 +3360,7 @@ field: T | null;
       > |---|---|---|---|---|---|
       > | 등재 시(라운드 3) | 361 | 260 | 84 | 17 | 72% |
       > | 라운드 8 checker 실측 | 601 | 418 | 156 | 27 | 70% |
-      > | 라운드 9 커밋 시점 | **622** | **439** | **156** | **27** | **71%** |
+      > | 라운드 8 커밋 시점 | **622** | **439** | **156** | **27** | **71%** |
       >
       > 코드는 84 → 156 (+72) 인데 주석이 260 → 439 (+179) 다. **비율은 거의 안 움직였고
       > 절대량이 1.7배**가 됐다 — 착수 조건을 «비율» 로 걸었으면 영영 발화하지 않았을
