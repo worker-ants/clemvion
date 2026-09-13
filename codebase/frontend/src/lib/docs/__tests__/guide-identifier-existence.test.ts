@@ -11,6 +11,7 @@ import {
   collectQuotedLiterals,
   collectMessagePrefixes,
   collectCatalogCodes,
+  isMessagePrefixOnly,
   GUIDE_EXTERNAL_VOCABULARY,
   GUIDE_NON_EMITTED_VOCABULARY,
   type CitationAxis,
@@ -45,6 +46,27 @@ const envExampleTexts = [
   ...readIfPresent("codebase/backend/.env.example"),
   ...readIfPresent("codebase/frontend/.env.example"),
 ];
+
+/**
+ * `where` 필드에서 `파일.ts:줄` 참조를 **전부** 뽑는다. `a.ts:10·20` 처럼 같은 파일의
+ * 여러 줄을 가운뎃점으로 잇는 표기도 받는다 — 실제 등록 항목이 그 형태를 쓴다.
+ */
+function parseWhereRefs(where: string): { file: string; line: number }[] {
+  const out: { file: string; line: number }[] = [];
+  for (const m of where.matchAll(/([\w./-]+\.ts):(\d+(?:·\d+)*)/g)) {
+    const file = m[1];
+    for (const n of m[2].split("·")) out.push({ file, line: Number(n) });
+  }
+  return out;
+}
+
+/** 목록의 모든 항목이 **여전히 가이드에 인용되는지**. 두 목록이 같은 판정을 쓴다. */
+function staleEntries(
+  list: readonly { token: string }[],
+  cited: ReadonlySet<string>,
+): string[] {
+  return list.filter((e) => !cited.has(e.token)).map((e) => e.token);
+}
 
 describe("유저 가이드 식별자 실재성 가드", () => {
   const mdxFiles = collectMdxFiles(root, "codebase/frontend/src/content/docs");
@@ -95,9 +117,9 @@ describe("유저 가이드 식별자 실재성 가드", () => {
     GUIDE_NON_EMITTED_VOCABULARY.map((e) => e.token),
   );
 
-  /** «메시지 접두로만» 등장한다 = 접두에 있고 토큰-단독 리터럴에는 없다. */
-  const isMessagePrefixOnly = (token: string): boolean =>
-    messagePrefixes.has(token) && !quotedLiterals.has(token);
+  /** 정본(`guide-identifier-scan.ts`)을 이 코퍼스에 묶은 얇은 래핑. */
+  const prefixOnly = (token: string): boolean =>
+    isMessagePrefixOnly(token, messagePrefixes, quotedLiterals);
 
   // ── vacuity floors ──────────────────────────────────────────────────────────
   it("코퍼스를 실제로 적재한다 (vacuity floor)", () => {
@@ -160,7 +182,7 @@ describe("유저 가이드 식별자 실재성 가드", () => {
   describe("발행 축 — 가이드가 «코드» 로 부르는 것이 코드인가", () => {
     it("접두 전용이면서 카탈로그에도 없는 인용은 **등록돼 있다** (베이스라인 0)", () => {
       const offenders = [...new Set(citations.map((c) => c.token))]
-        .filter(isMessagePrefixOnly)
+        .filter(prefixOnly)
         .filter((t) => !catalogCodes.has(t))
         .filter((t) => !registeredNonEmitted.has(t))
         .sort();
@@ -178,7 +200,7 @@ describe("유저 가이드 식별자 실재성 가드", () => {
       // 등록만 해 두고 실제로는 발행되기 시작하면 이 항목은 **거짓말**이 된다.
       // 그때 이 단언이 RED 로 알리고, 항목을 지우라는 신호가 된다.
       const notActuallyPrefixOnly = GUIDE_NON_EMITTED_VOCABULARY.filter(
-        (e) => !isMessagePrefixOnly(e.token),
+        (e) => !prefixOnly(e.token),
       );
       expect(notActuallyPrefixOnly.map((e) => e.token)).toEqual([]);
     });
@@ -200,34 +222,56 @@ describe("유저 가이드 식별자 실재성 가드", () => {
     });
 
     it("`where` 의 `파일:줄` 이 **실제로 그 토큰을 담는다** (프리텍스트 방지)", () => {
-      // `/ai-review`(`19_23_22` testing WARNING#6): `where` 가 단언 없는 산문이면
+      // `/ai-review`(`review/code/2026/09/13/19_23_22` testing WARNING#6):
+      // `where` 가 단언 없는 산문이면
       // 소스가 움직여도 아무도 모른다. 이 저장소는 자매 축(`impl-anchor-existence`)에서
       // 이미 grep 강제를 쓰고 있어 **이 목록만 예외였다**.
+      // **첫 판은 `.exec()` 단일 매치였다** — `where` 가 `파일:7121·7125` 처럼 **여러
+      // 위치**를 인용하면 **둘째부터 한 번도 검증되지 않았다**. 리뷰어가 둘째 줄 번호를
+      // 없는 값으로 바꾸는 뮤테이션으로 63/63 GREEN 을 관측해 증명했다
+      // (`review/code/2026/09/13/19_51_33` testing WARNING#2).
+      // 지금은 `where` 안의 **모든** 위치를 걷는다.
       const broken: string[] = [];
       for (const entry of GUIDE_NON_EMITTED_VOCABULARY) {
-        const m = /([\w./-]+\.ts):(\d+)/.exec(entry.where);
-        if (!m) {
+        const refs = parseWhereRefs(entry.where);
+        if (refs.length === 0) {
           broken.push(`${entry.token}: where 에 '파일.ts:줄' 이 없다 — ${entry.where}`);
           continue;
         }
-        const [, file, lineNo] = m;
-        const hits = walkTree(root, ["codebase/backend/src"], {
-          skipDir: (n) => n === "node_modules" || n === "dist" || n === "build",
-          includeFile: (n) => n === path.basename(file),
-        });
-        if (hits.length !== 1) {
-          broken.push(`${entry.token}: ${file} 이 ${hits.length}건`);
-          continue;
-        }
-        const lines = fs.readFileSync(hits[0].absPath, "utf8").split("\n");
-        const line = lines[Number(lineNo) - 1] ?? "";
-        if (!line.includes(entry.token)) {
-          broken.push(
-            `${entry.token}: ${file}:${lineNo} 에 토큰이 없다 — ${line.trim().slice(0, 60)}`,
-          );
+        for (const { file, line: lineNo } of refs) {
+          const hits = walkTree(root, ["codebase/backend/src"], {
+            skipDir: (n) => n === "node_modules" || n === "dist" || n === "build",
+            includeFile: (n) => n === path.basename(file),
+          });
+          if (hits.length !== 1) {
+            broken.push(`${entry.token}: ${file} 이 ${hits.length}건`);
+            continue;
+          }
+          const lines = fs.readFileSync(hits[0].absPath, "utf8").split("\n");
+          const src = lines[lineNo - 1] ?? "";
+          if (!src.includes(entry.token)) {
+            broken.push(
+              `${entry.token}: ${file}:${lineNo} 에 토큰이 없다 — ${src.trim().slice(0, 60)}`,
+            );
+          }
         }
       }
       expect(broken).toEqual([]);
+    });
+
+    it("[대조군] `parseWhereRefs` 가 `파일:줄·줄` 의 **모든** 위치를 낸다", () => {
+      // 위 단언이 «전부» 를 본다는 주장을 파서 단에서 고정한다 — 단일 매치로 되돌리는
+      // 뮤턴트가 여기서 바로 갈린다.
+      expect(parseWhereRefs("a.ts:10 — 설명")).toEqual([{ file: "a.ts", line: 10 }]);
+      expect(parseWhereRefs("a.ts:10·20 — 설명")).toEqual([
+        { file: "a.ts", line: 10 },
+        { file: "a.ts", line: 20 },
+      ]);
+      expect(parseWhereRefs("a.ts:10 · b.ts:30")).toEqual([
+        { file: "a.ts", line: 10 },
+        { file: "b.ts", line: 30 },
+      ]);
+      expect(parseWhereRefs("줄 번호 없는 산문")).toEqual([]);
     });
 
     it(`상한 ${NON_EMITTED_VOCABULARY_CAP}건을 넘지 않는다`, () => {
@@ -241,11 +285,10 @@ describe("유저 가이드 식별자 실재성 가드", () => {
 
     it("각 항목이 **여전히 가이드에 인용된다** (죽은 항목 누적 방지)", () => {
       // 거울상 목록의 같은 강제. 가이드 문장이 재작성돼 인용이 사라지면 항목도 지운다.
+      // **판정은 두 목록이 공유한다** — 직전 라운드에서 수집기 중복을 없애면서 이쪽에
+      // 같은 클래스의 중복을 새로 만들었다(`19_51_33` maintainability WARNING#4).
       const cited = new Set(citations.map((c) => c.token));
-      const stale = GUIDE_NON_EMITTED_VOCABULARY.filter(
-        (e) => !cited.has(e.token),
-      );
-      expect(stale.map((e) => e.token)).toEqual([]);
+      expect(staleEntries(GUIDE_NON_EMITTED_VOCABULARY, cited)).toEqual([]);
     });
 
     it(`[vacuity] 목록이 비면 위 3강제가 전부 무의미해진다`, () => {
@@ -260,13 +303,13 @@ describe("유저 가이드 식별자 실재성 가드", () => {
       // ↓ `execution-failure-classifier.ts:76` 의 **소비자 Set** 이 정확 리터럴로 인용한다.
       expect(quotedLiterals.has("MAX_ITERATIONS_EXCEEDED")).toBe(true);
       // ⇒ 접두-전용 단계에서 탈락하므로 **카탈로그 검사에 도달하지 않는다.**
-      expect(isMessagePrefixOnly("MAX_ITERATIONS_EXCEEDED")).toBe(false);
+      expect(prefixOnly("MAX_ITERATIONS_EXCEEDED")).toBe(false);
       // 카탈로그에 있는 것은 사실이지만 **통과 근거가 아니다.** 그 구분이 이 테스트다.
       expect(catalogCodes.has("MAX_ITERATIONS_EXCEEDED")).toBe(true);
 
       // 대조 — `CONTAINER_MISSING_EMIT` 는 소비자 인용이 없어 접두-전용으로 남고,
       // 카탈로그에도 없어 등록이 필요했다. 두 토큰이 갈리는 자리가 정확히 여기다.
-      expect(isMessagePrefixOnly("CONTAINER_MISSING_EMIT")).toBe(true);
+      expect(prefixOnly("CONTAINER_MISSING_EMIT")).toBe(true);
       expect(catalogCodes.has("CONTAINER_MISSING_EMIT")).toBe(false);
     });
 
@@ -281,7 +324,7 @@ describe("유저 가이드 식별자 실재성 가드", () => {
       // **언젠가 이 수가 0이 아니게 되면 이 단언이 RED 로 알린다** — 그때는 등록 항목을
       // 지울 수 있다는 신호다.
       const rescuedByCatalog = [...new Set(citations.map((c) => c.token))]
-        .filter(isMessagePrefixOnly)
+        .filter(prefixOnly)
         .filter((t) => catalogCodes.has(t));
       expect(rescuedByCatalog).toEqual([]);
     });
@@ -362,8 +405,7 @@ describe("유저 가이드 식별자 실재성 가드", () => {
 
     it("각 항목이 **여전히 가이드에 인용된다** (죽은 항목 누적 방지)", () => {
       const cited = new Set(citations.map((c) => c.token));
-      const stale = GUIDE_EXTERNAL_VOCABULARY.filter((e) => !cited.has(e.token));
-      expect(stale.map((e) => e.token)).toEqual([]);
+      expect(staleEntries(GUIDE_EXTERNAL_VOCABULARY, cited)).toEqual([]);
     });
 
     it("각 항목이 **기준집합에 없다** (우리 것이 되면 항목이 강제 제거된다)", () => {
@@ -474,6 +516,32 @@ describe("collectSourceTokens — 경계 대조군", () => {
  * **신규 3종만 없었다** — 실제 코퍼스 통계와 이름-하나짜리 회귀에만 의존했다.
  * 각 제약마다 **두 판정이 갈리는 값**을 고정한다.
  */
+describe("isMessagePrefixOnly — 진리표 대조군", () => {
+  // `/ai-review`(`review/code/2026/09/13/19_51_33` testing WARNING#3): 이 술어가 테스트
+  // 파일 안의 지역 클로저라 **진리표를 직접 겨눌 수 없었다**. AND 항을 지우는 뮤턴트는
+  // RED 를 내지만 *"offender 8종 폭증"* 이라는 뭉툭한 진단이고, `(F,T)`·`(F,F)` 는
+  // 실제 코퍼스에 없어 **어떤 테스트도 관측하지 않았다**.
+  const P = (p: string[], q: string[]) => (t: string) =>
+    isMessagePrefixOnly(t, new Set(p), new Set(q));
+
+  it("(접두 O, 리터럴 X) → true — 접두 전용", () => {
+    expect(P(["A_ONE"], [])("A_ONE")).toBe(true);
+  });
+
+  it("(접두 O, 리터럴 O) → false — 소비자·분류기가 인용한다", () => {
+    // 실제 코퍼스의 `MAX_ITERATIONS_EXCEEDED` 가 이 칸이다.
+    expect(P(["A_ONE"], ["A_ONE"])("A_ONE")).toBe(false);
+  });
+
+  it("(접두 X, 리터럴 O) → false — 평범한 발행 코드", () => {
+    expect(P([], ["A_ONE"])("A_ONE")).toBe(false);
+  });
+
+  it("(접두 X, 리터럴 X) → false — 이 축의 대상이 아니다", () => {
+    expect(P([], [])("A_ONE")).toBe(false);
+  });
+});
+
 describe("발행 축 수집기 — 경계 대조군", () => {
   describe("collectQuotedLiterals — 따옴표가 토큰만 감쌀 때", () => {
     it("세 따옴표 형태를 모두 받는다", () => {

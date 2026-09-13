@@ -427,6 +427,31 @@ export function collectCatalogCodes(specTexts: readonly string[]): Set<string> {
   return collectMatches(specTexts, CATALOG_CODE, 1);
 }
 
+/**
+ * 발행 축의 **핵심 술어** — *"이 토큰은 메시지 접두로만 등장하는가"*.
+ *
+ * 스캐너가 판정 로직을 소유한다는 존재 축의 관례에 맞춘다 — 처음엔 테스트 파일 안의 지역
+ * 클로저였고, 그래서 **진리표를 겨눈 대조군을 쓸 수 없었다**
+ * (`/ai-review` `review/code/2026/09/13/19_51_33` testing WARNING#3 · architecture INFO#1).
+ *
+ * | 접두에 있나 | 토큰-단독 리터럴이 있나 | 판정 |
+ * |---|---|---|
+ * | 예 | 아니오 | **`true`** — 접두 전용 |
+ * | 예 | 예 | `false` — 소비자·분류기가 인용한다(§`collectCatalogCodes` 주석) |
+ * | 아니오 | 예 | `false` — 평범한 발행 코드 |
+ * | 아니오 | 아니오 | `false` — 이 축의 대상이 아니다 |
+ *
+ * **두 인자를 분리해 받는 이유**는 각 조합을 합성 입력으로 직접 고정하기 위해서다. 하나로
+ * 묶으면 `(false, true)`·`(false, false)` 가 실제 코퍼스에 없어 영영 관측되지 않는다.
+ */
+export function isMessagePrefixOnly(
+  token: string,
+  messagePrefixes: ReadonlySet<string>,
+  quotedLiterals: ReadonlySet<string>,
+): boolean {
+  return messagePrefixes.has(token) && !quotedLiterals.has(token);
+}
+
 /** 한 MDX 본문에서 식별자 인용을 전부 걷는다. 같은 줄의 중복 축은 각각 보고된다. */
 export function scanIdentifierCitations(mdx: string): IdentifierCitation[] {
   const out: IdentifierCitation[] = [];
