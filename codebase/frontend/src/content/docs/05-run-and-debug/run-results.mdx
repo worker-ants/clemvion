@@ -167,7 +167,7 @@ Dashboard의 Recent Executions 위젯이나 Workflow List의 컨텍스트 메뉴
 ```json
 {
   "error": {
-    "code": "NODE_EXECUTION_FAILED",
+    "code": "LLM_TIMEOUT",
     "message": "Node 'AI Agent' failed: LLM connection timeout",
     "nodeId": "uuid-of-node",
     "nodeName": "AI Agent",
@@ -178,13 +178,22 @@ Dashboard의 Recent Executions 위젯이나 Workflow List의 컨텍스트 메뉴
 ```
 </Example>
 
-대표적인 에러 코드예요.
+**노드가 실패했을 때의 코드는 노드 종류를 따라가요** — "노드가 실패했다" 를 뭉뚱그리는 대표 코드는 없어요. 어떤 종류의 노드가 실패했는지가 코드의 앞머리에 그대로 드러나요.
+
+| 노드 종류 | 코드 |
+|---|---|
+| HTTP Request | `HTTP_TRANSPORT_FAILED` · `HTTP_4XX` · `HTTP_5XX` · `HTTP_BLOCKED` |
+| Database | `DB_QUERY_FAILED` · `DB_CONNECTION_ERROR` · `DB_CONSTRAINT_VIOLATION` · `DB_PERMISSION_DENIED` |
+| Email | `EMAIL_SEND_FAILED` |
+| AI · LLM | `LLM_CALL_FAILED` · `LLM_RATE_LIMIT` · `LLM_RESPONSE_INVALID` · `LLM_TIMEOUT` |
+| Code | `CODE_EXECUTION_FAILED` · `CODE_TIMEOUT` · `CODE_MEMORY_LIMIT` |
+| Sub-workflow | `SUB_WORKFLOW_FAILED` · `SUB_WORKFLOW_NOT_FOUND` · `SUB_WORKFLOW_TIMEOUT` |
+
+실행 전체(엔진) 수준에서 붙는 코드는 따로 있어요.
 
 <FieldTable rows={[
-  { name: "NODE_EXECUTION_FAILED", type: "실행", description: "노드 핸들러가 예외를 던졌을 때예요. `message`에 원인 요약이 들어가요." },
   { name: "EXECUTION_TIMEOUT", type: "타임아웃", description: "노드 또는 전체 워크플로우 실행 시간이 초과됐어요." },
   { name: "INVALID_EXPRESSION", type: "표현식", description: "표현식 평가 실패예요. 문법, null 접근, 타입 불일치를 확인해요." },
-  { name: "INTEGRATION_ERROR", type: "통합", description: "외부 연동 호출 실패예요. 인증·네트워크·응답 형식을 점검해요." },
   { name: "LLM_RATE_LIMIT", type: "LLM", description: "LLM 프로바이더 Rate Limit에 걸렸어요. 잠시 후 다시 시도하거나 Retry 정책을 켜요." },
   { name: "MAX_ITERATIONS_EXCEEDED", type: "반복", description: "Loop/ForEach 최대 반복 횟수를 넘었어요." },
   { name: "ERROR_PORT_FALLBACK", type: "폴백", description: "`Route to Error Port` 정책인데 error 포트에 연결된 연결선이 없어 Stop Workflow로 폴백된 경우예요." },

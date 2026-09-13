@@ -3138,7 +3138,7 @@ field: T | null;
       > 파이프 축만 닫았으면 둘이 남았을 것이다. 셋째는 `@ApiExcludeEndpoint()` 라 목록이
       > 아니라 **구조로** 면제한다.
 
-- [ ] **유저 가이드가 존재하지 않는 에러 코드 5종을 이름으로 적는다** (developer, 2026-09-12
+- [x] **유저 가이드가 존재하지 않는 에러 코드 5종을 이름으로 적는다** (developer, 2026-09-12
       등재 · 위 두 항목을 닫으며 돌린 **전수 스윕**이 발견). `content/docs/**` 의 UPPER_SNAKE
       토큰 97개 중 코드베이스 어디에도 없는 것이 17개인데, 그중 **에러 코드로 제시된** 것이
       다섯이다 — `LLM_AUTH_ERROR`·`LLM_MODEL_NOT_FOUND` (`06-integrations-and-config/
@@ -3159,11 +3159,75 @@ field: T | null;
       라고 명시 등재하고 있다(`/ai-review` `20_26_58` requirement WARNING 이 지목).
       처음엔 `LLM_AUTH_ERROR` 를 `LLM_AUTH_FAILED` 의 근접 오기로 진단했는데, 그러면
       **고칠 방향이 정반대**가 된다 — 가이드의 잘못은 철자가 아니라 **미구현 기능을 이미
-      나온 것처럼 서술한 것**이다. 처분은 "이름 치환" 이 아니라 *"수렴 코드
-      (`LLM_CONNECTION_ERROR`)를 적고 세분화는 Planned 로 표시"* 다.
+      나온 것처럼 서술한 것**이다. ~~처분은 "이름 치환" 이 아니라 *"수렴 코드
+      (`LLM_CONNECTION_ERROR`)를 적고 세분화는 Planned 로 표시"* 다.~~
       나머지 셋(`INTEGRATION_ERROR`·`NODE_EXECUTION_FAILED`·`MAKESHOP_API_ERROR`)은
       *"노드 에러 포트가 일반 실패에 무엇을 싣는가"* 를 **실측해야** 대응 코드가 정해진다.
       추측으로 치환하면 오기를 다른 오기로 바꾸는 것이다.
+      > **위 취소선: 그 처분이 내 실측에 반증됐다.** `LLM_CONNECTION_ERROR` 를 적는 것은
+      > 오기를 **다른 오기로** 바꾸는 것이었다 — 이 표가 서술하는 `POST /api/model-configs/
+      > :id/test` 는 **어떤 에러 코드도 내지 않는다**. `LlmService.testConnection` 은 HTTP 200
+      > 에 `{ success:false, message }` 를 싣고, 그 `message` 는 `sanitize-error.util.ts` 가
+      > 만든 **8갈래 고정 문장** 중 하나다. 표의 `type` 열(401/429/404)도 응답 상태가 아니라
+      > **provider 원문을 패턴 매칭하는 입력**이었다. 즉 틀린 것은 코드 이름이 아니라 **주어**다.
+      > `LLM_CONNECTION_ERROR` 는 실재하지만(실측 10건) 그것은 멀티턴 AI 실행 경로의 코드다.
+      > 트래커가 이 처분을 쓸 때 근거로 삼은 `7-llm-client.md:345` 는 참이다 — 다만 그 문장이
+      > 말하는 "클라이언트 계층" 이 이 엔드포인트가 아니었다. **등재 시점에 적어 둔
+      > 선행조건("실측해야 대응 코드가 정해진다")이 자기 처분을 잡았다.**
+
+      > **해소** — `#1330`. 다섯 중 **셋은 실재하는 코드였다**(실측: `LLM_RATE_LIMIT` 63건 ·
+      > `LLM_CONNECTION_ERROR` 10 · `LLM_TIMEOUT` 9) — 결함은 "없는 이름" 이 아니라 **엉뚱한
+      > 층에 붙인 귀속**이었다. 그래서 표를 고치는 게 아니라 **버렸다**: 사용자가 실제로 보는
+      > 8갈래 문장으로 바꾸고, 코드가 사는 곳(워크플로우 실행)으로 링크를 걸었다.
+      >
+      > **등재 문구보다 범위가 넓었다.** 트래커는 6파일을 지목했는데 이 다섯 토큰이 실린
+      > MDX 는 **9파일**이었다. 늘어난 셋(`discord`·`telegram`·`slack`)은 `LLM_TIMEOUT`·
+      > `LLM_RATE_LIMIT` 를 **맞게** 적고 있어 비대상이다 — 넓다고 다 고치면 맞는 것을
+      > 망가뜨린다. 후보마다 *"어느 층을 서술하나"* 를 물어 갈랐다.
+      >
+      > **§A 는 문서 결함이 아니라 런타임 결함이었다.** 서비스는 `error` 를, 선언 DTO 와
+      > 프런트엔드는 `message` 를 써서 실패 사유가 **화면에 한 글자도 도달하지 않았다**
+      > (토스트가 `"연결 실패: "` 로 비어 나갔다). 정본 검사기 `assertMatchesContract` 가
+      > 이 클래스를 위해 존재하는데 **이 엔드포인트에 배선이 없어서** 안 잡혔다. 배선하니
+      > 저장소의 검사기가 스스로 진단했다 — `error [undeclared]`.
+      > 덤으로 두 자매 DTO 의 `latencyMs` 는 **생산자 0건**이라 OpenAPI 가 없는 필드를
+      > 광고하고 있었고, 프런트엔드 테스트 하나는 그 **없는 필드를 픽스처로 지어내** 통과
+      > 중이었다(가이드가 코드를 지어낸 것과 같은 병이다).
+      >
+      > **가드로 고정**(`guide-error-code-existence`) — `user-guide-evidence.md` 의 가드
+      > 가족에 합류, 3축(FieldTable `name` · `code:` 값 · 실패 문맥 산문), 베이스라인 0,
+      > 허용목록 없음. 문맥 신호를 좁게 잡은 첫 판은 chat-channel 의 `executionFailed*` 키
+      > 표(6파일)를 통째로 놓쳤다(39종) — 실패 어휘를 넣어 66종, 부재는 그대로 0. 뮤테이션
+      > 전 16건 중 RED 12 · GREEN 4 이고 생존 넷은 전부 사유가 기록돼 있다(선언-쪽 변경은
+      > 런타임이 원리적으로 못 봄 · 의미 동등 no-op · 기준집합 축소/확대 2건은 기각 근거).
+
+- [ ] **`3-error-handling.md §1` 카탈로그가 통합·LLM 코드 계열을 통째로 누락한다**
+      (planner, 2026-09-13 등재 · `--impl-prep` `review/consistency/2026/09/13/01_15_40`
+      cross_spec WARNING#1·#2). 카탈로그에 `CAFE24_*`·`MAKESHOP_*`·`OAUTH_*` 계열이 한 줄도
+      없고, LLM 도메인 코드 둘(`LLM_CREDENTIALS_REQUIRED`·`LLM_MODEL_LIST_FAILED`)도 §1
+      미등재다. **`#1330` 의 §C 결함이 정확히 이 사각지대에서 났다** — 가이드가
+      `MAKESHOP_API_ERROR` 를 지어낼 때 대조할 카탈로그 행이 없었다.
+      실재 목록은 `backend/src/nodes/integration/makeshop/` 전수로 11종
+      (`MAKESHOP_404`·`422`·`4XX`·`5XX`·`AUTH_FAILED`·`RATE_LIMITED`·`TRANSPORT_FAILED`·
+      `MISSING_FIELDS`·`UNKNOWN_OPERATION`·`INVALID_SHOP_UID`·`UNRESOLVED_PATH_PARAM`).
+
+- [ ] **`testConnection` 실패 응답 shape 이 어느 spec 표에도 없다** (planner, 2026-09-13 등재 ·
+      `--impl-prep` `01_15_40` — **5개 checker 전원이 짚었다**). 형제 `/api/integrations/:id/test`
+      는 `2-navigation/4-integration.md §9.1` 에 `{success, code, message}` 로 실패 shape 이
+      문서화돼 있는데 `7-llm-client.md` 는 성공 케이스만 적혀 있다.
+      **앵커가 없으니 가이드가 지어냈다** — `#1330` 이 코드를 고쳤지만(HTTP 200
+      `{ success:false, message }`, `message` 는 `sanitizeLlmErrorMessage` 의 8갈래 중 하나)
+      spec 에 자리가 없으면 다음 사람이 같은 자리에서 또 지어낸다. 8갈래 문장 목록은
+      `codebase/backend/src/modules/llm/utils/sanitize-error.util.ts` 가 SoT.
+
+- [ ] **`user-guide-evidence.md §2.1` 관계표에 새 가드가 빠져 있다** (planner, 2026-09-13 등재 ·
+      `--impl-prep` `01_15_40` naming_collision WARNING#4·#5). `#1330` 이
+      `guide-error-code-existence.test.ts` 를 그 컨벤션의 가드 가족(`codebase/frontend/src/lib/
+      docs/__tests__/`)에 넣었는데, **§2 는 "가드 3건" 이라고 세고 §2.1 관계표에도 행이 없다.**
+      자매 `impl-anchor-existence` 와 **방향은 같고(가이드 → 코드) 표면이 다르다**
+      (자매는 `<ImplAnchor>` 의 `symbol`, 이쪽은 에러 코드 토큰) — 그 직교성이 관계표의 형식이다.
+      `spec/conventions/error-codes.md` 에는 **적지 않는다**: 그 문서가 소유 범위를
+      *명명원칙/rename/historical-artifact* 로 스스로 못박았다(`--impl-prep` 판정).
 
 - [ ] **두 keyset 커서 디코더의 실패 계약이 다르다 — 무시 vs 400** (developer, 2026-09-12
       등재 · `keyset-cursor-uuid-validation.md §C`). `auth/login-history.service.ts` 는 잘못된

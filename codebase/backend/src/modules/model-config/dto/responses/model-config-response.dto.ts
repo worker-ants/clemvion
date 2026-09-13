@@ -50,9 +50,10 @@ export class ModelTestConnectionResultDto {
   @ApiProperty()
   success: boolean;
 
-  @ApiPropertyOptional()
-  latencyMs?: number;
-
+  // `latencyMs` 는 **한 번도 발행되지 않았다** — 선언만 있고 생산자가 0건이라(실측)
+  // OpenAPI 가 없는 필드를 광고했다. 형제 `TestConnectionResultDto` 에도 같은 유령이 있었고
+  // 함께 걷어냈다. `assertMatchesContract` 는 **선언되지 않은 키**를 잡으므로 이 방향
+  // (선언됐지만 안 나가는 키)은 원리적으로 못 본다 — grep 이 유일한 검사다.
   @ApiPropertyOptional({ nullable: true })
   message?: string | null;
 

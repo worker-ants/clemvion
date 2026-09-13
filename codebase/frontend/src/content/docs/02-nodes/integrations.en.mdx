@@ -282,10 +282,12 @@ If this is your first time, register the integration from **sidebar → Integrat
 // success port
 { response: { product_id: "1001", product_name: "Sample product", … } }
 
-// error port
-{ error: { code: "MAKESHOP_API_ERROR", message: "…" } }
+// error port — the code follows MakeShop's response status
+{ error: { code: "MAKESHOP_404", message: "…" } }
 ```
 </Example>
+
+The error port's `code` splits by how the call failed — `MAKESHOP_404` · `MAKESHOP_422` · `MAKESHOP_4XX` · `MAKESHOP_5XX` by status, `MAKESHOP_AUTH_FAILED` for expired auth, `MAKESHOP_RATE_LIMITED` for throttling, and `MAKESHOP_TRANSPORT_FAILED` for network errors. The Cafe24 node works the same way; its list is in the [Cafe24 integration guide](/docs/06-integrations-and-config/cafe24).
 
 <Callout type="tip">
 If this is your first time, register the integration from **sidebar → Integrations → MakeShop** first. MakeShop integrations use an install-first flow: the integration stays in a pending state (pending_install) until the ShopStore app install completes and OAuth authentication finishes. The [MakeShop integration guide](/docs/06-integrations-and-config/makeshop) covers the full onboarding and how to expose the same integration as an MCP tool on an AI Agent node.

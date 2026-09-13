@@ -109,7 +109,7 @@ interval = min(retryInterval * backoffMultiplier ^ attempt, maxInterval)
 ```json
 {
   "error": {
-    "code": "NODE_EXECUTION_FAILED",
+    "code": "LLM_TIMEOUT",
     "message": "LLM connection timeout",
     "nodeId": "uuid-of-failed-node",
     "nodeType": "ai_agent",

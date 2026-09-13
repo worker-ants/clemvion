@@ -457,8 +457,9 @@ export class TestConnectionResultDto {
   @ApiProperty()
   success: boolean;
 
-  @ApiPropertyOptional()
-  latencyMs?: number;
+  // `latencyMs` 는 이 DTO 에서도 **발행 생산자가 0건**이었다(실측). 자매
+  // `ModelTestConnectionResultDto` 를 고치며 같은 유령을 함께 걷어낸다 — 한쪽만 고치면
+  // 같은 거짓 광고가 남는다.
 
   @ApiPropertyOptional({ nullable: true })
   message?: string | null;

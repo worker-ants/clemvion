@@ -2,6 +2,11 @@ import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { LlmService } from './llm.service';
 import { StubLlmClient } from './clients/stub.client';
 import { MAX_MODEL_LIST_SIZE } from './list-models-cap';
+import {
+  assertMatchesContract,
+  contractForDto,
+} from '../../shared/testing/response-contract';
+import { ModelTestConnectionResultDto } from '../model-config/dto/responses/model-config-response.dto';
 
 // ─── Shared test fixtures ────────────────────────────────────────────────────
 
@@ -447,8 +452,27 @@ describe('LlmService', () => {
       const result = await service.testConnection('config-1', 'ws-1');
       expect(result).toEqual({
         success: false,
-        error: 'Connection refused. Please check your endpoint URL.',
+        message: 'Connection refused. Please check your endpoint URL.',
       });
+    });
+
+    it('실패 응답이 선언 DTO 와 일치한다 (값 vs 선언)', async () => {
+      // **이 자리가 비어 있어서 3중 불일치가 살아 있었다.**
+      // 서비스는 `error` 를 내는데 `ModelTestConnectionResultDto` 는 `message`·`latencyMs` 를
+      // 선언하고, 프런트엔드는 `message` 를 읽는다 → 실패 토스트가 `"연결 실패: "` 로 비어
+      // 나갔다. `assertMatchesContract` 는 **선언되지 않은 키**를 잡으므로 이 결함의 정본
+      // 검사기인데 이 엔드포인트에 배선돼 있지 않았다(정적 `swagger-dto-contract` 는 선언 vs
+      // 선언이라 원리적으로 못 본다).
+      mockClient.testConnection.mockRejectedValue(
+        new Error('Connection refused'),
+      );
+
+      const result = await service.testConnection('config-1', 'ws-1');
+
+      assertMatchesContract(
+        result,
+        await contractForDto(ModelTestConnectionResultDto),
+      );
     });
 
     it('should sanitize 401 authentication errors', async () => {
@@ -459,7 +483,7 @@ describe('LlmService', () => {
       const result = await service.testConnection('config-1', 'ws-1');
       expect(result).toEqual({
         success: false,
-        error: 'Authentication failed. Please check your API key.',
+        message: 'Authentication failed. Please check your API key.',
       });
     });
 
@@ -471,7 +495,7 @@ describe('LlmService', () => {
       const result = await service.testConnection('config-1', 'ws-1');
       expect(result).toEqual({
         success: false,
-        error:
+        message:
           'Connection timed out. Please check your network or endpoint URL.',
       });
     });
@@ -484,7 +508,7 @@ describe('LlmService', () => {
       const result = await service.testConnection('config-1', 'ws-1');
       expect(result).toEqual({
         success: false,
-        error: 'Connection test failed. Please check your configuration.',
+        message: 'Connection test failed. Please check your configuration.',
       });
     });
 
@@ -530,7 +554,7 @@ describe('LlmService', () => {
       const result = await service.testConnection('emb-1', 'ws-1');
       expect(result).toEqual({
         success: false,
-        error: 'Authentication failed. Please check your API key.',
+        message: 'Authentication failed. Please check your API key.',
       });
     });
 

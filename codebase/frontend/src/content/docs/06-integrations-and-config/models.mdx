@@ -80,17 +80,31 @@ Workflow AI Assistant 와 AI Agent 의 토큰 단위 스트리밍 응답은 모�
   { name: "presence_penalty", type: "number", required: "선택", description: "새 토큰 유도. 기본 0.0." }
 ]} />
 
-### 연결 테스트와 에러 확인
+### 연결 테스트와 실패 메시지
 
-`Test Connection` 은 모델 목록을 가져오거나 최소 요청을 보내는 방식으로 동작해요. 실패 시 내려오는 에러 코드는 LLM 클라이언트가 정규화한 값이에요.
+`Test Connection` 은 저장된 자격증명으로 프로바이더에 최소 요청을 보내요. **이 버튼은 에러 코드를 돌려주지 않아요** — 실패하면 아래 여덟 문장 중 하나가 그대로 화면에 떠요. 프로바이더가 보낸 원문에는 키 조각·내부 엔드포인트가 섞일 수 있어서 그대로 보여주지 않고, 아래 문장으로 정규화해요.
 
-<FieldTable rows={[
-  { name: "LLM_AUTH_ERROR", type: "401", required: "-", description: "API 키가 잘못됐거나 만료됐어요." },
-  { name: "LLM_RATE_LIMIT", type: "429", required: "-", description: "속도 제한. 최대 3회 지수 백오프로 재시도해요." },
-  { name: "LLM_MODEL_NOT_FOUND", type: "404", required: "-", description: "기본 모델 ID가 프로바이더에 없어요." },
-  { name: "LLM_CONNECTION_ERROR", type: "-", required: "-", description: "Base URL · 방화벽을 확인해요." },
-  { name: "LLM_TIMEOUT", type: "-", required: "-", description: "120초를 넘은 경우에요." }
-]} />
+<ImplAnchor
+  kind="api-endpoint"
+  file="codebase/backend/src/modules/llm/llm-model-config.controller.ts"
+  symbol="testConnection"
+  describes="POST /api/model-configs/:id/test"
+/>
+
+| 화면에 뜨는 문장 | 무엇을 확인해요 |
+|---|---|
+| Authentication failed. Please check your API key. | API 키가 잘못됐거나 만료됐어요 |
+| Access denied. Please check your API key permissions. | 키는 유효하지만 이 모델·작업을 쓸 권한이 없어요 |
+| Model or endpoint not found. Please check your configuration. | 기본 모델 ID 나 Base URL 경로를 프로바이더가 모르는 이름으로 봐요 |
+| Rate limit exceeded. Please try again later. | 속도 제한에 걸렸어요. 잠시 후 다시 눌러요 |
+| Connection timed out. Please check your network or endpoint URL. | 응답이 오지 않았어요. 네트워크와 Base URL 을 확인해요 |
+| Connection refused. Please check your endpoint URL. | 그 주소·포트가 연결을 거부했어요. 로컬 모델 서버가 꺼져 있는 경우가 많아요 |
+| Could not resolve hostname. Please check your endpoint URL. | Base URL 의 호스트 이름을 찾지 못했어요. 오타·DNS 를 확인해요 |
+| Connection test failed. Please check your configuration. | 위 어디에도 해당하지 않는 실패예요 |
+
+<Callout type="info">
+  **에러 코드는 워크플로우 실행 쪽에 있어요.** AI 노드가 실행 중에 실패하면 `LLM_RATE_LIMIT` · `LLM_TIMEOUT` 같은 코드가 실행 결과에 남아요 — 그건 연결 테스트와 다른 경로예요. 코드 목록은 [실행 결과 보기](/docs/05-run-and-debug/run-results) 에서 봐요.
+</Callout>
 
 ---
 
