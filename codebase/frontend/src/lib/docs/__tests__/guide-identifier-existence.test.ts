@@ -182,11 +182,25 @@ describe("유저 가이드 식별자 실재성 가드", () => {
     it("[회귀] `#1330` 의 문맥-게이팅 축이었다면 **놓쳤다**", () => {
       // 이 케이스가 이 가드가 넓어진 이유다. 누가 다시 문맥으로 좁히면 위 "오기를 잡는다"
       // 가 RED 가 되는데, **왜** RED 인지는 여기 적혀 있어야 추적된다.
-      const CODE_CONTEXT =
+      //
+      // `#1330` 의 실패-문맥 게이트는 **지금 코드에 없다**(backtick 축이 대체했다). 정본이
+      // 없으므로 손 사본 말고는 재현할 방법이 없어 리터럴로 둔다 — 대신 이것이 "옛 판본" 임을
+      // 이름으로 못박는다.
+      const REMOVED_1330_CODE_CONTEXT =
         /error\.code|error code|에러 코드|\bfail(?:s|ed|ure)?\b|실패|\berror\b|오류|timed out|시간 초과|rate limit|요청 한도|returns \d{3}/i;
-      const FIELD_TABLE_NAME = /\{\s*name:\s*"([A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+)"/;
-      expect(CODE_CONTEXT.test(BROKEN)).toBe(false);
-      expect(FIELD_TABLE_NAME.exec(BROKEN)?.[1]).toBeUndefined();
+      expect(REMOVED_1330_CODE_CONTEXT.test(BROKEN)).toBe(false);
+    });
+
+    it("[회귀] `field-table` 축도 이 줄을 **못 잡는다** (정본 스캐너로 확인)", () => {
+      // 종전 판은 `FIELD_TABLE_NAME` 정규식을 이 파일에 **손으로 재복제**해 단언했다.
+      // `/ai-review`(`review/code/2026/09/13/16_28_47` maintainability INFO#6)가 그 사본이
+      // 조용히 낡을 수 있다고 지적했다 — 맞다. 그리고 이쪽 축은 `#1330` 의 문맥 게이트와
+      // 달리 **정본이 살아 있다**. 사본에 이름표를 붙이는 대신 **정본을 실행**한다:
+      // `UPPER_SNAKE` 정의가 바뀌면 이 단언이 함께 따라간다.
+      const axes = scanIdentifierCitations(BROKEN).map((h) => h.axis);
+      expect(axes).not.toContain("field-table");
+      // 대조군 — 이 단언이 "스캐너가 아무것도 안 잡아서" 참이 되는 것을 막는다.
+      expect(axes).toContain("backtick");
     });
   });
 });
@@ -268,6 +282,28 @@ describe("collectEnvDeclarations — 분기별 대조군", () => {
     expect([...collectEnvDeclarations(["lower_case=1\n"], [])]).toEqual([]);
   });
 
+  it("[한계] compose 리스트 스타일(`- KEY=value`)은 **오늘 안 받는다**", () => {
+    // `/ai-review`(`review/code/2026/09/13/16_28_47` requirement·testing INFO#2)가
+    // "지원도 없고 그것을 겨냥한 테스트도 없다" 고 지적했다. 전제를 직접 셌다 —
+    // 저장소 compose 두 파일에 리스트 스타일 **0건**, 매핑 스타일 66건.
+    //
+    // **넓히지 않고 미지원을 고정하는 쪽**을 택했다. 이 갭은 fail-closed 다 — 리스트
+    // 스타일이 생기면 그 변수가 기준집합에서 빠져 가이드 인용이 RED 가 난다(거짓 경보).
+    // 반대로 정규식을 넓히면 기준집합이 부풀어 **거짓 PASS** 방향으로 간다.
+    //
+    // 이 단언이 RED 로 뒤집히는 날은 누가 리스트 스타일 지원을 넣은 날이고, 그때
+    // 스캐너 JSDoc 의 "매핑 스타일만" 서술도 함께 고쳐야 한다는 신호가 된다.
+    const listStyle =
+      "services:\n  api:\n    environment:\n      - LIST_STYLE_VAR=1\n";
+    expect([...collectEnvDeclarations([], [listStyle])]).toEqual([]);
+    // 대조군 — 같은 이름을 매핑 스타일로 쓰면 받는다(두 판정이 갈리는 값).
+    const mapStyle =
+      "services:\n  api:\n    environment:\n      LIST_STYLE_VAR: 1\n";
+    expect([...collectEnvDeclarations([], [mapStyle])]).toEqual([
+      "LIST_STYLE_VAR",
+    ]);
+  });
+
   it("실제 `.env.example` 에도 주석 처리된 선언이 있다 (분기가 죽은 코드가 아니다)", () => {
     // 합성 단언만 있으면 "분기는 살아 있지만 코퍼스엔 없다" 를 구분 못 한다.
     const commented = envExampleTexts
@@ -328,6 +364,24 @@ describe("scanIdentifierCitations — 축별 대조군", () => {
     expect(tokens('{ "code": "REAL_ONE" }')).toEqual(["code-field:REAL_ONE"]);
     expect(tokens("{ error: { code: \"BARE_FORM\" } }")).toEqual([
       "code-field:BARE_FORM",
+    ]);
+  });
+
+  it("[설계] 하이픈 키(`x-code`)는 **의도적으로** 집는다 — 좁히지 말 것", () => {
+    // `/ai-review`(`review/code/2026/09/13/16_28_47` requirement INFO#1)가 축 라벨
+    // 오분류로 지적하며 경계를 `(?<![\w-])` 로 좁히자고 제안했다. **좁히는 쪽이 틀렸다.**
+    //
+    // 이 가드에서 과매치는 **fail-closed** 다 — 토큰이 `basis` 대조를 더 받을 뿐이다.
+    // 좁히면 그 토큰이 검사 자체를 안 받아 **거짓 PASS** 방향으로 간다. 게다가 HTTP 헤더
+    // 예시의 `x-code` 는 진짜 식별자를 담으므로 검사 대상인 것이 맞다.
+    //
+    // 이 대조군이 없으면 다음 사람이 INFO#1 을 "미완의 경계" 로 읽고 좁힌다 — 그리고
+    // 스위트는 **GREEN 인 채로** 구멍이 난다. 그래서 결정을 여기 못박는다.
+    expect(tokens('{ "x-code": "HYPHEN_ONE" }')).toEqual([
+      "code-field:HYPHEN_ONE",
+    ]);
+    expect(tokens('{ "status-code": "HYPHEN_TWO" }')).toEqual([
+      "code-field:HYPHEN_TWO",
     ]);
   });
 

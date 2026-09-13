@@ -69,9 +69,15 @@
 // **이 주석을 지우지 말 것.** 가드가 무엇을 보장하지 *않는지* 가 적혀 있지 않으면 다음
 // 사람이 "가드가 통과했으니 이 식별자는 실재한다" 로 읽는다.
 //
-// > **그리고 실제로 지워졌다 — `#1331` 이 이 파일을 재작성하면서.** 같은 문장을 쓴 사람이
-// > 한 PR 뒤에 그것을 지웠고, `/ai-review`(`review/code/2026/09/13/14_41_14`
-// > documentation WARNING#3)가 잡았다. 파일 **재작성**은 리네임·이동과 달리 diff 가
+// > **그리고 실제로 지워졌다 — 이 파일을 `guide-error-code-scan.ts` 에서 재작성하면서.**
+// > 같은 문장을 쓴 사람이 한 PR 뒤에 그것을 지웠고, `/ai-review`
+// > (`review/code/2026/09/13/14_41_14` documentation WARNING#3)가 잡았다.
+// >
+// > (이 자리에 **아직 열리지 않은 PR 번호**를 적었다가 라운드 6 에서 뺐다. 번호는 push
+// > 전에는 확정되지 않아 병렬 세션이 먼저 PR 을 열면 **남의 PR 을 가리킨다** — 검증 불가능한
+// > 단정이다. 바로 위 리뷰 세션 경로가 이미 확정된 앵커이므로 번호는 군더더기였다.)
+// >
+// > 파일 **재작성**은 리네임·이동과 달리 diff 가
 // > "삭제+생성" 으로 보여 **무엇이 사라졌는지가 눈에 안 띈다**. 다음에 이 파일을 재작성하면
 // > 먼저 옛 판본의 주석 절 목록을 뽑아 대조할 것.
 
@@ -83,10 +89,10 @@
 // | 정규식 | 경계 | 판정 |
 // |---|---|---|
 // | `FIELD_TABLE_NAME` | `\{\s*name:` — `{` 앵커 | 안전. `{ xname:` 은 `name:` 리터럴과 안 맞는다 |
-// | `CODE_FIELD` | `(?<!\w)` | **두 번 고쳤다** (아래 JSDoc) |
+// | `CODE_FIELD` | `(?<!\w)` | **두 번 고쳤다**. 하이픈 키는 의도적 과매치 (아래 JSDoc) |
 // | `BACKTICK` | 백틱 양쪽 | 안전. 구분자가 명시적이라 부분 매치 불가 |
 // | `collectSourceTokens` 의 `\b…\b` | 워드 경계 | 안전하되 **자기검증이 없었다** → 라운드 5 에서 대조군 추가 |
-// | `collectEnvDeclarations` 의 두 정규식 | `^` 행 앵커 | 안전. 줄 시작 고정 |
+// | `collectEnvDeclarations` 의 두 정규식 | `^` 행 앵커 | 안전. 줄 시작 고정. compose 는 **매핑 스타일만** (아래 JSDoc) |
 //
 // **`collectSourceTokens` 의 `\b` 가 없으면 기준집합이 부풀어 «거짓 PASS» 가 된다** —
 // `xMY_TOKEN` 안의 `MY_TOKEN` 까지 실재로 세므로, 가이드가 적은 가짜 토큰이 우연히 어떤
@@ -131,6 +137,23 @@ const FIELD_TABLE_NAME = new RegExp(`\\{\\s*name:\\s*"(${UPPER_SNAKE})"`, "g");
  * (`/ai-review` `review/code/2026/09/13/16_04_15` requirement WARNING#1 · 직접 재현).
  * 지금은 `(?<!\\w)` — 워드 문자(`[A-Za-z0-9_]`) 전체를 배제한다. 6갈래 실측 대조표에서
  * 불일치 **2건 → 0건**.
+ *
+ * **하이픈 키(`"x-code"`·`"status-code"`)는 «의도적으로» 걸린다.** `-` 는 `\\w` 가 아니라
+ * 왼쪽 경계를 통과한다(실측). `/ai-review`(`review/code/2026/09/13/16_28_47` requirement
+ * INFO#1)가 이것을 축 라벨 오분류로 지적했고 경계를 `(?<![\\w-])` 로 좁힐 것을 제안했는데,
+ * **좁히는 쪽이 틀렸다** — 8갈래로 직접 재현해 두 판본이 갈리는 자리를 특정했다:
+ *
+ * | 입력 | 현행 `(?<!\\w)` | 좁힌 `(?<![\\w-])` |
+ * |---|---|---|
+ * | `"code": "X_Y"` · `code: "X_Y"` | 매치 | 매치 |
+ * | `"mycode":` · `"error_code":` · `"http_code":` · `"statusCode":` | 미매치 | 미매치 |
+ * | `"x-code":` · `"status-code":` | **매치** | **미매치** ← 유일하게 갈리는 자리 |
+ *
+ * 이 가드에서 **과매치는 fail-closed 다** — 더 많은 토큰이 `basis` 대조를 받으므로 가짜
+ * 이름이 RED 를 낸다. 좁히면 그 토큰이 **검사 자체를 안 받는다**(거짓 PASS 방향). 게다가
+ * 가이드의 `x-code: "INTEGRATION_CALL_FAILED"` 같은 HTTP 헤더 예시는 진짜 식별자를 담으므로
+ * 검사 대상인 것이 맞다. 축 라벨만 `code-field` 로 붙을 뿐 **판정(`basis.has`)은 축과
+ * 무관하다**. 대조군이 이 결정을 고정한다 — 다음 사람이 "경계를 마저 좁히자" 로 읽지 않도록.
  */
 const CODE_FIELD = new RegExp(`(?<!\\w)"?code"?\\s*:\\s*"(${UPPER_SNAKE})"`, "g");
 
@@ -218,6 +241,18 @@ export function collectSourceTokens(fileTexts: readonly string[]): Set<string> {
  * `POSTGRES_PASSWORD` 나 `NEXT_PUBLIC_WS_URL` 을 적으면, 기준집합이 좁을 때 **실재하는
  * 변수에 RED** 가 난다. 즉 이 병합은 *오늘의 검출*이 아니라 *내일의 오탐*을 막는다.
  * 그 사실을 적어 두지 않으면 다음 사람이 "이 함수가 뭘 잡고 있지?" 를 추적하게 된다.
+ *
+ * **compose 는 매핑 스타일(`KEY: value`)만 읽는다 — 리스트 스타일(`- KEY=value`)은 못 읽는다.**
+ * `/ai-review`(`review/code/2026/09/13/16_28_47` requirement·testing INFO#2)가 지적했고
+ * 전제를 직접 셌다: 저장소의 compose 두 파일에 **리스트 스타일 0건**, 매핑 스타일 66건
+ * (`docker-compose.yml` 24 · `docker-compose.e2e.yml` 42). 그래서 오늘 판정에는 영향이 없다.
+ *
+ * 확장하지 않고 **현행 미지원을 대조군으로 고정**하는 쪽을 택했다. 이 갭의 방향이
+ * fail-closed 이기 때문이다 — 리스트 스타일이 생기면 그 변수가 기준집합에서 **빠져** 가이드
+ * 인용이 RED 가 난다(거짓 경보이지 거짓 PASS 가 아니다). 반대로 정규식을 넓히면 기준집합이
+ * 부풀어 **거짓 PASS 방향**으로 간다 — 이 파일 상단이 `collectSourceTokens` 에 대해 적은
+ * 것과 같은 이유다. 게다가 위쪽 vacuity floor 가 `POSTGRES_PASSWORD`(compose 주입 전용)를
+ * 단언하므로, 누가 compose 를 리스트 스타일로 바꾸면 **그 floor 가 먼저 RED** 로 알린다.
  */
 export function collectEnvDeclarations(
   envExampleTexts: readonly string[],
