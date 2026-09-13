@@ -307,17 +307,22 @@ export class LlmService implements OnModuleInit {
    *   probe 반환 벡터 길이를 감지 차원(`dimension`)으로 응답에 포함한다.
    *   차원 0 또는 빈 배열이면 `dimension` 필드를 생략한다.
    *
-   * @returns `{ success, dimension? }` — dimension 은 kind=embedding 이고 probe 성공 시만 포함.
+   * ## 실패 필드는 `message` 다
+   *
+   * 형제 `/api/integrations/:id/test` 가 이미 `{success, code, message}` 이고
+   * (`2-navigation/4-integration.md §9.1`), 이 응답은 HTTP 200 의 **결과 객체**라 에러 봉투
+   * (`{ error: { code, message } }`)와 이름이 겹치면 안 된다.
+   *
+   * 종전엔 `error` 였다. 선언 DTO 와 프런트엔드는 둘 다 `message` 를 보고 있어서 **실패
+   * 사유가 화면에 한 글자도 도달하지 않았다**(토스트가 `"연결 실패: "` 로 비어 나갔다).
+   *
+   * @returns 성공 시 `{ success: true }`, kind=embedding 이고 probe 가 차원을 감지하면
+   *   `{ success: true, dimension }`. 실패 시 `{ success: false, message }` — `message` 는
+   *   `sanitizeLlmErrorMessage` 의 8갈래 고정 문장 중 하나이며 provider 원문이 아니다.
    */
   async testConnection(
     configId: string,
     workspaceId: string,
-    // 실패 필드는 **`message`** 다 — 형제 `/api/integrations/:id/test` 가 이미
-    // `{success, code, message}` 이고(`2-navigation/4-integration.md §9.1`), 이 응답은 HTTP 200
-    // 의 **결과 객체**라 에러 봉투(`{ error: { code, message } }`)와 이름이 겹치면 안 된다.
-    //
-    // 종전엔 `error` 였다. 선언 DTO 와 프런트엔드는 둘 다 `message` 를 보고 있어서 **실패
-    // 사유가 화면에 한 글자도 도달하지 않았다**(토스트가 `"연결 실패: "` 로 비어 나갔다).
   ): Promise<{ success: boolean; message?: string; dimension?: number }> {
     try {
       // kind 무관 조회 — /models 통합 관리 UI 는 chat/embedding/rerank 어떤

@@ -220,4 +220,45 @@ error 포트 예시가 `{ error: { code: "MAKESHOP_API_ERROR" } }` 다. 실재�
       둘은 §D 설계에 반영(가드 위치·Planned 방침), 넷은 §E.
 - [x] E: planner 항목 3건 등재 (§1 카탈로그 누락 · `testConnection` shape 미문서 · §2.1 관계표)
 - [ ] `.claude/tools/run-test-all.sh`
-- [ ] `/ai-review` + `--impl-done`
+- [x] `/ai-review` (`review/code/2026/09/13/10_12_19` — 14 reviewer 전원, **Critical 0** ·
+      WARNING 5 · LOW) + `--impl-done spec/5-system/`
+      (`review/consistency/2026/09/13/10_12_54` — **BLOCK: NO** · Critical 0 · WARNING 5)
+
+## G. 리뷰 라운드 1 — 지적 10건 처분
+
+**가장 아픈 지적은 내 주장의 마지막 층이 비어 있었다는 것이다.** 이 PR 은 *"실패 사유가 화면에
+도달하지 않았다"* 를 고친다고 말하면서, 정작 그 문장을 **렌더링하는** 컴포넌트
+(`model-config-manager.tsx`)의 실패 경로 테스트가 **0건**이었다 — `success: true` 케이스만 셋.
+백엔드 계약 테스트도 API 클라이언트 픽스처 테스트도 그 파일을 로드하지 않으므로 그 공백을
+**원리적으로** 못 본다. 회귀 방지 체인의 마지막 고리가 없는 채로 "고쳤다" 고 적을 뻔했다.
+
+| 지적 | 처분 |
+|---|---|
+| testing W#2 — UI 실패 경로 무테스트 | **고침**. 실패 토스트가 사유를 포함해 호출됨을 **정확 문자열**로 단언 + 사유가 빈 경우 대조군. 뮤턴트(컴포넌트를 다시 `result.error` 로)에 RED 확인 |
+| architecture W#1 — 8갈래 문장이 수기 사본이라 무가드 | **고침**. `guide-sanitized-message-parity.test.ts` 신설 — SoT 반환 리터럴 8개를 텍스트로 추출해 `models{,.en}.mdx` 표와 **양방향** 대조(표→SoT · SoT→표). 뮤턴트 2건 RED |
+| api_contract W#3 — 형제 DTO 가 `code` 미선언 | **부분 고침**. `code?: string` 선언(26곳 발행 · spec §9.1 이 이미 문서화). MCP 전용 3종은 DTO 신설이 필요해 트래커 등재 |
+| maintainability W#4 — 시그니처 중간 6줄 주석 | **고침**. JSDoc 으로 이동 + `@returns` 에 실패 shape 명기 |
+| maintainability W#5 — `collectBackendTokens(files)` 오명명 | **고침** → `fileTexts`(값은 파일 **내용**) |
+| cross_spec W#1 — `LLM_RATE_LIMIT` 이 두 표에 중복 | **고침**. **내가 이 라운드에 만든 자기모순**이다 — 2단 구조를 도입하면서 노드 표에 넣고 엔진 표에서 지우지 않았다. spec §1.4 엔진 표에도 없다 |
+| rationale W#2 — `nodeName` 잔존 | **고침** → `nodeLabel`. spec §2.2 가 2026-08-17 에 이미 정정했고, 실측 재확인(backend emit `nodeName` 0 · `nodeLabel` 57). **바로 옆 `code` 를 고치면서 지나쳤다** |
+| plan_coherence W#3 — 같은 절 겨냥 plan 3건 상호 참조 부재 | **고침**. 내 등재 항목에 나머지 둘의 파일·줄을 실측해 병기 |
+| INFO#7 — `api-endpoint` 분기 주석이 낡음 | **고침**. *"아직 실사례 없음"* 이 이 PR 의 앵커로 깨졌다. 다만 실 콘텐츠 커버리지는 **우연**이라 합성 케이스는 남긴다고 적었다 |
+| INFO#9 — 축 1 이 줄 단위라 여러 줄 행은 놓침 | **경계를 테스트로 고정**. 놓치는 것 자체를 단언해 다음 사람이 추적하지 않게 |
+
+세 지적(`--impl-done` W#4·W#5 · 그리고 W#3 의 spec 편집분)은 **이미 planner 등재분**이라 무조치.
+
+- [x] 리뷰 라운드 1 처분 후 뮤테이션 3건 — 전부 RED (원 결함 재도입 · SoT 변경 · 표 행 삭제)
+
+### 정지 규칙 (라운드 2 **결과를 보기 전에** 선언)
+
+라운드 1 은 `codebase/**` 를 고쳤으니 리뷰 시계가 낡았다 — 한 라운드 더 돈다. 종료 조건:
+
+- **Critical 0** 이고, 모든 발견이 (a) 이미 planner 등재분이거나 (b) `plan/**`·`review/**` 만
+  고쳐서 닫히는 것 — 즉 **`codebase/**` 수정 0 으로 끝나는 라운드**.
+- 라운드 2 가 새 `codebase/**` 발견을 내면 고치고 라운드 3.
+- 라운드 3 이 또 `codebase/**` 발견을 내되 그 성격이 **주석·문서**면(동작·구조가 아니면)
+  고치지 않고 등재하고 멈춘다 — 그 지점부터는 수렴이 아니라 무한 루프다.
+
+근거: `#1308` 이 같은 자리에서 4라운드를 돌았고, 그때 배운 것이 *"발견 0"이 아니라 **발견의
+성격**(동작→구조→문서)으로 판단하라* 다. 라운드 1 의 발견은 이미 동작(UI 무테스트)→구조
+(가드 부재)→문서(주석 낡음) 순으로 내려왔다.

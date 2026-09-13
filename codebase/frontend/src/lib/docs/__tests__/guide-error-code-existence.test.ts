@@ -118,6 +118,14 @@ describe("scanErrorCodeCitations — 축별 대조군", () => {
     expect(codes('{ name: "max_tokens", type: "integer" }')).toEqual([]);
   });
 
+  it("[경계] 축 1 은 줄 단위라 여러 줄로 쪼갠 행은 놓친다", () => {
+    // **놓치는 것을 단언한다** — 오늘 코퍼스는 전부 한 줄 스타일이라(실측) 실질 위험은
+    // 낮지만, 이 한계가 어디인지 코드로 적혀 있지 않으면 다음 사람이 "왜 안 걸렸지" 를
+    // 추적하게 된다. 넓히려면 이 케이스가 먼저 RED 로 뒤집힌다.
+    const split = '{\n  name: "MADE_UP_CODE",\n  type: "x"\n}';
+    expect(codes(split)).toEqual([]);
+  });
+
   it("축 2 — 봉투 예시의 code 값을 집는다 (따옴표 유무 무관)", () => {
     expect(codes('    "code": "MADE_UP_CODE",')).toEqual([
       "code-field:MADE_UP_CODE",

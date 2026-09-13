@@ -51,7 +51,14 @@ export interface ErrorCodeCitation {
 /** UPPER_SNAKE — 밑줄이 **최소 하나** 있어야 한다(`LLM`·`HTTP` 같은 약어 제외). */
 const UPPER_SNAKE = "[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+";
 
-/** 축 1 — `<FieldTable rows={[{ name: "CODE", … }]} />` 의 객체 리터럴 키. */
+/**
+ * 축 1 — `<FieldTable rows={[{ name: "CODE", … }]} />` 의 객체 리터럴 키.
+ *
+ * **판정은 줄 단위다.** 오늘 코퍼스의 `<FieldTable>` 행은 전부 한 줄 스타일이라(실측)
+ * 이것으로 충분하지만, 훗날 누가 한 행을 여러 줄로 쪼개면 `{ name:` 과 `"CODE"` 가 갈려
+ * **조용히 빠진다**. 아래 대조군이 그 경계를 양성으로 고정한다 — 놓친다는 사실 자체를
+ * 테스트로 적어 두면 다음 사람이 "왜 안 걸렸지" 를 추적하지 않는다.
+ */
 const FIELD_TABLE_NAME = new RegExp(`\\{\\s*name:\\s*"(${UPPER_SNAKE})"`, "g");
 
 /** 축 2 — 예시 코드펜스의 `"code": "CODE"` / `code: "CODE"`. */
@@ -144,10 +151,10 @@ export function scanErrorCodeCitations(mdx: string): ErrorCodeCitation[] {
  * `readonly code`) **상당수는 앵커 없는 맨 문자열**이다. enum 만 기준으로 삼으면 실재하는
  * 코드를 가이드가 적었는데 RED 가 뜬다 — 가드가 자기 사각지대를 결함으로 신고하는 형태다.
  */
-export function collectBackendTokens(files: readonly string[]): Set<string> {
+export function collectBackendTokens(fileTexts: readonly string[]): Set<string> {
   const rx = new RegExp(`\\b(${UPPER_SNAKE})\\b`, "g");
   const tokens = new Set<string>();
-  for (const text of files) {
+  for (const text of fileTexts) {
     rx.lastIndex = 0;
     let m: RegExpExecArray | null;
     while ((m = rx.exec(text)) !== null) {

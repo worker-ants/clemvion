@@ -160,7 +160,7 @@ A failed node's Error tab is shaped like this:
     "code": "LLM_TIMEOUT",
     "message": "Node 'AI Agent' failed: LLM connection timeout",
     "nodeId": "uuid-of-node",
-    "nodeName": "AI Agent",
+    "nodeLabel": "AI Agent",
     "nodeType": "ai_agent",
     "executionId": "uuid-of-execution"
   }
@@ -184,7 +184,6 @@ Codes attached at the run (engine) level are separate:
 <FieldTable rows={[
   { name: "EXECUTION_TIMEOUT", type: "Timeout", description: "Per-node or overall workflow timeout exceeded." },
   { name: "INVALID_EXPRESSION", type: "Expression", description: "Expression evaluation failed. Check syntax, null access, or type mismatches." },
-  { name: "LLM_RATE_LIMIT", type: "LLM", description: "Hit the LLM provider's rate limit. Wait and retry, or enable a Retry policy." },
   { name: "MAX_ITERATIONS_EXCEEDED", type: "Iteration", description: "Exceeded a Loop/ForEach max iteration count." },
   { name: "ERROR_PORT_FALLBACK", type: "Fallback", description: "Route to Error Port was configured but no edge connected — auto-fell back to Stop Workflow." },
   { name: "RETRY_STATE_NOT_FOUND", type: "Retry", description: "The retry window has expired (default 60 min) or the retry has already been used. Run the workflow again." },

@@ -3210,6 +3210,17 @@ field: T | null;
       실재 목록은 `backend/src/nodes/integration/makeshop/` 전수로 11종
       (`MAKESHOP_404`·`422`·`4XX`·`5XX`·`AUTH_FAILED`·`RATE_LIMITED`·`TRANSPORT_FAILED`·
       `MISSING_FIELDS`·`UNKNOWN_OPERATION`·`INVALID_SHOP_UID`·`UNRESOLVED_PATH_PARAM`).
+      > **같은 절을 겨냥하는 plan 이 셋이다 — 한 턴에 묶어라** (`--impl-done`
+      > `review/consistency/2026/09/13/10_12_54` plan_coherence WARNING#3). 실측으로 확인한
+      > 나머지 둘:
+      > - `spec-update-node-cancellation-shutdown-classification.md:632` — `OAUTH_STATE_MISMATCH`
+      >   (400) 를 **§1.2** 에 등재 + `data-flow/2-auth.md` 상호링크
+      > - `keyset-cursor-uuid-validation.md:128` — Background Runs 4종
+      >   (`INVALID_CURSOR`·`INVALID_LIMIT`·`EXECUTION_NOT_FOUND`·`BACKGROUND_RUN_NOT_FOUND`)
+      >   을 **§1** 에 등재. 같은 파일 `:130` 은 §1.6 각주와 §1.9 기준의 불일치도 지목한다
+      >
+      > 셋이 **서로를 모르고** 절 번호·서브섹션 위치를 제각각 제안하고 있다. 따로 처리하면
+      > 카탈로그 구조가 세 번 갈린다 — planner 턴에서 §1 하위 구조를 한 번에 정해야 한다.
 
 - [ ] **`testConnection` 실패 응답 shape 이 어느 spec 표에도 없다** (planner, 2026-09-13 등재 ·
       `--impl-prep` `01_15_40` — **5개 checker 전원이 짚었다**). 형제 `/api/integrations/:id/test`
@@ -3228,6 +3239,22 @@ field: T | null;
       (자매는 `<ImplAnchor>` 의 `symbol`, 이쪽은 에러 코드 토큰) — 그 직교성이 관계표의 형식이다.
       `spec/conventions/error-codes.md` 에는 **적지 않는다**: 그 문서가 소유 범위를
       *명명원칙/rename/historical-artifact* 로 스스로 못박았다(`--impl-prep` 판정).
+
+- [ ] **`/api/integrations/:id/test` 의 MCP 전용 응답 필드 3종이 미선언 + 계약 검증자 미배선**
+      (developer, 2026-09-13 등재 · `/ai-review` `review/code/2026/09/13/10_12_19`
+      api_contract WARNING#3 의 잔여분). `#1330` 이 같은 DTO 에 `code?: string` 을 넣어 **가장
+      넓은 미선언**(26곳 발행, spec §9.1 이 이미 문서화)을 닫았지만, `IntegrationTestResult` 의
+      `capabilities`·`serverInfo`·`preview` 는 여전히 `TestConnectionResultDto` 선언 밖이다.
+      셋은 `service_type='mcp'` 전용이고 타입이 무거워(`ServerCapabilities`·`ServerInfo`·
+      `ConnectionPreview`) DTO 클래스를 새로 세워야 하므로 한 줄로 끝나지 않는다.
+      **함께 할 일**: 이 엔드포인트에 `assertMatchesContract` 배선. `#1330` 이 자매
+      `/api/model-configs/:id/test` 에서 겪은 대로 **배선이 없으면 이 불일치는 런타임으로도
+      안 잡힌다** — 지금 남은 셋은 정적 grep 으로만 보인다.
+      > **`meta?` 는 같은 라운드에 측정해 닫았다** — DTO 에만 있고 `IntegrationTestResult` 에는
+      > 없다(이 DTO 의 소비 엔드포인트는 하나뿐이고 그 핸들러 반환 타입 전수 확인). 즉
+      > `latencyMs` 와 같은 유령이라 **추가가 아니라 제거**가 답이었고 `#1330` 이 제거했다.
+      > 남은 셋은 반대로 **생산자가 있는데 선언이 없는** 방향이다 — 두 방향이 한 DTO 에
+      > 섞여 있었다.
 
 - [ ] **두 keyset 커서 디코더의 실패 계약이 다르다 — 무시 vs 400** (developer, 2026-09-12
       등재 · `keyset-cursor-uuid-validation.md §C`). `auth/login-history.service.ts` 는 잘못된

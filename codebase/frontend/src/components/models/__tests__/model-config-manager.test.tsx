@@ -467,6 +467,59 @@ describe("ModelConfigManager — embedding connection test dimension auto-detect
     cleanup();
   });
 
+  // ── 연결 실패 토스트 — **이 PR 이 고친 증상이 바로 여기서 보인다** ─────────────
+  //
+  // 백엔드가 `error`, 선언 DTO·API 클라이언트가 `message` 를 쓰던 동안 이 자리의
+  // `result.message ?? ""` 가 빈 문자열을 집어 토스트가 `"Connection failed: "` 로
+  // **콜론 뒤가 비어** 나갔다. 그런데 이 컴포넌트의 테스트는 `success: true` 케이스만
+  // 셋 갖고 있었다 — 즉 사용자-가시 증상이 있는 층에 실패 경로 테스트가 **0건**이었고,
+  // 백엔드 계약 테스트·API 클라이언트 픽스처 테스트는 이 파일을 로드하지 않으므로
+  // 그 공백을 **원리적으로** 못 본다.
+  it("failed test surfaces the reason in the toast (not an empty suffix)", async () => {
+    getAllMock.mockResolvedValue(EMBEDDING_CONFIG_NO_DIM);
+    testConnectionMock.mockResolvedValue({
+      success: false,
+      message: "Authentication failed. Please check your API key.",
+    });
+    const { toast } = await import("sonner");
+
+    await act(async () => {
+      render(<ModelConfigManager kind="embedding" />, {
+        wrapper: createWrapper(),
+      });
+    });
+
+    fireEvent.click(await screen.findByText("Test"));
+
+    await waitFor(() => {
+      expect(toast.error).toHaveBeenCalledWith(
+        "Connection failed: Authentication failed. Please check your API key.",
+      );
+    });
+    // 실패 경로는 차원 저장까지 가지 않는다 — 성공 케이스와 갈리는 지점.
+    expect(updateMock).not.toHaveBeenCalled();
+  });
+
+  // 대조군 — 이름이 어긋나면 접미가 빈다. 위 단언이 `stringContaining("Connection failed")`
+  // 같은 느슨한 형태였다면 **버그가 있는 채로도 통과**했다(그게 종전 상태다).
+  it("[대조군] 사유 필드가 비면 토스트 접미도 빈다", async () => {
+    getAllMock.mockResolvedValue(EMBEDDING_CONFIG_NO_DIM);
+    testConnectionMock.mockResolvedValue({ success: false });
+    const { toast } = await import("sonner");
+
+    await act(async () => {
+      render(<ModelConfigManager kind="embedding" />, {
+        wrapper: createWrapper(),
+      });
+    });
+
+    fireEvent.click(await screen.findByText("Test"));
+
+    await waitFor(() => {
+      expect(toast.error).toHaveBeenCalledWith("Connection failed: ");
+    });
+  });
+
   it("persists detected dimension and shows it in the toast on successful test", async () => {
     getAllMock.mockResolvedValue(EMBEDDING_CONFIG_NO_DIM);
     testConnectionMock.mockResolvedValue({ success: true, dimension: OPENAI_SMALL_DIM });
