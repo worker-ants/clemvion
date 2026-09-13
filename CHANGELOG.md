@@ -56,10 +56,24 @@
   노드 종류별 코드표(HTTP·DB·Email·LLM·Code·Sub-workflow)로 바꿨다.
 - **통합 노드 가이드** — `MAKESHOP_API_ERROR` → `MAKESHOP_404` + 실재 코드 계열 설명.
 
-**`guide-error-code-existence` 가드 추가** (`codebase/frontend/src/lib/docs/__tests__/`,
-`spec/conventions/user-guide-evidence.md` 의 가드 가족). 가이드가 에러 코드 문맥에서 이름을
-적으면 그 이름이 backend·packages 소스에 실재해야 한다 — 3축(`<FieldTable>` 의 `name` ·
-`code:` 값 · 실패 문맥 산문), 베이스라인 0, **허용목록 없음**.
+- **실행 결과 가이드**에 SSRF 차단 코드 2종(`DB_HOST_BLOCKED`·`EMAIL_HOST_BLOCKED`)을 비롯한
+  5종을 보강했다. 종전 표가 spec 카탈로그 대비 이들을 빠뜨려, 사용자가 차단을 만나도 가이드에서
+  찾을 수 없었다.
+- **통합 노드 가이드**의 MakeShop error 포트 설명에 *"경로 변수 미해결에는 전용 코드가 없다"*
+  는 `<Callout>` 을 넣었다 — `code` 는 공용 `INTEGRATION_CALL_FAILED` 이고 어느 자리가 비었는지는
+  `message` 접두로 알 수 있다.
+
+**가드 2건 추가** (`codebase/frontend/src/lib/docs/__tests__/`,
+`spec/conventions/user-guide-evidence.md` 의 가드 가족):
+
+- `guide-error-code-existence` — 가이드가 에러 코드 문맥에서 적은 이름이 backend·packages
+  소스에 실재해야 한다. 3축(`<FieldTable>` 의 `name` · `code:` 값 · 실패 문맥 산문),
+  베이스라인 0, **허용목록 없음**.
+  **한계**: *존재* 검사이지 *방출* 검사가 아니다 — 에러 **메시지 접두**로만 쓰이는 토큰도
+  통과한다. 이 PR 안에서 실제로 한 건을 통과시켰고(`--impl-done` 이 CRITICAL 로 잡았다) 그
+  사유와 후속 축을 가드 주석·트래커에 적었다.
+- `guide-sanitized-message-parity` — 가이드가 옮겨 적은 실패 문장이 `sanitize-error.util.ts`
+  의 반환 리터럴 8갈래와 **양방향**(표→SoT · SoT→표) 일치해야 한다.
 
 ## Unreleased — **Behavior change**: 잘못된 커서가 500 이 아니라 각 엔드포인트의 기존 실패 계약을 따른다
 

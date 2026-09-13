@@ -3356,6 +3356,43 @@ field: T | null;
       `assertMatchesContract` 뿐**이다 — 봉투를 만지는 인터셉터가 끼어도 못 본다.
       위 "MCP 전용 3종 미선언" 항목은 **서비스 레벨 축**이라 이 와이어 축을 덮지 않는다.
 
+- [ ] **`4-cafe24.md §6`·`5-makeshop.md §6` 도메인 에러 코드 카탈로그가 `*_UNRESOLVED_PATH_PARAM`
+      을 누락한다** (planner, 2026-09-13 등재 · `--impl-done`
+      `review/consistency/2026/09/13/11_33_51` cross_spec WARNING#1, `12_01_01` 재확인).
+      두 handler(`makeshop.handler.ts:435` · `cafe24.handler.ts:453`)가 이 이름을 쓰는데 각
+      도메인 spec 의 §6 에러 코드 표에는 없다.
+      > **다만 등재 전에 판정할 것이 있다** — `#1330` 이 실측했듯 이 이름은 **`.code` 로 방출되지
+      > 않는다**(일반 `Error` 의 메시지 접두, catch 가 `INTEGRATION_CALL_FAILED` 로 수렴).
+      > 그러니 §6 표에 **그냥 한 줄 더하면 거짓이 된다**. 선택지는 둘:
+      > (A) *"메시지 접두이며 `code` 는 `INTEGRATION_CALL_FAILED`"* 를 명시해 등재, 또는
+      > (B) handler 를 `IntegrationError` 로 바꿔 진짜 코드로 만든 뒤 등재(동작 변경).
+      > 위 "CAFE24_UNRESOLVED_PATH_PARAM 도 같은 형태" 항목과 **한 턴에** 처리해야 한다 —
+      > 따로 하면 spec 과 코드가 서로 다른 답을 갖는다.
+
+- [ ] **`PreviewTestResultDto` 도 `code` 를 미선언한다 — 같은 클래스의 세 번째 DTO**
+      (developer, 2026-09-13 등재 · `/ai-review` `review/code/2026/09/13/12_00_32`
+      api_contract WARNING#1). `#1330` 이 형제 `TestConnectionResultDto` 에 `code?: string` 을
+      넣었는데, **같은 파일의 preview 쌍둥이**는 그대로다 — `dispatchTest`/`testEmailTransport`/
+      `testMcpTransport` 가 `EMAIL_HOST_BLOCKED`·`EMAIL_CONNECT_FAILED`·`MCP_*` 를 싣고
+      spec(`§9.1`·`§5.5`)도 그것을 전제한다.
+      > **왜 이번 PR 에서 안 고쳤나**: `#1330` 은 `POST /api/integrations/:id/test`(저장된 통합)
+      > 를 건드렸고 preview 는 **다른 엔드포인트**(`POST /api/integrations/preview-test`,
+      > 미저장 자격증명)다. 같은 파일이지만 내 diff 가 닿은 자리가 아니라, 고치면 스코프가 또
+      > 한 겹 넓어진다 — 라운드 5 를 **`codebase/**` 수정 0 으로 끝내는** 것이 정지 규칙이었다.
+      > 처분은 한 줄(`code?: string` + JSDoc) + `previewTest()` 실패 케이스에
+      > `assertMatchesContract` 배선으로, `#1330` 이 형제에 한 것과 동형이다.
+
+- [ ] **MakeShop `<Callout>` 의 메시지 문구에 SoT 패리티 가드가 없다**
+      (developer, 2026-09-13 등재 · `/ai-review` `12_00_32` testing WARNING#2).
+      `#1330` 이 라운드 4 에 넣은 *"`MAKESHOP_UNRESOLVED_PATH_PARAM: operation '...' has
+      unresolved path placeholder(s): ...`"* 는 `makeshop.handler.ts:436` 의 템플릿 리터럴을
+      **손으로 옮긴 것**이고 대조 가드가 없다 — 같은 PR 이 LLM 8갈래 문장에는 정확히 이 위험을
+      막는 `guide-sanitized-message-parity` 를 만들었으면서 MakeShop 쪽엔 적용하지 않았다.
+      `guide-error-code-existence` 는 **토큰 존재**만 보므로 문구 drift 를 못 잡는다.
+      > 형태는 이미 있다 — `guide-sanitized-message-parity` 의 "SoT 반환 리터럴 추출 후 양방향
+      > 대조" 를 템플릿 접두로 일반화하면 된다. **선실측할 것**: 그 문구는 `${...}` 보간을
+      > 포함하므로 8갈래 문장처럼 완전 일치로는 못 본다 — **접두까지만** 대조하는 축이 필요하다.
+
 - [ ] **두 keyset 커서 디코더의 실패 계약이 다르다 — 무시 vs 400** (developer, 2026-09-12
       등재 · `keyset-cursor-uuid-validation.md §C`). `auth/login-history.service.ts` 는 잘못된
       커서를 **무시하고 1페이지**를 주고, `executions/background-runs/background-runs.service.ts`
