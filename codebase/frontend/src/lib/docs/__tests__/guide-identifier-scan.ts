@@ -66,6 +66,17 @@
 // (`review/consistency/2026/09/13/11_33_51`)의 naming_collision 이 **CRITICAL** 로 잡았다.
 // 가드는 통과시켰다. 방출 위치를 AST 로 특정하는 축이 트래커에 등재돼 있다.
 //
+// > **그런데 이 절은 자기 예시의 «이유» 를 틀리게 적고 있었다 (라운드 7 에 정정).**
+// > 가드가 `MAKESHOP_UNRESOLVED_PATH_PARAM` 을 통과시킨 진짜 이유는 *"이름이 소스에
+// > 실재해서"* 가 **아니라 인용 자체를 탐지하지 못해서**였다 — 가이드의 표기가
+// > `` `MAKESHOP_UNRESOLVED_PATH_PARAM: operation '…'` `` 이라 첫 판 `BACKTICK` 축의
+// > *"스팬 전체가 토큰 하나"* 조건에 걸리지 않았다(전수 재현).
+// >
+// > 즉 **한계 절이 있었는데도 그 자리에 다른 결함이 숨어 있었다.** 지금은 인용이
+// > 탐지되고, 위 두 갈래(메시지 접두 · 안 읽히는 env)의 한계는 그대로 유효하다 —
+// > 이 토큰은 이제 *탐지되고 통과한다*(존재하므로). 예시로서는 여전히 맞고 **이유가
+// > 달라졌다**. 틀린 근거는 다음 사람의 판단 기준을 바꾸므로 지우지 않고 정정만 한다.
+//
 // **이 주석을 지우지 말 것.** 가드가 무엇을 보장하지 *않는지* 가 적혀 있지 않으면 다음
 // 사람이 "가드가 통과했으니 이 식별자는 실재한다" 로 읽는다.
 //
@@ -81,18 +92,27 @@
 // > "삭제+생성" 으로 보여 **무엇이 사라졌는지가 눈에 안 띈다**. 다음에 이 파일을 재작성하면
 // > 먼저 옛 판본의 주석 절 목록을 뽑아 대조할 것.
 
-// ## 정규식 경계 — **전수 감사** (라운드 5)
+// ## 정규식 경계 — 전수 감사 (라운드 5) + **그 감사가 틀렸던 자리** (라운드 7)
 //
 // 경계 결함이 한 축씩 발견되는 것을 멈추려고, 이 파일의 정규식 5개를 한 번에 점검했다.
-// *"리뷰어가 찾은 것만 고치고 다음 라운드를 기다린다"* 를 끊는 것이 목적이다.
+// *"리뷰어가 찾은 것만 고치고 다음 라운드를 기다린다"* 를 끊는 것이 목적이었다.
 //
-// | 정규식 | 경계 | 판정 |
+// **그 감사는 «과매치» 방향만 봤다.** 표의 "안전" 은 전부 *"필요 이상으로 잡지 않는다"*
+// 를 뜻했고, **«못 잡는» 방향은 묻지 않았다**. 라운드 7 이 그 자리에서 CRITICAL 하나와
+// WARNING 하나를 냈다 — 둘 다 fail-open(미탐지)이다. 그래서 표에 방향 칸을 넣는다.
+//
+// | 정규식 | 과매치 | 미탐지 |
 // |---|---|---|
-// | `FIELD_TABLE_NAME` | `\{\s*name:` — `{` 앵커 | 안전. `{ xname:` 은 `name:` 리터럴과 안 맞는다 |
-// | `CODE_FIELD` | `(?<!\w)` | **두 번 고쳤다**. 하이픈 키는 의도적 과매치 (아래 JSDoc) |
-// | `BACKTICK` | 백틱 양쪽 | 안전. 구분자가 명시적이라 부분 매치 불가 |
-// | `collectSourceTokens` 의 `\b…\b` | 워드 경계 | 안전하되 **자기검증이 없었다** → 라운드 5 에서 대조군 추가 |
-// | `collectEnvDeclarations` 의 두 정규식 | `^` 행 앵커 | 안전. 줄 시작 고정. compose 는 **매핑 스타일만** (아래 JSDoc) |
+// | `FIELD_TABLE_NAME` | 안전 (`{ xname:` 은 리터럴과 안 맞는다) | **라운드 7 에 고침** — `name` 이 첫 키가 아니면 빠졌다 |
+// | `CODE_FIELD` | **두 번 고쳤다**. 하이픈 키는 의도적 과매치 | 안전 — 키 이름이 `code` 로 고정 |
+// | `BACKTICK` | 안전 (구분자가 명시적) | **라운드 7 CRITICAL** — 스팬 전체가 토큰 하나일 때만 잡았다 |
+// | `collectSourceTokens` 의 `\b…\b` | 안전하되 **자기검증 부재** → 라운드 5 대조군 | 안전 — 기준집합은 넓을수록 위험하지 좁아서 위험하지 않다 |
+// | `collectEnvDeclarations` 의 두 정규식 | 안전 (`^` 행 앵커) | compose **매핑 스타일만** — fail-closed 라 유지 (아래 JSDoc) |
+//
+// **두 방향은 결과가 반대다.** 기준집합(`collectSourceTokens`·`collectEnvDeclarations`)은
+// **넓어지면 거짓 PASS**, 인용집합(세 축)은 **좁아지면 거짓 PASS** 다. 같은 "경계" 라는
+// 낱말을 써도 어느 집합이냐에 따라 안전한 방향이 뒤집힌다 — 라운드 5 가 한 낱말로 다섯
+// 정규식을 묶어 판정하면서 이 차이를 뭉갰다.
 //
 // **`collectSourceTokens` 의 `\b` 가 없으면 기준집합이 부풀어 «거짓 PASS» 가 된다** —
 // `xMY_TOKEN` 안의 `MY_TOKEN` 까지 실재로 세므로, 가이드가 적은 가짜 토큰이 우연히 어떤
@@ -121,8 +141,18 @@ const UPPER_SNAKE = "[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+";
  *
  * (`description` 안의 토큰은 이 축이 아니라 `backtick` 축이 잡는다 — 과거 결함이 정확히
  * 그 자리였다.)
+ *
+ * **`name` 이 첫 키가 아니어도 잡는다.** 첫 판은 `\\{\\s*name:` 이라 `{ type: "x",
+ * name: "CODE" }` 처럼 **키 순서가 다르면 조용히 빠졌다**(fail-open). 오늘 코퍼스의
+ * `<FieldTable>` 행 242개는 전부 `name` 이 첫 키라 관측되지 않던 갭이다
+ * (`/ai-review` `review/code/2026/09/13/16_56_29` requirement WARNING#1).
+ * 지금은 `\\{[^}]*?\\bname:` — `[^}]` 이므로 **같은 객체 리터럴 안에 머문다**.
+ * 넓히는 방향인 것이 맞다: 이 가드에서 더 많은 인용을 보는 것은 fail-closed 다.
  */
-const FIELD_TABLE_NAME = new RegExp(`\\{\\s*name:\\s*"(${UPPER_SNAKE})"`, "g");
+const FIELD_TABLE_NAME = new RegExp(
+  `\\{[^}]*?\\bname:\\s*"(${UPPER_SNAKE})"`,
+  "g",
+);
 
 /**
  * 축 2 — 예시 코드펜스의 `"code": "CODE"` / `code: "CODE"`.
@@ -158,12 +188,52 @@ const FIELD_TABLE_NAME = new RegExp(`\\{\\s*name:\\s*"(${UPPER_SNAKE})"`, "g");
 const CODE_FIELD = new RegExp(`(?<!\\w)"?code"?\\s*:\\s*"(${UPPER_SNAKE})"`, "g");
 
 /**
- * 축 3 — **모든** 백틱 UPPER_SNAKE. 문맥으로 게이팅하지 않는다.
+ * 축 3 — 백틱 스팬 **안의** 모든 UPPER_SNAKE. 문맥으로 게이팅하지 않는다.
  *
  * 게이팅하면 과거 결함이 빠진다는 것이 이 파일 상단의 실측이다. 대가는 외부 어휘 오탐이고,
  * 그것은 `GUIDE_EXTERNAL_VOCABULARY` 로 **명시적으로** 받는다 — 문맥 술어에 숨기지 않는다.
+ *
+ * ## 이 축은 한 번 «모든» 을 참칭했다 (라운드 7 CRITICAL)
+ *
+ * 첫 판은 `` /`(UPPER_SNAKE)`/ `` — **백틱과 토큰이 붙어 있어야** 매치되므로 사실상
+ * *"스팬 전체가 정확히 토큰 하나뿐일 때"* 만 잡았다. 그런데 주석은 *"**모든** 백틱
+ * UPPER_SNAKE"* 라고 썼다. **문서한 보장이 구현보다 넓었다** — 이 저장소가 이름 붙여 둔
+ * 결함 형태 그대로이고, 라운드 5 의 *"전수 감사"* 표가 이 축을 *"안전"* 으로 통과시켰다.
+ * 그 감사는 **과매치 방향만** 봤다. 술어가 "전수" 라는 단어보다 좁았다.
+ *
+ * 실측(코퍼스 92 mdx · `/ai-review` `review/code/2026/09/13/16_56_29` requirement CRITICAL):
+ *
+ * | 형태 | 첫 판 | 지금 |
+ * |---|---|---|
+ * | `` `REAL_TOKEN` `` | 매치 | 매치 |
+ * | `` `413 PUBLIC_WEBHOOK_BODY_TOO_LARGE` `` | **미매치** | 매치 |
+ * | `` `PARALLEL_ENGINE=v1` `` | **미매치** | 매치 |
+ * | `` `details.code='UNKNOWN_PLACEHOLDER'` `` | **미매치** | 매치 |
+ * | `` `MAKESHOP_UNRESOLVED_PATH_PARAM: operation …` `` | **미매치** | 매치 |
+ *
+ * 그 결과 **6종**이 이 가드의 검사를 한 번도 받지 못하고 있었다 — `ALLOW_HTTP_HOOKS` ·
+ * `INVALID_FIELD` · `MAKESHOP_UNRESOLVED_PATH_PARAM` · `NODE_ENV` · `PARALLEL_ENGINE` ·
+ * `UNKNOWN_PLACEHOLDER`. (리뷰어는 5종을 들었고 전수로 다시 세니 `NODE_ENV` 가 더 있었다.)
+ *
+ * **아래 «한계» 절이 자기 예시에서 틀렸던 것도 이 때문이다.** `MAKESHOP_UNRESOLVED_PATH_PARAM`
+ * 이 통과한 이유를 *"이름이 소스에 실재해서(existence≠emission)"* 라고 적어 뒀는데, 실제
+ * 이유는 **인용 자체가 탐지되지 않아서**였다. 틀린 근거는 다음 사람의 판단 기준을 바꾼다.
  */
-const BACKTICK = new RegExp(`\`(${UPPER_SNAKE})\``, "g");
+const BACKTICK_SPAN = /`([^`\n]+)`/g;
+
+/**
+ * 백틱 스팬 **안쪽**을 다시 훑는 토큰 패턴.
+ *
+ * **워드 경계가 막는 것은 «접두사가 붙은 자리» 다.** 처음엔 *"`X_YMORE` 안의 `X_Y` 를
+ * 따로 세지 않는다"* 고 적었는데 **틀렸다** — `UPPER_SNAKE` 가 greedy 라 경계가 없어도
+ * `X_YMORE` 를 통째로 먹는다(뮤턴트가 그 fixture 에서 생존해 드러났다). 실제로 갈리는
+ * 것은 `camelPREFIX_ONE` 처럼 **앞에 워드 문자가 붙은** 형태이고, 경계가 없으면 거기서
+ * `PREFIX_ONE` 을 오려내 인용으로 센다 → 기준집합에 없으니 **거짓 RED**.
+ *
+ * 방향이 `collectSourceTokens` 의 `\b` 와 **반대**다 — 저쪽은 기준집합이라 경계가 없으면
+ * 집합이 부풀어 거짓 PASS 였고, 이쪽은 인용집합이라 거짓 RED 다.
+ */
+const BACKTICK_INNER = new RegExp(`\\b(${UPPER_SNAKE})\\b`, "g");
 
 /**
  * 우리 것이 아닌 것이 **정상**인 외부 어휘.
@@ -198,7 +268,18 @@ export function scanIdentifierCitations(mdx: string): IdentifierCitation[] {
     };
     push("field-table", FIELD_TABLE_NAME);
     push("code-field", CODE_FIELD);
-    push("backtick", BACKTICK);
+
+    // 백틱 축만 2단이다 — 스팬을 먼저 끊고 그 «안» 을 다시 훑는다. 1단으로 하면
+    // 백틱과 토큰이 붙은 경우만 잡혀 `` `413 CODE` `` 류가 통째로 빠진다(라운드 7 CRITICAL).
+    BACKTICK_SPAN.lastIndex = 0;
+    let span: RegExpExecArray | null;
+    while ((span = BACKTICK_SPAN.exec(line)) !== null) {
+      BACKTICK_INNER.lastIndex = 0;
+      let inner: RegExpExecArray | null;
+      while ((inner = BACKTICK_INNER.exec(span[1])) !== null) {
+        out.push({ axis: "backtick", token: inner[1], line: idx + 1 });
+      }
+    }
   });
 
   return out;

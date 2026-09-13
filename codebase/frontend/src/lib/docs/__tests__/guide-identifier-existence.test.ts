@@ -127,8 +127,46 @@ describe("유저 가이드 식별자 실재성 가드", () => {
     ).toEqual([]);
   });
 
+  it("[회귀] 혼합 백틱 스팬에만 등장하는 6종도 **검사받는다**", () => {
+    // **이 6종은 이 가드의 검사를 한 번도 받은 적이 없었다.** 첫 판 `BACKTICK` 은 백틱과
+    // 토큰이 **붙어 있을 때만** 매치돼, 스팬에 다른 글자가 섞이면 통째로 빠졌다
+    // (`/ai-review` `review/code/2026/09/13/16_56_29` requirement CRITICAL · 직접 전수 재현).
+    //
+    // 베이스라인-0 은 이것을 **원리적으로 관측할 수 없다** — 인용으로 걷히지 않은 토큰은
+    // 애초에 `missing` 후보가 아니기 때문이다. 그래서 이름으로 고정한다.
+    //
+    // 리뷰어는 5종을 들었고 전수로 다시 세니 `NODE_ENV` 가 하나 더 있었다.
+    const ONLY_IN_MIXED_SPANS = [
+      "ALLOW_HTTP_HOOKS", // `ALLOW_HTTP_HOOKS=1`
+      "INVALID_FIELD", // `details.code='INVALID_FIELD'`
+      "MAKESHOP_UNRESOLVED_PATH_PARAM", // `MAKESHOP_UNRESOLVED_PATH_PARAM: operation …`
+      "NODE_ENV", // `NODE_ENV=production`
+      "PARALLEL_ENGINE", // `PARALLEL_ENGINE=v1`
+      "UNKNOWN_PLACEHOLDER", // `details.code='UNKNOWN_PLACEHOLDER'`
+    ];
+    const citedByBacktick = new Set(
+      citations.filter((c) => c.axis === "backtick").map((c) => c.token),
+    );
+    expect(
+      ONLY_IN_MIXED_SPANS.filter((t) => !citedByBacktick.has(t)),
+    ).toEqual([]);
+    // 그리고 실제로 판정까지 간다 — 걷히기만 하고 기준집합 대조를 못 받으면 의미가 없다.
+    expect(ONLY_IN_MIXED_SPANS.filter((t) => !basis.has(t))).toEqual([]);
+  });
+
   // ── 허용목록 4강제 ──────────────────────────────────────────────────────────
   describe("외부 어휘 허용목록 — 은폐 수단이 되지 않도록", () => {
+    it("[vacuity] 배열이 비면 아래 3강제가 **전부 무의미**해진다 — 하한을 명시한다", () => {
+      // `/ai-review`(`review/code/2026/09/13/16_56_29` testing WARNING#2)가 배열을 `[]` 로
+      // 비우는 뮤테이션을 걸었더니 이 describe 의 4강제 중 **상한 검사만** 살아남았다 —
+      // 나머지 셋은 `for`·`filter` 라 빈 배열에서 참이다.
+      //
+      // 그때 그 뮤턴트가 그래도 잡힌 것은 **이 블록 덕분이 아니라** 무관한 베이스라인-0
+      // 테스트가 우연히 잡아준 것이었다(`discord.mdx` 의 `MESSAGE_CREATE` 인용이
+      // 허용목록에서 빠지니 RED). 코퍼스가 바뀌면 그 안전망도 같이 사라진다.
+      expect(GUIDE_EXTERNAL_VOCABULARY.length).toBeGreaterThan(0);
+    });
+
     it("각 항목이 외부 시스템과 사유를 밝힌다", () => {
       for (const entry of GUIDE_EXTERNAL_VOCABULARY) {
         expect(entry.system.trim().length).toBeGreaterThan(2);
@@ -333,6 +371,19 @@ describe("scanIdentifierCitations — 축별 대조군", () => {
     expect(tokens('{ name: "max_tokens", type: "integer" }')).toEqual([]);
   });
 
+  it("축 1 — `name` 이 **첫 키가 아니어도** 집는다 (라운드 7 WARNING#1)", () => {
+    // 첫 판은 `\\{\\s*name:` 이라 키 순서가 다르면 **조용히 빠졌다**(fail-open). 오늘
+    // 코퍼스의 `<FieldTable>` 행 242개가 전부 `name` 첫 키라 관측되지 않던 갭이다.
+    expect(tokens('{ type: "x", name: "ORDER_FREE_CODE" }')).toEqual([
+      "field-table:ORDER_FREE_CODE",
+    ]);
+    // 대조군 — `[^}]` 이므로 **객체 경계를 넘지 않는다**. 앞 객체의 여닫이를 지나
+    // 뒤 객체의 `name` 을 끌어오면 줄 단위 판정이 무너진다.
+    expect(tokens('{ type: "x" } { name: "SECOND_OBJ_CODE" }')).toEqual([
+      "field-table:SECOND_OBJ_CODE",
+    ]);
+  });
+
   it("[경계] 축 1 은 줄 단위라 여러 줄로 쪼갠 행은 놓친다", () => {
     // **놓치는 것을 단언한다** — 한계가 코드에 없으면 다음 사람이 "왜 안 걸렸지" 를 추적한다.
     const split = '{\n  name: "MADE_UP_CODE",\n  type: "x"\n}';
@@ -399,6 +450,43 @@ describe("scanIdentifierCitations — 축별 대조군", () => {
     const row =
       "| `executionFailedTimeout` | Processing timed out (`HTTP_TIMEOUT` / `LLM_TIMEOUT`) | no |";
     expect(tokens(row)).toEqual(["backtick:HTTP_TIMEOUT", "backtick:LLM_TIMEOUT"]);
+  });
+
+  it("축 3 — 스팬에 **다른 글자가 섞여도** 집는다 (라운드 7 CRITICAL)", () => {
+    // 첫 판은 `` /`(UPPER_SNAKE)`/ `` 라 백틱과 토큰이 **붙어 있어야** 매치됐다. 그런데
+    // 주석은 *"**모든** 백틱 UPPER_SNAKE"* 라고 썼다 — 문서한 보장이 구현보다 넓었다.
+    // 아래 네 형태는 실제 코퍼스에 반복 등장하고 **전부 미탐지**였다(직접 전수 재현).
+    expect(tokens("`413 PUBLIC_WEBHOOK_BODY_TOO_LARGE`")).toEqual([
+      "backtick:PUBLIC_WEBHOOK_BODY_TOO_LARGE",
+    ]);
+    expect(tokens("`PARALLEL_ENGINE=v1`")).toEqual(["backtick:PARALLEL_ENGINE"]);
+    expect(tokens("`details.code='UNKNOWN_PLACEHOLDER'`")).toEqual([
+      "backtick:UNKNOWN_PLACEHOLDER",
+    ]);
+    expect(tokens("`INVALID_FIELD: 설명문`")).toEqual(["backtick:INVALID_FIELD"]);
+    // 한 스팬에 둘 이상이면 둘 다 — 스팬을 끊고 «안» 을 훑는다는 것이 관측되는 값.
+    expect(tokens("`A_ONE and B_TWO`")).toEqual([
+      "backtick:A_ONE",
+      "backtick:B_TWO",
+    ]);
+  });
+
+  it("[경계] 스팬 안쪽에도 워드 경계가 걸린다", () => {
+    // **판별 fixture 를 한 번 잘못 골랐다.** 처음엔 `` `PREFIX_ONEMORE` `` 을 썼는데
+    // `\\b` 를 빼는 뮤턴트에서 **생존**했다 — `UPPER_SNAKE` 가 greedy 라 경계가 없어도
+    // 토큰 전체를 한 번에 먹어 결과가 같기 때문이다. 두 판정이 갈리는 값은 **접두사가
+    // 붙은** 형태다:
+    //
+    // | 입력 | `\\b` 있음 | `\\b` 없음 |
+    // |---|---|---|
+    // | `` `PREFIX_ONEMORE` `` | `PREFIX_ONEMORE` | `PREFIX_ONEMORE` ← 안 갈린다 |
+    // | `` `camelPREFIX_ONE` `` | **없음** | `PREFIX_ONE` ← 갈린다 |
+    //
+    // 경계를 빼면 이렇게 **식별자가 아닌 자리에서 토큰을 오려내** 인용으로 세고,
+    // 그 조각은 기준집합에 없으니 **거짓 RED** 가 난다.
+    expect(tokens("`camelPREFIX_ONE`")).toEqual([]);
+    // 대조군 — 독립된 토큰은 그대로 집는다.
+    expect(tokens("`PREFIX_ONEMORE`")).toEqual(["backtick:PREFIX_ONEMORE"]);
   });
 
   it("[비대상] 밑줄 없는 대문자 약어는 안 집는다", () => {
