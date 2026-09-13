@@ -3401,7 +3401,12 @@ field: T | null;
       > enum 값처럼 **방출 위치**를 AST 로 특정하고, env 변수는 `process.env` 접근으로 배제.
       > `#1328` 의 `param-uuid-pipe` 가 같은 저장소의 AST 가드 선례다.
 
-- [ ] **`CONTAINER_MISSING_EMIT`·`CONTAINER_MULTIPLE_EMIT` 도 방출 코드가 아니다 (선재)**
+- [x] **`CONTAINER_MISSING_EMIT`·`CONTAINER_MULTIPLE_EMIT` 도 방출 코드가 아니다 (선재)**
+      ✅ **2026-09-13 해소** — `(A) 문장 정정` 을 택했다(`logic{,.en}.mdx` KO/EN). 그리고
+      같은 배치가 **가드로 고정**했다: `GUIDE_NON_EMITTED_VOCABULARY` 에 두 토큰을 등록해,
+      누가 다시 *"이 코드로 실패해요"* 라고 쓰면 발행 축이 RED 를 낸다.
+      **실측 근거**: `execution-engine.service.ts:8016` 이 `nodeExec.error = { message }` 로
+      기록한다 — `code` 필드가 **아예 없다**. 가이드의 *"전용 에러 코드는 없어요"* 는 정확하다.
       (developer, 2026-09-13 등재 · 위 항목의 술어 프로브가 부수적으로 찾았다).
       `02-nodes/logic{,.mdx,.en.mdx}` 가 *"…로 실행 실패해요"* 라고 적는데, 실제로는
       `execution-engine.service.ts:7121·7125` 의 **메시지 접두**이고 `.code` 로 방출되지 않는다.
@@ -3410,6 +3415,49 @@ field: T | null;
       > 처분 시 선택지는 둘: (A) 문장을 *"메시지에 이 접두가 붙는다"* 로 정정, 또는
       > (B) 엔진이 전용 코드를 방출하도록(동작 변경 + spec). 같은 갈림이 MakeShop 건에도 있었고
       > `#1330` 은 (A)를 택했다 — 가이드는 *현재 동작*을 서술하는 문서이기 때문이다.
+
+- [ ] **spec 6파일이 `CONTAINER_*` 를 «코드» 로 적는다 — 같은 저장소에 «맞게 적은» 선례가 있다**
+      (planner, 2026-09-13 등재 · `--impl-done` `review/consistency/2026/09/13/19_23_31`
+      cross_spec WARNING#1). 가이드(`logic{,.en}.mdx`)는 이 배치가 *"메시지 접두"* 로
+      정정했는데, **spec 쪽 6파일이 여전히 코드처럼 서술**해 정면으로 어긋난다:
+
+      | 파일 | 형태 |
+      |---|---|
+      | `spec/5-system/4-execution-engine.md:332-333` §3.0 | *"`CONTAINER_MISSING_EMIT` **에러로** 실행 실패"* — 가장 강함 |
+      | `spec/3-workflow-editor/2-edge.md:202` §6.1 | 검증 결과를 코드로 |
+      | `spec/3-workflow-editor/0-canvas.md:636` §11.2.2 | 형제 `CONTAINER_INVALID_CHILD`·`CONTAINER_CYCLE` 도 동형 |
+      | `spec/4-nodes/1-logic/0-common.md:83` | 괄호 안 코드 표기 |
+      | `spec/4-nodes/1-logic/7-map.md:179-180` §6 | 표의 «코드» 열 |
+      | `spec/4-nodes/1-logic/9-foreach.md:209-210` §6 | 〃 |
+
+      > **통일할 선례가 이미 있다** — `spec/4-nodes/1-logic/3-loop.md:189-191` 은 같은 표에서
+      > **발행 문자열 전문**을 인용한다(`` `CONTAINER_MISSING_EMIT: Container "<label>" has no
+      > body node wired to …` ``). 형태를 새로 발명할 필요가 없고 형제 문서에 맞추면 된다.
+      >
+      > **실측**: `execution-engine.service.ts:8016` 이 `nodeExec.error = { message }` —
+      > `code` 필드가 없다. 즉 6파일의 서술이 틀렸고 `3-loop.md` 가 맞다.
+
+- [ ] **`3-error-handling.md §1.4` 의 «앵커 없는 코드» 7종이 실제로는 메시지 접두다 — 카탈로그
+      표기를 정할 것** (planner, 2026-09-13 등재 · `--impl-done`
+      `review/consistency/2026/09/13/19_23_31` rationale_continuity WARNING#2).
+      §1.4 는 `MAX_ITERATIONS_EXCEEDED`·`RECURSION_DEPTH_EXCEEDED`·`CYCLE_DETECTED` 등을
+      *"앵커 없는 맨 문자열"* 이라 적으면서도 **정식 카탈로그 항목**으로 취급한다. 실측하면
+      `CONTAINER_*` 와 **구조가 같다**:
+
+      | 토큰 | 발행 형태 | 카탈로그 |
+      |---|---|---|
+      | `MAX_ITERATIONS_EXCEEDED` | `throw new Error('MAX_ITERATIONS_EXCEEDED: …')` (`loop-executor.ts:64·85`) | **등재** |
+      | `CONTAINER_MISSING_EMIT` | `throw new Error(\`CONTAINER_MISSING_EMIT: …\`)` (`execution-engine.service.ts:7121·7125`) | 미등재 |
+
+      > **차이는 코드가 아니라 카탈로그다.** 그래서 이 배치의 발행 축은 카탈로그를
+      > **탈출구**로 쓴다 — 그래야 `MAX_ITERATIONS_EXCEEDED` 가 통과한다. 다만 *"왜 이 둘만
+      > 밖인가"* 는 여전히 무기재다.
+      >
+      > 택일: (a) `CONTAINER_*` 를 §1.4 에 backfill 해 형제와 나란히 둔다 —
+      > 그러면 이 배치의 등록 항목 둘은 **불필요해지고 가드가 자동으로 통과시킨다**.
+      > (b) §1.4 의 앵커-없는 행들에 *"메시지 접두"* 표기를 달아 «코드» 와 구분한다 —
+      > 그러면 카탈로그가 정확해지는 대신 탈출구의 의미가 달라지므로 **가드도 함께 본다**.
+      > **어느 쪽이든 이 배치의 가드를 건드리므로 처분 시 함께 판정할 것.**
 
 - [ ] **`CAFE24_UNRESOLVED_PATH_PARAM` 도 같은 형태 — 다만 가이드가 아직 인용하지 않는다**
       (developer, 2026-09-13 등재 · `--impl-done` `11_33_51` 권고 #2).

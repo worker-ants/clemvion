@@ -266,6 +266,31 @@ const MESSAGE_PREFIX = new RegExp(`['"\`](${UPPER_SNAKE}):\\s`, "g");
 const CATALOG_CODE = new RegExp(`\`(${UPPER_SNAKE})\``, "g");
 
 /**
+ * 여러 텍스트에서 한 정규식의 캡처 그룹을 걷는 **공용 수집기**.
+ *
+ * `/ai-review`(`review/code/2026/09/13/19_23_22` maintainability WARNING#7)가 지적한
+ * 근접 중복을 없앤다 — 세 수집기가 정규식과 그룹 번호만 다르고 구조가 같았다.
+ * **`lastIndex` 중복을 피했다고 적은 주석 바로 옆에서 다른 형태의 중복을 만든 것**이라
+ * 지적이 특히 정확했다.
+ *
+ * `matchAll` 은 내부적으로 정규식을 복제하므로 공유 `lastIndex` 를 건드리지 않는다.
+ * 위쪽 세 함수(`scanIdentifierCitations`·`collectSourceTokens`·`collectEnvDeclarations`)의
+ * 수동 `lastIndex` 관용구는 **그대로 둔다** — 그 리팩터는 트래커에 별건으로 등재돼 있고,
+ * 여기서 앞당기면 이 배치의 diff 가 두 가지 일을 하게 된다.
+ */
+function collectMatches(
+  texts: readonly string[],
+  rx: RegExp,
+  group: number,
+): Set<string> {
+  const tokens = new Set<string>();
+  for (const text of texts) {
+    for (const m of text.matchAll(rx)) tokens.add(m[group]);
+  }
+  return tokens;
+}
+
+/**
  * 우리 것이 아닌 것이 **정상**인 외부 어휘.
  *
  * 각 항목은 `system` 으로 **어느 외부 제품의 어휘인지** 밝혀야 한다 — *"아직 미구현"* ·
@@ -313,7 +338,7 @@ export const GUIDE_NON_EMITTED_VOCABULARY: readonly {
 }[] = [
   {
     token: "MAKESHOP_UNRESOLVED_PATH_PARAM",
-    where: "makeshop.handler.ts — 일반 `Error` 메시지 접두",
+    where: "makeshop.handler.ts:436 — 일반 `Error` 메시지 접두",
     why: "catch 가 `err instanceof IntegrationError ? err.code : 'INTEGRATION_CALL_FAILED'` 라 `output.error.code` 에는 공용 fallback 이 들어간다. 가이드는 이미 '전용 코드가 없어요 … 코드가 아니라 메시지를 봐야 해요' 라고 정확히 적고 있어 문장 수정이 아니라 등록이 맞다.",
   },
   {
@@ -323,7 +348,7 @@ export const GUIDE_NON_EMITTED_VOCABULARY: readonly {
   },
   {
     token: "CONTAINER_MULTIPLE_EMIT",
-    where: "execution-engine.service.ts — 형제 접두",
+    where: "execution-engine.service.ts:7130 — 형제 접두",
     why: "위와 동형. 두 이름은 같은 문장에 함께 등장하므로 처분도 함께 한다.",
   },
 ];
@@ -344,12 +369,8 @@ export const GUIDE_NON_EMITTED_VOCABULARY: readonly {
 export function collectQuotedLiterals(
   fileTexts: readonly string[],
 ): Set<string> {
-  const tokens = new Set<string>();
-  for (const text of fileTexts) {
-    // 그룹 1 은 여는 따옴표(역참조용), **토큰은 그룹 2** 다.
-    for (const m of text.matchAll(QUOTED_LITERAL)) tokens.add(m[2]);
-  }
-  return tokens;
+  // 그룹 1 은 여는 따옴표(역참조용), **토큰은 그룹 2** 다.
+  return collectMatches(fileTexts, QUOTED_LITERAL, 2);
 }
 
 /**
@@ -361,11 +382,7 @@ export function collectQuotedLiterals(
 export function collectMessagePrefixes(
   fileTexts: readonly string[],
 ): Set<string> {
-  const tokens = new Set<string>();
-  for (const text of fileTexts) {
-    for (const m of text.matchAll(MESSAGE_PREFIX)) tokens.add(m[1]);
-  }
-  return tokens;
+  return collectMatches(fileTexts, MESSAGE_PREFIX, 1);
 }
 
 /**
@@ -376,16 +393,38 @@ export function collectMessagePrefixes(
  * 통합 코드다(`CAFE24_*`·`MAKESHOP_*`·`INTEGRATION_*`). 그 미등재는 planner 트래커에
  * 등재된 별건이고, 가드가 **남의 미완결을 신고하게** 두지 않는다.
  *
- * 탈출구로 쓰면 그 25종은 애초에 접두 전용이 아니라 술어에 안 걸리므로 무해하다. 대신
- * `MAX_ITERATIONS_EXCEEDED` 처럼 **접두로만 발행되지만 spec 이 정식 코드로 인정한** 것이
- * 통과한다 — spec 이 `HTTP_TIMEOUT`(미발행 — §1.4 註)에 이미 쓰는 처리와 같은 모양이다.
+ * 탈출구로 쓰면 그 25종은 애초에 접두 전용이 아니라 술어에 안 걸리므로 무해하다.
+ *
+ * ## **이 탈출구는 오늘 한 번도 발화하지 않는다** (라운드 1 에 반증됨)
+ *
+ * 처음엔 *"`MAX_ITERATIONS_EXCEEDED` 처럼 접두로만 발행되지만 spec 이 정식 코드로 인정한
+ * 것이 이 탈출구로 통과한다"* 고 적었다. **틀렸다.** 단계별로 재보니:
+ *
+ * | 단계 | `MAX_ITERATIONS_EXCEEDED` |
+ * |---|---|
+ * | 메시지 접두인가 | 예 (`loop-executor.ts:64·85`) |
+ * | 토큰-단독 리터럴이 있나 | **예** — `execution-failure-classifier.ts:76` 의 **소비자 Set** |
+ * | ⇒ `isMessagePrefixOnly` | **false — 여기서 탈락, 카탈로그에 도달하지 않는다** |
+ *
+ * 즉 그 토큰은 **이 축이 스스로 «함정» 이라 부른 소비자-인용 경로** 때문에 통과한다
+ * (`/ai-review` `review/code/2026/09/13/19_23_22` requirement WARNING#3 · 직접 재현).
+ *
+ * 전수로도 셌다 — 인용된 «접두 전용» 3종 중 카탈로그 등재 **0종**, 인용과 무관하게
+ * 소스 전체의 접두 전용 11종 중에도 **0종**. **탈출구 교집합은 공집합이다.**
+ *
+ * ## 그래도 남기는 이유 — 트래커 항목이 이것을 발화시킨다
+ *
+ * `spec-draft-nullable-notation-followups.md` 의 planner 항목이 *"`CONTAINER_*` 를
+ * §1.4 에 backfill"* 을 처분안으로 담고 있고, **그 처분이 집행되는 순간 이 탈출구가
+ * 발화해 아래 등록 2종이 자동으로 불필요해진다.** 지금 지우면 그 처분안의 서술이
+ * 거짓이 된다.
+ *
+ * 같은 형태의 선례가 이 파일에 이미 있다 — `collectEnvDeclarations` 도 *"오늘 판정을
+ * 지탱하지 않지만 내일의 오탐을 막는다"* 로 남아 있다. **차이는 그 사실을 적었느냐다.**
+ * 테스트가 «0회 발화» 를 단언으로 고정하므로, 언젠가 1이 되면 그 단언이 알려준다.
  */
 export function collectCatalogCodes(specTexts: readonly string[]): Set<string> {
-  const tokens = new Set<string>();
-  for (const text of specTexts) {
-    for (const m of text.matchAll(CATALOG_CODE)) tokens.add(m[1]);
-  }
-  return tokens;
+  return collectMatches(specTexts, CATALOG_CODE, 1);
 }
 
 /** 한 MDX 본문에서 식별자 인용을 전부 걷는다. 같은 줄의 중복 축은 각각 보고된다. */

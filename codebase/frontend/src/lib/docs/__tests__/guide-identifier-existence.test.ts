@@ -20,6 +20,12 @@ import {
 const EXTERNAL_VOCABULARY_CAP = 5;
 
 /**
+ * 발행-예외 목록 상한. 거울상 목록과 **같은 값**으로 둔다 — 두 목록은 제약이 반대일
+ * 뿐 "예외가 늘면 설계를 다시 본다" 는 성격이 같다.
+ */
+const NON_EMITTED_VOCABULARY_CAP = 5;
+
+/**
  * **유저 가이드가 이름 붙인 식별자는 실재해야 한다.**
  *
  * 에러 코드(`MAKESHOP_API_ERROR` 류)와 **환경변수**(`MCP_INSECURE_URL_ALLOWED` 류) 둘 다가
@@ -193,20 +199,110 @@ describe("유저 가이드 식별자 실재성 가드", () => {
       }
     });
 
+    it("`where` 의 `파일:줄` 이 **실제로 그 토큰을 담는다** (프리텍스트 방지)", () => {
+      // `/ai-review`(`19_23_22` testing WARNING#6): `where` 가 단언 없는 산문이면
+      // 소스가 움직여도 아무도 모른다. 이 저장소는 자매 축(`impl-anchor-existence`)에서
+      // 이미 grep 강제를 쓰고 있어 **이 목록만 예외였다**.
+      const broken: string[] = [];
+      for (const entry of GUIDE_NON_EMITTED_VOCABULARY) {
+        const m = /([\w./-]+\.ts):(\d+)/.exec(entry.where);
+        if (!m) {
+          broken.push(`${entry.token}: where 에 '파일.ts:줄' 이 없다 — ${entry.where}`);
+          continue;
+        }
+        const [, file, lineNo] = m;
+        const hits = walkTree(root, ["codebase/backend/src"], {
+          skipDir: (n) => n === "node_modules" || n === "dist" || n === "build",
+          includeFile: (n) => n === path.basename(file),
+        });
+        if (hits.length !== 1) {
+          broken.push(`${entry.token}: ${file} 이 ${hits.length}건`);
+          continue;
+        }
+        const lines = fs.readFileSync(hits[0].absPath, "utf8").split("\n");
+        const line = lines[Number(lineNo) - 1] ?? "";
+        if (!line.includes(entry.token)) {
+          broken.push(
+            `${entry.token}: ${file}:${lineNo} 에 토큰이 없다 — ${line.trim().slice(0, 60)}`,
+          );
+        }
+      }
+      expect(broken).toEqual([]);
+    });
+
+    it(`상한 ${NON_EMITTED_VOCABULARY_CAP}건을 넘지 않는다`, () => {
+      // 거울상 목록(`GUIDE_EXTERNAL_VOCABULARY`)과 강제 수준을 맞춘다 — 상한이 없으면
+      // *"한 줄 더 추가"* 가 기본값이 되고, 이 목록은 **가이드가 코드 아닌 것을 코드처럼
+      // 부르는 것을 막으려고** 있는데 그 반대가 된다.
+      expect(GUIDE_NON_EMITTED_VOCABULARY.length).toBeLessThanOrEqual(
+        NON_EMITTED_VOCABULARY_CAP,
+      );
+    });
+
+    it("각 항목이 **여전히 가이드에 인용된다** (죽은 항목 누적 방지)", () => {
+      // 거울상 목록의 같은 강제. 가이드 문장이 재작성돼 인용이 사라지면 항목도 지운다.
+      const cited = new Set(citations.map((c) => c.token));
+      const stale = GUIDE_NON_EMITTED_VOCABULARY.filter(
+        (e) => !cited.has(e.token),
+      );
+      expect(stale.map((e) => e.token)).toEqual([]);
+    });
+
     it(`[vacuity] 목록이 비면 위 3강제가 전부 무의미해진다`, () => {
       expect(GUIDE_NON_EMITTED_VOCABULARY.length).toBeGreaterThan(0);
     });
 
-    it("[회귀] `MAX_ITERATIONS_EXCEEDED` 는 **카탈로그 덕에** 통과한다", () => {
-      // 이 토큰은 `loop-executor.ts` 에서 **접두로만** 발행되고, 소비자 Set
-      // (`execution-failure-classifier.ts`)이 인용해 `quotedLiterals` 에도 든다.
-      // spec §1.4 는 *"소비자·분류기 쪽 어휘이지 발행 경로의 앵커가 아니다"* 라고
-      // 명시하므로 **리터럴 존재를 통과 근거로 쓰면 안 된다** — 통과 근거는 카탈로그다.
-      expect(catalogCodes.has("MAX_ITERATIONS_EXCEEDED")).toBe(true);
+    it("[회귀] `MAX_ITERATIONS_EXCEEDED` 는 **소비자-인용 때문에** 통과한다 (카탈로그 아님)", () => {
+      // **첫 판 제목은 "카탈로그 덕에 통과한다" 였고 그것은 거짓이었다**
+      // (`/ai-review` `review/code/2026/09/13/19_23_22` requirement WARNING#3 · 직접 재현).
+      // 단계별 실측이 실제 경로를 보여준다:
       expect(messagePrefixes.has("MAX_ITERATIONS_EXCEEDED")).toBe(true);
-      // 그리고 `CONTAINER_MISSING_EMIT` 는 **카탈로그에 없어** 등록이 필요했다 —
-      // 두 토큰이 갈리는 자리가 정확히 여기다.
+      // ↓ `execution-failure-classifier.ts:76` 의 **소비자 Set** 이 정확 리터럴로 인용한다.
+      expect(quotedLiterals.has("MAX_ITERATIONS_EXCEEDED")).toBe(true);
+      // ⇒ 접두-전용 단계에서 탈락하므로 **카탈로그 검사에 도달하지 않는다.**
+      expect(isMessagePrefixOnly("MAX_ITERATIONS_EXCEEDED")).toBe(false);
+      // 카탈로그에 있는 것은 사실이지만 **통과 근거가 아니다.** 그 구분이 이 테스트다.
+      expect(catalogCodes.has("MAX_ITERATIONS_EXCEEDED")).toBe(true);
+
+      // 대조 — `CONTAINER_MISSING_EMIT` 는 소비자 인용이 없어 접두-전용으로 남고,
+      // 카탈로그에도 없어 등록이 필요했다. 두 토큰이 갈리는 자리가 정확히 여기다.
+      expect(isMessagePrefixOnly("CONTAINER_MISSING_EMIT")).toBe(true);
       expect(catalogCodes.has("CONTAINER_MISSING_EMIT")).toBe(false);
+    });
+
+    it("[한계] 카탈로그 탈출구는 **오늘 한 번도 발화하지 않는다**", () => {
+      // 전수 실측: 인용된 «접두 전용» 중 카탈로그 등재 0종. 즉 이 필터는 현재 죽은
+      // 경로다 — 그 사실을 숨기지 않고 **숫자로 고정**한다.
+      //
+      // 그래도 지우지 않는 이유: 트래커의 planner 항목이 *"`CONTAINER_*` 를 §1.4 에
+      // backfill"* 을 처분안으로 담고 있고, 집행되면 이 탈출구가 발화해 등록 2종이
+      // 자동으로 불필요해진다. 지우면 그 처분안 서술이 거짓이 된다.
+      //
+      // **언젠가 이 수가 0이 아니게 되면 이 단언이 RED 로 알린다** — 그때는 등록 항목을
+      // 지울 수 있다는 신호다.
+      const rescuedByCatalog = [...new Set(citations.map((c) => c.token))]
+        .filter(isMessagePrefixOnly)
+        .filter((t) => catalogCodes.has(t));
+      expect(rescuedByCatalog).toEqual([]);
+    });
+
+    it("[대조군] 그래도 탈출구가 **작동은 한다** (합성 입력)", () => {
+      // 위 단언이 «0» 인 이유가 *"필터가 깨져서"* 가 아니라 *"오늘 해당이 없어서"* 임을
+      // 가른다. 합성 카탈로그로 같은 판정을 돌려 본다.
+      const synthCatalog = collectCatalogCodes([
+        "| `SYNTH_PREFIX_ONLY` | 없음 | 합성 카탈로그 행 |",
+      ]);
+      expect(synthCatalog.has("SYNTH_PREFIX_ONLY")).toBe(true);
+      const synthPrefixes = collectMessagePrefixes([
+        "throw new Error('SYNTH_PREFIX_ONLY: 설명');",
+      ]);
+      const synthQuoted = collectQuotedLiterals([
+        "throw new Error('SYNTH_PREFIX_ONLY: 설명');",
+      ]);
+      // 접두 전용이고 — 카탈로그에 있으므로 offender 가 **아니다**.
+      expect(synthPrefixes.has("SYNTH_PREFIX_ONLY")).toBe(true);
+      expect(synthQuoted.has("SYNTH_PREFIX_ONLY")).toBe(false);
+      expect(synthCatalog.has("SYNTH_PREFIX_ONLY")).toBe(true);
     });
   });
 
@@ -367,6 +463,90 @@ describe("collectSourceTokens — 경계 대조군", () => {
 
   it("[비대상] 밑줄 없는 약어는 안 센다", () => {
     expect([...collectSourceTokens(["const LLM = 1; const HTTP = 2;"])]).toEqual([]);
+  });
+});
+
+/**
+ * 발행 축 수집기 3종의 **합성 경계 대조군**.
+ *
+ * `/ai-review`(`review/code/2026/09/13/19_23_22` testing WARNING#5): 형제 함수
+ * (`collectSourceTokens`·`collectEnvDeclarations`)에는 손으로 짠 대조군이 있는데
+ * **신규 3종만 없었다** — 실제 코퍼스 통계와 이름-하나짜리 회귀에만 의존했다.
+ * 각 제약마다 **두 판정이 갈리는 값**을 고정한다.
+ */
+describe("발행 축 수집기 — 경계 대조군", () => {
+  describe("collectQuotedLiterals — 따옴표가 토큰만 감쌀 때", () => {
+    it("세 따옴표 형태를 모두 받는다", () => {
+      expect([...collectQuotedLiterals(["a 'A_ONE' b"])]).toEqual(["A_ONE"]);
+      expect([...collectQuotedLiterals(['a "B_TWO" b'])]).toEqual(["B_TWO"]);
+      expect([...collectQuotedLiterals(["a `C_THREE` b"])]).toEqual(["C_THREE"]);
+    });
+
+    it("[경계] 여닫이 따옴표가 **다르면** 안 받는다 (역참조)", () => {
+      // 역참조를 빼는 뮤턴트가 이 값에서만 갈린다 — 같은 따옴표 케이스는 안 갈린다.
+      expect([...collectQuotedLiterals(["a 'D_FOUR\" b"])]).toEqual([]);
+    });
+
+    it("[비대상] 따옴표 안에 토큰 **외의 글자**가 있으면 안 받는다", () => {
+      // 이것이 «접두» 와 «리터럴» 을 가르는 자리다.
+      expect([...collectQuotedLiterals(["throw new Error('E_FIVE: 설명')"])]).toEqual(
+        [],
+      );
+      expect([...collectQuotedLiterals(["'F_SIX '"])]).toEqual([]);
+    });
+
+    it("[비대상] 따옴표가 아예 없으면 안 받는다", () => {
+      expect([...collectQuotedLiterals(["bare G_SEVEN token"])]).toEqual([]);
+    });
+  });
+
+  describe("collectMessagePrefixes — 여는 따옴표 직후 + `:` + 공백", () => {
+    it("작은따옴표·템플릿 리터럴 둘 다 받는다 (코퍼스가 둘을 섞어 쓴다)", () => {
+      expect([...collectMessagePrefixes(["new Error('H_ONE: 설명')"])]).toEqual([
+        "H_ONE",
+      ]);
+      expect([...collectMessagePrefixes(["new Error(`I_TWO: ${x}`)"])]).toEqual([
+        "I_TWO",
+      ]);
+    });
+
+    it("[경계] `:` 가 없으면 접두가 아니다", () => {
+      expect([...collectMessagePrefixes(["new Error('J_THREE 설명')"])]).toEqual([]);
+    });
+
+    it("[경계] `:` 뒤에 공백이 없으면 접두가 아니다", () => {
+      // `'K_FOUR:값'` 은 접두 서술이 아니라 값 표기다 — 두 판정이 갈리는 값.
+      expect([...collectMessagePrefixes(["'K_FOUR:값'"])]).toEqual([]);
+    });
+
+    it("[경계] 여는 따옴표 **직후**여야 한다", () => {
+      // 문장 중간의 `… L_FIVE: …` 는 접두가 아니다.
+      expect([...collectMessagePrefixes(["'prefix L_FIVE: 설명'"])]).toEqual([]);
+    });
+  });
+
+  describe("collectCatalogCodes — 백틱만", () => {
+    it("백틱 인용을 받는다", () => {
+      expect([...collectCatalogCodes(["| `M_ONE` | 없음 | 설명 |"])]).toEqual([
+        "M_ONE",
+      ]);
+    });
+
+    it("[비대상] 따옴표는 카탈로그 인용이 아니다", () => {
+      // spec 마크다운의 코드 표기는 백틱이다 — 따옴표까지 받으면 산문 예시가 섞인다.
+      expect([...collectCatalogCodes(["'N_TWO' 는 예시"])]).toEqual([]);
+      expect([...collectCatalogCodes(['"O_THREE" 는 예시'])]).toEqual([]);
+    });
+
+    it("[비대상] 백틱 없는 맨 토큰은 안 받는다", () => {
+      expect([...collectCatalogCodes(["P_FOUR 는 맨 토큰"])]).toEqual([]);
+    });
+  });
+
+  it("[공용] `collectMatches` 가 여러 텍스트의 중복을 한 번만 센다", () => {
+    expect([
+      ...collectQuotedLiterals(["'Q_ONE'", "'Q_ONE'", "'R_TWO'"]),
+    ]).toEqual(["Q_ONE", "R_TWO"]);
   });
 });
 
