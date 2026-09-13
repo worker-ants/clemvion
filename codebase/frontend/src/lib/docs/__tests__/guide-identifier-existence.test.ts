@@ -60,8 +60,17 @@ function parseWhereRefs(where: string): { file: string; line: number }[] {
   return out;
 }
 
-/** 목록의 모든 항목이 **여전히 가이드에 인용되는지**. 두 목록이 같은 판정을 쓴다. */
-function staleEntries(
+/**
+ * 목록의 모든 항목이 **여전히 가이드에 인용되는지**. 두 목록이 같은 판정을 쓴다.
+ *
+ * **`staleGuideEntries` 로 이름을 바꿨다** — 첫 판은 `staleGuideEntries` 였는데
+ * `repo-guards/__tests__/internal-package-registration-guard.ts:129` 에 **export 된 동명
+ * 함수**가 이미 있었고 시그니처가 다르다(`(string[], string[])` vs 여기)
+ * (`--impl-done` `review/consistency/2026/09/13/20_34_48` naming_collision WARNING#5).
+ * **이름을 정하기 전에 grep 하지 않은 것이 원인**이고, 이 저장소가 이미 적어 둔 규칙이다 —
+ * *"새 식별자는 후보 토큰이 grep 0건임을 먼저 보여라."*
+ */
+function staleGuideEntries(
   list: readonly { token: string }[],
   cited: ReadonlySet<string>,
 ): string[] {
@@ -289,7 +298,7 @@ describe("유저 가이드 식별자 실재성 가드", () => {
       // 같은 클래스의 중복을 새로 만들었다
       // (`review/code/2026/09/13/19_51_33` maintainability WARNING#4).
       const cited = new Set(citations.map((c) => c.token));
-      expect(staleEntries(GUIDE_NON_EMITTED_VOCABULARY, cited)).toEqual([]);
+      expect(staleGuideEntries(GUIDE_NON_EMITTED_VOCABULARY, cited)).toEqual([]);
     });
 
     it(`[vacuity] 목록이 비면 위 3강제가 전부 무의미해진다`, () => {
@@ -406,7 +415,7 @@ describe("유저 가이드 식별자 실재성 가드", () => {
 
     it("각 항목이 **여전히 가이드에 인용된다** (죽은 항목 누적 방지)", () => {
       const cited = new Set(citations.map((c) => c.token));
-      expect(staleEntries(GUIDE_EXTERNAL_VOCABULARY, cited)).toEqual([]);
+      expect(staleGuideEntries(GUIDE_EXTERNAL_VOCABULARY, cited)).toEqual([]);
     });
 
     it("각 항목이 **기준집합에 없다** (우리 것이 되면 항목이 강제 제거된다)", () => {
@@ -509,33 +518,25 @@ describe("collectSourceTokens — 경계 대조군", () => {
   });
 });
 
-/**
- * 발행 축 수집기 3종의 **합성 경계 대조군**.
- *
- * `/ai-review`(`review/code/2026/09/13/19_23_22` testing WARNING#5): 형제 함수
- * (`collectSourceTokens`·`collectEnvDeclarations`)에는 손으로 짠 대조군이 있는데
- * **신규 3종만 없었다** — 실제 코퍼스 통계와 이름-하나짜리 회귀에만 의존했다.
- * 각 제약마다 **두 판정이 갈리는 값**을 고정한다.
- */
-describe("staleEntries — 판별 대조군", () => {
+describe("staleGuideEntries — 판별 대조군", () => {
   // `/ai-review`(`review/code/2026/09/13/20_13_13` testing WARNING#2): 이 헬퍼는 두
   // 호출부 모두 실코퍼스 베이스라인-0(`toEqual([])`)으로만 검증돼, **필터 방향이 뒤집혀도**
   // 목록이 커지기 전까지는 우연히만 잡힌다. 같은 파일이 다른 신규 함수 전부에 적용한
   // 규율(«두 판정이 갈리는 값을 고정») 을 이 1줄 함수만 비켜 갔다.
   it("인용되지 않은 항목을 낸다", () => {
-    expect(staleEntries([{ token: "NOT_CITED" }], new Set(["OTHER"]))).toEqual([
+    expect(staleGuideEntries([{ token: "NOT_CITED" }], new Set(["OTHER"]))).toEqual([
       "NOT_CITED",
     ]);
   });
 
   it("인용된 항목은 내지 않는다", () => {
-    expect(staleEntries([{ token: "CITED" }], new Set(["CITED"]))).toEqual([]);
+    expect(staleGuideEntries([{ token: "CITED" }], new Set(["CITED"]))).toEqual([]);
   });
 
   it("[경계] 빈 목록은 빈 결과 — 단언이 vacuous 해지는 자리", () => {
     // 두 호출부가 `toEqual([])` 를 쓰므로, 목록이 비면 통과한다. 그 자리는 각 목록의
     // **상한·하한 강제**가 따로 막는다(`…_CAP` · `length > 0`).
-    expect(staleEntries([], new Set(["ANY"]))).toEqual([]);
+    expect(staleGuideEntries([], new Set(["ANY"]))).toEqual([]);
   });
 });
 
@@ -565,6 +566,14 @@ describe("isMessagePrefixOnly — 진리표 대조군", () => {
   });
 });
 
+/**
+ * 발행 축 수집기 3종의 **합성 경계 대조군**.
+ *
+ * `/ai-review`(`review/code/2026/09/13/19_23_22` testing WARNING#5): 형제 함수
+ * (`collectSourceTokens`·`collectEnvDeclarations`)에는 손으로 짠 대조군이 있는데
+ * **신규 3종만 없었다** — 실제 코퍼스 통계와 이름-하나짜리 회귀에만 의존했다.
+ * 각 제약마다 **두 판정이 갈리는 값**을 고정한다.
+ */
 describe("발행 축 수집기 — 경계 대조군", () => {
   describe("collectQuotedLiterals — 따옴표가 토큰만 감쌀 때", () => {
     it("세 따옴표 형태를 모두 받는다", () => {
