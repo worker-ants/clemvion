@@ -226,9 +226,24 @@ error 포트 예시가 `{ error: { code: "MAKESHOP_API_ERROR" } }` 다. 실재�
       타입체크 ratchet 둘도 baseline 일치(backend 197/36 · frontend 52/15).
       > 실행은 했는데 **체크박스를 안 고쳤다**(`/ai-review` `11_07_36` testing INFO#3).
       > "plan 체크박스 = 실제 상태" 규칙을 내가 어긴 자리다.
-- [x] `/ai-review` (`review/code/2026/09/13/10_12_19` — 14 reviewer 전원, **Critical 0** ·
-      WARNING 5 · LOW) + `--impl-done spec/5-system/`
-      (`review/consistency/2026/09/13/10_12_54` — **BLOCK: NO** · Critical 0 · WARNING 5)
+- [ ] `/ai-review` + `--impl-done spec/5-system/` — **라운드 4 진행 중**
+
+      | R | `/ai-review` | `--impl-done` | 처분 |
+      |---|---|---|---|
+      | 1 | `10_12_19` · C0 W5 LOW | `10_12_54` · BLOCK:NO · C0 W5 | §G (10건) |
+      | 2 | `10_40_34` · C0 W3 LOW | `10_41_13` · BLOCK:NO · C0 W4 | §H (5건) |
+      | 3 | `11_07_36` · C0 W3 **MEDIUM** | `11_08_03` · BLOCK:NO · C0 W3 | §I (4건) |
+      | 4 | `11_33_23` — 진행 중 | `11_33_51` — 진행 중 | — |
+
+      > **이 항목을 한 번 거짓으로 체크했다.** 라운드 1 세션만 인용한 채 `[x]` 로 두었는데
+      > 그 사이 라운드 2·3 이 돌았고 4가 진행 중이었다 — stop hook 이 *"체크박스가 모두
+      > 완료됐는데 plan 이 아직 in-progress 에 있다"* 고 알려 준 덕에 드러났다. 훅의 전제가
+      > 옳았던 게 아니라 **내 체크박스가 상태를 잘못 말하고 있었다.**
+      >
+      > 저장소 규칙은 *"plan 체크박스 = 실제 상태"* 이고, 이 PR 이 이미 같은 규칙을 한 번
+      > 어겼다(`run-test-all.sh` 를 4회 돌려 놓고 미체크 — `11_07_36` testing INFO#3).
+      > **두 방향 다 틀릴 수 있다**: 한 자리는 한 일을 안 적었고, 한 자리는 안 끝난 일을
+      > 끝났다고 적었다. 라운드별 표로 바꿔 어느 쪽도 한 칸으로 뭉개지 않게 한다.
 
 ## G. 리뷰 라운드 1 — 지적 10건 처분
 
