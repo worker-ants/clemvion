@@ -50,7 +50,11 @@
 // 대신 허용목록이 은폐 수단이 되지 않도록 **네 가지를 테스트가 강제**한다(§테스트 참조):
 // 외부 시스템 이름 의무 · 상한 · 여전히 인용될 것 · 기준집합에 없을 것.
 
-// ## 이 가드가 **못** 보는 것 — 존재 검사이지 방출 검사가 아니다
+// ## 이 가드가 **못** 보는 것 — 대부분 존재 검사다 (발행 축은 아래 §발행 축 참조)
+//
+// > **2026-09-13 에 한 칸 좁혔다.** *"메시지 접두로만 등장하고 카탈로그에도 없는"* 인용은
+// > 이제 `GUIDE_NON_EMITTED_VOCABULARY` 등록을 요구한다(§발행 축). 아래 두 갈래 중 **첫째가
+// > 부분적으로 닫혔고**, 둘째와 *"소비자 목록이 인용해서 통과하는"* 경우는 그대로 열려 있다.
 //
 // 술어는 *"그 토큰이 소스·env 선언처에 문자열로 있는가"* 다. 그래서 **실제로 발행되지 않는
 // 토큰도 통과한다**:
@@ -235,6 +239,32 @@ const BACKTICK_SPAN = /`([^`\n]+)`/g;
  */
 const BACKTICK_INNER = new RegExp(`\\b(${UPPER_SNAKE})\\b`, "g");
 
+// ## 발행 축의 정규식 셋 — **`lastIndex` 보일러플레이트를 늘리지 않는다**
+//
+// 이 파일은 `rx.lastIndex = 0` → `while ((m = rx.exec(t)))` 를 이미 **4곳**에 손으로
+// 복제하고 있고, 그 복제는 트래커에 등재돼 있다(*"리셋 누락 시 두 번째 호출부터 조용히
+// 누락"*). `--impl-prep`(`review/consistency/2026/09/13/18_40_54` plan_coherence INFO#3)이
+// **이 축을 더하면 다섯 번째가 생긴다**고 예견했다.
+//
+// 그래서 아래 셋은 `String.prototype.matchAll` 로 쓴다 — `matchAll` 은 내부적으로 정규식을
+// **복제**하므로 공유 `lastIndex` 를 건드리지 않는다. 등재된 리팩터를 앞당기지 않으면서
+// 복제를 **4곳에 묶어 둔다**.
+//
+// | 정규식 | 무엇을 집나 | 경계 |
+// |---|---|---|
+// | `QUOTED_LITERAL` | `'X'` · `"X"` · `` `X` `` — 따옴표가 **토큰만** 감쌀 때 | 여는·닫는 따옴표가 같아야 한다 |
+// | `MESSAGE_PREFIX` | `'X: …'` — 토큰 뒤에 `:` + 공백 | 여는 따옴표 직후여야 한다 |
+// | `CATALOG_CODE` | spec 마크다운의 `` `X` `` | 백틱 양쪽 |
+
+/** 따옴표가 **토큰만** 감싼 리터럴. 여는·닫는 따옴표가 같아야 한다(역참조). */
+const QUOTED_LITERAL = new RegExp(`(['"\`])(${UPPER_SNAKE})\\1`, "g");
+
+/** 메시지 접두 — 여는 따옴표 **직후**의 토큰 + `:` + 공백. */
+const MESSAGE_PREFIX = new RegExp(`['"\`](${UPPER_SNAKE}):\\s`, "g");
+
+/** spec 카탈로그의 백틱 인용. */
+const CATALOG_CODE = new RegExp(`\`(${UPPER_SNAKE})\``, "g");
+
 /**
  * 우리 것이 아닌 것이 **정상**인 외부 어휘.
  *
@@ -253,6 +283,110 @@ export const GUIDE_EXTERNAL_VOCABULARY: readonly {
     why: "Discord 가 정의한 Gateway 이벤트 이름. 가이드는 '이 이벤트는 Gateway WebSocket 연결이 필요해 지원하지 않는다' 고 설명하려고 인용한다 — 우리 코드에 없는 것이 정상이다.",
   },
 ];
+
+/**
+ * **메시지 접두일 뿐 `error.code` 로 발행되지 않는** 토큰. 위 목록의 **거울상**이다.
+ *
+ * | 목록 | 무엇을 면제하나 | 제약 |
+ * |---|---|---|
+ * | `GUIDE_EXTERNAL_VOCABULARY` | **존재** 축 | 기준집합에 **없을** 것 |
+ * | `GUIDE_NON_EMITTED_VOCABULARY` | **발행** 축 | 기준집합에 **있을** 것 |
+ *
+ * **제약이 정확히 반대라 두 목록은 합칠 수 없다** — 한 항목이 *"기준집합에 없고 동시에
+ * 있을"* 수는 없다. 합치면 예외 하나가 두 축의 결함을 동시에 덮는다.
+ *
+ * `#1330` 은 *"허용목록 없음"* 을 설계 원칙으로 세웠다. 이것이 그 원칙의 **두 번째 부분
+ * 번복**이다(첫 번째는 `GUIDE_EXTERNAL_VOCABULARY`). 두 번 다 이유가 같다 — 문맥 술어에
+ * 숨기는 대신 **명시적으로 적고 사유를 강제**한다. 숨기면 다음 사람이 그 술어를 넓히거나
+ * 좁힐 때 무엇이 걸려 있는지 모른다.
+ *
+ * **등록이 이 축의 값이다.** 새로 «메시지 접두로만 등장하고 카탈로그에도 없는» 토큰이
+ * 가이드에 등장하면 사유를 적기 전까지 RED 다. 사유를 적는 행위가 *"그럼 이 문장은
+ * 정확한가?"* 를 묻게 만든다 — 실제로 이 배치에서 `CONTAINER_*` 두 문장이 그 질문에 걸려
+ * 정정됐다.
+ */
+export const GUIDE_NON_EMITTED_VOCABULARY: readonly {
+  token: string;
+  /** 접두를 붙이는 자리. 사유가 "어디서" 를 지목하지 못하면 등록이 통행증이 된다. */
+  where: string;
+  why: string;
+}[] = [
+  {
+    token: "MAKESHOP_UNRESOLVED_PATH_PARAM",
+    where: "makeshop.handler.ts — 일반 `Error` 메시지 접두",
+    why: "catch 가 `err instanceof IntegrationError ? err.code : 'INTEGRATION_CALL_FAILED'` 라 `output.error.code` 에는 공용 fallback 이 들어간다. 가이드는 이미 '전용 코드가 없어요 … 코드가 아니라 메시지를 봐야 해요' 라고 정확히 적고 있어 문장 수정이 아니라 등록이 맞다.",
+  },
+  {
+    token: "CONTAINER_MISSING_EMIT",
+    where: "execution-engine.service.ts:7121·7125 — 템플릿 리터럴 메시지 접두",
+    why: "구조화된 `error.code` 로 나가지 않는다. 가이드가 '…로 실행 실패해요' 라고 적어 코드처럼 읽혔고 이 배치에서 '메시지 앞에 붙어요' 로 정정했다. 전용 코드 발행은 동작 변경이라 별 배치(트래커 등재분).",
+  },
+  {
+    token: "CONTAINER_MULTIPLE_EMIT",
+    where: "execution-engine.service.ts — 형제 접두",
+    why: "위와 동형. 두 이름은 같은 문장에 함께 등장하므로 처분도 함께 한다.",
+  },
+];
+
+/**
+ * 소스에서 **«정확히 토큰만» 담은 따옴표 리터럴**로 등장하는 토큰 전수.
+ *
+ * `'X'` · `"X"` · `` `X` `` 세 형태를 받는다. 메시지 접두(`'X: …'`)는 따옴표 안에 토큰
+ * 외의 글자가 있으므로 **여기 안 걸린다** — 그 갈림이 이 함수의 존재 이유다.
+ *
+ * **이 집합을 «발행» 의 증거로 쓰지 않는다.** `3-error-handling.md §1.4` 가 명시하듯
+ * *"`execution-failure-classifier.ts` 의 목록에 같은 이름이 나오지만 그것은 소비자·분류기
+ * 쪽 어휘이지 엔진 발행 경로의 앵커가 아니다"* — 실제로 `MAX_ITERATIONS_EXCEEDED` 는
+ * 메시지 접두로만 발행되는데 그 분류기가 인용해서 여기 들어온다.
+ *
+ * 그래서 호출부는 이것을 **통과 조건이 아니라 «접두 전용» 을 부정하는 데만** 쓴다.
+ */
+export function collectQuotedLiterals(
+  fileTexts: readonly string[],
+): Set<string> {
+  const tokens = new Set<string>();
+  for (const text of fileTexts) {
+    // 그룹 1 은 여는 따옴표(역참조용), **토큰은 그룹 2** 다.
+    for (const m of text.matchAll(QUOTED_LITERAL)) tokens.add(m[2]);
+  }
+  return tokens;
+}
+
+/**
+ * 소스에서 **메시지 접두**(`'X: …'`)로 등장하는 토큰 전수.
+ *
+ * `throw new Error('X: 설명')` · 템플릿 리터럴 `` `X: ${…}` `` 둘 다 대상이다. 실제
+ * 코퍼스가 둘을 섞어 쓴다 — makeshop 은 작은따옴표, 엔진은 템플릿 리터럴이다(실측).
+ */
+export function collectMessagePrefixes(
+  fileTexts: readonly string[],
+): Set<string> {
+  const tokens = new Set<string>();
+  for (const text of fileTexts) {
+    for (const m of text.matchAll(MESSAGE_PREFIX)) tokens.add(m[1]);
+  }
+  return tokens;
+}
+
+/**
+ * spec 에러 코드 **카탈로그**가 백틱으로 등재한 코드 전수.
+ *
+ * **카탈로그는 «요구 조건» 이 아니라 «탈출구» 다.** 요구 조건으로 쓰면 오늘 거짓 RED 가
+ * 25건 난다 — 인용된 에러 코드 78종 중 28종이 미등재이고 그중 25종이 **진짜 발행되는**
+ * 통합 코드다(`CAFE24_*`·`MAKESHOP_*`·`INTEGRATION_*`). 그 미등재는 planner 트래커에
+ * 등재된 별건이고, 가드가 **남의 미완결을 신고하게** 두지 않는다.
+ *
+ * 탈출구로 쓰면 그 25종은 애초에 접두 전용이 아니라 술어에 안 걸리므로 무해하다. 대신
+ * `MAX_ITERATIONS_EXCEEDED` 처럼 **접두로만 발행되지만 spec 이 정식 코드로 인정한** 것이
+ * 통과한다 — spec 이 `HTTP_TIMEOUT`(미발행 — §1.4 註)에 이미 쓰는 처리와 같은 모양이다.
+ */
+export function collectCatalogCodes(specTexts: readonly string[]): Set<string> {
+  const tokens = new Set<string>();
+  for (const text of specTexts) {
+    for (const m of text.matchAll(CATALOG_CODE)) tokens.add(m[1]);
+  }
+  return tokens;
+}
 
 /** 한 MDX 본문에서 식별자 인용을 전부 걷는다. 같은 줄의 중복 축은 각각 보고된다. */
 export function scanIdentifierCitations(mdx: string): IdentifierCitation[] {

@@ -8,7 +8,11 @@ import {
   scanIdentifierCitations,
   collectSourceTokens,
   collectEnvDeclarations,
+  collectQuotedLiterals,
+  collectMessagePrefixes,
+  collectCatalogCodes,
   GUIDE_EXTERNAL_VOCABULARY,
+  GUIDE_NON_EMITTED_VOCABULARY,
   type CitationAxis,
 } from "./guide-identifier-scan";
 
@@ -70,6 +74,25 @@ describe("유저 가이드 식별자 실재성 가드", () => {
 
   const allowed = new Set(GUIDE_EXTERNAL_VOCABULARY.map((e) => e.token));
 
+  // ── 발행 축 ────────────────────────────────────────────────────────────────
+  // 기준집합과 **다른 소스 뷰**를 쓴다: 기준집합은 "이 이름이 어디든 있나" 를, 이쪽은
+  // "따옴표가 토큰만 감쌌나 / 접두로만 붙나" 를 본다. 같은 `sourceTexts` 를 재사용한다.
+  const quotedLiterals = collectQuotedLiterals(sourceTexts);
+  const messagePrefixes = collectMessagePrefixes(sourceTexts);
+  const catalogCodes = collectCatalogCodes([
+    fs.readFileSync(
+      path.join(root, "spec/5-system/3-error-handling.md"),
+      "utf8",
+    ),
+  ]);
+  const registeredNonEmitted = new Set(
+    GUIDE_NON_EMITTED_VOCABULARY.map((e) => e.token),
+  );
+
+  /** «메시지 접두로만» 등장한다 = 접두에 있고 토큰-단독 리터럴에는 없다. */
+  const isMessagePrefixOnly = (token: string): boolean =>
+    messagePrefixes.has(token) && !quotedLiterals.has(token);
+
   // ── vacuity floors ──────────────────────────────────────────────────────────
   it("코퍼스를 실제로 적재한다 (vacuity floor)", () => {
     expect(mdxFiles.length).toBeGreaterThan(50); // 실측 92
@@ -125,6 +148,66 @@ describe("유저 가이드 식별자 실재성 가드", () => {
     expect(
       missing.map((c) => `${c.file}:${c.line} [${c.axis}] ${c.token}`),
     ).toEqual([]);
+  });
+
+  // ── 발행 축 (베이스라인) ────────────────────────────────────────────────────
+  describe("발행 축 — 가이드가 «코드» 로 부르는 것이 코드인가", () => {
+    it("접두 전용이면서 카탈로그에도 없는 인용은 **등록돼 있다** (베이스라인 0)", () => {
+      const offenders = [...new Set(citations.map((c) => c.token))]
+        .filter(isMessagePrefixOnly)
+        .filter((t) => !catalogCodes.has(t))
+        .filter((t) => !registeredNonEmitted.has(t))
+        .sort();
+      expect(offenders).toEqual([]);
+    });
+
+    it("[vacuity] 세 수집기가 실제로 뭔가를 걷었다", () => {
+      // 셋 중 하나가 빈 집합이면 위 단언이 **아무것도 안 보고** 통과한다.
+      expect(quotedLiterals.size).toBeGreaterThan(200); // 실측 다수
+      expect(messagePrefixes.size).toBeGreaterThan(3);
+      expect(catalogCodes.size).toBeGreaterThan(50); // 실측 카탈로그 규모
+    });
+
+    it("등록된 3종이 **실제로 접두 전용**이다 (죽은 등록 방지)", () => {
+      // 등록만 해 두고 실제로는 발행되기 시작하면 이 항목은 **거짓말**이 된다.
+      // 그때 이 단언이 RED 로 알리고, 항목을 지우라는 신호가 된다.
+      const notActuallyPrefixOnly = GUIDE_NON_EMITTED_VOCABULARY.filter(
+        (e) => !isMessagePrefixOnly(e.token),
+      );
+      expect(notActuallyPrefixOnly.map((e) => e.token)).toEqual([]);
+    });
+
+    it("등록된 3종이 **기준집합에 있다** (외부 어휘 목록과 제약이 반대)", () => {
+      // `GUIDE_EXTERNAL_VOCABULARY` 는 *"기준집합에 없을 것"*, 이쪽은 *"있을 것"*.
+      // 제약이 정확히 반대라 두 목록은 합칠 수 없다 — 합치면 예외 하나가 두 축을 덮는다.
+      const notInBasis = GUIDE_NON_EMITTED_VOCABULARY.filter(
+        (e) => !basis.has(e.token),
+      );
+      expect(notInBasis.map((e) => e.token)).toEqual([]);
+    });
+
+    it("각 항목이 **어디서** 접두가 붙는지와 사유를 밝힌다", () => {
+      for (const entry of GUIDE_NON_EMITTED_VOCABULARY) {
+        expect(entry.where.trim().length).toBeGreaterThan(10);
+        expect(entry.why.trim().length).toBeGreaterThan(30);
+      }
+    });
+
+    it(`[vacuity] 목록이 비면 위 3강제가 전부 무의미해진다`, () => {
+      expect(GUIDE_NON_EMITTED_VOCABULARY.length).toBeGreaterThan(0);
+    });
+
+    it("[회귀] `MAX_ITERATIONS_EXCEEDED` 는 **카탈로그 덕에** 통과한다", () => {
+      // 이 토큰은 `loop-executor.ts` 에서 **접두로만** 발행되고, 소비자 Set
+      // (`execution-failure-classifier.ts`)이 인용해 `quotedLiterals` 에도 든다.
+      // spec §1.4 는 *"소비자·분류기 쪽 어휘이지 발행 경로의 앵커가 아니다"* 라고
+      // 명시하므로 **리터럴 존재를 통과 근거로 쓰면 안 된다** — 통과 근거는 카탈로그다.
+      expect(catalogCodes.has("MAX_ITERATIONS_EXCEEDED")).toBe(true);
+      expect(messagePrefixes.has("MAX_ITERATIONS_EXCEEDED")).toBe(true);
+      // 그리고 `CONTAINER_MISSING_EMIT` 는 **카탈로그에 없어** 등록이 필요했다 —
+      // 두 토큰이 갈리는 자리가 정확히 여기다.
+      expect(catalogCodes.has("CONTAINER_MISSING_EMIT")).toBe(false);
+    });
   });
 
   it("[회귀] 혼합 백틱 스팬에만 등장하는 6종도 **검사받는다**", () => {
