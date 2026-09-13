@@ -296,6 +296,18 @@ describe("scanIdentifierCitations — 축별 대조군", () => {
     expect(tokens(row)).toEqual(["backtick:HTTP_TIMEOUT", "backtick:LLM_TIMEOUT"]);
   });
 
+  it("[비대상] 밑줄 없는 대문자 약어는 안 집는다", () => {
+    // `UPPER_SNAKE` 가 **밑줄을 최소 하나** 요구하는 설계 결정을 고정한다. 주석에만 적혀
+    // 있고 어떤 테스트도 겨누지 않아, `(?:_[A-Z0-9]+)+` 의 `+`→`*` 뮤턴트가 **생존**했다
+    // (`/ai-review` `review/code/2026/09/13/15_24_12` testing WARNING#1 · 내가 직접 재현).
+    //
+    // 약어를 집기 시작하면 가이드의 `LLM`·`HTTP`·`API` 같은 낱말이 전부 후보가 되고,
+    // 그것들은 기준집합에 있을 수도 없을 수도 있어 **베이스라인이 통제 불능**이 된다.
+    expect(tokens("모델은 `LLM` 이고 전송은 `HTTP` 예요.")).toEqual([]);
+    // 대조군 — 밑줄이 하나라도 있으면 집는다(두 판정이 갈리는 값이어야 제약이 관측된다).
+    expect(tokens("`LLM_TIMEOUT` 은 집는다.")).toEqual(["backtick:LLM_TIMEOUT"]);
+  });
+
   it("[비대상] 백틱 없는 산문 토큰은 안 집는다", () => {
     // 백틱은 "이건 식별자다" 라는 **작성자의 표시**다. 그게 없으면 일반 대문자 낱말과
     // 구분할 수 없어 오탐이 폭증한다.

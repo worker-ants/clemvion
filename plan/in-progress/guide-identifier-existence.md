@@ -159,5 +159,14 @@ INFO 중 #1(원 트래커 처분 제안 번복 표시)·#2~#4(명명)는 §C 와
 - [x] planner 등재 갱신 — 파일명·스코프·**Rationale 요구**를 등재 문구에 반영
 - [x] planner 등재 신규 — `cafe24-api-metadata.md §4` Principle 7→0 + `status` (선재, 무관)
 - [x] 원 트래커 항목 종결 — 처분 제안에 **취소선 + 번복 근거**(그 제안대로 해서 결함을 놓쳤다)
-- [ ] `.claude/tools/run-test-all.sh`
-- [ ] `/ai-review` + `--impl-done`
+- [x] `.claude/tools/run-test-all.sh` — 3회 실행 전부 ALL PASS (lint · unit · build · e2e 307)
+- [x] `/ai-review` + `--impl-done spec/conventions/` — **라운드 3에서 수렴**
+
+      | R | `/ai-review` | `--impl-done` |
+      |---|---|---|
+      | 1 | `14_41_14` · C0 W6 MEDIUM | `14_41_43` · BLOCK:NO · C0 W4 |
+      | 2 | `15_03_06` · C0 W1 LOW | `15_03_36` · **BLOCK:YES · C1** |
+      | 3 | `15_24_12` · C0 W2 LOW | `15_23_53` · BLOCK:NO · C0 W3 |
+
+      라운드 3 의 `--impl-done` WARNING 3건은 **전부 `spec/**`**(권한 밖·등재분)이고,
+      checker 가 *"developer 쪽 추가 조치 없음"* 으로 명시 확인했다.
