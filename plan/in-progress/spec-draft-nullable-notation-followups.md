@@ -32,6 +32,17 @@ spec_impact:
   - spec/conventions/error-codes.md
   - spec/5-system/4-execution-engine.md
   - spec/5-system/6-websocket-protocol.md
+  # **세 번째 재발이다** (2026-09-13 · `--impl-done`
+  # `review/consistency/2026/09/13/21_19_52` plan_coherence WARNING#3). 신규 항목
+  # 「spec 6파일이 CONTAINER_* 를 «코드» 로 적는다」가 겨냥하는 6개 중 **5개가 빠져 있었다**
+  # — `4-execution-engine.md` 만 위에 이미 있어서 «있다» 로 읽었다. 위 두 주석이 같은 실패를
+  # 이미 두 번 자백하는데도 같은 자리를 또 밟았다. 항목을 등재할 때 **그 항목의 «대상 파일
+  # 전수» 를 이 목록과 대조하는 것**이 절차여야 한다.
+  - spec/3-workflow-editor/2-edge.md
+  - spec/3-workflow-editor/0-canvas.md
+  - spec/4-nodes/1-logic/0-common.md
+  - spec/4-nodes/1-logic/7-map.md
+  - spec/4-nodes/1-logic/9-foreach.md
   # **`4-integration.md` 는 의도적으로 넣지 않았다** — 그 항목(`consecutiveNetworkFailures`
   # 노출 중단 **검토**)의 결정 대상은 DTO 필드이고, §9.1 캐비엇 수정은 결정이 "중단" 으로
   # 기울 때만 따라오는 **하류**다. 조건부 대상을 넣으면 이 목록이 "이 plan 이 건드리는 파일" 이
@@ -3479,6 +3490,12 @@ field: T | null;
       > **차이는 코드가 아니라 카탈로그다.** 그래서 이 배치의 발행 축은 카탈로그를
       > **탈출구**로 쓴다 — 그래야 `MAX_ITERATIONS_EXCEEDED` 가 통과한다. 다만 *"왜 이 둘만
       > 밖인가"* 는 여전히 무기재다.
+      >
+      > **같은 절(`3-error-handling.md §1`)을 겨냥하는 plan 이 이미 셋 있고 «한 턴에 묶어라»
+      > 합의가 이 문서 위쪽에 있다** — 이 항목이 **넷째**다 (2026-09-13 · `--impl-done`
+      > `review/consistency/2026/09/13/21_19_52` plan_coherence WARNING#4).
+      > 그 합의를 인용하지 않고 독립 택일로 등재하면 planner 가 §1 하위구조를 **네 번 따로**
+      > 건드리게 된다. 집행 시 그 합의와 함께 볼 것.
       >
       > 택일: (a) `CONTAINER_*` 를 §1.4 에 backfill 해 형제와 나란히 둔다 —
       > 그러면 이 배치의 등록 항목 둘은 **불필요해지고 가드가 자동으로 통과시킨다**.

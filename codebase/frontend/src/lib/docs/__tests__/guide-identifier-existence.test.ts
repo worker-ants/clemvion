@@ -78,6 +78,28 @@ function staleGuideEntries(
   return list.filter((e) => !cited.has(e.token)).map((e) => e.token);
 }
 
+/**
+ * `basename` 으로 소스 파일을 찾아 줄 배열을 준다. **파일당 한 번만** 트리를 순회한다.
+ *
+ * 유일하게 특정되지 않으면(0건·2건 이상) `null` — 호출부가 그것을 결함으로 보고한다.
+ */
+const sourceLinesCache = new Map<string, string[] | null>();
+function resolveSourceLines(file: string): string[] | null {
+  const key = path.basename(file);
+  const hit = sourceLinesCache.get(key);
+  if (hit !== undefined) return hit;
+  const found = walkTree(repoRoot(), ["codebase/backend/src"], {
+    skipDir: (n) => n === "node_modules" || n === "dist" || n === "build",
+    includeFile: (n) => n === key,
+  });
+  const value =
+    found.length === 1
+      ? fs.readFileSync(found[0].absPath, "utf8").split("\n")
+      : null;
+  sourceLinesCache.set(key, value);
+  return value;
+}
+
 describe("유저 가이드 식별자 실재성 가드", () => {
   const mdxFiles = collectMdxFiles(root, "codebase/frontend/src/content/docs");
 
@@ -199,7 +221,7 @@ describe("유저 가이드 식별자 실재성 가드", () => {
   // ── 발행 축 (베이스라인) ────────────────────────────────────────────────────
   describe("발행 축 — 가이드가 «코드» 로 부르는 것이 코드인가", () => {
     it("접두 전용이면서 카탈로그에도 없는 인용은 **등록돼 있다** (베이스라인 0)", () => {
-      // **정본을 부른다.** 종전엔 이 자리에서 `.filter(...)` 네 개를 손으로 이어 붙였고,
+      // **정본을 부른다.** 종전엔 이 자리에서 `.filter(...)` **세 개**를 손으로 이어 붙였고,
       // 아래 `[한계]`·`[대조군]` 은 그것과 **분리된 병렬 구현**이었다 — 그래서 실제 체인에서
       // 카탈로그 필터를 지워도 71/71 GREEN 이었다
       // (`review/code/2026/09/13/20_57_13` testing WARNING#1, 리뷰어가 뮤테이션으로 관측).
@@ -256,15 +278,15 @@ describe("유저 가이드 식별자 실재성 가드", () => {
           continue;
         }
         for (const { file, line: lineNo } of refs) {
-          const hits = walkTree(root, ["codebase/backend/src"], {
-            skipDir: (n) => n === "node_modules" || n === "dist" || n === "build",
-            includeFile: (n) => n === path.basename(file),
-          });
-          if (hits.length !== 1) {
-            broken.push(`${entry.token}: ${file} 이 ${hits.length}건`);
+          // **파일당 한 번만 순회한다.** 종전엔 참조마다 `backend/src` 1,304 파일을 다시
+          // 걸었고, 등록 3항목·참조 4개 중 **3개가 같은 파일**이었다
+          // (`/ai-review` `review/code/2026/09/13/21_19_46` performance WARNING#1).
+          // 등록이 늘어나는 방향의 설계라 배율이 함께 커진다.
+          const lines = resolveSourceLines(file);
+          if (lines === null) {
+            broken.push(`${entry.token}: ${file} 을 유일하게 특정할 수 없다`);
             continue;
           }
-          const lines = fs.readFileSync(hits[0].absPath, "utf8").split("\n");
           const src = lines[lineNo - 1] ?? "";
           if (!src.includes(entry.token)) {
             broken.push(
