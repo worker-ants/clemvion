@@ -45,9 +45,14 @@ describe("유저 가이드 식별자 실재성 가드", () => {
     ...readIfPresent("codebase/backend/.env.example"),
     ...readIfPresent("codebase/frontend/.env.example"),
   ];
+  // **`docker-compose*` 로 좁힌다.** 종전 판은 루트의 모든 `.yml`/`.yaml` 을 읽어
+  // `pnpm-lock.yaml`(784KB)·`pnpm-workspace.yaml` 까지 매 실행마다 정규식 스캔했다 —
+  // 오늘 매치는 0건이라 무해했지만 **이름과 JSDoc 이 약속한 범위보다 구현이 넓었다**.
+  // (`#1330` 이 "문서한 보장이 구현보다 넓으면 안 된다" 를 배운 것의 거울상 — 이번엔
+  // 구현이 이름보다 넓다. 어느 쪽이든 다음 사람이 틀린 것을 믿게 된다.)
   const composeTexts = fs
     .readdirSync(root)
-    .filter((f) => f.endsWith(".yml") || f.endsWith(".yaml"))
+    .filter((f) => /^docker-compose.*\.ya?ml$/.test(f))
     .map((f) => fs.readFileSync(path.join(root, f), "utf8"));
 
   const sourceTokens = collectSourceTokens(sourceTexts);
@@ -85,6 +90,20 @@ describe("유저 가이드 식별자 실재성 가드", () => {
     // 이 단언이 RED 가 되고, 그때 병합이 **실제로** 지탱하기 시작했다는 신호다.
     const citedTokens = new Set(citations.map((c) => c.token));
     expect(envOnly.filter((t) => citedTokens.has(t))).toEqual([]);
+  });
+
+  it("실제 코퍼스의 특정 파일·토큰을 이름으로 고정한다", () => {
+    // **총량 floor 는 개별 토큰 하나가 사라져도 통과한다.** `#1330` 스위트에는 이런 명명
+    // 회귀 단언이 있었는데 이번 재작성에서 전부 합성 fixture 로 갈아치우며 사라졌다
+    // (`/ai-review` `14_41_14` testing WARNING#6). 좁은 회귀 형태를 이름으로 되돌린다.
+    const discord = citations.filter(
+      (c) => c.file.endsWith("discord.en.mdx") && c.axis === "backtick",
+    );
+    expect(discord.map((c) => c.token)).toContain("EXECUTION_TIMEOUT");
+
+    // env 변수 축도 실제 파일로 고정 — 이 가드가 넓어진 **이유**가 env 축이다.
+    const mcp = citations.filter((c) => c.file.endsWith("mcp-servers.mdx"));
+    expect(mcp.map((c) => c.token)).toContain("MCP_ALLOW_INSECURE_URL");
   });
 
   it("세 축이 모두 후보를 낸다 (축이 조용히 죽는 것 방지)", () => {

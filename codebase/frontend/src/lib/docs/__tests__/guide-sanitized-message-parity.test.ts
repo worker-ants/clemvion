@@ -13,8 +13,8 @@ import { repoRoot } from "./impl-anchor-parse";
  * 것**이다. 즉 그 PR 이 막으려던 클래스(SoT 가 바뀌면 미러 문서가 조용히 낡는다)를 **같은
  * 표에서 다시 열었다** — 지어낸 *이름* 대신 낡은 *문장*으로 형태만 바뀐 채로.
  *
- * 자매 `guide-error-code-existence.test.ts` 는 **코드 토큰**의 실재를 본다. 이 가드는
- * **문장의 일치**를 본다 — 표면이 다르다.
+ * 자매 `guide-identifier-existence.test.ts`(`#1330` 당시 `guide-error-code-existence.test.ts`)
+ * 는 **식별자 토큰**의 실재를 본다. 이 가드는 **문장의 일치**를 본다 — 표면이 다르다.
  *
  * ## SoT 를 import 하지 않고 텍스트로 읽는 이유
  *
