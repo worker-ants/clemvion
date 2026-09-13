@@ -32,6 +32,17 @@ spec_impact:
   - spec/conventions/error-codes.md
   - spec/5-system/4-execution-engine.md
   - spec/5-system/6-websocket-protocol.md
+  # **세 번째 재발이다** (2026-09-13 · `--impl-done`
+  # `review/consistency/2026/09/13/21_19_52` plan_coherence WARNING#3). 신규 항목
+  # 「spec 6파일이 CONTAINER_* 를 «코드» 로 적는다」가 겨냥하는 6개 중 **5개가 빠져 있었다**
+  # — `4-execution-engine.md` 만 위에 이미 있어서 «있다» 로 읽었다. 위 두 주석이 같은 실패를
+  # 이미 두 번 자백하는데도 같은 자리를 또 밟았다. 항목을 등재할 때 **그 항목의 «대상 파일
+  # 전수» 를 이 목록과 대조하는 것**이 절차여야 한다.
+  - spec/3-workflow-editor/2-edge.md
+  - spec/3-workflow-editor/0-canvas.md
+  - spec/4-nodes/1-logic/0-common.md
+  - spec/4-nodes/1-logic/7-map.md
+  - spec/4-nodes/1-logic/9-foreach.md
   # **`4-integration.md` 는 의도적으로 넣지 않았다** — 그 항목(`consecutiveNetworkFailures`
   # 노출 중단 **검토**)의 결정 대상은 DTO 필드이고, §9.1 캐비엇 수정은 결정이 "중단" 으로
   # 기울 때만 따라오는 **하류**다. 조건부 대상을 넣으면 이 목록이 "이 plan 이 건드리는 파일" 이
@@ -592,8 +603,8 @@ field: T | null;
 - [x] **`run-test.sh` 4단계가 타입체크 ratchet 을 안 돈다** (harness, 2026-09-06 등재,
       `#1292` CI 실패로 발각).
 
-      `PROJECT.md:40-41` 은 두 ratchet 을 *"backend/frontend `*.ts(x)` 변경 시"* 필수로
-      적는다. 그런데 `run-test.sh` 의 4단계(lint/unit/build/e2e)에는 **없다.** developer
+      등재 시점의 `PROJECT.md` 4단계 표는 두 ratchet 을 *"backend/frontend `*.ts(x)`
+      변경 시"* 별도 필수로 적었다. 그런데 `run-test.sh` 의 4단계(lint/unit/build/e2e)에는 **없다.** developer
       SKILL 의 TEST WORKFLOW 는 그 4단계를 강제하므로, **문서가 요구하는 검사를 워크플로가
       빠뜨린다.**
 
@@ -1884,7 +1895,8 @@ field: T | null;
 - [ ] **`PROJECT.md` §e2e 파일 위치 — self-spec 동반 헬퍼는 `src/shared/testing/`** (developer,
       2026-09-10 재배정. **원래 planner 후속 5건의 3번이었는데 역할 배정이 틀렸다**).
 
-      현 문면(`PROJECT.md:315`)은 `신규 헬퍼: codebase/backend/test/helpers/<name>.ts` 뿐이다.
+      현 문면(`PROJECT.md` §e2e 테스트 작성 가이드의 *"신규 헬퍼"* 줄)은
+      `codebase/backend/test/helpers/<name>.ts` 뿐이다.
       **그 자리에 두면 self-spec 이 어느 러너에도 안 걸려 죽은 테스트가 된다** — unit jest 는
       `rootDir: 'src'` 라 `test/` 를 스캔하지 않고, `test/jest-e2e.json` 은 `testRegex:
       '.e2e-spec.ts$'` 라 평범한 `*.spec.ts` 를 안 잡는다. 즉 `test/helpers/*.spec.ts` 는
@@ -3244,6 +3256,25 @@ field: T | null;
       > `/api/integrations/:id/test` 는 `code` 를 싣지만 이쪽은 **코드가 없다**(8갈래 문장뿐).
       > 같은 "테스트 엔드포인트" 인데 형태가 다른 것은 의도다.
 
+- [ ] **`collectMatches(texts, rx, group)` 의 «정규식 ↔ 캡처그룹» 짝이 타입으로 강제되지
+      않는다** (developer, 2026-09-13 등재 · `/ai-review`
+      `review/code/2026/09/13/23_04_01` maintainability WARNING#1).
+      `guide-identifier-scan.ts` 의 세 수집기가 그룹 번호를 **정수 리터럴**로 넘긴다
+      (`QUOTED_LITERAL` 은 2, 나머지 둘은 1). 정규식의 그룹 순서가 바뀌면 컴파일 타임에 안
+      잡히고 `undefined` 가 조용히 `Set` 에 섞인다.
+
+      > **오늘 결함은 없다** — 세 짝 전부 실측 일치이고 한 자리는 주석으로 방어돼 있다.
+      > 미래 축 추가 시의 위험이다.
+      >
+      > **두 라운드가 등급을 달리 매겼다**: 라운드 9 는 **INFO**(*"시급도 낮음"*), 라운드 10 은
+      > **WARNING**. 같은 코드에 대한 판정이 갈리므로 한쪽 근거로 닫지 않고 등재한다 — 이
+      > 저장소가 형제 항목(주석 비중)에서 이미 쓴 규칙이다.
+      >
+      > 처분안: (a) named capture group(`(?<token>…)`)으로 전환해 인덱스 결속 자체를 없앤다,
+      > (b) 그룹 번호를 이름 있는 상수로 뽑아 grep 으로 짝을 확인 가능하게 한다.
+      > **(a) 가 방법을 바꾸는 쪽**이고 이 저장소의 *"좁다고 지적받으면 넓히지 말고 방법을
+      > 바꿔라"* 에 맞는다.
+
 - [ ] **`user-guide-evidence.md §2.1` 관계표에 새 가드 **2건**이 빠져 있다** (planner,
       2026-09-13 등재 · `--impl-prep` `01_15_40` naming_collision WARNING#4·#5 ·
       **등재 범위 정정**: `/ai-review` `10_40_34` user_guide_sync WARNING#3 +
@@ -3263,6 +3294,14 @@ field: T | null;
       > 스코프가 에러 코드를 넘어 환경변수까지 넓어졌기 때문이다. 등재 시 새 이름을 쓸 것.
       > **함께 등재할 Rationale**: `#1330` 이 세운 *"허용목록 없음"* 원칙을 `#1331` 이
       > 실측으로 번복했다(문맥 게이팅은 이 가드를 만들게 한 과거 결함을 못 잡는다).
+      > **번복은 두 번이다** (2026-09-13 보강 · `--impl-done`
+      > `review/consistency/2026/09/13/20_34_48` rationale_continuity INFO#2 가 *"1번째만
+      > 이름으로 지목됨"* 을 짚었다) — 1번째는 `GUIDE_EXTERNAL_VOCABULARY`(**존재** 축,
+      > 제약 *"기준집합에 없을 것"*), 2번째는 `GUIDE_NON_EMITTED_VOCABULARY`(**발행** 축,
+      > 제약 *"기준집합에 있을 것"*)다. **제약이 정반대라 합칠 수 없다** — Rationale 은 두
+      > 목록을 한 항목으로 묶지 말고 *축이 둘이라서 예외 목록도 둘* 이라는 구조로 적어야
+      > 한다. 그러지 않으면 다음 사람이 하나로 통합하려 들고, 그러면 예외 하나가 두 축의
+      > 결함을 동시에 덮는다.
       > 그 근거가 지금 plan·코드 주석에만 있고 spec `## Rationale` 에는 없다 —
       > **표·frontmatter·Rationale 을 한 턴에** 처리해야 표가 두 번 미완결이 되지 않는다.
       > **등재를 두 번 좁게 썼다.** (1) 첫 판은 가드 하나만 적었는데 같은 PR 의 리뷰 라운드가
@@ -3330,6 +3369,22 @@ field: T | null;
       > 파일을 만질 때 **각 주석 문단마다 "이걸 고정하는 테스트가 있는가" 를 물어** 있으면
       > 한 줄 참조로 줄이고 없으면 남긴다. 그 전에 **옛 판본의 주석 절 목록을 뽑아 대조**할 것
       > (라운드 1 의 재발 방지 절차).
+      >
+      > **실측이 낡았다 — 그리고 낡힌 것은 이 항목을 등재한 배치 자신이다** (`--impl-done`
+      > `review/consistency/2026/09/13/22_06_21` plan_coherence WARNING#3). 위 *361줄 =
+      > 주석 260 · 코드 84 · 빈줄 17* 은 **라운드 3 시점**의 값이고, 같은 배치가 라운드
+      > 4~9 로 그 파일을 계속 키웠는데 조건을 건 숫자는 한 번도 갱신하지 않았다.
+      >
+      > | 시점 | 총 | 주석 | 코드 | 빈줄 | 주석 비율 |
+      > |---|---|---|---|---|---|
+      > | 등재 시(라운드 3) | 361 | 260 | 84 | 17 | 72% |
+      > | 라운드 8 checker 실측 | 601 | 418 | 156 | 27 | 70% |
+      > | 라운드 8 커밋 시점 | **622** | **439** | **156** | **27** | **71%** |
+      >
+      > 코드는 84 → 156 (+72) 인데 주석이 260 → 439 (+179) 다. **비율은 거의 안 움직였고
+      > 절대량이 1.7배**가 됐다 — 착수 조건을 «비율» 로 걸었으면 영영 발화하지 않았을
+      > 것이다. 조건은 위 문단대로 «문단마다 고정 테스트가 있는가» 로 두고, 이 표는
+      > 재개 시 대조용으로 남긴다.
 
 - [ ] **`/api/integrations/:id/test` 의 MCP 전용 응답 필드 3종이 미선언 + 계약 검증자 미배선**
       (developer, 2026-09-13 등재 · `/ai-review` `review/code/2026/09/13/10_12_19`
@@ -3383,7 +3438,28 @@ field: T | null;
       > **선실측할 것**: "그 DTO 를 반환하는 서비스" 를 기계적으로 특정할 수 있는가.
       > `@ApiOkWrappedResponse(XxxDto)` ↔ 핸들러 반환 타입이 앵커가 될 수 있다 — 전수 확인 후 착수.
 
-- [ ] **가이드 에러 코드 가드가 "존재" 만 보고 "방출" 을 안 본다 — CRITICAL 을 통과시켰다**
+- [x] **가이드 에러 코드 가드가 "존재" 만 보고 "방출" 을 안 본다 — CRITICAL 을 통과시켰다**
+      ✅ **2026-09-13 해소** — `error-code-emission-axis` 배치가 **발행 축**을 더했다.
+      술어는 항목이 제안한 *"AST 로 방출 위치 특정"* 이 아니다 — **실측이 두 번 반증**해
+      다른 곳에 착지했다:
+      > (1) *"토큰만 담은 따옴표 리터럴 = 발행"* 은 `3-error-handling.md §1.4` 가 이미
+      >     반증하고 있었다(*"소비자·분류기 쪽 어휘이지 발행 경로의 앵커가 아니다"*) —
+      >     `MAX_ITERATIONS_EXCEEDED` 가 분류기 인용으로 통과한다. **AST 로도 못 푼다**:
+      >     같은 §1.4 가 앵커 없는 7종을 정식 카탈로그 항목으로 인정한다.
+      > (2) *"카탈로그 등재를 요구 조건으로"* 는 거짓 RED 25건을 낸다 — 인용된 에러 코드
+      >     78종 중 28종 미등재이고 그중 25종이 **진짜 발행되는** 통합 코드다
+      >     (항목 *"`3-error-handling.md §1` 카탈로그가 통합·LLM 코드 계열을 통째로
+      >     누락한다"*).
+      >
+      > 착지한 술어는 **두 술어의 교집합**이다: *"소스에 **메시지 접두로만** 등장하고
+      > 카탈로그에도 없으면 `GUIDE_NON_EMITTED_VOCABULARY` 에 사유와 함께 등록해야 한다."*
+      > **카탈로그를 요구 조건이 아니라 «탈출구» 로 쓰는 것**이 핵심이고, 그래서 그 항목이
+      > 미해소여도 거짓 RED 가 나지 않는다.
+      >
+      > 원 항목이 든 `MAKESHOP_UNRESOLVED_PATH_PARAM` 은 **가이드 문장이 이미 정확**했다
+      > (`#1330` 이 고쳤다) — 그래서 이 축의 대상은 *"방출 안 되는 토큰"* 이 아니라
+      > **"방출 안 되는데 «등록 안 된» 토큰"** 이다. 그대로 술어를 삼았으면 정확한 문장에
+      > 거짓 RED 가 났다.
       (developer, 2026-09-13 등재 · `--impl-done` `review/consistency/2026/09/13/11_33_51`
       naming_collision **CRITICAL**). `guide-identifier-existence`(리네임 전 `guide-error-code-*`) 의 술어는 *"backend 소스에
       UPPER_SNAKE 문자열로 존재하는가"* 다. `MAKESHOP_UNRESOLVED_PATH_PARAM` 은 존재하지만
@@ -3401,7 +3477,12 @@ field: T | null;
       > enum 값처럼 **방출 위치**를 AST 로 특정하고, env 변수는 `process.env` 접근으로 배제.
       > `#1328` 의 `param-uuid-pipe` 가 같은 저장소의 AST 가드 선례다.
 
-- [ ] **`CONTAINER_MISSING_EMIT`·`CONTAINER_MULTIPLE_EMIT` 도 방출 코드가 아니다 (선재)**
+- [x] **`CONTAINER_MISSING_EMIT`·`CONTAINER_MULTIPLE_EMIT` 도 방출 코드가 아니다 (선재)**
+      ✅ **2026-09-13 해소** — `(A) 문장 정정` 을 택했다(`logic{,.en}.mdx` KO/EN). 그리고
+      같은 배치가 **가드로 고정**했다: `GUIDE_NON_EMITTED_VOCABULARY` 에 두 토큰을 등록해,
+      누가 다시 *"이 코드로 실패해요"* 라고 쓰면 발행 축이 RED 를 낸다.
+      **실측 근거**: `execution-engine.service.ts:8017` 이 `nodeExec.error = { message }` 로
+      기록한다 — `code` 필드가 **아예 없다**. 가이드의 *"전용 에러 코드는 없어요"* 는 정확하다.
       (developer, 2026-09-13 등재 · 위 항목의 술어 프로브가 부수적으로 찾았다).
       `02-nodes/logic{,.mdx,.en.mdx}` 가 *"…로 실행 실패해요"* 라고 적는데, 실제로는
       `execution-engine.service.ts:7121·7125` 의 **메시지 접두**이고 `.code` 로 방출되지 않는다.
@@ -3410,6 +3491,63 @@ field: T | null;
       > 처분 시 선택지는 둘: (A) 문장을 *"메시지에 이 접두가 붙는다"* 로 정정, 또는
       > (B) 엔진이 전용 코드를 방출하도록(동작 변경 + spec). 같은 갈림이 MakeShop 건에도 있었고
       > `#1330` 은 (A)를 택했다 — 가이드는 *현재 동작*을 서술하는 문서이기 때문이다.
+
+- [ ] **spec 6파일이 `CONTAINER_*` 를 «코드» 로 적는다 — 같은 저장소에 «맞게 적은» 선례가 있다**
+      (planner, 2026-09-13 등재 · `--impl-done` `review/consistency/2026/09/13/19_23_31`
+      cross_spec WARNING#1). 가이드(`logic{,.en}.mdx`)는 이 배치가 *"메시지 접두"* 로
+      정정했는데, **spec 쪽 6파일이 여전히 코드처럼 서술**해 정면으로 어긋난다:
+
+      | 파일 | 형태 |
+      |---|---|
+      | `spec/5-system/4-execution-engine.md:332-333` §3.0 | *"`CONTAINER_MISSING_EMIT` **에러로** 실행 실패"* — 가장 강함 |
+      | `spec/3-workflow-editor/2-edge.md:202` §6.1 | 검증 결과를 코드로 |
+      | `spec/3-workflow-editor/0-canvas.md:636` §11.2.2 | 형제 `CONTAINER_INVALID_CHILD`·`CONTAINER_CYCLE` 도 동형 |
+      | `spec/4-nodes/1-logic/0-common.md:83` | 괄호 안 코드 표기 |
+      | `spec/4-nodes/1-logic/7-map.md:179-180` §6 | 표의 «코드» 열 |
+      | `spec/4-nodes/1-logic/9-foreach.md:209-210` §6 | 〃 |
+
+      > **통일할 선례가 이미 있다** — `spec/4-nodes/1-logic/3-loop.md:189-191` 은 같은 표에서
+      > **발행 문자열 전문**을 인용한다(`` `CONTAINER_MISSING_EMIT: Container "<label>" has no
+      > body node wired to …` ``). 형태를 새로 발명할 필요가 없고 형제 문서에 맞추면 된다.
+      >
+      > **실측**: `execution-engine.service.ts:8017` 이 `nodeExec.error = { message }` —
+      > `code` 필드가 없다. 즉 6파일의 서술이 틀렸고 `3-loop.md` 가 맞다.
+
+- [ ] **`3-error-handling.md §1.4` 의 «앵커 없는 코드» 7종이 실제로는 메시지 접두다 — 카탈로그
+      표기를 정할 것** (planner, 2026-09-13 등재 · `--impl-done`
+      `review/consistency/2026/09/13/19_23_31` rationale_continuity WARNING#2).
+      §1.4 는 `MAX_ITERATIONS_EXCEEDED`·`RECURSION_DEPTH_EXCEEDED`·`CYCLE_DETECTED` 등을
+      *"앵커 없는 맨 문자열"* 이라 적으면서도 **정식 카탈로그 항목**으로 취급한다. 실측하면
+      `CONTAINER_*` 와 **구조가 같다**:
+
+      | 토큰 | 발행 형태 | 카탈로그 |
+      |---|---|---|
+      | `MAX_ITERATIONS_EXCEEDED` | `throw new Error('MAX_ITERATIONS_EXCEEDED: …')` (`loop-executor.ts:64·85`) | **등재** |
+      | `CONTAINER_MISSING_EMIT` | `throw new Error(\`CONTAINER_MISSING_EMIT: …\`)` (`execution-engine.service.ts:7121·7125`) | 미등재 |
+
+      > **차이는 코드가 아니라 카탈로그다.** 그래서 이 배치의 발행 축은 카탈로그를
+      > **탈출구**로 쓴다 — 그래야 `MAX_ITERATIONS_EXCEEDED` 가 통과한다. 다만 *"왜 이 둘만
+      > 밖인가"* 는 여전히 무기재다.
+      >
+      > **이 항목을 처분하면 `error-code-emission-axis` 의 가드 등록도 재검토 대상이다**
+      > (역참조 · `--impl-done` `review/consistency/2026/09/13/21_41_25` plan_coherence
+      > INFO#7). 그 배치의 forward-note 는 **그 plan 안에만** 있었는데 그 plan 은
+      > `complete/` 로 봉인되므로, 결정이 내려질 이쪽에 역참조가 없으면 **유실된다**:
+      > (a) 를 택해 `CONTAINER_*` 가 카탈로그에 들어오면 **카탈로그 탈출구가 그 둘을 구해**
+      > `GUIDE_NON_EMITTED_VOCABULARY` 등록 2건이 불필요해지고, 반대로 이 항목이 won't-do 로
+      > 닫히면 **탈출구 분기 자체가 죽은 코드**가 되어 대응 테스트 3건과 함께 제거 대상이다.
+
+      > **같은 절(`3-error-handling.md §1`)을 겨냥하는 plan 이 이미 셋 있고 «한 턴에 묶어라»
+      > 합의가 이 문서 위쪽에 있다** — 이 항목이 **넷째**다 (2026-09-13 · `--impl-done`
+      > `review/consistency/2026/09/13/21_19_52` plan_coherence WARNING#4).
+      > 그 합의를 인용하지 않고 독립 택일로 등재하면 planner 가 §1 하위구조를 **네 번 따로**
+      > 건드리게 된다. 집행 시 그 합의와 함께 볼 것.
+      >
+      > 택일: (a) `CONTAINER_*` 를 §1.4 에 backfill 해 형제와 나란히 둔다 —
+      > 그러면 이 배치의 등록 항목 둘은 **불필요해지고 가드가 자동으로 통과시킨다**.
+      > (b) §1.4 의 앵커-없는 행들에 *"메시지 접두"* 표기를 달아 «코드» 와 구분한다 —
+      > 그러면 카탈로그가 정확해지는 대신 탈출구의 의미가 달라지므로 **가드도 함께 본다**.
+      > **어느 쪽이든 이 배치의 가드를 건드리므로 처분 시 함께 판정할 것.**
 
 - [ ] **`CAFE24_UNRESOLVED_PATH_PARAM` 도 같은 형태 — 다만 가이드가 아직 인용하지 않는다**
       (developer, 2026-09-13 등재 · `--impl-done` `11_33_51` 권고 #2).
@@ -4010,6 +4148,20 @@ field: T | null;
 
       > 이것은 알려진 클래스의 재발이다 — *"consistency `--spec` 기본 예산이 conventions 를
       > 통째로 떨군다"*. 이번엔 `spec_impact` 명시에도 불구하고 떨궈졌다는 점이 새롭다.
+
+      > **`--impl-prep` 에서도 재현됐다** (2026-09-13 추가 ·
+      > `review/consistency/2026/09/13/18_40_54` cross_spec·convention_compliance WARNING#1).
+      > 그동안 이 결함은 **`--spec` 한정**으로 기록돼 있었는데, `--impl-prep` 세션에서도
+      > 같은 일이 났다 — 프롬프트 번들이 *"컨텍스트 예산 초과로 생략된 파일 268개"* 에
+      > 그 작업의 SoT 두 건(`error-codes.md` 17,742자 · `user-guide-evidence.md`)을 넣었다.
+      >
+      > **두 checker 가 직접 `Read` 로 우회해서 그 라운드는 유효했다.** 그게 이 항목의
+      > 위험을 보여준다 — **우회하지 않았다면 거짓 "충돌 없음" 판정이 나갔을 것이고,
+      > 우회했는지 여부는 산출물에 드러나지 않는다.** 즉 이 결함은 *조용히* 통과시킨다.
+      >
+      > 처분안: 번들러가 plan 본문·헤더 주석의 `SoT: <경로>` 표기를 알파벳 순보다
+      > **우선 적재**하도록 정렬 로직 변경. 모드 한정을 지우고 **`--spec`·`--impl-prep`
+      > 공통**으로 적을 것 — 모드를 좁게 적은 것이 이 항목이 두 번 발견된 이유다.
 
 - [x] **harness: `code:` 블록 리스트의 YAML 주석이 게이트 파서를 조용히 끊는다**
       ✅ **2026-09-06 해소** — 파서가 빈 줄·`#` 주석을 건너뛴다.

@@ -8,12 +8,24 @@ import {
   scanIdentifierCitations,
   collectSourceTokens,
   collectEnvDeclarations,
+  collectQuotedLiterals,
+  collectMessagePrefixes,
+  collectCatalogCodes,
+  isMessagePrefixOnly,
+  computeNonEmittedOffenders,
   GUIDE_EXTERNAL_VOCABULARY,
+  GUIDE_NON_EMITTED_VOCABULARY,
   type CitationAxis,
 } from "./guide-identifier-scan";
 
 /** 허용목록 상한 — 넘으면 통과가 아니라 **결정**을 강제한다. */
 const EXTERNAL_VOCABULARY_CAP = 5;
+
+/**
+ * 발행-예외 목록 상한. 거울상 목록과 **같은 값**으로 둔다 — 두 목록은 제약이 반대일
+ * 뿐 "예외가 늘면 설계를 다시 본다" 는 성격이 같다.
+ */
+const NON_EMITTED_VOCABULARY_CAP = 5;
 
 /**
  * **유저 가이드가 이름 붙인 식별자는 실재해야 한다.**
@@ -22,10 +34,27 @@ const EXTERNAL_VOCABULARY_CAP = 5;
  * 대상이다. 후자는 `#1328` 이 손으로 고친 뒤 4개월간 아무도 몰랐던 클래스이고,
  * `#1330` 의 문맥-게이팅 축은 **그것을 못 잡았다**(스캐너 상단의 실측표).
  *
- * 가족·위치의 근거는 `spec/conventions/user-guide-evidence.md`. 자매
+ * 가족·위치의 근거는 `spec/conventions/user-guide-evidence.md` 인데 **이 가드는 아직
+ * 그 문서 §2 표에 없다**(등재는 planner 트래커 항목). 자매
  * `impl-anchor-existence.test.ts` 와 **방향이 같고(가이드 → 코드) 표면이 다르다**.
  */
 const root = repoRoot();
+
+/**
+ * **«소스» 의 정의는 이 파일 안에서 하나여야 한다.**
+ *
+ * 기준집합(`sourceTexts`)은 `backend/src ∪ packages` 를 읽는데 `where` 검증의 파일
+ * 탐색(`resolveSourceLines`)은 `backend/src` 만 걸고 있었다 — 같은 기능 안에 «백엔드
+ * 소스» 정의가 **둘** 이었다 (`/ai-review` `review/code/2026/09/13/22_06_10`
+ * architecture WARNING#1).
+ *
+ * 오늘 등록 3항목은 전부 `backend/src` 를 가리켜 **발화하지 않는다**. 그래서 위험한
+ * 종류다 — 다음 항목이 `packages/` 소스를 `where` 로 인용하면 발행 축 판정은 정상인데
+ * `where` 검증만 *"파일을 유일하게 특정할 수 없다"* 로 **거짓 실패**한다.
+ */
+const SOURCE_ROOTS = ["codebase/backend/src", "codebase/packages"];
+const skipBuildDirs = (name: string): boolean =>
+  name === "node_modules" || name === "dist" || name === "build";
 
 const readIfPresent = (rel: string): string[] => {
   const abs = path.join(root, rel);
@@ -36,14 +65,83 @@ const envExampleTexts = [
   ...readIfPresent("codebase/frontend/.env.example"),
 ];
 
+/**
+ * `where` 에서 `파일.ts:줄` 참조를 **전부** 뽑고, **뽑히지 않고 남은 것**을 함께 낸다.
+ *
+ * 형식은 `<위치들> — <산문>` 이고, 같은 파일의 여러 줄은 `a.ts:10·20` 처럼 가운뎃점으로
+ * 잇는다 — 실제 등록 항목이 그 형태를 쓴다.
+ *
+ * **왜 잔여를 함께 내는가**: 정규식만 두면 다음 항목이 `a.ts:10, 20` 처럼 다른 구분자를
+ * 쓸 때 **앞쪽만 먹고 나머지를 조용히 버린다**. `refs.length === 0` 가드는 그것을 못 잡는다 —
+ * 이 배치가 방금 고친 *"여러 위치 중 일부만 검증됨"* 결함이 **실패 모드만 바꿔 재발**한다
+ * (`/ai-review` `review/code/2026/09/13/22_06_10` maintainability WARNING#3).
+ *
+ * 판정은 *"어떤 구분자를 쓸까"* 를 **추측하지 않는다.** 구분자 목록을 늘리는 방식은
+ * 원리적으로 틀렸다 — 다음 구분자를 또 모른다. 대신 **머리 부분(` — ` 앞)에 참조와
+ * 구분자 말고는 아무것도 남지 않을 것**을 요구한다. 남으면 그게 잔여다.
+ */
+function parseWhereRefs(where: string): {
+  refs: { file: string; line: number }[];
+  residue: string;
+} {
+  const head = where.split(" — ")[0];
+  const refs: { file: string; line: number }[] = [];
+  let rest = head;
+  for (const m of head.matchAll(/([\w./-]+\.ts):(\d+(?:·\d+)*)/g)) {
+    const file = m[1];
+    for (const n of m[2].split("·")) refs.push({ file, line: Number(n) });
+    rest = rest.replace(m[0], "");
+  }
+  return { refs, residue: rest.replace(/[\s·]/g, "") };
+}
+
+/**
+ * 목록의 모든 항목이 **여전히 가이드에 인용되는지**. 두 목록이 같은 판정을 쓴다.
+ *
+ * **`staleGuideEntries` 로 이름을 바꿨다** — 첫 판은 `staleEntries` 였는데
+ * `repo-guards/__tests__/internal-package-registration-guard.ts:129` 에 **export 된 동명
+ * 함수**가 이미 있었고 시그니처가 다르다(`(string[], string[])` vs 여기)
+ * (`--impl-done` `review/consistency/2026/09/13/20_34_48` naming_collision WARNING#5).
+ * **이름을 정하기 전에 grep 하지 않은 것이 원인**이고, 이 저장소가 이미 적어 둔 규칙이다 —
+ * *"새 식별자는 후보 토큰이 grep 0건임을 먼저 보여라."*
+ */
+function staleGuideEntries(
+  list: readonly { token: string }[],
+  cited: ReadonlySet<string>,
+): string[] {
+  return list.filter((e) => !cited.has(e.token)).map((e) => e.token);
+}
+
+/**
+ * `basename` 으로 소스 파일을 찾아 줄 배열을 준다. **파일당 한 번만** 트리를 순회한다.
+ *
+ * 유일하게 특정되지 않으면(0건·2건 이상) `null` — 호출부가 그것을 결함으로 보고한다.
+ */
+const sourceLinesCache = new Map<string, string[] | null>();
+function resolveSourceLines(file: string): string[] | null {
+  const key = path.basename(file);
+  const hit = sourceLinesCache.get(key);
+  if (hit !== undefined) return hit;
+  const found = walkTree(root, SOURCE_ROOTS, {
+    skipDir: skipBuildDirs,
+    includeFile: (n) => n === key,
+  });
+  const value =
+    found.length === 1
+      ? fs.readFileSync(found[0].absPath, "utf8").split("\n")
+      : null;
+  sourceLinesCache.set(key, value);
+  return value;
+}
+
 describe("유저 가이드 식별자 실재성 가드", () => {
   const mdxFiles = collectMdxFiles(root, "codebase/frontend/src/content/docs");
 
   // 기준집합 = 소스 토큰 ∪ env 선언처.
   // frontend 소스는 **넣지 않는다** — 넣으면 가이드가 인용한 이름이 프런트 라벨 맵으로
   // 자기를 증명한다(실측: 넣어도 오늘은 GREEN 이라 그 실수는 **조용히** 통과한다).
-  const sourceTexts = walkTree(root, ["codebase/backend/src", "codebase/packages"], {
-    skipDir: (name) => name === "node_modules" || name === "dist" || name === "build",
+  const sourceTexts = walkTree(root, SOURCE_ROOTS, {
+    skipDir: skipBuildDirs,
     includeFile: (name) => name.endsWith(".ts"),
   }).map((f) => fs.readFileSync(f.absPath, "utf8"));
 
@@ -69,6 +167,33 @@ describe("유저 가이드 식별자 실재성 가드", () => {
   );
 
   const allowed = new Set(GUIDE_EXTERNAL_VOCABULARY.map((e) => e.token));
+
+  // ── 발행 축 ────────────────────────────────────────────────────────────────
+  // 기준집합과 **다른 소스 뷰**를 쓴다: 기준집합은 "이 이름이 어디든 있나" 를, 이쪽은
+  // "따옴표가 토큰만 감쌌나 / 접두로만 붙나" 를 본다. 같은 `sourceTexts` 를 재사용한다.
+  const quotedLiterals = collectQuotedLiterals(sourceTexts);
+  const messagePrefixes = collectMessagePrefixes(sourceTexts);
+  const catalogCodes = collectCatalogCodes([
+    fs.readFileSync(
+      path.join(root, "spec/5-system/3-error-handling.md"),
+      "utf8",
+    ),
+  ]);
+  const registeredNonEmitted = new Set(
+    GUIDE_NON_EMITTED_VOCABULARY.map((e) => e.token),
+  );
+
+  /** 정본(`guide-identifier-scan.ts`)을 이 코퍼스에 묶은 얇은 래핑. */
+  const prefixOnly = (token: string): boolean =>
+    isMessagePrefixOnly(token, messagePrefixes, quotedLiterals);
+
+  /** 판정 정본에 넘길 네 집합. 베이스라인과 대조군이 **같은 번들**을 쓴다. */
+  const sets = {
+    messagePrefixes,
+    quotedLiterals,
+    catalogCodes,
+    registered: registeredNonEmitted,
+  };
 
   // ── vacuity floors ──────────────────────────────────────────────────────────
   it("코퍼스를 실제로 적재한다 (vacuity floor)", () => {
@@ -127,6 +252,224 @@ describe("유저 가이드 식별자 실재성 가드", () => {
     ).toEqual([]);
   });
 
+  // ── 발행 축 (베이스라인) ────────────────────────────────────────────────────
+  describe("발행 축 — 가이드가 «코드» 로 부르는 것이 코드인가", () => {
+    it("접두 전용이면서 카탈로그에도 없는 인용은 **등록돼 있다** (베이스라인 0)", () => {
+      // **정본을 부른다.** 종전엔 이 자리에서 `.filter(...)` **세 개**를 손으로 이어 붙였고,
+      // 아래 `[한계]`·`[대조군]` 은 그것과 **분리된 병렬 구현**이었다 — 그래서 실제 체인에서
+      // 카탈로그 필터를 지워도 71/71 GREEN 이었다
+      // (`review/code/2026/09/13/20_57_13` testing WARNING#1, 리뷰어가 뮤테이션으로 관측).
+      expect(computeNonEmittedOffenders(citations.map((c) => c.token), sets)).toEqual([]);
+    });
+
+    it("[vacuity] 세 수집기가 실제로 뭔가를 걷었다", () => {
+      // 셋 중 하나가 빈 집합이면 위 단언이 **아무것도 안 보고** 통과한다.
+      expect(quotedLiterals.size).toBeGreaterThan(200); // 실측 다수
+      expect(messagePrefixes.size).toBeGreaterThan(3);
+      expect(catalogCodes.size).toBeGreaterThan(50); // 실측 카탈로그 규모
+    });
+
+    it("등록된 3종이 **실제로 접두 전용**이다 (죽은 등록 방지)", () => {
+      // 등록만 해 두고 실제로는 발행되기 시작하면 이 항목은 **거짓말**이 된다.
+      // 그때 이 단언이 RED 로 알리고, 항목을 지우라는 신호가 된다.
+      const notActuallyPrefixOnly = GUIDE_NON_EMITTED_VOCABULARY.filter(
+        (e) => !prefixOnly(e.token),
+      );
+      expect(notActuallyPrefixOnly.map((e) => e.token)).toEqual([]);
+    });
+
+    it("등록된 3종이 **기준집합에 있다** (외부 어휘 목록과 제약이 반대)", () => {
+      // `GUIDE_EXTERNAL_VOCABULARY` 는 *"기준집합에 없을 것"*, 이쪽은 *"있을 것"*.
+      // 제약이 정확히 반대라 두 목록은 합칠 수 없다 — 합치면 예외 하나가 두 축을 덮는다.
+      const notInBasis = GUIDE_NON_EMITTED_VOCABULARY.filter(
+        (e) => !basis.has(e.token),
+      );
+      expect(notInBasis.map((e) => e.token)).toEqual([]);
+    });
+
+    it("각 항목이 **어디서** 접두가 붙는지와 사유를 밝힌다", () => {
+      for (const entry of GUIDE_NON_EMITTED_VOCABULARY) {
+        expect(entry.where.trim().length).toBeGreaterThan(10);
+        expect(entry.why.trim().length).toBeGreaterThan(30);
+      }
+    });
+
+    it("`where` 의 `파일:줄` 이 **실제로 그 토큰을 담는다** (프리텍스트 방지)", () => {
+      // `/ai-review`(`review/code/2026/09/13/19_23_22` testing WARNING#6):
+      // `where` 가 단언 없는 산문이면
+      // 소스가 움직여도 아무도 모른다. 이 저장소는 자매 축(`impl-anchor-existence`)에서
+      // 이미 grep 강제를 쓰고 있어 **이 목록만 예외였다**.
+      // **첫 판은 `.exec()` 단일 매치였다** — `where` 가 `파일:7121·7125` 처럼 **여러
+      // 위치**를 인용하면 **둘째부터 한 번도 검증되지 않았다**. 리뷰어가 둘째 줄 번호를
+      // 없는 값으로 바꾸는 뮤테이션으로 63/63 GREEN 을 관측해 증명했다
+      // (`review/code/2026/09/13/19_51_33` testing WARNING#2).
+      // 지금은 `where` 안의 **모든** 위치를 걷는다.
+      const broken: string[] = [];
+      for (const entry of GUIDE_NON_EMITTED_VOCABULARY) {
+        const { refs, residue } = parseWhereRefs(entry.where);
+        if (residue !== "") {
+          broken.push(
+            `${entry.token}: where 의 위치 부분에 참조가 아닌 것이 남는다 — «${residue}»`,
+          );
+          continue;
+        }
+        if (refs.length === 0) {
+          broken.push(`${entry.token}: where 에 '파일.ts:줄' 이 없다 — ${entry.where}`);
+          continue;
+        }
+        for (const { file, line: lineNo } of refs) {
+          // **파일당 한 번만 순회한다.** 종전엔 참조마다 `backend/src` 1,304 파일을 다시
+          // 걸었고, 등록 3항목·참조 4개 중 **3개가 같은 파일**이었다
+          // (`/ai-review` `review/code/2026/09/13/21_19_46` performance WARNING#1).
+          // 등록이 늘어나는 방향의 설계라 배율이 함께 커진다.
+          const lines = resolveSourceLines(file);
+          if (lines === null) {
+            broken.push(`${entry.token}: ${file} 을 유일하게 특정할 수 없다`);
+            continue;
+          }
+          const src = lines[lineNo - 1] ?? "";
+          if (!src.includes(entry.token)) {
+            broken.push(
+              `${entry.token}: ${file}:${lineNo} 에 토큰이 없다 — ${src.trim().slice(0, 60)}`,
+            );
+          }
+        }
+      }
+      expect(broken).toEqual([]);
+    });
+
+    it("[대조군] `parseWhereRefs` 가 `파일:줄·줄` 의 **모든** 위치를 낸다", () => {
+      // 위 단언이 «전부» 를 본다는 주장을 파서 단에서 고정한다 — 단일 매치로 되돌리는
+      // 뮤턴트가 여기서 바로 갈린다.
+      expect(parseWhereRefs("a.ts:10 — 설명")).toEqual({
+        refs: [{ file: "a.ts", line: 10 }],
+        residue: "",
+      });
+      expect(parseWhereRefs("a.ts:10·20 — 설명")).toEqual({
+        refs: [
+          { file: "a.ts", line: 10 },
+          { file: "a.ts", line: 20 },
+        ],
+        residue: "",
+      });
+      expect(parseWhereRefs("a.ts:10 · b.ts:30")).toEqual({
+        refs: [
+          { file: "a.ts", line: 10 },
+          { file: "b.ts", line: 30 },
+        ],
+        residue: "",
+      });
+      expect(parseWhereRefs("줄 번호 없는 산문").refs).toEqual([]);
+    });
+
+    it("[대조군] 구분자를 `·` 가 아닌 것으로 적으면 **잔여로 드러난다**", () => {
+      // 판별 fixture: 종전 파서는 `a.ts:10` 만 먹고 `, 20` 을 조용히 버렸고, `refs.length`
+      // 는 1 이라 어떤 가드도 물지 않았다. 잔여를 함께 내면서 같은 입력이 갈린다.
+      const comma = parseWhereRefs("a.ts:10, 20 — 설명");
+      expect(comma.refs).toEqual([{ file: "a.ts", line: 10 }]);
+      expect(comma.residue).not.toBe("");
+
+      // 반대 방향: 정상 표기는 잔여가 없어야 한다(위 대조군이 이미 보지만, 여기서
+      // «잔여 술어» 가 늘 참을 내는 vacuous 상태가 아님을 같은 it 안에서 고정한다).
+      expect(parseWhereRefs("a.ts:10·20 — 설명").residue).toBe("");
+    });
+
+    it("[대조군] 등록된 항목의 `where` 는 전부 잔여가 없다", () => {
+      // 위 술어가 실제 데이터에 대해 조용히 항상 참인지(=이 목록이 우연히 통과하는지)
+      // 가 아니라, **오늘 등록분이 형식을 지키는지**를 본다.
+      expect(
+        GUIDE_NON_EMITTED_VOCABULARY.filter((e) => parseWhereRefs(e.where).residue !== "").map(
+          (e) => e.token,
+        ),
+      ).toEqual([]);
+    });
+
+    it(`상한 ${NON_EMITTED_VOCABULARY_CAP}건을 넘지 않는다`, () => {
+      // 거울상 목록(`GUIDE_EXTERNAL_VOCABULARY`)과 강제 수준을 맞춘다 — 상한이 없으면
+      // *"한 줄 더 추가"* 가 기본값이 되고, 이 목록은 **가이드가 코드 아닌 것을 코드처럼
+      // 부르는 것을 막으려고** 있는데 그 반대가 된다.
+      expect(GUIDE_NON_EMITTED_VOCABULARY.length).toBeLessThanOrEqual(
+        NON_EMITTED_VOCABULARY_CAP,
+      );
+    });
+
+    it("각 항목이 **여전히 가이드에 인용된다** (죽은 항목 누적 방지)", () => {
+      // 거울상 목록의 같은 강제. 가이드 문장이 재작성돼 인용이 사라지면 항목도 지운다.
+      // **판정은 두 목록이 공유한다** — 직전 라운드에서 수집기 중복을 없애면서 이쪽에
+      // 같은 클래스의 중복을 새로 만들었다
+      // (`review/code/2026/09/13/19_51_33` maintainability WARNING#4).
+      const cited = new Set(citations.map((c) => c.token));
+      expect(staleGuideEntries(GUIDE_NON_EMITTED_VOCABULARY, cited)).toEqual([]);
+    });
+
+    it(`[vacuity] 목록이 비면 위 3강제가 전부 무의미해진다`, () => {
+      expect(GUIDE_NON_EMITTED_VOCABULARY.length).toBeGreaterThan(0);
+    });
+
+    it("[회귀] `MAX_ITERATIONS_EXCEEDED` 는 **소비자-인용 때문에** 통과한다 (카탈로그 아님)", () => {
+      // **첫 판 제목은 "카탈로그 덕에 통과한다" 였고 그것은 거짓이었다**
+      // (`/ai-review` `review/code/2026/09/13/19_23_22` requirement WARNING#3 · 직접 재현).
+      // 단계별 실측이 실제 경로를 보여준다:
+      expect(messagePrefixes.has("MAX_ITERATIONS_EXCEEDED")).toBe(true);
+      // ↓ `execution-failure-classifier.ts:76` 의 **소비자 Set** 이 정확 리터럴로 인용한다.
+      expect(quotedLiterals.has("MAX_ITERATIONS_EXCEEDED")).toBe(true);
+      // ⇒ 접두-전용 단계에서 탈락하므로 **카탈로그 검사에 도달하지 않는다.**
+      expect(prefixOnly("MAX_ITERATIONS_EXCEEDED")).toBe(false);
+      // 카탈로그에 있는 것은 사실이지만 **통과 근거가 아니다.** 그 구분이 이 테스트다.
+      expect(catalogCodes.has("MAX_ITERATIONS_EXCEEDED")).toBe(true);
+
+      // 대조 — `CONTAINER_MISSING_EMIT` 는 소비자 인용이 없어 접두-전용으로 남고,
+      // 카탈로그에도 없어 등록이 필요했다. 두 토큰이 갈리는 자리가 정확히 여기다.
+      expect(prefixOnly("CONTAINER_MISSING_EMIT")).toBe(true);
+      expect(catalogCodes.has("CONTAINER_MISSING_EMIT")).toBe(false);
+    });
+
+    it("[한계] 카탈로그 탈출구는 **오늘 한 번도 발화하지 않는다**", () => {
+      // 전수 실측: 인용된 «접두 전용» 중 카탈로그 등재 0종. 즉 이 필터는 현재 죽은
+      // 경로다 — 그 사실을 숨기지 않고 **숫자로 고정**한다.
+      //
+      // 그래도 지우지 않는 이유: 트래커의 planner 항목이 *"`CONTAINER_*` 를 §1.4 에
+      // backfill"* 을 처분안으로 담고 있고, 집행되면 이 탈출구가 발화해 등록 2종이
+      // 자동으로 불필요해진다. 지우면 그 처분안 서술이 거짓이 된다.
+      //
+      // **언젠가 이 수가 0이 아니게 되면 이 단언이 RED 로 알린다** — 그때는 등록 항목을
+      // 지울 수 있다는 신호다.
+      // **정본으로 센다** — 카탈로그를 비운 집합으로 한 번 더 돌려, 그 차이가 곧
+      // «탈출구가 구한 토큰» 이다. 손 계산이 아니라 판정 함수 자신의 출력 차이다.
+      const withCatalog = computeNonEmittedOffenders(
+        citations.map((c) => c.token),
+        { ...sets, registered: new Set<string>() },
+      );
+      const withoutCatalog = computeNonEmittedOffenders(
+        citations.map((c) => c.token),
+        { ...sets, catalogCodes: new Set<string>(), registered: new Set<string>() },
+      );
+      const rescuedByCatalog = withoutCatalog.filter(
+        (t) => !withCatalog.includes(t),
+      );
+      expect(rescuedByCatalog).toEqual([]);
+    });
+
+    it("[대조군] 그래도 탈출구가 **작동은 한다** (합성 입력)", () => {
+      // 위 단언이 «0» 인 이유가 *"필터가 깨져서"* 가 아니라 *"오늘 해당이 없어서"* 임을
+      // 가른다. 합성 카탈로그로 같은 판정을 돌려 본다.
+      const synthCatalog = collectCatalogCodes([
+        "| `SYNTH_PREFIX_ONLY` | 없음 | 합성 카탈로그 행 |",
+      ]);
+      expect(synthCatalog.has("SYNTH_PREFIX_ONLY")).toBe(true);
+      const synthPrefixes = collectMessagePrefixes([
+        "throw new Error('SYNTH_PREFIX_ONLY: 설명');",
+      ]);
+      const synthQuoted = collectQuotedLiterals([
+        "throw new Error('SYNTH_PREFIX_ONLY: 설명');",
+      ]);
+      // 접두 전용이고 — 카탈로그에 있으므로 offender 가 **아니다**.
+      expect(synthPrefixes.has("SYNTH_PREFIX_ONLY")).toBe(true);
+      expect(synthQuoted.has("SYNTH_PREFIX_ONLY")).toBe(false);
+      expect(synthCatalog.has("SYNTH_PREFIX_ONLY")).toBe(true);
+    });
+  });
+
   it("[회귀] 혼합 백틱 스팬에만 등장하는 6종도 **검사받는다**", () => {
     // **이 6종은 이 가드의 검사를 한 번도 받은 적이 없었다.** 첫 판 `BACKTICK` 은 백틱과
     // 토큰이 **붙어 있을 때만** 매치돼, 스팬에 다른 글자가 섞이면 통째로 빠졌다
@@ -183,8 +526,7 @@ describe("유저 가이드 식별자 실재성 가드", () => {
 
     it("각 항목이 **여전히 가이드에 인용된다** (죽은 항목 누적 방지)", () => {
       const cited = new Set(citations.map((c) => c.token));
-      const stale = GUIDE_EXTERNAL_VOCABULARY.filter((e) => !cited.has(e.token));
-      expect(stale.map((e) => e.token)).toEqual([]);
+      expect(staleGuideEntries(GUIDE_EXTERNAL_VOCABULARY, cited)).toEqual([]);
     });
 
     it("각 항목이 **기준집합에 없다** (우리 것이 되면 항목이 강제 제거된다)", () => {
@@ -284,6 +626,237 @@ describe("collectSourceTokens — 경계 대조군", () => {
 
   it("[비대상] 밑줄 없는 약어는 안 센다", () => {
     expect([...collectSourceTokens(["const LLM = 1; const HTTP = 2;"])]).toEqual([]);
+  });
+});
+
+describe("resolveSourceLines — 유일성 가드", () => {
+  // `/ai-review`(`review/code/2026/09/13/21_41_23` testing WARNING#2): 라운드 6 이 넣은
+  // 캐시의 `found.length === 1` 가드에 **판별 fixture 가 없었다** — 리뷰어가 `>= 1` 로
+  // 바꾸는 뮤테이션으로 76/76 GREEN 생존을 관측했다.
+  //
+  // 내가 라운드 6 에 돌린 뮤턴트는 *"파일명을 없는 것으로"*(0건 분기)였고, **2건 이상**
+  // 분기는 겨누지 못했다. 이 파일이 네 번째로 밟는 «헬퍼 테스트 ≠ 호출부 테스트» 다.
+  //
+  // 다중 매치는 가상이 아니다 — 탐색 루트(`SOURCE_ROOTS` = `backend/src ∪ packages`)에
+  // `index.ts` 가 **55개** 있다(실측. 루트를 통일하기 전 `backend/src` 만일 때는 46개였다 —
+  // 숫자는 **주어와 함께** 적는다). 등록이 늘어 그런 basename 을 가리키면 **조용히 엉뚱한
+  // 파일**을 읽게 된다.
+  it("[0건] 없는 basename 은 null", () => {
+    expect(resolveSourceLines("definitely-not-a-real-file.ts")).toBeNull();
+  });
+
+  it("[2건 이상] 다중 매치도 null — 아무거나 고르지 않는다", () => {
+    expect(resolveSourceLines("index.ts")).toBeNull();
+  });
+
+  it("[1건] 유일하면 줄 배열을 준다 (대조군)", () => {
+    const lines = resolveSourceLines("execution-engine.service.ts");
+    expect(lines).not.toBeNull();
+    expect(lines!.length).toBeGreaterThan(1000);
+  });
+
+  it("[루트 통일] `packages` 에만 있는 파일도 특정된다 — 거짓 실패 방지", () => {
+    // 이 단언이 무는 것은 **`SOURCE_ROOTS` 에 `packages` 가 들어 있는가** 다. 합성
+    // fixture 로는 쓸 수 없다 — 주장 자체가 «실제 저장소 배치» 에 관한 것이다.
+    // 대신 파일명을 박지 않고 **매 실행 도출**해 리팩터에 견디게 하고, 도출이 0건이면
+    // 먼저 터지게 해 vacuous 를 막는다(오늘 실측 32건).
+    const inBackend = new Set(
+      walkTree(root, ["codebase/backend/src"], {
+        skipDir: skipBuildDirs,
+        includeFile: (n) => n.endsWith(".ts"),
+      }).map((f) => path.basename(f.absPath)),
+    );
+    const counts = new Map<string, number>();
+    for (const f of walkTree(root, ["codebase/packages"], {
+      skipDir: skipBuildDirs,
+      includeFile: (n) => n.endsWith(".ts"),
+    })) {
+      const base = path.basename(f.absPath);
+      counts.set(base, (counts.get(base) ?? 0) + 1);
+    }
+    const onlyInPackages = [...counts]
+      .filter(([base, n]) => n === 1 && !inBackend.has(base))
+      .map(([base]) => base)
+      .sort();
+
+    expect(onlyInPackages.length).toBeGreaterThan(0); // 도출 실패 = vacuous
+    expect(resolveSourceLines(onlyInPackages[0])).not.toBeNull();
+  });
+});
+
+describe("computeNonEmittedOffenders — 네 항이 각각 무는가", () => {
+  // **정본으로 합치는 것만으로는 부족했다.** 리뷰어가 카탈로그 필터 한 줄을 지워
+  // 71/71 GREEN 을 관측했고(`review/code/2026/09/13/20_57_13` testing WARNING#1),
+  // 제안대로 판정을 정본 하나로 모은 뒤 **같은 뮤턴트를 다시 걸었더니 여전히 생존**했다.
+  //
+  // 이유는 테스트 구조가 아니라 **데이터**다 — 그 필터는 오늘 실코퍼스에서 **한 번도
+  // 발화하지 않는다**(«접두 전용 ∩ 카탈로그» = 공집합, 라운드 1 실측). 즉 실코퍼스로는
+  // 어떤 테스트도 그 뮤턴트를 잡을 수 없다. **합성 입력만이 두 판정을 가른다.**
+  const T = "SYNTH_TOKEN";
+  const base = {
+    messagePrefixes: new Set([T]),
+    quotedLiterals: new Set<string>(),
+    catalogCodes: new Set<string>(),
+    registered: new Set<string>(),
+  };
+
+  it("접두 전용 + 카탈로그 없음 + 미등록 → offender", () => {
+    expect(computeNonEmittedOffenders([T], base)).toEqual([T]);
+  });
+
+  it("[카탈로그 항] 카탈로그에 있으면 offender 가 아니다", () => {
+    // 이 케이스가 **카탈로그 필터를 지우는 뮤턴트와 갈리는 유일한 값**이다.
+    expect(
+      computeNonEmittedOffenders([T], { ...base, catalogCodes: new Set([T]) }),
+    ).toEqual([]);
+  });
+
+  it("[등록 항] 등록돼 있으면 offender 가 아니다", () => {
+    expect(
+      computeNonEmittedOffenders([T], { ...base, registered: new Set([T]) }),
+    ).toEqual([]);
+  });
+
+  it("[접두-전용 항] 토큰-단독 리터럴이 있으면 offender 가 아니다", () => {
+    expect(
+      computeNonEmittedOffenders([T], { ...base, quotedLiterals: new Set([T]) }),
+    ).toEqual([]);
+  });
+
+  it("[인용 항] 인용되지 않은 토큰은 애초에 후보가 아니다", () => {
+    expect(computeNonEmittedOffenders([], base)).toEqual([]);
+  });
+});
+
+describe("staleGuideEntries — 판별 대조군", () => {
+  // `/ai-review`(`review/code/2026/09/13/20_13_13` testing WARNING#2): 이 헬퍼는 두
+  // 호출부 모두 실코퍼스 베이스라인-0(`toEqual([])`)으로만 검증돼, **필터 방향이 뒤집혀도**
+  // 목록이 커지기 전까지는 우연히만 잡힌다. 같은 파일이 다른 신규 함수 전부에 적용한
+  // 규율(«두 판정이 갈리는 값을 고정») 을 이 1줄 함수만 비켜 갔다.
+  it("인용되지 않은 항목을 낸다", () => {
+    expect(staleGuideEntries([{ token: "NOT_CITED" }], new Set(["OTHER"]))).toEqual([
+      "NOT_CITED",
+    ]);
+  });
+
+  it("인용된 항목은 내지 않는다", () => {
+    expect(staleGuideEntries([{ token: "CITED" }], new Set(["CITED"]))).toEqual([]);
+  });
+
+  it("[경계] 빈 목록은 빈 결과 — 단언이 vacuous 해지는 자리", () => {
+    // 두 호출부가 `toEqual([])` 를 쓰므로, 목록이 비면 통과한다. 그 자리는 각 목록의
+    // **상한·하한 강제**가 따로 막는다(`…_CAP` · `length > 0`).
+    expect(staleGuideEntries([], new Set(["ANY"]))).toEqual([]);
+  });
+});
+
+describe("isMessagePrefixOnly — 진리표 대조군", () => {
+  // `/ai-review`(`review/code/2026/09/13/19_51_33` testing WARNING#3): 이 술어가 테스트
+  // 파일 안의 지역 클로저라 **진리표를 직접 겨눌 수 없었다**. AND 항을 지우는 뮤턴트는
+  // RED 를 내지만 *"offender 8종 폭증"* 이라는 뭉툭한 진단이고, `(F,T)`·`(F,F)` 는
+  // 실제 코퍼스에 없어 **어떤 테스트도 관측하지 않았다**.
+  const P = (p: string[], q: string[]) => (t: string) =>
+    isMessagePrefixOnly(t, new Set(p), new Set(q));
+
+  it("(접두 O, 리터럴 X) → true — 접두 전용", () => {
+    expect(P(["A_ONE"], [])("A_ONE")).toBe(true);
+  });
+
+  it("(접두 O, 리터럴 O) → false — 소비자·분류기가 인용한다", () => {
+    // 실제 코퍼스의 `MAX_ITERATIONS_EXCEEDED` 가 이 칸이다.
+    expect(P(["A_ONE"], ["A_ONE"])("A_ONE")).toBe(false);
+  });
+
+  it("(접두 X, 리터럴 O) → false — 평범한 발행 코드", () => {
+    expect(P([], ["A_ONE"])("A_ONE")).toBe(false);
+  });
+
+  it("(접두 X, 리터럴 X) → false — 이 축의 대상이 아니다", () => {
+    expect(P([], [])("A_ONE")).toBe(false);
+  });
+});
+
+/**
+ * 발행 축 수집기 3종의 **합성 경계 대조군**.
+ *
+ * `/ai-review`(`review/code/2026/09/13/19_23_22` testing WARNING#5): 형제 함수
+ * (`collectSourceTokens`·`collectEnvDeclarations`)에는 손으로 짠 대조군이 있는데
+ * **신규 3종만 없었다** — 실제 코퍼스 통계와 이름-하나짜리 회귀에만 의존했다.
+ * 각 제약마다 **두 판정이 갈리는 값**을 고정한다.
+ */
+describe("발행 축 수집기 — 경계 대조군", () => {
+  describe("collectQuotedLiterals — 따옴표가 토큰만 감쌀 때", () => {
+    it("세 따옴표 형태를 모두 받는다", () => {
+      expect([...collectQuotedLiterals(["a 'A_ONE' b"])]).toEqual(["A_ONE"]);
+      expect([...collectQuotedLiterals(['a "B_TWO" b'])]).toEqual(["B_TWO"]);
+      expect([...collectQuotedLiterals(["a `C_THREE` b"])]).toEqual(["C_THREE"]);
+    });
+
+    it("[경계] 여닫이 따옴표가 **다르면** 안 받는다 (역참조)", () => {
+      // 역참조를 빼는 뮤턴트가 이 값에서만 갈린다 — 같은 따옴표 케이스는 안 갈린다.
+      expect([...collectQuotedLiterals(["a 'D_FOUR\" b"])]).toEqual([]);
+    });
+
+    it("[비대상] 따옴표 안에 토큰 **외의 글자**가 있으면 안 받는다", () => {
+      // 이것이 «접두» 와 «리터럴» 을 가르는 자리다.
+      expect([...collectQuotedLiterals(["throw new Error('E_FIVE: 설명')"])]).toEqual(
+        [],
+      );
+      expect([...collectQuotedLiterals(["'F_SIX '"])]).toEqual([]);
+    });
+
+    it("[비대상] 따옴표가 아예 없으면 안 받는다", () => {
+      expect([...collectQuotedLiterals(["bare G_SEVEN token"])]).toEqual([]);
+    });
+  });
+
+  describe("collectMessagePrefixes — 여는 따옴표 직후 + `:` + 공백", () => {
+    it("작은따옴표·템플릿 리터럴 둘 다 받는다 (코퍼스가 둘을 섞어 쓴다)", () => {
+      expect([...collectMessagePrefixes(["new Error('H_ONE: 설명')"])]).toEqual([
+        "H_ONE",
+      ]);
+      expect([...collectMessagePrefixes(["new Error(`I_TWO: ${x}`)"])]).toEqual([
+        "I_TWO",
+      ]);
+    });
+
+    it("[경계] `:` 가 없으면 접두가 아니다", () => {
+      expect([...collectMessagePrefixes(["new Error('J_THREE 설명')"])]).toEqual([]);
+    });
+
+    it("[경계] `:` 뒤에 공백이 없으면 접두가 아니다", () => {
+      // `'K_FOUR:값'` 은 접두 서술이 아니라 값 표기다 — 두 판정이 갈리는 값.
+      expect([...collectMessagePrefixes(["'K_FOUR:값'"])]).toEqual([]);
+    });
+
+    it("[경계] 여는 따옴표 **직후**여야 한다", () => {
+      // 문장 중간의 `… L_FIVE: …` 는 접두가 아니다.
+      expect([...collectMessagePrefixes(["'prefix L_FIVE: 설명'"])]).toEqual([]);
+    });
+  });
+
+  describe("collectCatalogCodes — 백틱만", () => {
+    it("백틱 인용을 받는다", () => {
+      expect([...collectCatalogCodes(["| `M_ONE` | 없음 | 설명 |"])]).toEqual([
+        "M_ONE",
+      ]);
+    });
+
+    it("[비대상] 따옴표는 카탈로그 인용이 아니다", () => {
+      // spec 마크다운의 코드 표기는 백틱이다 — 따옴표까지 받으면 산문 예시가 섞인다.
+      expect([...collectCatalogCodes(["'N_TWO' 는 예시"])]).toEqual([]);
+      expect([...collectCatalogCodes(['"O_THREE" 는 예시'])]).toEqual([]);
+    });
+
+    it("[비대상] 백틱 없는 맨 토큰은 안 받는다", () => {
+      expect([...collectCatalogCodes(["P_FOUR 는 맨 토큰"])]).toEqual([]);
+    });
+  });
+
+  it("[공용] `collectMatches` 가 여러 텍스트의 중복을 한 번만 센다", () => {
+    expect([
+      ...collectQuotedLiterals(["'Q_ONE'", "'Q_ONE'", "'R_TWO'"]),
+    ]).toEqual(["Q_ONE", "R_TWO"]);
   });
 });
 

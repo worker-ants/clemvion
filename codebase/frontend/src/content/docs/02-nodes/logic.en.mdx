@@ -100,7 +100,7 @@ Loop is a container node. It has two input ports (`in`, `emit`) and two output p
 </Example>
 
 <Callout type="warn">
-A container's `emit` port must have **exactly one body node** connected. Wiring zero or multiple yields `CONTAINER_MISSING_EMIT` or `CONTAINER_MULTIPLE_EMIT`. Cycles (back-edges) and blocking nodes (Form, blocking button, AI multi-turn) are not allowed inside the body.
+A container's `emit` port must have **exactly one body node** connected. Wiring zero or multiple fails the run, and the failure **message is prefixed** with `CONTAINER_MISSING_EMIT` or `CONTAINER_MULTIPLE_EMIT` — **there is no dedicated error code, so read the message rather than the code.** Cycles (back-edges) and blocking nodes (Form, blocking button, AI multi-turn) are not allowed inside the body.
 </Callout>
 
 ## ForEach

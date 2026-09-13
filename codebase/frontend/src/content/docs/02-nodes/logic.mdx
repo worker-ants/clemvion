@@ -111,7 +111,7 @@ Loop는 컨테이너 노드예요. 입력은 `in`, `emit` 두 개, 출력은 `bo
 </Example>
 
 <Callout type="warn">
-컨테이너의 `emit` 포트에는 **정확히 1개의 body 노드**만 연결해야 해요. 여러 개 또는 0개를 연결하면 `CONTAINER_MISSING_EMIT` 또는 `CONTAINER_MULTIPLE_EMIT`로 실행 실패해요. body 내부에 순환(back-edge)이나 blocking 노드(Form, 버튼 블로킹, AI 대화)는 허용되지 않아요.
+컨테이너의 `emit` 포트에는 **정확히 1개의 body 노드**만 연결해야 해요. 여러 개 또는 0개를 연결하면 실행이 실패하고, **실패 메시지 앞에** `CONTAINER_MISSING_EMIT` 또는 `CONTAINER_MULTIPLE_EMIT` 가 붙어요 — **전용 에러 코드는 없으니 코드가 아니라 메시지를 봐야 해요.** body 내부에 순환(back-edge)이나 blocking 노드(Form, 버튼 블로킹, AI 대화)는 허용되지 않아요.
 </Callout>
 
 ## ForEach

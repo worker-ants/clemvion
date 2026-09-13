@@ -1,8 +1,23 @@
 // 유저 가이드가 이름으로 적은 **식별자가 실재하는가** 를 판정하는 순수 스캐너.
 // 테스트는 `guide-identifier-existence.test.ts`.
 //
-// SoT: spec/conventions/user-guide-evidence.md (가드 가족) · spec/conventions/error-codes.md
-// (코드 명명·은퇴 이력) · spec/5-system/3-error-handling.md §1 (카탈로그).
+// SoT: spec/conventions/error-codes.md (코드 명명·안정성·은퇴 이력) ·
+//      spec/5-system/3-error-handling.md §1 (카탈로그)
+// 가드 «가족» 규약은 spec/conventions/user-guide-evidence.md 인데 **이 가드는 아직 그
+// 문서 §2 표에 없다**(실측: `grep -c guide-identifier` → 0). `#1330` 이 가족을 만든
+// 시점부터 그랬고 등재는 planner 몫으로 트래커에 있다 — 그래서 «SoT» 로 단정하지 않고
+// 여기 적는다 (`--impl-done` `review/consistency/2026/09/13/21_41_25`
+// convention_compliance WARNING#3: 인용이 착지하지 않는다).
+//
+// > **라운드 7 의 그 교체가 두 가지를 한꺼번에 틀렸다 (라운드 8 정정).** 옛 표기는 두
+// > 줄이었는데(`git show HEAD~2`) 첫 줄만 갈아 끼워 **둘째 줄이 어디에도 안 붙는 조각으로
+// > 남았고**(`/ai-review` `review/code/2026/09/13/22_06_10` documentation·scope WARNING),
+// > 하필 **그 조각이 적고 있던 범위 표기가 맞는 쪽이었다** — 새로 쓴 *"(코드 명명·발행)"*
+// > 은 `error-codes.md` Overview 의 자기 선언(*"명명·안정성 규율만 정의한다"* · 유일 소유
+// > ①명명 ②rename 안정성 ③예외 레지스트리)보다 **넓다**(`--impl-done`
+// > `review/consistency/2026/09/13/22_06_21` convention_compliance WARNING#4).
+// > 리뷰어 둘이 각각 절반씩 봤다 — 한쪽은 «조각이 남았다», 다른 쪽은 «범위가 넓다».
+// > 합치면 **지운 쪽이 옳았다** 다. 위 4행을 그 조각의 표기로 되돌렸다.
 //
 // ## 왜 "에러 코드" 가 아니라 "식별자" 인가
 //
@@ -50,7 +65,11 @@
 // 대신 허용목록이 은폐 수단이 되지 않도록 **네 가지를 테스트가 강제**한다(§테스트 참조):
 // 외부 시스템 이름 의무 · 상한 · 여전히 인용될 것 · 기준집합에 없을 것.
 
-// ## 이 가드가 **못** 보는 것 — 존재 검사이지 방출 검사가 아니다
+// ## 이 가드가 **못** 보는 것 — 대부분 존재 검사다 (발행 축은 아래 §발행 축 참조)
+//
+// > **2026-09-13 에 한 칸 좁혔다.** *"메시지 접두로만 등장하고 카탈로그에도 없는"* 인용은
+// > 이제 `GUIDE_NON_EMITTED_VOCABULARY` 등록을 요구한다(§발행 축). 아래 두 갈래 중 **첫째가
+// > 부분적으로 닫혔고**, 둘째와 *"소비자 목록이 인용해서 통과하는"* 경우는 그대로 열려 있다.
 //
 // 술어는 *"그 토큰이 소스·env 선언처에 문자열로 있는가"* 다. 그래서 **실제로 발행되지 않는
 // 토큰도 통과한다**:
@@ -64,7 +83,20 @@
 // **이 한계는 가정이 아니라 실측이다**: `#1330` 이 이 구멍으로
 // `MAKESHOP_UNRESOLVED_PATH_PARAM` 을 가이드에 적었고 `--impl-done`
 // (`review/consistency/2026/09/13/11_33_51`)의 naming_collision 이 **CRITICAL** 로 잡았다.
-// 가드는 통과시켰다. 방출 위치를 AST 로 특정하는 축이 트래커에 등재돼 있다.
+// 가드는 통과시켰다. ~~방출 위치를 AST 로 특정하는 축이 트래커에 등재돼 있다.~~
+//
+// > **그 예고를 닫은 것이 이 배치인데, 문장은 여덟 라운드 동안 한 글자도 안 바뀌었다**
+// > (`/ai-review` `review/code/2026/09/13/22_06_10` documentation CRITICAL).
+// > 닫은 방식은 **AST 가 아니다.** 술어 *"방출 위치를 AST 로 특정"* 은 실측이 **두 번**
+// > 반증했다 — `3-error-handling.md §1.4` 가 *"나머지는 앵커 없는 맨 문자열"* 이라
+// > 적고 있어 AST 로 특정할 앵커 자체가 없고, 분류기 목록이 같은 이름을 인용해
+// > `MAX_ITERATIONS_EXCEEDED` 류가 통과한다(트래커
+// > `spec-draft-nullable-notation-followups.md` 의
+// > *"가이드 에러 코드 가드가 «존재» 만 보고 «방출» 을 안 본다"* 항목).
+// > 착지한 술어는 **«메시지 접두로만 등장» ∩ «카탈로그 부재»** 의 교집합이다(§발행 축).
+// >
+// > 예고를 쓴 파일에 정정을 안 적으면 그 파일만 읽는 사람이 **이미 한 일을 다시 쫓는다.**
+// > 이 배치의 존재 이유가 이 문장을 닫는 것이었는데, 정작 문장은 안 건드렸다.
 //
 // > **그런데 이 절은 자기 예시의 «이유» 를 틀리게 적고 있었다 (라운드 7 에 정정).**
 // > 가드가 `MAKESHOP_UNRESOLVED_PATH_PARAM` 을 통과시킨 진짜 이유는 *"이름이 소스에
@@ -235,6 +267,57 @@ const BACKTICK_SPAN = /`([^`\n]+)`/g;
  */
 const BACKTICK_INNER = new RegExp(`\\b(${UPPER_SNAKE})\\b`, "g");
 
+// ## 발행 축의 정규식 셋 — **`lastIndex` 보일러플레이트를 늘리지 않는다**
+//
+// 이 파일은 `rx.lastIndex = 0` → `while ((m = rx.exec(t)))` 를 이미 **4곳**에 손으로
+// 복제하고 있고, 그 복제는 트래커에 등재돼 있다(*"리셋 누락 시 두 번째 호출부터 조용히
+// 누락"*). `--impl-prep`(`review/consistency/2026/09/13/18_40_54` plan_coherence INFO#3)이
+// **이 축을 더하면 다섯 번째가 생긴다**고 예견했다.
+//
+// 그래서 아래 셋은 `String.prototype.matchAll` 로 쓴다 — `matchAll` 은 내부적으로 정규식을
+// **복제**하므로 공유 `lastIndex` 를 건드리지 않는다. 등재된 리팩터를 앞당기지 않으면서
+// 복제를 **4곳에 묶어 둔다**.
+//
+// | 정규식 | 무엇을 집나 | 경계 |
+// |---|---|---|
+// | `QUOTED_LITERAL` | `'X'` · `"X"` · `` `X` `` — 따옴표가 **토큰만** 감쌀 때 | 여는·닫는 따옴표가 같아야 한다 |
+// | `MESSAGE_PREFIX` | `'X: …'` — 토큰 뒤에 `:` + 공백 | 여는 따옴표 직후여야 한다 |
+// | `CATALOG_CODE` | spec 마크다운의 `` `X` `` | 백틱 양쪽 |
+
+/** 따옴표가 **토큰만** 감싼 리터럴. 여는·닫는 따옴표가 같아야 한다(역참조). */
+const QUOTED_LITERAL = new RegExp(`(['"\`])(${UPPER_SNAKE})\\1`, "g");
+
+/** 메시지 접두 — 여는 따옴표 **직후**의 토큰 + `:` + 공백. */
+const MESSAGE_PREFIX = new RegExp(`['"\`](${UPPER_SNAKE}):\\s`, "g");
+
+/** spec 카탈로그의 백틱 인용. */
+const CATALOG_CODE = new RegExp(`\`(${UPPER_SNAKE})\``, "g");
+
+/**
+ * 여러 텍스트에서 한 정규식의 캡처 그룹을 걷는 **공용 수집기**.
+ *
+ * `/ai-review`(`review/code/2026/09/13/19_23_22` maintainability WARNING#7)가 지적한
+ * 근접 중복을 없앤다 — 세 수집기가 정규식과 그룹 번호만 다르고 구조가 같았다.
+ * **`lastIndex` 중복을 피했다고 적은 주석 바로 옆에서 다른 형태의 중복을 만든 것**이라
+ * 지적이 특히 정확했다.
+ *
+ * `matchAll` 은 내부적으로 정규식을 복제하므로 공유 `lastIndex` 를 건드리지 않는다.
+ * 위쪽 세 함수(`scanIdentifierCitations`·`collectSourceTokens`·`collectEnvDeclarations`)의
+ * 수동 `lastIndex` 관용구는 **그대로 둔다** — 그 리팩터는 트래커에 별건으로 등재돼 있고,
+ * 여기서 앞당기면 이 배치의 diff 가 두 가지 일을 하게 된다.
+ */
+function collectMatches(
+  texts: readonly string[],
+  rx: RegExp,
+  group: number,
+): Set<string> {
+  const tokens = new Set<string>();
+  for (const text of texts) {
+    for (const m of text.matchAll(rx)) tokens.add(m[group]);
+  }
+  return tokens;
+}
+
 /**
  * 우리 것이 아닌 것이 **정상**인 외부 어휘.
  *
@@ -253,6 +336,186 @@ export const GUIDE_EXTERNAL_VOCABULARY: readonly {
     why: "Discord 가 정의한 Gateway 이벤트 이름. 가이드는 '이 이벤트는 Gateway WebSocket 연결이 필요해 지원하지 않는다' 고 설명하려고 인용한다 — 우리 코드에 없는 것이 정상이다.",
   },
 ];
+
+/**
+ * **메시지 접두일 뿐 `error.code` 로 발행되지 않는** 토큰. 위 목록의 **거울상**이다.
+ *
+ * | 목록 | 무엇을 면제하나 | 제약 |
+ * |---|---|---|
+ * | `GUIDE_EXTERNAL_VOCABULARY` | **존재** 축 | 기준집합에 **없을** 것 |
+ * | `GUIDE_NON_EMITTED_VOCABULARY` | **발행** 축 | 기준집합에 **있을** 것 |
+ *
+ * **제약이 정확히 반대라 두 목록은 합칠 수 없다** — 한 항목이 *"기준집합에 없고 동시에
+ * 있을"* 수는 없다. 합치면 예외 하나가 두 축의 결함을 동시에 덮는다.
+ *
+ * `#1330` 은 *"허용목록 없음"* 을 설계 원칙으로 세웠다. 이것이 그 원칙의 **두 번째 부분
+ * 번복**이다(첫 번째는 `GUIDE_EXTERNAL_VOCABULARY`). 두 번 다 이유가 같다 — 문맥 술어에
+ * 숨기는 대신 **명시적으로 적고 사유를 강제**한다. 숨기면 다음 사람이 그 술어를 넓히거나
+ * 좁힐 때 무엇이 걸려 있는지 모른다.
+ *
+ * **등록이 이 축의 값이다.** 새로 «메시지 접두로만 등장하고 카탈로그에도 없는» 토큰이
+ * 가이드에 등장하면 사유를 적기 전까지 RED 다. 사유를 적는 행위가 *"그럼 이 문장은
+ * 정확한가?"* 를 묻게 만든다 — 실제로 이 배치에서 `CONTAINER_*` 두 문장이 그 질문에 걸려
+ * 정정됐다.
+ */
+export const GUIDE_NON_EMITTED_VOCABULARY: readonly {
+  token: string;
+  /** 접두를 붙이는 자리. 사유가 "어디서" 를 지목하지 못하면 등록이 통행증이 된다. */
+  where: string;
+  why: string;
+}[] = [
+  {
+    token: "MAKESHOP_UNRESOLVED_PATH_PARAM",
+    where: "makeshop.handler.ts:436 — 일반 `Error` 메시지 접두",
+    why: "catch 가 `err instanceof IntegrationError ? err.code : 'INTEGRATION_CALL_FAILED'` 라 `output.error.code` 에는 공용 fallback 이 들어간다. 가이드는 이미 '전용 코드가 없어요 … 코드가 아니라 메시지를 봐야 해요' 라고 정확히 적고 있어 문장 수정이 아니라 등록이 맞다.",
+  },
+  {
+    token: "CONTAINER_MISSING_EMIT",
+    where: "execution-engine.service.ts:7121·7125 — 템플릿 리터럴 메시지 접두",
+    why: "구조화된 `error.code` 로 나가지 않는다. 가이드가 '…로 실행 실패해요' 라고 적어 코드처럼 읽혔고 이 배치에서 '메시지 앞에 붙어요' 로 정정했다. 전용 코드 발행은 동작 변경이라 별 배치(트래커 등재분).",
+  },
+  {
+    token: "CONTAINER_MULTIPLE_EMIT",
+    where: "execution-engine.service.ts:7130 — 형제 접두",
+    why: "위와 동형. 두 이름은 같은 문장에 함께 등장하므로 처분도 함께 한다.",
+  },
+];
+
+/**
+ * 소스에서 **«정확히 토큰만» 담은 따옴표 리터럴**로 등장하는 토큰 전수.
+ *
+ * `'X'` · `"X"` · `` `X` `` 세 형태를 받는다. 메시지 접두(`'X: …'`)는 따옴표 안에 토큰
+ * 외의 글자가 있으므로 **여기 안 걸린다** — 그 갈림이 이 함수의 존재 이유다.
+ *
+ * **이 집합을 «발행» 의 증거로 쓰지 않는다.** `3-error-handling.md §1.4` 가 명시하듯
+ * *"`execution-failure-classifier.ts` 의 목록에 같은 이름이 나오지만 그것은 소비자·분류기
+ * 쪽 어휘이지 엔진 발행 경로의 앵커가 아니다"* — 실제로 `MAX_ITERATIONS_EXCEEDED` 는
+ * 메시지 접두로만 발행되는데 그 분류기가 인용해서 여기 들어온다.
+ *
+ * 그래서 호출부는 이것을 **통과 조건이 아니라 «접두 전용» 을 부정하는 데만** 쓴다.
+ */
+export function collectQuotedLiterals(
+  fileTexts: readonly string[],
+): Set<string> {
+  // 그룹 1 은 여는 따옴표(역참조용), **토큰은 그룹 2** 다.
+  return collectMatches(fileTexts, QUOTED_LITERAL, 2);
+}
+
+/**
+ * 소스에서 **메시지 접두**(`'X: …'`)로 등장하는 토큰 전수.
+ *
+ * `throw new Error('X: 설명')` · 템플릿 리터럴 `` `X: ${…}` `` 둘 다 대상이다. 실제
+ * 코퍼스가 둘을 섞어 쓴다 — makeshop 은 작은따옴표, 엔진은 템플릿 리터럴이다(실측).
+ */
+export function collectMessagePrefixes(
+  fileTexts: readonly string[],
+): Set<string> {
+  return collectMatches(fileTexts, MESSAGE_PREFIX, 1);
+}
+
+/**
+ * spec 에러 코드 **카탈로그**가 백틱으로 등재한 코드 전수.
+ *
+ * **카탈로그는 «요구 조건» 이 아니라 «탈출구» 다.** 요구 조건으로 쓰면 오늘 거짓 RED 가
+ * 25건 난다 — 인용된 에러 코드 78종 중 28종이 미등재이고 그중 25종이 **진짜 발행되는**
+ * 통합 코드다(`CAFE24_*`·`MAKESHOP_*`·`INTEGRATION_*`). 그 미등재는 planner 트래커에
+ * 등재된 별건이고, 가드가 **남의 미완결을 신고하게** 두지 않는다.
+ *
+ * 탈출구로 쓰면 그 25종은 애초에 접두 전용이 아니라 술어에 안 걸리므로 무해하다.
+ *
+ * ## **이 탈출구는 오늘 한 번도 발화하지 않는다** (라운드 1 에 반증됨)
+ *
+ * 처음엔 *"`MAX_ITERATIONS_EXCEEDED` 처럼 접두로만 발행되지만 spec 이 정식 코드로 인정한
+ * 것이 이 탈출구로 통과한다"* 고 적었다. **틀렸다.** 단계별로 재보니:
+ *
+ * | 단계 | `MAX_ITERATIONS_EXCEEDED` |
+ * |---|---|
+ * | 메시지 접두인가 | 예 (`loop-executor.ts:64·85`) |
+ * | 토큰-단독 리터럴이 있나 | **예** — `execution-failure-classifier.ts:76` 의 **소비자 Set** |
+ * | ⇒ `isMessagePrefixOnly` | **false — 여기서 탈락, 카탈로그에 도달하지 않는다** |
+ *
+ * 즉 그 토큰은 **이 축이 스스로 «함정» 이라 부른 소비자-인용 경로** 때문에 통과한다
+ * (`/ai-review` `review/code/2026/09/13/19_23_22` requirement WARNING#3 · 직접 재현).
+ *
+ * 전수로도 셌다 — 인용된 «접두 전용» 3종 중 카탈로그 등재 **0종**, 인용과 무관하게
+ * 소스 전체의 접두 전용 11종 중에도 **0종**. **탈출구 교집합은 공집합이다.**
+ *
+ * ## 그래도 남기는 이유 — 트래커 항목이 이것을 발화시킨다
+ *
+ * `spec-draft-nullable-notation-followups.md` 의 planner 항목이 *"`CONTAINER_*` 를
+ * §1.4 에 backfill"* 을 처분안으로 담고 있고, **그 처분이 집행되는 순간 이 탈출구가
+ * 발화해 아래 등록 2종이 자동으로 불필요해진다.** 지금 지우면 그 처분안의 서술이
+ * 거짓이 된다.
+ *
+ * 같은 형태의 선례가 이 파일에 이미 있다 — `collectEnvDeclarations` 도 *"오늘 판정을
+ * 지탱하지 않지만 내일의 오탐을 막는다"* 로 남아 있다. **차이는 그 사실을 적었느냐다.**
+ * 테스트가 «0회 발화» 를 단언으로 고정하므로, 언젠가 1이 되면 그 단언이 알려준다.
+ */
+export function collectCatalogCodes(specTexts: readonly string[]): Set<string> {
+  return collectMatches(specTexts, CATALOG_CODE, 1);
+}
+
+/**
+ * 발행 축의 **핵심 술어** — *"이 토큰은 메시지 접두로만 등장하는가"*.
+ *
+ * 스캐너가 판정 로직을 소유한다는 존재 축의 관례에 맞춘다 — 처음엔 테스트 파일 안의 지역
+ * 클로저였고, 그래서 **진리표를 겨눈 대조군을 쓸 수 없었다**
+ * (`/ai-review` `review/code/2026/09/13/19_51_33` testing WARNING#3 · architecture INFO#1).
+ *
+ * | 접두에 있나 | 토큰-단독 리터럴이 있나 | 판정 |
+ * |---|---|---|
+ * | 예 | 아니오 | **`true`** — 접두 전용 |
+ * | 예 | 예 | `false` — 소비자·분류기가 인용한다(§`collectCatalogCodes` 주석) |
+ * | 아니오 | 예 | `false` — 평범한 발행 코드 |
+ * | 아니오 | 아니오 | `false` — 이 축의 대상이 아니다 |
+ *
+ * **두 인자를 분리해 받는 이유**는 각 조합을 합성 입력으로 직접 고정하기 위해서다. 하나로
+ * 묶으면 `(false, true)`·`(false, false)` 가 실제 코퍼스에 없어 영영 관측되지 않는다.
+ */
+export function isMessagePrefixOnly(
+  token: string,
+  messagePrefixes: ReadonlySet<string>,
+  quotedLiterals: ReadonlySet<string>,
+): boolean {
+  return messagePrefixes.has(token) && !quotedLiterals.has(token);
+}
+
+/**
+ * 발행 축의 **판정 정본** — 인용 토큰 중 «등록이 필요한» 것을 낸다.
+ *
+ * ```
+ * offender = 인용됨 ∧ 접두-전용 ∧ ¬카탈로그 ∧ ¬등록
+ * ```
+ *
+ * **테스트가 이 체인을 손으로 다시 쓰고 있었다.** 베이스라인 단언은 `.filter(...)` 를
+ * **세 번** 이어 붙였고(실측), `[한계]`·`[대조군]` 테스트는 **그것과 분리된 병렬 구현**
+ * 이었다. 처음엔 *"네 번"* 이라 적었는데 **판정식의 «네 항» 과 «filter 호출 횟수» 를
+ * 혼동한 것**이다 — 인용·중복제거 단계는 `filter` 가 아니다
+ * (`/ai-review` `review/code/2026/09/13/21_19_46` documentation WARNING#2).
+ * 그래서 실제 체인에서 카탈로그 필터 한 줄을 지워도 **71/71 GREEN 이 유지됐다**
+ * (`/ai-review` `review/code/2026/09/13/20_57_13` testing WARNING#1 · 리뷰어가 뮤테이션으로
+ * 관측). 이 저장소가 이름 붙여 둔 형태다 — **헬퍼 테스트 ≠ 호출부 테스트.**
+ *
+ * 정본을 하나로 모아 **베이스라인과 대조군이 같은 함수를 부르게** 한다. 이제 이 안의 어떤
+ * 항을 지워도 양쪽이 함께 RED 다.
+ */
+export function computeNonEmittedOffenders(
+  citedTokens: Iterable<string>,
+  sets: {
+    messagePrefixes: ReadonlySet<string>;
+    quotedLiterals: ReadonlySet<string>;
+    catalogCodes: ReadonlySet<string>;
+    registered: ReadonlySet<string>;
+  },
+): string[] {
+  return [...new Set(citedTokens)]
+    .filter((t) =>
+      isMessagePrefixOnly(t, sets.messagePrefixes, sets.quotedLiterals),
+    )
+    .filter((t) => !sets.catalogCodes.has(t))
+    .filter((t) => !sets.registered.has(t))
+    .sort();
+}
 
 /** 한 MDX 본문에서 식별자 인용을 전부 걷는다. 같은 줄의 중복 축은 각각 보고된다. */
 export function scanIdentifierCitations(mdx: string): IdentifierCitation[] {
