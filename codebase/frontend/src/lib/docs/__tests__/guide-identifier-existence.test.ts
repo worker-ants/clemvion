@@ -25,8 +25,18 @@ const EXTERNAL_VOCABULARY_CAP = 5;
  * 가족·위치의 근거는 `spec/conventions/user-guide-evidence.md`. 자매
  * `impl-anchor-existence.test.ts` 와 **방향이 같고(가이드 → 코드) 표면이 다르다**.
  */
+const root = repoRoot();
+
+const readIfPresent = (rel: string): string[] => {
+  const abs = path.join(root, rel);
+  return fs.existsSync(abs) ? [fs.readFileSync(abs, "utf8")] : [];
+};
+const envExampleTexts = [
+  ...readIfPresent("codebase/backend/.env.example"),
+  ...readIfPresent("codebase/frontend/.env.example"),
+];
+
 describe("유저 가이드 식별자 실재성 가드", () => {
-  const root = repoRoot();
   const mdxFiles = collectMdxFiles(root, "codebase/frontend/src/content/docs");
 
   // 기준집합 = 소스 토큰 ∪ env 선언처.
@@ -37,14 +47,6 @@ describe("유저 가이드 식별자 실재성 가드", () => {
     includeFile: (name) => name.endsWith(".ts"),
   }).map((f) => fs.readFileSync(f.absPath, "utf8"));
 
-  const readIfPresent = (rel: string): string[] => {
-    const abs = path.join(root, rel);
-    return fs.existsSync(abs) ? [fs.readFileSync(abs, "utf8")] : [];
-  };
-  const envExampleTexts = [
-    ...readIfPresent("codebase/backend/.env.example"),
-    ...readIfPresent("codebase/frontend/.env.example"),
-  ];
   // **`docker-compose*` 로 좁힌다.** 종전 판은 루트의 모든 `.yml`/`.yaml` 을 읽어
   // `pnpm-lock.yaml`(784KB)·`pnpm-workspace.yaml` 까지 매 실행마다 정규식 스캔했다 —
   // 오늘 매치는 0건이라 무해했지만 **이름과 JSDoc 이 약속한 범위보다 구현이 넓었다**.
@@ -95,7 +97,8 @@ describe("유저 가이드 식별자 실재성 가드", () => {
   it("실제 코퍼스의 특정 파일·토큰을 이름으로 고정한다", () => {
     // **총량 floor 는 개별 토큰 하나가 사라져도 통과한다.** `#1330` 스위트에는 이런 명명
     // 회귀 단언이 있었는데 이번 재작성에서 전부 합성 fixture 로 갈아치우며 사라졌다
-    // (`/ai-review` `14_41_14` testing WARNING#6). 좁은 회귀 형태를 이름으로 되돌린다.
+    // (`/ai-review` `review/code/2026/09/13/14_41_14` testing WARNING#6).
+    // 좁은 회귀 형태를 이름으로 되돌린다.
     const discord = citations.filter(
       (c) => c.file.endsWith("discord.en.mdx") && c.axis === "backtick",
     );
@@ -185,6 +188,60 @@ describe("유저 가이드 식별자 실재성 가드", () => {
       expect(CODE_CONTEXT.test(BROKEN)).toBe(false);
       expect(FIELD_TABLE_NAME.exec(BROKEN)?.[1]).toBeUndefined();
     });
+  });
+});
+
+/**
+ * `collectEnvDeclarations` 의 분기를 **합성 입력**으로 겨눈다.
+ *
+ * `/ai-review`(`review/code/2026/09/13/15_03_06`) testing WARNING: 주석 처리된 선언
+ * (`#SOME_VAR=`)을 받는 `^#?` 분기가 **완전히 무검증**이었다 — 리뷰어가 `#?` 를 지우는
+ * 뮤테이션을 걸었는데 19/19 가 그대로 GREEN 이었다.
+ *
+ * **실측으로 이유까지 확인했다**: `.env.example` 에 주석 처리된 선언이 **19건 실재**하지만
+ * (`# ENABLE_SWAGGER_IN_PROD=false` 등) 그 19종이 **전부 소스에도** 있어(`process.env.X`)
+ * 기준집합 합계가 바뀌지 않았다. 즉 분기는 일을 하는데 **아무도 그 일에 의존하지 않아서**
+ * 죽어도 티가 안 났다. 코퍼스 의존 단언만으로는 이 분기를 영원히 못 겨눈다.
+ */
+describe("collectEnvDeclarations — 분기별 대조군", () => {
+  it("주석 처리된 선언을 받는다 (`#VAR=` · `# VAR=`)", () => {
+    const got = collectEnvDeclarations(
+      ["#ENABLE_SWAGGER_IN_PROD=false\n# CORS_ORIGINS=https://a.example\n"],
+      [],
+    );
+    expect([...got].sort()).toEqual(["CORS_ORIGINS", "ENABLE_SWAGGER_IN_PROD"]);
+  });
+
+  it("주석 없는 선언도 받는다", () => {
+    const got = collectEnvDeclarations(["LLM_STUB_MODE=false\n"], []);
+    expect([...got]).toEqual(["LLM_STUB_MODE"]);
+  });
+
+  it("compose 는 **들여쓴 키**만 받는다 (최상위 키는 env 가 아니다)", () => {
+    // **판별 fixture 는 두 판정이 갈리는 값이어야 한다.** 첫 판본은 들여쓴 키만 넣어서
+    // `^\\s+` 를 `^\\s*` 로 바꾸는 뮤턴트가 **생존**했다 — 실제 compose 의 최상위 키는
+    // 소문자 서비스명이라 `UPPER_SNAKE` 에 애초에 안 걸리기 때문이다. 최상위 UPPER_SNAKE
+    // 줄을 함께 넣어야 그 제약이 관측된다.
+    const got = collectEnvDeclarations(
+      [],
+      [
+        "NOT_AN_ENV_KEY: top-level\n" +
+          "services:\n  db:\n    environment:\n      POSTGRES_PASSWORD: secret\n",
+      ],
+    );
+    expect([...got]).toEqual(["POSTGRES_PASSWORD"]);
+  });
+
+  it("[비대상] 값만 있고 이름이 소문자면 안 받는다", () => {
+    expect([...collectEnvDeclarations(["lower_case=1\n"], [])]).toEqual([]);
+  });
+
+  it("실제 `.env.example` 에도 주석 처리된 선언이 있다 (분기가 죽은 코드가 아니다)", () => {
+    // 합성 단언만 있으면 "분기는 살아 있지만 코퍼스엔 없다" 를 구분 못 한다.
+    const commented = envExampleTexts
+      .flatMap((t) => t.split("\n"))
+      .filter((l) => /^#\s*[A-Z][A-Z0-9_]+=/.test(l));
+    expect(commented.length).toBeGreaterThan(5); // 실측 19건
   });
 });
 
