@@ -457,12 +457,33 @@ export class TestConnectionResultDto {
   @ApiProperty()
   success: boolean;
 
+  // `latencyMs` 는 이 DTO 에서도 **발행 생산자가 0건**이었다(실측). 자매
+  // `ModelTestConnectionResultDto` 를 고치며 같은 유령을 함께 걷어낸다 — 한쪽만 고치면
+  // 같은 거짓 광고가 남는다.
+
+  // 이 선언은 `latencyMs` 의 **정반대 방향** 결함을 닫는다 — 그쪽은 선언만 있고 생산자가
+  // 0건이었고, 이쪽은 **생산자가 있는데 선언이 없었다**(`IntegrationTestResult.code`,
+  // `integrations.service.ts`). `spec/2-navigation/4-integration.md §9.1` 이 이 엔드포인트의
+  // `200 + { success:false, code:'INTEGRATION_INCOMPLETE' }` 를 **이미 문서화**하고 있었으므로
+  // spec 이 아니라 DTO 가 낡은 상태였다.
+  //
+  // 같은 인터페이스의 MCP 전용 필드(`capabilities`·`serverInfo`·`preview`)도 미선언이지만
+  // 타입이 무거워 별도 등재했다 — `plan/in-progress/spec-draft-nullable-notation-followups.md`.
+  /**
+   * 실패 분류 코드. `MCP_*` · `EMAIL_CONNECT_FAILED` · `INTEGRATION_INCOMPLETE` 등이며,
+   * 성공 응답에는 실리지 않습니다.
+   */
   @ApiPropertyOptional()
-  latencyMs?: number;
+  code?: string;
 
   @ApiPropertyOptional({ nullable: true })
   message?: string | null;
 
-  @ApiPropertyOptional({ type: 'object', additionalProperties: true })
-  meta?: Record<string, unknown>;
+  // `meta` 도 `latencyMs` 와 같은 유령이었다 — 이 DTO 를 쓰는 엔드포인트는 하나
+  // (`POST /api/integrations/:id/test`, `integrations.controller.ts`)이고 그 핸들러가 돌려주는
+  // `IntegrationTestResult` 에는 `meta` 필드가 **없다**(전수 확인). 같은 서비스의 `meta:`
+  // 출현 두 곳은 서비스 카탈로그 조회용 `IntegrationMeta` 라 이 경로와 무관하다.
+  //
+  // 이 필드를 찾은 경로를 적어 둔다: `code` 를 등재하며 트래커에 *"`meta` 는 방향을 먼저
+  // 재라 — 생산자 0건이면 추가가 아니라 제거가 답이다"* 라고 써 둔 선행조건이 그대로 걸렸다.
 }

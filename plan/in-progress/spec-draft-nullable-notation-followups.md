@@ -3138,7 +3138,7 @@ field: T | null;
       > 파이프 축만 닫았으면 둘이 남았을 것이다. 셋째는 `@ApiExcludeEndpoint()` 라 목록이
       > 아니라 **구조로** 면제한다.
 
-- [ ] **유저 가이드가 존재하지 않는 에러 코드 5종을 이름으로 적는다** (developer, 2026-09-12
+- [x] **유저 가이드가 존재하지 않는 에러 코드 5종을 이름으로 적는다** (developer, 2026-09-12
       등재 · 위 두 항목을 닫으며 돌린 **전수 스윕**이 발견). `content/docs/**` 의 UPPER_SNAKE
       토큰 97개 중 코드베이스 어디에도 없는 것이 17개인데, 그중 **에러 코드로 제시된** 것이
       다섯이다 — `LLM_AUTH_ERROR`·`LLM_MODEL_NOT_FOUND` (`06-integrations-and-config/
@@ -3159,11 +3159,239 @@ field: T | null;
       라고 명시 등재하고 있다(`/ai-review` `20_26_58` requirement WARNING 이 지목).
       처음엔 `LLM_AUTH_ERROR` 를 `LLM_AUTH_FAILED` 의 근접 오기로 진단했는데, 그러면
       **고칠 방향이 정반대**가 된다 — 가이드의 잘못은 철자가 아니라 **미구현 기능을 이미
-      나온 것처럼 서술한 것**이다. 처분은 "이름 치환" 이 아니라 *"수렴 코드
-      (`LLM_CONNECTION_ERROR`)를 적고 세분화는 Planned 로 표시"* 다.
+      나온 것처럼 서술한 것**이다. ~~처분은 "이름 치환" 이 아니라 *"수렴 코드
+      (`LLM_CONNECTION_ERROR`)를 적고 세분화는 Planned 로 표시"* 다.~~
       나머지 셋(`INTEGRATION_ERROR`·`NODE_EXECUTION_FAILED`·`MAKESHOP_API_ERROR`)은
       *"노드 에러 포트가 일반 실패에 무엇을 싣는가"* 를 **실측해야** 대응 코드가 정해진다.
       추측으로 치환하면 오기를 다른 오기로 바꾸는 것이다.
+      > **위 취소선: 그 처분이 내 실측에 반증됐다.** `LLM_CONNECTION_ERROR` 를 적는 것은
+      > 오기를 **다른 오기로** 바꾸는 것이었다 — 이 표가 서술하는 `POST /api/model-configs/
+      > :id/test` 는 **어떤 에러 코드도 내지 않는다**. `LlmService.testConnection` 은 HTTP 200
+      > 에 `{ success:false, message }` 를 싣고, 그 `message` 는 `sanitize-error.util.ts` 가
+      > 만든 **8갈래 고정 문장** 중 하나다. 표의 `type` 열(401/429/404)도 응답 상태가 아니라
+      > **provider 원문을 패턴 매칭하는 입력**이었다. 즉 틀린 것은 코드 이름이 아니라 **주어**다.
+      > `LLM_CONNECTION_ERROR` 는 실재하지만(실측 10건) 그것은 멀티턴 AI 실행 경로의 코드다.
+      > 트래커가 이 처분을 쓸 때 근거로 삼은 `7-llm-client.md:345` 는 참이다 — 다만 그 문장이
+      > 말하는 "클라이언트 계층" 이 이 엔드포인트가 아니었다. **등재 시점에 적어 둔
+      > 선행조건("실측해야 대응 코드가 정해진다")이 자기 처분을 잡았다.**
+
+      > **해소** — `#1330`. 다섯 중 **셋은 실재하는 코드였다**(실측: `LLM_RATE_LIMIT` 63건 ·
+      > `LLM_CONNECTION_ERROR` 10 · `LLM_TIMEOUT` 9) — 결함은 "없는 이름" 이 아니라 **엉뚱한
+      > 층에 붙인 귀속**이었다. 그래서 표를 고치는 게 아니라 **버렸다**: 사용자가 실제로 보는
+      > 8갈래 문장으로 바꾸고, 코드가 사는 곳(워크플로우 실행)으로 링크를 걸었다.
+      >
+      > **등재 문구보다 범위가 넓었다.** 트래커는 6파일을 지목했는데 이 다섯 토큰이 실린
+      > MDX 는 **9파일**이었다. 늘어난 셋(`discord`·`telegram`·`slack`)은 `LLM_TIMEOUT`·
+      > `LLM_RATE_LIMIT` 를 **맞게** 적고 있어 비대상이다 — 넓다고 다 고치면 맞는 것을
+      > 망가뜨린다. 후보마다 *"어느 층을 서술하나"* 를 물어 갈랐다.
+      >
+      > **§A 는 문서 결함이 아니라 런타임 결함이었다.** 서비스는 `error` 를, 선언 DTO 와
+      > 프런트엔드는 `message` 를 써서 실패 사유가 **화면에 한 글자도 도달하지 않았다**
+      > (토스트가 `"연결 실패: "` 로 비어 나갔다). 정본 검사기 `assertMatchesContract` 가
+      > 이 클래스를 위해 존재하는데 **이 엔드포인트에 배선이 없어서** 안 잡혔다. 배선하니
+      > 저장소의 검사기가 스스로 진단했다 — `error [undeclared]`.
+      > 덤으로 두 자매 DTO 의 `latencyMs` 는 **생산자 0건**이라 OpenAPI 가 없는 필드를
+      > 광고하고 있었고, 프런트엔드 테스트 하나는 그 **없는 필드를 픽스처로 지어내** 통과
+      > 중이었다(가이드가 코드를 지어낸 것과 같은 병이다).
+      >
+      > **가드로 고정**(`guide-error-code-existence`) — `user-guide-evidence.md` 의 가드
+      > 가족에 합류, 3축(FieldTable `name` · `code:` 값 · 실패 문맥 산문), 베이스라인 0,
+      > 허용목록 없음. 문맥 신호를 좁게 잡은 첫 판은 chat-channel 의 `executionFailed*` 키
+      > 표(6파일)를 통째로 놓쳤다(39종) — 실패 어휘를 넣어 66종, 부재는 그대로 0. 뮤테이션
+      > 전 16건 중 RED 12 · GREEN 4 이고 생존 넷은 전부 사유가 기록돼 있다(선언-쪽 변경은
+      > 런타임이 원리적으로 못 봄 · 의미 동등 no-op · 기준집합 축소/확대 2건은 기각 근거).
+
+- [ ] **`3-error-handling.md §1` 카탈로그가 통합·LLM 코드 계열을 통째로 누락한다**
+      (planner, 2026-09-13 등재 · `--impl-prep` `review/consistency/2026/09/13/01_15_40`
+      cross_spec WARNING#1·#2). 카탈로그에 `CAFE24_*`·`MAKESHOP_*`·`OAUTH_*` 계열이 한 줄도
+      없고, LLM 도메인 코드 둘(`LLM_CREDENTIALS_REQUIRED`·`LLM_MODEL_LIST_FAILED`)도 §1
+      미등재다. **`#1330` 의 §C 결함이 정확히 이 사각지대에서 났다** — 가이드가
+      `MAKESHOP_API_ERROR` 를 지어낼 때 대조할 카탈로그 행이 없었다.
+      실재 목록은 `backend/src/nodes/integration/makeshop/` 전수로 11종
+      (`MAKESHOP_404`·`422`·`4XX`·`5XX`·`AUTH_FAILED`·`RATE_LIMITED`·`TRANSPORT_FAILED`·
+      `MISSING_FIELDS`·`UNKNOWN_OPERATION`·`INVALID_SHOP_UID`·`UNRESOLVED_PATH_PARAM`).
+      > **같은 절을 겨냥하는 plan 이 셋이다 — 한 턴에 묶어라** (`--impl-done`
+      > `review/consistency/2026/09/13/10_12_54` plan_coherence WARNING#3). 실측으로 확인한
+      > 나머지 둘:
+      > - `spec-update-node-cancellation-shutdown-classification.md:632` — `OAUTH_STATE_MISMATCH`
+      >   (400) 를 **§1.2** 에 등재 + `data-flow/2-auth.md` 상호링크
+      > - `keyset-cursor-uuid-validation.md:128` — Background Runs 4종
+      >   (`INVALID_CURSOR`·`INVALID_LIMIT`·`EXECUTION_NOT_FOUND`·`BACKGROUND_RUN_NOT_FOUND`)
+      >   을 **§1** 에 등재. 같은 파일 `:130` 은 §1.6 각주와 §1.9 기준의 불일치도 지목한다
+      >
+      > 셋이 **서로를 모르고** 절 번호·서브섹션 위치를 제각각 제안하고 있다. 따로 처리하면
+      > 카탈로그 구조가 세 번 갈린다 — planner 턴에서 §1 하위 구조를 한 번에 정해야 한다.
+
+- [ ] **`testConnection` 실패 응답 shape 이 어느 spec 표에도 없다** (planner, 2026-09-13 등재 ·
+      `--impl-prep` `01_15_40` — **5개 checker 전원이 짚었다**). 형제 `/api/integrations/:id/test`
+      는 `2-navigation/4-integration.md §9.1` 에 `{success, code, message}` 로 실패 shape 이
+      문서화돼 있는데 `7-llm-client.md` 는 성공 케이스만 적혀 있다.
+      **앵커가 없으니 가이드가 지어냈다** — `#1330` 이 코드를 고쳤지만(HTTP 200
+      `{ success:false, message }`, `message` 는 `sanitizeLlmErrorMessage` 의 8갈래 중 하나)
+      spec 에 자리가 없으면 다음 사람이 같은 자리에서 또 지어낸다. 8갈래 문장 목록은
+      `codebase/backend/src/modules/llm/utils/sanitize-error.util.ts` 가 SoT.
+      > **함께 명문화할 것** (`--impl-done` `11_08_03` rationale_continuity INFO#2):
+      > *"HTTP 200 결과 객체의 필드명은 에러 봉투(`{ error: { code, message } }`)와 겹치면
+      > 안 된다"* 는 원칙이 지금 `llm.service.ts` 의 **JSDoc 한 곳에만** 산다. 이 PR 이
+      > `error` → `message` 를 고른 근거가 그것인데, 규약으로 적혀 있지 않으면 다음 사람이
+      > 같은 판단을 다시 해야 한다 — `7-llm-client.md` 또는 `2-api-convention.md` Rationale.
+      >
+      > 그리고 두 표에 실패 shape 을 적을 때 **형제와 다른 이유**를 병기할 것:
+      > `/api/integrations/:id/test` 는 `code` 를 싣지만 이쪽은 **코드가 없다**(8갈래 문장뿐).
+      > 같은 "테스트 엔드포인트" 인데 형태가 다른 것은 의도다.
+
+- [ ] **`user-guide-evidence.md §2.1` 관계표에 새 가드 **2건**이 빠져 있다** (planner,
+      2026-09-13 등재 · `--impl-prep` `01_15_40` naming_collision WARNING#4·#5 ·
+      **등재 범위 정정**: `/ai-review` `10_40_34` user_guide_sync WARNING#3 +
+      `--impl-done` `10_41_13` convention_compliance WARNING#2). `#1330` 이 가드 **둘**을 그
+      컨벤션의 가드 가족(`codebase/frontend/src/lib/docs/__tests__/`)에 넣었는데,
+      **§2 는 "가드 3건" 이라고 세고 §2.1 관계표에도 행이 없다** → **3건 → 5건**.
+      | 신규 가드 | 무엇을 보나 |
+      |---|---|
+      | `guide-error-code-existence.test.ts` | 가이드가 적은 **에러 코드 토큰**이 backend 소스에 실재하는가 |
+      | `guide-sanitized-message-parity.test.ts` | 가이드가 옮겨 적은 **실패 문장**이 `sanitize-error.util.ts` 와 글자까지 같은가 (양방향) |
+      셋 다 방향은 같고(가이드 → 코드) 표면이 다르다 — 자매 `impl-anchor-existence` 는
+      `<ImplAnchor>` 의 `symbol`, 위 둘은 각각 코드 토큰과 문장이다. 그 직교성이 관계표의 형식이다.
+      **같은 파일의 frontmatter `code:` 목록도 갱신 대상이다** — 현재 7개 경로가 있고 신규
+      3파일이 빠져 있다: `guide-error-code-scan.ts`(순수 스캐너) ·
+      `guide-error-code-existence.test.ts` · `guide-sanitized-message-parity.test.ts`.
+      > **등재를 두 번 좁게 썼다.** (1) 첫 판은 가드 하나만 적었는데 같은 PR 의 리뷰 라운드가
+      > 둘째 가드를 낳았고 등재 문구는 스냅샷에 멈춰 있었다 — 양 게이트가 독립으로 짚었다.
+      > (2) 고친 뒤에도 **산문 관계표(§2.1)만** 겨냥하고 같은 파일의 frontmatter 를 빠뜨렸다
+      > (`--impl-done` `11_08_03` plan_coherence WARNING#3). 같은 문서 안에서도 "어디까지가
+      > 이 등재의 대상인가" 를 두 번 좁게 잡은 것이다 — 이 저장소가 반복해 지적해 온 형태다.
+      `spec/conventions/error-codes.md` 에는 **적지 않는다**: 그 문서가 소유 범위를
+      *명명원칙/rename/historical-artifact* 로 스스로 못박았다(`--impl-prep` 판정).
+
+- [ ] **`/api/integrations/:id/test` 의 MCP 전용 응답 필드 3종이 미선언 + 계약 검증자 미배선**
+      (developer, 2026-09-13 등재 · `/ai-review` `review/code/2026/09/13/10_12_19`
+      api_contract WARNING#3 의 잔여분). `#1330` 이 같은 DTO 에 `code?: string` 을 넣어 **가장
+      넓은 미선언**(spec §9.1 이 이미 문서화하던 필드)을 닫았지만, `IntegrationTestResult` 의
+      `capabilities`·`serverInfo`·`preview` 는 여전히 `TestConnectionResultDto` 선언 밖이다.
+      셋은 `service_type='mcp'` 전용이고 타입이 무거워(`ServerCapabilities`·`ServerInfo`·
+      `ConnectionPreview`) DTO 클래스를 새로 세워야 하므로 한 줄로 끝나지 않는다.
+      > **한 번 틀린 숫자를 전재했다.** 리뷰 SUMMARY 의 *"26곳에서 반환"* 을 그대로 옮겨
+      > 적었는데, 실측하니 그건 `integrations.service.ts` 안 `code:` **원시 grep 수**이고
+      > **그중 22곳은 throw 되는 `HttpException` 의 code** — 이 DTO 와 다른 축이다.
+      > 결과 객체(`success:false` 동반)에 싣는 자리는 그 파일에 **4곳**, 서비스가 1593행에서
+      > 호출하는 MCP 테스터(`mcp-test-connection.service.ts`)에 **6곳**이다. 저장소 전체로 같은
+      > 형태를 세면 27곳이지만 cafe24/makeshop 클라이언트 분이 이 엔드포인트까지 올라오는지는
+      > 확인하지 않았다 — **그래서 숫자가 아니라 「무엇을 비교했는지」를 적는다.**
+      **함께 할 일**: 이 엔드포인트에 `assertMatchesContract` 배선. `#1330` 이 자매
+      `/api/model-configs/:id/test` 에서 겪은 대로 **배선이 없으면 이 불일치는 런타임으로도
+      안 잡힌다** — 지금 남은 셋은 정적 grep 으로만 보인다.
+      > **`meta?` 는 같은 라운드에 측정해 닫았다** — DTO 에만 있고 `IntegrationTestResult` 에는
+      > 없다(이 DTO 의 소비 엔드포인트는 하나뿐이고 그 핸들러 반환 타입 전수 확인). 즉
+      > `latencyMs` 와 같은 유령이라 **추가가 아니라 제거**가 답이었고 `#1330` 이 제거했다.
+      > 남은 셋은 반대로 **생산자가 있는데 선언이 없는** 방향이다 — 두 방향이 한 DTO 에
+      > 섞여 있었다.
+
+- [ ] **가이드 에러 코드 가드가 한 방향만 본다 — "코드 → 가이드" 누락은 못 잡는다**
+      (developer, 2026-09-13 등재 · `/ai-review` `review/code/2026/09/13/11_07_36`
+      requirement WARNING#1). `#1330` 의 `guide-error-code-existence` 는 *"가이드가 적은 코드가
+      실재하는가"* 만 본다. 반대 방향(*"실재하는 코드가 가이드에 있는가"*)은 설계상 비대상이고,
+      **그 사각지대가 같은 PR 안에서 즉시 발현했다** — 새로 만든 노드-종류별 표가 spec §1.4 대비
+      5종을 빠뜨렸다(`DB_HOST_BLOCKED`·`EMAIL_HOST_BLOCKED`·`MAX_COLLECTION_RETRIES_EXCEEDED`·
+      `SUB_WORKFLOW_QUEUE_FAILED`·`WORKFLOW_FORBIDDEN_WORKSPACE`). 앞의 둘은 SSRF 방어 코드다.
+      누락 자체는 `#1330` 이 고쳤지만 **가드가 없으니 다음 편집에서 또 빠진다.**
+      > 형태는 이미 있다 — 같은 PR 의 `guide-sanitized-message-parity.test.ts` 가 8갈래 문장을
+      > **양방향**(표→SoT · SoT→표)으로 대조한다. 같은 패턴을 §1.4 카테고리 표에 적용하면 된다.
+      > **선실측할 것**: SoT 가 소스가 아니라 **spec 마크다운 표**라 파싱 대상이 다르다. 그리고
+      > 그 표는 코드 아닌 토큰(env 변수 2종 · `details.integrationCode` 하위값 3종 · 명시적
+      > 미발행 `HTTP_TIMEOUT`)을 섞어 담고 있어 **그대로 미러링하면 오탐 6건**이다 — 실제로
+      > 내 조잡한 정규식이 11종 차이를 냈고 리뷰어의 5종이 맞았다. 「어느 토큰이 대상인가」를
+      > 먼저 정해야 한다.
+
+- [ ] **선언은 있는데 결코 발행되지 않는 "유령 필드" 를 잡는 자동 가드가 없다**
+      (developer, 2026-09-13 등재 · `/ai-review` `11_07_36` architecture WARNING#3).
+      `assertMatchesContract` 는 *"선언에 없는 키가 나간다"* 방향만 본다. 거울상(선언은 있고
+      생산자가 0건)은 **원리적으로** 못 보고 현재 방어는 수동 grep 뿐이다.
+      **같은 PR 안에서 이 방향의 결함이 서로 다른 두 DTO 에 독립적으로 3건 났다** —
+      `ModelTestConnectionResultDto.latencyMs` · `TestConnectionResultDto.latencyMs` ·
+      `TestConnectionResultDto.meta`. 리뷰는 *"세 번째 재발 시 정적 스캐너 검토"* 라 했는데
+      **이미 세 번째다**(한 PR 안에서).
+      > 형태: DTO 선언 필드 vs 그 DTO 를 반환하는 서비스의 return 리터럴 키를 AST 로 대조.
+      > `#1328` 의 `param-uuid-pipe` 가 같은 저장소에서 AST 가드의 선례다.
+      > **선실측할 것**: "그 DTO 를 반환하는 서비스" 를 기계적으로 특정할 수 있는가.
+      > `@ApiOkWrappedResponse(XxxDto)` ↔ 핸들러 반환 타입이 앵커가 될 수 있다 — 전수 확인 후 착수.
+
+- [ ] **가이드 에러 코드 가드가 "존재" 만 보고 "방출" 을 안 본다 — CRITICAL 을 통과시켰다**
+      (developer, 2026-09-13 등재 · `--impl-done` `review/consistency/2026/09/13/11_33_51`
+      naming_collision **CRITICAL**). `guide-error-code-existence` 의 술어는 *"backend 소스에
+      UPPER_SNAKE 문자열로 존재하는가"* 다. `MAKESHOP_UNRESOLVED_PATH_PARAM` 은 존재하지만
+      **`throw new Error('MAKESHOP_UNRESOLVED_PATH_PARAM: …')` 의 메시지 접두**일 뿐이고, catch
+      (`makeshop.handler.ts:359`)가 `err instanceof IntegrationError ? err.code :
+      'INTEGRATION_CALL_FAILED'` 라 실제 `output.error.code` 는 공용 fallback 이다. 가드는
+      통과시켰고 `#1330` 이 그 이름을 가이드에 적었다 — **가드가 막으라고 만든 바로 그 결함**.
+      > **단순 좁히기는 답이 아니다 (실측함).** 술어를 *"통째로 따옴표에 싸인 리터럴 또는 enum
+      > 키"* 로 좁히면 현재 인용 101종 중 **8종이 새로 RED** 인데 그중 6은 오탐이다 —
+      > env 변수 4(`MCP_CALL_TIMEOUT_MS`·`MCP_MAX_RESPONSE_BYTES`·`SYSTEM_STATUS_*` 는
+      > `process.env.X` 접근이라 리터럴이 아니다) · 외부 어휘 1(`ACTION_ROW`) · 그리고
+      > **진짜 같은 클래스 2**(`CONTAINER_MISSING_EMIT`·`CONTAINER_MULTIPLE_EMIT`).
+      > 즉 좁히면 허용목록이 필요해지고, 그건 이 가드가 처음부터 피한 설계다.
+      > **다른 축을 찾아야 한다** — 예: `IntegrationError(` 첫 인자 · `code:` 할당 · `ErrorCode`
+      > enum 값처럼 **방출 위치**를 AST 로 특정하고, env 변수는 `process.env` 접근으로 배제.
+      > `#1328` 의 `param-uuid-pipe` 가 같은 저장소의 AST 가드 선례다.
+
+- [ ] **`CONTAINER_MISSING_EMIT`·`CONTAINER_MULTIPLE_EMIT` 도 방출 코드가 아니다 (선재)**
+      (developer, 2026-09-13 등재 · 위 항목의 술어 프로브가 부수적으로 찾았다).
+      `02-nodes/logic{,.mdx,.en.mdx}` 가 *"…로 실행 실패해요"* 라고 적는데, 실제로는
+      `execution-engine.service.ts:7121·7125` 의 **메시지 접두**이고 `.code` 로 방출되지 않는다.
+      `#908` 에서 들어온 **선재 문장**이라 `#1330` 스코프 밖이고, MakeShop 건과 달리 *"코드"* 라고
+      명시하지 않아(*"…로 실패"*) 오독 여지가 더 좁다 — 그래서 등재만 한다.
+      > 처분 시 선택지는 둘: (A) 문장을 *"메시지에 이 접두가 붙는다"* 로 정정, 또는
+      > (B) 엔진이 전용 코드를 방출하도록(동작 변경 + spec). 같은 갈림이 MakeShop 건에도 있었고
+      > `#1330` 은 (A)를 택했다 — 가이드는 *현재 동작*을 서술하는 문서이기 때문이다.
+
+- [ ] **`CAFE24_UNRESOLVED_PATH_PARAM` 도 같은 형태 — 다만 가이드가 아직 인용하지 않는다**
+      (developer, 2026-09-13 등재 · `--impl-done` `11_33_51` 권고 #2).
+      `cafe24.handler.ts:453` 이 makeshop 자매(`:435`)와 **동형**으로 일반 `Error` 에 접두만
+      붙인다. `cafe24{,.en}.mdx` 는 이 이름을 인용하지 않아 오늘 가이드 결함은 **없다**(실측:
+      `content/docs/` 전수 grep 0건). 두 handler 를 함께 고칠 때 같이 본다.
+
+- [ ] **`/api/integrations/:id/test` 에 HTTP 와이어-레벨 계약 검증이 없다**
+      (developer, 2026-09-13 등재 · `/ai-review` `review/code/2026/09/13/11_33_23`
+      testing WARNING#2). `#1330` 이 자매 `/api/model-configs/:id/test` 에는 supertest 왕복
+      (전역 `TransformInterceptor` 포함) 검증을 신설했지만 형제는 **서비스 레벨
+      `assertMatchesContract` 뿐**이다 — 봉투를 만지는 인터셉터가 끼어도 못 본다.
+      위 "MCP 전용 3종 미선언" 항목은 **서비스 레벨 축**이라 이 와이어 축을 덮지 않는다.
+
+- [ ] **`4-cafe24.md §6`·`5-makeshop.md §6` 도메인 에러 코드 카탈로그가 `*_UNRESOLVED_PATH_PARAM`
+      을 누락한다** (planner, 2026-09-13 등재 · `--impl-done`
+      `review/consistency/2026/09/13/11_33_51` cross_spec WARNING#1, `12_01_01` 재확인).
+      두 handler(`makeshop.handler.ts:435` · `cafe24.handler.ts:453`)가 이 이름을 쓰는데 각
+      도메인 spec 의 §6 에러 코드 표에는 없다.
+      > **다만 등재 전에 판정할 것이 있다** — `#1330` 이 실측했듯 이 이름은 **`.code` 로 방출되지
+      > 않는다**(일반 `Error` 의 메시지 접두, catch 가 `INTEGRATION_CALL_FAILED` 로 수렴).
+      > 그러니 §6 표에 **그냥 한 줄 더하면 거짓이 된다**. 선택지는 둘:
+      > (A) *"메시지 접두이며 `code` 는 `INTEGRATION_CALL_FAILED`"* 를 명시해 등재, 또는
+      > (B) handler 를 `IntegrationError` 로 바꿔 진짜 코드로 만든 뒤 등재(동작 변경).
+      > 위 "CAFE24_UNRESOLVED_PATH_PARAM 도 같은 형태" 항목과 **한 턴에** 처리해야 한다 —
+      > 따로 하면 spec 과 코드가 서로 다른 답을 갖는다.
+
+- [ ] **`PreviewTestResultDto` 도 `code` 를 미선언한다 — 같은 클래스의 세 번째 DTO**
+      (developer, 2026-09-13 등재 · `/ai-review` `review/code/2026/09/13/12_00_32`
+      api_contract WARNING#1). `#1330` 이 형제 `TestConnectionResultDto` 에 `code?: string` 을
+      넣었는데, **같은 파일의 preview 쌍둥이**는 그대로다 — `dispatchTest`/`testEmailTransport`/
+      `testMcpTransport` 가 `EMAIL_HOST_BLOCKED`·`EMAIL_CONNECT_FAILED`·`MCP_*` 를 싣고
+      spec(`§9.1`·`§5.5`)도 그것을 전제한다.
+      > **왜 이번 PR 에서 안 고쳤나**: `#1330` 은 `POST /api/integrations/:id/test`(저장된 통합)
+      > 를 건드렸고 preview 는 **다른 엔드포인트**(`POST /api/integrations/preview-test`,
+      > 미저장 자격증명)다. 같은 파일이지만 내 diff 가 닿은 자리가 아니라, 고치면 스코프가 또
+      > 한 겹 넓어진다 — 라운드 5 를 **`codebase/**` 수정 0 으로 끝내는** 것이 정지 규칙이었다.
+      > 처분은 한 줄(`code?: string` + JSDoc) + `previewTest()` 실패 케이스에
+      > `assertMatchesContract` 배선으로, `#1330` 이 형제에 한 것과 동형이다.
+
+- [ ] **MakeShop `<Callout>` 의 메시지 문구에 SoT 패리티 가드가 없다**
+      (developer, 2026-09-13 등재 · `/ai-review` `12_00_32` testing WARNING#2).
+      `#1330` 이 라운드 4 에 넣은 *"`MAKESHOP_UNRESOLVED_PATH_PARAM: operation '...' has
+      unresolved path placeholder(s): ...`"* 는 `makeshop.handler.ts:436` 의 템플릿 리터럴을
+      **손으로 옮긴 것**이고 대조 가드가 없다 — 같은 PR 이 LLM 8갈래 문장에는 정확히 이 위험을
+      막는 `guide-sanitized-message-parity` 를 만들었으면서 MakeShop 쪽엔 적용하지 않았다.
+      `guide-error-code-existence` 는 **토큰 존재**만 보므로 문구 drift 를 못 잡는다.
+      > 형태는 이미 있다 — `guide-sanitized-message-parity` 의 "SoT 반환 리터럴 추출 후 양방향
+      > 대조" 를 템플릿 접두로 일반화하면 된다. **선실측할 것**: 그 문구는 `${...}` 보간을
+      > 포함하므로 8갈래 문장처럼 완전 일치로는 못 본다 — **접두까지만** 대조하는 축이 필요하다.
 
 - [ ] **두 keyset 커서 디코더의 실패 계약이 다르다 — 무시 vs 400** (developer, 2026-09-12
       등재 · `keyset-cursor-uuid-validation.md §C`). `auth/login-history.service.ts` 는 잘못된

@@ -157,10 +157,10 @@ A failed node's Error tab is shaped like this:
 ```json
 {
   "error": {
-    "code": "NODE_EXECUTION_FAILED",
+    "code": "LLM_TIMEOUT",
     "message": "Node 'AI Agent' failed: LLM connection timeout",
     "nodeId": "uuid-of-node",
-    "nodeName": "AI Agent",
+    "nodeLabel": "AI Agent",
     "nodeType": "ai_agent",
     "executionId": "uuid-of-execution"
   }
@@ -168,14 +168,24 @@ A failed node's Error tab is shaped like this:
 ```
 </Example>
 
-Typical error codes:
+**A failing node's code follows the node's kind** — there is no single catch-all code for "a node threw". The kind of node that failed is right there in the code's prefix.
+
+| Node kind | Codes |
+|---|---|
+| HTTP Request | `HTTP_TRANSPORT_FAILED` · `HTTP_4XX` · `HTTP_5XX` · `HTTP_BLOCKED` |
+| Database | `DB_QUERY_FAILED` · `DB_CONNECTION_ERROR` · `DB_CONSTRAINT_VIOLATION` · `DB_PERMISSION_DENIED` · `DB_HOST_BLOCKED` |
+| Email | `EMAIL_SEND_FAILED` · `EMAIL_HOST_BLOCKED` |
+| AI · LLM | `LLM_CALL_FAILED` · `LLM_RATE_LIMIT` · `LLM_RESPONSE_INVALID` · `LLM_TIMEOUT` · `MAX_COLLECTION_RETRIES_EXCEEDED` |
+| Code | `CODE_EXECUTION_FAILED` · `CODE_TIMEOUT` · `CODE_MEMORY_LIMIT` |
+| Sub-workflow | `SUB_WORKFLOW_FAILED` · `SUB_WORKFLOW_NOT_FOUND` · `SUB_WORKFLOW_TIMEOUT` · `SUB_WORKFLOW_QUEUE_FAILED` · `WORKFLOW_FORBIDDEN_WORKSPACE` |
+
+`*_HOST_BLOCKED` means the server blocked the request **before** it left — the node tried to reach a private or loopback address that workflows may not call. Point it at a public host and it clears.
+
+Codes attached at the run (engine) level are separate:
 
 <FieldTable rows={[
-  { name: "NODE_EXECUTION_FAILED", type: "Execution", description: "The node handler threw an exception. `message` holds a short cause summary." },
   { name: "EXECUTION_TIMEOUT", type: "Timeout", description: "Per-node or overall workflow timeout exceeded." },
   { name: "INVALID_EXPRESSION", type: "Expression", description: "Expression evaluation failed. Check syntax, null access, or type mismatches." },
-  { name: "INTEGRATION_ERROR", type: "Integration", description: "An external integration call failed. Verify auth, network, and response shape." },
-  { name: "LLM_RATE_LIMIT", type: "LLM", description: "Hit the LLM provider's rate limit. Wait and retry, or enable a Retry policy." },
   { name: "MAX_ITERATIONS_EXCEEDED", type: "Iteration", description: "Exceeded a Loop/ForEach max iteration count." },
   { name: "ERROR_PORT_FALLBACK", type: "Fallback", description: "Route to Error Port was configured but no edge connected — auto-fell back to Stop Workflow." },
   { name: "RETRY_STATE_NOT_FOUND", type: "Retry", description: "The retry window has expired (default 60 min) or the retry has already been used. Run the workflow again." },

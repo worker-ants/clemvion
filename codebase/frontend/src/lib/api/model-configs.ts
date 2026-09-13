@@ -138,7 +138,6 @@ export const modelConfigsApi = {
     const response = await apiClient.post(`/model-configs/${id}/test`);
     return unwrap<{
       success: boolean;
-      latencyMs?: number;
       message?: string | null;
       // kind=embedding 연결 테스트 시 probe embed 로 감지한 임베딩 차원.
       dimension?: number;

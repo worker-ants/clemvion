@@ -105,11 +105,12 @@ describe("ImplAnchor existence guard", () => {
   }
 });
 
-// Focused coverage for the api-endpoint branch: no user-guide MDX uses an
-// `api-endpoint` anchor yet, so the in-loop assertion above would not be
-// exercised by real content. We pin the helper behaviour + the branch logic
-// against a real controller (the canonical example from spec §3.3) so the
-// guard is provably correct the moment the first api-endpoint anchor lands.
+// Focused coverage for the api-endpoint branch. 이 주석은 종전 *"아직 어떤 유저 가이드
+// MDX 도 `api-endpoint` 앵커를 쓰지 않는다"* 로 시작했는데, `models{,.en}.mdx` 가
+// `POST /api/model-configs/:id/test` 앵커를 실으면서 **그 전제가 깨졌다** — 위 루프가 이제
+// 실 콘텐츠로도 이 분기를 태운다. 그래도 아래 블록을 남기는 이유는 실 콘텐츠 커버리지가
+// **우연**이라는 것이다: 그 앵커 하나가 지워지면 분기는 다시 무검증이 되고 스위트는 초록이다.
+// 헬퍼 동작과 분기 논리를 정본 예시(spec §3.3)로 직접 고정해 그 우연에 의존하지 않는다.
 describe("ImplAnchor api-endpoint path/decorator match", () => {
   const root = repoRoot();
 

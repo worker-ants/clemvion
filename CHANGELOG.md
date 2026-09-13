@@ -1,5 +1,80 @@
 # Changelog
 
+## Unreleased — **Behavior change**: 모델 연결 테스트의 실패 사유가 화면에 도달한다 (+ 두 테스트 엔드포인트의 응답 필드 정리)
+
+`POST /api/model-configs/:id/test` 가 실패하면 백엔드는 정규화된 사유 문장을 만들어 실었는데
+**필드 이름이 세 층에서 갈려 사용자에게 한 글자도 도달하지 않았다.**
+
+| 층 | 종전 필드 | 지금 |
+|---|---|---|
+| `LlmService.testConnection` 반환 | `error` | **`message`** |
+| 선언 DTO `ModelTestConnectionResultDto` | `message` (+ `latencyMs`) | `message` |
+| 프런트엔드 소비 | `result.message` | 무변 |
+
+결과적으로 연결 실패 토스트가 `"연결 실패: "` — **콜론 뒤가 비어** 나갔다. 지금은
+`"연결 실패: Authentication failed. Please check your API key."` 처럼 사유가 붙는다.
+문장은 `sanitizeLlmErrorMessage` 의 **8갈래 고정 문구**이며 provider 원문은 싣지 않는다
+(키 조각·내부 엔드포인트 유출 방지).
+
+**⚠️ 배포 시 확인 — 응답 필드 변경 (두 엔드포인트)**
+
+`POST /api/model-configs/:id/test` (`ModelTestConnectionResultDto`):
+
+- **`error` → `message`** — 이름이 바뀌었다. `error` 를 읽던 코드가 있다면 옮겨야 한다.
+  저장소 안 소비처는 없었다(프런트엔드는 이미 `message` 를 읽고 있었다).
+- **`latencyMs` 제거** — **생산자가 0건**이었다. 선언만 있고 한 번도 발행된 적이 없어
+  OpenAPI 가 없는 필드를 광고하던 상태다. 읽던 클라이언트는 원래도 항상 `undefined` 를 받았다.
+
+형제 `POST /api/integrations/:id/test` (`TestConnectionResultDto`) — 같은 "값 vs 선언"
+점검을 형제에도 돌린 결과 **양쪽 방향이 다 나왔다**:
+
+- **`latencyMs`·`meta` 제거** — 둘 다 생산자 0건(실측). `meta` 는 이 DTO 를 쓰는 유일한
+  엔드포인트의 반환 타입(`IntegrationTestResult`)에 아예 없는 필드였다.
+- **`code` 추가** — 반대 방향이다. 실패 응답에 **실제로 실리고 있었고**
+  (`integrations.service.ts` 4곳 + 그 서비스가 호출하는 MCP 테스터 6곳 — `success:false` 와
+  같은 객체에 `code` 를 싣는 자리 기준),
+  `spec/2-navigation/4-integration.md §9.1` 이 `200 + { success:false, code:… }` 로
+  **이미 문서화**하고 있었는데 DTO 선언에만 없었다. 즉 **없던 필드가 생기는 게 아니라,
+  나가고 있던 필드가 이제 문서에 보인다.**
+- HTTP 상태는 **양쪽 다 변하지 않는다** — 실패도 200 이고 `success: false` 로 구분한다.
+
+> **왜 안 잡혔나.** 이 저장소에는 *값 vs 선언* 을 런타임에 대조하는 정본 검사기
+> `assertMatchesContract` 가 있는데 **이 엔드포인트에 배선돼 있지 않았다**. 배선하자마자
+> 검사기가 스스로 진단했다 — `error [undeclared] 응답에 있는데 DTO 가 선언하지 않았다`.
+> 정적 `swagger-dto-contract-guard` 는 *선언 vs 선언* 이라 원리적으로 못 보는 방향이다.
+
+## Unreleased — 유저 가이드가 적던 에러 코드 5종의 진위를 맞추고, 가드로 고정한다
+
+가이드가 이름으로 적은 에러 코드 다섯 중 **둘은 실재하지 않고**(`LLM_AUTH_ERROR`·
+`LLM_MODEL_NOT_FOUND` — `7-llm-client.md §6` 의 **Planned** 로드맵 이름), **둘은 은퇴했으며**
+(`NODE_EXECUTION_FAILED`·`INTEGRATION_ERROR` — `3-error-handling.md §1.4` 가 "더 이상 사용하지
+않는다" 고 선언), **하나는 지어낸 이름**이었다(`MAKESHOP_API_ERROR`).
+
+- **모델 설정 가이드** — 연결 테스트 절의 5행 코드표를 **실제로 화면에 뜨는 8갈래 문장**표로
+  교체했다. 이 엔드포인트는 애초에 코드를 내지 않는다.
+- **실행 결과·에러 처리 가이드** — *"노드가 실패했다"* 를 대표하는 단일 코드는 **없다**.
+  노드 종류별 코드표(HTTP·DB·Email·LLM·Code·Sub-workflow)로 바꿨다.
+- **통합 노드 가이드** — `MAKESHOP_API_ERROR` → `MAKESHOP_404` + 실재 코드 계열 설명.
+
+- **실행 결과 가이드**에 SSRF 차단 코드 2종(`DB_HOST_BLOCKED`·`EMAIL_HOST_BLOCKED`)을 비롯한
+  5종을 보강했다. 종전 표가 spec 카탈로그 대비 이들을 빠뜨려, 사용자가 차단을 만나도 가이드에서
+  찾을 수 없었다.
+- **통합 노드 가이드**의 MakeShop error 포트 설명에 *"경로 변수 미해결에는 전용 코드가 없다"*
+  는 `<Callout>` 을 넣었다 — `code` 는 공용 `INTEGRATION_CALL_FAILED` 이고 어느 자리가 비었는지는
+  `message` 접두로 알 수 있다.
+
+**가드 2건 추가** (`codebase/frontend/src/lib/docs/__tests__/`,
+`spec/conventions/user-guide-evidence.md` 의 가드 가족):
+
+- `guide-error-code-existence` — 가이드가 에러 코드 문맥에서 적은 이름이 backend·packages
+  소스에 실재해야 한다. 3축(`<FieldTable>` 의 `name` · `code:` 값 · 실패 문맥 산문),
+  베이스라인 0, **허용목록 없음**.
+  **한계**: *존재* 검사이지 *방출* 검사가 아니다 — 에러 **메시지 접두**로만 쓰이는 토큰도
+  통과한다. 이 PR 안에서 실제로 한 건을 통과시켰고(`--impl-done` 이 CRITICAL 로 잡았다) 그
+  사유와 후속 축을 가드 주석·트래커에 적었다.
+- `guide-sanitized-message-parity` — 가이드가 옮겨 적은 실패 문장이 `sanitize-error.util.ts`
+  의 반환 리터럴 8갈래와 **양방향**(표→SoT · SoT→표) 일치해야 한다.
+
 ## Unreleased — **Behavior change**: 잘못된 커서가 500 이 아니라 각 엔드포인트의 기존 실패 계약을 따른다
 
 keyset 커서의 **id 성분**이 검증 없이 `uuid` 컬럼에 바인딩되고 있었다. 파싱 불가 값이 가면

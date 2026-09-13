@@ -63,17 +63,31 @@ Provider-level defaults are inherited as initial values by every AI node. Each n
   { name: "presence_penalty", type: "number", required: "Optional", description: "Encourage new tokens. Default 0.0." }
 ]} />
 
-### Connection test and error codes
+### Connection test and failure messages
 
-`Test Connection` either lists models or sends a minimal request. Failure codes are normalized by the LLM client.
+`Test Connection` sends a minimal request to the provider using the stored credentials. **The button does not return an error code** — on failure you see one of the eight messages below, verbatim. The provider's raw error may embed key fragments or internal endpoints, so it is normalized to these sentences instead of being shown as-is.
 
-<FieldTable rows={[
-  { name: "LLM_AUTH_ERROR", type: "401", required: "-", description: "API key is invalid or expired." },
-  { name: "LLM_RATE_LIMIT", type: "429", required: "-", description: "Rate-limited. The client retries with exponential backoff up to 3 times." },
-  { name: "LLM_MODEL_NOT_FOUND", type: "404", required: "-", description: "The default model ID doesn't exist on the provider." },
-  { name: "LLM_CONNECTION_ERROR", type: "-", required: "-", description: "Check Base URL and firewall." },
-  { name: "LLM_TIMEOUT", type: "-", required: "-", description: "Exceeded 120 seconds." }
-]} />
+<ImplAnchor
+  kind="api-endpoint"
+  file="codebase/backend/src/modules/llm/llm-model-config.controller.ts"
+  symbol="testConnection"
+  describes="POST /api/model-configs/:id/test"
+/>
+
+| Message you see | What to check |
+|---|---|
+| Authentication failed. Please check your API key. | The API key is wrong or expired |
+| Access denied. Please check your API key permissions. | The key is valid but lacks permission for this model or action |
+| Model or endpoint not found. Please check your configuration. | The provider does not recognize the default model ID or the Base URL path |
+| Rate limit exceeded. Please try again later. | You hit the provider's rate limit. Wait and click again |
+| Connection timed out. Please check your network or endpoint URL. | No response came back. Check the network and the Base URL |
+| Connection refused. Please check your endpoint URL. | That host/port refused the connection — usually a local model server that isn't running |
+| Could not resolve hostname. Please check your endpoint URL. | The Base URL hostname could not be resolved. Check for typos and DNS |
+| Connection test failed. Please check your configuration. | A failure that matches none of the above |
+
+<Callout type="info">
+  **Error codes live on the workflow-run side.** When an AI node fails mid-run, codes such as `LLM_RATE_LIMIT` and `LLM_TIMEOUT` appear in the run result — a different path from the connection test. See [Reading run results](/docs/05-run-and-debug/run-results) for that list.
+</Callout>
 
 ---
 

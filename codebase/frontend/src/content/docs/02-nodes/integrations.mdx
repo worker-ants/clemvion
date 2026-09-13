@@ -293,10 +293,18 @@ To/CC/BCC는 배열과 쉼표 구분 문자열 모두 허용해요. 내부적으
 // success 포트
 { response: { product_id: "1001", product_name: "샘플 상품", … } }
 
-// error 포트
-{ error: { code: "MAKESHOP_API_ERROR", message: "…" } }
+// error 포트 — 코드는 MakeShop 응답 상태를 따라가요
+{ error: { code: "MAKESHOP_404", message: "…" } }
 ```
 </Example>
+
+error 포트의 `code` 는 실패한 방식에 따라 갈려요 — 상태 코드별로 `MAKESHOP_404` · `MAKESHOP_422` · `MAKESHOP_4XX` · `MAKESHOP_5XX`, 인증 만료는 `MAKESHOP_AUTH_FAILED`, 요청 한도는 `MAKESHOP_RATE_LIMITED`, 네트워크 오류는 `MAKESHOP_TRANSPORT_FAILED` 예요. Cafe24 노드도 같은 방식이고, 목록은 [Cafe24 통합 가이드](/docs/06-integrations-and-config/cafe24)에 있어요.
+
+위 일곱은 **호출이 나간 뒤**의 실패예요. 설정이 잘못돼 **호출 자체가 만들어지지 않은** 경우는 따로 갈려요 — 없는 operation(`MAKESHOP_UNKNOWN_OPERATION`), 필수 입력 누락(`MAKESHOP_MISSING_FIELDS`), 쇼핑몰 식별자 형식 오류(`MAKESHOP_INVALID_SHOP_UID`). 이쪽은 노드 설정을 고쳐야 풀려요.
+
+<Callout type="note">
+  **경로 변수가 안 채워진 경우는 전용 코드가 없어요.** `code` 에는 통합 노드 공용 fallback 인 `INTEGRATION_CALL_FAILED` 가 들어가고, 어떤 자리가 비었는지는 `message` 에 `MAKESHOP_UNRESOLVED_PATH_PARAM: operation '...' has unresolved path placeholder(s): ...` 형태로 적혀요. **코드가 아니라 메시지를 봐야 해요.**
+</Callout>
 
 <Callout type="tip">
 처음 사용한다면 **사이드바 → 통합 → MakeShop** 에서 통합부터 만들어야 해요. MakeShop 통합은 ShopStore 앱 설치 방식(install-first)으로, OAuth 연동이 완료될 때까지 대기 상태(pending_install)로 존재해요. 같은 통합을 AI Agent 노드의 MCP 도구로 노출하는 방법은 [MakeShop 통합 가이드](/docs/06-integrations-and-config/makeshop)에서 다뤄요.

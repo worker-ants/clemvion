@@ -173,15 +173,20 @@ describe("modelConfigsApi.previewModels", () => {
 describe("modelConfigsApi.testConnection", () => {
   beforeEach(() => vi.clearAllMocks());
 
-  it("calls POST /model-configs/:id/test and returns { success, latencyMs?, message? }", async () => {
+  // 종전 이 케이스는 `latencyMs: 120` 을 실어 "옵셔널 필드가 통과한다" 를 주장했다.
+  // **그 필드는 백엔드에 생산자가 0건이었다** — 선언(DTO)과 이 테스트에만 있었고
+  // 응답에는 한 번도 실리지 않았다. 지어낸 필드를 픽스처로 쓰면 테스트가 "통과한다" 는
+  // 사실이 아무것도 보장하지 않는다. 같은 축(옵셔널 필드 통과)을 **실재하는**
+  // `dimension`(kind=embedding probe 가 감지한 임베딩 차원)으로 옮겼다.
+  it("calls POST /model-configs/:id/test and returns { success, dimension?, message? }", async () => {
     postMock.mockResolvedValue(
-      fakeAxios({ data: { success: true, latencyMs: 120 } }),
+      fakeAxios({ data: { success: true, dimension: 1536 } }),
     );
 
     const result = await modelConfigsApi.testConnection("cfg-1");
 
     expect(postMock).toHaveBeenCalledWith("/model-configs/cfg-1/test");
-    expect(result).toMatchObject({ success: true, latencyMs: 120 });
+    expect(result).toMatchObject({ success: true, dimension: 1536 });
   });
 
   it("returns { success: false, message } on failure response", async () => {
