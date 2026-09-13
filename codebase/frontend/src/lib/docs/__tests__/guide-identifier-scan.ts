@@ -1,14 +1,23 @@
 // 유저 가이드가 이름으로 적은 **식별자가 실재하는가** 를 판정하는 순수 스캐너.
 // 테스트는 `guide-identifier-existence.test.ts`.
 //
-// SoT: spec/conventions/error-codes.md (코드 명명·발행) ·
+// SoT: spec/conventions/error-codes.md (코드 명명·안정성·은퇴 이력) ·
 //      spec/5-system/3-error-handling.md §1 (카탈로그)
 // 가드 «가족» 규약은 spec/conventions/user-guide-evidence.md 인데 **이 가드는 아직 그
 // 문서 §2 표에 없다**(실측: `grep -c guide-identifier` → 0). `#1330` 이 가족을 만든
 // 시점부터 그랬고 등재는 planner 몫으로 트래커에 있다 — 그래서 «SoT» 로 단정하지 않고
 // 여기 적는다 (`--impl-done` `review/consistency/2026/09/13/21_41_25`
 // convention_compliance WARNING#3: 인용이 착지하지 않는다).
-// (코드 명명·은퇴 이력) · spec/5-system/3-error-handling.md §1 (카탈로그).
+//
+// > **라운드 7 의 그 교체가 두 가지를 한꺼번에 틀렸다 (라운드 9 정정).** 옛 표기는 두
+// > 줄이었는데(`git show HEAD~2`) 첫 줄만 갈아 끼워 **둘째 줄이 어디에도 안 붙는 조각으로
+// > 남았고**(`/ai-review` `review/code/2026/09/13/22_06_10` documentation·scope WARNING),
+// > 하필 **그 조각이 적고 있던 범위 표기가 맞는 쪽이었다** — 새로 쓴 *"(코드 명명·발행)"*
+// > 은 `error-codes.md` Overview 의 자기 선언(*"명명·안정성 규율만 정의한다"* · 유일 소유
+// > ①명명 ②rename 안정성 ③예외 레지스트리)보다 **넓다**(`--impl-done`
+// > `review/consistency/2026/09/13/22_06_21` convention_compliance WARNING#4).
+// > 리뷰어 둘이 각각 절반씩 봤다 — 한쪽은 «조각이 남았다», 다른 쪽은 «범위가 넓다».
+// > 합치면 **지운 쪽이 옳았다** 다. 위 4행을 그 조각의 표기로 되돌렸다.
 //
 // ## 왜 "에러 코드" 가 아니라 "식별자" 인가
 //
@@ -74,7 +83,19 @@
 // **이 한계는 가정이 아니라 실측이다**: `#1330` 이 이 구멍으로
 // `MAKESHOP_UNRESOLVED_PATH_PARAM` 을 가이드에 적었고 `--impl-done`
 // (`review/consistency/2026/09/13/11_33_51`)의 naming_collision 이 **CRITICAL** 로 잡았다.
-// 가드는 통과시켰다. 방출 위치를 AST 로 특정하는 축이 트래커에 등재돼 있다.
+// 가드는 통과시켰다. ~~방출 위치를 AST 로 특정하는 축이 트래커에 등재돼 있다.~~
+//
+// > **그 예고를 닫은 것이 이 배치인데, 문장은 여덟 라운드 동안 한 글자도 안 바뀌었다**
+// > (`/ai-review` `review/code/2026/09/13/22_06_10` documentation CRITICAL).
+// > 닫은 방식은 **AST 가 아니다.** 술어 *"방출 위치를 AST 로 특정"* 은 실측이 **두 번**
+// > 반증했다 — `3-error-handling.md §1.4` 가 *"나머지는 앵커 없는 맨 문자열"* 이라
+// > 적고 있어 AST 로 특정할 앵커 자체가 없고, 분류기 목록이 같은 이름을 인용해
+// > `MAX_ITERATIONS_EXCEEDED` 류가 통과한다(트래커
+// > `spec-draft-nullable-notation-followups.md:3407`).
+// > 착지한 술어는 **«메시지 접두로만 등장» ∩ «카탈로그 부재»** 의 교집합이다(§발행 축).
+// >
+// > 예고를 쓴 파일에 정정을 안 적으면 그 파일만 읽는 사람이 **이미 한 일을 다시 쫓는다.**
+// > 이 배치의 존재 이유가 이 문장을 닫는 것이었는데, 정작 문장은 안 건드렸다.
 //
 // > **그런데 이 절은 자기 예시의 «이유» 를 틀리게 적고 있었다 (라운드 7 에 정정).**
 // > 가드가 `MAKESHOP_UNRESOLVED_PATH_PARAM` 을 통과시킨 진짜 이유는 *"이름이 소스에

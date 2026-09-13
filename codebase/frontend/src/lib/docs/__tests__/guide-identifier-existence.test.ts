@@ -40,6 +40,22 @@ const NON_EMITTED_VOCABULARY_CAP = 5;
  */
 const root = repoRoot();
 
+/**
+ * **«소스» 의 정의는 이 파일 안에서 하나여야 한다.**
+ *
+ * 기준집합(`sourceTexts`)은 `backend/src ∪ packages` 를 읽는데 `where` 검증의 파일
+ * 탐색(`resolveSourceLines`)은 `backend/src` 만 걸고 있었다 — 같은 기능 안에 «백엔드
+ * 소스» 정의가 **둘** 이었다 (`/ai-review` `review/code/2026/09/13/22_06_10`
+ * architecture WARNING#1).
+ *
+ * 오늘 등록 3항목은 전부 `backend/src` 를 가리켜 **발화하지 않는다**. 그래서 위험한
+ * 종류다 — 다음 항목이 `packages/` 소스를 `where` 로 인용하면 발행 축 판정은 정상인데
+ * `where` 검증만 *"파일을 유일하게 특정할 수 없다"* 로 **거짓 실패**한다.
+ */
+const SOURCE_ROOTS = ["codebase/backend/src", "codebase/packages"];
+const skipBuildDirs = (name: string): boolean =>
+  name === "node_modules" || name === "dist" || name === "build";
+
 const readIfPresent = (rel: string): string[] => {
   const abs = path.join(root, rel);
   return fs.existsSync(abs) ? [fs.readFileSync(abs, "utf8")] : [];
@@ -50,16 +66,33 @@ const envExampleTexts = [
 ];
 
 /**
- * `where` 필드에서 `파일.ts:줄` 참조를 **전부** 뽑는다. `a.ts:10·20` 처럼 같은 파일의
- * 여러 줄을 가운뎃점으로 잇는 표기도 받는다 — 실제 등록 항목이 그 형태를 쓴다.
+ * `where` 에서 `파일.ts:줄` 참조를 **전부** 뽑고, **뽑히지 않고 남은 것**을 함께 낸다.
+ *
+ * 형식은 `<위치들> — <산문>` 이고, 같은 파일의 여러 줄은 `a.ts:10·20` 처럼 가운뎃점으로
+ * 잇는다 — 실제 등록 항목이 그 형태를 쓴다.
+ *
+ * **왜 잔여를 함께 내는가**: 정규식만 두면 다음 항목이 `a.ts:10, 20` 처럼 다른 구분자를
+ * 쓸 때 **앞쪽만 먹고 나머지를 조용히 버린다**. `refs.length === 0` 가드는 그것을 못 잡는다 —
+ * 이 배치가 방금 고친 *"여러 위치 중 일부만 검증됨"* 결함이 **실패 모드만 바꿔 재발**한다
+ * (`/ai-review` `review/code/2026/09/13/22_06_10` maintainability WARNING#3).
+ *
+ * 판정은 *"어떤 구분자를 쓸까"* 를 **추측하지 않는다.** 구분자 목록을 늘리는 방식은
+ * 원리적으로 틀렸다 — 다음 구분자를 또 모른다. 대신 **머리 부분(` — ` 앞)에 참조와
+ * 구분자 말고는 아무것도 남지 않을 것**을 요구한다. 남으면 그게 잔여다.
  */
-function parseWhereRefs(where: string): { file: string; line: number }[] {
-  const out: { file: string; line: number }[] = [];
-  for (const m of where.matchAll(/([\w./-]+\.ts):(\d+(?:·\d+)*)/g)) {
+function parseWhereRefs(where: string): {
+  refs: { file: string; line: number }[];
+  residue: string;
+} {
+  const head = where.split(" — ")[0];
+  const refs: { file: string; line: number }[] = [];
+  let rest = head;
+  for (const m of head.matchAll(/([\w./-]+\.ts):(\d+(?:·\d+)*)/g)) {
     const file = m[1];
-    for (const n of m[2].split("·")) out.push({ file, line: Number(n) });
+    for (const n of m[2].split("·")) refs.push({ file, line: Number(n) });
+    rest = rest.replace(m[0], "");
   }
-  return out;
+  return { refs, residue: rest.replace(/[\s·]/g, "") };
 }
 
 /**
@@ -89,8 +122,8 @@ function resolveSourceLines(file: string): string[] | null {
   const key = path.basename(file);
   const hit = sourceLinesCache.get(key);
   if (hit !== undefined) return hit;
-  const found = walkTree(repoRoot(), ["codebase/backend/src"], {
-    skipDir: (n) => n === "node_modules" || n === "dist" || n === "build",
+  const found = walkTree(root, SOURCE_ROOTS, {
+    skipDir: skipBuildDirs,
     includeFile: (n) => n === key,
   });
   const value =
@@ -107,8 +140,8 @@ describe("유저 가이드 식별자 실재성 가드", () => {
   // 기준집합 = 소스 토큰 ∪ env 선언처.
   // frontend 소스는 **넣지 않는다** — 넣으면 가이드가 인용한 이름이 프런트 라벨 맵으로
   // 자기를 증명한다(실측: 넣어도 오늘은 GREEN 이라 그 실수는 **조용히** 통과한다).
-  const sourceTexts = walkTree(root, ["codebase/backend/src", "codebase/packages"], {
-    skipDir: (name) => name === "node_modules" || name === "dist" || name === "build",
+  const sourceTexts = walkTree(root, SOURCE_ROOTS, {
+    skipDir: skipBuildDirs,
     includeFile: (name) => name.endsWith(".ts"),
   }).map((f) => fs.readFileSync(f.absPath, "utf8"));
 
@@ -273,7 +306,13 @@ describe("유저 가이드 식별자 실재성 가드", () => {
       // 지금은 `where` 안의 **모든** 위치를 걷는다.
       const broken: string[] = [];
       for (const entry of GUIDE_NON_EMITTED_VOCABULARY) {
-        const refs = parseWhereRefs(entry.where);
+        const { refs, residue } = parseWhereRefs(entry.where);
+        if (residue !== "") {
+          broken.push(
+            `${entry.token}: where 의 위치 부분에 참조가 아닌 것이 남는다 — «${residue}»`,
+          );
+          continue;
+        }
         if (refs.length === 0) {
           broken.push(`${entry.token}: where 에 '파일.ts:줄' 이 없다 — ${entry.where}`);
           continue;
@@ -302,16 +341,47 @@ describe("유저 가이드 식별자 실재성 가드", () => {
     it("[대조군] `parseWhereRefs` 가 `파일:줄·줄` 의 **모든** 위치를 낸다", () => {
       // 위 단언이 «전부» 를 본다는 주장을 파서 단에서 고정한다 — 단일 매치로 되돌리는
       // 뮤턴트가 여기서 바로 갈린다.
-      expect(parseWhereRefs("a.ts:10 — 설명")).toEqual([{ file: "a.ts", line: 10 }]);
-      expect(parseWhereRefs("a.ts:10·20 — 설명")).toEqual([
-        { file: "a.ts", line: 10 },
-        { file: "a.ts", line: 20 },
-      ]);
-      expect(parseWhereRefs("a.ts:10 · b.ts:30")).toEqual([
-        { file: "a.ts", line: 10 },
-        { file: "b.ts", line: 30 },
-      ]);
-      expect(parseWhereRefs("줄 번호 없는 산문")).toEqual([]);
+      expect(parseWhereRefs("a.ts:10 — 설명")).toEqual({
+        refs: [{ file: "a.ts", line: 10 }],
+        residue: "",
+      });
+      expect(parseWhereRefs("a.ts:10·20 — 설명")).toEqual({
+        refs: [
+          { file: "a.ts", line: 10 },
+          { file: "a.ts", line: 20 },
+        ],
+        residue: "",
+      });
+      expect(parseWhereRefs("a.ts:10 · b.ts:30")).toEqual({
+        refs: [
+          { file: "a.ts", line: 10 },
+          { file: "b.ts", line: 30 },
+        ],
+        residue: "",
+      });
+      expect(parseWhereRefs("줄 번호 없는 산문").refs).toEqual([]);
+    });
+
+    it("[대조군] 구분자를 `·` 가 아닌 것으로 적으면 **잔여로 드러난다**", () => {
+      // 판별 fixture: 종전 파서는 `a.ts:10` 만 먹고 `, 20` 을 조용히 버렸고, `refs.length`
+      // 는 1 이라 어떤 가드도 물지 않았다. 잔여를 함께 내면서 같은 입력이 갈린다.
+      const comma = parseWhereRefs("a.ts:10, 20 — 설명");
+      expect(comma.refs).toEqual([{ file: "a.ts", line: 10 }]);
+      expect(comma.residue).not.toBe("");
+
+      // 반대 방향: 정상 표기는 잔여가 없어야 한다(위 대조군이 이미 보지만, 여기서
+      // «잔여 술어» 가 늘 참을 내는 vacuous 상태가 아님을 같은 it 안에서 고정한다).
+      expect(parseWhereRefs("a.ts:10·20 — 설명").residue).toBe("");
+    });
+
+    it("[대조군] 등록된 항목의 `where` 는 전부 잔여가 없다", () => {
+      // 위 술어가 실제 데이터에 대해 조용히 항상 참인지(=이 목록이 우연히 통과하는지)
+      // 가 아니라, **오늘 등록분이 형식을 지키는지**를 본다.
+      expect(
+        GUIDE_NON_EMITTED_VOCABULARY.filter((e) => parseWhereRefs(e.where).residue !== "").map(
+          (e) => e.token,
+        ),
+      ).toEqual([]);
     });
 
     it(`상한 ${NON_EMITTED_VOCABULARY_CAP}건을 넘지 않는다`, () => {
@@ -567,8 +637,10 @@ describe("resolveSourceLines — 유일성 가드", () => {
   // 내가 라운드 6 에 돌린 뮤턴트는 *"파일명을 없는 것으로"*(0건 분기)였고, **2건 이상**
   // 분기는 겨누지 못했다. 이 파일이 네 번째로 밟는 «헬퍼 테스트 ≠ 호출부 테스트» 다.
   //
-  // 다중 매치는 가상이 아니다 — `backend/src` 에 `index.ts` 가 **46개** 있다(실측).
-  // 등록이 늘어 그런 basename 을 가리키면 **조용히 엉뚱한 파일**을 읽게 된다.
+  // 다중 매치는 가상이 아니다 — 탐색 루트(`SOURCE_ROOTS` = `backend/src ∪ packages`)에
+  // `index.ts` 가 **55개** 있다(실측. 루트를 통일하기 전 `backend/src` 만일 때는 46개였다 —
+  // 숫자는 **주어와 함께** 적는다). 등록이 늘어 그런 basename 을 가리키면 **조용히 엉뚱한
+  // 파일**을 읽게 된다.
   it("[0건] 없는 basename 은 null", () => {
     expect(resolveSourceLines("definitely-not-a-real-file.ts")).toBeNull();
   });
@@ -581,6 +653,34 @@ describe("resolveSourceLines — 유일성 가드", () => {
     const lines = resolveSourceLines("execution-engine.service.ts");
     expect(lines).not.toBeNull();
     expect(lines!.length).toBeGreaterThan(1000);
+  });
+
+  it("[루트 통일] `packages` 에만 있는 파일도 특정된다 — 거짓 실패 방지", () => {
+    // 이 단언이 무는 것은 **`SOURCE_ROOTS` 에 `packages` 가 들어 있는가** 다. 합성
+    // fixture 로는 쓸 수 없다 — 주장 자체가 «실제 저장소 배치» 에 관한 것이다.
+    // 대신 파일명을 박지 않고 **매 실행 도출**해 리팩터에 견디게 하고, 도출이 0건이면
+    // 먼저 터지게 해 vacuous 를 막는다(오늘 실측 32건).
+    const inBackend = new Set(
+      walkTree(root, ["codebase/backend/src"], {
+        skipDir: skipBuildDirs,
+        includeFile: (n) => n.endsWith(".ts"),
+      }).map((f) => path.basename(f.absPath)),
+    );
+    const counts = new Map<string, number>();
+    for (const f of walkTree(root, ["codebase/packages"], {
+      skipDir: skipBuildDirs,
+      includeFile: (n) => n.endsWith(".ts"),
+    })) {
+      const base = path.basename(f.absPath);
+      counts.set(base, (counts.get(base) ?? 0) + 1);
+    }
+    const onlyInPackages = [...counts]
+      .filter(([base, n]) => n === 1 && !inBackend.has(base))
+      .map(([base]) => base)
+      .sort();
+
+    expect(onlyInPackages.length).toBeGreaterThan(0); // 도출 실패 = vacuous
+    expect(resolveSourceLines(onlyInPackages[0])).not.toBeNull();
   });
 });
 
