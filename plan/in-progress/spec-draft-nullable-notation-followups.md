@@ -3932,6 +3932,36 @@ field: T | null;
       나머지 셋이 살아 있어 유효). 처방: `spec/**` frontmatter 의 `pending_plans` 경로가 실재하는지
       검사하는 가드 한 줄. **`findBrokenPlanLinks` 는 마크다운 링크만 보고 frontmatter 는 안 본다.**
 
+- [ ] **`2-trigger-list.md` 의 `code:` 가 §3 계약의 시행 파일 하나를 놓친다**
+      (planner, 2026-09-14 등재 · `/ai-review` `review/code/2026/09/14/11_27_40`
+      requirement WARNING#1). §3(`TriggerDto.workflow` 계약)의 시행 파일로
+      `trigger-workflow-ref.e2e-spec.ts` 만 등재돼 있는데, `trigger-canary-hardening` 배치가
+      `schedule-trigger.e2e-spec.ts`(C-2·G·H)에 같은 계약을 **schedule 타입에 대해 처음**
+      시행하는 단언 3건을 넣었다. doc-sync-matrix 가 그 파일을 못 본다.
+      처분: frontmatter `code:` 에 `schedule-trigger.e2e-spec.ts` 추가.
+
+- [ ] **신규 repo-guard 가 spec `code:` 에 미등재 — 다만 «관례» 라 부를 만큼 일관되지 않다**
+      (planner, 2026-09-14 등재 · `--impl-done` `review/consistency/2026/09/14/11_27_47`
+      rationale_continuity INFO#2). `trigger-secret-columns-{guard,spec}.ts` 가 어느 spec 의
+      `code:` 에도 없다. checker 는 *"시행 코드 추적성 관례 미적용"* 이라 했는데 **실측하면
+      관례가 없다**:
+
+      | 형제 repo-guard | spec `code:` 등재 |
+      |---|---|
+      | `masked-reject-callers` · `user-entity-exposure` | **있음** (2) |
+      | `redis-fail-open-catalog` · `param-uuid-pipe` · `engine-error-code-anchor` | **없음** (3) |
+
+      그래서 이 항목은 **두 질문**이다 — (a) 이 가드를 `secret-store.md` 의 `code:` 에 넣을
+      것인가, (b) repo-guard 등재를 규약으로 세울 것인가. (b) 를 정하지 않으면 (a) 만 고쳐도
+      다음 가드에서 같은 지적이 반복된다.
+
+- [ ] **`GET /api/triggers/:id`(단건)의 schedule `workflow` 양성 커버리지가 0건**
+      (developer, 2026-09-14 등재 · `/ai-review` `11_27_40` requirement INFO#2).
+      `trigger-canary-hardening` 이 목록(C-2)·PATCH(G·H) 세 자리를 덮었는데 **단건 조회는
+      `schedule-trigger.e2e-spec.ts` 에 케이스 자체가 없어** 남겼다(그 배치가 명시 유예).
+      헬퍼 계약상 단건도 `workflow` 를 채우므로 양성 1건이면 닫힌다 — 단, 케이스를 새로
+      만들어야 해서 «한 줄» 이 아니다.
+
 - [ ] **`--impl-prep`/`--spec` 번들이 `spec/` 코퍼스를 통째로 절단한다 — 기록된 범위보다 넓다**
       (harness, 2026-09-14 등재 · `--impl-prep`
       `review/consistency/2026/09/14/10_44_37` cross_spec·convention_compliance 공동 WARNING#1).

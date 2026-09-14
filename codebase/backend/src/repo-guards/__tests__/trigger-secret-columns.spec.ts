@@ -56,8 +56,17 @@ describe('트리거 비밀 컬럼 목록 3중 사본 정합', () => {
     // 그 상태를 여기서 먼저 끊는다.
     const lists = readAllTriggerSecretColumnLists(repoRoot);
     for (const [rel, value] of Object.entries(lists)) {
-      expect(value === null ? `${rel}: 못 읽음` : value.length).not.toBe(0);
-      expect(value).not.toBeNull();
+      // **삼항식으로 쓰면 안 된다.** 첫 판은
+      // `expect(value === null ? \`${rel}: 못 읽음\` : value.length).not.toBe(0)` 였는데,
+      // `null` 분기에서 **문자열**을 `.not.toBe(0)` 과 비교해 **항상 통과**했다 — vacuity 를
+      // 막으려고 쓴 줄이 그 분기에서 vacuous 였다
+      // (`/ai-review` `review/code/2026/09/14/11_27_40` maintainability WARNING#2).
+      if (value === null) {
+        throw new Error(
+          `${rel}: ${'상수를 못 읽었다 — 선언 이름·형태가 바뀌었는지 볼 것'}`,
+        );
+      }
+      expect(value.length).not.toBe(0);
     }
   });
 

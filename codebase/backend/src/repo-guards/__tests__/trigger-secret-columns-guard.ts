@@ -13,7 +13,13 @@ export const CANONICAL_SOURCE =
   'codebase/backend/src/modules/triggers/triggers.service.ts';
 export const CANONICAL_CONST = 'TRIGGER_RESPONSE_STRIP_COLUMNS';
 
-/** 사본 — 테스트 헬퍼 둘. 실패 메시지가 *무엇이* 샜는지 말하게 하려고 이름을 다시 적는다. */
+/**
+ * 사본 — 테스트 헬퍼 둘. 실패 메시지가 *무엇이* 샜는지 말하게 하려고 이름을 다시 적는다.
+ *
+ * **이 가드가 보는 것은 여기 적힌 자리뿐이다.** 네 번째 사본이 생겨도 이 배열에 넣지 않으면
+ * 감시 범위 밖이다 — 정적 목록 대조의 태생적 한계이고, 사본을 «전수 탐지» 하려면 이름이
+ * 다른 상수까지 찾아야 해서 문제가 무한해진다. 새 사본을 만들면 여기 추가할 것.
+ */
 export const MIRROR_SOURCES = [
   'codebase/backend/src/shared/testing/schedule-trigger-ref.ts',
   'codebase/backend/src/shared/testing/trigger-workflow-ref.ts',
@@ -43,6 +49,14 @@ export function readStringArrayConst(
   constName: string,
 ): string[] | null {
   const abs = path.join(repoRoot, relPath);
+  // 파일이 사라지면 raw `ENOENT` 가 나서 «가드가 깨졌다» 인지 «대상이 리네임됐다» 인지
+  // 구분되지 않는다. 이 가드는 경로를 상수로 박고 있으므로 후자가 실제 시나리오다.
+  if (!fs.existsSync(abs)) {
+    throw new Error(
+      `${relPath} 가 없다 — 파일이 옮겨졌거나 이름이 바뀌었다. ` +
+        `trigger-secret-columns-guard.ts 의 경로 상수를 함께 고칠 것.`,
+    );
+  }
   const sf = ts.createSourceFile(
     abs,
     fs.readFileSync(abs, 'utf8'),

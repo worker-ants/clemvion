@@ -25,6 +25,8 @@ import { ScheduleDto } from '../src/modules/schedules/dto/responses/schedule-res
  *   - 비활성 스케줄은 trigger.isActive=false
  *   - 목록 조회가 워크스페이스로 격리되고 `next_run_at`(asc·desc)·기본 `created_at` 정렬이 적용됨
  *   - V110: schedule 인덱스가 `(workspace_id, next_run_at)` 로 실재 (스키마 drift 방지)
+ *   - **`TriggerDto.workflow` 양성** — 목록(C-2)·PATCH(G·H) 세 자리. 이 파일이 이미
+ *     고정하던 `ScheduleDto.trigger.workflow` 와는 **다른 표면**이다
  */
 
 const BASE_URL = process.env.E2E_BASE_URL ?? 'http://backend-e2e:3011';
