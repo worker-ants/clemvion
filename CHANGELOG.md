@@ -13,7 +13,11 @@ setup 의 성공·실패 경로 · bot token 회전) 밖에도, 엔티티를 통
 `config` 를 되쓰던 자리가 일곱 군데 더 있었다 — notification secret 정규화·회전, per-trigger
 토큰 폐기, 승격 cron 둘, chat-channel v2 정리 cron, schedule 편집의 trigger 동기화. `config`
 를 고치는 자리는 락 안 재작성으로, 컬럼만 고치는 자리는 **컬럼 한정 갱신**으로 바꿨다.
-그 결과 기존 행에 `save(entity)` 하는 자리는 **한 곳도 남지 않는다**(정적 래칫이 고정한다).
+그 결과 **컬럼만 고치려던 자리가 의도치 않게 엔티티 전체를 저장하던 경로**는 한 곳도 남지
+않는다. `update()`(창 1) 자체는 여전히 `save(entity)` 를 쓰지만, 저장 대상이 **락 안에서 재읽은
+최신 행**이라 되돌릴 옛 값이 없다 — 저장 동사가 아니라 «무엇을 저장하는가» 가 바뀐 것이다.
+(정적 래칫이 고정하는 것은 `modules/triggers/` 범위의 «래핑 없는 `save`» 목록이 빈 채로
+남는가이고, `save` 의 존재 여부 자체는 아니다.)
 
 락은 트리거 단위 advisory lock
 (`pg_advisory_xact_lock(hashtext('trigger-config:<id>'))`) 안으로 넣고, **락을 잡은 뒤에

@@ -365,6 +365,38 @@ export class TriggersService {
    * 인자로 우회하는 것이라 다음 사람이 읽을 때 오해한다
    * (`/ai-review` `review/code/2026/09/14/21_18_21` maintainability INFO#6).
    */
+  /**
+   * 락 안에서 재읽은 `config` 의 **하위 키를 기준으로** 병합한다.
+   *
+   * ## 왜 이게 따로 필요한가 — 같은 실수를 두 번 했다
+   *
+   * 1라운드에 *"컨테이너만 다시 읽는 것으로는 부족하다"* 고 직접 적어 놓고, 7라운드에 새로
+   * 닫은 자리에서 **그대로 반복**했다: `(freshConfig) => ({ ...freshConfig, notification: X })`
+   * 에서 `X` 를 **락 이전 스냅샷**으로 만들어 넘긴 것이다. 최상위 키는 재읽기로 지켜지지만
+   * 그 하위(`notification.url` 등)는 옛 값으로 되돌아간다 — 이 PR 이 닫는 것과 같은 클래스다
+   * (`/ai-review` `review/code/2026/09/14/22_24_35` database·testing CRITICAL#1).
+   *
+   * 그래서 «어느 하위 키를, 무엇을 얹어» 를 **인자로 강제**한다. 호출부가 스냅샷 객체를
+   * 통째로 대입할 자리를 없애는 것이 요점이다.
+   *
+   * @param key 재읽은 `config` 에서 기준으로 삼을 하위 키.
+   * @param patch 그 하위 객체 **위에** 얹을 필드들.
+   * @param fallback 재읽은 행에 그 키가 없을 때의 기준(보통 요청 시작 시점 값).
+   */
+  private mergeIntoFreshSubKey(
+    freshConfig: Record<string, unknown>,
+    key: string,
+    patch: Record<string, unknown>,
+    fallback: Record<string, unknown>,
+  ): Record<string, unknown> {
+    const current = freshConfig?.[key];
+    const base =
+      typeof current === 'object' && current !== null
+        ? (current as Record<string, unknown>)
+        : fallback;
+    return { ...freshConfig, [key]: { ...base, ...patch } };
+  }
+
   private throwTriggerNotFound(): never {
     throw new NotFoundException({
       code: 'RESOURCE_NOT_FOUND',
@@ -826,15 +858,19 @@ export class TriggersService {
       ...trigger.config,
       notification: normalizedNotification,
     };
-    // 락 안에서 재읽은 `config` 위에 `notification` 만 얹는다 — 통째로 저장하면 그 사이
-    // 동시 PATCH 가 커밋한 `chatChannel.inboundSigningRef` 를 되돌려 fail-open 이 재발한다.
+    // 재읽은 `config.notification` **위에** `signing` 만 얹는다. 스냅샷으로 만든
+    // `normalizedNotification` 을 통째로 대입하면 그 사이 커밋된 `notification.url` 등이
+    // 되돌아간다 — `mergeIntoFreshSubKey` JSDoc 참조.
     await rewriteTriggerConfigLocked(
       this.triggerRepository.manager,
       trigger.id,
-      (freshConfig) => ({
-        ...freshConfig,
-        notification: normalizedNotification,
-      }),
+      (freshConfig) =>
+        this.mergeIntoFreshSubKey(
+          freshConfig,
+          'notification',
+          { signing: updatedSigning },
+          normalizedNotification,
+        ),
     );
   }
 
@@ -1106,7 +1142,15 @@ export class TriggersService {
     const wroteInteraction = await rewriteTriggerConfigLocked(
       this.triggerRepository.manager,
       trigger.id,
-      (freshConfig) => ({ ...freshConfig, interaction: updated }),
+      // 재읽은 `config.interaction` **위에** 새 토큰만 얹는다 — 스냅샷을 통째로 대입하면
+      // 그 사이 커밋된 `enabled`·`appearance` 등이 되돌아간다(위 C1 과 같은 클래스).
+      (freshConfig) =>
+        this.mergeIntoFreshSubKey(
+          freshConfig,
+          'interaction',
+          { triggerToken: newToken },
+          updated,
+        ),
     );
     if (!wroteInteraction) this.throwTriggerNotFound();
     await this.recordAudit({
@@ -1371,10 +1415,13 @@ export class TriggersService {
       await rewriteTriggerConfigLocked(
         this.triggerRepository.manager,
         trigger.id,
-        (freshConfig) => ({
-          ...freshConfig,
-          notification: updatedNotification,
-        }),
+        (freshConfig) =>
+          this.mergeIntoFreshSubKey(
+            freshConfig,
+            'notification',
+            { signing: updatedSigning },
+            updatedNotification,
+          ),
         { notificationSecretV2: null, notificationRotatedAt: null },
       );
       promoted++;

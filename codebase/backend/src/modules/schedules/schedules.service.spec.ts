@@ -495,6 +495,42 @@ describe('SchedulesService.runNow', () => {
         name: 'T',
         isActive: false,
       });
+      // **DB 쓰기 방식도 단언한다.** 위 단언은 in-memory 재부착만 보므로,
+      // `update` 를 `save(trigger)` 로 되돌려도 통과한다(뮤테이션 실측: 21건 전부 GREEN —
+      // `review/code/2026/09/14/22_24_35` testing CRITICAL#3). `save` 는 엔티티를 통째로
+      // 저장해 읽은 시점의 `config` 까지 되쓰고, 그러면 동시 PATCH 가 확립한
+      // `chatChannel.inboundSigningRef` 가 되돌려져 인입 서명이 fail-open 이 된다.
+      expect(triggerRepo.update).toHaveBeenCalledWith(
+        { id: 'trig-tr' },
+        { isActive: false },
+      );
+      expect(triggerRepo.save).not.toHaveBeenCalled();
+    });
+
+    it('수정 — name 만 바꾸면 trigger patch 에 name 만 실린다', async () => {
+      // 분기 대조군 — patch 를 «바뀐 필드만» 으로 좁히는 술어가 느슨해지면 여기서 갈린다.
+      scheduleRepo.findOne.mockResolvedValue({
+        id: 'sch-nm',
+        workspaceId: 'ws-1',
+        isActive: true,
+        cronExpression: '0 9 * * *',
+        timezone: 'Asia/Seoul',
+        triggerId: 'trig-nm',
+        trigger: { id: 'trig-nm', name: 'old' },
+      } as unknown as Schedule);
+      scheduleRepo.save.mockImplementation(async (sch) => sch as Schedule);
+
+      await service.update(
+        'sch-nm',
+        'ws-1',
+        { name: 'new' } as unknown as UpdateScheduleDto,
+        'u-nm',
+      );
+
+      expect(triggerRepo.update).toHaveBeenCalledWith(
+        { id: 'trig-nm' },
+        { name: 'new' },
+      );
     });
 
     it('감사 로깅 — remove 는 schedule.deleted 를 남긴다', async () => {

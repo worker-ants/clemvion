@@ -489,6 +489,45 @@ CRITICAL 의 근거는 **내 CHANGELOG 문장**이었다 — *"`config` 를 다�
 > 두면 **실패가 주입되지 않아 통과하는** vacuous 테스트가 됐을 것이다 — 쓰기 동사를 바꿀 땐
 > 실패 주입 지점도 함께 옮겨야 한다.
 
+### 8라운드 리뷰 처분 (`review/code/2026/09/14/22_24_35` — C4)
+
+**이 라운드가 이 PR 전체에서 가장 아픈 지적이다.** 7라운드에 새로 닫은 자리에서
+**1라운드에 내가 직접 적어 둔 함정**을 그대로 반복했다:
+
+> §B 정정 — *"컨테이너만 다시 읽는 것으로는 부족하다"*
+
+`(freshConfig) => ({ ...freshConfig, notification: X })` 에서 `X` 를 **락 이전 스냅샷**으로
+만들어 넘겼다. 최상위 키는 재읽기가 지키지만 그 **하위**(`notification.url` 등)는 옛 값으로
+되돌아간다 — 이 PR 이 닫는 것과 같은 클래스다. 세 자리(`normalizeNotificationSecretRef` ·
+`promoteRotatedNotificationSecrets` · `revokePerTriggerToken)에서 반복됐다.
+
+**산문으로 막지 않고 시그니처로 막았다.** `mergeIntoFreshSubKey(freshConfig, key, patch,
+fallback)` 이 «어느 하위 키를, 무엇을 얹어» 를 인자로 강제한다 — 호출부가 스냅샷 객체를
+통째로 대입할 자리가 없어진다. 저장소의 규율 그대로다: *세 번째 재발이면 산문 말고 코드로.*
+
+| # | 처분 |
+|---|---|
+| C1 하위 키가 스냅샷으로 대입돼 lost update 재발 | **수용·수정** — `mergeIntoFreshSubKey` 로 세 자리 통일 |
+| C2 `revokePerTriggerToken` 의 404 게이트 미검증 | **수용·수정** — 삭제 경합 테스트 추가 |
+| C3 `SchedulesService.update` 컬럼 한정 전환 미검증 | **수용·수정** — 쓰기 방식 단언 + name-only 분기 대조군 |
+| C4 CHANGELOG 자기모순(«`save` 가 한 곳도 없다» vs «저장 동사는 그대로») | **수용·수정** — «컬럼만 고치려던 자리가 의도치 않게 엔티티 전체를 저장하던 경로» 로 좁히고, 창 1 은 `save` 를 쓰되 **재읽은 행**을 저장한다는 사실을 적었다. 래칫의 보증 범위(`modules/triggers/` 한정)도 명시 |
+| W3 `revokePerTriggerToken` 도 같은 스냅샷 패턴 | **수용·수정** — C1 과 같은 헬퍼 |
+| W7 테스트 헬퍼 중복 (3라운드 연속) | **수용·수정** — `at()` 선언을 앞으로 |
+| W1·W2·W4·W5·W6 | **후속 등재** — 아래 표 |
+
+**뮤턴트 확인**(자리별):
+
+| 뮤턴트 | 실측 |
+|---|---|
+| `revoke` 하위 키를 스냅샷 대입 | **RED** |
+| `revoke` 404 게이트 제거 | **RED** |
+| `normalize` 하위 키를 스냅샷 대입 | **첫 판 생존** → 두 읽기가 갈리는 테스트 추가 후 **RED** |
+| `schedules` 컬럼 한정을 `save` 로 | **RED 2건** |
+
+> `normalize` 가 첫 판에 생존한 이유가 5라운드의 `lock_timeout` 과 같다 — **두 읽기가 다른
+> 값을 보는 fixture 가 없으면** 그 차이를 묻는 단언도 있을 수 없다. 대조군은 «두 상태가
+> 다르게 판정하는 값» 이어야 한다.
+
 ### 후속(developer 범위) — 이 PR 로 넓히지 않는다
 
 | 항목 | 근거 |
@@ -501,6 +540,11 @@ CRITICAL 의 근거는 **내 CHANGELOG 문장**이었다 — *"`config` 를 다�
 | `update()` 가 182줄 — 트랜잭션 클로저를 `mergeAndSaveLocked(...)` 로 분리 | 다음 편집 때 (6라운드 W4) |
 | 세 경로(`update`·binder·`rotateBotToken`)의 락 대기 상한 부재 | 리뷰어 판정 «조치 불요» — 임계 구간이 짧다. 특정 트리거 폭주가 관측되면 `timeoutMs` 확대 (6라운드 W7) |
 | 삭제 락 타임아웃(5s) 시 `57014` 가 일반 500 으로 마스킹 | 발생 조건이 좁다. 실사례 관측되면 409/503 + 전용 코드로 승격 (6라운드 INFO#12) |
+| **`UpdateTriggerDto.config` raw 필드가 락 안 병합을 우회한다** | 요청이 `config` 를 통째로 보내면 `baseConfig` 가 그것이 되어 재읽기 병합을 건너뛴다. **의도된 설계**다(사용자가 통째로 보낸 것이 곧 의도) — 다만 그 선택이 동시 커밋된 서브키를 지울 수 있다는 사실을 여기 등재한다 (8라운드 W1) |
+| `cleanupRotatedChatChannelTokens` 의 무조건 null-write | 동시에 커밋된 `rotateBotToken` 의 새 v2 회전을 지울 수 있다 → 조건부 `WHERE chatChannelTokenV2 = <읽은 값>` 으로 낙관적 확인 (8라운드 W2) |
+| `rotateNotificationSecret` 이 락 도메인 밖 | 창 1 의 저장이 그 사이 커밋된 `notificationSecretV2` 회전을 되돌릴 수 있다. 관측용(`lastTriggeredAt`)과 달리 **보안 성격** (8라운드 W4) |
+| `promoteRotatedNotificationSecrets` cron 이 후보마다 순차 트랜잭션 | 배치가 커지면 실행시간이 비례 이상 증가 → `.take(N)` + 이월 또는 청크 (8라운드 W5) |
+| 삭제 외 경로의 `lock_timeout` 부재 + 기본 풀 10 | 같은 트리거에 동시 쓰기가 몰리면 풀 고갈로 번질 수 있다. 이 PR 이 이 패턴을 1곳에서 7곳 이상으로 넓혔다 (8라운드 W6) |
 | `previousInboundSigningRef` 가 선언→트랜잭션 내 재대입→커밋 후 소비로 클로저 경계를 셋 넘는다 | 트랜잭션 콜백이 `{ saved, previousInboundSigningRef }` 를 반환하도록 (급하지 않음) |
 | `rewriteTriggerConfigLocked` 가 workspace 소유권을 자체 검증하지 않는다 | 현재 호출부 3곳 모두 이미 검증된 id 만 넘겨 악용 경로는 없다. 선택적 `workspaceId` 파라미터 또는 JSDoc 전제 명시 |
 | **secret store 쓰기·provider 등록의 원자성** — 락은 `config` 컬럼만 보호한다 | 삭제와 겹치면 정리(`teardownChatChannel`·`deleteByPrefix`)가 먼저 끝난 뒤 생성된 secret row·provider 등록이 고아로 남는다. 정리 순서를 바꾸려면 «외부 호출을 락 안에 두지 않는다» 제약과 충돌하므로 **별도 설계 검토** (5라운드 W1) |

@@ -3754,18 +3754,17 @@ describe('TriggersService — 락 안 재읽기가 동시 확립분을 본다 (l
       },
       onLockTimeout: (statement) => events.push(`timeout:${statement}`),
     });
-    providers[
-      providers.findIndex(
-        (pr) =>
-          'provide' in pr &&
-          (pr as { provide: unknown }).provide === ChannelListenerRegistry,
-      )
-    ] = { provide: ChannelListenerRegistry, useValue: listenerRegistry };
+    // `at` 을 먼저 선언해 **세 provider 교체가 같은 형태**를 쓰게 한다. 종전엔 이 한 곳만
+    // 같은 술어를 인라인으로 복제하고 있었다 — 3라운드 연속 지적된 자리다.
     const at = (token: unknown) =>
       providers.findIndex(
         (pr) =>
           'provide' in pr && (pr as { provide: unknown }).provide === token,
       );
+    providers[at(ChannelListenerRegistry)] = {
+      provide: ChannelListenerRegistry,
+      useValue: listenerRegistry,
+    };
     providers[at(ChannelAdapterRegistry)] = {
       provide: ChannelAdapterRegistry,
       useValue: {
@@ -3992,6 +3991,92 @@ describe('TriggersService — 락 안 재읽기가 동시 확립분을 본다 (l
       ([arg]) => (arg as { action?: string }).action,
     );
     expect(actions).not.toContain('trigger.deleted');
+  });
+
+  /**
+   * **하위 키까지 재읽어야 한다 — 최상위만으로는 부족하다.**
+   *
+   * `(freshConfig) => ({ ...freshConfig, notification: X })` 에서 `X` 를 락 이전 스냅샷으로
+   * 만들면 최상위 키는 지켜지지만 그 **하위**(`notification.url` 등)는 옛 값으로 되돌아간다.
+   * 1라운드에 이 함정을 직접 적어 놓고 7라운드에 새로 닫은 자리에서 그대로 반복했고,
+   * 뮤테이션 실측상 141건이 전부 GREEN 이었다
+   * (`review/code/2026/09/14/22_24_35` database·testing CRITICAL#1).
+   */
+  const withInteraction = (extra: Record<string, unknown> = {}) =>
+    row({
+      chatChannel: { provider: 'slack', botTokenRef: BOT_TOKEN_REF },
+      interaction: { enabled: true, tokenStrategy: 'per_trigger', ...extra },
+    });
+
+  it('revokePerTriggerToken — 재읽은 interaction 의 다른 필드가 살아남는다', async () => {
+    const { service, repo } = await makeService([
+      () => withInteraction({ appearance: 'fresh' }),
+    ]);
+    (repo.findOne as jest.Mock).mockResolvedValue(withInteraction());
+
+    await service.revokePerTriggerToken('trig-l', 'ws-1', 'u-1');
+
+    const patch = repo.update.mock.calls
+      .map(
+        ([, pt]) =>
+          pt as { config?: { interaction?: Record<string, unknown> } },
+      )
+      .filter((pt) => pt.config?.interaction)
+      .pop();
+    expect(patch?.config?.interaction?.appearance).toBe('fresh');
+    // 이번 요청의 변경도 실려야 한다 — 재읽기가 요청을 덮지 않는다는 반대 방향.
+    expect(patch?.config?.interaction?.triggerToken).toMatch(/^itk_/);
+  });
+
+  it('normalizeNotificationSecretRef — 재읽은 notification 의 url 이 살아남는다', async () => {
+    // `update()` 안에서 불리는 사(私)경로다. 락 안 재읽기가 **두 번** 일어난다 —
+    // 창 1, 그리고 이 정규화. 두 번째가 본 `notification.url` 이 최종 patch 에 남아야 한다.
+    // 스냅샷을 통째로 대입하면 옛 url 로 되돌아간다(같은 SUMMARY database CRITICAL#1).
+    const legacy = (url: string) =>
+      row({
+        chatChannel: { provider: 'slack', botTokenRef: BOT_TOKEN_REF },
+        notification: {
+          url,
+          signing: { algorithm: 'hmac-sha256', secret: 'plain-legacy' },
+        },
+      });
+    const { service, repo } = await makeService([
+      () => legacy('https://old.example/cb'),
+      () => legacy('https://new.example/cb'),
+    ]);
+    (repo.findOne as jest.Mock).mockResolvedValue(
+      legacy('https://old.example/cb'),
+    );
+
+    await service.update('trig-l', 'ws-1', { name: '새 이름' } as never, 'u-1');
+
+    const patch = repo.update.mock.calls
+      .map(
+        ([, pt]) =>
+          pt as { config?: { notification?: Record<string, unknown> } },
+      )
+      .filter((pt) => pt.config?.notification)
+      .pop();
+    expect(patch?.config?.notification?.url).toBe('https://new.example/cb');
+    // 정규화 자체도 일어났어야 한다 — 평문은 빠지고 ref 가 들어온다(단언이 공허해지는 것 방지).
+    const signing = patch?.config?.notification?.signing as Record<
+      string,
+      unknown
+    >;
+    expect(signing?.secretRef).toBe(
+      'secret://triggers/trig-l/notification-signing',
+    );
+    expect(signing).not.toHaveProperty('secret');
+  });
+
+  it('revokePerTriggerToken — 그 사이 삭제되면 404', async () => {
+    // 7라운드에 넣은 게이트인데 지워도 전건 GREEN 이었다 (같은 SUMMARY testing CRITICAL#2).
+    const { service, repo } = await makeService([() => undefined as never]);
+    (repo.findOne as jest.Mock).mockResolvedValue(withInteraction());
+
+    await expect(
+      service.revokePerTriggerToken('trig-l', 'ws-1', 'u-1'),
+    ).rejects.toMatchObject({ response: { code: 'RESOURCE_NOT_FOUND' } });
   });
 
   it('rotateBotToken — 손대지 않은 config 키가 살아남는다', async () => {
