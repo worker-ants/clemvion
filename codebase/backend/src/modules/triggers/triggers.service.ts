@@ -354,13 +354,22 @@ export class TriggersService {
    * maintainability WARNING#5).
    */
   private assertTriggerFound(row: Trigger | null | undefined): Trigger {
-    if (!row) {
-      throw new NotFoundException({
-        code: 'RESOURCE_NOT_FOUND',
-        message: 'Trigger not found',
-      });
-    }
+    if (!row) this.throwTriggerNotFound();
     return row;
+  }
+
+  /**
+   * «없다» 를 그대로 던진다 — 검증할 행이 아예 없는 자리용.
+   *
+   * 종전엔 `assertTriggerFound(null)` 로 불렀는데, 그건 «주어진 행을 검증한다» 는 계약을
+   * 인자로 우회하는 것이라 다음 사람이 읽을 때 오해한다
+   * (`/ai-review` `review/code/2026/09/14/21_18_21` maintainability INFO#6).
+   */
+  private throwTriggerNotFound(): never {
+    throw new NotFoundException({
+      code: 'RESOURCE_NOT_FOUND',
+      message: 'Trigger not found',
+    });
   }
 
   async findById(id: string, workspaceId: string): Promise<Trigger> {
@@ -1240,7 +1249,7 @@ export class TriggersService {
     // 트리거에 대한 **거짓 성공 기록**이다. 창 1 은 같은 조건에서 404 를 내므로 형제
     // 엔드포인트끼리 응답이 갈리기도 했다
     // (`/ai-review` `review/code/2026/09/14/20_17_16` api_contract WARNING#3).
-    if (!wrote) this.assertTriggerFound(null);
+    if (!wrote) this.throwTriggerNotFound();
     // **컬럼 갱신이 끝난 뒤에 기록한다.** 위 6단계 중 어디서든 던지면 회전은 일어나지
     // 않은 것이고, 그때 감사 row 만 남으면 "회전됐다" 는 거짓 기록이 된다.
     await this.recordAudit({

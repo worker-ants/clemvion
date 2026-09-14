@@ -3660,7 +3660,7 @@ describe('TriggersService — 락 안 재읽기가 동시 확립분을 본다 (l
    */
   async function makeService(
     freshSequence: Array<() => Trigger>,
-    opts: { setupChannelRejects?: boolean } = {},
+    opts: { setupChannelRejects?: boolean; removeRejects?: boolean } = {},
   ) {
     const adapter = {
       setupChannel: opts.setupChannelRejects
@@ -3678,6 +3678,8 @@ describe('TriggersService — 락 안 재읽기가 동시 확립분을 본다 (l
       save: jest.fn((t: Trigger) => Promise.resolve(t)),
       remove: jest.fn((t: Trigger) => {
         events.push('remove');
+        if (opts.removeRejects)
+          return Promise.reject(new Error('lock timeout'));
         return Promise.resolve(t);
       }),
       create: jest.fn((t: unknown) => t),
@@ -3922,6 +3924,27 @@ describe('TriggersService — 락 안 재읽기가 동시 확립분을 본다 (l
       ([arg]) => (arg as { action?: string }).action,
     );
     expect(actions).not.toContain('trigger.chat_channel.bot_token_rotated');
+  });
+
+  it('remove() 실패는 삼키지 않고 던진다 — 반쯤 삭제된 상태를 드러낸다', async () => {
+    // 이 PR 의 설계 목표가 *"조용한 지연 대신 드러나는 오류"* 인데, `throw err` 를
+    // `// swallow` 로 바꿔도 전건 GREEN 이었다 — **보증을 아무 테스트도 지키지 않았다**
+    // (`review/code/2026/09/14/21_18_21` testing WARNING#1).
+    //
+    // 공교롭게도 리뷰 도중 다른 리뷰어가 정확히 그 뮤턴트를 워킹트리에 만들었다가 원복했다.
+    const { service, audit } = await makeService([withRef], {
+      removeRejects: true,
+    });
+
+    await expect(service.remove('trig-l', 'ws-1', 'u-1')).rejects.toThrow(
+      'lock timeout',
+    );
+
+    // 삭제가 실패했으면 «삭제됨» 감사도 남기지 않는다 — 남기면 거짓 기록이다.
+    const actions = audit.record.mock.calls.map(
+      ([arg]) => (arg as { action?: string }).action,
+    );
+    expect(actions).not.toContain('trigger.deleted');
   });
 
   it('rotateBotToken — 손대지 않은 config 키가 살아남는다', async () => {

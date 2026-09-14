@@ -25,7 +25,20 @@ describe('rewriteTriggerConfigLocked', () => {
   const TRIGGER_ID = 'trig-x';
 
   /** 호출 순서를 관측할 수 있는 EntityManager mock. */
-  function makeManager(fresh: Partial<Trigger> | null) {
+  /**
+   * `config` 를 `null` 로도 줄 수 있게 넓힌 형태다 — 아래 «null·undefined» 케이스가
+   * `Trigger['config']`(= `Record<string, unknown>`) 로는 표현되지 않는다. 캐스트로 뭉개면
+   * **타입 ratchet 말고는 아무도 못 보는** 오류가 된다(jest 는 타입을 strip 한다).
+   */
+  function makeManager(
+    // `Omit` 으로 벗겨낸 뒤 다시 붙인다 — **교차 타입은 프로퍼티 타입도 교차**시키므로
+    // `Partial<Trigger> & { config?: … | null }` 은 `null` 을 도로 잘라낸다.
+    fresh:
+      | (Omit<Partial<Trigger>, 'config'> & {
+          config?: Record<string, unknown> | null;
+        })
+      | null,
+  ) {
     const calls: string[] = [];
     const query = jest.fn(async (...args: unknown[]) => {
       calls.push(`query:${String(args[0])}`);
@@ -90,9 +103,15 @@ describe('rewriteTriggerConfigLocked', () => {
     expect(merge).toHaveBeenCalledWith({ fromDb: true });
   });
 
-  it('config 가 비어 있으면(null·undefined) 빈 객체로 좁혀 넘긴다', async () => {
-    // `??` 라 두 값의 동작은 같다 — 제목이 `null` 만 말하면 fixture 와 어긋난다.
-    const { manager } = makeManager({ config: undefined });
+  // **제목이 말하는 두 값을 실제로 둘 다 건다.** 종전엔 제목만 «null·undefined» 이고
+  // fixture 는 `undefined` 하나였다 — 3라운드 연속 지적된 자리다
+  // (`review/code/2026/09/14/21_18_21` testing INFO#7). `??` 라 동작은 같지만, 제목이
+  // 약속한 것을 fixture 가 덮지 않으면 그 제목이 다음 사람을 속인다.
+  it.each([
+    ['undefined', undefined],
+    ['null', null],
+  ])('config 가 %s 면 빈 객체로 좁혀 넘긴다', async (_label, config) => {
+    const { manager } = makeManager({ config });
     const merge = jest.fn((c: Trigger['config']) => c);
 
     await rewriteTriggerConfigLocked(manager, TRIGGER_ID, merge);

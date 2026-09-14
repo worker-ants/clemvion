@@ -955,11 +955,6 @@ export class HooksService {
   }
 
   /**
-   * CCH-NF-03 — per-chat 분당 rate-limit 초과 시 trigger 의 `chat_channel_health` 를
-   * `degraded` 로 갱신 (CCH-SE-01 과 동일 DB 동작, 자동 비활성화 금지 — R-CC-19).
-   * 이미 `degraded` 면 skip (폭주 중 중복 write 방지). best-effort — 실패는 swallow.
-   */
-  /**
    * `lastTriggeredAt` 만 갱신한다 — **`save(trigger)` 를 쓰지 않는다.**
    *
    * `save` 는 엔티티를 통째로 저장하므로 요청 시작 시점에 읽은 `config` 까지 함께 쓴다.
@@ -983,6 +978,11 @@ export class HooksService {
     );
   }
 
+  /**
+   * CCH-NF-03 — per-chat 분당 rate-limit 초과 시 trigger 의 `chat_channel_health` 를
+   * `degraded` 로 갱신 (CCH-SE-01 과 동일 DB 동작, 자동 비활성화 금지 — R-CC-19).
+   * 이미 `degraded` 면 skip (폭주 중 중복 write 방지). best-effort — 실패는 swallow.
+   */
   private async markChatChannelRateLimited(
     trigger: Trigger,
     limitPerMinute: number,

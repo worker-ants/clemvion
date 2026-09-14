@@ -43,7 +43,16 @@ export async function acquireTriggerConfigLock(
 ): Promise<void> {
   if (options.timeoutMs !== undefined) {
     // `SET LOCAL` 이라 트랜잭션이 끝나면 저절로 풀린다 — 세션에 남지 않는다.
-    // 파라미터 바인딩이 안 되는 자리라 **정수임을 여기서 강제**한다(값은 호출부 상수).
+    //
+    // **범위가 advisory lock 하나가 아니다.** `lock_timeout` 은 이 트랜잭션의 **모든** 락
+    // 대기에 걸린다 — 바로 아래 advisory lock 뿐 아니라 뒤따르는 `DELETE` 의 행 잠금,
+    // `Schedule.triggerId` CASCADE 연쇄까지. 그래서 다른 writer 가 그 행을 오래 붙잡고
+    // 있으면 advisory lock 과 **무관한 사유로** `55P03` 이 날 수 있다(트랜잭션 롤백이라
+    // 데이터 손상은 없다). 삭제 경로에서는 그것도 «드러나는 오류» 쪽이 낫다는 판단이다
+    // (`/ai-review` `review/code/2026/09/14/21_18_21` side_effect WARNING#6).
+    //
+    // 파라미터 바인딩이 안 되는 자리다. `Math.trunc` 로 **정수만 문자열에 들어가게** 막고,
+    // 호출부는 모듈 상수만 넘긴다 — 사용자 입력이 여기 닿는 경로는 없다.
     await manager.query(
       `SET LOCAL lock_timeout = '${Math.trunc(options.timeoutMs)}ms'`,
     );

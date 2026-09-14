@@ -432,6 +432,30 @@ server-issued 발급만이 그 역할을 하고, 게다가 이 환경의 telegra
 > SQL 한 줄로 표현되는 것(락 획득·상한 설정)은 전부 같은 문제를 갖는다. 순서도 마찬가지라
 > 두 사건을 **같은 배열**에 모아야 «앞뒤» 를 물을 수 있다.
 
+### 6라운드 리뷰 처분 (`review/code/2026/09/14/21_18_21` — C0, 위험도 LOW)
+
+요약이 *"이 배치를 막을 사유는 없다는 데 14개 reviewer 전원이 동의한다"* 로 맺혔다.
+
+**이 라운드부터 규율을 좁혔다** — 동작 결함이거나 **내 서술이 거짓인 것**만 코드로 고치고
+나머지는 등재한다. 그러지 않으면 매 라운드가 새 코드를 만들어 «`codebase/**` 수정 0 라운드» 에
+영영 도달하지 못한다. 실제로 3~5라운드의 지적 대부분이 **직전 라운드에 내가 넣은 것**이었다.
+
+| # | 처분 |
+|---|---|
+| W1 `remove()` 실패를 «던진다» 는 보증을 아무 테스트도 안 지킨다 | **수용·수정** — `throw err` → `swallow` 뮤턴트가 전건 GREEN 이었다. 실패 전파 + **감사 미기록**을 함께 단언하고 두 뮤턴트 RED 확인 |
+| W2 CHANGELOG 의 «대기 상한은 없다» 가 지금은 거짓 | **수용·수정** — 삭제 5초 예외를 사유와 함께 |
+| W3 **orphan JSDoc** — `touchLastTriggeredAt` 을 끼워 넣으며 CCH-NF-03 docblock 이 남의 함수를 설명하게 됐다 | **수용·수정** — 이 PR 에서 **두 번째** 같은 클래스다(1라운드 `createBaseProviders`). 함수를 끼워 넣을 때 «위에 붙은 주석이 누구 것인가» 를 매번 물어야 한다 |
+| W6 `SET LOCAL lock_timeout` 의 실제 범위가 내 주석보다 넓다 | **수용·수정(문서)** — advisory lock 뿐 아니라 같은 트랜잭션의 `DELETE` 행 잠금·CASCADE 연쇄까지 걸린다 |
+| INFO#4 후속 표에 **이미 해결된** `remove()` 락 행이 남아 있었다 | **수용·수정** — 게다가 내 5라운드 편집이 문장을 겹쳐 놨다 |
+| INFO#6 `assertTriggerFound(null)` 로 계약을 인자로 우회 | **수용·수정** — `throwTriggerNotFound(): never` 분리 |
+| INFO#7 lock spec 의 «null·undefined» 제목이 `undefined` 만 검증 (3라운드 연속) | **수용·수정** — `it.each` 로 두 값 모두 |
+| W4·W5·W7·W8 | **후속/무조치** — W7·W8 은 리뷰어 자신이 «조치 불요» 로 판정했다 |
+
+> **타입 ratchet 이 또 한 번 일했다.** null 케이스를 추가하며 `config as Trigger['config']`
+> 캐스트를 썼더니 새 타입 오류가 났다 — jest 는 타입을 strip 하므로 **이 검사 말고는 아무도
+> 못 보는** 자리다. 캐스트로 뭉개지 않고 `Omit` 으로 프로퍼티를 갈아 끼웠다(교차 타입은
+> 프로퍼티 타입도 교차시켜 `null` 을 도로 잘라낸다).
+
 ### 후속(developer 범위) — 이 PR 로 넓히지 않는다
 
 | 항목 | 근거 |
@@ -441,11 +465,12 @@ server-issued 발급만이 그 역할을 하고, 게다가 이 환경의 telegra
 | 컬럼만 고치는 3자리의 암묵적 `config` 쓰기 | 컬럼 한정 `update` 로 바꾸면 사라진다. 자리별로 «그 엔티티를 뒤에서 쓰는가» 확인 필요 |
 | `PATCH /api/triggers/:id` 의 P95/P99 관측 | W5 — 새 결함은 아니나 전제가 바뀌었다 |
 | `rewriteTriggerConfigLocked` 반환값을 세 호출부가 무시 | JSDoc 이 약속한 «관측 가능» 이 아직 실현되지 않았다 |
-| `remove()` 가 같은 락을 안 잡는다 | 삭제 레이스의 좁은 창. **«데이터 손상 없음» 은 `remove()` 를 같은 락에 넣은 뒤에야 참이 됐다** — `!fresh` 는 읽기 시점 가드라 쓰기 시점 삭제를 못 막았다. — 그 전에는 삭제된 트리거가 `save` 로 부활했다 (3라운드 C1). 지금은 네 창 모두 «행이 없으면 쓰지 않는다» |
 | `chatChannelHealth` 등 상태 컬럼은 락 밖 | 관측성 lost update, 보안 무관 |
 | `setupAt`/`rotatedAt` 을 락 획득 **전**에 캡처 | 컨텐션 시 «완료 시각» 과 괴리 |
 | 헬퍼가 `Trigger` 에 하드코딩 | 위 후속들에서 제네릭화 필요 |
-| `update()` 가 ~160줄 — 창 1 을 `saveWithConfigLock(...)` 으로 분리 | 다음 편집 때 |
+| `update()` 가 182줄 — 트랜잭션 클로저를 `mergeAndSaveLocked(...)` 로 분리 | 다음 편집 때 (6라운드 W4) |
+| 세 경로(`update`·binder·`rotateBotToken`)의 락 대기 상한 부재 | 리뷰어 판정 «조치 불요» — 임계 구간이 짧다. 특정 트리거 폭주가 관측되면 `timeoutMs` 확대 (6라운드 W7) |
+| 삭제 락 타임아웃(5s) 시 `57014` 가 일반 500 으로 마스킹 | 발생 조건이 좁다. 실사례 관측되면 409/503 + 전용 코드로 승격 (6라운드 INFO#12) |
 | `previousInboundSigningRef` 가 선언→트랜잭션 내 재대입→커밋 후 소비로 클로저 경계를 셋 넘는다 | 트랜잭션 콜백이 `{ saved, previousInboundSigningRef }` 를 반환하도록 (급하지 않음) |
 | `rewriteTriggerConfigLocked` 가 workspace 소유권을 자체 검증하지 않는다 | 현재 호출부 3곳 모두 이미 검증된 id 만 넘겨 악용 경로는 없다. 선택적 `workspaceId` 파라미터 또는 JSDoc 전제 명시 |
 | **secret store 쓰기·provider 등록의 원자성** — 락은 `config` 컬럼만 보호한다 | 삭제와 겹치면 정리(`teardownChatChannel`·`deleteByPrefix`)가 먼저 끝난 뒤 생성된 secret row·provider 등록이 고아로 남는다. 정리 순서를 바꾸려면 «외부 호출을 락 안에 두지 않는다» 제약과 충돌하므로 **별도 설계 검토** (5라운드 W1) |
