@@ -4079,6 +4079,93 @@ describe('TriggersService — 락 안 재읽기가 동시 확립분을 본다 (l
     ).rejects.toMatchObject({ response: { code: 'RESOURCE_NOT_FOUND' } });
   });
 
+  it('rotateBotToken — 재읽은 chatChannel 의 다른 필드가 살아남는다', async () => {
+    // `inboundSigningRef` 축은 닫혔지만 `rateLimitPerMinute`·`uiMapping` 등 사용자가 PATCH 로
+    // 바꾸는 필드는 스냅샷 대입에 되돌아갔다 — 같은 클래스의 **네 번째 자리**
+    // (`review/code/2026/09/14/23_01_18` concurrency W1).
+    const freshWithRate = () =>
+      row({
+        chatChannel: {
+          provider: 'slack',
+          botTokenRef: BOT_TOKEN_REF,
+          inboundSigningRef: SIGNING_REF,
+          rateLimitPerMinute: 99,
+        },
+        untouchedByThisRequest: 'kept',
+      });
+    const { service, repo } = await makeService([freshWithRate]);
+
+    await service.rotateBotToken('trig-l', 'ws-1', '111:newToken', 'u-1');
+
+    const patch = repo.update.mock.calls
+      .map(
+        ([, pt]) =>
+          pt as { config?: { chatChannel?: Record<string, unknown> } },
+      )
+      .filter((pt) => pt.config?.chatChannel)
+      .pop();
+    expect(patch?.config?.chatChannel?.rateLimitPerMinute).toBe(99);
+    // 이번 회전의 산출은 그대로 실려야 한다 — 재읽기가 회전 결과를 덮지 않는다.
+    expect(patch?.config?.chatChannel?.botTokenRef).toBe(BOT_TOKEN_REF);
+  });
+
+  it('promoteRotatedNotificationSecrets — 쓰기가 skip 되면 세지 않는다', async () => {
+    // 삭제 경합으로 쓰기를 건너뛰었는데 카운터만 올라가면 cron 로그가 «승격했다» 고 거짓을
+    // 말한다 (`review/code/2026/09/14/23_01_18` requirement INFO#1).
+    const legacy = {
+      ...row({
+        chatChannel: { provider: 'slack', botTokenRef: BOT_TOKEN_REF },
+        notification: {
+          url: 'https://x.example/cb',
+          signing: { algorithm: 'hmac-sha256', secret: 'old-plain' },
+        },
+      }),
+      notificationSecretV2: 'wsk_new',
+      notificationRotatedAt: new Date(Date.now() - 25 * 60 * 60 * 1000),
+    } as unknown as Trigger;
+    // 락 안 재읽기가 비었다 = 그 사이 삭제됐다.
+    const { service, repo } = await makeService([() => undefined as never]);
+    (repo.createQueryBuilder as jest.Mock).mockReturnValue({
+      where: jest.fn().mockReturnThis(),
+      andWhere: jest.fn().mockReturnThis(),
+      getMany: jest.fn().mockResolvedValue([legacy]),
+    });
+
+    const result = await service.promoteRotatedNotificationSecrets();
+
+    expect(result.promoted).toBe(0);
+  });
+
+  it('cleanupRotatedChatChannelTokens — 컬럼만 쓰고 config 는 건드리지 않는다', async () => {
+    // 전환은 했는데 **동작 테스트가 0건**이었다 — patch 에 `config` 를 몰래 끼워 넣어도
+    // 25 스위트 전건 GREEN 이었다(`review/code/2026/09/14/23_01_18` testing CRITICAL#1).
+    // 정적 래칫은 `.save(` 만 세고 `.update(` 의 **내용물**은 보지 않는다.
+    const stale = {
+      ...row({
+        chatChannel: { provider: 'slack', botTokenRef: BOT_TOKEN_REF },
+      }),
+      chatChannelTokenV2: 'secret://triggers/trig-l/bot-token.v2',
+      chatChannelRotatedAt: new Date(Date.now() - 25 * 60 * 60 * 1000),
+    } as unknown as Trigger;
+    const { service, repo } = await makeService([() => stale]);
+    (repo.createQueryBuilder as jest.Mock).mockReturnValue({
+      where: jest.fn().mockReturnThis(),
+      andWhere: jest.fn().mockReturnThis(),
+      getMany: jest.fn().mockResolvedValue([stale]),
+    });
+
+    const result = await service.cleanupRotatedChatChannelTokens();
+
+    expect(result.cleaned).toBe(1);
+    expect(repo.save).not.toHaveBeenCalled();
+    const patches = repo.update.mock.calls.map(([, pt]) => pt as object);
+    expect(patches).toHaveLength(1);
+    expect(Object.keys(patches[0]).sort()).toEqual([
+      'chatChannelRotatedAt',
+      'chatChannelTokenV2',
+    ]);
+  });
+
   it('rotateBotToken — 손대지 않은 config 키가 살아남는다', async () => {
     const { service, repo } = await makeService([withRef]);
 

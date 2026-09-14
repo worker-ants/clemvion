@@ -24,9 +24,10 @@ import {
 describe('rewriteTriggerConfigLocked', () => {
   const TRIGGER_ID = 'trig-x';
 
-  /** 호출 순서를 관측할 수 있는 EntityManager mock. */
   /**
-   * `config` 를 `null` 로도 줄 수 있게 넓힌 형태다 — 아래 «null·undefined» 케이스가
+   * 호출 순서를 관측할 수 있는 EntityManager mock.
+   *
+   * `config` 를 `null` 로도 줄 수 있게 넓혔다 — 아래 «null·undefined» 케이스가
    * `Trigger['config']`(= `Record<string, unknown>`) 로는 표현되지 않는다. 캐스트로 뭉개면
    * **타입 ratchet 말고는 아무도 못 보는** 오류가 된다(jest 는 타입을 strip 한다).
    */

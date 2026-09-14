@@ -528,6 +528,37 @@ fallback)` 이 «어느 하위 키를, 무엇을 얹어» 를 인자로 강제�
 > 값을 보는 fixture 가 없으면** 그 차이를 묻는 단언도 있을 수 없다. 대조군은 «두 상태가
 > 다르게 판정하는 값» 이어야 한다.
 
+### 9라운드 리뷰 처분 (`review/code/2026/09/14/23_01_18` — C1)
+
+| # | 처분 |
+|---|---|
+| C1 `cleanupRotatedChatChannelTokens` 전환에 **동작 테스트 0건** | **수용·수정** — patch 에 `config` 를 몰래 끼워 넣어도 25 스위트 전건 GREEN 이었다. 정적 래칫은 `.save(` 만 세고 `.update(` 의 **내용물**은 안 본다. `Object.keys(patch)` 단언 추가 |
+| W1 `rotateBotToken` 의 `chatChannel` 이 스냅샷 대입 — 같은 클래스 **네 번째 자리** | **수용·수정** — `mergeIntoFreshSubKey` 적용. `inboundSigningRef` 축은 닫혀 있었지만 `rateLimitPerMinute`·`uiMapping` 등은 되돌아갔다 |
+| W5 **orphan JSDoc — 세 번째 재발** | **수용·수정**. 아래 «가드를 만들려다 전제가 반증됐다» 참조 |
+| INFO#1 `promoted` 카운터가 쓰기 skip 에도 증가 | **수용·수정** — cron 로그가 거짓을 말하지 않도록 |
+| INFO#3 `@param freshConfig` 누락 · INFO#4 lock spec 이중 JSDoc(3라운드 연속) | **수용·수정** |
+| W2·W3·W4 · INFO#5·#6·#7 | **후속 등재** — 아래 표 |
+
+**뮤턴트**: `rotateBotToken` 스냅샷 대입 → RED · cleanup patch 에 `config` 끼워 넣기 → RED ·
+`promoted` 카운터 분리 → **첫 판 생존** 후 테스트 추가하여 RED.
+
+### 가드를 만들려다 전제가 반증됐다 — orphan JSDoc
+
+세 번째 재발이라 저장소 규율(*"세 번째 재발이면 산문 말고 코드로"*)대로 정적 가드를 만들려
+했다. 술어 후보는 **«두 JSDoc 블록이 빈 줄 없이 맞붙은 형태»** 였다 — 세 번의 orphan 이 전부
+그 모양이었기 때문이다.
+
+**착수 전에 쟀고, 전제가 틀렸다.** `codebase/backend/src` 전수에서 그 형태는 **28건**이고
+대부분 정당하다(파일 머리말 주석 + 선언 주석, 섹션 구분 블록). 가드를 만들었으면 오탐 25건이
+난다. 들여쓰기로 좁혀도(클래스 내부 = indent 2+) 10건이라 여전히 정밀하지 않다.
+
+> **그래서 만들지 않았다.** 진짜 신호는 *"이 JSDoc 이 **원래 어느 함수 것이었나**"* 인데 그건
+> 이력 의존이라 정적 검사로 알 수 없다. 세 번 재발했다는 사실만으로 가드를 만들면, 이 저장소가
+> 기록한 «양성 0건짜리 vacuous 가드» 대신 **오탐 25건짜리 가드**가 된다.
+>
+> 남는 규율은 편집 습관이다: **새 private 헬퍼를 기존 함수 사이에 끼워 넣지 말 것** — 그
+> 자리가 JSDoc 과 함수 사이면 반드시 orphan 이 된다. 세 번 다 그 형태였다.
+
 ### 후속(developer 범위) — 이 PR 로 넓히지 않는다
 
 | 항목 | 근거 |
@@ -545,6 +576,11 @@ fallback)` 이 «어느 하위 키를, 무엇을 얹어» 를 인자로 강제�
 | `rotateNotificationSecret` 이 락 도메인 밖 | 창 1 의 저장이 그 사이 커밋된 `notificationSecretV2` 회전을 되돌릴 수 있다. 관측용(`lastTriggeredAt`)과 달리 **보안 성격** (8라운드 W4) |
 | `promoteRotatedNotificationSecrets` cron 이 후보마다 순차 트랜잭션 | 배치가 커지면 실행시간이 비례 이상 증가 → `.take(N)` + 이월 또는 청크 (8라운드 W5) |
 | 삭제 외 경로의 `lock_timeout` 부재 + 기본 풀 10 | 같은 트리거에 동시 쓰기가 몰리면 풀 고갈로 번질 수 있다. 이 PR 이 이 패턴을 1곳에서 7곳 이상으로 넓혔다 (8라운드 W6) |
+| `SchedulesService.update()` 의 trigger 컬럼 동기화가 락 도메인 밖 | 창 1 의 전체 엔티티 저장과 경합하면 방금 커밋한 `isActive` 가 되돌아갈 수 있다 — `rotateNotificationSecret`(8라운드 W4)과 같은 클래스 (9라운드 W2) |
+| `update()` 응답이 DB 커밋값보다 오래된 `notification` 서브키를 돌려줄 수 있다 | `mergeIntoFreshSubKey` 가 DB 쓰기는 정확히 병합하지만 in-memory 는 스냅샷 그대로다. read-after-write 불일치, 보안 영향 없음 (9라운드 W3) |
+| cron 스윕이 행마다 새 트랜잭션(왕복 약 2배) | 대량 회전 이벤트 시 소요 시간이 배치 크기에 비례. 소규모 동시성 제한 또는 백로그 관측 로그 (9라운드 W4) |
+| `normalizeNotificationSecretRef` 가 쓰기 skip 을 관측하지 않는다 | 형제 동기 경로와 다른 취급 — 5라운드 W1(secret store 원자성) 대상 목록에 이 함수도 넣는다 (9라운드 INFO#6) |
+| `create()` 안 두 주석이 실제 쓰기 경로를 더 이상 정확히 서술하지 않는다 | 결론은 참이라 낮은 우선순위 (9라운드 INFO#7) |
 | `previousInboundSigningRef` 가 선언→트랜잭션 내 재대입→커밋 후 소비로 클로저 경계를 셋 넘는다 | 트랜잭션 콜백이 `{ saved, previousInboundSigningRef }` 를 반환하도록 (급하지 않음) |
 | `rewriteTriggerConfigLocked` 가 workspace 소유권을 자체 검증하지 않는다 | 현재 호출부 3곳 모두 이미 검증된 id 만 넘겨 악용 경로는 없다. 선택적 `workspaceId` 파라미터 또는 JSDoc 전제 명시 |
 | **secret store 쓰기·provider 등록의 원자성** — 락은 `config` 컬럼만 보호한다 | 삭제와 겹치면 정리(`teardownChatChannel`·`deleteByPrefix`)가 먼저 끝난 뒤 생성된 secret row·provider 등록이 고아로 남는다. 정리 순서를 바꾸려면 «외부 호출을 락 안에 두지 않는다» 제약과 충돌하므로 **별도 설계 검토** (5라운드 W1) |

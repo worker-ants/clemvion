@@ -359,13 +359,6 @@ export class TriggersService {
   }
 
   /**
-   * «없다» 를 그대로 던진다 — 검증할 행이 아예 없는 자리용.
-   *
-   * 종전엔 `assertTriggerFound(null)` 로 불렀는데, 그건 «주어진 행을 검증한다» 는 계약을
-   * 인자로 우회하는 것이라 다음 사람이 읽을 때 오해한다
-   * (`/ai-review` `review/code/2026/09/14/21_18_21` maintainability INFO#6).
-   */
-  /**
    * 락 안에서 재읽은 `config` 의 **하위 키를 기준으로** 병합한다.
    *
    * ## 왜 이게 따로 필요한가 — 같은 실수를 두 번 했다
@@ -379,6 +372,7 @@ export class TriggersService {
    * 그래서 «어느 하위 키를, 무엇을 얹어» 를 **인자로 강제**한다. 호출부가 스냅샷 객체를
    * 통째로 대입할 자리를 없애는 것이 요점이다.
    *
+   * @param freshConfig 락 안에서 재읽은 `config` 전체.
    * @param key 재읽은 `config` 에서 기준으로 삼을 하위 키.
    * @param patch 그 하위 객체 **위에** 얹을 필드들.
    * @param fallback 재읽은 행에 그 키가 없을 때의 기준(보통 요청 시작 시점 값).
@@ -397,6 +391,13 @@ export class TriggersService {
     return { ...freshConfig, [key]: { ...base, ...patch } };
   }
 
+  /**
+   * «없다» 를 그대로 던진다 — 검증할 행이 아예 없는 자리용.
+   *
+   * 종전엔 `assertTriggerFound(null)` 로 불렀는데, 그건 «주어진 행을 검증한다» 는 계약을
+   * 인자로 우회하는 것이라 다음 사람이 읽을 때 오해한다
+   * (`/ai-review` `review/code/2026/09/14/21_18_21` maintainability INFO#6).
+   */
   private throwTriggerNotFound(): never {
     throw new NotFoundException({
       code: 'RESOURCE_NOT_FOUND',
@@ -1306,7 +1307,17 @@ export class TriggersService {
     const wrote = await rewriteTriggerConfigLocked(
       this.triggerRepository.manager,
       trigger.id,
-      (freshConfig) => ({ ...freshConfig, chatChannel: mergedChannel }),
+      // 재읽은 `config.chatChannel` **위에** 이번 회전의 산출만 얹는다. 스냅샷을 통째로
+      // 대입하면 `uiMapping`·`rateLimitPerMinute`·`languageLocale` 처럼 사용자가 PATCH 로
+      // 바꾸는 필드가 되돌아간다 — `inboundSigningRef` 축은 닫혔지만 같은 클래스의
+      // **네 번째 자리**였다 (`/ai-review` `review/code/2026/09/14/23_01_18` concurrency W1).
+      (freshConfig) =>
+        this.mergeIntoFreshSubKey(
+          freshConfig,
+          'chatChannel',
+          mergedChannel as unknown as Record<string, unknown>,
+          mergedChannel as unknown as Record<string, unknown>,
+        ),
       {
         chatChannelTokenV2: v2RefUsed,
         chatChannelRotatedAt: rotatedAt,
@@ -1412,7 +1423,9 @@ export class TriggersService {
       trigger.notificationRotatedAt = null;
       // cron 경로다 — 그 사이 삭제됐으면 조용히 건너뛴다(`false`). 동기 요청과 달리
       // 알릴 상대가 없다: `trigger-config-lock.ts` JSDoc 의 부재 처리 표 참조.
-      await rewriteTriggerConfigLocked(
+      // 쓰기가 skip 됐으면(그 사이 삭제) 세지 않는다 — cron 로그가 «승격했다» 고 거짓을
+      // 말하게 된다 (`review/code/2026/09/14/23_01_18` requirement INFO#1).
+      const wrotePromotion = await rewriteTriggerConfigLocked(
         this.triggerRepository.manager,
         trigger.id,
         (freshConfig) =>
@@ -1424,7 +1437,7 @@ export class TriggersService {
           ),
         { notificationSecretV2: null, notificationRotatedAt: null },
       );
-      promoted++;
+      if (wrotePromotion) promoted++;
     }
     return { promoted };
   }
