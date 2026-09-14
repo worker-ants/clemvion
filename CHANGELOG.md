@@ -8,7 +8,8 @@
 `if (!config.inboundSigningRef) return;` 이 걸려 **그 트리거의 인입 웹훅이 서명 검증 없이
 통과**한다 — 이미 한 번 닫았던 fail-open 이 동시성 경로로 되살아나는 형태다.
 
-`config` 를 다시 쓰는 **모든 자리**를 닫았다. 처음 센 네 자리(`update()` · chat-channel
+**`config` JSONB 를 다시 쓰는 자리**를 전부 닫았다 — 이 PR 이 닫은 축은 거기까지다.
+처음 센 네 자리(`update()` · chat-channel
 setup 의 성공·실패 경로 · bot token 회전) 밖에도, 엔티티를 통째로 저장하느라 **의도 없이**
 `config` 를 되쓰던 자리가 일곱 군데 더 있었다 — notification secret 정규화·회전, per-trigger
 토큰 폐기, 승격 cron 둘, chat-channel v2 정리 cron, schedule 편집의 trigger 동기화. `config`
@@ -18,6 +19,14 @@ setup 의 성공·실패 경로 · bot token 회전) 밖에도, 엔티티를 통
 최신 행**이라 되돌릴 옛 값이 없다 — 저장 동사가 아니라 «무엇을 저장하는가» 가 바뀐 것이다.
 (정적 래칫이 고정하는 것은 `modules/triggers/` 범위의 «래핑 없는 `save`» 목록이 빈 채로
 남는가이고, `save` 의 존재 여부 자체는 아니다.)
+
+**닫지 않은 축을 여기 적어 둔다** — 락 도메인 **밖**에서 컬럼만 고치는 자리
+(`rotateNotificationSecret` · `cleanupRotatedChatChannelTokens` · 스케줄 편집의 trigger
+동기화)는 창 1 의 «락 안 재읽기 → 전체 엔티티 저장» 과 여전히 이론적 TOCTOU 창을 가진다:
+재읽기와 저장 **사이에** 그 컬럼이 커밋되면 되돌아간다. 이들은 `config` JSONB 를 건드리지
+않으므로 **인입 서명 fail-open 으로는 이어지지 않고**, 그래서 이 PR 의 스코프 밖으로 유예해
+plan 후속에 등재했다 (`/ai-review` `review/code/2026/09/15/01_42_04` requirement·concurrency
+INFO#6·#7). 표제의 «모든 자리» 를 그 축까지 읽지 않도록 범위를 좁혀 적는다.
 
 락은 트리거 단위 advisory lock
 (`pg_advisory_xact_lock(hashtext('trigger-config:<id>'))`) 안으로 넣고, **락을 잡은 뒤에
@@ -46,10 +55,22 @@ INSERT 하므로, 그대로 두면 삭제된 트리거가 고아 상태로 되�
 근거이고, 그 제약이 깨지는 변경을 하면 `lock_timeout` 을 함께 넣어야 한다.
 
 **삭제 경로 둘만 5초 상한을 둔다** — `DELETE /api/triggers/:id` 와 스케줄 삭제의 trigger
-cascade. 둘 다 락을 잡기 **전에** 되돌릴 수 없는 정리(provider teardown · secret 삭제 ·
-BullMQ 해제)를 끝내므로, 거기서 무한정 기다리면 «자원은 다 뜯겼는데 행은 남은» 반쯤 삭제된
-상태가 요청 타임아웃과 함께 굳는다. 상한을 넘기면 두 경로 모두 그 사실을 로그로 남기고
-오류로 드러낸다 — 조용한 지연보다 낫다.
+cascade. **무엇을 먼저 끝냈는지는 경로마다 다르다**(트리거 삭제는 provider teardown · secret
+삭제 · BullMQ 해제, 스케줄 삭제는 BullMQ 해제). 공통점은 그것들이 **되돌릴 수 없다**는 것이고,
+그래서 락에서 무한정 기다리면 «자원은 이미 뜯겼는데 행은 남은» 반쯤 삭제된 상태가 요청
+타임아웃과 함께 굳는다. 상한을 넘기면 두 경로 모두 그 사실을 로그로 남기고 오류로 드러낸다
+— 조용한 지연보다 낫다.
+
+> 이 문단의 정리 목록을 **두 경로에 공통으로** 적었다가 되돌린 자리다(`/ai-review`
+> `review/code/2026/09/15/01_42_04` documentation INFO#17). 안전한 방향의 과대 서술이라
+> 위험은 없었지만, 이 PR 에서 **목록형 서술이 낡은 다섯 번째 사례**다 — 목록은 낡고 규칙은
+> 안 낡는다.
+
+**부수 효과 하나**: 스케줄 PATCH 가 `name`·`isActive` 중 아무것도 바꾸지 않으면 트리거 행에
+쓰지 않는다(종전엔 매 PATCH 마다 엔티티를 통째로 저장해 `updated_at` 이 갱신됐다). 응답 DTO
+(`ScheduleTriggerRefDto`)가 `updatedAt` 을 노출하지 않고 이 컬럼을 읽는 하위 로직도 없어
+계약 변화는 아니지만, 「PATCH 했으니 `updated_at` 이 올라갔겠지」를 전제하는 코드가 나중에
+생기면 이 문단이 답이다.
 
 ## Unreleased — 가이드가 «코드» 로 부르던 두 이름이 코드가 아니었다 (+ 식별자 가드에 발행 축)
 

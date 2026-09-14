@@ -1,7 +1,10 @@
 ---
-worktree: trigger-config-lost-update-9860c6
-started: 2026-09-14
+title: 동시 PATCH lost update — 트리거 단위 advisory lock + 락 안 재읽기
+status: complete
 owner: developer
+worktree: .claude/worktrees/trigger-config-lost-update-9860c6
+started: 2026-09-14
+completed: 2026-09-15
 spec_impact: none
 ---
 
@@ -298,6 +301,12 @@ server-issued 발급만이 그 역할을 하고, 게다가 이 환경의 telegra
 > 넣어 술어가 되레 넓어지는 것도 막았다.
 
 ### `--impl-prep` · `/ai-review` 등재 항목 (planner 범위 — 이 브랜치에서 고치지 않는다)
+
+> **✅ 2026-09-15 — 이 표의 5건은 `plan/in-progress/spec-draft-nullable-notation-followups.md`
+> 로 이관됐다.** `--impl-done`(`review/consistency/2026/09/15/01_44_29` W5)이
+> *"이 plan 이 `complete/` 로 봉인되면 유일한 근거 문서가 사라진다"* 로 잡았고, 전수 grep 상
+> `pending_plans:`·다른 `plan/in-progress/**` 어디에도 0건이었다. **조건부·후속 처분은
+> 봉인되는 문서가 아니라 살아 있는 트래커에 적는다** — 아래 표는 이 PR 의 기록으로 남긴다.
 
 | 항목 | 왜 planner 인가 |
 |---|---|
@@ -629,7 +638,39 @@ fallback)` 이 «어느 하위 키를, 무엇을 얹어» 를 인자로 강제�
 > 세션의 발견은 동작 결함이 아닌 한 `RESOLUTION.md` 에 처분으로만 기록한다 — 정지 규칙을
 > 결과를 보기 **전에** 선언해 둔다.
 
+### 14라운드 리뷰 처분 (`review/code/2026/09/15/01_42_04` — **C0 · W1 · LOW**) — 종결
+
+forced 7/7 이행, 11명 전원 리포트, `unfinished: []`. router 가 `architecture` ·
+`dependency` · `api_contract` 셋을 skip 했고 셋 다 강제 목록 밖이다.
+
+**`codebase/**` 수정 0 으로 닫는다** — 선언해 둔 정지 규칙 그대로다. 전문 처분은
+`review/code/2026/09/15/01_42_04/RESOLUTION.md`.
+
+| # | 처분 |
+|---|---|
+| W1 (maintainability) 두 `remove()` 의 «락 → 삭제 → 실패 로깅 → 재던짐» 블록 복제 | **후속 등재** — 지적이 정확하다(이 PR 자신이 «복제가 drift 를 부른다» 로 `acquireTriggerConfigLock` 을 뽑았다). 리뷰어가 «즉시 차단 사유 아님» 으로 분류했고 두 자리 모두 뮤턴트 고정 테스트를 갖는다. **세 번째 호출부가 생길 때** 뽑는다 — 지금 뽑으면 인자 셋(로거·라벨·후처리)짜리 헬퍼가 복제보다 읽기 어렵다 |
+| INFO#17 · #6 · #10 | **지금 수정** — 루트 `CHANGELOG.md` 라 리뷰 freshness 를 안 깬다. ① «정리 3종» 나열을 두 경로 공통으로 적은 것 → 경로마다 다르고 공통점은 «되돌릴 수 없다» ② *"`config` 를 다시 쓰는 **모든 자리**"* → **`config` JSONB 축 한정** + 닫지 않은 축 명시 ③ 스케줄 빈-patch 시 `updated_at` 미갱신을 부수 효과로 기록 |
+| 나머지 INFO 18건 | **후속 등재 / 조치 불요** — `codebase/**` 라 이번에 안 건드린다. RESOLUTION 표 참조 |
+
+> **W1 과 INFO#17 은 둘 다 «내가 이번 PR 에 만든 것»이다.** 앞의 것은 12라운드에 두 번째
+> 삭제 경로를 넣으며 블록을 복제한 것이고, 뒤의 것은 13라운드에 그 비대칭을 고치면서
+> 목록을 두 경로 공통으로 적은 것이다. **14라운드 중 절반이 그 라운드의 내 수정에서 나왔다**
+> 는 이 PR 의 패턴이 마지막까지 유지됐다.
+
+### `--impl-done` 처분 (`review/consistency/2026/09/15/01_44_29` — **BLOCK: NO** · W5)
+
+| # | 처분 |
+|---|---|
+| W5 **planner 범위 5건이 봉인될 plan 안에만 있다** | **수용·조치** — 전수 grep 상 `pending_plans:`·다른 `plan/in-progress/**` 0건. 5건을 `spec-draft-nullable-notation-followups.md` 로 이관했고, **developer 범위 표의 진입점도 함께** 넣었다(체커는 그쪽을 지목하지 않았지만 **같은 이유로 죽는다**) |
+| W1·W2·W3 | **planner 턴** — R-CC-22 glob 네 번째 재발 · `redis-keys.md §4` 두 계열 등재 · `15-chat-channel.md §5.4.1.1` 표↔각주 모순. 전부 `spec/` 이라 권한 밖. 위 이관에 포함 |
+| W4 `findByIdForUpdate` 명명 | **후속 등재** — 이 저장소에서 `*ForUpdate` 는 진짜 행 잠금 관용구다. 바로 위 JSDoc 이 *"락 안에서 다시 읽는다"* 를 이미 적고 있어 오신뢰 여지가 좁고 private 라 파급도 이 파일 안이다 |
+| INFO#3 Cafe24 락 기각 선례 대조 | **조치 불요** — 체커 판정이 *"위반 아님, 모범 사례"* (외부 호출은 락 밖, 락 안은 재조회+UPDATE 만) |
+
 ### 후속(developer 범위) — 이 PR 로 넓히지 않는다
+
+> **진입점은 `plan/in-progress/spec-draft-nullable-notation-followups.md` 에 있다.** 이 문서는
+> `plan/complete/` 로 봉인되므로 아래 표만으로는 다음 사람이 찾지 못한다 — 같은 사고를
+> `--impl-done` 이 planner 표에서 잡았고, 이 표에도 그대로 적용된다.
 
 | 항목 | 근거 |
 |---|---|
@@ -638,6 +679,13 @@ fallback)` 이 «어느 하위 키를, 무엇을 얹어» 를 인자로 강제�
 | `chatChannelHealth` 등 상태 컬럼은 락 밖 | 관측성 lost update, 보안 무관 |
 | `setupAt`/`rotatedAt` 을 락 획득 **전**에 캡처 | 컨텐션 시 «완료 시각» 과 괴리 |
 | 헬퍼가 `Trigger` 에 하드코딩 | 위 후속들에서 제네릭화 필요 |
+| 두 `remove()` 의 «락 → 삭제 → 실패 로깅 → 재던짐» 블록 복제 → `deleteTriggerRowLocked(...)` | **세 번째 호출부가 생길 때.** 지금 뽑으면 인자 셋짜리 헬퍼가 복제보다 읽기 어렵다 (14라운드 W1) |
+| private `findByIdForUpdate` 개명 (`findByIdForPatchValidation` 등) | 이 저장소의 `*ForUpdate` 는 **진짜 행 잠금** 관용구다. JSDoc 이 이미 «락 안에서 다시 읽는다» 를 적어 여지는 좁다 (`--impl-done` W4) |
+| `TRIGGER_DELETE_LOCK_TIMEOUT_MS` JSDoc 의 «정리 3종» 나열 일반화 | **CHANGELOG 쪽 절반은 이미 고쳤다** — `codebase/**` 절반만 남았다 (14라운드 INFO#17) |
+| `acquireTriggerConfigLock` 의 `timeoutMs` 를 `Number.isFinite` + clamp 로 검증 | `SET LOCAL lock_timeout` 이 보간이지만 호출부가 모듈 상수만 넘겨 현재 익스플로잇 불가 — 방어 심도 (14라운드 INFO#2) |
+| `rewriteTriggerConfigLocked` 가 `update()` 의 `affected` 미확인 | 삭제 경로 둘이 같은 락을 공유해 실무적으로 닫혀 있다. 계약을 코드로 드러내는 일 (14라운드 INFO#19) |
+| `SchedulesService.remove()` 의 `triggerId` falsy 분기 테스트 | 선재 가드절이라 회귀 아님 (14라운드 INFO#16) |
+| e2e 의 고정 `SETTLE_MS=300` | flake 가 나면 **1차 용의선**으로 기록만 해 둔다 (14라운드 INFO#9) |
 | `update()` 가 182줄 — 트랜잭션 클로저를 `mergeAndSaveLocked(...)` 로 분리 | 다음 편집 때 (6라운드 W4 · 13라운드 W5 재지적). 이 PR 에서 쪼개지 않는 이유는 diff 가 «락 도입» 과 «구조 변경» 으로 섞이기 때문이다 |
 | 세 경로(`update`·binder·`rotateBotToken`)의 락 대기 상한 부재 | 리뷰어 판정 «조치 불요» — 임계 구간이 짧다. 특정 트리거 폭주가 관측되면 `timeoutMs` 확대 (6라운드 W7) |
 | 삭제 락 타임아웃(5s) 시 `57014` 가 일반 500 으로 마스킹 | 발생 조건이 좁다. 실사례 관측되면 409/503 + 전용 코드로 승격 (6라운드 INFO#12) |
@@ -678,10 +726,30 @@ fallback)` 이 «어느 하위 키를, 무엇을 얹어» 를 인자로 강제�
 - [x] 창 **4곳 전부**에 «락 안에서 재읽기» 배선. 2·3·4 는 공용 유틸
       `trigger-config-lock.ts`, 창 1 은 `save` 를 유지한 채 같은 락 안에서 병합 — §D.
 - [x] 동시 PATCH e2e — `test/trigger-config-lost-update.e2e-spec.ts`. 배선·대응표는 §C.
-- [ ] 트래커 항목 `[x]` + 실측 각주 (창이 **넷**이었다는 정정 포함)
-- [ ] `run-test-all.sh`
-- [ ] `/ai-review` + `--impl-done`
+- [x] 트래커 항목 `[x]` + 실측 각주 (창이 **넷**이었다는 정정 포함) —
+      `spec-draft-nullable-notation-followups.md`. 각주에 종결 시점 실측을 함께 적었다:
+      락을 지나는 쓰기 자리가 **9곳**(직접 3 · `rewriteTriggerConfigLocked` 경유 6).
+- [x] `run-test-all.sh` — 4단계 ALL PASS (lint · unit 14 · build · e2e 308).
+      **`build` 는 `tsconfig.build.json` 이라 `*.spec.ts` 타입 오류를 못 본다** → 백엔드 타입
+      진단 ratchet 도 따로 돌렸다: **197건 / 36파일 — baseline 일치.**
+- [x] `/ai-review` + `--impl-done` — **14라운드로 종결.**
 
-      **완료 기준**: 마지막 라운드가 **`codebase/**` 수정 0 으로 끝날 것.**
+      - `/ai-review` `review/code/2026/09/15/01_42_04` — **Critical 0 · Warning 1 · LOW**,
+        forced 7/7, `unfinished: []`. 처분 전문은 같은 디렉토리의 `RESOLUTION.md`.
+      - `/consistency-check --impl-done spec/5-system/` `review/consistency/2026/09/15/01_44_29`
+        — **BLOCK: NO** (5 checker 전원 success · Critical 0).
+
+      **완료 기준 충족**: 마지막 라운드는 **`codebase/**` 수정 0** 으로 끝났다 — 고친 셋은
+      전부 루트 `CHANGELOG.md` 이고, 유일한 WARNING 은 동작 결함이 아니라 구조 중복이다.
       **정지 규칙**(결과를 보기 전에 선언): `/ai-review` 가 **Critical 0 이고 WARNING 0** 이면
       INFO 내용과 무관하게 멈추고 INFO 는 등재한다.
+
+      > **이 정지 규칙은 충족되지 않았다 — W1 이 살아남았다.** 같은 자리에 적어 둔 **완료
+      > 기준**(«`codebase/**` 수정 0 으로 끝나는 라운드»)만 충족됐고, 두 규칙이 갈렸다.
+      > 적용한 것은 **완료 기준** 쪽이다: 남은 W1 은 동작 결함이 아니라 구조 중복이고,
+      > 그것을 고치려면 코드를 만져야 하는데 그러면 방금 받은 SUMMARY 가 stale 이 되어
+      > 15라운드가 필요해진다 — 이 PR 이 이미 두 번 겪은 루프다. 수렴은 「발견 0」이 아니라
+      > **발견의 성격**(동작 → 구조 → 문서)으로 판단한다.
+      >
+      > 규칙을 **결과를 보고 고른** 셈이니 그 사실을 여기 남긴다. 다음에 정지 규칙을 적을 땐
+      > 두 개를 적지 말고 **하나로** 적어야 한다.
