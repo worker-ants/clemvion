@@ -817,14 +817,25 @@ export class TriggersService {
       secretRef: ref,
     };
     delete updatedSigning.secret;
+    const normalizedNotification = {
+      ...(notificationCfg as Record<string, unknown>),
+      signing: updatedSigning,
+    };
+    // 호출부(`create`/`update`)가 이 엔티티를 응답에 쓰므로 in-memory 도 맞춰 둔다.
     trigger.config = {
       ...trigger.config,
-      notification: {
-        ...(notificationCfg as Record<string, unknown>),
-        signing: updatedSigning,
-      },
+      notification: normalizedNotification,
     };
-    await this.triggerRepository.save(trigger);
+    // 락 안에서 재읽은 `config` 위에 `notification` 만 얹는다 — 통째로 저장하면 그 사이
+    // 동시 PATCH 가 커밋한 `chatChannel.inboundSigningRef` 를 되돌려 fail-open 이 재발한다.
+    await rewriteTriggerConfigLocked(
+      this.triggerRepository.manager,
+      trigger.id,
+      (freshConfig) => ({
+        ...freshConfig,
+        notification: normalizedNotification,
+      }),
+    );
   }
 
   /**
@@ -1034,7 +1045,15 @@ export class TriggersService {
     const newSecret = `wsk_${randomBytes(32).toString('hex')}`;
     trigger.notificationSecretV2 = newSecret;
     trigger.notificationRotatedAt = new Date();
-    await this.triggerRepository.save(trigger);
+    // **컬럼만 쓴다** — `save(trigger)` 는 엔티티를 통째로 저장해 읽은 시점의 `config` 까지
+    // 되쓴다(`hooks.service.ts` 의 `touchLastTriggeredAt` 과 같은 규율).
+    await this.triggerRepository.update(
+      { id: trigger.id },
+      {
+        notificationSecretV2: newSecret,
+        notificationRotatedAt: trigger.notificationRotatedAt,
+      },
+    );
     await this.recordAudit({
       workspaceId,
       userId,
@@ -1082,7 +1101,14 @@ export class TriggersService {
       triggerToken: newToken,
     };
     trigger.config = { ...trigger.config, interaction: updated };
-    await this.triggerRepository.save(trigger);
+    // 락 안 재읽기 위에 `interaction` 만 얹는다. 이 경로는 **동기 요청**이므로, 그 사이
+    // 트리거가 삭제됐으면 창 1·`rotateBotToken` 과 같이 404 로 드러낸다.
+    const wroteInteraction = await rewriteTriggerConfigLocked(
+      this.triggerRepository.manager,
+      trigger.id,
+      (freshConfig) => ({ ...freshConfig, interaction: updated }),
+    );
+    if (!wroteInteraction) this.throwTriggerNotFound();
     await this.recordAudit({
       workspaceId,
       userId,
@@ -1305,7 +1331,11 @@ export class TriggersService {
         );
         trigger.notificationSecretV2 = null;
         trigger.notificationRotatedAt = null;
-        await this.triggerRepository.save(trigger);
+        // 컬럼만 쓴다 — 위 ② 와 같은 규율.
+        await this.triggerRepository.update(
+          { id: trigger.id },
+          { notificationSecretV2: null, notificationRotatedAt: null },
+        );
         continue;
       }
       const signing = (notificationCfg as { signing?: unknown }).signing;
@@ -1336,7 +1366,17 @@ export class TriggersService {
       };
       trigger.notificationSecretV2 = null;
       trigger.notificationRotatedAt = null;
-      await this.triggerRepository.save(trigger);
+      // cron 경로다 — 그 사이 삭제됐으면 조용히 건너뛴다(`false`). 동기 요청과 달리
+      // 알릴 상대가 없다: `trigger-config-lock.ts` JSDoc 의 부재 처리 표 참조.
+      await rewriteTriggerConfigLocked(
+        this.triggerRepository.manager,
+        trigger.id,
+        (freshConfig) => ({
+          ...freshConfig,
+          notification: updatedNotification,
+        }),
+        { notificationSecretV2: null, notificationRotatedAt: null },
+      );
       promoted++;
     }
     return { promoted };
@@ -1384,10 +1424,13 @@ export class TriggersService {
         );
       }
 
-      // 컬럼 갱신.
+      // 컬럼 갱신 — **컬럼만 쓴다**(위 ② 와 같은 규율).
       trigger.chatChannelTokenV2 = null;
       trigger.chatChannelRotatedAt = null;
-      await this.triggerRepository.save(trigger);
+      await this.triggerRepository.update(
+        { id: trigger.id },
+        { chatChannelTokenV2: null, chatChannelRotatedAt: null },
+      );
       cleaned++;
     }
     return { cleaned };

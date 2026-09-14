@@ -44,7 +44,15 @@ describe('SchedulesService.runNow', () => {
         },
         {
           provide: getRepositoryToken(Trigger),
-          useValue: { create: jest.fn(), save: jest.fn(), delete: jest.fn() },
+          // `update` — schedule 편집의 trigger 동기화는 **컬럼 한정** 갱신이다.
+          // `save(entity)` 로 쓰면 읽은 시점의 `config` 까지 되써서 동시 PATCH 가 확립한
+          // `chatChannel.inboundSigningRef` 를 되돌린다(인입 서명 fail-open).
+          useValue: {
+            create: jest.fn(),
+            save: jest.fn(),
+            update: jest.fn().mockResolvedValue(undefined),
+            delete: jest.fn(),
+          },
         },
         {
           provide: WorkspacesService,

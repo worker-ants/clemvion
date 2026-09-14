@@ -1005,6 +1005,10 @@ describe('TriggersService — Secret rotation / itk revoke [Spec EIA §3.1·§3.
       providers: createBaseProviders({
         findOne: jest.fn(),
         save: jest.fn((t: Trigger) => Promise.resolve(t)),
+        // 이 describe 의 네 경로는 이제 `save(entity)` 가 아니라 컬럼 한정 `update` 또는
+        // 락 안 재작성(`m.update` 위임)으로 쓴다 — `save` 는 읽은 시점의 `config` 까지
+        // 되써서 동시 PATCH 가 커밋한 `inboundSigningRef` 를 되돌리기 때문이다.
+        update: jest.fn().mockResolvedValue(undefined),
         createQueryBuilder: jest.fn(),
       }),
     }).compile();
@@ -1036,12 +1040,15 @@ describe('TriggersService — Secret rotation / itk revoke [Spec EIA §3.1·§3.
     const result = await service.rotateNotificationSecret('t1', 'ws', 'user-1');
     expect(result.secret).toMatch(/^wsk_[a-f0-9]{64}$/);
     expect(typeof result.rotatedAt).toBe('string');
-    expect(triggerRepo.save).toHaveBeenCalledWith(
-      expect.objectContaining({
+    // **컬럼 한정 쓰기다.** patch 에 `config` 가 섞이면 같은 결함이 update 형태로 재발한다.
+    expect(triggerRepo.update).toHaveBeenCalledWith(
+      { id: 't1' },
+      {
         notificationSecretV2: result.secret,
         notificationRotatedAt: expect.any(Date),
-      }),
+      },
     );
+    expect(triggerRepo.save).not.toHaveBeenCalled();
   });
 
   it('rotateNotificationSecret — notification 미설정 시 NOTIFICATION_NOT_CONFIGURED', async () => {
@@ -1065,13 +1072,16 @@ describe('TriggersService — Secret rotation / itk revoke [Spec EIA §3.1·§3.
     );
     const result = await service.revokePerTriggerToken('t1', 'ws', 'user-1');
     expect(result.token).toMatch(/^itk_[a-f0-9]{64}$/);
-    expect(triggerRepo.save).toHaveBeenCalledWith(
+    // 락 안 재작성이므로 `m.update` → `repo.update` 로 위임돼 온다.
+    expect(triggerRepo.update).toHaveBeenCalledWith(
+      { id: 't1' },
       expect.objectContaining({
         config: expect.objectContaining({
           interaction: expect.objectContaining({ triggerToken: result.token }),
         }),
       }),
     );
+    expect(triggerRepo.save).not.toHaveBeenCalled();
   });
 
   it('revokePerTriggerToken — per_execution 전략이면 NOT_PER_TRIGGER_STRATEGY', async () => {
@@ -1104,6 +1114,15 @@ describe('TriggersService — Secret rotation / itk revoke [Spec EIA §3.1·§3.
         getMany: jest.fn().mockResolvedValue(triggers),
       };
       (triggerRepo.createQueryBuilder as jest.Mock).mockReturnValue(qb);
+      // **락 안 재읽기도 같은 행을 봐야 한다.** 승격은 이제 `rewriteTriggerConfigLocked` 를
+      // 지나는데, 그 안의 `findOne` 이 비면 «그 사이 삭제됨» 으로 판정해 쓰기를 건너뛴다 —
+      // 그러면 단언이 «0 calls» 로 죽는다. cron 이 방금 고른 행이니 존재하는 것이 맞다.
+      (triggerRepo.findOne as jest.Mock).mockImplementation(
+        (options: { where?: { id?: string } }) =>
+          Promise.resolve(
+            triggers.find((t) => t.id === options?.where?.id) ?? null,
+          ),
+      );
     }
 
     it('grace 경과 trigger 의 v2 → primary 승격', async () => {
@@ -1120,7 +1139,10 @@ describe('TriggersService — Secret rotation / itk revoke [Spec EIA §3.1·§3.
       const result = await service.promoteRotatedNotificationSecrets();
       expect(result.promoted).toBe(1);
       // [리뷰 C3 fix] 승격은 평문 기록이 아니라 secret store canonical ref 회전 + secretRef 연결.
-      expect(triggerRepo.save).toHaveBeenCalledWith(
+      // 승격은 이제 **락 안 재작성**이다 — `m.update` 가 바깥 `repo.update` 로 위임된다.
+      // `save(entity)` 로 통째로 쓰면 cron 이 도는 동안 커밋된 `chatChannel` 변경을 되돌린다.
+      expect(triggerRepo.update).toHaveBeenCalledWith(
+        { id: old.id },
         expect.objectContaining({
           notificationSecretV2: null,
           notificationRotatedAt: null,
@@ -1133,11 +1155,12 @@ describe('TriggersService — Secret rotation / itk revoke [Spec EIA §3.1·§3.
           }),
         }),
       );
+      expect(triggerRepo.save).not.toHaveBeenCalled();
       const savedSigning = (
-        (triggerRepo.save as jest.Mock).mock.calls[0][0] as Trigger
-      ).config as {
-        notification: { signing: Record<string, unknown> };
-      };
+        (triggerRepo.update as jest.Mock).mock.calls[0][1] as {
+          config: { notification: { signing: Record<string, unknown> } };
+        }
+      ).config;
       expect(savedSigning.notification.signing.secret).toBeUndefined();
     });
 
@@ -1146,9 +1169,10 @@ describe('TriggersService — Secret rotation / itk revoke [Spec EIA §3.1·§3.
       const result = await service.promoteRotatedNotificationSecrets();
       expect(result.promoted).toBe(0);
       expect(triggerRepo.save).not.toHaveBeenCalled();
+      expect(triggerRepo.update).not.toHaveBeenCalled();
     });
 
-    it('notification config 부재 trigger → v2/rotatedAt 클리어 + save (W-2 fix)', async () => {
+    it('notification config 부재 trigger → v2/rotatedAt 클리어 (W-2 fix)', async () => {
       // [SUMMARY W-2] notification config 없이 v2 컬럼이 채워진 비정상 데이터.
       // 매 cron skip 으로 평문이 영구 잔류하지 않도록 v2/rotatedAt 를 클리어해야 한다.
       const stale = makeTrigger({});
@@ -1158,18 +1182,18 @@ describe('TriggersService — Secret rotation / itk revoke [Spec EIA §3.1·§3.
 
       const result = await service.promoteRotatedNotificationSecrets();
       expect(result.promoted).toBe(0);
-      // 클리어 후 save 가 한 번 호출 (평문 영구 잔류 방지)
-      expect(triggerRepo.save).toHaveBeenCalledTimes(1);
-      expect(triggerRepo.save).toHaveBeenCalledWith(
-        expect.objectContaining({
-          notificationSecretV2: null,
-          notificationRotatedAt: null,
-        }),
+      // 클리어 쓰기가 한 번 (평문 영구 잔류 방지). **컬럼 한정**이라 `save` 가 아니다.
+      expect(triggerRepo.update).toHaveBeenCalledTimes(1);
+      expect(triggerRepo.update).toHaveBeenCalledWith(
+        { id: stale.id },
+        { notificationSecretV2: null, notificationRotatedAt: null },
       );
-      // [testing-W-3] skip 경로에서 원래 config 는 변경 없어야 한다
-      const savedTrigger = (triggerRepo.save as jest.Mock).mock
-        .calls[0][0] as Trigger;
-      expect(savedTrigger.config).toEqual({});
+      expect(triggerRepo.save).not.toHaveBeenCalled();
+      // [testing-W-3] skip 경로는 `config` 를 **아예 쓰지 않는다** — 종전엔 «바뀌지 않았다»
+      // 였는데, 컬럼 한정 쓰기로 바뀐 지금은 patch 에 키가 없는 것이 더 강한 단언이다.
+      const patch = (triggerRepo.update as jest.Mock).mock
+        .calls[0][1] as Record<string, unknown>;
+      expect(patch).not.toHaveProperty('config');
     });
 
     it('secrets.rotate 실패 시 예외가 전파된다 (testing-W-2)', async () => {
@@ -1197,8 +1221,9 @@ describe('TriggersService — Secret rotation / itk revoke [Spec EIA §3.1·§3.
       await expect(service.promoteRotatedNotificationSecrets()).rejects.toThrow(
         'store error',
       );
-      // 실패 전까지 save 는 호출되지 않았어야 한다 (partial save 없음)
+      // 실패 전까지 쓰기는 없었어야 한다 (partial write 없음)
       expect(triggerRepo.save).not.toHaveBeenCalled();
+      expect(triggerRepo.update).not.toHaveBeenCalled();
     });
   });
 });
@@ -2439,7 +2464,12 @@ describe('TriggersService — Schedule 역방향 동기화 (data-flow 10-trigger
 
 describe('TriggersService.promoteRotatedNotificationSecrets — secret store 경유 승격 (리뷰 C3)', () => {
   let service: TriggersService;
-  let triggerRepo: { createQueryBuilder: jest.Mock; save: jest.Mock };
+  let triggerRepo: {
+    createQueryBuilder: jest.Mock;
+    save: jest.Mock;
+    findOne: jest.Mock;
+    update: jest.Mock;
+  };
   let secrets: { rotate: jest.Mock };
 
   const CANONICAL_REF = 'secret://triggers/trig-1/notification-signing';
@@ -2463,6 +2493,14 @@ describe('TriggersService.promoteRotatedNotificationSecrets — secret store 경
         getMany: jest.fn().mockResolvedValue(candidates),
       })),
       save: jest.fn(async (t: Trigger) => t),
+      // **락 안 재읽기도 같은 행을 봐야 한다** — 비면 «그 사이 삭제됨» 으로 판정해 쓰기를
+      // 건너뛴다. cron 이 방금 고른 행이니 존재하는 것이 맞다.
+      findOne: jest.fn((options: { where?: { id?: string } }) =>
+        Promise.resolve(
+          candidates.find((t) => t.id === options?.where?.id) ?? null,
+        ),
+      ),
+      update: jest.fn().mockResolvedValue(undefined),
     };
     secrets = { rotate: jest.fn() };
     const moduleRef = await Test.createTestingModule({
@@ -2541,14 +2579,18 @@ describe('TriggersService.promoteRotatedNotificationSecrets — secret store 경
       'ws-1',
       'wsk_newsecret',
     );
-    const saved = triggerRepo.save.mock.calls[0][0] as Trigger;
-    const signing = (
-      saved.config as { notification: { signing: Record<string, unknown> } }
-    ).notification.signing;
+    // 승격은 **락 안 재작성**이라 `m.update` → `repo.update` 로 위임돼 온다.
+    const patch = triggerRepo.update.mock.calls[0][1] as {
+      config: { notification: { signing: Record<string, unknown> } };
+      notificationSecretV2: unknown;
+      notificationRotatedAt: unknown;
+    };
+    const signing = patch.config.notification.signing;
     expect(signing.secretRef).toBe(CANONICAL_REF);
     expect(signing.secret).toBeUndefined(); // 평문을 config 에 남기지 않는다
-    expect(saved.notificationSecretV2).toBeNull();
-    expect(saved.notificationRotatedAt).toBeNull();
+    expect(patch.notificationSecretV2).toBeNull();
+    expect(patch.notificationRotatedAt).toBeNull();
+    expect(triggerRepo.save).not.toHaveBeenCalled();
   });
 
   it('legacy 평문 secret 만 보유 trigger → canonical ref 신설 + 평문 키 제거', async () => {
@@ -2564,15 +2606,16 @@ describe('TriggersService.promoteRotatedNotificationSecrets — secret store 경
       'ws-1',
       'wsk_newsecret',
     );
-    const saved = triggerRepo.save.mock.calls[0][0] as Trigger;
-    const signing = (
-      saved.config as { notification: { signing: Record<string, unknown> } }
-    ).notification.signing;
+    const patch = triggerRepo.update.mock.calls[0][1] as {
+      config: { notification: { signing: Record<string, unknown> } };
+    };
+    const signing = patch.config.notification.signing;
     expect(signing.secretRef).toBe(CANONICAL_REF);
     expect(signing.secret).toBeUndefined();
+    expect(triggerRepo.save).not.toHaveBeenCalled();
   });
 
-  it('notification config 부재 trigger → v2/rotatedAt 클리어 + save (W-2 fix)', async () => {
+  it('notification config 부재 trigger → v2/rotatedAt 클리어 (W-2 fix)', async () => {
     // [SUMMARY W-2] 비정상 데이터(config 부재 + v2 컬럼 존재) — 매 cron skip 으로
     // 평문이 영구 잔류하지 않도록 v2/rotatedAt 를 클리어하고 경고 로그를 남긴다.
     const trigger = baseTrigger(undefined);
@@ -2584,14 +2627,14 @@ describe('TriggersService.promoteRotatedNotificationSecrets — secret store 경
 
     expect(result.promoted).toBe(0);
     expect(secrets.rotate).not.toHaveBeenCalled();
-    // [testing-W-3] save 가 호출되어 v2/rotatedAt 가 null 로 클리어됐는지 확인
-    expect(triggerRepo.save).toHaveBeenCalledTimes(1);
-    expect(triggerRepo.save).toHaveBeenCalledWith(
-      expect.objectContaining({
-        notificationSecretV2: null,
-        notificationRotatedAt: null,
-      }),
+    // [testing-W-3] 클리어 쓰기가 한 번. **컬럼 한정**이라 `save` 가 아니고, patch 에
+    // `config` 키가 아예 없어야 한다 — 있으면 같은 결함이 update 형태로 재발한다.
+    expect(triggerRepo.update).toHaveBeenCalledTimes(1);
+    expect(triggerRepo.update).toHaveBeenCalledWith(
+      { id: trigger.id },
+      { notificationSecretV2: null, notificationRotatedAt: null },
     );
+    expect(triggerRepo.save).not.toHaveBeenCalled();
   });
 });
 
@@ -2746,7 +2789,9 @@ describe('TriggersService — 감사 로깅 (trigger.*)', () => {
    * 회전 3종 중 `rotateBotToken` 은 6단계 mock 이 필요해 자기 describe 에 따로 있다.
    */
   it('rotateNotificationSecret — 저장이 실패하면 감사를 남기지 않는다', async () => {
-    (triggerRepo.save as jest.Mock).mockRejectedValue(new Error('db down'));
+    // 이 경로의 쓰기는 이제 **컬럼 한정 `update`** 다 — `save` 를 거부시키면 실패가 주입되지
+    // 않아 테스트가 «아무 일도 안 일어났는데 통과» 한다(vacuous).
+    (triggerRepo.update as jest.Mock).mockRejectedValue(new Error('db down'));
     (triggerRepo.findOne as jest.Mock).mockResolvedValue({
       ...webhookTrigger,
       // validation 을 통과해야 `save()` 까지 간다 — 여기서 걸리면 검증 예외를 보는
@@ -2762,7 +2807,9 @@ describe('TriggersService — 감사 로깅 (trigger.*)', () => {
   });
 
   it('revokePerTriggerToken — 저장이 실패하면 감사를 남기지 않는다', async () => {
-    (triggerRepo.save as jest.Mock).mockRejectedValue(new Error('db down'));
+    // 이 경로의 쓰기는 이제 **락 안 재작성**이다 — `m.update` 가 바깥 `update` 로 위임되므로
+    // 실패는 거기에 주입해야 한다.
+    (triggerRepo.update as jest.Mock).mockRejectedValue(new Error('db down'));
     (triggerRepo.findOne as jest.Mock).mockResolvedValue({
       ...webhookTrigger,
       config: { interaction: { tokenStrategy: 'per_trigger' } },

@@ -8,8 +8,14 @@
 `if (!config.inboundSigningRef) return;` 이 걸려 **그 트리거의 인입 웹훅이 서명 검증 없이
 통과**한다 — 이미 한 번 닫았던 fail-open 이 동시성 경로로 되살아나는 형태다.
 
-`config` 를 다시 쓰는 **네 자리 전부**(`update()` · chat-channel setup 의 성공·실패 경로 ·
-bot token 회전)를 트리거 단위 advisory lock
+`config` 를 다시 쓰는 **모든 자리**를 닫았다. 처음 센 네 자리(`update()` · chat-channel
+setup 의 성공·실패 경로 · bot token 회전) 밖에도, 엔티티를 통째로 저장하느라 **의도 없이**
+`config` 를 되쓰던 자리가 일곱 군데 더 있었다 — notification secret 정규화·회전, per-trigger
+토큰 폐기, 승격 cron 둘, chat-channel v2 정리 cron, schedule 편집의 trigger 동기화. `config`
+를 고치는 자리는 락 안 재작성으로, 컬럼만 고치는 자리는 **컬럼 한정 갱신**으로 바꿨다.
+그 결과 기존 행에 `save(entity)` 하는 자리는 **한 곳도 남지 않는다**(정적 래칫이 고정한다).
+
+락은 트리거 단위 advisory lock
 (`pg_advisory_xact_lock(hashtext('trigger-config:<id>'))`) 안으로 넣고, **락을 잡은 뒤에
 행을 다시 읽어** 병합한다. 행이 그 사이 삭제됐으면 쓰지 않는다 — `save` 는 행이 없으면
 INSERT 하므로, 그대로 두면 삭제된 트리거가 고아 상태로 되살아난다. 삭제

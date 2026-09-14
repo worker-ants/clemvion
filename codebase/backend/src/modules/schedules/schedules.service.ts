@@ -231,7 +231,19 @@ export class SchedulesService {
       trigger.isActive = dto.isActive;
     }
     if (trigger) {
-      await this.triggerRepository.save(trigger);
+      // **컬럼만 쓴다 — `save(trigger)` 를 쓰지 않는다.** `save` 는 엔티티를 통째로 저장해
+      // 읽은 시점의 `config` 까지 되쓴다. 그 사이 동시 PATCH 가 확립한
+      // `chatChannel.inboundSigningRef` 를 되돌리면 인입 서명 검증이 fail-open 으로 돌아간다
+      // (`triggers.service.ts` 의 config 락과 같은 결함 클래스 —
+      // `/ai-review` `review/code/2026/09/14/21_50_09` concurrency CRITICAL#1).
+      //
+      // 이 경로가 바꾸는 것은 `name`·`isActive` 둘뿐이므로 컬럼 한정 갱신으로 족하다.
+      const patch: Partial<Pick<Trigger, 'name' | 'isActive'>> = {};
+      if (dto.name) patch.name = trigger.name;
+      if (dto.isActive !== undefined) patch.isActive = trigger.isActive;
+      if (Object.keys(patch).length > 0) {
+        await this.triggerRepository.update({ id: trigger.id }, patch);
+      }
     }
 
     if (dto.cronExpression) schedule.cronExpression = dto.cronExpression;

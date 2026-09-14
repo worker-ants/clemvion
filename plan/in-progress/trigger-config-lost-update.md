@@ -456,13 +456,43 @@ server-issued 발급만이 그 역할을 하고, 게다가 이 환경의 telegra
 > 못 보는** 자리다. 캐스트로 뭉개지 않고 `Omit` 으로 프로퍼티를 갈아 끼웠다(교차 타입은
 > 프로퍼티 타입도 교차시켜 `null` 을 도로 잘라낸다).
 
+### 7라운드 리뷰 처분 (`review/code/2026/09/14/21_50_09` — C1)
+
+CRITICAL 의 근거는 **내 CHANGELOG 문장**이었다 — *"`config` 를 다시 쓰는 네 자리 전부"* 가
+«config 를 다시 쓰는 **모든** 자리» 로 읽힌다. 같은 파일에 락 없이 `save(trigger)` 하는 자리가
+다섯 개(실은 쓰기 지점 기준 여섯) 더 있었으니 그 읽기로는 거짓이다. **네 번째로 같은 병**이다
+(1·3·5라운드에도 «내 서술이 구현보다 넓다» 가 있었다).
+
+**이번엔 문장을 좁히지 않고 문장이 참이 되게 했다.** 남은 자리를 전부 닫는 비용이 작았기
+때문이다 — 도구(`rewriteTriggerConfigLocked`)는 이미 있고 테스트도 서 있었다.
+
+| 자리 | 처분 |
+|---|---|
+| `normalizeNotificationSecretRef` | `config.notification` 재작성 → **락 안 재작성** |
+| `revokePerTriggerToken` (라이브 엔드포인트) | `config.interaction` 재작성 → **락 안 재작성**, 삭제 경합 시 404 |
+| `promoteRotatedNotificationSecrets` 승격 | `config` + 컬럼 → **락 안 재작성**(cron 이라 부재는 조용히 skip) |
+| `promoteRotatedNotificationSecrets` stale 클리어 | 컬럼만 → **컬럼 한정 `update`** |
+| `rotateNotificationSecret` | 컬럼만 → **컬럼 한정 `update`** |
+| `cleanupRotatedChatChannelTokens` | 컬럼만 → **컬럼 한정 `update`** |
+| `schedules.service.ts#update` 의 trigger 동기화 | 컬럼만(`name`·`isActive`) → **컬럼 한정 `update`** |
+
+**전수 재확인**: 프로덕션의 `triggerRepository.save(` 는 이제 **3건**이고 전부 신규 INSERT 다
+(`triggers.service#create` · `schedules.service#create` 둘, 그리고 창 1 의 락 안 `m.save`).
+기존 행을 통째로 저장하는 자리는 **하나도 남지 않았다.**
+
+**래칫이 그 상태를 고정한다.** `endpoint-path-conflict-wrap` 의 «래핑 없는 자리» 베이스라인이
+여섯에서 **빈 목록**으로 내려갔다 — 새 `save()` 가 생기면 그 자리에서 깨진다. 빈 목록이 더
+강한 상태다.
+
+> **단언 아홉 개가 함께 바뀌었다.** 그 테스트들이 `save` 를 모델링하고 있었기 때문이다.
+> 특히 «저장이 실패하면 감사를 남기지 않는다» 둘은 실패를 `save` 에 주입하고 있어서, 그대로
+> 두면 **실패가 주입되지 않아 통과하는** vacuous 테스트가 됐을 것이다 — 쓰기 동사를 바꿀 땐
+> 실패 주입 지점도 함께 옮겨야 한다.
+
 ### 후속(developer 범위) — 이 PR 로 넓히지 않는다
 
 | 항목 | 근거 |
 |---|---|
-| **`revokePerTriggerToken`** 의 `config` 통째 쓰기 | 라이브 엔드포인트라 상시 재현 가능. 락 경유로 바꾸는 것이 답이지만, 그 메서드가 함께 쓰는 컬럼 집합을 먼저 확정해야 한다 |
-| `normalizeNotificationSecretRef` · `promoteRotatedNotificationSecrets` | 같은 클래스. 후자는 cron 이라 경합 빈도가 낮다 |
-| 컬럼만 고치는 3자리의 암묵적 `config` 쓰기 | 컬럼 한정 `update` 로 바꾸면 사라진다. 자리별로 «그 엔티티를 뒤에서 쓰는가» 확인 필요 |
 | `PATCH /api/triggers/:id` 의 P95/P99 관측 | W5 — 새 결함은 아니나 전제가 바뀌었다 |
 | `rewriteTriggerConfigLocked` 반환값을 세 호출부가 무시 | JSDoc 이 약속한 «관측 가능» 이 아직 실현되지 않았다 |
 | `chatChannelHealth` 등 상태 컬럼은 락 밖 | 관측성 lost update, 보안 무관 |

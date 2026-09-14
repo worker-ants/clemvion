@@ -41,25 +41,22 @@ import {
 const TRIGGERS_DIR = path.join(SRC_ROOT, 'modules', 'triggers');
 
 /**
- * 래핑 없이 저장하는 자리 — **전부 `endpointPath` 를 건드리지 않는다.**
+ * 래핑 없이 저장하는 자리 — **지금은 비어 있다.**
  *
- * 새 항목을 여기 추가하려면 *"이 저장 경로는 `endpointPath` 를 바꾸지 않는다"* 가 참이어야
- * 한다. 참이 아니면 목록이 아니라 `.catch(… ${CONFLICT_WRAPPER} …)` 가 답이다.
+ * 한때 여섯 자리가 있었고 전부 *"이 저장 경로는 `endpointPath` 를 바꾸지 않는다"* 라는
+ * 사유로 이 목록에 올라와 있었다. 그 사유는 참이었지만 **다른 축에서 틀렸다** — `save(entity)`
+ * 는 엔티티를 통째로 저장하므로 읽은 시점의 `config` 까지 되쓰고, 그래서 동시 PATCH 가 확립한
+ * `chatChannel.inboundSigningRef` 를 되돌려 인입 서명 검증을 fail-open 으로 만든다
+ * (`/ai-review` `review/code/2026/09/14/21_50_09` concurrency CRITICAL#1).
+ *
+ * 여섯 자리를 «`config` 를 고치면 락 안 재작성, 아니면 컬럼 한정 `update`» 로 바꾸자 목록이
+ * 비었다. **빈 목록이 더 강한 상태다** — 새 `save()` 가 생기면 그 자리에서 이 단언이 깨진다.
+ *
+ * 새 항목을 여기 추가하려면 두 가지가 **모두** 참이어야 한다:
+ * (a) `endpointPath` 를 바꾸지 않는다, (b) 읽은 시점의 `config` 를 되써도 안전하다.
+ * (b) 가 참인 경우는 드물다 — 대개는 컬럼 한정 `update` 가 답이다.
  */
-const EXPECTED_UNWRAPPED_TRIGGER_SAVES: readonly string[] = [
-  // notification secret ref 정규화 — `trigger.config` 의 `notification` 하위만 쓴다.
-  'modules/triggers/triggers.service.ts#normalizeNotificationSecretRef',
-  // notification secret 회전 — `notificationSecretV2`·`notificationRotatedAt` 컬럼만 쓴다.
-  'modules/triggers/triggers.service.ts#rotateNotificationSecret',
-  // per-trigger interaction 토큰 폐기 — `trigger.config` 의 `interaction` 하위만 쓴다.
-  'modules/triggers/triggers.service.ts#revokePerTriggerToken',
-  // grace 만료 승격 스윕 — 같은 메서드가 두 분기에서 저장한다(`#2`). 둘 다
-  // `notificationSecretV2`·`notificationRotatedAt`(+`config`) 만 쓴다.
-  'modules/triggers/triggers.service.ts#promoteRotatedNotificationSecrets',
-  'modules/triggers/triggers.service.ts#promoteRotatedNotificationSecrets#2',
-  // chatChannel 회전 grace 정리 — `chatChannelTokenV2`·`chatChannelRotatedAt` 만 쓴다.
-  'modules/triggers/triggers.service.ts#cleanupRotatedChatChannelTokens',
-];
+const EXPECTED_UNWRAPPED_TRIGGER_SAVES: readonly string[] = [];
 
 /** 충돌 래핑을 갖춘 자리 — `endpointPath` 가 스프레드로 실려 오는 두 경로. */
 const EXPECTED_WRAPPED_TRIGGER_SAVES: readonly string[] = [
