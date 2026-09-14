@@ -4069,6 +4069,35 @@ describe('TriggersService — 락 안 재읽기가 동시 확립분을 본다 (l
     expect(signing).not.toHaveProperty('secret');
   });
 
+  it('revokePerTriggerToken — 재읽은 행에 그 키가 아예 없으면 fallback 으로 쓴다', async () => {
+    // `mergeIntoFreshSubKey` 의 `fallback` 분기 — 네 호출부 어느 fixture 도 이 자리를
+    // 행사하지 않아, 분기를 지워도 147건이 전부 GREEN 이었다(리뷰가 뮤테이션으로 실측:
+    // `review/code/2026/09/15/00_07_52` testing W1). 「판별 못 하는 fixture」의 다섯 번째다.
+    //
+    // 재읽은 `config` 에 `interaction` 키가 **없는** 상태를 만든다 — 그러면 기준은
+    // 요청 시작 시점 값(`updated`)이어야 하고, 새 토큰이 그 위에 실려야 한다.
+    const { service, repo } = await makeService([
+      () =>
+        row({ chatChannel: { provider: 'slack', botTokenRef: BOT_TOKEN_REF } }),
+    ]);
+    (repo.findOne as jest.Mock).mockResolvedValue(
+      withInteraction({ appearance: 'from-snapshot' }),
+    );
+
+    await service.revokePerTriggerToken('trig-l', 'ws-1', 'u-1');
+
+    const patch = repo.update.mock.calls
+      .map(
+        ([, pt]) =>
+          pt as { config?: { interaction?: Record<string, unknown> } },
+      )
+      .filter((pt) => pt.config?.interaction)
+      .pop();
+    // fallback 이 기준이 됐다 — 스냅샷의 필드가 실렸다.
+    expect(patch?.config?.interaction?.appearance).toBe('from-snapshot');
+    expect(patch?.config?.interaction?.triggerToken).toMatch(/^itk_/);
+  });
+
   it('revokePerTriggerToken — 그 사이 삭제되면 404', async () => {
     // 7라운드에 넣은 게이트인데 지워도 전건 GREEN 이었다 (같은 SUMMARY testing CRITICAL#2).
     const { service, repo } = await makeService([() => undefined as never]);

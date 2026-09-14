@@ -80,10 +80,14 @@ export const TRIGGER_DELETE_LOCK_TIMEOUT_MS = 5_000;
  *
  * ## 왜 필요한가
  *
- * **배선**: 이 함수를 쓰는 곳은 **창 2·3·4**(binder 성공·실패 경로 · `rotateBotToken`)다.
- * 창 1(`TriggersService.update()`)은 `save(entity)` 의 계약을 보존해야 해서 같은 락을
- * **인라인으로** 잡는다 — `acquireTriggerConfigLock` 을 공유하지만 이 함수는 거치지 않는다.
- * (세 라운드 연속 지적된 혼동이라 여기 못박는다.)
+ * **배선**: `trigger.config` 를 다시 쓰는 자리는 **창 1 하나를 빼고 전부** 이 함수를 지난다.
+ * 창 1(`TriggersService.update()`)만 예외다 — `save(entity)` 의 계약(반환 엔티티·subscriber·
+ * `endpointPath` UNIQUE 충돌 경로)을 보존해야 해서 같은 락을 **인라인으로** 잡는다.
+ * `acquireTriggerConfigLock` 은 공유하지만 이 함수는 거치지 않는다.
+ *
+ * > **호출부를 세어 적지 않는다.** 한때 «창 2·3·4» 라고 못박아 뒀는데, 그 뒤 세 자리가 더
+ * > 전환되면서 그 문장이 **과소 서술**이 됐다 — 같은 문장을 세 라운드에 걸쳐 «과대» 방향으로
+ * > 고쳤다가 이번엔 반대 방향으로 틀린 것이다. 목록은 낡고 규칙은 안 낡는다.
  *
  * 네 자리가 «읽기 → (외부 호출) → 쓰기» 를 락 없이 이어 붙이고, 쓰기는 읽은 시점의
  * **in-memory 스냅샷**으로 `config` 를 통째로 재구성한다. 동시 PATCH 가 겹치면 나중에
@@ -129,7 +133,10 @@ export const TRIGGER_DELETE_LOCK_TIMEOUT_MS = 5_000;
  *   |---|---|
  *   | 창 1 `update()` (동기 요청) | **404 로 드러낸다** — 사용자가 보낸 변경이 반영되지 않았음을 알아야 한다 |
  *   | `rotateBotToken` (동기 요청) | **404 + 감사 미기록** — 위와 같은 이유 |
+ *   | `revokePerTriggerToken` (동기 요청) | **404** — 위와 같은 이유 |
  *   | binder 성공/실패 경로 (저장 **뒤**의 best-effort 후속) | **`false` 로 감춘다** — 이미 응답이 나갔고, 실패를 던지면 성공한 저장을 되돌리는 것처럼 보인다 |
+ *   | `normalizeNotificationSecretRef` (요청 안의 정규화 부수 단계) | **관측하지 않는다** — 후속 등재분(9라운드 INFO#6) |
+ *   | cron 두 곳(`promote…` · `cleanup…`) | **조용히 skip** — 알릴 상대가 없다. 다만 `promote` 는 «승격했다» 고 세지 않는다 |
  *
  *   판단 기준은 «그 쓰기가 이번 요청의 **결과**인가, 뒤따르는 **부수 작업**인가» 다.
  */
