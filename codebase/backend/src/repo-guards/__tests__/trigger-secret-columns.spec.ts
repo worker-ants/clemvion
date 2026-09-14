@@ -1,0 +1,226 @@
+import * as fs from 'node:fs';
+import * as os from 'node:os';
+import * as path from 'node:path';
+
+import {
+  CANONICAL_CONST,
+  CANONICAL_SOURCE,
+  MIRROR_CONST,
+  MIRROR_SOURCES,
+  readAllTriggerSecretColumnLists,
+  readStringArrayConst,
+} from './trigger-secret-columns-guard';
+
+/**
+ * 트리거 응답 **비밀 컬럼 목록**이 세 파일에 독립 사본으로 존재한다 — 그 셋의 동일성 가드.
+ *
+ * | 자리 | 상수 | 성격 |
+ * |---|---|---|
+ * | `modules/triggers/triggers.service.ts` | `TRIGGER_RESPONSE_STRIP_COLUMNS` | **정본** — 실제로 응답에서 지운다 |
+ * | `shared/testing/schedule-trigger-ref.ts` | `TRIGGER_SECRET_COLUMNS` | 사본 |
+ * | `shared/testing/trigger-workflow-ref.ts` | `TRIGGER_SECRET_COLUMNS` | 사본 |
+ *
+ * ## 왜 런타임 공유가 아니라 정적 가드인가
+ *
+ * 정본이 `export` 가 아니고, 서비스 모듈을 테스트 헬퍼로 끌어오는 것은 의존 그래프상 과하다
+ * (헬퍼는 `shared/testing/` 이고 `modules/` 를 향한 역방향 의존을 만든다). 그래서 값을
+ * 공유하는 대신 **세 리터럴이 같다는 사실만** 정적으로 고정한다.
+ *
+ * ## 왜 필요한가 — 오늘 일치한다는 사실이 내일을 보장하지 않는다
+ *
+ * 세 목록은 **값·순서가 현재 완전히 일치**한다. 결속 장치가 없다는 것이 문제다: 정본이 네
+ * 번째 비밀 컬럼을 추가해도 두 헬퍼는 **조용히 통과**하고, 그 헬퍼를 쓰는 e2e 는 새 컬럼이
+ * 응답에 실려도 잡지 못한다. `CREATOR_PROJECTION` 이 이 형태의 가까운 이력이다 — 동일 리터럴
+ * 4중 복사가 실제 Critical 로 터진 뒤 단일 상수로 통합됐다.
+ *
+ * ## self-spec 의 네 번째 사본은 대상이 아니다
+ *
+ * `trigger-workflow-ref.spec.ts` 가 같은 이름들을 또 적는 것은 **일부러**다. 헬퍼 상수를
+ * import 해 순회하면 누가 목록을 줄여도 스펙이 그대로 통과해 대조군이 사라진다.
+ * 헬퍼↔프로덕션 중복은 드리프트 위험이지만 **스펙↔헬퍼 중복은 독립 대조군**이다.
+ */
+describe('트리거 비밀 컬럼 목록 3중 사본 정합', () => {
+  const repoRoot = path.resolve(__dirname, '../../../../..');
+
+  it('세 목록이 값·순서까지 같다', () => {
+    const lists = readAllTriggerSecretColumnLists(repoRoot);
+    const canonical = lists[CANONICAL_SOURCE];
+    expect(canonical).not.toBeNull();
+    for (const rel of MIRROR_SOURCES) {
+      expect(lists[rel]).toEqual(canonical);
+    }
+  });
+
+  it('[vacuity] 목록이 비어 있지 않다 — 셋 다 읽혔다', () => {
+    // 리더가 조용히 `[]`·`null` 을 내면 위 단언이 «세 개가 다 비었으니 같다» 로 통과한다.
+    // 그 상태를 여기서 먼저 끊는다.
+    const lists = readAllTriggerSecretColumnLists(repoRoot);
+    for (const [rel, value] of Object.entries(lists)) {
+      // **삼항식으로 쓰면 안 된다.** 첫 판은
+      // `expect(value === null ? \`${rel}: 못 읽음\` : value.length).not.toBe(0)` 였는데,
+      // `null` 분기에서 **문자열**을 `.not.toBe(0)` 과 비교해 **항상 통과**했다 — vacuity 를
+      // 막으려고 쓴 줄이 그 분기에서 vacuous 였다
+      // (`/ai-review` `review/code/2026/09/14/11_27_40` maintainability WARNING#2).
+      if (value === null) {
+        throw new Error(
+          `${rel}: 상수를 못 읽었다 — 선언 이름·형태가 바뀌었는지 볼 것`,
+        );
+      }
+      expect(value.length).not.toBe(0);
+    }
+  });
+
+  it('[대조군] 정본은 `as const satisfies …`, 사본은 `as const` — 둘 다 읽는다', () => {
+    // **이 가드의 판별 자리다.** `AsExpression` 하나만 벗기는 리더는 정본에서 `null` 을 낸다
+    // (`satisfies` 노드에서 멈춰 배열 리터럴에 도달하지 못한다 — 뮤턴트 실측).
+    // 실제 파일이 그 두 형태를 실제로 쓰고 있음을 먼저 고정하고(전제가 바뀌면 여기서 터진다),
+    // 그 다음 둘 다 읽히는지 본다.
+    const canonicalText = fs.readFileSync(
+      path.join(repoRoot, CANONICAL_SOURCE),
+      'utf8',
+    );
+    expect(canonicalText).toContain(`${CANONICAL_CONST} = [`);
+    expect(canonicalText).toContain('as const satisfies');
+
+    const mirrorText = fs.readFileSync(
+      path.join(repoRoot, MIRROR_SOURCES[0]),
+      'utf8',
+    );
+    expect(mirrorText).toContain(`${MIRROR_CONST} = [`);
+
+    const lists = readAllTriggerSecretColumnLists(repoRoot);
+    expect(lists[CANONICAL_SOURCE]?.length).toBeGreaterThan(0);
+    expect(lists[MIRROR_SOURCES[0]]?.length).toBeGreaterThan(0);
+  });
+
+  /**
+   * **`readStringArrayConst` 의 분기 ↔ 대조군 대응표.**
+   *
+   * | # | 분기 | 결과 | 대조군 |
+   * |---|---|---|---|
+   * | 1 | 대상 파일 부재 | throw(가드 메시지) | *대상 파일이 없으면…* |
+   * | 2 | 선언 없음 | `null` | *선언이 없으면…* |
+   * | 3 | 선언 있음 · 초기값이 배열 아님 | `null` | *선언은 있는데 배열이 아니면…* |
+   * | 4 | 배열 · 비-문자열 원소 섞임 | `null` | *문자열이 아닌 원소가…* |
+   * | 5 | 배열 · 전부 문자열 | 값 | *주석 안의 이름은…* · *래퍼가 없어도…* |
+   * | 6 | 래퍼 `as const satisfies` | 벗김 | *`as const satisfies …` 도…* |
+   * | 7 | 래퍼 괄호 | 벗김 | *괄호로 감싼 선언도…* |
+   *
+   * **이 표를 두는 이유**: 이 배치에서 *"JSDoc 에 N 개를 열거하고 N−1 개를 잠근다"* 가
+   * **다섯 번** 반복됐다(라운드 1 파일 부재 · 2 그 영속성 · 3 괄호 · 4 분기 3 · 그리고
+   * 트래커 쪽 stale 이름 스코프). 산문으로 *"빠뜨리지 말자"* 를 네 번 적었으니 다섯 번째는
+   * **구조**로 바꾼다 — 형제 캐너리(`trigger-workflow-ref.spec.ts`)의 «가드 실행 순서 목록»
+   * 과 같은 장치다. **분기를 더하면 이 표에 행을 먼저 추가할 것.** 행만 있고 대조군이 없으면
+   * 그 자리가 눈에 보인다.
+   */
+  describe('[대조군] `readStringArrayConst` 가 무엇을 읽고 무엇을 거절하는가', () => {
+    // **`string | undefined` 로 바꾸지 않는다.** `mkdtempSync` 가 던지면 `tmp` 가 미할당인 채
+    // `afterAll` 이 돌아 두 번째 예외가 첫 원인을 가린다는 지적이 있었지만
+    // (`/ai-review` `review/code/2026/09/14/13_04_49` side_effect INFO#4),
+    // 실제로 해 보니 **한 줄이 아니었다** — 타입체크 ratchet 이 사용처 10곳에서
+    // `0 → 10` 진단을 냈다(jest 는 타입을 strip 해서 못 본다). 남은 선택지는 사용처 10곳
+    // 수정이거나 `let tmp!: string` 인데, 후자는 «미할당일 수 있다» 를 «확실히 할당된다» 로
+    // 단언하는 **타입 거짓말**이라 이 저장소의 `nullable-type-lie-cast` 가드가 겨누는 형태다.
+    // 얻는 것(이미 실패 중인 환경에서 이중 예외 회피)이 그 값을 못 치른다.
+    let tmp: string;
+
+    beforeAll(() => {
+      tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'trigger-secret-columns-'));
+    });
+    afterAll(() => {
+      fs.rmSync(tmp, { recursive: true, force: true });
+    });
+
+    const write = (name: string, body: string): string => {
+      fs.writeFileSync(path.join(tmp, name), body, 'utf8');
+      return name;
+    };
+
+    it('주석 안의 이름은 값으로 잡지 않는다 (정규식이었다면 잡힌다)', () => {
+      const rel = write(
+        'commented.ts',
+        [
+          '// 목록: notificationSecretV2 · chatChannelTokenV2 (산문)',
+          "/** 예시: ['ghostColumn'] 이 아니다. */",
+          "const X = ['realOnly'] as const;",
+          'export default X;',
+        ].join('\n'),
+      );
+      expect(readStringArrayConst(tmp, rel, 'X')).toEqual(['realOnly']);
+    });
+
+    it('`as const satisfies …` 도 벗긴다', () => {
+      const rel = write(
+        'satisfies.ts',
+        "const X = ['a', 'b'] as const satisfies readonly string[];\nexport default X;",
+      );
+      expect(readStringArrayConst(tmp, rel, 'X')).toEqual(['a', 'b']);
+    });
+
+    it('래퍼가 없어도 읽는다', () => {
+      const rel = write('bare.ts', "const X = ['a'];\nexport default X;");
+      expect(readStringArrayConst(tmp, rel, 'X')).toEqual(['a']);
+    });
+
+    it('괄호로 감싼 선언도 벗긴다', () => {
+      // JSDoc 이 *"`as`·`satisfies`·괄호를 루프로 벗긴다"* 라고 **셋**을 약속하는데
+      // 잠겨 있던 것은 둘뿐이었다 — 괄호 분기를 지워도 10/10 GREEN 이었다
+      // (`/ai-review` `review/code/2026/09/14/12_17_14` testing WARNING#1).
+      // 약속한 항마다 대조군이 있어야 «문서한 보장» 이 «구현» 을 넘지 않는다.
+      const rel = write(
+        'parens.ts',
+        "const X = (['a', 'b'] as const);\nexport default X;",
+      );
+      expect(readStringArrayConst(tmp, rel, 'X')).toEqual(['a', 'b']);
+    });
+
+    it('선언이 없으면 `null` — 빈 배열과 가른다', () => {
+      const rel = write(
+        'missing.ts',
+        "const Y = ['a'] as const;\nexport default Y;",
+      );
+      expect(readStringArrayConst(tmp, rel, 'X')).toBeNull();
+    });
+
+    it('선언은 있는데 배열이 아니면 `null` — 두 상태를 뭉개지 않는다', () => {
+      // JSDoc 이 *"`[]`(목록이 비었다)와 `null`(못 읽었다)을 가른다"* 고 선언하는데
+      // **그 경계의 한쪽 진입로**(이름은 맞는데 초기값이 배열이 아님)에 대조군이 없었다 —
+      // 이 분기가 `[]` 를 내도록 바꿔도 11/11 GREEN 이었다 (`/ai-review`
+      // `review/code/2026/09/14/12_37_01` testing WARNING#1).
+      const rel = write(
+        'non-array.ts',
+        'const X = { a: 1 };\nexport default X;',
+      );
+      expect(readStringArrayConst(tmp, rel, 'X')).toBeNull();
+    });
+
+    it('빈 배열은 `[]` — «못 읽음» 이 아니다', () => {
+      const rel = write(
+        'empty.ts',
+        'const X = [] as const;\nexport default X;',
+      );
+      expect(readStringArrayConst(tmp, rel, 'X')).toEqual([]);
+    });
+
+    it('대상 파일이 없으면 **가드의 메시지**로 던진다 — raw `ENOENT` 가 아니다', () => {
+      // **`.toThrow()` 만으로는 vacuous 하다.** 파일이 없으면 `readFileSync` 도 던지므로
+      // 방어 분기를 통째로 지워도 «던진다» 는 참이다 — 이 저장소가 이름 붙인 *"`.toThrow()`
+      // 는 무엇이 던졌는지 안 본다"* 형태다. 그래서 **메시지로** 판별한다.
+      //
+      // 라운드 1 에서 이 분기를 넣고 수기 뮤테이션으로만 확인했는데, 그러면 CI 가 회귀를
+      // 못 잡는다 (`/ai-review` `review/code/2026/09/14/11_52_13` testing WARNING#2).
+      expect(() =>
+        readStringArrayConst(tmp, 'definitely-absent.ts', 'X'),
+      ).toThrow(/옮겨졌거나 이름이 바뀌었다/);
+    });
+
+    it('문자열이 아닌 원소가 섞이면 `null` — 조용히 짧아지지 않는다', () => {
+      // 짧아진 채로 통과하면 세 사본이 "같다" 는 거짓 GREEN 이 나온다.
+      const rel = write(
+        'spread.ts',
+        "const BASE = ['a'] as const;\nconst X = [...BASE, 'b'] as const;\nexport default X;",
+      );
+      expect(readStringArrayConst(tmp, rel, 'X')).toBeNull();
+    });
+  });
+});

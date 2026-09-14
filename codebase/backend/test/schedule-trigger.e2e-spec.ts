@@ -10,6 +10,7 @@ import {
 } from '../src/shared/testing/response-contract';
 import { TriggerDto } from '../src/modules/triggers/dto/responses/trigger-response.dto';
 import { expectNarrowedScheduleTriggerRef } from '../src/shared/testing/schedule-trigger-ref';
+import { expectTriggerWorkflowRef } from '../src/shared/testing/trigger-workflow-ref';
 import { ScheduleDto } from '../src/modules/schedules/dto/responses/schedule-response.dto';
 
 /**
@@ -24,6 +25,8 @@ import { ScheduleDto } from '../src/modules/schedules/dto/responses/schedule-res
  *   - 비활성 스케줄은 trigger.isActive=false
  *   - 목록 조회가 워크스페이스로 격리되고 `next_run_at`(asc·desc)·기본 `created_at` 정렬이 적용됨
  *   - V110: schedule 인덱스가 `(workspace_id, next_run_at)` 로 실재 (스키마 drift 방지)
+ *   - **`TriggerDto.workflow` 양성** — 목록(C-2)·PATCH(G·H) 세 자리. 이 파일이 이미
+ *     고정하던 `ScheduleDto.trigger.workflow` 와는 **다른 표면**이다
  */
 
 const BASE_URL = process.env.E2E_BASE_URL ?? 'http://backend-e2e:3011';
@@ -267,6 +270,14 @@ describe('Schedule trigger (e2e)', () => {
     // 여기서 걸리는 것: `notificationSecretV2`·`chatChannelTokenV2` 가 다시 실리면
     // `TriggerDto` 미선언 키로 잡힌다.
     assertMatchesContract(row, await contractForDto(TriggerDto));
+    // `TriggerDto.workflow` 는 §5.4 **키 생략형**이라 계약 대조가 부재를 위반으로 보지
+    // 않는다 — 관계 로딩이 통째로 사라져도 위 줄은 통과한다. 이 파일이 이미 고정하는
+    // `ScheduleDto.trigger.workflow`(`expectNarrowedScheduleTriggerRef`, 양성 3 + 음성 1)
+    // 와는 **다른 표면**이고, 이쪽엔 양성이 한 건도 없었다.
+    expectTriggerWorkflowRef(row, {
+      present: true,
+      expectedWorkflowId: workflowId,
+    });
   });
 
   it('D. PATCH cron → nextRunAt 재계산', async () => {
@@ -377,6 +388,11 @@ describe('Schedule trigger (e2e)', () => {
     expect(patch.body.data.isActive).toBe(false);
     // **수정 경로**도 같은 정화를 거치는가 (`review/code/2026/09/05/21_40_37` W1).
     assertMatchesContract(patch.body.data, await contractForDto(TriggerDto));
+    // 수정 응답도 관계를 채운다 — 근거는 C-2 의 註.
+    expectTriggerWorkflowRef(patch.body.data, {
+      present: true,
+      expectedWorkflowId: workflowId,
+    });
 
     const after = await db.query(
       'SELECT is_active FROM schedule WHERE id = $1',
@@ -408,6 +424,12 @@ describe('Schedule trigger (e2e)', () => {
       .set(authHeaders())
       .send({ isActive: true });
     expect(patch.status).toBe(200);
+    // 재활성 경로도 같다 — `isActive` 가 응답 형태를 바꾸지 않음은 C-3 이 스케줄 표면에서,
+    // 여기서는 트리거 표면에서 고정한다.
+    expectTriggerWorkflowRef(patch.body.data, {
+      present: true,
+      expectedWorkflowId: workflowId,
+    });
 
     const after = await db.query(
       'SELECT is_active FROM schedule WHERE id = $1',

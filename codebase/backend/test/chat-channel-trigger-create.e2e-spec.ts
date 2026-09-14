@@ -73,6 +73,10 @@ describe('POST /api/triggers — chat-channel multi-provider (e2e)', () => {
     workflowId = wf.body.data.id;
   }, 60_000);
 
+  // 이 파일도 `secret_store` row 를 만들고 raw `DELETE FROM trigger` 로는 지워지지 않는다.
+  // **그 고아 row 가 무해한 이유(세션 간 `down -v` · 세션 안 접두 스코프)와 `secret-store.md
+  // §R4` 와의 관계는 `trigger-workflow-ref.e2e-spec.ts` 의 `afterAll` 註가 정본**이다 —
+  // 같은 서술을 두 벌 두면 한쪽만 낡는다.
   afterAll(async () => {
     for (const id of createdTriggerIds) {
       await db
