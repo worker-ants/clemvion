@@ -186,6 +186,43 @@ describe('HooksService', () => {
     );
   });
 
+  /**
+   * **인입 hot path 는 `config` 를 다시 쓰지 않는다.**
+   *
+   * 종전엔 `trigger.lastTriggeredAt = …; save(trigger)` 였다. `save` 는 엔티티를 통째로
+   * 저장하므로, 요청 시작 시점에 읽은 `config` 까지 함께 쓴다 — 그 사이 동시 PATCH 가
+   * `chatChannel.inboundSigningRef` 를 확립했다면 이 저장이 그것을 **되돌리고** 인입 서명
+   * 검증이 fail-open 으로 돌아간다. PATCH 끼리의 경합보다 훨씬 잦다(인입 메시지마다 돈다).
+   * (`/ai-review` `review/code/2026/09/14/19_07_43` concurrency WARNING#1.)
+   *
+   * **부재 단언과 형태 단언을 함께 건다.** `save` 만 안 불렀는지 보면 «아무것도 안 했다» 도
+   * 통과하고, `update` 만 보면 그 옆에 `save` 가 남아 있어도 통과한다.
+   */
+  it('lastTriggeredAt 갱신이 config 를 다시 쓰지 않는다 (컬럼 한정 update)', async () => {
+    triggerRepo.findOne.mockResolvedValue(activeTrigger);
+    nodeRepo.findOne.mockResolvedValue({
+      id: 'n',
+      workflowId: 'wf1',
+      type: 'manual_trigger',
+      category: NodeCategory.TRIGGER,
+      config: {},
+    } as unknown as Node);
+    engine.execute.mockResolvedValue('exec-1');
+
+    await service.handleWebhook('abc', input);
+
+    expect(triggerRepo.save).not.toHaveBeenCalled();
+    expect(triggerRepo.update).toHaveBeenCalledWith(
+      { id: activeTrigger.id },
+      { lastTriggeredAt: expect.any(Date) },
+    );
+    // patch 에 `config` 가 섞이면 같은 결함이 update 형태로 재발한다.
+    const patches = triggerRepo.update.mock.calls.map(([, patch]) => patch);
+    for (const patch of patches) {
+      expect(Object.keys(patch as object)).toEqual(['lastTriggeredAt']);
+    }
+  });
+
   it('extracts parameters from body and calls executor with { parameters, ...input }', async () => {
     triggerRepo.findOne.mockResolvedValue(activeTrigger);
     triggerRepo.save.mockImplementation((t) => Promise.resolve(t as Trigger));

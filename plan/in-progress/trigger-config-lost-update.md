@@ -322,47 +322,62 @@ server-issued 발급만이 그 역할을 하고, 게다가 이 환경의 telegra
 
 §A 는 *"`{...(trigger.config ?? {}), chatChannel: …}` 로 덮는 자리"* 를 세어 **넷**을 얻었다.
 그 술어는 **모양**을 셌지 **주어**를 세지 않았다. 주어를 *"Trigger 행을 쓰는 모든 호출"* 로
-바꿔 전수로 세면 `src/` 에 **19건**(내 새 헬퍼 1건 포함 · `repo-guards/` fixture·주석 9건 제외)이다.
+바꿔 전수로 세면 `src/` 에 **21건**이다(`repo-guards/` fixture·주석 11건 제외).
 
 > **첫 열거는 줄 단위라 두 건을 놓쳤다** — `await this.triggerRepository\n  .save(trigger)` 처럼
-> 체인이 개행을 넘는 형태(`update()` `:545` · `create()` `:431`). 하필 **창 1 자신**이 그중
-> 하나였다. 개행을 넘어 매칭하도록 방법을 바꿔 다시 셌다.
+> 체인이 개행을 넘는 형태. 하필 **창 1 자신**이 그중 하나였다. 개행을 넘어 매칭하도록 방법을
+> 바꿔 다시 셌다.
 
-여기서 갈라야 하는 축은 **`update` 냐 `save` 냐**다:
+갈라야 하는 축은 **`update` 냐 `save` 냐**다. `repository.update(criteria, partial)` 는 준
+컬럼만 쓰므로 `config` 를 건드리지 않는다. `repository.save(entity)` 는 **엔티티를 통째로**
+저장해서, `config` 를 고칠 의도가 없는 자리도 로드 시점의 `config` 를 함께 싣는다. 저장소가
+이미 이 패턴에 이름을 붙여 뒀다: *"무가드 full-entity save lost-update"*
+(`plan/in-progress/ie-resume-turn-boundary-cancel.md`).
 
-- `repository.update(criteria, partial)` — **준 컬럼만** 쓴다. `chatChannelHealth` 류만 고치는
-  5건(`chat-channel.dispatcher.ts` 2 · `notification-webhook.processor.ts` 2 ·
-  `hooks.service.ts:970`)은 `config` 를 아예 건드리지 않는다 → **창이 아니다.**
-- `repository.save(entity)` — **엔티티를 통째로** 저장한다. `config` 를 고칠 의도가 없는
-  자리도 **로드 시점의 `config` 를 함께 싣는다.** 저장소가 이미 이 패턴에 이름을 붙여 뒀다:
-  *"무가드 full-entity save lost-update"* (`plan/in-progress/ie-resume-turn-boundary-cancel.md`).
+**기존 행에 `save(entity)` 하는 자리는 8곳**(신규 INSERT 2건·DELETE 1건·테스트 mock 2건 제외):
 
-**기존 행에 `save(entity)` 하는 자리는 10곳**(신규 INSERT 2건·DELETE 1건 제외):
-
-| 자리 | `config` 를 **명시** 수정 | 비고 |
-|---|---|---|
-| `triggers.service.ts` `update()` `:545` | ✔ | 창 1 — **닫았다**(§D) |
-| `triggers.service.ts` `normalizeNotificationSecretRef` `:736` | ✔ | `update()` 안에서 창 1 직후에 불린다 |
-| `triggers.service.ts` `revokeInteractionToken` `:969` | ✔ | `config.interaction` 교체 |
-| `triggers.service.ts` `promoteNotificationSecrets` `:1217` (cron) | ✔ | `config.notification` 교체 |
-| `triggers.service.ts` `:921` · `:1186` · `:1268` | — | 컬럼만 고치지만 `save` 라 `config` 가 암묵적으로 실린다 |
-| `hooks.service.ts` `:228` · `:688` | — | 같음. **웹훅 타격마다** 도는 hot path (`lastTriggeredAt`) |
-| `schedules.service.ts` `:234` | — | 같음 |
-
-**이 PR 로 넓히지 않는다.** 「암묵」 행들이 실제로 되돌려 쓰는지는 `save` 의 diff 의미에
-달려 있어 **자리별 판정**이 필요하고, 그 판정 없이 열 곳을 일괄로 락에 넣으면 위 hot path 에
-트랜잭션을 새로 얹게 된다. 후속 항목으로 등재하고, **판정 기준은 모양이 아니라 주어**임을
-여기 적어 둔다.
-
-### `--impl-prep` INFO 등재 (planner 범위 — 이 브랜치에서 고치지 않는다)
-
-| 항목 | 왜 planner 인가 |
+| 자리 | 처분 |
 |---|---|
-| advisory lock 키 **인벤토리 문서 부재** | `redis-keys.md §4`(인접 네임스페이스)가 이 혼동을 막으려는 절인데 정작 lock key 계열이 미등재. `spec/` 편집 권한 밖 |
-| `exec-cap:*` · `trigger-config:*` 의 `redis-keys.md §4` 등재 | 같은 문서. 자매 사례(`execution-engine.service.ts`)도 미등재라 **둘을 함께** 올려야 한다 |
-| 기존 spec 의 회전 정책 **자기모순** | spec 본문끼리의 충돌 — 구현으로 못 닫는다 |
-| 번들 절단 | consistency 하네스의 예산 문제. `--impl-prep` 산출물에 기록됨 |
-| 전역 **32비트** 키 공간 공유 | `hashtext` 는 int4 를 낸다 — 전 도메인이 한 공간을 쓴다. 충돌 시 무해(과직렬화)하지만 **그 사실이 어디에도 적혀 있지 않다** |
+| `triggers.service.ts` `update()` (창 1) | **닫았다** — 락 안 + 재읽은 행을 저장 대상으로 |
+| `normalizeNotificationSecretRef` · `revokePerTriggerToken` · `promoteRotatedNotificationSecrets`(2자리) | `config` 를 **명시 수정**한다. 후속 — 아래 §후속 |
+| `rotateNotificationSecret` · `cleanupRotatedChatChannelTokens` · `schedules.service.ts#update` | 컬럼만 고치지만 `save` 라 `config` 가 **암묵적으로** 실린다. 후속 |
+
+> 위 «명시/암묵» 구분은 각 메서드를 **읽어서** 정했다. 본문에 `config` 토큰이 있는지 세는
+> 휴리스틱은 `rotateNotificationSecret` 을 «명시» 로 오분류했다(인접한 notification config
+> 조회를 주워 온다) — 그래서 그 수를 쓰지 않았다.
+
+**웹훅 인입 hot path 는 이 PR 에서 닫았다.** `hooks.service.ts` 의 두 자리
+(`handleWebhook` · chat-channel 인입)는 `lastTriggeredAt` 만 바꾸면서 `save(trigger)` 로
+엔티티를 통째로 썼다 — **인입 메시지마다** 도는 경로라 PATCH 경합보다 훨씬 잦고, 잃는 것이
+같은 `inboundSigningRef` 다. 컬럼 한정 `update` 로 바꿨고 뮤턴트 두 방향(전체 save 로 되돌리기 ·
+`config` 를 patch 에 섞기)이 모두 RED 임을 확인했다.
+
+### 2라운드 리뷰 처분 (`review/code/2026/09/14/19_07_43` — C0 · W7)
+
+| # | 처분 |
+|---|---|
+| W1 웹훅 hot path 가 같은 fail-open 클래스 (더 잦다) | **수용·수정** — 컬럼 한정 `update` + 회귀 테스트(양방향 뮤턴트 RED) |
+| W2 창 1 의 `save` 가 형제 창의 **컬럼** 커밋을 되돌린다 | **수용·수정** — 저장 대상을 재읽은 행으로. 내가 1라운드 수정으로 **새로 만든 결함**이다 |
+| W3 `config` 를 명시 수정하는 형제 3메서드 | **후속 등재** — 아래 표. `revokePerTriggerToken` 을 최우선으로 적는다 |
+| W4 락 획득 SQL 이 두 곳에 손으로 중복 | **수용·수정** — `acquireTriggerConfigLock` 프리미티브로 통합 |
+| W5 PATCH 전체가 락+재읽기를 지게 됨 | **수용(트레이드오프)** — 임계 구간은 DB 왕복 두 번이고 외부 호출이 없다. 후속 표에 «호출 빈도·P95 관측» 으로 등재 |
+| W6 `spec` `code:` glob 미포함 | planner 범위 — 위 등재 표 유지 |
+| W7 인라인 ref 캐스트 3중 복제 | **수용·수정** — `extractInboundSigningRef` 로 통합 |
+
+### 후속(developer 범위) — 이 PR 로 넓히지 않는다
+
+| 항목 | 근거 |
+|---|---|
+| **`revokePerTriggerToken`** 의 `config` 통째 쓰기 | 라이브 엔드포인트라 상시 재현 가능. 락 경유로 바꾸는 것이 답이지만, 그 메서드가 함께 쓰는 컬럼 집합을 먼저 확정해야 한다 |
+| `normalizeNotificationSecretRef` · `promoteRotatedNotificationSecrets` | 같은 클래스. 후자는 cron 이라 경합 빈도가 낮다 |
+| 컬럼만 고치는 3자리의 암묵적 `config` 쓰기 | 컬럼 한정 `update` 로 바꾸면 사라진다. 자리별로 «그 엔티티를 뒤에서 쓰는가» 확인 필요 |
+| `PATCH /api/triggers/:id` 의 P95/P99 관측 | W5 — 새 결함은 아니나 전제가 바뀌었다 |
+| `rewriteTriggerConfigLocked` 반환값을 세 호출부가 무시 | JSDoc 이 약속한 «관측 가능» 이 아직 실현되지 않았다 |
+| `remove()` 가 같은 락을 안 잡는다 | 삭제 레이스의 좁은 창. 데이터 손상은 없다 |
+| `chatChannelHealth` 등 상태 컬럼은 락 밖 | 관측성 lost update, 보안 무관 |
+| `setupAt`/`rotatedAt` 을 락 획득 **전**에 캡처 | 컨텐션 시 «완료 시각» 과 괴리 |
+| 헬퍼가 `Trigger` 에 하드코딩 | 위 후속들에서 제네릭화 필요 |
+| `update()` 가 ~160줄 — 창 1 을 `saveWithConfigLock(...)` 으로 분리 | 다음 편집 때 |
 
 ## 하지 않는 것
 

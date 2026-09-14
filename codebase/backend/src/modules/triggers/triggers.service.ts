@@ -20,8 +20,8 @@ import {
 import { randomBytes } from 'crypto';
 import { Trigger, TriggerChatChannelHealth } from './entities/trigger.entity';
 import {
+  acquireTriggerConfigLock,
   rewriteTriggerConfigLocked,
-  triggerConfigLockKey,
 } from './trigger-config-lock';
 import { Execution } from '../executions/entities/execution.entity';
 import { Schedule } from '../schedules/entities/schedule.entity';
@@ -47,6 +47,7 @@ import {
   assertChatChannelInputSafe,
   stripChatChannelPlaintext,
   translateSetupChannelError,
+  extractInboundSigningRef,
 } from './chat-channel-input-rules';
 import type { ChatChannelInput } from './chat-channel-input-rules';
 import { buildTriggerCallbackUrl } from './trigger-callback-url';
@@ -509,9 +510,7 @@ export class TriggersService {
     // 요청이 그 사이 ref 를 처음 확립하면 `undefined` 다 — 그러면 창 1 이 `chatChannel` 을
     // 통째로 교체하며 ref 를 지우고, binder 의 재읽기는 **자기 자신이 방금 쓴 값**(ref 없음)을
     // 보게 되어 보존 게이트가 거짓이 된다. 즉 두 쓰기가 한 요청 안에서 서로를 가린다.
-    let previousInboundSigningRef = (
-      trigger.config as { chatChannel?: { inboundSigningRef?: string } }
-    )?.chatChannel?.inboundSigningRef;
+    let previousInboundSigningRef = extractInboundSigningRef(trigger.config);
     // authConfigId 를 새로 set 하는 경우 같은 워크스페이스의 AuthConfig 인지 검증.
     // null 로 set (인증 제거) 은 검증 대상 아님.
     if (rest.authConfigId) {
@@ -548,18 +547,20 @@ export class TriggersService {
     // `setupChatChannel` 은 저장 **뒤**에 온다 (`trigger-config-lock.ts` JSDoc 의 제약).
     const saved = await this.triggerRepository.manager
       .transaction(async (m) => {
-        await m.query('SELECT pg_advisory_xact_lock(hashtext($1))', [
-          triggerConfigLockKey(trigger.id),
-        ]);
+        await acquireTriggerConfigLock(m, trigger.id);
         // 락을 잡은 뒤의 행이 «커밋된 최신 상태» 다. 요청이 `config` 를 통째로 보냈으면
         // 그것이 사용자의 의도이므로 그대로 쓰고, 아니면 **재읽은 행**을 기준으로 삼는다.
+        //
+        // **`findById` 와 같은 관계를 싣는다.** 아래에서 이 엔티티가 저장 대상이자 응답의
+        // 원본이 되므로, 관계를 빼고 읽으면 `chatChannel` 없는 PATCH 응답에서만 `workflow`
+        // 가 사라진다 — `TriggerDto.workflow` 가 *"생성 응답에만 없다"* 고 보장하는 자리다.
         const fresh = await m.findOne(Trigger, {
           where: { id: trigger.id, workspaceId },
+          relations: ['workflow'],
         });
         // 보존 게이트의 **첫 항**도 재읽은 행에서 온다 — 위 선언의 註 참조.
         previousInboundSigningRef =
-          (fresh?.config as { chatChannel?: { inboundSigningRef?: string } })
-            ?.chatChannel?.inboundSigningRef ?? previousInboundSigningRef;
+          extractInboundSigningRef(fresh?.config) ?? previousInboundSigningRef;
         // notification/interaction/chatChannel 이 명시된 경우만 config 안의 해당 키를 교체.
         const baseConfig = this.stripInlineAuthKeys(
           config ?? fresh?.config ?? trigger.config ?? {},
@@ -570,8 +571,17 @@ export class TriggersService {
           interaction,
           safeChatChannel,
         );
-        Object.assign(trigger, defined, { config: mergedConfig });
-        return m.save(Trigger, trigger);
+        // **재읽은 행을 저장 대상으로 쓴다.** `save` 는 엔티티를 통째로 저장하므로, 요청
+        // 시작 시점의 `trigger` 를 그대로 넘기면 `config` 밖의 컬럼
+        // (`chatChannelHealth`·`chatChannelLastError`·`chatChannelSetupAt`·
+        // `chatChannelRotatedAt`·`chatChannelTokenV2`)이 **pre-lock 스냅샷 값으로 되돌아간다**.
+        // 같은 락을 공유하는 형제 창(`rotateBotToken`·binder)이 방금 커밋한 부분 UPDATE 를
+        // 이 저장이 조용히 덮는 것이다 — 이 PR 이 막는 것과 **같은 클래스**의 lost update 를
+        // 수정 자체가 새로 만들고 있었다
+        // (`/ai-review` `review/code/2026/09/14/19_07_43` database WARNING#2).
+        const target = fresh ?? trigger;
+        Object.assign(target, defined, { config: mergedConfig });
+        return m.save(Trigger, target);
       })
       .catch((err: unknown) => this.rethrowEndpointPathConflict(err));
     // **커밋 직후** 기록한다 — 아래 세 가지(schedule 역동기화의 BullMQ 호출, secret

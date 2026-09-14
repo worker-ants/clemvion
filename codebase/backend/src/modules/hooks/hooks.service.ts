@@ -224,8 +224,16 @@ export class HooksService {
     );
 
     // 6. Update lastTriggeredAt
+    // **컬럼만 갱신한다 — `save(trigger)` 를 쓰지 않는다.** `save` 는 엔티티를 통째로
+    // 저장하므로 요청 시작 시점에 읽은 `config` 까지 함께 쓴다. 그 사이 동시 PATCH 가
+    // `chatChannel.inboundSigningRef` 를 확립했다면 이 저장이 그것을 **되돌리고**, 인입 서명
+    // 검증이 fail-open 으로 돌아간다 — PATCH 끼리의 경합보다 훨씬 잦은 경로다(인입 메시지마다
+    // 돈다). `/ai-review` `review/code/2026/09/14/19_07_43` concurrency WARNING#1.
     trigger.lastTriggeredAt = new Date();
-    await this.triggerRepository.save(trigger);
+    await this.triggerRepository.update(
+      { id: trigger.id },
+      { lastTriggeredAt: trigger.lastTriggeredAt },
+    );
 
     // 7. External Interaction API — interaction.enabled=true 일 때 interaction token + endpoints
     //    동봉 ([Spec EIA §4.1] / WH-RS-04). per_execution 전략이면 단명 JWT 발급, per_trigger
@@ -684,8 +692,16 @@ export class HooksService {
       },
     );
 
+    // **컬럼만 갱신한다 — `save(trigger)` 를 쓰지 않는다.** `save` 는 엔티티를 통째로
+    // 저장하므로 요청 시작 시점에 읽은 `config` 까지 함께 쓴다. 그 사이 동시 PATCH 가
+    // `chatChannel.inboundSigningRef` 를 확립했다면 이 저장이 그것을 **되돌리고**, 인입 서명
+    // 검증이 fail-open 으로 돌아간다 — PATCH 끼리의 경합보다 훨씬 잦은 경로다(인입 메시지마다
+    // 돈다). `/ai-review` `review/code/2026/09/14/19_07_43` concurrency WARNING#1.
     trigger.lastTriggeredAt = new Date();
-    await this.triggerRepository.save(trigger);
+    await this.triggerRepository.update(
+      { id: trigger.id },
+      { lastTriggeredAt: trigger.lastTriggeredAt },
+    );
 
     await adapter.ackInteraction(update, config);
     return { executionId, status: 'pending' as const };

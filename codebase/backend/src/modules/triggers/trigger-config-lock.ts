@@ -27,6 +27,25 @@ export function triggerConfigLockKey(triggerId: string): string {
 }
 
 /**
+ * 이 트리거의 config 락을 잡는다 — **트랜잭션 안에서만** 부른다(`xact` 는 커밋/롤백 시
+ * 자동 해제이므로 트랜잭션 밖에서 부르면 즉시 풀린다).
+ *
+ * 아래 `rewriteTriggerConfigLocked` 와 `TriggersService.update()` 의 인라인 구현이 이
+ * 한 줄을 **각자 손으로 적고 있었다**. 락 획득 SQL 을 바꿀 일(예: `SET LOCAL lock_timeout`
+ * 추가 — 위 «대기 상한» 절이 예고한 그 변경)이 생기면 한쪽만 고칠 위험이 구조적으로 남는다
+ * (`/ai-review` `review/code/2026/09/14/19_07_43` architecture WARNING#4). 프리미티브로
+ * 뽑아 두 자리가 같은 코드를 지나가게 한다.
+ */
+export async function acquireTriggerConfigLock(
+  manager: Pick<EntityManager, 'query'>,
+  triggerId: string,
+): Promise<void> {
+  await manager.query('SELECT pg_advisory_xact_lock(hashtext($1))', [
+    triggerConfigLockKey(triggerId),
+  ]);
+}
+
+/**
  * **`trigger.config` 를 락 안에서 다시 읽어** 머지하고 쓴다 — lost update 방지.
  *
  * ## 왜 필요한가
@@ -78,9 +97,7 @@ export async function rewriteTriggerConfigLocked(
   columns: QueryDeepPartialEntity<Trigger> = {},
 ): Promise<boolean> {
   return manager.transaction(async (m) => {
-    await m.query('SELECT pg_advisory_xact_lock(hashtext($1))', [
-      triggerConfigLockKey(triggerId),
-    ]);
+    await acquireTriggerConfigLock(m, triggerId);
     // **락을 잡은 뒤에 읽는다.** 이 시점의 행이 «커밋된 최신 상태» 이고, 동시 요청이 방금
     // 확립한 키는 여기에만 있다.
     //

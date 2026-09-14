@@ -9,7 +9,10 @@ import { ChannelListenerRegistry } from '../chat-channel/channel-listener.regist
 import { ChatChannelConfig } from '../chat-channel/types';
 import { SecretResolverService } from '../secret-store/secret-resolver.service';
 import { buildSecretRef } from '../secret-store/secret-ref';
-import { stripChatChannelPlaintext } from './chat-channel-input-rules';
+import {
+  stripChatChannelPlaintext,
+  extractInboundSigningRef,
+} from './chat-channel-input-rules';
 import type { ChatChannelInput } from './chat-channel-input-rules';
 import { buildTriggerCallbackUrl } from './trigger-callback-url';
 
@@ -205,10 +208,7 @@ export class ChatChannelBinderService {
      */
     const survivesWithFresh = (freshConfig: Record<string, unknown>): boolean =>
       inboundSigningRefSurvives ||
-      Boolean(
-        (freshConfig as { chatChannel?: { inboundSigningRef?: string } })
-          ?.chatChannel?.inboundSigningRef,
-      );
+      Boolean(extractInboundSigningRef(freshConfig));
 
     /**
      * 락 안에서 쓸 `chatChannel` 을 만든다 — **성공·실패 두 경로가 이 함수 하나를 쓴다.**

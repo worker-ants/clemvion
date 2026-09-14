@@ -3603,7 +3603,10 @@ describe('TriggersService — 락 안 재읽기가 동시 확립분을 본다 (l
   const BOT_TOKEN_REF = 'secret://triggers/trig-l/bot-token';
   const SIGNING_REF = 'secret://triggers/trig-l/inbound-signing';
 
-  const row = (config: Record<string, unknown>) =>
+  const row = (
+    config: Record<string, unknown>,
+    columns: Record<string, unknown> = {},
+  ) =>
     ({
       id: 'trig-l',
       workspaceId: 'ws-1',
@@ -3612,6 +3615,7 @@ describe('TriggersService — 락 안 재읽기가 동시 확립분을 본다 (l
       config,
       chatChannelHealth: 'healthy',
       chatChannelLastError: null,
+      ...columns,
     }) as unknown as Trigger;
 
   /**
@@ -3625,16 +3629,24 @@ describe('TriggersService — 락 안 재읽기가 동시 확립분을 본다 (l
   const withoutRef = () =>
     row({ chatChannel: { provider: 'slack', botTokenRef: BOT_TOKEN_REF } });
 
-  /** 동시 요청이 ref 를 **방금 확립하고**, 손대지 않은 키도 함께 커밋한 상태. */
+  /**
+   * 동시 요청이 ref 를 **방금 확립하고**, 손대지 않은 키와 **컬럼**까지 함께 커밋한 상태.
+   *
+   * `chatChannelHealth` 를 `withoutRef` 와 다르게 두는 것이 핵심이다 — `save` 는 엔티티를
+   * 통째로 저장하므로, 저장 대상이 pre-lock 스냅샷이면 이 컬럼이 `healthy` 로 되돌아간다.
+   */
   const withRef = () =>
-    row({
-      chatChannel: {
-        provider: 'slack',
-        botTokenRef: BOT_TOKEN_REF,
-        inboundSigningRef: SIGNING_REF,
+    row(
+      {
+        chatChannel: {
+          provider: 'slack',
+          botTokenRef: BOT_TOKEN_REF,
+          inboundSigningRef: SIGNING_REF,
+        },
+        untouchedByThisRequest: 'kept',
       },
-      untouchedByThisRequest: 'kept',
-    });
+      { chatChannelHealth: 'degraded', chatChannelLastError: 'provider down' },
+    );
 
   const cardBody = {
     provider: 'slack',
@@ -3762,6 +3774,26 @@ describe('TriggersService — 락 안 재읽기가 동시 확립분을 본다 (l
     )?.config;
     expect(savedConfig?.chatChannel?.inboundSigningRef).toBe(SIGNING_REF);
     expect(savedConfig?.untouchedByThisRequest).toBe('kept');
+  });
+
+  it('update() — 형제 창이 커밋한 **컬럼**도 되돌리지 않는다', async () => {
+    // `config` 만 재읽고 저장 대상은 pre-lock 엔티티로 두면, 같은 락을 공유하는 형제 창
+    // (`rotateBotToken`·binder)이 방금 커밋한 부분 UPDATE 를 이 저장이 조용히 덮는다 —
+    // 이 PR 이 막는 것과 같은 클래스의 lost update 를 수정 자체가 만들던 자리다
+    // (`review/code/2026/09/14/19_07_43` database WARNING#2).
+    const { service, repo } = await makeService([withRef]);
+
+    await service.update('trig-l', 'ws-1', { name: '새 이름' } as never, 'u-1');
+
+    const savedEntity = repo.save.mock.calls.at(-1)?.[0] as unknown as {
+      chatChannelHealth?: string;
+      chatChannelLastError?: string | null;
+      name?: string;
+    };
+    expect(savedEntity?.chatChannelHealth).toBe('degraded');
+    expect(savedEntity?.chatChannelLastError).toBe('provider down');
+    // 이번 요청의 변경은 그대로 실린다 — 재읽기가 요청을 덮어쓰지 않는다는 반대 방향.
+    expect(savedEntity?.name).toBe('새 이름');
   });
 
   it('rotateBotToken — 손대지 않은 config 키가 살아남는다', async () => {
