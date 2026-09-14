@@ -18,6 +18,13 @@ export interface TransactionMockOptions {
    * 그 사실이 테스트에 보여야 한다. 락을 빼는 뮤턴트를 잡는 유일한 고리다.
    */
   onLock?: (key: string) => void;
+  /**
+   * `SET LOCAL lock_timeout` 이 걸릴 때마다 그 **구문**으로 불린다.
+   *
+   * 상한도 SQL 한 줄이라 관측 고리가 없으면 «삭제 경로만 상한을 둔다» 를 단언할 수 없다 —
+   * 실측으로 확인했다: 상한을 지우는 뮤턴트가 305건 전건 GREEN 으로 살아남았다.
+   */
+  onLockTimeout?: (statement: string) => void;
 }
 
 /**
@@ -77,6 +84,9 @@ export function withTransactionMock(
         Promise.resolve(
           cb({
             query: jest.fn((sql: unknown, params: unknown) => {
+              if (typeof sql === 'string' && sql.includes('lock_timeout')) {
+                options.onLockTimeout?.(sql);
+              }
               if (
                 typeof sql === 'string' &&
                 sql.includes('pg_advisory_xact_lock') &&

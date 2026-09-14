@@ -22,6 +22,7 @@ import { Trigger, TriggerChatChannelHealth } from './entities/trigger.entity';
 import {
   acquireTriggerConfigLock,
   rewriteTriggerConfigLocked,
+  TRIGGER_DELETE_LOCK_TIMEOUT_MS,
 } from './trigger-config-lock';
 import { Execution } from '../executions/entities/execution.entity';
 import { Schedule } from '../schedules/entities/schedule.entity';
@@ -344,18 +345,31 @@ export class TriggersService {
     return PaginatedResponseDto.create(enriched, totalItems, page, limit);
   }
 
-  async findById(id: string, workspaceId: string): Promise<Trigger> {
-    const trigger = await this.triggerRepository.findOne({
-      where: { id, workspaceId },
-      relations: ['workflow'],
-    });
-    if (!trigger) {
+  /**
+   * 없으면 `RESOURCE_NOT_FOUND` 로 던진다 — **이 문구가 사는 유일한 자리.**
+   *
+   * 같은 리터럴이 네 곳으로 늘었었다(`findById` · `findByIdForUpdate` · 창 1 의 삭제 경합 ·
+   * `rotateBotToken` 의 삭제 경합). 이 PR 이 스스로 반복해 적은 *"복제가 drift 를 부른다"* 와
+   * 정면으로 어긋나는 상태였다 (`/ai-review` `review/code/2026/09/14/20_49_15`
+   * maintainability WARNING#5).
+   */
+  private assertTriggerFound(row: Trigger | null | undefined): Trigger {
+    if (!row) {
       throw new NotFoundException({
         code: 'RESOURCE_NOT_FOUND',
         message: 'Trigger not found',
       });
     }
-    return trigger;
+    return row;
+  }
+
+  async findById(id: string, workspaceId: string): Promise<Trigger> {
+    return this.assertTriggerFound(
+      await this.triggerRepository.findOne({
+        where: { id, workspaceId },
+        relations: ['workflow'],
+      }),
+    );
   }
 
   async findOneDetail(id: string, workspaceId: string): Promise<TriggerDetail> {
@@ -476,16 +490,9 @@ export class TriggersService {
     id: string,
     workspaceId: string,
   ): Promise<Trigger> {
-    const trigger = await this.triggerRepository.findOne({
-      where: { id, workspaceId },
-    });
-    if (!trigger) {
-      throw new NotFoundException({
-        code: 'RESOURCE_NOT_FOUND',
-        message: 'Trigger not found',
-      });
-    }
-    return trigger;
+    return this.assertTriggerFound(
+      await this.triggerRepository.findOne({ where: { id, workspaceId } }),
+    );
   }
 
   async update(
@@ -613,14 +620,11 @@ export class TriggersService {
         // 형태다. 다만 이 PR 이 형제 세 창을 «행이 없으면 쓰지 않고 `false`» 로 만들어 **비대칭**
         // 이 생겼고, 여기는 이미 재읽기를 하고 있으니 같은 규율로 닫는 것이 자연스럽다
         // (`/ai-review` `review/code/2026/09/14/19_44_08` side_effect·concurrency CRITICAL#1).
-        if (!fresh) {
-          throw new NotFoundException({
-            code: 'RESOURCE_NOT_FOUND',
-            message: 'Trigger not found',
-          });
-        }
-        Object.assign(fresh, defined, { config: mergedConfig });
-        return m.save(Trigger, fresh);
+        // **반환값을 받는다** — 메서드 호출은 타입을 좁혀 주지 않는다(assertion 함수가
+        // 아니므로). 헬퍼가 값을 돌려주는 형태인 이유가 이것이다.
+        const target = this.assertTriggerFound(fresh);
+        Object.assign(target, defined, { config: mergedConfig });
+        return m.save(Trigger, target);
       })
       .catch((err: unknown) => this.rethrowEndpointPathConflict(err));
     // **커밋 직후** 기록한다 — 아래 세 가지(schedule 역동기화의 BullMQ 호출, secret
@@ -957,10 +961,25 @@ export class TriggersService {
     //
     // 위 `teardownChatChannel`(외부 호출)은 **락 밖**에서 이미 끝났다 — `trigger-config-lock.ts`
     // JSDoc 의 «외부 호출을 락 안에 두지 않는다» 제약을 여기서도 지킨다.
-    await this.triggerRepository.manager.transaction(async (m) => {
-      await acquireTriggerConfigLock(m, id);
-      await m.remove(trigger);
-    });
+    //
+    // **삭제만 대기 상한을 둔다.** 위 정리는 되돌릴 수 없으므로, 락을 무한정 기다리면
+    // «자원은 다 뜯겼는데 행은 남은» 반쯤 삭제된 상태가 굳는다. 상한을 넘기면 그 사실을
+    // 소리내어 남기고 던진다 — 조용한 지연보다 드러나는 오류가 낫다.
+    await this.triggerRepository.manager
+      .transaction(async (m) => {
+        await acquireTriggerConfigLock(m, id, {
+          timeoutMs: TRIGGER_DELETE_LOCK_TIMEOUT_MS,
+        });
+        await m.remove(trigger);
+      })
+      .catch((err: unknown) => {
+        this.logger.error(
+          `TriggersService.remove: trigger=${id} 의 행 삭제가 실패했다 — provider teardown·` +
+            `secret 삭제·listener 해제는 **이미 끝났으므로** 이 트리거는 반쯤 삭제된 상태다. ` +
+            `수동 정리가 필요하다: ${err instanceof Error ? err.message : String(err)}`,
+        );
+        throw err;
+      });
     await this.recordAudit({
       workspaceId,
       userId,
@@ -1221,12 +1240,7 @@ export class TriggersService {
     // 트리거에 대한 **거짓 성공 기록**이다. 창 1 은 같은 조건에서 404 를 내므로 형제
     // 엔드포인트끼리 응답이 갈리기도 했다
     // (`/ai-review` `review/code/2026/09/14/20_17_16` api_contract WARNING#3).
-    if (!wrote) {
-      throw new NotFoundException({
-        code: 'RESOURCE_NOT_FOUND',
-        message: 'Trigger not found',
-      });
-    }
+    if (!wrote) this.assertTriggerFound(null);
     // **컬럼 갱신이 끝난 뒤에 기록한다.** 위 6단계 중 어디서든 던지면 회전은 일어나지
     // 않은 것이고, 그때 감사 row 만 남으면 "회전됐다" 는 거짓 기록이 된다.
     await this.recordAudit({

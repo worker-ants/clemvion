@@ -3667,25 +3667,51 @@ describe('TriggersService — 락 안 재읽기가 동시 확립분을 본다 (l
         ? jest.fn().mockRejectedValue(new Error('provider down'))
         : jest.fn().mockResolvedValue({ configUpdates: {} }),
     };
+    // **한 배열에 모은다** — «락을 잡았는가» 와 «삭제했는가» 를 따로 담으면 그 둘의
+    // **순서**를 단언할 수 없다. 순서가 이 배선의 보증이고, 뒤집는 뮤턴트를 잡는 유일한 고리다
+    // (`/ai-review` `review/code/2026/09/14/20_49_15` testing WARNING#3).
+    const events: string[] = [];
     const repoMock = {
       // 바깥(락 밖) 읽기 — 요청 시작 시점. 언제나 ref 가 없다.
       findOne: jest.fn().mockResolvedValue(withoutRef()),
       update: jest.fn().mockResolvedValue(undefined),
       save: jest.fn((t: Trigger) => Promise.resolve(t)),
-      remove: jest.fn((t: Trigger) => Promise.resolve(t)),
+      remove: jest.fn((t: Trigger) => {
+        events.push('remove');
+        return Promise.resolve(t);
+      }),
       create: jest.fn((t: unknown) => t),
       createQueryBuilder: jest.fn(),
     };
     let freshCall = 0;
     const lockKeys: string[] = [];
+    const listenerRegistry = {
+      register: jest.fn(),
+      unregister: jest.fn(),
+      has: jest.fn(() => false),
+      get: jest.fn(),
+      size: jest.fn(() => 0),
+      bulkRegister: jest.fn(),
+    };
     const providers = createBaseProviders(repoMock, {
       freshFindOne: () => {
         const idx = Math.min(freshCall, freshSequence.length - 1);
         freshCall += 1;
         return freshSequence[idx]();
       },
-      onLock: (key) => lockKeys.push(key),
+      onLock: (key) => {
+        lockKeys.push(key);
+        events.push(`lock:${key}`);
+      },
+      onLockTimeout: (statement) => events.push(`timeout:${statement}`),
     });
+    providers[
+      providers.findIndex(
+        (pr) =>
+          'provide' in pr &&
+          (pr as { provide: unknown }).provide === ChannelListenerRegistry,
+      )
+    ] = { provide: ChannelListenerRegistry, useValue: listenerRegistry };
     const at = (token: unknown) =>
       providers.findIndex(
         (pr) =>
@@ -3719,6 +3745,8 @@ describe('TriggersService — 락 안 재읽기가 동시 확립분을 본다 (l
         record: jest.Mock;
       },
       lockKeys,
+      events,
+      listenerRegistry,
     };
   }
 
@@ -3825,12 +3853,59 @@ describe('TriggersService — 락 안 재읽기가 동시 확립분을 본다 (l
     // 가드(`!fresh`)는 «읽었을 땐 있었는데 저장 직전에 삭제되는» 경합을 못 막는다 —
     // 삭제를 같은 락으로 직렬화하는 것이 그 창을 닫는 유일한 방법이다
     // (`review/code/2026/09/14/20_17_16` database·concurrency WARNING#2).
-    const { service, repo, lockKeys } = await makeService([withRef]);
+    const { service, repo, events } = await makeService([withRef]);
 
     await service.remove('trig-l', 'ws-1', 'u-1');
 
-    expect(lockKeys).toContain('trigger-config:trig-l');
+    // **존재가 아니라 순서를 단언한다.** 종전엔 «락 키가 들어 있다» + «remove 가 불렸다» 만
+    // 봐서, 둘을 뒤집는 뮤턴트가 그대로 통과했다(실측: 전건 GREEN).
+    //
+    // 상한(`SET LOCAL lock_timeout`)도 같은 배열에 들어간다 — 삭제 경로는 되돌릴 수 없는
+    // 정리를 이미 끝낸 뒤라 무한 대기가 «반쯤 삭제된 상태» 로 굳는다. 그래서 **삭제만**
+    // 상한을 두고, 그 사실을 순서와 함께 고정한다.
+    expect(events).toEqual([
+      "timeout:SET LOCAL lock_timeout = '5000ms'",
+      'lock:trigger-config:trig-l',
+      'remove',
+    ]);
     expect(repo.remove).toHaveBeenCalled();
+  });
+
+  it('update() 는 락 대기에 상한을 두지 않는다 (삭제만 예외다)', async () => {
+    // 대칭 단언 — 상한을 «모든 경로» 로 넓히는 편집도 잡는다. 다른 경로는 기다렸다 쓰는 것이
+    // 정답이므로 상한이 있으면 정상 요청이 실패로 바뀐다.
+    const { service, events } = await makeService([withRef]);
+
+    await service.update('trig-l', 'ws-1', { name: '새 이름' } as never, 'u-1');
+
+    expect(events.filter((e) => e.startsWith('timeout:'))).toEqual([]);
+    expect(events).toContain('lock:trigger-config:trig-l');
+  });
+
+  it('binder 성공 — 쓰기가 skip 되면 listener 를 등록하지 않는다', async () => {
+    // 삭제 경합으로 헬퍼가 `false` 를 돌려주면 등록도 하지 않아야 한다 — 안 그러면 해제되지
+    // 않는 유령 entry 가 in-memory registry 에 남는다. 4라운드에 넣은 게이트인데 **어떤
+    // 테스트도 행사하지 않았다**(실측: 게이트를 통째로 지워도 전건 GREEN)
+    // (`review/code/2026/09/14/20_49_15` testing WARNING#4).
+    //
+    // 재읽기 ①(창 1)은 살아 있고 ②(binder)만 사라진 상태를 만든다.
+    const { service, listenerRegistry } = await makeService([
+      withRef,
+      () => undefined as never,
+    ]);
+
+    await patchChatChannel(service);
+
+    expect(listenerRegistry.register).not.toHaveBeenCalled();
+  });
+
+  it('binder 성공 — 쓰기가 성공하면 listener 를 등록한다 (양성 대조군)', async () => {
+    // 위 음성 단언이 «어차피 아무도 안 부른다» 로 공허해지는 것을 막는다.
+    const { service, listenerRegistry } = await makeService([withRef, withRef]);
+
+    await patchChatChannel(service);
+
+    expect(listenerRegistry.register).toHaveBeenCalledWith('trig-l', 'slack');
   });
 
   it('rotateBotToken — 그 사이 삭제되면 404 + 감사 미기록', async () => {

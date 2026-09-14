@@ -39,11 +39,32 @@ export function triggerConfigLockKey(triggerId: string): string {
 export async function acquireTriggerConfigLock(
   manager: Pick<EntityManager, 'query'>,
   triggerId: string,
+  options: { timeoutMs?: number } = {},
 ): Promise<void> {
+  if (options.timeoutMs !== undefined) {
+    // `SET LOCAL` 이라 트랜잭션이 끝나면 저절로 풀린다 — 세션에 남지 않는다.
+    // 파라미터 바인딩이 안 되는 자리라 **정수임을 여기서 강제**한다(값은 호출부 상수).
+    await manager.query(
+      `SET LOCAL lock_timeout = '${Math.trunc(options.timeoutMs)}ms'`,
+    );
+  }
   await manager.query('SELECT pg_advisory_xact_lock(hashtext($1))', [
     triggerConfigLockKey(triggerId),
   ]);
 }
+
+/**
+ * 삭제 경로의 락 대기 상한.
+ *
+ * 다른 경로는 무한 대기가 낫다 — 기다렸다 쓰는 것이 정답이기 때문이다. **삭제만 다르다**:
+ * `remove()` 는 락을 잡기 **전에** 되돌릴 수 없는 정리(provider teardown · secret 삭제 ·
+ * BullMQ 해제)를 이미 끝냈으므로, 여기서 무한정 매달리면 «자원은 다 뜯겼는데 행은 남은»
+ * 반쯤 삭제된 상태가 요청 타임아웃/프로세스 재시작과 함께 굳어진다
+ * (`/ai-review` `review/code/2026/09/14/20_49_15` side_effect WARNING#2).
+ *
+ * 상한을 두면 그 상태가 **조용한 지연이 아니라 드러나는 오류**가 된다.
+ */
+export const TRIGGER_DELETE_LOCK_TIMEOUT_MS = 5_000;
 
 /**
  * **`trigger.config` 를 락 안에서 다시 읽어** 머지하고 쓴다 — lost update 방지.
