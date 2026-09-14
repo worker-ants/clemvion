@@ -134,6 +134,18 @@ describe('트리거 비밀 컬럼 목록 3중 사본 정합', () => {
       expect(readStringArrayConst(tmp, rel, 'X')).toEqual(['a']);
     });
 
+    it('괄호로 감싼 선언도 벗긴다', () => {
+      // JSDoc 이 *"`as`·`satisfies`·괄호를 루프로 벗긴다"* 라고 **셋**을 약속하는데
+      // 잠겨 있던 것은 둘뿐이었다 — 괄호 분기를 지워도 10/10 GREEN 이었다
+      // (`/ai-review` `review/code/2026/09/14/12_17_14` testing WARNING#1).
+      // 약속한 항마다 대조군이 있어야 «문서한 보장» 이 «구현» 을 넘지 않는다.
+      const rel = write(
+        'parens.ts',
+        "const X = (['a', 'b'] as const);\nexport default X;",
+      );
+      expect(readStringArrayConst(tmp, rel, 'X')).toEqual(['a', 'b']);
+    });
+
     it('선언이 없으면 `null` — 빈 배열과 가른다', () => {
       const rel = write(
         'missing.ts',
