@@ -17,6 +17,10 @@ import { Trigger } from './entities/trigger.entity';
  */
 export const TRIGGER_CONFIG_LOCK_PREFIX = 'trigger-config';
 
+// 상위 plan: `plan/in-progress/trigger-config-lost-update.md` — 창 넷의 실측, 설계 근거,
+// 그리고 «같은 클래스가 더 있다» 는 전수 열거가 거기 있다. 이 파일만 읽으면 그 맥락이
+// 드러나지 않는다 (`review/code/2026/09/14/18_17_44` documentation INFO#9).
+
 /** 같은 트리거의 `config` 재작성끼리만 직렬화한다 — 다른 트리거는 병렬 유지. */
 export function triggerConfigLockKey(triggerId: string): string {
   return `${TRIGGER_CONFIG_LOCK_PREFIX}:${triggerId}`;
@@ -45,6 +49,18 @@ export function triggerConfigLockKey(triggerId: string): string {
  * 락 자체의 선례는 `execution-engine.service.ts` 의 admission 직렬화이고, 그쪽 JSDoc 이
  * *"조건부 UPDATE 단독은 불충분"* 을 실측과 함께 적는다. `pg_advisory_xact_lock` 은
  * 트랜잭션 종료 시 자동 해제된다.
+ *
+ * ## 대기에 **상한이 없다**
+ *
+ * `lock_timeout` 을 걸지 않았으므로, 같은 트리거에 대한 동시 PATCH/rotate 는 앞선 요청이
+ * 커밋할 때까지 **무한정 기다린다**. 이것은 선례(`execution-engine`)와 같은 선택이고, 임계
+ * 구간에 외부 호출이 없어 보유 시간이 «DB 왕복 두 번» 으로 유계라는 것이 근거다 — 외부
+ * 호출을 락 안에 두지 않는 위 제약이 곧 이 상한 부재를 감당 가능하게 만든다.
+ *
+ * **그래도 새 공유 블로킹 자원인 것은 맞다** (`/ai-review`
+ * `review/code/2026/09/14/18_17_44` concurrency WARNING#3). 임계 구간에 외부 호출이나 긴
+ * 계산을 들이는 변경을 한다면, 그때는 `SET LOCAL lock_timeout` 을 함께 넣어 실패를 조용한
+ * 지연이 아니라 **드러나는 오류**로 바꿔야 한다.
  *
  * @param merge 락 안에서 읽은 **커밋된 최신** `config` 를 받아 새 `config` 를 만든다.
  *   호출부는 여기서 «presence 게이트» 를 **다시 계산**해야 한다 — 락 밖에서 만든 값을 그대로

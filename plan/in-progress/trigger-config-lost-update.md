@@ -175,19 +175,18 @@ binder 가 스스로 잠글지."*
 
 ### 배선 — `test/trigger-config-lost-update.e2e-spec.ts`
 
-겹침을 우연에 맡기지 않고 **테스트가 advisory lock 을 직접 쥔다**. 요청 B(카드 편집 PATCH)의
-binder 쓰기는 같은 lock key 를 잡아야 하므로 거기서 멈추고, 그동안 테스트가 «요청 A» —
-*setupChannel 이 성공해 server-issued 서명을 확립하고 자기 스냅샷으로 `config` 를 통째로 다시
-쓴 동시 요청* — 를 연기한 뒤 COMMIT 으로 락을 놓는다.
+겹침을 우연에 맡기지 않고 **테스트가 advisory lock 을 직접 쥔다**. 요청 B(카드 편집 PATCH)는
+`update()` 의 첫 쓰기부터 같은 lock key 를 잡아야 하므로 **아무것도 쓰기 전에** 멈추고,
+그동안 테스트가 «요청 A» — *setupChannel 이 성공해 server-issued 서명을 확립하고 자기
+스냅샷으로 `config` 를 통째로 다시 쓴 동시 요청* — 를 연기한 뒤 COMMIT 으로 락을 놓는다.
 
-**단언이 둘인 이유**: e2e 에는 외부 mock 이 없어 B 의 `setupChannel` 은 반드시 실패하지만
-**실패까지의 지연이 환경마다 다르다.** 그래서 고치기 전 코드에는 인터리빙이 둘이고, 단언
-하나만으로는 한쪽이 조용히 통과한다.
+**단언이 셋인 이유**: 하나만으로는 한쪽 자리를 조용히 통과시킨다.
 
-| B 의 binder 쓰기 시점 | 고치기 전 | 고친 뒤 | 무는 단언 |
+| | 고치기 전 | 고친 뒤 | 단언 |
 |---|---|---|---|
-| A 보다 **먼저** | A 가 통째로 덮어 B 의 PATCH 가 사라진다 | 락 뒤 재읽기라 B 값이 남는다 | ① `rateLimitPerMinute === 42` |
-| A 보다 **나중** | 옛 게이트로 써서 A 가 막 확립한 ref 를 지운다(fail-open) | 재읽기가 ref 를 보고 보존 | ② `inboundSigningRef` 존재 |
+| B 의 PATCH 값 | A 가 통째로 덮어 사라진다 | 락 뒤 재읽기라 남는다 | ① `rateLimitPerMinute === 42` |
+| A 가 막 확립한 ref | B 가 요청 시작 시점 게이트로 지운다 → fail-open | 게이트 두 항이 재읽은 행에서 온다 | ② `inboundSigningRef` 존재 |
+| A 가 함께 커밋한 손대지 않은 키 | B 의 창 1 이 옛 스냅샷으로 덮는다 | 창 1 이 재읽은 행 위에 병합 | ③ 그 키 생존 |
 
 **provider 는 telegram 이다.** 결함의 전제가 *"B 가 읽는 시점에 ref 가 없고, 그 사이 다른
 요청이 그것을 처음 확립한다"* 인데, slack/discord 의 PATCH DTO 는 `inboundSigningPlaintext`
@@ -195,39 +194,129 @@ binder 쓰기는 같은 lock key 를 잡아야 하므로 거기서 멈추고, �
 server-issued 발급만이 그 역할을 하고, 게다가 이 환경의 telegram 트리거는 setupChannel 이
 실패해 **ref 없는 행**으로 자연히 만들어진다 — 전제를 만들려고 행을 손으로 긁지 않아도 된다.
 
-**공허성 가드**: window 1 커밋(`rateLimitPerMinute=42`)을 폴링으로 확인하고서야 A 를 쓴다.
-관측 못 하면 «겹침을 만들지 못했다» 로 **던진다** — 통과로 넘기지 않는다.
+**공허성 가드**: 락을 놓기 직전에 «B 가 아직 미완이고 아직 아무것도 쓰지 않았다» 를 관측해
+두고 맨 뒤에서 단언한다(④). 앞에서 단언하면 고치기 전 코드가 **유실을 보여 주기 전에** 멈춰
+실패 메시지가 «응답이 벌써 왔다» 가 된다 — 실측으로 확인했다.
+
+> **종전엔 창 1 커밋을 폴링으로 기다렸다.** 창 1 이 락 밖에 있던 동안엔 그것이 옳았지만,
+> 창 1 을 락 안으로 넣자 그 폴링은 **자기가 쥔 락 때문에 영영 관측되지 않는다** — 교착이다.
+> 구조를 고칠 때 테스트의 전제도 함께 바뀐다는 사례라 적어 둔다.
 
 ### 실측 — 전(락 없음) 유실 재현 → 후 유실 없음
 
-binder **catch 경로만** 고치기 전 모양으로 되돌려(나머지 둘은 고친 채) 이 spec 하나만 돌렸다.
+«고치기 전» 을 **이 PR 이 만진 두 서비스 파일을 `origin/main` 그대로 되돌린 상태**로 정의했다.
+부분 되돌리기는 «어디를 되돌렸나» 가 논쟁거리가 되지만, 통째로 이전 상태로 두면 *"이 PR 이
+없었다면"* 이 정확히 재현된다. 뮤턴트의 `tsc` 를 먼저 통과시켜 **거짓 RED**(구문·타입 오류로
+인한 실패)를 배제했다.
 
 | | 결과 |
 |---|---|
-| 뮤턴트(락·재읽기 없음) | **RED** — `Expected: 42 / Received: 7`. B 의 PATCH 가 통째로 사라졌다 |
-| 원본 | **PASS** |
+| 뮤턴트(`origin/main` 두 파일) | **RED** — `Expected: 42 / Received: 7`. B 의 PATCH 가 통째로 사라졌다 |
+| 원본 | **PASS** (4단계 ALL PASS, e2e 308건) |
 
 > **첫 뮤턴트 실행은 엉뚱한 자리에서 RED 였다** — «B 가 아직 미완인가» 관측 단언을 유실
 > 단언보다 **앞**에 둬서, 실패 메시지가 `Expected: false / Received: true` 였다. 유실을
 > 보여 주기 전에 멈춘 것이다. 관측 값만 붙잡고 단언을 맨 뒤로 옮긴 뒤 다시 재서 위 표를 얻었다.
 > **RED 라는 사실만으로는 «무엇을 판별했는가» 가 정해지지 않는다.**
 
-## D. 이 배치가 **닫지 않은** 것 — 창 1 과 등재 항목
+## D. 창 1 — 유예했다가 **되돌렸다**
 
-### 창 1 (`update()` 의 `save`) 은 열어 둔다
+### 유예의 근거가 틀렸다 (리뷰가 반증)
 
-락 헬퍼로 바꿔 **실행해 보고 되돌렸다**. `save(trigger)` 는 반환 엔티티·subscriber·
-`endpointPath` UNIQUE 충돌 경로를 함께 규정하고 있어서, `update` + 재조회로 바꾸면 그 셋이
-동시에 달라진다 — 실측으로 `triggers.service.spec.ts` **6개 케이스가 RED** 였다(interaction
-전체 교체 · 생략 필드 유지 · notification 병합 유지 · 저장 실패 시 감사 미기록 ·
-409 RESOURCE_CONFLICT 두 키 · R-CC-21 botTokenRef 재유도). 되돌리니 9 스위트 279건 통과.
+처음엔 창 1(`update()` 의 `save`)을 열어 두고 이렇게 적었다:
 
-**남는 노출**: 창 2·3·4 가 닫히면 `inboundSigningRef` 의 **영속적** 유실은 사라진다. 창 1 에
-남는 것은 «손대지 않은 `config` 키» 의 유실이고, 이 구간엔 외부 호출이 없어 창도 좁다.
-위 e2e 가 window 1 커밋을 기다리는 폴링을 두는 이유가 이것이다 — 그 창은 아직 열려 있다.
+> ~~창 2·3·4 를 닫고 나면 `inboundSigningRef` 의 **영속적** 유실은 사라지고, 여기 남는 것은
+> «손대지 않은 `config` 키» 의 유실이다.~~
 
-**후속 작업의 모양**(다음 사람이 다시 헤매지 않도록): `save` 의 세 계약을 먼저 테스트로
-분리해 고정한 뒤에 저장 경로를 바꾼다. 순서를 뒤집으면 위 6건이 그대로 재발한다.
+**거짓이다.** `/ai-review` `review/code/2026/09/14/18_17_44` security CRITICAL#1 이 반례를
+들었다 — `chatChannel` 을 **아예 싣지 않은** PATCH(이름 변경 등)도 `mergeExternalConfig` 가
+`config ?? trigger.config` 로 옛 스냅샷을 기준 삼아 병합하고 `save` 로 덮는다. 즉 이 PR 이
+막으려는 fail-open 이 창 1 로 그대로 재현된다. `Trigger` 에 `@VersionColumn` 도 없다.
+
+**내가 쓴 문장이 구현보다 넓었다.** 실측(단위 6건 RED)은 *"`save` 를 `update`+재조회로 바꾸면
+계약이 깨진다"* 를 보였을 뿐인데, 나는 그것을 *"창 1 은 닫을 수 없다"* 로 일반화했다.
+
+### 어떻게 닫았나 — 저장 동사는 건드리지 않는다
+
+병합과 저장을 **같은 advisory lock 안**에 넣고, 기준 `config` 를 **락 안에서 재읽은 행**에서
+가져온다. `save(trigger)` 는 그대로다 — 바꾼 것은 «어느 `config` 위에 병합하는가» 와
+«그 구간이 직렬화되는가» 뿐이다.
+
+| | 결과 |
+|---|---|
+| `update` + 재조회로 교체 (첫 시도) | 단위 **6건 RED** — 반환 엔티티·subscriber·409 경로가 함께 달라졌다 |
+| `save` 유지 + 락 + 재읽기 (채택) | **1건 RED** → 그 1건은 다른 파일(`triggers.web-chat.spec.ts`)의 mock 누락이었고, 고친 뒤 **291건 전부 통과** |
+
+그 1건도 교훈이 있다: `getRepositoryToken(Trigger)` provider 를 **한 파일 안에서만** 세어
+감쌌는데 전수로는 **6개 파일**에 흩어져 있었다. 헬퍼를
+`__test-utils__/trigger-transaction-mock.ts` 로 올려 다음 파일이 찾을 수 있게 했다.
+
+### 수정이 테스트로 지켜지는지 — 뮤턴트 4종
+
+리뷰(testing CRITICAL#2·#3)가 실측으로 지적했다: **핵심 수정이 어떤 테스트로도 보호되지
+않았다.** 기존 mock 이 전부 `findOne.mockResolvedValue(...)` 라 «최초 읽기 == 락 안 재읽기»
+였기 때문이다 — 두 읽기가 같으면 «다시 읽는다» 는 동작은 관측될 수 없다.
+
+`freshFindOne` 으로 두 읽기를 갈라 놓는 suite 를 넣고 뮤턴트로 **1:1 대응**을 확인했다:
+
+| 뮤턴트 (고치기 전 모양) | RED 가 된 테스트 |
+|---|---|
+| `buildChannel` 의 `survivesWithFresh` 항 제거 (성공 경로) | 성공 경로 ref 보존 |
+| 같은 항 제거 (실패 경로) | degraded 경로 ref 보존 |
+| `rotateBotToken` 머지를 스냅샷으로 되돌리기 | rotate 나머지 키 보존 |
+| 창 1 의 `fresh?.config` → `trigger.config` | `chatChannel` 없는 PATCH 회귀 |
+
+각 뮤턴트가 **자기 테스트 하나만** 죽였다 — 부수 RED 0.
+
+### 창 1 을 옮기자 **정적 가드가 눈이 멀었다**
+
+`endpoint-path-conflict-wrap` 래칫이 RED 를 냈다 — *"래핑된 자리가 알려진 목록과 정확히
+일치한다(남몰래 줄어도 실패)"* 에서 `#update` 가 사라졌다고. **래핑은 그대로였다.** 가드가
+`this.triggerRepository.save(` 라는 **수신자 이름**으로 저장을 찾는데, 저장이
+`manager.transaction(async (m) => m.save(Trigger, …))` 안으로 들어가면서 수신자가 `m` 이 된
+것이다. 가드는 «저장이 사라졌다» 로 읽었다.
+
+두 축을 함께 넓혔다 — 하나만 고치면 나머지가 남는다:
+
+| 축 | 종전 | 지금 |
+|---|---|---|
+| 저장 인식 | 수신자가 `triggerRepository` 인 `save(` 만 | **첫 인자가 `Trigger` 엔티티인** `save(` 도 (EntityManager 형태). 수신자 이름이 임의라 인자로 좁힌다 |
+| 래핑 인식 | 위로 올라가다 **문장 경계**에서 중단 | **콜백 경계를 넘는다** — 함수형 노드의 부모가 호출식이면 계속, 아니면 중단(감싸는 메서드). `.catch` 가 바깥 체인에 붙는 형태를 본다 |
+
+대조군 fixture 3종(`managerSaveWrapped` · `managerSaveUnwrapped` · `managerSaveOtherEntity`)을
+넣고, **가드가 아직 무는지** 뮤턴트로 확인했다:
+
+| 뮤턴트 | 결과 |
+|---|---|
+| `update` 의 `.catch(rethrowEndpointPathConflict)` 제거 | **RED 2건** (래핑 목록 + 미래핑 목록) |
+| `m.save(Trigger, …)` 를 `m.update(…)` 로 교체 | **RED 1건** (래핑 목록에서 사라졌다) |
+
+> **교훈은 «가드를 고쳤다» 가 아니다.** 정적 가드는 자기가 아는 **형태**만 본다 — 리팩터링이
+> 형태를 바꾸면 보호가 남아 있어도 가드는 사라진 것으로 읽는다. 이번엔 fail-**safe** 방향이라
+> 시끄럽게 RED 가 났지만, 반대 방향(형태가 바뀌어 **조용히 스캔 밖으로 나가는** 경우)이면
+> 아무도 모른다. 그래서 인식 축을 넓힐 때 **음성 대조군**(`managerSaveOtherEntity`)을 함께
+> 넣어 술어가 되레 넓어지는 것도 막았다.
+
+### `--impl-prep` · `/ai-review` 등재 항목 (planner 범위 — 이 브랜치에서 고치지 않는다)
+
+| 항목 | 왜 planner 인가 |
+|---|---|
+| `spec/5-system/15-chat-channel.md` 의 `code:` glob 이 `trigger-config-lock.ts` 를 안 문다 | 그 문서의 R-CC-22 가 *"명시 경로가 새 파일을 세 번 놓쳤다"* 며 glob 으로 바꾼 바로 그 결함의 **네 번째 재발**이다. `chat-channel-*` 밖이라 §7 tree 와 함께 갱신 필요 (`review/code/.../18_17_44` requirement W5). `spec/` 은 권한 밖 |
+| advisory lock 키 **인벤토리 문서 부재** | `redis-keys.md §4`(인접 네임스페이스)가 이 혼동을 막으려는 절인데 정작 lock key 계열이 미등재 |
+| `exec-cap:*` · `trigger-config:*` 의 `redis-keys.md §4` 등재 | 자매 사례(`execution-engine.service.ts`)도 미등재라 **둘을 함께** 올려야 한다 |
+| 기존 spec 의 회전 정책 **자기모순** | spec 본문끼리의 충돌 — 구현으로 못 닫는다 |
+| 번들 절단 | consistency 하네스의 예산 문제 |
+| 전역 **32비트** 키 공간 공유 | `hashtext` 는 int4 를 낸다 — 전 도메인이 한 공간을 쓴다. 충돌해도 과직렬화뿐이라 무해하지만 **어디에도 적혀 있지 않다** |
+
+### 후속(developer 범위) — 이 PR 로 넓히지 않는다
+
+| 항목 | 근거 |
+|---|---|
+| `rewriteTriggerConfigLocked` 반환값을 세 호출부가 무시한다 | JSDoc 이 약속한 «관측 가능» 이 아직 실현되지 않았다 (INFO#2) |
+| `remove()` 가 같은 락을 안 잡는다 | `findOne`–`update` 사이 삭제 레이스의 좁은 창. 데이터 손상은 없다 (INFO#6) |
+| `chatChannelHealth` 등 상태 컬럼은 락 밖 | 관측성 lost update, 보안 무관 (INFO#7) |
+| `setupAt`/`rotatedAt` 을 락 획득 **전**에 캡처 | 컨텐션 시 «완료 시각» 과 괴리 (INFO#5) |
+| 헬퍼가 `Trigger` 에 하드코딩 | 아래 «같은 클래스» 후속에서 제네릭화 필요 (INFO#4) |
 
 ### 같은 클래스의 자리가 **넷보다 많다** — 전수 열거 결과
 
@@ -252,7 +341,7 @@ binder **catch 경로만** 고치기 전 모양으로 되돌려(나머지 둘은
 
 | 자리 | `config` 를 **명시** 수정 | 비고 |
 |---|---|---|
-| `triggers.service.ts` `update()` `:545` | ✔ | 창 1 — 위에서 유예 |
+| `triggers.service.ts` `update()` `:545` | ✔ | 창 1 — **닫았다**(§D) |
 | `triggers.service.ts` `normalizeNotificationSecretRef` `:736` | ✔ | `update()` 안에서 창 1 직후에 불린다 |
 | `triggers.service.ts` `revokeInteractionToken` `:969` | ✔ | `config.interaction` 교체 |
 | `triggers.service.ts` `promoteNotificationSecrets` `:1217` (cron) | ✔ | `config.notification` 교체 |
@@ -294,8 +383,8 @@ binder **catch 경로만** 고치기 전 모양으로 되돌려(나머지 둘은
       | INFO#6 원 트래커 항목 동시 갱신 | 이미 체크리스트에 있다(재확인) |
       | INFO#1·#2·#5·#8 | **등재** — advisory lock 키 인벤토리 부재 · 기존 spec 회전정책 자기모순 · 번들 절단 · 전역 32비트 키 공간 공유 |
 - [x] `--impl-prep` INFO 등재 (planner · harness) — §D 표.
-- [x] 창 **3곳**에 «락 안에서 재읽기» 배선 (공용 유틸 `trigger-config-lock.ts` 하나로).
-      **창 1 은 되돌렸다** — 실측 근거와 후속 모양은 §D.
+- [x] 창 **4곳 전부**에 «락 안에서 재읽기» 배선. 2·3·4 는 공용 유틸
+      `trigger-config-lock.ts`, 창 1 은 `save` 를 유지한 채 같은 락 안에서 병합 — §D.
 - [x] 동시 PATCH e2e — `test/trigger-config-lost-update.e2e-spec.ts`. 배선·대응표는 §C.
 - [ ] 트래커 항목 `[x]` + 실측 각주 (창이 **넷**이었다는 정정 포함)
 - [ ] `run-test-all.sh`

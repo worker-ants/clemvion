@@ -19,7 +19,10 @@ import {
 } from '../../common/db/pg-error';
 import { randomBytes } from 'crypto';
 import { Trigger, TriggerChatChannelHealth } from './entities/trigger.entity';
-import { rewriteTriggerConfigLocked } from './trigger-config-lock';
+import {
+  rewriteTriggerConfigLocked,
+  triggerConfigLockKey,
+} from './trigger-config-lock';
 import { Execution } from '../executions/entities/execution.entity';
 import { Schedule } from '../schedules/entities/schedule.entity';
 import { ScheduleRunnerService } from '../schedules/schedule-runner.service';
@@ -501,7 +504,12 @@ export class TriggersService {
     // [ref 보존] `mergeExternalConfig` 가 `config.chatChannel` 을 통째로 교체하기 **전에**
     // 집어 둔다. `botTokenRef` 는 trigger id 로 재유도되지만 `inboundSigningRef` 는 그렇지
     // 않아, 여기서 안 집으면 slack/discord PATCH 마다 사라진다 → 인입 서명 검증 fail-open.
-    const previousInboundSigningRef = (
+    //
+    // **락 안에서 다시 집는다**(아래 창 1). 여기서 집는 값은 요청 시작 시점의 것이라, 동시
+    // 요청이 그 사이 ref 를 처음 확립하면 `undefined` 다 — 그러면 창 1 이 `chatChannel` 을
+    // 통째로 교체하며 ref 를 지우고, binder 의 재읽기는 **자기 자신이 방금 쓴 값**(ref 없음)을
+    // 보게 되어 보존 게이트가 거짓이 된다. 즉 두 쓰기가 한 요청 안에서 서로를 가린다.
+    let previousInboundSigningRef = (
       trigger.config as { chatChannel?: { inboundSigningRef?: string } }
     )?.chatChannel?.inboundSigningRef;
     // authConfigId 를 새로 set 하는 경우 같은 워크스페이스의 AuthConfig 인지 검증.
@@ -513,25 +521,6 @@ export class TriggersService {
     const safeChatChannel = chatChannel
       ? stripChatChannelPlaintext(chatChannel)
       : undefined;
-    // notification/interaction/chatChannel 이 명시된 경우만 config 안의 해당 키를 교체.
-    const baseConfig = this.stripInlineAuthKeys(config ?? trigger.config ?? {});
-    const mergedConfig = this.mergeExternalConfig(
-      baseConfig,
-      notification,
-      interaction,
-      safeChatChannel,
-    );
-
-    // **이 자리(창 1)는 이 배치에서 고치지 않는다 — 트래커 등재분.**
-    // `save(trigger)` 를 락 안 `update` + 재조회로 바꿔 보고 **되돌렸다**. 반환 엔티티·
-    // subscriber·`endpointPath` UNIQUE 충돌 경로의 의미가 함께 달라진다 — 실측: 그 배선에서
-    // `triggers.service.spec.ts` 의 **6개 케이스가 RED** 였다(interaction 전체 교체 · 생략 필드
-    // 유지 · notification 병합 유지 · 저장 실패 시 감사 미기록 · 409 RESOURCE_CONFLICT 두 키 ·
-    // R-CC-21 botTokenRef 재유도). 되돌리니 9 스위트 279건 전부 통과.
-    //
-    // 창 2·3·4 를 닫고 나면 `inboundSigningRef` 의 **영속적** 유실은 사라지고, 여기 남는 것은
-    // «손대지 않은 `config` 키» 의 유실이다 — 이 구간엔 외부 호출이 없어 창도 좁다.
-    // 트래커 등재분: `plan/in-progress/trigger-config-lost-update.md` §D.
     // `rest` 에는 **값이 없는 optional 필드도 `undefined` 로 존재**한다 — `target: ES2023`
     // 에서 클래스 필드가 own property 로 정의되기 때문이다(`useDefineForClassFields`).
     // 그대로 `Object.assign` 하면 로드된 값을 `undefined` 로 **덮어쓴다** — DB 는 TypeORM
@@ -541,9 +530,49 @@ export class TriggersService {
     const defined = Object.fromEntries(
       Object.entries(rest).filter(([, v]) => v !== undefined),
     );
-    Object.assign(trigger, defined, { config: mergedConfig });
-    const saved = await this.triggerRepository
-      .save(trigger)
+
+    // ── 창 1 — 병합과 저장을 **같은 advisory lock 안에서** 한다 ────────────────────────
+    //
+    // 종전엔 요청 시작 시점의 `trigger.config` 스냅샷으로 병합해 `save` 했다. 그래서
+    // **`chatChannel` 을 아예 싣지 않은 PATCH**(이름 변경 등)조차 동시 요청이 방금 확립한
+    // `chatChannel.inboundSigningRef` 를 옛 값으로 되돌려, 이 PR 이 닫으려는 fail-open 이
+    // 그대로 재현됐다 (`/ai-review` `review/code/2026/09/14/18_17_44` security CRITICAL#1).
+    // `Trigger` 에는 `@VersionColumn` 도 없어 낙관적 락으로 막히지도 않는다.
+    //
+    // **`save(trigger)` 는 그대로 둔다.** 종전에 이 자리를 `update` + 재조회로 바꿨다가
+    // 되돌린 이력이 있다 — 반환 엔티티·subscriber·`endpointPath` UNIQUE 충돌 경로의 의미가
+    // 함께 달라져 단위 **6개 케이스가 RED** 였다. 여기서 바꾸는 것은 «어느 `config` 위에
+    // 병합하는가» 와 «그 구간이 직렬화되는가» 뿐이고, 저장 동사는 건드리지 않는다.
+    //
+    // 이 구간에 외부 호출이 없다는 것이 락을 여기 둘 수 있는 근거다 — 검증·순수 병합뿐이고
+    // `setupChatChannel` 은 저장 **뒤**에 온다 (`trigger-config-lock.ts` JSDoc 의 제약).
+    const saved = await this.triggerRepository.manager
+      .transaction(async (m) => {
+        await m.query('SELECT pg_advisory_xact_lock(hashtext($1))', [
+          triggerConfigLockKey(trigger.id),
+        ]);
+        // 락을 잡은 뒤의 행이 «커밋된 최신 상태» 다. 요청이 `config` 를 통째로 보냈으면
+        // 그것이 사용자의 의도이므로 그대로 쓰고, 아니면 **재읽은 행**을 기준으로 삼는다.
+        const fresh = await m.findOne(Trigger, {
+          where: { id: trigger.id, workspaceId },
+        });
+        // 보존 게이트의 **첫 항**도 재읽은 행에서 온다 — 위 선언의 註 참조.
+        previousInboundSigningRef =
+          (fresh?.config as { chatChannel?: { inboundSigningRef?: string } })
+            ?.chatChannel?.inboundSigningRef ?? previousInboundSigningRef;
+        // notification/interaction/chatChannel 이 명시된 경우만 config 안의 해당 키를 교체.
+        const baseConfig = this.stripInlineAuthKeys(
+          config ?? fresh?.config ?? trigger.config ?? {},
+        );
+        const mergedConfig = this.mergeExternalConfig(
+          baseConfig,
+          notification,
+          interaction,
+          safeChatChannel,
+        );
+        Object.assign(trigger, defined, { config: mergedConfig });
+        return m.save(Trigger, trigger);
+      })
       .catch((err: unknown) => this.rethrowEndpointPathConflict(err));
     // **커밋 직후** 기록한다 — 아래 세 가지(schedule 역동기화의 BullMQ 호출, secret
     // 마이그레이션, chatChannel setup)는 전부 실패할 수 있는 외부 호출이라, 그 뒤로 미루면

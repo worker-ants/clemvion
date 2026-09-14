@@ -19,6 +19,10 @@ import {
 import { credentialRejectedError } from '../chat-channel/types';
 import { ChatChannelBinderService } from './chat-channel-binder.service';
 import { Trigger } from './entities/trigger.entity';
+import {
+  withTransactionMock,
+  type TransactionMockOptions,
+} from './__test-utils__/trigger-transaction-mock';
 import { Execution } from '../executions/entities/execution.entity';
 import { Schedule } from '../schedules/entities/schedule.entity';
 import { AuthConfig } from '../auth-configs/entities/auth-config.entity';
@@ -32,67 +36,20 @@ import {
 } from './chat-channel-rejection-messages.const';
 
 /**
- * `rewriteTriggerConfigLocked` 가 쓰는 `manager.transaction` 을 mock 한다 —
- * **콜백을 실제로 실행하고, 안쪽 호출을 바깥 repo mock 으로 위임**한다.
- *
- * **no-op 으로 두면 안 된다.** 콜백을 실행하지 않으면 repo mock 의 `update` 가 한 번도
- * 안 불려서, `config` 쓰기를 단언하는 테스트들이 «아무 일도 안 일어났는데 통과» 한다.
- * 그래서 `m.update(Trigger, where, patch)` 를 `repo.update(where, patch)` 로 넘겨
- * **기존 단언의 의미를 그대로 보존**한다.
- *
- * **실측(뮤턴트)**: `transaction` 이 콜백을 실행하지 않게 바꾸면 **13개 케이스가 RED**
- * (R-CC-21 5 · 생성 경로 5 · callbackUrl 1 · `rotateBotToken` 2). 즉 이 위임은 장식이
- * 아니라 그 13건을 살아 있게 하는 배선이다 — GREEN 만으로는 증거가 되지 않아 빼 보고 셌다.
- *
- * `m.findOne` 도 같은 이유로 위임한다 — 락 안 재읽기가 «지금 DB 에 있는 값» 을 보는 것이
- * 이 수정의 핵심이라, 그 자리를 고정값으로 채우면 presence 게이트 재계산이 검증되지 않는다.
- *
- * 선례: `execution-engine.service.spec.ts` 의 admission advisory-lock 트랜잭션 mock
- * (그쪽도 콜백을 실제로 실행한다).
- */
-function withTransactionMock(
-  triggerRepoMock: Record<string, unknown>,
-): Record<string, unknown> {
-  if (triggerRepoMock.manager) return triggerRepoMock;
-  return {
-    ...triggerRepoMock,
-    manager: {
-      transaction: jest.fn(
-        async (cb: (m: Record<string, unknown>) => unknown) =>
-          cb({
-            query: jest.fn().mockResolvedValue([]),
-            findOne: jest.fn((_entity: unknown, options: unknown) => {
-              const findOneMock = triggerRepoMock.findOne as
-                ((o: unknown) => unknown) | undefined;
-              return findOneMock ? findOneMock(options) : undefined;
-            }),
-            update: jest.fn(
-              (_entity: unknown, where: unknown, patch: unknown) => {
-                const updateMock = triggerRepoMock.update as
-                  ((w: unknown, p: unknown) => unknown) | undefined;
-                return updateMock ? updateMock(where, patch) : undefined;
-              },
-            ),
-          }),
-      ),
-    },
-  };
-}
-
-/**
  * [SUMMARY W-3] createBaseProviders — Secret rotation / itk revoke / setupChatChannel
  * describe 블록들이 공유하는 프로바이더 설정 헬퍼.
  * triggerRepo mock 은 suite마다 메서드가 달라 개별 override 후 spread 한다.
  */
 function createBaseProviders(
   triggerRepoMock: Record<string, unknown>,
+  txOptions: TransactionMockOptions = {},
 ): Provider[] {
   return [
     TriggersService,
     ChatChannelBinderService,
     {
       provide: getRepositoryToken(Trigger),
-      useValue: withTransactionMock(triggerRepoMock),
+      useValue: withTransactionMock(triggerRepoMock, txOptions),
     },
     { provide: getRepositoryToken(Execution), useValue: {} },
     // 감사 로깅은 부수 효과 — 대상 동작의 단언을 흐리지 않도록 mock 한다. 이 팩토리는
@@ -3613,5 +3570,209 @@ describe('TriggersService — chatChannel PATCH 는 사용자 비밀을 쓰지 �
         details: { field: 'provider', code: 'INVALID_FIELD' },
       },
     });
+  });
+});
+
+/**
+ * **락 안 재읽기가 «동시 요청이 방금 커밋한 값» 을 본다.**
+ *
+ * 이 suite 가 없으면 이 PR 의 핵심 수정이 **어떤 테스트로도 보호되지 않는다.** 실측:
+ * 보존 게이트의 «재읽은 행» 항을 통째로 지워도 `src/modules/triggers` 279건이 전부
+ * GREEN 이었고, `rotateBotToken` 의 머지 콜백을 스냅샷으로 되돌려도 마찬가지였다
+ * (`/ai-review` `review/code/2026/09/14/18_17_44` testing CRITICAL#2·#3).
+ *
+ * 원인은 기존 mock 이 전부 `findOne.mockResolvedValue(...)` 라 **최초 읽기와 락 안 재읽기가
+ * 늘 같은 값**이었다는 것이다. 두 읽기가 같으면 «다시 읽는다» 는 동작은 관측될 수 없다.
+ *
+ * ## 재읽기가 **두 번** 일어난다 — 그래서 순서를 나눈다
+ *
+ * `chatChannel` 을 실은 PATCH 는 락 안 재읽기를 두 번 한다: ① `update()` 의 창 1,
+ * ② `setupChatChannel` 의 쓰기. 두 호출에 **같은 값**을 주면 어느 항이 일하는지 갈리지
+ * 않는다 — 한쪽만 지우는 뮤턴트가 살아남는다(실측으로 확인했다). 그래서 `freshFindOne` 에
+ * **호출 순서열**을 주고, 테스트마다 다른 자리에 «동시 확립» 을 놓는다.
+ *
+ * | 테스트 | 재읽기 ① | 재읽기 ② | 죽이는 뮤턴트 |
+ * |---|---|---|---|
+ * | binder 재읽기 (성공) | ref 없음 | **ref 있음** | `buildChannel` 의 `survivesWithFresh` 항 제거 |
+ * | binder 재읽기 (degraded) | ref 없음 | **ref 있음** | 위와 같은 항 (실패 경로도 같은 함수를 쓴다) |
+ * | 창 1 게이트 | **ref 있음** | ref 없음 | `previousInboundSigningRef` 를 락 밖 스냅샷으로 되돌리기 |
+ * | `chatChannel` 없는 PATCH | ref 있음 | — | 창 1 의 `fresh?.config` → `trigger.config` |
+ * | `rotateBotToken` | ref 있음 | — | 머지 콜백을 `trigger.config` 스냅샷으로 되돌리기 |
+ */
+describe('TriggersService — 락 안 재읽기가 동시 확립분을 본다 (lost update)', () => {
+  const BOT_TOKEN_REF = 'secret://triggers/trig-l/bot-token';
+  const SIGNING_REF = 'secret://triggers/trig-l/inbound-signing';
+
+  const row = (config: Record<string, unknown>) =>
+    ({
+      id: 'trig-l',
+      workspaceId: 'ws-1',
+      type: 'webhook',
+      endpointPath: 'hook-l',
+      config,
+      chatChannelHealth: 'healthy',
+      chatChannelLastError: null,
+    }) as unknown as Trigger;
+
+  /**
+   * ref 가 **없는** 상태 — 요청 시작 시점에 읽히는 값이다.
+   *
+   * `untouchedByThisRequest` 를 **여기에 넣지 않는 것이 핵심**이다. 두 상태가 같은 키를
+   * 가지면 «스냅샷으로 병합» 뮤턴트가 살아남는다 — 실제로 한 번 살려 보냈다: 처음엔 이
+   * 키를 양쪽에 뒀고 `rotateBotToken` 뮤턴트가 그대로 GREEN 이었다. 대조군은 **두 상태가
+   * 다르게 판정하는 값**이어야 한다.
+   */
+  const withoutRef = () =>
+    row({ chatChannel: { provider: 'slack', botTokenRef: BOT_TOKEN_REF } });
+
+  /** 동시 요청이 ref 를 **방금 확립하고**, 손대지 않은 키도 함께 커밋한 상태. */
+  const withRef = () =>
+    row({
+      chatChannel: {
+        provider: 'slack',
+        botTokenRef: BOT_TOKEN_REF,
+        inboundSigningRef: SIGNING_REF,
+      },
+      untouchedByThisRequest: 'kept',
+    });
+
+  const cardBody = {
+    provider: 'slack',
+    uiMapping: { formMode: 'multi_step', visualNode: 'auto' },
+    rateLimitPerMinute: 30,
+  };
+
+  /**
+   * @param freshSequence 락 안 재읽기가 **호출 순서대로** 돌려줄 행. 모자라면 마지막 값을
+   *   반복한다 — 재읽기가 한 번뿐인 경로(`rotateBotToken`)도 같은 헬퍼로 쓰기 위해서다.
+   */
+  async function makeService(
+    freshSequence: Array<() => Trigger>,
+    opts: { setupChannelRejects?: boolean } = {},
+  ) {
+    const adapter = {
+      setupChannel: opts.setupChannelRejects
+        ? jest.fn().mockRejectedValue(new Error('provider down'))
+        : jest.fn().mockResolvedValue({ configUpdates: {} }),
+    };
+    const repoMock = {
+      // 바깥(락 밖) 읽기 — 요청 시작 시점. 언제나 ref 가 없다.
+      findOne: jest.fn().mockResolvedValue(withoutRef()),
+      update: jest.fn().mockResolvedValue(undefined),
+      save: jest.fn((t: Trigger) => Promise.resolve(t)),
+      create: jest.fn((t: unknown) => t),
+      createQueryBuilder: jest.fn(),
+    };
+    let freshCall = 0;
+    const providers = createBaseProviders(repoMock, {
+      freshFindOne: () => {
+        const idx = Math.min(freshCall, freshSequence.length - 1);
+        freshCall += 1;
+        return freshSequence[idx]();
+      },
+    });
+    const at = (token: unknown) =>
+      providers.findIndex(
+        (pr) =>
+          'provide' in pr && (pr as { provide: unknown }).provide === token,
+      );
+    providers[at(ChannelAdapterRegistry)] = {
+      provide: ChannelAdapterRegistry,
+      useValue: {
+        has: jest.fn().mockReturnValue(true),
+        get: jest.fn().mockReturnValue(adapter),
+      },
+    };
+    providers[at(SecretResolverService)] = {
+      provide: SecretResolverService,
+      useValue: {
+        resolve: jest.fn().mockResolvedValue('old-token'),
+        store: jest.fn(),
+        rotate: jest.fn().mockResolvedValue(undefined),
+        delete: jest.fn(),
+        deleteByPrefix: jest.fn().mockResolvedValue(0),
+        exists: jest.fn().mockResolvedValue(true),
+      },
+    };
+    const moduleRef = await Test.createTestingModule({ providers }).compile();
+    return {
+      service: moduleRef.get(TriggersService),
+      repo: moduleRef.get(getRepositoryToken(Trigger)) as jest.Mocked<
+        Repository<Trigger>
+      >,
+    };
+  }
+
+  /** binder 가 쓴 마지막 `config.chatChannel`. */
+  const persistedChannel = (repo: jest.Mocked<Repository<Trigger>>) =>
+    repo.update.mock.calls
+      .map(
+        ([, patch]) =>
+          patch as { config?: { chatChannel?: Record<string, unknown> } },
+      )
+      .filter((pt) => pt.config?.chatChannel)
+      .pop()?.config?.chatChannel;
+
+  const patchChatChannel = async (service: TriggersService) =>
+    service.update('trig-l', 'ws-1', { chatChannel: cardBody } as never, 'u-1');
+
+  it('binder 재읽기 — 창 1 시점엔 없던 ref 가 그 뒤에 확립돼도 보존된다', async () => {
+    // 재읽기 ①(창 1)은 ref 없음 → 게이트 첫 항 거짓. 재읽기 ②(binder)에서 확립됐다.
+    const { service, repo } = await makeService([withoutRef, withRef]);
+
+    await patchChatChannel(service);
+
+    expect(persistedChannel(repo)?.inboundSigningRef).toBe(SIGNING_REF);
+  });
+
+  it('binder 재읽기 — degraded 경로도 같은 보존을 한다', async () => {
+    const { service, repo } = await makeService([withoutRef, withRef], {
+      setupChannelRejects: true,
+    });
+
+    await patchChatChannel(service);
+
+    expect(persistedChannel(repo)?.inboundSigningRef).toBe(SIGNING_REF);
+  });
+
+  it('창 1 게이트 — 창 1 이 본 ref 는 binder 가 자기 쓰기를 되읽어도 살아남는다', async () => {
+    // 재읽기 ②가 ref 없음인 것은 **창 1 자신이 방금 chatChannel 을 교체**했기 때문이다.
+    // 게이트 첫 항을 락 밖 스냅샷에서 집으면 여기서 ref 가 사라진다.
+    const { service, repo } = await makeService([withRef, withoutRef]);
+
+    await patchChatChannel(service);
+
+    expect(persistedChannel(repo)?.inboundSigningRef).toBe(SIGNING_REF);
+  });
+
+  it('update() — chatChannel 을 싣지 않은 PATCH 가 동시 확립분을 되돌리지 않는다', async () => {
+    // 창 1 회귀. `chatChannel` 이 없는 PATCH(이름 변경)도 종전엔 옛 스냅샷으로 `config` 를
+    // 통째로 덮어 ref 를 지웠다 (`review/code/2026/09/14/18_17_44` security CRITICAL#1).
+    const { service, repo } = await makeService([withRef]);
+
+    await service.update('trig-l', 'ws-1', { name: '새 이름' } as never, 'u-1');
+
+    const savedConfig = (
+      repo.save.mock.calls.at(-1)?.[0] as unknown as {
+        config?: {
+          chatChannel?: Record<string, unknown>;
+          untouchedByThisRequest?: string;
+        };
+      }
+    )?.config;
+    expect(savedConfig?.chatChannel?.inboundSigningRef).toBe(SIGNING_REF);
+    expect(savedConfig?.untouchedByThisRequest).toBe('kept');
+  });
+
+  it('rotateBotToken — 손대지 않은 config 키가 살아남는다', async () => {
+    const { service, repo } = await makeService([withRef]);
+
+    await service.rotateBotToken('trig-l', 'ws-1', '111:newToken', 'u-1');
+
+    const patch = repo.update.mock.calls
+      .map(([, pt]) => pt as { config?: Record<string, unknown> })
+      .filter((pt) => pt.config)
+      .pop();
+    expect(patch?.config?.untouchedByThisRequest).toBe('kept');
   });
 });

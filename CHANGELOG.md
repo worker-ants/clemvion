@@ -1,5 +1,30 @@
 # Changelog
 
+## Unreleased — **Behavior change**: 동시 PATCH 가 인입 서명 ref 를 지워 fail-open 이 되던 경로를 닫는다
+
+같은 트리거에 PATCH 가 겹치면, 나중에 커밋되는 쪽이 **요청 시작 시점의 `config` 스냅샷**으로
+행을 통째로 다시 써서 먼저 반영된 키를 되돌렸다. 되돌려지는 것이
+`chatChannel.inboundSigningRef` 이면 `ChatChannelInboundAuthenticator` 의
+`if (!config.inboundSigningRef) return;` 이 걸려 **그 트리거의 인입 웹훅이 서명 검증 없이
+통과**한다 — 이미 한 번 닫았던 fail-open 이 동시성 경로로 되살아나는 형태다.
+
+`config` 를 다시 쓰는 **네 자리 전부**를 트리거 단위 advisory lock
+(`pg_advisory_xact_lock(hashtext('trigger-config:<id>'))`) 안으로 넣고, **락을 잡은 뒤에
+행을 다시 읽어** 병합한다. 외부 provider 호출은 락 **밖**에 남는다 — Cafe24 토큰 갱신에서
+같은 락을 기각했던 사유(*"lock 보유 중 HTTP 요청을 transaction 안에 묶어야 해 DB 커넥션
+점유 시간이 늘고"*)가 그대로 이 설계의 제약이다.
+
+**컨테이너만 다시 읽는 것으로는 부족하다.** ref 를 실을지 정하는 게이트가 요청 시작 시점
+상태로 계산돼 있어서, 동시 요청이 그 사이 ref 를 **처음 확립**하면 여전히 «없음» 으로 판정해
+빼 버린다. 그래서 재읽은 행의 ref presence 를 게이트의 항으로 더했다.
+
+`chatChannel` 을 **싣지 않은** PATCH(이름 변경 등)도 같은 경로로 ref 를 되돌렸다. 저장 동사
+(`save`)는 그대로 두고 «어느 `config` 위에 병합하는가» 와 «그 구간이 직렬화되는가» 만 바꿨다.
+
+**대기 상한은 없다** — 같은 트리거의 동시 요청은 앞선 요청이 커밋할 때까지 기다린다. 임계
+구간에 외부 호출이 없어 보유 시간이 DB 왕복 두 번으로 유계인 것이 근거이고, 그 제약이 깨지는
+변경을 하면 `lock_timeout` 을 함께 넣어야 한다.
+
 ## Unreleased — 가이드가 «코드» 로 부르던 두 이름이 코드가 아니었다 (+ 식별자 가드에 발행 축)
 
 **Logic 노드 가이드**가 *"여러 개 또는 0개를 연결하면 `CONTAINER_MISSING_EMIT` 또는

@@ -64,6 +64,8 @@ const EXPECTED_UNWRAPPED_TRIGGER_SAVES: readonly string[] = [
 /** 충돌 래핑을 갖춘 자리 — `endpointPath` 가 스프레드로 실려 오는 두 경로. */
 const EXPECTED_WRAPPED_TRIGGER_SAVES: readonly string[] = [
   'modules/triggers/triggers.service.ts#create',
+  // `update` 의 저장은 `manager.transaction` 안으로 들어갔다 — 수신자가 `m` 이고 `.catch` 는
+  // 바깥 체인에 붙는다. 가드가 그 두 가지를 함께 따라가므로 키는 그대로다.
   'modules/triggers/triggers.service.ts#update',
 ];
 
@@ -108,6 +110,7 @@ describe('`endpoint_path` 충돌 래핑 래칫', () => {
       expect(unwrapped.sort()).toEqual(
         [
           'catchButNotWrapping',
+          'managerSaveUnwrapped',
           'mentionsButDoesNotCall',
           'twoSaves',
           'twoSaves#2',
@@ -122,9 +125,14 @@ describe('`endpoint_path` 충돌 래핑 래칫', () => {
           .filter((s) => s.wrapped)
           .map((s) => s.method)
           .sort(),
-      ).toEqual(['wrappedSave', 'wrappedViaVariable']);
+      ).toEqual(['managerSaveWrapped', 'wrappedSave', 'wrappedViaVariable']);
       // `scheduleRepository.save` 는 애초에 스캔되지 않는다 — 목록 어디에도 없어야 한다.
       expect(found.map((s) => s.method)).not.toContain('otherRepositorySave');
+      // **다른 엔티티의 manager save 도 스캔 대상이 아니다.** `save(Trigger, …)` 로 좁힌
+      // 술어가 `save(<아무 엔티티>, …)` 로 넓어지면 이 단언이 잡는다.
+      expect(found.map((s) => s.method)).not.toContain(
+        'managerSaveOtherEntity',
+      );
     });
 
     it(`\`.catch\` 가 있어도 \`${CONFLICT_WRAPPER}\` 를 안 부르면 미래핑이다`, () => {

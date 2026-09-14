@@ -6,6 +6,7 @@ import { Provider } from '@nestjs/common';
 import { TriggersService } from './triggers.service';
 import { ChatChannelBinderService } from './chat-channel-binder.service';
 import { Trigger } from './entities/trigger.entity';
+import { withTransactionMock } from './__test-utils__/trigger-transaction-mock';
 import { Execution } from '../executions/entities/execution.entity';
 import { Schedule } from '../schedules/entities/schedule.entity';
 import { AuthConfig } from '../auth-configs/entities/auth-config.entity';
@@ -78,7 +79,10 @@ async function makeService(
       { provide: AuditLogsService, useValue: { record: jest.fn() } },
       TriggersService,
       ChatChannelBinderService,
-      { provide: getRepositoryToken(Trigger), useValue: triggerRepoMock },
+      {
+        provide: getRepositoryToken(Trigger),
+        useValue: withTransactionMock(triggerRepoMock),
+      },
       ...otherProviders(),
     ],
   }).compile();
