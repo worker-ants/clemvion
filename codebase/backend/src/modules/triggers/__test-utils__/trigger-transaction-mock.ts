@@ -40,11 +40,14 @@ export interface TransactionMockOptions {
  * 전수로 세니 provider 는 **6개 파일**에 흩어져 있다. 열거 범위를 «한 파일» 로 잡은 것이
  * 결함이었으므로, 헬퍼를 공용 자리로 올려 다음 파일이 찾을 수 있게 한다.
  *
- * **6개 전부를 이관한 것은 아니다** — 실제로 감싼 것은 `TriggersService` 의 트랜잭션 경로를
- * 타는 **2개**(`triggers.service.spec.ts` · `triggers.web-chat.spec.ts`)다. 나머지 4개
- * (`auth-configs` · `external-interaction` · `hooks` · `schedules`)는 그 경로를 호출하지 않아
+ * **6개 전부를 이관한 것은 아니다** — 감싼 것은 트리거 config 트랜잭션 경로를 타는 **3개**
+ * (`triggers.service.spec.ts` · `triggers.web-chat.spec.ts` · `schedules.service.spec.ts`)다.
+ * 나머지 3개(`auth-configs` · `external-interaction` · `hooks`)는 그 경로를 호출하지 않아
  * 지금은 안전하지만, 호출하게 되는 순간 같은 `Cannot read properties of undefined` 로 깨진다.
  * 그때 고칠 자리가 여기라는 뜻이다.
+ *
+ * > `schedules` 는 **이 PR 안에서 «안전» 에서 «이관» 으로 옮겨 갔다** — 스케줄 삭제가 trigger
+ * > 행을 락 안에서 지우게 됐기 때문이다. 숫자를 적어 두면 이렇게 바로 낡는다.
  *
  * ## 무엇을 위임하나 — 그리고 왜 no-op 이면 안 되나
  *

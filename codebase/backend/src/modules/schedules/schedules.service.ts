@@ -5,6 +5,7 @@ import {
 import { AuditLogsService } from '../audit-logs/audit-logs.service';
 import {
   Injectable,
+  Logger,
   NotFoundException,
   BadRequestException,
 } from '@nestjs/common';
@@ -31,6 +32,8 @@ const SCHEDULE_RESOURCE_TYPE = 'schedule';
 
 @Injectable()
 export class SchedulesService {
+  private readonly logger = new Logger(SchedulesService.name);
+
   constructor(
     @InjectRepository(Schedule)
     private readonly scheduleRepository: Repository<Schedule>,
@@ -307,12 +310,25 @@ export class SchedulesService {
     // 문장이 경로 하나만 덮고 있었다.
     if (schedule.triggerId) {
       const triggerId = schedule.triggerId;
-      await this.triggerRepository.manager.transaction(async (m) => {
-        await acquireTriggerConfigLock(m, triggerId, {
-          timeoutMs: TRIGGER_DELETE_LOCK_TIMEOUT_MS,
+      await this.triggerRepository.manager
+        .transaction(async (m) => {
+          await acquireTriggerConfigLock(m, triggerId, {
+            timeoutMs: TRIGGER_DELETE_LOCK_TIMEOUT_MS,
+          });
+          await m.delete(Trigger, triggerId);
+        })
+        .catch((err: unknown) => {
+          // `TriggersService.remove()` 와 **대칭**이어야 한다. 위 `removeJob` 은 이미
+          // 끝났으므로(되돌릴 수 없다) 여기서 실패하면 «BullMQ 는 해제됐는데 행은 남은»
+          // 반쯤 삭제된 상태다 — 조용한 실패로 두면 아무도 모른다
+          // (`/ai-review` `review/code/2026/09/15/01_09_53` side_effect W2).
+          this.logger.error(
+            `SchedulesService.remove: trigger=${triggerId} 행 삭제 실패 — BullMQ job 해제는 ` +
+              `**이미 끝났으므로** 반쯤 삭제된 상태다. 수동 정리가 필요하다: ` +
+              `${err instanceof Error ? err.message : String(err)}`,
+          );
+          throw err;
         });
-        await m.delete(Trigger, triggerId);
-      });
     }
     await this.scheduleRepository.remove(schedule);
     await this.recordAudit({
