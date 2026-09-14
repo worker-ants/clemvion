@@ -198,7 +198,7 @@ describe('HooksService', () => {
    * **부재 단언과 형태 단언을 함께 건다.** `save` 만 안 불렀는지 보면 «아무것도 안 했다» 도
    * 통과하고, `update` 만 보면 그 옆에 `save` 가 남아 있어도 통과한다.
    */
-  it('lastTriggeredAt 갱신이 config 를 다시 쓰지 않는다 (컬럼 한정 update)', async () => {
+  it('lastTriggeredAt 갱신이 config 를 다시 쓰지 않는다 (handleWebhook)', async () => {
     triggerRepo.findOne.mockResolvedValue(activeTrigger);
     nodeRepo.findOne.mockResolvedValue({
       id: 'n',
@@ -807,7 +807,7 @@ describe('HooksService', () => {
      * 문장보다 좁았다. 그리고 하필 빠진 쪽이 주석 자신이 *"PATCH 경합보다 훨씬 잦다"* 고
      * 적은 **더 위험한 경로**다.
      */
-    it('lastTriggeredAt 갱신이 config 를 다시 쓰지 않는다 (컬럼 한정 update)', async () => {
+    it('lastTriggeredAt 갱신이 config 를 다시 쓰지 않는다 (chat-channel 인입)', async () => {
       triggerRepo.findOne.mockResolvedValue(chatChannelTrigger);
       const channelUpdate = {
         conversationKey: 'chat-cfg',

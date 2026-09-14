@@ -507,6 +507,55 @@ describe('SchedulesService.runNow', () => {
       expect(triggerRepo.save).not.toHaveBeenCalled();
     });
 
+    it('수정 — name·isActive 를 함께 바꾸면 둘 다 한 patch 에 실린다', async () => {
+      // 단독 분기만 있으면 «둘 중 하나만 담는» 구현으로 퇴행해도 통과한다.
+      scheduleRepo.findOne.mockResolvedValue({
+        id: 'sch-both',
+        workspaceId: 'ws-1',
+        isActive: true,
+        cronExpression: '0 9 * * *',
+        timezone: 'Asia/Seoul',
+        triggerId: 'trig-both',
+        trigger: { id: 'trig-both', name: 'old' },
+      } as unknown as Schedule);
+      scheduleRepo.save.mockImplementation(async (sch) => sch as Schedule);
+
+      await service.update(
+        'sch-both',
+        'ws-1',
+        { name: 'new', isActive: false } as unknown as UpdateScheduleDto,
+        'u-both',
+      );
+
+      expect(triggerRepo.update).toHaveBeenCalledWith(
+        { id: 'trig-both' },
+        { name: 'new', isActive: false },
+      );
+    });
+
+    it('수정 — trigger 필드를 하나도 안 바꾸면 patch 를 쓰지 않는다', async () => {
+      // 빈 patch 가드 대조군 — 가드를 지우면 `update({id}, {})` 가 나가 여기서 갈린다.
+      scheduleRepo.findOne.mockResolvedValue({
+        id: 'sch-none',
+        workspaceId: 'ws-1',
+        isActive: true,
+        cronExpression: '0 9 * * *',
+        timezone: 'Asia/Seoul',
+        triggerId: 'trig-none',
+        trigger: { id: 'trig-none', name: 'keep' },
+      } as unknown as Schedule);
+      scheduleRepo.save.mockImplementation(async (sch) => sch as Schedule);
+
+      await service.update(
+        'sch-none',
+        'ws-1',
+        { cronExpression: '0 10 * * *' } as unknown as UpdateScheduleDto,
+        'u-none',
+      );
+
+      expect(triggerRepo.update).not.toHaveBeenCalled();
+    });
+
     it('수정 — name 만 바꾸면 trigger patch 에 name 만 실린다', async () => {
       // 분기 대조군 — patch 를 «바뀐 필드만» 으로 좁히는 술어가 느슨해지면 여기서 갈린다.
       scheduleRepo.findOne.mockResolvedValue({

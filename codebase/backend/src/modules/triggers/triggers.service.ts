@@ -509,7 +509,7 @@ export class TriggersService {
       await this.chatChannelBinder.setupChatChannel(saved, chatChannel, {
         storeUserSuppliedSecrets: true,
       });
-      // setupChatChannel 은 별도 triggerRepository.update 로 botTokenRef / inboundSigningRef /
+      // setupChatChannel 은 별도 `rewriteTriggerConfigLocked`(락 안 재읽기·머지) 로 botTokenRef / inboundSigningRef /
       // chatChannelHealth 등을 갱신. in-memory `saved` 는 그 update 를 모르므로 응답 stale
       // 회귀 (hasBotToken=false). 재조회로 최신 상태 반영.
       const refreshed = await this.triggerRepository.findOne({
@@ -703,7 +703,7 @@ export class TriggersService {
         // 병합 **전**의 값이다 — `saved.config.chatChannel` 은 이미 요청 바디로 교체됐다.
         preservedInboundSigningRef: previousInboundSigningRef,
       });
-      // setupChatChannel 은 별도 triggerRepository.update — in-memory `saved` 는 stale.
+      // setupChatChannel 은 별도 `rewriteTriggerConfigLocked`(락 안 재읽기·머지) — in-memory `saved` 는 stale.
       // 응답 hasBotToken / inboundSigningRef 가 최신 반영되도록 재조회.
       //
       // **`relations` 를 함께 실어야 한다.** 이 재조회가 `saved` 를 통째로 갈아치우므로,
@@ -1307,15 +1307,25 @@ export class TriggersService {
     const wrote = await rewriteTriggerConfigLocked(
       this.triggerRepository.manager,
       trigger.id,
-      // 재읽은 `config.chatChannel` **위에** 이번 회전의 산출만 얹는다. 스냅샷을 통째로
-      // 대입하면 `uiMapping`·`rateLimitPerMinute`·`languageLocale` 처럼 사용자가 PATCH 로
-      // 바꾸는 필드가 되돌아간다 — `inboundSigningRef` 축은 닫혔지만 같은 클래스의
-      // **네 번째 자리**였다 (`/ai-review` `review/code/2026/09/14/23_01_18` concurrency W1).
+      // 재읽은 `config.chatChannel` **위에** 이번 회전의 산출만 얹는다.
+      //
+      // **`patch` 는 델타여야 한다 — 스냅샷 전체가 아니다.** 앞 라운드에서 `mergedChannel`
+      // 을 `patch` 로 넘겼는데, 그건 함수 시작 시점의 `chatChannelCfg` 를 스프레드한 **전체**
+      // 객체라 재읽기로 얻은 `rateLimitPerMinute`·`uiMapping`·`languageLocale` 을 무조건
+      // 되돌린다 — 헬퍼를 쓰면서도 헬퍼가 막으려던 결함을 그대로 낸 것이다
+      // (`/ai-review` `review/code/2026/09/14/23_38_09` side_effect·maintainability C1).
+      //
+      // 두 ref 는 델타에 **포함한다** — `buildSecretRef(trigger.id, …)` 로 매번 재유도되는
+      // 결정적 값이고, 빠지면 인입 서명 검증이 fail-open 으로 돌아간다(D-3 계약).
       (freshConfig) =>
         this.mergeIntoFreshSubKey(
           freshConfig,
           'chatChannel',
-          mergedChannel as unknown as Record<string, unknown>,
+          {
+            ...(result.configUpdates ?? {}),
+            botTokenRef,
+            inboundSigningRef,
+          },
           mergedChannel as unknown as Record<string, unknown>,
         ),
       {

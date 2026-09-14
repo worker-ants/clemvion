@@ -4083,17 +4083,24 @@ describe('TriggersService — 락 안 재읽기가 동시 확립분을 본다 (l
     // `inboundSigningRef` 축은 닫혔지만 `rateLimitPerMinute`·`uiMapping` 등 사용자가 PATCH 로
     // 바꾸는 필드는 스냅샷 대입에 되돌아갔다 — 같은 클래스의 **네 번째 자리**
     // (`review/code/2026/09/14/23_01_18` concurrency W1).
-    const freshWithRate = () =>
-      row({
-        chatChannel: {
-          provider: 'slack',
-          botTokenRef: BOT_TOKEN_REF,
-          inboundSigningRef: SIGNING_REF,
-          rateLimitPerMinute: 99,
-        },
-        untouchedByThisRequest: 'kept',
-      });
-    const { service, repo } = await makeService([freshWithRate]);
+    // **두 상태가 같은 키를 다른 값으로 가져야 한다.** 종전 fixture 는 스냅샷 쪽에 그 키가
+    // 아예 없어서 «새로 생긴 필드» 만 검증했고, 스냅샷을 통째로 대입하는 결함을 못 잡았다
+    // (vacuous — `review/code/2026/09/14/23_38_09` C1 이 실측으로 지적).
+    const chan = (rate: number, extra: Record<string, unknown> = {}) => ({
+      provider: 'slack',
+      botTokenRef: BOT_TOKEN_REF,
+      inboundSigningRef: SIGNING_REF,
+      rateLimitPerMinute: rate,
+      ...extra,
+    });
+    const { service, repo } = await makeService([
+      // 락 안 재읽기 — 동시 PATCH 가 99 로 바꿨다.
+      () => row({ chatChannel: chan(99), untouchedByThisRequest: 'kept' }),
+    ]);
+    // 요청 시작 시점 스냅샷 — 30. 이것이 최종값이면 되돌아간 것이다.
+    (repo.findOne as jest.Mock).mockResolvedValue(
+      row({ chatChannel: chan(30) }),
+    );
 
     await service.rotateBotToken('trig-l', 'ws-1', '111:newToken', 'u-1');
 
@@ -4107,6 +4114,8 @@ describe('TriggersService — 락 안 재읽기가 동시 확립분을 본다 (l
     expect(patch?.config?.chatChannel?.rateLimitPerMinute).toBe(99);
     // 이번 회전의 산출은 그대로 실려야 한다 — 재읽기가 회전 결과를 덮지 않는다.
     expect(patch?.config?.chatChannel?.botTokenRef).toBe(BOT_TOKEN_REF);
+    // 서명 ref 도 반드시 실린다 — 빠지면 인입 검증이 fail-open 으로 돌아간다.
+    expect(patch?.config?.chatChannel?.inboundSigningRef).toBe(SIGNING_REF);
   });
 
   it('promoteRotatedNotificationSecrets — 쓰기가 skip 되면 세지 않는다', async () => {

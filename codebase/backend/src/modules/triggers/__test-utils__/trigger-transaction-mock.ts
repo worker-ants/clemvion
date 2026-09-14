@@ -74,6 +74,10 @@ export function withTransactionMock(
   triggerRepoMock: Record<string, unknown>,
   options: TransactionMockOptions = {},
 ): Record<string, unknown> {
+  // 이미 `manager` 를 가진 mock 은 그대로 둔다 — 이중 래핑 방지.
+  // **현재 이 분기에 도달하는 테스트는 없다**(전수 확인). 그래도 두는 이유는 `createBaseProviders`
+  // 가 호출부에서 받은 mock 을 그대로 감싸기 때문이다 — 호출부가 자기 `manager` 를 넣어 주는
+  // 순간 이중 래핑이 조용히 동작을 바꾼다. 「검증된 동작」으로 인용하지 말 것.
   if (triggerRepoMock.manager) return triggerRepoMock;
   return {
     ...triggerRepoMock,

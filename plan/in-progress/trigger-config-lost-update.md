@@ -559,6 +559,34 @@ fallback)` 이 «어느 하위 키를, 무엇을 얹어» 를 인자로 강제�
 > 남는 규율은 편집 습관이다: **새 private 헬퍼를 기존 함수 사이에 끼워 넣지 말 것** — 그
 > 자리가 JSDoc 과 함수 사이면 반드시 orphan 이 된다. 세 번 다 그 형태였다.
 
+### 10라운드 리뷰 처분 (`review/code/2026/09/14/23_38_09` — C1)
+
+**헬퍼를 쓰면서 헬퍼가 막으려던 결함을 냈다.** 9라운드에 `rotateBotToken` 을
+`mergeIntoFreshSubKey` 로 옮기면서 `patch` 자리에 **`mergedChannel` 전체**를 넘겼다 — 그건
+함수 시작 시점 `chatChannelCfg` 를 스프레드한 객체라, 재읽기로 얻은
+`rateLimitPerMinute`·`uiMapping`·`languageLocale` 을 무조건 되돌린다. 헬퍼의 `patch` 는
+**델타**여야 한다.
+
+**그리고 내가 쓴 회귀 테스트가 그것을 못 잡았다.** fixture 가 스냅샷 쪽에 그 키를 **아예 두지
+않아** «새로 생긴 필드» 만 검증했기 때문이다 — 2라운드에 한 번 겪은 그 형태다
+(«대조군은 두 상태가 **다르게 판정하는 값**이어야 한다»).
+
+| # | 처분 |
+|---|---|
+| C1 `patch` 에 스냅샷 전체를 넘겨 lost update 재발 + 그 테스트가 vacuous | **수용·수정** — `patch` 를 `{...configUpdates, botTokenRef, inboundSigningRef}` 로 좁히고, fixture 를 «같은 키를 30 vs 99 로» 채워 판별하게 했다. 두 ref 는 `buildSecretRef` 로 매번 재유도되는 결정적 값이라 델타에 **포함**한다(빠지면 fail-open) |
+| W3·INFO#7 `create()`/`update()` 주석이 쓰기 메커니즘을 stale 하게 서술 | **수용·수정** — 내 PR 이 stale 하게 만든 두 자리 |
+| INFO#8 `withTransactionMock` 의 도달하지 않는 분기 | **수용·수정(문서)** — 「검증된 동작으로 인용하지 말 것」을 코드 옆에 |
+| INFO#9 `SchedulesService.update` 의 조합 분기 미검증 | **수용·수정** — name+isActive 동시 · 빈 patch 대조군 |
+| INFO#10 hooks spec 의 동일 제목 두 개 | **수용·수정** — 제목에 call site 구분자. 하필 «한쪽만 테스트가 있어 다른 쪽이 되돌려져도 GREEN» 이었던 그 두 자리다 |
+| W1·W2 · INFO#1~#7·#11·#12 | **후속/무조치** — 이미 등재됐거나 리뷰어가 «조치 불요» 로 판정 |
+
+**뮤턴트**: `patch` 를 다시 `mergedChannel` 전체로 → **RED**(고친 fixture 가 문다).
+
+> **이 라운드의 교훈은 «헬퍼가 규율을 대신하지 않는다» 다.** `mergeIntoFreshSubKey` 는
+> «어느 하위 키를, 무엇을 얹어» 를 인자로 강제하지만, `patch` 에 무엇을 넣을지까지는
+> 강제하지 못한다. 시그니처로 좁힌 자리가 남아 있다는 뜻이고, 그래서 **테스트 fixture 가
+> 두 상태를 갈라 놓는가**가 여전히 최종 방어선이다.
+
 ### 후속(developer 범위) — 이 PR 로 넓히지 않는다
 
 | 항목 | 근거 |
