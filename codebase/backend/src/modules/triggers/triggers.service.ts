@@ -19,6 +19,11 @@ import {
 } from '../../common/db/pg-error';
 import { randomBytes } from 'crypto';
 import { Trigger, TriggerChatChannelHealth } from './entities/trigger.entity';
+import {
+  acquireTriggerConfigLock,
+  rewriteTriggerConfigLocked,
+  TRIGGER_DELETE_LOCK_TIMEOUT_MS,
+} from './trigger-config-lock';
 import { Execution } from '../executions/entities/execution.entity';
 import { Schedule } from '../schedules/entities/schedule.entity';
 import { ScheduleRunnerService } from '../schedules/schedule-runner.service';
@@ -43,6 +48,7 @@ import {
   assertChatChannelInputSafe,
   stripChatChannelPlaintext,
   translateSetupChannelError,
+  extractInboundSigningRef,
 } from './chat-channel-input-rules';
 import type { ChatChannelInput } from './chat-channel-input-rules';
 import { buildTriggerCallbackUrl } from './trigger-callback-url';
@@ -339,18 +345,73 @@ export class TriggersService {
     return PaginatedResponseDto.create(enriched, totalItems, page, limit);
   }
 
-  async findById(id: string, workspaceId: string): Promise<Trigger> {
-    const trigger = await this.triggerRepository.findOne({
-      where: { id, workspaceId },
-      relations: ['workflow'],
+  /**
+   * 없으면 `RESOURCE_NOT_FOUND` 로 던진다 — **이 문구가 사는 유일한 자리.**
+   *
+   * 같은 리터럴이 네 곳으로 늘었었다(`findById` · `findByIdForUpdate` · 창 1 의 삭제 경합 ·
+   * `rotateBotToken` 의 삭제 경합). 이 PR 이 스스로 반복해 적은 *"복제가 drift 를 부른다"* 와
+   * 정면으로 어긋나는 상태였다 (`/ai-review` `review/code/2026/09/14/20_49_15`
+   * maintainability WARNING#5).
+   */
+  private assertTriggerFound(row: Trigger | null | undefined): Trigger {
+    if (!row) this.throwTriggerNotFound();
+    return row;
+  }
+
+  /**
+   * 락 안에서 재읽은 `config` 의 **하위 키를 기준으로** 병합한다.
+   *
+   * ## 왜 이게 따로 필요한가 — 같은 실수를 두 번 했다
+   *
+   * 1라운드에 *"컨테이너만 다시 읽는 것으로는 부족하다"* 고 직접 적어 놓고, 7라운드에 새로
+   * 닫은 자리에서 **그대로 반복**했다: `(freshConfig) => ({ ...freshConfig, notification: X })`
+   * 에서 `X` 를 **락 이전 스냅샷**으로 만들어 넘긴 것이다. 최상위 키는 재읽기로 지켜지지만
+   * 그 하위(`notification.url` 등)는 옛 값으로 되돌아간다 — 이 PR 이 닫는 것과 같은 클래스다
+   * (`/ai-review` `review/code/2026/09/14/22_24_35` database·testing CRITICAL#1).
+   *
+   * 그래서 «어느 하위 키를, 무엇을 얹어» 를 **인자로 강제**한다. 호출부가 스냅샷 객체를
+   * 통째로 대입할 자리를 없애는 것이 요점이다.
+   *
+   * @param freshConfig 락 안에서 재읽은 `config` 전체.
+   * @param key 재읽은 `config` 에서 기준으로 삼을 하위 키.
+   * @param patch 그 하위 객체 **위에** 얹을 필드들.
+   * @param fallback 재읽은 행에 그 키가 없을 때의 기준(보통 요청 시작 시점 값).
+   */
+  private mergeIntoFreshSubKey(
+    freshConfig: Record<string, unknown>,
+    key: string,
+    patch: Record<string, unknown>,
+    fallback: Record<string, unknown>,
+  ): Record<string, unknown> {
+    const current = freshConfig?.[key];
+    const base =
+      typeof current === 'object' && current !== null
+        ? (current as Record<string, unknown>)
+        : fallback;
+    return { ...freshConfig, [key]: { ...base, ...patch } };
+  }
+
+  /**
+   * «없다» 를 그대로 던진다 — 검증할 행이 아예 없는 자리용.
+   *
+   * 종전엔 `assertTriggerFound(null)` 로 불렀는데, 그건 «주어진 행을 검증한다» 는 계약을
+   * 인자로 우회하는 것이라 다음 사람이 읽을 때 오해한다
+   * (`/ai-review` `review/code/2026/09/14/21_18_21` maintainability INFO#6).
+   */
+  private throwTriggerNotFound(): never {
+    throw new NotFoundException({
+      code: 'RESOURCE_NOT_FOUND',
+      message: 'Trigger not found',
     });
-    if (!trigger) {
-      throw new NotFoundException({
-        code: 'RESOURCE_NOT_FOUND',
-        message: 'Trigger not found',
-      });
-    }
-    return trigger;
+  }
+
+  async findById(id: string, workspaceId: string): Promise<Trigger> {
+    return this.assertTriggerFound(
+      await this.triggerRepository.findOne({
+        where: { id, workspaceId },
+        relations: ['workflow'],
+      }),
+    );
   }
 
   async findOneDetail(id: string, workspaceId: string): Promise<TriggerDetail> {
@@ -448,7 +509,7 @@ export class TriggersService {
       await this.chatChannelBinder.setupChatChannel(saved, chatChannel, {
         storeUserSuppliedSecrets: true,
       });
-      // setupChatChannel 은 별도 triggerRepository.update 로 botTokenRef / inboundSigningRef /
+      // setupChatChannel 은 별도 `rewriteTriggerConfigLocked`(락 안 재읽기·머지) 로 botTokenRef / inboundSigningRef /
       // chatChannelHealth 등을 갱신. in-memory `saved` 는 그 update 를 모르므로 응답 stale
       // 회귀 (hasBotToken=false). 재조회로 최신 상태 반영.
       const refreshed = await this.triggerRepository.findOne({
@@ -459,13 +520,30 @@ export class TriggersService {
     return this.sanitizeForResponse(result);
   }
 
+  /**
+   * `update()` 전용 — **검증에만 쓰는 가벼운 조회.**
+   *
+   * `findById` 는 `relations: ['workflow']` 를 싣는데, `update()` 의 사전 검증(타입 분기 ·
+   * chatChannel 설정 여부 · 인증 설정)은 그 관계를 한 번도 보지 않는다. 저장·응답에 쓰이는
+   * 엔티티는 **락 안에서 다시 읽으므로**, 여기서 조인을 한 번 더 하면 PATCH 마다 같은 JOIN
+   * SELECT 가 두 번 돈다 (`/ai-review` `review/code/2026/09/14/20_17_16` performance WARNING#1).
+   */
+  private async findByIdForUpdate(
+    id: string,
+    workspaceId: string,
+  ): Promise<Trigger> {
+    return this.assertTriggerFound(
+      await this.triggerRepository.findOne({ where: { id, workspaceId } }),
+    );
+  }
+
   async update(
     id: string,
     workspaceId: string,
     dto: UpdateTriggerDto,
     userId: string,
   ): Promise<Trigger> {
-    const trigger = await this.findById(id, workspaceId);
+    const trigger = await this.findByIdForUpdate(id, workspaceId);
     const { notification, interaction, chatChannel, config, ...rest } = dto;
     // [Spec 2-trigger-list §3] Schedule 타입 트리거는 name·isActive 만 PATCH 허용.
     // endpointPath / config / authConfigId / notification / interaction / chatChannel 변경은
@@ -500,9 +578,12 @@ export class TriggersService {
     // [ref 보존] `mergeExternalConfig` 가 `config.chatChannel` 을 통째로 교체하기 **전에**
     // 집어 둔다. `botTokenRef` 는 trigger id 로 재유도되지만 `inboundSigningRef` 는 그렇지
     // 않아, 여기서 안 집으면 slack/discord PATCH 마다 사라진다 → 인입 서명 검증 fail-open.
-    const previousInboundSigningRef = (
-      trigger.config as { chatChannel?: { inboundSigningRef?: string } }
-    )?.chatChannel?.inboundSigningRef;
+    //
+    // **락 안에서 다시 집는다**(아래 창 1). 여기서 집는 값은 요청 시작 시점의 것이라, 동시
+    // 요청이 그 사이 ref 를 처음 확립하면 `undefined` 다 — 그러면 창 1 이 `chatChannel` 을
+    // 통째로 교체하며 ref 를 지우고, binder 의 재읽기는 **자기 자신이 방금 쓴 값**(ref 없음)을
+    // 보게 되어 보존 게이트가 거짓이 된다. 즉 두 쓰기가 한 요청 안에서 서로를 가린다.
+    let previousInboundSigningRef = extractInboundSigningRef(trigger.config);
     // authConfigId 를 새로 set 하는 경우 같은 워크스페이스의 AuthConfig 인지 검증.
     // null 로 set (인증 제거) 은 검증 대상 아님.
     if (rest.authConfigId) {
@@ -512,14 +593,6 @@ export class TriggersService {
     const safeChatChannel = chatChannel
       ? stripChatChannelPlaintext(chatChannel)
       : undefined;
-    // notification/interaction/chatChannel 이 명시된 경우만 config 안의 해당 키를 교체.
-    const baseConfig = this.stripInlineAuthKeys(config ?? trigger.config ?? {});
-    const mergedConfig = this.mergeExternalConfig(
-      baseConfig,
-      notification,
-      interaction,
-      safeChatChannel,
-    );
     // `rest` 에는 **값이 없는 optional 필드도 `undefined` 로 존재**한다 — `target: ES2023`
     // 에서 클래스 필드가 own property 로 정의되기 때문이다(`useDefineForClassFields`).
     // 그대로 `Object.assign` 하면 로드된 값을 `undefined` 로 **덮어쓴다** — DB 는 TypeORM
@@ -529,9 +602,72 @@ export class TriggersService {
     const defined = Object.fromEntries(
       Object.entries(rest).filter(([, v]) => v !== undefined),
     );
-    Object.assign(trigger, defined, { config: mergedConfig });
-    const saved = await this.triggerRepository
-      .save(trigger)
+
+    // ── 창 1 — 병합과 저장을 **같은 advisory lock 안에서** 한다 ────────────────────────
+    //
+    // 종전엔 요청 시작 시점의 `trigger.config` 스냅샷으로 병합해 `save` 했다. 그래서
+    // **`chatChannel` 을 아예 싣지 않은 PATCH**(이름 변경 등)조차 동시 요청이 방금 확립한
+    // `chatChannel.inboundSigningRef` 를 옛 값으로 되돌려, 이 PR 이 닫으려는 fail-open 이
+    // 그대로 재현됐다 (`/ai-review` `review/code/2026/09/14/18_17_44` security CRITICAL#1).
+    // `Trigger` 에는 `@VersionColumn` 도 없어 낙관적 락으로 막히지도 않는다.
+    //
+    // **`save(trigger)` 는 그대로 둔다.** 종전에 이 자리를 `update` + 재조회로 바꿨다가
+    // 되돌린 이력이 있다 — 반환 엔티티·subscriber·`endpointPath` UNIQUE 충돌 경로의 의미가
+    // 함께 달라져 단위 **6개 케이스가 RED** 였다. 여기서 바꾸는 것은 «어느 `config` 위에
+    // 병합하는가» 와 «그 구간이 직렬화되는가» 뿐이고, 저장 동사는 건드리지 않는다.
+    //
+    // 이 구간에 외부 호출이 없다는 것이 락을 여기 둘 수 있는 근거다 — 검증·순수 병합뿐이고
+    // `setupChatChannel` 은 저장 **뒤**에 온다 (`trigger-config-lock.ts` JSDoc 의 제약).
+    const saved = await this.triggerRepository.manager
+      .transaction(async (m) => {
+        await acquireTriggerConfigLock(m, trigger.id);
+        // 락을 잡은 뒤의 행이 «커밋된 최신 상태» 다. 요청이 `config` 를 통째로 보냈으면
+        // 그것이 사용자의 의도이므로 그대로 쓰고, 아니면 **재읽은 행**을 기준으로 삼는다.
+        //
+        // **`findById` 와 같은 관계를 싣는다.** 아래에서 이 엔티티가 저장 대상이자 응답의
+        // 원본이 되므로, 관계를 빼고 읽으면 `chatChannel` 없는 PATCH 응답에서만 `workflow`
+        // 가 사라진다 — `TriggerDto.workflow` 가 *"생성 응답에만 없다"* 고 보장하는 자리다.
+        const fresh = await m.findOne(Trigger, {
+          where: { id: trigger.id, workspaceId },
+          relations: ['workflow'],
+        });
+        // 보존 게이트의 **첫 항**도 재읽은 행에서 온다 — 위 선언의 註 참조.
+        previousInboundSigningRef =
+          extractInboundSigningRef(fresh?.config) ?? previousInboundSigningRef;
+        // notification/interaction/chatChannel 이 명시된 경우만 config 안의 해당 키를 교체.
+        const baseConfig = this.stripInlineAuthKeys(
+          config ?? fresh?.config ?? trigger.config ?? {},
+        );
+        const mergedConfig = this.mergeExternalConfig(
+          baseConfig,
+          notification,
+          interaction,
+          safeChatChannel,
+        );
+        // **재읽은 행을 저장 대상으로 쓴다.** `save` 는 엔티티를 통째로 저장하므로, 요청
+        // 시작 시점의 `trigger` 를 그대로 넘기면 `config` 밖의 컬럼
+        // (`chatChannelHealth`·`chatChannelLastError`·`chatChannelSetupAt`·
+        // `chatChannelRotatedAt`·`chatChannelTokenV2`)이 **pre-lock 스냅샷 값으로 되돌아간다**.
+        // 같은 락을 공유하는 형제 창(`rotateBotToken`·binder)이 방금 커밋한 부분 UPDATE 를
+        // 이 저장이 조용히 덮는 것이다 — 이 PR 이 막는 것과 **같은 클래스**의 lost update 를
+        // 수정 자체가 새로 만들고 있었다
+        // (`/ai-review` `review/code/2026/09/14/19_07_43` database WARNING#2).
+        //
+        // **행이 사라졌으면 저장하지 않는다.** `save(entity)` 는 PK 로 재조회해 행이 없으면
+        // **INSERT** 한다 — 그 사이 `remove()` 가 끝난 트리거를 같은 id 로 되살리는 것이다.
+        // `remove()` 는 이미 `teardownChatChannel`·`secrets.deleteByPrefix`·BullMQ 해제·
+        // CASCADE 삭제를 마쳤으므로, 되살아난 행은 그 어느 것도 되돌리지 못한 **고아**가 된다.
+        //
+        // 이 경로는 이 PR 이 만든 것이 아니다 — `origin/main` 의 `save(trigger)` 도 같은 호출
+        // 형태다. 다만 이 PR 이 형제 세 창을 «행이 없으면 쓰지 않고 `false`» 로 만들어 **비대칭**
+        // 이 생겼고, 여기는 이미 재읽기를 하고 있으니 같은 규율로 닫는 것이 자연스럽다
+        // (`/ai-review` `review/code/2026/09/14/19_44_08` side_effect·concurrency CRITICAL#1).
+        // **반환값을 받는다** — 메서드 호출은 타입을 좁혀 주지 않는다(assertion 함수가
+        // 아니므로). 헬퍼가 값을 돌려주는 형태인 이유가 이것이다.
+        const target = this.assertTriggerFound(fresh);
+        Object.assign(target, defined, { config: mergedConfig });
+        return m.save(Trigger, target);
+      })
       .catch((err: unknown) => this.rethrowEndpointPathConflict(err));
     // **커밋 직후** 기록한다 — 아래 세 가지(schedule 역동기화의 BullMQ 호출, secret
     // 마이그레이션, chatChannel setup)는 전부 실패할 수 있는 외부 호출이라, 그 뒤로 미루면
@@ -567,7 +703,7 @@ export class TriggersService {
         // 병합 **전**의 값이다 — `saved.config.chatChannel` 은 이미 요청 바디로 교체됐다.
         preservedInboundSigningRef: previousInboundSigningRef,
       });
-      // setupChatChannel 은 별도 triggerRepository.update — in-memory `saved` 는 stale.
+      // setupChatChannel 은 별도 `rewriteTriggerConfigLocked`(락 안 재읽기·머지) — in-memory `saved` 는 stale.
       // 응답 hasBotToken / inboundSigningRef 가 최신 반영되도록 재조회.
       //
       // **`relations` 를 함께 실어야 한다.** 이 재조회가 `saved` 를 통째로 갈아치우므로,
@@ -714,14 +850,29 @@ export class TriggersService {
       secretRef: ref,
     };
     delete updatedSigning.secret;
+    const normalizedNotification = {
+      ...(notificationCfg as Record<string, unknown>),
+      signing: updatedSigning,
+    };
+    // 호출부(`create`/`update`)가 이 엔티티를 응답에 쓰므로 in-memory 도 맞춰 둔다.
     trigger.config = {
       ...trigger.config,
-      notification: {
-        ...(notificationCfg as Record<string, unknown>),
-        signing: updatedSigning,
-      },
+      notification: normalizedNotification,
     };
-    await this.triggerRepository.save(trigger);
+    // 재읽은 `config.notification` **위에** `signing` 만 얹는다. 스냅샷으로 만든
+    // `normalizedNotification` 을 통째로 대입하면 그 사이 커밋된 `notification.url` 등이
+    // 되돌아간다 — `mergeIntoFreshSubKey` JSDoc 참조.
+    await rewriteTriggerConfigLocked(
+      this.triggerRepository.manager,
+      trigger.id,
+      (freshConfig) =>
+        this.mergeIntoFreshSubKey(
+          freshConfig,
+          'notification',
+          { signing: updatedSigning },
+          normalizedNotification,
+        ),
+    );
   }
 
   /**
@@ -860,7 +1011,32 @@ export class TriggersService {
     await this.secrets.deleteByPrefix(`secret://triggers/${trigger.id}/`);
     // type 을 remove 전에 읽어둔다 — TypeORM `remove` 는 엔티티의 id 를 지운다.
     const { type } = trigger;
-    await this.triggerRepository.remove(trigger);
+    // **삭제도 config 락을 잡는다.** 창 1 은 `save(entity)` 를 쓰는데 그것은 행이 없으면
+    // **INSERT** 한다. 읽기 시점 가드(`!fresh`)는 «읽었을 땐 있었는데 저장 직전에 삭제되는»
+    // 쓰기 시점 경합을 못 막는다 — 그 창을 닫는 유일한 방법이 삭제를 같은 락으로 직렬화하는
+    // 것이다 (`/ai-review` `review/code/2026/09/14/20_17_16` database·concurrency WARNING#2).
+    //
+    // 위 `teardownChatChannel`(외부 호출)은 **락 밖**에서 이미 끝났다 — `trigger-config-lock.ts`
+    // JSDoc 의 «외부 호출을 락 안에 두지 않는다» 제약을 여기서도 지킨다.
+    //
+    // **삭제만 대기 상한을 둔다.** 위 정리는 되돌릴 수 없으므로, 락을 무한정 기다리면
+    // «자원은 다 뜯겼는데 행은 남은» 반쯤 삭제된 상태가 굳는다. 상한을 넘기면 그 사실을
+    // 소리내어 남기고 던진다 — 조용한 지연보다 드러나는 오류가 낫다.
+    await this.triggerRepository.manager
+      .transaction(async (m) => {
+        await acquireTriggerConfigLock(m, id, {
+          timeoutMs: TRIGGER_DELETE_LOCK_TIMEOUT_MS,
+        });
+        await m.remove(trigger);
+      })
+      .catch((err: unknown) => {
+        this.logger.error(
+          `TriggersService.remove: trigger=${id} 의 행 삭제가 실패했다 — provider teardown·` +
+            `secret 삭제·listener 해제는 **이미 끝났으므로** 이 트리거는 반쯤 삭제된 상태다. ` +
+            `수동 정리가 필요하다: ${err instanceof Error ? err.message : String(err)}`,
+        );
+        throw err;
+      });
     await this.recordAudit({
       workspaceId,
       userId,
@@ -906,7 +1082,15 @@ export class TriggersService {
     const newSecret = `wsk_${randomBytes(32).toString('hex')}`;
     trigger.notificationSecretV2 = newSecret;
     trigger.notificationRotatedAt = new Date();
-    await this.triggerRepository.save(trigger);
+    // **컬럼만 쓴다** — `save(trigger)` 는 엔티티를 통째로 저장해 읽은 시점의 `config` 까지
+    // 되쓴다(`hooks.service.ts` 의 `touchLastTriggeredAt` 과 같은 규율).
+    await this.triggerRepository.update(
+      { id: trigger.id },
+      {
+        notificationSecretV2: newSecret,
+        notificationRotatedAt: trigger.notificationRotatedAt,
+      },
+    );
     await this.recordAudit({
       workspaceId,
       userId,
@@ -954,7 +1138,22 @@ export class TriggersService {
       triggerToken: newToken,
     };
     trigger.config = { ...trigger.config, interaction: updated };
-    await this.triggerRepository.save(trigger);
+    // 락 안 재읽기 위에 `interaction` 만 얹는다. 이 경로는 **동기 요청**이므로, 그 사이
+    // 트리거가 삭제됐으면 창 1·`rotateBotToken` 과 같이 404 로 드러낸다.
+    const wroteInteraction = await rewriteTriggerConfigLocked(
+      this.triggerRepository.manager,
+      trigger.id,
+      // 재읽은 `config.interaction` **위에** 새 토큰만 얹는다 — 스냅샷을 통째로 대입하면
+      // 그 사이 커밋된 `enabled`·`appearance` 등이 되돌아간다(위 C1 과 같은 클래스).
+      (freshConfig) =>
+        this.mergeIntoFreshSubKey(
+          freshConfig,
+          'interaction',
+          { triggerToken: newToken },
+          updated,
+        ),
+    );
+    if (!wroteInteraction) this.throwTriggerNotFound();
     await this.recordAudit({
       workspaceId,
       userId,
@@ -1096,18 +1295,52 @@ export class TriggersService {
       );
     }
 
-    // 6. trigger 컬럼 갱신.
+    // 6. trigger 컬럼 갱신 — **락 안에서 config 를 다시 읽어 머지한다.**
+    //
+    // 위 `adapter.setupChannel` 은 이미 끝났으므로 외부 호출이 임계 구간에 들어가지 않는다
+    // (근거는 `trigger-config-lock.ts` JSDoc). `mergedChannel` 은 이 회전의 산출이라 그대로
+    // 쓰고, 되살려야 하는 것은 **다른 요청이 그 사이 커밋한 `config` 의 나머지 키**다 —
+    // 종전엔 1단계 `findById` 시점의 `trigger.config` 스냅샷으로 통째로 덮어 그것들을 잃었다.
+    //
+    // 아래 네 컬럼은 «이번 회전의 결과» 라 머지 대상이 아니다.
     const rotatedAt = new Date();
-    await this.triggerRepository.update(
-      { id: trigger.id },
+    const wrote = await rewriteTriggerConfigLocked(
+      this.triggerRepository.manager,
+      trigger.id,
+      // 재읽은 `config.chatChannel` **위에** 이번 회전의 산출만 얹는다.
+      //
+      // **`patch` 는 델타여야 한다 — 스냅샷 전체가 아니다.** 앞 라운드에서 `mergedChannel`
+      // 을 `patch` 로 넘겼는데, 그건 함수 시작 시점의 `chatChannelCfg` 를 스프레드한 **전체**
+      // 객체라 재읽기로 얻은 `rateLimitPerMinute`·`uiMapping`·`languageLocale` 을 무조건
+      // 되돌린다 — 헬퍼를 쓰면서도 헬퍼가 막으려던 결함을 그대로 낸 것이다
+      // (`/ai-review` `review/code/2026/09/14/23_38_09` side_effect·maintainability C1).
+      //
+      // 두 ref 는 델타에 **포함한다** — `buildSecretRef(trigger.id, …)` 로 매번 재유도되는
+      // 결정적 값이고, 빠지면 인입 서명 검증이 fail-open 으로 돌아간다(D-3 계약).
+      (freshConfig) =>
+        this.mergeIntoFreshSubKey(
+          freshConfig,
+          'chatChannel',
+          {
+            ...(result.configUpdates ?? {}),
+            botTokenRef,
+            inboundSigningRef,
+          },
+          mergedChannel as unknown as Record<string, unknown>,
+        ),
       {
-        config: { ...(trigger.config ?? {}), chatChannel: mergedChannel },
         chatChannelTokenV2: v2RefUsed,
         chatChannelRotatedAt: rotatedAt,
         chatChannelHealth: 'healthy',
         chatChannelLastError: null,
       },
     );
+    // **쓰기가 skip 됐으면 성공으로 응답하지 않는다.** 그 사이 트리거가 삭제되면 헬퍼는
+    // `false` 를 돌려주는데, 종전엔 그것을 무시하고 200 + 감사 row 를 남겼다 — 삭제된
+    // 트리거에 대한 **거짓 성공 기록**이다. 창 1 은 같은 조건에서 404 를 내므로 형제
+    // 엔드포인트끼리 응답이 갈리기도 했다
+    // (`/ai-review` `review/code/2026/09/14/20_17_16` api_contract WARNING#3).
+    if (!wrote) this.throwTriggerNotFound();
     // **컬럼 갱신이 끝난 뒤에 기록한다.** 위 6단계 중 어디서든 던지면 회전은 일어나지
     // 않은 것이고, 그때 감사 row 만 남으면 "회전됐다" 는 거짓 기록이 된다.
     await this.recordAudit({
@@ -1163,7 +1396,11 @@ export class TriggersService {
         );
         trigger.notificationSecretV2 = null;
         trigger.notificationRotatedAt = null;
-        await this.triggerRepository.save(trigger);
+        // 컬럼만 쓴다 — 위 ② 와 같은 규율.
+        await this.triggerRepository.update(
+          { id: trigger.id },
+          { notificationSecretV2: null, notificationRotatedAt: null },
+        );
         continue;
       }
       const signing = (notificationCfg as { signing?: unknown }).signing;
@@ -1194,8 +1431,23 @@ export class TriggersService {
       };
       trigger.notificationSecretV2 = null;
       trigger.notificationRotatedAt = null;
-      await this.triggerRepository.save(trigger);
-      promoted++;
+      // cron 경로다 — 그 사이 삭제됐으면 조용히 건너뛴다(`false`). 동기 요청과 달리
+      // 알릴 상대가 없다: `trigger-config-lock.ts` JSDoc 의 부재 처리 표 참조.
+      // 쓰기가 skip 됐으면(그 사이 삭제) 세지 않는다 — cron 로그가 «승격했다» 고 거짓을
+      // 말하게 된다 (`review/code/2026/09/14/23_01_18` requirement INFO#1).
+      const wrotePromotion = await rewriteTriggerConfigLocked(
+        this.triggerRepository.manager,
+        trigger.id,
+        (freshConfig) =>
+          this.mergeIntoFreshSubKey(
+            freshConfig,
+            'notification',
+            { signing: updatedSigning },
+            updatedNotification,
+          ),
+        { notificationSecretV2: null, notificationRotatedAt: null },
+      );
+      if (wrotePromotion) promoted++;
     }
     return { promoted };
   }
@@ -1242,10 +1494,13 @@ export class TriggersService {
         );
       }
 
-      // 컬럼 갱신.
+      // 컬럼 갱신 — **컬럼만 쓴다**(위 ② 와 같은 규율).
       trigger.chatChannelTokenV2 = null;
       trigger.chatChannelRotatedAt = null;
-      await this.triggerRepository.save(trigger);
+      await this.triggerRepository.update(
+        { id: trigger.id },
+        { chatChannelTokenV2: null, chatChannelRotatedAt: null },
+      );
       cleaned++;
     }
     return { cleaned };

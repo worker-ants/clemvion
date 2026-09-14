@@ -5,6 +5,7 @@ import {
 import { AuditLogsService } from '../audit-logs/audit-logs.service';
 import {
   Injectable,
+  Logger,
   NotFoundException,
   BadRequestException,
 } from '@nestjs/common';
@@ -12,6 +13,10 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Schedule } from './entities/schedule.entity';
 import { Trigger } from '../triggers/entities/trigger.entity';
+import {
+  acquireTriggerConfigLock,
+  TRIGGER_DELETE_LOCK_TIMEOUT_MS,
+} from '../triggers/trigger-config-lock';
 import { WorkspacesService } from '../workspaces/workspaces.service';
 import { isValidIanaTimezone } from '../../common/utils/timezone';
 import { CreateScheduleDto } from './dto/create-schedule.dto';
@@ -27,6 +32,8 @@ const SCHEDULE_RESOURCE_TYPE = 'schedule';
 
 @Injectable()
 export class SchedulesService {
+  private readonly logger = new Logger(SchedulesService.name);
+
   constructor(
     @InjectRepository(Schedule)
     private readonly scheduleRepository: Repository<Schedule>,
@@ -231,7 +238,19 @@ export class SchedulesService {
       trigger.isActive = dto.isActive;
     }
     if (trigger) {
-      await this.triggerRepository.save(trigger);
+      // **컬럼만 쓴다 — `save(trigger)` 를 쓰지 않는다.** `save` 는 엔티티를 통째로 저장해
+      // 읽은 시점의 `config` 까지 되쓴다. 그 사이 동시 PATCH 가 확립한
+      // `chatChannel.inboundSigningRef` 를 되돌리면 인입 서명 검증이 fail-open 으로 돌아간다
+      // (`triggers.service.ts` 의 config 락과 같은 결함 클래스 —
+      // `/ai-review` `review/code/2026/09/14/21_50_09` concurrency CRITICAL#1).
+      //
+      // 이 경로가 바꾸는 것은 `name`·`isActive` 둘뿐이므로 컬럼 한정 갱신으로 족하다.
+      const patch: Partial<Pick<Trigger, 'name' | 'isActive'>> = {};
+      if (dto.name) patch.name = trigger.name;
+      if (dto.isActive !== undefined) patch.isActive = trigger.isActive;
+      if (Object.keys(patch).length > 0) {
+        await this.triggerRepository.update({ id: trigger.id }, patch);
+      }
     }
 
     if (dto.cronExpression) schedule.cronExpression = dto.cronExpression;
@@ -279,9 +298,37 @@ export class SchedulesService {
     const schedule = await this.findById(id, workspaceId);
     // Remove BullMQ job
     await this.scheduleRunnerService.removeJob(schedule.id);
-    // Cascade delete trigger
+    // Cascade delete trigger — **삭제 경로는 둘이다.**
+    //
+    // `TriggersService.remove()` 만 config 락을 잡게 했더니, 스케줄 삭제라는 **두 번째 경로**가
+    // 락 밖에 남았다. 창 1 은 `save(entity)` 를 쓰고 그것은 행이 없으면 INSERT 하므로,
+    // 「읽었을 땐 있었는데 저장 직전에 삭제」가 겹치면 삭제된 트리거가 고아로 되살아난다
+    // (`/ai-review` `review/code/2026/09/15/00_38_16` database W1).
+    //
+    // schedule 타입 트리거는 `chatChannel` 을 가질 수 없어 인입 서명 fail-open 으로는 이어지지
+    // 않지만, 정합성 결함은 같은 클래스다. 그리고 «삭제도 같은 락을 잡는다» 는 내 CHANGELOG
+    // 문장이 경로 하나만 덮고 있었다.
     if (schedule.triggerId) {
-      await this.triggerRepository.delete(schedule.triggerId);
+      const triggerId = schedule.triggerId;
+      await this.triggerRepository.manager
+        .transaction(async (m) => {
+          await acquireTriggerConfigLock(m, triggerId, {
+            timeoutMs: TRIGGER_DELETE_LOCK_TIMEOUT_MS,
+          });
+          await m.delete(Trigger, triggerId);
+        })
+        .catch((err: unknown) => {
+          // `TriggersService.remove()` 와 **대칭**이어야 한다. 위 `removeJob` 은 이미
+          // 끝났으므로(되돌릴 수 없다) 여기서 실패하면 «BullMQ 는 해제됐는데 행은 남은»
+          // 반쯤 삭제된 상태다 — 조용한 실패로 두면 아무도 모른다
+          // (`/ai-review` `review/code/2026/09/15/01_09_53` side_effect W2).
+          this.logger.error(
+            `SchedulesService.remove: trigger=${triggerId} 행 삭제 실패 — BullMQ job 해제는 ` +
+              `**이미 끝났으므로** 반쯤 삭제된 상태다. 수동 정리가 필요하다: ` +
+              `${err instanceof Error ? err.message : String(err)}`,
+          );
+          throw err;
+        });
     }
     await this.scheduleRepository.remove(schedule);
     await this.recordAudit({

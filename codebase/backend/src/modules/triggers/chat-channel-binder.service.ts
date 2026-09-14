@@ -3,12 +3,16 @@ import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Trigger } from './entities/trigger.entity';
+import { rewriteTriggerConfigLocked } from './trigger-config-lock';
 import { ChannelAdapterRegistry } from '../chat-channel/channel-adapter.registry';
 import { ChannelListenerRegistry } from '../chat-channel/channel-listener.registry';
 import { ChatChannelConfig } from '../chat-channel/types';
 import { SecretResolverService } from '../secret-store/secret-resolver.service';
 import { buildSecretRef } from '../secret-store/secret-ref';
-import { stripChatChannelPlaintext } from './chat-channel-input-rules';
+import {
+  stripChatChannelPlaintext,
+  extractInboundSigningRef,
+} from './chat-channel-input-rules';
 import type { ChatChannelInput } from './chat-channel-input-rules';
 import { buildTriggerCallbackUrl } from './trigger-callback-url';
 
@@ -191,6 +195,51 @@ export class ChatChannelBinderService {
       ...(inboundSigningRefSurvives ? { inboundSigningRef } : {}),
     };
 
+    /**
+     * **presence 게이트를 락 안에서 다시 계산한다.**
+     *
+     * 위 `inboundSigningRefSurvives` 는 이 요청이 **시작할 때**의 상태로 계산된 값이다.
+     * 동시 PATCH 가 그 사이에 ref 를 **처음 확립**하면 이쪽 게이트는 여전히 `false` 라
+     * `chatChannel` 에서 ref 를 빼 버린다 — 이 수정이 겨누는 바로 그 fail-open 이다
+     * (`--impl-prep` `review/consistency/2026/09/14/17_10_16` rationale_continuity W1).
+     *
+     * 그래서 **재읽은 행의 ref presence** 를 세 번째 항으로 더한다. 컨테이너(`config`)만
+     * 다시 읽고 이 값을 그대로 넣으면 결함이 그대로 재발한다.
+     */
+    const survivesWithFresh = (freshConfig: Record<string, unknown>): boolean =>
+      inboundSigningRefSurvives ||
+      Boolean(extractInboundSigningRef(freshConfig));
+
+    /**
+     * 락 안에서 쓸 `chatChannel` 을 만든다 — **성공·실패 두 경로가 이 함수 하나를 쓴다.**
+     *
+     * 종전엔 거의 같은 스프레드-조건을 두 클로저가 각각 갖고 있었다. 차이는 `configUpdates`
+     * 스프레드와 `issuedInboundSigning` 항뿐인데, 그런 쌍은 **한쪽만 고치고 다른 쪽을 놓치는**
+     * drift 를 부른다 — 이번 PR 자체가 두 자리를 함께 고쳐야 했던 사례다
+     * (`/ai-review` `review/code/2026/09/14/18_17_44` maintainability WARNING#6).
+     *
+     * `botTokenRef` 를 다시 스프레드하는 것은 no-op 이다 — `internalCfg` 가 이미 갖고 있다.
+     * 명시해 두는 이유는 *"이 ref 는 매번 재유도돼 무조건 실린다"* 는 D-3 계약을 이 자리에서
+     * 읽히게 하기 위해서다 (회귀 캐너리: *"config 를 통째로 교체해도 botTokenRef 가
+     * 재유도돼 살아남는다"*).
+     */
+    const buildChannel = (
+      freshConfig: Record<string, unknown>,
+      setupResult?: {
+        configUpdates?: Partial<ChatChannelConfig>;
+        issuedInboundSigning?: string;
+      },
+    ): ChatChannelConfig => ({
+      ...internalCfg,
+      ...(setupResult?.configUpdates ?? {}),
+      botTokenRef,
+      // 회귀 캐너리: *"slack/discord — 카드 편집 PATCH 후에도 inboundSigningRef 가 살아남는다"*
+      // 와 *"setupChannel 이 실패해도(degraded) inboundSigningRef 를 잃지 않는다"*.
+      ...(setupResult?.issuedInboundSigning || survivesWithFresh(freshConfig)
+        ? { inboundSigningRef }
+        : {}),
+    });
+
     try {
       const result = await adapter.setupChannel(internalCfg, callbackUrl);
 
@@ -212,25 +261,16 @@ export class ChatChannelBinderService {
         );
       }
 
-      // setupChannel 결과 — botIdentity 등을 config 에 머지.
-      const mergedChannel: ChatChannelConfig = {
-        ...internalCfg,
-        ...(result.configUpdates ?? {}),
-        botTokenRef,
-        // 위 `inboundSigningRefSurvives` 와 같은 술어 + 이번 호출의 server-issued 발급.
-        // 회귀 캐너리: *"slack/discord — 카드 편집 PATCH 후에도 inboundSigningRef 가 살아남는다"*.
-        ...(result.issuedInboundSigning || inboundSigningRefSurvives
-          ? { inboundSigningRef }
-          : {}),
-      };
-      const newConfig = {
-        ...(trigger.config ?? {}),
-        chatChannel: mergedChannel,
-      };
-      await this.triggerRepository.update(
-        { id: trigger.id },
+      // **락 안에서** config 를 다시 읽어 머지한다 — 외부 호출(`setupChannel`)은 이미 끝났으므로
+      // 임계 구간에 들어가지 않는다. 근거는 `trigger-config-lock.ts` JSDoc.
+      const wrote = await rewriteTriggerConfigLocked(
+        this.triggerRepository.manager,
+        trigger.id,
+        (freshConfig) => ({
+          ...freshConfig,
+          chatChannel: buildChannel(freshConfig, result),
+        }),
         {
-          config: newConfig,
           chatChannelSetupAt: new Date(),
           chatChannelHealth: 'healthy',
           chatChannelLastError: null,
@@ -238,10 +278,17 @@ export class ChatChannelBinderService {
       );
       // [Spec R8 v1 적용 (2026-05-24)] setup success path 에서만 listener registry register.
       // setupChannel 멱등성 — 동일 triggerId 재호출 시 entry overwrite.
-      this.channelListenerRegistry.register(
-        trigger.id,
-        chatChannelCfg.provider,
-      );
+      //
+      // **쓰기가 skip 됐으면(그 사이 삭제) 등록도 하지 않는다.** 안 그러면 해제되지 않는
+      // 유령 entry 가 in-memory registry 에 남는다 — dispatcher 가 warn+skip 으로 관대하게
+      // 처리해 오배달로는 안 이어지지만, 애초에 만들 이유가 없다
+      // (`/ai-review` `review/code/2026/09/14/20_17_16` side_effect INFO#4).
+      if (wrote) {
+        this.channelListenerRegistry.register(
+          trigger.id,
+          chatChannelCfg.provider,
+        );
+      }
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       // SUMMARY#24: secret_store 에 botToken 저장 완료 후 setupChannel 실패 — trigger 는
@@ -252,17 +299,22 @@ export class ChatChannelBinderService {
       this.logger.warn(
         `TriggersService: setupChannel 실패 (trigger=${trigger.id}, provider=${chatChannelCfg.provider}): ${message}`,
       );
-      // fallbackConfig: `internalCfg` 를 그대로 쓴다 — 위 `inboundSigningRefSurvives` 가
-      // 거기서 이미 적용되므로 **실패 경로에서도 두 ref 가 함께 보존된다**.
+      // fallback: `buildChannel` 을 **setupResult 없이** 부른다 — `internalCfg` 에 이미 적용된
+      // `inboundSigningRefSurvives`(요청 시작 시점) **와** 재읽은 행의 ref presence, 두 항의
+      // 합집합이다. 그래서 **실패 경로에서도 두 ref 가 함께 보존된다**.
       // 회귀 캐너리: *"setupChannel 이 실패해도(degraded) inboundSigningRef 를 잃지 않는다"*.
-      const fallbackConfig = {
-        ...(trigger.config ?? {}),
-        chatChannel: internalCfg,
-      };
-      await this.triggerRepository.update(
-        { id: trigger.id },
+      //
+      // **이 경로도 락 안에서 다시 읽는다.** 외부 mock 이 없는 e2e 에서는 `setupChannel` 이
+      // 항상 던져 **실제로 도달하는 쓰기가 여기**다 — 성공 경로만 고치면 재현 테스트가
+      // 고쳐지지 않은 코드를 통과시킨다.
+      await rewriteTriggerConfigLocked(
+        this.triggerRepository.manager,
+        trigger.id,
+        (freshConfig) => ({
+          ...freshConfig,
+          chatChannel: buildChannel(freshConfig),
+        }),
         {
-          config: fallbackConfig,
           chatChannelHealth: 'degraded',
           chatChannelLastError: message.slice(0, 1024),
         },

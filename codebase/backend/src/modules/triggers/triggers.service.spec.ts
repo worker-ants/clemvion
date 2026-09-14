@@ -19,6 +19,10 @@ import {
 import { credentialRejectedError } from '../chat-channel/types';
 import { ChatChannelBinderService } from './chat-channel-binder.service';
 import { Trigger } from './entities/trigger.entity';
+import {
+  withTransactionMock,
+  type TransactionMockOptions,
+} from './__test-utils__/trigger-transaction-mock';
 import { Execution } from '../executions/entities/execution.entity';
 import { Schedule } from '../schedules/entities/schedule.entity';
 import { AuthConfig } from '../auth-configs/entities/auth-config.entity';
@@ -38,13 +42,14 @@ import {
  */
 function createBaseProviders(
   triggerRepoMock: Record<string, unknown>,
+  txOptions: TransactionMockOptions = {},
 ): Provider[] {
   return [
     TriggersService,
     ChatChannelBinderService,
     {
       provide: getRepositoryToken(Trigger),
-      useValue: triggerRepoMock,
+      useValue: withTransactionMock(triggerRepoMock, txOptions),
     },
     { provide: getRepositoryToken(Execution), useValue: {} },
     // 감사 로깅은 부수 효과 — 대상 동작의 단언을 흐리지 않도록 mock 한다. 이 팩토리는
@@ -117,7 +122,10 @@ describe('TriggersService.findOneDetail', () => {
           provide: getRepositoryToken(Trigger),
           // `save` 는 `update()` 경로가 쓴다 — 이 describe 의 다른 테스트는 조회만 하지만
           // 생략-필드 보존 회귀가 같은 서비스의 수정 경로를 탄다.
-          useValue: { findOne: jest.fn(), save: jest.fn() },
+          useValue: withTransactionMock({
+            findOne: jest.fn(),
+            save: jest.fn(),
+          }),
         },
         {
           provide: getRepositoryToken(Execution),
@@ -431,7 +439,7 @@ describe('TriggersService.findAll — schedule 목록 enrichment (V-10)', () => 
         ChatChannelBinderService,
         {
           provide: getRepositoryToken(Trigger),
-          useValue: { createQueryBuilder: jest.fn() },
+          useValue: withTransactionMock({ createQueryBuilder: jest.fn() }),
         },
         { provide: getRepositoryToken(Execution), useValue: {} },
         {
@@ -618,11 +626,11 @@ describe('TriggersService — notification/interaction config 병합 (External I
         ChatChannelBinderService,
         {
           provide: getRepositoryToken(Trigger),
-          useValue: {
+          useValue: withTransactionMock({
             create: jest.fn((x: Partial<Trigger>) => x as Trigger),
             save: jest.fn((x: Trigger) => Promise.resolve(x)),
             findOne: jest.fn(),
-          },
+          }),
         },
         { provide: getRepositoryToken(Execution), useValue: {} },
         {
@@ -997,6 +1005,10 @@ describe('TriggersService — Secret rotation / itk revoke [Spec EIA §3.1·§3.
       providers: createBaseProviders({
         findOne: jest.fn(),
         save: jest.fn((t: Trigger) => Promise.resolve(t)),
+        // 이 describe 의 네 경로는 이제 `save(entity)` 가 아니라 컬럼 한정 `update` 또는
+        // 락 안 재작성(`m.update` 위임)으로 쓴다 — `save` 는 읽은 시점의 `config` 까지
+        // 되써서 동시 PATCH 가 커밋한 `inboundSigningRef` 를 되돌리기 때문이다.
+        update: jest.fn().mockResolvedValue(undefined),
         createQueryBuilder: jest.fn(),
       }),
     }).compile();
@@ -1028,12 +1040,15 @@ describe('TriggersService — Secret rotation / itk revoke [Spec EIA §3.1·§3.
     const result = await service.rotateNotificationSecret('t1', 'ws', 'user-1');
     expect(result.secret).toMatch(/^wsk_[a-f0-9]{64}$/);
     expect(typeof result.rotatedAt).toBe('string');
-    expect(triggerRepo.save).toHaveBeenCalledWith(
-      expect.objectContaining({
+    // **컬럼 한정 쓰기다.** patch 에 `config` 가 섞이면 같은 결함이 update 형태로 재발한다.
+    expect(triggerRepo.update).toHaveBeenCalledWith(
+      { id: 't1' },
+      {
         notificationSecretV2: result.secret,
         notificationRotatedAt: expect.any(Date),
-      }),
+      },
     );
+    expect(triggerRepo.save).not.toHaveBeenCalled();
   });
 
   it('rotateNotificationSecret — notification 미설정 시 NOTIFICATION_NOT_CONFIGURED', async () => {
@@ -1057,13 +1072,16 @@ describe('TriggersService — Secret rotation / itk revoke [Spec EIA §3.1·§3.
     );
     const result = await service.revokePerTriggerToken('t1', 'ws', 'user-1');
     expect(result.token).toMatch(/^itk_[a-f0-9]{64}$/);
-    expect(triggerRepo.save).toHaveBeenCalledWith(
+    // 락 안 재작성이므로 `m.update` → `repo.update` 로 위임돼 온다.
+    expect(triggerRepo.update).toHaveBeenCalledWith(
+      { id: 't1' },
       expect.objectContaining({
         config: expect.objectContaining({
           interaction: expect.objectContaining({ triggerToken: result.token }),
         }),
       }),
     );
+    expect(triggerRepo.save).not.toHaveBeenCalled();
   });
 
   it('revokePerTriggerToken — per_execution 전략이면 NOT_PER_TRIGGER_STRATEGY', async () => {
@@ -1096,6 +1114,15 @@ describe('TriggersService — Secret rotation / itk revoke [Spec EIA §3.1·§3.
         getMany: jest.fn().mockResolvedValue(triggers),
       };
       (triggerRepo.createQueryBuilder as jest.Mock).mockReturnValue(qb);
+      // **락 안 재읽기도 같은 행을 봐야 한다.** 승격은 이제 `rewriteTriggerConfigLocked` 를
+      // 지나는데, 그 안의 `findOne` 이 비면 «그 사이 삭제됨» 으로 판정해 쓰기를 건너뛴다 —
+      // 그러면 단언이 «0 calls» 로 죽는다. cron 이 방금 고른 행이니 존재하는 것이 맞다.
+      (triggerRepo.findOne as jest.Mock).mockImplementation(
+        (options: { where?: { id?: string } }) =>
+          Promise.resolve(
+            triggers.find((t) => t.id === options?.where?.id) ?? null,
+          ),
+      );
     }
 
     it('grace 경과 trigger 의 v2 → primary 승격', async () => {
@@ -1112,7 +1139,10 @@ describe('TriggersService — Secret rotation / itk revoke [Spec EIA §3.1·§3.
       const result = await service.promoteRotatedNotificationSecrets();
       expect(result.promoted).toBe(1);
       // [리뷰 C3 fix] 승격은 평문 기록이 아니라 secret store canonical ref 회전 + secretRef 연결.
-      expect(triggerRepo.save).toHaveBeenCalledWith(
+      // 승격은 이제 **락 안 재작성**이다 — `m.update` 가 바깥 `repo.update` 로 위임된다.
+      // `save(entity)` 로 통째로 쓰면 cron 이 도는 동안 커밋된 `chatChannel` 변경을 되돌린다.
+      expect(triggerRepo.update).toHaveBeenCalledWith(
+        { id: old.id },
         expect.objectContaining({
           notificationSecretV2: null,
           notificationRotatedAt: null,
@@ -1125,11 +1155,12 @@ describe('TriggersService — Secret rotation / itk revoke [Spec EIA §3.1·§3.
           }),
         }),
       );
+      expect(triggerRepo.save).not.toHaveBeenCalled();
       const savedSigning = (
-        (triggerRepo.save as jest.Mock).mock.calls[0][0] as Trigger
-      ).config as {
-        notification: { signing: Record<string, unknown> };
-      };
+        (triggerRepo.update as jest.Mock).mock.calls[0][1] as {
+          config: { notification: { signing: Record<string, unknown> } };
+        }
+      ).config;
       expect(savedSigning.notification.signing.secret).toBeUndefined();
     });
 
@@ -1138,9 +1169,10 @@ describe('TriggersService — Secret rotation / itk revoke [Spec EIA §3.1·§3.
       const result = await service.promoteRotatedNotificationSecrets();
       expect(result.promoted).toBe(0);
       expect(triggerRepo.save).not.toHaveBeenCalled();
+      expect(triggerRepo.update).not.toHaveBeenCalled();
     });
 
-    it('notification config 부재 trigger → v2/rotatedAt 클리어 + save (W-2 fix)', async () => {
+    it('notification config 부재 trigger → v2/rotatedAt 클리어 (W-2 fix)', async () => {
       // [SUMMARY W-2] notification config 없이 v2 컬럼이 채워진 비정상 데이터.
       // 매 cron skip 으로 평문이 영구 잔류하지 않도록 v2/rotatedAt 를 클리어해야 한다.
       const stale = makeTrigger({});
@@ -1150,18 +1182,18 @@ describe('TriggersService — Secret rotation / itk revoke [Spec EIA §3.1·§3.
 
       const result = await service.promoteRotatedNotificationSecrets();
       expect(result.promoted).toBe(0);
-      // 클리어 후 save 가 한 번 호출 (평문 영구 잔류 방지)
-      expect(triggerRepo.save).toHaveBeenCalledTimes(1);
-      expect(triggerRepo.save).toHaveBeenCalledWith(
-        expect.objectContaining({
-          notificationSecretV2: null,
-          notificationRotatedAt: null,
-        }),
+      // 클리어 쓰기가 한 번 (평문 영구 잔류 방지). **컬럼 한정**이라 `save` 가 아니다.
+      expect(triggerRepo.update).toHaveBeenCalledTimes(1);
+      expect(triggerRepo.update).toHaveBeenCalledWith(
+        { id: stale.id },
+        { notificationSecretV2: null, notificationRotatedAt: null },
       );
-      // [testing-W-3] skip 경로에서 원래 config 는 변경 없어야 한다
-      const savedTrigger = (triggerRepo.save as jest.Mock).mock
-        .calls[0][0] as Trigger;
-      expect(savedTrigger.config).toEqual({});
+      expect(triggerRepo.save).not.toHaveBeenCalled();
+      // [testing-W-3] skip 경로는 `config` 를 **아예 쓰지 않는다** — 종전엔 «바뀌지 않았다»
+      // 였는데, 컬럼 한정 쓰기로 바뀐 지금은 patch 에 키가 없는 것이 더 강한 단언이다.
+      const patch = (triggerRepo.update as jest.Mock).mock
+        .calls[0][1] as Record<string, unknown>;
+      expect(patch).not.toHaveProperty('config');
     });
 
     it('secrets.rotate 실패 시 예외가 전파된다 (testing-W-2)', async () => {
@@ -1189,8 +1221,9 @@ describe('TriggersService — Secret rotation / itk revoke [Spec EIA §3.1·§3.
       await expect(service.promoteRotatedNotificationSecrets()).rejects.toThrow(
         'store error',
       );
-      // 실패 전까지 save 는 호출되지 않았어야 한다 (partial save 없음)
+      // 실패 전까지 쓰기는 없었어야 한다 (partial write 없음)
       expect(triggerRepo.save).not.toHaveBeenCalled();
+      expect(triggerRepo.update).not.toHaveBeenCalled();
     });
   });
 });
@@ -1580,12 +1613,12 @@ describe('TriggersService — webhook callbackUrl 조립 (app.url 사용 회귀 
         ChatChannelBinderService,
         {
           provide: getRepositoryToken(Trigger),
-          useValue: {
+          useValue: withTransactionMock({
             findOne: jest.fn().mockResolvedValue(baseTrigger),
             update: jest.fn().mockResolvedValue(undefined),
             save: jest.fn((t: Trigger) => Promise.resolve(t)),
             createQueryBuilder: jest.fn(),
-          },
+          }),
         },
         { provide: getRepositoryToken(Execution), useValue: {} },
         {
@@ -1741,11 +1774,11 @@ describe('TriggersService.remove — deleteByPrefix 호출 검증 (SUMMARY#13)',
         ChatChannelBinderService,
         {
           provide: getRepositoryToken(Trigger),
-          useValue: {
+          useValue: withTransactionMock({
             findOne: jest.fn().mockResolvedValue(trigger),
             remove: jest.fn().mockResolvedValue(undefined),
             update: jest.fn().mockResolvedValue(undefined),
-          },
+          }),
         },
         { provide: getRepositoryToken(Execution), useValue: {} },
         {
@@ -1873,7 +1906,7 @@ describe('TriggersService.rotateBotToken — 6단계 오케스트레이션', () 
         ChatChannelBinderService,
         {
           provide: getRepositoryToken(Trigger),
-          useValue: {
+          useValue: withTransactionMock({
             findOne: jest.fn().mockResolvedValue({
               id: TRIGGER_ID,
               workspaceId: WORKSPACE_ID,
@@ -1888,7 +1921,7 @@ describe('TriggersService.rotateBotToken — 6단계 오케스트레이션', () 
             } as unknown as Trigger),
             update: jest.fn().mockResolvedValue(undefined),
             save: jest.fn((t: Trigger) => Promise.resolve(t)),
-          },
+          }),
         },
         { provide: getRepositoryToken(Execution), useValue: {} },
         {
@@ -2270,11 +2303,11 @@ describe('TriggersService — Schedule 역방향 동기화 (data-flow 10-trigger
         ChatChannelBinderService,
         {
           provide: getRepositoryToken(Trigger),
-          useValue: {
+          useValue: withTransactionMock({
             findOne: jest.fn(),
             save: jest.fn(async (t: Trigger) => t),
             remove: jest.fn(),
-          },
+          }),
         },
         { provide: getRepositoryToken(Execution), useValue: {} },
         {
@@ -2431,7 +2464,12 @@ describe('TriggersService — Schedule 역방향 동기화 (data-flow 10-trigger
 
 describe('TriggersService.promoteRotatedNotificationSecrets — secret store 경유 승격 (리뷰 C3)', () => {
   let service: TriggersService;
-  let triggerRepo: { createQueryBuilder: jest.Mock; save: jest.Mock };
+  let triggerRepo: {
+    createQueryBuilder: jest.Mock;
+    save: jest.Mock;
+    findOne: jest.Mock;
+    update: jest.Mock;
+  };
   let secrets: { rotate: jest.Mock };
 
   const CANONICAL_REF = 'secret://triggers/trig-1/notification-signing';
@@ -2455,6 +2493,14 @@ describe('TriggersService.promoteRotatedNotificationSecrets — secret store 경
         getMany: jest.fn().mockResolvedValue(candidates),
       })),
       save: jest.fn(async (t: Trigger) => t),
+      // **락 안 재읽기도 같은 행을 봐야 한다** — 비면 «그 사이 삭제됨» 으로 판정해 쓰기를
+      // 건너뛴다. cron 이 방금 고른 행이니 존재하는 것이 맞다.
+      findOne: jest.fn((options: { where?: { id?: string } }) =>
+        Promise.resolve(
+          candidates.find((t) => t.id === options?.where?.id) ?? null,
+        ),
+      ),
+      update: jest.fn().mockResolvedValue(undefined),
     };
     secrets = { rotate: jest.fn() };
     const moduleRef = await Test.createTestingModule({
@@ -2464,7 +2510,10 @@ describe('TriggersService.promoteRotatedNotificationSecrets — secret store 경
         { provide: AuditLogsService, useValue: { record: jest.fn() } },
         TriggersService,
         ChatChannelBinderService,
-        { provide: getRepositoryToken(Trigger), useValue: triggerRepo },
+        {
+          provide: getRepositoryToken(Trigger),
+          useValue: withTransactionMock(triggerRepo),
+        },
         { provide: getRepositoryToken(Execution), useValue: {} },
         {
           provide: getRepositoryToken(Schedule),
@@ -2530,14 +2579,18 @@ describe('TriggersService.promoteRotatedNotificationSecrets — secret store 경
       'ws-1',
       'wsk_newsecret',
     );
-    const saved = triggerRepo.save.mock.calls[0][0] as Trigger;
-    const signing = (
-      saved.config as { notification: { signing: Record<string, unknown> } }
-    ).notification.signing;
+    // 승격은 **락 안 재작성**이라 `m.update` → `repo.update` 로 위임돼 온다.
+    const patch = triggerRepo.update.mock.calls[0][1] as {
+      config: { notification: { signing: Record<string, unknown> } };
+      notificationSecretV2: unknown;
+      notificationRotatedAt: unknown;
+    };
+    const signing = patch.config.notification.signing;
     expect(signing.secretRef).toBe(CANONICAL_REF);
     expect(signing.secret).toBeUndefined(); // 평문을 config 에 남기지 않는다
-    expect(saved.notificationSecretV2).toBeNull();
-    expect(saved.notificationRotatedAt).toBeNull();
+    expect(patch.notificationSecretV2).toBeNull();
+    expect(patch.notificationRotatedAt).toBeNull();
+    expect(triggerRepo.save).not.toHaveBeenCalled();
   });
 
   it('legacy 평문 secret 만 보유 trigger → canonical ref 신설 + 평문 키 제거', async () => {
@@ -2553,15 +2606,16 @@ describe('TriggersService.promoteRotatedNotificationSecrets — secret store 경
       'ws-1',
       'wsk_newsecret',
     );
-    const saved = triggerRepo.save.mock.calls[0][0] as Trigger;
-    const signing = (
-      saved.config as { notification: { signing: Record<string, unknown> } }
-    ).notification.signing;
+    const patch = triggerRepo.update.mock.calls[0][1] as {
+      config: { notification: { signing: Record<string, unknown> } };
+    };
+    const signing = patch.config.notification.signing;
     expect(signing.secretRef).toBe(CANONICAL_REF);
     expect(signing.secret).toBeUndefined();
+    expect(triggerRepo.save).not.toHaveBeenCalled();
   });
 
-  it('notification config 부재 trigger → v2/rotatedAt 클리어 + save (W-2 fix)', async () => {
+  it('notification config 부재 trigger → v2/rotatedAt 클리어 (W-2 fix)', async () => {
     // [SUMMARY W-2] 비정상 데이터(config 부재 + v2 컬럼 존재) — 매 cron skip 으로
     // 평문이 영구 잔류하지 않도록 v2/rotatedAt 를 클리어하고 경고 로그를 남긴다.
     const trigger = baseTrigger(undefined);
@@ -2573,14 +2627,14 @@ describe('TriggersService.promoteRotatedNotificationSecrets — secret store 경
 
     expect(result.promoted).toBe(0);
     expect(secrets.rotate).not.toHaveBeenCalled();
-    // [testing-W-3] save 가 호출되어 v2/rotatedAt 가 null 로 클리어됐는지 확인
-    expect(triggerRepo.save).toHaveBeenCalledTimes(1);
-    expect(triggerRepo.save).toHaveBeenCalledWith(
-      expect.objectContaining({
-        notificationSecretV2: null,
-        notificationRotatedAt: null,
-      }),
+    // [testing-W-3] 클리어 쓰기가 한 번. **컬럼 한정**이라 `save` 가 아니고, patch 에
+    // `config` 키가 아예 없어야 한다 — 있으면 같은 결함이 update 형태로 재발한다.
+    expect(triggerRepo.update).toHaveBeenCalledTimes(1);
+    expect(triggerRepo.update).toHaveBeenCalledWith(
+      { id: trigger.id },
+      { notificationSecretV2: null, notificationRotatedAt: null },
     );
+    expect(triggerRepo.save).not.toHaveBeenCalled();
   });
 });
 
@@ -2735,7 +2789,9 @@ describe('TriggersService — 감사 로깅 (trigger.*)', () => {
    * 회전 3종 중 `rotateBotToken` 은 6단계 mock 이 필요해 자기 describe 에 따로 있다.
    */
   it('rotateNotificationSecret — 저장이 실패하면 감사를 남기지 않는다', async () => {
-    (triggerRepo.save as jest.Mock).mockRejectedValue(new Error('db down'));
+    // 이 경로의 쓰기는 이제 **컬럼 한정 `update`** 다 — `save` 를 거부시키면 실패가 주입되지
+    // 않아 테스트가 «아무 일도 안 일어났는데 통과» 한다(vacuous).
+    (triggerRepo.update as jest.Mock).mockRejectedValue(new Error('db down'));
     (triggerRepo.findOne as jest.Mock).mockResolvedValue({
       ...webhookTrigger,
       // validation 을 통과해야 `save()` 까지 간다 — 여기서 걸리면 검증 예외를 보는
@@ -2751,7 +2807,9 @@ describe('TriggersService — 감사 로깅 (trigger.*)', () => {
   });
 
   it('revokePerTriggerToken — 저장이 실패하면 감사를 남기지 않는다', async () => {
-    (triggerRepo.save as jest.Mock).mockRejectedValue(new Error('db down'));
+    // 이 경로의 쓰기는 이제 **락 안 재작성**이다 — `m.update` 가 바깥 `update` 로 위임되므로
+    // 실패는 거기에 주입해야 한다.
+    (triggerRepo.update as jest.Mock).mockRejectedValue(new Error('db down'));
     (triggerRepo.findOne as jest.Mock).mockResolvedValue({
       ...webhookTrigger,
       config: { interaction: { tokenStrategy: 'per_trigger' } },
@@ -3559,5 +3617,602 @@ describe('TriggersService — chatChannel PATCH 는 사용자 비밀을 쓰지 �
         details: { field: 'provider', code: 'INVALID_FIELD' },
       },
     });
+  });
+});
+
+/**
+ * **락 안 재읽기가 «동시 요청이 방금 커밋한 값» 을 본다.**
+ *
+ * 이 suite 가 없으면 이 PR 의 핵심 수정이 **어떤 테스트로도 보호되지 않는다.** 실측:
+ * 보존 게이트의 «재읽은 행» 항을 통째로 지워도 `src/modules/triggers` 279건이 전부
+ * GREEN 이었고, `rotateBotToken` 의 머지 콜백을 스냅샷으로 되돌려도 마찬가지였다
+ * (`/ai-review` `review/code/2026/09/14/18_17_44` testing CRITICAL#2·#3).
+ *
+ * 원인은 기존 mock 이 전부 `findOne.mockResolvedValue(...)` 라 **최초 읽기와 락 안 재읽기가
+ * 늘 같은 값**이었다는 것이다. 두 읽기가 같으면 «다시 읽는다» 는 동작은 관측될 수 없다.
+ *
+ * ## 재읽기가 **두 번** 일어난다 — 그래서 순서를 나눈다
+ *
+ * `chatChannel` 을 실은 PATCH 는 락 안 재읽기를 두 번 한다: ① `update()` 의 창 1,
+ * ② `setupChatChannel` 의 쓰기. 두 호출에 **같은 값**을 주면 어느 항이 일하는지 갈리지
+ * 않는다 — 한쪽만 지우는 뮤턴트가 살아남는다(실측으로 확인했다). 그래서 `freshFindOne` 에
+ * **호출 순서열**을 주고, 테스트마다 다른 자리에 «동시 확립» 을 놓는다.
+ *
+ * | 테스트 | 재읽기 ① | 재읽기 ② | 죽이는 뮤턴트 |
+ * |---|---|---|---|
+ * | binder 재읽기 (성공) | ref 없음 | **ref 있음** | `buildChannel` 의 `survivesWithFresh` 항 제거 |
+ * | binder 재읽기 (degraded) | ref 없음 | **ref 있음** | 위와 같은 항 (실패 경로도 같은 함수를 쓴다) |
+ * | 창 1 게이트 | **ref 있음** | ref 없음 | `previousInboundSigningRef` 를 락 밖 스냅샷으로 되돌리기 |
+ * | `chatChannel` 없는 PATCH | ref 있음 | — | 창 1 의 `fresh?.config` → `trigger.config` |
+ * | `rotateBotToken` | ref 있음 | — | 머지 콜백을 `trigger.config` 스냅샷으로 되돌리기 |
+ */
+describe('TriggersService — 락 안 재읽기가 동시 확립분을 본다 (lost update)', () => {
+  const BOT_TOKEN_REF = 'secret://triggers/trig-l/bot-token';
+  const SIGNING_REF = 'secret://triggers/trig-l/inbound-signing';
+
+  const row = (
+    config: Record<string, unknown>,
+    columns: Record<string, unknown> = {},
+  ) =>
+    ({
+      id: 'trig-l',
+      workspaceId: 'ws-1',
+      type: 'webhook',
+      endpointPath: 'hook-l',
+      config,
+      chatChannelHealth: 'healthy',
+      chatChannelLastError: null,
+      ...columns,
+    }) as unknown as Trigger;
+
+  /**
+   * ref 가 **없는** 상태 — 요청 시작 시점에 읽히는 값이다.
+   *
+   * `untouchedByThisRequest` 를 **여기에 넣지 않는 것이 핵심**이다. 두 상태가 같은 키를
+   * 가지면 «스냅샷으로 병합» 뮤턴트가 살아남는다 — 실제로 한 번 살려 보냈다: 처음엔 이
+   * 키를 양쪽에 뒀고 `rotateBotToken` 뮤턴트가 그대로 GREEN 이었다. 대조군은 **두 상태가
+   * 다르게 판정하는 값**이어야 한다.
+   */
+  const withoutRef = () =>
+    row({ chatChannel: { provider: 'slack', botTokenRef: BOT_TOKEN_REF } });
+
+  /**
+   * 동시 요청이 ref 를 **방금 확립하고**, 손대지 않은 키와 **컬럼**까지 함께 커밋한 상태.
+   *
+   * `chatChannelHealth` 를 `withoutRef` 와 다르게 두는 것이 핵심이다 — `save` 는 엔티티를
+   * 통째로 저장하므로, 저장 대상이 pre-lock 스냅샷이면 이 컬럼이 `healthy` 로 되돌아간다.
+   */
+  const withRef = () =>
+    row(
+      {
+        chatChannel: {
+          provider: 'slack',
+          botTokenRef: BOT_TOKEN_REF,
+          inboundSigningRef: SIGNING_REF,
+        },
+        untouchedByThisRequest: 'kept',
+      },
+      { chatChannelHealth: 'degraded', chatChannelLastError: 'provider down' },
+    );
+
+  const cardBody = {
+    provider: 'slack',
+    uiMapping: { formMode: 'multi_step', visualNode: 'auto' },
+    rateLimitPerMinute: 30,
+  };
+
+  /**
+   * @param freshSequence 락 안 재읽기가 **호출 순서대로** 돌려줄 행. 모자라면 마지막 값을
+   *   반복한다 — 재읽기가 한 번뿐인 경로(`rotateBotToken`)도 같은 헬퍼로 쓰기 위해서다.
+   */
+  async function makeService(
+    freshSequence: Array<() => Trigger>,
+    opts: { setupChannelRejects?: boolean; removeRejects?: boolean } = {},
+  ) {
+    const adapter = {
+      setupChannel: opts.setupChannelRejects
+        ? jest.fn().mockRejectedValue(new Error('provider down'))
+        : jest.fn().mockResolvedValue({ configUpdates: {} }),
+    };
+    // **한 배열에 모은다** — «락을 잡았는가» 와 «삭제했는가» 를 따로 담으면 그 둘의
+    // **순서**를 단언할 수 없다. 순서가 이 배선의 보증이고, 뒤집는 뮤턴트를 잡는 유일한 고리다
+    // (`/ai-review` `review/code/2026/09/14/20_49_15` testing WARNING#3).
+    const events: string[] = [];
+    const repoMock = {
+      // 바깥(락 밖) 읽기 — 요청 시작 시점. 언제나 ref 가 없다.
+      findOne: jest.fn().mockResolvedValue(withoutRef()),
+      update: jest.fn().mockResolvedValue(undefined),
+      save: jest.fn((t: Trigger) => Promise.resolve(t)),
+      remove: jest.fn((t: Trigger) => {
+        events.push('remove');
+        if (opts.removeRejects)
+          return Promise.reject(new Error('lock timeout'));
+        return Promise.resolve(t);
+      }),
+      create: jest.fn((t: unknown) => t),
+      createQueryBuilder: jest.fn(),
+    };
+    let freshCall = 0;
+    const lockKeys: string[] = [];
+    const listenerRegistry = {
+      register: jest.fn(),
+      unregister: jest.fn(),
+      has: jest.fn(() => false),
+      get: jest.fn(),
+      size: jest.fn(() => 0),
+      bulkRegister: jest.fn(),
+    };
+    const providers = createBaseProviders(repoMock, {
+      freshFindOne: () => {
+        const idx = Math.min(freshCall, freshSequence.length - 1);
+        freshCall += 1;
+        return freshSequence[idx]();
+      },
+      onLock: (key) => {
+        lockKeys.push(key);
+        events.push(`lock:${key}`);
+      },
+      onLockTimeout: (statement) => events.push(`timeout:${statement}`),
+    });
+    // `at` 을 먼저 선언해 **세 provider 교체가 같은 형태**를 쓰게 한다. 종전엔 이 한 곳만
+    // 같은 술어를 인라인으로 복제하고 있었다 — 3라운드 연속 지적된 자리다.
+    const at = (token: unknown) =>
+      providers.findIndex(
+        (pr) =>
+          'provide' in pr && (pr as { provide: unknown }).provide === token,
+      );
+    providers[at(ChannelListenerRegistry)] = {
+      provide: ChannelListenerRegistry,
+      useValue: listenerRegistry,
+    };
+    providers[at(ChannelAdapterRegistry)] = {
+      provide: ChannelAdapterRegistry,
+      useValue: {
+        has: jest.fn().mockReturnValue(true),
+        get: jest.fn().mockReturnValue(adapter),
+      },
+    };
+    providers[at(SecretResolverService)] = {
+      provide: SecretResolverService,
+      useValue: {
+        resolve: jest.fn().mockResolvedValue('old-token'),
+        store: jest.fn(),
+        rotate: jest.fn().mockResolvedValue(undefined),
+        delete: jest.fn(),
+        deleteByPrefix: jest.fn().mockResolvedValue(0),
+        exists: jest.fn().mockResolvedValue(true),
+      },
+    };
+    const moduleRef = await Test.createTestingModule({ providers }).compile();
+    return {
+      service: moduleRef.get(TriggersService),
+      repo: moduleRef.get(getRepositoryToken(Trigger)) as jest.Mocked<
+        Repository<Trigger>
+      >,
+      audit: moduleRef.get(AuditLogsService) as unknown as {
+        record: jest.Mock;
+      },
+      lockKeys,
+      events,
+      listenerRegistry,
+    };
+  }
+
+  /** binder 가 쓴 마지막 `config.chatChannel`. */
+  const persistedChannel = (repo: jest.Mocked<Repository<Trigger>>) =>
+    repo.update.mock.calls
+      .map(
+        ([, patch]) =>
+          patch as { config?: { chatChannel?: Record<string, unknown> } },
+      )
+      .filter((pt) => pt.config?.chatChannel)
+      .pop()?.config?.chatChannel;
+
+  const patchChatChannel = async (service: TriggersService) =>
+    service.update('trig-l', 'ws-1', { chatChannel: cardBody } as never, 'u-1');
+
+  it('binder 재읽기 — 창 1 시점엔 없던 ref 가 그 뒤에 확립돼도 보존된다', async () => {
+    // 재읽기 ①(창 1)은 ref 없음 → 게이트 첫 항 거짓. 재읽기 ②(binder)에서 확립됐다.
+    const { service, repo } = await makeService([withoutRef, withRef]);
+
+    await patchChatChannel(service);
+
+    expect(persistedChannel(repo)?.inboundSigningRef).toBe(SIGNING_REF);
+  });
+
+  it('binder 재읽기 — degraded 경로도 같은 보존을 한다', async () => {
+    const { service, repo } = await makeService([withoutRef, withRef], {
+      setupChannelRejects: true,
+    });
+
+    await patchChatChannel(service);
+
+    expect(persistedChannel(repo)?.inboundSigningRef).toBe(SIGNING_REF);
+  });
+
+  it('창 1 게이트 — 창 1 이 본 ref 는 binder 가 자기 쓰기를 되읽어도 살아남는다', async () => {
+    // 재읽기 ②가 ref 없음인 것은 **창 1 자신이 방금 chatChannel 을 교체**했기 때문이다.
+    // 게이트 첫 항을 락 밖 스냅샷에서 집으면 여기서 ref 가 사라진다.
+    const { service, repo } = await makeService([withRef, withoutRef]);
+
+    await patchChatChannel(service);
+
+    expect(persistedChannel(repo)?.inboundSigningRef).toBe(SIGNING_REF);
+  });
+
+  it('update() — chatChannel 을 싣지 않은 PATCH 가 동시 확립분을 되돌리지 않는다', async () => {
+    // 창 1 회귀. `chatChannel` 이 없는 PATCH(이름 변경)도 종전엔 옛 스냅샷으로 `config` 를
+    // 통째로 덮어 ref 를 지웠다 (`review/code/2026/09/14/18_17_44` security CRITICAL#1).
+    const { service, repo } = await makeService([withRef]);
+
+    await service.update('trig-l', 'ws-1', { name: '새 이름' } as never, 'u-1');
+
+    const savedConfig = (
+      repo.save.mock.calls.at(-1)?.[0] as unknown as {
+        config?: {
+          chatChannel?: Record<string, unknown>;
+          untouchedByThisRequest?: string;
+        };
+      }
+    )?.config;
+    expect(savedConfig?.chatChannel?.inboundSigningRef).toBe(SIGNING_REF);
+    expect(savedConfig?.untouchedByThisRequest).toBe('kept');
+  });
+
+  it('update() — 형제 창이 커밋한 **컬럼**도 되돌리지 않는다', async () => {
+    // `config` 만 재읽고 저장 대상은 pre-lock 엔티티로 두면, 같은 락을 공유하는 형제 창
+    // (`rotateBotToken`·binder)이 방금 커밋한 부분 UPDATE 를 이 저장이 조용히 덮는다 —
+    // 이 PR 이 막는 것과 같은 클래스의 lost update 를 수정 자체가 만들던 자리다
+    // (`review/code/2026/09/14/19_07_43` database WARNING#2).
+    const { service, repo } = await makeService([withRef]);
+
+    await service.update('trig-l', 'ws-1', { name: '새 이름' } as never, 'u-1');
+
+    const savedEntity = repo.save.mock.calls.at(-1)?.[0] as unknown as {
+      chatChannelHealth?: string;
+      chatChannelLastError?: string | null;
+      name?: string;
+    };
+    expect(savedEntity?.chatChannelHealth).toBe('degraded');
+    expect(savedEntity?.chatChannelLastError).toBe('provider down');
+    // 이번 요청의 변경은 그대로 실린다 — 재읽기가 요청을 덮어쓰지 않는다는 반대 방향.
+    expect(savedEntity?.name).toBe('새 이름');
+  });
+
+  it('update() — 그 사이 삭제된 트리거를 되살리지 않는다 (save 는 없으면 INSERT 한다)', async () => {
+    // `save(entity)` 는 PK 로 재조회해 행이 없으면 **INSERT** 한다. 락 안 재읽기가 비었는데
+    // pre-lock 스냅샷으로 저장하면, `remove()` 가 이미 teardown·secret 삭제·BullMQ 해제까지
+    // 마친 트리거가 같은 id 로 **고아 상태로 부활**한다
+    // (`review/code/2026/09/14/19_44_08` side_effect·concurrency CRITICAL#1).
+    //
+    // 형제 세 창은 이미 «행이 없으면 쓰지 않고 `false`» 다 — 창 1 만 다르면 비대칭이다.
+    const { service, repo } = await makeService([() => undefined as never]);
+
+    await expect(
+      service.update('trig-l', 'ws-1', { name: '새 이름' } as never, 'u-1'),
+    ).rejects.toMatchObject({ response: { code: 'RESOURCE_NOT_FOUND' } });
+
+    // **부재 단언이 핵심이다** — 저장이 한 번이라도 일어나면 부활한다.
+    expect(repo.save).not.toHaveBeenCalled();
+  });
+
+  it('remove() 도 같은 config 락을 잡는다 (쓰기 시점 삭제 경합)', async () => {
+    // 창 1 은 `save(entity)` 를 쓰고, 그것은 행이 없으면 **INSERT** 한다. 읽기 시점
+    // 가드(`!fresh`)는 «읽었을 땐 있었는데 저장 직전에 삭제되는» 경합을 못 막는다 —
+    // 삭제를 같은 락으로 직렬화하는 것이 그 창을 닫는 유일한 방법이다
+    // (`review/code/2026/09/14/20_17_16` database·concurrency WARNING#2).
+    const { service, repo, events } = await makeService([withRef]);
+
+    await service.remove('trig-l', 'ws-1', 'u-1');
+
+    // **존재가 아니라 순서를 단언한다.** 종전엔 «락 키가 들어 있다» + «remove 가 불렸다» 만
+    // 봐서, 둘을 뒤집는 뮤턴트가 그대로 통과했다(실측: 전건 GREEN).
+    //
+    // 상한(`SET LOCAL lock_timeout`)도 같은 배열에 들어간다 — 삭제 경로는 되돌릴 수 없는
+    // 정리를 이미 끝낸 뒤라 무한 대기가 «반쯤 삭제된 상태» 로 굳는다. 그래서 **삭제만**
+    // 상한을 두고, 그 사실을 순서와 함께 고정한다.
+    expect(events).toEqual([
+      "timeout:SET LOCAL lock_timeout = '5000ms'",
+      'lock:trigger-config:trig-l',
+      'remove',
+    ]);
+    expect(repo.remove).toHaveBeenCalled();
+  });
+
+  it('update() 는 락 대기에 상한을 두지 않는다 (삭제만 예외다)', async () => {
+    // 대칭 단언 — 상한을 «모든 경로» 로 넓히는 편집도 잡는다. 다른 경로는 기다렸다 쓰는 것이
+    // 정답이므로 상한이 있으면 정상 요청이 실패로 바뀐다.
+    const { service, events } = await makeService([withRef]);
+
+    await service.update('trig-l', 'ws-1', { name: '새 이름' } as never, 'u-1');
+
+    expect(events.filter((e) => e.startsWith('timeout:'))).toEqual([]);
+    expect(events).toContain('lock:trigger-config:trig-l');
+  });
+
+  it('binder 성공 — 쓰기가 skip 되면 listener 를 등록하지 않는다', async () => {
+    // 삭제 경합으로 헬퍼가 `false` 를 돌려주면 등록도 하지 않아야 한다 — 안 그러면 해제되지
+    // 않는 유령 entry 가 in-memory registry 에 남는다. 4라운드에 넣은 게이트인데 **어떤
+    // 테스트도 행사하지 않았다**(실측: 게이트를 통째로 지워도 전건 GREEN)
+    // (`review/code/2026/09/14/20_49_15` testing WARNING#4).
+    //
+    // 재읽기 ①(창 1)은 살아 있고 ②(binder)만 사라진 상태를 만든다.
+    const { service, listenerRegistry } = await makeService([
+      withRef,
+      () => undefined as never,
+    ]);
+
+    await patchChatChannel(service);
+
+    expect(listenerRegistry.register).not.toHaveBeenCalled();
+  });
+
+  it('binder 성공 — 쓰기가 성공하면 listener 를 등록한다 (양성 대조군)', async () => {
+    // 위 음성 단언이 «어차피 아무도 안 부른다» 로 공허해지는 것을 막는다.
+    const { service, listenerRegistry } = await makeService([withRef, withRef]);
+
+    await patchChatChannel(service);
+
+    expect(listenerRegistry.register).toHaveBeenCalledWith('trig-l', 'slack');
+  });
+
+  it('rotateBotToken — 그 사이 삭제되면 404 + 감사 미기록', async () => {
+    // 종전엔 헬퍼의 `false`(쓰기 skip)를 무시하고 200 + 감사 row 를 남겼다 — 삭제된
+    // 트리거에 대한 **거짓 성공 기록**이고, 같은 조건에서 404 를 내는 창 1 과도 어긋난다
+    // (`review/code/2026/09/14/20_17_16` api_contract WARNING#3).
+    const { service, audit } = await makeService([() => undefined as never]);
+
+    await expect(
+      service.rotateBotToken('trig-l', 'ws-1', '111:newToken', 'u-1'),
+    ).rejects.toMatchObject({ response: { code: 'RESOURCE_NOT_FOUND' } });
+
+    const actions = audit.record.mock.calls.map(
+      ([arg]) => (arg as { action?: string }).action,
+    );
+    expect(actions).not.toContain('trigger.chat_channel.bot_token_rotated');
+  });
+
+  it('remove() 실패는 삼키지 않고 던진다 — 반쯤 삭제된 상태를 드러낸다', async () => {
+    // 이 PR 의 설계 목표가 *"조용한 지연 대신 드러나는 오류"* 인데, `throw err` 를
+    // `// swallow` 로 바꿔도 전건 GREEN 이었다 — **보증을 아무 테스트도 지키지 않았다**
+    // (`review/code/2026/09/14/21_18_21` testing WARNING#1).
+    //
+    // 공교롭게도 리뷰 도중 다른 리뷰어가 정확히 그 뮤턴트를 워킹트리에 만들었다가 원복했다.
+    const { service, audit } = await makeService([withRef], {
+      removeRejects: true,
+    });
+
+    await expect(service.remove('trig-l', 'ws-1', 'u-1')).rejects.toThrow(
+      'lock timeout',
+    );
+
+    // 삭제가 실패했으면 «삭제됨» 감사도 남기지 않는다 — 남기면 거짓 기록이다.
+    const actions = audit.record.mock.calls.map(
+      ([arg]) => (arg as { action?: string }).action,
+    );
+    expect(actions).not.toContain('trigger.deleted');
+  });
+
+  /**
+   * **하위 키까지 재읽어야 한다 — 최상위만으로는 부족하다.**
+   *
+   * `(freshConfig) => ({ ...freshConfig, notification: X })` 에서 `X` 를 락 이전 스냅샷으로
+   * 만들면 최상위 키는 지켜지지만 그 **하위**(`notification.url` 등)는 옛 값으로 되돌아간다.
+   * 1라운드에 이 함정을 직접 적어 놓고 7라운드에 새로 닫은 자리에서 그대로 반복했고,
+   * 뮤테이션 실측상 141건이 전부 GREEN 이었다
+   * (`review/code/2026/09/14/22_24_35` database·testing CRITICAL#1).
+   */
+  const withInteraction = (extra: Record<string, unknown> = {}) =>
+    row({
+      chatChannel: { provider: 'slack', botTokenRef: BOT_TOKEN_REF },
+      interaction: { enabled: true, tokenStrategy: 'per_trigger', ...extra },
+    });
+
+  it('revokePerTriggerToken — 재읽은 interaction 의 다른 필드가 살아남는다', async () => {
+    const { service, repo } = await makeService([
+      () => withInteraction({ appearance: 'fresh' }),
+    ]);
+    (repo.findOne as jest.Mock).mockResolvedValue(withInteraction());
+
+    await service.revokePerTriggerToken('trig-l', 'ws-1', 'u-1');
+
+    const patch = repo.update.mock.calls
+      .map(
+        ([, pt]) =>
+          pt as { config?: { interaction?: Record<string, unknown> } },
+      )
+      .filter((pt) => pt.config?.interaction)
+      .pop();
+    expect(patch?.config?.interaction?.appearance).toBe('fresh');
+    // 이번 요청의 변경도 실려야 한다 — 재읽기가 요청을 덮지 않는다는 반대 방향.
+    expect(patch?.config?.interaction?.triggerToken).toMatch(/^itk_/);
+  });
+
+  it('normalizeNotificationSecretRef — 재읽은 notification 의 url 이 살아남는다', async () => {
+    // `update()` 안에서 불리는 사(私)경로다. 락 안 재읽기가 **두 번** 일어난다 —
+    // 창 1, 그리고 이 정규화. 두 번째가 본 `notification.url` 이 최종 patch 에 남아야 한다.
+    // 스냅샷을 통째로 대입하면 옛 url 로 되돌아간다(같은 SUMMARY database CRITICAL#1).
+    const legacy = (url: string) =>
+      row({
+        chatChannel: { provider: 'slack', botTokenRef: BOT_TOKEN_REF },
+        notification: {
+          url,
+          signing: { algorithm: 'hmac-sha256', secret: 'plain-legacy' },
+        },
+      });
+    const { service, repo } = await makeService([
+      () => legacy('https://old.example/cb'),
+      () => legacy('https://new.example/cb'),
+    ]);
+    (repo.findOne as jest.Mock).mockResolvedValue(
+      legacy('https://old.example/cb'),
+    );
+
+    await service.update('trig-l', 'ws-1', { name: '새 이름' } as never, 'u-1');
+
+    const patch = repo.update.mock.calls
+      .map(
+        ([, pt]) =>
+          pt as { config?: { notification?: Record<string, unknown> } },
+      )
+      .filter((pt) => pt.config?.notification)
+      .pop();
+    expect(patch?.config?.notification?.url).toBe('https://new.example/cb');
+    // 정규화 자체도 일어났어야 한다 — 평문은 빠지고 ref 가 들어온다(단언이 공허해지는 것 방지).
+    const signing = patch?.config?.notification?.signing as Record<
+      string,
+      unknown
+    >;
+    expect(signing?.secretRef).toBe(
+      'secret://triggers/trig-l/notification-signing',
+    );
+    expect(signing).not.toHaveProperty('secret');
+  });
+
+  it('revokePerTriggerToken — 재읽은 행에 그 키가 아예 없으면 fallback 으로 쓴다', async () => {
+    // `mergeIntoFreshSubKey` 의 `fallback` 분기 — 네 호출부 어느 fixture 도 이 자리를
+    // 행사하지 않아, 분기를 지워도 147건이 전부 GREEN 이었다(리뷰가 뮤테이션으로 실측:
+    // `review/code/2026/09/15/00_07_52` testing W1). 「판별 못 하는 fixture」의 다섯 번째다.
+    //
+    // 재읽은 `config` 에 `interaction` 키가 **없는** 상태를 만든다 — 그러면 기준은
+    // 요청 시작 시점 값(`updated`)이어야 하고, 새 토큰이 그 위에 실려야 한다.
+    const { service, repo } = await makeService([
+      () =>
+        row({ chatChannel: { provider: 'slack', botTokenRef: BOT_TOKEN_REF } }),
+    ]);
+    (repo.findOne as jest.Mock).mockResolvedValue(
+      withInteraction({ appearance: 'from-snapshot' }),
+    );
+
+    await service.revokePerTriggerToken('trig-l', 'ws-1', 'u-1');
+
+    const patch = repo.update.mock.calls
+      .map(
+        ([, pt]) =>
+          pt as { config?: { interaction?: Record<string, unknown> } },
+      )
+      .filter((pt) => pt.config?.interaction)
+      .pop();
+    // fallback 이 기준이 됐다 — 스냅샷의 필드가 실렸다.
+    expect(patch?.config?.interaction?.appearance).toBe('from-snapshot');
+    expect(patch?.config?.interaction?.triggerToken).toMatch(/^itk_/);
+  });
+
+  it('revokePerTriggerToken — 그 사이 삭제되면 404', async () => {
+    // 7라운드에 넣은 게이트인데 지워도 전건 GREEN 이었다 (같은 SUMMARY testing CRITICAL#2).
+    const { service, repo } = await makeService([() => undefined as never]);
+    (repo.findOne as jest.Mock).mockResolvedValue(withInteraction());
+
+    await expect(
+      service.revokePerTriggerToken('trig-l', 'ws-1', 'u-1'),
+    ).rejects.toMatchObject({ response: { code: 'RESOURCE_NOT_FOUND' } });
+  });
+
+  it('rotateBotToken — 재읽은 chatChannel 의 다른 필드가 살아남는다', async () => {
+    // `inboundSigningRef` 축은 닫혔지만 `rateLimitPerMinute`·`uiMapping` 등 사용자가 PATCH 로
+    // 바꾸는 필드는 스냅샷 대입에 되돌아갔다 — 같은 클래스의 **네 번째 자리**
+    // (`review/code/2026/09/14/23_01_18` concurrency W1).
+    // **두 상태가 같은 키를 다른 값으로 가져야 한다.** 종전 fixture 는 스냅샷 쪽에 그 키가
+    // 아예 없어서 «새로 생긴 필드» 만 검증했고, 스냅샷을 통째로 대입하는 결함을 못 잡았다
+    // (vacuous — `review/code/2026/09/14/23_38_09` C1 이 실측으로 지적).
+    const chan = (rate: number, extra: Record<string, unknown> = {}) => ({
+      provider: 'slack',
+      botTokenRef: BOT_TOKEN_REF,
+      inboundSigningRef: SIGNING_REF,
+      rateLimitPerMinute: rate,
+      ...extra,
+    });
+    const { service, repo } = await makeService([
+      // 락 안 재읽기 — 동시 PATCH 가 99 로 바꿨다.
+      () => row({ chatChannel: chan(99), untouchedByThisRequest: 'kept' }),
+    ]);
+    // 요청 시작 시점 스냅샷 — 30. 이것이 최종값이면 되돌아간 것이다.
+    (repo.findOne as jest.Mock).mockResolvedValue(
+      row({ chatChannel: chan(30) }),
+    );
+
+    await service.rotateBotToken('trig-l', 'ws-1', '111:newToken', 'u-1');
+
+    const patch = repo.update.mock.calls
+      .map(
+        ([, pt]) =>
+          pt as { config?: { chatChannel?: Record<string, unknown> } },
+      )
+      .filter((pt) => pt.config?.chatChannel)
+      .pop();
+    expect(patch?.config?.chatChannel?.rateLimitPerMinute).toBe(99);
+    // 이번 회전의 산출은 그대로 실려야 한다 — 재읽기가 회전 결과를 덮지 않는다.
+    expect(patch?.config?.chatChannel?.botTokenRef).toBe(BOT_TOKEN_REF);
+    // 서명 ref 도 반드시 실린다 — 빠지면 인입 검증이 fail-open 으로 돌아간다.
+    expect(patch?.config?.chatChannel?.inboundSigningRef).toBe(SIGNING_REF);
+  });
+
+  it('promoteRotatedNotificationSecrets — 쓰기가 skip 되면 세지 않는다', async () => {
+    // 삭제 경합으로 쓰기를 건너뛰었는데 카운터만 올라가면 cron 로그가 «승격했다» 고 거짓을
+    // 말한다 (`review/code/2026/09/14/23_01_18` requirement INFO#1).
+    const legacy = {
+      ...row({
+        chatChannel: { provider: 'slack', botTokenRef: BOT_TOKEN_REF },
+        notification: {
+          url: 'https://x.example/cb',
+          signing: { algorithm: 'hmac-sha256', secret: 'old-plain' },
+        },
+      }),
+      notificationSecretV2: 'wsk_new',
+      notificationRotatedAt: new Date(Date.now() - 25 * 60 * 60 * 1000),
+    } as unknown as Trigger;
+    // 락 안 재읽기가 비었다 = 그 사이 삭제됐다.
+    const { service, repo } = await makeService([() => undefined as never]);
+    (repo.createQueryBuilder as jest.Mock).mockReturnValue({
+      where: jest.fn().mockReturnThis(),
+      andWhere: jest.fn().mockReturnThis(),
+      getMany: jest.fn().mockResolvedValue([legacy]),
+    });
+
+    const result = await service.promoteRotatedNotificationSecrets();
+
+    expect(result.promoted).toBe(0);
+  });
+
+  it('cleanupRotatedChatChannelTokens — 컬럼만 쓰고 config 는 건드리지 않는다', async () => {
+    // 전환은 했는데 **동작 테스트가 0건**이었다 — patch 에 `config` 를 몰래 끼워 넣어도
+    // 25 스위트 전건 GREEN 이었다(`review/code/2026/09/14/23_01_18` testing CRITICAL#1).
+    // 정적 래칫은 `.save(` 만 세고 `.update(` 의 **내용물**은 보지 않는다.
+    const stale = {
+      ...row({
+        chatChannel: { provider: 'slack', botTokenRef: BOT_TOKEN_REF },
+      }),
+      chatChannelTokenV2: 'secret://triggers/trig-l/bot-token.v2',
+      chatChannelRotatedAt: new Date(Date.now() - 25 * 60 * 60 * 1000),
+    } as unknown as Trigger;
+    const { service, repo } = await makeService([() => stale]);
+    (repo.createQueryBuilder as jest.Mock).mockReturnValue({
+      where: jest.fn().mockReturnThis(),
+      andWhere: jest.fn().mockReturnThis(),
+      getMany: jest.fn().mockResolvedValue([stale]),
+    });
+
+    const result = await service.cleanupRotatedChatChannelTokens();
+
+    expect(result.cleaned).toBe(1);
+    expect(repo.save).not.toHaveBeenCalled();
+    const patches = repo.update.mock.calls.map(([, pt]) => pt as object);
+    expect(patches).toHaveLength(1);
+    expect(Object.keys(patches[0]).sort()).toEqual([
+      'chatChannelRotatedAt',
+      'chatChannelTokenV2',
+    ]);
+  });
+
+  it('rotateBotToken — 손대지 않은 config 키가 살아남는다', async () => {
+    const { service, repo } = await makeService([withRef]);
+
+    await service.rotateBotToken('trig-l', 'ws-1', '111:newToken', 'u-1');
+
+    const patch = repo.update.mock.calls
+      .map(([, pt]) => pt as { config?: Record<string, unknown> })
+      .filter((pt) => pt.config)
+      .pop();
+    expect(patch?.config?.untouchedByThisRequest).toBe('kept');
   });
 });

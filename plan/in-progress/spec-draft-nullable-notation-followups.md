@@ -2275,7 +2275,7 @@ field: T | null;
       > 두 분기를 담고 있다. 완료 주석이 누락돼 있던 것을 2026-09-11 에 채웠다
       > (`--spec` `review/consistency/2026/09/11/20_47_56` INFO 4).
 
-- [ ] **동시 PATCH 가 `trigger.config` 를 잃을 수 있다 (lost update) — 방금 닫은 fail-open 이 이 경로로 재발 가능**
+- [x] **동시 PATCH 가 `trigger.config` 를 잃을 수 있다 (lost update) — 방금 닫은 fail-open 이 이 경로로 재발 가능**
       (developer + 동시성, 2026-09-11 등재, `/ai-review` `review/code/2026/09/10/23_55_23` `concurrency` W1
       + `database` INFO 가 같은 지점을 TOCTOU 로 독립 확인).
       `update()` → `setupChatChannel()`(외부 adapter 호출 포함, `await` 여러 개) 전 구간이 트랜잭션·
@@ -2291,6 +2291,20 @@ field: T | null;
       > 호출이 된다. 락을 어느 층에 두는지가 설계 선택으로 추가된다 — 호출자(`TriggersService`)가
       > 트랜잭션/락을 열고 binder 를 그 안에서 부를지, binder 가 스스로 잠글지.
       > (`--impl-prep` `review/consistency/2026/09/11/17_39_32` INFO#3.)
+      > **✅ 2026-09-15 해소** — `plan/complete/trigger-config-lost-update.md`
+      > (브랜치 `claude/trigger-config-lost-update-9860c6`, `/ai-review` 14라운드 · 최종 Critical 0).
+      > 처방은 후보 셋 중 **트리거 단위 advisory lock**(`pg_advisory_xact_lock(hashtext(...))`,
+      > 키 `trigger-config:<id>`)이다. 외부 adapter 호출은 락 **밖**에 둔다 — cafe24 토큰 갱신이
+      > 같은 이유로 이 락을 기각했던 선례를 따른다. 락 안에서 **다시 읽고** 병합한다.
+      >
+      > **이 항목이 지목한 범위가 실제보다 좁았다.** 본문은 `update()` 와 자매
+      > `rotateChatChannelBotToken()` **두 자리**를 적었는데, 같은 클래스(스냅샷 기반 `config`
+      > 통째 되쓰기)는 **네 창**이었다 — `update()` · `ChatChannelBinderService` 의 두 자리 ·
+      > `rotateBotToken()`. 닫고 보니 형제 쓰기 자리까지 합쳐 락을 지나는 지점이 **9곳**이다
+      > (직접 `acquireTriggerConfigLock` 3 — 창 1·트리거 삭제·스케줄 cascade 삭제 —
+      > 및 `rewriteTriggerConfigLocked` 경유 6; 2026-09-15 종결 시점 실측).
+      > e2e(`test/trigger-config-lost-update.e2e-spec.ts`)가 원 결함을 재현한다 —
+      > `origin/main` 의 두 서비스 파일에 대고 돌리면 `Expected 42 / Received 7` 로 떨어진다.
 
 - [ ] **`setupChatChannel` 이 6~8가지 관심사를 한 함수에 담고 있다** (developer, 2026-09-11 등재,
       `/ai-review` `review/code/2026/09/10/23_55_23` `maintainability` W6). 133 → 186줄(+40%).
@@ -4436,6 +4450,47 @@ field: T | null;
 - [x] **`spec/2-navigation/3-schedule.md` §2.1** `next_run_at` NULL 표시 규칙 — 반영 완료
       (`spec-draft-scope-and-anchor-drift.md` ②). FE 는 이미 `-` 로 방어 중이었고 문서만 낡아 있었다. 종전 서술:
       (`--spec` INFO#2). FE 는 이미 `-` 로 방어 중이라 동작 위험은 없다.
+
+- [ ] **`trigger-config` advisory lock 이 남긴 planner 범위 5건** (planner, 2026-09-15 등재,
+      `--impl-done` `review/consistency/2026/09/15/01_44_29` W1·W2·W3·W5 + INFO#1).
+      근거 문서는 `plan/complete/trigger-config-lost-update.md` §D 표다 — **그 plan 이
+      `complete/` 로 봉인되면서 유일한 근거가 봉인된 문서 안으로 들어갔기 때문에** 여기로
+      옮겨 적는다. developer 가 고칠 수 없는 `spec/` 쓰기들이다.
+
+      | # | 항목 | 왜 planner 인가 |
+      |---|---|---|
+      | 1 | `spec/5-system/15-chat-channel.md` frontmatter `code:` glob 이 신규 `codebase/backend/src/modules/triggers/trigger-config-lock.ts` 를 안 문다 | 그 문서의 **R-CC-22** 가 *"명시 경로가 새 파일을 세 번 놓쳤다"* 며 glob 으로 바꾼 바로 그 결함의 **네 번째 재발**이다. 새 파일이 `chat-channel-*`·`trigger-callback-url*` 어느 glob 에도 안 걸린다 → glob 확장 또는 명시 경로 추가 + §7 tree 동반 갱신 |
+      | 2 | `spec/conventions/redis-keys.md §4`(인접 네임스페이스)에 advisory lock 키 계열 미등재 | `trigger-config:<id>` 와 **자매 사례** `exec-cap:<workspaceId>`(`execution-engine.service.ts`)를 **함께** 올려야 한다. §4 는 정확히 이 혼동(«Redis 아닌데 Redis 키처럼 생겼다»)을 막으려는 절인데 정작 lock key 계열이 비어 있다 |
+      | 3 | `spec/5-system/15-chat-channel.md §5.4.1.1` 표와 바로 아래 각주가 **서로 모순** | 표는 *"v1 미정의 · PATCH 는 signing 값을 바꾸지 않는다"*, 각주는 *"실제 구현은 매 PATCH 마다 회전 강제"*. spec 본문끼리의 충돌이라 구현으로 못 닫는다. 이번 PR 이 다룬 `inboundSigningRef` 와 같은 필드다 |
+      | 4 | advisory lock 키 **인벤토리 문서 자체가 없다** | 2번의 상위 항목 — 계열이 늘어날 때 어디를 보고 충돌을 피하는지가 정해져 있지 않다 |
+      | 5 | 전역 **32비트** 키 공간 공유 메모 | `pg_advisory_xact_lock(hashtext(...))` 의 `hashtext` 는 int4 를 낸다 — 접두어가 달라도 전 도메인이 **한 공간**을 쓴다. 충돌해도 과직렬화뿐이라 무해하지만 **어디에도 적혀 있지 않다**. 계열 3개 이상이 되는 시점의 재검토 신호로 남긴다 |
+
+      > **이 항목이 여기 있는 이유 자체가 교훈이다.** 5건은 원래 plan §D 에만 있었고,
+      > `--impl-done` 이 *"이 plan 이 봉인되면 유일한 근거 문서가 사라진다"* 로 잡았다
+      > (전수 grep 결과 `pending_plans:`·다른 `plan/in-progress/**` 어디에도 0건).
+      > **조건부·후속 처분은 봉인되는 `complete/` 말고 살아 있는 트래커에 적는다.**
+
+
+- [ ] **`trigger-config` advisory lock 이 남긴 developer 범위 후속** (developer, 2026-09-15 등재,
+      `/ai-review` `review/code/2026/09/15/01_42_04` W1 + INFO 다수 ·
+      `--impl-done` `review/consistency/2026/09/15/01_44_29` W4).
+      **전체 목록은 `plan/complete/trigger-config-lost-update.md` 의 `### 후속(developer 범위)`
+      표**에 있다 — 봉인된 문서라 여기에 **진입점**을 둔다(바로 위 planner 항목과 같은 이유).
+      그중 이번 종결 라운드에 새로 나왔거나 성격이 바뀐 것만 적는다:
+
+      | # | 항목 | 성격 |
+      |---|---|---|
+      | 1 | `TriggersService.remove()` 와 `SchedulesService.remove()` 의 «락 → 삭제 → 실패 로깅 → 재던짐» 블록이 복제돼 있다 → `deleteTriggerRowLocked(manager, id, {...})` | 14라운드 **W1**(유일한 WARNING). 리뷰어가 «즉시 차단 사유 아님» 으로 분류했고 두 자리 모두 뮤턴트 고정 테스트가 있다. **세 번째 호출부가 생길 때** 뽑는다 — 지금 뽑으면 인자 셋짜리 헬퍼가 복제보다 읽기 어렵다 |
+      | 2 | private `findByIdForUpdate` 개명(예: `findByIdForPatchValidation`) | 이 저장소에서 `*ForUpdate` 는 **진짜 행 잠금**(`SELECT … FOR UPDATE`) 관용구인데 이건 잠금 없는 경량 조회다. 바로 위 JSDoc 이 *"저장·응답 엔티티는 락 안에서 다시 읽는다"* 를 이미 적고 있어 오신뢰 여지는 좁고 private 라 파급도 이 파일 안이다 |
+      | 3 | `TRIGGER_DELETE_LOCK_TIMEOUT_MS` JSDoc 의 «정리 3종» 나열을 경로 비특정으로 일반화 | 14라운드 INFO#17. **CHANGELOG 쪽 절반은 이미 고쳤다** — 같은 정정의 `codebase/**` 절반만 남았다 |
+      | 4 | `acquireTriggerConfigLock` 의 `timeoutMs` 를 `Number.isFinite` + 상한 clamp 로 검증 | 14라운드 INFO#2. `SET LOCAL lock_timeout` 이 파라미터 바인딩 없는 보간이지만 호출부가 **모듈 상수만** 넘겨 현재 익스플로잇 불가 — 방어 심도 |
+      | 5 | `rewriteTriggerConfigLocked` 가 `update()` 의 `affected` 를 확인하지 않는다 | 14라운드 INFO#19. 삭제 경로 둘이 **같은 락을 공유**해 실무적으로 닫혀 있고, 계약을 코드로 드러내는 일이 남았다 |
+      | 6 | `SchedulesService.remove()` 의 `triggerId` falsy 분기 테스트 1건 | 14라운드 INFO#16. 선재 가드절이라 회귀는 아니다 |
+
+      > **이 항목과 바로 위 planner 항목이 같은 사고에서 나왔다.** `--impl-done` 이
+      > *"이 plan 이 봉인되면 근거 문서가 사라진다"* 로 잡았고, 그 판단은 developer 범위
+      > 표에도 그대로 적용된다 — 그쪽은 체커가 지목하지 않았지만 **같은 이유로 죽는다.**
+
 
 ## 종결 조건
 

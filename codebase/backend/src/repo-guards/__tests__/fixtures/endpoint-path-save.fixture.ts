@@ -14,10 +14,19 @@
 
 interface FakeRepo {
   save(entity: unknown): Promise<unknown>;
+  readonly manager: FakeManager;
+}
+
+interface FakeManager {
+  save(entity: unknown, target: unknown): Promise<unknown>;
+  transaction<T>(cb: (m: FakeManager) => Promise<T>): Promise<T>;
 }
 
 declare const triggerRepo: FakeRepo;
 declare const scheduleRepo: FakeRepo;
+/** `EntityManager.save(Trigger, …)` 형태를 흉내 내기 위한 가짜 엔티티 클래스. */
+declare const Trigger: new () => unknown;
+declare const Execution: new () => unknown;
 
 export class FixtureService {
   private readonly triggerRepository: FakeRepo = triggerRepo;
@@ -76,6 +85,32 @@ export class FixtureService {
   async twoSaves(a: unknown, b: unknown): Promise<void> {
     await this.triggerRepository.save(a);
     await this.triggerRepository.save(b);
+  }
+
+  /**
+   * 음성 — **트랜잭션 콜백 안의 `manager.save(Trigger, …)`** 이고 `.catch` 는 바깥 체인에
+   * 붙었다. 프로덕션 `update` 가 실제로 쓰는 형태이고, 종전 가드가 (a) 수신자 이름이
+   * 달라서 저장을 **놓치고** (b) 놓치지 않았더라도 콜백 경계에서 멈춰 **미래핑으로 읽던**
+   * 두 결함을 한 자리에서 고정한다.
+   */
+  async managerSaveWrapped(t: unknown): Promise<unknown> {
+    return this.triggerRepository.manager
+      .transaction(async (m) => m.save(Trigger, t))
+      .catch((err: unknown) => this.rethrowEndpointPathConflict(err));
+  }
+
+  /** 양성 — 같은 형태인데 래핑이 없다. */
+  async managerSaveUnwrapped(t: unknown): Promise<unknown> {
+    return this.triggerRepository.manager.transaction(async (m) =>
+      m.save(Trigger, t),
+    );
+  }
+
+  /** 음성 — **다른 엔티티**의 manager save 는 이 가드 대상이 아니다. */
+  async managerSaveOtherEntity(x: unknown): Promise<unknown> {
+    return this.triggerRepository.manager.transaction(async (m) =>
+      m.save(Execution, x),
+    );
   }
 
   private rethrowEndpointPathConflict(err: unknown): never {

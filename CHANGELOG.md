@@ -1,5 +1,77 @@
 # Changelog
 
+## Unreleased — **Behavior change**: 동시 PATCH 가 인입 서명 ref 를 지워 fail-open 이 되던 경로를 닫는다
+
+같은 트리거에 PATCH 가 겹치면, 나중에 커밋되는 쪽이 **요청 시작 시점의 `config` 스냅샷**으로
+행을 통째로 다시 써서 먼저 반영된 키를 되돌렸다. 되돌려지는 것이
+`chatChannel.inboundSigningRef` 이면 `ChatChannelInboundAuthenticator` 의
+`if (!config.inboundSigningRef) return;` 이 걸려 **그 트리거의 인입 웹훅이 서명 검증 없이
+통과**한다 — 이미 한 번 닫았던 fail-open 이 동시성 경로로 되살아나는 형태다.
+
+**`config` JSONB 를 다시 쓰는 자리**를 전부 닫았다 — 이 PR 이 닫은 축은 거기까지다.
+처음 센 네 자리(`update()` · chat-channel
+setup 의 성공·실패 경로 · bot token 회전) 밖에도, 엔티티를 통째로 저장하느라 **의도 없이**
+`config` 를 되쓰던 자리가 일곱 군데 더 있었다 — notification secret 정규화·회전, per-trigger
+토큰 폐기, 승격 cron 둘, chat-channel v2 정리 cron, schedule 편집의 trigger 동기화. `config`
+를 고치는 자리는 락 안 재작성으로, 컬럼만 고치는 자리는 **컬럼 한정 갱신**으로 바꿨다.
+그 결과 **컬럼만 고치려던 자리가 의도치 않게 엔티티 전체를 저장하던 경로**는 한 곳도 남지
+않는다. `update()`(창 1) 자체는 여전히 `save(entity)` 를 쓰지만, 저장 대상이 **락 안에서 재읽은
+최신 행**이라 되돌릴 옛 값이 없다 — 저장 동사가 아니라 «무엇을 저장하는가» 가 바뀐 것이다.
+(정적 래칫이 고정하는 것은 `modules/triggers/` 범위의 «래핑 없는 `save`» 목록이 빈 채로
+남는가이고, `save` 의 존재 여부 자체는 아니다.)
+
+**닫지 않은 축을 여기 적어 둔다** — 락 도메인 **밖**에서 컬럼만 고치는 자리
+(`rotateNotificationSecret` · `cleanupRotatedChatChannelTokens` · 스케줄 편집의 trigger
+동기화)는 창 1 의 «락 안 재읽기 → 전체 엔티티 저장» 과 여전히 이론적 TOCTOU 창을 가진다:
+재읽기와 저장 **사이에** 그 컬럼이 커밋되면 되돌아간다. 이들은 `config` JSONB 를 건드리지
+않으므로 **인입 서명 fail-open 으로는 이어지지 않고**, 그래서 이 PR 의 스코프 밖으로 유예해
+plan 후속에 등재했다 (`/ai-review` `review/code/2026/09/15/01_42_04` requirement·concurrency
+INFO#6·#7). 표제의 «모든 자리» 를 그 축까지 읽지 않도록 범위를 좁혀 적는다.
+
+락은 트리거 단위 advisory lock
+(`pg_advisory_xact_lock(hashtext('trigger-config:<id>'))`) 안으로 넣고, **락을 잡은 뒤에
+행을 다시 읽어** 병합한다. 행이 그 사이 삭제됐으면 쓰지 않는다 — `save` 는 행이 없으면
+INSERT 하므로, 그대로 두면 삭제된 트리거가 고아 상태로 되살아난다. **삭제 경로 둘 다**
+같은 락을 잡는다 — `DELETE /api/triggers/:id` 와 스케줄 삭제의 cascade. 그러지 않으면
+«읽었을 땐 있었는데 저장 직전에 삭제되는» 경합이 남는다.
+
+외부 provider 호출은 락 **밖**에 남는다 — Cafe24 토큰 갱신에서 같은 락을 기각했던 사유
+(*"lock 보유 중 HTTP 요청을 transaction 안에 묶어야 해 DB 커넥션 점유 시간이 늘고"*)가 그대로
+이 설계의 제약이다.
+
+**웹훅 인입 경로도 함께 고쳤다.** `lastTriggeredAt` 만 갱신하면서 엔티티를 통째로 저장하던
+두 자리가 있었다 — 요청 시작 시점의 `config` 가 함께 실리므로, 같은 ref 를 **인입 메시지마다**
+되돌릴 수 있었다(PATCH 끼리의 경합보다 훨씬 잦다). 컬럼 한정 갱신으로 바꿨다.
+
+**컨테이너만 다시 읽는 것으로는 부족하다.** ref 를 실을지 정하는 게이트가 요청 시작 시점
+상태로 계산돼 있어서, 동시 요청이 그 사이 ref 를 **처음 확립**하면 여전히 «없음» 으로 판정해
+빼 버린다. 그래서 재읽은 행의 ref presence 를 게이트의 항으로 더했다.
+
+`chatChannel` 을 **싣지 않은** PATCH(이름 변경 등)도 같은 경로로 ref 를 되돌렸다. 저장 동사
+(`save`)는 그대로 두고 «어느 `config` 위에 병합하는가» 와 «그 구간이 직렬화되는가» 만 바꿨다.
+
+**대기 상한은 없다 — 단 삭제는 예외다.** 같은 트리거의 동시 요청은 앞선 요청이 커밋할
+때까지 기다린다. 임계 구간에 외부 호출이 없어 보유 시간이 DB 왕복 두 번으로 유계인 것이
+근거이고, 그 제약이 깨지는 변경을 하면 `lock_timeout` 을 함께 넣어야 한다.
+
+**삭제 경로 둘만 5초 상한을 둔다** — `DELETE /api/triggers/:id` 와 스케줄 삭제의 trigger
+cascade. **무엇을 먼저 끝냈는지는 경로마다 다르다**(트리거 삭제는 provider teardown · secret
+삭제 · BullMQ 해제, 스케줄 삭제는 BullMQ 해제). 공통점은 그것들이 **되돌릴 수 없다**는 것이고,
+그래서 락에서 무한정 기다리면 «자원은 이미 뜯겼는데 행은 남은» 반쯤 삭제된 상태가 요청
+타임아웃과 함께 굳는다. 상한을 넘기면 두 경로 모두 그 사실을 로그로 남기고 오류로 드러낸다
+— 조용한 지연보다 낫다.
+
+> 이 문단의 정리 목록을 **두 경로에 공통으로** 적었다가 되돌린 자리다(`/ai-review`
+> `review/code/2026/09/15/01_42_04` documentation INFO#17). 안전한 방향의 과대 서술이라
+> 위험은 없었지만, 이 PR 에서 **목록형 서술이 낡은 다섯 번째 사례**다 — 목록은 낡고 규칙은
+> 안 낡는다.
+
+**부수 효과 하나**: 스케줄 PATCH 가 `name`·`isActive` 중 아무것도 바꾸지 않으면 트리거 행에
+쓰지 않는다(종전엔 매 PATCH 마다 엔티티를 통째로 저장해 `updated_at` 이 갱신됐다). 응답 DTO
+(`ScheduleTriggerRefDto`)가 `updatedAt` 을 노출하지 않고 이 컬럼을 읽는 하위 로직도 없어
+계약 변화는 아니지만, 「PATCH 했으니 `updated_at` 이 올라갔겠지」를 전제하는 코드가 나중에
+생기면 이 문단이 답이다.
+
 ## Unreleased — 가이드가 «코드» 로 부르던 두 이름이 코드가 아니었다 (+ 식별자 가드에 발행 축)
 
 **Logic 노드 가이드**가 *"여러 개 또는 0개를 연결하면 `CONTAINER_MISSING_EMIT` 또는

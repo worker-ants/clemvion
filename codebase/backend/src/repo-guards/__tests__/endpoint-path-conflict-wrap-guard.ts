@@ -23,6 +23,17 @@ export const CONFLICT_WRAPPER = 'rethrowEndpointPathConflict';
 /** 스캔 대상 리포지토리 프로퍼티 이름. */
 export const TRIGGER_REPOSITORY = 'triggerRepository';
 
+/**
+ * `EntityManager.save(Trigger, entity)` 형태를 가르는 첫 인자 이름.
+ *
+ * **왜 두 형태를 봐야 하나**: 저장이 `manager.transaction` 안으로 들어가면 수신자가
+ * `this.triggerRepository` 가 아니라 콜백 인자(`m`)가 된다. 수신자 이름만 보던 판은 그
+ * 이동을 **저장이 사라진 것**으로 읽어, 래핑 래칫이 «남몰래 줄었다» 고 RED 를 냈다 — 실제로는
+ * 래핑이 그대로였고 가드가 형태를 못 따라간 것이다(2026-09-14, 창 1 을 락 안으로 옮길 때).
+ * 수신자 이름이 임의이므로 **첫 인자가 `Trigger` 엔티티인지**로 대상을 좁힌다.
+ */
+export const TRIGGER_ENTITY = 'Trigger';
+
 /** 한 `save()` 호출 자리. */
 export interface TriggerSaveSite {
   readonly file: string;
@@ -97,8 +108,16 @@ function isWrappedByConflictCatch(
     ) {
       return cur.arguments.some((arg) => callsConflictWrapper(arg, sf));
     }
-    // 체인을 벗어나면(문장 경계) 더 볼 것이 없다.
-    if (ts.isStatement(cur)) return false;
+    // **콜백 경계를 넘어간다.** 저장이 `manager.transaction(async (m) => …)` 안으로
+    // 들어가면 `.catch` 는 그 **바깥 체인**에 붙는다. 종전엔 `ts.isStatement` 에서 멈춰
+    // (콜백 안의 `return` 문에서) 그 래핑을 못 봤다 — 래핑이 있는데 «없다» 고 읽는
+    // fail-safe 오탐이었다.
+    //
+    // 멈추는 자리는 **함수 선언 경계**다: 함수형 노드인데 그 부모가 호출식이 아니면
+    // 콜백이 아니라 «감싸는 메서드» 이므로 더 올라가지 않는다. 형제 문장으로는 애초에
+    // `.parent` 가 데려가지 않으므로, 무관한 `.catch` 를 주워 오지 않는다.
+    if (ts.isFunctionLike(cur) && !ts.isCallExpression(cur.parent))
+      return false;
   }
   return false;
 }
@@ -137,7 +156,18 @@ export function findTriggerRepositorySaves(
         // `someTriggerRepositoryWrapper.save(...)` 같은 변형까지 걸린다. 바로 아래에서
         // `save` 는 정확 이름으로 비교하면서 수신자만 느슨한 비대칭이었다
         // (`review/code/2026/09/08/13_34_28` architecture INFO#5).
-        if (isPropertyAccessNamed(receiver, TRIGGER_REPOSITORY)) {
+        //
+        // 두 번째 형태는 `EntityManager` 다 — 수신자 이름이 임의라 **첫 인자가 `Trigger`
+        // 엔티티인지**로 좁힌다 (`TRIGGER_ENTITY` 註 참조).
+        const first = node.arguments[0];
+        const isManagerTriggerSave =
+          first !== undefined &&
+          ts.isIdentifier(first) &&
+          first.getText(sf) === TRIGGER_ENTITY;
+        if (
+          isPropertyAccessNamed(receiver, TRIGGER_REPOSITORY) ||
+          isManagerTriggerSave
+        ) {
           const method = enclosingScopeName(node, sf);
           const base = `${rel}#${method}`;
           const n = (seen.get(base) ?? 0) + 1;

@@ -1,10 +1,12 @@
 import { AuditLogsService } from '../audit-logs/audit-logs.service';
+import { Logger } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { SchedulesService } from './schedules.service';
 import { Schedule } from './entities/schedule.entity';
 import { Trigger } from '../triggers/entities/trigger.entity';
+import { withTransactionMock } from '../triggers/__test-utils__/trigger-transaction-mock';
 import { WorkspacesService } from '../workspaces/workspaces.service';
 import { CreateScheduleDto } from './dto/create-schedule.dto';
 import { UpdateScheduleDto } from './dto/update-schedule.dto';
@@ -16,6 +18,15 @@ describe('SchedulesService.runNow', () => {
   let auditLogs: { record: jest.Mock };
   let scheduleRepo: jest.Mocked<Repository<Schedule>>;
   let triggerRepo: jest.Mocked<Repository<Trigger>>;
+  /**
+   * schedule 삭제가 trigger 행을 지우기까지의 **순서**: 상한 → 락 → 삭제.
+   *
+   * 키 하나만 담았을 땐 «상한을 둔다» 가 단언되지 않아, `timeoutMs` 인자를 통째로 지우는
+   * 뮤턴트가 25건 전건 GREEN 으로 살아남았다. 형제 경로
+   * (`triggers.service.spec.ts` — `remove() 도 같은 config 락을 잡는다`)는 이미 순서 배열을
+   * 쓰고 있었다 (`review/code/2026/09/15/01_09_53` testing W1).
+   */
+  const triggerLockEvents: string[] = [];
   let workspacesService: jest.Mocked<
     Pick<WorkspacesService, 'getWorkspaceTimezone'>
   >;
@@ -44,7 +55,28 @@ describe('SchedulesService.runNow', () => {
         },
         {
           provide: getRepositoryToken(Trigger),
-          useValue: { create: jest.fn(), save: jest.fn(), delete: jest.fn() },
+          // `update` — schedule 편집의 trigger 동기화는 **컬럼 한정** 갱신이다.
+          // `save(entity)` 로 쓰면 읽은 시점의 `config` 까지 되써서 동시 PATCH 가 확립한
+          // `chatChannel.inboundSigningRef` 를 되돌린다(인입 서명 fail-open).
+          //
+          // `withTransactionMock` — schedule 삭제가 trigger 행을 **config 락 안에서** 지운다.
+          // 감싸지 않으면 `manager` 가 없어 런타임에 깨진다.
+          useValue: withTransactionMock(
+            {
+              create: jest.fn(),
+              save: jest.fn(),
+              update: jest.fn().mockResolvedValue(undefined),
+              delete: jest.fn((criteria: unknown) => {
+                triggerLockEvents.push(`delete:${String(criteria)}`);
+                return undefined;
+              }),
+            },
+            {
+              onLock: (key) => triggerLockEvents.push(`lock:${key}`),
+              onLockTimeout: (statement) =>
+                triggerLockEvents.push(`timeout:${statement}`),
+            },
+          ),
         },
         {
           provide: WorkspacesService,
@@ -487,6 +519,156 @@ describe('SchedulesService.runNow', () => {
         name: 'T',
         isActive: false,
       });
+      // **DB 쓰기 방식도 단언한다.** 위 단언은 in-memory 재부착만 보므로,
+      // `update` 를 `save(trigger)` 로 되돌려도 통과한다(뮤테이션 실측: 21건 전부 GREEN —
+      // `review/code/2026/09/14/22_24_35` testing CRITICAL#3). `save` 는 엔티티를 통째로
+      // 저장해 읽은 시점의 `config` 까지 되쓰고, 그러면 동시 PATCH 가 확립한
+      // `chatChannel.inboundSigningRef` 가 되돌려져 인입 서명이 fail-open 이 된다.
+      expect(triggerRepo.update).toHaveBeenCalledWith(
+        { id: 'trig-tr' },
+        { isActive: false },
+      );
+      expect(triggerRepo.save).not.toHaveBeenCalled();
+    });
+
+    it('수정 — name·isActive 를 함께 바꾸면 둘 다 한 patch 에 실린다', async () => {
+      // 단독 분기만 있으면 «둘 중 하나만 담는» 구현으로 퇴행해도 통과한다.
+      scheduleRepo.findOne.mockResolvedValue({
+        id: 'sch-both',
+        workspaceId: 'ws-1',
+        isActive: true,
+        cronExpression: '0 9 * * *',
+        timezone: 'Asia/Seoul',
+        triggerId: 'trig-both',
+        trigger: { id: 'trig-both', name: 'old' },
+      } as unknown as Schedule);
+      scheduleRepo.save.mockImplementation(async (sch) => sch as Schedule);
+
+      await service.update(
+        'sch-both',
+        'ws-1',
+        { name: 'new', isActive: false } as unknown as UpdateScheduleDto,
+        'u-both',
+      );
+
+      expect(triggerRepo.update).toHaveBeenCalledWith(
+        { id: 'trig-both' },
+        { name: 'new', isActive: false },
+      );
+    });
+
+    it('수정 — trigger 필드를 하나도 안 바꾸면 patch 를 쓰지 않는다', async () => {
+      // 빈 patch 가드 대조군 — 가드를 지우면 `update({id}, {})` 가 나가 여기서 갈린다.
+      scheduleRepo.findOne.mockResolvedValue({
+        id: 'sch-none',
+        workspaceId: 'ws-1',
+        isActive: true,
+        cronExpression: '0 9 * * *',
+        timezone: 'Asia/Seoul',
+        triggerId: 'trig-none',
+        trigger: { id: 'trig-none', name: 'keep' },
+      } as unknown as Schedule);
+      scheduleRepo.save.mockImplementation(async (sch) => sch as Schedule);
+
+      await service.update(
+        'sch-none',
+        'ws-1',
+        { cronExpression: '0 10 * * *' } as unknown as UpdateScheduleDto,
+        'u-none',
+      );
+
+      expect(triggerRepo.update).not.toHaveBeenCalled();
+    });
+
+    it('수정 — name 만 바꾸면 trigger patch 에 name 만 실린다', async () => {
+      // 분기 대조군 — patch 를 «바뀐 필드만» 으로 좁히는 술어가 느슨해지면 여기서 갈린다.
+      scheduleRepo.findOne.mockResolvedValue({
+        id: 'sch-nm',
+        workspaceId: 'ws-1',
+        isActive: true,
+        cronExpression: '0 9 * * *',
+        timezone: 'Asia/Seoul',
+        triggerId: 'trig-nm',
+        trigger: { id: 'trig-nm', name: 'old' },
+      } as unknown as Schedule);
+      scheduleRepo.save.mockImplementation(async (sch) => sch as Schedule);
+
+      await service.update(
+        'sch-nm',
+        'ws-1',
+        { name: 'new' } as unknown as UpdateScheduleDto,
+        'u-nm',
+      );
+
+      expect(triggerRepo.update).toHaveBeenCalledWith(
+        { id: 'trig-nm' },
+        { name: 'new' },
+      );
+    });
+
+    it('삭제 — trigger 행을 config 락 안에서 지운다', async () => {
+      // 삭제 경로는 **둘**이다. `TriggersService.remove()` 만 락을 잡게 했더니 이쪽이 밖에
+      // 남았고, 창 1 의 `save(entity)` 가 행이 없으면 INSERT 하므로 삭제된 트리거가 고아로
+      // 되살아날 수 있었다 (`review/code/2026/09/15/00_38_16` database W1).
+      triggerLockEvents.length = 0;
+      scheduleRepo.findOne.mockResolvedValue({
+        id: 'sch-del',
+        workspaceId: 'ws-1',
+        triggerId: 'trig-del',
+      } as unknown as Schedule);
+
+      await service.remove('sch-del', 'ws-1', 'u-del');
+
+      // **존재가 아니라 순서를 단언한다.** 「락 키가 들어 있다」만 보면 상한(`SET LOCAL
+      // lock_timeout`)이 사라져도 통과한다 — 실측으로 25건 전건 GREEN 이었다. 삭제는 락을
+      // 잡기 **전에** BullMQ 해제를 끝내므로, 무한 대기는 «job 은 해제됐는데 행은 남은»
+      // 상태로 굳는다. 그래서 상한을 순서와 함께 고정한다.
+      expect(triggerLockEvents).toEqual([
+        "timeout:SET LOCAL lock_timeout = '5000ms'",
+        'lock:trigger-config:trig-del',
+        'delete:trig-del',
+      ]);
+      expect(triggerRepo.delete).toHaveBeenCalledWith('trig-del');
+    });
+
+    it('삭제 실패는 조용히 지나가지 않는다 — 반쯤 삭제된 상태를 로그로 드러낸다', async () => {
+      // `removeJob` 은 **이미 끝났고 되돌릴 수 없다**. 그러니 여기서 trigger 행 삭제가
+      // 실패하면 «BullMQ 는 해제됐는데 행은 남은» 상태다. 형제 `TriggersService.remove()`
+      // 는 이 사실을 로그로 남기는데 이쪽만 없었다
+      // (`review/code/2026/09/15/01_09_53` side_effect W2).
+      //
+      // spy 누출을 막으려고 try/finally 로 원복을 보장한다.
+      const error = jest
+        .spyOn(Logger.prototype, 'error')
+        .mockImplementation(() => undefined);
+      try {
+        triggerLockEvents.length = 0;
+        scheduleRepo.findOne.mockResolvedValue({
+          id: 'sch-halt',
+          workspaceId: 'ws-1',
+          triggerId: 'trig-halt',
+        } as unknown as Schedule);
+        triggerRepo.delete.mockImplementationOnce(() => {
+          throw new Error('lock timeout');
+        });
+
+        await expect(
+          service.remove('sch-halt', 'ws-1', 'u-halt'),
+        ).rejects.toThrow('lock timeout');
+
+        const logged = error.mock.calls.map(([m]) => String(m)).join('\n');
+        expect(logged).toContain('trig-halt');
+        expect(logged).toContain('반쯤 삭제된 상태');
+
+        // 실패했으면 schedule 행도 «삭제됨» 감사도 남기지 않는다 — 남기면 거짓 기록이다.
+        expect(scheduleRepo.remove).not.toHaveBeenCalled();
+        const actions = auditLogs.record.mock.calls.map(
+          ([arg]) => (arg as { action?: string }).action,
+        );
+        expect(actions).not.toContain('schedule.deleted');
+      } finally {
+        error.mockRestore();
+      }
     });
 
     it('감사 로깅 — remove 는 schedule.deleted 를 남긴다', async () => {

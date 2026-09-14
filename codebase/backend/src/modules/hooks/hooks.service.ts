@@ -224,8 +224,7 @@ export class HooksService {
     );
 
     // 6. Update lastTriggeredAt
-    trigger.lastTriggeredAt = new Date();
-    await this.triggerRepository.save(trigger);
+    await this.touchLastTriggeredAt(trigger);
 
     // 7. External Interaction API — interaction.enabled=true 일 때 interaction token + endpoints
     //    동봉 ([Spec EIA §4.1] / WH-RS-04). per_execution 전략이면 단명 JWT 발급, per_trigger
@@ -684,8 +683,7 @@ export class HooksService {
       },
     );
 
-    trigger.lastTriggeredAt = new Date();
-    await this.triggerRepository.save(trigger);
+    await this.touchLastTriggeredAt(trigger);
 
     await adapter.ackInteraction(update, config);
     return { executionId, status: 'pending' as const };
@@ -954,6 +952,30 @@ export class HooksService {
       status === ExecutionStatus.FAILED ||
       status === ExecutionStatus.CANCELLED;
     return isTerminal ? null : status;
+  }
+
+  /**
+   * `lastTriggeredAt` 만 갱신한다 — **`save(trigger)` 를 쓰지 않는다.**
+   *
+   * `save` 는 엔티티를 통째로 저장하므로 요청 시작 시점에 읽은 `config` 까지 함께 쓴다.
+   * 그 사이 동시 PATCH 가 `chatChannel.inboundSigningRef` 를 확립했다면 이 저장이 그것을
+   * **되돌리고**, 인입 서명 검증이 fail-open 으로 돌아간다 — PATCH 끼리의 경합보다 훨씬 잦은
+   * 경로다(인입 메시지마다 돈다).
+   * (`/ai-review` `review/code/2026/09/14/19_07_43` concurrency WARNING#1.)
+   *
+   * **두 호출부가 이 한 함수를 공유한다.** 종전엔 같은 주석 5줄 + 코드 4줄이 두 자리에
+   * 복제돼 있었고, 그 복제가 정확히 이 PR 을 물었다 — 한쪽만 회귀 테스트를 갖는 바람에
+   * 다른 쪽은 되돌려도 전건 GREEN 이었다
+   * (`review/code/2026/09/14/19_44_08` testing CRITICAL#2). 근거를 한 곳에만 둔다.
+   *
+   * `trigger.lastTriggeredAt` 을 in-memory 로도 갱신한다 — 호출부 이후 코드가 읽을 수 있다.
+   */
+  private async touchLastTriggeredAt(trigger: Trigger): Promise<void> {
+    trigger.lastTriggeredAt = new Date();
+    await this.triggerRepository.update(
+      { id: trigger.id },
+      { lastTriggeredAt: trigger.lastTriggeredAt },
+    );
   }
 
   /**

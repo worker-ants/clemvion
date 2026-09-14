@@ -236,6 +236,19 @@ export function assertChatChannelAlreadySetUp(
  * 원본 plaintext 는 호출자가 별도 변수로 보관해 setupChatChannel 에 전달 — SecretResolver.rotate
  * (UPSERT) 로 옮긴 뒤 ref 만 config 에 반영.
  */
+/**
+ * `trigger.config` 에서 `chatChannel.inboundSigningRef` 를 꺼낸다.
+ *
+ * 같은 인라인 캐스트(`{ chatChannel?: { inboundSigningRef?: string } }`)가 세 자리에 복제돼
+ * 있었다 — `update()` 안에 둘, binder 에 하나 (`/ai-review`
+ * `review/code/2026/09/14/19_07_43` maintainability WARNING#7). 이름을 주면 «무엇을 꺼내는
+ * 값인가» 가 호출부에서 읽히고, 형태가 바뀔 때 고칠 자리가 하나가 된다.
+ */
+export function extractInboundSigningRef(config: unknown): string | undefined {
+  return (config as { chatChannel?: { inboundSigningRef?: string } })
+    ?.chatChannel?.inboundSigningRef;
+}
+
 export function stripChatChannelPlaintext(
   chatChannel: ChatChannelInput,
 ): ChatChannelInput {

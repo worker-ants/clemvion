@@ -5,6 +5,7 @@ import {
   assertChatChannelInputSafe,
   assertInboundSigningPlaintextByProvider,
   assertPatchCarriesNoSecrets,
+  extractInboundSigningRef,
   stripChatChannelPlaintext,
   translateSetupChannelError,
 } from './chat-channel-input-rules';
@@ -408,5 +409,29 @@ describe('translateSetupChannelError — §5.4 응답 계약', () => {
       expect(JSON.stringify(ex.body)).not.toContain('slack.com');
       expect(ex.body.message).not.toContain(raw);
     }
+  });
+});
+
+/**
+ * **보존 게이트의 입력을 격리해서 고정한다.**
+ *
+ * 이 함수의 반환값이 `chatChannel.inboundSigningRef` 를 실을지 정하는 술어의 한 항이다 —
+ * 잘못 `undefined` 를 내면 인입 서명 검증이 fail-open 으로 돌아간다. 종전엔 통합 테스트로만
+ * 간접 커버돼 «어느 모양에서 무엇이 나오는가» 가 한 자리에 없었다
+ * (`/ai-review` `review/code/2026/09/14/20_17_16` testing INFO#7).
+ */
+describe('extractInboundSigningRef', () => {
+  const REF = 'secret://triggers/t-1/inbound-signing';
+
+  it.each([
+    ['정상', { chatChannel: { inboundSigningRef: REF } }, REF],
+    ['chatChannel 없음', { notification: {} }, undefined],
+    ['chatChannel 이 null', { chatChannel: null }, undefined],
+    ['ref 키 없음', { chatChannel: { provider: 'slack' } }, undefined],
+    ['빈 config', {}, undefined],
+    ['config 가 null', null, undefined],
+    ['config 가 undefined', undefined, undefined],
+  ])('%s', (_label, config, expected) => {
+    expect(extractInboundSigningRef(config)).toBe(expected);
   });
 });
