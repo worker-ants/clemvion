@@ -263,7 +263,7 @@ export class ChatChannelBinderService {
 
       // **락 안에서** config 를 다시 읽어 머지한다 — 외부 호출(`setupChannel`)은 이미 끝났으므로
       // 임계 구간에 들어가지 않는다. 근거는 `trigger-config-lock.ts` JSDoc.
-      await rewriteTriggerConfigLocked(
+      const wrote = await rewriteTriggerConfigLocked(
         this.triggerRepository.manager,
         trigger.id,
         (freshConfig) => ({
@@ -278,10 +278,17 @@ export class ChatChannelBinderService {
       );
       // [Spec R8 v1 적용 (2026-05-24)] setup success path 에서만 listener registry register.
       // setupChannel 멱등성 — 동일 triggerId 재호출 시 entry overwrite.
-      this.channelListenerRegistry.register(
-        trigger.id,
-        chatChannelCfg.provider,
-      );
+      //
+      // **쓰기가 skip 됐으면(그 사이 삭제) 등록도 하지 않는다.** 안 그러면 해제되지 않는
+      // 유령 entry 가 in-memory registry 에 남는다 — dispatcher 가 warn+skip 으로 관대하게
+      // 처리해 오배달로는 안 이어지지만, 애초에 만들 이유가 없다
+      // (`/ai-review` `review/code/2026/09/14/20_17_16` side_effect INFO#4).
+      if (wrote) {
+        this.channelListenerRegistry.register(
+          trigger.id,
+          chatChannelCfg.provider,
+        );
+      }
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       // SUMMARY#24: secret_store 에 botToken 저장 완료 후 setupChannel 실패 — trigger 는

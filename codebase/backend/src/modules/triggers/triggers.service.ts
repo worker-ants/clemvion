@@ -464,13 +464,37 @@ export class TriggersService {
     return this.sanitizeForResponse(result);
   }
 
+  /**
+   * `update()` 전용 — **검증에만 쓰는 가벼운 조회.**
+   *
+   * `findById` 는 `relations: ['workflow']` 를 싣는데, `update()` 의 사전 검증(타입 분기 ·
+   * chatChannel 설정 여부 · 인증 설정)은 그 관계를 한 번도 보지 않는다. 저장·응답에 쓰이는
+   * 엔티티는 **락 안에서 다시 읽으므로**, 여기서 조인을 한 번 더 하면 PATCH 마다 같은 JOIN
+   * SELECT 가 두 번 돈다 (`/ai-review` `review/code/2026/09/14/20_17_16` performance WARNING#1).
+   */
+  private async findByIdForUpdate(
+    id: string,
+    workspaceId: string,
+  ): Promise<Trigger> {
+    const trigger = await this.triggerRepository.findOne({
+      where: { id, workspaceId },
+    });
+    if (!trigger) {
+      throw new NotFoundException({
+        code: 'RESOURCE_NOT_FOUND',
+        message: 'Trigger not found',
+      });
+    }
+    return trigger;
+  }
+
   async update(
     id: string,
     workspaceId: string,
     dto: UpdateTriggerDto,
     userId: string,
   ): Promise<Trigger> {
-    const trigger = await this.findById(id, workspaceId);
+    const trigger = await this.findByIdForUpdate(id, workspaceId);
     const { notification, interaction, chatChannel, config, ...rest } = dto;
     // [Spec 2-trigger-list §3] Schedule 타입 트리거는 name·isActive 만 PATCH 허용.
     // endpointPath / config / authConfigId / notification / interaction / chatChannel 변경은
@@ -926,7 +950,17 @@ export class TriggersService {
     await this.secrets.deleteByPrefix(`secret://triggers/${trigger.id}/`);
     // type 을 remove 전에 읽어둔다 — TypeORM `remove` 는 엔티티의 id 를 지운다.
     const { type } = trigger;
-    await this.triggerRepository.remove(trigger);
+    // **삭제도 config 락을 잡는다.** 창 1 은 `save(entity)` 를 쓰는데 그것은 행이 없으면
+    // **INSERT** 한다. 읽기 시점 가드(`!fresh`)는 «읽었을 땐 있었는데 저장 직전에 삭제되는»
+    // 쓰기 시점 경합을 못 막는다 — 그 창을 닫는 유일한 방법이 삭제를 같은 락으로 직렬화하는
+    // 것이다 (`/ai-review` `review/code/2026/09/14/20_17_16` database·concurrency WARNING#2).
+    //
+    // 위 `teardownChatChannel`(외부 호출)은 **락 밖**에서 이미 끝났다 — `trigger-config-lock.ts`
+    // JSDoc 의 «외부 호출을 락 안에 두지 않는다» 제약을 여기서도 지킨다.
+    await this.triggerRepository.manager.transaction(async (m) => {
+      await acquireTriggerConfigLock(m, id);
+      await m.remove(trigger);
+    });
     await this.recordAudit({
       workspaceId,
       userId,
@@ -1171,7 +1205,7 @@ export class TriggersService {
     //
     // 아래 네 컬럼은 «이번 회전의 결과» 라 머지 대상이 아니다.
     const rotatedAt = new Date();
-    await rewriteTriggerConfigLocked(
+    const wrote = await rewriteTriggerConfigLocked(
       this.triggerRepository.manager,
       trigger.id,
       (freshConfig) => ({ ...freshConfig, chatChannel: mergedChannel }),
@@ -1182,6 +1216,17 @@ export class TriggersService {
         chatChannelLastError: null,
       },
     );
+    // **쓰기가 skip 됐으면 성공으로 응답하지 않는다.** 그 사이 트리거가 삭제되면 헬퍼는
+    // `false` 를 돌려주는데, 종전엔 그것을 무시하고 200 + 감사 row 를 남겼다 — 삭제된
+    // 트리거에 대한 **거짓 성공 기록**이다. 창 1 은 같은 조건에서 404 를 내므로 형제
+    // 엔드포인트끼리 응답이 갈리기도 했다
+    // (`/ai-review` `review/code/2026/09/14/20_17_16` api_contract WARNING#3).
+    if (!wrote) {
+      throw new NotFoundException({
+        code: 'RESOURCE_NOT_FOUND',
+        message: 'Trigger not found',
+      });
+    }
     // **컬럼 갱신이 끝난 뒤에 기록한다.** 위 6단계 중 어디서든 던지면 회전은 일어나지
     // 않은 것이고, 그때 감사 row 만 남으면 "회전됐다" 는 거짓 기록이 된다.
     await this.recordAudit({

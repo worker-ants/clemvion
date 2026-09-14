@@ -3672,16 +3672,19 @@ describe('TriggersService — 락 안 재읽기가 동시 확립분을 본다 (l
       findOne: jest.fn().mockResolvedValue(withoutRef()),
       update: jest.fn().mockResolvedValue(undefined),
       save: jest.fn((t: Trigger) => Promise.resolve(t)),
+      remove: jest.fn((t: Trigger) => Promise.resolve(t)),
       create: jest.fn((t: unknown) => t),
       createQueryBuilder: jest.fn(),
     };
     let freshCall = 0;
+    const lockKeys: string[] = [];
     const providers = createBaseProviders(repoMock, {
       freshFindOne: () => {
         const idx = Math.min(freshCall, freshSequence.length - 1);
         freshCall += 1;
         return freshSequence[idx]();
       },
+      onLock: (key) => lockKeys.push(key),
     });
     const at = (token: unknown) =>
       providers.findIndex(
@@ -3712,6 +3715,10 @@ describe('TriggersService — 락 안 재읽기가 동시 확립분을 본다 (l
       repo: moduleRef.get(getRepositoryToken(Trigger)) as jest.Mocked<
         Repository<Trigger>
       >,
+      audit: moduleRef.get(AuditLogsService) as unknown as {
+        record: jest.Mock;
+      },
+      lockKeys,
     };
   }
 
@@ -3811,6 +3818,35 @@ describe('TriggersService — 락 안 재읽기가 동시 확립분을 본다 (l
 
     // **부재 단언이 핵심이다** — 저장이 한 번이라도 일어나면 부활한다.
     expect(repo.save).not.toHaveBeenCalled();
+  });
+
+  it('remove() 도 같은 config 락을 잡는다 (쓰기 시점 삭제 경합)', async () => {
+    // 창 1 은 `save(entity)` 를 쓰고, 그것은 행이 없으면 **INSERT** 한다. 읽기 시점
+    // 가드(`!fresh`)는 «읽었을 땐 있었는데 저장 직전에 삭제되는» 경합을 못 막는다 —
+    // 삭제를 같은 락으로 직렬화하는 것이 그 창을 닫는 유일한 방법이다
+    // (`review/code/2026/09/14/20_17_16` database·concurrency WARNING#2).
+    const { service, repo, lockKeys } = await makeService([withRef]);
+
+    await service.remove('trig-l', 'ws-1', 'u-1');
+
+    expect(lockKeys).toContain('trigger-config:trig-l');
+    expect(repo.remove).toHaveBeenCalled();
+  });
+
+  it('rotateBotToken — 그 사이 삭제되면 404 + 감사 미기록', async () => {
+    // 종전엔 헬퍼의 `false`(쓰기 skip)를 무시하고 200 + 감사 row 를 남겼다 — 삭제된
+    // 트리거에 대한 **거짓 성공 기록**이고, 같은 조건에서 404 를 내는 창 1 과도 어긋난다
+    // (`review/code/2026/09/14/20_17_16` api_contract WARNING#3).
+    const { service, audit } = await makeService([() => undefined as never]);
+
+    await expect(
+      service.rotateBotToken('trig-l', 'ws-1', '111:newToken', 'u-1'),
+    ).rejects.toMatchObject({ response: { code: 'RESOURCE_NOT_FOUND' } });
+
+    const actions = audit.record.mock.calls.map(
+      ([arg]) => (arg as { action?: string }).action,
+    );
+    expect(actions).not.toContain('trigger.chat_channel.bot_token_rotated');
   });
 
   it('rotateBotToken — 손대지 않은 config 키가 살아남는다', async () => {

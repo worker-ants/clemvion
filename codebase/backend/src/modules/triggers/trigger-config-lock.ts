@@ -91,9 +91,17 @@ export async function acquireTriggerConfigLock(
  *   넣으면 이 함수가 막으려는 결함이 그대로 재발한다.
  * @param columns `config` 와 함께 쓸 «이번 호출의 결과» 컬럼(health·setupAt·lastError 등).
  *   이들은 머지 대상이 **아니다** — 이번 호출이 산출한 값이 곧 정답이다.
- * @returns 트리거가 그 사이 삭제됐으면 `false` (쓰기 skip). 호출부는 best-effort 경로라
- *   보통 무시하면 되지만, 반환값을 두는 이유는 «조용히 아무것도 안 했다» 를 호출부가
- *   **관측할 수 있게** 하기 위해서다.
+ * @returns 트리거가 그 사이 삭제됐으면 `false` (쓰기 skip).
+ *
+ *   **부재를 드러내는 방식이 창마다 다르다 — 의도된 비대칭이다.**
+ *
+ *   | 창 | 삭제 경합 시 |
+ *   |---|---|
+ *   | 창 1 `update()` (동기 요청) | **404 로 드러낸다** — 사용자가 보낸 변경이 반영되지 않았음을 알아야 한다 |
+ *   | `rotateBotToken` (동기 요청) | **404 + 감사 미기록** — 위와 같은 이유 |
+ *   | binder 성공/실패 경로 (저장 **뒤**의 best-effort 후속) | **`false` 로 감춘다** — 이미 응답이 나갔고, 실패를 던지면 성공한 저장을 되돌리는 것처럼 보인다 |
+ *
+ *   판단 기준은 «그 쓰기가 이번 요청의 **결과**인가, 뒤따르는 **부수 작업**인가» 다.
  */
 export async function rewriteTriggerConfigLocked(
   manager: EntityManager,

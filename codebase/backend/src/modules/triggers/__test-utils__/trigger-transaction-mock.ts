@@ -11,6 +11,13 @@
 export interface TransactionMockOptions {
   /** 락 안 `m.findOne` 이 돌려줄 값. 미지정이면 바깥 `findOne` 에 위임. */
   freshFindOne?: (options: unknown) => unknown;
+  /**
+   * advisory lock 이 잡힐 때마다 그 **키**로 불린다.
+   *
+   * 락은 SQL 한 줄이라 바깥에서 관측할 방법이 없었다 — «이 경로가 락을 잡는가» 를 단언하려면
+   * 그 사실이 테스트에 보여야 한다. 락을 빼는 뮤턴트를 잡는 유일한 고리다.
+   */
+  onLock?: (key: string) => void;
 }
 
 /**
@@ -37,11 +44,17 @@ export interface TransactionMockOptions {
  * 콜백을 실행하지 않으면 repo mock 의 `update`/`save` 가 한 번도 안 불려서, `config` 쓰기를
  * 단언하는 테스트들이 «아무 일도 안 일어났는데 통과» 한다. 그래서
  * `m.update(Trigger, where, patch)` → `repo.update(where, patch)`,
- * `m.save(Trigger, entity)` → `repo.save(entity)` 로 넘겨 **기존 단언의 의미를 보존**한다.
+ * `m.save(Trigger, entity)` → `repo.save(entity)`,
+ * `m.remove(entity)` → `repo.remove(entity)` 로 넘겨 **기존 단언의 의미를 보존**한다.
  *
- * **실측(뮤턴트)**: `transaction` 이 콜백을 실행하지 않게 바꾸면 **13개 케이스가 RED**
- * (R-CC-21 5 · 생성 경로 5 · callbackUrl 1 · `rotateBotToken` 2). 즉 이 위임은 장식이
- * 아니라 그 13건을 살아 있게 하는 배선이다 — GREEN 만으로는 증거가 되지 않아 빼 보고 셌다.
+ * **실측(뮤턴트)**: `transaction` 이 콜백을 실행하지 않게 바꾸면 `src/modules/triggers` 에서
+ * **53개 케이스가 RED** 다(R-CC-21 9 · lost-update 8 · `rotateBotToken` 8 · schedule 동기화 7 ·
+ * 생성 경로 5 · 그 외 16). 즉 이 위임은 장식이 아니라 그 53건을 살아 있게 하는 배선이다 —
+ * GREEN 만으로는 증거가 되지 않아 빼 보고 셌다.
+ *
+ * > **이 수는 시점 의존이다.** 처음 쟀을 땐 13이었는데, 그 뒤 창 1 과 `remove()` 가 같은
+ * > 트랜잭션 경로로 들어오면서 의존하는 테스트가 늘었다. 위 값은 **이 PR 이 닫히는 시점**의
+ * > 실측이다 — 이 파일을 고칠 땐 다시 재라.
  *
  * `m.findOne` 도 같은 이유로 위임한다 — 락 안 재읽기가 «지금 DB 에 있는 값» 을 보는 것이
  * 이 수정의 핵심이라, 그 자리를 고정값으로 채우면 presence 게이트 재계산이 검증되지 않는다.
@@ -63,13 +76,27 @@ export function withTransactionMock(
       transaction: jest.fn((cb: (m: Record<string, unknown>) => unknown) =>
         Promise.resolve(
           cb({
-            query: jest.fn().mockResolvedValue([]),
+            query: jest.fn((sql: unknown, params: unknown) => {
+              if (
+                typeof sql === 'string' &&
+                sql.includes('pg_advisory_xact_lock') &&
+                Array.isArray(params)
+              ) {
+                options.onLock?.(String(params[0]));
+              }
+              return Promise.resolve([]);
+            }),
             findOne: jest.fn((_entity: unknown, findOptions: unknown) => {
               if (options.freshFindOne)
                 return options.freshFindOne(findOptions);
               const findOneMock = triggerRepoMock.findOne as
                 ((o: unknown) => unknown) | undefined;
               return findOneMock ? findOneMock(findOptions) : undefined;
+            }),
+            remove: jest.fn((target: unknown) => {
+              const removeMock = triggerRepoMock.remove as
+                ((e: unknown) => unknown) | undefined;
+              return removeMock ? removeMock(target) : target;
             }),
             save: jest.fn((_entity: unknown, target: unknown) => {
               const saveMock = triggerRepoMock.save as
