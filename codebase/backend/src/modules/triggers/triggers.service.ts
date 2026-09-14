@@ -579,9 +579,24 @@ export class TriggersService {
         // 이 저장이 조용히 덮는 것이다 — 이 PR 이 막는 것과 **같은 클래스**의 lost update 를
         // 수정 자체가 새로 만들고 있었다
         // (`/ai-review` `review/code/2026/09/14/19_07_43` database WARNING#2).
-        const target = fresh ?? trigger;
-        Object.assign(target, defined, { config: mergedConfig });
-        return m.save(Trigger, target);
+        //
+        // **행이 사라졌으면 저장하지 않는다.** `save(entity)` 는 PK 로 재조회해 행이 없으면
+        // **INSERT** 한다 — 그 사이 `remove()` 가 끝난 트리거를 같은 id 로 되살리는 것이다.
+        // `remove()` 는 이미 `teardownChatChannel`·`secrets.deleteByPrefix`·BullMQ 해제·
+        // CASCADE 삭제를 마쳤으므로, 되살아난 행은 그 어느 것도 되돌리지 못한 **고아**가 된다.
+        //
+        // 이 경로는 이 PR 이 만든 것이 아니다 — `origin/main` 의 `save(trigger)` 도 같은 호출
+        // 형태다. 다만 이 PR 이 형제 세 창을 «행이 없으면 쓰지 않고 `false`» 로 만들어 **비대칭**
+        // 이 생겼고, 여기는 이미 재읽기를 하고 있으니 같은 규율로 닫는 것이 자연스럽다
+        // (`/ai-review` `review/code/2026/09/14/19_44_08` side_effect·concurrency CRITICAL#1).
+        if (!fresh) {
+          throw new NotFoundException({
+            code: 'RESOURCE_NOT_FOUND',
+            message: 'Trigger not found',
+          });
+        }
+        Object.assign(fresh, defined, { config: mergedConfig });
+        return m.save(Trigger, fresh);
       })
       .catch((err: unknown) => this.rethrowEndpointPathConflict(err));
     // **커밋 직후** 기록한다 — 아래 세 가지(schedule 역동기화의 BullMQ 호출, secret

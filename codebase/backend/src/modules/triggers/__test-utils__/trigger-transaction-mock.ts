@@ -26,6 +26,12 @@ export interface TransactionMockOptions {
  * 전수로 세니 provider 는 **6개 파일**에 흩어져 있다. 열거 범위를 «한 파일» 로 잡은 것이
  * 결함이었으므로, 헬퍼를 공용 자리로 올려 다음 파일이 찾을 수 있게 한다.
  *
+ * **6개 전부를 이관한 것은 아니다** — 실제로 감싼 것은 `TriggersService` 의 트랜잭션 경로를
+ * 타는 **2개**(`triggers.service.spec.ts` · `triggers.web-chat.spec.ts`)다. 나머지 4개
+ * (`auth-configs` · `external-interaction` · `hooks` · `schedules`)는 그 경로를 호출하지 않아
+ * 지금은 안전하지만, 호출하게 되는 순간 같은 `Cannot read properties of undefined` 로 깨진다.
+ * 그때 고칠 자리가 여기라는 뜻이다.
+ *
  * ## 무엇을 위임하나 — 그리고 왜 no-op 이면 안 되나
  *
  * 콜백을 실행하지 않으면 repo mock 의 `update`/`save` 가 한 번도 안 불려서, `config` 쓰기를

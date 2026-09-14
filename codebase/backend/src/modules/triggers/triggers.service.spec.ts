@@ -3796,6 +3796,23 @@ describe('TriggersService — 락 안 재읽기가 동시 확립분을 본다 (l
     expect(savedEntity?.name).toBe('새 이름');
   });
 
+  it('update() — 그 사이 삭제된 트리거를 되살리지 않는다 (save 는 없으면 INSERT 한다)', async () => {
+    // `save(entity)` 는 PK 로 재조회해 행이 없으면 **INSERT** 한다. 락 안 재읽기가 비었는데
+    // pre-lock 스냅샷으로 저장하면, `remove()` 가 이미 teardown·secret 삭제·BullMQ 해제까지
+    // 마친 트리거가 같은 id 로 **고아 상태로 부활**한다
+    // (`review/code/2026/09/14/19_44_08` side_effect·concurrency CRITICAL#1).
+    //
+    // 형제 세 창은 이미 «행이 없으면 쓰지 않고 `false`» 다 — 창 1 만 다르면 비대칭이다.
+    const { service, repo } = await makeService([() => undefined as never]);
+
+    await expect(
+      service.update('trig-l', 'ws-1', { name: '새 이름' } as never, 'u-1'),
+    ).rejects.toMatchObject({ response: { code: 'RESOURCE_NOT_FOUND' } });
+
+    // **부재 단언이 핵심이다** — 저장이 한 번이라도 일어나면 부활한다.
+    expect(repo.save).not.toHaveBeenCalled();
+  });
+
   it('rotateBotToken — 손대지 않은 config 키가 살아남는다', async () => {
     const { service, repo } = await makeService([withRef]);
 

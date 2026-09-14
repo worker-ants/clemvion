@@ -90,7 +90,8 @@ describe('rewriteTriggerConfigLocked', () => {
     expect(merge).toHaveBeenCalledWith({ fromDb: true });
   });
 
-  it('config 가 null 이면 빈 객체로 좁혀 넘긴다', async () => {
+  it('config 가 비어 있으면(null·undefined) 빈 객체로 좁혀 넘긴다', async () => {
+    // `??` 라 두 값의 동작은 같다 — 제목이 `null` 만 말하면 fixture 와 어긋난다.
     const { manager } = makeManager({ config: undefined });
     const merge = jest.fn((c: Trigger['config']) => c);
 

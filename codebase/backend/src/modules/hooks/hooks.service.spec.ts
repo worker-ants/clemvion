@@ -795,6 +795,45 @@ describe('HooksService', () => {
       expect(engine.execute).not.toHaveBeenCalled();
     });
 
+    /**
+     * **대칭 자리 — chat-channel 인입도 `config` 를 다시 쓰지 않는다.**
+     *
+     * `handleWebhook` 쪽에는 같은 단언이 있었는데 **여기엔 없었다.** 리뷰가 뮤테이션으로
+     * 실측했다: 이 call site 만 종전 `save(trigger)` 로 되돌려도 `hooks.service.spec.ts`
+     * 전건이 GREEN (`review/code/2026/09/14/19_44_08` testing CRITICAL#2).
+     *
+     * 더 나쁜 것은, 그때 내가 plan·CHANGELOG 에 *"뮤턴트 두 방향 모두 RED 를 확인했다"* 고
+     * 적었다는 점이다. 내 뮤턴트 스크립트는 **두 자리 중 하나만** 건드렸다 — 측정 범위가
+     * 문장보다 좁았다. 그리고 하필 빠진 쪽이 주석 자신이 *"PATCH 경합보다 훨씬 잦다"* 고
+     * 적은 **더 위험한 경로**다.
+     */
+    it('lastTriggeredAt 갱신이 config 를 다시 쓰지 않는다 (컬럼 한정 update)', async () => {
+      triggerRepo.findOne.mockResolvedValue(chatChannelTrigger);
+      const channelUpdate = {
+        conversationKey: 'chat-cfg',
+        channelUserKey: 'user-cfg',
+        command: { kind: 'text_message', text: 'hello' },
+        idempotencyKey: '2001',
+        receivedAt: new Date().toISOString(),
+      };
+      mockAdapter.parseUpdate.mockResolvedValue(channelUpdate);
+      conversationService.lookup.mockResolvedValue(null);
+      engine.execute.mockResolvedValue('exec-cc-cfg');
+
+      await service.handleWebhook('abc', chatInput);
+
+      expect(triggerRepo.save).not.toHaveBeenCalled();
+      expect(triggerRepo.update).toHaveBeenCalledWith(
+        { id: chatChannelTrigger.id },
+        { lastTriggeredAt: expect.any(Date) },
+      );
+      // patch 에 `config` 가 섞이면 같은 결함이 update 형태로 재발한다.
+      const patches = triggerRepo.update.mock.calls.map(([, patch]) => patch);
+      for (const patch of patches) {
+        expect(Object.keys(patch as object)).toEqual(['lastTriggeredAt']);
+      }
+    });
+
     it('parseUpdate 성공 + conversation 없음 → 새 execution 시작 (CCH-CV-03 신규 경로)', async () => {
       triggerRepo.findOne.mockResolvedValue(chatChannelTrigger);
       triggerRepo.save.mockImplementation((t) => Promise.resolve(t as Trigger));

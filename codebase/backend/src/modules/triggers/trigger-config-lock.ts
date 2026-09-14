@@ -50,6 +50,11 @@ export async function acquireTriggerConfigLock(
  *
  * ## 왜 필요한가
  *
+ * **배선**: 이 함수를 쓰는 곳은 **창 2·3·4**(binder 성공·실패 경로 · `rotateBotToken`)다.
+ * 창 1(`TriggersService.update()`)은 `save(entity)` 의 계약을 보존해야 해서 같은 락을
+ * **인라인으로** 잡는다 — `acquireTriggerConfigLock` 을 공유하지만 이 함수는 거치지 않는다.
+ * (세 라운드 연속 지적된 혼동이라 여기 못박는다.)
+ *
  * 네 자리가 «읽기 → (외부 호출) → 쓰기» 를 락 없이 이어 붙이고, 쓰기는 읽은 시점의
  * **in-memory 스냅샷**으로 `config` 를 통째로 재구성한다. 동시 PATCH 가 겹치면 나중에
  * 커밋되는 쪽이 먼저 반영된 키를 **옛 스냅샷으로 되돌려 쓴다** — 잃는 것이

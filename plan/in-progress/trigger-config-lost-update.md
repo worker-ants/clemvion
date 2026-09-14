@@ -308,16 +308,6 @@ server-issued 발급만이 그 역할을 하고, 게다가 이 환경의 telegra
 | 번들 절단 | consistency 하네스의 예산 문제 |
 | 전역 **32비트** 키 공간 공유 | `hashtext` 는 int4 를 낸다 — 전 도메인이 한 공간을 쓴다. 충돌해도 과직렬화뿐이라 무해하지만 **어디에도 적혀 있지 않다** |
 
-### 후속(developer 범위) — 이 PR 로 넓히지 않는다
-
-| 항목 | 근거 |
-|---|---|
-| `rewriteTriggerConfigLocked` 반환값을 세 호출부가 무시한다 | JSDoc 이 약속한 «관측 가능» 이 아직 실현되지 않았다 (INFO#2) |
-| `remove()` 가 같은 락을 안 잡는다 | `findOne`–`update` 사이 삭제 레이스의 좁은 창. 데이터 손상은 없다 (INFO#6) |
-| `chatChannelHealth` 등 상태 컬럼은 락 밖 | 관측성 lost update, 보안 무관 (INFO#7) |
-| `setupAt`/`rotatedAt` 을 락 획득 **전**에 캡처 | 컨텐션 시 «완료 시각» 과 괴리 (INFO#5) |
-| 헬퍼가 `Trigger` 에 하드코딩 | 아래 «같은 클래스» 후속에서 제네릭화 필요 (INFO#4) |
-
 ### 같은 클래스의 자리가 **넷보다 많다** — 전수 열거 결과
 
 §A 는 *"`{...(trigger.config ?? {}), chatChannel: …}` 로 덮는 자리"* 를 세어 **넷**을 얻었다.
@@ -349,8 +339,25 @@ server-issued 발급만이 그 역할을 하고, 게다가 이 환경의 telegra
 **웹훅 인입 hot path 는 이 PR 에서 닫았다.** `hooks.service.ts` 의 두 자리
 (`handleWebhook` · chat-channel 인입)는 `lastTriggeredAt` 만 바꾸면서 `save(trigger)` 로
 엔티티를 통째로 썼다 — **인입 메시지마다** 도는 경로라 PATCH 경합보다 훨씬 잦고, 잃는 것이
-같은 `inboundSigningRef` 다. 컬럼 한정 `update` 로 바꿨고 뮤턴트 두 방향(전체 save 로 되돌리기 ·
-`config` 를 patch 에 섞기)이 모두 RED 임을 확인했다.
+같은 `inboundSigningRef` 다. 컬럼 한정 `update` 로 바꿨다.
+
+> **~~"뮤턴트 두 방향이 모두 RED 임을 확인했다"~~ — 이 문장은 거짓이었다.** 내 뮤턴트
+> 스크립트는 두 자리 중 **`handleWebhook` 하나만** 건드렸다(두 뮤턴트가 같은 앵커를 썼다).
+> chat-channel 인입 자리는 회귀 테스트가 아예 없었고, 리뷰가 뮤테이션으로 실측해 잡았다 —
+> 그 자리만 되돌려도 `hooks.service.spec.ts` 전건이 GREEN 이었다
+> (`review/code/2026/09/14/19_44_08` testing CRITICAL#2). 하필 빠진 쪽이 **더 위험한 경로**다.
+>
+> **측정 범위가 문장보다 좁았다.** 고친 방식은 대조군 추가만이 아니다 — 뮤턴트 스크립트가
+> 자기가 건드린 **파일 오프셋**을 두 자리의 오프셋과 대조해, 의도한 자리가 아니면 **단언으로
+> 멈추게** 했다. 산문 규율이 아니라 코드가 범위를 지킨다.
+
+지금 실측(자리별로 확인):
+
+| 뮤턴트 | 자리 | 결과 |
+|---|---|---|
+| 전체 `save` 로 되돌리기 | `handleWebhook` (offset 9593) | **RED 1건** |
+| 전체 `save` 로 되돌리기 | chat-channel 인입 (offset 28829) | **RED 1건** |
+| patch 에 `config` 섞기 | chat-channel 인입 (offset 28938) | **RED 1건** |
 
 ### 2라운드 리뷰 처분 (`review/code/2026/09/14/19_07_43` — C0 · W7)
 
@@ -364,6 +371,17 @@ server-issued 발급만이 그 역할을 하고, 게다가 이 환경의 telegra
 | W6 `spec` `code:` glob 미포함 | planner 범위 — 위 등재 표 유지 |
 | W7 인라인 ref 캐스트 3중 복제 | **수용·수정** — `extractInboundSigningRef` 로 통합 |
 
+### 3라운드 리뷰 처분 (`review/code/2026/09/14/19_44_08` — C2 · W3)
+
+| # | 처분 |
+|---|---|
+| C1 창 1 이 **삭제된 트리거를 되살린다** (`save` 는 행이 없으면 INSERT) | **수용·수정** — `!fresh` 면 404. 이 경로는 이 PR 이 만든 것이 아니라(`origin/main` 의 `save(trigger)` 도 같은 호출 형태) 형제 세 창을 skip 으로 만들며 생긴 **비대칭**이다. 부재 단언(`save` 미호출)까지 건다 |
+| C2 chat-channel 인입 자리에 회귀 테스트 부재 + **내 실측 서술이 거짓** | **수용·수정** — 대칭 테스트 추가 + 뮤턴트 스크립트가 자리별 오프셋을 단언하게 했다. 위 註 |
+| W1 형제 write-site 3곳 | 이미 등재됨 — 후속 표 유지 |
+| W2 CHANGELOG 가 `12ed21ff1` 시점 범위 | **수용·수정** — hooks 전환과 «네 자리» 표현 정정 |
+| W3 `previousInboundSigningRef` 가 클로저 경계를 셋 넘는다 | 후속 등재 — 트랜잭션 콜백이 결과 객체를 반환하도록 |
+| INFO#3·#4·#5 (mock JSDoc 이관 범위 · 「네 자리 vs 배선 3곳」 · lock spec 제목) | **수용·수정** — INFO#4 는 3라운드 연속 지적이라 이번에 못박았다 |
+
 ### 후속(developer 범위) — 이 PR 로 넓히지 않는다
 
 | 항목 | 근거 |
@@ -373,11 +391,12 @@ server-issued 발급만이 그 역할을 하고, 게다가 이 환경의 telegra
 | 컬럼만 고치는 3자리의 암묵적 `config` 쓰기 | 컬럼 한정 `update` 로 바꾸면 사라진다. 자리별로 «그 엔티티를 뒤에서 쓰는가» 확인 필요 |
 | `PATCH /api/triggers/:id` 의 P95/P99 관측 | W5 — 새 결함은 아니나 전제가 바뀌었다 |
 | `rewriteTriggerConfigLocked` 반환값을 세 호출부가 무시 | JSDoc 이 약속한 «관측 가능» 이 아직 실현되지 않았다 |
-| `remove()` 가 같은 락을 안 잡는다 | 삭제 레이스의 좁은 창. 데이터 손상은 없다 |
+| `remove()` 가 같은 락을 안 잡는다 | 삭제 레이스의 좁은 창. **«데이터 손상 없음» 은 창 1 의 `!fresh` 처리를 넣은 뒤에야 참이 됐다** — 그 전에는 삭제된 트리거가 `save` 로 부활했다 (3라운드 C1). 지금은 네 창 모두 «행이 없으면 쓰지 않는다» |
 | `chatChannelHealth` 등 상태 컬럼은 락 밖 | 관측성 lost update, 보안 무관 |
 | `setupAt`/`rotatedAt` 을 락 획득 **전**에 캡처 | 컨텐션 시 «완료 시각» 과 괴리 |
 | 헬퍼가 `Trigger` 에 하드코딩 | 위 후속들에서 제네릭화 필요 |
 | `update()` 가 ~160줄 — 창 1 을 `saveWithConfigLock(...)` 으로 분리 | 다음 편집 때 |
+| `previousInboundSigningRef` 가 선언→트랜잭션 내 재대입→커밋 후 소비로 클로저 경계를 셋 넘는다 | 트랜잭션 콜백이 `{ saved, previousInboundSigningRef }` 를 반환하도록 (급하지 않음) |
 
 ## 하지 않는 것
 

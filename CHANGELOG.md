@@ -8,9 +8,15 @@
 `if (!config.inboundSigningRef) return;` 이 걸려 **그 트리거의 인입 웹훅이 서명 검증 없이
 통과**한다 — 이미 한 번 닫았던 fail-open 이 동시성 경로로 되살아나는 형태다.
 
-`config` 를 다시 쓰는 **네 자리 전부**를 트리거 단위 advisory lock
+`config` 를 다시 쓰는 **네 자리 전부**(`update()` · chat-channel setup 의 성공·실패 경로 ·
+bot token 회전)를 트리거 단위 advisory lock
 (`pg_advisory_xact_lock(hashtext('trigger-config:<id>'))`) 안으로 넣고, **락을 잡은 뒤에
-행을 다시 읽어** 병합한다. 외부 provider 호출은 락 **밖**에 남는다 — Cafe24 토큰 갱신에서
+행을 다시 읽어** 병합한다. 행이 그 사이 삭제됐으면 쓰지 않는다 — `save` 는 행이 없으면
+INSERT 하므로, 그대로 두면 삭제된 트리거가 고아 상태로 되살아난다.
+
+**웹훅 인입 경로도 함께 고쳤다.** `lastTriggeredAt` 만 갱신하면서 엔티티를 통째로 저장하던
+두 자리가 있었다 — 요청 시작 시점의 `config` 가 함께 실리므로, 같은 ref 를 **인입 메시지마다**
+되돌릴 수 있었다(PATCH 끼리의 경합보다 훨씬 잦다). 컬럼 한정 갱신으로 바꿨다. 외부 provider 호출은 락 **밖**에 남는다 — Cafe24 토큰 갱신에서
 같은 락을 기각했던 사유(*"lock 보유 중 HTTP 요청을 transaction 안에 묶어야 해 DB 커넥션
 점유 시간이 늘고"*)가 그대로 이 설계의 제약이다.
 
