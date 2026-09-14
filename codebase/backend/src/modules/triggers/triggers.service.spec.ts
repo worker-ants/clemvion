@@ -32,6 +32,54 @@ import {
 } from './chat-channel-rejection-messages.const';
 
 /**
+ * `rewriteTriggerConfigLocked` 가 쓰는 `manager.transaction` 을 mock 한다 —
+ * **콜백을 실제로 실행하고, 안쪽 호출을 바깥 repo mock 으로 위임**한다.
+ *
+ * **no-op 으로 두면 안 된다.** 콜백을 실행하지 않으면 repo mock 의 `update` 가 한 번도
+ * 안 불려서, `config` 쓰기를 단언하는 테스트들이 «아무 일도 안 일어났는데 통과» 한다.
+ * 그래서 `m.update(Trigger, where, patch)` 를 `repo.update(where, patch)` 로 넘겨
+ * **기존 단언의 의미를 그대로 보존**한다.
+ *
+ * **실측(뮤턴트)**: `transaction` 이 콜백을 실행하지 않게 바꾸면 **13개 케이스가 RED**
+ * (R-CC-21 5 · 생성 경로 5 · callbackUrl 1 · `rotateBotToken` 2). 즉 이 위임은 장식이
+ * 아니라 그 13건을 살아 있게 하는 배선이다 — GREEN 만으로는 증거가 되지 않아 빼 보고 셌다.
+ *
+ * `m.findOne` 도 같은 이유로 위임한다 — 락 안 재읽기가 «지금 DB 에 있는 값» 을 보는 것이
+ * 이 수정의 핵심이라, 그 자리를 고정값으로 채우면 presence 게이트 재계산이 검증되지 않는다.
+ *
+ * 선례: `execution-engine.service.spec.ts` 의 admission advisory-lock 트랜잭션 mock
+ * (그쪽도 콜백을 실제로 실행한다).
+ */
+function withTransactionMock(
+  triggerRepoMock: Record<string, unknown>,
+): Record<string, unknown> {
+  if (triggerRepoMock.manager) return triggerRepoMock;
+  return {
+    ...triggerRepoMock,
+    manager: {
+      transaction: jest.fn(
+        async (cb: (m: Record<string, unknown>) => unknown) =>
+          cb({
+            query: jest.fn().mockResolvedValue([]),
+            findOne: jest.fn((_entity: unknown, options: unknown) => {
+              const findOneMock = triggerRepoMock.findOne as
+                ((o: unknown) => unknown) | undefined;
+              return findOneMock ? findOneMock(options) : undefined;
+            }),
+            update: jest.fn(
+              (_entity: unknown, where: unknown, patch: unknown) => {
+                const updateMock = triggerRepoMock.update as
+                  ((w: unknown, p: unknown) => unknown) | undefined;
+                return updateMock ? updateMock(where, patch) : undefined;
+              },
+            ),
+          }),
+      ),
+    },
+  };
+}
+
+/**
  * [SUMMARY W-3] createBaseProviders — Secret rotation / itk revoke / setupChatChannel
  * describe 블록들이 공유하는 프로바이더 설정 헬퍼.
  * triggerRepo mock 은 suite마다 메서드가 달라 개별 override 후 spread 한다.
@@ -44,7 +92,7 @@ function createBaseProviders(
     ChatChannelBinderService,
     {
       provide: getRepositoryToken(Trigger),
-      useValue: triggerRepoMock,
+      useValue: withTransactionMock(triggerRepoMock),
     },
     { provide: getRepositoryToken(Execution), useValue: {} },
     // 감사 로깅은 부수 효과 — 대상 동작의 단언을 흐리지 않도록 mock 한다. 이 팩토리는
@@ -117,7 +165,10 @@ describe('TriggersService.findOneDetail', () => {
           provide: getRepositoryToken(Trigger),
           // `save` 는 `update()` 경로가 쓴다 — 이 describe 의 다른 테스트는 조회만 하지만
           // 생략-필드 보존 회귀가 같은 서비스의 수정 경로를 탄다.
-          useValue: { findOne: jest.fn(), save: jest.fn() },
+          useValue: withTransactionMock({
+            findOne: jest.fn(),
+            save: jest.fn(),
+          }),
         },
         {
           provide: getRepositoryToken(Execution),
@@ -431,7 +482,7 @@ describe('TriggersService.findAll — schedule 목록 enrichment (V-10)', () => 
         ChatChannelBinderService,
         {
           provide: getRepositoryToken(Trigger),
-          useValue: { createQueryBuilder: jest.fn() },
+          useValue: withTransactionMock({ createQueryBuilder: jest.fn() }),
         },
         { provide: getRepositoryToken(Execution), useValue: {} },
         {
@@ -618,11 +669,11 @@ describe('TriggersService — notification/interaction config 병합 (External I
         ChatChannelBinderService,
         {
           provide: getRepositoryToken(Trigger),
-          useValue: {
+          useValue: withTransactionMock({
             create: jest.fn((x: Partial<Trigger>) => x as Trigger),
             save: jest.fn((x: Trigger) => Promise.resolve(x)),
             findOne: jest.fn(),
-          },
+          }),
         },
         { provide: getRepositoryToken(Execution), useValue: {} },
         {
@@ -1580,12 +1631,12 @@ describe('TriggersService — webhook callbackUrl 조립 (app.url 사용 회귀 
         ChatChannelBinderService,
         {
           provide: getRepositoryToken(Trigger),
-          useValue: {
+          useValue: withTransactionMock({
             findOne: jest.fn().mockResolvedValue(baseTrigger),
             update: jest.fn().mockResolvedValue(undefined),
             save: jest.fn((t: Trigger) => Promise.resolve(t)),
             createQueryBuilder: jest.fn(),
-          },
+          }),
         },
         { provide: getRepositoryToken(Execution), useValue: {} },
         {
@@ -1741,11 +1792,11 @@ describe('TriggersService.remove — deleteByPrefix 호출 검증 (SUMMARY#13)',
         ChatChannelBinderService,
         {
           provide: getRepositoryToken(Trigger),
-          useValue: {
+          useValue: withTransactionMock({
             findOne: jest.fn().mockResolvedValue(trigger),
             remove: jest.fn().mockResolvedValue(undefined),
             update: jest.fn().mockResolvedValue(undefined),
-          },
+          }),
         },
         { provide: getRepositoryToken(Execution), useValue: {} },
         {
@@ -1873,7 +1924,7 @@ describe('TriggersService.rotateBotToken — 6단계 오케스트레이션', () 
         ChatChannelBinderService,
         {
           provide: getRepositoryToken(Trigger),
-          useValue: {
+          useValue: withTransactionMock({
             findOne: jest.fn().mockResolvedValue({
               id: TRIGGER_ID,
               workspaceId: WORKSPACE_ID,
@@ -1888,7 +1939,7 @@ describe('TriggersService.rotateBotToken — 6단계 오케스트레이션', () 
             } as unknown as Trigger),
             update: jest.fn().mockResolvedValue(undefined),
             save: jest.fn((t: Trigger) => Promise.resolve(t)),
-          },
+          }),
         },
         { provide: getRepositoryToken(Execution), useValue: {} },
         {
@@ -2270,11 +2321,11 @@ describe('TriggersService — Schedule 역방향 동기화 (data-flow 10-trigger
         ChatChannelBinderService,
         {
           provide: getRepositoryToken(Trigger),
-          useValue: {
+          useValue: withTransactionMock({
             findOne: jest.fn(),
             save: jest.fn(async (t: Trigger) => t),
             remove: jest.fn(),
-          },
+          }),
         },
         { provide: getRepositoryToken(Execution), useValue: {} },
         {
@@ -2464,7 +2515,10 @@ describe('TriggersService.promoteRotatedNotificationSecrets — secret store 경
         { provide: AuditLogsService, useValue: { record: jest.fn() } },
         TriggersService,
         ChatChannelBinderService,
-        { provide: getRepositoryToken(Trigger), useValue: triggerRepo },
+        {
+          provide: getRepositoryToken(Trigger),
+          useValue: withTransactionMock(triggerRepo),
+        },
         { provide: getRepositoryToken(Execution), useValue: {} },
         {
           provide: getRepositoryToken(Schedule),

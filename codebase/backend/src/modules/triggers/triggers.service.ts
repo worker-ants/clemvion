@@ -19,6 +19,7 @@ import {
 } from '../../common/db/pg-error';
 import { randomBytes } from 'crypto';
 import { Trigger, TriggerChatChannelHealth } from './entities/trigger.entity';
+import { rewriteTriggerConfigLocked } from './trigger-config-lock';
 import { Execution } from '../executions/entities/execution.entity';
 import { Schedule } from '../schedules/entities/schedule.entity';
 import { ScheduleRunnerService } from '../schedules/schedule-runner.service';
@@ -520,6 +521,17 @@ export class TriggersService {
       interaction,
       safeChatChannel,
     );
+
+    // **이 자리(창 1)는 이 배치에서 고치지 않는다 — 트래커 등재분.**
+    // `save(trigger)` 를 락 안 `update` + 재조회로 바꿔 보고 **되돌렸다**. 반환 엔티티·
+    // subscriber·`endpointPath` UNIQUE 충돌 경로의 의미가 함께 달라진다 — 실측: 그 배선에서
+    // `triggers.service.spec.ts` 의 **6개 케이스가 RED** 였다(interaction 전체 교체 · 생략 필드
+    // 유지 · notification 병합 유지 · 저장 실패 시 감사 미기록 · 409 RESOURCE_CONFLICT 두 키 ·
+    // R-CC-21 botTokenRef 재유도). 되돌리니 9 스위트 279건 전부 통과.
+    //
+    // 창 2·3·4 를 닫고 나면 `inboundSigningRef` 의 **영속적** 유실은 사라지고, 여기 남는 것은
+    // «손대지 않은 `config` 키» 의 유실이다 — 이 구간엔 외부 호출이 없어 창도 좁다.
+    // 트래커 등재분: `plan/in-progress/trigger-config-lost-update.md` §D.
     // `rest` 에는 **값이 없는 optional 필드도 `undefined` 로 존재**한다 — `target: ES2023`
     // 에서 클래스 필드가 own property 로 정의되기 때문이다(`useDefineForClassFields`).
     // 그대로 `Object.assign` 하면 로드된 값을 `undefined` 로 **덮어쓴다** — DB 는 TypeORM
@@ -1096,12 +1108,20 @@ export class TriggersService {
       );
     }
 
-    // 6. trigger 컬럼 갱신.
+    // 6. trigger 컬럼 갱신 — **락 안에서 config 를 다시 읽어 머지한다.**
+    //
+    // 위 `adapter.setupChannel` 은 이미 끝났으므로 외부 호출이 임계 구간에 들어가지 않는다
+    // (근거는 `trigger-config-lock.ts` JSDoc). `mergedChannel` 은 이 회전의 산출이라 그대로
+    // 쓰고, 되살려야 하는 것은 **다른 요청이 그 사이 커밋한 `config` 의 나머지 키**다 —
+    // 종전엔 1단계 `findById` 시점의 `trigger.config` 스냅샷으로 통째로 덮어 그것들을 잃었다.
+    //
+    // 아래 네 컬럼은 «이번 회전의 결과» 라 머지 대상이 아니다.
     const rotatedAt = new Date();
-    await this.triggerRepository.update(
-      { id: trigger.id },
+    await rewriteTriggerConfigLocked(
+      this.triggerRepository.manager,
+      trigger.id,
+      (freshConfig) => ({ ...freshConfig, chatChannel: mergedChannel }),
       {
-        config: { ...(trigger.config ?? {}), chatChannel: mergedChannel },
         chatChannelTokenV2: v2RefUsed,
         chatChannelRotatedAt: rotatedAt,
         chatChannelHealth: 'healthy',
