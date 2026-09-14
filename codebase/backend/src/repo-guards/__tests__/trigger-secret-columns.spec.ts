@@ -93,6 +93,26 @@ describe('트리거 비밀 컬럼 목록 3중 사본 정합', () => {
     expect(lists[MIRROR_SOURCES[0]]?.length).toBeGreaterThan(0);
   });
 
+  /**
+   * **`readStringArrayConst` 의 분기 ↔ 대조군 대응표.**
+   *
+   * | # | 분기 | 결과 | 대조군 |
+   * |---|---|---|---|
+   * | 1 | 대상 파일 부재 | throw(가드 메시지) | *대상 파일이 없으면…* |
+   * | 2 | 선언 없음 | `null` | *선언이 없으면…* |
+   * | 3 | 선언 있음 · 초기값이 배열 아님 | `null` | *선언은 있는데 배열이 아니면…* |
+   * | 4 | 배열 · 비-문자열 원소 섞임 | `null` | *문자열이 아닌 원소가…* |
+   * | 5 | 배열 · 전부 문자열 | 값 | *주석 안의 이름은…* · *래퍼가 없어도…* |
+   * | 6 | 래퍼 `as const satisfies` | 벗김 | *`as const satisfies …` 도…* |
+   * | 7 | 래퍼 괄호 | 벗김 | *괄호로 감싼 선언도…* |
+   *
+   * **이 표를 두는 이유**: 이 배치에서 *"JSDoc 에 N 개를 열거하고 N−1 개를 잠근다"* 가
+   * **다섯 번** 반복됐다(라운드 1 파일 부재 · 2 그 영속성 · 3 괄호 · 4 분기 3 · 그리고
+   * 트래커 쪽 stale 이름 스코프). 산문으로 *"빠뜨리지 말자"* 를 네 번 적었으니 다섯 번째는
+   * **구조**로 바꾼다 — 형제 캐너리(`trigger-workflow-ref.spec.ts`)의 «가드 실행 순서 목록»
+   * 과 같은 장치다. **분기를 더하면 이 표에 행을 먼저 추가할 것.** 행만 있고 대조군이 없으면
+   * 그 자리가 눈에 보인다.
+   */
   describe('[대조군] `readStringArrayConst` 가 무엇을 읽고 무엇을 거절하는가', () => {
     let tmp: string;
 
@@ -150,6 +170,18 @@ describe('트리거 비밀 컬럼 목록 3중 사본 정합', () => {
       const rel = write(
         'missing.ts',
         "const Y = ['a'] as const;\nexport default Y;",
+      );
+      expect(readStringArrayConst(tmp, rel, 'X')).toBeNull();
+    });
+
+    it('선언은 있는데 배열이 아니면 `null` — 두 상태를 뭉개지 않는다', () => {
+      // JSDoc 이 *"`[]`(목록이 비었다)와 `null`(못 읽었다)을 가른다"* 고 선언하는데
+      // **그 경계의 한쪽 진입로**(이름은 맞는데 초기값이 배열이 아님)에 대조군이 없었다 —
+      // 이 분기가 `[]` 를 내도록 바꿔도 11/11 GREEN 이었다 (`/ai-review`
+      // `review/code/2026/09/14/12_37_01` testing WARNING#1).
+      const rel = write(
+        'non-array.ts',
+        'const X = { a: 1 };\nexport default X;',
       );
       expect(readStringArrayConst(tmp, rel, 'X')).toBeNull();
     });

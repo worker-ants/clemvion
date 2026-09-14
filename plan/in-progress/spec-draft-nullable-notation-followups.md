@@ -3932,12 +3932,30 @@ field: T | null;
       나머지 셋이 살아 있어 유효). 처방: `spec/**` frontmatter 의 `pending_plans` 경로가 실재하는지
       검사하는 가드 한 줄. **`findBrokenPlanLinks` 는 마크다운 링크만 보고 frontmatter 는 안 본다.**
 
-- [ ] **`secret-store.md §R4` 가 `TriggersService.delete()` 라 쓰는데 실제는 `remove()`**
-      (planner, 2026-09-14 등재 · `--impl-done` `review/consistency/2026/09/14/11_52_23`
-      cross_spec INFO#1 + `/ai-review` `11_52_13` requirement INFO#3 이 독립 지적).
-      같은 문서 §2.1 근방은 `remove()` 로 옳게 쓴다 — **문서 안에서 갈린다.**
+- [ ] **없는 메서드 `TriggersService.delete()` 가 세 곳에 있다 (실제는 `remove()`)**
+      (planner 2 + 무조치 1, 2026-09-14 등재 · 스코프 확장 2026-09-14 · `--impl-done`
+      `review/consistency/2026/09/14/11_52_23` cross_spec INFO#1 + `/ai-review` `11_52_13`
+      requirement INFO#3 + `--impl-done` `12_37_09` cross_spec WARNING#1).
+
+      **전수 grep 으로 세 곳이다** — 첫 등재는 `secret-store.md` 하나만 적었고, checker 가
+      둘째를 찾았고, **셋째는 둘 다 못 봤다**:
+
+      | # | 자리 | 소유 | 처분 |
+      |---|---|---|---|
+      | 1 | `spec/conventions/secret-store.md:428` (§R4) | planner | `remove()` 로 정정 |
+      | 2 | `spec/1-data-model.md:791` | planner | 같음 |
+      | 3 | `codebase/backend/migrations/V063__secret_store.sql:20` | developer | **고치지 않는다** ↓ |
+
+      > **3번은 고치면 안 된다 — Flyway 체크섬.** `docker-compose.e2e.yml` 이 마이그레이션을
+      > `/flyway/sql` 로 마운트하고 `flyway migrate` 를 돌린다(실측). `migrate` 는 **이미 적용된
+      > 마이그레이션의 체크섬을 검증**하므로, 주석 한 글자만 바꿔도 V063 이 적용된 장수 DB 에서
+      > `migrate` 가 실패한다. e2e 는 매번 `down -v` 라 무해하지만 그것이 판단 근거가 될 수 없다.
+      > **이 판단을 여기 적는 이유는 다음 사람이 «친절하게» 고치는 것을 막기 위해서다.**
+      > 굳이 고친다면 마이그레이션 파일이 아니라 `migrations/README.md` 쪽에 註를 다는 편이 맞다.
+
+      같은 문서(`secret-store.md`) §2.1 근방은 `remove()` 로 옳게 쓴다 — **문서 안에서 갈린다.**
       기존 오기이지만 `trigger-canary-hardening` 의 e2e 주석이 §R4 를 **처음 명시 인용**해
-      가시화됐다. 처분: §R4 의 `delete()` → `remove()` 한 단어.
+      가시화됐다.
 
 - [ ] **`2-trigger-list.md` 의 `code:` 가 §3 계약의 시행 파일 하나를 놓친다**
       (planner, 2026-09-14 등재 · `/ai-review` `review/code/2026/09/14/11_27_40`
