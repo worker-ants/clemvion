@@ -125,6 +125,13 @@ planner 가 결정해야 한다 — 그게 이 항목의 실제 무게다.
   > (`--impl-done` `review/consistency/2026/09/14/13_04_59` plan_coherence INFO#5 는
   > *"7/8 을 14/5/9 로 교체"* 를 제안했는데, 그대로 하면 다른 질문의 답으로 덮어쓴다.)
   >
+  > **다만 «같은 질문» 의 답도 이미 움직였다.** 아래 7/8 과 **같은 축(파일 쌍)** 으로 오늘
+  > 다시 세면 `*-guard.ts` **14** · `*.spec.ts` **15** 다 — 그중 한 쌍은
+  > `trigger-canary-hardening` 배치가 더한 `trigger-secret-columns-{guard,spec}.ts` 다.
+  > 즉 «교체하지 말 것» 은 *다른 축의 수*(14/5/9)에 대한 말이고, 아래 7/8 자체는
+  > **재측정 대상이 맞다**. (`/ai-review` `review/code/2026/09/14/13_31_24`
+  > documentation INFO#15 — 첫 각주가 앞말만 적고 이 사실을 빠뜨렸다.)
+  >
   > **수치 갱신 (2026-09-04 실측)**: 종전 "5쌍 이상" 이었다. 지금은 `*-guard.ts` **7** ·
   > `*.spec.ts` **8** 이고, 그 사이 `entity-nullable-column-type-mismatch.md` 작업이 walker
   > 사본 5개를 `collectTsFiles` 하나로 통합해 **공유 인프라가 생겼다**(`.spec.ts`/`.d.ts`
