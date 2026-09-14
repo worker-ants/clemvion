@@ -3932,7 +3932,41 @@ field: T | null;
       나머지 셋이 살아 있어 유효). 처방: `spec/**` frontmatter 의 `pending_plans` 경로가 실재하는지
       검사하는 가드 한 줄. **`findBrokenPlanLinks` 는 마크다운 링크만 보고 frontmatter 는 안 본다.**
 
-- [ ] **하드닝: 트리거 비밀 컬럼 목록이 3중 독립 사본이다** (developer, 2026-09-10 등재,
+- [ ] **`--impl-prep`/`--spec` 번들이 `spec/` 코퍼스를 통째로 절단한다 — 기록된 범위보다 넓다**
+      (harness, 2026-09-14 등재 · `--impl-prep`
+      `review/consistency/2026/09/14/10_44_37` cross_spec·convention_compliance 공동 WARNING#1).
+      실측: `_prompts/cross_spec.md` 의 **387개 `@bundle-file` 중 380개**가 *"본문 생략됨"*
+      한 줄로 대체됐다(완전 렌더 7개). `convention_compliance` 는 관점 2/4 판정에 직접 필요한
+      원본(`error-codes.md`·`swagger.md`·`node-output.md`·`secret-store.md`·
+      `spec-impl-evidence.md`)이 전부 절단돼 **판정 자체가 불가능**했다.
+
+      > **이미 기록된 것보다 범위가 넓다.** 종전 관측은 *"`--spec` 기본 예산이 conventions 를
+      > 통째로 떨군다"* 였는데, 이번은 **`spec/` 트리 전체**이고 모드도 `--impl-prep` 이다.
+      >
+      > **위험은 «미검증» 이 «문제 없음» 으로 보고된다는 것**이다. checker 가 스스로
+      > *"관점 2/4 는 미검증으로 기록"* 이라 적어 이번엔 드러났지만, 그 자백이 없으면 BLOCK:NO
+      > 가 «관례 준수 확인» 으로 읽힌다. 처방 후보: (a) 절단 시 SUMMARY 에 «미검증 관점» 을
+      > 기계적으로 싣게 한다 (b) `related_specs` 우선순위를 target 의 `spec_impact` 기준으로
+      > 재정렬 (c) 관점별로 번들을 쪼갠다. **(a) 가 가장 싸고 거짓 음성을 직접 막는다.**
+
+- [ ] **`spec/conventions/cafe24-api-catalog/_overview.md` 에 lifecycle frontmatter 가 없다**
+      (planner, 2026-09-14 등재 · `--impl-prep` `10_44_37` convention_compliance WARNING#2).
+      같은 디렉토리의 형제 `<resource>.md` 18개는 전부 `id`/`status` 를 갖췄는데 `_overview.md`
+      자신만 없다. 그 파일 §7.1 이 *"카탈로그 최상위 `<resource>.md` 인덱스는 정식 spec 으로
+      계속 검증된다"* 고 적으면서 자기 자신을 예외 glob 에 넣지도 빼지도 않았다.
+      처분 후보: (a) frontmatter 추가 (b) §7.1 예외 glob 에 `_overview.md` 명시.
+      > checker 가 `spec-impl-evidence.md` 원문 절단으로 정규식까지는 대조하지 못했다 —
+      > 위 번들 항목과 **같은 세션의 같은 원인**이다.
+
+- [ ] **`<parent>__<child>` 더블언더스코어 표기가 규약에 정의돼 있지 않다**
+      (planner, 2026-09-14 등재 · `--impl-prep` `10_44_37` convention_compliance WARNING#3).
+      실제 파일명 50개 이상이 `categories__decorationimages`·`boards__articles__comments`(3단
+      중첩) 형태를 쓰는데, `cafe24-api-catalog/_overview.md §7.1` 은 *"kebab-case, 예:
+      `appstore-orders`"* 까지만 적어 `__` 의 의미(부모-자식 구분자)를 유도할 수 없다.
+      처분: §7.1 에 *"중첩 sub-resource 는 `__` 로 부모-자식을 잇고 각 세그먼트는 kebab-case"*
+      한 문장.
+
+- [x] **하드닝: 트리거 비밀 컬럼 목록이 3중 독립 사본이다** (developer, 2026-09-10 등재,
       `maintainability` W1 + `security` W1 이 같은 자리를 독립 지적).
       정본은 `triggers.service.ts` 의 `TRIGGER_RESPONSE_STRIP_COLUMNS`(비-export), 사본은
       `shared/testing/schedule-trigger-ref.ts` 와 신규 `trigger-workflow-ref.ts`.
@@ -3949,7 +3983,14 @@ field: T | null;
       > 목록을 줄여도 스펙이 그대로 통과해 대조군이 사라진다. 헬퍼↔프로덕션 중복은 드리프트
       > 위험이지만 **스펙↔헬퍼 중복은 독립 대조군**이다. 그 구분을 스펙 헤더에 명시했다.
 
-- [ ] **회귀 방어: `type: 'schedule'` 트리거의 `workflow` 양성 커버리지가 저장소 전체에 0건**
+      ✅ **2026-09-14 해소** — `trigger-canary-hardening` 배치.
+      `repo-guards/__tests__/trigger-secret-columns-{guard.ts,spec.ts}` 신설.
+      **AST 로 읽는다** — 세 파일 다 목록 위 JSDoc 에 컬럼 이름이 산문으로 있어 정규식이면
+      주석이 값으로 잡힌다(형제 `redis-fail-open-catalog-guard.ts` 와 같은 근거).
+      뮤턴트 5건 전부 예측대로 RED(정본 컬럼 추가 · 사본 순서 뒤집기 · 사본 컬럼 삭제 ·
+      `satisfies` 분기 제거 · 비-문자열 원소 skip).
+
+- [x] **회귀 방어: `type: 'schedule'` 트리거의 `workflow` 양성 커버리지가 저장소 전체에 0건**
       (developer, 2026-09-10 등재, `testing` INFO).
       캐너리 다섯 케이스는 전부 `type: 'webhook'` 이다. 소스를 추적하면 schedule enrichment
       (`Object.assign(t, {cronExpression, timezone, nextRunAt})`)는 **제자리 mutate** 라서 이미
@@ -3962,6 +4003,23 @@ field: T | null;
       만드는(흔한 리팩터 패턴) 순간 **두 파일 다 못 잡는다.** 처방: `schedule-trigger.e2e-spec.ts`
       의 목록·단건 케이스에 `expectTriggerWorkflowRef(…, {present: true, expectedWorkflowId})`
       한 줄씩. 헬퍼가 이미 있으므로 비용은 두 줄이다.
+
+      ✅ **2026-09-14 해소** — `trigger-canary-hardening` 배치. **세 줄이었다**(두 줄이 아니라):
+      C-2 목록 · G·H PATCH. 단건 `GET /api/triggers/:id` 는 이 파일에 없다.
+
+      > **항목 제목의 «저장소 전체에 0건» 은 표면을 하나 겹쳐 읽은 것이다.** 실측하면 표면이
+      > 둘이고 하나는 이미 덮여 있었다 — `ScheduleDto.trigger.workflow` 는
+      > `expectNarrowedScheduleTriggerRef` 로 **양성 3 + 음성 1**(=`3-schedule.md` §4 註가
+      > 주장하는 그 수)이 이미 고정돼 있다. 0건이었던 것은 **`TriggerDto.workflow`
+      > (`type:'schedule'`)** 쪽이다. `--impl-prep` checker 도 같은 자리에서 *"§4 주장이
+      > 미이행"* 이라 했는데 그것은 **반증됐다**.
+
+      > **음성 대조는 이 표면에 없다** — schedule 트리거는 `POST /api/triggers` 로 만들지
+      > 않으므로 `TriggerDto` 생성 응답 자체가 존재하지 않는다. *"음성이 빠졌다"* 를 결함으로
+      > 다시 등재하지 말 것.
+
+      뮤턴트(세 자리 `present: true`→`false`) → **정확히 그 세 케이스만 RED**, 다른 케이스
+      영향 0. 비-vacuity 와 «세 표면이 실제로 `workflow` 를 싣는다» 를 함께 고정했다.
 
 - [ ] **하드닝: `production-build-devdep-guard` 가 "exclude 된 디렉터리를 import 로 도달"
       형태를 못 본다** (developer, 2026-09-10 등재, `side_effect` W1 — **reviewer 가 실제 `tsc`
@@ -3979,7 +4037,7 @@ field: T | null;
       파일의 import 그래프에 그 경로가 없다" 로 바꾼다 — **존재 검사가 아니라 도달 검사**여야
       한다. 내 헬퍼 docstring 은 이 실측으로 이미 좁혔다.
 
-- [ ] **정리: 캐너리 두 파일의 주석 표기·성격** (developer, 2026-09-10 등재, `/ai-review` 4라운드
+- [x] **정리: 캐너리 두 파일의 주석 표기·성격** (developer, 2026-09-10 등재, `/ai-review` 4라운드
       `16_55_52` 가 낸 주석-수준 발견 3건. **브랜치에서 고치지 않고 등재한 것은 미리 선언한 정지
       규칙 때문이다** — 게이트 산술상 코드를 고치면 라운드가 하나 더 필요하고, 4라운드를 마지막으로
       한다고 3라운드 SUMMARY 에 적었다. 세 건 다 캐너리를 틀리게 하거나 테스트를 약화시키지 않는다).
@@ -3995,7 +4053,20 @@ field: T | null;
       > 네 라운드 동안 두 파일의 주석을 계속 키웠다. **판별 질문은 "이 문장이 없으면 다음 사람이
       > 코드를 잘못 쓰는가" 다** — 예면 소스, 아니면 트래커.
 
-- [ ] **관례 정비: e2e teardown 이 `secret_store` 고아 row 를 남긴다** (developer, 2026-09-10
+      ✅ **2026-09-14 해소** — `trigger-canary-hardening` 배치. 세 지적 전부:
+      **①** 아라비아 숫자로 통일(원문자 잔여 0) + *"두 체계를 쓰지 않는 이유"* 한 문장.
+      **원문자가 아니라 아라비아로 통일한 이유**는 헤더가 내세운 목적이 *"위에서 아래로 읽으며
+      대응 테스트를 찾는다"* 이고 그 도구가 `grep '가드 [0-9]'` 이기 때문이다 — 원문자로
+      통일하면 그 grep 이 전부 0건이 된다. 지금은 9자리 전부 잡힌다(실측).
+      **②** 자기수정 로그 2문단(*"처음 10개로 적었다"* · *"내가 4건을 뭉텅이로 붙이며 깼다"*)을
+      소스에서 제거 — 규칙("새 가드는 그 자리에 테스트도")과 가드 5 의 **진단 품질** 근거는
+      남겼다(그 문장이 없으면 다음 사람이 5 를 dead code 로 지운다).
+      **③** `"keys [] ≠ ['id','name']"` 이 **의역**임을 표기.
+
+      > 항목이 *"케이스 헤딩 8개는 아라비아"* 라 적었는데 실측하면 `## 가드` 헤딩은 **3개**
+      > (아라비아 2 · 원문자 1)다. 갈렸다는 사실은 맞고 개수만 틀렸다.
+
+- [x] **관례 정비: e2e teardown 이 `secret_store` 고아 row 를 남긴다** (developer, 2026-09-10
       등재, `side_effect` W2 + `testing` INFO).
       `chatChannel` 이 붙은 트리거는 `setupChatChannel` 이 외부 호출 **이전에**
       `secrets.rotate()` 로 `secret_store` 에 row 를 쓴다 — provider 호출이 실패해도 남는다.
@@ -4012,6 +4083,21 @@ field: T | null;
       > 태워 서비스 경로가 정리하게 한다(관례 변경, 두 파일), (b) `PROJECT.md` §e2e 작성 패턴에
       > *"secret 을 만드는 e2e 는 raw DELETE 로 정리되지 않는다"* 한 줄. **(a) 가 근본이지만
       > 캐너리의 음성 케이스는 삭제 순서에 민감하니 착수 시 실측할 것.**
+
+      ✅ **2026-09-14 해소 — 실측이 (a) 를 기각했다.** `trigger-canary-hardening` 배치.
+
+      | 경계 | 측정 | 결과 |
+      |---|---|---|
+      | 세션 «간» | `make e2e-test` 는 끝에 항상 `e2e-down` = `docker compose down -v` | **볼륨째 삭제** → 누적 없음 |
+      | 세션 «안» | `secret_store` 를 읽는 유일한 e2e(`secret-store-like-prefix`) | `ref LIKE <자기 접두>` 로 스코프 → 간섭 없음 |
+
+      (a) 는 teardown 에 **외부 provider 호출**(`remove()` → `teardownChatChannel`)과 인증
+      의존을 더한다 — 얻는 것 없이 취약해진다. **정정한 것은 관례가 아니라 근거**다:
+      두 e2e 의 註가 *"`secret_store` 까지 검증한 것으로 오인하지 말 것"*(=미검증)이었는데
+      이제 **검증됨 + 두 경계**로 올렸고, `secret-store.md §R4` 와 충돌하지 않음(R4 는
+      **프로덕션 삭제 경로**의 규율이고 그 경로는 R4 대로 동작한다)을 함께 적었다.
+      서술은 `trigger-workflow-ref.e2e-spec.ts` 한 곳을 **정본**으로 두고 자매 파일은
+      그것을 가리킨다 — 두 벌 두면 한쪽만 낡는다.
 
 - [x] **`6-websocket-protocol.md` 도입 산문 — 완료 (2026-09-10, planner 턴).**
       순수 `## Overview` 4단락(1,767자) + `## Rationale` 에 표기 선택 근거 1항목.

@@ -148,12 +148,23 @@ describe('TriggerDto.workflow 응답 경로 (e2e)', () => {
    * `setupChatChannel` 이 외부 호출 **이전에** `secrets.rotate()` 로 `secret_store` 에 row 를
    * 쓴다 — 그래서 provider 호출이 실패해도 row 는 남는다. 그 정리는 `TriggersService.remove()`
    * 의 `deleteByPrefix` 만 하고, `secret_store` 는 FK 가 없어(application-level cascade)
-   * raw `DELETE FROM trigger` 로는 **고아 row 가 남는다**
-   * (`review/code/2026/09/10/14_34_18` side_effect W2).
+   * raw `DELETE FROM trigger` 로는 **고아 row 가 남는다**.
    *
-   * 여기서 그것까지 지우지 않는 이유는 자매 파일(`chat-channel-trigger-create.e2e-spec.ts`)과
-   * 동일 관례를 유지하는 편이 낫고, e2e 스키마가 ephemeral 이라 세션을 넘겨 누적되지 않기
-   * 때문이다. **"row 정리 불필요" 를 `secret_store` 까지 검증한 것으로 오인하지 말 것.**
+   * **그 고아 row 가 무해함을 이제 두 경계에서 실측했다** — 종전 이 자리는 *"`secret_store`
+   * 까지 검증한 것으로 오인하지 말 것"* 이라고만 적어 «미검증» 으로 남겨 두었다:
+   *
+   * | 경계 | 측정 | 결과 |
+   * |---|---|---|
+   * | 세션 «간» | `make e2e-test` 는 끝에 항상 `e2e-down` = `docker compose down -v` | **볼륨째 삭제** → 누적 없음 |
+   * | 세션 «안» | `secret_store` 를 읽는 유일한 e2e(`secret-store-like-prefix`) | `ref LIKE <자기 접두>` 로 스코프 → 간섭 없음 |
+   *
+   * 그래서 관례를 바꾸지 않는다. 서비스 경로(`DELETE /api/triggers/:id`)로 지우면 teardown 이
+   * **외부 provider 호출**(`teardownChatChannel`)과 인증에 의존하게 되어, 얻는 것 없이 취약해진다.
+   *
+   * **이것은 테스트 인프라 한정 판단이고 `secret-store.md §R4` 와 충돌하지 않는다** — R4 가
+   * *"explicit application 경로 정리, implicit cascade 기각"* 을 요구하는 대상은 **프로덕션
+   * 삭제 경로**이고, 그 경로(`remove()` → `deleteByPrefix`)는 R4 대로 동작한다. 이 한정을
+   * 적지 않으면 *"정리 안 해도 된다"* 가 프로덕션 쪽으로 번진다.
    */
   afterAll(async () => {
     for (const id of createdTriggerIds) {
