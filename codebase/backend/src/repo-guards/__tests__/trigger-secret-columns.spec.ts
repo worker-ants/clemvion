@@ -63,7 +63,7 @@ describe('트리거 비밀 컬럼 목록 3중 사본 정합', () => {
       // (`/ai-review` `review/code/2026/09/14/11_27_40` maintainability WARNING#2).
       if (value === null) {
         throw new Error(
-          `${rel}: ${'상수를 못 읽었다 — 선언 이름·형태가 바뀌었는지 볼 것'}`,
+          `${rel}: 상수를 못 읽었다 — 선언 이름·형태가 바뀌었는지 볼 것`,
         );
       }
       expect(value.length).not.toBe(0);
@@ -148,6 +148,18 @@ describe('트리거 비밀 컬럼 목록 3중 사본 정합', () => {
         'const X = [] as const;\nexport default X;',
       );
       expect(readStringArrayConst(tmp, rel, 'X')).toEqual([]);
+    });
+
+    it('대상 파일이 없으면 **가드의 메시지**로 던진다 — raw `ENOENT` 가 아니다', () => {
+      // **`.toThrow()` 만으로는 vacuous 하다.** 파일이 없으면 `readFileSync` 도 던지므로
+      // 방어 분기를 통째로 지워도 «던진다» 는 참이다 — 이 저장소가 이름 붙인 *"`.toThrow()`
+      // 는 무엇이 던졌는지 안 본다"* 형태다. 그래서 **메시지로** 판별한다.
+      //
+      // 라운드 1 에서 이 분기를 넣고 수기 뮤테이션으로만 확인했는데, 그러면 CI 가 회귀를
+      // 못 잡는다 (`/ai-review` `review/code/2026/09/14/11_52_13` testing WARNING#2).
+      expect(() =>
+        readStringArrayConst(tmp, 'definitely-absent.ts', 'X'),
+      ).toThrow(/옮겨졌거나 이름이 바뀌었다/);
     });
 
     it('문자열이 아닌 원소가 섞이면 `null` — 조용히 짧아지지 않는다', () => {

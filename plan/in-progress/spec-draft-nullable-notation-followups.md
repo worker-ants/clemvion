@@ -3932,6 +3932,13 @@ field: T | null;
       나머지 셋이 살아 있어 유효). 처방: `spec/**` frontmatter 의 `pending_plans` 경로가 실재하는지
       검사하는 가드 한 줄. **`findBrokenPlanLinks` 는 마크다운 링크만 보고 frontmatter 는 안 본다.**
 
+- [ ] **`secret-store.md §R4` 가 `TriggersService.delete()` 라 쓰는데 실제는 `remove()`**
+      (planner, 2026-09-14 등재 · `--impl-done` `review/consistency/2026/09/14/11_52_23`
+      cross_spec INFO#1 + `/ai-review` `11_52_13` requirement INFO#3 이 독립 지적).
+      같은 문서 §2.1 근방은 `remove()` 로 옳게 쓴다 — **문서 안에서 갈린다.**
+      기존 오기이지만 `trigger-canary-hardening` 의 e2e 주석이 §R4 를 **처음 명시 인용**해
+      가시화됐다. 처분: §R4 의 `delete()` → `remove()` 한 단어.
+
 - [ ] **`2-trigger-list.md` 의 `code:` 가 §3 계약의 시행 파일 하나를 놓친다**
       (planner, 2026-09-14 등재 · `/ai-review` `review/code/2026/09/14/11_27_40`
       requirement WARNING#1). §3(`TriggerDto.workflow` 계약)의 시행 파일로
@@ -3946,14 +3953,33 @@ field: T | null;
       `code:` 에도 없다. checker 는 *"시행 코드 추적성 관례 미적용"* 이라 했는데 **실측하면
       관례가 없다**:
 
-      | 형제 repo-guard | spec `code:` 등재 |
+      > **첫 등재의 실측표가 틀렸다** (`--impl-done`
+      > `review/consistency/2026/09/14/11_52_23` plan_coherence WARNING#1).
+      > *"5 중 2"* 라 적었는데 **표본 5개만** 봤고, 게다가 «등재» 의 술어를 *"이름이 spec 어딘가에
+      > 등장하는가"* 로 잡았다 — 실제 술어는 **«어떤 spec 의 frontmatter `code:` glob 이 그
+      > 파일에 매칭하는가»** 다. `masked-reject-callers` 가 그 차이로 갈린다: 이름은 spec
+      > **산문**에 있고 `code:` 에는 없다.
+
+      **주어와 술어를 고정한 전수 실측** — 주어 `repo-guards/__tests__/*-guard.ts`,
+      술어 «spec frontmatter `code:` glob 매칭»:
+
+      | | 수 |
       |---|---|
-      | `masked-reject-callers` · `user-entity-exposure` | **있음** (2) |
-      | `redis-fail-open-catalog` · `param-uuid-pipe` · `engine-error-code-anchor` | **없음** (3) |
+      | 대상 가드 (이 배치의 신규 1개 포함) | **14** |
+      | `code:` 에 등재 | **5** — `dto-class-name-collision`·`dto-jsdoc-citation`·`endpoint-path-conflict-wrap`·`swagger-dto-contract`·`user-entity-exposure` |
+      | 미등재 | **9** (`trigger-secret-columns` 포함) |
+
+      > checker 는 *"14 중 4"* 라 했는데 분모는 맞고 분자가 하나 적다. **세 숫자가 다 달랐고
+      > 원인은 전부 «무엇을 세는가» 였다** — 표본 vs 전수, substring vs glob.
 
       그래서 이 항목은 **두 질문**이다 — (a) 이 가드를 `secret-store.md` 의 `code:` 에 넣을
       것인가, (b) repo-guard 등재를 규약으로 세울 것인가. (b) 를 정하지 않으면 (a) 만 고쳐도
-      다음 가드에서 같은 지적이 반복된다.
+      다음 가드에서 같은 지적이 반복된다(미등재가 9개다).
+
+      > **인접 항목**: `plan/in-progress/spec-conventions-engine-error-code-surface.md` 의
+      > *"repo-guard 3파일 패턴에 소유 규약 문서가 없다 — `spec/conventions/repo-guards.md`
+      > 신설 검토"*. **같은 항목이 아니다** — 그쪽은 «소유 규약 문서 신설», 이쪽은 «`code:`
+      > 등재». 다만 (b) 를 정하는 자리가 그 문서가 될 수 있으니 **한 턴에 함께 볼 것**.
 
 - [ ] **`GET /api/triggers/:id`(단건)의 schedule `workflow` 양성 커버리지가 0건**
       (developer, 2026-09-14 등재 · `/ai-review` `11_27_40` requirement INFO#2).
@@ -3979,14 +4005,41 @@ field: T | null;
       > 기계적으로 싣게 한다 (b) `related_specs` 우선순위를 target 의 `spec_impact` 기준으로
       > 재정렬 (c) 관점별로 번들을 쪼갠다. **(a) 가 가장 싸고 거짓 음성을 직접 막는다.**
 
-- [ ] **`spec/conventions/cafe24-api-catalog/_overview.md` 에 lifecycle frontmatter 가 없다**
-      (planner, 2026-09-14 등재 · `--impl-prep` `10_44_37` convention_compliance WARNING#2).
-      같은 디렉토리의 형제 `<resource>.md` 18개는 전부 `id`/`status` 를 갖췄는데 `_overview.md`
-      자신만 없다. 그 파일 §7.1 이 *"카탈로그 최상위 `<resource>.md` 인덱스는 정식 spec 으로
-      계속 검증된다"* 고 적으면서 자기 자신을 예외 glob 에 넣지도 빼지도 않았다.
-      처분 후보: (a) frontmatter 추가 (b) §7.1 예외 glob 에 `_overview.md` 명시.
-      > checker 가 `spec-impl-evidence.md` 원문 절단으로 정규식까지는 대조하지 못했다 —
-      > 위 번들 항목과 **같은 세션의 같은 원인**이다.
+      > **선행 진단이 이미 있다** (`--impl-done` `11_52_23` plan_coherence WARNING#2).
+      > `plan/in-progress/harness-review-gate-followups.md` 의
+      > *"승격은 됐는데 굶는다 — tier 안의 거대 파일 하나가 corpus 몫을 다 먹는다"* 절이
+      > 근본원인·처방 후보를 더 자세히 적고 있다. **owner 를 harness 로 통일해 한 세션에서
+      > 볼 것.**
+      >
+      > **같은 근본원인인가 — 아마도, 다만 관측 모드가 다르다.** 그쪽 실측은 `--spec`
+      > 이고 이쪽은 `--impl-prep` 이다. 굶주림의 «분자» 도 다르다(그쪽은 거대 파일 하나,
+      > 이쪽은 387개 중 380개라 분포가 넓다). 합치기 전에 **두 모드가 같은
+      > `prioritize_bundle_files` 경로를 타는지** 먼저 확인할 것 — 아니면 하나를 고치고
+      > 다른 하나가 남는다.
+      >
+      > (checker 는 이 절을 «§M» 이라 불렀는데 §M 은 *"`--impl-done` 번들의 diff 는 커밋
+      > 기준인데 preamble 은 워킹트리를 SoT 라 선언한다"* 로 **다른 절**이다. 라벨은 틀리고
+      > 실질 지적은 맞다.)
+
+- [ ] **`cafe24-api-catalog/_overview.md §7.1` 에 «자신은 §1 예외» 라는 상호참조 한 줄**
+      (planner, 2026-09-14 등재 · 범위 축소 2026-09-14 · `--impl-done`
+      `review/consistency/2026/09/14/11_52_23` plan_coherence WARNING#3).
+
+      > **첫 등재는 false positive 였고, 내가 실측 없이 통과시켰다.** 처음엔
+      > *"`_overview.md` 에 lifecycle frontmatter 가 없다 — (a) 추가 (b) 예외 glob 명시 택일"*
+      > 로 적었는데, `spec/conventions/spec-impl-evidence.md` **§1 이 이미
+      > `spec/<영역>/_*.md`(밑줄 prefix)를 제외로 명시하고 `_overview.md` 를 예시로 든다**
+      > (실측: 55행). 즉 frontmatter 부재는 **규약대로**다.
+      >
+      > 더 나쁜 것은 경위다 — `--impl-prep` checker 가 이 지적을 내면서 *"`spec-impl-evidence.md`
+      > 원문이 절단돼 정규식까지는 미대조"* 라고 **스스로 미검증임을 밝혔는데**, 나는 그
+      > 문장을 등재 각주에 옮겨 적기까지 하고 **재실측은 하지 않았다.** 미검증 전제를
+      > 트래커에 올리면 다음 사람이 없는 일을 쫓는다.
+
+      남는 진짜 갭은 하나다: §7.1 이 *"카탈로그 최상위 `<resource>.md` 인덱스는 정식 spec 으로
+      계속 검증된다"* 고만 적어, **`_overview.md` 자신이 §1 예외에 해당한다**는 사실이 그
+      문서에서 읽히지 않는다. 그래서 읽는 사람마다 이 지적을 다시 낸다(실제로 냈다).
+      처분: §7.1 에 상호참조 **한 줄**. 택일 결정이 아니다.
 
 - [ ] **`<parent>__<child>` 더블언더스코어 표기가 규약에 정의돼 있지 않다**
       (planner, 2026-09-14 등재 · `--impl-prep` `10_44_37` convention_compliance WARNING#3).
