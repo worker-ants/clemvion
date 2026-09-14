@@ -22,9 +22,9 @@ setup 의 성공·실패 경로 · bot token 회전) 밖에도, 엔티티를 통
 락은 트리거 단위 advisory lock
 (`pg_advisory_xact_lock(hashtext('trigger-config:<id>'))`) 안으로 넣고, **락을 잡은 뒤에
 행을 다시 읽어** 병합한다. 행이 그 사이 삭제됐으면 쓰지 않는다 — `save` 는 행이 없으면
-INSERT 하므로, 그대로 두면 삭제된 트리거가 고아 상태로 되살아난다. 삭제
-(`DELETE /api/triggers/:id`)도 같은 락을 잡는다 — 그러지 않으면 «읽었을 땐 있었는데 저장
-직전에 삭제되는» 경합이 남는다.
+INSERT 하므로, 그대로 두면 삭제된 트리거가 고아 상태로 되살아난다. **삭제 경로 둘 다**
+같은 락을 잡는다 — `DELETE /api/triggers/:id` 와 스케줄 삭제의 cascade. 그러지 않으면
+«읽었을 땐 있었는데 저장 직전에 삭제되는» 경합이 남는다.
 
 외부 provider 호출은 락 **밖**에 남는다 — Cafe24 토큰 갱신에서 같은 락을 기각했던 사유
 (*"lock 보유 중 HTTP 요청을 transaction 안에 묶어야 해 DB 커넥션 점유 시간이 늘고"*)가 그대로

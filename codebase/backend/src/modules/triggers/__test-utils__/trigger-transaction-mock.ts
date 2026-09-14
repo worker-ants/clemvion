@@ -52,7 +52,8 @@ export interface TransactionMockOptions {
  * 단언하는 테스트들이 «아무 일도 안 일어났는데 통과» 한다. 그래서
  * `m.update(Trigger, where, patch)` → `repo.update(where, patch)`,
  * `m.save(Trigger, entity)` → `repo.save(entity)`,
- * `m.remove(entity)` → `repo.remove(entity)` 로 넘겨 **기존 단언의 의미를 보존**한다.
+ * `m.remove(entity)` → `repo.remove(entity)`,
+ * `m.delete(Trigger, criteria)` → `repo.delete(criteria)` 로 넘겨 **기존 단언의 의미를 보존**한다.
  *
  * **실측(뮤턴트)**: `transaction` 이 콜백을 실행하지 않게 바꾸면 `src/modules/triggers` 에서
  * **53개 케이스가 RED** 다(R-CC-21 9 · lost-update 8 · `rotateBotToken` 8 · schedule 동기화 7 ·
@@ -106,6 +107,11 @@ export function withTransactionMock(
               const findOneMock = triggerRepoMock.findOne as
                 ((o: unknown) => unknown) | undefined;
               return findOneMock ? findOneMock(findOptions) : undefined;
+            }),
+            delete: jest.fn((_entity: unknown, criteria: unknown) => {
+              const deleteMock = triggerRepoMock.delete as
+                ((c: unknown) => unknown) | undefined;
+              return deleteMock ? deleteMock(criteria) : undefined;
             }),
             remove: jest.fn((target: unknown) => {
               const removeMock = triggerRepoMock.remove as

@@ -599,6 +599,19 @@ fallback)` 이 «어느 하위 키를, 무엇을 얹어» 를 인자로 강제�
 > 교훈은 방향이 아니라 형태다 — **목록은 낡고 규칙은 안 낡는다.** 호출부 개수를 문서에
 > 적는 순간 그 문서는 다음 커밋에 틀린다.
 
+### 12라운드 리뷰 처분 (`review/code/2026/09/15/00_38_16` — **C0** · W4)
+
+| # | 처분 |
+|---|---|
+| W1 **삭제 경로가 둘인데 하나만 락을 잡았다** | **수용·수정** — `SchedulesService.remove()` 의 cascade 삭제가 락 밖이었다. schedule 트리거는 `chatChannel` 을 못 가져 fail-open 으로는 안 이어지지만 정합성 결함은 같은 클래스이고, 무엇보다 «삭제도 같은 락을 잡는다» 는 내 CHANGELOG 문장이 **경로 하나만** 덮고 있었다. 락 키 관측 단언 + 뮤턴트 RED |
+| W4 JSDoc 표가 이 함수를 **호출하지 않는** cron 을 호출부로 적었다 | **수용·수정** — 같은 JSDoc 안의 규칙과 표가 서로 다른 집합을 가리키는 내적 모순이었다 |
+| W2 cron 왕복 증가 · W3 `mergeIntoFreshSubKey` 가 private 이라 binder 가 재사용 못 함 | **후속 등재** |
+
+> **«전수로 셌다» 는 주장이 또 한 번 좁았다.** 삭제를 락에 넣을 때 `TriggersService.remove()`
+> 만 보고 «삭제도 닫았다» 고 적었는데, 삭제는 **두 모듈에** 있었다. 이 PR 내내 반복된
+> 패턴이다 — 주어를 «이 서비스의 삭제» 가 아니라 «trigger 행을 지우는 모든 호출» 로 잡아야
+> 했다.
+
 ### 후속(developer 범위) — 이 PR 로 넓히지 않는다
 
 | 항목 | 근거 |
@@ -621,6 +634,7 @@ fallback)` 이 «어느 하위 키를, 무엇을 얹어» 를 인자로 강제�
 | cron 스윕이 행마다 새 트랜잭션(왕복 약 2배) | 대량 회전 이벤트 시 소요 시간이 배치 크기에 비례. 소규모 동시성 제한 또는 백로그 관측 로그 (9라운드 W4) |
 | `normalizeNotificationSecretRef` 가 쓰기 skip 을 관측하지 않는다 | 형제 동기 경로와 다른 취급 — 5라운드 W1(secret store 원자성) 대상 목록에 이 함수도 넣는다 (9라운드 INFO#6) |
 | `create()` 안 두 주석이 실제 쓰기 경로를 더 이상 정확히 서술하지 않는다 | 결론은 참이라 낮은 우선순위 (9라운드 INFO#7) |
+| `mergeIntoFreshSubKey` 가 `TriggersService` private 이라 binder 가 재사용 못 한다 | 같은 개념이 `survivesWithFresh`/`buildChannel` 로 따로 구현돼 있다 → `trigger-config-lock.ts` 로 옮겨 `rewriteTriggerConfigLocked` 와 나란히 export (12라운드 W3) |
 | `previousInboundSigningRef` 가 선언→트랜잭션 내 재대입→커밋 후 소비로 클로저 경계를 셋 넘는다 | 트랜잭션 콜백이 `{ saved, previousInboundSigningRef }` 를 반환하도록 (급하지 않음) |
 | `rewriteTriggerConfigLocked` 가 workspace 소유권을 자체 검증하지 않는다 | 현재 호출부 3곳 모두 이미 검증된 id 만 넘겨 악용 경로는 없다. 선택적 `workspaceId` 파라미터 또는 JSDoc 전제 명시 |
 | **secret store 쓰기·provider 등록의 원자성** — 락은 `config` 컬럼만 보호한다 | 삭제와 겹치면 정리(`teardownChatChannel`·`deleteByPrefix`)가 먼저 끝난 뒤 생성된 secret row·provider 등록이 고아로 남는다. 정리 순서를 바꾸려면 «외부 호출을 락 안에 두지 않는다» 제약과 충돌하므로 **별도 설계 검토** (5라운드 W1) |

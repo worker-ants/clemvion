@@ -136,7 +136,11 @@ export const TRIGGER_DELETE_LOCK_TIMEOUT_MS = 5_000;
  *   | `revokePerTriggerToken` (동기 요청) | **404** — 위와 같은 이유 |
  *   | binder 성공/실패 경로 (저장 **뒤**의 best-effort 후속) | **`false` 로 감춘다** — 이미 응답이 나갔고, 실패를 던지면 성공한 저장을 되돌리는 것처럼 보인다 |
  *   | `normalizeNotificationSecretRef` (요청 안의 정규화 부수 단계) | **관측하지 않는다** — 후속 등재분(9라운드 INFO#6) |
- *   | cron 두 곳(`promote…` · `cleanup…`) | **조용히 skip** — 알릴 상대가 없다. 다만 `promote` 는 «승격했다» 고 세지 않는다 |
+ *   | `promoteRotatedNotificationSecrets` (cron) | **조용히 skip** — 알릴 상대가 없다. 다만 «승격했다» 고 세지 않는다 |
+ *
+ *   `cleanupRotatedChatChannelTokens` 는 **이 표에 없다** — 이 함수를 거치지 않고 컬럼만
+ *   직접 갱신하기 때문이다(`config` 미접촉). 한때 «cron 두 곳» 으로 묶어 적었는데, 그러면
+ *   같은 JSDoc 안의 규칙(위 «배선»)과 표가 **서로 다른 집합**을 가리키게 된다.
  *
  *   판단 기준은 «그 쓰기가 이번 요청의 **결과**인가, 뒤따르는 **부수 작업**인가» 다.
  */

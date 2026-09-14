@@ -5,6 +5,7 @@ import { Repository } from 'typeorm';
 import { SchedulesService } from './schedules.service';
 import { Schedule } from './entities/schedule.entity';
 import { Trigger } from '../triggers/entities/trigger.entity';
+import { withTransactionMock } from '../triggers/__test-utils__/trigger-transaction-mock';
 import { WorkspacesService } from '../workspaces/workspaces.service';
 import { CreateScheduleDto } from './dto/create-schedule.dto';
 import { UpdateScheduleDto } from './dto/update-schedule.dto';
@@ -16,6 +17,8 @@ describe('SchedulesService.runNow', () => {
   let auditLogs: { record: jest.Mock };
   let scheduleRepo: jest.Mocked<Repository<Schedule>>;
   let triggerRepo: jest.Mocked<Repository<Trigger>>;
+  /** schedule 삭제가 trigger 행을 지울 때 잡는 config 락 키. */
+  const triggerLockKeys: string[] = [];
   let workspacesService: jest.Mocked<
     Pick<WorkspacesService, 'getWorkspaceTimezone'>
   >;
@@ -47,12 +50,18 @@ describe('SchedulesService.runNow', () => {
           // `update` — schedule 편집의 trigger 동기화는 **컬럼 한정** 갱신이다.
           // `save(entity)` 로 쓰면 읽은 시점의 `config` 까지 되써서 동시 PATCH 가 확립한
           // `chatChannel.inboundSigningRef` 를 되돌린다(인입 서명 fail-open).
-          useValue: {
-            create: jest.fn(),
-            save: jest.fn(),
-            update: jest.fn().mockResolvedValue(undefined),
-            delete: jest.fn(),
-          },
+          //
+          // `withTransactionMock` — schedule 삭제가 trigger 행을 **config 락 안에서** 지운다.
+          // 감싸지 않으면 `manager` 가 없어 런타임에 깨진다.
+          useValue: withTransactionMock(
+            {
+              create: jest.fn(),
+              save: jest.fn(),
+              update: jest.fn().mockResolvedValue(undefined),
+              delete: jest.fn(),
+            },
+            { onLock: (key) => triggerLockKeys.push(key) },
+          ),
         },
         {
           provide: WorkspacesService,
@@ -580,6 +589,23 @@ describe('SchedulesService.runNow', () => {
         { id: 'trig-nm' },
         { name: 'new' },
       );
+    });
+
+    it('삭제 — trigger 행을 config 락 안에서 지운다', async () => {
+      // 삭제 경로는 **둘**이다. `TriggersService.remove()` 만 락을 잡게 했더니 이쪽이 밖에
+      // 남았고, 창 1 의 `save(entity)` 가 행이 없으면 INSERT 하므로 삭제된 트리거가 고아로
+      // 되살아날 수 있었다 (`review/code/2026/09/15/00_38_16` database W1).
+      triggerLockKeys.length = 0;
+      scheduleRepo.findOne.mockResolvedValue({
+        id: 'sch-del',
+        workspaceId: 'ws-1',
+        triggerId: 'trig-del',
+      } as unknown as Schedule);
+
+      await service.remove('sch-del', 'ws-1', 'u-del');
+
+      expect(triggerLockKeys).toContain('trigger-config:trig-del');
+      expect(triggerRepo.delete).toHaveBeenCalledWith('trig-del');
     });
 
     it('감사 로깅 — remove 는 schedule.deleted 를 남긴다', async () => {

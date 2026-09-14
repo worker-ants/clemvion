@@ -12,6 +12,10 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Schedule } from './entities/schedule.entity';
 import { Trigger } from '../triggers/entities/trigger.entity';
+import {
+  acquireTriggerConfigLock,
+  TRIGGER_DELETE_LOCK_TIMEOUT_MS,
+} from '../triggers/trigger-config-lock';
 import { WorkspacesService } from '../workspaces/workspaces.service';
 import { isValidIanaTimezone } from '../../common/utils/timezone';
 import { CreateScheduleDto } from './dto/create-schedule.dto';
@@ -291,9 +295,24 @@ export class SchedulesService {
     const schedule = await this.findById(id, workspaceId);
     // Remove BullMQ job
     await this.scheduleRunnerService.removeJob(schedule.id);
-    // Cascade delete trigger
+    // Cascade delete trigger — **삭제 경로는 둘이다.**
+    //
+    // `TriggersService.remove()` 만 config 락을 잡게 했더니, 스케줄 삭제라는 **두 번째 경로**가
+    // 락 밖에 남았다. 창 1 은 `save(entity)` 를 쓰고 그것은 행이 없으면 INSERT 하므로,
+    // 「읽었을 땐 있었는데 저장 직전에 삭제」가 겹치면 삭제된 트리거가 고아로 되살아난다
+    // (`/ai-review` `review/code/2026/09/15/00_38_16` database W1).
+    //
+    // schedule 타입 트리거는 `chatChannel` 을 가질 수 없어 인입 서명 fail-open 으로는 이어지지
+    // 않지만, 정합성 결함은 같은 클래스다. 그리고 «삭제도 같은 락을 잡는다» 는 내 CHANGELOG
+    // 문장이 경로 하나만 덮고 있었다.
     if (schedule.triggerId) {
-      await this.triggerRepository.delete(schedule.triggerId);
+      const triggerId = schedule.triggerId;
+      await this.triggerRepository.manager.transaction(async (m) => {
+        await acquireTriggerConfigLock(m, triggerId, {
+          timeoutMs: TRIGGER_DELETE_LOCK_TIMEOUT_MS,
+        });
+        await m.delete(Trigger, triggerId);
+      });
     }
     await this.scheduleRepository.remove(schedule);
     await this.recordAudit({
