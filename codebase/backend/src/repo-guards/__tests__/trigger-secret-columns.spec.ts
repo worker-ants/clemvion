@@ -114,6 +114,14 @@ describe('트리거 비밀 컬럼 목록 3중 사본 정합', () => {
    * 그 자리가 눈에 보인다.
    */
   describe('[대조군] `readStringArrayConst` 가 무엇을 읽고 무엇을 거절하는가', () => {
+    // **`string | undefined` 로 바꾸지 않는다.** `mkdtempSync` 가 던지면 `tmp` 가 미할당인 채
+    // `afterAll` 이 돌아 두 번째 예외가 첫 원인을 가린다는 지적이 있었지만
+    // (`/ai-review` `review/code/2026/09/14/13_04_49` side_effect INFO#4),
+    // 실제로 해 보니 **한 줄이 아니었다** — 타입체크 ratchet 이 사용처 10곳에서
+    // `0 → 10` 진단을 냈다(jest 는 타입을 strip 해서 못 본다). 남은 선택지는 사용처 10곳
+    // 수정이거나 `let tmp!: string` 인데, 후자는 «미할당일 수 있다» 를 «확실히 할당된다» 로
+    // 단언하는 **타입 거짓말**이라 이 저장소의 `nullable-type-lie-cast` 가드가 겨누는 형태다.
+    // 얻는 것(이미 실패 중인 환경에서 이중 예외 회피)이 그 값을 못 치른다.
     let tmp: string;
 
     beforeAll(() => {

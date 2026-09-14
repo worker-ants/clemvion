@@ -118,6 +118,13 @@ planner 가 결정해야 한다 — 그게 이 항목의 실제 무게다.
   소유 규약 문서가 없다. `spec/conventions/repo-guards.md` 신설 검토는 이 항목과 **독립**이며
   더 큰 결정이라 여기 묶지 않는다(포인터만 남긴다).
 
+  > **2026-09-14 에 «다른 양» 이 측정됐다 — 교체하지 말 것.**
+  > `spec-draft-nullable-notation-followups.md` 의 repo-guard `code:` 등재 항목이
+  > **가드 14 중 등재 5 · 미등재 9** 를 실측했는데, 그것은 **«등재» 개수**이고 아래 7/8 은
+  > **«파일 쌍» 개수**다. 서로 답하는 질문이 다르다. (b) 결정 턴에 **주어를 명시해 재측정**할 것.
+  > (`--impl-done` `review/consistency/2026/09/14/13_04_59` plan_coherence INFO#5 는
+  > *"7/8 을 14/5/9 로 교체"* 를 제안했는데, 그대로 하면 다른 질문의 답으로 덮어쓴다.)
+  >
   > **수치 갱신 (2026-09-04 실측)**: 종전 "5쌍 이상" 이었다. 지금은 `*-guard.ts` **7** ·
   > `*.spec.ts` **8** 이고, 그 사이 `entity-nullable-column-type-mismatch.md` 작업이 walker
   > 사본 5개를 `collectTsFiles` 하나로 통합해 **공유 인프라가 생겼다**(`.spec.ts`/`.d.ts`

@@ -1090,6 +1090,15 @@ pg._all_checkboxes_done(ROOT, plan)         → True     ← 열린 항목 3건�
 
 ## 승격은 됐는데 굶는다 — tier 안의 거대 파일 하나가 corpus 몫을 다 먹는다 (2026-09-10 실측)
 
+> **두 번째 사례가 다른 트래커에 등재됐다 (2026-09-14).**
+> `plan/in-progress/spec-draft-nullable-notation-followups.md` 의
+> *"`--impl-prep`/`--spec` 번들이 `spec/` 코퍼스를 통째로 절단한다"* 항목 —
+> `--impl-prep` 모드에서 **387개 중 380개** 절단을 실측했다. **같은 근본원인인지 미확정**:
+> 이 절은 `--spec` 이고 «거대 파일 하나» 인데, 저쪽은 분포가 넓다. 합치기 전에 **두 모드가
+> 같은 `prioritize_bundle_files` 를 타는지** 먼저 확인할 것.
+> (`--impl-done` `review/consistency/2026/09/14/13_04_59` plan_coherence INFO#4 가 이
+> 역방향 포인터의 부재를 짚었다.)
+
 위 §"consistency 번들이 **편집 중인 target 파일 자신**을 예산에서 떨군다"(2026-08-10)는
 전부 종결됐다. 그 처방(`worktree_changed_files` 합집합 + tier 0/1)은 **정확히 동작한다** —
 이번 건에서도 랭킹은 옳았다. 그런데 결과는 같았다: **대상 문서가 안 실렸다.**
