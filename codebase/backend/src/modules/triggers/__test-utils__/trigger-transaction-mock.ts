@@ -53,7 +53,8 @@ export interface TransactionMockOptions {
  *
  * 콜백을 실행하지 않으면 repo mock 의 `update`/`save` 가 한 번도 안 불려서, `config` 쓰기를
  * 단언하는 테스트들이 «아무 일도 안 일어났는데 통과» 한다. 그래서
- * `m.update(Trigger, where, patch)` → `repo.update(where, patch)`,
+ * `m.update(Trigger, where, patch)` → `repo.update(where, patch)`
+ * (반환이 비면 `{ affected: 1 }` 로 채운다 — 위 `update` 주석 참조),
  * `m.save(Trigger, entity)` → `repo.save(entity)`,
  * `m.remove(entity)` → `repo.remove(entity)`,
  * `m.delete(Trigger, criteria)` → `repo.delete(criteria)` 로 넘겨 **기존 단언의 의미를 보존**한다.
@@ -127,10 +128,22 @@ export function withTransactionMock(
               return saveMock ? saveMock(target) : target;
             }),
             update: jest.fn(
-              (_entity: unknown, where: unknown, patch: unknown) => {
+              async (_entity: unknown, where: unknown, patch: unknown) => {
                 const updateMock = triggerRepoMock.update as
                   ((w: unknown, p: unknown) => unknown) | undefined;
-                return updateMock ? updateMock(where, patch) : undefined;
+                const result = updateMock
+                  ? await updateMock(where, patch)
+                  : undefined;
+                // **`UpdateResult` 모양을 보장한다.** 실제 TypeORM 은 항상
+                // `{ affected }` 를 돌려주는데 바깥 repo mock 들은 대개 `undefined` 를
+                // 준다. `rewriteTriggerConfigLocked` 가 `affected` 를 읽게 된 뒤로는 그
+                // 차이가 **모든 서비스 테스트를 `TypeError` 로 깨뜨린다** — 프로덕션을
+                // `result?.affected` 로 느슨하게 만드는 대신 대역을 충실하게 만든다.
+                //
+                // 기본 `{ affected: 1 }` 은 «정상적으로 한 행을 썼다». 0행·미보고 분기는
+                // `trigger-config-lock.spec.ts` 가 전용 대역으로 따로 본다 — 여기서
+                // 흉내내면 모든 호출부가 그 분기를 우연히 지나게 된다.
+                return result ?? { affected: 1 };
               },
             ),
           }),

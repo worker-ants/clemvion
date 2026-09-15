@@ -3,6 +3,7 @@ import type { EntityManager } from 'typeorm';
 
 import { Trigger } from './entities/trigger.entity';
 import {
+  acquireTriggerConfigLock,
   rewriteTriggerConfigLocked,
   triggerConfigLockKey,
   TRIGGER_CONFIG_LOCK_PREFIX,
@@ -39,6 +40,9 @@ describe('rewriteTriggerConfigLocked', () => {
           config?: Record<string, unknown> | null;
         })
       | null,
+    // `UpdateResult.affected` 는 `number | null | undefined` 다 — 드라이버가 보고하지
+    // 않으면 비어 온다. 기본 `1` 은 «정상적으로 한 행을 썼다».
+    updateAffected: number | null | undefined = 1,
   ) {
     const calls: string[] = [];
     const query = jest.fn(async (...args: unknown[]) => {
@@ -55,7 +59,7 @@ describe('rewriteTriggerConfigLocked', () => {
     const update = jest.fn(
       async (_entity: unknown, _where: unknown, _patch: unknown) => {
         calls.push('update');
-        return undefined;
+        return { affected: updateAffected };
       },
     );
     const manager = {
@@ -154,11 +158,93 @@ describe('rewriteTriggerConfigLocked', () => {
     expect(update).not.toHaveBeenCalled();
   });
 
+  it('UPDATE 가 0행에 매치되면 false 를 돌려준다 (락으로도 못 막는 세 번째 삭제 경로)', async () => {
+    // 재읽기(`findOne`)는 advisory lock 아래의 **평범한 SELECT** 이지 행 잠금이 아니다.
+    // `Trigger` 행을 지우는 경로는 셋인데 그중 **`Workflow`·`Workspace` 삭제의 FK
+    // `onDelete: 'CASCADE'`** 는 DB 레벨이라 이 락을 애초에 잡을 수 없다. 그래서 재읽기와
+    // UPDATE 사이에 행이 사라질 수 있고, 그때 `true` 를 돌려주면 호출부의 `if (wrote)` 가
+    // 거짓을 믿는다 — `rotateBotToken` 은 404 대신 성공을 주고 secret store 에는 새 토큰만
+    // 남는다 (`/ai-review` `review/code/2026/09/15/01_42_04` database INFO#19, 전제를 재다
+    // «삭제 경로 둘이 락을 공유한다» 는 옛 서술이 반증됐다).
+    const { manager } = makeManager({ id: TRIGGER_ID, config: {} }, 0);
+
+    await expect(
+      rewriteTriggerConfigLocked(manager, TRIGGER_ID, (c) => c),
+    ).resolves.toBe(false);
+  });
+
+  it('affected 를 보고하지 않는 드라이버에서는 true 를 유지한다', async () => {
+    // **«모른다» 를 «없다» 로 읽으면 정상 쓰기를 실패로 뒤집는다.** 위 케이스와 짝이 되는
+    // 대조군이라, `affected == null` 을 0 과 같이 처리하는 편집을 잡는다.
+    for (const affected of [undefined, null]) {
+      const { manager } = makeManager({ id: TRIGGER_ID, config: {} }, affected);
+      await expect(
+        rewriteTriggerConfigLocked(manager, TRIGGER_ID, (c) => c),
+      ).resolves.toBe(true);
+    }
+  });
+
   it('행이 있으면 true 를 돌려준다', async () => {
     const { manager } = makeManager({ config: {} });
 
     await expect(
       rewriteTriggerConfigLocked(manager, TRIGGER_ID, (c) => c),
     ).resolves.toBe(true);
+  });
+});
+
+/**
+ * `acquireTriggerConfigLock` 의 `timeoutMs` 는 **파라미터 바인딩이 안 되는 자리**에 보간된다.
+ *
+ * 현재 호출부는 모듈 상수만 넘기므로 익스플로잇은 불가능하지만(실측: 두 자리 모두
+ * `TRIGGER_DELETE_LOCK_TIMEOUT_MS`), 보간이 남아 있는 한 값의 형태는 이 함수가 스스로
+ * 보장해야 한다 — 다음 호출부가 계산식을 넘겨도 SQL 이 깨지지 않게
+ * (`/ai-review` `review/code/2026/09/15/01_42_04` security·database INFO#2).
+ */
+describe('acquireTriggerConfigLock — timeoutMs 는 SQL 에 보간되기 전에 좁혀진다', () => {
+  function makeQueryingManager() {
+    const statements: string[] = [];
+    const query = jest.fn(async (...args: unknown[]) => {
+      statements.push(String(args[0]));
+      return [];
+    });
+    return { manager: { query } as unknown as EntityManager, statements };
+  }
+
+  it('유한하지 않으면 던진다 — clamp 하지 않는다', async () => {
+    // `Math.trunc(NaN)` 은 `NaN` 이라 종전엔 `'NaNms'` 가 그대로 SQL 에 실렸다.
+    // **조용히 1ms 로 clamp 하면** 삭제 경로가 «왜인지 늘 타임아웃» 하는 상태가 되는데,
+    // 그건 이 상수가 막으려던 «조용한 실패» 그 자체다.
+    for (const bad of [Number.NaN, Number.POSITIVE_INFINITY]) {
+      const { manager, statements } = makeQueryingManager();
+      await expect(
+        acquireTriggerConfigLock(manager, 'trig-bad', { timeoutMs: bad }),
+      ).rejects.toThrow('유한한 수');
+      // **아무 SQL 도 나가지 않았다** — 깨진 구문이 실제로 전송되지 않는 것이 요점이다.
+      expect(statements).toEqual([]);
+    }
+  });
+
+  it('범위를 벗어난 유한 값은 clamp 한다 — 그리고 정상 값은 그대로 통과한다', async () => {
+    // 세 입력이 **서로 다른 출력**을 내야 관측된다: 하한·상한·통과.
+    const cases: Array<[number, string]> = [
+      [-5, "SET LOCAL lock_timeout = '1ms'"],
+      [999_999, "SET LOCAL lock_timeout = '60000ms'"],
+      [5_000, "SET LOCAL lock_timeout = '5000ms'"],
+      [1_500.9, "SET LOCAL lock_timeout = '1500ms'"],
+    ];
+    for (const [input, expected] of cases) {
+      const { manager, statements } = makeQueryingManager();
+      await acquireTriggerConfigLock(manager, 'trig-c', { timeoutMs: input });
+      expect(statements[0]).toBe(expected);
+    }
+  });
+
+  it('timeoutMs 를 안 주면 상한 구문 자체가 나가지 않는다', async () => {
+    // 대칭 단언 — 상한을 «모든 경로» 로 넓히는 편집을 잡는다.
+    const { manager, statements } = makeQueryingManager();
+    await acquireTriggerConfigLock(manager, 'trig-n');
+    expect(statements.filter((s) => s.includes('lock_timeout'))).toEqual([]);
+    expect(statements).toHaveLength(1);
   });
 });

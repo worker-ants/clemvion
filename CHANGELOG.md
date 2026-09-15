@@ -1,5 +1,35 @@
 # Changelog
 
+## Unreleased — 락을 잡아도 못 막는 세 번째 삭제 경로 (+ 이름이 거짓말하던 자리)
+
+`#1334` 가 남긴 후속을 닫다가, 그 PR 이 «닫혔다» 고 적은 곳에 창이 하나 남아 있는 것을 찾았다.
+
+**`Trigger` 행을 지우는 경로는 둘이 아니라 셋이다.** 앞의 둘(`DELETE /api/triggers/:id` ·
+스케줄 삭제의 cascade)은 config advisory lock 을 잡지만, 셋째인 **`Workflow`·`Workspace`
+삭제의 FK `onDelete: 'CASCADE'`** 는 DB 레벨이라 그 락을 **애초에 잡을 수 없다**.
+
+락 안의 재읽기는 행 잠금이 아니라 평범한 `SELECT` 이므로, 재읽기와 `UPDATE` 사이에 그 CASCADE
+가 커밋되면 **0행에 매치**된다. 그런데 `rewriteTriggerConfigLocked` 는 그때도 `true` 를
+돌려주고 있었다 — 호출부의 `if (wrote)` 가 거짓을 믿는다. `rotateBotToken` 은 404 를 던지는
+대신 **성공 응답을 주고 secret store 에는 새 토큰만 남는다.** `affected === 0` 이면 `false` 를
+돌려주도록 고쳤다. 드라이버가 `affected` 를 보고하지 않는 경우(`null`/`undefined`)는 판정하지
+않는다 — «모른다» 를 «없다» 로 읽으면 정상 쓰기를 실패로 뒤집는다.
+
+**`lock_timeout` 값이 SQL 에 보간되는 자리를 함수가 스스로 좁힌다.** 호출부는 모듈 상수만
+넘기지만(변수·사용자 입력 경로 0건), `Math.trunc` 만으로는 `NaN`·`Infinity` 가 그대로
+`'NaNms'` 로 실린다. 유한하지 않으면 **던지고**(조용히 1ms 로 clamp 하면 삭제 경로가 «왜인지
+늘 타임아웃» 하는 상태가 된다), 범위를 벗어난 유한 값은 1~60000ms 로 clamp 한다.
+
+**이름이 반대를 말하던 자리**: private `findByIdForUpdate` → `findByIdForPatchValidation`.
+이 저장소에서 `FOR UPDATE` 는 **진짜 행 잠금**을 뜻하고 7개 파일이 그 뜻으로 쓴다. 락 부재가
+결함이었던 바로 그 코드에서 이름이 잠금을 약속하고 있었다. 제안받은 `…ForPatchPrecheck` 는
+쓰지 않았다 — `Precheck` 은 이 저장소에서 Cafe24/MakeShop mall-id 사전검증 전용 어휘라
+같은 클래스의 거짓 연상을 다른 이름으로 다시 만든다.
+
+그리고 `TRIGGER_DELETE_LOCK_TIMEOUT_MS` JSDoc 이 첫 소비자의 정리 목록을 나열하고 있어
+두 번째 소비자에게 과대 서술이 됐던 것을 **규칙**으로 바꿨다 — 무엇을 먼저 끝냈는지는
+경로마다 다르고, 공통점은 그것들이 되돌릴 수 없다는 것이다.
+
 ## Unreleased — **Behavior change**: 동시 PATCH 가 인입 서명 ref 를 지워 fail-open 이 되던 경로를 닫는다
 
 같은 트리거에 PATCH 가 겹치면, 나중에 커밋되는 쪽이 **요청 시작 시점의 `config` 스냅샷**으로
@@ -31,9 +61,14 @@ INFO#6·#7). 표제의 «모든 자리» 를 그 축까지 읽지 않도록 범�
 락은 트리거 단위 advisory lock
 (`pg_advisory_xact_lock(hashtext('trigger-config:<id>'))`) 안으로 넣고, **락을 잡은 뒤에
 행을 다시 읽어** 병합한다. 행이 그 사이 삭제됐으면 쓰지 않는다 — `save` 는 행이 없으면
-INSERT 하므로, 그대로 두면 삭제된 트리거가 고아 상태로 되살아난다. **삭제 경로 둘 다**
-같은 락을 잡는다 — `DELETE /api/triggers/:id` 와 스케줄 삭제의 cascade. 그러지 않으면
-«읽었을 땐 있었는데 저장 직전에 삭제되는» 경합이 남는다.
+INSERT 하므로, 그대로 두면 삭제된 트리거가 고아 상태로 되살아난다. **애플리케이션이 지우는
+경로 둘 다** 같은 락을 잡는다 — `DELETE /api/triggers/:id` 와 스케줄 삭제의 cascade. 그러지
+않으면 «읽었을 땐 있었는데 저장 직전에 삭제되는» 경합이 남는다.
+
+> **정정(2026-09-15)**: 이 문단이 한때 *"삭제 경로 **둘 다**"* 라고만 적어 «그 둘이 전부» 로
+> 읽혔다. 실제로는 **셋째가 있다** — `Workflow`·`Workspace` 삭제의 FK `onDelete: 'CASCADE'`
+> 는 DB 레벨이라 advisory lock 을 애초에 잡을 수 없다. 그 경로가 남긴 창을
+> `rewriteTriggerConfigLocked` 의 `affected` 판정으로 닫았다(아래 항목).
 
 외부 provider 호출은 락 **밖**에 남는다 — Cafe24 토큰 갱신에서 같은 락을 기각했던 사유
 (*"lock 보유 중 HTTP 요청을 transaction 안에 묶어야 해 DB 커넥션 점유 시간이 늘고"*)가 그대로

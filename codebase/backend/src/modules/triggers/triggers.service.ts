@@ -348,7 +348,7 @@ export class TriggersService {
   /**
    * 없으면 `RESOURCE_NOT_FOUND` 로 던진다 — **이 문구가 사는 유일한 자리.**
    *
-   * 같은 리터럴이 네 곳으로 늘었었다(`findById` · `findByIdForUpdate` · 창 1 의 삭제 경합 ·
+   * 같은 리터럴이 네 곳으로 늘었었다(`findById` · `findByIdForPatchValidation` · 창 1 의 삭제 경합 ·
    * `rotateBotToken` 의 삭제 경합). 이 PR 이 스스로 반복해 적은 *"복제가 drift 를 부른다"* 와
    * 정면으로 어긋나는 상태였다 (`/ai-review` `review/code/2026/09/14/20_49_15`
    * maintainability WARNING#5).
@@ -527,8 +527,19 @@ export class TriggersService {
    * chatChannel 설정 여부 · 인증 설정)은 그 관계를 한 번도 보지 않는다. 저장·응답에 쓰이는
    * 엔티티는 **락 안에서 다시 읽으므로**, 여기서 조인을 한 번 더 하면 PATCH 마다 같은 JOIN
    * SELECT 가 두 번 돈다 (`/ai-review` `review/code/2026/09/14/20_17_16` performance WARNING#1).
+   *
+   * **한때 이름이 `findByIdForUpdate` 였다.** 이 저장소에서 `FOR UPDATE` 는 **진짜 행 잠금**을
+   * 뜻하는 SQL 관용구이고 7개 파일이 그 뜻으로 쓴다(execution-engine · webauthn ·
+   * integration-oauth 등). 이 메서드는 아무것도 잠그지 않으므로, 락 부재가 결함이었던 바로 그
+   * 코드에서 이름이 반대를 말하고 있었다 (`--impl-done`
+   * `review/consistency/2026/09/15/01_44_29` naming_collision W4).
+   *
+   * 접미 패턴은 `AuthConfigsService.findByIdForResponse` 를 따랐다. 제안받은
+   * `…ForPatchPrecheck` 는 **쓰지 않았다** — `Precheck` 은 이 저장소에서 Cafe24/MakeShop
+   * mall-id 사전검증 전용 어휘라(`PrecheckResultDto` · `MallIdPrecheck` 등) 같은 클래스의
+   * 거짓 연상을 다른 이름으로 다시 만든다.
    */
-  private async findByIdForUpdate(
+  private async findByIdForPatchValidation(
     id: string,
     workspaceId: string,
   ): Promise<Trigger> {
@@ -543,7 +554,7 @@ export class TriggersService {
     dto: UpdateTriggerDto,
     userId: string,
   ): Promise<Trigger> {
-    const trigger = await this.findByIdForUpdate(id, workspaceId);
+    const trigger = await this.findByIdForPatchValidation(id, workspaceId);
     const { notification, interaction, chatChannel, config, ...rest } = dto;
     // [Spec 2-trigger-list §3] Schedule 타입 트리거는 name·isActive 만 PATCH 허용.
     // endpointPath / config / authConfigId / notification / interaction / chatChannel 변경은
