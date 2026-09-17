@@ -655,14 +655,15 @@ export class TriggersService {
           interaction,
           safeChatChannel,
         );
-        // **재읽은 행을 저장 대상으로 쓴다.** `save` 는 엔티티를 통째로 저장하므로, 요청
-        // 시작 시점의 `trigger` 를 그대로 넘기면 `config` 밖의 컬럼
+        // **재읽은 행이 저장의 기준이다 — 저장 대상 자체는 아래에서 부분 객체로 좁힌다.**
+        // 요청 시작 시점의 `trigger` 를 기준으로 삼으면 `config` 밖의 컬럼
         // (`chatChannelHealth`·`chatChannelLastError`·`chatChannelSetupAt`·
-        // `chatChannelRotatedAt`·`chatChannelTokenV2`)이 **pre-lock 스냅샷 값으로 되돌아간다**.
+        // `chatChannelRotatedAt`·`chatChannelTokenV2`)이 **pre-lock 스냅샷 값으로 되돌아갔다**.
         // 같은 락을 공유하는 형제 창(`rotateBotToken`·binder)이 방금 커밋한 부분 UPDATE 를
-        // 이 저장이 조용히 덮는 것이다 — 이 PR 이 막는 것과 **같은 클래스**의 lost update 를
-        // 수정 자체가 새로 만들고 있었다
-        // (`/ai-review` `review/code/2026/09/14/19_07_43` database WARNING#2).
+        // 이 저장이 조용히 덮는 것이었다
+        // (`/ai-review` `review/code/2026/09/14/19_07_43` database WARNING#2). 그 뒤 «재읽은
+        // 엔티티를 통째로 저장» 으로 막았는데 락 **밖** 쓰기에는 뚫려 있었고, 지금은 아래
+        // «저장 대상은 이 요청이 바꾸는 필드뿐» 이 두 경로를 함께 막는다.
         //
         // **행이 사라졌으면 저장하지 않는다.** `save(entity)` 는 PK 로 재조회해 행이 없으면
         // **INSERT** 한다 — 그 사이 `remove()` 가 끝난 트리거를 같은 id 로 되살리는 것이다.
@@ -704,12 +705,14 @@ export class TriggersService {
         //
         // 그래서 반환값에서는 `updatedAt` 하나만 취한다. 재읽기 **뒤** 락 밖에서 커밋된 컬럼은
         // 이 응답에 보이지 않는다 — DB 는 보존되고(위) 응답만 한 박자 늦은 읽기다.
-        const written = await m.save(Trigger, {
-          id: target.id,
-          ...defined,
-          config: mergedConfig,
-        });
-        Object.assign(target, defined, { config: mergedConfig });
+        // **저장과 응답이 같은 객체를 쓴다** — 둘을 따로 적으면 필드를 더할 때 한쪽만 고쳐
+        // «DB 에 쓴 값» 과 «응답에 얹은 값» 이 조용히 갈린다.
+        const patch = { ...defined, config: mergedConfig };
+        const written = await m.save(Trigger, { id: target.id, ...patch });
+        Object.assign(target, patch);
+        // 실제 TypeORM 은 `@UpdateDateColumn` 이라 늘 채워 돌려준다. 가드는 **단위 대역**이
+        // 넘긴 객체를 그대로 돌려줄 때(`updatedAt` 없음) 재읽은 값을 `undefined` 로 지우지
+        // 않으려는 것이다 — 위 `defined` 와 같은 이유다.
         if (written.updatedAt) target.updatedAt = written.updatedAt;
         return target;
       })

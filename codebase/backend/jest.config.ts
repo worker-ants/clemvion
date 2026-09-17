@@ -47,7 +47,10 @@ const config: Config = {
   // this note): e2e specs are black-box HTTP against a container — they own no
   // Nest app and no native addon, only a `pg` Client per spec, which every spec
   // that opens one now closes via `await db.end()` in afterAll (specs that issue
-  // no DB query, e.g. health.e2e-spec, open no handle at all). detectOpenHandles
+  // no DB query, e.g. health.e2e-spec, open no handle at all). One exception opens
+  // a TypeORM DataSource as well — trigger-update-save-window.e2e-spec drives the
+  // ORM directly to reproduce a window HTTP can't open — and closes it with
+  // `ds.destroy()` in the same afterAll. detectOpenHandles
   // across all e2e suites reports zero handles, so don't re-add forceExit there
   // on a hang — find the spec that forgot db.end() instead.
 };

@@ -3679,8 +3679,9 @@ describe('TriggersService — 락 안 재읽기가 동시 확립분을 본다 (l
   /**
    * 동시 요청이 ref 를 **방금 확립하고**, 손대지 않은 키와 **컬럼**까지 함께 커밋한 상태.
    *
-   * `chatChannelHealth` 를 `withoutRef` 와 다르게 두는 것이 핵심이다 — `save` 는 엔티티를
-   * 통째로 저장하므로, 저장 대상이 pre-lock 스냅샷이면 이 컬럼이 `healthy` 로 되돌아간다.
+   * `chatChannelHealth` 를 `withoutRef` 와 다르게 두는 것이 핵심이다 — 창 1 이 pre-lock
+   * 스냅샷을 기준으로 저장하면 이 컬럼이 `healthy` 로 되돌아간다. (지금 창 1 은 이 요청이
+   * 바꾸는 필드만 저장해 이 컬럼을 아예 싣지 않는다 — «저장 대상은 이 요청이 바꾸는 필드뿐».)
    */
   const withRef = () =>
     row(
@@ -3888,7 +3889,19 @@ describe('TriggersService — 락 안 재읽기가 동시 확립분을 본다 (l
     // 채워 돌려주고 실값은 `updatedAt` 뿐이다(실측). 그 반환값을 통째로 덮었더니 `endpointPath`
     // 가 `null` 이 되어 `chatChannel` PATCH 가 전부 400 이 됐다 — mock 은 그 모양을 흉내내지
     // 않아 이 파일이 못 봤고 e2e 가 잡았다. 그래서 **실측한 반환 모양 그대로** 흉내낸다.
-    const { service, repo } = await makeService([withRef]);
+    // 재읽은 행에 **null 이 아닌** 값을 둔다 — 반환값의 `null` 이 덮으면 갈리도록. 픽스처에
+    // 없는 컬럼이면 `undefined` 와 `null` 이 같은 «없음» 으로 보여 단언이 판별하지 못한다.
+    //
+    // **응답에 남는 컬럼으로 고른다.** `notificationSecretV2`·`chatChannelTokenV2` 는
+    // `TRIGGER_RESPONSE_STRIP_COLUMNS` 가 응답에서 지우므로 반환값으로는 덮였는지 볼 수 없다 —
+    // 처음 그 둘로 단언했다가 «`undefined`» 로 실패해 알았다.
+    const rereadTriggeredAt = new Date('2026-09-10T00:00:00.000Z');
+    const reread = () =>
+      row(withRef().config as Record<string, unknown>, {
+        lastTriggeredAt: rereadTriggeredAt,
+        authConfigId: 'ac-reread',
+      });
+    const { service, repo } = await makeService([reread]);
     const newUpdatedAt = new Date('2026-09-17T00:00:00.000Z');
     repo.save.mockImplementation(
       // `as never` — 흉내내는 것이 바로 **타입과 다른 런타임 모양**(nullable 컬럼이 `null` 로 온다)
@@ -3896,6 +3909,8 @@ describe('TriggersService — 락 안 재읽기가 동시 확립분을 본다 (l
       (async (partial: unknown) => ({
         ...(partial as Record<string, unknown>),
         endpointPath: null,
+        lastTriggeredAt: null,
+        authConfigId: null,
         notificationSecretV2: null,
         chatChannelTokenV2: null,
         updatedAt: newUpdatedAt,
@@ -3909,9 +3924,11 @@ describe('TriggersService — 락 안 재읽기가 동시 확립분을 본다 (l
       'u-1',
     )) as unknown as Record<string, unknown>;
 
-    // 재읽은 값이 살아 있다 — 반환값의 `null` 로 덮이지 않았다.
-    expect(result.endpointPath).not.toBeNull();
-    expect(result.endpointPath).toBeDefined();
+    // 재읽은 값이 살아 있다 — 반환값의 `null` 로 덮이지 않았다. 세 컬럼 모두 본다: 하나만
+    // 보면 «특정 필드만 골라 덮는» 편집이 빠져나간다.
+    expect(result.endpointPath).toBe('hook-l');
+    expect(result.lastTriggeredAt).toEqual(rereadTriggeredAt);
+    expect(result.authConfigId).toBe('ac-reread');
     // 이 요청의 변경과 새 `updatedAt` 은 반영된다 — 좁힌 것이 둘까지 빼지 않았다는 반대 방향.
     expect(result.name).toBe('새 이름');
     expect(result.updatedAt).toEqual(newUpdatedAt);
