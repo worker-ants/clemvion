@@ -4463,6 +4463,7 @@ field: T | null;
       | 2 | `spec/conventions/redis-keys.md §4`(인접 네임스페이스)에 advisory lock 키 계열 미등재 | `trigger-config:<id>` 와 **자매 사례** `exec-cap:<workspaceId>`(`execution-engine.service.ts`)를 **함께** 올려야 한다. §4 는 정확히 이 혼동(«Redis 아닌데 Redis 키처럼 생겼다»)을 막으려는 절인데 정작 lock key 계열이 비어 있다 |
       | 3 | `spec/5-system/15-chat-channel.md §5.4.1.1` 표와 바로 아래 각주가 **서로 모순** | 표는 *"v1 미정의 · PATCH 는 signing 값을 바꾸지 않는다"*, 각주는 *"실제 구현은 매 PATCH 마다 회전 강제"*. spec 본문끼리의 충돌이라 구현으로 못 닫는다. 이번 PR 이 다룬 `inboundSigningRef` 와 같은 필드다 |
       | 4 | advisory lock 키 **인벤토리 문서 자체가 없다** | 2번의 상위 항목 — 계열이 늘어날 때 어디를 보고 충돌을 피하는지가 정해져 있지 않다 |
+      | 5b | **`spec/data-flow/11-workflow.md §3.1` 상태 다이어그램의 CASCADE 열거에 `trigger` 가 없다** | 2026-09-15 추가. `trigger.entity.ts:39,46` 이 `Workflow`·`Workspace` 에 `onDelete: 'CASCADE'` 를 걸고 있고 `V001__initial_schema.sql:146` 부터 그랬는데, 다이어그램은 그 상류 경로를 안 적는다(`2-trigger-list.md §4.3` 은 **반대 방향만** 서술). 이 사실이 위 developer 항목 5 의 결함 근거이기도 하다 — **문서에 없으니 아무도 그 경로를 세지 않았다.** `--impl-prep` `review/consistency/2026/09/15/08_58_18` cross_spec W1. 2차 파급(`schedule`)도 함께 |
       | 5 | 전역 **32비트** 키 공간 공유 메모 | `pg_advisory_xact_lock(hashtext(...))` 의 `hashtext` 는 int4 를 낸다 — 접두어가 달라도 전 도메인이 **한 공간**을 쓴다. 충돌해도 과직렬화뿐이라 무해하지만 **어디에도 적혀 있지 않다**. 계열 3개 이상이 되는 시점의 재검토 신호로 남긴다 |
 
       > **이 항목이 여기 있는 이유 자체가 교훈이다.** 5건은 원래 plan §D 에만 있었고,
@@ -4481,12 +4482,23 @@ field: T | null;
       | # | 항목 | 성격 |
       |---|---|---|
       | 1 | `TriggersService.remove()` 와 `SchedulesService.remove()` 의 «락 → 삭제 → 실패 로깅 → 재던짐» 블록이 복제돼 있다 → `deleteTriggerRowLocked(manager, id, {...})` | 14라운드 **W1**(유일한 WARNING). 리뷰어가 «즉시 차단 사유 아님» 으로 분류했고 두 자리 모두 뮤턴트 고정 테스트가 있다. **세 번째 호출부가 생길 때** 뽑는다 — 지금 뽑으면 인자 셋짜리 헬퍼가 복제보다 읽기 어렵다 |
-      | 2 | private `findByIdForUpdate` 개명(예: `findByIdForPatchValidation`) | 이 저장소에서 `*ForUpdate` 는 **진짜 행 잠금**(`SELECT … FOR UPDATE`) 관용구인데 이건 잠금 없는 경량 조회다. 바로 위 JSDoc 이 *"저장·응답 엔티티는 락 안에서 다시 읽는다"* 를 이미 적고 있어 오신뢰 여지는 좁고 private 라 파급도 이 파일 안이다 |
-      | 3 | `TRIGGER_DELETE_LOCK_TIMEOUT_MS` JSDoc 의 «정리 3종» 나열을 경로 비특정으로 일반화 | 14라운드 INFO#17. **CHANGELOG 쪽 절반은 이미 고쳤다** — 같은 정정의 `codebase/**` 절반만 남았다 |
-      | 4 | `acquireTriggerConfigLock` 의 `timeoutMs` 를 `Number.isFinite` + 상한 clamp 로 검증 | 14라운드 INFO#2. `SET LOCAL lock_timeout` 이 파라미터 바인딩 없는 보간이지만 호출부가 **모듈 상수만** 넘겨 현재 익스플로잇 불가 — 방어 심도 |
-      | 5 | `rewriteTriggerConfigLocked` 가 `update()` 의 `affected` 를 확인하지 않는다 | 14라운드 INFO#19. 삭제 경로 둘이 **같은 락을 공유**해 실무적으로 닫혀 있고, 계약을 코드로 드러내는 일이 남았다 |
-      | 6 | `SchedulesService.remove()` 의 `triggerId` falsy 분기 테스트 1건 | 14라운드 INFO#16. 선재 가드절이라 회귀는 아니다 |
+      | ~~2~~ ✅ | private `findByIdForUpdate` 개명(예: `findByIdForPatchValidation`) | 이 저장소에서 `*ForUpdate` 는 **진짜 행 잠금**(`SELECT … FOR UPDATE`) 관용구인데 이건 잠금 없는 경량 조회다. 바로 위 JSDoc 이 *"저장·응답 엔티티는 락 안에서 다시 읽는다"* 를 이미 적고 있어 오신뢰 여지는 좁고 private 라 파급도 이 파일 안이다 |
+      | ~~3~~ ✅ | `TRIGGER_DELETE_LOCK_TIMEOUT_MS` JSDoc 의 «정리 3종» 나열을 경로 비특정으로 일반화 | 14라운드 INFO#17. **CHANGELOG 쪽 절반은 이미 고쳤다** — 같은 정정의 `codebase/**` 절반만 남았다 |
+      | ~~4~~ ✅ | `acquireTriggerConfigLock` 의 `timeoutMs` 를 `Number.isFinite` + 상한 clamp 로 검증 | 14라운드 INFO#2. `SET LOCAL lock_timeout` 이 파라미터 바인딩 없는 보간이지만 호출부가 **모듈 상수만** 넘겨 현재 익스플로잇 불가 — 방어 심도 |
+      | ~~5~~ ✅ | `rewriteTriggerConfigLocked` 가 `update()` 의 `affected` 를 확인하지 않는다 | 14라운드 INFO#19. ~~삭제 경로 둘이 **같은 락을 공유**해 실무적으로 닫혀 있고, 계약을 코드로 드러내는 일이 남았다~~ → **2026-09-15 실측으로 반증**: 삭제 경로는 **셋**이고 세 번째(`Workflow`·`Workspace` 삭제의 FK `onDelete: 'CASCADE'`)는 **DB 레벨이라 advisory lock 을 애초에 잡을 수 없다**. 0행 UPDATE 가 도달 가능하므로 «계약 노출» 이 아니라 **좁은 실결함**이다 (`--impl-prep` `review/consistency/2026/09/15/08_58_18` plan_coherence W3 가 이 줄을 지목했다) |
+      | ~~6~~ ✅ | `SchedulesService.remove()` 의 `triggerId` falsy 분기 테스트 1건 | 14라운드 INFO#16. 선재 가드절이라 회귀는 아니다 |
+      | 7 | **창 1(`TriggersService.update()` 의 인라인 `save()`)이 FK CASCADE 창에 대해 미검증** | 2026-09-15 추가. 창 1 만 `rewriteTriggerConfigLocked` 를 안 거치므로 `affected` 판정의 보호를 못 받는다. **실패 방식이 추정이다** — `save` 가 사라진 행을 INSERT 로 되살릴 때 부모(`workflow`)도 없으니 FK 위반으로 시끄럽게 실패할 것으로 보이나 **재지 않았다.** 결판내려면 **재읽기와 저장 사이를 멈추는 프로세스 내부 훅**이 필요하다(락은 읽기 *전에* 잡혀서 바깥에서 그 창을 못 연다) — 이 저장소의 boot-only e2e 훅 관례(`NODE_ENV`+FLAG 이중 게이트)를 따르면 된다. `/ai-review` `review/code/2026/09/15/09_30_03` W2 |
+      | 8 | `rewriteTriggerConfigLocked` 반환값을 **여전히 무시하는 호출부 2곳** | `normalizeNotificationSecretRef`(create/update 경유) · `chat-channel-binder.service.ts` 의 degraded fallback. 새 `affected` 판정이 `false` 를 돌려줘도 아무도 안 본다 — 같은 클래스의 잔여 표면 (같은 세션 INFO#3) |
+      | 9 | `rotateBotToken` 의 secret store 쓰기가 `affected` 판정보다 **먼저, 트랜잭션 밖에서** 일어난다 | HTTP 응답 계약(404)은 닫혔지만 «secret store 에는 새 토큰, DB 에는 행 없음» 의 보상은 안 닫혔다. 5라운드 W1(secret store 원자성)과 같은 자리 (같은 세션 INFO#4) |
+      | 10 | `rewriteTriggerConfigLocked` 의 `@returns` JSDoc + 전용 spec 의 suite JSDoc 이 신규 2분기를 반영 안 함 | 「쓰지 않을 거면 계산도 안 한다」는 `!fresh` 분기에만 해당한다는 것도 한 줄 (같은 세션 INFO#7·#12) |
+      | 11 | 테스트 미세 보강 — `-Infinity` fixture · clamp 경계값(`1`/`60000`) 명시 · `it.each` 통일 | 낮은 우선순위 (같은 세션 INFO#10·#11) |
 
+      > **✅ 2026-09-15 — 2~6 해소** (`plan/complete/trigger-lock-followups.md`,
+      > 브랜치 `claude/trigger-lock-followups-0c79a0`). 그중 **5 는 착수 전 전제 실측에서
+      > «정리» 가 아니라 좁은 실결함으로 성격이 바뀌었다** — 삭제 경로가 셋이고 세 번째(FK
+      > CASCADE)는 advisory lock 을 애초에 못 잡는다. **1 은 조건부 유예 유지**(세 번째
+      > 호출부), **7~11 은 그 라운드에서 새로 등재**.
+      >
       > **이 항목과 바로 위 planner 항목이 같은 사고에서 나왔다.** `--impl-done` 이
       > *"이 plan 이 봉인되면 근거 문서가 사라진다"* 로 잡았고, 그 판단은 developer 범위
       > 표에도 그대로 적용된다 — 그쪽은 체커가 지목하지 않았지만 **같은 이유로 죽는다.**

@@ -671,6 +671,27 @@ describe('SchedulesService.runNow', () => {
       }
     });
 
+    it('삭제 — triggerId 가 없으면 락도 잡지 않고 trigger 도 지우지 않는다', async () => {
+      // `if (schedule.triggerId)` 가드는 선재 코드인데 `remove` 케이스 넷이 전부
+      // `triggerId` 를 채우고 있어 **한 번도 실행된 적이 없었다**
+      // (`/ai-review` `review/code/2026/09/15/01_42_04` testing INFO#16).
+      //
+      // 가드를 지우는 편집이 이 분기에서만 깨지므로, 대조군으로서 의미가 있다.
+      triggerLockEvents.length = 0;
+      scheduleRepo.findOne.mockResolvedValue({
+        id: 'sch-notrig',
+        workspaceId: 'ws-1',
+        triggerId: null,
+      } as unknown as Schedule);
+
+      await service.remove('sch-notrig', 'ws-1', 'u-notrig');
+
+      expect(triggerLockEvents).toEqual([]);
+      expect(triggerRepo.delete).not.toHaveBeenCalled();
+      // schedule 행 삭제와 감사는 **그대로 일어난다** — 가드는 trigger 쪽만 건너뛴다.
+      expect(scheduleRepo.remove).toHaveBeenCalled();
+    });
+
     it('감사 로깅 — remove 는 schedule.deleted 를 남긴다', async () => {
       scheduleRepo.findOne.mockResolvedValue({
         id: 'sch-2',
