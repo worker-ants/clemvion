@@ -28,6 +28,10 @@ code:
   # 넣으면 그 정본이 `code:` 밖에 남는다. glob 이 self-spec 까지 무는 것은 의도이며,
   # 위 `endpoint-path-conflict-wrap*.ts` 가 정본+테스트를 함께 무는 선례와 같다.
   - codebase/backend/src/shared/testing/trigger-workflow-ref*.ts
+  # §3 «동시 쓰기 직렬화» 의 저장 근거를 고정하는 특성 테스트 — PATCH 가 **부분 객체**로 저장해야
+  # 하는 이유(통째 저장은 락 밖 커밋 컬럼을 되돌린다)와 재읽기 뒤 FK CASCADE 가 시끄럽게 실패함을
+  # 실제 Postgres·TypeORM 에서 단언한다. 註가 "재현해 고정했다" 고 적는 근거가 이 파일이다.
+  - codebase/backend/test/trigger-update-save-window.e2e-spec.ts
 ---
 
 # Spec: 트리거 목록 화면
@@ -198,11 +202,18 @@ code:
 >   `name`·`isActive` 동기화 등)은 이 락을 잡지 않는다.
 > - **락으로 막을 수 없는 삭제 경로가 있다** — `workflow`·`workspace` 삭제의 FK CASCADE
 >   ([§4.3](#43-cascade-동작)). 그래서 락 안에서도 행 부재를 판정한다: 재읽기가 비면 쓰지 않고,
->   병합 쓰기가 **0행에 매치**되면 쓰지 못한 것으로 취급한다(`rotate-bot-token` 은 이때 404).
+>   병합 쓰기가 **0행에 매치**되면 쓰지 못한 것으로 취급한다(`rotate-bot-token`·`interaction/revoke-token` 은 이때 404).
 >
-> ⚠️ **실측되지 않은 잔여**: PATCH 의 기본 저장 경로(엔티티 통째 저장)는 ① 재읽기와 저장
-> 사이의 CASCADE 창에서의 실패 방식, ② 락 밖 컬럼 한정 갱신과의 경합이 확인되지 않았다 —
-> [트래커](../../plan/in-progress/spec-draft-nullable-notation-followups.md) developer 항목 7.
+> **PATCH 의 저장은 이 요청이 바꾸는 필드만 싣는다.** 엔티티를 통째로 저장하면 재읽기 **뒤에** 락
+> 밖에서 커밋된 컬럼(회전 중인 `notificationSecretV2`, 웹훅 인입의 `lastTriggeredAt` 등)이 재읽기
+> 시점 값으로 **되써진다** — 위 «컬럼 한정 갱신은 락을 잡지 않는다» 가 성립하려면 PATCH 가 그 컬럼을
+> 싣지 않아야 한다.
+>
+> PATCH 에서 트리거 부재는 **두 하위 창**으로 갈린다. 락 안 재읽기가 **비면** 404 다(위 불릿과
+> 같다). 재읽기는 됐는데 **저장 직전에** FK CASCADE 가 끼어들면 저장이 **실패하고 롤백되어 트리거가
+> 되살아나지 않는다**; 이 경우는 전용 에러 코드가 없어 일반 500 `INTERNAL_ERROR` 로 나간다. 두
+> 동작(부분 저장의 보존 · CASCADE 창의 롤백)은 실제 Postgres·TypeORM 에서 재현해 고정했다 —
+> `workflow` 삭제로 실측했고, `workspace` 는 같은 FK 구조라 동일할 것으로 보되 따로 재지 않았다.
 
 > **응답 형태 — `TriggerDto.workflow` 는 키 생략형이다** ([§5.4](../5-system/2-api-convention.md#54-부재-표현--null-vs-키-생략) 기준 (b)).
 > (b) 의 판정 근거는 소비자가 부재를 정상 경로로 다룬다는 것이다 — 상세 매핑이
