@@ -77,7 +77,8 @@ INSERT 하므로, 그대로 두면 삭제된 트리거가 고아 상태로 되�
 > 읽혔다. 실제로는 **셋째가 있다** — `Workflow`·`Workspace` 삭제의 FK `onDelete: 'CASCADE'`
 > 는 DB 레벨이라 advisory lock 을 애초에 잡을 수 없다. 그 경로가 `rewriteTriggerConfigLocked`
 > 에 남긴 창은 위 항목 «락을 잡아도 못 막는 세 번째 삭제 경로» 에서 `affected` 판정으로
-> 닫았다. **창 1(`update()` 의 인라인 `save()`)은 그 항목의 범위가 아니다** — 아래 각주 참조.
+> 닫았다. **창 1(`update()` 의 인라인 `save()`)은 그 항목의 범위가 아니다** — 같은 항목의
+> «창 1 은 이 수정의 범위가 아니다» 문단 참조.
 
 외부 provider 호출은 락 **밖**에 남는다 — Cafe24 토큰 갱신에서 같은 락을 기각했던 사유
 (*"lock 보유 중 HTTP 요청을 transaction 안에 묶어야 해 DB 커넥션 점유 시간이 늘고"*)가 그대로

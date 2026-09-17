@@ -1,9 +1,10 @@
 ---
 title: trigger-config 락의 developer 범위 후속 5건 — 이름·계약·방어 심도
-status: in-progress
+status: complete
 owner: developer
 worktree: .claude/worktrees/trigger-lock-followups-0c79a0
 started: 2026-09-15
+completed: 2026-09-17
 spec_impact: none
 ---
 
@@ -125,7 +126,13 @@ forced 7/7, 11명 전원 리포트, `unfinished: []`. router 가 5명을 skip �
 
 - [x] `/consistency-check --impl-prep spec/5-system/` — `review/consistency/2026/09/15/08_58_18`
       **BLOCK: NO** (5 checker 전원 success · Critical 0 · WARNING 4). 처분은 위 표.
-- [ ] `--impl-done` 번들이 spec 0건이면 **BYPASS + 근거 기록**(기지 버그 — `code:` glob 미매칭)
+- [x] `--impl-done` 번들이 spec 0건이면 **BYPASS + 근거 기록** — **발동하지 않았다.**
+      spec 번들이 5개 프롬프트 전부에 실렸다. 다만 **코드 diff 번들에는 5파일 중
+      `triggers.service.ts` 하나만** 실렸다(나머지는 어느 `code:` glob 에도 안 걸린다 —
+      트래커 planner 항목 1). 그래도 checker 들이 `git diff origin/main...HEAD` 를 **직접**
+      돌려 5파일 346줄을 모두 봤고, cross_spec 은 ④를 `15-chat-channel.md §5.4` 의 404
+      계약과 대조했다(INFO#1). 번들 범위만 보고 «④는 검사 대상이 아니다» 라고 판단했던 것은
+      **과소 서술**이었다.
 - [x] 다섯 항목 각각: 전제 실측 → 수정 → 뮤턴트 RED
 
       | 뮤턴트 | 결과 (367건 표면, 종결 시점 재측정) |
@@ -159,7 +166,20 @@ forced 7/7, 11명 전원 리포트, `unfinished: []`. router 가 5명을 skip �
       - `/ai-review` `review/code/2026/09/15/09_30_03` — **Critical 0 · Warning 2 · LOW**,
         forced 7/7, `unfinished: []`. 처분 전문은 같은 디렉토리의 `RESOLUTION.md`.
       - `--impl-prep` `review/consistency/2026/09/15/08_58_18` — **BLOCK: NO**.
-      - `--impl-done` 은 아래 항목.
+      - `--impl-done` `review/consistency/2026/09/15/09_47_02` — **BLOCK: NO**
+        (5 checker 전원 success · Critical 0 · WARNING 1). 첫 실행은 **주간 사용 한도**로
+        6개 에이전트가 전부 즉시 실패했고(SUMMARY 없음), 한도 해제 뒤 **같은 세션**을 다시
+        돌렸다 — 새 세션을 만들면 SUMMARY 없는 빈 디렉터리가 하나 더 남는다. 그 사이 main 에
+        dependabot 4건(겹침 0)이 들어와 rebase 했다.
+
+        | # | 처분 |
+        |---|---|
+        | W1 `11-workflow.md §3.1` CASCADE 열거 누락 | 이미 트래커 planner 항목 5b |
+        | INFO#1 `rotateBotToken` 404 근거가 두 갈래인데 spec 은 하나만 | 급하지 않음 — planner 5b 와 같은 정비 때 |
+        | INFO#2 CHANGELOG «아래 각주 참조» 방향 오류 | **수용·수정** — **W1 의 방향 오류를 고치면서 같은 자리에 같은 오류를 다시 넣었다.** 이번엔 방향어를 쓰지 않고 항목명·문단명으로 인용했다 |
+        | INFO#3·#8 `plan/complete/…` 선참조 | 이 마무리 커밋에서 plan 을 옮겨 해소 |
+        | INFO#4 `redis-keys.md §4` 미등재 | 이미 트래커 planner 항목 2 |
+        | INFO#5·#6·#7·#9·#10 | 긍정 확인(조치 불요) |
 
       **정지 규칙**(결과를 보기 전에 선언, **하나만** 적는다):
       **`codebase/**` 수정 0 으로 끝나는 라운드가 나오면 종료.** 남은 발견은 처분으로
