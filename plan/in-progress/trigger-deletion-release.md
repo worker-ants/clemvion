@@ -129,6 +129,28 @@ RED 4 중 job 두 건의 RED 는 **올바른 이유가 아니었다**(결과는 
 | INFO 3 | 부수 주의 둘이 plan 에 근거로 없다 | 설계 불릿에 추가 |
 | INFO 6 | `W-a~e` 라벨이 리뷰 `W<N>` 과 겹쳐 보인다 | `RP-1~5` 로 (grep 0건) |
 
+## `/ai-review` 1라운드 (`review/code/2026/09/17/18_45_09` — **HIGH · C1 · W10**)
+
+처분 전문은 그 세션의 `RESOLUTION.md`. 요지:
+
+- **C1 수정** — 부모 삭제가 schedule job 을 차례로 해제하다 k 번째에서 실패하면 앞의 job 만 사라진 채
+  삭제가 취소됐다(«활성인데 발화하지 않는» 스케줄 — 이 PR 이 없애려는 결함 클래스). 전부 시도 → 실패가 있으면
+  이미 해제한 **활성** job 재등록 → 던짐.
+- **W2·W4 가시화** — 워크플로·워크스페이스 삭제 트랜잭션 실패 시 «외부 해제는 이미 끝났다» error 로그.
+  워크스페이스는 **선검사 뒤 역할 변경**이 이 경로로 온다 — spec §4.3 의 잔여 목록에 없는 새 창이라 planner
+  후속에 함께 넣는다.
+- **W5 수정** — 잠금 순서 워크스페이스 → 멤버십(소유권 이전과 같게).
+- W3·W6·W7·W8·W10·W11·INFO24·26 수정 또는 문서화. **W9 변경 없음** — binder 스펙이 «setupChatChannel 은
+  공개 진입점 스펙이 정본» 을 명시적으로 결정해 두었다.
+- **새 테스트가 내 결함을 잡았다** — 워크스페이스 서비스에 `Logger` import 만 넣고 필드를 안 만들어, 트랜잭션
+  실패 시 403 대신 `TypeError` 가 날 뻔했다(ts-jest 는 타입을 벗겨 단위에선 컴파일 오류가 안 보인다).
+- 뮤턴트 M16~M20 예측 RED · 실측 RED. 첫 시도의 M18·M19 는 뮤턴트가 구문 오류(`void (…,)`)를 내 스위트가
+  0건이었다 — **거짓 RED** 로 가려내고 호출 구문을 유지하는 형태로 다시 쟀다.
+
+**정지 규칙 (2라운드 결과를 보기 전에 선언)**: 라운드가 `codebase/**` 수정 0 으로 끝나면 수렴이다.
+2라운드가 Critical 을 내면 고치고 3라운드. Warning 만이면 — 동작 결함이 아니고(재현 오동작 없음) 고치면
+라운드가 또 늘 형태일 때 — developer SKILL §수렴 예외(a~d)를 인용해 `plan/` 등재로 갈음한다.
+
 ## 체크리스트
 
 - [x] `/consistency-check --impl-prep spec/2-navigation/` — `review/consistency/2026/09/17/18_00_19` **BLOCK: NO** (WARNING 6 처분 위)
@@ -137,6 +159,6 @@ RED 4 중 job 두 건의 RED 는 **올바른 이유가 아니었다**(결과는 
 - [x] 단위 — 순서(외부 → 행 → 비밀) · 보상 RP-1~5 · listener `unregister`(R8) · ModuleRef 해석 실패 시 던짐 · 워크스페이스 선검사 (backend 9,746 GREEN · 뮤턴트 확인은 아래)
 - [x] 구현
 - [x] TEST WORKFLOW — lint PASS · unit backend **9,747** · build PASS + 타입 ratchet baseline 일치(197/36) · e2e backend **321**(새 spec 7 포함) + playwright **51**. 마지막 테스트 수정 뒤 lint·unit·ratchet 재통과
-- [ ] `/ai-review` 수렴
+- [ ] `/ai-review` 수렴 — 1라운드 `18_45_09` HIGH·C1·W10 → `097e583e1` 로 처분(RESOLUTION). 2라운드 대기
 - [ ] `--impl-done`
-- [ ] 트래커 반영 — DRT-2 해소 표시 · **planner 후속 신설**(Planned 태그·§4.3 과도기 문구 제거 · `secret-store.md` `partial`→`implemented` · `15-chat-channel.md` R8 괄호 · `4-execution-engine.md §4.4` throw 사례) · **sweeper 재판단 항목 신설** · plan → `complete/`
+- [ ] 트래커 반영 — DRT-2 해소 표시 · **planner 후속 신설**(Planned 태그·§4.3 과도기 문구 제거 · `secret-store.md` `partial`→`implemented` · `15-chat-channel.md` R8 괄호 · `4-execution-engine.md §4.4` throw 사례) · **sweeper 재판단 항목 신설**(외부 해제 스냅샷 뒤 생긴 트리거 · 커밋 뒤 비밀 삭제 실패 누적) · 동시 중복 DELETE 감사 중복(리뷰 INFO 19·21) · 옮긴 로그 접두 항목 해소 표시 · planner 후속에 «워크스페이스 선검사 뒤 역할 변경» 잔여 추가 · plan → `complete/`
