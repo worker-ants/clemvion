@@ -20,6 +20,14 @@
 `'NaNms'` 로 실린다. 유한하지 않으면 **던지고**(조용히 1ms 로 clamp 하면 삭제 경로가 «왜인지
 늘 타임아웃» 하는 상태가 된다), 범위를 벗어난 유한 값은 1~60000ms 로 clamp 한다.
 
+**창 1 은 이 수정의 범위가 아니다.** `TriggersService.update()` 만 `rewriteTriggerConfigLocked`
+를 거치지 않고 같은 락 안에서 `save(entity)` 를 쓴다. 그 경로도 재읽기와 저장 사이에 같은
+FK CASCADE 창을 갖는데, **실패 방식이 무엇인지는 아직 재지 않았다** — `save` 가 사라진 행을
+INSERT 로 되살리려 할 때 부모(`workflow`)도 이미 없으므로 FK 위반으로 **시끄럽게** 실패할
+것으로 **추정**하지만, 확인하려면 재읽기와 저장 **사이**를 멈추는 프로세스 내부 훅이 필요하다
+(락은 읽기 *전에* 잡히므로 바깥에서는 그 창을 열 수 없다). 후속으로 등재했다
+(`/ai-review` `review/code/2026/09/15/09_30_03` security·concurrency W2).
+
 **이름이 반대를 말하던 자리**: private `findByIdForUpdate` → `findByIdForPatchValidation`.
 이 저장소에서 `FOR UPDATE` 는 **진짜 행 잠금**을 뜻하고 7개 파일이 그 뜻으로 쓴다. 락 부재가
 결함이었던 바로 그 코드에서 이름이 잠금을 약속하고 있었다. 제안받은 `…ForPatchPrecheck` 는
@@ -67,8 +75,9 @@ INSERT 하므로, 그대로 두면 삭제된 트리거가 고아 상태로 되�
 
 > **정정(2026-09-15)**: 이 문단이 한때 *"삭제 경로 **둘 다**"* 라고만 적어 «그 둘이 전부» 로
 > 읽혔다. 실제로는 **셋째가 있다** — `Workflow`·`Workspace` 삭제의 FK `onDelete: 'CASCADE'`
-> 는 DB 레벨이라 advisory lock 을 애초에 잡을 수 없다. 그 경로가 남긴 창을
-> `rewriteTriggerConfigLocked` 의 `affected` 판정으로 닫았다(아래 항목).
+> 는 DB 레벨이라 advisory lock 을 애초에 잡을 수 없다. 그 경로가 `rewriteTriggerConfigLocked`
+> 에 남긴 창은 위 항목 «락을 잡아도 못 막는 세 번째 삭제 경로» 에서 `affected` 판정으로
+> 닫았다. **창 1(`update()` 의 인라인 `save()`)은 그 항목의 범위가 아니다** — 아래 각주 참조.
 
 외부 provider 호출은 락 **밖**에 남는다 — Cafe24 토큰 갱신에서 같은 락을 기각했던 사유
 (*"lock 보유 중 HTTP 요청을 transaction 안에 묶어야 해 DB 커넥션 점유 시간이 늘고"*)가 그대로
