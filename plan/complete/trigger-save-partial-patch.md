@@ -1,9 +1,10 @@
 ---
 title: 창 1 의 통째 save 가 락 밖 컬럼 쓰기를 되돌린다 — 부분 객체 save 로 좁힌다
-status: in-progress
+status: complete
 owner: developer
 worktree: trigger-cascade-window-probe-5e9e92
 started: 2026-09-17
+completed: 2026-09-17
 spec_impact: none
 ---
 
@@ -132,6 +133,20 @@ forced 7/7, `unfinished: []`. 위험도 MEDIUM 의 근거는 W1 하나다.
 | INFO#15 리뷰 도중 공유 워킹트리에서 `trigger-transaction-mock.ts` 일시 변경 관측 | 리뷰어 간 뮤테이션 흔적. 커밋 상태 무관 — `git status` 로 확인 |
 | 나머지 INFO | 조치 불요 · 1라운드와 같은 기지 항목 |
 
+## 3라운드 리뷰 처분 (`review/code/2026/09/17/14_34_56` — **C0 · W1 · LOW**) — 종결
+
+forced 7/7, `unfinished: []`. 리뷰어 다섯 명이 **핵심 코드가 1·2라운드 이후 바이트 단위로 변경
+없음**을 `git diff` 로 확인했다.
+
+| # | 처분 |
+|---|---|
+| W1 CHANGELOG 의 최신 항목(«실측 확정»)과 `#1341` 항목(«아직 재지 않았다»)이 시제가 어긋난다 | **수용·수정** — `#1341` 원문은 그 시점 서술로 남기고 «갱신(2026-09-17)» 을 덧붙였다. 참조는 항목명으로 — 이 계열에서 방향어 참조가 두 번 틀렸다 |
+| INFO#1 [SPEC-DRIFT] | planner 후속 — 트래커에 등재 |
+| 나머지 INFO | 1·2라운드 처분의 재확인 |
+
+> **정지 규칙 충족** — 대응은 루트 `CHANGELOG.md` 뿐, **`codebase/**` 수정 0**. 발견의 성격은
+> 1라운드(구조·문서 정합) → 2라운드(수치 재현성) → 3라운드(문서 내부 시제)로 얕아졌다.
+
 ## 검증 계획
 
 - **측정 spec 을 특성 테스트로 전환** — 관측을 단언으로. ①(통째)·①b(부분) 시끄러운 실패와 코드,
@@ -183,7 +198,15 @@ forced 7/7, `unfinished: []`. 위험도 MEDIUM 의 근거는 W1 하나다.
       **23502** 실측)·②(통째 되돌림)·②c(반환값은 재조회 아님)·②b(부분 보존)·③(`affected` 0). 6건.
 - [x] `run-test-all.sh` 4단계 **ALL PASS** (lint · unit 14 · build+타입 ratchet · e2e **314**). 첫
       실행에서 `chatChannel` PATCH e2e 2건이 400 으로 깨졌다 — 위 «내가 틀린 측정».
-- [ ] 트래커 항목 7 `[x]` + planner 후속(⚠️ 정정) 등재 + plan → `complete/`
-- [ ] `/ai-review` + `--impl-done`
+- [x] 트래커 항목 7 해소 표시 + planner 후속(⚠️ 교체 · e2e `code:` 등재 · 404 사유) 등재 + plan → `complete/`
+- [x] `/ai-review` 3라운드로 종결 — `review/code/2026/09/17/14_34_56` **C0 · W1 · LOW**, `codebase/**` 수정 0
+- [x] `--impl-done spec/2-navigation/` — `review/consistency/2026/09/17/14_45_07` **BLOCK: NO** (5/5 success · Critical 0 · WARNING 4)
+
+      | # | 처분 |
+      |---|---|
+      | W1 `2-trigger-list.md §3` ⚠️ 가 이 PR 로 반증됐다 | planner 후속 1 (트래커 등재) |
+      | W2 `15-chat-channel.md §5.4` 404 행에 CASCADE 사유 없음 | planner 후속 3 |
+      | W3 증거 e2e 가 `code:` 에 없다 | planner 후속 2 |
+      | W4 **체크리스트의 «plan → `complete/`» 를 옮기기 전에 체크했고, 트래커가 아직 없는 경로를 인용** | **수용·수정** — 이 plan 이동과 체크를 **같은 커밋**에 묶었다. «체크와 `complete/` 이동은 한 동작» 을 또 어겼다 |
 
       **정지 규칙**(하나만): **`codebase/**` 수정 0 으로 끝나는 라운드가 나오면 종료.**

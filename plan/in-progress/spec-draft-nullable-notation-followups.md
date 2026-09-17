@@ -4502,7 +4502,7 @@ field: T | null;
       | ~~4~~ ✅ | `acquireTriggerConfigLock` 의 `timeoutMs` 를 `Number.isFinite` + 상한 clamp 로 검증 | 14라운드 INFO#2. `SET LOCAL lock_timeout` 이 파라미터 바인딩 없는 보간이지만 호출부가 **모듈 상수만** 넘겨 현재 익스플로잇 불가 — 방어 심도 |
       | ~~5~~ ✅ | `rewriteTriggerConfigLocked` 가 `update()` 의 `affected` 를 확인하지 않는다 | 14라운드 INFO#19. ~~삭제 경로 둘이 **같은 락을 공유**해 실무적으로 닫혀 있고, 계약을 코드로 드러내는 일이 남았다~~ → **2026-09-15 실측으로 반증**: 삭제 경로는 **셋**이고 세 번째(`Workflow`·`Workspace` 삭제의 FK `onDelete: 'CASCADE'`)는 **DB 레벨이라 advisory lock 을 애초에 잡을 수 없다**. 0행 UPDATE 가 도달 가능하므로 «계약 노출» 이 아니라 **좁은 실결함**이다 (`--impl-prep` `review/consistency/2026/09/15/08_58_18` plan_coherence W3 가 이 줄을 지목했다) |
       | ~~6~~ ✅ | `SchedulesService.remove()` 의 `triggerId` falsy 분기 테스트 1건 | 14라운드 INFO#16. 선재 가드절이라 회귀는 아니다 |
-      | 7 | **창 1(`TriggersService.update()` 의 인라인 `save()`)이 FK CASCADE 창에 대해 미검증** | 2026-09-15 추가. 창 1 만 `rewriteTriggerConfigLocked` 를 안 거치므로 `affected` 판정의 보호를 못 받는다. **실패 방식이 추정이다** — `save` 가 사라진 행을 INSERT 로 되살릴 때 부모(`workflow`)도 없으니 FK 위반으로 시끄럽게 실패할 것으로 보이나 **재지 않았다.** 결판내려면 **재읽기와 저장 사이를 멈추는 프로세스 내부 훅**이 필요하다(락은 읽기 *전에* 잡혀서 바깥에서 그 창을 못 연다) — 이 저장소의 boot-only e2e 훅 관례(`NODE_ENV`+FLAG 이중 게이트)를 따르면 된다. `/ai-review` `review/code/2026/09/15/09_30_03` W2 |
+      | ~~7~~ ✅ | **창 1(`TriggersService.update()` 의 인라인 `save()`)이 FK CASCADE 창에 대해 미검증** — **2026-09-17 해소** (`plan/complete/trigger-save-partial-patch.md`). 운영 훅 없이 TypeORM 을 실제 Postgres 에 붙여 재현: CASCADE 창은 **시끄러운 실패**(롤백·부활 없음)로 실측, 그리고 같은 측정에서 **락 밖 컬럼 쓰기를 되돌리는 실결함**이 드러나 부분 객체 `save` 로 고쳤다. 원문: | 2026-09-15 추가. 창 1 만 `rewriteTriggerConfigLocked` 를 안 거치므로 `affected` 판정의 보호를 못 받는다. **실패 방식이 추정이다** — `save` 가 사라진 행을 INSERT 로 되살릴 때 부모(`workflow`)도 없으니 FK 위반으로 시끄럽게 실패할 것으로 보이나 **재지 않았다.** 결판내려면 **재읽기와 저장 사이를 멈추는 프로세스 내부 훅**이 필요하다(락은 읽기 *전에* 잡혀서 바깥에서 그 창을 못 연다) — 이 저장소의 boot-only e2e 훅 관례(`NODE_ENV`+FLAG 이중 게이트)를 따르면 된다. `/ai-review` `review/code/2026/09/15/09_30_03` W2 |
       | 8 | `rewriteTriggerConfigLocked` 반환값을 **여전히 무시하는 호출부 2곳** | `normalizeNotificationSecretRef`(create/update 경유) · `chat-channel-binder.service.ts` 의 degraded fallback. 새 `affected` 판정이 `false` 를 돌려줘도 아무도 안 본다 — 같은 클래스의 잔여 표면 (같은 세션 INFO#3) |
       | 9 | `rotateBotToken` 의 secret store 쓰기가 `affected` 판정보다 **먼저, 트랜잭션 밖에서** 일어난다 | HTTP 응답 계약(404)은 닫혔지만 «secret store 에는 새 토큰, DB 에는 행 없음» 의 보상은 안 닫혔다. 5라운드 W1(secret store 원자성)과 같은 자리 (같은 세션 INFO#4) |
       | 10 | `rewriteTriggerConfigLocked` 의 `@returns` JSDoc + 전용 spec 의 suite JSDoc 이 신규 2분기를 반영 안 함 | 「쓰지 않을 거면 계산도 안 한다」는 `!fresh` 분기에만 해당한다는 것도 한 줄 (같은 세션 INFO#7·#12) |
@@ -4518,6 +4518,17 @@ field: T | null;
       > *"이 plan 이 봉인되면 근거 문서가 사라진다"* 로 잡았고, 그 판단은 developer 범위
       > 표에도 그대로 적용된다 — 그쪽은 체커가 지목하지 않았지만 **같은 이유로 죽는다.**
 
+
+- [ ] **창 1 실측 결과를 spec 에 반영한다 — §3 ⚠️ 교체 · 증거 e2e `code:` 등재 · 404 사유** (planner,
+      2026-09-17 등재, `plan/complete/trigger-save-partial-patch.md` «이 PR 이 안 하는 것»).
+      developer 항목 7 을 닫으며 코드는 고쳤지만, 그 사실을 적을 문장들은 planner 턴이 쓴 것이라
+      developer 가 고치지 않았다.
+
+      | # | 할 일 | 근거 |
+      |---|---|---|
+      | 1 | `spec/2-navigation/2-trigger-list.md §3` 의 ⚠️ «실측되지 않은 잔여» 를 «① 재읽기 뒤 FK CASCADE 는 시끄러운 실패로 실측(롤백·부활 없음) · ② 락 밖 컬럼 경합은 실결함이었고 부분 객체 `save` 로 수정됨» 으로 교체 | `/ai-review` `review/code/2026/09/17/13_44_39` W1·`14_11_48` INFO#12·`14_34_56` INFO#1 [SPEC-DRIFT] — 세 라운드 연속 지적 |
+      | 2 | 같은 문서 frontmatter `code:` 에 `codebase/backend/test/trigger-update-save-window.e2e-spec.ts` 등재 | 이 문서가 스스로 성문화한 관례(«e2e 가 보장을 고정하면 그 파일을 `code:` 에 올린다», 선례 `trigger-workflow-ref.e2e-spec.ts`) — `--impl-prep` `review/consistency/2026/09/17/13_04_39` W1 |
+      | 3 | `spec/5-system/15-chat-channel.md §5.4` 404 행에 «CASCADE 창의 병합 쓰기 0행» 사유 한 줄 | 같은 `--impl-prep` INFO#1 |
 
 ## 종결 조건
 
