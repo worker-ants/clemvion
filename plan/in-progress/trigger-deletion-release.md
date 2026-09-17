@@ -151,14 +151,26 @@ RED 4 중 job 두 건의 RED 는 **올바른 이유가 아니었다**(결과는 
 2라운드가 Critical 을 내면 고치고 3라운드. Warning 만이면 — 동작 결함이 아니고(재현 오동작 없음) 고치면
 라운드가 또 늘 형태일 때 — developer SKILL §수렴 예외(a~d)를 인용해 `plan/` 등재로 갈음한다.
 
+## `/ai-review` 2라운드 (`review/code/2026/09/17/19_14_29` — **MEDIUM · C0 · W7**)
+
+처분 전문은 그 세션의 `RESOLUTION.md`. 선언한 정지 규칙대로 **동작 결함만 고쳤다**:
+
+- **W2 수정** — 부모 삭제가 외부 자원을 되돌릴 수 없게 해제한 뒤 부모 행을 잠그는데 상한이 없었다(hang 으로 굳는
+  반쯤 삭제). `lockParentAndListTriggerIds` 를 트랜잭션 첫 호출로 계약하고 5초 `lock_timeout`. 뮤턴트 M21·M22 RED.
+- **W1 등재** — `trigger.workflow_id` 인덱스가 실제로 없다(실측). 그러나 CASCADE 가 이 PR 전부터 같은 컬럼으로
+  스캔했다 — 복잡도 계열 불변, 잠금 대기는 W2 로 상한. 마이그레이션과 `1-data-model.md` 인덱스 표가 함께 가야 해
+  성능 후속으로.
+- **W3·W4·INFO7 등재**(성능) · **W5 → 트래커 항목 1 갱신**(추출 조건 «세 번째 호출부» 가 충족됐다 — 네 자리).
+- INFO4 다중 실패 테스트 추가 · INFO3 아래 체크리스트 건수에 측정 시점 명시.
+
 ## 체크리스트
 
 - [x] `/consistency-check --impl-prep spec/2-navigation/` — `review/consistency/2026/09/17/18_00_19` **BLOCK: NO** (WARNING 6 처분 위)
 - [x] e2e 먼저 — 워크플로·워크스페이스·스케줄 삭제 뒤 비밀 0행 + 대조군 생존 + schedule job 해제 — 수정 전 백엔드로 **RED 4 / GREEN 2** 확인. 네 RED 모두 목표 단언에서 실패(`Expected 0 · Received 2`, job scheduler 잔존) — 거짓 RED 아님. GREEN 둘(403 선검사 · 트리거 삭제)은 수정 전에도 참인 회귀 가드
 - [x] e2e 보상 합성 — 실제 Postgres 에서 T → S → A → R → C 재진입 고정. 보상 **전** 1행을 단언해 판별 입력을 테스트 안에서 증명(보상 뒤 0행)
-- [x] 단위 — 순서(외부 → 행 → 비밀) · 보상 RP-1~5 · listener `unregister`(R8) · ModuleRef 해석 실패 시 던짐 · 워크스페이스 선검사 (backend 9,746 GREEN · 뮤턴트 확인은 아래)
+- [x] 단위 — 순서(외부 → 행 → 비밀) · 보상 RP-1~5 · listener `unregister`(R8) · ModuleRef 해석 실패 시 던짐 · 워크스페이스 선검사 (첫 구현 시점 backend 9,746 GREEN · 뮤턴트 확인은 위 표)
 - [x] 구현
-- [x] TEST WORKFLOW — lint PASS · unit backend **9,747** · build PASS + 타입 ratchet baseline 일치(197/36) · e2e backend **321**(새 spec 7 포함) + playwright **51**. 마지막 테스트 수정 뒤 lint·unit·ratchet 재통과
-- [ ] `/ai-review` 수렴 — 1라운드 `18_45_09` HIGH·C1·W10 → `097e583e1` 로 처분(RESOLUTION). 2라운드 대기
+- [x] TEST WORKFLOW — lint PASS · unit backend **9,747**(첫 TEST WORKFLOW 시점 — 리뷰 처분 뒤 1라운드 9,755 · 2라운드 9,756) · build PASS + 타입 ratchet baseline 일치(197/36) · e2e backend **321**(새 spec 7 포함) + playwright **51**. 마지막 테스트 수정 뒤 lint·unit·ratchet 재통과
+- [ ] `/ai-review` 수렴 — 1라운드 `18_45_09` HIGH·C1·W10 → `097e583e1` · 2라운드 `19_14_29` MEDIUM·C0·W7 → `d2184dcf2`(W2) + 등재. 3라운드 대기
 - [ ] `--impl-done`
-- [ ] 트래커 반영 — DRT-2 해소 표시 · **planner 후속 신설**(Planned 태그·§4.3 과도기 문구 제거 · `secret-store.md` `partial`→`implemented` · `15-chat-channel.md` R8 괄호 · `4-execution-engine.md §4.4` throw 사례) · **sweeper 재판단 항목 신설**(외부 해제 스냅샷 뒤 생긴 트리거 · 커밋 뒤 비밀 삭제 실패 누적) · 동시 중복 DELETE 감사 중복(리뷰 INFO 19·21) · 옮긴 로그 접두 항목 해소 표시 · planner 후속에 «워크스페이스 선검사 뒤 역할 변경» 잔여 추가 · plan → `complete/`
+- [ ] 트래커 반영 — DRT-2 해소 표시 · **planner 후속 신설**(Planned 태그·§4.3 과도기 문구 제거 · `secret-store.md` `partial`→`implemented` · `15-chat-channel.md` R8 괄호 · `4-execution-engine.md §4.4` throw 사례) · **sweeper 재판단 항목 신설**(외부 해제 스냅샷 뒤 생긴 트리거 · 커밋 뒤 비밀 삭제 실패 누적) · 동시 중복 DELETE 감사 중복(리뷰 INFO 19·21) · **성능 후속**(`trigger.workflow_id` 인덱스+인덱스 표 행 · 비밀 삭제 순차 · teardown 순차 · 전체 컬럼 적재) · **트래커 항목 1 갱신**(안무 4곳, 추출 조건 충족) · 옮긴 로그 접두 항목 해소 표시 · planner 후속에 «워크스페이스 선검사 뒤 역할 변경» 잔여 추가 · plan → `complete/`
