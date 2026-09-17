@@ -1,5 +1,7 @@
+import type { ModuleRef } from '@nestjs/core';
 import type { EntityManager } from 'typeorm';
 
+import { buildSecretRefPrefix } from '../secret-store/secret-ref';
 import type { SecretResolverService } from '../secret-store/secret-resolver.service';
 
 /**
@@ -25,7 +27,7 @@ import type { SecretResolverService } from '../secret-store/secret-resolver.serv
 
 /** `SecretResolverService.deleteByPrefix` 에 넘기는 접두. 트리거 id 는 UUID 라 LIKE 메타문자가 없다. */
 export function triggerSecretPrefix(triggerId: string): string {
-  return `secret://triggers/${triggerId}/`;
+  return buildSecretRefPrefix({ scope: 'triggers', resourceId: triggerId });
 }
 
 type SecretDeleter = Pick<SecretResolverService, 'deleteByPrefix'>;
@@ -104,7 +106,12 @@ export async function undoAbsentTriggerWrite(
   );
 }
 
-/** 트리거를 FK CASCADE 로 지우는 부모. */
+/**
+ * 트리거를 FK CASCADE 로 지우는 부모.
+ *
+ * **키 이름이 `Trigger` 의 컬럼 이름과 같다** — 구현이 이 값을 TypeORM `where` 로 그대로 쓴다. 키를
+ * 바꾸면 조회가 조용히 다른 조건이 된다.
+ */
 export type TriggerParent = { workflowId: string } | { workspaceId: string };
 
 /**
@@ -116,10 +123,23 @@ export type TriggerParent = { workflowId: string } | { workspaceId: string };
  * `forwardRef` 로 때우지 않고, 호출자가 `ModuleRef.get(TOKEN, { strict: false })` 로 찾는다.
  * 이 파일은 타입과 심볼만 내보내 호출자가 구현 클래스를 **파일 수준에서도** import 하지 않게 한다.
  *
- * 저장소의 다른 지연 해석(`NotificationsService.getWebsocket` 등)은 못 찾으면 no-op 이지만 **여기는
- * 던진다** — 조용히 넘어가면 이 정리가 빠진 결함이 그대로 재발한다.
+ * `ExecutionEngineService.getNotificationsService` 는 못 찾으면 삼켜 no-op 으로 넘어가지만 **여기는
+ * 던진다** — 조용히 넘어가면 이 정리가 빠진 결함이 그대로 재발한다. 해석은
+ * {@link resolveTriggerResourceReleaser} 한 곳에서만 한다.
  */
 export const TRIGGER_RESOURCE_RELEASER = Symbol('TRIGGER_RESOURCE_RELEASER');
+
+/**
+ * 정리 포트를 지연 해석한다. **못 찾으면 `ModuleRef.get` 이 던지고, 그것을 막지 않는다.**
+ * 워크플로·워크스페이스 삭제가 같은 정책을 쓰도록 여기 하나만 둔다.
+ */
+export function resolveTriggerResourceReleaser(
+  moduleRef: Pick<ModuleRef, 'get'>,
+): TriggerResourceReleasePort {
+  return moduleRef.get<TriggerResourceReleasePort>(TRIGGER_RESOURCE_RELEASER, {
+    strict: false,
+  });
+}
 
 export interface TriggerResourceReleasePort {
   /** 부모 밑 트리거들의 외부 자원을 해제한다 — 행 삭제 **전**, 트랜잭션 **밖**. */

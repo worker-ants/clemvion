@@ -3,6 +3,7 @@ import {
   ConflictException,
   ForbiddenException,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { ModuleRef } from '@nestjs/core';
@@ -18,15 +19,14 @@ import { WorkspaceRole } from './dto/add-member.dto';
 import { UpdateWorkspaceSettingsDto } from './dto/update-workspace-settings.dto';
 import { AuditLogsService } from '../audit-logs/audit-logs.service';
 import { AUDIT_ACTIONS } from '../audit-logs/audit-action.const';
-import {
-  TRIGGER_RESOURCE_RELEASER,
-  type TriggerResourceReleasePort,
-} from '../triggers/trigger-resource-release';
+import { resolveTriggerResourceReleaser } from '../triggers/trigger-resource-release';
 
 const ADMIN_ROLES = new Set<string>(['owner', 'admin']);
 
 @Injectable()
 export class WorkspacesService {
+  private readonly logger = new Logger(WorkspacesService.name);
+
   constructor(
     @InjectRepository(Workspace)
     private readonly workspaceRepository: Repository<Workspace>,
@@ -509,10 +509,10 @@ export class WorkspacesService {
     );
     // 트리거는 FK CASCADE 로 함께 지워진다 — 외부 자원은 트랜잭션 **밖에서 먼저**, 비밀은
     // **커밋 뒤** 정리한다(spec 트리거 목록 §4.3 · data-flow 12-workspace §1.10).
-    const releaser = this.triggerResourceReleaser();
+    const releaser = resolveTriggerResourceReleaser(this.moduleRef);
     await releaser.releaseExternalForParent({ workspaceId });
-    const triggerIds = await this.memberRepository.manager.transaction(
-      async (manager) => {
+    const triggerIds = await this.memberRepository.manager
+      .transaction(async (manager) => {
         const memRepo = manager.getRepository(WorkspaceMember);
         const wsRepo = manager.getRepository(Workspace);
         const invRepo = manager.getRepository(WorkspaceInvitation);
@@ -533,8 +533,17 @@ export class WorkspacesService {
         await memRepo.delete({ workspaceId });
         await wsRepo.remove(workspace);
         return ids;
-      },
-    );
+      })
+      .catch((err: unknown) => {
+        // 잠금 뒤 재검사 거부(선검사와 재검사 사이의 역할 변경)도 여기로 온다. 외부 해제는 되돌릴
+        // 수 없으므로 «발화하지 않는 트리거가 남은 워크스페이스» 를 소리내어 남긴다.
+        this.logger.error(
+          `WorkspacesService.deleteWorkspace: workspace=${workspaceId} 삭제가 트랜잭션에서 실패했다 — ` +
+            `그 트리거들의 schedule job·provider teardown·listener 해제는 **이미 끝났으므로** 워크스페이스는 ` +
+            `남았지만 트리거는 발화하지 않을 수 있다(비밀은 남아 있다): ${err instanceof Error ? err.message : String(err)}`,
+        );
+        throw err;
+      });
     await releaser.releaseSecretsAfterCommit(
       triggerIds,
       'WorkspacesService.deleteWorkspace',
@@ -546,7 +555,10 @@ export class WorkspacesService {
    *
    * 두 번 부른다: 트랜잭션 **밖에서 잠금 없이**(외부 해제 전 선검사)와 **안에서 잠금으로**(결정).
    * 둘 사이에 역할이 바뀌면 안쪽이 거부하고 외부 해제만 먼저 끝난 상태가 남는다 — 동시 역할 변경과
-   * 삭제가 겹치는 좁은 창이고, 정리 대상은 best-effort 외부 자원뿐이다.
+   * 삭제가 겹치는 좁은 창이다. 그 사실은 `deleteWorkspace` 가 error 로그로 남긴다.
+   *
+   * **잠금 순서는 워크스페이스 → 멤버십**이다 — `transferOwnership` 과 같게 둬야 둘이 겹칠 때
+   * 교착(`40P01`)이 나지 않는다. 판정 순서(권한 → 존재 → 타입)는 그와 별개로 유지한다.
    */
   private async assertWorkspaceDeletable(
     memRepo: Repository<WorkspaceMember>,
@@ -555,6 +567,10 @@ export class WorkspacesService {
     requesterId: string,
     lock?: { mode: 'pessimistic_write' },
   ): Promise<Workspace> {
+    const workspace = await wsRepo.findOne({
+      where: { id: workspaceId },
+      ...(lock ? { lock } : {}),
+    });
     const myMembership = await memRepo.findOne({
       where: { workspaceId, userId: requesterId },
       ...(lock ? { lock } : {}),
@@ -565,11 +581,6 @@ export class WorkspacesService {
         message: '워크스페이스 삭제는 owner만 가능합니다.',
       });
     }
-
-    const workspace = await wsRepo.findOne({
-      where: { id: workspaceId },
-      ...(lock ? { lock } : {}),
-    });
     if (!workspace) {
       throw new NotFoundException({
         code: 'WORKSPACE_NOT_FOUND',
@@ -583,18 +594,6 @@ export class WorkspacesService {
       });
     }
     return workspace;
-  }
-
-  /**
-   * 트리거 자원 정리 협력자를 **지연 해석**한다 — `TriggersModule` 을 import 하면 모듈 순환이
-   * 닫힌다(`trigger-resource-release.ts` 의 토큰 JSDoc). **못 찾으면 던진다** — `ModuleRef.get` 이
-   * 스스로 던지므로 막지 않는다. no-op 으로 삼키면 정리가 빠진 결함이 조용히 돌아온다.
-   */
-  private triggerResourceReleaser(): TriggerResourceReleasePort {
-    return this.moduleRef.get<TriggerResourceReleasePort>(
-      TRIGGER_RESOURCE_RELEASER,
-      { strict: false },
-    );
   }
 
   /**

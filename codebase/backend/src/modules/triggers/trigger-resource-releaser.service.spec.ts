@@ -1,3 +1,5 @@
+import { Logger } from '@nestjs/common';
+
 import { Workflow } from '../workflows/entities/workflow.entity';
 import { Workspace } from '../workspaces/entities/workspace.entity';
 import { Trigger } from './entities/trigger.entity';
@@ -15,8 +17,11 @@ describe('TriggerResourceReleaserService', () => {
   function make(
     opts: {
       triggers?: Trigger[];
-      schedules?: Array<{ id: string }>;
+      schedules?: Array<{ id: string; isActive?: boolean }>;
       removeJobRejects?: boolean;
+      /** 이 schedule id 들의 `removeJob` 만 실패한다. */
+      removeJobFailsFor?: string[];
+      registerJobRejects?: boolean;
     } = {},
   ) {
     const events: string[] = [];
@@ -29,8 +34,14 @@ describe('TriggerResourceReleaserService', () => {
     const scheduleRunner = {
       removeJob: jest.fn((id: string) => {
         events.push(`removeJob:${id}`);
-        return opts.removeJobRejects
+        return opts.removeJobRejects || opts.removeJobFailsFor?.includes(id)
           ? Promise.reject(new Error('redis down'))
+          : Promise.resolve();
+      }),
+      registerJob: jest.fn((s: { id: string }) => {
+        events.push(`registerJob:${s.id}`);
+        return opts.registerJobRejects
+          ? Promise.reject(new Error('redis still down'))
           : Promise.resolve();
       }),
     };
@@ -119,6 +130,76 @@ describe('TriggerResourceReleaserService', () => {
       await service.releaseExternalForParent({ workflowId: 'wf-1' });
 
       expect(scheduleRepository.find).not.toHaveBeenCalled();
+    });
+
+    /**
+     * 앞에서부터 해제하다 k 번째에서 그냥 던지면 1..k-1 은 Redis 에서 사라졌는데 행은 남는다 —
+     * 스케줄은 활성인데 발화하지 않는다. 그래서 **전부 시도**하고, 실패가 있으면 이미 해제한
+     * **활성** job 을 다시 등록한 뒤 던진다(`/ai-review` `review/code/2026/09/17/18_45_09` CRITICAL#1).
+     */
+    it('schedule job 하나가 실패하면 나머지도 시도하고, 이미 해제한 활성 job 을 다시 등록한 뒤 던진다', async () => {
+      const { service, events, scheduleRunner } = make({
+        triggers: [
+          trigger('s1', 'schedule'),
+          trigger('s2', 'schedule'),
+          trigger('s3', 'schedule'),
+          trigger('s4', 'schedule'),
+          trigger('w1', 'webhook'),
+        ],
+        schedules: [
+          { id: 'sched-1', isActive: true },
+          { id: 'sched-2', isActive: true },
+          { id: 'sched-3', isActive: false },
+          { id: 'sched-4', isActive: true },
+        ],
+        removeJobFailsFor: ['sched-2'],
+      });
+
+      await expect(
+        service.releaseExternalForParent({ workspaceId: 'ws-1' }),
+      ).rejects.toThrow(/schedule=sched-2: redis down/);
+
+      expect(events).toEqual([
+        'removeJob:sched-1',
+        'removeJob:sched-2',
+        'removeJob:sched-3',
+        'removeJob:sched-4',
+        // 비활성(sched-3)은 원래 job 이 없었다 — 다시 등록하면 꺼 둔 스케줄이 켜진다.
+        'registerJob:sched-1',
+        'registerJob:sched-4',
+      ]);
+      // 삭제를 멈췄으니 provider 등록도 건드리지 않는다.
+      expect(events.some((e) => e.startsWith('teardown:'))).toBe(false);
+      expect(scheduleRunner.registerJob).not.toHaveBeenCalledWith(
+        expect.objectContaining({ id: 'sched-2' }),
+      );
+    });
+
+    it('다시 등록마저 실패해도 원래 실패로 던지고, 복구 실패는 소리내어 남긴다', async () => {
+      const error = jest
+        .spyOn(Logger.prototype, 'error')
+        .mockImplementation(() => undefined);
+      try {
+        const { service } = make({
+          triggers: [trigger('s1', 'schedule'), trigger('s2', 'schedule')],
+          schedules: [
+            { id: 'sched-1', isActive: true },
+            { id: 'sched-2', isActive: true },
+          ],
+          removeJobFailsFor: ['sched-2'],
+          registerJobRejects: true,
+        });
+
+        await expect(
+          service.releaseExternalForParent({ workflowId: 'wf-1' }),
+        ).rejects.toThrow(/schedule=sched-2/);
+
+        const logged = error.mock.calls.map(([m]) => String(m)).join('\n');
+        expect(logged).toContain('sched-1');
+        expect(logged).toContain('redis still down');
+      } finally {
+        error.mockRestore();
+      }
     });
 
     it('schedule job 해제가 실패하면 던진다 — 삭제를 멈춘다', async () => {

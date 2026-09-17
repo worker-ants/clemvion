@@ -1,4 +1,5 @@
 import { Test, TestingModule } from '@nestjs/testing';
+import { Logger } from '@nestjs/common';
 import { TRIGGER_RESOURCE_RELEASER } from '../triggers/trigger-resource-release';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { findUserSecretLeaks } from '../../shared/testing/user-secret-absence';
@@ -708,6 +709,54 @@ describe('WorkspacesService', () => {
       ).rejects.toThrow(/TRIGGER_RESOURCE_RELEASER/);
 
       expect(workspaceRepo.remove).not.toHaveBeenCalled();
+    });
+
+    it('잠금 순서는 워크스페이스 → 멤버십이다 (transferOwnership 과 같아야 교착이 없다)', async () => {
+      // 반대 순서(멤버십 → 워크스페이스)면 같은 owner 의 소유권 이전과 겹칠 때 `40P01` 이 난다.
+      const locks: string[] = [];
+      workspaceRepo.findOne.mockImplementation((opts: { lock?: unknown }) => {
+        if (opts.lock) locks.push('workspace');
+        return Promise.resolve({ ...mockWorkspace, type: 'team' });
+      });
+      memberRepo.findOne.mockImplementation((opts: { lock?: unknown }) => {
+        if (opts.lock) locks.push('member');
+        return Promise.resolve({ role: 'owner' });
+      });
+
+      await service.deleteWorkspace('ws-uuid-1', 'user-uuid-1');
+
+      expect(locks).toEqual(['workspace', 'member']);
+    });
+
+    it('선검사 뒤 역할이 바뀌어 재검사가 거부하면, 외부 해제가 이미 끝났다는 사실을 남기고 던진다', async () => {
+      // 선검사(잠금 없음)와 재검사(잠금) 사이의 좁은 창이다. 외부 해제는 되돌릴 수 없으므로 워크스페이스는
+      // 남았는데 트리거가 발화하지 않는 상태를 소리내어 남긴다(`/ai-review` 18_45_09 WARNING#2·#4).
+      const error = jest
+        .spyOn(Logger.prototype, 'error')
+        .mockImplementation(() => undefined);
+      try {
+        workspaceRepo.findOne.mockResolvedValue({
+          ...mockWorkspace,
+          type: 'team',
+        });
+        memberRepo.findOne
+          .mockResolvedValueOnce({ role: 'owner' })
+          .mockResolvedValueOnce({ role: 'admin' });
+
+        await expect(
+          service.deleteWorkspace('ws-uuid-1', 'user-uuid-1'),
+        ).rejects.toMatchObject({ response: { code: 'OWNER_REQUIRED' } });
+
+        expect(triggerReleaser.releaseExternalForParent).toHaveBeenCalled();
+        expect(
+          triggerReleaser.releaseSecretsAfterCommit,
+        ).not.toHaveBeenCalled();
+        const logged = error.mock.calls.map(([m]) => String(m)).join('\n');
+        expect(logged).toContain('ws-uuid-1');
+        expect(logged).toContain('이미 끝났으므로');
+      } finally {
+        error.mockRestore();
+      }
     });
 
     it('personal 워크스페이스면 외부 자원을 건드리지 않는다', async () => {

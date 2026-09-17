@@ -1,4 +1,5 @@
 import { AuditLogsService } from '../audit-logs/audit-logs.service';
+import { Logger } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { DataSource } from 'typeorm';
@@ -1010,6 +1011,36 @@ describe('WorkflowsService', () => {
       ]);
       // 트랜잭션 밖의 repository 삭제로 되돌아가면 잠금·열거가 같은 트랜잭션이 아니게 된다.
       expect(mockRepository.remove).not.toHaveBeenCalled();
+    });
+
+    it('remove — 행 삭제가 실패하면 외부 해제가 이미 끝났다는 사실을 남기고 던진다', async () => {
+      // 외부 해제는 되돌릴 수 없다 — 조용히 던지면 «발화하지 않는 트리거» 가 아무도 모르게 남는다.
+      const error = jest
+        .spyOn(Logger.prototype, 'error')
+        .mockImplementation(() => undefined);
+      try {
+        mockRepository.findOne.mockResolvedValue({
+          id: 'wf-uuid-9',
+          workspaceId: 'ws-uuid-1',
+        });
+        mockRepository.manager.transaction.mockImplementationOnce(() =>
+          Promise.reject(new Error('deadlock detected')),
+        );
+
+        await expect(
+          service.remove('wf-uuid-9', 'ws-uuid-1', 'u-del'),
+        ).rejects.toThrow('deadlock detected');
+
+        const logged = error.mock.calls.map(([m]) => String(m)).join('\n');
+        expect(logged).toContain('wf-uuid-9');
+        expect(logged).toContain('이미 끝났으므로');
+        expect(
+          mockTriggerReleaser.releaseSecretsAfterCommit,
+        ).not.toHaveBeenCalled();
+        expect(auditLogs.record).not.toHaveBeenCalled();
+      } finally {
+        error.mockRestore();
+      }
     });
 
     it('remove — 정리 협력자를 못 찾으면 아무것도 지우지 않고 던진다 (no-op 금지)', async () => {

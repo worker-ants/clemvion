@@ -7,6 +7,7 @@ import {
   Injectable,
   BadRequestException,
   ConflictException,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
@@ -36,10 +37,7 @@ import { evaluateAiAgentToolPayloadWarnings } from '../../nodes/ai/ai-agent/tool
 import { toolBudgetStrictSave } from '../../nodes/ai/ai-agent/tool-payload-budget';
 import { ModelConfigService } from '../model-config/model-config.service';
 import { WorkspacesService } from '../workspaces/workspaces.service';
-import {
-  TRIGGER_RESOURCE_RELEASER,
-  type TriggerResourceReleasePort,
-} from '../triggers/trigger-resource-release';
+import { resolveTriggerResourceReleaser } from '../triggers/trigger-resource-release';
 import { validateTriggerParameterSchema } from '../execution-engine/utils/resolve-trigger-parameters';
 import { toTriggerParameterErrorDetails } from '../execution-engine/types/trigger-parameter.types';
 import {
@@ -68,6 +66,8 @@ const WORKFLOW_RESOURCE_TYPE = 'workflow';
 
 @Injectable()
 export class WorkflowsService {
+  private readonly logger = new Logger(WorkflowsService.name);
+
   constructor(
     @InjectRepository(Workflow)
     private readonly workflowRepository: Repository<Workflow>,
@@ -264,10 +264,10 @@ export class WorkflowsService {
     const workflow = await this.findById(id, workspaceId);
     // 트리거는 FK CASCADE 로 함께 지워진다 — 그 트리거들의 자원을 앞뒤로 정리한다
     // (spec 트리거 목록 §4.3). 외부 해제는 트랜잭션 **밖에서 먼저**, 비밀은 **커밋 뒤**.
-    const releaser = this.triggerResourceReleaser();
+    const releaser = resolveTriggerResourceReleaser(this.moduleRef);
     await releaser.releaseExternalForParent({ workflowId: id });
-    const triggerIds = await this.workflowRepository.manager.transaction(
-      async (manager) => {
+    const triggerIds = await this.workflowRepository.manager
+      .transaction(async (manager) => {
         // 워크플로 행을 먼저 잠그고 연다 — 잠금 뒤엔 이 워크플로를 참조하는 트리거 INSERT 가
         // FK 검사에서 막혀, 비밀을 지울 대상에서 빠지는 트리거가 없다.
         const ids = await releaser.lockParentAndListTriggerIds(manager, {
@@ -275,8 +275,16 @@ export class WorkflowsService {
         });
         await manager.remove(workflow);
         return ids;
-      },
-    );
+      })
+      .catch((err: unknown) => {
+        // 외부 해제는 되돌릴 수 없다 — 조용히 던지면 «발화하지 않는 트리거» 가 아무도 모르게 남는다.
+        this.logger.error(
+          `WorkflowsService.remove: workflow=${id} 의 행 삭제가 실패했다 — 그 트리거들의 schedule job·` +
+            `provider teardown·listener 해제는 **이미 끝났으므로** 반쯤 삭제된 상태다(비밀은 아직 ` +
+            `남아 있다). 수동 정리가 필요하다: ${err instanceof Error ? err.message : String(err)}`,
+        );
+        throw err;
+      });
     await releaser.releaseSecretsAfterCommit(
       triggerIds,
       'WorkflowsService.remove',
@@ -287,21 +295,6 @@ export class WorkflowsService {
       action: AUDIT_ACTIONS.WORKFLOW_DELETED,
       resourceId: id,
     });
-  }
-
-  /**
-   * 트리거 자원 정리 협력자를 **지연 해석**한다 — `TriggersModule` 을 import 하면 모듈 순환이
-   * 닫힌다(`trigger-resource-release.ts` 의 토큰 JSDoc).
-   *
-   * **못 찾으면 던진다.** 저장소의 다른 지연 해석(`NotificationsService.getWebsocket` 등)과 달리
-   * no-op 으로 삼키지 않는다 — 조용히 넘어가면 트리거 자원이 정리되지 않는 결함이 그대로 돌아온다.
-   * `ModuleRef.get` 이 못 찾으면 스스로 던지므로 그것을 막지 않는 것으로 충분하다.
-   */
-  private triggerResourceReleaser(): TriggerResourceReleasePort {
-    return this.moduleRef.get<TriggerResourceReleasePort>(
-      TRIGGER_RESOURCE_RELEASER,
-      { strict: false },
-    );
   }
 
   /**

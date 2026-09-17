@@ -52,6 +52,14 @@ export class TriggerResourceReleaserService implements TriggerResourceReleasePor
     await this.releaseExternalMany([trigger]);
   }
 
+  /**
+   * 부모 밑 트리거들의 외부 자원을 해제한다 — 트랜잭션 **전**의 스냅샷 기준이다.
+   *
+   * **남는 창**: 이 스냅샷 뒤·부모 잠금 전에 생긴 트리거는 외부 해제를 받지 못한다(비밀은
+   * {@link lockParentAndListTriggerIds} 가 잠금 뒤 열거로 덮는다). spec 트리거 목록 §4.3 이 적어 둔
+   * 잔여다 — 닫으려면 외부 해제를 커밋 뒤로 옮겨야 하는데 그러면 schedule 행이 CASCADE 로 사라져
+   * job id 를 못 찾는다.
+   */
   async releaseExternalForParent(parent: TriggerParent): Promise<void> {
     const triggers = await this.triggerRepository.find({ where: parent });
     await this.releaseExternalMany(triggers);
@@ -131,12 +139,9 @@ export class TriggerResourceReleaserService implements TriggerResourceReleasePor
       .map((trigger) => trigger.id);
     if (scheduleTriggerIds.length > 0) {
       const schedules = await this.scheduleRepository.find({
-        select: { id: true },
         where: { triggerId: In(scheduleTriggerIds) },
       });
-      for (const schedule of schedules) {
-        await this.scheduleRunner.removeJob(schedule.id);
-      }
+      await this.removeScheduleJobsOrRestore(schedules);
     }
     for (const trigger of triggers) {
       await this.chatChannelBinder.teardownChatChannel(trigger);
@@ -144,5 +149,48 @@ export class TriggerResourceReleaserService implements TriggerResourceReleasePor
       // 미등록이면 noop.
       this.channelListenerRegistry.unregister(trigger.id);
     }
+  }
+
+  /**
+   * schedule job 을 **전부 시도**하고, 하나라도 실패하면 이미 해제한 활성 job 을 **다시 등록한 뒤**
+   * 던진다 — 삭제는 멈춘다.
+   *
+   * 앞에서부터 해제하다 k 번째에서 그냥 던지면 1..k-1 은 Redis 에서 사라졌는데 행은 남는다: 스케줄은
+   * 활성인데 발화하지 않는 상태가 재시작(`onModuleInit` 재등록) 전까지 조용히 굳는다. 이 PR 이 없애려는
+   * 결함 클래스라 되돌린다. 복구도 실패하면 소리내어 남긴다 — 재시작이 마지막 그물이다.
+   */
+  private async removeScheduleJobsOrRestore(
+    schedules: Schedule[],
+  ): Promise<void> {
+    const removed: Schedule[] = [];
+    const failures: Array<{ scheduleId: string; reason: string }> = [];
+    for (const schedule of schedules) {
+      try {
+        await this.scheduleRunner.removeJob(schedule.id);
+        removed.push(schedule);
+      } catch (err) {
+        failures.push({
+          scheduleId: schedule.id,
+          reason: err instanceof Error ? err.message : String(err),
+        });
+      }
+    }
+    if (failures.length === 0) return;
+
+    for (const schedule of removed.filter((s) => s.isActive)) {
+      try {
+        await this.scheduleRunner.registerJob(schedule);
+      } catch (err) {
+        this.logger.error(
+          `schedule=${schedule.id} 의 job 을 삭제 중단 뒤 다시 등록하지 못했다 — 재시작 전까지 발화하지 ` +
+            `않는다(부팅 시 활성 스케줄을 재등록한다): ${err instanceof Error ? err.message : String(err)}`,
+        );
+      }
+    }
+    throw new Error(
+      `schedule job 해제 실패 — 삭제를 멈췄다(${failures
+        .map((f) => `schedule=${f.scheduleId}: ${f.reason}`)
+        .join('; ')})`,
+    );
   }
 }

@@ -35,6 +35,19 @@ export function buildSecretRef(parts: SecretRefParts): string {
   return ref;
 }
 
+/**
+ * `secret://<scope>/<resourceId>/` — 한 리소스의 ref **전부**를 가리키는 접두(`deleteByPrefix` 용).
+ *
+ * URI 형식을 두 곳에 적지 않으려고 `buildSecretRef` 의 검증을 그대로 거친 뒤 이름만 떼어낸다.
+ * 끝의 `/` 가 이웃 id(`trig-1` vs `trig-10`)를 가른다.
+ */
+export function buildSecretRefPrefix(
+  parts: Pick<SecretRefParts, 'scope' | 'resourceId'>,
+): string {
+  const probe = buildSecretRef({ ...parts, name: 'x' });
+  return probe.slice(0, -'x'.length);
+}
+
 /** `secret://...` 형식 여부 — DTO validation 용. */
 export function isSecretRef(value: unknown): value is string {
   return typeof value === 'string' && SECRET_URI_REGEX.test(value);
