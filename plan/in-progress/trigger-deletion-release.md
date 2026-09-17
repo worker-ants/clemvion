@@ -163,6 +163,12 @@ RED 4 중 job 두 건의 RED 는 **올바른 이유가 아니었다**(결과는 
 - **W3·W4·INFO7 등재**(성능) · **W5 → 트래커 항목 1 갱신**(추출 조건 «세 번째 호출부» 가 충족됐다 — 네 자리).
 - INFO4 다중 실패 테스트 추가 · INFO3 아래 체크리스트 건수에 측정 시점 명시.
 
+## `/ai-review` 3라운드 (`review/code/2026/09/17/19_40_27` — **MEDIUM · C0 · W4**) — 수렴
+
+발견이 전부 문서·주석 성격으로 이동했다. 선언한 정지 규칙대로 **`codebase/**` 수정 0 으로 닫는다**: CHANGELOG(W3)는
+고치고, [SPEC-DRIFT] §4.4(W2)는 planner 후속에 추가, `secret-resolver.service.ts`·`trigger-config-lock.ts` 의 stale
+주석(W4·INFO2)은 수렴 예외(a~d)로 트래커 등재(종결 커밋). 전문은 그 세션 `RESOLUTION.md`.
+
 ## 체크리스트
 
 - [x] `/consistency-check --impl-prep spec/2-navigation/` — `review/consistency/2026/09/17/18_00_19` **BLOCK: NO** (WARNING 6 처분 위)
@@ -171,6 +177,6 @@ RED 4 중 job 두 건의 RED 는 **올바른 이유가 아니었다**(결과는 
 - [x] 단위 — 순서(외부 → 행 → 비밀) · 보상 RP-1~5 · listener `unregister`(R8) · ModuleRef 해석 실패 시 던짐 · 워크스페이스 선검사 (첫 구현 시점 backend 9,746 GREEN · 뮤턴트 확인은 위 표)
 - [x] 구현
 - [x] TEST WORKFLOW — lint PASS · unit backend **9,747**(첫 TEST WORKFLOW 시점 — 리뷰 처분 뒤 1라운드 9,755 · 2라운드 9,756) · build PASS + 타입 ratchet baseline 일치(197/36) · e2e backend **321**(새 spec 7 포함) + playwright **51**. 마지막 테스트 수정 뒤 lint·unit·ratchet 재통과
-- [ ] `/ai-review` 수렴 — 1라운드 `18_45_09` HIGH·C1·W10 → `097e583e1` · 2라운드 `19_14_29` MEDIUM·C0·W7 → `d2184dcf2`(W2) + 등재. 3라운드 대기
+- [x] `/ai-review` 수렴 — 1라운드 `18_45_09` HIGH·C1·W10 → `097e583e1` · 2라운드 `19_14_29` MEDIUM·C0·W7 → `d2184dcf2`(W2) + 등재 · **3라운드 `19_40_27` MEDIUM·C0·W4 문서뿐 → `codebase/**` 수정 0 으로 수렴**
 - [ ] `--impl-done`
-- [ ] 트래커 반영 — DRT-2 해소 표시 · **planner 후속 신설**(Planned 태그·§4.3 과도기 문구 제거 · `secret-store.md` `partial`→`implemented` · `15-chat-channel.md` R8 괄호 · `4-execution-engine.md §4.4` throw 사례) · **sweeper 재판단 항목 신설**(외부 해제 스냅샷 뒤 생긴 트리거 · 커밋 뒤 비밀 삭제 실패 누적) · 동시 중복 DELETE 감사 중복(리뷰 INFO 19·21) · **성능 후속**(`trigger.workflow_id` 인덱스+인덱스 표 행 · 비밀 삭제 순차 · teardown 순차 · 전체 컬럼 적재) · **트래커 항목 1 갱신**(안무 4곳, 추출 조건 충족) · 옮긴 로그 접두 항목 해소 표시 · planner 후속에 «워크스페이스 선검사 뒤 역할 변경» 잔여 추가 · plan → `complete/`
+- [ ] 트래커 반영 — DRT-2 해소 표시 · **planner 후속 신설**(Planned 태그·§4.3 과도기 문구 제거 · `secret-store.md` `partial`→`implemented` · `15-chat-channel.md` R8 괄호 · `4-execution-engine.md §4.4` throw 사례 · **§4.4 «락 대기 상한 5초» 를 워크플로·워크스페이스 부모 잠금까지**(3라운드 W2)) · **sweeper 재판단 항목 신설**(외부 해제 스냅샷 뒤 생긴 트리거 · 커밋 뒤 비밀 삭제 실패 누적) · 동시 중복 DELETE 감사 중복(리뷰 INFO 19·21) · **성능 후속**(`trigger.workflow_id` 인덱스+인덱스 표 행 · 비밀 삭제 순차 · teardown 순차 · 전체 컬럼 적재) · **트래커 항목 1 갱신**(안무 4곳, 추출 조건 충족) · **stale 주석 정정**(`deleteByPrefix` 호출부 서술 · `TRIGGER_DELETE_LOCK_TIMEOUT_MS` 예시 — 3라운드 W4·INFO2) · 옮긴 로그 접두 항목 해소 표시 · planner 후속에 «워크스페이스 선검사 뒤 역할 변경» 잔여 추가 · plan → `complete/`
