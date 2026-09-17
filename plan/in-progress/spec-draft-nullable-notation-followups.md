@@ -2457,7 +2457,7 @@ field: T | null;
       > **프로덕션에서 발화하지 않는다**(mock ConfigService 전용, 캐너리 있음). 통합의 진짜
       > 질문은 "중복 제거" 가 아니라 **"env 를 읽는 층을 ConfigService 로 통일할 것인가"** 다.
 
-- [ ] **옮긴 로그 메시지가 아직 `TriggersService:` 접두를 달고 있다** (developer, 2026-09-11 등재).
+- [x] **옮긴 로그 메시지가 아직 `TriggersService:` 접두를 달고 있다** (developer, 2026-09-11 등재 · **2026-09-17 해소** — `plan/complete/trigger-deletion-release.md` 리뷰 1라운드 W11: 트리거 삭제 자원 정리가 보상 경로에서 이 로그를 새로 부르게 되면서 `ChatChannelBinderService:` 로 정정).
       `chat-channel-binder.service.ts` 의 경고 4개가 `` `TriggersService: …` `` 리터럴로 시작한다 —
       logger 컨텍스트는 `ChatChannelBinderService` 인데 메시지가 다른 클래스를 말한다.
       **T2 가 일부러 남겼다**: 바꾸면 관측 가능한 출력이 달라져 *"순수 이동"* 주장이 약해진다.
@@ -4496,7 +4496,7 @@ field: T | null;
 
       | # | 항목 | 성격 |
       |---|---|---|
-      | 1 | `TriggersService.remove()` 와 `SchedulesService.remove()` 의 «락 → 삭제 → 실패 로깅 → 재던짐» 블록이 복제돼 있다 → `deleteTriggerRowLocked(manager, id, {...})` | 14라운드 **W1**(유일한 WARNING). 리뷰어가 «즉시 차단 사유 아님» 으로 분류했고 두 자리 모두 뮤턴트 고정 테스트가 있다. **세 번째 호출부가 생길 때** 뽑는다 — 지금 뽑으면 인자 셋짜리 헬퍼가 복제보다 읽기 어렵다 |
+      | 1 | `TriggersService.remove()` 와 `SchedulesService.remove()` 의 «락 → 삭제 → 실패 로깅 → 재던짐» 블록이 복제돼 있다 → `deleteTriggerRowLocked(manager, id, {...})` | 14라운드 **W1**(유일한 WARNING). 리뷰어가 «즉시 차단 사유 아님» 으로 분류했고 두 자리 모두 뮤턴트 고정 테스트가 있다. **세 번째 호출부가 생길 때** 뽑는다 — 지금 뽑으면 인자 셋짜리 헬퍼가 복제보다 읽기 어렵다. **→ 2026-09-17 조건 충족**: 워크플로·워크스페이스 삭제가 «트랜잭션 → 실패 로그(외부 해제는 이미 끝났다) → 재던짐» 을 더해 **네 자리**가 됐다(`plan/complete/trigger-deletion-release.md` 리뷰 2라운드 W5). 네 자리의 상태가 달라(트리거 5초 락 · 스케줄 BullMQ · 부모 트랜잭션) 공용 형태는 설계가 필요하다 — «트랜잭션 오프너가 콜백 전에 잠금 상한을 건다» 계약(리뷰 3라운드 INFO 1·3)도 함께 흡수 |
       | ~~2~~ ✅ | private `findByIdForUpdate` 개명(예: `findByIdForPatchValidation`) | 이 저장소에서 `*ForUpdate` 는 **진짜 행 잠금**(`SELECT … FOR UPDATE`) 관용구인데 이건 잠금 없는 경량 조회다. 바로 위 JSDoc 이 *"저장·응답 엔티티는 락 안에서 다시 읽는다"* 를 이미 적고 있어 오신뢰 여지는 좁고 private 라 파급도 이 파일 안이다 |
       | ~~3~~ ✅ | `TRIGGER_DELETE_LOCK_TIMEOUT_MS` JSDoc 의 «정리 3종» 나열을 경로 비특정으로 일반화 | 14라운드 INFO#17. **CHANGELOG 쪽 절반은 이미 고쳤다** — 같은 정정의 `codebase/**` 절반만 남았다 |
       | ~~4~~ ✅ | `acquireTriggerConfigLock` 의 `timeoutMs` 를 `Number.isFinite` + 상한 clamp 로 검증 | 14라운드 INFO#2. `SET LOCAL lock_timeout` 이 파라미터 바인딩 없는 보간이지만 호출부가 **모듈 상수만** 넘겨 현재 익스플로잇 불가 — 방어 심도 |
@@ -4519,7 +4519,7 @@ field: T | null;
       > 표에도 그대로 적용된다 — 그쪽은 체커가 지목하지 않았지만 **같은 이유로 죽는다.**
 
 
-- [ ] **트리거 행을 없애는 모든 경로의 자원 정리를 구현한다** (developer, 2026-09-17 등재 ·
+- [x] **트리거 행을 없애는 모든 경로의 자원 정리를 구현한다** (developer, 2026-09-17 등재 · **2026-09-17 구현** `plan/complete/trigger-deletion-release.md` ·
       spec 결정 `plan/complete/spec-draft-deletion-releases-trigger-resources.md` D1·D3~D6 · `--spec` `review/consistency/2026/09/17/17_20_54`).
       **워크플로·워크스페이스 삭제는 트리거의 외부 자원을 하나도 해제하지 않고, 스케줄 삭제는 비밀을
       지우지 않는다** — 트리거 행을 지우는 경로 넷 중 `TriggersService.remove()` 만 정리한다. 위 항목
@@ -4547,6 +4547,59 @@ field: T | null;
       > 않는다(FK 위반) · 새 `deleteByPrefix` 호출부도 prefix 를 UUID 로 조립한다(LIKE 메타문자 거부
       > 불변식의 전제). **남는 창 셋**(외부 자원 쪽 둘 · 커밋과 정리 사이 프로세스 종료)은 draft D7 —
       > 이 항목이 닫지 않는다.
+
+
+- [ ] **트리거 삭제 자원 정리 구현이 머지된 뒤 spec 을 현재형으로** (planner, 2026-09-17 등재 ·
+      `plan/complete/trigger-deletion-release.md` · `/ai-review` `review/code/2026/09/17/18_45_09`·`review/code/2026/09/17/19_14_29`·`review/code/2026/09/17/19_40_27` [SPEC-DRIFT] · `--impl-prep` `review/consistency/2026/09/17/18_00_19`).
+      spec 은 구현 **전에** 계약을 세웠다(#1345). 구현이 머지되면 다음이 거짓이 된다:
+
+      | # | 자리 | 할 일 |
+      |---|---|---|
+      | 1 | `spec/2-navigation/2-trigger-list.md` §4.3 표 다음 문단 | «그 전까지는 트리거 화면 삭제만 …» 과도기 괄호 삭제 · 잔여 목록에 **워크스페이스 선검사 뒤 역할 변경**(외부 해제 뒤 재검사 거부 — error 로그로 드러난다) 추가 |
+      | 2 | 같은 문서 §4.4 «락 대기 상한 5초» | 워크플로·워크스페이스 삭제의 **부모 행 잠금**에도 같은 상한이 걸린다(구현: `lockParentAndListTriggerIds` 가 트랜잭션 첫 호출로 `SET LOCAL lock_timeout`) |
+      | 3 | `spec/data-flow/10-triggers.md` §1.4 · `11-workflow.md` §2.1·§3.1 · `12-workspace.md` §1.10·§2.1 | «미구현 (Planned)» 태그 제거 |
+      | 4 | `spec/conventions/secret-store.md` frontmatter | `status: partial` → `implemented`, `pending_plans` 정리 |
+      | 5 | `spec/5-system/15-chat-channel.md` R8 | «(또는 `TriggersService.remove`)» 괄호를 실제 해제 호출부(`TriggerResourceReleaserService` — 트리거·워크플로·워크스페이스 삭제)로 |
+      | 6 | `spec/5-system/4-execution-engine.md` §4.4 지연 해석 표 | `ModuleRef.get(…, { strict: false })` 의 **던지는** 사례(트리거 자원 정리 — 못 찾으면 no-op 이 아니라 던진다) 행 추가 |
+      | 7 | `spec/2-navigation/2-trigger-list.md` frontmatter `code:` | 정리 계약을 시행하는 `trigger-resource-release.ts` · `trigger-resource-releaser.service.ts` 와 증거 e2e `test/trigger-deletion-releases-resources.e2e-spec.ts` 등재(`--impl-done` `review/consistency/2026/09/17/19_55_46` W1) |
+
+- [ ] **트리거 자원 정리의 사후 정리(sweeper) 필요 여부 재판단** (developer + 결정, 2026-09-17 등재 ·
+      `plan/complete/trigger-deletion-release.md` · spec draft «안 하는 것» · `/ai-review` `review/code/2026/09/17/18_45_09` #3·#13 · `review/code/2026/09/17/19_40_27` W1).
+      정리 계약이 **닫지 않는 창**에서 남는 것을 치울지 판단한다 — 발생 빈도를 재기 전에는 만들지 않는다:
+      - 부모 삭제의 외부 해제 **스냅샷 뒤·부모 잠금 전**에 생긴 트리거의 schedule job · provider 등록 · listener
+        (비밀은 잠금 뒤 열거가 덮는다. 닫으려면 외부 해제를 커밋 뒤로 옮겨야 하는데 schedule 행이 CASCADE 로 사라져 job id 를 못 찾는다)
+      - 외부 해제 뒤·행 삭제 전에 동시 요청이 다시 만든 provider 등록 · schedule job (spec D7-2)
+      - 행 삭제 커밋과 비밀 정리 사이의 프로세스 종료, 그리고 커밋 뒤 비밀 삭제 실패(error 로그만 남는다)
+      - 이미 남아 있는 고아 — 이 구현 **이전**의 워크플로·워크스페이스 삭제가 남긴 `secret_store` 행 · BullMQ job
+      **재는 방법**: `secret_store` 에서 `ref` 의 트리거 id 가 `trigger` 에 없는 행 수, BullMQ `schedule-execution` 의
+      job scheduler 중 `schedule` 행이 없는 수. **판별 주의**: job scheduler 존재는 `Queue.getJobScheduler(id)` 로 보지
+      마라 — `:` 가 든 id 는 해제 뒤에도 껍데기를 돌려준다(`getJobSchedulers` 의 key 소속으로).
+
+- [ ] **부모 삭제 경로의 성능 후속** (developer + planner, 2026-09-17 등재 · `plan/complete/trigger-deletion-release.md` · `/ai-review` `review/code/2026/09/17/19_14_29` W1·W3·W4·INFO7).
+      - `trigger.workflow_id` 에 인덱스가 없다(실측: `trigger` 인덱스는 `(workspace_id, type)` · `(workspace_id, endpoint_path)` ·
+        `notification_health` 부분 셋). 워크플로 삭제의 FK CASCADE 가 이 PR 전부터 이 컬럼으로 스캔했고, 정리 구현이 같은 스캔을
+        두 번 더 한다(하나는 부모 잠금 안). `V106` 과 같은 `CREATE INDEX CONCURRENTLY` 마이그레이션 + **`spec/1-data-model.md`
+        인덱스 표 행**(planner) 을 한 PR 로.
+      - 커밋 뒤 비밀 삭제가 트리거마다 순차(실패를 개별 로그하려고), provider teardown·job 해제도 순차(provider 에 요청이 몰리지
+        않게) — 대량 삭제 지연이 트리거 수에 선형이다. «부모 하나의 트리거 수가 작다» 는 **실측되지 않은 가정**이다.
+      - `releaseExternalForParent` 가 트리거 전체 컬럼을 적재한다 — `select: { id, type, config }` 로 좁힐 수 있다.
+
+- [ ] **트리거 자원 정리 구현이 남긴 stale 주석·이름 네 곳** (developer, 2026-09-17 등재 · `plan/complete/trigger-deletion-release.md` · `/ai-review` `review/code/2026/09/17/19_40_27` W4·INFO2 · `--impl-done` `review/consistency/2026/09/17/19_55_46` W2·W3 —
+      수렴 예외로 등재). 넷 다 `codebase/**` 라 그 PR 안에서 고치면 리뷰·`--impl-done` 라운드가 늘었다.
+      - `SecretResolverService.deleteByPrefix` JSDoc 의 «현재 프로덕션 호출부는 `triggers.service.ts` 한 곳뿐» — 실제 유일한
+        직접 호출부는 `trigger-resource-release.ts` 의 `deleteTriggerSecretsAfterCommit`(네 삭제 경로 + 쓰기 보상이 그 함수를 지난다).
+      - `TRIGGER_DELETE_LOCK_TIMEOUT_MS` JSDoc 의 소비자 예시가 트리거·스케줄 둘뿐 — 워크플로·워크스페이스 부모 잠금이 더해졌다.
+        스스로 경고한 «목록은 낡는다» 대로 낡았으니 규칙으로 바꿀 것.
+      - 테스트 주석 **한 곳**이 `review-citations.md §2` 가 금지하는 bare `hh_mm_ss` 로 리뷰를 인용한다(전수 grep) —
+        `workspaces.service.spec.ts` 의 «선검사 뒤 역할 변경» 테스트 주석이 1라운드 리뷰를 시각만으로 가리킨다 —
+        `review/code/2026/09/17/18_45_09` 전체 경로로.
+      - `ChatChannelBinderService` 의 `teardownChannelConfig`(보상 경로 — 이번 요청이 등록한 설정)와 `teardownChatChannel`(저장된 설정)
+        이름이 어순만 달라 grep·로그에서 헷갈린다 — `teardownRegisteredChannel` 류로.
+
+- [ ] **동시 중복 DELETE 가 감사 행을 두 번 남길 수 있다** (developer, 낮음, 2026-09-17 등재 · `/ai-review` `review/code/2026/09/17/18_45_09` INFO 19·21).
+      워크플로 삭제 두 요청이 겹치면 둘 다 잠금 없는 `findById` 를 통과하고, 뒤 요청은 부모 잠금 뒤 `findOne` 이 `null` 인데도
+      진행해 `workflow.deleted` 를 한 번 더 남긴다. **이 PR 전에도 같은 중복이 났다**(`findById` → `repository.remove`) — 데이터 손상은
+      없다. 고친다면 `lockParentAndListTriggerIds` 가 부모 부재를 돌려주고 호출자가 404 로.
 
 
 - [x] **창 1 실측 결과를 spec 에 반영한다 — §3 ⚠️ 교체 · 증거 e2e `code:` 등재 · 404 사유** (planner,

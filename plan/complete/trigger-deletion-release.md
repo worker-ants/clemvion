@@ -1,9 +1,10 @@
 ---
 title: 트리거 행을 없애는 네 경로가 그 트리거의 자원을 정리한다 — 구현 (트래커 DRT-2)
-status: in-progress
+status: complete
 owner: developer
 worktree: trigger-deletion-release-12e987
 started: 2026-09-17
+completed: 2026-09-17
 spec_impact: none
 ---
 
@@ -169,6 +170,15 @@ RED 4 중 job 두 건의 RED 는 **올바른 이유가 아니었다**(결과는 
 고치고, [SPEC-DRIFT] §4.4(W2)는 planner 후속에 추가, `secret-resolver.service.ts`·`trigger-config-lock.ts` 의 stale
 주석(W4·INFO2)은 수렴 예외(a~d)로 트래커 등재(종결 커밋). 전문은 그 세션 `RESOLUTION.md`.
 
+## `--impl-done` 처분 (`review/consistency/2026/09/17/19_55_46` — **BLOCK: NO** · WARNING 3)
+
+- **W1** 구현 머지로 stale 해지는 spec 문면(Planned 태그 · §4.3 과도기 괄호 · §4.4 상한 범위 · R8 괄호 · `secret-store.md`
+  `partial` · `2-trigger-list.md` `code:` 미등재)을 담을 **살아 있는 트래커 항목**이 없었다 → 트래커에 planner 항목 신설(7행).
+- **W2** 테스트 주석 한 곳의 bare 리뷰 인용 · **W3** `teardownChannelConfig`↔`teardownChatChannel` 이름 유사 — 둘 다
+  `codebase/**` 라 고치면 리뷰와 `--impl-done` 이 다시 돈다. 수렴 예외(a~d)로 트래커의 «stale 주석·이름» 항목에 등재.
+  **등재하면서 내 트래커 문면에도 같은 bare 인용을 썼다** — 전체 경로로 고치고 그 문면을 grep 으로 검사했다.
+- INFO 4 `backend-lint-gate-broken-on-main.md` 의 «호출부 한 곳» 에 시점 한정어.
+
 ## 체크리스트
 
 - [x] `/consistency-check --impl-prep spec/2-navigation/` — `review/consistency/2026/09/17/18_00_19` **BLOCK: NO** (WARNING 6 처분 위)
@@ -178,5 +188,5 @@ RED 4 중 job 두 건의 RED 는 **올바른 이유가 아니었다**(결과는 
 - [x] 구현
 - [x] TEST WORKFLOW — lint PASS · unit backend **9,747**(첫 TEST WORKFLOW 시점 — 리뷰 처분 뒤 1라운드 9,755 · 2라운드 9,756) · build PASS + 타입 ratchet baseline 일치(197/36) · e2e backend **321**(새 spec 7 포함) + playwright **51**. 마지막 테스트 수정 뒤 lint·unit·ratchet 재통과
 - [x] `/ai-review` 수렴 — 1라운드 `18_45_09` HIGH·C1·W10 → `097e583e1` · 2라운드 `19_14_29` MEDIUM·C0·W7 → `d2184dcf2`(W2) + 등재 · **3라운드 `19_40_27` MEDIUM·C0·W4 문서뿐 → `codebase/**` 수정 0 으로 수렴**
-- [ ] `--impl-done`
-- [ ] 트래커 반영 — DRT-2 해소 표시 · **planner 후속 신설**(Planned 태그·§4.3 과도기 문구 제거 · `secret-store.md` `partial`→`implemented` · `15-chat-channel.md` R8 괄호 · `4-execution-engine.md §4.4` throw 사례 · **§4.4 «락 대기 상한 5초» 를 워크플로·워크스페이스 부모 잠금까지**(3라운드 W2)) · **sweeper 재판단 항목 신설**(외부 해제 스냅샷 뒤 생긴 트리거 · 커밋 뒤 비밀 삭제 실패 누적) · 동시 중복 DELETE 감사 중복(리뷰 INFO 19·21) · **성능 후속**(`trigger.workflow_id` 인덱스+인덱스 표 행 · 비밀 삭제 순차 · teardown 순차 · 전체 컬럼 적재) · **트래커 항목 1 갱신**(안무 4곳, 추출 조건 충족) · **stale 주석 정정**(`deleteByPrefix` 호출부 서술 · `TRIGGER_DELETE_LOCK_TIMEOUT_MS` 예시 — 3라운드 W4·INFO2) · 옮긴 로그 접두 항목 해소 표시 · planner 후속에 «워크스페이스 선검사 뒤 역할 변경» 잔여 추가 · plan → `complete/`
+- [x] `--impl-done spec/2-navigation/` — `review/consistency/2026/09/17/19_55_46` **BLOCK: NO** (WARNING 3 처분 위)
+- [x] 트래커 반영 — DRT-2 해소 표시 · **planner 후속 신설**(Planned 태그·§4.3 과도기 문구 제거 · `secret-store.md` `partial`→`implemented` · `15-chat-channel.md` R8 괄호 · `4-execution-engine.md §4.4` throw 사례 · **§4.4 «락 대기 상한 5초» 를 워크플로·워크스페이스 부모 잠금까지**(3라운드 W2)) · **sweeper 재판단 항목 신설**(외부 해제 스냅샷 뒤 생긴 트리거 · 커밋 뒤 비밀 삭제 실패 누적) · 동시 중복 DELETE 감사 중복(리뷰 INFO 19·21) · **성능 후속**(`trigger.workflow_id` 인덱스+인덱스 표 행 · 비밀 삭제 순차 · teardown 순차 · 전체 컬럼 적재) · **트래커 항목 1 갱신**(안무 4곳, 추출 조건 충족) · **stale 주석 정정**(`deleteByPrefix` 호출부 서술 · `TRIGGER_DELETE_LOCK_TIMEOUT_MS` 예시 — 3라운드 W4·INFO2) · 옮긴 로그 접두 항목 해소 표시 · planner 후속에 «워크스페이스 선검사 뒤 역할 변경» 잔여 추가 · plan → `complete/`
