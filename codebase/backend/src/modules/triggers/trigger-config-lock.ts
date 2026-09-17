@@ -45,12 +45,27 @@ const MAX_LOCK_TIMEOUT_MS = 60_000;
 function toLockTimeoutMs(value: number): number {
   if (!Number.isFinite(value)) {
     throw new Error(
-      `acquireTriggerConfigLock: timeoutMs 는 유한한 수여야 한다 (받은 값: ${String(value)})`,
+      `setLocalLockTimeout: timeoutMs 는 유한한 수여야 한다 (받은 값: ${String(value)})`,
     );
   }
   return Math.min(
     Math.max(Math.trunc(value), MIN_LOCK_TIMEOUT_MS),
     MAX_LOCK_TIMEOUT_MS,
+  );
+}
+
+/**
+ * 이 트랜잭션의 **모든** 락 대기에 상한을 건다(`SET LOCAL lock_timeout`). 트랜잭션이 끝나면 풀린다.
+ *
+ * 되돌릴 수 없는 정리를 락 **전에** 끝내는 삭제 경로가 쓴다 — 무한 대기는 «정리는 끝났는데 행은
+ * 남은» 상태를 굳힌다. 파라미터 바인딩이 안 되는 자리라 값의 형태를 {@link toLockTimeoutMs} 가 보장한다.
+ */
+export async function setLocalLockTimeout(
+  manager: Pick<EntityManager, 'query'>,
+  timeoutMs: number,
+): Promise<void> {
+  await manager.query(
+    `SET LOCAL lock_timeout = '${toLockTimeoutMs(timeoutMs)}ms'`,
   );
 }
 
@@ -84,9 +99,7 @@ export async function acquireTriggerConfigLock(
     // 하다. 그래도 보간이 남아 있는 한 **값의 형태를 이 함수가 스스로 보장**한다 — 다음
     // 호출부가 계산식을 넘겨도 SQL 이 깨지지 않게 (`/ai-review`
     // `review/code/2026/09/15/01_42_04` security·database INFO#2).
-    await manager.query(
-      `SET LOCAL lock_timeout = '${toLockTimeoutMs(options.timeoutMs)}ms'`,
-    );
+    await setLocalLockTimeout(manager, options.timeoutMs);
   }
   await manager.query('SELECT pg_advisory_xact_lock(hashtext($1))', [
     triggerConfigLockKey(triggerId),

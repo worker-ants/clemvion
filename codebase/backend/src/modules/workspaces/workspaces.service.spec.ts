@@ -638,7 +638,7 @@ describe('WorkspacesService', () => {
      * 비밀은 **커밋 뒤** (spec 트리거 목록 §4.3 · data-flow 12-workspace §1.10). 트리거 열거는
      * 워크스페이스 행을 잠근 **뒤** 같은 트랜잭션에서 한다.
      */
-    it('owner — 외부 해제 → (잠금 검사 → 열거 → 삭제) → 커밋 뒤 비밀 순서다', async () => {
+    it('owner — 외부 해제 → (열거·잠금 → 잠금 재검사 → 삭제) → 커밋 뒤 비밀 순서다', async () => {
       memberRepo.findOne.mockImplementation((opts: { lock?: unknown }) => {
         deleteEvents.push(opts.lock ? 'check:locked' : 'check:unlocked');
         return Promise.resolve({ role: 'owner' });
@@ -657,8 +657,10 @@ describe('WorkspacesService', () => {
       expect(deleteEvents).toEqual([
         'check:unlocked',
         'releaseExternal:{"workspaceId":"ws-uuid-1"}',
-        'check:locked',
+        // 트랜잭션의 **첫 호출**이 잠금 상한·워크스페이스 잠금·열거다 — 그래야 뒤 재검사의 잠금에도
+        // 상한이 걸린다.
         'lockAndList:{"workspaceId":"ws-uuid-1"}',
+        'check:locked',
         'workspace.remove',
         'releaseSecrets:trig-x:WorkspacesService.deleteWorkspace',
       ]);

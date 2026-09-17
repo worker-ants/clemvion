@@ -517,6 +517,11 @@ export class WorkspacesService {
         const wsRepo = manager.getRepository(Workspace);
         const invRepo = manager.getRepository(WorkspaceInvitation);
 
+        // **첫 호출이다** — 잠금 대기 상한을 걸고 워크스페이스 행을 잠근 뒤 트리거를 연다. 잠금 뒤엔
+        // 새 트리거가 끼지 못하고, 아래 재검사의 잠금(워크스페이스 → 멤버십)에도 상한이 걸린다.
+        const ids = await releaser.lockParentAndListTriggerIds(manager, {
+          workspaceId,
+        });
         const workspace = await this.assertWorkspaceDeletable(
           memRepo,
           wsRepo,
@@ -524,10 +529,6 @@ export class WorkspacesService {
           requesterId,
           { mode: 'pessimistic_write' },
         );
-        // 워크스페이스 행은 위에서 잠겼다 — 이제 연 트리거 목록에서 빠지는 트리거가 없다.
-        const ids = await releaser.lockParentAndListTriggerIds(manager, {
-          workspaceId,
-        });
 
         await invRepo.delete({ workspaceId });
         await memRepo.delete({ workspaceId });

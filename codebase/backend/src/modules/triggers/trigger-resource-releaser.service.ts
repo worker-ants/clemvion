@@ -12,6 +12,10 @@ import { Workspace } from '../workspaces/entities/workspace.entity';
 import { ChatChannelBinderService } from './chat-channel-binder.service';
 import { Trigger } from './entities/trigger.entity';
 import {
+  setLocalLockTimeout,
+  TRIGGER_DELETE_LOCK_TIMEOUT_MS,
+} from './trigger-config-lock';
+import {
   deleteTriggerSecretsAfterCommit,
   TriggerParent,
   TriggerResourceReleasePort,
@@ -69,6 +73,7 @@ export class TriggerResourceReleaserService implements TriggerResourceReleasePor
     manager: EntityManager,
     parent: TriggerParent,
   ): Promise<string[]> {
+    await setLocalLockTimeout(manager, TRIGGER_DELETE_LOCK_TIMEOUT_MS);
     if ('workflowId' in parent) {
       await manager.findOne(Workflow, {
         select: { id: true },

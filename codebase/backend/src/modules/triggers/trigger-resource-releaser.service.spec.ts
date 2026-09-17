@@ -175,6 +175,23 @@ describe('TriggerResourceReleaserService', () => {
       );
     });
 
+    it('실패가 여럿이면 전부를 한 메시지에 담는다', async () => {
+      const { service } = make({
+        triggers: [trigger('s1', 'schedule'), trigger('s2', 'schedule')],
+        schedules: [
+          { id: 'sched-1', isActive: true },
+          { id: 'sched-2', isActive: true },
+        ],
+        removeJobFailsFor: ['sched-1', 'sched-2'],
+      });
+
+      await expect(
+        service.releaseExternalForParent({ workflowId: 'wf-1' }),
+      ).rejects.toThrow(
+        'schedule=sched-1: redis down; schedule=sched-2: redis down',
+      );
+    });
+
     it('다시 등록마저 실패해도 원래 실패로 던지고, 복구 실패는 소리내어 남긴다', async () => {
       const error = jest
         .spyOn(Logger.prototype, 'error')
@@ -220,6 +237,10 @@ describe('TriggerResourceReleaserService', () => {
     function managerWithEvents(rows: Array<{ id: string }>) {
       const events: string[] = [];
       const manager = {
+        query: jest.fn((sql: string) => {
+          events.push(`query:${sql}`);
+          return Promise.resolve();
+        }),
         findOne: jest.fn(
           (entity: unknown, options: { lock?: { mode: string } }) => {
             const name =
@@ -250,7 +271,10 @@ describe('TriggerResourceReleaserService', () => {
       });
 
       expect(ids).toEqual(['a', 'b']);
+      // 잠금 대기 상한이 **잠그기 전에** 걸린다 — 외부 해제를 되돌릴 수 없게 끝낸 뒤라 무한 대기는
+      // 반쯤 삭제된 상태를 hang 으로 굳힌다(`/ai-review` `review/code/2026/09/17/19_14_29` WARNING#2).
       expect(events).toEqual([
+        "query:SET LOCAL lock_timeout = '5000ms'",
         'lock:Workflow:pessimistic_write',
         'find:Trigger',
       ]);
@@ -271,6 +295,7 @@ describe('TriggerResourceReleaserService', () => {
       });
 
       expect(events).toEqual([
+        "query:SET LOCAL lock_timeout = '5000ms'",
         'lock:Workspace:pessimistic_write',
         'find:Trigger',
       ]);

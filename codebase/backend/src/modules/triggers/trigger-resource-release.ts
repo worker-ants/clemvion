@@ -148,6 +148,11 @@ export interface TriggerResourceReleasePort {
    * 부모 행을 `pessimistic_write` 로 잠근 **뒤** 그 부모의 트리거 id 를 연다. 행 삭제와 **같은
    * 트랜잭션**에서 부른다 — 잠금 뒤엔 그 부모를 참조하는 트리거 INSERT 가 FK 검사
    * (`FOR KEY SHARE`)에서 막혀 열거에서 빠지는 트리거가 없다.
+   *
+   * **트랜잭션의 첫 호출이어야 한다.** 잠그기 전에 이 트랜잭션의 모든 락 대기에 삭제 상한
+   * (`TRIGGER_DELETE_LOCK_TIMEOUT_MS`)을 건다 — 외부 해제를 이미 되돌릴 수 없게 끝냈으므로, 뒤따르는
+   * 잠금(부모 행 · 멤버십 · CASCADE 되는 트리거 행)을 무한정 기다리면 반쯤 삭제된 상태가 hang 으로
+   * 굳는다. 트리거·스케줄 삭제와 같은 규칙이다(spec 트리거 목록 §4.4).
    */
   lockParentAndListTriggerIds(
     manager: EntityManager,
