@@ -50,6 +50,10 @@ Redis **키 이름의 형태**와 **어느 문서가 어떤 키를 소유하는�
 넣어야 하는 조건은 하나다 — **키 수준의 워크스페이스 격리가 필요할 때**(예: 워크스페이스별
 쿼터·격리된 네임스페이스 열거). 그때는 도메인 바로 뒤에 넣는다: `{도메인}:{workspaceId}:{용도}:…`.
 
+**이 절의 주어는 Redis 키(§3 인벤토리)다.** §4 의 Postgres advisory lock 키는 이 판단의 대상이
+아니다 — 그리고 그중 `exec-cap:<workspaceId>` 는 예외가 아니라 위 조건(워크스페이스별 쿼터)에
+**정확히 해당하는 사례**다. 워크스페이스 단위 동시 실행 cap 을 직렬화하는 키이기 때문이다.
+
 ## 3. 전역 인벤토리 (포인터)
 
 | 키 | 소유 모듈 | 상세 SoT |
@@ -84,6 +88,12 @@ Redis **키 이름의 형태**와 **어느 문서가 어떤 키를 소유하는�
 | `background:run:<id>` · `execution:<id>` · `workflow:<id>` | **Socket.IO 채널** (`server.to(channel).emit()`) | [WebSocket §채널](../5-system/6-websocket-protocol.md) |
 | `bg:<executionId>:<backgroundRunId>` | **in-memory Map 라우팅 키** (`_contextKey`) | [execution-context 원칙 4](./execution-context.md) |
 | `bull:<queue>:*` | BullMQ 내부 키 (라이브러리 표준) | [엔진 §9.3](../5-system/4-execution-engine.md) |
+| `trigger-config:<triggerId>` · `exec-cap:<workspaceId>` (`workspaceId` 가 없으면 `<workflowId>`) | **Postgres advisory lock 키** — `pg_advisory_xact_lock(hashtext(<키>))` 의 입력 문자열 | [트리거 목록 §3](../2-navigation/2-trigger-list.md#3-api) · [엔진 §8](../5-system/4-execution-engine.md#8-동시-실행-제한) |
+
+> **advisory lock 키는 계열이 달라도 한 공간을 쓴다.** `hashtext()` 는 int4(32비트)를 내므로
+> 접두어가 달라도 모든 계열이 같은 키 공간을 공유한다. 해시가 충돌해도 결과는
+> **과직렬화**(무관한 두 요청이 서로를 기다림)뿐이라 정합성은 깨지지 않는다. 새 계열을 도입하면
+> 이 표에 올린다 — 계열이 늘어 불필요한 대기가 관측되면 키 공간 분리를 재검토한다.
 
 ## 5. 새 키를 도입하면 등재한다
 

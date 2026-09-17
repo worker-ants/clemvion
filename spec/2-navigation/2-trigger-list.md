@@ -10,6 +10,10 @@ code:
   - codebase/backend/src/modules/triggers/triggers.controller.ts
   - codebase/backend/src/modules/triggers/triggers.service.ts
   - codebase/backend/src/modules/triggers/triggers.module.ts
+  # 시행 코드 — §3 «동시 쓰기 직렬화» 의 트리거 단위 advisory lock. 소비자가
+  # chat-channel · notification · EIA · schedules 에 걸쳐 있어, 특정 채널 spec 이 아니라
+  # 트리거 PATCH·DELETE 계약 소유자인 이 문서가 문다.
+  - codebase/backend/src/modules/triggers/trigger-config-lock.ts
   - codebase/backend/src/modules/triggers/dto/**
   - codebase/packages/chat-channel-validation/src/index.ts
   # 시행 코드 — §3 의 409 `RESOURCE_CONFLICT` + `details.code=TRIGGER_ENDPOINT_PATH_CONFLICT`
@@ -179,6 +183,27 @@ code:
 > `(workspace_id, endpoint_path)` UNIQUE 위반 시 409 `RESOURCE_CONFLICT` (세부 코드 `TRIGGER_ENDPOINT_PATH_CONFLICT`, `details.field='endpoint_path'`). 길이/이름 검증 실패는 400 `VALIDATION_ERROR` ([Spec 에러 처리](../5-system/3-error-handling.md)).
 > Webhook 인증 자격증명 (secret/token/password) 은 trigger 응답에 노출되지 않는다 — AuthConfig 응답에서 `***<last4>` 마스킹 ([Spec 데이터 모델 §2.17.2](../1-data-model.md#2172-마스킹노출-정책)).
 
+> **동시 쓰기 직렬화 — `trigger.config` 는 트리거 단위 락 안에서 다시 읽고 쓴다.** `config`
+> JSONB 를 다시 쓰는 경로(PATCH · Chat Channel setup · bot token 회전 · notification secret
+> 정규화·승격 · per-trigger 토큰 폐기)는 Postgres advisory lock
+> `pg_advisory_xact_lock(hashtext('trigger-config:<triggerId>'))` 을 잡은 **뒤에** 행을 다시 읽고
+> 그 위에 병합한다. 요청 시작 시점의 스냅샷으로 통째로 되쓰면 동시에 커밋된 키가 되돌아간다 —
+> 되돌아가는 것이 `chatChannel.inboundSigningRef` 면 인입 서명 검증이 fail-open 된다.
+>
+> - **외부 provider 호출은 락 밖**이다 — 락 안은 재읽기와 쓰기뿐이다. Cafe24 토큰 갱신이 같은
+>   락을 기각한 사유(*lock 보유 중 HTTP 요청이 DB 커넥션 점유를 늘린다*)가 이 설계의 제약이다
+>   ([통합 spec 의 `cafe24-token-refresh` 큐 절](./4-integration.md)).
+> - **대기 상한은 삭제에만 있다(5초)** — [§4.4](#44-결과에러).
+> - `config` 를 건드리지 않는 **컬럼 한정 갱신**(웹훅 인입의 `lastTriggeredAt`, 스케줄 편집의
+>   `name`·`isActive` 동기화 등)은 이 락을 잡지 않는다.
+> - **락으로 막을 수 없는 삭제 경로가 있다** — `workflow`·`workspace` 삭제의 FK CASCADE
+>   ([§4.3](#43-cascade-동작)). 그래서 락 안에서도 행 부재를 판정한다: 재읽기가 비면 쓰지 않고,
+>   병합 쓰기가 **0행에 매치**되면 쓰지 못한 것으로 취급한다(`rotate-bot-token` 은 이때 404).
+>
+> ⚠️ **실측되지 않은 잔여**: PATCH 의 기본 저장 경로(엔티티 통째 저장)는 ① 재읽기와 저장
+> 사이의 CASCADE 창에서의 실패 방식, ② 락 밖 컬럼 한정 갱신과의 경합이 확인되지 않았다 —
+> [트래커](../../plan/in-progress/spec-draft-nullable-notation-followups.md) developer 항목 7.
+
 > **응답 형태 — `TriggerDto.workflow` 는 키 생략형이다** ([§5.4](../5-system/2-api-convention.md#54-부재-표현--null-vs-키-생략) 기준 (b)).
 > (b) 의 판정 근거는 소비자가 부재를 정상 경로로 다룬다는 것이다 — 상세 매핑이
 > `workflow?.name ?? workflowName ?? ""` 로 읽는다(`lib/api/triggers.ts`). 부재는 **생성 응답에만**
@@ -232,8 +257,11 @@ API 게이트는 [Spec 인증 §3.2 리소스별 권한 매트릭스](../5-syste
 
 ### 4.3 cascade 동작
 
+이 표는 트리거 삭제의 **하류 영향**과 트리거를 지우는 **상류 원인**을 함께 담는다 — 첫 행이 상류다.
+
 | 연관 엔티티 | 동작 | 근거 |
 |------------|------|------|
+| **상류** — `workflow`·`workspace` 삭제 | 트리거도 **FK CASCADE 로 함께 삭제**된다(`trigger.workflow_id` · `trigger.workspace_id` 모두 `ON DELETE CASCADE`). schedule 타입이면 아래 `schedule` 행까지 2차로 지워진다. **DB 레벨 삭제라 [§3 동시 쓰기 직렬화](#3-api)의 트리거 단위 락을 거치지 않는다** | `V001__initial_schema.sql` · [data-flow/11-workflow §3.1](../data-flow/11-workflow.md#31-workflowis_active) |
 | `schedule` | trigger 가 schedule 타입이면 CASCADE 삭제 (FK CASCADE on `schedule.trigger_id`) | [data-flow/10-triggers.md §1.4](../data-flow/10-triggers.md#14-schedule--trigger-동기화) + [§2.1 Postgres](../data-flow/10-triggers.md#21-postgres) |
 | `execution.trigger_id` | SET NULL (실행 이력은 보존) — 트리거 삭제로 과거 실행 통계·감사 추적이 끊기지 않게 함 | [data-flow/10-triggers.md §2.1](../data-flow/10-triggers.md#21-postgres) |
 | `auth_config_id` | trigger 측 FK 만 끊김 — `auth_config` row 자체는 삭제 안 됨 (다른 트리거가 공유 가능) | [Spec 인증](../5-system/1-auth.md) |
@@ -245,6 +273,7 @@ API 게이트는 [Spec 인증 §3.2 리소스별 권한 매트릭스](../5-syste
 - 성공: `204 No Content` (응답 본문 없음, 표준 패턴). 클라이언트는 목록·상세 query 를 invalidate.
 - 동시 삭제: 두 클라이언트가 동시에 같은 트리거를 삭제하면 두 번째는 `404 RESOURCE_NOT_FOUND` — 클라이언트는 무시 가능 (사용자에게 토스트 1회).
 - Schedule 타입을 schedule 화면이 아닌 trigger 화면에서 삭제: 본 §4.3 에 따라 schedule cascade 와 함께 삭제되며, 삭제 전 `removeJob` 으로 BullMQ job scheduler 엔트리도 해제한다. (Schedule 화면에서 삭제하는 경로도 동일 결과 — [data-flow §1.4](../data-flow/10-triggers.md#14-schedule--trigger-동기화) 가 양방향 동기화 SoT.)
+- **락 대기 상한 5초**: 삭제는 [§3](#3-api) 의 트리거 단위 락을 잡기 **전에** 되돌릴 수 없는 정리를 끝낸다(트리거 화면 삭제는 schedule 타입이면 BullMQ job 해제 → chat channel teardown → secret 삭제, 스케줄 화면 삭제는 BullMQ job 해제). 그래서 락을 5초 안에 못 잡으면 기다리지 않고 **오류로 끝내며**, 그 트리거가 «정리는 끝났는데 행은 남은» 상태라는 사실을 서버 로그에 남긴다.
 
 ---
 

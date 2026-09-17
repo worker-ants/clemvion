@@ -4451,7 +4451,7 @@ field: T | null;
       (`spec-draft-scope-and-anchor-drift.md` ②). FE 는 이미 `-` 로 방어 중이었고 문서만 낡아 있었다. 종전 서술:
       (`--spec` INFO#2). FE 는 이미 `-` 로 방어 중이라 동작 위험은 없다.
 
-- [ ] **`trigger-config` advisory lock 이 남긴 planner 범위 5건** (planner, 2026-09-15 등재,
+- [x] **`trigger-config` advisory lock 이 남긴 planner 범위 5건** (planner, 2026-09-15 등재,
       `--impl-done` `review/consistency/2026/09/15/01_44_29` W1·W2·W3·W5 + INFO#1).
       근거 문서는 `plan/complete/trigger-config-lost-update.md` §D 표다 — **그 plan 이
       `complete/` 로 봉인되면서 유일한 근거가 봉인된 문서 안으로 들어갔기 때문에** 여기로
@@ -4459,13 +4459,28 @@ field: T | null;
 
       | # | 항목 | 왜 planner 인가 |
       |---|---|---|
-      | 1 | `spec/5-system/15-chat-channel.md` frontmatter `code:` glob 이 신규 `codebase/backend/src/modules/triggers/trigger-config-lock.ts` 를 안 문다 | 그 문서의 **R-CC-22** 가 *"명시 경로가 새 파일을 세 번 놓쳤다"* 며 glob 으로 바꾼 바로 그 결함의 **네 번째 재발**이다. 새 파일이 `chat-channel-*`·`trigger-callback-url*` 어느 glob 에도 안 걸린다 → glob 확장 또는 명시 경로 추가 + §7 tree 동반 갱신 |
-      | 2 | `spec/conventions/redis-keys.md §4`(인접 네임스페이스)에 advisory lock 키 계열 미등재 | `trigger-config:<id>` 와 **자매 사례** `exec-cap:<workspaceId>`(`execution-engine.service.ts`)를 **함께** 올려야 한다. §4 는 정확히 이 혼동(«Redis 아닌데 Redis 키처럼 생겼다»)을 막으려는 절인데 정작 lock key 계열이 비어 있다 |
-      | 3 | `spec/5-system/15-chat-channel.md §5.4.1.1` 표와 바로 아래 각주가 **서로 모순** | 표는 *"v1 미정의 · PATCH 는 signing 값을 바꾸지 않는다"*, 각주는 *"실제 구현은 매 PATCH 마다 회전 강제"*. spec 본문끼리의 충돌이라 구현으로 못 닫는다. 이번 PR 이 다룬 `inboundSigningRef` 와 같은 필드다 |
-      | 4 | advisory lock 키 **인벤토리 문서 자체가 없다** | 2번의 상위 항목 — 계열이 늘어날 때 어디를 보고 충돌을 피하는지가 정해져 있지 않다 |
-      | 5b | **`spec/data-flow/11-workflow.md §3.1` 상태 다이어그램의 CASCADE 열거에 `trigger` 가 없다** | 2026-09-15 추가. `trigger.entity.ts:39,46` 이 `Workflow`·`Workspace` 에 `onDelete: 'CASCADE'` 를 걸고 있고 `V001__initial_schema.sql:146` 부터 그랬는데, 다이어그램은 그 상류 경로를 안 적는다(`2-trigger-list.md §4.3` 은 **반대 방향만** 서술). 이 사실이 위 developer 항목 5 의 결함 근거이기도 하다 — **문서에 없으니 아무도 그 경로를 세지 않았다.** `--impl-prep` `review/consistency/2026/09/15/08_58_18` cross_spec W1. 2차 파급(`schedule`)도 함께 |
-      | 5 | 전역 **32비트** 키 공간 공유 메모 | `pg_advisory_xact_lock(hashtext(...))` 의 `hashtext` 는 int4 를 낸다 — 접두어가 달라도 전 도메인이 **한 공간**을 쓴다. 충돌해도 과직렬화뿐이라 무해하지만 **어디에도 적혀 있지 않다**. 계열 3개 이상이 되는 시점의 재검토 신호로 남긴다 |
+      | ~~1~~ ✅ | `spec/5-system/15-chat-channel.md` frontmatter `code:` glob 이 신규 `codebase/backend/src/modules/triggers/trigger-config-lock.ts` 를 안 문다 | 그 문서의 **R-CC-22** 가 *"명시 경로가 새 파일을 세 번 놓쳤다"* 며 glob 으로 바꾼 바로 그 결함의 **네 번째 재발**이다. 새 파일이 `chat-channel-*`·`trigger-callback-url*` 어느 glob 에도 안 걸린다 → glob 확장 또는 명시 경로 추가 + §7 tree 동반 갱신 |
+      | ~~2~~ ✅ | `spec/conventions/redis-keys.md §4`(인접 네임스페이스)에 advisory lock 키 계열 미등재 | `trigger-config:<id>` 와 **자매 사례** `exec-cap:<workspaceId>`(`execution-engine.service.ts`)를 **함께** 올려야 한다. §4 는 정확히 이 혼동(«Redis 아닌데 Redis 키처럼 생겼다»)을 막으려는 절인데 정작 lock key 계열이 비어 있다 |
+      | ~~3~~ ✅ | `spec/5-system/15-chat-channel.md §5.4.1.1` 표와 바로 아래 각주가 **서로 모순** | 표는 *"v1 미정의 · PATCH 는 signing 값을 바꾸지 않는다"*, 각주는 *"실제 구현은 매 PATCH 마다 회전 강제"*. spec 본문끼리의 충돌이라 구현으로 못 닫는다. 이번 PR 이 다룬 `inboundSigningRef` 와 같은 필드다 |
+      | ~~4~~ ✅ | advisory lock 키 **인벤토리 문서 자체가 없다** | 2번의 상위 항목 — 계열이 늘어날 때 어디를 보고 충돌을 피하는지가 정해져 있지 않다 |
+      | ~~5b~~ ✅ | **`spec/data-flow/11-workflow.md §3.1` 상태 다이어그램의 CASCADE 열거에 `trigger` 가 없다** | 2026-09-15 추가. `trigger.entity.ts:39,46` 이 `Workflow`·`Workspace` 에 `onDelete: 'CASCADE'` 를 걸고 있고 `V001__initial_schema.sql:146` 부터 그랬는데, 다이어그램은 그 상류 경로를 안 적는다(`2-trigger-list.md §4.3` 은 **반대 방향만** 서술). 이 사실이 위 developer 항목 5 의 결함 근거이기도 하다 — **문서에 없으니 아무도 그 경로를 세지 않았다.** `--impl-prep` `review/consistency/2026/09/15/08_58_18` cross_spec W1. 2차 파급(`schedule`)도 함께 |
+      | ~~5~~ ✅ | 전역 **32비트** 키 공간 공유 메모 | `pg_advisory_xact_lock(hashtext(...))` 의 `hashtext` 는 int4 를 낸다 — 접두어가 달라도 전 도메인이 **한 공간**을 쓴다. 충돌해도 과직렬화뿐이라 무해하지만 **어디에도 적혀 있지 않다**. 계열 3개 이상이 되는 시점의 재검토 신호로 남긴다 |
 
+      > **✅ 2026-09-17 해소** — planner 턴 `plan/complete/spec-draft-trigger-lock-gaps.md`
+      > (`--spec` `review/consistency/2026/09/17/12_25_46` **BLOCK: NO**). **착수 전 실측에서 셋이
+      > 이 표의 문면과 달랐다**:
+      >
+      > - **1** 은 `15-chat-channel.md` glob 확장이 아니라 **`2-trigger-list.md` 로 재배정**했다 —
+      >   소비자가 chat-channel·notification·EIA·schedules 에 걸치고, **이 락을 서술하는 spec 이
+      >   어디에도 없어** `code:` 에만 올리면 대조할 본문이 없었다. §3 에 동시성 계약을 서술하고
+      >   그 문서의 `code:` 에 올렸다.
+      > - **2** 의 키 모양이 좁았다 — `exec-cap` 은 `workspaceId ?? workflowId` 다.
+      > - **3** 은 모순이 아니었다 — 각주가 R-CC-21 이 고친 결함을 **과거형**으로 적은 이력이고
+      >   현재 코드는 표와 일치한다. 원문은 보존하고 시제만 명시했다.
+      > - **5b** 는 `trigger` 하나가 아니라 **넷**(`trigger` · `integration_usage_log` ·
+      >   `alert_rule` · `workflow_test_dataset`)이 빠져 있었다 — `REFERENCES workflow(id)` 전수로
+      >   고쳤다.
+      >
       > **이 항목이 여기 있는 이유 자체가 교훈이다.** 5건은 원래 plan §D 에만 있었고,
       > `--impl-done` 이 *"이 plan 이 봉인되면 유일한 근거 문서가 사라진다"* 로 잡았다
       > (전수 grep 결과 `pending_plans:`·다른 `plan/in-progress/**` 어디에도 0건).
