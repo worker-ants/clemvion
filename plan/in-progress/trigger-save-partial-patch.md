@@ -120,6 +120,18 @@ forced 7/7, `unfinished: []`. 대응은 **모아서** 한 번에 했다.
 | INFO#4 `jest.config.ts` 의 «e2e 는 pg Client 만 연다» 전제가 깨졌다 | **수용** — 예외 한 줄 |
 | INFO#2·#3·#5~#11·#13 | 조치 불요 / 기지 갭 / 기록 목적 |
 
+## 2라운드 리뷰 처분 (`review/code/2026/09/17/14_11_48` — **C0 · W2 · MEDIUM**)
+
+forced 7/7, `unfinished: []`. 위험도 MEDIUM 의 근거는 W1 하나다.
+
+| # | 처분 |
+|---|---|
+| W1 (testing) mock JSDoc 의 «60 RED» 가 재현되지 않는다(리뷰어 64·68) | **수용·수정 — 숫자를 지우고 규칙을 남겼다.** 원인은 뮤턴트 형태 미고정이다: 내 뮤턴트는 콜백 대신 manager 객체를 돌려줬고(→60) 리뷰어는 `undefined`·`false` 를 돌려줬다(→64·68). 이 숫자는 13 → 53 → 60 으로 세 번 바뀌었다 — **목록은 낡고 규칙은 안 낡는다**. 주석은 서사를 더하지 않고 줄였다 |
+| W2 (documentation) CHANGELOG 가 `workspace` CASCADE 도 «실측» 으로 적었다 | **수용·수정** — e2e 는 `workflow` 삭제만 쟀다. `workspace` 는 같은 FK 구조라 동일할 것으로 보되 따로 재지 않았다고 명시 |
+| INFO#12 [SPEC-DRIFT] `2-trigger-list.md §3` ⚠️ | planner 후속 — 1라운드와 같다 |
+| INFO#15 리뷰 도중 공유 워킹트리에서 `trigger-transaction-mock.ts` 일시 변경 관측 | 리뷰어 간 뮤테이션 흔적. 커밋 상태 무관 — `git status` 로 확인 |
+| 나머지 INFO | 조치 불요 · 1라운드와 같은 기지 항목 |
+
 ## 검증 계획
 
 - **측정 spec 을 특성 테스트로 전환** — 관측을 단언으로. ①(통째)·①b(부분) 시끄러운 실패와 코드,
@@ -161,7 +173,7 @@ forced 7/7, `unfinished: []`. 대응은 **모아서** 한 번에 했다.
       | M2 반환값을 통째로 덮음 (**내가 낸 회귀**) | `save 반환값의 null 이 재읽은 값을 덮지 않는다` |
       | M3 `updatedAt` 반영 누락 | 같은 테스트 |
       | M4 한 필드만 골라 덮음 (`lastTriggeredAt`) | 같은 테스트 — 1라운드 INFO#12 대응 |
-      | mock `transaction` 이 콜백을 실행하지 않음 | **60 RED** (321건 중) — mock JSDoc 갱신 |
+      | mock `transaction` 이 콜백을 실행하지 않음 | **수십 건** — 정확한 수는 형태 의존(아래) |
 
       > **M1 을 한때 «2 RED» 로 적었다 — 1라운드 testing W2 가 반박했고 리뷰어가 맞았다.** 그
       > «2» 는 창 1 이 `m.save(...)` 반환값을 그대로 돌려주던 **이전 형태**에서 잰 값이었다.
