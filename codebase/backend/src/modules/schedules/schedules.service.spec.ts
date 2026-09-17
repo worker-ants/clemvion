@@ -12,6 +12,7 @@ import { CreateScheduleDto } from './dto/create-schedule.dto';
 import { UpdateScheduleDto } from './dto/update-schedule.dto';
 import { ExecutionEngineService } from '../execution-engine/execution-engine.service';
 import { ScheduleRunnerService } from './schedule-runner.service';
+import { SecretResolverService } from '../secret-store/secret-resolver.service';
 
 describe('SchedulesService.runNow', () => {
   let service: SchedulesService;
@@ -92,6 +93,16 @@ describe('SchedulesService.runNow', () => {
             resolveScheduleParameters: jest.fn(),
             registerJob: jest.fn(),
             removeJob: jest.fn(),
+          },
+        },
+        {
+          provide: SecretResolverService,
+          // 비밀 삭제도 락·행 삭제와 **같은 배열**에 넣는다 — 커밋 뒤라는 순서가 보증이다.
+          useValue: {
+            deleteByPrefix: jest.fn((prefix: string) => {
+              triggerLockEvents.push(`deleteByPrefix:${prefix}`);
+              return Promise.resolve(0);
+            }),
           },
         },
       ],
@@ -623,10 +634,14 @@ describe('SchedulesService.runNow', () => {
       // lock_timeout`)이 사라져도 통과한다 — 실측으로 25건 전건 GREEN 이었다. 삭제는 락을
       // 잡기 **전에** BullMQ 해제를 끝내므로, 무한 대기는 «job 은 해제됐는데 행은 남은»
       // 상태로 굳는다. 그래서 상한을 순서와 함께 고정한다.
+      //
+      // 비밀은 행 삭제가 **커밋된 뒤에** 지운다(spec 트리거 목록 §4.3) — 스케줄 트리거도
+      // `notification` 서명 비밀을 가질 수 있다. 종전엔 이 경로가 비밀을 아예 지우지 않았다.
       expect(triggerLockEvents).toEqual([
         "timeout:SET LOCAL lock_timeout = '5000ms'",
         'lock:trigger-config:trig-del',
         'delete:trig-del',
+        'deleteByPrefix:secret://triggers/trig-del/',
       ]);
       expect(triggerRepo.delete).toHaveBeenCalledWith('trig-del');
     });
@@ -659,6 +674,10 @@ describe('SchedulesService.runNow', () => {
         const logged = error.mock.calls.map(([m]) => String(m)).join('\n');
         expect(logged).toContain('trig-halt');
         expect(logged).toContain('반쯤 삭제된 상태');
+        // 행이 남았으니 비밀도 남아야 한다 — 지우면 살아 있는 트리거의 서명이 깨진다.
+        expect(
+          triggerLockEvents.filter((e) => e.startsWith('deleteByPrefix:')),
+        ).toEqual([]);
 
         // 실패했으면 schedule 행도 «삭제됨» 감사도 남기지 않는다 — 남기면 거짓 기록이다.
         expect(scheduleRepo.remove).not.toHaveBeenCalled();

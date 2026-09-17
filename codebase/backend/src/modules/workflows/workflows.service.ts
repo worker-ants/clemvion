@@ -10,6 +10,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
+import { ModuleRef } from '@nestjs/core';
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, EntityManager, In, Repository } from 'typeorm';
 import type { QueryDeepPartialEntity } from 'typeorm/query-builder/QueryPartialEntity';
@@ -35,6 +36,10 @@ import { evaluateAiAgentToolPayloadWarnings } from '../../nodes/ai/ai-agent/tool
 import { toolBudgetStrictSave } from '../../nodes/ai/ai-agent/tool-payload-budget';
 import { ModelConfigService } from '../model-config/model-config.service';
 import { WorkspacesService } from '../workspaces/workspaces.service';
+import {
+  TRIGGER_RESOURCE_RELEASER,
+  type TriggerResourceReleasePort,
+} from '../triggers/trigger-resource-release';
 import { validateTriggerParameterSchema } from '../execution-engine/utils/resolve-trigger-parameters';
 import { toTriggerParameterErrorDetails } from '../execution-engine/types/trigger-parameter.types';
 import {
@@ -81,6 +86,7 @@ export class WorkflowsService {
     private readonly modelConfigService: ModelConfigService,
     private readonly auditLogsService: AuditLogsService,
     private readonly workspacesService: WorkspacesService,
+    private readonly moduleRef: ModuleRef,
   ) {}
 
   async findAll(
@@ -256,13 +262,46 @@ export class WorkflowsService {
 
   async remove(id: string, workspaceId: string, userId: string): Promise<void> {
     const workflow = await this.findById(id, workspaceId);
-    await this.workflowRepository.remove(workflow);
+    // 트리거는 FK CASCADE 로 함께 지워진다 — 그 트리거들의 자원을 앞뒤로 정리한다
+    // (spec 트리거 목록 §4.3). 외부 해제는 트랜잭션 **밖에서 먼저**, 비밀은 **커밋 뒤**.
+    const releaser = this.triggerResourceReleaser();
+    await releaser.releaseExternalForParent({ workflowId: id });
+    const triggerIds = await this.workflowRepository.manager.transaction(
+      async (manager) => {
+        // 워크플로 행을 먼저 잠그고 연다 — 잠금 뒤엔 이 워크플로를 참조하는 트리거 INSERT 가
+        // FK 검사에서 막혀, 비밀을 지울 대상에서 빠지는 트리거가 없다.
+        const ids = await releaser.lockParentAndListTriggerIds(manager, {
+          workflowId: id,
+        });
+        await manager.remove(workflow);
+        return ids;
+      },
+    );
+    await releaser.releaseSecretsAfterCommit(
+      triggerIds,
+      'WorkflowsService.remove',
+    );
     await this.recordAudit({
       workspaceId,
       userId,
       action: AUDIT_ACTIONS.WORKFLOW_DELETED,
       resourceId: id,
     });
+  }
+
+  /**
+   * 트리거 자원 정리 협력자를 **지연 해석**한다 — `TriggersModule` 을 import 하면 모듈 순환이
+   * 닫힌다(`trigger-resource-release.ts` 의 토큰 JSDoc).
+   *
+   * **못 찾으면 던진다.** 저장소의 다른 지연 해석(`NotificationsService.getWebsocket` 등)과 달리
+   * no-op 으로 삼키지 않는다 — 조용히 넘어가면 트리거 자원이 정리되지 않는 결함이 그대로 돌아온다.
+   * `ModuleRef.get` 이 못 찾으면 스스로 던지므로 그것을 막지 않는 것으로 충분하다.
+   */
+  private triggerResourceReleaser(): TriggerResourceReleasePort {
+    return this.moduleRef.get<TriggerResourceReleasePort>(
+      TRIGGER_RESOURCE_RELEASER,
+      { strict: false },
+    );
   }
 
   /**

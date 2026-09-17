@@ -18,6 +18,7 @@ import {
 } from './triggers.service';
 import { credentialRejectedError } from '../chat-channel/types';
 import { ChatChannelBinderService } from './chat-channel-binder.service';
+import { TriggerResourceReleaserService } from './trigger-resource-releaser.service';
 import { Trigger } from './entities/trigger.entity';
 import {
   withTransactionMock,
@@ -47,6 +48,7 @@ function createBaseProviders(
   return [
     TriggersService,
     ChatChannelBinderService,
+    TriggerResourceReleaserService,
     {
       provide: getRepositoryToken(Trigger),
       useValue: withTransactionMock(triggerRepoMock, txOptions),
@@ -118,6 +120,7 @@ describe('TriggersService.findOneDetail', () => {
         { provide: AuditLogsService, useValue: { record: jest.fn() } },
         TriggersService,
         ChatChannelBinderService,
+        TriggerResourceReleaserService,
         {
           provide: getRepositoryToken(Trigger),
           // `save` 는 `update()` 경로가 쓴다 — 이 describe 의 다른 테스트는 조회만 하지만
@@ -437,6 +440,7 @@ describe('TriggersService.findAll — schedule 목록 enrichment (V-10)', () => 
         { provide: AuditLogsService, useValue: { record: jest.fn() } },
         TriggersService,
         ChatChannelBinderService,
+        TriggerResourceReleaserService,
         {
           provide: getRepositoryToken(Trigger),
           useValue: withTransactionMock({ createQueryBuilder: jest.fn() }),
@@ -624,6 +628,7 @@ describe('TriggersService — notification/interaction config 병합 (External I
         { provide: AuditLogsService, useValue: { record: jest.fn() } },
         TriggersService,
         ChatChannelBinderService,
+        TriggerResourceReleaserService,
         {
           provide: getRepositoryToken(Trigger),
           useValue: withTransactionMock({
@@ -1611,6 +1616,7 @@ describe('TriggersService — webhook callbackUrl 조립 (app.url 사용 회귀 
         { provide: AuditLogsService, useValue: { record: jest.fn() } },
         TriggersService,
         ChatChannelBinderService,
+        TriggerResourceReleaserService,
         {
           provide: getRepositoryToken(Trigger),
           useValue: withTransactionMock({
@@ -1772,6 +1778,7 @@ describe('TriggersService.remove — deleteByPrefix 호출 검증 (SUMMARY#13)',
         { provide: AuditLogsService, useValue: { record: jest.fn() } },
         TriggersService,
         ChatChannelBinderService,
+        TriggerResourceReleaserService,
         {
           provide: getRepositoryToken(Trigger),
           useValue: withTransactionMock({
@@ -1904,6 +1911,7 @@ describe('TriggersService.rotateBotToken — 6단계 오케스트레이션', () 
         { provide: AuditLogsService, useValue: { record: jest.fn() } },
         TriggersService,
         ChatChannelBinderService,
+        TriggerResourceReleaserService,
         {
           provide: getRepositoryToken(Trigger),
           useValue: withTransactionMock({
@@ -2301,6 +2309,7 @@ describe('TriggersService — Schedule 역방향 동기화 (data-flow 10-trigger
         { provide: AuditLogsService, useValue: { record: jest.fn() } },
         TriggersService,
         ChatChannelBinderService,
+        TriggerResourceReleaserService,
         {
           provide: getRepositoryToken(Trigger),
           useValue: withTransactionMock({
@@ -2314,6 +2323,8 @@ describe('TriggersService — Schedule 역방향 동기화 (data-flow 10-trigger
           provide: getRepositoryToken(Schedule),
           useValue: {
             findOne: jest.fn(),
+            // 삭제의 외부 해제는 스케줄 행을 일괄 조회한다(`TriggerResourceReleaserService`).
+            find: jest.fn().mockResolvedValue([]),
             save: jest.fn(async (s: Schedule) => s),
           },
         },
@@ -2436,7 +2447,7 @@ describe('TriggersService — Schedule 역방향 동기화 (data-flow 10-trigger
 
   it('DELETE (schedule 타입) → trigger 삭제 전 removeJob 으로 BullMQ 엔트리 정리', async () => {
     triggerRepo.findOne.mockResolvedValue(scheduleTrigger());
-    scheduleRepo.findOne.mockResolvedValue(scheduleRow());
+    (scheduleRepo.find as jest.Mock).mockResolvedValue([scheduleRow()]);
 
     await service.remove('trig-1', 'ws-1', 'u-spec');
 
@@ -2510,6 +2521,7 @@ describe('TriggersService.promoteRotatedNotificationSecrets — secret store 경
         { provide: AuditLogsService, useValue: { record: jest.fn() } },
         TriggersService,
         ChatChannelBinderService,
+        TriggerResourceReleaserService,
         {
           provide: getRepositoryToken(Trigger),
           useValue: withTransactionMock(triggerRepo),
@@ -3710,15 +3722,22 @@ describe('TriggersService — 락 안 재읽기가 동시 확립분을 본다 (l
     freshSequence: Array<() => Trigger>,
     opts: { setupChannelRejects?: boolean; removeRejects?: boolean } = {},
   ) {
+    // **한 배열에 모은다** — «락을 잡았는가» 와 «삭제했는가» 를 따로 담으면 그 둘의
+    // **순서**를 단언할 수 없다. 순서가 이 배선의 보증이고, 뒤집는 뮤턴트를 잡는 유일한 고리다
+    // (`/ai-review` `review/code/2026/09/14/20_49_15` testing WARNING#3).
+    //
+    // provider teardown · 비밀 쓰기 · 비밀 삭제도 같은 배열에 넣는다 — «외부 해제 → 행 삭제 →
+    // 비밀» 과 «teardown → 비밀» 이 자원 정리의 보증이다(spec 트리거 목록 §3·§4.3).
+    const events: string[] = [];
     const adapter = {
       setupChannel: opts.setupChannelRejects
         ? jest.fn().mockRejectedValue(new Error('provider down'))
         : jest.fn().mockResolvedValue({ configUpdates: {} }),
+      teardownChannel: jest.fn(() => {
+        events.push('teardown');
+        return Promise.resolve();
+      }),
     };
-    // **한 배열에 모은다** — «락을 잡았는가» 와 «삭제했는가» 를 따로 담으면 그 둘의
-    // **순서**를 단언할 수 없다. 순서가 이 배선의 보증이고, 뒤집는 뮤턴트를 잡는 유일한 고리다
-    // (`/ai-review` `review/code/2026/09/14/20_49_15` testing WARNING#3).
-    const events: string[] = [];
     const repoMock = {
       // 바깥(락 밖) 읽기 — 요청 시작 시점. 언제나 ref 가 없다.
       findOne: jest.fn().mockResolvedValue(withoutRef()),
@@ -3778,14 +3797,21 @@ describe('TriggersService — 락 안 재읽기가 동시 확립분을 본다 (l
       useValue: {
         resolve: jest.fn().mockResolvedValue('old-token'),
         store: jest.fn(),
-        rotate: jest.fn().mockResolvedValue(undefined),
+        rotate: jest.fn((ref: string) => {
+          events.push(`rotate:${ref}`);
+          return Promise.resolve();
+        }),
         delete: jest.fn(),
-        deleteByPrefix: jest.fn().mockResolvedValue(0),
+        deleteByPrefix: jest.fn((prefix: string) => {
+          events.push(`deleteByPrefix:${prefix}`);
+          return Promise.resolve(0);
+        }),
         exists: jest.fn().mockResolvedValue(true),
       },
     };
     const moduleRef = await Test.createTestingModule({ providers }).compile();
     return {
+      adapter,
       service: moduleRef.get(TriggersService),
       repo: moduleRef.get(getRepositoryToken(Trigger)) as jest.Mocked<
         Repository<Trigger>
@@ -3966,12 +3992,50 @@ describe('TriggersService — 락 안 재읽기가 동시 확립분을 본다 (l
     // 상한(`SET LOCAL lock_timeout`)도 같은 배열에 들어간다 — 삭제 경로는 되돌릴 수 없는
     // 정리를 이미 끝낸 뒤라 무한 대기가 «반쯤 삭제된 상태» 로 굳는다. 그래서 **삭제만**
     // 상한을 두고, 그 사실을 순서와 함께 고정한다.
-    expect(events).toEqual([
+    expect(
+      events.filter(
+        (e) =>
+          e.startsWith('timeout:') || e.startsWith('lock:') || e === 'remove',
+      ),
+    ).toEqual([
       "timeout:SET LOCAL lock_timeout = '5000ms'",
       'lock:trigger-config:trig-l',
       'remove',
     ]);
     expect(repo.remove).toHaveBeenCalled();
+  });
+
+  /**
+   * **외부 해제 → 행 삭제 → 비밀** (spec 트리거 목록 §4.3).
+   *
+   * 종전엔 비밀을 락·행 삭제 **전에** 지웠다. 그러면 정리와 행 삭제 사이에 커밋된 쓰기가 남긴
+   * 비밀을 아무도 지우지 않고, 락 대기 5초를 넘기면 «비밀까지 지워졌는데 행은 남은» 트리거가
+   * 남는다. teardown 은 그 비밀(bot token)을 읽으므로 비밀보다 앞서야 한다.
+   */
+  it('remove() — provider teardown → 락·행 삭제 → 비밀 삭제 순서다', async () => {
+    const { service, events } = await makeService([withRef]);
+
+    await service.remove('trig-l', 'ws-1', 'u-1');
+
+    expect(events).toEqual([
+      'teardown',
+      "timeout:SET LOCAL lock_timeout = '5000ms'",
+      'lock:trigger-config:trig-l',
+      'remove',
+      'deleteByPrefix:secret://triggers/trig-l/',
+    ]);
+  });
+
+  it('remove() — 행 삭제가 실패하면 비밀은 지우지 않는다 (트리거가 살아 있다)', async () => {
+    const { service, events } = await makeService([withRef], {
+      removeRejects: true,
+    });
+
+    await expect(service.remove('trig-l', 'ws-1', 'u-1')).rejects.toThrow(
+      'lock timeout',
+    );
+
+    expect(events.filter((e) => e.startsWith('deleteByPrefix:'))).toEqual([]);
   });
 
   it('update() 는 락 대기에 상한을 두지 않는다 (삭제만 예외다)', async () => {
@@ -4002,6 +4066,63 @@ describe('TriggersService — 락 안 재읽기가 동시 확립분을 본다 (l
     expect(listenerRegistry.register).not.toHaveBeenCalled();
   });
 
+  /**
+   * RP-4 — 그 사이 삭제되면 **이번 요청이 provider 에 등록한 콜백과 쓴 비밀을 되돌린다**
+   * (spec 트리거 목록 §3 «쓰지 못했으면 되돌린다»). 삭제 쪽 정리보다 늦게 쓴 것은 아무도 지우지
+   * 않는다. teardown 이 비밀을 읽으므로 teardown 이 먼저다.
+   */
+  it('binder 성공 — 쓰기가 skip 되면 teardown 뒤 그 트리거의 비밀을 지운다', async () => {
+    const { service, events } = await makeService([
+      withRef,
+      () => undefined as never,
+    ]);
+
+    await patchChatChannel(service);
+
+    const tail = events.filter(
+      (e) => e === 'teardown' || e.startsWith('deleteByPrefix:'),
+    );
+    expect(tail).toEqual([
+      'teardown',
+      'deleteByPrefix:secret://triggers/trig-l/',
+    ]);
+  });
+
+  it('binder degraded — 쓰기가 skip 되면 같은 보상을 한다', async () => {
+    const { service, events } = await makeService(
+      [withRef, () => undefined as never],
+      { setupChannelRejects: true },
+    );
+
+    await patchChatChannel(service);
+
+    const tail = events.filter(
+      (e) => e === 'teardown' || e.startsWith('deleteByPrefix:'),
+    );
+    expect(tail).toEqual([
+      'teardown',
+      'deleteByPrefix:secret://triggers/trig-l/',
+    ]);
+  });
+
+  it('binder — 쓰기가 성공하면 되돌리지 않는다 (양성·degraded 대조군)', async () => {
+    // 위 두 단언이 «언제나 지운다» 로 공허해지는 것을 막는다 — 살아 있는 트리거의 비밀을 지우면
+    // 그 트리거의 인입 서명이 전부 깨진다.
+    for (const setupChannelRejects of [false, true]) {
+      const { service, events } = await makeService([withRef, withRef], {
+        setupChannelRejects,
+      });
+
+      await patchChatChannel(service);
+
+      expect(
+        events.filter(
+          (e) => e === 'teardown' || e.startsWith('deleteByPrefix:'),
+        ),
+      ).toEqual([]);
+    }
+  });
+
   it('binder 성공 — 쓰기가 성공하면 listener 를 등록한다 (양성 대조군)', async () => {
     // 위 음성 단언이 «어차피 아무도 안 부른다» 로 공허해지는 것을 막는다.
     const { service, listenerRegistry } = await makeService([withRef, withRef]);
@@ -4025,6 +4146,26 @@ describe('TriggersService — 락 안 재읽기가 동시 확립분을 본다 (l
       ([arg]) => (arg as { action?: string }).action,
     );
     expect(actions).not.toContain('trigger.chat_channel.bot_token_rotated');
+  });
+
+  it('rotateBotToken — 그 사이 삭제되면 404 전에 새 토큰 등록·비밀을 되돌린다', async () => {
+    // RP-2. 새 토큰·v2 백업은 락 밖에서 이미 썼고 provider 에는 새 토큰으로 콜백이 등록됐다.
+    // 404 만 주고 끝내면 «secret store 에는 새 토큰, DB 에는 행 없음» 이 남는다(트래커 항목 9).
+    const { service, events } = await makeService([() => undefined as never]);
+
+    await expect(
+      service.rotateBotToken('trig-l', 'ws-1', '111:newToken', 'u-1'),
+    ).rejects.toMatchObject({ response: { code: 'RESOURCE_NOT_FOUND' } });
+
+    const lastRotate = events
+      .map((e) => e.startsWith('rotate:'))
+      .lastIndexOf(true);
+    const teardown = events.indexOf('teardown');
+    const cleanup = events.indexOf('deleteByPrefix:secret://triggers/trig-l/');
+    // 쓴 뒤에 되돌리고, teardown 이 비밀보다 먼저다.
+    expect(lastRotate).toBeGreaterThanOrEqual(0);
+    expect(teardown).toBeGreaterThan(lastRotate);
+    expect(cleanup).toBeGreaterThan(teardown);
   });
 
   it('remove() 실패는 삼키지 않고 던진다 — 반쯤 삭제된 상태를 드러낸다', async () => {
@@ -4122,6 +4263,54 @@ describe('TriggersService — 락 안 재읽기가 동시 확립분을 본다 (l
       'secret://triggers/trig-l/notification-signing',
     );
     expect(signing).not.toHaveProperty('secret');
+  });
+
+  it('normalizeNotificationSecretRef — 그 사이 삭제되면 락 밖에 쓴 서명 비밀을 지운다', async () => {
+    // RP-1 (트래커 항목 8). 종전엔 `false` 를 무시해 `notification-signing` 이 고아로 남았다.
+    // chat channel 등록은 이 경로가 만들지 않으므로 teardown 은 없다.
+    const legacy = row({
+      notification: {
+        url: 'https://x.example/cb',
+        signing: { algorithm: 'hmac-sha256', secret: 'plain-legacy' },
+      },
+    });
+    // 재읽기 ①(창 1)은 살아 있고 ②(정규화)에서 사라졌다.
+    const { service, repo, events } = await makeService([
+      () => legacy,
+      () => undefined as never,
+    ]);
+    (repo.findOne as jest.Mock).mockResolvedValue(legacy);
+
+    await service.update('trig-l', 'ws-1', { name: '새 이름' } as never, 'u-1');
+
+    const write = events.indexOf(
+      'rotate:secret://triggers/trig-l/notification-signing',
+    );
+    const cleanup = events.indexOf('deleteByPrefix:secret://triggers/trig-l/');
+    expect(write).toBeGreaterThanOrEqual(0);
+    expect(cleanup).toBeGreaterThan(write);
+    expect(events).not.toContain('teardown');
+  });
+
+  it('normalizeNotificationSecretRef — 쓰기가 성공하면 지우지 않는다 (대조군)', async () => {
+    const legacy = row({
+      notification: {
+        url: 'https://x.example/cb',
+        signing: { algorithm: 'hmac-sha256', secret: 'plain-legacy' },
+      },
+    });
+    const { service, repo, events } = await makeService([
+      () => legacy,
+      () => legacy,
+    ]);
+    (repo.findOne as jest.Mock).mockResolvedValue(legacy);
+
+    await service.update('trig-l', 'ws-1', { name: '새 이름' } as never, 'u-1');
+
+    expect(events).toContain(
+      'rotate:secret://triggers/trig-l/notification-signing',
+    );
+    expect(events.filter((e) => e.startsWith('deleteByPrefix:'))).toEqual([]);
   });
 
   it('revokePerTriggerToken — 재읽은 행에 그 키가 아예 없으면 fallback 으로 쓴다', async () => {
@@ -4227,6 +4416,39 @@ describe('TriggersService — 락 안 재읽기가 동시 확립분을 본다 (l
     const result = await service.promoteRotatedNotificationSecrets();
 
     expect(result.promoted).toBe(0);
+  });
+
+  it('promoteRotatedNotificationSecrets — 쓰기가 skip 되면 승격용으로 쓴 비밀을 지운다', async () => {
+    // RP-3. cron 이라 알릴 상대는 없지만, 위 `rotate` 가 쓴 서명 비밀은 삭제 쪽 정리보다 늦었으면
+    // 아무도 지우지 않는다.
+    const legacy = {
+      ...row({
+        notification: {
+          url: 'https://x.example/cb',
+          signing: { algorithm: 'hmac-sha256', secret: 'old-plain' },
+        },
+      }),
+      notificationSecretV2: 'wsk_new',
+      notificationRotatedAt: new Date(Date.now() - 25 * 60 * 60 * 1000),
+    } as unknown as Trigger;
+    const { service, repo, events } = await makeService([
+      () => undefined as never,
+    ]);
+    (repo.createQueryBuilder as jest.Mock).mockReturnValue({
+      where: jest.fn().mockReturnThis(),
+      andWhere: jest.fn().mockReturnThis(),
+      getMany: jest.fn().mockResolvedValue([legacy]),
+    });
+
+    await service.promoteRotatedNotificationSecrets();
+
+    const write = events.indexOf(
+      'rotate:secret://triggers/trig-l/notification-signing',
+    );
+    expect(write).toBeGreaterThanOrEqual(0);
+    expect(
+      events.indexOf('deleteByPrefix:secret://triggers/trig-l/'),
+    ).toBeGreaterThan(write);
   });
 
   it('cleanupRotatedChatChannelTokens — 컬럼만 쓰고 config 는 건드리지 않는다', async () => {

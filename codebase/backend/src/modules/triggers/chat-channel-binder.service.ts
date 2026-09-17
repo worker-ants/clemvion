@@ -15,6 +15,7 @@ import {
 } from './chat-channel-input-rules';
 import type { ChatChannelInput } from './chat-channel-input-rules';
 import { buildTriggerCallbackUrl } from './trigger-callback-url';
+import { undoAbsentTriggerWrite } from './trigger-resource-release';
 
 /**
  * chat-channel **adapter 바인딩** — setup / teardown 과 그에 딸린 secret store 쓰기·ref 보존.
@@ -288,6 +289,20 @@ export class ChatChannelBinderService {
           trigger.id,
           chatChannelCfg.provider,
         );
+      } else {
+        // **그 사이 트리거가 삭제됐다 — 락 밖에서 만든 것을 되돌린다** (spec 트리거 목록 §3).
+        // 방금 provider 에 등록한 콜백과 위에서 쓴 비밀은 삭제 쪽 정리보다 늦었을 수 있고, 그러면
+        // 아무도 지우지 않는다. teardown 이 비밀을 읽으므로 설정은 이번 등록 결과로 넘긴다.
+        await undoAbsentTriggerWrite(
+          {
+            teardown: () =>
+              this.teardownChannelConfig(trigger.id, buildChannel({}, result)),
+            secrets: this.secrets,
+            logger: this.logger,
+          },
+          trigger.id,
+          'ChatChannelBinderService.setupChatChannel',
+        );
       }
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
@@ -307,7 +322,7 @@ export class ChatChannelBinderService {
       // **이 경로도 락 안에서 다시 읽는다.** 외부 mock 이 없는 e2e 에서는 `setupChannel` 이
       // 항상 던져 **실제로 도달하는 쓰기가 여기**다 — 성공 경로만 고치면 재현 테스트가
       // 고쳐지지 않은 코드를 통과시킨다.
-      await rewriteTriggerConfigLocked(
+      const wroteDegraded = await rewriteTriggerConfigLocked(
         this.triggerRepository.manager,
         trigger.id,
         (freshConfig) => ({
@@ -319,6 +334,19 @@ export class ChatChannelBinderService {
           chatChannelLastError: message.slice(0, 1024),
         },
       );
+      // 성공 경로와 같은 보상이다. setup 이 실패했어도 **부분 등록**이 남았을 수 있고, 위의
+      // bot token 쓰기는 이미 끝났다 — teardown 은 best-effort 라 등록이 없으면 조용히 넘어간다.
+      if (!wroteDegraded) {
+        await undoAbsentTriggerWrite(
+          {
+            teardown: () => this.teardownChannelConfig(trigger.id, internalCfg),
+            secrets: this.secrets,
+            logger: this.logger,
+          },
+          trigger.id,
+          'ChatChannelBinderService.setupChatChannel(degraded)',
+        );
+      }
     }
   }
 
@@ -331,13 +359,24 @@ export class ChatChannelBinderService {
       trigger.config as { chatChannel?: ChatChannelConfig }
     ).chatChannel;
     if (!chatChannelCfg) return;
+    await this.teardownChannelConfig(trigger.id, chatChannelCfg);
+  }
+
+  /**
+   * 설정 하나로 teardown 한다 — 저장된 `config` 가 아니라 **이번 요청이 등록한 설정**으로 되돌려야
+   * 하는 보상 경로(행이 이미 없다)가 쓴다. best-effort.
+   */
+  async teardownChannelConfig(
+    triggerId: string,
+    chatChannelCfg: ChatChannelConfig,
+  ): Promise<void> {
     if (!this.channelAdapterRegistry.has(chatChannelCfg.provider)) return;
     const adapter = this.channelAdapterRegistry.get(chatChannelCfg.provider);
     try {
       await adapter.teardownChannel(chatChannelCfg);
     } catch (err) {
       this.logger.warn(
-        `TriggersService: teardownChannel 실패 (best-effort, trigger=${trigger.id}): ${err instanceof Error ? err.message : String(err)}`,
+        `TriggersService: teardownChannel 실패 (best-effort, trigger=${triggerId}): ${err instanceof Error ? err.message : String(err)}`,
       );
     }
   }
