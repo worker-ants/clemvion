@@ -4519,16 +4519,24 @@ field: T | null;
       > 표에도 그대로 적용된다 — 그쪽은 체커가 지목하지 않았지만 **같은 이유로 죽는다.**
 
 
-- [ ] **창 1 실측 결과를 spec 에 반영한다 — §3 ⚠️ 교체 · 증거 e2e `code:` 등재 · 404 사유** (planner,
+- [x] **창 1 실측 결과를 spec 에 반영한다 — §3 ⚠️ 교체 · 증거 e2e `code:` 등재 · 404 사유** (planner,
       2026-09-17 등재, `plan/complete/trigger-save-partial-patch.md` «이 PR 이 안 하는 것»).
       developer 항목 7 을 닫으며 코드는 고쳤지만, 그 사실을 적을 문장들은 planner 턴이 쓴 것이라
       developer 가 고치지 않았다.
 
       | # | 할 일 | 근거 |
       |---|---|---|
-      | 1 | `spec/2-navigation/2-trigger-list.md §3` 의 ⚠️ «실측되지 않은 잔여» 를 «① 재읽기 뒤 FK CASCADE 는 시끄러운 실패로 실측(롤백·부활 없음) · ② 락 밖 컬럼 경합은 실결함이었고 부분 객체 `save` 로 수정됨» 으로 교체 | `/ai-review` `review/code/2026/09/17/13_44_39` W1·`14_11_48` INFO#12·`14_34_56` INFO#1 [SPEC-DRIFT] — 세 라운드 연속 지적 |
-      | 2 | 같은 문서 frontmatter `code:` 에 `codebase/backend/test/trigger-update-save-window.e2e-spec.ts` 등재 | 이 문서가 스스로 성문화한 관례(«e2e 가 보장을 고정하면 그 파일을 `code:` 에 올린다», 선례 `trigger-workflow-ref.e2e-spec.ts`) — `--impl-prep` `review/consistency/2026/09/17/13_04_39` W1 |
-      | 3 | `spec/5-system/15-chat-channel.md §5.4` 404 행에 «CASCADE 창의 병합 쓰기 0행» 사유 한 줄 | 같은 `--impl-prep` INFO#1 |
+      | ~~1~~ ✅ | `spec/2-navigation/2-trigger-list.md §3` 의 ⚠️ «실측되지 않은 잔여» 를 «① 재읽기 뒤 FK CASCADE 는 시끄러운 실패로 실측(롤백·부활 없음) · ② 락 밖 컬럼 경합은 실결함이었고 부분 객체 `save` 로 수정됨» 으로 교체 | `/ai-review` `review/code/2026/09/17/13_44_39` W1·`14_11_48` INFO#12·`14_34_56` INFO#1 [SPEC-DRIFT] — 세 라운드 연속 지적 |
+      | ~~2~~ ✅ | 같은 문서 frontmatter `code:` 에 `codebase/backend/test/trigger-update-save-window.e2e-spec.ts` 등재 | 이 문서가 스스로 성문화한 관례(«e2e 가 보장을 고정하면 그 파일을 `code:` 에 올린다», 선례 `trigger-workflow-ref.e2e-spec.ts`) — `--impl-prep` `review/consistency/2026/09/17/13_04_39` W1 |
+      | ~~3~~ ✅ | `spec/5-system/15-chat-channel.md §5.4` 404 행에 «CASCADE 창의 병합 쓰기 0행» 사유 한 줄 | 같은 `--impl-prep` INFO#1 |
+
+      > **✅ 2026-09-17 해소** — planner 턴 `plan/complete/spec-draft-window1-measured.md`
+      > (`--spec` `review/consistency/2026/09/17/16_06_23` **BLOCK: NO**). 재다가 **두 자리를 더**
+      > 닫았다: (a) «0행이면 404» 는 `rotate-bot-token` 만이 아니라 `interaction/revoke-token` 도다 —
+      > `#1342` 가 §3 괄호에 한 엔드포인트만 적었다. (b) chat-channel §5.4 404 행의
+      > `triggers.service.ts:122` 는 이미 낡아 있었다(`findById` 는 408행) — 줄 번호를 빼고 심볼만 남겼다.
+      > ⚠️ 는 지우지 않고 «PATCH 는 바꾸는 필드만 저장한다 · 부재는 두 하위 창(재읽기 빔 → 404 /
+      > 저장 직전 CASCADE → 롤백·500)» 으로 바꿨다 — 500 은 계약이 아니라 현재 동작으로 적었다.
 
 ## 종결 조건
 
