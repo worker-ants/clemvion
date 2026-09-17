@@ -679,6 +679,37 @@ describe('WorkspacesService', () => {
       expect(triggerReleaser.releaseSecretsAfterCommit).not.toHaveBeenCalled();
     });
 
+    it('정리 협력자를 못 찾으면 아무것도 지우지 않고 던진다 (no-op 금지)', async () => {
+      // 워크플로 삭제와 같은 규칙 — 조용히 넘어가면 트리거 자원이 정리되지 않는 결함이 돌아온다.
+      const bare = await Test.createTestingModule({
+        providers: [
+          WorkspacesService,
+          { provide: getRepositoryToken(Workspace), useValue: workspaceRepo },
+          {
+            provide: getRepositoryToken(WorkspaceMember),
+            useValue: memberRepo,
+          },
+          {
+            provide: getRepositoryToken(User),
+            useValue: { findOne: jest.fn() },
+          },
+          { provide: AuditLogsService, useValue: { record: jest.fn() } },
+        ],
+      }).compile();
+      memberRepo.findOne.mockResolvedValue({ role: 'owner' });
+      workspaceRepo.findOne.mockResolvedValue({
+        ...mockWorkspace,
+        type: 'team',
+      });
+
+      // **무엇이 던졌는지** 본다 — 다른 이유로 던져도 GREEN 이 되면 안 된다.
+      await expect(
+        bare.get(WorkspacesService).deleteWorkspace('ws-uuid-1', 'user-uuid-1'),
+      ).rejects.toThrow(/TRIGGER_RESOURCE_RELEASER/);
+
+      expect(workspaceRepo.remove).not.toHaveBeenCalled();
+    });
+
     it('personal 워크스페이스면 외부 자원을 건드리지 않는다', async () => {
       memberRepo.findOne.mockResolvedValue({ role: 'owner' });
       workspaceRepo.findOne.mockResolvedValue({

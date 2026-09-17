@@ -55,6 +55,22 @@ const BASE_URL = process.env.E2E_BASE_URL ?? 'http://backend-e2e:3011';
 const SCHEDULE_QUEUE = 'schedule-execution';
 const schedulerId = (scheduleId: string) => `schedule:${scheduleId}`;
 
+/**
+ * job scheduler 가 **등록돼 있는가** — 스케줄러 목록(zset) 소속으로 판정한다.
+ *
+ * `Queue.getJobScheduler(id)` 로 판정하면 안 된다. id 에 `:` 가 있으면(`schedule:<id>`) bullmq 5 가
+ * 해시가 지워진 뒤에도 레거시 경로(`keyToData`)로 `{ pattern: null, next: null, … }` 껍데기를
+ * 돌려줘 **해제 뒤에도 undefined 가 아니다**. 그 API 로 쓴 첫 판은 «해제됐다» 가 항상 실패했고
+ * «남아 있다»(403 케이스)는 항상 참이었다 — 실측으로 확인했다.
+ */
+async function schedulerRegistered(
+  queue: Queue,
+  scheduleId: string,
+): Promise<boolean> {
+  const schedulers = await queue.getJobSchedulers(0, -1);
+  return schedulers.some((sch) => sch.key === schedulerId(scheduleId));
+}
+
 /** 한 트리거에 심는 ref 들 — 서로 다른 이름 둘이라 «접두 전체» 가 지워지는지 본다. */
 const SECRET_NAMES = ['bot-token', 'notification-signing'] as const;
 
@@ -210,18 +226,14 @@ describe('트리거 행을 없애는 네 경로의 자원 정리 (e2e)', () => {
     const wf = await createWorkflow(ws, 'job');
     const { scheduleId } = await createActiveSchedule(ws, wf, 'job');
     // 활성 스케줄이 실제로 등록돼 있어야 «해제됐다» 가 판별된다.
-    expect(
-      await scheduleQueue.getJobScheduler(schedulerId(scheduleId)),
-    ).toBeDefined();
+    expect(await schedulerRegistered(scheduleQueue, scheduleId)).toBe(true);
 
     const del = await request(BASE_URL)
       .delete(`/api/workflows/${wf}`)
       .set(auth(ws));
     expect(del.status).toBe(204);
 
-    expect(
-      await scheduleQueue.getJobScheduler(schedulerId(scheduleId)),
-    ).toBeUndefined();
+    expect(await schedulerRegistered(scheduleQueue, scheduleId)).toBe(false);
   });
 
   it('워크스페이스 삭제 — 그 워크스페이스 트리거의 비밀·스케줄 job 이 정리되고, 다른 워크스페이스 트리거의 비밀은 남는다', async () => {
@@ -247,9 +259,7 @@ describe('트리거 행을 없애는 네 경로의 자원 정리 (e2e)', () => {
     await seedSecrets(webhook, ws);
     await seedSecrets(scheduleTrigger, ws);
     await seedSecrets(otherTrigger, other);
-    expect(
-      await scheduleQueue.getJobScheduler(schedulerId(scheduleId)),
-    ).toBeDefined();
+    expect(await schedulerRegistered(scheduleQueue, scheduleId)).toBe(true);
 
     const del = await request(BASE_URL)
       .delete(`/api/workspaces/${ws}`)
@@ -259,9 +269,7 @@ describe('트리거 행을 없애는 네 경로의 자원 정리 (e2e)', () => {
     expect(await triggerExists(webhook)).toBe(false);
     expect(await secretCount(webhook)).toBe(0);
     expect(await secretCount(scheduleTrigger)).toBe(0);
-    expect(
-      await scheduleQueue.getJobScheduler(schedulerId(scheduleId)),
-    ).toBeUndefined();
+    expect(await schedulerRegistered(scheduleQueue, scheduleId)).toBe(false);
     expect(await secretCount(otherTrigger)).toBe(SECRET_NAMES.length);
   });
 
@@ -293,9 +301,7 @@ describe('트리거 행을 없애는 네 경로의 자원 정리 (e2e)', () => {
     expect(del.status).toBe(403);
 
     // 외부 해제가 권한 검사보다 앞서면 job 이 먼저 뜯긴다 — 이 단언이 그 순서를 문다.
-    expect(
-      await scheduleQueue.getJobScheduler(schedulerId(scheduleId)),
-    ).toBeDefined();
+    expect(await schedulerRegistered(scheduleQueue, scheduleId)).toBe(true);
     expect(await triggerExists(triggerId)).toBe(true);
     expect(await secretCount(triggerId)).toBe(SECRET_NAMES.length);
   });

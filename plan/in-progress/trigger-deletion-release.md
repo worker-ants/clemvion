@@ -82,6 +82,39 @@ WebsocketModule → WorkflowsModule` 과, `WorkflowsModule → ChatChannelModule
     열거) → 커밋 뒤 비밀. 검사를 앞세우지 않으면 403 이 날 요청이 provider 등록부터 뜯는다.
 - **쓰기 보상** RP-1~RP-5 — `false` 에서만. 예외(행은 있는데 실패)는 대상이 아니다.
 
+## 뮤턴트 — 보증마다 하나, 예측을 먼저 적었다
+
+전부 **예측 RED · 실측 RED**, 그리고 전부 **단언 실패**다(컴파일 실패로 인한 거짓 RED 0). 원복은 파일
+사본(cp) — 끝난 뒤 작업 트리 상태로 `codebase/` 무변경을 확인했다.
+
+| # | 뮤턴트 | 잡은 테스트 |
+|---|---|---|
+| M1 | 트리거 삭제 — 비밀을 행 삭제 **전에** | 순서 테스트 · «행 삭제 실패면 비밀 유지» |
+| M1b | 트리거 삭제 — 커밋 뒤 비밀 삭제 제거 | prefix 호출 · 순서 테스트 |
+| M2~M4 | RP-1·RP-2·RP-3 보상 호출 제거 | 각 자리의 보상 테스트 1건씩 |
+| M5·M6 | RP-4·RP-5(binder 성공·degraded) 보상 제거 | 각 1건 |
+| M7 | 워크스페이스 선검사 제거 | 순서 · 403 · personal (3건) |
+| M8 | 워크플로 — 열거를 트랜잭션 밖으로 | 순서 테스트 |
+| M9 | releaser — 잠금 **전에** 열거 | 워크플로·워크스페이스 잠금 순서 (2건) |
+| M10 | 보상 — teardown 을 비밀 **뒤로** | teardown 순서 · teardown 실패 시 (2건) |
+| M11 | 커밋 뒤 정리 — 실패를 던짐 | 던지지 않음 2건 |
+| M12 | releaser — listener `unregister`(R8) 제거 | 외부 해제 배선 |
+| M13 | 워크플로 — 해석 실패를 no-op 으로 삼킴 | «못 찾으면 던진다» |
+| M14 | 스케줄 삭제 — 비밀 정리 제거 | 스케줄 삭제 순서 |
+| M15 | 워크스페이스 — 해석 실패를 no-op 으로 삼킴 | «못 찾으면 던진다» (M13 의 대칭 빈틈을 채운 뒤 추가) |
+
+## 내가 틀린 측정 — `getJobScheduler` 는 해제 뒤에도 undefined 가 아니다
+
+첫 e2e 는 schedule job 해제를 `Queue.getJobScheduler('schedule:<id>')` 의 `undefined` 로 판정했다.
+수정 뒤에도 그 두 케이스만 RED 였고, 받은 값은 삭제 **전**(`pattern`·`iterationCount` 있음)과 모양이
+달랐다(`pattern: null`·`next: null`). bullmq 5 `transformSchedulerData` 는 해시가 비어도 **id 에 `:`
+가 있으면** 레거시 `keyToData` 로 껍데기를 돌려준다 — 우리 id 가 정확히 그 형태다.
+
+그래서 이 API 로 쓴 단언은 **«해제됐다» 는 항상 실패, «남아 있다»(403 케이스)는 항상 참**이었다. 수정 전
+RED 4 중 job 두 건의 RED 는 **올바른 이유가 아니었다**(결과는 같았지만 해제 뒤에도 RED 였을 것). 판정을
+스케줄러 목록(zset) 소속으로 바꿨고, 각 케이스가 **삭제 전 `true` → 삭제 후 `false`** 전이를 같은
+헬퍼로 보게 해 판별력을 테스트 안에서 증명한다.
+
 ## `--impl-prep` 처분 (`review/consistency/2026/09/17/18_00_19` — **BLOCK: NO** · WARNING 6)
 
 | # | 지적 | 처분 |
@@ -100,10 +133,10 @@ WebsocketModule → WorkflowsModule` 과, `WorkflowsModule → ChatChannelModule
 
 - [x] `/consistency-check --impl-prep spec/2-navigation/` — `review/consistency/2026/09/17/18_00_19` **BLOCK: NO** (WARNING 6 처분 위)
 - [x] e2e 먼저 — 워크플로·워크스페이스·스케줄 삭제 뒤 비밀 0행 + 대조군 생존 + schedule job 해제 — 수정 전 백엔드로 **RED 4 / GREEN 2** 확인. 네 RED 모두 목표 단언에서 실패(`Expected 0 · Received 2`, job scheduler 잔존) — 거짓 RED 아님. GREEN 둘(403 선검사 · 트리거 삭제)은 수정 전에도 참인 회귀 가드
-- [ ] e2e 보상 합성 — 실제 Postgres 에서 T → S → A → R → C 재진입 고정, 보상을 빼면 RED
+- [x] e2e 보상 합성 — 실제 Postgres 에서 T → S → A → R → C 재진입 고정. 보상 **전** 1행을 단언해 판별 입력을 테스트 안에서 증명(보상 뒤 0행)
 - [x] 단위 — 순서(외부 → 행 → 비밀) · 보상 RP-1~5 · listener `unregister`(R8) · ModuleRef 해석 실패 시 던짐 · 워크스페이스 선검사 (backend 9,746 GREEN · 뮤턴트 확인은 아래)
 - [x] 구현
-- [ ] TEST WORKFLOW (lint · unit · build + 타입 ratchet · e2e)
+- [x] TEST WORKFLOW — lint PASS · unit backend **9,747** · build PASS + 타입 ratchet baseline 일치(197/36) · e2e backend **321**(새 spec 7 포함) + playwright **51**. 마지막 테스트 수정 뒤 lint·unit·ratchet 재통과
 - [ ] `/ai-review` 수렴
 - [ ] `--impl-done`
 - [ ] 트래커 반영 — DRT-2 해소 표시 · **planner 후속 신설**(Planned 태그·§4.3 과도기 문구 제거 · `secret-store.md` `partial`→`implemented` · `15-chat-channel.md` R8 괄호 · `4-execution-engine.md §4.4` throw 사례) · **sweeper 재판단 항목 신설** · plan → `complete/`
