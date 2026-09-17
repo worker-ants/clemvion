@@ -185,7 +185,7 @@ non-team 워크스페이스 동작은 `403 WORKSPACE_TYPE_MISMATCH`.
 
 | 액션 | 권한 | 동작 |
 | --- | --- | --- |
-| `DELETE /api/workspaces/:id` | owner | team 전용(personal 은 `403 CANNOT_DELETE_PERSONAL`). 단일 트랜잭션 + 비관적 락(`pessimistic_write`)으로 멤버십·워크스페이스 row 를 잠근 뒤, FK 관계가 선언되지 않은 `workspace_invitation` 을 **명시 DELETE** → `workspace_member` DELETE → `workspace` 삭제 (`deleteWorkspace`). |
+| `DELETE /api/workspaces/:id` | owner | team 전용(personal 은 `403 CANNOT_DELETE_PERSONAL`). 단일 트랜잭션 + 비관적 락(`pessimistic_write`)으로 멤버십·워크스페이스 row 를 잠근 뒤, FK 관계가 선언되지 않은 `workspace_invitation` 을 **명시 DELETE** → `workspace_member` DELETE → `workspace` 삭제 (`deleteWorkspace`). **트리거 자원 정리 — 미구현 (Planned)**: 워크스페이스의 트리거는 FK CASCADE 로 함께 지워지므로, 트랜잭션 **전에** 외부 자원(schedule job · chat channel teardown · listener registry)을 해제하고, 워크스페이스 row 를 잠근 **뒤** 같은 트랜잭션에서 트리거를 열거해 커밋 **뒤** 그 트리거들의 `secret_store` 비밀을 지운다 ([트리거 목록 §4.3](../2-navigation/2-trigger-list.md#43-cascade-동작)). |
 | `POST /api/workspaces/:id/leave` | 멤버 본인 | team 전용(`403 CANNOT_LEAVE_PERSONAL`). 유일한 owner 는 `403 SOLE_OWNER_CANNOT_LEAVE` — sole-owner 판정과 멤버십 DELETE 를 비관적 락 트랜잭션 내에서 수행해 TOCTOU 방지 (`leaveWorkspace`). §1.6 의 "본인 제거는 자가 탈퇴로 위임" 이 이 흐름이다. |
 
 ---
@@ -199,6 +199,7 @@ non-team 워크스페이스 동작은 `403 WORKSPACE_TYPE_MISMATCH`.
 | `workspace` | 생성 | INSERT `name, type IN (personal/team), owner_id, slug, settings={}, created_at` | `slug UNIQUE` (V001 컬럼 제약). personal 유일성(owner 당 1개)은 **부분 유니크 인덱스** `uq_workspace_personal_owner ON workspace (owner_id) WHERE type='personal'` (V109, V108 dedup 가드 선행) 로 DB 강제 + 앱 레이어(`findOrCreatePersonalWorkspace`) 이중 방어. team 다중 소유는 허용(broad `(owner_id, type)` UNIQUE 아님, 아래 Rationale) |
 | `workspace` | 소유권 이전 | UPDATE `owner_id` | — |
 | `workspace` | 삭제 (§1.10) | DELETE (선행: 동일 트랜잭션에서 `workspace_invitation`·`workspace_member` 명시 삭제) | — |
+| `secret_store` | 워크스페이스 삭제 (§1.10) — **미구현 (Planned)** | 트랜잭션 **커밋 뒤**, 트랜잭션 안에서 열거한 트리거마다 DELETE `ref LIKE 'secret://triggers/<id>/%'` (`deleteByPrefix`) | FK 없음 (V063) — `workspace_id` 를 조건으로 지우지 않는다 |
 | `workspace_member` | 가입·초대 수락·직접 추가(§1.9) | INSERT `workspace_id, user_id, role IN (owner/admin/editor/viewer), invited_at, joined_at` | `(workspace_id, user_id) UNIQUE` |
 | `workspace_member` | 역할 변경 | UPDATE `role` | — |
 | `workspace_member` | 멤버 제거·자가 탈퇴 (§1.6, §1.10) | DELETE | — |

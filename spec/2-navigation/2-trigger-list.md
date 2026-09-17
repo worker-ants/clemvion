@@ -203,6 +203,10 @@ code:
 > - **락으로 막을 수 없는 삭제 경로가 있다** — `workflow`·`workspace` 삭제의 FK CASCADE
 >   ([§4.3](#43-cascade-동작)). 그래서 락 안에서도 행 부재를 판정한다: 재읽기가 비면 쓰지 않고,
 >   병합 쓰기가 **0행에 매치**되면 쓰지 못한 것으로 취급한다(`rotate-bot-token`·`interaction/revoke-token` 은 이때 404).
+> - **쓰지 못했으면 락 밖에서 만든 것을 되돌린다** — 락 밖에서 `secret_store` 에 비밀을 쓰거나 provider 에
+>   등록한 뒤 위 판정으로 **쓰지 못한** 요청은, provider 등록을 teardown 한 뒤(best-effort) 그 트리거의
+>   비밀(`secret://triggers/<id>/`)을 지운다. 삭제 쪽이 비밀을 행 삭제 **뒤에** 지우는 것([§4.3](#43-cascade-동작))과
+>   짝을 이뤄, 삭제와 겹친 쓰기가 비밀을 고아로 남기지 않는다.
 >
 > **PATCH 의 저장은 이 요청이 바꾸는 필드만 싣는다.** 엔티티를 통째로 저장하면 재읽기 **뒤에** 락
 > 밖에서 커밋된 컬럼(회전 중인 `notificationSecretV2`, 웹훅 인입의 `lastTriggeredAt` 등)이 재읽기
@@ -279,12 +283,28 @@ API 게이트는 [Spec 인증 §3.2 리소스별 권한 매트릭스](../5-syste
 | Outbound `notification.*` 채널 | 트리거에 종속이므로 다음 발송 시도가 중단된다 — `notificationHealth` 값은 row 가 없으므로 별도 cleanup 불필요 | [Spec EIA §7.1 (Trigger 엔티티 확장)](../5-system/14-external-interaction-api.md#71-trigger-엔티티-확장) |
 | Inbound interaction 토큰 (per_trigger) | 트리거 삭제로 즉시 무효 — 별도 revoke 호출 불필요 | 동상 |
 
+> **트리거 행을 없애는 모든 경로는 그 트리거의 자원을 정리한다** (2026-09-17 결정, 구현은 frontmatter
+> `pending_plans` 에서 추적 — 그 전까지는 트리거 화면 삭제만 네 자원을 모두 정리하고(스케줄 화면 삭제는 schedule job 만), 비밀을 행 삭제 **전에** 지운다).
+> 경로는 트리거 화면 삭제([§4.4](#44-결과에러)) · 스케줄 화면 삭제 · 위 상류 행의 워크플로·워크스페이스
+> 삭제다. 자원은 둘로 갈리고 시점이 다르다:
+>
+> | 자원 | 시점 | 이유 |
+> |---|---|---|
+> | 외부 — schedule BullMQ job · chat channel provider 등록(teardown, best-effort) · listener registry | 행 삭제 **전**, DB 트랜잭션 **밖** | teardown 이 `secret_store` 의 bot token 을 읽는다(Telegram·Discord). 외부 호출은 락 안에 두지 않는다([§3](#3-api)) |
+> | `secret_store` 의 `secret://triggers/<id>/` 비밀 | 행 삭제가 **커밋된 뒤** | 삭제와 겹친 쓰기가 비밀을 고아로 남기지 않게 — [§3](#3-api) 의 «쓰지 못했으면 되돌린다» 와 짝 |
+>
+> 워크플로·워크스페이스 삭제는 비밀을 지울 트리거를 **부모 행을 잠근 뒤 같은 트랜잭션에서** 열거한다 —
+> 잠금 뒤엔 그 부모를 참조하는 트리거 INSERT 가 FK 검사에서 막혀 열거에서 빠지는 트리거가 없다.
+> 남는 창은 외부 자원 쪽이다: 외부 해제용 열거 뒤에 생긴 트리거, 그리고 해제 뒤·행 삭제 전에 동시 요청이
+> 다시 만든 provider 등록·schedule job 은 남을 수 있다. 행 삭제 커밋과 비밀 정리 사이에 프로세스가 죽으면
+> 비밀이 남는다.
+
 ### 4.4 결과·에러
 
 - 성공: `204 No Content` (응답 본문 없음, 표준 패턴). 클라이언트는 목록·상세 query 를 invalidate.
 - 동시 삭제: 두 클라이언트가 동시에 같은 트리거를 삭제하면 두 번째는 `404 RESOURCE_NOT_FOUND` — 클라이언트는 무시 가능 (사용자에게 토스트 1회).
 - Schedule 타입을 schedule 화면이 아닌 trigger 화면에서 삭제: 본 §4.3 에 따라 schedule cascade 와 함께 삭제되며, 삭제 전 `removeJob` 으로 BullMQ job scheduler 엔트리도 해제한다. (Schedule 화면에서 삭제하는 경로도 동일 결과 — [data-flow §1.4](../data-flow/10-triggers.md#14-schedule--trigger-동기화) 가 양방향 동기화 SoT.)
-- **락 대기 상한 5초**: 삭제는 [§3](#3-api) 의 트리거 단위 락을 잡기 **전에** 되돌릴 수 없는 정리를 끝낸다(트리거 화면 삭제는 schedule 타입이면 BullMQ job 해제 → chat channel teardown → secret 삭제, 스케줄 화면 삭제는 BullMQ job 해제). 그래서 락을 5초 안에 못 잡으면 기다리지 않고 **오류로 끝내며**, 그 트리거가 «정리는 끝났는데 행은 남은» 상태라는 사실을 서버 로그에 남긴다.
+- **락 대기 상한 5초**: 삭제는 [§3](#3-api) 의 트리거 단위 락을 잡기 **전에** 되돌릴 수 없는 **외부 자원 해제**를 끝낸다(트리거 화면 삭제는 schedule 타입이면 BullMQ job 해제 → chat channel teardown, 스케줄 화면 삭제는 BullMQ job 해제 — [§4.3](#43-cascade-동작)). 그래서 락을 5초 안에 못 잡으면 기다리지 않고 **오류로 끝내며**, 그 트리거가 «외부 등록은 해제됐는데 행은 남은» 상태라는 사실을 서버 로그에 남긴다. 비밀은 행 삭제가 커밋된 **뒤에** 지우므로 이때는 지워지지 않는다.
 
 ---
 

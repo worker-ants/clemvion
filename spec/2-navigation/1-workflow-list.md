@@ -11,6 +11,7 @@ code:
 pending_plans:
   - plan/in-progress/marketplace-and-plugin-sdk.md
   - plan/complete/workflow-duplicate-nodes-edges.md
+  - plan/in-progress/spec-draft-nullable-notation-followups.md
 ---
 
 # Spec: 워크플로우 목록 화면
@@ -105,7 +106,7 @@ pending_plans:
 | 복제 | 워크플로우 복사본 생성 — 노드·엣지를 포함한 **캔버스 전체**가 복사되고, 이름에 "(Copy)" 접미, 상태는 비활성으로 시작한다. 버전 이력·트리거·테스트 데이터셋은 승계하지 않는다. 데이터 흐름은 [data-flow §1.5](../data-flow/11-workflow.md#15-복제--내보내기--가져오기) |
 | 내보내기 | JSON 파일로 다운로드 |
 | 활성/비활성 | 상태 토글. 비활성 시 트리거/스케줄 중지 |
-| 삭제 | 확인 다이얼로그 후 삭제. 연결된 트리거/스케줄도 함께 비활성화 |
+| 삭제 | 확인 다이얼로그 후 삭제. 연결된 트리거는 **함께 삭제**된다(FK CASCADE — schedule 트리거면 스케줄까지). 트리거가 쓰던 외부 등록과 비밀도 정리한다 — [트리거 목록 §4.3](./2-trigger-list.md#43-cascade-동작) |
 
 ### 2.7 빈 상태
 

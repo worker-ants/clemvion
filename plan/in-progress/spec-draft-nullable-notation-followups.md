@@ -3946,7 +3946,7 @@ field: T | null;
       나머지 셋이 살아 있어 유효). 처방: `spec/**` frontmatter 의 `pending_plans` 경로가 실재하는지
       검사하는 가드 한 줄. **`findBrokenPlanLinks` 는 마크다운 링크만 보고 frontmatter 는 안 본다.**
 
-- [ ] **없는 메서드 `TriggersService.delete()` 가 세 곳에 있다 (실제는 `remove()`)**
+- [x] **없는 메서드 `TriggersService.delete()` 가 세 곳에 있다 (실제는 `remove()`)**
       (planner 2 + 무조치 1, 2026-09-14 등재 · 스코프 확장 2026-09-14 · `--impl-done`
       `review/consistency/2026/09/14/11_52_23` cross_spec INFO#1 + `/ai-review` `11_52_13`
       requirement INFO#3 + `--impl-done` `12_37_09` cross_spec WARNING#1).
@@ -3956,8 +3956,8 @@ field: T | null;
 
       | # | 자리 | 소유 | 처분 |
       |---|---|---|---|
-      | 1 | `spec/conventions/secret-store.md:428` (§R4) | planner | `remove()` 로 정정 |
-      | 2 | `spec/1-data-model.md:791` | planner | 같음 |
+      | ~~1~~ ✅ | `spec/conventions/secret-store.md` §R4 | planner | `remove()` 로 정정 — 2026-09-17 `plan/complete/spec-draft-deletion-releases-trigger-resources.md` S9 가 그 문장을 «모든 경로» 규칙으로 다시 쓰며 닫았다 |
+      | ~~2~~ ✅ | `spec/1-data-model.md` `secret_store.workspace_id` 행 | planner | 같음 — 같은 draft S8 이 행을 다시 쓰며 메서드명을 뺐다 |
       | 3 | `codebase/backend/migrations/V063__secret_store.sql:20` | developer | **고치지 않는다** ↓ |
 
       > **3번은 고치면 안 된다 — Flyway 체크섬.** `docker-compose.e2e.yml` 이 마이그레이션을
@@ -4503,8 +4503,8 @@ field: T | null;
       | ~~5~~ ✅ | `rewriteTriggerConfigLocked` 가 `update()` 의 `affected` 를 확인하지 않는다 | 14라운드 INFO#19. ~~삭제 경로 둘이 **같은 락을 공유**해 실무적으로 닫혀 있고, 계약을 코드로 드러내는 일이 남았다~~ → **2026-09-15 실측으로 반증**: 삭제 경로는 **셋**이고 세 번째(`Workflow`·`Workspace` 삭제의 FK `onDelete: 'CASCADE'`)는 **DB 레벨이라 advisory lock 을 애초에 잡을 수 없다**. 0행 UPDATE 가 도달 가능하므로 «계약 노출» 이 아니라 **좁은 실결함**이다 (`--impl-prep` `review/consistency/2026/09/15/08_58_18` plan_coherence W3 가 이 줄을 지목했다) |
       | ~~6~~ ✅ | `SchedulesService.remove()` 의 `triggerId` falsy 분기 테스트 1건 | 14라운드 INFO#16. 선재 가드절이라 회귀는 아니다 |
       | ~~7~~ ✅ | **창 1(`TriggersService.update()` 의 인라인 `save()`)이 FK CASCADE 창에 대해 미검증** — **2026-09-17 해소** (`plan/complete/trigger-save-partial-patch.md`). 운영 훅 없이 TypeORM 을 실제 Postgres 에 붙여 재현: CASCADE 창은 **시끄러운 실패**(롤백·부활 없음)로 실측, 그리고 같은 측정에서 **락 밖 컬럼 쓰기를 되돌리는 실결함**이 드러나 부분 객체 `save` 로 고쳤다. 원문: | 2026-09-15 추가. 창 1 만 `rewriteTriggerConfigLocked` 를 안 거치므로 `affected` 판정의 보호를 못 받는다. **실패 방식이 추정이다** — `save` 가 사라진 행을 INSERT 로 되살릴 때 부모(`workflow`)도 없으니 FK 위반으로 시끄럽게 실패할 것으로 보이나 **재지 않았다.** 결판내려면 **재읽기와 저장 사이를 멈추는 프로세스 내부 훅**이 필요하다(락은 읽기 *전에* 잡혀서 바깥에서 그 창을 못 연다) — 이 저장소의 boot-only e2e 훅 관례(`NODE_ENV`+FLAG 이중 게이트)를 따르면 된다. `/ai-review` `review/code/2026/09/15/09_30_03` W2 |
-      | 8 | `rewriteTriggerConfigLocked` 반환값을 **여전히 무시하는 호출부 2곳** | `normalizeNotificationSecretRef`(create/update 경유) · `chat-channel-binder.service.ts` 의 degraded fallback. 새 `affected` 판정이 `false` 를 돌려줘도 아무도 안 본다 — 같은 클래스의 잔여 표면 (같은 세션 INFO#3) |
-      | 9 | `rotateBotToken` 의 secret store 쓰기가 `affected` 판정보다 **먼저, 트랜잭션 밖에서** 일어난다 | HTTP 응답 계약(404)은 닫혔지만 «secret store 에는 새 토큰, DB 에는 행 없음» 의 보상은 안 닫혔다. 5라운드 W1(secret store 원자성)과 같은 자리 (같은 세션 INFO#4) |
+      | ~~8~~ → | **2026-09-17 흡수** — `plan/complete/spec-draft-deletion-releases-trigger-resources.md` D5(쓰기 경로 보상) 의 구현 자리가 됐다. 구현은 아래 «트리거 행을 없애는 모든 경로의 자원 정리» 항목. 원문: `rewriteTriggerConfigLocked` 반환값을 **여전히 무시하는 호출부 2곳** | `normalizeNotificationSecretRef`(create/update 경유) · `chat-channel-binder.service.ts` 의 degraded fallback. 새 `affected` 판정이 `false` 를 돌려줘도 아무도 안 본다 — 같은 클래스의 잔여 표면 (같은 세션 INFO#3) |
+      | ~~9~~ → | **2026-09-17 흡수** — 8 과 같은 D5. 원문: `rotateBotToken` 의 secret store 쓰기가 `affected` 판정보다 **먼저, 트랜잭션 밖에서** 일어난다 | HTTP 응답 계약(404)은 닫혔지만 «secret store 에는 새 토큰, DB 에는 행 없음» 의 보상은 안 닫혔다. 5라운드 W1(secret store 원자성)과 같은 자리 (같은 세션 INFO#4) |
       | 10 | `rewriteTriggerConfigLocked` 의 `@returns` JSDoc + 전용 spec 의 suite JSDoc 이 신규 2분기를 반영 안 함 | 「쓰지 않을 거면 계산도 안 한다」는 `!fresh` 분기에만 해당한다는 것도 한 줄 (같은 세션 INFO#7·#12) |
       | 11 | 테스트 미세 보강 — `-Infinity` fixture · clamp 경계값(`1`/`60000`) 명시 · `it.each` 통일 | 낮은 우선순위 (같은 세션 INFO#10·#11) |
 
@@ -4517,6 +4517,36 @@ field: T | null;
       > **이 항목과 바로 위 planner 항목이 같은 사고에서 나왔다.** `--impl-done` 이
       > *"이 plan 이 봉인되면 근거 문서가 사라진다"* 로 잡았고, 그 판단은 developer 범위
       > 표에도 그대로 적용된다 — 그쪽은 체커가 지목하지 않았지만 **같은 이유로 죽는다.**
+
+
+- [ ] **트리거 행을 없애는 모든 경로의 자원 정리를 구현한다** (developer, 2026-09-17 등재 ·
+      spec 결정 `plan/complete/spec-draft-deletion-releases-trigger-resources.md` D1·D3~D6 · `--spec` `review/consistency/2026/09/17/17_20_54`).
+      **워크플로·워크스페이스 삭제는 트리거의 외부 자원을 하나도 해제하지 않고, 스케줄 삭제는 비밀을
+      지우지 않는다** — 트리거 행을 지우는 경로 넷 중 `TriggersService.remove()` 만 정리한다. 위 항목
+      8·9 를 흡수했다. 계약 SoT 는 `spec/2-navigation/2-trigger-list.md` §3(«쓰지 못했으면 되돌린다»)·
+      §4.3(표 다음 문단)·§4.4.
+
+      | # | 할 일 |
+      |---|---|
+      | 1 | `WorkflowsService.remove()` — 트랜잭션 **전** 외부 해제 · 트랜잭션 안에서 `workflow` 행 `pessimistic_write` → 트리거 id 열거 → 삭제 · 커밋 **뒤** 트리거마다 `deleteByPrefix` |
+      | 2 | `WorkspacesService.deleteWorkspace()` — 같은 모양. 워크스페이스 행 잠금은 이미 있으니 그 뒤 열거만 더한다 |
+      | 3 | `SchedulesService.remove()` — 행 삭제 커밋 뒤 `deleteByPrefix`(알림 서명 비밀. `notification` 은 DTO 에 타입 제한이 없다) |
+      | 4 | `TriggersService.remove()` — `deleteByPrefix` 를 락·행 삭제 **뒤로** 옮기고, 실패 로그의 «secret 삭제는 이미 끝났다» 문구를 고친다 |
+      | 5 | 쓰기 경로 보상 — 락 안 재기록이 `false` 면 provider teardown(best-effort) 뒤 `deleteByPrefix`. 호출부는 목록으로 받지 말고 `rewriteTriggerConfigLocked` 호출부 + 락 밖 `secrets.store`/`rotate` 호출부를 **전수 grep** 해 짝지어라 (위 8 의 2곳 · 9 의 `rotateBotToken` 은 출발점일 뿐) |
+      | 6 | e2e — 워크플로·워크스페이스 삭제 뒤 `secret_store` 0행 · schedule job 해제. 동시 회전의 보상은 **재진입으로 인터리빙 지점을 고정**해 재현(편한 지점에서 끊으면 진짜 결함도 초록) |
+
+      > **착수 첫 판단은 협력자의 모듈 위치다.** `WorkflowsModule → TriggersModule` 간선은
+      > `TriggersModule → SchedulesModule → ExecutionEngineModule → WebsocketModule → WorkflowsModule` 과
+      > 순환을 만든다. `#676`(`e827ed2a7`)은 `chat-channel→triggers` 역방향 의존을 **일부러 끊어**
+      > `forwardRef` 순환을 없앤 선례다 — 새 간선을 `forwardRef` 로 때우지 말고 위치부터 정한다.
+      >
+      > **구현 뒤 planner 후속**: `spec/5-system/15-chat-channel.md` R8 의 «(또는 `TriggersService.remove`)»
+      > 괄호를 실제 listener registry 해제 호출부로 넓힌다 — 호출부가 늘어난 뒤의 실측과 함께.
+      >
+      > **부수 주의 둘**: 커밋 뒤 정리 단계는 이미 지워진 `workspace_id` 를 참조하는 감사 행을 남기지
+      > 않는다(FK 위반) · 새 `deleteByPrefix` 호출부도 prefix 를 UUID 로 조립한다(LIKE 메타문자 거부
+      > 불변식의 전제). **남는 창 셋**(외부 자원 쪽 둘 · 커밋과 정리 사이 프로세스 종료)은 draft D7 —
+      > 이 항목이 닫지 않는다.
 
 
 - [x] **창 1 실측 결과를 spec 에 반영한다 — §3 ⚠️ 교체 · 증거 e2e `code:` 등재 · 404 사유** (planner,
