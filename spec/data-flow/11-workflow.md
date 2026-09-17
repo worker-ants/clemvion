@@ -183,8 +183,21 @@ stateDiagram-v2
   [*] --> Inactive: INSERT (default false)
   Inactive --> Active: 토글 (수동 실행은 비활성도 가능, 스케줄·웹훅 트리거는 활성만 동작)
   Active --> Inactive: 토글
-  Active --> [*]: workflow 삭제 (CASCADE: nodes/edges/versions/executions/assistant_sessions)
+  Active --> [*]: workflow 삭제 (FK 파급은 아래 표)
 ```
+
+**workflow 삭제의 FK 파급** — 마이그레이션의 `REFERENCES workflow(id)` **전수**다. 직접 참조만
+적고, 2차 파급은 트리거 동시성 서술이 의존하는 `trigger → schedule` 하나만 적는다.
+
+| 테이블 | `ON DELETE` | 마이그레이션 |
+| --- | --- | --- |
+| `node` · `edge` · `execution` · `workflow_version` | CASCADE | `V001__initial_schema.sql` |
+| `trigger` | CASCADE — 이어서 `schedule`(`schedule.trigger_id` CASCADE)까지 2차로 지워진다. **DB 레벨이라 트리거 단위 advisory lock 을 거치지 않는다** ([트리거 목록 §4.3](../2-navigation/2-trigger-list.md#43-cascade-동작)) | `V001__initial_schema.sql` |
+| `integration_usage_log` | CASCADE | `V008__integration_usage_log_and_metadata.sql` |
+| `llm_usage_log` | **SET NULL** — 사용량 이력은 남는다 | `V014__llm_usage_logs.sql` |
+| `alert_rule` | CASCADE | `V016__alert_rules.sql` |
+| `workflow_assistant_session` | CASCADE | `V019__workflow_assistant.sql` |
+| `workflow_test_dataset` | CASCADE | `V097__workflow_test_dataset.sql` |
 
 ### 3.2 `workflow_assistant_session.status`
 
