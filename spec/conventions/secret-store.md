@@ -1,6 +1,8 @@
 ---
 id: secret-store
-status: implemented
+status: partial
+pending_plans:
+  - plan/in-progress/spec-draft-nullable-notation-followups.md
 code:
   - codebase/backend/src/modules/secret-store/**
 ---
@@ -136,6 +138,9 @@ interface SecretResolver {
 
   /** ref 존재 여부 확인 (validation 용) */
   exists(ref: string): Promise<boolean>;
+
+  /** prefix 로 시작하는 ref 를 전부 삭제하고 삭제 행 수를 돌려준다. prefix 불변식은 §2.1 † */
+  deleteByPrefix(prefix: string): Promise<number>;
 }
 ```
 
@@ -144,7 +149,8 @@ interface SecretResolver {
 | 시점 | 의무 호출 |
 |---|---|
 | Trigger 생성 (notification / chatChannel 설정 포함) | **`rotate(ref, workspaceId, plaintext)` 권장** — UPSERT 멱등성으로 setup 재시도 안전 (§5.5 예시 + `chat-channel-binder.service.ts` 의 `setupChatChannel` 구현체 모두 `rotate()` 사용). `store()` 도 동일 결과를 내지만, 동일 ref 가 이미 있을 때 `store()` 의 동작 (덮어쓰기 vs throw) 은 backend 구현 변경에 취약 — `rotate()` 의 명시적 UPSERT 시맨틱이 안전 |
-| Trigger 삭제 | 해당 trigger 의 모든 ref 를 `deleteByPrefix('secret://triggers/{id}/')` 로 일괄 삭제 (cascade 차원 — DB FK 가 없으므로 application 책임). 개별 `delete()` 보다 prefix 패턴 권장. **prefix 불변식 2건**: `secret://` 로 시작해야 하고, LIKE 메타문자(`%`·`_`·`\`)를 포함하면 **throw** 한다 (아래 † 참조) |
+| 트리거 행이 없어질 때 (트리거·스케줄·워크플로·워크스페이스 삭제) | 해당 trigger 의 모든 ref 를 `deleteByPrefix('secret://triggers/{id}/')` 로 일괄 삭제 — **행 삭제가 커밋된 뒤에** 한다(provider teardown 이 이 비밀을 읽으므로 그보다 먼저 지울 수 없고, 행 삭제 전에 지우면 그 사이 커밋된 쓰기가 남긴 비밀을 아무도 지우지 않는다). cascade 차원 — DB FK 가 없으므로 application 책임. 개별 `delete()` 보다 prefix 패턴 권장. **prefix 불변식 2건**: `secret://` 로 시작해야 하고, LIKE 메타문자(`%`·`_`·`\`)를 포함하면 **throw** 한다 (아래 † 참조) |
+| 락 밖에서 비밀을 쓴 뒤 트리거 락 안 재기록이 행 부재로 실패 | `deleteByPrefix('secret://triggers/{id}/')` 로 **되돌린다** — 위 행과 짝이다. 행이 없으므로 prefix 전체가 안전하다 ([트리거 목록 §3](../2-navigation/2-trigger-list.md#3-api)) |
 | 외부 API 호출 직전 (sendMessage, HMAC 서명 등) | `resolve(ref)` — 매 호출 마다 fetch (캐싱은 SecretResolver 내부 결정) |
 | Secret rotation API | `rotate(refV2, workspaceId, newPlaintext)` |
 
@@ -328,13 +334,17 @@ async sendMessage(message: ChannelMessage, config: ChatChannelConfig) {
 }
 ```
 
-### 5.3 Trigger 삭제 시 — prefix 일괄 삭제
+### 5.3 트리거 행이 없어질 때 — prefix 일괄 삭제
+
+트리거 화면 삭제를 예로 든다. 스케줄·워크플로·워크스페이스 삭제도 같은 순서다 ([트리거 목록 §4.3](../2-navigation/2-trigger-list.md#43-cascade-동작)).
 
 ```typescript
 async removeTrigger(triggerId: string) {
-  // 개별 ref delete 보다 prefix 패턴 권장 — 추가 secret (예: future 'mcp-token') 도 자동 정리.
-  await this.secrets.deleteByPrefix(`secret://triggers/${triggerId}/`);
+  // 외부 provider teardown 은 이보다 앞에서 끝낸다 — teardown 이 비밀을 읽는다.
   await this.repo.delete(triggerId);
+  // 행 삭제가 커밋된 뒤에 지운다. 그 사이 끼어든 쓰기는 락 안 재기록에서 행 부재를 보고 스스로
+  // 되돌린다(§2.1). 개별 ref delete 보다 prefix 패턴 권장 — 추가 secret (예: future 'mcp-token') 도 자동 정리.
+  await this.secrets.deleteByPrefix(`secret://triggers/${triggerId}/`);
 }
 ```
 
@@ -385,11 +395,11 @@ async createChatChannelTrigger(dto: CreateTriggerDto, workspaceId: string) {
 
 ---
 
-## 6. Trigger 삭제 시 cascade
+## 6. 트리거 행이 없어질 때 cascade
 
-`SecretStore` 테이블은 `trigger` 테이블의 FK 를 갖지 않는다 (cross-scope 의 미래 확장을 위해 namespace 만 분리). Trigger 삭제 시 application 이 `secret://triggers/{id}/*` ref 를 명시적으로 정리한다 — `TriggersService.remove()` 가 개별 `delete()` 가 아닌 `deleteByPrefix('secret://triggers/{id}/')` 로 일괄 삭제하는 의무 (§2.1 / §5.3 참고).
+`SecretStore` 테이블은 `trigger` 테이블의 FK 를 갖지 않는다 (cross-scope 의 미래 확장을 위해 namespace 만 분리). 트리거 행이 없어질 때 application 이 `secret://triggers/{id}/*` ref 를 명시적으로 정리한다 — 트리거 행이 없어지는 **모든 경로**(트리거·스케줄·워크플로·워크스페이스 삭제)가 행 삭제 커밋 뒤 개별 `delete()` 가 아닌 `deleteByPrefix('secret://triggers/{id}/')` 로 일괄 삭제하는 의무 (§2.1 / §5.3 / §R4 참고).
 
-`workspace_id` 컬럼은 workspace 삭제 시 cascade 정리용 (`DELETE FROM secret_store WHERE workspace_id = $1`).
+`workspace_id` 는 귀속 워크스페이스를 기록한다(로그의 SS-SE-05 식별자이기도 하다). **이 컬럼을 조건으로 지우는 경로는 두지 않는다** — 워크스페이스 삭제도 트리거 단위 prefix 로 정리한다. 인터페이스(§2)에 워크스페이스 단위 삭제가 없고, 백엔드 교체가 규약 변경 없이 가능해야 하기 때문이다(§3.4). 워크스페이스 삭제가 정리 대상 트리거를 빠짐없이 모으는 방법은 [트리거 목록 §4.3](../2-navigation/2-trigger-list.md#43-cascade-동작). (2026-09-17 정정 — 그 전까지 이 문단은 SQL 한 줄로 이미 정리되는 것처럼 적었지만 그렇게 지우는 코드는 없었다.)
 
 ---
 
@@ -425,7 +435,7 @@ async createChatChannelTrigger(dto: CreateTriggerDto, workspaceId: string) {
 
 ### R4. Trigger FK 미설정
 
-`secret_store.workspace_id` 는 workspace FK 를 가질 수 있으나 본 spec 은 application-level cascade 만 정의 — 향후 다른 scope (예: workspace 외부의 system-wide secret) 도 같은 테이블에 두려면 FK 가 제약. trigger 삭제 시의 명시적 cleanup 책임은 `TriggersService.delete()` 가 진다. `ON DELETE CASCADE` 는 채택하지 않는다 — implicit DB 동작과 explicit application 동작이 섞이면 추적이 어려워지기 때문.
+`secret_store.workspace_id` 는 workspace FK 를 가질 수 있으나 본 spec 은 application-level cascade 만 정의 — 향후 다른 scope (예: workspace 외부의 system-wide secret) 도 같은 테이블에 두려면 FK 가 제약. 명시적 cleanup 책임은 **트리거 행을 없애는 모든 경로**가 진다 — 트리거 삭제(`TriggersService.remove()`)뿐 아니라 스케줄 삭제, FK CASCADE 로 트리거를 지우는 워크플로·워크스페이스 삭제도 정리한다. application-level cascade 를 택하면 DB 가 대신 지워 주지 않으므로, 책임을 한 경로에만 적으면 나머지 경로가 조용히 고아를 남긴다(2026-09-17 실측 — 네 경로 중 한 곳만 정리하고 있었다). 정리 시점(행 삭제 커밋 뒤)과 쓰기 경로의 보상은 §2.1. `ON DELETE CASCADE` 는 채택하지 않는다 — implicit DB 동작과 explicit application 동작이 섞이면 추적이 어려워지기 때문.
 
 ### R5. `.env.example` 예시 키 placeholder + production 차단 (refactor 04 M-4)
 

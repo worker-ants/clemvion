@@ -136,9 +136,10 @@ sequenceDiagram
 | Schedule 이름 변경 | UPDATE schedule.name → UPDATE trigger.name | — |
 | Schedule is_active 토글 | UPDATE schedule.is_active → UPDATE trigger.is_active. active 면 `registerJob`, inactive 면 `removeJob` 으로 BullMQ job 등록/해제 | 역방향도 동일 (아래 구현 현황) |
 | Schedule cron/timezone 변경 | UPDATE schedule + next_run_at 재계산 + `registerJob` 로 job scheduler upsert | — |
-| Schedule 삭제 | `removeJob` 으로 BullMQ job 해제 + CASCADE delete trigger | — |
+| Schedule 삭제 | `removeJob` 으로 BullMQ job 해제 + CASCADE delete trigger | 행 삭제 커밋 **뒤** 그 트리거의 `secret_store` 비밀 정리 — **미구현 (Planned)** ([트리거 목록 §4.3](../2-navigation/2-trigger-list.md#43-cascade-동작)) |
 | Trigger(type='schedule') 직접 생성 | — | 금지 (API 단 거부) |
-| Trigger(type='schedule') 직접 삭제 (`DELETE /api/triggers/:id`) | FK CASCADE 로 schedule row 동반 삭제 | 삭제 전 `removeJob(schedule.id)` 으로 BullMQ job scheduler 엔트리 해제 (`triggers.service.ts` remove()) |
+| Trigger(type='schedule') 직접 삭제 (`DELETE /api/triggers/:id`) | FK CASCADE 로 schedule row 동반 삭제 | 삭제 전 `removeJob(schedule.id)` 으로 BullMQ job scheduler 엔트리 해제 (`triggers.service.ts` remove()) · 비밀 정리는 행 삭제 커밋 뒤 ([트리거 목록 §4.3](../2-navigation/2-trigger-list.md#43-cascade-동작)) |
+| Workflow·Workspace 삭제 (FK CASCADE) — **미구현 (Planned)** | FK CASCADE 로 trigger → schedule row 동반 삭제 | 삭제 **전에** schedule 타입 트리거마다 `removeJob(schedule.id)` — 트리거 직접 삭제와 같은 해제 ([트리거 목록 §4.3](../2-navigation/2-trigger-list.md#43-cascade-동작)) |
 
 > **구현 현황 — 역방향(Trigger→Schedule) 동기화**: [Spec 데이터 모델 §2.9.1](../1-data-model.md) 의 "역방향도 동일" 계약대로 양방향 모두 구현되어 있다 (역방향은 2026-06-10 갭 해소).
 >

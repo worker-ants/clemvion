@@ -788,7 +788,7 @@ WebAuthn challenge (등록·인증 시 클라이언트에 전달하는 random no
 | 필드 | 타입 | 설명 |
 |------|------|------|
 | ref | TEXT | PK. `secret://<scope>/<resourceId>/<name>` 형식 (예: `secret://triggers/{triggerId}/bot-token`) |
-| workspace_id | UUID | application-level cascade — `TriggersService.delete()` / workspace 삭제 시 `deleteByPrefix` 로 정리 |
+| workspace_id | UUID | 귀속 워크스페이스. **FK 없음**(application-level cascade — [secret-store §R4](./conventions/secret-store.md#r4-trigger-fk-미설정)). 이 컬럼을 조건으로 지우는 경로는 없고, 정리는 트리거 단위 prefix(`deleteByPrefix`)로 한다 — 어느 경로가 언제 지우는지는 [트리거 목록 §4.3](./2-navigation/2-trigger-list.md#43-cascade-동작) |
 | encrypted | BYTEA | `[IV(12B) ‖ AES-256-GCM ciphertext ‖ authTag(16B)]` raw concat. AAD = `ref`. backend Node `crypto` 가 암복호화 — 기존 `ENCRYPTION_KEY` (LLM API key 와 공용 마스터키) 재사용, DB 는 ciphertext 만 본다 |
 | created_at | Timestamp | 생성 시각 |
 | updated_at | Timestamp | 마지막 rotation 시각 |
