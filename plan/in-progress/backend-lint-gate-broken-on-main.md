@@ -208,7 +208,7 @@ PR 을 막는다" 고 적은 것은 **부정확**했다 — 막던 것은 그중
 바인딩하는데 `%`·`_` 를 이스케이프하지 않는다. TypeORM 파라미터 바인딩이라 **SQLi 는
 아니지만**, prefix 에 메타문자가 섞이면 의도보다 넓게 지워지는 **과다 삭제** 소지가 있다.
 
-- [x] 호출부 전수 확인 — **프로덕션 호출부는 `triggers.service.ts:875` 한 곳**이고
+- [x] 호출부 전수 확인(**2026-08-09 시점** — 2026-09-17 트리거 삭제 자원 정리 뒤 유일한 직접 호출부는 `trigger-resource-release.ts` 의 `deleteTriggerSecretsAfterCommit` 이고 prefix 는 여전히 UUID 트리거 id 로 조립한다) — **프로덕션 호출부는 `triggers.service.ts:875` 한 곳**이고
       `secret://triggers/${trigger.id}/` 다. `trigger.id` 는 `@PrimaryGeneratedColumn('uuid')`
       라 `%`·`_` 가 들어갈 수 없다(실측).
 - [x] 처분 — **주석 고정이 아니라 입력 거부**를 골랐다. "지금 안전하다" 는 **호출부 목록이

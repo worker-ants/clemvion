@@ -17,6 +17,8 @@ import {
   acquireTriggerConfigLock,
   TRIGGER_DELETE_LOCK_TIMEOUT_MS,
 } from '../triggers/trigger-config-lock';
+import { deleteTriggerSecretsAfterCommit } from '../triggers/trigger-resource-release';
+import { SecretResolverService } from '../secret-store/secret-resolver.service';
 import { WorkspacesService } from '../workspaces/workspaces.service';
 import { isValidIanaTimezone } from '../../common/utils/timezone';
 import { CreateScheduleDto } from './dto/create-schedule.dto';
@@ -43,6 +45,7 @@ export class SchedulesService {
     private readonly executionEngineService: ExecutionEngineService,
     private readonly auditLogsService: AuditLogsService,
     private readonly scheduleRunnerService: ScheduleRunnerService,
+    private readonly secrets: SecretResolverService,
   ) {}
 
   /**
@@ -329,6 +332,15 @@ export class SchedulesService {
           );
           throw err;
         });
+      // **커밋된 뒤에** 그 트리거의 비밀을 지운다(spec 트리거 목록 §4.3). 스케줄 트리거도
+      // `notification` 서명 비밀을 가질 수 있다 — DTO 에 타입 제한이 없다. `TriggerResourceReleaserService`
+      // 를 쓰지 않는 이유는 모듈 순환(`TriggersModule → SchedulesModule`)이라 정책 함수를 직접 부른다.
+      await deleteTriggerSecretsAfterCommit(
+        this.secrets,
+        this.logger,
+        [triggerId],
+        'SchedulesService.remove',
+      );
     }
     await this.scheduleRepository.remove(schedule);
     await this.recordAudit({

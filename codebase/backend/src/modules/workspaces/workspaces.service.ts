@@ -3,8 +3,10 @@ import {
   ConflictException,
   ForbiddenException,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
+import { ModuleRef } from '@nestjs/core';
 import { InjectRepository } from '@nestjs/typeorm';
 import { EntityManager, In, Repository } from 'typeorm';
 import { Workspace } from './entities/workspace.entity';
@@ -17,11 +19,14 @@ import { WorkspaceRole } from './dto/add-member.dto';
 import { UpdateWorkspaceSettingsDto } from './dto/update-workspace-settings.dto';
 import { AuditLogsService } from '../audit-logs/audit-logs.service';
 import { AUDIT_ACTIONS } from '../audit-logs/audit-action.const';
+import { resolveTriggerResourceReleaser } from '../triggers/trigger-resource-release';
 
 const ADMIN_ROLES = new Set<string>(['owner', 'admin']);
 
 @Injectable()
 export class WorkspacesService {
+  private readonly logger = new Logger(WorkspacesService.name);
+
   constructor(
     @InjectRepository(Workspace)
     private readonly workspaceRepository: Repository<Workspace>,
@@ -30,6 +35,7 @@ export class WorkspacesService {
     @InjectRepository(User)
     private readonly userRepository: Repository<User>,
     private readonly auditLogsService: AuditLogsService,
+    private readonly moduleRef: ModuleRef,
   ) {}
 
   async createPersonalWorkspace(
@@ -493,43 +499,102 @@ export class WorkspacesService {
     workspaceId: string,
     requesterId: string,
   ): Promise<void> {
-    await this.memberRepository.manager.transaction(async (manager) => {
-      const memRepo = manager.getRepository(WorkspaceMember);
-      const wsRepo = manager.getRepository(Workspace);
-      const invRepo = manager.getRepository(WorkspaceInvitation);
+    // **권한 검사를 외부 해제보다 먼저** 한다 — 트랜잭션 안에서만 검사하면 403 이 날 요청이
+    // provider 등록·schedule job 부터 뜯는다. 결정은 여전히 아래 잠금 뒤 재검사가 한다.
+    await this.assertWorkspaceDeletable(
+      this.memberRepository,
+      this.workspaceRepository,
+      workspaceId,
+      requesterId,
+    );
+    // 트리거는 FK CASCADE 로 함께 지워진다 — 외부 자원은 트랜잭션 **밖에서 먼저**, 비밀은
+    // **커밋 뒤** 정리한다(spec 트리거 목록 §4.3 · data-flow 12-workspace §1.10).
+    const releaser = resolveTriggerResourceReleaser(this.moduleRef);
+    await releaser.releaseExternalForParent({ workspaceId });
+    const triggerIds = await this.memberRepository.manager
+      .transaction(async (manager) => {
+        const memRepo = manager.getRepository(WorkspaceMember);
+        const wsRepo = manager.getRepository(Workspace);
+        const invRepo = manager.getRepository(WorkspaceInvitation);
 
-      const myMembership = await memRepo.findOne({
-        where: { workspaceId, userId: requesterId },
-        lock: { mode: 'pessimistic_write' },
+        // **첫 호출이다** — 잠금 대기 상한을 걸고 워크스페이스 행을 잠근 뒤 트리거를 연다. 잠금 뒤엔
+        // 새 트리거가 끼지 못하고, 아래 재검사의 잠금(워크스페이스 → 멤버십)에도 상한이 걸린다.
+        const ids = await releaser.lockParentAndListTriggerIds(manager, {
+          workspaceId,
+        });
+        const workspace = await this.assertWorkspaceDeletable(
+          memRepo,
+          wsRepo,
+          workspaceId,
+          requesterId,
+          { mode: 'pessimistic_write' },
+        );
+
+        await invRepo.delete({ workspaceId });
+        await memRepo.delete({ workspaceId });
+        await wsRepo.remove(workspace);
+        return ids;
+      })
+      .catch((err: unknown) => {
+        // 잠금 뒤 재검사 거부(선검사와 재검사 사이의 역할 변경)도 여기로 온다. 외부 해제는 되돌릴
+        // 수 없으므로 «발화하지 않는 트리거가 남은 워크스페이스» 를 소리내어 남긴다.
+        this.logger.error(
+          `WorkspacesService.deleteWorkspace: workspace=${workspaceId} 삭제가 트랜잭션에서 실패했다 — ` +
+            `그 트리거들의 schedule job·provider teardown·listener 해제는 **이미 끝났으므로** 워크스페이스는 ` +
+            `남았지만 트리거는 발화하지 않을 수 있다(비밀은 남아 있다): ${err instanceof Error ? err.message : String(err)}`,
+        );
+        throw err;
       });
-      if (!myMembership || myMembership.role !== 'owner') {
-        throw new ForbiddenException({
-          code: 'OWNER_REQUIRED',
-          message: '워크스페이스 삭제는 owner만 가능합니다.',
-        });
-      }
+    await releaser.releaseSecretsAfterCommit(
+      triggerIds,
+      'WorkspacesService.deleteWorkspace',
+    );
+  }
 
-      const workspace = await wsRepo.findOne({
-        where: { id: workspaceId },
-        lock: { mode: 'pessimistic_write' },
-      });
-      if (!workspace) {
-        throw new NotFoundException({
-          code: 'WORKSPACE_NOT_FOUND',
-          message: '워크스페이스를 찾을 수 없습니다.',
-        });
-      }
-      if (workspace.type === 'personal') {
-        throw new ForbiddenException({
-          code: 'CANNOT_DELETE_PERSONAL',
-          message: '개인 워크스페이스는 삭제할 수 없습니다.',
-        });
-      }
-
-      await invRepo.delete({ workspaceId });
-      await memRepo.delete({ workspaceId });
-      await wsRepo.remove(workspace);
+  /**
+   * 워크스페이스 삭제 가능 여부 — owner 이고 team 워크스페이스여야 한다.
+   *
+   * 두 번 부른다: 트랜잭션 **밖에서 잠금 없이**(외부 해제 전 선검사)와 **안에서 잠금으로**(결정).
+   * 둘 사이에 역할이 바뀌면 안쪽이 거부하고 외부 해제만 먼저 끝난 상태가 남는다 — 동시 역할 변경과
+   * 삭제가 겹치는 좁은 창이다. 그 사실은 `deleteWorkspace` 가 error 로그로 남긴다.
+   *
+   * **잠금 순서는 워크스페이스 → 멤버십**이다 — `transferOwnership` 과 같게 둬야 둘이 겹칠 때
+   * 교착(`40P01`)이 나지 않는다. 판정 순서(권한 → 존재 → 타입)는 그와 별개로 유지한다.
+   */
+  private async assertWorkspaceDeletable(
+    memRepo: Repository<WorkspaceMember>,
+    wsRepo: Repository<Workspace>,
+    workspaceId: string,
+    requesterId: string,
+    lock?: { mode: 'pessimistic_write' },
+  ): Promise<Workspace> {
+    const workspace = await wsRepo.findOne({
+      where: { id: workspaceId },
+      ...(lock ? { lock } : {}),
     });
+    const myMembership = await memRepo.findOne({
+      where: { workspaceId, userId: requesterId },
+      ...(lock ? { lock } : {}),
+    });
+    if (!myMembership || myMembership.role !== 'owner') {
+      throw new ForbiddenException({
+        code: 'OWNER_REQUIRED',
+        message: '워크스페이스 삭제는 owner만 가능합니다.',
+      });
+    }
+    if (!workspace) {
+      throw new NotFoundException({
+        code: 'WORKSPACE_NOT_FOUND',
+        message: '워크스페이스를 찾을 수 없습니다.',
+      });
+    }
+    if (workspace.type === 'personal') {
+      throw new ForbiddenException({
+        code: 'CANNOT_DELETE_PERSONAL',
+        message: '개인 워크스페이스는 삭제할 수 없습니다.',
+      });
+    }
+    return workspace;
   }
 
   /**

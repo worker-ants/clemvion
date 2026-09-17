@@ -1,4 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
+import { Logger } from '@nestjs/common';
+import { TRIGGER_RESOURCE_RELEASER } from '../triggers/trigger-resource-release';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { findUserSecretLeaks } from '../../shared/testing/user-secret-absence';
 import { WorkspacesService } from './workspaces.service';
@@ -34,7 +36,27 @@ describe('WorkspacesService', () => {
     settings: {},
   };
 
+  /** 워크스페이스 삭제의 자원 정리 순서를 한 배열에 모은다. */
+  const deleteEvents: string[] = [];
+  const triggerReleaser = {
+    releaseExternalForParent: jest.fn((parent: unknown) => {
+      deleteEvents.push(`releaseExternal:${JSON.stringify(parent)}`);
+      return Promise.resolve();
+    }),
+    lockParentAndListTriggerIds: jest.fn((_m: unknown, parent: unknown) => {
+      deleteEvents.push(`lockAndList:${JSON.stringify(parent)}`);
+      return Promise.resolve(['trig-x']);
+    }),
+    releaseSecretsAfterCommit: jest.fn((ids: string[], caller: string) => {
+      deleteEvents.push(`releaseSecrets:${ids.join(',')}:${caller}`);
+      return Promise.resolve();
+    }),
+  };
+
   beforeEach(async () => {
+    deleteEvents.length = 0;
+    // 전역 clearAllMocks 대신 이 mock 만 — 다른 케이스의 mock 상태를 건드리지 않는다.
+    Object.values(triggerReleaser).forEach((fn) => fn.mockClear());
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         WorkspacesService,
@@ -75,6 +97,7 @@ describe('WorkspacesService', () => {
           provide: AuditLogsService,
           useValue: { record: jest.fn().mockResolvedValue(undefined) },
         },
+        { provide: TRIGGER_RESOURCE_RELEASER, useValue: triggerReleaser },
       ],
     }).compile();
 
@@ -608,6 +631,148 @@ describe('WorkspacesService', () => {
       await service.deleteWorkspace('ws-uuid-1', 'user-uuid-1');
 
       expect(workspaceRepo.remove).toHaveBeenCalled();
+    });
+
+    /**
+     * 워크스페이스의 트리거는 FK CASCADE 로 함께 지워진다 — 외부 해제는 트랜잭션 **밖에서 먼저**,
+     * 비밀은 **커밋 뒤** (spec 트리거 목록 §4.3 · data-flow 12-workspace §1.10). 트리거 열거는
+     * 워크스페이스 행을 잠근 **뒤** 같은 트랜잭션에서 한다.
+     */
+    it('owner — 외부 해제 → (열거·잠금 → 잠금 재검사 → 삭제) → 커밋 뒤 비밀 순서다', async () => {
+      memberRepo.findOne.mockImplementation((opts: { lock?: unknown }) => {
+        deleteEvents.push(opts.lock ? 'check:locked' : 'check:unlocked');
+        return Promise.resolve({ role: 'owner' });
+      });
+      workspaceRepo.findOne.mockResolvedValue({
+        ...mockWorkspace,
+        type: 'team',
+      });
+      workspaceRepo.remove.mockImplementation(() => {
+        deleteEvents.push('workspace.remove');
+        return Promise.resolve(undefined);
+      });
+
+      await service.deleteWorkspace('ws-uuid-1', 'user-uuid-1');
+
+      expect(deleteEvents).toEqual([
+        'check:unlocked',
+        'releaseExternal:{"workspaceId":"ws-uuid-1"}',
+        // 트랜잭션의 **첫 호출**이 잠금 상한·워크스페이스 잠금·열거다 — 그래야 뒤 재검사의 잠금에도
+        // 상한이 걸린다.
+        'lockAndList:{"workspaceId":"ws-uuid-1"}',
+        'check:locked',
+        'workspace.remove',
+        'releaseSecrets:trig-x:WorkspacesService.deleteWorkspace',
+      ]);
+    });
+
+    it('owner 가 아니면(403) 외부 자원을 건드리지 않는다 — 권한 검사가 먼저다', async () => {
+      // 트랜잭션 안에서만 검사하면 403 이 날 요청이 provider 등록·schedule job 부터 뜯는다.
+      memberRepo.findOne.mockResolvedValue({ role: 'admin' });
+      workspaceRepo.findOne.mockResolvedValue({
+        ...mockWorkspace,
+        type: 'team',
+      });
+
+      await expect(
+        service.deleteWorkspace('ws-uuid-1', 'user-uuid-1'),
+      ).rejects.toMatchObject({ response: { code: 'OWNER_REQUIRED' } });
+
+      expect(triggerReleaser.releaseExternalForParent).not.toHaveBeenCalled();
+      expect(triggerReleaser.releaseSecretsAfterCommit).not.toHaveBeenCalled();
+    });
+
+    it('정리 협력자를 못 찾으면 아무것도 지우지 않고 던진다 (no-op 금지)', async () => {
+      // 워크플로 삭제와 같은 규칙 — 조용히 넘어가면 트리거 자원이 정리되지 않는 결함이 돌아온다.
+      const bare = await Test.createTestingModule({
+        providers: [
+          WorkspacesService,
+          { provide: getRepositoryToken(Workspace), useValue: workspaceRepo },
+          {
+            provide: getRepositoryToken(WorkspaceMember),
+            useValue: memberRepo,
+          },
+          {
+            provide: getRepositoryToken(User),
+            useValue: { findOne: jest.fn() },
+          },
+          { provide: AuditLogsService, useValue: { record: jest.fn() } },
+        ],
+      }).compile();
+      memberRepo.findOne.mockResolvedValue({ role: 'owner' });
+      workspaceRepo.findOne.mockResolvedValue({
+        ...mockWorkspace,
+        type: 'team',
+      });
+
+      // **무엇이 던졌는지** 본다 — 다른 이유로 던져도 GREEN 이 되면 안 된다.
+      await expect(
+        bare.get(WorkspacesService).deleteWorkspace('ws-uuid-1', 'user-uuid-1'),
+      ).rejects.toThrow(/TRIGGER_RESOURCE_RELEASER/);
+
+      expect(workspaceRepo.remove).not.toHaveBeenCalled();
+    });
+
+    it('잠금 순서는 워크스페이스 → 멤버십이다 (transferOwnership 과 같아야 교착이 없다)', async () => {
+      // 반대 순서(멤버십 → 워크스페이스)면 같은 owner 의 소유권 이전과 겹칠 때 `40P01` 이 난다.
+      const locks: string[] = [];
+      workspaceRepo.findOne.mockImplementation((opts: { lock?: unknown }) => {
+        if (opts.lock) locks.push('workspace');
+        return Promise.resolve({ ...mockWorkspace, type: 'team' });
+      });
+      memberRepo.findOne.mockImplementation((opts: { lock?: unknown }) => {
+        if (opts.lock) locks.push('member');
+        return Promise.resolve({ role: 'owner' });
+      });
+
+      await service.deleteWorkspace('ws-uuid-1', 'user-uuid-1');
+
+      expect(locks).toEqual(['workspace', 'member']);
+    });
+
+    it('선검사 뒤 역할이 바뀌어 재검사가 거부하면, 외부 해제가 이미 끝났다는 사실을 남기고 던진다', async () => {
+      // 선검사(잠금 없음)와 재검사(잠금) 사이의 좁은 창이다. 외부 해제는 되돌릴 수 없으므로 워크스페이스는
+      // 남았는데 트리거가 발화하지 않는 상태를 소리내어 남긴다(`/ai-review` 18_45_09 WARNING#2·#4).
+      const error = jest
+        .spyOn(Logger.prototype, 'error')
+        .mockImplementation(() => undefined);
+      try {
+        workspaceRepo.findOne.mockResolvedValue({
+          ...mockWorkspace,
+          type: 'team',
+        });
+        memberRepo.findOne
+          .mockResolvedValueOnce({ role: 'owner' })
+          .mockResolvedValueOnce({ role: 'admin' });
+
+        await expect(
+          service.deleteWorkspace('ws-uuid-1', 'user-uuid-1'),
+        ).rejects.toMatchObject({ response: { code: 'OWNER_REQUIRED' } });
+
+        expect(triggerReleaser.releaseExternalForParent).toHaveBeenCalled();
+        expect(
+          triggerReleaser.releaseSecretsAfterCommit,
+        ).not.toHaveBeenCalled();
+        const logged = error.mock.calls.map(([m]) => String(m)).join('\n');
+        expect(logged).toContain('ws-uuid-1');
+        expect(logged).toContain('이미 끝났으므로');
+      } finally {
+        error.mockRestore();
+      }
+    });
+
+    it('personal 워크스페이스면 외부 자원을 건드리지 않는다', async () => {
+      memberRepo.findOne.mockResolvedValue({ role: 'owner' });
+      workspaceRepo.findOne.mockResolvedValue({
+        ...mockWorkspace,
+        type: 'personal',
+      });
+
+      await expect(
+        service.deleteWorkspace('ws-uuid-1', 'user-uuid-1'),
+      ).rejects.toMatchObject({ response: { code: 'CANNOT_DELETE_PERSONAL' } });
+
+      expect(triggerReleaser.releaseExternalForParent).not.toHaveBeenCalled();
     });
 
     it('throws when requester is admin (not owner)', async () => {

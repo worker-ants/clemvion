@@ -1,4 +1,5 @@
 import { AuditLogsService } from '../audit-logs/audit-logs.service';
+import { Logger } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { DataSource } from 'typeorm';
@@ -16,6 +17,7 @@ import { WorkflowVersionsService } from '../workflow-versions/workflow-versions.
 import { NodeComponentRegistry } from '../../nodes/core/node-component.registry';
 import { ModelConfigService } from '../model-config/model-config.service';
 import { WorkspacesService } from '../workspaces/workspaces.service';
+import { TRIGGER_RESOURCE_RELEASER } from '../triggers/trigger-resource-release';
 import { UpdateWorkflowDto } from './dto/update-workflow.dto';
 // 이 파일은 `SaveCanvasDto` 를 타입 주석으로 4곳에서 쓰면서 import 가 없었다(TS2304).
 // jest 가 타입을 strip 해서 실행에는 문제가 없었고, `nest build` 는 `*.spec.ts` 를
@@ -47,6 +49,19 @@ describe('WorkflowsService', () => {
     getMany: jest.fn().mockResolvedValue([mockWorkflow]),
   };
 
+  /**
+   * 워크플로 삭제의 자원 정리 순서를 한 배열에 모은다 — 외부 해제 → (잠금·열거 → 행 삭제) →
+   * 커밋 뒤 비밀 → 감사. 따로 담으면 순서를 단언할 수 없다.
+   */
+  const removeEvents: string[] = [];
+
+  const removeManager = {
+    remove: jest.fn((entity: { id?: string }) => {
+      removeEvents.push(`manager.remove:${entity.id}`);
+      return Promise.resolve(entity);
+    }),
+  };
+
   const mockRepository = {
     createQueryBuilder: jest.fn().mockReturnValue(mockQueryBuilder),
     findOne: jest.fn(),
@@ -55,6 +70,31 @@ describe('WorkflowsService', () => {
       .fn()
       .mockImplementation((data) => Promise.resolve({ id: 'new-id', ...data })),
     remove: jest.fn().mockResolvedValue(undefined),
+    manager: {
+      transaction: jest.fn(
+        async (cb: (m: typeof removeManager) => Promise<unknown>) => {
+          removeEvents.push('tx:begin');
+          const out = await cb(removeManager);
+          removeEvents.push('tx:commit');
+          return out;
+        },
+      ),
+    },
+  };
+
+  const mockTriggerReleaser = {
+    releaseExternalForParent: jest.fn((parent: unknown) => {
+      removeEvents.push(`releaseExternal:${JSON.stringify(parent)}`);
+      return Promise.resolve();
+    }),
+    lockParentAndListTriggerIds: jest.fn((_m: unknown, parent: unknown) => {
+      removeEvents.push(`lockAndList:${JSON.stringify(parent)}`);
+      return Promise.resolve(['trig-a', 'trig-b']);
+    }),
+    releaseSecretsAfterCommit: jest.fn((ids: string[], caller: string) => {
+      removeEvents.push(`releaseSecrets:${ids.join(',')}:${caller}`);
+      return Promise.resolve();
+    }),
   };
 
   const mockNodeRepository = {
@@ -150,10 +190,12 @@ describe('WorkflowsService', () => {
         { provide: NodeComponentRegistry, useValue: mockRegistry },
         { provide: ModelConfigService, useValue: mockModelConfigService },
         { provide: WorkspacesService, useValue: mockWorkspacesService },
+        { provide: TRIGGER_RESOURCE_RELEASER, useValue: mockTriggerReleaser },
       ],
     }).compile();
 
     service = module.get<WorkflowsService>(WorkflowsService);
+    removeEvents.length = 0;
     jest.clearAllMocks();
     mockRegistry.applyConfigDefaults.mockImplementation(
       (_type: string, raw: Record<string, unknown>) => raw,
@@ -939,6 +981,105 @@ describe('WorkflowsService', () => {
           resourceId: 'wf-uuid-9',
         }),
       );
+    });
+
+    /**
+     * 워크플로의 트리거는 FK CASCADE 로 함께 지워진다 — 그 트리거들의 자원을 앞뒤로 정리한다
+     * (spec 트리거 목록 §4.3). 종전엔 `workflowRepository.remove` 한 줄이라 schedule job ·
+     * provider 등록 · 비밀이 전부 남았다.
+     */
+    it('remove — 외부 해제 → 트랜잭션(잠금·열거 → 삭제) → 커밋 뒤 비밀 → 감사 순서다', async () => {
+      mockRepository.findOne.mockResolvedValue({
+        id: 'wf-uuid-9',
+        workspaceId: 'ws-uuid-1',
+      });
+      auditLogs.record.mockImplementation(() => {
+        removeEvents.push('audit');
+        return Promise.resolve();
+      });
+
+      await service.remove('wf-uuid-9', 'ws-uuid-1', 'u-del');
+
+      expect(removeEvents).toEqual([
+        'releaseExternal:{"workflowId":"wf-uuid-9"}',
+        'tx:begin',
+        'lockAndList:{"workflowId":"wf-uuid-9"}',
+        'manager.remove:wf-uuid-9',
+        'tx:commit',
+        'releaseSecrets:trig-a,trig-b:WorkflowsService.remove',
+        'audit',
+      ]);
+      // 트랜잭션 밖의 repository 삭제로 되돌아가면 잠금·열거가 같은 트랜잭션이 아니게 된다.
+      expect(mockRepository.remove).not.toHaveBeenCalled();
+    });
+
+    it('remove — 행 삭제가 실패하면 외부 해제가 이미 끝났다는 사실을 남기고 던진다', async () => {
+      // 외부 해제는 되돌릴 수 없다 — 조용히 던지면 «발화하지 않는 트리거» 가 아무도 모르게 남는다.
+      const error = jest
+        .spyOn(Logger.prototype, 'error')
+        .mockImplementation(() => undefined);
+      try {
+        mockRepository.findOne.mockResolvedValue({
+          id: 'wf-uuid-9',
+          workspaceId: 'ws-uuid-1',
+        });
+        mockRepository.manager.transaction.mockImplementationOnce(() =>
+          Promise.reject(new Error('deadlock detected')),
+        );
+
+        await expect(
+          service.remove('wf-uuid-9', 'ws-uuid-1', 'u-del'),
+        ).rejects.toThrow('deadlock detected');
+
+        const logged = error.mock.calls.map(([m]) => String(m)).join('\n');
+        expect(logged).toContain('wf-uuid-9');
+        expect(logged).toContain('이미 끝났으므로');
+        expect(
+          mockTriggerReleaser.releaseSecretsAfterCommit,
+        ).not.toHaveBeenCalled();
+        expect(auditLogs.record).not.toHaveBeenCalled();
+      } finally {
+        error.mockRestore();
+      }
+    });
+
+    it('remove — 정리 협력자를 못 찾으면 아무것도 지우지 않고 던진다 (no-op 금지)', async () => {
+      // 다른 지연 해석(`NotificationsService.getWebsocket` 등)은 못 찾으면 넘어가지만, 여기서
+      // 넘어가면 정리가 빠진 결함이 조용히 돌아온다.
+      const bare = await Test.createTestingModule({
+        providers: [
+          { provide: AuditLogsService, useValue: auditLogs },
+          WorkflowsService,
+          { provide: getRepositoryToken(Workflow), useValue: mockRepository },
+          { provide: getRepositoryToken(Node), useValue: mockNodeRepository },
+          { provide: getRepositoryToken(Edge), useValue: mockEdgeRepository },
+          {
+            provide: getRepositoryToken(Integration),
+            useValue: mockIntegrationRepository,
+          },
+          { provide: DataSource, useValue: mockDataSource },
+          {
+            provide: WorkflowVersionsService,
+            useValue: mockWorkflowVersionsService,
+          },
+          { provide: NodeComponentRegistry, useValue: mockRegistry },
+          { provide: ModelConfigService, useValue: mockModelConfigService },
+          { provide: WorkspacesService, useValue: mockWorkspacesService },
+        ],
+      }).compile();
+      mockRepository.findOne.mockResolvedValue({
+        id: 'wf-uuid-9',
+        workspaceId: 'ws-uuid-1',
+      });
+
+      // **무엇이 던졌는지** 본다 — 다른 이유(mock 누락 등)로 던져도 GREEN 이 되면 안 된다.
+      await expect(
+        bare.get(WorkflowsService).remove('wf-uuid-9', 'ws-uuid-1', 'u-del'),
+      ).rejects.toThrow(/TRIGGER_RESOURCE_RELEASER/);
+
+      expect(removeEvents).toEqual([]);
+      expect(mockRepository.remove).not.toHaveBeenCalled();
+      expect(auditLogs.record).not.toHaveBeenCalled();
     });
 
     it('importWorkflow 도 workflow.created 를 남긴다 (details.imported)', async () => {

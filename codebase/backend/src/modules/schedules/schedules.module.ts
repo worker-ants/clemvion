@@ -14,6 +14,7 @@ import {
 } from './schedule-runner.service';
 import { ExecutionEngineModule } from '../execution-engine/execution-engine.module';
 import { NotificationsModule } from '../notifications/notifications.module';
+import { SecretStoreModule } from '../secret-store/secret-store.module';
 
 @Module({
   imports: [
@@ -25,6 +26,8 @@ import { NotificationsModule } from '../notifications/notifications.module';
     BullModule.registerQueue({ name: SCHEDULE_QUEUE }),
     ExecutionEngineModule,
     NotificationsModule,
+    // 스케줄 삭제가 트리거 비밀을 커밋 뒤 정리한다(순환 무관 — SecretStoreModule 은 ConfigModule/forFeature 만 의존).
+    SecretStoreModule,
   ],
   controllers: [SchedulesController],
   providers: [SchedulesService, ScheduleRunnerService],

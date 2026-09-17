@@ -36,7 +36,6 @@ import {
 } from './dto/notification-config.dto';
 import { InteractionConfigDto } from './dto/interaction-config.dto';
 import { ChannelAdapterRegistry } from '../chat-channel/channel-adapter.registry';
-import { ChannelListenerRegistry } from '../chat-channel/channel-listener.registry';
 import { ChatChannelConfig, SetupResult } from '../chat-channel/types';
 import { SecretResolverService } from '../secret-store/secret-resolver.service';
 import { buildSecretRef } from '../secret-store/secret-ref';
@@ -53,6 +52,7 @@ import {
 import type { ChatChannelInput } from './chat-channel-input-rules';
 import { buildTriggerCallbackUrl } from './trigger-callback-url';
 import { ChatChannelBinderService } from './chat-channel-binder.service';
+import { TriggerResourceReleaserService } from './trigger-resource-releaser.service';
 
 export type TriggerDetail = Trigger & {
   cronExpression?: string;
@@ -251,12 +251,12 @@ export class TriggersService {
     @InjectRepository(AuthConfig)
     private readonly authConfigRepository: Repository<AuthConfig>,
     private readonly channelAdapterRegistry: ChannelAdapterRegistry,
-    private readonly channelListenerRegistry: ChannelListenerRegistry,
     private readonly configService: ConfigService,
     private readonly secrets: SecretResolverService,
     private readonly auditLogsService: AuditLogsService,
     private readonly scheduleRunner: ScheduleRunnerService,
     private readonly chatChannelBinder: ChatChannelBinderService,
+    private readonly resourceReleaser: TriggerResourceReleaserService,
   ) {}
 
   async findAll(
@@ -910,7 +910,7 @@ export class TriggersService {
     // 재읽은 `config.notification` **위에** `signing` 만 얹는다. 스냅샷으로 만든
     // `normalizedNotification` 을 통째로 대입하면 그 사이 커밋된 `notification.url` 등이
     // 되돌아간다 — `mergeIntoFreshSubKey` JSDoc 참조.
-    await rewriteTriggerConfigLocked(
+    const wrote = await rewriteTriggerConfigLocked(
       this.triggerRepository.manager,
       trigger.id,
       (freshConfig) =>
@@ -921,6 +921,14 @@ export class TriggersService {
           normalizedNotification,
         ),
     );
+    // 그 사이 트리거가 삭제됐다 — 위에서 락 밖에 쓴 서명 비밀을 되돌린다(spec 트리거 목록 §3).
+    if (!wrote) {
+      await this.resourceReleaser.undoAbsentWrite(
+        trigger.id,
+        undefined,
+        'TriggersService.normalizeNotificationSecretRef',
+      );
+    }
   }
 
   /**
@@ -1040,23 +1048,11 @@ export class TriggersService {
 
   async remove(id: string, workspaceId: string, userId: string): Promise<void> {
     const trigger = await this.findById(id, workspaceId);
-    // [data-flow 10-triggers §1.4] schedule 타입은 trigger 삭제(FK CASCADE 로 schedule row 동반
-    // 삭제) 전에 BullMQ job scheduler 엔트리를 해제한다 — 미해제 시 Redis 에 잔존해 cron tick
-    // 마다 "Schedule not found" skip 이 반복된다 (정방향 SchedulesService.remove 와 대칭).
-    if (trigger.type === 'schedule') {
-      const schedule = await this.scheduleRepository.findOne({
-        where: { triggerId: trigger.id },
-      });
-      if (schedule) {
-        await this.scheduleRunner.removeJob(schedule.id);
-      }
-    }
-    await this.chatChannelBinder.teardownChatChannel(trigger);
-    // [Spec R8 v1 적용 (2026-05-24)] listener registry unregister — trigger 삭제 후 race
-    // event 가 dispatcher 에 도달했을 때 안전 가드. unregister 는 graceful (미등록 noop).
-    this.channelListenerRegistry.unregister(trigger.id);
-    // SUMMARY#13: trigger 삭제 시 secret_store 의 모든 관련 row 삭제 (application-level cascade).
-    await this.secrets.deleteByPrefix(`secret://triggers/${trigger.id}/`);
+    // [spec 트리거 목록 §4.3] **외부 자원은 행 삭제 전에** — schedule 타입이면 BullMQ job
+    // scheduler(미해제 시 cron tick 마다 "Schedule not found" skip 이 반복된다) · provider
+    // teardown · listener registry. 비밀은 여기서 지우지 않는다: teardown 이 비밀을 읽고, 행
+    // 삭제 **뒤에** 지워야 그 사이 끼어든 쓰기가 남긴 비밀까지 덮는다(아래).
+    await this.resourceReleaser.releaseExternal(trigger);
     // type 을 remove 전에 읽어둔다 — TypeORM `remove` 는 엔티티의 id 를 지운다.
     const { type } = trigger;
     // **삭제도 config 락을 잡는다.** 창 1 은 `save(entity)` 를 쓰는데 그것은 행이 없으면
@@ -1064,11 +1060,11 @@ export class TriggersService {
     // 쓰기 시점 경합을 못 막는다 — 그 창을 닫는 유일한 방법이 삭제를 같은 락으로 직렬화하는
     // 것이다 (`/ai-review` `review/code/2026/09/14/20_17_16` database·concurrency WARNING#2).
     //
-    // 위 `teardownChatChannel`(외부 호출)은 **락 밖**에서 이미 끝났다 — `trigger-config-lock.ts`
+    // 위 외부 해제(provider teardown 포함)는 **락 밖**에서 이미 끝났다 — `trigger-config-lock.ts`
     // JSDoc 의 «외부 호출을 락 안에 두지 않는다» 제약을 여기서도 지킨다.
     //
-    // **삭제만 대기 상한을 둔다.** 위 정리는 되돌릴 수 없으므로, 락을 무한정 기다리면
-    // «자원은 다 뜯겼는데 행은 남은» 반쯤 삭제된 상태가 굳는다. 상한을 넘기면 그 사실을
+    // **삭제만 대기 상한을 둔다.** 위 해제는 되돌릴 수 없으므로, 락을 무한정 기다리면
+    // «외부 등록은 뜯겼는데 행은 남은» 반쯤 삭제된 상태가 굳는다. 상한을 넘기면 그 사실을
     // 소리내어 남기고 던진다 — 조용한 지연보다 드러나는 오류가 낫다.
     await this.triggerRepository.manager
       .transaction(async (m) => {
@@ -1079,12 +1075,17 @@ export class TriggersService {
       })
       .catch((err: unknown) => {
         this.logger.error(
-          `TriggersService.remove: trigger=${id} 의 행 삭제가 실패했다 — provider teardown·` +
-            `secret 삭제·listener 해제는 **이미 끝났으므로** 이 트리거는 반쯤 삭제된 상태다. ` +
-            `수동 정리가 필요하다: ${err instanceof Error ? err.message : String(err)}`,
+          `TriggersService.remove: trigger=${id} 의 행 삭제가 실패했다 — schedule job·provider ` +
+            `teardown·listener 해제는 **이미 끝났으므로** 이 트리거는 반쯤 삭제된 상태다(비밀은 ` +
+            `아직 남아 있다). 수동 정리가 필요하다: ${err instanceof Error ? err.message : String(err)}`,
         );
         throw err;
       });
+    // **커밋된 뒤에** 비밀을 지운다. 실패는 던지지 않고 남긴다 — 행은 이미 없다.
+    await this.resourceReleaser.releaseSecretsAfterCommit(
+      [id],
+      'TriggersService.remove',
+    );
     await this.recordAudit({
       workspaceId,
       userId,
@@ -1388,7 +1389,16 @@ export class TriggersService {
     // 트리거에 대한 **거짓 성공 기록**이다. 창 1 은 같은 조건에서 404 를 내므로 형제
     // 엔드포인트끼리 응답이 갈리기도 했다
     // (`/ai-review` `review/code/2026/09/14/20_17_16` api_contract WARNING#3).
-    if (!wrote) this.throwTriggerNotFound();
+    if (!wrote) {
+      // 404 전에 되돌린다 — 새 토큰·v2 백업·issued 서명은 락 밖에서 이미 썼고, provider 에는 새
+      // 토큰으로 콜백이 등록됐다. teardown 이 그 토큰을 읽으므로 비밀보다 먼저다.
+      await this.resourceReleaser.undoAbsentWrite(
+        trigger.id,
+        mergedChannel,
+        'TriggersService.rotateBotToken',
+      );
+      this.throwTriggerNotFound();
+    }
     // **컬럼 갱신이 끝난 뒤에 기록한다.** 위 6단계 중 어디서든 던지면 회전은 일어나지
     // 않은 것이고, 그때 감사 row 만 남으면 "회전됐다" 는 거짓 기록이 된다.
     await this.recordAudit({
@@ -1495,7 +1505,16 @@ export class TriggersService {
           ),
         { notificationSecretV2: null, notificationRotatedAt: null },
       );
-      if (wrotePromotion) promoted++;
+      if (wrotePromotion) {
+        promoted++;
+      } else {
+        // 위 `rotate` 가 쓴 서명 비밀을 되돌린다 — 삭제 쪽 정리보다 늦었으면 아무도 안 지운다.
+        await this.resourceReleaser.undoAbsentWrite(
+          trigger.id,
+          undefined,
+          'TriggersService.promoteRotatedNotificationSecrets',
+        );
+      }
     }
     return { promoted };
   }
