@@ -676,8 +676,42 @@ export class TriggersService {
         // **반환값을 받는다** — 메서드 호출은 타입을 좁혀 주지 않는다(assertion 함수가
         // 아니므로). 헬퍼가 값을 돌려주는 형태인 이유가 이것이다.
         const target = this.assertTriggerFound(fresh);
+        // **저장 대상은 이 요청이 바꾸는 필드뿐이다 — 재읽은 엔티티를 통째로 넘기지 않는다.**
+        //
+        // `save` 는 저장 시점에 DB 행을 다시 읽고 **엔티티와 다른 컬럼만** UPDATE 한다. 재읽은
+        // 엔티티를 통째로 넘기면, 재읽기 **뒤에** 락 밖에서 커밋된 컬럼
+        // (`rotateNotificationSecret` 의 `notificationSecretV2`, 웹훅 인입의 `lastTriggeredAt`,
+        // cron 의 `chatChannelTokenV2` null-write, 스케줄 편집의 `name`·`isActive`)이 «엔티티와
+        // 다르다» 로 잡혀 **옛 값으로 되써진다.** `#1334` 가 «이론적 TOCTOU» 로 유예한 자리였는데,
+        // 실제 Postgres 에 TypeORM 을 붙여 재현하니 두 컬럼이 그대로 `null` 로 되돌아갔다
+        // (`test/trigger-update-save-window.e2e-spec.ts` ②).
+        //
+        // 부분 객체면 넘기지 않은 컬럼이 `undefined` 라 비교에서 빠진다(같은 파일 ②b 실측). 락을
+        // 공유하는 형제 창이 커밋한 컬럼도 마찬가지로 보호된다 — 종전엔 «재읽은 값을 그대로
+        // 다시 싣는다» 로 막았는데, 싣지 않는 편이 타이밍과 무관하게 막는다.
+        //
+        // **동사는 `save` 그대로다.** `update` + 재조회로 바꿨다가 반환 엔티티·subscriber·
+        // `endpointPath` UNIQUE 충돌 경로가 함께 달라져 되돌린 이력이 위 주석에 있다.
+        //
+        // **응답은 재읽은 엔티티에 이 요청의 변경을 얹은 것이다 — `save` 반환값을 덮지 않는다.**
+        //
+        // 부분 객체 `save` 의 반환값은 DB 를 다시 읽은 값이 **아니다**. 넘기지 않은 nullable
+        // 컬럼을 전부 `null` 로 채워 돌려주고 실값은 `updatedAt` 뿐이다 — DB 에 `v2-B` 가 있는데
+        // 반환값의 `notificationSecretV2` 는 `null` 이었다(실측). 한때 그 반환값을 통째로
+        // `Object.assign` 했더니 `endpointPath` 가 `null` 로 덮여 `chatChannel` PATCH 가 전부
+        // `CHAT_CHANNEL_ENDPOINT_REQUIRED` 400 이 됐다(e2e 가 잡았고 단위는 mock 이라 못 봤다).
+        // 위 `defined` 가 막으려던 «로드된 값을 덮는다» 와 같은 함정이다.
+        //
+        // 그래서 반환값에서는 `updatedAt` 하나만 취한다. 재읽기 **뒤** 락 밖에서 커밋된 컬럼은
+        // 이 응답에 보이지 않는다 — DB 는 보존되고(위) 응답만 한 박자 늦은 읽기다.
+        const written = await m.save(Trigger, {
+          id: target.id,
+          ...defined,
+          config: mergedConfig,
+        });
         Object.assign(target, defined, { config: mergedConfig });
-        return m.save(Trigger, target);
+        if (written.updatedAt) target.updatedAt = written.updatedAt;
+        return target;
       })
       .catch((err: unknown) => this.rethrowEndpointPathConflict(err));
     // **커밋 직후** 기록한다 — 아래 세 가지(schedule 역동기화의 BullMQ 호출, secret

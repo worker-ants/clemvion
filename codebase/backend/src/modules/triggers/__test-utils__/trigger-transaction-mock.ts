@@ -122,10 +122,14 @@ export function withTransactionMock(
                 ((e: unknown) => unknown) | undefined;
               return removeMock ? removeMock(target) : target;
             }),
-            save: jest.fn((_entity: unknown, target: unknown) => {
+            save: jest.fn(async (_entity: unknown, target: unknown) => {
               const saveMock = triggerRepoMock.save as
                 ((e: unknown) => unknown) | undefined;
-              return saveMock ? saveMock(target) : target;
+              // 실제 TypeORM `save` 는 **늘 객체를 돌려준다**. 바깥 repo mock 은 대개 `jest.fn()`
+              // 이라 `undefined` 를 주는데, 창 1 이 반환값의 `updatedAt` 을 읽게 된 뒤로는 그
+              // 차이가 `TypeError` 가 된다 — `update` 와 같은 이유로 대역을 충실하게 한다.
+              const result = saveMock ? await saveMock(target) : undefined;
+              return result ?? target;
             }),
             update: jest.fn(
               async (_entity: unknown, where: unknown, patch: unknown) => {
