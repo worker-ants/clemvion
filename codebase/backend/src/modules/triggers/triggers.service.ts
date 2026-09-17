@@ -655,14 +655,15 @@ export class TriggersService {
           interaction,
           safeChatChannel,
         );
-        // **재읽은 행을 저장 대상으로 쓴다.** `save` 는 엔티티를 통째로 저장하므로, 요청
-        // 시작 시점의 `trigger` 를 그대로 넘기면 `config` 밖의 컬럼
+        // **재읽은 행이 저장의 기준이다 — 저장 대상 자체는 아래에서 부분 객체로 좁힌다.**
+        // 요청 시작 시점의 `trigger` 를 기준으로 삼으면 `config` 밖의 컬럼
         // (`chatChannelHealth`·`chatChannelLastError`·`chatChannelSetupAt`·
-        // `chatChannelRotatedAt`·`chatChannelTokenV2`)이 **pre-lock 스냅샷 값으로 되돌아간다**.
+        // `chatChannelRotatedAt`·`chatChannelTokenV2`)이 **pre-lock 스냅샷 값으로 되돌아갔다**.
         // 같은 락을 공유하는 형제 창(`rotateBotToken`·binder)이 방금 커밋한 부분 UPDATE 를
-        // 이 저장이 조용히 덮는 것이다 — 이 PR 이 막는 것과 **같은 클래스**의 lost update 를
-        // 수정 자체가 새로 만들고 있었다
-        // (`/ai-review` `review/code/2026/09/14/19_07_43` database WARNING#2).
+        // 이 저장이 조용히 덮는 것이었다
+        // (`/ai-review` `review/code/2026/09/14/19_07_43` database WARNING#2). 그 뒤 «재읽은
+        // 엔티티를 통째로 저장» 으로 막았는데 락 **밖** 쓰기에는 뚫려 있었고, 지금은 아래
+        // «저장 대상은 이 요청이 바꾸는 필드뿐» 이 두 경로를 함께 막는다.
         //
         // **행이 사라졌으면 저장하지 않는다.** `save(entity)` 는 PK 로 재조회해 행이 없으면
         // **INSERT** 한다 — 그 사이 `remove()` 가 끝난 트리거를 같은 id 로 되살리는 것이다.
@@ -676,8 +677,44 @@ export class TriggersService {
         // **반환값을 받는다** — 메서드 호출은 타입을 좁혀 주지 않는다(assertion 함수가
         // 아니므로). 헬퍼가 값을 돌려주는 형태인 이유가 이것이다.
         const target = this.assertTriggerFound(fresh);
-        Object.assign(target, defined, { config: mergedConfig });
-        return m.save(Trigger, target);
+        // **저장 대상은 이 요청이 바꾸는 필드뿐이다 — 재읽은 엔티티를 통째로 넘기지 않는다.**
+        //
+        // `save` 는 저장 시점에 DB 행을 다시 읽고 **엔티티와 다른 컬럼만** UPDATE 한다. 재읽은
+        // 엔티티를 통째로 넘기면, 재읽기 **뒤에** 락 밖에서 커밋된 컬럼
+        // (`rotateNotificationSecret` 의 `notificationSecretV2`, 웹훅 인입의 `lastTriggeredAt`,
+        // cron 의 `chatChannelTokenV2` null-write, 스케줄 편집의 `name`·`isActive`)이 «엔티티와
+        // 다르다» 로 잡혀 **옛 값으로 되써진다.** `#1334` 가 «이론적 TOCTOU» 로 유예한 자리였는데,
+        // 실제 Postgres 에 TypeORM 을 붙여 재현하니 두 컬럼이 그대로 `null` 로 되돌아갔다
+        // (`test/trigger-update-save-window.e2e-spec.ts` ②).
+        //
+        // 부분 객체면 넘기지 않은 컬럼이 `undefined` 라 비교에서 빠진다(같은 파일 ②b 실측). 락을
+        // 공유하는 형제 창이 커밋한 컬럼도 마찬가지로 보호된다 — 종전엔 «재읽은 값을 그대로
+        // 다시 싣는다» 로 막았는데, 싣지 않는 편이 타이밍과 무관하게 막는다.
+        //
+        // **동사는 `save` 그대로다.** `update` + 재조회로 바꿨다가 반환 엔티티·subscriber·
+        // `endpointPath` UNIQUE 충돌 경로가 함께 달라져 되돌린 이력이 위 주석에 있다.
+        //
+        // **응답은 재읽은 엔티티에 이 요청의 변경을 얹은 것이다 — `save` 반환값을 덮지 않는다.**
+        //
+        // 부분 객체 `save` 의 반환값은 DB 를 다시 읽은 값이 **아니다**. 넘기지 않은 nullable
+        // 컬럼을 전부 `null` 로 채워 돌려주고 실값은 `updatedAt` 뿐이다 — DB 에 `v2-B` 가 있는데
+        // 반환값의 `notificationSecretV2` 는 `null` 이었다(실측). 한때 그 반환값을 통째로
+        // `Object.assign` 했더니 `endpointPath` 가 `null` 로 덮여 `chatChannel` PATCH 가 전부
+        // `CHAT_CHANNEL_ENDPOINT_REQUIRED` 400 이 됐다(e2e 가 잡았고 단위는 mock 이라 못 봤다).
+        // 위 `defined` 가 막으려던 «로드된 값을 덮는다» 와 같은 함정이다.
+        //
+        // 그래서 반환값에서는 `updatedAt` 하나만 취한다. 재읽기 **뒤** 락 밖에서 커밋된 컬럼은
+        // 이 응답에 보이지 않는다 — DB 는 보존되고(위) 응답만 한 박자 늦은 읽기다.
+        // **저장과 응답이 같은 객체를 쓴다** — 둘을 따로 적으면 필드를 더할 때 한쪽만 고쳐
+        // «DB 에 쓴 값» 과 «응답에 얹은 값» 이 조용히 갈린다.
+        const patch = { ...defined, config: mergedConfig };
+        const written = await m.save(Trigger, { id: target.id, ...patch });
+        Object.assign(target, patch);
+        // 실제 TypeORM 은 `@UpdateDateColumn` 이라 늘 채워 돌려준다. 가드는 **단위 대역**이
+        // 넘긴 객체를 그대로 돌려줄 때(`updatedAt` 없음) 재읽은 값을 `undefined` 로 지우지
+        // 않으려는 것이다 — 위 `defined` 와 같은 이유다.
+        if (written.updatedAt) target.updatedAt = written.updatedAt;
+        return target;
       })
       .catch((err: unknown) => this.rethrowEndpointPathConflict(err));
     // **커밋 직후** 기록한다 — 아래 세 가지(schedule 역동기화의 BullMQ 호출, secret

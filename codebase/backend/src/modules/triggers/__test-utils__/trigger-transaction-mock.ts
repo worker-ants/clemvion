@@ -59,14 +59,14 @@ export interface TransactionMockOptions {
  * `m.remove(entity)` → `repo.remove(entity)`,
  * `m.delete(Trigger, criteria)` → `repo.delete(criteria)` 로 넘겨 **기존 단언의 의미를 보존**한다.
  *
- * **실측(뮤턴트)**: `transaction` 이 콜백을 실행하지 않게 바꾸면 `src/modules/triggers` 에서
- * **53개 케이스가 RED** 다(R-CC-21 9 · lost-update 8 · `rotateBotToken` 8 · schedule 동기화 7 ·
- * 생성 경로 5 · 그 외 16). 즉 이 위임은 장식이 아니라 그 53건을 살아 있게 하는 배선이다 —
- * GREEN 만으로는 증거가 되지 않아 빼 보고 셌다.
+ * **이 위임은 장식이 아니다.** `transaction` 이 콜백을 실행하지 않게 바꾸면
+ * `src/modules/triggers` 의 트랜잭션 경로 테스트가 **수십 건** RED 가 된다 — GREEN 만으로는
+ * 증거가 되지 않아 빼 보고 셌다. 이 파일을 고칠 땐 같은 뮤턴트로 다시 확인하라.
  *
- * > **이 수는 시점 의존이다.** 처음 쟀을 땐 13이었는데, 그 뒤 창 1 과 `remove()` 가 같은
- * > 트랜잭션 경로로 들어오면서 의존하는 테스트가 늘었다. 위 값은 **이 PR 이 닫히는 시점**의
- * > 실측이다 — 이 파일을 고칠 땐 다시 재라.
+ * > **정확한 수는 여기 적지 않는다.** 뮤턴트가 콜백 대신 **무엇을 돌려주는가**
+ * > (`undefined` · `false` · manager 객체)에 따라 RED 수가 달라진다 — 같은 날 세 형태로 60 ·
+ * > 64 · 68 이 나왔고, 그 전엔 13 · 53 으로 적혀 있었다. 형태를 고정하지 않은 숫자는 다음
+ * > 사람이 재현하지 못한다.
  *
  * `m.findOne` 도 같은 이유로 위임한다 — 락 안 재읽기가 «지금 DB 에 있는 값» 을 보는 것이
  * 이 수정의 핵심이라, 그 자리를 고정값으로 채우면 presence 게이트 재계산이 검증되지 않는다.
@@ -122,10 +122,14 @@ export function withTransactionMock(
                 ((e: unknown) => unknown) | undefined;
               return removeMock ? removeMock(target) : target;
             }),
-            save: jest.fn((_entity: unknown, target: unknown) => {
+            save: jest.fn(async (_entity: unknown, target: unknown) => {
               const saveMock = triggerRepoMock.save as
                 ((e: unknown) => unknown) | undefined;
-              return saveMock ? saveMock(target) : target;
+              // 실제 TypeORM `save` 는 **늘 객체를 돌려준다**. 바깥 repo mock 은 대개 `jest.fn()`
+              // 이라 `undefined` 를 주는데, 창 1 이 반환값의 `updatedAt` 을 읽게 된 뒤로는 그
+              // 차이가 `TypeError` 가 된다 — `update` 와 같은 이유로 대역을 충실하게 한다.
+              const result = saveMock ? await saveMock(target) : undefined;
+              return result ?? target;
             }),
             update: jest.fn(
               async (_entity: unknown, where: unknown, patch: unknown) => {

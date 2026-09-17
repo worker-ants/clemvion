@@ -3679,8 +3679,9 @@ describe('TriggersService — 락 안 재읽기가 동시 확립분을 본다 (l
   /**
    * 동시 요청이 ref 를 **방금 확립하고**, 손대지 않은 키와 **컬럼**까지 함께 커밋한 상태.
    *
-   * `chatChannelHealth` 를 `withoutRef` 와 다르게 두는 것이 핵심이다 — `save` 는 엔티티를
-   * 통째로 저장하므로, 저장 대상이 pre-lock 스냅샷이면 이 컬럼이 `healthy` 로 되돌아간다.
+   * `chatChannelHealth` 를 `withoutRef` 와 다르게 두는 것이 핵심이다 — 창 1 이 pre-lock
+   * 스냅샷을 기준으로 저장하면 이 컬럼이 `healthy` 로 되돌아간다. (지금 창 1 은 이 요청이
+   * 바꾸는 필드만 저장해 이 컬럼을 아예 싣지 않는다 — «저장 대상은 이 요청이 바꾸는 필드뿐».)
    */
   const withRef = () =>
     row(
@@ -3859,24 +3860,78 @@ describe('TriggersService — 락 안 재읽기가 동시 확립분을 본다 (l
     expect(savedConfig?.untouchedByThisRequest).toBe('kept');
   });
 
-  it('update() — 형제 창이 커밋한 **컬럼**도 되돌리지 않는다', async () => {
-    // `config` 만 재읽고 저장 대상은 pre-lock 엔티티로 두면, 같은 락을 공유하는 형제 창
-    // (`rotateBotToken`·binder)이 방금 커밋한 부분 UPDATE 를 이 저장이 조용히 덮는다 —
-    // 이 PR 이 막는 것과 같은 클래스의 lost update 를 수정 자체가 만들던 자리다
-    // (`review/code/2026/09/14/19_07_43` database WARNING#2).
+  it('update() — 저장 대상은 이 요청이 바꾸는 필드뿐이다 (다른 컬럼은 싣지 않는다)', async () => {
+    // `save` 는 **엔티티와 다른 컬럼**을 UPDATE 한다. 재읽은 엔티티를 통째로 넘기면 재읽기
+    // **뒤에** 락 밖에서 커밋된 컬럼(`notificationSecretV2`·`lastTriggeredAt` 등)이 옛 값으로
+    // 되써진다 — 실제 Postgres 에서 재현했다(`test/trigger-update-save-window.e2e-spec.ts` ②).
+    //
+    // 종전 이 테스트는 반대를 단언했다 — «형제 창이 커밋한 `chatChannelHealth` 가 저장 객체에
+    // **실려 있다**». 재읽은 값을 다시 실어 막는 방식이었는데, 락 밖 쓰기에는 재읽기 이후의
+    // 커밋을 못 보므로 뚫렸다. **싣지 않는 것**이 타이밍과 무관하게 막는다
+    // (`review/code/2026/09/14/19_07_43` database WARNING#2 의 보호는 그대로 유지된다).
     const { service, repo } = await makeService([withRef]);
 
     await service.update('trig-l', 'ws-1', { name: '새 이름' } as never, 'u-1');
 
-    const savedEntity = repo.save.mock.calls.at(-1)?.[0] as unknown as {
-      chatChannelHealth?: string;
-      chatChannelLastError?: string | null;
-      name?: string;
-    };
-    expect(savedEntity?.chatChannelHealth).toBe('degraded');
-    expect(savedEntity?.chatChannelLastError).toBe('provider down');
-    // 이번 요청의 변경은 그대로 실린다 — 재읽기가 요청을 덮어쓰지 않는다는 반대 방향.
-    expect(savedEntity?.name).toBe('새 이름');
+    const savedEntity = repo.save.mock.calls.at(-1)?.[0] as unknown as Record<
+      string,
+      unknown
+    >;
+    // **키 집합을 단언한다** — 값이 아니라 «무엇을 실었는가» 가 계약이다. 통째 엔티티로
+    // 되돌리면 `chatChannelHealth`·`workflow` 등이 끼어들어 RED 가 된다.
+    expect(Object.keys(savedEntity).sort()).toEqual(['config', 'id', 'name']);
+    // 이번 요청의 변경은 그대로 실린다 — 좁힌 것이 요청까지 빼지 않았다는 반대 방향.
+    expect(savedEntity.name).toBe('새 이름');
+  });
+
+  it('update() — save 반환값의 null 이 재읽은 값을 덮지 않는다 (updatedAt 만 취한다)', async () => {
+    // 부분 객체 `save` 의 반환값은 DB 재조회가 아니다 — 넘기지 않은 nullable 컬럼을 `null` 로
+    // 채워 돌려주고 실값은 `updatedAt` 뿐이다(실측). 그 반환값을 통째로 덮었더니 `endpointPath`
+    // 가 `null` 이 되어 `chatChannel` PATCH 가 전부 400 이 됐다 — mock 은 그 모양을 흉내내지
+    // 않아 이 파일이 못 봤고 e2e 가 잡았다. 그래서 **실측한 반환 모양 그대로** 흉내낸다.
+    // 재읽은 행에 **null 이 아닌** 값을 둔다 — 반환값의 `null` 이 덮으면 갈리도록. 픽스처에
+    // 없는 컬럼이면 `undefined` 와 `null` 이 같은 «없음» 으로 보여 단언이 판별하지 못한다.
+    //
+    // **응답에 남는 컬럼으로 고른다.** `notificationSecretV2`·`chatChannelTokenV2` 는
+    // `TRIGGER_RESPONSE_STRIP_COLUMNS` 가 응답에서 지우므로 반환값으로는 덮였는지 볼 수 없다 —
+    // 처음 그 둘로 단언했다가 «`undefined`» 로 실패해 알았다.
+    const rereadTriggeredAt = new Date('2026-09-10T00:00:00.000Z');
+    const reread = () =>
+      row(withRef().config as Record<string, unknown>, {
+        lastTriggeredAt: rereadTriggeredAt,
+        authConfigId: 'ac-reread',
+      });
+    const { service, repo } = await makeService([reread]);
+    const newUpdatedAt = new Date('2026-09-17T00:00:00.000Z');
+    repo.save.mockImplementation(
+      // `as never` — 흉내내는 것이 바로 **타입과 다른 런타임 모양**(nullable 컬럼이 `null` 로 온다)
+      // 이라 `Repository<Trigger>.save` 시그니처에 맞출 수 없다.
+      (async (partial: unknown) => ({
+        ...(partial as Record<string, unknown>),
+        endpointPath: null,
+        lastTriggeredAt: null,
+        authConfigId: null,
+        notificationSecretV2: null,
+        chatChannelTokenV2: null,
+        updatedAt: newUpdatedAt,
+      })) as never,
+    );
+
+    const result = (await service.update(
+      'trig-l',
+      'ws-1',
+      { name: '새 이름' } as never,
+      'u-1',
+    )) as unknown as Record<string, unknown>;
+
+    // 재읽은 값이 살아 있다 — 반환값의 `null` 로 덮이지 않았다. 세 컬럼 모두 본다: 하나만
+    // 보면 «특정 필드만 골라 덮는» 편집이 빠져나간다.
+    expect(result.endpointPath).toBe('hook-l');
+    expect(result.lastTriggeredAt).toEqual(rereadTriggeredAt);
+    expect(result.authConfigId).toBe('ac-reread');
+    // 이 요청의 변경과 새 `updatedAt` 은 반영된다 — 좁힌 것이 둘까지 빼지 않았다는 반대 방향.
+    expect(result.name).toBe('새 이름');
+    expect(result.updatedAt).toEqual(newUpdatedAt);
   });
 
   it('update() — 그 사이 삭제된 트리거를 되살리지 않는다 (save 는 없으면 INSERT 한다)', async () => {
