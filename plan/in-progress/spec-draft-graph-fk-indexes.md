@@ -125,12 +125,14 @@ spec 에 메커니즘을 적기 전에 호출당 비용만 보고 추론했던 �
 ## 체크리스트
 
 - [x] `--spec` `review/consistency/2026/09/18/14_54_15` BLOCK: NO → S1~S5 반영 (+ WARNING 1: 아래 «다섯» 절의 «32개 남음 · 다음 후보» 에 현재 상태를 덧붙였다)
-- [ ] `--impl-prep`
-- [ ] V117~V120 · e2e 네 건 · `python3 scripts/check-migration-versions.py --base origin/main`
+- [x] `--impl-prep spec/conventions/` — `review/consistency/2026/09/18/15_04_02` **BLOCK: NO** (WARNING 1 `plan/complete/` 선인용 → 아래 마지막 항목에
+  grep 확인을 명시 · INFO 1 번들 예산은 트래커 기존 항목 · INFO 2 절 제목은 기수용)
+- [x] V117~V120 · e2e 네 건 · `python3 scripts/check-migration-versions.py --base origin/main` → `OK: 120 migration(s), max V120`
 - [ ] lint · unit · build · e2e
 - [ ] `/ai-review`
 - [ ] `--impl-done`
-- [ ] 트래커 반영 · 이 draft `complete/` 이동(이 PR 의 마지막 커밋 — spec Rationale · 마이그레이션 헤더가 `plan/complete/` 로 인용한다)
+- [ ] 트래커 반영 · 이 draft `complete/` 이동(이 PR 의 마지막 커밋 — spec Rationale · 마이그레이션 헤더 넷 · e2e 머리말이 `plan/complete/` 로 인용한다).
+  이동 뒤 `grep -rln "plan/complete/spec-draft-graph-fk-indexes.md" spec codebase` 로 인용 전부가 실재 경로를 가리키는지 확인
 
 ## Rationale
 

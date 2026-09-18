@@ -1,0 +1,29 @@
+-- V118: relation (evidence_chunk_id) partial — FK relation_evidence_chunk_id_fkey (ON DELETE SET NULL)
+--
+-- spec/1-data-model.md §3 인덱스 전략 · ## Rationale «그래프 RAG 삭제 연쇄의 FK 인덱스 넷 (2026-09-18)»
+-- spec/5-system/10-graph-rag.md §2.3 · §2.4 인덱스
+-- 실측: plan/complete/spec-draft-graph-fk-indexes.md
+--
+-- entity · relation 의 기존 인덱스는 전부 knowledge_base_id 가 선두라, KB 를 모르는 FK 트리거 조회에 쓰이지 않거나
+-- (last_seen_chunk_id · evidence_chunk_id — 전 테이블을 훑는다) skip scan 으로 KB 값마다 건너뛰며 쓰인다
+-- (head_entity_id · tail_entity_id — KB 수에 비례. head 조회 계획을 KB 100 규모에서 봤다: Index Searches: 101).
+--
+-- 800k 청크 / 400k 엔티티 / 800k 관계 규모 실측 (PostgreSQL 18, V001~V116, 워밍 뒤 1회):
+--   KB 하나 삭제 129,941 ms → 48.1 ms · 엔티티 하나 삭제 4.25 ms → 0.38 ms (V117~V120 넷을 둔 측정)
+--   재임베딩(문서 하나, 청크 40) 1,795.7 ms → 2.37 ms (V117 · V118 둘을 둔 측정 — 이 경로는 head/tail 을 부르지 않는다)
+--
+-- 청크가 지워질 때마다 한 번씩 찾는다 — V117 과 같은 경로. 넷 중 가장 컸다.
+-- 800k: KB 삭제에서 76,220 ms → 약 6~9 ms (2,000회) · 재임베딩에서 1,118.3 ms → 1.16 ms (40회). 크기 24 MB (테이블 108 MB).
+-- partial 인 이유는 V117 과 같다.
+-- 쓰기 비용(V119 · V120 과 셋 합): 10만 행 INSERT 5회 median 1,879.3 → 2,084.0 ms (행당 +2.05 µs).
+--
+-- 비-트랜잭션 (executeInTransaction=false, 동봉 .conf) — CREATE/DROP INDEX CONCURRENTLY 는 transaction
+-- block 안에서 실행할 수 없다. CREATE 앞의 DROP 은 앞선 실패의 invalid 잔재 정리다 — IF NOT EXISTS 는 이름만
+-- 봐서, 그것 없이는 repair 뒤 재실행이 invalid 인덱스를 건너뛰어 영영 유효해지지 않는다
+-- (migrations/README.md §5 «신규 추가에도 0) 을 둡니다», 선례 V111~V116).
+DROP INDEX CONCURRENTLY IF EXISTS idx_relation_evidence_chunk_id;
+CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_relation_evidence_chunk_id
+  ON relation (evidence_chunk_id)
+  WHERE evidence_chunk_id IS NOT NULL;
+
+-- DOWN(수동 롤백 참고 — Flyway 자동 실행 아님): DROP INDEX CONCURRENTLY IF EXISTS idx_relation_evidence_chunk_id;
