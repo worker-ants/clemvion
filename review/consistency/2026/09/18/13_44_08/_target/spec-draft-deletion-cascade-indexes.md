@@ -1,0 +1,147 @@
+---
+title: 워크플로 삭제·캔버스 노드 삭제의 FK 연쇄 인덱스 — 실행 이력 행마다 로그 테이블을 전부 훑는다
+status: in-progress
+owner: project-planner
+worktree: usage-log-workflow-index-5b1e07
+started: 2026-09-18
+spec_impact:
+  - spec/1-data-model.md
+  - spec/data-flow/3-execution.md
+  - spec/data-flow/5-integration.md
+  - spec/data-flow/7-llm-usage.md
+---
+
+# spec draft — 삭제 연쇄의 FK 인덱스 다섯
+
+트래커 `plan/in-progress/spec-draft-nullable-notation-followups.md` 의 «`workflow`·`workspace` 를 참조하는 FK 중 선두 인덱스가
+없는 여섯»(2026-09-18 등재, `plan/complete/spec-draft-trigger-workflow-index.md`) 중 **`integration_usage_log` 우선**으로 착수했다.
+재 보니 **그 항목의 전제가 좁았다** — 등재한 여섯은 부모를 `workflow`·`workspace` 둘로 한정한 전수였고, 실제 비용은 그 밖의
+FK(`node_execution` 을 가리키는 것)에 있었다. 등재 대상이던 `integration_usage_log.workflow_id` 는 삭제 한 번에 0.55 ms 다.
+
+## 실측 (PostgreSQL 18, `pgvector/pgvector:pg18` 일회용 컨테이너, V001~V111 적용)
+
+### 전수 — 부모를 한정하지 않는다
+
+단일 컬럼 FK **87개** 중 `ON DELETE CASCADE`·`SET NULL`·`NO ACTION` 이면서 그 컬럼을 선두로 가진 인덱스가 없는 것이 **37개**다
+(`pg_index.indkey[0]` 대조). 부모 행을 지울 때 Postgres 의 FK 트리거는 **지워지는 부모 행마다** 자식을 한 번씩 찾으므로, 인덱스
+없는 FK 의 비용은 «자식 테이블 크기 × 연쇄로 지워지는 부모 행 수» 다.
+
+### 어느 경로가 그 FK 를 부르나
+
+| 삭제 경로 | 빈도 | 연쇄 |
+|---|---|---|
+| 캔버스 저장이 노드를 뺀다 (`WorkflowsService` 캔버스 저장 — 제출 목록에 없는 `Node` 를 `manager.remove`) | **캔버스 저장마다** | `node` → `node_execution`(CASCADE, `node_id`) → 지워지는 실행 이력 **행마다** `integration_usage_log`(CASCADE, `node_execution_id`) · `llm_usage_log`(SET NULL, `node_execution_id`) |
+| 워크플로 삭제 | 관리 동작 | `workflow` → `node`·`execution`·`integration_usage_log`(`workflow_id`) … → 위 연쇄 + `execution` 행마다 `llm_usage_log`(SET NULL, `execution_id`) |
+
+실행 이력 보존 정리는 **없다**(보존 배치는 `integration_usage_log` 의 90일 `at` 기준 하나 — `integration-expiry-scanner.service.ts`). 그래서
+`node_execution` 은 위 두 경로로만 지워진다.
+
+### 비용 (워크플로마다 노드 10 · 실행 20 · 실행당 노드 실행 10 · 연동 로그 20 · LLM 로그 40, 워밍 뒤 1회, ROLLBACK)
+
+| 규모 (`node_execution` / 연동 로그 / LLM 로그) | 캔버스 노드 하나 삭제 | 워크플로 삭제 |
+|---|---|---|
+| 200k / 20k / 40k | **45.7 ms** | **444.7 ms** |
+| 800k / 80k / 160k | **206.6 ms** | **2,225 ms** |
+| 800k + 인덱스 넷 | **0.79 ms** | **6.96 ms** |
+
+800k 에서 워크플로 삭제의 FK 별 시간(인덱스 전 → 후):
+
+| FK | 호출 수 | 전 | 후 |
+|---|---|---|---|
+| `llm_usage_log.node_execution_id` (SET NULL) | 200 | 1,296.9 ms | 0.80 ms |
+| `integration_usage_log.node_execution_id` (CASCADE) | 200 | 530.6 ms | 0.50 ms |
+| `node_execution.node_id` (CASCADE) | 10 | 271.3 ms | 0.19 ms |
+| `llm_usage_log.execution_id` (SET NULL) | 20 | 116.9 ms | 0.39 ms |
+| `integration_usage_log.workflow_id` (CASCADE) | 1 | 2.56 ms | 0.028 ms (다섯째 인덱스) |
+
+규모 4배에 비용 4.5~5배 — 테이블 크기에 선형이고 연쇄 행 수만큼 곱해진다.
+
+### 쓰기 비용
+
+`node_execution` 은 노드가 실행될 때마다 1행이 들어가는 가장 뜨거운 INSERT 경로다. 10만 행 INSERT 5회: `(node_id)` 인덱스 **있음
+median 1,060 ms · 없음 975 ms** — 행당 약 0.85 µs(+8.7%). 노드 한 번 실행이 ms 단위라 무시할 만하다. `node_id` 는 바뀌지 않는 컬럼이라
+상태 전이 UPDATE 의 HOT 갱신을 막지 않는다. 두 로그 테이블은 외부 호출(연동 API · LLM) 한 번에 1행이라 상대 비용이 더 작다 —
+**이것은 추론이고 로그 테이블 INSERT 는 따로 재지 않았다.**
+
+크기(800k 규모): `node_execution(node_id)` 6.4 MB(테이블 89 MB) · `integration_usage_log(node_execution_id)` 2.5 MB ·
+`integration_usage_log(workflow_id)` 0.6 MB · `llm_usage_log` 부분 인덱스 둘 각 3.9 MB(테이블 23 MB).
+
+## 변경안
+
+### S1. `spec/1-data-model.md` §3 인덱스 전략 — 다섯 행
+
+- `NodeExecution | (node_id)` 행을 기존 NodeExecution 행들 뒤에:
+  `| NodeExecution | (node_id) | FK `ON DELETE CASCADE` 의 자식 조회 — 캔버스 저장이 노드를 뺄 때(저장마다)와 워크플로 삭제. 기존 `(execution_id, node_id, started_at DESC)` 는 선두가 달라 쓰이지 않는다. CONCURRENTLY, V112 |`
+- `IntegrationUsageLog` 두 행을 기존 두 행 뒤에:
+  `| IntegrationUsageLog | (node_execution_id) | FK `ON DELETE CASCADE` — 실행 이력 행이 지워질 **때마다** 한 번씩 찾는다(캔버스 노드 삭제 · 워크플로 삭제). CONCURRENTLY, V113 |`
+  `| IntegrationUsageLog | (workflow_id) | FK `ON DELETE CASCADE` — 워크플로 삭제. CONCURRENTLY, V114 |`
+- `LlmUsageLog` 두 행을 기존 세 행 뒤에:
+  `| LlmUsageLog | (node_execution_id) WHERE node_execution_id IS NOT NULL | FK `ON DELETE SET NULL` — 실행 이력 행이 지워질 때마다. partial 로 노드 밖 caller(NULL) 제외. CONCURRENTLY, V115 |`
+  `| LlmUsageLog | (execution_id) WHERE execution_id IS NOT NULL | FK `ON DELETE SET NULL` — 실행 행이 지워질 때마다(워크플로 삭제). CONCURRENTLY, V116 |`
+
+### S2. `spec/1-data-model.md` 본문 «인덱스» 줄
+
+- §2.10.1 IntegrationUsageLog: `**인덱스**: \`(integration_id, at DESC)\` — 상세 페이지 최근 활동 조회용.` 뒤에
+  ` \`(node_execution_id)\` · \`(workflow_id)\` — 부모 삭제의 FK CASCADE 용 (V113 · V114, §3).` 를 더한다.
+- §2.24 LlmUsageLog: `(통계용 partial).` 뒤에 ` FK SET NULL 용 partial \`(node_execution_id)\` · \`(execution_id)\` (V115 · V116, §3).` 를 더한다.
+
+### S3. `spec/1-data-model.md` `## Rationale` 맨 위 새 절 — «삭제 연쇄의 FK 인덱스 다섯 (2026-09-18)»
+
+위 «실측» 의 전수 · 경로 표 · 비용 두 표 · 쓰기 비용을 옮긴다. 그리고 **바로 아래 절(«Trigger `(workflow_id)` 인덱스»)의 «같은 클래스
+전수» 가 부모를 둘로 한정했음**을 적는다 — 그 절의 문장은 그 범위에서 참이라 고치지 않고, 새 절이 넓힌 전수를 가리킨다.
+
+### S4. data-flow 세 문서의 sink 표 «인덱스» 칸
+
+- `spec/data-flow/3-execution.md` `node_execution` 노드 실행 시작 행: `… (활성 노드 조회/전이)` 뒤에 ` · V112 \`(node_id)\` (FK CASCADE — 캔버스 노드 삭제 · 워크플로 삭제)`.
+- `spec/data-flow/5-integration.md` `integration_usage_log` 행: `V008 \`(integration_id, at DESC)\`.` 뒤에 ` V113 \`(node_execution_id)\` · V114 \`(workflow_id)\` (FK CASCADE).`.
+- `spec/data-flow/7-llm-usage.md` `llm_usage_log` 행: `… 통계용` 뒤에 `. V115 \`(node_execution_id)\` · V116 \`(execution_id)\` partial (FK SET NULL)`.
+
+## 구현 (같은 PR, developer 턴)
+
+- **V112~V116** — 파일당 `CREATE INDEX CONCURRENTLY` 하나(README §5 «한 statement»), 각각 `.conf executeInTransaction=false`,
+  **앞에 invalid 잔재 정리 `DROP INDEX CONCURRENTLY IF EXISTS <이름>`**(README §5 «신규 추가에도 0) 을 둡니다», V111 선례), 수동 롤백 주석.
+  이름: `idx_node_execution_node_id` · `idx_integration_usage_log_node_execution_id` · `idx_integration_usage_log_workflow_id` ·
+  `idx_llm_usage_log_node_execution_id` · `idx_llm_usage_log_execution_id` — `codebase/`·`spec/`·`plan/` grep 0건, `V112~V116` 도 0건.
+- **증거** — 새 e2e `codebase/backend/test/deletion-cascade-indexes.e2e-spec.ts`: 다섯 인덱스 각각 실재 · `indisvalid` · 정의 대조
+  (`pg_get_indexdef` 출력은 일회용 pg18 로 확인 — 부분 인덱스는 `… USING btree (node_execution_id) WHERE (node_execution_id IS NOT NULL)`).
+- 애플리케이션 코드 변경 없음.
+
+## 비대상
+
+| 자리 | 판정 |
+|---|---|
+| 나머지 32개 FK | 이 PR 은 **경로**로 범위를 정했다 — 워크플로 삭제·캔버스 노드 삭제의 연쇄에서 측정으로 드러난 다섯. 나머지는 트래커 항목을 이 전수로 갈아 끼운다. 그중 **지식 베이스** 쪽(`document_chunk` 삭제 → `entity.last_seen_chunk_id`·`relation.evidence_chunk_id` SET NULL, `entity` 삭제 → `relation.head/tail_entity_id` CASCADE)은 문서 재색인 빈도에 따라 뜨거울 수 있어 다음 후보다. `user` 삭제 계열은 드물다 |
+| `integration_oauth_state` 등 워크스페이스 CASCADE 넷 · `alert_rule.workflow_id` · `edge.target_node_id` | 소형 테이블 — 전수 목록에 남긴다. 뒤 둘은 이 PR 의 두 경로에 걸리지만 200k 측정에서 0.1 ms 미만이다 |
+| 캔버스 저장이 노드를 지울 때 그 노드의 실행 이력까지 CASCADE 로 사라지는 것 | 데이터 보존 정책 질문이지 인덱스 문제가 아니다 — 이 draft 는 비용만 다룬다 |
+
+## 트래커 반영
+
+- «`workflow`·`workspace` 를 참조하는 FK 중 선두 인덱스가 없는 여섯» 을 **전제 정정**으로 갱신: 전수는 부모를 한정하지 않으면
+  37개이고, 이 PR 이 다섯(V112~V116)을 닫는다. 나머지 32개는 목록 그대로 남기고 다음 후보(지식 베이스 연쇄)를 적는다.
+
+## 체크리스트
+
+- [ ] `--spec` BLOCK: NO → S1~S4 반영
+- [ ] `--impl-prep`
+- [ ] V112~V116 · e2e 스키마 단언
+- [ ] lint · unit · build · e2e
+- [ ] `/ai-review`
+- [ ] `--impl-done`
+- [ ] 트래커 반영 · 이 draft `complete/` 이동 (이동은 이 PR 의 마지막 커밋 — spec Rationale 이 `plan/complete/` 경로로 인용한다)
+
+## Rationale
+
+### 왜 범위를 트래커 항목보다 넓혔나 — 그리고 왜 다섯에서 멈추나
+
+트래커 항목은 «`integration_usage_log.workflow_id` 우선» 이었는데, 재 보니 그 FK 는 삭제 한 번에 0.55 ms(200k 규모)였다. 같은 삭제의
+444.7 ms 는 `node_execution` 을 가리키는 FK 가 **실행 이력 행마다** 한 번씩 로그 테이블을 훑는 데서 왔다. 등재 대상만 고치면 문제의
+0.1% 를 고치고 «해소» 라 적게 된다. 반대로 37개 전부를 한 PR 에 넣으면 각 테이블의 쓰기 패턴을 따로 따지지 못한다. 그래서 **측정한
+두 경로의 연쇄에 걸리는 것 전부**로 경계를 그었다 — 캔버스 노드 삭제와 워크플로 삭제에서 비용을 낸 FK 다섯이다. 두 경로의
+나머지 FK 트리거는 200k 측정에서 각 0.5 ms 미만이었다(800k 인덱스 뒤 측정은 다섯 FK 만 따로 봤다). 그중 선두 인덱스가 **없는**
+것은 `alert_rule.workflow_id`(워크플로 삭제, 0.095 ms) · `edge.target_node_id`(노드 삭제, 0.022 ms) 둘이다 — 둘 다 작은 테이블이라 비대상(위 표).
+
+### 왜 `llm_usage_log` 두 인덱스만 partial 인가
+
+두 컬럼은 nullable(노드 밖·실행 밖 LLM 호출은 NULL)이고, FK 트리거의 쿼리 `… WHERE $1 = node_execution_id` 는 `IS NOT NULL` 을 함의하므로
+부분 인덱스를 쓸 수 있다 — 기존 `(workflow_id, created_at DESC) WHERE workflow_id IS NOT NULL` 과 같은 이유다. `integration_usage_log`
+의 두 컬럼과 `node_execution.node_id` 는 NOT NULL 이라 부분 조건이 줄 것이 없다.
