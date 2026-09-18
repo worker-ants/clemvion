@@ -4601,6 +4601,11 @@ field: T | null;
       > **남은 것은 둘째 불릿(순차 처리 지연) 하나다** — V111 은 테이블 전체 크기에 따른 비용을 없앨 뿐, 부모 하나에 딸린
       > 트리거 수에 따른 비용은 그대로다. «부모 하나의 트리거 수가 작다» 는 여전히 미실측 가정이다.
 
+- [ ] **`2-trigger-list.md` `code:` 에 `trigger-resource-releaser.service.spec.ts` 를 등재한다** (planner, 낮음, 2026-09-18 등재 ·
+      `--impl-done` `review/consistency/2026/09/18/13_16_03` INFO 1). 트리거 목록 §4.3 의 정리 계약 중 «부모 삭제의 외부 해제가 읽는
+      컬럼(`id`·`type`·`config`)» 을 실행 단언으로 고정하는 것이 그 spec 파일이다(`find` 인자 정확 대조 — `config` 가 빠지면 teardown 이
+      조용히 no-op). 지금 `code:` 는 서비스와 e2e 만 등재한다. 글로브 `trigger-resource-release*.ts` 로 묶는 안도 있다.
+
 - [ ] **`workflow`·`workspace` 를 참조하는 FK 중 선두 인덱스가 없는 여섯** (developer + planner, 2026-09-18 등재 ·
       `plan/complete/spec-draft-trigger-workflow-index.md` «같은 클래스 전수»). 카탈로그로 29개 FK 를 대조해 `trigger.workflow_id`(V111 로 해소) 말고 여섯이 남았다 —
       전부 `ON DELETE CASCADE` 라 부모 삭제가 자식 테이블을 전부 훑는다:

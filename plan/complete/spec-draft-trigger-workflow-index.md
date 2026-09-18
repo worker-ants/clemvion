@@ -146,7 +146,10 @@ spec_impact:
   → **2라운드 `review/code/2026/09/18/12_54_44` LOW · C0 · W2** — 둘 다 `codebase/**` 수정 없이 닫혀 3라운드 없음(정지 규칙대로):
   W1 `plan/complete/…` 선인용 3곳 → 이 draft 이동으로 해소(이동 뒤 grep 재확인), W2 `migrations.md` §5 콜아웃이 교체만 말한다 → S4.
   처분은 `review/code/2026/09/18/12_54_44/RESOLUTION.md`
-- [ ] `--impl-done`
+- [x] `--impl-done spec/2-navigation/` — `review/consistency/2026/09/18/13_16_03` **BLOCK: NO** (Critical·Warning 0 · INFO 2).
+  scope 밖 `1-data-model.md` · `conventions/migrations.md` 와 예산에 잘린 구현 diff 6개 파일은 직접 Read 블록으로 넣었다.
+  INFO 1(`2-trigger-list.md` `code:` 에 `trigger-resource-releaser.service.spec.ts` 미등재 — `select` 컬럼 계약의 실행 단언이 거기 있다)은
+  spec frontmatter 편집이라 planner 턴이 필요해 트래커에 등재했다. INFO 2(이 체크박스)는 이 줄로 닫았다
 - [x] 트래커 반영(성능 후속 첫째·셋째 불릿 해소 표시 · 둘째는 남김 · 새 항목 «선두 인덱스가 없는 여섯») · 이 draft `complete/` 이동
 
 ## Rationale
