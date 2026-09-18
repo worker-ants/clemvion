@@ -4657,6 +4657,19 @@ field: T | null;
       도 없다). 이 작업과 무관한 기존 상태로, checker 가 `spec/conventions/` scope 를 훑다 드러냈다. 결정할 것: 관례로 맞출지, 레퍼런스형
       규약은 예외로 둘지(예외라면 planner SKILL 의 3섹션 표에 적는다).
 
+- [ ] **`0-canvas.md` §8.1 «버전에는 자동 생성된 `change_summary` 포함» — 자동 생성이 없다** (planner, 낮음, 2026-09-19 등재 ·
+      `plan/complete/spec-draft-assistant-i18n-table-sync.md` «비대상» · `--impl-prep` `review/consistency/2026/09/19/08_07_50` WARNING 2).
+      서버가 스스로 채우는 `changeSummary` 는 버전 복원의 `Restored from v${version}`(`workflows.service.ts`) 하나다. 저장 API 는 요청의
+      `changeSummary` 를 그대로 저장하지만 프론트는 그 필드를 보내지 않는다(`codebase/frontend/src` grep — 응답 타입 · 표시 컴포넌트뿐).
+      체커는 예시 문자열의 금지어 «엣지» 만 짚었다 — 금지어만 고치면 틀린 문장을 다듬는 셈이라 두었다. 결정할 것: 서술을 실제(수동 저장은
+      요약 없음 · 복원만 자동 문구)로 고칠지, 자동 요약을 기능으로 정의할지(그러면 developer 구현).
+
+- [ ] **AI 어시스턴트 사전 키 셋이 spec 에 없다 — «이어서 진행» 버튼의 기능 서술부터 없다** (planner, 낮음, 2026-09-19 등재 ·
+      `plan/complete/spec-draft-assistant-i18n-table-sync.md` «비대상»). `dict/{ko,en}/assistant.ts` 의 `continueAfterBudget` ·
+      `continueAfterBudgetButton`(«이어서 진행» 버튼과 그 버튼이 보내는 문구) · `exampleArrange`(예시 프롬프트)가
+      `spec/3-workflow-editor/4-ai-assistant.md` 어디에도 없다. 본문(151 · 627 · 682행)은 사용자가 «이어서 진행해줘» 를 **직접 입력**하는
+      안내만 적는다. §13 표에 키만 넣으면 기능 정의 없이 문자열만 생기므로, 버튼이 언제 보이고 무엇을 보내는지부터 적는다.
+
 - [x] **트리거 자원 정리 구현이 남긴 stale 주석·이름 네 곳** (developer, 2026-09-17 등재 · **2026-09-18 해소** `plan/complete/trigger-release-stale-comments.md` — 넷 + 같은 클래스 전수 grep 으로 넷 더(락 상한 JSDoc 은 낡은 게 아니라 **틀렸다** — 비밀이 커밋 뒤로 옮겨간 것을 반영 안 했다) · `plan/complete/trigger-deletion-release.md` · `/ai-review` `review/code/2026/09/17/19_40_27` W4·INFO2 · `--impl-done` `review/consistency/2026/09/17/19_55_46` W2·W3 —
       수렴 예외로 등재). 넷 다 `codebase/**` 라 그 PR 안에서 고치면 리뷰·`--impl-done` 라운드가 늘었다.
       - `SecretResolverService.deleteByPrefix` JSDoc 의 «현재 프로덕션 호출부는 `triggers.service.ts` 한 곳뿐» — 실제 유일한
