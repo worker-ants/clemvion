@@ -4606,15 +4606,26 @@ field: T | null;
       컬럼(`id`·`type`·`config`)» 을 실행 단언으로 고정하는 것이 그 spec 파일이다(`find` 인자 정확 대조 — `config` 가 빠지면 teardown 이
       조용히 no-op). 지금 `code:` 는 서비스와 e2e 만 등재한다. 글로브 `trigger-resource-release*.ts` 로 묶는 안도 있다.
 
-- [ ] **`workflow`·`workspace` 를 참조하는 FK 중 선두 인덱스가 없는 여섯** (developer + planner, 2026-09-18 등재 ·
-      `plan/complete/spec-draft-trigger-workflow-index.md` «같은 클래스 전수»). 카탈로그로 29개 FK 를 대조해 `trigger.workflow_id`(V111 로 해소) 말고 여섯이 남았다 —
-      전부 `ON DELETE CASCADE` 라 부모 삭제가 자식 테이블을 전부 훑는다:
-      `integration_usage_log.workflow_id` · `alert_rule.workflow_id` · `auth_config.workspace_id` · `knowledge_base.workspace_id` ·
-      `integration_oauth_state.workspace_id` · `integration_oauth_preview.workspace_id`.
-      **`integration_usage_log` 우선** — 로그 테이블이라 행 수가 가장 클 수 있다. 다만 INSERT 가 잦은 테이블에 인덱스를 더하는 것은
-      쓰기 비용과 맞바꾸는 판단이라(부분 인덱스 `WHERE workflow_id IS NOT NULL` 여부 포함) 행 수·쓰기 빈도를 먼저 잰다.
-      재는 방법은 그 draft 의 일회용 컨테이너 절차(V001~ 적용 · 규모를 4배씩 · `EXPLAIN (ANALYZE)` 의 FK 트리거 시간)를 그대로 쓴다.
-      새 인덱스 마이그레이션은 `codebase/backend/migrations/README.md` §5 «신규 추가에도 0) 을 둡니다» 를 따른다.
+- [ ] **캔버스 저장이 노드를 빼면 그 노드의 실행 이력이 사라진다 — 보존 정책 결정 필요** (planner + 결정, 낮음, 2026-09-18 등재 ·
+      `--impl-done` `review/consistency/2026/09/18/14_23_35` INFO 2 · `plan/complete/spec-draft-deletion-cascade-indexes.md` «비대상»). `node_execution.node_id` 가 `ON DELETE CASCADE` 라
+      캔버스에서 노드를 지우고 저장하면 그 노드의 과거 실행 이력(`node_execution`)과 거기 딸린 `integration_usage_log` 가 함께 지워지고,
+      `llm_usage_log` 는 `node_execution_id` 만 NULL 이 된다. 트리거 삭제가 `execution.trigger_id` 를 SET NULL 로 두어 이력을 보존하는
+      것(트리거 목록 §4.3)과 방향이 다르다. 새 결함이 아니라 기존 동작이다 — 인덱스 PR 이 비용을 재다 정량화했을 뿐이다. 결정할 것: 노드 삭제가
+      실행 이력을 지우는 것이 의도인가(SET NULL 로 바꾸면 `node_id` NOT NULL 부터 바뀐다).
+
+- [ ] **선두 인덱스가 없는 FK — 부모를 한정하지 않은 전수 37개 중 32개 남음** (developer + planner, 2026-09-18 등재 ·
+      **2026-09-18 전제 정정** `plan/complete/spec-draft-deletion-cascade-indexes.md`). 처음엔 부모를 `workflow`·`workspace` 둘로 한정해 «여섯» 이라 적고 «`integration_usage_log` 우선»
+      이라 했는데, 재 보니 그 FK(`integration_usage_log.workflow_id`)는 워크플로 삭제 한 번에 0.55 ms 였다. 부모를 한정하지 않으면 단일 컬럼 FK
+      87개 중 **37개**가 선두 인덱스 없이 CASCADE·SET NULL·NO ACTION 을 건다. FK 트리거는 지워지는 부모 행마다 자식을 찾으므로 비용은
+      «자식 테이블 크기 × 연쇄로 지워지는 부모 행 수» 다. **전수 표는 `plan/complete/spec-draft-deletion-cascade-indexes.md` 부록이 SoT** 다.
+      - ✅ **2026-09-18 해소 다섯**(V112~V116) — 캔버스 노드 삭제(저장마다)·워크플로 삭제 연쇄: 800k 규모 워크플로 삭제 2,225 → 6.96 ms,
+        노드 하나 삭제 206.6 → 0.79 ms.
+      - **다음 후보 — 지식 베이스 연쇄**: `document_chunk` 삭제 → `entity.last_seen_chunk_id` · `relation.evidence_chunk_id`(SET NULL),
+        `entity` 삭제 → `relation.head_entity_id` · `relation.tail_entity_id`(CASCADE). 청크·엔티티 하나마다 entity·relation 을 전부 훑는다 —
+        문서 재색인 빈도에 따라 뜨거울 수 있다. 같은 절차(일회용 pg18 · 규모 4배씩 · `EXPLAIN (ANALYZE)` 의 FK 트리거 시간 · INSERT 5회 median)로 잰다.
+      - 그 밖: 큰 테이블을 훑지만 부모 삭제가 드문 것(`model_config` → `llm_usage_log.llm_config_id`, `user` → `audit_log.user_id` ·
+        `execution.executed_by`)과 작은 테이블(부록 표의 나머지). 이 PR 의 두 경로에 걸리는 `alert_rule.workflow_id` · `edge.target_node_id` 는
+        200k 에서 0.1 ms 미만이었다.
 
 - [x] **트리거 자원 정리 구현이 남긴 stale 주석·이름 네 곳** (developer, 2026-09-17 등재 · **2026-09-18 해소** `plan/complete/trigger-release-stale-comments.md` — 넷 + 같은 클래스 전수 grep 으로 넷 더(락 상한 JSDoc 은 낡은 게 아니라 **틀렸다** — 비밀이 커밋 뒤로 옮겨간 것을 반영 안 했다) · `plan/complete/trigger-deletion-release.md` · `/ai-review` `review/code/2026/09/17/19_40_27` W4·INFO2 · `--impl-done` `review/consistency/2026/09/17/19_55_46` W2·W3 —
       수렴 예외로 등재). 넷 다 `codebase/**` 라 그 PR 안에서 고치면 리뷰·`--impl-done` 라운드가 늘었다.

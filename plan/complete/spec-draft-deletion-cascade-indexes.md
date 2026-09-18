@@ -1,9 +1,10 @@
 ---
 title: 워크플로 삭제·캔버스 노드 삭제의 FK 연쇄 인덱스 — 실행 이력 행마다 로그 테이블을 전부 훑는다
-status: in-progress
+status: complete
 owner: project-planner
 worktree: usage-log-workflow-index-5b1e07
 started: 2026-09-18
+completed: 2026-09-18
 spec_impact:
   - spec/1-data-model.md
   - spec/data-flow/3-execution.md
@@ -139,10 +140,22 @@ median 1,060 ms · 없음 975 ms** — 행당 약 0.85 µs(+8.7%). 노드 한 �
   카탈로그 위생 → `plan/in-progress/cafe24-backlog-residual.md` 에 등재 · INFO 2 는 같은 plan 에 이미 있음 · INFO 4·5 조치 불요)
 - [x] V112~V116 · e2e 스키마 단언 · `python3 scripts/check-migration-versions.py --base origin/main` OK(max V116) — 일회용 pg18 에 V001~V116 을
   적용해 다섯 인덱스가 `indisvalid = true` 로 생기고 정의가 e2e 정규식과 맞음을 먼저 확인
-- [ ] lint · unit · build · e2e
-- [ ] `/ai-review`
-- [ ] `--impl-done`
-- [ ] 트래커 반영 · 이 draft `complete/` 이동 (이동은 이 PR 의 마지막 커밋 — spec Rationale 이 `plan/complete/` 경로로 인용한다)
+- [x] lint · unit · build(타입체크 ratchet — backend 197 · frontend 52, baseline 일치) · e2e backend **327**(직전 322 + 새 파일의
+  `it.each` 다섯 — 인덱스가 유효하게 있어야만 통과하므로 Flyway 가 V112~V116 을 적용했다는 증거). e2e 정규식의 판별력은 오답 정의 넷
+  (부분 조건 누락 · 부분 조건 붙음 · 선두 다름 · 복합)에 대해 node 로 확인했다
+- [x] `/ai-review` — **정지 규칙(1라운드 결과를 보기 전에 적는다)**: Critical 0 이고 남은 Warning 이 동작 결함이 아니면서 `codebase/**`
+  문서·주석(마이그레이션 헤더 포함)이면 developer SKILL «수렴 예외»(a)~(d)로 트래커 등재하고 2라운드를 돌지 않는다 — 단 `codebase/**` 를
+  건드리지 않고 닫히는 Warning(spec · plan)은 고친다. Critical 이거나 동작 결함이면 고치고 다시 돈다
+  → **1라운드 `review/code/2026/09/18/14_12_53` LOW · Critical 0 · Warning 0** (forced 8 전원 확보) — 2라운드 없음. INFO 12 처분:
+  1 `plan/complete/` 선인용 → 마지막 커밋에서 draft 이동 · 2 헤더 수치 5중 복제 → 선례(Flyway 자기완결) · 3 정규식 앞 앵커 없음 → 인덱스 이름
+  바인딩 + `indisvalid` 와 결합, 오답 정의 넷으로 판별력 확인 · 4 EXPLAIN 미검증 → 800k 실측이 대신 · 5 cafe24 등재 동반 → 발견 즉시 등재 관례 ·
+  6 DROP-먼저 재실행 비용 → README §5 의 감수하는 비대칭 · 7 인덱스 누적 → 다음 추가 때 합산(이 PR 의 %는 표에 있다) · **8 800k 보다 큰 운영 규모의
+  CONCURRENTLY 빌드 시간은 재지 않았다 → PR 설명에 적는다** · 9 e2e 쿼리 다섯 → 고정 N · 10 e2e 건수 미재현 → CI 가 재검증 · 11 e2e 파일 조직 →
+  조치 불요 · 12 쓰기 비용 WARNING 해소 확인
+- [x] `--impl-done spec/conventions/` — `review/consistency/2026/09/18/14_23_35` **BLOCK: NO** (Critical·Warning 0 · INFO 3 — 1 선인용은
+  이 draft 이동으로 해소 · 2 캔버스 노드 삭제의 실행 이력 CASCADE 소실을 트래커에 제품 결정 항목으로 등재 · 3 번들 예산은 트래커 기존 항목)
+- [x] 트래커 반영(«여섯» → «전수 37개 중 32개 남음» 전제 정정 · 보존 정책 항목 신설) · 이 draft `complete/` 이동 — spec Rationale ·
+  마이그레이션 헤더 다섯 · e2e JSDoc 이 인용하는 `plan/complete/` 경로가 이 커밋에서 참이 된다
 
 ## Rationale
 
@@ -167,3 +180,48 @@ median 1,060 ms · 없음 975 ms** — 행당 약 0.85 µs(+8.7%). 노드 한 �
   추론으로 갈음하려 했다. **쟀다**(위 쓰기 비용 표 — `node_execution` 과 같은 절차). S3 가 그 표를 옮기고 선행 절의 예고와 잇는다.
 - **INFO 3** 선행 절의 예고를 인용 → S3 에 반영. **INFO 4** 마이그레이션 번호 가드 → 체크리스트에 명시.
 - **INFO 1·2·5·6·7** 조치 불요(비대상 표가 이미 다룸 · 앵커는 유일 · 명명 규칙 성문화는 범위 밖 · 트래커 존치 항목은 반영 때 확인 · 제목은 다름).
+
+## 부록 — 선두 인덱스가 없는 FK 전수 37개 (카탈로그 출력, V001~V111 적용 DB)
+
+단일 컬럼 FK 87개 중 그 컬럼을 선두로 가진 인덱스가 없는 것. 트래커 항목이 이 표를 SoT 로 가리킨다. «처분» 칸이 빈 것은 작은 테이블이거나
+부모 삭제가 드물어 이번에 재지 않은 것이다.
+
+| 부모 | 자식.컬럼 | 삭제 동작 | 처분 |
+|---|---|---|---|
+| auth_config | `trigger.auth_config_id` | SET NULL |  |
+| document_chunk | `entity.last_seen_chunk_id` | SET NULL | 다음 후보(지식 베이스) |
+| document_chunk | `relation.evidence_chunk_id` | SET NULL | 다음 후보(지식 베이스) |
+| entity | `relation.head_entity_id` | CASCADE | 다음 후보(지식 베이스) |
+| entity | `relation.tail_entity_id` | CASCADE | 다음 후보(지식 베이스) |
+| execution | `llm_usage_log.execution_id` | SET NULL | ✅ V116 |
+| folder | `folder.parent_id` | CASCADE |  |
+| folder | `workflow.folder_id` | SET NULL |  |
+| integration | `integration_oauth_state.integration_id` | CASCADE |  |
+| model_config | `knowledge_base.extraction_llm_config_id` | SET NULL |  |
+| model_config | `knowledge_base.embedding_model_config_id` | SET NULL |  |
+| model_config | `knowledge_base.rerank_config_id` | SET NULL |  |
+| model_config | `knowledge_base.rerank_llm_config_id` | SET NULL |  |
+| model_config | `llm_usage_log.llm_config_id` | SET NULL | 모델 설정 삭제가 큰 로그 테이블을 훑는다 — 삭제는 드문 관리 동작 |
+| model_config | `workflow_assistant_session.llm_config_id` | SET NULL |  |
+| node | `edge.target_node_id` | CASCADE | 캔버스 노드 삭제에 걸림 — 200k 에서 0.022 ms |
+| node | `node_execution.node_id` | CASCADE | ✅ V112 |
+| node_execution | `integration_usage_log.node_execution_id` | CASCADE | ✅ V113 |
+| node_execution | `llm_usage_log.node_execution_id` | SET NULL | ✅ V115 |
+| user | `alert_rule.created_by` | SET NULL |  |
+| user | `audit_log.user_id` | NO ACTION | 사용자 삭제가 큰 감사 로그를 훑는다 — 사용자 삭제는 드물다 |
+| user | `execution.executed_by` | NO ACTION | 사용자 삭제가 실행 테이블을 훑는다 — 같음 |
+| user | `integration.created_by` | NO ACTION |  |
+| user | `integration_oauth_preview.user_id` | CASCADE |  |
+| user | `integration_oauth_state.user_id` | CASCADE |  |
+| user | `workflow.created_by` | NO ACTION |  |
+| user | `workflow_assistant_session.user_id` | CASCADE |  |
+| user | `workflow_version.created_by` | NO ACTION |  |
+| user | `workspace_invitation.invited_by` | SET NULL |  |
+| user | `workspace_invitation.accepted_by` | SET NULL |  |
+| user | `workspace_member.user_id` | CASCADE |  |
+| workflow | `alert_rule.workflow_id` | CASCADE | 워크플로 삭제에 걸림 — 200k 에서 0.095 ms |
+| workflow | `integration_usage_log.workflow_id` | CASCADE | ✅ V114 |
+| workspace | `auth_config.workspace_id` | CASCADE |  |
+| workspace | `integration_oauth_preview.workspace_id` | CASCADE |  |
+| workspace | `integration_oauth_state.workspace_id` | CASCADE |  |
+| workspace | `knowledge_base.workspace_id` | CASCADE |  |
