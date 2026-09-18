@@ -192,8 +192,14 @@ spec_impact:
 - [x] V131 · V132 · 서비스 · 테스트 — `check-migration-versions.py --base origin/main` → `OK: 132 migration(s), max V132`. 커밋할 파일 그대로
   일회용 pg18 에 적용: 중복 정리 · 멱등 · 전역 UNIQUE 교체 · 경쟁 시 옛 인덱스 valid 유지 · 정리 재실행 뒤 복구(«마이그레이션 검증» 과 같은 결과).
   단위: 충돌 계약 RED 6 → GREEN 11. 메시지 뮤턴트(«같은 워크스페이스에 …» 로 되돌림) RED 4. 백엔드 타입체크 ratchet baseline 일치
-- [ ] lint · unit · build · e2e
-- [ ] `/ai-review`
+- [x] lint · unit · build · e2e — 전부 PASS (e2e 343 = 앞 341 + B5 · B6, `webhook-trigger.e2e-spec.ts` PASS). 첫 판에서 lint(catch 인자 이름)와
+  frontend plan 링크 검사(draft 가 spec 기준 상대경로 인용)가 걸려 `b290d236b` 로 고쳤다. 백엔드 타입체크 ratchet baseline 일치
+  · 리뷰 1라운드 수정(`b9162a877`) 뒤 재실행: lint · unit(첫 실행 jest 워커 SIGSEGV — 재실행 통과) · build · e2e 344 PASS(V131 정리 e2e 포함)
+- [x] `/ai-review` — **정지 규칙(1라운드 결과를 보기 전 선언)**: Critical 0 이고 남은 Warning 이 동작 결함이 아니면(문서 · 주석 ·
+  테스트 형태 · plan 상태) `codebase/**` 를 고치지 않고 판정 · 등재로 닫는다. `codebase/**` 수정이 필요한 지적은 고치고 1라운드 더 — 최대 2라운드
+  → 1라운드 `review/code/2026/09/19/00_38_29` Critical 0 · Warning 6 — W1(V131 정리 e2e) · W2(동률 규칙) · W3(가이드) · W6(409 설명) 을
+  `b9162a877` 로 고쳤다(W4 · W5 는 마무리 커밋 · 배포 체크리스트). 2라운드 `…/01_04_31` Critical 0 · Warning 2 — W1 배포 체크리스트(1라운드 W5 와
+  같은 근원) · W2 `CHANGELOG.md` 항목 추가. **`codebase/**` 수정 0 인 2라운드로 종결** (각 세션 `RESOLUTION.md`)
 - [ ] `--impl-done`
 - [ ] 트래커 반영 · 이 draft `complete/` 이동(마지막 커밋). 이동 뒤 `grep -rln "plan/complete/spec-draft-webhook-endpoint-path-global-unique.md" spec codebase`
   로 인용 전부가 실재 경로를 가리키는지 확인
