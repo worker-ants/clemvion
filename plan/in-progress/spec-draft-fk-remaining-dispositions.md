@@ -259,8 +259,13 @@ UNIQUE 를 쓴다) · `notification.user_id`(늘 `workspace_id` 또는 `dismisse
 - [x] V121~V130 · e2e 열 건 · `python3 scripts/check-migration-versions.py --base origin/main` → `OK: 130 migration(s), max V130`.
   일회용 pg18 에 파일 그대로 두 번 적용(멱등) → 열 개 모두 `indisvalid`. e2e 정규식 판별력: 실제 정의 10/10 맞음 · 오답 22개(조건 누락 ·
   조건 추가 · 선두 변경 · 기존 부분 UNIQUE · 컬럼 순서) 전부 거부
-- [ ] lint · unit · build · e2e
-- [ ] `/ai-review`
+- [x] lint · unit · build · e2e — 전부 PASS (e2e 341 = 앞 PR 331 + 새 단언 10, `deletion-cascade-indexes.e2e-spec.ts` PASS —
+  `it.each` 열아홉 중 하나라도 실패하면 스위트가 FAIL 이므로 Flyway 가 V121~V130 을 유효하게 적용했다는 증거)
+- [x] `/ai-review` — **정지 규칙(1라운드 결과를 보기 전 선언)**: Critical 0 이고 남은 Warning 이 동작 결함이 아니면(문서 · 주석 ·
+  테스트 형태 · plan 상태) `codebase/**` 를 고치지 않고 판정 · 등재로 닫는다. `codebase/**` 수정이 필요한 지적은 고치고 1라운드 더 — 최대 2라운드
+  → `review/code/2026/09/18/23_03_16` **Critical 0 · Warning 0** · INFO 9(리뷰어 9명, 강제 8 전원). 1라운드 종결. INFO 1 `plan/complete/` 선인용 =
+  아래 마지막 항목의 이동 · grep 으로 닫힌다. INFO 4 대용량 테이블의 CONCURRENTLY 빌드 시간 = 헤더에 조회 개선치만 있다는 지적 — 빌드는
+  CONCURRENTLY 라 쓰기를 막지 않고 선례 V111~V120 도 같은 형식이라 조치 안 함. 나머지는 선례 확인 · 이미 등재된 항목
 - [ ] `--impl-done`
 - [ ] 트래커 · 부록 반영 · 이 draft `complete/` 이동(마지막 커밋). 이동 뒤 `grep -rln "plan/complete/spec-draft-fk-remaining-dispositions.md" spec codebase`
   로 인용 전부가 실재 경로를 가리키는지 확인
