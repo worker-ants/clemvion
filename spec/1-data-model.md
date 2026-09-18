@@ -434,7 +434,7 @@ Schedule은 Trigger의 서브타입이다. 양쪽의 라이프사이클과 상�
 
 **제약조건**: `UNIQUE(knowledge_base_id, name, type)`
 
-**인덱스**: `(knowledge_base_id, type)`, `(knowledge_base_id, mention_count DESC)`
+**인덱스**: `(knowledge_base_id, type)`, `(knowledge_base_id, mention_count DESC)`, `(last_seen_chunk_id) WHERE last_seen_chunk_id IS NOT NULL` — 청크 삭제의 FK SET NULL 용 (V117, §3)
 
 ### 2.12.3 Relation (구현: `GraphRelation`)
 
@@ -452,7 +452,7 @@ Schedule은 Trigger의 서브타입이다. 양쪽의 라이프사이클과 상�
 
 **제약조건**: `UNIQUE(knowledge_base_id, head_entity_id, predicate, tail_entity_id)`
 
-**인덱스**: `(knowledge_base_id, head_entity_id)`, `(knowledge_base_id, tail_entity_id)`
+**인덱스**: `(knowledge_base_id, head_entity_id)`, `(knowledge_base_id, tail_entity_id)`, `(evidence_chunk_id) WHERE evidence_chunk_id IS NOT NULL` · `(head_entity_id)` · `(tail_entity_id)` — 청크·엔티티 삭제의 FK 용 (V118~V120, §3)
 
 ### 2.12.4 ChunkEntity (구현: `GraphChunkEntity`)
 
@@ -955,11 +955,51 @@ DocumentChunk·Entity 계열 선례를 따른다.)
 | LlmUsageLog | (workflow_id, created_at DESC) WHERE workflow_id IS NOT NULL | 워크플로우별 비용 집계 — partial 로 non-node·워크플로우 밖 caller(workflow_id=NULL) 제외 (V014) |
 | LlmUsageLog | (node_execution_id) WHERE node_execution_id IS NOT NULL | FK `ON DELETE SET NULL` — 실행 이력 행이 지워질 때마다. partial 로 노드 밖 caller(NULL) 제외. CONCURRENTLY, V115 |
 | LlmUsageLog | (execution_id) WHERE execution_id IS NOT NULL | FK `ON DELETE SET NULL` — 실행 행이 지워질 때마다(워크플로 삭제). CONCURRENTLY, V116 |
+| Entity | (last_seen_chunk_id) WHERE last_seen_chunk_id IS NOT NULL | FK `ON DELETE SET NULL` — 청크가 지워질 **때마다** 한 번씩 찾는다(재임베딩 · 문서 삭제 · KB 삭제). 다른 인덱스는 전부 `knowledge_base_id` 선두라 쓰이지 않는다. CONCURRENTLY, V117 |
+| Relation | (evidence_chunk_id) WHERE evidence_chunk_id IS NOT NULL | FK `ON DELETE SET NULL` — 위와 같다. CONCURRENTLY, V118 |
+| Relation | (head_entity_id) | FK `ON DELETE CASCADE` — 엔티티가 지워질 때마다(엔티티 삭제 · KB 삭제). `(knowledge_base_id, head_entity_id)` 는 PG18 skip scan 으로 쓰이지만 KB 수에 비례한다. CONCURRENTLY, V119 |
+| Relation | (tail_entity_id) | 위와 같다(tail). CONCURRENTLY, V120 |
 | Folder | (workspace_id, parent_id) | 워크스페이스별 폴더 조회 |
 | Notification | (user_id, is_read, created_at DESC) WHERE dismissed_at IS NULL | 사용자별 visible 미읽음 알림 조회 (벨 배지·popover). partial 로 dismissed row 를 인덱스에서 배제해 크기를 작게 유지 — 자세한 라이프사이클은 [data-flow/8-notifications.md §4](./data-flow/8-notifications.md#4-dismiss-흐름-사용자-액션) |
 | Notification | (workspace_id, created_at DESC) | 워크스페이스별 알림 조회 — partial 미적용 (향후 admin/감사 쿼리가 dismissed 포함 전체 row 를 볼 여지) |
 
 ## Rationale
+
+### 그래프 RAG 삭제 연쇄의 FK 인덱스 넷 (2026-09-18)
+
+바로 아래 «삭제 연쇄의 FK 인덱스 다섯» 절이 남긴 32개 FK 중 **지식 베이스 연쇄 넷**을 닫는다. 그 절(과 트래커)은 «문서 재색인
+빈도에 따라 뜨거울 수 있다» 고 예측했는데, 재 보니 가장 무거운 경로는 재색인이 아니라 **KB 삭제**였다.
+
+| 경로 | 연쇄 |
+|---|---|
+| 재임베딩(수동 재실행 · 2차 이상 재시도 — 문서의 청크를 지우고 다시 만든다) · 문서 삭제 | 청크 **하나마다** `entity.last_seen_chunk_id` · `relation.evidence_chunk_id` (SET NULL) |
+| 엔티티 하나 삭제(관리 API) | `relation.head_entity_id` · `relation.tail_entity_id` (CASCADE) |
+| KB 삭제 | 청크 **전부**에 대해 첫째 연쇄 + 엔티티 **전부**에 대해 둘째 연쇄 |
+
+`entity` · `relation` 의 기존 인덱스는 전부 `knowledge_base_id` 가 선두다. FK 트리거의 조회는 KB 를 모르므로 `last_seen_chunk_id` ·
+`evidence_chunk_id` 는 전 테이블을 훑는다 — 아래 절의 공식(«자식 테이블 크기 × 연쇄로 지워지는 부모 행 수») 그대로다. **`head_entity_id` ·
+`tail_entity_id` 는 그 공식의 전제 밖이다** — `(knowledge_base_id, head_entity_id)` 가 이미 있어 PG18 skip scan 이 KB 값마다 건너뛰며 쓰므로,
+비용은 테이블 크기가 아니라 **KB 수**에 비례한다(엔티티 하나 삭제에서 호출당 0.74 ms → 2.1 ms, KB 100 → 400).
+
+실측 (PostgreSQL 18, V001~V116 적용, KB 마다 문서 50 × 청크 40 · 엔티티 1,000 · 관계 2,000, 워밍 뒤 1회):
+
+| 규모 (청크 / 엔티티 / 관계) | 재임베딩(문서 하나) | 엔티티 하나 삭제 | KB 하나 삭제 |
+|---|---|---|---|
+| 200k / 100k / 200k (KB 100) | 434.4 ms | 1.47 ms | 20,841 ms |
+| 800k / 400k / 800k (KB 400) | 1,795.7 ms | 4.25 ms | 129,941 ms |
+| 800k + 넷 | **2.37 ms** | **0.38 ms** | **48.1 ms** |
+
+청크 쪽 둘(`last_seen` · `evidence`)만 더하면 KB 삭제가 1,238.5 ms 로 남는데, 그중 1.2 초가 `head` · `tail`(각 1,000회, 600 ms)이다 — 둘도
+넣는 이유다.
+
+쓰기 비용 (10만 행 INSERT 5회 median, FK 컬럼을 전부 채운 최악): `entity` 부분 `(last_seen_chunk_id)` 1,438.8 → 1,467.9 ms(+2.0%, 잡음 수준) ·
+`relation` 셋 1,879.3 → 2,084.0 ms(행당 +2.05 µs, +10.9%). «있음» 을 먼저 쟀으므로 오버헤드가 과대평가된 방향이다. 그래프 추출은 청크마다
+LLM 호출(수백 ms~초) 뒤에 쓰므로 무시할 만하다. `last_seen_chunk_id` · `evidence_chunk_id` 는 nullable 이라 부분 인덱스다(V115 · V116 과 같은 이유).
+
+`chunk_entity` 는 `(chunk_id, entity_id)` PK · `(entity_id)` 인덱스가 둘 다 선두라 이미 쓰인다(KB 삭제에서 호출당 0.1 ms 미만).
+
+> 출처: 트래커 `plan/in-progress/spec-draft-nullable-notation-followups.md`. 실측 절차는
+> `plan/complete/spec-draft-graph-fk-indexes.md`, 구현은 V117~V120.
 
 ### 삭제 연쇄의 FK 인덱스 다섯 (2026-09-18)
 
@@ -1005,7 +1045,8 @@ DocumentChunk·Entity 계열 선례를 따른다.)
 **아래 «Trigger `(workflow_id)` 인덱스» 절과의 관계**: 그 절의 «같은 클래스 전수» 는 부모를 `workflow`·`workspace` 둘로 한정했고,
 «`integration_usage_log` 는 … 쓰기 비용과 맞바꾸는 판단이라 따로 잰다» 고 예고했다. 이 절이 그 검토다 — 재 보니 예고 대상이던
 `integration_usage_log.workflow_id` 는 삭제 한 번에 0.55 ms(200k)였고, 비용은 한정 밖의 FK(`node_execution` 을 가리키는 것)에 있었다.
-그 절의 문장은 그 범위에서 참이라 고치지 않는다. 나머지 32개 FK 는 트래커에 전수로 남겼다(지식 베이스 연쇄가 다음 후보).
+그 절의 문장은 그 범위에서 참이라 고치지 않는다. 나머지 32개 FK 는 트래커에 전수로 남겼다(지식 베이스 연쇄가 다음 후보 — **같은 날 위
+«그래프 RAG 삭제 연쇄의 FK 인덱스 넷» 절이 그 넷을 닫아 28개가 남았다**).
 
 > 출처: 트래커 `plan/in-progress/spec-draft-nullable-notation-followups.md`. 실측 절차는
 > `plan/complete/spec-draft-deletion-cascade-indexes.md`, 구현은 V112~V116.
