@@ -666,9 +666,9 @@ export class TriggersService {
         // «저장 대상은 이 요청이 바꾸는 필드뿐» 이 두 경로를 함께 막는다.
         //
         // **행이 사라졌으면 저장하지 않는다.** `save(entity)` 는 PK 로 재조회해 행이 없으면
-        // **INSERT** 한다 — 그 사이 `remove()` 가 끝난 트리거를 같은 id 로 되살리는 것이다.
-        // `remove()` 는 이미 `teardownChatChannel`·`secrets.deleteByPrefix`·BullMQ 해제·
-        // CASCADE 삭제를 마쳤으므로, 되살아난 행은 그 어느 것도 되돌리지 못한 **고아**가 된다.
+        // **INSERT** 한다 — 그 사이 삭제된 트리거를 같은 id 로 되살리는 것이다. 삭제 경로는 외부 해제
+        // (BullMQ job · provider teardown · listener)를 행 삭제 **전에** 끝내고 비밀은 커밋 **뒤에**
+        // 지우므로(spec 트리거 목록 §4.3), 되살아난 행은 그 어느 것도 되돌리지 못한 **고아**가 된다.
         //
         // 이 경로는 이 PR 이 만든 것이 아니다 — `origin/main` 의 `save(trigger)` 도 같은 호출
         // 형태다. 다만 이 PR 이 형제 세 창을 «행이 없으면 쓰지 않고 `false`» 로 만들어 **비대칭**

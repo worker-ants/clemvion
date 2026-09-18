@@ -158,8 +158,9 @@ export class SecretResolverService implements OnModuleInit {
   }
 
   /**
-   * Workspace 단위 cleanup — workspace 삭제 / trigger 일괄 삭제 시 호출.
-   * `scope` + `resourceId` prefix 로 한정해 부분 삭제 가능.
+   * 리소스 단위 cleanup — 접두 `secret://<scope>/<resourceId>/` 아래 ref 를 전부 지운다.
+   * 워크스페이스 단위 접두는 없다 — 워크스페이스 삭제도 **트리거마다** 이 함수를 부른다
+   * (spec `secret-store.md` §2.1 · §5.3).
    *
    * 예: `deleteByPrefix('secret://triggers/{id}/')` — 해당 trigger 의 모든 secret.
    *
@@ -169,8 +170,10 @@ export class SecretResolverService implements OnModuleInit {
    * 인젝션은 아니지만**, prefix 에 `%`(임의 문자열)나 `_`(임의 1글자)가 섞이면 의도보다
    * **넓게 지워진다** — 삭제는 되돌릴 수 없어서 방향이 나쁘다.
    *
-   * 현재 프로덕션 호출부는 `triggers.service.ts` 한 곳뿐이고 `secret://triggers/{uuid}/`
-   * 라 메타문자가 들어갈 수 없다(2026-08-09 전수 확인). 그래서 "지금은 안전하다" 를
+   * 프로덕션 직접 호출부는 `trigger-resource-release.ts` 의 `deleteTriggerSecretsAfterCommit`
+   * 한 곳이고(트리거 행을 없애는 네 경로와 쓰기 보상이 그 함수를 지난다), 접두는
+   * `secret://triggers/{uuid}/` 라 메타문자가 들어갈 수 없다(2026-09-18 전수 확인 — 2026-08-09 에는
+   * `triggers.service.ts` 한 곳이었다). 그래서 "지금은 안전하다" 를
    * 주석으로만 적어 둘 수도 있었지만, 그 안전은 **호출부 목록이 그대로일 때만** 참이다.
    * 사용자 입력이 섞인 prefix 를 넘기는 호출부가 하나 생기면 주석은 아무것도 막지 못한다.
    * 위의 `secret://` 접두사 검사와 같은 형태로 **입력 자체를 거부**해 그 조건을 없앤다.

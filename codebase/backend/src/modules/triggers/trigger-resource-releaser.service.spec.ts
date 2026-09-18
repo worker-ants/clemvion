@@ -50,8 +50,8 @@ describe('TriggerResourceReleaserService', () => {
         events.push(`teardown:${t.id}`);
         return Promise.resolve();
       }),
-      teardownChannelConfig: jest.fn((id: string) => {
-        events.push(`teardownConfig:${id}`);
+      teardownRegisteredChannel: jest.fn((id: string) => {
+        events.push(`teardownRegistered:${id}`);
         return Promise.resolve();
       }),
     };
@@ -312,7 +312,7 @@ describe('TriggerResourceReleaserService', () => {
     await service.undoAbsentWrite('t1', cfg, 'C');
 
     expect(events).toEqual([
-      'teardownConfig:t1',
+      'teardownRegistered:t1',
       'delete:secret://triggers/t1/',
     ]);
   });

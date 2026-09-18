@@ -115,11 +115,13 @@ export async function acquireTriggerConfigLock(
  * 재시작과 함께 굳어진다 (`/ai-review` `review/code/2026/09/14/20_49_15` side_effect
  * WARNING#2).
  *
- * **무엇을 먼저 끝냈는지는 소비자마다 다르다** — `TriggersService.remove()` 는 provider
- * teardown · secret 삭제 · listener 해제까지, `SchedulesService.remove()` 는 BullMQ job
- * 해제만. 공통점은 그것들이 **되돌릴 수 없다**는 것이고, 이 상수가 거는 것은 그 공통점이다.
- * 한때 앞 소비자의 정리 목록을 여기 나열했는데, 두 번째 소비자가 생기자 그 목록이 곧바로
- * 과대 서술이 됐다 (`/ai-review` `review/code/2026/09/15/01_42_04` documentation INFO#17).
+ * **소비자와 그 정리 목록을 여기 적지 않는다 — 규칙만 적는다.** 이 상수를 거는 것은 **되돌릴 수
+ * 없는 외부 해제를 이미 끝낸 삭제 트랜잭션**이다. 무엇을 해제했는지는 경로마다 다르고, 그 SoT 는
+ * spec 트리거 목록 §4.3 의 자원 표다. 비밀은 여기 들지 않는다 — 행 삭제가 커밋된 **뒤에** 지운다.
+ *
+ * 목록은 두 번 틀렸다. 첫 소비자의 정리 목록을 적었다가 두 번째 소비자가 생기자 과대 서술이 됐고
+ * (`/ai-review` `review/code/2026/09/15/01_42_04` documentation INFO#17), 소비자별로 고쳐 적은 목록은
+ * 트리거 삭제의 비밀 정리가 커밋 뒤로 옮겨가고(#1346) 부모 삭제가 소비자로 더해지자 다시 거짓이 됐다.
  *
  * 상한을 두면 그 상태가 **조용한 지연이 아니라 드러나는 오류**가 된다.
  */
