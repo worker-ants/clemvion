@@ -4596,7 +4596,7 @@ field: T | null;
         않게) — 대량 삭제 지연이 트리거 수에 선형이다. «부모 하나의 트리거 수가 작다» 는 **실측되지 않은 가정**이다.
       - `releaseExternalForParent` 가 트리거 전체 컬럼을 적재한다 — `select: { id, type, config }` 로 좁힐 수 있다.
 
-- [ ] **트리거 자원 정리 구현이 남긴 stale 주석·이름 네 곳** (developer, 2026-09-17 등재 · `plan/complete/trigger-deletion-release.md` · `/ai-review` `review/code/2026/09/17/19_40_27` W4·INFO2 · `--impl-done` `review/consistency/2026/09/17/19_55_46` W2·W3 —
+- [x] **트리거 자원 정리 구현이 남긴 stale 주석·이름 네 곳** (developer, 2026-09-17 등재 · **2026-09-18 해소** `plan/complete/trigger-release-stale-comments.md` — 넷 + 같은 클래스 전수 grep 으로 넷 더(락 상한 JSDoc 은 낡은 게 아니라 **틀렸다** — 비밀이 커밋 뒤로 옮겨간 것을 반영 안 했다) · `plan/complete/trigger-deletion-release.md` · `/ai-review` `review/code/2026/09/17/19_40_27` W4·INFO2 · `--impl-done` `review/consistency/2026/09/17/19_55_46` W2·W3 —
       수렴 예외로 등재). 넷 다 `codebase/**` 라 그 PR 안에서 고치면 리뷰·`--impl-done` 라운드가 늘었다.
       - `SecretResolverService.deleteByPrefix` JSDoc 의 «현재 프로덕션 호출부는 `triggers.service.ts` 한 곳뿐» — 실제 유일한
         직접 호출부는 `trigger-resource-release.ts` 의 `deleteTriggerSecretsAfterCommit`(네 삭제 경로 + 쓰기 보상이 그 함수를 지난다).
@@ -4607,6 +4607,13 @@ field: T | null;
         `review/code/2026/09/17/18_45_09` 전체 경로로.
       - `ChatChannelBinderService` 의 `teardownChannelConfig`(보상 경로 — 이번 요청이 등록한 설정)와 `teardownChatChannel`(저장된 설정)
         이름이 어순만 달라 grep·로그에서 헷갈린다 — `teardownRegisteredChannel` 류로.
+
+- [ ] **`deleteByPrefix` JSDoc 의 호출부 서술을 호출부 수와 무관한 문장으로** (developer, 낮음, 2026-09-18 등재 ·
+      `plan/complete/trigger-release-stale-comments.md` · `/ai-review` `review/code/2026/09/18/11_42_35` INFO 2·8).
+      `secret-resolver.service.ts` 의 «LIKE 메타문자를 거부하는 이유» 가 안전 근거로 «프로덕션 직접 호출부는 한 곳» 을 날짜와 함께
+      적는다 — 2026-08-09 `triggers.service.ts` → 2026-09-18 `trigger-resource-release.ts` 로 **두 번째 갱신**이었고 호출부가 늘면
+      세 번째가 온다. 입력 거부(`secret://` 접두 · `% _ \`)가 이미 SoT 라 «호출부가 무엇을 넘기든 거부가 막는다» 로 쓸 수 있다.
+      그 PR 에서 하지 않은 이유: `codebase/**` 주석이라 리뷰·e2e 가 한 라운드 더 돌고, 지금 문장은 날짜 달린 실측이라 거짓이 아니다.
 
 - [ ] **동시 중복 DELETE 가 감사 행을 두 번 남길 수 있다** (developer, 낮음, 2026-09-17 등재 · `/ai-review` `review/code/2026/09/17/18_45_09` INFO 19·21).
       워크플로 삭제 두 요청이 겹치면 둘 다 잠금 없는 `findById` 를 통과하고, 뒤 요청은 부모 잠금 뒤 `findOne` 이 `null` 인데도

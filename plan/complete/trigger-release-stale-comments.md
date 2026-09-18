@@ -1,9 +1,10 @@
 ---
 title: 트리거 삭제 자원 정리(#1346)가 남긴 stale 주석·이름 정리
-status: in-progress
+status: complete
 owner: developer
 worktree: trigger-stale-comments-7c41e9
 started: 2026-09-18
+completed: 2026-09-18
 spec_impact: none
 ---
 
@@ -42,8 +43,24 @@ spec_impact: none
 ## 체크리스트
 
 - [x] `--impl-prep spec/2-navigation/` — `review/consistency/2026/09/18/11_26_25` **BLOCK: NO** (INFO 6 — 2 는 표 4 행에 반영, 3·4·5 는 spec 표기·기존 부채라 이 PR 밖, 1·6 조치 불요)
-- [ ] 1~8 적용
-- [ ] lint · unit · build · e2e
-- [ ] `/ai-review`
-- [ ] `--impl-done`
-- [ ] 트래커 항목 종결 표시 · 이 plan `complete/` 이동
+- [x] 1~8 적용 — 이름 변경은 뮤턴트로 확인: releaser 호출부만 옛 이름으로 되돌리면 예측 RED 1 · 실측 RED 1
+  (`trigger-resource-releaser.service.spec.ts` «등록한 설정이 있으면», 사유 `teardownChannelConfig is not a function`)
+- [x] lint · unit · build(타입체크 ratchet 포함 — backend 197 · frontend 52, baseline 일치) · e2e backend 321
+  (`trigger-workflow-ref` · `trigger-deletion-releases-resources` 실행 확인)
+- [x] `/ai-review` — `review/code/2026/09/18/11_42_35` **LOW · Critical 0 · Warning 0** (forced 7 전원 확보, 실행 8 · 제외 6).
+  INFO 10 처분:
+  - **2·8** `deleteByPrefix` JSDoc 이 안전 근거로 «호출부가 한 곳» 을 날짜와 함께 적는다 — 이번이 두 번째 갱신이고 호출부가 늘면
+    세 번째가 온다. 맞는 지적이다: 입력 거부(`secret://` 접두 · LIKE 메타문자)가 이미 SoT 라 호출부 수와 무관한 문장으로 바꿀 수 있다.
+    **이 PR 에서 하지 않는다** — `codebase/**` 주석이라 고치면 리뷰·e2e 한 라운드가 더 돌고, 지금 문장은 **날짜 달린 실측**이라 거짓이
+    아니다. 트래커에 등재(«`deleteByPrefix` JSDoc 의 호출부 서술을 호출부 수와 무관한 문장으로»).
+  - **1** «네 삭제 경로가 비밀을 커밋 뒤에 지운다» 를 표준 문구 하나로 — 하지 않는다. 다섯 자리가 각자 다른 층(보안 근거 · 락 상한 규칙 ·
+    부활 고아 · 테스트 · e2e teardown)을 설명하고, 사실의 SoT 는 spec 이다 — `trigger-config-lock.ts` · `triggers.service.ts` ·
+    e2e 주석은 트리거 목록 §4.3 을, `secret-resolver.service.ts` 는 `secret-store.md` §2.1·§5.3 을 인용한다(`triggers.service.spec.ts`
+    테스트 주석은 인용하지 않는다 — 바로 위 프로덕션 주석과 짝이다).
+  - **4·5** plan 표 4 행 호출부 · 체크리스트 — 리뷰가 본 커밋 뒤 이미 반영됐다.
+  - **3** 이름 바꾼 메서드의 «넘겨받은 설정» 경로를 실인스턴스로 검증하는 테스트 부재 — 이 PR 이전부터의 구조, 조치 불요(리뷰 제안도 «바꿀 일이 생기면»).
+  - **6·7** e2e 주석 줄바꿈 · `trigger-config-lock.ts` JSDoc 밀도 — 조치 불요. **9·10** 스코프·이름 변경 완전성 확인 — 양호.
+- [x] `--impl-done spec/2-navigation/` — `review/consistency/2026/09/18/11_52_26` **BLOCK: NO** (전원 NONE · INFO 8, 조치 불요 —
+  INFO 5 트래커 종결 표시는 아래). scope 밖 spec(15-chat-channel · secret-store · 12-webhook · 14-EIA · 9-user-profile)은
+  review_guard 의 `code:` 파서로 걸린 파일을 실측해 프롬프트에 직접 Read 블록으로 넣었다
+- [x] 트래커 항목 종결 표시 · 새 항목 «`deleteByPrefix` JSDoc 의 호출부 서술을 호출부 수와 무관한 문장으로» 등재 · 이 plan `complete/` 이동
