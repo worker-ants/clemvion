@@ -30,11 +30,14 @@ export enum NodeExecutionStatus {
  * (V095__node_execution_exec_status_active_index.sql) 의 partial index
  * `WHERE status IN ('waiting_for_input','running')` 로 DB 에 적용되어 있다 —
  * 중복 DDL 방지를 위해 새 마이그레이션 없이 이 데코레이터로 TypeORM 스키마 인식만 선언.
+ * 그래서 이름과 부분 조건까지 V095 그대로 적는다(`test/entity-schema-declarations.e2e-spec.ts`).
  *
  * 참고: `outputData` 는 공개 EIA 표면(SSE·status)으로 흘러가므로 민감 중간 결과를
  * 이 컬럼에 기록 금지 (EIA §5.3 / interaction.service.ts `getStatus()` JSDoc 참조).
  */
-@Index(['executionId', 'status'])
+@Index('idx_node_execution_exec_status_active', ['executionId', 'status'], {
+  where: "status IN ('waiting_for_input', 'running')",
+})
 @Entity('node_execution')
 export class NodeExecution {
   @PrimaryGeneratedColumn('uuid')

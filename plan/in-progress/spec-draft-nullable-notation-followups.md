@@ -4664,6 +4664,11 @@ field: T | null;
       체커는 예시 문자열의 금지어 «엣지» 만 짚었다 — 금지어만 고치면 틀린 문장을 다듬는 셈이라 두었다. 결정할 것: 서술을 실제(수동 저장은
       요약 없음 · 복원만 자동 문구)로 고칠지, 자동 요약을 기능으로 정의할지(그러면 developer 구현).
 
+- [ ] **`spec/1-data-model.md` §2 Workspace `owner_id` 행이 삭제 동작을 적지 않는다** (planner, 낮음, 2026-09-19 등재 ·
+      `--impl-prep` `review/consistency/2026/09/19/08_33_13` WARNING 1 · `plan/complete/entity-schema-declaration-drift.md`).
+      실제 FK 는 `ON DELETE CASCADE`(V001)이고 엔티티도 그 PR 부터 `{ onDelete: 'CASCADE' }` 를 적는다. 같은 파일의 다른 User FK 행
+      (WorkflowTestDataset `owner_id` 등)은 삭제 동작을 괄호로 적는 관례다. `FK → User (ON DELETE CASCADE)` 로 맞춘다.
+
 - [ ] **AI 어시스턴트 사전 키 셋이 spec 에 없다 — «이어서 진행» 버튼의 기능 서술부터 없다** (planner, 낮음, 2026-09-19 등재 ·
       `plan/complete/spec-draft-assistant-i18n-table-sync.md` «비대상»). `dict/{ko,en}/assistant.ts` 의 `continueAfterBudget` ·
       `continueAfterBudgetButton`(«이어서 진행» 버튼과 그 버튼이 보내는 문구) · `exampleArrange`(예시 프롬프트)가

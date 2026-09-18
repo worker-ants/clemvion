@@ -12,11 +12,9 @@ import { Integration } from './integration.entity';
 export type ExpiryThreshold = '7d' | '3d' | '0d';
 
 @Entity('integration_expiry_dispatch')
-@Unique('integration_expiry_dispatch_key', [
-  'integrationId',
-  'threshold',
-  'tokenExpiresAt',
-])
+// V009 의 이름 없는 UNIQUE 라 Postgres 가 자동 이름을 붙였다 — 이름은 적지 않는다.
+// 삽입(`claimThreshold`)은 대상 없는 `ON CONFLICT DO NOTHING` 이라 이름을 참조하지 않는다.
+@Unique(['integrationId', 'threshold', 'tokenExpiresAt'])
 export class IntegrationExpiryDispatch {
   @PrimaryGeneratedColumn('uuid')
   id: string;
