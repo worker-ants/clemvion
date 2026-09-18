@@ -242,7 +242,7 @@ WebAuthn (Passkey/보안 키) credential 자체는 별도 엔티티 [§2.21 WebA
 | name | String | 트리거 이름 |
 | is_active | Boolean | 활성 상태 |
 | config | JSONB | 트리거별 설정. `notification` / `interaction` 서브 필드는 [Spec External Interaction API §7.1](./5-system/14-external-interaction-api.md#71-trigger-엔티티-확장) 참조. `chatChannel` 서브 필드 (외부 chat 플랫폼 어댑터) 는 [Spec Chat Channel §4.1](./5-system/15-chat-channel.md#41-triggerconfigchatchannel) 참조. 응답 DTO 전용 derived 필드 `hasBotToken: boolean` (`botTokenRef IS NOT NULL → true`) — DB 컬럼 아님, SoT [Spec Chat Channel §5.4.2](./5-system/15-chat-channel.md#542-응답-dto-derived-필드--hasbottoken) |
-| endpoint_path | String? | Webhook URL 경로 (type=webhook) |
+| endpoint_path | String? | Webhook URL 경로 (type=webhook) — 라우팅 키가 전역이라 **전역 유일**(§3, V132) |
 | auth_config_id | UUID? | FK → AuthConfig (Webhook 인증) |
 | last_triggered_at | Timestamp? | 마지막 실행 시각 |
 | notification_health | Enum | unknown / healthy / degraded. Outbound notification 발송 건강도. default=`unknown`. [Spec EIA §3.1 EIA-NX-07](./5-system/14-external-interaction-api.md#31-outbound-notification-notification-webhook) |
@@ -924,7 +924,7 @@ DocumentChunk·Entity 계열 선례를 따른다.)
 | NodeExecution | (node_id) | FK `ON DELETE CASCADE` 의 자식 조회 — 캔버스 저장이 노드를 뺄 때(저장마다)와 워크플로 삭제. 기존 `(execution_id, node_id, started_at DESC)` 는 선두가 달라 쓰이지 않는다. CONCURRENTLY, V112 |
 | ExecutionNodeLog | (execution_id, id) | 단일 실행의 노드 진행 순서 조회 |
 | Trigger | (workspace_id, type) | 유형별 트리거 조회 |
-| Trigger | (workspace_id, endpoint_path) UNIQUE | Webhook URL 라우팅 (워크스페이스 단위 유니크) |
+| Trigger | (endpoint_path) UNIQUE WHERE endpoint_path IS NOT NULL | Webhook URL 라우팅 — 라우팅 키(`/api/hooks/:endpointPath`)가 워크스페이스 무관 전역이라 유일성도 전역이다. 수신 · 공개 가드 · 웹챗 embed-config 가 이 컬럼 하나로 찾는다. V002 의 `(workspace_id, endpoint_path)` UNIQUE 를 교체(V131 중복 정리 · V132 CONCURRENTLY) |
 | Trigger | (workflow_id) | 워크플로 삭제 경로 — 트리거 자원 정리의 열거 두 번(`WHERE workflow_id = ?`, 하나는 `workflow` 행 잠금 안)과 FK `ON DELETE CASCADE`. 이 셋 말고 `workflow_id` 로 트리거를 찾는 곳은 없다. Postgres 는 FK 에 인덱스를 자동 생성하지 않는다. CONCURRENTLY, V111 |
 | Trigger | (notification_health) WHERE notification_health = 'degraded' | V061 이 적은 목적: outbound notification 발송이 degraded 인 트리거를 대시보드·운영 알림에서 전 테이블 스캔 없이 찾는다(부분 인덱스). V061 |
 | Trigger | (auth_config_id) WHERE auth_config_id IS NOT NULL | 인증 설정 사용처(`GET /api/auth-configs/:id/usage`)가 이 컬럼 하나로 트리거를 찾는다(이어서 위 `Execution (trigger_id, started_at DESC)`). FK `ON DELETE SET NULL`(인증 설정 삭제)도 이것을 쓴다. CONCURRENTLY, V126 |
@@ -974,6 +974,47 @@ DocumentChunk·Entity 계열 선례를 따른다.)
 | Notification | (workspace_id, created_at DESC) | 워크스페이스별 알림 조회 — partial 미적용 (향후 admin/감사 쿼리가 dismissed 포함 전체 row 를 볼 여지) |
 
 ## Rationale
+
+### Webhook `endpoint_path` 전역 유일 (2026-09-18)
+
+웹훅 수신 URL `/api/hooks/:endpointPath` 는 **워크스페이스와 무관한 전역 라우팅 키**인데, 유일성은 `(workspace_id, endpoint_path)` —
+**워크스페이스 단위**뿐이었다(V002). `endpoint_path` 는 클라이언트가 만들어 보내고(서버는 v4 형식만 강제 — [12-webhook WH-MG-02](./5-system/12-webhook.md))
+나중에 바꿀 수 있는데, 다른 워크스페이스의 경로와 겹치는지는 아무도 검사하지 않았다. 수신 조회 셋(수신 · 공개 가드 · 웹챗 embed-config)은
+모두 `endpoint_path` 와 `type` 으로만 — 워크스페이스 없이 · 정렬 없이 — 한 행을 고른다. 그래서 **경로를 알고 있는 사람**(그 워크스페이스의
+뷰어 · 전 멤버 · URL 을 받은 외부 서비스)이 자기 워크스페이스에 같은 경로로 트리거를 만들면 수신 웹훅이 둘 중 하나로 갔다. 12-webhook 은
+«고엔트로피가 squatting·enumeration 을 막는다» 는 전제만 적었는데, 고엔트로피는 **추측**을 막을 뿐 **복사**는 막지 못한다.
+
+재현(PostgreSQL 18, 옛 스키마): 워크스페이스 id 가 더 작은 워크스페이스가 피해자의 경로를 나중에 복사하자 수신 조회와 같은 쿼리가 **복사한
+쪽을 골랐다**. 반대 순서면 원래 주인을 고른다 — 이기는 쪽을 워크스페이스 id 순서가 정한다.
+
+결정(2026-09-18 사용자):
+- **유일성을 전역으로** — `(endpoint_path) UNIQUE WHERE endpoint_path IS NOT NULL` 이 V002 의 UNIQUE 를 교체한다(V132). 기각: 비유일 보조
+  인덱스 + 앱 레벨 중복 검사 + 가장 오래된 행 선택 — 마이그레이션 위험은 없지만 동시 요청 경합을 DB 가 막지 못한다.
+- **기존 중복은 나중 것을 새 UUID 로**(V131) — 경로가 같은 묶음마다 가장 먼저 만든 트리거(`created_at`, 같으면 `id`)만 경로를 유지하고
+  나머지는 `gen_random_uuid()` 로 새 경로를 받는다. 복사는 원본보다 나중에만 생길 수 있어서다. 바뀐 트리거는 id · 워크스페이스 id · 채팅 채널 여부만 NOTICE 로
+  남긴다(경로는 비밀 키라 로그에 남기지 않는다). 정상 경로로는 워크스페이스 간 중복이 생기지 않으므로(복제 · 가져오기는 트리거를 옮기지 않는다 —
+  [data-flow/11-workflow.md](./data-flow/11-workflow.md)) 중복이 있다면 복사 등록의 흔적이다. 기각: 중복이 있으면 마이그레이션을 실패시킨다 —
+  데이터를 몰래 바꾸지 않지만 배포가 막힌다.
+- **새 경로를 받은 트리거가 채팅 채널이면** provider 에 등록된 URL 은 옛 경로 그대로다 — SQL 은 provider API 를 부를 수 없다.
+  [15-chat-channel R-CC-21](./5-system/15-chat-channel.md) 이 기각한 «재등록 없는 경로 변경» 을 흉내 내지 않고, NOTICE 에 `chat_channel=true`
+  를 남겨 배포 운영자가 그 소유자에게 채널 설정을 **다시 저장**하게 한다 — 재등록은 정상 경로(다시 저장 → `setupChannel`, CCH-AD-02 멱등)로
+  일어난다(V132 헤더의 운영 절차). 채팅 채널 상태 컬럼은 쓰지 않는다 — `degraded` 는 «외부 API 호출 실패» 신호로 경로가 닫혀 있다(R-CC-19).
+  그 사이 옛 경로로 오는 provider 요청은 먼저 만든 쪽이 받는데, 그쪽이 채팅 채널이면 **그 트리거의 비밀로** 서명을 검증해 401 로 거부되고
+  (R-CC-12(d)), 공개 웹훅이면 경로를 아는 누구든 직접 POST 할 수 있는 URL 이라 새로 열리는 표면이 아니다. 마이그레이션 전에도 이 묶음은
+  조회가 한 행만 골라 한쪽만 받고 있었다.
+
+정리(`DO` 블록)는 트랜잭션 문장이고 교체는 `CONCURRENTLY` 라 한 파일에 둘 수 없다([migrations README §5](../codebase/backend/migrations/README.md)).
+V131 과 V132 사이에 복사가 끼어들면 V132 가 중복 키로 실패하고 새 인덱스가 invalid 로 남지만 **옛 인덱스는 valid 그대로**라 보호가 줄지 않는다 —
+V131 본문을 수동으로 다시 돌린 뒤 V132 를 재실행하면 0) DROP 이 잔재를 치우고 성공한다(실측). 그 절차는 V132 헤더에 있다.
+
+성능은 부수 효과다 — 옛 인덱스는 `workspace_id` 가 선두라 워크스페이스를 모르는 수신 조회가 인덱스 전체를 훑었다(웹훅 트리거 1.25만 0.049 ms →
+5만 0.200 ms, 선형). 전역 UNIQUE 로는 0.014~0.025 ms 다. 인덱스를 교체하므로 수는 그대로다.
+
+**남는 틈**: 주인이 트리거를 **지우면** 그 경로는 비고, 경로를 아는 누구든 다시 등록할 수 있다 — 외부 서비스가 옛 URL 로 계속 보내면 새 주인이
+받는다. 전역 UNIQUE 는 **동시에 존재하는** 중복만 막는다. 지운 경로를 묶어 두려면 묘비(tombstone)가 필요하고, 트래커에 따로 올렸다.
+
+> 출처: 트래커 `plan/in-progress/spec-draft-nullable-notation-followups.md`. 재현 · 실측 · 마이그레이션 검증은
+> `plan/complete/spec-draft-webhook-endpoint-path-global-unique.md`, 구현은 V131 · V132.
 
 ### 쓸 인덱스가 없는 FK 서른하나의 처분 (2026-09-18)
 
@@ -1034,7 +1075,8 @@ KB 5 · LLM 로그 200 · 어시스턴트 세션 10, 새로 만든 데이터, �
 `model_config` 만 `(workspace_id, kind)` 두 컬럼인 것은 목록 조회가 늘 `kind` 를 함께 걸기 때문이다.
 
 28개 **밖**에서 같은 모양으로 찾은 웹훅 트리거 조회(`endpoint_path` 로만 찾는데 인덱스는 `(workspace_id, endpoint_path)`)는 유일성 범위 결정이
-걸려 트래커로 보냈다.
+걸려 트래커로 보냈다. 같은 날 위 «Webhook `endpoint_path` 전역 유일» 절이 전역으로 정했다 — 재 보니 성능보다 교차 워크스페이스 가로채기가
+먼저였다.
 
 > 출처: 트래커 `plan/in-progress/spec-draft-nullable-notation-followups.md`. 실측 절차와 31개 처분 표는
 > `plan/complete/spec-draft-fk-remaining-dispositions.md`, 구현은 V121~V130.

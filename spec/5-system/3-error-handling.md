@@ -231,11 +231,11 @@ code:
 
 ### 1.10 트리거 endpointPath 충돌 세부 코드 (도메인 spec 참조)
 
-`POST /api/triggers` · `PATCH /api/triggers/:id` 가 `(workspace_id, endpoint_path)` UNIQUE 제약을 위반할 때 발행한다. **top-level `code` 는 상태 기본값 `RESOURCE_CONFLICT` 를 유지**하고 세부 사유는 `details` 에 싣는다 — 어느 필드가 충돌했는지가 정보의 일부이기 때문이다([API 규약 §5.3 택일 기준](./2-api-convention.md#도메인-세부-사유를-어디에-싣는가--top-level-code-교체-vs-detailscode)). 정의·트리거 SoT 는 [2-trigger-list.md §3](../2-navigation/2-trigger-list.md#3-api) 이고 본 절은 공용 카탈로그 가시성 등재다. `UPPER_SNAKE_CASE` 규약([conventions/error-codes.md](../conventions/error-codes.md))을 따른다.
+`POST /api/triggers` · `PATCH /api/triggers/:id` 가 `(endpoint_path)` UNIQUE 제약(전역)을 위반할 때 발행한다. **top-level `code` 는 상태 기본값 `RESOURCE_CONFLICT` 를 유지**하고 세부 사유는 `details` 에 싣는다 — 어느 필드가 충돌했는지가 정보의 일부이기 때문이다([API 규약 §5.3 택일 기준](./2-api-convention.md#도메인-세부-사유를-어디에-싣는가--top-level-code-교체-vs-detailscode)). 정의·트리거 SoT 는 [2-trigger-list.md §3](../2-navigation/2-trigger-list.md#3-api) 이고 본 절은 공용 카탈로그 가시성 등재다. `UPPER_SNAKE_CASE` 규약([conventions/error-codes.md](../conventions/error-codes.md))을 따른다.
 
 | 세부 코드 (`details.code`) | 봉투 `code` / status | 설명 | 도메인 SoT |
 |------|--------|------|-----------|
-| `TRIGGER_ENDPOINT_PATH_CONFLICT` | `RESOURCE_CONFLICT` / 409 | 동일 워크스페이스에 같은 `endpointPath` 를 쓰는 트리거가 이미 존재. `details.field='endpoint_path'` | [2-trigger-list §3](../2-navigation/2-trigger-list.md#3-api) |
+| `TRIGGER_ENDPOINT_PATH_CONFLICT` | `RESOURCE_CONFLICT` / 409 | 같은 `endpointPath` 를 쓰는 트리거가 이미 존재(다른 워크스페이스의 트리거 포함 — 전역 유일). `details.field='endpoint_path'` | [2-trigger-list §3](../2-navigation/2-trigger-list.md#3-api) |
 
 > `details` 가 **객체 형태**인 사례다(배열이 아니다) — 형태 구분은 [API 규약 §5.3](./2-api-convention.md#도메인-세부-사유를-어디에-싣는가--top-level-code-교체-vs-detailscode) 의 표 참조. 같은 경로의 길이·이름 검증 실패는 400 `VALIDATION_ERROR` 로 [§1.3](#13-유효성-검증-에러) 소관이다.
 

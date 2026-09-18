@@ -109,7 +109,7 @@ code:
    워크플로우를 webhook 으로 실행한다.
 2. **이름** 입력.
 3. 콘솔이 `endpointPath` 를 `crypto.randomUUID()` 로 생성하고 `POST /api/triggers` 로 webhook+interaction 트리거를 만든다.
-- **`endpointPath` 검증**: 콘솔은 신규 검증을 도입하지 않고 **기존 webhook 트리거 생성 규약**([2-trigger-list §2.5](../2-navigation/2-trigger-list.md#25-트리거-생성))의 형식·유일성 제약을 그대로 따른다 — 공개 webhook path 이므로 경로 주입·중복 가로채기 방지는 그 규약(+ DB unique)이 단일 책임. 콘솔은 클라이언트 UUID 를 제출할 뿐이다.
+- **`endpointPath` 검증**: 콘솔은 신규 검증을 도입하지 않고 **기존 webhook 트리거 생성 규약**([2-trigger-list §2.5](../2-navigation/2-trigger-list.md#25-트리거-생성))의 형식·유일성 제약을 그대로 따른다 — 공개 webhook path 이므로 경로 주입·중복 가로채기 방지는 그 규약(+ DB unique)이 단일 책임. 콘솔은 클라이언트 UUID 를 제출할 뿐이다. DB unique 가 **전역**이 된 것은 2026-09-18(V132)이다 — 그 전에는 워크스페이스 단위라 다른 워크스페이스의 복사 등록(가로채기)을 막지 못했다([데이터 모델 Rationale «Webhook `endpoint_path` 전역 유일»](../1-data-model.md)). 콘솔의 트리거 생성도 같은 `TriggersService` 경로라 함께 보호된다.
 - 권한: 생성은 `editor`+ (`RoleGate minRole="editor"`, [Trigger 생성 규약](../2-navigation/2-trigger-list.md#25-트리거-생성)과 일치).
 
 ## 4. 외형/콘텐츠 빌더 (서버 저장)
