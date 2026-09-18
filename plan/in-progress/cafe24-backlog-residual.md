@@ -265,3 +265,16 @@ docs 항목으로 기록**하고 있다. `_overview.md` §7.3 이 "docs 에 없�
       재생성 파이프라인으로 정정·삭제
 - [ ] 어느 쪽이든 §8(endpoint 제거 절차)에 "`KNOWN_DOCS_ABSENT` 계열 결정 시 field-level 문서
       동시 감사" 를 추가해 재발 차단. `socials-apple` 도 같은 절차로 재확인 대상에 포함
+
+## 카탈로그 문서 위생 셋 — 무관한 `--impl-prep` 이 지나가다 본 것 (2026-09-18 발견)
+
+`review/consistency/2026/09/18/13_55_55`(삭제 연쇄 FK 인덱스 PR 의 `--impl-prep`, scope `spec/conventions/`)가 번들에 실린 cafe24
+카탈로그에서 셋을 짚었다. 그 PR 의 범위가 아니라 여기 적는다(위 `mains` 모순이 «무관한 티켓에 딸려서만 재발견» 되는 두 번째 사례라는
+지적도 같은 세션이다).
+
+- [ ] `spec/conventions/cafe24-api-catalog/_overview.md` 에 lifecycle frontmatter(`id`/`status`/`code`)가 없다 — 형제 `category.md`·
+      `store.md`·`translation.md` 는 있다. frontmatter 를 달거나 `spec-impl-evidence.md` 의 카탈로그 면제 범위에 «디렉토리 진입점» 을 명시(WARNING 2)
+- [ ] `store.md` Rationale 의 `restricted` 빈칸 사유 각주가 operation id 셋을 드는데 SoT `cafe24-restricted-scopes.md` 는 둘만 열거한다
+      (`paymentmethods_paymentproviders_update_display` 누락) — 두 문서 열거를 맞춘다(INFO 1)
+- [ ] `_overview.md` · `cafe24-api-metadata.md` 가 `## Overview` 헤딩 없이 본문을 시작한다(INFO 3)
+

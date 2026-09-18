@@ -341,7 +341,7 @@ Schedule은 Trigger의 서브타입이다. 양쪽의 라이프사이클과 상�
 
 **보존 기간**: 90일. 일일 배치로 기한 초과 레코드 정리.
 
-**인덱스**: `(integration_id, at DESC)` — 상세 페이지 최근 활동 조회용. `api_*` 컬럼은 현재 인덱스 없음 — 추후 method/path 별 필터 (예: "5xx 응답만" / "특정 endpoint 만") 가 필요해질 때 추가.
+**인덱스**: `(integration_id, at DESC)` — 상세 페이지 최근 활동 조회용. `(node_execution_id)` · `(workflow_id)` — 부모 삭제의 FK CASCADE 용 (V113 · V114, §3). `api_*` 컬럼은 현재 인덱스 없음 — 추후 method/path 별 필터 (예: "5xx 응답만" / "특정 endpoint 만") 가 필요해질 때 추가.
 
 ### 2.11 KnowledgeBase
 
@@ -861,7 +861,7 @@ chat 계열 LLM 호출(`chat`/`chatStream`) 후 provider 응답 토큰 수를 ap
 | cost_usd | Numeric(12,6)? | `pricing.ts` 단가표(`provider:model`)로 계산. 미등재 모델은 NULL (통계 `SUM` 에서 자연 제외). 통계 응답에는 **숫자**로 실린다 — 서비스가 `::float` + `Number()` 로 명시 변환한다 ([swagger.md §1-6](./conventions/swagger.md#1-6-numeric-컬럼의-wire-타입)) |
 | created_at | Timestamp | 기록 시각 |
 
-**인덱스**: `(workspace_id, created_at DESC)` · `(provider, model, created_at DESC)` · `(workflow_id, created_at DESC) WHERE workflow_id IS NOT NULL` (통계용 partial). 마이그레이션 V014 (+ V018 `thinking_tokens`). 상태 머신 없는 append-only ([llm-usage.md §3](./data-flow/7-llm-usage.md)).
+**인덱스**: `(workspace_id, created_at DESC)` · `(provider, model, created_at DESC)` · `(workflow_id, created_at DESC) WHERE workflow_id IS NOT NULL` (통계용 partial). FK SET NULL 용 partial `(node_execution_id)` · `(execution_id)` (V115 · V116, §3). 마이그레이션 V014 (+ V018 `thinking_tokens`). 상태 머신 없는 append-only ([llm-usage.md §3](./data-flow/7-llm-usage.md)).
 
 
 ---
@@ -918,6 +918,7 @@ DocumentChunk·Entity 계열 선례를 따른다.)
 | NodeExecution | (parent_node_execution_id) WHERE parent_node_execution_id IS NOT NULL | 부모 NodeExecution 별 자식 조회 (sub-workflow/loop 등). V012 |
 | NodeExecution | (parent_node_execution_id, started_at, id) WHERE parent_node_execution_id IS NOT NULL | 부모별 자식 시간순 조회 (`ORDER BY started_at ASC, id ASC`). CONCURRENTLY, V048 |
 | NodeExecution | ((output_data #>> '{meta,backgroundRunId}')) WHERE … IS NOT NULL | Background 노드 모니터링 API 의 backgroundRunId 단일 row 조회 (부분 expression 인덱스). CONCURRENTLY, V047 |
+| NodeExecution | (node_id) | FK `ON DELETE CASCADE` 의 자식 조회 — 캔버스 저장이 노드를 뺄 때(저장마다)와 워크플로 삭제. 기존 `(execution_id, node_id, started_at DESC)` 는 선두가 달라 쓰이지 않는다. CONCURRENTLY, V112 |
 | ExecutionNodeLog | (execution_id, id) | 단일 실행의 노드 진행 순서 조회 |
 | Trigger | (workspace_id, type) | 유형별 트리거 조회 |
 | Trigger | (workspace_id, endpoint_path) UNIQUE | Webhook URL 라우팅 (워크스페이스 단위 유니크) |
@@ -947,14 +948,67 @@ DocumentChunk·Entity 계열 선례를 따른다.)
 | Integration | (token_expires_at) | 만료 스캐너 배치 조회 |
 | IntegrationUsageLog | (integration_id, at DESC) | 연동별 최근 호출 이력 |
 | IntegrationUsageLog | (at) | 보존기간 초과 레코드 정리 배치 |
+| IntegrationUsageLog | (node_execution_id) | FK `ON DELETE CASCADE` — 실행 이력 행이 지워질 **때마다** 한 번씩 찾는다(캔버스 노드 삭제 · 워크플로 삭제). CONCURRENTLY, V113 |
+| IntegrationUsageLog | (workflow_id) | FK `ON DELETE CASCADE` — 워크플로 삭제. CONCURRENTLY, V114 |
 | LlmUsageLog | (workspace_id, created_at DESC) | 워크스페이스별 LLM 사용량 조회 (V014) |
 | LlmUsageLog | (provider, model, created_at DESC) | 프로바이더×모델별 집계 (통계 요약, V014) |
 | LlmUsageLog | (workflow_id, created_at DESC) WHERE workflow_id IS NOT NULL | 워크플로우별 비용 집계 — partial 로 non-node·워크플로우 밖 caller(workflow_id=NULL) 제외 (V014) |
+| LlmUsageLog | (node_execution_id) WHERE node_execution_id IS NOT NULL | FK `ON DELETE SET NULL` — 실행 이력 행이 지워질 때마다. partial 로 노드 밖 caller(NULL) 제외. CONCURRENTLY, V115 |
+| LlmUsageLog | (execution_id) WHERE execution_id IS NOT NULL | FK `ON DELETE SET NULL` — 실행 행이 지워질 때마다(워크플로 삭제). CONCURRENTLY, V116 |
 | Folder | (workspace_id, parent_id) | 워크스페이스별 폴더 조회 |
 | Notification | (user_id, is_read, created_at DESC) WHERE dismissed_at IS NULL | 사용자별 visible 미읽음 알림 조회 (벨 배지·popover). partial 로 dismissed row 를 인덱스에서 배제해 크기를 작게 유지 — 자세한 라이프사이클은 [data-flow/8-notifications.md §4](./data-flow/8-notifications.md#4-dismiss-흐름-사용자-액션) |
 | Notification | (workspace_id, created_at DESC) | 워크스페이스별 알림 조회 — partial 미적용 (향후 admin/감사 쿼리가 dismissed 포함 전체 row 를 볼 여지) |
 
 ## Rationale
+
+### 삭제 연쇄의 FK 인덱스 다섯 (2026-09-18)
+
+부모 행을 지울 때 Postgres 의 FK 트리거는 **지워지는 부모 행마다** 자식을 한 번씩 찾는다. 선두 인덱스가 없는 FK 의 비용은 그래서
+«자식 테이블 크기 × 연쇄로 지워지는 부모 행 수» 다. 단일 컬럼 FK 87개 중 그런 것이 37개이고(카탈로그 `pg_index.indkey[0]` 대조, 부모를
+한정하지 않은 전수), 그중 다섯이 두 삭제 경로의 연쇄에서 비용을 낸다:
+
+| 삭제 경로 | 빈도 | 연쇄 |
+|---|---|---|
+| 캔버스 저장이 노드를 뺀다(제출 목록에 없는 `Node` 를 지운다) | 캔버스 저장마다 | `node` → `node_execution`(CASCADE, `node_id`) → 지워지는 실행 이력 **행마다** `integration_usage_log`(CASCADE) · `llm_usage_log`(SET NULL) 를 `node_execution_id` 로 |
+| 워크플로 삭제 | 관리 동작 | 위 연쇄 + `execution` 행마다 `llm_usage_log`(SET NULL, `execution_id`) + `integration_usage_log`(CASCADE, `workflow_id`) |
+
+실행 이력 보존 정리는 없어(보존 배치는 `integration_usage_log` 90일 하나) `node_execution` 은 이 두 경로로만 지워진다.
+
+실측 (PostgreSQL 18, V001~V111 적용, 워크플로마다 노드 10 · 실행 20 · 실행당 노드 실행 10 · 연동 로그 20 · LLM 로그 40, 워밍 뒤 1회):
+
+| 규모 (`node_execution` / 연동 로그 / LLM 로그) | 캔버스 노드 하나 삭제 | 워크플로 삭제 |
+|---|---|---|
+| 200k / 20k / 40k | 45.7 ms | 444.7 ms |
+| 800k / 80k / 160k | 206.6 ms | 2,225 ms |
+| 800k + 인덱스 넷(`node_execution_id` 두 · `node_id` · `execution_id`) | **0.79 ms** | **6.96 ms** |
+
+800k 워크플로 삭제에서 FK 별로 `llm_usage_log.node_execution_id` 1,296.9 → 0.80 ms(200회) · `integration_usage_log.node_execution_id`
+530.6 → 0.50 ms(200회) · `node_execution.node_id` 271.3 → 0.19 ms(10회) · `llm_usage_log.execution_id` 116.9 → 0.39 ms(20회) ·
+`integration_usage_log.workflow_id` 2.56 → 0.028 ms(1회, 다섯째 인덱스). 두 경로의 나머지 FK 트리거는 200k 에서 각 0.5 ms 미만이다 —
+그중 선두 인덱스가 없는 `alert_rule.workflow_id` · `edge.target_node_id` 는 작은 테이블이라 넣지 않았다.
+
+쓰기 비용 (10만 행 INSERT 5회 median, FK 컬럼을 전부 채운 최악 조건):
+
+| 테이블 | 더하는 인덱스 | 없음 | 있음 | 행당 |
+|---|---|---|---|---|
+| `node_execution` | `(node_id)` | 975 ms | 1,060 ms | +0.85 µs (+8.7%) |
+| `integration_usage_log` | `(node_execution_id)` · `(workflow_id)` | 1,080.7 ms | 1,188.6 ms | +1.08 µs (+10.0%) |
+| `llm_usage_log` | 부분 `(node_execution_id)` · `(execution_id)` | 1,500.5 ms | 1,635.3 ms | +1.35 µs (+9.0%) |
+
+노드 한 번 실행 · 외부 호출 한 번에 1행이라 행당 1 µs 대는 무시할 만하다. `node_id` 는 바뀌지 않는 컬럼이라 상태 전이 UPDATE 의 HOT
+갱신도 막지 않는다. «없음» 을 먼저 쟀으므로 오버헤드가 약간 과소평가됐을 수 있다.
+
+**`llm_usage_log` 두 인덱스만 partial 인 이유**: 두 컬럼은 nullable 이고(노드 밖·실행 밖 LLM 호출), FK 트리거의 쿼리는 등치라
+`IS NOT NULL` 을 함의해 부분 인덱스를 쓸 수 있다 — 바로 위 `(workflow_id, created_at DESC) WHERE workflow_id IS NOT NULL` 과 같은 이유.
+나머지 셋의 컬럼은 NOT NULL 이다.
+
+**아래 «Trigger `(workflow_id)` 인덱스» 절과의 관계**: 그 절의 «같은 클래스 전수» 는 부모를 `workflow`·`workspace` 둘로 한정했고,
+«`integration_usage_log` 는 … 쓰기 비용과 맞바꾸는 판단이라 따로 잰다» 고 예고했다. 이 절이 그 검토다 — 재 보니 예고 대상이던
+`integration_usage_log.workflow_id` 는 삭제 한 번에 0.55 ms(200k)였고, 비용은 한정 밖의 FK(`node_execution` 을 가리키는 것)에 있었다.
+그 절의 문장은 그 범위에서 참이라 고치지 않는다. 나머지 32개 FK 는 트래커에 전수로 남겼다(지식 베이스 연쇄가 다음 후보).
+
+> 출처: 트래커 `plan/in-progress/spec-draft-nullable-notation-followups.md`. 실측 절차는
+> `plan/complete/spec-draft-deletion-cascade-indexes.md`, 구현은 V112~V116.
 
 ### Trigger `(workflow_id)` 인덱스 (2026-09-18)
 
