@@ -1,9 +1,10 @@
 ---
 title: 그래프 RAG 삭제 연쇄의 FK 인덱스 넷 — KB 하나 삭제가 130초 걸렸다
-status: in-progress
+status: complete
 owner: project-planner
 worktree: kb-fk-cascade-index-9e4c21
 started: 2026-09-18
+completed: 2026-09-18
 spec_impact:
   - spec/1-data-model.md
   - spec/5-system/10-graph-rag.md
@@ -134,8 +135,14 @@ spec 에 메커니즘을 적기 전에 호출당 비용만 보고 추론했던 �
   테스트 형태) `codebase/**` 를 고치지 않고 판정·등재로 닫는다. `codebase/**` 수정이 필요한 지적은 고치고 1라운드 더 — 최대 2라운드
   → `review/code/2026/09/18/15_20_31` **Critical 0 · Warning 2** — 둘 다 plan 상태(W1 `plan/complete/` 선인용 = 마지막 커밋의 이동으로 닫힘 ·
   W2 리뷰 시점 테스트 체크박스 미체크 = 병렬로 돌던 TEST WORKFLOW 가 전부 PASS). `codebase/**` 수정 0 인 1라운드로 종결(`RESOLUTION.md`)
-- [ ] `--impl-done`
-- [ ] 트래커 반영 · 이 draft `complete/` 이동(이 PR 의 마지막 커밋 — spec Rationale · 마이그레이션 헤더 넷 · e2e 머리말이 `plan/complete/` 로 인용한다).
+- [x] `--impl-done spec/conventions/` — `review/consistency/2026/09/18/15_32_21` **BLOCK: NO** (Critical 0 · Warning 0 · INFO 3).
+  구현 diff 는 예산에 잘려 번들에 없었다(`diff --git` 0건) — 아홉 파일을 절대경로로 읽으라는 블록과 scope 밖 spec 셋을 직접 Read 하라는 블록을
+  `_prompts/*.md` 에 붙였다. INFO 1 `plan/complete/` 선인용 = 아래 이동으로 닫힘 · INFO 2 `V119….conf` 머리 주석 «V119 은»(→ «는»)
+  조사 = **조치 안 함**. «V<N> 은» 은 V110~V120 `.conf` 전부의 템플릿 고정 문구이고, 같은 조사가 이미 머지된 V112 · V114 · V115 에도
+  있다 — `spec/conventions/migrations.md` «이미 main 에 들어간 V<N> 의 `.sql` / `.conf` 는 절대 수정하지 않는다» 라 그쪽은 못 고치고,
+  V119 하나만 고치면 그것만 튄다. checker 의 «다음에 그 파일을 건드릴 때» 는 머지 뒤엔 규약상 없는 기회라 따르지 않았다 · INFO 3
+  `idx_relation_head_entity_id` 와 기존 `idx_relation_kb_head` 의 이름 근접 = 앞 두 라운드와 같은 비차단 판정
+- [x] 트래커 반영 · 이 draft `complete/` 이동(이 PR 의 마지막 커밋 — spec Rationale · 마이그레이션 헤더 넷 · e2e 머리말이 `plan/complete/` 로 인용한다).
   이동 뒤 `grep -rln "plan/complete/spec-draft-graph-fk-indexes.md" spec codebase` 로 인용 전부가 실재 경로를 가리키는지 확인
 
 ## Rationale

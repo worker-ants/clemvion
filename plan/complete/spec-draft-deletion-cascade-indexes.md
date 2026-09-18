@@ -184,15 +184,16 @@ median 1,060 ms · 없음 975 ms** — 행당 약 0.85 µs(+8.7%). 노드 한 �
 ## 부록 — 선두 인덱스가 없는 FK 전수 37개 (카탈로그 출력, V001~V111 적용 DB)
 
 단일 컬럼 FK 87개 중 그 컬럼을 선두로 가진 인덱스가 없는 것. 트래커 항목이 이 표를 SoT 로 가리킨다. «처분» 칸이 빈 것은 작은 테이블이거나
-부모 삭제가 드물어 이번에 재지 않은 것이다.
+부모 삭제가 드물어 이번에 재지 않은 것이다. ✅ 는 뒤 PR 이 닫은 것까지 갱신한다(표 자체는 V111 시점 카탈로그 그대로 —
+행을 지우지 않는다).
 
 | 부모 | 자식.컬럼 | 삭제 동작 | 처분 |
 |---|---|---|---|
 | auth_config | `trigger.auth_config_id` | SET NULL |  |
-| document_chunk | `entity.last_seen_chunk_id` | SET NULL | 다음 후보(지식 베이스) |
-| document_chunk | `relation.evidence_chunk_id` | SET NULL | 다음 후보(지식 베이스) |
-| entity | `relation.head_entity_id` | CASCADE | 다음 후보(지식 베이스) |
-| entity | `relation.tail_entity_id` | CASCADE | 다음 후보(지식 베이스) |
+| document_chunk | `entity.last_seen_chunk_id` | SET NULL | ✅ V117 (`plan/complete/spec-draft-graph-fk-indexes.md`) |
+| document_chunk | `relation.evidence_chunk_id` | SET NULL | ✅ V118 (`plan/complete/spec-draft-graph-fk-indexes.md`) |
+| entity | `relation.head_entity_id` | CASCADE | ✅ V119 (`plan/complete/spec-draft-graph-fk-indexes.md`) |
+| entity | `relation.tail_entity_id` | CASCADE | ✅ V120 (`plan/complete/spec-draft-graph-fk-indexes.md`) |
 | execution | `llm_usage_log.execution_id` | SET NULL | ✅ V116 |
 | folder | `folder.parent_id` | CASCADE |  |
 | folder | `workflow.folder_id` | SET NULL |  |

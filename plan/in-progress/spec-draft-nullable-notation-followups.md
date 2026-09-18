@@ -4613,18 +4613,20 @@ field: T | null;
       것(트리거 목록 §4.3)과 방향이 다르다. 새 결함이 아니라 기존 동작이다 — 인덱스 PR 이 비용을 재다 정량화했을 뿐이다. 결정할 것: 노드 삭제가
       실행 이력을 지우는 것이 의도인가(SET NULL 로 바꾸면 `node_id` NOT NULL 부터 바뀐다).
 
-- [ ] **선두 인덱스가 없는 FK — 부모를 한정하지 않은 전수 37개 중 32개 남음** (developer + planner, 2026-09-18 등재 ·
+- [ ] **선두 인덱스가 없는 FK — 부모를 한정하지 않은 전수 37개 중 28개 남음** (developer + planner, 2026-09-18 등재 ·
       **2026-09-18 전제 정정** `plan/complete/spec-draft-deletion-cascade-indexes.md`). 처음엔 부모를 `workflow`·`workspace` 둘로 한정해 «여섯» 이라 적고 «`integration_usage_log` 우선»
       이라 했는데, 재 보니 그 FK(`integration_usage_log.workflow_id`)는 워크플로 삭제 한 번에 0.55 ms 였다. 부모를 한정하지 않으면 단일 컬럼 FK
       87개 중 **37개**가 선두 인덱스 없이 CASCADE·SET NULL·NO ACTION 을 건다. FK 트리거는 지워지는 부모 행마다 자식을 찾으므로 비용은
       «자식 테이블 크기 × 연쇄로 지워지는 부모 행 수» 다. **전수 표는 `plan/complete/spec-draft-deletion-cascade-indexes.md` 부록이 SoT** 다.
       - ✅ **2026-09-18 해소 다섯**(V112~V116) — 캔버스 노드 삭제(저장마다)·워크플로 삭제 연쇄: 800k 규모 워크플로 삭제 2,225 → 6.96 ms,
         노드 하나 삭제 206.6 → 0.79 ms.
-      - **다음 후보 — 지식 베이스 연쇄**: `document_chunk` 삭제 → `entity.last_seen_chunk_id` · `relation.evidence_chunk_id`(SET NULL),
-        `entity` 삭제 → `relation.head_entity_id` · `relation.tail_entity_id`(CASCADE). 청크·엔티티 하나마다 entity·relation 을 전부 훑는다 —
-        문서 재색인 빈도에 따라 뜨거울 수 있다. 같은 절차(일회용 pg18 · 규모 4배씩 · `EXPLAIN (ANALYZE)` 의 FK 트리거 시간 · INSERT 5회 median)로 잰다.
-      - 그 밖: 큰 테이블을 훑지만 부모 삭제가 드문 것(`model_config` → `llm_usage_log.llm_config_id`, `user` → `audit_log.user_id` ·
-        `execution.executed_by`)과 작은 테이블(부록 표의 나머지). 이 PR 의 두 경로에 걸리는 `alert_rule.workflow_id` · `edge.target_node_id` 는
+      - ✅ **2026-09-18 해소 넷**(V117~V120, `plan/complete/spec-draft-graph-fk-indexes.md`) — 그래프 RAG 의 청크·엔티티 삭제 연쇄:
+        800k 청크 규모 KB 하나 삭제 129,941 → 48.1 ms, 재임베딩(문서 하나, 청크 40) 1,795.7 → 2.37 ms, 엔티티 하나 삭제 4.25 → 0.38 ms.
+        `head_entity_id` · `tail_entity_id` 는 기존 `(knowledge_base_id, …)` 복합 인덱스가 skip scan 으로 쓰였지만 비용이 KB 수에 비례했다.
+      - **다음 후보 — 부모 삭제가 드문 큰 테이블 셋**: `model_config` → `llm_usage_log.llm_config_id`, `user` → `audit_log.user_id` ·
+        `execution.executed_by`. 자식 테이블은 크지만 부모 삭제가 드물다 — **재기 전에는 우선순위가 없다**. 같은 절차(일회용 pg18 ·
+        규모 4배씩 · `EXPLAIN (ANALYZE)` 의 FK 트리거 시간 · INSERT 5회 median)로 잰 뒤 정한다.
+      - 그 밖: 작은 테이블(부록 표의 나머지). V112~V116 PR 의 두 경로에 걸리는 `alert_rule.workflow_id` · `edge.target_node_id` 는
         200k 에서 0.1 ms 미만이었다.
 
 - [x] **트리거 자원 정리 구현이 남긴 stale 주석·이름 네 곳** (developer, 2026-09-17 등재 · **2026-09-18 해소** `plan/complete/trigger-release-stale-comments.md` — 넷 + 같은 클래스 전수 grep 으로 넷 더(락 상한 JSDoc 은 낡은 게 아니라 **틀렸다** — 비밀이 커밋 뒤로 옮겨간 것을 반영 안 했다) · `plan/complete/trigger-deletion-release.md` · `/ai-review` `review/code/2026/09/17/19_40_27` W4·INFO2 · `--impl-done` `review/consistency/2026/09/17/19_55_46` W2·W3 —
