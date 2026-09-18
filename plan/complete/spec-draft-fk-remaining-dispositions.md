@@ -1,9 +1,10 @@
 ---
 title: 쓸 인덱스가 없는 FK 서른하나의 처분 — 인덱스 열, 나머지 스물하나는 근거와 함께 비대상
-status: in-progress
+status: complete
 owner: project-planner
 worktree: fk-index-remaining-cd2eec
 started: 2026-09-18
+completed: 2026-09-18
 spec_impact:
   - spec/1-data-model.md
   - spec/data-flow/2-auth.md
@@ -266,8 +267,12 @@ UNIQUE 를 쓴다) · `notification.user_id`(늘 `workspace_id` 또는 `dismisse
   → `review/code/2026/09/18/23_03_16` **Critical 0 · Warning 0** · INFO 9(리뷰어 9명, 강제 8 전원). 1라운드 종결. INFO 1 `plan/complete/` 선인용 =
   아래 마지막 항목의 이동 · grep 으로 닫힌다. INFO 4 대용량 테이블의 CONCURRENTLY 빌드 시간 = 헤더에 조회 개선치만 있다는 지적 — 빌드는
   CONCURRENTLY 라 쓰기를 막지 않고 선례 V111~V120 도 같은 형식이라 조치 안 함. 나머지는 선례 확인 · 이미 등재된 항목
-- [ ] `--impl-done`
-- [ ] 트래커 · 부록 반영 · 이 draft `complete/` 이동(마지막 커밋). 이동 뒤 `grep -rln "plan/complete/spec-draft-fk-remaining-dispositions.md" spec codebase`
+- [x] `--impl-done spec/conventions/` — `review/consistency/2026/09/18/23_12_16` **BLOCK: NO** (Critical 0 · WARNING 1 · INFO 7).
+  구현 diff(21파일/494줄)와 §3 이 번들 예산에 잘려(`diff --git` 0건 · `## 3. 인덱스 전략` 0건) 스물한 파일과 scope 밖 spec 을 절대경로로 읽으라는
+  블록을 `_prompts/*.md` 에 붙였다. WARNING 1 = `--impl-prep` 과 같은 `spec/conventions/` 3섹션 편차(이 PR 과 무관 — 트래커에 새로 올린 그 항목).
+  INFO 1 `plan/complete/` 선인용 = 아래 이동으로 닫힘 · INFO 2 `auth_config` 는 data-flow 생성 sink 행이 없다 = S4 가 이미 «§3 표에만 적는다» 로
+  처분한 기존 구조 · 나머지는 기록용(셈 정정 · 비대상 유지가 실측 기반이라는 확인)
+- [x] 트래커 · 부록 반영 · 이 draft `complete/` 이동(마지막 커밋). 이동 뒤 `grep -rln "plan/complete/spec-draft-fk-remaining-dispositions.md" spec codebase`
   로 인용 전부가 실재 경로를 가리키는지 확인
 
 ## Rationale
