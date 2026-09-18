@@ -1,8 +1,6 @@
 ---
 id: secret-store
-status: partial
-pending_plans:
-  - plan/in-progress/spec-draft-nullable-notation-followups.md
+status: implemented
 code:
   - codebase/backend/src/modules/secret-store/**
 ---

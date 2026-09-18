@@ -11,7 +11,6 @@ code:
 pending_plans:
   - plan/in-progress/marketplace-and-plugin-sdk.md
   - plan/complete/workflow-duplicate-nodes-edges.md
-  - plan/in-progress/spec-draft-nullable-notation-followups.md
 ---
 
 # Spec: 워크플로우 목록 화면

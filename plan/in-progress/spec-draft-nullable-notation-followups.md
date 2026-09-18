@@ -3971,7 +3971,7 @@ field: T | null;
       기존 오기이지만 `trigger-canary-hardening` 의 e2e 주석이 §R4 를 **처음 명시 인용**해
       가시화됐다.
 
-- [ ] **`2-trigger-list.md` 의 `code:` 가 §3 계약의 시행 파일 하나를 놓친다**
+- [x] **`2-trigger-list.md` 의 `code:` 가 §3 계약의 시행 파일 하나를 놓친다** (**2026-09-18 해소** `plan/complete/spec-draft-deletion-release-current-tense.md` C3 — 같은 `code:` 목록을 여는 변경에 묶었다, `--spec` 1회차 plan_coherence WARNING 2)
       (planner, 2026-09-14 등재 · `/ai-review` `review/code/2026/09/14/11_27_40`
       requirement WARNING#1). §3(`TriggerDto.workflow` 계약)의 시행 파일로
       `trigger-workflow-ref.e2e-spec.ts` 만 등재돼 있는데, `trigger-canary-hardening` 배치가
@@ -4549,7 +4549,7 @@ field: T | null;
       > 이 항목이 닫지 않는다.
 
 
-- [ ] **트리거 삭제 자원 정리 구현이 머지된 뒤 spec 을 현재형으로** (planner, 2026-09-17 등재 ·
+- [x] **트리거 삭제 자원 정리 구현이 머지된 뒤 spec 을 현재형으로** (planner, 2026-09-17 등재 · **2026-09-18 종결** `plan/complete/spec-draft-deletion-release-current-tense.md` · `--spec` `review/consistency/2026/09/18/09_58_25`·`review/consistency/2026/09/18/10_18_33`(BLOCK: YES) → `review/consistency/2026/09/18/10_32_27`(**BLOCK: NO**) ·
       `plan/complete/trigger-deletion-release.md` · `/ai-review` `review/code/2026/09/17/18_45_09`·`review/code/2026/09/17/19_14_29`·`review/code/2026/09/17/19_40_27` [SPEC-DRIFT] · `--impl-prep` `review/consistency/2026/09/17/18_00_19`).
       spec 은 구현 **전에** 계약을 세웠다(#1345). 구현이 머지되면 다음이 거짓이 된다:
 
@@ -4563,6 +4563,15 @@ field: T | null;
       | 6 | `spec/5-system/4-execution-engine.md` §4.4 지연 해석 표 | `ModuleRef.get(…, { strict: false })` 의 **던지는** 사례(트리거 자원 정리 — 못 찾으면 no-op 이 아니라 던진다) 행 추가 |
       | 7 | `spec/2-navigation/2-trigger-list.md` frontmatter `code:` | 정리 계약을 시행하는 `trigger-resource-release.ts` · `trigger-resource-releaser.service.ts` 와 증거 e2e `test/trigger-deletion-releases-resources.e2e-spec.ts` 등재(`--impl-done` `review/consistency/2026/09/17/19_55_46` W1) |
 
+      > **처분 (2026-09-18)** — 1·2·3·4·5·7 행은 draft C1~C9 로 반영. **6 행은 하지 않는다**: 엔진 표의 `ModuleRef` 행은
+      > **DI 인스턴스화 순서 함정**이 기준인데 트리거 정리의 지연 해석은 **모듈 import 순환**을 새 `forwardRef` 없이 피하려고
+      > 골랐다 — 넣으면 엔진 표가 저장소 전체 규약처럼 읽힌다. «못 찾으면 던진다» 는 `trigger-resource-release.ts` 의
+      > `TRIGGER_RESOURCE_RELEASER` JSDoc 이 SoT 로 이미 말한다.
+      > **4 행이 규칙을 하나 낳았다** — `secret-store.md` 승격은 이 트래커가 `in-progress/` 에 남은 채로 일어난다(1회차 CRITICAL).
+      > 이 트래커를 가리키는 열린 항목 6개가 모두 «미구현 surface» 가 아님을 전수로 판정하고, 그 판정 절차를
+      > `spec/conventions/spec-impl-evidence.md §3.1` 자식 불릿 + R-11 로 규약에 올렸다 — 이 트래커를 `pending_plans` 로 가리키는
+      > 남은 문서(`2-trigger-list.md` · `chat-channel-adapter.md`)도 승격할 때 같은 절차를 따른다.
+
 - [ ] **트리거 자원 정리의 사후 정리(sweeper) 필요 여부 재판단** (developer + 결정, 2026-09-17 등재 ·
       `plan/complete/trigger-deletion-release.md` · spec draft «안 하는 것» · `/ai-review` `review/code/2026/09/17/18_45_09` #3·#13 · `review/code/2026/09/17/19_40_27` W1).
       정리 계약이 **닫지 않는 창**에서 남는 것을 치울지 판단한다 — 발생 빈도를 재기 전에는 만들지 않는다:
@@ -4570,6 +4579,9 @@ field: T | null;
         (비밀은 잠금 뒤 열거가 덮는다. 닫으려면 외부 해제를 커밋 뒤로 옮겨야 하는데 schedule 행이 CASCADE 로 사라져 job id 를 못 찾는다)
       - 외부 해제 뒤·행 삭제 전에 동시 요청이 다시 만든 provider 등록 · schedule job (spec D7-2)
       - 행 삭제 커밋과 비밀 정리 사이의 프로세스 종료, 그리고 커밋 뒤 비밀 삭제 실패(error 로그만 남는다)
+      - 워크스페이스 삭제의 **권한 선검사 → 외부 해제 → 잠금 재검사 거부**(그 사이 역할 변경) — 워크스페이스는 남는데 그
+        트리거들의 외부 등록은 이미 해제돼 발화하지 않는다(error 로그로 드러난다). #1345 의 D7 목록 밖에서 구현이 권한 검사를
+        앞으로 당기며 생긴 창이다 — spec 트리거 목록 §4.3 이 2026-09-18 부터 서술한다(`plan/complete/spec-draft-deletion-release-current-tense.md` C1, `--spec` 3회차 INFO 5)
       - 이미 남아 있는 고아 — 이 구현 **이전**의 워크플로·워크스페이스 삭제가 남긴 `secret_store` 행 · BullMQ job
       **재는 방법**: `secret_store` 에서 `ref` 의 트리거 id 가 `trigger` 에 없는 행 수, BullMQ `schedule-execution` 의
       job scheduler 중 `schedule` 행이 없는 수. **판별 주의**: job scheduler 존재는 `Queue.getJobScheduler(id)` 로 보지

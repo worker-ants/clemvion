@@ -104,6 +104,7 @@ user_guide:                                # 선택. 가이드 페이지 cross-l
 - `backlog` → `spec-only`: 구현 plan 작성 시점에 승격
 - `spec-only` → `partial`: 최초 코드 머지 시점에 승격
 - `partial` → `implemented`: 마지막 `pending_plans` 가 `complete/` 로 이동한 commit 안에서 승격 (가드)
+  - **`pending_plans` 가 공유 트래커일 때** — 여러 문서의 항목을 함께 담는 plan 은 다른 문서 몫 때문에 오래 `in-progress/` 에 남는다. 그때 승격 시점은 트래커 파일의 이동이 아니라 **그 문서 몫의 미구현 surface 가 0 이 된 commit** 이다. 판정은 트래커에서 그 문서를 지목한 **열린 항목을 전수로 열어** 각각이 §2.1 의 «미구현 surface»(문서가 이미 약속한 동작의 구현 미완)인지, 아니면 문서 위생·`code:` 등재 질문·**아직 문서에 없는** 새 규칙 제안인지 가른다. 후자만 남으면 승격하고 `pending_plans` 에서 트래커를 뺀다. 가드는 이 방향을 보지 않으므로(«전부 `complete/` ⇒ 승격» 만 강제한다) **판정 근거를 승격 commit 에 남긴다** ([R-11](#r-11-공유-트래커를-가리키는-partial-의-승격-시점--파일-이동이-아니라-그-문서-몫의-항목))
 - `*` → `archived`: spec 결정 폐기 시 즉시 (Rationale 본문에 사유 추가)
 
 ## 4. Build-time 가드 — frontmatter-evidence (4건)
@@ -261,3 +262,11 @@ user_guide:                                # 선택 필드 — KO/EN 로케일 �
 - `code:` 는 spec 이 약속한 *구현 surface* 이므로 stale 경로가 "약속 vs 구현" 정합(본 컨벤션의 핵심 invariant)을 직접 훼손한다 → build 차단 가치가 마찰을 초과. 반면 `user_guide:` 는 가이드 페이지로의 **선언적 cross-link** 일 뿐이라, 경로가 stale 해도 spec 의 surface 정의·lifecycle 추적을 훼손하지 않는다.
 - 가이드 ↔ spec 정합은 이미 별 방향 가드(`registry.test.ts` = MDX `spec:`/`code:` 실존, `user-guide-evidence.md` family)가 담당 — `user_guide:` 에 중복 가드를 더하면 같은 관계를 양방향 이중 강제해 유지보수 부담만 는다.
 - 따라서 `user_guide:` 는 가드 없이 두고, 오기는 리뷰·`/consistency-check` 의 휴리스틱 검토에 맡긴다. 향후 가이드 경로 stale 이 실제 문제로 드러나면 전용 가드(`spec-user-guide-paths.test.ts`)를 §4.2 에 추가하고 §2.1·§4 표를 동기화한다.
+
+### R-11. 공유 트래커를 가리키는 `partial` 의 승격 시점 — 파일 이동이 아니라 그 문서 몫의 항목
+
+[R-5](#r-5-status-partial-의-pending_plans-의무화--plan-라이프사이클-역방향-강제) 의 역방향 링크는 «어떤 plan 도 책임지지 않는 빈 약속» 을 막으려고 있다. 그런데 트래커 파일 하나가 여러 문서의 `pending_plans` 에 걸리면 — 이 규칙을 세운 2026-09-18 에 `spec/` 4개 문서(`1-workflow-list.md`·`2-trigger-list.md`·`secret-store.md`·`chat-channel-adapter.md`)가 같은 트래커를 가리켰다 — 파일 이동을 승격 신호로 쓰는 §3.1 규칙은 **이미 구현된 문서를 트래커가 닫힐 때까지 `partial` 로 묶어** 반대 방향의 거짓을 만든다. 그래서 신호를 파일이 아니라 그 문서 몫의 항목으로 옮기되(§3.1 하위 불릿), «빈 약속» 을 다시 만들지 않게 판정 술어를 §2.1 의 «미구현 surface» 로 고정했다.
+
+**가드가 보던 자리를 사람이 본다** — `spec-status-lifecycle.test.ts` 는 «전부 `complete/` ⇒ 승격» 만 강제하므로 이 방향의 승격은 기계가 검사하지 않는다. 그래서 판정 근거(열린 항목 전수와 각 항목의 분류)를 승격 commit 에 남기게 했다.
+
+**이해상충을 밝혀 둔다** — 이 규칙의 첫 적용 대상은 규칙을 세운 같은 변경의 [`secret-store.md`](./secret-store.md) 다(트리거 삭제 자원 정리 하나 때문에 `partial` 로 내려갔다가 그 구현이 머지된 뒤 승격). 규칙을 결론에 맞춰 만들었다는 의심을 덜려고 판정(열린 항목 6개 전수 · 미구현 surface 0)을 규칙 없이도 따라갈 수 있게 `plan/complete/spec-draft-deletion-release-current-tense.md` 에 표로 남겼다. 또 그 문서는 같은 항목들이 열린 채로 2026-09-05~09-17 에 이미 `implemented` 였다 — 규칙이 새 결론을 만든 것이 아니라 트리거 정리 이전 상태로 되돌린다.
