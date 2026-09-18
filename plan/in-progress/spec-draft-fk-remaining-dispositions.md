@@ -244,6 +244,7 @@ UNIQUE 를 쓴다) · `notification.user_id`(늘 `workspace_id` 또는 `dismisse
 - «선두 인덱스가 없는 FK — … 28개 남음» → **`[x]` 해소**(셈법 보정으로 31개 — 인덱스 열 V121~V130 · 비대상 스물하나, 이 draft). 다음 후보 줄은 지운다.
 - 새 항목: «웹훅 트리거 조회가 `endpoint_path` 인덱스 전체를 훑는다» (위 비대상 표 둘째 줄의 실측과 두 해법).
 - 새 한 줄: `WorkflowAssistantSession` `@Index` 데코레이터의 `userId` 누락(위 비대상 표 셋째 줄).
+- 새 planner 항목: `spec/conventions/` 3섹션 구조 편차(`--impl-prep` WARNING 1 · 2 — `migrations.md` Rationale 배치 · Overview 생략 13개).
 - 전수 부록(`plan/complete/spec-draft-deletion-cascade-indexes.md`) «처분» 칸 28행 전부 — ✅ V121~V129 또는 «비대상(라/마/바)». 표 아래에
   셈법이 놓친 셋을 따로 적는다(표 자체는 V111 시점 카탈로그 출력이라 행을 끼워 넣지 않는다).
 
@@ -251,8 +252,13 @@ UNIQUE 를 쓴다) · `notification.user_id`(늘 `workspace_id` 또는 `dismisse
 
 - [x] `--spec` `review/consistency/2026/09/18/22_33_00` **BLOCK: NO** (Critical 0 · WARNING 1 · INFO 5) — 처분은 아래 Rationale «`--spec` 처분»
 - [x] S1~S4 반영 (+ WARNING 1 넷째 정정 · INFO 3 «라» 재개 조건)
-- [ ] `--impl-prep spec/conventions/`
-- [ ] V121~V130 · e2e 열 건 · `python3 scripts/check-migration-versions.py --base origin/main`
+- [x] `--impl-prep spec/conventions/` — `review/consistency/2026/09/18/22_44_08` **BLOCK: NO** (Critical 0 · WARNING 2 · INFO 7).
+  WARNING 1 · 2 는 이 작업과 무관한 `spec/conventions/` 기존 구조(`migrations.md` 의 `## 7. 폐기 대안 (Rationale)` 뒤에 `## 참고` 가 오는 배치 ·
+  최상위 23개 중 13개의 `## Overview` 생략) — planner 영역이라 트래커에 올린다(아래 «트래커 반영»). INFO 2 · 3 은 `--impl-done` 에서 확인할
+  것(파일 열 개의 DROP 선행 패턴 · `plan/complete/` 선인용이 이동 뒤 실재하는지) — 마지막 체크 항목의 grep 과 같다
+- [x] V121~V130 · e2e 열 건 · `python3 scripts/check-migration-versions.py --base origin/main` → `OK: 130 migration(s), max V130`.
+  일회용 pg18 에 파일 그대로 두 번 적용(멱등) → 열 개 모두 `indisvalid`. e2e 정규식 판별력: 실제 정의 10/10 맞음 · 오답 22개(조건 누락 ·
+  조건 추가 · 선두 변경 · 기존 부분 UNIQUE · 컬럼 순서) 전부 거부
 - [ ] lint · unit · build · e2e
 - [ ] `/ai-review`
 - [ ] `--impl-done`
