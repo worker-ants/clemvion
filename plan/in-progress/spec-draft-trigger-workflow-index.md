@@ -108,8 +108,11 @@ spec_impact:
 - [x] `--impl-prep spec/2-navigation/` — `review/consistency/2026/09/18/12_26_41` **BLOCK: NO** (WARNING 1: spec Rationale 이 아직 옮기지 않은
   `plan/complete/spec-draft-trigger-workflow-index.md` 를 가리킨다 → **draft 이동을 이 PR 의 마지막 커밋에서 한다 — 다른 PR 로 떼지 않는다**(선례 #1285 와 같다).
   scope 밖 `1-data-model.md` · `conventions/migrations.md` 는 직접 Read 블록으로 넣었다)
-- [ ] V111 · `select` 좁히기 · e2e 스키마 단언 · 단위 단언
-- [ ] lint · unit · build · e2e
+- [x] V111 · `select` 좁히기 · e2e 스키마 단언 · 단위 단언 — 뮤턴트 예측/실측: `select` 에서 `config` 제거 RED 1/1,
+  `type` 제거 RED 1/1(mock 은 선택 컬럼과 무관하게 전체 객체를 돌려주므로 잡는 단언은 `find` 인자 정확 대조 하나뿐이다).
+  e2e 정규식이 기대는 `pg_get_indexdef` 출력(`ON public.trigger USING btree (workflow_id)`)은 일회용 pg18 로 먼저 확인
+- [x] lint · unit · build(타입체크 ratchet — backend 197 · frontend 52, baseline 일치) · e2e backend **322**(직전 321 + 스키마 단언 1 —
+  그 단언은 인덱스가 유효하게 있어야만 통과하므로 Flyway 가 V111 을 e2e DB 에 적용했다는 증거다) · migration-guard OK(max V111)
 - [ ] `/ai-review`
 - [ ] `--impl-done`
 - [ ] 트래커 반영 · 이 draft `complete/` 이동
