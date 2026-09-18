@@ -185,9 +185,13 @@ spec_impact:
 
 - [x] `--spec` 이 draft — 1차 `review/consistency/2026/09/18/23_39_46` **BLOCK: YES**(Critical 2 · WARNING 1) · 2차 `…/23_54_40` **BLOCK: YES**
   (Critical 2 · WARNING 1) → 처분 반영 뒤 3차 `review/consistency/2026/09/19/00_07_54` **BLOCK: NO**(Critical 0 · WARNING 0 · INFO 4)
-- [ ] S1~S10 반영
-- [ ] `--impl-prep`
-- [ ] V131 · V132 · 서비스 · 테스트
+- [x] S1~S10 반영 — planner 커밋 `eb5332b57`
+- [x] `--impl-prep spec/2-navigation/` — `review/consistency/2026/09/19/00_16_40` **BLOCK: NO** (Critical 0 · WARNING 1 · INFO 5). WARNING 1
+  트래커 항목이 «결정 필요» 로 남아 있다 → 착수 전에 `[x]` 로 닫고 묘비 부재 항목을 새로 올렸다. INFO 2 이 체크박스 · INFO 4 V 번호 재확인 — 반영.
+  INFO 1 · 3 (`2-trigger-list.md` frontmatter 키 순서 · `eia-trigger-edit-ui` dangling 참조)은 이 변경과 무관한 기존 상태, 조치 안 함
+- [x] V131 · V132 · 서비스 · 테스트 — `check-migration-versions.py --base origin/main` → `OK: 132 migration(s), max V132`. 커밋할 파일 그대로
+  일회용 pg18 에 적용: 중복 정리 · 멱등 · 전역 UNIQUE 교체 · 경쟁 시 옛 인덱스 valid 유지 · 정리 재실행 뒤 복구(«마이그레이션 검증» 과 같은 결과).
+  단위: 충돌 계약 RED 6 → GREEN 11. 메시지 뮤턴트(«같은 워크스페이스에 …» 로 되돌림) RED 4. 백엔드 타입체크 ratchet baseline 일치
 - [ ] lint · unit · build · e2e
 - [ ] `/ai-review`
 - [ ] `--impl-done`

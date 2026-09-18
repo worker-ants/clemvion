@@ -4629,12 +4629,22 @@ field: T | null;
         29.1 → 0.15 ms · 워크플로 삭제 306.8 → 1.8 ms · 워크스페이스 삭제 3,161 → 49.6 ms. 열 중 다섯(V126~V130)은 FK 보다 **목록 조회**가
         이유다. 앞 줄의 «`edge.target_node_id` 200k 에서 0.1 ms 미만» 은 엣지 약 1만 행 측정이었다 — 엣지 90만이면 노드 하나에 28.8 ms.
 
-- [ ] **웹훅 트리거 조회가 `endpoint_path` 인덱스 전체를 훑는다** (developer + planner, 낮음, 2026-09-18 등재 · `plan/complete/spec-draft-fk-remaining-dispositions.md` «비대상»).
+- [x] **웹훅 트리거 조회가 `endpoint_path` 인덱스 전체를 훑는다** (developer + planner, 낮음, 2026-09-18 등재 · `plan/complete/spec-draft-fk-remaining-dispositions.md` «비대상» ·
+      **2026-09-19 해소** `plan/complete/spec-draft-webhook-endpoint-path-global-unique.md` — **성능 항목이 아니라 보안 결함이었다**).
       웹훅 POST 마다(`hooks.service` · `public-webhook-throttle.guard`)와 웹챗 `embed-config` 부팅마다 `trigger` 를
       `WHERE endpoint_path = ? AND type = 'webhook'` 로 찾는데, 인덱스는 `(workspace_id, endpoint_path) WHERE endpoint_path IS NOT NULL`
-      UNIQUE 뿐이라 `workspace_id` 를 모르는 조회가 인덱스 전체를 훑는다 — 워크스페이스 1만(웹훅 트리거 5만)에서 0.9 ms(`Index Searches: 1`),
-      웹훅 트리거 수에 비례. FK 가 아니라 선두 인덱스 전수(40개) 밖이다. 결정할 것: `endpoint_path` 는 UUID v4(CHECK)라 전역 유일로
-      좁혀도 되는가(UNIQUE `(endpoint_path)` — 유일성 범위가 바뀐다) · 아니면 비유일 보조 인덱스 `(endpoint_path)` 로 조회만 고치는가.
+      UNIQUE 뿐이라 `workspace_id` 를 모르는 조회가 인덱스 전체를 훑는다. 등재 때 적은 «0.9 ms» 는 5만 행 UPDATE 직후 VACUUM 없이 잰 값이었다 —
+      다시 재니 웹훅 트리거 1.25만 0.049 ms → 5만 0.200 ms(선형). **결정(사용자): 전역 유일** — `endpoint_path` 는 클라이언트가 만들어 보내고 바꿀 수도
+      있어, 경로를 **알고 있는** 다른 워크스페이스가 같은 경로를 등록하면 수신 조회가 둘 중 하나를 골랐다(옛 스키마에서 가로채기 재현). V131 이 기존
+      중복을 정리(가장 먼저 만든 쪽 유지 · 나머지 새 UUID · 채팅 채널은 NOTICE + 운영 절차)하고 V132 가 `(endpoint_path)` 전역 UNIQUE 로 교체한다.
+      SoT: `spec/1-data-model.md` Rationale «Webhook `endpoint_path` 전역 유일». (기각: 비유일 보조 인덱스 + 앱 레벨 검사 — 동시 경합을 DB 가 막지 못한다.)
+
+- [ ] **지운 웹훅 경로를 다른 워크스페이스가 다시 등록할 수 있다 — 묘비(tombstone) 부재** (planner + developer, 낮음, 2026-09-19 등재 ·
+      `plan/complete/spec-draft-webhook-endpoint-path-global-unique.md` «비대상»). 전역 UNIQUE(V132)는 **동시에 존재하는** 중복만 막는다 — 주인이
+      트리거를 지우면 그 경로는 비고, 경로를 아는 누구든 자기 워크스페이스에 다시 등록할 수 있다. 외부 서비스가 옛 URL 로 계속 보내면 새 주인이
+      받는다. 결정할 것: 지운 경로를 얼마나 오래 묶어 둘지(영구 · 기간) · 어디에 둘지(`trigger` soft-delete 행 · 별도 묘비 테이블) · 트리거를 **수정**해
+      경로를 바꿨을 때의 옛 경로도 같은 규칙인지(`endpointPath` 는 mutable — 12-webhook «endpointPath 가변성»). 실측 필요: 지운 트리거의 경로로
+      실제 트래픽이 계속 오는지(수신 404 로그).
 
 - [ ] **`WorkflowAssistantSession` 엔티티의 `@Index(['workflowId', 'status', 'lastInteractionAt'])` 에 `userId` 가 빠졌다** (developer, 낮음,
       2026-09-18 등재 · `plan/complete/spec-draft-fk-remaining-dispositions.md` «비대상»). 실제 인덱스(V019)는 `(workflow_id, user_id, status, last_interaction_at DESC)` 다 —

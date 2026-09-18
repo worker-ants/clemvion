@@ -182,7 +182,7 @@ describe('Webhook trigger (e2e)', () => {
     // **단위 테스트가 mock 하는 드라이버 에러 형태가 실제와 같은지는 이 케이스만 확인한다.**
     // `triggers.service.spec.ts` 는 `QueryFailedError` 를 손으로 만들어 `rethrowEndpointPathConflict`
     // 를 태우는데, 실 DB 가 그 형태(제약 이름·SQLSTATE)를 정말 돌려주는지는 mock 이 원리적으로
-    // 말해 주지 못한다 — `(workspace_id, endpoint_path)` UNIQUE 를 실제로 밟는 유일한 자리다.
+    // 말해 주지 못한다 — `endpoint_path` UNIQUE(V132 부터 전역)를 실제로 밟는 자리다(교차 워크스페이스는 B5).
     //
     // 계약 SoT: [에러 처리 §1.10](spec/5-system/3-error-handling.md) — 봉투 `code` 는 상태
     // 기본값 `RESOURCE_CONFLICT` 를 유지하고 세부 사유는 `details` 에 싣는다(객체 형태).
@@ -210,6 +210,109 @@ describe('Webhook trigger (e2e)', () => {
     });
     // 드라이버 원문(제약명·SQL)이 새지 않는지 — 전역 필터의 마스킹 계약과 같은 축.
     expect(JSON.stringify(dup.body)).not.toContain('duplicate key');
+  });
+
+  it('B5. 다른 워크스페이스가 같은 endpointPath 로 생성 · 수정 → 409, 수신 웹훅은 원래 주인에게 (V132)', async () => {
+    // 수신 URL `/api/hooks/:endpointPath` 는 워크스페이스 무관 전역 라우팅 키다. 유일성이 워크스페이스
+    // 단위(V002)였을 때는 경로를 **알고 있는** 다른 워크스페이스가 같은 경로로 트리거를 만들 수 있었고,
+    // 수신 조회가 둘 중 하나를 골라 웹훅이 복사한 쪽으로 갈 수 있었다
+    // (spec/1-data-model.md Rationale «Webhook `endpoint_path` 전역 유일»).
+    const victimPath = crypto.randomUUID();
+    await createWebhookTrigger(uniqueName('hook-b5-victim'), victimPath);
+
+    const other = await registerAndLogin(BASE_URL, uniqueEmail('hook-b5'), db);
+    const otherWs = await createTeamWorkspace(
+      BASE_URL,
+      other.accessToken,
+      uniqueName('HOOK-B5'),
+    );
+    const otherWf = await request(BASE_URL)
+      .post('/api/workflows')
+      .set('Authorization', `Bearer ${other.accessToken}`)
+      .set('X-Workspace-Id', otherWs)
+      .send({ name: uniqueName('hook-b5-wf') });
+    const otherWfId = (otherWf.body.data as { id: string }).id;
+
+    const expectConflict = (res: request.Response) => {
+      expect(res.status).toBe(409);
+      expect(res.body.error.code).toBe('RESOURCE_CONFLICT');
+      expect(res.body.error.details).toEqual({
+        field: 'endpoint_path',
+        code: 'TRIGGER_ENDPOINT_PATH_CONFLICT',
+      });
+      // 충돌 상대는 다른 워크스페이스의 트리거다 — 메시지가 «같은 워크스페이스» 를 말하면 거짓이다.
+      expect(JSON.stringify(res.body)).not.toContain('워크스페이스');
+    };
+
+    // (1) 생성: 알고 있는 경로로 곧바로
+    const created = await request(BASE_URL)
+      .post('/api/triggers')
+      .set('Authorization', `Bearer ${other.accessToken}`)
+      .set('X-Workspace-Id', otherWs)
+      .send({
+        workflowId: otherWfId,
+        type: 'webhook',
+        name: uniqueName('hook-b5-copy'),
+        endpointPath: victimPath,
+        isActive: true,
+      });
+    expectConflict(created);
+
+    // (2) 수정: 자기 경로로 만든 뒤 알고 있는 경로로 바꾸기 (endpointPath 는 mutable — 12-webhook)
+    const own = await request(BASE_URL)
+      .post('/api/triggers')
+      .set('Authorization', `Bearer ${other.accessToken}`)
+      .set('X-Workspace-Id', otherWs)
+      .send({
+        workflowId: otherWfId,
+        type: 'webhook',
+        name: uniqueName('hook-b5-own'),
+        endpointPath: crypto.randomUUID(),
+        isActive: true,
+      });
+    expect(own.status).toBe(201);
+    const patched = await request(BASE_URL)
+      .patch(`/api/triggers/${(own.body.data as { id: string }).id}`)
+      .set('Authorization', `Bearer ${other.accessToken}`)
+      .set('X-Workspace-Id', otherWs)
+      .send({ endpointPath: victimPath });
+    expectConflict(patched);
+
+    // (3) 수신은 원래 주인의 워크플로로 간다
+    const hook = await request(BASE_URL)
+      .post(`/api/hooks/${victimPath}`)
+      .send({ payload: 'b5' });
+    expect(hook.status).toBe(202);
+    const executionId = (hook.body.data as { executionId: string }).executionId;
+    const row = await db.query<{ workflow_id: string }>(
+      'SELECT workflow_id FROM execution WHERE id = $1',
+      [executionId],
+    );
+    expect(row.rows[0]?.workflow_id).toBe(workflowId);
+  });
+
+  it('B6. schema: endpoint_path 전역 UNIQUE 가 유효하고 옛 워크스페이스 단위 UNIQUE 는 없다 (V132)', async () => {
+    // `indisvalid` 까지 본다 — CONCURRENTLY 가 실패하면 이름만 점유한 invalid 인덱스가 남는다.
+    // 정의는 선두 컬럼 · 부분 조건까지 대조한다 — `(workspace_id, endpoint_path)` 로 되돌아가면
+    // 워크스페이스를 모르는 수신 조회가 다시 전역 유일을 보장받지 못한다.
+    const res = await db.query<{
+      relname: string;
+      indisvalid: boolean;
+      indisunique: boolean;
+      def: string;
+    }>(
+      `SELECT c.relname, i.indisvalid, i.indisunique, pg_get_indexdef(i.indexrelid) AS def
+         FROM pg_index i JOIN pg_class c ON c.oid = i.indexrelid
+        WHERE c.relname IN ('idx_trigger_endpoint_path', 'idx_trigger_workspace_endpoint')`,
+    );
+    expect(res.rows.map((r) => r.relname)).toEqual([
+      'idx_trigger_endpoint_path',
+    ]);
+    expect(res.rows[0].indisvalid).toBe(true);
+    expect(res.rows[0].indisunique).toBe(true);
+    expect(res.rows[0].def).toMatch(
+      /ON public\.trigger USING btree \(endpoint_path\) WHERE \(endpoint_path IS NOT NULL\)$/,
+    );
   });
 
   it('B3. 필수 파라미터 누락 → 400 INVALID_WEBHOOK_PAYLOAD + 공식 봉투 error.details[] (WH-EP-05-2 §5.2)', async () => {

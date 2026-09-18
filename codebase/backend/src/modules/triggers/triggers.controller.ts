@@ -99,7 +99,7 @@ export class TriggersController {
   @ApiForbiddenResponse({ description: 'editor 이상 권한 필요' })
   @ApiConflictResponse({
     description:
-      '동일 워크스페이스에 같은 `endpointPath` 를 쓰는 트리거가 이미 존재. `code=RESOURCE_CONFLICT`, `details.field="endpoint_path"`, `details.code="TRIGGER_ENDPOINT_PATH_CONFLICT"`.',
+      '같은 `endpointPath` 를 쓰는 트리거가 이미 존재(다른 워크스페이스의 트리거 포함 — `endpoint_path` 는 전역 유일, V132). `code=RESOURCE_CONFLICT`, `details.field="endpoint_path"`, `details.code="TRIGGER_ENDPOINT_PATH_CONFLICT"`.',
   })
   async create(
     @WorkspaceId() workspaceId: string,
@@ -136,7 +136,7 @@ export class TriggersController {
   @ApiNotFoundResponse({ description: '해당 트리거를 찾을 수 없음' })
   @ApiConflictResponse({
     description:
-      '동일 워크스페이스에 같은 `endpointPath` 를 쓰는 트리거가 이미 존재. `code=RESOURCE_CONFLICT`, `details.field="endpoint_path"`, `details.code="TRIGGER_ENDPOINT_PATH_CONFLICT"`.',
+      '같은 `endpointPath` 를 쓰는 트리거가 이미 존재(다른 워크스페이스의 트리거 포함 — `endpoint_path` 는 전역 유일, V132). `code=RESOURCE_CONFLICT`, `details.field="endpoint_path"`, `details.code="TRIGGER_ENDPOINT_PATH_CONFLICT"`.',
   })
   async update(
     @Param('id', ParseUUIDPipe) id: string,
