@@ -275,7 +275,7 @@ sequenceDiagram
 | `auth_oauth_state` | OAuth callback | DELETE WHERE `state=? AND expires_at > now` RETURNING (원자적 one-shot) | — |
 | `login_history` | 모든 이벤트 | INSERT `user_id, email, event, ip_address, user_agent, device_label, family_id, failure_reason, created_at` | `(user_id, created_at DESC)`, `(email, created_at DESC)` (V040) |
 | `workspace` | 회원가입 (이메일 검증 단계) | INSERT `name, type='personal', owner_id, slug` | `slug UNIQUE` (V001) |
-| `workspace_member` | 회원가입 | INSERT `workspace_id, user_id, role='owner', joined_at` | `(workspace_id, user_id) UNIQUE` |
+| `workspace_member` | 회원가입 | INSERT `workspace_id, user_id, role='owner', joined_at` | `(workspace_id, user_id) UNIQUE` · V129 `(user_id)` (사용자별 워크스페이스 목록 · FK) |
 
 ### 2.2 Redis
 

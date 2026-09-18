@@ -4613,7 +4613,7 @@ field: T | null;
       것(트리거 목록 §4.3)과 방향이 다르다. 새 결함이 아니라 기존 동작이다 — 인덱스 PR 이 비용을 재다 정량화했을 뿐이다. 결정할 것: 노드 삭제가
       실행 이력을 지우는 것이 의도인가(SET NULL 로 바꾸면 `node_id` NOT NULL 부터 바뀐다).
 
-- [ ] **선두 인덱스가 없는 FK — 부모를 한정하지 않은 전수 37개 중 28개 남음** (developer + planner, 2026-09-18 등재 ·
+- [x] **선두 인덱스가 없는 FK — 부모를 한정하지 않은 전수 37개(셈법 보정 40개) 전부 처분** (developer + planner, 2026-09-18 등재 · **2026-09-18 해소** `plan/complete/spec-draft-fk-remaining-dispositions.md` ·
       **2026-09-18 전제 정정** `plan/complete/spec-draft-deletion-cascade-indexes.md`). 처음엔 부모를 `workflow`·`workspace` 둘로 한정해 «여섯» 이라 적고 «`integration_usage_log` 우선»
       이라 했는데, 재 보니 그 FK(`integration_usage_log.workflow_id`)는 워크플로 삭제 한 번에 0.55 ms 였다. 부모를 한정하지 않으면 단일 컬럼 FK
       87개 중 **37개**가 선두 인덱스 없이 CASCADE·SET NULL·NO ACTION 을 건다. FK 트리거는 지워지는 부모 행마다 자식을 찾으므로 비용은
@@ -4623,11 +4623,29 @@ field: T | null;
       - ✅ **2026-09-18 해소 넷**(V117~V120, `plan/complete/spec-draft-graph-fk-indexes.md`) — 그래프 RAG 의 청크·엔티티 삭제 연쇄:
         800k 청크 규모 KB 하나 삭제 129,941 → 48.1 ms, 재임베딩(문서 하나, 청크 40) 1,795.7 → 2.37 ms, 엔티티 하나 삭제 4.25 → 0.38 ms.
         `head_entity_id` · `tail_entity_id` 는 기존 `(knowledge_base_id, …)` 복합 인덱스가 skip scan 으로 쓰였지만 비용이 KB 수에 비례했다.
-      - **다음 후보 — 부모 삭제가 드문 큰 테이블 셋**: `model_config` → `llm_usage_log.llm_config_id`, `user` → `audit_log.user_id` ·
-        `execution.executed_by`. 자식 테이블은 크지만 부모 삭제가 드물다 — **재기 전에는 우선순위가 없다**. 같은 절차(일회용 pg18 ·
-        규모 4배씩 · `EXPLAIN (ANALYZE)` 의 FK 트리거 시간 · INSERT 5회 median)로 잰 뒤 정한다.
-      - 그 밖: 작은 테이블(부록 표의 나머지). V112~V116 PR 의 두 경로에 걸리는 `alert_rule.workflow_id` · `edge.target_node_id` 는
-        200k 에서 0.1 ms 미만이었다.
+      - ✅ **2026-09-18 나머지 전부 처분** — 28개 + **셈법이 놓친 셋**(`indkey[0]` 만 대조해 조건이 다른 부분 인덱스도 «있음» 으로 셌다:
+        `model_config.workspace_id` · `workspace.owner_id` · `notification.user_id`) = 31개. **인덱스 열**(V121~V130) · **비대상 스물하나**
+        (사용자 삭제 경로 없음 13 · 10분 만료 일시 행 3 · 설정 테이블 한 동작 1회 5). 워크스페이스 1만 규모: 캔버스 저장의 노드 하나 삭제
+        29.1 → 0.15 ms · 워크플로 삭제 306.8 → 1.8 ms · 워크스페이스 삭제 3,161 → 49.6 ms. 열 중 다섯(V126~V130)은 FK 보다 **목록 조회**가
+        이유다. 앞 줄의 «`edge.target_node_id` 200k 에서 0.1 ms 미만» 은 엣지 약 1만 행 측정이었다 — 엣지 90만이면 노드 하나에 28.8 ms.
+
+- [ ] **웹훅 트리거 조회가 `endpoint_path` 인덱스 전체를 훑는다** (developer + planner, 낮음, 2026-09-18 등재 · `plan/complete/spec-draft-fk-remaining-dispositions.md` «비대상»).
+      웹훅 POST 마다(`hooks.service` · `public-webhook-throttle.guard`)와 웹챗 `embed-config` 부팅마다 `trigger` 를
+      `WHERE endpoint_path = ? AND type = 'webhook'` 로 찾는데, 인덱스는 `(workspace_id, endpoint_path) WHERE endpoint_path IS NOT NULL`
+      UNIQUE 뿐이라 `workspace_id` 를 모르는 조회가 인덱스 전체를 훑는다 — 워크스페이스 1만(웹훅 트리거 5만)에서 0.9 ms(`Index Searches: 1`),
+      웹훅 트리거 수에 비례. FK 가 아니라 선두 인덱스 전수(40개) 밖이다. 결정할 것: `endpoint_path` 는 UUID v4(CHECK)라 전역 유일로
+      좁혀도 되는가(UNIQUE `(endpoint_path)` — 유일성 범위가 바뀐다) · 아니면 비유일 보조 인덱스 `(endpoint_path)` 로 조회만 고치는가.
+
+- [ ] **`WorkflowAssistantSession` 엔티티의 `@Index(['workflowId', 'status', 'lastInteractionAt'])` 에 `userId` 가 빠졌다** (developer, 낮음,
+      2026-09-18 등재 · `plan/complete/spec-draft-fk-remaining-dispositions.md` «비대상»). 실제 인덱스(V019)는 `(workflow_id, user_id, status, last_interaction_at DESC)` 다 —
+      `spec/1-data-model.md` §3 의 같은 누락은 그 PR 이 정정했다. `synchronize: false` 라 DB 에 영향은 없고, 고치면 그 파일이
+      `spec/3-workflow-editor/4-ai-assistant.md` 의 `code:` 에 걸려 `--impl-done` 범위가 는다 — 그 영역을 건드리는 다음 PR 이 함께 고친다.
+
+- [ ] **`spec/conventions/` 3섹션 구조 편차** (planner, 낮음, 2026-09-18 등재 · `--impl-prep` `review/consistency/2026/09/18/22_44_08`
+      WARNING 1 · 2). ① `migrations.md` 는 Rationale 이 `## 7. 폐기 대안 (Rationale)` 이라는 번호 붙은 절이고 그 뒤에 `## 참고` 가 온다 —
+      나머지 conventions 는 bare `## Rationale` 이 종결 섹션이다. ② 최상위 23개 중 13개가 `## Overview` 를 생략한다(`node-output.md` 는 Rationale
+      도 없다). 이 작업과 무관한 기존 상태로, checker 가 `spec/conventions/` scope 를 훑다 드러냈다. 결정할 것: 관례로 맞출지, 레퍼런스형
+      규약은 예외로 둘지(예외라면 planner SKILL 의 3섹션 표에 적는다).
 
 - [x] **트리거 자원 정리 구현이 남긴 stale 주석·이름 네 곳** (developer, 2026-09-17 등재 · **2026-09-18 해소** `plan/complete/trigger-release-stale-comments.md` — 넷 + 같은 클래스 전수 grep 으로 넷 더(락 상한 JSDoc 은 낡은 게 아니라 **틀렸다** — 비밀이 커밋 뒤로 옮겨간 것을 반영 안 했다) · `plan/complete/trigger-deletion-release.md` · `/ai-review` `review/code/2026/09/17/19_40_27` W4·INFO2 · `--impl-done` `review/consistency/2026/09/17/19_55_46` W2·W3 —
       수렴 예외로 등재). 넷 다 `codebase/**` 라 그 PR 안에서 고치면 리뷰·`--impl-done` 라운드가 늘었다.

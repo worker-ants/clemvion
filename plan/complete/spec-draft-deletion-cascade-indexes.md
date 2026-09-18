@@ -184,45 +184,56 @@ median 1,060 ms · 없음 975 ms** — 행당 약 0.85 µs(+8.7%). 노드 한 �
 ## 부록 — 선두 인덱스가 없는 FK 전수 37개 (카탈로그 출력, V001~V111 적용 DB)
 
 단일 컬럼 FK 87개 중 그 컬럼을 선두로 가진 인덱스가 없는 것. 트래커 항목이 이 표를 SoT 로 가리킨다. «처분» 칸이 빈 것은 작은 테이블이거나
-부모 삭제가 드물어 이번에 재지 않은 것이다. ✅ 는 뒤 PR 이 닫은 것까지 갱신한다(표 자체는 V111 시점 카탈로그 그대로 —
-행을 지우지 않는다).
+부모 삭제가 드물어 이번에 재지 않은 것이다. «처분» 칸은 뒤 PR 이 처분한 것까지 갱신한다(표 자체는 V111 시점 카탈로그 그대로 —
+행을 지우지 않는다). **2026-09-18 전부 처분됐다** — 비대상의 라 · 마 · 바 는 `plan/complete/spec-draft-fk-remaining-dispositions.md` 의 «처분 기준».
+
+**이 표의 셈은 부분 인덱스도 «있음» 으로 셌다**(`indkey[0]` 만 대조). FK 조회(`$1 = col`)가 쓸 수 없는 부분 인덱스만 가진 셋이 빠졌고,
+아래 표 뒤에 따로 적는다(전수 40).
 
 | 부모 | 자식.컬럼 | 삭제 동작 | 처분 |
 |---|---|---|---|
-| auth_config | `trigger.auth_config_id` | SET NULL |  |
+| auth_config | `trigger.auth_config_id` | SET NULL | ✅ V126 (`plan/complete/spec-draft-fk-remaining-dispositions.md`) |
 | document_chunk | `entity.last_seen_chunk_id` | SET NULL | ✅ V117 (`plan/complete/spec-draft-graph-fk-indexes.md`) |
 | document_chunk | `relation.evidence_chunk_id` | SET NULL | ✅ V118 (`plan/complete/spec-draft-graph-fk-indexes.md`) |
 | entity | `relation.head_entity_id` | CASCADE | ✅ V119 (`plan/complete/spec-draft-graph-fk-indexes.md`) |
 | entity | `relation.tail_entity_id` | CASCADE | ✅ V120 (`plan/complete/spec-draft-graph-fk-indexes.md`) |
 | execution | `llm_usage_log.execution_id` | SET NULL | ✅ V116 |
-| folder | `folder.parent_id` | CASCADE |  |
-| folder | `workflow.folder_id` | SET NULL |  |
-| integration | `integration_oauth_state.integration_id` | CASCADE |  |
-| model_config | `knowledge_base.extraction_llm_config_id` | SET NULL |  |
-| model_config | `knowledge_base.embedding_model_config_id` | SET NULL |  |
-| model_config | `knowledge_base.rerank_config_id` | SET NULL |  |
-| model_config | `knowledge_base.rerank_llm_config_id` | SET NULL |  |
-| model_config | `llm_usage_log.llm_config_id` | SET NULL | 모델 설정 삭제가 큰 로그 테이블을 훑는다 — 삭제는 드문 관리 동작 |
-| model_config | `workflow_assistant_session.llm_config_id` | SET NULL |  |
-| node | `edge.target_node_id` | CASCADE | 캔버스 노드 삭제에 걸림 — 200k 에서 0.022 ms |
+| folder | `folder.parent_id` | CASCADE | ✅ V124 (`plan/complete/spec-draft-fk-remaining-dispositions.md`) |
+| folder | `workflow.folder_id` | SET NULL | ✅ V123 (`plan/complete/spec-draft-fk-remaining-dispositions.md`) |
+| integration | `integration_oauth_state.integration_id` | CASCADE | 비대상 — 마(10분 만료 일시 행) (`plan/complete/spec-draft-fk-remaining-dispositions.md`) |
+| model_config | `knowledge_base.extraction_llm_config_id` | SET NULL | 비대상 — 바(설정 테이블 · 한 동작에 1회) (`plan/complete/spec-draft-fk-remaining-dispositions.md`) |
+| model_config | `knowledge_base.embedding_model_config_id` | SET NULL | 비대상 — 바(설정 테이블 · 한 동작에 1회) (`plan/complete/spec-draft-fk-remaining-dispositions.md`) |
+| model_config | `knowledge_base.rerank_config_id` | SET NULL | 비대상 — 바(설정 테이블 · 한 동작에 1회) (`plan/complete/spec-draft-fk-remaining-dispositions.md`) |
+| model_config | `knowledge_base.rerank_llm_config_id` | SET NULL | 비대상 — 바(설정 테이블 · 한 동작에 1회) (`plan/complete/spec-draft-fk-remaining-dispositions.md`) |
+| model_config | `llm_usage_log.llm_config_id` | SET NULL | ✅ V122 (`plan/complete/spec-draft-fk-remaining-dispositions.md`) |
+| model_config | `workflow_assistant_session.llm_config_id` | SET NULL | ✅ V125 (`plan/complete/spec-draft-fk-remaining-dispositions.md`) |
+| node | `edge.target_node_id` | CASCADE | ✅ V121 (앞의 «200k 에서 0.022 ms» 는 엣지 약 1만 행 측정이었다 — 엣지 90만이면 노드 하나에 28.8 ms) (`plan/complete/spec-draft-fk-remaining-dispositions.md`) |
 | node | `node_execution.node_id` | CASCADE | ✅ V112 |
 | node_execution | `integration_usage_log.node_execution_id` | CASCADE | ✅ V113 |
 | node_execution | `llm_usage_log.node_execution_id` | SET NULL | ✅ V115 |
-| user | `alert_rule.created_by` | SET NULL |  |
-| user | `audit_log.user_id` | NO ACTION | 사용자 삭제가 큰 감사 로그를 훑는다 — 사용자 삭제는 드물다 |
-| user | `execution.executed_by` | NO ACTION | 사용자 삭제가 실행 테이블을 훑는다 — 같음 |
-| user | `integration.created_by` | NO ACTION |  |
-| user | `integration_oauth_preview.user_id` | CASCADE |  |
-| user | `integration_oauth_state.user_id` | CASCADE |  |
-| user | `workflow.created_by` | NO ACTION |  |
-| user | `workflow_assistant_session.user_id` | CASCADE |  |
-| user | `workflow_version.created_by` | NO ACTION |  |
-| user | `workspace_invitation.invited_by` | SET NULL |  |
-| user | `workspace_invitation.accepted_by` | SET NULL |  |
-| user | `workspace_member.user_id` | CASCADE |  |
-| workflow | `alert_rule.workflow_id` | CASCADE | 워크플로 삭제에 걸림 — 200k 에서 0.095 ms |
+| user | `alert_rule.created_by` | SET NULL | 비대상 — 라(사용자 삭제 경로 없음) (`plan/complete/spec-draft-fk-remaining-dispositions.md`) |
+| user | `audit_log.user_id` | NO ACTION | 비대상 — 라(사용자 삭제 경로 없음) (`plan/complete/spec-draft-fk-remaining-dispositions.md`) |
+| user | `execution.executed_by` | NO ACTION | 비대상 — 라(사용자 삭제 경로 없음) (`plan/complete/spec-draft-fk-remaining-dispositions.md`) |
+| user | `integration.created_by` | NO ACTION | 비대상 — 라(사용자 삭제 경로 없음) (`plan/complete/spec-draft-fk-remaining-dispositions.md`) |
+| user | `integration_oauth_preview.user_id` | CASCADE | 비대상 — 라(사용자 삭제 경로 없음) (`plan/complete/spec-draft-fk-remaining-dispositions.md`) |
+| user | `integration_oauth_state.user_id` | CASCADE | 비대상 — 라(사용자 삭제 경로 없음) (`plan/complete/spec-draft-fk-remaining-dispositions.md`) |
+| user | `workflow.created_by` | NO ACTION | 비대상 — 라(사용자 삭제 경로 없음) (`plan/complete/spec-draft-fk-remaining-dispositions.md`) |
+| user | `workflow_assistant_session.user_id` | CASCADE | 비대상 — 라(사용자 삭제 경로 없음) (`plan/complete/spec-draft-fk-remaining-dispositions.md`) |
+| user | `workflow_version.created_by` | NO ACTION | 비대상 — 라(사용자 삭제 경로 없음) (`plan/complete/spec-draft-fk-remaining-dispositions.md`) |
+| user | `workspace_invitation.invited_by` | SET NULL | 비대상 — 라(사용자 삭제 경로 없음) (`plan/complete/spec-draft-fk-remaining-dispositions.md`) |
+| user | `workspace_invitation.accepted_by` | SET NULL | 비대상 — 라(사용자 삭제 경로 없음) (`plan/complete/spec-draft-fk-remaining-dispositions.md`) |
+| user | `workspace_member.user_id` | CASCADE | ✅ V129 (FK 가 아니라 워크스페이스 목록 조회가 이유) (`plan/complete/spec-draft-fk-remaining-dispositions.md`) |
+| workflow | `alert_rule.workflow_id` | CASCADE | 비대상 — 바(워크플로 1만 규모에서도 1.2~1.3 ms) (`plan/complete/spec-draft-fk-remaining-dispositions.md`) |
 | workflow | `integration_usage_log.workflow_id` | CASCADE | ✅ V114 |
-| workspace | `auth_config.workspace_id` | CASCADE |  |
-| workspace | `integration_oauth_preview.workspace_id` | CASCADE |  |
-| workspace | `integration_oauth_state.workspace_id` | CASCADE |  |
-| workspace | `knowledge_base.workspace_id` | CASCADE |  |
+| workspace | `auth_config.workspace_id` | CASCADE | ✅ V127 (목록 조회가 이유) (`plan/complete/spec-draft-fk-remaining-dispositions.md`) |
+| workspace | `integration_oauth_preview.workspace_id` | CASCADE | 비대상 — 마(10분 만료 일시 행) (`plan/complete/spec-draft-fk-remaining-dispositions.md`) |
+| workspace | `integration_oauth_state.workspace_id` | CASCADE | 비대상 — 마(10분 만료 일시 행) (`plan/complete/spec-draft-fk-remaining-dispositions.md`) |
+| workspace | `knowledge_base.workspace_id` | CASCADE | ✅ V128 (목록 조회가 이유) (`plan/complete/spec-draft-fk-remaining-dispositions.md`) |
+
+셈법 보정으로 더한 셋(V001~V120 카탈로그, 선두 인덱스가 조건이 다른 부분 인덱스뿐):
+
+| 부모 | 자식.컬럼 | 삭제 동작 | 선두 인덱스(부분) | 처분 |
+|---|---|---|---|---|
+| workspace | `model_config.workspace_id` | CASCADE | `(workspace_id, kind) WHERE is_default = true` | ✅ V130 `(workspace_id, kind)` — 목록 조회가 이유 (`plan/complete/spec-draft-fk-remaining-dispositions.md`) |
+| user | `workspace.owner_id` | CASCADE | `(owner_id) WHERE type = 'personal'` | 비대상 — 라(사용자 삭제 경로 없음) (`plan/complete/spec-draft-fk-remaining-dispositions.md`) |
+| user | `notification.user_id` | NO ACTION | `(user_id, is_read, created_at DESC) WHERE dismissed_at IS NULL` | 비대상 — 라(사용자 삭제 경로 없음) (`plan/complete/spec-draft-fk-remaining-dispositions.md`) |
