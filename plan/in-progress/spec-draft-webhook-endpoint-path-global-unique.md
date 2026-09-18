@@ -109,7 +109,7 @@ spec_impact:
   squatting·enumeration 을 막는 것을 전제로 한다.` 뒤에 불릿 하나: «고엔트로피는 **추측**을 막을 뿐 **복사**는 막지 못한다 — 경로를 아는
   사람(뷰어 · 전 멤버 · URL 을 받은 외부 서비스)이 다른 워크스페이스에 같은 경로를 등록하는 것은 전역 UNIQUE(V132)가 막는다. 2026-09-18
   이전에는 유일성이 워크스페이스 단위라 이 복사가 가능했고, 수신 웹훅이 복사한 쪽으로 갈 수 있었다([데이터 모델 Rationale
-  «Webhook `endpoint_path` 전역 유일»](../1-data-model.md)).»
+  «Webhook `endpoint_path` 전역 유일»](../../spec/1-data-model.md)).»
 
 ### S5. `spec/2-navigation/2-trigger-list.md` 두 곳 · `spec/5-system/3-error-handling.md` 두 곳
 
@@ -132,7 +132,7 @@ spec_impact:
 
 «**정정 (2026-09-18)**: 유일성은 이제 `(endpoint_path)` 전역 UNIQUE(V132)라 라우팅 키와 범위가 같다. UUID 자동 발급은 **우연한** 충돌을
 막을 뿐, 경로를 **알고 있는** 사람이 다른 워크스페이스에 같은 경로를 등록하는 것(복사)은 막지 못했다 — 그 경우 이 조회가 둘 중 하나를
-골라 수신 웹훅이 복사한 쪽으로 갈 수 있었다. 근거와 재현은 [데이터 모델 Rationale «Webhook `endpoint_path` 전역 유일»](../1-data-model.md).»
+골라 수신 웹훅이 복사한 쪽으로 갈 수 있었다. 근거와 재현은 [데이터 모델 Rationale «Webhook `endpoint_path` 전역 유일»](../../spec/1-data-model.md).»
 
 나머지 문장(라우팅 키가 `endpoint_path` 단독이라는 사실 · 서버의 v4 형식 강제 · 공개 URL 형식)은 그대로 참이라 두다.
 
@@ -150,7 +150,7 @@ spec_impact:
 
 `… 공개 webhook path 이므로 경로 주입·중복 가로채기 방지는 그 규약(+ DB unique)이 단일 책임. 콘솔은 클라이언트 UUID 를 제출할 뿐이다.` 뒤에:
 «DB unique 가 **전역**이 된 것은 2026-09-18(V132)이다 — 그 전에는 워크스페이스 단위라 다른 워크스페이스의 복사 등록(가로채기)을 막지 못했다
-([데이터 모델 Rationale «Webhook `endpoint_path` 전역 유일»](../1-data-model.md)). 콘솔의 트리거 생성도 같은 `TriggersService` 경로라 함께 보호된다.»
+([데이터 모델 Rationale «Webhook `endpoint_path` 전역 유일»](../../spec/1-data-model.md)). 콘솔의 트리거 생성도 같은 `TriggersService` 경로라 함께 보호된다.»
 
 ## 구현 (같은 PR, developer 턴)
 

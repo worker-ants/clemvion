@@ -3070,7 +3070,7 @@ describe('TriggersService — endpoint_path UNIQUE 충돌 계약', () => {
       // 충돌 상대가 다른 워크스페이스의 트리거일 수 있다 — 메시지가 «같은 워크스페이스» 를
       // 말하면 거짓이다(유일성이 전역이 된 뒤, V132).
       const err = (await rejected.catch(
-        (e: unknown) => e,
+        (err_: unknown) => err_,
       )) as ConflictException;
       expect(JSON.stringify(err.getResponse())).not.toContain('워크스페이스');
     },
