@@ -1,12 +1,14 @@
 ---
 title: trigger (workflow_id) 인덱스 — 워크플로 삭제가 트리거 테이블을 세 번 전부 훑는다
-status: in-progress
+status: complete
 owner: project-planner
 worktree: trigger-workflow-index-3d8a52
 started: 2026-09-18
+completed: 2026-09-18
 spec_impact:
   - spec/1-data-model.md
   - spec/data-flow/10-triggers.md
+  - spec/conventions/migrations.md
 ---
 
 # spec draft — `trigger (workflow_id)` 인덱스
@@ -79,6 +81,30 @@ spec_impact:
 
 `… 인덱스는 V002.` → `… 인덱스는 V002. \`(workflow_id)\` 인덱스는 워크플로 삭제 경로(트리거 자원 정리의 열거 · FK CASCADE)용이다 (V111).`
 
+### S4. `spec/conventions/migrations.md` §5 말미 콜아웃 — 교체만이 아니라 인덱스를 만드는 파일 전부로 (`/ai-review` 2라운드 WARNING 2)
+
+현재:
+
+> **인덱스 교체는 별도 패턴이 있다**: 기존 인덱스를 갈아 끼우는 마이그레이션은
+> [`codebase/backend/migrations/README.md`](../../codebase/backend/migrations/README.md) §5 의
+> *"인덱스 교체는 DROP-먼저"* 를 따른다. `IF NOT EXISTS` 만으로는 실패 후 재실행이
+> **쓸 수 있는 인덱스를 0개로** 만들 수 있다.
+
+변경:
+
+> **인덱스를 만드는 마이그레이션은 별도 패턴이 있다**: `CREATE INDEX CONCURRENTLY` 를 쓰는 파일은 교체든 신규 추가든
+> [`codebase/backend/migrations/README.md`](../../codebase/backend/migrations/README.md) §5 를 따라 `CREATE` 앞에
+> invalid 잔재 정리(`DROP INDEX CONCURRENTLY IF EXISTS <새 인덱스 이름>`)를 둔다. `IF NOT EXISTS` 는 이름만 보므로,
+> 그것만으로는 실패 후 재실행이 교체에서는 **쓸 수 있는 인덱스를 0개로** 만들고(V056) 신규 추가에서는 invalid 인덱스를
+> **영영 유효하지 않게** 남긴다(V106).
+
+`CONCURRENTLY` 로 한정하는 이유: 트랜잭션 안의 `CREATE INDEX` 는 실패하면 통째로 롤백돼 invalid 잔재가 남지 않는다. 잔재는
+`CONCURRENTLY` 가 중간에 실패할 때만 생긴다(README §5).
+
+**1라운드 처분을 뒤집는다**: 1라운드 RESOLUTION 은 이 콜아웃을 «교체에 한정된 문장이라 지금도 참» 이라 고치지 않았다. 문장
+자체는 거짓이 아니지만, «교체는 README 를 따른다» 는 곧 «신규 추가는 따르지 않아도 된다» 로 읽힌다 — 이 PR 이 없애려는 V106
+결함을 다시 만드는 경로다. 같은 절 3단계가 README §4·§5 를 가리킨다는 것은 그 오독을 막지 못한다(3단계는 `.conf` 맥락이다).
+
 ## 구현 (같은 PR, developer 턴)
 
 - **V111** `codebase/backend/migrations/V111__trigger_workflow_id_index.sql` + `.conf`(`executeInTransaction=false`) —
@@ -104,7 +130,7 @@ spec_impact:
 
 ## 체크리스트
 
-- [x] `--spec` BLOCK: NO → S1~S3 반영 (+ INFO 1 V061 행 · INFO 2 링크)
+- [x] `--spec` BLOCK: NO → S1~S3 반영 (+ INFO 1 V061 행 · INFO 2 링크) · 2회차 `review/consistency/2026/09/18/13_04_19` BLOCK: NO → S4 반영
 - [x] `--impl-prep spec/2-navigation/` — `review/consistency/2026/09/18/12_26_41` **BLOCK: NO** (WARNING 1: spec Rationale 이 아직 옮기지 않은
   `plan/complete/spec-draft-trigger-workflow-index.md` 를 가리킨다 → **draft 이동을 이 PR 의 마지막 커밋에서 한다 — 다른 PR 로 떼지 않는다**(선례 #1285 와 같다).
   scope 밖 `1-data-model.md` · `conventions/migrations.md` 는 직접 Read 블록으로 넣었다)
@@ -113,9 +139,15 @@ spec_impact:
   e2e 정규식이 기대는 `pg_get_indexdef` 출력(`ON public.trigger USING btree (workflow_id)`)은 일회용 pg18 로 먼저 확인
 - [x] lint · unit · build(타입체크 ratchet — backend 197 · frontend 52, baseline 일치) · e2e backend **322**(직전 321 + 스키마 단언 1 —
   그 단언은 인덱스가 유효하게 있어야만 통과하므로 Flyway 가 V111 을 e2e DB 에 적용했다는 증거다) · migration-guard OK(max V111)
-- [ ] `/ai-review`
+- [x] `/ai-review` — 1라운드 `review/code/2026/09/18/12_43_23` LOW · C0 · W1(V111 형태가 README §5 에 없다 → `ff7d79967` README 규약화,
+  `RESOLUTION.md`). README 가 `codebase/**` 라 2라운드를 돈다. **정지 규칙(2라운드 결과를 보기 전에 적는다)**: Critical 0 이고
+  남은 Warning 이 동작 결함이 아닌 `codebase/**` 문서·주석이면 developer SKILL «수렴 예외»(a)~(d)로 트래커 등재하고 3라운드를 돌지 않는다.
+  Critical 이거나 동작 결함이면 고치고 다시 돈다
+  → **2라운드 `review/code/2026/09/18/12_54_44` LOW · C0 · W2** — 둘 다 `codebase/**` 수정 없이 닫혀 3라운드 없음(정지 규칙대로):
+  W1 `plan/complete/…` 선인용 3곳 → 이 draft 이동으로 해소(이동 뒤 grep 재확인), W2 `migrations.md` §5 콜아웃이 교체만 말한다 → S4.
+  처분은 `review/code/2026/09/18/12_54_44/RESOLUTION.md`
 - [ ] `--impl-done`
-- [ ] 트래커 반영 · 이 draft `complete/` 이동
+- [x] 트래커 반영(성능 후속 첫째·셋째 불릿 해소 표시 · 둘째는 남김 · 새 항목 «선두 인덱스가 없는 여섯») · 이 draft `complete/` 이동
 
 ## Rationale
 
@@ -140,3 +172,14 @@ spec_impact:
 - **INFO 4** grep 0건의 스코프 → «구현» 에 `codebase/`·`spec/`·`plan/` 기준임을 적었다.
 - **INFO 5·6** 트래커 반영 · V111 race — 체크리스트와 커밋 직전 재확인이 덮는다.
 - S2 는 draft 요지대로 Rationale 맨 위에 넣었다(비용 표 · 같은 클래스 전수 · 단독 컬럼 이유).
+
+### `--spec` 2회차 처분 (`review/consistency/2026/09/18/13_04_19` — **BLOCK: NO**, Critical 0 · WARNING 2)
+
+- **WARNING 1** S4 가 아직 미적용 → 적용했다(`migrations.md` §5 콜아웃).
+- **WARNING 2** 자매 문서 `spec/data-flow/8-notifications.md` 의 «새로 쓰는 인덱스 **교체**는 README §5 의 3문장 순서를 따른다» 도
+  좁다 → **고치지 않는다.** 그 문장은 V056(알림 인덱스 **교체**)의 적용 순서가 규약보다 이르다는 이력 경고이고 주어가 교체다 —
+  교체의 규칙을 말하는 자리에서 좁은 서술이 맞다. `migrations.md` 콜아웃은 **모든 새 마이그레이션**에 걸리는 일반 규칙이라
+  넓어야 했던 것과 층이 다르다. 넓이가 아니라 «그 문장이 어느 층을 서술하나» 로 갈랐다.
+- **INFO 1** 번복 근거를 spec 에도 한 줄 → 하지 않는다. 새 콜아웃이 교체(V056)와 신규 추가(V106) 두 결과를 함께 적어 적용
+  범위의 이유를 스스로 담는다.
+- **INFO 3** 선인용 3곳 → 이 draft 이동으로 해소.

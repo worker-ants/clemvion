@@ -71,10 +71,11 @@ Flyway 의 `outOfOrder=true` 옵션은 옛 V번호가 늦게 들어와도 실행
 
 > PR open 후에는 가능한 빠르게 리뷰·머지하여 다른 PR 과의 V번호 점유 윈도우를 짧게 유지한다.
 
-> **인덱스 교체는 별도 패턴이 있다**: 기존 인덱스를 갈아 끼우는 마이그레이션은
-> [`codebase/backend/migrations/README.md`](../../codebase/backend/migrations/README.md) §5 의
-> *"인덱스 교체는 DROP-먼저"* 를 따른다. `IF NOT EXISTS` 만으로는 실패 후 재실행이
-> **쓸 수 있는 인덱스를 0개로** 만들 수 있다.
+> **인덱스를 만드는 마이그레이션은 별도 패턴이 있다**: `CREATE INDEX CONCURRENTLY` 를 쓰는 파일은 교체든 신규 추가든
+> [`codebase/backend/migrations/README.md`](../../codebase/backend/migrations/README.md) §5 를 따라 `CREATE` 앞에
+> invalid 잔재 정리(`DROP INDEX CONCURRENTLY IF EXISTS <새 인덱스 이름>`)를 둔다. `IF NOT EXISTS` 는 이름만 보므로,
+> 그것만으로는 실패 후 재실행이 교체에서는 **쓸 수 있는 인덱스를 0개로** 만들고(V056) 신규 추가에서는 invalid 인덱스를
+> **영영 유효하지 않게** 남긴다(V106).
 
 ## 6. 충돌 검출 / 머지 race
 
