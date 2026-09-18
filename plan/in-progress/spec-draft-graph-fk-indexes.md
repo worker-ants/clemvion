@@ -128,8 +128,12 @@ spec 에 메커니즘을 적기 전에 호출당 비용만 보고 추론했던 �
 - [x] `--impl-prep spec/conventions/` — `review/consistency/2026/09/18/15_04_02` **BLOCK: NO** (WARNING 1 `plan/complete/` 선인용 → 아래 마지막 항목에
   grep 확인을 명시 · INFO 1 번들 예산은 트래커 기존 항목 · INFO 2 절 제목은 기수용)
 - [x] V117~V120 · e2e 네 건 · `python3 scripts/check-migration-versions.py --base origin/main` → `OK: 120 migration(s), max V120`
-- [ ] lint · unit · build · e2e
-- [ ] `/ai-review`
+- [x] lint · unit · build · e2e — 전부 PASS (e2e 331, `deletion-cascade-indexes.e2e-spec.ts` PASS — `it.each` 아홉 중 하나라도
+  실패하면 스위트가 FAIL 이므로 Flyway 가 V117~V120 을 유효하게 적용했다는 증거)
+- [x] `/ai-review` — **정지 규칙(1라운드 결과를 보기 전 선언)**: Critical 0 이고 남은 Warning 이 동작 결함이 아니면(문서·주석·
+  테스트 형태) `codebase/**` 를 고치지 않고 판정·등재로 닫는다. `codebase/**` 수정이 필요한 지적은 고치고 1라운드 더 — 최대 2라운드
+  → `review/code/2026/09/18/15_20_31` **Critical 0 · Warning 2** — 둘 다 plan 상태(W1 `plan/complete/` 선인용 = 마지막 커밋의 이동으로 닫힘 ·
+  W2 리뷰 시점 테스트 체크박스 미체크 = 병렬로 돌던 TEST WORKFLOW 가 전부 PASS). `codebase/**` 수정 0 인 1라운드로 종결(`RESOLUTION.md`)
 - [ ] `--impl-done`
 - [ ] 트래커 반영 · 이 draft `complete/` 이동(이 PR 의 마지막 커밋 — spec Rationale · 마이그레이션 헤더 넷 · e2e 머리말이 `plan/complete/` 로 인용한다).
   이동 뒤 `grep -rln "plan/complete/spec-draft-graph-fk-indexes.md" spec codebase` 로 인용 전부가 실재 경로를 가리키는지 확인
