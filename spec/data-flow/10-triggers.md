@@ -170,7 +170,7 @@ sequenceDiagram
 
 | Sink (table) | 흐름 | read/write 컬럼 | 인덱스 / 제약 |
 | --- | --- | --- | --- |
-| `trigger` | 생성 | INSERT `workspace_id, workflow_id, type IN (webhook/schedule/manual), name, is_active, config, endpoint_path?, auth_config_id?` | `type` CHECK 제약은 V001 (`CHECK (type IN ('webhook','schedule','manual'))`). `(workspace_id, endpoint_path) UNIQUE` + `(workspace_id, type)` 인덱스는 V002. |
+| `trigger` | 생성 | INSERT `workspace_id, workflow_id, type IN (webhook/schedule/manual), name, is_active, config, endpoint_path?, auth_config_id?` | `type` CHECK 제약은 V001 (`CHECK (type IN ('webhook','schedule','manual'))`). `(workspace_id, endpoint_path) UNIQUE` + `(workspace_id, type)` 인덱스는 V002. `(workflow_id)` 인덱스는 워크플로 삭제 경로(트리거 자원 정리의 열거 · FK CASCADE)용이다 (V111). |
 | `trigger` | 발사 | UPDATE `last_triggered_at` | — |
 | `schedule` | 생성 | INSERT `workspace_id, trigger_id, cron_expression, timezone, is_active, next_run_at, parameter_values={}` (parameter_values 컬럼은 V011) | FK CASCADE on trigger_id |
 | `schedule` | 발사 후 | UPDATE `last_run_at, next_run_at` (process() 정보성 재계산; 발사 트리거 아님) | `(workspace_id, next_run_at)` — 이 UPDATE 가 쓰는 `next_run_at` 이 그 인덱스의 후행 컬럼이다 (V110). 종전 `(next_run_at, is_active)` 는 목록 조회가 `is_active` 를 걸지 않아 쓰이지 않았다 |

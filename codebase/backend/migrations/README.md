@@ -124,7 +124,7 @@ Dockerfile 에서 `*.conf` 도 함께 COPY 되어야 합니다 (이미 V022 도�
 
 ### 5. `executeInTransaction=false` 파일은 한 statement 만 (컨벤션)
 
-`.conf` 로 비-트랜잭션 모드를 켠 마이그레이션 파일에는 **`CREATE INDEX CONCURRENTLY` 를 정확히 한 개만** 두는 것을 컨벤션으로 둡니다. 제한 대상은 **`CREATE` 의 개수**입니다 — 인덱스를 교체할 때 짝지어지는 `DROP INDEX CONCURRENTLY` 는 이 제한 밖이며, 그 패턴은 같은 절(§5) 아래 **인덱스 교체는 DROP-먼저** 에 있습니다.
+`.conf` 로 비-트랜잭션 모드를 켠 마이그레이션 파일에는 **`CREATE INDEX CONCURRENTLY` 를 정확히 한 개만** 두는 것을 컨벤션으로 둡니다. 제한 대상은 **`CREATE` 의 개수**입니다 — 인덱스를 교체할 때 짝지어지는 `DROP INDEX CONCURRENTLY` 와, 교체·신규 추가 모두 `CREATE` 앞에 두는 invalid 잔재 정리 `DROP` 은 이 제한 밖이며, 그 패턴은 같은 절(§5) 아래 **인덱스 교체는 DROP-먼저** 와 **신규 추가에도 0) 을 둡니다** 에 있습니다.
 
 > **근본 원인은 §4 의 `FLYWAY_POSTGRESQL_TRANSACTIONAL_LOCK=false` 로 해결되어 있습니다.** 과거에는 같은 파일에 두 개 이상이면 두 번째부터 hang 하던 이슈 (V022 / V030 split 의 배경) 가 있었으나, transactional advisory lock 이 session lock 으로 폴백되어 더 이상 발생하지 않습니다.
 >
@@ -173,6 +173,20 @@ DROP INDEX CONCURRENTLY IF EXISTS <옛 인덱스 이름>;
 | `V106` | CREATE 만 — **신규 추가**(짝이 되는 DROP 없음) | 잃을 옛 인덱스가 없는 대신, invalid 인덱스가 **영영 유효해지지 않습니다** |
 
 append-only 라 둘 다 소급 수정 대상은 아니고, 재실행이 필요해지면 `SELECT indisvalid FROM pg_index ...` 확인을 **수동 절차**로 선행합니다 — 처방은 양쪽 같습니다.
+
+**신규 추가에도 0) 을 둡니다** (2026-09-18, `V111__trigger_workflow_id_index.sql` 부터). 교체가 아니라 새 인덱스를 더하는 파일도 `CREATE` 앞에 `DROP INDEX CONCURRENTLY IF EXISTS <새 인덱스 이름>` 을 둡니다 — 위 표의 V106 행이 그것을 빠뜨린 결과입니다. 새 인덱스에는 잃을 옛 인덱스가 없으므로 «감수하는 비대칭» 의 비용은 성공 뒤 재실행 시 **재빌드 동안의 seq scan** 뿐이고, 얻는 것은 실패 뒤 재실행이 invalid 인덱스를 스스로 치운다는 점입니다.
+
+```sql
+DROP INDEX CONCURRENTLY IF EXISTS <새 인덱스 이름>;   -- 0) 앞선 실패의 invalid 잔재 정리
+CREATE INDEX CONCURRENTLY IF NOT EXISTS <새 인덱스 이름> ON ...;
+```
+
+| 형태 | 문장 | 선례 |
+| --- | --- | --- |
+| 교체 | 0) DROP(새 이름) → CREATE(새 이름) → DROP(옛 이름) | V110 |
+| 신규 추가 | 0) DROP(새 이름) → CREATE(새 이름) | V111 |
+
+두 형태 모두 위 «한 statement» 컨벤션의 제한 대상(`CREATE` 개수 = 1)을 지킵니다.
 
 ### 6. 테이블-rewrite 형 `ALTER COLUMN TYPE`
 

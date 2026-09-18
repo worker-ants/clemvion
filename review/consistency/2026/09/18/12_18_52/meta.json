@@ -1,0 +1,13 @@
+{
+  "timestamp": "2026-09-18T12:18:52.423813",
+  "mode": "spec draft 검토 (--spec)",
+  "target_path": "plan/in-progress/spec-draft-trigger-workflow-index.md",
+  "checkers": [
+    "cross_spec",
+    "rationale_continuity",
+    "convention_compliance",
+    "plan_coherence",
+    "naming_collision"
+  ],
+  "target_snapshot": "_target/spec-draft-trigger-workflow-index.md"
+}

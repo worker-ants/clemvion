@@ -4588,13 +4588,33 @@ field: T | null;
       마라 — `:` 가 든 id 는 해제 뒤에도 껍데기를 돌려준다(`getJobSchedulers` 의 key 소속으로).
 
 - [ ] **부모 삭제 경로의 성능 후속** (developer + planner, 2026-09-17 등재 · `plan/complete/trigger-deletion-release.md` · `/ai-review` `review/code/2026/09/17/19_14_29` W1·W3·W4·INFO7).
-      - `trigger.workflow_id` 에 인덱스가 없다(실측: `trigger` 인덱스는 `(workspace_id, type)` · `(workspace_id, endpoint_path)` ·
+      - ✅ **2026-09-18 해소** (`plan/complete/spec-draft-trigger-workflow-index.md` · V111 `idx_trigger_workflow_id` · `spec/1-data-model.md` §3 행 + Rationale — 320k 트리거에서
+        열거 7.52 → 0.04 ms · CASCADE 11.05 → 0.05 ms).
+        `trigger.workflow_id` 에 인덱스가 없다(실측: `trigger` 인덱스는 `(workspace_id, type)` · `(workspace_id, endpoint_path)` ·
         `notification_health` 부분 셋). 워크플로 삭제의 FK CASCADE 가 이 PR 전부터 이 컬럼으로 스캔했고, 정리 구현이 같은 스캔을
         두 번 더 한다(하나는 부모 잠금 안). `V106` 과 같은 `CREATE INDEX CONCURRENTLY` 마이그레이션 + **`spec/1-data-model.md`
         인덱스 표 행**(planner) 을 한 PR 로.
       - 커밋 뒤 비밀 삭제가 트리거마다 순차(실패를 개별 로그하려고), provider teardown·job 해제도 순차(provider 에 요청이 몰리지
         않게) — 대량 삭제 지연이 트리거 수에 선형이다. «부모 하나의 트리거 수가 작다» 는 **실측되지 않은 가정**이다.
-      - `releaseExternalForParent` 가 트리거 전체 컬럼을 적재한다 — `select: { id, type, config }` 로 좁힐 수 있다.
+      - ✅ **2026-09-18 해소** (`plan/complete/spec-draft-trigger-workflow-index.md` — `select: { id, type, config }`, 단위 테스트가 선택 컬럼을 정확히 고정).
+        `releaseExternalForParent` 가 트리거 전체 컬럼을 적재한다 — `select: { id, type, config }` 로 좁힐 수 있다.
+      > **남은 것은 둘째 불릿(순차 처리 지연) 하나다** — V111 은 테이블 전체 크기에 따른 비용을 없앨 뿐, 부모 하나에 딸린
+      > 트리거 수에 따른 비용은 그대로다. «부모 하나의 트리거 수가 작다» 는 여전히 미실측 가정이다.
+
+- [ ] **`2-trigger-list.md` `code:` 에 `trigger-resource-releaser.service.spec.ts` 를 등재한다** (planner, 낮음, 2026-09-18 등재 ·
+      `--impl-done` `review/consistency/2026/09/18/13_16_03` INFO 1). 트리거 목록 §4.3 의 정리 계약 중 «부모 삭제의 외부 해제가 읽는
+      컬럼(`id`·`type`·`config`)» 을 실행 단언으로 고정하는 것이 그 spec 파일이다(`find` 인자 정확 대조 — `config` 가 빠지면 teardown 이
+      조용히 no-op). 지금 `code:` 는 서비스와 e2e 만 등재한다. 글로브 `trigger-resource-release*.ts` 로 묶는 안도 있다.
+
+- [ ] **`workflow`·`workspace` 를 참조하는 FK 중 선두 인덱스가 없는 여섯** (developer + planner, 2026-09-18 등재 ·
+      `plan/complete/spec-draft-trigger-workflow-index.md` «같은 클래스 전수»). 카탈로그로 29개 FK 를 대조해 `trigger.workflow_id`(V111 로 해소) 말고 여섯이 남았다 —
+      전부 `ON DELETE CASCADE` 라 부모 삭제가 자식 테이블을 전부 훑는다:
+      `integration_usage_log.workflow_id` · `alert_rule.workflow_id` · `auth_config.workspace_id` · `knowledge_base.workspace_id` ·
+      `integration_oauth_state.workspace_id` · `integration_oauth_preview.workspace_id`.
+      **`integration_usage_log` 우선** — 로그 테이블이라 행 수가 가장 클 수 있다. 다만 INSERT 가 잦은 테이블에 인덱스를 더하는 것은
+      쓰기 비용과 맞바꾸는 판단이라(부분 인덱스 `WHERE workflow_id IS NOT NULL` 여부 포함) 행 수·쓰기 빈도를 먼저 잰다.
+      재는 방법은 그 draft 의 일회용 컨테이너 절차(V001~ 적용 · 규모를 4배씩 · `EXPLAIN (ANALYZE)` 의 FK 트리거 시간)를 그대로 쓴다.
+      새 인덱스 마이그레이션은 `codebase/backend/migrations/README.md` §5 «신규 추가에도 0) 을 둡니다» 를 따른다.
 
 - [x] **트리거 자원 정리 구현이 남긴 stale 주석·이름 네 곳** (developer, 2026-09-17 등재 · **2026-09-18 해소** `plan/complete/trigger-release-stale-comments.md` — 넷 + 같은 클래스 전수 grep 으로 넷 더(락 상한 JSDoc 은 낡은 게 아니라 **틀렸다** — 비밀이 커밋 뒤로 옮겨간 것을 반영 안 했다) · `plan/complete/trigger-deletion-release.md` · `/ai-review` `review/code/2026/09/17/19_40_27` W4·INFO2 · `--impl-done` `review/consistency/2026/09/17/19_55_46` W2·W3 —
       수렴 예외로 등재). 넷 다 `codebase/**` 라 그 PR 안에서 고치면 리뷰·`--impl-done` 라운드가 늘었다.
