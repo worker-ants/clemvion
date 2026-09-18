@@ -280,6 +280,7 @@ WebSocket 알림 (KB 상세 실시간 갱신)
 **인덱스**:
 - `(knowledge_base_id, type)` — 타입별 조회
 - `(knowledge_base_id, mention_count DESC)` — centrality 정렬
+- `(last_seen_chunk_id) WHERE last_seen_chunk_id IS NOT NULL` — 청크 삭제의 FK SET NULL (V117, [데이터 모델 §3](../1-data-model.md#3-인덱스-전략))
 
 ### 2.4 Relation (신규, 구현: `GraphRelation`)
 
@@ -300,6 +301,8 @@ WebSocket 알림 (KB 상세 실시간 갱신)
 **인덱스**:
 - `(knowledge_base_id, head_entity_id)` — head 기준 1-hop 확장
 - `(knowledge_base_id, tail_entity_id)` — tail 기준 역방향 확장
+- `(evidence_chunk_id) WHERE evidence_chunk_id IS NOT NULL` — 청크 삭제의 FK SET NULL (V118)
+- `(head_entity_id)` · `(tail_entity_id)` — 엔티티 삭제의 FK CASCADE (V119 · V120). 위 두 복합 인덱스는 KB 를 아는 검색용이다
 
 ### 2.5 ChunkEntity (신규, 구현: `GraphChunkEntity`)
 

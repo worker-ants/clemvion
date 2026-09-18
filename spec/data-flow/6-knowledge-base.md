@@ -255,8 +255,8 @@ KB 저장 **전에** 모델/ModelConfig (kind=embedding) 조합의 실제 vector
 | `document` | 그래프 라이프사이클 | UPDATE `graph_extraction_status, graph_retry_count, graph_last_attempted_at, graph_error_message` | V025/V026 |
 | `document` | retry 재시도 인덱스 | — | V038 partial index on `embedding_status IN (error, failed)` 등 stuck 회수용 |
 | `document_chunk` | 임베딩 적재 | INSERT `document_id, knowledge_base_id, chunk_index, content, embedding (vector), token_count, metadata` | `(document_id, chunk_index) UNIQUE`. HNSW partial indexes per dimension (V022 768, V030 384/512/1024, V031 1536, V032 512, V033 1024) — `embedding_dimension` 별로 매칭된 index 가 검색에 활용. V023 halfvec 인덱스는 3072 차원 처리. |
-| `entity` | graph 추출 | INSERT/UPDATE `knowledge_base_id, name, display_name, type IN (person/organization/concept/location/event/other), description?, mention_count, last_seen_chunk_id?` | `(knowledge_base_id, name, type) UNIQUE`, V025 `idx_entity_kb_type`, `idx_entity_kb_mention (mention_count DESC)` |
-| `relation` | graph 추출 | INSERT/UPDATE `knowledge_base_id, head_entity_id, tail_entity_id, predicate, evidence_chunk_id?, weight` | `(kb, head, predicate, tail) UNIQUE` (V025), V027 `(kb, head)` / `(kb, tail)` 인덱스 |
+| `entity` | graph 추출 | INSERT/UPDATE `knowledge_base_id, name, display_name, type IN (person/organization/concept/location/event/other), description?, mention_count, last_seen_chunk_id?` | `(knowledge_base_id, name, type) UNIQUE`, V025 `idx_entity_kb_type`, `idx_entity_kb_mention (mention_count DESC)`, V117 `(last_seen_chunk_id)` partial (FK SET NULL — 청크 삭제) |
+| `relation` | graph 추출 | INSERT/UPDATE `knowledge_base_id, head_entity_id, tail_entity_id, predicate, evidence_chunk_id?, weight` | `(kb, head, predicate, tail) UNIQUE` (V025), V027 `(kb, head)` / `(kb, tail)` 인덱스. V118 `(evidence_chunk_id)` partial · V119 `(head_entity_id)` · V120 `(tail_entity_id)` (FK — 청크·엔티티 삭제) |
 | `chunk_entity` | graph 추출 | INSERT `chunk_id, entity_id, mention_text?` | PK `(chunk_id, entity_id)`, V025 `(entity_id)` 역방향 인덱스 |
 | `chunk_entity` / `entity` / `relation` | KB 재추출 | DELETE all (CASCADE via knowledge_base_id) before re-populate | — |
 
