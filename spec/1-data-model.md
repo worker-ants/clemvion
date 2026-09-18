@@ -861,7 +861,7 @@ chat 계열 LLM 호출(`chat`/`chatStream`) 후 provider 응답 토큰 수를 ap
 | cost_usd | Numeric(12,6)? | `pricing.ts` 단가표(`provider:model`)로 계산. 미등재 모델은 NULL (통계 `SUM` 에서 자연 제외). 통계 응답에는 **숫자**로 실린다 — 서비스가 `::float` + `Number()` 로 명시 변환한다 ([swagger.md §1-6](./conventions/swagger.md#1-6-numeric-컬럼의-wire-타입)) |
 | created_at | Timestamp | 기록 시각 |
 
-**인덱스**: `(workspace_id, created_at DESC)` · `(provider, model, created_at DESC)` · `(workflow_id, created_at DESC) WHERE workflow_id IS NOT NULL` (통계용 partial). FK SET NULL 용 partial `(node_execution_id)` · `(execution_id)` (V115 · V116, §3). 마이그레이션 V014 (+ V018 `thinking_tokens`). 상태 머신 없는 append-only ([llm-usage.md §3](./data-flow/7-llm-usage.md)).
+**인덱스**: `(workspace_id, created_at DESC)` · `(provider, model, created_at DESC)` · `(workflow_id, created_at DESC) WHERE workflow_id IS NOT NULL` (통계용 partial). FK SET NULL 용 partial `(node_execution_id)` · `(execution_id)` · `(llm_config_id)` (V115 · V116 · V122, §3). 마이그레이션 V014 (+ V018 `thinking_tokens`). 상태 머신 없는 append-only ([llm-usage.md §3](./data-flow/7-llm-usage.md)).
 
 
 ---
@@ -899,14 +899,17 @@ DocumentChunk·Entity 계열 선례를 따른다.)
 
 | 테이블 | 인덱스 | 목적 |
 |--------|--------|------|
+| WorkspaceMember | (user_id) | 사용자별 워크스페이스 목록(`GET /workspaces`) — UNIQUE `(workspace_id, user_id)` 는 선두가 달라 테이블을 훑었다. FK `ON DELETE CASCADE` 도 이것을 쓴다. CONCURRENTLY, V129 |
 | Workflow | (workspace_id, is_active) | 워크스페이스별 활성 워크플로우 조회 |
 | Workflow | (workspace_id, name) | 이름 검색 |
+| Workflow | (folder_id) WHERE folder_id IS NOT NULL | FK `ON DELETE SET NULL` — 폴더 삭제에서 지워지는 하위 폴더마다. partial 로 폴더 밖 워크플로(NULL) 제외. CONCURRENTLY, V123 |
 | Node | (workflow_id) | 워크플로우별 노드 조회 |
 | Node | (container_id) | 컨테이너별 자식 노드 조회 |
 | Node | (tool_owner_id) | AI Agent별 Tool Area 노드 조회 |
 | Edge | (workflow_id) | 워크플로우별 엣지 조회 |
 | Edge | (workflow_id, type) | 워크플로우별 엣지 유형 조회 |
 | Edge | (source_node_id) | 노드별 아웃바운드 엣지 |
+| Edge | (target_node_id) | FK `ON DELETE CASCADE` — 노드가 지워질 때마다(캔버스 저장 · 워크플로 삭제). UNIQUE `(source_node_id, source_port, target_node_id, target_port)` 는 선두가 달라 쓰이지 않는다. CONCURRENTLY, V121 |
 | Execution | (workflow_id, started_at DESC) | 워크플로우별 실행 이력 |
 | Execution | (status) | 상태별 실행 조회 |
 | Execution | (re_run_of) | Re-run 직계 부모 조회 (chain badge 의 부모 표시) |
@@ -924,6 +927,9 @@ DocumentChunk·Entity 계열 선례를 따른다.)
 | Trigger | (workspace_id, endpoint_path) UNIQUE | Webhook URL 라우팅 (워크스페이스 단위 유니크) |
 | Trigger | (workflow_id) | 워크플로 삭제 경로 — 트리거 자원 정리의 열거 두 번(`WHERE workflow_id = ?`, 하나는 `workflow` 행 잠금 안)과 FK `ON DELETE CASCADE`. 이 셋 말고 `workflow_id` 로 트리거를 찾는 곳은 없다. Postgres 는 FK 에 인덱스를 자동 생성하지 않는다. CONCURRENTLY, V111 |
 | Trigger | (notification_health) WHERE notification_health = 'degraded' | V061 이 적은 목적: outbound notification 발송이 degraded 인 트리거를 대시보드·운영 알림에서 전 테이블 스캔 없이 찾는다(부분 인덱스). V061 |
+| Trigger | (auth_config_id) WHERE auth_config_id IS NOT NULL | 인증 설정 사용처(`GET /api/auth-configs/:id/usage`)가 이 컬럼 하나로 트리거를 찾는다(이어서 위 `Execution (trigger_id, started_at DESC)`). FK `ON DELETE SET NULL`(인증 설정 삭제)도 이것을 쓴다. CONCURRENTLY, V126 |
+| AuthConfig | (workspace_id) | 워크스페이스별 인증 설정 목록 · 트리거 편집의 선택 상자. FK `ON DELETE CASCADE` 도 이것을 쓴다. CONCURRENTLY, V127 |
+| ModelConfig | (workspace_id, kind) | 워크스페이스·종류별 모델 설정 목록 · 모델 선택 상자. `(workspace_id, kind) WHERE is_default = true` UNIQUE(V089)는 부분이라 `is_default` 조건 없는 목록 조회와 FK `ON DELETE CASCADE` 가 쓰지 못했다. CONCURRENTLY, V130 |
 | Schedule | (workspace_id, next_run_at) | 스케줄 목록 조회 — `WHERE workspace_id = ?` 진입과 `ORDER BY next_run_at` 정렬을 한 인덱스가 함께 준다. 선두가 `workspace_id` 라 다른 정렬 컬럼(`created_at` 등)에서도 진입을 준다. **발사 경로가 아니다** — 발사는 BullMQ job scheduler 가 한다 ([data-flow §3.2](./data-flow/10-triggers.md#32-schedulenext_run_at-계산)). 종전 `(next_run_at, is_active) WHERE is_active` 를 대체한다 — 목록이 `is_active` 를 걸지 않아 그 부분 인덱스를 쓸 수 없었다. CONCURRENTLY, V110 |
 | Schedule | (trigger_id) | 트리거 목록의 cron·nextRunAt enrichment 배치 조회 (`WHERE trigger_id IN (...)`). Postgres 는 FK 에 인덱스를 자동 생성하지 않는다. CONCURRENTLY, V106 |
 | AuditLog | (workspace_id, created_at DESC) | 감사 로그 조회 |
@@ -934,8 +940,9 @@ DocumentChunk·Entity 계열 선례를 따른다.)
 | WebAuthnCredential | (credential_id) UNIQUE | 인증 시 credential_id 로 row 조회 (WebAuthn 표준 요구) |
 | Integration | (workspace_id, service_type) | 서비스별 연동 조회 |
 | Integration | (workspace_id, name) UNIQUE | 워크스페이스 내 별칭 유일성 |
-| AssistantSession | (workflow_id, status, last_interaction_at DESC) | 워크플로우별 최근 활성 세션 조회 |
+| AssistantSession | (workflow_id, user_id, status, last_interaction_at DESC) | 워크플로우별 최근 활성 세션 조회 |
 | AssistantSession | (workspace_id, user_id, updated_at DESC) | 사용자별 세션 목록 |
+| AssistantSession | (llm_config_id) WHERE llm_config_id IS NOT NULL | FK `ON DELETE SET NULL` — 모델 설정 삭제. 세션은 대화마다 생기고 자동 정리가 없어 사용량으로 자란다. CONCURRENTLY, V125 |
 | AssistantMessage | (session_id, created_at ASC) | 세션 내 메시지 시간순 페이징 |
 | AgentMemory | (workspace_id, scope_key, created_at) | persistent 메모리 스코프별 회수·FIFO/LRU evict 조회 — `created_at` 을 포함해 evict 정렬을 인덱스로 커버 (workspace 격리 강제, V073) |
 | AgentMemory | (workspace_id, scope_key, updated_at) | admin scope 목록(`GET /agent-memories/scopes`) 의 `MAX(updated_at)` 정렬을 index-only 로 커버 — created_at 인덱스와 직교 (CONCURRENTLY, V086) |
@@ -955,15 +962,82 @@ DocumentChunk·Entity 계열 선례를 따른다.)
 | LlmUsageLog | (workflow_id, created_at DESC) WHERE workflow_id IS NOT NULL | 워크플로우별 비용 집계 — partial 로 non-node·워크플로우 밖 caller(workflow_id=NULL) 제외 (V014) |
 | LlmUsageLog | (node_execution_id) WHERE node_execution_id IS NOT NULL | FK `ON DELETE SET NULL` — 실행 이력 행이 지워질 때마다. partial 로 노드 밖 caller(NULL) 제외. CONCURRENTLY, V115 |
 | LlmUsageLog | (execution_id) WHERE execution_id IS NOT NULL | FK `ON DELETE SET NULL` — 실행 행이 지워질 때마다(워크플로 삭제). CONCURRENTLY, V116 |
+| LlmUsageLog | (llm_config_id) WHERE llm_config_id IS NOT NULL | FK `ON DELETE SET NULL` — 모델 설정 삭제. partial 로 설정 없이 부른 호출(NULL) 제외. CONCURRENTLY, V122 |
+| KnowledgeBase | (workspace_id) | 워크스페이스별 KB 목록 · KB 선택 상자 · 어시스턴트 도구 `list_knowledge_bases`. FK `ON DELETE CASCADE` 도 이것을 쓴다. CONCURRENTLY, V128 |
 | Entity | (last_seen_chunk_id) WHERE last_seen_chunk_id IS NOT NULL | FK `ON DELETE SET NULL` — 청크가 지워질 **때마다** 한 번씩 찾는다(재임베딩 · 문서 삭제 · KB 삭제). 다른 인덱스는 전부 `knowledge_base_id` 선두라 쓰이지 않는다. CONCURRENTLY, V117 |
 | Relation | (evidence_chunk_id) WHERE evidence_chunk_id IS NOT NULL | FK `ON DELETE SET NULL` — 위와 같다. CONCURRENTLY, V118 |
 | Relation | (head_entity_id) | FK `ON DELETE CASCADE` — 엔티티가 지워질 때마다(엔티티 삭제 · KB 삭제). `(knowledge_base_id, head_entity_id)` 는 PG18 skip scan 으로 쓰이지만 KB 수에 비례한다. CONCURRENTLY, V119 |
 | Relation | (tail_entity_id) | 위와 같다(tail). CONCURRENTLY, V120 |
 | Folder | (workspace_id, parent_id) | 워크스페이스별 폴더 조회 |
+| Folder | (parent_id) WHERE parent_id IS NOT NULL | FK `ON DELETE CASCADE` — 폴더 삭제의 하위 폴더마다. 위 `(workspace_id, parent_id)` 는 선두가 달라 인덱스 전체를 훑었다. partial 로 루트 폴더(NULL) 제외. CONCURRENTLY, V124 |
 | Notification | (user_id, is_read, created_at DESC) WHERE dismissed_at IS NULL | 사용자별 visible 미읽음 알림 조회 (벨 배지·popover). partial 로 dismissed row 를 인덱스에서 배제해 크기를 작게 유지 — 자세한 라이프사이클은 [data-flow/8-notifications.md §4](./data-flow/8-notifications.md#4-dismiss-흐름-사용자-액션) |
 | Notification | (workspace_id, created_at DESC) | 워크스페이스별 알림 조회 — partial 미적용 (향후 admin/감사 쿼리가 dismissed 포함 전체 row 를 볼 여지) |
 
 ## Rationale
+
+### 쓸 인덱스가 없는 FK 서른하나의 처분 (2026-09-18)
+
+바로 아래 두 절이 닫고 남긴 FK 28개와, 그 두 절의 셈이 놓친 셋을 모두 처분한다 — **인덱스 열**(V121~V130), **비대상 스물하나**.
+
+**셈법 보정.** 아래 «삭제 연쇄의 FK 인덱스 다섯» 절의 «37개» 는 `pg_index.indkey[0]` 만 대조해 부분 인덱스도 «있음» 으로 셌다. FK 트리거의
+조회(`$1 = col`)가 쓸 수 있는 부분 인덱스는 조건이 `col IS NOT NULL` 인 것뿐이라, 다른 조건이 붙은 부분 인덱스만 가진 셋 —
+`model_config.workspace_id`(`WHERE is_default = true`) · `workspace.owner_id`(`WHERE type = 'personal'`) · `notification.user_id`
+(`WHERE dismissed_at IS NULL`) — 은 «없음» 과 같다. 보정한 전수는 40, 남은 것은 31 이었다.
+
+| 부모 | 앱의 삭제 경로 | 빈도 |
+|---|---|---|
+| `node` | 캔버스 저장이 제출 목록에 없는 노드를 지운다 · 워크플로 · 워크스페이스 삭제의 연쇄 | 캔버스 저장마다 |
+| `folder` | 폴더 삭제 — 하위 폴더는 `parent_id` CASCADE 로 연쇄 | 관리 동작 |
+| `workflow` · `auth_config` · `model_config` · `integration` | 각자의 삭제 | 관리 동작 |
+| `workspace` | 워크스페이스 삭제 | 워크스페이스당 한 번 |
+| `user` | **없다** — «탈퇴» 는 워크스페이스 멤버십(`workspace_member` 행) 삭제다 | — |
+
+실측 (PostgreSQL 18, V001~V120, 워크스페이스 W 개마다 워크플로 10(노드 10 · 엣지 9 · 트리거 1) · 폴더 10 · 인증 설정 5 · 모델 설정 3 ·
+KB 5 · LLM 로그 200 · 어시스턴트 세션 10, 새로 만든 데이터, 워밍 뒤 1회):
+
+| 경로 | W=2,500 | W=10,000 | W=10,000 + V121~V129 |
+|---|---|---|---|
+| 캔버스 저장이 노드 하나를 뺀다 | 8.2 ms | 29.1 ms | **0.15 ms** |
+| 워크플로 삭제 | 79.5 ms | 306.8 ms | **1.8 ms** |
+| 폴더 삭제(하위 5개) | 5.9 ms | 19.5 ms | 0.53 ms |
+| 모델 설정 삭제 | 21 ms | 64~74 ms | 12~13 ms |
+| 워크스페이스 삭제 | 856 ms | 3,161 ms | **49.6 ms** |
+
+가장 큰 것은 `edge.target_node_id` 다 — 노드 하나에 28.8 ms(엣지 90만 순차 스캔 — UNIQUE `(source_node_id, …)` 는 선두가 다르다), 워크플로
+삭제에 10회, 워크스페이스 삭제에 100회. 다음이 `llm_usage_log.llm_config_id`(모델 설정 삭제 1회 50~58 ms, LLM 로그 200만)와
+`workflow.folder_id`(폴더 삭제에 하위 폴더마다). `folder.parent_id` 는 `(workspace_id, parent_id)` 를 쓰지만 인덱스 전체를 훑는다
+(`Index Searches: 1`).
+
+조회 경로 — FK 로는 «라» · «바»(아래)지만, 그 컬럼으로 목록을 찾는 조회가 쓸 인덱스 없이 요청마다 돌던 다섯(W=10,000 전 → 후):
+`workspace_member.user_id`(`GET /workspaces`, 0.22 → 0.012 ms) · `auth_config.workspace_id`(인증 설정 목록 · 선택 상자, 0.99 → 0.038 ms) ·
+`knowledge_base.workspace_id`(KB 목록 · 선택 상자, 1.53 → 0.033 ms) · `trigger.auth_config_id`(`GET /api/auth-configs/:id/usage`, 2.97 →
+0.006 ms) · `model_config.workspace_id`(모델 설정 목록 `workspace_id = ? AND kind = ?` — 부분 UNIQUE 를 못 쓴다, 1.55 → 0.022 ms). FK 비대상으로만
+적고 닫으면 이 컬럼들에 «인덱스가 필요 없다» 는 틀린 결론을 남긴다.
+
+처분 기준 — 곱 «자식 테이블 크기 × 연쇄로 지워지는 부모 행 수» 의 **어느 쪽이 사용자 데이터로 자라는가**로 갈랐다(호출당 ms 문턱 하나로
+자르면 규모가 바뀔 때마다 결론이 바뀐다):
+
+- 둔다 — **가.** 한 동작의 호출 수가 사용자 데이터로 는다(`edge.target_node_id` · `workflow.folder_id` · `folder.parent_id`). **나.** 자식이
+  설정 수가 아니라 사용량으로 자란다(`llm_usage_log.llm_config_id` — 보존 정리 없음, `workflow_assistant_session.llm_config_id` — 자동 정리
+  없음). **다.** 위 조회 경로 다섯.
+- 두지 않는다 — **라.** 부모를 지우는 앱 경로가 없다: `user` 를 가리키는 13개(그중 NO ACTION 여섯은 참조 행이 있는 사용자의 삭제를
+  거부한다 — 사용자 삭제는 지금 스키마가 받아 주지 않는 동작이다. 사용자 삭제를 더하는 변경은 이 13개의 처분부터 다시 정해야 한다). **마.** 10분 만료 일시 행: `integration_oauth_state` · `integration_oauth_preview`
+  의 FK 셋(호출당 0.1 ms 미만). **바.** 설정 테이블을 한 동작에서 한 번 훑고 조회 경로가 없다: `knowledge_base` 의 모델 설정 FK 넷(각 2.2~3.5 ms)
+  · `alert_rule.workflow_id`(1.2~1.3 ms).
+- 워크스페이스 삭제는 «가» 의 곱에서 뺀다 — 모든 행을 지우는 한 번뿐인 동작이라 연쇄가 전부 곱해지는 것이 정상이다. 합은 3,161 → 49.6 ms 이고
+  남은 것의 대부분이 «바» 다.
+
+쓰기 비용 (10만 행 INSERT 5회 median, FK 컬럼을 전부 채운 최악, «있음 → 없음 → 있음» 세 묶음 · 묶음마다 VACUUM): 행당 +0.8~2.6 µs
+(`workflow` 는 잡음 수준). 가장 자주 쓰는 둘 — `edge` +1.7~2.2 µs(캔버스 저장이 엣지를 한꺼번에 넣는다) · `llm_usage_log` +1.8~2.1 µs(LLM 호출
+한 번에 1행) — 도 무시할 만하고, 나머지 여덟은 사람이 설정을 만들 때만 쓰인다. 다섯(`llm_usage_log` · `workflow_assistant_session` 의
+`llm_config_id`, `workflow.folder_id`, `folder.parent_id`, `trigger.auth_config_id`)은 nullable 이라 부분 인덱스다 — V115~V118 과 같은 이유.
+`model_config` 만 `(workspace_id, kind)` 두 컬럼인 것은 목록 조회가 늘 `kind` 를 함께 걸기 때문이다.
+
+28개 **밖**에서 같은 모양으로 찾은 웹훅 트리거 조회(`endpoint_path` 로만 찾는데 인덱스는 `(workspace_id, endpoint_path)`)는 유일성 범위 결정이
+걸려 트래커로 보냈다.
+
+> 출처: 트래커 `plan/in-progress/spec-draft-nullable-notation-followups.md`. 실측 절차와 31개 처분 표는
+> `plan/complete/spec-draft-fk-remaining-dispositions.md`, 구현은 V121~V130.
 
 ### 그래프 RAG 삭제 연쇄의 FK 인덱스 넷 (2026-09-18)
 
@@ -1005,7 +1079,8 @@ LLM 호출(수백 ms~초) 뒤에 쓰므로 무시할 만하다. `last_seen_chunk
 
 부모 행을 지울 때 Postgres 의 FK 트리거는 **지워지는 부모 행마다** 자식을 한 번씩 찾는다. 선두 인덱스가 없는 FK 의 비용은 그래서
 «자식 테이블 크기 × 연쇄로 지워지는 부모 행 수» 다. 단일 컬럼 FK 87개 중 그런 것이 37개이고(카탈로그 `pg_index.indkey[0]` 대조, 부모를
-한정하지 않은 전수), 그중 다섯이 두 삭제 경로의 연쇄에서 비용을 낸다:
+한정하지 않은 전수 — **부분 인덱스도 «있음» 으로 센 수다**. FK 조회가 쓸 수 없는 부분 인덱스만 가진 셋을 더하면 40개다. 위 «쓸 인덱스가
+없는 FK 서른하나의 처분» 절), 그중 다섯이 두 삭제 경로의 연쇄에서 비용을 낸다:
 
 | 삭제 경로 | 빈도 | 연쇄 |
 |---|---|---|
@@ -1025,7 +1100,9 @@ LLM 호출(수백 ms~초) 뒤에 쓰므로 무시할 만하다. `last_seen_chunk
 800k 워크플로 삭제에서 FK 별로 `llm_usage_log.node_execution_id` 1,296.9 → 0.80 ms(200회) · `integration_usage_log.node_execution_id`
 530.6 → 0.50 ms(200회) · `node_execution.node_id` 271.3 → 0.19 ms(10회) · `llm_usage_log.execution_id` 116.9 → 0.39 ms(20회) ·
 `integration_usage_log.workflow_id` 2.56 → 0.028 ms(1회, 다섯째 인덱스). 두 경로의 나머지 FK 트리거는 200k 에서 각 0.5 ms 미만이다 —
-그중 선두 인덱스가 없는 `alert_rule.workflow_id` · `edge.target_node_id` 는 작은 테이블이라 넣지 않았다.
+그중 선두 인덱스가 없는 `alert_rule.workflow_id` · `edge.target_node_id` 는 작은 테이블이라 넣지 않았다 — **그 측정의 엣지는 약 1만
+행이었다**(실행 이력이 많고 워크플로가 적은 구성). 워크플로 10만 규모에서는 `edge.target_node_id` 가 캔버스 저장 경로의 가장 큰 비용이라
+위 «쓸 인덱스가 없는 FK 서른하나의 처분» 절이 넣었다(V121). `alert_rule.workflow_id` 는 그 규모에서도 1.3 ms 라 비대상 그대로다.
 
 쓰기 비용 (10만 행 INSERT 5회 median, FK 컬럼을 전부 채운 최악 조건):
 
@@ -1046,7 +1123,8 @@ LLM 호출(수백 ms~초) 뒤에 쓰므로 무시할 만하다. `last_seen_chunk
 «`integration_usage_log` 는 … 쓰기 비용과 맞바꾸는 판단이라 따로 잰다» 고 예고했다. 이 절이 그 검토다 — 재 보니 예고 대상이던
 `integration_usage_log.workflow_id` 는 삭제 한 번에 0.55 ms(200k)였고, 비용은 한정 밖의 FK(`node_execution` 을 가리키는 것)에 있었다.
 그 절의 문장은 그 범위에서 참이라 고치지 않는다. 나머지 32개 FK 는 트래커에 전수로 남겼다(지식 베이스 연쇄가 다음 후보 — **같은 날 위
-«그래프 RAG 삭제 연쇄의 FK 인덱스 넷» 절이 그 넷을 닫아 28개가 남았다**).
+«그래프 RAG 삭제 연쇄의 FK 인덱스 넷» 절이 그 넷을 닫아 28개가 남았다**). 그 28개와 셈법이 놓친 셋은 위 «쓸 인덱스가 없는 FK
+서른하나의 처분» 절이 모두 처분했다(인덱스 열 · 비대상 스물하나).
 
 > 출처: 트래커 `plan/in-progress/spec-draft-nullable-notation-followups.md`. 실측 절차는
 > `plan/complete/spec-draft-deletion-cascade-indexes.md`, 구현은 V112~V116.
@@ -1076,7 +1154,10 @@ CASCADE 한 번이었다. `workflow_id` 를 선두로 가진 인덱스가 없어
 `alert_rule.workflow_id` · `auth_config.workspace_id` · `knowledge_base.workspace_id` · `integration_oauth_state.workspace_id` ·
 `integration_oauth_preview.workspace_id`(뒤 둘의 스키마는 [data-flow/5-integration §2.1](./data-flow/5-integration.md#21-postgres)).
 트리거만 삭제 경로의 조회가 세 배가 된 자리이고, 나머지는 CASCADE 한 번뿐이다. 특히 `integration_usage_log` 는 로그 테이블이라
-행 수가 가장 클 수 있지만, INSERT 가 잦은 테이블에 인덱스를 더하는 것은 쓰기 비용과 맞바꾸는 판단이라 따로 잰다.
+행 수가 가장 클 수 있지만, INSERT 가 잦은 테이블에 인덱스를 더하는 것은 쓰기 비용과 맞바꾸는 판단이라 따로 잰다. 그 여섯의 처분:
+`integration_usage_log.workflow_id` 는 위 «삭제 연쇄의 FK 인덱스 다섯» 절이 쟀고(V114), `auth_config.workspace_id` · `knowledge_base.workspace_id`
+는 위 «쓸 인덱스가 없는 FK 서른하나의 처분» 절이 조회 경로 이유로 인덱스를 뒀다(V127 · V128). `alert_rule.workflow_id` 와
+`integration_oauth_state` · `integration_oauth_preview` 의 `workspace_id` 는 같은 절이 비대상으로 남겼다. 이 문단은 V111 시점 결정 범위에서 그대로 참이다.
 
 > 출처: 트래커 `plan/in-progress/spec-draft-nullable-notation-followups.md` «부모 삭제 경로의 성능 후속». 실측 절차는
 > `plan/complete/spec-draft-trigger-workflow-index.md`, 구현은 V111.

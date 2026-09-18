@@ -200,7 +200,7 @@ non-team 워크스페이스 동작은 `403 WORKSPACE_TYPE_MISMATCH`.
 | `workspace` | 소유권 이전 | UPDATE `owner_id` | — |
 | `workspace` | 삭제 (§1.10) | DELETE (선행: 동일 트랜잭션에서 `workspace_invitation`·`workspace_member` 명시 삭제) | — |
 | `secret_store` | 워크스페이스 삭제 (§1.10) | 트랜잭션 **커밋 뒤**, 트랜잭션 안에서 열거한 트리거마다 DELETE `ref LIKE 'secret://triggers/<id>/%'` (`deleteByPrefix`) | FK 없음 (V063) — `workspace_id` 를 조건으로 지우지 않는다 |
-| `workspace_member` | 가입·초대 수락·직접 추가(§1.9) | INSERT `workspace_id, user_id, role IN (owner/admin/editor/viewer), invited_at, joined_at` | `(workspace_id, user_id) UNIQUE` |
+| `workspace_member` | 가입·초대 수락·직접 추가(§1.9) | INSERT `workspace_id, user_id, role IN (owner/admin/editor/viewer), invited_at, joined_at` | `(workspace_id, user_id) UNIQUE` · V129 `(user_id)` (사용자별 워크스페이스 목록 · FK) |
 | `workspace_member` | 역할 변경 | UPDATE `role` | — |
 | `workspace_member` | 멤버 제거·자가 탈퇴 (§1.6, §1.10) | DELETE | — |
 | `workspace_invitation` | 발급 | INSERT `workspace_id, email, role IN (admin/editor/viewer), token, invited_by, expires_at = now+7d, created_at` — 동일 (workspace, email) 대기 초대 존재 시 INSERT 대신 해당 row UPDATE(upsert, §1.2) | `token UNIQUE` (V017), `(email)` idx, `(workspace_id)` idx, 부분 UNIQUE `(workspace_id, email) WHERE accepted_at IS NULL` (대기 초대 중복 방지). owner 는 초대 role 로 불가 |

@@ -1,0 +1,13 @@
+{
+  "timestamp": "2026-09-18T22:33:00.344491",
+  "mode": "spec draft 검토 (--spec)",
+  "target_path": "plan/in-progress/spec-draft-fk-remaining-dispositions.md",
+  "checkers": [
+    "cross_spec",
+    "rationale_continuity",
+    "convention_compliance",
+    "plan_coherence",
+    "naming_collision"
+  ],
+  "target_snapshot": "_target/spec-draft-fk-remaining-dispositions.md"
+}

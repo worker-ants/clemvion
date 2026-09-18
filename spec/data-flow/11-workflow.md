@@ -146,7 +146,7 @@ Assistant 의 `edit` 류 tool_call 은 **DB 를 직접 건드리지 않는다**.
 
 | Sink (table) | 흐름 | read/write 컬럼 | 인덱스 / 제약 |
 | --- | --- | --- | --- |
-| `workflow` | 생성 | INSERT `workspace_id, name, description?, is_active=false, tags='{}', folder_id?, settings={}, current_version=1, created_by` | FK `workspace_id` (CASCADE), `folder_id` (SET NULL) |
+| `workflow` | 생성 | INSERT `workspace_id, name, description?, is_active=false, tags='{}', folder_id?, settings={}, current_version=1, created_by` | FK `workspace_id` (CASCADE), `folder_id` (SET NULL) · V123 `(folder_id)` partial (FK SET NULL — 폴더 삭제) |
 | `workflow` | 복제 (§1.5) | INSERT — "생성" 과 같은 컬럼 집합. `name` 은 원본 + `" (Copy)"`, `is_active=false`, `current_version=1` 고정. description/tags/folder_id/settings 는 원본 값 승계, `created_by` 는 **요청자** | 동일 |
 | `workflow` | 활성 토글 | UPDATE `is_active, updated_at` | — |
 | `workflow` | 버전 커밋 | UPDATE `current_version, updated_at` | — |
@@ -155,10 +155,10 @@ Assistant 의 `edit` 류 tool_call 은 **DB 를 직접 건드리지 않는다**.
 | `node` | 복제 (§1.5) | INSERT — "추가" 와 같은 컬럼 집합. `id` 를 새로 발급하고 `container_id`/`tool_owner_id` 를 사본 UUID 로 재매핑. `config` 는 원본 그대로(defaults 재적용·LLM 주입 없음) | 동일. 원본이 이미 통과한 label 유니크는 재검증하지 않음 |
 | `node` | 이동 / 설정 변경 | UPDATE `position_x, position_y, config, label, is_disabled` | — |
 | `node` | 컨테이너 / Tool Area 배치 | UPDATE `container_id` 또는 `tool_owner_id` | cycle 검사는 런타임·Assistant ShadowWorkflow 에서 (`CONTAINER_CYCLE`, §1.2 각주) |
-| `edge` | 추가 | INSERT `workflow_id, source_node_id, source_port, target_node_id, target_port, type IN (data/error), condition?` | `(source_node_id, source_port, target_node_id, target_port) UNIQUE`, `chk_no_self_loop`, FK CASCADE |
+| `edge` | 추가 | INSERT `workflow_id, source_node_id, source_port, target_node_id, target_port, type IN (data/error), condition?` | `(source_node_id, source_port, target_node_id, target_port) UNIQUE`, `chk_no_self_loop`, FK CASCADE · V121 `(target_node_id)` (FK CASCADE — 노드 삭제) |
 | `edge` | 복제 (§1.5) | INSERT — "추가" 와 같은 컬럼 집합. `source_node_id`/`target_node_id` 를 사본 노드 UUID 로 재매핑 | 동일 |
 | `workflow_version` | 버전 커밋 | INSERT `workflow_id, version, snapshot=JSONB, change_summary?, created_by, created_at` | `(workflow_id, version) UNIQUE` |
-| `workflow_assistant_session` | 세션 생성 | INSERT `workspace_id, workflow_id, user_id, title?, llm_config_id?, status='active', message_count=0, last_interaction_at` | `(workflow_id, user_id, status, last_interaction_at DESC)`, `(workspace_id, user_id, updated_at DESC)` (V019) |
+| `workflow_assistant_session` | 세션 생성 | INSERT `workspace_id, workflow_id, user_id, title?, llm_config_id?, status='active', message_count=0, last_interaction_at` | `(workflow_id, user_id, status, last_interaction_at DESC)`, `(workspace_id, user_id, updated_at DESC)` (V019) · V125 `(llm_config_id)` partial (FK SET NULL — 모델 설정 삭제) |
 | `workflow_assistant_message` | 사용자 메시지 | INSERT `session_id, role='user', content` | `(session_id, created_at)` (V019) |
 | `workflow_assistant_message` | assistant 응답 | INSERT `session_id, role='assistant', content, tool_calls, plan?, usage, finish_reason, auto_resumed, auto_resume_reason?, auto_resume_attempt?` (뒤 3개는 V020) | thinking_tokens column 은 V018 에서 `usage` JSONB 안에 inline |
 | `workflow_assistant_message` | tool 결과 | (미기록) `role='tool'` 은 V019 CHECK 가 허용하나 현재 코드 경로는 row 를 쓰지 않음. tool 결과는 `assistant.tool_calls[].result` 로 재현 | — |
