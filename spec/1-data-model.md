@@ -921,6 +921,8 @@ DocumentChunk·Entity 계열 선례를 따른다.)
 | ExecutionNodeLog | (execution_id, id) | 단일 실행의 노드 진행 순서 조회 |
 | Trigger | (workspace_id, type) | 유형별 트리거 조회 |
 | Trigger | (workspace_id, endpoint_path) UNIQUE | Webhook URL 라우팅 (워크스페이스 단위 유니크) |
+| Trigger | (workflow_id) | 워크플로 삭제 경로 — 트리거 자원 정리의 열거 두 번(`WHERE workflow_id = ?`, 하나는 `workflow` 행 잠금 안)과 FK `ON DELETE CASCADE`. 이 셋 말고 `workflow_id` 로 트리거를 찾는 곳은 없다. Postgres 는 FK 에 인덱스를 자동 생성하지 않는다. CONCURRENTLY, V111 |
+| Trigger | (notification_health) WHERE notification_health = 'degraded' | V061 이 적은 목적: outbound notification 발송이 degraded 인 트리거를 대시보드·운영 알림에서 전 테이블 스캔 없이 찾는다(부분 인덱스). V061 |
 | Schedule | (workspace_id, next_run_at) | 스케줄 목록 조회 — `WHERE workspace_id = ?` 진입과 `ORDER BY next_run_at` 정렬을 한 인덱스가 함께 준다. 선두가 `workspace_id` 라 다른 정렬 컬럼(`created_at` 등)에서도 진입을 준다. **발사 경로가 아니다** — 발사는 BullMQ job scheduler 가 한다 ([data-flow §3.2](./data-flow/10-triggers.md#32-schedulenext_run_at-계산)). 종전 `(next_run_at, is_active) WHERE is_active` 를 대체한다 — 목록이 `is_active` 를 걸지 않아 그 부분 인덱스를 쓸 수 없었다. CONCURRENTLY, V110 |
 | Schedule | (trigger_id) | 트리거 목록의 cron·nextRunAt enrichment 배치 조회 (`WHERE trigger_id IN (...)`). Postgres 는 FK 에 인덱스를 자동 생성하지 않는다. CONCURRENTLY, V106 |
 | AuditLog | (workspace_id, created_at DESC) | 감사 로그 조회 |
@@ -953,6 +955,36 @@ DocumentChunk·Entity 계열 선례를 따른다.)
 | Notification | (workspace_id, created_at DESC) | 워크스페이스별 알림 조회 — partial 미적용 (향후 admin/감사 쿼리가 dismissed 포함 전체 row 를 볼 여지) |
 
 ## Rationale
+
+### Trigger `(workflow_id)` 인덱스 (2026-09-18)
+
+워크플로 삭제 한 번이 `trigger` 를 **세 번** 찾는다 — 트리거 자원 정리의 외부 해제용 열거(트랜잭션 밖) · 비밀 정리 대상
+열거(`workflow` 행 잠금 **안**) · FK `ON DELETE CASCADE`. 앞의 둘은 트리거 삭제 자원 정리(2026-09-17)가 더했고, 그 전에는
+CASCADE 한 번이었다. `workflow_id` 를 선두로 가진 인덱스가 없어 세 번 다 전 테이블을 훑었다. 이 셋 말고 `workflow_id` 로
+트리거를 찾는 곳은 없다(grep 전수).
+
+실측 (PostgreSQL 18, V001~V110 적용, 워크스페이스당 워크플로 5 · 워크플로당 트리거 4, 워밍 뒤 1회):
+
+| 트리거 수 | 열거 `SELECT id … WHERE workflow_id = ?` | CASCADE `trigger_workflow_id_fkey` | `DELETE FROM workflow` 전체 |
+|---|---|---|---|
+| 20,000 | Seq Scan · 0.63 ms | 0.67 ms | 2.33 ms |
+| 80,000 | Seq Scan · 2.26 ms | 2.19 ms | 3.68 ms |
+| 320,000 | Parallel Seq Scan · 7.52 ms | 11.05 ms | 12.64 ms |
+| **320,000 + `(workflow_id)`** | **Bitmap Index Scan · 0.04 ms** | **0.05 ms** | **1.26 ms** |
+
+테이블 크기에 선형이던 비용이 없어진다. 인덱스 크기는 320,000행에서 4.5 MB(테이블 41 MB). `workflow_id` 는 v1 에서
+바뀌지 않으므로([트리거 목록 §2.3.1](./2-navigation/2-trigger-list.md#231-필드-권한-매트릭스)) 쓰기 비용은 INSERT 때뿐이다.
+단독 컬럼인 이유: 세 쿼리가 모두 `workflow_id` 등치 하나뿐이라 복합 인덱스가 줄 것이 없다(위 Schedule 절의 «선두는 술어 컬럼»).
+
+**같은 클래스 전수 — 나머지 여섯은 이 결정에 넣지 않았다.** `workflow`·`workspace` 를 참조하는 FK 29개를 카탈로그로
+대조하면 선두 인덱스가 없는 것이 `trigger.workflow_id` 포함 7개다 — 나머지는 `integration_usage_log.workflow_id` ·
+`alert_rule.workflow_id` · `auth_config.workspace_id` · `knowledge_base.workspace_id` · `integration_oauth_state.workspace_id` ·
+`integration_oauth_preview.workspace_id`(뒤 둘의 스키마는 [data-flow/5-integration §2.1](./data-flow/5-integration.md#21-postgres)).
+트리거만 삭제 경로의 조회가 세 배가 된 자리이고, 나머지는 CASCADE 한 번뿐이다. 특히 `integration_usage_log` 는 로그 테이블이라
+행 수가 가장 클 수 있지만, INSERT 가 잦은 테이블에 인덱스를 더하는 것은 쓰기 비용과 맞바꾸는 판단이라 따로 잰다.
+
+> 출처: 트래커 `plan/in-progress/spec-draft-nullable-notation-followups.md` «부모 삭제 경로의 성능 후속». 실측 절차는
+> `plan/complete/spec-draft-trigger-workflow-index.md`, 구현은 V111.
 
 ### `User` 민감 컬럼 방어를 `select: false` 가 아니라 응답 경계에 둔 이유 (2026-09-06)
 
