@@ -1,9 +1,10 @@
 ---
 title: 웹훅 endpoint_path 전역 유일 — 다른 워크스페이스가 알고 있는 경로를 등록하면 수신 웹훅을 가로챌 수 있었다
-status: in-progress
+status: complete
 owner: project-planner
 worktree: webhook-endpoint-lookup-7a1f3c
 started: 2026-09-18
+completed: 2026-09-19
 spec_impact:
   - spec/1-data-model.md
   - spec/5-system/12-webhook.md
@@ -200,8 +201,12 @@ spec_impact:
   → 1라운드 `review/code/2026/09/19/00_38_29` Critical 0 · Warning 6 — W1(V131 정리 e2e) · W2(동률 규칙) · W3(가이드) · W6(409 설명) 을
   `b9162a877` 로 고쳤다(W4 · W5 는 마무리 커밋 · 배포 체크리스트). 2라운드 `…/01_04_31` Critical 0 · Warning 2 — W1 배포 체크리스트(1라운드 W5 와
   같은 근원) · W2 `CHANGELOG.md` 항목 추가. **`codebase/**` 수정 0 인 2라운드로 종결** (각 세션 `RESOLUTION.md`)
-- [ ] `--impl-done`
-- [ ] 트래커 반영 · 이 draft `complete/` 이동(마지막 커밋). 이동 뒤 `grep -rln "plan/complete/spec-draft-webhook-endpoint-path-global-unique.md" spec codebase`
+- [x] `--impl-done spec/2-navigation/` — `review/consistency/2026/09/19/01_17_13` **BLOCK: NO** (Critical 0 · WARNING 0 · INFO 3, 다섯 checker 모두 NONE).
+  구현 diff(10파일/594줄)와 §3 이 번들 예산에 잘려 열 파일과 scope 밖 spec 을 절대경로로 읽으라는 블록을 붙였다. INFO 1 `plan/complete/` 선인용 =
+  아래 이동으로 닫힘 · INFO 2 `2-trigger-list.md` 에 새 Rationale 역참조 링크(선택) — 이 PR 의 spec 은 planner 커밋에서 닫혔고 링크 한 줄로 planner
+  턴을 다시 여는 것보다 `1-data-model.md` Rationale 이 `2-trigger-list` · `12-webhook` 을 이미 가리키는 것으로 충분하다고 판단 · INFO 3 Swagger
+  설명 상수 관행의 규칙화는 세 번째 사례 때(rule of three)
+- [x] 트래커 반영 · 이 draft `complete/` 이동(마지막 커밋). 이동 뒤 `grep -rln "plan/complete/spec-draft-webhook-endpoint-path-global-unique.md" spec codebase`
   로 인용 전부가 실재 경로를 가리키는지 확인
 
 ## Rationale
