@@ -84,7 +84,7 @@ Manual Trigger는 입력 포트가 없고, 출력 포트 `out` 1개를 포함해
 
 ## Webhook 트리거 자세히
 
-웹훅 트리거를 만들면 워크스페이스 도메인 아래에 고유 엔드포인트가 발급돼요. 외부 서비스(GitHub, Stripe, 자체 백엔드 등)가 이 URL로 HTTP POST를 보내면 해당 워크플로우가 실행돼요.
+웹훅 트리거를 만들면 고유한 엔드포인트가 발급돼요. 이 경로는 워크스페이스에 속한 게 아니라 서비스 전체에서 유일해서, 다른 워크스페이스가 같은 경로로 트리거를 등록할 수 없어요. 외부 서비스(GitHub, Stripe, 자체 백엔드 등)가 이 URL로 HTTP POST를 보내면 해당 워크플로우가 실행돼요.
 
 ### URL과 메서드
 
@@ -92,7 +92,7 @@ Manual Trigger는 입력 포트가 없고, 출력 포트 `out` 1개를 포함해
 POST {base_url}/api/hooks/{endpoint_path}
 ```
 
-- `endpoint_path`는 트리거 생성 시 UUID로 자동 발급돼요 (브루트포스 방지). 트리거 목록 화면에서 📋 버튼으로 전체 URL을 복사할 수 있어요.
+- `endpoint_path`는 트리거 생성 시 UUID로 자동 발급돼요 — 경로를 추측하기 어렵게 만들어요. 이미 경로를 알고 있더라도 다른 워크스페이스에 같은 경로로 등록하려 하면 거부돼요 — 경로는 서비스 전체에서 유일해야 하거든요. 트리거 목록 화면에서 📋 버튼으로 전체 URL을 복사할 수 있어요.
 - 메서드는 `POST`만 받아요. `Content-Type`은 `application/json` 또는 `application/x-www-form-urlencoded`.
 - 본문 최대 크기는 webhook 종류에 따라 달라요 — 공개(인증 미연결) webhook 은 **32KB**(초과 시 `413 PUBLIC_WEBHOOK_BODY_TOO_LARGE`), 인증 webhook 은 **1MB**(초과 시 `413 PAYLOAD_TOO_LARGE`).
 

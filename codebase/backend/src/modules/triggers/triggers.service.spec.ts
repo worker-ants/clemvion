@@ -2970,7 +2970,7 @@ describe('TriggersService — 감사 로깅 (trigger.*)', () => {
 });
 
 /**
- * `(workspace_id, endpoint_path)` UNIQUE 충돌의 **문서한 형태**.
+ * `endpoint_path` 전역 UNIQUE 충돌의 **문서한 형태**.
  *
  * `2-trigger-list.md §3` 은 *"409 `RESOURCE_CONFLICT` (세부 코드
  * `TRIGGER_ENDPOINT_PATH_CONFLICT`, `details.field='endpoint_path'`)"* 를 계약으로
@@ -3053,7 +3053,7 @@ describe('TriggersService — endpoint_path UNIQUE 충돌 계약', () => {
                 'u-1',
               );
       (triggerRepo.save as jest.Mock).mockRejectedValue(
-        uniqueViolation('idx_trigger_workspace_endpoint', surface),
+        uniqueViolation('idx_trigger_endpoint_path', surface),
       );
 
       const rejected = call();
@@ -3067,6 +3067,12 @@ describe('TriggersService — endpoint_path UNIQUE 충돌 계약', () => {
           },
         },
       });
+      // 충돌 상대가 다른 워크스페이스의 트리거일 수 있다 — 메시지가 «같은 워크스페이스» 를
+      // 말하면 거짓이다(유일성이 전역이 된 뒤, V132).
+      const err = (await rejected.catch(
+        (err_: unknown) => err_,
+      )) as ConflictException;
+      expect(JSON.stringify(err.getResponse())).not.toContain('워크스페이스');
     },
   );
 
@@ -3116,12 +3122,19 @@ describe('TriggersService — endpoint_path UNIQUE 충돌 계약', () => {
     (surface) => {
       expect(
         isEndpointPathUniqueViolation(
-          uniqueViolation('idx_trigger_workspace_endpoint', surface),
+          uniqueViolation('idx_trigger_endpoint_path', surface),
         ),
       ).toBe(true);
       expect(
         isEndpointPathUniqueViolation(
           uniqueViolation('some_other_index', surface),
+        ),
+      ).toBe(false);
+      // V132 가 지운 옛 워크스페이스 단위 인덱스 이름은 더 이상 좁히지 않는다 — 그 이름이 다시
+      // 나타난다면 다른 인덱스이고, 전역 `RESOURCE_CONFLICT` 로 흘려보내는 쪽이 안전하다.
+      expect(
+        isEndpointPathUniqueViolation(
+          uniqueViolation('idx_trigger_workspace_endpoint', surface),
         ),
       ).toBe(false);
     },

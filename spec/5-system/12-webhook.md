@@ -62,7 +62,7 @@ code:
 
 | ID | 요구사항 | 우선순위 |
 |----|----------|----------|
-| WH-SC-01 | 인증 없음(공개) 옵션 — `auth_config_id IS NULL`. `endpointPath` UUID 가 사실상 비밀 키이므로 **반드시 CSPRNG 로 발급한 v4 UUID** 여야 한다(`crypto.randomUUID()`). 서버는 형식(v4)을 강제(WH-MG-02)하나 엔트로피 품질까지 검증할 수 없으므로, 클라이언트는 약한 RNG·고정값 사용을 금한다. | 필수 |
+| WH-SC-01 | 인증 없음(공개) 옵션 — `auth_config_id IS NULL`. `endpointPath` UUID 가 사실상 비밀 키이므로 **반드시 CSPRNG 로 발급한 v4 UUID** 여야 한다(`crypto.randomUUID()`). 서버는 형식(v4)을 강제(WH-MG-02)하나 엔트로피 품질까지 검증할 수 없으므로, 클라이언트는 약한 RNG·고정값 사용을 금한다. 경로는 **전역 유일**이다(`(endpoint_path) UNIQUE`, V132) — 경로를 알고 있는 다른 워크스페이스가 같은 경로를 등록하면 409 로 거부된다. 비밀성(추측 불가)과 유일성(복사 불가)은 다른 보장이다. | 필수 |
 | WH-SC-02 | HMAC 서명 검증 — AuthConfig.type=`hmac`, `config.secret` 기반, 헤더는 `config.header` (default `X-Hub-Signature-256`) | 필수 |
 | WH-SC-03 | Bearer Token 검증 — AuthConfig.type=`bearer_token` (`Authorization: Bearer <token>`) | 필수 |
 | WH-SC-04 | 인증 실패 시 `401 Unauthorized` 응답 (단일 메시지 `AUTH_FAILED` — enumeration 방지) | 필수 |
@@ -145,7 +145,7 @@ Webhook 트리거는 기존 `Trigger` 엔티티를 사용한다. 신규 테이�
 | 필드 | 용도 |
 |------|------|
 | `type` | `'webhook'` |
-| `endpointPath` | URL 경로 (고유, UUID 기반 자동 생성) |
+| `endpointPath` | URL 경로 (전역 고유 — `(endpoint_path)` UNIQUE, V132 · UUID 기반 자동 생성) |
 | `isActive` | 수신 활성/비활성 |
 | `authConfigId` | Webhook 인증 검증의 단일 진입 (FK → AuthConfig). `NULL` 이면 인증 없음(none). 인증 자료·`ip_whitelist` 는 모두 AuthConfig 가 보유 — `config` 에 inline 인증 키 없음 (V066 cleanup) |
 | `config` | 추가 설정 (JSONB) — 인증 관련 키는 보유하지 않음 (§2.2) |
@@ -510,6 +510,7 @@ Webhook 트리거의 `endpointPath` 는 **의도적으로 변경 가능(mutable)
 - `UpdateTriggerDto` 가 `endpointPath` 를 받고 (§3.2 / `dto/update-trigger.dto.ts`), `TriggersService.update()` 는 webhook 트리거에 대해 이를 그대로 반영한다.
 - 프론트(`codebase/frontend/src/components/triggers/cards/webhook-config-card.tsx`)는 `endpointPath` 편집 필드와 confirm 경고(`triggers.detail.endpointPathChangeWarning` — "변경 시 기존 URL 은 404")를 제공한다.
 - 변경된 값은 여전히 비밀 키 역할을 하므로(WH-SC-01) UUID 수준의 고엔트로피 값을 유지해 squatting·enumeration 을 막는 것을 전제로 한다.
+- 고엔트로피는 **추측**을 막을 뿐 **복사**는 막지 못한다 — 경로를 아는 사람(뷰어 · 전 멤버 · URL 을 받은 외부 서비스)이 다른 워크스페이스에 같은 경로를 등록하는 것은 전역 UNIQUE(V132)가 막는다. 2026-09-18 이전에는 유일성이 워크스페이스 단위라 이 복사가 가능했고, 수신 웹훅이 복사한 쪽으로 갈 수 있었다([데이터 모델 Rationale «Webhook `endpoint_path` 전역 유일»](../1-data-model.md)).
 
 변경을 **거부하는 것은 schedule 타입 트리거에 한해서**다. `TriggersService.update()` 의 `disallowed` 거부 블록(`endpointPath` / `authConfigId` / `config` / `notification` / `interaction` / `chatChannel`)은 전적으로 `if (trigger.type === 'schedule')` 가드 **안에** 있다. schedule 은 cron·timezone 등 스케줄 메타를 별도 `Schedule` row + BullMQ job scheduler 와 동기화해야 하므로([데이터 모델 §2.9.1](../1-data-model.md#291-trigger--schedule-동기화-규칙)) 진입 경로(`endpointPath`)·인증·config 를 트리거 PATCH 로 흔들지 못하게 막고, 메타 편집은 Schedule 화면으로 일원화한다.
 

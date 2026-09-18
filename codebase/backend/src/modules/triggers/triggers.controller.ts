@@ -43,6 +43,13 @@ import {
   TriggerHistoryItemDto,
 } from './dto/responses/trigger-response.dto';
 
+/**
+ * Swagger description SoT — `create` · `update` 두 엔드포인트의 409 설명을 한 곳에서 관리한다
+ * (한쪽만 고치면 문서가 조용히 어긋난다 — `integrations.controller.ts` 의 `OAUTH_BEGIN_RESULT_DESCRIPTION` 과 같은 이유).
+ */
+const TRIGGER_ENDPOINT_PATH_CONFLICT_DESCRIPTION =
+  '같은 `endpointPath` 를 쓰는 트리거가 이미 존재(다른 워크스페이스의 트리거 포함 — `endpoint_path` 는 전역 유일, V132). `code=RESOURCE_CONFLICT`, `details.field="endpoint_path"`, `details.code="TRIGGER_ENDPOINT_PATH_CONFLICT"`.';
+
 @ApiTags('Triggers')
 @ApiBearerAuth('access-token')
 @Controller('triggers')
@@ -98,8 +105,7 @@ export class TriggersController {
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
   @ApiForbiddenResponse({ description: 'editor 이상 권한 필요' })
   @ApiConflictResponse({
-    description:
-      '동일 워크스페이스에 같은 `endpointPath` 를 쓰는 트리거가 이미 존재. `code=RESOURCE_CONFLICT`, `details.field="endpoint_path"`, `details.code="TRIGGER_ENDPOINT_PATH_CONFLICT"`.',
+    description: TRIGGER_ENDPOINT_PATH_CONFLICT_DESCRIPTION,
   })
   async create(
     @WorkspaceId() workspaceId: string,
@@ -135,8 +141,7 @@ export class TriggersController {
   @ApiForbiddenResponse({ description: 'editor 이상 권한 필요' })
   @ApiNotFoundResponse({ description: '해당 트리거를 찾을 수 없음' })
   @ApiConflictResponse({
-    description:
-      '동일 워크스페이스에 같은 `endpointPath` 를 쓰는 트리거가 이미 존재. `code=RESOURCE_CONFLICT`, `details.field="endpoint_path"`, `details.code="TRIGGER_ENDPOINT_PATH_CONFLICT"`.',
+    description: TRIGGER_ENDPOINT_PATH_CONFLICT_DESCRIPTION,
   })
   async update(
     @Param('id', ParseUUIDPipe) id: string,

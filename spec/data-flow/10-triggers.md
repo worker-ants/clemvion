@@ -170,7 +170,7 @@ sequenceDiagram
 
 | Sink (table) | 흐름 | read/write 컬럼 | 인덱스 / 제약 |
 | --- | --- | --- | --- |
-| `trigger` | 생성 | INSERT `workspace_id, workflow_id, type IN (webhook/schedule/manual), name, is_active, config, endpoint_path?, auth_config_id?` | `type` CHECK 제약은 V001 (`CHECK (type IN ('webhook','schedule','manual'))`). `(workspace_id, endpoint_path) UNIQUE` + `(workspace_id, type)` 인덱스는 V002. `(workflow_id)` 인덱스는 워크플로 삭제 경로(트리거 자원 정리의 열거 · FK CASCADE)용이다 (V111). `(auth_config_id)` partial 은 인증 설정 사용처 조회 · FK SET NULL 용이다 (V126). |
+| `trigger` | 생성 | INSERT `workspace_id, workflow_id, type IN (webhook/schedule/manual), name, is_active, config, endpoint_path?, auth_config_id?` | `type` CHECK 제약은 V001 (`CHECK (type IN ('webhook','schedule','manual'))`). `(workspace_id, type)` 인덱스는 V002. `(endpoint_path)` UNIQUE(전역)는 V132 — V002 의 `(workspace_id, endpoint_path)` UNIQUE 를 교체했다(V131 이 기존 중복을 정리). `(workflow_id)` 인덱스는 워크플로 삭제 경로(트리거 자원 정리의 열거 · FK CASCADE)용이다 (V111). `(auth_config_id)` partial 은 인증 설정 사용처 조회 · FK SET NULL 용이다 (V126). |
 | `trigger` | 발사 | UPDATE `last_triggered_at` | — |
 | `schedule` | 생성 | INSERT `workspace_id, trigger_id, cron_expression, timezone, is_active, next_run_at, parameter_values={}` (parameter_values 컬럼은 V011) | FK CASCADE on trigger_id |
 | `schedule` | 발사 후 | UPDATE `last_run_at, next_run_at` (process() 정보성 재계산; 발사 트리거 아님) | `(workspace_id, next_run_at)` — 이 UPDATE 가 쓰는 `next_run_at` 이 그 인덱스의 후행 컬럼이다 (V110). 종전 `(next_run_at, is_active)` 는 목록 조회가 `is_active` 를 걸지 않아 쓰이지 않았다 |
@@ -244,15 +244,20 @@ webhook 진입 라우트는 `/api/hooks/:endpointPath` 단일 형태다 (`HooksC
 
 ### Webhook `endpoint_path` 의 UNIQUE 범위
 
-`(workspace_id, endpoint_path)` 가 UNIQUE 이므로 워크스페이스 스코프 안에서는 경로가 유일하다.
+~~`(workspace_id, endpoint_path)` 가 UNIQUE 이므로 워크스페이스 스코프 안에서는 경로가 유일하다.~~
 다만 실제 라우팅 키는 `endpoint_path` 단독이다 — `HooksController` 가 workspace 필터 없이
 `findOne({ endpointPath, type: 'webhook' })` 로 조회한다 (외부 호출이라 workspace 컨텍스트 없음).
-충돌 회피는 `endpoint_path` 를 UUID 로 자동 발급(WH-MG-02)해 사실상 전역 고유로 만드는 방식에 의존한다 —
+~~충돌 회피는 `endpoint_path` 를 UUID 로 자동 발급(WH-MG-02)해 사실상 전역 고유로 만드는 방식에 의존한다~~ —
 이 값 발급은 클라이언트(트리거 생성 화면의 `crypto.randomUUID()`)가 수행하지만,
 **서버가 생성/수정 DTO 에서 v4 UUID 형식을 강제한다**(`@IsUUID('4')` — `create-trigger.dto.ts`·`update-trigger.dto.ts`).
 라우팅 키가 워크스페이스 무관 전역이고 공개(`auth_config_id IS NULL`) 트리거의 경우 `endpoint_path` 가
 사실상 비밀 키(WH-SC-01)이므로, 예측 가능한 비-UUID 경로 직접 지정(squatting·enumeration)을 형식 강제로 차단한다.
 공개 URL 형식은 `{base_url}/api/hooks/:endpointPath` 단일 형태다 (`spec/5-system/12-webhook.md` WH-EP-02).
+
+> **정정 (2026-09-18)**: 유일성은 이제 `(endpoint_path)` 전역 UNIQUE(V132)라 라우팅 키와 범위가 같다. UUID 자동 발급은 **우연한** 충돌을
+> 막을 뿐, 경로를 **알고 있는** 사람이 다른 워크스페이스에 같은 경로를 등록하는 것(복사)은 막지 못했다 — 그 경우 위 조회가 둘 중 하나를
+> 골라 수신 웹훅이 복사한 쪽으로 갈 수 있었다. 취소선의 두 문장은 그 전제를 적은 원문이다. 근거와 재현은
+> [데이터 모델 Rationale «Webhook `endpoint_path` 전역 유일»](../1-data-model.md).
 
 ### 역방향 동기화를 TriggersService 안의 private 메서드로 구현한 이유 (2026-06-10)
 
