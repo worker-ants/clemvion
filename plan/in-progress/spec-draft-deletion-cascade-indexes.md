@@ -134,8 +134,11 @@ median 1,060 ms · 없음 975 ms** — 행당 약 0.85 µs(+8.7%). 노드 한 �
 ## 체크리스트
 
 - [x] `--spec` `review/consistency/2026/09/18/13_44_08` BLOCK: NO → S1~S4 반영 (WARNING 1 처방대로 로그 테이블 쓰기 비용 실측을 S3 에 포함)
-- [ ] `--impl-prep`
-- [ ] V112~V116 · e2e 스키마 단언 · `python3 scripts/check-migration-versions.py --base origin/main`
+- [x] `--impl-prep spec/conventions/` — `review/consistency/2026/09/18/13_55_55` **BLOCK: NO** (WARNING 1 번들 예산 절단 — 트래커 기존 항목
+  «`--impl-prep`/`--spec` 번들이 `spec/` 코퍼스를 통째로 절단한다» 의 재발, checker 가 직접 Read 로 보완 · WARNING 2 · INFO 1·3 은 무관한 cafe24
+  카탈로그 위생 → `plan/in-progress/cafe24-backlog-residual.md` 에 등재 · INFO 2 는 같은 plan 에 이미 있음 · INFO 4·5 조치 불요)
+- [x] V112~V116 · e2e 스키마 단언 · `python3 scripts/check-migration-versions.py --base origin/main` OK(max V116) — 일회용 pg18 에 V001~V116 을
+  적용해 다섯 인덱스가 `indisvalid = true` 로 생기고 정의가 e2e 정규식과 맞음을 먼저 확인
 - [ ] lint · unit · build · e2e
 - [ ] `/ai-review`
 - [ ] `--impl-done`
