@@ -73,7 +73,7 @@ Webhook and schedule settings live under the Triggers/Schedules menus in the sid
 
 ## Webhook triggers in detail
 
-Creating a webhook trigger mints a unique endpoint under your workspace domain. Any external service (GitHub, Stripe, your own backend, etc.) that POSTs to this URL starts the workflow.
+Creating a webhook trigger mints a unique endpoint — unique across the whole service, not scoped to your workspace. No other workspace can register the same path. Any external service (GitHub, Stripe, your own backend, etc.) that POSTs to this URL starts the workflow.
 
 ### URL and method
 
@@ -81,7 +81,7 @@ Creating a webhook trigger mints a unique endpoint under your workspace domain. 
 POST {base_url}/api/hooks/{endpoint_path}
 ```
 
-- `endpoint_path` is generated as a UUID at trigger-creation time (brute-force resistant). Copy the full URL with the 📋 button on the trigger list.
+- `endpoint_path` is generated as a UUID at trigger-creation time, which makes it hard to guess. Even if someone already knows the path, registering it on a different workspace is rejected — the path has to be unique across the whole service. Copy the full URL with the 📋 button on the trigger list.
 - Only `POST` is accepted. `Content-Type` must be `application/json` or `application/x-www-form-urlencoded`.
 - Maximum body size depends on the webhook type — public (no auth linked) webhooks cap at **32KB** (`413 PUBLIC_WEBHOOK_BODY_TOO_LARGE` on exceed); authenticated webhooks at **1MB** (`413 PAYLOAD_TOO_LARGE` on exceed).
 

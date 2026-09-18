@@ -277,6 +277,14 @@ describe('Webhook trigger (e2e)', () => {
       .set('X-Workspace-Id', otherWs)
       .send({ endpointPath: victimPath });
     expectConflict(patched);
+    // 거부된 PATCH 는 아무것도 반영하지 않는다 — 경로가 원래 값 그대로다.
+    const ownAfter = await db.query<{ endpoint_path: string }>(
+      'SELECT endpoint_path FROM trigger WHERE id = $1',
+      [(own.body.data as { id: string }).id],
+    );
+    expect(ownAfter.rows[0]?.endpoint_path).toBe(
+      (own.body.data as { endpointPath: string }).endpointPath,
+    );
 
     // (3) 수신은 원래 주인의 워크플로로 간다
     const hook = await request(BASE_URL)
