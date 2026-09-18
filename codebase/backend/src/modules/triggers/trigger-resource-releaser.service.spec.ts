@@ -91,7 +91,10 @@ describe('TriggerResourceReleaserService', () => {
 
       await service.releaseExternalForParent({ workflowId: 'wf-1' });
 
+      // 선택 컬럼을 **정확히** 고정한다 — `config` 가 빠지면 teardown 이 `config.chatChannel` 을 못 읽어
+      // 조용히 no-op 이 되고, `type` 이 빠지면 schedule job 을 못 찾는다. 둘 다 이 mock 으로는 드러나지 않는다.
       expect(triggerRepository.find).toHaveBeenCalledWith({
+        select: { id: true, type: true, config: true },
         where: { workflowId: 'wf-1' },
       });
       expect(events).toEqual([

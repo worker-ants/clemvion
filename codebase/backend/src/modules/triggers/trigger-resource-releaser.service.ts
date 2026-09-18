@@ -63,9 +63,17 @@ export class TriggerResourceReleaserService implements TriggerResourceReleasePor
    * {@link lockParentAndListTriggerIds} 가 잠금 뒤 열거로 덮는다). spec 트리거 목록 §4.3 이 적어 둔
    * 잔여다 — 닫으려면 외부 해제를 커밋 뒤로 옮겨야 하는데 그러면 schedule 행이 CASCADE 로 사라져
    * job id 를 못 찾는다.
+   *
+   * **외부 해제가 읽는 컬럼만 적재한다** — `id`(schedule 조회 · listener unregister · 로그) ·
+   * `type`(schedule 판별) · `config`(chat channel teardown 이 `config.chatChannel` 을 읽는다). 워크스페이스
+   * 삭제는 트리거 전부를 한 번에 올리므로 나머지 컬럼(비밀 ref · 헬스 · 타임스탬프)은 싣지 않는다.
+   * **`config` 를 빼면 teardown 이 설정을 못 찾아 조용히 no-op 이 된다** — 필드를 더 줄일 때 소비처부터 볼 것.
    */
   async releaseExternalForParent(parent: TriggerParent): Promise<void> {
-    const triggers = await this.triggerRepository.find({ where: parent });
+    const triggers = await this.triggerRepository.find({
+      select: { id: true, type: true, config: true },
+      where: parent,
+    });
     await this.releaseExternalMany(triggers);
   }
 

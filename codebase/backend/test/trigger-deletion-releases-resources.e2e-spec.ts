@@ -188,6 +188,29 @@ describe('트리거 행을 없애는 네 경로의 자원 정리 (e2e)', () => {
     await db.end();
   });
 
+  /**
+   * 워크플로 삭제가 `trigger` 를 `workflow_id` 로 세 번 찾는다(외부 해제 열거 · 잠금 안 열거 · FK CASCADE).
+   * V111 이 그 인덱스를 만든다. **`indisvalid` 까지 본다** — `CREATE INDEX CONCURRENTLY` 가 실패하면 이름만
+   * 점유한 invalid 인덱스가 남고, 존재만 보는 단언은 그것을 초록으로 통과시킨다.
+   *
+   * 근거·실측: `plan/complete/spec-draft-trigger-workflow-index.md`,
+   * SoT: `spec/1-data-model.md` §3 · `spec/data-flow/10-triggers.md` §2.1.
+   */
+  it('schema: trigger (workflow_id) 인덱스가 유효하게 있다 (V111)', async () => {
+    const res = await db.query<{ indexdef: string; indisvalid: boolean }>(
+      `SELECT i.indisvalid, pg_get_indexdef(i.indexrelid) AS indexdef
+       FROM pg_index i
+       JOIN pg_class c ON c.oid = i.indexrelid
+       WHERE c.relname = 'idx_trigger_workflow_id'`,
+    );
+    expect(res.rows).toHaveLength(1);
+    expect(res.rows[0].indisvalid).toBe(true);
+    // 세 쿼리가 모두 `workflow_id` 등치 하나뿐이다 — 선두가 다르거나 부분 인덱스면 CASCADE 가 쓰지 못한다.
+    expect(res.rows[0].indexdef).toMatch(
+      /ON public\.trigger USING btree \(workflow_id\)$/,
+    );
+  });
+
   it('워크플로 삭제 — 그 워크플로 트리거의 비밀이 지워지고, 옆 워크플로 트리거의 비밀은 남는다', async () => {
     const ws = await createTeamWorkspace(
       BASE_URL,

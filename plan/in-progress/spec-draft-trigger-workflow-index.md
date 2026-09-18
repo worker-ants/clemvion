@@ -105,7 +105,9 @@ spec_impact:
 ## 체크리스트
 
 - [x] `--spec` BLOCK: NO → S1~S3 반영 (+ INFO 1 V061 행 · INFO 2 링크)
-- [ ] `--impl-prep`
+- [x] `--impl-prep spec/2-navigation/` — `review/consistency/2026/09/18/12_26_41` **BLOCK: NO** (WARNING 1: spec Rationale 이 아직 옮기지 않은
+  `plan/complete/spec-draft-trigger-workflow-index.md` 를 가리킨다 → **draft 이동을 이 PR 의 마지막 커밋에서 한다 — 다른 PR 로 떼지 않는다**(선례 #1285 와 같다).
+  scope 밖 `1-data-model.md` · `conventions/migrations.md` 는 직접 Read 블록으로 넣었다)
 - [ ] V111 · `select` 좁히기 · e2e 스키마 단언 · 단위 단언
 - [ ] lint · unit · build · e2e
 - [ ] `/ai-review`
