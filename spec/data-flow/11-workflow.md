@@ -150,7 +150,7 @@ Assistant 의 `edit` 류 tool_call 은 **DB 를 직접 건드리지 않는다**.
 | `workflow` | 복제 (§1.5) | INSERT — "생성" 과 같은 컬럼 집합. `name` 은 원본 + `" (Copy)"`, `is_active=false`, `current_version=1` 고정. description/tags/folder_id/settings 는 원본 값 승계, `created_by` 는 **요청자** | 동일 |
 | `workflow` | 활성 토글 | UPDATE `is_active, updated_at` | — |
 | `workflow` | 버전 커밋 | UPDATE `current_version, updated_at` | — |
-| `workflow` | 삭제 | DELETE — 자식 행의 FK 파급은 §3.1. **트리거 자원 정리 — 미구현 (Planned)**: 같은 트랜잭션에서 `workflow` 행을 먼저 잠그고(`pessimistic_write`) 그 워크플로의 트리거 id 를 열거한 뒤 삭제, 커밋 **뒤** 그 트리거들의 `secret_store` 비밀을 지운다. 외부 자원은 트랜잭션 **전에** 해제 ([트리거 목록 §4.3](../2-navigation/2-trigger-list.md#43-cascade-동작)) | 행 잠금은 트리거 INSERT 의 FK 검사(`FOR KEY SHARE`)를 막아 열거 누락을 없앤다 |
+| `workflow` | 삭제 | DELETE — 자식 행의 FK 파급은 §3.1. **트리거 자원 정리**: 외부 자원을 트랜잭션 **전에** 해제하고, 삭제 트랜잭션의 첫 호출로 잠금 대기 상한(5초)을 건 뒤 `workflow` 행을 먼저 잠그고(`pessimistic_write`) 그 워크플로의 트리거 id 를 열거한 다음 삭제, 커밋 **뒤** 그 트리거들의 `secret_store` 비밀을 지운다 ([트리거 목록 §4.3](../2-navigation/2-trigger-list.md#43-cascade-동작)) | 행 잠금은 트리거 INSERT 의 FK 검사(`FOR KEY SHARE`)를 막아 열거 누락을 없앤다 |
 | `node` | 추가 | INSERT `workflow_id, type, category, label, position_x/y, config={}, container_id?, tool_owner_id?` | CHECK `chk_node_placement` (둘 다 set 금지) |
 | `node` | 복제 (§1.5) | INSERT — "추가" 와 같은 컬럼 집합. `id` 를 새로 발급하고 `container_id`/`tool_owner_id` 를 사본 UUID 로 재매핑. `config` 는 원본 그대로(defaults 재적용·LLM 주입 없음) | 동일. 원본이 이미 통과한 label 유니크는 재검증하지 않음 |
 | `node` | 이동 / 설정 변경 | UPDATE `position_x, position_y, config, label, is_disabled` | — |
@@ -193,7 +193,7 @@ stateDiagram-v2
 | 테이블 | `ON DELETE` | 마이그레이션 |
 | --- | --- | --- |
 | `node` · `edge` · `execution` · `workflow_version` | CASCADE | `V001__initial_schema.sql` |
-| `trigger` | CASCADE — 이어서 `schedule`(`schedule.trigger_id` CASCADE)까지 2차로 지워진다. **DB 레벨이라 트리거 단위 advisory lock 을 거치지 않는다** ([트리거 목록 §4.3](../2-navigation/2-trigger-list.md#43-cascade-동작)). 트리거가 쓰던 외부 등록·비밀의 정리는 이 CASCADE 앞뒤로 앱이 한다 — **미구현 (Planned)**, [트리거 목록 §4.3](../2-navigation/2-trigger-list.md#43-cascade-동작). | `V001__initial_schema.sql` |
+| `trigger` | CASCADE — 이어서 `schedule`(`schedule.trigger_id` CASCADE)까지 2차로 지워진다. **DB 레벨이라 트리거 단위 advisory lock 을 거치지 않는다** ([트리거 목록 §4.3](../2-navigation/2-trigger-list.md#43-cascade-동작)). 트리거가 쓰던 외부 등록·비밀의 정리는 이 CASCADE 앞뒤로 앱이 한다 — [트리거 목록 §4.3](../2-navigation/2-trigger-list.md#43-cascade-동작). | `V001__initial_schema.sql` |
 | `integration_usage_log` | CASCADE | `V008__integration_usage_log_and_metadata.sql` |
 | `llm_usage_log` | **SET NULL** — 사용량 이력은 남는다 | `V014__llm_usage_logs.sql` |
 | `alert_rule` | CASCADE | `V016__alert_rules.sql` |

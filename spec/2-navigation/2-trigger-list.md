@@ -14,6 +14,10 @@ code:
   # chat-channel · notification · EIA · schedules 에 걸쳐 있어, 특정 채널 spec 이 아니라
   # 트리거 PATCH·DELETE 계약 소유자인 이 문서가 문다.
   - codebase/backend/src/modules/triggers/trigger-config-lock.ts
+  # 시행 코드 — §4.3 «트리거 행을 없애는 모든 경로» 의 순서·실패 정책(순수 함수 — 네 삭제 경로와
+  # 쓰기 보상이 모두 지난다)과 그 배선(서비스 — 스케줄 삭제는 모듈 순환 때문에 거치지 않고 순수 함수를 직접 부른다).
+  - codebase/backend/src/modules/triggers/trigger-resource-release.ts
+  - codebase/backend/src/modules/triggers/trigger-resource-releaser.service.ts
   - codebase/backend/src/modules/triggers/dto/**
   - codebase/packages/chat-channel-validation/src/index.ts
   # 시행 코드 — §3 의 409 `RESOURCE_CONFLICT` + `details.code=TRIGGER_ENDPOINT_PATH_CONFLICT`
@@ -24,6 +28,8 @@ code:
   # 응답 형태 시행 — §3 註가 주장하는 `TriggerDto.workflow` 의 다섯 케이스를 고정한다.
   # 註에 "e2e 가 고정한다" 고 적으면서 그 파일을 등재하지 않으면 보장의 근거가 추적 불가다.
   - codebase/backend/test/trigger-workflow-ref.e2e-spec.ts
+  # §3 `TriggerDto.workflow` 계약을 **schedule 타입**에 대해 시행하는 자리 — 목록(C-2)·PATCH(G·H).
+  - codebase/backend/test/schedule-trigger.e2e-spec.ts
   # 헬퍼도 등재 — 단언의 정본(키셋 `['id','name']` · 비밀 컬럼 목록)이 헬퍼에 있어 e2e 만
   # 넣으면 그 정본이 `code:` 밖에 남는다. glob 이 self-spec 까지 무는 것은 의도이며,
   # 위 `endpoint-path-conflict-wrap*.ts` 가 정본+테스트를 함께 무는 선례와 같다.
@@ -32,6 +38,10 @@ code:
   # 하는 이유(통째 저장은 락 밖 커밋 컬럼을 되돌린다)와 재읽기 뒤 FK CASCADE 가 시끄럽게 실패함을
   # 실제 Postgres·TypeORM 에서 단언한다. 註가 "재현해 고정했다" 고 적는 근거가 이 파일이다.
   - codebase/backend/test/trigger-update-save-window.e2e-spec.ts
+  # §4.3 을 고정하는 e2e — 네 경로의 비밀 정리(이웃 트리거 대조군 포함) · 워크플로·워크스페이스 삭제의
+  # schedule job 해제 · 권한 없는 워크스페이스 삭제는 아무것도 정리하지 않음, 그리고 실제 Postgres 에서
+  # «행 삭제 → 정리 → 늦은 쓰기 → 0행 → 보상» 순서를 재진입으로 고정한 보상 합성.
+  - codebase/backend/test/trigger-deletion-releases-resources.e2e-spec.ts
 ---
 
 # Spec: 트리거 목록 화면
@@ -283,8 +293,7 @@ API 게이트는 [Spec 인증 §3.2 리소스별 권한 매트릭스](../5-syste
 | Outbound `notification.*` 채널 | 트리거에 종속이므로 다음 발송 시도가 중단된다 — `notificationHealth` 값은 row 가 없으므로 별도 cleanup 불필요 | [Spec EIA §7.1 (Trigger 엔티티 확장)](../5-system/14-external-interaction-api.md#71-trigger-엔티티-확장) |
 | Inbound interaction 토큰 (per_trigger) | 트리거 삭제로 즉시 무효 — 별도 revoke 호출 불필요 | 동상 |
 
-> **트리거 행을 없애는 모든 경로는 그 트리거의 자원을 정리한다** (2026-09-17 결정, 구현은 frontmatter
-> `pending_plans` 에서 추적 — 그 전까지는 트리거 화면 삭제만 네 자원을 모두 정리하고(스케줄 화면 삭제는 schedule job 만), 비밀을 행 삭제 **전에** 지운다).
+> **트리거 행을 없애는 모든 경로는 그 트리거의 자원을 정리한다** (2026-09-17 결정).
 > 경로는 트리거 화면 삭제([§4.4](#44-결과에러)) · 스케줄 화면 삭제 · 위 상류 행의 워크플로·워크스페이스
 > 삭제다. 자원은 둘로 갈리고 시점이 다르다:
 >
@@ -295,16 +304,20 @@ API 게이트는 [Spec 인증 §3.2 리소스별 권한 매트릭스](../5-syste
 >
 > 워크플로·워크스페이스 삭제는 비밀을 지울 트리거를 **부모 행을 잠근 뒤 같은 트랜잭션에서** 열거한다 —
 > 잠금 뒤엔 그 부모를 참조하는 트리거 INSERT 가 FK 검사에서 막혀 열거에서 빠지는 트리거가 없다.
-> 남는 창은 외부 자원 쪽이다: 외부 해제용 열거 뒤에 생긴 트리거, 그리고 해제 뒤·행 삭제 전에 동시 요청이
-> 다시 만든 provider 등록·schedule job 은 남을 수 있다. 행 삭제 커밋과 비밀 정리 사이에 프로세스가 죽으면
-> 비밀이 남는다.
+> 외부 해제가 **실패**하면: provider teardown 은 best-effort 라 삭제를 계속하고, schedule job 해제가
+> 실패하면 **삭제를 멈춘다**. 여러 job 을 해제하는 부모 삭제는 전부 시도한 뒤, 이미 해제한 활성 job 을
+> 다시 등록하고 멈춘다 — 스케줄은 활성인데 발화하지 않는 상태를 남기지 않으려고.
+> 남는 창은 외부 자원 쪽이다: 외부 해제용 열거 뒤에 생긴 트리거, 해제 뒤·행 삭제 전에 동시 요청이 다시 만든
+> provider 등록·schedule job, 그리고 워크스페이스 삭제의 권한 선검사와 잠금 재검사 사이에 역할이 바뀌어
+> 재검사가 거부한 경우(워크스페이스는 남지만 외부 해제는 이미 끝났다 — 서버 error 로그로 드러난다).
+> 행 삭제 커밋과 비밀 정리 사이에 프로세스가 죽으면 비밀이 남는다.
 
 ### 4.4 결과·에러
 
 - 성공: `204 No Content` (응답 본문 없음, 표준 패턴). 클라이언트는 목록·상세 query 를 invalidate.
 - 동시 삭제: 두 클라이언트가 동시에 같은 트리거를 삭제하면 두 번째는 `404 RESOURCE_NOT_FOUND` — 클라이언트는 무시 가능 (사용자에게 토스트 1회).
 - Schedule 타입을 schedule 화면이 아닌 trigger 화면에서 삭제: 본 §4.3 에 따라 schedule cascade 와 함께 삭제되며, 삭제 전 `removeJob` 으로 BullMQ job scheduler 엔트리도 해제한다. (Schedule 화면에서 삭제하는 경로도 동일 결과 — [data-flow §1.4](../data-flow/10-triggers.md#14-schedule--trigger-동기화) 가 양방향 동기화 SoT.)
-- **락 대기 상한 5초**: 삭제는 [§3](#3-api) 의 트리거 단위 락을 잡기 **전에** 되돌릴 수 없는 **외부 자원 해제**를 끝낸다(트리거 화면 삭제는 schedule 타입이면 BullMQ job 해제 → chat channel teardown, 스케줄 화면 삭제는 BullMQ job 해제 — [§4.3](#43-cascade-동작)). 그래서 락을 5초 안에 못 잡으면 기다리지 않고 **오류로 끝내며**, 그 트리거가 «외부 등록은 해제됐는데 행은 남은» 상태라는 사실을 서버 로그에 남긴다. 비밀은 행 삭제가 커밋된 **뒤에** 지우므로 이때는 지워지지 않는다.
+- **락 대기 상한 5초**: 삭제는 [§3](#3-api) 의 트리거 단위 락을 잡기 **전에** 되돌릴 수 없는 **외부 자원 해제**를 끝낸다(트리거 화면 삭제는 schedule 타입이면 BullMQ job 해제 → chat channel teardown, 스케줄 화면 삭제는 BullMQ job 해제 — [§4.3](#43-cascade-동작)). 그래서 락을 5초 안에 못 잡으면 기다리지 않고 **오류로 끝내며**, 그 트리거가 «외부 등록은 해제됐는데 행은 남은» 상태라는 사실을 서버 로그에 남긴다. 비밀은 행 삭제가 커밋된 **뒤에** 지우므로 이때는 지워지지 않는다. 워크플로·워크스페이스 삭제도 외부 해제를 먼저 끝내므로 그 트랜잭션의 **모든** 락 대기(부모 행 · 멤버십 · CASCADE 되는 트리거 행)에 같은 5초 상한을 건다 — 넘기면 오류로 끝내고 «외부 해제는 이미 끝났다» 를 서버 로그에 남긴다.
 
 ---
 

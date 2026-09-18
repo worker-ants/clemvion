@@ -658,7 +658,7 @@ Fan-out facade 는 코드 구조상 이미 분리되어 있고, 본 결정은 **
 `ChatChannelDispatcher` 는 모듈 단위 1회 subscription (`onModuleInit`) 패턴을 유지하지만, **per-trigger listener registry** (`ChannelListenerRegistry`) 를 도입해 다음을 보장:
 
 - `setupChannel()` 호출 시 동일 `triggerId` 의 기존 entry 가 있으면 overwrite (멱등성). registry key 는 `triggerId` 단위 ([Convention §1.1](../conventions/chat-channel-adapter.md#11-어댑터-함수-책임--부작용--멱등성) 의 setupChannel 멱등성 보장).
-- `teardownChannel()` (또는 `TriggersService.remove`) 시 해당 `triggerId` 의 entry 를 반드시 unregister — 누락 시 비활성화된 trigger 에 event 가 흘러갈 위험을 사전 차단.
+- `teardownChannel()` 시 — 그리고 트리거 행을 없애는 경로(트리거 · 워크플로 · 워크스페이스 삭제 — 행 삭제 **전** 외부 해제 단계, [트리거 목록 §4.3](../2-navigation/2-trigger-list.md#43-cascade-동작)) — 해당 `triggerId` 의 entry 를 반드시 unregister(스케줄 삭제는 대상이 아니다 — 스케줄 트리거는 chat channel 을 갖지 못해 등록되지 않는다) — 누락 시 비활성화된 trigger 에 event 가 흘러갈 위험을 사전 차단.
 - registry entry 는 `(triggerId, provider)` value 를 가짐. 같은 trigger 가 provider 를 바꾸는 경우는 미지원 (재생성으로 처리).
 - `ChatChannelDispatcher.handle` 은 trigger DB 조회 전 `registry.has(triggerId)` 로 사전 필터링 — 미등록 trigger 의 event 는 silent skip + DB round-trip 절감.
 - **Hot reload / process restart fallback**: bootstrap (`onApplicationBootstrap`) 시 DB 에서 `isActive=true AND config.chatChannel IS NOT NULL` trigger 를 한 번에 fetch → 각 entry 를 registry 에 register. registry 가 비어 있는 race window 회피.
