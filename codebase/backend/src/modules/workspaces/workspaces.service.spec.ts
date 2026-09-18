@@ -732,7 +732,7 @@ describe('WorkspacesService', () => {
 
     it('선검사 뒤 역할이 바뀌어 재검사가 거부하면, 외부 해제가 이미 끝났다는 사실을 남기고 던진다', async () => {
       // 선검사(잠금 없음)와 재검사(잠금) 사이의 좁은 창이다. 외부 해제는 되돌릴 수 없으므로 워크스페이스는
-      // 남았는데 트리거가 발화하지 않는 상태를 소리내어 남긴다(`/ai-review` 18_45_09 WARNING#2·#4).
+      // 남았는데 트리거가 발화하지 않는 상태를 소리내어 남긴다(`/ai-review` `review/code/2026/09/17/18_45_09` WARNING#2·#4).
       const error = jest
         .spyOn(Logger.prototype, 'error')
         .mockImplementation(() => undefined);

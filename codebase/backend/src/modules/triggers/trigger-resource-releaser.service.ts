@@ -120,7 +120,7 @@ export class TriggerResourceReleaserService implements TriggerResourceReleasePor
       {
         teardown: chatChannel
           ? () =>
-              this.chatChannelBinder.teardownChannelConfig(
+              this.chatChannelBinder.teardownRegisteredChannel(
                 triggerId,
                 chatChannel,
               )

@@ -249,7 +249,8 @@ export class ChatChannelBinderService {
     const undoWrite = (registered: ChatChannelConfig, caller: string) =>
       undoAbsentTriggerWrite(
         {
-          teardown: () => this.teardownChannelConfig(trigger.id, registered),
+          teardown: () =>
+            this.teardownRegisteredChannel(trigger.id, registered),
           secrets: this.secrets,
           logger: this.logger,
         },
@@ -316,8 +317,9 @@ export class ChatChannelBinderService {
       }
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
-      // SUMMARY#24: secret_store 에 botToken 저장 완료 후 setupChannel 실패 — trigger 는
-      // degraded 로 저장되지만 secret_store row 는 남아 있음. remove() 시 deleteByPrefix 로 정리.
+      // secret_store 에 botToken 저장 완료 후 setupChannel 실패 — trigger 는 degraded 로 저장되지만
+      // secret_store row 는 남아 있다. 트리거 행을 없애는 삭제 경로가 커밋 뒤에 정리한다(spec 트리거
+      // 목록 §4.3). (`/ai-review` `review/code/2026/05/22/11_24_03` #24 — 워킹트리에선 정리됐고 이력에 있다)
       this.logger.warn(
         `ChatChannelBinderService: secret_store 에 botToken 저장 완료 후 setupChannel 실패 — trigger=${trigger.id} 는 degraded 상태로 저장됨.`,
       );
@@ -357,21 +359,25 @@ export class ChatChannelBinderService {
 
   /**
    * Chat Channel adapter teardownChannel 호출 — trigger 삭제 / chatChannel 제거 시. best-effort.
-   * Spec CCH-AD-03.
+   * Spec CCH-AD-03. **저장된** `config.chatChannel` 로 해제한다 — 설정을 직접 넘기는 쪽은
+   * {@link teardownRegisteredChannel}.
    */
   async teardownChatChannel(trigger: Trigger): Promise<void> {
     const chatChannelCfg = (
       trigger.config as { chatChannel?: ChatChannelConfig }
     ).chatChannel;
     if (!chatChannelCfg) return;
-    await this.teardownChannelConfig(trigger.id, chatChannelCfg);
+    await this.teardownRegisteredChannel(trigger.id, chatChannelCfg);
   }
 
   /**
-   * 설정 하나로 teardown 한다 — 저장된 `config` 가 아니라 **이번 요청이 등록한 설정**으로 되돌려야
-   * 하는 보상 경로(행이 이미 없다)가 쓴다. best-effort.
+   * provider 에 등록된 채널 하나를 **넘겨받은 설정으로** 해제한다. best-effort.
+   *
+   * 저장된 `config` 를 읽는 {@link teardownChatChannel} 이 이것을 부르고, 행이 이미 없어 저장된 설정을
+   * 읽을 수 없는 보상 경로는 **이번 요청이 등록한 설정**을 넘긴다. (이전 이름 `teardownChannelConfig` 는
+   * `teardownChatChannel` 과 어순만 달라 grep·로그에서 둘이 섞였다.)
    */
-  async teardownChannelConfig(
+  async teardownRegisteredChannel(
     triggerId: string,
     chatChannelCfg: ChatChannelConfig,
   ): Promise<void> {

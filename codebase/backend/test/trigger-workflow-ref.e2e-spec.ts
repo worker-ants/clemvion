@@ -146,8 +146,9 @@ describe('TriggerDto.workflow 응답 경로 (e2e)', () => {
    *
    * **단 그 관례가 모든 테이블을 덮지는 않는다.** `chatChannel` 이 붙은 트리거는
    * `setupChatChannel` 이 외부 호출 **이전에** `secrets.rotate()` 로 `secret_store` 에 row 를
-   * 쓴다 — 그래서 provider 호출이 실패해도 row 는 남는다. 그 정리는 `TriggersService.remove()`
-   * 의 `deleteByPrefix` 만 하고, `secret_store` 는 FK 가 없어(application-level cascade)
+   * 쓴다 — 그래서 provider 호출이 실패해도 row 는 남는다. 그 정리는 트리거 행을 없애는 애플리케이션
+   * 삭제 경로(트리거·스케줄·워크플로·워크스페이스 삭제 — 커밋 뒤 `deleteByPrefix`)만 하고,
+   * `secret_store` 는 FK 가 없어(application-level cascade)
    * raw `DELETE FROM trigger` 로는 **고아 row 가 남는다**.
    *
    * **그 고아 row 가 무해함을 이제 두 경계에서 실측했다** — 종전 이 자리는 *"`secret_store`
@@ -163,7 +164,8 @@ describe('TriggerDto.workflow 응답 경로 (e2e)', () => {
    *
    * **이것은 테스트 인프라 한정 판단이고 `secret-store.md §R4` 와 충돌하지 않는다** — R4 가
    * *"explicit application 경로 정리, implicit cascade 기각"* 을 요구하는 대상은 **프로덕션
-   * 삭제 경로**이고, 그 경로(`remove()` → `deleteByPrefix`)는 R4 대로 동작한다. 이 한정을
+   * 삭제 경로**이고, 그 경로(네 삭제 경로 → 커밋 뒤 `deleteByPrefix`, spec 트리거 목록 §4.3)는 R4
+   * 대로 동작한다. 이 한정을
    * 적지 않으면 *"정리 안 해도 된다"* 가 프로덕션 쪽으로 번진다.
    */
   afterAll(async () => {
