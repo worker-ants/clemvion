@@ -22,8 +22,13 @@
 import { lookup } from 'node:dns/promises';
 
 /**
- * SSRF 가드가 요청을 막았을 때의 클라이언트 문구. 차단된 host/IP 는 싣지 않는다 — 정찰 면 축소(원본 상세는 서버 로그에만).
- * HTTP Request 노드(`HTTP_BLOCKED` 노드 에러)와 통합 연결 테스트가 같은 문구를 쓴다.
+ * SSRF 가드가 요청을 막았을 때의 클라이언트 문구 — 차단된 host/IP 를 싣지 않는다(정찰 면 축소, CWE-209). 원본 상세
+ * (hostname/IP)는 `logger.warn`(서버 로그 전용)에만 남긴다. usage 로그(`IntegrationUsageLog`)는 Activity API
+ * (`GET /integrations/:id/activity`)로 workspace 사용자에게 그대로 돌려주므로 거기에도 이 문구를 기록한다.
+ * DB(`DB_HOST_BLOCKED`) · Email(`EMAIL_HOST_BLOCKED`) 메시지 일반화와 대칭이다. 노드 UI 는 `output.error.code`
+ * (`HTTP_BLOCKED`)로 지역화 문구를 렌더하므로 이 message 는 wire 안전 목적이다.
+ *
+ * HTTP Request 노드(`HTTP_BLOCKED` 노드 에러)와 HTTP 통합 연결 테스트(`HTTP_BLOCKED` 결과 코드)가 같은 문구를 쓴다.
  */
 export const SSRF_BLOCKED_CLIENT_MESSAGE = 'Request blocked by SSRF policy.';
 

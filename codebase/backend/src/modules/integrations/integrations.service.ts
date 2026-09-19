@@ -9,6 +9,7 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import { Brackets, Repository } from 'typeorm';
 import { createTransport } from 'nodemailer';
+import pLimit from 'p-limit';
 import { isSmtpHostBlocked } from '../../common/utils/smtp-host-guard';
 import { Integration } from './entities/integration.entity';
 import { getAppBaseUrl } from '../../common/utils/app-base-url';
@@ -108,6 +109,19 @@ const ADMIN_ROLES = new Set(['owner', 'admin']);
 
 /** email(SMTP) 연결 테스트의 connection/greeting/socket 공통 타임아웃 (ms). */
 const SMTP_TEST_TIMEOUT_MS = 10_000;
+
+/**
+ * 프로세스 안에서 동시에 도는 transport 연결 테스트(mcp · email · database · http)의 상한. 넘는 요청은 줄을 선다.
+ *
+ * 연결 테스트는 사용자가 준 host 를 `dns.lookup` 으로 푼다(SSRF 가드 · 드라이버 · `fetch`). `dns.lookup` 은 libuv
+ * 스레드풀(기본 4)을 쓰고 타임아웃이 없어, 응답하지 않는 권위 DNS 를 가리키는 테스트가 겹치면 풀이 차서 같은 풀을 쓰는
+ * 무관한 작업(`fs` · `crypto` · `zlib`)까지 멈춘다 — `@Throttle` 은 요청 **속도**만 묶고 동시 **개수**는 묶지 않는다.
+ * Database · HTTP 테스트는 lookup 을 한 번에 하나씩 한다(가드 → 연결, 리다이렉트 홉마다 순차) — 그 둘만 보면 이 상한이
+ * 테스트가 쥘 수 있는 스레드 수이고, 풀의 절반으로 둬 나머지를 남긴다. MCP 는 SDK 가 연결 중 요청을 겹치는지 재지
+ * 않았으므로 테스트 하나가 스레드를 둘 이상 쥘 수 있다(그래도 테스트 수에 비례해 묶인다). 타임아웃을 거는 것으로는
+ * 안 된다 — 응답만 끊을 뿐 스레드는 lookup 이 끝날 때까지 잡혀 있다.
+ */
+export const CONNECTION_TEST_MAX_CONCURRENCY = 2;
 
 /**
  * `integration_usage_log.api_{label,method,path}` 컬럼의 길이 제약 (각각 128/8/256)
@@ -387,6 +401,11 @@ export class IntegrationsService {
    * (entity does not yet exist).
    */
   private readonly entityTesters = new Map<string, EntityAwareTester>();
+
+  /** transport 연결 테스트의 동시 실행 상한 — {@link CONNECTION_TEST_MAX_CONCURRENCY}. */
+  private readonly connectionTestLimit = pLimit(
+    CONNECTION_TEST_MAX_CONCURRENCY,
+  );
 
   constructor(
     @InjectRepository(Integration)
@@ -1092,24 +1111,29 @@ export class IntegrationsService {
       });
     }
 
-    entity.credentials = merged;
-    entity.lastRotatedAt = new Date();
-    entity.status = 'connected';
-    entity.statusReason = null;
-    entity.lastError = null;
-
-    const saved = await this.integrationRepository.save(entity);
+    // 바꾸는 컬럼만 저장한다 — 엔티티 전체를 `save` 하면, 위 연결 테스트(실제 접속이라 수 초 걸린다) 동안 `logUsage` 가
+    // 원자적 `update` 로 쓴 `lastUsedAt` 같은 컬럼을 읽어 둔 옛 값으로 되돌린다. 부분 객체 `save` 의 반환값은 재조회가
+    // 아니므로 응답은 갱신한 엔티티로 만든다.
+    const changes = {
+      credentials: merged,
+      lastRotatedAt: new Date(),
+      status: 'connected' as const,
+      statusReason: null,
+      lastError: null,
+    };
+    await this.integrationRepository.save({ id: entity.id, ...changes });
+    Object.assign(entity, changes);
     await this.auditLogsService.record({
       workspaceId,
       userId,
       action: AUDIT_ACTIONS.INTEGRATION_ROTATED,
       resourceType: 'integration',
-      resourceId: saved.id,
-      details: { authType: saved.authType },
+      resourceId: entity.id,
+      details: { authType: entity.authType },
     });
     // 회전된 자격증명의 stale 연결을 전 인스턴스에서 즉시 차단 (MTTR).
-    await this.broadcastCredentialChange(saved.id);
-    return this.toPublic(saved);
+    await this.broadcastCredentialChange(entity.id);
+    return this.toPublic(entity);
   }
 
   async requestScopes(
@@ -1515,7 +1539,7 @@ export class IntegrationsService {
     // transport tester is added for them.
     const tester = this.transportTesters.get(serviceType);
     if (tester) {
-      return tester(authType, credentials);
+      return this.connectionTestLimit(() => tester(authType, credentials));
     }
     return {
       success: true,

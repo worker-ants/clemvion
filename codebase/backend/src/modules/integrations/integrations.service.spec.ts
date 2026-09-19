@@ -5,6 +5,7 @@ import {
   ForbiddenException,
 } from '@nestjs/common';
 import {
+  CONNECTION_TEST_MAX_CONCURRENCY,
   IntegrationsService,
   IntegrationCredentialsUnreadableError,
   buildIntegrationMeta,
@@ -2020,6 +2021,103 @@ describe('IntegrationsService', () => {
           success: false,
           code: 'DB_CONNECT_FAILED',
         });
+      });
+
+      it(`동시에 도는 연결 테스트는 ${CONNECTION_TEST_MAX_CONCURRENCY}개까지 — 나머지는 줄을 섰다가 차례로 돈다`, async () => {
+        const settle = () => new Promise((r) => setImmediate(r));
+        const releases: Array<() => void> = [];
+        let inFlight = 0;
+        let peak = 0;
+        mockedDbTester.mockImplementation(
+          () =>
+            new Promise((resolve) => {
+              inFlight++;
+              peak = Math.max(peak, inFlight);
+              releases.push(() => {
+                inFlight--;
+                resolve({ success: true, message: 'Connection successful' });
+              });
+            }),
+        );
+        try {
+          const all = Array.from({ length: 5 }, () =>
+            service.previewTest({
+              serviceType: 'database',
+              authType: 'connection_string',
+              credentials: dbCredentials,
+            }),
+          );
+          await settle();
+          expect(CONNECTION_TEST_MAX_CONCURRENCY).toBe(2);
+          expect(mockedDbTester).toHaveBeenCalledTimes(2);
+
+          // 하나가 끝나면 줄 선 다음 것이 들어온다 — 동시 실행 수는 상한을 넘지 않는다.
+          for (let started = 2; started < 5; started++) {
+            releases.shift()?.();
+            await settle();
+            expect(mockedDbTester).toHaveBeenCalledTimes(started + 1);
+          }
+          while (releases.length) {
+            releases.shift()?.();
+            await settle();
+          }
+          await expect(Promise.all(all)).resolves.toHaveLength(5);
+          expect(peak).toBe(CONNECTION_TEST_MAX_CONCURRENCY);
+        } finally {
+          mockedDbTester.mockReset();
+          mockedDbTester.mockResolvedValue({
+            success: true,
+            message: 'Connection successful',
+          });
+        }
+      });
+
+      it('rotate 는 바꾸는 컬럼만 저장한다 — 테스트 동안 logUsage 가 쓴 lastUsedAt 을 옛 값으로 되돌리지 않는다', async () => {
+        const stale = makeIntegration({
+          serviceType: 'http',
+          authType: 'bearer_token',
+          credentials: { token: 'old' },
+          lastUsedAt: new Date('2026-01-01T00:00:00Z'),
+          // 회전 전과 후가 달라야 «응답이 갱신한 엔티티인가» 를 가를 수 있다.
+          status: 'error',
+          statusReason: 'auth_failed',
+        });
+        integrationRepo.findOne.mockResolvedValue(stale);
+
+        const result = await service.rotate(
+          'int-1',
+          'ws-1',
+          'user-1',
+          'member',
+          {
+            credentials: { token: 'new' },
+          },
+        );
+
+        expect(integrationRepo.save).toHaveBeenCalledTimes(1);
+        const saved = integrationRepo.save.mock.calls[0][0] as Record<
+          string,
+          unknown
+        >;
+        expect(Object.keys(saved).sort()).toEqual([
+          'credentials',
+          'id',
+          'lastError',
+          'lastRotatedAt',
+          'status',
+          'statusReason',
+        ]);
+        expect(saved).toMatchObject({
+          id: 'int-1',
+          credentials: { token: 'new' },
+          status: 'connected',
+          statusReason: null,
+          lastError: null,
+        });
+        // 응답은 부분 save 의 반환값이 아니라 갱신한 엔티티로 만든다.
+        expect(result.status).toBe('connected');
+        expect(result.statusReason).toBeNull();
+        expect(result.name).toBe(stale.name);
       });
 
       it('rotate 도 같은 테스터를 타고, 실패하면 저장하지 않는다', async () => {

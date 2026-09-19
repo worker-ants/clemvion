@@ -23,18 +23,9 @@ import {
 } from './http-safety.js';
 import { httpRequestNodeMetadata } from './http-request.schema.js';
 import { HttpCredentials, resolveHttpCredentials } from './http-credentials.js';
+import { followRedirectsSafely } from './http-redirect.js';
 
 const logger = new Logger('HttpRequestHandler');
-
-/**
- * SSRF 차단 시 클라이언트 노출용 일반화 메시지 — 차단된 host/IP 를 노출하지
- * 않는다(정찰 면 축소, CWE-209). 원본 상세(hostname/IP)는 `logger.warn`(서버 로그
- * 전용)에만 남는다 — usage 로그(`IntegrationUsageLog`)는 Activity API
- * (`GET /integrations/:id/activity`)로 workspace 사용자에게 raw 반환되므로 거기에도
- * 이 일반화 문구를 기록한다. DB(`DB_HOST_BLOCKED`)·Email(`EMAIL_HOST_BLOCKED`) 메시지
- * 일반화와 대칭. 클라이언트 UI 는 `output.error.code`(`HTTP_BLOCKED`)로 지역화 문구를
- * 렌더하므로 이 message 는 wire 안전 목적이다.
- */
 
 /**
  * Strip URL-borne credentials before echoing on `NodeHandlerOutput.config`
@@ -423,47 +414,26 @@ export class HttpRequestHandler
       }
     }
     // Follow redirects manually so that a redirect to an internal host does
-    // not bypass `assertSafeOutboundUrl`. We honour up to 5 hops and
-    // re-validate each target.
+    // not bypass `assertSafeOutboundUrl` — `followRedirectsSafely` honours up to
+    // `MAX_REDIRECT_HOPS` and re-validates each target (shared with the
+    // integration connection test).
     fetchOptions.redirect = 'manual';
 
     try {
       let res = await fetch(url, fetchOptions);
-      let hops = 0;
-      while (
-        authentication === 'integration' &&
-        res.status >= 300 &&
-        res.status < 400 &&
-        res.headers.get('location')
-      ) {
-        if (hops >= 5) {
-          // spec §4.2/§6 — redirect 한도 초과 SSRF 차단도 HTTP_BLOCKED.
-          logger.warn(
-            'SSRF block (http-request): redirect chain exceeded 5 hops',
-          );
+      if (authentication === 'integration') {
+        const followed = await followRedirectsSafely(res, url, fetchOptions);
+        if (followed.blocked) {
+          // spec §4.2/§6 — redirect 대상의 SSRF 차단 · 한도 초과 모두 HTTP_BLOCKED. 원본 host/IP 는
+          // 서버 로그에만, 클라이언트엔 일반화(preflight 경로와 대칭).
+          logger.warn(`SSRF block (http-request redirect): ${followed.reason}`);
           throw new IntegrationError(
             ErrorCode.HTTP_BLOCKED,
             SSRF_BLOCKED_CLIENT_MESSAGE,
           );
         }
-        const location = res.headers.get('location') as string;
-        const next = new URL(location, url).toString();
-        // redirect 대상의 SSRF 검증 실패는 HTTP_BLOCKED 로 라우팅(원본 host/IP 는
-        // 서버 로그에만, 클라이언트엔 일반화 — preflight 경로와 대칭).
-        try {
-          assertSafeOutboundUrl(next);
-          await assertSafeOutboundHostResolved(new URL(next).hostname);
-        } catch (err) {
-          const detail = err instanceof Error ? err.message : String(err);
-          logger.warn(`SSRF block (http-request redirect): ${detail}`);
-          throw new IntegrationError(
-            ErrorCode.HTTP_BLOCKED,
-            SSRF_BLOCKED_CLIENT_MESSAGE,
-          );
-        }
-        url = next;
-        hops++;
-        res = await fetch(url, fetchOptions);
+        res = followed.response;
+        url = followed.url;
       }
       clearTimeout(timeoutId);
 

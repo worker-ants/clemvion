@@ -1,6 +1,7 @@
 import { Logger } from '@nestjs/common';
 
 import { resolveHttpCredentials } from '../../nodes/integration/http-request/http-credentials';
+import { followRedirectsSafely } from '../../nodes/integration/http-request/http-redirect';
 import {
   SSRF_BLOCKED_CLIENT_MESSAGE,
   assertSafeOutboundHostResolved,
@@ -14,25 +15,24 @@ const logger = new Logger('HttpConnectionTester');
 /** HTTP 연결 테스트의 대기 상한(ms) — spec/2-navigation/4-integration.md §5.3. */
 export const HTTP_TEST_TIMEOUT_MS = 10_000;
 
-/** 리다이렉트 추종 상한 — HTTP Request 노드와 같다(spec/4-nodes/4-integration/1-http-request.md §4). */
-export const HTTP_TEST_MAX_REDIRECTS = 5;
+/** 차단 결과 — 호출마다 새 객체(호출 사이에 참조를 공유하지 않는다). 차단 원문은 서버 로그에만 남긴다. */
+function blocked(reason: string): IntegrationTestResult {
+  logger.warn(`SSRF block (http connection test): ${reason}`);
+  return {
+    success: false,
+    code: 'HTTP_BLOCKED',
+    message: SSRF_BLOCKED_CLIENT_MESSAGE,
+  };
+}
 
-const BLOCKED: IntegrationTestResult = {
-  success: false,
-  code: 'HTTP_BLOCKED',
-  message: SSRF_BLOCKED_CLIENT_MESSAGE,
-};
-
-/** SSRF 가드 — 노드와 같은 두 단계(URL 리터럴 · DNS 해석). 차단 원문은 서버 로그에만 남긴다. */
-async function isSafeTarget(url: string): Promise<boolean> {
+/** SSRF 가드 — 노드와 같은 두 단계(URL 리터럴 · DNS 해석). 통과하면 `null`, 막히면 사유. */
+async function ssrfBlockReason(url: string): Promise<string | null> {
   try {
     assertSafeOutboundUrl(url);
     await assertSafeOutboundHostResolved(new URL(url).hostname);
-    return true;
+    return null;
   } catch (err) {
-    const detail = err instanceof Error ? err.message : String(err);
-    logger.warn(`SSRF block (http connection test): ${detail}`);
-    return false;
+    return err instanceof Error ? err.message : String(err);
   }
 }
 
@@ -95,8 +95,8 @@ async function discardBody(res: Response): Promise<void> {
 
 /**
  * HTTP/REST 통합 연결 테스트(spec/2-navigation/4-integration.md §5.3). HTTP Request 노드와 같은 방식으로 자격증명을
- * 붙여 `GET base_url` 을 보내고, 리다이렉트는 노드처럼 최대 5홉 따라가며 홉마다 SSRF 를 다시 검사한다 — 판정은 마지막
- * 응답으로 한다. 응답 본문은 읽지 않는다.
+ * 붙여 `GET base_url` 을 보내고, 리다이렉트는 노드와 같은 `followRedirectsSafely` 로 최대 5홉 따라가며 홉마다 SSRF 를
+ * 다시 검사한다 — 판정은 마지막 응답으로 한다. 응답 본문은 읽지 않는다.
  *
  * - 2xx(또는 `Location` 없는 3xx) → 성공
  * - 401 · 403 → `HTTP_AUTH_FAILED`
@@ -133,9 +133,11 @@ export async function testHttpConnection(
   const { headers, queryParams, defaultHeaders } = resolved.credentials;
   // 노드와 같은 병합 순서 — 공용 헤더 위에 자격증명 헤더.
   const requestHeaders = { ...(defaultHeaders ?? {}), ...(headers ?? {}) };
-  let url = withQuery(resolved.baseUrl, queryParams);
-  if (!(await isSafeTarget(url))) return BLOCKED;
+  const url = withQuery(resolved.baseUrl, queryParams);
+  const preflight = await ssrfBlockReason(url);
+  if (preflight !== null) return blocked(preflight);
 
+  // 대기 신호 하나가 리다이렉트 체인 전체에 걸린다 — 홉이 늘어도 10초를 넘지 않는다.
   const init: RequestInit = {
     method: 'GET',
     headers: requestHeaders,
@@ -143,31 +145,14 @@ export async function testHttpConnection(
     signal: AbortSignal.timeout(HTTP_TEST_TIMEOUT_MS),
   };
   try {
-    let res = await fetch(url, init);
-    let hops = 0;
-    while (
-      res.status >= 300 &&
-      res.status < 400 &&
-      res.headers.get('location')
-    ) {
-      await discardBody(res);
-      if (hops >= HTTP_TEST_MAX_REDIRECTS) {
-        logger.warn(
-          `SSRF block (http connection test): redirect chain exceeded ${HTTP_TEST_MAX_REDIRECTS} hops`,
-        );
-        return BLOCKED;
-      }
-      const next = new URL(
-        res.headers.get('location') as string,
-        url,
-      ).toString();
-      if (!(await isSafeTarget(next))) return BLOCKED;
-      url = next;
-      hops++;
-      res = await fetch(url, init);
-    }
-    await discardBody(res);
-    return classify(res.status);
+    const followed = await followRedirectsSafely(
+      await fetch(url, init),
+      url,
+      init,
+    );
+    if (followed.blocked) return blocked(followed.reason);
+    await discardBody(followed.response);
+    return classify(followed.response.status);
   } catch (err) {
     const name = (err as { name?: unknown } | null)?.name;
     if (name === 'TimeoutError' || name === 'AbortError') {

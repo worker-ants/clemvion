@@ -3,8 +3,9 @@ import {
   assertSafeOutboundHostResolved,
   assertSafeOutboundUrl,
 } from '../../nodes/integration/http-request/http-safety';
+import { MAX_REDIRECT_HOPS } from '../../nodes/integration/http-request/http-redirect';
+import { MCP_ERROR_MESSAGE_MAX_LEN } from '../mcp/mcp-error-codes';
 import {
-  HTTP_TEST_MAX_REDIRECTS,
   HTTP_TEST_TIMEOUT_MS,
   testHttpConnection,
 } from './http-connection-tester';
@@ -168,6 +169,25 @@ describe('testHttpConnection', () => {
     });
   });
 
+  it('전송 실패 메시지는 원인까지 싣되 길이를 제한한다', async () => {
+    fetchMock.mockRejectedValueOnce(
+      Object.assign(new TypeError('fetch failed'), {
+        cause: new Error('getaddrinfo ENOTFOUND api.example.com'),
+      }),
+    );
+    const short = await testHttpConnection('bearer_token', bearer);
+    expect(short.message).toBe(
+      'fetch failed: getaddrinfo ENOTFOUND api.example.com',
+    );
+
+    fetchMock.mockRejectedValueOnce(
+      new TypeError('x'.repeat(MCP_ERROR_MESSAGE_MAX_LEN + 50)),
+    );
+    const long = await testHttpConnection('bearer_token', bearer);
+    expect(long).toMatchObject({ success: false, code: 'HTTP_CONNECT_FAILED' });
+    expect(long.message).toHaveLength(MCP_ERROR_MESSAGE_MAX_LEN);
+  });
+
   it('대기 초과(TimeoutError)는 HTTP_CONNECT_FAILED — 시간 초과라고 알린다', async () => {
     fetchMock.mockRejectedValue(
       Object.assign(new Error('The operation was aborted due to timeout'), {
@@ -253,14 +273,34 @@ describe('testHttpConnection', () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
-  it(`리다이렉트가 ${HTTP_TEST_MAX_REDIRECTS}홉을 넘으면 HTTP_BLOCKED`, async () => {
+  it('리다이렉트 대상 host 가 사설 IP 로 해석돼도 HTTP_BLOCKED — 홉마다 DNS 가드도 다시 탄다', async () => {
+    fetchMock.mockResolvedValueOnce(
+      respond(302, { location: 'https://internal.example.com/admin' }),
+    );
+    mockedHostGuard.mockImplementation(async (host: string) => {
+      if (host === 'internal.example.com') {
+        throw new Error('SSRF_BLOCKED: internal.example.com -> 10.0.0.7');
+      }
+    });
+
+    const result = await testHttpConnection('bearer_token', bearer);
+
+    expect(result).toEqual({
+      success: false,
+      code: 'HTTP_BLOCKED',
+      message: SSRF_BLOCKED_CLIENT_MESSAGE,
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it(`리다이렉트가 ${MAX_REDIRECT_HOPS}홉을 넘으면 HTTP_BLOCKED`, async () => {
     fetchMock.mockResolvedValue(respond(302, { location: '/again' }));
 
     const result = await testHttpConnection('bearer_token', bearer);
 
-    expect(HTTP_TEST_MAX_REDIRECTS).toBe(5);
+    expect(MAX_REDIRECT_HOPS).toBe(5);
     expect(result).toMatchObject({ success: false, code: 'HTTP_BLOCKED' });
-    expect(fetchMock).toHaveBeenCalledTimes(HTTP_TEST_MAX_REDIRECTS + 1);
+    expect(fetchMock).toHaveBeenCalledTimes(MAX_REDIRECT_HOPS + 1);
   });
 
   it('Location 없는 3xx 는 성공(서버에 닿았다)', async () => {

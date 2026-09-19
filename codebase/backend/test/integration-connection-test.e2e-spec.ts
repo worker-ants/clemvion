@@ -157,4 +157,34 @@ describe('Integration connection test — Database · HTTP (e2e)', () => {
     const after = (await readRow()).rows[0];
     expect(after).toEqual(before);
   });
+
+  it('E. rotate 성공 — 바꾸는 컬럼만 저장해도 자격증명은 암호화돼 저장되고 회전 시각이 바뀐다', async () => {
+    // rotate 는 엔티티 전체가 아니라 바꾸는 컬럼만 `save` 한다(동시 logUsage 의 lastUsedAt 을 되돌리지 않으려고).
+    // 부분 객체 저장에서도 컬럼 transformer(암호화)가 걸리는지는 실제 DB 로만 확인된다.
+    const id = await createIntegration({
+      serviceType: 'http',
+      authType: 'bearer_token',
+      credentials: { token: 'e2e-rotate-old' },
+    });
+    const readRow = () =>
+      db.query<{ last_rotated_at: Date; credentials: string }>(
+        'SELECT last_rotated_at, credentials::text AS credentials FROM integration WHERE id = $1',
+        [id],
+      );
+    const before = (await readRow()).rows[0];
+    const secret = `e2e-rotate-new-${Date.now()}`;
+
+    const res = await post(`/api/integrations/${id}/rotate`).send({
+      credentials: { token: secret },
+    });
+
+    expect([200, 201]).toContain(res.status);
+    expect(res.body.data).toMatchObject({ id, status: 'connected' });
+    const after = (await readRow()).rows[0];
+    expect(after.credentials).not.toBe(before.credentials);
+    expect(after.credentials).not.toContain(secret);
+    expect(new Date(after.last_rotated_at).getTime()).toBeGreaterThan(
+      new Date(before.last_rotated_at).getTime(),
+    );
+  });
 });
