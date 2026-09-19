@@ -1,9 +1,10 @@
 ---
 title: 데이터 모델 spec 의 code 에 전용 e2e 가드 셋 등재 · 캔버스 §8.1 change_summary 서술을 실제에 맞춤
-status: in-progress
+status: complete
 owner: project-planner
 worktree: spec-code-summary-4e7a20
 started: 2026-09-19
+completed: 2026-09-19
 spec_impact:
   - spec/1-data-model.md
   - spec/3-workflow-editor/0-canvas.md
@@ -109,7 +110,11 @@ Rationale 의 마이그레이션 전용 테스트라 넣는다.
 
 - [x] `--spec` 이 draft — `review/consistency/2026/09/19/10_23_21` **BLOCK: NO** (Critical 0 · WARNING 3 · INFO 6). 반영:
       WARNING 1(사용자 가이드가 없는 입력 기능을 안내) → §4 · WARNING 2(R-CC-22 «열거 말고 술어» 와의 거리) → §3 첫 절 ·
-      WARNING 3(R-3 연장을 Rationale 에) → §3 둘째 절 · INFO 1 · 2(`code:` 주석) → §1 · INFO 3(게이트 기준 명시) → §3 첫 절.
-- [ ] spec 반영
-- [ ] 가이드 정정 · lint · unit · build (e2e 면제 — 화이트리스트) · `/ai-review`
-- [ ] 트래커 두 항목 닫기 · 이 draft `plan/complete/` 로
+      WARNING 3(R-3 연장을 Rationale 에) → §3 둘째 절 · INFO 1 · 2(`code:` 주석) → §1 · INFO 3(게이트 기준 명시) → §3 첫 절은 «`--impl-done` 을 거친다» 까지만 적었다(판정 함수
+      `review_guard._spec_linked_changes` 이름은 spec 에 넣지 않았다 — 구현 이름이라 draft §1 «효과» 에만 둔다).
+- [x] spec 반영 — planner 커밋 `19f58a3b7` (frontmatter `code:` 셋 + 주석 · §8.1 · Rationale 두 절)
+- [x] 가이드 정정 `4a00859cd`(user-guide-writer 위임 → 새 문장이 실행 직전 자동 저장을 빠뜨려 넓힘) · lint · unit(frontend 291파일 ·
+      6590) · build PASS · e2e 면제(`PROJECT.md` 화이트리스트 «`codebase/frontend/src/content/docs/**`») · `/ai-review`
+      `review/code/2026/09/19/10_42_30` Critical 0 · WARNING 1(이 체크리스트가 낡았고 `plan/complete/` 를 선인용 — 이 커밋으로 닫힘) →
+      `codebase/` 수정 0 으로 종결
+- [x] 트래커 두 항목 닫기(해소 기록) · 이 draft `plan/complete/` 로
