@@ -510,7 +510,7 @@ Webhook 트리거의 `endpointPath` 는 **의도적으로 변경 가능(mutable)
 - `UpdateTriggerDto` 가 `endpointPath` 를 받고 (§3.2 / `dto/update-trigger.dto.ts`), `TriggersService.update()` 는 webhook 트리거에 대해 이를 그대로 반영한다.
 - 프론트(`codebase/frontend/src/components/triggers/cards/webhook-config-card.tsx`)는 `endpointPath` 편집 필드와 confirm 경고(`triggers.detail.endpointPathChangeWarning` — "변경 시 기존 URL 은 404")를 제공한다.
 - 변경된 값은 여전히 비밀 키 역할을 하므로(WH-SC-01) UUID 수준의 고엔트로피 값을 유지해 squatting·enumeration 을 막는 것을 전제로 한다.
-- 고엔트로피는 **추측**을 막을 뿐 **복사**는 막지 못한다 — 경로를 아는 사람(뷰어 · 전 멤버 · URL 을 받은 외부 서비스)이 다른 워크스페이스에 같은 경로를 등록하는 것은 전역 UNIQUE(V132)가 막는다. 2026-09-18 이전에는 유일성이 워크스페이스 단위라 이 복사가 가능했고, 수신 웹훅이 복사한 쪽으로 갈 수 있었다([데이터 모델 Rationale «Webhook `endpoint_path` 전역 유일»](../1-data-model.md)).
+- 고엔트로피는 **추측**을 막을 뿐 **복사**는 막지 못한다 — 경로를 아는 사람(뷰어 · 전 멤버 · URL 을 받은 외부 서비스)이 다른 워크스페이스에 같은 경로를 등록하는 것은 전역 UNIQUE(V132)가 막는다. 2026-09-18 이전에는 유일성이 워크스페이스 단위라 이 복사가 가능했고, 수신 웹훅이 복사한 쪽으로 갈 수 있었다([데이터 모델 Rationale «Webhook `endpoint_path` 전역 유일»](../1-data-model.md)). **지우거나 바꾼 뒤의 옛 경로**도 그 워크스페이스 소유로 영구 예약돼 다른 워크스페이스가 쓸 수 없다 — 같은 워크스페이스는 다시 쓸 수 있다([데이터 모델 §2.8.1](../1-data-model.md#281-webhookendpointreservation)).
 
 변경을 **거부하는 것은 schedule 타입 트리거에 한해서**다. `TriggersService.update()` 의 `disallowed` 거부 블록(`endpointPath` / `authConfigId` / `config` / `notification` / `interaction` / `chatChannel`)은 전적으로 `if (trigger.type === 'schedule')` 가드 **안에** 있다. schedule 은 cron·timezone 등 스케줄 메타를 별도 `Schedule` row + BullMQ job scheduler 와 동기화해야 하므로([데이터 모델 §2.9.1](../1-data-model.md#291-trigger--schedule-동기화-규칙)) 진입 경로(`endpointPath`)·인증·config 를 트리거 PATCH 로 흔들지 못하게 막고, 메타 편집은 Schedule 화면으로 일원화한다.
 

@@ -171,6 +171,7 @@ sequenceDiagram
 | Sink (table) | 흐름 | read/write 컬럼 | 인덱스 / 제약 |
 | --- | --- | --- | --- |
 | `trigger` | 생성 | INSERT `workspace_id, workflow_id, type IN (webhook/schedule/manual), name, is_active, config, endpoint_path?, auth_config_id?` | `type` CHECK 제약은 V001 (`CHECK (type IN ('webhook','schedule','manual'))`). `(workspace_id, type)` 인덱스는 V002. `(endpoint_path)` UNIQUE(전역)는 V132 — V002 의 `(workspace_id, endpoint_path)` UNIQUE 를 교체했다(V131 이 기존 중복을 정리). `(workflow_id)` 인덱스는 워크플로 삭제 경로(트리거 자원 정리의 열거 · FK CASCADE)용이다 (V111). `(auth_config_id)` partial 은 인증 설정 사용처 조회 · FK SET NULL 용이다 (V126). |
+| `webhook_endpoint_reservation` | 트리거 생성 · 경로 변경 (DB 트리거) | INSERT `endpoint_path, workspace_id` … `ON CONFLICT DO NOTHING` — 지우지 않는다 | PK `(endpoint_path)`. 주인이 다르면 `unique_violation`(라벨 `webhook_endpoint_reservation_owner`) → 409 ([데이터 모델 §2.8.1](../1-data-model.md#281-webhookendpointreservation)). `(workspace_id)` partial 은 워크스페이스 삭제의 FK SET NULL 용이다 (V133). |
 | `trigger` | 발사 | UPDATE `last_triggered_at` | — |
 | `schedule` | 생성 | INSERT `workspace_id, trigger_id, cron_expression, timezone, is_active, next_run_at, parameter_values={}` (parameter_values 컬럼은 V011) | FK CASCADE on trigger_id |
 | `schedule` | 발사 후 | UPDATE `last_run_at, next_run_at` (process() 정보성 재계산; 발사 트리거 아님) | `(workspace_id, next_run_at)` — 이 UPDATE 가 쓰는 `next_run_at` 이 그 인덱스의 후행 컬럼이다 (V110). 종전 `(next_run_at, is_active)` 는 목록 조회가 `is_active` 를 걸지 않아 쓰이지 않았다 |
@@ -258,6 +259,9 @@ webhook 진입 라우트는 `/api/hooks/:endpointPath` 단일 형태다 (`HooksC
 > 막을 뿐, 경로를 **알고 있는** 사람이 다른 워크스페이스에 같은 경로를 등록하는 것(복사)은 막지 못했다 — 그 경우 위 조회가 둘 중 하나를
 > 골라 수신 웹훅이 복사한 쪽으로 갈 수 있었다. 취소선의 두 문장은 그 전제를 적은 원문이다. 근거와 재현은
 > [데이터 모델 Rationale «Webhook `endpoint_path` 전역 유일»](../1-data-model.md).
+
+> **추가 (2026-09-19)**: 지우거나 바꾼 옛 경로도 그 워크스페이스 소유로 영구 예약된다 — 전역 UNIQUE 가 막지 못하던 «비운 뒤 복사» 를
+> 막는다. [데이터 모델 §2.8.1](../1-data-model.md#281-webhookendpointreservation).
 
 ### 역방향 동기화를 TriggersService 안의 private 메서드로 구현한 이유 (2026-06-10)
 

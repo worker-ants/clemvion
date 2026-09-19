@@ -9,6 +9,7 @@ code:
   - codebase/backend/test/deletion-cascade-indexes.e2e-spec.ts
   - codebase/backend/test/trigger-endpoint-path-dedupe.e2e-spec.ts
   - codebase/backend/test/entity-schema-declarations.e2e-spec.ts
+  - codebase/backend/test/webhook-endpoint-reservation.e2e-spec.ts
 ---
 
 # Spec: 데이터 모델
@@ -35,6 +36,7 @@ User ──┬── Workspace (1:N)
        │       └── IntegrationUsageLog (1:N)
        │       ├── Schedule (1:N)
        │       ├── Trigger (1:N)
+       │       ├── WebhookEndpointReservation (1:N, 웹훅 경로 예약 — 지우지 않음, §2.8.1)
        │       ├── KnowledgeBase (1:N)
        │       │       └── Document (1:N)
        │       │
@@ -247,7 +249,7 @@ WebAuthn (Passkey/보안 키) credential 자체는 별도 엔티티 [§2.21 WebA
 | name | String | 트리거 이름 |
 | is_active | Boolean | 활성 상태 |
 | config | JSONB | 트리거별 설정. `notification` / `interaction` 서브 필드는 [Spec External Interaction API §7.1](./5-system/14-external-interaction-api.md#71-trigger-엔티티-확장) 참조. `chatChannel` 서브 필드 (외부 chat 플랫폼 어댑터) 는 [Spec Chat Channel §4.1](./5-system/15-chat-channel.md#41-triggerconfigchatchannel) 참조. 응답 DTO 전용 derived 필드 `hasBotToken: boolean` (`botTokenRef IS NOT NULL → true`) — DB 컬럼 아님, SoT [Spec Chat Channel §5.4.2](./5-system/15-chat-channel.md#542-응답-dto-derived-필드--hasbottoken) |
-| endpoint_path | String? | Webhook URL 경로 (type=webhook) — 라우팅 키가 전역이라 **전역 유일**(§3, V132) |
+| endpoint_path | String? | Webhook URL 경로 (type=webhook) — 라우팅 키가 전역이라 **전역 유일**(§3, V132). 한 번 쓴 경로는 그 워크스페이스 소유로 **영구 예약**된다(§2.8.1) |
 | auth_config_id | UUID? | FK → AuthConfig (SET NULL · Webhook 인증) |
 | last_triggered_at | Timestamp? | 마지막 실행 시각 |
 | notification_health | Enum | unknown / healthy / degraded. Outbound notification 발송 건강도. default=`unknown`. [Spec EIA §3.1 EIA-NX-07](./5-system/14-external-interaction-api.md#31-outbound-notification-notification-webhook) |
@@ -261,6 +263,37 @@ WebAuthn (Passkey/보안 키) credential 자체는 별도 엔티티 [§2.21 WebA
 | chat_channel_rotated_at | Timestamp? | Bot token rotation 시작 시각 (grace 종료 판정용) |
 | created_at | Timestamp | 생성 시각 |
 | updated_at | Timestamp | 수정 시각 |
+
+### 2.8.1 WebhookEndpointReservation
+
+> 관련 문서: [Spec Webhook «endpointPath 가변성»](./5-system/12-webhook.md) · [에러 처리 §1.10](./5-system/3-error-handling.md#110-트리거-endpointpath-충돌-세부-코드-도메인-spec-참조)
+
+웹훅 경로의 소유 기록. 트리거가 어떤 `endpoint_path` 를 **처음** 가지는 순간(생성 · 경로 변경) 그 경로를 트리거의 워크스페이스 소유로 예약한다.
+**예약은 지우지 않는다** — 트리거를 지우거나 경로를 바꿔도 옛 경로는 그 워크스페이스 소유로 남는다.
+
+| 필드 | 타입 | 설명 |
+|------|------|------|
+| endpoint_path | String | PK — 예약한 경로 |
+| workspace_id | UUID? | FK → Workspace (SET NULL). 워크스페이스가 지워지면 NULL(주인 없는 예약) |
+| reserved_at | Timestamp | 예약 시각 |
+
+PK 가 UUID 대리키가 아니라 `endpoint_path` 인 이유: 예약하는 대상이 곧 경로라 별도 id 가 할 일이 없다 — 동시 예약 경합도 이 PK 하나가 가른다.
+
+- **다른 워크스페이스**가 예약한 경로(주인 없는 예약 포함)로 트리거를 만들거나 경로를 바꾸면 거부한다 — 지금 쓰는 트리거와 겹칠 때와 **같은
+  응답**(409 `RESOURCE_CONFLICT` · `details.code=TRIGGER_ENDPOINT_PATH_CONFLICT` · `details.field='endpoint_path'`). 경로가 한때 쓰였는지를
+  응답으로 알려 주지 않는다.
+- **같은 워크스페이스는** 자기 예약 경로를 다시 쓸 수 있다(지운 트리거를 같은 URL 로 다시 만들거나, 바꿨던 경로로 되돌리기).
+- **워크스페이스를 지우면** 예약은 주인 없는 상태로 남아 **누구도** 그 경로를 쓸 수 없다 — 워크스페이스가 사라진 뒤에도 외부 서비스 · 사이트의
+  위젯은 옛 URL 로 보낸다. 남는 것은 경로(UUID)와 시각뿐이다.
+- **강제는 DB 가 한다** — `trigger` 의 `BEFORE INSERT OR UPDATE OF endpoint_path, workspace_id` 트리거 `trg_trigger_reserve_endpoint_path`
+  가 예약을 시도(`INSERT … ON CONFLICT DO NOTHING`)하고 주인이 다르면 `unique_violation` 을 낸다. 붙이는 이름
+  `webhook_endpoint_reservation_owner` 는 실재 제약이 아니라 트리거가 붙이는 라벨이다 — 서비스가 `idx_trigger_endpoint_path` 위반과 함께
+  위의 409 로 옮긴다. 살아 있는 트리거와 겹칠 때도 먼저 걸리는 쪽은 이 트리거다(BEFORE). 서비스 · 수동 SQL 등 모든 쓰기 경로를 덮고,
+  트리거 행을 지우는 경로는 건드리지 않는다.
+- **수신**(`/api/hooks/:endpointPath`)은 그대로 — 예약만 있고 트리거가 없는 경로는 404.
+- **기존 데이터**: V133 이 그때 살아 있던 트리거의 경로를 각자의 워크스페이스로 예약했다. 그 전에 지워진 경로는 기록이 없어 예약되지 않았다.
+
+**인덱스**: PK `(endpoint_path)` · `(workspace_id) WHERE workspace_id IS NOT NULL` — 워크스페이스 삭제의 FK `SET NULL` 용 (V133, §3).
 
 ### 2.9 Schedule
 
@@ -940,6 +973,8 @@ DocumentChunk·Entity 계열 선례를 따른다.)
 | Trigger | (workflow_id) | 워크플로 삭제 경로 — 트리거 자원 정리의 열거 두 번(`WHERE workflow_id = ?`, 하나는 `workflow` 행 잠금 안)과 FK `ON DELETE CASCADE`. 이 셋 말고 `workflow_id` 로 트리거를 찾는 곳은 없다. Postgres 는 FK 에 인덱스를 자동 생성하지 않는다. CONCURRENTLY, V111 |
 | Trigger | (notification_health) WHERE notification_health = 'degraded' | V061 이 적은 목적: outbound notification 발송이 degraded 인 트리거를 대시보드·운영 알림에서 전 테이블 스캔 없이 찾는다(부분 인덱스). V061 |
 | Trigger | (auth_config_id) WHERE auth_config_id IS NOT NULL | 인증 설정 사용처(`GET /api/auth-configs/:id/usage`)가 이 컬럼 하나로 트리거를 찾는다(이어서 위 `Execution (trigger_id, started_at DESC)`). FK `ON DELETE SET NULL`(인증 설정 삭제)도 이것을 쓴다. CONCURRENTLY, V126 |
+| WebhookEndpointReservation | (endpoint_path) PK | 웹훅 경로 예약(§2.8.1) — 동시에 같은 새 경로를 잡는 두 요청을 가르고, 예약 트리거가 주인을 찾는다. V133 |
+| WebhookEndpointReservation | (workspace_id) WHERE workspace_id IS NOT NULL | FK `ON DELETE SET NULL` — 워크스페이스 삭제가 예약을 훑지 않게. 주인 없는 예약은 다시 찾을 일이 없어 partial. V133 |
 | AuthConfig | (workspace_id) | 워크스페이스별 인증 설정 목록 · 트리거 편집의 선택 상자. FK `ON DELETE CASCADE` 도 이것을 쓴다. CONCURRENTLY, V127 |
 | ModelConfig | (workspace_id, kind) | 워크스페이스·종류별 모델 설정 목록 · 모델 선택 상자. `(workspace_id, kind) WHERE is_default = true` UNIQUE(V089)는 부분이라 `is_default` 조건 없는 목록 조회와 FK `ON DELETE CASCADE` 가 쓰지 못했다. CONCURRENTLY, V130 |
 | Schedule | (workspace_id, next_run_at) | 스케줄 목록 조회 — `WHERE workspace_id = ?` 진입과 `ORDER BY next_run_at` 정렬을 한 인덱스가 함께 준다. 선두가 `workspace_id` 라 다른 정렬 컬럼(`created_at` 등)에서도 진입을 준다. **발사 경로가 아니다** — 발사는 BullMQ job scheduler 가 한다 ([data-flow §3.2](./data-flow/10-triggers.md#32-schedulenext_run_at-계산)). 종전 `(next_run_at, is_active) WHERE is_active` 를 대체한다 — 목록이 `is_active` 를 걸지 않아 그 부분 인덱스를 쓸 수 없었다. CONCURRENTLY, V110 |
@@ -986,6 +1021,37 @@ DocumentChunk·Entity 계열 선례를 따른다.)
 | Notification | (workspace_id, created_at DESC) | 워크스페이스별 알림 조회 — partial 미적용 (향후 admin/감사 쿼리가 dismissed 포함 전체 row 를 볼 여지) |
 
 ## Rationale
+
+### 지운 · 바꾼 웹훅 경로의 영구 예약 (2026-09-19)
+
+아래 «Webhook `endpoint_path` 전역 유일» 이 **남는 틈**으로 적고 트래커로 보낸 묘비(tombstone)에 대한 답이다. 전역 UNIQUE(V132)는 **동시에
+존재하는** 중복만 막는다 — 주인이 트리거를 지우거나 경로를 바꾸면 옛 경로가 비고, 그 경로를 아는 누구든 자기 워크스페이스에 다시 등록해
+옛 URL 로 오는 요청을 받는다. 경로를 아는 사람은 넓다. 공개 웹훅은 URL 을 받은 외부 서비스 · 뷰어 · 전 멤버가 알고, **웹챗은 더 넓다** —
+`endpointPath` 가 외부 사이트 스니펫에 박히는 공개 UUID 라([5-admin-console](./7-channel-web-chat/5-admin-console.md)) 그 사이트를 연 누구나
+안다. 웹챗 인스턴스를 지워도 사이트에 남은 위젯은 옛 경로로 계속 요청한다.
+
+결정(2026-09-19 사용자): **영구** — 지우거나 바꾼 경로는 다른 워크스페이스가 영원히 쓸 수 없고, 같은 워크스페이스는 다시 쓸 수 있다(§2.8.1).
+저장 비용은 경로 하나당 한 행. 기각: 기간 묘비 — 외부 서비스가 그 기간보다 오래 옛 URL 로 보내면 여전히 위험하다. 막지 않음 — 경로가 추측
+불가능해도 위처럼 **아는** 사람이 넓다.
+
+- **삭제 시점 묘비가 아니라 사용 시점 예약인 이유**: 결과는 같다. 삭제 시점에 쓰면 트리거 행을 없애는 경로 넷(트리거 · 워크플로 · 워크스페이스
+  삭제 등)과 경로 변경에 모두 손대야 하고, «삭제와 다른 워크스페이스의 등록이 겹치는» 경합을 따로 막아야 한다. 사용 시점에 쓰면 쓰기 지점이
+  둘(생성 · 경로 변경)뿐이고, 예약은 삭제 전부터 이미 있으므로 그 경합이 생기지 않는다. 새 경로를 동시에 잡는 두 요청은 PK 가 한쪽만 통과시킨다.
+- **DB 트리거인 이유**: V132 가 비유일 보조 인덱스 + 앱 레벨 검사를 기각한 이유(동시 요청 경합을 DB 가 막지 못한다)와 같다. 이 저장소는 이미
+  `updated_at` 갱신에 DB 트리거를 쓴다(V001 `update_updated_at_column`). 서비스가 아닌 쓰기 경로(수동 SQL · 앞으로 생길 경로)도 덮는다.
+- **응답을 구분하지 않는 이유**: «예약됨» 을 따로 알리면 그 경로가 한때 쓰였다는 사실이 새어 나간다. 그래서 살아 있는 트리거와 겹칠 때와 같은
+  409 · 같은 세부 코드다([에러 처리 §1.10](./5-system/3-error-handling.md#110-트리거-endpointpath-충돌-세부-코드-도메인-spec-참조)).
+- **기존 데이터의 한계**: 마이그레이션은 그때 살아 있던 트리거의 경로만 예약한다(V132 로 이미 전역 유일이라 충돌이 없다). 이미 지워진 경로는
+  기록이 없다 — 보호는 배포 시점부터다. 감사 로그에서 경로를 되살리는 일은 하지 않는다(경로는 비밀 키다).
+- **하지 않은 것**: 예약을 풀어 주는 운영 기능(관리자가 특정 경로 해제) — 필요가 생기면 따로. UI 고지(삭제 확인 · 경로 변경
+  경고 — [트리거 목록 §4.2 · §2.3.1](./2-navigation/2-trigger-list.md))도 더하지 않았다 — 소유자의 워크스페이스 안에서는 달라지는 것이
+  없고(옛 URL 이 404 인 것도, 다시 쓸 수 있는 것도 그대로), 같은 URL 을 다른 워크스페이스로 옮기려는 경우는 그 자리의 409 가 알린다.
+- **전용 e2e**: `webhook-endpoint-reservation` 이 V133 을 파일 그대로 임시 스키마에서 돌려 백필 · DB 트리거를 본다(위 frontmatter
+  `code:`) — Flyway 는 CI · e2e 의 빈 테이블에 적용해 백필이 한 행도 옮기지 않는데, 운영 DB 에는 한 번만 적용된다.
+
+프로토타입(일회용 DB, V001~V132 + 이 설계)에서 시나리오 열한 개를 pg 드라이버로 돌려 드라이버가 받는 `code` · `constraint` 까지 확인했다 —
+살아 있는 트리거와 겹칠 때도 먼저 걸리는 쪽이 예약 트리거라는 것이 서비스가 두 이름을 모두 409 로 옮겨야 하는 이유다.
+근거·실측: `plan/complete/spec-draft-webhook-endpoint-reservation.md`, 구현은 V133.
 
 ### `code:` 에 전용 e2e 가드 셋 (2026-09-19)
 
@@ -1055,6 +1121,7 @@ V131 본문을 수동으로 다시 돌린 뒤 V132 를 재실행하면 0) DROP �
 
 **남는 틈**: 주인이 트리거를 **지우면** 그 경로는 비고, 경로를 아는 누구든 다시 등록할 수 있다 — 외부 서비스가 옛 URL 로 계속 보내면 새 주인이
 받는다. 전역 UNIQUE 는 **동시에 존재하는** 중복만 막는다. 지운 경로를 묶어 두려면 묘비(tombstone)가 필요하고, 트래커에 따로 올렸다.
+(2026-09-19 해소 — 위 «지운 · 바꾼 웹훅 경로의 영구 예약».)
 
 > 출처: 트래커 `plan/in-progress/spec-draft-nullable-notation-followups.md`. 재현 · 실측 · 마이그레이션 검증은
 > `plan/complete/spec-draft-webhook-endpoint-path-global-unique.md`, 구현은 V131 · V132.

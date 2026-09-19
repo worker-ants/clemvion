@@ -4641,8 +4641,11 @@ field: T | null;
       중복을 정리(가장 먼저 만든 쪽 유지 · 나머지 새 UUID · 채팅 채널은 NOTICE + 운영 절차)하고 V132 가 `(endpoint_path)` 전역 UNIQUE 로 교체한다.
       SoT: `spec/1-data-model.md` Rationale «Webhook `endpoint_path` 전역 유일». (기각: 비유일 보조 인덱스 + 앱 레벨 검사 — 동시 경합을 DB 가 막지 못한다.)
 
-- [ ] **지운 웹훅 경로를 다른 워크스페이스가 다시 등록할 수 있다 — 묘비(tombstone) 부재** (planner + developer, 낮음, 2026-09-19 등재 ·
-      `plan/complete/spec-draft-webhook-endpoint-path-global-unique.md` «비대상»). 전역 UNIQUE(V132)는 **동시에 존재하는** 중복만 막는다 — 주인이
+- [x] **지운 웹훅 경로를 다른 워크스페이스가 다시 등록할 수 있다 — 묘비(tombstone) 부재** (planner + developer, 낮음, 2026-09-19 등재 ·
+      `plan/complete/spec-draft-webhook-endpoint-path-global-unique.md` «비대상» · **2026-09-19 해소** `plan/complete/spec-draft-webhook-endpoint-reservation.md`
+      — **결정(사용자): 영구** · 같은 워크스페이스는 재사용. 삭제 시점 묘비 대신 **사용 시점 예약**(V133 `webhook_endpoint_reservation`, 지우지 않음)을
+      DB 트리거가 강제하고, 다른 워크스페이스는 살아 있는 경로와 같은 409. 경로 변경의 옛 경로도 같은 규칙 · 워크스페이스 삭제 뒤엔 주인 없는 예약.
+      «실측 필요(수신 404 트래픽)» 는 영구로 정해져 불필요해졌다. 이미 지워진 경로는 기록이 없어 보호 밖. SoT: `spec/1-data-model.md` §2.8.1). 전역 UNIQUE(V132)는 **동시에 존재하는** 중복만 막는다 — 주인이
       트리거를 지우면 그 경로는 비고, 경로를 아는 누구든 자기 워크스페이스에 다시 등록할 수 있다. 외부 서비스가 옛 URL 로 계속 보내면 새 주인이
       받는다. 결정할 것: 지운 경로를 얼마나 오래 묶어 둘지(영구 · 기간) · 어디에 둘지(`trigger` soft-delete 행 · 별도 묘비 테이블) · 트리거를 **수정**해
       경로를 바꿨을 때의 옛 경로도 같은 규칙인지(`endpointPath` 는 mutable — 12-webhook «endpointPath 가변성»). 실측 필요: 지운 트리거의 경로로

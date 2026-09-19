@@ -4,7 +4,7 @@ import { Client } from 'pg';
 import { createDbClient } from './helpers/db';
 
 /**
- * e2e: FK 인덱스(V112~V130)가 **유효하게** 있다.
+ * e2e: FK 인덱스(V112~V130 · V133)가 **유효하게** 있다.
  *
  * 부모 행 삭제의 FK 트리거는 지워지는 부모 행마다 자식을 한 번씩 찾는다. 아래 FK 는 쓸 인덱스가 없어
  * (선두가 다르거나, KB 를 아는 복합 인덱스뿐이거나, 조건이 다른 부분 인덱스뿐이라) 자식 테이블을 훑었다 — 세 묶음이다:
@@ -16,6 +16,8 @@ import { createDbClient } from './helpers/db';
  * - V121~V130 · 남은 FK 31개의 처분 중 인덱스를 둔 열 — 워크스페이스 1만 규모에서 캔버스 저장의 노드 하나 삭제
  *   29.1 ms · 워크플로 삭제 306.8 ms · 워크스페이스 삭제 3,161 ms. 그중 다섯(V126~V130)은 FK 보다 **목록 조회**가
  *   이유다(그 컬럼으로 찾는 조회가 쓸 인덱스 없이 요청마다 돌았다). 근거·실측: `plan/complete/spec-draft-fk-remaining-dispositions.md`.
+ * - V133 · 새 테이블 `webhook_endpoint_reservation` 의 FK — 처음부터 인덱스와 함께 만든다(위 원칙을 새 FK 에 적용).
+ *   근거: `plan/complete/spec-draft-webhook-endpoint-reservation.md`.
  *
  * **`indisvalid` 까지 본다** — `CREATE INDEX CONCURRENTLY` 가 실패하면 이름만 점유한 invalid 인덱스가 남고,
  * 존재만 보는 단언은 그것을 초록으로 통과시킨다. 정의는 선두 컬럼과 부분 조건까지 대조한다 — 선두가 다르면
@@ -106,9 +108,14 @@ const EXPECTED: ReadonlyArray<{ name: string; def: RegExp }> = [
     name: 'idx_model_config_workspace_kind',
     def: /ON public\.model_config USING btree \(workspace_id, kind\)$/,
   },
+  // V133 — 새 테이블의 FK. 워크스페이스 삭제의 `SET NULL` 이 예약을 훑지 않게(주인 없는 예약은 다시 찾을 일이 없어 partial)
+  {
+    name: 'idx_webhook_endpoint_reservation_workspace_id',
+    def: /ON public\.webhook_endpoint_reservation USING btree \(workspace_id\) WHERE \(workspace_id IS NOT NULL\)$/,
+  },
 ];
 
-describe('FK 인덱스 (e2e, V112~V130)', () => {
+describe('FK 인덱스 (e2e, V112~V130 · V133)', () => {
   let db: Client;
 
   beforeAll(async () => {
