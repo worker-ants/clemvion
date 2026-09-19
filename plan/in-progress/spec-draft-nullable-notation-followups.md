@@ -4648,8 +4648,11 @@ field: T | null;
       경로를 바꿨을 때의 옛 경로도 같은 규칙인지(`endpointPath` 는 mutable — 12-webhook «endpointPath 가변성»). 실측 필요: 지운 트리거의 경로로
       실제 트래픽이 계속 오는지(수신 404 로그).
 
-- [ ] **엔티티 컬럼 선언이 실제 DB 와 다른 아홉 곳 — 인덱스·제약 층은 닫혔고 컬럼 층이 남았다** (developer, 낮음, 2026-09-19 등재 ·
-      `plan/complete/entity-schema-declaration-drift.md` «비대상»). TypeORM `createSchemaBuilder().log()`(V001~V132, 동작 불변 — `synchronize: false`)가
+- [x] **엔티티 컬럼 선언이 실제 DB 와 다른 아홉 곳 — 인덱스·제약 층은 닫혔고 컬럼 층이 남았다** (developer, 낮음, 2026-09-19 등재 ·
+      `plan/complete/entity-schema-declaration-drift.md`(인덱스 · 제약 층, #1354) «비대상» · **2026-09-19 해소** `plan/complete/entity-column-declaration-drift.md`
+      (컬럼 층) — 아홉 곳을 고치고 `entity-schema-declarations.e2e-spec.ts` 에 컬럼 층 가드(비교기 `log()` 를 읽기 전용 세션으로 · 컬럼 정의 문 0 ·
+      예외 `embedding` 둘 · 실제 문장 표본으로 패턴 판별력). «선언 생략 vs 거짓 선언» 기준 = 비교기가 내는 컬럼 층 문은 전부 결함, 예외는
+      선언 자체를 두지 않은 컬럼만(이유와 함께 목록에)). TypeORM `createSchemaBuilder().log()`(V001~V132, 동작 불변 — `synchronize: false`)가
       낸 컬럼 차이. 대부분 선언이 **생략**해 TypeORM 이 기본값을 추론한 것이다.
       ① uuid 를 varchar 로 추론 5 — 관계 없이 `@Column({ name })` 만 둔 FK 컬럼: `alert_rule.workspace_id` · `workspace_invitation.workspace_id` ·
       `integration_usage_log.node_execution_id` · `integration_usage_log.workflow_id` · `llm_usage_log.workspace_id`(DB 는 모두 `uuid NOT NULL`).
@@ -4862,6 +4865,22 @@ field: T | null;
       trade-off 가 «NestJS + Prisma» · «Prisma client 의 schema» 를 전제한다. 코드베이스에 `prisma` 의존성 · `schema.prisma` 가 없다 —
       이중 source 는 **TypeORM 엔티티 데코레이터**와 Flyway SQL 이고, 그 drift 는 `entity-schema-declarations.e2e-spec.ts`(인덱스 · 제약 층 #1354 ·
       컬럼 층)가 막는다. 사실 정정이다.
+
+- [ ] **`spec/1-data-model.md` 컬럼 표가 DB 기본값 둘을 적지 않는다** (planner, 낮음, 2026-09-19 등재 · `/ai-review`
+      `review/code/2026/09/19/17_45_35` requirement INFO 1 · 2). §2.16 ModelConfig `kind` 의 `DEFAULT 'chat'`(V088) · §2.20 AssistantSession
+      `last_interaction_at` 의 `DEFAULT now()` — 엔티티는 컬럼 층 정정(`plan/complete/entity-column-declaration-drift.md`)으로 이제 둘 다
+      선언한다. 두 서비스가 값을 늘 명시해 실질 영향은 없다. 사실 정정이다.
+      같은 턴에: 이 문서 `## Rationale` 의 선언↔DB 가드 절에 «컬럼 층도 본다 — 인덱스 · 제약은 선언 → DB 한쪽, 컬럼 정의는 양방향» 한 줄
+      (`--impl-done` `review/consistency/2026/09/19/18_16_57` rationale_continuity INFO 2).
+
+- [ ] **컬럼 층 가드의 남은 빈칸 — 예방 계층 자체의 회귀 테스트 · `default` RETURNING** (developer, 낮음, 2026-09-19 등재 · `/ai-review`
+      `review/code/2026/09/19/18_07_01` testing WARNING 2 · INFO 1 · 4 · 6, `plan/complete/entity-column-declaration-drift.md` 4라운드 «수렴 예외»).
+      (1) `entity-schema-declarations.e2e-spec.ts` 의 비교기 전용 `DataSource` 는 읽기 전용 세션(`default_transaction_read_only=on`)으로
+      DDL 을 막는데, 그 옵션을 지워도 스위트는 GREEN 이다(카탈로그 비교는 탐지만). 같은 `DataSource` 로 `CREATE TEMP TABLE` 을 시도해
+      read-only 거부를 단언하는 `it` 하나면 된다(Postgres 는 읽기 전용 트랜잭션에서 모든 `CREATE` 를 막는다 — 성공해도 임시 테이블이라 무해).
+      (2) `default` 를 새로 선언한 두 컬럼(`model_config.kind` · `workflow_assistant_session.last_interaction_at`)의 insert RETURNING 은 전체
+      e2e 통과로만 확인됐다 — 값을 생략한 insert 가 DB 기본값을 채워 돌려받는 좁은 테스트. (3) 가독성: 지역 변수 `log` → `sqlMemory`,
+      `COLUMN_LEVEL_SAMPLES.caught` 옆에 어느 패턴의 표본인지 주석.
 
 ## 종결 조건
 

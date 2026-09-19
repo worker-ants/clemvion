@@ -1,9 +1,10 @@
 ---
 title: 엔티티 컬럼 선언이 실제 DB 와 다른 아홉 곳 정정 + 가드를 컬럼 층으로 확장
-status: in-progress
+status: complete
 owner: developer
 worktree: entity-column-drift-b83f15
 started: 2026-09-19
+completed: 2026-09-19
 spec_impact: none
 ---
 
@@ -124,6 +125,10 @@ in a read-only transaction` 1건으로 확인. `installExtensions: false` 를 �
 - [x] 가드 테스트 — GREEN · 뮤턴트(아홉 수정 각각 되돌림 + 예외 목록 둘) RED, 패턴 하중 쌍(R1 · R2) 예측대로 — 위 «가드 뮤턴트» 표
 - [x] TEST WORKFLOW (lint · unit · build · e2e) + 백엔드 타입체크 ratchet — 커밋 `3c2b39305` 기준 lint · unit · build(ratchet 포함) PASS,
       e2e PASS(backend 354 — 새 컬럼 가드 포함 · Playwright 51). `default` 선언으로 insert 뒤 RETURNING 이 늘어나는 런타임 변화도 전체 e2e 로 확인
-- [ ] `/ai-review`
-- [ ] `--impl-done` — `spec/2-navigation/` · `spec/3-workflow-editor/` (각각 `spec/1-data-model.md` · 브랜치 diff 를 직접 Read 블록으로 첨부)
-- [ ] 트래커 반영 · 이 plan `complete/` 이동
+- [x] `/ai-review` — 4라운드. `review/code/2026/09/19/17_04_28`(C0 · W2: 패턴 두 개 미검증 · `log()` 읽기 전용 근거) → `17_25_09`(C0 · W1: 예방 없이
+      탐지만) → `17_45_35`(C0 · W2: 읽기 전용 세션에서도 `CREATE EXTENSION` 시도 — **내 2라운드 주장 반증**, 제목) → `18_07_01`(C0 · W2: plan
+      경로 · 예방 계층의 회귀 테스트) — 4라운드는 동작 결함 0 으로 «수렴 예외» 종결, 잔여는 트래커. 각 `RESOLUTION.md`
+- [x] `--impl-done` — `spec/2-navigation/` `review/consistency/2026/09/19/18_16_55` · `spec/3-workflow-editor/` `…/18_16_57` 둘 다 **BLOCK: NO**
+      (Critical 0 · Warning 0). 두 번들 모두 예산 초과라 `spec/1-data-model.md` · 브랜치 diff 를 직접 읽게 하는 블록을 붙였다. INFO 중
+      `1-data-model.md` Rationale 한 줄 보강은 트래커(planner)
+- [x] 트래커 반영 · 이 plan `complete/` 이동
