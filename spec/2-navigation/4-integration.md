@@ -233,7 +233,7 @@ Step 2 auth     ──submit──▶ Step 3 test
 ### 3.3 Step 3: 연결 테스트
 
 - 자동으로 `POST /api/integrations/preview-test`를 호출 (DB 저장 없이 메모리상 자격 증명으로 검증)
-- OAuth의 경우 팝업에서 이미 토큰 교환이 완료되었으므로 실제 API 핑(`/me` 또는 서비스별 동등 엔드포인트)
+- OAuth 는 팝업에서 이미 토큰 교환이 끝났으므로 사전 테스트는 필드 구조만 검증한다(서비스별 테스트 범위는 §5.x · §9.2 `preview-test` 행)
 - 성공 시 `[Save integration]` 버튼 활성화
 - 실패 시 에러 메시지 표시 + `[Back to auth]` 버튼으로 Step 2 복귀, 입력값은 유지
 
@@ -426,7 +426,7 @@ scope는 서비스 번들 체크박스로 노출:
 | Gmail | `https://www.googleapis.com/auth/gmail.send` |
 | Calendar | `https://www.googleapis.com/auth/calendar` |
 
-테스트 방법: `tokeninfo` 엔드포인트 또는 선택된 첫 번들의 `/about` 핑.
+테스트: 현재는 **필드 구조 검증만** 한다 — 실제 호출은 없다. 이 통합을 쓰는 노드가 아직 없어서다(토큰 갱신 경로도 구현돼 있지 않다 — §10.3 · §10.5 주석). 노드가 생길 때 `tokeninfo` 엔드포인트 또는 선택된 첫 번들의 `/about` 핑를 함께 만든다(Rationale «연결 테스트 — Database · HTTP 는 실제로 접속한다»).
 
 ### 5.2 GitHub
 
@@ -446,7 +446,7 @@ GitHub는 2개 `auth_type`을 선택 가능.
 |------|------|------|------|
 | `token` | string | ✓ | 🔒 |
 
-테스트: `GET https://api.github.com/user`.
+테스트: 현재는 **필드 구조 검증만** 한다 — 실제 호출은 없다. 이 통합을 쓰는 노드가 아직 없어서다. 노드가 생길 때 `GET https://api.github.com/user`를 함께 만든다(Rationale «연결 테스트 — Database · HTTP 는 실제로 접속한다»).
 
 ### 5.3 HTTP/REST
 
@@ -473,7 +473,16 @@ GitHub는 2개 `auth_type`을 선택 가능.
 | `username` | string | ✓ | × |
 | `password` | string | ✓ | 🔒 |
 
-테스트: `base_url` 존재 시 `GET base_url`(혹은 사용자가 지정한 `test_path`) 200 기대. 미지정이면 테스트 단계를 건너뛰고 경고 배너.
+테스트: `base_url` 이 있으면 HTTP Request 노드와 **같은 방식으로 자격증명을 붙여** `GET base_url` 을 보낸다. 리다이렉트는 노드와 같이 최대 5홉 따라가며 홉마다 SSRF 를 다시 검사한다([HTTP Request §4](../4-nodes/4-integration/1-http-request.md#4-실행-로직) — 리다이렉트 뒤에서 인증을 거부하는 서비스도 잡힌다). 판정은 마지막 응답으로 한다. 응답 본문은 읽지 않는다. 대기는 10초. host 의 SSRF 가드는 노드와 같다(`ALLOW_PRIVATE_HOST_TARGETS` opt-out). 결과:
+
+- 2xx(또는 `Location` 없는 3xx) → `success: true`
+- 401 · 403 → `HTTP_AUTH_FAILED` — 서버가 자격증명을 거부했다
+- 그 밖의 4xx(404 · 405 등) → `success: true` 이지만 메시지로 «서버에는 닿았지만 `base_url` 이 이 요청을 처리하지 않아 자격증명은 확인하지 못했다» 고 알린다 — `base_url` 은 대개 API 의 뿌리라 그 자체가 자원이 아니다
+- 5xx → `HTTP_SERVER_ERROR`
+- host(첫 요청 또는 리다이렉트 대상)가 SSRF 가드에 차단되거나 리다이렉트가 5홉을 넘음 → `HTTP_BLOCKED`
+- 네트워크 · 타임아웃 · TLS → `HTTP_CONNECT_FAILED`
+
+`base_url` 이 비어 있으면(노드가 URL 전체를 적는 통합) 호출하지 않고 `success: true` 에 «`base_url` 이 없어 연결을 확인하지 않았다» 는 메시지를 돌려준다. **한계**: 자격증명 거부를 알 수 있는 것은 `base_url` 이 401 · 403 을 돌려줄 때뿐이다.
 
 ### 5.4 Database
 
@@ -487,7 +496,14 @@ GitHub는 2개 `auth_type`을 선택 가능.
 | `password` | string | ✓ | 🔒 |
 | `ssl` | enum `disable` \| `require` \| `verify-full` | ✓ | × |
 
-테스트: 연결 후 `SELECT 1` 실행. 실패 시 드라이버별 에러 메시지를 `error.code`에 정규화(`auth_failed`, `network`, `unknown_error`).
+테스트: 저장된(또는 입력한) 자격증명으로 **일회성 연결**을 열어 `SELECT 1` 을 실행하고 닫는다. 연결 대기는 10초. SSL 매핑과 host 의 SSRF 가드는 [Database 노드](../4-nodes/4-integration/2-database-query.md)와 같다. 결과:
+
+- 성공 → `success: true`
+- host 가 SSRF 가드에 차단 → `DB_HOST_BLOCKED`
+- 인증 거부(PostgreSQL SQLSTATE class 28 · MySQL `ER_ACCESS_DENIED_ERROR` · `ER_DBACCESS_DENIED_ERROR`) → `DB_AUTH_FAILED`
+- 그 밖(네트워크 · 타임아웃 · TLS · 없는 database 등) → `DB_CONNECT_FAILED`
+
+메시지는 드라이버 원문을 길이 제한해 싣는다(비밀번호는 드라이버 원문에 없다). 코드는 `IntegrationTestResult.code` namespace(§5.5)다. `DB_CONNECT_FAILED` 는 노드 런타임의 `DB_CONNECTION_ERROR`(핸드셰이크 인증 실패까지 포함)와 **모집합이 다르다** — 연결 테스트는 인증 실패를 `DB_AUTH_FAILED` 로 먼저 가른다. 이 일회성 연결은 노드 실행의 커넥션 풀과 별개이며 풀에 남지 않는다.
 
 ### 5.5 Email (SMTP)
 
@@ -557,7 +573,7 @@ AI Agent 노드가 활용하는 외부 [Model Context Protocol](https://modelcon
 - `signing_secret` 지정 시 호출 페이로드를 HMAC-SHA256으로 서명해 `signature_header`에 첨부
 - Inbound 수신 URL은 Trigger(type=webhook)에서 별도로 관리 — 본 연동과 공유하지 않음 (PRD INT-WH-02)
 
-테스트: `url`에 빈 본문으로 헤드 요청(`HEAD`), 허용 안 될 경우 `POST {}` → 2xx/3xx 기대.
+테스트: 현재는 **필드 구조 검증만** 한다 — 실제 호출은 없다. 이 통합을 쓰는 노드가 아직 없어서다. 노드가 생길 때 `url` 에 대한 프로브를 함께 만든다(Rationale «연결 테스트 — Database · HTTP 는 실제로 접속한다»).
 
 ### 5.8 Cafe24
 
@@ -807,7 +823,7 @@ Please replace or remove these node references first.
 | GET | `/api/integrations/makeshop/precheck` | MakeShop shop_uid 사전 중복 감지. 쿼리: `shopUid` (`^[A-Za-z0-9_-]{2,64}$`). 응답 shape 은 `cafe24/precheck` 와 동형 (`{ conflict: bool, existingIntegrationId?: string, existingName?: string, status?: … }`). **인증된 사용자의 current workspace 소속 makeshop row 만 노출**. throttle 60/min. MakeShop의 begin 흐름은 shop_uid 입력이 없으므로 (ShopStore 설치 redirect 로 도착) 본 endpoint 는 install 후 식별된 shop_uid 의 중복 여부 확인 등 선제적 surface 에서 사용된다. **NestJS 라우트 선언 순서**: `:id` 동적 경로보다 앞에 선언. |
 | GET | `/api/3rd-party/cafe24/install/:installToken` | Cafe24 Private 앱 App URL 엔드포인트. **두 가지 진입점에서 호출됨**: ① 초기 install — Cafe24 Developers "테스트 실행" → OAuth authorize 로 redirect. ② post-install navigation — 카페24 쇼핑몰 관리자의 "앱으로 가기" 버튼 → 우리 frontend 로 redirect. path 의 `:installToken` 은 oauth/begin 응답으로 받은 16바이트 base64url (22자, `^[A-Za-z0-9_-]{22}$`). 쿼리: `mall_id`, `timestamp`, `hmac` 등 Cafe24 표준 파라미터. **식별 절차**: `install_token` 으로 단일 row 조회 → 그 row 의 `client_secret` 으로 HMAC 1회 검증. status 분기: `pending_install` → Cafe24 authorize URL 로 `302`; `connected`/`error(*)`/`expired` → `${FRONTEND_URL}/integrations/<id>` 로 `302` (post-install navigation). `install_token` 은 통합 lifetime 동안 persistent 식별자 (callback 성공 시 NULL 처리 안 함). 에러: `CAFE24_INSTALL_MISSING_PARAMS`(400, `mall_id`/`timestamp`/`hmac` 누락), `CAFE24_INSTALL_INVALID_TOKEN`(404, 토큰 미존재 — TTL 만료 / 통합 삭제 — 단 직접 매칭 실패 시 `tryRecoverByMallId` 회복 흐름 fall-back 후 여전히 미매칭일 때), `CAFE24_INSTALL_INVALID_HMAC`(403), `CAFE24_INSTALL_REPLAY`(400, timestamp ±5분 초과), `CAFE24_INSTALL_RATE_LIMITED`(429, 같은 IP 의 조회/HMAC 실패가 임계치 초과 — enumeration 방어 lockout). **Rate limit**: IP별 `30/min` throttle (Layer 1 — 현재 pod별 in-memory; Redis 분산 store 이전은 후속 infra PR) + 실패 페널티 lockout (Layer 2 — Redis cross-pod). 상세·상수는 [Spec Cafe24 §9.8](../4-nodes/4-integration/4-cafe24.md#98-private-앱-app-url-hmac-검증) Rate limiting note 참조. |
 | GET | `/api/3rd-party/:provider/callback` | OAuth 콜백 (§10) — `:provider ∈ {cafe24, google, github}` |
-| POST | `/api/integrations/preview-test` | 저장 전 인증 정보로 연결 테스트. body: `{ serviceType, authType, credentials }` (`PreviewTestDto`). 외부 호출 여부는 service_type 별로 다름 — **Email(SMTP)**: 실제 `verify()` 외부 호출 (§5.5), **Cafe24**: 구조 검증만 (§5.8), 그 외: §5.x 각 정의 |
+| POST | `/api/integrations/preview-test` | 저장 전 인증 정보로 연결 테스트. body: `{ serviceType, authType, credentials }` (`PreviewTestDto`). 외부 호출 여부는 service_type 별로 다름 — **실제 호출**: Email(`verify()`, §5.5) · MCP(§5.6) · HTTP(§5.3) · Database(§5.4). **구조 검증만**: Cafe24(§5.8) · MakeShop · Google · GitHub · Webhook. (Cafe24 · MakeShop 은 연결 뒤 `:id/test` 에서 entity tester 가 실제로 호출한다.) |
 | POST | `/api/integrations/:id/reauthorize` | OAuth 재인증 authUrl 발급 |
 | POST | `/api/integrations/:id/rotate` | 비OAuth 자격 증명 교체. body: 신규 credentials 객체. 내부적으로 테스트 → 성공 시만 커밋 |
 | POST | `/api/integrations/:id/request-scopes` | 추가 scope 요청. body: `{ scopes: string[] }`. 응답 분기: 일반 provider — `{ authUrl }` (팝업 OAuth). **Cafe24 Private** — `{ mode: 'cafe24_private_pending', integrationId, appUrl, callbackUrl, scopesAdded }` (popup 없음, 사용자가 Cafe24 Developers 에서 권한 추가 후 "테스트 실행" 으로 재인증). 본 endpoint 가 내부적으로 cafe24 Private 분기를 자동 처리하므로 frontend 는 provider 분기 로직 없이 응답 shape 만 보고 UI 분기. |
@@ -846,7 +862,7 @@ Please replace or remove these node references first.
 - 성공: `{ data: ... }` 또는 `{ data: ..., pagination: ... }` (기존 컨벤션 준수)
 - 실패: `{ code, message, details? }`
   - `INTEGRATION_IN_USE` (409) — 삭제 차단
-  - `INTEGRATION_TEST_FAILED` (422) — 연결 테스트 실패
+  - `INTEGRATION_TEST_FAILED` (422) — 연결 테스트 실패. 연결 테스트가 무엇을 확인하는지는 서비스마다 다르다 — §9.2 `preview-test` 행 · §5.x. HTTP 는 `base_url` 이 401 · 403 을 돌려줄 때만 자격증명 거부를 안다(§5.3)
   - `INTEGRATION_INVALID_SERVICE` (400) — 지원하지 않는 `serviceType` / `authType` 조합. `create()`(저장)와 `preview-test`(미저장 미리보기)가 공유하는 단일 guard(`IntegrationsService.validateServiceAuthType`)가 service registry(`findVariant`) 미등록 조합을 거부. 메시지: `Unsupported service/auth combination: {serviceType}/{authType}`.
   - `OAUTH_STATE_MISMATCH` (400)
   - `OAUTH_CONFIG_MISSING` (500)
@@ -910,7 +926,7 @@ window.close();
 
 | Provider | Token URL | 기본 scope 프리셋 | Refresh |
 |----------|-----------|-----------------|---------|
-| Google | `https://oauth2.googleapis.com/token` | 사용자 체크박스 선택 결과 | ✓ |
+| Google | `https://oauth2.googleapis.com/token` | 사용자 체크박스 선택 결과 | ✓(발급) — 갱신 경로 미구현(§10.5) |
 | GitHub | `https://github.com/login/oauth/access_token` | `repo`, `read:org` | ✗ |
 | Cafe24 | `https://{mall_id}.cafe24api.com/api/v2/oauth/token` | 사용자 체크박스(카테고리 R/W) 결과 | ✓ |
 
@@ -931,7 +947,7 @@ window.close();
 
 ### 10.5 토큰 자동 갱신
 
-- Refresh token 보유 시 (provider 가 refresh_token 발급·갱신을 보장 — 현재 `cafe24`, `google`): 노드 실행 직전 만료 확인 → 만료됐으면 갱신 후 호출. 이 자동 갱신 가능 여부는 `IntegrationDto.autoRefresh: boolean` (§9.1) 로 클라이언트에 노출되어 상태 배지·attention 술어·Reauthorize hover 안내의 분기 신호로 쓰인다.
+- Refresh token 보유 시 (provider 가 refresh_token 발급·갱신을 보장 — 현재 `cafe24`. `google` 은 refresh_token 을 받지만 갱신 경로가 구현돼 있지 않고 이 통합을 쓰는 노드도 없다 — 서비스 레지스트리 `supportsTokenAutoRefresh` 가 true 라 `autoRefresh` 는 true 로 나간다): 노드 실행 직전 만료 확인 → 만료됐으면 갱신 후 호출. 이 자동 갱신 가능 여부는 `IntegrationDto.autoRefresh: boolean` (§9.1) 로 클라이언트에 노출되어 상태 배지·attention 술어·Reauthorize hover 안내의 분기 신호로 쓰인다.
 - **만료 시각 SoT**: Cafe24 의 `access_token` / `refresh_token` 은 JWT 이므로 **JWT `exp` claim** (RFC 7519, Unix epoch seconds — UTC absolute) 을 만료 시각의 single source of truth 로 사용한다. backend 의 token-exchange normalizer (`parseTokenExpiresAt`) 와 refresh path (`refreshAccessToken`) 는 내부적으로 `parseJwtExp(token)` 을 첫 단계로 호출해 결과를 최우선 채택하고, JWT 디코드가 비정상으로 null 인 경우에만 표준 `expires_in` → cafe24 한정 `expires_at` ISO (timezone designator 누락 시 `+09:00` KST 부여로 정규화) → 2h default 로 강하한다. ISO 의 timezone 모호성으로 `Integration.token_expires_at` 가 의도와 다른 epoch 로 저장돼 proactive refresh 와 워커 short-circuit 이 동시에 빗나가는 회귀 ([Rationale "Cafe24 token 만료 SoT — JWT exp 격상"](#cafe24-token-만료-sot--jwt-exp-격상) 참고) 의 영구 차단. JWT signature 검증은 본 용도에 불필요 (만료 시각 metadata 추출 목적; 토큰 진위는 Cafe24 API 호출 시점에 검증).
 - **401 자동 회복 (`call()` 경로)**: proactive 갱신이 race condition (DB `expires_at` 미동기, 다중 인스턴스, NULL legacy row 등) 으로 빗나가 만료된 access_token 으로 Cafe24 API 호출이 401 을 받으면, `refresh_token` 으로 access_token 을 갱신한 뒤 동일 요청을 **1회만** 재시도. 재시도가 2xx 면 `status='connected'` 유지 (애초에 격하 없음). 재시도도 401 이면 토큰 자체 문제로 확정해 [Spec Cafe24 §6.1](../4-nodes/4-integration/4-cafe24.md#61-인증-실패-자동-status-전환) 의 `error(auth_failed)` 전이 발사. 403 은 본 자동 회복 대상 아님 (즉시 격하). 재시도 분기는 `refreshViaQueue` (`source='reactive_401'`) 를 거치며, cross-pod 직렬화는 `refreshAccessToken` 내부의 PostgreSQL `pessimistic_write` row lock 으로 보장된다. proactive/background 경로와 달리 BullMQ `jobId = integrationId` dedup 을 사용하지 않음 ([Rationale "reactive_401 jobId unique 화 — dedup 완전 우회"](#reactive_401-jobid-unique-화--dedup-완전-우회) 참조). 재시도 횟수는 정확히 1회 (429 rate limit 재시도와 별개 카운터). [§5.8 연결 테스트의 `pingConnection()`](#58-cafe24) 의 동일 패턴과 정책 통일. Rationale 의 "`call()` 의 401 자동 회복" 참고.
 - **갱신 실패 시**: `refresh_token` 자체가 무효 (`invalid_grant`) 면 `error(auth_failed)` 로 전이 (옛 `expired` 분기는 폐기 — [Rationale "refresh 실패 시 status_reason 통일"](#rationale) 참고; cafe24 의 경우 본 격하 경로는 [§6.1 공통 격하 동작](../4-nodes/4-integration/4-cafe24.md#61-인증-실패-자동-status-전환) 에 명세). transport 실패가 3회 연속이면 `error(network)` 로 전이 (V049 카운터). passive `integration_expired` 알림은 `expired` 전이 중 `token_expired` (refresh_token 없는 provider) 에만 발사하며, `error(*)` 전이는 active `integration_action_required` 알림 발사 + UI 배지로 통지 (§11.2 참고).
@@ -1095,10 +1111,15 @@ UI 배지 (사이드바 카운트 + 목록 카드 뱃지) 와 노드 에디터 �
 | `EMAIL_CONNECT_FAILED` | SMTP `verify()` 실패 (연결/인증/TLS) | **연결 테스트 전용** — `IntegrationTestResult.code` namespace (노드 런타임 `ErrorCode` enum 과 별개) |
 | `DRIVER_NOT_SUPPORTED` | Database 핸들러에서 MySQL 등 미구현 드라이버 선택 | 위와 동일 |
 | `INVALID_PARAMETERS` | Database `parameters`가 JSON 배열 문자열로 파싱되지 않음 | 위와 동일 |
-| `DB_HOST_BLOCKED` | DB host 가 사설/loopback 이라 SSRF 가드에 차단 (기본 ON, `ALLOW_PRIVATE_HOST_TARGETS` opt-out). `EMAIL_HOST_BLOCKED`·`HTTP_BLOCKED` 와 대칭 | database_query 노드 `error` 포트 출력 (메시지는 host/IP 미포함 일반화) |
+| `DB_HOST_BLOCKED` | DB host 가 사설/loopback 이라 SSRF 가드에 차단 (기본 ON, `ALLOW_PRIVATE_HOST_TARGETS` opt-out). `EMAIL_HOST_BLOCKED`·`HTTP_BLOCKED` 와 대칭 | database_query 노드 `error` 포트 출력 (메시지는 host/IP 미포함 일반화) / 연결 테스트는 `result.code` 반환 |
+| `DB_AUTH_FAILED` | Database 연결 테스트에서 인증 거부(PostgreSQL SQLSTATE class 28 · MySQL `ER_ACCESS_DENIED_ERROR` · `ER_DBACCESS_DENIED_ERROR`) | **연결 테스트 전용** — `IntegrationTestResult.code` namespace (노드 런타임 `ErrorCode` enum 과 별개. 노드는 같은 조건을 `DB_CONNECTION_ERROR` 로 묶는다) |
+| `DB_CONNECT_FAILED` | Database 연결 테스트에서 인증 외의 실패(네트워크 · 타임아웃 · TLS · 없는 database 등) | **연결 테스트 전용** — 위와 같은 namespace. 노드 런타임 `DB_CONNECTION_ERROR` 와 모집합이 다르다(인증 실패를 뺀다) |
 | `HTTP_{status}` | HTTP 핸들러가 2xx 아닌 응답을 받음 | 위와 동일 (HTTP 노드는 `error` 포트로 출력) |
 | `HTTP_TRANSPORT_FAILED` | HTTP 전송 실패(네트워크/타임아웃) | 위와 동일 |
-| `HTTP_BLOCKED` | HTTP target host 가 사설/loopback/클라우드 메타데이터라 SSRF 가드에 차단 (전 인증 방식 공통, refactor 04 C-3. 기본 ON, `ALLOW_PRIVATE_HOST_TARGETS` opt-out. redirect 대상·한도 초과 SSRF 포함) | HTTP 노드 `error` 포트 출력 (메시지는 host/IP 미포함 일반화) |
+| `HTTP_BLOCKED` | HTTP target host 가 사설/loopback/클라우드 메타데이터라 SSRF 가드에 차단 (전 인증 방식 공통, refactor 04 C-3. 기본 ON, `ALLOW_PRIVATE_HOST_TARGETS` opt-out. redirect 대상·한도 초과 SSRF 포함) | HTTP 노드 `error` 포트 출력 (메시지는 host/IP 미포함 일반화) / 연결 테스트는 `result.code` 반환 |
+| `HTTP_AUTH_FAILED` | HTTP 연결 테스트에서 `base_url` 의 마지막 응답(리다이렉트를 따라간 뒤)이 401 · 403 | **연결 테스트 전용** — `IntegrationTestResult.code` namespace. 노드는 같은 응답을 `HTTP_{status}` 로 낸다 |
+| `HTTP_SERVER_ERROR` | HTTP 연결 테스트에서 마지막 응답이 5xx | **연결 테스트 전용** — 노드는 `HTTP_{status}` |
+| `HTTP_CONNECT_FAILED` | HTTP 연결 테스트의 네트워크 · 타임아웃 · TLS 실패 | **연결 테스트 전용** — 노드는 `HTTP_TRANSPORT_FAILED` |
 
 #### 핸들러별 usage 기록 시점
 
@@ -1127,6 +1148,31 @@ Integration 생성·수정·삭제·회전·재인증·scope 전환 이벤트를
 ---
 
 ## Rationale
+
+### 연결 테스트 — Database · HTTP 는 실제로 접속한다, Google · GitHub · Webhook 은 구조 검증만 (2026-09-19)
+
+§5 는 다섯 서비스(Google · GitHub · HTTP · Database · Webhook)에 실제 연결 테스트(`tokeninfo` · `GET /user` · `GET base_url` · `SELECT 1` · `HEAD url`)를
+약속했지만, `IntegrationsService.dispatchTest` 에는 그 테스터가 없었다 — transport tester 는 `mcp` · `email`, entity tester 는 `cafe24` · `makeshop`
+뿐이라 나머지는 구조만 맞으면 «Connection successful» 이었다. 틀린 비밀번호로도 연결 테스트가 성공했고, 테스트 성공을 조건으로 하는 자격증명
+교체(rotate)가 통과했다. SMTP 가 같은 상태였다가 `verify()` 로 고친 선례(아래 «SMTP 연결 테스트를 `verify()` 로 구현»)와 같은 결함이다.
+
+- **범위(사용자 결정, 2026-09-19)**: 처음엔 다섯 모두 구현하기로 했다가, 조사 결과 Google · GitHub · Webhook 은 그 통합을 쓰는 노드가 없고 Google 은
+  토큰 갱신 경로도 없다는 것을 보고 **Database · HTTP 만** 구현한다. 쓰는 곳이 있는 둘에 피해가 몰린다. 나머지 셋은 테스트를 붙여도 확인할 대상이
+  없고, Google 은 갱신이 없어 테스트가 곧 거짓 실패가 된다 — 노드가 생길 때 테스터를 함께 만든다.
+- **HTTP 의 4xx(401 · 403 외)를 성공으로 둔다**: `base_url` 은 대개 API 의 뿌리라 404 · 405 가 흔하다. 실패로 두면 맞는 자격증명의 교체가 막힌다.
+  메시지로 «확인하지 못했다» 를 분명히 하고, 401 · 403 만 거부로 본다. 리다이렉트는 노드와 같이 5홉까지 따라간다 — 리다이렉트 뒤에서 거부하는
+  서비스를 놓치지 않으려는 것이다.
+- **코드 이름**: 호스트 차단은 노드와 같은 코드를 쓴다(`DB_HOST_BLOCKED` · `HTTP_BLOCKED` — `EMAIL_HOST_BLOCKED` 선례). 나머지 다섯(`DB_AUTH_FAILED` ·
+  `DB_CONNECT_FAILED` · `HTTP_AUTH_FAILED` · `HTTP_CONNECT_FAILED` · `HTTP_SERVER_ERROR`)은 연결 테스트 전용이다. 이름이 가까운 노드 코드와 모집합이
+  다를 수 있다 — `DB_CONNECT_FAILED` 는 인증 실패를 빼지만 노드의 `DB_CONNECTION_ERROR` 는 포함한다. 종전 §5.4 의 소문자 `auth_failed` · `network` ·
+  `unknown_error` 는 통합 상태 `statusReason` 과 철자가 같은 다른 층의 값이었다 — 연결 테스트 코드는 §5.5 가 정한 UPPER_SNAKE_CASE 다.
+- **preview-test «외부 호출 없음» 의 범위**: 구조 검증만인 서비스는 Cafe24 · MakeShop(설계상 — 토큰이 막 발급됐거나 `pending_install`)과 Google ·
+  GitHub · Webhook(구현 범위 — 쓰는 노드가 없다)이다. 아래 «SMTP …» 절의 «Cafe24 한정» 문장에 날짜 주석을 달았다.
+- **카운터**: 연결 테스트 실패는 `consecutive_network_failures` 에 합산하지 않는다(연결 테스트 endpoint 카운터 제외 선례의 확장). Database 연결
+  테스트의 일회성 연결은 노드 실행의 커넥션 풀과 별개이며 풀에 남지 않는다.
+
+근거·실측: `plan/complete/spec-draft-integration-connection-tests.md`.
+
 ### §9.1 의 `IntegrationDto` 인벤토리 주장 경계 (2026-09-10)
 
 §9.1 `GET /api/integrations/:id` 행은 *"`IntegrationDto` 는 다음 **두** derived 필드를 포함한다"*
@@ -1175,7 +1221,7 @@ Integration 생성·수정·삭제·회전·재인증·scope 전환 이벤트를
 
 종전 §5.5 는 "SMTP 핸드셰이크 + `NOOP`" 으로 기술됐으나, 실제로는 email 통합에 transport tester 가 없어 구조 검증(필드 존재·타입)만 통과하면 무조건 "성공" 을 반환했다 — 인증 실패한 자격증명도 "연결 성공" 으로 표시되는 운영 보고. `nodemailer` transporter 의 `verify()`(연결+인증+TLS 핸드셰이크)로 교체해 인증 실패를 사전에 정확히 surface 한다.
 
-**preview-test 의 "외부 호출 없음" 원칙은 Cafe24 한정**(§5.8 — OAuth 토큰이 막 발급돼 구조 검증으로 충분)이며, Email 은 SMTP 인증이 외부 네트워크 없이 검증 불가하므로 명시적 예외다. 따라서 preview-test / `:id/test` / rotate 세 경로 모두 email 에서는 실제 `verify()` 를 수행한다.
+**preview-test 의 "외부 호출 없음" 원칙은 Cafe24 한정**(§5.8 — OAuth 토큰이 막 발급돼 구조 검증으로 충분)이며, Email 은 SMTP 인증이 외부 네트워크 없이 검증 불가하므로 명시적 예외다. 따라서 preview-test / `:id/test` / rotate 세 경로 모두 email 에서는 실제 `verify()` 를 수행한다. (2026-09-19 갱신: 구조 검증만인 서비스는 이제 Cafe24 외에도 MakeShop · Google · GitHub · Webhook 이다 — Cafe24 · MakeShop 은 설계상, 나머지 셋은 구현 범위다. 위 «연결 테스트 — Database · HTTP 는 실제로 접속한다» 참조.)
 
 ### SMTP SSRF 가드를 http/db 와 동일 `ALLOW_PRIVATE_HOST_TARGETS` 로 통일
 
