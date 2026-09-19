@@ -1,9 +1,10 @@
 ---
 title: 엔티티의 인덱스·제약 선언이 실제 DB 와 다른 여덟 곳 — 정정 + 회귀 e2e
-status: in-progress
+status: complete
 owner: developer
 worktree: entity-index-drift-4c8e21
 started: 2026-09-19
+completed: 2026-09-19
 spec_impact: none
 ---
 
@@ -70,7 +71,7 @@ spec_impact: none
   Postgres 가 정규화한 정의(`pg_get_expr` · `pg_get_constraintdef`)를 비교한다. 만들 수 없는 식(6 · 7)은 그 자체로 실패다.
 - 트랜잭션 안에서 하고 ROLLBACK 한다(임시 테이블 · 인덱스는 남지 않는다).
 
-## 비대상 — 컬럼 층 (트래커에 등재)
+## 비대상 — 컬럼 층 (트래커에 등재함)
 
 TypeORM 비교기는 인덱스·제약 말고 **컬럼** 차이도 냈다. 이 PR 의 클래스(«없는 인덱스·제약을 주장») 와 층이 달라 트래커에
 올린다 — 대부분은 선언이 **생략**해서 TypeORM 이 기본값을 추론한 것이다.
@@ -100,10 +101,36 @@ TypeORM 비교기는 인덱스·제약 말고 **컬럼** 차이도 냈다. 이 P
 ## 체크리스트
 
 - [x] `--impl-prep spec/3-workflow-editor/` — 2차 `08_33_13` BLOCK: NO (위 «착수 전 검토»)
-- [ ] e2e 가드 선작성 — 현재 코드에서 여덟 곳 RED 확인
-- [ ] 여섯 파일 정정 — 가드 GREEN
-- [ ] 가드 뮤턴트 — 정정을 하나씩 되돌려 RED
-- [ ] TEST WORKFLOW (lint · unit · build · e2e) + 백엔드 타입체크 ratchet
-- [ ] `/ai-review`
-- [ ] `--impl-done` — `spec/3-workflow-editor/` 와 `spec/2-navigation/` 둘 다
-- [ ] 트래커 반영(항목 닫기 + 컬럼 층 등재) · 이 plan `complete/` 이동
+- [x] e2e 가드 선작성 — 고치기 전 코드에서 RED 가 **정확히 여덟**(위 표와 1:1). 첫 실행의 RED 는 가드 결함이었다 —
+      `pg` 가 `name[]` 을 배열로 풀지 않아 FK 64개가 전부 «없다» 로 떨어졌다. `attname::text` 로 고치고, 배열이 아니면
+      «불일치» 로 흘리지 않고 크게 멈추게 했다.
+- [x] 여섯 파일 정정 — 가드 4/4 GREEN (`ffd58da4e`)
+- [x] 가드 뮤턴트 — 고치기 전 RED 여덟이 증인이 되지 못한 분기까지 열 개. 예측(전부 RED · 문제 1건 · 해당 분기 문구)과
+      실측이 모두 같았다. 원복은 `cp` 사본, 원복 뒤 md5 동일.
+
+      | 뮤턴트 | 분기 | 실측 |
+      |---|---|---|
+      | Workspace `unique: true` → `false` | 유일성 | RED «같은 인덱스가 없다» |
+      | 어시스턴트 세션 인덱스 이름 → `idx_wrong_name` | 인덱스 이름 | RED «이름이 다르다» |
+      | edge CHECK `!=` → `=` | CHECK 정규형 | RED «같은 CHECK 가 없다» |
+      | edge CHECK 이름 → `chk_wrong` | CHECK 이름 | RED «이름이 다르다» |
+      | WorkspaceMember `@Unique` 컬럼 순서 뒤집기 | `@Unique` 없음 | RED «전체 UNIQUE 가 없다» |
+      | WorkspaceMember `@Unique` 에 이름 `wrong_uq` | `@Unique` 이름 | RED «이름이 다르다» |
+      | Workspace 소유자 관계 대상 → `Workspace` | FK 없음 | RED «같은 FK 가 없다» |
+      | NodeExecution 부분 조건 값 하나 빼기 | 부분 조건 정규형 | RED «같은 인덱스가 없다» |
+      | NodeExecution 부분 조건을 큰따옴표로 | 부분 조건 생성 불가 | RED «부분 조건을 만들 수 없다» |
+      | Workspace 소유자 `onDelete` → `SET NULL` | FK 동작 | RED «동작이 다르다» |
+- [x] TEST WORKFLOW — lint PASS · unit PASS · build PASS · e2e PASS 348(직전 344 + 새 가드 4, `entity-schema-declarations`
+      가 Flyway 로 올린 e2e DB 에서도 통과) · 백엔드 타입체크 ratchet baseline 일치(197건 / 36파일)
+- [x] `/ai-review` — 1라운드 `review/code/2026/09/19/08_54_39` Critical 0 · WARNING 3(판정 골격 3중 반복 · 240자 라벨 ·
+      `plan/complete/` 선인용) → `6e18aa4d8`(가드 리팩터, 판정 문구 불변 — 뮤턴트 열 재실행 동일 RED) + 마무리 커밋의 plan 이동.
+      2라운드 `…/09_16_00` Critical 0 · WARNING 1(두 plan 이 한 브랜치 — PR 본문에 명시) → **`codebase/` 수정 0 으로 종결**
+      (결과를 보기 전에 선언한 정지 규칙). 채택하지 않은 INFO 의 근거는 두 RESOLUTION.md
+- [x] `--impl-done` — `spec/3-workflow-editor/` `review/consistency/2026/09/19/09_27_19` **BLOCK: NO** · `spec/2-navigation/`
+      `…/09_27_26` **BLOCK: NO**. 구현 diff(7파일/588줄)가 번들에 실리지 않아 두 세션 모두 일곱 파일과 scope 밖 spec 을 절대경로로
+      읽으라는 블록을 붙였다. 두 세션의 WARNING 은 같은 한 건 — `spec/2-navigation/4-integration.md` §11.2 가 없는 컬럼
+      `threshold_key` 로 유일 키를 적는다(기존 drift, 이 PR 이 이름만 지운 `@Unique` 가 실제 세 컬럼을 보여 드러났다) → 트래커 등재.
+      `09_27_26` WARNING 2(§2 Workspace `owner_id` 삭제 동작) · `09_27_19` INFO 3 · 4(§3 Workspace 행 · `code:` 에 가드 경로)는 같은
+      트래커 항목에 합쳤다.
+- [x] 트래커 반영 — 원 항목 닫음(해소 기록) · 새 항목 넷(컬럼 층 아홉 · spec §2 Workspace `owner_id` 삭제 동작 · `4-integration.md`
+      §11.2 유일 키 · 그리고 planner 턴의 비대상 둘은 `ff530fc8a` 에서) · 이 plan `complete/` 이동
