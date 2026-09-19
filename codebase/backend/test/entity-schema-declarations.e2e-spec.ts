@@ -7,6 +7,8 @@ import type { PostgresConnectionOptions } from 'typeorm/driver/postgres/Postgres
 import type { SqlInMemory } from 'typeorm/driver/SqlInMemory';
 
 import { ROOT_ENTITIES } from '../src/database/root-entities';
+import { ModelConfig } from '../src/modules/model-config/entities/model-config.entity';
+import { WorkflowAssistantSession } from '../src/modules/workflow-assistant/entities/workflow-assistant-session.entity';
 import { createDbClient } from './helpers/db';
 
 /**
@@ -20,7 +22,7 @@ import { createDbClient } from './helpers/db';
  * **인덱스 · 제약 층의 방향은 한쪽이다** — 선언이 있으면 DB 에도 그대로 있어야 한다. DB 에만 있는 인덱스(선언 생략)는
  * 결함이 아니다. 인덱스 방향(`DESC`)은 TypeORM `@Index` 가 표현하지 못해 보지 않는다.
  *
- * **컬럼 층은 양방향이다** — 마지막 테스트가 TypeORM 스키마 비교기(synchronize 가 실행할 DDL 을 기록만 하는 `log()`)로
+ * **컬럼 층은 양방향이다** — «컬럼» 테스트가 TypeORM 스키마 비교기(synchronize 가 실행할 DDL 을 기록만 하는 `log()`)로
  * 컬럼 정의(타입 · NULL · 기본값 · enum 타입 이름 · 추가 · 삭제)를 본다. DB 에만 있는 컬럼도 `DROP COLUMN` 으로 걸리므로,
  * 선언을 일부러 생략한 컬럼은 `UNDECLARED_COLUMNS` 에 이유와 함께 적는다. 근거·실측:
  * `plan/complete/entity-column-declaration-drift.md`.
@@ -77,15 +79,21 @@ const COLUMN_LEVEL_SAMPLES: {
   readonly caught: readonly string[];
   readonly ignored: readonly string[];
 } = {
+  // 각 표본 위 주석: 그 표본을 낸 뮤턴트 → 그것을 잡는 `COLUMN_LEVEL` 패턴.
   caught: [
+    // DB 에 없는 컬럼을 선언 → `ADD "`
     'ALTER TABLE "alert_rule" ADD "probe_extra" text',
+    // uuid 컬럼을 관계 없이 선언해 varchar 로 추론 — 비교기는 지우고 다시 만든다 → `DROP COLUMN` · `ADD "`
     'ALTER TABLE "alert_rule" DROP COLUMN "workspace_id"',
     'ALTER TABLE "alert_rule" ADD "workspace_id" character varying NOT NULL',
+    // 컬럼 이름을 바꿔 선언 → `RENAME COLUMN`
     'ALTER TABLE "alert_rule" RENAME COLUMN "workflow_id" TO "workflow_ref"',
+    // enum 타입 이름을 생략(TypeORM 기본 이름으로 추론) → `(ALTER|CREATE|DROP) TYPE` 셋 · `ALTER COLUMN`
     'ALTER TYPE "public"."node_category" RENAME TO "node_category_old"',
     `CREATE TYPE "public"."node_category_enum" AS ENUM('trigger', 'logic', 'flow', 'ai', 'integration', 'data', 'presentation')`,
     'ALTER TABLE "node" ALTER COLUMN "category" TYPE "public"."node_category_enum" USING "category"::"text"::"public"."node_category_enum"',
     'DROP TYPE "public"."node_category_old"',
+    // DB 기본값이 있는 컬럼에서 `default` 를 생략 → `ALTER COLUMN`
     'ALTER TABLE "model_config" ALTER COLUMN "kind" DROP DEFAULT',
   ],
   ignored: [
@@ -192,6 +200,21 @@ function dataSourceOptions(): PostgresConnectionOptions {
     // `ROOT_ENTITIES` 는 `readonly` 튜플이라 펼쳐 넘긴다 — `app.module.ts` 와 같은 형태.
     entities: [...ROOT_ENTITIES],
     synchronize: false,
+  };
+}
+
+/**
+ * 비교기(`createSchemaBuilder().log()`) 전용 연결 — **읽기 전용 세션**이다. `log()` 가 DB 를 바꾸지 않는다는 것은 TypeORM 소스로 확인한
+ * 전제이지 공개 계약이 아니라, 그 전제가 깨져 DDL 을 실행하려 들면 Postgres 가 거부하게 한다. 컬럼 층 테스트와 «읽기 전용인가»
+ * 테스트가 **이 한 함수**를 쓴다 — 여기서 옵션을 지우면 뒤쪽 테스트가 RED 다(컬럼 층 테스트는 탐지만 하므로 그대로 GREEN 이다).
+ */
+function readOnlyDataSourceOptions(): PostgresConnectionOptions {
+  return {
+    ...dataSourceOptions(),
+    // 초기화가 `CREATE EXTENSION IF NOT EXISTS "uuid-ossp"` 를 시도하지 않게 — 읽기 전용 세션이 거부하고 TypeORM 이
+    // 그 실패를 조용히 삼키던 쓰기 시도다(Postgres 로그로 확인). 확장은 마이그레이션이 이미 설치했다.
+    installExtensions: false,
+    extra: { options: '-c default_transaction_read_only=on' },
   };
 }
 
@@ -542,22 +565,17 @@ describe('엔티티 스키마 선언 ↔ 실제 DB (인덱스 · 제약은 선�
         )
       ).rows[0];
     const before = await catalog();
-    const readOnly = new DataSource({
-      ...dataSourceOptions(),
-      // 초기화가 `CREATE EXTENSION IF NOT EXISTS "uuid-ossp"` 를 시도하지 않게 — 읽기 전용 세션이 거부하고 TypeORM 이
-      // 그 실패를 조용히 삼키던 쓰기 시도다(Postgres 로그로 확인). 확장은 마이그레이션이 이미 설치했다.
-      installExtensions: false,
-      extra: { options: '-c default_transaction_read_only=on' },
-    });
-    let log: SqlInMemory;
+    const readOnly = new DataSource(readOnlyDataSourceOptions());
+    // 비교기가 «실행했을» DDL 의 기록(SQL memory) — 실행하지 않고 모으기만 한 것이다.
+    let sqlMemory: SqlInMemory;
     try {
       await readOnly.initialize();
-      log = await readOnly.driver.createSchemaBuilder().log();
+      sqlMemory = await readOnly.driver.createSchemaBuilder().log();
     } finally {
       if (readOnly.isInitialized) await readOnly.destroy();
     }
     expect(await catalog()).toEqual(before);
-    const columnLevel = log.upQueries
+    const columnLevel = sqlMemory.upQueries
       .map((q) => q.query.replace(/\s+/g, ' ').trim())
       .filter(isColumnLevel);
     expect(columnLevel.filter((q) => !UNDECLARED_COLUMNS.has(q))).toEqual([]);
@@ -566,5 +584,76 @@ describe('엔티티 스키마 선언 ↔ 실제 DB (인덱스 · 제약은 선�
     expect(
       [...UNDECLARED_COLUMNS.keys()].filter((q) => !columnLevel.includes(q)),
     ).toEqual([]);
+  });
+
+  /**
+   * 위 테스트의 **예방 계층이 살아 있는가**. 위 테스트는 호출 전후 카탈로그를 대조할 뿐이라, 읽기 전용 옵션이 빠져도 비교기가 DDL 을
+   * 실행하지 않는 한 GREEN 이다. 같은 헬퍼로 연결해 `CREATE` 를 시도한다 — Postgres 는 읽기 전용 트랜잭션에서 임시 테이블의 `CREATE`
+   * 도 거부한다(만에 하나 성공해도 임시 테이블이라 세션과 함께 사라진다).
+   */
+  it('비교기 연결은 읽기 전용이다 — DDL 을 거부한다', async () => {
+    const readOnly = new DataSource(readOnlyDataSourceOptions());
+    await readOnly.initialize();
+    try {
+      await expect(
+        readOnly.query(
+          'CREATE TEMP TABLE entity_schema_read_only_probe (x int)',
+        ),
+      ).rejects.toThrow(/read-only transaction/);
+    } finally {
+      await readOnly.destroy();
+    }
+  });
+
+  /**
+   * 컬럼 층 정정(#1358)이 DB 기본값에 맞춰 새로 선언한 `default` 둘 — 값을 생략하고 `save` 하면 TypeORM 이 그 컬럼을 RETURNING 으로
+   * 돌려받아 엔티티에 채운다. 선언을 지우면 비교기는 `DROP DEFAULT` 로 알아채지만, 돌려받는 동작이 사라지는 것은 따로 본다
+   * (`spec/1-data-model.md` §2.16 · §2.20). 부모 행을 만들고 전부 ROLLBACK 한다.
+   */
+  it('선언한 DB 기본값은 값을 생략한 insert 뒤 엔티티로 돌아온다 — model_config.kind · workflow_assistant_session.last_interaction_at', async () => {
+    const qr = ds.createQueryRunner();
+    await qr.connect();
+    await qr.startTransaction();
+    try {
+      const [user] = (await qr.query(
+        `INSERT INTO "user" (email, name) VALUES ($1, 'default-probe') RETURNING id`,
+        [`default-probe-${Date.now()}-${Math.random()}@example.com`],
+      )) as Array<{ id: string }>;
+      const [workspace] = (await qr.query(
+        `INSERT INTO workspace (name, owner_id, slug, type) VALUES ('default-probe', $1, $2, 'team') RETURNING id`,
+        [user.id, `default-probe-${user.id}`],
+      )) as Array<{ id: string }>;
+      const [workflow] = (await qr.query(
+        `INSERT INTO workflow (workspace_id, name, created_by) VALUES ($1, 'default-probe', $2) RETURNING id`,
+        [workspace.id, user.id],
+      )) as Array<{ id: string }>;
+
+      const config = await qr.manager.save(
+        qr.manager.create(ModelConfig, {
+          workspaceId: workspace.id,
+          provider: 'openai',
+          name: 'default-probe',
+          defaultModel: 'probe-model',
+        }),
+      );
+      expect(config.kind).toBe('chat');
+
+      const session = await qr.manager.save(
+        qr.manager.create(WorkflowAssistantSession, {
+          workspaceId: workspace.id,
+          workflowId: workflow.id,
+          userId: user.id,
+        }),
+      );
+      // 트랜잭션 안의 `now()` 는 트랜잭션 시작 시각이다 — DB 가 채운 값이면 정확히 같다.
+      const [{ now }] = (await qr.query('SELECT now() AS now')) as Array<{
+        now: Date;
+      }>;
+      expect(session.lastInteractionAt).toBeInstanceOf(Date);
+      expect(session.lastInteractionAt.getTime()).toBe(now.getTime());
+    } finally {
+      await qr.rollbackTransaction();
+      await qr.release();
+    }
   });
 });
