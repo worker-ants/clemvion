@@ -18,7 +18,7 @@ export enum EdgeType {
 
 @Entity('edge')
 @Unique(['sourceNodeId', 'sourcePort', 'targetNodeId', 'targetPort'])
-@Check(`"source_node_id != target_node_id"`)
+@Check('chk_no_self_loop', 'source_node_id != target_node_id')
 export class Edge {
   @PrimaryGeneratedColumn('uuid')
   id: string;

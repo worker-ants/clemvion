@@ -4646,8 +4646,21 @@ field: T | null;
       경로를 바꿨을 때의 옛 경로도 같은 규칙인지(`endpointPath` 는 mutable — 12-webhook «endpointPath 가변성»). 실측 필요: 지운 트리거의 경로로
       실제 트래픽이 계속 오는지(수신 404 로그).
 
-- [ ] **`WorkflowAssistantSession` 엔티티의 `@Index(['workflowId', 'status', 'lastInteractionAt'])` 에 `userId` 가 빠졌다** (developer, 낮음,
-      2026-09-18 등재 · `plan/complete/spec-draft-fk-remaining-dispositions.md` «비대상»). 실제 인덱스(V019)는 `(workflow_id, user_id, status, last_interaction_at DESC)` 다 —
+- [ ] **엔티티 컬럼 선언이 실제 DB 와 다른 아홉 곳 — 인덱스·제약 층은 닫혔고 컬럼 층이 남았다** (developer, 낮음, 2026-09-19 등재 ·
+      `plan/complete/entity-schema-declaration-drift.md` «비대상»). TypeORM `createSchemaBuilder().log()`(V001~V132, 동작 불변 — `synchronize: false`)가
+      낸 컬럼 차이. 대부분 선언이 **생략**해 TypeORM 이 기본값을 추론한 것이다.
+      ① uuid 를 varchar 로 추론 5 — 관계 없이 `@Column({ name })` 만 둔 FK 컬럼: `alert_rule.workspace_id` · `workspace_invitation.workspace_id` ·
+      `integration_usage_log.node_execution_id` · `integration_usage_log.workflow_id` · `llm_usage_log.workspace_id`(DB 는 모두 `uuid NOT NULL`).
+      ② enum 타입 이름 2 — `node.category`(DB `node_category`) · `edge.type`(DB `edge_type`), 엔티티에 `enumName` 없음.
+      ③ 기본값 생략 2 — `model_config.kind`(DB `'chat'`) · `workflow_assistant_session.last_interaction_at`(DB `now()`).
+      (선언하지 않은 `document_chunk.embedding` · `agent_memory.embedding`(`vector`)은 원시 SQL 로만 다루는 의도된 생략으로 보여 셈에서 뺐다.)
+      결정할 것: 고칠지(각 한 줄 — `type: 'uuid'` · `enumName` · `default`), 고친다면 `entity-schema-declarations.e2e-spec.ts` 가드를 컬럼
+      층(타입 · enum 이름 · 기본값)으로 넓힐지. 넓히면 «선언 생략» 과 «거짓 선언» 을 가르는 기준부터 정해야 한다(타입은 생략해도 추론값이 선언이 된다).
+
+- [x] **`WorkflowAssistantSession` 엔티티의 `@Index(['workflowId', 'status', 'lastInteractionAt'])` 에 `userId` 가 빠졌다** (developer, 낮음,
+      2026-09-18 등재 · `plan/complete/spec-draft-fk-remaining-dispositions.md` «비대상» · **2026-09-19 해소**
+      `plan/complete/entity-schema-declaration-drift.md` — 같은 클래스를 전수로 훑으니 여덟 곳(인덱스 4 · 유니크 이름 1 · 만들 수 없는
+      CHECK 2 · FK `onDelete` 1). 선언↔DB 대조 e2e 가드 `entity-schema-declarations.e2e-spec.ts` 로 고정). 실제 인덱스(V019)는 `(workflow_id, user_id, status, last_interaction_at DESC)` 다 —
       `spec/1-data-model.md` §3 의 같은 누락은 그 PR 이 정정했다. `synchronize: false` 라 DB 에 영향은 없고, 고치면 그 파일이
       `spec/3-workflow-editor/4-ai-assistant.md` 의 `code:` 에 걸려 `--impl-done` 범위가 는다 — 그 영역을 건드리는 다음 PR 이 함께 고친다.
 
@@ -4656,6 +4669,33 @@ field: T | null;
       나머지 conventions 는 bare `## Rationale` 이 종결 섹션이다. ② 최상위 23개 중 13개가 `## Overview` 를 생략한다(`node-output.md` 는 Rationale
       도 없다). 이 작업과 무관한 기존 상태로, checker 가 `spec/conventions/` scope 를 훑다 드러냈다. 결정할 것: 관례로 맞출지, 레퍼런스형
       규약은 예외로 둘지(예외라면 planner SKILL 의 3섹션 표에 적는다).
+
+- [ ] **`0-canvas.md` §8.1 «버전에는 자동 생성된 `change_summary` 포함» — 자동 생성이 없다** (planner, 낮음, 2026-09-19 등재 ·
+      `plan/complete/spec-draft-assistant-i18n-table-sync.md` «비대상» · `--impl-prep` `review/consistency/2026/09/19/08_07_50` WARNING 2).
+      서버가 스스로 채우는 `changeSummary` 는 버전 복원의 `Restored from v${version}`(`workflows.service.ts`) 하나다. 저장 API 는 요청의
+      `changeSummary` 를 그대로 저장하지만 프론트는 그 필드를 보내지 않는다(`codebase/frontend/src` grep — 응답 타입 · 표시 컴포넌트뿐).
+      체커는 예시 문자열의 금지어 «엣지» 만 짚었다 — 금지어만 고치면 틀린 문장을 다듬는 셈이라 두었다. 결정할 것: 서술을 실제(수동 저장은
+      요약 없음 · 복원만 자동 문구)로 고칠지, 자동 요약을 기능으로 정의할지(그러면 developer 구현).
+
+- [ ] **`spec/1-data-model.md` §2 Workspace `owner_id` 행이 삭제 동작을 적지 않는다** (planner, 낮음, 2026-09-19 등재 ·
+      `--impl-prep` `review/consistency/2026/09/19/08_33_13` WARNING 1 · `plan/complete/entity-schema-declaration-drift.md`).
+      실제 FK 는 `ON DELETE CASCADE`(V001)이고 엔티티도 그 PR 부터 `{ onDelete: 'CASCADE' }` 를 적는다. 같은 파일의 다른 User FK 행
+      (WorkflowTestDataset `owner_id` 등)은 삭제 동작을 괄호로 적는 관례다. `FK → User (ON DELETE CASCADE)` 로 맞춘다.
+      같은 파일에서 함께 할 것(`--impl-done` `review/consistency/2026/09/19/09_27_19` INFO 3 · 4, 선택): §3 «인덱스 전략» 표에 Workspace
+      행이 없다 — `(owner_id) UNIQUE WHERE type = 'personal'`(V109)은 Rationale · `data-flow/12-workspace.md` 에만 있다. frontmatter
+      `code:` 에 `codebase/backend/test/entity-schema-declarations.e2e-spec.ts`(엔티티 선언 ↔ DB 대조 가드)를 넣을지.
+
+- [ ] **`spec/2-navigation/4-integration.md` §11.2 «중복 방지» 가 없는 컬럼으로 유일 키를 적는다** (planner, 낮음, 2026-09-19 등재 ·
+      `--impl-done` `review/consistency/2026/09/19/09_27_26` WARNING 1). 1006행 «`(integration_id, threshold_key)` 로 유니크 판정» —
+      `threshold_key` 컬럼은 없다. 실제 유일 키는 V009 의 `UNIQUE (integration_id, threshold, token_expires_at)` 이고
+      `spec/data-flow/5-integration.md` 341행 · `8-notifications.md` 90행도 세 컬럼으로 적는다. `token_expires_at` 이 키에 들어 있어
+      **재인증으로 만료 시각이 바뀌면 같은 임계가 다시 발사된다** — 두 컬럼 서술로는 이 동작이 나오지 않는다. 세 컬럼으로 정정하고 그 동작을 한 줄 적는다.
+
+- [ ] **AI 어시스턴트 사전 키 셋이 spec 에 없다 — «이어서 진행» 버튼의 기능 서술부터 없다** (planner, 낮음, 2026-09-19 등재 ·
+      `plan/complete/spec-draft-assistant-i18n-table-sync.md` «비대상»). `dict/{ko,en}/assistant.ts` 의 `continueAfterBudget` ·
+      `continueAfterBudgetButton`(«이어서 진행» 버튼과 그 버튼이 보내는 문구) · `exampleArrange`(예시 프롬프트)가
+      `spec/3-workflow-editor/4-ai-assistant.md` 어디에도 없다. 본문(151 · 627 · 682행)은 사용자가 «이어서 진행해줘» 를 **직접 입력**하는
+      안내만 적는다. §13 표에 키만 넣으면 기능 정의 없이 문자열만 생기므로, 버튼이 언제 보이고 무엇을 보내는지부터 적는다.
 
 - [x] **트리거 자원 정리 구현이 남긴 stale 주석·이름 네 곳** (developer, 2026-09-17 등재 · **2026-09-18 해소** `plan/complete/trigger-release-stale-comments.md` — 넷 + 같은 클래스 전수 grep 으로 넷 더(락 상한 JSDoc 은 낡은 게 아니라 **틀렸다** — 비밀이 커밋 뒤로 옮겨간 것을 반영 안 했다) · `plan/complete/trigger-deletion-release.md` · `/ai-review` `review/code/2026/09/17/19_40_27` W4·INFO2 · `--impl-done` `review/consistency/2026/09/17/19_55_46` W2·W3 —
       수렴 예외로 등재). 넷 다 `codebase/**` 라 그 PR 안에서 고치면 리뷰·`--impl-done` 라운드가 늘었다.

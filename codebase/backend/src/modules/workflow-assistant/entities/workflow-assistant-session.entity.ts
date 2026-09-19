@@ -18,8 +18,19 @@ import { WorkflowAssistantMessage } from './workflow-assistant-message.entity';
 export type AssistantSessionStatus = 'active' | 'archived';
 
 @Entity('workflow_assistant_session')
-@Index(['workflowId', 'status', 'lastInteractionAt'])
-@Index(['workspaceId', 'userId', 'updatedAt'])
+// 두 인덱스 모두 V019 가 만든다. 마지막 컬럼은 둘 다 DESC 지만 TypeORM @Index 는
+// 방향을 표현하지 못해 컬럼 목록만 적는다(`entity.entity.ts` 와 같은 관례).
+@Index('idx_workflow_assistant_session_wf_user_active', [
+  'workflowId',
+  'userId',
+  'status',
+  'lastInteractionAt',
+])
+@Index('idx_workflow_assistant_session_user_recent', [
+  'workspaceId',
+  'userId',
+  'updatedAt',
+])
 export class WorkflowAssistantSession {
   @PrimaryGeneratedColumn('uuid')
   id: string;

@@ -151,7 +151,7 @@ Assistant는 아래 3단계를 자유롭게 오간다. 단계는 상태 기계�
 | **Stalled turn hint** | assistant 가 텍스트 출력 없이(= content 공백) 정상 종료(`done`) 되었고 **실행 중 plan**(버튼 승인 또는 자연어 승인으로 step 이 1개 이상 done) 에 실행 가능한 pending step 이 남아있으면, 프론트가 해당 메시지에 `systemHint.kind = 'info'` 로 "이어서 진행해줘 라고 답해 주시면 남은 단계를 계속 실행할게요." 를 자동 주입해 **amber info 박스** 로 렌더한다. 다만 서버 가드(§10) 가 진척 여부를 추적해 plan 이 끝날 때까지 finish 를 끈질기게 거부하므로 이 힌트는 LLM 이 정말 stuck 되었거나 budget 이 소진되었을 때만 노출된다 |
 | **Plan approval hint** | 이번 턴이 **plan-only 턴**(`propose_plan` 만 호출, edit 없음, prose 없음, plan 미승인, `openQuestions` 도 없음) 으로 끝나면 프론트가 `systemHint.kind = 'info'` 로 "계획대로 진행해 주세요." (`assistant.planApproveConfirm`) 를 자동 주입한다. plan card 의 "계획대로 진행" 버튼과 안내 hint 가 함께 보여 사용자가 승인 액션을 즉시 인지한다. LLM 이 어떤 prose 라도 emit 했거나 `openQuestions` 가 있어 plan card 가 답변 입력 안내를 이미 노출 중인 경우엔 중복을 피해 hint 를 띄우지 않는다 |
 | **Turn completion hint** | 이번 턴 종료 시점에 활성 plan 의 `note` 를 제외한 모든 step 이 `done` 이고 `openQuestions` 도 비어있으면, `systemHint.kind = 'success'` 로 "작업을 완료했어요 — N개 단계 실행 성공." 을 주입해 **emerald success 박스**(체크 아이콘) 로 렌더한다. 사용자가 작업 종료를 즉시 인지하도록 하며, 에러가 발생한 경우 error bubble 이 우선되어 success hint 는 띄우지 않는다 (우선순위: error > stalled > planApprove > completed) |
-| **Auto-resume divider** | 서버가 stall 자동 복구(§10)로 다음 라운드를 시작할 때, assistant 메시지 row 가 **분리**되어 새 버블이 생긴다. 분리 경계에는 `assistant.autoResumedHint` i18n 문구로 "🔄 자동으로 이어서 진행했어요" divider 를 렌더한다. `attempt` 번호를 함께 표시해 복구 시도 순번(1/2, 2/2 등)을 사용자에게 알린다. 이 구조 덕분에 gpt-oss-120b 가 stall 전·후 라운드에서 같은 confirmation 문구를 반복해도 **서로 다른 버블**에 들어가 시각적으로 분산된다 |
+| **Auto-resume divider** | 서버가 stall 자동 복구(§10)로 다음 라운드를 시작할 때, assistant 메시지 row 가 **분리**되어 새 버블이 생긴다. 분리 경계에는 회전 아이콘과 `assistant.autoResumedHint` 문구("자동으로 이어서 진행했어요 (1/2)")로 divider 를 렌더한다. 실시간 경로는 `attempt/max` 로 진행도(1/2, 2/2 등)를, `max` 가 없는 재수화 경로는 `assistant.autoResumedHintShort` 로 순번("(1번째)")만 보인다. 이 구조 덕분에 gpt-oss-120b 가 stall 전·후 라운드에서 같은 confirmation 문구를 반복해도 **서로 다른 버블**에 들어가 시각적으로 분산된다 |
 | **Candidate picker** | `add_node` / `update_node` 결과로 `pendingUserConfig` 가 딸려 오고 그 안에 `candidates` 가 1개 이상이면, 해당 edit 버블(편집 배지 영역 바로 아래) 에 드롭다운 picker 를 렌더한다. 사용자가 드롭다운에서 항목을 고르고 **Confirm** 버튼을 누르면 `editor-store.updateNode` 로 즉시 반영되고 picker 는 "✓ {label}: {selected} 로 설정됨" 읽기 전용 표기로 전환. Assistant 는 LLM 을 다시 호출하지 않는다 — 프런트 단독 적용이며 캔버스의 기존 저장 흐름·Undo 스택에 기본 편입. 반대로 `candidates` 가 0 이면 picker 대신 amber 안내 박스 ("해당 종류 Integration 이 없어요. Settings 에서 먼저 등록해 주세요." + 설정 화면 딥링크) 를 렌더. rehydrate 시에는 해당 노드의 현재 canvas 값이 이미 채워져 있으면 "✓ 설정됨" 상태로, 비어있으면 picker 를 다시 보여준다 |
 | Plan 카드 | §2.2 참조 |
 | 입력창 | 1줄 기본, 최대 6줄까지 자동 확장. Stop 버튼은 스트리밍 중에만 노출 |
@@ -533,7 +533,7 @@ data: {"code": "LLM_RATE_LIMIT", "message": "..."}
 | `text` | assistant 텍스트 delta | 현재 assistant 메시지 버블에 append |
 | `tool_call` | 모든 도구 호출 결과. `data.kind` 로 후처리 분기 (아래 §5.3.1 참고) | `data.kind` 값에 따라 상이 |
 | `plan` | `propose_plan` 결과 | 메시지에 Plan 카드 추가 |
-| `auto_resume` | 서버가 **stall 자동 복구**(§10)에 진입했음을 통지. 현재 스트리밍 중인 assistant 버블을 확정·분리하고 **새 assistant 버블**을 시작한다. 같은 턴의 여러 라운드 텍스트가 한 버블에 누적되어 "계속 진행해도 될까요?" 같은 confirmation 문구가 반복 노출되는 UX 문제(특히 gpt-oss-120b)를 구조적으로 제거한다. 새 버블 앞에는 `autoResumedHint` divider 를 렌더 | 현재 버블 `streaming=false` 확정 + 새 assistant 버블 push(`autoResume={reason, attempt}` 메타 포함) + 이후 delta/tool_call 은 새 버블로 |
+| `auto_resume` | 서버가 **stall 자동 복구**(§10)에 진입했음을 통지. 현재 스트리밍 중인 assistant 버블을 확정·분리하고 **새 assistant 버블**을 시작한다. 같은 턴의 여러 라운드 텍스트가 한 버블에 누적되어 "계속 진행해도 될까요?" 같은 confirmation 문구가 반복 노출되는 UX 문제(특히 gpt-oss-120b)를 구조적으로 제거한다. 새 버블 앞에는 `autoResumedHint` divider 를 렌더 | 현재 버블 `streaming=false` 확정 + 새 assistant 버블 push(`autoResume={reason, attempt, max}` 메타 포함) + 이후 delta/tool_call 은 새 버블로 |
 | `usage` | 토큰 사용량 | (UX 표시는 선택) |
 | `done` | 어시스턴트 턴 종료 | 스트리밍 UI 종료, 입력창 활성화 |
 | `error` | 실패 | 에러 배지 + 재시도 안내 |
@@ -567,7 +567,7 @@ data: {"code": "LLM_RATE_LIMIT", "message": "..."}
 | `attempt` | `number` | 이번 턴 내 자동 복구 시도 순번 (1부터 시작). `MAX_STALL_ROUNDS` 까지 증가 후 초과 시 복구를 포기하고 턴 종료 |
 | `max` | `number` | 허용되는 최대 시도 횟수 (현재 2). 프론트가 "N/M" 진행도 표기에 사용 |
 
-프론트는 이 이벤트를 수신하는 즉시 **이전 assistant row 를 확정(`streaming: false`)** 하고 **새 assistant row** 를 push 한다. 새 row 에는 `autoResume = {reason, attempt}` 메타가 붙어 divider 렌더링(§3.2 `autoResumedHint`)의 트리거가 된다. 메시지 목록 rehydrate 시에도 `autoResumed=true` row 앞에 동일 divider 가 자동으로 렌더된다 (§6 응답 `autoResumed`/`autoResumeReason`/`autoResumeAttempt` 필드 참고).
+프론트는 이 이벤트를 수신하는 즉시 **이전 assistant row 를 확정(`streaming: false`)** 하고 **새 assistant row** 를 push 한다. 새 row 에는 `autoResume = {reason, attempt, max}` 메타가 붙어 divider 렌더링(§3.2 `autoResumedHint`)의 트리거가 된다. 메시지 목록 rehydrate 시에도 `autoResumed=true` row 앞에 divider 가 렌더되지만, §6 응답에 `max` 가 없어 순번만 보인다(§3.2 `autoResumedHintShort`) (§6 응답 `autoResumed`/`autoResumeReason`/`autoResumeAttempt` 필드 참고).
 
 ### 5.4 클라이언트 → 서버 중단
 
@@ -743,10 +743,11 @@ data: {"code": "LLM_RATE_LIMIT", "message": "..."}
 | `assistant.planApproveButton` | 계획대로 진행 | Approve & execute |
 | `assistant.planApproveConfirm` | 계획대로 진행해 주세요. | Please proceed with this plan. |
 | `assistant.planQuestionsTitle` | 답변이 필요한 항목 | Questions to answer |
-| `assistant.planQuestionsHint` | 아래 메시지 입력창에 답변을 적어 보내 주세요. | Type your answer in the message box below. |
+| `assistant.planQuestionsHint` | 아래 메시지 입력창에 답변을 적어 보내요. | Type your answer in the message box below. |
 | `assistant.turnStalledHint` | 진행이 중단됐어요. `이어서 진행해줘` 라고 답해 주시면 남은 단계를 계속 실행할게요. | The assistant stopped without a message. Send `Continue` and I'll keep executing the remaining steps. |
 | `assistant.turnCompletedHint` | 작업을 완료했어요 — {{count}}개 단계 실행 성공. | Done — {{count}} plan steps completed. |
-| `assistant.autoResumedHint` | 🔄 자동으로 이어서 진행했어요 ({{attempt}}/{{max}}) | 🔄 Auto-resumed ({{attempt}}/{{max}}) |
+| `assistant.autoResumedHint` | 자동으로 이어서 진행했어요 ({{attempt}}/{{max}}) | Auto-resumed ({{attempt}}/{{max}}) |
+| `assistant.autoResumedHintShort` | 자동으로 이어서 진행했어요 ({{attempt}}번째) | Auto-resumed (attempt {{attempt}}) |
 | `assistant.candidatePickerTitle` | {{label}} 선택 | Select {{label}} |
 | `assistant.candidatePickerConfirm` | 이 항목으로 설정 | Use this |
 | `assistant.candidatePickerSelected` | ✓ {{label}}: {{selected}} 로 설정됨 | ✓ {{label}}: {{selected}} set |
@@ -759,18 +760,18 @@ data: {"code": "LLM_RATE_LIMIT", "message": "..."}
 | `assistant.exampleAddCancelFlow` | 주문 취소 프로세스 추가해줘 | Add an order cancellation flow |
 | `assistant.exampleAddHeader` | HTTP 노드에 Authorization 헤더 추가 | Add an Authorization header to the HTTP node |
 | `assistant.exampleReview` | 현재 워크플로우를 검토하고 개선점 제안해줘 | Review this workflow and suggest improvements |
-| `assistant.errorNoLlmConfig` | LLM 설정을 먼저 등록해 주세요. | Please register an LLM config first. |
-| `assistant.errorRateLimit` | 잠시 후 다시 시도해 주세요. | Rate limited. Please retry in a moment. |
+| `assistant.errorNoLlmConfig` | LLM 설정을 먼저 등록해요. | Please register an LLM config first. |
+| `assistant.errorRateLimit` | 잠시 후 다시 시도해요. | Rate limited. Please retry in a moment. |
 | `assistant.errorTimeout` | 응답이 늦어지고 있어요. | Response is taking too long. |
-| `assistant.opAdded` | 노드 추가: {label} | Added node: {label} |
-| `assistant.opUpdated` | 노드 수정: {label} | Updated node: {label} |
-| `assistant.opRemoved` | 노드 삭제: {label} | Removed node: {label} |
-| `assistant.edgeAdded` | 엣지 추가 | Edge added |
-| `assistant.edgeRemoved` | 엣지 삭제 | Edge removed |
-| `assistant.exploreLookup` | {count}건 조회됨 | {count} found |
-| `assistant.exploreExecutionsList` | 실행 이력 {count}건 조회 | {count} executions found |
-| `assistant.exploreExecutionDetails` | 실행 상세 조회 — {nodeCount}개 노드 | Execution detail — {nodeCount} nodes |
-| `assistant.executionNotInScope` | 이 실행은 현재 워크플로의 것이 아니에요. | This execution does not belong to the current workflow. |
+| `assistant.opAdded` | 노드 추가: {{label}} | Added node: {{label}} |
+| `assistant.opUpdated` | 노드 수정: {{label}} | Updated node: {{label}} |
+| `assistant.opRemoved` | 노드 삭제: {{label}} | Removed node: {{label}} |
+| `assistant.edgeAdded` | 연결선 추가 | Edge added |
+| `assistant.edgeRemoved` | 연결선 삭제 | Edge removed |
+| `assistant.exploreLookup` | {{count}}건 조회됨 | {{count}} found |
+| `assistant.exploreExecutionsList` | 실행 이력 {{count}}건 조회 | {{count}} executions found |
+| `assistant.exploreExecutionDetails` | 실행 상세 조회 — {{nodeCount}}개 노드 | Execution detail — {{nodeCount}} nodes |
+| `assistant.executionNotInScope` | 이 실행은 현재 워크플로우의 것이 아니에요. | This execution does not belong to the current workflow. |
 
 ---
 
@@ -1343,7 +1344,8 @@ yield { event: 'auto_resume', data: { reason, attempt, max } };
   새 assistant row 를 push.
 - `hydrateMessage` 에서 서버의 `autoResumed=true` row 를 `autoResume` 메타로 복원.
 - `assistant-message.tsx` 에서 `message.autoResume` 이 있으면 버블 위에 divider
-  렌더 ("🔄 자동으로 이어서 진행했어요 (N/M)"). i18n `assistant.autoResumedHint`.
+  렌더 (회전 아이콘 + "자동으로 이어서 진행했어요 (N/M)"). i18n `assistant.autoResumedHint` (재수화는
+  `assistant.autoResumedHintShort`).
 
 ##### 호환성
 - 기존 row (autoResumed=false) 는 divider 가 표시되지 않음 → 기존 세션 그대로.
