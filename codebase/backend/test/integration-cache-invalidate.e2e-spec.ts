@@ -77,8 +77,10 @@ describe('Integration cache invalidate pub/sub (e2e, 04 m-4)', () => {
         serviceType: 'http',
         name,
         authType: 'api_key',
+        // base_url 을 두지 않는다 — rotate 는 새 자격증명으로 연결 테스트를 돌리고, HTTP 테스터는
+        // base_url 이 있으면 실제로 GET 을 보낸다(spec/2-navigation/4-integration.md §5.3). 이 테스트의
+        // 대상은 회전 뒤 broadcast 라 외부 네트워크에 기대면 안 된다. base_url 이 비면 테스터는 호출 없이 통과한다.
         credentials: {
-          base_url: 'https://api.example.com',
           location: 'header',
           key_name: 'X-Api-Key',
           value: apiKey,

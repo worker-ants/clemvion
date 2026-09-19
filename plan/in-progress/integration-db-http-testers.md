@@ -49,6 +49,31 @@ spec 은 같은 브랜치의 planner 커밋 `74087dff6`(`spec/2-navigation/4-int
   `DB_HOST_BLOCKED` · `HTTP_BLOCKED` 를 돌려준다(main 에서는 «Connection successful» — RED). rotate 도 같은 입력을 거부한다 — 단 **상태 코드는
   단언하지 않는다**(코드 400 · spec §9.4 422 · `5-system/11-mcp-client.md` 400 이 어긋나 있어 트래커에서 정한다, `--impl-prep` `13_21_00` WARNING 1).
 
+## 실측 — 뮤턴트 (2026-09-19, 커밋 `9e91352d8` 기준, 예측을 먼저 적고 실행)
+
+| 대상 | 뮤턴트 수 | 예측 | 실측 |
+|---|---|---|---|
+| `database-connection-tester.ts` | 10 (인증 판별식 · MySQL 코드 하나 빼기 · 드라이버 분기 반전 · 닫기 둘 제거 · 쿼리 대기 둘 제거 · SSRF 건너뛰기 · 기본 드라이버 · clamp 제거) | 전부 RED | 전부 RED |
+| `http-connection-tester.ts` | 14 (403 · 5xx 경계 · 4xx 안내 · 홉 상한 off-by-one · 리다이렉트 SSRF 제거 · `follow` · 헤더 병합 순서 · 상대 Location · 타임아웃 분기 · 빈 base_url · URL 형식 · Location 없는 3xx · DNS 가드 제거 · query 빈 객체 검사 약화) | 13 RED · 1 GREEN | 13 RED · 1 GREEN |
+| `integrations.service.ts` 배선 · `PreviewTestResultDto.code` | 3 | 전부 RED | 전부 RED |
+
+생존 1 = «query 빈 객체 검사 약화»(`!query || keys.length === 0` → `!query`) — 빈 객체면 `new URL(base).toString()` 을 거쳐 **URL 정규화만** 달라진다
+(경로 없는 base_url 에 `/` 가 붙는다). 같은 자원을 가리키므로 동치 뮤턴트다. 원복은 원본 바이트 되쓰기(`git checkout` 아님), 매 뮤턴트 뒤 바이트 일치 단언.
+
+## 기존 e2e 에 준 영향
+
+`integration-cache-invalidate.e2e-spec.ts` A(회전 뒤 broadcast)는 `base_url: https://api.example.com` 인 HTTP 통합을 회전한다 — 이제 rotate 가
+그 주소로 실제 `GET` 을 보낸다. DNS 가 안 풀리면 가드는 통과시키고(fail-open) fetch 가 실패해 `HTTP_CONNECT_FAILED` → rotate 거부 → **RED**.
+테스트 대상은 broadcast 라 fixture 에서 `base_url` 을 뺐다(테스터가 호출하지 않는다). 다른 e2e 중 `:id/test` · `preview-test` · rotate 를
+부르는 것은 없다(backend `test/` · frontend `e2e/` grep).
+
+## e2e 첫 실행 RED — 내 술어가 틀렸다
+
+새 파일의 D(rotate 거부 뒤 교체 안 됨)가 `last_rotated_at` 이 null 이 아니라서 RED 였다. rotate 는 `INTEGRATION_TEST_FAILED` 로 **제대로 거부됐다**
+(같은 테스트의 코드 단언은 통과) — **생성**(`create()`)이 `lastRotatedAt` 을 채우기 때문이다. «null» 은 회전 여부를 가르지 못하는 술어였다.
+«회전 전과 같다»(`last_rotated_at` + 암호문 — 저장마다 `randomBytes` IV 라 저장이 있으면 암호문이 바뀐다)로 바꿨다. A · B · C 는 첫 실행에서
+통과했다 — 사설 host(`postgres` 서비스) · loopback 이 실제 컨테이너에서 가드에 막힌다.
+
 ## 체크리스트
 
 - [x] `--impl-prep spec/2-navigation/` — `review/consistency/2026/09/19/13_21_00` **BLOCK: NO** (Critical 0 · WARNING 3 · INFO 8). WARNING 1(400 ·
@@ -56,7 +81,7 @@ spec 은 같은 브랜치의 planner 커밋 `74087dff6`(`spec/2-navigation/4-int
       INFO 7(파일명) → 설계. INFO 1 · 6(§6 의 `§9.3` 오기 · `HTTP_{status}` 표기)은 spec 이라 트래커
 - [x] 테스트 선작성 → 구현 — 테스터 spec 두 개(42) RED → GREEN, `dispatchTest` 배선 5건(preview · `:id/test` · rotate)
 - [x] `PreviewTestResultDto.code?` 선언 + preview 실패 경로 계약 검증 배선(트래커 «`PreviewTestResultDto` 도 `code` 를 미선언» 을 닫는다)
-- [ ] 가이드 한 줄(연동 관리 — 서비스별 연결 테스트 범위)
+- [x] 가이드 한 줄(연동 관리 — 서비스별 연결 테스트 범위) — `0aec343e4`, user-guide-writer 위임 뒤 «운영자가 허용한 설치는 예외» 로 한 구절 좁힘 · frontmatter `code:` 에 테스터 둘
 - [ ] TEST WORKFLOW (lint · unit · build · e2e) + 백엔드 타입체크 ratchet
 - [ ] `/ai-review`
 - [ ] `--impl-done spec/2-navigation/`
