@@ -4889,8 +4889,10 @@ field: T | null;
       같은 턴에: 이 문서 `## Rationale` 의 선언↔DB 가드 절에 «컬럼 층도 본다 — 인덱스 · 제약은 선언 → DB 한쪽, 컬럼 정의는 양방향» 한 줄
       (`--impl-done` `review/consistency/2026/09/19/18_16_57` rationale_continuity INFO 2).
 
-- [ ] **컬럼 층 가드의 남은 빈칸 — 예방 계층 자체의 회귀 테스트 · `default` RETURNING** (developer, 낮음, 2026-09-19 등재 · `/ai-review`
-      `review/code/2026/09/19/18_07_01` testing WARNING 2 · INFO 1 · 4 · 6, `plan/complete/entity-column-declaration-drift.md` 4라운드 «수렴 예외»).
+- [x] **컬럼 층 가드의 남은 빈칸 — 예방 계층 자체의 회귀 테스트 · `default` RETURNING** (developer, 낮음, 2026-09-19 등재 · `/ai-review`
+      `review/code/2026/09/19/18_07_01` testing WARNING 2 · INFO 1 · 4 · 6, `plan/complete/entity-column-declaration-drift.md` 4라운드 «수렴 예외» ·
+      **2026-09-20 해소** `plan/complete/column-guard-gaps.md` — 셋 다. 뮤턴트 셋 RED: 읽기 전용 옵션 제거 · `kind` 의 `default` 제거 ·
+      `lastInteractionAt` 의 `default` 제거).
       (1) `entity-schema-declarations.e2e-spec.ts` 의 비교기 전용 `DataSource` 는 읽기 전용 세션(`default_transaction_read_only=on`)으로
       DDL 을 막는데, 그 옵션을 지워도 스위트는 GREEN 이다(카탈로그 비교는 탐지만). 같은 `DataSource` 로 `CREATE TEMP TABLE` 을 시도해
       read-only 거부를 단언하는 `it` 하나면 된다(Postgres 는 읽기 전용 트랜잭션에서 모든 `CREATE` 를 막는다 — 성공해도 임시 테이블이라 무해).
@@ -4937,6 +4939,14 @@ field: T | null;
       같은 턴에: §5.9 가 MakeShop 연결 테스트를 Cafe24 와 «정책 동일» 이라 적는데 MakeShop 은 403 을 `MAKESHOP_AUTH_FAILED` 로 묶는다(Cafe24 는
       `CAFE24_INSUFFICIENT_SCOPE` 로 가른다 — `5-makeshop.md` 가 의도로 적은 차이). «동일» 의 범위를 401 재시도 · 카운터 제외로 좁힌다
       (`--impl-done` `review/consistency/2026/09/20/00_07_48` cross_spec INFO 1).
+
+- [ ] **`spec/2-navigation/` 목록 API 둘의 응답 형태 · 완료된 `pending_plans`** (planner, 낮음, 2026-09-20 등재 · `--impl-prep`
+      `review/consistency/2026/09/20/00_34_58` convention WARNING 1 · 2 · plan_coherence INFO 5 — 컬럼 가드 작업과 무관한 scope 가 끌어온 기존 공백,
+      그 경위는 `plan/in-progress/harness-review-gate-followups.md` §O). (1) `1-workflow-list.md` §3.1 `GET /api/folders` 행이 응답 형태를 적지 않는다 —
+      구현은 `{ data: FolderDto[] }`, 페이지네이션 없음(`folders.controller.ts` `@ApiOkWrappedArrayResponse`). (2) `2-trigger-list.md` §3 API 표
+      `GET /api/triggers/:id/history` 행이 형태 · 상한을 적지 않는다 — 구현은 배열 wrap, 최근 10건(`triggers.service.ts` `.limit(10)`).
+      (3) `1-workflow-list.md` frontmatter `pending_plans` 가 완료된 `plan/complete/workflow-duplicate-nodes-edges.md` 를 가리킨다 — 빼면 된다
+      (남은 미구현 surface 가 따로 있는지 먼저 확인). 셋 다 사실 정정.
 
 ## 종결 조건
 

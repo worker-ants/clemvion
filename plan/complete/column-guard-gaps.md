@@ -1,9 +1,10 @@
 ---
 title: 컬럼 층 가드의 남은 빈칸 — 읽기 전용 세션의 회귀 테스트 · 선언한 기본값의 RETURNING
-status: in-progress
+status: complete
 owner: developer
 worktree: column-guard-gaps-5e2c8a
 started: 2026-09-20
+completed: 2026-09-20
 spec_impact: none
 ---
 
@@ -43,6 +44,9 @@ RETURNING»(`plan/complete/entity-column-declaration-drift.md` 4라운드 «수�
 - [x] 테스트 작성 · 뮤턴트로 판별력 — `d8fb708d5`. 일회용 DB(V001~V133) 8/8. 뮤턴트 셋 RED: 읽기 전용 옵션 제거(«rejected 대신 resolved») ·
   `kind` 의 `default` 제거(`'chat'` 이 안 옴) · `lastInteractionAt` 의 `default` 제거(`Date` 가 안 옴)
 - [x] TEST WORKFLOW (lint · unit · build · e2e 366)
-- [ ] `/ai-review` 수렴
-- [ ] `--impl-done`
-- [ ] 트래커 해소 · 이 plan `plan/complete/` 로
+- [x] `/ai-review` 수렴 — 1라운드 `review/code/2026/09/20/01_00_21`(Warning 2 — 왕복 테스트의 연결 정리가 `try` 밖 → `a71642fe0` ·
+  `--impl-prep` scope 가 무관 → 코드 밖, 근거 기록) · 2라운드 `01_24_51`(Critical 0 · Warning 2, 둘 다 코드 밖 — scope 건 재기록 · 리뷰 중
+  작업 트리의 미커밋 마무리 편집을 관측 → `codebase/` 수정 0 라운드로 수렴). TEST WORKFLOW 재통과(e2e 366)
+- [x] `--impl-done` — `review/consistency/2026/09/20/01_35_13`(scope `spec/2-navigation/` + 보정 블록) BLOCK: NO, Critical · Warning 0
+- [x] 트래커 항목 해소 + planner 항목 하나 등재(`spec/2-navigation/` 목록 API 둘의 응답 형태 · 완료된 `pending_plans`) · harness 백로그
+  §O 등재(`--impl-prep` · `--impl-done` 이 `spec/` 최상위 파일을 scope 로 못 받는다 — 이 PR 의 scope 우회가 그 증상) · 이 plan `plan/complete/` 로
