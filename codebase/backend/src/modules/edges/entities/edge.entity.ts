@@ -50,7 +50,12 @@ export class Edge {
   @Column({ name: 'target_port', length: 100, default: 'in' })
   targetPort: string;
 
-  @Column({ type: 'enum', enum: EdgeType, default: EdgeType.DATA })
+  @Column({
+    type: 'enum',
+    enum: EdgeType,
+    enumName: 'edge_type',
+    default: EdgeType.DATA,
+  })
   type: EdgeType;
 
   @Column({ type: 'jsonb', nullable: true })

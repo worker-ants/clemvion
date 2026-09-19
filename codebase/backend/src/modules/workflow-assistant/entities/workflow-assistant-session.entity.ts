@@ -72,7 +72,11 @@ export class WorkflowAssistantSession {
   @Column({ name: 'message_count', type: 'int', default: 0 })
   messageCount: number;
 
-  @Column({ name: 'last_interaction_at', type: 'timestamptz' })
+  @Column({
+    name: 'last_interaction_at',
+    type: 'timestamptz',
+    default: () => 'now()',
+  })
   lastInteractionAt: Date;
 
   @CreateDateColumn({ name: 'created_at', type: 'timestamptz' })

@@ -2,6 +2,9 @@ import { describe, it, expect, beforeAll, afterAll } from '@jest/globals';
 import { Client } from 'pg';
 import { DataSource } from 'typeorm';
 import type { EntityMetadata } from 'typeorm';
+// 아래 두 타입은 typeorm 루트(`index.d.ts`)에서 export 되지 않아 서브패스로 가져온다.
+import type { PostgresConnectionOptions } from 'typeorm/driver/postgres/PostgresConnectionOptions';
+import type { SqlInMemory } from 'typeorm/driver/SqlInMemory';
 
 import { ROOT_ENTITIES } from '../src/database/root-entities';
 import { createDbClient } from './helpers/db';
@@ -14,9 +17,13 @@ import { createDbClient } from './helpers/db';
  * 믿고 앱 검사를 뺀다). 사람이 세 번 손으로 고쳤는데도 여덟 곳이 남아 있었다.
  * 근거·실측: `plan/complete/entity-schema-declaration-drift.md`.
  *
- * **방향은 한쪽이다** — 선언이 있으면 DB 에도 그대로 있어야 한다. DB 에만 있는 인덱스(선언 생략)는 결함이 아니다.
- * 인덱스 방향(`DESC`)은 TypeORM `@Index` 가 표현하지 못해 보지 않는다. 컬럼 정의(타입 · 기본값 · enum 이름)는 이
- * 가드 밖이다.
+ * **인덱스 · 제약 층의 방향은 한쪽이다** — 선언이 있으면 DB 에도 그대로 있어야 한다. DB 에만 있는 인덱스(선언 생략)는
+ * 결함이 아니다. 인덱스 방향(`DESC`)은 TypeORM `@Index` 가 표현하지 못해 보지 않는다.
+ *
+ * **컬럼 층은 양방향이다** — 마지막 테스트가 TypeORM 스키마 비교기(synchronize 가 실행할 DDL 을 기록만 하는 `log()`)로
+ * 컬럼 정의(타입 · NULL · 기본값 · enum 타입 이름 · 추가 · 삭제)를 본다. DB 에만 있는 컬럼도 `DROP COLUMN` 으로 걸리므로,
+ * 선언을 일부러 생략한 컬럼은 `UNDECLARED_COLUMNS` 에 이유와 함께 적는다. 근거·실측:
+ * `plan/complete/entity-column-declaration-drift.md`.
  *
  * 부분 조건과 CHECK 식은 **문자열로 비교하지 않는다**. 선언의 식으로 임시 테이블(`LIKE` 원본)에 같은 인덱스 · 제약을
  * 실제로 만들고, Postgres 가 정규화한 정의끼리 비교한다 — 표기가 달라도(`!=` / `<>`, `IN (…)` / `= ANY (…)`) 같은
@@ -32,6 +39,67 @@ const FK_ACTION: Readonly<Record<string, string>> = {
   n: 'SET NULL',
   d: 'SET DEFAULT',
 };
+
+/**
+ * 컬럼 층에서 선언을 **일부러 생략한** 컬럼. TypeORM 비교기는 이것을 «DB 에만 있는 컬럼» 으로 보고 `DROP COLUMN` 을 낸다.
+ * 키는 비교기가 내는 문 그대로(공백 정규화), 값은 생략한 이유. 새 생략은 여기에 이유와 함께 더한다.
+ */
+const UNDECLARED_COLUMNS: ReadonlyMap<string, string> = new Map([
+  [
+    'ALTER TABLE "document_chunk" DROP COLUMN "embedding"',
+    '`vector` — TypeORM 이 모르는 타입이라 원시 SQL 로만 다룬다',
+  ],
+  [
+    'ALTER TABLE "agent_memory" DROP COLUMN "embedding"',
+    '`vector` — TypeORM 이 모르는 타입이라 원시 SQL 로만 다룬다',
+  ],
+]);
+
+/**
+ * 비교기 `upQueries` 중 **컬럼 정의**(추가 · 삭제 · 타입 · NULL · 기본값 · enum 타입 · 이름)를 바꾸는 문.
+ * 나머지(FK · 인덱스 · 유니크를 이름 차이로 지웠다 다시 만드는 문, DB 에만 있는 `COMMENT ON`)는 선언의 사실과 무관해 보지 않는다 —
+ * 인덱스 · 제약 층은 앞의 세 테스트가 이름까지 따로 본다.
+ */
+const COLUMN_LEVEL: ReadonlyArray<RegExp> = [
+  /^ALTER TABLE "[^"]+" ADD "/,
+  /\bDROP COLUMN\b/,
+  /\bALTER COLUMN\b/,
+  /\bRENAME COLUMN\b/,
+  /^(ALTER|CREATE|DROP) TYPE\b/,
+];
+
+/**
+ * 비교기가 **실제로 낸** 문장 표본 — 일회용 DB(V001~V132)에 엔티티 뮤턴트(컬럼 추가 · 이름 변경 · uuid 추론 · enum 이름 ·
+ * 기본값)를 걸어 채집했다(2026-09-19, TypeORM 0.3.31). 패턴이 무엇을 잡고 무엇을 흘려보내는지 DB 없이 고정한다 — 고친 엔티티에선
+ * 컬럼 층 문이 나오지 않으므로, 이 표본이 없으면 다섯 패턴 중 어느 것이 깨져도 라이브 테스트는 계속 GREEN 이다.
+ */
+const COLUMN_LEVEL_SAMPLES: {
+  readonly caught: readonly string[];
+  readonly ignored: readonly string[];
+} = {
+  caught: [
+    'ALTER TABLE "alert_rule" ADD "probe_extra" text',
+    'ALTER TABLE "alert_rule" DROP COLUMN "workspace_id"',
+    'ALTER TABLE "alert_rule" ADD "workspace_id" character varying NOT NULL',
+    'ALTER TABLE "alert_rule" RENAME COLUMN "workflow_id" TO "workflow_ref"',
+    'ALTER TYPE "public"."node_category" RENAME TO "node_category_old"',
+    `CREATE TYPE "public"."node_category_enum" AS ENUM('trigger', 'logic', 'flow', 'ai', 'integration', 'data', 'presentation')`,
+    'ALTER TABLE "node" ALTER COLUMN "category" TYPE "public"."node_category_enum" USING "category"::"text"::"public"."node_category_enum"',
+    'DROP TYPE "public"."node_category_old"',
+    'ALTER TABLE "model_config" ALTER COLUMN "kind" DROP DEFAULT',
+  ],
+  ignored: [
+    'COMMENT ON COLUMN "user"."pending_email" IS NULL',
+    'ALTER TABLE "alert_rule" DROP CONSTRAINT "alert_rule_workspace_id_fkey"',
+    'ALTER TABLE "workspace_member" ADD CONSTRAINT "UQ_0eab76d5a9c509930a9f3d7a104" UNIQUE ("workspace_id", "user_id")',
+    'DROP INDEX "public"."idx_alert_rule_workspace"',
+    'CREATE INDEX "idx_alert_rule_workspace" ON "alert_rule" ("workspace_id")',
+  ],
+};
+
+function isColumnLevel(statement: string): boolean {
+  return COLUMN_LEVEL.some((rx) => rx.test(statement));
+}
 
 interface DbIndex {
   name: string;
@@ -113,7 +181,21 @@ function reportMatch(
   }
 }
 
-describe('엔티티 스키마 선언 ↔ 실제 DB (선언이 있으면 DB 에도 그대로 있다)', () => {
+function dataSourceOptions(): PostgresConnectionOptions {
+  return {
+    type: 'postgres',
+    host: process.env.DB_HOST ?? 'postgres',
+    port: Number(process.env.DB_PORT ?? '5432'),
+    username: process.env.DB_USERNAME ?? 'clemvion',
+    password: process.env.DB_PASSWORD ?? 'clemvion-e2e',
+    database: process.env.DB_DATABASE ?? 'clemvion_e2e',
+    // `ROOT_ENTITIES` 는 `readonly` 튜플이라 펼쳐 넘긴다 — `app.module.ts` 와 같은 형태.
+    entities: [...ROOT_ENTITIES],
+    synchronize: false,
+  };
+}
+
+describe('엔티티 스키마 선언 ↔ 실제 DB (인덱스 · 제약은 선언 → DB, 컬럼 정의는 양방향)', () => {
   let db: Client;
   let ds: DataSource;
   let probeSeq = 0;
@@ -121,17 +203,7 @@ describe('엔티티 스키마 선언 ↔ 실제 DB (선언이 있으면 DB 에�
   beforeAll(async () => {
     db = createDbClient();
     await db.connect();
-    ds = new DataSource({
-      type: 'postgres',
-      host: process.env.DB_HOST ?? 'postgres',
-      port: Number(process.env.DB_PORT ?? '5432'),
-      username: process.env.DB_USERNAME ?? 'clemvion',
-      password: process.env.DB_PASSWORD ?? 'clemvion-e2e',
-      database: process.env.DB_DATABASE ?? 'clemvion_e2e',
-      // `ROOT_ENTITIES` 는 `readonly` 튜플이라 펼쳐 넘긴다 — `app.module.ts` 와 같은 형태.
-      entities: [...ROOT_ENTITIES],
-      synchronize: false,
-    });
+    ds = new DataSource(dataSourceOptions());
     await ds.initialize();
   });
 
@@ -437,5 +509,62 @@ describe('엔티티 스키마 선언 ↔ 실제 DB (선언이 있으면 DB 에�
     }
     expect(checked).toBeGreaterThan(0);
     expect(problems).toEqual([]);
+  });
+
+  it('컬럼 층 패턴 — 비교기가 실제로 낸 문장을 잡고, 인덱스 · 제약 · 주석 문은 흘려보낸다 (판별력 대조군)', () => {
+    expect(
+      COLUMN_LEVEL_SAMPLES.caught.filter((q) => !isColumnLevel(q)),
+    ).toEqual([]);
+    expect(COLUMN_LEVEL_SAMPLES.ignored.filter(isColumnLevel)).toEqual([]);
+    // 다섯 패턴이 **각각** 적어도 한 표본을 잡는다 — 한 패턴이 깨져도 다른 패턴이 같은 문을 잡아 가려지지 않게.
+    expect(
+      COLUMN_LEVEL.filter(
+        (rx) => !COLUMN_LEVEL_SAMPLES.caught.some((q) => rx.test(q)),
+      ).map(String),
+    ).toEqual([]);
+  });
+
+  it('컬럼 — TypeORM 스키마 비교기가 컬럼 정의 변경을 내지 않는다 (선언을 생략한 컬럼만 예외)', async () => {
+    // `log()` 는 카탈로그를 읽은 뒤 SQL 기록 모드(`enableSqlMemory`)로 DDL 을 모으기만 한다 — DB 를 바꾸지 않는다.
+    // 그 전제는 공개 계약이 아니라 TypeORM 소스로 확인한 것이다. 그래서 두 겹으로 지킨다:
+    //   (1) 예방 — 비교기는 **읽기 전용 세션**(`default_transaction_read_only=on`)으로만 연결한다. 전제가 깨져 DDL 을
+    //       실행하려 하면 Postgres 가 거부하고 이 테스트가 실패한다 — 공유 e2e DB 는 바뀌지 않는다. `log()` 는 자기
+    //       커넥션을 쓰므로 트랜잭션으로 감쌀 수 없어 세션 속성으로 막는다.
+    //   (2) 탐지 — 호출 전후 카탈로그(컬럼 정의 · enum 타입)가 같은지 직접 본다.
+    const catalog = async (): Promise<unknown> =>
+      (
+        await db.query(
+          `SELECT
+             (SELECT md5(string_agg(format('%s.%s:%s:%s:%s', table_name, column_name, udt_name, is_nullable,
+                                           coalesce(column_default, '')), ',' ORDER BY table_name, column_name))
+                FROM information_schema.columns WHERE table_schema = 'public') AS columns,
+             (SELECT md5(string_agg(typname, ',' ORDER BY typname)) FROM pg_type WHERE typtype = 'e') AS enums`,
+        )
+      ).rows[0];
+    const before = await catalog();
+    const readOnly = new DataSource({
+      ...dataSourceOptions(),
+      // 초기화가 `CREATE EXTENSION IF NOT EXISTS "uuid-ossp"` 를 시도하지 않게 — 읽기 전용 세션이 거부하고 TypeORM 이
+      // 그 실패를 조용히 삼키던 쓰기 시도다(Postgres 로그로 확인). 확장은 마이그레이션이 이미 설치했다.
+      installExtensions: false,
+      extra: { options: '-c default_transaction_read_only=on' },
+    });
+    let log: SqlInMemory;
+    try {
+      await readOnly.initialize();
+      log = await readOnly.driver.createSchemaBuilder().log();
+    } finally {
+      if (readOnly.isInitialized) await readOnly.destroy();
+    }
+    expect(await catalog()).toEqual(before);
+    const columnLevel = log.upQueries
+      .map((q) => q.query.replace(/\s+/g, ' ').trim())
+      .filter(isColumnLevel);
+    expect(columnLevel.filter((q) => !UNDECLARED_COLUMNS.has(q))).toEqual([]);
+    // 예외 목록이 낡지 않았다 — 목록의 문이 실제로 나와야 한다(누가 선언하면 예외가 필요 없어졌다고 실패한다).
+    // 이 단언이 비교기가 실제로 돌았다는 증거도 된다.
+    expect(
+      [...UNDECLARED_COLUMNS.keys()].filter((q) => !columnLevel.includes(q)),
+    ).toEqual([]);
   });
 });

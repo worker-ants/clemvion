@@ -17,7 +17,7 @@ export class LlmUsageLog {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
-  @Column({ name: 'workspace_id' })
+  @Column({ name: 'workspace_id', type: 'uuid' })
   workspaceId: string;
 
   @Column({ name: 'workflow_id', type: 'uuid', nullable: true })

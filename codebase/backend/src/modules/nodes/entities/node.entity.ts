@@ -45,7 +45,7 @@ export class Node {
   @Column({ length: 50 })
   type: string;
 
-  @Column({ type: 'enum', enum: NodeCategory })
+  @Column({ type: 'enum', enum: NodeCategory, enumName: 'node_category' })
   category: NodeCategory;
 
   @Column({ length: 255 })

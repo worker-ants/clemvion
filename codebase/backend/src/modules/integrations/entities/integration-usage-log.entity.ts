@@ -27,10 +27,10 @@ export class IntegrationUsageLog {
   @JoinColumn({ name: 'integration_id' })
   integration: Integration;
 
-  @Column({ name: 'node_execution_id' })
+  @Column({ name: 'node_execution_id', type: 'uuid' })
   nodeExecutionId: string;
 
-  @Column({ name: 'workflow_id' })
+  @Column({ name: 'workflow_id', type: 'uuid' })
   workflowId: string;
 
   @Column({ length: 16 })
