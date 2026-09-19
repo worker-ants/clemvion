@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll } from '@jest/globals';
 import { Client } from 'pg';
 import { DataSource } from 'typeorm';
+import type { EntityMetadata } from 'typeorm';
 
 import { ROOT_ENTITIES } from '../src/database/root-entities';
 import { createDbClient } from './helpers/db';
@@ -37,6 +38,79 @@ interface DbIndex {
   uniq: boolean;
   pred: string | null;
   cols: Array<string | null>;
+}
+
+interface DbForeignKey {
+  name: string;
+  reftbl: string;
+  del: string;
+  upd: string;
+  cols: string[];
+  refcols: string[];
+}
+
+type IndexDecl = EntityMetadata['indices'][number];
+type ForeignKeyDecl = EntityMetadata['foreignKeys'][number];
+
+function nameOrNone(name: string | undefined): string {
+  return name ?? '이름 없음';
+}
+
+function describeDbIndex(r: DbIndex): string {
+  const unique = r.uniq ? ' UNIQUE' : '';
+  const where = r.pred ? ` WHERE ${r.pred}` : '';
+  return `${r.name}(${r.cols.join(', ')})${unique}${where}`;
+}
+
+function describeIndexDecl(
+  meta: EntityMetadata,
+  idx: IndexDecl,
+  cols: string[],
+): string {
+  const unique = idx.isUnique ? ' UNIQUE' : '';
+  const where = idx.where ? ` WHERE ${idx.where}` : '';
+  const decl = `@Index(${nameOrNone(idx.givenName)})`;
+  return `${meta.name} ${decl} ${meta.tableName} (${cols.join(', ')})${unique}${where}`;
+}
+
+function fkActions(onDelete: string, onUpdate: string): string {
+  return `ON DELETE ${onDelete} ON UPDATE ${onUpdate}`;
+}
+
+function describeForeignKeyDecl(
+  meta: EntityMetadata,
+  fk: ForeignKeyDecl,
+): string {
+  const from = `${meta.tableName} (${fk.columnNames.join(', ')})`;
+  const to = `${fk.referencedTablePath} (${fk.referencedColumnNames.join(', ')})`;
+  const actions = fkActions(
+    fk.onDelete ?? 'NO ACTION',
+    fk.onUpdate ?? 'NO ACTION',
+  );
+  return `${meta.name} FK ${from} → ${to} ${actions}`;
+}
+
+function describeDbForeignKey(r: DbForeignKey): string {
+  return `${r.name} ${fkActions(FK_ACTION[r.del], FK_ACTION[r.upd])}`;
+}
+
+/**
+ * 같은 정의가 하나도 없으면 `missing` 을, 있는데 선언한 이름이 그중에 없으면 «이름이 다르다» 를 남긴다.
+ * 이름은 선언이 적었을 때만 본다 — 이름 없는 선언은 이름을 주장하지 않는다.
+ */
+function reportMatch(
+  problems: string[],
+  label: string,
+  matches: ReadonlyArray<{ name: string }>,
+  givenName: string | undefined,
+  missing: string,
+): void {
+  if (matches.length === 0) {
+    problems.push(`${label} — ${missing}`);
+  } else if (givenName && !matches.some((m) => m.name === givenName)) {
+    const actual = matches.map((m) => m.name).join(' · ');
+    problems.push(`${label} — 이름이 다르다. 실제: ${actual}`);
+  }
 }
 
 describe('엔티티 스키마 선언 ↔ 실제 DB (선언이 있으면 DB 에도 그대로 있다)', () => {
@@ -123,6 +197,9 @@ describe('엔티티 스키마 선언 ↔ 실제 DB (선언이 있으면 DB 에�
     );
     return rows;
   }
+
+  // 아래 두 함수는 식을 이스케이프 없이 SQL 에 이어 붙인다. 식은 엔티티 데코레이터의 문자열 리터럴(메타데이터)
+  // 에서만 온다 — 외부 입력을 넘기는 용도로 쓰지 말 것.
 
   /** 선언의 부분 조건을 임시 테이블에 실제로 걸어 Postgres 가 정규화한 형태로 돌려준다. */
   async function normalizedPredicate(
@@ -229,7 +306,7 @@ describe('엔티티 스키마 선언 ↔ 실제 DB (선언이 있으면 DB 에�
         for (const idx of meta.indices) {
           checked += 1;
           const cols = idx.columns.map((c) => c.databaseName);
-          const label = `${meta.name} @Index(${idx.givenName ?? '이름 없음'}) ${table} (${cols.join(', ')})${idx.isUnique ? ' UNIQUE' : ''}${idx.where ? ` WHERE ${idx.where}` : ''}`;
+          const label = describeIndexDecl(meta, idx, cols);
           let pred: string | null = null;
           if (idx.where) {
             const normalized = await normalizedPredicate(
@@ -251,36 +328,29 @@ describe('엔티티 스키마 선언 ↔ 실제 DB (선언이 있으면 DB 에�
               r.uniq === idx.isUnique &&
               r.pred === pred,
           );
-          if (matches.length === 0) {
-            problems.push(
-              `${label} — 같은 인덱스가 없다. 같은 테이블: ${real.map((r) => `${r.name}(${r.cols.join(', ')})${r.uniq ? ' UNIQUE' : ''}${r.pred ? ` WHERE ${r.pred}` : ''}`).join(' · ')}`,
-            );
-          } else if (
-            idx.givenName &&
-            !matches.some((r) => r.name === idx.givenName)
-          ) {
-            problems.push(
-              `${label} — 이름이 다르다. 실제: ${matches.map((r) => r.name).join(' · ')}`,
-            );
-          }
+          const others = real.map(describeDbIndex).join(' · ');
+          reportMatch(
+            problems,
+            label,
+            matches,
+            idx.givenName,
+            `같은 인덱스가 없다. 같은 테이블: ${others}`,
+          );
         }
         for (const uq of meta.uniques) {
           checked += 1;
           const cols = uq.columns.map((c) => c.databaseName);
-          const label = `${meta.name} @Unique(${uq.givenName ?? '이름 없음'}) ${table} (${cols.join(', ')})`;
+          const label = `${meta.name} @Unique(${nameOrNone(uq.givenName)}) ${table} (${cols.join(', ')})`;
           const matches = real.filter(
             (r) => sameColumns(r.cols, cols) && r.uniq && r.pred === null,
           );
-          if (matches.length === 0) {
-            problems.push(`${label} — 같은 컬럼의 전체 UNIQUE 가 없다`);
-          } else if (
-            uq.givenName &&
-            !matches.some((r) => r.name === uq.givenName)
-          ) {
-            problems.push(
-              `${label} — 이름이 다르다. 실제: ${matches.map((r) => r.name).join(' · ')}`,
-            );
-          }
+          reportMatch(
+            problems,
+            label,
+            matches,
+            uq.givenName,
+            '같은 컬럼의 전체 UNIQUE 가 없다',
+          );
         }
       }
     });
@@ -296,7 +366,7 @@ describe('엔티티 스키마 선언 ↔ 실제 DB (선언이 있으면 DB 에�
         for (const chk of meta.checks) {
           checked += 1;
           const table = meta.tableName;
-          const label = `${meta.name} @Check(${chk.givenName ?? '이름 없음'}) ${table} ${chk.expression}`;
+          const label = `${meta.name} @Check(${nameOrNone(chk.givenName)}) ${table} ${chk.expression}`;
           const normalized = await normalizedCheck(table, chk.expression);
           if (!normalized.ok) {
             problems.push(`${label} — 식을 만들 수 없다: ${normalized.error}`);
@@ -308,18 +378,14 @@ describe('엔티티 스키마 선언 ↔ 실제 DB (선언이 있으면 DB 에�
             [qualified(table)],
           );
           const matches = rows.filter((r) => r.def === normalized.value);
-          if (matches.length === 0) {
-            problems.push(
-              `${label} — 같은 CHECK 가 없다. 같은 테이블: ${rows.map((r) => `${r.name} ${r.def}`).join(' · ')}`,
-            );
-          } else if (
-            chk.givenName &&
-            !matches.some((r) => r.name === chk.givenName)
-          ) {
-            problems.push(
-              `${label} — 이름이 다르다. 실제: ${matches.map((r) => r.name).join(' · ')}`,
-            );
-          }
+          const others = rows.map((r) => `${r.name} ${r.def}`).join(' · ');
+          reportMatch(
+            problems,
+            label,
+            matches,
+            chk.givenName,
+            `같은 CHECK 가 없다. 같은 테이블: ${others}`,
+          );
         }
       }
     });
@@ -330,15 +396,9 @@ describe('엔티티 스키마 선언 ↔ 실제 DB (선언이 있으면 DB 에�
   it('관계 FK — 같은 컬럼 · 참조 테이블 · 참조 컬럼의 FK 가 있고 ON DELETE · ON UPDATE 가 같다', async () => {
     const problems: string[] = [];
     let checked = 0;
+    // 카탈로그를 읽기만 하므로 트랜잭션으로 감싸지 않는다 — 위 셋은 임시 테이블을 만들어 ROLLBACK 이 필요했다.
     for (const meta of ds.entityMetadatas) {
-      const { rows } = await db.query<{
-        name: string;
-        reftbl: string;
-        del: string;
-        upd: string;
-        cols: string[];
-        refcols: string[];
-      }>(
+      const { rows } = await db.query<DbForeignKey>(
         `SELECT c.conname AS name,
                 (SELECT relname FROM pg_class WHERE oid = c.confrelid) AS reftbl,
                 c.confdeltype AS del,
@@ -353,7 +413,7 @@ describe('엔티티 스키마 선언 ↔ 실제 DB (선언이 있으면 DB 에�
       );
       for (const fk of meta.foreignKeys) {
         checked += 1;
-        const label = `${meta.name} FK ${meta.tableName} (${fk.columnNames.join(', ')}) → ${fk.referencedTablePath} (${fk.referencedColumnNames.join(', ')}) ON DELETE ${fk.onDelete ?? 'NO ACTION'} ON UPDATE ${fk.onUpdate ?? 'NO ACTION'}`;
+        const label = describeForeignKeyDecl(meta, fk);
         const same = rows.filter(
           (r) =>
             sameColumns(r.cols, fk.columnNames) &&
@@ -370,9 +430,8 @@ describe('엔티티 스키마 선언 ↔ 실제 DB (선언이 있으면 DB 에�
             FK_ACTION[r.upd] === (fk.onUpdate ?? 'NO ACTION'),
         );
         if (exact.length === 0) {
-          problems.push(
-            `${label} — 동작이 다르다. 실제: ${same.map((r) => `${r.name} ON DELETE ${FK_ACTION[r.del]} ON UPDATE ${FK_ACTION[r.upd]}`).join(' · ')}`,
-          );
+          const actual = same.map(describeDbForeignKey).join(' · ');
+          problems.push(`${label} — 동작이 다르다. 실제: ${actual}`);
         }
       }
     }
