@@ -65,6 +65,39 @@ const COLUMN_LEVEL: ReadonlyArray<RegExp> = [
   /^(ALTER|CREATE|DROP) TYPE\b/,
 ];
 
+/**
+ * 비교기가 **실제로 낸** 문장 표본 — 일회용 DB(V001~V132)에 엔티티 뮤턴트(컬럼 추가 · 이름 변경 · uuid 추론 · enum 이름 ·
+ * 기본값)를 걸어 채집했다(2026-09-19, TypeORM 0.3.31). 패턴이 무엇을 잡고 무엇을 흘려보내는지 DB 없이 고정한다 — 고친 엔티티에선
+ * 컬럼 층 문이 나오지 않으므로, 이 표본이 없으면 다섯 패턴 중 어느 것이 깨져도 라이브 테스트는 계속 GREEN 이다.
+ */
+const COLUMN_LEVEL_SAMPLES: {
+  readonly caught: readonly string[];
+  readonly ignored: readonly string[];
+} = {
+  caught: [
+    'ALTER TABLE "alert_rule" ADD "probe_extra" text',
+    'ALTER TABLE "alert_rule" DROP COLUMN "workspace_id"',
+    'ALTER TABLE "alert_rule" ADD "workspace_id" character varying NOT NULL',
+    'ALTER TABLE "alert_rule" RENAME COLUMN "workflow_id" TO "workflow_ref"',
+    'ALTER TYPE "public"."node_category" RENAME TO "node_category_old"',
+    `CREATE TYPE "public"."node_category_enum" AS ENUM('trigger', 'logic', 'flow', 'ai', 'integration', 'data', 'presentation')`,
+    'ALTER TABLE "node" ALTER COLUMN "category" TYPE "public"."node_category_enum" USING "category"::"text"::"public"."node_category_enum"',
+    'DROP TYPE "public"."node_category_old"',
+    'ALTER TABLE "model_config" ALTER COLUMN "kind" DROP DEFAULT',
+  ],
+  ignored: [
+    'COMMENT ON COLUMN "user"."pending_email" IS NULL',
+    'ALTER TABLE "alert_rule" DROP CONSTRAINT "alert_rule_workspace_id_fkey"',
+    'ALTER TABLE "workspace_member" ADD CONSTRAINT "UQ_0eab76d5a9c509930a9f3d7a104" UNIQUE ("workspace_id", "user_id")',
+    'DROP INDEX "public"."idx_alert_rule_workspace"',
+    'CREATE INDEX "idx_alert_rule_workspace" ON "alert_rule" ("workspace_id")',
+  ],
+};
+
+function isColumnLevel(statement: string): boolean {
+  return COLUMN_LEVEL.some((rx) => rx.test(statement));
+}
+
 interface DbIndex {
   name: string;
   uniq: boolean;
@@ -471,12 +504,38 @@ describe('엔티티 스키마 선언 ↔ 실제 DB (선언이 있으면 DB 에�
     expect(problems).toEqual([]);
   });
 
+  it('컬럼 층 패턴 — 비교기가 실제로 낸 문장을 잡고, 인덱스 · 제약 · 주석 문은 흘려보낸다 (판별력 대조군)', () => {
+    expect(
+      COLUMN_LEVEL_SAMPLES.caught.filter((q) => !isColumnLevel(q)),
+    ).toEqual([]);
+    expect(COLUMN_LEVEL_SAMPLES.ignored.filter(isColumnLevel)).toEqual([]);
+    // 다섯 패턴이 **각각** 적어도 한 표본을 잡는다 — 한 패턴이 깨져도 다른 패턴이 같은 문을 잡아 가려지지 않게.
+    expect(
+      COLUMN_LEVEL.filter(
+        (rx) => !COLUMN_LEVEL_SAMPLES.caught.some((q) => rx.test(q)),
+      ).map(String),
+    ).toEqual([]);
+  });
+
   it('컬럼 — TypeORM 스키마 비교기가 컬럼 정의 변경을 내지 않는다 (선언을 생략한 컬럼만 예외)', async () => {
     // `log()` 는 카탈로그를 읽은 뒤 SQL 기록 모드(`enableSqlMemory`)로 DDL 을 모으기만 한다 — DB 를 바꾸지 않는다.
+    // 그 전제는 공개 계약이 아니라 TypeORM 소스로 확인한 것이라, 호출 전후 카탈로그가 같은지 여기서 직접 본다.
+    const catalog = async (): Promise<unknown> =>
+      (
+        await db.query(
+          `SELECT
+             (SELECT md5(string_agg(format('%s.%s:%s:%s:%s', table_name, column_name, udt_name, is_nullable,
+                                           coalesce(column_default, '')), ',' ORDER BY table_name, column_name))
+                FROM information_schema.columns WHERE table_schema = 'public') AS columns,
+             (SELECT md5(string_agg(typname, ',' ORDER BY typname)) FROM pg_type WHERE typtype = 'e') AS enums`,
+        )
+      ).rows[0];
+    const before = await catalog();
     const log = await ds.driver.createSchemaBuilder().log();
+    expect(await catalog()).toEqual(before);
     const columnLevel = log.upQueries
       .map((q) => q.query.replace(/\s+/g, ' ').trim())
-      .filter((q) => COLUMN_LEVEL.some((rx) => rx.test(q)));
+      .filter(isColumnLevel);
     expect(columnLevel.filter((q) => !UNDECLARED_COLUMNS.has(q))).toEqual([]);
     // 예외 목록이 낡지 않았다 — 목록의 문이 실제로 나와야 한다(누가 선언하면 예외가 필요 없어졌다고 실패한다).
     // 이 단언이 비교기가 실제로 돌았다는 증거도 된다.

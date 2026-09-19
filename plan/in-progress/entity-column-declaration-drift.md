@@ -68,6 +68,18 @@ e2e 전체로 확인한다.
 
 R1 · R2 는 «패턴이 하중을 받는가» 를 가르는 쌍이다 — R1 만으로는 못 가르고, R2 가 그 패턴 없이는 기본값 drift 를 놓친다는 것을 보인다.
 
+**리뷰 1라운드 뒤 보강** (`review/code/2026/09/19/17_04_28` testing WARNING 1 · 2): 다섯 패턴 중 `ADD "…"` · `RENAME COLUMN` 은 위 뮤턴트
+어디서도 매치된 적이 없었다. 같은 일회용 DB 에 엔티티 뮤턴트(컬럼 추가 · 이름 변경 · uuid · enum · 기본값)를 걸어 비교기가 **실제로 낸**
+문장을 채집해 DB 없이 도는 표본 테스트로 고정했다(RENAME 도 실제로 나온다 — TypeORM 은 열 수가 같고 이름만 하나 다르면 RENAME 을 낸다).
+`log()` 의 «DB 를 바꾸지 않는다» 는 호출 전후 카탈로그 해시(컬럼 정의 · enum 타입) 비교로 직접 단언한다.
+
+| 뮤턴트 | 예측 | 실측 |
+|---|---|---|
+| P1 · P2 — `ADD` · `RENAME COLUMN` 패턴 제거 | RED | RED |
+| P3 — `ADD` 패턴을 `ADD CONSTRAINT` 까지 잡게 느슨하게 | RED | RED |
+| P4 — 아무것도 못 잡는 패턴 추가 | RED(패턴별 표본 단언) | RED |
+| S1 — `log()` 뒤 DDL 한 문 | RED(카탈로그 스냅샷) | RED |
+
 ## 착수 순서 기록
 
 기준선(비교기 결과가 트래커의 아홉과 같은지)을 확인하느라 아홉 곳의 수정을 `--impl-prep` 보다 **먼저** 했다. 고치기 전 코드의 RED 는
@@ -98,7 +110,8 @@ R1 · R2 는 «패턴이 하중을 받는가» 를 가르는 쌍이다 — R1 �
       «컬럼 층(이 작업)» 으로 층을 붙여 쓴다. INFO 6 · 7 → 위 가드 절 · 아래 `--impl-done` 항목. INFO 2(`spec/0-overview.md` Rationale 의
       Prisma 서술)는 이 작업과 무관 — 트래커
 - [x] 가드 테스트 — GREEN · 뮤턴트(아홉 수정 각각 되돌림 + 예외 목록 둘) RED, 패턴 하중 쌍(R1 · R2) 예측대로 — 위 «가드 뮤턴트» 표
-- [ ] TEST WORKFLOW (lint · unit · build · e2e) + 백엔드 타입체크 ratchet
+- [x] TEST WORKFLOW (lint · unit · build · e2e) + 백엔드 타입체크 ratchet — 커밋 `3c2b39305` 기준 lint · unit · build(ratchet 포함) PASS,
+      e2e PASS(backend 354 — 새 컬럼 가드 포함 · Playwright 51). `default` 선언으로 insert 뒤 RETURNING 이 늘어나는 런타임 변화도 전체 e2e 로 확인
 - [ ] `/ai-review`
 - [ ] `--impl-done` — `spec/2-navigation/` · `spec/3-workflow-editor/` (각각 `spec/1-data-model.md` · 브랜치 diff 를 직접 Read 블록으로 첨부)
 - [ ] 트래커 반영 · 이 plan `complete/` 이동
