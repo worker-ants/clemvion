@@ -17,7 +17,7 @@ code: ["codebase/backend/src/modules/workflows"]
 
 - 저장 트랜잭션 직후 같은 시점의 노드·연결선 전체 상태가 `jsonb` 스냅샷으로 보관돼요.
 - 저장된 버전은 **불변**이에요. 이후 캔버스를 수정해도 과거 버전은 변하지 않아요.
-- 저장 요청에 `changeSummary` 메모를 넣으면 버전 이력에 그대로 표시돼요.
+- 에디터에서 저장해 만든 버전(`Save`·`Ctrl+S`, 실행 직전 자동 저장)은 변경 요약이 비어 있어요. 변경 요약이 채워지는 건 버전을 복원했을 때 만들어지는 새 버전뿐이고, 항상 `Restored from vN` 형식으로 표시돼요.
 
 <Callout type="tip">중요한 변경 전에 `Save`를 한 번 누르는 습관을 들이면, 롤백 지점을 스스로 찍어둘 수 있어요.</Callout>
 
@@ -27,7 +27,7 @@ code: ["codebase/backend/src/modules/workflows"]
   <Step>에디터 우측 상단 툴바의 `⋯` (More) 메뉴를 열어요.</Step>
   <Step>`Version History`를 클릭하면 캔버스 오른쪽에 사이드 패널이 열려요.</Step>
   <Step>패널에는 최신 버전이 위에 오도록 `v3, v2, v1` 순서로 나열돼요.</Step>
-  <Step>각 항목에는 버전 번호, 작성자, 생성 시각, 변경 요약이 표시되고 `상세(👁)`·`복원(↺)` 액션 버튼이 있어요.</Step>
+  <Step>각 항목에는 버전 번호, 작성자, 생성 시각, 변경 요약(있을 때만)이 표시되고 `상세(👁)`·`복원(↺)` 액션 버튼이 있어요.</Step>
 </Steps>
 
 버전이 하나도 없을 때는 "No versions yet. Save the canvas to create the first version." 안내가 나와요. 한 번 `Save`를 누르면 첫 버전이 만들어져요.
@@ -80,7 +80,7 @@ Diff 다이얼로그는 다음 항목을 보여줘요.
 
 <FieldTable rows={[
   { name: "실수로 노드를 삭제함", type: "복구", description: "가장 가까운 이전 버전을 열어 상세로 확인한 뒤 복원해요." },
-  { name: "대규모 리팩토링 전 체크포인트", type: "예방", description: "작업 전에 `Save`로 버전을 만들고 의미 있는 `changeSummary`를 남겨요." },
+  { name: "대규모 리팩토링 전 체크포인트", type: "예방", description: "작업 전에 `Save`로 버전을 만들고 버전 번호를 기억해 둬요. 잘못되면 그 번호를 찾아 복원해요." },
   { name: "두 시점 설정 비교", type: "감사", description: "Compare 토글로 어떤 노드의 config가 바뀌었는지 확인해요." }
 ]} />
 

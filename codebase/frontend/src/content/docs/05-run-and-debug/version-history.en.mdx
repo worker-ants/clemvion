@@ -6,7 +6,7 @@ Every `Save` automatically snapshots the canvas — **no extra button press**.
 
 - Immediately after the save transaction, the full state of nodes and edges is persisted as a `jsonb` snapshot.
 - Saved versions are **immutable**. Later edits to the canvas don't alter them.
-- If the save request includes a `changeSummary`, it shows up verbatim in the version history.
+- Versions created by saving in the editor (`Save` / `Ctrl+S`, or the automatic save right before a run) have no change summary. Only versions created by restoring get one, and it's always formatted as `Restored from vN`.
 
 <Callout type="tip">Press `Save` once before a risky change — you leave yourself a rollback point.</Callout>
 
@@ -16,7 +16,7 @@ Every `Save` automatically snapshots the canvas — **no extra button press**.
   <Step>Open the `⋯` (More) menu in the editor's top-right toolbar.</Step>
   <Step>Click `Version History`. A side panel opens on the right of the canvas.</Step>
   <Step>Versions are listed newest-first (`v3, v2, v1`).</Step>
-  <Step>Each entry shows version number, author, creation time, change summary, and `view (👁)` / `restore (↺)` action buttons.</Step>
+  <Step>Each entry shows version number, author, creation time, change summary (when present), and `view (👁)` / `restore (↺)` action buttons.</Step>
 </Steps>
 
 When there are no versions yet, the panel shows "No versions yet. Save the canvas to create the first version." One `Save` creates v1.
@@ -69,7 +69,7 @@ Restoring **overwrites the current canvas** with the snapshot.
 
 <FieldTable rows={[
   { name: "Accidentally deleted a node", type: "Recovery", description: "Open the closest previous version, review its details, then restore." },
-  { name: "Checkpoint before a big refactor", type: "Prevention", description: "Hit `Save` and include a meaningful `changeSummary` before you start." },
+  { name: "Checkpoint before a big refactor", type: "Prevention", description: "Hit `Save` before you start and note the version number — if things go wrong, find that version and restore it." },
   { name: "Compare configs across two points in time", type: "Audit", description: "Use the Compare toggle to see which node's config changed." }
 ]} />
 
