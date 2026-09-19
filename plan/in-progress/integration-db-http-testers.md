@@ -82,7 +82,8 @@ spec 은 같은 브랜치의 planner 커밋 `74087dff6`(`spec/2-navigation/4-int
 - [x] 테스트 선작성 → 구현 — 테스터 spec 두 개(42) RED → GREEN, `dispatchTest` 배선 5건(preview · `:id/test` · rotate)
 - [x] `PreviewTestResultDto.code?` 선언 + preview 실패 경로 계약 검증 배선(트래커 «`PreviewTestResultDto` 도 `code` 를 미선언» 을 닫는다)
 - [x] 가이드 한 줄(연동 관리 — 서비스별 연결 테스트 범위) — `0aec343e4`, user-guide-writer 위임 뒤 «운영자가 허용한 설치는 예외» 로 한 구절 좁힘 · frontmatter `code:` 에 테스터 둘
-- [ ] TEST WORKFLOW (lint · unit · build · e2e) + 백엔드 타입체크 ratchet
+- [x] TEST WORKFLOW (lint · unit · build · e2e) + 백엔드 타입체크 ratchet — lint PASS · unit PASS(backend 9,803 · frontend 6,597 외) ·
+      build PASS(ratchet 포함) · e2e PASS(backend 352 · Playwright 51, 커밋 `00e244de6` 기준. 첫 실행의 D RED 는 위 «내 술어가 틀렸다»)
 - [ ] `/ai-review`
 - [ ] `--impl-done spec/2-navigation/`
-- [ ] 트래커 반영(«비대상» 여섯 등재) · 이 plan 과 spec draft `complete/` 이동
+- [ ] 트래커 반영(«비대상» 여섯 등재) · 이 plan 과 spec draft **둘**(`spec-draft-integration-connection-tests.md` · `spec-draft-integration-db-test-waits.md`) `complete/` 이동

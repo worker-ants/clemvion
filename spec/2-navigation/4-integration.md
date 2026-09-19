@@ -496,7 +496,7 @@ GitHub는 2개 `auth_type`을 선택 가능.
 | `password` | string | ✓ | 🔒 |
 | `ssl` | enum `disable` \| `require` \| `verify-full` | ✓ | × |
 
-테스트: 저장된(또는 입력한) 자격증명으로 **일회성 연결**을 열어 `SELECT 1` 을 실행하고 닫는다. 연결 대기는 10초. SSL 매핑과 host 의 SSRF 가드는 [Database 노드](../4-nodes/4-integration/2-database-query.md)와 같다. 결과:
+테스트: 저장된(또는 입력한) 자격증명으로 **일회성 연결**을 열어 `SELECT 1` 을 실행하고 닫는다. 연결과 `SELECT 1` 을 각각 10초까지 기다린다 — 연결만 묶으면 인증 뒤 응답하지 않는 서버에 쿼리가 매달린다. SSL 매핑과 host 의 SSRF 가드는 [Database 노드](../4-nodes/4-integration/2-database-query.md)와 같다. 결과:
 
 - 성공 → `success: true`
 - host 가 SSRF 가드에 차단 → `DB_HOST_BLOCKED`
@@ -739,7 +739,7 @@ UI 는 카테고리 단위 체크박스(R / W 두 컬럼) + "고급" 토글 아�
 
 `error` 상태에서는 `status_reason` 컬럼에 기계 판독 가능 값을 기록한다.
 
-> `pending_install` 은 Cafe24 Private 앱 및 MakeShop ShopStore install-first 통합에서 사용하는 상태. 이 상태의 Integration 은 노드·AI Agent 에서 사용할 수 없다 — 직결 노드는 `resolveIntegration` 의 status 검사(`status !== 'connected'`)로 `INTEGRATION_NOT_CONNECTED` 즉시 실패([공통 §4.2](../4-nodes/4-integration/0-common.md#42-공통-에러-코드)), AI Agent 는 MCP bridge 가 미연결 통합의 tool 을 노출하지 않아 호출·에러코드 자체가 없다(§4.6). (연결 테스트 endpoint 는 별도로 `INTEGRATION_INCOMPLETE` 반환 — §9.3.) Cafe24 Private 는 사용자가 Cafe24 에서 "테스트 실행" 을 완료해야 `connected` 로 전이하고, MakeShop 은 상점에서 ShopStore 앱 설치가 완료돼야 전이한다. callback 시도가 실패해도 status 는 보존되어 재시도가 가능하며, 24시간 내 성공하지 못하면 `expired` 로 자동 전이된다 (install_timeout — `install_token` 도 NULL 로 소거).
+> `pending_install` 은 Cafe24 Private 앱 및 MakeShop ShopStore install-first 통합에서 사용하는 상태. 이 상태의 Integration 은 노드·AI Agent 에서 사용할 수 없다 — 직결 노드는 `resolveIntegration` 의 status 검사(`status !== 'connected'`)로 `INTEGRATION_NOT_CONNECTED` 즉시 실패([공통 §4.2](../4-nodes/4-integration/0-common.md#42-공통-에러-코드)), AI Agent 는 MCP bridge 가 미연결 통합의 tool 을 노출하지 않아 호출·에러코드 자체가 없다(§4.6). (연결 테스트 endpoint 는 별도로 `INTEGRATION_INCOMPLETE` 반환 — §9.1.) Cafe24 Private 는 사용자가 Cafe24 에서 "테스트 실행" 을 완료해야 `connected` 로 전이하고, MakeShop 은 상점에서 ShopStore 앱 설치가 완료돼야 전이한다. callback 시도가 실패해도 status 는 보존되어 재시도가 가능하며, 24시간 내 성공하지 못하면 `expired` 로 자동 전이된다 (install_timeout — `install_token` 도 NULL 로 소거).
 
 > `status_reason='install_timeout'` 으로 expired 처리된 Cafe24 Private 행은 reauthorize 버튼이 **비활성** 이다 — Private 앱은 재인증 진입점이 없고 cafe24 "테스트 실행" 만 정식이다. 사용자는 행을 삭제 후 새로 등록한다.
 

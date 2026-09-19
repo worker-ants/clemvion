@@ -4792,9 +4792,10 @@ field: T | null;
       아니었다. 세 번째 상태(«닿았지만 확인 못 함» — 경고 표시)를 둘지, 둔다면 API 가 그것을 무엇으로 알릴지(메시지 문자열 비교는 층을 넘는 결합이다)가
       결정 대상이다. 사용자 가이드는 한계만 적었다(«401 · 403 일 때만 거부를 안다»).
 
-- [ ] **`4-integration.md` 소소한 표기 두 건** (planner, 낮음, 2026-09-19 등재 · `--impl-prep` `review/consistency/2026/09/19/13_21_00` INFO 1 · 6).
-      §6 이 preview-test 를 `§9.3` 으로 가리킨다(실제 §9.2). §14.1 이 노드 런타임 코드를 `HTTP_{status}` 로 적는 자리와 리터럴 `HTTP_4XX` ·
-      `HTTP_5XX` 로 적는 자리가 섞여 있다.
+- [ ] **`4-integration.md` §14.1 — 노드 런타임 HTTP 코드 표기가 `HTTP_{status}` 와 `HTTP_4XX` · `HTTP_5XX` 로 섞여 있다** (planner, 낮음,
+      2026-09-19 등재 · `--impl-prep` `review/consistency/2026/09/19/13_21_00` INFO 6). 어느 쪽이 맞는지 노드 spec(`4-nodes/4-integration/1-http-request.md`)
+      과 대조가 먼저다. (같이 등재했던 §6 의 `§9.3` 오기는 `plan/complete/spec-draft-integration-db-test-waits.md` 가 §9.1 로 고쳐 이
+      항목에서 뺐다 — `--spec` `review/consistency/2026/09/19/15_30_56` WARNING 1.)
 
 - [ ] **preview-test 가 인증된 사용자의 외부 연결 오라클이다 — 받아들일 위험인지 막을지 정한다** (planner 결정, 2026-09-19 등재 ·
       `/ai-review` `review/code/2026/09/19/13_58_22` security WARNING). `POST /api/integrations/preview-test` 는 워크스페이스 · 역할
@@ -4802,6 +4803,9 @@ field: T | null;
       돌려준다 — 거부 · 타임아웃 · TLS 실패를 구분할 수 있어 플랫폼을 거친 제한적 포트 탐색에 쓸 수 있다. 내부 주소는 SSRF 가드가
       막는다. **이 PR 이 새로 연 성질은 아니다** — Email(SMTP `verify()` 원문 메시지) · MCP 가 같은 엔드포인트에서 이미 그렇다.
       선택지: spec Rationale 에 받아들인 위험으로 적기 · 워크스페이스 컨텍스트 요구 · 연결 실패 메시지 일반화(진단성과 맞바꿈).
+      **같은 결정에 묶을 것** (`/ai-review` `review/code/2026/09/19/15_02_57` api_contract WARNING 9): `POST /api/integrations/:id/test`
+      도 이제 Database · HTTP 에서 실제로 접속하는데 route throttle 이 없다(전역 기본만 — preview-test 는 분당 20). 저장된 통합이
+      있어야 하므로 워크스페이스 멤버만 부를 수 있다는 점이 preview-test 와 다르다.
 
 - [ ] **연결 테스트의 `dns.lookup` 이 스레드풀을 쥔다 — 동시 상한 뒤에 남는 것** (developer, 낮음, 2026-09-19 등재 · `/ai-review`
       `review/code/2026/09/19/13_58_22` concurrency CRITICAL 의 잔여). 그 PR 은 `dispatchTest` 에 transport 테스트 동시 상한 2 를
