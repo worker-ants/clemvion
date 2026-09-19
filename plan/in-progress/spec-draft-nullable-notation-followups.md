@@ -4677,19 +4677,29 @@ field: T | null;
       체커는 예시 문자열의 금지어 «엣지» 만 짚었다 — 금지어만 고치면 틀린 문장을 다듬는 셈이라 두었다. 결정할 것: 서술을 실제(수동 저장은
       요약 없음 · 복원만 자동 문구)로 고칠지, 자동 요약을 기능으로 정의할지(그러면 developer 구현).
 
-- [ ] **`spec/1-data-model.md` §2 Workspace `owner_id` 행이 삭제 동작을 적지 않는다** (planner, 낮음, 2026-09-19 등재 ·
-      `--impl-prep` `review/consistency/2026/09/19/08_33_13` WARNING 1 · `plan/complete/entity-schema-declaration-drift.md`).
+- [x] **`spec/1-data-model.md` §2 Workspace `owner_id` 행이 삭제 동작을 적지 않는다** (planner, 낮음, 2026-09-19 등재 ·
+      `--impl-prep` `review/consistency/2026/09/19/08_33_13` WARNING 1 · `plan/complete/entity-schema-declaration-drift.md` ·
+      **2026-09-19 해소** `plan/complete/spec-draft-data-model-fk-actions.md` — «다른 행은 적는 관례» 라는 전제가 실측으로 반증됐다: §2 FK
+      75행 중 적은 곳 26 · 안 적은 곳 49 · 틀린 곳 0. 49행 모두에 적었고, 같은 대조로 §2 에 없던 컬럼 여섯 · `re_run_of` 테이블명 ·
+      §3 의 «loop» 오기를 함께 고쳤다. §3 Workspace 행 추가. `code:` 등재는 아래 새 항목으로 넘겼다).
       실제 FK 는 `ON DELETE CASCADE`(V001)이고 엔티티도 그 PR 부터 `{ onDelete: 'CASCADE' }` 를 적는다. 같은 파일의 다른 User FK 행
       (WorkflowTestDataset `owner_id` 등)은 삭제 동작을 괄호로 적는 관례다. `FK → User (ON DELETE CASCADE)` 로 맞춘다.
       같은 파일에서 함께 할 것(`--impl-done` `review/consistency/2026/09/19/09_27_19` INFO 3 · 4, 선택): §3 «인덱스 전략» 표에 Workspace
       행이 없다 — `(owner_id) UNIQUE WHERE type = 'personal'`(V109)은 Rationale · `data-flow/12-workspace.md` 에만 있다. frontmatter
       `code:` 에 `codebase/backend/test/entity-schema-declarations.e2e-spec.ts`(엔티티 선언 ↔ DB 대조 가드)를 넣을지.
 
-- [ ] **`spec/2-navigation/4-integration.md` §11.2 «중복 방지» 가 없는 컬럼으로 유일 키를 적는다** (planner, 낮음, 2026-09-19 등재 ·
-      `--impl-done` `review/consistency/2026/09/19/09_27_26` WARNING 1). 1006행 «`(integration_id, threshold_key)` 로 유니크 판정» —
+- [x] **`spec/2-navigation/4-integration.md` §11.2 «중복 방지» 가 없는 컬럼으로 유일 키를 적는다** (planner, 낮음, 2026-09-19 등재 ·
+      `--impl-done` `review/consistency/2026/09/19/09_27_26` WARNING 1 · **2026-09-19 해소** `plan/complete/spec-draft-data-model-fk-actions.md`
+      — 세 컬럼 키 · «같은 만료 시각에 대해» 1회 · 재인증 시 재발사 · claim 방식을 data-flow §1.4 와 맞췄다). 1006행 «`(integration_id, threshold_key)` 로 유니크 판정» —
       `threshold_key` 컬럼은 없다. 실제 유일 키는 V009 의 `UNIQUE (integration_id, threshold, token_expires_at)` 이고
       `spec/data-flow/5-integration.md` 341행 · `8-notifications.md` 90행도 세 컬럼으로 적는다. `token_expires_at` 이 키에 들어 있어
       **재인증으로 만료 시각이 바뀌면 같은 임계가 다시 발사된다** — 두 컬럼 서술로는 이 동작이 나오지 않는다. 세 컬럼으로 정정하고 그 동작을 한 줄 적는다.
+
+- [ ] **`spec/1-data-model.md` frontmatter `code:` 에 이 문서를 지키는 e2e 가드를 넣을지 — 게이트 범위 결정** (planner, 낮음, 2026-09-19 등재 ·
+      `plan/complete/spec-draft-data-model-fk-actions.md` «비대상» · `--spec` `review/consistency/2026/09/19/09_59_18` INFO 10). 이 문서의
+      `code:` 는 엔티티 · 마이그레이션 glob 둘뿐이다. 이 문서를 지키는 e2e 가 셋 있다 — `deletion-cascade-indexes` · `trigger-endpoint-path-dedupe` ·
+      `entity-schema-declarations`. 하나만 넣으면 어긋나고, 셋을 넣으면 그 파일들의 변경이 `--impl-done` 을 부르게 된다(다른 spec 은
+      e2e 경로를 `code:` 에 넣은 선례가 있다 — `2-trigger-list` · `3-schedule` · `15-chat-channel` 등). 결정할 것: 넣을지, 넣는다면 셋 다.
 
 - [ ] **AI 어시스턴트 사전 키 셋이 spec 에 없다 — «이어서 진행» 버튼의 기능 서술부터 없다** (planner, 낮음, 2026-09-19 등재 ·
       `plan/complete/spec-draft-assistant-i18n-table-sync.md` «비대상»). `dict/{ko,en}/assistant.ts` 의 `continueAfterBudget` ·
