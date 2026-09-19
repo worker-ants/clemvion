@@ -40,10 +40,15 @@ BEGIN
     ON CONFLICT (endpoint_path) DO NOTHING;
 
     -- 예약은 지우지 않으므로 방금 넣었거나 이미 있던 행이 반드시 있다. 주인 없는 예약(NULL)도 «다르다».
+    -- 경합: 다른 트랜잭션이 같은 새 경로를 먼저 넣었으면 위 INSERT 가 그 커밋 · 롤백을 기다린다. 커밋이면 이 SELECT(READ
+    -- COMMITTED — 문장마다 새 스냅샷)가 그 주인을 보고, 롤백이면 위 INSERT 가 이 트랜잭션의 예약을 넣는다. 호출 트랜잭션이
+    -- REPEATABLE READ 이상이면 위 INSERT 가 직렬화 실패(40001)로 끝난다(실측) — 쓰기는 막히지만 409 가 아니다. 서비스는 격리
+    -- 수준을 올리지 않는다.
     SELECT workspace_id INTO reserved_by
       FROM webhook_endpoint_reservation
      WHERE endpoint_path = NEW.endpoint_path;
 
+    -- CONSTRAINT 는 실재 제약의 이름이 아니라 라벨이다(이 테이블의 실제 제약은 PK 하나) — 서비스가 이 이름으로 409 를 고른다.
     IF reserved_by IS DISTINCT FROM NEW.workspace_id THEN
         RAISE EXCEPTION 'endpoint_path is reserved by another workspace'
             USING ERRCODE = 'unique_violation',
@@ -55,6 +60,8 @@ END;
 $$ LANGUAGE plpgsql;
 
 -- workspace_id 도 감시한다 — 정상 경로엔 트리거를 다른 워크스페이스로 옮기는 쓰기가 없지만, 옮기면 예약 주인과 달라진다.
+-- UPDATE OF 는 값이 바뀌었는지가 아니라 SET 에 그 컬럼이 있는지로 발화한다. 오늘 서비스는 TypeORM 의 변경분 save 라 경로를
+-- 바꿀 때만 SET 하지만, 두 컬럼을 그대로 SET 하는 쓰기가 생기면 행마다 INSERT + SELECT 가 한 번 더 돈다(결과는 같다).
 CREATE TRIGGER trg_trigger_reserve_endpoint_path
     BEFORE INSERT OR UPDATE OF endpoint_path, workspace_id ON trigger
     FOR EACH ROW

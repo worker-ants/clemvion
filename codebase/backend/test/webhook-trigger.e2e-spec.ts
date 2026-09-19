@@ -178,6 +178,21 @@ describe('Webhook trigger (e2e)', () => {
     expect(res.body.error.code).toBe('VALIDATION_ERROR');
   });
 
+  /**
+   * `endpoint_path` 충돌의 응답 계약 — 살아 있는 트리거와 겹칠 때(B5)도, 예약만 남은 경로(B7 · B8)도 **같아야** 한다.
+   * 경로가 한때 쓰였는지를 응답으로 가르지 않는다(`spec/1-data-model.md` §2.8.1). 충돌 상대는 다른 워크스페이스일 수 있어
+   * 메시지가 «워크스페이스» 를 말하면 거짓이다.
+   */
+  const expectPathConflict = (res: request.Response) => {
+    expect(res.status).toBe(409);
+    expect(res.body.error.code).toBe('RESOURCE_CONFLICT');
+    expect(res.body.error.details).toEqual({
+      field: 'endpoint_path',
+      code: 'TRIGGER_ENDPOINT_PATH_CONFLICT',
+    });
+    expect(JSON.stringify(res.body)).not.toContain('워크스페이스');
+  };
+
   it('B4. 같은 워크스페이스에 같은 endpointPath → 409 RESOURCE_CONFLICT + details.code (§1.10)', async () => {
     // **단위 테스트가 mock 하는 드라이버 에러 형태가 실제와 같은지는 e2e 만 확인한다.**
     // `triggers.service.spec.ts` 는 `QueryFailedError` 를 손으로 만들어 `rethrowEndpointPathConflict`
@@ -235,17 +250,6 @@ describe('Webhook trigger (e2e)', () => {
       .send({ name: uniqueName('hook-b5-wf') });
     const otherWfId = (otherWf.body.data as { id: string }).id;
 
-    const expectConflict = (res: request.Response) => {
-      expect(res.status).toBe(409);
-      expect(res.body.error.code).toBe('RESOURCE_CONFLICT');
-      expect(res.body.error.details).toEqual({
-        field: 'endpoint_path',
-        code: 'TRIGGER_ENDPOINT_PATH_CONFLICT',
-      });
-      // 충돌 상대는 다른 워크스페이스의 트리거다 — 메시지가 «같은 워크스페이스» 를 말하면 거짓이다.
-      expect(JSON.stringify(res.body)).not.toContain('워크스페이스');
-    };
-
     // (1) 생성: 알고 있는 경로로 곧바로
     const created = await request(BASE_URL)
       .post('/api/triggers')
@@ -258,7 +262,7 @@ describe('Webhook trigger (e2e)', () => {
         endpointPath: victimPath,
         isActive: true,
       });
-    expectConflict(created);
+    expectPathConflict(created);
 
     // (2) 수정: 자기 경로로 만든 뒤 알고 있는 경로로 바꾸기 (endpointPath 는 mutable — 12-webhook)
     const own = await request(BASE_URL)
@@ -278,7 +282,7 @@ describe('Webhook trigger (e2e)', () => {
       .set('Authorization', `Bearer ${other.accessToken}`)
       .set('X-Workspace-Id', otherWs)
       .send({ endpointPath: victimPath });
-    expectConflict(patched);
+    expectPathConflict(patched);
     // 거부된 PATCH 는 아무것도 반영하지 않는다 — 경로가 원래 값 그대로다.
     const ownAfter = await db.query<{ endpoint_path: string }>(
       'SELECT endpoint_path FROM trigger WHERE id = $1',
@@ -379,17 +383,6 @@ describe('Webhook trigger (e2e)', () => {
       .set('X-Workspace-Id', who.workspaceId)
       .send({ endpointPath });
   }
-
-  /** 살아 있는 트리거와 겹칠 때(B5)와 **같은** 응답이어야 한다 — 경로가 한때 쓰였다는 사실을 가르지 않는다. */
-  const expectPathConflict = (res: request.Response) => {
-    expect(res.status).toBe(409);
-    expect(res.body.error.code).toBe('RESOURCE_CONFLICT');
-    expect(res.body.error.details).toEqual({
-      field: 'endpoint_path',
-      code: 'TRIGGER_ENDPOINT_PATH_CONFLICT',
-    });
-    expect(JSON.stringify(res.body)).not.toContain('워크스페이스');
-  };
 
   it('B7. 지우거나 바꾼 경로 — 다른 워크스페이스는 409, 같은 워크스페이스는 다시 쓴다 (V133, 데이터 모델 §2.8.1)', async () => {
     // 전역 UNIQUE(V132)는 **동시에 존재하는** 중복만 막았다. 주인이 트리거를 지우거나 경로를 바꾸면 옛 경로가 비어,

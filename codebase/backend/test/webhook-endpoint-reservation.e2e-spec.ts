@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll } from '@jest/globals';
+import crypto from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { Client } from 'pg';
@@ -16,7 +17,8 @@ import { createDbClient } from './helpers/db';
  * **어떻게** — V131 가드(`trigger-endpoint-path-dedupe`)와 같다. 한 트랜잭션 안에 임시 스키마를 만들고 `trigger` ·
  * `workspace` 의 사본(컬럼 · 기본값 · CHECK · PK — FK 는 복사하지 않는다)을 둔 뒤, `search_path` 로 V133 의 비한정 이름
  * (새 테이블 · FK 대상 · 함수 · 트리거 대상 · 백필 원본)을 사본에 향하게 해 실행하고 ROLLBACK 한다. 공유 e2e DB 의
- * `public` 은 건드리지 않는다.
+ * `public` 은 건드리지 않는다. 예외는 두 연결의 경합 테스트 하나다 — 서로의 쓰기를 봐야 해서 Flyway 가 적용한 `public` 의
+ * 예약 트리거 위에서 돌고, 자기 픽스처(무작위 id · 경로)를 끝에 지운다.
  *
  * **이 파일은 V133 의 메커니즘(백필 · DB 트리거)만 본다** — `spec/1-data-model.md` frontmatter `code:` 의 전용 가드라, 서비스 ·
  * API 시나리오(409 응답 형태 · 수신 404)를 여기에 얹으면 그 문서가 무관한 기능 변경의 게이트가 된다. 그쪽은 `webhook-trigger`
@@ -208,6 +210,108 @@ describe('V133 웹훅 경로 영구 예약 (e2e)', () => {
       rejected(await insertAttempt(WS.b, S));
     } finally {
       await db.query('ROLLBACK');
+    }
+  });
+
+  /**
+   * **같은 새 경로를 두 워크스페이스가 동시에 처음 잡는다** — 예약 함수의 `ON CONFLICT DO NOTHING` 뒤 재조회가 이 경합을 위한
+   * 것이다. 전역 UNIQUE 만으로도 한쪽만 통과하므로 «하나만 성공» 은 예약을 가르지 못한다. 가르는 것은 둘이다:
+   *
+   * - (a) 먼저 잡은 쪽이 커밋하면 기다리던 쪽은 PK 위반이 아니라 **주인 라벨**로 거부된다 — 평범한 INSERT 였다면
+   *   `webhook_endpoint_reservation_pkey` 가 나와 서비스가 409 로 옮기지 못한다(500).
+   * - (b) 먼저 잡은 쪽이 롤백하면 예약도 사라져 기다리던 쪽이 주인이 된다 — 실패한 생성이 경로를 묶지 않는다.
+   *
+   * 인터리빙 지점은 «기다리는 쪽이 실제로 잠금 대기 중» 이다 — `pg_stat_activity` 로 확인한 뒤에 먼저 잡은 쪽을 끝낸다
+   * (확인 없이 끝내면 순서대로 돈 것과 구별되지 않는다). 두 연결이 서로의 쓰기를 봐야 하므로 위의 임시 스키마(한 트랜잭션)를
+   * 쓸 수 없다 — `public` 에 이 테스트만의 픽스처를 만들고 끝에 지운다.
+   */
+  it('동시에 처음 잡는 같은 경로 — 커밋되면 기다리던 쪽은 주인 라벨로 거부, 롤백되면 기다리던 쪽이 주인이 된다', async () => {
+    const userId = crypto.randomUUID();
+    const ws = { a: crypto.randomUUID(), b: crypto.randomUUID() };
+    const wf = { a: crypto.randomUUID(), b: crypto.randomUUID() };
+    await db.query(
+      `INSERT INTO "user" (id, email, name) VALUES ($1, $2, 'v133-race')`,
+      [userId, `v133-race-${userId}@example.com`],
+    );
+    for (const key of ['a', 'b'] as const) {
+      await db.query(
+        `INSERT INTO workspace (id, name, owner_id, slug, type) VALUES ($1, $2, $3, $4, 'team')`,
+        [ws[key], `v133-race-${key}`, userId, `v133-race-${ws[key]}`],
+      );
+      await db.query(
+        `INSERT INTO workflow (id, workspace_id, name, created_by) VALUES ($1, $2, 'v133-race', $3)`,
+        [wf[key], ws[key], userId],
+      );
+    }
+
+    const first = createDbClient();
+    const second = createDbClient();
+    await first.connect();
+    await second.connect();
+    const insert = (client: Client, key: 'a' | 'b', path: string) =>
+      client.query(
+        `INSERT INTO trigger (workspace_id, workflow_id, type, name, endpoint_path)
+         VALUES ($1, $2, 'webhook', 'v133-race', $3)`,
+        [ws[key], wf[key], path],
+      );
+    const secondPid = (
+      await second.query<{ pid: number }>('SELECT pg_backend_pid() AS pid')
+    ).rows[0].pid;
+    const waitUntilSecondBlocks = async () => {
+      for (let i = 0; i < 200; i++) {
+        const r = await db.query<{ wait_event_type: string | null }>(
+          'SELECT wait_event_type FROM pg_stat_activity WHERE pid = $1',
+          [secondPid],
+        );
+        if (r.rows[0]?.wait_event_type === 'Lock') return;
+        await new Promise((resolve) => setTimeout(resolve, 25));
+      }
+      throw new Error('두 번째 연결이 잠금 대기에 들어가지 않았다');
+    };
+    const ownerOf = async (path: string) =>
+      (
+        await db.query<{ workspace_id: string | null }>(
+          'SELECT workspace_id FROM webhook_endpoint_reservation WHERE endpoint_path = $1',
+          [path],
+        )
+      ).rows;
+
+    try {
+      // (a) 먼저 잡은 쪽이 커밋
+      const committed = crypto.randomUUID();
+      await first.query('BEGIN');
+      await insert(first, 'a', committed);
+      const loser = insert(second, 'b', committed).then(
+        () => null,
+        (err: unknown) => err as { code?: string; constraint?: string },
+      );
+      await waitUntilSecondBlocks();
+      await first.query('COMMIT');
+      const err = await loser;
+      expect(err).not.toBeNull();
+      expect(err).toMatchObject({ code: '23505', constraint: OWNER_LABEL });
+      expect(await ownerOf(committed)).toEqual([{ workspace_id: ws.a }]);
+
+      // (b) 먼저 잡은 쪽이 롤백
+      const rolledBack = crypto.randomUUID();
+      await first.query('BEGIN');
+      await insert(first, 'a', rolledBack);
+      const winner = insert(second, 'b', rolledBack).then(
+        () => null,
+        (err_: unknown) => err_,
+      );
+      await waitUntilSecondBlocks();
+      await first.query('ROLLBACK');
+      expect(await winner).toBeNull();
+      expect(await ownerOf(rolledBack)).toEqual([{ workspace_id: ws.b }]);
+    } finally {
+      await first.end();
+      await second.end();
+      // 워크스페이스 삭제가 워크플로 · 트리거를 지우고 예약은 주인 없이 남긴다(무작위 경로라 다른 테스트와 겹치지 않는다)
+      await db.query('DELETE FROM workspace WHERE id = ANY($1)', [
+        [ws.a, ws.b],
+      ]);
+      await db.query('DELETE FROM "user" WHERE id = $1', [userId]);
     }
   });
 });
