@@ -41,7 +41,7 @@ describe('연결 테스트 결과 코드', () => {
       { success: false, message: '', code: 'DB_CONNECTION_ERROR' },
       // @ts-expect-error 노드 런타임 코드(HTTP 노드) — 연결 테스트는 HTTP_CONNECT_FAILED 다
       { success: false, message: '', code: 'HTTP_TRANSPORT_FAILED' },
-      // @ts-expect-error 오타
+      // @ts-expect-error 오타 — 어휘에 없는 값
       { success: false, message: '', code: 'DB_AUTH_FAIL' },
     ];
     expect(accepted).toHaveLength(5);
