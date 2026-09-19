@@ -25,7 +25,8 @@ import { createDbClient } from './helpers/db';
  * **컬럼 층은 양방향이다** — «컬럼» 테스트가 TypeORM 스키마 비교기(synchronize 가 실행할 DDL 을 기록만 하는 `log()`)로
  * 컬럼 정의(타입 · NULL · 기본값 · enum 타입 이름 · 추가 · 삭제)를 본다. DB 에만 있는 컬럼도 `DROP COLUMN` 으로 걸리므로,
  * 선언을 일부러 생략한 컬럼은 `UNDECLARED_COLUMNS` 에 이유와 함께 적는다. 근거·실측:
- * `plan/complete/entity-column-declaration-drift.md`.
+ * `plan/complete/entity-column-declaration-drift.md`. 그 뒤 두 테스트가 이 층의 빈칸을 막는다 — 비교기 연결이 정말 읽기 전용인가
+ * (예방 계층의 회귀), 새로 선언한 기본값이 insert 뒤 돌아오는가. 근거: `plan/complete/column-guard-gaps.md`.
  *
  * 부분 조건과 CHECK 식은 **문자열로 비교하지 않는다**. 선언의 식으로 임시 테이블(`LIKE` 원본)에 같은 인덱스 · 제약을
  * 실제로 만들고, Postgres 가 정규화한 정의끼리 비교한다 — 표기가 달라도(`!=` / `<>`, `IN (…)` / `= ANY (…)`) 같은
@@ -593,15 +594,15 @@ describe('엔티티 스키마 선언 ↔ 실제 DB (인덱스 · 제약은 선�
    */
   it('비교기 연결은 읽기 전용이다 — DDL 을 거부한다', async () => {
     const readOnly = new DataSource(readOnlyDataSourceOptions());
-    await readOnly.initialize();
     try {
+      await readOnly.initialize();
       await expect(
         readOnly.query(
           'CREATE TEMP TABLE entity_schema_read_only_probe (x int)',
         ),
       ).rejects.toThrow(/read-only transaction/);
     } finally {
-      await readOnly.destroy();
+      if (readOnly.isInitialized) await readOnly.destroy();
     }
   });
 
@@ -612,9 +613,9 @@ describe('엔티티 스키마 선언 ↔ 실제 DB (인덱스 · 제약은 선�
    */
   it('선언한 DB 기본값은 값을 생략한 insert 뒤 엔티티로 돌아온다 — model_config.kind · workflow_assistant_session.last_interaction_at', async () => {
     const qr = ds.createQueryRunner();
-    await qr.connect();
-    await qr.startTransaction();
     try {
+      await qr.connect();
+      await qr.startTransaction();
       const [user] = (await qr.query(
         `INSERT INTO "user" (email, name) VALUES ($1, 'default-probe') RETURNING id`,
         [`default-probe-${Date.now()}-${Math.random()}@example.com`],
@@ -652,8 +653,12 @@ describe('엔티티 스키마 선언 ↔ 실제 DB (인덱스 · 제약은 선�
       expect(session.lastInteractionAt).toBeInstanceOf(Date);
       expect(session.lastInteractionAt.getTime()).toBe(now.getTime());
     } finally {
-      await qr.rollbackTransaction();
-      await qr.release();
+      // 롤백이 실패해도 연결은 풀에 돌려준다 — 새면 뒤 테스트들의 풀 여유를 갉아먹는다.
+      try {
+        if (qr.isTransactionActive) await qr.rollbackTransaction();
+      } finally {
+        await qr.release();
+      }
     }
   });
 });
