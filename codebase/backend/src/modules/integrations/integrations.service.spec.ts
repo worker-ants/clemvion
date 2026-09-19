@@ -2082,7 +2082,18 @@ describe('IntegrationsService', () => {
           status: 'error',
           statusReason: 'auth_failed',
         });
-        integrationRepo.findOne.mockResolvedValue(stale);
+        // 저장 뒤 다시 읽은 행 — DB 가 정한 updatedAt 과, 테스트 동안 logUsage 가 쓴 lastUsedAt 이 들어 있다.
+        const reread = makeIntegration({
+          ...stale,
+          credentials: { token: 'new' },
+          status: 'connected',
+          statusReason: null,
+          lastUsedAt: new Date('2026-09-19T05:00:00Z'),
+          updatedAt: new Date('2026-09-19T05:00:01Z'),
+        });
+        integrationRepo.findOne
+          .mockResolvedValueOnce(stale)
+          .mockResolvedValueOnce(reread);
 
         const result = await service.rotate(
           'int-1',
@@ -2106,7 +2117,6 @@ describe('IntegrationsService', () => {
           'lastRotatedAt',
           'status',
           'statusReason',
-          'updatedAt',
         ]);
         expect(saved).toMatchObject({
           id: 'int-1',
@@ -2115,13 +2125,13 @@ describe('IntegrationsService', () => {
           statusReason: null,
           lastError: null,
         });
-        // 응답은 부분 save 의 반환값이 아니라 갱신한 엔티티로 만든다 — updatedAt 도 저장한 값과 같아야 한다.
+        // 응답은 저장 뒤 다시 읽은 행이다 — 메모리의 엔티티가 아니다.
+        expect(integrationRepo.findOne).toHaveBeenLastCalledWith({
+          where: { id: 'int-1' },
+        });
         expect(result.status).toBe('connected');
-        expect(result.statusReason).toBeNull();
-        expect(result.name).toBe(stale.name);
-        expect(saved.updatedAt).toBeInstanceOf(Date);
-        expect(result.updatedAt).toBe(saved.updatedAt);
-        expect(result.lastRotatedAt).toBe(saved.updatedAt);
+        expect(result.updatedAt).toEqual(reread.updatedAt);
+        expect(result.lastUsedAt).toEqual(reread.lastUsedAt);
       });
 
       it('연결 테스트는 종류를 가리지 않고 한 줄을 공유한다 — database · http · 저장된 통합의 entity tester', async () => {

@@ -1117,31 +1117,32 @@ export class IntegrationsService {
     }
 
     // 바꾸는 컬럼만 저장한다 — 엔티티 전체를 `save` 하면, 위 연결 테스트(실제 접속이라 수 초 걸린다) 동안 `logUsage` 가
-    // 원자적 `update` 로 쓴 `lastUsedAt` 같은 컬럼을 읽어 둔 옛 값으로 되돌린다. 부분 객체 `save` 의 반환값은 재조회가
-    // 아니므로 응답은 갱신한 엔티티로 만든다 — 그래서 `updatedAt` 도 명시한다. 명시하지 않으면 DB 는 `CURRENT_TIMESTAMP`
-    // 로 갱신되지만(TypeORM `@UpdateDateColumn`) 응답의 엔티티에는 회전 전 시각이 남는다.
-    const now = new Date();
+    // 원자적 `update` 로 쓴 `lastUsedAt` 같은 컬럼을 읽어 둔 옛 값으로 되돌린다.
     const changes = {
       credentials: merged,
-      lastRotatedAt: now,
-      updatedAt: now,
+      lastRotatedAt: new Date(),
       status: 'connected' as const,
       statusReason: null,
       lastError: null,
     };
     await this.integrationRepository.save({ id: entity.id, ...changes });
-    Object.assign(entity, changes);
+    // 응답은 저장 뒤 다시 읽은 행으로 만든다 — `updated_at` 은 DB 가 정하고(메모리의 엔티티에 값을 넣어도 DB 값과 어긋났다 —
+    // e2e 실측 1ms), 테스트 동안 `logUsage` 가 쓴 컬럼도 그대로 보인다. 행이 사라졌으면 갱신한 엔티티로 대신한다.
+    const saved =
+      (await this.integrationRepository.findOne({
+        where: { id: entity.id },
+      })) ?? Object.assign(entity, changes);
     await this.auditLogsService.record({
       workspaceId,
       userId,
       action: AUDIT_ACTIONS.INTEGRATION_ROTATED,
       resourceType: 'integration',
-      resourceId: entity.id,
-      details: { authType: entity.authType },
+      resourceId: saved.id,
+      details: { authType: saved.authType },
     });
     // 회전된 자격증명의 stale 연결을 전 인스턴스에서 즉시 차단 (MTTR).
-    await this.broadcastCredentialChange(entity.id);
-    return this.toPublic(entity);
+    await this.broadcastCredentialChange(saved.id);
+    return this.toPublic(saved);
   }
 
   async requestScopes(
