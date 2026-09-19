@@ -80,6 +80,15 @@ R1 · R2 는 «패턴이 하중을 받는가» 를 가르는 쌍이다 — R1 �
 | P4 — 아무것도 못 잡는 패턴 추가 | RED(패턴별 표본 단언) | RED |
 | S1 — `log()` 뒤 DDL 한 문 | RED(카탈로그 스냅샷) | RED |
 
+**리뷰 2라운드 뒤 보강** (`review/code/2026/09/19/17_25_09` testing WARNING 1 — 카탈로그 비교는 **탐지**뿐 **예방**이 아니다): `log()` 는
+자기 커넥션을 써서 트랜잭션으로 감쌀 수 없다. 비교기 전용 `DataSource` 를 **읽기 전용 세션**(`extra.options: -c default_transaction_read_only=on`)
+으로 연다 — 전제가 깨져 DDL 을 실행하려 하면 Postgres 가 거부한다. 카탈로그 비교는 두 번째 방어로 남긴다. 읽기 전용 세션에서도 6건 GREEN
+(= `initialize()` · `log()` 가 쓰기를 하지 않는다는 실측).
+
+| 뮤턴트 | 예측 | 실측 |
+|---|---|---|
+| RO1 — 읽기 전용 `DataSource` 에서 `build()`(DDL 실행) 먼저 호출 | RED + 카탈로그 불변 | RED(`cannot execute ALTER TABLE in a read-only transaction`) · 카탈로그 해시 · 제약 703 · 인덱스 182 그대로 |
+
 ## 착수 순서 기록
 
 기준선(비교기 결과가 트래커의 아홉과 같은지)을 확인하느라 아홉 곳의 수정을 `--impl-prep` 보다 **먼저** 했다. 고치기 전 코드의 RED 는

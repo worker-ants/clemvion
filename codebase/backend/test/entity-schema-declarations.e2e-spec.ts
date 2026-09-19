@@ -1,7 +1,9 @@
 import { describe, it, expect, beforeAll, afterAll } from '@jest/globals';
 import { Client } from 'pg';
 import { DataSource } from 'typeorm';
+import type { DataSourceOptions } from 'typeorm';
 import type { EntityMetadata } from 'typeorm';
+import type { SqlInMemory } from 'typeorm/driver/SqlInMemory';
 
 import { ROOT_ENTITIES } from '../src/database/root-entities';
 import { createDbClient } from './helpers/db';
@@ -178,6 +180,20 @@ function reportMatch(
   }
 }
 
+function dataSourceOptions(): DataSourceOptions {
+  return {
+    type: 'postgres',
+    host: process.env.DB_HOST ?? 'postgres',
+    port: Number(process.env.DB_PORT ?? '5432'),
+    username: process.env.DB_USERNAME ?? 'clemvion',
+    password: process.env.DB_PASSWORD ?? 'clemvion-e2e',
+    database: process.env.DB_DATABASE ?? 'clemvion_e2e',
+    // `ROOT_ENTITIES` 는 `readonly` 튜플이라 펼쳐 넘긴다 — `app.module.ts` 와 같은 형태.
+    entities: [...ROOT_ENTITIES],
+    synchronize: false,
+  };
+}
+
 describe('엔티티 스키마 선언 ↔ 실제 DB (선언이 있으면 DB 에도 그대로 있다)', () => {
   let db: Client;
   let ds: DataSource;
@@ -186,17 +202,7 @@ describe('엔티티 스키마 선언 ↔ 실제 DB (선언이 있으면 DB 에�
   beforeAll(async () => {
     db = createDbClient();
     await db.connect();
-    ds = new DataSource({
-      type: 'postgres',
-      host: process.env.DB_HOST ?? 'postgres',
-      port: Number(process.env.DB_PORT ?? '5432'),
-      username: process.env.DB_USERNAME ?? 'clemvion',
-      password: process.env.DB_PASSWORD ?? 'clemvion-e2e',
-      database: process.env.DB_DATABASE ?? 'clemvion_e2e',
-      // `ROOT_ENTITIES` 는 `readonly` 튜플이라 펼쳐 넘긴다 — `app.module.ts` 와 같은 형태.
-      entities: [...ROOT_ENTITIES],
-      synchronize: false,
-    });
+    ds = new DataSource(dataSourceOptions());
     await ds.initialize();
   });
 
@@ -519,7 +525,11 @@ describe('엔티티 스키마 선언 ↔ 실제 DB (선언이 있으면 DB 에�
 
   it('컬럼 — TypeORM 스키마 비교기가 컬럼 정의 변경을 내지 않는다 (선언을 생략한 컬럼만 예외)', async () => {
     // `log()` 는 카탈로그를 읽은 뒤 SQL 기록 모드(`enableSqlMemory`)로 DDL 을 모으기만 한다 — DB 를 바꾸지 않는다.
-    // 그 전제는 공개 계약이 아니라 TypeORM 소스로 확인한 것이라, 호출 전후 카탈로그가 같은지 여기서 직접 본다.
+    // 그 전제는 공개 계약이 아니라 TypeORM 소스로 확인한 것이다. 그래서 두 겹으로 지킨다:
+    //   (1) 예방 — 비교기는 **읽기 전용 세션**(`default_transaction_read_only=on`)으로만 연결한다. 전제가 깨져 DDL 을
+    //       실행하려 하면 Postgres 가 거부하고 이 테스트가 실패한다 — 공유 e2e DB 는 바뀌지 않는다. `log()` 는 자기
+    //       커넥션을 쓰므로 트랜잭션으로 감쌀 수 없어 세션 속성으로 막는다.
+    //   (2) 탐지 — 호출 전후 카탈로그(컬럼 정의 · enum 타입)가 같은지 직접 본다.
     const catalog = async (): Promise<unknown> =>
       (
         await db.query(
@@ -531,7 +541,17 @@ describe('엔티티 스키마 선언 ↔ 실제 DB (선언이 있으면 DB 에�
         )
       ).rows[0];
     const before = await catalog();
-    const log = await ds.driver.createSchemaBuilder().log();
+    const readOnly = new DataSource({
+      ...dataSourceOptions(),
+      extra: { options: '-c default_transaction_read_only=on' },
+    } as DataSourceOptions);
+    await readOnly.initialize();
+    let log: SqlInMemory;
+    try {
+      log = await readOnly.driver.createSchemaBuilder().log();
+    } finally {
+      await readOnly.destroy();
+    }
     expect(await catalog()).toEqual(before);
     const columnLevel = log.upQueries
       .map((q) => q.query.replace(/\s+/g, ' ').trim())
