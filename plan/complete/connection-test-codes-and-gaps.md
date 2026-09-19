@@ -1,9 +1,10 @@
 ---
 title: 연결 테스트 결과 코드를 상수 · literal union 으로 · 테스트 빈칸 셋
-status: in-progress
+status: complete
 owner: developer
 worktree: tester-codes-4b9e17
 started: 2026-09-19
+completed: 2026-09-20
 spec_impact: none
 ---
 
@@ -58,6 +59,8 @@ spec_impact: none
   판별력 확인: rotate «다시 읽지 않음» RED · mysql «require 는 검증 안 함» RED · 타입 «`code` 를 `string` 으로» 는 tsc 에서 쓰이지 않는
   `@ts-expect-error` 3건). 좁히자 생산자 일곱째(게이트 코드)가 드러났다.
 - [x] TEST WORKFLOW (lint · unit · build · e2e 364) — lint 가 `@ts-expect-error` 설명 길이 한 건을 잡아 고쳤다
-- [ ] `/ai-review` 수렴
-- [ ] `--impl-done`
-- [ ] 트래커 두 항목 해소 · 이 plan `plan/complete/` 로
+- [x] `/ai-review` 수렴 — 1라운드 `review/code/2026/09/19/23_34_45`(Warning 2 — MakeShop `pingConnection` 런타임 테스트 0건 · 타입 계약이
+  게이트 무리를 빠뜨림 → `287aa2b89`) · 2라운드 `23_58_53`(Critical 0 · Warning 0)
+- [x] `--impl-done` — `review/consistency/2026/09/20/00_07_48`(scope `spec/2-navigation/` + 보정 블록) BLOCK: NO, Critical · Warning 0.
+  INFO: §5.9 MakeShop «정책 동일» 범위(트래커 항목에 합침) · DTO `code` 의 Swagger enum(다음에 그 DTO 를 건드릴 때) · 상수 케이싱(선례 동일)
+- [x] 트래커 두 항목 해소 + spec 항목 하나 등재(§5.3 · §14.1 코드 둘, §5.9 범위) · 이 plan `plan/complete/` 로
