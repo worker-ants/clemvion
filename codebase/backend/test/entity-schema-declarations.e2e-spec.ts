@@ -14,9 +14,13 @@ import { createDbClient } from './helpers/db';
  * 믿고 앱 검사를 뺀다). 사람이 세 번 손으로 고쳤는데도 여덟 곳이 남아 있었다.
  * 근거·실측: `plan/complete/entity-schema-declaration-drift.md`.
  *
- * **방향은 한쪽이다** — 선언이 있으면 DB 에도 그대로 있어야 한다. DB 에만 있는 인덱스(선언 생략)는 결함이 아니다.
- * 인덱스 방향(`DESC`)은 TypeORM `@Index` 가 표현하지 못해 보지 않는다. 컬럼 정의(타입 · 기본값 · enum 이름)는 이
- * 가드 밖이다.
+ * **인덱스 · 제약 층의 방향은 한쪽이다** — 선언이 있으면 DB 에도 그대로 있어야 한다. DB 에만 있는 인덱스(선언 생략)는
+ * 결함이 아니다. 인덱스 방향(`DESC`)은 TypeORM `@Index` 가 표현하지 못해 보지 않는다.
+ *
+ * **컬럼 층은 양방향이다** — 마지막 테스트가 TypeORM 스키마 비교기(synchronize 가 실행할 DDL 을 기록만 하는 `log()`)로
+ * 컬럼 정의(타입 · NULL · 기본값 · enum 타입 이름 · 추가 · 삭제)를 본다. DB 에만 있는 컬럼도 `DROP COLUMN` 으로 걸리므로,
+ * 선언을 일부러 생략한 컬럼은 `UNDECLARED_COLUMNS` 에 이유와 함께 적는다. 근거·실측:
+ * `plan/complete/entity-column-declaration-drift.md`.
  *
  * 부분 조건과 CHECK 식은 **문자열로 비교하지 않는다**. 선언의 식으로 임시 테이블(`LIKE` 원본)에 같은 인덱스 · 제약을
  * 실제로 만들고, Postgres 가 정규화한 정의끼리 비교한다 — 표기가 달라도(`!=` / `<>`, `IN (…)` / `= ANY (…)`) 같은
@@ -32,6 +36,34 @@ const FK_ACTION: Readonly<Record<string, string>> = {
   n: 'SET NULL',
   d: 'SET DEFAULT',
 };
+
+/**
+ * 컬럼 층에서 선언을 **일부러 생략한** 컬럼. TypeORM 비교기는 이것을 «DB 에만 있는 컬럼» 으로 보고 `DROP COLUMN` 을 낸다.
+ * 키는 비교기가 내는 문 그대로(공백 정규화), 값은 생략한 이유. 새 생략은 여기에 이유와 함께 더한다.
+ */
+const UNDECLARED_COLUMNS: ReadonlyMap<string, string> = new Map([
+  [
+    'ALTER TABLE "document_chunk" DROP COLUMN "embedding"',
+    '`vector` — TypeORM 이 모르는 타입이라 원시 SQL 로만 다룬다',
+  ],
+  [
+    'ALTER TABLE "agent_memory" DROP COLUMN "embedding"',
+    '`vector` — TypeORM 이 모르는 타입이라 원시 SQL 로만 다룬다',
+  ],
+]);
+
+/**
+ * 비교기 `upQueries` 중 **컬럼 정의**(추가 · 삭제 · 타입 · NULL · 기본값 · enum 타입 · 이름)를 바꾸는 문.
+ * 나머지(FK · 인덱스 · 유니크를 이름 차이로 지웠다 다시 만드는 문, DB 에만 있는 `COMMENT ON`)는 선언의 사실과 무관해 보지 않는다 —
+ * 인덱스 · 제약 층은 앞의 세 테스트가 이름까지 따로 본다.
+ */
+const COLUMN_LEVEL: ReadonlyArray<RegExp> = [
+  /^ALTER TABLE "[^"]+" ADD "/,
+  /\bDROP COLUMN\b/,
+  /\bALTER COLUMN\b/,
+  /\bRENAME COLUMN\b/,
+  /^(ALTER|CREATE|DROP) TYPE\b/,
+];
 
 interface DbIndex {
   name: string;
@@ -437,5 +469,19 @@ describe('엔티티 스키마 선언 ↔ 실제 DB (선언이 있으면 DB 에�
     }
     expect(checked).toBeGreaterThan(0);
     expect(problems).toEqual([]);
+  });
+
+  it('컬럼 — TypeORM 스키마 비교기가 컬럼 정의 변경을 내지 않는다 (선언을 생략한 컬럼만 예외)', async () => {
+    // `log()` 는 카탈로그를 읽은 뒤 SQL 기록 모드(`enableSqlMemory`)로 DDL 을 모으기만 한다 — DB 를 바꾸지 않는다.
+    const log = await ds.driver.createSchemaBuilder().log();
+    const columnLevel = log.upQueries
+      .map((q) => q.query.replace(/\s+/g, ' ').trim())
+      .filter((q) => COLUMN_LEVEL.some((rx) => rx.test(q)));
+    expect(columnLevel.filter((q) => !UNDECLARED_COLUMNS.has(q))).toEqual([]);
+    // 예외 목록이 낡지 않았다 — 목록의 문이 실제로 나와야 한다(누가 선언하면 예외가 필요 없어졌다고 실패한다).
+    // 이 단언이 비교기가 실제로 돌았다는 증거도 된다.
+    expect(
+      [...UNDECLARED_COLUMNS.keys()].filter((q) => !columnLevel.includes(q)),
+    ).toEqual([]);
   });
 });

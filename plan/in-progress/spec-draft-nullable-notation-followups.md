@@ -4857,6 +4857,12 @@ field: T | null;
       라 적는데 실제는 `ALLOW_PRIVATE_HOST_TARGETS=true` 가 아니면 막는 **opt-out** 이다(`smtp-host-guard.ts`). 위 «SMTP SSRF 가드에 CGNAT 이
       없다» 항목과 같은 턴에.
 
+- [ ] **`spec/0-overview.md` Rationale 이 백엔드 ORM 을 Prisma 로 적는다 — 실제는 TypeORM** (planner, 낮음, 2026-09-19 등재 ·
+      `--impl-prep` `review/consistency/2026/09/19/16_54_09` rationale_continuity INFO 2). «DB 마이그레이션 도구로 Flyway 채택» 절의 배경 ·
+      trade-off 가 «NestJS + Prisma» · «Prisma client 의 schema» 를 전제한다. 코드베이스에 `prisma` 의존성 · `schema.prisma` 가 없다 —
+      이중 source 는 **TypeORM 엔티티 데코레이터**와 Flyway SQL 이고, 그 drift 는 `entity-schema-declarations.e2e-spec.ts`(인덱스 · 제약 층 #1354 ·
+      컬럼 층)가 막는다. 사실 정정이다.
+
 ## 종결 조건
 
 **형제 plan 은 이미 종결됐다** (`cce8a188b`, 2026-09-04). `entity-nullable-column-type-mismatch.md`

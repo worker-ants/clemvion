@@ -48,8 +48,25 @@ e2e 전체로 확인한다.
 - 비교기의 `upQueries` 중 **컬럼 층** 문(`ADD "컬럼"` · `DROP COLUMN` · `ALTER COLUMN` · `ALTER/CREATE/DROP TYPE` · `RENAME COLUMN`)이 0 이어야 한다.
 - 예외는 선언을 생략한 컬럼 목록(지금 `embedding` 둘) — 문자열 그대로. **예외 목록이 낡지 않았는지도 본다**: 목록의 문이 실제로 나와야 한다
   (누가 `embedding` 을 선언하면 예외가 필요 없어졌다고 실패한다).
+- **트래커가 물은 «선언 생략 vs 거짓 선언» 기준은 이것이다**: 비교기가 내는 컬럼 층 문은 전부 결함(거짓 선언 — 생략해 TypeORM 이 추론한
+  값이 DB 와 다르면 그 추론값이 곧 거짓 선언이다)이고, **예외는 선언 자체를 두지 않은 컬럼(`embedding` 둘)뿐**이며 그것도 목록에 이유와 함께
+  이름을 올려야 한다(`--impl-prep` `review/consistency/2026/09/19/16_54_09` plan_coherence INFO 6).
 - 이 층은 **양방향**이다 — 인덱스 · 제약 층(선언이 있으면 DB 에도)과 달리, DB 에만 있는 컬럼도 `DROP COLUMN` 으로 걸린다. 선언 생략은
   예외 목록에 이름과 이유를 적어야 한다. 가드 머리말의 «컬럼 정의는 이 가드 밖» 문장을 고친다.
+
+## 실측 — 가드 뮤턴트 (2026-09-19, 일회용 `pgvector/pgvector:pg18` 에 V001~V132, 예측을 먼저 적고 실행)
+
+같은 e2e 파일을 그 DB 에 대고 jest 로 컬럼 테스트만 돌렸다(`-t «컬럼 — TypeORM»`). 원복은 원본 바이트 되쓰기 + 바이트 일치 단언.
+
+| 뮤턴트 | 예측 | 실측 |
+|---|---|---|
+| C1~C9 — 아홉 수정을 하나씩 되돌림 | 전부 RED | 전부 RED |
+| A1 — 예외 목록에서 `agent_memory.embedding` 빼기 | RED | RED |
+| A2 — 없는 문(`node.ghost`)을 예외 목록에 추가 | RED(낡은 예외) | RED |
+| R1 — 컬럼 층 패턴에서 `ALTER COLUMN` 제거(단독) | GREEN — 고친 코드엔 걸릴 문이 없다 | GREEN |
+| R2 — R1 + C8(기본값 되돌림) | GREEN — 기본값 drift 는 `ALTER COLUMN` 으로만 나온다 | GREEN |
+
+R1 · R2 는 «패턴이 하중을 받는가» 를 가르는 쌍이다 — R1 만으로는 못 가르고, R2 가 그 패턴 없이는 기본값 drift 를 놓친다는 것을 보인다.
 
 ## 착수 순서 기록
 
@@ -75,9 +92,13 @@ e2e 전체로 확인한다.
 
 ## 체크리스트
 
-- [ ] `--impl-prep spec/2-navigation/` — 1차 BLOCK: YES(위), spec PR 머지 뒤 재실행
-- [ ] 가드 테스트 — GREEN · 뮤턴트(아홉 수정 각각 되돌림 + 예외 목록 둘) RED
+- [x] `--impl-prep spec/2-navigation/` — 1차 BLOCK: YES(위), #1357 머지 뒤 재실행 `review/consistency/2026/09/19/16_54_09` **BLOCK: NO**
+      (Critical 0 · WARNING 1 · INFO 10). 번들이 예산 초과라 다섯 프롬프트에 «직접 읽을 것» 블록(`spec/1-data-model.md` · 브랜치 diff · plan)을
+      덧붙여 돌렸다. WARNING 1(`entity-schema-` / `entity-column-` plan 이름이 한 단어 차이) → 커밋 · 트래커에 «인덱스 · 제약 층(#1354)» /
+      «컬럼 층(이 작업)» 으로 층을 붙여 쓴다. INFO 6 · 7 → 위 가드 절 · 아래 `--impl-done` 항목. INFO 2(`spec/0-overview.md` Rationale 의
+      Prisma 서술)는 이 작업과 무관 — 트래커
+- [x] 가드 테스트 — GREEN · 뮤턴트(아홉 수정 각각 되돌림 + 예외 목록 둘) RED, 패턴 하중 쌍(R1 · R2) 예측대로 — 위 «가드 뮤턴트» 표
 - [ ] TEST WORKFLOW (lint · unit · build · e2e) + 백엔드 타입체크 ratchet
 - [ ] `/ai-review`
-- [ ] `--impl-done` — `spec/2-navigation/` · `spec/3-workflow-editor/`
+- [ ] `--impl-done` — `spec/2-navigation/` · `spec/3-workflow-editor/` (각각 `spec/1-data-model.md` · 브랜치 diff 를 직접 Read 블록으로 첨부)
 - [ ] 트래커 반영 · 이 plan `complete/` 이동
