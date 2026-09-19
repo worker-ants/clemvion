@@ -1,3 +1,4 @@
+import type { LookupAddress } from 'node:dns';
 import { lookup } from 'node:dns/promises';
 import {
   assertSafeOutboundHostResolved,
@@ -9,7 +10,10 @@ jest.mock('node:dns/promises', () => ({
   lookup: jest.fn(),
 }));
 
-const mockedLookup = jest.mocked(lookup);
+// 가드는 `lookup(host, { all: true })` 오버로드만 쓴다 — `jest.mocked(lookup)` 은 단일 주소 오버로드로 잡혀 배열을 거부한다.
+const mockedLookup = lookup as unknown as jest.MockedFunction<
+  (hostname: string, options: { all: true }) => Promise<LookupAddress[]>
+>;
 
 describe('http-safety — assertSafeOutboundUrl (synchronous literal check)', () => {
   beforeEach(() => {
