@@ -1,9 +1,10 @@
 ---
 title: 통합 연결 테스트 — Database · HTTP 는 실제로 접속해 본다, Google · GitHub · Webhook 은 구조 검증만이라고 적는다
-status: in-progress
+status: complete
 owner: project-planner
 worktree: integration-testers-5c2d91
 started: 2026-09-19
+completed: 2026-09-19
 spec_impact:
   - spec/2-navigation/4-integration.md
 ---
@@ -153,5 +154,5 @@ Cafe24(§5.8) · MakeShop · Google · GitHub · Webhook. (Cafe24 · MakeShop �
       WARNING 4(같은 엔드포인트의 트래커 항목) → 비대상 교차참조 · WARNING 5(`DB_CONNECT_FAILED` ↔ `DB_CONNECTION_ERROR`) → A · F 대비 문장 ·
       INFO 1 → D 괄호 · INFO 2 → F · INFO 3 → J · INFO 4 → A · INFO 5 → G. INFO 6(번들 절단) · 7(원인 칸) 은 조치 불요
 - [x] spec 반영 (planner 커밋 `74087dff6`)
-- [ ] 구현 — `--impl-prep` · 테스터 둘 · 테스트 · 가이드 한 줄 (developer, 같은 PR)
-- [ ] 트래커 등재(위 «비대상» 여섯) · 이 draft `plan/complete/` 로
+- [x] 구현 — `--impl-prep` · 테스터 둘 · 테스트 · 가이드 한 줄 (developer, 같은 PR — `plan/complete/integration-db-http-testers.md`)
+- [x] 트래커 등재(위 «비대상» 여섯) · 이 draft `plan/complete/` 로

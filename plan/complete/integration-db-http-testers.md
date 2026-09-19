@@ -1,16 +1,17 @@
 ---
 title: 통합 연결 테스트 — Database · HTTP 테스터 구현
-status: in-progress
+status: complete
 owner: developer
 worktree: integration-testers-5c2d91
 started: 2026-09-19
+completed: 2026-09-19
 spec_impact: none
 ---
 
 # Database · HTTP 연결 테스터
 
 spec 은 같은 브랜치의 planner 커밋 `74087dff6`(`spec/2-navigation/4-integration.md` §5.3 · §5.4 · §14.1, 근거
-`plan/in-progress/spec-draft-integration-connection-tests.md`)이 정했다. 이 plan 은 그 구현이다.
+`plan/complete/spec-draft-integration-connection-tests.md`)이 정했다. 이 plan 은 그 구현이다.
 
 ## 현재 (main `53335867a`)
 
@@ -84,6 +85,11 @@ spec 은 같은 브랜치의 planner 커밋 `74087dff6`(`spec/2-navigation/4-int
 - [x] 가이드 한 줄(연동 관리 — 서비스별 연결 테스트 범위) — `0aec343e4`, user-guide-writer 위임 뒤 «운영자가 허용한 설치는 예외» 로 한 구절 좁힘 · frontmatter `code:` 에 테스터 둘
 - [x] TEST WORKFLOW (lint · unit · build · e2e) + 백엔드 타입체크 ratchet — lint PASS · unit PASS(backend 9,803 · frontend 6,597 외) ·
       build PASS(ratchet 포함) · e2e PASS(backend 352 · Playwright 51, 커밋 `00e244de6` 기준. 첫 실행의 D RED 는 위 «내 술어가 틀렸다»)
-- [ ] `/ai-review`
-- [ ] `--impl-done spec/2-navigation/`
-- [ ] 트래커 반영(«비대상» 여섯 등재) · 이 plan 과 spec draft **둘**(`spec-draft-integration-connection-tests.md` · `spec-draft-integration-db-test-waits.md`) `complete/` 이동
+- [x] `/ai-review` — 5라운드. `review/code/2026/09/19/13_58_22`(C1 · W9) · `14_29_33`(C1 · W4) · `15_02_57`(C0 · W9) · `15_30_04`(C1 · W8) ·
+      `16_00_06`(C0 · W8), 각 `RESOLUTION.md`. 동작 결함은 1~3라운드에서 닫혔다(DB 닫기 hang · rotate 부분 저장 · 리다이렉트 · query 조립).
+      4라운드 Critical(«DNS 가 슬롯을 영구 점유»)은 musl 실측 5.0초로 반증. 5라운드는 동작 결함 0 — «수렴 예외»(a~d)로 `codebase/` 수정 없이
+      종결, 잔여는 트래커. 리뷰 사이 e2e 가 내 수정 하나(rotate 응답 `updatedAt` 명시 저장)를 반증해 재조회로 바꿨다(`48dfb2f0e`)
+- [x] `--impl-done spec/2-navigation/` — `review/consistency/2026/09/19/16_19_04` **BLOCK: NO** (Critical 0 · WARNING 3). 번들이 예산 초과로
+      대상 spec · diff 를 모두 생략해 다섯 프롬프트에 «직접 읽을 것» 블록(spec 델타 · diff 명령 · 파일 목록)을 덧붙여 돌렸다. WARNING 1(400/422) ·
+      2(Google 가이드) 는 트래커에 있고, 3(`IntegrationTestResult.code` literal union)은 «결과 코드 원시 문자열» 항목에 합쳤다
+- [x] 트래커 반영(«비대상» 여섯 등재 + 리뷰 · consistency 잔여, `PreviewTestResultDto` 항목 종결) · 이 plan 과 spec draft **둘**(`spec-draft-integration-connection-tests.md` · `spec-draft-integration-db-test-waits.md`) `complete/` 이동

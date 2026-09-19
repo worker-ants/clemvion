@@ -4765,6 +4765,8 @@ field: T | null;
       **같은 결정에 묶을 것** (`/ai-review` `review/code/2026/09/19/14_29_33` api_contract INFO): rotate 는 연결 테스트의 세부 `code`
       (`DB_AUTH_FAILED` · `HTTP_AUTH_FAILED` …)를 버리고 늘 `INTEGRATION_TEST_FAILED` 만 준다 — preview-test · `:id/test` 와 세분성이
       다르다. 세부 코드를 `details` 로 실을지 함께 정한다.
+      (`16_00_06` api_contract WARNING 8: 정할 때 `5-system/11-mcp-client.md` 의 400 근거와 `5-system/2-api-convention.md §6` 의 422
+      원칙을 함께 남길 것.)
 
 - [ ] **SMTP SSRF 가드에 CGNAT 대역이 없는데 §5.5 는 막는다고 적는다** (developer→planner, 2026-09-19 등재 · 같은 draft «비대상»).
       `smtp-host-guard.ts` → `ssrf.util.ts` 는 HTTP 가드(`http-safety.ts`)와 **다른 구현**이고 `100.64.0.0/10` 이 빠져 있다.
@@ -4814,6 +4816,10 @@ field: T | null;
       않았다 — 테스트 하나가 스레드 둘을 쥘 수 있다 (3) 근본 해법은 c-ares(`dns.promises.Resolver` + timeout) 또는 해석한 IP 로 직접
       연결(DNS rebinding 도 닫는다)인데, 가드가 노드 실행과 공유라 `/etc/hosts` 의미 차이 · TLS SNI 를 함께 봐야 한다. 리뷰가
       제안한 `Promise.race` 타임아웃은 스레드를 풀지 못해 채택하지 않았다.
+      **실측 · 남은 창 갱신** (`/ai-review` `review/code/2026/09/19/15_30_04` Critical · `16_00_06` WARNING 2): 배포 이미지
+      `node:24-alpine`(musl)에서 응답 없는 네임서버로 `dns.lookup` 은 5.0초 뒤 `EAI_AGAIN` — 슬롯은 Database 약 26초 · HTTP 약 20초에
+      풀린다(상한 JSDoc 에 계산). **glibc(다중 nameserver · attempts)는 재지 않았다** — 다른 베이스 이미지로 옮기면 다시 잴 것. HTTP 의
+      리다이렉트 홉 가드 lookup 은 요청의 `AbortSignal` 밖이라, 신호가 끝난 뒤에도 lookup 하나만큼(5초) 더 걸릴 수 있다.
 
 - [ ] **연결 테스트 결과 코드가 지역화 사전에 없다 — `EMAIL_*` 부터 이미** (developer, 낮음, 2026-09-19 등재 · `/ai-review`
       `review/code/2026/09/19/13_58_22` user_guide_sync INFO). `DB_*` · `HTTP_*` · `EMAIL_*` 가 `backend-labels.ts` `ERROR_KO` ·
@@ -4825,6 +4831,31 @@ field: T | null;
       라, 같은 통합을 동시에 회전하면 둘 다 성공 응답을 받고 나중 것만 남는다. **이 PR 전에도 같은 창이 있었다**(구조 검증만이라 짧았을
       뿐). 막으려면 `updated_at` 조건부 update 나 `@VersionColumn` 과 409 — 버전 컬럼은 마이그레이션이라 따로. 같은 지적의 (b)(테스트
       동안 삭제되면 부분 `save` 가 INSERT 를 시도)는 그 PR 이 `update` + 0행 404 로 닫았다.
+      (`16_00_06` concurrency WARNING 3 이 같은 지적을 다시 냈다 — 처분 변경 없음.)
+
+- [ ] **entity tester 재진입 금지가 문서로만 있다** (developer, 낮음, 2026-09-19 등재 · `/ai-review` `review/code/2026/09/19/16_00_06`
+      concurrency · side_effect WARNING 1). entity tester 는 연결 테스트 동시 상한(2) 안에서 도므로, 등록된 테스터가 `testConnection` ·
+      `previewTest` · `rotate` 를 다시 부르면 슬롯끼리 서로를 기다려 교착한다. 지금 둘(Cafe24 · MakeShop)은 부르지 않고
+      `registerEntityTester` 계약에 적었다. 런타임으로 막으려면 `AsyncLocalStorage` 로 «슬롯 안» 을 표시해 재호출을 즉시 실패시키는 가드와
+      그 회귀 테스트. 새 entity tester 를 붙일 때 같이.
+
+- [ ] **연결 테스트 결과 코드가 원시 문자열로 흩어져 있다** (developer, 낮음, 2026-09-19 등재 · `16_00_06` maintainability WARNING 4).
+      `DB_*` · `HTTP_*` 가 테스터 · spec · e2e 에 리터럴로 반복된다 — 같은 디렉터리의 `MCP_ERROR_CODES` 처럼 `as const` 객체로 모아 오타를
+      컴파일 에러로. `EMAIL_*` 도 같은 형편이라 위 «결과 코드 지역화» 항목과 한 번에 하면 대조 표가 하나로 끝난다.
+      함께: `IntegrationTestResult.code` 가 `string` 이라 노드 런타임 `ErrorCode`(`DB_CONNECTION_ERROR` · `HTTP_TRANSPORT_FAILED` — 이름이
+      가깝다)와 섞어 비교해도 컴파일러가 못 잡는다 — 연결 테스트 코드의 literal union 으로 좁힌다(`--impl-done`
+      `review/consistency/2026/09/19/16_19_04` naming_collision WARNING 3).
+
+- [ ] **연결 테스트 spec 의 빈칸 셋** (developer, 낮음, 2026-09-19 등재 · `16_00_06` testing WARNING 5 · 6 · INFO 5).
+      (1) `buildMysqlSsl` 의 `require` · `verify-full` → `rejectUnauthorized: true` 를 mysql 쪽에서 단언하지 않는다(postgres 만) — 노드와
+      공유하는 보안 매핑이다. (2) `database-driver-sockets.spec.ts` 의 mysql2 케이스는 unit 계층에서 루프백 연결을 실제로 시도한다 —
+      소켓 정리를 `try/finally` 로, 예외적으로 실제 소켓을 쓴다는 주석. (3) rotate 의 `update` 성공 뒤 재조회가 `null` 인 분기(그 사이
+      삭제 → 404) 테스트.
+
+- [ ] **SMTP 가드 주석이 없는 환경변수를 가리킨다** (developer, 낮음, 2026-09-19 등재 · `16_00_06` documentation WARNING 7).
+      `integrations.service.ts`(`testEmailTransport`) · `send-email.handler.ts` 두 곳이 «`SMTP_BLOCK_PRIVATE_HOSTS` 정책이 켜진 경우(opt-in)»
+      라 적는데 실제는 `ALLOW_PRIVATE_HOST_TARGETS=true` 가 아니면 막는 **opt-out** 이다(`smtp-host-guard.ts`). 위 «SMTP SSRF 가드에 CGNAT 이
+      없다» 항목과 같은 턴에.
 
 ## 종결 조건
 

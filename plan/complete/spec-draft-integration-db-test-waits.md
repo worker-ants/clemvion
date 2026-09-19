@@ -1,16 +1,17 @@
 ---
 title: 4-integration — Database 연결 테스트의 쿼리 대기 · §6 의 연결 테스트 절 번호
-status: in-progress
+status: complete
 owner: project-planner
 worktree: integration-testers-5c2d91
 started: 2026-09-19
+completed: 2026-09-19
 spec_impact:
   - spec/2-navigation/4-integration.md
 ---
 
 # 4-integration — Database 연결 테스트의 쿼리 대기 · §6 의 연결 테스트 절 번호
 
-같은 브랜치의 구현(`plan/in-progress/integration-db-http-testers.md`) 리뷰가 드러낸 spec 쪽 두 자리. 둘 다 사실 정정이다 —
+같은 브랜치의 구현(`plan/complete/integration-db-http-testers.md`) 리뷰가 드러낸 spec 쪽 두 자리. 둘 다 사실 정정이다 —
 새 동작을 정하지 않는다.
 
 ## 왜
@@ -60,4 +61,4 @@ spec_impact:
       «소소한 표기 두 건» 이 §6 부분만 해소되는데 축소가 안 적혔다) → 트래커 항목을 §14.1 단독으로 줄이고 §6 해소를 적었다. INFO 1(«계약 vs
       견고성 장치» 기준 명문화) → 아래 Rationale 한 줄. INFO 5(종결 체크리스트의 draft 단수) → 구현 plan 에 두 draft 를 적었다. INFO 2~4 조치 불요
 - [x] spec 반영 (planner 커밋)
-- [ ] 이 draft `plan/complete/` 로 (구현 plan 과 같은 PR 의 마무리 커밋)
+- [x] 이 draft `plan/complete/` 로 (구현 plan 과 같은 PR 의 마무리 커밋)
