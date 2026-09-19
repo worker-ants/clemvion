@@ -49,10 +49,10 @@ import {
   ConnectionPreview,
   McpTestConnectionService,
 } from '../mcp/mcp-test-connection.service';
-import {
-  MCP_ERROR_CODES,
-  MCP_ERROR_MESSAGE_MAX_LEN,
-} from '../mcp/mcp-error-codes';
+import { MCP_ERROR_CODES } from '../mcp/mcp-error-codes';
+import { clampMessage } from './clamp-message';
+import { testDatabaseConnection } from './database-connection-tester';
+import { testHttpConnection } from './http-connection-tester';
 import {
   McpConnectParams,
   ServerCapabilities,
@@ -75,7 +75,7 @@ import {
 export interface IntegrationTestResult {
   success: boolean;
   message: string;
-  /** Failure code (e.g. `MCP_*` 또는 email 의 `EMAIL_CONNECT_FAILED`); absent on success. */
+  /** Failure code (e.g. `MCP_*` · `EMAIL_CONNECT_FAILED` · `DB_*` · `HTTP_*`); absent on success. */
   code?: string;
   capabilities?: ServerCapabilities;
   serverInfo?: ServerInfo;
@@ -106,21 +106,8 @@ export type EntityAwareTester = (
 
 const ADMIN_ROLES = new Set(['owner', 'admin']);
 
-/**
- * Clamp a free-form error message to {@link MCP_ERROR_MESSAGE_MAX_LEN} so a
- * misbehaving external server cannot inflate the `last_error` JSONB column.
- * The same bound is applied to `IntegrationUsageLog.error.message` for
- * consistency.
- */
 /** email(SMTP) 연결 테스트의 connection/greeting/socket 공통 타임아웃 (ms). */
 const SMTP_TEST_TIMEOUT_MS = 10_000;
-
-function clampMessage(raw: string | undefined): string {
-  if (!raw) return 'Unknown error';
-  return raw.length > MCP_ERROR_MESSAGE_MAX_LEN
-    ? raw.slice(0, MCP_ERROR_MESSAGE_MAX_LEN)
-    : raw;
-}
 
 /**
  * `integration_usage_log.api_{label,method,path}` 컬럼의 길이 제약 (각각 128/8/256)
@@ -417,6 +404,11 @@ export class IntegrationsService {
     this.transportTesters = new Map<string, TransportTester>([
       ['mcp', this.testMcpTransport.bind(this)],
       ['email', this.testEmailTransport.bind(this)],
+      [
+        'database',
+        (_authType, credentials) => testDatabaseConnection(credentials),
+      ],
+      ['http', testHttpConnection],
     ]);
   }
 

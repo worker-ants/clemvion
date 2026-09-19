@@ -147,22 +147,23 @@ export class IntegrationsController {
   }
 
   /**
-   * Structural validation of credentials before persistence.
+   * Connection test with unsaved credentials.
    *
-   * Throttled because this endpoint otherwise lets a user repeatedly submit
-   * arbitrary payloads. Credentials are schema-validated against the static
-   * SERVICE_REGISTRY — no outbound HTTP is performed (the actual probe lives
-   * in per-service handlers in the execution engine).
+   * Credentials are schema-validated against the static SERVICE_REGISTRY first;
+   * services with a transport tester (mcp · email · database · http) then make a
+   * real outbound connection — the rest stop at the structural check
+   * (spec/2-navigation/4-integration.md §9.2 `preview-test` row). Throttled
+   * because it would otherwise let a user drive repeated outbound probes.
    */
   @Throttle({ default: { limit: 20, ttl: 60_000 } })
   @Post('preview-test')
   @ApiOperation({
     summary: '자격 증명 사전 검증',
     description:
-      '자격 증명을 저장하기 전에 구조적 유효성을 검증합니다. 외부 네트워크 호출은 수행하지 않으며, 남용 방지를 위해 분당 20회로 제한됩니다.',
+      '자격 증명을 저장하기 전에 연결을 테스트합니다. 필드 구조를 먼저 검증하고, MCP · Email · Database · HTTP 는 실제로 접속해 확인합니다(그 밖의 서비스는 구조 검증만). 남용 방지를 위해 분당 20회로 제한됩니다.',
   })
   @ApiOkWrappedResponse(PreviewTestResultDto, {
-    description: '검증 결과 (마스킹된 자격 증명 포함)',
+    description: '연결 테스트 결과 — 실패 시 `code` 로 원인을 구분합니다',
   })
   @ApiBadRequestResponse({
     description:

@@ -21,6 +21,12 @@
  */
 import { lookup } from 'node:dns/promises';
 
+/**
+ * SSRF 가드가 요청을 막았을 때의 클라이언트 문구. 차단된 host/IP 는 싣지 않는다 — 정찰 면 축소(원본 상세는 서버 로그에만).
+ * HTTP Request 노드(`HTTP_BLOCKED` 노드 에러)와 통합 연결 테스트가 같은 문구를 쓴다.
+ */
+export const SSRF_BLOCKED_CLIENT_MESSAGE = 'Request blocked by SSRF policy.';
+
 const PRIVATE_V4_RANGES: Array<[number, number]> = [
   // 10.0.0.0/8
   [ipToInt(10, 0, 0, 0), ipToInt(10, 255, 255, 255)],

@@ -152,6 +152,6 @@ Cafe24(§5.8) · MakeShop · Google · GitHub · Webhook. (Cafe24 · MakeShop �
       미추종) → B 를 노드처럼 5홉 추종으로 · WARNING 2(Google 자동 갱신 자기모순) → C 주석 + H · WARNING 3(«Cafe24 한정» 옛 문장) → G + I ·
       WARNING 4(같은 엔드포인트의 트래커 항목) → 비대상 교차참조 · WARNING 5(`DB_CONNECT_FAILED` ↔ `DB_CONNECTION_ERROR`) → A · F 대비 문장 ·
       INFO 1 → D 괄호 · INFO 2 → F · INFO 3 → J · INFO 4 → A · INFO 5 → G. INFO 6(번들 절단) · 7(원인 칸) 은 조치 불요
-- [ ] spec 반영 (planner 커밋)
+- [x] spec 반영 (planner 커밋 `74087dff6`)
 - [ ] 구현 — `--impl-prep` · 테스터 둘 · 테스트 · 가이드 한 줄 (developer, 같은 PR)
 - [ ] 트래커 등재(위 «비대상» 여섯) · 이 draft `plan/complete/` 로

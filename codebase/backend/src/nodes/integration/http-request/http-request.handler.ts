@@ -17,10 +17,12 @@ import { isDryRun, buildDryRunMock } from '../../core/dry-run.util.js';
 import { sanitizeResponseHeaders } from '../_base/sanitize-response-headers.util.js';
 import { IntegrationsService } from '../../../modules/integrations/integrations.service.js';
 import {
+  SSRF_BLOCKED_CLIENT_MESSAGE,
   assertSafeOutboundHostResolved,
   assertSafeOutboundUrl,
 } from './http-safety.js';
 import { httpRequestNodeMetadata } from './http-request.schema.js';
+import { HttpCredentials, resolveHttpCredentials } from './http-credentials.js';
 
 const logger = new Logger('HttpRequestHandler');
 
@@ -33,7 +35,6 @@ const logger = new Logger('HttpRequestHandler');
  * 일반화와 대칭. 클라이언트 UI 는 `output.error.code`(`HTTP_BLOCKED`)로 지역화 문구를
  * 렌더하므로 이 message 는 wire 안전 목적이다.
  */
-const SSRF_BLOCKED_CLIENT_MESSAGE = 'Request blocked by SSRF policy.';
 
 /**
  * Strip URL-borne credentials before echoing on `NodeHandlerOutput.config`
@@ -750,87 +751,13 @@ function stringifyScalar(value: unknown): string {
   }
 }
 
-interface HttpCredentials {
-  headers?: Record<string, string>;
-  queryParams?: Record<string, string>;
-  defaultHeaders?: Record<string, string>;
-}
-
 function buildHttpCredentials(
   authType: string,
   raw: Record<string, unknown>,
 ): { credentials: HttpCredentials; baseUrl: string | undefined } {
-  const defaultHeaders =
-    typeof raw.default_headers === 'object' && raw.default_headers !== null
-      ? (raw.default_headers as Record<string, string>)
-      : undefined;
-  const baseUrl =
-    typeof raw.base_url === 'string' && raw.base_url.length > 0
-      ? raw.base_url
-      : undefined;
-
-  switch (authType) {
-    case 'api_key': {
-      const location = raw.location as 'header' | 'query' | undefined;
-      const keyName = raw.key_name as string | undefined;
-      const value = raw.value as string | undefined;
-      if (!location || !keyName || !value) {
-        throw new IntegrationError(
-          'INTEGRATION_INCOMPLETE',
-          'HTTP integration (api_key) is missing location/key_name/value',
-        );
-      }
-      if (location === 'header') {
-        return {
-          credentials: { headers: { [keyName]: value }, defaultHeaders },
-          baseUrl,
-        };
-      }
-      return {
-        credentials: { queryParams: { [keyName]: value }, defaultHeaders },
-        baseUrl,
-      };
-    }
-    case 'bearer_token': {
-      const token = raw.token as string | undefined;
-      if (!token) {
-        throw new IntegrationError(
-          'INTEGRATION_INCOMPLETE',
-          'HTTP integration (bearer) is missing token',
-        );
-      }
-      return {
-        credentials: {
-          headers: { Authorization: `Bearer ${token}` },
-          defaultHeaders,
-        },
-        baseUrl,
-      };
-    }
-    case 'basic': {
-      const username = raw.username as string | undefined;
-      const password = raw.password as string | undefined;
-      if (!username || !password) {
-        throw new IntegrationError(
-          'INTEGRATION_INCOMPLETE',
-          'HTTP integration (basic) is missing username/password',
-        );
-      }
-      const encoded = Buffer.from(`${username}:${password}`).toString('base64');
-      return {
-        credentials: {
-          headers: { Authorization: `Basic ${encoded}` },
-          defaultHeaders,
-        },
-        baseUrl,
-      };
-    }
-    default:
-      throw new IntegrationError(
-        'INTEGRATION_AUTH_UNSUPPORTED',
-        `HTTP integration auth type "${authType}" is not supported`,
-      );
-  }
+  const result = resolveHttpCredentials(authType, raw);
+  if (!result.ok) throw new IntegrationError(result.code, result.message);
+  return { credentials: result.credentials, baseUrl: result.baseUrl };
 }
 
 /**

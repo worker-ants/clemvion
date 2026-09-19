@@ -26,16 +26,12 @@ import { IntegrationCacheBus } from '../../../common/redis/integration-cache-bus
 import { assertSafeOutboundHostResolved } from '../http-request/http-safety.js';
 import { buildDryRunMock, isDryRun } from '../../core/dry-run.util.js';
 import { databaseQueryNodeMetadata } from './database-query.schema.js';
-
-interface DbCredentials {
-  driver: 'postgres' | 'mysql';
-  host: string;
-  port: number;
-  database: string;
-  username: string;
-  password: string;
-  ssl: 'disable' | 'require' | 'verify-full';
-}
+import {
+  DB_HOST_BLOCKED_MESSAGE,
+  DbCredentials,
+  buildMysqlSsl,
+  buildPgConnection,
+} from './database-connection.js';
 
 /**
  * Allowed values for `config.queryType`. Centralised so that validate() and
@@ -266,7 +262,7 @@ export class DatabaseQueryHandler
         } catch {
           throw new IntegrationError(
             'DB_HOST_BLOCKED',
-            'Database host resolves to a private/loopback address blocked by SSRF policy.',
+            DB_HOST_BLOCKED_MESSAGE,
           );
         }
       }
@@ -614,33 +610,6 @@ export class DatabaseQueryHandler
   }
 }
 
-function buildPgConnection(creds: DbCredentials): {
-  host: string;
-  port: number;
-  database: string;
-  user: string;
-  password: string;
-  ssl: boolean | { rejectUnauthorized: boolean };
-} {
-  let ssl: boolean | { rejectUnauthorized: boolean } = false;
-  // `require` now enforces cert verification. Operators who rely on
-  // self-signed certificates must opt in explicitly by rotating to a
-  // fully validated `verify-full` pair, OR extending this mapping to a
-  // new `require-trust` mode — we intentionally stopped defaulting to
-  // `rejectUnauthorized: false` because of the MITM exposure.
-  if (creds.ssl === 'require' || creds.ssl === 'verify-full') {
-    ssl = { rejectUnauthorized: true };
-  }
-  return {
-    host: creds.host,
-    port: creds.port,
-    database: creds.database,
-    user: creds.username,
-    password: creds.password,
-    ssl,
-  };
-}
-
 function missingDbFields(creds: Partial<DbCredentials>): string[] {
   const required: (keyof DbCredentials)[] = [
     'driver',
@@ -738,15 +707,6 @@ function convertPgPlaceholders(sql: string): string {
   // Convert `$1, $2, ...` to `?`. Parameters remain positional, so authors
   // must list `$N` markers in the same order as the `parameters` array.
   return sql.replace(/\$\d+/g, '?');
-}
-
-function buildMysqlSsl(
-  ssl: DbCredentials['ssl'],
-): { rejectUnauthorized: boolean } | undefined {
-  if (ssl === 'require' || ssl === 'verify-full') {
-    return { rejectUnauthorized: true };
-  }
-  return undefined;
 }
 
 function hashCredentials(creds: DbCredentials): string {
