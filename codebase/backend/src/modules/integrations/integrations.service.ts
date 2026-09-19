@@ -115,8 +115,12 @@ const SMTP_TEST_TIMEOUT_MS = 10_000;
  * (`registerEntityTester`, 지금은 Cafe24 · MakeShop)가 **한 줄을 공유**한다. 넘는 요청은 줄을 선다.
  *
  * 연결 테스트는 사용자가 준 host 를 `dns.lookup` 으로 푼다(SSRF 가드 · 드라이버 · `fetch`). `dns.lookup` 은 libuv
- * 스레드풀(기본 4)을 쓰고 타임아웃이 없어, 응답하지 않는 권위 DNS 를 가리키는 테스트가 겹치면 풀이 차서 같은 풀을 쓰는
- * 무관한 작업(`fs` · `crypto` · `zlib`)까지 멈춘다 — `@Throttle` 은 요청 **속도**만 묶고 동시 **개수**는 묶지 않는다.
+ * 스레드풀(기본 4)을 쓰고 Node 쪽 타임아웃 옵션이 없다 — 스레드는 libc resolver 가 포기할 때까지 잡힌다(backend 이미지
+ * `node:24-alpine`(musl)에서 응답 없는 네임서버로 실측 5.0초 뒤 `EAI_AGAIN`, 2026-09-19). 그런 테스트가 겹치면 풀이 차서
+ * 같은 풀을 쓰는 무관한 작업(`fs` · `crypto` · `zlib`)까지 멈춘다 — `@Throttle` 은 요청 **속도**만 묶고 동시 **개수**는
+ * 묶지 않는다. 슬롯은 영구히 잡히지 않는다: Database 는 가드 lookup(5) · 연결(10) · 쿼리(10) · 닫기(1) 상한의 합(약 26초),
+ * HTTP 는 가드 lookup(5)과 리다이렉트 체인 전체에 걸린 10초 신호, 그리고 신호가 끝나기 직전에 시작한 홉 가드 lookup 하나(5)
+ * 까지(약 20초)다.
  * Database · HTTP 테스트는 lookup 을 한 번에 하나씩 한다(가드 → 연결, 리다이렉트 홉마다 순차) — 그 둘만 보면 이 상한이
  * 테스트가 쥘 수 있는 스레드 수이고, 풀의 절반으로 둬 나머지를 남긴다. MCP 는 SDK 가 연결 중 요청을 겹치는지 재지
  * 않았으므로 테스트 하나가 스레드를 둘 이상 쥘 수 있다(그래도 테스트 수에 비례해 묶인다). 타임아웃을 거는 것으로는
@@ -462,6 +466,10 @@ export class IntegrationsService {
    * emits a warning so production wiring drift surfaces in logs. The tester
    * itself MUST not throw — return a failure result instead, since
    * {@link testConnection} surfaces the result as-is to the HTTP response.
+   * It runs inside the connection-test concurrency limit
+   * ({@link CONNECTION_TEST_MAX_CONCURRENCY}), so it MUST NOT call back into
+   * `testConnection` / `previewTest` / `rotate` — a nested wait on the same
+   * limit can deadlock once every slot is held by such a tester.
    */
   registerEntityTester(serviceType: string, tester: EntityAwareTester): void {
     if (this.entityTesters.has(serviceType)) {
@@ -1116,22 +1124,33 @@ export class IntegrationsService {
       });
     }
 
-    // 바꾸는 컬럼만 저장한다 — 엔티티 전체를 `save` 하면, 위 연결 테스트(실제 접속이라 수 초 걸린다) 동안 `logUsage` 가
-    // 원자적 `update` 로 쓴 `lastUsedAt` 같은 컬럼을 읽어 둔 옛 값으로 되돌린다.
-    const changes = {
+    // 바꾸는 컬럼만 `update` 한다 — 엔티티 전체를 `save` 하면, 위 연결 테스트(실제 접속이라 수 초 걸린다) 동안 `logUsage` 가
+    // 원자적 `update` 로 쓴 `lastUsedAt` 같은 컬럼을 읽어 둔 옛 값으로 되돌린다. `save` 는 그 사이 행이 지워졌으면 INSERT 를
+    // 시도하므로 쓰지 않는다 — `update` 가 0행이면 404 다. (자격증명 transformer 는 `update` 에도 걸린다.)
+    // 타입은 `logUsage` 의 patch 와 같은 이유로 넓힌다 — JSONB 컬럼(`Record<string, unknown>`)이 QueryDeepPartialEntity 를
+    // 통과하지 못한다.
+    const changes: Record<string, unknown> = {
       credentials: merged,
       lastRotatedAt: new Date(),
-      status: 'connected' as const,
+      status: 'connected',
       statusReason: null,
       lastError: null,
     };
-    await this.integrationRepository.save({ id: entity.id, ...changes });
+    const { affected } = await this.integrationRepository.update(
+      { id: entity.id },
+      changes,
+    );
     // 응답은 저장 뒤 다시 읽은 행으로 만든다 — `updated_at` 은 DB 가 정하고(메모리의 엔티티에 값을 넣어도 DB 값과 어긋났다 —
-    // e2e 실측 1ms), 테스트 동안 `logUsage` 가 쓴 컬럼도 그대로 보인다. 행이 사라졌으면 갱신한 엔티티로 대신한다.
-    const saved =
-      (await this.integrationRepository.findOne({
-        where: { id: entity.id },
-      })) ?? Object.assign(entity, changes);
+    // e2e 실측 1ms), 테스트 동안 `logUsage` 가 쓴 컬럼도 그대로 보인다.
+    const saved = affected
+      ? await this.integrationRepository.findOne({ where: { id: entity.id } })
+      : null;
+    if (!saved) {
+      throw new NotFoundException({
+        code: 'RESOURCE_NOT_FOUND',
+        message: 'Integration not found',
+      });
+    }
     await this.auditLogsService.record({
       workspaceId,
       userId,

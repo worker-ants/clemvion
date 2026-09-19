@@ -4820,6 +4820,12 @@ field: T | null;
       프런트 `INTEGRATION_ERROR_CODE_TO_I18N` 어디에도 없다 — 지금 화면은 `message`(영문)를 그대로 보인다. 위 «확인 못 함 안내가
       화면에 닿지 않는다» 와 같은 UI 턴에서 네 계열(mcp · email · database · http)을 한 번에.
 
+- [ ] **동시 rotate 두 건은 나중 저장이 먼저 통과한 교체를 조용히 덮는다** (developer, 낮음, 2026-09-19 등재 · `/ai-review`
+      `review/code/2026/09/19/15_30_04` database WARNING 1 (a)). `rotate()` 는 읽기 → merge → 연결 테스트(이제 수 초) → 부분 `update`
+      라, 같은 통합을 동시에 회전하면 둘 다 성공 응답을 받고 나중 것만 남는다. **이 PR 전에도 같은 창이 있었다**(구조 검증만이라 짧았을
+      뿐). 막으려면 `updated_at` 조건부 update 나 `@VersionColumn` 과 409 — 버전 컬럼은 마이그레이션이라 따로. 같은 지적의 (b)(테스트
+      동안 삭제되면 부분 `save` 가 INSERT 를 시도)는 그 PR 이 `update` + 0행 404 로 닫았다.
+
 ## 종결 조건
 
 **형제 plan 은 이미 종결됐다** (`cce8a188b`, 2026-09-04). `entity-nullable-column-type-mismatch.md`

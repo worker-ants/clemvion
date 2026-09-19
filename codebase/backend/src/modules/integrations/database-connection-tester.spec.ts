@@ -1,3 +1,4 @@
+import { Logger } from '@nestjs/common';
 import { Client } from 'pg';
 import { createConnection } from 'mysql2/promise';
 
@@ -106,6 +107,34 @@ describe('testDatabaseConnection', () => {
         });
         expect(pg.connection.stream.destroy).toHaveBeenCalledTimes(1);
       } finally {
+        jest.useRealTimers();
+      }
+    });
+
+    it('닫기가 끝나지 않는데 드라이버 소켓을 못 찾으면(내부 구조 변경) 결과는 그대로 돌려주고 경고를 남긴다', async () => {
+      jest.useFakeTimers();
+      const warn = jest
+        .spyOn(Logger.prototype, 'warn')
+        .mockImplementation(() => undefined);
+      const socketHolder = pg as { connection?: unknown };
+      const original = socketHolder.connection;
+      socketHolder.connection = undefined;
+      try {
+        pg.end.mockImplementation(never);
+
+        const pending = testDatabaseConnection(pgCreds);
+        await jest.advanceTimersByTimeAsync(DB_TEST_CLOSE_GRACE_MS);
+
+        await expect(pending).resolves.toEqual({
+          success: true,
+          message: 'Connection successful',
+        });
+        expect(warn).toHaveBeenCalledWith(
+          expect.stringContaining('driver socket was not found'),
+        );
+      } finally {
+        socketHolder.connection = original;
+        warn.mockRestore();
         jest.useRealTimers();
       }
     });

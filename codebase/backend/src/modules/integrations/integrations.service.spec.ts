@@ -1280,16 +1280,33 @@ describe('IntegrationsService', () => {
         credentials: { value: 'new-secret' },
       });
       expect(result.credentials.value).toBe('********');
-      expect(integrationRepo.save).toHaveBeenCalledWith(
+      expect(integrationRepo.update).toHaveBeenCalledWith(
+        { id: 'int-1' },
         expect.objectContaining({
           lastRotatedAt: expect.any(Date),
           status: 'connected',
           statusReason: null,
         }),
       );
+      expect(integrationRepo.save).not.toHaveBeenCalled();
       expect(auditLogsService.record).toHaveBeenCalledWith(
         expect.objectContaining({ action: AUDIT_ACTIONS.INTEGRATION_ROTATED }),
       );
+    });
+
+    it('테스트 동안 행이 지워졌으면(update 0행) 404 — INSERT 로 되살리지 않고 감사 · broadcast 도 남기지 않는다', async () => {
+      integrationRepo.update.mockResolvedValueOnce({ affected: 0 });
+
+      await expect(
+        service.rotate('int-1', 'ws-1', 'user-1', 'member', {
+          credentials: { value: 'new-secret' },
+        }),
+      ).rejects.toMatchObject({
+        response: { code: 'RESOURCE_NOT_FOUND' },
+      });
+      expect(integrationRepo.save).not.toHaveBeenCalled();
+      expect(auditLogsService.record).not.toHaveBeenCalled();
+      expect(integrationCacheBus.publish).not.toHaveBeenCalled();
     });
 
     it('broadcasts cache invalidation after a successful rotation (04 m-4)', async () => {
@@ -2105,21 +2122,21 @@ describe('IntegrationsService', () => {
           },
         );
 
-        expect(integrationRepo.save).toHaveBeenCalledTimes(1);
-        const saved = integrationRepo.save.mock.calls[0][0] as Record<
-          string,
-          unknown
-        >;
+        expect(integrationRepo.save).not.toHaveBeenCalled();
+        expect(integrationRepo.update).toHaveBeenCalledTimes(1);
+        const [criteria, saved] = integrationRepo.update.mock.calls[0] as [
+          unknown,
+          Record<string, unknown>,
+        ];
+        expect(criteria).toEqual({ id: 'int-1' });
         expect(Object.keys(saved).sort()).toEqual([
           'credentials',
-          'id',
           'lastError',
           'lastRotatedAt',
           'status',
           'statusReason',
         ]);
         expect(saved).toMatchObject({
-          id: 'int-1',
           credentials: { token: 'new' },
           status: 'connected',
           statusReason: null,
@@ -2227,6 +2244,7 @@ describe('IntegrationsService', () => {
           base_url: 'https://api.example.com',
           token: 'new',
         });
+        expect(integrationRepo.update).not.toHaveBeenCalled();
         expect(integrationRepo.save).not.toHaveBeenCalled();
       });
     });
