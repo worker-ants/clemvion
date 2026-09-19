@@ -145,4 +145,69 @@ describe('http-safety — isBlockedHostname', () => {
       expect(isBlockedHostname(v6)).toBe(true);
     }
   });
+
+  /**
+   * **IPv4-mapped IPv6 는 품은 IPv4 의 대역으로 판정한다.** `http://[::ffff:127.0.0.1]/` 은 127.0.0.1 에만 바인드한 서버에 실제로
+   * 닿는다(macOS · `node:24-alpine` 실측) — 표기만 바꾼 루프백 · 메타데이터 우회였다. 모양이 셋이다: URL 이 정규화한 hex 형
+   * (`[::ffff:7f00:1]`), 괄호 없는 점 형(DB host 필드 · `dns.lookup` 결과), 줄이지 않은 전체 형.
+   */
+  it.each([
+    ['[::ffff:7f00:1]', '127.0.0.1 (URL 이 정규화한 hex 형)'],
+    ['::ffff:7f00:1', '127.0.0.1 (괄호 없는 hex 형)'],
+    ['::ffff:127.0.0.1', '127.0.0.1 (점 형 — DB host · dns.lookup)'],
+    ['::FFFF:7F00:1', '127.0.0.1 (대문자)'],
+    ['0:0:0:0:0:ffff:7f00:1', '127.0.0.1 (전체 형)'],
+    ['[::ffff:a9fe:a9fe]', '169.254.169.254 (메타데이터)'],
+    ['::ffff:10.0.0.5', '10/8'],
+    ['::ffff:6440:1', '100.64.0.1 (CGNAT)'],
+    ['::ffff:0.0.0.0', '0.0.0.0/8'],
+  ])('IPv4-mapped 블록: %s — %s', (host) => {
+    expect(isBlockedHostname(host)).toBe(true);
+  });
+
+  it.each([
+    ['::ffff:808:808', '8.8.8.8'],
+    ['::ffff:8.8.8.8', '8.8.8.8 (점 형)'],
+    ['[::ffff:5db8:d822]', '93.184.216.34'],
+    ['2001:4860:4860::8888', '공인 IPv6'],
+  ])('공인 대상은 통과: %s — %s', (host) => {
+    expect(isBlockedHostname(host)).toBe(false);
+  });
+});
+
+describe('http-safety — IPv4-mapped IPv6 가 두 층을 모두 지나지 못한다', () => {
+  beforeEach(() => {
+    delete process.env.ALLOW_PRIVATE_HOST_TARGETS;
+    mockedLookup.mockReset();
+  });
+
+  it.each([
+    'http://[::ffff:127.0.0.1]/',
+    'http://[::ffff:169.254.169.254]/latest/meta-data/',
+    'http://[0:0:0:0:0:ffff:a00:1]:5432/',
+  ])('리터럴 URL %s → SSRF_BLOCKED', (url) => {
+    expect(() => assertSafeOutboundUrl(url)).toThrow(/SSRF_BLOCKED/);
+  });
+
+  it('공인 IPv4 를 품은 mapped URL 은 통과 (대조군)', () => {
+    expect(() =>
+      assertSafeOutboundUrl('http://[::ffff:8.8.8.8]/'),
+    ).not.toThrow();
+  });
+
+  it('DB host 처럼 괄호 없는 mapped 리터럴 → DNS 조회 전에 막는다', async () => {
+    await expect(
+      assertSafeOutboundHostResolved('::ffff:127.0.0.1'),
+    ).rejects.toThrow(/SSRF_BLOCKED/);
+    expect(mockedLookup).not.toHaveBeenCalled();
+  });
+
+  it('DNS 가 mapped 주소(AAAA)를 돌려주면 막는다', async () => {
+    mockedLookup.mockResolvedValueOnce([
+      { address: '::ffff:10.0.0.5', family: 6 },
+    ]);
+    await expect(
+      assertSafeOutboundHostResolved('mapped.example.com'),
+    ).rejects.toThrow(/SSRF_BLOCKED/);
+  });
 });

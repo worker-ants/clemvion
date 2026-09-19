@@ -1,7 +1,7 @@
 import { SendEmailHandler } from './send-email.handler.js';
 import { ExecutionContext } from '../../core/node-handler.interface.js';
 import { createEmptyConversationThread } from '../../../shared/conversation-thread/conversation-thread.types';
-import { isSmtpHostBlocked } from '../../../common/utils/smtp-host-guard.js';
+import { isSmtpHostBlocked } from './smtp-host-guard.js';
 
 const sendMailMock = jest.fn();
 const closeMock = jest.fn();
@@ -14,7 +14,7 @@ jest.mock('nodemailer', () => ({
 }));
 // SSRF 가드는 smtp-host-guard.spec.ts 가 검증한다. 핸들러 테스트에서는 실제
 // DNS 조회를 피하기 위해 모킹하고 분기만 제어한다 (기본 false = 허용).
-jest.mock('../../../common/utils/smtp-host-guard.js', () => ({
+jest.mock('./smtp-host-guard.js', () => ({
   isSmtpHostBlocked: jest.fn().mockResolvedValue(false),
 }));
 const mockedIsSmtpHostBlocked = isSmtpHostBlocked as unknown as jest.Mock;

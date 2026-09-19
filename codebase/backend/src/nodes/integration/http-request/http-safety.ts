@@ -1,8 +1,12 @@
 /**
- * SSRF guard helpers for the HTTP Request handler / DB Query node.
+ * SSRF guard helpers for the integration nodes — HTTP Request (and its redirect
+ * hops), DB Query, Send Email (`send-email/smtp-host-guard.ts`) and their
+ * connection tests. One implementation so the three share the same ranges
+ * (spec 4-integration §5.5 · 3-send-email §4 · 2-database-query §4).
  *
  * Blocks URLs that resolve to loopback, link-local, private (RFC 1918),
- * CGNAT, or unique-local IPv6 ranges. Intended for Integration-backed
+ * CGNAT, or unique-local IPv6 ranges — IPv4-mapped IPv6 (`::ffff:a.b.c.d`) is
+ * judged by the IPv4 it carries. Intended for Integration-backed
  * requests where a workflow author should not be able to pivot to internal
  * infrastructure by supplying a relative URL that piggybacks on credentials.
  *
@@ -67,17 +71,46 @@ function isBlockedIPv4(hostname: string): boolean {
   return PRIVATE_V4_RANGES.some(([lo, hi]) => ip >= lo && ip <= hi);
 }
 
+/**
+ * IPv6 리터럴을 한 모양으로 — WHATWG URL 파서가 줄임(`0:0:…:1` → `::1`) · 소문자 · IPv4-mapped 점 형(`::ffff:127.0.0.1` →
+ * `::ffff:7f00:1`)을 정규화한다. 괄호 없는 host(DB host 필드 · `dns.lookup` 결과)는 URL 을 거치지 않아 여기서 맞춘다.
+ * 파서가 거부하는 입력(zone id `fe80::1%eth0` 등)은 원문 그대로 둔다 — 아래 접두 검사는 원문에도 맞는다.
+ */
+function canonicalIPv6(stripped: string): string {
+  try {
+    return new URL(`http://[${stripped}]/`).hostname.slice(1, -1);
+  } catch {
+    return stripped;
+  }
+}
+
+/**
+ * IPv4-mapped IPv6(`::ffff:a.b.c.d`)가 품은 IPv4, 아니면 null. 이 표기는 IPv4 대상에 **그대로 닿는다** — 127.0.0.1 에만 바인드한
+ * 서버에 `http://[::ffff:127.0.0.1]/` 이 200(macOS · `node:24-alpine` 실측). 그래서 품은 IPv4 를 같은 대역표로 판정한다.
+ * IPv4 를 품는 다른 표기(IPv4-compatible `::a.b.c.d` · SIIT `::ffff:0:…` · NAT64 `64:ff9b::/96` · 6to4 `2002::/16`)는 같은
+ * 실측에서 닿지 않았다(`EHOSTUNREACH`/`ENETUNREACH`).
+ */
+function mappedIPv4(canonical: string): string | null {
+  const m = /^::ffff:([0-9a-f]{1,4}):([0-9a-f]{1,4})$/.exec(canonical);
+  if (!m) return null;
+  const hi = parseInt(m[1], 16);
+  const lo = parseInt(m[2], 16);
+  return `${hi >> 8}.${hi & 0xff}.${lo >> 8}.${lo & 0xff}`;
+}
+
 function isBlockedIPv6(hostname: string): boolean {
   // Strip optional brackets from `[::1]`-style hostnames.
   const stripped = hostname.replace(/^\[|\]$/g, '').toLowerCase();
   if (!stripped.includes(':')) return false;
+  const canonical = canonicalIPv6(stripped);
   // ::1 loopback, 0:: unspecified
-  if (stripped === '::1' || stripped === '::') return true;
+  if (canonical === '::1' || canonical === '::') return true;
   // fe80::/10 link-local
-  if (/^fe[89ab][0-9a-f]:/.test(stripped)) return true;
+  if (/^fe[89ab][0-9a-f]:/.test(canonical)) return true;
   // fc00::/7 unique local
-  if (/^f[cd][0-9a-f]{2}:/.test(stripped)) return true;
-  return false;
+  if (/^f[cd][0-9a-f]{2}:/.test(canonical)) return true;
+  const v4 = mappedIPv4(canonical);
+  return v4 !== null && isBlockedIPv4(v4);
 }
 
 export function isBlockedHostname(hostname: string): boolean {

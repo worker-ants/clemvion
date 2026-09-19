@@ -24,14 +24,14 @@ import { AUDIT_ACTIONS } from '../audit-logs/audit-action.const';
 import { UNREADABLE_KEY } from './services/credentials-transformer';
 import { SERVICE_REGISTRY } from './services/service-registry';
 import { createTransport } from 'nodemailer';
-import { isSmtpHostBlocked } from '../../common/utils/smtp-host-guard';
+import { isSmtpHostBlocked } from '../../nodes/integration/send-email/smtp-host-guard';
 import { testDatabaseConnection } from './database-connection-tester';
 import { testHttpConnection } from './http-connection-tester';
 
 jest.mock('nodemailer', () => ({ createTransport: jest.fn() }));
 // SSRF 가드는 별도 unit spec(smtp-host-guard.spec.ts)이 검증한다. 여기서는
 // 실제 DNS 조회를 피하기 위해 모킹하고, 호출 여부·분기만 제어한다.
-jest.mock('../../common/utils/smtp-host-guard', () => ({
+jest.mock('../../nodes/integration/send-email/smtp-host-guard', () => ({
   isSmtpHostBlocked: jest.fn().mockResolvedValue(false),
 }));
 // Database · HTTP 테스터 자체는 각자의 unit spec 이 검증한다. 여기서는 dispatchTest 배선만 본다 —
