@@ -1309,6 +1309,27 @@ describe('IntegrationsService', () => {
       expect(integrationCacheBus.publish).not.toHaveBeenCalled();
     });
 
+    it('update 는 1행을 바꿨는데 다시 읽기 전에 지워졌으면 404 — 감사 · broadcast 를 남기지 않는다', async () => {
+      // requireEntity 가 읽은 행(beforeEach 의 값)은 그대로 두고, 저장 뒤 다시 읽을 때만 사라진다.
+      const current = await integrationRepo.findOne({ where: { id: 'int-1' } });
+      integrationRepo.findOne.mockReset();
+      integrationRepo.findOne
+        .mockResolvedValueOnce(current)
+        .mockResolvedValueOnce(null);
+
+      await expect(
+        service.rotate('int-1', 'ws-1', 'user-1', 'member', {
+          credentials: { value: 'new-secret' },
+        }),
+      ).rejects.toMatchObject({
+        response: { code: 'RESOURCE_NOT_FOUND' },
+      });
+      expect(integrationRepo.update).toHaveBeenCalledTimes(1);
+      expect(integrationRepo.findOne).toHaveBeenCalledTimes(2);
+      expect(auditLogsService.record).not.toHaveBeenCalled();
+      expect(integrationCacheBus.publish).not.toHaveBeenCalled();
+    });
+
     it('broadcasts cache invalidation after a successful rotation (04 m-4)', async () => {
       const result = await service.rotate('int-1', 'ws-1', 'user-1', 'member', {
         credentials: { value: 'new-secret' },

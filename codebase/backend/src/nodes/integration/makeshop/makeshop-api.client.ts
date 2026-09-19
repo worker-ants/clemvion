@@ -159,13 +159,22 @@ function pickString(v: unknown): string | null {
 }
 
 /**
+ * `pingConnection` 이 돌려주는 실패 코드 — 연결 테스트 결과(`IntegrationTestResult.code`)로 그대로 나간다
+ * (`modules/integrations/connection-test-codes.ts` 의 union 이 이 타입을 모은다).
+ */
+export type MakeshopPingCode =
+  | 'MAKESHOP_AUTH_FAILED'
+  | 'MAKESHOP_TRANSPORT_FAILED'
+  | 'INTEGRATION_INCOMPLETE';
+
+/**
  * Convert a thrown error from `pingConnection` 내부 단계 into the same
  * `{ success: false, code, message }` shape — keeps the "never throws"
  * contract centralised (mirror of cafe24's `mapPingError`).
  */
 function mapPingError(err: unknown): {
   success: false;
-  code: string;
+  code: MakeshopPingCode;
   message: string;
 } {
   if (err instanceof MakeshopAuthFailedError) {
@@ -300,7 +309,7 @@ export class MakeshopApiClient {
    */
   async pingConnection(
     integration: Integration,
-  ): Promise<{ success: boolean; code?: string; message?: string }> {
+  ): Promise<{ success: boolean; code?: MakeshopPingCode; message?: string }> {
     return withIntegrationLock(integration.id, async () => {
       let creds: MakeshopCredentials;
       try {

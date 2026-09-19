@@ -271,6 +271,21 @@ describe('testDatabaseConnection', () => {
       expect(MockedClient).not.toHaveBeenCalled();
     });
 
+    /**
+     * SSL 매핑은 Database 노드와 **공유**하는 보안 매핑이다(`buildMysqlSsl`) — postgres 쪽만 보면 mysql 쪽이 인증서 검증을 끄는
+     * 변경이 통과한다. mysql 은 `require` 도 검증을 켠다(노드와 같다).
+     */
+    it.each([
+      ['require', { rejectUnauthorized: true }],
+      ['verify-full', { rejectUnauthorized: true }],
+      ['disable', undefined],
+    ])('SSL %s → 노드와 같은 매핑(%j)', async (ssl, expected) => {
+      await testDatabaseConnection({ ...mysqlCreds, ssl });
+      expect(mockedCreateConnection).toHaveBeenCalledWith(
+        expect.objectContaining({ ssl: expected }),
+      );
+    });
+
     it('쿼리 타임아웃 뒤 end() 가 끝나지 않아도(타임아웃된 쿼리 뒤에 Quit 이 줄 선다) 상한 뒤 소켓을 파괴하고 결과를 돌려준다', async () => {
       jest.useFakeTimers();
       try {
