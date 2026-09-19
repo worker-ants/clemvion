@@ -184,6 +184,16 @@ describe('http-safety — isBlockedHostname', () => {
     expect(isBlockedHostname(host)).toBe(false);
   });
 
+  /**
+   * URL 파서가 거부하는 입력(zone id)은 정규화 없이 원문으로 판정한다 — 폴백이 빈 문자열 등으로 깨지면 link-local 이 통과한다.
+   */
+  it.each([
+    ['fe80::1%eth0', 'link-local + zone id'],
+    ['[fe80::1%25en0]', 'link-local + URL 인코딩 zone id'],
+  ])('정규화할 수 없는 입력도 원문으로 판정: %s — %s', (host) => {
+    expect(isBlockedHostname(host)).toBe(true);
+  });
+
   it.each([
     ['::ffff:808:808', '8.8.8.8'],
     ['::ffff:8.8.8.8', '8.8.8.8 (점 형)'],

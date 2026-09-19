@@ -4888,6 +4888,34 @@ field: T | null;
       e2e 통과로만 확인됐다 — 값을 생략한 insert 가 DB 기본값을 채워 돌려받는 좁은 테스트. (3) 가독성: 지역 변수 `log` → `sqlMemory`,
       `COLUMN_LEVEL_SAMPLES.caught` 옆에 어느 패턴의 표본인지 주석.
 
+- [ ] **LLM 프로바이더 · S3 의 SSRF 가드(`ssrf.util.ts`)가 CGNAT · `::` 를 막지 않는다 — 막을지 정한다** (planner 결정 + developer, 낮음,
+      2026-09-19 등재 · `plan/complete/ssrf-guard-integration-unify.md` «비대상»). 통합 노드(HTTP · DB · Email)는 이제 한 가드(`http-safety.ts`)를
+      쓰지만, `model-config.service` · `llm-preview.service` · `s3.config` 는 따로 `ssrf.util` 을 쓴다 — CGNAT `100.64.0.0/10` 과 `[::]` 가 통과한다
+      (같은 입력 실측, 위 plan). `spec/5-system/7-llm-client.md` «SSRF 가드» 줄은 그 목록을 그대로 적는다(IPv4-mapped 있음 · CGNAT 없음). 막으면
+      Tailscale(100.64/10) 너머의 비-`local` 프로바이더가 막히는데 LLM 쪽엔 `ALLOW_PRIVATE_HOST_TARGETS` 같은 opt-out 이 없다. S3 는 따로 본다 —
+      `s3.config` 가 `isPrivateHost` 로 무엇을 하는지(경고인지 차단인지)부터. 정하면 두 분류기를 하나로 합친다.
+
+- [ ] **공용 SSRF 가드 `http-safety.ts` 를 `http-request/` 밖 중립 위치로** (planner + developer, 낮음, 2026-09-19 등재 · `/ai-review`
+      `review/code/2026/09/19/21_38_32` architecture WARNING 2). HTTP Request · DB Query · Send Email 과 연결 테스트가 쓰는데 HTTP Request 폴더에
+      있다 — DB 핸들러 · SMTP 가드 · `modules/integrations` 테스터가 형제 폴더의 구현 파일에 기댄다. 옮기면 `spec/4-nodes/4-integration/1-http-request.md`
+      frontmatter `code:` 경로를 함께 바꿔야 한다(planner). 파일 헤더에 이 사정을 적어 두었다.
+
+- [ ] **SSRF 가드 소비자 넷의 catch 를 `instanceof SsrfBlockedError` 로** (developer, 낮음, 2026-09-19 등재 · `/ai-review`
+      `review/code/2026/09/19/22_00_32` architecture WARNING 2 — 수렴 예외). `http-request.handler.ts` · `http-redirect.ts` · `database-query.handler.ts` ·
+      `database-connection-tester.ts` 는 가드가 던진 것을 **무엇이든** 차단으로 옮긴다. 지금은 가드가 `SsrfBlockedError` 만 던져 동작 차이가 없다 —
+      SMTP 가드(`send-email/smtp-host-guard.ts`)만 판정이 아닌 오류를 다시 던진다. 넷을 맞추면 URL 파싱 등 다른 오류의 처분(차단 vs 실패)이 바뀌므로
+      호출부마다 기대 동작을 정하고 테스트와 함께.
+
+- [ ] **spec 네 곳의 기존 drift — `--impl-prep` `review/consistency/2026/09/19/21_02_09` WARNING 1~4** (planner, 낮음, 2026-09-19 등재).
+      SSRF 가드 통합 착수 전 검토가 scope(`spec/4-nodes/4-integration/`) 주변에서 찾은, 그 변경과 무관한 기존 어긋남:
+      (1) `spec/5-system/4-execution-engine.md` §10.1 `IntegrationsService.logUsage` TS 선언에 INT-US-05 `api?: { label?; method?; path? }` 가 없다
+      (`0-common.md` §4.1 · `1-data-model.md` §2.10.1 · `11-mcp-client.md` 는 적는다). (2) `spec/conventions/chat-channel-adapter.md` §3.1 실행 실패
+      분류표가 `INTEGRATION_*` · `CAFE24_*` · `MAKESHOP_*` · `EMAIL_HOST_BLOCKED` 를 덮지 않는다 — `*_RATE_LIMITED` 가 rate-limit 이 아니라 internal 로
+      분류될 수 있다(제품 판단 병행). (3) `spec/conventions/node-output.md` Principle 2 표와 `0-common.md` §6 은 DB `meta.rowCount` 중복을 «허용» 이라
+      적는데 `2-database-query.md` §5.1 은 «금지» 로 정했다. (4) 같은 문서 Principle 5 표는 `send_email` 을 «port: undefined(단일 출력)» 로 두는데
+      Principle 3.3 · D4 는 `error` 포트를 의무화한다(+ 3.3 열거에 `makeshop` 누락 — INFO 6). 같은 검토의 INFO: DNS 해석 실패 fail-open 이
+      어느 spec Rationale 에도 명문화돼 있지 않다 · LLM Client 가 세 번째 SSRF 메커니즘이라는 서술이 `1-http-request.md` §4 콜아웃에 없다.
+
 ## 종결 조건
 
 **형제 plan 은 이미 종결됐다** (`cce8a188b`, 2026-09-04). `entity-nullable-column-type-mismatch.md`

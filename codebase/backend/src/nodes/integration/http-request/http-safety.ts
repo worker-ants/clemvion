@@ -6,12 +6,8 @@
  *
  * Blocks URLs that resolve to loopback, link-local, private (RFC 1918),
  * CGNAT, or unique-local IPv6 ranges — IPv4-mapped IPv6 (`::ffff:a.b.c.d`) is
- * judged by the IPv4 it carries.
- *
- * 공용인데 `http-request/` 폴더에 있는 이유: HTTP Request 가 먼저 만든 것을 DB · Email 이 가져다 썼고, spec
- * `4-nodes/4-integration/1-http-request.md` frontmatter `code:` 가 이 경로를 가리킨다. 중립 위치로 옮기는 것은 그 spec 경로와
- * 함께 바꿔야 해서 트래커에 따로 있다(`plan/in-progress/spec-draft-nullable-notation-followups.md`). Intended for Integration-backed
- * requests where a workflow author should not be able to pivot to internal
+ * judged by the IPv4 it carries. Intended for Integration-backed requests
+ * where a workflow author should not be able to pivot to internal
  * infrastructure by supplying a relative URL that piggybacks on credentials.
  *
  * Two layers:
@@ -26,6 +22,10 @@
  * layers — required when the deployment legitimately needs to reach private
  * networks (internal DB / on-prem API). Set only when egress is otherwise
  * constrained by an external firewall.
+ *
+ * 공용인데 `http-request/` 폴더에 있는 이유: HTTP Request 가 먼저 만든 것을 DB · Email 이 가져다 썼고, spec
+ * `4-nodes/4-integration/1-http-request.md` frontmatter `code:` 가 이 경로를 가리킨다. 중립 위치로 옮기는 것은 그 spec 경로와
+ * 함께 바꿔야 해서 트래커 `plan/in-progress/spec-draft-nullable-notation-followups.md` 의 항목으로 둔다.
  */
 import { lookup } from 'node:dns/promises';
 
