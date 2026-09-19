@@ -17,23 +17,19 @@ import { isDryRun, buildDryRunMock } from '../../core/dry-run.util.js';
 import { sanitizeResponseHeaders } from '../_base/sanitize-response-headers.util.js';
 import { IntegrationsService } from '../../../modules/integrations/integrations.service.js';
 import {
+  SSRF_BLOCKED_CLIENT_MESSAGE,
   assertSafeOutboundHostResolved,
   assertSafeOutboundUrl,
 } from './http-safety.js';
 import { httpRequestNodeMetadata } from './http-request.schema.js';
+import {
+  HttpCredentials,
+  appendQueryParams,
+  resolveHttpCredentials,
+} from './http-credentials.js';
+import { followRedirectsSafely } from './http-redirect.js';
 
 const logger = new Logger('HttpRequestHandler');
-
-/**
- * SSRF 차단 시 클라이언트 노출용 일반화 메시지 — 차단된 host/IP 를 노출하지
- * 않는다(정찰 면 축소, CWE-209). 원본 상세(hostname/IP)는 `logger.warn`(서버 로그
- * 전용)에만 남는다 — usage 로그(`IntegrationUsageLog`)는 Activity API
- * (`GET /integrations/:id/activity`)로 workspace 사용자에게 raw 반환되므로 거기에도
- * 이 일반화 문구를 기록한다. DB(`DB_HOST_BLOCKED`)·Email(`EMAIL_HOST_BLOCKED`) 메시지
- * 일반화와 대칭. 클라이언트 UI 는 `output.error.code`(`HTTP_BLOCKED`)로 지역화 문구를
- * 렌더하므로 이 message 는 wire 안전 목적이다.
- */
-const SSRF_BLOCKED_CLIENT_MESSAGE = 'Request blocked by SSRF policy.';
 
 /**
  * Strip URL-borne credentials before echoing on `NodeHandlerOutput.config`
@@ -270,15 +266,9 @@ export class HttpRequestHandler
     // sanitize 로는 못 거른다. 여기서 캡처해 노출 자체를 차단한다 (security).
     const urlBeforeCredentialParams = url;
 
-    // Apply integration-provided query params (api_key in query mode).
-    if (credentials.queryParams) {
-      const params = new URLSearchParams();
-      for (const [k, v] of Object.entries(credentials.queryParams)) {
-        params.append(k, v);
-      }
-      const separator = url.includes('?') ? '&' : '?';
-      url = `${url}${separator}${params.toString()}`;
-    }
+    // Apply integration-provided query params (api_key in query mode) — shared
+    // with the integration connection test so both build the same URL.
+    url = appendQueryParams(url, credentials.queryParams);
 
     // Credential headers must take precedence over user-supplied headers to
     // prevent a workflow author from silently overwriting an integration's
@@ -422,47 +412,26 @@ export class HttpRequestHandler
       }
     }
     // Follow redirects manually so that a redirect to an internal host does
-    // not bypass `assertSafeOutboundUrl`. We honour up to 5 hops and
-    // re-validate each target.
+    // not bypass `assertSafeOutboundUrl` — `followRedirectsSafely` honours up to
+    // `MAX_REDIRECT_HOPS` and re-validates each target (shared with the
+    // integration connection test).
     fetchOptions.redirect = 'manual';
 
     try {
       let res = await fetch(url, fetchOptions);
-      let hops = 0;
-      while (
-        authentication === 'integration' &&
-        res.status >= 300 &&
-        res.status < 400 &&
-        res.headers.get('location')
-      ) {
-        if (hops >= 5) {
-          // spec §4.2/§6 — redirect 한도 초과 SSRF 차단도 HTTP_BLOCKED.
-          logger.warn(
-            'SSRF block (http-request): redirect chain exceeded 5 hops',
-          );
+      if (authentication === 'integration') {
+        const followed = await followRedirectsSafely(res, url, fetchOptions);
+        if (followed.blocked) {
+          // spec §4.2/§6 — redirect 대상의 SSRF 차단 · 한도 초과 모두 HTTP_BLOCKED. 원본 host/IP 는
+          // 서버 로그에만, 클라이언트엔 일반화(preflight 경로와 대칭).
+          logger.warn(`SSRF block (http-request redirect): ${followed.reason}`);
           throw new IntegrationError(
             ErrorCode.HTTP_BLOCKED,
             SSRF_BLOCKED_CLIENT_MESSAGE,
           );
         }
-        const location = res.headers.get('location') as string;
-        const next = new URL(location, url).toString();
-        // redirect 대상의 SSRF 검증 실패는 HTTP_BLOCKED 로 라우팅(원본 host/IP 는
-        // 서버 로그에만, 클라이언트엔 일반화 — preflight 경로와 대칭).
-        try {
-          assertSafeOutboundUrl(next);
-          await assertSafeOutboundHostResolved(new URL(next).hostname);
-        } catch (err) {
-          const detail = err instanceof Error ? err.message : String(err);
-          logger.warn(`SSRF block (http-request redirect): ${detail}`);
-          throw new IntegrationError(
-            ErrorCode.HTTP_BLOCKED,
-            SSRF_BLOCKED_CLIENT_MESSAGE,
-          );
-        }
-        url = next;
-        hops++;
-        res = await fetch(url, fetchOptions);
+        res = followed.response;
+        url = followed.url;
       }
       clearTimeout(timeoutId);
 
@@ -750,87 +719,13 @@ function stringifyScalar(value: unknown): string {
   }
 }
 
-interface HttpCredentials {
-  headers?: Record<string, string>;
-  queryParams?: Record<string, string>;
-  defaultHeaders?: Record<string, string>;
-}
-
 function buildHttpCredentials(
   authType: string,
   raw: Record<string, unknown>,
 ): { credentials: HttpCredentials; baseUrl: string | undefined } {
-  const defaultHeaders =
-    typeof raw.default_headers === 'object' && raw.default_headers !== null
-      ? (raw.default_headers as Record<string, string>)
-      : undefined;
-  const baseUrl =
-    typeof raw.base_url === 'string' && raw.base_url.length > 0
-      ? raw.base_url
-      : undefined;
-
-  switch (authType) {
-    case 'api_key': {
-      const location = raw.location as 'header' | 'query' | undefined;
-      const keyName = raw.key_name as string | undefined;
-      const value = raw.value as string | undefined;
-      if (!location || !keyName || !value) {
-        throw new IntegrationError(
-          'INTEGRATION_INCOMPLETE',
-          'HTTP integration (api_key) is missing location/key_name/value',
-        );
-      }
-      if (location === 'header') {
-        return {
-          credentials: { headers: { [keyName]: value }, defaultHeaders },
-          baseUrl,
-        };
-      }
-      return {
-        credentials: { queryParams: { [keyName]: value }, defaultHeaders },
-        baseUrl,
-      };
-    }
-    case 'bearer_token': {
-      const token = raw.token as string | undefined;
-      if (!token) {
-        throw new IntegrationError(
-          'INTEGRATION_INCOMPLETE',
-          'HTTP integration (bearer) is missing token',
-        );
-      }
-      return {
-        credentials: {
-          headers: { Authorization: `Bearer ${token}` },
-          defaultHeaders,
-        },
-        baseUrl,
-      };
-    }
-    case 'basic': {
-      const username = raw.username as string | undefined;
-      const password = raw.password as string | undefined;
-      if (!username || !password) {
-        throw new IntegrationError(
-          'INTEGRATION_INCOMPLETE',
-          'HTTP integration (basic) is missing username/password',
-        );
-      }
-      const encoded = Buffer.from(`${username}:${password}`).toString('base64');
-      return {
-        credentials: {
-          headers: { Authorization: `Basic ${encoded}` },
-          defaultHeaders,
-        },
-        baseUrl,
-      };
-    }
-    default:
-      throw new IntegrationError(
-        'INTEGRATION_AUTH_UNSUPPORTED',
-        `HTTP integration auth type "${authType}" is not supported`,
-      );
-  }
+  const result = resolveHttpCredentials(authType, raw);
+  if (!result.ok) throw new IntegrationError(result.code, result.message);
+  return { credentials: result.credentials, baseUrl: result.baseUrl };
 }
 
 /**

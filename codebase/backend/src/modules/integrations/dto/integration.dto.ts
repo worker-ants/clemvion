@@ -172,7 +172,7 @@ export class PreviewTestDto {
   /** 검증 대상 자격 증명 */
   @ApiProperty({
     description:
-      '검증 대상 자격 증명. 실제 외부 호출은 하지 않고 구조적 유효성만 확인합니다.',
+      '테스트할 자격 증명(저장하지 않음). 필드 구조를 먼저 검증하고, MCP · Email · Database · HTTP 는 이 값으로 실제로 접속합니다.',
     type: 'object',
     additionalProperties: true,
     example: { apiKey: 'sk-test-xxxx' },

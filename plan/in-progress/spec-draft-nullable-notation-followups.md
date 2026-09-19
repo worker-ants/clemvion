@@ -3589,9 +3589,11 @@ field: T | null;
       > 위 "CAFE24_UNRESOLVED_PATH_PARAM 도 같은 형태" 항목과 **한 턴에** 처리해야 한다 —
       > 따로 하면 spec 과 코드가 서로 다른 답을 갖는다.
 
-- [ ] **`PreviewTestResultDto` 도 `code` 를 미선언한다 — 같은 클래스의 세 번째 DTO**
+- [x] **`PreviewTestResultDto` 도 `code` 를 미선언한다 — 같은 클래스의 세 번째 DTO**
       (developer, 2026-09-13 등재 · `/ai-review` `review/code/2026/09/13/12_00_32`
-      api_contract WARNING#1). `#1330` 이 형제 `TestConnectionResultDto` 에 `code?: string` 을
+      api_contract WARNING#1 · **2026-09-19 해소** `plan/complete/integration-db-http-testers.md` — `code?: string` 선언 + preview
+      실패 경로 두 곳(Database · HTTP)에 `assertMatchesContract(…, PreviewTestResultDto)`. 뮤턴트로 선언을 빼면 그 두 건이 RED.
+      같은 PR 이 Database · HTTP 테스터를 붙여 `DB_*` · `HTTP_*` 코드가 preview 응답에 새로 실리게 됐으므로 이 자리가 처분 시점이었다). `#1330` 이 형제 `TestConnectionResultDto` 에 `code?: string` 을
       넣었는데, **같은 파일의 preview 쌍둥이**는 그대로다 — `dispatchTest`/`testEmailTransport`/
       `testMcpTransport` 가 `EMAIL_HOST_BLOCKED`·`EMAIL_CONNECT_FAILED`·`MCP_*` 를 싣고
       spec(`§9.1`·`§5.5`)도 그것을 전제한다.
@@ -4754,6 +4756,106 @@ field: T | null;
       > `triggers.service.ts:122` 는 이미 낡아 있었다(`findById` 는 408행) — 줄 번호를 빼고 심볼만 남겼다.
       > ⚠️ 는 지우지 않고 «PATCH 는 바꾸는 필드만 저장한다 · 부재는 두 하위 창(재읽기 빔 → 404 /
       > 저장 직전 CASCADE → 롤백·500)» 으로 바꿨다 — 500 은 계약이 아니라 현재 동작으로 적었다.
+
+- [ ] **rotate 의 테스트 실패 응답이 400 인데 spec 은 422 — 두 spec 이 서로도 어긋난다** (planner 결정, 2026-09-19 등재 ·
+      `plan/complete/spec-draft-integration-connection-tests.md` «비대상» · `--impl-prep` `review/consistency/2026/09/19/13_21_00` WARNING 1).
+      `IntegrationsService.rotate()` 는 `INTEGRATION_TEST_FAILED` 를 `BadRequestException`(400)으로 던진다. `spec/2-navigation/4-integration.md §9.4`
+      는 422, `spec/5-system/11-mcp-client.md` 는 400 이라 적는다. 연결 테스트가 Database · HTTP 에서 실제로 실패할 수 있게 된 지금 이 응답이
+      처음으로 흔해진다 — `integration-connection-test.e2e-spec.ts` D 는 그래서 **상태 코드를 단언하지 않는다**(4xx 범위 + 코드만). 정할 것: 어느 쪽에 맞출지.
+      **같은 결정에 묶을 것** (`/ai-review` `review/code/2026/09/19/14_29_33` api_contract INFO): rotate 는 연결 테스트의 세부 `code`
+      (`DB_AUTH_FAILED` · `HTTP_AUTH_FAILED` …)를 버리고 늘 `INTEGRATION_TEST_FAILED` 만 준다 — preview-test · `:id/test` 와 세분성이
+      다르다. 세부 코드를 `details` 로 실을지 함께 정한다.
+      (`16_00_06` api_contract WARNING 8: 정할 때 `5-system/11-mcp-client.md` 의 400 근거와 `5-system/2-api-convention.md §6` 의 422
+      원칙을 함께 남길 것.)
+
+- [ ] **SMTP SSRF 가드에 CGNAT 대역이 없는데 §5.5 는 막는다고 적는다** (developer→planner, 2026-09-19 등재 · 같은 draft «비대상»).
+      `smtp-host-guard.ts` → `ssrf.util.ts` 는 HTTP 가드(`http-safety.ts`)와 **다른 구현**이고 `100.64.0.0/10` 이 빠져 있다.
+      `nodes/core/error-codes.ts` 주석은 HTTP 가드를 Email 가드의 SoT 라 적는다 — 실제로는 공유하지 않는다. 가드를 맞출지(코드) · 문장을 맞출지(spec).
+
+- [ ] **§5.3 HTTP 필드 표의 `none` 인증 · `default_headers` 가 서비스 레지스트리 `http` 항목에 없다** (planner/developer, 2026-09-19 등재 ·
+      같은 draft «비대상»). 노드(`resolveHttpCredentials`)와 연결 테스터는 `default_headers` 를 읽지만 등록 UI 는 입력할 칸을 만들지 못한다.
+      `none` 은 레지스트리에 변형이 없어 `INTEGRATION_INVALID_SERVICE` 로 거부된다.
+
+- [ ] **Google 통합이 «Auto-renews» 로 보이는데 갱신 구현이 없다** (developer 결정, 2026-09-19 등재 · 같은 draft «비대상»).
+      레지스트리 `supportsTokenAutoRefresh: true` 가 `meta.autoRefresh` 로 나가 UI 가 자동 갱신 배지를 보인다. spec 은 `74087dff6` 이 §10.3 · §10.5
+      주석으로 사실을 적었다. 코드 쪽 선택지: 갱신 구현 · 플래그 false. **사용자 가이드도 같은 주장을 한다** — `integration-management.mdx`(+en)
+      의 «주의 대상» tip 이 Google 을 «refresh_token 자동 갱신을 지원하는 통합» 에 넣어 만료 임박이어도 배너에서 뺀다고 적는다. 코드를 정할 때 함께.
+
+- [ ] **Google `account_email` · GitHub `login` 이 필수인데 토큰 응답에서만 뽑는다 — 없으면 저장이 막힐 수 있다(미확인)** (developer, 2026-09-19
+      등재 · 같은 draft «비대상»). 착수 전 실측부터: 실제 토큰 교환 응답에 두 값이 있는지.
+
+- [ ] **Google · GitHub · Webhook 연결 테스터** (developer, 조건부, 2026-09-19 등재 · 같은 draft «비대상»). 지금은 구조 검증만이다 —
+      그 통합을 쓰는 노드가 없어 확인할 대상이 없다(spec §5.1 · §5.2 · §5.7 이 원래 약속한 프로브를 적어 둔다). **그 노드가 생길 때** 착수.
+
+- [ ] **연결 테스트의 «확인 못 함» 안내가 화면에 닿지 않는다** (planner — UX 결정, 2026-09-19 등재 · `plan/complete/integration-db-http-testers.md`).
+      HTTP 테스터는 401 · 403 외의 4xx 와 `base_url` 이 없는 경우에 `success: true` + 안내 메시지를 돌려준다(spec §5.3 «메시지로 알린다»). 그런데
+      등록 Step 3(`test-step.tsx`)은 성공 시 메시지 대신 i18n `readyMessage` 를, 상세 `Test connection`(`integrations/[id]/page.tsx`)은
+      `connectionPassed` 토스트를 보여 **성공 메시지를 버린다**. 지금까지는 성공 메시지가 `'Connection successful'` 또는 없음(Cafe24)뿐이라 문제가
+      아니었다. 세 번째 상태(«닿았지만 확인 못 함» — 경고 표시)를 둘지, 둔다면 API 가 그것을 무엇으로 알릴지(메시지 문자열 비교는 층을 넘는 결합이다)가
+      결정 대상이다. 사용자 가이드는 한계만 적었다(«401 · 403 일 때만 거부를 안다»).
+
+- [ ] **`4-integration.md` §14.1 — 노드 런타임 HTTP 코드 표기가 `HTTP_{status}` 와 `HTTP_4XX` · `HTTP_5XX` 로 섞여 있다** (planner, 낮음,
+      2026-09-19 등재 · `--impl-prep` `review/consistency/2026/09/19/13_21_00` INFO 6). 어느 쪽이 맞는지 노드 spec(`4-nodes/4-integration/1-http-request.md`)
+      과 대조가 먼저다. (같이 등재했던 §6 의 `§9.3` 오기는 `plan/complete/spec-draft-integration-db-test-waits.md` 가 §9.1 로 고쳐 이
+      항목에서 뺐다 — `--spec` `review/consistency/2026/09/19/15_30_56` WARNING 1.)
+
+- [ ] **preview-test 가 인증된 사용자의 외부 연결 오라클이다 — 받아들일 위험인지 막을지 정한다** (planner 결정, 2026-09-19 등재 ·
+      `/ai-review` `review/code/2026/09/19/13_58_22` security WARNING). `POST /api/integrations/preview-test` 는 워크스페이스 · 역할
+      검사가 없고(분당 20회 throttle 만), Database · HTTP 테스트가 공개 host 에 실제로 접속하며 드라이버 원문 메시지(길이만 제한)를
+      돌려준다 — 거부 · 타임아웃 · TLS 실패를 구분할 수 있어 플랫폼을 거친 제한적 포트 탐색에 쓸 수 있다. 내부 주소는 SSRF 가드가
+      막는다. **이 PR 이 새로 연 성질은 아니다** — Email(SMTP `verify()` 원문 메시지) · MCP 가 같은 엔드포인트에서 이미 그렇다.
+      선택지: spec Rationale 에 받아들인 위험으로 적기 · 워크스페이스 컨텍스트 요구 · 연결 실패 메시지 일반화(진단성과 맞바꿈).
+      **같은 결정에 묶을 것** (`/ai-review` `review/code/2026/09/19/15_02_57` api_contract WARNING 9): `POST /api/integrations/:id/test`
+      도 이제 Database · HTTP 에서 실제로 접속하는데 route throttle 이 없다(전역 기본만 — preview-test 는 분당 20). 저장된 통합이
+      있어야 하므로 워크스페이스 멤버만 부를 수 있다는 점이 preview-test 와 다르다.
+
+- [ ] **연결 테스트의 `dns.lookup` 이 스레드풀을 쥔다 — 동시 상한 뒤에 남는 것** (developer, 낮음, 2026-09-19 등재 · `/ai-review`
+      `review/code/2026/09/19/13_58_22` concurrency CRITICAL 의 잔여). 그 PR 은 `dispatchTest` 에 transport 테스트 동시 상한 2 를
+      걸었다(`CONNECTION_TEST_MAX_CONCURRENCY`) — 풀 전체가 아니라 절반까지만 쥘 수 있게. 남는 것: (1) 상한 뒤 줄은 길이 제한이 없어
+      한 사용자가 연결 테스트 기능 자체를 느리게 만들 수 있다(프로세스 전체는 아니다) (2) MCP 는 SDK 가 연결 중 요청을 겹치는지 재지
+      않았다 — 테스트 하나가 스레드 둘을 쥘 수 있다 (3) 근본 해법은 c-ares(`dns.promises.Resolver` + timeout) 또는 해석한 IP 로 직접
+      연결(DNS rebinding 도 닫는다)인데, 가드가 노드 실행과 공유라 `/etc/hosts` 의미 차이 · TLS SNI 를 함께 봐야 한다. 리뷰가
+      제안한 `Promise.race` 타임아웃은 스레드를 풀지 못해 채택하지 않았다.
+      **실측 · 남은 창 갱신** (`/ai-review` `review/code/2026/09/19/15_30_04` Critical · `16_00_06` WARNING 2): 배포 이미지
+      `node:24-alpine`(musl)에서 응답 없는 네임서버로 `dns.lookup` 은 5.0초 뒤 `EAI_AGAIN` — 슬롯은 Database 약 26초 · HTTP 약 20초에
+      풀린다(상한 JSDoc 에 계산). **glibc(다중 nameserver · attempts)는 재지 않았다** — 다른 베이스 이미지로 옮기면 다시 잴 것. HTTP 의
+      리다이렉트 홉 가드 lookup 은 요청의 `AbortSignal` 밖이라, 신호가 끝난 뒤에도 lookup 하나만큼(5초) 더 걸릴 수 있다.
+
+- [ ] **연결 테스트 결과 코드가 지역화 사전에 없다 — `EMAIL_*` 부터 이미** (developer, 낮음, 2026-09-19 등재 · `/ai-review`
+      `review/code/2026/09/19/13_58_22` user_guide_sync INFO). `DB_*` · `HTTP_*` · `EMAIL_*` 가 `backend-labels.ts` `ERROR_KO` ·
+      프런트 `INTEGRATION_ERROR_CODE_TO_I18N` 어디에도 없다 — 지금 화면은 `message`(영문)를 그대로 보인다. 위 «확인 못 함 안내가
+      화면에 닿지 않는다» 와 같은 UI 턴에서 네 계열(mcp · email · database · http)을 한 번에.
+
+- [ ] **동시 rotate 두 건은 나중 저장이 먼저 통과한 교체를 조용히 덮는다** (developer, 낮음, 2026-09-19 등재 · `/ai-review`
+      `review/code/2026/09/19/15_30_04` database WARNING 1 (a)). `rotate()` 는 읽기 → merge → 연결 테스트(이제 수 초) → 부분 `update`
+      라, 같은 통합을 동시에 회전하면 둘 다 성공 응답을 받고 나중 것만 남는다. **이 PR 전에도 같은 창이 있었다**(구조 검증만이라 짧았을
+      뿐). 막으려면 `updated_at` 조건부 update 나 `@VersionColumn` 과 409 — 버전 컬럼은 마이그레이션이라 따로. 같은 지적의 (b)(테스트
+      동안 삭제되면 부분 `save` 가 INSERT 를 시도)는 그 PR 이 `update` + 0행 404 로 닫았다.
+      (`16_00_06` concurrency WARNING 3 이 같은 지적을 다시 냈다 — 처분 변경 없음.)
+
+- [ ] **entity tester 재진입 금지가 문서로만 있다** (developer, 낮음, 2026-09-19 등재 · `/ai-review` `review/code/2026/09/19/16_00_06`
+      concurrency · side_effect WARNING 1). entity tester 는 연결 테스트 동시 상한(2) 안에서 도므로, 등록된 테스터가 `testConnection` ·
+      `previewTest` · `rotate` 를 다시 부르면 슬롯끼리 서로를 기다려 교착한다. 지금 둘(Cafe24 · MakeShop)은 부르지 않고
+      `registerEntityTester` 계약에 적었다. 런타임으로 막으려면 `AsyncLocalStorage` 로 «슬롯 안» 을 표시해 재호출을 즉시 실패시키는 가드와
+      그 회귀 테스트. 새 entity tester 를 붙일 때 같이.
+
+- [ ] **연결 테스트 결과 코드가 원시 문자열로 흩어져 있다** (developer, 낮음, 2026-09-19 등재 · `16_00_06` maintainability WARNING 4).
+      `DB_*` · `HTTP_*` 가 테스터 · spec · e2e 에 리터럴로 반복된다 — 같은 디렉터리의 `MCP_ERROR_CODES` 처럼 `as const` 객체로 모아 오타를
+      컴파일 에러로. `EMAIL_*` 도 같은 형편이라 위 «결과 코드 지역화» 항목과 한 번에 하면 대조 표가 하나로 끝난다.
+      함께: `IntegrationTestResult.code` 가 `string` 이라 노드 런타임 `ErrorCode`(`DB_CONNECTION_ERROR` · `HTTP_TRANSPORT_FAILED` — 이름이
+      가깝다)와 섞어 비교해도 컴파일러가 못 잡는다 — 연결 테스트 코드의 literal union 으로 좁힌다(`--impl-done`
+      `review/consistency/2026/09/19/16_19_04` naming_collision WARNING 3).
+
+- [ ] **연결 테스트 spec 의 빈칸 셋** (developer, 낮음, 2026-09-19 등재 · `16_00_06` testing WARNING 5 · 6 · INFO 5).
+      (1) `buildMysqlSsl` 의 `require` · `verify-full` → `rejectUnauthorized: true` 를 mysql 쪽에서 단언하지 않는다(postgres 만) — 노드와
+      공유하는 보안 매핑이다. (2) `database-driver-sockets.spec.ts` 의 mysql2 케이스는 unit 계층에서 루프백 연결을 실제로 시도한다 —
+      소켓 정리를 `try/finally` 로, 예외적으로 실제 소켓을 쓴다는 주석. (3) rotate 의 `update` 성공 뒤 재조회가 `null` 인 분기(그 사이
+      삭제 → 404) 테스트.
+
+- [ ] **SMTP 가드 주석이 없는 환경변수를 가리킨다** (developer, 낮음, 2026-09-19 등재 · `16_00_06` documentation WARNING 7).
+      `integrations.service.ts`(`testEmailTransport`) · `send-email.handler.ts` 두 곳이 «`SMTP_BLOCK_PRIVATE_HOSTS` 정책이 켜진 경우(opt-in)»
+      라 적는데 실제는 `ALLOW_PRIVATE_HOST_TARGETS=true` 가 아니면 막는 **opt-out** 이다(`smtp-host-guard.ts`). 위 «SMTP SSRF 가드에 CGNAT 이
+      없다» 항목과 같은 턴에.
 
 ## 종결 조건
 

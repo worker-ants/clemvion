@@ -251,6 +251,13 @@ export class PreviewTestResultDto {
   message: string;
 
   /**
+   * 실패 분류 코드. `MCP_*` · `EMAIL_*` · `DB_*` · `HTTP_*` 등이며, 성공 응답에는 실리지 않습니다.
+   * 형제 {@link TestConnectionResultDto} 와 같은 필드다 — 두 엔드포인트가 같은 `dispatchTest` 결과를 돌려준다.
+   */
+  @ApiPropertyOptional()
+  code?: string;
+
+  /**
    * MCP service_type 한정 — 성공 시 서버가 보고한 capabilities 객체 그대로.
    * 다른 service_type 에서는 생략된다.
    */
@@ -470,7 +477,7 @@ export class TestConnectionResultDto {
   // 같은 인터페이스의 MCP 전용 필드(`capabilities`·`serverInfo`·`preview`)도 미선언이지만
   // 타입이 무거워 별도 등재했다 — `plan/in-progress/spec-draft-nullable-notation-followups.md`.
   /**
-   * 실패 분류 코드. `MCP_*` · `EMAIL_CONNECT_FAILED` · `INTEGRATION_INCOMPLETE` 등이며,
+   * 실패 분류 코드. `MCP_*` · `EMAIL_*` · `DB_*` · `HTTP_*` · `INTEGRATION_INCOMPLETE` 등이며,
    * 성공 응답에는 실리지 않습니다.
    */
   @ApiPropertyOptional()

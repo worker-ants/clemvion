@@ -9,6 +9,7 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import { Brackets, Repository } from 'typeorm';
 import { createTransport } from 'nodemailer';
+import pLimit from 'p-limit';
 import { isSmtpHostBlocked } from '../../common/utils/smtp-host-guard';
 import { Integration } from './entities/integration.entity';
 import { getAppBaseUrl } from '../../common/utils/app-base-url';
@@ -49,10 +50,10 @@ import {
   ConnectionPreview,
   McpTestConnectionService,
 } from '../mcp/mcp-test-connection.service';
-import {
-  MCP_ERROR_CODES,
-  MCP_ERROR_MESSAGE_MAX_LEN,
-} from '../mcp/mcp-error-codes';
+import { MCP_ERROR_CODES } from '../mcp/mcp-error-codes';
+import { clampMessage } from './clamp-message';
+import { testDatabaseConnection } from './database-connection-tester';
+import { testHttpConnection } from './http-connection-tester';
 import {
   McpConnectParams,
   ServerCapabilities,
@@ -75,7 +76,7 @@ import {
 export interface IntegrationTestResult {
   success: boolean;
   message: string;
-  /** Failure code (e.g. `MCP_*` 또는 email 의 `EMAIL_CONNECT_FAILED`); absent on success. */
+  /** Failure code (e.g. `MCP_*` · `EMAIL_CONNECT_FAILED` · `DB_*` · `HTTP_*`); absent on success. */
   code?: string;
   capabilities?: ServerCapabilities;
   serverInfo?: ServerInfo;
@@ -106,21 +107,29 @@ export type EntityAwareTester = (
 
 const ADMIN_ROLES = new Set(['owner', 'admin']);
 
-/**
- * Clamp a free-form error message to {@link MCP_ERROR_MESSAGE_MAX_LEN} so a
- * misbehaving external server cannot inflate the `last_error` JSONB column.
- * The same bound is applied to `IntegrationUsageLog.error.message` for
- * consistency.
- */
 /** email(SMTP) 연결 테스트의 connection/greeting/socket 공통 타임아웃 (ms). */
 const SMTP_TEST_TIMEOUT_MS = 10_000;
 
-function clampMessage(raw: string | undefined): string {
-  if (!raw) return 'Unknown error';
-  return raw.length > MCP_ERROR_MESSAGE_MAX_LEN
-    ? raw.slice(0, MCP_ERROR_MESSAGE_MAX_LEN)
-    : raw;
-}
+/**
+ * 프로세스 안에서 동시에 도는 연결 테스트의 상한 — transport 테스터(mcp · email · database · http)와 entity tester
+ * (`registerEntityTester`, 지금은 Cafe24 · MakeShop)가 **한 줄을 공유**한다. 넘는 요청은 줄을 선다.
+ *
+ * 연결 테스트는 사용자가 준 host 를 `dns.lookup` 으로 푼다(SSRF 가드 · 드라이버 · `fetch`). `dns.lookup` 은 libuv
+ * 스레드풀(기본 4)을 쓰고 Node 쪽 타임아웃 옵션이 없다 — 스레드는 libc resolver 가 포기할 때까지 잡힌다(backend 이미지
+ * `node:24-alpine`(musl)에서 응답 없는 네임서버로 실측 5.0초 뒤 `EAI_AGAIN`, 2026-09-19). 그런 테스트가 겹치면 풀이 차서
+ * 같은 풀을 쓰는 무관한 작업(`fs` · `crypto` · `zlib`)까지 멈춘다 — `@Throttle` 은 요청 **속도**만 묶고 동시 **개수**는
+ * 묶지 않는다. 슬롯은 영구히 잡히지 않는다: Database 는 가드 lookup(5) · 연결(10) · 쿼리(10) · 닫기(1) 상한의 합(약 26초),
+ * HTTP 는 가드 lookup(5)과 리다이렉트 체인 전체에 걸린 10초 신호, 그리고 신호가 끝나기 직전에 시작한 홉 가드 lookup 하나(5)
+ * 까지(약 20초)다.
+ * Database · HTTP 테스트는 lookup 을 한 번에 하나씩 한다(가드 → 연결, 리다이렉트 홉마다 순차) — 그 둘만 보면 이 상한이
+ * 테스트가 쥘 수 있는 스레드 수이고, 풀의 절반으로 둬 나머지를 남긴다. MCP 는 SDK 가 연결 중 요청을 겹치는지 재지
+ * 않았으므로 테스트 하나가 스레드를 둘 이상 쥘 수 있다(그래도 테스트 수에 비례해 묶인다). 타임아웃을 거는 것으로는
+ * 안 된다 — 응답만 끊을 뿐 스레드는 lookup 이 끝날 때까지 잡혀 있다.
+ *
+ * 지금의 entity tester 둘은 호스트가 `*.cafe24api.com` · `connect.makeshop.co.kr` 로 고정이라 이 위험이 없지만, 확장점으로
+ * 들어오는 테스터가 사용자 host 를 받을 수 있으므로 기본적으로 같은 상한에 묶는다.
+ */
+export const CONNECTION_TEST_MAX_CONCURRENCY = 2;
 
 /**
  * `integration_usage_log.api_{label,method,path}` 컬럼의 길이 제약 (각각 128/8/256)
@@ -401,6 +410,11 @@ export class IntegrationsService {
    */
   private readonly entityTesters = new Map<string, EntityAwareTester>();
 
+  /** 연결 테스트(transport · entity)의 동시 실행 상한 — {@link CONNECTION_TEST_MAX_CONCURRENCY}. */
+  private readonly connectionTestLimit = pLimit(
+    CONNECTION_TEST_MAX_CONCURRENCY,
+  );
+
   constructor(
     @InjectRepository(Integration)
     private readonly integrationRepository: Repository<Integration>,
@@ -417,6 +431,11 @@ export class IntegrationsService {
     this.transportTesters = new Map<string, TransportTester>([
       ['mcp', this.testMcpTransport.bind(this)],
       ['email', this.testEmailTransport.bind(this)],
+      [
+        'database',
+        (_authType, credentials) => testDatabaseConnection(credentials),
+      ],
+      ['http', testHttpConnection],
     ]);
   }
 
@@ -447,6 +466,10 @@ export class IntegrationsService {
    * emits a warning so production wiring drift surfaces in logs. The tester
    * itself MUST not throw — return a failure result instead, since
    * {@link testConnection} surfaces the result as-is to the HTTP response.
+   * It runs inside the connection-test concurrency limit
+   * ({@link CONNECTION_TEST_MAX_CONCURRENCY}), so it MUST NOT call back into
+   * `testConnection` / `previewTest` / `rotate` — a nested wait on the same
+   * limit can deadlock once every slot is held by such a tester.
    */
   registerEntityTester(serviceType: string, tester: EntityAwareTester): void {
     if (this.entityTesters.has(serviceType)) {
@@ -957,7 +980,8 @@ export class IntegrationsService {
     // needs the row for proactive refresh + 401 retry against the real API).
     const entityTester = this.entityTesters.get(entity.serviceType);
     if (entityTester) {
-      return entityTester(entity);
+      // 같은 동시 상한 안에서 — 확장점으로 들어오는 테스터도 기본적으로 묶는다(CONNECTION_TEST_MAX_CONCURRENCY).
+      return this.connectionTestLimit(() => entityTester(entity));
     }
     return this.dispatchTest(
       entity.serviceType,
@@ -1100,13 +1124,33 @@ export class IntegrationsService {
       });
     }
 
-    entity.credentials = merged;
-    entity.lastRotatedAt = new Date();
-    entity.status = 'connected';
-    entity.statusReason = null;
-    entity.lastError = null;
-
-    const saved = await this.integrationRepository.save(entity);
+    // 바꾸는 컬럼만 `update` 한다 — 엔티티 전체를 `save` 하면, 위 연결 테스트(실제 접속이라 수 초 걸린다) 동안 `logUsage` 가
+    // 원자적 `update` 로 쓴 `lastUsedAt` 같은 컬럼을 읽어 둔 옛 값으로 되돌린다. `save` 는 그 사이 행이 지워졌으면 INSERT 를
+    // 시도하므로 쓰지 않는다 — `update` 가 0행이면 404 다. (자격증명 transformer 는 `update` 에도 걸린다.)
+    // 타입은 `logUsage` 의 patch 와 같은 이유로 넓힌다 — JSONB 컬럼(`Record<string, unknown>`)이 QueryDeepPartialEntity 를
+    // 통과하지 못한다.
+    const changes: Record<string, unknown> = {
+      credentials: merged,
+      lastRotatedAt: new Date(),
+      status: 'connected',
+      statusReason: null,
+      lastError: null,
+    };
+    const { affected } = await this.integrationRepository.update(
+      { id: entity.id },
+      changes,
+    );
+    // 응답은 저장 뒤 다시 읽은 행으로 만든다 — `updated_at` 은 DB 가 정하고(메모리의 엔티티에 값을 넣어도 DB 값과 어긋났다 —
+    // e2e 실측 1ms), 테스트 동안 `logUsage` 가 쓴 컬럼도 그대로 보인다.
+    const saved = affected
+      ? await this.integrationRepository.findOne({ where: { id: entity.id } })
+      : null;
+    if (!saved) {
+      throw new NotFoundException({
+        code: 'RESOURCE_NOT_FOUND',
+        message: 'Integration not found',
+      });
+    }
     await this.auditLogsService.record({
       workspaceId,
       userId,
@@ -1523,7 +1567,7 @@ export class IntegrationsService {
     // transport tester is added for them.
     const tester = this.transportTesters.get(serviceType);
     if (tester) {
-      return tester(authType, credentials);
+      return this.connectionTestLimit(() => tester(authType, credentials));
     }
     return {
       success: true,

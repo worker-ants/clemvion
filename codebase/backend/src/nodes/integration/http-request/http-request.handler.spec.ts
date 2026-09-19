@@ -1152,6 +1152,8 @@ describe('HttpRequestHandler', () => {
       };
       expect(output.error.code).toBe('HTTP_BLOCKED');
       expect(output.error.message).toBe('Request blocked by SSRF policy.');
+      // 첫 요청 + 5홉까지 따라가고, 6번째 리다이렉트에서 멈춘다 — 횟수를 보지 않으면 상한 off-by-one 도 HTTP_BLOCKED 로 끝난다.
+      expect(global.fetch).toHaveBeenCalledTimes(6);
     });
 
     it('allows custom-auth private targets when ALLOW_PRIVATE_HOST_TARGETS=true (opt-out)', async () => {

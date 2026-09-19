@@ -6,7 +6,7 @@ order: 1
 summary: "Third-party 서비스 연동을 추가하고, 테스트하고, 워크플로우 노드에서 재사용하는 방법을 설명해요."
 summary_en: "How to add, test, and reuse third-party integrations across workflow nodes."
 spec: ["spec/2-navigation/4-integration.md"]
-code: ["codebase/backend/src/modules/integrations/integrations.controller.ts", "codebase/backend/src/modules/integrations/integrations.service.ts", "codebase/frontend/src/app/(main)/w/[slug]/integrations/page.tsx", "codebase/frontend/src/app/(main)/w/[slug]/integrations/new/page.tsx", "codebase/frontend/src/app/(main)/w/[slug]/integrations/[id]/page.tsx"]
+code: ["codebase/backend/src/modules/integrations/integrations.controller.ts", "codebase/backend/src/modules/integrations/integrations.service.ts", "codebase/backend/src/modules/integrations/database-connection-tester.ts", "codebase/backend/src/modules/integrations/http-connection-tester.ts", "codebase/frontend/src/app/(main)/w/[slug]/integrations/page.tsx", "codebase/frontend/src/app/(main)/w/[slug]/integrations/new/page.tsx", "codebase/frontend/src/app/(main)/w/[slug]/integrations/[id]/page.tsx"]
 ---
 
 이 페이지에서는 외부 서비스와의 통합(Integration, 연동)을 중앙에서 관리하는 방법을 설명해요. HTTP Request나 Send Email 같은 노드가 여기서 만든 연동을 재사용해요.
@@ -67,6 +67,18 @@ code: ["codebase/backend/src/modules/integrations/integrations.controller.ts", "
   { name: "Activity", type: "탭", required: "항상", description: "최근 7일간 호출 기록을 API · 상태 · 소요 · 오류 열로 확인해요. `API` 열에는 어떤 endpoint 가 호출됐는지 표시돼요. Cafe24 통합은 operation 라벨을, 그 외 서비스는 HTTP 메서드와 경로를 그대로 보여줘요. 두 값이 모두 없으면 `—` 로 표시해요. 연동이 연결 안 됨(`error` · `expired` · `pending_install`) 상태면 새 호출이 기록되지 않아 목록 위에 경고 배너가 뜨고, `상태 확인` 버튼으로 Overview 탭에서 상태 확인·재연결할 수 있어요." },
   { name: "Danger zone", type: "탭", required: "Admin", description: "삭제 · Personal ↔ Organization 범위 전환. 사용처가 있으면 삭제가 차단되고, 삭제 차단 다이얼로그가 열려 사용 중인 워크플로우·노드 목록과 각 워크플로우로 가는 바로가기 링크를 보여줘요. AI Agent의 MCP 서버로 참조되는 노드는 `MCP` 배지로 표시돼요." }
 ]} />
+
+<Callout type="note">
+연결 테스트가 확인하는 범위는 서비스마다 달라요.
+
+- **실제로 접속해서 확인**: Email(SMTP 로그인까지), MCP 서버, Database, HTTP/REST.
+- **입력 형식만 확인**(외부 호출 없음): Google, GitHub, Webhook.
+- **Cafe24 · MakeShop**: 연동을 추가하는 중(Step 3)에는 형식만 확인하고, 연결된 뒤 상세 페이지의 `Test connection` 은 실제로 호출해요.
+
+Database는 연결을 열어 `SELECT 1`을 실행해요. 비밀번호가 틀렸거나 접근 권한이 없으면 테스트가 실패하고, 테스트용 연결은 확인이 끝나면 바로 닫혀요. HTTP/REST는 `base_url`로 노드와 같은 방식의 인증 정보를 붙여 요청을 보내요 — 서버가 401 · 403을 돌려줄 때만 인증 정보가 틀렸다는 것을 알 수 있어요. 그 밖의 4xx는 서버에는 닿았다는 뜻이라 통과로 표시되지만 인증 정보가 맞다는 확인은 아니고, 5xx는 실패로 표시돼요. `base_url`이 비어 있는 연동(노드에서 URL 전체를 적는 경우)은 요청을 보내지 않아요. Database는 연결과 `SELECT 1`을 각각 최대 10초, HTTP/REST는 리다이렉트를 포함한 요청 전체를 최대 10초 기다려요.
+
+사설망·loopback 같은 내부 주소로 향하는 Database · HTTP 연동은 보안을 위해 테스트가 차단되고 실패로 표시돼요(운영자가 내부 주소를 허용한 설치는 예외). 차단된 주소는 오류 메시지에 나오지 않아요.
+</Callout>
 
 <Callout type="tip">연동이 `expired` 또는 `error` 상태로 바뀌면 사이드바에 주의 필요 배지가 뜨고, 목록 상단에 `Need attention` 배너가 나타나요. 배너를 누르면 해당 상태 필터로 바로 이동해요. 주의 대상에는 토큰이 7일 이내 만료되는 만료 임박 `connected` 연동도 포함돼요. **단, refresh_token 자동 갱신을 지원하는 통합(Cafe24·MakeShop·Google)은 만료 임박이어도 `Need attention` 배너·사이드바 배지·`Expiring` 필터에 포함되지 않아요** — 시스템이 백그라운드에서 자동 갱신하므로 조치가 필요 없기 때문이에요(같은 이유로 access_token 이 만료돼도 passive `integration_expired` 알림을 보내지 않아요). 자동 갱신이 실패해 `error`/`expired` 로 바뀌면 그때 정상적으로 주의 대상에 포함되고 `integration_action_required` active 알림이 발송돼요.</Callout>
 

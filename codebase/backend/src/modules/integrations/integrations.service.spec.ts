@@ -5,6 +5,7 @@ import {
   ForbiddenException,
 } from '@nestjs/common';
 import {
+  CONNECTION_TEST_MAX_CONCURRENCY,
   IntegrationsService,
   IntegrationCredentialsUnreadableError,
   buildIntegrationMeta,
@@ -14,19 +15,36 @@ import {
   assertMatchesContract,
   contractForDto,
 } from '../../shared/testing/response-contract';
-import { TestConnectionResultDto } from './dto/responses/integration-response.dto';
+import {
+  PreviewTestResultDto,
+  TestConnectionResultDto,
+} from './dto/responses/integration-response.dto';
 import type { Integration } from './entities/integration.entity';
 import { AUDIT_ACTIONS } from '../audit-logs/audit-action.const';
 import { UNREADABLE_KEY } from './services/credentials-transformer';
 import { SERVICE_REGISTRY } from './services/service-registry';
 import { createTransport } from 'nodemailer';
 import { isSmtpHostBlocked } from '../../common/utils/smtp-host-guard';
+import { testDatabaseConnection } from './database-connection-tester';
+import { testHttpConnection } from './http-connection-tester';
 
 jest.mock('nodemailer', () => ({ createTransport: jest.fn() }));
 // SSRF 가드는 별도 unit spec(smtp-host-guard.spec.ts)이 검증한다. 여기서는
 // 실제 DNS 조회를 피하기 위해 모킹하고, 호출 여부·분기만 제어한다.
 jest.mock('../../common/utils/smtp-host-guard', () => ({
   isSmtpHostBlocked: jest.fn().mockResolvedValue(false),
+}));
+// Database · HTTP 테스터 자체는 각자의 unit spec 이 검증한다. 여기서는 dispatchTest 배선만 본다 —
+// 실제 DB 접속 · fetch 를 피하려고 모킹한다(기본값은 성공).
+jest.mock('./database-connection-tester', () => ({
+  testDatabaseConnection: jest
+    .fn()
+    .mockResolvedValue({ success: true, message: 'Connection successful' }),
+}));
+jest.mock('./http-connection-tester', () => ({
+  testHttpConnection: jest
+    .fn()
+    .mockResolvedValue({ success: true, message: 'Connection successful' }),
 }));
 
 type Mock = jest.Mock;
@@ -1262,16 +1280,33 @@ describe('IntegrationsService', () => {
         credentials: { value: 'new-secret' },
       });
       expect(result.credentials.value).toBe('********');
-      expect(integrationRepo.save).toHaveBeenCalledWith(
+      expect(integrationRepo.update).toHaveBeenCalledWith(
+        { id: 'int-1' },
         expect.objectContaining({
           lastRotatedAt: expect.any(Date),
           status: 'connected',
           statusReason: null,
         }),
       );
+      expect(integrationRepo.save).not.toHaveBeenCalled();
       expect(auditLogsService.record).toHaveBeenCalledWith(
         expect.objectContaining({ action: AUDIT_ACTIONS.INTEGRATION_ROTATED }),
       );
+    });
+
+    it('테스트 동안 행이 지워졌으면(update 0행) 404 — INSERT 로 되살리지 않고 감사 · broadcast 도 남기지 않는다', async () => {
+      integrationRepo.update.mockResolvedValueOnce({ affected: 0 });
+
+      await expect(
+        service.rotate('int-1', 'ws-1', 'user-1', 'member', {
+          credentials: { value: 'new-secret' },
+        }),
+      ).rejects.toMatchObject({
+        response: { code: 'RESOURCE_NOT_FOUND' },
+      });
+      expect(integrationRepo.save).not.toHaveBeenCalled();
+      expect(auditLogsService.record).not.toHaveBeenCalled();
+      expect(integrationCacheBus.publish).not.toHaveBeenCalled();
     });
 
     it('broadcasts cache invalidation after a successful rotation (04 m-4)', async () => {
@@ -1897,6 +1932,321 @@ describe('IntegrationsService', () => {
       });
       expect(result.success).toBe(false);
       expect(result.code).toBe('MCP_CONNECT_FAILED');
+    });
+
+    describe('database · http — 실제 연결 테스터로 위임 (spec §5.3 · §5.4)', () => {
+      const mockedDbTester = testDatabaseConnection as unknown as Mock;
+      const mockedHttpTester = testHttpConnection as unknown as Mock;
+      const dbCredentials = {
+        driver: 'postgres',
+        host: 'db.example.com',
+        port: 5432,
+        database: 'app',
+        username: 'reader',
+        password: 'pw',
+        ssl: 'require',
+      };
+
+      beforeEach(() => {
+        mockedDbTester.mockClear();
+        mockedHttpTester.mockClear();
+      });
+
+      it('database 는 testDatabaseConnection 결과를 그대로 돌려준다 — 실패 code 는 선언된 필드다', async () => {
+        mockedDbTester.mockResolvedValueOnce({
+          success: false,
+          code: 'DB_AUTH_FAILED',
+          message: 'password authentication failed for user "reader"',
+        });
+
+        const result = await service.previewTest({
+          serviceType: 'database',
+          authType: 'connection_string',
+          credentials: dbCredentials,
+        });
+
+        expect(mockedDbTester).toHaveBeenCalledWith(dbCredentials);
+        expect(result).toEqual({
+          success: false,
+          code: 'DB_AUTH_FAILED',
+          message: 'password authentication failed for user "reader"',
+        });
+        // 값 vs 선언 — `code` 는 preview 응답에도 실리는데 `PreviewTestResultDto` 가 오랫동안 선언하지 않았다.
+        assertMatchesContract(
+          result,
+          await contractForDto(PreviewTestResultDto),
+        );
+      });
+
+      it('http 는 인증 방식과 자격증명을 함께 넘긴다', async () => {
+        mockedHttpTester.mockResolvedValueOnce({
+          success: false,
+          code: 'HTTP_BLOCKED',
+          message: 'Request blocked by SSRF policy.',
+        });
+        const credentials = {
+          base_url: 'https://api.example.com',
+          token: 'tok',
+        };
+
+        const result = await service.previewTest({
+          serviceType: 'http',
+          authType: 'bearer_token',
+          credentials,
+        });
+
+        expect(mockedHttpTester).toHaveBeenCalledWith(
+          'bearer_token',
+          credentials,
+        );
+        expect(result).toMatchObject({ success: false, code: 'HTTP_BLOCKED' });
+        assertMatchesContract(
+          result,
+          await contractForDto(PreviewTestResultDto),
+        );
+      });
+
+      it('구조 검증이 먼저다 — 필수 필드가 없으면 테스터를 부르지 않는다', async () => {
+        const { host: _omit, ...noHost } = dbCredentials;
+        const result = await service.previewTest({
+          serviceType: 'database',
+          authType: 'connection_string',
+          credentials: noHost,
+        });
+        expect(result.success).toBe(false);
+        expect(mockedDbTester).not.toHaveBeenCalled();
+      });
+
+      it('저장된 통합의 :id/test 도 같은 테스터를 탄다', async () => {
+        integrationRepo.findOne.mockResolvedValue(
+          makeIntegration({
+            serviceType: 'database',
+            authType: 'connection_string',
+            credentials: dbCredentials,
+          }),
+        );
+        mockedDbTester.mockResolvedValueOnce({
+          success: false,
+          code: 'DB_CONNECT_FAILED',
+          message: 'connect ECONNREFUSED',
+        });
+
+        const result = await service.testConnection('int-1', 'ws-1');
+
+        expect(mockedDbTester).toHaveBeenCalledWith(dbCredentials);
+        expect(result).toMatchObject({
+          success: false,
+          code: 'DB_CONNECT_FAILED',
+        });
+      });
+
+      it(`동시에 도는 연결 테스트는 ${CONNECTION_TEST_MAX_CONCURRENCY}개까지 — 나머지는 줄을 섰다가 차례로 돈다`, async () => {
+        const settle = () => new Promise((r) => setImmediate(r));
+        const releases: Array<() => void> = [];
+        let inFlight = 0;
+        let peak = 0;
+        mockedDbTester.mockImplementation(
+          () =>
+            new Promise((resolve) => {
+              inFlight++;
+              peak = Math.max(peak, inFlight);
+              releases.push(() => {
+                inFlight--;
+                resolve({ success: true, message: 'Connection successful' });
+              });
+            }),
+        );
+        try {
+          const all = Array.from({ length: 5 }, () =>
+            service.previewTest({
+              serviceType: 'database',
+              authType: 'connection_string',
+              credentials: dbCredentials,
+            }),
+          );
+          await settle();
+          expect(CONNECTION_TEST_MAX_CONCURRENCY).toBe(2);
+          expect(mockedDbTester).toHaveBeenCalledTimes(2);
+
+          // 하나가 끝나면 줄 선 다음 것이 들어온다 — 동시 실행 수는 상한을 넘지 않는다.
+          for (let started = 2; started < 5; started++) {
+            releases.shift()?.();
+            await settle();
+            expect(mockedDbTester).toHaveBeenCalledTimes(started + 1);
+          }
+          while (releases.length) {
+            releases.shift()?.();
+            await settle();
+          }
+          await expect(Promise.all(all)).resolves.toHaveLength(5);
+          expect(peak).toBe(CONNECTION_TEST_MAX_CONCURRENCY);
+        } finally {
+          mockedDbTester.mockReset();
+          mockedDbTester.mockResolvedValue({
+            success: true,
+            message: 'Connection successful',
+          });
+        }
+      });
+
+      it('rotate 는 바꾸는 컬럼만 저장한다 — 테스트 동안 logUsage 가 쓴 lastUsedAt 을 옛 값으로 되돌리지 않는다', async () => {
+        const stale = makeIntegration({
+          serviceType: 'http',
+          authType: 'bearer_token',
+          credentials: { token: 'old' },
+          lastUsedAt: new Date('2026-01-01T00:00:00Z'),
+          // 회전 전과 후가 달라야 «응답이 갱신한 엔티티인가» 를 가를 수 있다.
+          status: 'error',
+          statusReason: 'auth_failed',
+        });
+        // 저장 뒤 다시 읽은 행 — DB 가 정한 updatedAt 과, 테스트 동안 logUsage 가 쓴 lastUsedAt 이 들어 있다.
+        const reread = makeIntegration({
+          ...stale,
+          credentials: { token: 'new' },
+          status: 'connected',
+          statusReason: null,
+          lastUsedAt: new Date('2026-09-19T05:00:00Z'),
+          updatedAt: new Date('2026-09-19T05:00:01Z'),
+        });
+        integrationRepo.findOne
+          .mockResolvedValueOnce(stale)
+          .mockResolvedValueOnce(reread);
+
+        const result = await service.rotate(
+          'int-1',
+          'ws-1',
+          'user-1',
+          'member',
+          {
+            credentials: { token: 'new' },
+          },
+        );
+
+        expect(integrationRepo.save).not.toHaveBeenCalled();
+        expect(integrationRepo.update).toHaveBeenCalledTimes(1);
+        const [criteria, saved] = integrationRepo.update.mock.calls[0] as [
+          unknown,
+          Record<string, unknown>,
+        ];
+        expect(criteria).toEqual({ id: 'int-1' });
+        expect(Object.keys(saved).sort()).toEqual([
+          'credentials',
+          'lastError',
+          'lastRotatedAt',
+          'status',
+          'statusReason',
+        ]);
+        expect(saved).toMatchObject({
+          credentials: { token: 'new' },
+          status: 'connected',
+          statusReason: null,
+          lastError: null,
+        });
+        // 응답은 저장 뒤 다시 읽은 행이다 — 메모리의 엔티티가 아니다.
+        expect(integrationRepo.findOne).toHaveBeenLastCalledWith({
+          where: { id: 'int-1' },
+        });
+        expect(result.status).toBe('connected');
+        expect(result.updatedAt).toEqual(reread.updatedAt);
+        expect(result.lastUsedAt).toEqual(reread.lastUsedAt);
+      });
+
+      it('연결 테스트는 종류를 가리지 않고 한 줄을 공유한다 — database · http · 저장된 통합의 entity tester', async () => {
+        const settle = () => new Promise((r) => setImmediate(r));
+        const releases: Array<() => void> = [];
+        let inFlight = 0;
+        let peak = 0;
+        const deferred = () =>
+          new Promise<{ success: boolean; message: string }>((resolve) => {
+            inFlight++;
+            peak = Math.max(peak, inFlight);
+            releases.push(() => {
+              inFlight--;
+              resolve({ success: true, message: 'Connection successful' });
+            });
+          });
+        mockedDbTester.mockImplementation(deferred);
+        mockedHttpTester.mockImplementation(deferred);
+        const entityProbe = jest.fn().mockImplementation(deferred);
+        service.registerEntityTester('cafe24', entityProbe);
+        integrationRepo.findOne.mockResolvedValue(
+          makeIntegration({
+            serviceType: 'cafe24',
+            authType: 'oauth2',
+            credentials: { mall_id: 'myshop' },
+          }),
+        );
+        try {
+          const all = [
+            service.previewTest({
+              serviceType: 'database',
+              authType: 'connection_string',
+              credentials: dbCredentials,
+            }),
+            service.previewTest({
+              serviceType: 'http',
+              authType: 'bearer_token',
+              credentials: { token: 't' },
+            }),
+            service.testConnection('int-1', 'ws-1'),
+          ];
+          await settle();
+          // 서로 다른 종류 둘이 슬롯 둘을 차지하면 셋째(entity tester)는 기다린다.
+          expect(mockedDbTester).toHaveBeenCalledTimes(1);
+          expect(mockedHttpTester).toHaveBeenCalledTimes(1);
+          expect(entityProbe).not.toHaveBeenCalled();
+
+          releases.shift()?.();
+          await settle();
+          expect(entityProbe).toHaveBeenCalledTimes(1);
+          while (releases.length) {
+            releases.shift()?.();
+            await settle();
+          }
+          await expect(Promise.all(all)).resolves.toHaveLength(3);
+          expect(peak).toBe(CONNECTION_TEST_MAX_CONCURRENCY);
+        } finally {
+          for (const m of [mockedDbTester, mockedHttpTester]) {
+            m.mockReset();
+            m.mockResolvedValue({
+              success: true,
+              message: 'Connection successful',
+            });
+          }
+        }
+      });
+
+      it('rotate 도 같은 테스터를 타고, 실패하면 저장하지 않는다', async () => {
+        integrationRepo.findOne.mockResolvedValue(
+          makeIntegration({
+            serviceType: 'http',
+            authType: 'bearer_token',
+            credentials: { base_url: 'https://api.example.com', token: 'old' },
+          }),
+        );
+        mockedHttpTester.mockResolvedValueOnce({
+          success: false,
+          code: 'HTTP_AUTH_FAILED',
+          message: 'The server rejected the credentials (HTTP 401).',
+        });
+
+        await expect(
+          service.rotate('int-1', 'ws-1', 'user-1', 'member', {
+            credentials: { token: 'new' },
+          }),
+        ).rejects.toMatchObject({
+          response: {
+            code: 'INTEGRATION_TEST_FAILED',
+            message: 'The server rejected the credentials (HTTP 401).',
+          },
+        });
+        expect(mockedHttpTester).toHaveBeenCalledWith('bearer_token', {
+          base_url: 'https://api.example.com',
+          token: 'new',
+        });
+        expect(integrationRepo.update).not.toHaveBeenCalled();
+        expect(integrationRepo.save).not.toHaveBeenCalled();
+      });
     });
 
     it('mcp structural validation runs before transport probe', async () => {

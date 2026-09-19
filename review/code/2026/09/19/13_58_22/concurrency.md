@@ -1,0 +1,31 @@
+# 동시성(Concurrency) 리뷰 — Database · HTTP 연결 테스터
+
+## 발견사항
+
+- **[CRITICAL]** `assertSafeOutboundHostResolved` 의 무제한 DNS lookup 이, 저장 없이도 호출 가능한 `preview-test` 를 통해 새로 노출된다 — libuv 스레드풀 고갈 DoS 가능
+  - 위치: `codebase/backend/src/modules/integrations/database-connection-tester.ts:86` (`await assertSafeOutboundHostResolved(creds.host);`), `codebase/backend/src/modules/integrations/http-connection-tester.ts:30` (`await assertSafeOutboundHostResolved(new URL(url).hostname);`). 호출 대상 함수 본체는 `codebase/backend/src/nodes/integration/http-request/http-safety.ts` 의 `assertSafeOutboundHostResolved`(142번째 줄 부근 `await lookup(hostname, { all: true })` — 이 PR 의 diff 에는 포함되지 않은 기존 코드지만, 새 호출 경로로 인해 노출 범위가 넓어졌다).
+  - 상세: `node:dns/promises` 의 `lookup()` 은 `dns.resolve*()`(c-ares, non-blocking I/O)와 달리 OS 의 `getaddrinfo(3)` 를 libuv 스레드풀(기본 `UV_THREADPOOL_SIZE=4`)에서 동기 실행한다. 이 함수 호출에는 어떤 타임아웃도 걸려 있지 않다 — `try/catch` 는 lookup 이 **실패**할 때만 fail-open 하도록 잡지, lookup 이 **응답하지 않고 매달릴 때**는 아무 보호도 없다. 이 PR 이전에는 `database`/`http` service_type 이 `transportTesters` 에 등록돼 있지 않아 `dispatchTest` 가 구조 검증만 하고 끝났으므로 `preview-test`/`:id/test`/`rotate` 어느 경로로도 이 DNS lookup 에 도달하지 않았다. 이제는 워크스페이스 멤버가 (통합을 저장조차 하지 않고) `POST /api/integrations/preview-test` 에 `serviceType: 'database'` 혹은 `'http'` 와, 응답하지 않는 권위 DNS 서버를 가리키는 host/URL 을 실어 보내면 이 lookup 이 무한정 매달릴 수 있다. `@Throttle({ limit: 20, ttl: 60_000 })` 는 **요청 발행 속도**만 제한할 뿐, 이미 매달린(pending) 요청의 **동시 개수**를 제한하지 않는다 — 완료되지 않는 요청은 60초 창이 지나도 계속 쌓여, 소수의 악의적 요청만으로도 프로세스 전체가 공유하는 스레드풀 슬롯(기본 4개)을 전부 점유할 수 있다. 스레드풀이 고갈되면 이 엔드포인트뿐 아니라 같은 스레드풀을 쓰는 다른 `dns.lookup` 호출·일부 `fs` 연산 등 프로세스 전체 작업이 함께 정체된다(Node 이벤트 루프 자체는 안 막히지만, 스레드풀 대기열이 막힌다).
+  - 제안: `assertSafeOutboundHostResolved` 호출부(또는 함수 내부)에 명시적 타임아웃을 씌운다(`Promise.race` + 수 초 상한, 또는 `dns.lookup` 대신 c-ares 기반 `dns.promises.resolve4/resolve6` 사용). 최소한 `database-connection-tester.ts`/`http-connection-tester.ts` 양쪽에서 SSRF 단계에도 `DB_TEST_TIMEOUT_MS`/`HTTP_TEST_TIMEOUT_MS` 급의 상한을 적용해, "던지지 않는다 / 항상 결과를 돌려준다"는 두 테스터의 계약(문서화된 설계 의도)이 DNS 단계에서도 실제로 지켜지도록 한다.
+
+- **[WARNING]** `rotate()` 의 read → (이제 실제 네트워크 I/O로 느려진) `dispatchTest` → 전체-엔티티 `save()` 구간이 넓어져, 동시 `logUsage()` 원자적 UPDATE 를 되돌리는 lost-update 창이 커진다
+  - 위치: `codebase/backend/src/modules/integrations/integrations.service.ts` — 이 PR 의 diff 범위에는 포함되지 않은 기존 함수라 게이트 번호는 없다(직접 Read 로 확인한 실제 줄 번호). `rotate()`: 1048번째 줄 `const entity = await this.requireEntity(...)` → 1083번째 줄 `const test = await this.dispatchTest(entity.serviceType, entity.authType, merged)` → 1095~1099번째 줄 `entity.credentials = merged; ... entity.status = 'connected'; ... entity.lastError = null;` → 1101번째 줄 `const saved = await this.integrationRepository.save(entity);`. 대비: `logUsage()` 는 1012~1016번째 줄 주석에서 "Single atomic UPDATE — avoids the read-modify-write race where a concurrent success call's save() would overwrite an in-flight status='error' transition" 라고 **바로 이 종류의 레이스**를 명시적으로 피하려 원자적 `update()`(1029번째 줄)를 쓰고 있다.
+  - 상세: `Integration` 엔티티에는 `@VersionColumn` 이나 낙관적 락이 없고(entity 정의에 없음, 확인함), `requireEntity()` 는 단순 `findOne`(1357번째 줄)이다. `rotate()` 는 이 스냅샷을 들고 있다가, `dispatchTest` 가 끝난 뒤 `save(entity)` 로 **엔티티 객체가 가진 모든 컬럼 값**을 다시 쓴다(TypeORM `save()` 는 dirty-check 없이 엔티티 프로퍼티 전체로 UPDATE 를 만든다). 이 PR 이전에는 `dispatchTest` 가 순수 구조 검증(동기에 가까운 즉시 반환)이어서 이 read-save 창이 사실상 무시할 수준이었다. 이제 `database`/`http` 는 실제 커넥션(연결 10초 + 쿼리 10초까지 각각 별도 타임아웃, 최악 약 20초)·실제 fetch(최대 10초, 리다이렉트 5홉까지)를 수행하므로 창이 수십 배 넓어졌다. 그 창 동안 같은 integration row 에 대해 노드 실행이 끝나 `logUsage()` 가 `lastUsedAt`/`lastError`/`status` 를 원자적 `UPDATE` 로 갱신하면, `rotate()` 가 나중에 수행하는 `save(entity)` 가 rotate 진입 시점의 stale 값으로 그 갱신을 **조용히 되돌린다** — 특히 `status: 'error'`(auth_failed 전이)가 `rotate()` 가 강제로 쓰는 `status: 'connected'`(1097번째 줄)와 충돌하는 지점은 의미상으로는 "새 자격증명 테스트 성공 → connected" 라 정당해 보이지만, `lastError`/`lastUsedAt` 이 `null`/구값으로 되돌아가는 것은 감사·모니터링 관점에서 데이터 손실이다.
+  - 제안: `rotate()` 도 `logUsage()` 처럼 테스트 성공 후에는 변경한 필드만 부분 `update()` 로 쓰거나(경합 컬럼을 아예 안 건드림), 혹은 낙관적 락(`@VersionColumn`)을 추가해 `dispatchTest` 대기 중 row 가 바뀌었으면 저장을 실패시키고 재시도/에러 처리하도록 한다.
+
+- **[INFO]** 일회성 테스트 연결의 동시 개수에 대한 상한이 없음 — 요청 속도 제한(`@Throttle`)은 이미 열린 연결 수를 제한하지 않는다
+  - 위치: `codebase/backend/src/modules/integrations/database-connection-tester.ts:37-50`(`probePostgres`), `:52-68`(`probeMysql`); `codebase/backend/src/modules/integrations/integrations.controller.ts` 의 `@Throttle({ default: { limit: 20, ttl: 60_000 } })` (해당 hunk, 기존 유지).
+  - 상세: 두 테스터는 노드 실행용 커넥션 풀과 별개로 매번 새 `pg.Client`/mysql 커넥션을 연다(문서화된 의도 — 문제 아님). 다만 각 연결은 연결(10초)+쿼리(10초) 타임아웃이 각각 걸려 최악 약 20초까지 열려 있을 수 있는데, `@Throttle` 은 "60초당 20건 접수" 만 제한할 뿐 그 20건이 **동시에** 진행 중인 것을 막지 않고, 여러 워크스페이스/사용자가 각자의 20건 한도를 동시에 소진하면 애플리케이션 프로세스 차원의 동시 아웃바운드 DB 연결 수 상한이 사실상 없다. 대상 DB 서버의 `max_connections` 를 소모시키거나(자기 자신 또는 타 서비스가 공유하는 DB 인스턴스라면 더 심각), 우리 서버의 파일 디스크립터/소켓을 소모할 수 있다.
+  - 제안: 필수는 아니지만, 테스트 연결 전용의 프로세스 전역 동시성 상한(예: 세마포어로 in-flight probe 개수 cap)을 두면 이 클래스의 자원 고갈을 원천 차단할 수 있다.
+
+- **[INFO]** `http-connection-tester.ts` 의 `BLOCKED` 상수 객체가 동시 호출 간에 참조로 공유된다
+  - 위치: `codebase/backend/src/modules/integrations/http-connection-tester.ts:20-24` (`const BLOCKED: IntegrationTestResult = { success: false, code: 'HTTP_BLOCKED', message: SSRF_BLOCKED_CLIENT_MESSAGE };`), 반환 지점 `:137, 158, 164`.
+  - 상세: 모듈 스코프에 한 번만 만들어진 객체가 서로 다른(동시에 실행 중일 수 있는) `testHttpConnection` 호출들에 그대로 반환된다. 현재 다운스트림(`dispatchTest`/`previewTest`/`rotate`/컨트롤러)은 이 결과를 읽기만 하고 필드를 변형하지 않아 지금 당장 관측 가능한 버그는 아니다. 다만 이후 누군가 응답 객체에 요청별 필드(예: 타임스탬프·요청 id)를 부여하려고 `result.foo = ...` 식으로 mutate 하면, 서로 무관한 동시 요청들이 같은 객체를 공유하고 있어 교차 오염된다.
+  - 제안: `BLOCKED` 를 상수 재사용 대신 반환 시점에 `{ ...BLOCKED }` 로 얕은 복사하거나, 매번 새 리터럴을 만들어 방어적으로 짜면 향후 회귀를 막을 수 있다.
+
+## 요약
+
+DB/HTTP 커넥션 테스터 자체(`database-connection-tester.ts`, `http-connection-tester.ts`)는 연결마다 독립 client 를 만들고 `try/finally` 로 반드시 닫으며, `await` 누락이나 명시적 락·경쟁 자원 없이 순차적으로 작성돼 있어 단일 호출 단위의 동시성 위생은 양호하다. 그러나 이 PR 이 `database`/`http` 를 실제 네트워크 I/O 테스터로 승격시키면서 두 가지 기존 구조를 새로운 방식으로 노출시킨다 — ① 타임아웃이 전혀 없는 `assertSafeOutboundHostResolved` 의 `dns.lookup`(libuv 스레드풀) 을 저장 없이 호출 가능한 `preview-test` 로 끌어와 프로세스 전역 DoS 표면을 만들었고, ② `dispatchTest` 를 몇 밀리초에서 최대 수십 초로 늘리면서 `rotate()` 의 read-modify-write 창을 넓혀 `logUsage()` 가 원자적 UPDATE 로 명시적으로 막으려던 것과 같은 종류의 lost-update 를 다시 열었다. 두 항목 모두 이 PR 의 diff 텍스트 자체보다는 "새로 열린 도달 경로"에서 비롯되므로, 코드 형태만 보면 지나치기 쉽다.
+
+## 위험도
+
+CRITICAL

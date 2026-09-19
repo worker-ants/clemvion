@@ -1,5 +1,26 @@
 # Changelog
 
+## Unreleased — Database · HTTP 연결 테스트가 틀린 비밀번호 · 토큰에도 «Connection successful» 이었다
+
+Database · HTTP 통합의 연결 테스트는 필드 형식만 봤다 — 실제로 접속하지 않아 틀린 비밀번호 · 만료된 토큰도 통과했다.
+같은 결과를 쓰는 **자격증명 교체(rotate)** 도 틀린 값으로의 교체를 막지 못했다.
+
+**바뀐 것** (spec 4-integration §5.3 · §5.4 · §9.2):
+- Database — 일회성 연결을 열어 `SELECT 1` 을 실행하고 닫는다(연결 · 쿼리 각 10초). 인증 거부는 `DB_AUTH_FAILED`, 그 밖의
+  연결 실패는 `DB_CONNECT_FAILED`.
+- HTTP — `base_url` 로 노드와 같은 인증을 붙여 `GET` 하고 리다이렉트를 5홉까지 따라간다(10초). 401 · 403 은
+  `HTTP_AUTH_FAILED`, 5xx 는 `HTTP_SERVER_ERROR`. 그 밖의 4xx 는 **통과**다 — 서버에는 닿았지만 `base_url` 이 자원이 아니라
+  자격증명은 확인하지 못한다. `base_url` 이 비어 있으면 호출하지 않는다.
+- 두 서비스 모두 내부 주소(사설 · loopback)는 노드와 같은 SSRF 가드로 막힌다(`DB_HOST_BLOCKED` · `HTTP_BLOCKED`,
+  `ALLOW_PRIVATE_HOST_TARGETS=true` 인 설치는 예외).
+- 한 프로세스에서 동시에 도는 연결 테스트(MCP · Email · Database · HTTP, 저장된 Cafe24 · MakeShop 통합의 테스트 포함)는
+  2개까지다 — 넘는 요청은 줄을 선다.
+  응답하지 않는 DNS 를 가리키는 테스트가 겹쳐 libuv 스레드풀을 채우지 못하게.
+
+**배포 뒤 보일 수 있는 것**: 이미 틀린 자격증명으로 저장돼 있던 Database · HTTP 통합은 `Test connection` 이 이제 실패한다.
+그 통합의 `Rotate credentials` 도 새 값이 테스트를 통과해야 저장된다 — 내부 주소를 가리키는 통합을 쓰는 설치는
+`ALLOW_PRIVATE_HOST_TARGETS` 설정을 확인한다(노드 실행은 이미 같은 가드를 탄다).
+
 ## Unreleased — 다른 워크스페이스가 알고 있는 웹훅 경로를 등록하면 수신 웹훅을 가로챌 수 있었다
 
 웹훅 수신 URL `/api/hooks/:endpointPath` 는 워크스페이스와 무관한 **전역** 라우팅 키인데, 유일성은
