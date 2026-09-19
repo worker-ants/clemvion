@@ -1,9 +1,10 @@
 ---
 title: 통합 노드 SSRF 가드 하나로 — SMTP 가 CGNAT 를 통과시키고, HTTP · DB 가 IPv4-mapped IPv6 로 루프백 · 메타데이터에 닿았다
-status: in-progress
+status: complete
 owner: developer
 worktree: smtp-ssrf-cgnat-8d41b2
 started: 2026-09-19
+completed: 2026-09-19
 spec_impact: none
 ---
 
@@ -70,6 +71,12 @@ spec 은 셋이 **같은 메커니즘**이라 적는다 — `spec/2-navigation/4
   옛 코드에서의 결과는 **예측만**(돌리지 않았다): HTTP 는 백엔드 자신의 health 에 닿아 성공, DB 는 `DB_CONNECT_FAILED`, Email 은 연결 시도.
 - [x] TEST WORKFLOW (lint · unit · build · e2e 364) — build 의 타입체크 ratchet 이 `http-safety.spec` 3 → 4 를 잡았다(`lookup` mock 이
   단일 주소 오버로드). mock 타입을 `{ all: true }` 오버로드로 맞춰 4 → 0, baseline 197 → 194 — `1e07cf5cf`
-- [ ] `/ai-review` 수렴
-- [ ] `--impl-done`
-- [ ] 트래커 두 항목 해소 + `ssrf.util` 항목 등재 · 이 plan `plan/complete/` 로
+- [x] `/ai-review` 수렴 — 1라운드 `review/code/2026/09/19/21_38_32`(Warning 7 → `a1e1a591b`) · 2라운드 `22_00_32`(Warning 5 → `fce34b77b`, W2
+  소비자 넷의 `instanceof` 는 수렴 예외 · 트래커) · 3라운드 `22_24_32`(Warning 1 — 이 plan 을 `plan/complete/` 로 옮기면 해소, `codebase/` 수정 0
+  → 수렴). 조치 중 실측: 폴백 뮤턴트 RED 2 · 옥텟 · 정규화 · mapped · SMTP 뮤턴트 다섯 RED. 리뷰 중 병렬 리뷰어가 CGNAT 상한을 잠시 바꾼 것이
+  관측됐고 최종 트리에서 `100.127.255.255` 를 확인했다
+- [x] `--impl-done` — `review/consistency/2026/09/19/22_37_02`(scope `spec/4-nodes/4-integration/` + 보정 블록 — 구현 diff 가 예산에 잘려 파일
+  목록으로 직접 읽게 했다) BLOCK: NO. WARNING 1(`3-send-email.md` `code:` 에 옮긴 SMTP 가드가 없다 — spec 쓰기라 planner)은 트래커의 «공용 SSRF
+  가드를 중립 위치로» 항목에 합쳤다(같은 `code:` 목록을 건드린다). INFO 는 기등재 · 양성 확인.
+- [x] 트래커 두 항목 해소(«CGNAT» 는 planner 턴이 필요 없는 근거와 함께) + 새 항목 넷(`ssrf.util` 결정 · 가드 이전과 `code:` 목록 · 소비자
+  `instanceof` · `--impl-prep` 이 찾은 spec drift) · 이 plan `plan/complete/` 로

@@ -4774,9 +4774,14 @@ field: T | null;
       (`16_00_06` api_contract WARNING 8: 정할 때 `5-system/11-mcp-client.md` 의 400 근거와 `5-system/2-api-convention.md §6` 의 422
       원칙을 함께 남길 것.)
 
-- [ ] **SMTP SSRF 가드에 CGNAT 대역이 없는데 §5.5 는 막는다고 적는다** (developer→planner, 2026-09-19 등재 · 같은 draft «비대상»).
-      `smtp-host-guard.ts` → `ssrf.util.ts` 는 HTTP 가드(`http-safety.ts`)와 **다른 구현**이고 `100.64.0.0/10` 이 빠져 있다.
-      `nodes/core/error-codes.ts` 주석은 HTTP 가드를 Email 가드의 SoT 라 적는다 — 실제로는 공유하지 않는다. 가드를 맞출지(코드) · 문장을 맞출지(spec).
+- [x] **SMTP SSRF 가드에 CGNAT 대역이 없는데 §5.5 는 막는다고 적는다** (developer→planner, 2026-09-19 등재 · 같은 draft «비대상» ·
+      **2026-09-19 해소** `plan/complete/ssrf-guard-integration-unify.md`). `smtp-host-guard.ts` → `ssrf.util.ts` 는 HTTP 가드(`http-safety.ts`)와
+      **다른 구현**이고 `100.64.0.0/10` 이 빠져 있다. `nodes/core/error-codes.ts` 주석은 HTTP 가드를 Email 가드의 SoT 라 적는다 — 실제로는 공유하지
+      않는다. 가드를 맞출지(코드) · 문장을 맞출지(spec).
+      **처분: 코드를 spec 에 맞췄다 — planner 턴 없음.** spec 문장(4-integration §5.5 · 3-send-email §4 7번 · 2-database-query §4 · 1-http-request
+      §4 8번 «동일 메커니즘 · CGNAT 차단»)이 이미 정확하고 명확해 바꿀 문장이 없다 — 틀린 것은 코드였다(`--impl-prep` `21_02_09` plan_coherence
+      WARNING 5 가 이 근거를 적으라고 했다). SMTP 가드를 `http-safety` 로 옮겼고, 조사 중 반대쪽 구멍 — `http-safety` 가 IPv4-mapped IPv6
+      (`[::ffff:127.0.0.1]` · 메타데이터)를 통과시켜 HTTP · DB 노드에서 실제로 닿았다 — 도 같이 막았다. LLM · S3 의 `ssrf.util` 은 아래 새 항목.
 
 - [ ] **§5.3 HTTP 필드 표의 `none` 인증 · `default_headers` 가 서비스 레지스트리 `http` 항목에 없다** (planner/developer, 2026-09-19 등재 ·
       같은 draft «비대상»). 노드(`resolveHttpCredentials`)와 연결 테스터는 `default_headers` 를 읽지만 등록 UI 는 입력할 칸을 만들지 못한다.
@@ -4858,7 +4863,9 @@ field: T | null;
       소켓 정리를 `try/finally` 로, 예외적으로 실제 소켓을 쓴다는 주석. (3) rotate 의 `update` 성공 뒤 재조회가 `null` 인 분기(그 사이
       삭제 → 404) 테스트.
 
-- [ ] **SMTP 가드 주석이 없는 환경변수를 가리킨다** (developer, 낮음, 2026-09-19 등재 · `16_00_06` documentation WARNING 7).
+- [x] **SMTP 가드 주석이 없는 환경변수를 가리킨다** (developer, 낮음, 2026-09-19 등재 · `16_00_06` documentation WARNING 7 · **2026-09-19 해소**
+      `plan/complete/ssrf-guard-integration-unify.md` — 두 주석을 opt-out `ALLOW_PRIVATE_HOST_TARGETS` 로. `SMTP_BLOCK_PRIVATE_HOSTS` 는
+      `spec/2-navigation/4-integration.md` Rationale 이 기각한 대안의 이름이었다).
       `integrations.service.ts`(`testEmailTransport`) · `send-email.handler.ts` 두 곳이 «`SMTP_BLOCK_PRIVATE_HOSTS` 정책이 켜진 경우(opt-in)»
       라 적는데 실제는 `ALLOW_PRIVATE_HOST_TARGETS=true` 가 아니면 막는 **opt-out** 이다(`smtp-host-guard.ts`). 위 «SMTP SSRF 가드에 CGNAT 이
       없다» 항목과 같은 턴에.
@@ -4899,6 +4906,10 @@ field: T | null;
       `review/code/2026/09/19/21_38_32` architecture WARNING 2). HTTP Request · DB Query · Send Email 과 연결 테스트가 쓰는데 HTTP Request 폴더에
       있다 — DB 핸들러 · SMTP 가드 · `modules/integrations` 테스터가 형제 폴더의 구현 파일에 기댄다. 옮기면 `spec/4-nodes/4-integration/1-http-request.md`
       frontmatter `code:` 경로를 함께 바꿔야 한다(planner). 파일 헤더에 이 사정을 적어 두었다.
+      같은 턴에 `code:` 목록 셋을 맞춘다(`--impl-done` `review/consistency/2026/09/19/22_37_02` convention WARNING 1 · INFO 5): `3-send-email.md` 에
+      `codebase/backend/src/nodes/integration/send-email/smtp-host-guard.ts`(이번에 `common/utils/` 에서 옮겼다) · `2-database-query.md` 와
+      `3-send-email.md` 에 공용 가드 경로. 그리고 IPv4-mapped IPv6 판정 근거와 NAT64 · SIIT · 6to4 를 막지 않는 경계(실측 — 닿지 않았다)를
+      `1-http-request.md` §4 8번 또는 Rationale 에 한 줄(같은 검토 rationale INFO 3 — 지금은 코드 JSDoc · plan 에만 있다).
 
 - [ ] **SSRF 가드 소비자 넷의 catch 를 `instanceof SsrfBlockedError` 로** (developer, 낮음, 2026-09-19 등재 · `/ai-review`
       `review/code/2026/09/19/22_00_32` architecture WARNING 2 — 수렴 예외). `http-request.handler.ts` · `http-redirect.ts` · `database-query.handler.ts` ·
