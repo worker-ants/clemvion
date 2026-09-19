@@ -640,7 +640,7 @@ External Interaction API 의 `iext_*`(per_execution JWT) 발급 jti 를 영속 �
 |------|------|------|
 | id | UUID | PK. chat row 는 기존 llm_config UUID 보존 |
 | workspace_id | UUID | FK → Workspace (CASCADE) |
-| kind | Enum | `chat` / `embedding` / `rerank` — 모델 역할 판별자 |
+| kind | Enum | `chat` / `embedding` / `rerank` — 모델 역할 판별자. default=`chat`(V088) |
 | provider | String | kind 별 허용: **chat** = openai/anthropic/google/azure/local · **embedding** = openai/azure/google/local (Anthropic 제외 — embedding 미지원) · **rerank** = `tei`(자가호스팅) / `cohere`(외부 API). **rerank Dropped(2026-06-05)**: `jina` / `voyage` / `local` / `builtin` — 1차 tei/cohere 가 self-host/외부 API 경로를 커버, 수요 미확인 provider 의 유지보수 표면만 늘어 범위 종결([LLM Client §2.1](./5-system/7-llm-client.md)) |
 | name | String | 사용자 지정 이름 |
 | api_key | String? (encrypted) | API Key (암호화 저장). 자가호스팅(local/tei) 은 선택, 외부 API(openai/cohere 등) 는 필수 |
@@ -799,7 +799,7 @@ Workflow AI Assistant의 채팅 세션. 단일 워크플로우 단위로 존재�
 | llm_config_id | UUID? | FK → ModelConfig (SET NULL · kind=chat) — 지정 없으면 workspace default chat 사용 |
 | status | Enum | active / archived — archived는 UI 상에서 숨김 |
 | message_count | Int | 메시지 수 캐시 (비정규화) |
-| last_interaction_at | Timestamp | 마지막 메시지/도구 호출 시각 |
+| last_interaction_at | Timestamp | 마지막 메시지/도구 호출 시각. default=`now()` |
 | created_at | Timestamp | 생성 시각 |
 | updated_at | Timestamp | 수정 시각 |
 
@@ -1056,7 +1056,7 @@ DocumentChunk·Entity 계열 선례를 따른다.)
 ### `code:` 에 전용 e2e 가드 셋 (2026-09-19)
 
 frontmatter `code:` 에 이 문서의 사실을 기계적으로 지키는 e2e 셋을 넣었다(사용자 결정) — `deletion-cascade-indexes`(§3 의 FK 인덱스) ·
-`trigger-endpoint-path-dedupe`(아래 «Webhook `endpoint_path` 전역 유일» 의 V131) · `entity-schema-declarations`(엔티티 선언 ↔ DB).
+`trigger-endpoint-path-dedupe`(아래 «Webhook `endpoint_path` 전역 유일» 의 V131) · `entity-schema-declarations`(엔티티 선언 ↔ DB — 인덱스 · 제약은 선언 → DB 한쪽, 컬럼 정의는 양방향).
 이제 그 파일을 고치는 변경도 이 문서와의 대조(`--impl-done`)를 거친다 — 가드를 약하게 고치는 변경이 코드 리뷰만 거치지 않는다.
 
 - **넣지 않은 것**: 자기 기능의 인덱스 · 컬럼을 곁들여 확인하는 기능 e2e(`background-monitoring` · `notifications-dismiss` ·
