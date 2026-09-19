@@ -46,7 +46,19 @@ async function closeWithin(
     }),
   ]);
   clearTimeout(timer);
-  if (!closed) handle.connection?.stream?.destroy?.();
+  if (closed) return;
+  const stream = handle.connection?.stream;
+  if (stream?.destroy) {
+    stream.destroy();
+    logger.warn(
+      `Database connection test: close did not finish within ${DB_TEST_CLOSE_GRACE_MS}ms — destroyed the socket`,
+    );
+  } else {
+    // 드라이버 내부 구조가 바뀌면 여기로 온다 — 조용히 넘어가지 않게 남긴다.
+    logger.warn(
+      'Database connection test: close did not finish and the driver socket was not found — the connection may linger',
+    );
+  }
 }
 
 /** PostgreSQL SQLSTATE class 28 — invalid authorization specification(`28000`) · invalid password(`28P01`). */
@@ -96,8 +108,12 @@ async function probeMysql(creds: DbCredentials): Promise<void> {
     await connection.query({ sql: 'SELECT 1', timeout: DB_TEST_TIMEOUT_MS });
   } finally {
     if (connection) {
-      const opened = connection;
-      await closeWithin(() => opened.end(), opened as unknown as HasSocket);
+      // 클로저 안에서도 non-undefined 로 좁혀 두려고 const 로 다시 묶는다.
+      const openedConnection = connection;
+      await closeWithin(
+        () => openedConnection.end(),
+        openedConnection as unknown as HasSocket,
+      );
     }
   }
 }

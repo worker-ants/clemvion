@@ -13,7 +13,8 @@ Database · HTTP 통합의 연결 테스트는 필드 형식만 봤다 — 실�
   자격증명은 확인하지 못한다. `base_url` 이 비어 있으면 호출하지 않는다.
 - 두 서비스 모두 내부 주소(사설 · loopback)는 노드와 같은 SSRF 가드로 막힌다(`DB_HOST_BLOCKED` · `HTTP_BLOCKED`,
   `ALLOW_PRIVATE_HOST_TARGETS=true` 인 설치는 예외).
-- 한 프로세스에서 동시에 도는 연결 테스트(MCP · Email · Database · HTTP)는 2개까지다 — 넘는 요청은 줄을 선다.
+- 한 프로세스에서 동시에 도는 연결 테스트(MCP · Email · Database · HTTP, 저장된 Cafe24 · MakeShop 통합의 테스트 포함)는
+  2개까지다 — 넘는 요청은 줄을 선다.
   응답하지 않는 DNS 를 가리키는 테스트가 겹쳐 libuv 스레드풀을 채우지 못하게.
 
 **배포 뒤 보일 수 있는 것**: 이미 틀린 자격증명으로 저장돼 있던 Database · HTTP 통합은 `Test connection` 이 이제 실패한다.

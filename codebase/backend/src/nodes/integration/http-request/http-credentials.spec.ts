@@ -1,4 +1,4 @@
-import { resolveHttpCredentials } from './http-credentials';
+import { appendQueryParams, resolveHttpCredentials } from './http-credentials';
 
 /**
  * `resolveHttpCredentials` — HTTP Request 노드와 HTTP 통합 연결 테스트가 공유한다. 실패는 값으로 돌려주고
@@ -96,5 +96,28 @@ describe('resolveHttpCredentials', () => {
       credentials: { defaultHeaders: { Accept: 'application/json' } },
       baseUrl: 'https://api.example.com',
     });
+  });
+});
+
+describe('appendQueryParams — 노드와 연결 테스트가 같은 URL 을 만든다', () => {
+  it('query 가 없으면 ?, 있으면 & 로 잇고 인코딩한다', () => {
+    expect(appendQueryParams('https://a.example/x', { k: 'v 1' })).toBe(
+      'https://a.example/x?k=v+1',
+    );
+    expect(appendQueryParams('https://a.example/x?r=kr', { k: 'v' })).toBe(
+      'https://a.example/x?r=kr&k=v',
+    );
+  });
+
+  it('같은 키가 이미 있어도 덮어쓰지 않고 덧붙인다', () => {
+    expect(appendQueryParams('https://a.example/x?k=old', { k: 'new' })).toBe(
+      'https://a.example/x?k=old&k=new',
+    );
+  });
+
+  it.each([undefined, {}])('붙일 것이 없으면(%p) 그대로', (params) => {
+    expect(appendQueryParams('https://a.example/x', params)).toBe(
+      'https://a.example/x',
+    );
   });
 });

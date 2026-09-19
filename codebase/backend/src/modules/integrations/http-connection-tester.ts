@@ -1,12 +1,15 @@
 import { Logger } from '@nestjs/common';
 
-import { resolveHttpCredentials } from '../../nodes/integration/http-request/http-credentials';
-import { followRedirectsSafely } from '../../nodes/integration/http-request/http-redirect';
 import {
-  SSRF_BLOCKED_CLIENT_MESSAGE,
-  assertSafeOutboundHostResolved,
-  assertSafeOutboundUrl,
-} from '../../nodes/integration/http-request/http-safety';
+  appendQueryParams,
+  resolveHttpCredentials,
+} from '../../nodes/integration/http-request/http-credentials';
+import {
+  discardBody,
+  followRedirectsSafely,
+  outboundBlockReason,
+} from '../../nodes/integration/http-request/http-redirect';
+import { SSRF_BLOCKED_CLIENT_MESSAGE } from '../../nodes/integration/http-request/http-safety';
 import { clampMessage } from './clamp-message';
 import type { IntegrationTestResult } from './integrations.service';
 
@@ -23,28 +26,6 @@ function blocked(reason: string): IntegrationTestResult {
     code: 'HTTP_BLOCKED',
     message: SSRF_BLOCKED_CLIENT_MESSAGE,
   };
-}
-
-/** SSRF 가드 — 노드와 같은 두 단계(URL 리터럴 · DNS 해석). 통과하면 `null`, 막히면 사유. */
-async function ssrfBlockReason(url: string): Promise<string | null> {
-  try {
-    assertSafeOutboundUrl(url);
-    await assertSafeOutboundHostResolved(new URL(url).hostname);
-    return null;
-  } catch (err) {
-    return err instanceof Error ? err.message : String(err);
-  }
-}
-
-function withQuery(
-  baseUrl: string,
-  query: Record<string, string> | undefined,
-): string {
-  if (!query || Object.keys(query).length === 0) return baseUrl;
-  const url = new URL(baseUrl);
-  for (const [key, value] of Object.entries(query))
-    url.searchParams.set(key, value);
-  return url.toString();
 }
 
 function isValidUrl(value: string): boolean {
@@ -89,10 +70,6 @@ function describeFailure(err: unknown): string {
     : err.message;
 }
 
-async function discardBody(res: Response): Promise<void> {
-  await res.body?.cancel().catch(() => {});
-}
-
 /**
  * HTTP/REST 통합 연결 테스트(spec/2-navigation/4-integration.md §5.3). HTTP Request 노드와 같은 방식으로 자격증명을
  * 붙여 `GET base_url` 을 보내고, 리다이렉트는 노드와 같은 `followRedirectsSafely` 로 최대 5홉 따라가며 홉마다 SSRF 를
@@ -133,8 +110,9 @@ export async function testHttpConnection(
   const { headers, queryParams, defaultHeaders } = resolved.credentials;
   // 노드와 같은 병합 순서 — 공용 헤더 위에 자격증명 헤더.
   const requestHeaders = { ...(defaultHeaders ?? {}), ...(headers ?? {}) };
-  const url = withQuery(resolved.baseUrl, queryParams);
-  const preflight = await ssrfBlockReason(url);
+  // 노드와 같은 함수로 query 자격증명을 붙인다 — 같은 URL 문자열이 나가야 테스트 통과가 실행 성공을 뜻한다.
+  const url = appendQueryParams(resolved.baseUrl, queryParams);
+  const preflight = await outboundBlockReason(url);
   if (preflight !== null) return blocked(preflight);
 
   // 대기 신호 하나가 리다이렉트 체인 전체에 걸린다 — 홉이 늘어도 10초를 넘지 않는다.

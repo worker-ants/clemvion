@@ -111,7 +111,8 @@ const ADMIN_ROLES = new Set(['owner', 'admin']);
 const SMTP_TEST_TIMEOUT_MS = 10_000;
 
 /**
- * 프로세스 안에서 동시에 도는 transport 연결 테스트(mcp · email · database · http)의 상한. 넘는 요청은 줄을 선다.
+ * 프로세스 안에서 동시에 도는 연결 테스트의 상한 — transport 테스터(mcp · email · database · http)와 entity tester
+ * (`registerEntityTester`, 지금은 Cafe24 · MakeShop)가 **한 줄을 공유**한다. 넘는 요청은 줄을 선다.
  *
  * 연결 테스트는 사용자가 준 host 를 `dns.lookup` 으로 푼다(SSRF 가드 · 드라이버 · `fetch`). `dns.lookup` 은 libuv
  * 스레드풀(기본 4)을 쓰고 타임아웃이 없어, 응답하지 않는 권위 DNS 를 가리키는 테스트가 겹치면 풀이 차서 같은 풀을 쓰는
@@ -121,8 +122,8 @@ const SMTP_TEST_TIMEOUT_MS = 10_000;
  * 않았으므로 테스트 하나가 스레드를 둘 이상 쥘 수 있다(그래도 테스트 수에 비례해 묶인다). 타임아웃을 거는 것으로는
  * 안 된다 — 응답만 끊을 뿐 스레드는 lookup 이 끝날 때까지 잡혀 있다.
  *
- * 저장된 Cafe24 · MakeShop 통합의 entity tester(`registerEntityTester`)는 이 상한 밖이다 — 호스트가 `*.cafe24api.com` ·
- * `connect.makeshop.co.kr` 로 고정돼 있어, 사용자가 응답하지 않는 DNS 서버를 고를 수 없다.
+ * 지금의 entity tester 둘은 호스트가 `*.cafe24api.com` · `connect.makeshop.co.kr` 로 고정이라 이 위험이 없지만, 확장점으로
+ * 들어오는 테스터가 사용자 host 를 받을 수 있으므로 기본적으로 같은 상한에 묶는다.
  */
 export const CONNECTION_TEST_MAX_CONCURRENCY = 2;
 
@@ -405,7 +406,7 @@ export class IntegrationsService {
    */
   private readonly entityTesters = new Map<string, EntityAwareTester>();
 
-  /** transport 연결 테스트의 동시 실행 상한 — {@link CONNECTION_TEST_MAX_CONCURRENCY}. */
+  /** 연결 테스트(transport · entity)의 동시 실행 상한 — {@link CONNECTION_TEST_MAX_CONCURRENCY}. */
   private readonly connectionTestLimit = pLimit(
     CONNECTION_TEST_MAX_CONCURRENCY,
   );
@@ -971,7 +972,8 @@ export class IntegrationsService {
     // needs the row for proactive refresh + 401 retry against the real API).
     const entityTester = this.entityTesters.get(entity.serviceType);
     if (entityTester) {
-      return entityTester(entity);
+      // 같은 동시 상한 안에서 — 확장점으로 들어오는 테스터도 기본적으로 묶는다(CONNECTION_TEST_MAX_CONCURRENCY).
+      return this.connectionTestLimit(() => entityTester(entity));
     }
     return this.dispatchTest(
       entity.serviceType,
@@ -1116,10 +1118,13 @@ export class IntegrationsService {
 
     // 바꾸는 컬럼만 저장한다 — 엔티티 전체를 `save` 하면, 위 연결 테스트(실제 접속이라 수 초 걸린다) 동안 `logUsage` 가
     // 원자적 `update` 로 쓴 `lastUsedAt` 같은 컬럼을 읽어 둔 옛 값으로 되돌린다. 부분 객체 `save` 의 반환값은 재조회가
-    // 아니므로 응답은 갱신한 엔티티로 만든다.
+    // 아니므로 응답은 갱신한 엔티티로 만든다 — 그래서 `updatedAt` 도 명시한다. 명시하지 않으면 DB 는 `CURRENT_TIMESTAMP`
+    // 로 갱신되지만(TypeORM `@UpdateDateColumn`) 응답의 엔티티에는 회전 전 시각이 남는다.
+    const now = new Date();
     const changes = {
       credentials: merged,
-      lastRotatedAt: new Date(),
+      lastRotatedAt: now,
+      updatedAt: now,
       status: 'connected' as const,
       statusReason: null,
       lastError: null,

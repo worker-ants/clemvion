@@ -167,8 +167,12 @@ describe('Integration connection test — Database · HTTP (e2e)', () => {
       credentials: { token: 'e2e-rotate-old' },
     });
     const readRow = () =>
-      db.query<{ last_rotated_at: Date; credentials: string }>(
-        'SELECT last_rotated_at, credentials::text AS credentials FROM integration WHERE id = $1',
+      db.query<{
+        last_rotated_at: Date;
+        updated_at: Date;
+        credentials: string;
+      }>(
+        'SELECT last_rotated_at, updated_at, credentials::text AS credentials FROM integration WHERE id = $1',
         [id],
       );
     const before = (await readRow()).rows[0];
@@ -185,6 +189,13 @@ describe('Integration connection test — Database · HTTP (e2e)', () => {
     expect(after.credentials).not.toContain(secret);
     expect(new Date(after.last_rotated_at).getTime()).toBeGreaterThan(
       new Date(before.last_rotated_at).getTime(),
+    );
+    // 응답의 updatedAt 이 회전 전 값이 아니라 DB 에 저장된 값과 같다(부분 save 의 반환값을 쓰지 않으므로 명시해 둔 것).
+    expect(new Date(res.body.data.updatedAt as string).getTime()).toBe(
+      new Date(after.updated_at).getTime(),
+    );
+    expect(new Date(after.updated_at).getTime()).toBeGreaterThan(
+      new Date(before.updated_at).getTime(),
     );
   });
 });

@@ -3,6 +3,7 @@ import {
   assertSafeOutboundHostResolved,
   assertSafeOutboundUrl,
 } from '../../nodes/integration/http-request/http-safety';
+import { appendQueryParams } from '../../nodes/integration/http-request/http-credentials';
 import { MAX_REDIRECT_HOPS } from '../../nodes/integration/http-request/http-redirect';
 import { MCP_ERROR_MESSAGE_MAX_LEN } from '../mcp/mcp-error-codes';
 import {
@@ -109,6 +110,22 @@ describe('testHttpConnection', () => {
     const parsed = new URL(url);
     expect(parsed.searchParams.get('region')).toBe('kr');
     expect(parsed.searchParams.get('api_key')).toBe('k 1');
+  });
+
+  it('query 자격증명은 노드와 같은 문자열로 붙는다 — 같은 키가 있어도 덮어쓰지 않고 덧붙인다', async () => {
+    fetchMock.mockResolvedValue(respond(200));
+    const base = 'https://api.example.com/v1?api_key=stale';
+
+    await testHttpConnection('api_key', {
+      base_url: base,
+      location: 'query',
+      key_name: 'api_key',
+      value: 'k-1',
+    });
+
+    const [url] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe(appendQueryParams(base, { api_key: 'k-1' }));
+    expect(url).toBe('https://api.example.com/v1?api_key=stale&api_key=k-1');
   });
 
   it('basic 은 Authorization: Basic', async () => {

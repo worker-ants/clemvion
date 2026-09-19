@@ -108,3 +108,18 @@ export function resolveHttpCredentials(
       };
   }
 }
+
+/**
+ * 자격증명 query(`api_key` 의 query 위치)를 URL 뒤에 붙인다 — 노드와 연결 테스트가 **같은 문자열**을 만들도록 한 곳에
+ * 둔다. 기존 query 는 건드리지 않고 `&` 로 잇는다(같은 키가 있어도 덮어쓰지 않고 덧붙인다).
+ */
+export function appendQueryParams(
+  url: string,
+  params: Record<string, string> | undefined,
+): string {
+  if (!params || Object.keys(params).length === 0) return url;
+  const search = new URLSearchParams();
+  for (const [key, value] of Object.entries(params)) search.append(key, value);
+  const separator = url.includes('?') ? '&' : '?';
+  return `${url}${separator}${search.toString()}`;
+}

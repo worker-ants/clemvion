@@ -2106,6 +2106,7 @@ describe('IntegrationsService', () => {
           'lastRotatedAt',
           'status',
           'statusReason',
+          'updatedAt',
         ]);
         expect(saved).toMatchObject({
           id: 'int-1',
@@ -2114,10 +2115,78 @@ describe('IntegrationsService', () => {
           statusReason: null,
           lastError: null,
         });
-        // 응답은 부분 save 의 반환값이 아니라 갱신한 엔티티로 만든다.
+        // 응답은 부분 save 의 반환값이 아니라 갱신한 엔티티로 만든다 — updatedAt 도 저장한 값과 같아야 한다.
         expect(result.status).toBe('connected');
         expect(result.statusReason).toBeNull();
         expect(result.name).toBe(stale.name);
+        expect(saved.updatedAt).toBeInstanceOf(Date);
+        expect(result.updatedAt).toBe(saved.updatedAt);
+        expect(result.lastRotatedAt).toBe(saved.updatedAt);
+      });
+
+      it('연결 테스트는 종류를 가리지 않고 한 줄을 공유한다 — database · http · 저장된 통합의 entity tester', async () => {
+        const settle = () => new Promise((r) => setImmediate(r));
+        const releases: Array<() => void> = [];
+        let inFlight = 0;
+        let peak = 0;
+        const deferred = () =>
+          new Promise<{ success: boolean; message: string }>((resolve) => {
+            inFlight++;
+            peak = Math.max(peak, inFlight);
+            releases.push(() => {
+              inFlight--;
+              resolve({ success: true, message: 'Connection successful' });
+            });
+          });
+        mockedDbTester.mockImplementation(deferred);
+        mockedHttpTester.mockImplementation(deferred);
+        const entityProbe = jest.fn().mockImplementation(deferred);
+        service.registerEntityTester('cafe24', entityProbe);
+        integrationRepo.findOne.mockResolvedValue(
+          makeIntegration({
+            serviceType: 'cafe24',
+            authType: 'oauth2',
+            credentials: { mall_id: 'myshop' },
+          }),
+        );
+        try {
+          const all = [
+            service.previewTest({
+              serviceType: 'database',
+              authType: 'connection_string',
+              credentials: dbCredentials,
+            }),
+            service.previewTest({
+              serviceType: 'http',
+              authType: 'bearer_token',
+              credentials: { token: 't' },
+            }),
+            service.testConnection('int-1', 'ws-1'),
+          ];
+          await settle();
+          // 서로 다른 종류 둘이 슬롯 둘을 차지하면 셋째(entity tester)는 기다린다.
+          expect(mockedDbTester).toHaveBeenCalledTimes(1);
+          expect(mockedHttpTester).toHaveBeenCalledTimes(1);
+          expect(entityProbe).not.toHaveBeenCalled();
+
+          releases.shift()?.();
+          await settle();
+          expect(entityProbe).toHaveBeenCalledTimes(1);
+          while (releases.length) {
+            releases.shift()?.();
+            await settle();
+          }
+          await expect(Promise.all(all)).resolves.toHaveLength(3);
+          expect(peak).toBe(CONNECTION_TEST_MAX_CONCURRENCY);
+        } finally {
+          for (const m of [mockedDbTester, mockedHttpTester]) {
+            m.mockReset();
+            m.mockResolvedValue({
+              success: true,
+              message: 'Connection successful',
+            });
+          }
+        }
       });
 
       it('rotate 도 같은 테스터를 타고, 실패하면 저장하지 않는다', async () => {

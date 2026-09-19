@@ -22,7 +22,11 @@ import {
   assertSafeOutboundUrl,
 } from './http-safety.js';
 import { httpRequestNodeMetadata } from './http-request.schema.js';
-import { HttpCredentials, resolveHttpCredentials } from './http-credentials.js';
+import {
+  HttpCredentials,
+  appendQueryParams,
+  resolveHttpCredentials,
+} from './http-credentials.js';
 import { followRedirectsSafely } from './http-redirect.js';
 
 const logger = new Logger('HttpRequestHandler');
@@ -262,15 +266,9 @@ export class HttpRequestHandler
     // sanitize 로는 못 거른다. 여기서 캡처해 노출 자체를 차단한다 (security).
     const urlBeforeCredentialParams = url;
 
-    // Apply integration-provided query params (api_key in query mode).
-    if (credentials.queryParams) {
-      const params = new URLSearchParams();
-      for (const [k, v] of Object.entries(credentials.queryParams)) {
-        params.append(k, v);
-      }
-      const separator = url.includes('?') ? '&' : '?';
-      url = `${url}${separator}${params.toString()}`;
-    }
+    // Apply integration-provided query params (api_key in query mode) — shared
+    // with the integration connection test so both build the same URL.
+    url = appendQueryParams(url, credentials.queryParams);
 
     // Credential headers must take precedence over user-supplied headers to
     // prevent a workflow author from silently overwriting an integration's
