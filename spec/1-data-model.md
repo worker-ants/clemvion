@@ -101,7 +101,7 @@ WebAuthn (Passkey/보안 키) credential 자체는 별도 엔티티 [§2.21 WebA
 | id | UUID | PK |
 | name | String | 워크스페이스 이름 |
 | type | Enum | personal / team |
-| owner_id | UUID | FK → User |
+| owner_id | UUID | FK → User (CASCADE) |
 | slug | String | URL 슬러그 |
 | settings | JSONB | 워크스페이스 설정. 알려진 키: `timezone: string?` (IANA, NAV-SC-06 — 미설정 시 서버 default `process.env.TZ` → `UTC`. AI 노드의 System Context Prefix ([Spec AI 공통 §11.3](./4-nodes/3-ai/0-common.md#113-timezone-sot-정책)) 와 Schedule 의 default timezone 이 본 값을 참조); `interactionAllowedOrigins: string[]?` (External Interaction API 의 `/api/external/*` CORS allowlist 및 임베드 origin allowlist — [Spec EIA §8.5](./5-system/14-external-interaction-api.md#85-cors), [Spec Channel Web Chat 보안](./7-channel-web-chat/4-security.md). 위젯 hosted CDN origin 은 빌트인 허용, 본 목록은 BYO-UI 고객 도메인 등 추가 origin 용. **편집: `PATCH /api/workspaces/:id/settings`**(Admin+, [Spec 사용자/워크스페이스 §6.1·§4.3](./2-navigation/9-user-profile.md))); `maxConcurrentExecutions: number?` (워크스페이스당 동시 `running` Execution cap, 미설정 시 기본 10 — 실행 엔진 admission gate, [§8](./5-system/4-execution-engine.md#8-동시-실행-제한). 편집 경로/권한은 위 `PATCH .../settings` Admin+ 와 동일. Parallel 노드 `config.maxConcurrency`(노드 내 branch 동시성)와는 스코프가 다른 별개 키) |
 | created_at | Timestamp | 생성 시각 |
@@ -112,8 +112,8 @@ WebAuthn (Passkey/보안 키) credential 자체는 별도 엔티티 [§2.21 WebA
 | 필드 | 타입 | 설명 |
 |------|------|------|
 | id | UUID | PK |
-| workspace_id | UUID | FK → Workspace |
-| user_id | UUID | FK → User |
+| workspace_id | UUID | FK → Workspace (CASCADE) |
+| user_id | UUID | FK → User (CASCADE) |
 | role | Enum | owner / admin / editor / viewer |
 | invited_at | Timestamp | 초대 시각 |
 | joined_at | Timestamp? | 합류 시각 |
@@ -123,15 +123,15 @@ WebAuthn (Passkey/보안 키) credential 자체는 별도 엔티티 [§2.21 WebA
 | 필드 | 타입 | 설명 |
 |------|------|------|
 | id | UUID | PK |
-| workspace_id | UUID | FK → Workspace |
+| workspace_id | UUID | FK → Workspace (CASCADE) |
 | name | String | 워크플로우 이름 |
 | description | String? | 설명 |
 | is_active | Boolean | 활성 상태 |
 | tags | String[] | 태그 목록 |
-| folder_id | UUID? | FK → Folder (정리용) |
+| folder_id | UUID? | FK → Folder (SET NULL · 정리용) |
 | settings | JSONB | 워크플로우 레벨 설정. 알려진 키: `maxConcurrentExecutions: number?` (워크플로우당 동시 `running` Execution cap, 미설정 시 기본 3 — 실행 엔진 admission gate, [§8](./5-system/4-execution-engine.md#8-동시-실행-제한). 편집: workflow 편집 권한 `PATCH /api/workflows/:id`(Editor+)) |
 | current_version | Integer | 현재 버전 번호 |
-| created_by | UUID | FK → User |
+| created_by | UUID | FK → User (NO ACTION) |
 | created_at | Timestamp | 생성 시각 |
 | updated_at | Timestamp | 수정 시각 |
 
@@ -140,9 +140,9 @@ WebAuthn (Passkey/보안 키) credential 자체는 별도 엔티티 [§2.21 WebA
 | 필드 | 타입 | 설명 |
 |------|------|------|
 | id | UUID | PK |
-| workspace_id | UUID | FK → Workspace |
+| workspace_id | UUID | FK → Workspace (CASCADE) |
 | name | String | 폴더 이름 |
-| parent_id | UUID? | FK → Folder (중첩 폴더 지원) |
+| parent_id | UUID? | FK → Folder (CASCADE · 중첩 폴더 지원) |
 | sort_order | Integer | 정렬 순서 (기본: 0) |
 | created_at | Timestamp | 생성 시각 |
 | updated_at | Timestamp | 수정 시각 |
@@ -158,7 +158,7 @@ WebAuthn (Passkey/보안 키) credential 자체는 별도 엔티티 [§2.21 WebA
 | 필드 | 타입 | 설명 |
 |------|------|------|
 | id | UUID | PK |
-| workflow_id | UUID | FK → Workflow |
+| workflow_id | UUID | FK → Workflow (CASCADE) |
 | type | Enum | 노드 유형 (if_else, switch, loop, ..., ai_agent, text_classifier, information_extractor, http_request, ..., transform, code, carousel, table, chart, form, template) |
 | category | Enum | trigger / logic / flow / ai / integration / data / presentation (7종 — `trigger` 는 V003 에서 추가, Manual Trigger 시작 노드용) |
 | label | String | 사용자 지정 노드 이름 |
@@ -167,8 +167,8 @@ WebAuthn (Passkey/보안 키) credential 자체는 별도 엔티티 [§2.21 WebA
 | config | JSONB | 노드별 설정 값 |
 | is_disabled | Boolean | 비활성 여부 |
 | description | String? | 메모/설명 |
-| container_id | UUID? | FK → Node. 컨테이너 노드(Loop/ForEach/Map) 내부에 배치된 경우. 엣지 연결/삭제로 자동 동기화(§11.2.1 canvas 스펙 참조). Background 는 컨테이너 멤버십을 사용하지 않고 `background` 포트 엣지로 본문을 식별한다 ([PRD 3 §4.12 ND-BG-05 대안 구현](./4-nodes/_product-overview.md#412-background) / [Spec 실행 엔진 §3.3](./5-system/4-execution-engine.md#33-background-실행)) |
-| tool_owner_id | UUID? | FK → Node. AI Agent의 Tool Area에 등록된 경우 |
+| container_id | UUID? | FK → Node (SET NULL). 컨테이너 노드(Loop/ForEach/Map) 내부에 배치된 경우. 엣지 연결/삭제로 자동 동기화(§11.2.1 canvas 스펙 참조). Background 는 컨테이너 멤버십을 사용하지 않고 `background` 포트 엣지로 본문을 식별한다 ([PRD 3 §4.12 ND-BG-05 대안 구현](./4-nodes/_product-overview.md#412-background) / [Spec 실행 엔진 §3.3](./5-system/4-execution-engine.md#33-background-실행)) |
+| tool_owner_id | UUID? | FK → Node (SET NULL). AI Agent의 Tool Area에 등록된 경우 |
 | created_at | Timestamp | 생성 시각 |
 | updated_at | Timestamp | 수정 시각 |
 
@@ -217,10 +217,10 @@ WebAuthn (Passkey/보안 키) credential 자체는 별도 엔티티 [§2.21 WebA
 | 필드 | 타입 | 설명 |
 |------|------|------|
 | id | UUID | PK |
-| workflow_id | UUID | FK → Workflow |
-| source_node_id | UUID | FK → Node (출력 노드) |
+| workflow_id | UUID | FK → Workflow (CASCADE) |
+| source_node_id | UUID | FK → Node (CASCADE · 출력 노드) |
 | source_port | String | 출력 포트 식별자 (예: "true", "false", "default", "out_0") |
-| target_node_id | UUID | FK → Node (입력 노드) |
+| target_node_id | UUID | FK → Node (CASCADE · 입력 노드) |
 | target_port | String | 입력 포트 식별자 (기본: "in") |
 | type | Enum | 엣지 유형: `data` (기본) / `error` (에러 포트 엣지) |
 | condition | JSONB? | 엣지 조건 (조건부 라우팅용) |
@@ -236,14 +236,14 @@ WebAuthn (Passkey/보안 키) credential 자체는 별도 엔티티 [§2.21 WebA
 | 필드 | 타입 | 설명 |
 |------|------|------|
 | id | UUID | PK |
-| workspace_id | UUID | FK → Workspace |
-| workflow_id | UUID | FK → Workflow |
+| workspace_id | UUID | FK → Workspace (CASCADE) |
+| workflow_id | UUID | FK → Workflow (CASCADE) |
 | type | Enum | webhook / schedule / manual (chat-channel 은 별도 type 이 아니라 `webhook` 트리거의 `config.chatChannel` 변형 — [Spec Chat Channel](./5-system/15-chat-channel.md) 참조) |
 | name | String | 트리거 이름 |
 | is_active | Boolean | 활성 상태 |
 | config | JSONB | 트리거별 설정. `notification` / `interaction` 서브 필드는 [Spec External Interaction API §7.1](./5-system/14-external-interaction-api.md#71-trigger-엔티티-확장) 참조. `chatChannel` 서브 필드 (외부 chat 플랫폼 어댑터) 는 [Spec Chat Channel §4.1](./5-system/15-chat-channel.md#41-triggerconfigchatchannel) 참조. 응답 DTO 전용 derived 필드 `hasBotToken: boolean` (`botTokenRef IS NOT NULL → true`) — DB 컬럼 아님, SoT [Spec Chat Channel §5.4.2](./5-system/15-chat-channel.md#542-응답-dto-derived-필드--hasbottoken) |
 | endpoint_path | String? | Webhook URL 경로 (type=webhook) — 라우팅 키가 전역이라 **전역 유일**(§3, V132) |
-| auth_config_id | UUID? | FK → AuthConfig (Webhook 인증) |
+| auth_config_id | UUID? | FK → AuthConfig (SET NULL · Webhook 인증) |
 | last_triggered_at | Timestamp? | 마지막 실행 시각 |
 | notification_health | Enum | unknown / healthy / degraded. Outbound notification 발송 건강도. default=`unknown`. [Spec EIA §3.1 EIA-NX-07](./5-system/14-external-interaction-api.md#31-outbound-notification-notification-webhook) |
 | notification_last_error | Text? | Outbound notification 최종 실패 시 마지막 에러 메시지 (truncate 가능) |
@@ -262,8 +262,8 @@ WebAuthn (Passkey/보안 키) credential 자체는 별도 엔티티 [§2.21 WebA
 | 필드 | 타입 | 설명 |
 |------|------|------|
 | id | UUID | PK |
-| workspace_id | UUID | FK → Workspace |
-| trigger_id | UUID | FK → Trigger |
+| workspace_id | UUID | FK → Workspace (CASCADE) |
+| trigger_id | UUID | FK → Trigger (CASCADE) |
 | cron_expression | String | Cron 표현식 |
 | timezone | String | 타임존 (IANA) |
 | is_active | Boolean | 활성 상태 |
@@ -297,7 +297,7 @@ Schedule은 Trigger의 서브타입이다. 양쪽의 라이프사이클과 상�
 | 필드 | 타입 | 설명 |
 |------|------|------|
 | id | UUID | PK |
-| workspace_id | UUID | FK → Workspace |
+| workspace_id | UUID | FK → Workspace (CASCADE) |
 | service_type | String | 서비스 유형 (google, github, http, database, email, webhook, mcp, cafe24, makeshop). `mcp` 의 사용처·credentials 스키마는 [Spec MCP Client](./5-system/11-mcp-client.md) · [Spec 통합 §5.6](./2-navigation/4-integration.md#56-mcp-server). `cafe24` 는 [Spec 통합 §5.8](./2-navigation/4-integration.md#58-cafe24) · [Spec Cafe24 노드](./4-nodes/4-integration/4-cafe24.md). `makeshop` 는 [Spec 통합 §5.9](./2-navigation/4-integration.md#59-makeshop) · [Spec MakeShop 노드](./4-nodes/4-integration/5-makeshop.md) — cafe24 와 동일하게 같은 Integration 이 워크플로 노드와 AI Agent MCP Bridge 양쪽에서 사용된다 ([Spec MCP Client §2.3 Internal Bridge](./5-system/11-mcp-client.md#23-internal-bridge-in-process)) |
 | name | String | 사용자 지정 별칭 |
 | auth_type | Enum | oauth2 / api_key / bearer_token / basic / connection_string / smtp / webhook_outbound / none. `none` 은 인증이 없는 공용 MCP 서버 등에 사용 |
@@ -313,7 +313,7 @@ Schedule은 Trigger의 서브타입이다. 양쪽의 라이프사이클과 상�
 | last_used_at | Timestamp? | 마지막 노드 실행에서 사용된 시각 (캐시) |
 | last_rotated_at | Timestamp? | 자격 증명 마지막 회전 시각 (OAuth 재인증 또는 비OAuth 교체) |
 | last_error | JSONB? | 최근 호출 실패의 요약 `{ code, message, at, details? }`. `details` 는 자유 형식 `Record<string, unknown>` 으로 사유 별 추가 컨텍스트를 담는다 (예: `oauth_invalid_scope` 에서 `details.requiresCafe24Approval: string[]` — 요청 scopes ∩ [`cafe24-restricted-scopes.md §1`](./conventions/cafe24-restricted-scopes.md#1-scope-단위-별도-승인-resource-전체-영향) 의 교집합. 다른 status_reason 에서는 미사용 또는 별개 키 집합 — 새 사유 도입 시 본 spec 행에 키 정의를 inline 추가). API 응답의 `details` 키 집합과 형식적으로 같은 shape 이지만 DB 와 API 의 노출 정책은 각 spec 본문 (§10.4 등) 이 별도 통제 — 본 컬럼은 저장 책임만 진다. |
-| created_by | UUID | FK → User |
+| created_by | UUID | FK → User (NO ACTION) |
 | created_at | Timestamp | 생성 시각 |
 | updated_at | Timestamp | 수정 시각 |
 
@@ -329,8 +329,8 @@ Schedule은 Trigger의 서브타입이다. 양쪽의 라이프사이클과 상�
 |------|------|------|
 | id | UUID | PK |
 | integration_id | UUID | FK → Integration (CASCADE) |
-| node_execution_id | UUID | FK → NodeExecution |
-| workflow_id | UUID | FK → Workflow (비정규화, 조회 최적화) |
+| node_execution_id | UUID | FK → NodeExecution (CASCADE) |
+| workflow_id | UUID | FK → Workflow (CASCADE · 비정규화, 조회 최적화) |
 | status | Enum | success / failed |
 | error | JSONB? | 실패 시 에러 요약 `{ code, message }` |
 | duration_ms | Integer | 호출 소요 시간 |
@@ -348,17 +348,17 @@ Schedule은 Trigger의 서브타입이다. 양쪽의 라이프사이클과 상�
 | 필드 | 타입 | 설명 |
 |------|------|------|
 | id | UUID | PK |
-| workspace_id | UUID | FK → Workspace |
+| workspace_id | UUID | FK → Workspace (CASCADE) |
 | name | String | 컬렉션 이름 |
 | description | String? | 설명 |
-| embedding_model_config_id | UUID? | FK → ModelConfig (kind=embedding). 임베딩 1급 참조. 모델 식별자·provider·차원은 참조된 ModelConfig 가 소유 (chat piggyback 도 bare `embedding_model` 문자열도 아님). NULL 이면 워크스페이스 default embedding ModelConfig 로 resolve `(V091)`. **유효 임베딩 모델은 API 응답의 `embeddingModel`(read-only, derived = `config.defaultModel`)로 노출** |
+| embedding_model_config_id | UUID? | FK → ModelConfig (SET NULL · kind=embedding). 임베딩 1급 참조. 모델 식별자·provider·차원은 참조된 ModelConfig 가 소유 (chat piggyback 도 bare `embedding_model` 문자열도 아님). NULL 이면 워크스페이스 default embedding ModelConfig 로 resolve `(V091)`. **유효 임베딩 모델은 API 응답의 `embeddingModel`(read-only, derived = `config.defaultModel`)로 노출** |
 | embedding_dimension | Integer? | 저장된 청크들의 벡터 차원 — 참조 ModelConfig 의 `dimension`(SoT) 에서 첫 임베딩 시 채워지는 **파생 캐시**. KB 재임베딩 시 NULL 로 reset |
 | chunk_size | Integer | 청크 크기 (기본: 1000) |
 | chunk_overlap | Integer | 청크 오버랩 (기본: 200) |
 | document_count | Integer | 문서 수 (캐시) |
 | reembed_status | Enum | KB 전체 재임베딩 잠금 상태: `idle` / `in_progress` (default: idle). 진입 시 atomic compare-and-swap |
 | rag_mode | Enum | 검색 모드: `vector` (default) / `graph`. **생성 시에만 결정, 사후 변경 불가** ([Spec Graph RAG](./5-system/10-graph-rag.md)) |
-| extraction_llm_config_id | UUID? | FK → ModelConfig (kind=chat). `rag_mode = 'graph'` 일 때 그래프 추출에 사용할 chat 모델. NULL 이면 워크스페이스 default chat ModelConfig |
+| extraction_llm_config_id | UUID? | FK → ModelConfig (SET NULL · kind=chat). `rag_mode = 'graph'` 일 때 그래프 추출에 사용할 chat 모델. NULL 이면 워크스페이스 default chat ModelConfig |
 | max_hops | Integer | graph 검색 시 그래프 확장 깊이 (1 또는 2, default 1). `vector` 모드에서는 무시 |
 | vector_seed_top_k | Integer | graph 검색 시 vector seed 개수 (default 5). `vector` 모드에서는 무시 |
 | expanded_chunk_limit | Integer | graph expansion 후 회수할 청크 상한 (default 15). `vector` 모드에서는 무시 |
@@ -366,10 +366,10 @@ Schedule은 Trigger의 서브타입이다. 양쪽의 라이프사이클과 상�
 | relation_count | Integer | KB 의 relation 총 수 (캐시). `vector` 모드는 항상 0 |
 | reextract_status | Enum | KB 전체 그래프 재추출 잠금: `idle` / `in_progress` (default: idle). `vector` 모드에서는 사용 안 함 |
 | rerank_mode | Enum | 검색 후처리(리랭킹) 모드: `off` (default) / `cross_encoder` / `cross_encoder_llm` `(V082)`. **검색 시점 적용 — 사후 변경 가능, 재임베딩 불요** ([Spec RAG 검색 §3.3](./5-system/9-rag-search.md#33-검색-후처리--리랭킹-선택적)). `off` 면 아래 rerank_* 컬럼 무시. 두 모드 모두 구현됨 |
-| rerank_config_id | UUID? | FK → ModelConfig (kind=rerank). cross-encoder 리랭커 설정. NULL 이면 워크스페이스 default rerank ModelConfig, 그것도 없으면 `off` 강등 |
+| rerank_config_id | UUID? | FK → ModelConfig (SET NULL · kind=rerank). cross-encoder 리랭커 설정. NULL 이면 워크스페이스 default rerank ModelConfig, 그것도 없으면 `off` 강등 |
 | rerank_candidate_k | Integer | 리랭크에 투입할 1차 회수 후보 수 (default 50, 허용 범위 1~200). `rerank_mode = 'off'` 시 무시 (off 경로는 내부 상수 `RAG_RECALL_K`=50 로 wide 회수 — 본 필드와 독립, [RAG 검색 §3.4](./5-system/9-rag-search.md#34-동적-점수-컷-생성-주입-모든-모드-공통)) |
 | rerank_score_threshold | Float? | 리랭크 점수 θ 컷 임계 (NULL 이면 θ 컷 없이 점수순 정렬 후 token-budget + inject-cap 동적 컷(§3.4)만 적용). `rerank_mode = 'off'` 시 무시 |
-| rerank_llm_config_id | UUID? | FK → ModelConfig (kind=chat). `rerank_mode = 'cross_encoder_llm'` 의 listwise grading LLM. NULL 이면 워크스페이스 default chat ModelConfig |
+| rerank_llm_config_id | UUID? | FK → ModelConfig (SET NULL · kind=chat). `rerank_mode = 'cross_encoder_llm'` 의 listwise grading LLM. NULL 이면 워크스페이스 default chat ModelConfig |
 | created_at | Timestamp | 생성 시각 |
 | updated_at | Timestamp | 수정 시각 |
 
@@ -378,7 +378,7 @@ Schedule은 Trigger의 서브타입이다. 양쪽의 라이프사이클과 상�
 | 필드 | 타입 | 설명 |
 |------|------|------|
 | id | UUID | PK |
-| knowledge_base_id | UUID | FK → KnowledgeBase |
+| knowledge_base_id | UUID | FK → KnowledgeBase (CASCADE) |
 | name | String | 문서 이름 |
 | file_type | Enum | txt / md / pdf / csv |
 | file_url | String | 원본 파일 저장 경로 |
@@ -405,11 +405,13 @@ Schedule은 Trigger의 서브타입이다. 양쪽의 라이프사이클과 상�
 |------|------|------|
 | id | UUID | PK |
 | document_id | UUID | FK → Document (CASCADE) |
+| knowledge_base_id | UUID | FK → KnowledgeBase (CASCADE). 청크가 속한 KB — 적재 때 문서의 KB 를 함께 적는다(비정규화, V005 · 인덱스 `idx_document_chunk_kb`) |
 | chunk_index | Integer | 청크 순서 (0-based) |
 | content | Text | 청크 텍스트 원본 |
 | embedding | Vector | 벡터 임베딩 (pgvector) |
 | token_count | Integer | 청크의 토큰 수 |
 | metadata | JSONB | `{ page?: number, section?: string }` |
+| created_at | Timestamp | 생성 시각 |
 
 **제약조건**: `UNIQUE(document_id, chunk_index)`
 
@@ -428,7 +430,7 @@ Schedule은 Trigger의 서브타입이다. 양쪽의 라이프사이클과 상�
 | type | Enum | `person` / `organization` / `concept` / `location` / `event` / `other` |
 | description | Text? | LLM 추출 짧은 설명 |
 | mention_count | Integer | KB 내 청크에서 언급된 횟수 (캐시) |
-| last_seen_chunk_id | UUID? | 마지막 등장 청크 (FK → DocumentChunk) |
+| last_seen_chunk_id | UUID? | 마지막 등장 청크 (FK → DocumentChunk · SET NULL) |
 | created_at | Timestamp | 첫 추출 시각 |
 | updated_at | Timestamp | 마지막 갱신 시각 |
 
@@ -442,10 +444,10 @@ Schedule은 Trigger의 서브타입이다. 양쪽의 라이프사이클과 상�
 |------|------|------|
 | id | UUID | PK |
 | knowledge_base_id | UUID | FK → KnowledgeBase (CASCADE) |
-| head_entity_id | UUID | FK → Entity |
-| tail_entity_id | UUID | FK → Entity |
+| head_entity_id | UUID | FK → Entity (CASCADE) |
+| tail_entity_id | UUID | FK → Entity (CASCADE) |
 | predicate | String | 관계 서술어 (예: `founded`, `employs`). P0 free-form, snake_case 권장 |
-| evidence_chunk_id | UUID? | 추출 근거 청크 (FK → DocumentChunk) |
+| evidence_chunk_id | UUID? | 추출 근거 청크 (FK → DocumentChunk · SET NULL) |
 | weight | Integer | 동일 (head, predicate, tail) 가 여러 chunk 에서 발견된 누적 횟수 |
 | created_at | Timestamp | 첫 추출 시각 |
 | updated_at | Timestamp | 마지막 갱신 시각 |
@@ -471,8 +473,8 @@ Schedule은 Trigger의 서브타입이다. 양쪽의 라이프사이클과 상�
 | 필드 | 타입 | 설명 |
 |------|------|------|
 | id | UUID | PK |
-| workflow_id | UUID | FK → Workflow |
-| trigger_id | UUID? | FK → Trigger (트리거에 의한 실행 시) |
+| workflow_id | UUID | FK → Workflow (CASCADE) |
+| trigger_id | UUID? | FK → Trigger (SET NULL · 트리거에 의한 실행 시) |
 | status | Enum | pending / running / completed / failed / cancelled / waiting_for_input |
 | queued_at | Timestamp? | intake 큐 대기 진입 시각(`execute()` 의 `pending` INSERT 시점). §8 admission gate 의 큐 대기 5분 초과 판정 기준(`now - queued_at`) — [4-execution-engine §8](./5-system/4-execution-engine.md#8-동시-실행-제한). `started_at`(RUNNING 전이 시각)과 별개. **마이그레이션 V104(PR2b)** |
 | started_at | Timestamp | 실행 시작 시각 |
@@ -482,10 +484,10 @@ Schedule은 Trigger의 서브타입이다. 양쪽의 라이프사이클과 상�
 | input_data | JSONB? | 실행 입력 데이터. **응답·emit 시 자격증명 값-패턴 마스킹**(DB 는 원문 보존) — 자매 `NodeExecution.input_data` 와 같은 규칙이다 ([EIA §R17](./5-system/14-external-interaction-api.md)). 2026-08-20 이전에는 카브아웃이었다: Re-run 프리필이 이 값을 읽어 재제출하므로 마스킹하면 `***` 가 실제 입력이 됐다. **프런트 마커 가드**(프리필 스킵·제출 차단)가 서면서 그 조건이 해소돼 전환했다 ([Re-run §10.2](./5-system/13-replay-rerun.md) · [에디터 실행 §2.2](./3-workflow-editor/3-execution.md)). 2026-08-20 부터는 **서버도 2층으로 거부**한다 — Manual 실행 경로(저작 주체 기준, 재제출뿐 아니라 직접 입력도 포함)에서 값 leaf 가 마커와 정확히 일치하면 `400` `details[].code = MASKED_VALUE_RESUBMITTED` (UI 를 우회한 API 직접 호출 대비) |
 | output_data | JSONB? | 실행 최종 출력 데이터. **응답·emit 시 자격증명 값-패턴 마스킹**(DB 는 원문 보존) — 범위는 [EIA §R17](./5-system/14-external-interaction-api.md) |
 | error | JSONB? | 에러 정보. 최초 failed NodeExecution의 에러를 참조/복사 (아래 참조). `error.code` 어휘는 각 노드 핸들러가 정의([Spec node-output Principle 3.2](./conventions/node-output.md#32-outputerror-표준-형태)) 외에 엔진 인프라 차원의 코드를 포함한다. **아래 6종은 등재처가 서로 다르다** — `SERVER_INTERRUPTED`·`WORKER_HEARTBEAT_TIMEOUT` 은 `EngineErrorCode` const, `EXECUTION_TIME_LIMIT_EXCEEDED` 는 `ErrorCode` const, `RESUME_*` 3종은 `RehydrationError.code` 리터럴 유니온이 붙잡는다(상수로 또 옮기지 않는 사유는 [`error-codes.ts`](../codebase/backend/src/nodes/core/error-codes.ts) JSDoc). **이 목록이 단일 등재처를 뜻하지 않는다.** 코드별로 보면 — `SERVER_INTERRUPTED` (graceful shutdown 미완료 노드, [§11](./5-system/4-execution-engine.md#11-graceful-shutdown)), `WORKER_HEARTBEAT_TIMEOUT` (active 세그먼트 job 이 BullMQ stalled 재배달(`maxStalledCount=1`) attempts 소진 — terminal worker failure, **PR4 구현(2026-07-04)**, [§7.1](./5-system/4-execution-engine.md#71-워커-크래시-복구--bullmq-stalled-job-target); 부팅 `recoverStuckExecutions` re-drive(§7.5 case B)는 이 코드 미사용 — 재구동 불가는 `RESUME_CHECKPOINT_MISSING`), `EXECUTION_TIME_LIMIT_EXCEEDED` (엔진 레벨 누적 active-running 시간 초과 — `waiting_for_input` 대기 제외, [§8](./5-system/4-execution-engine.md#8-동시-실행-제한)), `RESUME_FAILED` / `RESUME_CHECKPOINT_MISSING` / `RESUME_INCOMPATIBLE_STATE` (continuation rehydration 실패, [§7.5](./5-system/4-execution-engine.md#75-resume-after-restart-rehydration)) |
-| executed_by | UUID? | FK → User (수동 실행 시) |
-| parent_execution_id | UUID? | FK → Execution (서브 워크플로우 실행 시 부모 실행) |
+| executed_by | UUID? | FK → User (NO ACTION · 수동 실행 시) |
+| parent_execution_id | UUID? | FK → Execution (SET NULL · 서브 워크플로우 실행 시 부모 실행) |
 | recursion_depth | Integer | 서브 워크플로우 호출 깊이 (root = 0) |
-| re_run_of | UUID? | `REFERENCES executions(id) ON DELETE SET NULL`. Re-run 의 직계 부모 Execution. NULL 이면 본 실행이 chain 의 시작(원본). 정책·상세는 [Spec Re-run §9.1](./5-system/13-replay-rerun.md#91-executions-테이블-컬럼-추가) |
+| re_run_of | UUID? | FK → Execution (SET NULL). Re-run 의 직계 부모 Execution. NULL 이면 본 실행이 chain 의 시작(원본). 정책·상세는 [Spec Re-run §9.1](./5-system/13-replay-rerun.md#91-executions-테이블-컬럼-추가) |
 | chain_id | UUID? | **NULLABLE** (V067). 같은 Re-run chain 의 모든 실행을 묶는 식별자. 일반 실행(원본·sub-workflow·background)은 `chain_id = NULL`, re-run 으로 생성된 실행만 `chain_id = <chain root id>` (= 원본 실행 id) 로 설정된다. chain 전체 조회는 `id = rootId OR chain_id = rootId`. `re_run_of` 도 NULLABLE — re-run 행만 직계 부모 id 보유. chain 깊이 32 제한은 애플리케이션 레벨에서 enforce. v1 이 spec §9.1 의 NOT NULL/자기참조 모델에서 의도적으로 벗어난 근거는 [Spec Re-run §9.1](./5-system/13-replay-rerun.md#91-executions-테이블-컬럼-추가) 및 `migrations/V067__execution_re_run_chain.sql` 헤더 참조 |
 | dry_run | Boolean | `NOT NULL DEFAULT false` (V068). dry-run re-run(RR-PL-01)으로 생성된 실행만 true. 엔진이 `createContext` 시점에 `variables.__dryRun` 으로 주입해 외부 부수효과 노드가 mock 출력을 반환하게 하며, rehydration 에서도 복원된다. 상세는 [Spec Re-run §7.2 / §9.2](./5-system/13-replay-rerun.md#92-dry-run-표기--nodeexecution-_dryrun--execution-dry_run-컬럼) |
 | conversation_thread | JSONB? | `NULL` 허용 (V084). `waiting_for_input` park 진입 시 `ExecutionContext.conversationThread` 전체 스냅샷을 commit 하는 **durable resume 매체** — rehydration([§7.5](./5-system/4-execution-engine.md#75-resume-after-restart-rehydration))이 여기서 thread 를 무손실 복원(`runningSummary`/`summarizedUpToSeq` 포함). park 외 단계에서는 stale 가능(last-park-write). 실행 이력 timeline 의 분산 SoT(`NodeExecution.output_data`/`interaction_data`)와 목적·소비처가 분리된다. 정책·Rationale: [ConversationThread §4·§8.4](./conventions/conversation-thread.md#4-영속화) |
@@ -552,8 +554,9 @@ External Interaction API 의 `iext_*`(per_execution JWT) 발급 jti 를 영속 �
 | 필드 | 타입 | 설명 |
 |------|------|------|
 | id | UUID | PK |
-| execution_id | UUID | FK → Execution |
-| node_id | UUID | FK → Node |
+| execution_id | UUID | FK → Execution (CASCADE) |
+| node_id | UUID | FK → Node (CASCADE) |
+| parent_node_execution_id | UUID? | FK → NodeExecution (SET NULL). 이 행을 묶는 그룹 노드의 NodeExecution — Sub-Workflow(인라인 실행) · Background(본문 서브그래프) · Parallel(브랜치) 노드가 자기 행 id 를 자식 행에 찍어, 실행 결과 타임라인이 자식을 부모 아래로 묶는다. 부모 행이 지워져도 자식 이력은 남고 묶음만 잃는다(V012) |
 | status | Enum | pending / running / completed / failed / cancelled / skipped / waiting_for_input. `cancelled` = 노드가 실패한 것이 아니라 **중단된** 상태. 두 경로가 여기로 귀결된다 — (1) 외부 `abortSignal` 로 외부 I/O 가 끊겨 핸들러가 throw 한 `AbortError`, (2) 엔진이 노드 경계·AI turn 경계·park 짝 전이에서 Execution 행을 재조회해 외부 cancel 을 관측하고 throw 한 `ExecutionCancelledError`(사용자 Stop 은 signal 을 만들지 않으므로 선형·resume 경로에선 이쪽이 유일한 관측 수단) ([node-cancellation §2.4·§5](./conventions/node-cancellation.md#5-aborterror-분류) / [실행 엔진 §1.2](./5-system/4-execution-engine.md#12-nodeexecution-상태)) |
 | started_at | Timestamp | 실행 시작 시각 |
 | finished_at | Timestamp? | 실행 종료 시각 |
@@ -580,11 +583,11 @@ External Interaction API 의 `iext_*`(per_execution JWT) 발급 jti 를 영속 �
 | 필드 | 타입 | 설명 |
 |------|------|------|
 | id | UUID | PK |
-| workflow_id | UUID | FK → Workflow |
+| workflow_id | UUID | FK → Workflow (CASCADE) |
 | version | Integer | 버전 번호 |
 | snapshot | JSONB | 워크플로우 캔버스 스냅샷 `{ name, description, nodes, edges }`. **`workflow.settings` 는 포함하지 않는다** — 버저닝·복원 대상은 캔버스 + 이름/설명이다. 구성·근거의 SoT 는 [data-flow §1.1 / Rationale "버전 스냅샷 = JSONB"](./data-flow/11-workflow.md#rationale), 소비 측 타입은 [버전 히스토리 §7.2 `VersionSnapshot`](./3-workflow-editor/5-version-history.md) |
 | change_summary | String? | 변경 사항 요약 |
-| created_by | UUID | FK → User |
+| created_by | UUID | FK → User (NO ACTION) |
 | created_at | Timestamp | 생성 시각 |
 
 ### 2.16 ModelConfig
@@ -598,7 +601,7 @@ External Interaction API 의 `iext_*`(per_execution JWT) 발급 jti 를 영속 �
 | 필드 | 타입 | 설명 |
 |------|------|------|
 | id | UUID | PK. chat row 는 기존 llm_config UUID 보존 |
-| workspace_id | UUID | FK → Workspace |
+| workspace_id | UUID | FK → Workspace (CASCADE) |
 | kind | Enum | `chat` / `embedding` / `rerank` — 모델 역할 판별자 |
 | provider | String | kind 별 허용: **chat** = openai/anthropic/google/azure/local · **embedding** = openai/azure/google/local (Anthropic 제외 — embedding 미지원) · **rerank** = `tei`(자가호스팅) / `cohere`(외부 API). **rerank Dropped(2026-06-05)**: `jina` / `voyage` / `local` / `builtin` — 1차 tei/cohere 가 self-host/외부 API 경로를 커버, 수요 미확인 provider 의 유지보수 표면만 늘어 범위 종결([LLM Client §2.1](./5-system/7-llm-client.md)) |
 | name | String | 사용자 지정 이름 |
@@ -625,7 +628,7 @@ External Interaction API 의 `iext_*`(per_execution JWT) 발급 jti 를 영속 �
 | 필드 | 타입 | 설명 |
 |------|------|------|
 | id | UUID | PK |
-| workspace_id | UUID | FK → Workspace |
+| workspace_id | UUID | FK → Workspace (CASCADE) |
 | name | String | 인증 설정 이름 |
 | type | Enum | api_key / bearer_token / basic_auth / hmac |
 | config | JSONB (encrypted) | 인증 설정 상세 (AES-256-GCM 암호화). type 별 스키마는 §2.17.1, 응답 마스킹은 §2.17.2 |
@@ -674,8 +677,8 @@ External Interaction API 의 `iext_*`(per_execution JWT) 발급 jti 를 영속 �
 | 필드 | 타입 | 설명 |
 |------|------|------|
 | id | UUID | PK |
-| workspace_id | UUID | FK → Workspace |
-| user_id | UUID | FK → User |
+| workspace_id | UUID | FK → Workspace (CASCADE) |
+| user_id | UUID | FK → User (NO ACTION) |
 | action | String | 수행 액션 (`integration.created`, `execution.re_run`, `user.password_changed` 등 — 명명 규약은 [conventions/audit-actions.md](./conventions/audit-actions.md)) |
 | resource_type | String | 대상 리소스 유형 |
 | resource_id | UUID | 대상 리소스 ID |
@@ -730,8 +733,8 @@ CHECK 제약명은 `chk_login_history_event` 다 (V040 도입). WebAuthn 추가�
 | 필드 | 타입 | 설명 |
 |------|------|------|
 | id | UUID | PK |
-| workspace_id | UUID | FK → Workspace |
-| user_id | UUID | FK → User (수신자) |
+| workspace_id | UUID | FK → Workspace (CASCADE) |
+| user_id | UUID | FK → User (NO ACTION · 수신자) |
 | type | Enum | execution_failed / background_failed / schedule_failed / integration_expired / **integration_action_required** / marketplace_update / team_invite / **alert_failure_rate / alert_duration / alert_llm_cost** (알람 3종은 `alert_` + [§2.25](#225-alertrule) `AlertRule.type` 에서 파생 — `alerts-evaluator.service.ts` 가 `` `alert_${rule.type}` `` 로 만든다). **분리 원칙**: `integration_expired` 는 **수동성** — `token_expires_at` 만료 임계 (`status_reason='token_expired'`) 임박/도래를 알리는 passive notice. 사용자가 통합을 다시 쓰려 할 때만 행동 필요. `integration_action_required` 는 **능동성** — `error(auth_failed)` / `error(network)` / `error(insufficient_scope)` 같은 운영 중 발생한 장애로, 사용자가 즉시 손봐야 서비스가 복구되는 active alert. `install_timeout` (사용자가 외부 install 흐름 진행 중인 명시적 상태) 은 여전히 알림 미발사 (UI 배지만) — 사용자가 외부 흐름을 알고 있는 상태이므로 push 불필요. 자세한 임계·메시지는 [Spec 통합 §11.2](./2-navigation/4-integration.md#112-알림-생성) 참고. |
 | title | String | 알림 제목 |
 | message | String | 알림 내용 |
@@ -753,9 +756,9 @@ Workflow AI Assistant의 채팅 세션. 단일 워크플로우 단위로 존재�
 | id | UUID | PK |
 | workspace_id | UUID | FK → Workspace (cascade 삭제) |
 | workflow_id | UUID | FK → Workflow (cascade 삭제) — 세션은 단일 워크플로우에 종속 |
-| user_id | UUID | FK → User — 세션 생성자 |
+| user_id | UUID | FK → User (CASCADE) — 세션 생성자 |
 | title | String? | 세션 제목 (첫 메시지 요약 또는 사용자 편집) |
-| llm_config_id | UUID? | FK → ModelConfig (kind=chat) — 지정 없으면 workspace default chat 사용 |
+| llm_config_id | UUID? | FK → ModelConfig (SET NULL · kind=chat) — 지정 없으면 workspace default chat 사용 |
 | status | Enum | active / archived — archived는 UI 상에서 숨김 |
 | message_count | Int | 메시지 수 캐시 (비정규화) |
 | last_interaction_at | Timestamp | 마지막 메시지/도구 호출 시각 |
@@ -814,7 +817,10 @@ AssistantSession에 속하는 개별 메시지. 사용자 입력, assistant 응�
 | tool_call_id | String? | role=tool에서 어떤 tool_call의 결과인지 참조 |
 | plan | JSONB? | `propose_plan` tool-call 발행 시 스냅샷. `{title, summary, steps[], openQuestions[], approvedAt?}` |
 | usage | JSONB? | `{inputTokens, outputTokens, totalTokens, thinkingTokens?, model}` — role=assistant의 턴 종료 시점에만 채움 |
-| finish_reason | String? | `stop` / `tool_calls` / `length` / `content_filter` / `aborted` — role=assistant에만 |
+| finish_reason | String? | provider 값 `stop` / `tool_calls` / `length` / `content_filter` / `aborted` 와 서버 합성 마커 `error`(턴이 에러로 끝남 — 예: 라운드 한도 초과) · `auto_resume_pending`(stall 복구로 쪼개진 턴의 중간 row) — role=assistant에만 |
+| auto_resumed | Boolean | stall 자동 복구로 **새로 시작된** assistant row 면 true(기본 false). 복구 직전까지의 row 는 false — 응답 필드 `autoResumed`([AI 어시스턴트 §6.0](./3-workflow-editor/4-ai-assistant.md#60-assistant-message-응답-필드)). V020 |
+| auto_resume_reason | String? | `auto_resumed=true` row 에서만. 현재 `stall_pending_steps` 한 종류 (V020) |
+| auto_resume_attempt | Integer? | `auto_resumed=true` row 에서만. 턴 안의 복구 시도 순번(1부터) (V020) |
 | created_at | Timestamp | 생성 시각 |
 
 > `tool_calls[].result` 는 Shadow 검증 결과 또는 탐색 결과의 축약본을 담아 사용자가 히스토리에서 맥락을 재현할 수 있도록 한다. 단, 대용량 원본(예: 50MB 워크플로우)은 요약 형태로만 기록한다(§9.1).
@@ -899,6 +905,7 @@ DocumentChunk·Entity 계열 선례를 따른다.)
 
 | 테이블 | 인덱스 | 목적 |
 |--------|--------|------|
+| Workspace | (owner_id) UNIQUE WHERE type = 'personal' | personal 워크스페이스는 owner 당 1개 — DB 가 강제하고 앱(find-or-create)이 이중 방어한다. team 은 한 사용자가 여럿 가질 수 있어 부분 UNIQUE 다([data-flow §personal 유일성](./data-flow/12-workspace.md)). CONCURRENTLY, V109 |
 | WorkspaceMember | (user_id) | 사용자별 워크스페이스 목록(`GET /workspaces`) — UNIQUE `(workspace_id, user_id)` 는 선두가 달라 테이블을 훑었다. FK `ON DELETE CASCADE` 도 이것을 쓴다. CONCURRENTLY, V129 |
 | Workflow | (workspace_id, is_active) | 워크스페이스별 활성 워크플로우 조회 |
 | Workflow | (workspace_id, name) | 이름 검색 |
@@ -918,7 +925,7 @@ DocumentChunk·Entity 계열 선례를 따른다.)
 | NodeExecution | (execution_id) | 실행별 노드 실행 조회 |
 | NodeExecution | (execution_id, status) WHERE status IN ('waiting_for_input','running') | 활성(미종결) 노드 실행 조회·전이 — rehydration `resolveWaitingNodeExecutionId` + running 조회/UPDATE 핫 경로. completed 계열은 `(execution_id, node_id, started_at DESC)` 가 커버하므로 partial 로 활성 행만 인덱싱 (크기·write amplification 최소). CONCURRENTLY, V095 |
 | NodeExecution | (execution_id, node_id, started_at DESC) | execution+node 별 최신 NodeExecution 조회 (rehydration `DISTINCT ON` / `findOne ... ORDER BY started_at DESC`). CONCURRENTLY, V034 |
-| NodeExecution | (parent_node_execution_id) WHERE parent_node_execution_id IS NOT NULL | 부모 NodeExecution 별 자식 조회 (sub-workflow/loop 등). V012 |
+| NodeExecution | (parent_node_execution_id) WHERE parent_node_execution_id IS NOT NULL | 부모 NodeExecution 별 자식 조회 (Sub-Workflow · Background · Parallel 노드의 자식). V012 |
 | NodeExecution | (parent_node_execution_id, started_at, id) WHERE parent_node_execution_id IS NOT NULL | 부모별 자식 시간순 조회 (`ORDER BY started_at ASC, id ASC`). CONCURRENTLY, V048 |
 | NodeExecution | ((output_data #>> '{meta,backgroundRunId}')) WHERE … IS NOT NULL | Background 노드 모니터링 API 의 backgroundRunId 단일 row 조회 (부분 expression 인덱스). CONCURRENTLY, V047 |
 | NodeExecution | (node_id) | FK `ON DELETE CASCADE` 의 자식 조회 — 캔버스 저장이 노드를 뺄 때(저장마다)와 워크플로 삭제. 기존 `(execution_id, node_id, started_at DESC)` 는 선두가 달라 쓰이지 않는다. CONCURRENTLY, V112 |
@@ -974,6 +981,23 @@ DocumentChunk·Entity 계열 선례를 따른다.)
 | Notification | (workspace_id, created_at DESC) | 워크스페이스별 알림 조회 — partial 미적용 (향후 admin/감사 쿼리가 dismissed 포함 전체 row 를 볼 여지) |
 
 ## Rationale
+
+### §2 FK 삭제 동작 · 빠진 컬럼 (2026-09-19)
+
+§2 의 FK 행은 삭제 동작을 적기도 하고 안 적기도 했다. 실제 DB(V001~V132)와 전수 대조하니 FK 75행 중 **틀린 곳은 0**, 적은 곳 26,
+안 적은 곳 49 였다. 49행 모두에 적었다 — 적은 행과 안 적은 행의 구분은 우연이었고, 한 행만 채우면 그 구분에 뜻이 있는 것처럼 읽힌다.
+
+- **표기**: 적은 26행의 다수형인 짧은 형 `(CASCADE)` 를 따른다. 이미 괄호가 있으면 그 안 맨 앞에 `동작 · ` 을 넣고, `FK →` 가 괄호
+  안에 있는 두 행은 괄호 끝에 붙인다.
+- **통일하지 않은 것**: 이미 적은 26행의 다른 표기(`(ON DELETE CASCADE)` · `(cascade 삭제)` · `**SET NULL** — …`)는 사실이 맞아 그대로 둔다.
+  이 정정은 사실만 채운다.
+- **같은 대조가 찾은 것**: §2 에 없던 컬럼 여섯(FK 둘 포함 — DB 컬럼 424개 중), FK 표기의 테이블명 오류 하나(`re_run_of`), §3 의
+  `parent_node_execution_id` 목적(«loop» 는 이 값을 찍지 않는다). §2 가 DB 에 없는 컬럼을 적은 곳은 0 이다.
+- **대조하지 않은 것**: §2 밖(`data-flow/*` 등)의 FK 서술, §2 의 값 목록(enum · 마커) 전체. `finish_reason` 의 서버 합성 마커 둘은 손대던
+  §2.22 표에서 본 것이다.
+
+`NO ACTION` 여섯은 모두 User 를 가리킨다 — 아래 «쓸 인덱스가 없는 FK 서른하나의 처분» 이 적은 «user 참조 FK» 의 사실과 같다.
+근거·실측: `plan/complete/spec-draft-data-model-fk-actions.md`.
 
 ### Webhook `endpoint_path` 전역 유일 (2026-09-18)
 

@@ -1003,7 +1003,7 @@ for each integration:
 | 당일 | `Integration expired` | `"<name>" has expired. Reauthorize to continue using it.` | 동일 |
 | 재인증 실패 | `Reauthorization failed` | `Failed to reauthorize "<name>".` | 동일 |
 
-**중복 방지**: `(integration_id, threshold_key)`로 유니크 판정. 임계치별 최대 1회.
+**중복 방지**: `integration_expiry_dispatch` 의 `UNIQUE (integration_id, threshold, token_expires_at)`(V009)로 판정한다 — 임계(`7d`·`3d`·`0d`)마다 **같은 만료 시각에 대해** 최대 1회. 재인증으로 `token_expires_at` 이 바뀌면 새 만료 시각의 임계가 다시 발사된다. 발사 전 `INSERT … ON CONFLICT DO NOTHING` 으로 claim 하고, 충돌하면 그 임계를 건너뛴다([data-flow §1.4](../data-flow/5-integration.md#14-oauth-만료-스캐너-bullmq-integration-expiry-scanner)).
 
 **발사 정책**: **refresh_token 없는 provider 의 `token_expires_at` 만료 (`status_reason='token_expired'`) 에만 발사**한다 (위 표의 7일/3일/당일 임계).
 
