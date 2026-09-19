@@ -1303,3 +1303,37 @@ spec/plan/conventions **3개 하위 코퍼스로 다시 쪼개**므로 spec 몫�
 - [ ] (조사) 백업을 reviewer 에게 맡기지 않는 대안 — orchestrator 가 라운드 시작 시 대상 파일들의
       스냅샷을 세션 디렉터리 밖에 떠 두고 그 경로를 프롬프트에 실어 주면, reviewer 가 `cp` 를
       실패해도 복원 근거가 남는다. **이 세션에서 관측된 노출은 5건**(2R 2 · 3R 3)이라 빈도는 충분하다.
+
+## §O. `--impl-prep` · `--impl-done` 이 `spec/` 최상위 파일을 scope 로 받지 못한다 — 무관한 폴더 + 보정 블록이 관례가 됐다
+
+**등재 2026-09-20** (`column-guard-gaps` `/ai-review` `review/code/2026/09/20/01_00_21` scope WARNING 1 — 코드 밖이라 그 PR 에서 처분만).
+
+두 모드는 scope 를 디렉터리로만 받는다(`consistency_orchestrator.py` `_require_target(..., want_dir=True)`). 그런데 `spec/` 최상위에
+파일 셋이 있다 — `0-overview.md` · `1-data-model.md` · `6-brand.md`. 특히 `1-data-model.md` 는 frontmatter `code:` 로 엔티티 · 마이그레이션 ·
+선언↔DB 가드 셋을 물고 있어 그 코드를 고치는 PR 이 잦다. 그 PR 들은 **무관한 영역 폴더**(`spec/2-navigation/` · `spec/3-workflow-editor/`)를
+scope 로 주고, 실제 대상 spec 을 직접 읽으라는 «(main 추가)» 블록을 `_prompts/*.md` 다섯 개에 손으로 붙여 왔다.
+
+### 실측 비용
+
+- **무관한 Critical 이 BLOCK: YES 를 두 번 냈다** — `plan/complete/entity-schema-declaration-drift.md`(1차 `spec/3-workflow-editor/`
+  `review/consistency/2026/09/19/08_07_50`) · `plan/complete/entity-column-declaration-drift.md`(1차 `spec/2-navigation/`
+  `review/consistency/2026/09/19/10_58_34`). 둘 다 그 PR 과 무관한 scope 안의 기존 결함이었고, 각각 planner 턴(한 번은 별 PR)을 먼저 치렀다.
+  결함 자체는 진짜였다(금지어 · 소문자 결과 코드 — 둘 다 고쳤다). 비용은 발견이 아니라 **무관한 작업이 그 발견에 막힌 것**이다.
+- 무관한 WARNING 이 PR 산출물에 영구 편입된다 — `review/consistency/2026/09/20/00_34_58` WARNING 2(`GET /api/folders` ·
+  `GET /api/triggers/:id/history` 응답 형태), 리뷰어가 그것을 스코프 이탈로 지적(위 `01_00_21`).
+- 보정 블록은 손으로 붙인다 — `_prompts/` 가 gitignore 라 **붙었는지를 리뷰어가 확인할 수 없다**(위 리뷰의 «한 checker 만 받았다» 는 오독이었다 —
+  다섯 파일 모두에 1회씩, `grep -c`).
+
+### 게이트도 scope 를 보지 않는다
+
+`review_guard.py` Gate 2 는 **fresh · BLOCK: NO 인 `--impl-done` 세션이 하나라도** 있으면 통과한다(`_newest_resolved_impl_done_mtime`) —
+그 세션의 scope 가 바뀐 spec-linked 파일의 spec 을 덮는지는 묻지 않는다. 그래서 위 관례가 게이트에 걸리지 않고, 같은 이유로
+**전혀 무관한 scope 로 돌린 `--impl-done` 도 통과한다**. «spec-linked 변경은 사후 검증을 거친다» 는 보장이 구현보다 넓다.
+
+### 처분
+
+- [ ] `--impl-prep` · `--impl-done` 이 `spec/*.md` **파일**도 scope 로 받게 한다 — 번들은 그 파일 하나 + 그 `code:` glob 의 diff. 사용법 예에
+      `--impl-done spec/1-data-model.md` 한 줄. 이러면 보정 블록 관례가 사라진다.
+- [ ] (조사) Gate 2 가 scope 와 바뀐 spec-linked 파일의 spec 을 대조할지 — 덮지 않으면 경고(차단 아님)부터. 지금 판정
+      (`_spec_linked_changes` → `_spec_code_patterns`)은 모든 spec 의 `code:` glob 을 **한 묶음**으로 모아 «어느 spec 이 무는가» 를 버린다 —
+      대조하려면 그 대응부터 남겨야 한다. **정밀화 전에 `#970` 철회 이력을 읽을 것** — 차단으로 올리는 순간 표면이 커진다.
