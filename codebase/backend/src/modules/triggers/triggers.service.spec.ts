@@ -3021,14 +3021,25 @@ describe('TriggersService — endpoint_path UNIQUE 충돌 계약', () => {
    * `code`·`message`·`requestId`·`details` 만 복사한다 — 세부 코드를 top-level
    * `subCode` 로 실으면 클라이언트에 **닿지 않는다**. 그래서 `details` 안에 둔다.
    */
-  it.each([
-    ['update', 'driverError'],
-    ['update', 'top'],
-    ['create', 'driverError'],
-    ['create', 'top'],
-  ] as const)(
-    '%s (%s 표면) — 409 + RESOURCE_CONFLICT + details 두 키',
-    async (method, surface) => {
+  /**
+   * **이름 축**: 전역 UNIQUE 인덱스(V132)와 예약 트리거의 라벨(V133)은 같은 응답이어야 한다. 다른 워크스페이스의 경로와
+   * 겹치면 BEFORE 트리거라 **라벨 쪽이 먼저** 걸린다 — 서비스가 인덱스 이름만 알면 그 흔한 경우가 500 으로 나간다
+   * (`spec/1-data-model.md` §2.8.1).
+   */
+  const CONFLICT_NAMES = [
+    'idx_trigger_endpoint_path',
+    'webhook_endpoint_reservation_owner',
+  ] as const;
+
+  it.each(
+    (['update', 'create'] as const).flatMap((method) =>
+      (['driverError', 'top'] as const).flatMap((surface) =>
+        CONFLICT_NAMES.map((name) => [method, surface, name] as const),
+      ),
+    ),
+  )(
+    '%s (%s 표면 · %s) — 409 + RESOURCE_CONFLICT + details 두 키',
+    async (method, surface, name) => {
       // **표면 축을 여기에도 건다.** 술어 테스트만 두 표면을 태우고 통합 경로는
       // `driverError` 하나였다 — 서비스가 술어를 안 거치고 자기 판정으로 돌아가도
       // 통합 테스트가 안 보는 상태였다 (`review/code/2026/09/06/15_30_59` INFO#11).
@@ -3053,7 +3064,7 @@ describe('TriggersService — endpoint_path UNIQUE 충돌 계약', () => {
                 'u-1',
               );
       (triggerRepo.save as jest.Mock).mockRejectedValue(
-        uniqueViolation('idx_trigger_endpoint_path', surface),
+        uniqueViolation(name, surface),
       );
 
       const rejected = call();
@@ -3075,6 +3086,27 @@ describe('TriggersService — endpoint_path UNIQUE 충돌 계약', () => {
       expect(JSON.stringify(err.getResponse())).not.toContain('워크스페이스');
     },
   );
+
+  /**
+   * **두 이름의 응답이 한 글자도 다르지 않다.** 예약만 남은 경로(지웠거나 바꾼 경로)와 지금 쓰는 경로를 응답으로 가르면
+   * 그 경로가 한때 쓰였다는 사실이 새어 나간다(`spec/1-data-model.md` Rationale «지운 · 바꾼 웹훅 경로의 영구 예약»).
+   * 메시지도 두 경우 모두에 참이어야 한다 — «이미 쓰고 있다» 는 예약만 남은 경로에는 거짓이다.
+   */
+  it('두 이름의 409 응답이 같고, 메시지는 «지금 쓰고 있다» 를 말하지 않는다', async () => {
+    const responses: unknown[] = [];
+    for (const name of CONFLICT_NAMES) {
+      (triggerRepo.save as jest.Mock).mockRejectedValueOnce(
+        uniqueViolation(name),
+      );
+      const err = (await service
+        .update('trg-1', 'ws-1', { endpointPath: 'p' } as never, 'u-1')
+        .catch((err_: unknown) => err_)) as ConflictException;
+      expect(err).toBeInstanceOf(ConflictException);
+      responses.push(err.getResponse());
+    }
+    expect(responses[1]).toEqual(responses[0]);
+    expect(JSON.stringify(responses[0])).not.toMatch(/쓰고 있/);
+  });
 
   /**
    * 부정 케이스 두 경로의 호출부. `update`/`create` 를 대칭으로 태우려고 뽑았다
@@ -3120,11 +3152,11 @@ describe('TriggersService — endpoint_path UNIQUE 충돌 계약', () => {
   it.each([['driverError'], ['top']] as const)(
     '[술어] %s 표면에서도 인덱스명으로 가른다',
     (surface) => {
-      expect(
-        isEndpointPathUniqueViolation(
-          uniqueViolation('idx_trigger_endpoint_path', surface),
-        ),
-      ).toBe(true);
+      for (const name of CONFLICT_NAMES) {
+        expect(
+          isEndpointPathUniqueViolation(uniqueViolation(name, surface)),
+        ).toBe(true);
+      }
       expect(
         isEndpointPathUniqueViolation(
           uniqueViolation('some_other_index', surface),

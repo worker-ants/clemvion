@@ -211,21 +211,29 @@ function narrowWorkflowRef(wf: { id: string; name: string }): {
 }
 
 /**
- * `endpoint_path` 전역 UNIQUE 인덱스 위반인가.
+ * `endpoint_path` 충돌을 뜻하는 `unique_violation` 의 이름 둘.
  *
- * `V132__trigger_endpoint_path_global_unique.sql` 의 `idx_trigger_endpoint_path` — partial
- * unique(`WHERE endpoint_path IS NOT NULL`). 수신 URL `/api/hooks/:endpointPath` 가
- * 워크스페이스 무관 전역 라우팅 키라 유일성도 전역이다 — V002 의 워크스페이스 단위
- * `idx_trigger_workspace_endpoint` 는 다른 워크스페이스가 알고 있는 경로를 등록하는 것을
- * 막지 못해 V132 가 교체했다(`spec/1-data-model.md` Rationale «Webhook `endpoint_path` 전역
- * 유일»). **인덱스 이름으로 좁힌다**: SQLSTATE 23505 만 보면 이 테이블의 다른 UNIQUE
- * 위반까지 `endpoint_path` 충돌로 오보한다.
+ * - `idx_trigger_endpoint_path` — `V132__trigger_endpoint_path_global_unique.sql` 의 partial
+ *   unique(`WHERE endpoint_path IS NOT NULL`). 수신 URL `/api/hooks/:endpointPath` 가
+ *   워크스페이스 무관 전역 라우팅 키라 유일성도 전역이다 — V002 의 워크스페이스 단위
+ *   `idx_trigger_workspace_endpoint` 는 다른 워크스페이스가 알고 있는 경로를 등록하는 것을
+ *   막지 못해 V132 가 교체했다(`spec/1-data-model.md` Rationale «Webhook `endpoint_path` 전역
+ *   유일»). 같은 워크스페이스의 살아 있는 트리거와 겹칠 때 걸린다.
+ * - `webhook_endpoint_reservation_owner` — **실재 제약이 아니라** V133 의 예약 트리거
+ *   (`trg_trigger_reserve_endpoint_path`)가 `RAISE … USING CONSTRAINT` 로 붙이는 라벨. 다른
+ *   워크스페이스가 예약한 경로(지금 쓰든, 지웠든, 바꿨든)를 쓸 때 걸린다. BEFORE 트리거라 다른
+ *   워크스페이스의 **살아 있는** 트리거와 겹칠 때도 인덱스보다 이쪽이 먼저다 — 이 이름을 모르면
+ *   그 흔한 경우가 500 으로 나간다(`spec/1-data-model.md` §2.8.1).
  *
- * 이름이 바뀌면 이 술어는 **조용히 false 를 돌려주고** 전역 `RESOURCE_CONFLICT` 로
- * 되돌아간다 — 안전한 방향이지만 계약이 조용히 좁아지므로, 그 이름을 상수로 고정하고
- * 단위 테스트가 두 방향(맞는 이름 → 좁힘 / 다른 이름 → 통과)을 모두 문다.
+ * **이름으로 좁힌다**: SQLSTATE 23505 만 보면 이 테이블의 다른 UNIQUE 위반까지 `endpoint_path`
+ * 충돌로 오보한다. 이름이 바뀌면 이 술어는 **조용히 false 를 돌려주고** 전역
+ * `RESOURCE_CONFLICT` 로 되돌아간다 — 안전한 방향이지만 계약이 조용히 좁아지므로, 이름을 상수로
+ * 고정하고 단위 테스트가 두 방향(맞는 이름 → 좁힘 / 다른 이름 → 통과)을 모두 문다.
  */
-const TRIGGER_ENDPOINT_PATH_UNIQUE_INDEX = 'idx_trigger_endpoint_path';
+const TRIGGER_ENDPOINT_PATH_CONFLICT_NAMES: ReadonlySet<string> = new Set([
+  'idx_trigger_endpoint_path',
+  'webhook_endpoint_reservation_owner',
+]);
 
 /**
  * **SQLSTATE·인덱스명 추출은 `common/db/pg-error.ts` 가 SoT 다.** 첫 판은 여기서
@@ -235,10 +243,9 @@ const TRIGGER_ENDPOINT_PATH_UNIQUE_INDEX = 'idx_trigger_endpoint_path';
  * 두 표면을 모두 흡수한다 (`review/code/2026/09/06/14_59_48` W1).
  */
 export function isEndpointPathUniqueViolation(err: unknown): boolean {
-  return (
-    isPostgresUniqueViolation(err) &&
-    pgErrorConstraint(err) === TRIGGER_ENDPOINT_PATH_UNIQUE_INDEX
-  );
+  if (!isPostgresUniqueViolation(err)) return false;
+  const name = pgErrorConstraint(err);
+  return name !== undefined && TRIGGER_ENDPOINT_PATH_CONFLICT_NAMES.has(name);
 }
 
 @Injectable()
@@ -1639,7 +1646,9 @@ export class TriggersService {
   }
 
   /**
-   * `endpoint_path` 전역 UNIQUE 위반을 **문서한 형태**로 바꿔 던진다.
+   * `endpoint_path` 충돌(전역 UNIQUE 위반 · 다른 워크스페이스의 예약)을 **문서한 형태**로 바꿔
+   * 던진다. 두 경우는 **같은 응답**이다 — 가르면 그 경로가 한때 쓰였다는 사실이 새어 나간다
+   * (`spec/1-data-model.md` Rationale «지운 · 바꾼 웹훅 경로의 영구 예약»).
    *
    * `2-trigger-list.md §3` 이 *"409 `RESOURCE_CONFLICT` (세부 코드
    * `TRIGGER_ENDPOINT_PATH_CONFLICT`, `details.field='endpoint_path'`)"* 를 계약으로
@@ -1657,7 +1666,8 @@ export class TriggersService {
         code: 'RESOURCE_CONFLICT',
         message:
           // 워크스페이스를 말하지 않는다 — 충돌 상대가 다른 워크스페이스의 트리거일 수 있다.
-          '그 엔드포인트 경로는 이미 다른 트리거가 쓰고 있어요. 새 경로를 쓰세요.',
+          // «쓰고 있다» 도 말하지 않는다 — 예약만 남은 경로(지웠거나 바꾼 경로)에는 거짓이다.
+          '그 엔드포인트 경로는 쓸 수 없어요. 새 경로를 쓰세요.',
         // **세부 코드는 `details.code` 다.**
         //
         // 두 번 좁혔다. 처음엔 봉투 top-level 에 `subCode` 를 실었는데

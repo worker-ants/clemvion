@@ -179,10 +179,12 @@ describe('Webhook trigger (e2e)', () => {
   });
 
   it('B4. 같은 워크스페이스에 같은 endpointPath → 409 RESOURCE_CONFLICT + details.code (§1.10)', async () => {
-    // **단위 테스트가 mock 하는 드라이버 에러 형태가 실제와 같은지는 이 케이스만 확인한다.**
+    // **단위 테스트가 mock 하는 드라이버 에러 형태가 실제와 같은지는 e2e 만 확인한다.**
     // `triggers.service.spec.ts` 는 `QueryFailedError` 를 손으로 만들어 `rethrowEndpointPathConflict`
     // 를 태우는데, 실 DB 가 그 형태(제약 이름·SQLSTATE)를 정말 돌려주는지는 mock 이 원리적으로
-    // 말해 주지 못한다 — `endpoint_path` UNIQUE(V132 부터 전역)를 실제로 밟는 자리다(교차 워크스페이스는 B5).
+    // 말해 주지 못한다. 이름이 둘이라 자리도 둘이다 — 같은 워크스페이스(여기)는 예약 주인이 같아
+    // `endpoint_path` UNIQUE(V132 부터 전역)가 걸리고, 다른 워크스페이스(B5 · B7 · B8)는 BEFORE 예약
+    // 트리거(V133)가 먼저 `webhook_endpoint_reservation_owner` 로 막는다.
     //
     // 계약 SoT: [에러 처리 §1.10](spec/5-system/3-error-handling.md) — 봉투 `code` 는 상태
     // 기본값 `RESOURCE_CONFLICT` 를 유지하고 세부 사유는 `details` 에 싣는다(객체 형태).
@@ -321,6 +323,174 @@ describe('Webhook trigger (e2e)', () => {
     expect(res.rows[0].def).toMatch(
       /ON public\.trigger USING btree \(endpoint_path\) WHERE \(endpoint_path IS NOT NULL\)$/,
     );
+  });
+
+  /**
+   * 다른 사용자의 팀 워크스페이스 + 그 안의 워크플로 — B7 · B8 이 «다른 워크스페이스» 로 쓴다.
+   */
+  async function createOtherWorkspace(label: string): Promise<{
+    token: string;
+    workspaceId: string;
+    workflowId: string;
+  }> {
+    const other = await registerAndLogin(BASE_URL, uniqueEmail(label), db);
+    const otherWs = await createTeamWorkspace(
+      BASE_URL,
+      other.accessToken,
+      uniqueName(label.toUpperCase()),
+    );
+    const wf = await request(BASE_URL)
+      .post('/api/workflows')
+      .set('Authorization', `Bearer ${other.accessToken}`)
+      .set('X-Workspace-Id', otherWs)
+      .send({ name: uniqueName(`${label}-wf`) });
+    return {
+      token: other.accessToken,
+      workspaceId: otherWs,
+      workflowId: (wf.body.data as { id: string }).id,
+    };
+  }
+
+  function createIn(
+    who: { token: string; workspaceId: string; workflowId: string },
+    endpointPath: string,
+  ) {
+    return request(BASE_URL)
+      .post('/api/triggers')
+      .set('Authorization', `Bearer ${who.token}`)
+      .set('X-Workspace-Id', who.workspaceId)
+      .send({
+        workflowId: who.workflowId,
+        type: 'webhook',
+        name: uniqueName('hook-rsv'),
+        endpointPath,
+        isActive: true,
+      });
+  }
+
+  function patchPath(
+    who: { token: string; workspaceId: string },
+    triggerId: string,
+    endpointPath: string,
+  ) {
+    return request(BASE_URL)
+      .patch(`/api/triggers/${triggerId}`)
+      .set('Authorization', `Bearer ${who.token}`)
+      .set('X-Workspace-Id', who.workspaceId)
+      .send({ endpointPath });
+  }
+
+  /** 살아 있는 트리거와 겹칠 때(B5)와 **같은** 응답이어야 한다 — 경로가 한때 쓰였다는 사실을 가르지 않는다. */
+  const expectPathConflict = (res: request.Response) => {
+    expect(res.status).toBe(409);
+    expect(res.body.error.code).toBe('RESOURCE_CONFLICT');
+    expect(res.body.error.details).toEqual({
+      field: 'endpoint_path',
+      code: 'TRIGGER_ENDPOINT_PATH_CONFLICT',
+    });
+    expect(JSON.stringify(res.body)).not.toContain('워크스페이스');
+  };
+
+  it('B7. 지우거나 바꾼 경로 — 다른 워크스페이스는 409, 같은 워크스페이스는 다시 쓴다 (V133, 데이터 모델 §2.8.1)', async () => {
+    // 전역 UNIQUE(V132)는 **동시에 존재하는** 중복만 막았다. 주인이 트리거를 지우거나 경로를 바꾸면 옛 경로가 비어,
+    // 경로를 아는 다른 워크스페이스가 다시 등록해 옛 URL 로 오는 요청을 받을 수 있었다.
+    const owner = { token, workspaceId, workflowId };
+    const other = await createOtherWorkspace('hook-b7');
+
+    // (1) 지운 경로
+    const deletedPath = crypto.randomUUID();
+    const deletedId = await createWebhookTrigger(
+      uniqueName('hook-b7-del'),
+      deletedPath,
+    );
+    const del = await request(BASE_URL)
+      .delete(`/api/triggers/${deletedId}`)
+      .set('Authorization', `Bearer ${token}`)
+      .set('X-Workspace-Id', workspaceId);
+    expect(del.status).toBe(204);
+    // 수신은 그대로 — 예약만 있고 트리거가 없는 경로는 404
+    const gone = await request(BASE_URL)
+      .post(`/api/hooks/${deletedPath}`)
+      .send({});
+    expect(gone.status).toBe(404);
+    expect(gone.body.error.code).toBe('TRIGGER_NOT_FOUND');
+    expectPathConflict(await createIn(other, deletedPath));
+    // 같은 워크스페이스는 지운 트리거를 같은 URL 로 다시 만든다
+    expect((await createIn(owner, deletedPath)).status).toBe(201);
+
+    // (2) 바꾼 경로 — 생성으로도, 자기 트리거의 수정으로도 가져가지 못한다
+    const oldPath = crypto.randomUUID();
+    const movedId = await createWebhookTrigger(
+      uniqueName('hook-b7-move'),
+      oldPath,
+    );
+    expect((await patchPath(owner, movedId, crypto.randomUUID())).status).toBe(
+      200,
+    );
+    expectPathConflict(await createIn(other, oldPath));
+    const own = await createIn(other, crypto.randomUUID());
+    expect(own.status).toBe(201);
+    expectPathConflict(
+      await patchPath(other, (own.body.data as { id: string }).id, oldPath),
+    );
+    // 같은 워크스페이스는 바꿨던 경로로 되돌린다
+    expect((await patchPath(owner, movedId, oldPath)).status).toBe(200);
+
+    // 예약은 두 경로 모두 원래 워크스페이스 소유다
+    const rows = await db.query<{
+      endpoint_path: string;
+      workspace_id: string;
+    }>(
+      'SELECT endpoint_path, workspace_id FROM webhook_endpoint_reservation WHERE endpoint_path = ANY($1)',
+      [[deletedPath, oldPath]],
+    );
+    expect(rows.rows).toHaveLength(2);
+    for (const row of rows.rows) expect(row.workspace_id).toBe(workspaceId);
+  });
+
+  it('B8. 워크스페이스를 지우면 예약은 주인 없이 남고, 누구도 그 경로를 쓰지 못한다 (V133)', async () => {
+    // 워크스페이스가 사라진 뒤에도 외부 서비스 · 사이트의 위젯은 옛 URL 로 보낸다.
+    const doomed = await createOtherWorkspace('hook-b8');
+    const path = crypto.randomUUID();
+    expect((await createIn(doomed, path)).status).toBe(201);
+
+    const del = await request(BASE_URL)
+      .delete(`/api/workspaces/${doomed.workspaceId}`)
+      .set('Authorization', `Bearer ${doomed.token}`);
+    expect(del.status).toBe(200);
+
+    const row = await db.query<{ workspace_id: string | null }>(
+      'SELECT workspace_id FROM webhook_endpoint_reservation WHERE endpoint_path = $1',
+      [path],
+    );
+    expect(row.rows).toEqual([{ workspace_id: null }]);
+    expectPathConflict(
+      await createIn({ token, workspaceId, workflowId }, path),
+    );
+  });
+
+  it('B9. schema: 예약 트리거가 trigger 에 켜져 있고, 살아 있는 웹훅 경로는 모두 그 워크스페이스로 예약돼 있다 (V133)', async () => {
+    // 트리거 정의는 감시 컬럼 · WHEN 조건까지 대조한다 — `workspace_id` 를 빼면 트리거를 다른 워크스페이스로 옮기는 쓰기가
+    // 예약을 우회하고, WHEN 이 빠지면 경로 없는 트리거마다 NULL 경로를 예약하려다 실패한다.
+    const trg = await db.query<{ tgenabled: string; def: string }>(
+      `SELECT t.tgenabled, pg_get_triggerdef(t.oid) AS def
+         FROM pg_trigger t
+        WHERE t.tgname = 'trg_trigger_reserve_endpoint_path' AND t.tgrelid = 'public.trigger'::regclass`,
+    );
+    expect(trg.rows).toHaveLength(1);
+    expect(trg.rows[0].tgenabled).toBe('O');
+    expect(trg.rows[0].def).toMatch(
+      /BEFORE INSERT OR UPDATE OF endpoint_path, workspace_id ON public\.trigger FOR EACH ROW WHEN \(\(new\.endpoint_path IS NOT NULL\)\) EXECUTE FUNCTION reserve_webhook_endpoint_path\(\)$/,
+    );
+
+    // 불변식: 경로가 있는 트리거는 전부 자기 워크스페이스 소유의 예약을 가진다(백필 · 트리거 어느 쪽으로 생겼든)
+    const orphan = await db.query<{ n: string }>(
+      `SELECT count(*) AS n
+         FROM trigger t
+         LEFT JOIN webhook_endpoint_reservation r ON r.endpoint_path = t.endpoint_path
+        WHERE t.endpoint_path IS NOT NULL AND r.workspace_id IS DISTINCT FROM t.workspace_id`,
+    );
+    expect(orphan.rows[0].n).toBe('0');
   });
 
   it('B3. 필수 파라미터 누락 → 400 INVALID_WEBHOOK_PAYLOAD + 공식 봉투 error.details[] (WH-EP-05-2 §5.2)', async () => {

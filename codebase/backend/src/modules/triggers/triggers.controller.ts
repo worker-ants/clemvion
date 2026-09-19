@@ -48,7 +48,7 @@ import {
  * (한쪽만 고치면 문서가 조용히 어긋난다 — `integrations.controller.ts` 의 `OAUTH_BEGIN_RESULT_DESCRIPTION` 과 같은 이유).
  */
 const TRIGGER_ENDPOINT_PATH_CONFLICT_DESCRIPTION =
-  '같은 `endpointPath` 를 쓰는 트리거가 이미 존재(다른 워크스페이스의 트리거 포함 — `endpoint_path` 는 전역 유일, V132). `code=RESOURCE_CONFLICT`, `details.field="endpoint_path"`, `details.code="TRIGGER_ENDPOINT_PATH_CONFLICT"`.';
+  '같은 `endpointPath` 를 쓰는 트리거가 이미 존재하거나(다른 워크스페이스의 트리거 포함 — `endpoint_path` 는 전역 유일, V132), 다른 워크스페이스가 예약한 경로(지웠거나 바꾼 경로 — V133). 둘을 구분하지 않는다. `code=RESOURCE_CONFLICT`, `details.field="endpoint_path"`, `details.code="TRIGGER_ENDPOINT_PATH_CONFLICT"`.';
 
 @ApiTags('Triggers')
 @ApiBearerAuth('access-token')

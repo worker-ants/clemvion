@@ -8,6 +8,7 @@ import { Folder } from '../modules/folders/entities/folder.entity';
 import { Node } from '../modules/nodes/entities/node.entity';
 import { Edge } from '../modules/edges/entities/edge.entity';
 import { Trigger } from '../modules/triggers/entities/trigger.entity';
+import { WebhookEndpointReservation } from '../modules/triggers/entities/webhook-endpoint-reservation.entity';
 import { Schedule } from '../modules/schedules/entities/schedule.entity';
 import { Integration } from '../modules/integrations/entities/integration.entity';
 import { IntegrationUsageLog } from '../modules/integrations/entities/integration-usage-log.entity';
@@ -62,6 +63,7 @@ export const ROOT_ENTITIES = [
   Node,
   Edge,
   Trigger,
+  WebhookEndpointReservation,
   Schedule,
   Integration,
   IntegrationUsageLog,
