@@ -4850,14 +4850,17 @@ field: T | null;
       `registerEntityTester` 계약에 적었다. 런타임으로 막으려면 `AsyncLocalStorage` 로 «슬롯 안» 을 표시해 재호출을 즉시 실패시키는 가드와
       그 회귀 테스트. 새 entity tester 를 붙일 때 같이.
 
-- [ ] **연결 테스트 결과 코드가 원시 문자열로 흩어져 있다** (developer, 낮음, 2026-09-19 등재 · `16_00_06` maintainability WARNING 4).
+- [x] **연결 테스트 결과 코드가 원시 문자열로 흩어져 있다** (developer, 낮음, 2026-09-19 등재 · `16_00_06` maintainability WARNING 4 ·
+      **2026-09-20 해소** `plan/complete/connection-test-codes-and-gaps.md` — `CONNECTION_TEST_CODES` + `IntegrationTestResult.code` 를
+      `IntegrationTestResultCode` union 으로. 좁히자 컴파일러가 표에 없던 생산자(`testConnection` 게이트)를 찾았다. 테스트 기대값은 리터럴로 둔다).
       `DB_*` · `HTTP_*` 가 테스터 · spec · e2e 에 리터럴로 반복된다 — 같은 디렉터리의 `MCP_ERROR_CODES` 처럼 `as const` 객체로 모아 오타를
       컴파일 에러로. `EMAIL_*` 도 같은 형편이라 위 «결과 코드 지역화» 항목과 한 번에 하면 대조 표가 하나로 끝난다.
       함께: `IntegrationTestResult.code` 가 `string` 이라 노드 런타임 `ErrorCode`(`DB_CONNECTION_ERROR` · `HTTP_TRANSPORT_FAILED` — 이름이
       가깝다)와 섞어 비교해도 컴파일러가 못 잡는다 — 연결 테스트 코드의 literal union 으로 좁힌다(`--impl-done`
       `review/consistency/2026/09/19/16_19_04` naming_collision WARNING 3).
 
-- [ ] **연결 테스트 spec 의 빈칸 셋** (developer, 낮음, 2026-09-19 등재 · `16_00_06` testing WARNING 5 · 6 · INFO 5).
+- [x] **연결 테스트 spec 의 빈칸 셋** (developer, 낮음, 2026-09-19 등재 · `16_00_06` testing WARNING 5 · 6 · INFO 5 · **2026-09-20 해소**
+      `plan/complete/connection-test-codes-and-gaps.md` — 셋 다, 뮤턴트로 판별력 확인. 리뷰가 더 찾은 MakeShop `pingConnection` 테스트 0건도 채웠다).
       (1) `buildMysqlSsl` 의 `require` · `verify-full` → `rejectUnauthorized: true` 를 mysql 쪽에서 단언하지 않는다(postgres 만) — 노드와
       공유하는 보안 매핑이다. (2) `database-driver-sockets.spec.ts` 의 mysql2 케이스는 unit 계층에서 루프백 연결을 실제로 시도한다 —
       소켓 정리를 `try/finally` 로, 예외적으로 실제 소켓을 쓴다는 주석. (3) rotate 의 `update` 성공 뒤 재조회가 `null` 인 분기(그 사이
@@ -4926,6 +4929,14 @@ field: T | null;
       적는데 `2-database-query.md` §5.1 은 «금지» 로 정했다. (4) 같은 문서 Principle 5 표는 `send_email` 을 «port: undefined(단일 출력)» 로 두는데
       Principle 3.3 · D4 는 `error` 포트를 의무화한다(+ 3.3 열거에 `makeshop` 누락 — INFO 6). 같은 검토의 INFO: DNS 해석 실패 fail-open 이
       어느 spec Rationale 에도 명문화돼 있지 않다 · LLM Client 가 세 번째 SSRF 메커니즘이라는 서술이 `1-http-request.md` §4 콜아웃에 없다.
+
+- [ ] **`4-integration.md` §5.3 · §14.1 이 HTTP 연결 테스트의 `INTEGRATION_INCOMPLETE` · `INTEGRATION_AUTH_UNSUPPORTED` 를 적지 않는다**
+      (planner, 낮음, 2026-09-20 등재 · `--impl-prep` `review/consistency/2026/09/19/23_02_33` cross_spec WARNING 1). HTTP 테스터는 자격증명을
+      붙이기 전 `resolveHttpCredentials`(노드와 공유)에서 이 둘로 실패할 수 있다 — 코드는 `IntegrationTestResultCode` 가 이미 담는다
+      (`plan/complete/connection-test-codes-and-gaps.md`). §5.3 «결과:» 목록 끝과 §14.1 표에 한 줄씩.
+      같은 턴에: §5.9 가 MakeShop 연결 테스트를 Cafe24 와 «정책 동일» 이라 적는데 MakeShop 은 403 을 `MAKESHOP_AUTH_FAILED` 로 묶는다(Cafe24 는
+      `CAFE24_INSUFFICIENT_SCOPE` 로 가른다 — `5-makeshop.md` 가 의도로 적은 차이). «동일» 의 범위를 401 재시도 · 카운터 제외로 좁힌다
+      (`--impl-done` `review/consistency/2026/09/20/00_07_48` cross_spec INFO 1).
 
 ## 종결 조건
 

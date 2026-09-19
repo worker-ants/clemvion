@@ -11,6 +11,7 @@ import {
 } from '../../nodes/integration/http-request/http-redirect';
 import { SSRF_BLOCKED_CLIENT_MESSAGE } from '../../nodes/integration/http-request/http-safety';
 import { clampMessage } from './clamp-message';
+import { CONNECTION_TEST_CODES } from './connection-test-codes';
 import type { IntegrationTestResult } from './integrations.service';
 
 const logger = new Logger('HttpConnectionTester');
@@ -23,7 +24,7 @@ function blocked(reason: string): IntegrationTestResult {
   logger.warn(`SSRF block (http connection test): ${reason}`);
   return {
     success: false,
-    code: 'HTTP_BLOCKED',
+    code: CONNECTION_TEST_CODES.HTTP_BLOCKED,
     message: SSRF_BLOCKED_CLIENT_MESSAGE,
   };
 }
@@ -41,14 +42,14 @@ function classify(status: number): IntegrationTestResult {
   if (status === 401 || status === 403) {
     return {
       success: false,
-      code: 'HTTP_AUTH_FAILED',
+      code: CONNECTION_TEST_CODES.HTTP_AUTH_FAILED,
       message: `The server rejected the credentials (HTTP ${status}).`,
     };
   }
   if (status >= 500) {
     return {
       success: false,
-      code: 'HTTP_SERVER_ERROR',
+      code: CONNECTION_TEST_CODES.HTTP_SERVER_ERROR,
       message: `The server returned HTTP ${status}.`,
     };
   }
@@ -102,7 +103,7 @@ export async function testHttpConnection(
   if (!isValidUrl(resolved.baseUrl)) {
     return {
       success: false,
-      code: 'HTTP_CONNECT_FAILED',
+      code: CONNECTION_TEST_CODES.HTTP_CONNECT_FAILED,
       message: 'base_url is not a valid URL.',
     };
   }
@@ -136,13 +137,13 @@ export async function testHttpConnection(
     if (name === 'TimeoutError' || name === 'AbortError') {
       return {
         success: false,
-        code: 'HTTP_CONNECT_FAILED',
+        code: CONNECTION_TEST_CODES.HTTP_CONNECT_FAILED,
         message: `The request timed out after ${HTTP_TEST_TIMEOUT_MS / 1000} seconds.`,
       };
     }
     return {
       success: false,
-      code: 'HTTP_CONNECT_FAILED',
+      code: CONNECTION_TEST_CODES.HTTP_CONNECT_FAILED,
       message: clampMessage(describeFailure(err)),
     };
   }

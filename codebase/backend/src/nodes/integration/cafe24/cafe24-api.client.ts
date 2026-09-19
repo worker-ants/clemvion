@@ -159,6 +159,16 @@ function pickString(v: unknown): string | null {
 }
 
 /**
+ * `pingConnection` 이 돌려주는 실패 코드 — 연결 테스트 결과(`IntegrationTestResult.code`)로 그대로 나간다
+ * (`modules/integrations/connection-test-codes.ts` 의 union 이 이 타입을 모은다).
+ */
+export type Cafe24PingCode =
+  | 'CAFE24_AUTH_FAILED'
+  | 'CAFE24_TRANSPORT_FAILED'
+  | 'CAFE24_INSUFFICIENT_SCOPE'
+  | 'INTEGRATION_INCOMPLETE';
+
+/**
  * Convert a thrown error from `pingConnection` 내부 단계 into the same
  * `IntegrationTestResult` shape the surrounding flow returns. Keeps the
  * "never throws" contract centralised and avoids 3 copies of the same
@@ -173,7 +183,7 @@ function pickString(v: unknown): string | null {
  */
 function mapPingError(err: unknown): {
   success: false;
-  code: string;
+  code: Cafe24PingCode;
   message: string;
 } {
   if (err instanceof Cafe24AuthFailedError) {
@@ -367,7 +377,7 @@ export class Cafe24ApiClient {
    */
   async pingConnection(
     integration: Integration,
-  ): Promise<{ success: boolean; code?: string; message?: string }> {
+  ): Promise<{ success: boolean; code?: Cafe24PingCode; message?: string }> {
     return withIntegrationLock(integration.id, async () => {
       let creds: Cafe24Credentials;
       try {

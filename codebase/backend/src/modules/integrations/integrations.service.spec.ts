@@ -593,6 +593,28 @@ describe('IntegrationsService', () => {
       );
     });
 
+    it('자격증명을 복호화하지 못하면 테스터를 부르지 않고 INTEGRATION_CREDENTIALS_UNREADABLE', async () => {
+      const entityProbe = jest.fn();
+      service.registerEntityTester('cafe24', entityProbe);
+      integrationRepo.findOne.mockResolvedValue(
+        makeIntegration({
+          serviceType: 'cafe24',
+          credentials: { __unreadable: true } as unknown as Record<
+            string,
+            unknown
+          >,
+        }),
+      );
+
+      const result = await service.testConnection('int-1', 'ws-1');
+
+      expect(result).toMatchObject({
+        success: false,
+        code: 'INTEGRATION_CREDENTIALS_UNREADABLE',
+      });
+      expect(entityProbe).not.toHaveBeenCalled();
+    });
+
     it('uses registered entity-aware tester for matching service_type — wins over dispatchTest', async () => {
       const cafe24Integration = makeIntegration({
         serviceType: 'cafe24',
@@ -1305,6 +1327,27 @@ describe('IntegrationsService', () => {
         response: { code: 'RESOURCE_NOT_FOUND' },
       });
       expect(integrationRepo.save).not.toHaveBeenCalled();
+      expect(auditLogsService.record).not.toHaveBeenCalled();
+      expect(integrationCacheBus.publish).not.toHaveBeenCalled();
+    });
+
+    it('update 는 1행을 바꿨는데 다시 읽기 전에 지워졌으면 404 — 감사 · broadcast 를 남기지 않는다', async () => {
+      // requireEntity 가 읽은 행(beforeEach 의 값)은 그대로 두고, 저장 뒤 다시 읽을 때만 사라진다.
+      const current = await integrationRepo.findOne({ where: { id: 'int-1' } });
+      integrationRepo.findOne.mockReset();
+      integrationRepo.findOne
+        .mockResolvedValueOnce(current)
+        .mockResolvedValueOnce(null);
+
+      await expect(
+        service.rotate('int-1', 'ws-1', 'user-1', 'member', {
+          credentials: { value: 'new-secret' },
+        }),
+      ).rejects.toMatchObject({
+        response: { code: 'RESOURCE_NOT_FOUND' },
+      });
+      expect(integrationRepo.update).toHaveBeenCalledTimes(1);
+      expect(integrationRepo.findOne).toHaveBeenCalledTimes(2);
       expect(auditLogsService.record).not.toHaveBeenCalled();
       expect(integrationCacheBus.publish).not.toHaveBeenCalled();
     });

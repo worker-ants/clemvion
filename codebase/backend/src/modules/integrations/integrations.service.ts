@@ -67,6 +67,10 @@ import {
   ALREADY_CONNECTED_BY_SERVICE,
   GENERIC_ALREADY_CONNECTED,
 } from './integrations.constants';
+import {
+  CONNECTION_TEST_CODES,
+  type IntegrationTestResultCode,
+} from './connection-test-codes';
 
 /**
  * Public shape returned to the integrations UI for both `previewTest` and
@@ -76,8 +80,8 @@ import {
 export interface IntegrationTestResult {
   success: boolean;
   message: string;
-  /** Failure code (e.g. `MCP_*` · `EMAIL_CONNECT_FAILED` · `DB_*` · `HTTP_*`); absent on success. */
-  code?: string;
+  /** Failure code — the connection-test vocabulary ({@link IntegrationTestResultCode}); absent on success. */
+  code?: IntegrationTestResultCode;
   capabilities?: ServerCapabilities;
   serverInfo?: ServerInfo;
   preview?: ConnectionPreview;
@@ -1596,7 +1600,7 @@ export class IntegrationsService {
     if (await isSmtpHostBlocked(credentials.host as string)) {
       return {
         success: false,
-        code: 'EMAIL_HOST_BLOCKED',
+        code: CONNECTION_TEST_CODES.EMAIL_HOST_BLOCKED,
         message:
           'SMTP host points to a private/loopback address blocked by policy.',
       };
@@ -1623,7 +1627,7 @@ export class IntegrationsService {
       return {
         success: false,
         message: clampMessage(err instanceof Error ? err.message : String(err)),
-        code: 'EMAIL_CONNECT_FAILED',
+        code: CONNECTION_TEST_CODES.EMAIL_CONNECT_FAILED,
       };
     } finally {
       transporter.close();

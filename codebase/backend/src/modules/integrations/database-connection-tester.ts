@@ -10,6 +10,7 @@ import {
   type DbCredentials,
 } from '../../nodes/integration/database-query/database-connection';
 import { clampMessage } from './clamp-message';
+import { CONNECTION_TEST_CODES } from './connection-test-codes';
 import type { IntegrationTestResult } from './integrations.service';
 
 const logger = new Logger('DatabaseConnectionTester');
@@ -140,7 +141,7 @@ export async function testDatabaseConnection(
       logger.warn(`SSRF block (database connection test): ${detail}`);
       return {
         success: false,
-        code: 'DB_HOST_BLOCKED',
+        code: CONNECTION_TEST_CODES.DB_HOST_BLOCKED,
         message: DB_HOST_BLOCKED_MESSAGE,
       };
     }
@@ -157,7 +158,9 @@ export async function testDatabaseConnection(
   } catch (err) {
     return {
       success: false,
-      code: isAuthFailure(driver, err) ? 'DB_AUTH_FAILED' : 'DB_CONNECT_FAILED',
+      code: isAuthFailure(driver, err)
+        ? CONNECTION_TEST_CODES.DB_AUTH_FAILED
+        : CONNECTION_TEST_CODES.DB_CONNECT_FAILED,
       message: clampMessage(err instanceof Error ? err.message : String(err)),
     };
   }
