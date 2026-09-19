@@ -616,4 +616,71 @@ describe('MakeshopApiClient', () => {
       ).toBe('Bearer queued-fresh');
     });
   });
+
+  /**
+   * 연결 테스트(`POST /integrations/:id/test`)의 MakeShop 분기 — 반환하는 `code` 가 그대로 `IntegrationTestResult.code` 로 나간다
+   * (`modules/integrations/connection-test-codes.ts` 의 union 이 `MakeshopPingCode` 를 모은다). Cafe24 형제(`cafe24-api.client.spec.ts`
+   * «pingConnection») 와 같이 세 실패 코드를 리터럴로 고정한다 — 기대값을 상수로 적으면 상수의 오타가 테스트에도 들어간다.
+   */
+  describe('pingConnection (test-connection probe)', () => {
+    it('200 — GET information 으로 확인하고 성공, 상태는 건드리지 않는다', async () => {
+      fetchMock.mockResolvedValueOnce(makeJsonResponse({ shop_uid: 'myshop' }));
+      const integration = makeIntegration();
+
+      const result = await client.pingConnection(integration);
+
+      expect(result).toEqual({ success: true });
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+      expect(String(fetchMock.mock.calls[0][0])).toContain('information');
+      expect(repo.update).not.toHaveBeenCalled();
+    });
+
+    it('자격증명이 빠지면 INTEGRATION_INCOMPLETE — 호출하지 않는다', async () => {
+      const integration = makeIntegration({
+        credentials: {
+          shop_uid: 'myshop',
+          refresh_token: 'r',
+          client_id: 'c',
+          client_secret: 's',
+        },
+      });
+
+      const result = await client.pingConnection(integration);
+
+      expect(result).toMatchObject({
+        success: false,
+        code: 'INTEGRATION_INCOMPLETE',
+      });
+      expect(fetchMock).not.toHaveBeenCalled();
+    });
+
+    it('403 — MAKESHOP_AUTH_FAILED, 갱신 없이 · 상태 격하 없이', async () => {
+      fetchMock.mockResolvedValueOnce(
+        makeJsonResponse({ message: 'forbidden' }, { status: 403 }),
+      );
+      const integration = makeIntegration();
+
+      const result = await client.pingConnection(integration);
+
+      expect(result).toMatchObject({
+        success: false,
+        code: 'MAKESHOP_AUTH_FAILED',
+      });
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+      expect(dataSource.transaction).not.toHaveBeenCalled();
+      expect(repo.update).not.toHaveBeenCalled();
+    });
+
+    it('네트워크 실패 — MAKESHOP_TRANSPORT_FAILED, 던지지 않는다', async () => {
+      fetchMock.mockRejectedValueOnce(new TypeError('fetch failed'));
+      const integration = makeIntegration();
+
+      const result = await client.pingConnection(integration);
+
+      expect(result).toMatchObject({
+        success: false,
+        code: 'MAKESHOP_TRANSPORT_FAILED',
+      });
+    });
+  });
 });

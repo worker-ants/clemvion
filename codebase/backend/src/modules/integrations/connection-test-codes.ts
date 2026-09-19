@@ -30,7 +30,8 @@ export type TransportTestCode =
 
 /**
  * `IntegrationsService.testConnection` 이 테스터를 부르기 **전에** 스스로 돌려주는 코드 — 자격증명을 복호화하지 못함 ·
- * `pending_install`(spec §9.1).
+ * `pending_install`(spec §9.1). 상수로 빼지 않는다 — 쓰는 곳이 한 함수뿐이고, 둘 다 통합 전반의 코드라 테스터 어휘가 아니다.
+ * 오타는 이 union 이 막는다.
  */
 type TestGateCode =
   'INTEGRATION_CREDENTIALS_UNREADABLE' | 'INTEGRATION_INCOMPLETE';

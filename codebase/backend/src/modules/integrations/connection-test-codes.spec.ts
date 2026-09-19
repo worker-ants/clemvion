@@ -29,7 +29,13 @@ describe('연결 테스트 결과 코드', () => {
    * `@ts-expect-error` 셋이 «쓰이지 않음» 오류가 되어 진단이 늘고 게이트가 깨진다.
    */
   it('타입 수준 계약 (런타임 no-op)', () => {
+    // union 을 이루는 여섯 무리에서 하나씩 — 한 무리가 union 에서 빠지면 그 줄이 컴파일되지 않는다.
     const accepted: IntegrationTestResult[] = [
+      {
+        success: false,
+        message: '',
+        code: 'INTEGRATION_CREDENTIALS_UNREADABLE',
+      },
       { success: false, message: '', code: 'DB_AUTH_FAILED' },
       { success: false, message: '', code: 'MCP_TIMEOUT' },
       { success: false, message: '', code: 'CAFE24_INSUFFICIENT_SCOPE' },
@@ -44,7 +50,7 @@ describe('연결 테스트 결과 코드', () => {
       // @ts-expect-error 오타 — 어휘에 없는 값
       { success: false, message: '', code: 'DB_AUTH_FAIL' },
     ];
-    expect(accepted).toHaveLength(5);
+    expect(accepted).toHaveLength(6);
     expect(rejected).toHaveLength(3);
   });
 });

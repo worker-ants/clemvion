@@ -593,6 +593,28 @@ describe('IntegrationsService', () => {
       );
     });
 
+    it('자격증명을 복호화하지 못하면 테스터를 부르지 않고 INTEGRATION_CREDENTIALS_UNREADABLE', async () => {
+      const entityProbe = jest.fn();
+      service.registerEntityTester('cafe24', entityProbe);
+      integrationRepo.findOne.mockResolvedValue(
+        makeIntegration({
+          serviceType: 'cafe24',
+          credentials: { __unreadable: true } as unknown as Record<
+            string,
+            unknown
+          >,
+        }),
+      );
+
+      const result = await service.testConnection('int-1', 'ws-1');
+
+      expect(result).toMatchObject({
+        success: false,
+        code: 'INTEGRATION_CREDENTIALS_UNREADABLE',
+      });
+      expect(entityProbe).not.toHaveBeenCalled();
+    });
+
     it('uses registered entity-aware tester for matching service_type — wins over dispatchTest', async () => {
       const cafe24Integration = makeIntegration({
         serviceType: 'cafe24',
