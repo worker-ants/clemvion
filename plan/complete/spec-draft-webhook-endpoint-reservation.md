@@ -1,9 +1,10 @@
 ---
 title: 웹훅 경로 영구 예약 — 지우거나 바꾼 경로를 다른 워크스페이스가 다시 등록하지 못하게
-status: in-progress
+status: complete
 owner: project-planner
 worktree: webhook-tombstone-de5b5f
 started: 2026-09-19
+completed: 2026-09-19
 spec_impact:
   - spec/1-data-model.md
   - spec/5-system/12-webhook.md
@@ -171,6 +172,10 @@ Critical 0 · WARNING 1 · INFO 8.
   TEST WORKFLOW lint · unit · build(타입체크 ratchet 포함) · e2e(360) 통과. 실측: 백필(트리거 넷 중 경로 있는 셋만) · `CREATE TRIGGER` 의
   `ShareRowExclusiveLock` 이 동시 INSERT 를 막음(lock_timeout 1s 취소 → 끝난 뒤 통과) · 스키마 비교기 새 테이블 컬럼 층 0 · 전용 e2e 뮤턴트
   여섯(백필 누락 · `workspace_id` 감시 누락 · `<>` 로 주인 없는 예약 허용 · WHEN 누락 · 라벨 오타 · `SET NULL`→`CASCADE`) 모두 RED
-- [ ] `/ai-review` — Critical · Warning 0 수렴
-- [ ] `--impl-done` — BLOCK: NO
-- [ ] 트래커 해소 · 이 draft `plan/complete/` 로
+- [x] `/ai-review` — Critical · Warning 0 수렴. 1라운드 `review/code/2026/09/19/19_44_33`(Warning 2 — CHANGELOG · 동시 경합 e2e → `a4a4791a7`,
+  RESOLUTION) → 2라운드 `review/code/2026/09/19/20_13_30`(Critical 0 · Warning 0, INFO 만). 조치 중 실측이 내 주석 하나를 반증했다 —
+  «REPEATABLE READ 면 SELECT 가 NULL 을 봐 거부» 가 아니라 `ON CONFLICT` 가 40001 로 끝난다(주석을 실측대로 고쳐 적음)
+- [x] `--impl-done` — BLOCK: NO (`review/consistency/2026/09/19/20_25_48`, scope `spec/2-navigation/` + 보정 블록, Critical · Warning 0).
+  INFO: `plan/complete/` 선인용(이 이동으로 실재) · `RAISE … USING CONSTRAINT` 라벨은 저장소 첫 사용(두 번째가 나오면 migrations 규약에 관용구로
+  등재 검토) · cafe24 «reservations» 와 영단어 공유(도메인 분리, 조치 불요)
+- [x] 트래커 해소 · 이 draft `plan/complete/` 로
