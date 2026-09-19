@@ -10,7 +10,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Brackets, Repository } from 'typeorm';
 import { createTransport } from 'nodemailer';
 import pLimit from 'p-limit';
-import { isSmtpHostBlocked } from '../../common/utils/smtp-host-guard';
+import { isSmtpHostBlocked } from '../../nodes/integration/send-email/smtp-host-guard';
 import { Integration } from './entities/integration.entity';
 import { getAppBaseUrl } from '../../common/utils/app-base-url';
 import { IntegrationUsageLog } from './entities/integration-usage-log.entity';
@@ -1591,8 +1591,8 @@ export class IntegrationsService {
     _authType: string,
     credentials: Record<string, unknown>,
   ): Promise<IntegrationTestResult> {
-    // SSRF 완화 (opt-in) — `SMTP_BLOCK_PRIVATE_HOSTS` 정책이 켜진 경우 사설/
-    // loopback host 에 대한 연결 시도를 차단. send_email 발송 경로와 동일한 가드.
+    // SSRF 가드 (기본 ON) — 사설 · loopback · link-local · CGNAT host 로의 연결 시도를 차단한다.
+    // `ALLOW_PRIVATE_HOST_TARGETS=true` 로만 끈다. send_email 발송 경로 · HTTP Request 노드와 같은 가드.
     if (await isSmtpHostBlocked(credentials.host as string)) {
       return {
         success: false,

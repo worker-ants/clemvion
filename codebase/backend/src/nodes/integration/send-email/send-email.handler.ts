@@ -21,7 +21,7 @@ import {
   truncateForErrorDetails,
 } from '../../core/error-codes.js';
 import { sendEmailNodeMetadata } from './send-email.schema.js';
-import { isSmtpHostBlocked } from '../../../common/utils/smtp-host-guard.js';
+import { isSmtpHostBlocked } from './smtp-host-guard.js';
 import { buildDryRunMock, isDryRun } from '../../core/dry-run.util.js';
 
 interface SmtpCredentials {
@@ -173,8 +173,8 @@ export class SendEmailHandler
         );
       }
 
-      // SSRF 완화 (opt-in) — `SMTP_BLOCK_PRIVATE_HOSTS` 정책이 켜진 경우 사설/
-      // loopback host 로의 발송을 차단. 연결 테스트와 동일한 가드를 발송 경로에도
+      // SSRF 가드 (기본 ON) — 사설 · loopback · link-local · CGNAT host 로의 발송을 차단한다.
+      // `ALLOW_PRIVATE_HOST_TARGETS=true` 로만 끈다. 연결 테스트와 동일한 가드를 발송 경로에도
       // 적용해 비대칭(테스트만 차단)을 막는다.
       if (await isSmtpHostBlocked(credentials.host as string)) {
         throw new IntegrationError(

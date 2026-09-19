@@ -112,6 +112,62 @@ describe('Integration connection test — Database · HTTP (e2e)', () => {
     expect(data.message).not.toContain('127.0.0.1');
   });
 
+  /**
+   * **표기만 바꾼 대상도 같은 가드에 걸린다** — HTTP · DB · Email 은 한 가드(`http-safety`)를 쓴다(spec 4-integration §5.5).
+   * 종전 HTTP · DB 가드는 IPv4-mapped IPv6 를 통과시켜, 아래 HTTP 입력은 백엔드 자신의 health 에 실제로 닿았다(127.0.0.1 에만
+   * 바인드한 서버에 `[::ffff:127.0.0.1]` 이 200 — 실측). SMTP 가드는 CGNAT 를 통과시켰다.
+   */
+  it.each([
+    [
+      'http',
+      'bearer_token',
+      {
+        base_url: 'http://[::ffff:127.0.0.1]:3011/api/health',
+        token: 'e2e-token',
+      },
+      'HTTP_BLOCKED',
+    ],
+    [
+      'database',
+      'connection_string',
+      { ...privateDb, host: '::ffff:127.0.0.1' },
+      'DB_HOST_BLOCKED',
+    ],
+    [
+      'email',
+      'smtp',
+      {
+        host: '100.64.0.1',
+        port: 587,
+        secure: 'starttls',
+        username: 'e2e@example.com',
+        password: 'e2e-password',
+        default_from: 'e2e@example.com',
+      },
+      'EMAIL_HOST_BLOCKED',
+    ],
+  ] as const)(
+    'B2. preview-test — %s 가 IPv4-mapped 루프백 · CGNAT 를 가리키면 막힌다',
+    async (serviceType, authType, credentials, code) => {
+      const res = await post('/api/integrations/preview-test').send({
+        serviceType,
+        authType,
+        credentials,
+      });
+
+      expect([200, 201]).toContain(res.status);
+      const data = res.body.data as {
+        success: boolean;
+        code?: string;
+        message: string;
+      };
+      expect(data.success).toBe(false);
+      expect(data.code).toBe(code);
+      // 차단 문구에 대상 주소를 싣지 않는다(정찰 면 축소)
+      expect(data.message).not.toMatch(/ffff|100\.64|127\.0\.0\.1/);
+    },
+  );
+
   it('C. 저장된 Database 통합의 :id/test 도 같은 테스터를 탄다', async () => {
     const id = await createIntegration({
       serviceType: 'database',
