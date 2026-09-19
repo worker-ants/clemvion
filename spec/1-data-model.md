@@ -4,6 +4,11 @@ status: implemented
 code:
   - codebase/backend/src/modules/**/entities/*.entity.ts
   - codebase/backend/migrations/V*.sql
+  # 이 문서의 사실을 지키는 전용 e2e — 새 전용 가드는 여기에 더한다. 기능 e2e 는 넣지 않는다
+  # (자기 기능의 인덱스를 곁들여 보는 테스트까지 넣으면 이 문서가 무관한 기능 변경의 게이트가 된다).
+  - codebase/backend/test/deletion-cascade-indexes.e2e-spec.ts
+  - codebase/backend/test/trigger-endpoint-path-dedupe.e2e-spec.ts
+  - codebase/backend/test/entity-schema-declarations.e2e-spec.ts
 ---
 
 # Spec: 데이터 모델
@@ -981,6 +986,20 @@ DocumentChunk·Entity 계열 선례를 따른다.)
 | Notification | (workspace_id, created_at DESC) | 워크스페이스별 알림 조회 — partial 미적용 (향후 admin/감사 쿼리가 dismissed 포함 전체 row 를 볼 여지) |
 
 ## Rationale
+
+### `code:` 에 전용 e2e 가드 셋 (2026-09-19)
+
+frontmatter `code:` 에 이 문서의 사실을 기계적으로 지키는 e2e 셋을 넣었다(사용자 결정) — `deletion-cascade-indexes`(§3 의 FK 인덱스) ·
+`trigger-endpoint-path-dedupe`(아래 «Webhook `endpoint_path` 전역 유일» 의 V131) · `entity-schema-declarations`(엔티티 선언 ↔ DB).
+이제 그 파일을 고치는 변경도 이 문서와의 대조(`--impl-done`)를 거친다 — 가드를 약하게 고치는 변경이 코드 리뷰만 거치지 않는다.
+
+- **넣지 않은 것**: 자기 기능의 인덱스 · 컬럼을 곁들여 확인하는 기능 e2e(`background-monitoring` · `notifications-dismiss` ·
+  `terminal-duration-sql` · `webhook-trigger`). 넣으면 이 문서가 무관한 기능 변경의 게이트가 된다. backend e2e 58개 중 어떤 spec 의
+  `code:` 에 걸린 것은 7개라, 기능 e2e 를 넣지 않는 쪽이 이 저장소의 정상이다.
+- **glob 이 아니라 나열인 이유**: `5-system/15-chat-channel.md` R-CC-22 는 같은 접두로 늘어나는 구현 파일 집합을 glob 으로 잡았다.
+  이 셋은 이름으로 모을 공통 접두가 없고 새 전용 가드는 드물게 생긴다 — 그 가드를 만드는 PR 이 여기에 더한다(frontmatter 주석).
+
+근거: `plan/complete/spec-draft-code-guards-and-change-summary.md`.
 
 ### §2 FK 삭제 동작 · 빠진 컬럼 (2026-09-19)
 

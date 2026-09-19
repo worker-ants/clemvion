@@ -523,7 +523,7 @@ pending_plans:
 | 실행 직전 저장 (Run) | O | O — 실행 직전 스냅샷 |
 | 버전 복원 | O | O — `Restored from vN` |
 
-- 버전에는 자동 생성된 `change_summary` 포함 (예: "노드 3개 추가, 엣지 2개 수정")
+- 버전의 `change_summary` 는 저장 요청이 보낸 값을 그대로 담는다([버전 이력 §7.4](./5-version-history.md#74-캔버스-저장)). 에디터의 수동 저장 · 실행 직전 저장은 이 값을 보내지 않아 비어 있다. 서버가 스스로 채우는 것은 버전 복원이 만드는 새 버전의 `Restored from vN` 하나다.
 
 ---
 
@@ -798,3 +798,12 @@ Recent 는 **세션 한정(비영속)**으로 둔다 — 영속화하면 무관�
 3. **깊이 상한(3)은 근거가 없고 실제 동작과도 어긋난다.** 실행 엔진은 컨테이너 중첩에 깊이 상한을 두지 않고 사이클(`CONTAINER_CYCLE`, §11.2.2)만 거부한다. "3단계"라는 숫자에 제품/기술적 근거가 없어 임의 상한을 신설하지 않고, 현재의 무제한(사이클만 차단) 동작을 확정 상태로 둔다. (Parallel 의 `parallel:nested-depth-exceeded` depth ≤ 2 는 그래프 토폴로지 기반의 별개 메커니즘으로 컨테이너 `containerId` 중첩과 무관하다. 또한 workflow-assistant `shadow-workflow.ts` 의 `MAX_CONTAINER_DEPTH = 64` 는 손상된 `containerId` 체인의 무한 순회를 막는 방어적 순회 상한일 뿐 제품 차원의 중첩 깊이 제한이 아니다.)
 
 `spec/conventions/cross-node-warning-rules.md §9` 의 "Loop / ForEach 의 중첩 깊이 정책 (도입 시)" 향후 확장 항목도 본 결정에 따라 미도입 확정으로 갱신한다.
+
+### R-5. §8.1 `change_summary` 자동 생성 서술 정정 (2026-09-19)
+
+§8.1 은 «버전에는 자동 생성된 `change_summary` 포함 (예: "노드 3개 추가, 엣지 2개 수정")» 이라 적었지만 **자동 생성은 없다**.
+서버가 스스로 채우는 것은 버전 복원의 `Restored from vN` 하나이고, 저장 API 는 요청의 `changeSummary` 를 그대로 담는데 에디터(수동
+저장 · 실행 직전 저장)는 그 필드를 보내지 않는다. R-3 과 같은 결 — §8 이 없는 저장 기능을 약속한 것 — 이라 스펙을 현재 동작으로
+정정했다(사용자 결정, 2026-09-19: 자동 요약 기능은 만들지 않는다). `5-version-history.md` §7.4 · §9 와 `data-flow/11-workflow.md` 는 이미
+맞게 적는다. 사용자 가이드 `05-run-and-debug/version-history` 의 «저장 요청에 `changeSummary` 메모를 넣으면» 안내도 같은 PR 에서
+정정했다. 근거: `plan/complete/spec-draft-code-guards-and-change-summary.md`.

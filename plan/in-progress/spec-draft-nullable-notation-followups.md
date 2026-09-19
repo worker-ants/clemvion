@@ -4670,8 +4670,10 @@ field: T | null;
       도 없다). 이 작업과 무관한 기존 상태로, checker 가 `spec/conventions/` scope 를 훑다 드러냈다. 결정할 것: 관례로 맞출지, 레퍼런스형
       규약은 예외로 둘지(예외라면 planner SKILL 의 3섹션 표에 적는다).
 
-- [ ] **`0-canvas.md` §8.1 «버전에는 자동 생성된 `change_summary` 포함» — 자동 생성이 없다** (planner, 낮음, 2026-09-19 등재 ·
-      `plan/complete/spec-draft-assistant-i18n-table-sync.md` «비대상» · `--impl-prep` `review/consistency/2026/09/19/08_07_50` WARNING 2).
+- [x] **`0-canvas.md` §8.1 «버전에는 자동 생성된 `change_summary` 포함» — 자동 생성이 없다** (planner, 낮음, 2026-09-19 등재 ·
+      `plan/complete/spec-draft-assistant-i18n-table-sync.md` «비대상» · `--impl-prep` `review/consistency/2026/09/19/08_07_50` WARNING 2 ·
+      **2026-09-19 해소** `plan/complete/spec-draft-code-guards-and-change-summary.md` — 사용자 결정 «spec 을 실제에 맞춘다». §8.1 정정 +
+      R-5, 같은 사실을 약속하던 사용자 가이드 `05-run-and-debug/version-history`(ko · en) 도 정정).
       서버가 스스로 채우는 `changeSummary` 는 버전 복원의 `Restored from v${version}`(`workflows.service.ts`) 하나다. 저장 API 는 요청의
       `changeSummary` 를 그대로 저장하지만 프론트는 그 필드를 보내지 않는다(`codebase/frontend/src` grep — 응답 타입 · 표시 컴포넌트뿐).
       체커는 예시 문자열의 금지어 «엣지» 만 짚었다 — 금지어만 고치면 틀린 문장을 다듬는 셈이라 두었다. 결정할 것: 서술을 실제(수동 저장은
@@ -4695,8 +4697,10 @@ field: T | null;
       `spec/data-flow/5-integration.md` 341행 · `8-notifications.md` 90행도 세 컬럼으로 적는다. `token_expires_at` 이 키에 들어 있어
       **재인증으로 만료 시각이 바뀌면 같은 임계가 다시 발사된다** — 두 컬럼 서술로는 이 동작이 나오지 않는다. 세 컬럼으로 정정하고 그 동작을 한 줄 적는다.
 
-- [ ] **`spec/1-data-model.md` frontmatter `code:` 에 이 문서를 지키는 e2e 가드를 넣을지 — 게이트 범위 결정** (planner, 낮음, 2026-09-19 등재 ·
-      `plan/complete/spec-draft-data-model-fk-actions.md` «비대상» · `--spec` `review/consistency/2026/09/19/09_59_18` INFO 10). 이 문서의
+- [x] **`spec/1-data-model.md` frontmatter `code:` 에 이 문서를 지키는 e2e 가드를 넣을지 — 게이트 범위 결정** (planner, 낮음, 2026-09-19 등재 ·
+      `plan/complete/spec-draft-data-model-fk-actions.md` «비대상» · `--spec` `review/consistency/2026/09/19/09_59_18` INFO 10 ·
+      **2026-09-19 해소** `plan/complete/spec-draft-code-guards-and-change-summary.md` — 사용자 결정 «셋 다 넣는다». 카탈로그를 단언하는
+      e2e 8개 중 기능 e2e 넷은 넣지 않았다(backend e2e 58개 중 `code:` 에 걸린 것 7개 — 그쪽이 정상). 이 문서의
       `code:` 는 엔티티 · 마이그레이션 glob 둘뿐이다. 이 문서를 지키는 e2e 가 셋 있다 — `deletion-cascade-indexes` · `trigger-endpoint-path-dedupe` ·
       `entity-schema-declarations`. 하나만 넣으면 어긋나고, 셋을 넣으면 그 파일들의 변경이 `--impl-done` 을 부르게 된다(다른 spec 은
       e2e 경로를 `code:` 에 넣은 선례가 있다 — `2-trigger-list` · `3-schedule` · `15-chat-channel` 등). 결정할 것: 넣을지, 넣는다면 셋 다.
