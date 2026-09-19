@@ -9,6 +9,7 @@ code:
   - codebase/backend/test/deletion-cascade-indexes.e2e-spec.ts
   - codebase/backend/test/trigger-endpoint-path-dedupe.e2e-spec.ts
   - codebase/backend/test/entity-schema-declarations.e2e-spec.ts
+  - codebase/backend/test/webhook-endpoint-reservation.e2e-spec.ts
 ---
 
 # Spec: 데이터 모델
@@ -1042,7 +1043,11 @@ DocumentChunk·Entity 계열 선례를 따른다.)
   409 · 같은 세부 코드다([에러 처리 §1.10](./5-system/3-error-handling.md#110-트리거-endpointpath-충돌-세부-코드-도메인-spec-참조)).
 - **기존 데이터의 한계**: 마이그레이션은 그때 살아 있던 트리거의 경로만 예약한다(V132 로 이미 전역 유일이라 충돌이 없다). 이미 지워진 경로는
   기록이 없다 — 보호는 배포 시점부터다. 감사 로그에서 경로를 되살리는 일은 하지 않는다(경로는 비밀 키다).
-- **하지 않은 것**: 예약을 풀어 주는 운영 기능(관리자가 특정 경로 해제) — 필요가 생기면 따로.
+- **하지 않은 것**: 예약을 풀어 주는 운영 기능(관리자가 특정 경로 해제) — 필요가 생기면 따로. UI 고지(삭제 확인 · 경로 변경
+  경고 — [트리거 목록 §4.2 · §2.3.1](./2-navigation/2-trigger-list.md))도 더하지 않았다 — 소유자의 워크스페이스 안에서는 달라지는 것이
+  없고(옛 URL 이 404 인 것도, 다시 쓸 수 있는 것도 그대로), 같은 URL 을 다른 워크스페이스로 옮기려는 경우는 그 자리의 409 가 알린다.
+- **전용 e2e**: `webhook-endpoint-reservation` 이 V133 을 파일 그대로 임시 스키마에서 돌려 백필 · DB 트리거를 본다(위 frontmatter
+  `code:`) — Flyway 는 CI · e2e 의 빈 테이블에 적용해 백필이 한 행도 옮기지 않는데, 운영 DB 에는 한 번만 적용된다.
 
 프로토타입(일회용 DB, V001~V132 + 이 설계)에서 시나리오 열한 개를 pg 드라이버로 돌려 드라이버가 받는 `code` · `constraint` 까지 확인했다 —
 살아 있는 트리거와 겹칠 때도 먼저 걸리는 쪽이 예약 트리거라는 것이 서비스가 두 이름을 모두 409 로 옮겨야 하는 이유다.

@@ -164,8 +164,6 @@ Critical 0 · WARNING 1 · INFO 8.
 - [x] `--impl-prep` (`review/consistency/2026/09/19/19_11_16`, scope `spec/2-navigation/` + 보정 블록) — BLOCK: NO, Critical · Warning 0.
   INFO: UI 고지(→ 변경 F) · 영역 15개 파일 예산 생략(이 diff 무관) · `2-trigger-list` Rationale 번호 순서(규약 없음, 조치 불요) ·
   트래커 체크 · `plan/complete/` 이동 전 경로 인용(마무리에서 해소)
-- [x] 변경 F — `--spec`(`review/consistency/2026/09/19/19_21_39`, BLOCK: NO · Critical · Warning 0) 후 반영 (planner 커밋).
-  INFO: 새 e2e 의 «메커니즘 전용» 스코프 고지(→ 그 파일 헤더) · `spec-impl-evidence` §1 과의 상호 참조(규약 문서 쪽 권고, 이 PR 밖 — 선례
-  `53335867a` 가 같은 병존으로 이미 굳었다) · `data-flow/12-workspace` §2.1 표 미등재(그 표는 핵심 sink 넷의 요약, 조치 불요) · 경로 선인용(마무리)
+- [ ] 변경 F — `--spec` 후 반영 (planner 커밋)
 - [ ] 구현 (developer, 같은 PR) — V133(테이블 · 인덱스 · 백필 · DB 트리거) · 엔티티 · 서비스의 409 매핑 · e2e
 - [ ] 트래커 해소 · 이 draft `plan/complete/` 로
