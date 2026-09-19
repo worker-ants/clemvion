@@ -2,6 +2,8 @@ import { isSmtpHostBlocked } from './smtp-host-guard';
 
 type GuardModule = typeof import('./smtp-host-guard');
 
+// DNS 를 mock 하지 않는다 — 입력이 IP 리터럴 · `localhost` 라 가드가 조회 전에 판정하거나, 조회하더라도 리터럴을 그대로 돌려받아
+// 네트워크 질의가 일어나지 않는다. 호스트 이름 해석 경로는 `http-safety.spec.ts` 가 mock 으로 본다.
 describe('smtp-host-guard', () => {
   const orig = process.env.ALLOW_PRIVATE_HOST_TARGETS;
   afterEach(() => {
@@ -59,6 +61,7 @@ describe('smtp-host-guard', () => {
     jest.isolateModules(() => {
       jest.doMock('../http-request/http-safety.js', () => ({
         assertSafeOutboundHostResolved: jest.fn().mockRejectedValue(boom),
+        SsrfBlockedError: class SsrfBlockedError extends Error {},
       }));
       // eslint-disable-next-line @typescript-eslint/no-require-imports
       const fresh = require('./smtp-host-guard') as GuardModule;
@@ -70,5 +73,11 @@ describe('smtp-host-guard', () => {
   it('returns false for empty host', async () => {
     delete process.env.ALLOW_PRIVATE_HOST_TARGETS;
     expect(await isSmtpHostBlocked('')).toBe(false);
+    expect(await isSmtpHostBlocked('   ')).toBe(false);
+  });
+
+  it('returns false for a missing host (호출부가 `credentials.host as string` 으로 넘긴다)', async () => {
+    delete process.env.ALLOW_PRIVATE_HOST_TARGETS;
+    expect(await isSmtpHostBlocked(undefined as unknown as string)).toBe(false);
   });
 });

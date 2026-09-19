@@ -6,7 +6,11 @@
  *
  * Blocks URLs that resolve to loopback, link-local, private (RFC 1918),
  * CGNAT, or unique-local IPv6 ranges — IPv4-mapped IPv6 (`::ffff:a.b.c.d`) is
- * judged by the IPv4 it carries. Intended for Integration-backed
+ * judged by the IPv4 it carries.
+ *
+ * 공용인데 `http-request/` 폴더에 있는 이유: HTTP Request 가 먼저 만든 것을 DB · Email 이 가져다 썼고, spec
+ * `4-nodes/4-integration/1-http-request.md` frontmatter `code:` 가 이 경로를 가리킨다. 중립 위치로 옮기는 것은 그 spec 경로와
+ * 함께 바꿔야 해서 트래커에 따로 있다(`plan/in-progress/spec-draft-nullable-notation-followups.md`). Intended for Integration-backed
  * requests where a workflow author should not be able to pivot to internal
  * infrastructure by supplying a relative URL that piggybacks on credentials.
  *
@@ -35,6 +39,17 @@ import { lookup } from 'node:dns/promises';
  * HTTP Request 노드(`HTTP_BLOCKED` 노드 에러)와 HTTP 통합 연결 테스트(`HTTP_BLOCKED` 결과 코드)가 같은 문구를 쓴다.
  */
 export const SSRF_BLOCKED_CLIENT_MESSAGE = 'Request blocked by SSRF policy.';
+
+/**
+ * SSRF 가드의 차단 판정. 메시지는 `SSRF_BLOCKED: …` 그대로다(차단 host/IP 가 들어 있어 서버 로그 전용 — 클라이언트에는
+ * {@link SSRF_BLOCKED_CLIENT_MESSAGE}). 판정인지 다른 오류인지는 메시지 접두어가 아니라 이 클래스로 가른다.
+ */
+export class SsrfBlockedError extends Error {
+  constructor(detail: string) {
+    super(`SSRF_BLOCKED: ${detail}`);
+    this.name = 'SsrfBlockedError';
+  }
+}
 
 const PRIVATE_V4_RANGES: Array<[number, number]> = [
   // 10.0.0.0/8
@@ -126,7 +141,7 @@ function isPrivateHostsAllowed(): boolean {
 }
 
 /**
- * Throws an `Error('SSRF_BLOCKED: …')` if the URL is deemed unsafe for
+ * Throws an {@link SsrfBlockedError} (`SSRF_BLOCKED: …`) if the URL is deemed unsafe for
  * integration-backed outbound calls. Returns the parsed URL on success.
  *
  * This is a synchronous literal check — it does not resolve DNS. Pair it
@@ -137,18 +152,18 @@ export function assertSafeOutboundUrl(url: string): URL {
   try {
     parsed = new URL(url);
   } catch {
-    throw new Error('SSRF_BLOCKED: URL is not parseable');
+    throw new SsrfBlockedError('URL is not parseable');
   }
   const protocol = parsed.protocol.toLowerCase();
   if (protocol !== 'http:' && protocol !== 'https:') {
-    throw new Error(`SSRF_BLOCKED: protocol "${protocol}" is not allowed`);
+    throw new SsrfBlockedError(`protocol "${protocol}" is not allowed`);
   }
   if (isPrivateHostsAllowed()) {
     return parsed;
   }
   if (isBlockedHostname(parsed.hostname)) {
-    throw new Error(
-      `SSRF_BLOCKED: hostname "${parsed.hostname}" resolves to a restricted network range`,
+    throw new SsrfBlockedError(
+      `hostname "${parsed.hostname}" resolves to a restricted network range`,
     );
   }
   return parsed;
@@ -170,8 +185,8 @@ export async function assertSafeOutboundHostResolved(
 
   // Literal IP / 'localhost' fast-path — no DNS lookup needed.
   if (isBlockedHostname(hostname)) {
-    throw new Error(
-      `SSRF_BLOCKED: hostname "${hostname}" resolves to a restricted network range`,
+    throw new SsrfBlockedError(
+      `hostname "${hostname}" resolves to a restricted network range`,
     );
   }
 
@@ -187,8 +202,8 @@ export async function assertSafeOutboundHostResolved(
 
   for (const { address } of addresses) {
     if (isBlockedHostname(address)) {
-      throw new Error(
-        `SSRF_BLOCKED: hostname "${hostname}" resolves to restricted IP "${address}"`,
+      throw new SsrfBlockedError(
+        `hostname "${hostname}" resolves to restricted IP "${address}"`,
       );
     }
   }

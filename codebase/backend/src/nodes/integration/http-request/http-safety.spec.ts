@@ -4,6 +4,7 @@ import {
   assertSafeOutboundHostResolved,
   assertSafeOutboundUrl,
   isBlockedHostname,
+  SsrfBlockedError,
 } from './http-safety';
 
 jest.mock('node:dns/promises', () => ({
@@ -169,6 +170,20 @@ describe('http-safety — isBlockedHostname', () => {
     expect(isBlockedHostname(host)).toBe(true);
   });
 
+  /**
+   * IPv4 를 품는 **다른** 표기는 의도적으로 막지 않는다 — 같은 실측(macOS · `node:24-alpine`)에서 127.0.0.1 전용 서버에 닿지
+   * 않았다(`EHOSTUNREACH`/`ENETUNREACH`). mapped 판정을 넓히는 변경이 이 경계를 조용히 옮기지 못하게 고정한다 — 막기로 정하면
+   * 이 표를 함께 바꾼다.
+   */
+  it.each([
+    ['::7f00:1', 'IPv4-compatible ::127.0.0.1'],
+    ['::ffff:0:7f00:1', 'SIIT ::ffff:0:127.0.0.1'],
+    ['64:ff9b::7f00:1', 'NAT64 64:ff9b::127.0.0.1'],
+    ['2002:7f00:1::', '6to4 2002:7f00:1::'],
+  ])('mapped 가 아닌 IPv4 내장 표기는 통과(현 정책): %s — %s', (host) => {
+    expect(isBlockedHostname(host)).toBe(false);
+  });
+
   it.each([
     ['::ffff:808:808', '8.8.8.8'],
     ['::ffff:8.8.8.8', '8.8.8.8 (점 형)'],
@@ -204,6 +219,17 @@ describe('http-safety — IPv4-mapped IPv6 가 두 층을 모두 지나지 못�
       assertSafeOutboundHostResolved('::ffff:127.0.0.1'),
     ).rejects.toThrow(/SSRF_BLOCKED/);
     expect(mockedLookup).not.toHaveBeenCalled();
+  });
+
+  it('차단은 SsrfBlockedError 로 던진다 — 메시지 접두어는 서버 로그용으로 그대로', () => {
+    let caught: unknown;
+    try {
+      assertSafeOutboundUrl('http://[::ffff:127.0.0.1]/');
+    } catch (err) {
+      caught = err;
+    }
+    expect(caught).toBeInstanceOf(SsrfBlockedError);
+    expect((caught as Error).message).toMatch(/^SSRF_BLOCKED: /);
   });
 
   it('DNS 가 mapped 주소(AAAA)를 돌려주면 막는다', async () => {

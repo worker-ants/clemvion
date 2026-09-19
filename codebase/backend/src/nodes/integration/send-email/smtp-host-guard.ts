@@ -1,4 +1,7 @@
-import { assertSafeOutboundHostResolved } from '../http-request/http-safety.js';
+import {
+  assertSafeOutboundHostResolved,
+  SsrfBlockedError,
+} from '../http-request/http-safety.js';
 
 /**
  * SMTP SSRF 가드 — HTTP Request · DB Query 노드와 **같은 구현**(`http-request/http-safety.ts`)을 쓴다: 사설(RFC1918) · loopback ·
@@ -11,8 +14,8 @@ import { assertSafeOutboundHostResolved } from '../http-request/http-safety.js';
  * connection test (`IntegrationsService.testEmailTransport`) 와 실제 발송 (`SendEmailHandler`) 양쪽에서 호출해, 테스트만 막고
  * 발송은 뚫리는 비대칭을 방지한다.
  *
- * DNS 해석 실패는 막지 않는다(`assertSafeOutboundHostResolved` 와 같다 — 해석되지 않는 host 에는 어차피 닿지 못한다). DNS rebinding
- * 2차 공격(연결 시점 재해석)은 막지 못하며 egress 방화벽으로 보완한다.
+ * 빈 host 와 DNS 해석 실패는 막지 않는다 — 빈 host 는 앞선 필수 필드 검증이 걸러내고, 해석되지 않는 host 에는 어차피 닿지
+ * 못한다(`assertSafeOutboundHostResolved` 와 같다). DNS rebinding 2차 공격(연결 시점 재해석)은 막지 못하며 egress 방화벽으로 보완한다.
  */
 export async function isSmtpHostBlocked(host: string): Promise<boolean> {
   const trimmed = host?.trim();
@@ -21,10 +24,8 @@ export async function isSmtpHostBlocked(host: string): Promise<boolean> {
     await assertSafeOutboundHostResolved(trimmed);
     return false;
   } catch (err) {
-    // 가드가 던지는 것은 `SSRF_BLOCKED:` 하나뿐이다. 다른 오류가 여기로 오면 판정이 아니므로 삼키지 않는다.
-    if (err instanceof Error && err.message.startsWith('SSRF_BLOCKED')) {
-      return true;
-    }
+    // 판정은 `SsrfBlockedError` 하나뿐이다. 다른 오류가 여기로 오면 판정이 아니므로 삼키지 않는다.
+    if (err instanceof SsrfBlockedError) return true;
     throw err;
   }
 }

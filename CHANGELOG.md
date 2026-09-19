@@ -1,5 +1,24 @@
 # Changelog
 
+## Unreleased — HTTP · DB 노드가 IPv4-mapped IPv6 로 루프백 · 메타데이터에 닿았고, Send Email 은 CGNAT 를 막지 않았다
+
+통합 노드의 SSRF 가드가 둘이었다. spec 은 HTTP Request · Database Query · Send Email 이 **같은 가드**라 적는데, HTTP · DB 는
+`http-safety.ts` 를, Send Email 은 LLM 프로바이더용 `ssrf.util.ts` 를 썼고 각자 한쪽이 비어 있었다.
+
+- HTTP Request(모든 인증 방식 · 리다이렉트 홉) · Database Query · 두 통합의 연결 테스트가 **IPv4-mapped IPv6** 표기를 통과시켰다 —
+  `http://[::ffff:127.0.0.1]/` · `[::ffff:169.254.169.254]`(클라우드 메타데이터) · DB host `::ffff:10.0.0.1`. 이 표기는 IPv4 대상에 그대로
+  닿는다(127.0.0.1 에만 바인드한 서버에 200 — macOS · `node:24-alpine` 실측).
+- Send Email(연결 테스트 · 발송)이 CGNAT `100.64.0.0/10` 과 `::` 를 통과시켰다.
+
+**고친 것** (spec 통합 관리 §5.5 · HTTP Request §4 · Database Query §4 · Send Email §4 — 문장은 이미 맞았고 코드가 어긋나 있었다):
+- 세 노드가 한 가드를 쓴다. IPv4-mapped IPv6 는 품은 IPv4 의 대역으로 판정한다(표기 — 점 형 · 전체 형 · 대문자 — 를 가리지 않는다).
+  IPv4 를 품는 다른 표기(IPv4-compatible · SIIT · NAT64 · 6to4)는 같은 실측에서 닿지 않아 막지 않는다.
+- 차단 응답 · 코드(`HTTP_BLOCKED` · `DB_HOST_BLOCKED` · `EMAIL_HOST_BLOCKED`)와 문구는 그대로다.
+
+**배포 뒤 보일 수 있는 것**: CGNAT 주소의 SMTP 서버, 또는 IPv4-mapped 표기로 사설 · 루프백 대상을 적어 둔 통합은 이제 막힌다. 사설망
+대상이 정상인 self-host 설치는 지금처럼 `ALLOW_PRIVATE_HOST_TARGETS=true` 로 끈다(외부 egress 방화벽이 있을 때만). LLM 프로바이더 ·
+S3 의 가드(`ssrf.util.ts`)는 바뀌지 않았다 — CGNAT 를 막을지는 제품 판단이라 따로 정한다.
+
 ## Unreleased — 지우거나 바꾼 웹훅 경로를 다른 워크스페이스가 다시 등록할 수 있었다
 
 `(endpoint_path)` 전역 UNIQUE(V132)는 **동시에 존재하는** 중복만 막았다. 주인이 트리거를 지우거나 경로를 바꾸면 옛 경로가
