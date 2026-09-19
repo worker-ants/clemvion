@@ -17,6 +17,38 @@ const logger = new Logger('DatabaseConnectionTester');
 /** Database 연결 테스트의 연결 · 쿼리 대기 상한(ms) — spec/2-navigation/4-integration.md §5.4. */
 export const DB_TEST_TIMEOUT_MS = 10_000;
 
+/**
+ * 연결을 닫는 데 기다리는 상한(ms). 결과는 이미 정해졌으므로 짧다 — 넘기면 소켓을 파괴한다({@link closeWithin}).
+ */
+export const DB_TEST_CLOSE_GRACE_MS = 1_000;
+
+/** 두 드라이버 모두 `connection.stream` 에 소켓을 둔다(pg `Client` · mysql2 promise `Connection`). */
+type HasSocket = { connection?: { stream?: { destroy?: () => void } } };
+
+/**
+ * 연결을 닫되 기다림에 상한을 둔다. graceful close 는 서버의 응답에 기댄다 — mysql2 는 타임아웃된 쿼리가 커맨드 큐에
+ * 남아 있으면 Quit 을 그 **뒤에** 세우고, pg 는 Terminate 를 보낸 뒤 서버가 소켓을 닫아야 끝난다. 응답하지 않는(또는
+ * 일부러 무시하는) 서버면 영원히 끝나지 않아, 이 테스트를 감싼 연결 테스트 동시 상한 슬롯을 놓지 않는다. 상한을 넘기면
+ * 소켓을 파괴한다. 결과를 바꾸지 않고 던지지 않는다.
+ */
+async function closeWithin(
+  graceful: () => Promise<unknown>,
+  handle: HasSocket,
+): Promise<void> {
+  let timer: NodeJS.Timeout | undefined;
+  const closed = await Promise.race([
+    graceful().then(
+      () => true,
+      () => true,
+    ),
+    new Promise<boolean>((resolve) => {
+      timer = setTimeout(() => resolve(false), DB_TEST_CLOSE_GRACE_MS);
+    }),
+  ]);
+  clearTimeout(timer);
+  if (!closed) handle.connection?.stream?.destroy?.();
+}
+
 /** PostgreSQL SQLSTATE class 28 — invalid authorization specification(`28000`) · invalid password(`28P01`). */
 const PG_AUTH_SQLSTATE = /^28[0-9A-Z]{3}$/;
 
@@ -45,7 +77,7 @@ async function probePostgres(creds: DbCredentials): Promise<void> {
     await client.query('SELECT 1');
   } finally {
     // 실패한 연결도 닫는다 — 결과는 바꾸지 않는다.
-    await client.end().catch(() => {});
+    await closeWithin(() => client.end(), client);
   }
 }
 
@@ -63,7 +95,10 @@ async function probeMysql(creds: DbCredentials): Promise<void> {
     });
     await connection.query({ sql: 'SELECT 1', timeout: DB_TEST_TIMEOUT_MS });
   } finally {
-    await connection?.end().catch(() => {});
+    if (connection) {
+      const opened = connection;
+      await closeWithin(() => opened.end(), opened as unknown as HasSocket);
+    }
   }
 }
 

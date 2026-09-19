@@ -120,6 +120,9 @@ const SMTP_TEST_TIMEOUT_MS = 10_000;
  * 테스트가 쥘 수 있는 스레드 수이고, 풀의 절반으로 둬 나머지를 남긴다. MCP 는 SDK 가 연결 중 요청을 겹치는지 재지
  * 않았으므로 테스트 하나가 스레드를 둘 이상 쥘 수 있다(그래도 테스트 수에 비례해 묶인다). 타임아웃을 거는 것으로는
  * 안 된다 — 응답만 끊을 뿐 스레드는 lookup 이 끝날 때까지 잡혀 있다.
+ *
+ * 저장된 Cafe24 · MakeShop 통합의 entity tester(`registerEntityTester`)는 이 상한 밖이다 — 호스트가 `*.cafe24api.com` ·
+ * `connect.makeshop.co.kr` 로 고정돼 있어, 사용자가 응답하지 않는 DNS 서버를 고를 수 없다.
  */
 export const CONNECTION_TEST_MAX_CONCURRENCY = 2;
 

@@ -4762,6 +4762,9 @@ field: T | null;
       `IntegrationsService.rotate()` 는 `INTEGRATION_TEST_FAILED` 를 `BadRequestException`(400)으로 던진다. `spec/2-navigation/4-integration.md §9.4`
       는 422, `spec/5-system/11-mcp-client.md` 는 400 이라 적는다. 연결 테스트가 Database · HTTP 에서 실제로 실패할 수 있게 된 지금 이 응답이
       처음으로 흔해진다 — `integration-connection-test.e2e-spec.ts` D 는 그래서 **상태 코드를 단언하지 않는다**(4xx 범위 + 코드만). 정할 것: 어느 쪽에 맞출지.
+      **같은 결정에 묶을 것** (`/ai-review` `review/code/2026/09/19/14_29_33` api_contract INFO): rotate 는 연결 테스트의 세부 `code`
+      (`DB_AUTH_FAILED` · `HTTP_AUTH_FAILED` …)를 버리고 늘 `INTEGRATION_TEST_FAILED` 만 준다 — preview-test · `:id/test` 와 세분성이
+      다르다. 세부 코드를 `details` 로 실을지 함께 정한다.
 
 - [ ] **SMTP SSRF 가드에 CGNAT 대역이 없는데 §5.5 는 막는다고 적는다** (developer→planner, 2026-09-19 등재 · 같은 draft «비대상»).
       `smtp-host-guard.ts` → `ssrf.util.ts` 는 HTTP 가드(`http-safety.ts`)와 **다른 구현**이고 `100.64.0.0/10` 이 빠져 있다.

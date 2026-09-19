@@ -5,6 +5,7 @@ import { assertSafeOutboundHostResolved } from '../../nodes/integration/http-req
 import { DB_HOST_BLOCKED_MESSAGE } from '../../nodes/integration/database-query/database-connection';
 import { MCP_ERROR_MESSAGE_MAX_LEN } from '../mcp/mcp-error-codes';
 import {
+  DB_TEST_CLOSE_GRACE_MS,
   DB_TEST_TIMEOUT_MS,
   testDatabaseConnection,
 } from './database-connection-tester';
@@ -25,15 +26,19 @@ describe('testDatabaseConnection', () => {
   const mockedCreateConnection = createConnection as unknown as jest.Mock;
   const mockedGuard = assertSafeOutboundHostResolved as unknown as jest.Mock;
 
+  // 드라이버 내부 소켓(`connection.stream`) — 닫기가 끝나지 않을 때 파괴하는 자리.
   const pg = {
     connect: jest.fn(),
     query: jest.fn(),
     end: jest.fn(),
+    connection: { stream: { destroy: jest.fn() } },
   };
   const mysql = {
     query: jest.fn(),
     end: jest.fn(),
+    connection: { stream: { destroy: jest.fn() } },
   };
+  const never = () => new Promise<never>(() => {});
 
   const pgCreds = {
     driver: 'postgres',
@@ -83,6 +88,26 @@ describe('testDatabaseConnection', () => {
       expect(DB_TEST_TIMEOUT_MS).toBe(10_000);
       expect(pg.query).toHaveBeenCalledWith('SELECT 1');
       expect(pg.end).toHaveBeenCalledTimes(1);
+      // 제때 닫히면 소켓을 파괴하지 않는다.
+      expect(pg.connection.stream.destroy).not.toHaveBeenCalled();
+    });
+
+    it('SELECT 1 에 답하고 종료는 무시하는 서버 — 닫기를 상한까지만 기다리고 소켓을 파괴한 뒤 결과를 돌려준다', async () => {
+      jest.useFakeTimers();
+      try {
+        pg.end.mockImplementation(never);
+
+        const pending = testDatabaseConnection(pgCreds);
+        await jest.advanceTimersByTimeAsync(DB_TEST_CLOSE_GRACE_MS);
+
+        await expect(pending).resolves.toEqual({
+          success: true,
+          message: 'Connection successful',
+        });
+        expect(pg.connection.stream.destroy).toHaveBeenCalledTimes(1);
+      } finally {
+        jest.useRealTimers();
+      }
     });
 
     it('driver 가 비어 있으면 노드처럼 postgres 로 연결한다', async () => {
@@ -213,7 +238,30 @@ describe('testDatabaseConnection', () => {
         timeout: DB_TEST_TIMEOUT_MS,
       });
       expect(mysql.end).toHaveBeenCalledTimes(1);
+      expect(mysql.connection.stream.destroy).not.toHaveBeenCalled();
       expect(MockedClient).not.toHaveBeenCalled();
+    });
+
+    it('쿼리 타임아웃 뒤 end() 가 끝나지 않아도(타임아웃된 쿼리 뒤에 Quit 이 줄 선다) 상한 뒤 소켓을 파괴하고 결과를 돌려준다', async () => {
+      jest.useFakeTimers();
+      try {
+        mysql.query.mockRejectedValue(
+          driverError('PROTOCOL_SEQUENCE_TIMEOUT', 'Query inactivity timeout'),
+        );
+        mysql.end.mockImplementation(never);
+
+        const pending = testDatabaseConnection(mysqlCreds);
+        await jest.advanceTimersByTimeAsync(DB_TEST_CLOSE_GRACE_MS);
+
+        await expect(pending).resolves.toEqual({
+          success: false,
+          code: 'DB_CONNECT_FAILED',
+          message: 'Query inactivity timeout',
+        });
+        expect(mysql.connection.stream.destroy).toHaveBeenCalledTimes(1);
+      } finally {
+        jest.useRealTimers();
+      }
     });
 
     it.each([

@@ -436,14 +436,15 @@ export class IntegrationsController {
   @ApiOperation({
     summary: '자격 증명 교체(rotate)',
     description:
-      '저장된 자격 증명을 새 값으로 교체합니다. 관리자 권한이 필요할 수 있습니다.',
+      '저장된 자격 증명을 새 값으로 교체합니다. 새 값으로 연결 테스트를 먼저 실행해 통과해야 저장합니다 — MCP · Email · Database · HTTP 는 실제로 접속합니다. 관리자 권한이 필요할 수 있습니다.',
   })
   @ApiParam({ name: 'id', description: '통합 UUID', format: 'uuid' })
   @ApiOkWrappedResponse(IntegrationDto, {
     description: '교체 후 통합 정보 (마스킹된 자격 증명)',
   })
   @ApiBadRequestResponse({
-    description: '입력값 검증 실패 또는 자격 증명 유효성 오류',
+    description:
+      '입력값 검증 실패 또는 자격 증명 유효성 오류, 새 값의 연결 테스트 실패(`INTEGRATION_TEST_FAILED`)',
   })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
   @ApiForbiddenResponse({ description: '교체 권한 부족' })
