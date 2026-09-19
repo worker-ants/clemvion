@@ -1,8 +1,9 @@
 import { describe, it, expect, beforeAll, afterAll } from '@jest/globals';
 import { Client } from 'pg';
 import { DataSource } from 'typeorm';
-import type { DataSourceOptions } from 'typeorm';
 import type { EntityMetadata } from 'typeorm';
+// 아래 두 타입은 typeorm 루트(`index.d.ts`)에서 export 되지 않아 서브패스로 가져온다.
+import type { PostgresConnectionOptions } from 'typeorm/driver/postgres/PostgresConnectionOptions';
 import type { SqlInMemory } from 'typeorm/driver/SqlInMemory';
 
 import { ROOT_ENTITIES } from '../src/database/root-entities';
@@ -180,7 +181,7 @@ function reportMatch(
   }
 }
 
-function dataSourceOptions(): DataSourceOptions {
+function dataSourceOptions(): PostgresConnectionOptions {
   return {
     type: 'postgres',
     host: process.env.DB_HOST ?? 'postgres',
@@ -194,7 +195,7 @@ function dataSourceOptions(): DataSourceOptions {
   };
 }
 
-describe('엔티티 스키마 선언 ↔ 실제 DB (선언이 있으면 DB 에도 그대로 있다)', () => {
+describe('엔티티 스키마 선언 ↔ 실제 DB (인덱스 · 제약은 선언 → DB, 컬럼 정의는 양방향)', () => {
   let db: Client;
   let ds: DataSource;
   let probeSeq = 0;
@@ -543,14 +544,17 @@ describe('엔티티 스키마 선언 ↔ 실제 DB (선언이 있으면 DB 에�
     const before = await catalog();
     const readOnly = new DataSource({
       ...dataSourceOptions(),
+      // 초기화가 `CREATE EXTENSION IF NOT EXISTS "uuid-ossp"` 를 시도하지 않게 — 읽기 전용 세션이 거부하고 TypeORM 이
+      // 그 실패를 조용히 삼키던 쓰기 시도다(Postgres 로그로 확인). 확장은 마이그레이션이 이미 설치했다.
+      installExtensions: false,
       extra: { options: '-c default_transaction_read_only=on' },
-    } as DataSourceOptions);
-    await readOnly.initialize();
+    });
     let log: SqlInMemory;
     try {
+      await readOnly.initialize();
       log = await readOnly.driver.createSchemaBuilder().log();
     } finally {
-      await readOnly.destroy();
+      if (readOnly.isInitialized) await readOnly.destroy();
     }
     expect(await catalog()).toEqual(before);
     const columnLevel = log.upQueries

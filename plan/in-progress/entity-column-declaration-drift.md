@@ -82,8 +82,11 @@ R1 · R2 는 «패턴이 하중을 받는가» 를 가르는 쌍이다 — R1 �
 
 **리뷰 2라운드 뒤 보강** (`review/code/2026/09/19/17_25_09` testing WARNING 1 — 카탈로그 비교는 **탐지**뿐 **예방**이 아니다): `log()` 는
 자기 커넥션을 써서 트랜잭션으로 감쌀 수 없다. 비교기 전용 `DataSource` 를 **읽기 전용 세션**(`extra.options: -c default_transaction_read_only=on`)
-으로 연다 — 전제가 깨져 DDL 을 실행하려 하면 Postgres 가 거부한다. 카탈로그 비교는 두 번째 방어로 남긴다. 읽기 전용 세션에서도 6건 GREEN
-(= `initialize()` · `log()` 가 쓰기를 하지 않는다는 실측).
+으로 연다 — 전제가 깨져 DDL 을 실행하려 하면 Postgres 가 거부한다. 카탈로그 비교는 두 번째 방어로 남긴다. 읽기 전용 세션에서도 6건 GREEN.
+~~(= `initialize()` · `log()` 가 쓰기를 하지 않는다는 실측)~~ — **틀렸다**(3라운드 `review/code/2026/09/19/17_45_35` side_effect WARNING 1):
+GREEN 은 «쓰기가 없다» 가 아니라 «쓰기가 실패해도 조용하다» 였다. `initialize()` 가 `CREATE EXTENSION IF NOT EXISTS "uuid-ossp"` 를
+시도하고 읽기 전용 세션이 거부하며, TypeORM 이 그 실패를 삼킨다 — 일회용 DB 의 Postgres 로그에 `ERROR: cannot execute CREATE EXTENSION
+in a read-only transaction` 1건으로 확인. `installExtensions: false` 를 준 뒤 같은 DB 에 6건을 다시 돌려 거부 로그가 **0건 늘었다**.
 
 | 뮤턴트 | 예측 | 실측 |
 |---|---|---|
