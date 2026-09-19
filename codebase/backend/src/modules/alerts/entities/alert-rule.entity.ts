@@ -16,7 +16,7 @@ export class AlertRule {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
-  @Column({ name: 'workspace_id' })
+  @Column({ name: 'workspace_id', type: 'uuid' })
   workspaceId: string;
 
   /** null이면 워크스페이스 전체에 적용 */

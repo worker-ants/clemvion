@@ -43,7 +43,7 @@ export class ModelConfig {
   @JoinColumn({ name: 'workspace_id' })
   workspace: Workspace;
 
-  @Column({ length: 20 })
+  @Column({ length: 20, default: 'chat' })
   kind: ModelConfigKind;
 
   @Column({ length: 50 })
