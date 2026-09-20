@@ -1,9 +1,10 @@
 ---
 title: 트리거 동시 DELETE 도 감사 행을 두 번 남긴다 — 락 안에서 행이 아직 있는지 본다
-status: in-progress
+status: complete
 owner: developer
 worktree: trigger-dup-delete-3f7a92
 started: 2026-09-20
+completed: 2026-09-20
 spec_impact: none
 ---
 
@@ -107,6 +108,9 @@ COMMIT;  -- 1.5초 안에 (삭제 경로의 lock_timeout 이 5초다)
     `update()` 에도 있어 **440줄이 통째로** 지워졌고 116건이 실패했다. 그 숫자를 «판별력» 으로 읽었으면
     거짓 확신이 됐다 — 고유 주석을 앵커로 다시 만들어 **180자만** 지운 유효 뮤턴트로 재측정했다
 - [x] TEST WORKFLOW — lint PASS · unit PASS · build PASS · **e2e 370 PASS**
-- [ ] `/ai-review` → 수렴
-- [ ] `/consistency-check --impl-done spec/2-navigation` → BLOCK: NO
-- [ ] 트래커 항목 해소 + 이 plan `plan/complete/` 로
+- [x] `/ai-review` 3라운드 — `22_07_23`(Critical 0 · Warning 5 → 5/5) · `22_39_21`(Critical 0 · Warning 2 → 2/2) ·
+  `23_04_17`(**Critical 0 · Warning 0**). 완전 수렴. 2라운드가 인가에 닿는 공백을 잡았다 — 락 안 재조회의
+  `workspaceId` 스코프를 아무도 단언하지 않아, 그 조건을 뺀 뮤턴트가 164건 GREEN 을 통과했다
+- [x] `/consistency-check --impl-done spec/2-navigation` — `review/consistency/2026/09/20/23_14_36` **BLOCK: NO**
+  (Critical 0 · Warning 0 · INFO 5). INFO 는 전부 spec 문서 보강 제안이거나 이미 등재된 잔여다
+- [x] 트래커 항목 해소 + planner (b) «caveat 불요» 처분 + 이 plan `plan/complete/` 로
