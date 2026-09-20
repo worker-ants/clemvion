@@ -48,9 +48,12 @@ spec_impact: none
 
 ## 체크리스트
 
-- [ ] `--impl-prep spec/2-navigation/`
-- [ ] 테스트 선작성 · 뮤턴트로 판별력
-- [ ] TEST WORKFLOW (lint · unit · build · e2e)
+- [x] `--impl-prep spec/2-navigation/` — `review/consistency/2026/09/20/14_01_01` BLOCK: NO (Critical · Warning 0).
+  INFO 둘은 이 작업 밖 — `1-workflow-list.md` frontmatter `pending_plans` 에 완료된 항목 잔존(이미 planner 트래커 항목) ·
+  번들 예산으로 `spec/2-navigation/` 19개 중 3개만 본문 확인
+- [x] 테스트 선작성 · 뮤턴트로 판별력 — `75d6b5db3`. 뮤턴트 셋 전부 RED: 재계산 블록 삭제(3건) · 조건에서 timezone 항
+  제거(timezone 테스트 1건만) · 갱신 **전** cron 으로 계산(인자 단언 2건). 각 표면이 하나씩 갈린다
+- [x] TEST WORKFLOW (lint · unit · build · e2e 366)
 - [ ] `/ai-review` 수렴
 - [ ] `--impl-done`
 - [ ] 트래커 해소 · 이 plan `plan/complete/` 로
