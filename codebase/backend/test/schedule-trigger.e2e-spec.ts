@@ -281,12 +281,14 @@ describe('Schedule trigger (e2e)', () => {
   });
 
   /**
-   * 생성 cron 은 **분 단위 cron 과 겹칠 수 없는** 값이어야 한다. 종전에는 `0 10 * * *`(Asia/Seoul)로 만들고 분 단위 cron 으로
-   * PATCH 했는데, 09:59 KST 에는 두 cron 의 다음 실행이 똑같이 `10:00 KST`(`01:00:00Z`)라 재계산이 정상인데도 «안 바뀌었다» 로
-   * 읽혔다(실측: `plan/complete/ssrf-catch-instanceof.md` 의 e2e 첫 실행). 연 1회 cron 은 분 단위 cron 과 같은 시각을 가리킬 수 없다.
+   * 「달라졌다」로 재계산을 판정하지 않는다 — 그것은 **대리 지표**이고, 두 cron 의 다음 실행이 같아지는 순간 무너진다.
+   * 종전에는 `0 10 * * *`(Asia/Seoul)로 만들고 분 단위 cron 으로 PATCH 한 뒤 값이 달라졌는지만 봤는데, 09:59 KST 에는 둘 다
+   * `10:00 KST`(`01:00:00Z`)라 재계산이 정상인데도 «안 바뀌었다» 로 읽혔다 — 하루 1분씩 거짓 실패했다(실측:
+   * `plan/in-progress/spec-draft-nullable-notation-followups.md` 의 해당 항목 · `review/code/2026/09/20/09_35_16/RESOLUTION.md`).
    *
-   * 「달라졌다」는 재계산의 **대리 지표**다. 그래서 «새 cron 이 만드는 값인가»(1분 안)를 함께 본다 — 대리 지표가 무너져도
-   * 이쪽이 남는다.
+   * 그래서 보는 것은 «PATCH 뒤 값이 **새 cron** 이 만드는 값인가» 다 — 분 단위 cron 의 다음 실행은 늘 요청 직후 1분 안이다.
+   * 생성 cron 은 연 1회(`0 0 1 1 *`)라 그 창 밖이다. 겹치는 순간(12/31 23:59 KST 의 1분)에도 이 단언은 참이라 흔들리지 않는다 —
+   * 「달라졌다」를 함께 걸면 바로 그 1분에 다시 거짓 실패하므로 걸지 않는다.
    */
   it('D. PATCH cron → nextRunAt 재계산', async () => {
     const create = await request(BASE_URL)
@@ -295,7 +297,7 @@ describe('Schedule trigger (e2e)', () => {
       .send({
         workflowId,
         name: uniqueName('sched-d'),
-        cronExpression: '0 0 1 1 *', // 매년 1월 1일 — 분 단위 cron 과 겹칠 수 없다
+        cronExpression: '0 0 1 1 *', // 매년 1월 1일 — 분 단위 cron 이 만드는 «1분 안» 창 밖이다
         timezone: 'Asia/Seoul',
       });
     const scheduleId = create.body.data.id;
@@ -308,11 +310,17 @@ describe('Schedule trigger (e2e)', () => {
       .send({ cronExpression: '*/1 * * * *' });
     expect(patch.status).toBe(200);
     expect(patch.body.data.nextRunAt).toBeDefined();
-    expect(patch.body.data.nextRunAt).not.toBe(originalNext);
-    // `*/1 * * * *` 의 다음 실행은 늘 다음 분 경계 — 요청 시각부터 60초 안이다(경계·시계 오차로 5초 여유).
+    // 분 단위 cron 의 다음 실행은 늘 다음 분 경계 — 요청 시각부터 60초 안이다. 여유 30초는 e2e 부하(요청 · DB · 트리거 재등록)
+    // 몫이고, 판별 대상인 생성 cron 값은 몇 달 뒤라 여유를 넓혀도 갈린다. 초 자리가 0인지도 본다 — 분 경계가 아닌 값이 오면
+    // 그것은 분 단위 cron 이 만든 값이 아니다.
     const nextRunMs = new Date(patch.body.data.nextRunAt as string).getTime();
-    expect(nextRunMs).toBeGreaterThan(patchedAt - 5_000);
-    expect(nextRunMs).toBeLessThanOrEqual(patchedAt + 65_000);
+    expect(nextRunMs).toBeGreaterThan(patchedAt - 30_000);
+    expect(nextRunMs).toBeLessThanOrEqual(patchedAt + 90_000);
+    expect(new Date(nextRunMs).getUTCSeconds()).toBe(0);
+    // `originalNext`(연 1회 cron 의 값)는 그 창 밖이다 — 이 대조로 «PATCH 가 옛 값을 그대로 두었다» 를 가른다.
+    expect(new Date(originalNext as string).getTime()).toBeGreaterThan(
+      patchedAt + 90_000,
+    );
     // PATCH 도 `toResponse` 를 타지만 `update()` 의 trigger 대입 로직이 `findOne` 과
     // 달라(`trigger ?? schedule.trigger`) 공유 헬퍼만으로 안전이 자동 보장되지 않는다
     // (`review/code/2026/09/05/19_08_18` W5).
