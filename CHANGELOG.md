@@ -1,5 +1,41 @@
 # Changelog
 
+## Unreleased — 동시 DELETE 두 건이 `schedule.deleted` 감사 행을 두 번 남기던 것
+
+`SchedulesService.remove()` 는 잠금 없는 `findById` 로 존재를 확인한 뒤, `triggerId` 가 있으면
+트랜잭션 안에서 `acquireTriggerConfigLock` + `m.delete(Trigger, triggerId)` 로 연결된 트리거를
+잠그고 지웠다. 락은 두 요청을 줄 세우기만 할 뿐, 진 쪽이 그 삭제의 반환값을 보지 않고 그대로
+`scheduleRepository.remove(schedule)` · `recordAudit` 까지 진행했다 — 형제 세 경로(워크플로·
+워크스페이스 #1369, 트리거 #1370)와 같은 결함 클래스가 네 번째 자리에 남아 있었다.
+
+**판별자가 형제 셋과 다른 이유**: `schedule.trigger_id → trigger` 는 `onDelete: 'CASCADE'` 라
+트리거를 지우면 스케줄 행도 DB 가 함께 지운다. 그래서 형제들처럼 «내 자신의 행을 몇 행
+지웠나» 로 판정하면 **이긴 쪽도 스케줄 행 0건**이라 둘 다 404 가 되어 버린다. 유일한 판별자는
+락이 보호하는 그 쓰기, 즉 **트리거 삭제의 `affected`** 다.
+
+**고친 것** (트리거 목록 §4.4 의 «두 번째 요청은 404» 를 스케줄 축으로 — `spec_impact: none`,
+기존 정책에 맞추는 것):
+- 락 안 `m.delete(Trigger, triggerId)` 의 `affected` 를 판별자로 삼는다 — 0 이면 트랜잭션을
+  롤백하며 404(`RESOURCE_NOT_FOUND`)로 끝나고, 그 뒤의 비밀 정리·`scheduleRepository.remove`·
+  감사는 모두 건너뛴다.
+- `.catch` 에서 `NotFoundException` 을 분리했다 — 동시 삭제로 트리거가 이미 사라진 것은 먼저
+  커밋한 요청이 행도 BullMQ job 도 이미 정리한 것이라, 그 경우까지 «반쯤 삭제된 상태 — 수동
+  정리가 필요하다» 로 로그를 남기면 거짓 경보가 된다(형제 세 경로와 같은 처리).
+- `triggerId` 가 없는 방어 분기(엔티티상 NOT NULL 이라 현재 도달 불가)는 CASCADE 가 개입하지
+  않으므로 스케줄 행 자체의 `affected` 로 판정한다 — 위 트리거 경로와 판정 대상이 다르다.
+
+**판별력 실측**: 고치기 전 e2e 로 재현하니 동시 DELETE 두 건이 **둘 다 204** 였고, DB 를 직접
+조회해 `schedule.deleted` 감사 행이 **한 `resource_id` 에 2건** 임을 확인했다(고친 코드는
+`[204, 404]` · 감사 1건). 유효 뮤턴트(184자, 고유 앵커로 확인 — 흔한 문자열로 잘라 440줄이
+지워지던 형제 PR 의 실패를 되풀이하지 않았다)가 새 테스트 하나만 죽인다. 기존 테스트 셋은
+`triggerRepository.delete` 가 `affected` 를 돌려주는 새 계약에 맞춰 fixture 를 고쳤다.
+
+**남는 것**: 이 결함 클래스의 다섯 번째이자 마지막 자리는 `IntegrationsService.remove()` 다 —
+락이 아예 없어(advisory lock 도 행 락도 없다) 처방이 다르다(원자적 `delete` 의 `affected` 를
+판정자로 락 없이 닫는 형태). `plan/in-progress/spec-draft-nullable-notation-followups.md` 에
+등재돼 있다. BullMQ `removeJob`(락 밖, 되돌릴 수 없음) 중복 호출도 이 PR 이 닫지 않는다 —
+형제 PR 들과 같은 잔여다.
+
 ## Unreleased — 동시 DELETE 두 건이 `trigger.deleted` 감사 행을 두 번 남기던 것
 
 `TriggersService.remove()` 는 잠금 없는 `findById` 로 존재를 확인한 뒤, advisory lock
