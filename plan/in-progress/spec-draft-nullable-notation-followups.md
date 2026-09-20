@@ -4952,6 +4952,13 @@ field: T | null;
       handler 통합 경로를 보는 spec 이 0건). 홉에서 비판정 오류를 주입해 최종 `error.code` 와 마스킹을 함께 단언하는
       테스트 1건이 둘 다 덮는다. **오늘 도달 불가**다 — 가드가 낼 수 있는 비판정 오류는 `TypeError` 하나뿐이고
       `validateCredentials` 가 그 입력을 API 에서 막는다(같은 plan 의 실측).
+      **2026-09-20 보강** (`--spec` `review/consistency/2026/09/20/16_12_45` cross_spec WARNING 1). 방향 (2)를 먼저
+      집행해 두 코드를 spec 에 **있는 그대로** 적었다(`plan/complete/spec-draft-integration-error-facts.md`) — 통일 여부는
+      여전히 이 항목이 정한다. 그때 **챗 채널 파급을 함께 본다**: `HTTP_TRANSPORT_FAILED` 는
+      `spec/conventions/chat-channel-adapter.md` §3.1 에서 `executionFailedThirdParty` 로 매핑되고, 그 문구는
+      `spec/5-system/15-chat-channel.md` 의 «외부 서비스 응답을 받지 못했습니다» 다 — 즉 홉의 가드 고장이 그 코드로
+      합류하는 동안 **내부 가드의 고장이 외부 서비스 탓으로 사용자에게 전달된다**. 통일(방향 1)은 이 오분류도 같이 닫는다.
+      §6 카탈로그 두 행의 문구 보강은 위 spec PR 에서 이미 했다(그 PR 의 `--spec` 3차 INFO 6 지적을 그 자리에서 반영).
 
 - [ ] **가드 «고장» 메시지에는 host/IP 마스킹이 없다 — 판정 분기와 비대칭** (developer, 낮음, 2026-09-20 등재 ·
       `/ai-review` `review/code/2026/09/20/10_09_56` WARNING 1 · INFO 11). 차단 **판정**은 host/IP 를 뺀 고정 문구로
@@ -4972,13 +4979,28 @@ field: T | null;
       값인가»(요청 시각부터 1분 안 · 분 경계)로 옮겼다. **옛 값과의 비교는 형태를 막론하고 뺐다** — 네 라운드가 같은 결함
       클래스를 세 번 좁혔고(하루 1분 → 연 1분 → 연 90초), 남은 것은 방향이 반대인 좁은 창뿐이라 위 단위 테스트 항목에 합쳤다.
 
-- [ ] **`1-http-request.md` frontmatter `code:` 에 `http-redirect.ts` · 세 에러 표에 «가드의 고장» 트리거** (planner, 낮음,
+- [x] **`1-http-request.md` frontmatter `code:` 에 `http-redirect.ts` · 세 에러 표에 «가드의 고장» 트리거** (planner, 낮음,
       2026-09-20 등재 · `--impl-prep` `review/consistency/2026/09/20/09_06_34` convention WARNING 2 · cross_spec INFO 1 ·
       `/ai-review` `review/code/2026/09/20/09_35_16` WARNING 5 · INFO 6). (1) §4 step 9(리다이렉트 5홉 + 홉마다 SSRF 재검증)를
       구현하는 `codebase/backend/src/nodes/integration/http-request/http-redirect.ts` 가 `code:` 넷에 없다 — 증거 목록 누락이라
       developer 의 자기-반증형 소정정에 해당하지 않는다. (2) `0-common.md` §4.2 · `1-http-request.md` §4.2 · `2-database-query.md` §6.2
       의 에러 코드 표에 «SSRF 가드가 판정 아닌 오류를 던진 경우 → `INTEGRATION_CALL_FAILED`» 를 한 줄씩 — 구현은
       `plan/complete/ssrf-catch-instanceof.md` 가 넣었고 표만 비어 있다.
+      **2026-09-20 해소** `plan/complete/spec-draft-integration-error-facts.md`. (1) `code:` 에는 `http-redirect.ts` 와 함께
+      **`http-credentials.ts`** 도 넣었다 — 고치려고 디렉터리를 실측하다 드러난 같은 형태의 누락이다(`--spec` 2차 W1).
+      (2) 표는 **시점을 구분해서** 적었다: preflight 는 `INTEGRATION_CALL_FAILED`, 리다이렉트 홉은 `HTTP_TRANSPORT_FAILED`.
+      한 코드로 뭉뚱그리려던 첫 안은 `--spec` 1차(`review/consistency/2026/09/20/15_43_51`)가 «열린 결정 선취» 로 CRITICAL
+      판정했다. §6 카탈로그의 `HTTP_TRANSPORT_FAILED` · `INTEGRATION_*` 두 행에도 트리거를 함께 적었다.
+
+- [ ] **`5-system/3-error-handling.md` §1.4 공용 카탈로그의 HTTP/DB 행에 `INTEGRATION_*` 계열이 없다** (planner, 낮음,
+      2026-09-20 등재 · `--spec` `review/consistency/2026/09/20/16_12_45` cross_spec INFO 2). 방금 네 문서에 채운 «가드의
+      고장 → `INTEGRATION_CALL_FAILED`» 상세가 이 다섯 번째 문서에는 없다. 망라 카탈로그가 아니라 직접 모순은 아니지만,
+      다음 사람이 그 표만 보면 통합 노드의 `INTEGRATION_*` 를 못 본다.
+
+- [ ] **MakeShop 은 연결 테스트와 노드 런타임이 같은 코드(`MAKESHOP_AUTH_FAILED`)를 쓴다 — «연결 테스트 코드는 별도
+      namespace» 관례의 유일한 비-호스트차단 예외** (planner, 낮음, 2026-09-20 등재 · 같은 세션 cross_spec INFO 1).
+      `2-navigation/4-integration.md` Rationale «코드 이름» 은 다섯을 «연결 테스트 전용» 으로 열거하는데, MakeShop 은
+      인증 실패에서 그 분리를 하지 않는다. 관례의 예외로 적을지, MakeShop 쪽을 분리할지 정한다(후자는 코드 변경).
 
 - [ ] **spec 네 곳의 기존 drift — `--impl-prep` `review/consistency/2026/09/19/21_02_09` WARNING 1~4** (planner, 낮음, 2026-09-19 등재).
       SSRF 가드 통합 착수 전 검토가 scope(`spec/4-nodes/4-integration/`) 주변에서 찾은, 그 변경과 무관한 기존 어긋남:
@@ -4990,13 +5012,19 @@ field: T | null;
       Principle 3.3 · D4 는 `error` 포트를 의무화한다(+ 3.3 열거에 `makeshop` 누락 — INFO 6). 같은 검토의 INFO: DNS 해석 실패 fail-open 이
       어느 spec Rationale 에도 명문화돼 있지 않다 · LLM Client 가 세 번째 SSRF 메커니즘이라는 서술이 `1-http-request.md` §4 콜아웃에 없다.
 
-- [ ] **`4-integration.md` §5.3 · §14.1 이 HTTP 연결 테스트의 `INTEGRATION_INCOMPLETE` · `INTEGRATION_AUTH_UNSUPPORTED` 를 적지 않는다**
+- [x] **`4-integration.md` §5.3 · §14.1 이 HTTP 연결 테스트의 `INTEGRATION_INCOMPLETE` · `INTEGRATION_AUTH_UNSUPPORTED` 를 적지 않는다**
       (planner, 낮음, 2026-09-20 등재 · `--impl-prep` `review/consistency/2026/09/19/23_02_33` cross_spec WARNING 1). HTTP 테스터는 자격증명을
       붙이기 전 `resolveHttpCredentials`(노드와 공유)에서 이 둘로 실패할 수 있다 — 코드는 `IntegrationTestResultCode` 가 이미 담는다
       (`plan/complete/connection-test-codes-and-gaps.md`). §5.3 «결과:» 목록 끝과 §14.1 표에 한 줄씩.
       같은 턴에: §5.9 가 MakeShop 연결 테스트를 Cafe24 와 «정책 동일» 이라 적는데 MakeShop 은 403 을 `MAKESHOP_AUTH_FAILED` 로 묶는다(Cafe24 는
       `CAFE24_INSUFFICIENT_SCOPE` 로 가른다 — `5-makeshop.md` 가 의도로 적은 차이). «동일» 의 범위를 401 재시도 · 카운터 제외로 좁힌다
       (`--impl-done` `review/consistency/2026/09/20/00_07_48` cross_spec INFO 1).
+      **2026-09-20 해소** `plan/complete/spec-draft-integration-error-facts.md`. §5.3 에 두 줄(요청 전 실패 두 코드 ·
+      가드 고장 → `HTTP_CONNECT_FAILED`), §14.1 에 `INTEGRATION_AUTH_UNSUPPORTED` 행 신설 + `INTEGRATION_INCOMPLETE` 행 보강,
+      Rationale «코드 이름» 문단의 «나머지 다섯» 이 이 둘을 배제한다는 것을 한 문장으로 적었다(`--spec` 2차 W1·W3).
+      §5.9 는 **새 문장을 덧붙이지 않고 기존 «403 처리 … 동일» 문장 자체를 교체**했다 — 덧붙였으면 한 문단 안에 서로를
+      부정하는 두 문장이 남는다. 연결 테스트 경로를 따로 실측해 «상태를 격하하지 않는 것은 같고 **결과 코드만 다르다**» 로
+      범위를 좁혔다(`makeshop-api.client.ts` `pingConnection` 403 분기 vs `cafe24-api.client.ts`).
 
 - [ ] **`spec/2-navigation/` 목록 API 둘의 응답 형태 · 완료된 `pending_plans`** (planner, 낮음, 2026-09-20 등재 · `--impl-prep`
       `review/consistency/2026/09/20/00_34_58` convention WARNING 1 · 2 · plan_coherence INFO 5 — 컬럼 가드 작업과 무관한 scope 가 끌어온 기존 공백,

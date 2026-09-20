@@ -82,7 +82,7 @@ Integration 노드의 실제 외부 호출 책임은 Execution Engine의 핸들�
 | `INTEGRATION_TYPE_MISMATCH` | 참조된 Integration의 `serviceType`이 노드 기대 타입과 다름. `resolveIntegration` 이 `IntegrationError` throw |
 | `INTEGRATION_NOT_CONNECTED` | Integration 상태가 `connected`가 아님(`expired`, `error`, `pending_install`). `resolveIntegration` 이 `IntegrationError` throw |
 | `INTEGRATION_INCOMPLETE` | credentials JSONB에 서비스별 필수 필드가 누락. 각 핸들러가 자격증명 검증 시 `IntegrationError` throw |
-| `INTEGRATION_CALL_FAILED` | 기타 일반 예외(분류되지 않은 실패). `IntegrationError` 가 아닌 throw 의 기본 코드 (`toLogError` fallback) |
+| `INTEGRATION_CALL_FAILED` | 기타 일반 예외(분류되지 않은 실패). `IntegrationError` 가 아닌 throw 의 기본 코드 (`toLogError` fallback). **SSRF 가드가 차단 판정(`SsrfBlockedError`)이 아닌 오류를 던진 경우**(가드 자체의 고장)도 이 코드로 surface 된다 — 차단 코드(`HTTP_BLOCKED` · `DB_HOST_BLOCKED` · `EMAIL_HOST_BLOCKED`)는 **판정에만** 쓴다. 노드별 시점 차이(HTTP 는 preflight 와 리다이렉트 홉이 다르다)는 각 노드 문서를 본다 |
 | `INTEGRATION_SERVICE_UNAVAILABLE` | `IntegrationsService` 미주입 또는 workspace context 누락(deployment 오류). 종전 throw 였으나 D4 이후 `port: 'error'` 라우팅 |
 
 > **integrationId 부재/소속 오류**: `IntegrationsService.getForExecution → requireEntity` 는 integrationId 가 존재하지 않거나 현재 워크스페이스에 속하지 않을 때 `NotFoundException({ code: 'RESOURCE_NOT_FOUND' })` 를 throw 한다. 이는 `IntegrationError` 가 아니므로 핸들러 catch 에서 전용 코드로 보존되지 않고 `INTEGRATION_CALL_FAILED` (또는 send-email 의 경우 `EMAIL_SEND_FAILED`) 로 surface 된다. 즉 별도의 `INTEGRATION_NOT_FOUND` 코드는 현재 코드에 존재하지 않는다 (`integrations.service.ts` `requireEntity`; `_base/integration-handler-base.ts` `toLogError`).

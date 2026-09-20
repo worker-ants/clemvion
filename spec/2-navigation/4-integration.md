@@ -480,7 +480,8 @@ GitHub는 2개 `auth_type`을 선택 가능.
 - 그 밖의 4xx(404 · 405 등) → `success: true` 이지만 메시지로 «서버에는 닿았지만 `base_url` 이 이 요청을 처리하지 않아 자격증명은 확인하지 못했다» 고 알린다 — `base_url` 은 대개 API 의 뿌리라 그 자체가 자원이 아니다
 - 5xx → `HTTP_SERVER_ERROR`
 - host(첫 요청 또는 리다이렉트 대상)가 SSRF 가드에 차단되거나 리다이렉트가 5홉을 넘음 → `HTTP_BLOCKED`
-- 네트워크 · 타임아웃 · TLS → `HTTP_CONNECT_FAILED`
+- 네트워크 · 타임아웃 · TLS → `HTTP_CONNECT_FAILED`. **SSRF 가드 자체가 차단 판정이 아닌 오류를 낸 경우(가드의 고장)도 같은 코드다** — `HTTP_BLOCKED` 는 차단 **판정** 에만 쓴다(노드 쪽 구분은 [HTTP Request §4 step 8](../4-nodes/4-integration/1-http-request.md#4-실행-로직))
+- 자격증명을 붙이기 **전** 실패(필수 필드 누락 · 지원하지 않는 `auth_type`) → `INTEGRATION_INCOMPLETE` · `INTEGRATION_AUTH_UNSUPPORTED` — 요청을 보내지 않는다. 노드와 같은 `resolveHttpCredentials` 를 쓰므로 같은 자격증명으로 노드가 낼 코드와 같다(§14.1)
 
 `base_url` 이 비어 있으면(노드가 URL 전체를 적는 통합) 호출하지 않고 `success: true` 에 «`base_url` 이 없어 연결을 확인하지 않았다» 는 메시지를 돌려준다. **한계**: 자격증명 거부를 알 수 있는 것은 `base_url` 이 401 · 403 을 돌려줄 때뿐이다.
 
@@ -693,7 +694,7 @@ UI 는 카테고리 단위 체크박스(R / W 두 컬럼) + "고급" 토글 아�
 
 > **별도 승인(restricted) scope 없음** — cafe24 의 ⚠ 파트너 별도승인 티어는 makeshop 에 적용되지 않는다 (앱 심사 시 일괄 검토만, [MakeShop 노드 §9.5](../4-nodes/4-integration/5-makeshop.md#95-별도-승인restricted-scope-미도입)). 정확한 scope 토큰 문자열·그룹은 코드에 `VERIFY` 마킹 — production 전 makeshop OAuth 문서로 확정.
 
-**테스트 방법**: 저장된 `access_token` 으로 `GET https://connect.makeshop.co.kr/api/v1/{shop_uid}/information` 핑. 401 자동 회복·403 처리·transport 카운터 제외는 §5.8 정책 동일.
+**테스트 방법**: 저장된 `access_token` 으로 `GET https://connect.makeshop.co.kr/api/v1/{shop_uid}/information` 핑. 401 자동 회복·transport 카운터 제외는 §5.8 정책 동일. **403 은 결과 코드가 다르다** — 상태를 격하하지 않는 것은 같지만, Cafe24 가 `CAFE24_INSUFFICIENT_SCOPE` 로 가르는 자리에서 MakeShop 은 `MAKESHOP_AUTH_FAILED` 로 묶는다 ([MakeShop 노드 §9.5](../4-nodes/4-integration/5-makeshop.md#95-별도-승인restricted-scope-미도입) — 별도 승인 scope 티어가 없어 403 을 scope 부족으로 세분할 근거가 없다).
 
 **Rate Limit 정책**: MakeShop 은 data-call rate limit 을 공개 문서화하지 않았다 (토큰 발급만 client_credentials 한정 5회/분). `MakeshopApiClient` wrapper 가 429 응답의 `Retry-After` best-effort backoff 로 최대 2회 재시도 ([MakeShop 노드 §9.7](../4-nodes/4-integration/5-makeshop.md#97-미확인-항목-production-전-검증-필요)).
 
@@ -1104,7 +1105,8 @@ UI 배지 (사이드바 카운트 + 목록 카드 뱃지) 와 노드 에디터 �
 | `INTEGRATION_CALL_FAILED` (별도 `INTEGRATION_NOT_FOUND` 코드 없음 — [공통 §4.2](../4-nodes/4-integration/0-common.md#42-공통-에러-코드)) | integrationId가 존재하지 않거나 타 워크스페이스 소속 (`requireEntity` `RESOURCE_NOT_FOUND` fallback) | Usage 로그 기록(failed) + `error` 포트 라우팅 (D4) |
 | `INTEGRATION_TYPE_MISMATCH` | 참조 Integration의 `service_type`이 노드 기대와 불일치 | 위와 동일 |
 | `INTEGRATION_NOT_CONNECTED` | Integration 상태가 `connected` 가 아님 (`expired`/`error`/`pending_install`) | 위와 동일 |
-| `INTEGRATION_INCOMPLETE` | credentials JSONB에 필수 필드 누락 | 위와 동일 |
+| `INTEGRATION_INCOMPLETE` | credentials JSONB에 필수 필드 누락 | 위와 동일. **HTTP 연결 테스트도 같은 코드로 돌려준다** — 요청을 보내기 전 실패 (§5.3) |
+| `INTEGRATION_AUTH_UNSUPPORTED` | HTTP 자격증명 해소에서 지원하지 않는 `auth_type` (`resolveHttpCredentials` — 노드와 공유) | 노드는 `error` 포트 / 연결 테스트는 `result.code` (요청 전 실패 — §5.3) |
 | `INTEGRATION_CALL_FAILED` | 기타 분류 불가 실패 | 위와 동일 |
 | `EMAIL_SEND_FAILED` | nodemailer 전송 실패 (send_email 노드) | Usage log `error.code` 기록 + `error` 포트 |
 | `EMAIL_HOST_BLOCKED` | SMTP host 가 사설/loopback 이라 SSRF 가드에 차단 (기본 ON, `ALLOW_PRIVATE_HOST_TARGETS` opt-out) | send_email 노드는 `error` 포트 출력 / 연결 테스트는 `result.code` 반환 |
@@ -1166,6 +1168,8 @@ Integration 생성·수정·삭제·회전·재인증·scope 전환 이벤트를
   `DB_CONNECT_FAILED` · `HTTP_AUTH_FAILED` · `HTTP_CONNECT_FAILED` · `HTTP_SERVER_ERROR`)은 연결 테스트 전용이다. 이름이 가까운 노드 코드와 모집합이
   다를 수 있다 — `DB_CONNECT_FAILED` 는 인증 실패를 빼지만 노드의 `DB_CONNECTION_ERROR` 는 포함한다. 종전 §5.4 의 소문자 `auth_failed` · `network` ·
   `unknown_error` 는 통합 상태 `statusReason` 과 철자가 같은 다른 층의 값이었다 — 연결 테스트 코드는 §5.5 가 정한 UPPER_SNAKE_CASE 다.
+  `INTEGRATION_INCOMPLETE` · `INTEGRATION_AUTH_UNSUPPORTED` 는 그 다섯에 들지 않는다 — 연결 테스트 전용이 아니라 노드와 **공유하는** 공통 코드이고
+  (`resolveHttpCredentials`), 요청을 보내기 전에 나온다 (§5.3 · §14.1).
 - **preview-test «외부 호출 없음» 의 범위**: 구조 검증만인 서비스는 Cafe24 · MakeShop(설계상 — 토큰이 막 발급됐거나 `pending_install`)과 Google ·
   GitHub · Webhook(구현 범위 — 쓰는 노드가 없다)이다. 아래 «SMTP …» 절의 «Cafe24 한정» 문장에 날짜 주석을 달았다.
 - **카운터**: 연결 테스트 실패는 `consecutive_network_failures` 에 합산하지 않는다(연결 테스트 endpoint 카운터 제외 선례의 확장). Database 연결
