@@ -77,71 +77,86 @@ describe('Integration rotate concurrency (e2e)', () => {
     const donor = await createApiKeyIntegration('X-Concurrent');
 
     // ── 테스트가 락을 쥔다. 이 행에 대한 rotate 의 쓰기(고치기 전) · 재읽기(고친 뒤)가 COMMIT 까지 멈춘다.
+    // BEGIN ~ COMMIT 구간은 try/finally 로 감싼다 — 구간 내 assertion 이 실패하면 COMMIT 을 못 타
+    // `locker` 가 미종결 트랜잭션인 채로 afterAll 까지 행 락을 쥐고, 대기 중이던 `pending`(요청 B)도
+    // 풀리지 않은 채 남는다. finally 의 ROLLBACK 은 이미 COMMIT 된 뒤(정상 경로)에도 그냥 no-op 이라
+    // 안전하게 항상 시도한다.
+    let pending:
+      Promise<{ settled: true; status: number; err?: Error }> | undefined;
     await locker.query('BEGIN');
-    await locker.query('SELECT id FROM integration WHERE id = $1 FOR UPDATE', [
-      target,
-    ]);
-
-    // 요청 B: `value` 만 바꾼다. 시작 시점 스냅샷의 key_name 은 아직 'X-Api-Key' 다.
-    const rotateB = request(BASE_URL)
-      .post(`/api/integrations/${target}/rotate`)
-      .set('Authorization', `Bearer ${token}`)
-      .set('X-Workspace-Id', workspaceId)
-      .send({ credentials: { value: 'new-secret' } });
-    const pending = rotateB.then(
-      (res) => ({ settled: true as const, status: res.status }),
-      (err: Error) => ({ settled: true as const, status: -1, err }),
-    );
-
-    // 요청 A 를 대신한다 — 락을 쥔 채 donor 의 암호문을 복사해 「다른 필드가 방금 교체됐다」 를 만든다.
-    await locker.query(
-      `UPDATE integration
-          SET credentials = (SELECT credentials FROM integration WHERE id = $2),
-              last_rotated_at = now()
-        WHERE id = $1`,
-      [target, donor],
-    );
-
-    // 공허성 가드 — 락을 놓기 **전에** B 가 아직 끝나지 않았음을 관측한다. 먼저 끝났다면 이 fixture 는
-    // 겹침을 만들지 못한 것이고, 아래 단언은 고치기 전 코드도 통과시킨다.
-    const raced = await Promise.race([
-      pending,
-      new Promise<{ settled: false }>((resolve) =>
-        setTimeout(() => resolve({ settled: false }), 1_500),
-      ),
-    ]);
-    expect(raced.settled).toBe(false);
-
-    const donorCipher = (
-      await db.query<{ credentials: string }>(
-        'SELECT credentials::text AS credentials FROM integration WHERE id = $1',
-        [donor],
-      )
-    ).rows[0].credentials;
-
-    await locker.query('COMMIT');
-    // POST 라 201 이다(인접 e2e 도 `[200, 201]` 로 받는다) — 여기서 보려는 것은 «막혔다 풀려서 성공했다» 다.
-    expect([200, 201]).toContain((await pending).status);
-
-    const after = await request(BASE_URL)
-      .get(`/api/integrations/${target}`)
-      .set('Authorization', `Bearer ${token}`)
-      .set('X-Workspace-Id', workspaceId);
-    expect(after.status).toBe(200);
-    const creds = (after.body.data as { credentials: Record<string, unknown> })
-      .credentials;
-
-    // ① 동시 교체가 넣은 필드가 살아 있다 — 고치기 전에는 'X-Api-Key' 로 되돌아간다.
-    expect(creds.key_name).toBe('X-Concurrent');
-    // ② 그리고 B 도 실제로 저장했다 — 비밀 필드는 마스킹되므로 암호문이 donor 의 것과 달라진 것으로 본다
-    //    (같은 평문도 매 저장마다 새 IV 라 «달라졌다» 는 «저장이 일어났다» 를 뜻한다 — 연결 테스트 e2e 의 D 와 같은 판정).
-    const afterCipher = (
-      await db.query<{ credentials: string }>(
-        'SELECT credentials::text AS credentials FROM integration WHERE id = $1',
+    try {
+      await locker.query(
+        'SELECT id FROM integration WHERE id = $1 FOR UPDATE',
         [target],
-      )
-    ).rows[0].credentials;
-    expect(afterCipher).not.toBe(donorCipher);
-    expect(creds.value).toBe('********');
+      );
+
+      // 요청 B: `value` 만 바꾼다. 시작 시점 스냅샷의 key_name 은 아직 'X-Api-Key' 다.
+      const rotateB = request(BASE_URL)
+        .post(`/api/integrations/${target}/rotate`)
+        .set('Authorization', `Bearer ${token}`)
+        .set('X-Workspace-Id', workspaceId)
+        .send({ credentials: { value: 'new-secret' } });
+      pending = rotateB.then(
+        (res) => ({ settled: true as const, status: res.status }),
+        (err: Error) => ({ settled: true as const, status: -1, err }),
+      );
+
+      // 요청 A 를 대신한다 — 락을 쥔 채 donor 의 암호문을 복사해 「다른 필드가 방금 교체됐다」 를 만든다.
+      await locker.query(
+        `UPDATE integration
+            SET credentials = (SELECT credentials FROM integration WHERE id = $2),
+                last_rotated_at = now()
+          WHERE id = $1`,
+        [target, donor],
+      );
+
+      // 공허성 가드 — 락을 놓기 **전에** B 가 아직 끝나지 않았음을 관측한다. 먼저 끝났다면 이 fixture 는
+      // 겹침을 만들지 못한 것이고, 아래 단언은 고치기 전 코드도 통과시킨다.
+      const raced = await Promise.race([
+        pending,
+        new Promise<{ settled: false }>((resolve) =>
+          setTimeout(() => resolve({ settled: false }), 1_500),
+        ),
+      ]);
+      expect(raced.settled).toBe(false);
+
+      const donorCipher = (
+        await db.query<{ credentials: string }>(
+          'SELECT credentials::text AS credentials FROM integration WHERE id = $1',
+          [donor],
+        )
+      ).rows[0].credentials;
+
+      await locker.query('COMMIT');
+      // POST 라 201 이다(인접 e2e 도 `[200, 201]` 로 받는다) — 여기서 보려는 것은 «막혔다 풀려서 성공했다» 다.
+      expect([200, 201]).toContain((await pending).status);
+
+      const after = await request(BASE_URL)
+        .get(`/api/integrations/${target}`)
+        .set('Authorization', `Bearer ${token}`)
+        .set('X-Workspace-Id', workspaceId);
+      expect(after.status).toBe(200);
+      const creds = (
+        after.body.data as { credentials: Record<string, unknown> }
+      ).credentials;
+
+      // ① 동시 교체가 넣은 필드가 살아 있다 — 고치기 전에는 'X-Api-Key' 로 되돌아간다.
+      expect(creds.key_name).toBe('X-Concurrent');
+      // ② 그리고 B 도 실제로 저장했다 — 비밀 필드는 마스킹되므로 암호문이 donor 의 것과 달라진 것으로 본다
+      //    (같은 평문도 매 저장마다 새 IV 라 «달라졌다» 는 «저장이 일어났다» 를 뜻한다 — 연결 테스트 e2e 의 D 와 같은 판정).
+      const afterCipher = (
+        await db.query<{ credentials: string }>(
+          'SELECT credentials::text AS credentials FROM integration WHERE id = $1',
+          [target],
+        )
+      ).rows[0].credentials;
+      expect(afterCipher).not.toBe(donorCipher);
+      expect(creds.value).toBe('********');
+    } finally {
+      // 정상 경로에서는 이미 COMMIT 됐으므로 no-op(경고만) — assertion 실패로 COMMIT 을 못 탔을 때만
+      // 실제로 락을 풀어 pending 을 드레인한다.
+      await locker.query('ROLLBACK').catch(() => undefined);
+      await pending?.catch(() => undefined);
+    }
   }, 60_000);
 });
