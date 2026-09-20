@@ -4114,6 +4114,37 @@ describe('TriggersService — 락 안 재읽기가 동시 확립분을 본다 (l
     expect(events.filter((e) => e.startsWith('deleteByPrefix:'))).toEqual([]);
   });
 
+  /**
+   * genuine(비-404) 실패는 «반쯤 삭제된 상태다 · 수동 정리가 필요하다» 로그를 **실제로 남겨야**
+   * 운영자가 알 수 있다. 위 두 테스트는 `removeRejects: true` 를 쓰면서도 `logger.error` 호출
+   * 자체는 단언하지 않아, 그 로그를 지워도(`// swallow` 아닌 «로그만 삭제») 11/11 GREEN 으로
+   * 남는 공백이 있었다(뮤테이션으로 실측 — `review/code/2026/09/20/22_07_23` testing WARNING 4).
+   * 형제 `workflows.service.spec.ts` «remove — 행 삭제가 실패하면 외부 해제가 이미 끝났다는 사실을
+   * 남기고 던진다» 와 대칭.
+   */
+  it('remove() — genuine 삭제 실패는 반쯤 삭제된 상태를 logger.error 로 남긴다', async () => {
+    const error = jest
+      .spyOn(Logger.prototype, 'error')
+      .mockImplementation(() => undefined);
+    try {
+      const { service } = await makeService([withRef], {
+        removeRejects: true,
+      });
+
+      await expect(service.remove('trig-l', 'ws-1', 'u-1')).rejects.toThrow(
+        'lock timeout',
+      );
+
+      expect(error).toHaveBeenCalledTimes(1);
+      const logged = error.mock.calls.map(([m]) => String(m)).join('\n');
+      expect(logged).toContain('trig-l');
+      expect(logged).toContain('이미 끝났으므로');
+      expect(logged).toContain('반쯤 삭제된 상태');
+    } finally {
+      error.mockRestore();
+    }
+  });
+
   it('update() 는 락 대기에 상한을 두지 않는다 (삭제만 예외다)', async () => {
     // 대칭 단언 — 상한을 «모든 경로» 로 넓히는 편집도 잡는다. 다른 경로는 기다렸다 쓰는 것이
     // 정답이므로 상한이 있으면 정상 요청이 실패로 바뀐다.
