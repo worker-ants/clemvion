@@ -1400,9 +1400,15 @@ describe('IntegrationsService', () => {
 
         expect(order).toEqual(['test', 'tx']);
         const lockedRead = integrationRepo.findOne.mock.calls[1]?.[0] as {
+          where?: { id?: string; workspaceId?: string };
           lock?: { mode?: string };
         };
         expect(lockedRead?.lock).toEqual({ mode: 'pessimistic_write' });
+        // 락 안 재읽기도 workspaceId 로 스코핑된다 — 빠지면 다른 워크스페이스의
+        // 동일 id 행까지 잠글 수 있다(테넌트 격리 붕괴). PK 단독 where 로
+        // 완화해도 위 세 단언은 그대로 GREEN 이라 이 단언이 없으면 뮤테이션이
+        // 탐지되지 않는다.
+        expect(lockedRead?.where).toEqual({ id: 'int-1', workspaceId: 'ws-1' });
       });
 
       it('락 안에서 권한을 다시 본다 — 테스트 동안 organization 으로 바뀌었으면 비-admin 은 거부', async () => {
@@ -1417,6 +1423,35 @@ describe('IntegrationsService', () => {
             credentials: { value: 'new-secret' },
           }),
         ).rejects.toMatchObject({ response: { code: 'FORBIDDEN' } });
+        expect(integrationRepo.update).not.toHaveBeenCalled();
+      });
+
+      it('락 안 재검증이 실패하면 커밋하지 않는다 — 동시 요청이 필수 필드를 지운 행 위에 병합했을 때', async () => {
+        // 요청 시작 시점(stale)은 구조적으로 유효하다 — 락 전 merge+validate 는 통과한다.
+        // 그런데 연결 테스트가 도는 동안 다른 rotate 가 커밋한 행(락 안 재읽기 결과)은
+        // 'location' 이 빠져 있다 — 병합해도 무효하다. `freshErrors` 재검증이 실제로
+        // 이 행 위에서 도는지가 이 테스트의 판별점: 락 전 스냅샷만 검증하고 넘어가는
+        // 코드라면(뮤테이션) 통과해 `update` 까지 호출된다.
+        integrationRepo.findOne
+          .mockResolvedValueOnce(stale()) // requireEntity
+          .mockResolvedValueOnce(
+            makeIntegration({
+              serviceType: 'http',
+              authType: 'api_key',
+              credentials: {
+                key_name: 'X-Other-Key',
+                value: 'old-secret',
+              },
+            }),
+          ); // 락 안 재읽기 — location 없음
+
+        await expect(
+          service.rotate('int-1', 'ws-1', 'user-1', 'member', {
+            credentials: { value: 'new-secret' },
+          }),
+        ).rejects.toMatchObject({
+          response: { code: 'INTEGRATION_INVALID_CREDENTIALS' },
+        });
         expect(integrationRepo.update).not.toHaveBeenCalled();
       });
     });
