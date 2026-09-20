@@ -1075,6 +1075,49 @@ export class IntegrationsService {
     }
   }
 
+  /**
+   * 조직 스코프 통합은 admin 만 회전할 수 있다. 락 전(요청 시작 시점 스냅샷)·락 안(재읽은 행)
+   * 두 지점에서 같은 조건·에러코드로 호출된다 — 보안 직결 코드라 한 곳에서만 고치면 drift 가 난다.
+   */
+  private assertCanRotate(
+    row: Pick<Integration, 'scope'>,
+    userRole: string | null,
+  ): void {
+    if (row.scope === 'organization' && !this.isAdmin(userRole)) {
+      throw new ForbiddenException({
+        code: 'FORBIDDEN',
+        message:
+          'Admin role is required to rotate organization-scope integrations',
+      });
+    }
+  }
+
+  /**
+   * `row.credentials` 를 base 로 `patch` 를 머지하고 구조 검증한다. 락 전(요청 시작 시점
+   * 스냅샷)·락 안(재읽은 행) 두 지점에서 base 만 다르게 호출된다 — base 가 다르므로 결과
+   * (`merged`/`committed`)도 호출부마다 별도 변수로 받는다.
+   */
+  private mergeAndValidateCredentials(
+    row: Pick<Integration, 'credentials' | 'serviceType' | 'authType'>,
+    patch: Record<string, unknown>,
+  ): Record<string, unknown> {
+    // If the existing row's credentials cannot be decrypted (key rotation),
+    // start from a clean slate — merging in the sentinel marker would persist
+    // it through re-encryption and defeat the rotation.
+    const base = isUnreadableCredentials(row.credentials)
+      ? {}
+      : row.credentials;
+    const merged = { ...base, ...patch };
+    const errors = validateCredentials(row.serviceType, row.authType, merged);
+    if (errors.length) {
+      throw new BadRequestException({
+        code: 'INTEGRATION_INVALID_CREDENTIALS',
+        message: errors.join('; '),
+      });
+    }
+    return merged;
+  }
+
   async rotate(
     id: string,
     workspaceId: string,
@@ -1090,32 +1133,9 @@ export class IntegrationsService {
         message: 'Use the reauthorize endpoint to rotate OAuth credentials',
       });
     }
-    if (entity.scope === 'organization' && !this.isAdmin(userRole)) {
-      throw new ForbiddenException({
-        code: 'FORBIDDEN',
-        message:
-          'Admin role is required to rotate organization-scope integrations',
-      });
-    }
+    this.assertCanRotate(entity, userRole);
 
-    // If the existing row's credentials cannot be decrypted (key rotation),
-    // start from a clean slate — merging in the sentinel marker would persist
-    // it through re-encryption and defeat the rotation.
-    const baseCreds = isUnreadableCredentials(entity.credentials)
-      ? {}
-      : entity.credentials;
-    const merged = { ...baseCreds, ...body.credentials };
-    const errors = validateCredentials(
-      entity.serviceType,
-      entity.authType,
-      merged,
-    );
-    if (errors.length) {
-      throw new BadRequestException({
-        code: 'INTEGRATION_INVALID_CREDENTIALS',
-        message: errors.join('; '),
-      });
-    }
+    const merged = this.mergeAndValidateCredentials(entity, body.credentials);
 
     const test = await this.dispatchTest(
       entity.serviceType,
@@ -1156,30 +1176,13 @@ export class IntegrationsService {
         });
       }
       // 권한도 이 시점 값으로 다시 본다 — 테스트가 도는 동안 personal → organization 으로 바뀌었을 수 있다.
-      if (fresh.scope === 'organization' && !this.isAdmin(userRole)) {
-        throw new ForbiddenException({
-          code: 'FORBIDDEN',
-          message:
-            'Admin role is required to rotate organization-scope integrations',
-        });
-      }
+      this.assertCanRotate(fresh, userRole);
 
-      const freshBase = isUnreadableCredentials(fresh.credentials)
-        ? {}
-        : fresh.credentials;
-      const committed = { ...freshBase, ...body.credentials };
-      // 머지 base 가 바뀌었으므로 구조 검증을 다시 돌린다 — 순수 함수라 임계 구간을 늘리지 않는다.
-      const freshErrors = validateCredentials(
-        fresh.serviceType,
-        fresh.authType,
-        committed,
+      // 머지 base 가 바뀌었으므로 구조 검증도 다시 돈다 — 순수 함수라 임계 구간을 늘리지 않는다.
+      const committed = this.mergeAndValidateCredentials(
+        fresh,
+        body.credentials,
       );
-      if (freshErrors.length) {
-        throw new BadRequestException({
-          code: 'INTEGRATION_INVALID_CREDENTIALS',
-          message: freshErrors.join('; '),
-        });
-      }
 
       // 바꾸는 컬럼만 `update` 한다 — 엔티티 전체를 `save` 하면 `logUsage` 가 원자적 `update` 로 쓴 `lastUsedAt` 같은
       // 컬럼을 재읽기 시점 값으로 되돌린다(`logUsage` 는 이 락을 잡지 않는다). `save` 는 그 사이 행이 지워졌으면
