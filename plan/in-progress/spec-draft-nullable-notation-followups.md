@@ -4922,7 +4922,16 @@ field: T | null;
       SMTP 가드(`send-email/smtp-host-guard.ts`)만 판정이 아닌 오류를 다시 던진다. 넷을 맞추면 URL 파싱 등 다른 오류의 처분(차단 vs 실패)이 바뀌므로
       호출부마다 기대 동작을 정하고 테스트와 함께. **2026-09-20 해소** `plan/complete/ssrf-catch-instanceof.md` — 넷 + 동반 1건
       (HTTP 연결 테스트의 preflight 를 `try` 안으로). 판정 아닌 오류의 처분: HTTP 노드 · DB 노드 `INTEGRATION_CALL_FAILED` ·
-      DB 연결 테스트 `DB_CONNECT_FAILED` · `outboundBlockReason` 은 그대로 던진다. 뮤턴트 다섯으로 판별력 확인.
+      DB 연결 테스트 `DB_CONNECT_FAILED` · `outboundBlockReason` 은 그대로 던진다. 뮤턴트 다섯으로 판별력 확인(판정 분기 넷 + 타임아웃 신호 생성 순서 하나).
+
+- [ ] **가드 «고장» 메시지에는 host/IP 마스킹이 없다 — 판정 분기와 비대칭** (developer, 낮음, 2026-09-20 등재 ·
+      `/ai-review` `review/code/2026/09/20/10_09_56` WARNING 1 · INFO 11). 차단 **판정**은 host/IP 를 뺀 고정 문구로
+      치환하는데(CWE-209), 판정 아닌 오류는 `sanitizeMessage`(자격증명 패턴만 가린다)를 거쳐 원문이 나간다 —
+      `http-request.handler.ts` · `database-query.handler.ts` · `database-connection-tester.ts`. 오늘 가드가 낼 수 있는 유일한
+      비판정 오류(`isBlockedHostname` 의 `TypeError`)에는 host/IP 가 없어 실제 유출은 없다(`plan/complete/ssrf-catch-instanceof.md`
+      가 그 도달 가능성을 실측했다). 고칠 때 정할 것: 세 곳을 고정 문구로 바꿀지, `sanitizeMessage` 에 host/IP 패턴을
+      더할지 — 후자는 전 노드의 오류 문구에 영향을 준다. 같은 결의 잔여: `http-connection-tester.ts` 의
+      `describeFailure`→`clampMessage` 경로(이 PR 이 만든 자리가 아니라 그대로 뒀다).
 
 - [ ] **`schedule-trigger` e2e 「D. PATCH cron → nextRunAt 재계산」이 하루 1분 창에서 실패한다** (developer, 낮음,
       2026-09-20 등재 · `plan/complete/ssrf-catch-instanceof.md` 의 무관한 e2e 실패로 발견). 테스트는 `0 10 * * *`(Asia/Seoul)로
