@@ -5,6 +5,7 @@ import request from 'supertest';
 
 import { createDbClient, uniqueEmail, uniqueName } from './helpers/db';
 import { registerAndLogin, createTeamWorkspace } from './helpers/auth';
+import { triggerConfigLockKey } from '../src/modules/triggers/trigger-config-lock';
 
 /**
  * e2e: 동시 트리거 DELETE — `workflow-/workspace-delete-concurrency.e2e-spec.ts` 의 세 번째 짝.
@@ -25,8 +26,6 @@ import { registerAndLogin, createTeamWorkspace } from './helpers/auth';
  */
 
 const BASE_URL = process.env.E2E_BASE_URL ?? 'http://backend-e2e:3011';
-/** `trigger-config-lock.ts` 의 `triggerConfigLockKey` 와 같은 형식 — 여기서 어긋나면 겹침이 안 생긴다. */
-const lockKey = (triggerId: string) => `trigger-config:${triggerId}`;
 
 describe('Trigger delete concurrency (e2e)', () => {
   let db: Client;
@@ -92,7 +91,7 @@ describe('Trigger delete concurrency (e2e)', () => {
     await locker.query('BEGIN');
     try {
       await locker.query('SELECT pg_advisory_xact_lock(hashtext($1))', [
-        lockKey(id),
+        triggerConfigLockKey(id),
       ]);
 
       // 둘 다 잠금 없는 선조회를 통과한 뒤 트랜잭션 안에서 이 락을 기다린다.
