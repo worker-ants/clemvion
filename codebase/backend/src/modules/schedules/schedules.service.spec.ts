@@ -2,7 +2,7 @@ import { AuditLogsService } from '../audit-logs/audit-logs.service';
 import { Logger } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { DeleteResult, Repository } from 'typeorm';
 import { SchedulesService } from './schedules.service';
 import { Schedule } from './entities/schedule.entity';
 import { Trigger } from '../triggers/entities/trigger.entity';
@@ -51,6 +51,9 @@ describe('SchedulesService.runNow', () => {
             save: jest.fn(),
             create: jest.fn(),
             remove: jest.fn(),
+            // `triggerId` 없는 방어 분기의 판별자 — 그 경로는 CASCADE 가 없어 스케줄 행 자체의
+            // `affected` 로 «내가 지웠는가» 를 가른다.
+            delete: jest.fn().mockResolvedValue({ affected: 1 }),
             createQueryBuilder: jest.fn(),
           },
         },
@@ -67,9 +70,12 @@ describe('SchedulesService.runNow', () => {
               create: jest.fn(),
               save: jest.fn(),
               update: jest.fn().mockResolvedValue(undefined),
+              // **`affected` 를 돌려준다** — 삭제 경로가 그 값을 판별자로 쓴다(동시 삭제의 진 쪽은
+              // 0행이라 404 로 끝나야 한다). `undefined` 를 돌려주던 종전 mock 은 그 계약을
+              // 표현하지 못했다.
               delete: jest.fn((criteria: unknown) => {
                 triggerLockEvents.push(`delete:${String(criteria)}`);
-                return undefined;
+                return { affected: 1 };
               }),
             },
             {
@@ -756,6 +762,47 @@ describe('SchedulesService.runNow', () => {
       expect(triggerRepo.delete).toHaveBeenCalledWith('trig-del');
     });
 
+    /**
+     * 동시 DELETE 두 건 — advisory lock 은 줄을 세우기만 한다. 진 쪽의 트리거 삭제는 0행이고,
+     * 그대로 진행하면 `schedule.deleted` 감사가 두 번 남는다(e2e 로 재현: 둘 다 204 · 감사 2건).
+     *
+     * **판정자가 트리거인 이유**: `schedule.trigger_id → trigger` 가 `onDelete: CASCADE` 라 스케줄 행은
+     * 이긴 쪽에서도 «내가 지운 것» 이 아니다 — 스케줄 행 수로 판정하면 둘 다 404 가 된다.
+     */
+    it('삭제 — 락 안 트리거 삭제가 0행이면 404 이고 감사·비밀 정리를 남기지 않는다', async () => {
+      const error = jest
+        .spyOn(Logger.prototype, 'error')
+        .mockImplementation(() => undefined);
+      try {
+        triggerLockEvents.length = 0;
+        auditLogs.record.mockClear();
+        scheduleRepo.findOne.mockResolvedValue({
+          id: 'sch-race',
+          workspaceId: 'ws-1',
+          triggerId: 'trig-race',
+        } as unknown as Schedule);
+        // 먼저 커밋한 요청이 이미 지웠다 — 이 요청의 삭제는 0행이다.
+        triggerRepo.delete.mockResolvedValueOnce({
+          affected: 0,
+          raw: [],
+        } as DeleteResult);
+
+        await expect(
+          service.remove('sch-race', 'ws-1', 'u-race'),
+        ).rejects.toMatchObject({ response: { code: 'RESOURCE_NOT_FOUND' } });
+
+        expect(auditLogs.record).not.toHaveBeenCalled();
+        // 커밋 뒤 비밀 정리도 하지 않는다 — 이긴 쪽이 이미 했다.
+        expect(
+          triggerLockEvents.some((e) => e.startsWith('deleteByPrefix:')),
+        ).toBe(false);
+        // **거짓 경보를 내지 않는다**: 이 404 는 «BullMQ 는 해제됐는데 행은 남은» 상태가 아니다.
+        expect(error).not.toHaveBeenCalled();
+      } finally {
+        error.mockRestore();
+      }
+    });
+
     it('삭제 실패는 조용히 지나가지 않는다 — 반쯤 삭제된 상태를 로그로 드러낸다', async () => {
       // `removeJob` 은 **이미 끝났고 되돌릴 수 없다**. 그러니 여기서 trigger 행 삭제가
       // 실패하면 «BullMQ 는 해제됐는데 행은 남은» 상태다. 형제 `TriggersService.remove()`
@@ -818,7 +865,12 @@ describe('SchedulesService.runNow', () => {
       expect(triggerLockEvents).toEqual([]);
       expect(triggerRepo.delete).not.toHaveBeenCalled();
       // schedule 행 삭제와 감사는 **그대로 일어난다** — 가드는 trigger 쪽만 건너뛴다.
-      expect(scheduleRepo.remove).toHaveBeenCalled();
+      // 다만 **판별자가 다르다**: 이 분기엔 CASCADE 가 개입하지 않으므로 스케줄 행 자체의
+      // `affected` 로 «내가 지웠는가» 를 가른다(트리거 경로는 트리거 삭제의 `affected` 다).
+      expect(scheduleRepo.delete).toHaveBeenCalledWith({
+        id: 'sch-notrig',
+        workspaceId: 'ws-1',
+      });
     });
 
     it('감사 로깅 — remove 는 schedule.deleted 를 남긴다', async () => {

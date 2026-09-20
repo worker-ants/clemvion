@@ -318,9 +318,27 @@ export class SchedulesService {
           await acquireTriggerConfigLock(m, triggerId, {
             timeoutMs: TRIGGER_DELETE_LOCK_TIMEOUT_MS,
           });
-          await m.delete(Trigger, triggerId);
+          // **`affected` 를 본다.** 위 `findById` 는 잠금 없는 선조회라 동시 DELETE 두 건이 모두
+          // 통과하고, advisory lock 은 둘을 줄 세우기만 한다 — 진 쪽이 그대로 진행하면 아래
+          // `scheduleRepository.remove` 와 `recordAudit` 까지 가서 `schedule.deleted` 가 두 번 남는다
+          // (e2e 로 재현: 둘 다 204 · 감사 2건). 형제 세 경로(#1369·#1370)와 같은 결함 클래스다.
+          //
+          // **판정자가 트리거인 이유**: `schedule.trigger_id → trigger` 는 `onDelete: CASCADE` 라
+          // 트리거를 지우면 스케줄 행도 DB 가 함께 지운다. 그래서 «스케줄 행을 몇 행 지웠나» 로
+          // 판정하면 **이긴 쪽도 0행**이라 둘 다 404 가 된다 — 락이 보호하는 이 쓰기만이 판별자다.
+          const { affected } = await m.delete(Trigger, triggerId);
+          if (!affected) {
+            throw new NotFoundException({
+              code: 'RESOURCE_NOT_FOUND',
+              message: 'Schedule not found',
+            });
+          }
         })
         .catch((err: unknown) => {
+          // 동시 삭제로 행이 이미 사라진 경우는 **반쯤 삭제된 상태가 아니다** — 먼저 커밋한 요청이
+          // 행도 BullMQ job 도 정리했다. 아래 로그는 «수동 정리가 필요하다» 고 말하므로 이 경우까지
+          // 실으면 거짓 경보가 된다(형제 세 경로와 같은 처리).
+          if (err instanceof NotFoundException) throw err;
           // `TriggersService.remove()` 와 **대칭**이어야 한다. 위 `removeJob` 은 이미
           // 끝났으므로(되돌릴 수 없다) 여기서 실패하면 «BullMQ 는 해제됐는데 행은 남은»
           // 반쯤 삭제된 상태다 — 조용한 실패로 두면 아무도 모른다
@@ -341,8 +359,23 @@ export class SchedulesService {
         [triggerId],
         'SchedulesService.remove',
       );
+      // 스케줄 행은 위 트리거 삭제의 FK CASCADE(`schedule.trigger_id`, `onDelete: 'CASCADE'`)가 이미
+      // 지웠다 — 이 호출은 0행 no-op 이다. 그래도 남겨 둔다: CASCADE 가 없어지면 이 줄이 유일한 삭제다.
+      await this.scheduleRepository.remove(schedule);
+    } else {
+      // `triggerId` 가 없는 방어 분기(엔티티상 NOT NULL 이라 현재 도달 불가). 여기는 CASCADE 가
+      // 개입하지 않으므로 **스케줄 행 자체가 판별자**다 — 위 트리거 경로와 판정 대상이 다르다.
+      const { affected } = await this.scheduleRepository.delete({
+        id,
+        workspaceId,
+      });
+      if (!affected) {
+        throw new NotFoundException({
+          code: 'RESOURCE_NOT_FOUND',
+          message: 'Schedule not found',
+        });
+      }
     }
-    await this.scheduleRepository.remove(schedule);
     await this.recordAudit({
       workspaceId,
       userId,
