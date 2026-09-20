@@ -1,9 +1,10 @@
 ---
 title: rotate 가 옛 스냅샷 위에 덮어 먼저 통과한 교체를 잃는다 — 같은 모듈의 락 선례(CONC H-3)로 닫는다
-status: in-progress
+status: complete
 owner: developer
 worktree: rotate-lost-update-4a1c73
 started: 2026-09-20
+completed: 2026-09-20
 spec_impact: none
 ---
 
@@ -115,6 +116,8 @@ await this.integrationRepository.update({ id: entity.id }, { credentials: merged
   - **덤으로 main 의 red 를 고쳤다** — 직전 PR(#1367)이 `plan/complete/` 에 넣은 draft 의 `title:` 안에 `code:` 가
     들어가 YAML 이 깨져 Gate C(`spec-plan-completion.test.ts`)가 실패하고 있었다. 따옴표로 감쌌고, `plan/**` 587건을
     전수 스캔해 남은 파싱 실패 0건을 확인했다
-- [ ] `/ai-review` → Critical/Warning 0
+- [x] `/ai-review` 2라운드 — 1라운드 `review/code/2026/09/20/17_35_12` (Critical 0 · Warning 8 → `resolution-applier` 8/8),
+  2라운드 `review/code/2026/09/20/18_09_24` (Critical 0 · Warning 2 — 코드 수정 **0**). 정지 규칙(«`codebase/**` 수정이
+  0 인 라운드») 도달. 남은 둘의 처분은 그 라운드 `RESOLUTION.md`
 - [ ] `/consistency-check --impl-done spec/2-navigation` → BLOCK: NO
-- [ ] 트래커 항목 해소 + 이 plan `plan/complete/` 로
+- [x] 트래커 항목 해소 + 후속 둘 등재 + 이 plan `plan/complete/` 로
