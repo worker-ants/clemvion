@@ -5,6 +5,8 @@ code:
   - codebase/backend/src/nodes/integration/http-request/http-request.handler.ts
   - codebase/backend/src/nodes/integration/http-request/http-request.schema.ts
   - codebase/backend/src/nodes/integration/http-request/http-safety.ts
+  - codebase/backend/src/nodes/integration/http-request/http-redirect.ts
+  - codebase/backend/src/nodes/integration/http-request/http-credentials.ts
   - codebase/backend/src/nodes/integration/_base/sanitize-response-headers.util.ts
 ---
 
@@ -93,7 +95,7 @@ code:
 5. **Query Params 병합**: 노드 `queryParams` → URL 에 append → `auth_type='api_key' & location='query'` credential append
 6. **Headers 병합** (뒤가 우선): `credentials.default_headers` ← 노드 `headers` ← `credentials.headers`. 즉 **integration 자격증명 헤더가 사용자 입력을 덮어쓴다** (사용자가 `Authorization` 을 위조해 자격증명을 무력화하는 경로 차단)
 7. **Body 직렬화**: `GET` / `HEAD` 외 method 일 때 `bodyType` 에 따라 직렬화. `form-data` 는 multipart boundary 자동 부여 (Content-Type 미지정)
-8. **SSRF 가드** (**전 인증 방식 공통** — `none` / `integration` / `custom` 모두): `assertSafeOutboundUrl(url)` 로 loopback / RFC1918 / link-local / CGNAT / IPv6 link-local·ULA 차단(호스트 리터럴 검사) → 이어서 `assertSafeOutboundHostResolved(hostname)` 로 DNS resolve 후 IP 재검사(DNS rebinding 방어). 기본은 차단(secure-by-default)이며 사설망 대상은 `ALLOW_PRIVATE_HOST_TARGETS=true` (§4 SSRF opt-out callout) 로만 허용된다. 실패 시 catch 후 §5.3 (`port: 'error'`, `output.error.code = 'HTTP_BLOCKED'`) 라우팅. Usage 로그 `failed` 기록은 `integration` 인증에 한정(§4.2 — `none`/`custom` 은 활동 로그 미생성, D4). **dry-run 실행([`13-replay-rerun §7`](../../5-system/13-replay-rerun.md))은 실제 fetch 가 없으므로 본 SSRF 가드 이전에 mock 을 반환하고 가드를 생략한다 — 보호 대상(아웃바운드 요청)이 발생하지 않기 때문**
+8. **SSRF 가드** (**전 인증 방식 공통** — `none` / `integration` / `custom` 모두): `assertSafeOutboundUrl(url)` 로 loopback / RFC1918 / link-local / CGNAT / IPv6 link-local·ULA 차단(호스트 리터럴 검사) → 이어서 `assertSafeOutboundHostResolved(hostname)` 로 DNS resolve 후 IP 재검사(DNS rebinding 방어). 기본은 차단(secure-by-default)이며 사설망 대상은 `ALLOW_PRIVATE_HOST_TARGETS=true` (§4 SSRF opt-out callout) 로만 허용된다. 실패 시 catch 후 §5.3 (`port: 'error'`, `output.error.code = 'HTTP_BLOCKED'`) 라우팅. Usage 로그 `failed` 기록은 `integration` 인증에 한정(§4.2 — `none`/`custom` 은 활동 로그 미생성, D4). **dry-run 실행([`13-replay-rerun §7`](../../5-system/13-replay-rerun.md))은 실제 fetch 가 없으므로 본 SSRF 가드 이전에 mock 을 반환하고 가드를 생략한다 — 보호 대상(아웃바운드 요청)이 발생하지 않기 때문**. **가드가 던진 것이 차단 판정(`SsrfBlockedError`)이 아니면**(가드 자체의 고장 — 예: DNS 해석기가 낸 예기치 않은 예외) `HTTP_BLOCKED` 가 아니라 `INTEGRATION_CALL_FAILED` 로 라우팅한다 — 막힌 적 없는 요청을 «막혔다» 고 보고하면 없는 사실을 사용자에게 통지하고 활동 로그에도 남기 때문이다. **step 9 의 리다이렉트 홉에서 같은 고장이 나면 전송 catch 로 떨어져 `HTTP_TRANSPORT_FAILED` 가 된다** — 두 시점의 코드를 통일할지는 아직 정하지 않았다. 통일을 정할 때는 챗 채널 파급도 함께 본다: `HTTP_TRANSPORT_FAILED` 는 [`chat-channel-adapter §3.1`](../../conventions/chat-channel-adapter.md) 에서 `executionFailedThirdParty`(«외부 서비스 응답을 받지 못했습니다») 로 안내되므로, 홉의 가드 고장이 그 코드로 합류하는 동안은 **내부 가드의 고장이 외부 서비스 탓으로 전달**된다
 9. **fetch 호출**: `AbortController` 로 `timeout` 적용, `redirect: 'manual'` (무조건). `integration` 인증인 경우 3xx 응답을 받으면 최대 5홉까지 수동 follow + 매 홉 SSRF 재검증. `none`/`custom` 인증은 3xx 를 follow 하지 않고 그대로 §5.3 으로 반환. `config.followRedirects` / `config.verifySsl` 은 **현재 런타임에 반영되지 않는다 (Planned, §1 참조)**
 10. **응답 파싱**: `responseType='json'` → `res.json()` (실패 시 `null`), 그 외(`text` 및 `binary`) → `res.text()`. **`binary` 전용 디코딩은 미구현 (Planned)** — 현재 `binary` 도 `text` 와 동일하게 처리된다
 11. **Usage 로깅** (§4.2): `integration` 인증일 때만 `success` / `failed` 기록
@@ -122,6 +124,7 @@ code:
 | 3xx · 4xx · 5xx | `failed` | `HTTP_{status}` |
 | fetch reject (네트워크 / 타임아웃) | `failed` | `HTTP_TRANSPORT_FAILED` |
 | SSRF 차단 / redirect 한도 초과 | `failed` | `HTTP_BLOCKED` |
+| SSRF 가드의 고장 (차단 판정이 아닌 오류 — step 8 preflight) | `failed` | `INTEGRATION_CALL_FAILED` |
 
 > 본 매트릭스는 `authentication='integration'` 에만 적용된다. `none`/`custom` 인증은 활동 로그를 생성하지 않으므로(§4.3) SSRF 차단·전송 실패 등 모든 실패는 **`error` 포트 라우팅만** 일어나고 Usage 행은 기록되지 않는다.
 
@@ -334,9 +337,9 @@ D4 결정 이전에 본 절은 다양한 `IntegrationError` / `Error` throw → 
 |------|------|-------------------|---------------------------|-------------------|
 | `HTTP_4XX` | `400 ≤ statusCode < 500` (또는 manual redirect 한도 도달한 3xx 도달 시) | 서버 body 보존 | 응답 헤더 (sanitize) | 응답 status |
 | `HTTP_5XX` | `500 ≤ statusCode < 600` | 서버 body 보존 | 응답 헤더 (sanitize) | 응답 status |
-| `HTTP_TRANSPORT_FAILED` | `fetch` reject (DNS / 연결 거부 / 소켓 / `AbortController` timeout) | `{ error: <message> }` (legacy 잔재) | — (response 없음) | `0` |
+| `HTTP_TRANSPORT_FAILED` | `fetch` reject (DNS / 연결 거부 / 소켓 / `AbortController` timeout). **step 9 리다이렉트 홉에서 SSRF 가드가 차단 판정이 아닌 오류를 던진 경우(가드 자체의 고장)도 전송 catch 로 합류한다** (§4 step 8 — 통일 여부 미결) | `{ error: <message> }` (legacy 잔재) | — (response 없음) | `0` |
 | `HTTP_BLOCKED` (D4) | SSRF 차단 (호스트 검증·DNS rebinding·redirect 한도·redirect 대상 재검증·비-http(s) 프로토콜). 종전 throw 였으나 D4 이후 본 경로. **`output.error.message` 는 차단된 host/IP 를 노출하지 않는 일반화 문구(`Request blocked by SSRF policy.`) — 원본 상세는 서버 로그(`logger.warn`)에만, Usage 로그도 일반화 (§8.3)** | — | — | `0` |
-| `INTEGRATION_*` ([공통 §4.2](./0-common.md#42-공통-에러-코드)) (D4) | Integration resolve / 자격증명 실패. `INTEGRATION_TYPE_MISMATCH` / `INTEGRATION_NOT_CONNECTED` / `INTEGRATION_INCOMPLETE` / `INTEGRATION_AUTH_UNSUPPORTED` / `INTEGRATION_CALL_FAILED`(integrationId 부재 — `requireEntity` `RESOURCE_NOT_FOUND` fallback) 모두 본 경로로 surface | — | — | `0` |
+| `INTEGRATION_*` ([공통 §4.2](./0-common.md#42-공통-에러-코드)) (D4) | Integration resolve / 자격증명 실패. `INTEGRATION_TYPE_MISMATCH` / `INTEGRATION_NOT_CONNECTED` / `INTEGRATION_INCOMPLETE` / `INTEGRATION_AUTH_UNSUPPORTED` / `INTEGRATION_CALL_FAILED`(integrationId 부재 — `requireEntity` `RESOURCE_NOT_FOUND` fallback) 모두 본 경로로 surface. **step 8 preflight 에서 SSRF 가드가 차단 판정이 아닌 오류를 던진 경우(가드 자체의 고장)도 `INTEGRATION_CALL_FAILED` 로 surface** (§4 step 8 · §4.2) | — | — | `0` |
 | `INTEGRATION_SERVICE_UNAVAILABLE` (D4) | IntegrationsService 미주입 또는 workspace context 누락 (deployment 오류). 종전 throw 였으나 D4 이후 본 경로 | — | — | `0` |
 
 ## 7. 캔버스 요약
