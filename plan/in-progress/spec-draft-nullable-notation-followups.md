@@ -4931,7 +4931,9 @@ field: T | null;
       UI 는 아직 없음(필터 조회 전용)» 과 어긋난다 — 다만 근거가 더 약하다. 어느 표가 stale 인지 정하고 한쪽을 고친다.
 
 - [ ] **cron 재계산 happy-path 의 결정적 단위 테스트가 없다** (developer, 낮음, 2026-09-20 등재 · `/ai-review`
-      `review/code/2026/09/20/11_54_10` INFO 2). `SchedulesService.update()` 가 cron·timezone 변경 시 `nextRunAt` 을 다시
+      `review/code/2026/09/20/11_54_10` INFO 2 · `12_45_31` WARNING 1 — 후자가 이 항목이 닫는 잔여를 실측했다: 연말
+      12/31 23:58:30 ~ 01/01 00:00:30 KST 근방 ~2분 동안은 생성 cron 의 값 자체가 e2e 의 «1분 안» 창에 들어와, 재계산이
+      없어도 「D. PATCH cron」이 통과한다(거짓 통과). e2e 는 시각을 고정할 수 없어 닫지 못한다). `SchedulesService.update()` 가 cron·timezone 변경 시 `nextRunAt` 을 다시
       계산하는 경로는 e2e 한 케이스(「D. PATCH cron」)에만 걸려 있다 — 단위 테스트는 `computeNextRuns` 를 `[]` 로 mock 하는
       방어 분기만 고정한다(`schedules.service.spec.ts`). `computeNextRuns` 를 spy 로 두고 «새 cron 으로 호출됐는가 · 그 결과가
       `nextRunAt` 에 들어갔는가» 를 보는 단위 테스트 한 건이면 e2e 없이도 회귀가 잡힌다.

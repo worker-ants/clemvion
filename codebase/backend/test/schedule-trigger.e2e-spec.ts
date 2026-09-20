@@ -287,11 +287,16 @@ describe('Schedule trigger (e2e)', () => {
    * `plan/in-progress/spec-draft-nullable-notation-followups.md` 의 해당 항목 · `review/code/2026/09/20/09_35_16/RESOLUTION.md`).
    *
    * 그래서 보는 것은 «PATCH 뒤 값이 **새 cron** 이 만드는 값인가» 다 — 분 단위 cron 의 다음 실행은 늘 요청 직후 1분 안이고
-   * 초 자리가 0(분 경계)이다. 재계산이 아예 없었다면 값은 생성 cron 의 것(연 1회, 몇 달 뒤)이라 이 창 밖으로 떨어진다.
+   * 초 자리가 0(분 경계)이다. 재계산이 없었다면 값은 생성 cron 의 것(연 1회)이라 거의 언제나 이 창 밖이다.
    *
    * **옛 값과 비교하지 않는다.** 「달라졌다」든 「옛 값은 창 밖이다」든, 두 cron 의 다음 실행이 같아지는 순간이 있으면 그 순간에
    * 거짓 실패한다 — 연 1회 cron 도 12/31 23:59 KST 에는 분 단위 cron 과 같은 시각을 가리킨다(1라운드·2라운드 리뷰가 두 번 잡았다).
    * 판정은 **지금 시각과 새 cron 의 관계**만으로 한다.
+   *
+   * 남는 것은 **반대 방향의 좁은 창** 하나다 — 12/31 23:58:30 ~ 01/01 00:00:30 KST 근방에서는 생성 cron 의 값 자체가 위 창 안이라,
+   * 재계산이 없어도 통과한다(거짓 실패가 아니라 거짓 통과, 연 1회 ~2분). 시각을 고정할 수 없는 e2e 에서는 닫을 수 없고, 닫는 자리는
+   * `computeNextRuns` 를 spy 로 보는 단위 테스트다 — 트래커
+   * `plan/in-progress/spec-draft-nullable-notation-followups.md` 의 «cron 재계산 happy-path 의 결정적 단위 테스트» 항목.
    */
   it('D. PATCH cron → nextRunAt 재계산', async () => {
     const create = await request(BASE_URL)
@@ -300,7 +305,7 @@ describe('Schedule trigger (e2e)', () => {
       .send({
         workflowId,
         name: uniqueName('sched-d'),
-        cronExpression: '0 0 1 1 *', // 매년 1월 1일 — 분 단위 cron 이 만드는 «1분 안» 창 밖이다
+        cronExpression: '0 0 1 1 *', // 매년 1월 1일 — 연말 ~2분을 빼면 아래 «1분 안» 창 밖이다
         timezone: 'Asia/Seoul',
       });
     const scheduleId = create.body.data.id;
@@ -313,8 +318,7 @@ describe('Schedule trigger (e2e)', () => {
     expect(patch.status).toBe(200);
     expect(patch.body.data.nextRunAt).toBeDefined();
     // 분 단위 cron 의 다음 실행은 늘 다음 분 경계 — 요청 시각부터 60초 안이다. 여유 30초는 e2e 부하(요청 · DB · 트리거 재등록)
-    // 몫이고, 판별 대상인 생성 cron 값은 몇 달 뒤라 여유를 넓혀도 갈린다. 초 자리가 0인지도 본다 — 분 경계가 아닌 값이 오면
-    // 그것은 분 단위 cron 이 만든 값이 아니다.
+    // 몫이다. 초 자리가 0인지도 본다 — 분 경계가 아닌 값이 오면 그것은 분 단위 cron 이 만든 값이 아니다.
     const nextRunMs = new Date(patch.body.data.nextRunAt as string).getTime();
     expect(nextRunMs).toBeGreaterThan(patchedAt - 30_000);
     expect(nextRunMs).toBeLessThanOrEqual(patchedAt + 90_000);
