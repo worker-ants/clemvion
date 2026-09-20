@@ -4837,12 +4837,37 @@ field: T | null;
       프런트 `INTEGRATION_ERROR_CODE_TO_I18N` 어디에도 없다 — 지금 화면은 `message`(영문)를 그대로 보인다. 위 «확인 못 함 안내가
       화면에 닿지 않는다» 와 같은 UI 턴에서 네 계열(mcp · email · database · http)을 한 번에.
 
-- [ ] **동시 rotate 두 건은 나중 저장이 먼저 통과한 교체를 조용히 덮는다** (developer, 낮음, 2026-09-19 등재 · `/ai-review`
+- [x] **동시 rotate 두 건은 나중 저장이 먼저 통과한 교체를 조용히 덮는다** (developer, 낮음, 2026-09-19 등재 · `/ai-review`
       `review/code/2026/09/19/15_30_04` database WARNING 1 (a)). `rotate()` 는 읽기 → merge → 연결 테스트(이제 수 초) → 부분 `update`
       라, 같은 통합을 동시에 회전하면 둘 다 성공 응답을 받고 나중 것만 남는다. **이 PR 전에도 같은 창이 있었다**(구조 검증만이라 짧았을
       뿐). 막으려면 `updated_at` 조건부 update 나 `@VersionColumn` 과 409 — 버전 컬럼은 마이그레이션이라 따로. 같은 지적의 (b)(테스트
       동안 삭제되면 부분 `save` 가 INSERT 를 시도)는 그 PR 이 `update` + 0행 404 로 닫았다.
       (`16_00_06` concurrency WARNING 3 이 같은 지적을 다시 냈다 — 처분 변경 없음.)
+      **2026-09-20 해소** `plan/complete/rotate-lost-update.md`. 위에 적힌 두 방향(**`updated_at` 조건부 update** ·
+      **`@VersionColumn` + 409**) 은 **둘 다 쓰지 않았다** — `--spec` 이 세 가지를 반증했다(그 draft 는
+      `plan/complete/spec-draft-rotate-conflict.md` 에 `superseded` 로 남겼다):
+      (1) 409 는 **새 에러 코드 · spec 계약**을 요구하는데 대상 spec 이 `status: implemented` 라 `partial` 강등을 부른다,
+      (2) 이 저장소는 **같은 형태를 이미 락으로 닫았다**(`trigger-config-lost-update.md` · 같은 모듈의 재인증 `CONC H-3`),
+      (3) `updated_at` 조건은 `logUsage` 가 같은 컬럼을 올리면 **정상 사용만으로 거짓 409** 를 낼 수 있다(미검증 의심으로 남겼고,
+      락 처방을 택해 확인이 불필요해졌다).
+      채택한 것: **연결 테스트는 트랜잭션 밖, 그 뒤 `pessimistic_write` 로 행을 다시 읽어 그 위에 머지**(+ 락 안에서 권한도
+      재확인 — 테스트 중 `scope_changed` 로 승격되면 비-admin 이 통과하던 TOCTOU 를 함께 닫았다). 판별력 실측: `origin/main`
+      서비스로 되돌려 e2e 이미지를 재빌드하니 유실이 재현되며 RED.
+
+- [ ] **`spec/data-flow/5-integration.md` 의 rotate 서술에 잠금 메커니즘이 없다** (planner, 낮음, 2026-09-20 등재 ·
+      `/ai-review` `review/code/2026/09/20/18_09_24` SPEC-DRIFT 1 · `--impl-prep` `…/16_58_56` cross_spec INFO 1).
+      같은 문서의 형제 흐름(reauthorize · request_scopes)은 `SELECT … FOR UPDATE` 를 명시하는데 rotate 만 빠져 있다 —
+      이제 코드는 같은 메커니즘을 쓴다(`plan/complete/rotate-lost-update.md`). 한 줄이면 비대칭이 사라진다. 비차단으로
+      두 번 처분됐으므로 급하지 않다.
+      **같은 턴에**: `2-navigation/4-integration.md` frontmatter `code:` 에 신규 e2e 를 개별 등재한다 —
+      `codebase/backend/test/integration-rotate-concurrency.e2e-spec.ts`. 형제 문서 `2-trigger-list.md` 가 e2e-spec 을
+      개별 등재하는 선례를 갖는다(`--impl-done` `review/consistency/2026/09/20/18_24_04` convention INFO 3 —
+      글로브로는 이미 매치돼 가드 위반은 아니다).
+
+- [ ] **personal-scope 통합의 «본인 것만» 소유자 검증이 코드에 없다** (planner 결정 + developer, 2026-09-20 등재 ·
+      `/ai-review` `review/code/2026/09/20/18_09_24` requirement INFO 6). `assertCanRotate` 는 organization-scope 만 본다 —
+      spec §8 이 말하는 personal 소유자 제약은 강제되지 않는다. **회귀가 아니다**: `git show` 대조로 rotate 락 PR 이전부터
+      같았음이 확인됐다. rotate 한 곳이 아니라 권한 모델 전반(조회·수정·삭제)의 문제라 범위를 먼저 정해야 한다.
 
 - [ ] **entity tester 재진입 금지가 문서로만 있다** (developer, 낮음, 2026-09-19 등재 · `/ai-review` `review/code/2026/09/19/16_00_06`
       concurrency · side_effect WARNING 1). entity tester 는 연결 테스트 동시 상한(2) 안에서 도므로, 등록된 테스터가 `testConnection` ·

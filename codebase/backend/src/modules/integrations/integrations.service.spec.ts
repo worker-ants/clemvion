@@ -113,6 +113,7 @@ describe('IntegrationsService', () => {
   let auditLogsService: { record: Mock };
   let mcpTestConnection: { test: Mock };
   let integrationCacheBus: { publish: Mock };
+  let dataSource: { transaction: Mock };
   let integration: Integration;
 
   beforeEach(() => {
@@ -164,6 +165,17 @@ describe('IntegrationsService', () => {
         .mockResolvedValue({ success: true, message: 'Connection successful' }),
     };
     integrationCacheBus = { publish: jest.fn().mockResolvedValue(undefined) };
+    // `rotate()` 의 임계 구간은 `dataSource.transaction` 안에서 돈다 — 그 안의
+    // `manager.getRepository()` 는 같은 mock repo 를 돌려준다(모듈 형제
+    // `integration-oauth.service.spec.ts` 와 같은 패턴).
+    dataSource = {
+      transaction: jest
+        .fn()
+        .mockImplementation(
+          async (cb: (manager: { getRepository: jest.Mock }) => unknown) =>
+            cb({ getRepository: jest.fn().mockReturnValue(integrationRepo) }),
+        ),
+    };
 
     service = new IntegrationsService(
       integrationRepo as never,
@@ -174,6 +186,7 @@ describe('IntegrationsService', () => {
       auditLogsService as never,
       mcpTestConnection as never,
       integrationCacheBus as never,
+      dataSource as never,
     );
   });
 
@@ -1316,6 +1329,133 @@ describe('IntegrationsService', () => {
       );
     });
 
+    // -----------------------------------------------------------------
+    // 동시 rotate — 읽은 스냅샷이 아니라 **락 안에서 다시 읽은 행** 위에 머지한다.
+    // 같은 모듈의 재인증 콜백(CONC H-3)과 같은 형태: 외부 호출(연결 테스트)은
+    // 트랜잭션 밖, 쓰기만 `pessimistic_write` 안.
+    // -----------------------------------------------------------------
+    describe('동시 rotate (lost update)', () => {
+      /** 요청 시작 시점의 행 — 이 스냅샷 위에 머지하면 동시 교체가 사라진다. */
+      const stale = () =>
+        makeIntegration({
+          serviceType: 'http',
+          authType: 'api_key',
+          credentials: {
+            location: 'header',
+            key_name: 'X-Api-Key',
+            value: 'old-secret',
+          },
+        });
+      /** 연결 테스트가 도는 동안 **다른 rotate 가 커밋한** 행. */
+      const committedByOther = () =>
+        makeIntegration({
+          serviceType: 'http',
+          authType: 'api_key',
+          credentials: {
+            location: 'header',
+            key_name: 'X-Other-Key', // ← 동시 요청이 바꾼 필드
+            value: 'old-secret',
+          },
+        });
+
+      it('연결 테스트 동안 다른 요청이 커밋한 필드를 되돌리지 않는다 — 락 안에서 다시 읽은 행 위에 머지', async () => {
+        integrationRepo.findOne
+          .mockResolvedValueOnce(stale()) // requireEntity
+          .mockResolvedValueOnce(committedByOther()) // 락 안 재읽기
+          .mockResolvedValueOnce(committedByOther()); // 저장 뒤 응답용
+
+        await service.rotate('int-1', 'ws-1', 'user-1', 'member', {
+          credentials: { value: 'new-secret' },
+        });
+
+        const [, changes] = integrationRepo.update.mock.calls[0] as [
+          unknown,
+          { credentials: Record<string, unknown> },
+        ];
+        // 이 요청이 바꾼 필드는 새 값이고,
+        expect(changes.credentials.value).toBe('new-secret');
+        // 동시 요청이 바꾼 필드는 **옛 스냅샷의 값으로 되돌아가지 않는다**.
+        expect(changes.credentials.key_name).toBe('X-Other-Key');
+      });
+
+      it('임계 구간은 트랜잭션 + pessimistic_write 락이고, 연결 테스트는 그 밖에서 끝난다', async () => {
+        const order: string[] = [];
+        const httpTester = testHttpConnection as unknown as Mock;
+        httpTester.mockImplementationOnce(async () => {
+          order.push('test');
+          return { success: true, message: 'ok' };
+        });
+        dataSource.transaction.mockImplementationOnce(
+          async (cb: (m: { getRepository: Mock }) => unknown) => {
+            order.push('tx');
+            return cb({
+              getRepository: jest.fn().mockReturnValue(integrationRepo),
+            });
+          },
+        );
+
+        await service.rotate('int-1', 'ws-1', 'user-1', 'member', {
+          credentials: { value: 'new-secret' },
+        });
+
+        expect(order).toEqual(['test', 'tx']);
+        const lockedRead = integrationRepo.findOne.mock.calls[1]?.[0] as {
+          where?: { id?: string; workspaceId?: string };
+          lock?: { mode?: string };
+        };
+        expect(lockedRead?.lock).toEqual({ mode: 'pessimistic_write' });
+        // 락 안 재읽기도 workspaceId 로 스코핑된다 — 빠지면 다른 워크스페이스의
+        // 동일 id 행까지 잠글 수 있다(테넌트 격리 붕괴). PK 단독 where 로
+        // 완화해도 위 세 단언은 그대로 GREEN 이라 이 단언이 없으면 뮤테이션이
+        // 탐지되지 않는다.
+        expect(lockedRead?.where).toEqual({ id: 'int-1', workspaceId: 'ws-1' });
+      });
+
+      it('락 안에서 권한을 다시 본다 — 테스트 동안 organization 으로 바뀌었으면 비-admin 은 거부', async () => {
+        integrationRepo.findOne
+          .mockResolvedValueOnce(stale()) // 요청 시작: personal
+          .mockResolvedValueOnce(
+            makeIntegration({ ...committedByOther(), scope: 'organization' }),
+          );
+
+        await expect(
+          service.rotate('int-1', 'ws-1', 'user-1', 'member', {
+            credentials: { value: 'new-secret' },
+          }),
+        ).rejects.toMatchObject({ response: { code: 'FORBIDDEN' } });
+        expect(integrationRepo.update).not.toHaveBeenCalled();
+      });
+
+      it('락 안 재검증이 실패하면 커밋하지 않는다 — 동시 요청이 필수 필드를 지운 행 위에 병합했을 때', async () => {
+        // 요청 시작 시점(stale)은 구조적으로 유효하다 — 락 전 merge+validate 는 통과한다.
+        // 그런데 연결 테스트가 도는 동안 다른 rotate 가 커밋한 행(락 안 재읽기 결과)은
+        // 'location' 이 빠져 있다 — 병합해도 무효하다. `freshErrors` 재검증이 실제로
+        // 이 행 위에서 도는지가 이 테스트의 판별점: 락 전 스냅샷만 검증하고 넘어가는
+        // 코드라면(뮤테이션) 통과해 `update` 까지 호출된다.
+        integrationRepo.findOne
+          .mockResolvedValueOnce(stale()) // requireEntity
+          .mockResolvedValueOnce(
+            makeIntegration({
+              serviceType: 'http',
+              authType: 'api_key',
+              credentials: {
+                key_name: 'X-Other-Key',
+                value: 'old-secret',
+              },
+            }),
+          ); // 락 안 재읽기 — location 없음
+
+        await expect(
+          service.rotate('int-1', 'ws-1', 'user-1', 'member', {
+            credentials: { value: 'new-secret' },
+          }),
+        ).rejects.toMatchObject({
+          response: { code: 'INTEGRATION_INVALID_CREDENTIALS' },
+        });
+        expect(integrationRepo.update).not.toHaveBeenCalled();
+      });
+    });
+
     it('테스트 동안 행이 지워졌으면(update 0행) 404 — INSERT 로 되살리지 않고 감사 · broadcast 도 남기지 않는다', async () => {
       integrationRepo.update.mockResolvedValueOnce({ affected: 0 });
 
@@ -1332,10 +1472,11 @@ describe('IntegrationsService', () => {
     });
 
     it('update 는 1행을 바꿨는데 다시 읽기 전에 지워졌으면 404 — 감사 · broadcast 를 남기지 않는다', async () => {
-      // requireEntity 가 읽은 행(beforeEach 의 값)은 그대로 두고, 저장 뒤 다시 읽을 때만 사라진다.
+      // requireEntity 와 락 안 재읽기는 행을 보고, **저장 뒤 다시 읽을 때만** 사라진다.
       const current = await integrationRepo.findOne({ where: { id: 'int-1' } });
       integrationRepo.findOne.mockReset();
       integrationRepo.findOne
+        .mockResolvedValueOnce(current)
         .mockResolvedValueOnce(current)
         .mockResolvedValueOnce(null);
 
@@ -1347,7 +1488,8 @@ describe('IntegrationsService', () => {
         response: { code: 'RESOURCE_NOT_FOUND' },
       });
       expect(integrationRepo.update).toHaveBeenCalledTimes(1);
-      expect(integrationRepo.findOne).toHaveBeenCalledTimes(2);
+      // 셋: requireEntity · 락 안 재읽기 · 저장 뒤 응답용.
+      expect(integrationRepo.findOne).toHaveBeenCalledTimes(3);
       expect(auditLogsService.record).not.toHaveBeenCalled();
       expect(integrationCacheBus.publish).not.toHaveBeenCalled();
     });
@@ -2152,8 +2294,9 @@ describe('IntegrationsService', () => {
           updatedAt: new Date('2026-09-19T05:00:01Z'),
         });
         integrationRepo.findOne
-          .mockResolvedValueOnce(stale)
-          .mockResolvedValueOnce(reread);
+          .mockResolvedValueOnce(stale) // requireEntity
+          .mockResolvedValueOnce(stale) // 락 안 재읽기 — 이 시나리오엔 동시 교체가 없다
+          .mockResolvedValueOnce(reread); // 저장 뒤 응답용
 
         const result = await service.rotate(
           'int-1',

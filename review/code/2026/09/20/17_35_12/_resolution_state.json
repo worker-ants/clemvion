@@ -1,0 +1,56 @@
+{
+  "version": 1,
+  "started_at": "2026-09-20T17:58:00Z",
+  "summary_items_total": 8,
+  "items_resolved_ids": [1, 2, 3, 4, 5, 6, 7, 8],
+  "items_pending_ids": [],
+  "items_escalated_ids": {},
+  "commits_made": [
+    {
+      "sha": "ab0988f7f",
+      "summary_id": 1,
+      "scope": "integrations"
+    },
+    {
+      "sha": "ab0988f7f",
+      "summary_id": 2,
+      "scope": "integrations"
+    },
+    {
+      "sha": "af6cc0d2c",
+      "summary_id": 3,
+      "scope": "integrations"
+    },
+    {
+      "sha": "af6cc0d2c",
+      "summary_id": 4,
+      "scope": "integrations"
+    },
+    {
+      "sha": "af6cc0d2c",
+      "summary_id": 5,
+      "scope": "integrations"
+    },
+    {
+      "sha": "154e17d31",
+      "summary_id": 6,
+      "scope": "integrations"
+    },
+    {
+      "sha": "d532184f5",
+      "summary_id": 8,
+      "scope": "changelog"
+    }
+  ],
+  "spec_drafts_pending": [],
+  "spec_drafts_applied": [],
+  "e2e_attempts": 1,
+  "e2e_last_status": "pass",
+  "e2e_log_paths": ["_test_logs/e2e-20260920-180150.log"],
+  "auto_fix_iterations": {},
+  "escalation_reason": null,
+  "last_reset_hint_sec": null,
+  "notes": {
+    "7": "warning-7 은 코드/문서 조치 없이 RESOLUTION.md 에 사유만 기록 — 되돌리지 말라는 명시 지침 준수"
+  }
+}

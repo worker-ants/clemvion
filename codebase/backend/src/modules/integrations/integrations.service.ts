@@ -7,7 +7,7 @@ import {
   ForbiddenException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Brackets, Repository } from 'typeorm';
+import { Brackets, DataSource, Repository } from 'typeorm';
 import { createTransport } from 'nodemailer';
 import pLimit from 'p-limit';
 import { isSmtpHostBlocked } from '../../nodes/integration/send-email/smtp-host-guard';
@@ -431,6 +431,7 @@ export class IntegrationsService {
     private readonly auditLogsService: AuditLogsService,
     private readonly mcpTestConnection: McpTestConnectionService,
     private readonly integrationCacheBus: IntegrationCacheBus,
+    private readonly dataSource: DataSource,
   ) {
     this.transportTesters = new Map<string, TransportTester>([
       ['mcp', this.testMcpTransport.bind(this)],
@@ -1074,6 +1075,49 @@ export class IntegrationsService {
     }
   }
 
+  /**
+   * 조직 스코프 통합은 admin 만 회전할 수 있다. 락 전(요청 시작 시점 스냅샷)·락 안(재읽은 행)
+   * 두 지점에서 같은 조건·에러코드로 호출된다 — 보안 직결 코드라 한 곳에서만 고치면 drift 가 난다.
+   */
+  private assertCanRotate(
+    row: Pick<Integration, 'scope'>,
+    userRole: string | null,
+  ): void {
+    if (row.scope === 'organization' && !this.isAdmin(userRole)) {
+      throw new ForbiddenException({
+        code: 'FORBIDDEN',
+        message:
+          'Admin role is required to rotate organization-scope integrations',
+      });
+    }
+  }
+
+  /**
+   * `row.credentials` 를 base 로 `patch` 를 머지하고 구조 검증한다. 락 전(요청 시작 시점
+   * 스냅샷)·락 안(재읽은 행) 두 지점에서 base 만 다르게 호출된다 — base 가 다르므로 결과
+   * (`merged`/`committed`)도 호출부마다 별도 변수로 받는다.
+   */
+  private mergeAndValidateCredentials(
+    row: Pick<Integration, 'credentials' | 'serviceType' | 'authType'>,
+    patch: Record<string, unknown>,
+  ): Record<string, unknown> {
+    // If the existing row's credentials cannot be decrypted (key rotation),
+    // start from a clean slate — merging in the sentinel marker would persist
+    // it through re-encryption and defeat the rotation.
+    const base = isUnreadableCredentials(row.credentials)
+      ? {}
+      : row.credentials;
+    const merged = { ...base, ...patch };
+    const errors = validateCredentials(row.serviceType, row.authType, merged);
+    if (errors.length) {
+      throw new BadRequestException({
+        code: 'INTEGRATION_INVALID_CREDENTIALS',
+        message: errors.join('; '),
+      });
+    }
+    return merged;
+  }
+
   async rotate(
     id: string,
     workspaceId: string,
@@ -1089,32 +1133,9 @@ export class IntegrationsService {
         message: 'Use the reauthorize endpoint to rotate OAuth credentials',
       });
     }
-    if (entity.scope === 'organization' && !this.isAdmin(userRole)) {
-      throw new ForbiddenException({
-        code: 'FORBIDDEN',
-        message:
-          'Admin role is required to rotate organization-scope integrations',
-      });
-    }
+    this.assertCanRotate(entity, userRole);
 
-    // If the existing row's credentials cannot be decrypted (key rotation),
-    // start from a clean slate — merging in the sentinel marker would persist
-    // it through re-encryption and defeat the rotation.
-    const baseCreds = isUnreadableCredentials(entity.credentials)
-      ? {}
-      : entity.credentials;
-    const merged = { ...baseCreds, ...body.credentials };
-    const errors = validateCredentials(
-      entity.serviceType,
-      entity.authType,
-      merged,
-    );
-    if (errors.length) {
-      throw new BadRequestException({
-        code: 'INTEGRATION_INVALID_CREDENTIALS',
-        message: errors.join('; '),
-      });
-    }
+    const merged = this.mergeAndValidateCredentials(entity, body.credentials);
 
     const test = await this.dispatchTest(
       entity.serviceType,
@@ -1128,33 +1149,67 @@ export class IntegrationsService {
       });
     }
 
-    // 바꾸는 컬럼만 `update` 한다 — 엔티티 전체를 `save` 하면, 위 연결 테스트(실제 접속이라 수 초 걸린다) 동안 `logUsage` 가
-    // 원자적 `update` 로 쓴 `lastUsedAt` 같은 컬럼을 읽어 둔 옛 값으로 되돌린다. `save` 는 그 사이 행이 지워졌으면 INSERT 를
-    // 시도하므로 쓰지 않는다 — `update` 가 0행이면 404 다. (자격증명 transformer 는 `update` 에도 걸린다.)
-    // 타입은 `logUsage` 의 patch 와 같은 이유로 넓힌다 — JSONB 컬럼(`Record<string, unknown>`)이 QueryDeepPartialEntity 를
-    // 통과하지 못한다.
-    const changes: Record<string, unknown> = {
-      credentials: merged,
-      lastRotatedAt: new Date(),
-      status: 'connected',
-      statusReason: null,
-      lastError: null,
-    };
-    const { affected } = await this.integrationRepository.update(
-      { id: entity.id },
-      changes,
-    );
-    // 응답은 저장 뒤 다시 읽은 행으로 만든다 — `updated_at` 은 DB 가 정하고(메모리의 엔티티에 값을 넣어도 DB 값과 어긋났다 —
-    // e2e 실측 1ms), 테스트 동안 `logUsage` 가 쓴 컬럼도 그대로 보인다.
-    const saved = affected
-      ? await this.integrationRepository.findOne({ where: { id: entity.id } })
-      : null;
-    if (!saved) {
-      throw new NotFoundException({
-        code: 'RESOURCE_NOT_FOUND',
-        message: 'Integration not found',
+    // 위 연결 테스트는 실제 접속이라 수 초 걸린다. 그동안 같은 통합을 다른 요청이 회전시킬 수 있으므로,
+    // **머지의 base 를 여기서 다시 읽는다** — `entity.credentials` 는 요청 시작 시점의 스냅샷이고, 그 위에 머지해
+    // 저장하면 먼저 커밋된 교체가 옛 값으로 되돌아간다(조용한 유실).
+    //
+    // 형태는 같은 모듈의 재인증 콜백(`integration-oauth.service.ts` CONC H-3)과 같다 — 외부 호출을 마친 **뒤**
+    // 트랜잭션 안에서 `pessimistic_write` 로 행을 잡고, 그 안에서 읽고 쓴다.
+    //
+    // **`4-integration.md` Rationale 이 기각한 advisory lock 의 재도입이 아니다**: 그 기각 사유는 «lock 보유 중
+    // HTTP 요청을 transaction 안에 묶어야 해 DB 커넥션 점유가 늘어난다» 였는데, 여기서는 연결 테스트가
+    // 트랜잭션 **밖**이고 임계 구간은 «재읽기 + 머지 + UPDATE» 뿐이다. 그래서 대기 상한도 두지 않는다(CONC H-3 동일).
+    //
+    // 남는 것: 테스트는 옛 base 위 머지로 돌았고 커밋은 새 base 위 머지다. 두 회전이 **서로 다른 필드**를 바꾸면
+    // 최종 조합 자체는 테스트된 적이 없다 — 그래도 «먼저 커밋된 필드가 옛 값으로 되돌아가는» 지금보다 낫다
+    // (`plan/complete/rotate-lost-update.md` §B).
+    const saved = await this.dataSource.transaction(async (manager) => {
+      const repo = manager.getRepository(Integration);
+      const fresh = await repo.findOne({
+        where: { id: entity.id, workspaceId },
+        lock: { mode: 'pessimistic_write' },
       });
-    }
+      if (!fresh) {
+        throw new NotFoundException({
+          code: 'RESOURCE_NOT_FOUND',
+          message: 'Integration not found',
+        });
+      }
+      // 권한도 이 시점 값으로 다시 본다 — 테스트가 도는 동안 personal → organization 으로 바뀌었을 수 있다.
+      this.assertCanRotate(fresh, userRole);
+
+      // 머지 base 가 바뀌었으므로 구조 검증도 다시 돈다 — 순수 함수라 임계 구간을 늘리지 않는다.
+      const committed = this.mergeAndValidateCredentials(
+        fresh,
+        body.credentials,
+      );
+
+      // 바꾸는 컬럼만 `update` 한다 — 엔티티 전체를 `save` 하면 `logUsage` 가 원자적 `update` 로 쓴 `lastUsedAt` 같은
+      // 컬럼을 재읽기 시점 값으로 되돌린다(`logUsage` 는 이 락을 잡지 않는다). `save` 는 그 사이 행이 지워졌으면
+      // INSERT 를 시도하므로 쓰지 않는다 — `update` 가 0행이면 404 다. (자격증명 transformer 는 `update` 에도 걸린다.)
+      // 타입은 `logUsage` 의 patch 와 같은 이유로 넓힌다 — JSONB 컬럼(`Record<string, unknown>`)이
+      // QueryDeepPartialEntity 를 통과하지 못한다.
+      const changes: Record<string, unknown> = {
+        credentials: committed,
+        lastRotatedAt: new Date(),
+        status: 'connected',
+        statusReason: null,
+        lastError: null,
+      };
+      const { affected } = await repo.update({ id: entity.id }, changes);
+      // 응답은 저장 뒤 다시 읽은 행으로 만든다 — `updated_at` 은 DB 가 정하고(메모리의 엔티티에 값을 넣어도 DB 값과
+      // 어긋났다 — e2e 실측 1ms), 테스트 동안 `logUsage` 가 쓴 컬럼도 그대로 보인다.
+      const row = affected
+        ? await repo.findOne({ where: { id: entity.id } })
+        : null;
+      if (!row) {
+        throw new NotFoundException({
+          code: 'RESOURCE_NOT_FOUND',
+          message: 'Integration not found',
+        });
+      }
+      return row;
+    });
     await this.auditLogsService.record({
       workspaceId,
       userId,
