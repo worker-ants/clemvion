@@ -3807,8 +3807,12 @@ describe('TriggersService — 락 안 재읽기가 동시 확립분을 본다 (l
       size: jest.fn(() => 0),
       bulkRegister: jest.fn(),
     };
+    // 락 안 재조회가 **어떤 조건으로** 읽는지도 관측 대상이다 — `workspaceId` 가 빠지면 다른
+    // 워크스페이스의 같은 id 를 읽어 인가가 새는데, 값만 보는 mock 은 그것을 못 본다.
+    const freshFindOptions: unknown[] = [];
     const providers = createBaseProviders(repoMock, {
-      freshFindOne: () => {
+      freshFindOne: (findOptions) => {
+        freshFindOptions.push(findOptions);
         const idx = Math.min(freshCall, freshSequence.length - 1);
         freshCall += 1;
         return freshSequence[idx]();
@@ -3867,6 +3871,7 @@ describe('TriggersService — 락 안 재읽기가 동시 확립분을 본다 (l
       lockKeys,
       events,
       listenerRegistry,
+      freshFindOptions,
     };
   }
 
@@ -4033,9 +4038,8 @@ describe('TriggersService — 락 안 재읽기가 동시 확립분을 본다 (l
       .mockImplementation(() => undefined);
     try {
       // 바깥 `findById` 는 행을 보지만 **락 안 재읽기는 못 본다** — 그 사이 다른 요청이 커밋했다.
-      const { service, repo, audit, events } = await makeService([
-        () => null as unknown as Trigger,
-      ]);
+      const { service, repo, audit, events, freshFindOptions } =
+        await makeService([() => null as unknown as Trigger]);
 
       await expect(
         service.remove('trig-l', 'ws-1', 'u-1'),
@@ -4043,6 +4047,12 @@ describe('TriggersService — 락 안 재읽기가 동시 확립분을 본다 (l
 
       expect(repo.remove).not.toHaveBeenCalled();
       expect(audit.record).not.toHaveBeenCalled();
+      // **재조회는 워크스페이스로 스코프된다** — `workspaceId` 가 빠지면 다른 워크스페이스의
+      // 같은 id 행을 «있다» 로 읽어 인가가 샌다. 값만 보는 단언으로는 그 회귀가 GREEN 으로
+      // 남는다(`/ai-review` `review/code/2026/09/20/22_39_21` testing WARNING 1).
+      expect(freshFindOptions.at(-1)).toMatchObject({
+        where: { id: 'trig-l', workspaceId: 'ws-1' },
+      });
       // 커밋 뒤 비밀 정리도 하지 않는다 — 이긴 쪽이 이미 했다.
       expect(events.some((e) => e.startsWith('deleteByPrefix:'))).toBe(false);
       // **거짓 경보를 내지 않는다**: 이 404 는 «반쯤 삭제된 상태» 가 아니다. 그 로그는

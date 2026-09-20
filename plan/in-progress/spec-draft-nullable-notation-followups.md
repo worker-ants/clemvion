@@ -4789,8 +4789,11 @@ field: T | null;
       **같은 턴에 둘 더**(`--impl-done` `review/consistency/2026/09/20/21_21_21` WARNING 1·2):
       (a) `data-flow/12-workspace.md` §1.10 은 «재검사 거부를 **포함해** 모든 실패를 로그로 남긴다» 고 적는데,
       이제 동시 삭제의 404 만은 로그를 남기지 않는다(거짓 경보라서) — 그 예외를 한 구로 적는다.
-      (b) `2-trigger-list.md` §4.4 의 «두 번째는 404» 는 **구현 검증 대기** 라는 caveat 이 필요하다 — 바로 위
-      developer 항목이 그 선례가 코드에서 성립하는지 실측할 때까지는 spec 이 단정하고 있다.
+      (b) ~~`2-trigger-list.md` §4.4 의 «두 번째는 404» 는 **구현 검증 대기** 라는 caveat 이 필요하다 — 바로 위
+      developer 항목이 그 선례가 코드에서 성립하는지 실측할 때까지는 spec 이 단정하고 있다.~~
+      **2026-09-20 처분: caveat 불요** — `plan/complete/trigger-dup-delete.md` 가 `TriggersService.remove()` 를
+      고쳐 §4.4 가 **코드에서도 사실**이 됐다(e2e `trigger-delete-concurrency` 가 `[204, 404]` · 감사 1건으로 고정).
+      고치기 전 상태도 값으로 남겼다: `[204, 204]` · 감사 2건. **(a) 는 그대로 열려 있다.**
 
 
 - [x] **창 1 실측 결과를 spec 에 반영한다 — §3 ⚠️ 교체 · 증거 e2e `code:` 등재 · 404 사유** (planner,
