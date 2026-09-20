@@ -1,9 +1,10 @@
 ---
 title: 동시 중복 DELETE 가 감사 행을 두 번 남긴다 — 잠금 뒤 부모 부재를 호출자에게 돌려준다
-status: in-progress
+status: complete
 owner: developer
 worktree: dup-delete-audit-8b2e41
 started: 2026-09-20
+completed: 2026-09-20
 spec_impact: none
 ---
 
@@ -66,7 +67,7 @@ await manager.findOne(Workflow, { select: { id: true }, where: { id: parent.work
 
 - **(W2) 같은 헬퍼를 겨냥한 열린 설계 항목과 교차 참조한다.** 트래커의 «`trigger-config` advisory lock 이 남긴
   developer 범위 후속» 1번(«네 자리의 «트랜잭션 → 실패 로그 → 재던짐» 공용 형태»)이 바로 이 헬퍼를 포함한다.
-  그 설계가 착수될 때 **이 PR 이 바꾼 반환 계약(`{ parent, triggerIds }`)을 전제로** 해야 하므로, 트래커의 그 칸에
+  그 설계가 착수될 때 **이 PR 이 바꾼 반환 계약(`{ parentPresence, triggerIds }`)을 전제로** 해야 하므로, 트래커의 그 칸에
   한 줄 남긴다(같은 문서 안 갱신이라 spec 변경이 아니다).
 - **(W1) `2-trigger-list.md` §3 의 `details.field='endpoint_path'`** 는 같은 문서가 wire 를 `endpointPath` 로 쓰는 것과
   어긋난다 — **spec 이라 developer 권한 밖**이다. 트래커에 planner 항목으로 등재한다. 이 PR 의 코드와는 무관하다.
@@ -76,6 +77,13 @@ await manager.findOne(Workflow, { select: { id: true }, where: { id: parent.work
 `2-trigger-list.md` §4.4 가 트리거 동시 삭제에서 두 번째 요청을 404 로 정한다(`--impl-prep` cross-spec INFO 3 이
 그 대칭을 확인했다). 이 PR 은 **워크플로 삭제를 그 선례에 맞추는 것**이지 새 정책을 만드는 것이 아니다 —
 `spec_impact: none` 인 이유다.
+
+> **정정 (리뷰 3라운드 `review/code/2026/09/20/21_07_19` requirement WARNING 1)**: 위 문장은 «spec 이 그렇게
+> 정한다» 는 뜻이지 «코드가 그렇게 동작한다» 는 뜻이 아니다 — 나는 실측 없이 선례로 인용했다. 지금 읽어 보니
+> `TriggersService.remove()` 도 **같은 형태**다: 무락 `findById` → advisory lock(행 락이 아니다) →
+> `m.remove(trigger)` → `recordAudit(TRIGGER_DELETED)`. 락 안에서 **행이 아직 있는지 보지 않으므로** 진 쪽도
+> 0행 삭제를 성공으로 끝내며 감사를 한 번 더 남길 수 있다. 이 PR 의 스코프(워크플로·워크스페이스) 밖이라
+> 트래커에 등재했다 — 실제 재현은 그 항목이 한다.
 
 ### 이 PR 이 하지 않는 것
 
@@ -99,6 +107,10 @@ await manager.findOne(Workflow, { select: { id: true }, where: { id: parent.work
   - 두 가지가 더 드러났다: (1) **단위는 GREEN 인데 `build` 가 타입 오류를 잡았다**(`LockedParentTriggers`
     import 누락) — jest 경로가 타입을 강제하지 않는다. (2) 뮤턴트 원복에 `git checkout --` 을 써서 커밋 뒤에
     넣은 그 import 를 **다시 날렸다**(build 가 또 잡았다). 이 저장소가 이미 기록한 형태다 — 원복은 `cp` 로.
-- [ ] `/ai-review` → Critical/Warning 0
-- [ ] `/consistency-check --impl-done spec/2-navigation` → BLOCK: NO
-- [ ] 트래커 항목 해소 + 이 plan `plan/complete/` 로
+- [x] `/ai-review` 3라운드 — `20_06_26`(Critical 0 · Warning 4 → 4/4 조치) · `20_43_03`(Critical 0 · Warning 2 →
+  워크스페이스 실 DB e2e + plan 정정) · `21_07_19`(Critical 0 · Warning 3 — **`codebase/**` 수정 0**).
+  정지 규칙 도달. 각 라운드 처분은 그 세션의 `RESOLUTION.md`
+- [x] `/consistency-check --impl-done spec/2-navigation` — `review/consistency/2026/09/20/21_21_21` **BLOCK: NO**
+  (Critical 0 · Warning 2 — 둘 다 **spec 문서**라 developer 권한 밖: `12-workspace.md` §1.10 의 로그 서술이
+  404 예외를 모르고, `2-trigger-list.md` §4.4 의 «두 번째는 404» 는 구현 검증 대기다. 트래커 planner 항목에 반영)
+- [x] 트래커 항목 해소 + 후속 셋 등재 + 이 plan `plan/complete/` 로

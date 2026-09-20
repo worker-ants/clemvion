@@ -4498,7 +4498,7 @@ field: T | null;
 
       | # | 항목 | 성격 |
       |---|---|---|
-      | 1 | `TriggersService.remove()` 와 `SchedulesService.remove()` 의 «락 → 삭제 → 실패 로깅 → 재던짐» 블록이 복제돼 있다 → `deleteTriggerRowLocked(manager, id, {...})` | 14라운드 **W1**(유일한 WARNING). 리뷰어가 «즉시 차단 사유 아님» 으로 분류했고 두 자리 모두 뮤턴트 고정 테스트가 있다. **세 번째 호출부가 생길 때** 뽑는다 — 지금 뽑으면 인자 셋짜리 헬퍼가 복제보다 읽기 어렵다. **→ 2026-09-17 조건 충족**: 워크플로·워크스페이스 삭제가 «트랜잭션 → 실패 로그(외부 해제는 이미 끝났다) → 재던짐» 을 더해 **네 자리**가 됐다(`plan/complete/trigger-deletion-release.md` 리뷰 2라운드 W5). 네 자리의 상태가 달라(트리거 5초 락 · 스케줄 BullMQ · 부모 트랜잭션) 공용 형태는 설계가 필요하다 — «트랜잭션 오프너가 콜백 전에 잠금 상한을 건다» 계약(리뷰 3라운드 INFO 1·3)도 함께 흡수 |
+      | 1 | `TriggersService.remove()` 와 `SchedulesService.remove()` 의 «락 → 삭제 → 실패 로깅 → 재던짐» 블록이 복제돼 있다 → `deleteTriggerRowLocked(manager, id, {...})` | 14라운드 **W1**(유일한 WARNING). 리뷰어가 «즉시 차단 사유 아님» 으로 분류했고 두 자리 모두 뮤턴트 고정 테스트가 있다. **세 번째 호출부가 생길 때** 뽑는다 — 지금 뽑으면 인자 셋짜리 헬퍼가 복제보다 읽기 어렵다. **→ 2026-09-17 조건 충족**: 워크플로·워크스페이스 삭제가 «트랜잭션 → 실패 로그(외부 해제는 이미 끝났다) → 재던짐» 을 더해 **네 자리**가 됐다(`plan/complete/trigger-deletion-release.md` 리뷰 2라운드 W5). 네 자리의 상태가 달라(트리거 5초 락 · 스케줄 BullMQ · 부모 트랜잭션) 공용 형태는 설계가 필요하다 — «트랜잭션 오프너가 콜백 전에 잠금 상한을 건다» 계약(리뷰 3라운드 INFO 1·3)도 함께 흡수. **2026-09-20**: 그 네 자리 중 둘(워크플로·워크스페이스)이 이제 «잠금 → `parentPresence` 검사 → 404 → catch 에서 `NotFoundException` 구분» 4단을 **글자 그대로 복제**한다(`plan/complete/dup-delete-audit.md`) — 이 PR 안에서 실제로 한 번 어긋났다가 리뷰가 잡았다. 공용 형태는 그 4단과 반환 계약 `{ parentPresence, triggerIds }` 를 전제로 설계한다 |
       | ~~2~~ ✅ | private `findByIdForUpdate` 개명(예: `findByIdForPatchValidation`) | 이 저장소에서 `*ForUpdate` 는 **진짜 행 잠금**(`SELECT … FOR UPDATE`) 관용구인데 이건 잠금 없는 경량 조회다. 바로 위 JSDoc 이 *"저장·응답 엔티티는 락 안에서 다시 읽는다"* 를 이미 적고 있어 오신뢰 여지는 좁고 private 라 파급도 이 파일 안이다 |
       | ~~3~~ ✅ | `TRIGGER_DELETE_LOCK_TIMEOUT_MS` JSDoc 의 «정리 3종» 나열을 경로 비특정으로 일반화 | 14라운드 INFO#17. **CHANGELOG 쪽 절반은 이미 고쳤다** — 같은 정정의 `codebase/**` 절반만 남았다 |
       | ~~4~~ ✅ | `acquireTriggerConfigLock` 의 `timeoutMs` 를 `Number.isFinite` + 상한 clamp 로 검증 | 14라운드 INFO#2. `SET LOCAL lock_timeout` 이 파라미터 바인딩 없는 보간이지만 호출부가 **모듈 상수만** 넘겨 현재 익스플로잇 불가 — 방어 심도 |
@@ -4738,10 +4738,35 @@ field: T | null;
       세 번째가 온다. 입력 거부(`secret://` 접두 · `% _ \`)가 이미 SoT 라 «호출부가 무엇을 넘기든 거부가 막는다» 로 쓸 수 있다.
       그 PR 에서 하지 않은 이유: `codebase/**` 주석이라 리뷰·e2e 가 한 라운드 더 돌고, 지금 문장은 날짜 달린 실측이라 거짓이 아니다.
 
-- [ ] **동시 중복 DELETE 가 감사 행을 두 번 남길 수 있다** (developer, 낮음, 2026-09-17 등재 · `/ai-review` `review/code/2026/09/17/18_45_09` INFO 19·21).
+- [x] **동시 중복 DELETE 가 감사 행을 두 번 남길 수 있다** (developer, 낮음, 2026-09-17 등재 · `/ai-review` `review/code/2026/09/17/18_45_09` INFO 19·21).
       워크플로 삭제 두 요청이 겹치면 둘 다 잠금 없는 `findById` 를 통과하고, 뒤 요청은 부모 잠금 뒤 `findOne` 이 `null` 인데도
       진행해 `workflow.deleted` 를 한 번 더 남긴다. **이 PR 전에도 같은 중복이 났다**(`findById` → `repository.remove`) — 데이터 손상은
       없다. 고친다면 `lockParentAndListTriggerIds` 가 부모 부재를 돌려주고 호출자가 404 로.
+      **2026-09-20 해소** `plan/complete/dup-delete-audit.md`. 처방은 적힌 그대로다 —
+      `{ parentPresence: 'present'|'absent', triggerIds }` 를 돌려주고 워크플로는 404(`RESOURCE_NOT_FOUND`)로 끝낸다.
+      **워크스페이스 경로도 함께 닫았다**: plan 은 «그쪽은 잠금 뒤 재검사가 이미 덮는다» 고 적었는데 리뷰가 반증했다 —
+      `assertWorkspaceDeletable` 이 «멤버십 → 존재» 순이라 진 쪽은 404 가 아니라 403 `OWNER_REQUIRED` + 거짓 «수동 정리
+      필요» 로그를 받았다. 두 경로 모두 실 DB e2e 로 고정했고(`workflow-/workspace-delete-concurrency.e2e-spec.ts`),
+      판별력은 뮤턴트로 실측했다(워크플로: 둘 다 204 + 감사 2건 재현 / 워크스페이스: 기대 404 자리에 403).
+      반환 계약이 `{ parentPresence, triggerIds }` 로 바뀐 것은 위 «네 자리 공용 형태» 설계의 전제다.
+
+- [ ] **`TriggersService.remove()` 도 동시 삭제에서 감사 행을 두 번 남길 수 있다** (developer, 낮음, 2026-09-20 등재 ·
+      `/ai-review` `review/code/2026/09/20/21_07_19` requirement WARNING 1). 위 항목을 닫으며 인용한 «트리거는 이미
+      §4.4 대로 404 다» 는 **spec 서술이지 코드 실측이 아니었다**. 읽어 보니 같은 형태다: 무락 `findById` →
+      `acquireTriggerConfigLock`(advisory lock, **행 락이 아니다**) → `m.remove(trigger)` → `recordAudit(TRIGGER_DELETED)`.
+      락이 직렬화는 하지만 락 안에서 **행이 아직 있는지 보지 않으므로** 진 쪽도 0행 삭제를 성공으로 끝낸다.
+      재현은 `workflow-delete-concurrency.e2e-spec.ts` 기법(테스트가 락을 쥔다)이 그대로 쓰이되, 행 락이 아니라
+      **같은 advisory lock key** 를 쥐어야 할 수 있다 — 거기부터 실측할 것.
+
+- [ ] **`1-workflow-list.md` §2.6 · `data-flow/12-workspace.md` §1.10 에 «동시 삭제 → 두 번째 404» 서술이 없다**
+      (planner, 낮음, 2026-09-20 등재 · 같은 세션 api_contract·requirement INFO 8). 트리거 목록 §4.4 만 그 계약을 적는다.
+      이제 코드는 세 경로 중 둘이 그렇게 동작하므로(위 두 항목) 문서가 트리거에만 있는 비대칭이 남았다.
+      `--impl-prep` 부터 세 라운드 연속 «비차단» 으로 처분됐으니 급하지 않다.
+      **같은 턴에 둘 더**(`--impl-done` `review/consistency/2026/09/20/21_21_21` WARNING 1·2):
+      (a) `data-flow/12-workspace.md` §1.10 은 «재검사 거부를 **포함해** 모든 실패를 로그로 남긴다» 고 적는데,
+      이제 동시 삭제의 404 만은 로그를 남기지 않는다(거짓 경보라서) — 그 예외를 한 구로 적는다.
+      (b) `2-trigger-list.md` §4.4 의 «두 번째는 404» 는 **구현 검증 대기** 라는 caveat 이 필요하다 — 바로 위
+      developer 항목이 그 선례가 코드에서 성립하는지 실측할 때까지는 spec 이 단정하고 있다.
 
 
 - [x] **창 1 실측 결과를 spec 에 반영한다 — §3 ⚠️ 교체 · 증거 e2e `code:` 등재 · 404 사유** (planner,
