@@ -738,11 +738,12 @@ describe('SchedulesService.runNow', () => {
       // 남았고, 창 1 의 `save(entity)` 가 행이 없으면 INSERT 하므로 삭제된 트리거가 고아로
       // 되살아날 수 있었다 (`review/code/2026/09/15/00_38_16` database W1).
       triggerLockEvents.length = 0;
-      scheduleRepo.findOne.mockResolvedValue({
+      const schedule = {
         id: 'sch-del',
         workspaceId: 'ws-1',
         triggerId: 'trig-del',
-      } as unknown as Schedule);
+      } as unknown as Schedule;
+      scheduleRepo.findOne.mockResolvedValue(schedule);
 
       await service.remove('sch-del', 'ws-1', 'u-del');
 
@@ -760,6 +761,11 @@ describe('SchedulesService.runNow', () => {
         'deleteByPrefix:secret://triggers/trig-del/',
       ]);
       expect(triggerRepo.delete).toHaveBeenCalledWith('trig-del');
+      // 방어적 `scheduleRepository.remove(schedule)` — CASCADE 가 이미 지운 자리라 0행
+      // no-op 이지만, "CASCADE 가 없어지면 이 줄이 유일한 삭제" 라는 설계 근거가 이 단언
+      // 없이는 검증되지 않았다 — 이 줄을 지워도 유닛·e2e 모두 GREEN 이었다
+      // (`/ai-review` `review/code/2026/09/21/00_06_01` testing WARNING 1).
+      expect(scheduleRepo.remove).toHaveBeenCalledWith(schedule);
     });
 
     /**
@@ -791,6 +797,9 @@ describe('SchedulesService.runNow', () => {
           service.remove('sch-race', 'ws-1', 'u-race'),
         ).rejects.toMatchObject({ response: { code: 'RESOURCE_NOT_FOUND' } });
 
+        // happy-path 형제 테스트(`triggerRepo.delete).toHaveBeenCalledWith('trig-del')`)와
+        // 대칭 — 진 쪽도 같은 트리거를 대상으로 삭제를 시도했음을 고정한다 (INFO 9).
+        expect(triggerRepo.delete).toHaveBeenCalledWith('trig-race');
         expect(auditLogs.record).not.toHaveBeenCalled();
         // 커밋 뒤 비밀 정리도 하지 않는다 — 이긴 쪽이 이미 했다.
         expect(
@@ -871,6 +880,38 @@ describe('SchedulesService.runNow', () => {
         id: 'sch-notrig',
         workspaceId: 'ws-1',
       });
+    });
+
+    /**
+     * `triggerId` 없는 방어 분기의 0-affected 대조군. 위 «triggerId 가 없으면…» 테스트는
+     * happy path(`affected: 1`)만 지나서 이 분기의 404 판정 자체는 어떤 테스트로도 실행
+     * 검증되지 않았다 (`/ai-review` `review/code/2026/09/21/00_06_01` testing WARNING 2).
+     *
+     * 이 분기는 CASCADE 가 개입하지 않으므로 스케줄 행 자체의 `affected` 가 판별자다 — 트리거
+     * 경로(위 «락 안 트리거 삭제가 0행이면 404» 테스트)와 판정 대상이 다르다는 것을 대조로 고정.
+     */
+    it('삭제 — triggerId 없는 분기에서 scheduleRepo.delete 가 0행이면 404 이고 감사를 남기지 않는다', async () => {
+      triggerLockEvents.length = 0;
+      auditLogs.record.mockClear();
+      scheduleRepo.findOne.mockResolvedValue({
+        id: 'sch-notrig-race',
+        workspaceId: 'ws-1',
+        triggerId: null,
+      } as unknown as Schedule);
+      // 먼저 커밋한 요청이 이미 지웠다 — 이 요청의 삭제는 0행이다.
+      scheduleRepo.delete.mockResolvedValueOnce({
+        affected: 0,
+        raw: [],
+      } as DeleteResult);
+
+      await expect(
+        service.remove('sch-notrig-race', 'ws-1', 'u-notrig-race'),
+      ).rejects.toMatchObject({ response: { code: 'RESOURCE_NOT_FOUND' } });
+
+      expect(auditLogs.record).not.toHaveBeenCalled();
+      // 이 분기엔 애초에 트리거가 없다 — 락도 트리거 삭제도 여전히 일어나지 않는다.
+      expect(triggerLockEvents).toEqual([]);
+      expect(triggerRepo.delete).not.toHaveBeenCalled();
     });
 
     it('감사 로깅 — remove 는 schedule.deleted 를 남긴다', async () => {
