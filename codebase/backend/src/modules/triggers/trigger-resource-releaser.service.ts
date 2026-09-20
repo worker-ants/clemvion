@@ -17,6 +17,7 @@ import {
 } from './trigger-config-lock';
 import {
   deleteTriggerSecretsAfterCommit,
+  LockedParentTriggers,
   TriggerParent,
   TriggerResourceReleasePort,
   undoAbsentTriggerWrite,

@@ -75,10 +75,18 @@ await manager.findOne(Workflow, { select: { id: true }, where: { id: parent.work
 
 ## 체크리스트
 
-- [ ] `/consistency-check --impl-prep spec/2-navigation` → BLOCK 확인
-- [ ] 테스트 선작성 — 단위(부모 부재 → 404 · 감사 미기록) + e2e(실제 동시 DELETE 두 건)
-- [ ] 구현
-- [ ] TEST WORKFLOW (lint · unit · build · e2e)
+- [x] `/consistency-check --impl-prep spec/2-navigation` — `review/consistency/2026/09/20/19_30_57` **BLOCK: NO**
+  (Critical 0 · Warning 2 — 위 §«`--impl-prep` 이 요구한 것» 에 반영)
+- [x] 테스트 선작성 — 단위 RED 확인 후 구현. 뮤턴트 둘(404 분기 제거 · 헬퍼가 부재를 무시)이 **각각 한
+  테스트만** 죽였다. 헬퍼 쪽은 «부재+0행» 과 «존재+0행» 두 fixture 로 두 사실을 갈랐다
+- [x] 구현
+- [x] TEST WORKFLOW — lint PASS · unit PASS · build PASS · **e2e 368 PASS**.
+  **판별력 실측**: `origin/main` 의 네 파일로 되돌려 e2e 이미지를 재빌드하니 두 DELETE 가 **둘 다 204** 로
+  RED 였고, 그 상태의 DB 를 직접 조회해 **`workflow.deleted` 감사 행 2건**(`resource_id` 하나에 `count=2`)을
+  확인했다 — 트래커가 «남을 수 있다» 고 적은 것을 값으로 본 것이다. 고친 코드로는 `[204, 404]` · 감사 1건.
+  - 두 가지가 더 드러났다: (1) **단위는 GREEN 인데 `build` 가 타입 오류를 잡았다**(`LockedParentTriggers`
+    import 누락) — jest 경로가 타입을 강제하지 않는다. (2) 뮤턴트 원복에 `git checkout --` 을 써서 커밋 뒤에
+    넣은 그 import 를 **다시 날렸다**(build 가 또 잡았다). 이 저장소가 이미 기록한 형태다 — 원복은 `cp` 로.
 - [ ] `/ai-review` → Critical/Warning 0
 - [ ] `/consistency-check --impl-done spec/2-navigation` → BLOCK: NO
 - [ ] 트래커 항목 해소 + 이 plan `plan/complete/` 로
