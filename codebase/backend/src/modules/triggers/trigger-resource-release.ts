@@ -115,6 +115,20 @@ export async function undoAbsentTriggerWrite(
 export type TriggerParent = { workflowId: string } | { workspaceId: string };
 
 /**
+ * {@link TriggerResourceReleasePort.lockParentAndListTriggerIds} 의 결과.
+ *
+ * **부재를 빈 배열로 신호하지 않는다** — «부모가 사라졌다» 와 «트리거가 0개다» 는 호출자가 다르게
+ * 다뤄야 하는 두 사실이고, 한 값(`string[]` 또는 `null`)으로 합치면 호출부가 truthiness 로 잘못
+ * 가른다. 이름 있는 상태로 돌려 호출자가 **명시 비교**하게 한다.
+ */
+export interface LockedParentTriggers {
+  /** 잠금 시점에 부모 행이 있었는가. `absent` 면 동시 삭제가 먼저 커밋한 것이다. */
+  parent: 'present' | 'absent';
+  /** 잠금 **뒤** 열거한 그 부모의 트리거 id. `parent: 'absent'` 면 비어 있다. */
+  triggerIds: string[];
+}
+
+/**
  * 워크플로·워크스페이스 삭제가 쓰는 정리 포트. 구현은 `TriggerResourceReleaserService`.
  *
  * **토큰으로 지연 해석한다.** `WorkflowsModule`·`WorkspacesModule` 이 `TriggersModule` 을 import
@@ -153,11 +167,15 @@ export interface TriggerResourceReleasePort {
    * (`TRIGGER_DELETE_LOCK_TIMEOUT_MS`)을 건다 — 외부 해제를 이미 되돌릴 수 없게 끝냈으므로, 뒤따르는
    * 잠금(부모 행 · 멤버십 · CASCADE 되는 트리거 행)을 무한정 기다리면 반쯤 삭제된 상태가 hang 으로
    * 굳는다. 트리거·스케줄 삭제와 같은 규칙이다(spec 트리거 목록 §4.4).
+   *
+   * **잠근 행이 있었는지도 함께 돌려준다**({@link LockedParentTriggers}) — 동시 삭제 두 요청이 잠금 없는
+   * 선조회를 모두 통과할 수 있고, 먼저 커밋한 쪽이 행을 지운 뒤 두 번째가 «없는 것을 지운 척» 하며
+   * 감사 행을 한 번 더 남기는 것을 호출자가 막아야 한다(트리거 목록 §4.4 의 «두 번째 요청은 404» 대칭).
    */
   lockParentAndListTriggerIds(
     manager: EntityManager,
     parent: TriggerParent,
-  ): Promise<string[]>;
+  ): Promise<LockedParentTriggers>;
   /** {@link deleteTriggerSecretsAfterCommit} — 커밋 뒤에 부른다. 던지지 않는다. */
   releaseSecretsAfterCommit(
     triggerIds: readonly string[],

@@ -80,26 +80,31 @@ export class TriggerResourceReleaserService implements TriggerResourceReleasePor
   async lockParentAndListTriggerIds(
     manager: EntityManager,
     parent: TriggerParent,
-  ): Promise<string[]> {
+  ): Promise<LockedParentTriggers> {
     await setLocalLockTimeout(manager, TRIGGER_DELETE_LOCK_TIMEOUT_MS);
-    if ('workflowId' in parent) {
-      await manager.findOne(Workflow, {
-        select: { id: true },
-        where: { id: parent.workflowId },
-        lock: { mode: 'pessimistic_write' },
-      });
-    } else {
-      await manager.findOne(Workspace, {
-        select: { id: true },
-        where: { id: parent.workspaceId },
-        lock: { mode: 'pessimistic_write' },
-      });
-    }
+    // 잠그며 읽은 행을 **돌려준다** — 종전엔 버렸다. 동시 삭제 두 요청이 잠금 없는 선조회를 모두
+    // 통과한 뒤, 먼저 커밋한 쪽이 행을 지우면 두 번째는 «잠글 행이 없다» 를 알지 못한 채 진행해
+    // 감사 행을 한 번 더 남겼다(`manager.remove` 는 0행이어도 던지지 않는다).
+    const parentRow =
+      'workflowId' in parent
+        ? await manager.findOne(Workflow, {
+            select: { id: true },
+            where: { id: parent.workflowId },
+            lock: { mode: 'pessimistic_write' },
+          })
+        : await manager.findOne(Workspace, {
+            select: { id: true },
+            where: { id: parent.workspaceId },
+            lock: { mode: 'pessimistic_write' },
+          });
     const rows = await manager.find(Trigger, {
       select: { id: true },
       where: parent,
     });
-    return rows.map((row) => row.id);
+    return {
+      parent: parentRow ? 'present' : 'absent',
+      triggerIds: rows.map((row) => row.id),
+    };
   }
 
   async releaseSecretsAfterCommit(

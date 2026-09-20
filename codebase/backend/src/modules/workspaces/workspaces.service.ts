@@ -519,9 +519,12 @@ export class WorkspacesService {
 
         // **첫 호출이다** — 잠금 대기 상한을 걸고 워크스페이스 행을 잠근 뒤 트리거를 연다. 잠금 뒤엔
         // 새 트리거가 끼지 못하고, 아래 재검사의 잠금(워크스페이스 → 멤버십)에도 상한이 걸린다.
-        const ids = await releaser.lockParentAndListTriggerIds(manager, {
-          workspaceId,
-        });
+        // 부모 부재(`parent: 'absent'`)는 여기서 따로 보지 않는다 — 바로 아래 잠금 재검사
+        // (`assertWorkspaceDeletable`)가 사라진 워크스페이스를 거부하므로 판정이 한 곳에 남는다.
+        const { triggerIds: ids } = await releaser.lockParentAndListTriggerIds(
+          manager,
+          { workspaceId },
+        );
         const workspace = await this.assertWorkspaceDeletable(
           memRepo,
           wsRepo,

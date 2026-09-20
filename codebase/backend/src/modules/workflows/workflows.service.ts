@@ -270,13 +270,27 @@ export class WorkflowsService {
       .transaction(async (manager) => {
         // 워크플로 행을 먼저 잠그고 연다 — 잠금 뒤엔 이 워크플로를 참조하는 트리거 INSERT 가
         // FK 검사에서 막혀, 비밀을 지울 대상에서 빠지는 트리거가 없다.
-        const ids = await releaser.lockParentAndListTriggerIds(manager, {
+        const locked = await releaser.lockParentAndListTriggerIds(manager, {
           workflowId: id,
         });
+        // 동시 DELETE 두 건이 잠금 없는 `findById` 를 모두 통과할 수 있다. 먼저 커밋한 쪽이 행을
+        // 지웠으면 여기서 멈춘다 — `manager.remove` 는 0행이어도 던지지 않으므로, 그냥 진행하면
+        // 두 번째 요청도 성공으로 끝나며 `workflow.deleted` 감사를 한 번 더 남긴다.
+        // 트리거 삭제가 이미 «두 번째 요청은 404» 다(spec 트리거 목록 §4.4) — 같은 답으로 맞춘다.
+        if (locked.parent === 'absent') {
+          throw new NotFoundException({
+            code: 'RESOURCE_NOT_FOUND',
+            message: 'Workflow not found',
+          });
+        }
         await manager.remove(workflow);
-        return ids;
+        return locked.triggerIds;
       })
       .catch((err: unknown) => {
+        // 동시 삭제로 행이 이미 사라진 경우는 **반쯤 삭제된 상태가 아니다** — 먼저 커밋한 요청이
+        // 행도 지우고 같은 자원도 해제했다. 아래 error 로그는 «수동 정리가 필요하다» 고 말하므로
+        // 이 경우까지 싣으면 거짓 경보가 된다. 404 는 그대로 호출자에게 올린다.
+        if (err instanceof NotFoundException) throw err;
         // 외부 해제는 되돌릴 수 없다 — 조용히 던지면 «발화하지 않는 트리거» 가 아무도 모르게 남는다.
         this.logger.error(
           `WorkflowsService.remove: workflow=${id} 의 행 삭제가 실패했다 — 그 트리거들의 schedule job·` +

@@ -45,7 +45,7 @@ describe('WorkspacesService', () => {
     }),
     lockParentAndListTriggerIds: jest.fn((_m: unknown, parent: unknown) => {
       deleteEvents.push(`lockAndList:${JSON.stringify(parent)}`);
-      return Promise.resolve(['trig-x']);
+      return Promise.resolve({ parent: 'present', triggerIds: ['trig-x'] });
     }),
     releaseSecretsAfterCommit: jest.fn((ids: string[], caller: string) => {
       deleteEvents.push(`releaseSecrets:${ids.join(',')}:${caller}`);
