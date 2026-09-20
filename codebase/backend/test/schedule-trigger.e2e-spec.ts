@@ -280,6 +280,14 @@ describe('Schedule trigger (e2e)', () => {
     });
   });
 
+  /**
+   * 생성 cron 은 **분 단위 cron 과 겹칠 수 없는** 값이어야 한다. 종전에는 `0 10 * * *`(Asia/Seoul)로 만들고 분 단위 cron 으로
+   * PATCH 했는데, 09:59 KST 에는 두 cron 의 다음 실행이 똑같이 `10:00 KST`(`01:00:00Z`)라 재계산이 정상인데도 «안 바뀌었다» 로
+   * 읽혔다(실측: `plan/complete/ssrf-catch-instanceof.md` 의 e2e 첫 실행). 연 1회 cron 은 분 단위 cron 과 같은 시각을 가리킬 수 없다.
+   *
+   * 「달라졌다」는 재계산의 **대리 지표**다. 그래서 «새 cron 이 만드는 값인가»(1분 안)를 함께 본다 — 대리 지표가 무너져도
+   * 이쪽이 남는다.
+   */
   it('D. PATCH cron → nextRunAt 재계산', async () => {
     const create = await request(BASE_URL)
       .post('/api/schedules')
@@ -287,12 +295,13 @@ describe('Schedule trigger (e2e)', () => {
       .send({
         workflowId,
         name: uniqueName('sched-d'),
-        cronExpression: '0 10 * * *',
+        cronExpression: '0 0 1 1 *', // 매년 1월 1일 — 분 단위 cron 과 겹칠 수 없다
         timezone: 'Asia/Seoul',
       });
     const scheduleId = create.body.data.id;
     const originalNext = create.body.data.nextRunAt;
 
+    const patchedAt = Date.now();
     const patch = await request(BASE_URL)
       .patch(`/api/schedules/${scheduleId}`)
       .set(authHeaders())
@@ -300,6 +309,10 @@ describe('Schedule trigger (e2e)', () => {
     expect(patch.status).toBe(200);
     expect(patch.body.data.nextRunAt).toBeDefined();
     expect(patch.body.data.nextRunAt).not.toBe(originalNext);
+    // `*/1 * * * *` 의 다음 실행은 늘 다음 분 경계 — 요청 시각부터 60초 안이다(경계·시계 오차로 5초 여유).
+    const nextRunMs = new Date(patch.body.data.nextRunAt as string).getTime();
+    expect(nextRunMs).toBeGreaterThan(patchedAt - 5_000);
+    expect(nextRunMs).toBeLessThanOrEqual(patchedAt + 65_000);
     // PATCH 도 `toResponse` 를 타지만 `update()` 의 trigger 대입 로직이 `findOne` 과
     // 달라(`trigger ?? schedule.trigger`) 공유 헬퍼만으로 안전이 자동 보장되지 않는다
     // (`review/code/2026/09/05/19_08_18` W5).
