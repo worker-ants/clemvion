@@ -1,5 +1,34 @@
 # Changelog
 
+## Unreleased — 동시 DELETE 두 건이 `trigger.deleted` 감사 행을 두 번 남기던 것
+
+`TriggersService.remove()` 는 잠금 없는 `findById` 로 존재를 확인한 뒤, advisory lock
+(`trigger-config:<id>`)으로 두 요청을 줄 세우기만 하고 락을 얻은 쪽이 «행이 아직 있는지» 를
+다시 묻지 않았다. 형제 두 경로(워크플로·워크스페이스, 위 항목)는 `pessimistic_write` 행 락이라
+잠그며 읽은 결과를 그대로 쓸 수 있었지만, 여기는 advisory lock 이라 행을 읽지 않는다 — 그래서
+같은 결함이 다른 형태로 남아 있었다. `manager.remove()` 는 0행이어도 던지지 않으므로 동시 DELETE
+두 건이 겹치면 진 쪽도 성공으로 끝나며 `trigger.deleted` 감사 행을 한 번 더 남겼다.
+
+**고친 것** (트리거 목록 §4.4 의 «두 번째 요청은 404» 를 코드 실측으로 — `spec_impact: none`,
+기존 정책에 맞추는 것):
+- advisory lock 을 얻은 뒤 **명시적으로 재조회**한다 — 없으면 트랜잭션을 롤백하며
+  404(`RESOURCE_NOT_FOUND`)로 끝난다. `m.remove(trigger)` 자체는 그대로 둔다.
+- `.catch` 의 «반쯤 삭제된 상태다 · 수동 정리가 필요하다» error 로그에서 `NotFoundException` 을
+  갈랐다 — 동시 삭제로 행이 사라진 것은 먼저 커밋한 요청이 행도 자원도 이미 정리한 것이라, 그
+  경우까지 «수동 정리가 필요하다» 로 남기면 거짓 경보가 된다(형제 두 경로와 같은 한 줄).
+
+**판별력 실측**: 고치기 전 e2e 로 재현하니 동시 DELETE 두 건이 **둘 다 204** 였고, DB 를 직접
+조회해 `trigger.deleted` 감사 행이 **한 `resource_id` 에 2건** 임을 확인했다(고친 코드는
+`[204, 404]` · 감사 1건). 단위 뮤테이션도 함께 돈다 — 재조회 분기를 지우면 새 단위 테스트가
+RED, `NotFoundException` 재던짐 가드를 지우면 별도 단언이 RED. **첫 뮤턴트는 무효였다**: 앵커
+문자열이 `update()` 에도 있어 440줄이 통째로 지워지고 116건이 실패했다 — 고유 앵커로 다시 만든
+180자 뮤턴트로 재측정했다.
+
+**남는 것**: 네 삭제 경로(트리거·워크플로·워크스페이스·스케줄) 중 `SchedulesService.remove()`
+자신의 스케줄 행 삭제는 아직 같은 결함을 갖고 있다(락·재조회 밖에서 `scheduleRepository.remove`
+호출) — `plan/in-progress/spec-draft-nullable-notation-followups.md` 에 후속 항목으로 등재.
+외부 provider teardown(chat-channel 등) 중복 호출도 이 PR 이 닫지 않는다(락 밖, 멱등 전제 유지).
+
 ## Unreleased — 동시 DELETE 두 건이 `workflow.deleted` 감사 행을 두 번 남겼다
 
 `WorkflowsService.remove()`(워크스페이스 삭제도 대칭) 는 잠금 없는 `findById` 로 존재를 확인한 뒤,
