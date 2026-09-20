@@ -1,0 +1,22 @@
+{
+  "version": 1,
+  "started_at": "2026-09-20T20:20:00Z",
+  "summary_items_total": 4,
+  "items_resolved_ids": [1, 2, 3, 4],
+  "items_pending_ids": [],
+  "items_escalated_ids": {},
+  "commits_made": [
+    { "sha": "e175489fe", "summary_id": 2, "scope": "triggers" },
+    { "sha": "e175489fe", "summary_id": 3, "scope": "workflows" },
+    { "sha": "27f488d09", "summary_id": 1, "scope": "workspaces" },
+    { "sha": "64e4e434d", "summary_id": 4, "scope": "changelog" }
+  ],
+  "spec_drafts_pending": [],
+  "spec_drafts_applied": [],
+  "e2e_attempts": 1,
+  "e2e_last_status": "pass",
+  "e2e_log_paths": ["_test_logs/e2e-20260920-203727.log"],
+  "auto_fix_iterations": {},
+  "escalation_reason": null,
+  "last_reset_hint_sec": null
+}
