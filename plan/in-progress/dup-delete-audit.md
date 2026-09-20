@@ -47,8 +47,16 @@ await manager.findOne(Workflow, { select: { id: true }, where: { id: parent.work
 
 - **워크플로 삭제**: `absent` 면 `NotFoundException({ code: 'RESOURCE_NOT_FOUND' })` 를 던진다 — 트랜잭션이
   롤백되고 감사도 남지 않는다. 두 번째 요청은 404 를 받는다(이미 없는 것을 지울 수 없다).
-- **워크스페이스 삭제**: 그 경로는 잠금 뒤 `assertWorkspaceDeletable(... pessimistic_write)` 로 **이미 재검사**한다 —
-  행이 사라졌으면 거기서 거부된다. 그래도 헬퍼의 계약이 바뀌므로 호출부를 새 반환 형태에 맞춘다(동작 변화 없음).
+- **워크스페이스 삭제**: ~~그 경로는 잠금 뒤 `assertWorkspaceDeletable(... pessimistic_write)` 로 **이미
+  재검사**한다 — 행이 사라졌으면 거기서 거부된다. 그래도 헬퍼의 계약이 바뀌므로 호출부를 새 반환 형태에
+  맞춘다(동작 변화 없음).~~ **정정 (`/ai-review` `review/code/2026/09/20/20_06_26` WARNING#1 이 반증)**:
+  틀렸다 — `assertWorkspaceDeletable` 의 판정 순서는 «멤버십(권한) → 존재» 다. 동시 삭제의 진 쪽은
+  CASCADE 로 멤버 행까지 사라진 뒤라 재검사가 «존재» 를 보기 전에 «멤버십 없음» 으로 먼저 걸려 403
+  `OWNER_REQUIRED` 를 받고, 바깥 `.catch` 는 그것을 «수동 정리가 필요하다» 는 거짓 ERROR 로 남긴다 —
+  워크플로 경로에서 없앤 것과 같은 패턴이 여기는 남아 있었다. 워크플로와 대칭으로
+  `locked.parentPresence === 'absent'` 를 재검사보다 먼저 검사해 404(`WORKSPACE_NOT_FOUND`)로
+  단락하고, `.catch` 에서도 `NotFoundException` 을 거짓 로그 없이 재던지도록 고쳤다(동작 변화 없다는
+  전제는 유지되지 않았다 — 403→404 로 응답이 바뀐다, 의도된 변경).
 
 ### `--impl-prep` 이 요구한 것 (`review/consistency/2026/09/20/19_30_57`, BLOCK: NO · Warning 2)
 
