@@ -245,13 +245,17 @@ describe('testHttpConnection', () => {
    */
   it('가드에 막히면 전송 타임아웃 신호를 만들지 않는다 — 신호는 가드 통과 뒤에 만든다', async () => {
     const timeoutSpy = jest.spyOn(AbortSignal, 'timeout');
-    mockedHostGuard.mockRejectedValue(new SsrfBlockedError('10.0.0.9'));
+    try {
+      mockedHostGuard.mockRejectedValue(new SsrfBlockedError('10.0.0.9'));
 
-    const result = await testHttpConnection('bearer_token', bearer);
+      const result = await testHttpConnection('bearer_token', bearer);
 
-    expect(result).toMatchObject({ success: false, code: 'HTTP_BLOCKED' });
-    expect(timeoutSpy).not.toHaveBeenCalled();
-    timeoutSpy.mockRestore();
+      expect(result).toMatchObject({ success: false, code: 'HTTP_BLOCKED' });
+      expect(timeoutSpy).not.toHaveBeenCalled();
+    } finally {
+      // 단언이 실패해도 스파이를 되돌린다 — 안 그러면 다음 테스트로 새어 나간다(이 파일엔 전역 `restoreMocks` 가 없다).
+      timeoutSpy.mockRestore();
+    }
   });
 
   it('host 가 사설 IP 로 해석돼도 HTTP_BLOCKED', async () => {

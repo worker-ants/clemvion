@@ -50,7 +50,9 @@ export async function discardBody(res: Response): Promise<void> {
  *
  * 차단(대상 가드 실패 · 홉 초과)은 던지지 않고 `{ blocked: true, reason }` 으로 돌려준다 — `reason` 에는 차단된 host/IP 가
  * 들어 있을 수 있으므로 호출자는 서버 로그에만 남기고 클라이언트에는 `SSRF_BLOCKED_CLIENT_MESSAGE` 를 준다.
- * `fetch` 의 전송 오류는 그대로 던진다.
+ *
+ * **던지는 것 둘**: `fetch` 의 전송 오류, 그리고 홉 검사 중 가드가 낸 **판정 아닌 오류**(가드의 고장 —
+ * {@link outboundBlockReason} 이 그것만 전파한다). 즉 이 함수 밖으로 나온 예외가 곧 전송 실패는 아니다.
  */
 export async function followRedirectsSafely(
   first: Response,

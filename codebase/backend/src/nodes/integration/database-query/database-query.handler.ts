@@ -263,20 +263,19 @@ export class DatabaseQueryHandler
         try {
           await assertSafeOutboundHostResolved(creds.host);
         } catch (err) {
+          const detail = err instanceof Error ? err.message : String(err);
           // 판정은 `SsrfBlockedError` 하나뿐이다 — 그 밖의 오류는 가드의 고장이지 차단이 아니므로 «당신의 host 가
           // 막혔다» 로 보고하지 않는다. 분류되지 않은 실패(`INTEGRATION_CALL_FAILED`, 공통 §4.2)로 승격해 아래
           // catch 가 code 를 보존하게 한다 — 그냥 던지면 `mapDbError` 가 `DB_QUERY_FAILED` 를 매기는데 쿼리는
           // 시작도 안 했고, 같은 실패를 적는 usage 로그(`toLogError`)와도 코드가 어긋난다.
           if (!(err instanceof SsrfBlockedError)) {
-            logger.warn(
-              `SSRF guard failed (database-query): ${err instanceof Error ? err.message : String(err)}`,
-            );
+            logger.warn(`SSRF guard failed (database-query): ${detail}`);
             // 원본 객체를 `cause` 로 붙이지 않는다 — 가드가 앞으로 어떤 오류를 던질지 모르고
             // (`spec/5-system/3-error-handling.md` §6.3.1 C2: message·name 밖의 속성이 통째로 딸려 온다),
             // 이 에러는 Activity API 로 나가는 노드 에러다. 원본 상세는 위 `logger.warn` 에만 남는다.
             throw new IntegrationError(
               'INTEGRATION_CALL_FAILED',
-              sanitizeMessage(err instanceof Error ? err.message : String(err)),
+              sanitizeMessage(detail),
             );
           }
           // 차단 판정의 원문에는 차단된 host/IP 가 들어 있어 `cause` 로도 싣지 않는다(정찰 면 축소 — 일반화

@@ -361,12 +361,13 @@ export class HttpRequestHandler
       // `INTEGRATION_CALL_FAILED`(공통 §4.2 — 분류되지 않은 실패)로 surface 한다.
       if (!(err instanceof SsrfBlockedError)) {
         logger.warn(`SSRF guard failed (http-request): ${detail}`);
+        const logError = toLogError(err);
         if (authentication === 'integration' && integrationId) {
           await this.logUsage(context, {
             integrationId,
             status: 'failed',
             durationMs: Date.now() - start,
-            error: toLogError(err),
+            error: logError,
             api: { method, path: extractApiPath(url) },
           }).catch(() => {});
         }
@@ -374,10 +375,7 @@ export class HttpRequestHandler
           // 원문 대신 마스킹한 message 로 감싼다 — 가드가 앞으로 어떤 오류를 던질지 모르고, 이 message 는
           // `output.error` 로 workspace 사용자에게 나간다. 코드는 `buildPreflightErrorOutput` 의 비-IntegrationError
           // fallback 과 같은 `INTEGRATION_CALL_FAILED` 다.
-          new IntegrationError(
-            'INTEGRATION_CALL_FAILED',
-            toLogError(err).message,
-          ),
+          new IntegrationError('INTEGRATION_CALL_FAILED', logError.message),
           configEcho,
           cappedRequestBody,
           bodyType,
@@ -555,7 +553,11 @@ export class HttpRequestHandler
           durationMs,
         );
       }
-      const message = err instanceof Error ? err.message : String(err);
+      // 마스킹해서 내보낸다 — 이 자리로 오는 것은 `fetch` 전송 오류만이 아니라, 리다이렉트 **홉** 검사에서
+      // 가드가 낸 판정 아닌 오류(`followRedirectsSafely` 가 전파)도 있다. preflight 쪽 같은 사건은 위에서
+      // `toLogError` 로 마스킹하므로, 여기서만 원문이 나가면 검사 시점에 따라 노출이 갈린다. 전송 오류 문구도
+      // URL 자격증명 등을 품을 수 있어 같이 가린다.
+      const message = toLogError(err).message;
       if (integrationId && authentication === 'integration') {
         await this.logUsage(context, {
           integrationId,

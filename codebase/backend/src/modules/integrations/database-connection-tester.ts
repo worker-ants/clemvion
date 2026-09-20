@@ -143,7 +143,7 @@ export async function testDatabaseConnection(
     } catch (err) {
       const detail = err instanceof Error ? err.message : String(err);
       // 판정은 `SsrfBlockedError` 하나뿐이다 — 그 밖의 오류는 가드의 고장이지 차단이 아니므로 «당신의 host 가 막혔다» 로
-      // 보고하지 않고 분류되지 않은 실패로 돌린다. 던지지 않는 계약은 그대로다(§아래 JSDoc).
+      // 보고하지 않고 분류되지 않은 실패로 돌린다. 던지지 않는 계약은 그대로다(§위 JSDoc).
       if (!(err instanceof SsrfBlockedError)) {
         logger.warn(`SSRF guard failed (database connection test): ${detail}`);
         return {
