@@ -1,5 +1,33 @@
 # Changelog
 
+## Unreleased — 동시 rotate 두 건 중 나중 저장이 먼저 커밋된 교체를 옛 스냅샷으로 되돌렸다
+
+`IntegrationsService.rotate()` 는 읽기 → merge → **연결 테스트(실제 접속, 수 초)** → `update` 순서였다.
+merge 의 base 가 **요청 시작 시점의 스냅샷**(`entity.credentials`)에 고정돼, 연결 테스트가 도는 동안
+다른 rotate 요청이 커밋해도 그 뒤 반영되지 않았다. 그래서 두 rotate 가 겹치면 **둘 다 200 을 받지만**
+나중에 커밋한 쪽이 옛 base 위에서 저장해 먼저 커밋된 교체를 조용히 되돌렸다 — 사용자는 자기 교체가
+저장됐다고 믿는다. 이 창은 연결 테스트가 구조 검증에서 **실제 접속**으로 바뀌며(밀리초 → 수 초)
+현실적으로 넓어졌다.
+
+**고친 것** (spec `2-navigation/4-integration.md §9.2` — 외부 계약은 바뀌지 않는다, 성공은 그대로 200):
+- 연결 테스트는 그대로 락 밖에서 돌지만, 그 뒤 `dataSource.transaction` + `pessimistic_write` 로 행을
+  **다시 읽어** 그 위에 머지한다 — 같은 모듈의 재인증 콜백(`integration-oauth.service.ts` CONC H-3)과
+  같은 형태(외부 호출 먼저, 쓰기는 락 안). 머지 base 가 바뀌므로 구조 검증(`validateCredentials`)도
+  락 안에서 다시 돈다.
+- 부수적으로 조직-스코프 권한 재검사도 락 안에서 다시 본다 — 연결 테스트가 도는 동안 personal →
+  organization 으로 바뀌었으면 비-admin 의 교체는 거부된다(요청 시작 시점 스냅샷으로만 검사하던
+  TOCTOU 도 함께 닫힘).
+- 부분 `update` 는 유지한다 — 엔티티 전체를 `save` 하면 `logUsage` 가 이 락과 무관하게 원자적으로
+  쓴 `lastUsedAt` 을 재읽기 시점 값으로 되돌린다.
+
+**남는 것**(plan `rotate-lost-update.md` §B, 의도적으로 유예):
+- 두 rotate 가 **서로 다른 필드**를 바꾸면 최종 커밋 조합은 어느 쪽 연결 테스트도 실제로 검증한 적
+  없는 조합일 수 있다 — 그래도 지금까지처럼 "먼저 커밋된 필드가 조용히 사라지는" 것보다는 낫다.
+  대안(충돌 감지 → 409 신설)은 `INTEGRATION_ROTATE_CONFLICT` 계약 신설을 요구해 접었다
+  (`/consistency-check --spec` 가 BLOCK: YES 로 반증 — draft 는 `plan/complete/spec-draft-rotate-conflict.md`).
+- `pessimistic_write` 대기 상한(lock/statement timeout)은 두지 않는다 — 같은 모듈 선례(CONC H-3)와
+  동일 설계. 임계 구간에 외부 호출이 없어 대기는 다른 rotate 의 "재읽기 + 머지 + UPDATE" 만큼(밀리초)이다.
+
 ## Unreleased — HTTP · DB 노드가 IPv4-mapped IPv6 로 루프백 · 메타데이터에 닿았고, Send Email 은 CGNAT 를 막지 않았다
 
 통합 노드의 SSRF 가드가 둘이었다. spec 은 HTTP Request · Database Query · Send Email 이 **같은 가드**라 적는데, HTTP · DB 는
