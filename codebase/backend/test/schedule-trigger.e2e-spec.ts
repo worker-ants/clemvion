@@ -286,9 +286,12 @@ describe('Schedule trigger (e2e)', () => {
    * `10:00 KST`(`01:00:00Z`)라 재계산이 정상인데도 «안 바뀌었다» 로 읽혔다 — 하루 1분씩 거짓 실패했다(실측:
    * `plan/in-progress/spec-draft-nullable-notation-followups.md` 의 해당 항목 · `review/code/2026/09/20/09_35_16/RESOLUTION.md`).
    *
-   * 그래서 보는 것은 «PATCH 뒤 값이 **새 cron** 이 만드는 값인가» 다 — 분 단위 cron 의 다음 실행은 늘 요청 직후 1분 안이다.
-   * 생성 cron 은 연 1회(`0 0 1 1 *`)라 그 창 밖이다. 겹치는 순간(12/31 23:59 KST 의 1분)에도 이 단언은 참이라 흔들리지 않는다 —
-   * 「달라졌다」를 함께 걸면 바로 그 1분에 다시 거짓 실패하므로 걸지 않는다.
+   * 그래서 보는 것은 «PATCH 뒤 값이 **새 cron** 이 만드는 값인가» 다 — 분 단위 cron 의 다음 실행은 늘 요청 직후 1분 안이고
+   * 초 자리가 0(분 경계)이다. 재계산이 아예 없었다면 값은 생성 cron 의 것(연 1회, 몇 달 뒤)이라 이 창 밖으로 떨어진다.
+   *
+   * **옛 값과 비교하지 않는다.** 「달라졌다」든 「옛 값은 창 밖이다」든, 두 cron 의 다음 실행이 같아지는 순간이 있으면 그 순간에
+   * 거짓 실패한다 — 연 1회 cron 도 12/31 23:59 KST 에는 분 단위 cron 과 같은 시각을 가리킨다(1라운드·2라운드 리뷰가 두 번 잡았다).
+   * 판정은 **지금 시각과 새 cron 의 관계**만으로 한다.
    */
   it('D. PATCH cron → nextRunAt 재계산', async () => {
     const create = await request(BASE_URL)
@@ -301,7 +304,6 @@ describe('Schedule trigger (e2e)', () => {
         timezone: 'Asia/Seoul',
       });
     const scheduleId = create.body.data.id;
-    const originalNext = create.body.data.nextRunAt;
 
     const patchedAt = Date.now();
     const patch = await request(BASE_URL)
@@ -317,10 +319,6 @@ describe('Schedule trigger (e2e)', () => {
     expect(nextRunMs).toBeGreaterThan(patchedAt - 30_000);
     expect(nextRunMs).toBeLessThanOrEqual(patchedAt + 90_000);
     expect(new Date(nextRunMs).getUTCSeconds()).toBe(0);
-    // `originalNext`(연 1회 cron 의 값)는 그 창 밖이다 — 이 대조로 «PATCH 가 옛 값을 그대로 두었다» 를 가른다.
-    expect(new Date(originalNext as string).getTime()).toBeGreaterThan(
-      patchedAt + 90_000,
-    );
     // PATCH 도 `toResponse` 를 타지만 `update()` 의 trigger 대입 로직이 `findOne` 과
     // 달라(`trigger ?? schedule.trigger`) 공유 헬퍼만으로 안전이 자동 보장되지 않는다
     // (`review/code/2026/09/05/19_08_18` W5).

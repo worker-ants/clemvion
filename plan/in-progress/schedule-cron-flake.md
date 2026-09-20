@@ -48,7 +48,7 @@ spec_impact: none
 ## 체크리스트
 
 - [x] `--impl-prep spec/2-navigation/` — `review/consistency/2026/09/20/11_21_16` BLOCK: NO. WARNING 1(요구사항 카탈로그
-  `NAV-WF-02` 상태가 상세 spec 의 «미구현» 과 어긋남)은 이 작업과 무관한 기존 불일치 — planner 항목으로 등재한다
+  `NAV-WF-02` 상태가 상세 spec 의 «미구현» 과 어긋남)은 이 작업과 무관한 기존 불일치 — 트래커에 planner 항목으로 등재했다
 - [x] 테스트 수정 · 뮤턴트로 판별력 — 뮤턴트 둘 다 RED: (1) 서비스의 재계산 블록 삭제 → 옛 단언이 잡는다,
   (2) 같은 뮤턴트 + **옛 «다르다» 단언 제거** → 새 «1분 안» 단언 홀로 잡는다(이 수정의 요지 — 충돌 창에서도 관측이 남는다)
 - [x] TEST WORKFLOW (lint · unit · build · e2e 366). unit 1회차는 jest 워커 SIGSEGV 로 `webauthn.service.spec.ts` 가

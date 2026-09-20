@@ -4924,6 +4924,12 @@ field: T | null;
       (HTTP 연결 테스트의 preflight 를 `try` 안으로). 판정 아닌 오류의 처분: HTTP 노드 · DB 노드 `INTEGRATION_CALL_FAILED` ·
       DB 연결 테스트 `DB_CONNECT_FAILED` · `outboundBlockReason` 은 그대로 던진다. 뮤턴트 다섯으로 판별력 확인(판정 분기 넷 + 타임아웃 신호 생성 순서 하나).
 
+- [ ] **`_product-overview.md` §3.1 의 `NAV-WF-02` · `NAV-WF-06` 상태가 상세 spec 과 어긋난다** (planner, 낮음,
+      2026-09-20 등재 · `--impl-prep` `review/consistency/2026/09/20/11_21_16` cross_spec WARNING 1). 카탈로그는
+      `NAV-WF-02`(마지막 실행 시간 · 생성일 컬럼)를 `✅` 로 적는데 `1-workflow-list.md` §2.1 은 두 컬럼 모두 «미구현(Planned)»
+      이라 하고, 실제 컬럼은 마지막 *실행* 이 아니라 마지막 *수정*(`updatedAt`)이다. `NAV-WF-06`(폴더 · 태그 정리)도 «폴더 관리
+      UI 는 아직 없음(필터 조회 전용)» 과 어긋난다 — 다만 근거가 더 약하다. 어느 표가 stale 인지 정하고 한쪽을 고친다.
+
 - [ ] **cron 재계산 happy-path 의 결정적 단위 테스트가 없다** (developer, 낮음, 2026-09-20 등재 · `/ai-review`
       `review/code/2026/09/20/11_54_10` INFO 2). `SchedulesService.update()` 가 cron·timezone 변경 시 `nextRunAt` 을 다시
       계산하는 경로는 e2e 한 케이스(「D. PATCH cron」)에만 걸려 있다 — 단위 테스트는 `computeNextRuns` 를 `[]` 로 mock 하는
@@ -4951,15 +4957,12 @@ field: T | null;
       더할지 — 후자는 전 노드의 오류 문구에 영향을 준다. 같은 결의 잔여: `http-connection-tester.ts` 의
       `describeFailure`→`clampMessage` 경로(이 PR 이 만든 자리가 아니라 그대로 뒀다).
 
-- [x] **`schedule-trigger` e2e 「D. PATCH cron → nextRunAt 재계산」이 하루 1분 창에서 실패한다** (developer, 낮음,
+- [ ] **`schedule-trigger` e2e 「D. PATCH cron → nextRunAt 재계산」이 하루 1분 창에서 실패한다** (developer, 낮음,
       2026-09-20 등재 · `plan/complete/ssrf-catch-instanceof.md` 의 무관한 e2e 실패로 발견). 테스트는 `0 10 * * *`(Asia/Seoul)로
       만들고 `*/1 * * * *` 로 PATCH 한 뒤 `nextRunAt` 이 **달라졌는지** 본다. 그런데 09:59 KST(=00:59 UTC)에 돌리면 둘 다
       `01:00:00Z` 로 같아 «재계산 안 됨» 으로 읽힌다 — 실측(`_test_logs/e2e-20260920-095855.log`: 기대 ≠ `2026-09-20T01:00:00.000Z`,
       호스트 09:58 KST). 재실행(10:02 KST)은 366 통과. 고칠 방향: 비교를 «다르다» 가 아니라 «분 단위 cron 이 만드는 값인가»
       로 좁히거나(예: 1분 이내 미래), 생성 cron 을 현재 시각과 겹치지 않는 값으로 고른다. 지금 형태로는 매일 그 1분에 CI 가 붉어진다.
-      **2026-09-20 해소** `plan/complete/schedule-cron-flake.md` — 생성 cron 을 연 1회로 바꾸고 판정을 «새 cron 이 만드는
-      값인가»(1분 안 · 분 경계 · 옛 값은 창 밖)로 옮겼다. «달라졌다» 단언은 **뺐다** — 리뷰가 내 전제를 반증했다(연 1회 cron 도
-      12/31 23:59 KST 에는 분 단위 cron 과 같은 시각을 가리킨다). 뮤턴트(서비스의 재계산 블록 삭제) RED.
 
 - [ ] **`1-http-request.md` frontmatter `code:` 에 `http-redirect.ts` · 세 에러 표에 «가드의 고장» 트리거** (planner, 낮음,
       2026-09-20 등재 · `--impl-prep` `review/consistency/2026/09/20/09_06_34` convention WARNING 2 · cross_spec INFO 1 ·
