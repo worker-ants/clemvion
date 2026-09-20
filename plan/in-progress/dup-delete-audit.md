@@ -42,8 +42,12 @@ await manager.findOne(Workflow, { select: { id: true }, where: { id: parent.work
 쉽다(이 저장소가 반복해 밟은 형태 — truthiness 로 판정하지 말 것):
 
 ```ts
-{ parent: 'present' | 'absent'; triggerIds: string[] }
+{ parentPresence: 'present' | 'absent'; triggerIds: string[] }
 ```
+
+> 필드 이름은 리뷰 1라운드(`review/code/2026/09/20/20_06_26` WARNING 2)에서 `parent` → `parentPresence` 로 바꿨다 —
+> 같은 함수의 파라미터 이름이 `parent` 라 한 자리에서 두 의미로 읽혔다. **위 스니펫도 그 이름으로 적는다**:
+> 다음 사람이 이 문서를 트래커로 옮겨 적을 때 옛 이름이 두 번째 문서로 퍼지지 않게(2라운드 WARNING 2).
 
 - **워크플로 삭제**: `absent` 면 `NotFoundException({ code: 'RESOURCE_NOT_FOUND' })` 를 던진다 — 트랜잭션이
   롤백되고 감사도 남지 않는다. 두 번째 요청은 404 를 받는다(이미 없는 것을 지울 수 없다).
