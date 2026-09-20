@@ -119,5 +119,7 @@ await this.integrationRepository.update({ id: entity.id }, { credentials: merged
 - [x] `/ai-review` 2라운드 — 1라운드 `review/code/2026/09/20/17_35_12` (Critical 0 · Warning 8 → `resolution-applier` 8/8),
   2라운드 `review/code/2026/09/20/18_09_24` (Critical 0 · Warning 2 — 코드 수정 **0**). 정지 규칙(«`codebase/**` 수정이
   0 인 라운드») 도달. 남은 둘의 처분은 그 라운드 `RESOLUTION.md`
-- [ ] `/consistency-check --impl-done spec/2-navigation` → BLOCK: NO
+- [x] `/consistency-check --impl-done spec/2-navigation` — `review/consistency/2026/09/20/18_24_04` **BLOCK: NO**
+  (Critical 0 · Warning 0 · INFO 3 — 둘은 이미 트래커에 등재돼 있고, 셋째(신규 e2e 를 frontmatter `code:` 에 개별 등재)는
+  같은 planner 항목에 덧붙였다). 게이트 dry-run 도 `blocked: False`
 - [x] 트래커 항목 해소 + 후속 둘 등재 + 이 plan `plan/complete/` 로

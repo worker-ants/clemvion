@@ -4859,6 +4859,10 @@ field: T | null;
       같은 문서의 형제 흐름(reauthorize · request_scopes)은 `SELECT … FOR UPDATE` 를 명시하는데 rotate 만 빠져 있다 —
       이제 코드는 같은 메커니즘을 쓴다(`plan/complete/rotate-lost-update.md`). 한 줄이면 비대칭이 사라진다. 비차단으로
       두 번 처분됐으므로 급하지 않다.
+      **같은 턴에**: `2-navigation/4-integration.md` frontmatter `code:` 에 신규 e2e 를 개별 등재한다 —
+      `codebase/backend/test/integration-rotate-concurrency.e2e-spec.ts`. 형제 문서 `2-trigger-list.md` 가 e2e-spec 을
+      개별 등재하는 선례를 갖는다(`--impl-done` `review/consistency/2026/09/20/18_24_04` convention INFO 3 —
+      글로브로는 이미 매치돼 가드 위반은 아니다).
 
 - [ ] **personal-scope 통합의 «본인 것만» 소유자 검증이 코드에 없다** (planner 결정 + developer, 2026-09-20 등재 ·
       `/ai-review` `review/code/2026/09/20/18_09_24` requirement INFO 6). `assertCanRotate` 는 organization-scope 만 본다 —
