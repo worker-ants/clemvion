@@ -4924,6 +4924,18 @@ field: T | null;
       (HTTP 연결 테스트의 preflight 를 `try` 안으로). 판정 아닌 오류의 처분: HTTP 노드 · DB 노드 `INTEGRATION_CALL_FAILED` ·
       DB 연결 테스트 `DB_CONNECT_FAILED` · `outboundBlockReason` 은 그대로 던진다. 뮤턴트 다섯으로 판별력 확인(판정 분기 넷 + 타임아웃 신호 생성 순서 하나).
 
+- [ ] **가드 고장이 preflight 냐 리다이렉트 홉이냐에 따라 다른 코드로 나간다 — 그 경로의 회귀 테스트도 없다** (developer,
+      낮음, 2026-09-20 등재 · `/ai-review` `review/code/2026/09/20/10_38_57` WARNING 1 · 2 — 3라운드 «수렴 예외»).
+      `plan/complete/ssrf-catch-instanceof.md` 가 판정/고장을 갈랐는데, HTTP Request 노드에서 **고장이 난 시점**에 따라
+      결과가 갈린다: 첫 preflight 는 `INTEGRATION_CALL_FAILED`(마스킹된 message), 리다이렉트 홉은 `followRedirectsSafely` 를
+      타고 전송 catch 로 떨어져 `HTTP_TRANSPORT_FAILED`(2라운드에 마스킹은 맞췄다). 연결 테스트는 두 시점이 이미
+      `HTTP_CONNECT_FAILED` 로 같다. 고칠 방향 둘: (1) 홉의 비판정 오류도 `IntegrationError('INTEGRATION_CALL_FAILED', …)`
+      로 승격해 두 시점을 통일하거나, (2) spec 표에 두 코드를 그대로 명시한다. **함께**: 리뷰어가 뮤테이션으로 실증한
+      테스트 공백 — 전송 catch 의 마스킹(`toLogError`)을 되돌려도 스위트가 전부 GREEN 이다(`followRedirectsSafely` 를 거치는
+      handler 통합 경로를 보는 spec 이 0건). 홉에서 비판정 오류를 주입해 최종 `error.code` 와 마스킹을 함께 단언하는
+      테스트 1건이 둘 다 덮는다. **오늘 도달 불가**다 — 가드가 낼 수 있는 비판정 오류는 `TypeError` 하나뿐이고
+      `validateCredentials` 가 그 입력을 API 에서 막는다(같은 plan 의 실측).
+
 - [ ] **가드 «고장» 메시지에는 host/IP 마스킹이 없다 — 판정 분기와 비대칭** (developer, 낮음, 2026-09-20 등재 ·
       `/ai-review` `review/code/2026/09/20/10_09_56` WARNING 1 · INFO 11). 차단 **판정**은 host/IP 를 뺀 고정 문구로
       치환하는데(CWE-209), 판정 아닌 오류는 `sanitizeMessage`(자격증명 패턴만 가린다)를 거쳐 원문이 나간다 —
