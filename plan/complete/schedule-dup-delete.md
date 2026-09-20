@@ -1,9 +1,10 @@
 ---
 title: 스케줄 동시 DELETE 도 감사 행을 두 번 남긴다 — CASCADE 때문에 판정 기준이 다르다
-status: in-progress
+status: complete
 owner: developer
 worktree: schedule-dup-delete-6c81d4
 started: 2026-09-20
+completed: 2026-09-21
 spec_impact: none
 ---
 
@@ -95,6 +96,10 @@ DB 가 함께 지운다** — 그래서 5번 `remove(schedule)` 은 triggerId �
   - **`build` 가 spec 파일의 타입 오류를 잡았다**: 타입체크 ratchet 이 `{ affected: 0 }` 를 `DeleteResult` 로
     받지 못한다고 보고했다(baseline 0 → 1). jest 는 타입을 strip 하고 `nest build` 는 `*.spec.ts` 를 exclude 하므로
     **이 검사 말고는 아무도 못 보는 자리**다 — 이 세션에서 build 가 타입 오류를 잡은 두 번째 사례다
-- [ ] `/ai-review` → 수렴
-- [ ] `/consistency-check --impl-done spec/2-navigation` → BLOCK: NO
-- [ ] 트래커 항목 해소 + 이 plan `plan/complete/` 로
+- [x] `/ai-review` 4라운드 — `00_06_01`(W4→4/4) · `00_37_06`(W2→2/2) · `00_56_52`(W1→1/1) ·
+  `01_16_46`(W1, **`codebase/**` 수정 0** 으로 수렴). 3라운드 지적이 가장 정교했다: 코드가 맞느냐가 아니라
+  «그렇게 쓴 **이유**가 테스트에 붙들려 있느냐» 를 물었고, 뮤턴트 생존(32건 전건 GREEN)으로 실증했다
+- [x] `/consistency-check --impl-done spec/2-navigation` — `review/consistency/2026/09/21/01_26_36`
+  **BLOCK: NO** (Critical 0 · Warning 0, 전 checker NONE). INFO 3건은 전부 «이미 추적 중» 이거나
+  판정 기준 편차의 정당성 확인이다
+- [x] 트래커 항목 해소 + 이 plan `plan/complete/` 로

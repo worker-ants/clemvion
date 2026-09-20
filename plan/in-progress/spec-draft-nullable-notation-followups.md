@@ -4770,7 +4770,7 @@ field: T | null;
       `/ai-review` `review/code/2026/09/20/22_07_23` requirement WARNING 2 가 짚었다: `SchedulesService.remove()`
       자신의 스케줄 행 삭제는 아직 안 닫혔다. 바로 아래 새 항목으로 등재한다.
 
-- [ ] **`SchedulesService.remove()` 도 동시 삭제에서 감사 행을 두 번 남길 수 있다** (developer, 낮음, 2026-09-20 등재 ·
+- [x] **`SchedulesService.remove()` 도 동시 삭제에서 감사 행을 두 번 남길 수 있다** (developer, 낮음, 2026-09-20 등재 ·
       `/ai-review` `review/code/2026/09/20/22_07_23` requirement WARNING 2). 위 트리거 항목을 닫으며 `SchedulesService.remove()`
       를 다시 읽어 확인했다: `findById`(무락) → (있으면) 트랜잭션 안에서 `acquireTriggerConfigLock` + `m.delete(Trigger, triggerId)`
       로 **연결된 트리거만** 잠그고 지운다 — 그 뒤 트랜잭션이 커밋되고 나서야 `this.scheduleRepository.remove(schedule)`
@@ -4781,6 +4781,14 @@ field: T | null;
       트리거처럼 걸어 잠글 advisory lock 이 애초에 없다는 점이다(트리거용 `trigger-config:<id>` 락은 연결된
       트리거가 있을 때만, 그것도 스케줄 행이 아니라 트리거 행만 보호한다) — 스케줄 자신을 위한 새 lock key 가
       필요한지부터 확인 후 처방을 정할 것.
+      **2026-09-21 해소** `plan/complete/schedule-dup-delete.md`. 재현을 먼저 했다 — 고치기 전 e2e 가
+      `[204, 204]` 였고 DB 에 `schedule.deleted` 2건이었다(고친 뒤 `[204, 404]` · 1건).
+      **판정 기준이 형제 셋과 다르다**: `schedule.trigger_id → trigger` 가 `onDelete: CASCADE` 라 스케줄
+      행은 이긴 쪽에서도 CASCADE 로 사라진다 — 스케줄 행 수로 판정하면 둘 다 404 가 된다. 락이 보호하는
+      트리거 삭제의 `affected` 만이 판별자다(`triggerId` 없는 방어 분기는 CASCADE 가 없어 스케줄 행 자체).
+      판정은 `=== 0` 명시 비교다(자매 함수 `rewriteTriggerConfigLocked` 의 기존 결정 — «모른다»(null)를
+      «없다»(0)로 읽지 않는다). 그 이유를 붙드는 대조군도 넣었다: 없을 때 `!affected` 로 되돌리는 뮤턴트가
+      32건 전건 GREEN 으로 살아남았고, 대조군 추가 후 2건 RED 가 됐다.
 
 - [ ] **`IntegrationsService.remove()` 도 동시 삭제에서 감사 행을 두 번 남긴다 — 이 계열의 다섯 번째이자 남은 자리**
       (developer, 낮음, 2026-09-20 등재 · `plan/in-progress/schedule-dup-delete.md` 착수 전 전수 조사).
