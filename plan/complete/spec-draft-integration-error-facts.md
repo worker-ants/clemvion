@@ -1,5 +1,5 @@
 ---
-title: 통합 노드·연결 테스트 spec 의 사실 정정 넷 — code: 증거 · 가드 고장 트리거 · HTTP 테스트 결과 둘 · MakeShop «동일» 범위
+title: "통합 노드·연결 테스트 spec 의 사실 정정 넷 — code: 증거 · 가드 고장 트리거 · HTTP 테스트 결과 둘 · MakeShop «동일» 범위"
 status: complete
 owner: project-planner
 worktree: spec-integration-facts-6b21f8

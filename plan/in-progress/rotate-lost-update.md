@@ -104,10 +104,17 @@ await this.integrationRepository.update({ id: entity.id }, { credentials: merged
 
 ## 체크리스트
 
-- [ ] `/consistency-check --impl-prep spec/2-navigation` → BLOCK 확인
-- [ ] 테스트 선작성 — 단위(락 안 재읽기·재머지·권한 재확인) + e2e(실제 동시 rotate 두 건)
-- [ ] 구현
-- [ ] TEST WORKFLOW (lint · unit · build · e2e)
+- [x] `/consistency-check --impl-prep spec/2-navigation` — `review/consistency/2026/09/20/16_58_56` **BLOCK: NO**
+  (Critical 0 · Warning 2 — 둘 다 위 §B 에 반영)
+- [x] 테스트 선작성 — 단위 셋 전부 RED 확인 후 구현. 뮤턴트 셋(옛 base 로 머지 · 락 옵션 제거 · 권한 재확인 제거)이
+  **각각 한 테스트만** 죽였다(표면이 겹치지 않는다)
+- [x] 구현
+- [x] TEST WORKFLOW — lint PASS · unit PASS(14 suite wrapper 집계) · build PASS · **e2e 367 PASS**.
+  e2e 판별력은 «고치기 전» 으로 실증했다: `origin/main` 의 서비스 파일로 되돌려 이미지를 다시 빌드하니
+  `key_name` 이 `X-Concurrent` → `X-Api-Key` 로 **되돌아가며 RED**, 고친 코드로는 GREEN.
+  - **덤으로 main 의 red 를 고쳤다** — 직전 PR(#1367)이 `plan/complete/` 에 넣은 draft 의 `title:` 안에 `code:` 가
+    들어가 YAML 이 깨져 Gate C(`spec-plan-completion.test.ts`)가 실패하고 있었다. 따옴표로 감쌌고, `plan/**` 587건을
+    전수 스캔해 남은 파싱 실패 0건을 확인했다
 - [ ] `/ai-review` → Critical/Warning 0
 - [ ] `/consistency-check --impl-done spec/2-navigation` → BLOCK: NO
 - [ ] 트래커 항목 해소 + 이 plan `plan/complete/` 로
