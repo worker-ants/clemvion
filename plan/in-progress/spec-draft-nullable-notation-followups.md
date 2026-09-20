@@ -4916,11 +4916,49 @@ field: T | null;
       `3-send-email.md` 에 공용 가드 경로. 그리고 IPv4-mapped IPv6 판정 근거와 NAT64 · SIIT · 6to4 를 막지 않는 경계(실측 — 닿지 않았다)를
       `1-http-request.md` §4 8번 또는 Rationale 에 한 줄(같은 검토 rationale INFO 3 — 지금은 코드 JSDoc · plan 에만 있다).
 
-- [ ] **SSRF 가드 소비자 넷의 catch 를 `instanceof SsrfBlockedError` 로** (developer, 낮음, 2026-09-19 등재 · `/ai-review`
+- [x] **SSRF 가드 소비자 넷의 catch 를 `instanceof SsrfBlockedError` 로** (developer, 낮음, 2026-09-19 등재 · `/ai-review`
       `review/code/2026/09/19/22_00_32` architecture WARNING 2 — 수렴 예외). `http-request.handler.ts` · `http-redirect.ts` · `database-query.handler.ts` ·
       `database-connection-tester.ts` 는 가드가 던진 것을 **무엇이든** 차단으로 옮긴다. 지금은 가드가 `SsrfBlockedError` 만 던져 동작 차이가 없다 —
       SMTP 가드(`send-email/smtp-host-guard.ts`)만 판정이 아닌 오류를 다시 던진다. 넷을 맞추면 URL 파싱 등 다른 오류의 처분(차단 vs 실패)이 바뀌므로
-      호출부마다 기대 동작을 정하고 테스트와 함께.
+      호출부마다 기대 동작을 정하고 테스트와 함께. **2026-09-20 해소** `plan/complete/ssrf-catch-instanceof.md` — 넷 + 동반 1건
+      (HTTP 연결 테스트의 preflight 를 `try` 안으로). 판정 아닌 오류의 처분: HTTP 노드 · DB 노드 `INTEGRATION_CALL_FAILED` ·
+      DB 연결 테스트 `DB_CONNECT_FAILED` · `outboundBlockReason` 은 그대로 던진다. 뮤턴트 다섯으로 판별력 확인(판정 분기 넷 + 타임아웃 신호 생성 순서 하나).
+
+- [ ] **가드 고장이 preflight 냐 리다이렉트 홉이냐에 따라 다른 코드로 나간다 — 그 경로의 회귀 테스트도 없다** (developer,
+      낮음, 2026-09-20 등재 · `/ai-review` `review/code/2026/09/20/10_38_57` WARNING 1 · 2 — 3라운드 «수렴 예외»).
+      `plan/complete/ssrf-catch-instanceof.md` 가 판정/고장을 갈랐는데, HTTP Request 노드에서 **고장이 난 시점**에 따라
+      결과가 갈린다: 첫 preflight 는 `INTEGRATION_CALL_FAILED`(마스킹된 message), 리다이렉트 홉은 `followRedirectsSafely` 를
+      타고 전송 catch 로 떨어져 `HTTP_TRANSPORT_FAILED`(2라운드에 마스킹은 맞췄다). 연결 테스트는 두 시점이 이미
+      `HTTP_CONNECT_FAILED` 로 같다. 고칠 방향 둘: (1) 홉의 비판정 오류도 `IntegrationError('INTEGRATION_CALL_FAILED', …)`
+      로 승격해 두 시점을 통일하거나, (2) spec 표에 두 코드를 그대로 명시한다. **함께**: 리뷰어가 뮤테이션으로 실증한
+      테스트 공백 — 전송 catch 의 마스킹(`toLogError`)을 되돌려도 스위트가 전부 GREEN 이다(`followRedirectsSafely` 를 거치는
+      handler 통합 경로를 보는 spec 이 0건). 홉에서 비판정 오류를 주입해 최종 `error.code` 와 마스킹을 함께 단언하는
+      테스트 1건이 둘 다 덮는다. **오늘 도달 불가**다 — 가드가 낼 수 있는 비판정 오류는 `TypeError` 하나뿐이고
+      `validateCredentials` 가 그 입력을 API 에서 막는다(같은 plan 의 실측).
+
+- [ ] **가드 «고장» 메시지에는 host/IP 마스킹이 없다 — 판정 분기와 비대칭** (developer, 낮음, 2026-09-20 등재 ·
+      `/ai-review` `review/code/2026/09/20/10_09_56` WARNING 1 · INFO 11). 차단 **판정**은 host/IP 를 뺀 고정 문구로
+      치환하는데(CWE-209), 판정 아닌 오류는 `sanitizeMessage`(자격증명 패턴만 가린다)를 거쳐 원문이 나간다 —
+      `http-request.handler.ts` · `database-query.handler.ts` · `database-connection-tester.ts`. 오늘 가드가 낼 수 있는 유일한
+      비판정 오류(`isBlockedHostname` 의 `TypeError`)에는 host/IP 가 없어 실제 유출은 없다(`plan/complete/ssrf-catch-instanceof.md`
+      가 그 도달 가능성을 실측했다). 고칠 때 정할 것: 세 곳을 고정 문구로 바꿀지, `sanitizeMessage` 에 host/IP 패턴을
+      더할지 — 후자는 전 노드의 오류 문구에 영향을 준다. 같은 결의 잔여: `http-connection-tester.ts` 의
+      `describeFailure`→`clampMessage` 경로(이 PR 이 만든 자리가 아니라 그대로 뒀다).
+
+- [ ] **`schedule-trigger` e2e 「D. PATCH cron → nextRunAt 재계산」이 하루 1분 창에서 실패한다** (developer, 낮음,
+      2026-09-20 등재 · `plan/complete/ssrf-catch-instanceof.md` 의 무관한 e2e 실패로 발견). 테스트는 `0 10 * * *`(Asia/Seoul)로
+      만들고 `*/1 * * * *` 로 PATCH 한 뒤 `nextRunAt` 이 **달라졌는지** 본다. 그런데 09:59 KST(=00:59 UTC)에 돌리면 둘 다
+      `01:00:00Z` 로 같아 «재계산 안 됨» 으로 읽힌다 — 실측(`_test_logs/e2e-20260920-095855.log`: 기대 ≠ `2026-09-20T01:00:00.000Z`,
+      호스트 09:58 KST). 재실행(10:02 KST)은 366 통과. 고칠 방향: 비교를 «다르다» 가 아니라 «분 단위 cron 이 만드는 값인가»
+      로 좁히거나(예: 1분 이내 미래), 생성 cron 을 현재 시각과 겹치지 않는 값으로 고른다. 지금 형태로는 매일 그 1분에 CI 가 붉어진다.
+
+- [ ] **`1-http-request.md` frontmatter `code:` 에 `http-redirect.ts` · 세 에러 표에 «가드의 고장» 트리거** (planner, 낮음,
+      2026-09-20 등재 · `--impl-prep` `review/consistency/2026/09/20/09_06_34` convention WARNING 2 · cross_spec INFO 1 ·
+      `/ai-review` `review/code/2026/09/20/09_35_16` WARNING 5 · INFO 6). (1) §4 step 9(리다이렉트 5홉 + 홉마다 SSRF 재검증)를
+      구현하는 `codebase/backend/src/nodes/integration/http-request/http-redirect.ts` 가 `code:` 넷에 없다 — 증거 목록 누락이라
+      developer 의 자기-반증형 소정정에 해당하지 않는다. (2) `0-common.md` §4.2 · `1-http-request.md` §4.2 · `2-database-query.md` §6.2
+      의 에러 코드 표에 «SSRF 가드가 판정 아닌 오류를 던진 경우 → `INTEGRATION_CALL_FAILED`» 를 한 줄씩 — 구현은
+      `plan/complete/ssrf-catch-instanceof.md` 가 넣었고 표만 비어 있다.
 
 - [ ] **spec 네 곳의 기존 drift — `--impl-prep` `review/consistency/2026/09/19/21_02_09` WARNING 1~4** (planner, 낮음, 2026-09-19 등재).
       SSRF 가드 통합 착수 전 검토가 scope(`spec/4-nodes/4-integration/`) 주변에서 찾은, 그 변경과 무관한 기존 어긋남:

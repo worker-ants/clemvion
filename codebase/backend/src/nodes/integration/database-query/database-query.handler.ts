@@ -23,7 +23,10 @@ import {
 } from '../_base/integration-handler-base.js';
 import { IntegrationsService } from '../../../modules/integrations/integrations.service.js';
 import { IntegrationCacheBus } from '../../../common/redis/integration-cache-bus.service.js';
-import { assertSafeOutboundHostResolved } from '../http-request/http-safety.js';
+import {
+  SsrfBlockedError,
+  assertSafeOutboundHostResolved,
+} from '../http-request/http-safety.js';
 import { buildDryRunMock, isDryRun } from '../../core/dry-run.util.js';
 import { databaseQueryNodeMetadata } from './database-query.schema.js';
 import {
@@ -259,7 +262,24 @@ export class DatabaseQueryHandler
       if (creds.host) {
         try {
           await assertSafeOutboundHostResolved(creds.host);
-        } catch {
+        } catch (err) {
+          const detail = err instanceof Error ? err.message : String(err);
+          // 판정은 `SsrfBlockedError` 하나뿐이다 — 그 밖의 오류는 가드의 고장이지 차단이 아니므로 «당신의 host 가
+          // 막혔다» 로 보고하지 않는다. 분류되지 않은 실패(`INTEGRATION_CALL_FAILED`, 공통 §4.2)로 승격해 아래
+          // catch 가 code 를 보존하게 한다 — 그냥 던지면 `mapDbError` 가 `DB_QUERY_FAILED` 를 매기는데 쿼리는
+          // 시작도 안 했고, 같은 실패를 적는 usage 로그(`toLogError`)와도 코드가 어긋난다.
+          if (!(err instanceof SsrfBlockedError)) {
+            logger.warn(`SSRF guard failed (database-query): ${detail}`);
+            // 원본 객체를 `cause` 로 붙이지 않는다 — 가드가 앞으로 어떤 오류를 던질지 모르고
+            // (`spec/5-system/3-error-handling.md` §6.3.1 C2: message·name 밖의 속성이 통째로 딸려 온다),
+            // 이 에러는 Activity API 로 나가는 노드 에러다. 원본 상세는 위 `logger.warn` 에만 남는다.
+            throw new IntegrationError(
+              'INTEGRATION_CALL_FAILED',
+              sanitizeMessage(detail),
+            );
+          }
+          // 차단 판정의 원문에는 차단된 host/IP 가 들어 있어 `cause` 로도 싣지 않는다(정찰 면 축소 — 일반화
+          // 문구만 내보낸다). 원본 상세는 아래 catch 의 `toLogError` 가 서버 로그로 남긴다.
           throw new IntegrationError(
             'DB_HOST_BLOCKED',
             DB_HOST_BLOCKED_MESSAGE,
@@ -316,9 +336,10 @@ export class DatabaseQueryHandler
       }
       // D4 — IntegrationError (resolve / missingDbFields / parseParameters /
       // SSRF 차단 → `DB_HOST_BLOCKED` 등) 는 그대로 code 를 surface, 그 외 (SQL
-      // throw 등) 는 driver-specific mapper 로 분류. SSRF guard 의 plain Error 는
-      // 위에서 `DB_HOST_BLOCKED` IntegrationError 로 승격되므로 더 이상 mapDbError
-      // fallback (`INTEGRATION_CALL_FAILED`) 로 흐르지 않는다.
+      // throw 등) 는 driver-specific mapper 로 분류. SSRF 가드가 던진 것은 위에서
+      // 두 갈래로 승격돼 온다 — 차단 판정은 `DB_HOST_BLOCKED`, 판정 아닌 오류(가드의
+      // 고장)는 `INTEGRATION_CALL_FAILED`. 둘 다 IntegrationError 라 여기서 code 가
+      // 보존되고 `mapDbError` 로는 흐르지 않는다.
       const errorEnvelope =
         err instanceof IntegrationError
           ? {

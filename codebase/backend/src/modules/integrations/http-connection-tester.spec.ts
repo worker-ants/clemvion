@@ -1,5 +1,6 @@
 import {
   SSRF_BLOCKED_CLIENT_MESSAGE,
+  SsrfBlockedError,
   assertSafeOutboundHostResolved,
   assertSafeOutboundUrl,
 } from '../../nodes/integration/http-request/http-safety';
@@ -221,7 +222,7 @@ describe('testHttpConnection', () => {
 
   it('첫 URL 이 SSRF 가드에 막히면 HTTP_BLOCKED — 호출하지 않고 일반화 문구만', async () => {
     mockedUrlGuard.mockImplementation(() => {
-      throw new Error('SSRF_BLOCKED: 169.254.169.254');
+      throw new SsrfBlockedError('169.254.169.254');
     });
 
     const result = await testHttpConnection('bearer_token', {
@@ -237,11 +238,50 @@ describe('testHttpConnection', () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
+  /**
+   * 전송 타임아웃 신호는 **가드를 통과한 뒤** 만든다 — `AbortSignal.timeout` 은 생성 시점부터 세므로 가드보다 먼저 만들면
+   * 가드의 DNS 조회 시간만큼 `fetch` 예산이 깎인다(느린 DNS 에서 정상 연결이 «10초 초과» 로 오분류). 차단돼 fetch 까지
+   * 가지 않는 경우 신호가 아예 만들어지지 않는 것으로 그 순서를 관측한다.
+   */
+  it('가드에 막히면 전송 타임아웃 신호를 만들지 않는다 — 신호는 가드 통과 뒤에 만든다', async () => {
+    const timeoutSpy = jest.spyOn(AbortSignal, 'timeout');
+    try {
+      mockedHostGuard.mockRejectedValue(new SsrfBlockedError('10.0.0.9'));
+
+      const result = await testHttpConnection('bearer_token', bearer);
+
+      expect(result).toMatchObject({ success: false, code: 'HTTP_BLOCKED' });
+      expect(timeoutSpy).not.toHaveBeenCalled();
+    } finally {
+      // 단언이 실패해도 스파이를 되돌린다 — 안 그러면 다음 테스트로 새어 나간다(이 파일엔 전역 `restoreMocks` 가 없다).
+      timeoutSpy.mockRestore();
+    }
+  });
+
   it('host 가 사설 IP 로 해석돼도 HTTP_BLOCKED', async () => {
-    mockedHostGuard.mockRejectedValue(new Error('SSRF_BLOCKED: 10.0.0.9'));
+    mockedHostGuard.mockRejectedValue(new SsrfBlockedError('10.0.0.9'));
     const result = await testHttpConnection('bearer_token', bearer);
     expect(result).toMatchObject({ success: false, code: 'HTTP_BLOCKED' });
     expect(result.message).not.toContain('10.0.0.9');
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  /**
+   * 판정은 `SsrfBlockedError` 하나뿐이다 — 그 밖의 오류는 가드의 고장이지 차단이 아니다. preflight 호출이 `try` 밖에 있었기에
+   * 이 경우 테스터가 던져 «던지지 않는다»(`dispatchTest` 의 tester 계약)를 깼다.
+   */
+  it('가드가 판정 아닌 오류를 던지면 HTTP_BLOCKED 가 아니라 HTTP_CONNECT_FAILED — 던지지 않는다', async () => {
+    mockedUrlGuard.mockImplementation(() => {
+      throw new TypeError('hostname.toLowerCase is not a function');
+    });
+
+    const result = await testHttpConnection('bearer_token', bearer);
+
+    expect(result).toMatchObject({
+      success: false,
+      code: 'HTTP_CONNECT_FAILED',
+    });
+    expect(result.message).toContain('hostname.toLowerCase');
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
@@ -276,7 +316,7 @@ describe('testHttpConnection', () => {
       respond(302, { location: 'http://10.1.2.3/admin' }),
     );
     mockedUrlGuard.mockImplementation((u: string) => {
-      if (u.includes('10.1.2.3')) throw new Error('SSRF_BLOCKED: 10.1.2.3');
+      if (u.includes('10.1.2.3')) throw new SsrfBlockedError('10.1.2.3');
       return new URL(u);
     });
 
@@ -296,7 +336,7 @@ describe('testHttpConnection', () => {
     );
     mockedHostGuard.mockImplementation(async (host: string) => {
       if (host === 'internal.example.com') {
-        throw new Error('SSRF_BLOCKED: internal.example.com -> 10.0.0.7');
+        throw new SsrfBlockedError('internal.example.com -> 10.0.0.7');
       }
     });
 

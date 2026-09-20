@@ -1,7 +1,18 @@
 import { Logger } from '@nestjs/common';
 import { HttpRequestHandler, extractApiPath } from './http-request.handler.js';
+import { assertSafeOutboundUrl } from './http-safety.js';
 import { ExecutionContext } from '../../core/node-handler.interface.js';
 import { createEmptyConversationThread } from '../../../shared/conversation-thread/conversation-thread.types';
+
+// 가드는 **실물 그대로** 쓴다(아래 차단 테스트들이 실제 대역 판정을 본다) — `jest.fn` 으로 감싸기만 해 한 테스트에서만
+// «판정 아닌 오류» 를 주입한다. `SsrfBlockedError` 도 실물이라 핸들러의 판정 분기가 그대로 동작한다.
+jest.mock('./http-safety.js', () => {
+  const actual = jest.requireActual('./http-safety.js');
+  return {
+    ...actual,
+    assertSafeOutboundUrl: jest.fn(actual.assertSafeOutboundUrl),
+  };
+});
 
 function makeContext(rawConfig?: Record<string, unknown>): ExecutionContext {
   return {
@@ -937,6 +948,45 @@ describe('HttpRequestHandler', () => {
             code: 'HTTP_BLOCKED',
             message: 'Request blocked by SSRF policy.',
           }),
+        }),
+      );
+    });
+
+    /**
+     * 가드가 던지는 «판정» 은 `SsrfBlockedError` 하나뿐이다. 그 밖의 오류는 가드의 고장이지 차단이 아니므로 `HTTP_BLOCKED`
+     * (= 사용자에게 «당신의 URL 이 SSRF 정책에 막혔다») 로 보고하면 거짓이고, Activity 로그에도 그 거짓이 남는다. 분류되지
+     * 않은 실패(`INTEGRATION_CALL_FAILED`, 공통 §4.2)로 돌린다 — 자격증명 resolve 실패가 쓰는 preflight 경로와 같다.
+     */
+    it('가드가 판정 아닌 오류를 던지면 HTTP_BLOCKED 가 아니라 INTEGRATION_CALL_FAILED', async () => {
+      const { service, logUsage } = makeService('bearer_token', { token: 't' });
+      const handler = new HttpRequestHandler(service as never);
+      (assertSafeOutboundUrl as unknown as jest.Mock).mockImplementationOnce(
+        () => {
+          throw new TypeError('hostname.toLowerCase is not a function');
+        },
+      );
+
+      const result = (await handler.execute(
+        null,
+        {
+          method: 'GET',
+          url: 'https://api.example.com/v1/me',
+          authentication: 'integration',
+          integrationId: 'int-1',
+        },
+        contextWithWorkspace,
+      )) as unknown as Record<string, unknown>;
+
+      expect(result.port).toBe('error');
+      const output = result.output as {
+        error: { code: string; message: string };
+      };
+      expect(output.error.code).toBe('INTEGRATION_CALL_FAILED');
+      expect(output.error.message).toContain('hostname.toLowerCase');
+      expect(logUsage).toHaveBeenCalledWith(
+        expect.objectContaining({
+          status: 'failed',
+          error: expect.objectContaining({ code: 'INTEGRATION_CALL_FAILED' }),
         }),
       );
     });

@@ -3,8 +3,21 @@ import {
   extractSqlVerb,
   isWriteOperation,
 } from './database-query.handler.js';
+import { assertSafeOutboundHostResolved } from '../http-request/http-safety.js';
 import { ExecutionContext } from '../../core/node-handler.interface.js';
 import { createEmptyConversationThread } from '../../../shared/conversation-thread/conversation-thread.types';
+
+// 가드는 **실물 그대로** 쓴다(아래 차단 테스트들이 실제 대역 판정을 본다) — `jest.fn` 으로 감싸기만 해 한 테스트에서만
+// «판정 아닌 오류» 를 주입한다. `SsrfBlockedError` 도 실물이라 핸들러의 판정 분기가 그대로 동작한다.
+jest.mock('../http-request/http-safety.js', () => {
+  const actual = jest.requireActual('../http-request/http-safety.js');
+  return {
+    ...actual,
+    assertSafeOutboundHostResolved: jest.fn(
+      actual.assertSafeOutboundHostResolved,
+    ),
+  };
+});
 
 const connectMock = jest.fn();
 const queryMock = jest.fn();
@@ -1126,6 +1139,40 @@ describe('DatabaseQueryHandler', () => {
           );
         },
       );
+
+      /**
+       * 가드의 «판정» 은 `SsrfBlockedError` 하나뿐이다. 그 밖의 오류는 가드의 고장이지 차단이 아니므로 `DB_HOST_BLOCKED`
+       * (= 사용자에게 «당신의 host 가 막혔다») 로 보고하면 거짓이다. 분류되지 않은 실패(`INTEGRATION_CALL_FAILED`,
+       * 공통 §4.2)로 돌린다 — 같은 실패를 activity 로그에 적는 `toLogError` 와 같은 코드라 둘이 어긋나지 않는다.
+       */
+      it('가드가 판정 아닌 오류를 던지면 DB_HOST_BLOCKED 가 아니라 INTEGRATION_CALL_FAILED', async () => {
+        const { service, logUsage } = makeService({
+          integration: pgIntegrationWithHost('db.example.com'),
+        });
+        const handler = new DatabaseQueryHandler(service as never);
+        (
+          assertSafeOutboundHostResolved as unknown as jest.Mock
+        ).mockRejectedValueOnce(
+          new TypeError('hostname.toLowerCase is not a function'),
+        );
+
+        const out = (await handler.execute(
+          null,
+          { integrationId: 'int-1', query: 'SELECT 1' },
+          ctx(),
+        )) as unknown as ErrorPortOutput;
+
+        expect(out.port).toBe('error');
+        expect(out.output.error.code).toBe('INTEGRATION_CALL_FAILED');
+        expect(out.output.error.message).toContain('hostname.toLowerCase');
+        expect(connectMock).not.toHaveBeenCalled();
+        expect(logUsage).toHaveBeenCalledWith(
+          expect.objectContaining({
+            status: 'failed',
+            error: expect.objectContaining({ code: 'INTEGRATION_CALL_FAILED' }),
+          }),
+        );
+      });
 
       it('blocks MySQL driver host too (가드는 driver 분기 전 실행)', async () => {
         const { service, logUsage } = makeService({

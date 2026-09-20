@@ -18,6 +18,7 @@ import { sanitizeResponseHeaders } from '../_base/sanitize-response-headers.util
 import { IntegrationsService } from '../../../modules/integrations/integrations.service.js';
 import {
   SSRF_BLOCKED_CLIENT_MESSAGE,
+  SsrfBlockedError,
   assertSafeOutboundHostResolved,
   assertSafeOutboundUrl,
 } from './http-safety.js';
@@ -354,6 +355,35 @@ export class HttpRequestHandler
       // 클라이언트 output.error.message 는 정찰 면 축소를 위해 host/IP 미노출
       // 일반화 문구로 대체한다 (DB_HOST_BLOCKED·EMAIL_HOST_BLOCKED 대칭).
       const detail = err instanceof Error ? err.message : String(err);
+      // 판정은 `SsrfBlockedError` 하나뿐이다 — 그 밖의 오류는 가드의 고장이지 차단이
+      // 아니므로 «당신의 URL 이 SSRF 정책에 막혔다» 로 보고하지 않는다(그 거짓은 Activity
+      // 로그에도 남는다). 자격증명 resolve 실패와 같은 preflight 경로로 보내
+      // `INTEGRATION_CALL_FAILED`(공통 §4.2 — 분류되지 않은 실패)로 surface 한다.
+      if (!(err instanceof SsrfBlockedError)) {
+        logger.warn(`SSRF guard failed (http-request): ${detail}`);
+        const logError = toLogError(err);
+        if (authentication === 'integration' && integrationId) {
+          await this.logUsage(context, {
+            integrationId,
+            status: 'failed',
+            durationMs: Date.now() - start,
+            error: logError,
+            api: { method, path: extractApiPath(url) },
+          }).catch(() => {});
+        }
+        return buildPreflightErrorOutput(
+          // 원문 대신 마스킹한 message 로 감싼다 — 가드가 앞으로 어떤 오류를 던질지 모르고, 이 message 는
+          // `output.error` 로 workspace 사용자에게 나간다. 코드는 `buildPreflightErrorOutput` 의 비-IntegrationError
+          // fallback 과 같은 `INTEGRATION_CALL_FAILED` 다.
+          new IntegrationError('INTEGRATION_CALL_FAILED', logError.message),
+          configEcho,
+          cappedRequestBody,
+          bodyType,
+          method,
+          url,
+          Date.now() - start,
+        );
+      }
       logger.warn(`SSRF block (http-request): ${detail}`);
       // Usage 로그는 integration 인증에 한정 (none/custom 은 활동 로그 미생성,
       // spec §4.2). SSRF 차단의 error 포트 라우팅(HTTP_BLOCKED)은 전 인증 공통.
@@ -523,7 +553,11 @@ export class HttpRequestHandler
           durationMs,
         );
       }
-      const message = err instanceof Error ? err.message : String(err);
+      // 마스킹해서 내보낸다 — 이 자리로 오는 것은 `fetch` 전송 오류만이 아니라, 리다이렉트 **홉** 검사에서
+      // 가드가 낸 판정 아닌 오류(`followRedirectsSafely` 가 전파)도 있다. preflight 쪽 같은 사건은 위에서
+      // `toLogError` 로 마스킹하므로, 여기서만 원문이 나가면 검사 시점에 따라 노출이 갈린다. 전송 오류 문구도
+      // URL 자격증명 등을 품을 수 있어 같이 가린다.
+      const message = toLogError(err).message;
       if (integrationId && authentication === 'integration') {
         await this.logUsage(context, {
           integrationId,

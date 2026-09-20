@@ -2,7 +2,10 @@ import { Logger } from '@nestjs/common';
 import { Client } from 'pg';
 import { createConnection } from 'mysql2/promise';
 
-import { assertSafeOutboundHostResolved } from '../../nodes/integration/http-request/http-safety';
+import {
+  assertSafeOutboundHostResolved,
+  SsrfBlockedError,
+} from '../../nodes/integration/http-request/http-safety';
 import { DB_HOST_BLOCKED_MESSAGE } from '../../nodes/integration/database-query/database-connection';
 import { MCP_ERROR_MESSAGE_MAX_LEN } from '../mcp/mcp-error-codes';
 import {
@@ -13,7 +16,10 @@ import {
 
 jest.mock('pg', () => ({ Client: jest.fn() }));
 jest.mock('mysql2/promise', () => ({ createConnection: jest.fn() }));
+// 가드 함수만 mock 하고 `SsrfBlockedError` 는 실물을 남긴다 — 테스터가 판정을 그 클래스로 가르므로, mock 이 클래스를 가리면
+// 어떤 오류를 던져도 «판정 아님» 이 되어 차단 테스트가 통과 이유를 잃는다.
 jest.mock('../../nodes/integration/http-request/http-safety', () => ({
+  ...jest.requireActual('../../nodes/integration/http-request/http-safety'),
   assertSafeOutboundHostResolved: jest.fn(),
 }));
 
@@ -154,7 +160,7 @@ describe('testDatabaseConnection', () => {
     });
 
     it('host 가 SSRF 가드에 막히면 DB_HOST_BLOCKED — 연결을 시도하지 않고, host 를 메시지에 싣지 않는다', async () => {
-      mockedGuard.mockRejectedValue(new Error('SSRF_BLOCKED: 10.0.0.5'));
+      mockedGuard.mockRejectedValue(new SsrfBlockedError('10.0.0.5'));
 
       const result = await testDatabaseConnection({
         ...pgCreds,
@@ -168,6 +174,29 @@ describe('testDatabaseConnection', () => {
       });
       expect(result.message).not.toContain('internal.db');
       expect(result.message).not.toContain('10.0.0.5');
+      expect(MockedClient).not.toHaveBeenCalled();
+    });
+
+    /**
+     * 가드가 던지는 «판정» 은 `SsrfBlockedError` 하나뿐이다(`http-safety.ts`). 그 밖의 오류는 가드의 고장이지 차단이 아니므로
+     * `DB_HOST_BLOCKED`(= 사용자에게 «당신의 host 가 막혔다») 로 보고하면 거짓이다 — 분류되지 않은 실패로 돌린다.
+     * 던지지 않는 계약은 그대로다(`dispatchTest` 의 tester 계약).
+     */
+    it('가드가 판정 아닌 오류를 던지면 DB_HOST_BLOCKED 가 아니라 DB_CONNECT_FAILED — 던지지 않는다', async () => {
+      mockedGuard.mockRejectedValue(
+        new TypeError('hostname.toLowerCase is not a function'),
+      );
+
+      const result = await testDatabaseConnection({
+        ...pgCreds,
+        host: 'internal.db',
+      });
+
+      expect(result).toEqual({
+        success: false,
+        code: 'DB_CONNECT_FAILED',
+        message: 'hostname.toLowerCase is not a function',
+      });
       expect(MockedClient).not.toHaveBeenCalled();
     });
 

@@ -113,17 +113,21 @@ export async function testHttpConnection(
   const requestHeaders = { ...(defaultHeaders ?? {}), ...(headers ?? {}) };
   // 노드와 같은 함수로 query 자격증명을 붙인다 — 같은 URL 문자열이 나가야 테스트 통과가 실행 성공을 뜻한다.
   const url = appendQueryParams(resolved.baseUrl, queryParams);
-  const preflight = await outboundBlockReason(url);
-  if (preflight !== null) return blocked(preflight);
 
-  // 대기 신호 하나가 리다이렉트 체인 전체에 걸린다 — 홉이 늘어도 10초를 넘지 않는다.
-  const init: RequestInit = {
-    method: 'GET',
-    headers: requestHeaders,
-    redirect: 'manual',
-    signal: AbortSignal.timeout(HTTP_TEST_TIMEOUT_MS),
-  };
   try {
+    // preflight 도 이 `try` 안에서 부른다 — `outboundBlockReason` 은 차단 «판정» 만 사유로 돌리고 가드의 다른 오류는 던지므로,
+    // 밖에서 부르면 이 함수가 던져 «던지지 않는다»(`dispatchTest` 의 tester 계약)가 깨진다.
+    const preflight = await outboundBlockReason(url);
+    if (preflight !== null) return blocked(preflight);
+
+    // 대기 신호 하나가 리다이렉트 체인 전체에 걸린다 — 홉이 늘어도 10초를 넘지 않는다. **preflight 뒤에** 만든다 —
+    // `AbortSignal.timeout` 은 생성 시점부터 세므로 위에서 만들면 가드의 DNS 조회 시간만큼 전송 예산이 깎인다.
+    const init: RequestInit = {
+      method: 'GET',
+      headers: requestHeaders,
+      redirect: 'manual',
+      signal: AbortSignal.timeout(HTTP_TEST_TIMEOUT_MS),
+    };
     const followed = await followRedirectsSafely(
       await fetch(url, init),
       url,
