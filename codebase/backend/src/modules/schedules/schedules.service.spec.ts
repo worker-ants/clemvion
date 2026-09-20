@@ -369,6 +369,20 @@ describe('SchedulesService.runNow', () => {
       expect(order).toEqual(['commit', 'audit', 'bullmq']);
     });
 
+    /** `update()` 대상 schedule 행 — 재계산 관련 테스트들이 공유한다. */
+    function scheduleRow(overrides: Partial<Schedule> = {}): Schedule {
+      return {
+        id: 'sch-1',
+        workspaceId: 'ws-1',
+        isActive: false,
+        cronExpression: '0 9 * * *',
+        timezone: 'Asia/Seoul',
+        triggerId: 'trig-1',
+        nextRunAt: new Date('2020-01-01T00:00:00Z'),
+        ...overrides,
+      } as unknown as Schedule;
+    }
+
     /**
      * cron/timezone 을 바꾸면 `nextRunAt` 을 재계산하는 분기. 계산이 비면 **`null` 로 명시
      * 대입**한다 — 2026-09-03 에 그 자리의 `null as unknown as Date` 캐스트를 걷어냈는데
@@ -383,15 +397,7 @@ describe('SchedulesService.runNow', () => {
      */
     it('[방어 분기] 다음 실행 계산이 비면 nextRunAt 을 null 로 명시 대입한다', async () => {
       const saved: Schedule[] = [];
-      scheduleRepo.findOne.mockResolvedValue({
-        id: 'sch-1',
-        workspaceId: 'ws-1',
-        isActive: false,
-        cronExpression: '0 9 * * *',
-        timezone: 'Asia/Seoul',
-        triggerId: 'trig-1',
-        nextRunAt: new Date('2020-01-01T00:00:00Z'),
-      } as unknown as Schedule);
+      scheduleRepo.findOne.mockResolvedValue(scheduleRow());
       scheduleRepo.save.mockImplementation((sch) => {
         saved.push(sch as Schedule);
         return Promise.resolve(sch as Schedule);
@@ -424,19 +430,6 @@ describe('SchedulesService.runNow', () => {
      *
      * **무엇으로 불렸는지**까지 본다 — 결과 값만 보면 «갱신 전 cron 으로 계산했다» 를 가르지 못한다.
      */
-    function scheduleRow(overrides: Partial<Schedule> = {}): Schedule {
-      return {
-        id: 'sch-1',
-        workspaceId: 'ws-1',
-        isActive: false,
-        cronExpression: '0 9 * * *',
-        timezone: 'Asia/Seoul',
-        triggerId: 'trig-1',
-        nextRunAt: new Date('2020-01-01T00:00:00Z'),
-        ...overrides,
-      } as unknown as Schedule;
-    }
-
     it('cron 을 바꾸면 새 cron 으로 다시 계산해 nextRunAt 에 넣는다', async () => {
       const saved: Schedule[] = [];
       scheduleRepo.findOne.mockResolvedValue(scheduleRow());
@@ -500,6 +493,37 @@ describe('SchedulesService.runNow', () => {
       );
       expect(saved).toHaveLength(1);
       expect(saved[0].nextRunAt).toEqual(new Date('2030-03-04T20:06:00.000Z'));
+    });
+
+    /**
+     * 게이트의 **세 번째 분기** — cron 도 timezone 도 안 바꿨으면 재계산하지 않는다. 위 둘만으로는 조건을 통째로
+     * 무력화한(`if (true)`) 회귀가 살아남는다(1라운드 리뷰가 실측: 29건 전부 GREEN).
+     */
+    it('cron · timezone 을 안 바꾸면 재계산하지 않는다 — nextRunAt 이 그대로다', async () => {
+      const before = new Date('2020-01-01T00:00:00Z');
+      const saved: Schedule[] = [];
+      scheduleRepo.findOne.mockResolvedValue(
+        scheduleRow({ nextRunAt: before }),
+      );
+      scheduleRepo.save.mockImplementation((sch) => {
+        saved.push(sch as Schedule);
+        return Promise.resolve(sch as Schedule);
+      });
+      const computeNextRuns = jest.spyOn(
+        service as unknown as { computeNextRuns: () => string[] },
+        'computeNextRuns',
+      );
+
+      await service.update(
+        'sch-1',
+        'ws-1',
+        { name: '이름만 바꾼다' } as unknown as UpdateScheduleDto,
+        'u-upd',
+      );
+
+      expect(computeNextRuns).not.toHaveBeenCalled();
+      expect(saved).toHaveLength(1);
+      expect(saved[0].nextRunAt).toEqual(before);
     });
 
     it('감사 로깅 — update 는 schedule.updated 를 남긴다', async () => {
