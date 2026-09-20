@@ -1,5 +1,35 @@
 # Changelog
 
+## Unreleased — 동시 DELETE 두 건이 `workflow.deleted` 감사 행을 두 번 남겼다
+
+`WorkflowsService.remove()`(워크스페이스 삭제도 대칭) 는 잠금 없는 `findById` 로 존재를 확인한 뒤,
+같은 트랜잭션에서 부모 행을 `pessimistic_write` 로 잠그고서도 그 `findOne` 결과를 버렸다. 그래서 동시
+DELETE 두 건이 잠금 없는 선조회를 모두 통과하면, 먼저 커밋한 쪽이 행을 지운 뒤에도 두 번째는 «잠글
+행이 없다» 는 사실을 알지 못한 채 진행했다 — `manager.remove()` 는 0행이어도 던지지 않으므로 두 번째
+요청도 200 과 함께 `workflow.deleted` 감사 행을 한 번 더 남겼다(같은 워크플로가 두 번 지워진 것처럼
+읽힌다. 데이터 손상은 없다).
+
+**고친 것** (트리거 목록 §4.4 의 «두 번째 요청은 404» 대칭 — `spec_impact: none`, 새 정책이 아니라
+기존 정책에 맞추는 것):
+- 잠그며 읽던 `lockParentAndListTriggerIds` 가 그 존재 여부(`{ parentPresence, triggerIds }`)를 호출자에게
+  돌려준다 — 추가 조회 없이 버리던 값을 쓰는 것뿐이다. `absent` 면 워크플로 삭제는 트랜잭션을 롤백하며
+  404(`RESOURCE_NOT_FOUND`)로 끝난다.
+- 워크스페이스 삭제도 대칭으로 닫는다. plan 은 처음에 «그 경로는 잠금 뒤 `assertWorkspaceDeletable`
+  재검사가 이미 덮는다» 고 적었으나 리뷰가 반증했다 — 그 재검사는 «멤버십(권한) → 존재» 순으로 판정해,
+  CASCADE 로 멤버 행까지 사라진 진 쪽은 404 대신 403 `OWNER_REQUIRED` 를 받고 거짓 «수동 정리 필요»
+  로그까지 남겼다. 같은 `absent` 검사를 재검사보다 먼저 두어 404 로 단락했다.
+- 두 경로 모두 `.catch` 에서 `NotFoundException` 은 재던지기만 하고 error 로그를 남기지 않는다 — 동시
+  삭제로 행이 사라진 것은 반쯤 삭제된 상태가 아니라 먼저 커밋한 요청이 이미 끝낸 것이라, 그 경우까지
+  «수동 정리가 필요하다» 로 남기면 거짓 경보가 된다.
+
+**판별력 실측**: `origin/main` 의 네 파일로 되돌려 e2e 이미지를 재빌드하니 동시 DELETE 두 건이 **둘 다
+204** 였고, DB 를 직접 조회해 `workflow.deleted` 감사 행이 **한 `resource_id` 에 2건** 임을 확인했다(고친
+코드는 `[204, 404]` · 감사 1건). 워크스페이스 경로는 뮤테이션으로 확인했다 — (1) 404 단락 분기를 지우면
+새 단위 테스트가 RED(재검사를 통과해 워크스페이스가 실제로 삭제됨), (2) `NotFoundException` 재던짐
+가드를 지우면 `Logger.error` 미호출 단언이 RED(거짓 「트리거가 발화하지 않을 수 있다」 로그가 실제로
+찍힘). 워크플로 쪽 로그 억제 가드도 같은 방식으로 확인 — 가드를 지워도 기존 단언 9개는 전부 GREEN 이었고
+새 `Logger.error` 미호출 단언만 그 공백을 잡았다.
+
 ## Unreleased — 동시 rotate 두 건 중 나중 저장이 먼저 커밋된 교체를 옛 스냅샷으로 되돌렸다
 
 `IntegrationsService.rotate()` 는 읽기 → merge → **연결 테스트(실제 접속, 수 초)** → `update` 순서였다.
