@@ -1,9 +1,10 @@
 ---
 title: schedule-trigger e2e 「D. PATCH cron」이 하루 1분 창에서 거짓 실패한다 — 비교를 «다르다» 에서 «새 cron 이 만드는 값인가» 로
-status: in-progress
+status: complete
 owner: developer
 worktree: schedule-cron-flake-2f9a4c
 started: 2026-09-20
+completed: 2026-09-20
 spec_impact: none
 ---
 
@@ -58,6 +59,10 @@ spec_impact: none
   (옛 값 비교 두 형태를 차례로 폐기) **매번 다시 확인**했고, 마지막 형태(«1분 안 · 분 경계» 만)에서도 RED 다
 - [x] TEST WORKFLOW (lint · unit · build · e2e 366). unit 1회차는 jest 워커 SIGSEGV 로 `webauthn.service.spec.ts` 가
   실행되지 못했다 — 이 변경(backend e2e 파일 하나)과 무관하고 재실행 통과
-- [ ] `/ai-review` 수렴
-- [ ] `--impl-done`
-- [ ] 트래커 해소 · 이 plan `plan/complete/` 로
+- [x] `/ai-review` 수렴 — 네 라운드. 1R `review/code/2026/09/20/11_54_10`(W3 → `a8ddcfb32`: «달라졌다» 제거 ·
+  여유 확대 · 인용 정정 · 분 경계 단언) · 2R `12_17_18`(W2 → `b40b5b98f`: 1R 이 넣은 «옛 값은 창 밖» 도 같은 창을
+  만들어 옛 값 비교를 통째로 제거) · 3R `12_45_31`(W4 → `5d551ad73`: 주석 · plan 이 가리키던 옛 설계 정정, 잔여는 등재) ·
+  4R `13_12_35`(W1 → `568fd2ecd`: 주석 인용을 전체 경로로). 3R RESOLUTION 에서 상한을 4로 늘리고 4R 을 검증 라운드로 못 박았다
+- [x] `--impl-done` — `review/consistency/2026/09/20/13_34_15` BLOCK: NO, Critical · Warning 0 (5/5 NONE)
+- [x] 트래커 해소 + 후속 둘 등재(연말 ~2분 거짓 통과 창은 기존 «cron 재계산 happy-path 단위 테스트» 항목에 합침 ·
+  `NAV-WF-02` 카탈로그 상태 불일치는 planner 항목) · 이 plan `plan/complete/` 로

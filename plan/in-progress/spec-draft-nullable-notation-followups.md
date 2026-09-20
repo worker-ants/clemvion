@@ -4959,12 +4959,15 @@ field: T | null;
       더할지 — 후자는 전 노드의 오류 문구에 영향을 준다. 같은 결의 잔여: `http-connection-tester.ts` 의
       `describeFailure`→`clampMessage` 경로(이 PR 이 만든 자리가 아니라 그대로 뒀다).
 
-- [ ] **`schedule-trigger` e2e 「D. PATCH cron → nextRunAt 재계산」이 하루 1분 창에서 실패한다** (developer, 낮음,
+- [x] **`schedule-trigger` e2e 「D. PATCH cron → nextRunAt 재계산」이 하루 1분 창에서 실패한다** (developer, 낮음,
       2026-09-20 등재 · `plan/complete/ssrf-catch-instanceof.md` 의 무관한 e2e 실패로 발견). 테스트는 `0 10 * * *`(Asia/Seoul)로
       만들고 `*/1 * * * *` 로 PATCH 한 뒤 `nextRunAt` 이 **달라졌는지** 본다. 그런데 09:59 KST(=00:59 UTC)에 돌리면 둘 다
       `01:00:00Z` 로 같아 «재계산 안 됨» 으로 읽힌다 — 실측(`_test_logs/e2e-20260920-095855.log`: 기대 ≠ `2026-09-20T01:00:00.000Z`,
       호스트 09:58 KST). 재실행(10:02 KST)은 366 통과. 고칠 방향: 비교를 «다르다» 가 아니라 «분 단위 cron 이 만드는 값인가»
       로 좁히거나(예: 1분 이내 미래), 생성 cron 을 현재 시각과 겹치지 않는 값으로 고른다. 지금 형태로는 매일 그 1분에 CI 가 붉어진다.
+      **2026-09-20 해소** `plan/complete/schedule-cron-flake.md` — 생성 cron 을 연 1회로 바꾸고, 판정을 «새 cron 이 만드는
+      값인가»(요청 시각부터 1분 안 · 분 경계)로 옮겼다. **옛 값과의 비교는 형태를 막론하고 뺐다** — 네 라운드가 같은 결함
+      클래스를 세 번 좁혔고(하루 1분 → 연 1분 → 연 90초), 남은 것은 방향이 반대인 좁은 창뿐이라 위 단위 테스트 항목에 합쳤다.
 
 - [ ] **`1-http-request.md` frontmatter `code:` 에 `http-redirect.ts` · 세 에러 표에 «가드의 고장» 트리거** (planner, 낮음,
       2026-09-20 등재 · `--impl-prep` `review/consistency/2026/09/20/09_06_34` convention WARNING 2 · cross_spec INFO 1 ·
