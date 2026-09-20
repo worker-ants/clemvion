@@ -815,6 +815,56 @@ describe('SchedulesService.runNow', () => {
       }
     });
 
+    /**
+     * 위 두 «0행 → 404» 테스트의 **대조군**. `affected` 가 `null`·`undefined` 인 것은 드라이버가
+     * «보고하지 않았다» 는 뜻이지 «지우지 못했다» 가 아니다 — 그것을 0 과 같이 읽으면 정상 삭제를
+     * 404 로 뒤집는다. 자매 함수 `rewriteTriggerConfigLocked` 가 같은 형태의 대조군을 이미 갖는다
+     * (`trigger-config-lock.spec.ts` — «affected 를 보고하지 않는 드라이버에서는 true 를 유지한다»).
+     *
+     * 이 대조군이 없으면 `affected === 0` 을 `!affected` 로 되돌리는 편집이 스위트 전건을 통과한다
+     * (`/ai-review` `review/code/2026/09/21/00_56_52` testing WARNING 1 이 실측했다).
+     */
+    it('삭제 — affected 를 보고하지 않는 드라이버에서는 404 로 뒤집지 않는다 (트리거 경로)', async () => {
+      for (const affected of [undefined, null]) {
+        triggerLockEvents.length = 0;
+        auditLogs.record.mockClear();
+        scheduleRepo.findOne.mockResolvedValue({
+          id: 'sch-unknown',
+          workspaceId: 'ws-1',
+          triggerId: 'trig-unknown',
+        } as unknown as Schedule);
+        triggerRepo.delete.mockResolvedValueOnce({
+          affected,
+          raw: [],
+        } as unknown as DeleteResult);
+
+        await expect(
+          service.remove('sch-unknown', 'ws-1', 'u-unknown'),
+        ).resolves.toBeUndefined();
+        expect(auditLogs.record).toHaveBeenCalled();
+      }
+    });
+
+    it('삭제 — 같은 대조군 (triggerId 없는 방어 분기)', async () => {
+      for (const affected of [undefined, null]) {
+        auditLogs.record.mockClear();
+        scheduleRepo.findOne.mockResolvedValue({
+          id: 'sch-unknown-2',
+          workspaceId: 'ws-1',
+          triggerId: null,
+        } as unknown as Schedule);
+        scheduleRepo.delete.mockResolvedValueOnce({
+          affected,
+          raw: [],
+        } as unknown as DeleteResult);
+
+        await expect(
+          service.remove('sch-unknown-2', 'ws-1', 'u-unknown'),
+        ).resolves.toBeUndefined();
+        expect(auditLogs.record).toHaveBeenCalled();
+      }
+    });
+
     it('삭제 실패는 조용히 지나가지 않는다 — 반쯤 삭제된 상태를 로그로 드러낸다', async () => {
       // `removeJob` 은 **이미 끝났고 되돌릴 수 없다**. 그러니 여기서 trigger 행 삭제가
       // 실패하면 «BullMQ 는 해제됐는데 행은 남은» 상태다. 형제 `TriggersService.remove()`
