@@ -63,6 +63,8 @@ RED, `NotFoundException` 재던짐 가드를 지우면 별도 단언이 RED. **�
 **남는 것**: 네 삭제 경로(트리거·워크플로·워크스페이스·스케줄) 중 `SchedulesService.remove()`
 자신의 스케줄 행 삭제는 아직 같은 결함을 갖고 있다(락·재조회 밖에서 `scheduleRepository.remove`
 호출) — `plan/in-progress/spec-draft-nullable-notation-followups.md` 에 후속 항목으로 등재.
+**2026-09-21 해소**: 위 스케줄 항목이 그 잔여를 닫았다(판별자는 CASCADE 때문에 트리거 삭제의
+`affected` 다). 원문은 그때의 상태 기록으로 남긴다.
 외부 provider teardown(chat-channel 등) 중복 호출도 이 PR 이 닫지 않는다(락 밖, 멱등 전제 유지).
 
 ## Unreleased — 동시 DELETE 두 건이 `workflow.deleted` 감사 행을 두 번 남겼다

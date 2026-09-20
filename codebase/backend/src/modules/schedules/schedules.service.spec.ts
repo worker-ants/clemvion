@@ -801,6 +801,9 @@ describe('SchedulesService.runNow', () => {
         // 대칭 — 진 쪽도 같은 트리거를 대상으로 삭제를 시도했음을 고정한다 (INFO 9).
         expect(triggerRepo.delete).toHaveBeenCalledWith('trig-race');
         expect(auditLogs.record).not.toHaveBeenCalled();
+        // 형제 테스트와 대칭으로 «스케줄 행도 건드리지 않는다» 를 직접 단언한다
+        // (`/ai-review` `review/code/2026/09/21/00_37_06` testing INFO 7).
+        expect(scheduleRepo.remove).not.toHaveBeenCalled();
         // 커밋 뒤 비밀 정리도 하지 않는다 — 이긴 쪽이 이미 했다.
         expect(
           triggerLockEvents.some((e) => e.startsWith('deleteByPrefix:')),

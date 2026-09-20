@@ -334,8 +334,12 @@ export class SchedulesService {
           // **판정자가 트리거인 이유**: `schedule.trigger_id → trigger` 는 `onDelete: CASCADE` 라
           // 트리거를 지우면 스케줄 행도 DB 가 함께 지운다. 그래서 «스케줄 행을 몇 행 지웠나» 로
           // 판정하면 **이긴 쪽도 0행**이라 둘 다 404 가 된다 — 락이 보호하는 이 쓰기만이 판별자다.
+          // **`=== 0` 으로 명시 비교한다.** 같은 락 서브시스템의 자매 함수
+          // `rewriteTriggerConfigLocked` 가 이미 그렇게 정했다 — `affected` 가 `null`·`undefined` 인
+          // 경우(드라이버가 보고하지 않음)는 «모른다» 이고, 그것을 «없다» 로 읽으면 정상 삭제를
+          // 실패로 뒤집는다(`/ai-review` `review/code/2026/09/21/00_37_06` concurrency WARNING 2).
           const { affected } = await m.delete(Trigger, triggerId);
-          if (!affected) this.throwScheduleNotFound();
+          if (affected === 0) this.throwScheduleNotFound();
         })
         .catch((err: unknown) => {
           // 동시 삭제로 행이 이미 사라진 경우는 **반쯤 삭제된 상태가 아니다** — 먼저 커밋한 요청이
@@ -372,7 +376,8 @@ export class SchedulesService {
         id,
         workspaceId,
       });
-      if (!affected) this.throwScheduleNotFound();
+      // 위와 같은 이유로 `=== 0` 명시 비교다 — «모른다» 는 판정하지 않는다.
+      if (affected === 0) this.throwScheduleNotFound();
     }
     await this.recordAudit({
       workspaceId,
