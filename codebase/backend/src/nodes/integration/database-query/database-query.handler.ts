@@ -276,7 +276,7 @@ export class DatabaseQueryHandler
             // 이 에러는 Activity API 로 나가는 노드 에러다. 원본 상세는 위 `logger.warn` 에만 남는다.
             throw new IntegrationError(
               'INTEGRATION_CALL_FAILED',
-              err instanceof Error ? err.message : String(err),
+              sanitizeMessage(err instanceof Error ? err.message : String(err)),
             );
           }
           // 차단 판정의 원문에는 차단된 host/IP 가 들어 있어 `cause` 로도 싣지 않는다(정찰 면 축소 — 일반화
@@ -337,9 +337,10 @@ export class DatabaseQueryHandler
       }
       // D4 — IntegrationError (resolve / missingDbFields / parseParameters /
       // SSRF 차단 → `DB_HOST_BLOCKED` 등) 는 그대로 code 를 surface, 그 외 (SQL
-      // throw 등) 는 driver-specific mapper 로 분류. SSRF guard 의 plain Error 는
-      // 위에서 `DB_HOST_BLOCKED` IntegrationError 로 승격되므로 더 이상 mapDbError
-      // fallback (`INTEGRATION_CALL_FAILED`) 로 흐르지 않는다.
+      // throw 등) 는 driver-specific mapper 로 분류. SSRF 가드가 던진 것은 위에서
+      // 두 갈래로 승격돼 온다 — 차단 판정은 `DB_HOST_BLOCKED`, 판정 아닌 오류(가드의
+      // 고장)는 `INTEGRATION_CALL_FAILED`. 둘 다 IntegrationError 라 여기서 code 가
+      // 보존되고 `mapDbError` 로는 흐르지 않는다.
       const errorEnvelope =
         err instanceof IntegrationError
           ? {

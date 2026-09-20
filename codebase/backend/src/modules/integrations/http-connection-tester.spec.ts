@@ -238,6 +238,22 @@ describe('testHttpConnection', () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
+  /**
+   * 전송 타임아웃 신호는 **가드를 통과한 뒤** 만든다 — `AbortSignal.timeout` 은 생성 시점부터 세므로 가드보다 먼저 만들면
+   * 가드의 DNS 조회 시간만큼 `fetch` 예산이 깎인다(느린 DNS 에서 정상 연결이 «10초 초과» 로 오분류). 차단돼 fetch 까지
+   * 가지 않는 경우 신호가 아예 만들어지지 않는 것으로 그 순서를 관측한다.
+   */
+  it('가드에 막히면 전송 타임아웃 신호를 만들지 않는다 — 신호는 가드 통과 뒤에 만든다', async () => {
+    const timeoutSpy = jest.spyOn(AbortSignal, 'timeout');
+    mockedHostGuard.mockRejectedValue(new SsrfBlockedError('10.0.0.9'));
+
+    const result = await testHttpConnection('bearer_token', bearer);
+
+    expect(result).toMatchObject({ success: false, code: 'HTTP_BLOCKED' });
+    expect(timeoutSpy).not.toHaveBeenCalled();
+    timeoutSpy.mockRestore();
+  });
+
   it('host 가 사설 IP 로 해석돼도 HTTP_BLOCKED', async () => {
     mockedHostGuard.mockRejectedValue(new SsrfBlockedError('10.0.0.9'));
     const result = await testHttpConnection('bearer_token', bearer);

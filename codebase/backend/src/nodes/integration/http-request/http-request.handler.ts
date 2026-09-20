@@ -371,7 +371,13 @@ export class HttpRequestHandler
           }).catch(() => {});
         }
         return buildPreflightErrorOutput(
-          err,
+          // 원문 대신 마스킹한 message 로 감싼다 — 가드가 앞으로 어떤 오류를 던질지 모르고, 이 message 는
+          // `output.error` 로 workspace 사용자에게 나간다. 코드는 `buildPreflightErrorOutput` 의 비-IntegrationError
+          // fallback 과 같은 `INTEGRATION_CALL_FAILED` 다.
+          new IntegrationError(
+            'INTEGRATION_CALL_FAILED',
+            toLogError(err).message,
+          ),
           configEcho,
           cappedRequestBody,
           bodyType,

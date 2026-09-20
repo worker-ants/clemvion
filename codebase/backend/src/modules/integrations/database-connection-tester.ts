@@ -12,6 +12,7 @@ import {
   buildPgConnection,
   type DbCredentials,
 } from '../../nodes/integration/database-query/database-connection';
+import { sanitizeMessage } from '../../nodes/integration/_base/integration-handler-base';
 import { clampMessage } from './clamp-message';
 import { CONNECTION_TEST_CODES } from './connection-test-codes';
 import type { IntegrationTestResult } from './integrations.service';
@@ -148,7 +149,7 @@ export async function testDatabaseConnection(
         return {
           success: false,
           code: CONNECTION_TEST_CODES.DB_CONNECT_FAILED,
-          message: clampMessage(detail),
+          message: clampMessage(sanitizeMessage(detail)),
         };
       }
       logger.warn(`SSRF block (database connection test): ${detail}`);
