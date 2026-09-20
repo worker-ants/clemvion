@@ -2,7 +2,10 @@ import { Logger } from '@nestjs/common';
 import { Client as PgClient } from 'pg';
 import { createConnection as mysqlCreateConnection } from 'mysql2/promise';
 
-import { assertSafeOutboundHostResolved } from '../../nodes/integration/http-request/http-safety';
+import {
+  SsrfBlockedError,
+  assertSafeOutboundHostResolved,
+} from '../../nodes/integration/http-request/http-safety';
 import {
   DB_HOST_BLOCKED_MESSAGE,
   buildMysqlSsl,
@@ -138,6 +141,16 @@ export async function testDatabaseConnection(
       await assertSafeOutboundHostResolved(creds.host);
     } catch (err) {
       const detail = err instanceof Error ? err.message : String(err);
+      // 판정은 `SsrfBlockedError` 하나뿐이다 — 그 밖의 오류는 가드의 고장이지 차단이 아니므로 «당신의 host 가 막혔다» 로
+      // 보고하지 않고 분류되지 않은 실패로 돌린다. 던지지 않는 계약은 그대로다(§아래 JSDoc).
+      if (!(err instanceof SsrfBlockedError)) {
+        logger.warn(`SSRF guard failed (database connection test): ${detail}`);
+        return {
+          success: false,
+          code: CONNECTION_TEST_CODES.DB_CONNECT_FAILED,
+          message: clampMessage(detail),
+        };
+      }
       logger.warn(`SSRF block (database connection test): ${detail}`);
       return {
         success: false,

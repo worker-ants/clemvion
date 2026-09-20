@@ -18,6 +18,7 @@ import { sanitizeResponseHeaders } from '../_base/sanitize-response-headers.util
 import { IntegrationsService } from '../../../modules/integrations/integrations.service.js';
 import {
   SSRF_BLOCKED_CLIENT_MESSAGE,
+  SsrfBlockedError,
   assertSafeOutboundHostResolved,
   assertSafeOutboundUrl,
 } from './http-safety.js';
@@ -354,6 +355,31 @@ export class HttpRequestHandler
       // 클라이언트 output.error.message 는 정찰 면 축소를 위해 host/IP 미노출
       // 일반화 문구로 대체한다 (DB_HOST_BLOCKED·EMAIL_HOST_BLOCKED 대칭).
       const detail = err instanceof Error ? err.message : String(err);
+      // 판정은 `SsrfBlockedError` 하나뿐이다 — 그 밖의 오류는 가드의 고장이지 차단이
+      // 아니므로 «당신의 URL 이 SSRF 정책에 막혔다» 로 보고하지 않는다(그 거짓은 Activity
+      // 로그에도 남는다). 자격증명 resolve 실패와 같은 preflight 경로로 보내
+      // `INTEGRATION_CALL_FAILED`(공통 §4.2 — 분류되지 않은 실패)로 surface 한다.
+      if (!(err instanceof SsrfBlockedError)) {
+        logger.warn(`SSRF guard failed (http-request): ${detail}`);
+        if (authentication === 'integration' && integrationId) {
+          await this.logUsage(context, {
+            integrationId,
+            status: 'failed',
+            durationMs: Date.now() - start,
+            error: toLogError(err),
+            api: { method, path: extractApiPath(url) },
+          }).catch(() => {});
+        }
+        return buildPreflightErrorOutput(
+          err,
+          configEcho,
+          cappedRequestBody,
+          bodyType,
+          method,
+          url,
+          Date.now() - start,
+        );
+      }
       logger.warn(`SSRF block (http-request): ${detail}`);
       // Usage 로그는 integration 인증에 한정 (none/custom 은 활동 로그 미생성,
       // spec §4.2). SSRF 차단의 error 포트 라우팅(HTTP_BLOCKED)은 전 인증 공통.

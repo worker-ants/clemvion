@@ -1,5 +1,6 @@
 import {
   SSRF_BLOCKED_CLIENT_MESSAGE,
+  SsrfBlockedError,
   assertSafeOutboundHostResolved,
   assertSafeOutboundUrl,
 } from '../../nodes/integration/http-request/http-safety';
@@ -221,7 +222,7 @@ describe('testHttpConnection', () => {
 
   it('첫 URL 이 SSRF 가드에 막히면 HTTP_BLOCKED — 호출하지 않고 일반화 문구만', async () => {
     mockedUrlGuard.mockImplementation(() => {
-      throw new Error('SSRF_BLOCKED: 169.254.169.254');
+      throw new SsrfBlockedError('169.254.169.254');
     });
 
     const result = await testHttpConnection('bearer_token', {
@@ -238,10 +239,29 @@ describe('testHttpConnection', () => {
   });
 
   it('host 가 사설 IP 로 해석돼도 HTTP_BLOCKED', async () => {
-    mockedHostGuard.mockRejectedValue(new Error('SSRF_BLOCKED: 10.0.0.9'));
+    mockedHostGuard.mockRejectedValue(new SsrfBlockedError('10.0.0.9'));
     const result = await testHttpConnection('bearer_token', bearer);
     expect(result).toMatchObject({ success: false, code: 'HTTP_BLOCKED' });
     expect(result.message).not.toContain('10.0.0.9');
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  /**
+   * 판정은 `SsrfBlockedError` 하나뿐이다 — 그 밖의 오류는 가드의 고장이지 차단이 아니다. preflight 호출이 `try` 밖에 있었기에
+   * 이 경우 테스터가 던져 «던지지 않는다»(`dispatchTest` 의 tester 계약)를 깼다.
+   */
+  it('가드가 판정 아닌 오류를 던지면 HTTP_BLOCKED 가 아니라 HTTP_CONNECT_FAILED — 던지지 않는다', async () => {
+    mockedUrlGuard.mockImplementation(() => {
+      throw new TypeError('hostname.toLowerCase is not a function');
+    });
+
+    const result = await testHttpConnection('bearer_token', bearer);
+
+    expect(result).toMatchObject({
+      success: false,
+      code: 'HTTP_CONNECT_FAILED',
+    });
+    expect(result.message).toContain('hostname.toLowerCase');
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
@@ -276,7 +296,7 @@ describe('testHttpConnection', () => {
       respond(302, { location: 'http://10.1.2.3/admin' }),
     );
     mockedUrlGuard.mockImplementation((u: string) => {
-      if (u.includes('10.1.2.3')) throw new Error('SSRF_BLOCKED: 10.1.2.3');
+      if (u.includes('10.1.2.3')) throw new SsrfBlockedError('10.1.2.3');
       return new URL(u);
     });
 
@@ -296,7 +316,7 @@ describe('testHttpConnection', () => {
     );
     mockedHostGuard.mockImplementation(async (host: string) => {
       if (host === 'internal.example.com') {
-        throw new Error('SSRF_BLOCKED: internal.example.com -> 10.0.0.7');
+        throw new SsrfBlockedError('internal.example.com -> 10.0.0.7');
       }
     });
 
