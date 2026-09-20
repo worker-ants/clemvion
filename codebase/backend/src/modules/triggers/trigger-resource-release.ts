@@ -123,8 +123,8 @@ export type TriggerParent = { workflowId: string } | { workspaceId: string };
  */
 export interface LockedParentTriggers {
   /** 잠금 시점에 부모 행이 있었는가. `absent` 면 동시 삭제가 먼저 커밋한 것이다. */
-  parent: 'present' | 'absent';
-  /** 잠금 **뒤** 열거한 그 부모의 트리거 id. `parent: 'absent'` 면 비어 있다. */
+  parentPresence: 'present' | 'absent';
+  /** 잠금 **뒤** 열거한 그 부모의 트리거 id. `parentPresence: 'absent'` 면 비어 있다. */
   triggerIds: string[];
 }
 

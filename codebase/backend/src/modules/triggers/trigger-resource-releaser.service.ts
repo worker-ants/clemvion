@@ -103,7 +103,7 @@ export class TriggerResourceReleaserService implements TriggerResourceReleasePor
       where: parent,
     });
     return {
-      parent: parentRow ? 'present' : 'absent',
+      parentPresence: parentRow ? 'present' : 'absent',
       triggerIds: rows.map((row) => row.id),
     };
   }

@@ -277,7 +277,7 @@ export class WorkflowsService {
         // 지웠으면 여기서 멈춘다 — `manager.remove` 는 0행이어도 던지지 않으므로, 그냥 진행하면
         // 두 번째 요청도 성공으로 끝나며 `workflow.deleted` 감사를 한 번 더 남긴다.
         // 트리거 삭제가 이미 «두 번째 요청은 404» 다(spec 트리거 목록 §4.4) — 같은 답으로 맞춘다.
-        if (locked.parent === 'absent') {
+        if (locked.parentPresence === 'absent') {
           throw new NotFoundException({
             code: 'RESOURCE_NOT_FOUND',
             message: 'Workflow not found',

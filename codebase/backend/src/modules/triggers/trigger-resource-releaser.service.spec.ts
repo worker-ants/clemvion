@@ -278,7 +278,10 @@ describe('TriggerResourceReleaserService', () => {
         { workflowId: 'wf-1' },
       );
 
-      expect(locked).toEqual({ parent: 'present', triggerIds: ['a', 'b'] });
+      expect(locked).toEqual({
+        parentPresence: 'present',
+        triggerIds: ['a', 'b'],
+      });
       // 잠금 대기 상한이 **잠그기 전에** 걸린다 — 외부 해제를 되돌릴 수 없게 끝낸 뒤라 무한 대기는
       // 반쯤 삭제된 상태를 hang 으로 굳힌다(`/ai-review` `review/code/2026/09/17/19_14_29` WARNING#2).
       expect(events).toEqual([
@@ -327,7 +330,7 @@ describe('TriggerResourceReleaserService', () => {
         { workflowId: 'wf-gone' },
       );
 
-      expect(locked).toEqual({ parent: 'absent', triggerIds: [] });
+      expect(locked).toEqual({ parentPresence: 'absent', triggerIds: [] });
     });
 
     it('부모가 있고 트리거가 0개인 경우는 present 다 — 부재와 구분된다', async () => {
@@ -339,7 +342,7 @@ describe('TriggerResourceReleaserService', () => {
         { workflowId: 'wf-empty' },
       );
 
-      expect(locked).toEqual({ parent: 'present', triggerIds: [] });
+      expect(locked).toEqual({ parentPresence: 'present', triggerIds: [] });
     });
   });
 

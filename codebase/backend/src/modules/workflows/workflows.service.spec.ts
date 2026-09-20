@@ -91,7 +91,7 @@ describe('WorkflowsService', () => {
       removeEvents.push(`lockAndList:${JSON.stringify(parent)}`);
       // 잠금 뒤 부모가 살아 있는 기본 경로. 부재 경로는 해당 테스트가 따로 덮어쓴다.
       return Promise.resolve({
-        parent: 'present',
+        parentPresence: 'present',
         triggerIds: ['trig-a', 'trig-b'],
       });
     }),
@@ -1023,26 +1023,40 @@ describe('WorkflowsService', () => {
      * 한 번 더 남기면 안 된다(트리거 목록 §4.4 가 트리거에 대해 정한 «두 번째는 404» 와 같은 자리).
      */
     it('remove — 잠금 뒤 부모가 사라졌으면 404 이고 감사·비밀 정리를 남기지 않는다', async () => {
-      mockRepository.findOne.mockResolvedValue({
-        id: 'wf-uuid-9',
-        workspaceId: 'ws-uuid-1',
-      });
-      mockTriggerReleaser.lockParentAndListTriggerIds.mockImplementationOnce(
-        (_m: unknown, parent: unknown) => {
-          removeEvents.push(`lockAndList:${JSON.stringify(parent)}`);
-          return Promise.resolve({ parent: 'absent', triggerIds: [] });
-        },
-      );
+      // 이 가드의 목적은 «수동 정리가 필요하다» 는 거짓 error 로그를 억제하는 것이다 — 404 를
+      // 던지는 것만으론 그 목적을 못 지킨다(가드를 지워도 이 값은 그대로 통과한다). logger.error
+      // 가 불리지 않았음을 함께 단언한다.
+      const error = jest
+        .spyOn(Logger.prototype, 'error')
+        .mockImplementation(() => undefined);
+      try {
+        mockRepository.findOne.mockResolvedValue({
+          id: 'wf-uuid-9',
+          workspaceId: 'ws-uuid-1',
+        });
+        mockTriggerReleaser.lockParentAndListTriggerIds.mockImplementationOnce(
+          (_m: unknown, parent: unknown) => {
+            removeEvents.push(`lockAndList:${JSON.stringify(parent)}`);
+            return Promise.resolve({
+              parentPresence: 'absent',
+              triggerIds: [],
+            });
+          },
+        );
 
-      await expect(
-        service.remove('wf-uuid-9', 'ws-uuid-1', 'u-del'),
-      ).rejects.toMatchObject({ response: { code: 'RESOURCE_NOT_FOUND' } });
+        await expect(
+          service.remove('wf-uuid-9', 'ws-uuid-1', 'u-del'),
+        ).rejects.toMatchObject({ response: { code: 'RESOURCE_NOT_FOUND' } });
 
-      expect(removeEvents).not.toContain('manager.remove:wf-uuid-9');
-      expect(auditLogs.record).not.toHaveBeenCalled();
-      expect(
-        mockTriggerReleaser.releaseSecretsAfterCommit,
-      ).not.toHaveBeenCalled();
+        expect(removeEvents).not.toContain('manager.remove:wf-uuid-9');
+        expect(auditLogs.record).not.toHaveBeenCalled();
+        expect(
+          mockTriggerReleaser.releaseSecretsAfterCommit,
+        ).not.toHaveBeenCalled();
+        expect(error).not.toHaveBeenCalled();
+      } finally {
+        error.mockRestore();
+      }
     });
 
     it('remove — 행 삭제가 실패하면 외부 해제가 이미 끝났다는 사실을 남기고 던진다', async () => {
