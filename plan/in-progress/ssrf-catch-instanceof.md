@@ -73,9 +73,15 @@ SMTP 가드(`send-email/smtp-host-guard.ts` `isSmtpHostBlocked`)만 이미 가�
 
 ## 체크리스트
 
-- [ ] `--impl-prep spec/4-nodes/4-integration/`
-- [ ] 테스트 선작성 · 구현 · 뮤턴트로 판별력
-- [ ] TEST WORKFLOW (lint · unit · build · e2e)
+- [x] `--impl-prep spec/4-nodes/4-integration/` — `review/consistency/2026/09/20/09_06_34` BLOCK: NO (Critical 0 · WARNING 2).
+  WARNING 둘은 이 변경 밖이다: (1) 번들 예산이 `spec/conventions/*.md` 원문을 떨구고 cafe24/makeshop 카탈로그를 실었다
+  (checker 가 직접 Read 로 보완해 판정) · (2) `1-http-request.md` frontmatter `code:` 에 `http-redirect.ts` 가 없다 —
+  둘 다 마무리 커밋에서 등재한다. INFO: `INTEGRATION_CALL_FAILED` 의 새 트리거를 spec 표에 한 줄(planner) ·
+  `IntegrationError` 승격에 `cause` 부착 여부를 §6.3.1 C1/C2 로 판정(→ C2 로 미부착, 주석에 근거)
+- [x] 테스트 선작성 · 구현 · 뮤턴트로 판별력 — `840e8e7f9`. 새 테스트 셋 + `http-redirect.spec.ts` 신설(종전 0건).
+  뮤턴트 넷(각 판정 분기 삭제 = 옛 동작) 전부 RED: redirect(«rejected 대신 resolved») · http-request(`HTTP_BLOCKED`) ·
+  database-query(`DB_HOST_BLOCKED`) · db tester(`DB_HOST_BLOCKED`)
+- [x] TEST WORKFLOW (lint · unit · build · e2e 366) + 백엔드 타입체크 ratchet(194건 — baseline 일치)
 - [ ] `/ai-review` 수렴
 - [ ] `--impl-done`
 - [ ] 트래커 해소 · 이 plan `plan/complete/` 로
