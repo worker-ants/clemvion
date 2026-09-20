@@ -7,7 +7,7 @@ started: 2026-09-20
 spec_impact: none
 ---
 
-# `TriggersService.remove()` — 네 삭제 경로 중 마지막 한 자리
+# `TriggersService.remove()` — 트리거·워크플로·워크스페이스 세 자리 중 마지막
 
 트래커 `plan/in-progress/spec-draft-nullable-notation-followups.md` 의 developer 항목
 «`TriggersService.remove()` 도 동시 삭제에서 감사 행을 두 번 남길 수 있다» (2026-09-20 등재 ·
@@ -16,6 +16,16 @@ spec_impact: none
 **이 항목이 생긴 경위가 중요하다.** 직전 PR(`plan/complete/dup-delete-audit.md`)이 워크플로·워크스페이스를
 고치며 «트리거는 이미 spec §4.4 대로 두 번째 요청에 404 를 준다» 를 **선례로 인용**했는데, 리뷰가 그것이
 **spec 서술이지 코드 실측이 아님**을 짚었다. 읽어 보니 같은 형태였다 — 이 PR 이 그 인용을 사실로 만든다.
+
+> **정정 (`/ai-review` `review/code/2026/09/20/22_07_23` requirement WARNING 2)**: 위 제목과
+> 커밋 메시지가 «네 삭제 경로 중 마지막 한 자리 / 네 자리 완결» 이라 적었던 것은 **틀렸다**.
+> 네 번째 자리인 `SchedulesService.remove()` 자신의 스케줄 행 삭제(`this.scheduleRepository.remove(schedule)`,
+> `schedules.service.ts:345`)는 advisory lock 도 재조회(`!fresh`) 가드도 거치지 않고 트랜잭션
+> **밖**에서 불린다 — 동시 삭제 시 `SCHEDULE_DELETED` 감사가 이 PR 이 트리거에서 고친 것과 같은
+> 형태로 두 번 남을 수 있다(코드를 직접 읽어 확인, 재현 e2e 는 아직 없음). 실제로 이 PR 이 닫는 것은
+> **트리거·워크플로·워크스페이스 세 자리**뿐이다. 스케줄 자신의 잔여는
+> 트래커의 새 developer 항목(«`SchedulesService.remove()` 도 동시 삭제에서 감사 행을 두 번 남길 수
+> 있다»)으로 등재했다.
 
 ## A. 결함 — advisory lock 은 줄을 세우지만, 줄 앞에서 «아직 있나» 를 묻지 않는다
 
@@ -75,7 +85,10 @@ COMMIT;  -- 1.5초 안에 (삭제 경로의 lock_timeout 이 5초다)
 
 - **외부 해제 중복**(2번)은 그대로 둔다 — 두 요청 모두 락 밖에서 부르므로 teardown 이 두 번 돈다.
   멱등 전제는 직전 PR 들과 같고, 고치려면 해제를 락 안으로 옮겨야 하는데 그러면 외부 호출이 락 안에
-  들어간다(`trigger-config-lock.ts` JSDoc 이 금지한 형태).
+  들어간다(`trigger-config-lock.ts` JSDoc 이 금지한 형태). 신규 e2e 는 chatChannel 없는 webhook
+  트리거만 써서 이 경로(provider teardown 중복)를 **의도적으로 피해** 커버하지 않는다 — 트래커의
+  «트리거 자원 정리의 사후 정리(sweeper) 필요 여부 재판단» 항목이 이 중복을 새 불릿으로 받는다
+  (`/ai-review` `review/code/2026/09/20/22_07_23` side_effect·concurrency WARNING 1).
 - **네 자리 공용 헬퍼 추출**은 하지 않는다 — 트래커의 «네 자리 공용 형태» 설계 항목이 그 자리다.
   이 PR 은 네 번째 자리를 **같은 형태로 맞추는 것**까지만 한다(그 설계의 입력이 된다).
 - `spec/2-navigation/2-trigger-list.md` §4.4 의 «구현 검증 대기» caveat 은 planner 몫이다 — 이 PR 이
