@@ -1,0 +1,13 @@
+{
+  "timestamp": "2026-09-20T16:43:05.447582",
+  "mode": "spec draft 검토 (--spec)",
+  "target_path": "plan/in-progress/spec-draft-rotate-conflict.md",
+  "checkers": [
+    "cross_spec",
+    "rationale_continuity",
+    "convention_compliance",
+    "plan_coherence",
+    "naming_collision"
+  ],
+  "target_snapshot": "_target/spec-draft-rotate-conflict.md"
+}
