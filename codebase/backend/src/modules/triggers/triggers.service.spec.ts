@@ -3807,8 +3807,12 @@ describe('TriggersService — 락 안 재읽기가 동시 확립분을 본다 (l
       size: jest.fn(() => 0),
       bulkRegister: jest.fn(),
     };
+    // 락 안 재조회가 **어떤 조건으로** 읽는지도 관측 대상이다 — `workspaceId` 가 빠지면 다른
+    // 워크스페이스의 같은 id 를 읽어 인가가 새는데, 값만 보는 mock 은 그것을 못 본다.
+    const freshFindOptions: unknown[] = [];
     const providers = createBaseProviders(repoMock, {
-      freshFindOne: () => {
+      freshFindOne: (findOptions) => {
+        freshFindOptions.push(findOptions);
         const idx = Math.min(freshCall, freshSequence.length - 1);
         freshCall += 1;
         return freshSequence[idx]();
@@ -3867,6 +3871,7 @@ describe('TriggersService — 락 안 재읽기가 동시 확립분을 본다 (l
       lockKeys,
       events,
       listenerRegistry,
+      freshFindOptions,
     };
   }
 
@@ -4022,6 +4027,42 @@ describe('TriggersService — 락 안 재읽기가 동시 확립분을 본다 (l
     expect(repo.save).not.toHaveBeenCalled();
   });
 
+  /**
+   * 동시 DELETE 두 건 — advisory lock 은 둘을 **줄 세우기만** 한다. 락을 얻은 쪽이 «행이 아직
+   * 있나» 를 묻지 않으면, 먼저 커밋한 쪽이 지운 뒤에도 `m.remove` 가 0행으로 조용히 성공해
+   * `trigger.deleted` 감사가 두 번 남는다(e2e 로 재현했다: `[204, 204]` · 감사 2건).
+   */
+  it('remove() — 락 안에서 행이 사라졌으면 404 이고 삭제·감사·비밀 정리를 하지 않는다', async () => {
+    const error = jest
+      .spyOn(Logger.prototype, 'error')
+      .mockImplementation(() => undefined);
+    try {
+      // 바깥 `findById` 는 행을 보지만 **락 안 재읽기는 못 본다** — 그 사이 다른 요청이 커밋했다.
+      const { service, repo, audit, events, freshFindOptions } =
+        await makeService([() => null as unknown as Trigger]);
+
+      await expect(
+        service.remove('trig-l', 'ws-1', 'u-1'),
+      ).rejects.toMatchObject({ response: { code: 'RESOURCE_NOT_FOUND' } });
+
+      expect(repo.remove).not.toHaveBeenCalled();
+      expect(audit.record).not.toHaveBeenCalled();
+      // **재조회는 워크스페이스로 스코프된다** — `workspaceId` 가 빠지면 다른 워크스페이스의
+      // 같은 id 행을 «있다» 로 읽어 인가가 샌다. 값만 보는 단언으로는 그 회귀가 GREEN 으로
+      // 남는다(`/ai-review` `review/code/2026/09/20/22_39_21` testing WARNING 1).
+      expect(freshFindOptions.at(-1)).toMatchObject({
+        where: { id: 'trig-l', workspaceId: 'ws-1' },
+      });
+      // 커밋 뒤 비밀 정리도 하지 않는다 — 이긴 쪽이 이미 했다.
+      expect(events.some((e) => e.startsWith('deleteByPrefix:'))).toBe(false);
+      // **거짓 경보를 내지 않는다**: 이 404 는 «반쯤 삭제된 상태» 가 아니다. 그 로그는
+      // «수동 정리가 필요하다» 고 말하므로 여기까지 실으면 운영자가 없는 일을 쫓는다.
+      expect(error).not.toHaveBeenCalled();
+    } finally {
+      error.mockRestore();
+    }
+  });
+
   it('remove() 도 같은 config 락을 잡는다 (쓰기 시점 삭제 경합)', async () => {
     // 창 1 은 `save(entity)` 를 쓰고, 그것은 행이 없으면 **INSERT** 한다. 읽기 시점
     // 가드(`!fresh`)는 «읽었을 땐 있었는데 저장 직전에 삭제되는» 경합을 못 막는다 —
@@ -4081,6 +4122,37 @@ describe('TriggersService — 락 안 재읽기가 동시 확립분을 본다 (l
     );
 
     expect(events.filter((e) => e.startsWith('deleteByPrefix:'))).toEqual([]);
+  });
+
+  /**
+   * genuine(비-404) 실패는 «반쯤 삭제된 상태다 · 수동 정리가 필요하다» 로그를 **실제로 남겨야**
+   * 운영자가 알 수 있다. 위 두 테스트는 `removeRejects: true` 를 쓰면서도 `logger.error` 호출
+   * 자체는 단언하지 않아, 그 로그를 지워도(`// swallow` 아닌 «로그만 삭제») 11/11 GREEN 으로
+   * 남는 공백이 있었다(뮤테이션으로 실측 — `review/code/2026/09/20/22_07_23` testing WARNING 4).
+   * 형제 `workflows.service.spec.ts` «remove — 행 삭제가 실패하면 외부 해제가 이미 끝났다는 사실을
+   * 남기고 던진다» 와 대칭.
+   */
+  it('remove() — genuine 삭제 실패는 반쯤 삭제된 상태를 logger.error 로 남긴다', async () => {
+    const error = jest
+      .spyOn(Logger.prototype, 'error')
+      .mockImplementation(() => undefined);
+    try {
+      const { service } = await makeService([withRef], {
+        removeRejects: true,
+      });
+
+      await expect(service.remove('trig-l', 'ws-1', 'u-1')).rejects.toThrow(
+        'lock timeout',
+      );
+
+      expect(error).toHaveBeenCalledTimes(1);
+      const logged = error.mock.calls.map(([m]) => String(m)).join('\n');
+      expect(logged).toContain('trig-l');
+      expect(logged).toContain('이미 끝났으므로');
+      expect(logged).toContain('반쯤 삭제된 상태');
+    } finally {
+      error.mockRestore();
+    }
   });
 
   it('update() 는 락 대기에 상한을 두지 않는다 (삭제만 예외다)', async () => {

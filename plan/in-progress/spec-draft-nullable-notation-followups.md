@@ -4580,6 +4580,13 @@ field: T | null;
       - 부모 삭제의 외부 해제 **스냅샷 뒤·부모 잠금 전**에 생긴 트리거의 schedule job · provider 등록 · listener
         (비밀은 잠금 뒤 열거가 덮는다. 닫으려면 외부 해제를 커밋 뒤로 옮겨야 하는데 schedule 행이 CASCADE 로 사라져 job id 를 못 찾는다)
       - 외부 해제 뒤·행 삭제 전에 동시 요청이 다시 만든 provider 등록 · schedule job (spec D7-2)
+      - **동시 DELETE 두 건이 같은 트리거에 대해 `releaseExternal` 을 각각 부른다** — 락 밖·무락
+        선조회 뒤라 둘 다 실행되고, provider teardown·BullMQ job 해제가 같은 대상에 두 번 호출된다.
+        `/ai-review` `review/code/2026/09/20/22_07_23` side_effect·concurrency WARNING 1 이 소스를
+        직접 확인 — best-effort·실패 삼킴이라 500 이나 처리 중단으로는 안 이어지지만(`trigger-dup-delete.md`
+        가 감사 중복만 닫고 이 중복은 그대로 둔 것과 같은 멱등 전제), provider API 에 대한 **중복 호출 자체는
+        남는다**. 신규 e2e(`trigger-delete-concurrency.e2e-spec.ts`)는 chatChannel 없는 webhook 트리거만
+        써서 이 경로를 검증하지 않는다 — 재는 대상에 넣을 것
       - 행 삭제 커밋과 비밀 정리 사이의 프로세스 종료, 그리고 커밋 뒤 비밀 삭제 실패(error 로그만 남는다)
       - 워크스페이스 삭제의 **권한 선검사 → 외부 해제 → 잠금 재검사 거부**(그 사이 역할 변경) — 워크스페이스는 남는데 그
         트리거들의 외부 등록은 이미 해제돼 발화하지 않는다(error 로그로 드러난다). #1345 의 D7 목록 밖에서 구현이 권한 검사를
@@ -4750,13 +4757,30 @@ field: T | null;
       판별력은 뮤턴트로 실측했다(워크플로: 둘 다 204 + 감사 2건 재현 / 워크스페이스: 기대 404 자리에 403).
       반환 계약이 `{ parentPresence, triggerIds }` 로 바뀐 것은 위 «네 자리 공용 형태» 설계의 전제다.
 
-- [ ] **`TriggersService.remove()` 도 동시 삭제에서 감사 행을 두 번 남길 수 있다** (developer, 낮음, 2026-09-20 등재 ·
+- [x] **`TriggersService.remove()` 도 동시 삭제에서 감사 행을 두 번 남길 수 있다** (developer, 낮음, 2026-09-20 등재 ·
       `/ai-review` `review/code/2026/09/20/21_07_19` requirement WARNING 1). 위 항목을 닫으며 인용한 «트리거는 이미
       §4.4 대로 404 다» 는 **spec 서술이지 코드 실측이 아니었다**. 읽어 보니 같은 형태다: 무락 `findById` →
       `acquireTriggerConfigLock`(advisory lock, **행 락이 아니다**) → `m.remove(trigger)` → `recordAudit(TRIGGER_DELETED)`.
       락이 직렬화는 하지만 락 안에서 **행이 아직 있는지 보지 않으므로** 진 쪽도 0행 삭제를 성공으로 끝낸다.
       재현은 `workflow-delete-concurrency.e2e-spec.ts` 기법(테스트가 락을 쥔다)이 그대로 쓰이되, 행 락이 아니라
       **같은 advisory lock key** 를 쥐어야 할 수 있다 — 거기부터 실측할 것.
+      **2026-09-20 해소** `plan/complete/trigger-dup-delete.md`. 처방대로 락 안 재조회(`!fresh` → 404)를 넣었다 —
+      `[204, 204]`(감사 2건) → `[204, 404]`(감사 1건)를 e2e 로 실측했고 단위 뮤턴트 둘이 각각 새 테스트만
+      죽인다. **닫은 범위는 트리거 한 자리뿐이다** — 그 plan 제목이 «네 자리 완결» 이라 과장했던 것을
+      `/ai-review` `review/code/2026/09/20/22_07_23` requirement WARNING 2 가 짚었다: `SchedulesService.remove()`
+      자신의 스케줄 행 삭제는 아직 안 닫혔다. 바로 아래 새 항목으로 등재한다.
+
+- [ ] **`SchedulesService.remove()` 도 동시 삭제에서 감사 행을 두 번 남길 수 있다** (developer, 낮음, 2026-09-20 등재 ·
+      `/ai-review` `review/code/2026/09/20/22_07_23` requirement WARNING 2). 위 트리거 항목을 닫으며 `SchedulesService.remove()`
+      를 다시 읽어 확인했다: `findById`(무락) → (있으면) 트랜잭션 안에서 `acquireTriggerConfigLock` + `m.delete(Trigger, triggerId)`
+      로 **연결된 트리거만** 잠그고 지운다 — 그 뒤 트랜잭션이 커밋되고 나서야 `this.scheduleRepository.remove(schedule)`
+      (`schedules.service.ts:345`)가 **락 밖·재조회 없이** 스케줄 자신의 행을 지운다. `triggerId` 가 없는 스케줄(순수
+      스케줄)은 애초에 어떤 락도 거치지 않는다. 두 경우 모두 동시 DELETE 두 건이 겹치면 진 쪽도 `remove()` 가
+      조용히 통과해 `SCHEDULE_DELETED` 감사를 한 번 더 남길 수 있다 — 트리거에서 고친 것과 같은 형태다.
+      재현 기법은 `trigger-delete-concurrency.e2e-spec.ts` 를 따르되, **먼저 실측할 것**은 스케줄 삭제 경로에
+      트리거처럼 걸어 잠글 advisory lock 이 애초에 없다는 점이다(트리거용 `trigger-config:<id>` 락은 연결된
+      트리거가 있을 때만, 그것도 스케줄 행이 아니라 트리거 행만 보호한다) — 스케줄 자신을 위한 새 lock key 가
+      필요한지부터 확인 후 처방을 정할 것.
 
 - [ ] **`1-workflow-list.md` §2.6 · `data-flow/12-workspace.md` §1.10 에 «동시 삭제 → 두 번째 404» 서술이 없다**
       (planner, 낮음, 2026-09-20 등재 · 같은 세션 api_contract·requirement INFO 8). 트리거 목록 §4.4 만 그 계약을 적는다.
@@ -4765,8 +4789,11 @@ field: T | null;
       **같은 턴에 둘 더**(`--impl-done` `review/consistency/2026/09/20/21_21_21` WARNING 1·2):
       (a) `data-flow/12-workspace.md` §1.10 은 «재검사 거부를 **포함해** 모든 실패를 로그로 남긴다» 고 적는데,
       이제 동시 삭제의 404 만은 로그를 남기지 않는다(거짓 경보라서) — 그 예외를 한 구로 적는다.
-      (b) `2-trigger-list.md` §4.4 의 «두 번째는 404» 는 **구현 검증 대기** 라는 caveat 이 필요하다 — 바로 위
-      developer 항목이 그 선례가 코드에서 성립하는지 실측할 때까지는 spec 이 단정하고 있다.
+      (b) ~~`2-trigger-list.md` §4.4 의 «두 번째는 404» 는 **구현 검증 대기** 라는 caveat 이 필요하다 — 바로 위
+      developer 항목이 그 선례가 코드에서 성립하는지 실측할 때까지는 spec 이 단정하고 있다.~~
+      **2026-09-20 처분: caveat 불요** — `plan/complete/trigger-dup-delete.md` 가 `TriggersService.remove()` 를
+      고쳐 §4.4 가 **코드에서도 사실**이 됐다(e2e `trigger-delete-concurrency` 가 `[204, 404]` · 감사 1건으로 고정).
+      고치기 전 상태도 값으로 남겼다: `[204, 204]` · 감사 2건. **(a) 는 그대로 열려 있다.**
 
 
 - [x] **창 1 실측 결과를 spec 에 반영한다 — §3 ⚠️ 교체 · 증거 e2e `code:` 등재 · 404 사유** (planner,
