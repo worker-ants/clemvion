@@ -4770,7 +4770,7 @@ field: T | null;
       `/ai-review` `review/code/2026/09/20/22_07_23` requirement WARNING 2 가 짚었다: `SchedulesService.remove()`
       자신의 스케줄 행 삭제는 아직 안 닫혔다. 바로 아래 새 항목으로 등재한다.
 
-- [ ] **`SchedulesService.remove()` 도 동시 삭제에서 감사 행을 두 번 남길 수 있다** (developer, 낮음, 2026-09-20 등재 ·
+- [x] **`SchedulesService.remove()` 도 동시 삭제에서 감사 행을 두 번 남길 수 있다** (developer, 낮음, 2026-09-20 등재 ·
       `/ai-review` `review/code/2026/09/20/22_07_23` requirement WARNING 2). 위 트리거 항목을 닫으며 `SchedulesService.remove()`
       를 다시 읽어 확인했다: `findById`(무락) → (있으면) 트랜잭션 안에서 `acquireTriggerConfigLock` + `m.delete(Trigger, triggerId)`
       로 **연결된 트리거만** 잠그고 지운다 — 그 뒤 트랜잭션이 커밋되고 나서야 `this.scheduleRepository.remove(schedule)`
@@ -4781,11 +4781,31 @@ field: T | null;
       트리거처럼 걸어 잠글 advisory lock 이 애초에 없다는 점이다(트리거용 `trigger-config:<id>` 락은 연결된
       트리거가 있을 때만, 그것도 스케줄 행이 아니라 트리거 행만 보호한다) — 스케줄 자신을 위한 새 lock key 가
       필요한지부터 확인 후 처방을 정할 것.
+      **2026-09-21 해소** `plan/complete/schedule-dup-delete.md`. 재현을 먼저 했다 — 고치기 전 e2e 가
+      `[204, 204]` 였고 DB 에 `schedule.deleted` 2건이었다(고친 뒤 `[204, 404]` · 1건).
+      **판정 기준이 형제 셋과 다르다**: `schedule.trigger_id → trigger` 가 `onDelete: CASCADE` 라 스케줄
+      행은 이긴 쪽에서도 CASCADE 로 사라진다 — 스케줄 행 수로 판정하면 둘 다 404 가 된다. 락이 보호하는
+      트리거 삭제의 `affected` 만이 판별자다(`triggerId` 없는 방어 분기는 CASCADE 가 없어 스케줄 행 자체).
+      판정은 `=== 0` 명시 비교다(자매 함수 `rewriteTriggerConfigLocked` 의 기존 결정 — «모른다»(null)를
+      «없다»(0)로 읽지 않는다). 그 이유를 붙드는 대조군도 넣었다: 없을 때 `!affected` 로 되돌리는 뮤턴트가
+      32건 전건 GREEN 으로 살아남았고, 대조군 추가 후 2건 RED 가 됐다.
 
-- [ ] **`1-workflow-list.md` §2.6 · `data-flow/12-workspace.md` §1.10 에 «동시 삭제 → 두 번째 404» 서술이 없다**
+- [ ] **`IntegrationsService.remove()` 도 동시 삭제에서 감사 행을 두 번 남긴다 — 이 계열의 다섯 번째이자 남은 자리**
+      (developer, 낮음, 2026-09-20 등재 · `plan/in-progress/schedule-dup-delete.md` 착수 전 전수 조사).
+      삭제 감사를 남기는 자리를 `AUDIT_ACTIONS.*_DELETED` 로 전수로 세어 확인했다: 워크플로(#1369) · 트리거(#1370) ·
+      스케줄(진행 중) · **통합** 넷이고, 워크스페이스 삭제는 애초에 삭제 감사를 남기지 않는다.
+      `integrations.service.ts` `remove()` 는 잠금 없는 `findOne` → 사용처 검사(`INTEGRATION_IN_USE`) →
+      `repository.remove(entity)` → `recordAudit(INTEGRATION_DELETED)` 다. **락이 아예 없다** — 형제 셋과 달리
+      advisory lock 도 행 락도 없으므로 처방이 다르다: 원자적 `delete({ id, workspaceId })` 의 `affected` 를
+      판정자로 쓰면 락 없이 닫힌다(0이면 404, 감사 없음). 사용처 검사와 삭제 사이의 TOCTOU 는 **별개 사안**이라
+      함께 닫으려 하지 말 것.
+
+- [ ] **`1-workflow-list.md` §2.6 · `data-flow/12-workspace.md` §1.10 · `3-schedule.md` §4 에 «동시 삭제 → 두 번째 404» 서술이 없다**
       (planner, 낮음, 2026-09-20 등재 · 같은 세션 api_contract·requirement INFO 8). 트리거 목록 §4.4 만 그 계약을 적는다.
       이제 코드는 세 경로 중 둘이 그렇게 동작하므로(위 두 항목) 문서가 트리거에만 있는 비대칭이 남았다.
       `--impl-prep` 부터 세 라운드 연속 «비차단» 으로 처분됐으니 급하지 않다.
+      **2026-09-20 스코프 확장**: `3-schedule.md` §4(`DELETE /api/schedules/:id`)도 같은 서술이 없다 —
+      스케줄 축이 세 번째로 누락되지 않게 목록에 넣는다(`--impl-prep` `review/consistency/2026/09/20/23_37_12` W2).
       **같은 턴에 둘 더**(`--impl-done` `review/consistency/2026/09/20/21_21_21` WARNING 1·2):
       (a) `data-flow/12-workspace.md` §1.10 은 «재검사 거부를 **포함해** 모든 실패를 로그로 남긴다» 고 적는데,
       이제 동시 삭제의 404 만은 로그를 남기지 않는다(거짓 경보라서) — 그 예외를 한 구로 적는다.

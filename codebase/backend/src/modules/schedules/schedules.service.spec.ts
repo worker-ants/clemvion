@@ -2,7 +2,7 @@ import { AuditLogsService } from '../audit-logs/audit-logs.service';
 import { Logger } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { DeleteResult, Repository } from 'typeorm';
 import { SchedulesService } from './schedules.service';
 import { Schedule } from './entities/schedule.entity';
 import { Trigger } from '../triggers/entities/trigger.entity';
@@ -51,6 +51,9 @@ describe('SchedulesService.runNow', () => {
             save: jest.fn(),
             create: jest.fn(),
             remove: jest.fn(),
+            // `triggerId` 없는 방어 분기의 판별자 — 그 경로는 CASCADE 가 없어 스케줄 행 자체의
+            // `affected` 로 «내가 지웠는가» 를 가른다.
+            delete: jest.fn().mockResolvedValue({ affected: 1 }),
             createQueryBuilder: jest.fn(),
           },
         },
@@ -67,9 +70,12 @@ describe('SchedulesService.runNow', () => {
               create: jest.fn(),
               save: jest.fn(),
               update: jest.fn().mockResolvedValue(undefined),
+              // **`affected` 를 돌려준다** — 삭제 경로가 그 값을 판별자로 쓴다(동시 삭제의 진 쪽은
+              // 0행이라 404 로 끝나야 한다). `undefined` 를 돌려주던 종전 mock 은 그 계약을
+              // 표현하지 못했다.
               delete: jest.fn((criteria: unknown) => {
                 triggerLockEvents.push(`delete:${String(criteria)}`);
-                return undefined;
+                return { affected: 1 };
               }),
             },
             {
@@ -732,11 +738,12 @@ describe('SchedulesService.runNow', () => {
       // 남았고, 창 1 의 `save(entity)` 가 행이 없으면 INSERT 하므로 삭제된 트리거가 고아로
       // 되살아날 수 있었다 (`review/code/2026/09/15/00_38_16` database W1).
       triggerLockEvents.length = 0;
-      scheduleRepo.findOne.mockResolvedValue({
+      const schedule = {
         id: 'sch-del',
         workspaceId: 'ws-1',
         triggerId: 'trig-del',
-      } as unknown as Schedule);
+      } as unknown as Schedule;
+      scheduleRepo.findOne.mockResolvedValue(schedule);
 
       await service.remove('sch-del', 'ws-1', 'u-del');
 
@@ -754,6 +761,108 @@ describe('SchedulesService.runNow', () => {
         'deleteByPrefix:secret://triggers/trig-del/',
       ]);
       expect(triggerRepo.delete).toHaveBeenCalledWith('trig-del');
+      // 방어적 `scheduleRepository.remove(schedule)` — CASCADE 가 이미 지운 자리라 0행
+      // no-op 이지만, "CASCADE 가 없어지면 이 줄이 유일한 삭제" 라는 설계 근거가 이 단언
+      // 없이는 검증되지 않았다 — 이 줄을 지워도 유닛·e2e 모두 GREEN 이었다
+      // (`/ai-review` `review/code/2026/09/21/00_06_01` testing WARNING 1).
+      expect(scheduleRepo.remove).toHaveBeenCalledWith(schedule);
+    });
+
+    /**
+     * 동시 DELETE 두 건 — advisory lock 은 줄을 세우기만 한다. 진 쪽의 트리거 삭제는 0행이고,
+     * 그대로 진행하면 `schedule.deleted` 감사가 두 번 남는다(e2e 로 재현: 둘 다 204 · 감사 2건).
+     *
+     * **판정자가 트리거인 이유**: `schedule.trigger_id → trigger` 가 `onDelete: CASCADE` 라 스케줄 행은
+     * 이긴 쪽에서도 «내가 지운 것» 이 아니다 — 스케줄 행 수로 판정하면 둘 다 404 가 된다.
+     */
+    it('삭제 — 락 안 트리거 삭제가 0행이면 404 이고 감사·비밀 정리를 남기지 않는다', async () => {
+      const error = jest
+        .spyOn(Logger.prototype, 'error')
+        .mockImplementation(() => undefined);
+      try {
+        triggerLockEvents.length = 0;
+        auditLogs.record.mockClear();
+        scheduleRepo.findOne.mockResolvedValue({
+          id: 'sch-race',
+          workspaceId: 'ws-1',
+          triggerId: 'trig-race',
+        } as unknown as Schedule);
+        // 먼저 커밋한 요청이 이미 지웠다 — 이 요청의 삭제는 0행이다.
+        triggerRepo.delete.mockResolvedValueOnce({
+          affected: 0,
+          raw: [],
+        } as DeleteResult);
+
+        await expect(
+          service.remove('sch-race', 'ws-1', 'u-race'),
+        ).rejects.toMatchObject({ response: { code: 'RESOURCE_NOT_FOUND' } });
+
+        // happy-path 형제 테스트(`triggerRepo.delete).toHaveBeenCalledWith('trig-del')`)와
+        // 대칭 — 진 쪽도 같은 트리거를 대상으로 삭제를 시도했음을 고정한다 (INFO 9).
+        expect(triggerRepo.delete).toHaveBeenCalledWith('trig-race');
+        expect(auditLogs.record).not.toHaveBeenCalled();
+        // 형제 테스트와 대칭으로 «스케줄 행도 건드리지 않는다» 를 직접 단언한다
+        // (`/ai-review` `review/code/2026/09/21/00_37_06` testing INFO 7).
+        expect(scheduleRepo.remove).not.toHaveBeenCalled();
+        // 커밋 뒤 비밀 정리도 하지 않는다 — 이긴 쪽이 이미 했다.
+        expect(
+          triggerLockEvents.some((e) => e.startsWith('deleteByPrefix:')),
+        ).toBe(false);
+        // **거짓 경보를 내지 않는다**: 이 404 는 «BullMQ 는 해제됐는데 행은 남은» 상태가 아니다.
+        expect(error).not.toHaveBeenCalled();
+      } finally {
+        error.mockRestore();
+      }
+    });
+
+    /**
+     * 위 두 «0행 → 404» 테스트의 **대조군**. `affected` 가 `null`·`undefined` 인 것은 드라이버가
+     * «보고하지 않았다» 는 뜻이지 «지우지 못했다» 가 아니다 — 그것을 0 과 같이 읽으면 정상 삭제를
+     * 404 로 뒤집는다. 자매 함수 `rewriteTriggerConfigLocked` 가 같은 형태의 대조군을 이미 갖는다
+     * (`trigger-config-lock.spec.ts` — «affected 를 보고하지 않는 드라이버에서는 true 를 유지한다»).
+     *
+     * 이 대조군이 없으면 `affected === 0` 을 `!affected` 로 되돌리는 편집이 스위트 전건을 통과한다
+     * (`/ai-review` `review/code/2026/09/21/00_56_52` testing WARNING 1 이 실측했다).
+     */
+    it('삭제 — affected 를 보고하지 않는 드라이버에서는 404 로 뒤집지 않는다 (트리거 경로)', async () => {
+      for (const affected of [undefined, null]) {
+        triggerLockEvents.length = 0;
+        auditLogs.record.mockClear();
+        scheduleRepo.findOne.mockResolvedValue({
+          id: 'sch-unknown',
+          workspaceId: 'ws-1',
+          triggerId: 'trig-unknown',
+        } as unknown as Schedule);
+        triggerRepo.delete.mockResolvedValueOnce({
+          affected,
+          raw: [],
+        } as unknown as DeleteResult);
+
+        await expect(
+          service.remove('sch-unknown', 'ws-1', 'u-unknown'),
+        ).resolves.toBeUndefined();
+        expect(auditLogs.record).toHaveBeenCalled();
+      }
+    });
+
+    it('삭제 — 같은 대조군 (triggerId 없는 방어 분기)', async () => {
+      for (const affected of [undefined, null]) {
+        auditLogs.record.mockClear();
+        scheduleRepo.findOne.mockResolvedValue({
+          id: 'sch-unknown-2',
+          workspaceId: 'ws-1',
+          triggerId: null,
+        } as unknown as Schedule);
+        scheduleRepo.delete.mockResolvedValueOnce({
+          affected,
+          raw: [],
+        } as unknown as DeleteResult);
+
+        await expect(
+          service.remove('sch-unknown-2', 'ws-1', 'u-unknown'),
+        ).resolves.toBeUndefined();
+        expect(auditLogs.record).toHaveBeenCalled();
+      }
     });
 
     it('삭제 실패는 조용히 지나가지 않는다 — 반쯤 삭제된 상태를 로그로 드러낸다', async () => {
@@ -818,7 +927,44 @@ describe('SchedulesService.runNow', () => {
       expect(triggerLockEvents).toEqual([]);
       expect(triggerRepo.delete).not.toHaveBeenCalled();
       // schedule 행 삭제와 감사는 **그대로 일어난다** — 가드는 trigger 쪽만 건너뛴다.
-      expect(scheduleRepo.remove).toHaveBeenCalled();
+      // 다만 **판별자가 다르다**: 이 분기엔 CASCADE 가 개입하지 않으므로 스케줄 행 자체의
+      // `affected` 로 «내가 지웠는가» 를 가른다(트리거 경로는 트리거 삭제의 `affected` 다).
+      expect(scheduleRepo.delete).toHaveBeenCalledWith({
+        id: 'sch-notrig',
+        workspaceId: 'ws-1',
+      });
+    });
+
+    /**
+     * `triggerId` 없는 방어 분기의 0-affected 대조군. 위 «triggerId 가 없으면…» 테스트는
+     * happy path(`affected: 1`)만 지나서 이 분기의 404 판정 자체는 어떤 테스트로도 실행
+     * 검증되지 않았다 (`/ai-review` `review/code/2026/09/21/00_06_01` testing WARNING 2).
+     *
+     * 이 분기는 CASCADE 가 개입하지 않으므로 스케줄 행 자체의 `affected` 가 판별자다 — 트리거
+     * 경로(위 «락 안 트리거 삭제가 0행이면 404» 테스트)와 판정 대상이 다르다는 것을 대조로 고정.
+     */
+    it('삭제 — triggerId 없는 분기에서 scheduleRepo.delete 가 0행이면 404 이고 감사를 남기지 않는다', async () => {
+      triggerLockEvents.length = 0;
+      auditLogs.record.mockClear();
+      scheduleRepo.findOne.mockResolvedValue({
+        id: 'sch-notrig-race',
+        workspaceId: 'ws-1',
+        triggerId: null,
+      } as unknown as Schedule);
+      // 먼저 커밋한 요청이 이미 지웠다 — 이 요청의 삭제는 0행이다.
+      scheduleRepo.delete.mockResolvedValueOnce({
+        affected: 0,
+        raw: [],
+      } as DeleteResult);
+
+      await expect(
+        service.remove('sch-notrig-race', 'ws-1', 'u-notrig-race'),
+      ).rejects.toMatchObject({ response: { code: 'RESOURCE_NOT_FOUND' } });
+
+      expect(auditLogs.record).not.toHaveBeenCalled();
+      // 이 분기엔 애초에 트리거가 없다 — 락도 트리거 삭제도 여전히 일어나지 않는다.
+      expect(triggerLockEvents).toEqual([]);
+      expect(triggerRepo.delete).not.toHaveBeenCalled();
     });
 
     it('감사 로깅 — remove 는 schedule.deleted 를 남긴다', async () => {
