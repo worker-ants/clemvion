@@ -416,6 +416,92 @@ describe('SchedulesService.runNow', () => {
       expect(saved[0].nextRunAt).toBeNull();
     });
 
+    /**
+     * 위 방어 분기의 **정상 쪽**. 종전에는 이 경로를 e2e 한 케이스(`schedule-trigger.e2e-spec.ts` 「D. PATCH cron」)만
+     * 고정했는데, 그 e2e 는 서버 실시각을 쓰기 때문에 **연말 ~2분**(12/31 23:58:30 ~ 01/01 00:00:30 KST)에는 재계산이
+     * 없어도 통과한다 — 생성 cron 의 값 자체가 판정창 안으로 들어오기 때문이다(실측·등재:
+     * `plan/complete/schedule-cron-flake.md`, `review/code/2026/09/20/12_45_31` W1). 시각에 기대지 않는 이 테스트가 그 구멍을 닫는다.
+     *
+     * **무엇으로 불렸는지**까지 본다 — 결과 값만 보면 «갱신 전 cron 으로 계산했다» 를 가르지 못한다.
+     */
+    function scheduleRow(overrides: Partial<Schedule> = {}): Schedule {
+      return {
+        id: 'sch-1',
+        workspaceId: 'ws-1',
+        isActive: false,
+        cronExpression: '0 9 * * *',
+        timezone: 'Asia/Seoul',
+        triggerId: 'trig-1',
+        nextRunAt: new Date('2020-01-01T00:00:00Z'),
+        ...overrides,
+      } as unknown as Schedule;
+    }
+
+    it('cron 을 바꾸면 새 cron 으로 다시 계산해 nextRunAt 에 넣는다', async () => {
+      const saved: Schedule[] = [];
+      scheduleRepo.findOne.mockResolvedValue(scheduleRow());
+      scheduleRepo.save.mockImplementation((sch) => {
+        saved.push(sch as Schedule);
+        return Promise.resolve(sch as Schedule);
+      });
+      const computeNextRuns = jest
+        .spyOn(
+          service as unknown as { computeNextRuns: () => string[] },
+          'computeNextRuns',
+        )
+        .mockReturnValue(['2030-03-04T05:06:00.000Z']);
+
+      await service.update(
+        'sch-1',
+        'ws-1',
+        { cronExpression: '30 7 * * *' } as unknown as UpdateScheduleDto,
+        'u-upd',
+      );
+
+      // 갱신 **후** cron · 기존 timezone 으로 한 건을 계산한다.
+      expect(computeNextRuns).toHaveBeenCalledWith(
+        '30 7 * * *',
+        'Asia/Seoul',
+        1,
+      );
+      expect(saved).toHaveLength(1);
+      expect(saved[0].nextRunAt).toEqual(new Date('2030-03-04T05:06:00.000Z'));
+    });
+
+    /**
+     * 재계산 조건은 `dto.cronExpression || dto.timezone` 이라 **두 항이 각각 표면**이다 — cron 쪽만 보면
+     * timezone 항을 지워도 반쪽이 살아남는다.
+     */
+    it('timezone 만 바꿔도 새 timezone 으로 다시 계산한다', async () => {
+      const saved: Schedule[] = [];
+      scheduleRepo.findOne.mockResolvedValue(scheduleRow());
+      scheduleRepo.save.mockImplementation((sch) => {
+        saved.push(sch as Schedule);
+        return Promise.resolve(sch as Schedule);
+      });
+      const computeNextRuns = jest
+        .spyOn(
+          service as unknown as { computeNextRuns: () => string[] },
+          'computeNextRuns',
+        )
+        .mockReturnValue(['2030-03-04T20:06:00.000Z']);
+
+      await service.update(
+        'sch-1',
+        'ws-1',
+        { timezone: 'America/New_York' } as unknown as UpdateScheduleDto,
+        'u-upd',
+      );
+
+      expect(computeNextRuns).toHaveBeenCalledWith(
+        '0 9 * * *',
+        'America/New_York',
+        1,
+      );
+      expect(saved).toHaveLength(1);
+      expect(saved[0].nextRunAt).toEqual(new Date('2030-03-04T20:06:00.000Z'));
+    });
+
     it('감사 로깅 — update 는 schedule.updated 를 남긴다', async () => {
       scheduleRepo.findOne.mockResolvedValue({
         id: 'sch-1',
