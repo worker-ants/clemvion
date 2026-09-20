@@ -4022,6 +4022,37 @@ describe('TriggersService — 락 안 재읽기가 동시 확립분을 본다 (l
     expect(repo.save).not.toHaveBeenCalled();
   });
 
+  /**
+   * 동시 DELETE 두 건 — advisory lock 은 둘을 **줄 세우기만** 한다. 락을 얻은 쪽이 «행이 아직
+   * 있나» 를 묻지 않으면, 먼저 커밋한 쪽이 지운 뒤에도 `m.remove` 가 0행으로 조용히 성공해
+   * `trigger.deleted` 감사가 두 번 남는다(e2e 로 재현했다: `[204, 204]` · 감사 2건).
+   */
+  it('remove() — 락 안에서 행이 사라졌으면 404 이고 삭제·감사·비밀 정리를 하지 않는다', async () => {
+    const error = jest
+      .spyOn(Logger.prototype, 'error')
+      .mockImplementation(() => undefined);
+    try {
+      // 바깥 `findById` 는 행을 보지만 **락 안 재읽기는 못 본다** — 그 사이 다른 요청이 커밋했다.
+      const { service, repo, audit, events } = await makeService([
+        () => null as unknown as Trigger,
+      ]);
+
+      await expect(
+        service.remove('trig-l', 'ws-1', 'u-1'),
+      ).rejects.toMatchObject({ response: { code: 'RESOURCE_NOT_FOUND' } });
+
+      expect(repo.remove).not.toHaveBeenCalled();
+      expect(audit.record).not.toHaveBeenCalled();
+      // 커밋 뒤 비밀 정리도 하지 않는다 — 이긴 쪽이 이미 했다.
+      expect(events.some((e) => e.startsWith('deleteByPrefix:'))).toBe(false);
+      // **거짓 경보를 내지 않는다**: 이 404 는 «반쯤 삭제된 상태» 가 아니다. 그 로그는
+      // «수동 정리가 필요하다» 고 말하므로 여기까지 실으면 운영자가 없는 일을 쫓는다.
+      expect(error).not.toHaveBeenCalled();
+    } finally {
+      error.mockRestore();
+    }
+  });
+
   it('remove() 도 같은 config 락을 잡는다 (쓰기 시점 삭제 경합)', async () => {
     // 창 1 은 `save(entity)` 를 쓰고, 그것은 행이 없으면 **INSERT** 한다. 읽기 시점
     // 가드(`!fresh`)는 «읽었을 땐 있었는데 저장 직전에 삭제되는» 경합을 못 막는다 —

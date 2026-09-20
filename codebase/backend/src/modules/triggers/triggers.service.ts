@@ -1082,9 +1082,23 @@ export class TriggersService {
         await acquireTriggerConfigLock(m, id, {
           timeoutMs: TRIGGER_DELETE_LOCK_TIMEOUT_MS,
         });
+        // **락을 얻었다고 행이 남아 있는 것은 아니다.** 위 `findById` 는 잠금 없는 선조회라 동시
+        // DELETE 두 건이 모두 통과하고, advisory lock 은 둘을 줄 세우기만 한다 — 먼저 커밋한 쪽이
+        // 행을 지운 뒤 두 번째가 그대로 진행하면 `m.remove` 는 0행이어도 던지지 않으므로 그 요청도
+        // 성공으로 끝나며 `trigger.deleted` 감사를 한 번 더 남긴다(e2e 로 재현: 둘 다 204 · 감사 2건).
+        // spec 트리거 목록 §4.4 의 «두 번째 요청은 404» 를 여기서 실제로 지킨다.
+        const fresh = await m.findOne(Trigger, {
+          select: { id: true },
+          where: { id, workspaceId },
+        });
+        if (!fresh) this.throwTriggerNotFound();
         await m.remove(trigger);
       })
       .catch((err: unknown) => {
+        // 동시 삭제로 행이 이미 사라진 경우는 **반쯤 삭제된 상태가 아니다** — 먼저 커밋한 요청이
+        // 행도 외부 자원도 정리했다. 아래 로그는 «수동 정리가 필요하다» 고 말하므로 이 경우까지
+        // 실으면 거짓 경보가 된다(워크플로·워크스페이스 삭제와 같은 처리).
+        if (err instanceof NotFoundException) throw err;
         this.logger.error(
           `TriggersService.remove: trigger=${id} 의 행 삭제가 실패했다 — schedule job·provider ` +
             `teardown·listener 해제는 **이미 끝났으므로** 이 트리거는 반쯤 삭제된 상태다(비밀은 ` +
