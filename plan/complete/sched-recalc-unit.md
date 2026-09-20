@@ -1,9 +1,10 @@
 ---
 title: cron 재계산 happy-path 를 결정적 단위 테스트로 — e2e 가 구조적으로 못 닫는 연말 창을 닫는다
-status: in-progress
+status: complete
 owner: developer
 worktree: sched-recalc-unit-9c4e17
 started: 2026-09-20
+completed: 2026-09-20
 spec_impact: none
 ---
 
@@ -60,6 +61,9 @@ spec_impact: none
   뮤턴트 **넷** 전부 RED: 재계산 블록 삭제(3건) · 조건에서 timezone 항 제거(timezone 테스트 1건만) · 갱신 **전** cron 으로
   계산(인자 단언 2건) · 게이트 무력화(`|| true` — 대조군만 RED). 마지막 하나는 happy-path 둘만으로는 살아남았다
 - [x] TEST WORKFLOW (lint · unit · build · e2e 366)
-- [ ] `/ai-review` 수렴
-- [ ] `--impl-done`
-- [ ] 트래커 해소 · 이 plan `plan/complete/` 로
+- [x] `/ai-review` 수렴 — 두 라운드. 1R `review/code/2026/09/20/14_22_46`(Warning 2 → `ae060b266`: 대조군 추가 ·
+  팩토리 통합) · 2R `14_42_10`(Warning 1 — plan 원문이 1라운드 정정 미반영 → plan 만 갱신, `codebase/` 수정 0 으로 수렴)
+- [x] `--impl-done` — `review/consistency/2026/09/20/14_52_17` BLOCK: NO. WARNING 1(`scheduleRow` 가
+  `triggers.service.spec.ts` 의 동명 헬퍼와 이름만 같다 — 파일-지역 스코프라 실충돌 없음, checker 도 «필수 조치 아님»)은
+  개명이 코드 변경이라 리뷰 라운드를 한 번 더 부르므로 하지 않았다. 둘 중 하나를 다음에 만질 때 이름을 갈라 둔다
+- [x] 트래커 해소 · 이 plan `plan/complete/` 로
