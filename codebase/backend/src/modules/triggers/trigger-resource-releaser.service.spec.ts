@@ -237,7 +237,11 @@ describe('TriggerResourceReleaserService', () => {
   });
 
   describe('lockParentAndListTriggerIds', () => {
-    function managerWithEvents(rows: Array<{ id: string }>) {
+    function managerWithEvents(
+      rows: Array<{ id: string }>,
+      // 잠글 부모 행이 **있는지**. 기본은 있다 — 없는 경우는 동시 삭제가 먼저 커밋한 상태다.
+      parentRow: { id: string } | null = { id: 'parent-1' },
+    ) {
       const events: string[] = [];
       const manager = {
         query: jest.fn((sql: string) => {
@@ -253,7 +257,7 @@ describe('TriggerResourceReleaserService', () => {
                   ? 'Workspace'
                   : '?';
             events.push(`lock:${name}:${options.lock?.mode}`);
-            return Promise.resolve(null);
+            return Promise.resolve(parentRow);
           },
         ),
         find: jest.fn((entity: unknown, _options: unknown) => {
@@ -269,11 +273,15 @@ describe('TriggerResourceReleaserService', () => {
       const { service } = make();
       const { events, manager } = managerWithEvents([{ id: 'a' }, { id: 'b' }]);
 
-      const ids = await service.lockParentAndListTriggerIds(manager as never, {
-        workflowId: 'wf-1',
-      });
+      const locked = await service.lockParentAndListTriggerIds(
+        manager as never,
+        { workflowId: 'wf-1' },
+      );
 
-      expect(ids).toEqual(['a', 'b']);
+      expect(locked).toEqual({
+        parentPresence: 'present',
+        triggerIds: ['a', 'b'],
+      });
       // 잠금 대기 상한이 **잠그기 전에** 걸린다 — 외부 해제를 되돌릴 수 없게 끝낸 뒤라 무한 대기는
       // 반쯤 삭제된 상태를 hang 으로 굳힌다(`/ai-review` `review/code/2026/09/17/19_14_29` WARNING#2).
       expect(events).toEqual([
@@ -305,6 +313,36 @@ describe('TriggerResourceReleaserService', () => {
       expect(manager.find.mock.calls[0][1]).toMatchObject({
         where: { workspaceId: 'ws-1' },
       });
+    });
+
+    /**
+     * 동시 삭제가 먼저 커밋해 부모 행이 사라진 경우. 종전엔 `findOne` 결과를 버려 호출자가 이 사실을
+     * 알 수 없었고, 두 번째 요청이 «없는 것을 지운 척» 하며 감사 행을 한 번 더 남겼다.
+     */
+    it('잠글 부모 행이 없으면 parent: absent 로 돌려준다 — 트리거 열거와 섞지 않는다', async () => {
+      const { service } = make();
+      // 부모는 사라졌는데 열거는 여전히 0행을 돌려준다 — «부재» 와 «트리거 0개» 가 다른 사실임을
+      // 이 fixture 가 가른다(빈 배열로 부재를 신호했다면 두 경우가 같은 값이 된다).
+      const { manager } = managerWithEvents([], null);
+
+      const locked = await service.lockParentAndListTriggerIds(
+        manager as never,
+        { workflowId: 'wf-gone' },
+      );
+
+      expect(locked).toEqual({ parentPresence: 'absent', triggerIds: [] });
+    });
+
+    it('부모가 있고 트리거가 0개인 경우는 present 다 — 부재와 구분된다', async () => {
+      const { service } = make();
+      const { manager } = managerWithEvents([]);
+
+      const locked = await service.lockParentAndListTriggerIds(
+        manager as never,
+        { workflowId: 'wf-empty' },
+      );
+
+      expect(locked).toEqual({ parentPresence: 'present', triggerIds: [] });
     });
   });
 

@@ -519,9 +519,20 @@ export class WorkspacesService {
 
         // **첫 호출이다** — 잠금 대기 상한을 걸고 워크스페이스 행을 잠근 뒤 트리거를 연다. 잠금 뒤엔
         // 새 트리거가 끼지 못하고, 아래 재검사의 잠금(워크스페이스 → 멤버십)에도 상한이 걸린다.
-        const ids = await releaser.lockParentAndListTriggerIds(manager, {
+        const locked = await releaser.lockParentAndListTriggerIds(manager, {
           workspaceId,
         });
+        // 동시 DELETE 두 건이 잠금 없는 선검사(`assertWorkspaceDeletable` — 메서드 진입부)를 모두
+        // 통과할 수 있다. 먼저 커밋한 쪽이 워크스페이스를 지웠으면 CASCADE 로 멤버 행도 함께
+        // 사라지므로, 아래 재검사는 «존재» 가 아니라 **«멤버십(권한)» 을 먼저 봐** 403
+        // `OWNER_REQUIRED` 로 오답한다(워크플로 경로가 이미 겪은 것과 같은 패턴). 재검사에
+        // 넘기기 전에 여기서 먼저 막아 404 로 끝낸다.
+        if (locked.parentPresence === 'absent') {
+          throw new NotFoundException({
+            code: 'WORKSPACE_NOT_FOUND',
+            message: '워크스페이스를 찾을 수 없습니다.',
+          });
+        }
         const workspace = await this.assertWorkspaceDeletable(
           memRepo,
           wsRepo,
@@ -533,9 +544,13 @@ export class WorkspacesService {
         await invRepo.delete({ workspaceId });
         await memRepo.delete({ workspaceId });
         await wsRepo.remove(workspace);
-        return ids;
+        return locked.triggerIds;
       })
       .catch((err: unknown) => {
+        // 동시 삭제로 행이 이미 사라진 경우는 **반쯤 삭제된 상태가 아니다** — 먼저 커밋한 요청이
+        // 워크스페이스도 지우고 같은 자원도 해제했다. 아래 error 로그는 «트리거가 발화하지 않을
+        // 수 있다» 고 말하므로 이 경우까지 실으면 거짓 경보가 된다(워크플로 경로와 같은 가드).
+        if (err instanceof NotFoundException) throw err;
         // 잠금 뒤 재검사 거부(선검사와 재검사 사이의 역할 변경)도 여기로 온다. 외부 해제는 되돌릴
         // 수 없으므로 «발화하지 않는 트리거가 남은 워크스페이스» 를 소리내어 남긴다.
         this.logger.error(

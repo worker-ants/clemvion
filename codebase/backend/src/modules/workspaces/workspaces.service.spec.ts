@@ -45,7 +45,10 @@ describe('WorkspacesService', () => {
     }),
     lockParentAndListTriggerIds: jest.fn((_m: unknown, parent: unknown) => {
       deleteEvents.push(`lockAndList:${JSON.stringify(parent)}`);
-      return Promise.resolve(['trig-x']);
+      return Promise.resolve({
+        parentPresence: 'present',
+        triggerIds: ['trig-x'],
+      });
     }),
     releaseSecretsAfterCommit: jest.fn((ids: string[], caller: string) => {
       deleteEvents.push(`releaseSecrets:${ids.join(',')}:${caller}`);
@@ -728,6 +731,50 @@ describe('WorkspacesService', () => {
       await service.deleteWorkspace('ws-uuid-1', 'user-uuid-1');
 
       expect(locks).toEqual(['workspace', 'member']);
+    });
+
+    /**
+     * 동시 DELETE 두 건 — 먼저 커밋한 쪽이 워크스페이스를 지우면 CASCADE 로 멤버 행도 함께
+     * 사라진다. `assertWorkspaceDeletable` 재검사는 «멤버십(권한)» 을 «존재» 보다 먼저 보므로,
+     * 이 가드가 없으면 두 번째 요청은 404 가 아니라 403 `OWNER_REQUIRED` 를 받고 바깥 `.catch` 가
+     * 이를 «수동 정리가 필요하다» 는 거짓 error 로 남긴다(워크플로 경로와 같은 형태 —
+     * `/ai-review` `review/code/2026/09/20/20_06_26` WARNING#1).
+     */
+    it('잠금 뒤 워크스페이스가 사라졌으면(동시 삭제) 404 이고 거짓 로그를 남기지 않는다', async () => {
+      const error = jest
+        .spyOn(Logger.prototype, 'error')
+        .mockImplementation(() => undefined);
+      try {
+        memberRepo.findOne.mockResolvedValue({ role: 'owner' });
+        workspaceRepo.findOne.mockResolvedValue({
+          ...mockWorkspace,
+          type: 'team',
+        });
+        triggerReleaser.lockParentAndListTriggerIds.mockImplementationOnce(
+          (_m: unknown, parent: unknown) => {
+            deleteEvents.push(`lockAndList:${JSON.stringify(parent)}`);
+            return Promise.resolve({
+              parentPresence: 'absent',
+              triggerIds: [],
+            });
+          },
+        );
+
+        await expect(
+          service.deleteWorkspace('ws-uuid-1', 'user-uuid-1'),
+        ).rejects.toMatchObject({ response: { code: 'WORKSPACE_NOT_FOUND' } });
+
+        expect(workspaceRepo.remove).not.toHaveBeenCalled();
+        expect(
+          (memberRepo as unknown as { delete: jest.Mock }).delete,
+        ).not.toHaveBeenCalled();
+        expect(
+          triggerReleaser.releaseSecretsAfterCommit,
+        ).not.toHaveBeenCalled();
+        expect(error).not.toHaveBeenCalled();
+      } finally {
+        error.mockRestore();
+      }
     });
 
     it('선검사 뒤 역할이 바뀌어 재검사가 거부하면, 외부 해제가 이미 끝났다는 사실을 남기고 던진다', async () => {
