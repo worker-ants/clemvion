@@ -1,9 +1,10 @@
 ---
 title: SSRF 가드 소비자 넷이 «판정» 과 «다른 오류» 를 가르게 — catch 를 instanceof SsrfBlockedError 로
-status: in-progress
+status: complete
 owner: developer
 worktree: ssrf-catch-instanceof-7b3f1a
 started: 2026-09-20
+completed: 2026-09-20
 spec_impact: none
 ---
 
@@ -82,6 +83,11 @@ SMTP 가드(`send-email/smtp-host-guard.ts` `isSmtpHostBlocked`)만 이미 가�
   뮤턴트 넷(각 판정 분기 삭제 = 옛 동작) 전부 RED: redirect(«rejected 대신 resolved») · http-request(`HTTP_BLOCKED`) ·
   database-query(`DB_HOST_BLOCKED`) · db tester(`DB_HOST_BLOCKED`)
 - [x] TEST WORKFLOW (lint · unit · build · e2e 366) + 백엔드 타입체크 ratchet(194건 — baseline 일치)
-- [ ] `/ai-review` 수렴
-- [ ] `--impl-done`
-- [ ] 트래커 해소 · 이 plan `plan/complete/` 로
+- [x] `/ai-review` 수렴 — 3라운드. 1R `review/code/2026/09/20/09_35_16`(Warning 5 → 연결 테스트의 타임아웃 예산 잠식 ·
+  유닛 테스트의 실제 DNS 조회 · 메시지 마스킹 · stale 주석을 `e8d810405` 로) · 2R `10_09_56`(Warning 5 → 홉 경로 마스킹 비대칭 ·
+  중복 표현 · 스파이 복구를 `fff0d14bf` 로) · 3R `10_38_57`(Critical 0 · Warning 3 — spec `code:` 는 planner, 나머지 둘은
+  **수렴 예외 (a)~(d)** 로 등재: 오늘 도달 불가 경로이고 fix 가 세 계약을 다시 만져 4라운드를 강제한다)
+- [x] `--impl-done` — `review/consistency/2026/09/20/10_54_09` BLOCK: NO. WARNING 2 는 둘 다 이미 등재된 spec 문서 갭
+  (세 에러 표의 «가드 고장» 트리거 · `1-http-request.md` `code:` 의 `http-redirect.ts`)
+- [x] 트래커 해소 + 후속 넷 등재(홉/preflight 코드 통일과 그 회귀 테스트 · host/IP 마스킹 정책 · planner 의 spec 둘 ·
+  `schedule-trigger` e2e 시각 충돌 flake) · 이 plan `plan/complete/` 로
