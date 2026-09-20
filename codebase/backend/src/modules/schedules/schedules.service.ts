@@ -138,13 +138,21 @@ export class SchedulesService {
       where: { id, workspaceId },
       relations: ['trigger', 'trigger.workflow'],
     });
-    if (!schedule) {
-      throw new NotFoundException({
-        code: 'RESOURCE_NOT_FOUND',
-        message: 'Schedule not found',
-      });
-    }
+    if (!schedule) this.throwScheduleNotFound();
     return schedule;
+  }
+
+  /**
+   * «없다» 를 그대로 던진다 — 형제 `triggers.service.ts` 의 `throwTriggerNotFound()` 선례와
+   * 같은 이유다. 이번 diff 로 같은 리터럴이 세 곳(`findById` · 트리거 삭제 판정 · triggerId
+   * 없는 방어 분기 판정)에 복제됐다 (`/ai-review` `review/code/2026/09/21/00_06_01`
+   * maintainability WARNING 3).
+   */
+  private throwScheduleNotFound(): never {
+    throw new NotFoundException({
+      code: 'RESOURCE_NOT_FOUND',
+      message: 'Schedule not found',
+    });
   }
 
   /**
@@ -327,12 +335,7 @@ export class SchedulesService {
           // 트리거를 지우면 스케줄 행도 DB 가 함께 지운다. 그래서 «스케줄 행을 몇 행 지웠나» 로
           // 판정하면 **이긴 쪽도 0행**이라 둘 다 404 가 된다 — 락이 보호하는 이 쓰기만이 판별자다.
           const { affected } = await m.delete(Trigger, triggerId);
-          if (!affected) {
-            throw new NotFoundException({
-              code: 'RESOURCE_NOT_FOUND',
-              message: 'Schedule not found',
-            });
-          }
+          if (!affected) this.throwScheduleNotFound();
         })
         .catch((err: unknown) => {
           // 동시 삭제로 행이 이미 사라진 경우는 **반쯤 삭제된 상태가 아니다** — 먼저 커밋한 요청이
@@ -369,12 +372,7 @@ export class SchedulesService {
         id,
         workspaceId,
       });
-      if (!affected) {
-        throw new NotFoundException({
-          code: 'RESOURCE_NOT_FOUND',
-          message: 'Schedule not found',
-        });
-      }
+      if (!affected) this.throwScheduleNotFound();
     }
     await this.recordAudit({
       workspaceId,
