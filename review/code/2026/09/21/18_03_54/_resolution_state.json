@@ -1,0 +1,22 @@
+{
+  "version": 1,
+  "started_at": "2026-09-21T18:20:00Z",
+  "summary_items_total": 4,
+  "items_resolved_ids": [1, 2, 3, 4],
+  "items_pending_ids": [],
+  "items_escalated_ids": {},
+  "commits_made": [
+    { "sha": "a20455447", "summary_id": 1, "scope": "webauthn" },
+    { "sha": "d3127c8a6", "summary_id": 2, "scope": "webauthn" },
+    { "sha": "d3127c8a6", "summary_id": 3, "scope": "webauthn" },
+    { "sha": "69bd6ea84", "summary_id": 4, "scope": "webauthn" }
+  ],
+  "spec_drafts_pending": [],
+  "spec_drafts_applied": [],
+  "e2e_attempts": 1,
+  "e2e_last_status": "pass",
+  "e2e_log_paths": ["_test_logs/e2e-20260921-182519.log"],
+  "auto_fix_iterations": {},
+  "escalation_reason": null,
+  "last_reset_hint_sec": null
+}

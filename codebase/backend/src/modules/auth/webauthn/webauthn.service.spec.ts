@@ -505,6 +505,61 @@ describe('WebAuthnService', () => {
         NotFoundException,
       );
     });
+
+    /**
+     * 동시 삭제 두 건이 `user.2fa_disabled` 감사를 두 번 남기던 결함의 회귀 테스트.
+     * 형제 여덟(#1369~#1375)과 같은 클래스의 **아홉 번째이자 마지막** 자리다. 다만 이 자리는
+     * 이미 `delete()` 를 쓰고 있었고 **`affected` 를 버렸을 뿐**이며, 감사는 서비스가 아니라
+     * 컨트롤러가 남긴다 — 서비스가 던지면 컨트롤러가 감사에 도달하지 않는다
+     * (`webauthn.controller.spec.ts` «does not record an audit log when deleteCredential throws»).
+     */
+    describe('동시 삭제', () => {
+      it('소유자로 스코프한 DELETE 를 친다', async () => {
+        credentialRepo.findOne.mockResolvedValue({ id: 'cred-1', userId });
+
+        await service.deleteCredential(userId, 'cred-1');
+
+        // `userId` 가 빠지면 소유권이 무락 조회 뒤 JS 비교로만 남는다 — 조건을 통째로 단언한다.
+        expect(credentialRepo.delete).toHaveBeenCalledWith({
+          id: 'cred-1',
+          userId,
+        });
+      });
+
+      it('진 쪽은 404 이고 남은 개수 조회·복구 코드 쓰기도 타지 않는다', async () => {
+        credentialRepo.findOne.mockResolvedValue({ id: 'cred-1', userId });
+        // 둘 다 무락 조회·소유권 비교를 통과했지만 DELETE 는 하나만 1행을 지운다.
+        credentialRepo.delete.mockResolvedValueOnce({ affected: 0 });
+
+        await expect(
+          service.deleteCredential(userId, 'cred-1'),
+        ).rejects.toMatchObject({
+          response: { code: 'WEBAUTHN_CREDENTIAL_NOT_FOUND' },
+        });
+        // 진 쪽이 여기까지 오면 `remaining === 0` 일 때 복구 코드를 한 번 더 NULL 화한다.
+        expect(credentialRepo.count).not.toHaveBeenCalled();
+        expect(usersService.update).not.toHaveBeenCalled();
+      });
+
+      /**
+       * 판정이 `affected === 0` **명시 비교**인 이유를 붙드는 대조군.
+       * `null`·`undefined` 는 드라이버가 «보고하지 않았다» 는 뜻이지 «못 지웠다» 가 아니다 —
+       * `!affected` 로 되돌리면 정상 삭제가 404 로 뒤집힌다. #1371 에서 이 대조군이 빠져
+       * 같은 뮤턴트가 32건을 통과했다.
+       */
+      it.each([[undefined], [null]])(
+        'affected 가 %p(드라이버 미보고)면 정상 삭제로 취급한다',
+        async (affected) => {
+          credentialRepo.findOne.mockResolvedValue({ id: 'cred-1', userId });
+          credentialRepo.count.mockResolvedValue(1);
+          credentialRepo.delete.mockResolvedValueOnce({ affected });
+
+          await expect(
+            service.deleteCredential(userId, 'cred-1'),
+          ).resolves.toEqual({ remaining: 1 });
+        },
+      );
+    });
   });
 
   describe('renameCredential', () => {

@@ -4941,7 +4941,29 @@ field: T | null;
       > 아니라** 이 수정이 진 쪽에서 함께 건너뛰게 되는 부수 효과다. 등재 시점에 리스너를
       > 따라가 보지 않고 «중복이면 나쁘다» 로 적었다.
 
-- [ ] **WebAuthn credential 삭제도 동시 요청에서 `user.2fa_disabled` 감사를 두 번 남긴다 — 아홉 번째**
+- [x] **WebAuthn credential 삭제도 동시 요청에서 `user.2fa_disabled` 감사를 두 번 남긴다 — 아홉 번째**
+      **2026-09-21 해소** (`plan/complete/webauthn-dup-delete.md`). 이미 `.delete()` 를 쓰고
+      있었으므로 바꾼 것은 호출 형태가 아니라 **버려지던 `affected` 를 판정에 쓴 것**이다.
+      e2e 로 먼저 재현했다 — 고치기 전 `[204, 204]` · 한 `credentialId` 에 감사 **2건**
+      (둘 다 `remainingCredentials: 1`), 고친 뒤 `[204, 404]` · **1건**.
+      부수로 DELETE 조건절에 `userId` 를 더했다(종전엔 소유권이 무락 조회 뒤 JS 비교로만 남았다).
+
+      > ## 🏁 이 결함 클래스가 아홉 자리로 **종료**됐다
+      >
+      > «리소스 행을 지우고 감사를 남기는 요청» 아홉 자리가 전부 닫혔다:
+      > #1369 워크플로·워크스페이스 · #1370 트리거 · #1371 스케줄 · #1372 통합 ·
+      > #1373 멤버 · #1374 인증 설정 · #1375 모델 설정 · 이 PR WebAuthn.
+      >
+      > **열거 축을 세 번 틀렸다.** 처음엔 `AUTH_CONFIG_*_DELETED` 접미사로 셌고(→ `_REMOVED`
+      > 누락), 다음엔 `remove(entity)` 호출로 셌고(→ 이미 `.delete()` 를 쓰던 자리 누락),
+      > 그 다음엔 서비스 안의 감사 호출로 셌다(→ 감사가 **컨트롤러**에 있는 자리 누락).
+      > **마지막 자리가 그 셋 모두에 안 걸리는 자리였다** — 축을
+      > «지우고 감사한다» 는 **요청 단위 서술**로 바꾼 뒤에야 전수가 나왔다.
+      >
+      > 처방은 자리마다 달랐다: 부모 행 락 + 재조회 · advisory lock + 재조회 ·
+      > CASCADE 때문에 **트리거** `affected` 가 판별자 · 락 없는 원자적 `DELETE` · 이미 있던
+      > `affected` 를 쓰기. «같은 클래스 = 같은 처방» 이 아니었다.
+
       (developer, 낮음, 2026-09-21 등재 · 같은 조사).
       `webauthn.service.ts:532` 는 이미 `credentialRepo.delete({ id })` 를 쓰지만 **`affected` 를 버린다** —
       «`remove(entity)` 를 찾자» 는 축으로는 안 걸리는 자리다. 게다가 감사는 서비스가 아니라
@@ -4951,6 +4973,11 @@ field: T | null;
       쓰기를 한 번 더 한다. 판정을 서비스에 두면 `{ remaining }` 계약을 바꾸게 되므로, 반환 형태를
       건드리지 않는 방법(진 쪽에서 404)을 먼저 검토할 것.
 
+      > **✅ 게이트 이행됨 (2026-09-21, 아홉 번째 PR 착수 시)** — 두 결정을 실측 후 내렸고
+      > `plan/complete/webauthn-dup-delete.md` §0 에 근거째로 적었다. 요약:
+      > **(1) e2e 헬퍼는 추출한다 — 전용 PR 에서**(아래 별 항목으로 등재).
+      > **(2) `affected` 판별자 유틸은 추출하지 않는다**(아래 별 항목에 근거).
+      >
       > **착수 선행 조건 (2026-09-21, 여덟 번째 PR 이 건 게이트)** — 이것이 **이 계열의 마지막
       > 자리**이므로, 반복된 구조 중복을 판단할 마지막 시점이다. 착수 시점에 아래 둘을
       > **결정하고 그 결정(추출하거나, 추출하지 않기로 한 새 근거)을 그 PR 의 plan 에 적는다.**
@@ -4966,6 +4993,88 @@ field: T | null;
       > 근거: `plan/complete/modelconfig-dup-delete.md` §«이 PR 이 하지 않는 것». **그 plan 은
       > archive 되므로 이 줄이 실제로 읽히는 유일한 자리다** — `--impl-done`
       > `review/consistency/2026/09/21/17_17_08` W1 이 그 점을 지적해 여기에 미러링했다.
+
+- [ ] **`3-error-handling.md` §1.11 의 «`_NOT_FOUND`≠404 는 이 저장소에서 유일한 예외» 가 거짓이다**
+      (planner, **중간**, 2026-09-21 등재 · `--impl-prep` `review/consistency/2026/09/21/17_39_06` W1).
+
+      **실측**: `WEBAUTHN_CREDENTIAL_NOT_FOUND` 는 카탈로그에 **등재돼 있지 않고**, 게다가
+      **같은 코드가 두 status 로 나간다** — `webauthn.service.ts` 의 `verifyAuthentication()`
+      (로그인 2FA 검증 단계) 안 자리가 `UnauthorizedException`(**401**), `renameCredential()`·
+      `deleteCredential()` 안의 자리(둘 다 공유 헬퍼 `throwCredentialNotFound()` 를 거친다)가
+      `NotFoundException`(**404**). (줄 번호 대신 메서드명으로 지목한다 — 이 PR 자신의 리팩터
+      커밋 `d3127c8a6` 이 `throwCredentialNotFound()` 헬퍼를 추출하며 줄 배치를 바꿔, 애초에
+      박아 넣었던 `:497`·`:504`·`:527` 인용이 커밋되는 순간 이미 다른 코드를 가리켰다 —
+      `review/code/2026/09/21/18_31_57/documentation.md` WARNING.)
+
+      > **리뷰어는 «두 번째 예외» 라고 했지만 정확히는 그보다 나쁘다.** `AUTH_CONFIG_NOT_FOUND`
+      > 는 **항상** 400 이라 «예외이되 일관» 하다. `WEBAUTHN_CREDENTIAL_NOT_FOUND` 는
+      > **한 코드가 401 과 404 를 오간다** — 클라이언트가 코드로 분기할 수 없다.
+
+      **401 자리는 의도적으로 보인다**: `verifyAuthentication`(로그인 2FA 검증) 안이라, 미인증
+      호출자에게 credential 존재 여부를 노출하지 않으려는 선택이다. 그렇다면 처방은 «401 을
+      404 로 바꾸기» 가 아니라 **코드를 쪼개는 것**이고, 그 선례를 spec 자신이 인용하고 있다 —
+      `MODEL_CONFIG_NOT_FOUND`(404) / `MODEL_CONFIG_DEFAULT_MISSING`(400) 분리(2026-06-12 결정).
+
+      **집행 시 할 일**: (1) 코드를 `3-error-handling.md` §1.2.1 에 등재, (2) §1.11 의 «유일한
+      예외» 문장을 실측에 맞게 정정, (3) `1-auth.md` §5 의 해당 행들에 코드명 명시,
+      (4) 401/404 분리 여부 결정.
+
+      **부수 — 내가 이 거짓 문장을 코드 주석에 인용했다**: `auth-configs.service.ts:148`
+      (#1374 에서 내가 쓴 `throwAuthConfigNotFound()` JSDoc)이 «§1.11 이 «이 저장소의 유일한
+      `_NOT_FOUND`≠404 예외» 로 명시한 자리» 라고 적는다. **그 주석의 주된 용도(400
+      `AUTH_CONFIG_NOT_FOUND` 와 404 `RESOURCE_NOT_FOUND` 를 가르는 것)는 여전히 유효**하고
+      괄호 안 «유일한» 만 틀렸다. spec 정정과 **같은 턴에** 그 한 구도 고칠 것 — 따로 두면
+      spec 은 고쳐지고 주석만 거짓으로 남는다.
+
+- [ ] **동시성 e2e 아홉 파일의 공용 헬퍼를 추출한다 — 테스트 전용 PR**
+      (developer, 중간, 2026-09-21 등재 · 아홉 번째 PR 의 착수 게이트 **결정 1**).
+      **추출 여부는 이미 결정됐다 — 「할지 말지」가 아니라 「하는 것」이 이 항목이다.**
+
+      **실측 근거**: `codebase/backend/test/` 의 이 계열 e2e 가 여덟 개(101~208줄)이고 이 PR 이
+      아홉 번째를 더한다. 여섯은 행 락(`SELECT … FOR UPDATE`), 둘은 advisory lock 을 쓰지만
+      **아홉 전부 1.5초 공허성 가드**를 쓴다. 공통부는
+      `BEGIN → 락 → 두 요청 발사 → 공허성 가드 → COMMIT → 정렬 → finally ROLLBACK` 이고,
+      갈리는 것은 락 SQL·발사 함수·단언뿐이다.
+
+      **줄 수가 아니라 공허성 가드가 이유다.** 그 가드가 빠진 테스트는 **고치기 전 코드도
+      통과시킨다** — 없으면 조용히 거짓 초록이 되는 부분인데 지금은 아홉 곳에 손으로 복제돼
+      있어 열 번째를 쓰는 사람이 빠뜨릴 수 있다.
+
+      ```ts
+      // codebase/backend/test/helpers/concurrency.ts
+      export async function raceUnderHeldLock<T>(
+        locker: Client,
+        lock: { sql: string; params: unknown[] },
+        fire: () => Promise<T>,
+      ): Promise<T[]>;   // BEGIN → 락 → [fire(), fire()] → 1.5s 가드 → COMMIT → 결과
+      ```
+
+      **범위**: 아홉 파일 전부 전환(`workflow-`·`workspace-`·`trigger-`·`schedule-`·`integration-`·
+      `auth-config-`·`model-config-delete-concurrency` · `member-remove-concurrency` ·
+      `webauthn-credential-delete-concurrency`). `integration-rotate-concurrency` 는 삭제가
+      아니라 갱신 경합이라 **별도 판단**(같은 가드를 쓰는지 먼저 볼 것).
+      **성격**: 테스트 전용 — 프로덕션 코드 무변경.
+      **왜 아홉 번째 PR 에 섞지 않았나**: 아홉 파일 리팩터를 webauthn 버그 수정과 한 diff 에
+      넣으면 이 세션 내내 리뷰어들이 반복 지적한 «스코프 혼입» 이 된다. 단독 PR 이 검토도 쉽다.
+
+- [ ] ~~**`affected` 판별자 유틸(`isDeleteMiss()` 류) 최소 추출**~~ — **2026-09-21 추출하지 않기로 결정**
+      (아홉 번째 PR 의 착수 게이트 **결정 2**. 제안 출처: `review/code/2026/09/21/17_08_12` architecture).
+      **재발명 방지를 위해 근거와 함께 남긴다 — 비용 때문이 아니다.**
+
+      **실측**: `affected === 0` 을 삭제 판별자로 쓰는 자리는 **다섯**이다 —
+      `auth-configs`·`integrations`·`model-config`·`workspaces`·`schedules`.
+      (`workflows` 는 `parentPresence`, `triggers` 는 락 안 재조회라 이 계열이 아니다.)
+      **그 다섯 전부가 «드라이버 미보고» 대조군 테스트를 이미 갖고 있다**(전수 확인).
+
+      지키려는 불변식은 «`!affected` 로 쓰지 말 것» 인데:
+      - `isDeleteMiss(affected)` 는 그 **비교를 호출부에서 감춘다**. 정작 위험한 것은 헬퍼
+        **본문**이 `!affected` 로 구현되는 것이고, 그러면 위험이 없어지는 게 아니라 한 곳으로
+        옮겨가면서 **리뷰어가 볼 수 있는 자리에서만 사라진다.**
+      - 실제로 이 불변식을 지킨 것은 대조군 테스트다. #1371 에서 그것이 없었을 때 `!affected`
+        뮤턴트가 **32건을 통과**했고, 넣자 곧바로 RED 가 됐다.
+
+      즉 **방어는 이미 있고 그것은 헬퍼가 아니다.** 12자짜리 명시 비교를 감싸면 방어가 약해진다.
+      다시 제안된다면 이 근거를 먼저 반증할 것.
 
 - [ ] **`integrations.service.spec.ts:131` 의 `remove` mock 스텁이 죽었다**
       (developer, 매우 낮음, 2026-09-21 등재 · `review/code/2026/09/21/11_32_06` INFO 2).
@@ -4987,7 +5096,9 @@ field: T | null;
       > 2026-09-21 기준 자리: `1-workflow-list.md` §2.6 · `data-flow/12-workspace.md` §1.10 ·
       > `3-schedule.md` §4 · `4-integration.md` §9 · `9-user-profile.md` §6.1 ·
       > `data-flow/12-workspace.md` §1.6 · **`6-config.md` §A(`DELETE /api/auth-configs/:id`)** ·
-      > **`6-config.md` §Model Config API(`DELETE /api/model-configs/:id`)**.
+      > **`6-config.md` §Model Config API(`DELETE /api/model-configs/:id`)** ·
+      > **`5-system/1-auth.md` §5(`DELETE /api/auth/2fa/webauthn/credentials/:id`, `:498`)**
+      > — 아홉 번째이자 **이 계열의 마지막** 자리이고, `2-navigation` 밖의 유일한 자리다.
       > — `6-config.md` 한 파일 안에 **두 행**이라는 점에 주의: 파일 단위로 훑으면 한 행만 고치고
       > 끝낼 수 있다(`--impl-prep` `review/consistency/2026/09/21/16_16_35` W1).
       > `5-system/12-webhook.md`·`1-auth.md` 는 `auth-configs.service.ts` 를 `code:` 로 지목하지만

@@ -1,5 +1,51 @@
 # Changelog
 
+## Unreleased — 동시 DELETE 두 건이 `user.2fa_disabled` 감사 행을 두 번 남기던 것
+
+`WebAuthnService.deleteCredential()` 은 잠금 없는 `findOne` 으로 존재·소유권을
+확인한 뒤 `credentialRepo.delete({ id })` → (호출자인 `WebAuthnController` 가)
+`user.2fa_disabled` 감사 기록 순서였다. 동시 DELETE 두 건이 잠금 없는 선조회를
+모두 통과하면 먼저 커밋한 쪽이 행을 지운 뒤에도 진 쪽이 그대로 진행해 감사를
+한 번 더 남겼다 — 같은 결함 클래스의 **아홉 번째이자 마지막** 자리다(워크플로·
+워크스페이스 #1369, 트리거 #1370, 스케줄 #1371, 통합 #1372, 멤버 제거 #1373,
+인증 설정 #1374, model config #1375).
+
+**이 자리가 앞선 세 PR 의 「마지막」예고를 세 번 틀리게 만든 원인이다** — 이
+자리는 형제들과 달리 이미 `.delete()` 를 쓰고 있어 「`remove(entity)` 를
+찾자」는 열거 축에 걸리지 않았고, 감사도 서비스가 아니라 **컨트롤러**
+(`WebAuthnController`)가 남겨 「서비스에서 감사를 찾자」는 축에도 걸리지
+않았다. 실제로 바뀐 것은 호출 형태(`remove`→`delete`)가 아니라 **버려지던
+`affected` 를 판정에 쓰는 것**뿐이다.
+
+**고친 것**:
+- `credentialRepo.delete({ id, userId })` 의 `affected === 0`(명시 비교)을
+  판정자로 삼는다 — 0 이면 404(`WEBAUTHN_CREDENTIAL_NOT_FOUND`)로 끝나고, 그
+  뒤의 `countCredentials`·복구 코드 NULL 화·(컨트롤러의) 감사 기록을 모두
+  건너뛴다.
+- 조건절에 `userId` 를 함께 건다 — 종전엔 `{ id }` 뿐이라 소유권이 무락
+  `findOne` 뒤의 JS 비교로만 남아 있었다. 형제들이 워크스페이스 스코프를
+  조건절에 넣은 것과 같은 강화다.
+- `renameCredential`·`deleteCredential` 에 흩어져 있던 404
+  `WEBAUTHN_CREDENTIAL_NOT_FOUND` 리터럴 네 곳을 형제 선례
+  (`throwAuthConfigNotFound`, `model-config` 의 `notFound()`)를 따라
+  `throwCredentialNotFound()` 헬퍼로 추출했다 — `verifyAuthentication` 의
+  401(`UnauthorizedException`) 자리는 같은 코드 문자열을 공유하지만 예외
+  타입도 상태 코드도 달라 대상이 아니다.
+
+**판별력 실측**: 고치기 전 e2e 로 재현하니 동시 DELETE 두 건이 **둘 다 204**
+였고, DB 를 직접 조회해 한 `credentialId` 에 `user.2fa_disabled` 감사 행이
+**2건**(둘 다 `remainingCredentials: 1`) 임을 확인했다(고친 코드는
+`[204, 404]` · 감사 1건).
+
+**남는 것**: 리뷰(`review/code/2026/09/21/18_03_54`)가 서로 **다른**
+credential 두 개를 동시에 지우면 두 `countCredentials` 가 서로 상대의 커밋
+전 스냅샷을 읽어 둘 다 `remaining === 1` 로 오판할 수 있다고 지적했으나,
+`deleteCredential` 은 트랜잭션이 없어 각 DELETE 가 즉시 커밋된다는 순서
+논증으로 반증됐고(나중에 커밋하는 쪽은 항상 0 을 본다) e2e 캐너리
+(`webauthn-credential-delete-concurrency.e2e-spec.ts` 두 번째 case)로
+고정했다. **이 결함 클래스는 이 자리로 아홉 자리 전부 종료됐다** — 더 이상
+남은 자리가 없다.
+
 ## Unreleased — 동시 DELETE 두 건이 `model_config.delete` 감사 행을 두 번 남기던 것
 
 `ModelConfigService.remove()` 는 잠금 없는 `findEntity` 로 존재를 확인한 뒤
@@ -41,9 +87,11 @@ AND workspace_id = $2` 한 문장의 원자성에 기대어, 그 `affected` 를 
 204** 였고, DB 를 직접 조회해 `model_config.delete` 감사 행이 **한 `id` 에
 2건** 임을 확인했다(고친 코드는 `[204, 404]` · 감사 1건).
 
-**남는 것**: 같은 결함 클래스의 마지막 자리는 WebAuthn credential 삭제
+**남는 것**: ~~같은 결함 클래스의 마지막 자리는 WebAuthn credential 삭제
 (아홉 번째, 감사가 서비스가 아니라 컨트롤러에 있어 축이 다름) —
-`plan/in-progress/spec-draft-nullable-notation-followups.md` 에 등재.
+`plan/in-progress/spec-draft-nullable-notation-followups.md` 에 등재.~~
+**해소 (2026-09-21, 아홉 번째 PR)**: 위 WebAuthn 항목이 그 자리를 닫았다 —
+이 결함 클래스는 아홉 자리로 종료됐다.
 
 ## Unreleased — 동시 DELETE 두 건이 `auth_config.delete` 감사 행을 두 번 남기던 것
 
@@ -82,11 +130,13 @@ AND workspace_id = $2` 한 문장의 원자성에 기대어, 그 `affected` 를 
 였고, DB 를 직접 조회해 `auth_config.delete` 감사 행이 **한 `resource_id` 에
 2건** 임을 확인했다(고친 코드는 `[204, 404]` · 감사 1건).
 
-**남는 것**: 같은 결함 클래스의 남은 두 자리는 `ModelConfigService.remove()`
+**남는 것**: <del>같은 결함 클래스의 남은 두 자리는 `ModelConfigService.remove()`
 (여덟 번째, ~~캐시 무효화 통지 `notifyInvalidated` 중복까지 함께 있음~~)와
 WebAuthn credential 삭제(아홉 번째, 감사가 서비스가 아니라 컨트롤러에 있어
 축이 다름) — `plan/in-progress/spec-draft-nullable-notation-followups.md` 에
-등재.
+등재.</del> **해소 (2026-09-21)**: 여덟 번째(`ModelConfigService.remove()`)는
+바로 위 `model_config` 섹션에서, 아홉 번째(WebAuthn)는 맨 위 항목에서 각각
+닫혔다 — 이 결함 클래스는 아홉 자리로 종료됐다.
 
 > **정정 (2026-09-21, 여덟 번째 PR 실측)**: 위 취소선 문구는 과장이었다.
 > `ModelConfigService.remove()` 의 캐시 무효화 리스너는 `llm.service.ts:81-82`
