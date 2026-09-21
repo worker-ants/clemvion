@@ -329,6 +329,10 @@ e2e 는 **인프라 의존성과 multi-actor 흐름** 을 보장하는 회귀 �
 - backend: `codebase/backend/test/<scope>.e2e-spec.ts` — `codebase/backend/test/jest-e2e.json` 의 `.e2e-spec.ts$` regex 가 자동 discovery
 - frontend: `codebase/frontend/e2e/<area>/<name>.spec.ts` — `codebase/frontend/playwright.config.ts` 의 testMatch `**/*.spec.ts` 가 자동 discovery
 - 신규 헬퍼: `codebase/backend/test/helpers/<name>.ts`
+  - **예외 — self-spec(`*.spec.ts`)을 동반하는 헬퍼는 `codebase/backend/src/shared/testing/<name>.ts`.**
+    `test/helpers/` 에 두면 그 self-spec 이 **어느 러너에도 안 걸린다** — unit jest 는 `rootDir: 'src'` 라 `test/` 를 스캔하지 않고,
+    `test/jest-e2e.json` 은 `testRegex: '.e2e-spec.ts$'` 라 평범한 `*.spec.ts` 를 안 잡는다. 즉 **존재하지만 영구히 돌지 않는다.**
+    그 자리는 `tsconfig.build.json` 이 exclude 하므로 `dist/` 로도 나가지 않는다 (`production-build-devdep` 가드가 디렉터리 세그먼트로 고정).
 
 ### Backend e2e 패턴 (supertest)
 

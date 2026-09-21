@@ -1918,6 +1918,18 @@ field: T | null;
       > planner 문장을 developer 턴에서 고치려 했다). 공통 원인은 **역할 배정을 실측 없이 단정한
       > 것**이고, 이 트래커에 이미 *"등재할 때 조항 해당 여부를 단정하지 말 것"* 이라 적혀 있었다.
 
+- [ ] **`spec/5-system` 4개 파일의 첫 섹션 헤딩이 `## Overview` 가 아니다** (planner, 낮음,
+      2026-09-21 등재 · `--impl-prep` `review/consistency/2026/09/21/22_39_59`
+      `convention_compliance` WARNING 1). 대상:
+      `5-expression-language.md`(L12-18) · `7-llm-client.md`(L20-26) · `11-mcp-client.md`(L13-19) ·
+      `16-system-status-api.md`(L8-14). CLAUDE.md §Spec 문서 3섹션 구성 +
+      `project-planner/SKILL.md` §문서 구조 가 `## Overview` 를 요구한다.
+
+      **2026-05 이래의 standing 편차이고 그것을 발견한 diff 와 무관하다**(발견 PR 은
+      `race-helper-guard-tests` — test-harness 전용). 처방은 둘 중 하나다: 네 파일 헤딩을
+      통일하거나, 레거시 예외를 SKILL.md 에 명시. **developer 는 `spec/` 쓰기 권한이 없어
+      닫을 수 없다** — 그래서 planner 항목이다.
+
 - [ ] **질문: 비밀-부재 헬퍼를 `secret-store.md` 의 `code:` 에도 등재해야 하나** (planner 또는
       developer, 2026-09-10 등재, `--spec` `19_35_47` `cross_spec` INFO 에서 갈라 나옴).
       §5.4 의 원칙은 *"검증자가 **서로 다른 두 문서의 규칙**을 시행하면 그 두 문서 모두에 등재"* 이고

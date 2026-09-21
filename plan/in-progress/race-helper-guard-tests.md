@@ -111,11 +111,23 @@ DB 의존 오케스트레이션(`raceUnderHeldLock`)은 `test/helpers/` 에 **�
 - `raceUnderHeldLock` 을 `src/` 로 옮기지 않는다 — `pg.Client` 를 모는 오케스트레이션을
   테스트 사유만으로 프로덕션 트리에 넣게 되고, 9개 e2e 의 임포트 경로가 함께 움직인다.
 
+## E. 유예 — 이 PR 에서 하지 않고 등재하는 것
+
+`--impl-prep` `22_39_59` 의 Warning 1: `spec/5-system/{5-expression-language,7-llm-client,
+11-mcp-client,16-system-status-api}.md` 의 첫 섹션 헤딩이 `## Overview` 가 아니다.
+
+**이번 diff 가 유발한 것이 아니고**(2026-05 이래 존재), `spec/` 은 developer 권한 밖이라
+여기서 고칠 수 없다. 트래커에 planner 항목으로 올린다 — 이 PR 의 수렴 조건이 아니다.
+
 ## 체크리스트
 
-- [ ] `/consistency-check --impl-prep spec/5-system` → BLOCK: NO (**1차 BLOCK: YES 해소 후 재실행**)
-- [ ] `overlap-preconditions.ts` + self-spec 작성, `concurrency.ts` 는 호출만
-- [ ] `PROJECT.md:331` 에 예외 한 줄 + 트래커 `:1895` 해소
+- [x] `/consistency-check --impl-prep spec/5-system` → BLOCK: NO
+      (`22_25_20` BLOCK: YES → plan 개정 → `22_39_59` **BLOCK: NO · Critical 0 · Warning 1**.
+      Warning 은 `spec/5-system` 4개 파일의 `## Overview` 헤딩 누락 — 2026-05 이래의 standing
+      편차이고 `spec/` 은 developer 권한 밖이라 planner 항목으로 등재만 한다. §E)
+- [x] `overlap-preconditions.ts` + self-spec 작성, `concurrency.ts` 는 호출만
+- [x] `PROJECT.md:331` 에 예외 한 줄
+- [ ] 트래커 `:1895` + 본 항목 해소 표기 (**종결 커밋에서** plan 이동과 한 동작으로)
 - [ ] **판별 실험으로 수집 확인** (§C)
 - [ ] TEST WORKFLOW (lint · unit · build · e2e) — 숫자는 로그 파일명과 함께
 - [ ] `/ai-review` → 수렴
