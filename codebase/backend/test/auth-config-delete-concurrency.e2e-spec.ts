@@ -106,7 +106,8 @@ describe('Auth config delete concurrency (e2e)', () => {
 
     const audits = await db.query<{ count: string }>(
       `SELECT COUNT(*)::text AS count FROM audit_log
-        WHERE resource_id = $1 AND action = 'auth_config.delete'`,
+        WHERE resource_type = 'auth_config' AND resource_id = $1
+          AND action = 'auth_config.delete'`,
       [id],
     );
     expect(audits.rows[0].count).toBe('1');
