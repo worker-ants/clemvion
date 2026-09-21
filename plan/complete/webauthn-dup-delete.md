@@ -1,6 +1,6 @@
 ---
 title: WebAuthn credential 동시 삭제도 감사 행을 두 번 남긴다 — 아홉 번째이자 마지막 자리
-status: in-progress
+status: complete
 owner: developer
 worktree: webauthn-dup-delete-5c9f3a
 started: 2026-09-21
@@ -136,6 +136,30 @@ e2e 는 형제들의 행 락 기법 그대로. credential 은 **SQL 로 직접 I
       원복은 `cp` 백업으로 했다
 - [x] TEST WORKFLOW — lint PASS · unit PASS · build PASS(타입체크 ratchet 포함) ·
       **e2e 377 PASS** (`_test_logs/e2e-20260921-175842.log`)
-- [ ] `/ai-review` → 수렴
-- [ ] `/consistency-check --impl-done <scope>` → BLOCK: NO
-- [ ] 트래커 항목 해소 + 이 plan `plan/complete/` 로 + **이 계열 종료 선언**
+- [x] `/ai-review` → **4라운드로 수렴** (정지 규칙 첫째 절: Critical·Warning 0).
+      Warning 추이 **4 → 3 → 2 → 0**, 심각도도 함께 내려갔다.
+      라운드 1 `18_03_54`: CHANGELOG 누락(이 세션 **네 번째**) · `@throws` · 헬퍼 미추출 ·
+      **W4 «다른 credential 동시삭제 시 `remaining` 오판»** — 앞의 셋은 조치, **W4 는 반증**했다
+      (트랜잭션이 없어 각 DELETE 가 즉시 커밋되므로 나중에 커밋하는 쪽은 항상 0 을 본다).
+      라운드 2 `18_31_57`: **그 반증 캐너리 자신이 과장**이라는 지적 — 공허성 가드가 없어
+      우연히 직렬화되면 통과한다. **문구를 낮추라는 제안 대신 테스트를 강화**해 두 행을 모두
+      잠그고 겹침을 관측하게 했다. 라운드 3 `18_58_48`: **줄 번호 인용을 걷어낸 그 커밋이
+      JSDoc 에 새 줄 번호를 써 넣었다**(한 PR 안 세 번째) → 메서드명 기반으로 교체.
+      라운드 4 `19_18_43` **Critical 0 · Warning 0**(`RESOLUTION.md`)
+- [x] `/consistency-check --impl-done spec/5-system` → `review/consistency/2026/09/21/19_30_19`
+      **BLOCK: NO · Critical 0**. Warning 1 은 `WEBAUTHN_CREDENTIAL_NOT_FOUND` 의 401/404
+      이원화·카탈로그 미등재로, **이 PR 이 만든 것이 아니고 spec 은 권한 밖**이라 planner
+      항목으로 등재돼 있다(재작업 불요). INFO 3(CHANGELOG 의 «계열 종료» 선언이 트래커
+      체크박스보다 먼저 적혔다)은 **이 종결 커밋이 해소**한다
+- [x] 트래커 항목 해소 + 이 plan `plan/complete/` 로 + **이 계열 종료 선언** — 넷을 한 커밋으로
+      (체크박스 · 해소 마커 · 파일 이동 · frontmatter). 리뷰 INFO 6 이 그 넷이 한 동작이어야
+      한다고 짚었고, 이 저장소가 반복해 놓친 자리다
+
+## 이 PR 이 남긴 후속 — 셋 다 근거와 함께 등재됨
+
+1. **동시성 e2e 공용 헬퍼 추출**(`raceUnderHeldLock()`) — §0 결정 1. 전용 PR, 아홉 파일, 테스트 전용.
+2. **`deleteCredential()` 트랜잭션 래핑** — 라운드 1 W4 추적. **착수하면 이 PR 의 e2e 캐너리가
+   RED 가 된다** — 캐너리의 순서 논증이 «트랜잭션이 없다» 를 전제하기 때문이다. 그 RED 는
+   회귀가 아니라 **전제가 바뀌었다는 신호**다. 미리 적지 않으면 다음 사람이 회귀로 오진한다.
+3. **`WEBAUTHN_CREDENTIAL_NOT_FOUND` 401/404 이원화 + §1.11 «유일한 예외» 거짓** — planner 트랙.
+   내가 #1374 JSDoc 에 그 거짓 문장을 인용했으므로 **같은 턴에 그 주석도 고치도록 묶여 있다**.
