@@ -599,13 +599,22 @@ export class IntegrationsService {
     const row = await this.integrationRepository.findOne({
       where: { id, workspaceId },
     });
-    if (!row) {
-      throw new NotFoundException({
-        code: 'RESOURCE_NOT_FOUND',
-        message: 'Integration not found',
-      });
-    }
+    if (!row) this.throwIntegrationNotFound();
     return this.toPublic(row);
+  }
+
+  /**
+   * «없다» 를 그대로 던진다 — 형제 `triggers.service.ts` 의 `throwTriggerNotFound()` /
+   * `schedules.service.ts` 의 `throwScheduleNotFound()` 선례와 같은 이유다. 같은 리터럴이
+   * `findById` · `update` · `remove`(두 판정) · `rotate`(두 판정) · `requireEntity` 까지
+   * 파일 전체 7곳으로 늘어 있었다 (`/ai-review` `review/code/2026/09/21/10_54_47`
+   * maintainability WARNING 2).
+   */
+  private throwIntegrationNotFound(): never {
+    throw new NotFoundException({
+      code: 'RESOURCE_NOT_FOUND',
+      message: 'Integration not found',
+    });
   }
 
   // ---------------------------------------------------------------
@@ -728,12 +737,7 @@ export class IntegrationsService {
     const entity = await this.integrationRepository.findOne({
       where: { id, workspaceId },
     });
-    if (!entity) {
-      throw new NotFoundException({
-        code: 'RESOURCE_NOT_FOUND',
-        message: 'Integration not found',
-      });
-    }
+    if (!entity) this.throwIntegrationNotFound();
     const changes: Record<string, unknown> = {};
     if (body.name !== undefined && body.name !== entity.name) {
       changes.name = { from: entity.name, to: body.name };
@@ -762,12 +766,7 @@ export class IntegrationsService {
     const entity = await this.integrationRepository.findOne({
       where: { id, workspaceId },
     });
-    if (!entity) {
-      throw new NotFoundException({
-        code: 'RESOURCE_NOT_FOUND',
-        message: 'Integration not found',
-      });
-    }
+    if (!entity) this.throwIntegrationNotFound();
 
     // remove() 가 이미 위에서 findOne 으로 통합 존재·workspace 소유를 검증했으므로,
     // getUsages 의 findById 선검증을 거치지 않고 사용처 조회 헬퍼를 직접 호출한다
@@ -801,12 +800,7 @@ export class IntegrationsService {
       id,
       workspaceId,
     });
-    if (affected === 0) {
-      throw new NotFoundException({
-        code: 'RESOURCE_NOT_FOUND',
-        message: 'Integration not found',
-      });
-    }
+    if (affected === 0) this.throwIntegrationNotFound();
     await this.auditLogsService.record({
       workspaceId,
       userId,
@@ -818,8 +812,8 @@ export class IntegrationsService {
         name: entity.name,
       },
     });
-    // 삭제된 integration 의 잔존 연결을 전 인스턴스에서 정리 (TypeORM remove 후
-    // entity.id 는 unset 될 수 있어 param `id` 를 쓴다).
+    // 삭제된 integration 의 잔존 연결을 전 인스턴스에서 정리 (delete(criteria) 는 entity 를
+    // 변형하지 않지만, 위 findOne 이 읽은 스냅샷 대신 요청 파라미터 `id` 를 쓰는 편이 명확하다).
     await this.broadcastCredentialChange(id);
   }
 
@@ -1194,12 +1188,7 @@ export class IntegrationsService {
         where: { id: entity.id, workspaceId },
         lock: { mode: 'pessimistic_write' },
       });
-      if (!fresh) {
-        throw new NotFoundException({
-          code: 'RESOURCE_NOT_FOUND',
-          message: 'Integration not found',
-        });
-      }
+      if (!fresh) this.throwIntegrationNotFound();
       // 권한도 이 시점 값으로 다시 본다 — 테스트가 도는 동안 personal → organization 으로 바뀌었을 수 있다.
       this.assertCanRotate(fresh, userRole);
 
@@ -1227,12 +1216,7 @@ export class IntegrationsService {
       const row = affected
         ? await repo.findOne({ where: { id: entity.id } })
         : null;
-      if (!row) {
-        throw new NotFoundException({
-          code: 'RESOURCE_NOT_FOUND',
-          message: 'Integration not found',
-        });
-      }
+      if (!row) this.throwIntegrationNotFound();
       return row;
     });
     await this.auditLogsService.record({
@@ -1493,12 +1477,7 @@ export class IntegrationsService {
     const entity = await this.integrationRepository.findOne({
       where: { id, workspaceId },
     });
-    if (!entity) {
-      throw new NotFoundException({
-        code: 'RESOURCE_NOT_FOUND',
-        message: 'Integration not found',
-      });
-    }
+    if (!entity) this.throwIntegrationNotFound();
     return entity;
   }
 
