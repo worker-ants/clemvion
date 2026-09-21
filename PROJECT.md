@@ -334,7 +334,7 @@ e2e 는 **인프라 의존성과 multi-actor 흐름** 을 보장하는 회귀 �
 
 - DB 직접 접근: `helpers/db.ts` 의 `createDbClient()` / `uniqueEmail(prefix)` / `uniqueName(prefix)` 사용. 매 spec 의 `beforeAll` 에서 connect, `afterAll` 에서 `db.end()`
 - 인증 setup: `helpers/auth.ts` 의 `registerAndLogin` · `createTeamWorkspace` · `inviteAndAccept` · `extractRefreshCookie` 사용으로 boilerplate 4–5 줄로 축소
-- **동시성 · race condition: `helpers/concurrency.ts` 의 `raceUnderHeldLock(locker, lock, fires)` 를 쓴다 — 손으로 쓰지 말 것.**
+- **동시성 · race condition**: `helpers/concurrency.ts` 의 `raceUnderHeldLock(locker, lock, fires)` 를 쓴다 — **손으로 쓰지 말 것**.
   겹침을 우연에 맡기지 않고 **테스트가 락을 쥐어** 만든 뒤, **공허성 가드**(겹침을 실제로 만들었는가)까지 헬퍼가 건다.
   그 가드가 없으면 두 요청이 우연히 순차 처리돼도 테스트가 통과해 **고치기 전 코드까지 초록으로 만든다** — 조용히 거짓 초록이 되는 부분이라 복제하면 위험하다.
   락 전용 커넥션(`locker`)은 검증용 `db` 와 **달라야** 한다(같은 커넥션이면 락을 쥔 채 자기를 기다린다).
