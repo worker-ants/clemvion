@@ -114,11 +114,26 @@ e2e 는 #1372 의 행 락 기법 그대로: 테스트가 `workspace_member` 행�
   전수 조사가 아홉 자리를 찾았으므로 «다섯 경로» 라 쓰면 곧 stale 이 된다. W3(번들 예산 절단)은
   harness 사안이고 checker 가 수동 Read 로 보완해 실질 영향 없음을 확인했다.
   **W4 가 아래 C-2 를 붙든다** — «프로브 전에는 `plan/complete/` 로 옮기지 말 것»
-- [ ] **e2e 로 결함 재현** (고치기 전 실측을 숫자로 기록)
-- [ ] C-1 자가 탈퇴 경로가 이미 닫혀 있음을 실증
-- [ ] C-2 owner 승격 TOCTOU 프로브 — 재현 여부와 근거를 기록
-- [ ] 단위 테스트 + 구현 (대조군 포함, 뮤턴트 유효성 확인 후 kill 수 읽기)
-- [ ] TEST WORKFLOW (lint · unit · build · e2e)
+- [x] **e2e 로 결함 재현** — 고치기 전 `[200, 200]` 이었고(공허성 가드 통과), DB 를 직접 조회해
+  한 `memberId` 에 `member.removed`(`mode='removed'`) 감사가 **2건**임을 확인했다
+- [x] C-1 자가 탈퇴 경로가 이미 닫혀 있음을 **실증** — 두 자가 탈퇴가 겹치면 `[200, 403]`,
+  진 쪽 코드는 `NOT_A_MEMBER`, `mode='left'` 감사 1건. 영구 테스트로 고정했다(위임 경계가
+  사라지면 같은 결함이 이 라우트로 되돌아온다)
+- [x] C-2 owner 승격 TOCTOU 프로브 — **재현됐다**. 레이스로는 인터리빙을 못 고르므로
+  재진입으로 만들었다(locker 가 행을 쥔 채 요청을 대기시키고, 락을 놓기 직전 자신이
+  `role='owner'` 로 UPDATE — `transferOwnership` 이 그 행에 가하는 효과의 대역).
+  **실측 `status=200`, `rows_remaining=0`** — owner 가 지워졌고 요청은 성공했다.
+  계약이 다른 별 사안이라 **트래커에 재현 레시피·후보 처방과 함께 등재**했고, 유예 사유는
+  비용이 아니라 «`affected === 0` 의 판별자 오염» 이다(이 PR 이 세우는 것이 바로 그 판별자다).
+  프로브 파일은 커밋하지 않고 지웠다
+- [x] 단위 테스트 + 구현 — 뮤턴트 **둘**이 각각 예측과 일치했다:
+  (a) `=== 0` → `!affected` → **대조군 2건 RED**(예측 2), (b) 404 분기 제거(147자, 고유 앵커로
+  유효성 확인) → **진 쪽 테스트 1건 RED**(예측 1). 원복은 `cp` 백업으로 했고 `git status` 클린 확인.
+  **부수 발견**: 기존 테스트 `records member.removed (mode=removed) on admin removeMember`
+  (`:1280`)가 공유 mock 기본값 `{affected: 0}` 때문에 깨졌다 — 그 테스트의 전제(«한 행이 실제로
+  지워졌다»)를 mock 이 말하도록 한 줄 명시했다. **착수 때 «removeMember 단위 테스트가 하나도
+  없다» 고 적었던 것은 틀렸다** — `head -30` 으로 잘린 grep 을 전수로 읽은 것이다
+- [x] TEST WORKFLOW — lint PASS · unit PASS · build PASS · **e2e 374 PASS**
 - [ ] `/ai-review` → 수렴
 - [ ] `/consistency-check --impl-done spec/2-navigation` → BLOCK: NO
 - [ ] 트래커 항목 해소 + 이 plan `plan/complete/` 로
