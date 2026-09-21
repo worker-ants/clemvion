@@ -212,7 +212,20 @@ owner: planner
       (첫 사실 오류는 각주로 남겼는데 두 번째 정정은 무각주). 소스 주석은 "지금 맞는
       사실" 만 진술하고 정정 이력은 git/CHANGELOG/plan 에 맡기는 쪽으로 정리한다.
       **다음에 이 파일을 확장할 때** 함께 처리 — 지금 단독으로 건드릴 이유는 없다.
-- [ ] 동시 삭제 중복 감사 (W7, 기존 `auth-configs` 패턴과 함께) — 우선순위 낮음.
+- [x] ~~동시 삭제 중복 감사 (W7, 기존 `auth-configs` 패턴과 함께) — 우선순위 낮음.~~
+      **2026-09-21 해소** — `auth-configs` 자리는 `plan/complete/authconfig-dup-delete.md`
+      (일곱 번째)가 닫았다. 그런데 **이 한 줄이 가리킨 것은 한 자리가 아니라 결함 클래스
+      전체였다**: 2026-09-20~21 의 전수 조사에서 «리소스 행을 지우고 감사를 남기는 요청» 이
+      **아홉 자리**로 드러났고, 그중 일곱이 닫혔다(#1369 워크플로·워크스페이스 / #1370 트리거 /
+      #1371 스케줄 / #1372 통합 / #1373 멤버 / 이 PR 인증 설정).
+      **남은 둘**(`ModelConfigService.remove()` · WebAuthn credential 삭제)은
+      `plan/in-progress/spec-draft-nullable-notation-followups.md` 가 개별 항목으로 추적한다 —
+      완료 판정은 그쪽이 소유한다(중복 소유 방지).
+
+      > **왜 이 줄이 1년 가까이 열려 있었나**: «우선순위 낮음» 한 줄로 적혀 있어 크기를
+      > 가늠할 수 없었다. 실제로는 아홉 자리에 걸친 클래스였고, 자리마다 처방이 달랐다
+      > (행 락 · advisory lock · CASCADE 판별자 · 락 없는 원자적 DELETE). **한 줄짜리 백로그가
+      > 클래스를 가릴 수 있다** 는 것이 이 항목의 교훈이다.
 - [~] **[보안·별도 트랙] `@Roles()` 미부착 라우트의 워크스페이스 멤버십 검증 누락** —
       **2026-08-08 전용 plan 으로 이관**: [`auth-workspace-membership-guard.md`](../complete/auth-workspace-membership-guard.md).
       완료 판정은 그 plan 이 소유한다(중복 소유 방지). 이관 사유 = 본 plan 은 `owner: planner`

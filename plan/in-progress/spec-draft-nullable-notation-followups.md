@@ -4914,7 +4914,13 @@ field: T | null;
       같은 diff 에서 그 의미를 흐리고 싶지 않았다. 후보 처방의 새 분기는 자체 테스트와
       뮤턴트가 필요하다. (비용이 아니라 **판별자 오염**이 유예 사유다.)
 
-- [ ] **`AuthConfigsService.remove()` 도 동시 삭제에서 감사 행을 두 번 남긴다 — 일곱 번째**
+- [x] **`AuthConfigsService.remove()` 도 동시 삭제에서 감사 행을 두 번 남긴다 — 일곱 번째**
+      **2026-09-21 해소** (`plan/complete/authconfig-dup-delete.md`). 처방은 예고대로 원자적
+      `delete({ id, workspaceId })` 의 `affected === 0` → 404 `RESOURCE_NOT_FOUND`.
+      e2e 로 먼저 재현했다 — 고치기 전 `[204, 204]` · `auth_config.delete` 감사 **2건**,
+      고친 뒤 `[204, 404]` · **1건**. 같은 턴에 `spec-sync-auth-gaps.md:215` 의 **이중 추적**
+      항목도 함께 닫았다(`--impl-prep` plan_coherence W2 가 찾아냈다).
+      남은 자리는 **여덟 번째 `ModelConfigService.remove()` · 아홉 번째 WebAuthn** 둘이다.
       (developer, 낮음, 2026-09-21 등재 · `member-dup-remove.md` §A 전수 조사).
       `auth-configs.service.ts:287` — 무락 `findById` → `remove(config)` → `AUTH_CONFIG_DELETE` 감사.
       형제 여섯과 같은 형태이고 락이 없으므로 처방도 같다(원자적 `delete` 의 `affected === 0`).

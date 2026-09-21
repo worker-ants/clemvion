@@ -1,6 +1,6 @@
 ---
 title: 인증 설정 동시 삭제도 감사 행을 두 번 남긴다 — 일곱 번째 자리
-status: in-progress
+status: complete
 owner: developer
 worktree: authconfig-dup-delete-7e3a1c
 started: 2026-09-21
@@ -93,6 +93,27 @@ e2e 는 #1372·#1373 의 행 락 기법 그대로: 테스트가 `auth_config` �
       `DeleteResult` 에 대입되지 않는 것, 그리고 캐스트를 넣어도 mock 팩토리의 **추론된 리터럴
       반환 타입**이 `mockResolvedValueOnce` 의 파라미터를 좁혀 여전히 거부하는 것. 팩토리에
       `Promise<DeleteResult>` 를 명시해 닫았다 — jest 도 `nest build` 도 못 보는 자리다
-- [ ] `/ai-review` → 수렴
-- [ ] `/consistency-check --impl-done spec/2-navigation` → BLOCK: NO
-- [ ] 트래커 항목 해소 + 이 plan `plan/complete/` 로
+- [x] `/ai-review` → **2라운드로 수렴** (정지 규칙 첫째 절: Critical·Warning 0).
+      라운드 1 `review/code/2026/09/21/15_18_16` Critical 0 · **Warning 1** →
+      그 Warning 은 **제가 두 번 연속 빠뜨린 CHANGELOG 관례**였다. 실측하니 #1370·#1371·#1372
+      항목은 있는데 **#1373(멤버 제거)이 없었다** — 이번 항목과 **#1373 backfill 을 함께** 넣었다.
+      INFO 4건(죽은 `remove` mock 제거 · `findById` JSDoc 호출자 목록 실측 갱신 ·
+      e2e 감사 쿼리 `resource_type` 필터 · no-op `mockClear` 제거)도 함께 조치.
+      라운드 2 `review/code/2026/09/21/15_45_04` **Critical 0 · Warning 0**(`RESOLUTION.md`).
+      그 라운드 상단의 «워킹트리에 미커밋 뮤테이션이 떠 있다» 경고는 **실측으로 부정**했다 —
+      HEAD·워킹트리 둘 다 `if (affected === 0)` 정상
+- [x] `/consistency-check --impl-done spec/2-navigation` → `review/consistency/2026/09/21/15_55_40`
+      **BLOCK: NO · Critical 0 · Warning 0** (5 checker 전원 위험도 NONE)
+- [x] 트래커 항목 해소 + 이 plan `plan/complete/` 로 —
+      **두 곳을 닫았다**: `spec-draft-nullable-notation-followups.md` 의 일곱 번째 항목과,
+      `spec-sync-auth-gaps.md:215` 의 2026-08 발 «동시 삭제 중복 감사 (W7, 기존 `auth-configs`
+      패턴과 함께)». 후자는 `--impl-prep` plan_coherence W2 가 찾아낸 **이중 추적**이다
+
+## 이 PR 이 남긴 사실 정정 둘
+
+1. **#1373 에 등재한 「`RolesGuard` 가 없다」가 틀렸다** (`893365572`). 전역 `APP_GUARD` 다.
+   결론은 유지되지만 이유가 더 넓다 — 같은 컨트롤러 **17개 중 13개**가 `@WorkspaceId()` 대신
+   경로 파라미터를 써서 가드의 단축 경로로 빠진다. 완료된 `auth-workspace-membership-guard.md`
+   의 모집단은 이들을 **구성상** 포함하지 않는다.
+2. **RESOLUTION 에 e2e 를 «376» 이라 적었다가 로그를 열어 «375» 로 고쳤다.** 안 보고 쓴 숫자였다.
+   이후 숫자를 쓰는 자리마다 로그 파일명을 함께 적는다.
