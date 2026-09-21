@@ -1,0 +1,24 @@
+{
+  "version": 1,
+  "started_at": "2026-09-21T16:50:00Z",
+  "summary_items_total": 3,
+  "items_resolved_ids": [1, 2],
+  "items_pending_ids": [],
+  "items_escalated_ids": {},
+  "items_decided_no_action": {"3": "decision-fixed-not-deferred-see-plan"},
+  "commits_made": [
+    {"sha": "6a5571e70", "summary_id": "INFO11+INFO2", "scope": "model-config"},
+    {"sha": "153152d85", "summary_id": "INFO1", "scope": "model-config"},
+    {"sha": "5f797583f", "summary_id": "WARNING1+WARNING2", "scope": "changelog"},
+    {"sha": "01c6130f5", "summary_id": "WARNING3", "scope": "plan"}
+  ],
+  "spec_drafts_pending": [],
+  "spec_drafts_applied": [],
+  "e2e_attempts": 1,
+  "e2e_last_status": "pass",
+  "e2e_log_paths": ["_test_logs/e2e-20260921-170154.log"],
+  "auto_fix_iterations": {},
+  "escalation_reason": null,
+  "last_reset_hint_sec": null,
+  "note": "WARNING1,2 는 CHANGELOG 편집으로 해소. WARNING3 은 코드 무수정 — plan 의 '이 PR 이 하지 않는 것' 절을 결정-시점 고정으로 재작성해 처리(main 지시대로 유예 아님). INFO 1/2/11 도 함께 처리(SUMMARY 카운트 대상 아님)."
+}

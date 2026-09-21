@@ -1,5 +1,50 @@
 # Changelog
 
+## Unreleased — 동시 DELETE 두 건이 `model_config.delete` 감사 행을 두 번 남기던 것
+
+`ModelConfigService.remove()` 는 잠금 없는 `findEntity` 로 존재를 확인한 뒤
+`repo.remove(config)` → 캐시 무효화 통지 → 감사 기록 순서였다. `remove(entity)`
+는 0행이어도 던지지 않으므로, 동시 DELETE 두 건이 잠금 없는 선조회를 모두
+통과하면 먼저 커밋한 쪽이 행을 지운 뒤에도 진 쪽이 그대로 진행해
+`model_config.delete` 감사를 한 번 더 남겼다 — 같은 결함 클래스의 여덟 번째
+자리다(워크플로·워크스페이스 #1369, 트리거 #1370, 스케줄 #1371, 통합 #1372,
+멤버 제거 #1373, 인증 설정 #1374).
+
+**직전 항목(#1374, 일곱 번째)이 남긴 예고는 과장이었다** — 「캐시 무효화
+통지 `notifyInvalidated` 중복까지 함께 있음」이라 적었는데, 실제로는 중복
+통지가 고쳐야 할 별개 결함이 아니라 아래 수정이 진 쪽에서 함께 건너뛰게
+되는 부수 효과였다(위 항목에 취소선으로 정정).
+
+**판별자가 형제와 같은 이유**: 통합(#1372)·멤버 제거(#1373)·인증 설정
+(#1374)과 마찬가지로 이 경로엔 **락이 아예 없다** — advisory lock 도 행
+락도 들이지 않았다. 락을 새로 들이는 대신 원자적 `DELETE … WHERE id = $1
+AND workspace_id = $2` 한 문장의 원자성에 기대어, 그 `affected` 를 판별자로
+쓴다.
+
+**고친 것**:
+- `repo.remove(config)` 를 원자적 `delete({ id, workspaceId })` 로 바꾸고,
+  `affected === 0`(명시 비교)을 판정자로 삼는다 — 0 이면 404 로 끝나고 캐시
+  무효화 통지도 감사도 건너뛴다. 이 모듈의 404 코드는 형제들의
+  `RESOURCE_NOT_FOUND` 가 아니라 도메인 고유 **`MODEL_CONFIG_NOT_FOUND`** 다
+  — 진 쪽은 `findEntity` 실패와 같은 코드를 받아야 한다. `remove(entity)` →
+  `delete(criteria)` 전환은 동작을 바꾸지 않는다(실측) — `ModelConfig` 에
+  `cascade: true` 도 `@OneToMany` 도 없고 저장소 전체에 ORM 라이프사이클
+  훅이 0건이다. 참조 FK 둘(`knowledge_base.rerank_config_id` · KB embedding)
+  은 모두 `ON DELETE SET NULL`(DB 레벨)이라 두 방식 모두 동일하게 발화한다.
+- `private notFound()` 헬퍼가 이미 있어(`findEntity` 가 쓰던 것) 이 계열에서
+  처음으로 헬퍼 추출이 불필요했다 — 형제 다섯(#1370~#1374)은 전부 추출이
+  필요했다.
+- 감사 payload 에 싣는 `kind` 는 `delete(criteria)` 가 엔티티를 건드리지
+  않으므로 `findEntity` 조회 결과에서 그대로 읽는다.
+
+**판별력 실측**: 고치기 전 e2e 로 재현하니 동시 DELETE 두 건이 **둘 다
+204** 였고, DB 를 직접 조회해 `model_config.delete` 감사 행이 **한 `id` 에
+2건** 임을 확인했다(고친 코드는 `[204, 404]` · 감사 1건).
+
+**남는 것**: 같은 결함 클래스의 마지막 자리는 WebAuthn credential 삭제
+(아홉 번째, 감사가 서비스가 아니라 컨트롤러에 있어 축이 다름) —
+`plan/in-progress/spec-draft-nullable-notation-followups.md` 에 등재.
+
 ## Unreleased — 동시 DELETE 두 건이 `auth_config.delete` 감사 행을 두 번 남기던 것
 
 `AuthConfigsService.remove()` 는 잠금 없는 `findById` 로 존재를 확인한 뒤
@@ -38,10 +83,16 @@
 2건** 임을 확인했다(고친 코드는 `[204, 404]` · 감사 1건).
 
 **남는 것**: 같은 결함 클래스의 남은 두 자리는 `ModelConfigService.remove()`
-(여덟 번째, 캐시 무효화 통지 `notifyInvalidated` 중복까지 함께 있음)와
+(여덟 번째, ~~캐시 무효화 통지 `notifyInvalidated` 중복까지 함께 있음~~)와
 WebAuthn credential 삭제(아홉 번째, 감사가 서비스가 아니라 컨트롤러에 있어
 축이 다름) — `plan/in-progress/spec-draft-nullable-notation-followups.md` 에
 등재.
+
+> **정정 (2026-09-21, 여덟 번째 PR 실측)**: 위 취소선 문구는 과장이었다.
+> `ModelConfigService.remove()` 의 캐시 무효화 리스너는 `llm.service.ts:81-82`
+> 의 `clearClientCache(configId)` 하나뿐이고, 캐시 축출은 **멱등**이라 두 번
+> 불려도 해롭지 않다. 중복 통지는 고쳐야 할 별개 결함이 아니라, 아래 여덟
+> 번째 항목의 수정이 진 쪽에서 함께 건너뛰게 되는 부수 효과였을 뿐이다.
 
 ## Unreleased — 동시 DELETE 두 건이 `member.removed` 감사 행을 두 번 남기던 것 (#1373 CHANGELOG 누락 backfill)
 

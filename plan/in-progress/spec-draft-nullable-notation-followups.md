@@ -4925,11 +4925,21 @@ field: T | null;
       `auth-configs.service.ts:287` — 무락 `findById` → `remove(config)` → `AUTH_CONFIG_DELETE` 감사.
       형제 여섯과 같은 형태이고 락이 없으므로 처방도 같다(원자적 `delete` 의 `affected === 0`).
 
-- [ ] **`ModelConfigService.remove()` 도 동시 삭제에서 감사 행을 두 번 남긴다 — 여덟 번째**
+- [x] **`ModelConfigService.remove()` 도 동시 삭제에서 감사 행을 두 번 남긴다 — 여덟 번째**
+      **2026-09-21 해소** (`plan/complete/modelconfig-dup-delete.md`). 원자적
+      `delete({ id, workspaceId })` 의 `affected === 0` → 404. e2e 로 먼저 재현했다 —
+      고치기 전 `[204, 204]` · `model_config.delete` 감사 **2건**, 고친 뒤 `[204, 404]` · **1건**.
+      진 쪽 코드는 형제들의 `RESOURCE_NOT_FOUND` 가 아니라 도메인 고유 `MODEL_CONFIG_NOT_FOUND` 다.
+      **등재 시 적은 «캐시 무효화 통지 중복까지» 는 과장이었고** 그 PR 이 정정했다(아래 정정 블록).
+      남은 자리는 **아홉 번째 WebAuthn 하나**다.
       (developer, 낮음, 2026-09-21 등재 · 같은 조사).
       `model-config.service.ts:404` — 무락 `findEntity` → `remove(config)` → `notifyInvalidated(id)`
-      → `MODEL_CONFIG_DELETE` 감사. **`notifyInvalidated` 도 두 번 발화한다** — 이 자리는 감사 중복에
-      더해 캐시 무효화 통지 중복까지 있으므로, 고칠 때 둘 다 진 쪽에서 안 나가는지 확인할 것.
+      → `MODEL_CONFIG_DELETE` 감사. `notifyInvalidated` 도 두 번 발화한다.
+      > **2026-09-21 정정 — 「감사 중복에 더해 캐시 무효화 통지 중복까지 있다」는 과장이었다.**
+      > 리스너는 `llm.service.ts:81-82` 의 `clearClientCache(configId)` 하나뿐이고 캐시 축출은
+      > **멱등**이라, 두 번 불려도 해로운 결과가 없다. 중복 통지는 **고쳐야 할 별개 결함이
+      > 아니라** 이 수정이 진 쪽에서 함께 건너뛰게 되는 부수 효과다. 등재 시점에 리스너를
+      > 따라가 보지 않고 «중복이면 나쁘다» 로 적었다.
 
 - [ ] **WebAuthn credential 삭제도 동시 요청에서 `user.2fa_disabled` 감사를 두 번 남긴다 — 아홉 번째**
       (developer, 낮음, 2026-09-21 등재 · 같은 조사).
@@ -4940,6 +4950,22 @@ field: T | null;
       부수 효과가 하나 더 있다: 진 쪽도 `countCredentials` 가 0을 보면 `webauthnRecoveryCodes: null`
       쓰기를 한 번 더 한다. 판정을 서비스에 두면 `{ remaining }` 계약을 바꾸게 되므로, 반환 형태를
       건드리지 않는 방법(진 쪽에서 404)을 먼저 검토할 것.
+
+      > **착수 선행 조건 (2026-09-21, 여덟 번째 PR 이 건 게이트)** — 이것이 **이 계열의 마지막
+      > 자리**이므로, 반복된 구조 중복을 판단할 마지막 시점이다. 착수 시점에 아래 둘을
+      > **결정하고 그 결정(추출하거나, 추출하지 않기로 한 새 근거)을 그 PR 의 plan 에 적는다.**
+      > 미이행 시 착수하지 않는다:
+      > 1. **동시성 e2e 공용 헬퍼 추출** — 같은 구조의 e2e 가 여덟 파일이다(`*-delete-concurrency` 일곱
+      >    + `member-remove-concurrency`). 리뷰가 두 라운드 연속 권고했고 «또 유예하면 근거 없는
+      >    반복» 이라고 지적했다.
+      > 2. **`affected` 판별자 유틸 최소 추출**(`isDeleteMiss()` 류) — «무락 조회 → 원자적 DELETE →
+      >    `affected === 0` 명시 비교» 관용구가 서비스 여덟 곳에 손으로 복제돼 있다.
+      >    #1371 에서 이 불변식이 빠졌을 때 `!affected` 뮤턴트가 32건을 통과한 전례가 있다
+      >    (`review/code/2026/09/21/17_08_12` architecture).
+      >
+      > 근거: `plan/complete/modelconfig-dup-delete.md` §«이 PR 이 하지 않는 것». **그 plan 은
+      > archive 되므로 이 줄이 실제로 읽히는 유일한 자리다** — `--impl-done`
+      > `review/consistency/2026/09/21/17_17_08` W1 이 그 점을 지적해 여기에 미러링했다.
 
 - [ ] **`integrations.service.spec.ts:131` 의 `remove` mock 스텁이 죽었다**
       (developer, 매우 낮음, 2026-09-21 등재 · `review/code/2026/09/21/11_32_06` INFO 2).
@@ -4960,7 +4986,10 @@ field: T | null;
       >
       > 2026-09-21 기준 자리: `1-workflow-list.md` §2.6 · `data-flow/12-workspace.md` §1.10 ·
       > `3-schedule.md` §4 · `4-integration.md` §9 · `9-user-profile.md` §6.1 ·
-      > `data-flow/12-workspace.md` §1.6 · **`6-config.md` §A(`DELETE /api/auth-configs/:id`)**.
+      > `data-flow/12-workspace.md` §1.6 · **`6-config.md` §A(`DELETE /api/auth-configs/:id`)** ·
+      > **`6-config.md` §Model Config API(`DELETE /api/model-configs/:id`)**.
+      > — `6-config.md` 한 파일 안에 **두 행**이라는 점에 주의: 파일 단위로 훑으면 한 행만 고치고
+      > 끝낼 수 있다(`--impl-prep` `review/consistency/2026/09/21/16_16_35` W1).
       > `5-system/12-webhook.md`·`1-auth.md` 는 `auth-configs.service.ts` 를 `code:` 로 지목하지만
       > 삭제 계약을 서술하지 않으므로 대상 아님(2026-09-21 직접 확인).
       >
