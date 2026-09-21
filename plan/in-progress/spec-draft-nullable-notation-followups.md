@@ -4972,6 +4972,33 @@ field: T | null;
       > archive 되므로 이 줄이 실제로 읽히는 유일한 자리다** — `--impl-done`
       > `review/consistency/2026/09/21/17_17_08` W1 이 그 점을 지적해 여기에 미러링했다.
 
+- [ ] **`3-error-handling.md` §1.11 의 «`_NOT_FOUND`≠404 는 이 저장소에서 유일한 예외» 가 거짓이다**
+      (planner, **중간**, 2026-09-21 등재 · `--impl-prep` `review/consistency/2026/09/21/17_39_06` W1).
+
+      **실측**: `WEBAUTHN_CREDENTIAL_NOT_FOUND` 는 카탈로그에 **등재돼 있지 않고**, 게다가
+      **같은 코드가 두 status 로 나간다** — `webauthn.service.ts:403` 이 `UnauthorizedException`(**401**),
+      `:497`·`:504`·`:527` 이 `NotFoundException`(**404**).
+
+      > **리뷰어는 «두 번째 예외» 라고 했지만 정확히는 그보다 나쁘다.** `AUTH_CONFIG_NOT_FOUND`
+      > 는 **항상** 400 이라 «예외이되 일관» 하다. `WEBAUTHN_CREDENTIAL_NOT_FOUND` 는
+      > **한 코드가 401 과 404 를 오간다** — 클라이언트가 코드로 분기할 수 없다.
+
+      **401 자리는 의도적으로 보인다**: `verifyAuthentication`(로그인 2FA 검증) 안이라, 미인증
+      호출자에게 credential 존재 여부를 노출하지 않으려는 선택이다. 그렇다면 처방은 «401 을
+      404 로 바꾸기» 가 아니라 **코드를 쪼개는 것**이고, 그 선례를 spec 자신이 인용하고 있다 —
+      `MODEL_CONFIG_NOT_FOUND`(404) / `MODEL_CONFIG_DEFAULT_MISSING`(400) 분리(2026-06-12 결정).
+
+      **집행 시 할 일**: (1) 코드를 `3-error-handling.md` §1.2.1 에 등재, (2) §1.11 의 «유일한
+      예외» 문장을 실측에 맞게 정정, (3) `1-auth.md` §5 의 해당 행들에 코드명 명시,
+      (4) 401/404 분리 여부 결정.
+
+      **부수 — 내가 이 거짓 문장을 코드 주석에 인용했다**: `auth-configs.service.ts:148`
+      (#1374 에서 내가 쓴 `throwAuthConfigNotFound()` JSDoc)이 «§1.11 이 «이 저장소의 유일한
+      `_NOT_FOUND`≠404 예외» 로 명시한 자리» 라고 적는다. **그 주석의 주된 용도(400
+      `AUTH_CONFIG_NOT_FOUND` 와 404 `RESOURCE_NOT_FOUND` 를 가르는 것)는 여전히 유효**하고
+      괄호 안 «유일한» 만 틀렸다. spec 정정과 **같은 턴에** 그 한 구도 고칠 것 — 따로 두면
+      spec 은 고쳐지고 주석만 거짓으로 남는다.
+
 - [ ] **동시성 e2e 아홉 파일의 공용 헬퍼를 추출한다 — 테스트 전용 PR**
       (developer, 중간, 2026-09-21 등재 · 아홉 번째 PR 의 착수 게이트 **결정 1**).
       **추출 여부는 이미 결정됐다 — 「할지 말지」가 아니라 「하는 것」이 이 항목이다.**
@@ -5042,7 +5069,9 @@ field: T | null;
       > 2026-09-21 기준 자리: `1-workflow-list.md` §2.6 · `data-flow/12-workspace.md` §1.10 ·
       > `3-schedule.md` §4 · `4-integration.md` §9 · `9-user-profile.md` §6.1 ·
       > `data-flow/12-workspace.md` §1.6 · **`6-config.md` §A(`DELETE /api/auth-configs/:id`)** ·
-      > **`6-config.md` §Model Config API(`DELETE /api/model-configs/:id`)**.
+      > **`6-config.md` §Model Config API(`DELETE /api/model-configs/:id`)** ·
+      > **`5-system/1-auth.md` §5(`DELETE /api/auth/2fa/webauthn/credentials/:id`, `:498`)**
+      > — 아홉 번째이자 **이 계열의 마지막** 자리이고, `2-navigation` 밖의 유일한 자리다.
       > — `6-config.md` 한 파일 안에 **두 행**이라는 점에 주의: 파일 단위로 훑으면 한 행만 고치고
       > 끝낼 수 있다(`--impl-prep` `review/consistency/2026/09/21/16_16_35` W1).
       > `5-system/12-webhook.md`·`1-auth.md` 는 `auth-configs.service.ts` 를 `code:` 로 지목하지만

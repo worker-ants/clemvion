@@ -529,7 +529,34 @@ export class WebAuthnService {
         message: '인증기를 찾을 수 없어요.',
       });
     }
-    await this.credentialRepo.delete({ id: credentialUuid });
+    // 위 `findOne` 은 잠그지 않으므로 동시 삭제 두 건이 **둘 다** 여기까지 온다. 종전엔
+    // `delete()` 의 `affected` 를 **버렸기 때문에** 둘 다 성공으로 끝났고, 감사를 남기는
+    // 호출자(`WebAuthnController`)가 `user.2fa_disabled` 를 **두 번** 기록했다
+    // (실측: 한 credentialId 에 감사 2건, 둘 다 `remainingCredentials: 1`).
+    //
+    // 형제 여덟(#1369~#1375)과 달리 이 자리는 이미 원자적 `delete()` 를 쓰고 있었다 —
+    // 바꾸는 것은 호출 형태가 아니라 **그 반환값을 판정에 쓰는 것**이다.
+    //
+    // 판정은 `affected === 0` **명시 비교**다. `null`·`undefined` 는 드라이버가 «보고하지
+    // 않았다» 는 뜻이지 «지우지 못했다» 가 아니며, 그것을 0 과 같이 읽으면 정상 삭제를 404 로
+    // 뒤집는다 (같은 규율: `rewriteTriggerConfigLocked`).
+    //
+    // 조건절에 `userId` 를 함께 건다 — 종전엔 `{ id }` 뿐이라 소유권이 위 무락 조회 뒤의 JS
+    // 비교로만 남았다. 형제들이 워크스페이스 스코프를 조건절에 넣은 것과 같은 강화다.
+    //
+    // 진 쪽이 여기서 던지므로 아래 `countCredentials`·복구 코드 NULL 화도 함께 건너뛴다.
+    // 반환 계약 `{ remaining }` 은 그대로다 — 이긴 쪽만 도달한다.
+    const { affected } = await this.credentialRepo.delete({
+      id: credentialUuid,
+      userId,
+    });
+    if (affected === 0) {
+      throw new NotFoundException({
+        code: 'WEBAUTHN_CREDENTIAL_NOT_FOUND',
+        message: '인증기를 찾을 수 없어요.',
+      });
+    }
+
     const remaining = await this.countCredentials(userId);
     if (remaining === 0) {
       // 애플리케이션 레이어 책임 — DB 트리거 아님 (spec/1-data-model.md §2.1)
