@@ -4816,6 +4816,27 @@ field: T | null;
       **2026-09-21 정정 — 「여섯 번째」는 맞지만 「마지막」이 또 틀렸다**: 착수 전 전수 조사
       (`plan/in-progress/member-dup-remove.md` §A)에서 **세 자리가 더** 나왔다. 아래 세 항목이다.
 
+- [ ] **`removeMember()` 의 권한 검사가 대상 조회·owner 판정보다 뒤에 있어 존재 오라클이 된다**
+      (developer, **중간**, 2026-09-21 등재 · `/ai-review` `review/code/2026/09/21/12_57_05` WARNING 1).
+      순서가 `findOne`(`:783`) → 404 → self 위임 → owner 403 → `assertAdmin`(`:803`) 이라,
+      요청자가 그 워크스페이스 멤버가 아니어도 `(workspaceId, memberId)` 쌍에 대해 **세 갈래로
+      구분되는 응답**을 받는다: 없음 `404 MEMBER_NOT_FOUND` · 있고 owner `403 CANNOT_REMOVE_OWNER` ·
+      있고 비-owner `403 ADMIN_REQUIRED`. 같은 파일의 형제 Admin+ 메서드
+      (`addMemberByEmail:256` · `updateMemberRole:306`)는 `assertAdmin` 을 **가장 먼저** 부른다.
+
+      **직접 실측으로 리뷰어 지적을 한 칸 더 확인했다**: `workspaces.controller.ts` 는
+      `@UseGuards(JwtAuthGuard)` 뿐이고 **`RolesGuard` 가 없다**(`@Roles` 는 `:246` 한 곳뿐).
+      그리고 `workspaceId` 는 헤더가 아니라 **경로 파라미터 `:id`** 에서 온다. 즉 상류에서
+      멤버십을 막는 것이 아무것도 없어, 인증된 아무 사용자나 이 핸들러에 도달한다.
+      **다만 열거는 불가능하다** — 두 ID 가 모두 UUID(`ParseUUIDPipe`)라 다른 경로로 새어야
+      쓸 수 있는 오라클이다. 삭제 자체는 `assertAdmin` 이 여전히 막는다(권한 상승 아님).
+
+      **왜 그 PR 에서 함께 고치지 않았나**: 올바른 처방이 «`assertAdmin` 을 맨 앞으로» 가
+      **아니기** 때문이다 — 자가 탈퇴는 비-admin 도 해야 하므로 self 위임 분기와 맞물려야 하고,
+      비-admin 이 owner 를 지목했을 때의 코드가 `CANNOT_REMOVE_OWNER` → `ADMIN_REQUIRED` 로
+      **바뀐다**. 에러 코드 계약 변경이라 `spec/5-system/3-error-handling.md` 기준의 자체
+      consistency 라운드가 필요하다. 동시성 수정과 섞으면 정확히 리뷰어들이 지적해 온 스코프 혼입이다.
+
 - [ ] **`removeMember()` 의 owner 보호 가드가 TOCTOU 로 뚫린다 — 실측 확인됨**
       (developer, **중간**, 2026-09-21 등재 · `member-dup-remove.md` §C-2 프로브).
       `workspaces.service.ts:797` 의 «owner 는 제거할 수 없다» 가드가 **무락 `findOne`** 위에 있다.
