@@ -1,6 +1,6 @@
 ---
 title: 통합 동시 DELETE 도 감사 행을 두 번 남긴다 — 락이 없는 경로라 처방이 다르다
-status: in-progress
+status: complete
 owner: developer
 worktree: integration-dup-delete-9e52a7
 started: 2026-09-21
@@ -86,6 +86,22 @@ e2e 는 형제들과 같은 기법이되 **행 락**을 쓴다(이 경로엔 adv
   (b) `=== 0` → `!affected` → **대조군** RED. 형제 PR(#1371)에서 (b) 뮤턴트가 32건을 통과했던 자리를
   이번엔 처음부터 덮었다
 - [x] TEST WORKFLOW — lint PASS · unit PASS · build PASS · **e2e 372 PASS**
-- [ ] `/ai-review` → 수렴
-- [ ] `/consistency-check --impl-done spec/2-navigation` → BLOCK: NO
-- [ ] 트래커 항목 해소 + 이 plan `plan/complete/` 로
+- [x] `/ai-review` → **2라운드로 수렴**. 라운드 1(`review/code/2026/09/21/10_54_47`) Critical 0 · Warning 3 →
+  전부 조치(`RESOLUTION.md`), 라운드 2(`review/code/2026/09/21/11_32_06`) **Critical 0 · Warning 0**.
+  **W1 은 내가 만든 결함이었다** — `remove()` → `delete()` 전환으로 그 이전부터 있던 conflict-path 단언
+  2건이 없는 mock 을 겨냥하게 돼 vacuous 해졌다(리뷰어가 뮤테이션으로 실측). 교체 후 같은 뮤턴트가
+  두 테스트를 RED 로 만드는 것을 재실측했다(`Received number of calls: 1`)
+- [x] `/consistency-check --impl-done spec/2-navigation` → `review/consistency/2026/09/21/11_42_00`
+  **BLOCK: NO** (Critical 0 · Warning 1). Warning 1 은 **새 표면**이라 트래커 스코프를 넓혀 닫았다 —
+  `spec/5-system/2-api-convention.md` §3 의 HTTP 메서드 표가 `DELETE` 를 멱등 `O` 로 적는데,
+  이 계열 다섯 경로가 이제 진 쪽에 404 를 준다. 앞선 네 항목이 «안 적혀 있다» 였다면 이것은
+  **적힌 것과 다르게 동작한다** — planner 소유라 각주 추가로 등재했다. INFO 4(다섯 e2e 파일이
+  어느 spec 의 `code:` 에도 없다)도 별 항목으로 등재했다
+- [x] 트래커 항목 해소 + 이 plan `plan/complete/` 로
+
+## 수렴 시점에 미룬 것 (등재로 갈음)
+
+- `integrations.service.spec.ts:131` 의 죽은 `remove` mock 스텁 (라운드 2 INFO 2). 리뷰어는 «다음 근접
+  편집에서» 라고 적었지만 이 계열의 다음 PR 은 workspaces 를 건드리므로 그 편집은 오지 않는다 —
+  산문이 아니라 트래커 항목으로 남겼다. 한 줄 삭제가 리뷰 freshness 를 재무장시켜 라운드를 한 번 더
+  돌리는 자리라 `developer` SKILL §수렴 예외 (a)(b)(c)(d) 에 해당한다.
