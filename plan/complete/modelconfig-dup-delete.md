@@ -1,6 +1,6 @@
 ---
 title: 모델 설정 동시 삭제도 감사 행을 두 번 남긴다 — 여덟 번째 자리
-status: in-progress
+status: complete
 owner: developer
 worktree: modelconfig-dup-delete-4b8e2d
 started: 2026-09-21
@@ -97,6 +97,19 @@ e2e 는 형제들의 행 락 기법 그대로: 테스트가 `model_config` 행�
       여전히 참인 계약만 남겼다
 - [x] TEST WORKFLOW — lint PASS · unit PASS · build PASS(타입체크 ratchet 포함) ·
       **e2e 376 PASS** (`_test_logs/e2e-20260921-163527.log`)
-- [ ] `/ai-review` → 수렴
-- [ ] `/consistency-check --impl-done spec/2-navigation` → BLOCK: NO
-- [ ] 트래커 항목 해소 + 이 plan `plan/complete/` 로
+- [x] `/ai-review` → **2라운드로 수렴** (정지 규칙 첫째 절: Critical·Warning 0).
+      라운드 1 `review/code/2026/09/21/16_39_52` Critical 0 · Warning 3 → 전부 조치.
+      **그중 둘이 내 문제였다**: CHANGELOG 관례를 또 빠뜨렸고(이 세션 세 번째, 한 번은 backfill
+      커밋까지 만들어 놓고 반복), 더 중요하게는 **#1374 의 CHANGELOG 에 내가 써 넣은 예고
+      («여덟 번째는 캐시 무효화 통지 중복까지 함께 있음»)를 이번 PR 이 반증했는데 트래커만
+      고치고 배포 이력은 그대로 뒀다** — 취소선으로 정정하고 실측을 함께 실었다.
+      INFO 2 도 내가 쓴 거짓 인과였다(«`isDefault: false` 를 쓰는 이유는 default 스왑 때문» —
+      `remove()` 는 `isDefault` 를 **0회** 참조한다).
+      라운드 2 `review/code/2026/09/21/17_08_12` **Critical 0 · Warning 0**(`RESOLUTION.md`).
+      그 라운드 INFO 5 가 **정정의 근거 자체가 한 줄 어긋났음**을 잡았다(`llm.service.ts:81` 은
+      리스너 선언, `clearClientCache` 호출은 `:82`) — 세 문서를 `:81-82` 로 고쳤다
+- [x] `/consistency-check --impl-done spec/2-navigation` → `review/consistency/2026/09/21/17_17_08`
+      **BLOCK: NO** (Critical 0 · Warning 1). W1: 아래 «이 PR 이 하지 않는 것» 의 착수 선행 조건이
+      **곧 archive 될 이 plan 에만** 있어 실제 착수자가 보는 트래커에는 안 보인다는 지적 —
+      트래커의 WebAuthn 항목에 **미러링했다**. 규칙이 읽히지 않는 자리에 있으면 규칙이 아니다
+- [x] 트래커 항목 해소 + 이 plan `plan/complete/` 로
