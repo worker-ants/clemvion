@@ -1104,6 +1104,7 @@ describe('IntegrationsService', () => {
           service.remove('int-1', 'ws-1', 'user-1'),
         ).resolves.toBeUndefined();
         expect(auditLogsService.record).toHaveBeenCalled();
+        expect(integrationCacheBus.publish).toHaveBeenCalled();
       }
     });
 
@@ -1172,7 +1173,7 @@ describe('IntegrationsService', () => {
       await expect(service.remove('int-1', 'ws-1', 'user-1')).rejects.toThrow(
         ConflictException,
       );
-      expect(integrationRepo.remove).not.toHaveBeenCalled();
+      expect(integrationRepo.delete).not.toHaveBeenCalled();
     });
 
     it('blocks deletion when only an MCP reference exists', async () => {
@@ -1194,7 +1195,7 @@ describe('IntegrationsService', () => {
       await expect(service.remove('int-1', 'ws-1', 'user-1')).rejects.toThrow(
         ConflictException,
       );
-      expect(integrationRepo.remove).not.toHaveBeenCalled();
+      expect(integrationRepo.delete).not.toHaveBeenCalled();
     });
   });
 
