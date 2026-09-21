@@ -1,5 +1,94 @@
 # Changelog
 
+## Unreleased — 동시 DELETE 두 건이 `auth_config.delete` 감사 행을 두 번 남기던 것
+
+`AuthConfigsService.remove()` 는 잠금 없는 `findById` 로 존재를 확인한 뒤
+`authConfigRepository.remove(config)` → 감사 기록 순서였다. `remove(entity)` 는
+0행이어도 던지지 않으므로, 동시 DELETE 두 건이 잠금 없는 선조회를 모두
+통과하면 먼저 커밋한 쪽이 행을 지운 뒤에도 진 쪽이 그대로 진행해
+`auth_config.delete` 감사를 한 번 더 남겼다 — 같은 결함 클래스의 일곱 번째
+자리다(워크플로·워크스페이스 #1369, 트리거 #1370, 스케줄 #1371, 통합
+#1372, 멤버 제거 #1373).
+
+**판별자가 형제와 같은 이유**: 통합(#1372)·멤버 제거(#1373)와 마찬가지로 이
+경로엔 **락이 아예 없다** — advisory lock 도 행 락도 들이지 않았다. 락을 새로
+들이는 대신 원자적 `DELETE … WHERE id = $1 AND workspace_id = $2` 한 문장의
+원자성에 기대어, 그 `affected` 를 판별자로 쓴다.
+
+**고친 것**:
+- `authConfigRepository.remove(config)` 를 원자적 `delete({ id, workspaceId })`
+  로 바꾸고, `affected === 0`(명시 비교)을 판정자로 삼는다 — 0 이면
+  404(`RESOURCE_NOT_FOUND`)로 끝나고 감사는 건너뛴다. `remove(entity)` →
+  `delete(criteria)` 전환은 동작을 바꾸지 않는다(실측) — `AuthConfig` 에
+  `cascade: true` 도 `@OneToMany` 도 없고 저장소 전체에 ORM 라이프사이클 훅이
+  0건이다. `trigger.auth_config_id` 의 `ON DELETE SET NULL`(DB 레벨)은 두
+  방식 모두 동일하게 발화한다.
+- `affected` 가 `null`·`undefined` 인 것은 드라이버가 «보고하지 않았다» 는
+  뜻이지 «지우지 못했다» 가 아니다 — 그것을 0 과 같이 읽으면 정상 삭제를
+  404 로 뒤집는다(`rewriteTriggerConfigLocked` 가 세운 규율). 그 대조군
+  테스트(`affected` 가 undefined·null 이어도 정상 삭제로 취급)를 처음부터
+  넣었다 — 형제 PR(#1371)에서 이 대조군이 없어 `=== 0` 을 `!affected` 로
+  되돌리는 뮤턴트가 32건 전건 GREEN 으로 살아남았던 자리다.
+- `throwAuthConfigNotFound()` 헬퍼를 형제 넷의 선례를 따라 처음부터
+  추출했다 — `triggers.service.ts` 의 400 `AUTH_CONFIG_NOT_FOUND` 와 이름이
+  가까워, 둘이 다른 자리임을 JSDoc 으로 갈랐다.
+
+**판별력 실측**: 고치기 전 e2e 로 재현하니 동시 DELETE 두 건이 **둘 다 204**
+였고, DB 를 직접 조회해 `auth_config.delete` 감사 행이 **한 `resource_id` 에
+2건** 임을 확인했다(고친 코드는 `[204, 404]` · 감사 1건).
+
+**남는 것**: 같은 결함 클래스의 남은 두 자리는 `ModelConfigService.remove()`
+(여덟 번째, 캐시 무효화 통지 `notifyInvalidated` 중복까지 함께 있음)와
+WebAuthn credential 삭제(아홉 번째, 감사가 서비스가 아니라 컨트롤러에 있어
+축이 다름) — `plan/in-progress/spec-draft-nullable-notation-followups.md` 에
+등재.
+
+## Unreleased — 동시 DELETE 두 건이 `member.removed` 감사 행을 두 번 남기던 것 (#1373 CHANGELOG 누락 backfill)
+
+`WorkspacesService.removeMember()` 는 잠금 없는 `findOne` 으로 존재를 확인한
+뒤 가드(자가/owner/admin)를 통과하면 `memberRepository.remove(member)` →
+감사 기록 순서였다. `remove(entity)` 는 0행이어도 던지지 않으므로, 동시
+제거 두 건이 겹치면 진 쪽도 그대로 진행해 `member.removed` 감사를 한 번 더
+남겼다 — 같은 결함 클래스의 여섯 번째 자리다(워크플로·워크스페이스 #1369,
+트리거 #1370, 스케줄 #1371, 통합 #1372).
+
+**판별자가 형제와 같은 이유**: 통합(#1372)과 마찬가지로 이 경로엔 **락이
+아예 없다** — advisory lock 도 행 락도 들이지 않았다. 락을 새로 들이는
+대신 원자적 `DELETE … WHERE id = $1 AND workspace_id = $2` 한 문장의
+원자성에 기대어, 그 `affected` 를 판별자로 쓴다.
+
+**고친 것**:
+- `memberRepository.remove(member)` 를 원자적 `delete({ id, workspaceId })`
+  로 바꾸고, `affected === 0`(명시 비교)을 판정자로 삼는다 — 0 이면
+  404(`MEMBER_NOT_FOUND`)로 끝나고 감사는 건너뛴다.
+- `MEMBER_NOT_FOUND` 리터럴이 `updateMemberRole`·`removeMember`(두 판정)까지
+  세 곳에 복제돼 있던 것을 형제 선례를 따라 `throwMemberNotFound()` 헬퍼로
+  추출했다.
+
+**형제와 다른 자리 둘**:
+- 이 라우트는 204 가 아니라 `200 {data:{ok:true}}` 다. 착수 전엔 «형제
+  다섯은 전부 204, 이 라우트만 예외» 로 적었는데 틀렸다 — 실측하면 성공
+  코드는 **라우트별이 아니라 컨트롤러별**로 갈린다: `workflows`/`triggers`/
+  `schedules`/`integrations` 컨트롤러는 각각 `HttpCode(204)` 를 1곳씩 쓰고,
+  `workspaces` 컨트롤러는 0곳에서 쓰지 않고 `ok: true` 를 5곳에서 쓴다.
+- 자가 탈퇴와 admin 제거가 `member.removed` 라는 **같은 액션**을 쓰고
+  `details.mode`(`left`/`removed`)로만 갈린다 — 감사를 셀 때 mode 까지
+  걸어야 두 갈래가 섞이지 않는다.
+
+**판별력 실측**: 고치기 전 e2e 로 재현하니 동시 제거 두 건이 **둘 다 200**
+이었고, DB 를 직접 조회해 `member.removed` 감사 행이 **한 memberId 에 2건**
+임을 확인했다(고친 코드는 `[200, 404]` · 감사 1건).
+
+**남는 것**: `removeMember()` 의 권한 검사 순서 오라클, owner 승격 TOCTOU
+(실측 재현), `workspaces.controller.ts` 만 204 대신 200 을 쓰는 것이
+api-convention §6 과 어긋나는 문제는 별도 트래커 항목으로 등재됐고 이 PR
+이 닫지 않는다.
+
+> 이 항목은 원래 PR(#1373)에서 CHANGELOG 추가 없이 병합됐다 — 형제 넷
+> (#1369~#1372)이 지킨 관례를 이 PR 부터 잇지 않은 것을 후속 리뷰
+> (`/ai-review` `review/code/2026/09/21/15_18_16` WARNING 1)가 잡아 여기
+> backfill 한다.
+
 ## Unreleased — 동시 DELETE 두 건이 `integration.deleted` 감사 행을 두 번 남기던 것
 
 `IntegrationsService.remove()` 는 잠금 없는 `findOne` 으로 존재를 확인한 뒤, 사용처 검사

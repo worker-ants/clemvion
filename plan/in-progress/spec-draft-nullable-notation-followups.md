@@ -4842,11 +4842,36 @@ field: T | null;
       있고 비-owner `403 ADMIN_REQUIRED`. 같은 파일의 형제 Admin+ 메서드
       (`addMemberByEmail:256` · `updateMemberRole:306`)는 `assertAdmin` 을 **가장 먼저** 부른다.
 
-      **직접 실측으로 리뷰어 지적을 한 칸 더 확인했다**: `workspaces.controller.ts` 는
-      `@UseGuards(JwtAuthGuard)` 뿐이고 **`RolesGuard` 가 없다**(`@Roles` 는 `:246` 한 곳뿐).
-      그리고 `workspaceId` 는 헤더가 아니라 **경로 파라미터 `:id`** 에서 온다. 즉 상류에서
-      멤버십을 막는 것이 아무것도 없어, 인증된 아무 사용자나 이 핸들러에 도달한다.
-      **다만 열거는 불가능하다** — 두 ID 가 모두 UUID(`ParseUUIDPipe`)라 다른 경로로 새어야
+      ~~**직접 실측으로 리뷰어 지적을 한 칸 더 확인했다**: `workspaces.controller.ts` 는
+      `@UseGuards(JwtAuthGuard)` 뿐이고 **`RolesGuard` 가 없다**(`@Roles` 는 `:246` 한 곳뿐).~~
+
+      > **2026-09-21 정정 — 위 근거는 틀렸다.** `RolesGuard` 는 **전역 `APP_GUARD`** 로 등록돼
+      > 있다(`app.module.ts:213`). 컨트롤러에 `@UseGuards(RolesGuard)` 가 없는 것을 보고
+      > «가드가 없다» 고 결론지은 것이다 — 한 층을 grep 하고 다른 층을 단정했다.
+      >
+      > **결론(상류 차단 없음)은 유지되지만 이유가 다르고, 그 이유가 더 넓다.** 가드는 이
+      > 라우트를 **통과시킨다**: `@Roles()` 가 없어 `needsRoleCheck=false` 이고,
+      > `handlerConsumesWorkspaceId` 가 `ROUTE_ARGS_METADATA` 의 파라미터 팩토리를
+      > `extractWorkspaceId` 와 **identity 비교**하는데 이 핸들러는 `@WorkspaceId()` 가 아니라
+      > `@Param('id')` 로 워크스페이스를 받으므로 false 다 → `roles.guard.ts:114-119` 의
+      > «워크스페이스 컨텍스트 없음 → 통과» 단축 경로가 발화한다.
+      >
+      > **그래서 이것은 한 메서드의 검사 순서 문제가 아니다.** 같은 컨트롤러에서 경로 `:id` 를
+      > 워크스페이스로 쓰면서 `@WorkspaceId()` 도 `@Roles()` 도 없는 라우트가 **17개 중 13개**다
+      > (실측: `update` · `updateSettings` · `getSettings` · `remove` · `leave` · `listMembers` ·
+      > `addMember` · `updateMember` · `removeMember` · `listInvitations` · `createInvitation` ·
+      > `resendInvitation` · `revokeInvitation`). 전부 서비스 계층의 `assertMembership`/
+      > `assertAdmin` 에만 기대고 있다 — **가드 층은 아무것도 주지 않는다.**
+      >
+      > **완료된 `plan/complete/auth-workspace-membership-guard.md`(2026-08-08)가 이 13개를
+      > 닫지 않았다**: 그 plan 의 모집단은 «`@WorkspaceId()` 를 소비하며 `@Roles()` 가 없는
+      > 라우트 73건» 이었고, 경로 파라미터로 워크스페이스를 받는 라우트는 **구성상 그 모집단
+      > 밖**이다. 즉 가드의 커버리지 모델에 구멍이 있는 것이지 개별 라우트의 실수가 아니다.
+      >
+      > 후속 PR 은 이 13개를 한 축으로 보고, 처방을 «검사 순서 재배치» 가 아니라 «가드가
+      > 경로 파라미터 워크스페이스도 보게 할 것인가» 부터 결정해야 한다.
+
+      **열거는 여전히 불가능하다** — 두 ID 가 모두 UUID(`ParseUUIDPipe`)라 다른 경로로 새어야
       쓸 수 있는 오라클이다. 삭제 자체는 `assertAdmin` 이 여전히 막는다(권한 상승 아님).
 
       **왜 그 PR 에서 함께 고치지 않았나**: 올바른 처방이 «`assertAdmin` 을 맨 앞으로» 가
@@ -4889,7 +4914,13 @@ field: T | null;
       같은 diff 에서 그 의미를 흐리고 싶지 않았다. 후보 처방의 새 분기는 자체 테스트와
       뮤턴트가 필요하다. (비용이 아니라 **판별자 오염**이 유예 사유다.)
 
-- [ ] **`AuthConfigsService.remove()` 도 동시 삭제에서 감사 행을 두 번 남긴다 — 일곱 번째**
+- [x] **`AuthConfigsService.remove()` 도 동시 삭제에서 감사 행을 두 번 남긴다 — 일곱 번째**
+      **2026-09-21 해소** (`plan/complete/authconfig-dup-delete.md`). 처방은 예고대로 원자적
+      `delete({ id, workspaceId })` 의 `affected === 0` → 404 `RESOURCE_NOT_FOUND`.
+      e2e 로 먼저 재현했다 — 고치기 전 `[204, 204]` · `auth_config.delete` 감사 **2건**,
+      고친 뒤 `[204, 404]` · **1건**. 같은 턴에 `spec-sync-auth-gaps.md:215` 의 **이중 추적**
+      항목도 함께 닫았다(`--impl-prep` plan_coherence W2 가 찾아냈다).
+      남은 자리는 **여덟 번째 `ModelConfigService.remove()` · 아홉 번째 WebAuthn** 둘이다.
       (developer, 낮음, 2026-09-21 등재 · `member-dup-remove.md` §A 전수 조사).
       `auth-configs.service.ts:287` — 무락 `findById` → `remove(config)` → `AUTH_CONFIG_DELETE` 감사.
       형제 여섯과 같은 형태이고 락이 없으므로 처방도 같다(원자적 `delete` 의 `affected === 0`).
@@ -4919,7 +4950,23 @@ field: T | null;
       재무장돼 라운드가 한 번 더 도는데, 라운드 2가 Critical·Warning 0 으로 수렴한 뒤라
       선언한 정지 규칙(`developer` SKILL §수렴 예외 (a)(b))에 따라 등재로 갈음했다.
 
-- [ ] **`1-workflow-list.md` §2.6 · `data-flow/12-workspace.md` §1.10 · `3-schedule.md` §4 · `4-integration.md` §9 에 «동시 삭제 → 두 번째 404» 서술이 없다**
+- [ ] **삭제 엔드포인트를 적는 spec 들에 «동시 삭제 → 두 번째 404» 서술이 없다**
+      > **2026-09-21 일반화**: 이 항목은 자리를 열거하는 방식으로 적혀 있었고 **다섯 번 확장됐다**
+      > (`3-schedule.md` → `4-integration.md` → `2-api-convention.md §3` → `9-user-profile.md` ·
+      > `data-flow/12-workspace.md §1.6` → 그리고 지금 `6-config.md`). 이 계열이 아홉 자리라
+      > 열거를 유지하면 PR 마다 또 늘어난다. **집행 시 그 시점의 해소된 코드 경로를 기준으로
+      > 재열거할 것** — 아래 목록은 2026-09-21 기준 스냅샷이지 고정 목록이 아니다.
+      > 같은 이유로 `2-api-convention.md §3` 각주는 **경로 수를 세지 말고 계약 문장만** 적는다.
+      >
+      > 2026-09-21 기준 자리: `1-workflow-list.md` §2.6 · `data-flow/12-workspace.md` §1.10 ·
+      > `3-schedule.md` §4 · `4-integration.md` §9 · `9-user-profile.md` §6.1 ·
+      > `data-flow/12-workspace.md` §1.6 · **`6-config.md` §A(`DELETE /api/auth-configs/:id`)**.
+      > `5-system/12-webhook.md`·`1-auth.md` 는 `auth-configs.service.ts` 를 `code:` 로 지목하지만
+      > 삭제 계약을 서술하지 않으므로 대상 아님(2026-09-21 직접 확인).
+      >
+      > 아래는 원래의 열거 서술이다 — 이력으로 남긴다.
+
+      ~~`1-workflow-list.md` §2.6 · `data-flow/12-workspace.md` §1.10 · `3-schedule.md` §4 · `4-integration.md` §9 에 «동시 삭제 → 두 번째 404» 서술이 없다~~
       (planner, 낮음, 2026-09-20 등재 · 같은 세션 api_contract·requirement INFO 8). 트리거 목록 §4.4 만 그 계약을 적는다.
       이제 코드는 세 경로 중 둘이 그렇게 동작하므로(위 두 항목) 문서가 트리거에만 있는 비대칭이 남았다.
       `--impl-prep` 부터 세 라운드 연속 «비차단» 으로 처분됐으니 급하지 않다.
