@@ -1,9 +1,10 @@
 ---
 title: raceUnderHeldLock 의 순수 동기 분기 둘을 실제로 행사한다
-status: in-progress
+status: complete
 owner: developer
 worktree: race-helper-guard-tests-3a7c9d
 started: 2026-09-21
+completed: 2026-09-21
 spec_impact: none
 ---
 
@@ -156,7 +157,17 @@ DB 의존 오케스트레이션(`raceUnderHeldLock`)은 `test/helpers/` 에 **�
       (`unit-20260921-225255.log`) · build PASS 타입체크 ratchet 포함
       (`build-20260921-225951.log`) · **e2e 378 PASS**(`e2e-20260921-230327.log`, #1377 과 동수).
       `dist/` 에 `shared/testing` 유출 0 확인
-- [ ] `/ai-review` → 수렴
-- [ ] `/consistency-check --impl-done spec/5-system` → BLOCK: NO
-- [ ] 트래커 항목 해소 + 이 plan `plan/complete/` 로 (**한 커밋으로** — 직전 PR 이 각주를
+- [x] `/ai-review` → **1라운드 수렴** (`review/code/2026/09/21/23_08_19`,
+      **Critical 0 · Warning 0**, forced 7/7 확보, 9 reviewer 실행). fix 0건이라
+      `RESOLUTION.md` 불요. INFO 는 비차단 — 고치면 게이트 freshness 만 재무장된다.
+- [x] `--impl-done` **해당 없음** — 실측으로 확인했다. spec frontmatter 의 `code:` 는
+      `shared/testing/` 을 **파일별 prefix**로 적는다(`trigger-workflow-ref*.ts` ·
+      `schedule-trigger-ref*.ts` · `response-contract*.ts` · `swagger-probe*.ts` ·
+      `user-secret-absence*.ts`) — 디렉터리 와일드카드가 아니라 `overlap-preconditions.ts` 는
+      어디에도 안 걸린다. `test/helpers` 는 `spec/` 전체 grep **0건**. push 게이트
+      (`review_guard.evaluate_review`) 도 `blocked: False` 로 같은 판정을 냈다.
+      > **등재하지 않는 것이 맞다** — 등재된 다섯은 각각 **spec 규칙**(DTO shape · 비밀 부재 ·
+      > 응답 계약)을 시행한다. 이 헬퍼가 시행하는 것은 테스트 오케스트레이션의 전제이고
+      > 그것을 소유한 spec 문서가 없다. 규칙 없는 등재는 `code:` 의 의미를 묽게 한다.
+- [x] 트래커 항목 해소 + 이 plan `plan/complete/` 로 (**한 커밋으로** — 직전 PR 이 각주를
       먼저 쓰고 상태를 나중에 맞춰 지적받았다)
