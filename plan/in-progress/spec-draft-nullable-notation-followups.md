@@ -4919,7 +4919,23 @@ field: T | null;
       재무장돼 라운드가 한 번 더 도는데, 라운드 2가 Critical·Warning 0 으로 수렴한 뒤라
       선언한 정지 규칙(`developer` SKILL §수렴 예외 (a)(b))에 따라 등재로 갈음했다.
 
-- [ ] **`1-workflow-list.md` §2.6 · `data-flow/12-workspace.md` §1.10 · `3-schedule.md` §4 · `4-integration.md` §9 에 «동시 삭제 → 두 번째 404» 서술이 없다**
+- [ ] **삭제 엔드포인트를 적는 spec 들에 «동시 삭제 → 두 번째 404» 서술이 없다**
+      > **2026-09-21 일반화**: 이 항목은 자리를 열거하는 방식으로 적혀 있었고 **다섯 번 확장됐다**
+      > (`3-schedule.md` → `4-integration.md` → `2-api-convention.md §3` → `9-user-profile.md` ·
+      > `data-flow/12-workspace.md §1.6` → 그리고 지금 `6-config.md`). 이 계열이 아홉 자리라
+      > 열거를 유지하면 PR 마다 또 늘어난다. **집행 시 그 시점의 해소된 코드 경로를 기준으로
+      > 재열거할 것** — 아래 목록은 2026-09-21 기준 스냅샷이지 고정 목록이 아니다.
+      > 같은 이유로 `2-api-convention.md §3` 각주는 **경로 수를 세지 말고 계약 문장만** 적는다.
+      >
+      > 2026-09-21 기준 자리: `1-workflow-list.md` §2.6 · `data-flow/12-workspace.md` §1.10 ·
+      > `3-schedule.md` §4 · `4-integration.md` §9 · `9-user-profile.md` §6.1 ·
+      > `data-flow/12-workspace.md` §1.6 · **`6-config.md` §A(`DELETE /api/auth-configs/:id`)**.
+      > `5-system/12-webhook.md`·`1-auth.md` 는 `auth-configs.service.ts` 를 `code:` 로 지목하지만
+      > 삭제 계약을 서술하지 않으므로 대상 아님(2026-09-21 직접 확인).
+      >
+      > 아래는 원래의 열거 서술이다 — 이력으로 남긴다.
+
+      ~~`1-workflow-list.md` §2.6 · `data-flow/12-workspace.md` §1.10 · `3-schedule.md` §4 · `4-integration.md` §9 에 «동시 삭제 → 두 번째 404» 서술이 없다~~
       (planner, 낮음, 2026-09-20 등재 · 같은 세션 api_contract·requirement INFO 8). 트리거 목록 §4.4 만 그 계약을 적는다.
       이제 코드는 세 경로 중 둘이 그렇게 동작하므로(위 두 항목) 문서가 트리거에만 있는 비대칭이 남았다.
       `--impl-prep` 부터 세 라운드 연속 «비차단» 으로 처분됐으니 급하지 않다.
