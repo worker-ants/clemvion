@@ -1,6 +1,6 @@
 ---
 title: 멤버 제거도 동시 요청에서 감사 행을 두 번 남긴다 — 여섯 번째, 그리고 마지막이 아니다
-status: in-progress
+status: complete
 owner: developer
 worktree: member-dup-remove-2d4f8b
 started: 2026-09-21
@@ -143,6 +143,16 @@ e2e 는 #1372 의 행 락 기법 그대로: 테스트가 `workspace_member` 행�
   지워졌다»)를 mock 이 말하도록 한 줄 명시했다. **착수 때 «removeMember 단위 테스트가 하나도
   없다» 고 적었던 것은 틀렸다** — `head -30` 으로 잘린 grep 을 전수로 읽은 것이다
 - [x] TEST WORKFLOW — lint PASS · unit PASS · build PASS · **e2e 374 PASS**
-- [ ] `/ai-review` → 수렴
-- [ ] `/consistency-check --impl-done spec/2-navigation` → BLOCK: NO
-- [ ] 트래커 항목 해소 + 이 plan `plan/complete/` 로
+- [x] `/ai-review` → **3라운드로 수렴**. 선언한 정지 규칙은 «Critical·Warning 0 인 라운드, 또는
+  `codebase/**` 수정 0 인 라운드» 였고 **둘째 절로 수렴**했다 — 라운드 3(`review/code/2026/09/21/13_53_04`,
+  `RESOLUTION.md`)의 Warning 2건이 둘 다 코드 무수정이었고, 리뷰어들이 «이번 라운드 `codebase/`
+  변경 0줄, 직전 라운드와 diff 바이트 단위 동일» 로 독립 확인했다.
+  라운드 1(`review/code/2026/09/21/12_57_05`, `RESOLUTION.md`) Warning 6 → 조치,
+  라운드 2(`review/code/2026/09/21/13_28_12`, `RESOLUTION.md`) Warning 4 → 조치.
+  **세 라운드 중 둘이 내가 쓴 거짓·모순 서술을 잡았다**: 라운드 2 INFO 8(«형제 다섯은 전부 204» —
+  실제로는 컨트롤러별로 갈리고, 반증 자료인 `workspace-delete-concurrency` e2e 를 내가 이미 갖고
+  있었다), 라운드 3 W2(하단 체크리스트만 갱신하고 §C 인라인 체크박스를 빠뜨림)
+- [x] `/consistency-check --impl-done spec/2-navigation` → `review/consistency/2026/09/21/14_05_45`
+  **BLOCK: NO** (Critical 0 · Warning 2). Warning 둘 다 기등재 항목의 재확인이다 — owner TOCTOU,
+  그리고 `§3` DELETE 멱등성 각주(«인스턴스 수를 세지 말고 계약 문장만 적으라» 는 처분이 이미 확정돼 있다).
+- [x] 트래커 항목 해소 + 이 plan `plan/complete/` 로

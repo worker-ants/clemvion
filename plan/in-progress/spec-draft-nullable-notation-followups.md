@@ -4804,7 +4804,15 @@ field: T | null;
       판정자로 쓰면 락 없이 닫힌다(0이면 404, 감사 없음). 사용처 검사와 삭제 사이의 TOCTOU 는 **별개 사안**이라
       함께 닫으려 하지 말 것.
 
-- [ ] **`WorkspacesService.removeMember()` 도 동시 삭제에서 감사 행을 두 번 남긴다 — 이 계열의 여섯 번째 자리**
+- [x] **`WorkspacesService.removeMember()` 도 동시 삭제에서 감사 행을 두 번 남긴다** ~~— 이 계열의 여섯 번째 자리~~
+      **2026-09-21 해소** (`plan/complete/member-dup-remove.md`). 처방은 예고대로 원자적
+      `delete({ id, workspaceId })` 의 `affected === 0` → 404. e2e 로 먼저 재현했다 —
+      고치기 전 `[200, 200]` · `member.removed`(`mode='removed'`) 감사 **2건**, 고친 뒤 `[200, 404]` · **1건**.
+      **「여섯 번째」는 맞지만 「마지막」이 아니다** — 착수 전 전수 조사에서 세 자리가 더 나왔다
+      (아래 `AuthConfigsService` · `ModelConfigService` · WebAuthn 항목). 그 조사가 찾아낸 이유는
+      열거 축을 감사 액션 접미사가 아니라 **«지우고 감사하는 요청»** 으로 잡았기 때문이다.
+      부수 수확: 자가 탈퇴 갈래가 이미 닫혀 있음을 e2e 로 **실증**했고(`[200, 403]` · `NOT_A_MEMBER`),
+      owner 승격 TOCTOU 와 권한 검사 순서 오라클을 실측 재현해 각각 별 항목으로 등재했다.
       (developer, 낮음, 2026-09-21 등재 · `plan/in-progress/integration-dup-delete.md` 착수 전 재열거).
       **직전 PR(#1371)이 «다섯 번째이자 마지막» 이라 적은 것이 틀렸다** — 그 열거가 `AUDIT_ACTIONS.*_DELETED`
       **접미사로만** 셌기 때문이다. 삭제성 액션에는 `MEMBER_REMOVED`(`member.removed`)도 있다.
