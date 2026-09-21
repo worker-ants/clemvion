@@ -109,12 +109,30 @@ e2e 는 형제들의 행 락 기법 그대로. credential 은 **SQL 로 직접 I
 ## 체크리스트
 
 - [x] **착수 게이트 이행** — 위 §0 의 두 결정을 실측과 함께 기록했다
-- [ ] 결정 1 을 트래커에 **설계째로** 등재 (시그니처·범위·분리 사유)
-- [ ] 결정 2 를 트래커에 등재 (다음 사람이 같은 제안을 재발명하지 않도록)
-- [ ] `/consistency-check --impl-prep spec/5-system` → BLOCK: NO
-- [ ] **e2e 로 결함 재현** (고치기 전 실측을 숫자로 기록)
-- [ ] 단위 테스트 + 구현 (대조군 포함, 뮤턴트 유효성 확인 후 kill 수 읽기)
-- [ ] TEST WORKFLOW (lint · unit · build · e2e) — 숫자는 로그 파일명과 함께
+- [x] 결정 1 을 트래커에 **설계째로** 등재 (시그니처·범위·분리 사유)
+- [x] 결정 2 를 트래커에 등재 (다음 사람이 같은 제안을 재발명하지 않도록)
+- [x] `/consistency-check --impl-prep spec/5-system` — `review/consistency/2026/09/21/17_39_06`
+      **BLOCK: NO** (Critical 0 · Warning 1).
+      **W1 이 내가 #1374 에 써 넣은 주석까지 끌어왔다**: `WEBAUTHN_CREDENTIAL_NOT_FOUND` 가
+      카탈로그에 없고, 게다가 **한 코드가 두 status 로 나간다** —
+      `webauthn.service.ts:403` 이 `UnauthorizedException`(**401**), `:497`·`:504`·`:527` 이
+      **404**(직접 실측). 즉 `3-error-handling.md` §1.11 의 «`_NOT_FOUND`≠404 는 이 저장소에서
+      유일한 예외» 가 **거짓**이고, 내가 #1374 의 `throwAuthConfigNotFound()` JSDoc 에 그 문장을
+      그대로 인용했다. **spec 은 권한 밖이라 planner 항목으로 등재**했고, 내 주석도 같은 턴에
+      고치도록 그 항목에 묶었다.
+      리뷰어는 «두 번째 예외» 라고 했지만 정확히는 더 나쁘다 — `AUTH_CONFIG_NOT_FOUND` 는
+      **항상** 400 이라 «예외이되 일관» 한데, 이쪽은 한 코드가 401/404 를 오가 클라이언트가
+      코드로 분기할 수 없다. 401 자리는 로그인 검증 중 존재 노출을 막으려는 **의도**로 보이므로
+      처방은 «401 을 404 로» 가 아니라 **코드 분리**이고, 그 선례를 spec 자신이 인용하고 있다.
+      INFO 1(스냅샷에 `1-auth.md §5` 누락)도 그 자리에서 더했다
+- [x] **e2e 로 결함 재현** — 고치기 전 `[204, 204]` 였고(공허성 가드 통과), DB 를 직접 조회해
+      한 `credentialId` 에 `user.2fa_disabled` 감사가 **2건**(둘 다 `remainingCredentials: 1`)
+      임을 확인했다
+- [x] 단위 테스트 + 구현 — 뮤턴트 **둘**이 예측과 일치했다: (a) `=== 0` → `!affected` →
+      **대조군 2건 RED**(예측 2), (b) 404 분기 제거(고유 앵커, 6줄) → **진 쪽 1건 RED**(예측 1).
+      원복은 `cp` 백업으로 했다
+- [x] TEST WORKFLOW — lint PASS · unit PASS · build PASS(타입체크 ratchet 포함) ·
+      **e2e 377 PASS** (`_test_logs/e2e-20260921-175842.log`)
 - [ ] `/ai-review` → 수렴
 - [ ] `/consistency-check --impl-done <scope>` → BLOCK: NO
 - [ ] 트래커 항목 해소 + 이 plan `plan/complete/` 로 + **이 계열 종료 선언**
