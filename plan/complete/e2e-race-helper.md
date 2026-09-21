@@ -1,6 +1,6 @@
 ---
 title: 동시성 e2e 아홉 파일의 공용 헬퍼 추출 — 공허성 가드를 한 곳에 모은다
-status: in-progress
+status: complete
 owner: developer
 worktree: e2e-race-helper-8d1b6e
 started: 2026-09-21
@@ -72,12 +72,12 @@ grep 의 공통 토큰(`BEGIN`·`Promise.race`·`pending?.catch`·`finally`)만 
 
 그래서 **판별 실험**을 넣는다:
 
-- [ ] **음성 대조군**: 헬퍼에서 **락 쿼리 호출을 빼는** 뮤턴트를 넣고 e2e 를 돌린다.
+- [x] **음성 대조군**: 헬퍼에서 **락 쿼리 호출을 빼는** 뮤턴트를 넣고 e2e 를 돌린다.
       겹침이 사라지므로 **공허성 가드가 `settled` 를 관측해 RED** 여야 한다.
-      **예측: 11 블록 전부 RED**(각 블록이 가드를 통과 못 함). 실측을 함께 적는다.
-      RED 가 안 나거나 수가 적으면 **그 블록은 가드가 죽은 것**이다 — 그게 이 PR 이
-      찾아야 할 것이다.
-- [ ] 뮤턴트 원복은 **`cp`** 로. 원복 후 `git status` 클린 확인.
+      → **예측 11 RED / 실측 11 RED**(9 스위트 전부). 사유까지 확인했다 —
+      `expect(raced).toBe('pending')` 에서 `Received: "settled"`, **정확히 공허성 가드**다
+      (엉뚱한 이유로 죽은 RED 가 아니다). 즉 전환된 11 블록 전부에서 가드가 살아 있다.
+- [x] 뮤턴트 원복은 **`cp`** 로. 원복 후 `git status` 클린 확인.
 
 ## D. 하지 않는 것
 
@@ -105,6 +105,25 @@ grep 의 공통 토큰(`BEGIN`·`Promise.race`·`pending?.catch`·`finally`)만 
       약해지는 것)을 직접 겨냥한 실험이고, «전부 GREEN» 만으로는 얻을 수 없는 증거다
 - [x] TEST WORKFLOW — lint PASS · unit PASS · build PASS(타입체크 ratchet 포함) ·
       **e2e 378 PASS**(`_test_logs/e2e-20260921-202202.log`) — 리팩터 전과 같은 수
-- [ ] `/ai-review` → 수렴
-- [ ] `/consistency-check --impl-done <scope>` → BLOCK: NO
-- [ ] 트래커 항목 해소 + 이 plan `plan/complete/` 로
+- [x] `/ai-review` → **3라운드로 수렴** (정지 규칙 첫째 절: Critical·Warning 0).
+      Warning 추이 **1 → 1 → 0**, 그리고 **둘 다 「내가 방금 넣은 것」에 관한 지적**이었다.
+      라운드 1 `20_26_50`: 재발 방지용 헬퍼를 만들어 놓고 **정작 다음 작성자가 읽는
+      `PROJECT.md` 에 넣지 않았다** — 가이드 레벨에서 미완결이었다.
+      라운드 2 `20_45_43`: 그 fix 로 넣은 검사의 **주장이 실제 범위보다 넓었다**
+      («프로덕션의 가장 짧은 상한» 이라 썼는데 검사는 상수 하나만 본다) → 목록 순회 +
+      한계 명시로 좁혔다. **결합도 지적은 받아들이지 않았다** — 테스트가 프로덕션 상수를
+      임포트하는 것은 drift 를 막는 정상 수단이고 상수가 옮겨지면 컴파일 에러로 시끄럽게
+      깨진다. 라운드 3 `21_03_52` **Critical 0 · Warning 0**(`RESOLUTION.md`)
+- [x] `/consistency-check --impl-done spec/5-system` → `review/consistency/2026/09/21/21_14_14`
+      **BLOCK: NO · Critical 0**. Warning 1 도 내 것이었다 — 트래커에 «해소
+      (`plan/complete/e2e-race-helper.md`)» 를 **이 plan 을 옮기기 전에** 적어, 존재하지 않는
+      경로를 가리키고 체크박스도 미체크인 채로 «해소» 를 주장했다. **사실보다 앞선 주장**이고,
+      이 종결 커밋이 그것을 사실로 만든다
+- [x] 트래커 항목 해소 + 이 plan `plan/complete/` 로 — 체크박스·이동·frontmatter 를 한 커밋으로
+
+## 이 PR 이 남긴 후속
+
+- **`raceUnderHeldLock` 의 순수 동기 분기 둘이 미검증** — `fires.length < 2` 가드와 모듈 로드 시
+  잠금 상한 검사. 특히 후자는 «주석 대신 코드로 고정» 하려고 막 승격시킨 방어인데 **그 방어
+  자체가 미검증**이다. DB 없는 Jest unit 으로 행사할 수 있다. 수렴 예외로 유예하되
+  «다음 근접 편집» 이 아니라 **트래커 항목**으로 올렸다.
