@@ -64,13 +64,35 @@ e2e 는 #1372·#1373 의 행 락 기법 그대로: 테스트가 `auth_config` �
 
 ## 체크리스트
 
-- [ ] `/consistency-check --impl-prep spec/2-navigation` → BLOCK: NO
-      (`6-config.md` 의 `code:` 가 `modules/auth-configs/**` 를 문다. 단
-      `5-system/12-webhook.md`·`1-auth.md` 도 이 서비스 파일을 직접 지목하므로 **그 둘은 손으로
-      읽는다** — `related_specs` 예산이 `5-system/` 에 도달하지 못한다는 기록이 있다)
-- [ ] **e2e 로 결함 재현** (고치기 전 실측을 숫자로 기록)
-- [ ] 단위 테스트 + 구현 (대조군 포함, 뮤턴트 유효성 확인 후 kill 수 읽기)
-- [ ] TEST WORKFLOW (lint · unit · build · e2e)
+- [x] `/consistency-check --impl-prep spec/2-navigation` — `review/consistency/2026/09/21/14_41_01`
+      **BLOCK: NO** (Critical 0 · Warning 5). 처리:
+      - W1(신규 헬퍼명이 `triggers.service.ts` 의 **400** `AUTH_CONFIG_NOT_FOUND` 와 근접) →
+        헬퍼 JSDoc 에 **둘이 다른 자리임을 명시**했다. `3-error-handling.md` §1.11 이 그 400 을
+        «이 저장소의 유일한 `_NOT_FOUND`≠404 예외» 로 적어 둔 자리라 혼동 비용이 크다
+      - W2(`spec-sync-auth-gaps.md:215` 가 **같은 버그를 2026-08 부터 이중 추적**) → 확인했다.
+        «동시 삭제 중복 감사 (W7, 기존 `auth-configs` 패턴과 함께) — 우선순위 낮음» 한 줄이다.
+        **종결 단계에서 함께 해소한다**
+      - W3(e2e `code:` 항목이 6축 고정 열거) → **착수 전에 이미 재열거형으로 일반화**해 뒀다
+      - W4(§3 멱등성, 7번째 인스턴스)·W5(`1-workflow-list.md` pending_plans stale) → 기등재·무관
+      - `5-system/12-webhook.md`·`1-auth.md` 를 **손으로 읽었다** — 둘 다 삭제 계약을 서술하지
+        않으므로 이번 변경의 대상이 아니다
+- [x] **부수 발견 — #1373 에서 등재한 근거가 틀렸다.** 「`workspaces.controller.ts` 에
+      `RolesGuard` 가 없다」고 적었는데 그것은 **전역 `APP_GUARD`**(`app.module.ts:213`)다.
+      결론(상류 차단 없음)은 유지되지만 이유가 다르고 더 넓다 — 가드가 통과시키는 것은
+      `@Roles()` 가 없고 핸들러가 `@WorkspaceId()` 대신 `@Param('id')` 를 써
+      `handlerConsumesWorkspaceId` 가 false 이기 때문이다. **같은 컨트롤러 17개 중 13개가
+      같은 형태**이고, 완료된 `auth-workspace-membership-guard.md` 의 모집단(«`@WorkspaceId()`
+      를 소비하는 73건»)은 이들을 구성상 포함하지 않는다. 트래커를 정정했다(`893365572`)
+- [x] **e2e 로 결함 재현** — 고치기 전 `[204, 204]` 였고(공허성 가드 통과), DB 를 직접 조회해
+      한 `id` 에 `auth_config.delete` 감사가 **2건**임을 확인했다
+- [x] 단위 테스트 + 구현 — 뮤턴트 **둘**이 예측과 일치했다: (a) `=== 0` → `!affected` →
+      **대조군 2건 RED**(예측 2), (b) 404 분기 제거(고유 앵커) → **진 쪽 1건 RED**(예측 1).
+      원복은 `cp` 백업으로 했다
+- [x] TEST WORKFLOW — lint PASS · unit PASS · build PASS · **e2e 375 PASS**.
+      **타입체크 ratchet 이 두 번 잡았다**: 대조군의 `affected: null|undefined` 가
+      `DeleteResult` 에 대입되지 않는 것, 그리고 캐스트를 넣어도 mock 팩토리의 **추론된 리터럴
+      반환 타입**이 `mockResolvedValueOnce` 의 파라미터를 좁혀 여전히 거부하는 것. 팩토리에
+      `Promise<DeleteResult>` 를 명시해 닫았다 — jest 도 `nest build` 도 못 보는 자리다
 - [ ] `/ai-review` → 수렴
 - [ ] `/consistency-check --impl-done spec/2-navigation` → BLOCK: NO
 - [ ] 트래커 항목 해소 + 이 plan `plan/complete/` 로

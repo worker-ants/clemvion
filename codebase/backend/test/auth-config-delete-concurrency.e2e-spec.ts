@@ -75,9 +75,10 @@ describe('Auth config delete concurrency (e2e)', () => {
     let pending: Promise<{ status: number; code?: string }[]> | undefined;
     await locker.query('BEGIN');
     try {
-      await locker.query('SELECT id FROM auth_config WHERE id = $1 FOR UPDATE', [
-        id,
-      ]);
+      await locker.query(
+        'SELECT id FROM auth_config WHERE id = $1 FOR UPDATE',
+        [id],
+      );
 
       // 둘 다 무락 `findById` 를 통과한 뒤 DELETE 에서 이 락을 기다린다.
       pending = Promise.all([fireDelete(), fireDelete()]);

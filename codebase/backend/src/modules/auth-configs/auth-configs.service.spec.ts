@@ -1,5 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
+import { DeleteResult } from 'typeorm';
 import { UnauthorizedException } from '@nestjs/common';
 import * as crypto from 'crypto';
 import * as bcrypt from 'bcrypt';
@@ -42,7 +43,10 @@ function makeAuthConfigRepo() {
     update: jest.fn(async () => ({ affected: 1 })),
     remove: jest.fn(async () => undefined),
     // 동시 삭제 판별자 — 기본은 «한 행을 지웠다». 진 쪽·드라이버 미보고는 테스트가 덮어쓴다.
-    delete: jest.fn(async ({ id }: { id: string }) => {
+    // 반환 타입을 `DeleteResult` 로 **명시**해야 `mockResolvedValueOnce` 의 파라미터 타입이
+    // 추론된 리터럴(`{affected: number; raw: never[]}`)로 좁혀지지 않는다 — 좁혀지면 대조군의
+    // `affected: null|undefined` 를 캐스트해도 받지 못한다(타입체크 ratchet 이 실측으로 잡았다).
+    delete: jest.fn(async ({ id }: { id: string }): Promise<DeleteResult> => {
       const existed = store.delete(id);
       return { affected: existed ? 1 : 0, raw: [] };
     }),
@@ -326,7 +330,13 @@ describe('AuthConfigsService', () => {
       'affected 가 %p(드라이버 미보고)면 정상 삭제로 취급한다',
       async (affected) => {
         const id = await seed();
-        repo.delete.mockResolvedValueOnce({ affected, raw: [] });
+        // `affected: null | undefined` 는 `DeleteResult` 의 `number` 에 대입되지 않는다.
+        // 이 대조군이 재현하려는 것이 바로 «드라이버가 타입을 지키지 않는 경우» 이므로
+        // 캐스트로 그 상태를 만든다 — 형제 PR(#1371·#1372)과 같은 처리다.
+        repo.delete.mockResolvedValueOnce({
+          affected,
+          raw: [],
+        } as unknown as DeleteResult);
 
         await expect(service.remove(id, WS, USER)).resolves.toBeUndefined();
         expect(audit.record).toHaveBeenCalled();
