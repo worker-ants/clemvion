@@ -131,13 +131,26 @@ export class AuthConfigsService {
     const config = await this.authConfigRepository.findOne({
       where: { id, workspaceId },
     });
-    if (!config) {
-      throw new NotFoundException({
-        code: 'RESOURCE_NOT_FOUND',
-        message: 'Auth config not found',
-      });
-    }
+    if (!config) this.throwAuthConfigNotFound();
     return config;
+  }
+
+  /**
+   * 이 서비스의 «인증 설정을 찾을 수 없다» 단일 지점. 형제 서비스의
+   * `throwTriggerNotFound`/`throwScheduleNotFound`/`throwIntegrationNotFound`/
+   * `throwMemberNotFound` 와 같은 형태다.
+   *
+   * **`triggers.service.ts` 의 `AUTH_CONFIG_NOT_FOUND` 와 다른 자리다.** 그쪽은 트리거가
+   * 참조하려는 인증 설정이 같은 워크스페이스에 없을 때의 **400 요청 검증 실패**이고
+   * (`spec/5-system/3-error-handling.md` §1.11 이 «이 저장소의 유일한 `_NOT_FOUND`≠404 예외»
+   * 로 명시한 자리), 이쪽은 인증 설정 자체를 조회·삭제할 때의 **404 `RESOURCE_NOT_FOUND`** 다.
+   * 이름이 가깝지만 상태 코드도 코드 문자열도 다르므로 한쪽을 다른 쪽에 맞추면 안 된다.
+   */
+  private throwAuthConfigNotFound(): never {
+    throw new NotFoundException({
+      code: 'RESOURCE_NOT_FOUND',
+      message: 'Auth config not found',
+    });
   }
 
   /** 외부 응답용 — secret 류 필드를 마스킹한 복제본. */
@@ -283,8 +296,29 @@ export class AuthConfigsService {
     userId: string,
     ipAddress?: string,
   ): Promise<void> {
-    const config = await this.findById(id, workspaceId);
-    await this.authConfigRepository.remove(config);
+    await this.findById(id, workspaceId);
+
+    // 위 `findById` 는 잠그지 않으므로 동시 삭제 두 건이 **둘 다** 여기까지 온다. 종전의
+    // `remove(config)` 는 0행이어도 던지지 않아 둘 다 감사를 남겼다 (실측: 한 id 에
+    // `auth_config.delete` 2건). 형제 여섯(#1369~#1373)과 달리 이 경로엔 잠글 것이 없으므로 —
+    // advisory lock 도 행 락도 없다 — 락을 새로 들이지 않고 **단일 원자적 DELETE** 로 가른다.
+    // `DELETE … WHERE id = $1 AND workspace_id = $2` 한 문장은 그 자체로 원자적이라
+    // 둘 중 하나만 1행을 지운다.
+    //
+    // 판정은 `affected === 0` **명시 비교**다. `null`·`undefined` 는 드라이버가 «보고하지
+    // 않았다» 는 뜻이지 «지우지 못했다» 가 아니며, 그것을 0 과 같이 읽으면 정상 삭제를 404 로
+    // 뒤집는다 (같은 규율: `rewriteTriggerConfigLocked`).
+    //
+    // `remove(entity)` → `delete(criteria)` 전환은 동작을 바꾸지 않는다(실측): `AuthConfig` 에
+    // `cascade: true` 도 `@OneToMany` 도 없고, 저장소 전체에 ORM 라이프사이클 훅이 0건이다.
+    // `trigger.auth_config_id` 의 `ON DELETE SET NULL`(`V001__initial_schema.sql:210`)은 DB
+    // 레벨이라 두 방식 모두 동일하게 발화한다.
+    const { affected } = await this.authConfigRepository.delete({
+      id,
+      workspaceId,
+    });
+    if (affected === 0) this.throwAuthConfigNotFound();
+
     await this.recordAudit({
       action: AUDIT_ACTIONS.AUTH_CONFIG_DELETE,
       workspaceId,

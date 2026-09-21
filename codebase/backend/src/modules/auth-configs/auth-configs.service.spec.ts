@@ -41,6 +41,11 @@ function makeAuthConfigRepo() {
     }),
     update: jest.fn(async () => ({ affected: 1 })),
     remove: jest.fn(async () => undefined),
+    // 동시 삭제 판별자 — 기본은 «한 행을 지웠다». 진 쪽·드라이버 미보고는 테스트가 덮어쓴다.
+    delete: jest.fn(async ({ id }: { id: string }) => {
+      const existed = store.delete(id);
+      return { affected: existed ? 1 : 0, raw: [] };
+    }),
   };
 }
 
@@ -271,6 +276,71 @@ describe('AuthConfigsService', () => {
           ipAddress: '1.2.3.4',
         }),
       );
+    });
+  });
+
+  /**
+   * 동시 삭제 두 건이 `auth_config.delete` 감사를 두 번 남기던 결함의 회귀 테스트.
+   * 형제 여섯(#1369~#1373)과 같은 클래스이고, 이 경로엔 락이 없어 처방도 통합 경로와 같다 —
+   * 원자적 `DELETE` 의 `affected` 를 판별자로 쓴다.
+   */
+  describe('remove — 동시 삭제', () => {
+    async function seed(): Promise<string> {
+      const ac = await service.create(
+        WS,
+        { type: 'api_key' } as Partial<AuthConfig>,
+        USER,
+      );
+      audit.record.mockClear();
+      return ac.id;
+    }
+
+    it('워크스페이스로 스코프한 원자적 DELETE 를 친다', async () => {
+      const id = await seed();
+
+      await service.remove(id, WS, USER);
+
+      // `workspaceId` 가 빠지면 cross-tenant 삭제가 된다 — 조건을 통째로 단언한다.
+      expect(repo.delete).toHaveBeenCalledWith({ id, workspaceId: WS });
+      expect(audit.record).toHaveBeenCalled();
+    });
+
+    it('진 쪽은 404 RESOURCE_NOT_FOUND 이고 감사를 남기지 않는다', async () => {
+      const id = await seed();
+      // 둘 다 무락 findById 를 통과했지만 원자적 DELETE 는 하나만 1행을 지운다.
+      repo.delete.mockResolvedValueOnce({ affected: 0, raw: [] });
+
+      await expect(service.remove(id, WS, USER)).rejects.toMatchObject({
+        response: { code: 'RESOURCE_NOT_FOUND' },
+      });
+      expect(audit.record).not.toHaveBeenCalled();
+    });
+
+    /**
+     * 판정이 `affected === 0` **명시 비교**인 이유를 붙드는 대조군.
+     * `null`·`undefined` 는 드라이버가 «보고하지 않았다» 는 뜻이지 «못 지웠다» 가 아니다 —
+     * `!affected` 로 되돌리면 정상 삭제가 404 로 뒤집힌다. #1371 에서 이 대조군이 빠져
+     * 같은 뮤턴트가 32건을 통과했다.
+     */
+    it.each([[undefined], [null]])(
+      'affected 가 %p(드라이버 미보고)면 정상 삭제로 취급한다',
+      async (affected) => {
+        const id = await seed();
+        repo.delete.mockResolvedValueOnce({ affected, raw: [] });
+
+        await expect(service.remove(id, WS, USER)).resolves.toBeUndefined();
+        expect(audit.record).toHaveBeenCalled();
+      },
+    );
+
+    it('대상이 없으면 DELETE 를 시도하지 않는다', async () => {
+      repo.delete.mockClear();
+
+      await expect(
+        service.remove(crypto.randomUUID(), WS, USER),
+      ).rejects.toMatchObject({ response: { code: 'RESOURCE_NOT_FOUND' } });
+      expect(repo.delete).not.toHaveBeenCalled();
+      expect(audit.record).not.toHaveBeenCalled();
     });
   });
 
