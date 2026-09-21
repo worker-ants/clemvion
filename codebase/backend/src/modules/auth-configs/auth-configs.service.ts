@@ -126,7 +126,10 @@ export class AuthConfigsService {
     return PaginatedResponseDto.create(masked, totalItems, page, limit);
   }
 
-  /** 내부 전용 — 평문 config 를 그대로 반환. verify / reveal / update / regenerate / usage 가 사용. */
+  /**
+   * 내부 전용 — 평문 config 를 그대로 반환. 호출자(실측, `findById(` 전수 grep):
+   * findByIdForResponse / update / regenerate / remove / reveal / getUsage.
+   */
   async findById(id: string, workspaceId: string): Promise<AuthConfig> {
     const config = await this.authConfigRepository.findOne({
       where: { id, workspaceId },
@@ -296,6 +299,10 @@ export class AuthConfigsService {
     userId: string,
     ipAddress?: string,
   ): Promise<void> {
+    // 아래 `delete()` 의 `affected === 0` 판정과 기능적으로 겹친다(리뷰 INFO 1) — 그래도
+    // 남긴다. 이 SELECT 가 «대상이 없으면 DELETE 를 시도하지 않는다» 는 fail-fast 계약이고,
+    // 그 계약을 단위 테스트가 고정한다. 저빈도 관리자 액션의 왕복 1회를 아끼자고 그 계약을
+    // 줄이는 거래는 하지 않는다.
     await this.findById(id, workspaceId);
 
     // 위 `findById` 는 잠그지 않으므로 동시 삭제 두 건이 **둘 다** 여기까지 온다. 종전의
