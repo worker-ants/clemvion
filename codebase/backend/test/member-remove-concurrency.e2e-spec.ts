@@ -8,6 +8,7 @@ import {
   createTeamWorkspace,
   inviteAndAccept,
 } from './helpers/auth';
+import { raceUnderHeldLock } from './helpers/concurrency';
 
 /**
  * e2e: 동시 멤버 제거 — 이 결함 클래스의 여섯 번째 짝
@@ -89,37 +90,22 @@ describe('Workspace member remove concurrency (e2e)', () => {
           () => ({ status: -1, code: undefined as string | undefined }),
         );
 
-    let pending: Promise<{ status: number; code?: string }[]> | undefined;
-    await locker.query('BEGIN');
-    try {
-      await locker.query(
-        'SELECT id FROM workspace_member WHERE id = $1 FOR UPDATE',
-        [memberId],
-      );
+    // 둘 다 무락 조회·가드를 통과한 뒤 삭제에서 이 락을 기다린다.
+    // 공허성 가드(겹침을 실제로 만들었는가)는 헬퍼가 건다 — `helpers/concurrency.ts`.
+    const results = (
+      await raceUnderHeldLock<{ status: number; code?: string }>(
+        locker,
+        {
+          sql: 'SELECT id FROM workspace_member WHERE id = $1 FOR UPDATE',
+          params: [memberId],
+        },
+        [fireRemove, fireRemove],
+      )
+    ).sort((a, b) => a.status - b.status);
 
-      // 둘 다 무락 조회·가드를 통과한 뒤 삭제에서 이 락을 기다린다.
-      pending = Promise.all([fireRemove(), fireRemove()]);
-
-      // 공허성 가드 — 락을 놓기 **전에** 둘 다 아직 끝나지 않았음을 관측한다. 먼저 끝났다면 이
-      // fixture 는 겹침을 만들지 못한 것이고, 아래 단언은 고치기 전 코드도 통과시킨다.
-      const raced = await Promise.race([
-        pending.then(() => 'settled' as const),
-        new Promise<'pending'>((resolve) =>
-          setTimeout(() => resolve('pending'), 1_500),
-        ),
-      ]);
-      expect(raced).toBe('pending');
-
-      await locker.query('COMMIT');
-      const results = (await pending).sort((a, b) => a.status - b.status);
-
-      // 하나는 지우고(200), 다른 하나는 이미 없다(404 MEMBER_NOT_FOUND).
-      expect(results.map((r) => r.status)).toEqual([200, 404]);
-      expect(results[1].code).toBe('MEMBER_NOT_FOUND');
-    } finally {
-      await locker.query('ROLLBACK').catch(() => undefined);
-      await pending?.catch(() => undefined);
-    }
+    // 하나는 지우고(200), 다른 하나는 이미 없다(404 MEMBER_NOT_FOUND).
+    expect(results.map((r) => r.status)).toEqual([200, 404]);
+    expect(results[1].code).toBe('MEMBER_NOT_FOUND');
 
     // `mode='removed'` 로 걸러야 한다 — 자가 탈퇴(`left`)가 같은 액션 이름을 쓴다.
     const audits = await db.query<{ count: string }>(
@@ -168,33 +154,21 @@ describe('Workspace member remove concurrency (e2e)', () => {
           () => ({ status: -1, code: undefined as string | undefined }),
         );
 
-    let pending: Promise<{ status: number; code?: string }[]> | undefined;
-    await locker.query('BEGIN');
-    try {
-      await locker.query(
-        'SELECT id FROM workspace_member WHERE id = $1 FOR UPDATE',
-        [memberId],
-      );
-      pending = Promise.all([fireLeave(), fireLeave()]);
+    // 공허성 가드(겹침을 실제로 만들었는가)는 헬퍼가 건다 — `helpers/concurrency.ts`.
+    const results = (
+      await raceUnderHeldLock<{ status: number; code?: string }>(
+        locker,
+        {
+          sql: 'SELECT id FROM workspace_member WHERE id = $1 FOR UPDATE',
+          params: [memberId],
+        },
+        [fireLeave, fireLeave],
+      )
+    ).sort((a, b) => a.status - b.status);
 
-      const raced = await Promise.race([
-        pending.then(() => 'settled' as const),
-        new Promise<'pending'>((resolve) =>
-          setTimeout(() => resolve('pending'), 1_500),
-        ),
-      ]);
-      expect(raced).toBe('pending');
-
-      await locker.query('COMMIT');
-      const results = (await pending).sort((a, b) => a.status - b.status);
-
-      // 진 쪽은 404 가 아니라 403 이다 — 락 안에서 다시 읽어 «멤버가 아니다» 로 끝난다.
-      expect(results.map((r) => r.status)).toEqual([200, 403]);
-      expect(results[1].code).toBe('NOT_A_MEMBER');
-    } finally {
-      await locker.query('ROLLBACK').catch(() => undefined);
-      await pending?.catch(() => undefined);
-    }
+    // 진 쪽은 404 가 아니라 403 이다 — 락 안에서 다시 읽어 «멤버가 아니다» 로 끝난다.
+    expect(results.map((r) => r.status)).toEqual([200, 403]);
+    expect(results[1].code).toBe('NOT_A_MEMBER');
 
     const audits = await db.query<{ count: string }>(
       `SELECT COUNT(*)::text AS count FROM audit_log

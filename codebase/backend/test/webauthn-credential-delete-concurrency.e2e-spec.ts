@@ -5,6 +5,7 @@ import { randomUUID } from 'crypto';
 
 import { createDbClient, uniqueEmail } from './helpers/db';
 import { registerAndLogin } from './helpers/auth';
+import { raceUnderHeldLock } from './helpers/concurrency';
 
 /**
  * e2e: 동시 WebAuthn credential DELETE — 이 결함 클래스의 **아홉 번째이자 마지막** 짝.
@@ -72,37 +73,22 @@ describe('WebAuthn credential delete concurrency (e2e)', () => {
           () => ({ status: -1, code: undefined as string | undefined }),
         );
 
-    let pending: Promise<{ status: number; code?: string }[]> | undefined;
-    await locker.query('BEGIN');
-    try {
-      await locker.query(
-        'SELECT id FROM webauthn_credential WHERE id = $1 FOR UPDATE',
-        [targetId],
-      );
+    // 둘 다 무락 `findOne` + 소유권 비교를 통과한 뒤 DELETE 에서 이 락을 기다린다.
+    // 공허성 가드(겹침을 실제로 만들었는가)는 헬퍼가 건다 — `helpers/concurrency.ts`.
+    const results = (
+      await raceUnderHeldLock<{ status: number; code?: string }>(
+        locker,
+        {
+          sql: 'SELECT id FROM webauthn_credential WHERE id = $1 FOR UPDATE',
+          params: [targetId],
+        },
+        [fireDelete, fireDelete],
+      )
+    ).sort((a, b) => a.status - b.status);
 
-      // 둘 다 무락 `findOne` + 소유권 비교를 통과한 뒤 DELETE 에서 이 락을 기다린다.
-      pending = Promise.all([fireDelete(), fireDelete()]);
-
-      // 공허성 가드 — 락을 놓기 **전에** 둘 다 아직 끝나지 않았음을 관측한다. 먼저 끝났다면 이
-      // fixture 는 겹침을 만들지 못한 것이고, 아래 단언은 고치기 전 코드도 통과시킨다.
-      const raced = await Promise.race([
-        pending.then(() => 'settled' as const),
-        new Promise<'pending'>((resolve) =>
-          setTimeout(() => resolve('pending'), 1_500),
-        ),
-      ]);
-      expect(raced).toBe('pending');
-
-      await locker.query('COMMIT');
-      const results = (await pending).sort((a, b) => a.status - b.status);
-
-      // 하나는 지우고(204), 다른 하나는 이미 없다(404 WEBAUTHN_CREDENTIAL_NOT_FOUND).
-      expect(results.map((r) => r.status)).toEqual([204, 404]);
-      expect(results[1].code).toBe('WEBAUTHN_CREDENTIAL_NOT_FOUND');
-    } finally {
-      await locker.query('ROLLBACK').catch(() => undefined);
-      await pending?.catch(() => undefined);
-    }
+    // 하나는 지우고(204), 다른 하나는 이미 없다(404 WEBAUTHN_CREDENTIAL_NOT_FOUND).
+    expect(results.map((r) => r.status)).toEqual([204, 404]);
+    expect(results[1].code).toBe('WEBAUTHN_CREDENTIAL_NOT_FOUND');
 
     // 감사는 컨트롤러가 남기고 `resourceId` 는 **credential 이 아니라 사용자**다
     // (`resourceType: 'user'`). 대상 credential 은 `details.credentialId` 에 실린다 —
@@ -184,40 +170,24 @@ describe('WebAuthn credential delete concurrency (e2e)', () => {
           () => ({ status: -1 }),
         );
 
-    let pending: Promise<{ status: number }[]> | undefined;
-    await locker.query('BEGIN');
-    try {
-      // 두 행을 모두 잠근다 — 공유 락으로 줄 세우는 것이 아니라, A·B 각자의 `DELETE`
-      // 가 각자의 행 잠금을 기다리게 만들어 둘을 동시에 대기 상태로 묶는다.
-      await locker.query(
-        'SELECT id FROM webauthn_credential WHERE id = ANY($1::uuid[]) FOR UPDATE',
-        [[idA, idB]],
-      );
+    // 두 행을 모두 잠근다 — 공유 락으로 줄 세우는 것이 아니라, A·B 각자의 `DELETE`
+    // 가 각자의 행 잠금을 기다리게 만들어 둘을 동시에 대기 상태로 묶는다.
+    // 둘 다 무락 `findOne` + 소유권 비교를 통과한 뒤 각자의 DELETE 에서 이 락을
+    // 기다린다 — 이것이 논쟁이 된 인터리빙이다.
+    // 공허성 가드(겹침을 실제로 만들었는가)는 헬퍼가 건다 — `helpers/concurrency.ts`.
+    const results = (
+      await raceUnderHeldLock(
+        locker,
+        {
+          sql: 'SELECT id FROM webauthn_credential WHERE id = ANY($1::uuid[]) FOR UPDATE',
+          params: [[idA, idB]],
+        },
+        [() => fireDelete(idA), () => fireDelete(idB)],
+      )
+    ).sort((a, b) => a.status - b.status);
 
-      // 둘 다 무락 `findOne` + 소유권 비교를 통과한 뒤 각자의 DELETE 에서 이 락을
-      // 기다린다 — 이것이 논쟁이 된 인터리빙이다.
-      pending = Promise.all([fireDelete(idA), fireDelete(idB)]);
-
-      // 공허성 가드 — 락을 놓기 **전에** 둘 다 아직 끝나지 않았음을 관측한다. 먼저
-      // 끝났다면 이 fixture 는 겹침을 만들지 못한 것이고, 아래 단언은 고치기 전
-      // 코드도 통과시킨다.
-      const raced = await Promise.race([
-        pending.then(() => 'settled' as const),
-        new Promise<'pending'>((resolve) =>
-          setTimeout(() => resolve('pending'), 1_500),
-        ),
-      ]);
-      expect(raced).toBe('pending');
-
-      await locker.query('COMMIT');
-      const results = (await pending).sort((a, b) => a.status - b.status);
-
-      // 서로 다른 credential 이라 소유권 충돌 없이 둘 다 지운다(둘 다 204).
-      expect(results.map((r) => r.status)).toEqual([204, 204]);
-    } finally {
-      await locker.query('ROLLBACK').catch(() => undefined);
-      await pending?.catch(() => undefined);
-    }
+    // 서로 다른 credential 이라 소유권 충돌 없이 둘 다 지운다(둘 다 204).
+    expect(results.map((r) => r.status)).toEqual([204, 204]);
 
     const after = await db.query<{ codes: string[] | null }>(
       `SELECT webauthn_recovery_codes AS codes FROM "user" WHERE id = $1`,

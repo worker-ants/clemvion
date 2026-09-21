@@ -4,6 +4,7 @@ import request from 'supertest';
 
 import { createDbClient, uniqueEmail, uniqueName } from './helpers/db';
 import { registerAndLogin, createTeamWorkspace } from './helpers/auth';
+import { raceUnderHeldLock } from './helpers/concurrency';
 
 /**
  * e2e: 동시 워크스페이스 DELETE — `workflow-delete-concurrency.e2e-spec.ts` 의 워크스페이스 짝.
@@ -60,34 +61,21 @@ describe('Workspace delete concurrency (e2e)', () => {
           () => ({ status: -1, code: undefined }),
         );
 
-    let pending: Promise<Array<{ status: number; code?: string }>> | undefined;
-    await locker.query('BEGIN');
-    try {
-      await locker.query('SELECT id FROM workspace WHERE id = $1 FOR UPDATE', [
-        workspaceId,
-      ]);
+    // 공허성 가드(겹침을 실제로 만들었는가)는 헬퍼가 건다 — `helpers/concurrency.ts`.
+    const results = (
+      await raceUnderHeldLock<{ status: number; code?: string }>(
+        locker,
+        {
+          sql: 'SELECT id FROM workspace WHERE id = $1 FOR UPDATE',
+          params: [workspaceId],
+        },
+        [fireDelete, fireDelete],
+      )
+    ).sort((a, b) => a.status - b.status);
 
-      pending = Promise.all([fireDelete(), fireDelete()]);
-
-      // 공허성 가드 — 락을 놓기 **전에** 둘 다 아직 끝나지 않았음을 관측한다.
-      const raced = await Promise.race([
-        pending.then(() => 'settled' as const),
-        new Promise<'pending'>((resolve) =>
-          setTimeout(() => resolve('pending'), 1_500),
-        ),
-      ]);
-      expect(raced).toBe('pending');
-
-      await locker.query('COMMIT');
-      const results = (await pending).sort((a, b) => a.status - b.status);
-
-      expect(results.map((r) => r.status)).toEqual([200, 404]);
-      // 코드까지 본다 — 상태만 보면 `WORKSPACE_NOT_FOUND` 가 아닌 404 로 바뀌어도 통과한다.
-      expect(results[1].code).toBe('WORKSPACE_NOT_FOUND');
-    } finally {
-      await locker.query('ROLLBACK').catch(() => undefined);
-      await pending?.catch(() => undefined);
-    }
+    expect(results.map((r) => r.status)).toEqual([200, 404]);
+    // 코드까지 본다 — 상태만 보면 `WORKSPACE_NOT_FOUND` 가 아닌 404 로 바뀌어도 통과한다.
+    expect(results[1].code).toBe('WORKSPACE_NOT_FOUND');
 
     // 연관 리소스도 함께 정리됐다 — 진 쪽이 롤백돼도 이긴 쪽의 삭제는 온전하다.
     const rows = await db.query<{ count: string }>(
