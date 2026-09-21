@@ -4,6 +4,7 @@ import request from 'supertest';
 
 import { createDbClient, uniqueEmail, uniqueName } from './helpers/db';
 import { registerAndLogin, createTeamWorkspace } from './helpers/auth';
+import { raceUnderHeldLock } from './helpers/concurrency';
 
 /**
  * e2e: 동시 워크플로 DELETE — spec/2-navigation/1-workflow-list.md §2.6, 트리거 목록 §4.4 대칭.
@@ -66,35 +67,21 @@ describe('Workflow delete concurrency (e2e)', () => {
           () => -1,
         );
 
-    let pending: Promise<number[]> | undefined;
-    await locker.query('BEGIN');
-    try {
-      await locker.query('SELECT id FROM workflow WHERE id = $1 FOR UPDATE', [
-        id,
-      ]);
+    // 둘 다 잠금 없는 선조회를 통과한 뒤 트랜잭션 안에서 이 락을 기다린다.
+    // 공허성 가드(겹침을 실제로 만들었는가)는 헬퍼가 건다 — `helpers/concurrency.ts`.
+    const statuses = (
+      await raceUnderHeldLock(
+        locker,
+        {
+          sql: 'SELECT id FROM workflow WHERE id = $1 FOR UPDATE',
+          params: [id],
+        },
+        [fireDelete, fireDelete],
+      )
+    ).sort((a, b) => a - b);
 
-      // 둘 다 잠금 없는 선조회를 통과한 뒤 트랜잭션 안에서 이 락을 기다린다.
-      pending = Promise.all([fireDelete(), fireDelete()]);
-
-      // 공허성 가드 — 락을 놓기 **전에** 둘 다 아직 끝나지 않았음을 관측한다. 먼저 끝났다면 이
-      // fixture 는 겹침을 만들지 못한 것이고, 아래 단언은 고치기 전 코드도 통과시킨다.
-      const raced = await Promise.race([
-        pending.then(() => 'settled' as const),
-        new Promise<'pending'>((resolve) =>
-          setTimeout(() => resolve('pending'), 1_500),
-        ),
-      ]);
-      expect(raced).toBe('pending');
-
-      await locker.query('COMMIT');
-      const statuses = (await pending).sort((a, b) => a - b);
-
-      // 하나는 지우고(204), 다른 하나는 이미 없다(404).
-      expect(statuses).toEqual([204, 404]);
-    } finally {
-      await locker.query('ROLLBACK').catch(() => undefined);
-      await pending?.catch(() => undefined);
-    }
+    // 하나는 지우고(204), 다른 하나는 이미 없다(404).
+    expect(statuses).toEqual([204, 404]);
 
     const audits = await db.query<{ count: string }>(
       `SELECT COUNT(*)::text AS count FROM audit_log
