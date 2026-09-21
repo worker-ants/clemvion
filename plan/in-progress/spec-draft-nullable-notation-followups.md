@@ -1892,7 +1892,7 @@ field: T | null;
       > 그리고 **W4 를 잘못 귀속**했다 — 음성 케이스를 지워도 W4 는 양성 case E 가 잡는다.
       > 개수도 틀렸다("양성 4건 … 셋 다" — 4+1=5). **spec 에 쓰기 전이라 수정 비용이 0 이었다.**
 
-- [ ] **`PROJECT.md` §e2e 파일 위치 — self-spec 동반 헬퍼는 `src/shared/testing/`** (developer,
+- [x] **`PROJECT.md` §e2e 파일 위치 — self-spec 동반 헬퍼는 `src/shared/testing/`** (developer,
       2026-09-10 재배정. **원래 planner 후속 5건의 3번이었는데 역할 배정이 틀렸다**).
 
       현 문면(`PROJECT.md` §e2e 테스트 작성 가이드의 *"신규 헬퍼"* 줄)은
@@ -1917,6 +1917,28 @@ field: T | null;
       > **실측 없이 트래커로 옮겼다.** `#1308` 의 T-4 와 같은 클래스이고 방향만 반대다(그때는
       > planner 문장을 developer 턴에서 고치려 했다). 공통 원인은 **역할 배정을 실측 없이 단정한
       > 것**이고, 이 트래커에 이미 *"등재할 때 조항 해당 여부를 단정하지 말 것"* 이라 적혀 있었다.
+
+      > **✅ 2026-09-21 해소** — developer 턴 `plan/complete/race-helper-guard-tests.md`.
+      > `PROJECT.md` §파일 위치·명명 의 「신규 헬퍼」 줄에 예외를 하위 항목으로 달았다
+      > (근거 세 문장 + `dist/` 유출 없음까지).
+      >
+      > **이 항목의 부재가 실제로 비용을 냈다** — 그 줄이 예외를 담지 않아 #1377 의 내가
+      > 신규 헬퍼를 `test/helpers/` 에 뒀고, 후속 PR 의 `--impl-prep` 이 **BLOCK: YES**
+      > (`review/consistency/2026/09/21/22_25_20` plan_coherence Critical)로 막았다. 그때
+      > 나는 선례를 `test/` 에서 찾고 「선례 0건」이라 판정했는데, **거기 두면 안 돈다는 게
+      > 이 문제의 정의라 거기엔 영영 선례가 없다.** 관례는 이 트래커 안에 있었다.
+
+- [ ] **`spec/5-system` 4개 파일의 첫 섹션 헤딩이 `## Overview` 가 아니다** (planner, 낮음,
+      2026-09-21 등재 · `--impl-prep` `review/consistency/2026/09/21/22_39_59`
+      `convention_compliance` WARNING 1). 대상:
+      `5-expression-language.md`(L12-18) · `7-llm-client.md`(L20-26) · `11-mcp-client.md`(L13-19) ·
+      `16-system-status-api.md`(L8-14). CLAUDE.md §Spec 문서 3섹션 구성 +
+      `project-planner/SKILL.md` §문서 구조 가 `## Overview` 를 요구한다.
+
+      **2026-05 이래의 standing 편차이고 그것을 발견한 diff 와 무관하다**(발견 PR 은
+      `race-helper-guard-tests` — test-harness 전용). 처방은 둘 중 하나다: 네 파일 헤딩을
+      통일하거나, 레거시 예외를 SKILL.md 에 명시. **developer 는 `spec/` 쓰기 권한이 없어
+      닫을 수 없다** — 그래서 planner 항목이다.
 
 - [ ] **질문: 비밀-부재 헬퍼를 `secret-store.md` 의 `code:` 에도 등재해야 하나** (planner 또는
       developer, 2026-09-10 등재, `--spec` `19_35_47` `cross_spec` INFO 에서 갈라 나옴).
@@ -5038,7 +5060,7 @@ field: T | null;
       **예측 11 RED / 실측 11 RED**, 사유도 `Received: "settled"` 로 정확히 공허성 가드였다.
       `PROJECT.md` §Backend e2e 패턴에도 넣어 **다음 작성자가 손으로 복제하지 않도록** 했다.
 
-- [ ] **`raceUnderHeldLock` 의 순수 동기 분기 둘이 어떤 테스트도 지나가지 않는다**
+- [x] **`raceUnderHeldLock` 의 순수 동기 분기 둘이 어떤 테스트도 지나가지 않는다**
       (developer, 낮음, 2026-09-21 등재 · `/ai-review` `review/code/2026/09/21/21_03_52` INFO 6).
       `fires.length < 2` 입력 가드와 모듈 로드 시 `KNOWN_LOCK_TIMEOUTS_MS` 잠금 상한 검사 —
       **둘 다 실제 Postgres 타이밍과 무관한 순수 동기 분기**라 DB 없는 Jest unit
@@ -5048,35 +5070,22 @@ field: T | null;
       해당 PR 에서 하지 않은 이유는 수렴 예외 (a)(b) — 동작 결함이 아니고, 고치면 Warning 0 으로
       수렴한 직후의 라운드를 한 번 더 돌린다. **「다음 근접 편집에서」로 미루지 않고 항목으로
       올린다** — 이 저장소에서 그 편집이 오지 않는 것을 이미 겪었다.
-      (developer, 중간, 2026-09-21 등재 · 아홉 번째 PR 의 착수 게이트 **결정 1**).
-      **추출 여부는 이미 결정됐다 — 「할지 말지」가 아니라 「하는 것」이 이 항목이다.**
 
-      **실측 근거**: `codebase/backend/test/` 의 이 계열 e2e 가 여덟 개(101~208줄)이고 이 PR 이
-      아홉 번째를 더한다. 여섯은 행 락(`SELECT … FOR UPDATE`), 둘은 advisory lock 을 쓰지만
-      **아홉 전부 1.5초 공허성 가드**를 쓴다. 공통부는
-      `BEGIN → 락 → 두 요청 발사 → 공허성 가드 → COMMIT → 정렬 → finally ROLLBACK` 이고,
-      갈리는 것은 락 SQL·발사 함수·단언뿐이다.
-
-      **줄 수가 아니라 공허성 가드가 이유다.** 그 가드가 빠진 테스트는 **고치기 전 코드도
-      통과시킨다** — 없으면 조용히 거짓 초록이 되는 부분인데 지금은 아홉 곳에 손으로 복제돼
-      있어 열 번째를 쓰는 사람이 빠뜨릴 수 있다.
-
-      ```ts
-      // codebase/backend/test/helpers/concurrency.ts
-      export async function raceUnderHeldLock<T>(
-        locker: Client,
-        lock: { sql: string; params: unknown[] },
-        fire: () => Promise<T>,
-      ): Promise<T[]>;   // BEGIN → 락 → [fire(), fire()] → 1.5s 가드 → COMMIT → 결과
-      ```
-
-      **범위**: 아홉 파일 전부 전환(`workflow-`·`workspace-`·`trigger-`·`schedule-`·`integration-`·
-      `auth-config-`·`model-config-delete-concurrency` · `member-remove-concurrency` ·
-      `webauthn-credential-delete-concurrency`). `integration-rotate-concurrency` 는 삭제가
-      아니라 갱신 경합이라 **별도 판단**(같은 가드를 쓰는지 먼저 볼 것).
-      **성격**: 테스트 전용 — 프로덕션 코드 무변경.
-      **왜 아홉 번째 PR 에 섞지 않았나**: 아홉 파일 리팩터를 webauthn 버그 수정과 한 diff 에
-      넣으면 이 세션 내내 리뷰어들이 반복 지적한 «스코프 혼입» 이 된다. 단독 PR 이 검토도 쉽다.
+      > **✅ 2026-09-21 해소** — developer 턴 `plan/complete/race-helper-guard-tests.md`
+      > (`--impl-prep` `review/consistency/2026/09/21/22_39_59` BLOCK: NO ·
+      > `/ai-review` `review/code/2026/09/21/23_08_19` **Critical 0 · Warning 0** 1라운드 수렴).
+      > 규칙 둘을 `src/shared/testing/overlap-preconditions.ts` 의 순수 함수로 꺼내고
+      > `test/helpers/concurrency.ts` 는 호출만 한다 — **자리는 위쪽 `PROJECT.md` 항목의
+      > 관례(#1308 선례 5쌍)를 따랐고, 덕분에 jest 설정을 한 글자도 바꾸지 않았다.**
+      > 판별 실험: spec 단언을 깨뜨려 **`run-test.sh unit` 전수에서 RED**(471 passed / 472 total)
+      > — 「unit PASS」는 러너가 파일을 안 집어도 나오므로 증거가 아니다.
+      > 뮤턴트 4종 전부 예측=실측(1/1 · 1/1 · 2/2 · 2/2).
+      >
+      > **부수 — 이 자리에 #1377 의 고아 본문 29줄이 붙어 있었다.** 바로 위 `- [x]` 헬퍼
+      > 추출 항목의 옛 본문(«추출 여부는 이미 결정됐다» · «범위: 아홉 파일 전부 전환»)이
+      > 헤더만 교체되고 몸통은 **이 항목 아래에 남아** 있었다. 끝난 작업을 지시처럼 읽히게
+      > 하는 형태라 같은 커밋에서 지웠다 — 이 트래커가 다른 자리에서 경고하는
+      > 「틀린 예고가 다음 사람에게 없는 작업을 쫓게 한다」와 같은 클래스다.
 
 - [ ] ~~**`affected` 판별자 유틸(`isDeleteMiss()` 류) 최소 추출**~~ — **2026-09-21 추출하지 않기로 결정**
       (아홉 번째 PR 의 착수 게이트 **결정 2**. 제안 출처: `review/code/2026/09/21/17_08_12` architecture).

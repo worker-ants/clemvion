@@ -1,6 +1,10 @@
 import { expect } from '@jest/globals';
 import { Client } from 'pg';
 
+import {
+  assertEnoughFiresForOverlap,
+  assertGuardBelowKnownTimeouts,
+} from '../../src/shared/testing/overlap-preconditions';
 import { TRIGGER_DELETE_LOCK_TIMEOUT_MS } from '../../src/modules/triggers/trigger-config-lock';
 
 /**
@@ -14,26 +18,17 @@ const KNOWN_LOCK_TIMEOUTS_MS: ReadonlyArray<readonly [string, number]> = [
 ];
 
 /**
- * 공허성 가드 대기 시간.
+ * 공허성 가드 대기 시간. 프로덕션의 잠금 대기 상한보다 **짧아야** 한다.
  *
- * 프로덕션의 잠금 대기 상한보다 **짧아야** 한다. 그렇지 않으면 가드가 기다리는 동안 요청이
- * **락 타임아웃으로** 끝나 `settled` 가 되고, «겹침을 못 만들었다» 와 구분되지 않는다 —
- * 가드가 조용히 오탐한다.
- *
- * 아래 검사가 그 관계를 **주석이 아니라 코드로** 고정한다. 다만 검사 범위는
- * «프로덕션 전체의 최소 상한» 이 아니라 **`KNOWN_LOCK_TIMEOUTS_MS` 에 적힌 것뿐**이다 —
- * 그 목록을 사람이 갱신해야 한다는 뜻이고, 그 한계를 여기 적어 둔다.
+ * 그 관계가 왜 필요한지와 검사 범위의 한계는 `assertGuardBelowKnownTimeouts` 의 JSDoc 이
+ * SoT 다 — 여기 복제하지 않는다(두 자리에 적으면 한쪽이 낡는다).
  */
 const VACUITY_GUARD_MS = 1_500;
 
-for (const [name, timeoutMs] of KNOWN_LOCK_TIMEOUTS_MS) {
-  if (VACUITY_GUARD_MS >= timeoutMs) {
-    throw new Error(
-      `raceUnderHeldLock: 공허성 가드(${VACUITY_GUARD_MS}ms)가 ${name}(${timeoutMs}ms) 이상이다 — ` +
-        `가드가 락 타임아웃을 «겹침 실패» 로 오탐한다.`,
-    );
-  }
-}
+// 임포트 시 **오늘의 상수로** 규칙을 발화시킨다. 규칙 자체는 순수 함수라
+// `overlap-preconditions.spec.ts` 가 임의 입력으로 직접 검증한다 — 종전에는 이 자리가
+// 최상위 `for` 루프여서 규칙과 「오늘의 값에 적용」이 한 덩어리였고, 어느 쪽도 테스트되지 않았다.
+assertGuardBelowKnownTimeouts(VACUITY_GUARD_MS, KNOWN_LOCK_TIMEOUTS_MS);
 
 /**
  * 동시 요청 e2e 의 겹침 오케스트레이션 — **공허성 가드를 한 곳에 모은다.**
@@ -78,12 +73,9 @@ export async function raceUnderHeldLock<T>(
   lock: { sql: string; params?: unknown[] },
   fires: Array<() => Promise<T>>,
 ): Promise<T[]> {
-  if (fires.length < 2) {
-    // 하나만 발사하면 겹침 자체가 없다 — 이 헬퍼를 쓸 이유가 없고, 아래 가드도 의미를 잃는다.
-    throw new Error(
-      `raceUnderHeldLock: 겹침을 만들려면 thunk 가 2개 이상이어야 한다 (받은 수: ${fires.length})`,
-    );
-  }
+  // 하나만 발사하면 겹침 자체가 없다 — 아래 공허성 가드가 `pending` 을 보고 **통과**시키므로
+  // 이 검사가 없으면 겹침 없는 테스트가 초록이 된다. 규칙은 순수 함수라 따로 검증된다.
+  assertEnoughFiresForOverlap(fires.length);
 
   let pending: Promise<T[]> | undefined;
   await locker.query('BEGIN');
