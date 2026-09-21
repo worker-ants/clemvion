@@ -4813,6 +4813,29 @@ field: T | null;
       `pessimistic_write` 로 멤버십을 읽으므로 진 쪽은 `NOT_A_MEMBER` 403 이고 감사를 남기지 않는다(실측).
       처방은 통합 경로(#이 PR)와 같다: 락을 새로 들이지 말고 원자적 `delete({ id, workspaceId })` 의
       `affected === 0` 으로 판정. 재현은 형제 e2e 의 행 락 기법 그대로.
+      **2026-09-21 정정 — 「여섯 번째」는 맞지만 「마지막」이 또 틀렸다**: 착수 전 전수 조사
+      (`plan/in-progress/member-dup-remove.md` §A)에서 **세 자리가 더** 나왔다. 아래 세 항목이다.
+
+- [ ] **`AuthConfigsService.remove()` 도 동시 삭제에서 감사 행을 두 번 남긴다 — 일곱 번째**
+      (developer, 낮음, 2026-09-21 등재 · `member-dup-remove.md` §A 전수 조사).
+      `auth-configs.service.ts:287` — 무락 `findById` → `remove(config)` → `AUTH_CONFIG_DELETE` 감사.
+      형제 여섯과 같은 형태이고 락이 없으므로 처방도 같다(원자적 `delete` 의 `affected === 0`).
+
+- [ ] **`ModelConfigService.remove()` 도 동시 삭제에서 감사 행을 두 번 남긴다 — 여덟 번째**
+      (developer, 낮음, 2026-09-21 등재 · 같은 조사).
+      `model-config.service.ts:404` — 무락 `findEntity` → `remove(config)` → `notifyInvalidated(id)`
+      → `MODEL_CONFIG_DELETE` 감사. **`notifyInvalidated` 도 두 번 발화한다** — 이 자리는 감사 중복에
+      더해 캐시 무효화 통지 중복까지 있으므로, 고칠 때 둘 다 진 쪽에서 안 나가는지 확인할 것.
+
+- [ ] **WebAuthn credential 삭제도 동시 요청에서 `user.2fa_disabled` 감사를 두 번 남긴다 — 아홉 번째**
+      (developer, 낮음, 2026-09-21 등재 · 같은 조사).
+      `webauthn.service.ts:532` 는 이미 `credentialRepo.delete({ id })` 를 쓰지만 **`affected` 를 버린다** —
+      «`remove(entity)` 를 찾자» 는 축으로는 안 걸리는 자리다. 게다가 감사는 서비스가 아니라
+      **`webauthn.controller.ts:338`** 이 남긴다(`USER_2FA_DISABLED`). 즉 «서비스에서 감사를 찾자» 는
+      축으로도 안 걸린다 — **이 항목이 열거 축을 «지우고 감사한다» 는 요청 단위로 잡아야 하는 이유다.**
+      부수 효과가 하나 더 있다: 진 쪽도 `countCredentials` 가 0을 보면 `webauthnRecoveryCodes: null`
+      쓰기를 한 번 더 한다. 판정을 서비스에 두면 `{ remaining }` 계약을 바꾸게 되므로, 반환 형태를
+      건드리지 않는 방법(진 쪽에서 404)을 먼저 검토할 것.
 
 - [ ] **`integrations.service.spec.ts:131` 의 `remove` mock 스텁이 죽었다**
       (developer, 매우 낮음, 2026-09-21 등재 · `review/code/2026/09/21/11_32_06` INFO 2).
