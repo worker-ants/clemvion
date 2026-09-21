@@ -1,0 +1,120 @@
+---
+title: WebAuthn credential 동시 삭제도 감사 행을 두 번 남긴다 — 아홉 번째이자 마지막 자리
+status: in-progress
+owner: developer
+worktree: webauthn-dup-delete-5c9f3a
+started: 2026-09-21
+spec_impact: none
+---
+
+# `WebAuthnService.deleteCredential()` — 아홉 번째, 마지막 자리
+
+트래커 `plan/in-progress/spec-draft-nullable-notation-followups.md` 의 developer 항목
+«WebAuthn credential 삭제도 동시 요청에서 `user.2fa_disabled` 감사를 두 번 남긴다» 를 닫는다.
+
+## 0. 착수 게이트 — 여덟 번째 PR(#1375)이 이 PR 에 건 선행 조건
+
+트래커가 **착수 시점에 둘을 결정하고 그 결정을 여기 적을 것**을 요구한다. 미이행 시 착수 불가.
+아래가 그 결정이며, **둘 다 실측 후에 내렸다.**
+
+### 결정 1 — 동시성 e2e 공용 헬퍼: **추출한다. 단 이 PR 이 아니라 전용 PR 에서.**
+
+**실측**: `codebase/backend/test/` 에 이 계열 e2e 가 **여덟 개**다(101~208줄).
+여섯은 행 락(`SELECT … FOR UPDATE`), 둘은 advisory lock 을 쓰고, **여덟 전부 1.5초 공허성 가드**를
+쓴다. 공통부는 `BEGIN → 락 → 두 요청 발사 → 공허성 가드 → COMMIT → 정렬 → finally ROLLBACK`
+오케스트레이션이고, 갈리는 것은 락 SQL·발사 함수·단언뿐이다.
+
+**추출해야 하는 진짜 이유는 줄 수가 아니라 공허성 가드다.** 그 가드가 빠진 테스트는 고치기 전
+코드도 통과시킨다 — 즉 **없으면 조용히 거짓 초록이 되는 부분**이고, 지금은 여덟 곳에 손으로
+복제돼 있어 아홉 번째를 쓰는 사람이 빠뜨릴 수 있다. 설계:
+
+```ts
+// codebase/backend/test/helpers/concurrency.ts
+export async function raceUnderHeldLock<T>(
+  locker: Client,
+  lock: { sql: string; params: unknown[] },
+  fire: () => Promise<T>,
+): Promise<T[]>;   // BEGIN → 락 → [fire(), fire()] → 1.5s 공허성 가드 → COMMIT → 결과
+```
+
+**왜 이 PR 이 아닌가**: 아홉 파일을 한꺼번에 바꾸는 것은 **테스트 전용 리팩터**라 프로덕션
+위험이 없고 단독으로 검토하기 쉽다. 그것을 webauthn 모듈의 버그 수정과 한 diff 에 섞으면,
+이 세션 내내 리뷰어들이 반복해 지적해 온 «스코프 혼입» 이 된다. **트래커에 설계째로 등재**하고
+이 PR 에서는 기존 패턴을 그대로 쓴다.
+
+> 이것이 «또 유예» 가 아닌 이유: 앞선 유예들은 «다음에 재검토하자» 였다. 이번 결정은
+> **추출한다**이고, 시그니처·범위(아홉 파일)·성격(테스트 전용)·분리 사유가 전부 정해져 있다.
+
+### 결정 2 — `affected` 판별자 유틸(`isDeleteMiss()` 류): **추출하지 않는다.**
+
+리뷰(`review/code/2026/09/21/17_08_12` architecture)가 «관용구가 서비스 여덟 곳에 손으로
+복제돼 있다» 며 최소 추출을 제안했다. **거절하고, 그 근거는 비용이 아니다.**
+
+**실측**: `affected === 0` 을 삭제 판별자로 쓰는 자리는 다섯이다 —
+`auth-configs`·`integrations`·`model-config`·`workspaces`·`schedules`.
+(`workflows` 는 `parentPresence`, `triggers` 는 락 안 재조회라 이 계열이 아니다.)
+**그 다섯 전부가 «드라이버 미보고» 대조군 테스트를 이미 갖고 있다**(실측 확인).
+
+지키려는 불변식은 «`!affected` 로 쓰지 말 것» 인데,
+- `isDeleteMiss(affected)` 는 그 **비교를 호출부에서 감춘다**. 정작 위험한 것은 헬퍼 **본문**이
+  `!affected` 로 구현되는 것이고, 그러면 위험이 사라지는 게 아니라 **한 곳으로 옮겨가면서
+  리뷰어가 볼 수 있는 자리에서는 사라진다.**
+- 실제로 이 불변식을 지킨 것은 대조군 테스트다. #1371 에서 그것이 없었을 때 `!affected`
+  뮤턴트가 **32건을 통과**했고, 넣자 곧바로 RED 가 됐다.
+
+즉 **방어는 이미 있고 그것은 헬퍼가 아니다.** 12자짜리 명시 비교를 헬퍼로 감싸면 방어가
+약해진다. 이 판단을 트래커에도 남겨 다음 사람이 같은 제안을 재발명하지 않게 한다.
+
+## A. 결함 — 이 자리가 열거 축을 바꾸게 만든 자리다
+
+`webauthn.service.ts:518-539`:
+
+```ts
+const credential = await this.credentialRepo.findOne({ where: { id: credentialUuid } });  // 무락
+if (!credential || credential.userId !== userId) throw NotFound('WEBAUTHN_CREDENTIAL_NOT_FOUND');
+await this.credentialRepo.delete({ id: credentialUuid });   // ← affected 를 버린다
+const remaining = await this.countCredentials(userId);
+if (remaining === 0) await this.usersService.update(userId, { webauthnRecoveryCodes: null });
+return { remaining };
+```
+
+그리고 감사는 **서비스가 아니라 `webauthn.controller.ts:338`** 이 남긴다(`USER_2FA_DISABLED`).
+
+**이 자리가 «마지막» 을 세 번 틀리게 만든 원인이다**: 이미 `.delete()` 를 쓰고 있어
+«`remove(entity)` 를 찾자» 축으로는 안 걸리고, 감사가 컨트롤러에 있어 «서비스에서 감사를
+찾자» 축으로도 안 걸린다. **«지우고 감사한다» 는 요청 단위 서술만이 잡는다.**
+
+## B. 형제 여덟과 다른 점 — 착수 전 실측
+
+| 확인할 것 | 실측 |
+| --- | --- |
+| 이미 `.delete()` 를 쓴다 | **그렇다.** 바꾸는 것은 `remove`→`delete` 가 아니라 **버려지던 `affected` 를 판정에 쓰는 것**이다 |
+| 감사 위치 | **컨트롤러**(`:338`). 서비스가 던지면 컨트롤러가 감사에 도달하지 않으므로 계약은 그대로 지켜진다 |
+| 반환 계약 | `{ remaining }` — 판정을 서비스에 두되 **이 형태를 바꾸지 않는다**(진 쪽은 throw) |
+| 404 코드 | `WEBAUTHN_CREDENTIAL_NOT_FOUND` — 진 쪽이 조회 실패와 같은 코드를 받아야 한다 |
+| 라우트 성공 코드 | **204** (`@Delete('credentials/:id')` + `@HttpCode(HttpStatus.NO_CONTENT)`) |
+| DELETE 스코핑 | **`{ id }` 뿐 — `userId` 가 없다.** 소유권은 무락 `findOne` 뒤 JS 비교로만 확인한다. 형제들이 받은 «조건절에 소유자/워크스페이스를 넣는다» 강화를 여기도 적용한다 |
+| 진 쪽의 부수 쓰기 | 진 쪽도 `countCredentials` 를 돌리고 `remaining === 0` 이면 `webauthnRecoveryCodes: null` 을 **한 번 더** 쓴다. 판정을 delete 직후에 두면 둘 다 건너뛴다 |
+
+## C. 재현을 먼저 한다
+
+e2e 는 형제들의 행 락 기법 그대로. credential 은 **SQL 로 직접 INSERT** 한다 — 이 테스트의
+대상은 동시 삭제이지 WebAuthn 등록 의식이 아니고, 등록 ceremony 를 태우면 fixture 가
+테스트의 주제를 가린다.
+
+- 단언: 상태쌍 `[204, 404]`(현행 예측은 `[204, 204]`) + 진 쪽 코드 `WEBAUTHN_CREDENTIAL_NOT_FOUND`
+  + `audit_log` 의 `user.2fa_disabled` **1건**.
+- 공허성 가드: 락을 놓기 **전에** 둘 다 아직 안 끝났음을 관측한다.
+
+## 체크리스트
+
+- [x] **착수 게이트 이행** — 위 §0 의 두 결정을 실측과 함께 기록했다
+- [ ] 결정 1 을 트래커에 **설계째로** 등재 (시그니처·범위·분리 사유)
+- [ ] 결정 2 를 트래커에 등재 (다음 사람이 같은 제안을 재발명하지 않도록)
+- [ ] `/consistency-check --impl-prep spec/5-system` → BLOCK: NO
+- [ ] **e2e 로 결함 재현** (고치기 전 실측을 숫자로 기록)
+- [ ] 단위 테스트 + 구현 (대조군 포함, 뮤턴트 유효성 확인 후 kill 수 읽기)
+- [ ] TEST WORKFLOW (lint · unit · build · e2e) — 숫자는 로그 파일명과 함께
+- [ ] `/ai-review` → 수렴
+- [ ] `/consistency-check --impl-done <scope>` → BLOCK: NO
+- [ ] 트래커 항목 해소 + 이 plan `plan/complete/` 로 + **이 계열 종료 선언**
