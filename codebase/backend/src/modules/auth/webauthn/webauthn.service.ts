@@ -509,7 +509,7 @@ export class WebAuthnService {
    * 판정까지 네 곳이 공유한다. 형제 서비스의 `throwAuthConfigNotFound`/
    * `throwMemberNotFound` 와 같은 형태다.
    *
-   * **`verifyAuthentication`(:403)의 `UnauthorizedException`(401)과는 다른 자리다.**
+   * **`verifyAuthentication()` 의 `UnauthorizedException`(401)과는 다른 자리다.**
    * 같은 `WEBAUTHN_CREDENTIAL_NOT_FOUND` 코드 문자열을 공유하지만, 그쪽은 로그인 2FA
    * 인증 단계에서 존재 노출을 막으려는 401 이고 이쪽은 소유자 확인 후의 404 다 — 예외
    * 타입도 상태 코드도 다르므로 하나로 합치지 않는다.

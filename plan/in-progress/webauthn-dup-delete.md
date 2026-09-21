@@ -115,8 +115,11 @@ e2e 는 형제들의 행 락 기법 그대로. credential 은 **SQL 로 직접 I
       **BLOCK: NO** (Critical 0 · Warning 1).
       **W1 이 내가 #1374 에 써 넣은 주석까지 끌어왔다**: `WEBAUTHN_CREDENTIAL_NOT_FOUND` 가
       카탈로그에 없고, 게다가 **한 코드가 두 status 로 나간다** —
-      `webauthn.service.ts:403` 이 `UnauthorizedException`(**401**), `:497`·`:504`·`:527` 이
-      **404**(직접 실측). 즉 `3-error-handling.md` §1.11 의 «`_NOT_FOUND`≠404 는 이 저장소에서
+      `webauthn.service.ts` 의 `verifyAuthentication()` 이 `UnauthorizedException`(**401**),
+      `renameCredential()`·`deleteCredential()` 이 `NotFoundException`(**404**)로 같은 코드를
+      던진다(직접 실측). — **줄 번호로 적지 않는다**: 처음엔 `:403`·`:497`·`:504`·`:527` 로
+      적었는데, **같은 PR 의 헬퍼 추출 커밋이 그 줄들을 곧바로 밀어냈다**(리뷰 라운드 3 W2).
+      즉 `3-error-handling.md` §1.11 의 «`_NOT_FOUND`≠404 는 이 저장소에서
       유일한 예외» 가 **거짓**이고, 내가 #1374 의 `throwAuthConfigNotFound()` JSDoc 에 그 문장을
       그대로 인용했다. **spec 은 권한 밖이라 planner 항목으로 등재**했고, 내 주석도 같은 턴에
       고치도록 그 항목에 묶었다.
