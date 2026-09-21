@@ -91,10 +91,20 @@ grep 의 공통 토큰(`BEGIN`·`Promise.race`·`pending?.catch`·`finally`)만 
 
 - [x] `integration-rotate-concurrency` 가 같은 구조인지 실측 → **제외 결정**(§B). grep 으로 먼저
       «포함» 이라 결론졌다가 본문을 읽고 뒤집었다 — 그 경위도 §B 에 남겼다
-- [ ] `/consistency-check --impl-prep <scope>` → BLOCK: NO
-- [ ] 헬퍼 작성 + 아홉 파일 전환
-- [ ] **음성 대조군** — 락 제거 뮤턴트로 가드가 살아 있음을 실측(예측/실측 두 칸)
-- [ ] TEST WORKFLOW (lint · unit · build · e2e) — 숫자는 로그 파일명과 함께
+- [x] `/consistency-check --impl-prep spec/5-system` — `review/consistency/2026/09/21/19_59_55`
+      **BLOCK: NO · Critical 0 · Warning 0**(5 checker 전원). INFO 1·2 는 종결 시 트래커
+      미러링(제외 확정 서술 · 시그니처 스케치 갱신)이라 마무리 커밋에서 처리한다
+- [x] 헬퍼 작성 + **아홉 파일 11 블록** 전환. **단언은 하나도 바꾸지 않았다** — 사라진 것은
+      `expect(raced).toBe('pending')` 11건뿐이고 그것이 헬퍼로 옮겨간 가드 자체다.
+      정렬 로직·발사 함수 반환 형태는 호출부에 그대로. `codebase/backend/src/**` **변경 0**
+- [x] **음성 대조군** — 헬퍼에서 락 쿼리를 `void lock` 으로 바꾼 뮤턴트(1줄, diff 로 범위 확인).
+      **예측 11 RED / 실측 11 RED**(9 스위트 전부). 실패 사유도 확인했다 —
+      `expect(raced).toBe('pending')` 에서 `Received: "settled"`, 즉 **정확히 공허성 가드**다
+      (엉뚱한 이유로 죽은 RED 가 아니다). 원복은 `cp` 백업으로 했다.
+      → **전환된 11 블록 전부에서 가드가 살아 있다**는 뜻이다. 이 PR 의 위험(테스트가 조용히
+      약해지는 것)을 직접 겨냥한 실험이고, «전부 GREEN» 만으로는 얻을 수 없는 증거다
+- [x] TEST WORKFLOW — lint PASS · unit PASS · build PASS(타입체크 ratchet 포함) ·
+      **e2e 378 PASS**(`_test_logs/e2e-20260921-202202.log`) — 리팩터 전과 같은 수
 - [ ] `/ai-review` → 수렴
 - [ ] `/consistency-check --impl-done <scope>` → BLOCK: NO
 - [ ] 트래커 항목 해소 + 이 plan `plan/complete/` 로
