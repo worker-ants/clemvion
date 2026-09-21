@@ -130,12 +130,13 @@ AND workspace_id = $2` 한 문장의 원자성에 기대어, 그 `affected` 를 
 였고, DB 를 직접 조회해 `auth_config.delete` 감사 행이 **한 `resource_id` 에
 2건** 임을 확인했다(고친 코드는 `[204, 404]` · 감사 1건).
 
-**남는 것**: 같은 결함 클래스의 남은 두 자리는 `ModelConfigService.remove()`
+**남는 것**: <del>같은 결함 클래스의 남은 두 자리는 `ModelConfigService.remove()`
 (여덟 번째, ~~캐시 무효화 통지 `notifyInvalidated` 중복까지 함께 있음~~)와
-~~WebAuthn credential 삭제(아홉 번째, 감사가 서비스가 아니라 컨트롤러에 있어
+WebAuthn credential 삭제(아홉 번째, 감사가 서비스가 아니라 컨트롤러에 있어
 축이 다름) — `plan/in-progress/spec-draft-nullable-notation-followups.md` 에
-등재.~~ **해소 (2026-09-21, 아홉 번째 PR)**: WebAuthn 자리는 맨 위 항목이
-닫았다 — 이 결함 클래스는 아홉 자리로 종료됐다.
+등재.</del> **해소 (2026-09-21)**: 여덟 번째(`ModelConfigService.remove()`)는
+바로 위 `model_config` 섹션에서, 아홉 번째(WebAuthn)는 맨 위 항목에서 각각
+닫혔다 — 이 결함 클래스는 아홉 자리로 종료됐다.
 
 > **정정 (2026-09-21, 여덟 번째 PR 실측)**: 위 취소선 문구는 과장이었다.
 > `ModelConfigService.remove()` 의 캐시 무효화 리스너는 `llm.service.ts:81-82`
