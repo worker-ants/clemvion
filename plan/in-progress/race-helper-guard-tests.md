@@ -98,9 +98,32 @@ DB 의존 오케스트레이션(`raceUnderHeldLock`)은 `test/helpers/` 에 **�
 직전 PR 의 음성 대조군과 같은 자리다. «unit PASS» 는 증거가 아니다 — 러너가 새 파일을
 아예 안 집어도 PASS 다.
 
-- [ ] 새 spec 의 단언 하나를 **일부러 깨뜨린** 뒤 `run-test.sh unit` 이 **RED** 인지 본다.
-      **예측: RED**. GREEN 이면 그 파일은 수집되지 않은 것이고, 그게 이 PR 이 찾아야 할 것이다.
-- [ ] 수집 여부를 **수치로도** 남긴다 — 전/후 `tests=N` 비교(로그 파일명과 함께).
+- [x] 새 spec 의 단언 하나를 **일부러 깨뜨린** 뒤 `run-test.sh unit` 이 **RED** 인지 본다.
+- [x] 수집 여부를 **수치로도** 남긴다.
+
+### 실측 — 예측과 대조
+
+| 뮤턴트 | 예측 RED | 실측 RED | 죽은 테스트 |
+| --- | --- | --- | --- |
+| **A**: spec 단언 하나를 깨뜨림 (`run-test.sh unit` 전수) | 1 | **1** | `받은 수를 메시지에 싣는다` |
+| **B**: `>=` → `>` | 1 | **1** | `가장 짧은 상한과 같으면 던진다` |
+| **C**: 첫 항만 검사(`timeouts.slice(0, 1)`) | 2 | **2** | `같으면` + `첫 항을 통과해도 둘째 항이 위반이면` |
+| **D**: `fireCount < 2` → `< 1` | 2 | **2** | `thunk 1개면 던진다` + `받은 수를 메시지에` |
+
+**A 가 이 PR 의 판별 실험이다** — 타겟 jest 가 아니라 **`run-test.sh unit` 전수**에서 RED 가
+났으므로(`_test_logs/unit-20260921-225725.log`: `1 failed, 471 passed, 472 total`) 그 파일은
+실제로 수집되고 단언이 실제로 돈다. B~D 는 뮤턴트 유효성(테스트가 규칙을 진짜로 조이는가)이다.
+
+### 수집 수치
+
+| | 전 | 후 |
+| --- | --- | --- |
+| unit 수집 파일 | 471 | **472** |
+| backend 테스트 | — | **9941** (신규 spec 단독 11 PASS) |
+
+> **래퍼 요약 숫자를 그대로 믿지 말 것** — `run-test.sh unit` 의 한 줄은 `tests=14` 를 냈는데
+> 그건 **마지막으로 실행된 패키지**의 수다. 로그에 `Tests:` 줄이 여러 개이고 backend 는
+> 9941 이다. 커버리지 판단에 요약 숫자를 쓰면 안 되는 자리를 다시 확인했다.
 
 ## D. 하지 않는 것
 
@@ -128,8 +151,11 @@ DB 의존 오케스트레이션(`raceUnderHeldLock`)은 `test/helpers/` 에 **�
 - [x] `overlap-preconditions.ts` + self-spec 작성, `concurrency.ts` 는 호출만
 - [x] `PROJECT.md:331` 에 예외 한 줄
 - [ ] 트래커 `:1895` + 본 항목 해소 표기 (**종결 커밋에서** plan 이동과 한 동작으로)
-- [ ] **판별 실험으로 수집 확인** (§C)
-- [ ] TEST WORKFLOW (lint · unit · build · e2e) — 숫자는 로그 파일명과 함께
+- [x] **판별 실험으로 수집 확인** (§C — 뮤턴트 4종 예측=실측)
+- [x] TEST WORKFLOW — lint PASS(`lint-20260921-225901.log`) · unit 472스위트/9941
+      (`unit-20260921-225255.log`) · build PASS 타입체크 ratchet 포함
+      (`build-20260921-225951.log`) · **e2e 378 PASS**(`e2e-20260921-230327.log`, #1377 과 동수).
+      `dist/` 에 `shared/testing` 유출 0 확인
 - [ ] `/ai-review` → 수렴
 - [ ] `/consistency-check --impl-done spec/5-system` → BLOCK: NO
 - [ ] 트래커 항목 해소 + 이 plan `plan/complete/` 로 (**한 커밋으로** — 직전 PR 이 각주를
