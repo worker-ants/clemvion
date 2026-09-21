@@ -1,6 +1,7 @@
 import { AuditLogsService } from '../audit-logs/audit-logs.service';
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
+import { DeleteResult } from 'typeorm';
 import { ConfigService } from '@nestjs/config';
 import { ModelConfigService } from './model-config.service';
 import { ModelConfig } from './entities/model-config.entity';
@@ -32,6 +33,12 @@ describe('ModelConfigService', () => {
       save: jest.fn((entity) => Promise.resolve(entity)),
       update: jest.fn().mockResolvedValue(undefined),
       remove: jest.fn().mockResolvedValue(undefined),
+      // 동시 삭제 판별자 — 기본은 «한 행을 지웠다». 진 쪽·드라이버 미보고는 테스트가 덮어쓴다.
+      // 반환 타입을 `DeleteResult` 로 **명시**해야 `mockResolvedValueOnce` 의 파라미터가
+      // 추론된 리터럴로 좁혀지지 않는다(#1374 에서 타입체크 ratchet 이 실측으로 잡은 형태).
+      delete: jest
+        .fn<Promise<DeleteResult>, [unknown]>()
+        .mockResolvedValue({ affected: 1, raw: [] }),
       manager: {
         transaction: jest.fn(
           async (cb: (manager: { update: jest.Mock }) => Promise<void>) => {
@@ -352,7 +359,12 @@ describe('ModelConfigService', () => {
 
       await service.remove('cfg-9', 'ws-1', 'u-spec');
 
-      expect(mockRepo.remove).toHaveBeenCalled();
+      // 원자적 DELETE 로 전환된 뒤의 호출부를 겨냥한다 — `remove` 를 겨냥하면 아무도 부르지
+      // 않는 mock 을 보는 vacuous 단언이 된다(#1372 에서 리뷰가 뮤테이션으로 실측한 형태).
+      expect(mockRepo.delete).toHaveBeenCalledWith({
+        id: 'cfg-9',
+        workspaceId: 'ws-1',
+      });
       expect(listener).toHaveBeenCalledWith('cfg-9');
     });
 
@@ -388,7 +400,7 @@ describe('ModelConfigService', () => {
       await expect(
         service.remove('missing', 'ws-1', 'u-spec'),
       ).rejects.toThrow();
-      expect(mockRepo.remove).not.toHaveBeenCalled();
+      expect(mockRepo.delete).not.toHaveBeenCalled();
       expect(listener).not.toHaveBeenCalled();
     });
 
@@ -1052,19 +1064,19 @@ describe('ModelConfigService', () => {
       );
     });
 
-    it('remove 는 삭제 **전에** 읽은 kind 를 남긴다', async () => {
-      // TypeORM `remove` 는 엔티티의 id 를 지운다. 삭제 후 엔티티에서 읽으면
-      // undefined 가 감사에 남으므로, 이 테스트는 그 순서를 고정한다.
+    it('remove 는 조회한 엔티티의 kind 를 감사에 남긴다', async () => {
+      // **이 테스트가 지키던 위험은 사라졌다.** 종전엔 `repo.remove(entity)` 가 엔티티의 id 를
+      // 지우므로 «삭제 후에 읽으면 undefined» 였고, 그래서 mock 이 그 파괴를 흉내 내
+      // (`delete entity.id; delete entity.kind`) 순서를 고정했다. 원자적
+      // `repo.delete(criteria)` 는 **엔티티를 건드리지 않으므로** 그 흉내는 허구가 된다 —
+      // 남겨 두면 «위험을 막고 있다» 고 읽히는 vacuous 단언이다. 그래서 흉내는 지우고,
+      // 여전히 참인 계약(감사가 조회한 `kind`·`resourceId` 를 싣는다)만 남긴다.
       const entity: Record<string, unknown> = {
         id: 'cfg-5',
         workspaceId: 'ws-1',
         kind: 'embedding',
       };
       mockRepo.findOne.mockResolvedValue(entity);
-      mockRepo.remove.mockImplementation(async () => {
-        delete entity.id;
-        delete entity.kind;
-      });
 
       await service.remove('cfg-5', 'ws-1', 'u-5');
 
@@ -1076,5 +1088,60 @@ describe('ModelConfigService', () => {
         }),
       );
     });
+  });
+
+  /**
+   * 동시 삭제 두 건이 `model_config.delete` 감사를 두 번 남기던 결함의 회귀 테스트.
+   * 형제 일곱(#1369~#1374)과 같은 클래스이고, 이 경로엔 락이 없어 처방도 같다 —
+   * 원자적 `DELETE` 의 `affected` 를 판별자로 쓴다.
+   */
+  describe('remove — 동시 삭제', () => {
+    const entity = () => ({
+      id: 'cfg-race',
+      workspaceId: 'ws-1',
+      kind: 'chat',
+    });
+
+    it('진 쪽은 404 MODEL_CONFIG_NOT_FOUND 이고 감사도 무효화 통지도 없다', async () => {
+      const listener = jest.fn();
+      service.onConfigInvalidated(listener);
+      mockRepo.findOne.mockResolvedValue(entity());
+      // 둘 다 무락 findEntity 를 통과했지만 원자적 DELETE 는 하나만 1행을 지운다.
+      mockRepo.delete.mockResolvedValueOnce({ affected: 0, raw: [] });
+
+      await expect(
+        service.remove('cfg-race', 'ws-1', 'u-race'),
+      ).rejects.toMatchObject({
+        response: { code: 'MODEL_CONFIG_NOT_FOUND' },
+      });
+      expect(auditLogs.record).not.toHaveBeenCalled();
+      // 통지 자체는 멱등이지만(리스너가 캐시 축출 하나뿐), **진 쪽이 아예 부르지 않는다** 가
+      // 이 수정의 계약이다 — 「멱등이라 상관없다」와는 다른 주장이다.
+      expect(listener).not.toHaveBeenCalled();
+    });
+
+    /**
+     * 판정이 `affected === 0` **명시 비교**인 이유를 붙드는 대조군.
+     * `null`·`undefined` 는 드라이버가 «보고하지 않았다» 는 뜻이지 «못 지웠다» 가 아니다 —
+     * `!affected` 로 되돌리면 정상 삭제가 404 로 뒤집힌다. #1371 에서 이 대조군이 빠져
+     * 같은 뮤턴트가 32건을 통과했다.
+     */
+    it.each([[undefined], [null]])(
+      'affected 가 %p(드라이버 미보고)면 정상 삭제로 취급한다',
+      async (affected) => {
+        mockRepo.findOne.mockResolvedValue(entity());
+        mockRepo.delete.mockResolvedValueOnce({
+          affected,
+          raw: [],
+        } as unknown as DeleteResult);
+
+        await expect(
+          service.remove('cfg-race', 'ws-1', 'u-race'),
+        ).resolves.toBeUndefined();
+        expect(auditLogs.record).toHaveBeenCalledWith(
+          expect.objectContaining({ action: 'model_config.delete' }),
+        );
+      },
+    );
   });
 });

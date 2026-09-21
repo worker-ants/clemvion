@@ -4964,7 +4964,10 @@ field: T | null;
       >
       > 2026-09-21 기준 자리: `1-workflow-list.md` §2.6 · `data-flow/12-workspace.md` §1.10 ·
       > `3-schedule.md` §4 · `4-integration.md` §9 · `9-user-profile.md` §6.1 ·
-      > `data-flow/12-workspace.md` §1.6 · **`6-config.md` §A(`DELETE /api/auth-configs/:id`)**.
+      > `data-flow/12-workspace.md` §1.6 · **`6-config.md` §A(`DELETE /api/auth-configs/:id`)** ·
+      > **`6-config.md` §Model Config API(`DELETE /api/model-configs/:id`)**.
+      > — `6-config.md` 한 파일 안에 **두 행**이라는 점에 주의: 파일 단위로 훑으면 한 행만 고치고
+      > 끝낼 수 있다(`--impl-prep` `review/consistency/2026/09/21/16_16_35` W1).
       > `5-system/12-webhook.md`·`1-auth.md` 는 `auth-configs.service.ts` 를 `code:` 로 지목하지만
       > 삭제 계약을 서술하지 않으므로 대상 아님(2026-09-21 직접 확인).
       >

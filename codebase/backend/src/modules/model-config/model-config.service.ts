@@ -398,11 +398,35 @@ export class ModelConfigService {
 
   async remove(id: string, workspaceId: string, userId: string): Promise<void> {
     const config = await this.findEntity(id, workspaceId);
-    // kind 를 remove 전에 읽어둔다 — TypeORM `remove` 는 엔티티의 id 를 지우므로
-    // 삭제 후 `config.id` 를 쓰면 undefined 가 감사에 남는다.
+    // 감사 payload 에 실을 kind — 아래 `delete(criteria)` 는 엔티티를 건드리지 않으므로
+    // 순서 때문이 아니라 단순히 조회 결과에서 읽는 것이다. (종전 `remove(entity)` 는 엔티티의
+    // id 를 지웠기에 «삭제 전에 읽어둔다» 는 주석이 붙어 있었는데, 그 위험은 이제 없다.)
     const { kind } = config;
-    await this.repo.remove(config);
+
+    // 위 `findEntity` 는 잠그지 않으므로 동시 삭제 두 건이 **둘 다** 여기까지 온다. 종전의
+    // `remove(config)` 는 0행이어도 던지지 않아 둘 다 감사를 남겼다 (실측: 한 id 에
+    // `model_config.delete` 2건). 형제 일곱(#1369~#1374)과 달리 이 경로엔 잠글 것이 없으므로 —
+    // advisory lock 도 행 락도 없다 — 락을 새로 들이지 않고 **단일 원자적 DELETE** 로 가른다.
+    //
+    // 판정은 `affected === 0` **명시 비교**다. `null`·`undefined` 는 드라이버가 «보고하지
+    // 않았다» 는 뜻이지 «지우지 못했다» 가 아니며, 그것을 0 과 같이 읽으면 정상 삭제를 404 로
+    // 뒤집는다 (같은 규율: `rewriteTriggerConfigLocked`).
+    //
+    // 404 는 형제들의 `RESOURCE_NOT_FOUND` 가 아니라 이 모듈 고유의 `MODEL_CONFIG_NOT_FOUND`
+    // 다 — 진 쪽은 `findEntity` 실패와 **같은 코드**를 받아야 한다.
+    //
+    // `remove(entity)` → `delete(criteria)` 전환은 동작을 바꾸지 않는다(실측): `ModelConfig` 에
+    // `cascade: true` 도 `@OneToMany` 도 없고, 저장소 전체에 remove 계열 ORM 라이프사이클 훅이
+    // 0건이다. 이 행을 참조하는 FK 둘(`knowledge_base.rerank_config_id` `V090:22` · KB embedding
+    // `V091:23`)은 `ON DELETE SET NULL` 이라 DB 레벨에서 두 방식 모두 동일하게 발화한다.
+    const { affected } = await this.repo.delete({ id, workspaceId });
+    if (affected === 0) {
+      throw this.notFound();
+    }
+
     // 삭제된 config 의 의존 캐시 무효화 통지 (이전 controller clearClientCache 와 동일).
+    // 진 쪽은 위에서 던지므로 여기 오지 않는다 — 통지 자체는 멱등이지만(리스너가
+    // `clearClientCache` 하나뿐), «진 쪽이 아예 부르지 않는다» 가 이 경로의 계약이다.
     this.notifyInvalidated(id);
     await this.recordAudit({
       workspaceId,
