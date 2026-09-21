@@ -32,7 +32,6 @@ describe('ModelConfigService', () => {
       create: jest.fn((data) => ({ ...data, id: 'test-id' })),
       save: jest.fn((entity) => Promise.resolve(entity)),
       update: jest.fn().mockResolvedValue(undefined),
-      remove: jest.fn().mockResolvedValue(undefined),
       // 동시 삭제 판별자 — 기본은 «한 행을 지웠다». 진 쪽·드라이버 미보고는 테스트가 덮어쓴다.
       // 반환 타입을 `DeleteResult` 로 **명시**해야 `mockResolvedValueOnce` 의 파라미터가
       // 추론된 리터럴로 좁혀지지 않는다(#1374 에서 타입체크 ratchet 이 실측으로 잡은 형태).
