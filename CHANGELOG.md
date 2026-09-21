@@ -1,5 +1,46 @@
 # Changelog
 
+## Unreleased — 동시 DELETE 두 건이 `integration.deleted` 감사 행을 두 번 남기던 것
+
+`IntegrationsService.remove()` 는 잠금 없는 `findOne` 으로 존재를 확인한 뒤, 사용처 검사
+(`INTEGRATION_IN_USE`)를 통과하면 `integrationRepository.remove(entity)` → 감사 기록 순서였다.
+`remove(entity)` 는 0행이어도 던지지 않으므로, 동시 DELETE 두 건이 잠금 없는 선조회·사용처
+검사를 모두 통과하면 먼저 커밋한 쪽이 행을 지운 뒤에도 진 쪽이 그대로 진행해
+`integration.deleted` 감사를 한 번 더 남겼다 — 같은 결함 클래스의 다섯 번째 자리다(워크플로·
+워크스페이스 #1369, 트리거 #1370, 스케줄 #1371).
+
+**판별자가 형제 넷과 다른 이유**: 형제들은 advisory lock 이나 `pessimistic_write` 행 락으로 두
+요청을 줄 세운 뒤 락 안에서 재조회하거나 재조회 결과를 판별자로 쓴다. 이 경로엔 **락이
+아예 없다** — advisory lock 도 행 락도 들이지 않았다. 락을 새로 들이는 대신 원자적
+`DELETE … WHERE id = $1 AND workspace_id = $2` 한 문장의 원자성에 기대어, 그 `affected` 를
+판별자로 쓴다 — 둘 중 하나만 1행을 지운다(`4-integration.md` Rationale 이 기각한 advisory
+lock 의 재도입이 아니다: 기각 사유는 «lock 보유 중 HTTP 요청» 인데 여기엔 외부 호출이 없다).
+
+**고친 것**:
+- `integrationRepository.remove(entity)` 를 원자적 `delete({ id, workspaceId })` 로 바꾸고, 그
+  `affected === 0`(명시 비교)을 판정자로 삼는다 — 0 이면 404(`RESOURCE_NOT_FOUND`)로 끝나고
+  감사·`broadcastCredentialChange` 는 건너뛴다. `remove(entity)` → `delete(criteria)` 전환은
+  동작을 바꾸지 않는다 — `Integration` 엔티티에 `cascade: true` 관계도 `@OneToMany` 도 없다(실측).
+- `affected` 가 `null`·`undefined` 인 것은 드라이버가 «보고하지 않았다» 는 뜻이지 «지우지
+  못했다» 가 아니다 — 그것을 0 과 같이 읽으면 정상 삭제를 404 로 뒤집는다
+  (`rewriteTriggerConfigLocked` 가 세운 규율, 스케줄 경로도 같다). **그 이유를 붙드는 대조군
+  테스트**(`affected` 가 undefined·null 이어도 정상 삭제로 취급)를 함께 넣었다 — 형제 PR(#1371)
+  에서 이 대조군이 없어 `=== 0` 을 `!affected` 로 되돌리는 뮤턴트가 32건 전건 GREEN 으로
+  살아남았던 자리다.
+
+**판별력 실측**: 고치기 전 e2e 로 재현하니 동시 DELETE 두 건이 **둘 다 204** 였고, DB 를 직접
+조회해 `integration.deleted` 감사 행이 **한 `resource_id` 에 2건** 임을 확인했다(고친 코드는
+`[204, 404]` · 감사 1건). 단위 뮤테이션도 함께 돈다 — 404 분기를 지우면 진 쪽 테스트가 RED,
+`=== 0` 을 `!affected` 로 되돌리면 대조군 테스트가 RED.
+
+**남는 것**: 착수 전 재열거에서 직전 PR(#1371)이 «다섯 번째이자 마지막» 이라 적은 것이 틀렸음을
+확인했다 — 그 열거가 `AUDIT_ACTIONS.*_DELETED` 접미사로만 셌기 때문이다. `MEMBER_REMOVED`
+(`member.removed`)도 삭제성 감사라 `WorkspacesService.removeMember()` 가 같은 형태로 남아
+있다(락 없음, 이 계열의 여섯 번째 자리) — `plan/in-progress/spec-draft-nullable-notation-followups.md`
+에 등재. `leaveWorkspace()` 는 트랜잭션 안 `pessimistic_write` 재조회라 이미 닫혀 있다(실측:
+진 쪽은 `NOT_A_MEMBER` 403, 감사 없음). 사용처 검사와 삭제 사이의 TOCTOU 는 별개 사안이라
+이 PR 이 닫지 않는다.
+
 ## Unreleased — 동시 DELETE 두 건이 `schedule.deleted` 감사 행을 두 번 남기던 것
 
 `SchedulesService.remove()` 는 잠금 없는 `findById` 로 존재를 확인한 뒤, `triggerId` 가 있으면

@@ -129,6 +129,9 @@ describe('IntegrationsService', () => {
         .mockImplementation((entity) => Promise.resolve(entity as Integration)),
       update: jest.fn().mockResolvedValue({ affected: 1 }),
       remove: jest.fn().mockResolvedValue(undefined),
+      // 삭제는 `delete` 로 한다 — 그 `affected` 가 «내가 지웠는가» 의 판별자다(동시 DELETE 의 진 쪽은
+      // 0행이라 404 로 끝나야 한다).
+      delete: jest.fn().mockResolvedValue({ affected: 1, raw: [] }),
       createQueryBuilder: jest
         .fn()
         .mockReturnValue(makeQueryBuilder({ count: 0, many: [] })),
@@ -1056,12 +1059,53 @@ describe('IntegrationsService', () => {
   describe('remove', () => {
     it('deletes when no usages exist', async () => {
       await service.remove('int-1', 'ws-1', 'user-1');
-      expect(integrationRepo.remove).toHaveBeenCalled();
+      expect(integrationRepo.delete).toHaveBeenCalledWith({
+        id: 'int-1',
+        workspaceId: 'ws-1',
+      });
       expect(auditLogsService.record).toHaveBeenCalledWith(
         expect.objectContaining({
           action: AUDIT_ACTIONS.INTEGRATION_DELETED,
         }),
       );
+    });
+
+    /**
+     * 동시 DELETE 두 건 — 이 경로엔 락이 없어 둘 다 무락 조회·사용처 검사를 통과한다. 먼저 커밋한
+     * 쪽이 행을 지우면 두 번째의 `DELETE` 는 0행이고, 그대로 진행하면 `integration.deleted` 감사가
+     * 두 번 남는다(e2e 로 재현: 둘 다 204 · 감사 2건).
+     */
+    it('동시 삭제의 진 쪽(0행)은 404 이고 감사·broadcast 를 남기지 않는다', async () => {
+      integrationRepo.delete.mockResolvedValueOnce({ affected: 0, raw: [] });
+
+      await expect(
+        service.remove('int-1', 'ws-1', 'user-1'),
+      ).rejects.toMatchObject({ response: { code: 'RESOURCE_NOT_FOUND' } });
+
+      expect(auditLogsService.record).not.toHaveBeenCalled();
+      expect(integrationCacheBus.publish).not.toHaveBeenCalled();
+    });
+
+    /**
+     * 위 테스트의 **대조군**. `affected` 가 `null`·`undefined` 인 것은 드라이버가 «보고하지 않았다» 는
+     * 뜻이지 «지우지 못했다» 가 아니다 — 그것을 0 과 같이 읽으면 정상 삭제를 404 로 뒤집는다.
+     * 자매 함수 `rewriteTriggerConfigLocked` 가 같은 형태의 대조군을 갖는다.
+     *
+     * 이 대조군이 없으면 `affected === 0` 을 `!affected` 로 되돌리는 편집이 스위트를 그대로 통과한다 —
+     * 형제 PR(#1371)에서 실제로 32건 전건 GREEN 으로 살아남았다.
+     */
+    it('affected 를 보고하지 않는 드라이버에서는 404 로 뒤집지 않는다', async () => {
+      for (const affected of [undefined, null]) {
+        auditLogsService.record.mockClear();
+        integrationCacheBus.publish.mockClear();
+        integrationRepo.delete.mockResolvedValueOnce({ affected, raw: [] });
+
+        await expect(
+          service.remove('int-1', 'ws-1', 'user-1'),
+        ).resolves.toBeUndefined();
+        expect(auditLogsService.record).toHaveBeenCalled();
+        expect(integrationCacheBus.publish).toHaveBeenCalled();
+      }
     });
 
     it('broadcasts cache invalidation with the integration id (04 m-4)', async () => {
@@ -1129,7 +1173,7 @@ describe('IntegrationsService', () => {
       await expect(service.remove('int-1', 'ws-1', 'user-1')).rejects.toThrow(
         ConflictException,
       );
-      expect(integrationRepo.remove).not.toHaveBeenCalled();
+      expect(integrationRepo.delete).not.toHaveBeenCalled();
     });
 
     it('blocks deletion when only an MCP reference exists', async () => {
@@ -1151,7 +1195,7 @@ describe('IntegrationsService', () => {
       await expect(service.remove('int-1', 'ws-1', 'user-1')).rejects.toThrow(
         ConflictException,
       );
-      expect(integrationRepo.remove).not.toHaveBeenCalled();
+      expect(integrationRepo.delete).not.toHaveBeenCalled();
     });
   });
 

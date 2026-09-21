@@ -599,13 +599,22 @@ export class IntegrationsService {
     const row = await this.integrationRepository.findOne({
       where: { id, workspaceId },
     });
-    if (!row) {
-      throw new NotFoundException({
-        code: 'RESOURCE_NOT_FOUND',
-        message: 'Integration not found',
-      });
-    }
+    if (!row) this.throwIntegrationNotFound();
     return this.toPublic(row);
+  }
+
+  /**
+   * «없다» 를 그대로 던진다 — 형제 `triggers.service.ts` 의 `throwTriggerNotFound()` /
+   * `schedules.service.ts` 의 `throwScheduleNotFound()` 선례와 같은 이유다. 같은 리터럴이
+   * `findById` · `update` · `remove`(두 판정) · `rotate`(두 판정) · `requireEntity` 까지
+   * 파일 전체 7곳으로 늘어 있었다 (`/ai-review` `review/code/2026/09/21/10_54_47`
+   * maintainability WARNING 2).
+   */
+  private throwIntegrationNotFound(): never {
+    throw new NotFoundException({
+      code: 'RESOURCE_NOT_FOUND',
+      message: 'Integration not found',
+    });
   }
 
   // ---------------------------------------------------------------
@@ -728,12 +737,7 @@ export class IntegrationsService {
     const entity = await this.integrationRepository.findOne({
       where: { id, workspaceId },
     });
-    if (!entity) {
-      throw new NotFoundException({
-        code: 'RESOURCE_NOT_FOUND',
-        message: 'Integration not found',
-      });
-    }
+    if (!entity) this.throwIntegrationNotFound();
     const changes: Record<string, unknown> = {};
     if (body.name !== undefined && body.name !== entity.name) {
       changes.name = { from: entity.name, to: body.name };
@@ -762,12 +766,7 @@ export class IntegrationsService {
     const entity = await this.integrationRepository.findOne({
       where: { id, workspaceId },
     });
-    if (!entity) {
-      throw new NotFoundException({
-        code: 'RESOURCE_NOT_FOUND',
-        message: 'Integration not found',
-      });
-    }
+    if (!entity) this.throwIntegrationNotFound();
 
     // remove() 가 이미 위에서 findOne 으로 통합 존재·workspace 소유를 검증했으므로,
     // getUsages 의 findById 선검증을 거치지 않고 사용처 조회 헬퍼를 직접 호출한다
@@ -781,7 +780,27 @@ export class IntegrationsService {
       });
     }
 
-    await this.integrationRepository.remove(entity);
+    // **원자적 `DELETE` 의 `affected` 가 판별자다.** 위 `findOne` 은 잠금 없는 선조회라 동시 DELETE 두
+    // 건이 모두 통과하고, 종전의 `remove(entity)` 는 이미 없는 PK 에 0행이어도 던지지 않아 진 쪽도
+    // 성공으로 끝나며 `integration.deleted` 감사를 한 번 더 남겼다(e2e 로 재현: 둘 다 204 · 감사 2건).
+    //
+    // **형제 네 경로와 처방이 다르다** — 그쪽은 행 락(`pessimistic_write`)이나 advisory lock 안에서
+    // 다시 읽어 판정하지만, 이 경로엔 락이 없다. 락을 새로 들이는 대신
+    // `DELETE … WHERE id = $1 AND workspace_id = $2` 한 문장의 원자성에 기댄다 — 둘 중 하나만 1행을
+    // 지운다. (`4-integration.md` Rationale 이 기각한 advisory lock 의 재도입이 아니다: 그 기각 사유는
+    // «lock 보유 중 HTTP 요청» 이고 여기엔 외부 호출이 없으며, 애초에 락을 쓰지 않는다.)
+    //
+    // `remove(entity)` → `delete(criteria)` 전환은 동작을 바꾸지 않는다 — `Integration` 엔티티에
+    // `cascade: true` 관계도 `@OneToMany` 도 없고, DB 레벨 FK CASCADE 는 그대로다.
+    //
+    // 판정은 `=== 0` **명시 비교**다. `affected` 가 `null`·`undefined` 인 것은 드라이버가 «보고하지
+    // 않았다» 는 뜻이지 «지우지 못했다» 가 아니다 — 그것을 0 과 같이 읽으면 정상 삭제를 404 로
+    // 뒤집는다(`rewriteTriggerConfigLocked` 가 세운 규율, 스케줄 경로도 같다).
+    const { affected } = await this.integrationRepository.delete({
+      id,
+      workspaceId,
+    });
+    if (affected === 0) this.throwIntegrationNotFound();
     await this.auditLogsService.record({
       workspaceId,
       userId,
@@ -793,8 +812,8 @@ export class IntegrationsService {
         name: entity.name,
       },
     });
-    // 삭제된 integration 의 잔존 연결을 전 인스턴스에서 정리 (TypeORM remove 후
-    // entity.id 는 unset 될 수 있어 param `id` 를 쓴다).
+    // 삭제된 integration 의 잔존 연결을 전 인스턴스에서 정리 (delete(criteria) 는 entity 를
+    // 변형하지 않지만, 위 findOne 이 읽은 스냅샷 대신 요청 파라미터 `id` 를 쓰는 편이 명확하다).
     await this.broadcastCredentialChange(id);
   }
 
@@ -1169,12 +1188,7 @@ export class IntegrationsService {
         where: { id: entity.id, workspaceId },
         lock: { mode: 'pessimistic_write' },
       });
-      if (!fresh) {
-        throw new NotFoundException({
-          code: 'RESOURCE_NOT_FOUND',
-          message: 'Integration not found',
-        });
-      }
+      if (!fresh) this.throwIntegrationNotFound();
       // 권한도 이 시점 값으로 다시 본다 — 테스트가 도는 동안 personal → organization 으로 바뀌었을 수 있다.
       this.assertCanRotate(fresh, userRole);
 
@@ -1202,12 +1216,7 @@ export class IntegrationsService {
       const row = affected
         ? await repo.findOne({ where: { id: entity.id } })
         : null;
-      if (!row) {
-        throw new NotFoundException({
-          code: 'RESOURCE_NOT_FOUND',
-          message: 'Integration not found',
-        });
-      }
+      if (!row) this.throwIntegrationNotFound();
       return row;
     });
     await this.auditLogsService.record({
@@ -1468,12 +1477,7 @@ export class IntegrationsService {
     const entity = await this.integrationRepository.findOne({
       where: { id, workspaceId },
     });
-    if (!entity) {
-      throw new NotFoundException({
-        code: 'RESOURCE_NOT_FOUND',
-        message: 'Integration not found',
-      });
-    }
+    if (!entity) this.throwIntegrationNotFound();
     return entity;
   }
 

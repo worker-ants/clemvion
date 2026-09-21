@@ -4790,7 +4790,11 @@ field: T | null;
       «없다»(0)로 읽지 않는다). 그 이유를 붙드는 대조군도 넣었다: 없을 때 `!affected` 로 되돌리는 뮤턴트가
       32건 전건 GREEN 으로 살아남았고, 대조군 추가 후 2건 RED 가 됐다.
 
-- [ ] **`IntegrationsService.remove()` 도 동시 삭제에서 감사 행을 두 번 남긴다 — 이 계열의 다섯 번째이자 남은 자리**
+- [x] **`IntegrationsService.remove()` 도 동시 삭제에서 감사 행을 두 번 남긴다** ~~— 이 계열의 다섯 번째이자 남은 자리~~
+      **2026-09-21 해소** (`plan/complete/integration-dup-delete.md`). 처방은 예고대로 원자적
+      `delete({ id, workspaceId })` 의 `affected === 0` → 404 였다. e2e 로 먼저 재현했다 —
+      고치기 전 `[204, 204]` · `integration.deleted` 감사 **2건**, 고친 뒤 `[204, 404]` · **1건**.
+      **«다섯 번째이자 남은 자리» 라는 취소선 부분은 틀렸다** — 아래 `removeMember()` 가 여섯 번째다.
       (developer, 낮음, 2026-09-20 등재 · `plan/in-progress/schedule-dup-delete.md` 착수 전 전수 조사).
       삭제 감사를 남기는 자리를 `AUDIT_ACTIONS.*_DELETED` 로 전수로 세어 확인했다: 워크플로(#1369) · 트리거(#1370) ·
       스케줄(진행 중) · **통합** 넷이고, 워크스페이스 삭제는 애초에 삭제 감사를 남기지 않는다.
@@ -4800,12 +4804,46 @@ field: T | null;
       판정자로 쓰면 락 없이 닫힌다(0이면 404, 감사 없음). 사용처 검사와 삭제 사이의 TOCTOU 는 **별개 사안**이라
       함께 닫으려 하지 말 것.
 
-- [ ] **`1-workflow-list.md` §2.6 · `data-flow/12-workspace.md` §1.10 · `3-schedule.md` §4 에 «동시 삭제 → 두 번째 404» 서술이 없다**
+- [ ] **`WorkspacesService.removeMember()` 도 동시 삭제에서 감사 행을 두 번 남긴다 — 이 계열의 여섯 번째 자리**
+      (developer, 낮음, 2026-09-21 등재 · `plan/in-progress/integration-dup-delete.md` 착수 전 재열거).
+      **직전 PR(#1371)이 «다섯 번째이자 마지막» 이라 적은 것이 틀렸다** — 그 열거가 `AUDIT_ACTIONS.*_DELETED`
+      **접미사로만** 셌기 때문이다. 삭제성 액션에는 `MEMBER_REMOVED`(`member.removed`)도 있다.
+      `removeMember()` 는 무락 `findOne` → 가드(owner 금지 · admin 확인) → `memberRepository.remove(member)`
+      → 감사 순서라 형제들과 같은 형태다. **`leaveWorkspace()` 는 이미 닫혀 있다** — 트랜잭션 안에서
+      `pessimistic_write` 로 멤버십을 읽으므로 진 쪽은 `NOT_A_MEMBER` 403 이고 감사를 남기지 않는다(실측).
+      처방은 통합 경로(#이 PR)와 같다: 락을 새로 들이지 말고 원자적 `delete({ id, workspaceId })` 의
+      `affected === 0` 으로 판정. 재현은 형제 e2e 의 행 락 기법 그대로.
+
+- [ ] **`integrations.service.spec.ts:131` 의 `remove` mock 스텁이 죽었다**
+      (developer, 매우 낮음, 2026-09-21 등재 · `review/code/2026/09/21/11_32_06` INFO 2).
+      통합 삭제가 `remove(entity)` → `delete(criteria)` 로 바뀌면서 그 스텁을 부르는 테스트도
+      단언하는 테스트도 0건이 됐다. **리뷰어는 «다음 근접 편집에서» 라고 적었지만 그 편집은
+      오지 않는다** — 이 계열의 다음 PR(바로 위 `removeMember()`)은 workspaces 를 건드린다.
+      그래서 산문이 아니라 항목으로 남긴다. 한 줄 삭제라 이번 PR 에서 고치면 리뷰 freshness 가
+      재무장돼 라운드가 한 번 더 도는데, 라운드 2가 Critical·Warning 0 으로 수렴한 뒤라
+      선언한 정지 규칙(`developer` SKILL §수렴 예외 (a)(b))에 따라 등재로 갈음했다.
+
+- [ ] **`1-workflow-list.md` §2.6 · `data-flow/12-workspace.md` §1.10 · `3-schedule.md` §4 · `4-integration.md` §9 에 «동시 삭제 → 두 번째 404» 서술이 없다**
       (planner, 낮음, 2026-09-20 등재 · 같은 세션 api_contract·requirement INFO 8). 트리거 목록 §4.4 만 그 계약을 적는다.
       이제 코드는 세 경로 중 둘이 그렇게 동작하므로(위 두 항목) 문서가 트리거에만 있는 비대칭이 남았다.
       `--impl-prep` 부터 세 라운드 연속 «비차단» 으로 처분됐으니 급하지 않다.
       **2026-09-20 스코프 확장**: `3-schedule.md` §4(`DELETE /api/schedules/:id`)도 같은 서술이 없다 —
       스케줄 축이 세 번째로 누락되지 않게 목록에 넣는다(`--impl-prep` `review/consistency/2026/09/20/23_37_12` W2).
+      **2026-09-21 재확장**: `4-integration.md` §9(§9.1 DELETE 행 · §9.4 코드 목록)도 같은 침묵이다 —
+      통합 축이 네 번째로 빠지지 않게 함께 넣는다(`--impl-prep` `review/consistency/2026/09/21/10_27_27` W3).
+      **2026-09-21 재확장 (2) — 침묵이 아니라 정면 충돌인 자리가 하나 있다**:
+      `spec/5-system/2-api-convention.md` §3 의 HTTP 메서드 표가 `DELETE` 를 **멱등 `O`** 로 적는다.
+      이제 다섯 경로 전부 동시 삭제의 진 쪽에 404 를 준다 — 위 네 항목은 «안 적혀 있다» 이지만
+      이것은 **적힌 것과 다르게 동작한다**. 그래서 한 문장 추가가 아니라 규약 표의 각주가 필요하다:
+      «멱등성은 최종 상태 기준이며, 동시 요청 중 진 쪽은 404 를 받을 수 있다».
+      근거는 `--impl-done` `review/consistency/2026/09/21/11_42_00` WARNING 1(rationale_continuity).
+
+- [ ] **다섯 `*-delete-concurrency.e2e-spec.ts` 가 어느 spec 의 `code:` frontmatter 에도 없다**
+      (planner, 낮음, 2026-09-21 등재 · `--impl-done` `review/consistency/2026/09/21/11_42_00` INFO 4).
+      `workflow-`/`workspace-`/`trigger-`/`schedule-`/`integration-delete-concurrency.e2e-spec.ts` 다섯 개가
+      전부 미등재다 — 형제 넷을 만들 때마다 같은 누락이 반복됐으므로 **개별 PR 의 실수가 아니라
+      관례의 구멍**이다. 각 축의 spec(`1-workflow-list.md`·`12-workspace.md`·`2-trigger-list.md`·
+      `3-schedule.md`·`4-integration.md`)에 정본 증거로 등재하면 `/spec-coverage` 가 이 계약을 본다.
       **같은 턴에 둘 더**(`--impl-done` `review/consistency/2026/09/20/21_21_21` WARNING 1·2):
       (a) `data-flow/12-workspace.md` §1.10 은 «재검사 거부를 **포함해** 모든 실패를 로그로 남긴다» 고 적는데,
       이제 동시 삭제의 404 만은 로그를 남기지 않는다(거짓 경보라서) — 그 예외를 한 구로 적는다.
