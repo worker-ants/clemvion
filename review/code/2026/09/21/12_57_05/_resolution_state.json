@@ -1,0 +1,37 @@
+{
+  "version": 1,
+  "started_at": "2026-09-21T13:20:00Z",
+  "summary_items_total": 6,
+  "items_resolved_ids": [1, 2, 3, 4, 5, 6],
+  "items_pending_ids": [],
+  "items_escalated_ids": {
+    "1": "already-tracked (942d14b61)",
+    "2": "already-tracked (TOCTOU deferred, prior turn)",
+    "6": "already-tracked (planner-owned spec draft, prior turn)"
+  },
+  "commits_made": [
+    {
+      "sha": "f022ae9fd",
+      "summary_id": 3,
+      "scope": "workspaces"
+    },
+    {
+      "sha": "65b082596",
+      "summary_id": 4,
+      "scope": "workspaces"
+    },
+    {
+      "sha": "65b082596",
+      "summary_id": 5,
+      "scope": "workspaces"
+    }
+  ],
+  "spec_drafts_pending": [],
+  "spec_drafts_applied": [],
+  "e2e_attempts": 1,
+  "e2e_last_status": "pass",
+  "e2e_log_paths": ["_test_logs/e2e-20260921-132216.log"],
+  "auto_fix_iterations": {},
+  "escalation_reason": null,
+  "last_reset_hint_sec": null
+}
