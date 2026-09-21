@@ -89,7 +89,7 @@ WebAuthn credential 삭제(아홉 번째, 감사가 서비스가 아니라 컨�
 등재.
 
 > **정정 (2026-09-21, 여덟 번째 PR 실측)**: 위 취소선 문구는 과장이었다.
-> `ModelConfigService.remove()` 의 캐시 무효화 리스너는 `llm.service.ts:81`
+> `ModelConfigService.remove()` 의 캐시 무효화 리스너는 `llm.service.ts:81-82`
 > 의 `clearClientCache(configId)` 하나뿐이고, 캐시 축출은 **멱등**이라 두 번
 > 불려도 해롭지 않다. 중복 통지는 고쳐야 할 별개 결함이 아니라, 아래 여덟
 > 번째 항목의 수정이 진 쪽에서 함께 건너뛰게 되는 부수 효과였을 뿐이다.

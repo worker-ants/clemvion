@@ -35,7 +35,7 @@ if (affected === 0) throw this.notFound();   // 진 쪽 — 통지도 감사도 
 
 등재할 때 «`notifyInvalidated` 도 두 번 발화한다 — 이 자리는 감사 중복에 **더해** 캐시 무효화
 통지 중복까지 있다» 고 적었다. **그 「더해」는 과장이다.** 리스너를 따라가 보면
-`llm.service.ts:81` 의 `clearClientCache(configId)` 하나뿐이고, 캐시 축출은 **멱등**이라
+`llm.service.ts:81-82` 의 `clearClientCache(configId)` 하나뿐이고, 캐시 축출은 **멱등**이라
 두 번 불려도 해로운 결과가 없다.
 
 정확히 말하면: 중복 통지는 **고쳐야 할 별개 결함이 아니라**, 이 수정이 진 쪽에서 함께

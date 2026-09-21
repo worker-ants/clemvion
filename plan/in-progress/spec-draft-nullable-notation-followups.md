@@ -4930,7 +4930,7 @@ field: T | null;
       `model-config.service.ts:404` — 무락 `findEntity` → `remove(config)` → `notifyInvalidated(id)`
       → `MODEL_CONFIG_DELETE` 감사. `notifyInvalidated` 도 두 번 발화한다.
       > **2026-09-21 정정 — 「감사 중복에 더해 캐시 무효화 통지 중복까지 있다」는 과장이었다.**
-      > 리스너는 `llm.service.ts:81` 의 `clearClientCache(configId)` 하나뿐이고 캐시 축출은
+      > 리스너는 `llm.service.ts:81-82` 의 `clearClientCache(configId)` 하나뿐이고 캐시 축출은
       > **멱등**이라, 두 번 불려도 해로운 결과가 없다. 중복 통지는 **고쳐야 할 별개 결함이
       > 아니라** 이 수정이 진 쪽에서 함께 건너뛰게 되는 부수 효과다. 등재 시점에 리스너를
       > 따라가 보지 않고 «중복이면 나쁘다» 로 적었다.
