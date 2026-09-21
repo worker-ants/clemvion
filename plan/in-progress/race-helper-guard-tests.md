@@ -25,31 +25,73 @@ spec_impact: none
 | unit jest | `jest.config.ts` 가 **`rootDir: 'src'`**, `testRegex: '.*\.spec\.ts$'` — `test/` 아래는 **애초에 탐색 범위 밖** |
 | e2e jest | `test/jest-e2e.json` 이 `testRegex: '.e2e-spec.ts$'` — `.spec.ts` 는 **안 잡는다**(`-spec` 과 `.spec` 은 다르다) |
 | 결론 | `test/helpers/concurrency.spec.ts` 를 그냥 만들면 **어느 러너도 돌리지 않는다** |
-| `test/` 의 기존 non-e2e spec | **0건** — 선례가 없어 관례를 새로 정해야 한다 |
 
 > 이 저장소에서 «새 테스트가 실제로 실행되는지 확인» 을 놓쳐 본 적이 있다. 그래서 이 PR 의
 > 핵심 위험은 테스트 내용이 아니라 **러너가 그것을 집는가**다.
 
-## B. 모듈 로드 검사는 지금 형태로는 테스트할 수 없다 — 그래서 모양을 바꾼다
+## A-2. 이 표를 «선례 없음» 으로 읽은 것이 틀렸다 — `--impl-prep` BLOCK: YES
 
-현재 검사는 모듈 최상위 `for` 루프의 **임포트 부수효과**다. 테스트하려면
-`jest.isolateModules` + 상수 모듈 `doMock` 이 필요한데, 그건 «검사» 가 아니라 «모킹 기계» 를
-검증하게 된다.
+첫 판은 위 표에 *"`test/` 의 기존 non-e2e spec 0건 — 선례가 없어 관례를 새로 정해야 한다"* 를
+덧붙이고 `jest.config.ts` 의 `roots` 확장을 골랐다. `--impl-prep`
+(`review/consistency/2026/09/21/22_25_20`) 의 `plan_coherence` 가 **Critical 로 차단**했다.
 
-대신 **규칙을 순수 함수로 꺼낸다**:
+**선례는 있었다. 내가 없는 곳에서 찾았다.** `test/` 에 선례가 없는 것은 당연하다 — 거기 두면
+안 돈다는 게 이 문제의 정의다. 물었어야 할 것은 *"이 문제의 관례가 이미 등재돼 있나"* 이고,
+답은 **내가 지금 드레인하고 있는 그 트래커 안**에 있다:
+
+| 실측 | 값 |
+| --- | --- |
+| 트래커 `:1895` developer 항목 | «self-spec 동반 헬퍼는 `src/shared/testing/`» — `#1308` 이 고른 처방 |
+| `src/shared/testing/` 의 선례 쌍 | **5쌍** (`response-contract`·`schedule-trigger-ref`·`swagger-probe`·`trigger-workflow-ref`·`user-secret-absence`) |
+| `trigger-workflow-ref.ts` 파일 스코프 註 | 위 A 표와 **같은 세 문장**(rootDir·testRegex·"영구히 돌지 않는다")을 이미 담고 있다 |
+
+즉 나는 **이미 등재된 사실을 다시 발견해 놓고, 등재된 처방 대신 다른 것을 발명**했다.
+이 세션의 반복 교훈과 같은 형태다 — «문서화됐는데 미구현» 처럼 보이는 것을 만나면 먼저
+`git log`/트래커를 실측해야 한다.
+
+## B. 처방: 규칙을 `src/shared/testing/` 의 순수 모듈로 (선례 (a))
+
+모듈 로드 검사는 지금 형태로는 테스트할 수 없다 — 최상위 `for` 루프의 **임포트 부수효과**라
+`jest.isolateModules` + 상수 `doMock` 이 필요한데, 그건 «검사» 가 아니라 «모킹 기계» 를
+검증하게 된다. `fires.length < 2` 도 DB 의존 함수 안에 갇혀 있다.
+
+**두 규칙을 순수 함수로 꺼내 선례가 사는 자리에 둔다**:
+
+```
+codebase/backend/src/shared/testing/overlap-preconditions.ts       (신규, 순수 — import 0)
+codebase/backend/src/shared/testing/overlap-preconditions.spec.ts  (신규, self-spec)
+```
 
 ```ts
+export function assertEnoughFiresForOverlap(fireCount: number): void;
 export function assertGuardBelowKnownTimeouts(
   guardMs: number,
   timeouts: ReadonlyArray<readonly [string, number]>,
 ): void;
 ```
 
-모듈 최상위는 그 함수를 **오늘의 상수로 한 번 호출**한다. 그러면
-- 규칙 자체는 임의 입력으로 직접 테스트되고,
-- «오늘의 상수에 적용» 은 그대로 임포트 시 발화한다.
+`test/helpers/concurrency.ts` 는 이 둘을 **호출만** 한다 (최상위 한 줄 + 함수 안 한 줄).
+DB 의존 오케스트레이션(`raceUnderHeldLock`)은 `test/helpers/` 에 **남는다**.
 
-«규칙» 과 «오늘의 값에 규칙을 적용» 을 분리하는 것이 요점이다.
+이 자리를 고르면 **jest 설정을 한 글자도 바꾸지 않는다** — `rootDir: 'src'` 가 이미
+`src/shared/testing/*.spec.ts` 를 집는다(선례 5쌍이 지금 돈다). `roots` 확장안보다 좁다.
+
+> **`fires.length < 2` 가 정말 막는 것** — 실측으로 갈라 둔다. `0` 이면 `Promise.all([])` 가
+> 즉시 resolve 돼 공허성 가드가 `settled` 로 **이미 RED** 다(메시지만 나쁘다). 진짜 자리는
+> **`1`** 이다: 요청 하나가 락을 기다리면 가드는 `pending` 을 보고 **통과**시킨다 — 겹침이
+> 없는데 초록인 테스트가 된다. 다른 방어가 없는 유일한 케이스다.
+
+> **남는 이음매를 적어 둔다**: 두 규칙의 *내용*은 테스트되지만 `concurrency.ts` 가 그것을
+> *호출한다*는 **배선**은 테스트되지 않는다. 선례 5쌍도 같은 이음매를 갖는다
+> (`expectTriggerWorkflowRef` 의 self-spec 은 헬퍼를 검증하고, e2e 가 그것을 부르는지는
+> 별도로 검증하지 않는다). 선례와 같은 등급이라 여기서 새 기계를 만들지 않는다.
+
+## B-2. `PROJECT.md:331` — 이 BLOCK 의 원인이라 같은 PR 에서 닫는다
+
+트래커 `:1895` 의 처방은 *"`PROJECT.md` §파일 위치 에 한 줄"* 이다. 현 문면은
+`- 신규 헬퍼: codebase/backend/test/helpers/<name>.ts` 뿐이고, **#1377 의 나를 그리로 보낸 것이
+정확히 그 줄**이다. 예외가 거기 없어서 이번 BLOCK 이 났다 — scope 확장이 아니라 **같은 결함**이라
+이 PR 에서 닫는다. 트래커 항목도 그 커밋에서 해소 표시한다.
 
 ## C. 이 PR 의 판별 실험 — 테스트가 **실제로 도는가**
 
@@ -62,16 +104,19 @@ export function assertGuardBelowKnownTimeouts(
 
 ## D. 하지 않는 것
 
-- **프로덕션 코드 변경 0** — `codebase/backend/src/**` 는 건드리지 않는다.
-- `rootDir` 자체를 바꾸지 않는다. `collectCoverageFrom`·`coverageDirectory` 가 `rootDir`
-  상대 경로라 같이 움직인다 — **필요한 최소 변경(`roots` 추가)만** 한다.
+- **프로덕션 런타임 코드 변경 0** — 신규 파일은 `tsconfig.build.json` 이 이미 exclude 하는
+  `src/shared/testing/**` 아래이고 `dist/` 로 나가지 않는다(프로덕션 소비처 0건 유지).
+- **jest 설정 변경 0** — `rootDir`·`roots`·`testRegex` 어느 것도 건드리지 않는다.
+  (`collectCoverageFrom`·`coverageDirectory` 가 `rootDir` 상대라 함께 움직이는 위험도 소멸.)
+- `raceUnderHeldLock` 을 `src/` 로 옮기지 않는다 — `pg.Client` 를 모는 오케스트레이션을
+  테스트 사유만으로 프로덕션 트리에 넣게 되고, 9개 e2e 의 임포트 경로가 함께 움직인다.
 
 ## 체크리스트
 
-- [ ] `/consistency-check --impl-prep spec/5-system` → BLOCK: NO
-- [ ] 규칙을 순수 함수로 추출 + 모듈 최상위는 그 함수 호출로
-- [ ] `test/helpers/concurrency.spec.ts` 작성 (DB 불필요)
-- [ ] unit 러너가 집도록 **최소 설정 변경** + **판별 실험으로 수집 확인**
+- [ ] `/consistency-check --impl-prep spec/5-system` → BLOCK: NO (**1차 BLOCK: YES 해소 후 재실행**)
+- [ ] `overlap-preconditions.ts` + self-spec 작성, `concurrency.ts` 는 호출만
+- [ ] `PROJECT.md:331` 에 예외 한 줄 + 트래커 `:1895` 해소
+- [ ] **판별 실험으로 수집 확인** (§C)
 - [ ] TEST WORKFLOW (lint · unit · build · e2e) — 숫자는 로그 파일명과 함께
 - [ ] `/ai-review` → 수렴
 - [ ] `/consistency-check --impl-done spec/5-system` → BLOCK: NO
