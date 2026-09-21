@@ -72,13 +72,27 @@ e2e 는 형제들의 행 락 기법 그대로: 테스트가 `model_config` 행�
 
 ## 체크리스트
 
-- [ ] `/consistency-check --impl-prep spec/2-navigation` → BLOCK: NO
-      (`6-config.md` 의 `code:` 가 `modules/model-config/**` 를 문다. `5-system/8-embedding-pipeline.md`
-      도 이 서비스 파일을 직접 지목하므로 **손으로 읽는다**)
-- [ ] 트래커의 과장(「캐시 무효화 통지 중복까지」) 정정
-- [ ] **e2e 로 결함 재현** (고치기 전 실측을 숫자로 기록)
-- [ ] 단위 테스트 + 구현 (대조군 포함, 뮤턴트 유효성 확인 후 kill 수 읽기)
-- [ ] TEST WORKFLOW (lint · unit · build · e2e) — 숫자는 로그 파일명과 함께 적는다
+- [x] `/consistency-check --impl-prep spec/2-navigation` — `review/consistency/2026/09/21/16_16_35`
+      **BLOCK: NO** (Critical 0 · Warning 1). W1(옴니버스 트래커의 위치 스냅샷이 이 fix 착지 뒤
+      stale 해진다)은 **그 자리에서** `6-config.md §Model Config API` 를 스냅샷에 더해 닫았다 —
+      **`6-config.md` 한 파일에 두 행**이라는 주의도 함께 적었다(파일 단위로 훑으면 한 행만
+      고치고 끝낼 수 있다). `5-system/8-embedding-pipeline.md` 는 **손으로 읽었다** — 그 문서의
+      `pending_plans`(`update-returning-tuple-shape.md`)는 raw `.query()` 튜플 오독 클래스라
+      Repository `.delete().affected` 를 쓰는 이 fix 와 무관하다(checker INFO 6 와 같은 결론)
+- [x] 트래커의 과장(「캐시 무효화 통지 중복까지」) 정정 — 리스너가 `clearClientCache` 하나뿐이고
+      캐시 축출은 멱등임을 확인해 트래커에 정정을 달았다
+- [x] **e2e 로 결함 재현** — 고치기 전 `[204, 204]` 였고(공허성 가드 통과), DB 를 직접 조회해
+      한 `id` 에 `model_config.delete` 감사가 **2건**임을 확인했다
+- [x] 단위 테스트 + 구현 — 뮤턴트 **둘**이 예측과 일치했다: (a) `=== 0` → `!affected` →
+      **대조군 2건 RED**(예측 2), (b) 404 분기 제거(고유 앵커, 3줄) → **진 쪽 1건 RED**(예측 1).
+      원복은 `cp` 백업으로 했다.
+      **전환이 기존 테스트 셋을 vacuous 하게 만드는 것을 먼저 처리했다**: 둘은 `mockRepo.remove`
+      를 겨냥하던 단언이라 `delete` 로 옮겼고(#1372 에서 리뷰가 뮤테이션으로 실측한 형태),
+      하나는 TypeORM 의 id 파괴를 흉내 내 «kind 를 미리 읽는다» 를 고정하던 테스트다 —
+      `delete(criteria)` 는 엔티티를 건드리지 않아 그 흉내가 허구가 되므로 흉내를 지우고
+      여전히 참인 계약만 남겼다
+- [x] TEST WORKFLOW — lint PASS · unit PASS · build PASS(타입체크 ratchet 포함) ·
+      **e2e 376 PASS** (`_test_logs/e2e-20260921-163527.log`)
 - [ ] `/ai-review` → 수렴
 - [ ] `/consistency-check --impl-done spec/2-navigation` → BLOCK: NO
 - [ ] 트래커 항목 해소 + 이 plan `plan/complete/` 로
