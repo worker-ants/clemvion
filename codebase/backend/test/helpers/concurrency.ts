@@ -4,23 +4,35 @@ import { Client } from 'pg';
 import { TRIGGER_DELETE_LOCK_TIMEOUT_MS } from '../../src/modules/triggers/trigger-config-lock';
 
 /**
+ * 아래 검사가 비교하는 상한들. **여기 있는 것만 검사된다.**
+ *
+ * 더 짧은 잠금 대기 상한을 쓰는 경로가 이 헬퍼를 쓰게 되면 **그 상수를 여기 추가해야 한다** —
+ * 추가하지 않으면 검사는 통과하지만 그 호출부의 가드는 오탐한다.
+ */
+const KNOWN_LOCK_TIMEOUTS_MS: ReadonlyArray<readonly [string, number]> = [
+  ['TRIGGER_DELETE_LOCK_TIMEOUT_MS', TRIGGER_DELETE_LOCK_TIMEOUT_MS],
+];
+
+/**
  * 공허성 가드 대기 시간.
  *
- * **프로덕션의 가장 짧은 잠금 대기 상한보다 짧아야 한다.** 그렇지 않으면 가드가 기다리는
- * 동안 요청이 **락 타임아웃으로** 끝나 `settled` 가 되고, «겹침을 못 만들었다» 와
- * 구분되지 않는다 — 가드가 조용히 오탐한다.
+ * 프로덕션의 잠금 대기 상한보다 **짧아야** 한다. 그렇지 않으면 가드가 기다리는 동안 요청이
+ * **락 타임아웃으로** 끝나 `settled` 가 되고, «겹침을 못 만들었다» 와 구분되지 않는다 —
+ * 가드가 조용히 오탐한다.
  *
- * 현재 그 상한은 트리거 삭제 경로의 `TRIGGER_DELETE_LOCK_TIMEOUT_MS`(5초)다.
- * 아래 `assert` 가 그 관계를 **주석이 아니라 검사로** 고정한다 — 프로덕션 상한이 이 값
- * 아래로 내려가면 여기서 즉시 터진다.
+ * 아래 검사가 그 관계를 **주석이 아니라 코드로** 고정한다. 다만 검사 범위는
+ * «프로덕션 전체의 최소 상한» 이 아니라 **`KNOWN_LOCK_TIMEOUTS_MS` 에 적힌 것뿐**이다 —
+ * 그 목록을 사람이 갱신해야 한다는 뜻이고, 그 한계를 여기 적어 둔다.
  */
 const VACUITY_GUARD_MS = 1_500;
 
-if (VACUITY_GUARD_MS >= TRIGGER_DELETE_LOCK_TIMEOUT_MS) {
-  throw new Error(
-    `raceUnderHeldLock: 공허성 가드(${VACUITY_GUARD_MS}ms)가 프로덕션 잠금 대기 상한` +
-      `(${TRIGGER_DELETE_LOCK_TIMEOUT_MS}ms) 이상이다 — 가드가 락 타임아웃을 «겹침 실패» 로 오탐한다.`,
-  );
+for (const [name, timeoutMs] of KNOWN_LOCK_TIMEOUTS_MS) {
+  if (VACUITY_GUARD_MS >= timeoutMs) {
+    throw new Error(
+      `raceUnderHeldLock: 공허성 가드(${VACUITY_GUARD_MS}ms)가 ${name}(${timeoutMs}ms) 이상이다 — ` +
+        `가드가 락 타임아웃을 «겹침 실패» 로 오탐한다.`,
+    );
+  }
 }
 
 /**
@@ -48,6 +60,7 @@ if (VACUITY_GUARD_MS >= TRIGGER_DELETE_LOCK_TIMEOUT_MS) {
  *   겹치게 할 때는 서로 다른 thunk 를 준다(`[() => del(a), () => del(b)]`).
  * @returns 각 thunk 의 결과. **정렬하지 않는다** — 무엇으로 정렬할지는 호출부가 안다.
  * @throws `fires` 가 2개 미만이면 — 락을 잡기도 전에 즉시 던진다(겹침 자체가 없다).
+ * @throws `lock.sql` 자체가 실패하면 — 그대로 전파한다(락을 못 잡았으니 겹침을 만들 수 없다).
  * @throws 공허성 가드 실패 시 — 겹침을 만들지 못했다는 뜻이므로 **그 테스트의 단언은 무의미**하다.
  *
  * @example
@@ -56,7 +69,9 @@ if (VACUITY_GUARD_MS >= TRIGGER_DELETE_LOCK_TIMEOUT_MS) {
  *   { sql: 'SELECT id FROM workflow WHERE id = $1 FOR UPDATE', params: [id] },
  *   [fireDelete, fireDelete],
  * );
- * expect(results.map((r) => r.status).sort()).toEqual([204, 404]);
+ * // 숫자 비교자를 반드시 준다 — 기본 `.sort()` 는 사전식이라 `[204, 404]` 에서는 우연히 맞지만
+ * // 다른 값으로 복제하면 조용히 깨진다.
+ * expect(results.map((r) => r.status).sort((a, b) => a - b)).toEqual([204, 404]);
  */
 export async function raceUnderHeldLock<T>(
   locker: Client,
