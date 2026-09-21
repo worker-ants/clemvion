@@ -4976,8 +4976,13 @@ field: T | null;
       (planner, **중간**, 2026-09-21 등재 · `--impl-prep` `review/consistency/2026/09/21/17_39_06` W1).
 
       **실측**: `WEBAUTHN_CREDENTIAL_NOT_FOUND` 는 카탈로그에 **등재돼 있지 않고**, 게다가
-      **같은 코드가 두 status 로 나간다** — `webauthn.service.ts:403` 이 `UnauthorizedException`(**401**),
-      `:497`·`:504`·`:527` 이 `NotFoundException`(**404**).
+      **같은 코드가 두 status 로 나간다** — `webauthn.service.ts` 의 `verifyAuthentication()`
+      (로그인 2FA 검증 단계) 안 자리가 `UnauthorizedException`(**401**), `renameCredential()`·
+      `deleteCredential()` 안의 자리(둘 다 공유 헬퍼 `throwCredentialNotFound()` 를 거친다)가
+      `NotFoundException`(**404**). (줄 번호 대신 메서드명으로 지목한다 — 이 PR 자신의 리팩터
+      커밋 `d3127c8a6` 이 `throwCredentialNotFound()` 헬퍼를 추출하며 줄 배치를 바꿔, 애초에
+      박아 넣었던 `:497`·`:504`·`:527` 인용이 커밋되는 순간 이미 다른 코드를 가리켰다 —
+      `review/code/2026/09/21/18_31_57/documentation.md` WARNING.)
 
       > **리뷰어는 «두 번째 예외» 라고 했지만 정확히는 그보다 나쁘다.** `AUTH_CONFIG_NOT_FOUND`
       > 는 **항상** 400 이라 «예외이되 일관» 하다. `WEBAUTHN_CREDENTIAL_NOT_FOUND` 는
