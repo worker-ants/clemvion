@@ -4816,6 +4816,16 @@ field: T | null;
       **2026-09-21 정정 — 「여섯 번째」는 맞지만 「마지막」이 또 틀렸다**: 착수 전 전수 조사
       (`plan/in-progress/member-dup-remove.md` §A)에서 **세 자리가 더** 나왔다. 아래 세 항목이다.
 
+- [ ] **`workspaces.controller.ts` 만 삭제 성공에 204 대신 `200 {ok:true}` 를 쓴다**
+      (planner, 낮음, 2026-09-21 등재 · `/ai-review` `review/code/2026/09/21/13_28_12` WARNING 4).
+      `spec/5-system/2-api-convention.md` §6 은 «204 No Content = 삭제 성공» 으로 적는데,
+      `DELETE /api/workspaces/:id` 와 `DELETE /api/workspaces/:id/members/:memberId` 는 200 을 준다.
+      **실측**: `workflows`·`triggers`·`schedules`·`integrations` 컨트롤러는 각각
+      `HttpCode(204)` 가 **1개**, `workspaces.controller.ts` 는 **0개**이고 `ok: true` 가 **5곳**이다.
+      즉 라우트 하나의 일탈이 아니라 **컨트롤러 단위의 다른 관례**다.
+      둘 중 하나여야 한다 — 컨트롤러를 204 로 맞추거나(클라이언트 계약 변경), §6 에 이 예외를
+      각주로 적거나. **바로 위 §3 멱등성 각주 작업과 같은 문서라 함께 처리하는 편이 싸다.**
+
 - [ ] **`removeMember()` 의 권한 검사가 대상 조회·owner 판정보다 뒤에 있어 존재 오라클이 된다**
       (developer, **중간**, 2026-09-21 등재 · `/ai-review` `review/code/2026/09/21/12_57_05` WARNING 1).
       순서가 `findOne`(`:783`) → 404 → self 위임 → owner 403 → `assertAdmin`(`:803`) 이라,
@@ -4924,12 +4934,19 @@ field: T | null;
       **«동시 요청 중 진 쪽은 404 를 받을 수 있다»** 라는 계약만 적는 편이 낫다 — 그러면
       남은 세 자리가 닫힐 때마다 각주를 고치지 않아도 된다.
 
-- [ ] **다섯 `*-delete-concurrency.e2e-spec.ts` 가 어느 spec 의 `code:` frontmatter 에도 없다**
+- [ ] **이 결함 클래스의 동시성 e2e 파일이 어느 spec 의 `code:` frontmatter 에도 없다**
       (planner, 낮음, 2026-09-21 등재 · `--impl-done` `review/consistency/2026/09/21/11_42_00` INFO 4).
-      `workflow-`/`workspace-`/`trigger-`/`schedule-`/`integration-delete-concurrency.e2e-spec.ts` 다섯 개가
-      전부 미등재다 — 형제 넷을 만들 때마다 같은 누락이 반복됐으므로 **개별 PR 의 실수가 아니라
-      관례의 구멍**이다. 각 축의 spec(`1-workflow-list.md`·`12-workspace.md`·`2-trigger-list.md`·
-      `3-schedule.md`·`4-integration.md`)에 정본 증거로 등재하면 `/spec-coverage` 가 이 계약을 본다.
+      집행 시 `codebase/backend/test/` 에서 **그 시점에 실재하는 파일을 다시 열거할 것** — 개수도
+      파일명 패턴도 고정하지 않는다. 2026-09-21 기준 여섯 개이고 이름이 한 패턴이 **아니다**:
+      `workflow-`/`workspace-`/`trigger-`/`schedule-`/`integration-delete-concurrency.e2e-spec.ts`
+      다섯 + `member-remove-concurrency.e2e-spec.ts`(`-delete-` 가 아니라 `-remove-`).
+      각 축의 spec(`1-workflow-list.md`·`12-workspace.md`·`2-trigger-list.md`·`3-schedule.md`·
+      `4-integration.md`·`9-user-profile.md`)에 정본 증거로 등재하면 `/spec-coverage` 가 이 계약을 본다.
+      형제마다 같은 누락이 반복됐으므로 **개별 PR 의 실수가 아니라 관례의 구멍**이다.
+      > **2026-09-21 정정**: 이 항목은 «다섯» 과 `*-delete-concurrency` 글롭으로 적혀 있었는데,
+      > 등재한 바로 그 PR 이 여섯 번째 파일을 다른 이름으로 추가해 **착지 즉시 stale** 이 됐다
+      > (`/ai-review` `review/code/2026/09/21/13_28_12` WARNING 3). 바로 위 항목에 «경로 수를
+      > 세지 말라» 고 적어 놓고 이 항목엔 적용하지 않은 것이다.
       **같은 턴에 둘 더**(`--impl-done` `review/consistency/2026/09/20/21_21_21` WARNING 1·2):
       (a) `data-flow/12-workspace.md` §1.10 은 «재검사 거부를 **포함해** 모든 실패를 로그로 남긴다» 고 적는데,
       이제 동시 삭제의 404 만은 로그를 남기지 않는다(거짓 경보라서) — 그 예외를 한 구로 적는다.

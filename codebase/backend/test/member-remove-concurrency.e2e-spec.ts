@@ -15,9 +15,13 @@ import {
  *
  * 보호 대상: 두 요청이 겹쳐도 **`member.removed` 감사 행은 하나**이고, 진 쪽은 404 를 받는다.
  *
- * **형제 다섯을 그대로 베끼면 틀리는 자리가 둘 있다.**
+ * **형제들을 그대로 베끼면 틀리는 자리가 둘 있다.**
  *
- * 1. 이 라우트는 204 가 아니라 **`200 {data:{ok:true}}`** 다 (`workspaces.controller.ts`).
+ * 1. 이 라우트는 204 가 아니라 **`200 {data:{ok:true}}`** 다. 성공 코드는 라우트별이 아니라
+ *    **컨트롤러별로 갈린다** — `workflows`/`triggers`/`schedules`/`integrations` 컨트롤러는 각각
+ *    `HttpCode(204)` 를 하나씩 갖는데 `workspaces.controller.ts` 는 **하나도 없고** `{ok:true}` 를
+ *    다섯 곳에서 돌려준다(실측). 그래서 같은 파일의 `workspace-delete-concurrency.e2e-spec.ts` 도
+ *    이미 `[200, 404]` 로 단언한다.
  * 2. 자가 탈퇴와 admin 제거가 **같은 감사 액션**(`member.removed`)을 쓰고 `details.mode`
  *    (`left` / `removed`)로만 갈린다. 그래서 감사를 셀 때 `mode='removed'` 까지 걸어야
  *    자가 탈퇴 경로와 섞이지 않는다 — 형제들은 액션 이름만으로 갈렸다.

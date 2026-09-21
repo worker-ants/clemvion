@@ -92,7 +92,12 @@ e2e 는 #1372 의 행 락 기법 그대로: 테스트가 `workspace_member` 행�
 **형제 다섯과 다른 두 가지**(착수 전 실측):
 
 - **이 라우트는 204 가 아니라 `200 {data:{ok:true}}`** 를 돌려준다(`workspaces.controller.ts:374`).
-  형제 다섯은 전부 204 였으므로 단언을 그대로 베끼면 틀린다 — 상태쌍은 **`[200, 404]`**.
+  상태쌍은 **`[200, 404]`**. ~~형제 다섯은 전부 204 였으므로~~ — **그 서술은 틀렸다**(리뷰 라운드 2
+  INFO 8 이 잡았고 실측으로 확인했다). 성공 코드는 라우트별이 아니라 **컨트롤러별**로 갈린다:
+  `workflows`/`triggers`/`schedules`/`integrations` 컨트롤러는 각각 `HttpCode(204)` 가 **1개**,
+  `workspaces.controller.ts` 는 **0개**이고 `{ok:true}` 가 **5곳**이다. 그래서 같은 클래스의
+  `workspace-delete-concurrency.e2e-spec.ts`(#1369)도 이미 `[200, 404]` 를 단언하고 있었다 —
+  «이 라우트만 예외» 가 아니라 «이 컨트롤러가 다르다» 가 맞는 서술이다.
 - **감사 개수를 셀 때 `details->>'mode' = 'removed'` 까지 걸어야 한다.** 자가 탈퇴와 admin 제거가
   `member.removed` 라는 **같은 액션 이름**을 공유하고 `mode` (`left`/`removed`)로만 갈리기 때문이다.
   형제들은 액션 이름만으로 갈렸다.
