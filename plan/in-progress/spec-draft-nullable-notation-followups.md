@@ -4800,12 +4800,24 @@ field: T | null;
       판정자로 쓰면 락 없이 닫힌다(0이면 404, 감사 없음). 사용처 검사와 삭제 사이의 TOCTOU 는 **별개 사안**이라
       함께 닫으려 하지 말 것.
 
-- [ ] **`1-workflow-list.md` §2.6 · `data-flow/12-workspace.md` §1.10 · `3-schedule.md` §4 에 «동시 삭제 → 두 번째 404» 서술이 없다**
+- [ ] **`WorkspacesService.removeMember()` 도 동시 삭제에서 감사 행을 두 번 남긴다 — 이 계열의 여섯 번째 자리**
+      (developer, 낮음, 2026-09-21 등재 · `plan/in-progress/integration-dup-delete.md` 착수 전 재열거).
+      **직전 PR(#1371)이 «다섯 번째이자 마지막» 이라 적은 것이 틀렸다** — 그 열거가 `AUDIT_ACTIONS.*_DELETED`
+      **접미사로만** 셌기 때문이다. 삭제성 액션에는 `MEMBER_REMOVED`(`member.removed`)도 있다.
+      `removeMember()` 는 무락 `findOne` → 가드(owner 금지 · admin 확인) → `memberRepository.remove(member)`
+      → 감사 순서라 형제들과 같은 형태다. **`leaveWorkspace()` 는 이미 닫혀 있다** — 트랜잭션 안에서
+      `pessimistic_write` 로 멤버십을 읽으므로 진 쪽은 `NOT_A_MEMBER` 403 이고 감사를 남기지 않는다(실측).
+      처방은 통합 경로(#이 PR)와 같다: 락을 새로 들이지 말고 원자적 `delete({ id, workspaceId })` 의
+      `affected === 0` 으로 판정. 재현은 형제 e2e 의 행 락 기법 그대로.
+
+- [ ] **`1-workflow-list.md` §2.6 · `data-flow/12-workspace.md` §1.10 · `3-schedule.md` §4 · `4-integration.md` §9 에 «동시 삭제 → 두 번째 404» 서술이 없다**
       (planner, 낮음, 2026-09-20 등재 · 같은 세션 api_contract·requirement INFO 8). 트리거 목록 §4.4 만 그 계약을 적는다.
       이제 코드는 세 경로 중 둘이 그렇게 동작하므로(위 두 항목) 문서가 트리거에만 있는 비대칭이 남았다.
       `--impl-prep` 부터 세 라운드 연속 «비차단» 으로 처분됐으니 급하지 않다.
       **2026-09-20 스코프 확장**: `3-schedule.md` §4(`DELETE /api/schedules/:id`)도 같은 서술이 없다 —
       스케줄 축이 세 번째로 누락되지 않게 목록에 넣는다(`--impl-prep` `review/consistency/2026/09/20/23_37_12` W2).
+      **2026-09-21 재확장**: `4-integration.md` §9(§9.1 DELETE 행 · §9.4 코드 목록)도 같은 침묵이다 —
+      통합 축이 네 번째로 빠지지 않게 함께 넣는다(`--impl-prep` `review/consistency/2026/09/21/10_27_27` W3).
       **같은 턴에 둘 더**(`--impl-done` `review/consistency/2026/09/20/21_21_21` WARNING 1·2):
       (a) `data-flow/12-workspace.md` §1.10 은 «재검사 거부를 **포함해** 모든 실패를 로그로 남긴다» 고 적는데,
       이제 동시 삭제의 404 만은 로그를 남기지 않는다(거짓 경보라서) — 그 예외를 한 구로 적는다.

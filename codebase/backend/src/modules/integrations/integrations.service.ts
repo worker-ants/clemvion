@@ -781,7 +781,32 @@ export class IntegrationsService {
       });
     }
 
-    await this.integrationRepository.remove(entity);
+    // **원자적 `DELETE` 의 `affected` 가 판별자다.** 위 `findOne` 은 잠금 없는 선조회라 동시 DELETE 두
+    // 건이 모두 통과하고, 종전의 `remove(entity)` 는 이미 없는 PK 에 0행이어도 던지지 않아 진 쪽도
+    // 성공으로 끝나며 `integration.deleted` 감사를 한 번 더 남겼다(e2e 로 재현: 둘 다 204 · 감사 2건).
+    //
+    // **형제 네 경로와 처방이 다르다** — 그쪽은 행 락(`pessimistic_write`)이나 advisory lock 안에서
+    // 다시 읽어 판정하지만, 이 경로엔 락이 없다. 락을 새로 들이는 대신
+    // `DELETE … WHERE id = $1 AND workspace_id = $2` 한 문장의 원자성에 기댄다 — 둘 중 하나만 1행을
+    // 지운다. (`4-integration.md` Rationale 이 기각한 advisory lock 의 재도입이 아니다: 그 기각 사유는
+    // «lock 보유 중 HTTP 요청» 이고 여기엔 외부 호출이 없으며, 애초에 락을 쓰지 않는다.)
+    //
+    // `remove(entity)` → `delete(criteria)` 전환은 동작을 바꾸지 않는다 — `Integration` 엔티티에
+    // `cascade: true` 관계도 `@OneToMany` 도 없고, DB 레벨 FK CASCADE 는 그대로다.
+    //
+    // 판정은 `=== 0` **명시 비교**다. `affected` 가 `null`·`undefined` 인 것은 드라이버가 «보고하지
+    // 않았다» 는 뜻이지 «지우지 못했다» 가 아니다 — 그것을 0 과 같이 읽으면 정상 삭제를 404 로
+    // 뒤집는다(`rewriteTriggerConfigLocked` 가 세운 규율, 스케줄 경로도 같다).
+    const { affected } = await this.integrationRepository.delete({
+      id,
+      workspaceId,
+    });
+    if (affected === 0) {
+      throw new NotFoundException({
+        code: 'RESOURCE_NOT_FOUND',
+        message: 'Integration not found',
+      });
+    }
     await this.auditLogsService.record({
       workspaceId,
       userId,
