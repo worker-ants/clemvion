@@ -116,4 +116,74 @@ describe('WebAuthn credential delete concurrency (e2e)', () => {
     );
     expect(audits.rows[0].count).toBe('1');
   }, 60_000);
+
+  /**
+   * WARNING #4 반증(review/code/2026/09/21/18_03_54) — 리뷰어는 서로 **다른**
+   * credential 두 개를 동시에 지우면 두 `countCredentials` 가 서로 상대의 커밋 전
+   * 스냅샷을 읽어 **둘 다** `remaining === 1` 로 오판하고, 그 결과 `webauthn_recovery_codes`
+   * 가 NULL 화되지 않을 수 있다고 주장했다.
+   *
+   * 순서상 불가능하다: `deleteCredential` 은 트랜잭션이 없어 각 요청의 DELETE 는 그
+   * 자리에서 즉시 커밋되고, 그 뒤에야 자신의 `countCredentials` 가 돈다(delete → count
+   * 는 같은 요청 안의 프로그램 순서라 실시간 순서이기도 하다). R1(A 삭제)의 커밋을 t1,
+   * count 를 t2(t1<t2), R2(B 삭제)의 커밋을 t3, count 를 t4(t3<t4) 라 하면, 커밋은
+   * Postgres WAL 상 전순서이므로 WLOG t1<t3 다. 그러면 R2 의 count(t4>t3>t1) 는 A·B
+   * 모두 이미 커밋된 뒤라 반드시 0 을 본다 — 즉 **나중에 커밋하는 쪽이 항상 0 을 본다.**
+   * 따라서 최소 한쪽은 반드시 NULL 화를 수행하며, 논쟁이 되는 「둘 다 1 로 오판」은
+   * t1<t3 와 t3<t4 와 t4<t1(R2 가 1 을 보려면 A 가 t4 시점에 아직 살아 있어야 함)이
+   * 동시에 성립해야 하는 모순이라 발생할 수 없다.
+   *
+   * 이 테스트는 그 산술을 e2e 로 고정한다 — 통과하면 리뷰어 주장이 반증된 것이고,
+   * 누군가 이 메서드를 트랜잭션으로 감싸(delete 를 count 시점까지 커밋 지연) 위 순서
+   * 논증의 전제를 깨면 그때 RED 가 되는 캐너리다.
+   */
+  it('서로 다른 credential 두 개를 동시 삭제해도 복구 코드는 NULL 로 수렴한다 (WARNING #4 반증)', async () => {
+    // 위 테스트의 잔존 credential(survivor)과 섞이지 않도록 별도 사용자로 격리한다.
+    const other = await registerAndLogin(BASE_URL, uniqueEmail('wadel2'), db);
+    const otherToken = other.accessToken;
+    const otherUserId = other.userId;
+
+    const inserted = await db.query<{ id: string }>(
+      `INSERT INTO webauthn_credential (user_id, credential_id, public_key, device_name)
+            VALUES ($1, $2, '\\x00'::bytea, 'a'),
+                   ($1, $3, '\\x00'::bytea, 'b')
+         RETURNING id`,
+      [otherUserId, `cred-${randomUUID()}`, `cred-${randomUUID()}`],
+    );
+    expect(inserted.rows).toHaveLength(2);
+    const [idA, idB] = inserted.rows.map((r) => r.id);
+
+    // 등록 ceremony 를 태우지 않고 복구 코드를 직접 심는다 — 세팅됐음을 먼저
+    // 단언해야 아래 NULL 단언이 공허하지 않다.
+    await db.query(
+      `UPDATE "user" SET webauthn_recovery_codes = ARRAY[$2, $3]::text[] WHERE id = $1`,
+      [otherUserId, 'seed-hash-1', 'seed-hash-2'],
+    );
+    const seeded = await db.query<{ codes: string[] | null }>(
+      `SELECT webauthn_recovery_codes AS codes FROM "user" WHERE id = $1`,
+      [otherUserId],
+    );
+    expect(seeded.rows[0].codes).toEqual(['seed-hash-1', 'seed-hash-2']);
+
+    const fireDelete = (id: string) =>
+      request(BASE_URL)
+        .delete(`/api/auth/2fa/webauthn/credentials/${id}`)
+        .set('Authorization', `Bearer ${otherToken}`)
+        .then(
+          (res) => ({ status: res.status }),
+          () => ({ status: -1 }),
+        );
+
+    // 서로 다른 행이라 공유 락으로 줄 세울 지점이 없다 — 동시 발사 자체가 겹침이다.
+    const results = await Promise.all([fireDelete(idA), fireDelete(idB)]);
+
+    // 서로 다른 credential 이라 소유권 충돌 없이 둘 다 지운다(둘 다 204).
+    expect(results.map((r) => r.status).sort()).toEqual([204, 204]);
+
+    const after = await db.query<{ codes: string[] | null }>(
+      `SELECT webauthn_recovery_codes AS codes FROM "user" WHERE id = $1`,
+      [otherUserId],
+    );
+    expect(after.rows[0].codes).toBeNull();
+  }, 60_000);
 });
