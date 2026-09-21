@@ -29,6 +29,17 @@ describe('WorkspacesService', () => {
     delete: jest.Mock;
   };
 
+  /**
+   * `service` 에 주입된 mock `AuditLogsService` 를 꺼낸다. 최상위 스코프로 한 번만 정의—
+   * 종전엔 형제 `describe` 블록(`audit logging (결정4=B)` · `removeMember — 동시 제거`) 둘이
+   * 바이트 단위로 동일한 지역 함수를 각자 갖고 있었다 (`/ai-review`
+   * `review/code/2026/09/21/12_57_05` maintainability WARNING 4).
+   */
+  function getAudit(): { record: jest.Mock } {
+    return (service as unknown as { auditLogsService: { record: jest.Mock } })
+      .auditLogsService;
+  }
+
   const mockWorkspace = {
     id: 'ws-uuid-1',
     name: "Test User's Workspace",
@@ -1151,11 +1162,6 @@ describe('WorkspacesService', () => {
   // workspace.deleted 는 audit_log.workspace_id ON DELETE CASCADE 제약으로 영속 불가 →
   // 의도적 미기록 (아래 별도 케이스로 부재를 회귀 검증).
   describe('audit logging (결정4=B)', () => {
-    function getAudit(): { record: jest.Mock } {
-      return (service as unknown as { auditLogsService: { record: jest.Mock } })
-        .auditLogsService;
-    }
-
     it('records workspace.created on createTeam', async () => {
       const audit = getAudit();
       await service.createTeam('user-uuid-1', 'My Team');
@@ -1451,47 +1457,47 @@ describe('WorkspacesService', () => {
    * 원자적 `DELETE` 의 `affected` 를 판별자로 쓴다.
    */
   describe('removeMember — 동시 제거', () => {
-    const WS = 'ws-uuid-1';
-    const MEMBER_ID = 'mem-1';
-    const REQUESTER = 'admin-user';
-
-    function getAudit(): { record: jest.Mock } {
-      return (service as unknown as { auditLogsService: { record: jest.Mock } })
-        .auditLogsService;
-    }
+    const workspaceId = 'ws-uuid-1';
+    const memberId = 'mem-1';
+    const requesterId = 'admin-user';
 
     /**
      * `removeMember` 는 `findOne` 을 두 번 부른다 — 대상 멤버(`where.id`)와, `assertAdmin` 이
-     * 부르는 요청자 멤버십(`where.userId`)이다. 둘을 where 로 갈라 답한다.
+     * 부르는 요청자 멤버십(`where.userId`)이다. 둘을 where 로 갈라 답한다. 요청자 멤버십
+     * 레코드는 기본 owner 지만, 두 번째 인자로 비-admin 응답도 흉내낼 수 있다(권한 거부 테스트용).
      */
-    function wireFindOne(target: Record<string, unknown> | null): void {
+    function wireFindOne(
+      target: Record<string, unknown> | null,
+      requesterMembership: Record<string, unknown> = {
+        id: 'mem-req',
+        role: 'owner',
+      },
+    ): void {
       memberRepo.findOne.mockImplementation(
         (opts: { where: { id?: string; userId?: string } }) =>
           Promise.resolve(
-            opts.where.id === MEMBER_ID
-              ? target
-              : { id: 'mem-req', role: 'owner' },
+            opts.where.id === memberId ? target : requesterMembership,
           ),
       );
     }
 
     beforeEach(() => {
-      wireFindOne({ id: MEMBER_ID, userId: 'target-user', role: 'editor' });
+      wireFindOne({ id: memberId, userId: 'target-user', role: 'editor' });
       memberRepo.delete.mockResolvedValue({ affected: 1 });
     });
 
     it('한 행을 지우면 그 멤버의 감사를 남긴다', async () => {
-      await service.removeMember(WS, MEMBER_ID, REQUESTER);
+      await service.removeMember(workspaceId, memberId, requesterId);
 
       expect(memberRepo.delete).toHaveBeenCalledWith({
-        id: MEMBER_ID,
-        workspaceId: WS,
+        id: memberId,
+        workspaceId,
       });
       expect(getAudit().record).toHaveBeenCalledWith(
         expect.objectContaining({
           action: AUDIT_ACTIONS.MEMBER_REMOVED,
           resourceType: 'member',
-          resourceId: MEMBER_ID,
+          resourceId: memberId,
           details: { mode: 'removed', memberUserId: 'target-user' },
         }),
       );
@@ -1502,7 +1508,7 @@ describe('WorkspacesService', () => {
       memberRepo.delete.mockResolvedValue({ affected: 0 });
 
       await expect(
-        service.removeMember(WS, MEMBER_ID, REQUESTER),
+        service.removeMember(workspaceId, memberId, requesterId),
       ).rejects.toMatchObject({
         response: { code: 'MEMBER_NOT_FOUND' },
       });
@@ -1524,7 +1530,7 @@ describe('WorkspacesService', () => {
         } as unknown as DeleteResult);
 
         await expect(
-          service.removeMember(WS, MEMBER_ID, REQUESTER),
+          service.removeMember(workspaceId, memberId, requesterId),
         ).resolves.toBeUndefined();
         expect(getAudit().record).toHaveBeenCalled();
       },
@@ -1534,18 +1540,37 @@ describe('WorkspacesService', () => {
       wireFindOne(null);
 
       await expect(
-        service.removeMember(WS, MEMBER_ID, REQUESTER),
+        service.removeMember(workspaceId, memberId, requesterId),
       ).rejects.toMatchObject({ response: { code: 'MEMBER_NOT_FOUND' } });
       expect(memberRepo.delete).not.toHaveBeenCalled();
       expect(getAudit().record).not.toHaveBeenCalled();
     });
 
     it('owner 는 지우지 않는다', async () => {
-      wireFindOne({ id: MEMBER_ID, userId: 'target-user', role: 'owner' });
+      wireFindOne({ id: memberId, userId: 'target-user', role: 'owner' });
 
       await expect(
-        service.removeMember(WS, MEMBER_ID, REQUESTER),
+        service.removeMember(workspaceId, memberId, requesterId),
       ).rejects.toMatchObject({ response: { code: 'CANNOT_REMOVE_OWNER' } });
+      expect(memberRepo.delete).not.toHaveBeenCalled();
+      expect(getAudit().record).not.toHaveBeenCalled();
+    });
+
+    /**
+     * 요청자가 admin/owner 가 아니면 거부돼야 한다. **검사 순서에 결합하지 않는다** — 트래커에
+     * 등재된 권한 검사 순서 결함(`/ai-review` `review/code/2026/09/21/12_57_05` security
+     * WARNING 1) 후속 PR 이 `assertAdmin` 을 앞으로 옮길 예정이라, "어느 단계에서 거부되는가"
+     * 가 아니라 **"`ADMIN_REQUIRED` 로 거부되고 `delete` 가 호출되지 않는다"** 는 불변만 본다.
+     */
+    it('admin/owner 가 아니면 ADMIN_REQUIRED 로 거부하고 delete 를 타지 않는다', async () => {
+      wireFindOne(
+        { id: memberId, userId: 'target-user', role: 'editor' },
+        { id: 'mem-req', role: 'editor' },
+      );
+
+      await expect(
+        service.removeMember(workspaceId, memberId, requesterId),
+      ).rejects.toMatchObject({ response: { code: 'ADMIN_REQUIRED' } });
       expect(memberRepo.delete).not.toHaveBeenCalled();
       expect(getAudit().record).not.toHaveBeenCalled();
     });
@@ -1555,14 +1580,14 @@ describe('WorkspacesService', () => {
      * 이 PR 의 수정 대상이 아니다. 위임 경계가 사라지면 같은 결함이 이 라우트로 되돌아온다.
      */
     it('자기 자신이면 leaveWorkspace 로 위임하고 이 경로의 DELETE 는 타지 않는다', async () => {
-      wireFindOne({ id: MEMBER_ID, userId: REQUESTER, role: 'editor' });
+      wireFindOne({ id: memberId, userId: requesterId, role: 'editor' });
       const leave = jest
         .spyOn(service, 'leaveWorkspace')
         .mockResolvedValue(undefined);
 
-      await service.removeMember(WS, MEMBER_ID, REQUESTER);
+      await service.removeMember(workspaceId, memberId, requesterId);
 
-      expect(leave).toHaveBeenCalledWith(WS, REQUESTER);
+      expect(leave).toHaveBeenCalledWith(workspaceId, requesterId);
       expect(memberRepo.delete).not.toHaveBeenCalled();
       leave.mockRestore();
     });
