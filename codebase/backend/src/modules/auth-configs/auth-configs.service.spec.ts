@@ -41,7 +41,6 @@ function makeAuthConfigRepo() {
       return null;
     }),
     update: jest.fn(async () => ({ affected: 1 })),
-    remove: jest.fn(async () => undefined),
     // 동시 삭제 판별자 — 기본은 «한 행을 지웠다». 진 쪽·드라이버 미보고는 테스트가 덮어쓴다.
     // 반환 타입을 `DeleteResult` 로 **명시**해야 `mockResolvedValueOnce` 의 파라미터 타입이
     // 추론된 리터럴(`{affected: number; raw: never[]}`)로 좁혀지지 않는다 — 좁혀지면 대조군의
@@ -344,8 +343,6 @@ describe('AuthConfigsService', () => {
     );
 
     it('대상이 없으면 DELETE 를 시도하지 않는다', async () => {
-      repo.delete.mockClear();
-
       await expect(
         service.remove(crypto.randomUUID(), WS, USER),
       ).rejects.toMatchObject({ response: { code: 'RESOURCE_NOT_FOUND' } });
