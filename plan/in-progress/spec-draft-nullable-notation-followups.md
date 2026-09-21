@@ -4804,7 +4804,15 @@ field: T | null;
       판정자로 쓰면 락 없이 닫힌다(0이면 404, 감사 없음). 사용처 검사와 삭제 사이의 TOCTOU 는 **별개 사안**이라
       함께 닫으려 하지 말 것.
 
-- [ ] **`WorkspacesService.removeMember()` 도 동시 삭제에서 감사 행을 두 번 남긴다 — 이 계열의 여섯 번째 자리**
+- [x] **`WorkspacesService.removeMember()` 도 동시 삭제에서 감사 행을 두 번 남긴다** ~~— 이 계열의 여섯 번째 자리~~
+      **2026-09-21 해소** (`plan/complete/member-dup-remove.md`). 처방은 예고대로 원자적
+      `delete({ id, workspaceId })` 의 `affected === 0` → 404. e2e 로 먼저 재현했다 —
+      고치기 전 `[200, 200]` · `member.removed`(`mode='removed'`) 감사 **2건**, 고친 뒤 `[200, 404]` · **1건**.
+      **「여섯 번째」는 맞지만 「마지막」이 아니다** — 착수 전 전수 조사에서 세 자리가 더 나왔다
+      (아래 `AuthConfigsService` · `ModelConfigService` · WebAuthn 항목). 그 조사가 찾아낸 이유는
+      열거 축을 감사 액션 접미사가 아니라 **«지우고 감사하는 요청»** 으로 잡았기 때문이다.
+      부수 수확: 자가 탈퇴 갈래가 이미 닫혀 있음을 e2e 로 **실증**했고(`[200, 403]` · `NOT_A_MEMBER`),
+      owner 승격 TOCTOU 와 권한 검사 순서 오라클을 실측 재현해 각각 별 항목으로 등재했다.
       (developer, 낮음, 2026-09-21 등재 · `plan/in-progress/integration-dup-delete.md` 착수 전 재열거).
       **직전 PR(#1371)이 «다섯 번째이자 마지막» 이라 적은 것이 틀렸다** — 그 열거가 `AUDIT_ACTIONS.*_DELETED`
       **접미사로만** 셌기 때문이다. 삭제성 액션에는 `MEMBER_REMOVED`(`member.removed`)도 있다.
@@ -4813,6 +4821,94 @@ field: T | null;
       `pessimistic_write` 로 멤버십을 읽으므로 진 쪽은 `NOT_A_MEMBER` 403 이고 감사를 남기지 않는다(실측).
       처방은 통합 경로(#이 PR)와 같다: 락을 새로 들이지 말고 원자적 `delete({ id, workspaceId })` 의
       `affected === 0` 으로 판정. 재현은 형제 e2e 의 행 락 기법 그대로.
+      **2026-09-21 정정 — 「여섯 번째」는 맞지만 「마지막」이 또 틀렸다**: 착수 전 전수 조사
+      (`plan/in-progress/member-dup-remove.md` §A)에서 **세 자리가 더** 나왔다. 아래 세 항목이다.
+
+- [ ] **`workspaces.controller.ts` 만 삭제 성공에 204 대신 `200 {ok:true}` 를 쓴다**
+      (planner, 낮음, 2026-09-21 등재 · `/ai-review` `review/code/2026/09/21/13_28_12` WARNING 4).
+      `spec/5-system/2-api-convention.md` §6 은 «204 No Content = 삭제 성공» 으로 적는데,
+      `DELETE /api/workspaces/:id` 와 `DELETE /api/workspaces/:id/members/:memberId` 는 200 을 준다.
+      **실측**: `workflows`·`triggers`·`schedules`·`integrations` 컨트롤러는 각각
+      `HttpCode(204)` 가 **1개**, `workspaces.controller.ts` 는 **0개**이고 `ok: true` 가 **5곳**이다.
+      즉 라우트 하나의 일탈이 아니라 **컨트롤러 단위의 다른 관례**다.
+      둘 중 하나여야 한다 — 컨트롤러를 204 로 맞추거나(클라이언트 계약 변경), §6 에 이 예외를
+      각주로 적거나. **바로 위 §3 멱등성 각주 작업과 같은 문서라 함께 처리하는 편이 싸다.**
+
+- [ ] **`removeMember()` 의 권한 검사가 대상 조회·owner 판정보다 뒤에 있어 존재 오라클이 된다**
+      (developer, **중간**, 2026-09-21 등재 · `/ai-review` `review/code/2026/09/21/12_57_05` WARNING 1).
+      순서가 `findOne`(`:783`) → 404 → self 위임 → owner 403 → `assertAdmin`(`:803`) 이라,
+      요청자가 그 워크스페이스 멤버가 아니어도 `(workspaceId, memberId)` 쌍에 대해 **세 갈래로
+      구분되는 응답**을 받는다: 없음 `404 MEMBER_NOT_FOUND` · 있고 owner `403 CANNOT_REMOVE_OWNER` ·
+      있고 비-owner `403 ADMIN_REQUIRED`. 같은 파일의 형제 Admin+ 메서드
+      (`addMemberByEmail:256` · `updateMemberRole:306`)는 `assertAdmin` 을 **가장 먼저** 부른다.
+
+      **직접 실측으로 리뷰어 지적을 한 칸 더 확인했다**: `workspaces.controller.ts` 는
+      `@UseGuards(JwtAuthGuard)` 뿐이고 **`RolesGuard` 가 없다**(`@Roles` 는 `:246` 한 곳뿐).
+      그리고 `workspaceId` 는 헤더가 아니라 **경로 파라미터 `:id`** 에서 온다. 즉 상류에서
+      멤버십을 막는 것이 아무것도 없어, 인증된 아무 사용자나 이 핸들러에 도달한다.
+      **다만 열거는 불가능하다** — 두 ID 가 모두 UUID(`ParseUUIDPipe`)라 다른 경로로 새어야
+      쓸 수 있는 오라클이다. 삭제 자체는 `assertAdmin` 이 여전히 막는다(권한 상승 아님).
+
+      **왜 그 PR 에서 함께 고치지 않았나**: 올바른 처방이 «`assertAdmin` 을 맨 앞으로» 가
+      **아니기** 때문이다 — 자가 탈퇴는 비-admin 도 해야 하므로 self 위임 분기와 맞물려야 하고,
+      비-admin 이 owner 를 지목했을 때의 코드가 `CANNOT_REMOVE_OWNER` → `ADMIN_REQUIRED` 로
+      **바뀐다**. 에러 코드 계약 변경이라 `spec/5-system/3-error-handling.md` 기준의 자체
+      consistency 라운드가 필요하다. 동시성 수정과 섞으면 정확히 리뷰어들이 지적해 온 스코프 혼입이다.
+
+- [ ] **`removeMember()` 의 owner 보호 가드가 TOCTOU 로 뚫린다 — 실측 확인됨**
+      (developer, **중간**, 2026-09-21 등재 · `member-dup-remove.md` §C-2 프로브).
+      `workspaces.service.ts:797` 의 «owner 는 제거할 수 없다» 가드가 **무락 `findOne`** 위에 있다.
+      읽기와 삭제 사이에 그 멤버가 owner 로 승격되면 가드를 통과한 채 owner 가 지워지고,
+      `workspace.ownerId` 는 멤버십 없는 사용자를 가리키게 된다.
+
+      **결정적 재현 레시피** (레이스로는 인터리빙을 못 고른다 — 둘 다 같은 행 락을 기다려
+      큐 순서에 달린다. 그래서 재진입으로 만든다):
+      1. locker 커넥션이 `SELECT id FROM workspace_member WHERE id=$1 FOR UPDATE`
+      2. `DELETE /api/workspaces/:id/members/:memberId` 발사 → 무락 읽기(`role='editor'`)와
+         가드를 지나 삭제에서 멈춘다 (1.5초 대기로 «아직 안 끝남» 관측)
+      3. locker 가 `UPDATE workspace_member SET role='owner' WHERE id=$1` 후 COMMIT
+         — `transferOwnership` 이 그 행에 가하는 **효과의 대역**이다
+      4. **실측: `status=200`, `rows_remaining=0`** — owner 가 지워졌고 요청은 성공했다
+
+      **후보 처방** (다음 PR 에서 검증할 것, 지금은 미적용):
+      ```ts
+      const { affected } = await this.memberRepository.delete({
+        id: memberId, workspaceId, role: Not('owner'),
+      });
+      if (affected === 0) {
+        // 0 의 이유가 둘이다 — 행이 사라졌나, owner 가 됐나. 0-행 경로에서만 한 번 더 읽어 가른다.
+        const still = await this.memberRepository.findOne({ where: { id: memberId, workspaceId } });
+        if (still?.role === 'owner') throw Forbidden('CANNOT_REMOVE_OWNER');
+        throw NotFound('MEMBER_NOT_FOUND');
+      }
+      ```
+
+      **왜 이번 PR 에서 함께 닫지 않았나**: 두 결함의 계약이 다르다 — 이번 PR 은 «감사를 두 번
+      남기지 않는다», 이것은 «owner 를 지우지 않는다» 다. 위 후보 처방은 `affected === 0` 의
+      의미를 **하나에서 둘로** 늘리는데, 그 판별자를 세우는 것이 바로 이번 PR 의 주제라
+      같은 diff 에서 그 의미를 흐리고 싶지 않았다. 후보 처방의 새 분기는 자체 테스트와
+      뮤턴트가 필요하다. (비용이 아니라 **판별자 오염**이 유예 사유다.)
+
+- [ ] **`AuthConfigsService.remove()` 도 동시 삭제에서 감사 행을 두 번 남긴다 — 일곱 번째**
+      (developer, 낮음, 2026-09-21 등재 · `member-dup-remove.md` §A 전수 조사).
+      `auth-configs.service.ts:287` — 무락 `findById` → `remove(config)` → `AUTH_CONFIG_DELETE` 감사.
+      형제 여섯과 같은 형태이고 락이 없으므로 처방도 같다(원자적 `delete` 의 `affected === 0`).
+
+- [ ] **`ModelConfigService.remove()` 도 동시 삭제에서 감사 행을 두 번 남긴다 — 여덟 번째**
+      (developer, 낮음, 2026-09-21 등재 · 같은 조사).
+      `model-config.service.ts:404` — 무락 `findEntity` → `remove(config)` → `notifyInvalidated(id)`
+      → `MODEL_CONFIG_DELETE` 감사. **`notifyInvalidated` 도 두 번 발화한다** — 이 자리는 감사 중복에
+      더해 캐시 무효화 통지 중복까지 있으므로, 고칠 때 둘 다 진 쪽에서 안 나가는지 확인할 것.
+
+- [ ] **WebAuthn credential 삭제도 동시 요청에서 `user.2fa_disabled` 감사를 두 번 남긴다 — 아홉 번째**
+      (developer, 낮음, 2026-09-21 등재 · 같은 조사).
+      `webauthn.service.ts:532` 는 이미 `credentialRepo.delete({ id })` 를 쓰지만 **`affected` 를 버린다** —
+      «`remove(entity)` 를 찾자» 는 축으로는 안 걸리는 자리다. 게다가 감사는 서비스가 아니라
+      **`webauthn.controller.ts:338`** 이 남긴다(`USER_2FA_DISABLED`). 즉 «서비스에서 감사를 찾자» 는
+      축으로도 안 걸린다 — **이 항목이 열거 축을 «지우고 감사한다» 는 요청 단위로 잡아야 하는 이유다.**
+      부수 효과가 하나 더 있다: 진 쪽도 `countCredentials` 가 0을 보면 `webauthnRecoveryCodes: null`
+      쓰기를 한 번 더 한다. 판정을 서비스에 두면 `{ remaining }` 계약을 바꾸게 되므로, 반환 형태를
+      건드리지 않는 방법(진 쪽에서 404)을 먼저 검토할 것.
 
 - [ ] **`integrations.service.spec.ts:131` 의 `remove` mock 스텁이 죽었다**
       (developer, 매우 낮음, 2026-09-21 등재 · `review/code/2026/09/21/11_32_06` INFO 2).
@@ -4831,19 +4927,34 @@ field: T | null;
       스케줄 축이 세 번째로 누락되지 않게 목록에 넣는다(`--impl-prep` `review/consistency/2026/09/20/23_37_12` W2).
       **2026-09-21 재확장**: `4-integration.md` §9(§9.1 DELETE 행 · §9.4 코드 목록)도 같은 침묵이다 —
       통합 축이 네 번째로 빠지지 않게 함께 넣는다(`--impl-prep` `review/consistency/2026/09/21/10_27_27` W3).
+      **2026-09-21 재확장 (3)**: `9-user-profile.md` §6.1(`DELETE …/members/:memberId`, `:378`)과
+      `data-flow/12-workspace.md` §1.6 도 같은 침묵이다 — 멤버 축이 다섯 번째로 빠지지 않게 넣는다
+      (`--impl-prep` `review/consistency/2026/09/21/12_23_48` W2, checker 셋이 교차 확인).
       **2026-09-21 재확장 (2) — 침묵이 아니라 정면 충돌인 자리가 하나 있다**:
       `spec/5-system/2-api-convention.md` §3 의 HTTP 메서드 표가 `DELETE` 를 **멱등 `O`** 로 적는다.
       이제 다섯 경로 전부 동시 삭제의 진 쪽에 404 를 준다 — 위 네 항목은 «안 적혀 있다» 이지만
       이것은 **적힌 것과 다르게 동작한다**. 그래서 한 문장 추가가 아니라 규약 표의 각주가 필요하다:
       «멱등성은 최종 상태 기준이며, 동시 요청 중 진 쪽은 404 를 받을 수 있다».
       근거는 `--impl-done` `review/consistency/2026/09/21/11_42_00` WARNING 1(rationale_continuity).
+      **집행 시 각주가 세야 할 수**: 이 각주를 쓸 때 «다섯 경로» 라고 적지 말 것 —
+      2026-09-21 전수 조사에서 이 계열이 **아홉 자리**임이 확인됐다(여섯 완료 + 대기 3건:
+      `auth-configs` · `model-config` · `webauthn`). 각주는 경로 수를 세지 말고
+      **«동시 요청 중 진 쪽은 404 를 받을 수 있다»** 라는 계약만 적는 편이 낫다 — 그러면
+      남은 세 자리가 닫힐 때마다 각주를 고치지 않아도 된다.
 
-- [ ] **다섯 `*-delete-concurrency.e2e-spec.ts` 가 어느 spec 의 `code:` frontmatter 에도 없다**
+- [ ] **이 결함 클래스의 동시성 e2e 파일이 어느 spec 의 `code:` frontmatter 에도 없다**
       (planner, 낮음, 2026-09-21 등재 · `--impl-done` `review/consistency/2026/09/21/11_42_00` INFO 4).
-      `workflow-`/`workspace-`/`trigger-`/`schedule-`/`integration-delete-concurrency.e2e-spec.ts` 다섯 개가
-      전부 미등재다 — 형제 넷을 만들 때마다 같은 누락이 반복됐으므로 **개별 PR 의 실수가 아니라
-      관례의 구멍**이다. 각 축의 spec(`1-workflow-list.md`·`12-workspace.md`·`2-trigger-list.md`·
-      `3-schedule.md`·`4-integration.md`)에 정본 증거로 등재하면 `/spec-coverage` 가 이 계약을 본다.
+      집행 시 `codebase/backend/test/` 에서 **그 시점에 실재하는 파일을 다시 열거할 것** — 개수도
+      파일명 패턴도 고정하지 않는다. 2026-09-21 기준 여섯 개이고 이름이 한 패턴이 **아니다**:
+      `workflow-`/`workspace-`/`trigger-`/`schedule-`/`integration-delete-concurrency.e2e-spec.ts`
+      다섯 + `member-remove-concurrency.e2e-spec.ts`(`-delete-` 가 아니라 `-remove-`).
+      각 축의 spec(`1-workflow-list.md`·`12-workspace.md`·`2-trigger-list.md`·`3-schedule.md`·
+      `4-integration.md`·`9-user-profile.md`)에 정본 증거로 등재하면 `/spec-coverage` 가 이 계약을 본다.
+      형제마다 같은 누락이 반복됐으므로 **개별 PR 의 실수가 아니라 관례의 구멍**이다.
+      > **2026-09-21 정정**: 이 항목은 «다섯» 과 `*-delete-concurrency` 글롭으로 적혀 있었는데,
+      > 등재한 바로 그 PR 이 여섯 번째 파일을 다른 이름으로 추가해 **착지 즉시 stale** 이 됐다
+      > (`/ai-review` `review/code/2026/09/21/13_28_12` WARNING 3). 바로 위 항목에 «경로 수를
+      > 세지 말라» 고 적어 놓고 이 항목엔 적용하지 않은 것이다.
       **같은 턴에 둘 더**(`--impl-done` `review/consistency/2026/09/20/21_21_21` WARNING 1·2):
       (a) `data-flow/12-workspace.md` §1.10 은 «재검사 거부를 **포함해** 모든 실패를 로그로 남긴다» 고 적는데,
       이제 동시 삭제의 404 만은 로그를 남기지 않는다(거짓 경보라서) — 그 예외를 한 구로 적는다.
