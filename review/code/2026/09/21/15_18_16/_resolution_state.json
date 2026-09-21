@@ -1,0 +1,28 @@
+{
+  "version": 1,
+  "started_at": "2026-09-21T06:30:16Z",
+  "summary_items_total": 1,
+  "items_resolved_ids": [1],
+  "items_pending_ids": [],
+  "items_escalated_ids": {},
+  "commits_made": [
+    {"sha": "69539209f", "summary_id": "INFO5+INFO1", "scope": "auth-configs"},
+    {"sha": "5502d1dee", "summary_id": "INFO3+INFO9", "scope": "auth-configs"},
+    {"sha": "caa9bae66", "summary_id": "INFO7", "scope": "auth-configs"},
+    {"sha": "197425f51", "summary_id": "WARNING1", "scope": "changelog"}
+  ],
+  "spec_drafts_pending": [],
+  "spec_drafts_applied": [],
+  "e2e_attempts": 1,
+  "e2e_last_status": "pass",
+  "e2e_log_paths": [
+    "_test_logs/lint-20260921-153059.log",
+    "_test_logs/unit-20260921-153151.log",
+    "_test_logs/build-20260921-153309.log",
+    "_test_logs/e2e-20260921-153915.log"
+  ],
+  "auto_fix_iterations": {},
+  "escalation_reason": null,
+  "last_reset_hint_sec": null,
+  "notes": "완료. WARNING 1 + INFO 3/5/7/9 조치, INFO 1 은 무조치+주석만, 나머지 INFO(2,4,6,8,10-13)는 main 지시대로 무조치. e2e 375 PASS."
+}
