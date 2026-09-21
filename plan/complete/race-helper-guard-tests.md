@@ -151,7 +151,8 @@ DB 의존 오케스트레이션(`raceUnderHeldLock`)은 `test/helpers/` 에 **�
       편차이고 `spec/` 은 developer 권한 밖이라 planner 항목으로 등재만 한다. §E)
 - [x] `overlap-preconditions.ts` + self-spec 작성, `concurrency.ts` 는 호출만
 - [x] `PROJECT.md:331` 에 예외 한 줄
-- [ ] 트래커 `:1895` + 본 항목 해소 표기 (**종결 커밋에서** plan 이동과 한 동작으로)
+- [x] 트래커 `:1895` + 본 항목 해소 표기 (**종결 커밋에서** plan 이동과 한 동작으로 — 아래
+      마지막 항목과 같은 동작이다. 쪼개 둔 탓에 한쪽만 체크할 뻔했다)
 - [x] **판별 실험으로 수집 확인** (§C — 뮤턴트 4종 예측=실측)
 - [x] TEST WORKFLOW — lint PASS(`lint-20260921-225901.log`) · unit 472스위트/9941
       (`unit-20260921-225255.log`) · build PASS 타입체크 ratchet 포함
