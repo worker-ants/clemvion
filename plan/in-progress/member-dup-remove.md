@@ -89,13 +89,31 @@ if (affected === 0) throw NotFound('MEMBER_NOT_FOUND');   // 진 쪽 — 감사 
 e2e 는 #1372 의 행 락 기법 그대로: 테스트가 `workspace_member` 행을 `SELECT … FOR UPDATE` 로 쥐면
 두 요청이 무락 조회·가드를 통과한 뒤 `DELETE` 에서 멈춘다.
 
-- 단언: 상태쌍 `[204, 404]`(현행 예측은 `[204, 204]`) + `audit_log` 의 `member.removed` **1건**.
+**형제 다섯과 다른 두 가지**(착수 전 실측):
+
+- **이 라우트는 204 가 아니라 `200 {data:{ok:true}}`** 를 돌려준다(`workspaces.controller.ts:374`).
+  형제 다섯은 전부 204 였으므로 단언을 그대로 베끼면 틀린다 — 상태쌍은 **`[200, 404]`**.
+- **감사 개수를 셀 때 `details->>'mode' = 'removed'` 까지 걸어야 한다.** 자가 탈퇴와 admin 제거가
+  `member.removed` 라는 **같은 액션 이름**을 공유하고 `mode` (`left`/`removed`)로만 갈리기 때문이다.
+  형제들은 액션 이름만으로 갈렸다.
+
+- 단언: 상태쌍 `[200, 404]`(현행 예측은 `[200, 200]`) + `mode='removed'` 감사 **1건**.
+  진 쪽 에러 `code` 까지 본다 — 형제 `workspace-delete-concurrency` 가 `{status, code}` 로 단언하고,
+  직전 PR 리뷰(INFO 4)가 «통합 e2e 는 status 만 봐서 형제보다 약하다» 고 지적했다.
 - 공허성 가드: 락을 놓기 **전에** 둘 다 아직 안 끝났음을 관측한다.
+- 셋업: `inviteAndAccept(...)` 로 editor 멤버를 붙인다. 초대 엔드포인트에 **1분당 10건 throttler**
+  가 있어 헬퍼가 최대 ~30s backoff 재시도를 하므로 `beforeAll` timeout 을 넉넉히 잡는다.
 
 ## 체크리스트
 
-- [ ] A 의 전수 조사 — 삭제 호출 축으로 세고 표를 확정
-- [ ] `/consistency-check --impl-prep spec/2-navigation` → BLOCK: NO
+- [x] A 의 전수 조사 — 삭제 호출 축으로 세고 표를 확정. 남는 세 자리 **트래커 등재**(grep 0→3)
+- [x] `/consistency-check --impl-prep spec/2-navigation` — `review/consistency/2026/09/21/12_23_48`
+  **BLOCK: NO** (Critical 0 · Warning 4). W2(«서술 부재 목록에 `9-user-profile.md` §6.1 ·
+  `data-flow/12-workspace.md` §1.6 가 빠졌다», checker 셋 교차)는 **그 자리에서** 트래커 스코프를
+  넓혀 닫았고, W1(멱등성 각주)은 «경로 수를 세지 말라» 는 주의와 함께 기존 항목에 덧붙였다 —
+  전수 조사가 아홉 자리를 찾았으므로 «다섯 경로» 라 쓰면 곧 stale 이 된다. W3(번들 예산 절단)은
+  harness 사안이고 checker 가 수동 Read 로 보완해 실질 영향 없음을 확인했다.
+  **W4 가 아래 C-2 를 붙든다** — «프로브 전에는 `plan/complete/` 로 옮기지 말 것»
 - [ ] **e2e 로 결함 재현** (고치기 전 실측을 숫자로 기록)
 - [ ] C-1 자가 탈퇴 경로가 이미 닫혀 있음을 실증
 - [ ] C-2 owner 승격 TOCTOU 프로브 — 재현 여부와 근거를 기록

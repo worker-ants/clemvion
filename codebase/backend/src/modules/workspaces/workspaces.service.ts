@@ -801,9 +801,34 @@ export class WorkspacesService {
       });
     }
     await this.assertAdmin(workspaceId, requesterId);
-    // remove() 는 in-memory id 를 지우므로 감사용으로 미리 캡처한다.
     const removedMemberUserId = member.userId;
-    await this.memberRepository.remove(member);
+
+    // 위 `findOne` 은 잠그지 않으므로 동시 제거 두 건이 **둘 다** 여기까지 온다. 종전의
+    // `remove(member)` 는 0행이어도 던지지 않아 둘 다 감사를 남겼다 (실측: 한 memberId 에
+    // `member.removed` 2건). 형제 다섯(#1369~#1372)과 달리 이 경로엔 잠글 것이 없으므로 —
+    // advisory lock 도 행 락도 없다 — 락을 새로 들이지 않고 **단일 원자적 DELETE** 로 가른다.
+    // `DELETE … WHERE id = $1 AND workspace_id = $2` 한 문장은 그 자체로 원자적이라
+    // 둘 중 하나만 1행을 지운다.
+    //
+    // 판정은 `affected === 0` **명시 비교**다. `null`·`undefined` 는 드라이버가 «보고하지
+    // 않았다» 는 뜻이지 «지우지 못했다» 가 아니며, 그것을 0 과 같이 읽으면 정상 삭제를 404 로
+    // 뒤집는다 (같은 규율: `rewriteTriggerConfigLocked`).
+    //
+    // **이 판정이 owner 가드까지 원자화하지는 않는다.** 위 `member.role === 'owner'` 검사와
+    // 이 DELETE 사이에 동시 `transferOwnership` 이 대상을 승격시키면 owner 가 지워진다
+    // (실측 재현: 트래커 «removeMember() 의 owner 보호 가드가 TOCTOU 로 뚫린다»).
+    // 그것은 계약이 다른 별 사안이라 함께 닫지 않았다 — 여기서 `role: Not('owner')` 를 더하면
+    // `affected === 0` 의 의미가 둘로 늘어나 이 판별자 자체가 흐려진다.
+    const { affected } = await this.memberRepository.delete({
+      id: memberId,
+      workspaceId,
+    });
+    if (affected === 0) {
+      throw new NotFoundException({
+        code: 'MEMBER_NOT_FOUND',
+        message: '멤버를 찾을 수 없습니다.',
+      });
+    }
     // 감사 로그(best-effort). admin 에 의한 제거는 mode='removed' 로 자가 탈퇴(left)와 구분.
     await this.auditLogsService.record({
       workspaceId,

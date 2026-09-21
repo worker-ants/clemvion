@@ -2,6 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { Logger } from '@nestjs/common';
 import { TRIGGER_RESOURCE_RELEASER } from '../triggers/trigger-resource-release';
 import { getRepositoryToken } from '@nestjs/typeorm';
+import { DeleteResult } from 'typeorm';
 import { findUserSecretLeaks } from '../../shared/testing/user-secret-absence';
 import { WorkspacesService } from './workspaces.service';
 import { Workspace } from './entities/workspace.entity';
@@ -25,6 +26,7 @@ describe('WorkspacesService', () => {
     findOne: jest.Mock;
     remove: jest.Mock;
     find: jest.Mock;
+    delete: jest.Mock;
   };
 
   const mockWorkspace = {
@@ -1285,6 +1287,9 @@ describe('WorkspacesService', () => {
           workspaceId: 'ws-uuid-1',
         })
         .mockResolvedValueOnce({ role: 'admin' });
+      // 이 테스트의 전제는 «한 행이 실제로 지워졌다» 이다. 공유 mock 의 기본값은
+      // `deleteWorkspace` 의 cascade 용 `{affected: 0}` 이므로 여기서 명시한다.
+      memberRepo.delete.mockResolvedValue({ affected: 1 });
       const audit = getAudit();
       await service.removeMember('ws-uuid-1', 'mem-y', 'user-uuid-1');
       expect(audit.record).toHaveBeenCalledWith(
@@ -1438,5 +1443,128 @@ describe('WorkspacesService', () => {
         });
       },
     );
+  });
+
+  /**
+   * 동시 제거 두 건이 `member.removed` 감사를 두 번 남기던 결함의 회귀 테스트.
+   * 형제 다섯(#1369~#1372)과 같은 클래스이고, 이 자리엔 락이 없어 처방도 통합 경로와 같다 —
+   * 원자적 `DELETE` 의 `affected` 를 판별자로 쓴다.
+   */
+  describe('removeMember — 동시 제거', () => {
+    const WS = 'ws-uuid-1';
+    const MEMBER_ID = 'mem-1';
+    const REQUESTER = 'admin-user';
+
+    function getAudit(): { record: jest.Mock } {
+      return (service as unknown as { auditLogsService: { record: jest.Mock } })
+        .auditLogsService;
+    }
+
+    /**
+     * `removeMember` 는 `findOne` 을 두 번 부른다 — 대상 멤버(`where.id`)와, `assertAdmin` 이
+     * 부르는 요청자 멤버십(`where.userId`)이다. 둘을 where 로 갈라 답한다.
+     */
+    function wireFindOne(target: Record<string, unknown> | null): void {
+      memberRepo.findOne.mockImplementation(
+        (opts: { where: { id?: string; userId?: string } }) =>
+          Promise.resolve(
+            opts.where.id === MEMBER_ID
+              ? target
+              : { id: 'mem-req', role: 'owner' },
+          ),
+      );
+    }
+
+    beforeEach(() => {
+      wireFindOne({ id: MEMBER_ID, userId: 'target-user', role: 'editor' });
+      memberRepo.delete.mockResolvedValue({ affected: 1 });
+    });
+
+    it('한 행을 지우면 그 멤버의 감사를 남긴다', async () => {
+      await service.removeMember(WS, MEMBER_ID, REQUESTER);
+
+      expect(memberRepo.delete).toHaveBeenCalledWith({
+        id: MEMBER_ID,
+        workspaceId: WS,
+      });
+      expect(getAudit().record).toHaveBeenCalledWith(
+        expect.objectContaining({
+          action: AUDIT_ACTIONS.MEMBER_REMOVED,
+          resourceType: 'member',
+          resourceId: MEMBER_ID,
+          details: { mode: 'removed', memberUserId: 'target-user' },
+        }),
+      );
+    });
+
+    it('진 쪽은 404 이고 감사를 남기지 않는다', async () => {
+      // 둘 다 무락 조회를 통과했지만 원자적 DELETE 는 하나만 1행을 지운다.
+      memberRepo.delete.mockResolvedValue({ affected: 0 });
+
+      await expect(
+        service.removeMember(WS, MEMBER_ID, REQUESTER),
+      ).rejects.toMatchObject({
+        response: { code: 'MEMBER_NOT_FOUND' },
+      });
+      expect(getAudit().record).not.toHaveBeenCalled();
+    });
+
+    /**
+     * 판정이 `affected === 0` **명시 비교**인 이유를 붙드는 대조군.
+     * `null`·`undefined` 는 드라이버가 «보고하지 않았다» 는 뜻이지 «못 지웠다» 가 아니다 —
+     * `!affected` 로 되돌리면 정상 삭제가 404 로 뒤집힌다. #1371 에서 이 대조군이 빠져
+     * 같은 뮤턴트가 32건을 통과했다.
+     */
+    it.each([[undefined], [null]])(
+      'affected 가 %p(드라이버 미보고)면 정상 삭제로 취급한다',
+      async (affected) => {
+        memberRepo.delete.mockResolvedValue({
+          affected,
+          raw: [],
+        } as unknown as DeleteResult);
+
+        await expect(
+          service.removeMember(WS, MEMBER_ID, REQUESTER),
+        ).resolves.toBeUndefined();
+        expect(getAudit().record).toHaveBeenCalled();
+      },
+    );
+
+    it('대상이 없으면 삭제를 시도하지 않는다', async () => {
+      wireFindOne(null);
+
+      await expect(
+        service.removeMember(WS, MEMBER_ID, REQUESTER),
+      ).rejects.toMatchObject({ response: { code: 'MEMBER_NOT_FOUND' } });
+      expect(memberRepo.delete).not.toHaveBeenCalled();
+      expect(getAudit().record).not.toHaveBeenCalled();
+    });
+
+    it('owner 는 지우지 않는다', async () => {
+      wireFindOne({ id: MEMBER_ID, userId: 'target-user', role: 'owner' });
+
+      await expect(
+        service.removeMember(WS, MEMBER_ID, REQUESTER),
+      ).rejects.toMatchObject({ response: { code: 'CANNOT_REMOVE_OWNER' } });
+      expect(memberRepo.delete).not.toHaveBeenCalled();
+      expect(getAudit().record).not.toHaveBeenCalled();
+    });
+
+    /**
+     * 자가 제거는 `leaveWorkspace` 로 위임된다 — 그쪽은 트랜잭션 안 `pessimistic_write` 라
+     * 이 PR 의 수정 대상이 아니다. 위임 경계가 사라지면 같은 결함이 이 라우트로 되돌아온다.
+     */
+    it('자기 자신이면 leaveWorkspace 로 위임하고 이 경로의 DELETE 는 타지 않는다', async () => {
+      wireFindOne({ id: MEMBER_ID, userId: REQUESTER, role: 'editor' });
+      const leave = jest
+        .spyOn(service, 'leaveWorkspace')
+        .mockResolvedValue(undefined);
+
+      await service.removeMember(WS, MEMBER_ID, REQUESTER);
+
+      expect(leave).toHaveBeenCalledWith(WS, REQUESTER);
+      expect(memberRepo.delete).not.toHaveBeenCalled();
+      leave.mockRestore();
+    });
   });
 });

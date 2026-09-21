@@ -4816,6 +4816,40 @@ field: T | null;
       **2026-09-21 정정 — 「여섯 번째」는 맞지만 「마지막」이 또 틀렸다**: 착수 전 전수 조사
       (`plan/in-progress/member-dup-remove.md` §A)에서 **세 자리가 더** 나왔다. 아래 세 항목이다.
 
+- [ ] **`removeMember()` 의 owner 보호 가드가 TOCTOU 로 뚫린다 — 실측 확인됨**
+      (developer, **중간**, 2026-09-21 등재 · `member-dup-remove.md` §C-2 프로브).
+      `workspaces.service.ts:797` 의 «owner 는 제거할 수 없다» 가드가 **무락 `findOne`** 위에 있다.
+      읽기와 삭제 사이에 그 멤버가 owner 로 승격되면 가드를 통과한 채 owner 가 지워지고,
+      `workspace.ownerId` 는 멤버십 없는 사용자를 가리키게 된다.
+
+      **결정적 재현 레시피** (레이스로는 인터리빙을 못 고른다 — 둘 다 같은 행 락을 기다려
+      큐 순서에 달린다. 그래서 재진입으로 만든다):
+      1. locker 커넥션이 `SELECT id FROM workspace_member WHERE id=$1 FOR UPDATE`
+      2. `DELETE /api/workspaces/:id/members/:memberId` 발사 → 무락 읽기(`role='editor'`)와
+         가드를 지나 삭제에서 멈춘다 (1.5초 대기로 «아직 안 끝남» 관측)
+      3. locker 가 `UPDATE workspace_member SET role='owner' WHERE id=$1` 후 COMMIT
+         — `transferOwnership` 이 그 행에 가하는 **효과의 대역**이다
+      4. **실측: `status=200`, `rows_remaining=0`** — owner 가 지워졌고 요청은 성공했다
+
+      **후보 처방** (다음 PR 에서 검증할 것, 지금은 미적용):
+      ```ts
+      const { affected } = await this.memberRepository.delete({
+        id: memberId, workspaceId, role: Not('owner'),
+      });
+      if (affected === 0) {
+        // 0 의 이유가 둘이다 — 행이 사라졌나, owner 가 됐나. 0-행 경로에서만 한 번 더 읽어 가른다.
+        const still = await this.memberRepository.findOne({ where: { id: memberId, workspaceId } });
+        if (still?.role === 'owner') throw Forbidden('CANNOT_REMOVE_OWNER');
+        throw NotFound('MEMBER_NOT_FOUND');
+      }
+      ```
+
+      **왜 이번 PR 에서 함께 닫지 않았나**: 두 결함의 계약이 다르다 — 이번 PR 은 «감사를 두 번
+      남기지 않는다», 이것은 «owner 를 지우지 않는다» 다. 위 후보 처방은 `affected === 0` 의
+      의미를 **하나에서 둘로** 늘리는데, 그 판별자를 세우는 것이 바로 이번 PR 의 주제라
+      같은 diff 에서 그 의미를 흐리고 싶지 않았다. 후보 처방의 새 분기는 자체 테스트와
+      뮤턴트가 필요하다. (비용이 아니라 **판별자 오염**이 유예 사유다.)
+
 - [ ] **`AuthConfigsService.remove()` 도 동시 삭제에서 감사 행을 두 번 남긴다 — 일곱 번째**
       (developer, 낮음, 2026-09-21 등재 · `member-dup-remove.md` §A 전수 조사).
       `auth-configs.service.ts:287` — 무락 `findById` → `remove(config)` → `AUTH_CONFIG_DELETE` 감사.
@@ -4854,12 +4888,20 @@ field: T | null;
       스케줄 축이 세 번째로 누락되지 않게 목록에 넣는다(`--impl-prep` `review/consistency/2026/09/20/23_37_12` W2).
       **2026-09-21 재확장**: `4-integration.md` §9(§9.1 DELETE 행 · §9.4 코드 목록)도 같은 침묵이다 —
       통합 축이 네 번째로 빠지지 않게 함께 넣는다(`--impl-prep` `review/consistency/2026/09/21/10_27_27` W3).
+      **2026-09-21 재확장 (3)**: `9-user-profile.md` §6.1(`DELETE …/members/:memberId`, `:378`)과
+      `data-flow/12-workspace.md` §1.6 도 같은 침묵이다 — 멤버 축이 다섯 번째로 빠지지 않게 넣는다
+      (`--impl-prep` `review/consistency/2026/09/21/12_23_48` W2, checker 셋이 교차 확인).
       **2026-09-21 재확장 (2) — 침묵이 아니라 정면 충돌인 자리가 하나 있다**:
       `spec/5-system/2-api-convention.md` §3 의 HTTP 메서드 표가 `DELETE` 를 **멱등 `O`** 로 적는다.
       이제 다섯 경로 전부 동시 삭제의 진 쪽에 404 를 준다 — 위 네 항목은 «안 적혀 있다» 이지만
       이것은 **적힌 것과 다르게 동작한다**. 그래서 한 문장 추가가 아니라 규약 표의 각주가 필요하다:
       «멱등성은 최종 상태 기준이며, 동시 요청 중 진 쪽은 404 를 받을 수 있다».
       근거는 `--impl-done` `review/consistency/2026/09/21/11_42_00` WARNING 1(rationale_continuity).
+      **집행 시 각주가 세야 할 수**: 이 각주를 쓸 때 «다섯 경로» 라고 적지 말 것 —
+      2026-09-21 전수 조사에서 이 계열이 **아홉 자리**임이 확인됐다(여섯 완료 + 대기 3건:
+      `auth-configs` · `model-config` · `webauthn`). 각주는 경로 수를 세지 말고
+      **«동시 요청 중 진 쪽은 404 를 받을 수 있다»** 라는 계약만 적는 편이 낫다 — 그러면
+      남은 세 자리가 닫힐 때마다 각주를 고치지 않아도 된다.
 
 - [ ] **다섯 `*-delete-concurrency.e2e-spec.ts` 가 어느 spec 의 `code:` frontmatter 에도 없다**
       (planner, 낮음, 2026-09-21 등재 · `--impl-done` `review/consistency/2026/09/21/11_42_00` INFO 4).
