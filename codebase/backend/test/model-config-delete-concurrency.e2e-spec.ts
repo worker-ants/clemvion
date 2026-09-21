@@ -54,7 +54,8 @@ describe('Model config delete concurrency (e2e)', () => {
   });
 
   it('두 DELETE 가 겹쳐도 감사 행은 하나이고 진 쪽은 404 다', async () => {
-    // `isDefault: false` — 기본 설정이면 삭제가 default 스왑 경로를 함께 타므로 판별이 흐려진다.
+    // `isDefault: false` — `remove()` 는 `isDefault`/`saveWithDefaultSwap` 을 전혀 참조하지
+    // 않으므로(실측) 판별에는 영향 없다. 다른 형제 e2e 와 fixture 형태를 맞추기 위한 고정값이다.
     const create = await request(BASE_URL)
       .post('/api/model-configs')
       .set('Authorization', `Bearer ${token}`)

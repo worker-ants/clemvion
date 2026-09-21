@@ -396,6 +396,10 @@ export class ModelConfigService {
     });
   }
 
+  /**
+   * config 를 삭제한다. 동시 DELETE 두 건 중 진 쪽은 조용히 넘어가지 않고 404 를 받는다.
+   * @throws {NotFoundException} MODEL_CONFIG_NOT_FOUND
+   */
   async remove(id: string, workspaceId: string, userId: string): Promise<void> {
     const config = await this.findEntity(id, workspaceId);
     // 감사 payload 에 실을 kind — 아래 `delete(criteria)` 는 엔티티를 건드리지 않으므로
