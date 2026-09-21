@@ -133,9 +133,19 @@ describe('WebAuthn credential delete concurrency (e2e)', () => {
    * t1<t3 와 t3<t4 와 t4<t1(R2 가 1 을 보려면 A 가 t4 시점에 아직 살아 있어야 함)이
    * 동시에 성립해야 하는 모순이라 발생할 수 없다.
    *
-   * 이 테스트는 그 산술을 e2e 로 고정한다 — 통과하면 리뷰어 주장이 반증된 것이고,
-   * 누군가 이 메서드를 트랜잭션으로 감싸(delete 를 count 시점까지 커밋 지연) 위 순서
-   * 논증의 전제를 깨면 그때 RED 가 되는 캐너리다.
+   * **이 논증은 두 요청이 실제로 겹칠 때만 검증력이 있다** — 우연히 순차 처리되면
+   * (R1 이 delete+count+update 를 전부 끝낸 뒤 R2 가 시작) 위 산술이 애초에 시험대에
+   * 오르지 않고도 테스트가 초록이 될 수 있다(테스트 리뷰,
+   * `review/code/2026/09/21/18_31_57/testing.md` WARNING). 그래서 위 첫 번째 `it` 과
+   * 같은 기법으로 겹침을 **관측**한다 — `locker` 가 `BEGIN` 후 A·B 두 행을 모두
+   * `FOR UPDATE` 로 잠그면, 두 DELETE 요청은 무락 `findOne`·소유권 비교를 통과한 뒤
+   * 각자의 `DELETE` 문에서 그 잠금을 기다리며 대기한다 — 이것이 논쟁이 된 인터리빙
+   * (둘 다 삭제 전 상태를 관측한 뒤 진행)이고, 아래 공허성 가드가 "락을 놓기 전엔 둘 다
+   * 아직 안 끝났음"을 단언해 이 겹침이 실제로 일어났음을 보증한다.
+   *
+   * 이 테스트는 그 산술을 **겹침을 강제한 상태에서** e2e 로 고정한다 — 통과하면 리뷰어
+   * 주장이 반증된 것이고, 누군가 이 메서드를 트랜잭션으로 감싸(delete 를 count 시점까지
+   * 커밋 지연) 위 순서 논증의 전제를 깨면 그때 RED 가 되는 캐너리다.
    */
   it('서로 다른 credential 두 개를 동시 삭제해도 복구 코드는 NULL 로 수렴한다 (WARNING #4 반증)', async () => {
     // 위 테스트의 잔존 credential(survivor)과 섞이지 않도록 별도 사용자로 격리한다.
@@ -174,11 +184,40 @@ describe('WebAuthn credential delete concurrency (e2e)', () => {
           () => ({ status: -1 }),
         );
 
-    // 서로 다른 행이라 공유 락으로 줄 세울 지점이 없다 — 동시 발사 자체가 겹침이다.
-    const results = await Promise.all([fireDelete(idA), fireDelete(idB)]);
+    let pending: Promise<{ status: number }[]> | undefined;
+    await locker.query('BEGIN');
+    try {
+      // 두 행을 모두 잠근다 — 공유 락으로 줄 세우는 것이 아니라, A·B 각자의 `DELETE`
+      // 가 각자의 행 잠금을 기다리게 만들어 둘을 동시에 대기 상태로 묶는다.
+      await locker.query(
+        'SELECT id FROM webauthn_credential WHERE id = ANY($1::uuid[]) FOR UPDATE',
+        [[idA, idB]],
+      );
 
-    // 서로 다른 credential 이라 소유권 충돌 없이 둘 다 지운다(둘 다 204).
-    expect(results.map((r) => r.status).sort()).toEqual([204, 204]);
+      // 둘 다 무락 `findOne` + 소유권 비교를 통과한 뒤 각자의 DELETE 에서 이 락을
+      // 기다린다 — 이것이 논쟁이 된 인터리빙이다.
+      pending = Promise.all([fireDelete(idA), fireDelete(idB)]);
+
+      // 공허성 가드 — 락을 놓기 **전에** 둘 다 아직 끝나지 않았음을 관측한다. 먼저
+      // 끝났다면 이 fixture 는 겹침을 만들지 못한 것이고, 아래 단언은 고치기 전
+      // 코드도 통과시킨다.
+      const raced = await Promise.race([
+        pending.then(() => 'settled' as const),
+        new Promise<'pending'>((resolve) =>
+          setTimeout(() => resolve('pending'), 1_500),
+        ),
+      ]);
+      expect(raced).toBe('pending');
+
+      await locker.query('COMMIT');
+      const results = (await pending).sort((a, b) => a.status - b.status);
+
+      // 서로 다른 credential 이라 소유권 충돌 없이 둘 다 지운다(둘 다 204).
+      expect(results.map((r) => r.status)).toEqual([204, 204]);
+    } finally {
+      await locker.query('ROLLBACK').catch(() => undefined);
+      await pending?.catch(() => undefined);
+    }
 
     const after = await db.query<{ codes: string[] | null }>(
       `SELECT webauthn_recovery_codes AS codes FROM "user" WHERE id = $1`,
