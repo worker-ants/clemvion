@@ -307,12 +307,7 @@ export class WorkspacesService {
     const member = await this.memberRepository.findOne({
       where: { id: memberId, workspaceId },
     });
-    if (!member) {
-      throw new NotFoundException({
-        code: 'MEMBER_NOT_FOUND',
-        message: '멤버를 찾을 수 없습니다.',
-      });
-    }
+    if (!member) this.throwMemberNotFound();
     if (member.role === 'owner' || role === 'owner') {
       throw new ForbiddenException({
         code: 'OWNER_ROLE_PROTECTED',
@@ -332,6 +327,23 @@ export class WorkspacesService {
       details: { from: previousRole, to: role, memberUserId: member.userId },
     });
     return saved;
+  }
+
+  /**
+   * «없다» 를 그대로 던진다 — 형제 `triggers.service.ts` 의 `throwTriggerNotFound()` /
+   * `schedules.service.ts` 의 `throwScheduleNotFound()` / `integrations.service.ts` 의
+   * `throwIntegrationNotFound()` 선례와 같은 이유다. 같은 리터럴이 `updateMemberRole` ·
+   * `removeMember`(두 판정)까지 세 곳에 복제돼 있었다 (`/ai-review`
+   * `review/code/2026/09/21/12_57_05` maintainability WARNING 3).
+   *
+   * `transferOwnership()` 의 "대상 멤버를 찾을 수 없습니다." 는 대상을 특정하는 별도 문구라
+   * 여기 재사용하지 않는다 — 갈아 끼우면 API 응답 메시지가 조용히 바뀐다.
+   */
+  private throwMemberNotFound(): never {
+    throw new NotFoundException({
+      code: 'MEMBER_NOT_FOUND',
+      message: '멤버를 찾을 수 없습니다.',
+    });
   }
 
   /** 워크스페이스 이름 변경 (Admin+). 길이 검증은 DTO가 선행 수행한다. */
@@ -774,7 +786,12 @@ export class WorkspacesService {
     });
   }
 
-  /** 멤버 제거(Admin+). 자기 자신 제거는 `leaveWorkspace`로 위임해 동일한 가드를 적용한다. */
+  /**
+   * 멤버 제거(Admin+). 자기 자신 제거는 `leaveWorkspace`로 위임해 동일한 가드를 적용한다.
+   *
+   * 동시성 보장: 잠글 행이 없어 동시 제거 두 건이 모두 검사를 통과할 수 있지만, 단일
+   * 원자적 `DELETE`(`affected === 0` 명시 비교)가 승자만 갈라 감사 로그 중복을 막는다.
+   */
   async removeMember(
     workspaceId: string,
     memberId: string,
@@ -783,12 +800,7 @@ export class WorkspacesService {
     const member = await this.memberRepository.findOne({
       where: { id: memberId, workspaceId },
     });
-    if (!member) {
-      throw new NotFoundException({
-        code: 'MEMBER_NOT_FOUND',
-        message: '멤버를 찾을 수 없습니다.',
-      });
-    }
+    if (!member) this.throwMemberNotFound();
     if (member.userId === requesterId) {
       // 자가 탈퇴: sole-owner 보호, personal 차단 등 공통 가드가 적용된 leaveWorkspace로 위임
       await this.leaveWorkspace(workspaceId, requesterId);
@@ -823,12 +835,7 @@ export class WorkspacesService {
       id: memberId,
       workspaceId,
     });
-    if (affected === 0) {
-      throw new NotFoundException({
-        code: 'MEMBER_NOT_FOUND',
-        message: '멤버를 찾을 수 없습니다.',
-      });
-    }
+    if (affected === 0) this.throwMemberNotFound();
     // 감사 로그(best-effort). admin 에 의한 제거는 mode='removed' 로 자가 탈퇴(left)와 구분.
     await this.auditLogsService.record({
       workspaceId,
