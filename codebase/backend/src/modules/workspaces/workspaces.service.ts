@@ -8,7 +8,7 @@ import {
 } from '@nestjs/common';
 import { ModuleRef } from '@nestjs/core';
 import { InjectRepository } from '@nestjs/typeorm';
-import { EntityManager, In, Repository } from 'typeorm';
+import { EntityManager, In, Not, Repository } from 'typeorm';
 import { Workspace } from './entities/workspace.entity';
 import { WorkspaceMember } from './entities/workspace-member.entity';
 import { WorkspaceInvitation } from './entities/workspace-invitation.entity';
@@ -343,6 +343,19 @@ export class WorkspacesService {
     throw new NotFoundException({
       code: 'MEMBER_NOT_FOUND',
       message: '멤버를 찾을 수 없습니다.',
+    });
+  }
+
+  /**
+   * «owner 는 제거할 수 없다» — `removeMember` 의 **두 자리**가 쓴다: 무락 선조회 위의 이른
+   * 가드와, DELETE 가 0행일 때 `role: Not('owner')` 술어가 걸렀음을 확인한 자리다.
+   * 같은 이유로 헬퍼다 — 리터럴을 두 벌 두면 한쪽 문구만 바뀌어 같은 코드가 다른 메시지를 낸다
+   * (바로 위 `throwMemberNotFound()` 가 세 벌 복제로 지적받아 생긴 선례).
+   */
+  private throwCannotRemoveOwner(): never {
+    throw new ForbiddenException({
+      code: 'CANNOT_REMOVE_OWNER',
+      message: 'owner는 제거할 수 없습니다.',
     });
   }
 
@@ -789,8 +802,10 @@ export class WorkspacesService {
   /**
    * 멤버 제거(Admin+). 자기 자신 제거는 `leaveWorkspace`로 위임해 동일한 가드를 적용한다.
    *
-   * 동시성 보장: 잠글 행이 없어 동시 제거 두 건이 모두 검사를 통과할 수 있지만, 단일
-   * 원자적 `DELETE`(`affected === 0` 명시 비교)가 승자만 갈라 감사 로그 중복을 막는다.
+   * 동시성 보장: 잠글 행이 없어 동시 요청들이 모두 무락 검사를 통과할 수 있지만, 단일
+   * 원자적 `DELETE`(`affected === 0` 명시 비교)가 승자만 갈라 **둘**을 막는다 —
+   * 감사 로그 중복(동시 제거), 그리고 **owner 삭제**(동시 `transferOwnership`).
+   * 후자는 `role: Not('owner')` 술어가 DELETE 안으로 들어가 막는다.
    */
   async removeMember(
     workspaceId: string,
@@ -806,12 +821,9 @@ export class WorkspacesService {
       await this.leaveWorkspace(workspaceId, requesterId);
       return;
     }
-    if (member.role === 'owner') {
-      throw new ForbiddenException({
-        code: 'CANNOT_REMOVE_OWNER',
-        message: 'owner는 제거할 수 없습니다.',
-      });
-    }
+    // 흔한 경우를 `assertAdmin` 전에 끊는 **이른** 가드. 무락 읽기 위에 서 있으므로 이것만으로는
+    // 부족하고, 아래 DELETE 의 `role: Not('owner')` 술어가 뒤를 받는다.
+    if (member.role === 'owner') this.throwCannotRemoveOwner();
     await this.assertAdmin(workspaceId, requesterId);
     const removedMemberUserId = member.userId;
 
@@ -826,16 +838,34 @@ export class WorkspacesService {
     // 않았다» 는 뜻이지 «지우지 못했다» 가 아니며, 그것을 0 과 같이 읽으면 정상 삭제를 404 로
     // 뒤집는다 (같은 규율: `rewriteTriggerConfigLocked`).
     //
-    // **이 판정이 owner 가드까지 원자화하지는 않는다.** 위 `member.role === 'owner'` 검사와
-    // 이 DELETE 사이에 동시 `transferOwnership` 이 대상을 승격시키면 owner 가 지워진다
-    // (실측 재현: 트래커 «removeMember() 의 owner 보호 가드가 TOCTOU 로 뚫린다»).
-    // 그것은 계약이 다른 별 사안이라 함께 닫지 않았다 — 여기서 `role: Not('owner')` 를 더하면
-    // `affected === 0` 의 의미가 둘로 늘어나 이 판별자 자체가 흐려진다.
+    // **owner 가드도 같은 문장 안에서 판정한다.** 위 `member.role === 'owner'` 검사와 이 DELETE
+    // 사이에 동시 `transferOwnership` 이 대상을 승격시키면, 술어가 없을 때 owner 가 지워지고
+    // `workspace.ownerId` 가 멤버십 없는 사용자를 가리킨다 (e2e 로 재현: 고치기 전 **200**).
+    //
+    // 술어 하나로 충분한 이유는 Postgres 의 동작이다 — `transferOwnership` 은 그 행에
+    // `pessimistic_write` 를 쥐므로 이 DELETE 는 커밋을 기다렸다가 **갱신된 행 버전에 대해
+    // `WHERE` 를 다시 평가**한다(READ COMMITTED 의 EvalPlanQual). 그래서 승격된 행이 제외된다.
+    // 이 경로에 락을 새로 들이지 않는다.
+    //
+    // **`4-execution-engine.md` §8 의 조건부 UPDATE 와 혼동하지 말 것.** 그쪽은 **타-행 집계**
+    // (동시 실행 수)를 조건으로 삼아 조건부 문장만으로는 TOCTOU 가 남고 advisory lock 이
+    // 따로 필요했다. 여기 조건은 **지우려는 바로 그 행 자신의 컬럼**이라 위 재평가가 곧
+    // 원자성이다 — 같은 모양이지만 보장이 다르다.
     const { affected } = await this.memberRepository.delete({
       id: memberId,
       workspaceId,
+      role: Not('owner'),
     });
-    if (affected === 0) this.throwMemberNotFound();
+    if (affected === 0) {
+      // 0 의 이유가 **둘**이다 — 행이 사라졌나(동시 제거), owner 가 됐나(동시 이양).
+      // 0-행 경로에서만 한 번 더 읽어 가른다. 이 재조회는 잠그지 않는다: 고르는 것은 에러
+      // 코드뿐이고 어느 답이든 **어떤 직렬화의 정당한 결과**다.
+      const still = await this.memberRepository.findOne({
+        where: { id: memberId, workspaceId },
+      });
+      if (still?.role === 'owner') this.throwCannotRemoveOwner();
+      this.throwMemberNotFound();
+    }
     // 감사 로그(best-effort). admin 에 의한 제거는 mode='removed' 로 자가 탈퇴(left)와 구분.
     await this.auditLogsService.record({
       workspaceId,
