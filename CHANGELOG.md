@@ -1,5 +1,39 @@
 # Changelog
 
+## Unreleased — 제거 중 대상이 owner 로 승격되면 owner 가 지워지던 것
+
+`WorkspacesService.removeMember()` 의 «owner 는 제거할 수 없다» 가드가 **무락
+`findOne`** 위에 있었다. 읽기와 DELETE 사이에 동시 `transferOwnership` 이 그
+멤버를 owner 로 승격시키면 가드를 통과한 채 owner 가 지워지고, 그 결과
+`workspace.ownerId` 가 **멤버십 없는 사용자**를 가리켰다. 감사 행이 두 번
+남던 결함 클래스(#1369~#1376)와 계약이 다르다 — 이쪽은 데이터 정합성이다.
+
+e2e 로 먼저 재현했다. 레이스로는 인터리빙을 고를 수 없어(둘 다 같은 행 락을
+기다려 큐 순서에 달린다) **재진입**으로 만들었다 — 테스트가 락을 쥐고, 요청이
+무락 읽기와 가드를 지나 삭제에서 멈춘 것을 공허성 가드로 관측한 뒤 승격을
+끼우고 COMMIT 한다. 고치기 전 **200**(멤버 행 삭제됨), 고친 뒤
+**403 `CANNOT_REMOVE_OWNER`**(행 유지).
+
+**고친 것**:
+- `delete({ id, workspaceId, role: Not('owner') })` — owner 판정이 삭제와
+  **같은 문장** 안으로 들어갔다. `transferOwnership` 이 그 행에 락을 쥐므로
+  겹친 DELETE 는 커밋을 기다렸다가 갱신된 행 버전에 대해 `WHERE` 를 다시
+  평가한다(READ COMMITTED 의 EvalPlanQual). 이 경로에 락을 새로 들이지 않았다.
+- `affected === 0` 의 이유가 둘이 되므로(행이 사라졌나 / owner 였나) 그
+  경로에서만 한 번 더 읽어 404 `MEMBER_NOT_FOUND` 와 403 을 가른다.
+  재조회는 **존재 여부만** 본다 — 술어가 `role` 하나뿐이라 행이 남아 있는데
+  0행이었다면 그 시점에 owner 였다는 뜻이고, 그 사이 강등됐더라도 «막은 것은
+  owner» 라는 사실은 그대로다(현재 role 을 다시 물으면 실재하는 멤버를 404 로
+  보고하게 된다).
+- 이른 가드는 남겼다 — 흔한 경우를 `assertAdmin` 전에 403 으로 끊는다.
+  DELETE 의 술어는 그 뒤를 받는 backstop 이다.
+
+**남는 것**: `removeMember()` 의 권한 검사 순서 오라클은 여전히 열려 있고,
+그 블라스트 반경이 트래커에 실제보다 좁게 적혀 있던 것을 이 PR 이 정정했다 —
+`RolesGuard` 가 `handlerConsumesWorkspaceId` false 면 단락하고 이 핸들러는
+`@Param('id')` 를 쓰므로, 노출 대상은 «비-admin 멤버» 가 아니라 **임의 인증
+사용자**다.
+
 ## Unreleased — 동시 DELETE 두 건이 `user.2fa_disabled` 감사 행을 두 번 남기던 것
 
 `WebAuthnService.deleteCredential()` 은 잠금 없는 `findOne` 으로 존재·소유권을
@@ -180,10 +214,12 @@ WebAuthn credential 삭제(아홉 번째, 감사가 서비스가 아니라 컨�
 이었고, DB 를 직접 조회해 `member.removed` 감사 행이 **한 memberId 에 2건**
 임을 확인했다(고친 코드는 `[200, 404]` · 감사 1건).
 
-**남는 것**: `removeMember()` 의 권한 검사 순서 오라클, owner 승격 TOCTOU
-(실측 재현), `workspaces.controller.ts` 만 204 대신 200 을 쓰는 것이
+**남는 것**: `removeMember()` 의 권한 검사 순서 오라클, ~~owner 승격 TOCTOU
+(실측 재현)~~, `workspaces.controller.ts` 만 204 대신 200 을 쓰는 것이
 api-convention §6 과 어긋나는 문제는 별도 트래커 항목으로 등재됐고 이 PR
 이 닫지 않는다.
+
+> **owner 승격 TOCTOU 는 2026-09-24 해소됐다** — 맨 위 항목이 그것이다.
 
 > 이 항목은 원래 PR(#1373)에서 CHANGELOG 추가 없이 병합됐다 — 형제 넷
 > (#1369~#1372)이 지킨 관례를 이 PR 부터 잇지 않은 것을 후속 리뷰

@@ -857,13 +857,18 @@ export class WorkspacesService {
       role: Not('owner'),
     });
     if (affected === 0) {
-      // 0 의 이유가 **둘**이다 — 행이 사라졌나(동시 제거), owner 가 됐나(동시 이양).
+      // 0 의 이유가 **둘**이다 — 행이 사라졌나(동시 제거), owner 였나(동시 이양).
       // 0-행 경로에서만 한 번 더 읽어 가른다. 이 재조회는 잠그지 않는다: 고르는 것은 에러
       // 코드뿐이고 어느 답이든 **어떤 직렬화의 정당한 결과**다.
       const still = await this.memberRepository.findOne({
         where: { id: memberId, workspaceId },
       });
-      if (still?.role === 'owner') this.throwCannotRemoveOwner();
+      // **존재 여부만 본다 — 지금의 role 은 보지 않는다.** 위 문장의 술어는 `role` 하나뿐이라,
+      // `(id, workspaceId)` 가 맞는 행이 남아 있는데 0행이었다면 그 시점에 **owner 였다는 뜻**
+      // 말고는 없다. 재조회가 그 사이의 강등을 볼 수도 있지만(이양 연쇄), 그래도 «DELETE 를
+      // 막은 것은 owner 였다» 는 사실은 그대로다 — 여기서 현재 role 을 다시 물으면 실재하는
+      // 멤버를 404 로 보고하게 된다 (`/ai-review` `review/code/2026/09/24/08_09_57` W3).
+      if (still) this.throwCannotRemoveOwner();
       this.throwMemberNotFound();
     }
     // 감사 로그(best-effort). admin 에 의한 제거는 mode='removed' 로 자가 탈퇴(left)와 구분.

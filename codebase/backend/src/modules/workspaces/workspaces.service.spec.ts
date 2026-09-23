@@ -1523,10 +1523,22 @@ describe('WorkspacesService', () => {
       );
     });
 
+    /**
+     * 진 쪽은 404 다 — 재조회가 **행이 없다**를 답하는 경우.
+     *
+     * > **종전 이 블록은 일어날 수 없는 상태를 고정하고 있었다.** 재조회가 `editor` 를
+     * > 답하게 두고 404 를 기대했는데, DELETE 의 술어는 `role` 하나뿐이라 «행이 남아 있고
+     * > owner 가 아닌데 0행» 은 성립하지 않는다. 술어가 들어오기 **전**에 쓰인 단언이
+     * > 그대로 남아 있었던 것이고, `/ai-review` `08_09_57` W3 이 그 틈을 짚었다.
+     */
     it('진 쪽은 404 이고 감사를 남기지 않는다', async () => {
-      // 둘 다 무락 조회를 통과했지만 원자적 DELETE 는 하나만 1행을 지운다.
-      // 0-행 경로가 대상을 다시 읽는데, 여기선 그 재조회도 «행이 남아 있다(editor)» 를
-      // 답한다 — owner 가 아니므로 404 로 간다.
+      // 둘 다 무락 조회를 통과했지만 원자적 DELETE 는 하나만 1행을 지운다 —
+      // 진 쪽이 다시 읽으면 행이 이미 없다.
+      wireFindOne(
+        { id: memberId, userId: 'target-user', role: 'editor' },
+        undefined,
+        null,
+      );
       memberRepo.delete.mockResolvedValue({ affected: 0 });
 
       await expect(
@@ -1542,8 +1554,8 @@ describe('WorkspacesService', () => {
      * 다른 블록은 «감사를 두 번 남기지 않는다» 이고 이것은 «owner 를 지우지 않는다» 다.
      *
      * 무락 선조회는 `editor` 를 봤는데 DELETE 시점엔 `transferOwnership` 이 그 행을 승격시킨
-     * 상태다. 술어 `role: Not('owner')` 가 0행을 만들고, 0-행 경로의 재조회가 그 이유를
-     * «owner 가 됐다» 로 가른다. 술어를 빼면 owner 가 지워지고 `workspace.ownerId` 가
+     * 상태다. 술어 `role: Not('owner')` 가 0행을 만들고, 0-행 경로의 재조회가 **행이 남아
+     * 있음**을 보고 403 으로 간다. 술어를 빼면 owner 가 지워지고 `workspace.ownerId` 가
      * 멤버십 없는 사용자를 가리킨다 (e2e 로 재현: 고치기 전 200).
      */
     it('DELETE 시점에 대상이 owner 로 승격됐으면 403 이고 감사가 없다', async () => {
@@ -1567,9 +1579,32 @@ describe('WorkspacesService', () => {
     });
 
     /**
+     * **이양 연쇄 — 재조회가 강등된 행을 본다.** 승격돼 DELETE 를 막은 뒤 다시 admin 으로
+     * 내려온 상태다. 그래도 «DELETE 를 막은 것은 owner 였다» 는 사실은 변하지 않으므로
+     * 403 이다. 여기서 현재 role 을 다시 물으면 **실재하는 멤버를 404 로** 보고하게 된다
+     * (`/ai-review` `review/code/2026/09/24/08_09_57` W3 — 이 제3 상태를 짚었다).
+     *
+     * 이 블록이 «재조회의 role 을 본다» 로 되돌리는 편집을 죽인다.
+     */
+    it('재조회가 강등된 행을 봐도 403 이다 — 막은 것은 owner 였다', async () => {
+      wireFindOne(
+        { id: memberId, userId: 'target-user', role: 'editor' },
+        undefined,
+        { id: memberId, userId: 'target-user', role: 'admin' },
+      );
+      memberRepo.delete.mockResolvedValue({ affected: 0 });
+
+      await expect(
+        service.removeMember(workspaceId, memberId, requesterId),
+      ).rejects.toMatchObject({
+        response: { code: 'CANNOT_REMOVE_OWNER' },
+      });
+      expect(getAudit().record).not.toHaveBeenCalled();
+    });
+
+    /**
      * 0 의 나머지 한 이유 — 행 자체가 사라졌다. 재조회가 `null` 이면 404 다.
-     * 이 블록이 있어야 «0이면 무조건 403» 으로 줄이는 편집이 죽는다(위 404 블록은 재조회가
-     * `editor` 를 답해 다른 갈래를 탄다).
+     * 이 블록이 «존재하든 말든 403» 으로 넓히는 편집을 죽인다.
      */
     it('DELETE 시점에 행이 사라졌으면 404 다', async () => {
       wireFindOne(

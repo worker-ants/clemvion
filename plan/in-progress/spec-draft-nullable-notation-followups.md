@@ -4948,6 +4948,22 @@ field: T | null;
       같은 diff 에서 그 의미를 흐리고 싶지 않았다. 후보 처방의 새 분기는 자체 테스트와
       뮤턴트가 필요하다. (비용이 아니라 **판별자 오염**이 유예 사유다.)
 
+- [ ] **재진입 락 오케스트레이션이 두 번째로 복제됐다 — 세 번째면 헬퍼로 뽑는다** (developer,
+      낮음, 2026-09-24 등재 · `/ai-review` `review/code/2026/09/24/08_09_57` W6).
+      `BEGIN → SELECT … FOR UPDATE → 요청 발사 → 공허성 가드 → 락 안 mutate → COMMIT →
+      finally ROLLBACK + 드레인` 형태가 `integration-rotate-concurrency.e2e-spec.ts` 와
+      `member-remove-concurrency.e2e-spec.ts` **두 곳**에 손으로 복제돼 있다.
+
+      **지금 뽑지 않는 이유**: #1377 이 `raceUnderHeldLock`(요청 **둘**의 겹침)을 뽑을 때
+      «갱신 경합은 축이 다르다» 로 `integration-rotate` 를 **의도적으로 제외**했고, 둘뿐인
+      지금은 파라미터가 붙어 공유하는 것보다 감추는 것이 많아진다(그 PR 이 같은 판단을
+      실측으로 했다). **임계를 숫자로 고정해 둔다 — 세 번째 자리가 생기면 그때 뽑는다.**
+      이름 후보: `reenterUnderHeldLock(locker, lock, fire, mutate)`.
+
+      > 공허성 가드 **대기 시간**의 중복은 이미 닫혔다 — `VACUITY_GUARD_MS` 를
+      > `test/helpers/concurrency.ts` 에서 export 해 두 파일이 쓴다(같은 리뷰 W5).
+      > 그래야 그 값이 `assertGuardBelowKnownTimeouts` 의 검사 범위 안에 있다.
+
 - [ ] **`removeMember` 의 owner 보호 메커니즘을 `data-flow/12-workspace.md` 에 명문화** (planner,
       낮음, 2026-09-24 등재 · `--impl-prep` `review/consistency/2026/09/24/07_29_15`
       `rationale_continuity` WARNING 1).

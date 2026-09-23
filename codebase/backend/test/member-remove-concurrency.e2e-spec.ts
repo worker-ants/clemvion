@@ -8,7 +8,7 @@ import {
   createTeamWorkspace,
   inviteAndAccept,
 } from './helpers/auth';
-import { raceUnderHeldLock } from './helpers/concurrency';
+import { raceUnderHeldLock, VACUITY_GUARD_MS } from './helpers/concurrency';
 
 /**
  * e2e: 동시 멤버 제거 — 이 결함 클래스의 여섯 번째 짝
@@ -180,9 +180,6 @@ describe('Workspace member remove concurrency (e2e)', () => {
     expect(audits.rows[0].count).toBe('1');
   }, 120_000);
 
-  // 아래 블록은 **파일의 마지막이어야 한다** — 승격을 raw UPDATE 로 넣으므로
-  // (`transferOwnership` 이 아니라) 이 워크스페이스에 owner 가 둘 남는다.
-
   /**
    * **owner 보호 가드의 TOCTOU** — 위 두 블록과 계약이 다르다.
    *
@@ -202,12 +199,23 @@ describe('Workspace member remove concurrency (e2e)', () => {
    * `integration-rotate-concurrency.e2e-spec.ts`). 공허성 가드는 그래서 여기서 직접 건다.
    *
    * 판별력: 고치기 전 코드는 **200** 을 돌려주고 멤버 행이 **사라진다**.
+   *
+   * **전용 워크스페이스를 쓴다.** 승격이 raw UPDATE 라(`transferOwnership` 이 아니라)
+   * 끝나면 owner 가 둘 남는데, 이는 애플리케이션 코드로는 도달 불가능한 상태다. 공유
+   * 워크스페이스에 남기면 **뒤에 추가되는 블록이 그 오염을 조용히 물려받는다** — 종전엔
+   * *"이 블록은 파일의 마지막이어야 한다"* 는 주석 하나로 막고 있었다
+   * (`/ai-review` `review/code/2026/09/24/08_09_57` W4). 주석 대신 격리로 없앤다.
    */
   it('제거 중 대상이 owner 로 승격되면 지우지 않고 403 이다', async () => {
+    const isolatedWorkspaceId = await createTeamWorkspace(
+      BASE_URL,
+      ownerToken,
+      uniqueName('MEMOWNER'),
+    );
     const target = await inviteAndAccept(
       BASE_URL,
       ownerToken,
-      workspaceId,
+      isolatedWorkspaceId,
       uniqueEmail('memowner'),
       'editor',
       db,
@@ -215,7 +223,7 @@ describe('Workspace member remove concurrency (e2e)', () => {
 
     const memberRow = await db.query<{ id: string }>(
       'SELECT id FROM workspace_member WHERE workspace_id = $1 AND user_id = $2',
-      [workspaceId, target.userId],
+      [isolatedWorkspaceId, target.userId],
     );
     expect(memberRow.rows).toHaveLength(1);
     const memberId = memberRow.rows[0].id;
@@ -230,9 +238,9 @@ describe('Workspace member remove concurrency (e2e)', () => {
       );
 
       pending = request(BASE_URL)
-        .delete(`/api/workspaces/${workspaceId}/members/${memberId}`)
+        .delete(`/api/workspaces/${isolatedWorkspaceId}/members/${memberId}`)
         .set('Authorization', `Bearer ${ownerToken}`)
-        .set('X-Workspace-Id', workspaceId)
+        .set('X-Workspace-Id', isolatedWorkspaceId)
         .then(
           (res) => ({ status: res.status, code: res.body?.error?.code }),
           () => ({ status: -1, code: undefined as string | undefined }),
@@ -244,7 +252,7 @@ describe('Workspace member remove concurrency (e2e)', () => {
       const raced = await Promise.race([
         pending.then(() => 'settled' as const),
         new Promise<'pending'>((resolve) =>
-          setTimeout(() => resolve('pending'), 1_500),
+          setTimeout(() => resolve('pending'), VACUITY_GUARD_MS),
         ),
       ]);
       expect(raced).toBe('pending');

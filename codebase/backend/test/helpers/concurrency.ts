@@ -22,8 +22,13 @@ const KNOWN_LOCK_TIMEOUTS_MS: ReadonlyArray<readonly [string, number]> = [
  *
  * 그 관계가 왜 필요한지와 검사 범위의 한계는 `assertGuardBelowKnownTimeouts` 의 JSDoc 이
  * SoT 다 — 여기 복제하지 않는다(두 자리에 적으면 한쪽이 낡는다).
+ *
+ * **export 하는 이유**: `raceUnderHeldLock` 이 못 덮는 «요청 하나 + 락 안 mutate» 형태의
+ * 재진입 e2e 들이 같은 가드를 손으로 건다. 그 자리들이 숫자를 따로 적으면 아래 중앙 검사
+ * (`assertGuardBelowKnownTimeouts`) 범위 밖이 돼, 락 상한이 늘어도 조용히 안전 마진을 잃는다
+ * (`/ai-review` `review/code/2026/09/24/08_09_57` W5 — 그때 이미 **세 자리**였다).
  */
-const VACUITY_GUARD_MS = 1_500;
+export const VACUITY_GUARD_MS = 1_500;
 
 // 임포트 시 **오늘의 상수로** 규칙을 발화시킨다. 규칙 자체는 순수 함수라
 // `overlap-preconditions.spec.ts` 가 임의 입력으로 직접 검증한다 — 종전에는 이 자리가
