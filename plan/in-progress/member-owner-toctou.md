@@ -175,5 +175,12 @@ spec 은 «대상이 Owner 인 경우 거부된다» 고 적는다. 이 PR 은 �
       (`unit-20260924-075218.log`) · build PASS 타입체크 ratchet 포함
       (`build-20260924-075401.log`) · **e2e 379 PASS**(`e2e-20260924-075712.log`, 378 → 379)
 - [ ] `/ai-review` → 수렴
+      - [x] 1라운드 `review/code/2026/09/24/08_09_57` — **Critical 0 · Warning 6**, 전부 조치
+            (`RESOLUTION.md`). **W3 이 내 분기 형태 자체를 반증했다** — `affected === 0` 의
+            재조회가 현재 role 을 보면 실재하는 멤버를 404 로 보고한다. 존재 여부만 보도록
+            고쳤고, 그 여파로 단위 테스트 하나가 **일어날 수 없는 상태**를 고정하고 있었음이
+            드러나 직전 뮤턴트 B 판정을 폐기하고 다시 쟀다(A·B′·B″·C 전부 예측=실측).
+            W2 는 **지적 대상 문서가 틀렸다** — 좁게 적힌 것은 트래커가 아니라 이 plan §F 였다.
+      - [ ] 2라운드 — 코드가 바뀌었으므로 fresh 리뷰가 필요하다(1라운드는 stale)
 - [ ] `/consistency-check --impl-done spec/5-system` → BLOCK: NO
 - [ ] 트래커 항목 해소 + plan `complete/` 로 (**한 커밋으로**)
