@@ -4971,7 +4971,7 @@ field: T | null;
       > 앞으로 옮겨 해소됐다. 남은 12개는 각자 무엇을 노출하는지 **실측부터** 해야 한다
       > (읽기 전용 라우트는 오라클 표면이 다르다).
 
-- [ ] **`removeMember` 판정 순서 커버리지의 비대칭 두 칸** (developer, 낮음, 2026-09-24 등재 ·
+- [x] **`removeMember` 판정 순서 커버리지의 비대칭 두 칸** (developer, 낮음, 2026-09-24 등재 ·
       `/ai-review` `review/code/2026/09/24/11_10_45` INFO#3·#4 → `11_37_06` INFO#5·#6 **재지적**).
       같은 파일이 admin/owner 순서와 self/admin 순서는 각각 **전용 조합**으로 가르는데, 두 칸만
       비어 있다:
@@ -4989,6 +4989,21 @@ field: T | null;
       > 정지 조건이었다. (c) 근거는 비용이 아니라 수렴이다. (d) 그 턴에 등재했다.
       >
       > 둘 다 «조합 하나 추가» 라 다음 근접 편집에서 싸게 닫힌다.
+
+      > **2026-09-24 종결** — plan `remove-member-order-coverage` 가 두 칸을 테스트로 묶었다.
+      > 뮤턴트 셋(대상 null 검사를 admin 뒤로 · admin 판정을 `assertAdmin()` 로 · 앞에
+      > `assertMembership()` 추가)이 각각 **해당 새 테스트 1건만** RED 였다(`src/modules/workspaces/`
+      > 139건 중). 등재 서술 «그 순서를 뒤집는 편집이 생존한다» 는 실측으로 맞았다 — 새 테스트를
+      > 빼면 셋 다 초록이었다.
+      >
+      > **등재 때 없던 한 가지**: 칸 1 은 보안 불변이 아니라 **문서화된 순서**다. `listMembers` 가
+      > 멤버십만 요구해 멤버는 이미 모든 `memberId` 를 열거하므로 403 도 틀린 답은 아니다(형제
+      > `updateMemberRole` 은 같은 입력에 403). 테스트가 막는 것은 머리 주석과 동작이 조용히
+      > 갈라지는 것이고, 순서를 바꾸려면 둘을 함께 바꾸라고 테스트 주석에 적었다.
+      >
+      > **남은 것(INFO, 조치 대상 아님)**: `describe('removeMember — 동시 제거')` 가 동시성 테스트
+      > 말고 판정 순서 · 조회 횟수 테스트도 담아 이름이 내용을 못 따라간다 — 다음 근접 편집에서
+      > 블록을 나눌 것 (`/ai-review` `review/code/2026/09/24/22_17_45` INFO#4).
 
 - [ ] **`removeMember` 리팩터로 낡은 spec 서술 세 줄** (planner, 낮음, 2026-09-24 등재 ·
       `--impl-prep` `10_22_24` INFO + `/ai-review` `review/code/2026/09/24/11_10_45` W4·W5).
@@ -5247,6 +5262,13 @@ field: T | null;
       **`CANNOT_REMOVE_OWNER` · `OWNER_ROLE_PROTECTED` · `SOLE_OWNER_CANNOT_LEAVE` 셋은 없다.**
       `2-api-convention.md` §5.3 이 카탈로그 등재를 의무로 적는다. §1.9 인접에 셋을 함께 등재.
       (§1.9 Rationale 이 이미 «별도 pass» 로 유예를 인지하고 있다 — 그 pass 가 이 항목이다.)
+
+      > **2026-09-24 보탬 — `MEMBER_NOT_FOUND`(404) 도 `spec/` 어디에도 없다**(`grep -rn` 0건.
+      > 발행처 `workspaces.service.ts` 의 `throwMemberNotFound()` 와 `transferOwnership` 대상 부재).
+      > `--impl-done` `review/consistency/2026/09/24/22_32_01` INFO 3. 다만 §1.9 Rationale 은
+      > `USER_NOT_FOUND` · `WORKSPACE_NOT_FOUND` 를 «generic 이라 제외» 했으므로, 이것이 그쪽
+      > (generic 제외)인지 셋 쪽(등재)인지를 **이 pass 에서 함께 판정**할 것 — 판정 없이 넣거나
+      > 빼면 §1.9 의 기준이 흐려진다.
 
 - [ ] **`spec/5-system/1-auth.md` §3.2 RBAC 표가 각주 때문에 두 조각으로 쪼개진다** (planner,
       낮음, 2026-09-24 등재 · 같은 `--impl-prep` 의 `convention_compliance` WARNING).

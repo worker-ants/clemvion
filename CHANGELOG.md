@@ -1,5 +1,28 @@
 # Changelog
 
+## Unreleased — `removeMember` 판정 순서 두 칸이 아무 테스트에도 묶여 있지 않던 것
+
+`WorkspacesService.removeMember` 의 판정 순서는 머리 주석이 적은 대로 **멤버십 → 대상 존재 →
+self 위임 → admin → 대상이 owner 인가** 다. 같은 파일의 단위 테스트가 이 가운데 세 쌍(멤버십 →
+대상 조회 · self → admin · admin → owner)은 전용 조합으로 갈랐지만 두 칸이 비어 있었다:
+
+- **대상 존재 → admin.** 대상 부재 테스트는 요청자가 owner 라 admin 판정을 어차피 통과했다.
+  null 검사를 admin 판정 뒤로 내리면 비-admin 멤버가 없는 대상을 지목했을 때 `404
+  MEMBER_NOT_FOUND` 대신 `403 ADMIN_REQUIRED` 가 나가는데, 그 편집이 타입체크와 스위트를 모두
+  통과했다. 둘 중 어느 답도 보안 결함은 아니다(멤버는 `listMembers` 로 이미 모든 멤버를
+  열거한다). 막는 것은 주석과 동작이 **조용히 갈라지는 것**이다.
+- **요청자 role 1회 조회.** admin 판정을 형제 메서드처럼 `assertAdmin()` 호출로 «정리» 하면
+  같은 쿼리가 하나 늘 뿐 동작은 같다. 아무것도 그것을 세지 않았다.
+
+두 테스트를 더했다. 후자는 `getMemberRole` 호출이 아니라 **요청자 모양의 쿼리**를 센다 —
+조회를 인라인하는 편집도 잡기 위해서다. 기대값이 정확히 1이라 조회 키가 바뀌어도 공허하게
+통과하지 않는다.
+
+**판별력 실측**: 세 뮤턴트(null 검사를 admin 뒤로 · admin 판정을 `assertAdmin()` 로 · 앞에
+`assertMembership()` 추가)를 대입했다. 셋 다 `src/modules/workspaces/` 139건 가운데 **해당 새
+테스트 1건만** RED 였고, 나머지 138건은 실행·통과했다. 새 테스트를 빼면 세 뮤턴트 모두
+초록이었다.
+
 ## Unreleased — MinIO 이미지를 `pgsty/silo` 로: quay.io 의 `minio/*` 도 닫혔다
 
 2026-09-24 부터 모든 e2e(main 포함)가 테스트 0건으로 죽었다. 컨테이너를 띄우기 전 이미지 pull 에서

@@ -1779,5 +1779,53 @@ describe('WorkspacesService', () => {
       expect(memberRepo.delete).not.toHaveBeenCalled();
       leave.mockRestore();
     });
+
+    /**
+     * **대상 존재 판정이 admin 판정보다 앞이다.** 비-admin 멤버가 없는 대상을 지목하면
+     * `ADMIN_REQUIRED` 가 아니라 `MEMBER_NOT_FOUND` 다 — self 위임이 대상을 읽어야 하고,
+     * 읽었으면 «없다» 가 먼저 드러난다.
+     *
+     * 위 «대상이 없으면 삭제를 시도하지 않는다» 블록은 요청자가 기본값 owner 라 admin 판정을
+     * 어차피 통과하므로 이 순서를 가르지 못한다. null 검사를 admin 판정 뒤로 내리고 self
+     * 비교를 `member?.userId` 로 바꾸는 편집은 타입체크도, 나머지 스위트도 통과한다.
+     *
+     * > **이것은 보안 불변이 아니라 문서화된 순서다.** 403 을 줘도 새는 것이 없다 —
+     * > `listMembers` 가 멤버십만 요구하므로 멤버는 이미 모든 `memberId` 를 열거할 수 있다.
+     * > 형제 `updateMemberRole` 은 `assertAdmin` 이 첫 줄이라 같은 입력에 403 을 준다. 그쪽에
+     * > 맞추기로 한다면 `removeMember` 머리 주석의 판정 순서와 이 블록을 **함께** 바꿀 것 —
+     * > 이 블록이 막는 것은 403 이 아니라 둘이 조용히 갈라지는 것이다.
+     */
+    it('비-admin 이 없는 대상을 지목하면 ADMIN_REQUIRED 가 아니라 MEMBER_NOT_FOUND 다', async () => {
+      wireFindOne(null, { id: 'mem-req', role: 'editor' });
+
+      await expect(
+        service.removeMember(workspaceId, memberId, requesterId),
+      ).rejects.toMatchObject({ response: { code: 'MEMBER_NOT_FOUND' } });
+      expect(memberRepo.delete).not.toHaveBeenCalled();
+      expect(getAudit().record).not.toHaveBeenCalled();
+    });
+
+    /**
+     * **요청자 role 은 한 번만 읽는다.** 멤버십과 admin 을 같은 값으로 판정한다. admin 판정을
+     * 형제처럼 `await this.assertAdmin(...)` 로 «정리» 하면 동작은 그대로이고 같은 쿼리만
+     * 하나 는다 — 이 블록이 그 편집을 잡는다.
+     *
+     * 세는 단위는 **쿼리**다. `getMemberRole` 을 spy 로 세면 `findOne` 을 인라인하는 편집을
+     * 놓친다. 기대값이 정확히 1이라 조회 키가 바뀌어 필터가 0건을 내도 공허하게 통과하지 않는다.
+     *
+     * 경로는 정상 제거다 — 판정 다섯 칸을 전부 지난다.
+     */
+    it('요청자 role 을 한 번만 조회한다', async () => {
+      wireFindOne({ id: memberId, userId: 'target-user', role: 'editor' });
+      memberRepo.delete.mockResolvedValue({ affected: 1 });
+
+      await service.removeMember(workspaceId, memberId, requesterId);
+
+      const requesterLookups = memberRepo.findOne.mock.calls.filter(
+        (c: [{ where?: { userId?: string } }]) =>
+          c[0]?.where?.userId === requesterId,
+      );
+      expect(requesterLookups).toHaveLength(1);
+    });
   });
 });
