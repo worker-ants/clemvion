@@ -83,7 +83,7 @@ export function isApplicable(relPath: string): boolean {
 }
 
 // What a `pending_plans:` entry may point at: a work plan under
-// `plan/in-progress/` or `plan/complete/`. SoT: spec-impl-evidence.md §3
+// `plan/in-progress/` or `plan/complete/`. SoT: spec-impl-evidence.md §2.1
 // (`pending_plans` row) and §4. `plan/research/` is excluded on purpose — it
 // holds referenced material with no completion endpoint, so it can never make a
 // `partial` spec `implemented`.
@@ -94,7 +94,11 @@ export function isApplicable(relPath: string): boolean {
 // to close.
 const PENDING_PLAN_DIRS = ["plan/in-progress/", "plan/complete/"];
 
-export function isPendingPlanPath(relPath: string): boolean {
+export function isPendingPlanPath(relPath: unknown): boolean {
+  // YAML parses `- 42` or `- true` as non-strings. Answer "not a plan" so the
+  // guard reports the offending entry, instead of `path.posix.normalize`
+  // throwing a TypeError that hides which spec/entry was wrong.
+  if (typeof relPath !== "string") return false;
   const norm = path.posix.normalize(relPath);
   if (!norm.endsWith(".md")) return false;
   return PENDING_PLAN_DIRS.some((dir) => norm.startsWith(dir));

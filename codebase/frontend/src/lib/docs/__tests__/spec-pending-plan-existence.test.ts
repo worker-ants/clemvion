@@ -12,7 +12,7 @@ import {
 // (2) exist there (an in-progress path also resolves via its complete/ twin;
 // status-lifecycle guard handles the "all completed but status still partial"
 // case separately).
-// SoT: spec/conventions/spec-impl-evidence.md §3 (`pending_plans` row) · §4.
+// SoT: spec/conventions/spec-impl-evidence.md §2.1 (`pending_plans` row) · §4.
 //
 // (1) was missing until 2026-09-24. The guard checked only that the path
 // existed, so `spec/5-system/10-graph-rag.md` kept three migration `.sql` paths
@@ -44,6 +44,10 @@ describe("spec-pending-plan-existence guard", () => {
     describe(spec.relPath, () => {
       const pending = spec.frontmatter!.pending_plans!;
       for (const planRel of pending) {
+        // Two assertions, two jobs. "is a work plan" owns the SHAPE (a plan
+        // under in-progress/complete); "path resolves" only checks EXISTENCE.
+        // Existence alone passed a real `.sql` for weeks — do not let the
+        // second assertion stand in for the first.
         it(`pending_plan is a work plan — ${planRel}`, () => {
           expect(
             isPendingPlanPath(planRel),

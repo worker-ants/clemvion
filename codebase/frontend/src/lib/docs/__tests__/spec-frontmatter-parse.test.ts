@@ -76,7 +76,7 @@ describe("isApplicable", () => {
 });
 
 // Guard for what a `pending_plans:` entry may point at.
-// SoT: spec/conventions/spec-impl-evidence.md §3 (`pending_plans` row — a plan
+// SoT: spec/conventions/spec-impl-evidence.md §2.1 (`pending_plans` row — a plan
 // path under `plan/in-progress/` or `plan/complete/`) and §4.
 //
 // Why this exists: the existence guard used to accept ANY path that exists on
@@ -119,5 +119,19 @@ describe("isPendingPlanPath", () => {
 
   it("rejects spec paths listed by mistake", () => {
     expect(isPendingPlanPath("spec/5-system/10-graph-rag.md")).toBe(false);
+  });
+
+  it("rejects look-alike directories that share the prefix string", () => {
+    // Correctness rests on the trailing slash in PENDING_PLAN_DIRS. Pin it: a
+    // refactor to `"plan/in-progress"` (no slash) would let these through.
+    expect(isPendingPlanPath("plan/in-progress-archive/foo.md")).toBe(false);
+    expect(isPendingPlanPath("plan/complete-old/foo.md")).toBe(false);
+  });
+
+  it("answers false for non-string YAML values instead of throwing", () => {
+    // `pending_plans: [42]` parses to a number — report it, don't crash.
+    expect(isPendingPlanPath(42)).toBe(false);
+    expect(isPendingPlanPath(undefined)).toBe(false);
+    expect(isPendingPlanPath(null)).toBe(false);
   });
 });

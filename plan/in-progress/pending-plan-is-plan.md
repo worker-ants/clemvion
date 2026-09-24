@@ -16,7 +16,7 @@ started: 2026-09-24
 ## A. 결함 — 문서한 보장이 구현보다 넓었다
 
 SoT `spec/conventions/spec-impl-evidence.md` 는 `pending_plans` 항목을 **«`plan/in-progress/`
-또는 `plan/complete/` 에 실존하는 plan 경로»** 로 정의한다(§3 표 `pending_plans` 행 · §4 가드
+또는 `plan/complete/` 에 실존하는 plan 경로»** 로 정의한다(§2.1 필드 정의 표 `pending_plans` 행 · §4 가드
 설명). 가드 자신의 머리 주석도 같은 말을 한다.
 
 그런데 구현은 **«디스크 어딘가에 실존»** 만 봤다:
@@ -85,7 +85,7 @@ TDD 의 첫 RED 6건은 전부 `isPendingPlanPath is not a function` 이었다 �
 - **W2** cafe24 카탈로그의 `__` 명명 미문서화 — 선재. 트래커에 **이미 있다**(«`<parent>__<child>`
   더블언더스코어 표기가 규약에 정의돼 있지 않다»).
 - **INFO 1** `plan/research/` 배제 근거가 SoT 의 Rationale 에 없다 — **등재하지 않는다.** SoT
-  §3 행이 허용 위치를 둘로 **열거**하므로 research 는 이미 배제돼 있고, «왜» 는
+  §2.1 행이 허용 위치를 둘로 **열거**하므로 research 는 이미 배제돼 있고, «왜» 는
   `isPendingPlanPath` 주석이 싣는다. 계약의 공백이 아니라 설명의 위치 문제다.
 
 > **착수 순서를 어겼다.** `--impl-prep` 은 구현 **전** 의무인데 구현부터 하고 나중에 돌렸다.
