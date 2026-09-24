@@ -8,7 +8,7 @@ import {
   createTeamWorkspace,
   inviteAndAccept,
 } from './helpers/auth';
-import { raceUnderHeldLock } from './helpers/concurrency';
+import { raceUnderHeldLock, VACUITY_GUARD_MS } from './helpers/concurrency';
 
 /**
  * e2e: 동시 멤버 제거 — 이 결함 클래스의 여섯 번째 짝
@@ -178,5 +178,118 @@ describe('Workspace member remove concurrency (e2e)', () => {
       [memberId],
     );
     expect(audits.rows[0].count).toBe('1');
+  }, 120_000);
+
+  /**
+   * **owner 보호 가드의 TOCTOU** — 위 두 블록과 계약이 다르다.
+   *
+   * 위 둘은 «감사를 두 번 남기지 않는다» 이고 이것은 **«owner 를 지우지 않는다»** 다.
+   * 겹치는 상대도 다르다 — 같은 DELETE 두 건이 아니라 **DELETE × `transferOwnership`** 이고,
+   * 손상은 감사 행 하나가 아니라 **`workspace.ownerId` 가 멤버십 없는 사용자를 가리키는 것**이다.
+   *
+   * **레이스로는 인터리빙을 못 고른다** — 둘 다 같은 행 락을 기다려 큐 순서에 달린다.
+   * 그래서 **재진입으로** 만든다: 테스트가 락을 쥐고, 요청이 무락 읽기와 가드를 지나 삭제에서
+   * 멈춘 것을 관측한 **뒤에**, 승격을 끼워 넣고 COMMIT 한다. `UPDATE … SET role='owner'` 는
+   * `transferOwnership` 이 그 행에 가하는 **효과의 대역**이다(그 API 를 직접 부르면 같은 락에
+   * 막힌다).
+   *
+   * 겹침 오케스트레이션을 `raceUnderHeldLock` 으로 접지 않는다 — 그 헬퍼는 **요청 둘의 겹침**
+   * 전용이고, 이 자리는 **요청 하나 + 락 안 UPDATE** 라 축이 다르다
+   * (`PROJECT.md` §Backend e2e 패턴이 갱신 경합은 대상 밖이라 적는다. 선례:
+   * `integration-rotate-concurrency.e2e-spec.ts`). 공허성 가드는 그래서 여기서 직접 건다.
+   *
+   * 판별력: 고치기 전 코드는 **200** 을 돌려주고 멤버 행이 **사라진다**.
+   *
+   * **전용 워크스페이스를 쓴다.** 승격이 raw UPDATE 라(`transferOwnership` 이 아니라)
+   * 끝나면 owner 가 둘 남는데, 이는 애플리케이션 코드로는 도달 불가능한 상태다. 공유
+   * 워크스페이스에 남기면 **뒤에 추가되는 블록이 그 오염을 조용히 물려받는다** — 종전엔
+   * *"이 블록은 파일의 마지막이어야 한다"* 는 주석 하나로 막고 있었다
+   * (`/ai-review` `review/code/2026/09/24/08_09_57` W4). 주석 대신 격리로 없앤다.
+   */
+  it('제거 중 대상이 owner 로 승격되면 지우지 않고 403 이다', async () => {
+    const isolatedWorkspaceId = await createTeamWorkspace(
+      BASE_URL,
+      ownerToken,
+      uniqueName('MEMOWNER'),
+    );
+    const target = await inviteAndAccept(
+      BASE_URL,
+      ownerToken,
+      isolatedWorkspaceId,
+      uniqueEmail('memowner'),
+      'editor',
+      db,
+    );
+
+    const memberRow = await db.query<{ id: string }>(
+      'SELECT id FROM workspace_member WHERE workspace_id = $1 AND user_id = $2',
+      [isolatedWorkspaceId, target.userId],
+    );
+    expect(memberRow.rows).toHaveLength(1);
+    const memberId = memberRow.rows[0].id;
+
+    let pending: Promise<{ status: number; code?: string }> | undefined;
+    await locker.query('BEGIN');
+    try {
+      // 테스트가 락을 쥔다 — 요청의 DELETE 가 COMMIT 까지 멈춘다.
+      await locker.query(
+        'SELECT id FROM workspace_member WHERE id = $1 FOR UPDATE',
+        [memberId],
+      );
+
+      pending = request(BASE_URL)
+        .delete(`/api/workspaces/${isolatedWorkspaceId}/members/${memberId}`)
+        .set('Authorization', `Bearer ${ownerToken}`)
+        .set('X-Workspace-Id', isolatedWorkspaceId)
+        .then(
+          (res) => ({ status: res.status, code: res.body?.error?.code }),
+          () => ({ status: -1, code: undefined as string | undefined }),
+        );
+
+      // 공허성 가드 — 요청이 **무락 읽기와 owner 가드를 이미 지나** 삭제에서 대기 중임을
+      // 관측한다. 여기서 끝나 있으면 승격을 끼울 틈이 없었다는 뜻이고, 아래 단언은
+      // TOCTOU 를 전혀 행사하지 않은 채 통과해 버린다.
+      const raced = await Promise.race([
+        pending.then(() => 'settled' as const),
+        new Promise<'pending'>((resolve) =>
+          setTimeout(() => resolve('pending'), VACUITY_GUARD_MS),
+        ),
+      ]);
+      expect(raced).toBe('pending');
+
+      // 읽기와 삭제 **사이**에 승격이 커밋된다.
+      await locker.query(
+        "UPDATE workspace_member SET role = 'owner' WHERE id = $1",
+        [memberId],
+      );
+      await locker.query('COMMIT');
+
+      const res = await pending;
+      expect(res.status).toBe(403);
+      expect(res.code).toBe('CANNOT_REMOVE_OWNER');
+    } finally {
+      // 정상 경로에서는 이미 COMMIT 됐으므로 no-op. 단언 실패로 COMMIT 을 못 탔을 때만
+      // 실제로 락을 풀어 대기 중인 요청을 드레인한다.
+      await locker.query('ROLLBACK').catch(() => undefined);
+      await pending?.catch(() => undefined);
+    }
+
+    // **이 테스트의 본질** — 응답 코드보다 이 행이 남아 있는 것이 보호 대상이다.
+    // 지워졌다면 `workspace.ownerId` 가 멤버십 없는 사용자를 가리킨다.
+    const remaining = await db.query<{ role: string }>(
+      'SELECT role FROM workspace_member WHERE id = $1',
+      [memberId],
+    );
+    expect(remaining.rows).toHaveLength(1);
+    expect(remaining.rows[0].role).toBe('owner');
+
+    // 지우지 않았으니 감사도 없다.
+    const audits = await db.query<{ count: string }>(
+      `SELECT COUNT(*)::text AS count FROM audit_log
+        WHERE resource_type = 'member' AND resource_id = $1
+          AND action = 'member.removed'`,
+      [memberId],
+    );
+    expect(audits.rows[0].count).toBe('0');
   }, 120_000);
 });

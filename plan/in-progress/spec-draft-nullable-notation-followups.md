@@ -4077,6 +4077,18 @@ field: T | null;
       > 기준인데 preamble 은 워킹트리를 SoT 라 선언한다"* 로 **다른 절**이다. 라벨은 틀리고
       > 실질 지적은 맞다.)
 
+      > **2026-09-24 새 사례 — 이번엔 «판정에 결정적인 SoT» 하나가 통째로 빠졌다**
+      > (`--impl-prep` `review/consistency/2026/09/24/07_29_15` `rationale_continuity` WARNING).
+      > target 이 `spec/5-system` 인 `member-owner-toctou` 검토에서 `data-flow/12-workspace.md`
+      > 가 `related_specs` 후보에 **아예 없었다.** 그 문서는 형제 셋의 TOCTOU 방지 Rationale 을
+      > 가진 문서이고, 이번 plan 의 설계 선택을 판정할 **유일한 준거**였다.
+      >
+      > **이번엔 checker 가 스스로 저장소를 읽어 메워서 WARNING 이 나왔다** — 즉 위 처방
+      > 후보 (a)(«절단 시 미검증 관점을 기계적으로 싣기»)가 있었다면 더 일찍 드러났을 사례다.
+      > 분포도 다르다: 종전 둘은 «많은 파일이 잘렸다» 인데 이번은 **«한 문서가 후보에조차
+      > 없었다»** — 절단이 아니라 **후보 선정** 단계다. 처방 후보 (b)(`related_specs` 재정렬)가
+      > 겨냥하는 자리이고, 이번 사례가 그 후보에 실측 근거를 하나 준다.
+
 - [ ] **`cafe24-api-catalog/_overview.md §7.1` 에 «자신은 §1 예외» 라는 상호참조 한 줄**
       (planner, 2026-09-14 등재 · 범위 축소 2026-09-14 · `--impl-done`
       `review/consistency/2026/09/14/11_52_23` plan_coherence WARNING#3).
@@ -4902,7 +4914,7 @@ field: T | null;
       **바뀐다**. 에러 코드 계약 변경이라 `spec/5-system/3-error-handling.md` 기준의 자체
       consistency 라운드가 필요하다. 동시성 수정과 섞으면 정확히 리뷰어들이 지적해 온 스코프 혼입이다.
 
-- [ ] **`removeMember()` 의 owner 보호 가드가 TOCTOU 로 뚫린다 — 실측 확인됨**
+- [x] **`removeMember()` 의 owner 보호 가드가 TOCTOU 로 뚫린다 — 실측 확인됨**
       (developer, **중간**, 2026-09-21 등재 · `member-dup-remove.md` §C-2 프로브).
       `workspaces.service.ts:797` 의 «owner 는 제거할 수 없다» 가드가 **무락 `findOne`** 위에 있다.
       읽기와 삭제 사이에 그 멤버가 owner 로 승격되면 가드를 통과한 채 owner 가 지워지고,
@@ -4935,6 +4947,72 @@ field: T | null;
       의미를 **하나에서 둘로** 늘리는데, 그 판별자를 세우는 것이 바로 이번 PR 의 주제라
       같은 diff 에서 그 의미를 흐리고 싶지 않았다. 후보 처방의 새 분기는 자체 테스트와
       뮤턴트가 필요하다. (비용이 아니라 **판별자 오염**이 유예 사유다.)
+
+      > **✅ 2026-09-24 해소** — developer 턴 `plan/complete/member-owner-toctou.md`
+      > (`--impl-prep` `review/consistency/2026/09/24/07_29_15` BLOCK: NO ·
+      > `/ai-review` `09_10_41` 3라운드 수렴 · `--impl-done` `09_24_11` **BLOCK: NO · Critical 0**).
+      >
+      > 처방은 **위 후보 그대로가 아니다.** 후보는 0-행 재조회에서 «지금 role 이 owner 인가» 를
+      > 물었는데, 리뷰(`08_09_57` W3)가 **제3 상태**를 짚었다 — 이양 연쇄로 그 사이 강등되면
+      > 실재하는 멤버를 404 로 보고한다. DELETE 의 술어는 `role` 하나뿐이라 **행이 남아 있는데
+      > 0행이었다면 그 시점에 owner 였다는 뜻** 말고는 없으므로, 재조회는 **존재 여부만** 본다.
+      > 후보를 그대로 적용했다면 그 결함이 들어갔을 자리다.
+      >
+      > 재현은 레이스가 아니라 **재진입**으로 했다(둘 다 같은 행 락을 기다려 큐 순서에 달린다).
+      > 고치기 전 **200**(멤버 행 삭제됨) → 고친 뒤 **403 `CANNOT_REMOVE_OWNER`**(행 유지).
+      > 락을 새로 들이지 않은 근거(Postgres EvalPlanQual 재평가)는 e2e 가 직접 행사한다.
+      >
+      > **부수로 이 항목의 이웃 하나를 바로잡았다** — 아래 «권한 검사 순서 오라클» 항목은
+      > 블라스트 반경을 **정확히** 적고 있었는데(«멤버가 아니어도» · 13/17 라우트), 내가 PR 의
+      > CHANGELOG 에 «트래커가 좁게 적었다» 고 거꾸로 썼다가 `09_10_41` W1 에 잡혀 정정했다.
+      > 트래커는 손대지 않았다.
+
+- [ ] **재진입 락 오케스트레이션이 두 번째로 복제됐다 — 세 번째면 헬퍼로 뽑는다** (developer,
+      낮음, 2026-09-24 등재 · `/ai-review` `review/code/2026/09/24/08_09_57` W6).
+      `BEGIN → SELECT … FOR UPDATE → 요청 발사 → 공허성 가드 → 락 안 mutate → COMMIT →
+      finally ROLLBACK + 드레인` 형태가 `integration-rotate-concurrency.e2e-spec.ts` 와
+      `member-remove-concurrency.e2e-spec.ts` **두 곳**에 손으로 복제돼 있다.
+
+      **지금 뽑지 않는 이유**: #1377 이 `raceUnderHeldLock`(요청 **둘**의 겹침)을 뽑을 때
+      «갱신 경합은 축이 다르다» 로 `integration-rotate` 를 **의도적으로 제외**했고, 둘뿐인
+      지금은 파라미터가 붙어 공유하는 것보다 감추는 것이 많아진다(그 PR 이 같은 판단을
+      실측으로 했다). **임계를 숫자로 고정해 둔다 — 세 번째 자리가 생기면 그때 뽑는다.**
+      이름 후보: `reenterUnderHeldLock(locker, lock, fire, mutate)`.
+
+      > 공허성 가드 **대기 시간**의 중복은 이미 닫혔다 — `VACUITY_GUARD_MS` 를
+      > `test/helpers/concurrency.ts` 에서 export 해 두 파일이 쓴다(같은 리뷰 W5).
+      > 그래야 그 값이 `assertGuardBelowKnownTimeouts` 의 검사 범위 안에 있다.
+
+- [ ] **`removeMember` 의 owner 보호 메커니즘을 `data-flow/12-workspace.md` 에 명문화** (planner,
+      낮음, 2026-09-24 등재 · `--impl-prep` `review/consistency/2026/09/24/07_29_15`
+      `rationale_continuity` WARNING 1).
+      같은 문서가 형제 셋의 TOCTOU 방지 메커니즘을 **명시**한다 — `:188` `deleteWorkspace`
+      (워크스페이스 → 멤버십 비관적 락) · `:189` `leaveWorkspace`(«비관적 락 트랜잭션 내에서
+      수행해 TOCTOU 방지») · `transferOwnership`(같은 잠금 순서). 그런데 `:141` 의 멤버 제거 행은
+      **«owner 는 제거 불가» 만 적고 메커니즘이 없다.**
+
+      구현 PR 은 **네 번째 메커니즘**(조건부 원자 `DELETE … WHERE role != 'owner'` +
+      `affected` 판별)을 썼다. 기각 사유는 그 PR 의 plan 에 실측과 함께 있다 — 락 안 재조회는
+      존재를 보장하므로 #1373 이 세운 `affected === 0` 판별자가 **도달 불가**가 되고 그것을
+      고정하는 단위 테스트가 죽은 코드를 가리킨다. **그 판단은 코드 쪽에 남았지만 spec 쪽엔
+      없다** — `:141` 인근에 각주 한 줄이 필요하다.
+
+      > **왜 planner 인가**: `spec/` 은 developer 권한 밖이다. 구현 PR 은 코드 주석으로
+      > `4-execution-engine.md` §8 선례(**타-행 집계 조건**)와 이번 자리(**같은-행 조건**)의
+      > 차이만 적었다(WARNING 1 의 (b) 항).
+
+- [ ] **`CANNOT_REMOVE_OWNER` 등 세 코드가 중앙 에러 카탈로그에 없다** (planner, 낮음,
+      2026-09-24 등재 · 같은 `--impl-prep` 의 `convention_compliance` WARNING + `cross_spec` INFO).
+      자매 코드 `CANNOT_ASSIGN_OWNER` 는 `3-error-handling.md` §1.9 에 등재돼 있는데
+      **`CANNOT_REMOVE_OWNER` · `OWNER_ROLE_PROTECTED` · `SOLE_OWNER_CANNOT_LEAVE` 셋은 없다.**
+      `2-api-convention.md` §5.3 이 카탈로그 등재를 의무로 적는다. §1.9 인접에 셋을 함께 등재.
+      (§1.9 Rationale 이 이미 «별도 pass» 로 유예를 인지하고 있다 — 그 pass 가 이 항목이다.)
+
+- [ ] **`spec/5-system/1-auth.md` §3.2 RBAC 표가 각주 때문에 두 조각으로 쪼개진다** (planner,
+      낮음, 2026-09-24 등재 · 같은 `--impl-prep` 의 `convention_compliance` WARNING).
+      366~391행 사이에 각주(†)가 표 **중간**에 끼어들어 GFM 이 테이블을 끊고, 후반 8행
+      (Integration ~ Audit Log)이 **표가 아니라 평문으로 렌더된다.** 형식 결함이라 충돌 대상은
+      없다. 처방: 각주를 표 뒤로 옮기거나 후반 조각 앞에 헤더 + 구분자 행을 재삽입.
 
 - [x] **`AuthConfigsService.remove()` 도 동시 삭제에서 감사 행을 두 번 남긴다 — 일곱 번째**
       **2026-09-21 해소** (`plan/complete/authconfig-dup-delete.md`). 처방은 예고대로 원자적

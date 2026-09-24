@@ -2,7 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { Logger } from '@nestjs/common';
 import { TRIGGER_RESOURCE_RELEASER } from '../triggers/trigger-resource-release';
 import { getRepositoryToken } from '@nestjs/typeorm';
-import { DeleteResult } from 'typeorm';
+import { DeleteResult, FindOperator } from 'typeorm';
 import { findUserSecretLeaks } from '../../shared/testing/user-secret-absence';
 import { WorkspacesService } from './workspaces.service';
 import { Workspace } from './entities/workspace.entity';
@@ -1472,12 +1472,24 @@ describe('WorkspacesService', () => {
         id: 'mem-req',
         role: 'owner',
       },
+      /**
+       * 주면 대상 멤버의 **두 번째 조회부터** 이 값을 답한다 — 즉 TOCTOU 를 단위에서 재현한다.
+       * `removeMember` 는 0-행 경로에서만 대상을 다시 읽으므로, 여기에 `role: 'owner'` 를 주면
+       * «읽을 땐 editor 였는데 지울 땐 owner» 가 된다. 생략하면 종전대로 항상 `target` 이다.
+       */
+      targetOnReread?: Record<string, unknown> | null,
     ): void {
+      let targetReads = 0;
       memberRepo.findOne.mockImplementation(
-        (opts: { where: { id?: string; userId?: string } }) =>
-          Promise.resolve(
-            opts.where.id === memberId ? target : requesterMembership,
-          ),
+        (opts: { where: { id?: string; userId?: string } }) => {
+          if (opts.where.id !== memberId) {
+            return Promise.resolve(requesterMembership);
+          }
+          const first = targetReads++ === 0;
+          return Promise.resolve(
+            first || targetOnReread === undefined ? target : targetOnReread,
+          );
+        },
       );
     }
 
@@ -1489,10 +1501,18 @@ describe('WorkspacesService', () => {
     it('한 행을 지우면 그 멤버의 감사를 남긴다', async () => {
       await service.removeMember(workspaceId, memberId, requesterId);
 
-      expect(memberRepo.delete).toHaveBeenCalledWith({
-        id: memberId,
-        workspaceId,
-      });
+      // `Not('owner')` 는 deep-equality 에 불투명하다 — `toHaveBeenCalledWith` 로는
+      // «술어가 있다» 를 확인할 수 없고(형제 `sessions.service.spec.ts` 가 같은 이유로
+      // criteria 객체를 직접 본다), 그래서 FindOperator 를 풀어 본다.
+      // 이 단언은 «술어를 넘겼다» 까지만 고정한다 — «그것이 SQL 로 옳게 렌더된다» 는
+      // 실 DB 만 오라클이고 `member-remove-concurrency.e2e-spec.ts` 가 고정한다.
+      const [criteria] = memberRepo.delete.mock.calls[0] as [
+        { id: string; workspaceId: string; role: FindOperator<string> },
+      ];
+      expect(criteria.id).toBe(memberId);
+      expect(criteria.workspaceId).toBe(workspaceId);
+      expect(criteria.role.type).toBe('not');
+      expect(criteria.role.value).toBe('owner');
       expect(getAudit().record).toHaveBeenCalledWith(
         expect.objectContaining({
           action: AUDIT_ACTIONS.MEMBER_REMOVED,
@@ -1503,14 +1523,87 @@ describe('WorkspacesService', () => {
       );
     });
 
+    /**
+     * 진 쪽은 404 다 — 재조회가 **행이 없다**를 답하는 경우. 0-행의 나머지 한 이유이고,
+     * 아래 owner 갈래 둘과 짝이 돼 «존재하든 말든 403» 으로 넓히는 편집을 죽인다.
+     *
+     * > **종전 이 블록은 일어날 수 없는 상태를 고정하고 있었다.** 재조회가 `editor` 를
+     * > 답하게 두고 404 를 기대했는데, DELETE 의 술어는 `role` 하나뿐이라 «행이 남아 있고
+     * > owner 가 아닌데 0행» 은 성립하지 않는다. 술어가 들어오기 **전**에 쓰인 단언이
+     * > 그대로 남아 있었던 것이고, `/ai-review` `08_09_57` W3 이 그 틈을 짚었다.
+     *
+     * > **그 정정이 곧바로 중복을 만들었다.** 같은 라운드에서 «행이 사라졌으면 404» 블록을
+     * > 따로 추가했는데, 이 블록을 `null` 재조회로 고치자 둘이 **mock·단언까지 동일**해졌다.
+     * > 다음 라운드(`08_46_47` W1)가 그것을 잡아 중복 쪽을 지웠다 — 한쪽만 갱신되고 다른
+     * > 쪽이 낡는 silent drift 자리였다.
+     */
     it('진 쪽은 404 이고 감사를 남기지 않는다', async () => {
-      // 둘 다 무락 조회를 통과했지만 원자적 DELETE 는 하나만 1행을 지운다.
+      // 둘 다 무락 조회를 통과했지만 원자적 DELETE 는 하나만 1행을 지운다 —
+      // 진 쪽이 다시 읽으면 행이 이미 없다.
+      wireFindOne(
+        { id: memberId, userId: 'target-user', role: 'editor' },
+        undefined,
+        null,
+      );
       memberRepo.delete.mockResolvedValue({ affected: 0 });
 
       await expect(
         service.removeMember(workspaceId, memberId, requesterId),
       ).rejects.toMatchObject({
         response: { code: 'MEMBER_NOT_FOUND' },
+      });
+      expect(getAudit().record).not.toHaveBeenCalled();
+    });
+
+    /**
+     * **owner 보호 가드의 TOCTOU** — 이 describe 의 다른 블록들과 계약이 다르다.
+     * 다른 블록은 «감사를 두 번 남기지 않는다» 이고 이것은 «owner 를 지우지 않는다» 다.
+     *
+     * 무락 선조회는 `editor` 를 봤는데 DELETE 시점엔 `transferOwnership` 이 그 행을 승격시킨
+     * 상태다. 술어 `role: Not('owner')` 가 0행을 만들고, 0-행 경로의 재조회가 **행이 남아
+     * 있음**을 보고 403 으로 간다. 술어를 빼면 owner 가 지워지고 `workspace.ownerId` 가
+     * 멤버십 없는 사용자를 가리킨다 (e2e 로 재현: 고치기 전 200).
+     */
+    it('DELETE 시점에 대상이 owner 로 승격됐으면 403 이고 감사가 없다', async () => {
+      wireFindOne(
+        { id: memberId, userId: 'target-user', role: 'editor' },
+        undefined,
+        {
+          id: memberId,
+          userId: 'target-user',
+          role: 'owner',
+        },
+      );
+      memberRepo.delete.mockResolvedValue({ affected: 0 });
+
+      await expect(
+        service.removeMember(workspaceId, memberId, requesterId),
+      ).rejects.toMatchObject({
+        response: { code: 'CANNOT_REMOVE_OWNER' },
+      });
+      expect(getAudit().record).not.toHaveBeenCalled();
+    });
+
+    /**
+     * **이양 연쇄 — 재조회가 강등된 행을 본다.** 승격돼 DELETE 를 막은 뒤 다시 admin 으로
+     * 내려온 상태다. 그래도 «DELETE 를 막은 것은 owner 였다» 는 사실은 변하지 않으므로
+     * 403 이다. 여기서 현재 role 을 다시 물으면 **실재하는 멤버를 404 로** 보고하게 된다
+     * (`/ai-review` `review/code/2026/09/24/08_09_57` W3 — 이 제3 상태를 짚었다).
+     *
+     * 이 블록이 «재조회의 role 을 본다» 로 되돌리는 편집을 죽인다.
+     */
+    it('재조회가 강등된 행을 봐도 403 이다 — 막은 것은 owner 였다', async () => {
+      wireFindOne(
+        { id: memberId, userId: 'target-user', role: 'editor' },
+        undefined,
+        { id: memberId, userId: 'target-user', role: 'admin' },
+      );
+      memberRepo.delete.mockResolvedValue({ affected: 0 });
+
+      await expect(
+        service.removeMember(workspaceId, memberId, requesterId),
+      ).rejects.toMatchObject({
+        response: { code: 'CANNOT_REMOVE_OWNER' },
       });
       expect(getAudit().record).not.toHaveBeenCalled();
     });

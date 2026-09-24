@@ -4,6 +4,9 @@ import request from 'supertest';
 
 import { createDbClient, uniqueEmail, uniqueName } from './helpers/db';
 import { registerAndLogin, createTeamWorkspace } from './helpers/auth';
+// 공허성 가드 대기 시간은 한 곳에서 온다 — 그래야 그 상수가 프로덕션 잠금 상한보다
+// 짧은지 검사하는 `assertGuardBelowKnownTimeouts` 의 범위 안에 있다.
+import { VACUITY_GUARD_MS } from './helpers/concurrency';
 
 /**
  * e2e: 동시 rotate 의 lost update — spec/2-navigation/4-integration.md §9.2 rotate.
@@ -115,7 +118,7 @@ describe('Integration rotate concurrency (e2e)', () => {
       const raced = await Promise.race([
         pending,
         new Promise<{ settled: false }>((resolve) =>
-          setTimeout(() => resolve({ settled: false }), 1_500),
+          setTimeout(() => resolve({ settled: false }), VACUITY_GUARD_MS),
         ),
       ]);
       expect(raced.settled).toBe(false);
