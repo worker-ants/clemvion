@@ -1,0 +1,13 @@
+{
+  "timestamp": "2026-09-24T22:01:45.318313",
+  "mode": "구현 착수 전 검토 (--impl-prep, scope=spec/data-flow/12-workspace.md)",
+  "target_path": "spec/data-flow/12-workspace.md",
+  "checkers": [
+    "cross_spec",
+    "rationale_continuity",
+    "convention_compliance",
+    "plan_coherence",
+    "naming_collision"
+  ],
+  "scope_note": "spec/data-flow/ 전체를 scope 로 준비하면 컨텍스트 예산 때문에 이 파일(DELETE members 라우트를 규정하는 spec)의 본문이 5개 프롬프트 전부에서 생략됐다(실측: 본문 문장 grep 0/5). 그래서 이 파일 하나만 담은 세션 전용 scratch 사본 디렉터리를 scope 로 돌렸다(내용은 그 시점 저장소 파일과 동일, 본문 5/5 적재 확인). 원래 기록된 scratch 절대경로는 세션 밖에서 해석되지 않아 이 경로로 정정했다."
+}
