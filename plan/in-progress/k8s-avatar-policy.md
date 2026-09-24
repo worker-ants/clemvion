@@ -78,7 +78,10 @@ docker 네트워크에서 같은 이미지로 실행했다(env 는 overlay secre
       D3 heredoc 버킷 하드코딩(→ 변수 사용) · D4 `<<'EOF'`(→ unquoted) · D5 `set -e` 삭제(→ fail fast) ·
       D6 set-json 을 리터럴 버킷에(→ 같은 버킷 적용) · D7 `set download` 추가(→ 프리셋 금지) /
       추출기 E1 따옴표 미포착 · E2 인자 여럿 허용 · E3 비문자열 인자 허용 · E4 문자열 Action 을 글자로 쪼갬 — 각
-      경계 테스트
+      경계 테스트.
+      **리뷰 1라운드 뒤 다시(`1367e14ee`)**: 추출기가 형제 가드 헬퍼로 바뀌어 배선이 새로 생겼으므로 15개로 재측정 —
+      데이터 D1~D7 그대로 + 배선 W1 Job · W2 컨테이너 · W3 인자 · W6 heredoc 의 `_expect_one` 우회(첫 매치를 집게) ·
+      W4 · W5 인자 값 검사의 두 절 + 판정 P1 · P2 — **전부 KILLED, 각자 의도한 테스트로**
 - [x] 동작 실측 (§C) + 대조군 — 결과는 §C-2
 - [x] `kubectl kustomize k8s/overlays/local` 렌더 확인
 - [x] CHANGELOG 항목 (커밋 전 staged 확인)
