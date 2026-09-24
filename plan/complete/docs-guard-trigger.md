@@ -1,6 +1,6 @@
 ---
 title: "docs 가드가 검사하는 데이터가 그 가드를 트리거하게 한다"
-status: in-progress
+status: complete
 owner: developer
 worktree: docs-guard-trigger
 spec_impact: none
