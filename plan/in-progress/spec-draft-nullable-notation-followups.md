@@ -5130,6 +5130,19 @@ field: T | null;
       **「무엇이 항목을 만드는가」** 를 적는다(제품 동작·배포 의존성 변경 = 항목,
       도구·테스트 하니스 = 해당 없음). 범주가 맞는 자리에 두는 편이 표를 늘리는 것보다 싸다.
 
+- [ ] **`spec/4-nodes/*/0-common.md` 6개가 전부 `id: common` — id 유일성을 보는 가드가 없다**
+      (planner, 낮음, 2026-09-24 등재 · `--impl-prep` `review/consistency/2026/09/24/19_35_41`
+      cross_spec WARNING 1).
+      `spec-impl-evidence.md` §2.1 `id` 행은 «같은 basename 이 영역을 달리해 중복될 때 영역
+      prefix 로 회피» 를 규정하는데, `1-logic`·`2-flow`·`3-ai`·`4-integration`·`5-data`·
+      `7-trigger` 의 `0-common.md` **6개가 전부 `id: common`** 이다(실측 grep). 그리고
+      frontmatter 가드 어디에도 **id 유일성 검사가 없다** — 그래서 아무도 못 봤다.
+
+      처방 후보: (a) 6개를 `logic-common`… 으로 재명명(참조·fixture 동반 갱신), (b) §2.1 에
+      «카테고리-로컬 `0-common.md` 는 예외» 를 명시. checker 는 (b) 를 권했다(비용이 낮다).
+      어느 쪽이든 **가드가 없으면 다음 중복도 조용히 들어온다** — id 가 무엇에 쓰이는지부터
+      확인하고, 쓰인다면 유일성 가드를 함께 세울 것.
+
 - [ ] **lockfile 의 `libc:` 필드가 dependabot 과 고정 pnpm 사이에서 진동한다** (developer,
       낮음, 2026-09-24 등재 · `deps-typeorm12` `/ai-review` `review/code/2026/09/24/18_22_23` W1 이
       드러냄).
