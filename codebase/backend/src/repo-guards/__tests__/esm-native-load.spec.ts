@@ -43,6 +43,49 @@ describe('repo-guard: ESM-only 의존성 네이티브 로드', () => {
   // (단위: uuid|p-limit|yocto-queue|otplib|@otplib|@scure|@noble / e2e: uuid|p-limit|
   // yocto-queue). 그 발산이 재발하는 것만 여기서 정적으로 막는다 — 행동 검증이 아니라
   // **설정 대조**라는 점을 분명히 해 둔다.
+  // 플래그는 `jest.config.ts` 가 아니라 **npm script 문자열**에만 산다 — 즉 jest 를 띄우는
+  // script 가 다섯 갈래로 갈려 있고 각자가 접두어를 복제한다. 그 텍스트를 지키는 것이
+  // 아무것도 없어서 `test:debug` 는 2026-03-30 scaffold 이후 **깨진 채로 방치**됐다:
+  // `node_modules/.bin/jest`(= `#!/bin/sh` 셸 shim)를 `node` 에 넘겨 즉시
+  // `SyntaxError: missing ) after argument list` 였다.
+  //
+  // 왜 아무도 몰랐나 — `test:cov` · `test:watch` · `test:debug` 는 **CI · Makefile ·
+  // `.claude/test-stages.sh` · docker-compose 어디서도 실행되지 않는다**(실측 grep 0건).
+  // 자동화가 밟지 않는 자리라 사람이 우연히 부딪칠 때까지 조용하다. 그래서 행동 검증이
+  // 아니라 **텍스트 정합**으로 막는다.
+  //
+  // **이 가드가 덮지 못하는 것**: 플래그는 CLI 인자라 이 다섯 문자열에만 존재한다. 그래서
+  // script 를 우회하는 호출(IDE 테스트 러너, `npx jest` 직접 실행)은 불변식 **밖**이고
+  // 거기서는 여전히 `Must use import to load ES Module` 을 만난다. CI·e2e 진입점은 전부
+  // script 를 경유하므로 실측상 안전하다 — 보증의 경계를 여기 적어 둔다.
+  it('jest 를 띄우는 script 전부가 같은 플래그·진입점을 쓴다', () => {
+    const pkgPath = path.resolve(__dirname, '../../../package.json');
+    const scripts = (
+      JSON.parse(fs.readFileSync(pkgPath, 'utf8')) as {
+        scripts: Record<string, string>;
+      }
+    ).scripts;
+
+    const jestScripts = Object.entries(scripts).filter(([, cmd]) =>
+      cmd.includes('jest'),
+    );
+
+    // 명단을 못 박는다. script 가 늘거나 줄면 **이 가드가 무엇을 덮는지** 다시 보게 한다 —
+    // 새 script 가 조용히 접두어 없이 추가되는 것이 정확히 이 가드가 막으려는 것이다.
+    expect(jestScripts.map(([name]) => name).sort()).toEqual([
+      'test',
+      'test:cov',
+      'test:debug',
+      'test:e2e',
+      'test:watch',
+    ]);
+
+    for (const [name, cmd] of jestScripts) {
+      expect(`${name}: ${cmd}`).toContain('--experimental-vm-modules');
+      expect(`${name}: ${cmd}`).toContain('./node_modules/jest/bin/jest.js');
+    }
+  });
+
   it('e2e 설정도 `transformIgnorePatterns` 를 기본값으로 둔다', () => {
     const e2eConfigPath = path.resolve(
       __dirname,

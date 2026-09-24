@@ -27,6 +27,13 @@ started: 2026-09-24
 `plan/in-progress/jest-esm-native-load.md` 가 **먼저** 들어가야 한다. 그것 없이는
 `@nestjs/typeorm@12`(`import.meta.url`)를 CJS jest 가 로드하지 못한다.
 
+> **그 PR 의 가드는 여기까지 보증하지 않는다.** `esm-native-load.spec.ts` 의 canary 는
+> `uuid` 인데, `uuid` 는 **CJS 로 downlevel 이 가능한** ESM 이다. 이 업그레이드의 진짜 벽인
+> `import.meta.url`(downlevel 원리적 불가)은 **`@nestjs/typeorm@12` 를 실제로 얹어야** 행사된다.
+> 로컬에서 미리 한 번 재 뒀지만(472/9946 통과, `jest-esm-native-load.md` §C) 저장소에 상주하는
+> 검증은 아니다 — **착수 시 이 케이스가 실제로 초록인지 직접 확인할 것.**
+> (`review/code/2026/09/24/15_26_17` INFO 3)
+
 ## C. 착수 시 **반드시** 검증할 것 — reflection 보안 회귀
 
 `--impl-prep` `review/consistency/2026/09/24/12_57_36` `plan_coherence` W3 이 짚은 것이고
