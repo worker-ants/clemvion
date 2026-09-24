@@ -101,6 +101,37 @@ ts-jest 가 CJS 로 변환하고, vm-modules 모드의 jest 는 그 파일을 **
 플래그가 장식이 아니라 **로드를 떠받치고 있고**, 허용목록을 걷은 것과 짝이라는 뜻이다.
 (반대 방향은 §C 에 이미 있다 — 플래그만 켜고 허용목록을 남기면 `exports is not defined`.)
 
+### 불변식 가드 — 「우연한 커버리지」를 이름으로 바꿨다
+
+`/ai-review` INFO 12 가 짚었다: 「플래그 + 기본 허용목록은 한 쌍」이라는 불변식을 지키는
+전용 테스트가 없고, `uuid`·`otplib`·`p-limit` 를 쓰는 **비즈니스 스펙들의 우연한 커버리지**에
+의존한다 — 리팩터로 그 사용이 사라지면 아무도 안 지킨다.
+
+`codebase/backend/src/repo-guards/__tests__/esm-native-load.spec.ts` 를 신설했다. 파일
+맨 위의 `import … from 'uuid'` 자체가 트립와이어라 두 방향 어느 쪽이든 로드 단계에서 죽는다.
+
+**뮤테이션 — 넷 다 예측=실측:**
+
+| 뮤턴트 | 예측 | 실측 |
+| --- | --- | --- |
+| M1 플래그만 제거 | RED | **RED** — `Must use import to load ES Module: …/uuid@13.0.2/…` |
+| M2 허용목록 복원 | RED | **RED** — `ReferenceError: exports is not defined` |
+| M3 e2e 설정만 발산 | RED (3번째만) | **RED** — 1 failed · 2 passed |
+| M4 canary 를 CJS 로 가정 | RED (공허성 가드가 실값을 읽나) | **RED** — `Expected "commonjs" / Received "module"` |
+
+M4 가 있는 이유: canary(`uuid`)가 언젠가 CJS 로 돌아가면 로드 테스트는 **아무것도 지키지
+않으면서 초록**이 된다. 그 순간을 침묵시키지 않고 실패시켜 canary 를 갈아 끼우게 한다.
+
+**덮지 못하는 것**: 세 번째 단언은 e2e 설정을 **정적 대조**할 뿐 행동 검증이 아니다(이 스펙은
+단위 설정으로 돈다). 스펙 헤더에 그렇게 적었다 — 보장을 만든 것보다 넓게 말하지 않는다.
+
+### PROJECT.md 교차 참조 (INFO 5)
+
+`PROJECT.md:82` 가 「packages/* 의 vitest 이행은 **jest 가 실제로 막는 ESM 의존이 등장하는
+트리거** 전까지 보류」라고 적는데, **이 PR 이 정확히 그 트리거인데 이행 없이 풀었다.** 그대로
+두면 다음 사람이 「트리거 발화 → vitest 이행」으로 읽는다. 한 문장 덧붙였고, **적용·검증된
+것은 backend 뿐이고 packages/\* 에서는 재지 않았다**는 사실을 함께 적었다.
+
 ## E. 하지 않는 것
 
 - **`@nestjs/*` 12 동반 업그레이드** — 별 PR. #1382 은 `common@12` 없이는 런타임에서
