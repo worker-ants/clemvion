@@ -1,10 +1,11 @@
 ---
 title: removeMember 의 권한 검사가 대상 조회보다 뒤에 있어 존재 오라클이 된다
-status: in-progress
+status: complete
 owner: developer
 worktree: member-auth-order-8c4d1f
 spec_impact: none
 started: 2026-09-24
+completed: 2026-09-24
 ---
 
 # 인가보다 조회가 먼저라, 인가받지 못한 사람도 답을 세 갈래로 받는다
@@ -34,6 +35,14 @@ started: 2026-09-24
 | 현재 동작을 고정하는 테스트가 있나 | **0건.** `ADMIN_REQUIRED`·`NOT_A_MEMBER` 단언은 있지만 전부 `updateWorkspaceSettings`·다른 경로용이고, `workspace-rbac.e2e-spec.ts` 의 멤버 경로 단언은 **owner 가 PATCH** 하는 자리다 |
 | `NOT_A_MEMBER` 가 정식 코드인가 | 있다 — `3-error-handling.md:49` 에 **403** 으로 등재. 설명이 열거하는 경로는 «전환·탈퇴·멤버십 확인» 이라 이 자리가 새 발행처가 된다(§E) |
 | spec 이 비-멤버 응답을 규정하나 | **안 한다** — `data-flow/12-workspace.md:141` 은 권한을 «owner / admin» 으로만 적는다 → `spec_impact: none` |
+
+> **`spec_impact: none` 이 «spec drift 0» 을 뜻하지는 않는다.** 이 필드가 묻는 것은 «이 작업이
+> `spec/` 파일을 바꾸는가» 이고, 답은 **하나도 안 바꾼다** 이다. 리팩터가 남긴 낡은 서술 셋(§E)은
+> developer 권한 밖이라 planner 로 넘겼는데, 그 이관이 이 필드를 `none` 이 아니게 만들지는
+> 않는다. 같은 모양의 선례: `plan/in-progress/auth-guard-reflection-hardening.md`
+> (`spec_impact: none` · developer 소유 · spec 정정은 planner 위임).
+> `--impl-done` `11_50_40` INFO#5 가 이 대조를 남겨 두라고 했다 — 선례 위치는 `complete/` 가
+> 아니라 `in-progress/` 다(인용 전에 확인했다).
 
 ## B. 처방 — `assertAdmin` 을 앞으로 옮길 수는 없다
 
@@ -126,13 +135,15 @@ findOne(대상) → 404
 
 ## D. TDD
 
-- [ ] **먼저 RED**: 비-멤버가 (a) 없는 memberId (b) owner memberId (c) 비-owner memberId 에
-      대해 **서로 다른 응답**을 받는 것을 e2e 로 고정한다. 고치기 전 예측: `404` / `403
-      CANNOT_REMOVE_OWNER` / `403 ADMIN_REQUIRED` — **세 값이 서로 다르다**.
-- [ ] 고친 뒤 셋 다 `403 NOT_A_MEMBER` (구분 불가).
-- [ ] **비-admin 멤버 갈래도 함께 고정한다**(§C 둘째 행) — editor 가 owner 를 지목하면
-      `ADMIN_REQUIRED`. 단위로 충분하다(요청자 role 만 바꾸면 되고 DB 타이밍과 무관).
-- [ ] 뮤턴트로 단언 유효성 (예측/실측 두 칸).
+- [x] **먼저 RED** — 실측 **`Expected 1, Received 3`** (집합 크기). 세 탐침이 서로 다른 답을 줬다.
+- [x] 고친 뒤 셋 다 `403 NOT_A_MEMBER` — 집합 크기 **1**.
+- [x] **비-admin 멤버 갈래도 고정** — «비-admin 이 owner 를 지목하면 `CANNOT_REMOVE_OWNER` 가
+      아니라 `ADMIN_REQUIRED` 다» 단위 블록.
+- [x] 뮤턴트 4종 — 아래 표(전부 예측=실측).
+
+> **헤더를 붙이지 않는 것이 e2e 의 핵심이다.** `X-Workspace-Id` 를 주면 `RolesGuard` 가
+> header-first 멤버십 검증으로 막아 **고치기 전에도 초록**이 된다. 누수는 경로 파라미터로만
+> 워크스페이스를 받는 라우트에서 열린다.
 
 > **단언을 «세 값이 다르다» 로 쓴다.** 각 값을 따로 단언하면 고친 뒤 셋을 전부 바꿔야 하고,
 > 그러면 «구분 불가» 라는 **성질**이 아니라 값 세 개를 고정하게 된다. 성질을 직접 단언하면
@@ -194,7 +205,8 @@ findOne(대상) → 404
       (`build-20260924-104815.log`) · **e2e 380 PASS**(`e2e-20260924-105109.log`, 379 → 380)
 - [x] 13-라우트 축 별 항목 등재(스코프 조건 포함) + spec stale 서술 **셋**을 planner 항목
       하나로 묶어 등재(`3-error-handling.md:46`·`:49` · `1-auth.md:551`)
-- [ ] `/ai-review` → 수렴
+- [x] `/ai-review` → **2라운드 수렴** (Critical 1/Warning 5 → Critical 0/Warning 1,
+      마지막 라운드 `codebase/**` 수정 0건)
       - [x] 1라운드 `review/code/2026/09/24/11_10_45` — **Critical 1 · Warning 5**, 전부 조치
             (`RESOLUTION.md`). Critical 은 **CHANGELOG 미갱신** — 직전 PR 에서 같은 지적을
             받고 «사실을 뒤집었으면 그 자리를 전부 훑어라» 고 써 놓고 또 놓쳤다.
@@ -206,5 +218,8 @@ findOne(대상) → 404
             이번 트래커). 시제를 문장에 명시하는 것으로 고쳤다.
             그 라운드의 `codebase/**` 수정 **0건**이라 정지 규칙을 충족한다.
             INFO 두 칸(판정 순서 커버리지)은 수렴 예외 (a)~(d)로 트래커 등재.
-- [ ] `/consistency-check --impl-done spec/5-system` → BLOCK: NO
-- [ ] 트래커 항목 해소 + plan `complete/` 로 (**한 커밋으로**)
+- [x] `/consistency-check --impl-done spec/5-system` → **BLOCK: NO · Critical 0 · Warning 0**
+      (`review/consistency/2026/09/24/11_50_40`). INFO 5건 전부 «조치 불요» 또는 이미 등재.
+      `rationale_continuity` 가 *"직전 impl-prep WARNING(기각된 opt-in 패턴 재도입 우려)이
+      plan §B-2 의 3단 반박으로 **실측상 해소**"* 로 종결했다.
+- [x] 트래커 항목 해소 + plan `complete/` 로 (**한 커밋으로**)

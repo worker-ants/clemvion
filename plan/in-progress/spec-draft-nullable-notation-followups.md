@@ -4868,7 +4868,7 @@ field: T | null;
       둘 중 하나여야 한다 — 컨트롤러를 204 로 맞추거나(클라이언트 계약 변경), §6 에 이 예외를
       각주로 적거나. **바로 위 §3 멱등성 각주 작업과 같은 문서라 함께 처리하는 편이 싸다.**
 
-- [ ] **`removeMember()` 의 권한 검사가 대상 조회·owner 판정보다 뒤에 있어 존재 오라클이 된다**
+- [x] **`removeMember()` 의 권한 검사가 대상 조회·owner 판정보다 뒤에 있어 존재 오라클이 된다**
       (developer, **중간**, 2026-09-21 등재 · `/ai-review` `review/code/2026/09/21/12_57_05` WARNING 1).
       순서가 `findOne`(`:783`) → 404 → self 위임 → owner 403 → `assertAdmin`(`:803`) 이라,
       요청자가 그 워크스페이스 멤버가 아니어도 `(workspaceId, memberId)` 쌍에 대해 **세 갈래로
@@ -4917,6 +4917,26 @@ field: T | null;
       **바뀐다**. 에러 코드 계약 변경이라 `spec/5-system/3-error-handling.md` 기준의 자체
       consistency 라운드가 필요하다. 동시성 수정과 섞으면 정확히 리뷰어들이 지적해 온 스코프 혼입이다.
 
+      > **✅ 2026-09-24 해소** — developer 턴 `plan/complete/member-auth-order.md`
+      > (`--impl-prep` `review/consistency/2026/09/24/10_22_24` BLOCK: NO ·
+      > `/ai-review` `11_37_06` 2라운드 수렴 · `--impl-done` `11_50_40` **BLOCK: NO · Critical 0
+      > · Warning 0**).
+      >
+      > 처방은 «`assertAdmin` 을 맨 앞으로» 가 **아니다** — 이 항목이 아래에 예고한 그대로,
+      > 자가 탈퇴가 깨지기 때문이다. 인가를 두 단으로 나눴다: **멤버십을 대상 조회 앞**,
+      > **admin 을 self 위임 뒤**. 비-멤버는 `403 NOT_A_MEMBER` 로 끝나고 대상에 대해
+      > 아무것도 배우지 못한다(e2e 실측: 세 탐침의 응답 집합 크기 **3 → 1**).
+      >
+      > **«멤버로 좁히는 것이 완전 차단인가» 를 실측으로 답했다** — `listMembers` 가
+      > `assertMembership` 만 요구하고 모든 멤버의 id·role 을 돌려주므로, 멤버가 새로 얻는
+      > 정보는 **0** 이다. 완화가 아니라 실질적 완전 차단이다.
+      >
+      > **뮤턴트가 두 변경의 분업을 드러냈다** — 멤버십 검사만 빼면 응답 집합이 3 이 아니라
+      > **2** 가 된다. admin 판정을 owner 판정 앞으로 옮긴 것이 owner/비-owner 구분을 이미
+      > 없앴고, 멤버십 검사가 남은 «존재» 한 갈래를 닫는다. 둘 중 하나만으로는 부족하다.
+      >
+      > **13-라우트 축은 닫히지 않았다** — 아래 별 항목으로 갈라 뒀다.
+
       > **2026-09-24 — 이 캐비트는 그대로 유효했다.** 닫는 PR 이 실제로 admin 판정을 owner
       > 판정 앞으로 옮겨 그 코드 전환이 일어났고, 캐비트가 요구한 «`3-error-handling.md` 기준
       > consistency 라운드» 는 `--impl-prep`·`--impl-done` `spec/5-system` 으로 이행했다.
@@ -4942,8 +4962,7 @@ field: T | null;
       > **스코프 조건 — 구조적 해법을 먼저 검토한다.** 가드가 경로 파라미터 워크스페이스도 보게
       > 할 것인가(reflection 확장 / 데코레이터 통일)를 **먼저** 결정하고, 불가할 때에만 라우트별
       > 수동 체크를 표준 패턴으로 승인한다. 이 조건이 없으면
-      > `member-auth-order` plan(이 PR 의 종료 커밋에서 `plan/complete/` 로 이동한다)이
-      > 13개에 같은 패치를 복제하는 선례로 읽히는데,
+      > `plan/complete/member-auth-order.md` 가 13개에 같은 패치를 복제하는 선례로 읽히는데,
       > 그것이 정확히 `data-flow/12-workspace.md` §«멤버십 검증은 가드 1곳에서» 가
       > *"74번째 라우트에서 재발한다"* 며 기각한 모양이다
       > (`--impl-prep` `review/consistency/2026/09/24/10_22_24` `rationale_continuity` W1).
@@ -4973,8 +4992,7 @@ field: T | null;
 
 - [ ] **`removeMember` 리팩터로 낡은 spec 서술 세 줄** (planner, 낮음, 2026-09-24 등재 ·
       `--impl-prep` `10_22_24` INFO + `/ai-review` `review/code/2026/09/24/11_10_45` W4·W5).
-      `member-auth-order` plan(이 PR 의 종료 커밋에서 `plan/complete/` 로 이동한다)이
-      인가를 대상 조회보다 앞으로 옮기면서
+      `plan/complete/member-auth-order.md` 가 인가를 대상 조회보다 앞으로 옮기면서
       `removeMember` 는 **`assertAdmin()` 을 더 이상 호출하지 않는다**(요청자 role 을
       `getMemberRole` 로 직접 읽고 `throwNotAMember()`/`throwAdminRequired()` 로 판정). 결론은
       전부 그대로이고 **인용된 호출 경로만** 낡았다:
