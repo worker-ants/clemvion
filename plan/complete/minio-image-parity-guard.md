@@ -1,10 +1,11 @@
 ---
 title: MinIO 계열 이미지 참조 6곳의 일치를 하네스 테스트로 고정한다
-status: in-progress
+status: complete
 owner: developer
 worktree: minio-image-parity-guard
 spec_impact: none
 started: 2026-09-25
+completed: 2026-09-25
 ---
 
 # 같은 이미지 문자열이 여섯 번 손으로 적혀 있다
@@ -130,9 +131,11 @@ PyYAML 은 harness CI 의 유일한 허용 의존성이다(`harness-checks.yml` 
       `62eed299f` 7 passed · `647b60ad8` 15 passed · **`5f8c1c472` 20 passed · 45 subtests**(최종 구조)
 - [x] 뮤턴트 M1~M5 실측 (표 §B) — M3 가 예측과 달랐고, 그것이 단언 1 의 서술을 고치게 했다(M5 추가)
 - [x] CHANGELOG 항목 (가드 신설 = 항목, 커밋 전 staged 확인)
-- [ ] `python3 -m pytest .claude/tests -q` 전체
-- [ ] `/ai-review`
-- [ ] 트래커 항목 닫기
+- [x] `python3 -m pytest .claude/tests -q` 전체 — 마지막 코드 커밋 `5f8c1c472` 뒤 **1160 passed**
+- [x] `/ai-review` — **5라운드**. 1 `00_25_55`(W3) · 2 `00_39_02`(W2, 전수 14명) · 3 `00_56_30`(W2) · 4 `01_13_48`(W3) ·
+      5 `01_31_05`(**diff 에 대한 Warning 0** · 가드 수정 0 — 종결). 3라운드부터 파일 범위 지정: `--branch` 로는 앞
+      라운드 리뷰 산출물이 프롬프트 예산을 먹어 **테스트 diff 가 생략**됐다. 라운드별 처분은 각 세션 `RESOLUTION.md`
+- [x] 트래커 항목 닫기 — 종결 메모 + 부수 발견 등재(`0-overview.md` §8 · 하네스 프로브 잔여물)
 
 ## D. `--impl-prep` 처분
 
