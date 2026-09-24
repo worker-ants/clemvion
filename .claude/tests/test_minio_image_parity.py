@@ -73,12 +73,18 @@ class PlaceNotFound(AssertionError):
     """A declared image place is missing — named, so the failure says where."""
 
 
+def _mapping(value: object) -> dict:
+    """`value` if it is a mapping, else an empty one — so a malformed shape (a
+    list where a mapping belongs) surfaces as `PlaceNotFound` naming the place,
+    not as a bare `AttributeError`."""
+    return value if isinstance(value, dict) else {}
+
+
 def compose_images(label: str, text: str) -> dict[str, str]:
-    doc = yaml.safe_load(text) or {}
-    services = doc.get("services") or {}
+    services = _mapping(_mapping(yaml.safe_load(text)).get("services"))
     found: dict[str, str] = {}
     for svc in COMPOSE_SERVICES:
-        image = (services.get(svc) or {}).get("image")
+        image = _mapping(services.get(svc)).get("image")
         if not isinstance(image, str) or not image:
             raise PlaceNotFound(f"{label}: services.{svc}.image not found")
         found[f"{label} services.{svc}"] = image
@@ -86,19 +92,23 @@ def compose_images(label: str, text: str) -> dict[str, str]:
 
 
 def k8s_images(label: str, text: str) -> dict[str, str]:
+    """Exactly one resource per (kind, name): zero AND duplicates both fail by
+    naming the place — a duplicate would leave it ambiguous which image runs."""
     docs = [d for d in yaml.safe_load_all(text) if isinstance(d, dict)]
     found: dict[str, str] = {}
     for kind, name, container in K8S_PLACES:
         matches = [
             d for d in docs
-            if d.get("kind") == kind and (d.get("metadata") or {}).get("name") == name
+            if d.get("kind") == kind and _mapping(d.get("metadata")).get("name") == name
         ]
         if len(matches) != 1:
             raise PlaceNotFound(f"{label}: expected one {kind}/{name}, found {len(matches)}")
-        containers = (
-            ((matches[0].get("spec") or {}).get("template") or {}).get("spec") or {}
-        ).get("containers") or []
-        images = [c.get("image") for c in containers if c.get("name") == container]
+        pod_template = _mapping(_mapping(matches[0].get("spec")).get("template"))
+        containers = _mapping(pod_template.get("spec")).get("containers") or []
+        images = [
+            c.get("image") for c in containers
+            if isinstance(c, dict) and c.get("name") == container
+        ]
         if len(images) != 1 or not isinstance(images[0], str) or not images[0]:
             raise PlaceNotFound(f"{label}: {kind}/{name} container {container!r} image not found")
         found[f"{label} {kind}/{name}:{container}"] = images[0]
@@ -134,6 +144,24 @@ class ExtractorBoundaryTest(unittest.TestCase):
         )
         with self.assertRaisesRegex(PlaceNotFound, r"Job/minio-create-bucket container 'mc'"):
             k8s_images("k.yaml", text)
+
+    def test_k8s_duplicate_resource_is_named(self):
+        sts = (
+            "kind: StatefulSet\nmetadata: {name: minio}\n"
+            "spec: {template: {spec: {containers: [{name: minio, image: a}]}}}\n"
+        )
+        job = (
+            "kind: Job\nmetadata: {name: minio-create-bucket}\n"
+            "spec: {template: {spec: {containers: [{name: mc, image: a}]}}}\n"
+        )
+        with self.assertRaisesRegex(PlaceNotFound, r"expected one StatefulSet/minio, found 2"):
+            k8s_images("k.yaml", sts + "---\n" + sts + "---\n" + job)
+
+    def test_compose_malformed_service_is_named_not_attribute_error(self):
+        # A sequence where the service mapping belongs — a YAML typo shape.
+        text = "services:\n  minio:\n    - image: a\n  createbuckets:\n    image: a\n"
+        with self.assertRaisesRegex(PlaceNotFound, r"services\.minio\.image"):
+            compose_images("x.yml", text)
 
     def test_pinned_pattern_edges(self):
         digest = "@sha256:" + "a" * 64
