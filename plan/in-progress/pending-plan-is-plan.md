@@ -61,7 +61,7 @@ TDD 의 첫 RED 6건은 전부 `isPendingPlanPath is not a function` 이었다 �
 | M2 정규화 제거 | `..` 단언만 RED | **`..` 단언만 RED** |
 | M3 `.md` 검사 제거 | non-markdown/bare 단언만 RED | **그것만 RED** |
 | M4 `plan/research/` 를 허용 목록에 | research 단언만 RED | **그것만 RED** |
-| M5 술어가 항상 true | 단위 여러 RED · **가드는 초록** | **단위 5 RED · 가드 55 초록** |
+| M5 술어가 항상 true | 단위 여러 RED · **가드는 초록** | **단위 5 RED · 가드 55 초록** — 전담 단언 **6개**일 때 잰 값. 리뷰 1라운드가 2개를 더한 뒤 재측정: **7 RED**(8개 중 «accepts» 만 통과) |
 | ~~M1~~ 실제 spec 에 `V026__graph_rag.sql` 추가 | «plan 인가» 만 RED | ~~둘 다 RED~~ — **무효 뮤턴트** ↓ |
 | **M1b** 실제 spec 에 **실재하는** `V026__graph_extraction_status_nullable_index.sql` 추가 | «plan 인가» RED · «실존» 초록 | **정확히 그대로** (1 실패 · 56 통과) |
 
@@ -73,7 +73,8 @@ TDD 의 첫 RED 6건은 전부 `isPendingPlanPath is not a function` 이었다 �
 **M5 가 말하는 것**: 현 코퍼스에는 위반이 0건이라 **술어가 망가져도 가드만으로는 초록**이다.
 판별의 부담은 단위 테스트가 진다 — 단위 테스트를 코퍼스 가드로 갈음하면 안 되는 이유다.
 
-(원복은 전부 `cp` + 절대경로. 원복 후 단위 13 통과 · 가드 55 통과 · 워킹트리 diff 없음.)
+(원복은 전부 `cp` + 절대경로. 원복 후 워킹트리 diff 없음. 단위 수는 **측정 시점마다 달랐다** —
+첫 구현 뒤 13(`isApplicable` 7 + 전담 6), 리뷰 1라운드 뒤 **15(전담 8)**. 가드는 55 그대로.)
 
 ## E. `--impl-prep` 결과
 
@@ -104,7 +105,7 @@ TDD 의 첫 RED 6건은 전부 `isPendingPlanPath is not a function` 이었다 �
 - [x] `/consistency-check --impl-prep spec/conventions` → **BLOCK: NO** (`19_35_41`) — §E.
       **순서를 어겼다**: 구현 뒤에 돌렸다
 - [x] 실패하는 단위 테스트 먼저 — RED 6건 (`isPendingPlanPath is not a function`)
-- [x] 구현 → GREEN (단위 13 · 가드 55)
+- [x] 구현 → GREEN (첫 구현 뒤 단위 13 · 가드 55 → 리뷰 1라운드 뒤 단위 **15**(전담 8) · 가드 55)
 - [x] 판별 뮤테이션 — M2~M5 예측=실측, **M1 은 무효 → M1b 로 재수행** — §D
 - [x] TEST WORKFLOW — lint PASS · unit PASS(frontend 291 파일 / 6714, 새 단위 6 · 가드 27 포함) ·
       build PASS · e2e 380 PASS
