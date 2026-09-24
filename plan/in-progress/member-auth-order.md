@@ -192,7 +192,14 @@ findOne(대상) → 404
 - [x] TEST WORKFLOW — lint PASS(`lint-20260924-104600.log`) · backend unit **472스위트/9945**
       (`unit-20260924-104655.log`, 신규 2) · build PASS 타입체크 ratchet 포함
       (`build-20260924-104815.log`) · **e2e 380 PASS**(`e2e-20260924-105109.log`, 379 → 380)
-- [ ] 13-라우트 축 별 항목 등재 + `NOT_A_MEMBER` 카탈로그 planner 항목 등재
+- [x] 13-라우트 축 별 항목 등재(스코프 조건 포함) + spec stale 서술 **셋**을 planner 항목
+      하나로 묶어 등재(`3-error-handling.md:46`·`:49` · `1-auth.md:551`)
 - [ ] `/ai-review` → 수렴
+      - [x] 1라운드 `review/code/2026/09/24/11_10_45` — **Critical 1 · Warning 5**, 전부 조치
+            (`RESOLUTION.md`). Critical 은 **CHANGELOG 미갱신** — 직전 PR 에서 같은 지적을
+            받고 «사실을 뒤집었으면 그 자리를 전부 훑어라» 고 써 놓고 또 놓쳤다.
+            W1 은 실질 갭이었다: 기존 self 테스트가 요청자 owner 라 «self 위임이 admin 판정
+            앞» 계약을 못 갈랐고, 뮤턴트 M4 로 그 지적이 맞음을 확인했다(1/1).
+      - [ ] 2라운드 — fix 가 코드를 바꿨으므로 fresh 리뷰가 필요하다
 - [ ] `/consistency-check --impl-done spec/5-system` → BLOCK: NO
 - [ ] 트래커 항목 해소 + plan `complete/` 로 (**한 커밋으로**)
