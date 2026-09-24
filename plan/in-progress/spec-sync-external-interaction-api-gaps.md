@@ -1100,7 +1100,18 @@ checker 가 독립적으로** "인용이 가리키는 절이 오히려 반대를
       > (별 PR, 사용자 결정). 범위는 두 compose 파일이 아니라 **세 곳**이다 —
       > `docker-compose.e2e.yml` · `docker-compose.yml`(dev) · `k8s/overlays/local/infra-minio.yaml`.
       > 받아 보니 **image ID 가 Hub 캐시본과 byte-동일**이라 동작 변경이 없고, `run-test.sh e2e`
-      > 가 305/305 로 통과했다. (b)·(c) 는 **재검토 불요** — 다시 열지 말 것.
+      > 가 305/305 로 통과했다. ~~(b)·(c) 는 **재검토 불요** — 다시 열지 말 것.~~
+      >
+      > **2026-09-24 — quay.io 도 닫혔다. 위 «재검토 불요» 의 전제(quay 는 열려 있다)가 반증됐다.**
+      > `#1391` 의 e2e 2종이 `unauthorized: access to the requested resource is not authorized` 로
+      > 죽었다. quay API `repository/minio/{mc,minio}` **401**, 같은 시각 다른 quay 저장소
+      > (`prometheus/prometheus` · `coreos/etcd`)는 **200**, Docker Hub `minio/minio` 는 **404**.
+      > **처분 (사용자 결정 2026-09-24)**: (b)·(c) 가 아니라 **이미지 교체** — MinIO 커뮤니티 포크
+      > `pgsty/silo` 를 태그 + 다이제스트로 고정했다(plan `minio-silo-image`, 세 곳 모두). 호환성은
+      > 환경변수 · 명령 · 헬스체크 · 버킷 정책 · 백엔드 SDK 동작 · 기존 볼륨 · e2e 전체로 실측했다.
+      > **세 번째 레지스트리 폐쇄가 오면** (c) GHCR 미러링을 다시 검토 후보로 올린다 — 이번 교체도
+      > 결국 제3자 공개 레지스트리 하나에 기대기 때문이다(`--impl-prep`
+      > `review/consistency/2026/09/24/23_12_45` INFO 8).
       >
       > **"재실행" 지침은 이 형태에 쓰지 말 것** — 증상 문구로 두 형태를 가른다.
 

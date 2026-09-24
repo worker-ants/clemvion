@@ -5815,6 +5815,17 @@ field: T | null;
       (3) `1-workflow-list.md` frontmatter `pending_plans` 가 완료된 `plan/complete/workflow-duplicate-nodes-edges.md` 를 가리킨다 — 빼면 된다
       (남은 미구현 surface 가 따로 있는지 먼저 확인). 셋 다 사실 정정.
 
+- [ ] **k8s 로컬 오버레이의 버킷 Job 이 아바타 공개 정책을 걸지 않는다** (developer, 낮음, 2026-09-24 등재 ·
+      plan `minio-silo-image` §D — 이미지 교체 중 발견, 그 PR 의 축이 아니라 분리).
+      `k8s/overlays/local/infra-minio.yaml` 의 Job `minio-create-bucket` 은 `mc mb` 만 한다. 두 compose 파일의
+      `createbuckets` 는 `#1258`(아바타 업로드)이 `mc anonymous set-json /policy/avatars-public-read.json` 을 넣었는데
+      이 오버레이만 빠졌다. `scripts/minio/README.md` 는 이 정책을 아바타 업로드의 **배포 선행 조건**이라 적는다 —
+      없으면 업로드는 성공하고 **이미지만 403** 이다. `spec/0-overview.md` §5 의 «두 배포 방식 모두 동일한 기능을
+      제공» 과도 어긋난다(`--impl-prep` `review/consistency/2026/09/24/23_12_45` cross_spec 참고).
+      처방 후보: 정책 JSON 을 ConfigMap 으로 마운트하고 Job 에 `set-json` 한 줄. **`set download` 프리셋은 쓰지 말 것**
+      (목록까지 연다 — README 의 실측). 검증은 compose 쪽과 같은 세 판정(익명 목록 403 · avatars GET 200 · 그 밖 403)을
+      `kubectl kustomize` 로 렌더한 매니페스트 기준으로.
+
 ## 종결 조건
 
 **형제 plan 은 이미 종결됐다** (`cce8a188b`, 2026-09-04). `entity-nullable-column-type-mismatch.md`
