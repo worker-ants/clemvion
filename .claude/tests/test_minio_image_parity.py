@@ -64,9 +64,16 @@ K8S_PLACES = (
 )
 COMPOSE_SERVICES = ("minio", "createbuckets")
 
-# name:tag@sha256:<64 hex>. The name excludes ':' and '@', so a digest-only
-# reference (name@sha256:…) has no tag and does not satisfy "tag AND digest".
-_PINNED = re.compile(r"^[^:@\s]+:(?P<tag>[^@\s]+)@sha256:[0-9a-f]{64}$")
+# [registry[:port]/]path/name:tag@sha256:<64 hex>. A tag can only follow the
+# LAST path component, so earlier components may carry a ':' (a registry port)
+# and the last may not. The first version split at the first ':' and read
+# `registry:5000/x:latest` as tag "5000/x:latest" — missing `latest` entirely
+# (`/ai-review` 00_56_30 W1). A digest-only reference (name@sha256:…) has no
+# tag and fails. Lowercase hex only: the OCI image spec defines the sha256
+# encoded portion as [a-f0-9]{64}.
+_PINNED = re.compile(
+    r"^(?:[^/@\s]+/)*[^/:@\s]+:(?P<tag>[^/:@\s]+)@sha256:[0-9a-f]{64}$"
+)
 
 
 def pin_violation(image: str) -> str | None:
@@ -231,12 +238,20 @@ class ExtractorBoundaryTest(unittest.TestCase):
 
     def test_pin_violation_edges(self):
         digest = "@sha256:" + "a" * 64
-        self.assertIsNone(pin_violation("pgsty/silo:RELEASE.2026-09-16T00-00-00Z" + digest))
+        for good in (
+            "pgsty/silo:RELEASE.2026-09-16T00-00-00Z" + digest,
+            "registry.example:5000/pgsty/silo:RELEASE.2026-09-16T00-00-00Z" + digest,
+        ):
+            with self.subTest(good=good):
+                self.assertIsNone(pin_violation(good))
         for bad, why in (
             ("pgsty/silo:RELEASE.2026-09-16T00-00-00Z", "not name:tag"),  # no digest
             ("pgsty/silo" + digest, "not name:tag"),                       # digest only, no tag
+            ("registry.example:5000/pgsty/silo" + digest, "not name:tag"), # port is not a tag
+            ("pgsty/silo:" + digest, "not name:tag"),                      # empty tag
             ("pgsty/silo:x@sha256:" + "a" * 63, "not name:tag"),           # short digest
             ("pgsty/silo:latest" + digest, "latest"),                      # pinned, but latest
+            ("registry.example:5000/pgsty/silo:latest" + digest, "latest"),  # W1: port before latest
         ):
             with self.subTest(image=bad):
                 self.assertRegex(pin_violation(bad) or "", why)
