@@ -21,8 +21,12 @@ a real grammar and a canonical parser, and PyYAML is the one dependency the
 harness CI installs (`harness-checks.yml` header). Each assertion names one
 regression shape so a failure says which:
 
-  1. every one of the six places is found — a renamed service or container
-     fails by naming the place, instead of "zero images all agree" passing;
+  1. the DECLARED place list stays at six — shrinking it (dropping a place
+     from `COMPOSE_SERVICES` / `K8S_PLACES`) would make "all agree" easier to
+     pass. A place missing from a FILE (renamed service or container) is
+     caught earlier: the extractors raise `PlaceNotFound` naming it, so every
+     assertion below fails with that name instead of "zero images all agree"
+     passing;
   2. the six values are identical;
   3. each is pinned by tag AND digest, and the tag is not `latest` (W-59, and
      Docker Hub tags are mutable);

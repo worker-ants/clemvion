@@ -35,8 +35,9 @@ PyYAML 은 harness CI 의 유일한 허용 의존성이다(`harness-checks.yml` 
 
 단언(각각 이름 있는 회귀 형태):
 
-1. **여섯 자리를 모두 찾는다** — 서비스 · 컨테이너가 사라지거나 이름이 바뀌면 «어느 자리를 못 찾았는지»
-   를 말하며 실패한다. 공허하게 «0개가 서로 같다» 로 통과하지 않는다.
+1. **선언된 자리 목록이 여섯에서 줄지 않는다** — ~~서비스 · 컨테이너가 사라지거나 이름이 바뀌면 «어느 자리를
+   못 찾았는지» 를 말하며 실패한다.~~ (§B M3 가 반증: 파일에서 자리가 빠지는 경우는 추출기가 `PlaceNotFound` 로
+   먼저 잡는다 — 이 단언이 따로 막는 것은 목록을 줄이는 편집이다.) 공허하게 «0개가 서로 같다» 로 통과하지 않는다.
 2. **여섯 값이 같다** — 다르면 자리별 값을 모두 보여 준다.
 3. **태그 + 다이제스트로 고정** — `@sha256:<64 hex>` 가 있고 태그가 `latest` 가 아니다(W-59 ·
    `#1392` 주석의 결정).
@@ -55,10 +56,20 @@ PyYAML 은 harness CI 의 유일한 허용 의존성이다(`harness-checks.yml` 
 
 | 뮤턴트 | 편집 | 예측 | 실측 |
 | --- | --- | --- | --- |
-| M1 | k8s Job 이미지만 `quay.io/minio/mc:latest` 로 (#1325 형태) | 단언 2(일치) RED, 3(고정)도 RED | (미측정) |
-| M2 | 여섯 자리 모두 다이제스트 제거(서로는 같음) | 단언 2 GREEN · 단언 3 RED | (미측정) |
-| M3 | e2e compose `createbuckets` 의 `image` 키 삭제 | 단언 1 RED(자리를 명시) | (미측정) |
-| M4 | harness-checks.yml 에서 k8s pathspec 한 줄 삭제 | `test_harness_checks_paths_coverage` RED | (미측정) |
+| M1 | k8s Job 이미지만 `quay.io/minio/mc:latest` 로 (#1325 형태) | 단언 2(일치) RED, 3(고정)도 RED | **일치** — 단언 2 RED · 단언 3 은 **Job 자리 서브테스트 하나만** RED |
+| M2 | 여섯 자리 모두 다이제스트 제거(서로는 같음) | 단언 2 GREEN · 단언 3 RED | **일치** — 단언 2 GREEN · 단언 3 서브테스트 **여섯 자리 모두** RED |
+| M3 | e2e compose `createbuckets` 의 `image` 키 삭제 | 단언 1 RED(자리를 명시) | **예측과 다르다** — `MinioImageParityTest` 네 단언이 **모두** RED. 추출이 `setUp` 에 있어 `PlaceNotFound: docker-compose.e2e.yml: services.createbuckets.image not found` 가 모든 테스트를 실패시킨다. 자리를 이름으로 대는 것은 예측대로다 |
+| M4 | harness-checks.yml 에서 k8s pathspec 한 줄 삭제 | `test_harness_checks_paths_coverage` RED | **일치** |
+| M5 | 테스트의 `K8S_PLACES` 에서 Job 항목 삭제(선언 목록 축소) | (M3 뒤 추가) 단언 1 RED | **일치** — 단언 1 RED + 추출기 경계 테스트 `test_k8s_missing_container_is_named` RED, 두 곳이 독립적으로 잡는다 |
+
+**M3 가 바꾼 이해 — 단언 1 이 실제로 막는 것.** 파일에서 자리가 빠지는 경우는 추출기가 먼저 잡으므로, «여섯 개를
+찾았다» 단언이 따로 막는 것은 **선언된 자리 목록 자체를 줄이는 편집**이다(목록이 줄면 «모두 같다» 가 쉬워진다).
+그래서 M5 를 추가해 그 역할을 실측했고, docstring · README · CHANGELOG 의 단언 1 서술을 그에 맞게 고쳤다.
+
+**측정 방법**: 커밋 `62eed299f` 뒤, 다섯 파일(세 매니페스트 · 워크플로 · 테스트 자신)을 `cp` 로 백업하고 앵커가
+정확히 1회(M2 는 6회) 매칭됨을 assert 하는 치환으로 대입했다. 러너는 `test_minio_image_parity.py` +
+`test_harness_checks_paths_coverage.py`, 서브테스트 실패까지 보이게 `-rA`. 매 뮤턴트 뒤 `cp` 원복, 마지막에
+`git status` 빈 것을 확인했다.
 
 ## C. 체크리스트
 
@@ -68,7 +79,7 @@ PyYAML 은 harness CI 의 유일한 허용 의존성이다(`harness-checks.yml` 
 - [x] 테스트 작성 + `harness-checks.yml` pathspec 3줄 + `.claude/tests/README.md` 카탈로그.
       **TDD 순서로 확인**: pathspec 을 넣기 전 `test_harness_checks_paths_coverage.py` 가 정확히 세 파일을 지목하며
       RED → 넣은 뒤 GREEN. 새 테스트 7개는 이름으로 실행 확인(`-v` 7 passed)
-- [ ] 뮤턴트 M1~M4 실측 (표 §B)
+- [x] 뮤턴트 M1~M5 실측 (표 §B) — M3 가 예측과 달랐고, 그것이 단언 1 의 서술을 고치게 했다(M5 추가)
 - [x] CHANGELOG 항목 (가드 신설 = 항목, 커밋 전 staged 확인)
 - [ ] `python3 -m pytest .claude/tests -q` 전체
 - [ ] `/ai-review`
