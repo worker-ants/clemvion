@@ -2,7 +2,7 @@
 title: NestJS 12 동반 업그레이드 — 부분 범프는 성립하지 않는다
 status: in-progress
 owner: developer
-worktree: (미정 — 착수 시 생성)
+worktree: (unstarted)
 spec_impact: none
 started: 2026-09-24
 ---

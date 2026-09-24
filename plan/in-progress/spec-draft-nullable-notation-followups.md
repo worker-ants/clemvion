@@ -5077,6 +5077,35 @@ field: T | null;
       > planner 가 했고(그 PR 이 `spec/` 쓰기였다), 가드 강화는 그 PR 이 **명시적으로 스코프
       > 밖으로 남긴 것**이다.
 
+- [ ] **docs 가드가 검사하는 데이터가 그 가드를 트리거하지 않는다** (developer, **중간**,
+      2026-09-24 등재 · `/ai-review` `review/code/2026/09/24/14_24_10` Critical 1 의 부가 관찰을
+      실측으로 확인).
+      `codebase/frontend/src/lib/docs/__tests__/` 의 가드들은 `plan/**` 과 `spec/**` 을 스캔하는데
+      (`plan-frontmatter` · `spec-frontmatter` · `spec-code-paths` · `spec-pending-plan-existence`
+      …), 그것을 돌리는 `frontend-checks.yml` 의 pathspec 에는 **그 둘이 없다** — 실측 목록은
+      `codebase/frontend/**` · `codebase/channel-web-chat/**` · `codebase/packages/**` ·
+      `pnpm-lock.yaml` · `pnpm-workspace.yaml` · `scripts/ci-paths-changed.sh` ·
+      `.github/workflows/_changed-paths.yml` · 공유 셋업 액션뿐이다.
+
+      즉 **`plan/`·`spec/` 만 바꾼 PR 에서는 그 데이터를 검사하는 잡이 통째로 no-op** 이고,
+      위반은 나중에 frontend 를 건드리는 **무관한 PR** 에서 터진다.
+
+      **이 PR 이 그 실례다**: backend 전용 변경에 `plan/**` 위반(`worktree:` legacy placeholder)을
+      섞었더니 로컬에서는 `plan-frontmatter.test.ts` 가 **157 중 1 FAIL** 로 잡았는데, CI 는
+      `frontend-checks` 를 skip 하므로 **초록으로 머지됐을 것**이다. 리뷰어가 잡지 않았으면 다음
+      frontend PR 의 빨간 불이 됐다.
+
+      처방은 둘인데 **비용 판단이 갈린다** — 그래서 이 PR 이 하지 않았다:
+      - (a) `frontend-checks` pathspec 에 `plan/**` · `spec/**` 를 **추가**. 두 줄이고 트리거가
+        정확해지지만, 이 저장소에 흔한 plan/spec-only PR 이 전부 frontend lint·typecheck·build·
+        전체 vitest 를 돌게 된다.
+      - (b) docs 가드만 **별도 잡**으로 분리해 `plan/**`·`spec/**`·그 가드 파일들을 pathspec 으로
+        준다. 트리거도 비용도 맞지만 잡 하나와 required check 하나가 는다.
+
+      (b) 를 권한다 — (a) 는 "가드 하나 때문에 전체 스위트" 라 다음 사람이 비용을 이유로 되돌릴
+      유인이 생긴다. 다만 required status check 를 늘리는 변경이라 `#1106` 의 데드락 이력을
+      먼저 읽을 것.
+
 - [ ] **재진입 락 오케스트레이션이 두 번째로 복제됐다 — 세 번째면 헬퍼로 뽑는다** (developer,
       낮음, 2026-09-24 등재 · `/ai-review` `review/code/2026/09/24/08_09_57` W6).
       `BEGIN → SELECT … FOR UPDATE → 요청 발사 → 공허성 가드 → 락 안 mutate → COMMIT →

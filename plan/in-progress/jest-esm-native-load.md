@@ -76,8 +76,8 @@ ts-jest 가 CJS 로 변환하고, vm-modules 모드의 jest 는 그 파일을 **
    추가해야 한다. e2e 설정에도 같은 목록이 **따로** 있었다(`uuid|p-limit|yocto-queue`) —
    두 곳이 이미 어긋나 있었다는 뜻이다.
 
-**비용**: `ExperimentalWarning: VM Modules …` 가 **jest 워커당 1줄**(실측 10줄) 찍힌다.
-`--disable-warning` 으로 지울 수 있지만 **지우지 않는다** — 실험 플래그 위에 서 있다는
+**비용**: `ExperimentalWarning: VM Modules …` 가 **jest 워커 프로세스마다 1줄** 찍힌다 —
+이 머신(11코어) 실측 **9줄**이고 워커 수에 따라 달라진다. `--disable-warning` 으로 지울 수 있지만 **지우지 않는다** — 실험 플래그 위에 서 있다는
 사실은 보이는 편이 낫고, 그 플래그가 Node 에서 안정화되면 배너가 사라지는 것이 신호다.
 
 ## D. 확인한 것
@@ -85,7 +85,8 @@ ts-jest 가 CJS 로 변환하고, vm-modules 모드의 jest 는 그 파일을 **
 - [x] **e2e 도 같은 전환이 필요하다** — `test/jest-e2e.json` 에 **별도 허용목록**이 있었고
       (`uuid|p-limit|yocto-queue`) 단위 쪽 목록과 **이미 어긋나 있었다**. 둘 다 기본값으로.
       e2e **380 PASS**.
-- [x] **경고 출력**: `ExperimentalWarning: VM Modules …` 가 **jest 워커당 1줄**(실측 10줄).
+- [x] **경고 출력**: `ExperimentalWarning: VM Modules …` 가 **jest 워커 프로세스마다 1줄**
+      (11코어 머신 실측 **9줄** — 워커 수에 따라 달라진다).
       지울 수 있지만 지우지 않는다(§C).
 - [x] **속도 주장 정정** — §C. 초판의 «3배» 는 거짓 비교였다.
 

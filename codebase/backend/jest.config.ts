@@ -3,9 +3,11 @@ import type { Config } from 'jest';
 /**
  * Backend Jest configuration.
  *
- * Extracted from package.json (commit history) so we can annotate the
- * transformIgnorePatterns regex — JSON does not allow comments and the
- * regex is non-obvious.
+ * Extracted from package.json (commit history) because JSON does not allow
+ * comments. It was extracted to annotate a hand-maintained
+ * transformIgnorePatterns allowlist; that allowlist is gone, and what needs
+ * annotating now is why its absence is deliberate and what holds it up — see
+ * the comment on transformIgnorePatterns below.
  */
 const config: Config = {
   moduleFileExtensions: ['js', 'json', 'ts'],
