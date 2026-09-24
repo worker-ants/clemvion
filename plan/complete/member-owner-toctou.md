@@ -175,7 +175,7 @@ spec 은 «대상이 Owner 인 경우 거부된다» 고 적는다. 이 PR 은 �
 - [x] TEST WORKFLOW — lint PASS(`lint-20260924-075122.log`) · backend unit **472스위트/9943**
       (`unit-20260924-075218.log`) · build PASS 타입체크 ratchet 포함
       (`build-20260924-075401.log`) · **e2e 379 PASS**(`e2e-20260924-075712.log`, 378 → 379)
-- [ ] `/ai-review` → 수렴
+- [x] `/ai-review` → **3라운드 수렴** (Warning 6 → 2 → 2, 마지막 라운드 `codebase/**` 수정 0건)
       - [x] 1라운드 `review/code/2026/09/24/08_09_57` — **Critical 0 · Warning 6**, 전부 조치
             (`RESOLUTION.md`). **W3 이 내 분기 형태 자체를 반증했다** — `affected === 0` 의
             재조회가 현재 role 을 보면 실재하는 멤버를 404 로 보고한다. 존재 여부만 보도록
