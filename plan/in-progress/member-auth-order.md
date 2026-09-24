@@ -44,9 +44,22 @@ started: 2026-09-24
 ```
 requesterRole = getMemberRole(...)        ← 한 번 읽는다
   없으면 403 NOT_A_MEMBER                  ← 비-멤버는 여기서 끝난다
-findOne(대상) → 404 → self 위임 → owner 403
+findOne(대상) → 404
+  self 면 leaveWorkspace 위임              ← 비-admin 도 여기까지는 온다
   admin 아니면 403 ADMIN_REQUIRED          ← 위에서 읽은 role 을 재사용
+  대상이 owner 면 403 CANNOT_REMOVE_OWNER  ← 인가가 끝난 **뒤**의 대상 조건
 ```
+
+**admin 판정이 owner 판정보다 앞이다.** 순서를 뒤집으면(= 현행) 비-admin 멤버가 owner 를
+지목했을 때 `CANNOT_REMOVE_OWNER` 를 받는데, 그 메시지는 **«대상이 owner 만 아니면 가능하다»
+는 거짓 함의**를 준다 — editor 는 누구도 제거할 수 없다. 인가를 먼저 끝내고 대상 조건을 나중에
+보는 것이 형제 둘(`addMemberByEmail`·`updateMemberRole`)의 순서와도 같다.
+
+> **이 전환은 예고돼 있었다.** `workspaces.service.spec.ts:1651-1656` 의 註가
+> *"후속 PR 이 `assertAdmin` 을 앞으로 옮길 예정이라 «어느 단계에서 거부되는가» 가 아니라
+> «`ADMIN_REQUIRED` 로 거부되고 `delete` 가 호출되지 않는다» 는 불변만 본다"* 라고 적고
+> 테스트를 **순서-독립으로** 써 뒀다. 실측: 그 테스트도, `owner 는 지우지 않는다`(요청자가
+> owner 라 admin 판정을 통과한다)도 이 변경에 깨지지 않는다.
 
 **왜 이것이 완전한 차단인가 — 실측이 근거다.** 멤버로 좁히면 «멤버는 여전히 세 갈래를 본다»
 가 남는데, **그 멤버는 이미 같은 정보를 가지고 있다**:
@@ -63,22 +76,62 @@ findOne(대상) → 404 → self 위임 → owner 403
 `throwNotAMember()` · `throwAdminRequired()` 로 뽑아 기존 두 assert 도 그것을 쓰게 한다
 (같은 코드가 다른 메시지를 내는 것을 막는다 — `throwMemberNotFound()` 선례).
 
+## B-2. 「두 번 기각된 수동-체크 패턴의 재도입」이라는 지적에 답한다
+
+`--impl-prep` `10_22_24` 의 `rationale_continuity` **WARNING 1**: 이 처방이 저장소가 두 번
+근거를 남기며 기각한 opt-in/수동-체크 계열과 같은데 plan 이 그 Rationale 을 인용·반박하지
+않는다. 읽어 보고 답한다 — **같은 계열이 아니다**, 근거 셋:
+
+1. **기각된 것은 «가드 갭을 라우트별 마커로 메우는 체계적 처방»이다.**
+   `spec/data-flow/12-workspace.md` §«멤버십 검증은 가드 1곳에서»(2026-08-08)가 기각한 대안은
+   *"73개 라우트에 `@Roles('viewer')` 부착 — opt-in 모델의 연장이라 **74번째 라우트에서 같은
+   누락이 재발**한다"* 다. 이 PR 은 그 체계적 처방을 자처하지 않는다 — 13-라우트 축을 **명시적으로
+   분리**하고(§E), 그 항목에 «구조적 해법 우선» 조건을 박는다.
+
+2. **그 결정의 «적용 범위» 가 이 라우트를 담은 적이 없다.** 같은 절이 대상을
+   *"워크스페이스 컨텍스트를 소비하는 인증된 라우트"* 로 적고, 모집단을 `@WorkspaceId()` 소비로
+   **연산적으로** 정의했다(`handlerConsumesWorkspaceId`). 이 핸들러는 `@Param('id')` 를 쓰므로
+   그 모집단 밖이었다 — **안전해서가 아니라 세는 방법 때문에.** 따르지 않는 것이 아니라
+   따를 대상이 아니었고, 그 구멍 자체가 §E 의 축이다.
+
+3. **이것은 새 인가 층이 아니라 이미 있는 인가의 재배치다 — 실측.**
+   `assertAdmin` 은 `if (!role || !ADMIN_ROLES.has(role))` 라 **비-멤버를 이미 거부한다**
+   (`:903`). 즉 비-멤버는 전에도 거부됐고, 다만 **대상을 드러낸 뒤**였다. 바뀌는 것은
+   «언제·어느 코드로» 뿐이다.
+
+부수 근거: `NOT_A_MEMBER` 를 서비스 계층에서 던지는 것은 신규 관행이 아니다 —
+`/switch` 와 `leaveWorkspace` 가 같은 술어에 같은 코드를 쓴다(`3-error-handling.md:49` 이
+그 경로들을 열거한다).
+
 ## C. 관측 가능한 변화
 
 | 요청자 | 전 | 후 |
 | --- | --- | --- |
-| 비-멤버 | `404` / `403 CANNOT_REMOVE_OWNER` / `403 ADMIN_REQUIRED` | **`403 NOT_A_MEMBER`** |
-| 멤버(비-admin) | 세 갈래 그대로 | **그대로** |
+| 비-멤버 | `404` / `403 CANNOT_REMOVE_OWNER` / `403 ADMIN_REQUIRED` (**대상에 따라 갈림**) | **`403 NOT_A_MEMBER`** (구분 불가) |
+| 멤버(비-admin), 대상이 owner | `403 CANNOT_REMOVE_OWNER` | **`403 ADMIN_REQUIRED`** |
+| 멤버(비-admin), 그 외 | `404` / `403 ADMIN_REQUIRED` | 그대로 |
 | admin / owner | 변화 없음 | 변화 없음 |
 
 비-멤버는 애초에 인가받지 못한 호출자이고, 그 동작을 고정하는 테스트·spec 서술이 **0건**이다.
+
+> **둘째 행이 트래커 캐비트가 예고한 «에러 코드 계약 변경» 이다.** `--impl-prep` `10_22_24` 의
+> `plan_coherence` W2 는 그 캐비트를 stale 이라 봤는데, 그것은 **개정 전 §C**(admin 판정을
+> owner 판정 뒤에 두는 안)를 읽은 것이다. 위 §B 에서 순서를 뒤집었으므로 **캐비트는 유효하고**,
+> 그것이 요구한 «`3-error-handling.md` 기준의 자체 consistency 라운드» 가 바로 이
+> `--impl-prep spec/5-system` 이다(`naming_collision` 이 *"재사용 에러 코드는 기존 의미와 동일"*
+> 로 직접 판정했다). `--impl-done` 에서 실제 diff 기준으로 한 번 더 확인한다.
+>
+> 관련 spec 서술은 깨지지 않는다 — `1-auth.md:377` 은 *"**Admin** 의 멤버 삭제는 대상이 Owner 인
+> 경우 거부된다(`CANNOT_REMOVE_OWNER`)"* 로 **admin 을 주어로** 적고, admin 경로는 불변이다.
 
 ## D. TDD
 
 - [ ] **먼저 RED**: 비-멤버가 (a) 없는 memberId (b) owner memberId (c) 비-owner memberId 에
       대해 **서로 다른 응답**을 받는 것을 e2e 로 고정한다. 고치기 전 예측: `404` / `403
       CANNOT_REMOVE_OWNER` / `403 ADMIN_REQUIRED` — **세 값이 서로 다르다**.
-- [ ] 고친 뒤 셋 다 `403 NOT_A_MEMBER` (구분 불가) + 멤버 경로는 그대로.
+- [ ] 고친 뒤 셋 다 `403 NOT_A_MEMBER` (구분 불가).
+- [ ] **비-admin 멤버 갈래도 함께 고정한다**(§C 둘째 행) — editor 가 owner 를 지목하면
+      `ADMIN_REQUIRED`. 단위로 충분하다(요청자 role 만 바꾸면 되고 DB 타이밍과 무관).
 - [ ] 뮤턴트로 단언 유효성 (예측/실측 두 칸).
 
 > **단언을 «세 값이 다르다» 로 쓴다.** 각 값을 따로 단언하면 고친 뒤 셋을 전부 바꿔야 하고,
@@ -96,12 +149,21 @@ findOne(대상) → 404 → self 위임 → owner 403
 註까지 함께 닫힌 것처럼 보인다. 계약이 다르다(이 PR: 한 메서드의 검사 순서 / 그 축: 가드의
 커버리지 모델).
 
+> **그 항목 스코프에 조건을 박는다**: *«구조적 해법(가드가 경로 파라미터 워크스페이스도 보게
+> 하기 / reflection 확장)을 **먼저** 검토하고, 불가할 때에만 라우트별 수동 체크를 표준 패턴으로
+> 승인한다.»* 이 조건이 없으면 이 PR 이 13개 라우트에 같은 패치를 복제하는 선례로 읽힌다 —
+> 정확히 2026-08-08 결정이 *"74번째 라우트에서 재발한다"* 며 기각한 모양이다
+> (`--impl-prep` `10_22_24` `rationale_continuity` W1 의 요구).
+
 또 하지 않는 것: `NOT_A_MEMBER` 카탈로그 설명의 경로 열거에 이 자리를 추가하는 것 —
 `spec/` 은 developer 권한 밖이라 planner 항목으로 등재한다.
 
 ## 체크리스트
 
-- [ ] `/consistency-check --impl-prep spec/5-system` → BLOCK: NO
+- [x] `/consistency-check --impl-prep spec/5-system` → **BLOCK: NO · Critical 0 · Warning 2**
+      (`review/consistency/2026/09/24/10_22_24`). W1(두 번 기각된 수동-체크 계열 재도입)은
+      §B-2 에서 Rationale 을 읽고 근거 셋으로 답했고, **그 과정에서 설계를 바꿨다**(admin 판정을
+      owner 판정 앞으로 — §B). W2 는 개정 전 §C 를 읽은 것이라 §C 의 註로 답했다.
 - [ ] e2e 로 오라클 재현 (RED 실측 — 세 값이 다르다)
 - [ ] 구현 (단일 읽기 + thrower 추출)
 - [ ] 뮤턴트 (예측/실측 두 칸)
