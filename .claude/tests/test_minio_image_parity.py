@@ -216,14 +216,18 @@ class ExtractorBoundaryTest(unittest.TestCase):
         with self.assertRaisesRegex(PlaceNotFound, r"expected one Job/minio-create-bucket, found 0"):
             k8s_images("k.yaml", sts_only)
 
-    def test_empty_image_string_is_named(self):
-        with self.subTest(where="compose"):
-            text = "services:\n  minio:\n    image: ''\n  createbuckets:\n    image: a\n"
-            with self.assertRaisesRegex(PlaceNotFound, r"services\.minio\.image"):
-                compose_images("x.yml", text)
-        with self.subTest(where="k8s"):
-            with self.assertRaisesRegex(PlaceNotFound, r"container 'mc' image not found"):
-                k8s_images("k.yaml", self._k8s("[{name: mc, image: ''}]"))
+    def test_bad_image_value_is_named(self):
+        # Two clauses guard the value: `not image` (empty) and `isinstance(str)`
+        # (a truthy non-string such as a number). None is caught by both, so it
+        # proves neither — each clause gets the value only IT rejects.
+        for value in ("''", "5"):
+            with self.subTest(where="compose", value=value):
+                text = f"services:\n  minio:\n    image: {value}\n  createbuckets:\n    image: a\n"
+                with self.assertRaisesRegex(PlaceNotFound, r"services\.minio\.image"):
+                    compose_images("x.yml", text)
+            with self.subTest(where="k8s", value=value):
+                with self.assertRaisesRegex(PlaceNotFound, r"container 'mc' image not found"):
+                    k8s_images("k.yaml", self._k8s(f"[{{name: mc, image: {value}}}]"))
 
     def test_pin_violation_edges(self):
         digest = "@sha256:" + "a" * 64
