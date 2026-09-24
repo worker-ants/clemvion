@@ -1,5 +1,39 @@
 # Changelog
 
+## Unreleased — 멤버 제거가 인가 전에 대상의 존재·owner 여부를 답하던 것
+
+`WorkspacesService.removeMember()` 의 판정 순서가 `findOne` → 404 → self 위임
+→ owner 403 → `assertAdmin` 이었다. 그래서 그 워크스페이스와 **무관한
+사용자**도 `(workspaceId, memberId)` 쌍에 대해 세 갈래로 구분되는 답을 받았다:
+없음 `404 MEMBER_NOT_FOUND` · owner `403 CANNOT_REMOVE_OWNER` · 비-owner
+`403 ADMIN_REQUIRED`. 삭제 자체는 막히므로 권한 상승은 아니고 **정보 노출**이다.
+
+가드 층이 이 라우트를 막지 못한다 — `@Roles()` 가 없고
+`handlerConsumesWorkspaceId` 가 false(`@WorkspaceId()` 가 아니라
+`@Param('id')`)라 `RolesGuard` 가 단축 통과시킨다. 서비스가 첫 방어선이다.
+
+**고친 것**:
+- 요청자 멤버십을 **대상 조회보다 먼저** 확인한다. 비-멤버는
+  `403 NOT_A_MEMBER` 로 끝나고 대상에 대해 아무것도 배우지 못한다.
+  형제(`addMemberByEmail`·`updateMemberRole`)처럼 `assertAdmin` 을 첫 줄에
+  둘 수는 없다 — 자가 탈퇴는 비-admin 도 해야 하고, 자기 자신인지는 대상을
+  읽어야 안다. 그래서 인가를 두 단으로 나눴다(멤버십 → … → admin).
+- **admin 판정을 owner 판정 앞으로** 옮겼다. 그래서 비-admin 멤버가 owner 를
+  지목하면 이제 `ADMIN_REQUIRED` 다(종전 `CANNOT_REMOVE_OWNER`). 종전 코드는
+  «대상이 owner 만 아니면 가능하다» 는 **거짓 함의**를 줬다 — editor 는 누구도
+  제거할 수 없다. HTTP 상태는 403 으로 동일하다.
+- 요청자 role 은 **한 번만** 읽는다. `assertMembership` 과 `assertAdmin` 이
+  둘 다 `getMemberRole` 을 부르므로 그대로 이어 쓰면 같은 쿼리가 두 번 돈다.
+
+**계약 변경 고지**: 비-admin 멤버가 owner 를 지목할 때의 wire 코드가
+`CANNOT_REMOVE_OWNER` → `ADMIN_REQUIRED` 로 바뀐다. 사내 프런트는 그 버튼을
+`RoleGate minRole="admin"` 으로 가리고 코드가 아니라 message 만 소비한다.
+
+**남는 것**: 같은 컨트롤러에서 경로 `:id` 를 워크스페이스로 쓰면서
+`@WorkspaceId()` 도 `@Roles()` 도 없는 라우트가 **17개 중 13개**이고, 전부
+가드 층 보호를 받지 못한다. 이 PR 은 그중 한 자리만 닫았다 — 나머지는 «가드가
+경로 파라미터 워크스페이스도 보게 할 것인가» 라는 설계 결정이라 별 항목이다.
+
 ## Unreleased — 제거 중 대상이 owner 로 승격되면 owner 가 지워지던 것
 
 `WorkspacesService.removeMember()` 의 «owner 는 제거할 수 없다» 가드가 **무락
@@ -28,8 +62,9 @@ e2e 로 먼저 재현했다. 레이스로는 인터리빙을 고를 수 없어(�
 - 이른 가드는 남겼다 — 흔한 경우를 `assertAdmin` 전에 403 으로 끊는다.
   DELETE 의 술어는 그 뒤를 받는 backstop 이다.
 
-**남는 것**: `removeMember()` 의 권한 검사 순서 오라클은 여전히 열려 있다.
-노출 대상은 «비-admin 멤버» 가 아니라 **임의 인증 사용자**다 — `RolesGuard` 가
+~~**남는 것**: `removeMember()` 의 권한 검사 순서 오라클은 여전히 열려 있다.~~
+**2026-09-24 해소 — 맨 위 항목이 그것이다.**
+노출 대상은 «비-admin 멤버» 가 아니라 **임의 인증 사용자**였다 — `RolesGuard` 가
 `handlerConsumesWorkspaceId` false 면 단락하고(`roles.guard.ts:116`) 이
 핸들러는 `@WorkspaceId()` 가 아니라 `@Param('id')` 를 쓴다.
 
