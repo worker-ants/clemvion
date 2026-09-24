@@ -1284,15 +1284,23 @@ describe('WorkspacesService', () => {
     });
 
     it('records member.removed (mode=removed) on admin removeMember', async () => {
-      // member lookup (not self, not owner), then assertAdmin getMemberRole(admin).
-      memberRepo.findOne
-        .mockResolvedValueOnce({
-          id: 'mem-y',
-          role: 'editor',
-          userId: 'user-y',
-          workspaceId: 'ws-uuid-1',
-        })
-        .mockResolvedValueOnce({ role: 'admin' });
+      // 요청자 role 조회(admin)와 대상 조회(not self, not owner)를 **where 로** 가른다.
+      // 종전엔 `mockResolvedValueOnce` 두 개로 **호출 순서**에 결합돼 있었는데, 권한 검사를
+      // 대상 조회보다 앞으로 옮기자 두 값이 서로 바뀌어 들어갔다. 순서가 아니라 질의 내용으로
+      // 답하면 다음 재배치에도 깨지지 않는다 (형제 `wireFindOne` 과 같은 방식).
+      memberRepo.findOne.mockImplementation(
+        (opts: { where: { id?: string } }) =>
+          Promise.resolve(
+            opts.where.id === 'mem-y'
+              ? {
+                  id: 'mem-y',
+                  role: 'editor',
+                  userId: 'user-y',
+                  workspaceId: 'ws-uuid-1',
+                }
+              : { role: 'admin' },
+          ),
+      );
       // 이 테스트의 전제는 «한 행이 실제로 지워졌다» 이다. 공유 mock 의 기본값은
       // `deleteWorkspace` 의 cascade 용 `{affected: 0}` 이므로 여기서 명시한다.
       memberRepo.delete.mockResolvedValue({ affected: 1 });
@@ -1468,7 +1476,8 @@ describe('WorkspacesService', () => {
      */
     function wireFindOne(
       target: Record<string, unknown> | null,
-      requesterMembership: Record<string, unknown> = {
+      /** `null` 이면 요청자가 **그 워크스페이스 멤버가 아니다**. */
+      requesterMembership: Record<string, unknown> | null = {
         id: 'mem-req',
         role: 'owner',
       },
@@ -1666,6 +1675,52 @@ describe('WorkspacesService', () => {
       ).rejects.toMatchObject({ response: { code: 'ADMIN_REQUIRED' } });
       expect(memberRepo.delete).not.toHaveBeenCalled();
       expect(getAudit().record).not.toHaveBeenCalled();
+    });
+
+    /**
+     * **비-멤버는 대상을 읽기도 전에 끝난다.** 이것이 존재 오라클을 닫는 자리다 — 가드 층은
+     * 이 라우트를 막지 못하므로(`@Roles()` 없음 + `@Param('id')` → `handlerConsumesWorkspaceId`
+     * false) 서비스가 첫 방어선이다.
+     *
+     * 단언이 «`NOT_A_MEMBER` 를 던진다» 에서 멈추지 않는다 — **대상 조회 자체가 없었음**까지
+     * 본다. 코드만 바꾸고 조회를 남겨 두면 오라클이 그대로인데 이 테스트는 초록이 된다.
+     */
+    it('비-멤버는 대상을 조회하기 전에 NOT_A_MEMBER 로 끝난다', async () => {
+      wireFindOne(
+        { id: memberId, userId: 'target-user', role: 'editor' },
+        null,
+      );
+
+      await expect(
+        service.removeMember(workspaceId, memberId, requesterId),
+      ).rejects.toMatchObject({ response: { code: 'NOT_A_MEMBER' } });
+
+      const targetLookups = memberRepo.findOne.mock.calls.filter(
+        (c: [{ where?: { id?: string } }]) => c[0]?.where?.id === memberId,
+      );
+      expect(targetLookups).toHaveLength(0);
+      expect(memberRepo.delete).not.toHaveBeenCalled();
+      expect(getAudit().record).not.toHaveBeenCalled();
+    });
+
+    /**
+     * **admin 판정이 owner 판정보다 앞이다.** 비-admin 멤버가 owner 를 지목하면
+     * `CANNOT_REMOVE_OWNER` 가 아니라 `ADMIN_REQUIRED` 다 — 전자는 «대상이 owner 만 아니면
+     * 가능하다» 는 거짓 함의를 준다(editor 는 누구도 제거할 수 없다).
+     *
+     * 이 블록이 두 판정을 되돌려 놓는 편집을 죽인다. 위 «admin/owner 가 아니면 …» 블록은
+     * 대상이 editor 라 순서를 가르지 못한다.
+     */
+    it('비-admin 이 owner 를 지목하면 CANNOT_REMOVE_OWNER 가 아니라 ADMIN_REQUIRED 다', async () => {
+      wireFindOne(
+        { id: memberId, userId: 'target-user', role: 'owner' },
+        { id: 'mem-req', role: 'editor' },
+      );
+
+      await expect(
+        service.removeMember(workspaceId, memberId, requesterId),
+      ).rejects.toMatchObject({ response: { code: 'ADMIN_REQUIRED' } });
+      expect(memberRepo.delete).not.toHaveBeenCalled();
     });
 
     /**
