@@ -1,5 +1,7 @@
-# codebase 소스(`.ts`/`.tsx`)의 JSDoc·주석 안 spec 상대링크 부패를
-# spec-link-integrity 가드로 검증한다.
+# `codebase/frontend/src/lib/docs/__tests__/` 의 **docs 가드 전체**를, 그 가드들이 스캔하는
+# 데이터(codebase 소스 · `spec/**` · `plan/**` · 거버넌스 문서)가 바뀔 때마다 돌린다.
+# (2026-09-24 전까지는 spec-link-integrity 가드 하나만 — codebase 주석·spec·거버넌스 문서의
+#  spec 상대링크 부패 — 돌았다. 확장 경위는 아래 2026-09-24 문단.)
 #
 # 도입 배경: 가드는 `codebase/frontend/src/lib/docs/__tests__/` 의 vitest 로 도는데,
 # `frontend-checks.yml` 은 `codebase/frontend/**`·`codebase/packages/**` 만 trigger 한다.
@@ -8,7 +10,8 @@
 # 가드가 스캔하는 바로 그 영역인데도 CI 에서 가드가 안 돌던 갭이 있었다(PR #912 후속).
 #
 # frontend-checks 는 `next build`(무거움)까지 도므로 backend 변경마다 태우면 낭비다.
-# 본 workflow 는 가드 vitest 하나만 도는 lightweight 대체 트리거다.
+# 본 workflow 는 docs 가드 vitest 만 도는 lightweight 대체 트리거다(`next build`·lint·typecheck
+# 없음 — 디렉터리 전체도 수 초다).
 # (harness `unit` stage 는 무조건 frontend test 를 돌리므로 로컬/harness 는 이미 커버 —
 #  본 workflow 는 CI PR-trigger 갭만 메운다.)
 #
@@ -97,7 +100,7 @@ jobs:
     steps:
       - name: 무관한 변경 — 검사 생략 (체크는 통과로 보고)
         if: needs.changes.outputs.relevant == 'false'
-        run: echo "codebase 소스·spec 관련 경로 변경 없음 — 이 잡은 no-op 으로 통과한다."
+        run: echo "codebase 소스·spec·plan·거버넌스 문서 경로 변경 없음 — 이 잡은 no-op 으로 통과한다."
 
       - uses: actions/checkout@v7
         if: needs.changes.outputs.relevant != 'false'

@@ -1,12 +1,13 @@
 {
   "timestamp": "2026-09-24T21:04:26.442803",
-  "mode": "구현 착수 전 검토 (--impl-prep, scope=/private/tmp/claude-501/-Volumes-project-private-clemvion/9bc8ff42-8873-4ae7-986a-b884a1fefbf6/scratchpad/prep-scope-2)",
-  "target_path": "/private/tmp/claude-501/-Volumes-project-private-clemvion/9bc8ff42-8873-4ae7-986a-b884a1fefbf6/scratchpad/prep-scope-2",
+  "mode": "구현 착수 전 검토 (--impl-prep, scope=spec/conventions/spec-impl-evidence.md)",
+  "target_path": "spec/conventions/spec-impl-evidence.md",
   "checkers": [
     "cross_spec",
     "rationale_continuity",
     "convention_compliance",
     "plan_coherence",
     "naming_collision"
-  ]
+  ],
+  "scope_note": "spec/conventions 전체를 scope 로 준비하면 컨텍스트 예산 때문에 이 파일(지배 spec)이 번들 본문에서 생략됐다. 그래서 이 파일 하나만 담은 세션 전용 scratch 사본 디렉터리를 scope 로 돌렸다(내용은 그 시점 저장소 파일과 동일). 원래 기록된 scratch 절대경로는 세션 밖에서 해석되지 않아 이 경로로 정정했다."
 }

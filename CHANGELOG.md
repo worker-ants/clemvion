@@ -1,5 +1,32 @@
 # Changelog
 
+## Unreleased — plan/spec 만 바꾼 PR 에서 docs 가드가 하나도 돌지 않던 것
+
+`codebase/frontend/src/lib/docs/__tests__/` 의 가드들은 `plan/**`·`spec/**` 을 스캔한다
+(`plan-frontmatter` · `spec-frontmatter` · `spec-code-paths` · `spec-pending-plan-existence` ·
+`spec-status-lifecycle` …). 그런데 그것을 돌리는 `frontend-checks` 는 그 경로들에 트리거되지
+않는다. 그 갭을 메우려고 있던 가벼운 대체 트리거 `spec-link-checks.yml` 에는 구멍이 둘 있었다:
+
+- pathspec 에 `spec/**` 는 있었지만 **`plan/**` 이 없었다** — plan 만 바꾼 PR 에서 잡 자체가
+  스킵됐다.
+- **`spec-link-integrity` 가드 하나만** 돌았다 — 트리거돼도 나머지 docs 가드는 안 돌았다.
+
+그래서 이 가드들이 막으려는 위반이 가장 잘 생기는 PR — plan/spec 만 바꾸는 PR — 에서 가드가
+하나도 안 돌았다. plan frontmatter 위반이 로컬에서만 잡힌 적이 있고(`#1387` 1라운드),
+바로 앞 항목이 강화한 `pending_plans` 가드도 spec-only PR 에서는 돌지 않았다.
+
+이제 `spec-link-checks.yml` 이 **`plan/**` 에도 트리거**되고, 가드를 파일로 열거하지 않고
+**디렉터리째**(`src/lib/docs/__tests__/`) 돌린다 — 열거하면 새 docs 가드가 생길 때마다 여기를
+잊는다. 디렉터리 전체도 vitest 로 수 초라 `next build` 를 도는 `frontend-checks` 보다 여전히
+가볍다. 잡 이름(`spec-link-integrity`)은 required check 앵커로 설계돼 있어 유지했다(지금은 등록된
+required check 가 없지만, 등록되면 이름을 바꾸는 순간 교착된다).
+
+**판별력 실측**: CI 가 쓰는 판정 스크립트(`scripts/ci-paths-changed.sh`)를 과거에 실제로 plan 만
+바꾼 커밋에 돌렸다 — 옛 pathspec 은 `relevant=false`(스킵), 새 pathspec 은 `relevant=true`.
+두 회귀 형태(`plan/**` 누락 · 단일 파일 실행)를 이름으로 고정하는 하네스 테스트
+`test_spec_link_checks_scope.py` 도 들어왔다 — 워크플로를 각 옛 형태로 되돌리면 해당 단언만
+RED 다. 그 전에는 `plan/**` 을 통째로 지워도 하네스가 초록이었다.
+
 ## Unreleased — `pending_plans` 가드가 plan 이 아닌 파일도 실존만 하면 통과시키던 것
 
 `spec-pending-plan-existence.test.ts` 는 `pending_plans:` 항목이 **디스크 어딘가에
