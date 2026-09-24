@@ -1,6 +1,6 @@
 ---
 title: jest 가 ESM 의존성을 네이티브로 로드하게 한다 — 허용목록 대신 vm-modules
-status: in-progress
+status: complete
 owner: developer
 worktree: deps-nestjs12-ci-4a7b2e
 spec_impact: none
@@ -181,7 +181,21 @@ M4 가 있는 이유: canary(`uuid`)가 언젠가 CJS 로 돌아가면 로드 �
 - [x] `/consistency-check --impl-prep spec/5-system` → **BLOCK: NO · Critical 0 · Warning 3** (`review/consistency/2026/09/24/13_55_20`). W2(후속 plan 스텁 미등재)는 `nestjs-v12-coordinated-upgrade.md` 로 등재했다 — reflection 보안 회귀 검증 조건 포함
 - [x] 구현 — script 5곳 + `jest.config.ts` + `test/jest-e2e.json`
 - [x] §D 세 항목 실측 + 판별 실험(플래그만 빼면 RED)
-- [x] TEST WORKFLOW — lint PASS(`lint-20260924-141217.log`) · unit **472스위트/9946**(`unit-20260924-140803.log`) · build PASS(`build-20260924-141312.log`) · **e2e 380 PASS**(`e2e-20260924-141636.log`)
-- [ ] `/ai-review` → 수렴
-- [ ] `/consistency-check --impl-done spec/5-system` → BLOCK: NO
-- [ ] plan `complete/` 로 + 후속(동반 업그레이드) 등재
+- [x] TEST WORKFLOW — 리뷰 라운드마다 재수행. **최종**: lint PASS(`lint-20260924-164446.log`) · backend unit **473스위트/9950**(`unit-20260924-164545.log`) · build PASS(`build-20260924-164710.log`) · **e2e 380 PASS**(`e2e-20260924-164959.log`)
+- [x] `/ai-review` → **5라운드에 수렴** (Critical 0 · Warning 0 · 그 라운드 `codebase/**` 수정 0건, forced 8/8)
+      - 1R `14_24_10` Critical 1 · Warning 3 → 전부 조치
+      - 2R `15_26_17` Warning 2 → 전부 조치
+      - 3R `16_02_28` Warning 1 → 조치
+      - 4R `16_29_15` Warning 2 → 조치(여기서 가드를 «자리» 대신 «형태» 로 재설계)
+      - 5R `16_56_25` **Critical 0 · Warning 0**
+- [x] ~~`/consistency-check --impl-done spec/5-system` → BLOCK: NO~~ — **해당 없음(실측)**.
+      SPEC-CONSISTENCY 게이트는 변경 파일이 어떤 spec 의 frontmatter `code:` 글로브에
+      매칭될 때만 발화한다. 이 PR 이 바꾼 `codebase/**` 넷
+      (`jest.config.ts`·`package.json`·`test/jest-e2e.json`·`esm-native-load.spec.ts`)은
+      **하나도 매칭되지 않는다** — `review_guard._spec_linked_changes()` 로 직접 재 봤다.
+      공허한 판정이 아님도 확인했다: 패턴 **592개**가 적재된 상태에서 spec-linked 인
+      `workspaces.service.ts`·`error-codes.ts` 는 True, 이 PR 의 넷은 False.
+      착수 시점에 이 항목을 「필요」로 적어 둔 것이 **미측정 전제**였다.
+- [x] plan `complete/` 로 + 후속 등재 — `nestjs-v12-coordinated-upgrade.md`(동반 업그레이드,
+      §C 에 reflection 보안 회귀 검증 조건) · 트래커 2건(docs 가드 트리거 pathspec 갭 ·
+      CHANGELOG 「해당 없음」 판정의 성문 근거 부재)

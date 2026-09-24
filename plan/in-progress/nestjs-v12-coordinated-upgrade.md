@@ -24,7 +24,7 @@ started: 2026-09-24
 
 ## B. 선행 조건
 
-`plan/in-progress/jest-esm-native-load.md` 가 **먼저** 들어가야 한다. 그것 없이는
+`plan/complete/jest-esm-native-load.md` 가 **먼저** 들어가야 한다. 그것 없이는
 `@nestjs/typeorm@12`(`import.meta.url`)를 CJS jest 가 로드하지 못한다.
 
 > **그 PR 의 가드는 여기까지 보증하지 않는다.** `esm-native-load.spec.ts` 의 canary 는
