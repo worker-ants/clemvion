@@ -71,6 +71,34 @@ PyYAML 은 harness CI 의 유일한 허용 의존성이다(`harness-checks.yml` 
 `test_harness_checks_paths_coverage.py`, 서브테스트 실패까지 보이게 `-rA`. 매 뮤턴트 뒤 `cp` 원복, 마지막에
 `git status` 빈 것을 확인했다.
 
+### B-2. 리뷰 뒤 분기 전수 (2026-09-25)
+
+리뷰가 **두 라운드 연속 같은 형태를 한 칸씩 안쪽에서** 찾았다 — 1라운드 «리소스 수준 중복», 2라운드
+«컨테이너 수준 중복». 자리를 하나씩 고치는 대신 추출기 · 판정의 분기를 전부 세고, 분기마다 그것을 뒤집는
+뮤턴트가 **그 분기의 경계 테스트**를 RED 로 만드는지 쟀다(커밋 `69a5e22b9` 뒤, 치환 앵커 1회 매칭 assert,
+`cp` 원복, `PYTHONDONTWRITEBYTECODE=1` + 매번 `.pyc` 삭제):
+
+| # | 분기 | 뮤턴트 | RED 가 된 테스트 |
+| --- | --- | --- | --- |
+| B1 | 리소스 중복 | `len(matches) != 1` → `< 1` | `test_k8s_duplicate_resource_is_named` |
+| B2 | 리소스 0 | → `> 1` | `test_k8s_missing_resource_is_named` |
+| B3 | 컨테이너 중복 | `len(named) != 1` → `< 1` | `test_k8s_duplicate_container_is_named` |
+| B4 | 컨테이너 0 | → `> 1` | `test_k8s_missing_container_is_named` |
+| B5 · B7 | 빈 문자열 image (k8s · compose) | `or not image` 삭제 | `test_bad_image_value_is_named` |
+| B6 · B8 | 비문자열 image (k8s · compose) | `isinstance(str)` 삭제 | `test_bad_image_value_is_named` |
+| B9 | mapping 아닌 값 | `_mapping` → 항등 | `…malformed_service…` · `…missing_service…` |
+| B10 | `latest` 태그 | 판정 삭제 | `test_pin_violation_edges` |
+| B11 | distroless | 항상 `False` | `test_distroless_is_detected` |
+
+> **첫 전수 실행은 무효였다.** B2 · B3 · B4 가 모두 B1 의 테스트로 죽었다고 나왔다. 수동으로 B3 만 돌리니
+> 올바른 테스트가 죽었다 — 원인은 **오래된 `.pyc`**: 같은 길이 치환(`!= 1` → `< 1` → `> 1`)을 같은 초 안에
+> 연달아 쓰면 소스 mtime · 크기가 같아 B1 의 바이트코드가 재사용된다. 위 표는 바이트코드를 끈 재실행이다.
+> 앞 측정(§B 의 M1~M5 · 1라운드 뮤턴트 둘)은 YAML 만 바꿨거나 크기가 달라 이 함정 밖이다.
+
+`None` 은 `not image` 와 `isinstance` 두 절에 **모두** 걸려 어느 쪽도 증명하지 못한다 — 그래서 빈 문자열과
+숫자를 따로 넣는다(B5~B8). `latest` · distroless 판정은 실제 파일에만 적용되면 지워도 초록이므로
+`pin_violation()` · `is_distroless()` 로 빼 주입 입력으로 고정했다(B10 · B11).
+
 ## C. 체크리스트
 
 - [x] `/consistency-check --impl-prep` — **구현 전에** → `review/consistency/2026/09/25/00_08_35`
@@ -78,7 +106,9 @@ PyYAML 은 harness CI 의 유일한 허용 의존성이다(`harness-checks.yml` 
       사본(두 본문 5/5 적재 · `meta.json` 저장소 경로 + `scope_note`). 처분은 §D
 - [x] 테스트 작성 + `harness-checks.yml` pathspec 3줄 + `.claude/tests/README.md` 카탈로그.
       **TDD 순서로 확인**: pathspec 을 넣기 전 `test_harness_checks_paths_coverage.py` 가 정확히 세 파일을 지목하며
-      RED → 넣은 뒤 GREEN. 새 테스트 7개는 이름으로 실행 확인(`-v` 7 passed)
+      RED → 넣은 뒤 GREEN. 새 테스트 ~~7개~~ 는 이름으로 실행 확인 — 첫 커밋 시점 `-v` 7 passed, 리뷰
+      1 · 2라운드 조치로 **15개**(2026-09-25, `pytest -q` 15 passed · 20 subtests — 2라운드 `/ai-review`
+      documentation W2 가 7 이 낡았다고 짚었다)
 - [x] 뮤턴트 M1~M5 실측 (표 §B) — M3 가 예측과 달랐고, 그것이 단언 1 의 서술을 고치게 했다(M5 추가)
 - [x] CHANGELOG 항목 (가드 신설 = 항목, 커밋 전 staged 확인)
 - [ ] `python3 -m pytest .claude/tests -q` 전체
