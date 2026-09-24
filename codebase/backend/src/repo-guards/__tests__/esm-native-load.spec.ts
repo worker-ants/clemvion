@@ -80,9 +80,28 @@ describe('repo-guard: ESM-only 의존성 네이티브 로드', () => {
       'test:watch',
     ]);
 
+    const FLAG = '--experimental-vm-modules';
+    const ENTRY = './node_modules/jest/bin/jest.js';
+
     for (const [name, cmd] of jestScripts) {
-      expect(`${name}: ${cmd}`).toContain('--experimental-vm-modules');
-      expect(`${name}: ${cmd}`).toContain('./node_modules/jest/bin/jest.js');
+      const flagIdx = cmd.indexOf(FLAG);
+      const entryIdx = cmd.indexOf(ENTRY);
+
+      // 존재. **이 단언을 빼면 아래 순서 비교가 공허해진다** — 플래그가 없으면
+      // `flagIdx` 가 -1 이라 `-1 < entryIdx` 로 조용히 통과한다.
+      expect({
+        script: name,
+        hasFlag: flagIdx >= 0,
+        hasEntry: entryIdx >= 0,
+      }).toEqual({ script: name, hasFlag: true, hasEntry: true });
+
+      // 순서. 플래그는 **node 의 인자**여야 한다 — 진입점 **뒤**로 가면 node 가 아니라
+      // jest 가 받아 `Unrecognized option "experimental-vm-modules"` 로 죽는다(실측).
+      // 존재만 보는 검사는 이 회귀를 통과시킨다. 존재 검사는 정합 검사가 아니다.
+      expect({ script: name, flagBeforeEntry: flagIdx < entryIdx }).toEqual({
+        script: name,
+        flagBeforeEntry: true,
+      });
     }
   });
 
