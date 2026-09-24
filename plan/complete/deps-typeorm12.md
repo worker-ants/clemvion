@@ -1,6 +1,6 @@
 ---
 title: "@nestjs/typeorm 12 — 동반 업그레이드 없이 풀린다"
-status: in-progress
+status: complete
 owner: developer
 worktree: nestjs12-upgrade
 spec_impact: none
@@ -111,8 +111,18 @@ RED 가 나는 9건은 「비멤버가 헤더로 타 워크스페이스를 지�
 - [x] TEST WORKFLOW — lint PASS · backend unit **473스위트/9950**(불변) · **build PASS
       (Docker 포함)** · **e2e 380 PASS**
 - [x] §C 검증 셋 — 전/후 동일 확인
-- [ ] `/ai-review` → 수렴
-- [ ] plan `complete/` 로
+- [x] `/ai-review` → **2라운드에 수렴** (forced 전원, 14/14)
+      - 1R `18_22_23` Critical 0 · Warning 3 → 전부 조치(lockfile 15줄로 최소화 · 트래커
+        `worktree` 사유 명시 · `require(esm)` 결속을 `PROJECT.md` floor 줄에)
+      - 2R `18_48_20` Critical 0 · Warning 1 → 조치(트래커 §E 에 `1-auth.md` 정정 체크박스).
+        이 라운드의 `codebase/**` 수정 0건, fix 는 plan 한 파일이라 3라운드 불요 — 판단 근거는
+        그 RESOLUTION 에
+- [x] ~~`/consistency-check --impl-done`~~ — **해당 없음(실측)**. 이 PR 의 `codebase/**` 변경은
+      `package.json` 한 파일이고 어떤 spec 의 frontmatter `code:` 글로브에도 매칭되지 않는다
+      (`review_guard._spec_linked_changes()` 가 빈 목록). `jest-esm-native-load` 에서 공허성까지
+      확인한 같은 판정이다
+- [x] plan `complete/` 로 — 후속은 트래커 `nestjs-v12-coordinated-upgrade.md`(보류, §3·§E) 와
+      `spec-draft-nullable-notation-followups.md`(lockfile `libc:` 진동) 에 등재
 
 ## 후속
 
