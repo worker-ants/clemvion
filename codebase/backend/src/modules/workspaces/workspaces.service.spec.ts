@@ -1284,15 +1284,23 @@ describe('WorkspacesService', () => {
     });
 
     it('records member.removed (mode=removed) on admin removeMember', async () => {
-      // member lookup (not self, not owner), then assertAdmin getMemberRole(admin).
-      memberRepo.findOne
-        .mockResolvedValueOnce({
-          id: 'mem-y',
-          role: 'editor',
-          userId: 'user-y',
-          workspaceId: 'ws-uuid-1',
-        })
-        .mockResolvedValueOnce({ role: 'admin' });
+      // 요청자 role 조회(admin)와 대상 조회(not self, not owner)를 **where 로** 가른다.
+      // 종전엔 `mockResolvedValueOnce` 두 개로 **호출 순서**에 결합돼 있었는데, 권한 검사를
+      // 대상 조회보다 앞으로 옮기자 두 값이 서로 바뀌어 들어갔다. 순서가 아니라 질의 내용으로
+      // 답하면 다음 재배치에도 깨지지 않는다 (형제 `wireFindOne` 과 같은 방식).
+      memberRepo.findOne.mockImplementation(
+        (opts: { where: { id?: string } }) =>
+          Promise.resolve(
+            opts.where.id === 'mem-y'
+              ? {
+                  id: 'mem-y',
+                  role: 'editor',
+                  userId: 'user-y',
+                  workspaceId: 'ws-uuid-1',
+                }
+              : { role: 'admin' },
+          ),
+      );
       // 이 테스트의 전제는 «한 행이 실제로 지워졌다» 이다. 공유 mock 의 기본값은
       // `deleteWorkspace` 의 cascade 용 `{affected: 0}` 이므로 여기서 명시한다.
       memberRepo.delete.mockResolvedValue({ affected: 1 });
@@ -1462,13 +1470,20 @@ describe('WorkspacesService', () => {
     const requesterId = 'admin-user';
 
     /**
-     * `removeMember` 는 `findOne` 을 두 번 부른다 — 대상 멤버(`where.id`)와, `assertAdmin` 이
-     * 부르는 요청자 멤버십(`where.userId`)이다. 둘을 where 로 갈라 답한다. 요청자 멤버십
-     * 레코드는 기본 owner 지만, 두 번째 인자로 비-admin 응답도 흉내낼 수 있다(권한 거부 테스트용).
+     * `removeMember` 는 `findOne` 을 두 번 부른다 — **요청자 멤버십**(`where.userId`, 이제
+     * `getMemberRole` 로 **직접** 읽는다. `assertAdmin` 을 거치지 않는다)과 **대상 멤버**
+     * (`where.id`)다. 둘을 where 로 갈라 답한다. 요청자 멤버십 레코드는 기본 owner 지만,
+     * 두 번째 인자로 비-admin(또는 `null` = 비-멤버) 응답도 흉내낼 수 있다.
+     *
+     * > **호출 «순서» 에 결합하지 않는다.** 인가를 대상 조회보다 앞으로 옮기면서 두 조회의
+     * > 순서가 뒤집혔는데, 같은 파일의 감사 테스트가 `mockResolvedValueOnce` 체인이라 두 값이
+     * > 서로 바뀌어 들어가 깨졌다(그쪽도 where-키로 바꿨다). 질의 내용으로 답하면 다음
+     * > 재배치에도 버틴다.
      */
     function wireFindOne(
       target: Record<string, unknown> | null,
-      requesterMembership: Record<string, unknown> = {
+      /** `null` 이면 요청자가 **그 워크스페이스 멤버가 아니다**. */
+      requesterMembership: Record<string, unknown> | null = {
         id: 'mem-req',
         role: 'owner',
       },
@@ -1650,10 +1665,18 @@ describe('WorkspacesService', () => {
     });
 
     /**
-     * 요청자가 admin/owner 가 아니면 거부돼야 한다. **검사 순서에 결합하지 않는다** — 트래커에
-     * 등재된 권한 검사 순서 결함(`/ai-review` `review/code/2026/09/21/12_57_05` security
-     * WARNING 1) 후속 PR 이 `assertAdmin` 을 앞으로 옮길 예정이라, "어느 단계에서 거부되는가"
-     * 가 아니라 **"`ADMIN_REQUIRED` 로 거부되고 `delete` 가 호출되지 않는다"** 는 불변만 본다.
+     * 요청자가 admin/owner 가 아니면 거부돼야 한다. **검사 순서에 결합하지 않는다** —
+     * "어느 단계에서 거부되는가" 가 아니라 **"`ADMIN_REQUIRED` 로 거부되고 `delete` 가
+     * 호출되지 않는다"** 는 불변만 본다.
+     *
+     * > **그 순서 재배치는 2026-09-24 에 일어났고, 이 블록은 그대로 통과했다** — 순서에
+     * > 결합하지 않게 써 둔 것이 값을 했다. 다만 예고 문구("후속 PR 이 `assertAdmin` 을 앞으로
+     * > 옮길 예정")는 **실제 처방과 달랐다**: `assertAdmin` 자체는 그대로 두고, `removeMember`
+     * > 안에서 요청자 role 을 직접 읽어(`getMemberRole`) 멤버십은 앞에서·admin 은 self 위임
+     * > 뒤에서 판정한다. `assertAdmin` 을 통째로 앞에 두면 자가 탈퇴가 깨지기 때문이다.
+     * >
+     * > 대상이 `editor` 라 이 블록은 admin/owner 두 판정의 **순서를 가르지 못한다** —
+     * > 그것은 아래 «비-admin 이 owner 를 지목하면 …» 블록이 본다.
      */
     it('admin/owner 가 아니면 ADMIN_REQUIRED 로 거부하고 delete 를 타지 않는다', async () => {
       wireFindOne(
@@ -1669,6 +1692,52 @@ describe('WorkspacesService', () => {
     });
 
     /**
+     * **비-멤버는 대상을 읽기도 전에 끝난다.** 이것이 존재 오라클을 닫는 자리다 — 가드 층은
+     * 이 라우트를 막지 못하므로(`@Roles()` 없음 + `@Param('id')` → `handlerConsumesWorkspaceId`
+     * false) 서비스가 첫 방어선이다.
+     *
+     * 단언이 «`NOT_A_MEMBER` 를 던진다» 에서 멈추지 않는다 — **대상 조회 자체가 없었음**까지
+     * 본다. 코드만 바꾸고 조회를 남겨 두면 오라클이 그대로인데 이 테스트는 초록이 된다.
+     */
+    it('비-멤버는 대상을 조회하기 전에 NOT_A_MEMBER 로 끝난다', async () => {
+      wireFindOne(
+        { id: memberId, userId: 'target-user', role: 'editor' },
+        null,
+      );
+
+      await expect(
+        service.removeMember(workspaceId, memberId, requesterId),
+      ).rejects.toMatchObject({ response: { code: 'NOT_A_MEMBER' } });
+
+      const targetLookups = memberRepo.findOne.mock.calls.filter(
+        (c: [{ where?: { id?: string } }]) => c[0]?.where?.id === memberId,
+      );
+      expect(targetLookups).toHaveLength(0);
+      expect(memberRepo.delete).not.toHaveBeenCalled();
+      expect(getAudit().record).not.toHaveBeenCalled();
+    });
+
+    /**
+     * **admin 판정이 owner 판정보다 앞이다.** 비-admin 멤버가 owner 를 지목하면
+     * `CANNOT_REMOVE_OWNER` 가 아니라 `ADMIN_REQUIRED` 다 — 전자는 «대상이 owner 만 아니면
+     * 가능하다» 는 거짓 함의를 준다(editor 는 누구도 제거할 수 없다).
+     *
+     * 이 블록이 두 판정을 되돌려 놓는 편집을 죽인다. 위 «admin/owner 가 아니면 …» 블록은
+     * 대상이 editor 라 순서를 가르지 못한다.
+     */
+    it('비-admin 이 owner 를 지목하면 CANNOT_REMOVE_OWNER 가 아니라 ADMIN_REQUIRED 다', async () => {
+      wireFindOne(
+        { id: memberId, userId: 'target-user', role: 'owner' },
+        { id: 'mem-req', role: 'editor' },
+      );
+
+      await expect(
+        service.removeMember(workspaceId, memberId, requesterId),
+      ).rejects.toMatchObject({ response: { code: 'ADMIN_REQUIRED' } });
+      expect(memberRepo.delete).not.toHaveBeenCalled();
+    });
+
+    /**
      * 자가 제거는 `leaveWorkspace` 로 위임된다 — 그쪽은 트랜잭션 안 `pessimistic_write` 라
      * 이 PR 의 수정 대상이 아니다. 위임 경계가 사라지면 같은 결함이 이 라우트로 되돌아온다.
      */
@@ -1679,6 +1748,32 @@ describe('WorkspacesService', () => {
         .mockResolvedValue(undefined);
 
       await service.removeMember(workspaceId, memberId, requesterId);
+
+      expect(leave).toHaveBeenCalledWith(workspaceId, requesterId);
+      expect(memberRepo.delete).not.toHaveBeenCalled();
+      leave.mockRestore();
+    });
+
+    /**
+     * **비-admin 도 자기 자신은 나갈 수 있다.** 위 블록은 요청자가 기본값 `owner` 라 admin
+     * 판정을 어차피 통과하므로 «self 위임이 admin 판정보다 **앞**» 이라는 계약을 가르지
+     * 못한다 — 그 분기를 admin 판정 뒤로 옮기는 회귀에도 초록이다
+     * (`/ai-review` `review/code/2026/09/24/11_10_45` W1).
+     *
+     * 이 계약이 바로 «`assertAdmin` 을 형제처럼 첫 줄에 두지 못하는» 이유다.
+     */
+    it('비-admin 도 자기 자신이면 위임된다 — ADMIN_REQUIRED 가 아니다', async () => {
+      wireFindOne(
+        { id: memberId, userId: requesterId, role: 'editor' },
+        { id: 'mem-req', role: 'editor' },
+      );
+      const leave = jest
+        .spyOn(service, 'leaveWorkspace')
+        .mockResolvedValue(undefined);
+
+      await expect(
+        service.removeMember(workspaceId, memberId, requesterId),
+      ).resolves.toBeUndefined();
 
       expect(leave).toHaveBeenCalledWith(workspaceId, requesterId);
       expect(memberRepo.delete).not.toHaveBeenCalled();

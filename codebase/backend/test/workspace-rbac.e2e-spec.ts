@@ -646,4 +646,88 @@ describe('Workspace RBAC (e2e)', () => {
     expectNoUserSecrets(res.body);
     assertMatchesContract(rows[0], await contractForDto(WorkspaceMemberDto));
   });
+
+  /**
+   * **인가보다 조회가 먼저면 답이 새어 나간다** — 위 §"워크스페이스 격리" 축의 한 자리다.
+   *
+   * `removeMember` 는 `findOne` → 404 → self 위임 → owner 403 → `assertAdmin` 순서였다.
+   * 그래서 그 워크스페이스와 **무관한 사용자**도 `(workspaceId, memberId)` 쌍에 대해 세 갈래로
+   * 구분되는 답을 받았다: 없음 `404` · owner `403 CANNOT_REMOVE_OWNER` · 비-owner
+   * `403 ADMIN_REQUIRED`.
+   *
+   * **헤더를 붙이지 않는 것이 이 테스트의 핵심이다.** `X-Workspace-Id` 를 주면 `RolesGuard` 가
+   * header-first 멤버십 검증으로 403 을 낸다(`data-flow/12-workspace.md` §"멤버십 검증은 가드
+   * 1곳에서"). 누수는 **경로 파라미터로만 워크스페이스를 받는 라우트**에서 열린다 —
+   * `handlerConsumesWorkspaceId` 가 false 라 가드가 단락하기 때문이다. 헤더를 붙이면 이
+   * 테스트는 고치기 전에도 초록이 되어 아무것도 지키지 못한다.
+   *
+   * **값 셋이 아니라 성질을 단언한다.** 보호 대상은 «세 응답이 서로 구분되지 않는다» 이고,
+   * 값을 따로 고정하면 고칠 때 셋을 다 바꿔야 해서 성질이 아니라 값을 지키게 된다.
+   *
+   * 판별력: 고치기 전에는 세 응답이 **전부 다르다**(집합 크기 3).
+   */
+  it('비-멤버는 대상 상태를 구분할 수 없다 — 존재·owner 오라클', async () => {
+    const owner = await registerAndLogin(
+      BASE_URL,
+      uniqueEmail('rbac-orc-own'),
+      db,
+    );
+    const ws = await createTeamWorkspace(
+      BASE_URL,
+      owner.accessToken,
+      uniqueName('RBACORC'),
+    );
+    await inviteAndAccept(
+      BASE_URL,
+      owner.accessToken,
+      ws,
+      uniqueEmail('rbac-orc-mem'),
+      'editor',
+      db,
+    );
+    const outsider = await registerAndLogin(
+      BASE_URL,
+      uniqueEmail('rbac-orc-out'),
+      db,
+    );
+
+    const rows = await db.query<{ id: string; role: string }>(
+      'SELECT id, role FROM workspace_member WHERE workspace_id = $1',
+      [ws],
+    );
+    const ownerMemberId = rows.rows.find((r) => r.role === 'owner')?.id;
+    const editorMemberId = rows.rows.find((r) => r.role === 'editor')?.id;
+    expect(ownerMemberId).toBeDefined();
+    expect(editorMemberId).toBeDefined();
+    // 이 워크스페이스에 없는 멤버 id. UUID 형식이어야 `ParseUUIDPipe` 를 지나 핸들러에 닿는다 —
+    // 형식이 틀리면 400 에서 끝나 오라클을 행사하지 못한다.
+    const absentMemberId = '00000000-0000-4000-8000-000000000000';
+
+    // **헤더 없이** 쏜다(위 docblock).
+    const probe = (memberId: string): Promise<string> =>
+      request(BASE_URL)
+        .delete(`/api/workspaces/${ws}/members/${memberId}`)
+        .set('Authorization', `Bearer ${outsider.accessToken}`)
+        .then(
+          (res) => `${res.status} ${res.body?.error?.code ?? ''}`.trim(),
+          () => 'request-failed',
+        );
+
+    const answers = await Promise.all([
+      probe(absentMemberId),
+      probe(ownerMemberId as string),
+      probe(editorMemberId as string),
+    ]);
+
+    // 비-멤버는 대상에 대해 아무것도 배우지 못한다.
+    expect(new Set(answers).size).toBe(1);
+    expect(answers[0]).toBe('403 NOT_A_MEMBER');
+
+    // 오라클을 막았을 뿐 삭제가 일어나서는 안 된다.
+    const after = await db.query<{ count: string }>(
+      'SELECT COUNT(*)::text AS count FROM workspace_member WHERE workspace_id = $1',
+      [ws],
+    );
+    expect(after.rows[0].count).toBe('2');
+  }, 120_000);
 });

@@ -802,6 +802,10 @@ export class WorkspacesService {
   /**
    * 멤버 제거(Admin+). 자기 자신 제거는 `leaveWorkspace`로 위임해 동일한 가드를 적용한다.
    *
+   * 판정 순서: **멤버십 → 대상 존재 → self 위임 → admin → 대상이 owner 인가.** 인가(앞의 둘)를
+   * 끝내기 전에는 대상에 대해 아무것도 답하지 않는다 — 그러지 않으면 비-멤버가 응답 차이로
+   * 대상의 존재·owner 여부를 알아낸다.
+   *
    * 동시성 보장: 잠글 행이 없어 동시 요청들이 모두 무락 검사를 통과할 수 있지만, 단일
    * 원자적 `DELETE`(`affected === 0` 명시 비교)가 승자만 갈라 **둘**을 막는다 —
    * 감사 로그 중복(동시 제거), 그리고 **owner 삭제**(동시 `transferOwnership`).
@@ -812,6 +816,21 @@ export class WorkspacesService {
     memberId: string,
     requesterId: string,
   ): Promise<void> {
+    // **인가를 대상 조회보다 먼저 한다.** 종전에는 `findOne` → 404 → self → owner 403 →
+    // `assertAdmin` 순서라, 이 워크스페이스와 무관한 사용자도 `(workspaceId, memberId)` 쌍에
+    // 대해 세 갈래로 구분되는 답을 받았다(없음 404 · owner 403 · 비-owner 403). 가드 층은
+    // 이 라우트를 막지 못한다 — `@Roles()` 가 없고 `handlerConsumesWorkspaceId` 가 false
+    // (`@WorkspaceId()` 가 아니라 `@Param('id')`)라 `RolesGuard` 가 단축 통과시킨다.
+    //
+    // 형제(`addMemberByEmail` · `updateMemberRole`)처럼 `assertAdmin` 을 첫 줄에 둘 수는 없다 —
+    // **자가 탈퇴는 비-admin 도 해야 하고**, 자기 자신인지는 대상을 읽어야 안다. 그래서 인가를
+    // 두 단으로 나눈다: 멤버십은 여기서, admin 은 self 위임 뒤에서.
+    //
+    // 요청자 role 을 **한 번만** 읽는다 — `assertMembership` 과 `assertAdmin` 은 둘 다
+    // `getMemberRole` 을 부르므로 그대로 이어 쓰면 같은 쿼리가 두 번 돈다.
+    const requesterRole = await this.getMemberRole(workspaceId, requesterId);
+    if (!requesterRole) this.throwNotAMember();
+
     const member = await this.memberRepository.findOne({
       where: { id: memberId, workspaceId },
     });
@@ -821,10 +840,14 @@ export class WorkspacesService {
       await this.leaveWorkspace(workspaceId, requesterId);
       return;
     }
-    // 흔한 경우를 `assertAdmin` 전에 끊는 **이른** 가드. 무락 읽기 위에 서 있으므로 이것만으로는
-    // 부족하고, 아래 DELETE 의 `role: Not('owner')` 술어가 뒤를 받는다.
+    // **admin 판정이 owner 판정보다 앞이다.** 뒤집으면 비-admin 멤버가 owner 를 지목했을 때
+    // `CANNOT_REMOVE_OWNER` 를 받는데, 그것은 «대상이 owner 만 아니면 가능하다» 는 거짓 함의를
+    // 준다 — editor 는 누구도 제거할 수 없다. 인가를 끝내고 대상 조건을 보는 것이 형제 둘의
+    // 순서와도 같다.
+    if (!ADMIN_ROLES.has(requesterRole)) this.throwAdminRequired();
+    // 무락 읽기 위의 **이른** 가드라 이것만으로는 부족하고, 아래 DELETE 의 `role: Not('owner')`
+    // 술어가 뒤를 받는다(동시 `transferOwnership`).
     if (member.role === 'owner') this.throwCannotRemoveOwner();
-    await this.assertAdmin(workspaceId, requesterId);
     const removedMemberUserId = member.userId;
 
     // 위 `findOne` 은 잠그지 않으므로 동시 제거 두 건이 **둘 다** 여기까지 온다. 종전의
@@ -882,17 +905,32 @@ export class WorkspacesService {
     });
   }
 
+  /**
+   * «워크스페이스 멤버가 아니다» — `assertMembership` 과, 요청자 role 을 **직접** 읽어
+   * 재사용하는 `removeMember` 가 쓴다. 후자는 `assertMembership` 을 못 부른다(같은
+   * `getMemberRole` 을 두 번 돌리게 된다)므로 **판정문만** 공유한다.
+   */
+  private throwNotAMember(): never {
+    throw new ForbiddenException({
+      code: 'NOT_A_MEMBER',
+      message: '워크스페이스 멤버가 아닙니다.',
+    });
+  }
+
+  /** 위 `throwNotAMember()` 와 같은 이유로 판정문만 공유한다. */
+  private throwAdminRequired(): never {
+    throw new ForbiddenException({
+      code: 'ADMIN_REQUIRED',
+      message: 'Admin 이상의 권한이 필요합니다.',
+    });
+  }
+
   private async assertMembership(
     workspaceId: string,
     userId: string,
   ): Promise<void> {
     const role = await this.getMemberRole(workspaceId, userId);
-    if (!role) {
-      throw new ForbiddenException({
-        code: 'NOT_A_MEMBER',
-        message: '워크스페이스 멤버가 아닙니다.',
-      });
-    }
+    if (!role) this.throwNotAMember();
   }
 
   private async assertAdmin(
@@ -900,12 +938,7 @@ export class WorkspacesService {
     userId: string,
   ): Promise<void> {
     const role = await this.getMemberRole(workspaceId, userId);
-    if (!role || !ADMIN_ROLES.has(role)) {
-      throw new ForbiddenException({
-        code: 'ADMIN_REQUIRED',
-        message: 'Admin 이상의 권한이 필요합니다.',
-      });
-    }
+    if (!role || !ADMIN_ROLES.has(role)) this.throwAdminRequired();
   }
 
   private async assertWorkspaceType(

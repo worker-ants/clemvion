@@ -4868,7 +4868,7 @@ field: T | null;
       둘 중 하나여야 한다 — 컨트롤러를 204 로 맞추거나(클라이언트 계약 변경), §6 에 이 예외를
       각주로 적거나. **바로 위 §3 멱등성 각주 작업과 같은 문서라 함께 처리하는 편이 싸다.**
 
-- [ ] **`removeMember()` 의 권한 검사가 대상 조회·owner 판정보다 뒤에 있어 존재 오라클이 된다**
+- [x] **`removeMember()` 의 권한 검사가 대상 조회·owner 판정보다 뒤에 있어 존재 오라클이 된다**
       (developer, **중간**, 2026-09-21 등재 · `/ai-review` `review/code/2026/09/21/12_57_05` WARNING 1).
       순서가 `findOne`(`:783`) → 404 → self 위임 → owner 403 → `assertAdmin`(`:803`) 이라,
       요청자가 그 워크스페이스 멤버가 아니어도 `(workspaceId, memberId)` 쌍에 대해 **세 갈래로
@@ -4904,6 +4904,9 @@ field: T | null;
       >
       > 후속 PR 은 이 13개를 한 축으로 보고, 처방을 «검사 순서 재배치» 가 아니라 «가드가
       > 경로 파라미터 워크스페이스도 보게 할 것인가» 부터 결정해야 한다.
+      >
+      > **2026-09-24 — 이 축을 아래 별 항목으로 갈랐다.** 이 항목(한 메서드의 검사 순서)은
+      > 닫히지만 그 축은 열려 있다. 註로만 두면 항목을 닫을 때 함께 묻힌다.
 
       **열거는 여전히 불가능하다** — 두 ID 가 모두 UUID(`ParseUUIDPipe`)라 다른 경로로 새어야
       쓸 수 있는 오라클이다. 삭제 자체는 `assertAdmin` 이 여전히 막는다(권한 상승 아님).
@@ -4913,6 +4916,96 @@ field: T | null;
       비-admin 이 owner 를 지목했을 때의 코드가 `CANNOT_REMOVE_OWNER` → `ADMIN_REQUIRED` 로
       **바뀐다**. 에러 코드 계약 변경이라 `spec/5-system/3-error-handling.md` 기준의 자체
       consistency 라운드가 필요하다. 동시성 수정과 섞으면 정확히 리뷰어들이 지적해 온 스코프 혼입이다.
+
+      > **✅ 2026-09-24 해소** — developer 턴 `plan/complete/member-auth-order.md`
+      > (`--impl-prep` `review/consistency/2026/09/24/10_22_24` BLOCK: NO ·
+      > `/ai-review` `11_37_06` 2라운드 수렴 · `--impl-done` `11_50_40` **BLOCK: NO · Critical 0
+      > · Warning 0**).
+      >
+      > 처방은 «`assertAdmin` 을 맨 앞으로» 가 **아니다** — 이 항목이 아래에 예고한 그대로,
+      > 자가 탈퇴가 깨지기 때문이다. 인가를 두 단으로 나눴다: **멤버십을 대상 조회 앞**,
+      > **admin 을 self 위임 뒤**. 비-멤버는 `403 NOT_A_MEMBER` 로 끝나고 대상에 대해
+      > 아무것도 배우지 못한다(e2e 실측: 세 탐침의 응답 집합 크기 **3 → 1**).
+      >
+      > **«멤버로 좁히는 것이 완전 차단인가» 를 실측으로 답했다** — `listMembers` 가
+      > `assertMembership` 만 요구하고 모든 멤버의 id·role 을 돌려주므로, 멤버가 새로 얻는
+      > 정보는 **0** 이다. 완화가 아니라 실질적 완전 차단이다.
+      >
+      > **뮤턴트가 두 변경의 분업을 드러냈다** — 멤버십 검사만 빼면 응답 집합이 3 이 아니라
+      > **2** 가 된다. admin 판정을 owner 판정 앞으로 옮긴 것이 owner/비-owner 구분을 이미
+      > 없앴고, 멤버십 검사가 남은 «존재» 한 갈래를 닫는다. 둘 중 하나만으로는 부족하다.
+      >
+      > **13-라우트 축은 닫히지 않았다** — 아래 별 항목으로 갈라 뒀다.
+
+      > **2026-09-24 — 이 캐비트는 그대로 유효했다.** 닫는 PR 이 실제로 admin 판정을 owner
+      > 판정 앞으로 옮겨 그 코드 전환이 일어났고, 캐비트가 요구한 «`3-error-handling.md` 기준
+      > consistency 라운드» 는 `--impl-prep`·`--impl-done` `spec/5-system` 으로 이행했다.
+      > (`--impl-prep` `10_22_24` 의 `plan_coherence` 가 이 캐비트를 stale 로 봤는데, 그것은
+      > **개정 전** plan 을 읽은 것이다 — 그 지적에 답하다 설계를 바꿨다.)
+
+- [ ] **경로 파라미터로 워크스페이스를 받는 라우트 13개가 가드 층 보호를 전혀 못 받는다**
+      (developer + 설계 결정, **중간**, 2026-09-24 등재 — 위 «권한 검사 순서» 항목의 註에서
+      **갈라 나옴**).
+      `RolesGuard` 는 전역이지만 `handlerConsumesWorkspaceId` 가 false 면 단축 통과한다. 그 판정은
+      `@WorkspaceId()` 데코레이터 **소비 여부**를 reflection 으로 보는데, `workspaces.controller.ts`
+      의 **17개 중 13개**가 경로 `:id` 를 워크스페이스로 쓰면서 `@WorkspaceId()` 도 `@Roles()` 도
+      쓰지 않는다(`update`·`updateSettings`·`getSettings`·`remove`·`leave`·`listMembers`·
+      `addMember`·`updateMember`·`removeMember`·`listInvitations`·`createInvitation`·
+      `resendInvitation`·`revokeInvitation`). 전부 서비스 계층 `assertMembership`/`assertAdmin`
+      에만 기댄다.
+
+      **완료된 `plan/complete/auth-workspace-membership-guard.md`(2026-08-08)가 이 13개를 닫지
+      않았다** — 그 plan 의 모집단이 «`@WorkspaceId()` 를 소비하며 `@Roles()` 가 없는 라우트 73건»
+      이었고, 경로 파라미터 라우트는 **구성상 그 모집단 밖**이다. 가드의 커버리지 모델에 구멍이
+      있는 것이지 개별 라우트의 실수가 아니다.
+
+      > **스코프 조건 — 구조적 해법을 먼저 검토한다.** 가드가 경로 파라미터 워크스페이스도 보게
+      > 할 것인가(reflection 확장 / 데코레이터 통일)를 **먼저** 결정하고, 불가할 때에만 라우트별
+      > 수동 체크를 표준 패턴으로 승인한다. 이 조건이 없으면
+      > `plan/complete/member-auth-order.md` 가 13개에 같은 패치를 복제하는 선례로 읽히는데,
+      > 그것이 정확히 `data-flow/12-workspace.md` §«멤버십 검증은 가드 1곳에서» 가
+      > *"74번째 라우트에서 재발한다"* 며 기각한 모양이다
+      > (`--impl-prep` `review/consistency/2026/09/24/10_22_24` `rationale_continuity` W1).
+      >
+      > **`removeMember` 는 이미 닫혔다** — 그 한 자리는 서비스 계층에서 인가를 대상 조회보다
+      > 앞으로 옮겨 해소됐다. 남은 12개는 각자 무엇을 노출하는지 **실측부터** 해야 한다
+      > (읽기 전용 라우트는 오라클 표면이 다르다).
+
+- [ ] **`removeMember` 판정 순서 커버리지의 비대칭 두 칸** (developer, 낮음, 2026-09-24 등재 ·
+      `/ai-review` `review/code/2026/09/24/11_10_45` INFO#3·#4 → `11_37_06` INFO#5·#6 **재지적**).
+      같은 파일이 admin/owner 순서와 self/admin 순서는 각각 **전용 조합**으로 가르는데, 두 칸만
+      비어 있다:
+
+      1. **대상 부재(404) vs admin 판정의 상대 순서** — `wireFindOne(null, { role: 'editor' })`
+         조합이 없다. 비-admin 요청자가 없는 대상을 지목하면 `MEMBER_NOT_FOUND` 여야 하는데
+         (대상 존재 판정이 admin 판정보다 앞이다 — self 위임이 대상을 읽어야 하기 때문), 그
+         순서를 뒤집는 편집이 현재 스위트에서 **생존한다**.
+      2. **«요청자 role 을 한 번만 읽는다»** 는 최적화 의도를 지키는 `toHaveBeenCalledTimes`
+         회귀 테스트가 없다. 조용히 쿼리가 늘어도 반증 불가능하다.
+
+      > **왜 그 PR 에서 안 했나 — 수렴 예외 (a)(b)(c)(d).** (a) 동작 결함이 아니다(둘 다
+      > 커버리지). (b) 고치면 `codebase/**` 가 바뀌어 게이트 freshness 가 재무장되고 라운드가
+      > 하나 더 돈다 — 그 PR 은 이미 2라운드였고 «그 라운드의 codebase 수정 0건» 이 선언된
+      > 정지 조건이었다. (c) 근거는 비용이 아니라 수렴이다. (d) 그 턴에 등재했다.
+      >
+      > 둘 다 «조합 하나 추가» 라 다음 근접 편집에서 싸게 닫힌다.
+
+- [ ] **`removeMember` 리팩터로 낡은 spec 서술 세 줄** (planner, 낮음, 2026-09-24 등재 ·
+      `--impl-prep` `10_22_24` INFO + `/ai-review` `review/code/2026/09/24/11_10_45` W4·W5).
+      `plan/complete/member-auth-order.md` 가 인가를 대상 조회보다 앞으로 옮기면서
+      `removeMember` 는 **`assertAdmin()` 을 더 이상 호출하지 않는다**(요청자 role 을
+      `getMemberRole` 로 직접 읽고 `throwNotAMember()`/`throwAdminRequired()` 로 판정). 결론은
+      전부 그대로이고 **인용된 호출 경로만** 낡았다:
+
+      | # | 자리 | 낡은 서술 |
+      | --- | --- | --- |
+      | 1 | `3-error-handling.md:49` | `NOT_A_MEMBER` 발행 경로 열거가 «전환·탈퇴·멤버십 확인» 인데 **세 번째 발행처**(`removeMember` 의 비-멤버 차단)가 빠졌다. 같은 줄의 «`workspaces.service`» 는 이미 맞다 |
+      | 2 | `3-error-handling.md:46` | `ADMIN_REQUIRED` 발행처를 **`WorkspacesService.assertAdmin()` 단수**로 못박는데, 이제 `removeMember` 가 `throwAdminRequired()` 로 직접 던진다 |
+      | 3 | `1-auth.md:551` | §3.2 정정 노트가 *"`removeMember()` 는 `assertAdmin(workspaceId, requesterId)` 만 요구한다"* 고 적는다. 결론(«Admin 이 멤버 삭제 가능»)은 참이지만 근거로 든 호출이 사라졌다 |
+
+      > **자기-반증형 소정정 대상이 아니다.** 조건 1(그 문장을 developer 자신이 썼다)이
+      > 깨진다 — #3 은 2026-07-28 §3.2 정정 노트이고 내가 쓴 것이 아니다. 조건 2(예고·트리거)도
+      > 아니다. 그래서 planner 턴이다.
 
 - [x] **`removeMember()` 의 owner 보호 가드가 TOCTOU 로 뚫린다 — 실측 확인됨**
       (developer, **중간**, 2026-09-21 등재 · `member-dup-remove.md` §C-2 프로브).
