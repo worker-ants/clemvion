@@ -1,0 +1,13 @@
+{
+  "timestamp": "2026-09-25T00:08:35.970939",
+  "mode": "구현 착수 전 검토 (--impl-prep, scope=spec/data-flow/4-file-storage.md, spec/0-overview.md)",
+  "target_path": "spec/data-flow/4-file-storage.md, spec/0-overview.md",
+  "checkers": [
+    "cross_spec",
+    "rationale_continuity",
+    "convention_compliance",
+    "plan_coherence",
+    "naming_collision"
+  ],
+  "scope_note": "이 두 파일(오브젝트 스토리지 데이터 흐름 · 셀프호스팅 MinIO 서술과 아바타 버킷 정책 요건)만 담은 세션 전용 scratch 사본 디렉터리를 scope 로 돌렸다(내용은 그 시점 저장소 파일과 동일, 두 본문 5/5 적재 확인). 영역 디렉터리 둘(`spec/data-flow/`·`spec/`)을 한 scope 로 묶을 방법이 없어서다. 원래 기록된 scratch 절대경로는 세션 밖에서 해석되지 않아 이 경로로 정정했다."
+}

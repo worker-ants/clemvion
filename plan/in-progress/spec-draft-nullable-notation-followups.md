@@ -5857,6 +5857,13 @@ field: T | null;
       파일을 `yaml.safe_load`(YAML 은 정본 파서가 있는 문법이라 정규식이 아니라 파서로)로 읽어 여섯 `image` 가
       같은 문자열이고 다이제스트를 포함하는지 본다. 판별 확인: 한 곳만 옛 태그로 되돌리면 RED 여야 한다.
 
+- [ ] **`spec/0-overview.md` §8 문서 맵이 `data-flow/` 를 «알파벳 순 숫자 prefix» 라 적는데 13~15 는 아니다**
+      (planner, 낮음, 2026-09-25 등재 · `--impl-prep` `review/consistency/2026/09/25/00_08_35` convention_compliance W2).
+      실측(`ls spec/data-flow | sort -n`): 1~12(`audit` … `workspace`)는 알파벳순이 맞지만 13 `agent-memory` ·
+      14 `chat-channel` · 15 `external-interaction` 은 뒤에 덧붙인 것이다(`agent-memory` 가 알파벳순이면 맨 앞).
+      처방 후보: «정수 prefix — 1~12 는 알파벳순, 이후는 도입순으로 덧붙이며 재번호하지 않는다». 재번호는
+      전 저장소 링크를 깨므로 서술을 고치는 쪽이 맞다.
+
 ## 종결 조건
 
 **형제 plan 은 이미 종결됐다** (`cce8a188b`, 2026-09-04). `entity-nullable-column-type-mismatch.md`

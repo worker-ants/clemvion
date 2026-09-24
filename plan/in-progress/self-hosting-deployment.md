@@ -54,6 +54,15 @@ PRD 5 §2 / §3 / §7 의 다음 항목이 ❌ :
 - [ ] `.env.example` 정의 (모든 필수 환경변수 + 기본값)
 - [ ] backend startup script — Flyway migrate → 실패 시 exit 1
 - [ ] MinIO 부팅 후 버킷 자동 생성 (`mc mb` 또는 backend 의 startup 훅)
+      > **2026-09-25 보탬 — 버킷 생성만으로는 부족하다.** 아바타 공개 정책
+      > (`scripts/minio/avatars-public-read.json` 을 `mc anonymous set-json` 으로)이 아바타 업로드의
+      > **배포 선행 조건**이다 — 없으면 업로드는 성공하고 이미지만 403 이다(`scripts/minio/README.md`).
+      > `set download` 프리셋은 목록까지 열어 쓰면 안 된다. k8s 로컬 오버레이가 바로 이것을 빠뜨렸다
+      > (`spec-draft-nullable-notation-followups.md` 의 k8s 버킷 Job 항목).
+- [ ] 이 파일이 오브젝트 스토리지 이미지를 쓰면 **`.claude/tests/test_minio_image_parity.py` 의 자리
+      목록과 `harness-checks.yml` pathspec 에 추가** — 그 가드는 목록에 없는 파일을 발견하지 못한다
+      (2026-09-25 등재 · plan `minio-image-parity-guard` · `--impl-prep`
+      `review/consistency/2026/09/25/00_08_35` plan_coherence W3)
 - [ ] `README` 또는 `docs/self-hosting/docker-compose.md` 에 1-command setup 안내 (`docker compose -f docker-compose.production.yml up -d`)
 - [ ] e2e: 빈 디렉터리 → 1-command 실행 → 모든 서비스 healthy → 회원가입 → 워크플로 생성·실행 까지 동작 확인
 
@@ -64,6 +73,8 @@ PRD 5 §2 / §3 / §7 의 다음 항목이 ❌ :
 - [ ] values.yaml — 환경별 override (dev/staging/prod)
 - [ ] Helm test — `helm install --dry-run` + `helm test` 동작
 - [ ] DB / Redis / MinIO 는 in-cluster (PVC) 또는 외부 (RDS/ElastiCache/S3) 모두 지원하도록 chart 옵션 분기
+- [ ] in-cluster 오브젝트 스토리지 이미지를 chart 가 쓰면 **`test_minio_image_parity.py` 자리 목록 ·
+      pathspec 에 추가**(위 §3 과 같은 이유 — 2026-09-25 등재)
 - [ ] Helm chart 자동 lint (CI)
 - [ ] **`terminationGracePeriodSeconds` 설정** — backend / worker Deployment 의 pod spec 에 `terminationGracePeriodSeconds: <ceil(SIGTERM_GRACE_MS / 1000) + 5>` (기본값 35초 = 30 + 5 readiness drain 여유). `SIGTERM_GRACE_MS` 환경변수와 동기화. SoT: [`spec/5-system/4-execution-engine.md §11 Graceful Shutdown`](../../spec/5-system/4-execution-engine.md#11-graceful-shutdown).
 
