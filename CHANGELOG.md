@@ -28,11 +28,17 @@ e2e 로 먼저 재현했다. 레이스로는 인터리빙을 고를 수 없어(�
 - 이른 가드는 남겼다 — 흔한 경우를 `assertAdmin` 전에 403 으로 끊는다.
   DELETE 의 술어는 그 뒤를 받는 backstop 이다.
 
-**남는 것**: `removeMember()` 의 권한 검사 순서 오라클은 여전히 열려 있고,
-그 블라스트 반경이 트래커에 실제보다 좁게 적혀 있던 것을 이 PR 이 정정했다 —
-`RolesGuard` 가 `handlerConsumesWorkspaceId` false 면 단락하고 이 핸들러는
-`@Param('id')` 를 쓰므로, 노출 대상은 «비-admin 멤버» 가 아니라 **임의 인증
-사용자**다.
+**남는 것**: `removeMember()` 의 권한 검사 순서 오라클은 여전히 열려 있다.
+노출 대상은 «비-admin 멤버» 가 아니라 **임의 인증 사용자**다 — `RolesGuard` 가
+`handlerConsumesWorkspaceId` false 면 단락하고(`roles.guard.ts:116`) 이
+핸들러는 `@WorkspaceId()` 가 아니라 `@Param('id')` 를 쓴다.
+
+> **트래커는 그 반경을 처음부터 정확히 적고 있었다** — *"요청자가 그 워크스페이스
+> 멤버가 아니어도"* 와 13/17 라우트 분석까지. 좁게 적혀 있던 것은 이 PR 의 plan
+> 문서(`member-owner-toctou.md` §F)였고 그쪽을 고쳤다. **이 문단은 처음에 그것을
+> 거꾸로 적었다**(«트래커가 좁았다») — 확인 전에 쓴 문장을 확인 후에 고치지 않은
+> 것이고, `/ai-review` `09_10_41` W1 이 잡았다. 정확했던 트래커를 다음 사람이
+> 의심하게 만드는 서술이라 여기 남겨 둔다.
 
 ## Unreleased — 동시 DELETE 두 건이 `user.2fa_disabled` 감사 행을 두 번 남기던 것
 
