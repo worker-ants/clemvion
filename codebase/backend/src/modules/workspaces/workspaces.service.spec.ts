@@ -1524,12 +1524,18 @@ describe('WorkspacesService', () => {
     });
 
     /**
-     * 진 쪽은 404 다 — 재조회가 **행이 없다**를 답하는 경우.
+     * 진 쪽은 404 다 — 재조회가 **행이 없다**를 답하는 경우. 0-행의 나머지 한 이유이고,
+     * 아래 owner 갈래 둘과 짝이 돼 «존재하든 말든 403» 으로 넓히는 편집을 죽인다.
      *
      * > **종전 이 블록은 일어날 수 없는 상태를 고정하고 있었다.** 재조회가 `editor` 를
      * > 답하게 두고 404 를 기대했는데, DELETE 의 술어는 `role` 하나뿐이라 «행이 남아 있고
      * > owner 가 아닌데 0행» 은 성립하지 않는다. 술어가 들어오기 **전**에 쓰인 단언이
      * > 그대로 남아 있었던 것이고, `/ai-review` `08_09_57` W3 이 그 틈을 짚었다.
+     *
+     * > **그 정정이 곧바로 중복을 만들었다.** 같은 라운드에서 «행이 사라졌으면 404» 블록을
+     * > 따로 추가했는데, 이 블록을 `null` 재조회로 고치자 둘이 **mock·단언까지 동일**해졌다.
+     * > 다음 라운드(`08_46_47` W1)가 그것을 잡아 중복 쪽을 지웠다 — 한쪽만 갱신되고 다른
+     * > 쪽이 낡는 silent drift 자리였다.
      */
     it('진 쪽은 404 이고 감사를 남기지 않는다', async () => {
       // 둘 다 무락 조회를 통과했지만 원자적 DELETE 는 하나만 1행을 지운다 —
@@ -1598,26 +1604,6 @@ describe('WorkspacesService', () => {
         service.removeMember(workspaceId, memberId, requesterId),
       ).rejects.toMatchObject({
         response: { code: 'CANNOT_REMOVE_OWNER' },
-      });
-      expect(getAudit().record).not.toHaveBeenCalled();
-    });
-
-    /**
-     * 0 의 나머지 한 이유 — 행 자체가 사라졌다. 재조회가 `null` 이면 404 다.
-     * 이 블록이 «존재하든 말든 403» 으로 넓히는 편집을 죽인다.
-     */
-    it('DELETE 시점에 행이 사라졌으면 404 다', async () => {
-      wireFindOne(
-        { id: memberId, userId: 'target-user', role: 'editor' },
-        undefined,
-        null,
-      );
-      memberRepo.delete.mockResolvedValue({ affected: 0 });
-
-      await expect(
-        service.removeMember(workspaceId, memberId, requesterId),
-      ).rejects.toMatchObject({
-        response: { code: 'MEMBER_NOT_FOUND' },
       });
       expect(getAudit().record).not.toHaveBeenCalled();
     });
