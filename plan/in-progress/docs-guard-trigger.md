@@ -74,6 +74,22 @@ plan 만 바꾼 커밋**에 옛·새 pathspec 을 각각 대조했다. pathspec 
 > 켜졌다» 의 근거가 될 수 없다. 그 사실은 pathspec diff 자체(`spec/**` 는 원래 있었고, 추가된 줄은
 > `plan/**` 하나)가 보여 준다.
 
+## E. 스코프 밖 부수 수정 — 선언해 둔다
+
+리뷰 1라운드 W1 이 이 PR 의 impl-prep 세션 `21_04_26` 의 `meta.json` 이 세션 전용 scratch 절대경로를
+영구 기록으로 남긴 것을 짚었다. 고치다 보니 **이미 머지된 `#1389` 의 impl-done 세션
+`review/consistency/2026/09/24/20_34_01/meta.json` 도 같은 결함**이었다 — 같은 방식(scratch 에 대상
+spec 한 파일만 복사해 scope 로)으로 좁혔기 때문이다. 결함 클래스를 닫으려고 **함께 고쳤다.**
+
+그 파일은 이 PR 의 원래 스코프(docs 가드 트리거) 밖이고, 머지된 다른 PR 의 산출물이다(리뷰 2라운드
+W1). 그래서 여기 선언해 둔다:
+
+- 무엇을: `target_path` · `mode` 의 `scope=` 를 scratch 절대경로에서 `spec/conventions/spec-impl-evidence.md`
+  로. 사본으로 돌린 사실과 이유는 `scope_note` 로 **보존**했다(원래 기록을 지우지 않는다).
+- 안전성: 게이트(`review_guard._is_impl_done_session`)는 `mode` 의 `--impl-done` 토큰만 본다. 토큰을
+  유지했고 `20_34_01` 이 여전히 impl-done 으로 인식됨을 확인했다.
+- 다음부터: 이런 소급 정정은 **별도 커밋**으로 떼고 대상 PR 번호를 메시지에 적는다.
+
 ## 체크리스트
 
 - [x] `/consistency-check --impl-prep` — **구현 전에** 돌렸다. **BLOCK: NO · Critical 0 ·
@@ -83,7 +99,12 @@ plan 만 바꾼 커밋**에 옛·새 pathspec 을 각각 대조했다. pathspec 
       하네스 재확인)을 구현에 반영했다
 - [x] `spec-link-checks.yml` — pathspec 에 `plan/**`, 가드 디렉터리 전체 실행(로컬에서 CI 와 같은
       명령으로 23파일 3567개 확인), 잡 이름 유지 + 그 이유 주석. `PROJECT.md` §문서 링크 검증 갱신
-- [x] 하네스 가드 통과 — `python3 -m pytest .claude/tests -q` 1138 passed
+- [x] 하네스 가드 통과 — `python3 -m pytest .claude/tests -q`: 첫 구현 뒤 **1138** passed → 리뷰
+      1라운드가 회귀 테스트 파일 하나(테스트 2개)를 더한 뒤 **1140** passed
 - [x] 판별 — §D. plan 만 바꾼 과거 커밋에서 옛 `false` → 새 `true`
-- [ ] `/ai-review`
-- [ ] 트래커 항목 체크 + plan `complete/` 로
+- [x] `/ai-review` → **2라운드에 수렴** (14명 전원 · forced 8/8)
+      - 1R `21_16_58` Warning 4 → 전부 조치(회귀 테스트 `test_spec_link_checks_scope.py` 신설 · CHANGELOG ·
+        헤더 stale · scratch 경로 영구 기록 — `#1389` 세션까지)
+      - 2R `21_35_51` Warning 1(위 `#1389` 소급 수정이 스코프 미선언) → §E 로 선언. 이 라운드의 워크플로
+        수정은 0건이고 fix 는 plan 뿐이라 3라운드 불요
+- [x] 트래커 항목 체크 + plan `complete/` 로
