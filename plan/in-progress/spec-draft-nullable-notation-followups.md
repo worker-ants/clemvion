@@ -5837,6 +5837,26 @@ field: T | null;
       (3) `1-workflow-list.md` frontmatter `pending_plans` 가 완료된 `plan/complete/workflow-duplicate-nodes-edges.md` 를 가리킨다 — 빼면 된다
       (남은 미구현 surface 가 따로 있는지 먼저 확인). 셋 다 사실 정정.
 
+- [ ] **k8s 로컬 오버레이의 버킷 Job 이 아바타 공개 정책을 걸지 않는다** (developer, 낮음, 2026-09-24 등재 ·
+      plan `minio-silo-image` §D — 이미지 교체 중 발견, 그 PR 의 축이 아니라 분리).
+      `k8s/overlays/local/infra-minio.yaml` 의 Job `minio-create-bucket` 은 `mc mb` 만 한다. 두 compose 파일의
+      `createbuckets` 는 `#1258`(아바타 업로드)이 `mc anonymous set-json /policy/avatars-public-read.json` 을 넣었는데
+      이 오버레이만 빠졌다. `scripts/minio/README.md` 는 이 정책을 아바타 업로드의 **배포 선행 조건**이라 적는다 —
+      없으면 업로드는 성공하고 **이미지만 403** 이다. `spec/0-overview.md` §5 의 «두 배포 방식 모두 동일한 기능을
+      제공» 과도 어긋난다(`--impl-prep` `review/consistency/2026/09/24/23_12_45` cross_spec 참고).
+      처방 후보: 정책 JSON 을 ConfigMap 으로 마운트하고 Job 에 `set-json` 한 줄. **`set download` 프리셋은 쓰지 말 것**
+      (목록까지 연다 — README 의 실측). 검증은 compose 쪽과 같은 세 판정(익명 목록 403 · avatars GET 200 · 그 밖 403)을
+      `kubectl kustomize` 로 렌더한 매니페스트 기준으로.
+
+- [ ] **MinIO 계열 이미지 참조 6곳이 서로 같은지 아무것도 보지 않는다** (developer, 낮음, 2026-09-24 등재 ·
+      `/ai-review` `review/code/2026/09/24/23_33_07` INFO 3).
+      `docker-compose.yml` · `docker-compose.e2e.yml` 의 `minio` · `createbuckets`, `k8s/overlays/local/infra-minio.yaml`
+      의 StatefulSet · Job — 같은 `pgsty/silo:…@sha256:…` 문자열이 **수동으로 여섯 번** 적혀 있다. `#1325` 는 이 중
+      k8s 두 곳을 놓쳤다가 리뷰에서 잡혔다(부분 반영의 실제 전례). compose 와 kustomize 는 변수를 공유할 방법이
+      없으므로 SoT 를 하나로 모으기보다 **일치를 검사하는 하네스 테스트**가 현실적이다 — `.claude/tests/` 에서 세
+      파일을 `yaml.safe_load`(YAML 은 정본 파서가 있는 문법이라 정규식이 아니라 파서로)로 읽어 여섯 `image` 가
+      같은 문자열이고 다이제스트를 포함하는지 본다. 판별 확인: 한 곳만 옛 태그로 되돌리면 RED 여야 한다.
+
 ## 종결 조건
 
 **형제 plan 은 이미 종결됐다** (`cce8a188b`, 2026-09-04). `entity-nullable-column-type-mismatch.md`

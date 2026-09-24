@@ -23,6 +23,30 @@ self 위임 → admin → 대상이 owner 인가** 다. 같은 파일의 단위 
 테스트 1건만** RED 였고, 나머지 138건은 실행·통과했다. 새 테스트를 빼면 세 뮤턴트 모두
 초록이었다.
 
+## Unreleased — MinIO 이미지를 `pgsty/silo` 로: quay.io 의 `minio/*` 도 닫혔다
+
+2026-09-24 부터 모든 e2e(main 포함)가 테스트 0건으로 죽었다. 컨테이너를 띄우기 전 이미지 pull 에서
+`quay.io/minio/mc` 가 `unauthorized` 로 거부됐다. `#1325`(2026-09-12)가 Docker Hub 의 `minio/*` 익명
+pull 차단을 피해 quay.io 로 옮겼는데, 12일 만에 quay 의 `minio/*` 도 비공개가 됐다(API **401**, 같은
+시각 다른 quay 저장소는 **200** — quay 장애가 아니다). Docker Hub `minio/minio` 는 이미 **404** 다.
+로컬 e2e 는 이미지가 캐시돼 있어 초록이었다.
+
+**세 곳**(`docker-compose.yml` · `docker-compose.e2e.yml` · `k8s/overlays/local/infra-minio.yaml`)의
+서버와 버킷 준비 컨테이너를 **같은 이미지** 하나로 바꿨다:
+`pgsty/silo:RELEASE.2026-09-16T00-00-00Z@sha256:635197cb…` — MinIO 서버의 커뮤니티 포크(AGPL-3.0).
+**태그 + 다이제스트로 고정**한다(Docker Hub 태그는 가변). k8s 오버레이는 `:latest` 였던 것을 이번에
+함께 고정했다(`#1325` 가 남긴 후속 항목).
+
+**호환성 실측**: `MINIO_*` 환경변수 · `server` 명령 · `/minio/health/live` 헬스체크 · 콘솔 · 버킷 준비
+명령(`mc` 는 이미지 안 `mcli` 의 링크)이 **글자 그대로** 동작한다. 아바타 공개 정책은 익명 목록 403 ·
+avatars GET 200 · 그 밖 403 이고, 기각된 프리셋이면 목록이 200 으로 열리는 것도 확인해 판정이 공허하지
+않다. 백엔드와 같은 `@aws-sdk/client-s3` 로 Put · Get · Delete · DeleteObjects 가 전부 통과했고, **옛
+MinIO 가 쓴 볼륨을 그대로 읽는다** — 기존 dev `minio_data` 볼륨을 지울 필요가 없다. 반대 방향(silo 가
+쓴 볼륨을 옛 MinIO 로)도 데이터는 유지되지만 설정 쓰기가 한 방향이라 옛 MinIO 가 LDAP 설정 경고를 남긴다.
+
+검토한 대안: `pgsty/minio` 고정 태그는 MinIO 이름으로 나온 **마지막 릴리스**라 이후 보안 수정이 없다.
+버킷 준비를 rclone 으로 바꾸는 안은 rclone 에 **버킷 정책 명령이 없어** 아바타가 403 이 된다.
+
 ## Unreleased — plan/spec 만 바꾼 PR 에서 docs 가드가 하나도 돌지 않던 것
 
 `codebase/frontend/src/lib/docs/__tests__/` 의 가드들은 `plan/**`·`spec/**` 을 스캔한다

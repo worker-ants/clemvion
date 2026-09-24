@@ -80,15 +80,20 @@ required"* 였고, 이번은 *"pull access denied … may require 'docker login'
 
 ## 후속 등재
 
-- [ ] **`k8s/overlays/local/infra-minio.yaml` 의 `:latest` 를 RELEASE 태그로 고정** (developer).
+- [x] **`k8s/overlays/local/infra-minio.yaml` 의 `:latest` 를 RELEASE 태그로 고정** (developer).
+      > **2026-09-24 종결** — plan `minio-silo-image` 가 quay.io 폐쇄로 이미지를 `pgsty/silo` 로
+      > 바꾸면서 세 곳(두 compose + 이 오버레이)을 **RELEASE 태그 + 다이제스트**로 함께 고정했다.
+      > 이미지를 바꾸는 것 자체가 고정이라 이번엔 버전 축을 따로 떼어 낼 수 없었다.
       W-59 가 compose 쪽에 이미 내린 결정(*"`latest` 는 silent breaking change 위험"*)이 이
       오버레이에는 적용돼 있지 않다. 이 PR 은 레지스트리 축만 닫았다.
       함께 볼 것: **다이제스트(`@sha256:`) 고정** — 레지스트리를 옮긴 지금이 *"이 태그가 어떤
       바이트를 가리키는가"* 의 신뢰를 재설정하는 시점이라는 지적(dependency INFO).
       이번 PR 은 image ID 동일성을 **1회 수동 확인**했을 뿐 CI 가 강제하지 않는다.
-- [ ] **다른 트래커 항목과의 관계 종결 확인** — `spec-sync-external-interaction-api-gaps.md` 의
+- [x] **다른 트래커 항목과의 관계 종결 확인** — `spec-sync-external-interaction-api-gaps.md` 의
       「Docker Hub 익명 pull rate limit」 항목에 *"(a) 실행됨"* 을 적었다. 그 항목은 이미
       `[x]`(won't-do) 라 체크박스는 건드리지 않았다.
+      > **2026-09-24 확인** — 그 항목에 «✅ (a) 실행됨» 이 실제로 남아 있다. 같은 날 quay.io 폐쇄로
+      > 그 항목에 경과(«재검토 불요» 전제 반증 · `pgsty/silo` 교체)를 덧붙였다(plan `minio-silo-image`).
 
 ## 체크리스트
 
