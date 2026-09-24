@@ -1,10 +1,11 @@
 ---
 title: removeMember 의 owner 보호 가드가 TOCTOU 로 뚫린다
-status: in-progress
+status: complete
 owner: developer
 worktree: member-owner-toctou-51309a
 spec_impact: none
 started: 2026-09-24
+completed: 2026-09-24
 ---
 
 # 가드는 무락 읽기 위에 서 있고, 그 사이에 대상이 owner 가 된다
@@ -186,6 +187,13 @@ spec 은 «대상이 Owner 인 경우 거부된다» 고 적는다. 이 PR 은 �
             «진 쪽은 404» 의 재조회를 `null` 로 고치자 같은 라운드에 추가해 둔 블록과
             동일해졌다. 커버리지 손실이 없음을 뮤턴트(`if (still)` → `if (true)`, 1/1)로 확인.
             W2 는 기존 트래커 항목이고 리뷰어도 «이 PR 을 막을 사유 아님» 이라 적었다.
-      - [ ] 3라운드 — 2라운드 fix 가 코드를 바꿨으므로 fresh 리뷰가 필요하다
-- [ ] `/consistency-check --impl-done spec/5-system` → BLOCK: NO
-- [ ] 트래커 항목 해소 + plan `complete/` 로 (**한 커밋으로**)
+      - [x] 3라운드 `review/code/2026/09/24/09_10_41` — **Critical 0 · Warning 2 → 수렴**.
+            W1 은 **CHANGELOG 가 사실관계를 거꾸로 적은 것**이었다 — 트래커가 좁았다고 썼는데
+            트래커는 처음부터 정확했고 좁은 것은 이 plan §F 였다. 확인 전에 쓴 문장을 확인
+            후에 안 고친 형태라 정정하고 경위를 남겼다. W2 는 세 라운드 연속 «스코프 밖» 판정.
+            **그 라운드의 `codebase/**` 수정 0건**이라 정지 규칙을 충족한다.
+- [x] `/consistency-check --impl-done spec/5-system` → **BLOCK: NO · Critical 0 · Warning 1**
+      (`review/consistency/2026/09/24/09_24_11`). Warning 은 §B 에서 기각을 기록한 «네 번째
+      메커니즘» 의 spec 미문서화이고, checker 가 **이미 planner 항목으로 등재됨을 확인**해
+      «신규 조치 불요» 로 처분했다.
+- [x] 트래커 항목 해소 + plan `complete/` 로 (**한 커밋으로**)
