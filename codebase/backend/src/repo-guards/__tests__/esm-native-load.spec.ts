@@ -44,7 +44,10 @@ describe('repo-guard: ESM-only 의존성 네이티브 로드', () => {
   // yocto-queue). 그 발산이 재발하는 것만 여기서 정적으로 막는다 — 행동 검증이 아니라
   // **설정 대조**라는 점을 분명히 해 둔다.
   it('e2e 설정도 `transformIgnorePatterns` 를 기본값으로 둔다', () => {
-    const e2eConfigPath = path.resolve(__dirname, '../../../test/jest-e2e.json');
+    const e2eConfigPath = path.resolve(
+      __dirname,
+      '../../../test/jest-e2e.json',
+    );
     const e2eConfig = JSON.parse(fs.readFileSync(e2eConfigPath, 'utf8')) as {
       transformIgnorePatterns?: unknown;
     };
