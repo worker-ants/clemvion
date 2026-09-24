@@ -28,14 +28,19 @@ services:
       retries: 5
 
   minio:
-    # W-59 — 'latest' 는 silent breaking change 위험. 검증된 RELEASE 태그로 고정.
-    # 갱신 시 mc 이미지 (createbuckets) 와 동시에 올린다.
-    # **레지스트리는 quay.io 다** (2026-09-12) — Docker Hub 의 `minio/*` 는 익명 pull 이
-    # 막혀 CI 가 `pull access denied … may require 'docker login'` 로 죽었다. 실측: 같은 시각
-    # 같은 클라이언트로 Docker Hub `minio/minio` **401** vs quay.io **200**,
-    # `redis:7-alpine`·`pgvector/pgvector:pg18` 은 Hub 에서 200 — rate limit 이 아니라
-    # `minio/*` 저장소 한정이다. **태그는 그대로** 유지한다(quay 에 동일 태그 존재).
-    image: quay.io/minio/minio:RELEASE.2025-04-22T22-12-26Z
+    # **이미지는 `pgsty/silo` 다** (2026-09-24) — MinIO 서버의 커뮤니티 포크(AGPL-3.0,
+    # 2026-08-06 `pgsty/minio` 에서 개명). MinIO 공식 이미지는 두 레지스트리 모두 닫혔다:
+    # Docker Hub `minio/*` 익명 pull 차단(2026-09-12) → quay.io 로 옮겼는데 quay 의
+    # `minio/*` 도 2026-09-24 비공개가 됐다(`unauthorized`, 같은 시각 다른 quay 저장소는 200).
+    #
+    # 호환: `MINIO_*` 환경변수 · `server` 명령(엔트리포인트가 `silo server` 로 번역) ·
+    # `/minio/health/live` · 옛 MinIO 가 쓴 `/data` 볼륨을 그대로 쓴다(실측 — 근거와 대안
+    # 검토는 plan `minio-silo-image`).
+    #
+    # W-59 — 'latest' 는 silent breaking change 위험. RELEASE 태그 **+ 다이제스트**로 고정한다
+    # (Docker Hub 태그는 가변). `-distroless` 태그는 쓰지 말 것 — `curl` 이 없어 아래
+    # 헬스체크가 깨진다. createbuckets 와 **같은 이미지**다 — 올릴 때 두 줄을 함께 올린다.
+    image: pgsty/silo:RELEASE.2026-09-16T00-00-00Z@sha256:635197cb9f36d01bee221d34d1c7d7960f6a95c48b0b6c01d99cd13bdae51a46
     ports:
       - "${MINIO_API_PORT:-9000}:9000"
       - "${MINIO_CONSOLE_PORT:-9001}:9001"
@@ -52,8 +57,10 @@ services:
       retries: 5
 
   createbuckets:
-    # W-59 — minio 서버 이미지와 동일 release 라인으로 고정. 레지스트리도 위와 같이 quay.io.
-    image: quay.io/minio/mc:RELEASE.2025-04-16T18-13-26Z
+    # 서버와 **같은 이미지**를 쓴다 — 클라이언트(`mcli`)가 들어 있고 `/usr/bin/mc` 가 그것을
+    # 가리키는 심볼릭 링크라 아래 `mc …` 명령이 그대로 돈다. 그 링크는 Dockerfile 에만 있고
+    # README 는 `mcli` 로만 소개한다 — 이미지를 올릴 때 링크가 남아 있는지 확인할 것.
+    image: pgsty/silo:RELEASE.2026-09-16T00-00-00Z@sha256:635197cb9f36d01bee221d34d1c7d7960f6a95c48b0b6c01d99cd13bdae51a46
     depends_on:
       minio:
         condition: service_healthy
