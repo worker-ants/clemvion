@@ -5077,6 +5077,59 @@ field: T | null;
       > planner 가 했고(그 PR 이 `spec/` 쓰기였다), 가드 강화는 그 PR 이 **명시적으로 스코프
       > 밖으로 남긴 것**이다.
 
+- [ ] **docs 가드가 검사하는 데이터가 그 가드를 트리거하지 않는다** (developer, **중간**,
+      2026-09-24 등재 · `/ai-review` `review/code/2026/09/24/14_24_10` Critical 1 의 부가 관찰을
+      실측으로 확인).
+      `codebase/frontend/src/lib/docs/__tests__/` 의 가드들은 `plan/**` 과 `spec/**` 을 스캔하는데
+      (`plan-frontmatter` · `spec-frontmatter` · `spec-code-paths` · `spec-pending-plan-existence`
+      …), 그것을 돌리는 `frontend-checks.yml` 의 pathspec 에는 **그 둘이 없다**. 전수 12개
+      (`sed -n '/pathspecs: |/,/^      relevant/p' .github/workflows/frontend-checks.yml` 로 주석을
+      걷고 센 값):
+      `codebase/frontend/**` · `codebase/channel-web-chat/**` · `codebase/packages/**` ·
+      `pnpm-lock.yaml` · `pnpm-workspace.yaml` · `scripts/ci-paths-changed.sh` ·
+      `.github/workflows/_changed-paths.yml` · `.github/actions/pnpm-workspace/action.yml` ·
+      `.github/workflows/frontend-checks.yml` · `scripts/_typecheck_ratchet.py` ·
+      `scripts/check-frontend-typecheck-ratchet.py` · `scripts/frontend-typecheck-baseline.json`.
+
+      > 이 목록은 **처음에 8개로 적었다가 리뷰(`review/code/2026/09/24/15_26_17` W2)에 반증됐다.**
+      > `grep -A 20` 의 잘린 출력을 전수의 프록시로 삼고 「뿐이다」라고 썼다 — 결론(둘이 없다)은
+      > 안 바뀌지만, 목록을 다른 목적으로 재사용할 다음 사람에게는 거짓이 된다.
+
+      즉 **`plan/`·`spec/` 만 바꾼 PR 에서는 그 데이터를 검사하는 잡이 통째로 no-op** 이고,
+      위반은 나중에 frontend 를 건드리는 **무관한 PR** 에서 터진다.
+
+      **이 PR 이 그 실례다**: backend 전용 변경에 `plan/**` 위반(`worktree:` legacy placeholder)을
+      섞었더니 로컬에서는 `plan-frontmatter.test.ts` 가 **157 중 1 FAIL** 로 잡았는데, CI 는
+      `frontend-checks` 를 skip 하므로 **초록으로 머지됐을 것**이다. 리뷰어가 잡지 않았으면 다음
+      frontend PR 의 빨간 불이 됐다.
+
+      처방은 둘인데 **비용 판단이 갈린다** — 그래서 이 PR 이 하지 않았다:
+      - (a) `frontend-checks` pathspec 에 `plan/**` · `spec/**` 를 **추가**. 두 줄이고 트리거가
+        정확해지지만, 이 저장소에 흔한 plan/spec-only PR 이 전부 frontend lint·typecheck·build·
+        전체 vitest 를 돌게 된다.
+      - (b) docs 가드만 **별도 잡**으로 분리해 `plan/**`·`spec/**`·그 가드 파일들을 pathspec 으로
+        준다. 트리거도 비용도 맞지만 잡 하나와 required check 하나가 는다.
+
+      (b) 를 권한다 — (a) 는 "가드 하나 때문에 전체 스위트" 라 다음 사람이 비용을 이유로 되돌릴
+      유인이 생긴다. 다만 required status check 를 늘리는 변경이라 `#1106` 의 데드락 이력을
+      먼저 읽을 것.
+
+- [ ] **CHANGELOG 「해당 없음」 판정에 성문 근거가 없다** (developer, 낮음, 2026-09-24 등재 ·
+      `/ai-review` `review/code/2026/09/24/15_26_17` INFO 10).
+      빌드·테스트 도구만 바꾸는 PR 이 `CHANGELOG.md` 항목을 내지 않는 것은 타당하지만
+      (143개 항목이 전부 제품 동작 변경, 매핑 표에 도구 행 없음), **그 판정 기준이 어디에도
+      적혀 있지 않다** — 매번 다시 도출해야 하고, 이 세션은 CHANGELOG 누락을 네 번 밟은 뒤에야
+      「누락이 아니라 판정」임을 RESOLUTION 에 적었다.
+
+      **간단하지 않은 이유**: `PROJECT.md §변경 유형 → 갱신 위치 매핑` 은 「X 를 바꾸면 Y 도
+      고쳐라」 표라 **부정 행**(「고칠 것 없음」)과 범주가 맞지 않는다. 게다가 그 표는
+      `.claude/config/doc-sync-matrix.json` 과 **행 수 1:1** 로 묶여 있어
+      (`test_doc_sync_matrix.py`) 행을 늘리면 JSON 도 함께 고쳐야 한다.
+
+      처방 후보: 표에 행을 넣지 말고 `CHANGELOG.md` 상단이나 `PROJECT.md` 의 별도 한 문단에
+      **「무엇이 항목을 만드는가」** 를 적는다(제품 동작·배포 의존성 변경 = 항목,
+      도구·테스트 하니스 = 해당 없음). 범주가 맞는 자리에 두는 편이 표를 늘리는 것보다 싸다.
+
 - [ ] **재진입 락 오케스트레이션이 두 번째로 복제됐다 — 세 번째면 헬퍼로 뽑는다** (developer,
       낮음, 2026-09-24 등재 · `/ai-review` `review/code/2026/09/24/08_09_57` W6).
       `BEGIN → SELECT … FOR UPDATE → 요청 발사 → 공허성 가드 → 락 안 mutate → COMMIT →

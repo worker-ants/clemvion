@@ -3,9 +3,11 @@ import type { Config } from 'jest';
 /**
  * Backend Jest configuration.
  *
- * Extracted from package.json (commit history) so we can annotate the
- * transformIgnorePatterns regex — JSON does not allow comments and the
- * regex is non-obvious.
+ * Extracted from package.json (commit history) because JSON does not allow
+ * comments. It was extracted to annotate a hand-maintained
+ * transformIgnorePatterns allowlist; that allowlist is gone, and what needs
+ * annotating now is why its absence is deliberate and what holds it up — see
+ * the comment on transformIgnorePatterns below.
  */
 const config: Config = {
   moduleFileExtensions: ['js', 'json', 'ts'],
@@ -14,16 +16,29 @@ const config: Config = {
   transform: {
     '^.+\\.(t|j)s$': 'ts-jest',
   },
-  // ESM-only packages must be transformed. uuid >=12, p-limit >=4, yocto-queue;
-  // otplib >=13 rewrite ships ESM + pulls ESM-only @otplib/*, @scure/base,
-  // @noble/hashes (totp.service uses otplib for 2FA).
-  // The optional `\.pnpm/[^/]+/node_modules/` prefix matches pnpm's isolated
-  // layout (node-linker=isolated, .npmrc): transitive deps resolve under
-  // `.pnpm/<pkg>@<ver>/node_modules/<pkg>` rather than a flat top-level dir, so
-  // this branch is the live path these ESM packages are found through.
-  transformIgnorePatterns: [
-    'node_modules/(?!(?:\\.pnpm/[^/]+/node_modules/)?(?:uuid|p-limit|yocto-queue|otplib|@otplib|@scure|@noble)/)',
-  ],
+  // **Default on purpose — node_modules is never transformed.**
+  //
+  // This used to be a hand-maintained allowlist that fed ESM-only packages
+  // (uuid, p-limit, yocto-queue, otplib, @otplib, @scure, @noble) through
+  // ts-jest so they came out as CJS. Every package that went ESM had to be
+  // appended by hand, and the list could only ever grow.
+  //
+  // Jest now loads them as ESM natively: `package.json` runs jest under
+  // `node --experimental-vm-modules`, which exposes `vm.SourceTextModule` and
+  // flips jest-runtime's `supportsSyncEvaluate` — the gate behind its
+  // `require(ESM)` support. (The gate is the flag, NOT the Node version: CI was
+  // already on Node 24.20 and still failed, because jest probes
+  // `vm.SourceTextModule.prototype.hasAsyncGraph`, which only exists with the
+  // flag. Jest's own error text points at the Node version and misleads.)
+  //
+  // **The two changes are a pair — reverting either one alone breaks the suite.**
+  // Under vm-modules jest evaluates a `type: module` package as ESM, so if
+  // ts-jest had already rewritten it to CJS the module body throws
+  // `ReferenceError: exports is not defined` (measured with uuid@13).
+  //
+  // This also unblocks dependencies that CANNOT be downleveled at all —
+  // `@nestjs/typeorm@12` uses `import.meta.url`, which has no CJS form.
+  transformIgnorePatterns: ['/node_modules/'],
   collectCoverageFrom: ['**/*.(t|j)s'],
   coverageDirectory: '../coverage',
   testEnvironment: 'node',
