@@ -5060,9 +5060,16 @@ field: T | null;
       > CHANGELOG 에 «트래커가 좁게 적었다» 고 거꾸로 썼다가 `09_10_41` W1 에 잡혀 정정했다.
       > 트래커는 손대지 않았다.
 
-- [ ] **`spec-pending-plan-existence` 가드가 «그게 plan 인가» 를 묻지 않는다** (developer,
+- [x] **`spec-pending-plan-existence` 가드가 «그게 plan 인가» 를 묻지 않는다** (developer,
       **중간**, 2026-09-24 등재 · `--impl-prep` `review/consistency/2026/09/24/12_57_36` Critical
       의 **진짜 원인**).
+      **2026-09-24 해소** — `pending-plan-is-plan` 브랜치(plan `pending-plan-is-plan.md`).
+      순수 술어 `isPendingPlanPath` 를 세우고 가드가 항목마다 «plan 인가 → 실존하는가» 순으로
+      본다. **처방보다 한 칸 좁다** — 아래 처방은 «`plan/` 하위 `.md`» 였지만 SoT(§2.1 `pending_plans`
+      행)가 허용 위치를 `plan/in-progress/`·`plan/complete/` **둘로 열거**하므로 그 둘만 참이다
+      (`plan/research/`·`plan/` 루트는 거짓). 접두 검사 전에 정규화해 `..` 탈출도 막았다.
+      main 의 위반 0건 / 27개. 실재하는 `.sql` 을 실제 spec 에 넣는 뮤턴트로 옛 가드는 통과시키고
+      새 검사만 잡음을 확인했다.
       `spec/5-system/10-graph-rag.md` 의 `pending_plans:` 에 마이그레이션 `.sql` 세 경로가
       **4주 가까이** 들어 있었는데 CI 가 초록이었다. 가드가 **경로 존재**만 검사하기 때문이다 —
       `.sql` 파일은 실재하므로 통과한다(false negative). 정정은
@@ -5076,6 +5083,19 @@ field: T | null;
       > **왜 developer 인가**: 가드는 `codebase/frontend/src/lib/docs/__tests__/` 다. 정정 자체는
       > planner 가 했고(그 PR 이 `spec/` 쓰기였다), 가드 강화는 그 PR 이 **명시적으로 스코프
       > 밖으로 남긴 것**이다.
+
+- [ ] **`spec-impl-evidence.md` 가 새로 강제된 «plan 인가» 검사를 본문에 적지 않는다** (planner,
+      낮음, 2026-09-24 등재 · `--impl-done` `review/consistency/2026/09/24/20_34_01` INFO 2·4).
+      위 항목의 해소로 `spec-pending-plan-existence` 가드가 **형태(plan 인가)** 까지 보게 됐는데
+      SoT 두 자리가 그것을 드러내지 않는다:
+      - §4 가드 표의 그 행이 «… 에 실존» 한 단어로만 요약한다 — 형태 검증 단계가 안 보인다.
+      - `plan/research/` 를 **거짓**으로 치는 근거가 본문·Rationale 에 없다. §2.1 행이 허용 위치를
+        둘로 **열거**하므로 계약상 이미 배제돼 있지만, «왜» 는 지금 `isPendingPlanPath` 주석에만
+        있다(완료 종착점이 없어 `partial` 을 `implemented` 로 만들 수 없다).
+
+      둘 다 **계약의 공백이 아니라 설명의 위치** 문제다 — 구현은 이미 SoT 의 열거를 정확히
+      따른다. `spec/` 쓰기라 planner 턴(`--spec`). `PROJECT.md` 의 같은 가드 설명은 developer
+      영역이라 해소 PR 이 이미 고쳤다.
 
 - [ ] **docs 가드가 검사하는 데이터가 그 가드를 트리거하지 않는다** (developer, **중간**,
       2026-09-24 등재 · `/ai-review` `review/code/2026/09/24/14_24_10` Critical 1 의 부가 관찰을

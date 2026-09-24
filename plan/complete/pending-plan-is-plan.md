@@ -1,6 +1,6 @@
 ---
 title: "spec-pending-plan-existence 가드가 «그게 plan 인가» 를 묻게 한다"
-status: in-progress
+status: complete
 owner: developer
 worktree: pending-plan-is-plan
 spec_impact: none
@@ -109,5 +109,16 @@ TDD 의 첫 RED 6건은 전부 `isPendingPlanPath is not a function` 이었다 �
 - [x] 판별 뮤테이션 — M2~M5 예측=실측, **M1 은 무효 → M1b 로 재수행** — §D
 - [x] TEST WORKFLOW — lint PASS · unit PASS(frontend 291 파일 / 6714, 새 단위 6 · 가드 27 포함) ·
       build PASS · e2e 380 PASS
-- [ ] `/ai-review` → 수렴
-- [ ] 트래커 항목 체크 + plan `complete/` 로
+- [x] `/ai-review` → **2라운드에 수렴** (14명 전원 · forced 8/8, 코드는 두 라운드 연속 전원 NONE)
+      - 1R `19_57_00` Warning 2 → 조치(SoT 절 인용 §3→§2.1 5곳 · CHANGELOG + `#1387` 백필 +
+        트래커의 거짓 전제 정정)
+      - 2R `20_19_10` Warning 3 → 조치(기반이 바뀐 뒤 다시 안 잰 수치 넷). fix 는 문서뿐이라 3라운드
+        불요 — 판단 근거는 그 RESOLUTION 에
+- [x] `/consistency-check --impl-done` → **BLOCK: NO · Critical 0 · Warning 0**
+      (`review/consistency/2026/09/24/20_34_01`). **이번엔 필수였다** — 앞선 두 PR 과 달리 변경
+      파일 셋이 모두 `spec-impl-evidence.md` 의 `code:` 에 걸린다(`_spec_linked_changes()` 실측).
+      scope 를 `spec/conventions` 로 준비하니 **diff 가 5개 중 2개 프롬프트에만** 실려, 대상 spec
+      하나만 담은 scope 로 다시 준비해 diff 5/5 · 대상 본문 5/5 를 확인하고 돌렸다. INFO 1(같은
+      가드의 `PROJECT.md` 설명이 좁음)은 developer 영역이라 고쳤고, INFO 2·4(SoT 본문)는 planner
+      몫이라 트래커에 등재했다
+- [x] 트래커 항목 체크 + plan `complete/` 로
