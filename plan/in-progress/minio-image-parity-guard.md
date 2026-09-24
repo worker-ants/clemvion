@@ -99,6 +99,25 @@ PyYAML 은 harness CI 의 유일한 허용 의존성이다(`harness-checks.yml` 
 숫자를 따로 넣는다(B5~B8). `latest` · distroless 판정은 실제 파일에만 적용되면 지워도 초록이므로
 `pin_violation()` · `is_distroless()` 로 빼 주입 입력으로 고정했다(B10 · B11).
 
+### B-3. 4라운드 뒤 — 자리 말고 구조로 (2026-09-25)
+
+4라운드가 또 같은 형태를 한 칸 안쪽에서 찾았다(k8s `.get()` 체인의 호출 지점마다 `_mapping` 이 개별로 무검증).
+네 번째다 — 원인은 검사를 **자리마다 복제**한 것이고, 복제 하나가 무검증 분기 하나다. 그래서 테스트를 또 붙이지 않고
+구조를 바꿨다(`5f8c1c472`): 검사는 헬퍼 하나씩(`_dig` · `_seq` · `_expect_one` · `_image_value`)에만 있고 추출기는
+배선만 한다. 헬퍼는 `HelperBoundaryTest` 가, 배선은 추출기 수준 테스트가 고정한다.
+
+전수 뮤턴트 16개(바이트코드 끔, 죽인 테스트 기록) — **전부 KILLED**:
+
+| 층 | 뮤턴트 | 죽인 테스트(들) |
+| --- | --- | --- |
+| 헬퍼 | H1 `_dig` 걷기 중 가드 없음 · H2 잎 미검사 · H3 `_seq` 미검사 | `test_dig…` / `test_seq…` + 추출기 비정상 모양 테스트 |
+| 헬퍼 | H4 `_expect_one` 중복 통과 · H5 0 통과 | `test_expect_one…` + 추출기 중복 / 부재 테스트 |
+| 헬퍼 | H6 `_image_value` 빈 값 통과 · H7 비문자열 통과 | `test_image_value…` + `test_bad_image_value_is_named` |
+| 배선 | W1 compose `_dig` 우회 · W2 metadata `_dig` 우회 · W3 spec 경로 `_dig` 우회 | 비정상 모양 테스트(compose · k8s) |
+| 배선 | W4 containers `_seq` 우회 | 비정상 모양 테스트의 **스칼라 containers** 서브테스트 — 매핑은 키를 돌아 dict 가 안 나와 우회를 못 가른다 |
+| 배선 | W5 컨테이너 `_expect_one` 우회 · W6 image `_image_value` 우회 | 컨테이너 중복 / 부재 · 이미지 없음 테스트 |
+| 판정 | P1 `latest` · P2 distroless · P3 `fullmatch` → `match` | `test_pin_violation_edges` · `test_distroless_is_detected` |
+
 ## C. 체크리스트
 
 - [x] `/consistency-check --impl-prep` — **구현 전에** → `review/consistency/2026/09/25/00_08_35`
@@ -106,9 +125,9 @@ PyYAML 은 harness CI 의 유일한 허용 의존성이다(`harness-checks.yml` 
       사본(두 본문 5/5 적재 · `meta.json` 저장소 경로 + `scope_note`). 처분은 §D
 - [x] 테스트 작성 + `harness-checks.yml` pathspec 3줄 + `.claude/tests/README.md` 카탈로그.
       **TDD 순서로 확인**: pathspec 을 넣기 전 `test_harness_checks_paths_coverage.py` 가 정확히 세 파일을 지목하며
-      RED → 넣은 뒤 GREEN. 새 테스트 ~~7개~~ 는 이름으로 실행 확인 — 첫 커밋 시점 `-v` 7 passed, 리뷰
-      1 · 2라운드 조치로 **15개**(2026-09-25, `pytest -q` 15 passed · 20 subtests — 2라운드 `/ai-review`
-      documentation W2 가 7 이 낡았다고 짚었다)
+      RED → 넣은 뒤 GREEN. 새 테스트 ~~7개~~ ~~15개(20 subtests)~~ 는 이름으로 실행 확인. 수는 라운드마다
+      늘었고 그때마다 이 줄이 낡았다(2라운드 · 4라운드 documentation W) — 그래서 **커밋에 묶은 스냅샷**으로만 적는다:
+      `62eed299f` 7 passed · `647b60ad8` 15 passed · **`5f8c1c472` 20 passed · 45 subtests**(최종 구조)
 - [x] 뮤턴트 M1~M5 실측 (표 §B) — M3 가 예측과 달랐고, 그것이 단언 1 의 서술을 고치게 했다(M5 추가)
 - [x] CHANGELOG 항목 (가드 신설 = 항목, 커밋 전 staged 확인)
 - [ ] `python3 -m pytest .claude/tests -q` 전체
