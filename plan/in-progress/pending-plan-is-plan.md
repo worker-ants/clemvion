@@ -106,6 +106,7 @@ TDD 의 첫 RED 6건은 전부 `isPendingPlanPath is not a function` 이었다 �
 - [x] 실패하는 단위 테스트 먼저 — RED 6건 (`isPendingPlanPath is not a function`)
 - [x] 구현 → GREEN (단위 13 · 가드 55)
 - [x] 판별 뮤테이션 — M2~M5 예측=실측, **M1 은 무효 → M1b 로 재수행** — §D
-- [ ] TEST WORKFLOW
+- [x] TEST WORKFLOW — lint PASS · unit PASS(frontend 291 파일 / 6714, 새 단위 6 · 가드 27 포함) ·
+      build PASS · e2e 380 PASS
 - [ ] `/ai-review` → 수렴
 - [ ] 트래커 항목 체크 + plan `complete/` 로
