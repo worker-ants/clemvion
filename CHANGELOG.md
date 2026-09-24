@@ -18,6 +18,11 @@ self 위임 → admin → 대상이 owner 인가** 다. 같은 파일의 단위 
 조회를 인라인하는 편집도 잡기 위해서다. 기대값이 정확히 1이라 조회 키가 바뀌어도 공허하게
 통과하지 않는다.
 
+**판별력 실측**: 세 뮤턴트(null 검사를 admin 뒤로 · admin 판정을 `assertAdmin()` 로 · 앞에
+`assertMembership()` 추가)를 대입했다. 셋 다 `src/modules/workspaces/` 139건 가운데 **해당 새
+테스트 1건만** RED 였고, 나머지 138건은 실행·통과했다. 새 테스트를 빼면 세 뮤턴트 모두
+초록이었다.
+
 ## Unreleased — plan/spec 만 바꾼 PR 에서 docs 가드가 하나도 돌지 않던 것
 
 `codebase/frontend/src/lib/docs/__tests__/` 의 가드들은 `plan/**`·`spec/**` 을 스캔한다

@@ -70,11 +70,19 @@ docstring 은 *"요청자 role 을 **한 번만** 읽는다 — `assertMembershi
 
 | 뮤턴트 | 편집 | 예측: 현 스위트 | 예측: 새 테스트 | 실측 |
 | --- | --- | --- | --- | --- |
-| M-a | 대상 null 검사를 admin 판정 **뒤로**, self 비교는 `member?.userId` | 생존(GREEN) | (a) 만 RED | (미측정) |
-| M-b | admin 판정을 `await this.assertAdmin(workspaceId, requesterId)` 로 | 생존(GREEN) | (b) 만 RED | (미측정) |
-| M-b2 | 첫 조회 앞에 `await this.assertMembership(workspaceId, requesterId)` 추가 | 생존(GREEN) | (b) 만 RED | (미측정) |
+| M-a | 대상 null 검사를 admin 판정 **뒤로**, self 비교는 `member?.userId` | 생존(GREEN) | (a) 만 RED | **139 중 (a) 1건만 RED** — Received `code` 가 `"ADMIN_REQUIRED"`(기대 `"MEMBER_NOT_FOUND"`) |
+| M-b | admin 판정을 `await this.assertAdmin(workspaceId, requesterId)` 로 | 생존(GREEN) | (b) 만 RED | **139 중 (b) 1건만 RED** — Received length **2**(기대 1) |
+| M-b2 | 첫 조회 앞에 `await this.assertMembership(workspaceId, requesterId)` 추가 | 생존(GREEN) | (b) 만 RED | **139 중 (b) 1건만 RED** — Received length **2**(기대 1) |
 
-뮤턴트 백업·복원은 `cp` 로 한다(`git checkout` 금지). 커밋을 먼저 하고 뮤턴트를 돌린다.
+**측정 방법**: 커밋(`a0a9b3e0c`) 뒤, 서비스 파일을 `cp` 로 백업하고 치환 스크립트로 뮤턴트를
+대입했다. 치환 앵커는 **정확히 1회** 매칭을 assert 한다 — 치환이 빗나간 무효 뮤턴트가 조용히
+원본을 돌리는 일을 막는다. 러너는 `src/modules/workspaces/` 전체(6 스위트 · 139 테스트)다.
+ts-jest 가 타입체크를 하므로 뮤턴트가 컴파일에 실패했다면 스위트 전체가 «failed to run» 으로
+떨어졌을 것이다. 세 번 모두 **나머지 138건이 실행·통과**했으므로 RED 는 단언에서 온 것이다.
+원복도 `cp` 로 했고, 원복 뒤 `git status` 가 비어 있음과 139 passed 를 확인했다.
+
+«현 스위트 생존» 예측은 **새 두 테스트를 뺀 137건이 셋 다 초록**이었다는 뜻이다 — 두 칸이
+실제로 비어 있었다는 트래커 서술이 실측으로 맞았다.
 
 ## C. 체크리스트
 
@@ -85,7 +93,7 @@ docstring 은 *"요청자 role 을 **한 번만** 읽는다 — `assertMembershi
       저장소 상대경로로 정정하고 `scope_note` 로 사실을 남겼다(선례 `21_04_26`)
 - [x] 테스트 (a) 대상 부재 + 비-admin → `MEMBER_NOT_FOUND`
 - [x] 테스트 (b) 요청자 조회 정확히 1회 — 둘 다 이름으로 실행 확인(`-t` 2 passed)
-- [ ] 뮤턴트 M-a · M-b · M-b2 실측 (표 §B 채우기)
+- [x] 뮤턴트 M-a · M-b · M-b2 실측 (표 §B 채우기) — 셋 다 예측과 일치
 - [x] CHANGELOG 항목 (커밋 전 staged 확인)
 - [ ] TEST WORKFLOW — lint · unit · build · e2e
 - [ ] `/ai-review`
