@@ -1,5 +1,52 @@
 # Changelog
 
+## Unreleased — `pending_plans` 가드가 plan 이 아닌 파일도 실존만 하면 통과시키던 것
+
+`spec-pending-plan-existence.test.ts` 는 `pending_plans:` 항목이 **디스크 어딘가에
+실존**하는지만 봤다. SoT(`spec-impl-evidence.md` §2.1 `pending_plans` 행 · §4)와 가드
+자신의 머리 주석은 **«`plan/in-progress/` 또는 `plan/complete/` 의 plan 경로»** 로
+정의하는데 구현이 그보다 넓었다. 그래서 `spec/5-system/10-graph-rag.md` 가 마이그레이션
+`.sql` 세 경로를 `pending_plans:` 에 몇 주 싣고 있었는데 CI 가 초록이었다 — 파일이 실제로
+있으니까(`#1386` 이 정정).
+
+이제 항목마다 **「plan 인가」 → 「실존하는가」** 순으로 본다. 판정은 순수 술어
+`isPendingPlanPath` 가 맡는다(`spec-frontmatter-parse.ts`, 선례 `isApplicable`):
+
+- `plan/in-progress/**.md` · `plan/complete/**.md` 만 참. `plan/research/` 는 의도적으로
+  거짓 — 완료 종착점이 없어 `partial` 을 `implemented` 로 만들 수 없다.
+- **접두 검사 전에 정규화**한다. 원문에 접두 검사를 하면 `plan/in-progress/../../x.md` 가
+  `plan/` 밖을 가리키며 통과한다.
+- 트레일링 슬래시로 `plan/in-progress-archive/` 같은 look-alike 를 거른다(캐너리로 고정).
+- YAML 이 숫자로 파싱한 항목(`- 42`)은 던지지 않고 «plan 아님» 으로 보고한다.
+
+**조이기 전 main 의 위반은 0건 / 27개**(가드 실측). 판별력은 뮤턴트로 확인했다 — 술어의
+줄을 하나씩 빼면 해당 단언만 RED 가 나고, **실재하는** `.sql` 을 실제 spec 에 넣으면
+«실존» 은 초록인 채 «plan 인가» 만 RED 가 난다(옛 가드가 통과시킬 입력을 새 검사만 잡는다).
+현 코퍼스엔 위반이 없어 **술어가 망가져도 가드만으로는 초록**이므로, 판별의 부담은
+`isPendingPlanPath` 전담 단위 테스트 **8개**가 진다(같은 파일의 나머지 7개는 기존
+`isApplicable` 테스트다).
+
+## Unreleased — jest 가 ESM 의존성을 네이티브로 로드한다 (#1387 CHANGELOG 누락 backfill)
+
+`#1387` 은 backend jest 를 `node --experimental-vm-modules` 로 띄우고
+`transformIgnorePatterns` 를 기본값으로 되돌렸다. 둘은 한 쌍이다 — 플래그만 빼면
+`Must use import to load ES Module`, 허용목록만 되살리면 `ReferenceError: exports is not
+defined`(둘 다 실측). 손으로 유지하던 ESM 허용목록(단위 여섯 · e2e 셋, **이미 서로
+어긋나 있었다**)이 사라졌고, CJS 로 downlevel 할 수 없는 의존성(`@nestjs/typeorm@12` 의
+`import.meta.url`)을 받을 수 있게 됐다. 게이트는 Node 버전이 아니라 **플래그**였다 — jest
+자신의 에러 문구가 «Node 24.9+ 면 된다» 고 잘못 인도했다.
+
+그 불변식을 지키는 repo-guard `esm-native-load.spec.ts` 도 함께 들어왔다: ESM 로드 트립와이어,
+canary 가 아직 ESM-only 인지 보는 공허성 단언, e2e 설정 대조, 그리고 jest 를 띄우는 5개
+script 의 **node 인자 구간 전체**를 선언과 글자 그대로 대조하는 단언이다(리뷰 5라운드에서
+같은 형태에 세 번 뚫린 끝에 «자리» 대신 «형태» 를 고정했다).
+
+> **왜 백필인가.** 그 PR 은 CHANGELOG 를 «해당 없음» 으로 판정하고 근거로 «143개 항목이
+> 전부 제품 동작 변경» 을 들었다. **그 전제가 틀렸다** — 이 파일에는 순수 테스트 가드 변경도
+> 기록돼 있다(«raw UPDATE/DELETE … RETURNING 회귀 가드를 큐레이션에서 발견형으로 확장»,
+> «주간 가드가 사흘 전에 이미 빨간불이었다»). `pending_plans` 가드 PR 의 리뷰가 그 누락을
+> 짚었고, 거짓 전제로 건너뛴 항목을 여기 채운다.
+
 ## Unreleased — 멤버 제거가 인가 전에 대상의 존재·owner 여부를 답하던 것
 
 `WorkspacesService.removeMember()` 의 판정 순서가 `findOne` → 404 → self 위임

@@ -5060,9 +5060,16 @@ field: T | null;
       > CHANGELOG 에 «트래커가 좁게 적었다» 고 거꾸로 썼다가 `09_10_41` W1 에 잡혀 정정했다.
       > 트래커는 손대지 않았다.
 
-- [ ] **`spec-pending-plan-existence` 가드가 «그게 plan 인가» 를 묻지 않는다** (developer,
+- [x] **`spec-pending-plan-existence` 가드가 «그게 plan 인가» 를 묻지 않는다** (developer,
       **중간**, 2026-09-24 등재 · `--impl-prep` `review/consistency/2026/09/24/12_57_36` Critical
       의 **진짜 원인**).
+      **2026-09-24 해소** — `pending-plan-is-plan` 브랜치(plan `pending-plan-is-plan.md`).
+      순수 술어 `isPendingPlanPath` 를 세우고 가드가 항목마다 «plan 인가 → 실존하는가» 순으로
+      본다. **처방보다 한 칸 좁다** — 아래 처방은 «`plan/` 하위 `.md`» 였지만 SoT(§2.1 `pending_plans`
+      행)가 허용 위치를 `plan/in-progress/`·`plan/complete/` **둘로 열거**하므로 그 둘만 참이다
+      (`plan/research/`·`plan/` 루트는 거짓). 접두 검사 전에 정규화해 `..` 탈출도 막았다.
+      main 의 위반 0건 / 27개. 실재하는 `.sql` 을 실제 spec 에 넣는 뮤턴트로 옛 가드는 통과시키고
+      새 검사만 잡음을 확인했다.
       `spec/5-system/10-graph-rag.md` 의 `pending_plans:` 에 마이그레이션 `.sql` 세 경로가
       **4주 가까이** 들어 있었는데 CI 가 초록이었다. 가드가 **경로 존재**만 검사하기 때문이다 —
       `.sql` 파일은 실재하므로 통과한다(false negative). 정정은
@@ -5076,6 +5083,19 @@ field: T | null;
       > **왜 developer 인가**: 가드는 `codebase/frontend/src/lib/docs/__tests__/` 다. 정정 자체는
       > planner 가 했고(그 PR 이 `spec/` 쓰기였다), 가드 강화는 그 PR 이 **명시적으로 스코프
       > 밖으로 남긴 것**이다.
+
+- [ ] **`spec-impl-evidence.md` 가 새로 강제된 «plan 인가» 검사를 본문에 적지 않는다** (planner,
+      낮음, 2026-09-24 등재 · `--impl-done` `review/consistency/2026/09/24/20_34_01` INFO 2·4).
+      위 항목의 해소로 `spec-pending-plan-existence` 가드가 **형태(plan 인가)** 까지 보게 됐는데
+      SoT 두 자리가 그것을 드러내지 않는다:
+      - §4 가드 표의 그 행이 «… 에 실존» 한 단어로만 요약한다 — 형태 검증 단계가 안 보인다.
+      - `plan/research/` 를 **거짓**으로 치는 근거가 본문·Rationale 에 없다. §2.1 행이 허용 위치를
+        둘로 **열거**하므로 계약상 이미 배제돼 있지만, «왜» 는 지금 `isPendingPlanPath` 주석에만
+        있다(완료 종착점이 없어 `partial` 을 `implemented` 로 만들 수 없다).
+
+      둘 다 **계약의 공백이 아니라 설명의 위치** 문제다 — 구현은 이미 SoT 의 열거를 정확히
+      따른다. `spec/` 쓰기라 planner 턴(`--spec`). `PROJECT.md` 의 같은 가드 설명은 developer
+      영역이라 해소 PR 이 이미 고쳤다.
 
 - [ ] **docs 가드가 검사하는 데이터가 그 가드를 트리거하지 않는다** (developer, **중간**,
       2026-09-24 등재 · `/ai-review` `review/code/2026/09/24/14_24_10` Critical 1 의 부가 관찰을
@@ -5114,21 +5134,43 @@ field: T | null;
       유인이 생긴다. 다만 required status check 를 늘리는 변경이라 `#1106` 의 데드락 이력을
       먼저 읽을 것.
 
-- [ ] **CHANGELOG 「해당 없음」 판정에 성문 근거가 없다** (developer, 낮음, 2026-09-24 등재 ·
-      `/ai-review` `review/code/2026/09/24/15_26_17` INFO 10).
-      빌드·테스트 도구만 바꾸는 PR 이 `CHANGELOG.md` 항목을 내지 않는 것은 타당하지만
-      (143개 항목이 전부 제품 동작 변경, 매핑 표에 도구 행 없음), **그 판정 기준이 어디에도
-      적혀 있지 않다** — 매번 다시 도출해야 하고, 이 세션은 CHANGELOG 누락을 네 번 밟은 뒤에야
-      「누락이 아니라 판정」임을 RESOLUTION 에 적었다.
+- [ ] **CHANGELOG 에 무엇이 들어가는지 성문 기준이 없다** (developer, 낮음, 2026-09-24 등재 ·
+      `/ai-review` `review/code/2026/09/24/15_26_17` INFO 10 · **2026-09-24 전제 정정**
+      `/ai-review` `review/code/2026/09/24/19_57_00` W2).
+
+      > **이 항목의 원래 전제는 틀렸다.** 처음엔 «빌드·테스트 도구만 바꾸는 PR 은 항목을 내지
+      > 않는 것이 타당 — 143개 항목이 전부 제품 동작 변경» 이라 적었고, 그 근거로 `#1387` 의
+      > CHANGELOG 를 «해당 없음» 으로 판정했다. 그런데 이 파일에는 **순수 테스트 가드 변경도
+      > 기록돼 있다** — «raw UPDATE/DELETE … RETURNING 회귀 가드를 큐레이션에서 발견형으로
+      > 확장»(순수 스펙 가드), «주간 가드가 사흘 전에 이미 빨간불이었다»(CI audit 가드). 헤딩에
+      > «가드» 가 든 항목만 11개다. 헤딩을 훑고 «전부 제품 동작» 으로 뭉갰다. `#1387` 은 그 거짓
+      > 전제로 건너뛰었다가 `pending_plans` 가드 PR 에서 백필했다.
+
+      **실제 관행(실측)**: 가드를 새로 세우거나 조이는 변경은 항목을 낸다 — «무엇이 뚫려
+      있었고 무엇을 새로 강제하는가». 남은 질문은 **가드도 제품 동작도 아닌 순수 도구 변경**
+      (예: 의존성 한 줄 범프, 테스트 러너 설정만)의 처분이다. `#1388`(`@nestjs/typeorm` 12)은
+      항목 없이 머지됐는데, 판정한 것이 아니라 **고려하지 않았다**.
 
       **간단하지 않은 이유**: `PROJECT.md §변경 유형 → 갱신 위치 매핑` 은 「X 를 바꾸면 Y 도
-      고쳐라」 표라 **부정 행**(「고칠 것 없음」)과 범주가 맞지 않는다. 게다가 그 표는
-      `.claude/config/doc-sync-matrix.json` 과 **행 수 1:1** 로 묶여 있어
-      (`test_doc_sync_matrix.py`) 행을 늘리면 JSON 도 함께 고쳐야 한다.
+      고쳐라」 표라 부정 행과 범주가 맞지 않고, `.claude/config/doc-sync-matrix.json` 과 **행 수
+      1:1** 로 묶여 있다(`test_doc_sync_matrix.py`).
 
-      처방 후보: 표에 행을 넣지 말고 `CHANGELOG.md` 상단이나 `PROJECT.md` 의 별도 한 문단에
-      **「무엇이 항목을 만드는가」** 를 적는다(제품 동작·배포 의존성 변경 = 항목,
-      도구·테스트 하니스 = 해당 없음). 범주가 맞는 자리에 두는 편이 표를 늘리는 것보다 싸다.
+      처방 후보: `CHANGELOG.md` 상단에 **«무엇이 항목을 만드는가»** 한 문단 — 제품 동작 변경 ·
+      배포 의존성 변경 · **가드 신설·강화** = 항목. 그 밖의 순수 도구 변경은 그 문단이 정한다.
+      **판정 기준을 적기 전에 기존 항목을 전수로 분류할 것** — 이번처럼 헤딩만 훑으면 또 틀린다.
+
+- [ ] **`spec/4-nodes/*/0-common.md` 6개가 전부 `id: common` — id 유일성을 보는 가드가 없다**
+      (planner, 낮음, 2026-09-24 등재 · `--impl-prep` `review/consistency/2026/09/24/19_35_41`
+      cross_spec WARNING 1).
+      `spec-impl-evidence.md` §2.1 `id` 행은 «같은 basename 이 영역을 달리해 중복될 때 영역
+      prefix 로 회피» 를 규정하는데, `1-logic`·`2-flow`·`3-ai`·`4-integration`·`5-data`·
+      `7-trigger` 의 `0-common.md` **6개가 전부 `id: common`** 이다(실측 grep). 그리고
+      frontmatter 가드 어디에도 **id 유일성 검사가 없다** — 그래서 아무도 못 봤다.
+
+      처방 후보: (a) 6개를 `logic-common`… 으로 재명명(참조·fixture 동반 갱신), (b) §2.1 에
+      «카테고리-로컬 `0-common.md` 는 예외» 를 명시. checker 는 (b) 를 권했다(비용이 낮다).
+      어느 쪽이든 **가드가 없으면 다음 중복도 조용히 들어온다** — id 가 무엇에 쓰이는지부터
+      확인하고, 쓰인다면 유일성 가드를 함께 세울 것.
 
 - [ ] **lockfile 의 `libc:` 필드가 dependabot 과 고정 pnpm 사이에서 진동한다** (developer,
       낮음, 2026-09-24 등재 · `deps-typeorm12` `/ai-review` `review/code/2026/09/24/18_22_23` W1 이
