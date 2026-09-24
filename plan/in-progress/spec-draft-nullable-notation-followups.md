@@ -5060,6 +5060,23 @@ field: T | null;
       > CHANGELOG 에 «트래커가 좁게 적었다» 고 거꾸로 썼다가 `09_10_41` W1 에 잡혀 정정했다.
       > 트래커는 손대지 않았다.
 
+- [ ] **`spec-pending-plan-existence` 가드가 «그게 plan 인가» 를 묻지 않는다** (developer,
+      **중간**, 2026-09-24 등재 · `--impl-prep` `review/consistency/2026/09/24/12_57_36` Critical
+      의 **진짜 원인**).
+      `spec/5-system/10-graph-rag.md` 의 `pending_plans:` 에 마이그레이션 `.sql` 세 경로가
+      **4주 가까이** 들어 있었는데 CI 가 초록이었다. 가드가 **경로 존재**만 검사하기 때문이다 —
+      `.sql` 파일은 실재하므로 통과한다(false negative). 정정은
+      `plan/complete/spec-draft-frontmatter-pending-plans.md` 가 했지만 **가드는 그대로**라
+      같은 사고가 다시 난다.
+
+      처방: `pending_plans:` 의 각 항목이 **`plan/` 하위의 `.md`** 인지까지 검사한다. 지금
+      가드가 이미 `in-progress→complete` 치환으로 경로를 다루므로 접두사 검사는 그 자리에
+      한 줄이다.
+
+      > **왜 developer 인가**: 가드는 `codebase/frontend/src/lib/docs/__tests__/` 다. 정정 자체는
+      > planner 가 했고(그 PR 이 `spec/` 쓰기였다), 가드 강화는 그 PR 이 **명시적으로 스코프
+      > 밖으로 남긴 것**이다.
+
 - [ ] **재진입 락 오케스트레이션이 두 번째로 복제됐다 — 세 번째면 헬퍼로 뽑는다** (developer,
       낮음, 2026-09-24 등재 · `/ai-review` `review/code/2026/09/24/08_09_57` W6).
       `BEGIN → SELECT … FOR UPDATE → 요청 발사 → 공허성 가드 → 락 안 mutate → COMMIT →
