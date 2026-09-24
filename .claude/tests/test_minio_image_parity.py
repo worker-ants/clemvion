@@ -69,6 +69,22 @@ COMPOSE_SERVICES = ("minio", "createbuckets")
 _PINNED = re.compile(r"^[^:@\s]+:(?P<tag>[^@\s]+)@sha256:[0-9a-f]{64}$")
 
 
+def pin_violation(image: str) -> str | None:
+    """Why `image` is not an acceptable pin, or None. A predicate (not inline
+    asserts) so its rejections can be pinned on injected text — the real files
+    all pass, so a check that only ever runs on them proves nothing."""
+    m = _PINNED.match(image)
+    if m is None:
+        return "not name:tag@sha256:<64 hex>"
+    if m.group("tag") == "latest":
+        return "tag is latest"
+    return None
+
+
+def is_distroless(image: str) -> bool:
+    return "distroless" in image
+
+
 class PlaceNotFound(AssertionError):
     """A declared image place is missing — named, so the failure says where."""
 
@@ -92,8 +108,9 @@ def compose_images(label: str, text: str) -> dict[str, str]:
 
 
 def k8s_images(label: str, text: str) -> dict[str, str]:
-    """Exactly one resource per (kind, name): zero AND duplicates both fail by
-    naming the place — a duplicate would leave it ambiguous which image runs."""
+    """Exactly one resource per (kind, name), and exactly one container of the
+    declared name in it: zero AND duplicates fail at BOTH levels by naming the
+    place — a duplicate would leave it ambiguous which image runs."""
     docs = [d for d in yaml.safe_load_all(text) if isinstance(d, dict)]
     found: dict[str, str] = {}
     for kind, name, container in K8S_PLACES:
@@ -105,13 +122,17 @@ def k8s_images(label: str, text: str) -> dict[str, str]:
             raise PlaceNotFound(f"{label}: expected one {kind}/{name}, found {len(matches)}")
         pod_template = _mapping(_mapping(matches[0].get("spec")).get("template"))
         containers = _mapping(pod_template.get("spec")).get("containers") or []
-        images = [
-            c.get("image") for c in containers
-            if isinstance(c, dict) and c.get("name") == container
-        ]
-        if len(images) != 1 or not isinstance(images[0], str) or not images[0]:
+        # Same "exactly one" rule one level in: a duplicate container name
+        # would otherwise let a single image be picked silently.
+        named = [c for c in containers if isinstance(c, dict) and c.get("name") == container]
+        if len(named) != 1:
+            raise PlaceNotFound(
+                f"{label}: expected one container {container!r} in {kind}/{name}, found {len(named)}"
+            )
+        image = named[0].get("image")
+        if not isinstance(image, str) or not image:
             raise PlaceNotFound(f"{label}: {kind}/{name} container {container!r} image not found")
-        found[f"{label} {kind}/{name}:{container}"] = images[0]
+        found[f"{label} {kind}/{name}:{container}"] = image
     return found
 
 
@@ -135,15 +156,39 @@ class ExtractorBoundaryTest(unittest.TestCase):
         with self.assertRaisesRegex(PlaceNotFound, r"services\.createbuckets\.image"):
             compose_images("x.yml", text)
 
-    def test_k8s_missing_container_is_named(self):
-        text = (
+    @staticmethod
+    def _k8s(job_containers: str) -> str:
+        """A valid StatefulSet plus a Job whose `containers` list is given."""
+        return (
             "kind: StatefulSet\nmetadata: {name: minio}\n"
             "spec: {template: {spec: {containers: [{name: minio, image: a}]}}}\n---\n"
             "kind: Job\nmetadata: {name: minio-create-bucket}\n"
-            "spec: {template: {spec: {containers: [{name: other, image: a}]}}}\n"
+            f"spec: {{template: {{spec: {{containers: {job_containers}}}}}}}\n"
         )
-        with self.assertRaisesRegex(PlaceNotFound, r"Job/minio-create-bucket container 'mc'"):
-            k8s_images("k.yaml", text)
+
+    def test_k8s_missing_container_is_named(self):
+        with self.assertRaisesRegex(
+            PlaceNotFound, r"expected one container 'mc' in Job/minio-create-bucket, found 0"
+        ):
+            k8s_images("k.yaml", self._k8s("[{name: other, image: a}]"))
+
+    def test_k8s_duplicate_container_is_named(self):
+        with self.assertRaisesRegex(
+            PlaceNotFound, r"expected one container 'mc' in Job/minio-create-bucket, found 2"
+        ):
+            k8s_images("k.yaml", self._k8s("[{name: mc, image: a}, {name: mc, image: b}]"))
+
+    def test_k8s_container_without_image_is_named(self):
+        with self.assertRaisesRegex(
+            PlaceNotFound, r"Job/minio-create-bucket container 'mc' image not found"
+        ):
+            k8s_images("k.yaml", self._k8s("[{name: mc}]"))
+
+    def test_k8s_fixture_helper_is_valid(self):
+        # Guards the helper itself: with a proper Job it must extract both places,
+        # otherwise the three tests above could pass on a broken fixture.
+        images = k8s_images("k.yaml", self._k8s("[{name: mc, image: a}]"))
+        self.assertEqual(len(images), 2)
 
     def test_k8s_duplicate_resource_is_named(self):
         sts = (
@@ -163,12 +208,39 @@ class ExtractorBoundaryTest(unittest.TestCase):
         with self.assertRaisesRegex(PlaceNotFound, r"services\.minio\.image"):
             compose_images("x.yml", text)
 
-    def test_pinned_pattern_edges(self):
+    def test_k8s_missing_resource_is_named(self):
+        sts_only = (
+            "kind: StatefulSet\nmetadata: {name: minio}\n"
+            "spec: {template: {spec: {containers: [{name: minio, image: a}]}}}\n"
+        )
+        with self.assertRaisesRegex(PlaceNotFound, r"expected one Job/minio-create-bucket, found 0"):
+            k8s_images("k.yaml", sts_only)
+
+    def test_empty_image_string_is_named(self):
+        with self.subTest(where="compose"):
+            text = "services:\n  minio:\n    image: ''\n  createbuckets:\n    image: a\n"
+            with self.assertRaisesRegex(PlaceNotFound, r"services\.minio\.image"):
+                compose_images("x.yml", text)
+        with self.subTest(where="k8s"):
+            with self.assertRaisesRegex(PlaceNotFound, r"container 'mc' image not found"):
+                k8s_images("k.yaml", self._k8s("[{name: mc, image: ''}]"))
+
+    def test_pin_violation_edges(self):
         digest = "@sha256:" + "a" * 64
-        self.assertTrue(_PINNED.match("pgsty/silo:RELEASE.2026-09-16T00-00-00Z" + digest))
-        self.assertIsNone(_PINNED.match("pgsty/silo:RELEASE.2026-09-16T00-00-00Z"))  # no digest
-        self.assertIsNone(_PINNED.match("pgsty/silo" + digest))  # digest only, no tag
-        self.assertIsNone(_PINNED.match("pgsty/silo:x@sha256:" + "a" * 63))  # short digest
+        self.assertIsNone(pin_violation("pgsty/silo:RELEASE.2026-09-16T00-00-00Z" + digest))
+        for bad, why in (
+            ("pgsty/silo:RELEASE.2026-09-16T00-00-00Z", "not name:tag"),  # no digest
+            ("pgsty/silo" + digest, "not name:tag"),                       # digest only, no tag
+            ("pgsty/silo:x@sha256:" + "a" * 63, "not name:tag"),           # short digest
+            ("pgsty/silo:latest" + digest, "latest"),                      # pinned, but latest
+        ):
+            with self.subTest(image=bad):
+                self.assertRegex(pin_violation(bad) or "", why)
+
+    def test_distroless_is_detected(self):
+        digest = "@sha256:" + "a" * 64
+        self.assertTrue(is_distroless("pgsty/silo:RELEASE.2026-09-16T00-00-00Z-distroless" + digest))
+        self.assertFalse(is_distroless("pgsty/silo:RELEASE.2026-09-16T00-00-00Z" + digest))
 
 
 class MinioImageParityTest(unittest.TestCase):
@@ -189,15 +261,14 @@ class MinioImageParityTest(unittest.TestCase):
     def test_each_is_pinned_by_tag_and_digest(self):
         for place, image in self.images.items():
             with self.subTest(place=place):
-                m = _PINNED.match(image)
-                self.assertIsNotNone(m, f"{place}: not name:tag@sha256:<64hex> — {image}")
-                self.assertNotEqual(m.group("tag"), "latest", f"{place}: tag is latest — {image}")
+                why = pin_violation(image)
+                self.assertIsNone(why, f"{place}: {why} — {image}")
 
     def test_no_distroless_variant(self):
         for place, image in self.images.items():
             with self.subTest(place=place):
-                self.assertNotIn(
-                    "distroless", image,
+                self.assertFalse(
+                    is_distroless(image),
                     f"{place}: distroless has no curl; the compose healthchecks need it — {image}",
                 )
 
