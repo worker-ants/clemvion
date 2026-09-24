@@ -72,7 +72,13 @@ docker 네트워크에서 같은 이미지로 실행했다(env 는 overlay secre
 - [x] drift 가드 테스트 + `harness-checks.yml` pathspec(원본 정책 파일) + `.claude/tests/README.md`. pathspec 을 넣기
       전 커버리지 테스트가 정책 파일 **하나만** 지목하며 RED(k8s 파일은 이미 등재) → 넣은 뒤 GREEN. 새 테스트 12개
       이름으로 실행 확인
-- [ ] 뮤턴트 — 가드가 원본 변경 · heredoc 변경 · ListBucket 추가를 각각 잡는가
+- [x] 뮤턴트 — 가드가 원본 변경 · heredoc 변경 · ListBucket 추가를 각각 잡는가. 커밋 `80bfa4862` 뒤 11개(바이트코드
+      끔, 앵커 1회 매칭 assert, `cp` 원복) — **전부 KILLED, 각자 의도한 테스트로**:
+      데이터 D1 정책 파일에 ListBucket(→ 동일성 · ListBucket) · D2 heredoc 에 ListBucket(→ 동일성 · ListBucket) ·
+      D3 heredoc 버킷 하드코딩(→ 변수 사용) · D4 `<<'EOF'`(→ unquoted) · D5 `set -e` 삭제(→ fail fast) ·
+      D6 set-json 을 리터럴 버킷에(→ 같은 버킷 적용) · D7 `set download` 추가(→ 프리셋 금지) /
+      추출기 E1 따옴표 미포착 · E2 인자 여럿 허용 · E3 비문자열 인자 허용 · E4 문자열 Action 을 글자로 쪼갬 — 각
+      경계 테스트
 - [x] 동작 실측 (§C) + 대조군 — 결과는 §C-2
 - [x] `kubectl kustomize k8s/overlays/local` 렌더 확인
 - [x] CHANGELOG 항목 (커밋 전 staged 확인)
