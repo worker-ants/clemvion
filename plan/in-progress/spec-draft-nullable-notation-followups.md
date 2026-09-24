@@ -4904,6 +4904,9 @@ field: T | null;
       >
       > 후속 PR 은 이 13개를 한 축으로 보고, 처방을 «검사 순서 재배치» 가 아니라 «가드가
       > 경로 파라미터 워크스페이스도 보게 할 것인가» 부터 결정해야 한다.
+      >
+      > **2026-09-24 — 이 축을 아래 별 항목으로 갈랐다.** 이 항목(한 메서드의 검사 순서)은
+      > 닫히지만 그 축은 열려 있다. 註로만 두면 항목을 닫을 때 함께 묻힌다.
 
       **열거는 여전히 불가능하다** — 두 ID 가 모두 UUID(`ParseUUIDPipe`)라 다른 경로로 새어야
       쓸 수 있는 오라클이다. 삭제 자체는 `assertAdmin` 이 여전히 막는다(권한 상승 아님).
@@ -4913,6 +4916,47 @@ field: T | null;
       비-admin 이 owner 를 지목했을 때의 코드가 `CANNOT_REMOVE_OWNER` → `ADMIN_REQUIRED` 로
       **바뀐다**. 에러 코드 계약 변경이라 `spec/5-system/3-error-handling.md` 기준의 자체
       consistency 라운드가 필요하다. 동시성 수정과 섞으면 정확히 리뷰어들이 지적해 온 스코프 혼입이다.
+
+      > **2026-09-24 — 이 캐비트는 그대로 유효했다.** 닫는 PR 이 실제로 admin 판정을 owner
+      > 판정 앞으로 옮겨 그 코드 전환이 일어났고, 캐비트가 요구한 «`3-error-handling.md` 기준
+      > consistency 라운드» 는 `--impl-prep`·`--impl-done` `spec/5-system` 으로 이행했다.
+      > (`--impl-prep` `10_22_24` 의 `plan_coherence` 가 이 캐비트를 stale 로 봤는데, 그것은
+      > **개정 전** plan 을 읽은 것이다 — 그 지적에 답하다 설계를 바꿨다.)
+
+- [ ] **경로 파라미터로 워크스페이스를 받는 라우트 13개가 가드 층 보호를 전혀 못 받는다**
+      (developer + 설계 결정, **중간**, 2026-09-24 등재 — 위 «권한 검사 순서» 항목의 註에서
+      **갈라 나옴**).
+      `RolesGuard` 는 전역이지만 `handlerConsumesWorkspaceId` 가 false 면 단축 통과한다. 그 판정은
+      `@WorkspaceId()` 데코레이터 **소비 여부**를 reflection 으로 보는데, `workspaces.controller.ts`
+      의 **17개 중 13개**가 경로 `:id` 를 워크스페이스로 쓰면서 `@WorkspaceId()` 도 `@Roles()` 도
+      쓰지 않는다(`update`·`updateSettings`·`getSettings`·`remove`·`leave`·`listMembers`·
+      `addMember`·`updateMember`·`removeMember`·`listInvitations`·`createInvitation`·
+      `resendInvitation`·`revokeInvitation`). 전부 서비스 계층 `assertMembership`/`assertAdmin`
+      에만 기댄다.
+
+      **완료된 `plan/complete/auth-workspace-membership-guard.md`(2026-08-08)가 이 13개를 닫지
+      않았다** — 그 plan 의 모집단이 «`@WorkspaceId()` 를 소비하며 `@Roles()` 가 없는 라우트 73건»
+      이었고, 경로 파라미터 라우트는 **구성상 그 모집단 밖**이다. 가드의 커버리지 모델에 구멍이
+      있는 것이지 개별 라우트의 실수가 아니다.
+
+      > **스코프 조건 — 구조적 해법을 먼저 검토한다.** 가드가 경로 파라미터 워크스페이스도 보게
+      > 할 것인가(reflection 확장 / 데코레이터 통일)를 **먼저** 결정하고, 불가할 때에만 라우트별
+      > 수동 체크를 표준 패턴으로 승인한다. 이 조건이 없으면
+      > `plan/complete/member-auth-order.md` 가 13개에 같은 패치를 복제하는 선례로 읽히는데,
+      > 그것이 정확히 `data-flow/12-workspace.md` §«멤버십 검증은 가드 1곳에서» 가
+      > *"74번째 라우트에서 재발한다"* 며 기각한 모양이다
+      > (`--impl-prep` `review/consistency/2026/09/24/10_22_24` `rationale_continuity` W1).
+      >
+      > **`removeMember` 는 이미 닫혔다** — 그 한 자리는 서비스 계층에서 인가를 대상 조회보다
+      > 앞으로 옮겨 해소됐다. 남은 12개는 각자 무엇을 노출하는지 **실측부터** 해야 한다
+      > (읽기 전용 라우트는 오라클 표면이 다르다).
+
+- [ ] **`NOT_A_MEMBER` 카탈로그 설명의 경로 열거에 `removeMember` 가 없다** (planner, 낮음,
+      2026-09-24 등재 · 같은 `--impl-prep` 의 `cross_spec`·`naming_collision` INFO).
+      `spec/5-system/3-error-handling.md:49` 가 발행 경로를 «전환 `/api/auth/workspaces/:id/switch`·
+      탈퇴·멤버십 확인 경로» 로 열거하는데, `plan/complete/member-auth-order.md` 가 **세 번째
+      발행처**를 더했다(`removeMember` 의 비-멤버 차단). 의미는 그대로라 모순이 아니고 열거만
+      낡았다. 같은 줄의 «`workspaces.service`» 는 이미 맞다.
 
 - [x] **`removeMember()` 의 owner 보호 가드가 TOCTOU 로 뚫린다 — 실측 확인됨**
       (developer, **중간**, 2026-09-21 등재 · `member-dup-remove.md` §C-2 프로브).
