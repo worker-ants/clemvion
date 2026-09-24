@@ -13,6 +13,13 @@ started: 2026-09-24
 (`@nestjs/platform-express`)의 종착점으로 세운 계획이다. **착수했다가 세 벽에 막혀
 되돌렸다** — 아래 §0 이 그 실측이고, 이 문서는 상류가 움직일 때까지 **열어 둔다**.
 
+> **frontmatter 가 `worktree: (unstarted)` 인 이유** — 시도는 `nestjs12-upgrade` 워크트리에서
+> 했지만 **전량 되돌려 커밋된 코드가 0** 이다. 이 필드는 「지금 이 plan 의 작업을 싣고 있는
+> 워크트리」를 가리키고 `plan-stale-audit.sh` 와 push 게이트가 그 실재·매칭을 본다
+> (`plan-lifecycle.md §4`). 그 워크트리는 형제 plan(`deps-typeorm12`)의 것이라 머지되면
+> 사라지는데, 여기에 적어 두면 이 plan 은 **죽은 워크트리를 가리키는 stale** 로 남는다.
+> 시도의 흔적은 이 본문(§0)이 싣는다.
+
 > **[#1339](https://github.com/worker-ants/clemvion/pull/1339)(`@nestjs/typeorm`)은 여기서
 > 떨어져 나갔다.** 그 패키지의 peer 는 `^10 || ^11 || ^12` 라 Nest 11 위에서 돈다(실측) —
 > 동반 업그레이드가 필요 없었다. `deps-typeorm12` PR 이 처리했다.

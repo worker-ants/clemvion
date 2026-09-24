@@ -5130,6 +5130,34 @@ field: T | null;
       **「무엇이 항목을 만드는가」** 를 적는다(제품 동작·배포 의존성 변경 = 항목,
       도구·테스트 하니스 = 해당 없음). 범주가 맞는 자리에 두는 편이 표를 늘리는 것보다 싸다.
 
+- [ ] **lockfile 의 `libc:` 필드가 dependabot 과 고정 pnpm 사이에서 진동한다** (developer,
+      낮음, 2026-09-24 등재 · `deps-typeorm12` `/ai-review` `review/code/2026/09/24/18_22_23` W1 이
+      드러냄).
+      optional 네이티브 패키지 63곳의 `libc: [glibc|musl]` 필드를 **dependabot 이 넣고, 사람이
+      고정 pnpm(`packageManager: pnpm@10.23.0`)으로 lockfile 을 다시 쓰면 빠진다.** 커밋 전후의
+      `libc: [glibc]` 등장 횟수로 방향을 쟀다(`git log -S` 는 증감 방향을 말해 주지 않는다):
+
+      | 커밋 | 작성 | 전 → 후 | 방향 |
+      | --- | --- | --- | --- |
+      | `6e5a54816` | 사람 | 35 → 0 | 뺌 |
+      | `2245cda06` | dependabot | 0 → 35 | 넣음 |
+      | `1b17701aa` | 사람 | 35 → 0 | 뺌 |
+      | `f40d0cbd0` | dependabot | 0 → 35 | 넣음 |
+      | `65df1974f` | dependabot | 35 → 38 | 넣음 |
+
+      **예외 없이 dependabot 은 넣고 사람은 뺀다.**
+
+      **플랫폼 차이가 아니다(실측)** — 고정 pnpm 을 Linux 컨테이너에서 main 의 lockfile 로부터
+      돌려도 같은 63줄이 빠진다. 그러니 dependabot 이 쓰는 pnpm 이 고정 버전과 다르다는 뜻이다.
+
+      **해로움**: `--frozen-lockfile` 은 둘 다 받아들여 CI 는 초록이다. 대신 **사람이 의존성을
+      하나 올릴 때마다 무관한 수십 줄이 diff 에 섞여** 리뷰가 그것을 스코프 이탈로 읽는다
+      (`deps-typeorm12` 은 opcode 단위로 손으로 좁혀 15줄로 만들었다 — 매번 할 일이 아니다).
+
+      처방 후보: (a) dependabot 이 고정 pnpm 을 쓰게 한다(`packageManager` 를 존중하는지 확인),
+      (b) 고정 pnpm 을 `libc:` 를 쓰는 버전으로 올린다(그러면 사람 쪽이 dependabot 에 맞춰진다).
+      **어느 쪽이 `libc:` 를 쓰는지부터 재야 한다** — 이 등재는 그 측정 전이다.
+
 - [ ] **재진입 락 오케스트레이션이 두 번째로 복제됐다 — 세 번째면 헬퍼로 뽑는다** (developer,
       낮음, 2026-09-24 등재 · `/ai-review` `review/code/2026/09/24/08_09_57` W6).
       `BEGIN → SELECT … FOR UPDATE → 요청 발사 → 공허성 가드 → 락 안 mutate → COMMIT →

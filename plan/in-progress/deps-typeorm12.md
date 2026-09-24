@@ -33,6 +33,26 @@ started: 2026-09-24
 그 외 `@nestjs/*` 는 **11 유지**. lockfile 상 `@nestjs/typeorm@12.0.1` 이
 `@nestjs/common@11.1.27` 위에 붙는다.
 
+### lockfile 은 손으로 좁혔다 — 기존 진동에 끼지 않으려고
+
+`pnpm install` 이 쓴 lockfile 은 typeorm 외에 **무관한 67줄**을 더 바꿨다(리뷰 1라운드
+W1): optional 네이티브 패키지 63곳의 `libc: [glibc|musl]` 삭제, `eslint-plugin-*` 두
+importer 의 peer 해석 문자열 맞교환.
+
+원인을 재 봤다. **플랫폼 차이가 아니다** — 고정 pnpm(10.23.0)을 Linux 컨테이너에서 main 의
+lockfile 로부터 돌려도 **같은 63줄이 빠진다**. `git log -S` 로 보니 `libc:` 필드는
+**dependabot 이 넣고 사람 커밋(고정 pnpm)이 빼기를 반복**해 왔고, 가장 최근 `65df1974f`
+(dependabot, 09-10)가 다시 넣었다. 즉 dependabot 이 쓰는 pnpm 과 저장소가 고정한 pnpm 이
+어긋나 생기는 **기존 진동**이다.
+
+그래서 main 의 lockfile 에서 출발해 **typeorm 변경분만** 얹었다 — 고정 pnpm 이 Linux 에서
+낸 결과와 opcode 단위로 비교해 typeorm 에 속한 것만 채택했다. diff 는 **15줄, 전부
+typeorm**. 검증: `pnpm install --frozen-lockfile --strict-peer-dependencies` 통과(그리고
+lockfile 을 다시 쓰지 않음), `run-test.sh build` 의 Docker 단계(컨테이너 안 Linux frozen
+설치) 통과.
+
+진동 자체는 이 PR 의 스코프가 아니라 트래커에 등재했다.
+
 ## C. 검증 — reflection 보안 회귀 (`coordinated-upgrade` §C 의 조건 셋)
 
 이 저장소는 `@nestjs/*` 업그레이드를 **보안 회귀 우선조사 트리거**로 명문화해 뒀다.
