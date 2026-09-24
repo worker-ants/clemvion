@@ -4942,7 +4942,8 @@ field: T | null;
       > **스코프 조건 — 구조적 해법을 먼저 검토한다.** 가드가 경로 파라미터 워크스페이스도 보게
       > 할 것인가(reflection 확장 / 데코레이터 통일)를 **먼저** 결정하고, 불가할 때에만 라우트별
       > 수동 체크를 표준 패턴으로 승인한다. 이 조건이 없으면
-      > `plan/complete/member-auth-order.md` 가 13개에 같은 패치를 복제하는 선례로 읽히는데,
+      > `member-auth-order` plan(이 PR 의 종료 커밋에서 `plan/complete/` 로 이동한다)이
+      > 13개에 같은 패치를 복제하는 선례로 읽히는데,
       > 그것이 정확히 `data-flow/12-workspace.md` §«멤버십 검증은 가드 1곳에서» 가
       > *"74번째 라우트에서 재발한다"* 며 기각한 모양이다
       > (`--impl-prep` `review/consistency/2026/09/24/10_22_24` `rationale_continuity` W1).
@@ -4951,9 +4952,29 @@ field: T | null;
       > 앞으로 옮겨 해소됐다. 남은 12개는 각자 무엇을 노출하는지 **실측부터** 해야 한다
       > (읽기 전용 라우트는 오라클 표면이 다르다).
 
+- [ ] **`removeMember` 판정 순서 커버리지의 비대칭 두 칸** (developer, 낮음, 2026-09-24 등재 ·
+      `/ai-review` `review/code/2026/09/24/11_10_45` INFO#3·#4 → `11_37_06` INFO#5·#6 **재지적**).
+      같은 파일이 admin/owner 순서와 self/admin 순서는 각각 **전용 조합**으로 가르는데, 두 칸만
+      비어 있다:
+
+      1. **대상 부재(404) vs admin 판정의 상대 순서** — `wireFindOne(null, { role: 'editor' })`
+         조합이 없다. 비-admin 요청자가 없는 대상을 지목하면 `MEMBER_NOT_FOUND` 여야 하는데
+         (대상 존재 판정이 admin 판정보다 앞이다 — self 위임이 대상을 읽어야 하기 때문), 그
+         순서를 뒤집는 편집이 현재 스위트에서 **생존한다**.
+      2. **«요청자 role 을 한 번만 읽는다»** 는 최적화 의도를 지키는 `toHaveBeenCalledTimes`
+         회귀 테스트가 없다. 조용히 쿼리가 늘어도 반증 불가능하다.
+
+      > **왜 그 PR 에서 안 했나 — 수렴 예외 (a)(b)(c)(d).** (a) 동작 결함이 아니다(둘 다
+      > 커버리지). (b) 고치면 `codebase/**` 가 바뀌어 게이트 freshness 가 재무장되고 라운드가
+      > 하나 더 돈다 — 그 PR 은 이미 2라운드였고 «그 라운드의 codebase 수정 0건» 이 선언된
+      > 정지 조건이었다. (c) 근거는 비용이 아니라 수렴이다. (d) 그 턴에 등재했다.
+      >
+      > 둘 다 «조합 하나 추가» 라 다음 근접 편집에서 싸게 닫힌다.
+
 - [ ] **`removeMember` 리팩터로 낡은 spec 서술 세 줄** (planner, 낮음, 2026-09-24 등재 ·
       `--impl-prep` `10_22_24` INFO + `/ai-review` `review/code/2026/09/24/11_10_45` W4·W5).
-      `plan/complete/member-auth-order.md` 가 인가를 대상 조회보다 앞으로 옮기면서
+      `member-auth-order` plan(이 PR 의 종료 커밋에서 `plan/complete/` 로 이동한다)이
+      인가를 대상 조회보다 앞으로 옮기면서
       `removeMember` 는 **`assertAdmin()` 을 더 이상 호출하지 않는다**(요청자 role 을
       `getMemberRole` 로 직접 읽고 `throwNotAMember()`/`throwAdminRequired()` 로 판정). 결론은
       전부 그대로이고 **인용된 호출 경로만** 낡았다:
