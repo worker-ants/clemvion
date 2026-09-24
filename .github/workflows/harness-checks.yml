@@ -89,6 +89,13 @@ jobs:
         # 액션만 고친 PR 에서 정작 그것을 지키는 스위트가 안 돈다 — 위 항목들과 같은 클래스.
         .github/actions/**
         pnpm-workspace.yaml
+        # 오브젝트 스토리지 이미지 참조 6곳(test_minio_image_parity.py). 이미지를 올리는 PR 은
+        # 보통 이 세 파일**만** 고친다 — 등재가 없으면 정확히 그 PR 에서 일치 가드가 안 돈다.
+        # `#1325` 가 k8s 두 곳을 놓친 부분 반영이 이 가드의 근거다. `k8s/**` 로 넓히지 않는다
+        # (무관한 매니페스트 변경마다 스위트가 돈다) — 파일 단위로만.
+        docker-compose.yml
+        docker-compose.e2e.yml
+        k8s/overlays/local/infra-minio.yaml
         # scripts/ 중 harness unittest 가 커버하는 것은 명시 등재 — 테스트 없이 단독 수정돼도
         # 회귀 테스트가 트리거되도록 (cf. migration-check.yml 의 check-migration-versions.py).
         scripts/report_playwright_flaky.py

@@ -1,5 +1,26 @@
 # Changelog
 
+## Unreleased — 오브젝트 스토리지 이미지 6곳이 서로 같은지 아무것도 보지 않던 것
+
+MinIO 계열 이미지 문자열이 세 파일 **여섯 자리**에 손으로 적혀 있다 — `docker-compose.yml` ·
+`docker-compose.e2e.yml` 의 `minio` · `createbuckets`, `k8s/overlays/local/infra-minio.yaml` 의 StatefulSet ·
+Job. compose 와 kustomize 는 변수를 공유할 수 없어 SoT 를 하나로 모을 수 없다. 부분 반영은 실제로 났다 —
+`#1325`(quay.io 이전)가 k8s 두 곳을 놓쳤다가 리뷰에서 잡혔다.
+
+하네스 테스트 `test_minio_image_parity.py` 가 세 파일을 YAML 파서로 읽는다. 파일에서 자리를 못 찾으면 그 자리를
+**이름으로 대며** 실패하고(서비스 이름이 바뀐 경우), 그 위에서 네 가지를 고정한다: 선언된 자리 목록이 **여섯에서
+줄지 않는다** · 여섯 값이 **같다** · 각각 **태그 + 다이제스트**로 고정이고 태그가 `latest` 가 아니다 ·
+**`-distroless` 가 아니다**(compose 헬스체크가 이미지 안 `curl` 을 쓴다). 뮤턴트 다섯(k8s 한 곳만 옛 이미지 ·
+다이제스트 일괄 제거 · 자리 삭제 · pathspec 삭제 · 자리 목록 축소)이 각각 해당 단언을 RED 로 만든다.
+
+구조 검사(매핑 경로 · 시퀀스 · «정확히 하나» · 이미지 값)는 **각각 헬퍼 하나에만** 있고 추출기는 배선만 한다 —
+리뷰가 네 라운드 연속 같은 형태를 자리 하나씩 안쪽에서 찾았는데, 원인이 검사를 자리마다 복제한 것이었다. 헬퍼 ·
+배선 · 판정(`latest` · distroless · 뒤따르는 개행)을 뒤집는 뮤턴트 **16개가 전부** RED 로 잡힌다.
+
+세 파일을 `harness-checks.yml` pathspec 에 **개별로** 넣었다. 이미지를 올리는 PR 은 보통 이 셋만 고치므로,
+등재가 없으면 정확히 그 PR 에서 가드가 안 돈다 — 등재 전 `test_harness_checks_paths_coverage.py` 가 세 파일을
+지목하며 RED 였다.
+
 ## Unreleased — `removeMember` 판정 순서 두 칸이 아무 테스트에도 묶여 있지 않던 것
 
 `WorkspacesService.removeMember` 의 판정 순서는 머리 주석이 적은 대로 **멤버십 → 대상 존재 →

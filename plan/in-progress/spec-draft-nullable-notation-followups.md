@@ -5847,8 +5847,12 @@ field: T | null;
       처방 후보: 정책 JSON 을 ConfigMap 으로 마운트하고 Job 에 `set-json` 한 줄. **`set download` 프리셋은 쓰지 말 것**
       (목록까지 연다 — README 의 실측). 검증은 compose 쪽과 같은 세 판정(익명 목록 403 · avatars GET 200 · 그 밖 403)을
       `kubectl kustomize` 로 렌더한 매니페스트 기준으로.
+      > **2026-09-25 보탬 — 같은 누락이 예고된 자리에도 있다.** `plan/in-progress/self-hosting-deployment.md` §3 의
+      > «MinIO 부팅 후 버킷 자동 생성 (`mc mb` …)» 도 정책을 적지 않는다. 그 번들을 만들 때 이 항목과 함께 닫을 것.
+      > (그 plan 에 직접 체크박스를 넣었다가 `/ai-review` 가 두 라운드 연속 스코프 밖이라 짚어 — `00_25_55` W3 ·
+      > `00_56_30` W2 — 범위 밖 발견의 자리인 여기로 옮겼다.)
 
-- [ ] **MinIO 계열 이미지 참조 6곳이 서로 같은지 아무것도 보지 않는다** (developer, 낮음, 2026-09-24 등재 ·
+- [x] **MinIO 계열 이미지 참조 6곳이 서로 같은지 아무것도 보지 않는다** (developer, 낮음, 2026-09-24 등재 ·
       `/ai-review` `review/code/2026/09/24/23_33_07` INFO 3).
       `docker-compose.yml` · `docker-compose.e2e.yml` 의 `minio` · `createbuckets`, `k8s/overlays/local/infra-minio.yaml`
       의 StatefulSet · Job — 같은 `pgsty/silo:…@sha256:…` 문자열이 **수동으로 여섯 번** 적혀 있다. `#1325` 는 이 중
@@ -5856,6 +5860,30 @@ field: T | null;
       없으므로 SoT 를 하나로 모으기보다 **일치를 검사하는 하네스 테스트**가 현실적이다 — `.claude/tests/` 에서 세
       파일을 `yaml.safe_load`(YAML 은 정본 파서가 있는 문법이라 정규식이 아니라 파서로)로 읽어 여섯 `image` 가
       같은 문자열이고 다이제스트를 포함하는지 본다. 판별 확인: 한 곳만 옛 태그로 되돌리면 RED 여야 한다.
+      > **2026-09-25 종결** — plan `minio-image-parity-guard`. `.claude/tests/test_minio_image_parity.py` 가 YAML
+      > 파서로 여섯 자리를 읽어 발견 · 동일 · 태그 + 다이제스트(`latest` 아님) · distroless 아님을 고정하고, 세 파일을
+      > `harness-checks.yml` pathspec 에 개별 등재했다(등재 전 커버리지 테스트가 세 파일을 지목하며 RED). 판별 확인은
+      > 등재 서술대로 했다 — k8s 한 곳만 옛 이미지(`quay.io/minio/mc:latest`)로 되돌리면 일치 · 고정 단언이 RED.
+      > 리뷰가 5라운드를 돌았다: 같은 형태가 한 칸씩 안쪽에서 네 번 나와, 검사를 헬퍼 하나씩으로 모아 구조로 닫았다
+      > (헬퍼 · 배선 · 판정 뮤턴트 16개 전부 RED). 그 과정의 부수 발견은 이 트래커에 따로 등재했다.
+
+- [ ] **하네스 테스트 둘이 실제 저장소 트리에 프로브를 쓴다 — 병렬 실행에서 잔여물이 남는다** (harness, 낮음,
+      2026-09-25 등재 · `/ai-review` `review/code/2026/09/25/00_39_02` INFO 12 · `01_31_05` W1).
+      `test_consistency_spec_draft_snapshot.py` 는 `plan/in-progress/spec-draft-__snapshot_selftest__.md` 를,
+      `test_consistency_bundle_priority.py::TheDocumentBeingEditedIsNeverOmittedTest` 는 실제 spec 파일에 미커밋 편집
+      (`<!-- uncommitted probe -->`)과 `plan/in-progress/__probe_plan__.md` 를 만들었다 지운다(오케스트레이터가 target 을
+      저장소 상대경로로 읽기 때문 — 그 파일 주석). 리뷰어 여럿이 **같은 워크트리에서 동시에** 하네스 전체를 돌리면 한쪽의
+      정리가 다른 쪽 도중에 끼거나 잔여가 남는다 — 실측: 한 리뷰 라운드 동안 `spec/5-system/7-llm-client.md` 끝에 프로브
+      3줄 + 빈 `__probe_plan__.md` 가 남아 다른 리뷰어가 `cp` 로 복원했다. 그 사이 커밋이 섞였으면 무관한 spec 편집이
+      PR 에 들어갔다. 처방 후보: 프로브 대상을 임시 디렉터리의 저장소 사본으로(오케스트레이터에 루트를 주입) · 최소한
+      프로세스별 고유 파일명 + 편집한 실제 파일은 `try/finally` 로 바이트 복원.
+
+- [ ] **`spec/0-overview.md` §8 문서 맵이 `data-flow/` 를 «알파벳 순 숫자 prefix» 라 적는데 13~15 는 아니다**
+      (planner, 낮음, 2026-09-25 등재 · `--impl-prep` `review/consistency/2026/09/25/00_08_35` convention_compliance W2).
+      실측(`ls spec/data-flow | sort -n`): 1~12(`audit` … `workspace`)는 알파벳순이 맞지만 13 `agent-memory` ·
+      14 `chat-channel` · 15 `external-interaction` 은 뒤에 덧붙인 것이다(`agent-memory` 가 알파벳순이면 맨 앞).
+      처방 후보: «정수 prefix — 1~12 는 알파벳순, 이후는 도입순으로 덧붙이며 재번호하지 않는다». 재번호는
+      전 저장소 링크를 깨므로 서술을 고치는 쪽이 맞다.
 
 ## 종결 조건
 
