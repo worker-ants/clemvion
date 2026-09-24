@@ -58,7 +58,7 @@ describe('repo-guard: ESM-only 의존성 네이티브 로드', () => {
   // script 를 우회하는 호출(IDE 테스트 러너, `npx jest` 직접 실행)은 불변식 **밖**이고
   // 거기서는 여전히 `Must use import to load ES Module` 을 만난다. CI·e2e 진입점은 전부
   // script 를 경유하므로 실측상 안전하다 — 보증의 경계를 여기 적어 둔다.
-  it('jest 를 띄우는 script 전부가 같은 플래그·진입점을 쓴다', () => {
+  it('jest 를 띄우는 script 전부가 node 인자 구간을 그대로 유지한다', () => {
     const pkgPath = path.resolve(__dirname, '../../../package.json');
     const scripts = (
       JSON.parse(fs.readFileSync(pkgPath, 'utf8')) as {
@@ -70,37 +70,47 @@ describe('repo-guard: ESM-only 의존성 네이티브 로드', () => {
       cmd.includes('jest'),
     );
 
-    // 명단을 못 박는다. script 가 늘거나 줄면 **이 가드가 무엇을 덮는지** 다시 보게 한다 —
-    // 새 script 가 조용히 접두어 없이 추가되는 것이 정확히 이 가드가 막으려는 것이다.
-    expect(jestScripts.map(([name]) => name).sort()).toEqual([
-      'test',
-      'test:cov',
-      'test:debug',
-      'test:e2e',
-      'test:watch',
-    ]);
-
-    const FLAG = '--experimental-vm-modules';
     const ENTRY = './node_modules/jest/bin/jest.js';
 
-    for (const [name, cmd] of jestScripts) {
-      const flagIdx = cmd.indexOf(FLAG);
-      const entryIdx = cmd.indexOf(ENTRY);
+    // script 별로 **node 가 해석해야 하는 인자 전부**(진입점 직전까지)를 못 박는다.
+    //
+    // 왜 문자열 몇 개를 열거하지 않고 구간을 통째로 고정하나 — 이 가드는 같은 형태의
+    // 결함에 **세 번** 뚫렸다:
+    //   1라운드  진입점이 `node_modules/.bin/jest`(셸 shim) 였다 → `SyntaxError`
+    //   3라운드  플래그 존재만 보고 **순서**를 안 봤다 → 진입점 뒤로 밀리면 jest 가 받는다
+    //   4라운드  플래그 순서는 봤는데 `-r` 둘의 순서는 안 봤다 → `Unrecognized option "r"`
+    // 매번 «그 자리» 를 하나씩 더 열거했고 매번 다음 자리가 남았다. 그래서 **자리가 아니라
+    // 형태**를 고정한다 — 「node 인자 구간 + 진입점」이 선언과 글자 그대로 같아야 한다.
+    // 어떤 node 옵션이 진입점 뒤로 밀리든, 빠지든, 진입점이 바뀌든 이 한 단언이 잡는다.
+    //
+    // **대가**: node 옵션을 정당하게 추가·재배열해도 실패한다. 그것이 의도다 — 테스트
+    // 실행 명령의 변경은 조용히 지나갈 일이 아니다. 실패하면 여기 선언을 함께 고친다.
+    const NODE_ARGS: Record<string, string> = {
+      test: '--experimental-vm-modules',
+      'test:watch': '--experimental-vm-modules',
+      'test:cov': '--experimental-vm-modules',
+      'test:e2e': '--experimental-vm-modules',
+      'test:debug':
+        '--experimental-vm-modules --inspect-brk -r tsconfig-paths/register -r ts-node/register',
+    };
 
-      // 존재. **이 단언을 빼면 아래 순서 비교가 공허해진다** — 플래그가 없으면
-      // `flagIdx` 가 -1 이라 `-1 < entryIdx` 로 조용히 통과한다.
+    // 명단 대조. script 가 늘거나 줄면 **이 가드가 무엇을 덮는지** 다시 보게 한다 —
+    // 접두어 없는 새 script 가 조용히 추가되는 것이 정확히 이 가드가 막으려는 것이다.
+    expect(jestScripts.map(([name]) => name).sort()).toEqual(
+      Object.keys(NODE_ARGS).sort(),
+    );
+
+    for (const [name, cmd] of jestScripts) {
+      const expectedPrefix = `node ${NODE_ARGS[name]} ${ENTRY}`;
+      // 앞에서 잘라 **값끼리** 비교한다(`startsWith` 의 boolean 과 동치이면서, 실패 diff 가
+      // 「무엇이 와야 하는데 무엇이 왔는지」를 그대로 보여준다). script 이름을 함께 실어
+      // 어느 자리가 어긋났는지도 메시지에 남긴다.
       expect({
         script: name,
-        hasFlag: flagIdx >= 0,
-        hasEntry: entryIdx >= 0,
-      }).toEqual({ script: name, hasFlag: true, hasEntry: true });
-
-      // 순서. 플래그는 **node 의 인자**여야 한다 — 진입점 **뒤**로 가면 node 가 아니라
-      // jest 가 받아 `Unrecognized option "experimental-vm-modules"` 로 죽는다(실측).
-      // 존재만 보는 검사는 이 회귀를 통과시킨다. 존재 검사는 정합 검사가 아니다.
-      expect({ script: name, flagBeforeEntry: flagIdx < entryIdx }).toEqual({
+        prefix: cmd.slice(0, expectedPrefix.length),
+      }).toEqual({
         script: name,
-        flagBeforeEntry: true,
+        prefix: expectedPrefix,
       });
     }
   });
