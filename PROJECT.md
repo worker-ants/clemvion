@@ -375,12 +375,17 @@ e2e 는 **인프라 의존성과 multi-actor 흐름** 을 보장하는 회귀 �
 
 ### 문서 링크 검증
 
-**CI 가 강제한다** — `spec-link-checks` 워크플로가 아래 가드를 돌린다. 수동 확인이 필요하면
+**CI 가 강제한다** — `spec-link-checks` 워크플로가 `src/lib/docs/__tests__/` 의 **docs 가드 전체**를
+돌린다(2026-09-24 부터 — 그 전엔 `spec-link-integrity` 하나만 돌았다). `spec/**`·`plan/**`·거버넌스
+문서·`codebase/**` 어느 쪽을 바꿔도 트리거되므로, `frontend-checks` 가 안 도는 **plan/spec 만 바꾼
+PR** 에서도 `plan-frontmatter`·`spec-pending-plan-existence` 같은 가드가 돈다. 수동 확인이 필요하면
 같은 명령을 직접 실행한다.
 
 ```bash
-pnpm --filter frontend test src/lib/docs/__tests__/spec-link-integrity.test.ts
+pnpm --filter frontend test src/lib/docs/__tests__/
 ```
+
+이 절의 나머지(스코프 3가지)는 그중 `spec-link-integrity` 가드의 검사 범위다.
 
 검사 스코프 3가지 (SoT: [`spec/conventions/spec-impl-evidence.md`](spec/conventions/spec-impl-evidence.md) §4.2):
 

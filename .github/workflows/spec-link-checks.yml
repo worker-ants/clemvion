@@ -1,5 +1,7 @@
-# codebase 소스(`.ts`/`.tsx`)의 JSDoc·주석 안 spec 상대링크 부패를
-# spec-link-integrity 가드로 검증한다.
+# `codebase/frontend/src/lib/docs/__tests__/` 의 **docs 가드 전체**를, 그 가드들이 스캔하는
+# 데이터(codebase 소스 · `spec/**` · `plan/**` · 거버넌스 문서)가 바뀔 때마다 돌린다.
+# (2026-09-24 전까지는 spec-link-integrity 가드 하나만 — codebase 주석·spec·거버넌스 문서의
+#  spec 상대링크 부패 — 돌았다. 확장 경위는 아래 2026-09-24 문단.)
 #
 # 도입 배경: 가드는 `codebase/frontend/src/lib/docs/__tests__/` 의 vitest 로 도는데,
 # `frontend-checks.yml` 은 `codebase/frontend/**`·`codebase/packages/**` 만 trigger 한다.
@@ -8,13 +10,26 @@
 # 가드가 스캔하는 바로 그 영역인데도 CI 에서 가드가 안 돌던 갭이 있었다(PR #912 후속).
 #
 # frontend-checks 는 `next build`(무거움)까지 도므로 backend 변경마다 태우면 낭비다.
-# 본 workflow 는 가드 vitest 하나만 도는 lightweight 대체 트리거다.
+# 본 workflow 는 docs 가드 vitest 만 도는 lightweight 대체 트리거다(`next build`·lint·typecheck
+# 없음 — 디렉터리 전체도 수 초다).
 # (harness `unit` stage 는 무조건 frontend test 를 돌리므로 로컬/harness 는 이미 커버 —
 #  본 workflow 는 CI PR-trigger 갭만 메운다.)
 #
 # 2026-08-27: 가드에 **scope 3(거버넌스 문서 — 루트 `*.md` + `.claude/**`)** 가 붙으면서
 # 같은 갭이 그대로 재현될 뻔했다 — 스코프만 넓히고 `pathspecs` 를 안 늘리면 `CLAUDE.md` 를
 # 고쳐도 CI 에서 가드가 안 돈다. 아래 목록에 두 경로를 함께 등재한 이유다.
+#
+# 2026-09-24: **같은 갭의 셋째 판** — 이번엔 가드가 아니라 **가드 목록**이 좁았다.
+# `src/lib/docs/__tests__/` 에는 `plan/**`·`spec/**` 을 스캔하는 가드가 여럿 있는데
+# (`plan-frontmatter` · `spec-frontmatter` · `spec-code-paths` · `spec-pending-plan-existence` ·
+# `spec-status-lifecycle` …) 여기서는 `spec-link-integrity` **하나만** 돌았고, pathspec 에는
+# `plan/**` 도 없었다. 그래서 plan/spec 만 바꾼 PR — 그 가드들이 막으려는 위반이 가장 잘 생기는
+# PR — 에서 가드가 하나도 안 돌았다. 실제로 plan frontmatter 위반을 섞은 PR 이 로컬에서만
+# 잡혔다(`#1387` 1라운드 Critical).
+#
+# 그래서 **파일을 열거하지 않고 디렉터리째** 돌린다. 열거하면 새 docs 가드가 생길 때마다
+# 여기를 고치는 것을 잊는다 — 이 파일이 두 번 겪은 형태다. 디렉터리 전체도 vitest 로 수 초라
+# 「가벼운 대체 트리거」 라는 이 워크플로의 목적은 그대로다(`next build`·lint·typecheck 없음).
 
 name: spec-link-checks
 
@@ -54,6 +69,9 @@ jobs:
         codebase/channel-web-chat/**
         codebase/packages/**
         spec/**
+        # plan 문서 (2026-09-24 추가) — `plan-frontmatter`·`spec-pending-plan-existence` 등이
+        # 스캔한다. 이게 없으면 plan 만 바꾼 PR 에서 그 가드들이 안 돈다.
+        plan/**
         # 거버넌스 문서 (2026-08-27 추가) — 가드 scope 3.
         # `:(glob)` 매직이 없으면 git pathspec 의 `*` 가 `/` 를 넘어 **17,202개**(spec·plan·
         # review 전부)를 잡는다(실측). 루트 레벨 `*.md` 만 잡으려면 이 매직이 필수다.
@@ -67,6 +85,11 @@ jobs:
         .github/actions/pnpm-workspace/action.yml
         .github/workflows/spec-link-checks.yml
 
+  # **잡 이름은 `spec-link-integrity` 그대로 둔다** — 2026-09-24 부터는 그 가드 하나가 아니라
+  # `src/lib/docs/__tests__/` 전체를 돌지만, 이름은 required status check 의 앵커로 설계됐다
+  # (`#1106`, `test_workflow_yaml_structure.py` 가 고정). **지금은 등록된 required check 가
+  # 없다**(2026-09-24 실측 — branch protection·ruleset 모두 없음). 다만 등록되는 순간부터는
+  # 이름을 바꾸면 그 check 가 영원히 보고되지 않아 머지가 교착된다 — 그래서 미리 바꾸지 않는다.
   spec-link-integrity:
     needs: changes
     # `changes` 가 실패/오류여도 이 잡은 돈다 — needs 실패로 skipped 되면
@@ -77,7 +100,7 @@ jobs:
     steps:
       - name: 무관한 변경 — 검사 생략 (체크는 통과로 보고)
         if: needs.changes.outputs.relevant == 'false'
-        run: echo "codebase 소스·spec 관련 경로 변경 없음 — 이 잡은 no-op 으로 통과한다."
+        run: echo "codebase 소스·spec·plan·거버넌스 문서 경로 변경 없음 — 이 잡은 no-op 으로 통과한다."
 
       - uses: actions/checkout@v7
         if: needs.changes.outputs.relevant != 'false'
@@ -89,6 +112,7 @@ jobs:
         with:
           filter: 'frontend...'
 
-      - name: spec-link-integrity guard
+      # 디렉터리째 — 파일을 열거하면 새 docs 가드가 생길 때 여기를 잊는다(위 헤더 2026-09-24).
+      - name: docs guards (src/lib/docs/__tests__ 전체)
         if: needs.changes.outputs.relevant != 'false'
-        run: pnpm --filter frontend test src/lib/docs/__tests__/spec-link-integrity.test.ts
+        run: pnpm --filter frontend test src/lib/docs/__tests__/

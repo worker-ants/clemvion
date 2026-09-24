@@ -5097,7 +5097,14 @@ field: T | null;
       따른다. `spec/` 쓰기라 planner 턴(`--spec`). `PROJECT.md` 의 같은 가드 설명은 developer
       영역이라 해소 PR 이 이미 고쳤다.
 
-- [ ] **docs 가드가 검사하는 데이터가 그 가드를 트리거하지 않는다** (developer, **중간**,
+- [x] **docs 가드가 검사하는 데이터가 그 가드를 트리거하지 않는다** (developer, **중간**,
+      **2026-09-24 해소** — `docs-guard-trigger` 브랜치(plan `docs-guard-trigger.md`).
+      아래 처방 (a)(b) 가 아니라 **(c)** 로 닫았다: (b)(docs 가드 전용 잡)는 **이미 있었다** —
+      `spec-link-checks.yml` 이 스스로 «가드 vitest 하나만 도는 lightweight 대체 트리거» 라 적고
+      있었고 required check 호환에 `spec/**` 트리거도 있었다. 이 항목을 쓸 때 그 파일을 못 봤다.
+      빠진 것 둘 — pathspec 의 `plan/**`, 그리고 가드 **하나만** 도는 것 — 을 채웠다(가드는
+      디렉터리째). CI 판정 스크립트로 plan 만 바꾼 과거 커밋이 옛 `false` → 새 `true` 가 됨을
+      확인했고, 두 회귀 형태를 `test_spec_link_checks_scope.py` 가 고정한다.
       2026-09-24 등재 · `/ai-review` `review/code/2026/09/24/14_24_10` Critical 1 의 부가 관찰을
       실측으로 확인).
       `codebase/frontend/src/lib/docs/__tests__/` 의 가드들은 `plan/**` 과 `spec/**` 을 스캔하는데
