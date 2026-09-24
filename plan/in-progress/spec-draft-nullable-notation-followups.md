@@ -5847,6 +5847,10 @@ field: T | null;
       처방 후보: 정책 JSON 을 ConfigMap 으로 마운트하고 Job 에 `set-json` 한 줄. **`set download` 프리셋은 쓰지 말 것**
       (목록까지 연다 — README 의 실측). 검증은 compose 쪽과 같은 세 판정(익명 목록 403 · avatars GET 200 · 그 밖 403)을
       `kubectl kustomize` 로 렌더한 매니페스트 기준으로.
+      > **2026-09-25 보탬 — 같은 누락이 예고된 자리에도 있다.** `plan/in-progress/self-hosting-deployment.md` §3 의
+      > «MinIO 부팅 후 버킷 자동 생성 (`mc mb` …)» 도 정책을 적지 않는다. 그 번들을 만들 때 이 항목과 함께 닫을 것.
+      > (그 plan 에 직접 체크박스를 넣었다가 `/ai-review` 가 두 라운드 연속 스코프 밖이라 짚어 — `00_25_55` W3 ·
+      > `00_56_30` W2 — 범위 밖 발견의 자리인 여기로 옮겼다.)
 
 - [ ] **MinIO 계열 이미지 참조 6곳이 서로 같은지 아무것도 보지 않는다** (developer, 낮음, 2026-09-24 등재 ·
       `/ai-review` `review/code/2026/09/24/23_33_07` INFO 3).

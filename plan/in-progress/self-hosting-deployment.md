@@ -54,8 +54,6 @@ PRD 5 §2 / §3 / §7 의 다음 항목이 ❌ :
 - [ ] `.env.example` 정의 (모든 필수 환경변수 + 기본값)
 - [ ] backend startup script — Flyway migrate → 실패 시 exit 1
 - [ ] MinIO 부팅 후 버킷 자동 생성 (`mc mb` 또는 backend 의 startup 훅)
-- [ ] 버킷 생성과 함께 **아바타 공개 정책**도 적용 — 방법과 금지 프리셋은 `scripts/minio/README.md`
-      (2026-09-25 등재 · 같은 누락이 k8s 로컬 오버레이에 있다: 백로그 트래커의 k8s 버킷 Job 항목)
 - [ ] 이 파일이 오브젝트 스토리지 이미지를 쓰면 **`.claude/tests/test_minio_image_parity.py` 의 자리
       목록과 `harness-checks.yml` pathspec 에 추가** — 그 가드는 목록에 없는 파일을 발견하지 못한다
       (2026-09-25 등재 · plan `minio-image-parity-guard` · `--impl-prep`
