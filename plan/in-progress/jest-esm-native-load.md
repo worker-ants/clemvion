@@ -80,13 +80,25 @@ ts-jest 가 CJS 로 변환하고, vm-modules 모드의 jest 는 그 파일을 **
 `--disable-warning` 으로 지울 수 있지만 **지우지 않는다** — 실험 플래그 위에 서 있다는
 사실은 보이는 편이 낫고, 그 플래그가 Node 에서 안정화되면 배너가 사라지는 것이 신호다.
 
-## D. 확인해야 할 것
+## D. 확인한 것
 
-- [ ] e2e 도 같은 전환이 필요한가 — `test:e2e` 역시 같은 의존성을 탄다. 허용목록을 걷으면
-      e2e 도 플래그가 있어야 한다(같이 바꾸고 실측).
-- [ ] `--experimental-vm-modules` 가 내는 **경고 출력**이 로그를 어지럽히는가.
-- [ ] 워커/메모리 특성 변화 — 전체 스위트가 3배 빨라졌는데 그 원인이 «node_modules 를 더 이상
-      ts-jest 로 변환하지 않아서» 인지 확인(그렇다면 CI cold cache 에서도 이득).
+- [x] **e2e 도 같은 전환이 필요하다** — `test/jest-e2e.json` 에 **별도 허용목록**이 있었고
+      (`uuid|p-limit|yocto-queue`) 단위 쪽 목록과 **이미 어긋나 있었다**. 둘 다 기본값으로.
+      e2e **380 PASS**.
+- [x] **경고 출력**: `ExperimentalWarning: VM Modules …` 가 **jest 워커당 1줄**(실측 10줄).
+      지울 수 있지만 지우지 않는다(§C).
+- [x] **속도 주장 정정** — §C. 초판의 «3배» 는 거짓 비교였다.
+
+### 판별 실험 — 두 변경이 정말 한 쌍인가
+
+「플래그가 떠받친다」는 검증 가능한 주장이다. 설정은 그대로 두고 **플래그만** 빼고 돌렸다.
+
+| | 예측 | 실측 |
+| --- | --- | --- |
+| 플래그 없이 + 기본 `transformIgnorePatterns` | RED | **RED** — `Must use import to load ES Module: …/uuid@13.0.2/…` |
+
+플래그가 장식이 아니라 **로드를 떠받치고 있고**, 허용목록을 걷은 것과 짝이라는 뜻이다.
+(반대 방향은 §C 에 이미 있다 — 플래그만 켜고 허용목록을 남기면 `exports is not defined`.)
 
 ## E. 하지 않는 것
 
@@ -99,10 +111,10 @@ ts-jest 가 CJS 로 변환하고, vm-modules 모드의 jest 는 그 파일을 **
 
 ## 체크리스트
 
-- [ ] `/consistency-check --impl-prep spec/5-system` → BLOCK: NO
-- [ ] 구현 (script 2곳 + `transformIgnorePatterns`)
-- [ ] §D 세 항목 실측
-- [ ] TEST WORKFLOW (lint · unit · build · e2e) — 숫자는 로그 파일명과 함께
+- [x] `/consistency-check --impl-prep spec/5-system` → **BLOCK: NO · Critical 0 · Warning 3** (`review/consistency/2026/09/24/13_55_20`). W2(후속 plan 스텁 미등재)는 `nestjs-v12-coordinated-upgrade.md` 로 등재했다 — reflection 보안 회귀 검증 조건 포함
+- [x] 구현 — script 5곳 + `jest.config.ts` + `test/jest-e2e.json`
+- [x] §D 세 항목 실측 + 판별 실험(플래그만 빼면 RED)
+- [x] TEST WORKFLOW — lint PASS(`lint-20260924-141217.log`) · unit **472스위트/9946**(`unit-20260924-140803.log`) · build PASS(`build-20260924-141312.log`) · **e2e 380 PASS**(`e2e-20260924-141636.log`)
 - [ ] `/ai-review` → 수렴
 - [ ] `/consistency-check --impl-done spec/5-system` → BLOCK: NO
 - [ ] plan `complete/` 로 + 후속(동반 업그레이드) 등재
