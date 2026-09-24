@@ -82,6 +82,24 @@ export function isApplicable(relPath: string): boolean {
   return true;
 }
 
+// What a `pending_plans:` entry may point at: a work plan under
+// `plan/in-progress/` or `plan/complete/`. SoT: spec-impl-evidence.md §3
+// (`pending_plans` row) and §4. `plan/research/` is excluded on purpose — it
+// holds referenced material with no completion endpoint, so it can never make a
+// `partial` spec `implemented`.
+//
+// The path is normalised BEFORE the prefix check. A prefix test on the raw
+// string lets `plan/in-progress/../../codebase/x.md` through while it points
+// outside `plan/` — the same presence-vs-correctness gap this predicate exists
+// to close.
+const PENDING_PLAN_DIRS = ["plan/in-progress/", "plan/complete/"];
+
+export function isPendingPlanPath(relPath: string): boolean {
+  const norm = path.posix.normalize(relPath);
+  if (!norm.endsWith(".md")) return false;
+  return PENDING_PLAN_DIRS.some((dir) => norm.startsWith(dir));
+}
+
 export function collectApplicableSpecs(root: string): SpecRecord[] {
   // 종전에는 상대경로를 `path.relative` 원본 그대로 넘겼다 — POSIX 에서만 우연히
   // `isApplicable`/`CATALOG_FIELD_FILE` 의 `/` 가정과 맞았다. `walkTree` 는 항상 `/` 로

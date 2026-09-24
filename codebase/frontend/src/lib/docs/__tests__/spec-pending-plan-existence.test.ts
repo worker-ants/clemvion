@@ -3,14 +3,22 @@ import path from "node:path";
 import { describe, it, expect } from "vitest";
 import {
   collectApplicableSpecs,
+  isPendingPlanPath,
   repoRoot,
 } from "./spec-frontmatter-parse";
 
 // Guard 4/4: every path in `pending_plans:` of a spec frontmatter MUST
-// either (a) exist under plan/in-progress/ OR (b) exist under
-// plan/complete/ (status-lifecycle guard handles the "all completed but
-// status still partial" case separately).
-// SoT: spec/conventions/spec-impl-evidence.md §4.
+// (1) BE a work plan — `plan/in-progress/**.md` or `plan/complete/**.md` — and
+// (2) exist there (an in-progress path also resolves via its complete/ twin;
+// status-lifecycle guard handles the "all completed but status still partial"
+// case separately).
+// SoT: spec/conventions/spec-impl-evidence.md §3 (`pending_plans` row) · §4.
+//
+// (1) was missing until 2026-09-24. The guard checked only that the path
+// existed, so `spec/5-system/10-graph-rag.md` kept three migration `.sql` paths
+// in `pending_plans:` for weeks with CI green — the `.sql` files are real. That
+// is the documented contract (a plan under in-progress/complete) being wider
+// than the enforced one (anything on disk).
 
 describe("spec-pending-plan-existence guard", () => {
   const root = repoRoot();
@@ -36,6 +44,15 @@ describe("spec-pending-plan-existence guard", () => {
     describe(spec.relPath, () => {
       const pending = spec.frontmatter!.pending_plans!;
       for (const planRel of pending) {
+        it(`pending_plan is a work plan — ${planRel}`, () => {
+          expect(
+            isPendingPlanPath(planRel),
+            `${spec.relPath}: pending_plans 의 "${planRel}" 는 plan 이 아니다 — ` +
+              `plan/in-progress/**.md 또는 plan/complete/**.md 여야 한다 ` +
+              `(구현 산출물 경로라면 code: 로 옮길 것)`,
+          ).toBe(true);
+        });
+
         it(`pending_plan path resolves — ${planRel}`, () => {
           const inProgressAbs = path.join(root, planRel);
           const completeAbs = path.join(
