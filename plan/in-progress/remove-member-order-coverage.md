@@ -95,7 +95,54 @@ ts-jest 가 타입체크를 하므로 뮤턴트가 컴파일에 실패했다면 
 - [x] 테스트 (b) 요청자 조회 정확히 1회 — 둘 다 이름으로 실행 확인(`-t` 2 passed)
 - [x] 뮤턴트 M-a · M-b · M-b2 실측 (표 §B 채우기) — 셋 다 예측과 일치
 - [x] CHANGELOG 항목 (커밋 전 staged 확인)
-- [ ] TEST WORKFLOW — lint · unit · build · e2e
-- [ ] `/ai-review`
+- [x] TEST WORKFLOW — lint · unit · build · e2e. unit 은 backend 473 suites(스펙 파일 473개와
+      일치) · 9951 passed. e2e 는 **두 번** 돌렸다 — 첫 회(`e2e-20260924-221711`, 70 suites · 380)
+      끝 무렵이 리뷰어의 공유 트리 뮤테이션과 겹쳐(§D) 결과를 버리고, fan-out 이 없는 상태에서
+      재실행(`e2e-20260924-222734`) — backend **70 suites · 380 passed**(`member-remove-concurrency`
+      · `workspace-rbac` 포함) + playwright **51 passed**. 재실행 전후 서비스 파일이 백업과 바이트
+      동일(`cmp`)
+- [x] `/ai-review` → `review/code/2026/09/24/22_17_45` **Critical 0 · Warning 0 · INFO 7**,
+      forced 7/7 결과 확보. 결과를 보기 **전에** 선언한 정지 규칙(«Critical 0 · Warning 0 · 그
+      라운드 codebase 수정 0건»)을 1라운드에 충족 → 종결. RESOLUTION 불요(조치 항목 0). 처분은 §D
 - [ ] `/consistency-check --impl-done` (spec-linked — §A 실측)
 - [ ] 트래커 항목 닫기
+
+## D. 리뷰 — 처분과 사고 하나
+
+### 리뷰어가 공유 트리의 서비스 파일을 뮤턴트로 바꿨고, 그 창이 e2e 와 겹쳤다
+
+SUMMARY INFO 1 은 maintainability · testing 두 리뷰어가 독립적으로 «리뷰 중 `workspaces.service.ts`
+가 M-a 와 바이트 단위로 같은 미커밋 상태였다» 고 보고한 것이다. **내 뮤턴트가 아니다** — 내
+실측은 lint 전에 끝났고 원복 뒤 `git status` 빈 것 · 139 passed 를 확인했다(§B). 워크플로
+트랜스크립트를 뒤져 도구 호출을 찾았다:
+
+| 시각(로컬) | 리뷰어 | 동작 |
+| --- | --- | --- |
+| 22:21:06 | requirement | 서비스 파일을 scratch 로 `cp` 백업 |
+| 22:21:14 | requirement | 공유 트리 파일에 M-a 를 **제자리 치환**(`python3` heredoc) |
+| 22:21:35 · 22:21:58 | requirement | scratch 백업을 `cp` 로 되돌림 |
+
+testing 리뷰어도 같은 시각에 백업 `cp` 를 했지만 공유 파일을 쓰지는 않았다. 지금 파일은
+HEAD · 내 백업과 **바이트 동일**(`cmp`)이다.
+
+**문제는 e2e 였다.** 이번 e2e 는 22:17:11 시작 · 263초 — 22:21:34 께 끝났다. 그리고
+`docker-compose.e2e.yml` 의 backend runner 는 `./codebase/backend` 를 **바인드 마운트**해 테스트
+시점에 소스를 읽는다. 그러니 마지막 ~20초 안에 로드된 suite 가 있었다면 **뮤턴트를 테스트했을
+수 있다.** backend runner 가 playwright 보다 먼저 끝나므로 아마 겹치지 않았겠지만, 로그에 시각이
+없어 증명할 수 없다. 그래서 **fan-out 이 없는 상태에서 e2e 를 다시 돌렸다**(아래 TEST 결과).
+
+> 저장소 교훈의 거울상이 하나 늘었다: 리뷰어의 공유 트리 뮤테이션은 리뷰끼리만 오염시키는 게
+> 아니라, **바인드 마운트로 소스를 읽는 동시 실행 테스트**도 오염시킬 수 있다. TEST WORKFLOW 와
+> 리뷰 fan-out 을 겹치지 말 것.
+
+### INFO 처분
+
+| # | 지적 | 처분 |
+| --- | --- | --- |
+| 1 | 리뷰 중 서비스 파일 뮤테이션 관측 | 위 절. 원인 특정 · 파일 동일성 확인 · e2e 재실행 |
+| 2 | 두 갭이 트래커 서술과 일치 | 트래커 항목 종결 때 인용 |
+| 3 | spec(§1.6)이 판정 순서를 규정하지 않음 | 조치 불요 — §A-1 이 «보안 불변이 아니라 문서화된 순서» 로 이미 적었다 |
+| 4 | `describe('removeMember — 동시 제거')` 이름이 판정 순서 테스트를 담지 못한다 | **이번 PR 원인 아님** — 순서 테스트 셋은 `member-auth-order` 가 이미 이 블록에 넣었다. 이름을 바꾸면 codebase 가 바뀌어 한 라운드가 더 돈다. 트래커 종결 메모에 «다음 근접 편집에서 블록 분리» 로 남긴다 |
+| 5 | CHANGELOG 위치 기반 참조(«맨 위 항목») 선행 결함 | 이번 PR 원인 아님(reviewer 판정). 새 항목은 위치 참조를 쓰지 않았다 |
+| 6 | 조회 횟수 필터에 `workspaceId` 조건 없음 | 지금은 블록의 `workspaceId` 가 단일 상수라 안전(reviewer 판정). 다중 워크스페이스 테스트가 이 블록에 들어올 때 조건을 더한다 |
+| 7 | 새 테스트의 주석 비율이 높다 | 조치 불요 — 같은 블록의 기존 관례(판별력 근거를 주석에)와 같다(reviewer 판정) |
