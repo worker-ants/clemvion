@@ -19,11 +19,11 @@
     "eval:retrieval": "ts-node -r tsconfig-paths/register src/scripts/eval-retrieval.ts",
     "lint": "eslint \"{src,apps,libs,test}/**/*.ts\" --max-warnings 0",
     "lint:fix": "eslint \"{src,apps,libs,test}/**/*.ts\" --fix",
-    "test": "jest",
-    "test:watch": "jest --watch",
-    "test:cov": "jest --coverage",
-    "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
-    "test:e2e": "jest --config ./test/jest-e2e.json"
+    "test": "node --experimental-vm-modules ./node_modules/jest/bin/jest.js",
+    "test:watch": "node --experimental-vm-modules ./node_modules/jest/bin/jest.js --watch",
+    "test:cov": "node --experimental-vm-modules ./node_modules/jest/bin/jest.js --coverage",
+    "test:debug": "node --experimental-vm-modules --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
+    "test:e2e": "node --experimental-vm-modules ./node_modules/jest/bin/jest.js --config ./test/jest-e2e.json"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.115.0",

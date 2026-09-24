@@ -6,9 +6,7 @@
   "transform": {
     "^.+\\.(t|j)s$": "ts-jest"
   },
-  "transformIgnorePatterns": [
-    "node_modules/(?!(?:\\.pnpm/[^/]+/node_modules/)?(?:uuid|p-limit|yocto-queue)/)"
-  ],
+  "transformIgnorePatterns": ["/node_modules/"],
   "moduleNameMapper": {
     "^(\\.{1,2}/.*)\\.js$": "$1"
   },

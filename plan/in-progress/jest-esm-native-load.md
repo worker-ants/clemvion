@@ -50,20 +50,35 @@ supportsSyncEvaluate = typeof vm.SourceTextModule?.prototype.hasAsyncGraph === '
 ts-jest 가 CJS 로 변환하고, vm-modules 모드의 jest 는 그 파일을 **ESM 으로 평가**한다 →
 `ReferenceError: exports is not defined`. 두 변경은 **한 쌍**이다.
 
-## C. 실측 — 기준선에서 더 좋아진다
+## C. 실측 — 무엇이 좋아지고 무엇은 안 좋아지나
 
 **현재 의존성(NestJS 11) 그대로**, 의존성 변경 0:
 
 | | 전 | 후 |
 | --- | --- | --- |
-| backend unit | 472 스위트 / 9946 | **472 / 9946** (동일) |
-| 소요 | ~76–100s | **23.5s** |
+| backend unit 결과 | 472 스위트 / 9946 | **472 / 9946** (동일) |
+| backend 단독 jest | **32.5s**(1회) | **23.5 · 26.5s**(2회) |
+| `run-test.sh unit`(전 패키지) | 76–103s | **87s** — 유의한 차이 없음 |
 
 그리고 `@nestjs/typeorm@12.0.1` 을 얹으면 **472 / 9946 통과**(29.5s) — #1339 가 풀린다.
 
-**부수 이득**: 허용목록은 유지 부담이다. 지금 주석이 *"uuid >=12, p-limit >=4, yocto-queue;
-otplib >=13 … @scure, @noble"* 로 여섯 항목을 열거하고, 패키지가 ESM 으로 갈 때마다 사람이
-추가해야 한다. 네이티브 로드로 바꾸면 그 목록 자체가 사라진다.
+> **초판의 «3배 빠름» 은 거짓 비교였다.** backend **단독** jest(23.5s)를 `run-test.sh unit`
+> **전 패키지**(76–103s)와 견줬다. 공정하게 재니 backend 단독 기준 32.5s → 23.5~26.5s 로
+> **20~28%** 이고, 래퍼 기준으로는 backend 가 전체의 일부라 차이가 묻힌다. 래퍼 요약 숫자에
+> 또 속은 것이고, 이 저장소에서 같은 함정을 이미 여러 번 밟았다.
+
+**속도는 곁다리다 — 이 변경의 값은 둘이다:**
+
+1. **ESM-only 의존성을 받을 수 있게 된다.** `@nestjs/typeorm@12` 의 `import.meta.url` 처럼
+   **CJS 로 downlevel 이 원리적으로 불가능한** 것도 로드된다. 허용목록으로는 못 하는 일이다.
+2. **손으로 유지하던 목록이 사라진다.** 지금 주석이 *"uuid >=12, p-limit >=4, yocto-queue;
+   otplib >=13 … @scure, @noble"* 로 여섯을 열거하고, 패키지가 ESM 으로 갈 때마다 사람이
+   추가해야 한다. e2e 설정에도 같은 목록이 **따로** 있었다(`uuid|p-limit|yocto-queue`) —
+   두 곳이 이미 어긋나 있었다는 뜻이다.
+
+**비용**: `ExperimentalWarning: VM Modules …` 가 **jest 워커당 1줄**(실측 10줄) 찍힌다.
+`--disable-warning` 으로 지울 수 있지만 **지우지 않는다** — 실험 플래그 위에 서 있다는
+사실은 보이는 편이 낫고, 그 플래그가 Node 에서 안정화되면 배너가 사라지는 것이 신호다.
 
 ## D. 확인해야 할 것
 
