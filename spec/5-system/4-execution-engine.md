@@ -9,7 +9,6 @@ code:
 pending_plans:
   - plan/in-progress/execution-engine-residual-gaps.md
   - plan/in-progress/retry-turn-terminal-guard.md
-  - plan/in-progress/exec-intake-followups.md
   - plan/in-progress/update-returning-tuple-shape.md
 ---
 
@@ -436,7 +435,7 @@ $loop.count = 10              $itemIndex = 1 ($itemIsFirst=false, $itemIsLast=�
 
 ## 4. Worker 모델
 
-> **구현 상태 — §4.1~4.3 PR1 구현 완료**: `execution-run` intake 큐·work-stealing·우선순위(§4.1–4.3)는 PR1(`impl-exec-intake-queue`)에서 구현됐다. `execute()` 는 Execution row 를 `pending` 으로 저장한 뒤 `execution-run` 큐에 job 을 발행하고 즉시 반환하며, `ExecutionRunProcessor` 가 work-stealing 으로 pick up 해 첫 active 세그먼트를 처리한다(`runExecutionFromQueue`). 세그먼트 내부 노드 dispatch 는 여전히 in-process (`runExecution` while-loop — §2.1, per-node task queue 없음). 별도 BullMQ 큐는 `execution-run`(본 절) · `background-execution`(§3.3) · `execution-continuation`(§7.4) 세 개. **§7.1 stalled-job 재배달(crash 재개)은 PR4 구현 완료(2026-07-04)** — `maxStalledCount:1` 로 크래시 세그먼트를 같은 jobId 로 1회 자동 재배달 → §7.5 case B 재구동. **§8 동시성 cap 은 PR2b 구현 완료**(advisory-lock admission gate — §8 참조), **우선순위 3-tier 도 구현 완료(2026-07-04, triggerType threading)** — `manual`>`webhook`>`schedule`(호출부가 `ExecuteOptions.triggerType` 전달, executedBy 우선, §4.3). 잔여 후속: `plan/in-progress/exec-intake-followups.md` · `plan/in-progress/execution-engine-residual-gaps.md`.
+> **구현 상태 — §4.1~4.3 PR1 구현 완료**: `execution-run` intake 큐·work-stealing·우선순위(§4.1–4.3)는 PR1(`impl-exec-intake-queue`)에서 구현됐다. `execute()` 는 Execution row 를 `pending` 으로 저장한 뒤 `execution-run` 큐에 job 을 발행하고 즉시 반환하며, `ExecutionRunProcessor` 가 work-stealing 으로 pick up 해 첫 active 세그먼트를 처리한다(`runExecutionFromQueue`). 세그먼트 내부 노드 dispatch 는 여전히 in-process (`runExecution` while-loop — §2.1, per-node task queue 없음). 별도 BullMQ 큐는 `execution-run`(본 절) · `background-execution`(§3.3) · `execution-continuation`(§7.4) 세 개. **§7.1 stalled-job 재배달(crash 재개)은 PR4 구현 완료(2026-07-04)** — `maxStalledCount:1` 로 크래시 세그먼트를 같은 jobId 로 1회 자동 재배달 → §7.5 case B 재구동. **§8 동시성 cap 은 PR2b 구현 완료**(advisory-lock admission gate — §8 참조), **우선순위 3-tier 도 구현 완료(2026-07-04, triggerType threading)** — `manual`>`webhook`>`schedule`(호출부가 `ExecuteOptions.triggerType` 전달, executedBy 우선, §4.3). 잔여 후속: `plan/in-progress/execution-engine-residual-gaps.md` (`exec-intake-followups.md` 는 **완료** — `plan/complete/`).
 >
 > **설계 모델 — "active 세그먼트 + durable park"**: 한 Execution 을 **active-running 세그먼트들의 연속**(노드를 실제로 전진시키는 작업 구간)과 그 사이의 **durable park**(`waiting_for_input`)로 본다. 두 BullMQ 큐가 active 세그먼트를 운반한다 — `execution-run`(첫 세그먼트: 시작→첫 BLOCK/완료)·`execution-continuation`(매 재개 세그먼트, §7.4 기존). `waiting_for_input` 은 큐에 들어가지 않는 DB park 다(§2 아래). per-node task queue(1 Worker = 1 NodeExecution)는 채택하지 않는다 — 근거는 [§Rationale "per-node → execution-level intake 큐"](#rationale).
 
@@ -1152,7 +1151,7 @@ frontend 는 backend 의 안정 code 를 `code → i18n key` 맵으로 표시하
 
 ## 8. 동시 실행 제한
 
-> **구현 상태**: **단일 Execution active-running 누적 타임아웃은 PR2a 구현 완료**(`impl-exec-concurrency-cap`). **워크스페이스/워크플로우 동시 실행 cap + 큐 대기 5분 cancel 은 PR2b 구현 완료**(settings 키·advisory-lock admission gate·`queued_at`·`EXECUTION_QUEUE_WAIT_TIMEOUT`·workspace settings write API — 본 절 + §2.13 + §3-error-handling §1.5). priority 3-tier 도 **구현 완료(2026-07-04, triggerType threading, §4.3)**. 단일 Execution 최대 노드 수(500)만 여전히 **Planned**. 잔여 후속: `plan/in-progress/exec-intake-followups.md`.
+> **구현 상태**: **단일 Execution active-running 누적 타임아웃은 PR2a 구현 완료**(`impl-exec-concurrency-cap`). **워크스페이스/워크플로우 동시 실행 cap + 큐 대기 5분 cancel 은 PR2b 구현 완료**(settings 키·advisory-lock admission gate·`queued_at`·`EXECUTION_QUEUE_WAIT_TIMEOUT`·workspace settings write API — 본 절 + §2.13 + §3-error-handling §1.5). priority 3-tier 도 **구현 완료(2026-07-04, triggerType threading, §4.3)**. 단일 Execution 최대 노드 수(500)만 여전히 **Planned**. 잔여 후속: `plan/in-progress/execution-engine-residual-gaps.md` (종전 여기 적혀 있던 `exec-intake-followups.md` 는 **완료** — `plan/complete/`).
 
 > **소급 각주 (2026-08-30) — admission gate 가 4개월간 한 번도 통과하지 못했다.**
 > gate 는 advisory-lock UPDATE 의 `RETURNING` 으로 `rows.length === 1` 을 판정했는데, 그

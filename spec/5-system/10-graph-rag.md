@@ -16,8 +16,6 @@ code:
   - codebase/frontend/src/components/knowledge-base/entity-detail-dialog.tsx
   - codebase/frontend/src/components/knowledge-base/kb-form-body.tsx
   - codebase/backend/migrations/V025__graph_rag.sql
-pending_plans:
-  - plan/in-progress/update-returning-tuple-shape.md
   - codebase/backend/migrations/V026__graph_extraction_status_nullable_index.sql
   - codebase/backend/migrations/V027__relation_head_tail_index.sql
   - codebase/backend/migrations/V037__kb_retry_failed_status.sql
@@ -31,7 +29,7 @@ pending_plans:
 
 ## Overview (제품 정의)
 
-> **구현 상태**: ✅ **P0~P2 구현 완료**. KB 모드 선택, 추출 파이프라인 (`graph-extraction` 큐 chained dispatch), Hybrid 검색 (`RagSearchService` graph 분기), Entity / Relation CRUD, 3D 그래프 시각화 (`graph-3d-renderer.tsx`) 까지 동작. 마이그레이션 `V025__graph_rag.sql` ~ `V027__relation_head_tail_index.sql` 적용. 본 문서 범위 밖 (§2.2) 의 community detection / Neo4j 등 P2 이후 항목만 미구현으로 남는다.
+> **구현 상태**: ✅ **P0~P2 구현 완료**. KB 모드 선택, 추출 파이프라인 (`graph-extraction` 큐 chained dispatch), Hybrid 검색 (`RagSearchService` graph 분기), Entity / Relation CRUD, 3D 그래프 시각화 (`graph-3d-renderer.tsx`) 까지 동작. 마이그레이션 `V025__graph_rag.sql` ~ `V027__relation_head_tail_index.sql` + `V037__kb_retry_failed_status.sql` 적용. 본 문서 범위 밖 (§2.2) 의 community detection / Neo4j 등 P2 이후 항목만 미구현으로 남는다.
 
 ---
 

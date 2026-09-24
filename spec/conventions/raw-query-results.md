@@ -5,8 +5,6 @@ code:
   - codebase/backend/src/common/utils/update-returning-rows.ts
   - codebase/backend/src/common/utils/update-returning-rows.spec.ts
   - codebase/backend/src/common/__test-utils__/source-scan.ts
-pending_plans:
-  - plan/in-progress/update-returning-tuple-shape.md
 ---
 
 # raw SQL 결과 읽기 규약 (Conventions)

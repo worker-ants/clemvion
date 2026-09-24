@@ -8,8 +8,6 @@ code:
   - codebase/backend/src/modules/knowledge-base/queues/document-embedding.processor.ts
   - codebase/backend/src/modules/model-config/model-config.service.ts
   - codebase/backend/src/modules/knowledge-base/search/rag-search.service.ts
-pending_plans:
-  - plan/in-progress/update-returning-tuple-shape.md
 ---
 
 # Spec: 벡터 임베딩 파이프라인

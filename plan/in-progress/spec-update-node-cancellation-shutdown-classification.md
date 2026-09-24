@@ -685,6 +685,20 @@ Graph RAG 시각화(KB-GR-UI-07)의 "노드/엣지" 가 워크플로우 캔버�
 >
 > 소급 각주 5건도 같은 턴에 반영했다(`2-auth.md` 포함 — 각주는 frontmatter 와 무관).
 >
+> **⚠️ 2026-09-24 — 위 4곳 중 셋에서 그 등재를 되돌렸다**
+> (`plan/complete/spec-draft-frontmatter-pending-plans.md`).
+> `8-embedding-pipeline.md` · `10-graph-rag.md` · (여기 목록 밖이던) `raw-query-results.md` 는
+> `status: implemented` 인데, `spec-impl-evidence.md` §3 표는 `implemented` 의
+> `pending_plans` 를 **«없음»** 으로 규정한다. `4-execution-engine.md` · `node-cancellation.md`
+> 는 `partial` 이라 위반이 아니므로 **그대로 둔다** — 처분을 가른 것은 스코프가 아니라
+> 각 문서의 `status` 다.
+>
+> **이 위임의 의도는 옳았고 도구가 틀렸다.** *"각주가 그 plan 자신의 후속 절에만 있어 다음
+> 스윕에서 놓칠 위험"* 을 막으려 한 것인데, `pending_plans` 는 §2.1 이 «**미구현 surface** 를
+> 책임지는 plan 경로» 로 정의한 필드라 **cross-reference 포인터 용도가 아니다.** 용도를
+> 벗어나 쓰니 `status` 규칙과 충돌했다. 포인터 역할은 본문 cross-link 가 이어받는다
+> (`4-execution-engine.md` §1.1 이 그 plan 을 «전수 목록의 정본» 으로 지목하고 있다).
+>
 > **후속 보강 (2026-08-30, 같은 날 뒤)** — 위 각주 중 `4-execution-engine.md` §1.1 것이
 > **불완전했다.** `8332d9a20` 이 얹은 "배열이 아니면 throw" 가드가 트랜잭션 밖 단발 UPDATE
 > 위에 있어 **롤백을 못 했다**는 사실이 빠져 있었고, 그래서 각주가 "그 커밋이 닫았다" 로
