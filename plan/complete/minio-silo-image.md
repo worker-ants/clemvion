@@ -1,10 +1,11 @@
 ---
 title: MinIO 이미지를 pgsty/silo 로 교체 — quay.io 의 minio/* 도 비공개가 됐다
-status: in-progress
+status: complete
 owner: developer
 worktree: minio-silo-image
 spec_impact: none
 started: 2026-09-24
+completed: 2026-09-24
 ---
 
 # quay.io 도 닫혔다 — 12일 만에 두 번째 레지스트리
@@ -106,8 +107,12 @@ k8s 로컬에서는 아바타 이미지가 403 일 것이다. 이 PR 의 축(이
 - [x] 캐시 없이 pull 되는지 — 로컬 `pgsty/silo` 이미지를 **지우고**(0건 확인) `docker compose -f
       docker-compose.e2e.yml pull minio createbuckets` → `Pulled`, 다이제스트 일치
 - [x] CHANGELOG 항목 (커밋 전 staged 확인)
-- [ ] TEST WORKFLOW — lint · unit · build · e2e (**실제 파일로**, override 아님)
-- [ ] `/ai-review` — **e2e 가 끝난 뒤** 띄운다(바인드 마운트 e2e 와 리뷰어 뮤테이션이 겹친 전례)
+- [x] TEST WORKFLOW — lint · unit · build · e2e (**실제 파일로**, override 아님). 커밋 `b02105437` 뒤
+      `run-test.sh` 4단계 모두 PASS. e2e 로그 첫 줄이 이 워크트리의 `docker-compose.e2e.yml` 을 쓰고, backend
+      **70 suites · 380 passed**(`users-avatar-upload` 포함) + playwright **51 passed**
+- [x] `/ai-review` — **e2e 가 끝난 뒤** 띄웠다 → `review/code/2026/09/24/23_33_07` **Critical 0 · Warning 0 ·
+      INFO 7**, forced 3/3(dependency · documentation · security) 결과 확보. 결과 전에 선언한 정지 규칙(«Critical 0 ·
+      Warning 0 · 그 라운드 인프라 파일 수정 0건»)을 1라운드에 충족. RESOLUTION 불요. 처분은 §G
 - [x] 트래커 갱신 — 레지스트리 항목에 2026-09-24 경과(«재검토 불요» 취소선 + 반증 기록 + 세 번째 폐쇄 시
       GHCR 재검토) · `e2e-minio-registry` 후속 두 항목 종결 · k8s 정책 누락 등재(백로그 트래커)
 
@@ -121,3 +126,15 @@ k8s 로컬에서는 아바타 이미지가 403 일 것이다. 이 PR 의 축(이
 | 6 | 트래커의 «재검토 불요» 가 반증된 전제 위에 남아 있다 | **반영** — 취소선 + 2026-09-24 반증 기록 |
 | 7 | `e2e-minio-registry` 후속 두 항목이 미체크 | **반영** — 둘 다 종결 메모와 함께 `[x]` |
 | 8 | 다시 제3자 공개 레지스트리 하나에 기댄다 | **반영** — 트래커에 «세 번째 폐쇄 시 GHCR 미러링 재검토» 를 적었다 |
+
+## G. `/ai-review` INFO 처분
+
+| # | 지적 | 처분 |
+| --- | --- | --- |
+| 1 | 벤더 신뢰 축이 커뮤니티 포크로 이동 | 조치 불요 — local · dev · e2e 한정(staging · prod 오버레이는 참조 0건, reviewer 실측), 다이제스트 고정, GHCR 재검토 조건 등재됨 |
+| 2 | 롤백 시 LDAP 경고를 `minio_data` 볼륨 주석에도 | **안 한다** — 인프라 파일을 다시 고치면 한 라운드가 더 돈다. 기능 영향이 없는 경고이고 CHANGELOG · 이 plan §C 에 적혀 있다. 옛 공식 이미지는 이제 받을 수도 없다 |
+| 3 | 같은 이미지 문자열이 6곳에 수동 중복 | **등재** — 백로그 트래커에 «일치를 검사하는 하네스 테스트» 항목(YAML 파서로 여섯 `image` 동일성 + 다이제스트 포함). `#1325` 가 k8s 두 곳을 놓친 전례가 근거 |
+| 4 | diff 시점 plan 의 TEST WORKFLOW · `/ai-review` 가 미체크 | 순서상 정상 — 둘 다 이 커밋에서 **실제 파일 기준 결과로** 체크했다(위 §E) |
+| 5 | 이미지 서명 검증 · CVE 스캔 부재 | 조치 불요(reviewer 도 «차단 사유 아님, dev/e2e 전용»). 운영 범위로 넓어지면 그때 |
+| 6 | CHANGELOG 다이제스트가 축약형 | 조치 불요 — 저장소 관례, 전체 값은 세 파일에 있다 |
+| 7 | spec 이 포크 사실을 드러내지 않음 | 이미 처분(§F #1) |

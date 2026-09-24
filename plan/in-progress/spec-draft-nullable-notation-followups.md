@@ -5826,6 +5826,15 @@ field: T | null;
       (목록까지 연다 — README 의 실측). 검증은 compose 쪽과 같은 세 판정(익명 목록 403 · avatars GET 200 · 그 밖 403)을
       `kubectl kustomize` 로 렌더한 매니페스트 기준으로.
 
+- [ ] **MinIO 계열 이미지 참조 6곳이 서로 같은지 아무것도 보지 않는다** (developer, 낮음, 2026-09-24 등재 ·
+      `/ai-review` `review/code/2026/09/24/23_33_07` INFO 3).
+      `docker-compose.yml` · `docker-compose.e2e.yml` 의 `minio` · `createbuckets`, `k8s/overlays/local/infra-minio.yaml`
+      의 StatefulSet · Job — 같은 `pgsty/silo:…@sha256:…` 문자열이 **수동으로 여섯 번** 적혀 있다. `#1325` 는 이 중
+      k8s 두 곳을 놓쳤다가 리뷰에서 잡혔다(부분 반영의 실제 전례). compose 와 kustomize 는 변수를 공유할 방법이
+      없으므로 SoT 를 하나로 모으기보다 **일치를 검사하는 하네스 테스트**가 현실적이다 — `.claude/tests/` 에서 세
+      파일을 `yaml.safe_load`(YAML 은 정본 파서가 있는 문법이라 정규식이 아니라 파서로)로 읽어 여섯 `image` 가
+      같은 문자열이고 다이제스트를 포함하는지 본다. 판별 확인: 한 곳만 옛 태그로 되돌리면 RED 여야 한다.
+
 ## 종결 조건
 
 **형제 plan 은 이미 종결됐다** (`cce8a188b`, 2026-09-04). `entity-nullable-column-type-mismatch.md`
