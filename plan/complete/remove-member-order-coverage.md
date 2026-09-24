@@ -1,10 +1,11 @@
 ---
 title: removeMember 판정 순서 커버리지의 비대칭 두 칸
-status: in-progress
+status: complete
 owner: developer
 worktree: remove-member-order-coverage
 spec_impact: none
 started: 2026-09-24
+completed: 2026-09-24
 ---
 
 # 판정 순서 다섯 칸 중 두 칸만 뒤집어도 스위트가 초록이다
@@ -104,8 +105,15 @@ ts-jest 가 타입체크를 하므로 뮤턴트가 컴파일에 실패했다면 
 - [x] `/ai-review` → `review/code/2026/09/24/22_17_45` **Critical 0 · Warning 0 · INFO 7**,
       forced 7/7 결과 확보. 결과를 보기 **전에** 선언한 정지 규칙(«Critical 0 · Warning 0 · 그
       라운드 codebase 수정 0건»)을 1라운드에 충족 → 종결. RESOLUTION 불요(조치 항목 0). 처분은 §D
-- [ ] `/consistency-check --impl-done` (spec-linked — §A 실측)
-- [ ] 트래커 항목 닫기
+- [x] `/consistency-check --impl-done spec/2-navigation/` (spec-linked — §A 실측) →
+      `review/consistency/2026/09/24/22_32_01` **BLOCK: NO · Critical 0 · Warning 0 · INFO 4**.
+      `/ai-review` 수렴 **뒤에** 준비했다. 번들 확인: diff(새 테스트 이름)와
+      `9-user-profile.md` 본문(멤버 제거 행) 모두 5/5. 게이트 파서(`_summary_block_is_no`)가
+      NO 로 읽고 impl-done 세션으로 인식함을 확인. INFO 3(`MEMBER_NOT_FOUND` 가 `spec/` 에
+      없음 — grep 0건)은 새 항목을 만들지 않고 **기존 planner 항목**(«`CANNOT_REMOVE_OWNER` 등 세
+      코드가 중앙 에러 카탈로그에 없다»)에 보탰다 — §1.9 가 generic 코드를 제외한 기준이 있어
+      등재 여부 판정이 그 pass 의 몫이다. 나머지 INFO 셋은 기존 이관 항목 확인 · 조치 불요
+- [x] 트래커 항목 닫기 — 종결 메모에 INFO#4(블록 이름)를 «다음 근접 편집» 으로 남겼다
 
 ## D. 리뷰 — 처분과 사고 하나
 
