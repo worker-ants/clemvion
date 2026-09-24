@@ -1,5 +1,21 @@
 # Changelog
 
+## Unreleased — k8s 로컬 오버레이에서 아바타 이미지가 403 이던 것
+
+`k8s/overlays/local/infra-minio.yaml` 의 버킷 Job 은 `mc mb` 만 하고 **아바타 공개 정책을 걸지 않았다.** 두 compose
+는 `#1258`(아바타 업로드)이 정책을 넣었는데 이 오버레이만 빠졌다. 실측: 옛 Job 스크립트를 실제 서버에 돌리면 Job 은
+성공(exit 0)하고 **아바타 익명 GET 이 403** 이다 — 업로드는 되는데 이미지만 안 보인다.
+
+Job 이 버킷 생성 뒤 같은 정책을 `set-json` 으로 건다. 정책은 heredoc 으로 쓴다 — kustomize 가 오버레이 밖 파일
+(`scripts/minio/avatars-public-read.json`)을 ConfigMap 으로 못 가져오고(실측), 사본을 두면 버킷 이름이 또
+하드코딩되는데 이 Job 은 버킷을 `$S3_BUCKET` 으로 받는다. 스크립트에 `set -e` 를 걸어 앞 단계 실패가 가려지지 않게
+했다. 렌더한 매니페스트의 스크립트를 그대로 실제 서버에 돌리니 익명 목록 403 · 아바타 GET 200 · 그 밖 403 이다.
+
+정책이 두 벌(원본 JSON · Job heredoc)이 됐으므로 하네스 테스트 `test_minio_bucket_policy_parity.py` 가 묶는다:
+같은 버킷에 적용 · 버킷은 변수로 · heredoc 구분자는 따옴표 없이(`<<'EOF'` 면 치환이 안 돼 서버가 정책을 거부하고
+Job 이 실패한다 — 실측) · 원본과 의미상 같음 · 어느 쪽에도 `s3:ListBucket` 없음 · `set download` 프리셋 금지 ·
+`set -e`. 정책 파일을 `harness-checks.yml` pathspec 에 넣어 정책만 고친 PR 에서도 돈다.
+
 ## Unreleased — 오브젝트 스토리지 이미지 6곳이 서로 같은지 아무것도 보지 않던 것
 
 MinIO 계열 이미지 문자열이 세 파일 **여섯 자리**에 손으로 적혀 있다 — `docker-compose.yml` ·
