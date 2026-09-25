@@ -1,0 +1,12 @@
+{
+  "timestamp": "2026-09-25T13:31:14.627113",
+  "mode": "plan draft 검토 (--plan)",
+  "target_path": "plan/in-progress/changelog-backfill-12.md",
+  "checkers": [
+    "cross_spec",
+    "rationale_continuity",
+    "convention_compliance",
+    "plan_coherence",
+    "naming_collision"
+  ]
+}
