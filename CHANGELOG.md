@@ -1,5 +1,19 @@
 # Changelog
 
+## Unreleased — 사람이 의존성을 올릴 때마다 lockfile 의 `libc:` 63줄이 빠지던 것
+
+pnpm 핀을 `10.23.0` → **`10.34.5`** 로 올렸다(`package.json` 의 `packageManager` · `Dockerfile.playwright-e2e` 폴백).
+
+dependabot 은 optional 네이티브 패키지의 `libc: [glibc|musl]` 을 넣고, 사람이 같은 핀으로 의존성을 올리면 빠졌다 —
+`--frozen-lockfile` 은 둘 다 받아 CI 는 초록인데 매 범프 PR 에 무관한 수십 줄이 섞였다. 원인은 버전이 **아니었다**.
+dependabot 도 `packageManager` 의 10.23.0 을 쓴다 — 커밋된 lockfile 을 바이트 단위로 재현하는 것은 **10.23.0 +
+release-age 게이트**(`minimumReleaseAge`) 조합뿐이었다. 게이트가 full 메타데이터를 받게 하고 `libc` 는 거기에만
+있다. 10.34.5 는 메타데이터 모드와 무관하게 같은 lockfile 을 쓴다(사람 경로 · dependabot 경로 재연 0줄 차이) — 둘
+다 핀을 따르므로 진동이 닫힌다. 순환 peer(`eslint-plugin-import`)의 접미사 표기 3줄도 같은 이유로 오가던 두 번째 축이라
+함께 닫히며, 다음 재해소 때 **한 번** 긴 표기로 바뀐다(정상).
+
+설치 동작은 그대로다 — frozen install 이 lockfile 을 바꾸지 않고, 빌드가 차단되는 패키지 목록(6개)도 10.23.0 과 같다.
+
 ## Unreleased — 하네스를 병렬로 돌리면 실제 spec 에 프로브 줄이 남던 것
 
 하네스 테스트 넷이 이 체크아웃에 직접 썼다 — 실제 spec(`spec/5-system/7-llm-client.md`)에 미커밋 편집을 넣고

@@ -391,14 +391,18 @@ repo Settings(Branch protection) 소관이라 이 저장소 파일로 표현할 
 (`application/vnd.npm.install-v1+json`)에는 `libc` 가 없고 full packument 에만 있다.
 저장소가 핀한 `pnpm@10.23.0` 은 축약본으로 해소하므로 이 필드를 못 쓴다. `full-metadata=true`
 + `pnpm cache delete '@img/*'` 로도 재현되지 않았다 — 설정 문제가 아니라 그 버전이 안 쓰는
-것이다. dependabot 은 `packageManager` 를 안 따르는 경로로 도는 것으로 보인다.
+것이다. ~~dependabot 은 `packageManager` 를 안 따르는 경로로 도는 것으로 보인다.~~
+> **2026-09-25 반증(`lockfile-libc-pin`)** — dependabot 은 `packageManager` 를 **따른다**. `#1388` 을 재연해 커밋된
+> lockfile 을 바이트 단위로 재현한 것은 **10.23.0 + `--config.minimumReleaseAge`** 조합뿐이었다(11.25.0 + 게이트 +2/-2,
+> 10.28.1 + 게이트 +3/-3). 다른 것은 버전이 아니라 메타데이터 모드다 — release-age 게이트가 full packument 를 받게 하고,
+> 위 문단이 잰 대로 `libc` 는 full packument 에만 있다. dependabot-core 는 명령에 그 게이트를 붙이는 경로를 갖는다.
 
 **지금 당장의 위험은 낮다**: CI 도 `packageManager` 로 같은 10.23.0 을 쓰므로 `libc` 없는
 lockfile 이 **핀한 툴체인의 정본 출력**이고, `--frozen-lockfile` 검증에 `libc` 는 참여하지
 않는다. 다만 그 필드는 optional native 의존을 libc 별로 거르는 정보라, 없으면 musl 이미지에
 glibc 변종이 함께 설치될 수 있다(낭비 — 오선택은 sharp 로더가 런타임에 다시 판별).
 
-- [ ] 진동을 한쪽으로 고정 — (a) dependabot 이 `packageManager` 를 따르게 하거나,
+- [x] 진동을 한쪽으로 고정 — (a) dependabot 이 `packageManager` 를 따르게 하거나,
       (b) 저장소 pnpm 핀을 `libc` 를 쓰는 버전으로 올리거나, (c) 진동을 명시 수용하고
       lockfile 검토 시 무시할 노이즈로 문서화. ~~**(b) 를 고르려면 그 버전이 실제로 쓰는지
       먼저 실증할 것** — 여기서는 "dependabot 쪽이 더 새 버전일 것" 이라고 추정만 했고
@@ -429,9 +433,18 @@ glibc 변종이 함께 설치될 수 있다(낭비 — 오선택은 sharp 로더
 > **별도 PR 로 판단해야 한다**. `deps-audit-floor-refresh-2026-09` 는 그 사이 진동을
 > **main 쪽(= `libc` 있음)으로 맞추는** 선택을 했다 — lockfile 을 10.34.5 로 생성해
 > 57개를 보존했다. 그 PR 이 진동을 없애지는 않는다.
-- [ ] (b) 채택 시 동반: lockfile `libc:` 개수 회귀 가드. 이번엔 `/ai-review` 의
+> **2026-09-25 (b) 채택(`lockfile-libc-pin`)** — 핀을 **10.34.5** 로 올렸다. 사람 경로가 `libc:` 를 지키는 첫 버전은
+> 10.28.2(이분 탐색)지만, 10.34.5 에서 **사람 경로와 게이트 경로의 산출물이 0줄 차이**임을 잰 것을 골랐다. dependabot 이
+> 핀을 따르므로 `libc:` 와 순환 peer 접미사(3줄) 두 축이 함께 닫힌다.
+- [ ] ~~(b) 채택 시 동반: lockfile `libc:` 개수 회귀 가드.~~ 이번엔 `/ai-review` 의
       scope·dependency reviewer 가 잡았지만 **가드는 없다** — "버전 하향 0건" 류의
       버전-비교 감사는 이 클래스를 원리적으로 못 본다.
+      > **2026-09-25 재설계 — 개수는 틀린 모양이다** (`lockfile-libc-pin` §B 에서 그대로 옮김):
+      > 두 가지가 바뀌었다. (1) 두 작성자가 이제 **같은 핀 · 같은 직렬화**를 공유해 진동의 원인이 사라진다. (2) **개수**
+      > 가드는 틀린 모양이다 — 의존성을 빼면 정당하게 줄어든다. 정확한 불변식은 «base 와 head 에 **둘 다 있는** `name@version`
+      > 엔트리의 `os` · `cpu` · `libc` 가 같다» 다(npm 버전은 불변이라 오탐이 원리적으로 없다). 이름 규칙으로는 대신할 수
+      > 없다 — `os: linux` 엔트리 84개 중 `libc:` 를 가진 것은 63개이고, 이름에 gnu/musl 이 든 `*-arm-gnueabihf` ·
+      > `*-musleabihf` 8개도 `libc:` 가 없다(실측, 2026-09-25 main lockfile). CI 에 base lockfile 을 가져오는 잡이 필요해 그 PR 의 축이 아니었다 — **체크박스는 열어 둔다.**
 
 ### 후속 — `check-pnpm-security-config.py` 에 전용 테스트가 없다 (2026-09-10 등재, P3)
 

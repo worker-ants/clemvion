@@ -3,7 +3,7 @@
   "version": "0.0.0",
   "private": true,
   "description": "clemvion monorepo workspace root (pnpm). 실제 애플리케이션은 codebase/{backend,frontend,channel-web-chat} 및 codebase/packages/*.",
-  "packageManager": "pnpm@10.23.0",
+  "packageManager": "pnpm@10.34.5",
   "engines": {
     "node": ">=24"
   }
