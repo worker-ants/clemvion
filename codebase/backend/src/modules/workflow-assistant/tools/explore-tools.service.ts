@@ -6,7 +6,7 @@ import { Node } from '../../nodes/entities/node.entity';
 import { Edge } from '../../edges/entities/edge.entity';
 import { Integration } from '../../integrations/entities/integration.entity';
 import {
-  INTEGRATION_VIEWER_PARAM,
+  INTEGRATION_USER_PARAM,
   integrationVisibilityClause,
 } from '../../integrations/integration-visibility';
 import { KnowledgeBase } from '../../knowledge-base/entities/knowledge-base.entity';
@@ -171,7 +171,7 @@ export class ExploreToolsService {
       .createQueryBuilder('i')
       .where('i.workspace_id = :workspaceId', { workspaceId })
       .andWhere(integrationVisibilityClause('i'), {
-        [INTEGRATION_VIEWER_PARAM]: userId,
+        [INTEGRATION_USER_PARAM]: userId,
       });
     if (category) {
       qb.andWhere('i.service_type = :t', { t: category });

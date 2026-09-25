@@ -21,7 +21,7 @@ import {
 } from './dto/responses/integration-response.dto';
 import type { Integration } from './entities/integration.entity';
 import {
-  INTEGRATION_VIEWER_PARAM,
+  INTEGRATION_USER_PARAM,
   integrationVisibilityClause,
 } from './integration-visibility';
 import { AUDIT_ACTIONS } from '../audit-logs/audit-action.const';
@@ -995,7 +995,9 @@ describe('IntegrationsService', () => {
         'editor',
       );
       expect(result).toEqual({ authUrl: '', state: '' });
-      expect(integrationRepo.save).toHaveBeenCalledWith(
+      expect(integrationRepo.save).not.toHaveBeenCalled();
+      expect(integrationRepo.update).toHaveBeenCalledWith(
+        { id: 'int-1', workspaceId: 'ws-1', scope: 'personal' },
         expect.objectContaining({ status: 'connected', statusReason: null }),
       );
     });
@@ -1028,16 +1030,21 @@ describe('IntegrationsService', () => {
   // -----------------------------------------------------------------
   describe('update', () => {
     it('records integration.updated with name diff when the name changes', async () => {
-      integrationRepo.findOne.mockResolvedValue(
-        makeIntegration({ name: 'My Google' }),
-      );
+      integrationRepo.findOne
+        .mockResolvedValueOnce(makeIntegration({ name: 'My Google' })) // 판정
+        .mockResolvedValueOnce(makeIntegration({ name: 'Renamed' })); // 쓰기 뒤 응답용
       const result = await service.update('int-1', 'ws-1', 'user-1', 'editor', {
         name: 'Renamed',
       });
       expect(result.name).toBe('Renamed');
-      expect(integrationRepo.save).toHaveBeenCalledWith(
-        expect.objectContaining({ name: 'Renamed' }),
+      // 판정한 행에만 · 바꾸는 컬럼만 쓴다(엔티티 save 는 그 사이 바뀐 scope 를 되돌린다).
+      expect(integrationRepo.update).toHaveBeenCalledWith(
+        { id: 'int-1', workspaceId: 'ws-1', scope: 'personal' },
+        {
+          name: 'Renamed',
+        },
       );
+      expect(integrationRepo.save).not.toHaveBeenCalled();
       expect(auditLogsService.record).toHaveBeenCalledWith(
         expect.objectContaining({
           workspaceId: 'ws-1',
@@ -1073,9 +1080,11 @@ describe('IntegrationsService', () => {
   describe('remove', () => {
     it('deletes when no usages exist', async () => {
       await service.remove('int-1', 'ws-1', 'user-1', 'editor');
+      // 조건에 판정 근거인 scope 가 실린다 — 판정 뒤 scope 가 바뀌었으면 0행이다.
       expect(integrationRepo.delete).toHaveBeenCalledWith({
         id: 'int-1',
         workspaceId: 'ws-1',
+        scope: 'personal',
       });
       expect(auditLogsService.record).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -1721,6 +1730,9 @@ describe('IntegrationsService', () => {
     });
 
     it('allows admin to change scope', async () => {
+      integrationRepo.findOne
+        .mockResolvedValueOnce(integration) // 판정
+        .mockResolvedValueOnce({ ...integration, scope: 'organization' }); // 쓰기 뒤 응답용
       const result = await service.updateScope(
         'int-1',
         'ws-1',
@@ -1879,13 +1891,24 @@ describe('IntegrationsService', () => {
         'update',
         () => httpOf('organization'),
         (r) => service.update('int-1', 'ws-1', OTHER, r, { name: 'Renamed' }),
-        () => expect(integrationRepo.save).toHaveBeenCalledTimes(1),
+        () =>
+          expect(integrationRepo.update).toHaveBeenCalledWith(
+            { id: 'int-1', workspaceId: 'ws-1', scope: 'organization' },
+            {
+              name: 'Renamed',
+            },
+          ),
       ],
       [
         'remove',
         () => httpOf('organization'),
         (r) => service.remove('int-1', 'ws-1', OTHER, r),
-        () => expect(integrationRepo.delete).toHaveBeenCalledTimes(1),
+        () =>
+          expect(integrationRepo.delete).toHaveBeenCalledWith({
+            id: 'int-1',
+            workspaceId: 'ws-1',
+            scope: 'organization',
+          }),
       ],
       [
         'rotate',
@@ -1906,7 +1929,11 @@ describe('IntegrationsService', () => {
         'reauthorize — 비-OAuth(상태 reset)',
         () => httpOf('organization'),
         (r) => service.reauthorize('int-1', 'ws-1', OTHER, r),
-        () => expect(integrationRepo.save).toHaveBeenCalledTimes(1),
+        () =>
+          expect(integrationRepo.update).toHaveBeenCalledWith(
+            { id: 'int-1', workspaceId: 'ws-1', scope: 'organization' },
+            expect.objectContaining({ status: 'connected' }),
+          ),
       ],
       [
         'requestScopes',
@@ -1920,7 +1947,13 @@ describe('IntegrationsService', () => {
         () => httpOf('organization'),
         (r) =>
           service.updateScope('int-1', 'ws-1', OTHER, r, { scope: 'personal' }),
-        () => expect(integrationRepo.save).toHaveBeenCalledTimes(1),
+        () =>
+          expect(integrationRepo.update).toHaveBeenCalledWith(
+            { id: 'int-1', workspaceId: 'ws-1', scope: 'organization' },
+            {
+              scope: 'personal',
+            },
+          ),
       ],
     ];
 
@@ -2002,13 +2035,24 @@ describe('IntegrationsService', () => {
         'update',
         () => httpOf('personal'),
         (r) => service.update('int-1', 'ws-1', 'user-1', r, { name: 'Mine' }),
-        () => expect(integrationRepo.save).toHaveBeenCalledTimes(1),
+        () =>
+          expect(integrationRepo.update).toHaveBeenCalledWith(
+            { id: 'int-1', workspaceId: 'ws-1', scope: 'personal' },
+            {
+              name: 'Mine',
+            },
+          ),
       ],
       [
         'remove',
         () => httpOf('personal'),
         (r) => service.remove('int-1', 'ws-1', 'user-1', r),
-        () => expect(integrationRepo.delete).toHaveBeenCalledTimes(1),
+        () =>
+          expect(integrationRepo.delete).toHaveBeenCalledWith({
+            id: 'int-1',
+            workspaceId: 'ws-1',
+            scope: 'personal',
+          }),
       ],
       [
         'rotate',
@@ -2049,6 +2093,48 @@ describe('IntegrationsService', () => {
       },
     );
 
+    /**
+     * 판정과 쓰기 사이에 다른 요청이 scope 를 바꾸면(예: 본인 personal → organization) 조건부 쓰기가 0행이다 — Editor 의
+     * 이름 변경 · 삭제가 그 Organization 통합에 닿으면 안 된다. 404 로 끝나고 감사 · broadcast 를 남기지 않는다.
+     */
+    it.each([
+      [
+        'update',
+        () =>
+          service.update('int-1', 'ws-1', 'user-1', 'editor', { name: 'X' }),
+        'update',
+      ],
+      [
+        'remove',
+        () => service.remove('int-1', 'ws-1', 'user-1', 'editor'),
+        'delete',
+      ],
+      [
+        'reauthorize — 비-OAuth(상태 reset)',
+        () => service.reauthorize('int-1', 'ws-1', 'user-1', 'editor'),
+        'update',
+      ],
+      [
+        'updateScope',
+        () =>
+          service.updateScope('int-1', 'ws-1', 'user-1', 'admin', {
+            scope: 'organization',
+          }),
+        'update',
+      ],
+    ] as const)(
+      '%s — 판정 뒤 scope 가 바뀌었으면(조건부 쓰기 0행) 404 · 감사 없음',
+      async (_name, call, writer) => {
+        integrationRepo.findOne.mockResolvedValue(httpOf('personal'));
+        integrationRepo[writer].mockResolvedValueOnce({ affected: 0, raw: [] });
+        await expect(call()).rejects.toMatchObject({
+          response: { code: 'RESOURCE_NOT_FOUND' },
+        });
+        expect(auditLogsService.record).not.toHaveBeenCalled();
+        expect(integrationCacheBus.publish).not.toHaveBeenCalled();
+      },
+    );
+
     it('rotate — 락 안 재읽기에서 남의 personal 로 바뀌었으면 404 · 커밋하지 않는다', async () => {
       integrationRepo.findOne
         .mockResolvedValueOnce(httpOf('organization')) // 요청 시작 — Admin 이라 통과
@@ -2069,7 +2155,7 @@ describe('IntegrationsService', () => {
       await service.findAll('ws-1', OTHER, {});
       expect(qb.andWhere).toHaveBeenCalledWith(
         integrationVisibilityClause('i'),
-        { [INTEGRATION_VIEWER_PARAM]: OTHER },
+        { [INTEGRATION_USER_PARAM]: OTHER },
       );
     });
   });

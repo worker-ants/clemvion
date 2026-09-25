@@ -19,11 +19,13 @@ import type {
  *
  * 후보 조회 스코프와 정렬은 spec §4.3.1 표를 그대로 구현한다:
  *   - integration-selector : connected Integration, `integrationServiceType`
- *     힌트가 있으면 해당 service_type 만 필터.
+ *     힌트가 있으면 해당 service_type 만 필터. 요청자에게 보이는 것만 — 남의
+ *     personal 은 후보에서 빠진다(spec 통합 §8, `IntegrationsService.findAll`).
  *   - llm-config-selector  : 워크스페이스 LlmConfig 전체 (최근 수정순).
  *   - kb-selector          : 워크스페이스 KnowledgeBase 전체.
  *   - workflow-selector    : 같은 워크스페이스 워크플로 + 현재 편집 중 워크플로 제외.
- *   - mcp-server-selector  : connected Integration 중 service_type='mcp' 만.
+ *   - mcp-server-selector  : connected Integration 중 MCP-capable service_type
+ *     (`MCP_CAPABLE_SERVICE_TYPES`). 가시성 규칙은 integration-selector 와 같다.
  *
  * 상한은 widget 당 20개. 조회 실패 시 warn 로그 + 빈 배열로 degrade 해서
  * picker 는 "등록된 것이 없음" 으로 동작한다 (리뷰 가드는 candidate 0

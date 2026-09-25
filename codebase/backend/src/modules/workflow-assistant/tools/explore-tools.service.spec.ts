@@ -1,6 +1,6 @@
 import { ExploreToolsService } from './explore-tools.service';
 import {
-  INTEGRATION_VIEWER_PARAM,
+  INTEGRATION_USER_PARAM,
   integrationVisibilityClause,
 } from '../../integrations/integration-visibility';
 
@@ -110,7 +110,7 @@ describe('ExploreToolsService — listIntegrations', () => {
       workspaceId: 'ws-1',
     });
     expect(qb.andWhere).toHaveBeenCalledWith(integrationVisibilityClause('i'), {
-      [INTEGRATION_VIEWER_PARAM]: 'u-1',
+      [INTEGRATION_USER_PARAM]: 'u-1',
     });
     expect(result).toEqual({ ok: true, items: [] });
   });

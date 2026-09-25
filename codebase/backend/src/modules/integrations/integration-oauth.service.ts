@@ -22,6 +22,11 @@ import {
 } from './third-party-oauth.constants';
 import { Integration } from './entities/integration.entity';
 import { isIntegrationVisibleTo } from './integration-visibility';
+import { WorkspacesService } from '../workspaces/workspaces.service';
+import {
+  ADMIN_ROLES,
+  ROLE_REQUIRED,
+} from '../../common/constants/workspace-roles';
 import {
   IntegrationOAuthState,
   OAuthStateMode,
@@ -345,11 +350,11 @@ type PrecheckResult = {
  */
 function pickPrecheckConflict(
   rows: Integration[],
-  viewerId: string,
+  userId: string,
 ): PrecheckResult {
   if (rows.length === 0) return { conflict: false };
   const identity = (row: Integration) =>
-    isIntegrationVisibleTo(row, viewerId)
+    isIntegrationVisibleTo(row, userId)
       ? { existingIntegrationId: row.id, existingName: row.name }
       : {};
   for (const status of CAFE24_PRECHECK_STATUS_PRIORITY) {
@@ -381,7 +386,48 @@ export class IntegrationOAuthService {
     // graceful degradation.
     @Optional()
     private readonly installNonceCache?: Cafe24InstallNonceCache,
+    // 사용자가 시작한 재인증 · scope 추가의 커밋 직전 인가 재판정(요청자 역할 조회)용. `@Optional()` 은 수동 생성
+    // 테스트 호환일 뿐이다 — 없으면 Organization 통합의 재판정은 거부한다(fail-closed, `assertRequesterStillAllowed`).
+    @Optional()
+    private readonly workspacesService?: WorkspacesService,
   ) {}
+
+  /**
+   * 사용자가 시작한 재인증 · scope 추가는 **커밋 직전에** 인가를 다시 본다 — begin 과 콜백 사이(state TTL)에 요청자가
+   * 강등됐거나 통합이 남의 personal 로 바뀌었을 수 있다. 콜백은 자격 증명을 덮어쓰므로 begin 시점의 판정만으로는
+   * 모자란다(`spec/2-navigation/4-integration.md` §8 판정 규칙 — `:id/reauthorize` · `oauth/begin` 이 이미 본 것과 같은
+   * 판정: 보이는가 → Organization 이면 Admin).
+   *
+   * `pending_install` 행은 보지 않는다 — 설치 흐름(App URL 의 install_token + HMAC 이 인가)이 만든 state 라
+   * `userId` 가 요청자가 아니라 생성자다(`persistReauthorizeState`). 사용자가 `pending_install` 행에 재인증을 시작하는
+   * 입구는 begin 이 막는다(cafe24 private · makeshop 은 `mode: 'new'` 만).
+   */
+  private async assertRequesterStillAllowed(
+    integration: Integration,
+    record: { workspaceId: string; userId: string },
+  ): Promise<void> {
+    if (integration.status === 'pending_install') return;
+    if (!isIntegrationVisibleTo(integration, record.userId)) {
+      throw new NotFoundException({
+        code: 'RESOURCE_NOT_FOUND',
+        message: 'Integration not found',
+      });
+    }
+    if (integration.scope !== 'organization') return;
+    const role = this.workspacesService
+      ? await this.workspacesService.getMemberRole(
+          record.workspaceId,
+          record.userId,
+        )
+      : null;
+    if (!role || !ADMIN_ROLES.has(role)) {
+      throw new ForbiddenException({
+        ...ROLE_REQUIRED.admin,
+        message:
+          'Admin role is required to reauthorize organization-scope integrations',
+      });
+    }
+  }
 
   /**
    * refactor M-6: `oauth` namespace 의 안전한 조회. configService 미주입(수동 테스트)
@@ -771,6 +817,8 @@ export class IntegrationOAuthService {
             message: 'Integration not found',
           });
         }
+        // 락을 잡은 이 시점 값으로 인가를 다시 본다 — 자격 증명을 덮어쓰기 직전이다.
+        await this.assertRequesterStillAllowed(integration, record);
         if (
           record.mode === 'reauthorize' ||
           integration.status === 'pending_install'
@@ -1935,12 +1983,12 @@ export class IntegrationOAuthService {
   async precheckMakeshopShop(
     workspaceId: string,
     shopUid: string,
-    viewerId: string,
+    userId: string,
   ): Promise<PrecheckResult> {
     const all = await this.integrationRepository.find({
       where: { workspaceId, serviceType: 'makeshop', mallId: shopUid },
     });
-    return pickPrecheckConflict(all, viewerId);
+    return pickPrecheckConflict(all, userId);
   }
 
   /**
@@ -2135,10 +2183,10 @@ export class IntegrationOAuthService {
   async precheckCafe24Mall(
     workspaceId: string,
     mallId: string,
-    viewerId: string,
+    userId: string,
   ): Promise<PrecheckResult> {
     const all = await this.findAllCafe24RowsForMall(workspaceId, mallId);
-    return pickPrecheckConflict(all, viewerId);
+    return pickPrecheckConflict(all, userId);
   }
 
   // ---------------------------------------------------------------------

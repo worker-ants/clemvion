@@ -24,7 +24,7 @@ Integrations created with Organization scope in a team workspace are automatical
 Permissions:
 
 <FieldTable rows={[
-  { name: "Viewer", type: "Role", required: "-", description: "Can view and test Organization integrations and your own Personal integrations. Cannot create, edit, delete, re-auth, or rotate credentials." },
+  { name: "Viewer", type: "Role", required: "-", description: "Can view and test Organization integrations and your own Personal integrations, and can re-auth or request extra scopes on your own Personal integrations. Cannot create, edit, delete, or rotate credentials." },
   { name: "Editor", type: "Role", required: "-", description: "Can create your own Personal integrations and edit, delete, re-auth, rotate credentials, or request scopes for them directly. For Organization integrations, you can only view and test." },
   { name: "Admin / Owner", type: "Role", required: "-", description: "Can create, edit, delete, re-auth, rotate credentials, and request scopes for Organization integrations, and manage your own Personal integrations with the same range as an Editor. Only Admins and above can switch scope between Personal and Organization, and only for integrations you can already see (your own Personal or Organization integrations)." }
 ]} />
@@ -55,7 +55,7 @@ The detail page tabs cover almost every operational task.
   { name: "Scope & Permissions", type: "Tab", required: "OAuth", description: "Inspect current scopes and request more. On `insufficient_scope` errors, missing items are flagged red." },
   { name: "Usage", type: "Tab", required: "Always", description: "Lists workflows and nodes referencing this integration. `Open in editor` jumps you straight there." },
   { name: "Activity", type: "Tab", required: "Always", description: "Shows the last 7 days of call history with API, status, duration, and error columns. The `API` column shows which endpoint was called. Cafe24 integrations display a human-friendly operation label; other services show the HTTP method and path as-is. If neither is available, it shows `—`. When the integration isn't connected (`error` · `expired` · `pending_install`), new calls aren't recorded, so a warning banner appears above the list with a `View status` button to check and reconnect on the Overview tab." },
-  { name: "Danger zone", type: "Tab", required: "Admin · creator", description: "Delete the integration, or switch it between Personal and Organization scope. Deleting an Organization integration requires Admin or above; deleting your own Personal integration only requires being its creator. Switching scope always requires Admin or above. When it's still in use, deletion is blocked and a delete-blocked dialog lists the referencing workflows and nodes with a direct link to each workflow. Nodes that reference it as an AI Agent MCP server are marked with an `MCP` badge." }
+  { name: "Danger zone", type: "Tab", required: "Admin · creator", description: "Delete the integration, or switch it between Personal and Organization scope. Deleting an Organization integration requires Admin or above; deleting your own Personal integration requires being its creator with the Editor role or above (Viewers can't delete even their own). Switching scope always requires Admin or above. When it's still in use, deletion is blocked and a delete-blocked dialog lists the referencing workflows and nodes with a direct link to each workflow. Nodes that reference it as an AI Agent MCP server are marked with an `MCP` badge." }
 ]} />
 
 <Callout type="note">

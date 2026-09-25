@@ -3,7 +3,7 @@ import { PATH_METADATA } from '@nestjs/common/constants';
 import { IntegrationsController } from './integrations.controller';
 import { IntegrationsService } from './integrations.service';
 import type { Integration } from './entities/integration.entity';
-import { INTEGRATION_VIEWER_PARAM } from './integration-visibility';
+import { INTEGRATION_USER_PARAM } from './integration-visibility';
 import type { JwtPayload } from '../../common/decorators';
 
 // 실제 외부 접속을 피한다 — 연결 테스터는 각자의 unit spec 이 검증한다.
@@ -169,7 +169,7 @@ describe('IntegrationsController — 소유자 판정 완결성 (§8)', () => {
       fixture: httpPersonal,
       call: (c, sub) =>
         c.update('int-1', 'ws-1', userOf(sub), { name: 'Renamed' }),
-      passed: () => expect(integrationRepo.save).toHaveBeenCalledTimes(1),
+      passed: () => expect(integrationRepo.update).toHaveBeenCalledTimes(1),
     },
     rotate: {
       fixture: httpPersonal,
@@ -194,7 +194,7 @@ describe('IntegrationsController — 소유자 판정 완결성 (§8)', () => {
       fixture: httpPersonal,
       call: (c, sub) =>
         c.updateScope('int-1', 'ws-1', userOf(sub), { scope: 'organization' }),
-      passed: () => expect(integrationRepo.save).toHaveBeenCalledTimes(1),
+      passed: () => expect(integrationRepo.update).toHaveBeenCalledTimes(1),
     },
     remove: {
       fixture: httpPersonal,
@@ -325,7 +325,7 @@ describe('IntegrationsController — 소유자 판정 완결성 (§8)', () => {
     integrationRepo.createQueryBuilder.mockReturnValue(qb);
     await controller.findAll('ws-1', userOf(OTHER), {});
     expect(qb.andWhere).toHaveBeenCalledWith(expect.any(String), {
-      [INTEGRATION_VIEWER_PARAM]: OTHER,
+      [INTEGRATION_USER_PARAM]: OTHER,
     });
   });
 });

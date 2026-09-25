@@ -44,7 +44,10 @@ import {
   OperationCatalogDto,
   TestConnectionResultDto,
 } from './dto/responses/integration-response.dto';
-import { IntegrationsService } from './integrations.service';
+import {
+  IntegrationsService,
+  type IntegrationModifyAction,
+} from './integrations.service';
 import {
   NOT_A_MEMBER,
   ROLE_REQUIRED,
@@ -97,6 +100,28 @@ const FORBIDDEN_MEMBER_OR_ADMIN = `${FORBIDDEN_MEMBER}, 또는 Admin 이상 권�
 const NOT_FOUND_INTEGRATION =
   '해당 통합을 찾을 수 없음 — 남의 personal 통합도 같은 응답(`RESOURCE_NOT_FOUND`)';
 
+/**
+ * `oauth/begin` 의 mode 가 기존 통합(`integrationId`)을 바꾸는가 — 바꾼다면 그 동작, 아니면 `null`.
+ * `mode: 'new'` 는 콜백이 새 통합을 만들 뿐 `integrationId` 를 쓰지 않는다. mode 가 늘면 아래 `never` 에서 컴파일이
+ * 멈춘다 — 새 mode 가 판정 없이 기존 통합에 쓰지 못하게(`:id` 라우트 전수 캐너리가 못 보는 자리다).
+ */
+function modifyActionOfBeginMode(
+  mode: 'new' | 'reauthorize' | 'request_scopes',
+): IntegrationModifyAction | null {
+  switch (mode) {
+    case 'new':
+      return null;
+    case 'reauthorize':
+      return 'reauthorize';
+    case 'request_scopes':
+      return 'modify';
+    default: {
+      const unreachable: never = mode;
+      return unreachable;
+    }
+  }
+}
+
 @ApiTags('Integrations')
 @ApiBearerAuth('access-token')
 @Controller('integrations')
@@ -105,6 +130,14 @@ export class IntegrationsController {
     private readonly integrationsService: IntegrationsService,
     private readonly oauthService: IntegrationOAuthService,
   ) {}
+
+  /** 요청자의 워크스페이스 역할 — Organization 통합의 변경 판정(Admin 이상, spec §8)에 넘긴다. */
+  private roleOf(
+    workspaceId: string,
+    user: JwtPayload,
+  ): Promise<string | null> {
+    return this.integrationsService.resolveRole(workspaceId, user.sub);
+  }
 
   @Get()
   @ApiOperation({
@@ -222,18 +255,15 @@ export class IntegrationsController {
     const mode = body.mode === 'request-scopes' ? 'request_scopes' : body.mode;
     // `integrationId` 를 지정한 재인증 · scope 추가는 그 통합의 자격 증명을 덮어쓴다 — `:id/reauthorize` ·
     // `:id/request-scopes` 와 같은 판정을 받아야 한다(없으면 그 두 경로를 우회하는 입구가 된다, spec §8).
-    // `mode: 'new'` 는 콜백이 새 통합을 만들 뿐 `integrationId` 를 쓰지 않는다.
-    if (mode !== 'new' && body.integrationId) {
-      const role = await this.integrationsService.resolveRole(
-        workspaceId,
-        user.sub,
-      );
+    const action = modifyActionOfBeginMode(mode);
+    if (action && body.integrationId) {
+      const role = await this.roleOf(workspaceId, user);
       await this.integrationsService.requireModifiable(
         body.integrationId,
         workspaceId,
         user.sub,
         role,
-        mode === 'reauthorize' ? 'reauthorize' : 'modify',
+        action,
       );
     }
     let providerMeta: Record<string, unknown> | undefined;
@@ -434,10 +464,7 @@ export class IntegrationsController {
     @CurrentUser() user: JwtPayload,
     @Body() body: CreateIntegrationDto,
   ) {
-    const role = await this.integrationsService.resolveRole(
-      workspaceId,
-      user.sub,
-    );
+    const role = await this.roleOf(workspaceId, user);
     return this.integrationsService.create(workspaceId, user.sub, role, body);
   }
 
@@ -459,10 +486,7 @@ export class IntegrationsController {
     @CurrentUser() user: JwtPayload,
     @Body() body: UpdateIntegrationDto,
   ) {
-    const role = await this.integrationsService.resolveRole(
-      workspaceId,
-      user.sub,
-    );
+    const role = await this.roleOf(workspaceId, user);
     return this.integrationsService.update(
       id,
       workspaceId,
@@ -517,10 +541,7 @@ export class IntegrationsController {
     @CurrentUser() user: JwtPayload,
     @Body() body: RotateCredentialsDto,
   ) {
-    const role = await this.integrationsService.resolveRole(
-      workspaceId,
-      user.sub,
-    );
+    const role = await this.roleOf(workspaceId, user);
     return this.integrationsService.rotate(
       id,
       workspaceId,
@@ -549,10 +570,7 @@ export class IntegrationsController {
     @WorkspaceId() workspaceId: string,
     @CurrentUser() user: JwtPayload,
   ) {
-    const role = await this.integrationsService.resolveRole(
-      workspaceId,
-      user.sub,
-    );
+    const role = await this.roleOf(workspaceId, user);
     return this.integrationsService.reauthorize(
       id,
       workspaceId,
@@ -583,10 +601,7 @@ export class IntegrationsController {
     @CurrentUser() user: JwtPayload,
     @Body() body: RequestScopesDto,
   ) {
-    const role = await this.integrationsService.resolveRole(
-      workspaceId,
-      user.sub,
-    );
+    const role = await this.roleOf(workspaceId, user);
     return this.integrationsService.requestScopes(
       id,
       workspaceId,
@@ -616,10 +631,7 @@ export class IntegrationsController {
     @CurrentUser() user: JwtPayload,
     @Body() body: UpdateScopeDto,
   ) {
-    const role = await this.integrationsService.resolveRole(
-      workspaceId,
-      user.sub,
-    );
+    const role = await this.roleOf(workspaceId, user);
     return this.integrationsService.updateScope(
       id,
       workspaceId,
@@ -647,10 +659,7 @@ export class IntegrationsController {
     @WorkspaceId() workspaceId: string,
     @CurrentUser() user: JwtPayload,
   ) {
-    const role = await this.integrationsService.resolveRole(
-      workspaceId,
-      user.sub,
-    );
+    const role = await this.roleOf(workspaceId, user);
     await this.integrationsService.remove(id, workspaceId, user.sub, role);
   }
 }

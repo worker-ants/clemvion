@@ -18,12 +18,12 @@ export function isIntegrationVisibleTo(
 
 /**
  * {@link isIntegrationVisibleTo} 의 SQL 표현 — QueryBuilder 의 `andWhere` 에 넣는다. 파라미터 이름은
- * {@link INTEGRATION_VIEWER_PARAM} 이고 값은 요청자 id 다.
+ * {@link INTEGRATION_USER_PARAM} 이고 값은 요청자 id 다.
  *
  * 목록을 메모리에서 거르지 않고 SQL 로 거르는 이유: 페이지네이션의 `total` · `limit` 이 남의 personal 을 세면 안 된다.
  */
 export function integrationVisibilityClause(alias: string): string {
-  return `(${alias}.scope <> 'personal' OR ${alias}.created_by = :${INTEGRATION_VIEWER_PARAM})`;
+  return `(${alias}.scope <> 'personal' OR ${alias}.created_by = :${INTEGRATION_USER_PARAM})`;
 }
 
-export const INTEGRATION_VIEWER_PARAM = 'integrationViewerId';
+export const INTEGRATION_USER_PARAM = 'integrationUserId';

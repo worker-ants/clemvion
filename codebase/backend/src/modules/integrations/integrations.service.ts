@@ -13,7 +13,7 @@ import pLimit from 'p-limit';
 import { isSmtpHostBlocked } from '../../nodes/integration/send-email/smtp-host-guard';
 import { Integration } from './entities/integration.entity';
 import {
-  INTEGRATION_VIEWER_PARAM,
+  INTEGRATION_USER_PARAM,
   integrationVisibilityClause,
   isIntegrationVisibleTo,
 } from './integration-visibility';
@@ -392,7 +392,7 @@ export type PublicIntegration = Omit<
  * integrations`)의 동사다. 판정 자체는 동작과 무관하게 같다(spec §8).
  */
 export type IntegrationModifyAction =
-  'modify' | 'delete' | 'rotate' | 'reauthorize';
+  'create' | 'modify' | 'delete' | 'rotate' | 'reauthorize';
 
 /**
  * Thrown when execution-engine code paths try to use an integration whose
@@ -515,7 +515,7 @@ export class IntegrationsService {
       .createQueryBuilder('i')
       .where('i.workspace_id = :workspaceId', { workspaceId })
       .andWhere(integrationVisibilityClause('i'), {
-        [INTEGRATION_VIEWER_PARAM]: userId,
+        [INTEGRATION_USER_PARAM]: userId,
       });
 
     if (q) {
@@ -644,6 +644,9 @@ export class IntegrationsService {
   /**
    * Organization 통합의 변경은 Admin 이상이다(§8). 거부는 라우트 가드의 역할 거부와 같은 `ADMIN_REQUIRED` 코드에 동작별
    * 문구를 싣는다. Personal 통합은 여기서 막지 않는다 — 보이는 personal 은 본인 것이고 본인은 역할과 무관하게 바꾼다.
+   *
+   * rotate 는 이 판정을 락 전(요청 시작 시점 스냅샷)·락 안(재읽은 행) 두 지점에서 부른다 — 보안 직결 판정이라 조건 ·
+   * 에러 코드를 이 한 곳에 두지 않으면 두 지점이 drift 한다.
    */
   private assertCanModify(
     row: Pick<Integration, 'scope'>,
@@ -659,6 +662,36 @@ export class IntegrationsService {
 
   private throwAdminRequired(message: string): never {
     throw new ForbiddenException({ ...ROLE_REQUIRED.admin, message });
+  }
+
+  /**
+   * 판정한 행에만 쓴다 — 쓰기 조건에 **판정 근거인 scope** 를 싣는다(compare-and-set). 판정과 쓰기 사이에 다른 요청이
+   * scope 를 바꿨으면 0행이고 호출부는 404 로 끝낸다. `created_by` 는 바뀌지 않으므로 scope 가 같으면 가시성 판정도
+   * 그대로 유효하다.
+   *
+   * 락이 아니라 조건부 한 문장인 이유: 삭제가 이미 락 없이 원자적 `DELETE` 의 `affected` 로 동시 삭제를 판별한다
+   * (`remove` 주석) — 같은 원자성에 판정 근거를 한 칸 더 실으면 된다. 엔티티 전체 `save()` 도 쓰지 않는다 — TypeORM
+   * `save` 는 메모리의 옛 스냅샷과 DB 를 비교해 바뀐 컬럼을 쓰므로, 그 사이 다른 요청이 바꾼 `scope` 를 옛 값으로
+   * 되돌린다(lost update). 바꾸는 컬럼만 쓴다.
+   */
+  private judgedRow(row: Pick<Integration, 'id' | 'workspaceId' | 'scope'>): {
+    id: string;
+    workspaceId: string;
+    scope: string;
+  } {
+    return { id: row.id, workspaceId: row.workspaceId, scope: row.scope };
+  }
+
+  /** 조건부 쓰기 뒤 응답용으로 다시 읽는다 — `updated_at` 은 DB 가 정한다(rotate 와 같은 이유). */
+  private async reloadOrNotFound(
+    id: string,
+    workspaceId: string,
+  ): Promise<Integration> {
+    const row = await this.integrationRepository.findOne({
+      where: { id, workspaceId },
+    });
+    if (!row) this.throwIntegrationNotFound();
+    return row;
   }
 
   /**
@@ -704,11 +737,7 @@ export class IntegrationsService {
     this.validateServiceAuthType(body.serviceType, body.authType);
 
     const requestedScope = body.scope ?? 'personal';
-    if (requestedScope === 'organization' && !this.isAdmin(userRole)) {
-      this.throwAdminRequired(
-        'Admin role is required to create organization-scope integrations',
-      );
-    }
+    this.assertCanModify({ scope: requestedScope }, userRole, 'create');
 
     let credentials: Record<string, unknown> = body.credentials ?? {};
     let tokenExpiresAt: Date | null = null;
@@ -814,28 +843,30 @@ export class IntegrationsService {
       userRole,
       'modify',
     );
-    const changes: Record<string, unknown> = {};
-    if (body.name !== undefined && body.name !== entity.name) {
-      changes.name = { from: entity.name, to: body.name };
-      entity.name = body.name;
+    if (body.name === undefined || body.name === entity.name) {
+      return this.toPublic(entity);
     }
+    const changes = { name: { from: entity.name, to: body.name } };
     try {
-      const saved = await this.integrationRepository.save(entity);
-      if (Object.keys(changes).length > 0) {
-        await this.auditLogsService.record({
-          workspaceId,
-          userId,
-          action: AUDIT_ACTIONS.INTEGRATION_UPDATED,
-          resourceType: 'integration',
-          resourceId: saved.id,
-          details: changes,
-        });
-      }
-      return this.toPublic(saved);
+      const { affected } = await this.integrationRepository.update(
+        this.judgedRow(entity),
+        { name: body.name },
+      );
+      if (affected === 0) this.throwIntegrationNotFound();
     } catch (err) {
       this.throwIfUniqueViolation(err, entity.serviceType);
       throw err;
     }
+    const saved = await this.reloadOrNotFound(id, workspaceId);
+    await this.auditLogsService.record({
+      workspaceId,
+      userId,
+      action: AUDIT_ACTIONS.INTEGRATION_UPDATED,
+      resourceType: 'integration',
+      resourceId: saved.id,
+      details: changes,
+    });
+    return this.toPublic(saved);
   }
 
   async remove(
@@ -865,13 +896,16 @@ export class IntegrationsService {
       });
     }
 
-    // **원자적 `DELETE` 의 `affected` 가 판별자다.** 위 `findOne` 은 잠금 없는 선조회라 동시 DELETE 두
+    // **원자적 `DELETE` 의 `affected` 가 판별자다.** 위 선조회는 잠금이 없어 동시 DELETE 두
     // 건이 모두 통과하고, 종전의 `remove(entity)` 는 이미 없는 PK 에 0행이어도 던지지 않아 진 쪽도
     // 성공으로 끝나며 `integration.deleted` 감사를 한 번 더 남겼다(e2e 로 재현: 둘 다 204 · 감사 2건).
     //
+    // 조건에는 **판정 근거인 scope** 도 싣는다(`judgedRow`) — 판정 뒤 다른 요청이 personal 을 organization 으로
+    // 바꿨으면 Editor 의 삭제가 그 Organization 통합을 지우면 안 된다. 그때도 0행이라 404 다.
+    //
     // **형제 네 경로와 처방이 다르다** — 그쪽은 행 락(`pessimistic_write`)이나 advisory lock 안에서
     // 다시 읽어 판정하지만, 이 경로엔 락이 없다. 락을 새로 들이는 대신
-    // `DELETE … WHERE id = $1 AND workspace_id = $2` 한 문장의 원자성에 기댄다 — 둘 중 하나만 1행을
+    // `DELETE … WHERE id = $1 AND workspace_id = $2 AND scope = $3` 한 문장의 원자성에 기댄다 — 둘 중 하나만 1행을
     // 지운다. (`4-integration.md` Rationale 이 기각한 advisory lock 의 재도입이 아니다: 그 기각 사유는
     // «lock 보유 중 HTTP 요청» 이고 여기엔 외부 호출이 없으며, 애초에 락을 쓰지 않는다.)
     //
@@ -881,10 +915,9 @@ export class IntegrationsService {
     // 판정은 `=== 0` **명시 비교**다. `affected` 가 `null`·`undefined` 인 것은 드라이버가 «보고하지
     // 않았다» 는 뜻이지 «지우지 못했다» 가 아니다 — 그것을 0 과 같이 읽으면 정상 삭제를 404 로
     // 뒤집는다(`rewriteTriggerConfigLocked` 가 세운 규율, 스케줄 경로도 같다).
-    const { affected } = await this.integrationRepository.delete({
-      id,
-      workspaceId,
-    });
+    const { affected } = await this.integrationRepository.delete(
+      this.judgedRow(entity),
+    );
     if (affected === 0) this.throwIntegrationNotFound();
     await this.auditLogsService.record({
       workspaceId,
@@ -1183,10 +1216,6 @@ export class IntegrationsService {
   }
 
   /**
-   * 조직 스코프 통합은 admin 만 회전할 수 있다. 락 전(요청 시작 시점 스냅샷)·락 안(재읽은 행)
-   * 두 지점에서 같은 조건·에러코드로 호출된다 — 보안 직결 코드라 한 곳에서만 고치면 drift 가 난다.
-   */
-  /**
    * `row.credentials` 를 base 로 `patch` 를 머지하고 구조 검증한다. 락 전(요청 시작 시점
    * 스냅샷)·락 안(재읽은 행) 두 지점에서 base 만 다르게 호출된다 — base 가 다르므로 결과
    * (`merged`/`committed`)도 호출부마다 별도 변수로 받는다.
@@ -1404,18 +1433,21 @@ export class IntegrationsService {
     // organization → personal 은 생성자의 personal 이 된다.
     const entity = await this.requireVisible(id, workspaceId, userId);
     const from = entity.scope;
-    entity.scope = body.scope;
-    const saved = await this.integrationRepository.save(entity);
-    if (from !== body.scope) {
-      await this.auditLogsService.record({
-        workspaceId,
-        userId,
-        action: AUDIT_ACTIONS.INTEGRATION_SCOPE_CHANGED,
-        resourceType: 'integration',
-        resourceId: saved.id,
-        details: { from, to: body.scope },
-      });
-    }
+    if (from === body.scope) return this.toPublic(entity);
+    const { affected } = await this.integrationRepository.update(
+      this.judgedRow(entity),
+      { scope: body.scope },
+    );
+    if (affected === 0) this.throwIntegrationNotFound();
+    const saved = await this.reloadOrNotFound(id, workspaceId);
+    await this.auditLogsService.record({
+      workspaceId,
+      userId,
+      action: AUDIT_ACTIONS.INTEGRATION_SCOPE_CHANGED,
+      resourceType: 'integration',
+      resourceId: saved.id,
+      details: { from, to: body.scope },
+    });
     return this.toPublic(saved);
   }
 
@@ -1441,10 +1473,18 @@ export class IntegrationsService {
     const service = findService(entity.serviceType);
 
     if (!service?.oauthProvider) {
-      entity.status = 'connected';
-      entity.statusReason = null;
-      entity.lastError = null;
-      await this.integrationRepository.save(entity);
+      // 판정한 행에만 · 바꾸는 컬럼만 쓴다(`judgedRow`) — 엔티티 `save()` 는 그 사이 바뀐 scope 를 되돌린다.
+      // 타입은 `rotate` 의 changes 와 같은 이유로 넓힌다(JSONB 컬럼이 QueryDeepPartialEntity 를 통과하지 못한다).
+      const reset: Record<string, unknown> = {
+        status: 'connected',
+        statusReason: null,
+        lastError: null,
+      };
+      const { affected } = await this.integrationRepository.update(
+        this.judgedRow(entity),
+        reset,
+      );
+      if (affected === 0) this.throwIntegrationNotFound();
       await this.auditLogsService.record({
         workspaceId,
         userId,

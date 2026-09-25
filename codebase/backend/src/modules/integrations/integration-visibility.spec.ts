@@ -1,5 +1,5 @@
 import {
-  INTEGRATION_VIEWER_PARAM,
+  INTEGRATION_USER_PARAM,
   integrationVisibilityClause,
   isIntegrationVisibleTo,
 } from './integration-visibility';
@@ -24,7 +24,7 @@ describe('isIntegrationVisibleTo', () => {
 describe('integrationVisibilityClause', () => {
   it('별칭을 받아 같은 규칙을 SQL 로 — personal 이 아니거나 생성자가 요청자', () => {
     expect(integrationVisibilityClause('i')).toBe(
-      `(i.scope <> 'personal' OR i.created_by = :${INTEGRATION_VIEWER_PARAM})`,
+      `(i.scope <> 'personal' OR i.created_by = :${INTEGRATION_USER_PARAM})`,
     );
   });
 });

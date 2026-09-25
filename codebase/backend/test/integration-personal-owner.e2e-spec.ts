@@ -245,6 +245,7 @@ describe('Integration personal-owner enforcement (e2e)', () => {
     expect(read.status).toBe(200);
   });
 
+  // **반드시 마지막** — `beforeAll` 이 만든 `personalId` 를 지운다. 앞의 케이스들이 그 행을 전제로 한다.
   it('생성자는 자기 personal 을 읽고 · 이름을 바꾸고 · 지운다', async () => {
     const read = await as(editor).get(`/api/integrations/${personalId}`);
     expect(read.status).toBe(200);

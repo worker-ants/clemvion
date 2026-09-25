@@ -360,12 +360,14 @@ export class Cafe24PrecheckResultDto {
 
   @ApiPropertyOptional({
     format: 'uuid',
-    description: '충돌 대상 통합의 UUID. conflict=true 일 때만 채워진다.',
+    description:
+      '충돌 대상 통합의 UUID. conflict=true 일 때만 채워진다 — 다만 충돌 대상이 다른 멤버의 개인(personal) 통합이면 conflict=true 여도 생략한다(spec 통합 §8 · §9.2).',
   })
   existingIntegrationId?: string;
 
   @ApiPropertyOptional({
-    description: '충돌 대상 통합의 표시 이름. conflict=true 일 때만 채워진다.',
+    description:
+      '충돌 대상 통합의 표시 이름. conflict=true 일 때만 채워진다 — 다만 충돌 대상이 다른 멤버의 개인(personal) 통합이면 conflict=true 여도 생략한다(spec 통합 §8 · §9.2).',
   })
   existingName?: string;
 
