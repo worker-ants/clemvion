@@ -5194,7 +5194,7 @@ field: T | null;
       어느 쪽이든 **가드가 없으면 다음 중복도 조용히 들어온다** — id 가 무엇에 쓰이는지부터
       확인하고, 쓰인다면 유일성 가드를 함께 세울 것.
 
-- [ ] **lockfile 의 `libc:` 필드가 dependabot 과 고정 pnpm 사이에서 진동한다** (developer,
+- [x] **lockfile 의 `libc:` 필드가 dependabot 과 고정 pnpm 사이에서 진동한다** (developer,
       낮음, 2026-09-24 등재 · `deps-typeorm12` `/ai-review` `review/code/2026/09/24/18_22_23` W1 이
       드러냄).
       optional 네이티브 패키지 63곳의 `libc: [glibc|musl]` 필드를 **dependabot 이 넣고, 사람이
@@ -5221,6 +5221,13 @@ field: T | null;
       처방 후보: (a) dependabot 이 고정 pnpm 을 쓰게 한다(`packageManager` 를 존중하는지 확인),
       (b) 고정 pnpm 을 `libc:` 를 쓰는 버전으로 올린다(그러면 사람 쪽이 dependabot 에 맞춰진다).
       **어느 쪽이 `libc:` 를 쓰는지부터 재야 한다** — 이 등재는 그 측정 전이다.
+      > **2026-09-25 종결** — plan `lockfile-libc-pin`. 핀을 `pnpm@10.34.5` 로 올렸다. **위 «그러니 dependabot 이 쓰는
+      > pnpm 이 고정 버전과 다르다는 뜻이다» 는 반증됐다** — dependabot 은 핀을 따른다. `#1388` 을 재연해 커밋된 lockfile 을
+      > 바이트 단위로 재현한 것은 **10.23.0 + `--config.minimumReleaseAge`** 뿐이었고(11.25.0 · 10.28.1 은 게이트가 있어도
+      > 2~3줄 다르다), 차이는 메타데이터 모드다(게이트 → full packument → `libc`). 처방 (a) 는 이미 참이었고 (b) 가 답이다 —
+      > 10.34.5 에서는 사람 경로와 게이트 경로의 산출물이 0줄 차이라 **두 축**(`libc:` 63줄 · 순환 peer 접미사 3줄)이 함께
+      > 닫힌다. 같은 결함을 `deps-guard-hardening.md` 가 2026-08-09 부터 추적하고 있었다 — 그 절의 첫 체크박스도 닫았고,
+      > 동반 가드는 «개수» 에서 «같은 `name@version` 의 `os` · `cpu` · `libc` 불변» 으로 재설계해 열어 두었다.
 
 - [ ] **재진입 락 오케스트레이션이 두 번째로 복제됐다 — 세 번째면 헬퍼로 뽑는다** (developer,
       낮음, 2026-09-24 등재 · `/ai-review` `review/code/2026/09/24/08_09_57` W6).

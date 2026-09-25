@@ -1,10 +1,11 @@
 ---
 title: lockfile `libc:` 진동 — pnpm 핀을 10.34.5 로 올린다
-status: in-progress
+status: complete
 owner: developer
 worktree: lockfile-libc-oscillation
 spec_impact: none
 started: 2026-09-25
+completed: 2026-09-25
 ---
 
 # dependabot 과 사람이 같은 pnpm 으로 다른 lockfile 을 쓴다
@@ -92,8 +93,13 @@ dependabot 과 고정 pnpm 사이에서 진동한다»(낮음)를 닫는다. 같
       backend builder 단계와 `Dockerfile.playwright-e2e` 이미지 안에서 `pnpm --version` = **10.34.5** 를 따로 확인했다
       (run-test.sh 는 Playwright 이미지를 빌드하지 않는다)
 - [x] CHANGELOG 항목(배포 의존성 변경)
-- [ ] `/ai-review`
-- [ ] 처분 세 갈래(`--plan` INFO 4 — 한 줄로 뭉개면 둘째 체크박스까지 오체크한다):
+- [x] `/ai-review` — **1라운드** `11_35_37`: **Critical 0 · Warning 0** · 그 라운드 설정 · codebase 수정 0 — 선언한 정지 규칙
+      그대로 종결(forced 3/3 · 라우터가 security · documentation · dependency 만 선별). INFO 처분: ① 폴백 `npm i -g` 에
+      무결성 검증이 없다 — 기존 패턴이고 corepack 이 성공하면 돌지 않는다, 이 PR 밖. ② 폴백 버전 == `packageManager` 패리티
+      가드 — 두지 않는다. 폴백은 corepack 이 실패할 때만 돈다. «어긋난 적 없음» 은 근거로 쓰지 않는다 — 핀은 도입
+      (`4dfd59e8c`, 2026-06-20) 이래 **이번이 첫 상향**이라 어긋날 기회 자체가 없었다(`git log -G packageManager`). 다음
+      상향 때 사본을 놓칠 위험은 남고, 지금 그것을 막는 것은 그 줄의 주석뿐이다
+- [x] 처분 세 갈래(`--plan` INFO 4 — 한 줄로 뭉개면 둘째 체크박스까지 오체크한다):
   - `spec-draft-nullable-notation-followups.md` 의 이 항목 — `[x]` + 종결 메모(반증된 전제 포함)
   - `deps-guard-hardening.md` 첫 체크박스(진동을 한쪽으로 고정) — `[x]`, (b) 채택 근거 A-1 · A-3
   - 같은 절 둘째 체크박스(개수 회귀 가드) — **`[ ]` 유지.** 원문은 취소선으로 남기고(`--plan` INFO 3 — 그 문서의
