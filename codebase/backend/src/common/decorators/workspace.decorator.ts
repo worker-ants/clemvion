@@ -46,6 +46,39 @@ function extractWorkspaceId(_data: unknown, ctx: ExecutionContext): string {
 
 export const WorkspaceId = createParamDecorator(extractWorkspaceId);
 
+/** `ROUTE_ARGS_METADATA` 의 파라미터 항목 한 건 — `createParamDecorator` 가 등록한다. */
+interface RouteArgEntry {
+  factory?: unknown;
+  data?: unknown;
+}
+
+/**
+ * 핸들러의 파라미터 항목 중 **주어진 팩토리로 등록된 것들**. 메서드명이 없거나(익명 핸들러) 메타데이터가 없으면
+ * 빈 배열 — «검증 대상 아님» 쪽이다.
+ *
+ * `handlerConsumesWorkspaceId` · `workspaceParamNamesOf` 두 판별의 공통 골격이다. 부트 캐너리
+ * (`workspace-reflection-canary.ts`)는 이 헬퍼가 아니라 **두 판별 함수를 그대로** 호출한다 — 캐너리가 막으려는
+ * 파손(`ROUTE_ARGS_METADATA` 포맷 변경 · `Function.name` 소실)이 이 한 곳을 지나므로, 두 판별이 함께 깨지고 함께
+ * 잡힌다.
+ */
+function routeArgEntriesMatching(
+  controllerClass: object,
+  handler: Function, // eslint-disable-line @typescript-eslint/no-unsafe-function-type
+  factory: unknown,
+): RouteArgEntry[] {
+  const methodName = handler.name;
+  if (!methodName) return [];
+  const argsMetadata = Reflect.getMetadata(
+    ROUTE_ARGS_METADATA,
+    controllerClass,
+    methodName,
+  ) as Record<string, RouteArgEntry | undefined> | undefined;
+  if (!argsMetadata) return [];
+  return Object.values(argsMetadata).filter(
+    (entry): entry is RouteArgEntry => entry?.factory === factory,
+  );
+}
+
 /**
  * `RolesGuard` 가 "이 핸들러가 `@WorkspaceId()` 를 실제로 소비하는가" 를 판별할 때 쓴다.
  *
@@ -67,16 +100,9 @@ export function handlerConsumesWorkspaceId(
   controllerClass: object,
   handler: Function, // eslint-disable-line @typescript-eslint/no-unsafe-function-type
 ): boolean {
-  const methodName = handler.name;
-  if (!methodName) return false;
-  const argsMetadata = Reflect.getMetadata(
-    ROUTE_ARGS_METADATA,
-    controllerClass,
-    methodName,
-  ) as Record<string, { factory?: unknown }> | undefined;
-  if (!argsMetadata) return false;
-  return Object.values(argsMetadata).some(
-    (entry) => entry?.factory === extractWorkspaceId,
+  return (
+    routeArgEntriesMatching(controllerClass, handler, extractWorkspaceId)
+      .length > 0
   );
 }
 
@@ -117,24 +143,18 @@ export const WorkspaceParam = (name: string): ParameterDecorator =>
 /**
  * 핸들러가 `@WorkspaceParam(...)` 으로 받는 경로 파라미터 이름들. 없으면 빈 배열.
  *
- * `handlerConsumesWorkspaceId` 와 같은 reflection 이다 — 같은 `ROUTE_ARGS_METADATA` 를 같은
- * `Function.name` 키로 읽고, 팩토리만 다르다. 부트 캐너리(`workspace-reflection-canary.ts`)가 두
- * 판별을 함께 세는 이유다.
+ * `handlerConsumesWorkspaceId` 와 같은 reflection 이다 — 같은 골격(`routeArgEntriesMatching`)을 쓰고
+ * 팩토리만 다르다. 부트 캐너리(`workspace-reflection-canary.ts`)가 두 판별을 함께 세는 이유다.
  */
 export function workspaceParamNamesOf(
   controllerClass: object,
   handler: Function, // eslint-disable-line @typescript-eslint/no-unsafe-function-type
 ): string[] {
-  const methodName = handler.name;
-  if (!methodName) return [];
-  const argsMetadata = Reflect.getMetadata(
-    ROUTE_ARGS_METADATA,
+  return routeArgEntriesMatching(
     controllerClass,
-    methodName,
-  ) as Record<string, { factory?: unknown; data?: unknown }> | undefined;
-  if (!argsMetadata) return [];
-  return Object.values(argsMetadata)
-    .filter((entry) => entry?.factory === extractWorkspaceParam)
+    handler,
+    extractWorkspaceParam,
+  )
     .map((entry) => entry.data)
     .filter((data): data is string => typeof data === 'string');
 }

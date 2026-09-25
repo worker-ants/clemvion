@@ -17,6 +17,10 @@ import { CurrentUser } from '../../common/decorators';
 import type { JwtPayload } from '../../common/decorators';
 import { Roles } from '../../common/guards/roles.guard';
 import {
+  NOT_A_MEMBER,
+  ROLE_REQUIRED,
+} from '../../common/constants/workspace-roles';
+import {
   ApiTags,
   ApiBearerAuth,
   ApiOperation,
@@ -275,8 +279,7 @@ export class ExecutionsController {
   })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
   @ApiForbiddenResponse({
-    description:
-      '워크스페이스 멤버가 아님(NOT_A_MEMBER) · editor 이상 권한 필요(EDITOR_REQUIRED) — RolesGuard / 타인 실행이고 Owner·Admin 아님(RERUN_PERMISSION_DENIED, RR-PL-06) — 서비스',
+    description: `워크스페이스 멤버가 아님(${NOT_A_MEMBER.code}) · editor 이상 권한 필요(${ROLE_REQUIRED.editor.code}) — RolesGuard / 타인 실행이고 Owner·Admin 아님(RERUN_PERMISSION_DENIED, RR-PL-06) — 서비스`,
   })
   @ApiNotFoundResponse({
     description: 'RERUN_EXECUTION_NOT_FOUND / RERUN_WORKFLOW_DELETED',
@@ -305,8 +308,7 @@ export class ExecutionsController {
   })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
   @ApiForbiddenResponse({
-    description:
-      '워크스페이스 멤버가 아님(NOT_A_MEMBER) — RolesGuard / RR-PL-06 미충족(RERUN_PERMISSION_DENIED) — 서비스',
+    description: `워크스페이스 멤버가 아님(${NOT_A_MEMBER.code}) — RolesGuard / RR-PL-06 미충족(RERUN_PERMISSION_DENIED) — 서비스`,
   })
   @ApiNotFoundResponse({ description: 'RERUN_EXECUTION_NOT_FOUND' })
   async getChain(

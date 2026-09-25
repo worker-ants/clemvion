@@ -4,7 +4,8 @@
  * 종전엔 가드의 숫자 서열(`ROLE_HIERARCHY`)과 두 서비스(`workspaces.service.ts` ·
  * `workspace-invitations.service.ts`)의 `ADMIN_ROLES` 집합이 각자 따로 있었다. 경로 워크스페이스
  * 라우트가 가드와 서비스 양쪽에서 같은 요구를 판정하게 되면서(2026-09-25) 두 표현이 갈리면 두 선이
- * 서로 다른 답을 내게 됐다 — 서열 하나에서 파생한다.
+ * 서로 다른 답을 내게 됐다 — 서열 하나에서 파생한다. `integrations.service.ts` 의 같은 값 로컬 `ADMIN_ROLES`
+ * (통합 관리 권한)도 뒤이어 이 표로 옮겼다 — 동명이인 상수가 남으면 한쪽만 바뀌는 날 두 판정이 갈린다.
  */
 export const WORKSPACE_ROLE_LEVEL = {
   viewer: 1,

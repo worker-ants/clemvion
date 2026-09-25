@@ -69,6 +69,7 @@ import {
   setRefreshTokenCookie,
 } from './utils/refresh-cookie';
 import { isOriginAllowed } from '../../common/utils/cors-origins';
+import { NOT_A_MEMBER } from '../../common/constants/workspace-roles';
 
 // Express types used directly to avoid isolatedModules + emitDecoratorMetadata issue
 import Express from 'express';
@@ -427,8 +428,7 @@ export class AuthController {
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: '활성 워크스페이스 전환',
-    description:
-      '대상 워크스페이스 멤버십을 검증하고 Access Token 만 activeWorkspaceId=대상 으로 재발급합니다. Refresh Token 은 워크스페이스와 무관한 opaque UUID 라 회전하지 않습니다(쿠키 불변). 이 라우트는 경로 :id 의 워크스페이스로만 판정하며 X-Workspace-Id 헤더를 쓰지 않습니다. 전환 뒤 다른 API 는 전환기 하위호환으로 header-first 입니다 — X-Workspace-Id 헤더가 있으면 그 값을, 없으면 새 토큰의 활성 워크스페이스 클레임을 씁니다. 비멤버면 403 NOT_A_MEMBER.',
+    description: `대상 워크스페이스 멤버십을 검증하고 Access Token 만 activeWorkspaceId=대상 으로 재발급합니다. Refresh Token 은 워크스페이스와 무관한 opaque UUID 라 회전하지 않습니다(쿠키 불변). 이 라우트는 경로 :id 의 워크스페이스로만 판정하며 X-Workspace-Id 헤더를 쓰지 않습니다. 전환 뒤 다른 API 는 전환기 하위호환으로 header-first 입니다 — X-Workspace-Id 헤더가 있으면 그 값을, 없으면 새 토큰의 활성 워크스페이스 클레임을 씁니다. 비멤버면 403 ${NOT_A_MEMBER.code}.`,
   })
   // `format: 'uuid'` 는 산문의 "(UUID)" 와 다르다 — 생성된 OpenAPI 스키마에 실리는 것은
   // 이쪽이고, `swagger.md §5-4` 가 요구하는 것도 이쪽이다. 이 한 줄이 빠져 있어서
@@ -443,7 +443,7 @@ export class AuthController {
   })
   @ApiUnauthorizedResponse({ description: '인증 필요(JWT)' })
   @ApiForbiddenResponse({
-    description: '대상 워크스페이스의 멤버가 아님(NOT_A_MEMBER)',
+    description: `대상 워크스페이스의 멤버가 아님(${NOT_A_MEMBER.code})`,
   })
   async switchWorkspace(
     @CurrentUser() user: JwtPayload,

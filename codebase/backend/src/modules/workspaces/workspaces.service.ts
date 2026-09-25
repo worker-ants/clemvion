@@ -708,11 +708,17 @@ export class WorkspacesService {
    * - 대상은 같은 팀 워크스페이스의 비-owner 멤버.
    * - personal 워크스페이스는 이양 불가.
    *
+   * 인가는 트랜잭션 **밖**에서 무락으로 먼저 판정한다(존재 · 유형 오라클 제거). 아래 락 재검사는 동시 owner 변경과의
+   * 경합 대비로 남는다.
+   *
    * 동시성 보장:
    * 1) `workspace` 행을 트랜잭션 내부에서 `pessimistic_write` 로 락. type 검증·
    *    ownerId 갱신 모두 같은 락 범위에서 수행해 동시 호출 간 stale snapshot 덮어쓰기를 차단.
-   * 2) 두 멤버를 단일 `IN` 쿼리로 동시에 락. id 정렬과 무관하게 같은 시점에 둘 다 락이 걸리므로
-   *    A→B / B→A 동시 이양 시 데드락이 발생하지 않는다.
+   * 2) 두 멤버는 그 뒤 요청자 → 대상 순으로 한 행씩 `pessimistic_write` 로 락한다. 같은 워크스페이스의 동시
+   *    이양은 1) 의 워크스페이스 행 락에서 먼저 직렬화되므로 멤버 락 순서가 달라도(A→B / B→A) 데드락이
+   *    생기지 않는다.
+   *    (2026-09-25 정정 — 종전 이 줄은 «두 멤버를 단일 `IN` 쿼리로 동시에 락» 이라 적었으나, 그 문장을 넣은
+   *    `eb009f99c` 의 구현부터 순차 `findOne` 두 번이었다.)
    */
   async transferOwnership(
     workspaceId: string,
@@ -932,7 +938,7 @@ export class WorkspacesService {
    */
   private throwOwnerTransferRequired(): never {
     throw new ForbiddenException({
-      code: ROLE_REQUIRED.owner.code,
+      ...ROLE_REQUIRED.owner,
       message: 'owner 이양은 현재 owner 만 수행할 수 있습니다.',
     });
   }
