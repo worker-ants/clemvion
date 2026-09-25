@@ -84,10 +84,14 @@ dependabot 과 고정 pnpm 사이에서 진동한다»(낮음)를 닫는다. 같
 - [x] 사전 일관성 검토 — spec 영역이 없는 변경(spec-linked 0건 실측)이라 `--impl-prep` 의 scope 가 성립하지 않는다.
       이 plan 을 target 으로 `--plan` → `review/consistency/2026/09/25/11_14_19` **BLOCK: NO · Critical 0 · Warning 0 ·
       INFO 4**(target 본문 5/5 적재 확인). INFO 3 · 4(아래 마지막 항목을 세 갈래로 · 원문 보존)는 반영했다
-- [ ] 로컬: 핀 적용 뒤 저장소 안 `pnpm --version` 이 10.34.5(자동 전환) · `pnpm install --frozen-lockfile
-      --strict-peer-dependencies` exit 0 · lockfile 무변경
-- [ ] TEST WORKFLOW — lint · unit · build(backend · frontend Docker 이미지가 corepack 으로 새 핀을 쓴다) · e2e
-- [ ] CHANGELOG 항목(배포 의존성 변경)
+- [x] 로컬: 핀 적용 뒤 저장소 안 `pnpm --version` 이 10.34.5(corepack 이 받아 자동 전환) · `pnpm install --frozen-lockfile
+      --strict-peer-dependencies` exit 0 · lockfile 무변경. 빌드가 차단되는 패키지 목록이 10.23.0 과 **같은 6개**
+      (`@google/genai` · `@parcel/watcher` · `@scarf/scarf` · `msgpackr-extract` · `protobufjs` · `unrs-resolver`), 허용 목록의
+      `isolated-vm` · `bcrypt` 가 실제로 로드된다
+- [x] TEST WORKFLOW — lint PASS · unit PASS · build PASS(backend · frontend 이미지 빌드 + 위생 스모크) · e2e PASS(380).
+      backend builder 단계와 `Dockerfile.playwright-e2e` 이미지 안에서 `pnpm --version` = **10.34.5** 를 따로 확인했다
+      (run-test.sh 는 Playwright 이미지를 빌드하지 않는다)
+- [x] CHANGELOG 항목(배포 의존성 변경)
 - [ ] `/ai-review`
 - [ ] 처분 세 갈래(`--plan` INFO 4 — 한 줄로 뭉개면 둘째 체크박스까지 오체크한다):
   - `spec-draft-nullable-notation-followups.md` 의 이 항목 — `[x]` + 종결 메모(반증된 전제 포함)
