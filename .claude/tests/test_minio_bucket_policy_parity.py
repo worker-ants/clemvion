@@ -32,7 +32,10 @@ two together. Each assertion names one regression shape:
      preset opening listing, after which the UUID in an avatar key is no secret;
   6. the script never uses that `anonymous set download` preset;
   7. the script starts with `set -e` — otherwise the Job's status is the LAST
-     command's, and a failing `mb` before `set-json` would be masked.
+     command's, and a failing `mb` before `set-json` would be masked;
+  8. the file the heredoc writes (`cat > PATH`) is the file `set-json` reads —
+     the path is written twice, and changing either copy alone makes `set-json`
+     read a file that was never written.
 
 The Job's behaviour against a real server (anonymous list 403, avatar GET 200,
 other GET 403) was measured when this was written — see plan `k8s-avatar-policy`.
@@ -47,10 +50,13 @@ import unittest
 import yaml
 
 from _harness import REPO_ROOT
-# The "exactly one" and mapping-walk checks live ONCE, in the image guard — a
-# copy here would be a new untested branch per copy (that guard's history is
-# four review rounds of exactly that). Only helpers are imported, not TestCases,
-# so pytest does not collect the sibling's tests twice.
+# The LEAF checks — "exactly one" (`_expect_one`) and walking a mapping/sequence
+# without crashing on a malformed shape (`_dig` · `_seq`) — live ONCE, in the
+# image guard: a copy per place would be a new untested branch per place (that
+# guard's history is four review rounds of exactly that). The resource →
+# container walk below is composed from those leaves, not copied from the image
+# guard's `k8s_images`; its wiring is pinned by the boundary tests here. Only
+# helpers are imported, not TestCases, so pytest does not collect them twice.
 from test_minio_image_parity import PlaceNotFound, _dig, _expect_one, _seq
 
 K8S_MINIO = REPO_ROOT / "k8s" / "overlays" / "local" / "infra-minio.yaml"
@@ -92,8 +98,8 @@ def job_script(text: str) -> str:
 
 def heredoc_policy(script: str) -> tuple[str, bool, str]:
     """(body, delimiter_quoted, written_path) of THE `cat > PATH <<EOF … EOF`
-    heredoc — zero or two fail, since a second one would leave it ambiguous
-    which policy is applied."""
+    heredoc — zero or more than one fail, since a second one would leave it
+    ambiguous which policy is applied."""
     m = _expect_one(list(_HEREDOC.finditer(script)), "Job script", "<<EOF heredoc")
     return m.group("body"), bool(m.group("q")), m.group("path")
 
@@ -143,6 +149,14 @@ class ExtractorBoundaryTest(unittest.TestCase):
              r"expected one script argument of container 'mc', found 2"),
             ("non-string arg", _mc("[5]"), r"is not a non-empty string"),
             ("empty arg", _mc("['']"), r"is not a non-empty string"),
+            # Malformed shapes: the walk goes through `_dig`/`_seq`, so a list or a
+            # scalar where a mapping belongs is a named miss, never AttributeError.
+            ("metadata is a list", "kind: Job\nmetadata: [minio-create-bucket]\n",
+             r"expected one Job/minio-create-bucket, found 0"),
+            ("spec is a list", "kind: Job\nmetadata: {name: minio-create-bucket}\nspec: [x]\n",
+             r"expected one container 'mc' in Job/minio-create-bucket, found 0"),
+            ("containers is a scalar", _job_yaml("5"),
+             r"expected one container 'mc' in Job/minio-create-bucket, found 0"),
         ):
             with self.subTest(label):
                 with self.assertRaisesRegex(PlaceNotFound, expect):
@@ -175,7 +189,7 @@ class BucketPolicyParityTest(unittest.TestCase):
 
     def test_policy_is_applied_to_the_created_bucket(self):
         self.assertRegex(self.script, r'mc mb [^\n]*local/"\$S3_BUCKET"')
-        self.assertRegex(self.script, r'mc anonymous set-json \S+ local/"\$S3_BUCKET"')
+        self.assertRegex(self.script, _SET_JSON)
 
     def test_set_json_reads_the_file_the_heredoc_wrote(self):
         # Two copies of one path — changing either alone makes `set-json` read a
