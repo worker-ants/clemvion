@@ -248,7 +248,9 @@ describe('Workspace path guard (e2e)', () => {
         .set('Authorization', `Bearer ${viewer.accessToken}`)
         .set('X-Workspace-Id', ws)
         .send({ newOwnerMemberId: heirMember.rows[0].id });
-      expect(transfer.status).toBe(200);
+      // 종전 가드는 헤더 워크스페이스(viewer)로 판정해 여기서 403 이었다. 201 인 것은 이 라우트에
+      // `@HttpCode` 가 없어서다 — OpenAPI 는 200 을 광고한다(기존 불일치, 트래커 등재).
+      expect(transfer.status).toBe(201);
 
       const roles = await db.query<{ user_id: string; role: string }>(
         'SELECT user_id, role FROM workspace_member WHERE workspace_id = $1',

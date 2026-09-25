@@ -4943,7 +4943,7 @@ field: T | null;
       > (`--impl-prep` `10_22_24` 의 `plan_coherence` 가 이 캐비트를 stale 로 봤는데, 그것은
       > **개정 전** plan 을 읽은 것이다 — 그 지적에 답하다 설계를 바꿨다.)
 
-- [ ] **경로 파라미터로 워크스페이스를 받는 라우트 13개가 가드 층 보호를 전혀 못 받는다**
+- [x] **경로 파라미터로 워크스페이스를 받는 라우트 13개가 가드 층 보호를 전혀 못 받는다**
       (developer + 설계 결정, **중간**, 2026-09-24 등재 — 위 «권한 검사 순서» 항목의 註에서
       **갈라 나옴**).
       `RolesGuard` 는 전역이지만 `handlerConsumesWorkspaceId` 가 false 면 단축 통과한다. 그 판정은
@@ -4971,10 +4971,33 @@ field: T | null;
       > 앞으로 옮겨 해소됐다. 남은 12개는 각자 무엇을 노출하는지 **실측부터** 해야 한다
       > (읽기 전용 라우트는 오라클 표면이 다르다).
       >
-      > **2026-09-25 — 결정 턴 진행**: `plan/in-progress/spec-draft-workspace-path-guard.md`. 실측(바인딩 15곳 — 이 항목의 13 +
+      > **2026-09-25 — 결정 턴 진행**: ~~`plan/in-progress/spec-draft-workspace-path-guard.md`~~ → `plan/complete/spec-draft-workspace-path-guard.md`. 실측(바인딩 15곳 — 이 항목의 13 +
       > `@Roles('owner')` 가 헤더 워크스페이스를 보던 `transferOwnership` + 전환 라우트 · 9곳은 인가 선행으로 안전 · 오라클 2곳)을
-      > 선택지 셋과 함께 제시했고 **사용자가 «가드 확장 + 가드 거부에 코드 부여» 를 택했다.** spec 반영(planner) 뒤 구현은 별도
-      > developer PR — 이 항목은 그 구현 PR 이 닫는다.
+      > 선택지 셋과 함께 제시했고 **사용자가 «가드 확장 + 가드 거부에 코드 부여» 를 택했다.** ~~spec 반영(planner) 뒤 구현은 별도
+      > developer PR — 이 항목은 그 구현 PR 이 닫는다.~~ (정정: spec 과 구현을 **한 PR** 에 실었다 — 미구현을 현재형으로 적은 spec 이
+      > `--spec` BLOCK 을 받아 착지 방식을 바꿨다, draft §B-1.)
+      >
+      > **2026-09-25 — 닫힘.** 같은 PR 의 spec 커밋 `e2e257707` · 구현 커밋 `d5031b699` (구현 plan
+      > `plan/complete/workspace-path-guard-impl.md`). `@WorkspaceParam('id')` 15곳 + `RolesGuard` 경로 분기 + 거부 코드(전역) +
+      > 저장소 가드 `workspace-param-binding` + 오라클 2곳 서비스 인가 선행. e2e `workspace-path-guard.e2e-spec.ts` 가 라우트 클래스별
+      > 비멤버 · 부재 · 개인 워크스페이스의 동일 응답을 고정한다.
+
+- [ ] **기존 `@ApiForbiddenResponse` 설명 ~120곳이 가드 거부 코드를 싣지 않는다** (developer, 낮음, 2026-09-25 등재 —
+      `plan/complete/workspace-path-guard-impl.md` §구현 중 결정). 가드 거부가 코드를 갖게 됐지만(`NOT_A_MEMBER` ·
+      `EDITOR_REQUIRED` · `ADMIN_REQUIRED` · `OWNER_REQUIRED`) 그 PR 은 경로 15곳 · 재실행 · chain 의 설명만 고쳤다. 실측(2026-09-25,
+      `modules/**`): «워크스페이스 멤버가 아님» 63 · «editor 이상 권한 필요» 54 · «viewer 이상 권한 필요» 4 · «owner 이상 권한 필요» 2 ·
+      기타 20여(«Admin 미만 권한» 5 · «관리자 권한 필요» 3 · «Editor 미만 권한» 3 · «소유자 아님» 2 …). 틀린 문장은 아니고
+      `swagger.md §5-4` 는 **새 엔드포인트** 체크리스트라 위반도 아니다 — OpenAPI 로 클라이언트를 만드는 쪽이 코드를 알 수 없을 뿐.
+      처방: 앞 넷은 기계적 부기(`(NOT_A_MEMBER)` 등), 기타는 가드 거부인지 서비스 거부인지 자리마다 판정. 30여 컨트롤러라 spec 연결
+      영역이 여럿이다 — `--impl-done` 스코프를 먼저 셀 것. **착수 조건**: 없음(여유 있을 때).
+
+- [ ] **POST 라우트가 OpenAPI 로 200 을 광고하면서 실제로는 201 을 낸다** (developer, 낮음, 2026-09-25 등재 — e2e 실측).
+      `workspaces.controller.ts` 의 `POST /:id/leave` · `POST /:id/transfer-ownership` 은 `@ApiOkWrappedResponse(OkResultDto)`(200)
+      인데 `@HttpCode` 가 없어 Nest 기본값 201 을 낸다(`workspace-path-guard.e2e-spec.ts` 가 이양 성공을 201 로 관측 — 그 테스트는
+      실제 값을 적었다). 같은 파일의 `resend` 는 `@HttpCode(200)` 으로 맞췄다. `workspace-rbac.e2e-spec.ts` E 는 `[200, 201]` 로 둘 다
+      받아 불일치를 가린다. 처방 후보: `@HttpCode(HttpStatus.OK)` 로 광고에 맞추거나 광고를 201 로 — 상태 코드 변경은 제품 동작이라
+      CHANGELOG 대상. 이 모양이 이 파일 밖에도 있는지(POST + `ApiOkWrapped*` + `@HttpCode` 없음)는 전수 스캔이 먼저다 — 정적 가드 후보.
+      `POST /workspaces/invitations/accept` 도 같은 모양인지 확인할 것. **착수 조건**: 없음.
 
 - [ ] **`req.user.workspaceId` 를 직접 읽는 라우트는 가드가 인식하지 못한다 — 정적 가드가 없다** (developer, 낮음,
       2026-09-25 등재 · `--spec` `review/consistency/2026/09/25/14_54_55` rationale_continuity W2).

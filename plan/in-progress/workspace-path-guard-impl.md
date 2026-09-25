@@ -79,9 +79,33 @@ INFO 3(`nestjs-v12-coordinated-upgrade.md` §C 캐너리 기준값 142)은 요�
       캐너리 6 · 저장소 가드(위반 15 = spec 실측과 같은 목록) · `param-uuid-pipe` 대조군 2 · 서비스 6. `workspace-roles-attachment`
       의 15곳 표는 구현 뒤에 썼다 — 뮤턴트로 따로 검증한다
 - [x] 구현 1~5 · 8 (요구 1 의 캐너리 기준값 재실측은 e2e 부팅 로그에서)
-- [ ] 뮤턴트(가드 분기마다)
-- [ ] TEST WORKFLOW — lint · unit · build · e2e
-- [ ] CHANGELOG(제품 동작 · 가드 신설)
+- [x] 뮤턴트(가드 분기마다) — 17개 전부 KILLED, 각각 의도한 테스트가 잡았다(아래 표). nestjs-v12 §C 판별자도 재실측(MB RED 11 · MB2 RED 25)
+- [ ] TEST WORKFLOW — lint · unit · build · e2e (1차: lint · unit · build PASS, e2e 1회 실패 = 내 단언 200 vs 실제 201 → 고쳐 71/390 PASS.
+      리뷰 fix 뒤 최종 재수행에서 체크)
+- [x] CHANGELOG(제품 동작 · 가드 신설) — 항목 둘
+- [x] 부트 캐너리 기준값 재실측 — `@WorkspaceId()` 142 · `@WorkspaceParam()` 15, `nestjs-v12-coordinated-upgrade.md` §C 갱신
+
+### 뮤턴트 (2026-09-25, 커밋 `d5031b699` 위에서 · 원복 cp)
+
+| # | 뮤턴트 | 예측 | 실측 · 잡은 테스트 |
+| --- | --- | --- | --- |
+| M1 | 경로 분기 제거 | RED | RED 19 — «헤더 · 토큰 워크스페이스의 owner 여도 경로 비멤버면 NOT_A_MEMBER» 등 |
+| M2 | 경로 값 형식 검사 제거 | RED | RED 1 — «형식이 아닌 값 → 판정 없이 넘긴다 · 조회 없음» |
+| M3 | 경로 분기가 `@Roles` 무시 | RED | RED 5 — «`@Roles("owner")` 는 경로 워크스페이스에 대해 판정한다» 등 |
+| M4 | 병용 핸들러의 헤더 검사 생략 | RED | RED 1 — «헤더 워크스페이스의 멤버십도 검증한다» |
+| M5 | 병용 핸들러의 헤더에도 역할 요구 | RED | RED 1 — «`@Roles()` 요구는 경로 워크스페이스에 대한 것이다» |
+| M6 | 문턱을 가장 높은 역할로 | RED | RED 3 — «역할이 여럿이면 가장 낮은 역할이 요구다» |
+| M7 | 비멤버도 역할 코드(규칙 가) | RED | RED 5 — «비멤버는 `@Roles("editor")` 라우트에서도 NOT_A_MEMBER» 등 |
+| M8 | 경로 이름 첫 하나만 | RED | RED 1 — «한 핸들러에 여럿이면 전부 돌려준다» |
+| M9 | 경로 판별이 `@WorkspaceId` 팩토리를 봄 | RED | RED 25 |
+| M10 | 캐너리 합계가 헤더 소비만 | RED | RED 3 |
+| M11 | `update` 의 `@Roles('admin')` 제거 | RED | RED 1 — `workspace-roles-attachment` «역할 요구가 ["admin"]» |
+| M12 | `getSettings` 를 평범한 `@Param` 으로 | RED | RED 2 — `workspace-param-binding` 위반 + `workspace-roles-attachment` 인식 |
+| M13 | `addMemberByEmail` 순서 원복 | RED | RED 3 |
+| M14 | `leaveWorkspace` 인가 선행 제거 | RED | RED 3 |
+| M15 | 저장소 가드 접미 규칙 제거 | RED | RED 1 — 대조군 «네 형태» |
+| M16 | 저장소 가드 경로 이름 미검사 | RED | RED 1 — 대조군 «네 형태» |
+| M17 | `param-uuid-pipe` 가 `@WorkspaceParam` 을 모집단에서 뺌 | RED | RED 2 |
 - [ ] `/ai-review`
 - [ ] `--impl-done`
 - [ ] 트래커 항목 닫기
