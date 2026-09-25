@@ -87,10 +87,10 @@ started: 2026-09-25
 - [x] 구현 — `d3ca80080`
 - [x] 뮤턴트 — 아래 표. 예측이 전부 맞았다. 살아남은 셋(P13 · P18 · P19)은 **예측대로** 지키는 테스트가 없던 자리라
       테스트를 더하고(`d76e21357`) 다시 돌려 모두 죽였다
-- [ ] e2e — 다중 액터(Owner · Admin · Editor(생성자) · Viewer) 권한 경계 — `test/integration-personal-owner.e2e-spec.ts` 작성, 실행은 TEST WORKFLOW
+- [x] e2e — 다중 액터(Owner · Admin · Editor(생성자) · Viewer) 권한 경계 — `test/integration-personal-owner.e2e-spec.ts` 14건 PASS
 - [x] 사용자 가이드(`integration-management.mdx` + en) — `user-guide-writer` 위임. 팀 워크스페이스 Personal 가시성 · 역할 표 셋 · Danger zone 권한
 - [x] CHANGELOG — 한 항목(기준 1 — 제품 동작 변경). 컨트롤러 캐너리는 한 컨트롤러 범위 커버리지라 기준 3(전역 가드)이 아니다
-- [ ] TEST WORKFLOW — lint · unit · build · e2e
+- [x] TEST WORKFLOW — lint · unit(backend 10200 · frontend 6781) · build · e2e(72 스위트 · 405건)
 - [ ] `/ai-review`
 - [ ] `--impl-done`
 - [ ] 트래커 항목 닫기
