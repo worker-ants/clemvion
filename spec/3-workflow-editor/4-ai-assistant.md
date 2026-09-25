@@ -198,7 +198,7 @@ LLM에 전달되는 function-calling 도구 목록이다. 인자/반환은 JSON 
 | 도구 | 인자 | 반환 | 용도 |
 |------|------|------|------|
 | `get_node_schema` | `type: string` | `{configSchema, ports, description, category}` | 특정 노드 타입의 상세 스키마. 카탈로그 요약만으로 부족할 때 on-demand 조회 |
-| `list_integrations` | `{category?: string}` | `[{id, name, type, category}]` | 현재 워크스페이스에 등록된 Integration 목록 |
+| `list_integrations` | `{category?: string}` | `[{id, name, type, category}]` | 현재 워크스페이스에 등록된 Integration 목록 — 남의 personal 은 빠진다([통합 §8](../2-navigation/4-integration.md#8-권한-규칙)) |
 | `list_workflows` | `{limit?: number, search?: string}` | `[{id, name, description, tags, updatedAt}]` | 같은 워크스페이스의 워크플로우 목록 (현재 편집 중인 워크플로우 제외 옵션 포함) |
 | `get_workflow` | `{id: UUID, mode?: 'summary'\|'full'}` | `{name, nodes, edges, summary}` | **다른** 워크플로우 구조 참조 (예: "주문 생성" 워크플로우 구조를 읽고 "주문 취소" 설계). 현재 편집 중인 워크플로우는 이 도구로 조회하지 않는다 |
 | `get_current_workflow` | 없음 | `{ok, nodes, edges}` (config는 redact 적용) | **현재** 편집 중인 캔버스의 최신 nodes/edges. 같은 턴 내 편집 이후 결과를 재확인하거나 시스템 프롬프트 스냅샷의 신선도가 불확실할 때 호출 |
@@ -368,8 +368,8 @@ interface CandidateEntry {
 
 | widget | 조회 | 필터 |
 |--------|------|------|
-| `integration-selector` | `Integration` | `workspace_id` 일치 + `status='connected'`. 노드 스키마 meta 에 `integrationServiceType` 힌트가 있으면 해당 `service_type` 만 (string 단일값 또는 `string[]` 배열 — 배열이면 `service_type IN (...)` 쿼리), 없으면 전체 connected integration. |
-| `mcp-server-selector` | `Integration` | `workspace_id` 일치 + `status='connected'` + `service_type IN` MCP-capable 전체 (`MCP_CAPABLE_SERVICE_TYPES` 상수, backend `integrations/services/mcp-capable-service-types.ts`). AI Agent `mcpServers` 필드 전용. hint 화이트리스트는 `['mcp', 'cafe24', 'makeshop']` ([Spec 통합 §14.2](../2-navigation/4-integration.md#142-워크플로우-에디터) — `serviceTypes` prop 화이트리스트의 single source of truth, Internal Bridge ([Spec MCP Client §2.3](../5-system/11-mcp-client.md#23-internal-bridge-in-process)) 적용 service_type 이 추가되면 동시 갱신). **multi-select** — picker 가 한 번의 Confirm 으로 여러 MCP 서버를 선택할 수 있다. |
+| `integration-selector` | `Integration` | `workspace_id` 일치 + `status='connected'` + 요청자에게 보이는 것(남의 personal 제외 — [통합 §8](../2-navigation/4-integration.md#8-권한-규칙)). 노드 스키마 meta 에 `integrationServiceType` 힌트가 있으면 해당 `service_type` 만 (string 단일값 또는 `string[]` 배열 — 배열이면 `service_type IN (...)` 쿼리), 없으면 전체 connected integration. |
+| `mcp-server-selector` | `Integration` | `workspace_id` 일치 + `status='connected'` + 요청자에게 보이는 것(남의 personal 제외 — [통합 §8](../2-navigation/4-integration.md#8-권한-규칙)) + `service_type IN` MCP-capable 전체 (`MCP_CAPABLE_SERVICE_TYPES` 상수, backend `integrations/services/mcp-capable-service-types.ts`). AI Agent `mcpServers` 필드 전용. hint 화이트리스트는 `['mcp', 'cafe24', 'makeshop']` ([Spec 통합 §14.2](../2-navigation/4-integration.md#142-워크플로우-에디터) — `serviceTypes` prop 화이트리스트의 single source of truth, Internal Bridge ([Spec MCP Client §2.3](../5-system/11-mcp-client.md#23-internal-bridge-in-process)) 적용 service_type 이 추가되면 동시 갱신). **multi-select** — picker 가 한 번의 Confirm 으로 여러 MCP 서버를 선택할 수 있다. |
 | `llm-config-selector` | `ModelConfig (kind=chat)` | `workspace_id` 일치. 최근 업데이트 순. |
 | `kb-selector` | `KnowledgeBase` | `workspace_id` 일치. 이름 오름차순. **multi-select**. |
 | `workflow-selector` | `Workflow` | 같은 `workspace_id` **&&** `id != session.workflow_id` (현재 편집 중 워크플로 제외). 최근 업데이트 순. |
@@ -1411,7 +1411,7 @@ yield { event: 'auto_resume', data: { reason, attempt, max } };
 
 #### 구현자가 기억해야 할 계약 (요약)
 
-1. **서버**: `collectPendingUserConfig` 는 기존처럼 schema 를 훑어 비어있는 selector 필드를 수집하되, 추가로 widget 별 저장소(integrationRepo / llmConfigRepo / kbRepo / workflowRepo) 를 워크스페이스 스코프로 쿼리해 `candidates` 를 채운다. 상한 20, connected/최근 등 정렬 규칙은 §4.3.1 표 그대로.
+1. **서버**: `collectPendingUserConfig` 는 기존처럼 schema 를 훑어 비어있는 selector 필드를 수집하되, 추가로 widget 별 저장소(integrationRepo / llmConfigRepo / kbRepo / workflowRepo) 를 워크스페이스 스코프로 쿼리해 `candidates` 를 채운다(Integration 은 거기에 더해 요청자에게 보이는 것만 — 남의 personal 제외, [통합 §8](../2-navigation/4-integration.md#8-권한-규칙) — 2026-09-25 부터). 상한 20, connected/최근 등 정렬 규칙은 §4.3.1 표 그대로.
 2. **LLM 프롬프트**: §8 "Selector 필드 정책" 행을 `STATIC_BLOCK_3_EDIT_PLAYBOOK` 에 투영. 기존 "You must NOT fill ... surface them in the closing message" 를 "Leave ids empty; server attaches candidates; mention only when candidates list is empty" 로 교체.
 3. **Review guard**: `collectUnmentionedPendingUserConfig` 는 `candidates?.length === 0` 인 항목에 대해서만 missingFields 로 카운트. 후보가 1+ 인 항목은 guard 에서 제외.
 4. **프런트 렌더**: `AssistantMessageView` 의 tool_call badge 그룹 아래, error bubble 이나 systemHint 보다 **위**에 picker 블록 배치. Confirm 시 `editor-store.updateNode(nodeId, { config: { [field]: selectedId } })` 호출. 이후 picker 는 "✓ 설정됨" 으로 고정 (Undo 로도 picker 상태를 되돌리지 않는다 — UX 복잡도 대비 실익 낮음).
