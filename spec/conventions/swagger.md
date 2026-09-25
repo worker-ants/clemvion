@@ -12,6 +12,9 @@ code:
   - codebase/backend/src/shared/testing/swagger-probe*.ts
   - codebase/backend/src/repo-guards/__tests__/user-entity-exposure*.ts
   - codebase/backend/src/shared/testing/user-secret-absence*.ts
+  # §5-4 의 `@ApiParam({format:'uuid'})` 축(과 런타임 `ParseUUIDPipe` 축)을 세는 가드와 그 대조군.
+  - codebase/backend/src/repo-guards/__tests__/param-uuid-pipe*.ts
+  - codebase/backend/src/repo-guards/__tests__/fixtures/param-uuid-pipe/**
   # 대조군(negative fixture) — 위 두 가드가 강제하는 **위반 형태의 실례**.
   # 없으면 술어가 죽어도 테스트가 통과한다(실제로 그 상태로 한 라운드를 지났다).
   - codebase/backend/src/repo-guards/__tests__/fixtures/dto/responses/optional-nullable*.ts

@@ -79,7 +79,7 @@ code:
 
 ### 2.3 워크스페이스 스코핑
 
-모든 리소스 API는 현재 워크스페이스 컨텍스트에서 동작한다. 활성 워크스페이스는 access token 의 **`activeWorkspaceId` 클레임**으로 확정되며(`jwt.strategy` 가 멤버십 검증 후 `request.user.workspaceId` 로 채택), 전환은 토큰 재발급(`POST /api/auth/workspaces/:id/switch`)으로 이뤄진다. **전환기 하위호환 — header-first**: `X-Workspace-Id` 헤더가 있으면 `WorkspaceId` 데코레이터·`RolesGuard` 가 그 워크스페이스를 우선 사용하고, 헤더가 없으면 토큰 클레임을 사용한다. 클라이언트가 헤더를 떼면 토큰 클레임이 단일 진실이 된다. 결정 우선순위·전환 플로우·마이그레이션의 SoT 는 [`data-flow/12-workspace.md §1.5`](../data-flow/12-workspace.md).
+모든 리소스 API는 현재 워크스페이스 컨텍스트에서 동작한다. 활성 워크스페이스는 access token 의 **`activeWorkspaceId` 클레임**으로 확정되며(`jwt.strategy` 가 멤버십 검증 후 `request.user.workspaceId` 로 채택), 전환은 토큰 재발급(`POST /api/auth/workspaces/:id/switch`)으로 이뤄진다. **전환기 하위호환 — header-first**: `X-Workspace-Id` 헤더가 있으면 `WorkspaceId` 데코레이터·`RolesGuard` 가 그 워크스페이스를 우선 사용하고, 헤더가 없으면 토큰 클레임을 사용한다. 클라이언트가 헤더를 떼면 토큰 클레임이 단일 진실이 된다. 결정 우선순위·전환 플로우·마이그레이션의 SoT 는 [`data-flow/12-workspace.md §1.5`](../data-flow/12-workspace.md). (2026-09-25) **예외 — 경로 파라미터로 워크스페이스를 받는 라우트**(`/api/workspaces/:id/...` · `POST /api/auth/workspaces/:id/switch`)는 경로 값이 인가 대상이고 헤더 · 토큰 컨텍스트를 쓰지 않는다([data-flow §Rationale "경로 파라미터 워크스페이스도 가드가 본다"](../data-flow/12-workspace.md#경로-파라미터-워크스페이스도-가드가-본다-2026-09-25)).
 
 > **상태(2026-07-07, 구현 완료)**: 위 모델은 구현됐다 (`spec-sync-data-flow-12-workspace-gaps` 결정1·2). `jwt.strategy` 가 토큰 클레임(dual-read `activeWorkspaceId ?? workspaceId`)의 멤버십을 검증해 활성값을 확정하고, 데코레이터·`RolesGuard` 는 header-first 로 헤더를 우선한다(전환기 하위호환).
 

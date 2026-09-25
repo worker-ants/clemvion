@@ -73,7 +73,8 @@ INFO 3(`nestjs-v12-coordinated-upgrade.md` §C 캐너리 기준값 142)은 요�
 ## 체크리스트
 
 - [x] `--impl-prep` — `15_15_21` BLOCK: NO, 경고 처리 위 표
-- [ ] planner 턴(W1 · W2 · W3 · INFO 1) — `--spec` 게이트
+- [x] planner 턴(W1 · W2 · W3 · INFO 1) — `--spec` `review/consistency/2026/09/25/15_50_10` BLOCK: NO, WARNING 1(`2-api-convention.md` §2.3
+      미러 누락)을 변경 5 로 반영. draft `plan/complete/spec-draft-workspace-path-guard-followup.md`
 - [x] 테스트 선작성(가드 · 데코레이터 · 캐너리 · 저장소 가드 · 서비스 순서) → RED 확인 — 데코레이터(내보내기 없음) · 가드 30 ·
       캐너리 6 · 저장소 가드(위반 15 = spec 실측과 같은 목록) · `param-uuid-pipe` 대조군 2 · 서비스 6. `workspace-roles-attachment`
       의 15곳 표는 구현 뒤에 썼다 — 뮤턴트로 따로 검증한다

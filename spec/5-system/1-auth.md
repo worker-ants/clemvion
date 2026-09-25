@@ -11,6 +11,10 @@ code:
   - codebase/backend/src/common/utils/workspace-context.util.ts
   - codebase/backend/src/common/utils/uuid.ts
   - codebase/backend/src/common/config/webauthn.config.ts
+  # RBAC 저장소 가드 — 경로 워크스페이스 바인딩 금지(대조군 fixture 포함) · RolesGuard 전역 등록과 핸들러별 @Roles 고정.
+  - codebase/backend/src/repo-guards/__tests__/workspace-param-binding*.ts
+  - codebase/backend/src/repo-guards/__tests__/fixtures/workspace-param-binding/**
+  - codebase/backend/src/repo-guards/__tests__/workspace-roles-attachment.spec.ts
   - codebase/frontend/src/app/(main)/w/[slug]/invitations/accept/**
   - codebase/frontend/src/components/auth/register-form.tsx
   - codebase/frontend/src/lib/api/invitations.ts
@@ -829,6 +833,10 @@ stale 해진다 — 방금 정정한 것이 정확히 그 실패다. 현재 인�
 data-flow §Rationale 이 **이미 기각한 "라우트별 opt-in 마커"** 패턴이고(기각 사유: 다음 라우트에서
 같은 누락이 재발한다 — 이 저장소가 이미 최소 2회 겪었다), 그 기각을 되돌리지 않는다. 캐너리는
 호출부에 아무것도 요구하지 않으면서 같은 위험을 닫는다.
+(2026-09-25 보탬) 경로 파라미터 워크스페이스는 이 문장의 예외다 — 핸들러가 `@Param` 대신 `@WorkspaceParam(...)` 으로 받아야 가드가
+인식한다. 이것을 이 절이 재기각한 opt-in 마커로 보지 않는 논거(값 바인딩 **그 자체**라 빠뜨리면 핸들러가 값을 못 받는다 · 빠뜨릴 수
+있는 «같은 값을 평범한 `@Param` 으로 받는 것» 은 저장소 가드 `workspace-param-binding` 이 막는다 · 이름 규칙 밖은 못 보는 한계)는
+[data-flow §Rationale "경로 파라미터 워크스페이스도 가드가 본다"](../data-flow/12-workspace.md#경로-파라미터-워크스페이스도-가드가-본다-2026-09-25) 에 있다.
 
 **(c) 왜 `assertProductionConfig` 와 합치지 않았는가.** 축이 다르다. 저쪽은 **환경변수**
 축이라 `NODE_ENV=production` 에서만 발화하고 dev/test 는 no-op 인데, 이쪽은 **환경과 무관한 구조
