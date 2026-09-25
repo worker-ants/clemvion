@@ -1142,47 +1142,58 @@ describe('WorkspacesService', () => {
     });
 
     /**
-     * 트랜잭션 안 재검사 분기 — 무락 인가 선행은 owner 로 통과했는데, 락을 잡고 다시 보니 owner 가 아니다(그 사이
-     * 다른 이양으로 강등됐다). 이 분기가 없으면 강등된 요청자가 두 번째 이양을 끝낸다. 선행만 보는 위 테스트들로는
-     * 이 자리가 고정되지 않는다 — 조회를 `lock` 유무로 갈라 선행에는 owner, 재검사에는 admin 을 돌려준다.
+     * 트랜잭션 안 재검사 분기 — 무락 인가 선행은 owner 로 통과했는데, 락을 잡고 다시 보니 owner 가 아니다. 이 분기가
+     * 없으면 그 사이 바뀐 요청자가 이양을 끝낸다. 선행만 보는 위 테스트들로는 이 자리가 고정되지 않는다 — 조회를
+     * `lock` 유무로 갈라 선행에는 owner, 재검사에는 아래 상태를 돌려준다. 재검사 조건의 OR 두 가지를 하나씩 탄다:
+     * 다른 이양으로 강등됐다(`role !== 'owner'`) · 멤버십이 사라졌다(`!requesterMembership`).
      */
-    it('인가 선행은 owner 였지만 락 재검사에서 강등이 보이면 OWNER_REQUIRED — 멤버를 바꾸지 않는다', async () => {
-      workspaceRepo.findOne.mockResolvedValue(teamWorkspace);
-      memberRepo.findOne.mockImplementation(
-        (opts: { where?: Record<string, unknown>; lock?: unknown }) => {
-          const where = opts?.where ?? {};
-          if (where.userId === requesterId) {
-            return Promise.resolve({
-              id: 'mem-owner',
-              // 선행(무락)은 owner, 락을 잡은 재검사는 이미 강등된 admin.
-              role: opts.lock ? 'admin' : 'owner',
-              userId: requesterId,
-              workspaceId: 'ws-uuid-1',
-            });
-          }
-          return Promise.resolve(null);
-        },
-      );
+    it.each([
+      ['강등이 보이면', 'admin'],
+      ['멤버십이 사라졌으면', null],
+    ] as const)(
+      '인가 선행은 owner 였지만 락 재검사에서 %s OWNER_REQUIRED — 멤버를 바꾸지 않는다',
+      async (_label, lockedRole) => {
+        workspaceRepo.findOne.mockResolvedValue(teamWorkspace);
+        memberRepo.findOne.mockImplementation(
+          (opts: { where?: Record<string, unknown>; lock?: unknown }) => {
+            const where = opts?.where ?? {};
+            if (where.userId === requesterId) {
+              // 선행(무락)은 owner, 락을 잡은 재검사는 `lockedRole`(null 이면 행 자체가 없다).
+              const role = opts.lock ? lockedRole : 'owner';
+              if (role === null) return Promise.resolve(null);
+              return Promise.resolve({
+                id: 'mem-owner',
+                role,
+                userId: requesterId,
+                workspaceId: 'ws-uuid-1',
+              });
+            }
+            return Promise.resolve(null);
+          },
+        );
 
-      await expect(
-        service.transferOwnership('ws-uuid-1', requesterId, newOwnerMemberId),
-      ).rejects.toMatchObject({
-        response: {
-          code: 'OWNER_REQUIRED',
-          message: 'owner 이양은 현재 owner 만 수행할 수 있습니다.',
-        },
-      });
-      // 재검사 분기를 실제로 탔는지 — 선행(무락)과 재검사(락) 두 번 요청자를 읽었다.
-      const requesterReads = memberRepo.findOne.mock.calls
-        .map((c) => c[0] as { where?: Record<string, unknown>; lock?: unknown })
-        .filter((o) => o.where?.userId === requesterId);
-      expect(requesterReads.map((o) => o.lock ?? null)).toEqual([
-        null,
-        { mode: 'pessimistic_write' },
-      ]);
-      expect(memberRepo.save).not.toHaveBeenCalled();
-      expect(workspaceRepo.save).not.toHaveBeenCalled();
-    });
+        await expect(
+          service.transferOwnership('ws-uuid-1', requesterId, newOwnerMemberId),
+        ).rejects.toMatchObject({
+          response: {
+            code: 'OWNER_REQUIRED',
+            message: 'owner 이양은 현재 owner 만 수행할 수 있습니다.',
+          },
+        });
+        // 재검사 분기를 실제로 탔는지 — 선행(무락)과 재검사(락) 두 번 요청자를 읽었다.
+        const requesterReads = memberRepo.findOne.mock.calls
+          .map(
+            (c) => c[0] as { where?: Record<string, unknown>; lock?: unknown },
+          )
+          .filter((o) => o.where?.userId === requesterId);
+        expect(requesterReads.map((o) => o.lock ?? null)).toEqual([
+          null,
+          { mode: 'pessimistic_write' },
+        ]);
+        expect(memberRepo.save).not.toHaveBeenCalled();
+        expect(workspaceRepo.save).not.toHaveBeenCalled();
+      },
+    );
 
     it('records an audit log entry after a successful transfer', async () => {
       workspaceRepo.findOne.mockResolvedValue(teamWorkspace);
