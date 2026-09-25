@@ -1,4 +1,8 @@
 import { ExploreToolsService } from './explore-tools.service';
+import {
+  INTEGRATION_VIEWER_PARAM,
+  integrationVisibilityClause,
+} from '../../integrations/integration-visibility';
 
 /**
  * spec: spec/3-workflow-editor/4-ai-assistant.md §4.1 · §4.1.1 의 read-only
@@ -93,6 +97,24 @@ function makeService(): {
   );
   return { svc, repos };
 }
+
+describe('ExploreToolsService — listIntegrations', () => {
+  it('요청자에게 보이는 통합만 — 남의 personal 은 SQL 에서 빠진다(에러가 아니다, spec 통합 §8 · 어시스턴트 §4.1)', async () => {
+    const { svc, repos } = makeService();
+    const qb = makeQueryBuilder({ many: [] });
+    repos.integration.createQueryBuilder.mockReturnValue(qb);
+
+    const result = await svc.listIntegrations('ws-1', 'u-1', 'http');
+
+    expect(qb.where).toHaveBeenCalledWith('i.workspace_id = :workspaceId', {
+      workspaceId: 'ws-1',
+    });
+    expect(qb.andWhere).toHaveBeenCalledWith(integrationVisibilityClause('i'), {
+      [INTEGRATION_VIEWER_PARAM]: 'u-1',
+    });
+    expect(result).toEqual({ ok: true, items: [] });
+  });
+});
 
 describe('ExploreToolsService — execution read tools', () => {
   describe('getWorkflowExecutions', () => {

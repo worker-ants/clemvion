@@ -1,3 +1,4 @@
+import { z } from 'zod';
 import { AssistantFinishGuard } from './assistant-finish-guard.service';
 import type { FinishGuardState } from './assistant-finish-guard.service';
 import { ShadowWorkflow } from './shadow-workflow';
@@ -239,5 +240,80 @@ describe('AssistantFinishGuard.evaluateReviewGuard — shouldSkipReview 판정',
       { id: 'n1', type: 'send_email', category: 'action' },
     ]);
     expect(await review(freshState(), [okEdit()], tinyShadow)).toBeNull();
+  });
+});
+
+describe('AssistantFinishGuard.evaluateReviewGuard — 후보 조회의 요청자', () => {
+  it('비어 있는 selector 필드의 후보를 요청자로 조회한다 — 통합 후보는 요청자에게 보이는 것만 (spec 통합 §8)', async () => {
+    const schema = z.object({
+      integrationId: z
+        .string()
+        .optional()
+        .meta({ ui: { label: 'Integration', widget: 'integration-selector' } }),
+    });
+    const nodeRegistry = {
+      listDefinitions: jest.fn(() => []),
+      getComponent: jest.fn((type: string) =>
+        type === 'http_request' ? { configSchema: schema } : undefined,
+      ),
+    };
+    const fillCandidates = jest.fn(
+      async (_ws: string, _user: string, _wf: string, p: unknown[]) => p,
+    );
+    const guard = new AssistantFinishGuard(
+      nodeRegistry as never,
+      { fillCandidates } as never,
+    );
+    // 체크리스트 빌더가 label · config 를 읽는다 — 이 케이스는 그 필드까지 채운 shadow 가 필요하다.
+    const shadow = {
+      snapshot: () => ({
+        nodes: [
+          {
+            id: 'n0',
+            type: 'manual_trigger',
+            category: 'trigger',
+            label: 'Start',
+            config: {},
+          },
+          {
+            id: 'n1',
+            type: 'send_email',
+            category: 'action',
+            label: 'Mail',
+            config: {},
+          },
+          {
+            id: 'n2',
+            type: 'http_request',
+            category: 'action',
+            label: 'Fetch',
+            config: {},
+          },
+        ],
+        edges: [],
+      }),
+    } as unknown as ShadowWorkflow;
+
+    await guard.evaluateReviewGuard(
+      [],
+      null,
+      [okEdit()],
+      freshState(),
+      REQUEST,
+      '',
+      shadow,
+      'ws-1',
+      'u-1',
+      'wf-1',
+    );
+
+    expect(fillCandidates).toHaveBeenCalledWith(
+      'ws-1',
+      'u-1',
+      'wf-1',
+      expect.arrayContaining([
+        expect.objectContaining({ widget: 'integration-selector' }),
+      ]),
+    );
   });
 });

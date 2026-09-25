@@ -611,6 +611,40 @@ describe('WorkflowAssistantStreamService', () => {
     expect(assistantTextTurn.toolCalls).toBeUndefined();
   });
 
+  it('list_integrations 는 요청자를 넘긴다 — 통합 목록은 요청자에게 보이는 것만 (spec 통합 §8)', async () => {
+    const { service, mocks } = makeService();
+    mocks.exploreTools.listIntegrations.mockResolvedValue({
+      ok: true,
+      items: [],
+    });
+    mocks.llmService.chatStream.mockImplementation(() =>
+      asyncIter<ChatStreamEvent>([
+        {
+          type: 'tool_call_end',
+          id: 'call_list',
+          name: 'list_integrations',
+          arguments: '{"category":"http"}',
+        },
+        {
+          type: 'done',
+          usage: { inputTokens: 5, outputTokens: 0, totalTokens: 5 },
+          model: 'gpt-4o',
+          finishReason: 'stop',
+        },
+      ]),
+    );
+
+    await collect(
+      service.streamMessage('sess-1', 'ws-1', 'u-1', baseDto as never),
+    );
+
+    expect(mocks.exploreTools.listIntegrations).toHaveBeenCalledWith(
+      'ws-1',
+      'u-1',
+      'http',
+    );
+  });
+
   it('returns the current shadow snapshot (with config redacted) for get_current_workflow', async () => {
     const { service, mocks } = makeService();
     mocks.llmService.chatStream.mockImplementation(() =>
