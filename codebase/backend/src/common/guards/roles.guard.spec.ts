@@ -122,6 +122,15 @@ class PathTarget {
     return _ws;
   }
 
+  /** `@Roles()` 는 경로 워크스페이스 **각각**에 대해 판정한다 — 둘 모두에서 충족해야 통과. */
+  @Roles('admin')
+  twoPathsAdmin(
+    @WorkspaceParam('a') _a: string,
+    @WorkspaceParam('b') _b: string,
+  ) {
+    return _a + _b;
+  }
+
   twoPaths(@WorkspaceParam('a') _a: string, @WorkspaceParam('b') _b: string) {
     return _a + _b;
   }
@@ -703,6 +712,28 @@ describe('RolesGuard', () => {
           'NOT_A_MEMBER',
         );
         expect(getMemberRole).toHaveBeenCalledWith(OTHER_WS, 'u1');
+      },
+    );
+
+    it.each([
+      ['둘 다 admin 이상', { [SAME_WS]: 'owner', [OTHER_WS]: 'admin' }, null],
+      [
+        '한쪽이 editor',
+        { [SAME_WS]: 'owner', [OTHER_WS]: 'editor' },
+        'ADMIN_REQUIRED',
+      ],
+    ] as const)(
+      '경로 워크스페이스가 여럿이면 @Roles() 요구를 각각에 적용한다 — %s',
+      async (_label, roles, rejection) => {
+        const { guard } = buildGuard(roles);
+        const pending = guard.canActivate(
+          pathContext(PathTarget.prototype.twoPathsAdmin, {
+            a: SAME_WS,
+            b: OTHER_WS,
+          }),
+        );
+        if (rejection === null) await expect(pending).resolves.toBe(true);
+        else await expectForbidden(pending, rejection);
       },
     );
 

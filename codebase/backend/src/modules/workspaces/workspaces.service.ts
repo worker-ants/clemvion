@@ -719,6 +719,13 @@ export class WorkspacesService {
     requesterId: string,
     newOwnerMemberId: string,
   ): Promise<void> {
+    // 인가가 조회보다 먼저다 — 아래 트랜잭션은 워크스페이스를 먼저 읽어 «없음 404 · 개인 · 팀 비-owner»
+    // 로 갈리므로, 그 앞에서 무락으로 한 번 판정한다(`leaveWorkspace` 와 같은 모양). 트랜잭션 안의 락 재검사는
+    // 동시 owner 변경과의 경합을 막으려는 것이라 남긴다.
+    const requesterRole = await this.getMemberRole(workspaceId, requesterId);
+    if (!requesterRole) this.throwNotAMember();
+    if (requesterRole !== 'owner') this.throwOwnerTransferRequired();
+
     await this.memberRepository.manager.transaction(async (manager) => {
       const memRepo = manager.getRepository(WorkspaceMember);
       const wsRepo = manager.getRepository(Workspace);
@@ -745,10 +752,7 @@ export class WorkspacesService {
         lock: { mode: 'pessimistic_write' },
       });
       if (!requesterMembership || requesterMembership.role !== 'owner') {
-        throw new ForbiddenException({
-          code: 'OWNER_REQUIRED',
-          message: 'owner 이양은 현재 owner 만 수행할 수 있습니다.',
-        });
+        this.throwOwnerTransferRequired();
       }
       if (newOwnerMemberId === requesterMembership.id) {
         throw new BadRequestException({
@@ -920,6 +924,17 @@ export class WorkspacesService {
   /** 위 `throwNotAMember()` 와 같은 이유로 판정문만 공유한다. */
   private throwAdminRequired(): never {
     throw new ForbiddenException({ ...ROLE_REQUIRED.admin });
+  }
+
+  /**
+   * owner 이양 거부 — `transferOwnership` 의 인가 선행과 트랜잭션 안 락 재검사가 같은 문장을 낸다.
+   * 코드는 가드와 같은 `OWNER_REQUIRED` 이고, 문장은 이 동작에 맞춘 서비스 고유 문구다.
+   */
+  private throwOwnerTransferRequired(): never {
+    throw new ForbiddenException({
+      code: ROLE_REQUIRED.owner.code,
+      message: 'owner 이양은 현재 owner 만 수행할 수 있습니다.',
+    });
   }
 
   /**

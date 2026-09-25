@@ -36,8 +36,9 @@
   종전엔 가드가 경로 값을 보지 않아 서비스 검사에만 기댔고, `transferOwnership` 은 `@Roles('owner')` 를 **헤더 · 토큰의
   워크스페이스**로 판정했다 — 자기 워크스페이스의 owner 가 헤더에 다른 워크스페이스를 실으면 정당한 이양이 403 이었다.
   관측되는 변화:
-  - 비멤버는 워크스페이스의 존재 · 유형과 무관하게 같은 `403 NOT_A_MEMBER` 다. 종전 `POST /:id/leave` · `POST /:id/members`
-    는 없음(404) · 개인 · 팀을 구분해 답했다(서비스도 인가를 조회보다 앞으로 옮겼다).
+  - 비멤버는 워크스페이스의 존재 · 유형과 무관하게 같은 `403 NOT_A_MEMBER` 다. 종전 `POST /:id/leave` · `POST /:id/members` ·
+    `POST /:id/transfer-ownership` 은 없음(404) · 개인 · 팀을 구분해 답했다(마지막은 가드가 토큰 워크스페이스로 판정해 서비스까지
+    닿았다). 세 서비스 메서드도 인가를 조회보다 앞으로 옮겼다.
   - Admin · Owner 요구 10곳에서 **비멤버**가 받는 코드가 `ADMIN_REQUIRED` · `OWNER_REQUIRED` 에서 `NOT_A_MEMBER` 로 바뀌었다.
     초대 라우트의 역할 미달은 소문자 `admin_required` 에서 `ADMIN_REQUIRED` 로 바뀌었다. 멤버가 받는 코드는 보존된다.
   - 형식은 맞는 nil UUID 경로 값은 `400` 에서 `403 NOT_A_MEMBER` 로 바뀌었다(형식이 아닌 값은 여전히 `400`).

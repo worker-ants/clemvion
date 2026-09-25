@@ -129,6 +129,14 @@ describe('Workspace path guard (e2e)', () => {
       {},
     ],
     [
+      // 종전엔 가드가 토큰 워크스페이스(누구나 personal 의 owner)로 판정해 서비스까지 닿았고, 서비스는
+      // 워크스페이스를 먼저 읽어 «없음 404 · 개인 · 팀 비-owner» 로 갈렸다.
+      'Owner — POST /:id/transfer-ownership (종전 오라클)',
+      'post',
+      (id: string) => `/api/workspaces/${id}/transfer-ownership`,
+      { newOwnerMemberId: ABSENT_WS },
+    ],
+    [
       'Admin — POST /:id/members (종전 오라클)',
       'post',
       (id: string) => `/api/workspaces/${id}/members`,

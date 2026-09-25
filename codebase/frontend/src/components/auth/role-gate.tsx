@@ -8,7 +8,8 @@ import {
 
 // 역할 계층: viewer < editor < admin < owner.
 // `minRole` 은 ≥ 비교이므로, 예: minRole="editor" 이면 editor/admin/owner 모두 통과.
-// Backend `roles.guard.ts` 의 ROLE_HIERARCHY 와 반드시 동일한 순서를 유지해야 한다.
+// Backend `common/constants/workspace-roles.ts` 의 WORKSPACE_ROLE_LEVEL 과 반드시 동일한 순서를 유지해야 한다
+// (2026-09-25 이전엔 `roles.guard.ts` 의 ROLE_HIERARCHY 였다 — 가드와 두 서비스가 한 표를 쓰도록 옮겼다).
 const ROLE_LEVEL: Record<WorkspaceRole, number> = {
   viewer: 1,
   editor: 2,

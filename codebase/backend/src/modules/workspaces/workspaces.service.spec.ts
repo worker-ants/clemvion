@@ -997,6 +997,59 @@ describe('WorkspacesService', () => {
         expect(workspaceRepo.findOne).not.toHaveBeenCalled();
       },
     );
+
+    /**
+     * 멤버지만 admin 이 아니어도 같다 — 역할 판정이 유형 판정보다 먼저라 개인 워크스페이스라는 사실을
+     * 드러내지 않는다(`review/code/2026/09/25/17_47_18` testing WARNING — 비멤버만 보던 빈칸).
+     */
+    it.each(workspaces)(
+      'addMemberByEmail — 비-admin 멤버는 워크스페이스 %s 여도 ADMIN_REQUIRED, 워크스페이스는 조회하지 않는다',
+      async (_label, workspace) => {
+        workspaceRepo.findOne.mockResolvedValue(workspace);
+        memberRepo.findOne.mockResolvedValue({ role: 'editor' });
+
+        await expect(
+          service.addMemberByEmail(
+            'ws-uuid-1',
+            'added@example.com',
+            'editor',
+            'user-uuid-1',
+          ),
+        ).rejects.toMatchObject({ response: { code: 'ADMIN_REQUIRED' } });
+        expect(workspaceRepo.findOne).not.toHaveBeenCalled();
+      },
+    );
+
+    /**
+     * `transferOwnership` 도 같은 모양이었다 — 트랜잭션 안에서 워크스페이스를 먼저 읽어 «없음 404 · 개인
+     * `CANNOT_TRANSFER_PERSONAL` · 팀 비-owner `OWNER_REQUIRED`» 로 갈렸다. 계획 단계 실측이 놓친 세 번째
+     * 자리다(`review/code/2026/09/25/17_47_18` requirement WARNING).
+     */
+    it.each(workspaces)(
+      'transferOwnership — 워크스페이스 %s 여도 비멤버는 NOT_A_MEMBER, 워크스페이스는 조회하지 않는다',
+      async (_label, workspace) => {
+        workspaceRepo.findOne.mockResolvedValue(workspace);
+        memberRepo.findOne.mockResolvedValue(null);
+
+        await expect(
+          service.transferOwnership('ws-uuid-1', 'user-uuid-1', 'mem-target'),
+        ).rejects.toMatchObject({ response: { code: 'NOT_A_MEMBER' } });
+        expect(workspaceRepo.findOne).not.toHaveBeenCalled();
+      },
+    );
+
+    it.each(workspaces)(
+      'transferOwnership — 워크스페이스 %s 여도 비-owner 멤버는 OWNER_REQUIRED, 워크스페이스는 조회하지 않는다',
+      async (_label, workspace) => {
+        workspaceRepo.findOne.mockResolvedValue(workspace);
+        memberRepo.findOne.mockResolvedValue({ id: 'mem-1', role: 'admin' });
+
+        await expect(
+          service.transferOwnership('ws-uuid-1', 'user-uuid-1', 'mem-target'),
+        ).rejects.toMatchObject({ response: { code: 'OWNER_REQUIRED' } });
+        expect(workspaceRepo.findOne).not.toHaveBeenCalled();
+      },
+    );
   });
 
   describe('transferOwnership', () => {
@@ -1072,7 +1125,11 @@ describe('WorkspacesService', () => {
       const memberCalls = memberRepo.findOne.mock.calls.map(
         (c) => c[0] as { lock?: unknown },
       );
-      for (const call of memberCalls) {
+      // 첫 조회는 트랜잭션 **밖**의 인가 선행이라 무락이다(존재 · 유형 오라클 제거). 트랜잭션 안의
+      // 조회(요청자 재검사 · 대상)는 전부 락이다 — 동시 owner 변경과의 경합은 그쪽이 막는다.
+      expect(memberCalls[0].lock).toBeUndefined();
+      expect(memberCalls.length).toBeGreaterThan(1);
+      for (const call of memberCalls.slice(1)) {
         expect(call.lock).toEqual({ mode: 'pessimistic_write' });
       }
     });
