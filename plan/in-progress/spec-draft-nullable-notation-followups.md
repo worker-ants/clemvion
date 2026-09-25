@@ -5875,7 +5875,7 @@ field: T | null;
       > 리뷰가 5라운드를 돌았다: 같은 형태가 한 칸씩 안쪽에서 네 번 나와, 검사를 헬퍼 하나씩으로 모아 구조로 닫았다
       > (헬퍼 · 배선 · 판정 뮤턴트 16개 전부 RED). 그 과정의 부수 발견은 이 트래커에 따로 등재했다.
 
-- [ ] **하네스 테스트 둘이 실제 저장소 트리에 프로브를 쓴다 — 병렬 실행에서 잔여물이 남는다** (harness, 낮음,
+- [x] **하네스 테스트 둘이 실제 저장소 트리에 프로브를 쓴다 — 병렬 실행에서 잔여물이 남는다** (harness, 낮음,
       2026-09-25 등재 · `/ai-review` `review/code/2026/09/25/00_39_02` INFO 12 · `01_31_05` W1).
       `test_consistency_spec_draft_snapshot.py` 는 `plan/in-progress/spec-draft-__snapshot_selftest__.md` 를,
       `test_consistency_bundle_priority.py::TheDocumentBeingEditedIsNeverOmittedTest` 는 실제 spec 파일에 미커밋 편집
@@ -5885,6 +5885,24 @@ field: T | null;
       3줄 + 빈 `__probe_plan__.md` 가 남아 다른 리뷰어가 `cp` 로 복원했다. 그 사이 커밋이 섞였으면 무관한 spec 편집이
       PR 에 들어갔다. 처방 후보: 프로브 대상을 임시 디렉터리의 저장소 사본으로(오케스트레이터에 루트를 주입) · 최소한
       프로세스별 고유 파일명 + 편집한 실제 파일은 `try/finally` 로 바이트 복원.
+      > **2026-09-25 종결** — plan `harness-probe-isolation`. «둘» 이 아니라 **넷**이었다 — 감사 훅(하위 프로세스
+      > 포함) + mtime 두 census 가 `test_consistency_target_validation.py`(`review/` 세션) · `test_router_decision_trust.py`
+      > (저장소 루트 `mkdtemp`)를 더 찾았다. 첫 처방 후보를 골랐고, 루트 주입은 **새 코드가 필요 없었다** — 두
+      > 오케스트레이터 모두 루트를 cwd 나 인자로 받는다. 파일을 바꾸는 프로브는 `_harness.make_temp_repo_copy`
+      > (하위 트리를 임시 git 저장소에 커밋, `origin/main` = HEAD)에서 한다. 두 번째 후보는 추적 파일 편집을 못 닫아
+      > 기각(이름을 바꿀 수 없고, 락은 같은 워크트리의 실제 커밋 · `--impl-prep` 을 막지 못한다). 재현: 4 프로세스
+      > 동시 6라운드 잔여 5/6 · 실패 22/24 → 0/6 · 0/24. census 97행 → 0행.
+
+- [ ] **«이 체크아웃에 쓰지 않는다» 가 산문 규약뿐이다 — 감사 훅 census 를 상시 가드로** (harness, 낮음,
+      2026-09-25 등재 · `/ai-review` `review/code/2026/09/25/10_27_27` INFO 1).
+      위 항목이 넷을 고치고 `.claude/tests/README.md` 에 규약을 적었지만, 다섯 번째 테스트가 실제 트리에 쓰는 것을 막는
+      기계는 없다. 전수에 쓴 도구(`sitecustomize.py` 의 `sys.addaudithook` + `PYTHONPATH` 로 하위 프로세스까지)는
+      scratch 에만 있었다. 처방 후보: `conftest.py` 가 테스트마다 워크트리 안 쓰기 이벤트를 모아 teardown 에서 0 을
+      단언(프로세스 안), 오케스트레이터를 띄우는 테스트는 같은 훅을 `PYTHONPATH` 로 물린다. **함정 셋 — 전수 때 전부
+      밟았다**: (1) `shutil.rmtree` 는 `os.remove(name, dir_fd=fd)` 로 지워 이름이 fd 상대다 — cwd 로 풀면 `HEAD` ·
+      `refs` 같은 거짓 행. (2) `dir_fd` 기본값은 `None` 이 아니라 **`-1`** — `is not None` 으로 거르면 remove · mkdir ·
+      rename 이 전부 사라진다. (3) 0행은 증거가 아니다 — 이벤트 종류마다 쓰는 양성 대조군과 저장소 밖 rmtree 음성
+      대조군을 함께 둘 것. 비용(매 `open` 마다 훅)과 파이썬 밖 쓰기(셸 · git)는 못 본다는 한계를 먼저 잴 것.
 
 - [ ] **`spec/0-overview.md` §8 문서 맵이 `data-flow/` 를 «알파벳 순 숫자 prefix» 라 적는데 13~15 는 아니다**
       (planner, 낮음, 2026-09-25 등재 · `--impl-prep` `review/consistency/2026/09/25/00_08_35` convention_compliance W2).

@@ -106,10 +106,12 @@ started: 2026-09-25
 | P3 | `_n_on_topic` 의 tier 1 절(`_named_in`) 제거 | branch-plan 테스트 RED | **일치** — branch-plan 1개만 RED |
 | P4 | 순위 프로브 스니펫의 루트를 `ROOT` 로 되돌림 | 루트 위치 테스트 RED | **일치** — `test_the_probe_runs_outside_this_checkout` 1개만 RED. 실제 spec 에 프로브가 남아 스크립트가 `cp` 로 원복했다 — 막으려는 그 형태 |
 | P5 | `make_temp_repo_copy` 의 `update-ref` 제거 | 커밋 diff 가 실패해 빈 집합 — 미커밋 절반만으로 초록일 수 있다(예측: **생존**) | **일치 — 생존.** 그래서 `TheRepoCopyFixtureTest` 를 더했고(`128cc9746`), 재실행에서 그 테스트 1개만 RED |
+| P7 | (리뷰 `10_27_27` W1 뒤) `make_temp_repo_copy` 의 `--allow-empty` 제거 | 빈 사본 경계 테스트 RED | **일치** — `test_no_subtrees_is_an_empty_copy_not_an_error` 1개만 RED |
 | P6 | target_validation 의 `CONSISTENCY_OUTPUT_DIR` 주입 제거 | 새 단언(`is_relative_to`) RED | **일치** — 그 테스트 1개 RED. 실제 `review/consistency/` 에 세션이 남아 스크립트가 지웠다 |
 
 P1~P3 은 옛 테스트가 잡던 것을 새 fixture 도 잡는지, P4 · P6 은 새 단언이, P5 는 fixture 가정이 실제로 쓰이는지 본다.
 P1~P5 는 `128cc9746` 뒤 한 번에 다시 돌려 전부 KILLED(바이트코드 끔 · 매번 `.pyc` 삭제 · 끝에 `git status` 빈 것 확인).
+리뷰 1라운드 조치(`89ae9fa24` — 부트스트랩을 `five_system_copy` 로 모음) 뒤 P1~P5 · P7 을 다시 돌려 전부 KILLED.
 
 ## E. 고친 뒤 — 같은 측정으로
 
@@ -131,9 +133,9 @@ P1~P5 는 `128cc9746` 뒤 한 번에 다시 돌려 전부 KILLED(바이트코드
 - [x] 병렬 재현을 고친 뒤 다시 — 잔여 0/6 · 실패 0/24 (§E)
 - [x] 감사 훅 census 재실행 — 전 97행 → 후 0행 (§E)
 - [x] CHANGELOG 항목 (커밋 전 staged 확인)
-- [ ] `python3 -m pytest .claude/tests -q` 전체
-- [ ] `/ai-review`
-- [ ] 트래커 항목 닫기
+- [x] `python3 -m pytest .claude/tests -q` 전체 — `89ae9fa24` 뒤 **1175 passed**
+- [ ] `/ai-review` — 1 `10_27_27`(Critical 0 · W2 · INFO 10 → W 둘 조치 · INFO 1 등재, RESOLUTION)
+- [x] 트래커 항목 닫기 — 종결 메모 + INFO 1(상시 가드) 새 항목 등재
 
 ## G. 사전 검토 처분 (`09_56_00`)
 
