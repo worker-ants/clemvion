@@ -974,6 +974,7 @@ window.close();
 | Cafe24 `invalid_scope` (authorize / token exchange 단계 양쪽) | `Authorization rejected: invalid scope.` (안내 본문에 별도 승인 안내 분기) | **status 보존** + `status_reason='oauth_invalid_scope'` ([Spec Integration 데이터 모델 §2.10](../1-data-model.md#210-integration) status_reason 열거 참조) + `last_error.code='OAUTH_INVALID_SCOPE'` + `last_error.details.requiresCafe24Approval: string[]` (요청 scopes ∩ [`cafe24-restricted-scopes.md §1`](../conventions/cafe24-restricted-scopes.md#1-scope-단위-별도-승인-resource-전체-영향) 의 교집합) 기록. 통합 상세 페이지가 본 단서를 읽어 "이 권한은 카페24 별도 승인이 필요해요" 분기 메시지 노출. 진입 경로는 `oauth_token_exchange_failed` 와 분리 — 본 사유는 Cafe24 가 명시적으로 scope 거부한 케이스이고, `oauth_token_exchange_failed` 는 그 외 토큰 교환 실패 전부 (네트워크, 서버 오류, 알 수 없는 invalid_grant 등). |
 | state mismatch / expired (state row 소비 후) | `Security validation failed.` / `OAuth state has expired.` | integrationId 가 식별되면 `status_reason='oauth_state_mismatch'` 또는 `oauth_state_expired` 만 기록, status 보존 |
 | 토큰 발급 후 row 조회 실패 (resource not found) | `Integration not found.` | 변경 불가 (row 가 사라진 케이스. integrationId 만 식별, row 가 없으니 갱신 대상 없음) |
+| 커밋 직전 인가 재판정 실패 (mode=`reauthorize` · `request_scopes`, status≠`pending_install` — 시작과 콜백 사이에 요청자가 강등됐거나 통합이 남의 personal 이 됨) | 서버 메시지 그대로 — `Integration not found` (`RESOURCE_NOT_FOUND`) 또는 `Organization 통합을 재인증하려면 Admin 이상의 권한이 필요합니다.` · `… scope 를 추가하려면 …` (`ADMIN_REQUIRED`) | 자격 증명 불변(롤백) · status 보존 · `last_error` 에 그 코드 기록. 판정은 [§8 판정 규칙](#8-권한-규칙) |
 | 네트워크 오류 | `Connection error.` | integrationId 식별되면 `last_error` 만 기록, status 보존 |
 
 ### 10.5 토큰 자동 갱신

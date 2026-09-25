@@ -99,6 +99,7 @@ sequenceDiagram
       Svc-->>C: { mode:'new', previewToken } — row 생성은 §1.1 의 POST /api/integrations 가 previewToken 소비로 수행
     else mode = 'reauthorize' / 'request_scopes' (integration_id 보유)
       Svc->>PG: SELECT integration FOR UPDATE (pessimistic_write — 동시 callback lost-update 차단)
+      Note over Svc,PG: 커밋 직전 인가 재판정(pending_install 제외) — 요청자에게 보이는가,<br/>Organization 이면 요청자의 현재 역할이 Admin 이상인가(같은 트랜잭션 커넥션).<br/>실패하면 롤백 — 자격 증명 · status 불변
       Svc->>PG: UPDATE integration SET credentials=ENC, status='connected', status_reason=NULL, last_error=NULL, token_expires_at, last_rotated_at=now
       Note over Svc,PG: reauthorize·pending_install 행은 credentials 전체 교체,<br/>request_scopes 는 기존 credentials 에 merge + scopes 갱신.<br/>install_token 은 보존 (post-install navigation 식별 키)
     end
@@ -108,6 +109,9 @@ sequenceDiagram
 - callback 실패 (token exchange 실패 등) 시 state 소비 후 식별된 row 가 있으면
   `markIntegrationCallbackError` 가 `status_reason` (`normalizeStatusReason` 으로 union 정규화) +
   `last_error={code,message,at}` 를 기록한다 — status 는 보존되어 사용자 재시도 가능.
+- 커밋 직전 인가 재판정이 실패하면(시작과 콜백 사이에 요청자가 강등됐거나 통합이 남의 personal 이 됨) 트랜잭션이 롤백되고, 같은
+  오류 수집이 `last_error` 에 `RESOURCE_NOT_FOUND` · `ADMIN_REQUIRED` 를 기록한다 — status 보존. 판정 규칙은
+  [navigation §8](../2-navigation/4-integration.md#8-권한-규칙).
   에러 코드 어휘는 [navigation §10.4](../2-navigation/4-integration.md#104-에러-매핑).
 - Cafe24 Private / MakeShop 은 같은 begin 엔드포인트의 **별도 응답 분기** 로 시작한다 — cafe24 private 는
   `{ mode:'cafe24_private_pending', integrationId, appUrl, callbackUrl }` (§1.2.1), makeshop 은

@@ -5791,6 +5791,11 @@ field: T | null;
          `reauthorize` 세 곳에 반복된다 — `updateJudgedOrNotFound(row, patch)` 헬퍼(W3). 같은 리뷰 INFO 4(컨트롤러가
          `IntegrationModifyAction` 을 재수출 경유지에서 import) · INFO 13(mode `request_scopes` 와 action `request-scopes` 표기 규약
          주석)도 함께.
+      4. **질문** — OAuth 콜백의 커밋 직전 인가 재판정이 실패하면(요청자 강등 · 통합이 남의 personal 이 됨) 롤백은 되지만, 공통 오류
+         수집(`markIntegrationCallbackError`)이 그 행의 `last_error` 에 `RESOURCE_NOT_FOUND` · `ADMIN_REQUIRED` 를 쓴다 — 요청자가 더는
+         볼 수 없는 행(남의 personal)에 진단을 남기는 것이 맞는가. 지금은 `connected` 행의 다른 비-교환 실패와 같은 규칙이다(spec
+         §10.4 · data-flow §1.2 가 그대로 적는다). 기록을 막으려면 재판정 실패만 콜백 컨텍스트를 싣지 않게 한다(`--spec`
+         `review/consistency/2026/09/26/00_55_40` W1 · draft `spec-draft-integration-personal-owner-callback.md`).
       **착수 조건**: 없음(여유 있을 때). `codebase/**` 편집이라 리뷰 게이트를 한 바퀴 돈다.
 
 - [ ] **entity tester 재진입 금지가 문서로만 있다** (developer, 낮음, 2026-09-19 등재 · `/ai-review` `review/code/2026/09/19/16_00_06`

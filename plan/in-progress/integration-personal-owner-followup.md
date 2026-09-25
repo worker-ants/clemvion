@@ -2,7 +2,7 @@
 title: Personal 통합 소유자 강제 — 후속(노드 실행 · pending 재사용 · Viewer · 화면)
 status: in-progress
 owner: developer
-worktree: (미착수)
+worktree: (unstarted)
 spec_impact:
   - spec/2-navigation/4-integration.md
 started: 2026-09-25
