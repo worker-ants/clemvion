@@ -91,6 +91,7 @@ started: 2026-09-25
 | 1 | `review/code/2026/09/25/22_45_37` | Critical 0 · Warning 11 | W1 · W2(판정 뒤 scope 변경 · lost update) — compare-and-set(`judgedRow`) · 부분 update. W3(콜백 TOCTOU) — 커밋 직전 재판정. W4 · W5 · W7~W11 조치. W6(역할 이중 조회) — 전역 가드 변경이라 트래커 등재. 커밋 `5999aedfe`. 뮤턴트 R1~R9 전부 KILLED |
 | 2 | `review/code/2026/09/25/23_23_40` | Critical 1 · Warning 6 | CRITICAL 1(Admin 거부 문구를 영문으로 덮어써 한국어 화면에 영문 토스트) — 동작별 한국어 구 + 공유 문구. W1(판정 · 404 · 문구가 OAuth 서비스에 복제) — `integration-visibility.ts` 순수 함수로 두 서비스 공유. W2~W6 조치(콜백 문구가 mode 를 따름 · begin 본인 personal 통과 케이스 · create 403 설명 · CHANGELOG 외부 호출자 · 워크스페이스 가이드 RBAC 예외). 커밋 `2f3562ce7`. 뮤턴트 R10~R12 KILLED |
 | 3 | `review/code/2026/09/25/23_58_59` | Critical 1 · Warning 6 | CRITICAL 1(rotate 락 안 재판정이 옛 역할을 씀 — 연결 테스트 중 강등돼도 커밋) — Organization 이면 같은 트랜잭션 커넥션으로 역할 재조회. W2(콜백 역할 조회가 두 번째 커넥션) — `getMemberRole` 에 선택적 매니저. W4 주석 · W6 문장. W1(실행 엔진 BOLA)은 후속 plan 항목에 악용 경로 보강, W3(역할 이중 조회)은 1라운드 W6 트래커 항목 갱신, W5(`handleCallback` 비대)는 «수렴 예외» 트래커 등재. 커밋 `a8b5c8b13`. 뮤턴트 R13 · R14 KILLED |
+| 4 | `review/code/2026/09/26/00_27_56` | Critical 0 · Warning 4 | **종결 — «수렴 예외».** 넷 다 테스트 커버리지 · 구조 · 성능(동작 결함 아님): W1(매니저 분기 unit) · W3(조건부 쓰기 헬퍼) · W4(e2e fixture · Organization rotate e2e) 트래커 신설, W2(역할 이중 조회) 기존 항목 갱신. 이 라운드 `codebase/**` 수정 0건 |
 
 ## `--impl-prep` 처리 (`review/consistency/2026/09/25/21_49_24` — BLOCK: NO, WARNING 5)
 
@@ -114,6 +115,6 @@ started: 2026-09-25
 - [x] 사용자 가이드(`integration-management.mdx` + en) — `user-guide-writer` 위임. 팀 워크스페이스 Personal 가시성 · 역할 표 셋 · Danger zone 권한
 - [x] CHANGELOG — 한 항목(기준 1 — 제품 동작 변경). 컨트롤러 캐너리는 한 컨트롤러 범위 커버리지라 기준 3(전역 가드)이 아니다
 - [x] TEST WORKFLOW — lint · unit(backend 10200 · frontend 6781) · build · e2e(72 스위트 · 405건)
-- [ ] `/ai-review`
+- [x] `/ai-review` — 4라운드로 수렴(위 표). 1~3라운드 Critical 2 · Warning 23 조치, 4라운드 «수렴 예외»
 - [ ] `--impl-done`
 - [ ] 트래커 항목 닫기

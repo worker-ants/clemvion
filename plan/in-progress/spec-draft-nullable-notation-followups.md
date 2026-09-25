@@ -5763,7 +5763,7 @@ field: T | null;
       같았음이 확인됐다. rotate 한 곳이 아니라 권한 모델 전반(조회·수정·삭제)의 문제라 범위를 먼저 정해야 한다.
 
 - [ ] **워크스페이스 역할을 가드와 핸들러가 두 번 조회한다 — `RolesGuard` 가 조회한 역할을 요청에 싣지 않는다** (developer, 낮음,
-      2026-09-25 등재 · `/ai-review` `review/code/2026/09/25/22_45_37` WARNING 4 · 6, 같은 PR 3라운드 `23_58_59` WARNING 3 이 재지적). `@Roles()` 가 붙은 라우트는 가드가
+      2026-09-25 등재 · `/ai-review` `review/code/2026/09/25/22_45_37` WARNING 4 · 6, 같은 PR 3라운드 `23_58_59` WARNING 3 · 4라운드 `review/code/2026/09/26/00_27_56` WARNING 2 가 재지적 — 4라운드는 «대상이 personal 이면 역할을 쓰지도 않는데 먼저 읽는다» 는 지연 조회 처방을 더했다). `@Roles()` 가 붙은 라우트는 가드가
       `getMemberRole` 로 역할을 읽는데, Admin 판정이 서비스에 있는 핸들러(통합 `create` · `update` · `rotate` · `remove` 등)는
       `resolveRole()` 로 **한 번 더** 읽는다 — 같은 요청에서 `workspace_member` PK 조회 두 번. 통합 모듈의 기존 패턴(`create` ·
       `rotate`)이고 `integration-personal-owner` PR 이 `update` · `remove` 로 넓혔다. 처방 후보: 가드가 판정한 역할을 `request` 에
@@ -5777,6 +5777,21 @@ field: T | null;
       함수이고, `integration-personal-owner` PR 이 트랜잭션 임계구역 안에 커밋 직전 인가 재판정(`assertRequesterStillAllowed`)을
       더했다. 처방 후보: 락 안 «재판정 → 자격 증명 교체 → 상태 갱신» 을 private 메서드로 뽑아 트랜잭션 콜백을 짧게 — 재판정을
       `handleCallback` 전체 없이 검증할 수 있게 된다. 동작 변경 없는 리팩터라 기존 콜백 테스트가 회귀를 본다. **착수 조건**: 없음.
+
+- [ ] **통합 소유자 강제의 테스트 · 구조 잔여 — 트랜잭션 매니저 분기 · Organization rotate e2e · 조건부 쓰기 헬퍼** (developer, 낮음,
+      2026-09-26 등재 · `/ai-review` `review/code/2026/09/26/00_27_56` WARNING 1 · 3 · 4 — «수렴 예외» 등재분, 판정은 그 세션
+      `RESOLUTION.md`). 동작 결함은 없다.
+      1. `WorkspacesService.getMemberRole(workspaceId, userId, manager?)` 의 `manager` 분기를 실제로 타는 unit 이 없다 — 통합 쪽 테스트는
+         `WorkspacesService` 를 mock 한다. `workspaces.service.spec.ts` 에 «매니저를 주면 `manager.getRepository(WorkspaceMember)` 를 쓰고
+         `memberRepository` 는 안 쓴다» 한 건(W1). 깨져도 역할 재조회 자체는 유지된다 — 잃는 것은 락 보유 중 두 번째 커넥션 회피.
+      2. e2e `integration-personal-owner.e2e-spec.ts` 에 Organization 통합 rotate(Editor 403 · Admin 200)가 없고, 마지막 케이스가
+         `beforeAll` 의 `personalId` 를 지워 선언 순서에 기댄다 — 삭제 케이스는 자기 통합을 만들어 자기완결로(W4). rotate 의 락 안
+         역할 재조회는 unit(뮤턴트 R13)이 본다.
+      3. `integrations.service.ts` 의 «`judgedRow` 조건부 update → `affected === 0` 이면 404» 4줄이 `update` · `updateScope` ·
+         `reauthorize` 세 곳에 반복된다 — `updateJudgedOrNotFound(row, patch)` 헬퍼(W3). 같은 리뷰 INFO 4(컨트롤러가
+         `IntegrationModifyAction` 을 재수출 경유지에서 import) · INFO 13(mode `request_scopes` 와 action `request-scopes` 표기 규약
+         주석)도 함께.
+      **착수 조건**: 없음(여유 있을 때). `codebase/**` 편집이라 리뷰 게이트를 한 바퀴 돈다.
 
 - [ ] **entity tester 재진입 금지가 문서로만 있다** (developer, 낮음, 2026-09-19 등재 · `/ai-review` `review/code/2026/09/19/16_00_06`
       concurrency · side_effect WARNING 1). entity tester 는 연결 테스트 동시 상한(2) 안에서 도므로, 등록된 테스터가 `testConnection` ·
