@@ -38,6 +38,7 @@ started: 2026-09-25
 | 라운드 | 세션 | 결과 | 처분 |
 | --- | --- | --- | --- |
 | 1 | `review/code/2026/09/25/20_20_00` | Critical 0 · Warning 3 | W1(재검사 OR 의 멤버십 소멸 가지 미고정) — `it.each` 로 두 상태(admin · null). 뮤턴트 **예측/실측**: V1(역할 안 봄) → admin 케이스만 RED / **1 failed — admin 케이스** · V2(부재 안 봄, `as WorkspaceMember` 로 컴파일 유지) → null 케이스만 RED / **1 failed — null 케이스**. W3(README 과밀 문장) — 판별별 불릿 둘. 커밋 `47dfdb3c3`. W2(W2 · W3 «등재» 가 트래커에 없음) — **맞는 지적**, 트래커에 planner 항목 둘 등재 |
+| 2 | `review/code/2026/09/25/20_47_04` | Critical 0 · Warning 0 · INFO 6 | **종결** — 이 라운드 `codebase/**` 수정 0건. INFO 1 · 2(mock 헬퍼 · 인라인 타입 반복)는 1라운드 INFO 2 · 3 과 같은 관찰, 조치 불요 판정 유지 |
 
 ## 체크리스트
 
@@ -47,6 +48,6 @@ started: 2026-09-25
 - [x] README(요구 1) — 캐너리 코드(`total === 0` 거부 · 로그 두 개수 · 에러 메시지의 «먼저 볼 곳») · 로그 문구와 한 줄씩 대조해 고쳤다
 - [x] CHANGELOG 판정 — **항목 없음.** 기준 블록 «한 기능의 동작을 고정하는 테스트 추가(가드가 아닌 커버리지) · 문서» 에 해당
 - [x] TEST WORKFLOW — lint · unit(backend 10059) · build · e2e(71 스위트 · 391건 PASS)
-- [ ] `/ai-review`
+- [x] `/ai-review` — 2라운드로 수렴(위 표)
 - [ ] `--impl-done`(spec 연결 여부 확인: `workspaces.service.spec.ts` 는 `9-user-profile` 의 `modules/workspaces/**` 에 걸린다)
 - [ ] 트래커 항목 닫기
