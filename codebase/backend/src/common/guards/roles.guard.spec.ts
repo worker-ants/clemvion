@@ -734,6 +734,38 @@ describe('RolesGuard', () => {
         ).resolves.toBe(true);
       });
 
+      /**
+       * 경로 값이 형식 불량이면 경로 판정(역할 포함)은 건너뛰고 헤더 멤버십만 본다 — 핸들러는
+       * `@WorkspaceParam` 내장 `ParseUUIDPipe` 가 400 으로 끊으므로 돌지 않는다. 헤더 쪽 검사까지
+       * 건너뛰면 헤더 위조가 그 400 보다 먼저 통과로 읽히는 순서가 생긴다.
+       */
+      it('경로 값이 형식 불량이면 역할 판정 없이 헤더 멤버십만 본다', async () => {
+        const member = buildGuard({ [VICTIM_WS]: 'viewer' });
+        await expect(
+          member.guard.canActivate(
+            pathContext(
+              PathTarget.prototype.adminPathAndHeader,
+              { id: 'not-a-uuid' },
+              { headerWorkspaceId: VICTIM_WS, tokenWorkspaceId: TOKEN_WS },
+            ),
+          ),
+        ).resolves.toBe(true);
+        expect(member.getMemberRole).toHaveBeenCalledTimes(1);
+        expect(member.getMemberRole).toHaveBeenCalledWith(VICTIM_WS, 'u1');
+
+        const outsider = buildGuard(null);
+        await expectForbidden(
+          outsider.guard.canActivate(
+            pathContext(
+              PathTarget.prototype.adminPathAndHeader,
+              { id: 'not-a-uuid' },
+              { headerWorkspaceId: VICTIM_WS, tokenWorkspaceId: TOKEN_WS },
+            ),
+          ),
+          'NOT_A_MEMBER',
+        );
+      });
+
       it('경로 워크스페이스의 역할이 미달이면 헤더 워크스페이스의 owner 여도 거부', async () => {
         const { guard } = buildGuard({
           [OTHER_WS]: 'editor',

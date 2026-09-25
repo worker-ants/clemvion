@@ -20,8 +20,7 @@ import { UpdateWorkspaceSettingsDto } from './dto/update-workspace-settings.dto'
 import { AuditLogsService } from '../audit-logs/audit-logs.service';
 import { AUDIT_ACTIONS } from '../audit-logs/audit-action.const';
 import { resolveTriggerResourceReleaser } from '../triggers/trigger-resource-release';
-
-const ADMIN_ROLES = new Set<string>(['owner', 'admin']);
+import { ADMIN_ROLES } from '../../common/constants/workspace-roles';
 
 @Injectable()
 export class WorkspacesService {
@@ -823,9 +822,13 @@ export class WorkspacesService {
   ): Promise<void> {
     // **인가를 대상 조회보다 먼저 한다.** 종전에는 `findOne` → 404 → self → owner 403 →
     // `assertAdmin` 순서라, 이 워크스페이스와 무관한 사용자도 `(workspaceId, memberId)` 쌍에
-    // 대해 세 갈래로 구분되는 답을 받았다(없음 404 · owner 403 · 비-owner 403). 가드 층은
+    // 대해 세 갈래로 구분되는 답을 받았다(없음 404 · owner 403 · 비-owner 403). ~~가드 층은
     // 이 라우트를 막지 못한다 — `@Roles()` 가 없고 `handlerConsumesWorkspaceId` 가 false
-    // (`@WorkspaceId()` 가 아니라 `@Param('id')`)라 `RolesGuard` 가 단축 통과시킨다.
+    // (`@WorkspaceId()` 가 아니라 `@Param('id')`)라 `RolesGuard` 가 단축 통과시킨다.~~
+    // (2026-09-25 정정) 이제 `@WorkspaceParam('id')` 라 `RolesGuard` 가 경로 워크스페이스의
+    // 멤버십을 먼저 본다 — 비멤버는 여기 닿기 전에 `NOT_A_MEMBER` 다. 이 순서는 가드 인식이
+    // 깨졌을 때의 두 번째 선으로 남는다(`spec/data-flow/12-workspace.md` §Rationale "경로 파라미터
+    // 워크스페이스도 가드가 본다").
     //
     // 형제(`addMemberByEmail` · `updateMemberRole`)처럼 `assertAdmin` 을 첫 줄에 둘 수는 없다 —
     // **자가 탈퇴는 비-admin 도 해야 하고**, 자기 자신인지는 대상을 읽어야 안다. 그래서 인가를
@@ -930,6 +933,13 @@ export class WorkspacesService {
     });
   }
 
+  /**
+   * 아래 두 검사(`assertMembership` · `assertAdmin`)는 경로 워크스페이스 라우트에서 `RolesGuard` 가
+   * **같은 조회를 먼저 한다** — 요청당 멤버십 쿼리가 한 번 더 도는 것은 의도된 중복이다. 이 검사는
+   * 가드 인식이 깨져 단축 통과가 일어날 때의 두 번째 선이고, 가드가 읽은 role 을 넘겨받으면 그 선이
+   * 가드에 기대게 돼 독립성을 잃는다(`spec/data-flow/12-workspace.md` §Rationale "경로 파라미터
+   * 워크스페이스도 가드가 본다" — «서비스 계층 검사는 남는다»).
+   */
   private async assertMembership(
     workspaceId: string,
     userId: string,

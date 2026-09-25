@@ -60,6 +60,13 @@ import { Roles } from '../../common/guards/roles.guard';
 // `SENSITIVE_ACTION_THROTTLE`; 라우트 의미는 이 별칭으로 표현한다.
 const INVITATION_THROTTLE = SENSITIVE_ACTION_THROTTLE;
 
+// `@ApiForbiddenResponse` 설명 — 경로 워크스페이스 라우트의 403 은 `RolesGuard` 가 코드를 실어 낸다
+// (`spec/data-flow/12-workspace.md` §Rationale "가드 거부의 오류 코드"). 라우트마다 문장을 손으로 적으면
+// 가드 코드가 바뀔 때 자리마다 동기화해야 하므로 요구 역할별로 한 번만 적는다.
+const FORBIDDEN_MEMBER_ROUTE = '워크스페이스 멤버가 아님(NOT_A_MEMBER)';
+const FORBIDDEN_ADMIN_ROUTE = `${FORBIDDEN_MEMBER_ROUTE} 또는 Admin 이상 권한 필요(ADMIN_REQUIRED)`;
+const FORBIDDEN_OWNER_ROUTE = `${FORBIDDEN_MEMBER_ROUTE} 또는 Owner 권한 필요(OWNER_REQUIRED)`;
+
 @ApiTags('Workspaces')
 @ApiBearerAuth('access-token')
 @Controller('workspaces')
@@ -126,8 +133,7 @@ export class WorkspacesController {
   @ApiBadRequestResponse({ description: '입력값 검증 실패' })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
   @ApiForbiddenResponse({
-    description:
-      '워크스페이스 멤버가 아님(NOT_A_MEMBER) 또는 Admin 이상 권한 필요(ADMIN_REQUIRED)',
+    description: FORBIDDEN_ADMIN_ROUTE,
   })
   @ApiNotFoundResponse({ description: '해당 워크스페이스를 찾을 수 없음' })
   async update(
@@ -157,8 +163,7 @@ export class WorkspacesController {
   @ApiBadRequestResponse({ description: '입력값 검증 실패' })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
   @ApiForbiddenResponse({
-    description:
-      '워크스페이스 멤버가 아님(NOT_A_MEMBER) 또는 Admin 이상 권한 필요(ADMIN_REQUIRED)',
+    description: FORBIDDEN_ADMIN_ROUTE,
   })
   @ApiNotFoundResponse({ description: '해당 워크스페이스를 찾을 수 없음' })
   async updateSettings(
@@ -194,7 +199,7 @@ export class WorkspacesController {
   })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
   @ApiForbiddenResponse({
-    description: '워크스페이스 멤버가 아님(NOT_A_MEMBER)',
+    description: FORBIDDEN_MEMBER_ROUTE,
   })
   @ApiNotFoundResponse({ description: '해당 워크스페이스를 찾을 수 없음' })
   async getSettings(
@@ -219,8 +224,7 @@ export class WorkspacesController {
   @ApiOkWrappedResponse(OkResultDto, { description: '삭제 결과' })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
   @ApiForbiddenResponse({
-    description:
-      '워크스페이스 멤버가 아님(NOT_A_MEMBER) 또는 Owner 권한 필요(OWNER_REQUIRED), 또는 개인 워크스페이스',
+    description: `${FORBIDDEN_OWNER_ROUTE}, 또는 개인 워크스페이스`,
   })
   @ApiNotFoundResponse({ description: '해당 워크스페이스를 찾을 수 없음' })
   async remove(
@@ -241,8 +245,7 @@ export class WorkspacesController {
   @ApiOkWrappedResponse(OkResultDto, { description: '나가기 결과' })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
   @ApiForbiddenResponse({
-    description:
-      '워크스페이스 멤버가 아님(NOT_A_MEMBER), 또는 개인 워크스페이스이거나 유일한 owner 인 경우',
+    description: `${FORBIDDEN_MEMBER_ROUTE}, 또는 개인 워크스페이스이거나 유일한 owner 인 경우`,
   })
   @ApiNotFoundResponse({ description: '해당 워크스페이스를 찾을 수 없음' })
   async leave(
@@ -270,8 +273,7 @@ export class WorkspacesController {
   })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
   @ApiForbiddenResponse({
-    description:
-      '워크스페이스 멤버가 아님(NOT_A_MEMBER) 또는 Owner 권한 필요(OWNER_REQUIRED), 또는 개인 워크스페이스',
+    description: `${FORBIDDEN_OWNER_ROUTE}, 또는 개인 워크스페이스`,
   })
   @ApiNotFoundResponse({
     description: '워크스페이스 또는 대상 멤버를 찾을 수 없음',
@@ -299,7 +301,7 @@ export class WorkspacesController {
   @ApiOkWrappedArrayResponse(WorkspaceMemberDto, { description: '멤버 목록' })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
   @ApiForbiddenResponse({
-    description: '워크스페이스 멤버가 아님(NOT_A_MEMBER)',
+    description: FORBIDDEN_MEMBER_ROUTE,
   })
   @ApiNotFoundResponse({ description: '해당 워크스페이스를 찾을 수 없음' })
   async listMembers(
@@ -327,8 +329,7 @@ export class WorkspacesController {
   })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
   @ApiForbiddenResponse({
-    description:
-      '워크스페이스 멤버가 아님(NOT_A_MEMBER) 또는 Admin 이상 권한 필요(ADMIN_REQUIRED)',
+    description: FORBIDDEN_ADMIN_ROUTE,
   })
   @ApiNotFoundResponse({ description: '해당 워크스페이스를 찾을 수 없음' })
   @ApiConflictResponse({ description: '이미 속한 멤버' })
@@ -358,8 +359,7 @@ export class WorkspacesController {
   @ApiBadRequestResponse({ description: '입력값 검증 실패' })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
   @ApiForbiddenResponse({
-    description:
-      '워크스페이스 멤버가 아님(NOT_A_MEMBER) 또는 Admin 이상 권한 필요(ADMIN_REQUIRED)',
+    description: FORBIDDEN_ADMIN_ROUTE,
   })
   @ApiNotFoundResponse({ description: '워크스페이스 또는 멤버를 찾을 수 없음' })
   async updateMember(
@@ -388,8 +388,7 @@ export class WorkspacesController {
   @ApiOkWrappedResponse(OkResultDto, { description: '제거 결과' })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
   @ApiForbiddenResponse({
-    description:
-      '워크스페이스 멤버가 아님(NOT_A_MEMBER), 또는 타인 제거에 Admin 이상 권한 필요(ADMIN_REQUIRED — 서비스 판정)',
+    description: `${FORBIDDEN_MEMBER_ROUTE}, 또는 타인 제거에 Admin 이상 권한 필요(ADMIN_REQUIRED — 서비스 판정)`,
   })
   @ApiNotFoundResponse({ description: '워크스페이스 또는 멤버를 찾을 수 없음' })
   async removeMember(
@@ -413,8 +412,7 @@ export class WorkspacesController {
   })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
   @ApiForbiddenResponse({
-    description:
-      '워크스페이스 멤버가 아님(NOT_A_MEMBER) 또는 Admin 이상 권한 필요(ADMIN_REQUIRED)',
+    description: FORBIDDEN_ADMIN_ROUTE,
   })
   @ApiNotFoundResponse({ description: '해당 워크스페이스를 찾을 수 없음' })
   async listInvitations(
@@ -453,8 +451,7 @@ export class WorkspacesController {
   @ApiBadRequestResponse({ description: '입력값 검증 실패' })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
   @ApiForbiddenResponse({
-    description:
-      '워크스페이스 멤버가 아님(NOT_A_MEMBER) 또는 Admin 이상 권한 필요(ADMIN_REQUIRED)',
+    description: FORBIDDEN_ADMIN_ROUTE,
   })
   @ApiNotFoundResponse({ description: '해당 워크스페이스를 찾을 수 없음' })
   @ApiConflictResponse({ description: '이미 워크스페이스 멤버인 이메일' })
@@ -502,8 +499,7 @@ export class WorkspacesController {
   })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
   @ApiForbiddenResponse({
-    description:
-      '워크스페이스 멤버가 아님(NOT_A_MEMBER) 또는 Admin 이상 권한 필요(ADMIN_REQUIRED)',
+    description: FORBIDDEN_ADMIN_ROUTE,
   })
   @ApiNotFoundResponse({ description: '초대 또는 워크스페이스를 찾을 수 없음' })
   @ApiConflictResponse({
@@ -547,8 +543,7 @@ export class WorkspacesController {
   @ApiNoContentResponse({ description: '초대 취소 완료' })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
   @ApiForbiddenResponse({
-    description:
-      '워크스페이스 멤버가 아님(NOT_A_MEMBER) 또는 Admin 이상 권한 필요(ADMIN_REQUIRED)',
+    description: FORBIDDEN_ADMIN_ROUTE,
   })
   @ApiNotFoundResponse({ description: '초대 또는 워크스페이스를 찾을 수 없음' })
   async revokeInvitation(
