@@ -1,6 +1,6 @@
 ---
 title: 경로 파라미터 워크스페이스도 가드가 보고, 가드 거부는 코드를 갖는다 — 구현
-status: in-progress
+status: complete
 owner: developer
 worktree: workspace-path-guard
 spec_impact:
@@ -84,8 +84,9 @@ INFO 3(`nestjs-v12-coordinated-upgrade.md` §C 캐너리 기준값 142)은 요�
       의 15곳 표는 구현 뒤에 썼다 — 뮤턴트로 따로 검증한다
 - [x] 구현 1~5 · 8 (요구 1 의 캐너리 기준값 재실측은 e2e 부팅 로그에서)
 - [x] 뮤턴트(가드 분기마다) — 17개 전부 KILLED, 각각 의도한 테스트가 잡았다(아래 표). nestjs-v12 §C 판별자도 재실측(MB RED 11 · MB2 RED 25)
-- [ ] TEST WORKFLOW — lint · unit · build · e2e (1차: lint · unit · build PASS, e2e 1회 실패 = 내 단언 200 vs 실제 201 → 고쳐 71/390 PASS.
-      리뷰 fix 뒤 최종 재수행에서 체크)
+- [x] TEST WORKFLOW — lint · unit · build · e2e. 1차에 e2e 1회 실패(내 단언 200 vs 실제 201 — 이양 성공, OpenAPI 광고와의 기존 불일치는
+      트래커 등재) → 고쳐 PASS. 리뷰 라운드마다 재수행했고, **마지막 codebase 편집(`61ca58343`) 뒤** lint · unit(backend 10058) · build ·
+      e2e(71 스위트 · 391) PASS — `_test_logs/*-20260925-18{0828,0948,1121,1424}.log`
 - [x] CHANGELOG(제품 동작 · 가드 신설) — 항목 둘
 - [x] 부트 캐너리 기준값 재실측 — `@WorkspaceId()` 142 · `@WorkspaceParam()` 15, `nestjs-v12-coordinated-upgrade.md` §C 갱신
 
@@ -122,7 +123,11 @@ INFO 3(`nestjs-v12-coordinated-upgrade.md` §C 캐너리 기준값 142)은 요�
 | T1 · T2 | `transferOwnership` 인가 선행 제거 · 비-owner 통과 | RED | 둘 다 RED |
 | T3 | 다중 경로의 `@Roles` 를 첫째에만 | RED | **처음엔 생존** — 미달 케이스가 한 자리뿐이었다. 반대 자리 케이스를 더한 뒤 RED |
 | T4 | 다중 경로의 `@Roles` 를 마지막에만 | RED | RED |
-- [ ] `/ai-review` — 정지 규칙: Critical 0 · Warning 0 · 그 라운드 codebase 수정 0건. 라운드마다 RESOLUTION.md 가 처분을 적는다.
+
+### 리뷰 · 게이트 (체크리스트 계속)
+
+- [x] `/ai-review` — 정지 규칙: Critical 0 · Warning 0 · 그 라운드 codebase 수정 0건. 라운드마다 RESOLUTION.md 가 처분을 적는다.
+      5라운드에서 동작 결함 0 · 구조/문서 Warning 만 남아 «수렴 예외»로 종결(등재 항목: 트래커 «경로 워크스페이스 가드 후속»).
       | 라운드 | 세션 | 결과 | 조치 |
       | --- | --- | --- | --- |
       | 1 | `16_03_32` | C0 · W8 | `37ee970a2` — 역할 서열 한 표 · 낡은 주석 · 403 설명 상수 · 두 번째 선 의도 주석 |
@@ -135,5 +140,8 @@ INFO 3(`nestjs-v12-coordinated-upgrade.md` §C 캐너리 기준값 142)은 요�
 - [x] 세 번째 planner 턴 — spec `@Roles` 라우트 수 정정(66 · 9 · 7 · 5 는 결정 당시 main 기준으로도 틀렸다 → AST 실측 main 63 · 9 · 3 · 4 =
       79, 머지 시점 63 · 17 · 4 · 4 = 88). `--spec` `review/consistency/2026/09/25/18_35_55` BLOCK: NO(WARNING 1 = 이 표에 5라운드를
       적는 것 — 반영). draft `plan/complete/spec-draft-workspace-path-guard-role-census.md`
-- [ ] `--impl-done`
-- [ ] 트래커 항목 닫기
+- [x] `--impl-done` — `review/consistency/2026/09/25/18_42_32` BLOCK: NO. scope = `spec_impact` 9개 사본 + `codebase` diff 전체(번들 절단은
+      절대경로 Read 블록으로 보완). WARNING 1(`integrations.service.ts` 의 동명 로컬 `ADMIN_ROLES`)은 트래커 후속 항목 5번으로 등재.
+      push 게이트 dry-run(`evaluate_review`) 허용
+- [x] 트래커 항목 닫기 — «경로 파라미터로 워크스페이스를 받는 라우트 13개…» `[x]` + 닫힘 노트. 후속 셋 등재(기존 403 설명 ~120곳 ·
+      POST 200 광고 vs 201 · 경로 워크스페이스 가드 후속)

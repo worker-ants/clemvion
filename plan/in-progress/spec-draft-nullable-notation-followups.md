@@ -4993,6 +4993,9 @@ field: T | null;
          서비스 고유 문구(«owner 이양은 현재 owner 만…»)를 unit 에서 고정한다(INFO 4 · 6).
       4. `transferOwnership` docstring 의 «두 멤버를 단일 IN 쿼리로 동시 락» 이 실제(순차 두 번의 개별 락)와 다르다 — 이 PR 이전부터의
          서술 부채(INFO 8). 워크스페이스 행 락이 임계구역을 직렬화해 데드락 위험은 없다는 사실로 정정.
+      5. `modules/integrations/integrations.service.ts` 의 모듈 로컬 `ADMIN_ROLES`(같은 값 `{'owner','admin'}`, origin/main 부터)가 새 공용
+         `common/constants/workspace-roles.ts` 의 `ADMIN_ROLES` 와 동명이인으로 남았다 — 공용 상수를 import 하거나 이유를 주석으로
+         (`--impl-done` `review/consistency/2026/09/25/18_42_32` naming_collision WARNING).
       **착수 조건**: 없음(여유 있을 때). `codebase/**` 편집이라 리뷰 게이트를 한 바퀴 돈다.
 
 - [ ] **기존 `@ApiForbiddenResponse` 설명 ~120곳이 가드 거부 코드를 싣지 않는다** (developer, 낮음, 2026-09-25 등재 —
