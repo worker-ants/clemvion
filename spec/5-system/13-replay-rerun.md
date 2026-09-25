@@ -126,6 +126,9 @@ Re-run 시 새 실행은 `re_run_of = <원본 ID>`, `chain_id = <원본 chain ro
 - 호출자가 같은 워크스페이스의 멤버이고 Editor 이상 (Owner / Admin / Editor)
 - 호출자가 원본 실행 (`execution.executed_by`) 의 작성자이거나, 워크스페이스의 Owner / Admin
 
+거부 층이 둘이다 — 첫 조건은 `RolesGuard` 가 막고(라우트 `@Roles('editor')` — 비멤버 `NOT_A_MEMBER` · Viewer `EDITOR_REQUIRED`),
+둘째 조건은 서비스가 `RERUN_PERMISSION_DENIED` 로 막는다([data-flow §Rationale "가드 거부의 오류 코드"](../data-flow/12-workspace.md#가드-거부의-오류-코드-2026-09-25)).
+
 > **`executed_by = NULL` (트리거/스케줄/웹훅 자동 실행) 정책 (v1, 2026-05-31)**: 시작자가 없는 자동 실행은 "타인의 실행" 이 아니므로 **워크스페이스 Editor+ 면 누구나 re-run/chain 조회 허용** (워크스페이스 자원으로 취급). 더 보수적으로 owner/admin 한정이 필요하면 후속 정책 결정 — 현재 구현(`executions.service.ts` reRun/getChain)은 본 v1 정책(Editor+ 허용)을 따른다.
 
 위 조건은 dry-run 모드에도 동일하게 적용된다 (안전한 모드라 해도 다른 사용자의 실행 흐름을 자동으로 재현하는 것은 정보 노출 위험).
@@ -238,7 +241,9 @@ Run Results 드로어와 실행 상세 페이지는 dry-run 모드로 실행된 
 | HTTP | code | 의미 |
 | --- | --- | --- |
 | 401 | `AUTH_REQUIRED` | 인증 토큰 없음/만료. 표준 [Spec 에러 처리](./3-error-handling.md) 규약 |
-| 403 | `RERUN_PERMISSION_DENIED` | RR-PL-06 권한 미충족 (워크스페이스 멤버 아님 / Viewer / 다른 사용자의 실행이고 Owner/Admin 아님) |
+| 403 | `NOT_A_MEMBER` | RR-PL-06 첫 조건 — 워크스페이스 멤버 아님 (`RolesGuard`) |
+| 403 | `EDITOR_REQUIRED` | RR-PL-06 첫 조건 — Viewer (`RolesGuard`, 라우트가 `@Roles('editor')`) |
+| 403 | `RERUN_PERMISSION_DENIED` | RR-PL-06 둘째 조건 — 다른 사용자의 실행이고 Owner/Admin 아님 (서비스). 2026-09-25 이전 이 행은 비멤버 · Viewer 까지 이 코드로 적었으나, 그 둘은 가드가 먼저 막아 서비스에 닿지 않았다 |
 | 404 | `RERUN_EXECUTION_NOT_FOUND` | `executionId` 가 존재하지 않거나 다른 워크스페이스 |
 | 404 | `RERUN_WORKFLOW_DELETED` | 원본 실행의 워크플로가 삭제됨 (Re-run 의 전제 — 현재 시점 워크플로 정의 — 가 충족 불가) |
 | 409 | `RERUN_CHAIN_DEPTH_EXCEEDED` | RR-PL-05 chain 깊이 32 초과 |
@@ -267,6 +272,7 @@ Run Results 드로어와 실행 상세 페이지는 dry-run 모드로 실행된 
 | HTTP | code | 의미 |
 | --- | --- | --- |
 | 401 | `AUTH_REQUIRED` | 인증 토큰 없음/만료 |
+| 403 | `NOT_A_MEMBER` | 헤더로 지정한 워크스페이스의 멤버 아님 (`RolesGuard` — 이 라우트는 `@Roles()` 없이 `@WorkspaceId()` 만 쓴다) |
 | 403 | `RERUN_PERMISSION_DENIED` | RR-PL-06 미충족 (타인 실행이고 owner/admin 아님) |
 | 404 | `RERUN_EXECUTION_NOT_FOUND` | `executionId` 미존재 또는 다른 워크스페이스 |
 
@@ -524,7 +530,7 @@ Re-run 은 **트리거를 다시 발화하지 않는다** — 원본 실행이 w
 | 감사 로그 | §11 — `execution.re_run` 이벤트 |
 | Rate limit | §12 — 사용자당 분당 10회 |
 | 관측성 | NodeExecution 의 dry-run 표기 (§7.4) + chain badge 로 Re-run 트래픽을 일반 manual 실행과 구분 가능 |
-| 회귀 잠금 | 단위·통합·e2e 테스트가 다음을 회귀 가드:<br>- 입력 동일/수정/dry-run 케이스<br>- 권한 거부 (`RERUN_PERMISSION_DENIED`)<br>- 삭제된 워크플로 (`RERUN_WORKFLOW_DELETED`)<br>- chain 깊이 32 초과 (`RERUN_CHAIN_DEPTH_EXCEEDED`)<br>- multi-turn 노드 새 세션 (RR-PL-04)<br>- AI Assistant 비트리거 (RR-PL-07) |
+| 회귀 잠금 | 단위·통합·e2e 테스트가 다음을 회귀 가드:<br>- 입력 동일/수정/dry-run 케이스<br>- 권한 거부 (`NOT_A_MEMBER` · `EDITOR_REQUIRED` · `RERUN_PERMISSION_DENIED`)<br>- 삭제된 워크플로 (`RERUN_WORKFLOW_DELETED`)<br>- chain 깊이 32 초과 (`RERUN_CHAIN_DEPTH_EXCEEDED`)<br>- multi-turn 노드 새 세션 (RR-PL-04)<br>- AI Assistant 비트리거 (RR-PL-07) |
 
 ---
 

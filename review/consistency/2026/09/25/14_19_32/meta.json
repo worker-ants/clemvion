@@ -1,0 +1,14 @@
+{
+  "timestamp": "2026-09-25T14:19:32.139989",
+  "mode": "spec draft 검토 (--spec)",
+  "target_path": "plan/in-progress/spec-draft-workspace-path-guard.md",
+  "checkers": [
+    "cross_spec",
+    "rationale_continuity",
+    "convention_compliance",
+    "plan_coherence",
+    "naming_collision"
+  ],
+  "target_snapshot": "_target/spec-draft-workspace-path-guard.md",
+  "scope_note": "cross_spec · naming_collision 프롬프트 끝에 호출자 블록을 덧붙였다 — 번들이 1차 대상 spec/data-flow/12-workspace.md 본문을 예산 초과로 생략해, 판정 전에 그 파일과 conventions 두 파일을 절대경로로 직접 Read 하도록 지시했다(선례 #1358)."
+}

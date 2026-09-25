@@ -1,6 +1,9 @@
 import { INestApplication, Logger } from '@nestjs/common';
 import { DiscoveryService, MetadataScanner } from '@nestjs/core';
-import { handlerConsumesWorkspaceId } from './workspace.decorator';
+import {
+  handlerConsumesWorkspaceId,
+  workspaceParamNamesOf,
+} from './workspace.decorator';
 
 /**
  * `handlerConsumesWorkspaceId` 가 **아직 동작하는지** 부팅 시 1회 확인한다.
@@ -36,6 +39,16 @@ import { handlerConsumesWorkspaceId } from './workspace.decorator';
  * 부분 파손(일부 라우트만 인식 실패)은 이 단언이 못 잡는다 — 대신 개수를 로그로 남겨
  * 급락이 눈에 띄게 한다. 알려진 한계라 숨기지 않고 적어 둔다.
  *
+ * ## 두 팩토리를 센다 (2026-09-25~)
+ *
+ * `RolesGuard` 는 `@WorkspaceParam(...)`(경로로 워크스페이스를 받는 파라미터)도 같은 reflection 으로
+ * 인식한다(`workspaceParamNamesOf`). 깨지면 경로 라우트의 `@Roles()` 요구가 다시 헤더 · 토큰의
+ * 워크스페이스로 판정된다 — 같은 fail-open 이라 같은 캐너리가 센다. 두 개수는 **따로** 로그에 남기고
+ * (한쪽만 급락해도 보이게), 단언은 합계가 0 인지다 — 두 판별은 같은 `ROUTE_ARGS_METADATA` 를 같은
+ * `Function.name` 키로 읽어 함께 깨지고, 경로 라우트가 정당하게 모두 사라지는 날 부팅이 멈추면 안 된다.
+ * 로그 앞 절반(`@WorkspaceId() 소비 라우트 N건 인식`)은 `spec/5-system/1-auth.md` 가 인용하는
+ * 문구라 그대로 둔다.
+ *
  * ## `SetMetadata` + `Reflector` 로 옮기지 않은 이유
  *
  * 그쪽이 공식 확장점이지만, `@WorkspaceId()` 사용처마다 별도 마커를 달아야 한다 —
@@ -52,29 +65,43 @@ import { handlerConsumesWorkspaceId } from './workspace.decorator';
 export class WorkspaceIdReflectionBrokenError extends Error {
   constructor() {
     super(
-      '[SECURITY] `@WorkspaceId()` 소비 라우트를 하나도 인식하지 못했습니다. ' +
+      '[SECURITY] `@WorkspaceId()` · `@WorkspaceParam()` 소비 라우트를 하나도 인식하지 못했습니다. ' +
         'RolesGuard 는 이 판별에 기대어 멤버십 검증 대상을 좁히므로, 이 상태로 기동하면 ' +
-        '`@Roles()` 없는 워크스페이스 라우트가 멤버십 검증을 건너뜁니다(cross-tenant). ' +
+        '`@Roles()` 없는 워크스페이스 라우트가 멤버십 검증을 건너뛰고, 경로 워크스페이스 라우트의 ' +
+        '역할 요구가 헤더 · 토큰의 워크스페이스로 판정됩니다(cross-tenant). ' +
         '원인 후보: @nestjs/* 업그레이드로 ROUTE_ARGS_METADATA 포맷 변경 · 핸들러를 감싸는 ' +
         '데코레이터 도입으로 Function.name 소실 · 빌드 minify. ' +
-        'common/decorators/workspace.decorator.ts 의 handlerConsumesWorkspaceId 를 먼저 보세요.',
+        'common/decorators/workspace.decorator.ts 의 handlerConsumesWorkspaceId · ' +
+        'workspaceParamNamesOf 를 먼저 보세요.',
     );
     this.name = 'WorkspaceIdReflectionBrokenError';
   }
 }
 
+/** 캐너리가 센 소비 라우트 수 — 둘 다 쓰는 라우트는 `total` 에 한 번만 들어간다. */
+export interface WorkspaceConsumingRouteCount {
+  /** `@WorkspaceId()`(헤더 · 토큰 컨텍스트) 소비 라우트. */
+  readonly requestContext: number;
+  /** `@WorkspaceParam(...)`(경로 워크스페이스) 소비 라우트. */
+  readonly pathParam: number;
+  /** 둘 중 하나라도 소비하는 라우트. */
+  readonly total: number;
+}
+
 /**
- * 주어진 컨트롤러 클래스들에서 `@WorkspaceId()` 를 소비하는 라우트 수를 센다.
+ * 주어진 컨트롤러 클래스들에서 워크스페이스를 소비하는 라우트 수를 센다.
  *
- * **판별은 `handlerConsumesWorkspaceId` 를 그대로 호출**한다 — 여기서 reflection 을
- * 다시 구현하면 캐너리가 진짜 소비자가 아니라 자기 복제본을 검사하게 되어, 정작 막으려던
- * 파손을 통과시킨다.
+ * **판별은 `handlerConsumesWorkspaceId` · `workspaceParamNamesOf` 를 그대로 호출**한다 — 여기서
+ * reflection 을 다시 구현하면 캐너리가 진짜 소비자가 아니라 자기 복제본을 검사하게 되어, 정작
+ * 막으려던 파손을 통과시킨다.
  */
-export function countWorkspaceIdConsumingRoutes(
+export function countWorkspaceConsumingRoutes(
   controllerClasses: unknown[],
   methodNamesOf: (prototype: object) => string[],
-): number {
-  let count = 0;
+): WorkspaceConsumingRouteCount {
+  let requestContext = 0;
+  let pathParam = 0;
+  let total = 0;
   for (const cls of controllerClasses) {
     if (typeof cls !== 'function') continue;
     const prototype: unknown = (cls as { prototype?: unknown }).prototype;
@@ -85,17 +112,21 @@ export function countWorkspaceIdConsumingRoutes(
       ];
       if (typeof handler !== 'function') continue;
       // `cls` 는 위 `typeof cls !== 'function'` 으로 이미 `Function` 이고, 그건
-      // `handlerConsumesWorkspaceId(controllerClass: object, …)` 에 그대로 배정된다.
-      if (handlerConsumesWorkspaceId(cls, handler)) count++;
+      // 두 판별의 `controllerClass: object` 에 그대로 배정된다.
+      const consumesContext = handlerConsumesWorkspaceId(cls, handler);
+      const consumesPath = workspaceParamNamesOf(cls, handler).length > 0;
+      if (consumesContext) requestContext++;
+      if (consumesPath) pathParam++;
+      if (consumesContext || consumesPath) total++;
     }
   }
-  return count;
+  return { requestContext, pathParam, total };
 }
 
 /**
  * 부트 단계. 인식된 라우트가 0 이면 throw 해 기동을 멈춘다(fail-closed).
  *
- * @returns 인식된 소비 라우트 수 (호출부가 로그·관측에 쓴다)
+ * @returns 인식된 소비 라우트 수(두 팩토리 합계, 중복 없이) — 호출부가 로그·관측에 쓴다
  */
 export function assertWorkspaceIdReflectionWorks(
   app: INestApplication,
@@ -110,16 +141,17 @@ export function assertWorkspaceIdReflectionWorks(
     .getControllers()
     .map((wrapper) => wrapper.metatype);
 
-  const count = countWorkspaceIdConsumingRoutes(
+  const { requestContext, pathParam, total } = countWorkspaceConsumingRoutes(
     controllerClasses,
     (prototype) => scanner.getAllMethodNames(prototype),
   );
 
-  if (count === 0) throw new WorkspaceIdReflectionBrokenError();
+  if (total === 0) throw new WorkspaceIdReflectionBrokenError();
 
-  // 부분 파손은 위 단언이 못 잡는다 — 개수를 남겨 급락이 눈에 띄게 한다.
+  // 부분 파손은 위 단언이 못 잡는다 — 개수를 따로 남겨 한쪽의 급락도 눈에 띄게 한다.
   logger.log(
-    `@WorkspaceId() 소비 라우트 ${count}건 인식 — RolesGuard 멤버십 검증 대상 판별 정상.`,
+    `@WorkspaceId() 소비 라우트 ${requestContext}건 인식 · ` +
+      `@WorkspaceParam() 소비 라우트 ${pathParam}건 인식 — RolesGuard 멤버십 검증 대상 판별 정상.`,
   );
-  return count;
+  return total;
 }

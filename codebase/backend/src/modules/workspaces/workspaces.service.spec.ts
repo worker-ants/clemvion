@@ -556,7 +556,8 @@ describe('WorkspacesService', () => {
       ).rejects.toMatchObject({ response: { code: 'ADMIN_REQUIRED' } });
     });
 
-    it('throws ADMIN_REQUIRED when requester is not a member', async () => {
+    // 비멤버는 요구 역할과 무관하게 NOT_A_MEMBER — `RolesGuard` 와 같은 규칙(두 번째 선도 같은 답).
+    it('throws NOT_A_MEMBER when requester is not a member', async () => {
       memberRepo.findOne.mockResolvedValue(null);
 
       await expect(
@@ -565,7 +566,7 @@ describe('WorkspacesService', () => {
           { interactionAllowedOrigins: ['https://example.com'] },
           'user-uuid-1',
         ),
-      ).rejects.toMatchObject({ response: { code: 'ADMIN_REQUIRED' } });
+      ).rejects.toMatchObject({ response: { code: 'NOT_A_MEMBER' } });
     });
 
     it('throws WORKSPACE_NOT_FOUND when workspace missing', async () => {
@@ -618,12 +619,13 @@ describe('WorkspacesService', () => {
       });
     });
 
-    it('throws FORBIDDEN when requester is not a member', async () => {
+    // 종전 FORBIDDEN — spec(`9-user-profile.md` §6.1)과 가드가 NOT_A_MEMBER 라 두 번째 선도 맞춘다.
+    it('throws NOT_A_MEMBER when requester is not a member', async () => {
       memberRepo.findOne.mockResolvedValue(null);
 
       await expect(
         service.getWorkspaceSettings('ws-uuid-1', 'user-uuid-1'),
-      ).rejects.toMatchObject({ response: { code: 'FORBIDDEN' } });
+      ).rejects.toMatchObject({ response: { code: 'NOT_A_MEMBER' } });
     });
 
     it('throws WORKSPACE_NOT_FOUND when member but workspace missing', async () => {
@@ -884,6 +886,12 @@ describe('WorkspacesService', () => {
         ...mockWorkspace,
         type: 'personal',
       });
+      // 멤버여야 유형 판정까지 간다 — 비멤버는 그 전에 NOT_A_MEMBER 다(아래 오라클 케이스).
+      memberRepo.findOne.mockResolvedValue({
+        id: 'mem-1',
+        role: 'owner',
+        userId: 'user-uuid-1',
+      });
 
       await expect(
         service.leaveWorkspace('ws-uuid-1', 'user-uuid-1'),
@@ -944,6 +952,104 @@ describe('WorkspacesService', () => {
         service.leaveWorkspace('ws-uuid-1', 'user-uuid-1'),
       ).rejects.toMatchObject({ response: { code: 'NOT_A_MEMBER' } });
     });
+  });
+
+  /**
+   * 인가가 조회보다 먼저다 — 종전 두 메서드는 워크스페이스를 먼저 조회해 비멤버가 «없음(404) ·
+   * 개인 · 팀» 을 구분할 수 있었다(존재 · 유형 오라클). HTTP 경로에서는 이제 `RolesGuard` 가 먼저
+   * 막지만, 서비스 검사는 가드의 인식이 깨졌을 때의 두 번째 선이라 같은 오라클을 남기지 않는다
+   * (`spec/data-flow/12-workspace.md` §Rationale "경로 파라미터 워크스페이스도 가드가 본다").
+   */
+  describe('비멤버에게 워크스페이스 존재 · 유형을 드러내지 않는다', () => {
+    const workspaces = [
+      ['부재', null],
+      ['개인', { ...mockWorkspace, type: 'personal' as const }],
+      ['팀', { ...mockWorkspace, type: 'team' as const }],
+    ] as const;
+
+    it.each(workspaces)(
+      'leaveWorkspace — 워크스페이스 %s 여도 NOT_A_MEMBER, 워크스페이스는 조회하지 않는다',
+      async (_label, workspace) => {
+        workspaceRepo.findOne.mockResolvedValue(workspace);
+        memberRepo.findOne.mockResolvedValue(null);
+
+        await expect(
+          service.leaveWorkspace('ws-uuid-1', 'user-uuid-1'),
+        ).rejects.toMatchObject({ response: { code: 'NOT_A_MEMBER' } });
+        expect(workspaceRepo.findOne).not.toHaveBeenCalled();
+      },
+    );
+
+    it.each(workspaces)(
+      'addMemberByEmail — 워크스페이스 %s 여도 NOT_A_MEMBER, 워크스페이스는 조회하지 않는다',
+      async (_label, workspace) => {
+        workspaceRepo.findOne.mockResolvedValue(workspace);
+        memberRepo.findOne.mockResolvedValue(null);
+
+        await expect(
+          service.addMemberByEmail(
+            'ws-uuid-1',
+            'added@example.com',
+            'editor',
+            'user-uuid-1',
+          ),
+        ).rejects.toMatchObject({ response: { code: 'NOT_A_MEMBER' } });
+        expect(workspaceRepo.findOne).not.toHaveBeenCalled();
+      },
+    );
+
+    /**
+     * 멤버지만 admin 이 아니어도 같다 — 역할 판정이 유형 판정보다 먼저라 개인 워크스페이스라는 사실을
+     * 드러내지 않는다(`review/code/2026/09/25/17_47_18` testing WARNING — 비멤버만 보던 빈칸).
+     */
+    it.each(workspaces)(
+      'addMemberByEmail — 비-admin 멤버는 워크스페이스 %s 여도 ADMIN_REQUIRED, 워크스페이스는 조회하지 않는다',
+      async (_label, workspace) => {
+        workspaceRepo.findOne.mockResolvedValue(workspace);
+        memberRepo.findOne.mockResolvedValue({ role: 'editor' });
+
+        await expect(
+          service.addMemberByEmail(
+            'ws-uuid-1',
+            'added@example.com',
+            'editor',
+            'user-uuid-1',
+          ),
+        ).rejects.toMatchObject({ response: { code: 'ADMIN_REQUIRED' } });
+        expect(workspaceRepo.findOne).not.toHaveBeenCalled();
+      },
+    );
+
+    /**
+     * `transferOwnership` 도 같은 모양이었다 — 트랜잭션 안에서 워크스페이스를 먼저 읽어 «없음 404 · 개인
+     * `CANNOT_TRANSFER_PERSONAL` · 팀 비-owner `OWNER_REQUIRED`» 로 갈렸다. 계획 단계 실측이 놓친 세 번째
+     * 자리다(`review/code/2026/09/25/17_47_18` requirement WARNING).
+     */
+    it.each(workspaces)(
+      'transferOwnership — 워크스페이스 %s 여도 비멤버는 NOT_A_MEMBER, 워크스페이스는 조회하지 않는다',
+      async (_label, workspace) => {
+        workspaceRepo.findOne.mockResolvedValue(workspace);
+        memberRepo.findOne.mockResolvedValue(null);
+
+        await expect(
+          service.transferOwnership('ws-uuid-1', 'user-uuid-1', 'mem-target'),
+        ).rejects.toMatchObject({ response: { code: 'NOT_A_MEMBER' } });
+        expect(workspaceRepo.findOne).not.toHaveBeenCalled();
+      },
+    );
+
+    it.each(workspaces)(
+      'transferOwnership — 워크스페이스 %s 여도 비-owner 멤버는 OWNER_REQUIRED, 워크스페이스는 조회하지 않는다',
+      async (_label, workspace) => {
+        workspaceRepo.findOne.mockResolvedValue(workspace);
+        memberRepo.findOne.mockResolvedValue({ id: 'mem-1', role: 'admin' });
+
+        await expect(
+          service.transferOwnership('ws-uuid-1', 'user-uuid-1', 'mem-target'),
+        ).rejects.toMatchObject({ response: { code: 'OWNER_REQUIRED' } });
+        expect(workspaceRepo.findOne).not.toHaveBeenCalled();
+      },
+    );
   });
 
   describe('transferOwnership', () => {
@@ -1019,7 +1125,11 @@ describe('WorkspacesService', () => {
       const memberCalls = memberRepo.findOne.mock.calls.map(
         (c) => c[0] as { lock?: unknown },
       );
-      for (const call of memberCalls) {
+      // 첫 조회는 트랜잭션 **밖**의 인가 선행이라 무락이다(존재 · 유형 오라클 제거). 트랜잭션 안의
+      // 조회(요청자 재검사 · 대상)는 전부 락이다 — 동시 owner 변경과의 경합은 그쪽이 막는다.
+      expect(memberCalls[0].lock).toBeUndefined();
+      expect(memberCalls.length).toBeGreaterThan(1);
+      for (const call of memberCalls.slice(1)) {
         expect(call.lock).toEqual({ mode: 'pessimistic_write' });
       }
     });
@@ -1692,9 +1802,10 @@ describe('WorkspacesService', () => {
     });
 
     /**
-     * **비-멤버는 대상을 읽기도 전에 끝난다.** 이것이 존재 오라클을 닫는 자리다 — 가드 층은
+     * **비-멤버는 대상을 읽기도 전에 끝난다.** 이것이 존재 오라클을 닫는 자리다 — ~~가드 층은
      * 이 라우트를 막지 못하므로(`@Roles()` 없음 + `@Param('id')` → `handlerConsumesWorkspaceId`
-     * false) 서비스가 첫 방어선이다.
+     * false) 서비스가 첫 방어선이다.~~ (2026-09-25 정정) 이제 `@WorkspaceParam('id')` 라
+     * `RolesGuard` 가 먼저 막고, 이 순서는 가드 인식이 깨졌을 때의 **두 번째 선**이다.
      *
      * 단언이 «`NOT_A_MEMBER` 를 던진다» 에서 멈추지 않는다 — **대상 조회 자체가 없었음**까지
      * 본다. 코드만 바꾸고 조회를 남겨 두면 오라클이 그대로인데 이 테스트는 초록이 된다.

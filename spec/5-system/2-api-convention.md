@@ -79,7 +79,7 @@ code:
 
 ### 2.3 워크스페이스 스코핑
 
-모든 리소스 API는 현재 워크스페이스 컨텍스트에서 동작한다. 활성 워크스페이스는 access token 의 **`activeWorkspaceId` 클레임**으로 확정되며(`jwt.strategy` 가 멤버십 검증 후 `request.user.workspaceId` 로 채택), 전환은 토큰 재발급(`POST /api/auth/workspaces/:id/switch`)으로 이뤄진다. **전환기 하위호환 — header-first**: `X-Workspace-Id` 헤더가 있으면 `WorkspaceId` 데코레이터·`RolesGuard` 가 그 워크스페이스를 우선 사용하고, 헤더가 없으면 토큰 클레임을 사용한다. 클라이언트가 헤더를 떼면 토큰 클레임이 단일 진실이 된다. 결정 우선순위·전환 플로우·마이그레이션의 SoT 는 [`data-flow/12-workspace.md §1.5`](../data-flow/12-workspace.md).
+모든 리소스 API는 현재 워크스페이스 컨텍스트에서 동작한다. 활성 워크스페이스는 access token 의 **`activeWorkspaceId` 클레임**으로 확정되며(`jwt.strategy` 가 멤버십 검증 후 `request.user.workspaceId` 로 채택), 전환은 토큰 재발급(`POST /api/auth/workspaces/:id/switch`)으로 이뤄진다. **전환기 하위호환 — header-first**: `X-Workspace-Id` 헤더가 있으면 `WorkspaceId` 데코레이터·`RolesGuard` 가 그 워크스페이스를 우선 사용하고, 헤더가 없으면 토큰 클레임을 사용한다. 클라이언트가 헤더를 떼면 토큰 클레임이 단일 진실이 된다. 결정 우선순위·전환 플로우·마이그레이션의 SoT 는 [`data-flow/12-workspace.md §1.5`](../data-flow/12-workspace.md). (2026-09-25) **예외 — 경로 파라미터로 워크스페이스를 받는 라우트**(`/api/workspaces/:id/...` · `POST /api/auth/workspaces/:id/switch`)는 경로 값이 인가 대상이고 헤더 · 토큰 컨텍스트를 쓰지 않는다([data-flow §Rationale "경로 파라미터 워크스페이스도 가드가 본다"](../data-flow/12-workspace.md#경로-파라미터-워크스페이스도-가드가-본다-2026-09-25)).
 
 > **상태(2026-07-07, 구현 완료)**: 위 모델은 구현됐다 (`spec-sync-data-flow-12-workspace-gaps` 결정1·2). `jwt.strategy` 가 토큰 클레임(dual-read `activeWorkspaceId ?? workspaceId`)의 멤버십을 검증해 활성값을 확정하고, 데코레이터·`RolesGuard` 는 header-first 로 헤더를 우선한다(전환기 하위호환).
 
@@ -193,6 +193,7 @@ GET /api/triggers?type=webhook&status=active
 - `requestId`: 모든 에러 응답에 항상 포함되는 추적용 UUID (서버 로그 상관관계). `GlobalExceptionFilter` 가 매 응답마다 발급한다.
 - `details`: 선택 필드 (검증 오류 등 추가 컨텍스트 존재 시에만 동봉). 검증 오류 항목은 `{ field, message, code: "INVALID_FIELD" }` 구조이며 `field` 는 중첩 경로(`nodes[3].type`)를 유지한다.
 - `code` 의 상태코드별 기본값: 400=`VALIDATION_ERROR`, 401=`AUTH_REQUIRED`, 403=`FORBIDDEN`, 404=`RESOURCE_NOT_FOUND`, 409=`RESOURCE_CONFLICT`, 413=`PAYLOAD_TOO_LARGE`, 422=`INVALID_STATE`, 429=`RATE_LIMITED`, 5xx=`INTERNAL_ERROR`.
+  `RolesGuard` 의 멤버십 · 역할 거부는 기본값이 아니라 전용 코드를 갖는다(`NOT_A_MEMBER` · `EDITOR_REQUIRED` · `ADMIN_REQUIRED` · `OWNER_REQUIRED` — [3-error-handling §1.2](./3-error-handling.md)). 2026-09-25 이전에는 코드를 지정하지 않아 이 기본값 `FORBIDDEN` 이었다.
 - **`410` 에는 기본값이 없다.** 위 목록은 `GlobalExceptionFilter` 의 상태→코드 매핑이고 그 매핑에 410 항목이 없어, 코드를 명시하지 않은 `410` 응답은 4xx 인데도 `INTERNAL_ERROR` 로 떨어진다. 따라서 **`410` 을 반환하는 경로는 `code` 를 반드시 명시한다** (현행 발행 지점은 전부 명시 — §6 `410` 행의 코드들). 여기에 기본값을 새로 정의하지 않는 이유는 [Rationale](#rationale) 참조.
 
 #### 도메인 세부 사유를 어디에 싣는가 — top-level `code` 교체 vs `details[].code`

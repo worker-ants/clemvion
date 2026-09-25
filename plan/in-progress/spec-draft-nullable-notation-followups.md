@@ -4943,7 +4943,7 @@ field: T | null;
       > (`--impl-prep` `10_22_24` 의 `plan_coherence` 가 이 캐비트를 stale 로 봤는데, 그것은
       > **개정 전** plan 을 읽은 것이다 — 그 지적에 답하다 설계를 바꿨다.)
 
-- [ ] **경로 파라미터로 워크스페이스를 받는 라우트 13개가 가드 층 보호를 전혀 못 받는다**
+- [x] **경로 파라미터로 워크스페이스를 받는 라우트 13개가 가드 층 보호를 전혀 못 받는다**
       (developer + 설계 결정, **중간**, 2026-09-24 등재 — 위 «권한 검사 순서» 항목의 註에서
       **갈라 나옴**).
       `RolesGuard` 는 전역이지만 `handlerConsumesWorkspaceId` 가 false 면 단축 통과한다. 그 판정은
@@ -4970,6 +4970,60 @@ field: T | null;
       > **`removeMember` 는 이미 닫혔다** — 그 한 자리는 서비스 계층에서 인가를 대상 조회보다
       > 앞으로 옮겨 해소됐다. 남은 12개는 각자 무엇을 노출하는지 **실측부터** 해야 한다
       > (읽기 전용 라우트는 오라클 표면이 다르다).
+      >
+      > **2026-09-25 — 결정 턴 진행**: ~~`plan/in-progress/spec-draft-workspace-path-guard.md`~~ → `plan/complete/spec-draft-workspace-path-guard.md`. 실측(바인딩 15곳 — 이 항목의 13 +
+      > `@Roles('owner')` 가 헤더 워크스페이스를 보던 `transferOwnership` + 전환 라우트 · 9곳은 인가 선행으로 안전 · 오라클 2곳)을
+      > 선택지 셋과 함께 제시했고 **사용자가 «가드 확장 + 가드 거부에 코드 부여» 를 택했다.** ~~spec 반영(planner) 뒤 구현은 별도
+      > developer PR — 이 항목은 그 구현 PR 이 닫는다.~~ (정정: spec 과 구현을 **한 PR** 에 실었다 — 미구현을 현재형으로 적은 spec 이
+      > `--spec` BLOCK 을 받아 착지 방식을 바꿨다, draft §B-1.)
+      >
+      > **2026-09-25 — 닫힘.** 같은 PR 의 spec 커밋 `e2e257707` · 구현 커밋 `d5031b699` (구현 plan
+      > `plan/complete/workspace-path-guard-impl.md`). `@WorkspaceParam('id')` 15곳 + `RolesGuard` 경로 분기 + 거부 코드(전역) +
+      > 저장소 가드 `workspace-param-binding` + 오라클 2곳 서비스 인가 선행. e2e `workspace-path-guard.e2e-spec.ts` 가 라우트 클래스별
+      > 비멤버 · 부재 · 개인 워크스페이스의 동일 응답을 고정한다.
+
+- [ ] **경로 워크스페이스 가드 후속 — reflection 골격 · 403 설명 코드 보간 · 서비스 문구** (developer, 낮음, 2026-09-25 등재 —
+      `/ai-review` 5라운드 `review/code/2026/09/25/18_19_47` 의 «수렴 예외» 등재분, 판정은 그 세션 `RESOLUTION.md`). 동작 결함은 없다.
+      1. `common/decorators/workspace.decorator.ts` 의 `handlerConsumesWorkspaceId` · `workspaceParamNamesOf` 가 «메서드명 가드 →
+         `ROUTE_ARGS_METADATA` 조회 → 팩토리 필터» 골격을 복제한다(W1) — `factoryEntries(controllerClass, handler, factory)` 하나로 모으고
+         두 함수는 `some` / `map` 만 얹는다. 부트 캐너리 · 뮤턴트 M8 · M9 · MB · MB2 가 회귀를 본다.
+      2. `workspaces.controller.ts` 의 `FORBIDDEN_*_ROUTE` 설명 상수가 `common/constants/workspace-roles.ts` 의 `NOT_A_MEMBER.code` ·
+         `ROLE_REQUIRED.*.code` 를 보간하지 않고 리터럴로 적는다(W2) — 보간으로 바꾸면 코드명 변경이 설명에 따라온다.
+      3. `workspaces.service.ts` 의 `throwOwnerTransferRequired` 가 `{ ...ROLE_REQUIRED.owner, message }` 로 이웃 헬퍼와 모양을 맞추고,
+         서비스 고유 문구(«owner 이양은 현재 owner 만…»)를 unit 에서 고정한다(INFO 4 · 6).
+      4. `transferOwnership` docstring 의 «두 멤버를 단일 IN 쿼리로 동시 락» 이 실제(순차 두 번의 개별 락)와 다르다 — 이 PR 이전부터의
+         서술 부채(INFO 8). 워크스페이스 행 락이 임계구역을 직렬화해 데드락 위험은 없다는 사실로 정정.
+      5. `modules/integrations/integrations.service.ts` 의 모듈 로컬 `ADMIN_ROLES`(같은 값 `{'owner','admin'}`, origin/main 부터)가 새 공용
+         `common/constants/workspace-roles.ts` 의 `ADMIN_ROLES` 와 동명이인으로 남았다 — 공용 상수를 import 하거나 이유를 주석으로
+         (`--impl-done` `review/consistency/2026/09/25/18_42_32` naming_collision WARNING).
+      **착수 조건**: 없음(여유 있을 때). `codebase/**` 편집이라 리뷰 게이트를 한 바퀴 돈다.
+
+- [ ] **기존 `@ApiForbiddenResponse` 설명 ~120곳이 가드 거부 코드를 싣지 않는다** (developer, 낮음, 2026-09-25 등재 —
+      `plan/complete/workspace-path-guard-impl.md` §구현 중 결정). 가드 거부가 코드를 갖게 됐지만(`NOT_A_MEMBER` ·
+      `EDITOR_REQUIRED` · `ADMIN_REQUIRED` · `OWNER_REQUIRED`) 그 PR 은 경로 15곳 · 재실행 · chain 의 설명만 고쳤다. 실측(2026-09-25,
+      `modules/**`): «워크스페이스 멤버가 아님» 63 · «editor 이상 권한 필요» 54 · «viewer 이상 권한 필요» 4 · «owner 이상 권한 필요» 2 ·
+      기타 20여(«Admin 미만 권한» 5 · «관리자 권한 필요» 3 · «Editor 미만 권한» 3 · «소유자 아님» 2 …). 틀린 문장은 아니고
+      `swagger.md §5-4` 는 **새 엔드포인트** 체크리스트라 위반도 아니다 — OpenAPI 로 클라이언트를 만드는 쪽이 코드를 알 수 없을 뿐.
+      처방: 앞 넷은 기계적 부기(`(NOT_A_MEMBER)` 등), 기타는 가드 거부인지 서비스 거부인지 자리마다 판정. 30여 컨트롤러라 spec 연결
+      영역이 여럿이다 — `--impl-done` 스코프를 먼저 셀 것. **착수 조건**: 없음(여유 있을 때).
+
+- [ ] **POST 라우트가 OpenAPI 로 200 을 광고하면서 실제로는 201 을 낸다** (developer, 낮음, 2026-09-25 등재 — e2e 실측).
+      `workspaces.controller.ts` 의 `POST /:id/leave` · `POST /:id/transfer-ownership` 은 `@ApiOkWrappedResponse(OkResultDto)`(200)
+      인데 `@HttpCode` 가 없어 Nest 기본값 201 을 낸다(`workspace-path-guard.e2e-spec.ts` 가 이양 성공을 201 로 관측 — 그 테스트는
+      실제 값을 적었다). 같은 파일의 `resend` 는 `@HttpCode(200)` 으로 맞췄다. `workspace-rbac.e2e-spec.ts` E 는 `[200, 201]` 로 둘 다
+      받아 불일치를 가린다. 처방 후보: `@HttpCode(HttpStatus.OK)` 로 광고에 맞추거나 광고를 201 로 — 상태 코드 변경은 제품 동작이라
+      CHANGELOG 대상. 이 모양이 이 파일 밖에도 있는지(POST + `ApiOkWrapped*` + `@HttpCode` 없음)는 전수 스캔이 먼저다 — 정적 가드 후보.
+      `POST /workspaces/invitations/accept` 도 같은 모양인지 확인할 것. **착수 조건**: 없음.
+
+- [ ] **`req.user.workspaceId` 를 직접 읽는 라우트는 가드가 인식하지 못한다 — 정적 가드가 없다** (developer, 낮음,
+      2026-09-25 등재 · `--spec` `review/consistency/2026/09/25/14_54_55` rationale_continuity W2).
+      경로 파라미터 쪽은 `@WorkspaceParam` + «`@Param` 으로 워크스페이스 ID 바인딩 금지» 정적 가드로 닫는데
+      (`spec/data-flow/12-workspace.md` §Rationale «경로 파라미터 워크스페이스도 가드가 본다»), 헤더 · 토큰 쪽에서
+      `@WorkspaceId()` 대신 `req.user.workspaceId` 를 직접 읽는 라우트도 `RolesGuard` 가 소비를 인식하지 못하는 같은 모양이다.
+      실측(2026-09-25): 컨트롤러 4곳(`auth.controller.ts` 2 · `webauthn.controller.ts` 2) — **전부 사용자 단위 작업(2FA 등록 ·
+      해제)의 감사 귀속용**이라 워크스페이스 자원에 접근하지 않는다(토큰 확정값이라 헤더 위조와도 무관). 지금은 구멍이 아니다.
+      처방 후보: 워크스페이스 자원을 다루는 핸들러가 `user.workspaceId` 를 읽으면 실패하는 정적 가드(감사 귀속 자리는 허용목록).
+      **착수 조건**: 워크스페이스 자원 접근에 `user.workspaceId` 를 쓰는 자리가 하나라도 생기면.
 
 - [x] **`removeMember` 판정 순서 커버리지의 비대칭 두 칸** (developer, 낮음, 2026-09-24 등재 ·
       `/ai-review` `review/code/2026/09/24/11_10_45` INFO#3·#4 → `11_37_06` INFO#5·#6 **재지적**).

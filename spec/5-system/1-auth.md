@@ -11,6 +11,10 @@ code:
   - codebase/backend/src/common/utils/workspace-context.util.ts
   - codebase/backend/src/common/utils/uuid.ts
   - codebase/backend/src/common/config/webauthn.config.ts
+  # RBAC 저장소 가드 — 경로 워크스페이스 바인딩 금지(대조군 fixture 포함) · RolesGuard 전역 등록과 핸들러별 @Roles 고정.
+  - codebase/backend/src/repo-guards/__tests__/workspace-param-binding*.ts
+  - codebase/backend/src/repo-guards/__tests__/fixtures/workspace-param-binding/**
+  - codebase/backend/src/repo-guards/__tests__/workspace-roles-attachment.spec.ts
   - codebase/frontend/src/app/(main)/w/[slug]/invitations/accept/**
   - codebase/frontend/src/components/auth/register-form.tsx
   - codebase/frontend/src/lib/api/invitations.ts
@@ -277,10 +281,10 @@ counter 역행이 감지되면 `verifyAuthenticationResponse` 가 reject 한다.
 | 만료 | 410 | `invitation_expired` |
 | 이미 사용됨 | 410 | `invitation_already_used` |
 | 이메일 불일치 (accept 또는 register) | 400 | `invitation_email_mismatch` |
-| 권한 부족 (발송·재발송·취소) | 403 | `forbidden` |
+| 권한 부족 (발송·재발송·취소) | 403 | `ADMIN_REQUIRED` (`RolesGuard` 의 `@Roles('admin')` — 2026-09-25 이전 이 표는 `forbidden` 이라 적었으나 코드는 `admin_required` 를 던졌다. 비멤버는 `NOT_A_MEMBER`) |
 | Rate limit 초과 | 429 | `rate_limited` |
 
-> **명명 — historical-artifact 예외**: 위 코드들은 [`node-output.md` Principle 3.2](../conventions/node-output.md#32-outputerror-표준-형태)·[`error-codes.md §1`](../conventions/error-codes.md#1-의미-기반-명명-핵심-원칙)의 `UPPER_SNAKE_CASE` 규약과 달리 `lower_snake_case` 다. v1 출하 시 이 형태로 정착했고 프론트엔드([`invitations.ts`](../../codebase/frontend/src/lib/api/invitations.ts) `INVITATION_ERROR_CODES`)가 `code` 값으로 직접 분기하므로, rename 은 API breaking change 가 된다([`error-codes.md §2`](../conventions/error-codes.md#2-안정성--rename-정책) "이름 정확성 향상만을 위한 rename 은 하지 않는다"). 따라서 [`error-codes.md §3` historical-artifact 레지스트리](../conventions/error-codes.md#3-historical-artifact-예외-레지스트리)에 등재해 유지한다 — 신규 코드는 본 예외를 선례로 삼지 않고 처음부터 `UPPER_SNAKE_CASE` 를 쓴다. 특히 `forbidden`·`rate_limited` 는 일반 명칭이라 다른 도메인에서는 `FORBIDDEN`·`RATE_LIMITED`(UPPER) 를 쓰며, 본 lowercase 표기는 **초대 흐름 전용** 한정 예외다(`error-codes.md §3` 의 "초대 API 한정" 명시와 일치).
+> **명명 — historical-artifact 예외**: 위 코드들은 [`node-output.md` Principle 3.2](../conventions/node-output.md#32-outputerror-표준-형태)·[`error-codes.md §1`](../conventions/error-codes.md#1-의미-기반-명명-핵심-원칙)의 `UPPER_SNAKE_CASE` 규약과 달리 `lower_snake_case` 다. v1 출하 시 이 형태로 정착했고 프론트엔드([`invitations.ts`](../../codebase/frontend/src/lib/api/invitations.ts) `INVITATION_ERROR_CODES`)가 `code` 값으로 직접 분기하므로, rename 은 API breaking change 가 된다([`error-codes.md §2`](../conventions/error-codes.md#2-안정성--rename-정책) "이름 정확성 향상만을 위한 rename 은 하지 않는다"). 따라서 [`error-codes.md §3` historical-artifact 레지스트리](../conventions/error-codes.md#3-historical-artifact-예외-레지스트리)에 등재해 유지한다 — 신규 코드는 본 예외를 선례로 삼지 않고 처음부터 `UPPER_SNAKE_CASE` 를 쓴다. 특히 `rate_limited` 는 일반 명칭이라 다른 도메인에서는 `RATE_LIMITED`(UPPER) 를 쓰며, 본 lowercase 표기는 **초대 흐름 전용** 한정 예외다(`error-codes.md §3` 의 "초대 API 한정" 명시와 일치). 권한 부족은 이제 `RolesGuard` 가 `ADMIN_REQUIRED`(UPPER)로 먼저 거부해 이 예외에 들지 않는다.
 
 ---
 
@@ -802,7 +806,7 @@ dev/test/e2e(`NODE_ENV≠production`)는 영향이 없다.
 `RolesGuard` 는 "이 라우트가 워크스페이스 컨텍스트를 쓰는가" 를 `handlerConsumesWorkspaceId` 로
 판별해 멤버십 검증 대상을 좁힌다([data-flow §Rationale "멤버십 검증은 가드
 1곳에서"](../data-flow/12-workspace.md#멤버십-검증은-가드-1곳에서--roles-와-무관-2026-08-08) 의
-단축 통과). 그 판별은 `@nestjs/common` 의 **비공개 export `ROUTE_ARGS_METADATA`** 와 **함수
+단축 통과). 2026-09-25 부터는 같은 방식으로 `@WorkspaceParam(...)` 소비도 판별한다([data-flow §Rationale "경로 파라미터 워크스페이스도 가드가 본다"](../data-flow/12-workspace.md#경로-파라미터-워크스페이스도-가드가-본다-2026-09-25)). 그 판별은 `@nestjs/common` 의 **비공개 export `ROUTE_ARGS_METADATA`** 와 **함수
 identity 비교**에 기댄다. 이 가정은 (1) Nest 내부 메타데이터 포맷 변경(`@nestjs/*` 는 caret
 `^11.0.1` 이라 minor/patch 업그레이드로도 온다) (2) 핸들러를 감싸는 데코레이터 도입으로
 `Function.name` 소실 (3) 빌드 minify/mangle 로 깨질 수 있고, 깨지면 판별이 **모든 라우트에 대해
@@ -814,7 +818,7 @@ false** 가 되어 멤버십 검증이 **조용히** 건너뛰어진다 — cros
 `handlerConsumesWorkspaceId` 를 **그대로 호출**한다 — 캐너리가 reflection 을 다시 구현하면 자기
 복제본을 검사하게 되어 정작 막으려던 파손을 통과시킨다.
 **캐너리가 세는 집합은 위 data-flow §Rationale 의 "73건" 과 다르다 — 그쪽이 부분집합이다.**
-캐너리는 `@Roles()` 유무와 **무관하게** `@WorkspaceId()` 를 소비하는 라우트를 전부 센다. 73건은
+캐너리는 `@Roles()` 유무와 **무관하게** `@WorkspaceId()` 또는 `@WorkspaceParam(...)` 을 소비하는 라우트를 전부 센다(가드가 인식하는 두 팩토리 — 뒤쪽은 2026-09-25~). 73건은
 그중 `@Roles()` 가 **없어** cross-tenant 로 샜던 부분집합이다. 두 수를 같은 것으로 읽으면 캐너리가
 지키는 범위를 실제보다 좁게 오해한다 — 실제로 도입 PR 이 코드 주석에 73건을 상위집합 자리에 적어
 한 번 뭉갰고, 후속 PR 이 부팅 로그 실측으로 정정했다.
@@ -829,6 +833,10 @@ stale 해진다 — 방금 정정한 것이 정확히 그 실패다. 현재 인�
 data-flow §Rationale 이 **이미 기각한 "라우트별 opt-in 마커"** 패턴이고(기각 사유: 다음 라우트에서
 같은 누락이 재발한다 — 이 저장소가 이미 최소 2회 겪었다), 그 기각을 되돌리지 않는다. 캐너리는
 호출부에 아무것도 요구하지 않으면서 같은 위험을 닫는다.
+(2026-09-25 보탬) 경로 파라미터 워크스페이스는 이 문장의 예외다 — 핸들러가 `@Param` 대신 `@WorkspaceParam(...)` 으로 받아야 가드가
+인식한다. 이것을 이 절이 재기각한 opt-in 마커로 보지 않는 논거(값 바인딩 **그 자체**라 빠뜨리면 핸들러가 값을 못 받는다 · 빠뜨릴 수
+있는 «같은 값을 평범한 `@Param` 으로 받는 것» 은 저장소 가드 `workspace-param-binding` 이 막는다 · 이름 규칙 밖은 못 보는 한계)는
+[data-flow §Rationale "경로 파라미터 워크스페이스도 가드가 본다"](../data-flow/12-workspace.md#경로-파라미터-워크스페이스도-가드가-본다-2026-09-25) 에 있다.
 
 **(c) 왜 `assertProductionConfig` 와 합치지 않았는가.** 축이 다르다. 저쪽은 **환경변수**
 축이라 `NODE_ENV=production` 에서만 발화하고 dev/test 는 no-op 인데, 이쪽은 **환경과 무관한 구조

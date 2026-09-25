@@ -8,6 +8,7 @@ import {
   collectTsFiles,
   countCalls,
   countRawUpdateReturning,
+  decoratorCallName,
   enclosingScopeName,
   hasRawUpdateReturning,
   stripLiterals,
@@ -460,5 +461,42 @@ describe('enclosingScopeName', () => {
         }
       `),
     ).toBe('members');
+  });
+});
+
+/**
+ * 두 저장소 가드(`param-uuid-pipe` · `workspace-param-binding`)가 데코레이터를 이 이름으로 가른다 —
+ * 틀리면 둘이 함께 조용히 약해진다. 비-호출 형태(`@Foo`)는 저장소 fixture 어디에도 없어 간접 커버리지로는
+ * 그 분기가 실행되지 않으므로 직접 단언한다(`review/code/2026/09/25/17_14_49` testing WARNING).
+ */
+describe('decoratorCallName', () => {
+  function namesOf(src: string): (string | null)[] {
+    const sf = ts.createSourceFile(
+      'fixture.ts',
+      src,
+      ts.ScriptTarget.Latest,
+      true,
+    );
+    const out: (string | null)[] = [];
+    const walk = (n: ts.Node): void => {
+      if (ts.isParameter(n)) {
+        for (const d of ts.getDecorators(n) ?? []) {
+          out.push(decoratorCallName(d, sf));
+        }
+      }
+      ts.forEachChild(n, walk);
+    };
+    walk(sf);
+    return out;
+  }
+
+  it('호출형은 호출 대상의 이름, 비-호출형은 null', () => {
+    expect(
+      namesOf(`
+        class C {
+          h(@Param('id') a: string, @Foo b: string, @WorkspaceParam('id') c: string) {}
+        }
+      `),
+    ).toEqual(['Param', null, 'WorkspaceParam']);
   });
 });

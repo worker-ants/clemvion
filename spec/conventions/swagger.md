@@ -12,6 +12,9 @@ code:
   - codebase/backend/src/shared/testing/swagger-probe*.ts
   - codebase/backend/src/repo-guards/__tests__/user-entity-exposure*.ts
   - codebase/backend/src/shared/testing/user-secret-absence*.ts
+  # §5-4 의 `@ApiParam({format:'uuid'})` 축(과 런타임 `ParseUUIDPipe` 축)을 세는 가드와 그 대조군.
+  - codebase/backend/src/repo-guards/__tests__/param-uuid-pipe*.ts
+  - codebase/backend/src/repo-guards/__tests__/fixtures/param-uuid-pipe/**
   # 대조군(negative fixture) — 위 두 가드가 강제하는 **위반 형태의 실례**.
   # 없으면 술어가 죽어도 테스트가 통과한다(실제로 그 상태로 한 라운드를 지났다).
   - codebase/backend/src/repo-guards/__tests__/fixtures/dto/responses/optional-nullable*.ts
@@ -483,13 +486,13 @@ async create(...) { ... }
 - [ ] 응답 DTO 가 `dto/responses/` 에 있는지
 - [ ] DTO 필드에 JSDoc + 필요 시 `@ApiProperty` (enum/example/format/nullable)
 - [ ] `ApiOkWrappedResponse` / `ApiOkPaginatedResponse` 등 적절한 래퍼 사용
-- [ ] `@Roles(...)` 가 붙었거나 `@WorkspaceId()` 를 소비하는 엔드포인트는
+- [ ] `@Roles(...)` 가 붙었거나 `@WorkspaceId()` · `@WorkspaceParam(...)` 을 소비하는 엔드포인트는
       `@ApiForbiddenResponse` 도 추가 — `RolesGuard` 는 `@Roles()` 유무와 무관하게
       워크스페이스 멤버십을 항상 검증하므로
-      ([data-flow §Rationale 멤버십 검증은 가드 1곳에서](../data-flow/12-workspace.md#멤버십-검증은-가드-1곳에서--roles-와-무관-2026-08-08)), `@WorkspaceId()` 만 쓰는 조회
+      ([data-flow §Rationale 멤버십 검증은 가드 1곳에서](../data-flow/12-workspace.md#멤버십-검증은-가드-1곳에서--roles-와-무관-2026-08-08) · [경로 파라미터 워크스페이스도 가드가 본다](../data-flow/12-workspace.md#경로-파라미터-워크스페이스도-가드가-본다-2026-09-25)), `@WorkspaceId()` · `@WorkspaceParam(...)` 만 쓰는 조회
       엔드포인트도 403 을 낼 수 있다. `@Roles()` 가 있으면 설명에 "editor 이상 권한
-      필요"처럼 요구 역할을 명시하고, `@Roles()` 없이 `@WorkspaceId()` 만 쓰면
-      "워크스페이스 멤버가 아님"으로 통일한다. (`@Public()` 라우트는 대상 아님.)
+      필요(`EDITOR_REQUIRED`)"처럼 요구 역할과 코드를 명시하고, `@Roles()` 없이 워크스페이스만 받으면
+      "워크스페이스 멤버가 아님(`NOT_A_MEMBER`)"으로 통일한다 — 코드는 [data-flow §Rationale 가드 거부의 오류 코드](../data-flow/12-workspace.md#가드-거부의-오류-코드-2026-09-25). (`@Public()` 라우트는 대상 아님.)
 - [ ] 경로 UUID 파라미터는 `@ApiParam({ format: 'uuid' })` 일관 적용
 - [ ] 요청 DTO 명명 — `Update` 접두는 **top-level 요청 바디**에만, nested 변형은 로컬 패턴 ([§1-7](#1-7-요청-dto-명명--update-접두는-top-level-요청-바디에만-건다))
 

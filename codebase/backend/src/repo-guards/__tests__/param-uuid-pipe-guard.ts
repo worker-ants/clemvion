@@ -5,7 +5,10 @@
 import * as fs from 'node:fs';
 import * as ts from 'typescript';
 
-import { toPosixRelative } from '../../common/__test-utils__/source-scan';
+import {
+  decoratorCallName,
+  toPosixRelative,
+} from '../../common/__test-utils__/source-scan';
 
 /**
  * UUID 경로 파라미터가 지켜야 하는 두 축. 이름을 붙여 선언·사용 지점을 대칭으로 둔다 —
@@ -14,13 +17,21 @@ import { toPosixRelative } from '../../common/__test-utils__/source-scan';
  */
 export type UuidParamAxis = 'ParseUUIDPipe' | "@ApiParam format:'uuid'";
 
+/**
+ * 경로 파라미터를 받는 데코레이터. `WorkspaceParam` 은 워크스페이스 ID 전용 바인딩으로
+ * `ParseUUIDPipe` 를 내장한다(`common/decorators/workspace.decorator.ts`).
+ */
+export type UuidParamBinding = 'Param' | 'WorkspaceParam';
+
 /** 위반 한 건 — 어느 축이 빠졌는지까지 싣는다. */
 export interface UuidParamViolation {
   /** `src` 기준 POSIX 상대경로. */
   readonly file: string;
   /** 핸들러 메서드 이름 — 줄 번호를 쓰지 않는 이유는 `source-scan.enclosingScopeName` 참조. */
   readonly method: string;
-  /** `@Param('<name>')` 의 이름. 이것이 라우트 경로의 `:name` 이다. */
+  /** 어느 데코레이터로 받았나. */
+  readonly binding: UuidParamBinding;
+  /** `@Param('<name>')` · `@WorkspaceParam('<name>')` 의 이름. 이것이 라우트 경로의 `:name` 이다. */
   readonly param: string;
   /** 빠진 축 (정렬). */
   readonly missing: readonly UuidParamAxis[];
@@ -46,21 +57,16 @@ export interface UuidParamScan {
  * `installToken`×2 · `endpointPath`×2 · `token` · `type`). 비-id 는 전부 정당한 비-UUID 라
  * **허용목록이 필요 없다** — 술어가 이름으로 가른다.
  *
+ * > (2026-09-25 보탬) 그 136 중 15건(경로 워크스페이스 `id`)이 `@WorkspaceParam('id')` 로 옮겨 갔다.
+ * > 모집단 합계는 136 그대로이고(`@Param` id-형 121 + `@WorkspaceParam` 15), 이 술어는 `@Param` 쪽에만
+ * > 적용된다 — `@WorkspaceParam` 은 이름과 무관하게 UUID 라 모집단에 곧바로 든다(아래 `collectMethodViolations`).
+ *
  * 언젠가 `externalId` 처럼 id-형이면서 UUID 가 아닌 파라미터가 생기면 이 가드가 RED 를 내고,
  * 그때 사람이 *"이름을 바꿀 것인가 / 예외를 만들 것인가"* 를 판단하면 된다. 조용히 통과하는
  * 쪽보다 시끄러운 쪽이 낫다.
  */
 function isIdShaped(name: string): boolean {
   return name === 'id' || /Id$/.test(name);
-}
-
-/** 데코레이터 호출의 이름 (`@Foo(...)` → `'Foo'`). 호출이 아니면 `null`. */
-function decoratorCallName(
-  decorator: ts.Decorator,
-  sf: ts.SourceFile,
-): string | null {
-  const expr = decorator.expression;
-  return ts.isCallExpression(expr) ? expr.expression.getText(sf) : null;
 }
 
 /**
@@ -130,20 +136,28 @@ function collectMethodViolations(
 
   for (const parameter of method.parameters) {
     for (const d of ts.getDecorators(parameter) ?? []) {
-      if (decoratorCallName(d, sf) !== 'Param') continue;
+      const binding = decoratorCallName(d, sf);
+      if (binding !== 'Param' && binding !== 'WorkspaceParam') continue;
       const call = d.expression as ts.CallExpression;
       const first = call.arguments[0];
       // 인자 없는 `@Param()` 은 파라미터 객체 전체를 받는 형태라 이름이 없다.
       if (!first || !ts.isStringLiteralLike(first)) continue;
       const param = first.text;
-      if (!isIdShaped(param)) continue;
+      // `@WorkspaceParam` 은 이름과 무관하게 UUID 다 — 데코레이터가 워크스페이스 ID 전용이다.
+      if (binding === 'Param' && !isIdShaped(param)) continue;
       idParams++;
 
       const missing: UuidParamAxis[] = [];
-      const pipes = call.arguments
-        .slice(1)
-        .map((a) => a.getText(sf))
-        .join(',');
+      // `@WorkspaceParam` 은 파이프를 내장해 파이프 축을 구조적으로 만족한다 — 문서 축만 묻는다.
+      // 2026-09-25 경로 워크스페이스 15곳이 `@Param` 에서 옮겨 오며 이 분기가 없으면 모집단이
+      // 136 → 121 로 줄고 그 15곳의 문서 축이 조용히 검사 밖으로 나갈 뻔했다.
+      const pipes =
+        binding === 'WorkspaceParam'
+          ? 'ParseUUIDPipe'
+          : call.arguments
+              .slice(1)
+              .map((a) => a.getText(sf))
+              .join(',');
       // `ParseUUIDPipe` · `new ParseUUIDPipe({ version: '4' })` 둘 다 받는다 —
       // 2026-09-12 실측(`modules/` 전수, **이 PR 이 마지막 1건을 채운 뒤**): 파이프를 가진
       // id-형 136건이 맨 식별자 108 : 인스턴스화 28 로 갈린다.
@@ -153,12 +167,15 @@ function collectMethodViolations(
       // > 전** 값이라 **내 수정이 스스로 무효화**한 숫자다 — 저장소가 이미 적어 둔
       // > *"PR 안의 정량 기록은 PR 이 닫히는 시점의 값"* 을 같은 PR 안에서 어긴 셈이다.
       // > 그래서 지금은 **어느 시점의 값인지**를 문장에 박아 둔다.
+      //
+      // (2026-09-25 보탬) 경로 워크스페이스 15건이 `@WorkspaceParam` 으로 옮긴 뒤 실측: `@Param` id-형
+      // 121건 = 맨 식별자 107 : 인스턴스화 14, 그리고 `@WorkspaceParam` 15건(파이프 내장).
       if (!pipes.includes('ParseUUIDPipe')) missing.push('ParseUUIDPipe');
       if (!excluded && declared.get(param) !== true) {
         missing.push("@ApiParam format:'uuid'");
       }
       if (missing.length > 0) {
-        violations.push({ file: rel, method: name, param, missing });
+        violations.push({ file: rel, method: name, binding, param, missing });
       }
     }
   }

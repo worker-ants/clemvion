@@ -132,8 +132,9 @@ describe('Workspace RBAC (e2e)', () => {
       .set('Authorization', `Bearer ${owner.accessToken}`)
       .send();
     expect(forbidden.status).toBe(403);
+    expect(forbidden.body.error.code).toBe('NOT_A_MEMBER');
 
-    // malformed :id (비-UUID) → 400 (ParseUUIDPipe).
+    // malformed :id (비-UUID) → 400 (`@WorkspaceParam` 내장 ParseUUIDPipe — 가드는 형식이 아니면 넘긴다).
     const malformed = await request(BASE_URL)
       .post('/api/auth/workspaces/not-a-uuid/switch')
       .set('Authorization', `Bearer ${owner.accessToken}`)
@@ -170,13 +171,14 @@ describe('Workspace RBAC (e2e)', () => {
       db,
     );
 
-    // viewer create → 403.
+    // viewer create → 403 EDITOR_REQUIRED (2026-09-25 전에는 가드가 코드를 싣지 않아 FORBIDDEN).
     const viewerRes = await request(BASE_URL)
       .post('/api/workflows')
       .set('Authorization', `Bearer ${viewer.accessToken}`)
       .set('X-Workspace-Id', ws)
       .send({ name: 'by viewer' });
     expect(viewerRes.status).toBe(403);
+    expect(viewerRes.body.error.code).toBe('EDITOR_REQUIRED');
 
     // editor create → 201.
     const editorRes = await request(BASE_URL)
@@ -412,13 +414,15 @@ describe('Workspace RBAC (e2e)', () => {
     expect(viewerRes.status).toBe(403);
     expect(viewerRes.body.error.code).toBe('ADMIN_REQUIRED');
 
-    // 비-멤버 (cross-workspace) → 403.
+    // 비-멤버 (cross-workspace) → 403 NOT_A_MEMBER. 2026-09-25 전에는 서비스의 `assertAdmin` 이
+    // `ADMIN_REQUIRED` 로 답했다 — 이제 `RolesGuard` 가 경로 워크스페이스로 먼저 막고, 비멤버는 요구
+    // 역할과 무관하게 `NOT_A_MEMBER` 다(`data-flow/12-workspace.md` §"가드 거부의 오류 코드").
     const outsiderRes = await request(BASE_URL)
       .patch(`/api/workspaces/${ws}/settings`)
       .set('Authorization', `Bearer ${outsider.accessToken}`)
       .send({ interactionAllowedOrigins: ['https://evil.example.com'] });
     expect(outsiderRes.status).toBe(403);
-    expect(outsiderRes.body.error.code).toBe('ADMIN_REQUIRED');
+    expect(outsiderRes.body.error.code).toBe('NOT_A_MEMBER');
 
     // GET /settings — viewer(멤버)는 200 으로 현재 값 조회(편집은 Admin+ 이나 조회는 모든 멤버).
     const viewerGet = await request(BASE_URL)
@@ -429,11 +433,12 @@ describe('Workspace RBAC (e2e)', () => {
       'https://example.com',
     ]);
 
-    // 비-멤버 GET → 403.
+    // 비-멤버 GET → 403 NOT_A_MEMBER.
     const outsiderGet = await request(BASE_URL)
       .get(`/api/workspaces/${ws}/settings`)
       .set('Authorization', `Bearer ${outsider.accessToken}`);
     expect(outsiderGet.status).toBe(403);
+    expect(outsiderGet.body.error.code).toBe('NOT_A_MEMBER');
   });
 
   it('H. POST /api/model-configs/:id/test — viewer 403, editor 가드 통과; GET :id/models 는 viewer 통과 (spec §3·R-7)', async () => {
@@ -560,6 +565,7 @@ describe('Workspace RBAC (e2e)', () => {
       .set('Authorization', `Bearer ${ownerA.accessToken}`)
       .set('X-Workspace-Id', wsB);
     expect(crossList.status).toBe(403);
+    expect(crossList.body.error.code).toBe('NOT_A_MEMBER');
 
     // 자기 워크스페이스는 여전히 200 — header-first 동작 보존(정상 클라이언트 무회귀).
     const ownList = await request(BASE_URL)
@@ -657,9 +663,14 @@ describe('Workspace RBAC (e2e)', () => {
    *
    * **헤더를 붙이지 않는 것이 이 테스트의 핵심이다.** `X-Workspace-Id` 를 주면 `RolesGuard` 가
    * header-first 멤버십 검증으로 403 을 낸다(`data-flow/12-workspace.md` §"멤버십 검증은 가드
-   * 1곳에서"). 누수는 **경로 파라미터로만 워크스페이스를 받는 라우트**에서 열린다 —
-   * `handlerConsumesWorkspaceId` 가 false 라 가드가 단락하기 때문이다. 헤더를 붙이면 이
+   * 1곳에서"). ~~누수는 **경로 파라미터로만 워크스페이스를 받는 라우트**에서 열린다 —
+   * `handlerConsumesWorkspaceId` 가 false 라 가드가 단락하기 때문이다.~~ 헤더를 붙이면 이
    * 테스트는 고치기 전에도 초록이 되어 아무것도 지키지 못한다.
+   *
+   * > **(2026-09-25) 이제 가드가 경로 워크스페이스도 본다**(`@WorkspaceParam`, `data-flow/12-workspace.md`
+   * > §"경로 파라미터 워크스페이스도 가드가 본다") — 이 라우트의 비멤버는 서비스에 닿기 전에 가드가
+   * > `NOT_A_MEMBER` 로 막는다. 단언은 그대로 참이고 지키는 층이 가드로 옮겨 갔다. 서비스의 인가
+   * > 선행(두 번째 선)은 `workspaces.service.spec.ts` 가 고정한다.
    *
    * **값 셋이 아니라 성질을 단언한다.** 보호 대상은 «세 응답이 서로 구분되지 않는다» 이고,
    * 값을 따로 고정하면 고칠 때 셋을 다 바꿔야 해서 성질이 아니라 값을 지키게 된다.

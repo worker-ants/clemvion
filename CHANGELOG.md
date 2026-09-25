@@ -23,6 +23,40 @@
 > 07 37% · 08 30% · 09(25일까지) 49% 였다(나중 PR 의 백필은 세지 않았다). 여기 없다고 그 변경이 없었던 것은 아니다 —
 > `git log` 가 정본이다.
 
+## Unreleased — 워크스페이스 권한 거부가 코드를 싣고, 경로의 워크스페이스를 가드가 판정한다
+
+`RolesGuard` 의 멤버십 · 역할 거부는 코드 없이 403 을 내 전역 필터가 기본값 `FORBIDDEN` 을 채웠다. 이제 코드를 싣는다 —
+상태 코드는 403 그대로다.
+
+- **거부 코드 — 경로 라우트만이 아니라 전역이다.** `@Roles()` 가 붙은 **모든** 라우트(머지 시점 AST 실측 88곳 — 최소 요구 역할별
+  editor 63 · admin 17 · owner 4 · viewer 4, 그중 admin 8 · owner 1 은 이 변경이 경로 라우트에 새로 붙였다)와 헤더 위조 거부의 403
+  본문 코드가 `FORBIDDEN` 에서 바뀐다: 비멤버는 요구 역할과 무관하게 `NOT_A_MEMBER`,
+  멤버의 역할 미달은 요구 중 가장 낮은 역할의 `EDITOR_REQUIRED` · `ADMIN_REQUIRED` · `OWNER_REQUIRED`. `error.code` 로 분기하는
+  클라이언트는 확인할 것(자사 frontend 는 `OWNER_REQUIRED` 한 자리만 분기하고 가드도 같은 코드를 낸다).
+- **경로로 워크스페이스를 받는 15곳**(`/api/workspaces/:id/...` 14 · `POST /api/auth/workspaces/:id/switch`)을 가드가 판정한다.
+  종전엔 가드가 경로 값을 보지 않아 서비스 검사에만 기댔고, `transferOwnership` 은 `@Roles('owner')` 를 **헤더 · 토큰의
+  워크스페이스**로 판정했다 — 자기 워크스페이스의 owner 가 헤더에 다른 워크스페이스를 실으면 정당한 이양이 403 이었다.
+  관측되는 변화:
+  - 비멤버는 워크스페이스의 존재 · 유형과 무관하게 같은 `403 NOT_A_MEMBER` 다. 종전 `POST /:id/leave` · `POST /:id/members` ·
+    `POST /:id/transfer-ownership` 은 없음(404) · 개인 · 팀을 구분해 답했다(마지막은 가드가 토큰 워크스페이스로 판정해 서비스까지
+    닿았다). 세 서비스 메서드도 인가를 조회보다 앞으로 옮겼다.
+  - Admin · Owner 요구 10곳에서 **비멤버**가 받는 코드가 `ADMIN_REQUIRED` · `OWNER_REQUIRED` 에서 `NOT_A_MEMBER` 로 바뀌었다.
+    초대 라우트의 역할 미달은 소문자 `admin_required` 에서 `ADMIN_REQUIRED` 로 바뀌었다. 멤버가 받는 코드는 보존된다.
+  - 형식은 맞는 nil UUID 경로 값은 `400` 에서 `403 NOT_A_MEMBER` 로 바뀌었다(형식이 아닌 값은 여전히 `400`).
+  - 경로 라우트는 `X-Workspace-Id` 를 쓰지 않는다 — 형식이 깨진 헤더여도 400 을 내지 않는다.
+
+근거: `spec/data-flow/12-workspace.md` §Rationale «경로 파라미터 워크스페이스도 가드가 본다» · «가드 거부의 오류 코드».
+
+## Unreleased — 워크스페이스 ID 를 평범한 `@Param` 으로 받으면 CI 가 실패한다
+
+- **저장소 가드 `workspace-param-binding` 신설**: 컨트롤러 핸들러가 `@Param(...)` 으로 `workspaceId` · `*WorkspaceId` 이름을
+  받으면(식별자든 경로 이름이든) 실패한다 — 허용목록 없음. 경로로 워크스페이스를 받는 자리는 `@WorkspaceParam('<name>')` 이어야
+  가드가 그 값을 본다. 이름이 규칙 밖(`id` 등)이면 못 본다.
+- **`param-uuid-pipe` 가드가 `@WorkspaceParam` 도 모집단에 넣는다** — 넣지 않으면 15곳이 그 가드의 `@ApiParam({format:'uuid'})`
+  축에서 조용히 빠진다(모집단 136 유지, 없으면 121). 파이프 축은 데코레이터에 내장돼 구조적으로 만족한다.
+- **부트 캐너리가 `@WorkspaceParam` 소비도 센다** — 두 개수를 따로 로그에 남기고(`@WorkspaceId() 소비 라우트 N건 인식 ·
+  @WorkspaceParam() 소비 라우트 M건 인식`), 합계가 0 이면 기동을 멈춘다.
+
 ## Unreleased — OpenAPI 가 광고하는 계약 두 자리 (#1206 · #1326 CHANGELOG 누락 backfill)
 
 런타임 응답은 두 곳 모두 그대로다. 바뀐 것은 OpenAPI 문서이고, 그 문서로 클라이언트를 생성하면 결과가 달라진다.

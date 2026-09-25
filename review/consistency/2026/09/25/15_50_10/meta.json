@@ -1,0 +1,14 @@
+{
+  "timestamp": "2026-09-25T15:50:11.014054",
+  "mode": "spec draft 검토 (--spec)",
+  "target_path": "plan/in-progress/spec-draft-workspace-path-guard-followup.md",
+  "checkers": [
+    "cross_spec",
+    "rationale_continuity",
+    "convention_compliance",
+    "plan_coherence",
+    "naming_collision"
+  ],
+  "target_snapshot": "_target/spec-draft-workspace-path-guard-followup.md",
+  "scope_note": "번들이 관련 spec 본문 다수를 예산 절단 — main 이 _prompts/*.md 끝에 «판단 전에 Read 로 직접 읽을 것» 블록(절대경로 8개)을 덧붙였다. 선례: 14_19_32 · 15_15_21."
+}

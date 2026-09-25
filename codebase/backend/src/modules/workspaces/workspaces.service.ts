@@ -20,8 +20,11 @@ import { UpdateWorkspaceSettingsDto } from './dto/update-workspace-settings.dto'
 import { AuditLogsService } from '../audit-logs/audit-logs.service';
 import { AUDIT_ACTIONS } from '../audit-logs/audit-action.const';
 import { resolveTriggerResourceReleaser } from '../triggers/trigger-resource-release';
-
-const ADMIN_ROLES = new Set<string>(['owner', 'admin']);
+import {
+  ADMIN_ROLES,
+  NOT_A_MEMBER,
+  ROLE_REQUIRED,
+} from '../../common/constants/workspace-roles';
 
 @Injectable()
 export class WorkspacesService {
@@ -253,8 +256,10 @@ export class WorkspacesService {
     role: WorkspaceRole,
     requesterId: string,
   ): Promise<WorkspaceMember> {
-    await this.assertWorkspaceType(workspaceId, 'team');
+    // 인가가 조회보다 먼저다 — 거꾸로면 비관리자가 워크스페이스의 존재 · 유형을 구분한다
+    // (`spec/data-flow/12-workspace.md` §Rationale "경로 파라미터 워크스페이스도 가드가 본다").
     await this.assertAdmin(workspaceId, requesterId);
+    await this.assertWorkspaceType(workspaceId, 'team');
     if (role === 'owner') {
       throw new ForbiddenException({
         code: 'CANNOT_ASSIGN_OWNER',
@@ -474,12 +479,7 @@ export class WorkspacesService {
     maxConcurrentExecutions?: number;
   }> {
     const role = await this.getMemberRole(workspaceId, userId);
-    if (!role) {
-      throw new ForbiddenException({
-        code: 'FORBIDDEN',
-        message: '워크스페이스 멤버만 조회할 수 있습니다.',
-      });
-    }
+    if (!role) this.throwNotAMember();
     const workspace = await this.workspaceRepository.findOne({
       where: { id: workspaceId },
     });
@@ -645,6 +645,9 @@ export class WorkspacesService {
     workspaceId: string,
     requesterId: string,
   ): Promise<void> {
+    // 인가가 조회보다 먼저다 — 거꾸로면 비멤버가 «없음 · 개인 · 팀» 을 구분한다(존재 · 유형
+    // 오라클). 아래 트랜잭션의 멤버십 재조회는 락을 잡은 채 sole-owner 를 판정하려는 것이라 남는다.
+    await this.assertMembership(workspaceId, requesterId);
     const workspace = await this.workspaceRepository.findOne({
       where: { id: workspaceId },
     });
@@ -669,12 +672,7 @@ export class WorkspacesService {
         where: { workspaceId, userId: requesterId },
         lock: { mode: 'pessimistic_write' },
       });
-      if (!membership) {
-        throw new ForbiddenException({
-          code: 'NOT_A_MEMBER',
-          message: '워크스페이스 멤버가 아닙니다.',
-        });
-      }
+      if (!membership) this.throwNotAMember();
       if (membership.role === 'owner') {
         const owners = await memRepo.find({
           where: { workspaceId, role: 'owner' },
@@ -721,6 +719,13 @@ export class WorkspacesService {
     requesterId: string,
     newOwnerMemberId: string,
   ): Promise<void> {
+    // 인가가 조회보다 먼저다 — 아래 트랜잭션은 워크스페이스를 먼저 읽어 «없음 404 · 개인 · 팀 비-owner»
+    // 로 갈리므로, 그 앞에서 무락으로 한 번 판정한다(`leaveWorkspace` 와 같은 모양). 트랜잭션 안의 락 재검사는
+    // 동시 owner 변경과의 경합을 막으려는 것이라 남긴다.
+    const requesterRole = await this.getMemberRole(workspaceId, requesterId);
+    if (!requesterRole) this.throwNotAMember();
+    if (requesterRole !== 'owner') this.throwOwnerTransferRequired();
+
     await this.memberRepository.manager.transaction(async (manager) => {
       const memRepo = manager.getRepository(WorkspaceMember);
       const wsRepo = manager.getRepository(Workspace);
@@ -747,10 +752,7 @@ export class WorkspacesService {
         lock: { mode: 'pessimistic_write' },
       });
       if (!requesterMembership || requesterMembership.role !== 'owner') {
-        throw new ForbiddenException({
-          code: 'OWNER_REQUIRED',
-          message: 'owner 이양은 현재 owner 만 수행할 수 있습니다.',
-        });
+        this.throwOwnerTransferRequired();
       }
       if (newOwnerMemberId === requesterMembership.id) {
         throw new BadRequestException({
@@ -818,9 +820,13 @@ export class WorkspacesService {
   ): Promise<void> {
     // **인가를 대상 조회보다 먼저 한다.** 종전에는 `findOne` → 404 → self → owner 403 →
     // `assertAdmin` 순서라, 이 워크스페이스와 무관한 사용자도 `(workspaceId, memberId)` 쌍에
-    // 대해 세 갈래로 구분되는 답을 받았다(없음 404 · owner 403 · 비-owner 403). 가드 층은
+    // 대해 세 갈래로 구분되는 답을 받았다(없음 404 · owner 403 · 비-owner 403). ~~가드 층은
     // 이 라우트를 막지 못한다 — `@Roles()` 가 없고 `handlerConsumesWorkspaceId` 가 false
-    // (`@WorkspaceId()` 가 아니라 `@Param('id')`)라 `RolesGuard` 가 단축 통과시킨다.
+    // (`@WorkspaceId()` 가 아니라 `@Param('id')`)라 `RolesGuard` 가 단축 통과시킨다.~~
+    // (2026-09-25 정정) 이제 `@WorkspaceParam('id')` 라 `RolesGuard` 가 경로 워크스페이스의
+    // 멤버십을 먼저 본다 — 비멤버는 여기 닿기 전에 `NOT_A_MEMBER` 다. 이 순서는 가드 인식이
+    // 깨졌을 때의 두 번째 선으로 남는다(`spec/data-flow/12-workspace.md` §Rationale "경로 파라미터
+    // 워크스페이스도 가드가 본다").
     //
     // 형제(`addMemberByEmail` · `updateMemberRole`)처럼 `assertAdmin` 을 첫 줄에 둘 수는 없다 —
     // **자가 탈퇴는 비-admin 도 해야 하고**, 자기 자신인지는 대상을 읽어야 안다. 그래서 인가를
@@ -908,23 +914,36 @@ export class WorkspacesService {
   /**
    * «워크스페이스 멤버가 아니다» — `assertMembership` 과, 요청자 role 을 **직접** 읽어
    * 재사용하는 `removeMember` 가 쓴다. 후자는 `assertMembership` 을 못 부른다(같은
-   * `getMemberRole` 을 두 번 돌리게 된다)므로 **판정문만** 공유한다.
+   * `getMemberRole` 을 두 번 돌리게 된다)므로 **판정문만** 공유한다. 본문은 `RolesGuard` 와 같은
+   * 표(`common/constants/workspace-roles.ts`)에서 온다 — 두 선이 같은 실패에 같은 문장을 낸다.
    */
   private throwNotAMember(): never {
-    throw new ForbiddenException({
-      code: 'NOT_A_MEMBER',
-      message: '워크스페이스 멤버가 아닙니다.',
-    });
+    throw new ForbiddenException({ ...NOT_A_MEMBER });
   }
 
   /** 위 `throwNotAMember()` 와 같은 이유로 판정문만 공유한다. */
   private throwAdminRequired(): never {
+    throw new ForbiddenException({ ...ROLE_REQUIRED.admin });
+  }
+
+  /**
+   * owner 이양 거부 — `transferOwnership` 의 인가 선행과 트랜잭션 안 락 재검사가 같은 문장을 낸다.
+   * 코드는 가드와 같은 `OWNER_REQUIRED` 이고, 문장은 이 동작에 맞춘 서비스 고유 문구다.
+   */
+  private throwOwnerTransferRequired(): never {
     throw new ForbiddenException({
-      code: 'ADMIN_REQUIRED',
-      message: 'Admin 이상의 권한이 필요합니다.',
+      code: ROLE_REQUIRED.owner.code,
+      message: 'owner 이양은 현재 owner 만 수행할 수 있습니다.',
     });
   }
 
+  /**
+   * 아래 두 검사(`assertMembership` · `assertAdmin`)는 경로 워크스페이스 라우트에서 `RolesGuard` 가
+   * **같은 조회를 먼저 한다** — 요청당 멤버십 쿼리가 한 번 더 도는 것은 의도된 중복이다. 이 검사는
+   * 가드 인식이 깨져 단축 통과가 일어날 때의 두 번째 선이고, 가드가 읽은 role 을 넘겨받으면 그 선이
+   * 가드에 기대게 돼 독립성을 잃는다(`spec/data-flow/12-workspace.md` §Rationale "경로 파라미터
+   * 워크스페이스도 가드가 본다" — «서비스 계층 검사는 남는다»).
+   */
   private async assertMembership(
     workspaceId: string,
     userId: string,
@@ -938,7 +957,10 @@ export class WorkspacesService {
     userId: string,
   ): Promise<void> {
     const role = await this.getMemberRole(workspaceId, userId);
-    if (!role || !ADMIN_ROLES.has(role)) this.throwAdminRequired();
+    // 비멤버는 요구 역할과 무관하게 NOT_A_MEMBER — `RolesGuard` 와 같은 규칙(`12-workspace.md`
+    // §Rationale "가드 거부의 오류 코드" 규칙 (나)). 두 선이 같은 실패에 같은 답을 낸다.
+    if (!role) this.throwNotAMember();
+    if (!ADMIN_ROLES.has(role)) this.throwAdminRequired();
   }
 
   private async assertWorkspaceType(
