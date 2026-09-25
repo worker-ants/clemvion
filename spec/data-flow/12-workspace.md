@@ -355,8 +355,11 @@ personal→첫 멤버십으로 graceful fallback. 목표(end-state)는 토큰이
 
 위 «멤버십 검증은 가드 1곳에서» 는 헤더 · 토큰 컨텍스트만 봤다. 경로 `:id` 로 워크스페이스를 받는 라우트 15곳
 (`workspaces.controller.ts` 14 · `auth.controller.ts` 전환 1)은 서비스 계층 `assertMembership` · `assertAdmin` 에만 기댔다.
-2026-09-25 실측: 인가 누락은 없었으나 두 메서드(`leaveWorkspace` · `addMemberByEmail`)가 인가 **전에** 워크스페이스를 조회해
-비멤버가 «없음 · 개인 · 팀» 을 구분할 수 있었다(존재 · 유형 오라클). `@Roles('owner')` 가 붙은 `transferOwnership` 조차 가드는
+2026-09-25 실측: 인가 누락은 없었으나 ~~두 메서드(`leaveWorkspace` · `addMemberByEmail`)가~~ 세 메서드(`leaveWorkspace` ·
+`addMemberByEmail` · `transferOwnership`)가 인가 **전에** 워크스페이스를 조회해 비멤버가 «없음 · 개인 · 팀» 을 구분할 수 있었다
+(존재 · 유형 오라클). (2026-09-25 정정 — 셋째는 구현 뒤 리뷰가 찾았다: 트랜잭션 안에서 워크스페이스를 먼저 읽어 «없음 404 · 개인
+`CANNOT_TRANSFER_PERSONAL` · 팀 비-owner `OWNER_REQUIRED`» 로 갈렸고, 가드가 토큰 워크스페이스로 판정해 HTTP 로도 닿았다.
+계획 단계 표는 `@Roles('owner')` 가 붙었다는 이유로 이 메서드를 가드 쪽으로 분류했다.) `@Roles('owner')` 가 붙은 `transferOwnership` 조차 가드는
 **헤더 · 토큰의 워크스페이스**를 검사했다 — 핸들러가 다루는 경로 워크스페이스가 아니었다.
 
 **정정**: 워크스페이스를 경로로 받는 파라미터는 **`@WorkspaceParam('<name>')`** 로 바인딩한다. `RolesGuard` 는 `@WorkspaceId()`
@@ -383,9 +386,11 @@ personal→첫 멤버십으로 graceful fallback. 목표(end-state)는 토큰이
 형식은 맞지만 RFC 밖인 값(nil UUID 등)은 가드가 멤버십을 조회해 **403** 이 된다(종전 `ParseUUIDPipe` 400).
 
 **서비스 계층 검사는 남는다 — 가드가 조용히 빠질 때의 두 번째 선이다.** 이 메서드들의 HTTP 밖 호출자는 없다(2026-09-25 실측:
-내부 위임 `removeMember → leaveWorkspace` 하나 — 가드를 거친 HTTP 요청 안이다). 그러니 서비스 검사가 막는 것은 «다른 호출 경로»
-가 아니라 **가드의 인식이 깨져 단축 통과가 일어나는 경우**다. 오라클이 있던 두 메서드도 인가를 앞으로 옮긴다 — 두 번째 선에도
-같은 오라클이 남지 않게.
+내부 위임 `removeMember → leaveWorkspace` 하나 — 가드를 거친 HTTP 요청 안이다. 셋째 `transferOwnership` 도 재확인했다 — 호출자는
+컨트롤러 하나). 그러니 서비스 검사가 막는 것은 «다른 호출 경로»
+가 아니라 **가드의 인식이 깨져 단축 통과가 일어나는 경우**다. 오라클이 있던 ~~두~~ 세 메서드도 인가를 앞으로 옮긴다 — 두 번째 선에도
+같은 오라클이 남지 않게. 트랜잭션 안에서 락을 잡고 재검사하는 자리(`leaveWorkspace` · `transferOwnership`)는 그 재검사를 남기고, 앞에
+무락 인가 선행을 둔다.
 
 **기각된 대안**(2026-09-25, 선택지를 실측과 함께 제시해 사용자가 결정) — (1) 오라클 2곳만 서비스에서 인가 선행으로 고친다: 위 절이
 «74번째 라우트» 로 기각한 라우트별 패치의 연장이다. (2) 가드가 경로 파라미터도 보되 거부에 코드를 붙이지 않는다: 경로 라우트 13곳의

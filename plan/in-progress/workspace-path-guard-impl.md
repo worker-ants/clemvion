@@ -33,7 +33,8 @@ started: 2026-09-25
    메시지는 서비스와 같은 한국어. 가드는 파이프보다 먼저 돌므로 경로 값은 `isUuidShaped` 로만 보고 형식이 아니면 넘긴다.
 4. 저장소 가드 `workspace-param-binding` — `@Param(...)` 로 받은 파라미터 이름이 `workspaceId` 이거나 `WorkspaceId` 로 끝나면 실패.
    AST · 허용목록 없음 · 공허성(`@WorkspaceParam` 소비 > 0) 단언. `param-uuid-pipe-guard` 모집단에서 빠지는 것을 기록.
-5. `leaveWorkspace` · `addMemberByEmail` 인가 선행(두 번째 선의 오라클 제거).
+5. `leaveWorkspace` · `addMemberByEmail` 인가 선행(두 번째 선의 오라클 제거). (2026-09-25 보탬) `transferOwnership` 도 — 계획 단계
+   실측이 놓친 세 번째 오라클을 `/ai-review` 4라운드가 찾았다(`1f616ef05`, spec 정정은 두 번째 planner 턴).
 6. frontend 403 표시 — `ERROR_KO` 등재 여부 판단(트래커 «`ERROR_KO` 를 아무도 읽지 않는다» 와 함께).
 7. e2e — 라우트 클래스(멤버 · Admin · Owner)마다 비멤버 `NOT_A_MEMBER` · 부재 워크스페이스 같은 응답 · 역할 미달 코드 · 형식 파손
    400 · nil UUID 403 · 헤더 위조 `NOT_A_MEMBER` · `transferOwnership` 이 경로 워크스페이스로 판정.
@@ -109,7 +110,26 @@ INFO 3(`nestjs-v12-coordinated-upgrade.md` §C 캐너리 기준값 142)은 요�
 | M15 | 저장소 가드 접미 규칙 제거 | RED | RED 1 — 대조군 «네 형태» |
 | M16 | 저장소 가드 경로 이름 미검사 | RED | RED 1 — 대조군 «네 형태» |
 | M17 | `param-uuid-pipe` 가 `@WorkspaceParam` 을 모집단에서 뺌 | RED | RED 2 |
-- [ ] `/ai-review` — 1라운드 `review/code/2026/09/25/16_03_32`: Critical 0 · Warning 8 → 조치 `37ee970a2`(RESOLUTION.md). 수정이
-      있었으므로 2라운드를 돈다(정지 규칙: Critical 0 · Warning 0 · 그 라운드 codebase 수정 0건)
+
+리뷰 라운드에서 더한 뮤턴트(같은 하네스 · cp 원복):
+
+| # | 뮤턴트 | 예측 | 실측 |
+| --- | --- | --- | --- |
+| R1~R3 | 역할 서열 모듈 — `ADMIN_ROLES` 문턱 · `hasOwn` 제거 · 서열 뒤바꿈 | RED | 전부 RED |
+| W6 | `@Roles` 인자를 `string[]` 로 넓힘 | RED(ratchet) | RED — ratchet `roles.guard.spec.ts: 0 → 1` |
+| R4 · R5 | 다중 경로 이름 첫째만 · 마지막만 검사 | RED | 둘 다 RED |
+| S1~S4 | `assertAdmin` 결합 원복 · `getWorkspaceSettings` 검사 제거 · 병용 판별 항상 false · `decoratorCallName` 비-호출형 | RED | 전부 RED |
+| T1 · T2 | `transferOwnership` 인가 선행 제거 · 비-owner 통과 | RED | 둘 다 RED |
+| T3 | 다중 경로의 `@Roles` 를 첫째에만 | RED | **처음엔 생존** — 미달 케이스가 한 자리뿐이었다. 반대 자리 케이스를 더한 뒤 RED |
+| T4 | 다중 경로의 `@Roles` 를 마지막에만 | RED | RED |
+- [ ] `/ai-review` — 정지 규칙: Critical 0 · Warning 0 · 그 라운드 codebase 수정 0건. 라운드마다 RESOLUTION.md 가 처분을 적는다.
+      | 라운드 | 세션 | 결과 | 조치 |
+      | --- | --- | --- | --- |
+      | 1 | `16_03_32` | C0 · W8 | `37ee970a2` — 역할 서열 한 표 · 낡은 주석 · 403 설명 상수 · 두 번째 선 의도 주석 |
+      | 2 | `16_39_25` | C0 · W8 | `85a38d00f` · `fdd7d8ff7` — 거부 본문 한 표 · `@Roles` 인자 좁히기(ratchet 고정) · 헬퍼 공용화 |
+      | 3 | `17_14_49` | C0 · W6 | `dc60b1af8` — 서비스 두 번째 선도 비멤버는 `NOT_A_MEMBER` |
+      | 4 | `17_47_18` | C0 · W8 | `1f616ef05` + T3 보강 — **`transferOwnership` 세 번째 오라클(동작 결함)** → 두 번째 planner 턴 |
+- [x] 두 번째 planner 턴 — spec «두 메서드» 실측 정정(`--spec` `review/consistency/2026/09/25/18_07_58` BLOCK: NO, WARNING 2 반영).
+      draft `plan/complete/spec-draft-workspace-path-guard-oracle-census.md`
 - [ ] `--impl-done`
 - [ ] 트래커 항목 닫기
