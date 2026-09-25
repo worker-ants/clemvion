@@ -135,6 +135,42 @@ def make_temp_git_repo(path: Path | str, *, branch: str = "main",
     return repo
 
 
+def make_temp_repo_copy(path: Path | str, *subtrees: str) -> Path:
+    """`make_temp_git_repo` + this checkout's ``subtrees`` committed, ``origin/main`` at HEAD.
+
+    For tests that must **change** repository files to observe a behaviour — an
+    uncommitted edit to a tracked spec, a new untracked file — and used to do it
+    in this checkout. Parallel runs in one worktree then trampled each other: a
+    run's `cp` restore backed up another run's probe and brought it back, leaving
+    `<!-- uncommitted probe -->` lines in a real spec. Measured 2026-09-25: four
+    concurrent pytest processes left residue in 5 of 6 rounds. A copy no other
+    run sees cannot be trampled, and needs no restore.
+
+    ``origin/main`` points at the copy's own commit, so the committed branch diff
+    is empty and whatever the test changes afterwards is the whole change set —
+    nothing from the real branch mixes in. With no ``subtrees`` the commit is
+    empty (``--allow-empty``) and the result is just a temp repo with that ref.
+
+    The copy reads the **working tree**, not git objects: it takes the files as
+    they are at that moment. What this closes is the write side — no run ever
+    changes a file another run can see.
+
+    The orchestrators already take their root as an argument or as the cwd
+    (`consistency_orchestrator.repo_root()` is `os.getcwd()`), so pointing them
+    here needed no new injection point. `git_in` (via `make_temp_git_repo`)
+    rejects a ``path`` outside a temp directory before anything is copied.
+    """
+    import shutil
+
+    repo = make_temp_git_repo(path)
+    for rel in subtrees:
+        shutil.copytree(REPO_ROOT / rel, repo / rel)
+    git_in(repo, "add", "-A")
+    git_in(repo, "commit", "-q", "--allow-empty", "-m", "copy of this checkout")
+    git_in(repo, "update-ref", "refs/remotes/origin/main", "HEAD")
+    return repo
+
+
 TESTS_DIR = Path(__file__).resolve().parent
 
 # Four suites drive an orchestrator in a FRESH interpreter. The reason is the

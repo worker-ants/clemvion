@@ -25,10 +25,13 @@ the orchestrator in-process collides on the name `_lib`.
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 import sys
+import tempfile
 import textwrap
 import unittest
+from pathlib import Path
 
 import _harness
 from _harness import REPO_ROOT
@@ -40,6 +43,17 @@ ORCH = (
 
 _PREAMBLE = _harness.orchestrator_preamble(
     ORCH,
+    imports="os",
+    # 파일을 바꾸는 프로브의 루트 — `spec/5-system` 을 커밋한 임시 저장소. 이 체크아웃에
+    # 쓰면 병렬 실행이 서로의 프로브를 되살린다(`TheDocumentBeingEditedIsNeverOmittedTest`
+    # docstring). 다섯 스니펫이 같은 사본을 쓰므로 여기 한 곳에 둔다.
+    extra=textwrap.dedent(
+        """
+        def five_system_copy(tmp):
+            return str(_harness.make_temp_repo_copy(
+                os.path.join(tmp, "repo"), "spec/5-system"))
+        """
+    ),
 )
 
 
@@ -622,51 +636,48 @@ class TheDocumentBeingEditedIsNeverOmittedTest(unittest.TestCase):
     실측 2026-08-10 (`spec/5-system/` 18개): 미커밋 편집은 브랜치 diff 에 아예 없고
     번들 8위 — 그 디렉터리의 드롭 구간이다. 편집 중인 문서 자신이 "예산 초과로 생략된
     파일" 목록에 실려 checker 가 그걸 못 본 채 판정한, 보고된 그 증상이다.
+
+    **프로브는 이 체크아웃이 아니라 `spec/5-system` 의 임시 사본에서 한다**
+    (`_harness.make_temp_repo_copy`). 예전엔 실제 spec 에 미커밋 편집을 넣고 `cp` 로
+    원복했는데, 같은 워크트리에서 하네스가 병렬로 돌면 한쪽의 원복이 다른 쪽 프로브를
+    백업해 되살려 실제 spec 에 프로브 줄이 남았다(실측 2026-09-25 — pytest 4개 동시
+    실행 6라운드 중 5라운드). 편집 대상 파일은 예시일 뿐 그 내용은 재지 않는다.
     """
 
     @staticmethod
     def _rank_of_an_uncommitted_edit():
         return run_in_orchestrator(
             """
-            import os, shutil, tempfile
+            import os, tempfile
             rel = "spec/5-system/7-llm-client.md"
-            target = os.path.join(ROOT, rel)
-            backup = os.path.join(tempfile.mkdtemp(), "backup.md")
-            shutil.copy(target, backup)
-            try:
-                with open(target, "a", encoding="utf-8") as fh:
+            with tempfile.TemporaryDirectory() as tmp:
+                root = five_system_copy(tmp)
+                with open(os.path.join(root, rel), "a", encoding="utf-8") as fh:
                     fh.write("\\n<!-- uncommitted probe -->\\n")
-                edited = orch._edited_rels("origin/main", ROOT)
-                files = orch.collect_markdown_files(os.path.join(ROOT, "spec/5-system"))
+                edited = orch._edited_rels("origin/main", root)
+                files = orch.collect_markdown_files(os.path.join(root, "spec/5-system"))
                 ordered = orch.prioritize_bundle_files(
-                    files, ROOT, changed_rels=edited, plan_text="",
+                    files, root, changed_rels=edited, plan_text="",
                     branch_plan_text="")
-                names = [os.path.relpath(f, ROOT) for f in ordered]
-                # tier 0 은 여럿일 수 있다 — 이 브랜치가 같은 디렉터리의 다른 spec 을
-                # **커밋**했으면 `_edited_rels`(커밋 ∪ 미커밋)에 함께 들어온다. 재려는
-                # 성질은 "프로브가 1위" 가 아니라 "**드롭 구간이 아니다**" 이므로
-                # tier 0 크기를 함께 내보내 그 안에 있는지로 판정한다.
+                names = [os.path.relpath(f, root) for f in ordered]
                 emit({"tier0": rel in edited, "rank": names.index(rel),
                       "tier0_size": sum(1 for n in names if n in edited),
-                      "total": len(names)})
-            finally:
-                # cp 로 원복한다 — `git checkout` 은 이 저장소에서 미커밋 작업을
-                # 두 번 지웠다.
-                shutil.copy(backup, target)
+                      "total": len(names), "root": root})
             """
         )
 
     def test_an_uncommitted_edit_reaches_the_top_tier(self):
         got = self._rank_of_an_uncommitted_edit()
         self.assertTrue(got["tier0"], "미커밋 편집이 변경 집합에 없다")
-        # **`rank == 0` 이 아니라 `rank < tier0_size`.** 전자는 "프로브가 유일한 tier 0"
-        # 일 때만 성립하는 프록시라, 같은 디렉터리의 spec 을 커밋한 브랜치에서는 **정상
-        # 코드가 RED** 가 된다(실측 2026-08-11 — `1-auth.md` 를 커밋한 브랜치에서 재현).
-        # 재려는 성질(드롭 구간에 빠지지 않는다)은 tier 0 안에 있으면 성립한다.
-        self.assertLess(
-            got["rank"], got["tier0_size"],
-            f"편집 중인 문서가 {got['rank']}위로 tier 0({got['tier0_size']}개) 밖이다 "
-            "— 예산이 모자라면 먼저 버려진다",
+        # 사본은 `origin/main == HEAD` 라 변경 집합이 프로브 하나다. 실제 브랜치에서 잴
+        # 때는 그 브랜치가 커밋한 다른 spec 도 tier 0 이라 `rank < tier0_size` 로 쟀지만
+        # (실측 2026-08-11 — `1-auth.md` 를 커밋한 브랜치에서 `rank == 0` 이 정상 코드를
+        # RED 로 만들었다), 사본에서는 1위를 직접 본다. 크기를 먼저 고정해 그 가정이
+        # 깨지면 이유를 대며 실패하게 한다.
+        self.assertEqual(got["tier0_size"], 1, "사본의 변경 집합이 프로브 하나가 아니다")
+        self.assertEqual(
+            got["rank"], 0,
+            f"편집 중인 문서가 {got['rank']}위다 — 예산이 모자라면 먼저 버려진다",
         )
 
     def test_collect_context_puts_the_edited_document_first(self):
@@ -674,37 +685,32 @@ class TheDocumentBeingEditedIsNeverOmittedTest(unittest.TestCase):
         부르면 결함은 그대로다 — 그 뮤턴트가 실제로 살아남았다."""
         first = run_in_orchestrator(
             """
-            import os, re, shutil, tempfile
+            import os, re, tempfile
             rel = "spec/5-system/7-llm-client.md"
-            target = os.path.join(ROOT, rel)
-            backup = os.path.join(tempfile.mkdtemp(), "backup.md")
-            shutil.copy(target, backup)
-            try:
-                with open(target, "a", encoding="utf-8") as fh:
+            with tempfile.TemporaryDirectory() as tmp:
+                root = five_system_copy(tmp)
+                with open(os.path.join(root, rel), "a", encoding="utf-8") as fh:
                     fh.write("\\n<!-- uncommitted probe -->\\n")
 
                 class Args:
                     spec = plan = impl_prep = diff_base = None
                     impl_done = None
                 args = Args()
-                args.impl_done = os.path.join(ROOT, "spec/5-system")
-                doc = orch.collect_context(args, ROOT)["target_doc"]
+                args.impl_done = os.path.join(root, "spec/5-system")
+                doc = orch.collect_context(args, root)["target_doc"]
                 text = re.sub(r"```.*?```", "", doc, flags=re.S)
                 headers = re.findall(r"^#### `([^`]+)`", text, re.M)
-                # 위 테스트와 같은 이유로 **1위 하나만 보지 않는다** — 이 브랜치가 커밋한
-                # 다른 spec 도 tier 0 이라 순서가 갈릴 수 있다. 프로브의 위치와 tier 0
-                # 크기를 함께 내보내 "드롭 구간이 아니다" 를 판정한다.
-                edited = orch._edited_rels("origin/main", ROOT)
+                edited = orch._edited_rels("origin/main", root)
                 emit({"rank": headers.index(rel) if rel in headers else -1,
                       "tier0_size": sum(1 for h in headers if h in edited)})
-            finally:
-                shutil.copy(backup, target)
             """
         )
+        # 위 테스트와 같이 사본의 변경 집합은 프로브 하나라 1위를 직접 본다.
         self.assertGreaterEqual(first["rank"], 0, "편집 중인 문서가 번들에 아예 없다")
-        self.assertLess(
-            first["rank"], first["tier0_size"],
-            f"편집 중인 문서가 {first['rank']}위로 tier 0({first['tier0_size']}개) 밖이다 "
+        self.assertEqual(first["tier0_size"], 1, "사본의 변경 집합이 프로브 하나가 아니다")
+        self.assertEqual(
+            first["rank"], 0,
+            f"편집 중인 문서가 {first['rank']}위다 "
             "— `collect_context` 가 옛 함수를 계속 부르면 이 값이 커진다",
         )
 
@@ -717,25 +723,34 @@ class TheDocumentBeingEditedIsNeverOmittedTest(unittest.TestCase):
         """
         listed = run_in_orchestrator(
             """
-            import os, shutil
-            newdir = os.path.join(ROOT, "spec/5-system/__probe_area__")
-            os.makedirs(newdir, exist_ok=True)
-            newfile = os.path.join(newdir, "draft.md")
-            try:
-                with open(newfile, "w", encoding="utf-8") as fh:
+            import os, tempfile
+            with tempfile.TemporaryDirectory() as tmp:
+                root = five_system_copy(tmp)
+                newdir = os.path.join(root, "spec/5-system/__probe_area__")
+                os.makedirs(newdir)
+                with open(os.path.join(newdir, "draft.md"), "w", encoding="utf-8") as fh:
                     fh.write("# 초안\\n")
-                emit(orch._edited_rels("origin/main", ROOT).__contains__(
+                emit(orch._edited_rels("origin/main", root).__contains__(
                     "spec/5-system/__probe_area__/draft.md"))
-            finally:
-                shutil.rmtree(newdir, ignore_errors=True)
             """
         )
         self.assertTrue(listed, "새 디렉터리의 untracked 파일이 개별로 잡히지 않는다")
 
-    def test_the_probe_leaves_no_residue(self):
-        """원복이 실제로 되는지 확인한다. 안 되면 위 테스트가 저장소를 더럽힌 채
-        통과하고, 다음 실행부터는 '이미 편집됨' 이라 vacuous 해진다."""
-        self._rank_of_an_uncommitted_edit()
+    def test_the_probe_runs_outside_this_checkout(self):
+        """프로브는 이 체크아웃을 건드리지 않는다.
+
+        이 자리는 원래 "원복이 실제로 되는가" 를 쟀다 — 실제 spec 을 편집하던 시절에는
+        원복이 안 되면 다음 실행부터 '이미 편집됨' 이라 vacuous 해졌다. 이제 매 실행이 새
+        사본이라 그 전제가 없고, 재야 할 것은 **사본에서 도는가** 다. 프로브를 실제 트리로
+        되돌리는 편집은 원복이 완벽해도 병렬 실행에서 잔여를 남긴다(클래스 docstring).
+        """
+        got = self._rank_of_an_uncommitted_edit()
+        root = os.path.realpath(got["root"])
+        checkout = os.path.realpath(REPO_ROOT)
+        self.assertFalse(
+            root == checkout or root.startswith(checkout + os.sep),
+            f"프로브가 이 체크아웃 안에서 돌았다: {root}",
+        )
         left = run_in_orchestrator(
             """
             import os
@@ -745,6 +760,49 @@ class TheDocumentBeingEditedIsNeverOmittedTest(unittest.TestCase):
             """
         )
         self.assertFalse(left, "프로브가 편집을 남겼다")
+
+
+class TheRepoCopyFixtureTest(unittest.TestCase):
+    """위 프로브들이 기대는 `_harness.make_temp_repo_copy` 의 계약.
+
+    프로브는 사본의 **미커밋** 변경만 쓴다. 그래서 `origin/main` 을 HEAD 에 두는 줄을
+    지워도 전부 초록이었다 — 커밋 절반(`origin/main...HEAD`)이 git 실패로 빈 집합이 되고
+    합집합은 그대로라서다(뮤턴트 생존, 2026-09-25). 그 줄이 지키는 것을 여기서 직접 잰다:
+    갓 만든 사본의 변경 집합은 비어 있고, 사본에서 **커밋한** 변경은 브랜치 diff 로 보인다.
+    커밋 절반을 재려는 다음 테스트가 조용히 실패 경로를 타지 않게.
+    """
+
+    def test_a_commit_in_the_copy_is_in_the_branch_diff(self):
+        got = run_in_orchestrator(
+            """
+            import os, tempfile
+            rel = "spec/5-system/7-llm-client.md"
+            with tempfile.TemporaryDirectory() as tmp:
+                root = five_system_copy(tmp)
+                before = sorted(orch._edited_rels("origin/main", root))
+                with open(os.path.join(root, rel), "a", encoding="utf-8") as fh:
+                    fh.write("\\n<!-- committed probe -->\\n")
+                _harness.git_in(root, "commit", "-qam", "probe")
+                emit({"before": before,
+                      "branch": sorted(orch._branch_changed_rels("origin/main", root))})
+            """
+        )
+        self.assertEqual(got["before"], [], "갓 만든 사본의 변경 집합이 비어 있지 않다")
+        self.assertEqual(
+            got["branch"], ["spec/5-system/7-llm-client.md"],
+            "사본에서 커밋한 변경이 브랜치 diff 에 없다 — origin/main 이 사본의 커밋을 가리키지 않는다",
+        )
+
+    def test_no_subtrees_is_an_empty_copy_not_an_error(self):
+        """`subtrees` 없이 부르면 커밋할 것이 없어 `git commit` 이 실패했다(리뷰
+        `10_27_27` W1 이 실측 재현). 빈 커밋으로 받아 «ref 만 있는 임시 저장소» 가 된다."""
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = _harness.make_temp_repo_copy(Path(tmp) / "repo")
+            head = _harness.git_in(repo, "rev-parse", "HEAD").stdout.strip()
+            ref = _harness.git_in(repo, "rev-parse", "origin/main").stdout.strip()
+            tracked = _harness.git_in(repo, "ls-files").stdout.split()
+        self.assertEqual(ref, head)
+        self.assertEqual(tracked, [".gitkeep"])
 
 
 class TheDiffOutranksTheFolderDumpTest(unittest.TestCase):
@@ -774,6 +832,9 @@ class TheDiffOutranksTheFolderDumpTest(unittest.TestCase):
 
         변경 집합을 실제 브랜치에서 읽으면 main 에 머지된 뒤 0건이 되어 단언이 조용히
         무의미해지므로, 여기서는 고정한다.
+
+        아래 테스트와 달리 사본(`five_system_copy`)을 쓰지 않는다 — 스텁만으로 재고
+        파일을 하나도 쓰지 않아 이 체크아웃을 읽기만 한다.
         """
         order = run_in_orchestrator(
             """
@@ -830,23 +891,27 @@ class TheDiffOutranksTheFolderDumpTest(unittest.TestCase):
             orch._edited_rels = lambda base, root: {
                 "plan/in-progress/__probe_plan__.md"}
 
-            import os
-            plan_path = os.path.join(ROOT, "plan/in-progress/__probe_plan__.md")
-            with open(plan_path, "w", encoding="utf-8") as fh:
-                fh.write("---\\nworktree: (unstarted)\\nstarted: 2026-08-10\\n"
-                         "owner: developer\\n---\\n\\n"
-                         "대상: spec/5-system/9-rag-search.md\\n")
-            try:
+            import os, tempfile
+            # plan 은 `spec/5-system` 사본 옆에 둔다 — 이 체크아웃의 `plan/in-progress/`
+            # 에 두면 병렬 실행이 서로의 파일을 지운다(`TheDocumentBeingEditedIsNeverOmittedTest`
+            # docstring).
+            with tempfile.TemporaryDirectory() as tmp:
+                root = five_system_copy(tmp)
+                plan_path = os.path.join(root, "plan/in-progress/__probe_plan__.md")
+                os.makedirs(os.path.dirname(plan_path))
+                with open(plan_path, "w", encoding="utf-8") as fh:
+                    fh.write("---\\nworktree: (unstarted)\\nstarted: 2026-08-10\\n"
+                             "owner: developer\\n---\\n\\n"
+                             "대상: spec/5-system/9-rag-search.md\\n")
+
                 class Args:
                     spec = plan = impl_prep = diff_base = None
                     impl_done = None
                 args = Args()
-                args.impl_done = os.path.join(ROOT, "spec/5-system")
-                ctx = orch.collect_context(args, ROOT)
+                args.impl_done = os.path.join(root, "spec/5-system")
+                ctx = orch.collect_context(args, root)
                 text = re.sub(r"```.*?```", "", ctx["target_doc"], flags=re.S)
                 emit(re.findall(r"^#### `([^`]+)`", text, re.M))
-            finally:
-                os.remove(plan_path)
             """
         )
         self.assertEqual(

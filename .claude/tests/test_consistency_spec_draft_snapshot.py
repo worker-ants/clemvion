@@ -21,21 +21,24 @@ CLAUDE.md 경계는 "planner 턴을 밟았다" 로만 정당화되고, `--spec` 
 from __future__ import annotations
 
 import json
-import shutil
+import os
 import subprocess
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 
-from _harness import REPO_ROOT
+from _harness import REPO_ROOT, make_temp_git_repo
 
 ORCH = (
     REPO_ROOT / ".claude" / "skills" / "consistency-checker" / "scripts"
     / "consistency_orchestrator.py"
 )
 
-# 실제 draft 처럼 보이되 이 테스트만 쓰는 이름. `plan/in-progress/` 에 둬야 하는 이유는
-# orchestrator 가 target 을 저장소 상대경로로 읽기 때문이다.
+# 실제 draft 처럼 보이되 이 테스트만 쓰는 이름. 실제 호출처럼 `plan/in-progress/` 아래
+# **상대경로**로 준다 — orchestrator 는 target 을 cwd 상대로 읽는다(`repo_root()` 가
+# `os.getcwd()`). 그 cwd 는 테스트마다 새 임시 저장소다: 이 체크아웃에 두던 시절에는 같은
+# 워크트리의 병렬 실행이 서로의 draft 를 지워 `--spec` 이 실패했다(실측 2026-09-25).
 DRAFT_REL = "plan/in-progress/spec-draft-__snapshot_selftest__.md"
 DRAFT_BODY = (
     "---\n"
@@ -51,36 +54,39 @@ DRAFT_BODY = (
 )
 
 
-def _run(*args: str) -> subprocess.CompletedProcess:
+def _run(cwd: Path, *args: str) -> subprocess.CompletedProcess:
+    # 세션 위치를 셸 환경에 맡기지 않는다 — 기본값(cwd 상대 `./review/consistency`)이어야
+    # 세션이 임시 저장소 안에 생겨 함께 지워진다.
+    env = {k: v for k, v in os.environ.items() if k != "CONSISTENCY_OUTPUT_DIR"}
     return subprocess.run(
         [sys.executable, str(ORCH), *args],
-        cwd=str(REPO_ROOT),
+        cwd=str(cwd),
+        env=env,
         capture_output=True,
         text=True,
     )
 
 
-def _session_dir(proc: subprocess.CompletedProcess) -> Path:
-    return Path(proc.stdout.strip().split("\n")[-1])
+def _session_dir(proc: subprocess.CompletedProcess, cwd: Path) -> Path:
+    # 찍히는 경로는 출력 디렉터리 설정 그대로다 — 기본값이면 cwd 상대.
+    return cwd / proc.stdout.strip().split("\n")[-1]
 
 
 class SpecDraftSnapshotTest(unittest.TestCase):
     def setUp(self) -> None:
-        self.draft = REPO_ROOT / DRAFT_REL
+        self._tmp = tempfile.TemporaryDirectory()
+        self.repo = make_temp_git_repo(Path(self._tmp.name) / "repo")
+        self.draft = self.repo / DRAFT_REL
+        self.draft.parent.mkdir(parents=True)
         self.draft.write_text(DRAFT_BODY, encoding="utf-8")
-        self.sessions: list[Path] = []
 
     def tearDown(self) -> None:
-        self.draft.unlink(missing_ok=True)
-        for session in self.sessions:
-            if session.exists():
-                shutil.rmtree(session, ignore_errors=True)
+        self._tmp.cleanup()
 
     def test_spec_session_preserves_the_draft_byte_for_byte(self):
-        proc = _run("--spec", DRAFT_REL)
+        proc = _run(self.repo, "--spec", DRAFT_REL)
         self.assertEqual(proc.returncode, 0, proc.stderr)
-        session = _session_dir(proc)
-        self.sessions.append(session)
+        session = _session_dir(proc, self.repo)
 
         snapshot = session / "_target" / self.draft.name
         self.assertTrue(
@@ -92,10 +98,9 @@ class SpecDraftSnapshotTest(unittest.TestCase):
         self.assertEqual(snapshot.read_text(encoding="utf-8"), DRAFT_BODY)
 
     def test_meta_points_at_the_snapshot(self):
-        proc = _run("--spec", DRAFT_REL)
+        proc = _run(self.repo, "--spec", DRAFT_REL)
         self.assertEqual(proc.returncode, 0, proc.stderr)
-        session = _session_dir(proc)
-        self.sessions.append(session)
+        session = _session_dir(proc, self.repo)
 
         meta = json.loads((session / "meta.json").read_text(encoding="utf-8"))
         self.assertEqual(meta.get("target_snapshot"), f"_target/{self.draft.name}")
@@ -109,10 +114,9 @@ class SpecDraftSnapshotTest(unittest.TestCase):
         음성 케이스를 고정하지 않으면 "모든 모드가 target 을 복사한다" 로 넓어져도
         아무 테스트가 RED 를 내지 않는다.
         """
-        proc = _run("--plan", DRAFT_REL)
+        proc = _run(self.repo, "--plan", DRAFT_REL)
         self.assertEqual(proc.returncode, 0, proc.stderr)
-        session = _session_dir(proc)
-        self.sessions.append(session)
+        session = _session_dir(proc, self.repo)
 
         self.assertFalse((session / "_target").exists())
         meta = json.loads((session / "meta.json").read_text(encoding="utf-8"))

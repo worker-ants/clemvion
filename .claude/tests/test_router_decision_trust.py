@@ -332,7 +332,7 @@ class RouterPromptStatesCompositionTest(unittest.TestCase):
     rather than hoping the router counts correctly.
     """
 
-    def _prepare_over(self, *paths):
+    def _prepare_over(self, *paths, cwd=REPO_ROOT):
         import os
         import shutil
 
@@ -340,7 +340,7 @@ class RouterPromptStatesCompositionTest(unittest.TestCase):
         try:
             r = subprocess.run(
                 [sys.executable, str(ORCH), "--prepare", *paths],
-                capture_output=True, text=True, cwd=str(REPO_ROOT),
+                capture_output=True, text=True, cwd=str(cwd),
                 env=dict(os.environ, REVIEW_OUTPUT_DIR=tmp),
             )
             self.assertEqual(r.returncode, 0, r.stderr[-2000:])
@@ -370,20 +370,24 @@ class RouterPromptStatesCompositionTest(unittest.TestCase):
         """The block caps the list at 20 and appends "… 외 N개". The whole point
         of this PR is that the router mis-stated file composition, so a wrong
         remainder here would be the same defect in the fix itself."""
-        import os
         import shutil
         import tempfile
 
         n = 23
-        tmp_src = tempfile.mkdtemp(dir=str(REPO_ROOT))
+        # The sources live in a temp dir handed over as the cwd — `--prepare` reads
+        # paths relative to it. They used to be a `mkdtemp(dir=REPO_ROOT)` in this
+        # checkout, untracked for as long as the test ran, where an argument-less
+        # `--prepare` or a parallel run's `git status` picked them up.
+        tmp_src = tempfile.mkdtemp()
         try:
-            rel = os.path.relpath(tmp_src, REPO_ROOT)
+            rel = "pkg"
+            (Path(tmp_src) / rel).mkdir()
             paths = []
             for i in range(n):
-                p = Path(tmp_src) / f"mod_{i:02d}.py"
+                p = Path(tmp_src) / rel / f"mod_{i:02d}.py"
                 p.write_text(f"VALUE = {i}\n", encoding="utf-8")
                 paths.append(f"{rel}/{p.name}")
-            body = self._prepare_over(*paths)
+            body = self._prepare_over(*paths, cwd=tmp_src)
             self.assertIn(f"**소스 코드 파일 {n}개**", body)
             self.assertIn(f"… 외 {n - 20}개", body)
             listed = body.count("  - `" + rel)
