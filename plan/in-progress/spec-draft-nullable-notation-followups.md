@@ -5001,7 +5001,7 @@ field: T | null;
       > **2026-09-25 — 닫힘.** `plan/complete/workspace-guard-followups.md` — 다섯 건 모두 처리(구현 `097411779`). `/ai-review`
       > `review/code/2026/09/25/19_27_34` 1라운드 Critical 0 · Warning 0 · 수정 0 으로 수렴. 그 리뷰의 INFO 둘은 아래 신규 항목으로.
 
-- [ ] **backend README 캐너리 절 · `transferOwnership` 트랜잭션 재검사 분기 테스트** (developer, 낮음, 2026-09-25 등재 — `/ai-review`
+- [x] **backend README 캐너리 절 · `transferOwnership` 트랜잭션 재검사 분기 테스트** (developer, 낮음, 2026-09-25 등재 — `/ai-review`
       `review/code/2026/09/25/19_27_34` INFO 8 · 9).
       1. `codebase/backend/README.md` §«워크스페이스 reflection 캐너리» 가 `#1399` 이전 형태로 남았다 — «`@WorkspaceId()` 를 소비하는 라우트를
          하나도 인식하지 못하면 부팅을 거부» · 로그 인용 «`@WorkspaceId() 소비 라우트 N건 인식`» 만 적는다. 지금 캐너리는
@@ -5011,6 +5011,23 @@ field: T | null;
          동시 강등 경합)가 unit 으로 고정되지 않았다. 사전검사 경로만 문구까지 고정돼 있다 — `memberRepo.findOne` 을
          `mockResolvedValueOnce` 두 번(owner → admin)으로 이어 재검사 분기의 `OWNER_REQUIRED` · 서비스 문구를 단언한다.
       **착수 조건**: 없음. 1 은 `codebase/**` 문서라 리뷰 게이트를 돈다.
+
+      > **2026-09-25 — 닫힘.** `plan/complete/canary-readme-recheck-test.md` — README 절을 캐너리 코드와 한 줄씩 대조해 고쳤고, 재검사
+      > 분기 테스트를 추가했다(`6aeb57a1a` · 리뷰 반영 `47dfdb3c3`). 처방의 `mockResolvedValueOnce` 두 번 대신 조회를 `lock` 유무로
+      > 갈랐다 — 호출 순서가 아니라 «선행 = 무락 · 재검사 = 락» 이라는 분기 조건 자체에 묶인다. 재검사 조건의 OR 두 가지(강등 · 멤버십
+      > 소멸)를 `it.each` 로 하나씩 탄다 — 뮤턴트 V1 · V2 가 각자 자기 케이스 하나만 RED. 전에는 이 분기를 지키는 테스트가 없었다.
+      > `/ai-review` 2라운드(`review/code/2026/09/25/20_20_00` → `20_47_04`)로 수렴. 그 `--impl-prep` 의 W2 · W3 는 아래 planner 항목 둘.
+
+- [ ] **`9-user-profile.md §4.2` 역할 매트릭스가 읽기 권한까지 좁게 읽힐 여지** (planner, 낮음, 2026-09-25 등재 · `--impl-prep`
+      `review/consistency/2026/09/25/20_01_21` cross_spec W2). §4.2 매트릭스에 스코프 disclaimer 가 없어 `1-auth.md §3.2` · 같은 문서
+      §6.1 보다 좁은 접근으로 읽힐 수 있다 — 매트릭스가 무엇을 다루는지(워크스페이스 관리 작업) 한 줄로 한정할 것. 기존 모호성이고
+      코드와 어긋난 곳은 없다. **착수 조건**: 없음(여유 있을 때 — `9-user-profile.md` 를 여는 다음 planner 턴에 함께).
+
+- [ ] **`12-workspace.md` Owner 요구 라우트 수 서술에 «이미 owner 였던 라우트» 괄호** (planner, 낮음, 2026-09-25 등재 · `--impl-prep`
+      `review/consistency/2026/09/25/20_01_21` W3). checker 가 «2곳 / 2곳 / 1곳» 을 모순으로 읽었다 — 실측으로 **오독**이다(현재
+      `@Roles('owner')` 는 `remove` · `transferOwnership` 2곳, `#1399` 직전은 `transferOwnership` 1곳, «`owner` 1 을 붙여» 는 새로 붙인
+      `remove`). 다만 한 번 오독된 문장이라 «(`transferOwnership` 은 이미 `@Roles('owner')` 였다)» 괄호 한 줄로 다음 독자를 막는다.
+      **착수 조건**: 없음(여유 있을 때).
 
 - [ ] **기존 `@ApiForbiddenResponse` 설명 ~120곳이 가드 거부 코드를 싣지 않는다** (developer, 낮음, 2026-09-25 등재 —
       `plan/complete/workspace-path-guard-impl.md` §구현 중 결정). 가드 거부가 코드를 갖게 됐지만(`NOT_A_MEMBER` ·
