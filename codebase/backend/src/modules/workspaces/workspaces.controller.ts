@@ -32,6 +32,10 @@ import {
   ApiOkWrappedResponse,
 } from '../../common/swagger';
 import { SENSITIVE_ACTION_THROTTLE } from '../../common/constants/throttle';
+import {
+  NOT_A_MEMBER,
+  ROLE_REQUIRED,
+} from '../../common/constants/workspace-roles';
 import { WorkspacesService } from './workspaces.service';
 import { WorkspaceInvitationsService } from './workspace-invitations.service';
 import { CreateWorkspaceDto } from './dto/create-workspace.dto';
@@ -62,10 +66,11 @@ const INVITATION_THROTTLE = SENSITIVE_ACTION_THROTTLE;
 
 // `@ApiForbiddenResponse` 설명 — 경로 워크스페이스 라우트의 403 은 `RolesGuard` 가 코드를 실어 낸다
 // (`spec/data-flow/12-workspace.md` §Rationale "가드 거부의 오류 코드"). 라우트마다 문장을 손으로 적으면
-// 가드 코드가 바뀔 때 자리마다 동기화해야 하므로 요구 역할별로 한 번만 적는다.
-const FORBIDDEN_MEMBER_ROUTE = '워크스페이스 멤버가 아님(NOT_A_MEMBER)';
-const FORBIDDEN_ADMIN_ROUTE = `${FORBIDDEN_MEMBER_ROUTE} 또는 Admin 이상 권한 필요(ADMIN_REQUIRED)`;
-const FORBIDDEN_OWNER_ROUTE = `${FORBIDDEN_MEMBER_ROUTE} 또는 Owner 권한 필요(OWNER_REQUIRED)`;
+// 가드 코드가 바뀔 때 자리마다 동기화해야 하므로 요구 역할별로 한 번만 적고, 코드는 가드 · 서비스가 쓰는 거부 표
+// (`common/constants/workspace-roles.ts`)에서 보간한다 — 코드명이 바뀌면 설명이 따라온다.
+const FORBIDDEN_MEMBER_ROUTE = `워크스페이스 멤버가 아님(${NOT_A_MEMBER.code})`;
+const FORBIDDEN_ADMIN_ROUTE = `${FORBIDDEN_MEMBER_ROUTE} 또는 Admin 이상 권한 필요(${ROLE_REQUIRED.admin.code})`;
+const FORBIDDEN_OWNER_ROUTE = `${FORBIDDEN_MEMBER_ROUTE} 또는 Owner 권한 필요(${ROLE_REQUIRED.owner.code})`;
 
 @ApiTags('Workspaces')
 @ApiBearerAuth('access-token')
@@ -388,7 +393,7 @@ export class WorkspacesController {
   @ApiOkWrappedResponse(OkResultDto, { description: '제거 결과' })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
   @ApiForbiddenResponse({
-    description: `${FORBIDDEN_MEMBER_ROUTE}, 또는 타인 제거에 Admin 이상 권한 필요(ADMIN_REQUIRED — 서비스 판정)`,
+    description: `${FORBIDDEN_MEMBER_ROUTE}, 또는 타인 제거에 Admin 이상 권한 필요(${ROLE_REQUIRED.admin.code} — 서비스 판정)`,
   })
   @ApiNotFoundResponse({ description: '워크스페이스 또는 멤버를 찾을 수 없음' })
   async removeMember(

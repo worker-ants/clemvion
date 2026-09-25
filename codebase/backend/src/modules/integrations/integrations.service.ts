@@ -13,6 +13,7 @@ import pLimit from 'p-limit';
 import { isSmtpHostBlocked } from '../../nodes/integration/send-email/smtp-host-guard';
 import { Integration } from './entities/integration.entity';
 import { getAppBaseUrl } from '../../common/utils/app-base-url';
+import { ADMIN_ROLES } from '../../common/constants/workspace-roles';
 import { IntegrationUsageLog } from './entities/integration-usage-log.entity';
 import { Node } from '../nodes/entities/node.entity';
 import { Workflow } from '../workflows/entities/workflow.entity';
@@ -108,8 +109,6 @@ type TransportTester = (
 export type EntityAwareTester = (
   integration: Integration,
 ) => Promise<IntegrationTestResult>;
-
-const ADMIN_ROLES = new Set(['owner', 'admin']);
 
 /** email(SMTP) 연결 테스트의 connection/greeting/socket 공통 타임아웃 (ms). */
 const SMTP_TEST_TIMEOUT_MS = 10_000;
