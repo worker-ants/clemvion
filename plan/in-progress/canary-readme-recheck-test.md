@@ -1,0 +1,42 @@
+---
+title: backend README 캐너리 절 · transferOwnership 트랜잭션 재검사 분기 테스트
+status: in-progress
+owner: developer
+worktree: canary-readme-recheck-test
+spec_impact: none
+started: 2026-09-25
+---
+
+# backend README 캐너리 절 · `transferOwnership` 트랜잭션 재검사 분기 테스트
+
+트래커 `plan/in-progress/spec-draft-nullable-notation-followups.md` 항목 «backend README 캐너리 절 · `transferOwnership` 트랜잭션
+재검사 분기 테스트» 를 닫는다. 출처: `#1400` 의 `/ai-review`(`review/code/2026/09/25/19_27_34`) INFO 8 · 9. 동작 변경 없음 — 운영자
+문서 정정과 테스트 보강이다(`spec_impact: none`).
+
+## 요구
+
+1. `codebase/backend/README.md` §«워크스페이스 reflection 캐너리» 를 `#1399` 이후 캐너리에 맞춘다 — `@WorkspaceParam()` 소비도 센다 ·
+   부팅 거부 조건은 두 판별의 **합계** 0 · 부팅 로그는 두 개수(`@WorkspaceId() 소비 라우트 N건 인식 · @WorkspaceParam() 소비 라우트 M건
+   인식`) · 먼저 볼 곳에 `workspaceParamNamesOf`. 깨지면 무엇이 새는지도 경로 라우트 쪽(역할 요구가 헤더 · 토큰 워크스페이스로 판정)까지.
+2. `modules/workspaces/workspaces.service.spec.ts` — `transferOwnership` 의 트랜잭션 안 재검사 분기(무락 인가 선행은 owner 로 통과했는데
+   락을 잡고 다시 보니 owner 가 아님 — 동시 강등 경합)를 unit 으로 고정한다: `OWNER_REQUIRED` · 서비스 고유 문구 · 멤버 변경(`save`)이
+   일어나지 않음.
+
+## `--impl-prep` 경고 처리 (`review/consistency/2026/09/25/20_01_21` — BLOCK: NO, WARNING 4)
+
+| # | 경고 | 처분 |
+| --- | --- | --- |
+| W1 · W4 | 번들이 관련 spec · conventions 를 예산으로 절단(하니스) | 이 작업(README · 테스트)과 무관 — 알려진 하니스 갭(memory `feedback_consistency_spec_mode_budget`). 조치 없음 |
+| W2 | `9-user-profile.md §4.2` 역할 매트릭스가 읽기 권한까지 좁게 읽힐 여지 | 기존부터 있던 spec 모호성, 이 plan 범위 밖(spec 쓰기) — 트래커 planner 항목으로 등재 |
+| W3 | `12-workspace.md` 의 Owner 요구 라우트 수가 «2곳 / 2곳 / 1곳» 으로 어긋난다 | **오독 — 실측으로 확인했다.** 현재 `workspaces.controller.ts` 의 `@Roles('owner')` 는 2곳(`remove` · `transferOwnership`), `#1399` 직전은 1곳(`transferOwnership`) — «`owner` 1 을 붙여» 는 새로 붙인 `remove` 다. 다만 checker 가 한 번 오독한 문장이라 «(`transferOwnership` 은 이미 `@Roles('owner')` 였다)» 괄호 한 줄을 planner 항목으로 등재 |
+
+## 체크리스트
+
+- [x] `--impl-prep` — `20_01_21` BLOCK: NO, 처리 위
+- [ ] 테스트(요구 2) — 분기를 실제로 타는지 뮤턴트로 확인(재검사 제거 → RED)
+- [ ] README(요구 1) — 캐너리 코드 · 로그 문구와 한 줄씩 대조
+- [ ] TEST WORKFLOW — lint · unit · build · e2e
+- [ ] CHANGELOG 판정(문서 · 테스트만 → 항목 없음 예상)
+- [ ] `/ai-review`
+- [ ] `--impl-done`(spec 연결 여부 확인: `workspaces.service.spec.ts` 는 `9-user-profile` 의 `modules/workspaces/**` 에 걸린다)
+- [ ] 트래커 항목 닫기

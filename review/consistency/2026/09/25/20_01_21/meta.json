@@ -1,0 +1,13 @@
+{
+  "timestamp": "2026-09-25T20:01:21.445045",
+  "mode": "구현 착수 전 검토 (--impl-prep, scope=/private/tmp/claude-501/-Volumes-project-private-clemvion/9bc8ff42-8873-4ae7-986a-b884a1fefbf6/scratchpad/prep3-scope/spec)",
+  "target_path": "spec/5-system/1-auth.md · spec/2-navigation/9-user-profile.md · spec/data-flow/12-workspace.md",
+  "checkers": [
+    "cross_spec",
+    "rationale_continuity",
+    "convention_compliance",
+    "plan_coherence",
+    "naming_collision"
+  ],
+  "scope_note": "scope 는 scratch 디렉터리(세 파일 사본). 문서 · 테스트만의 변경 — main 이 plan · 코드 절대경로 Read 블록을 덧붙였다."
+}
