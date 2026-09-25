@@ -1,10 +1,11 @@
 ---
 title: 하네스 테스트가 실제 저장소 트리에 프로브를 쓰지 않게 한다
-status: in-progress
+status: complete
 owner: developer
 worktree: harness-probe-isolation
 spec_impact: none
 started: 2026-09-25
+completed: 2026-09-25
 ---
 
 # 병렬 하네스 실행이 서로의 프로브를 밟는다
@@ -134,7 +135,10 @@ P1~P5 는 `128cc9746` 뒤 한 번에 다시 돌려 전부 KILLED(바이트코드
 - [x] 감사 훅 census 재실행 — 전 97행 → 후 0행 (§E)
 - [x] CHANGELOG 항목 (커밋 전 staged 확인)
 - [x] `python3 -m pytest .claude/tests -q` 전체 — `89ae9fa24` 뒤 **1175 passed**
-- [ ] `/ai-review` — 1 `10_27_27`(Critical 0 · W2 · INFO 10 → W 둘 조치 · INFO 1 등재, RESOLUTION)
+- [x] `/ai-review` — **2라운드**. 1 `10_27_27`(Critical 0 · W2 · INFO 10 → W 둘 조치 · INFO 1 등재, RESOLUTION) ·
+      2 `10_45_12`(**Critical 0 · Warning 0** · 그 라운드 하네스 수정 0 — 선언한 정지 규칙 그대로 종결). 2라운드 INFO 10 은
+      1라운드 재확인(torn read · 상시 가드 · 중첩 subtree · 격리 방식 세 갈래 · 스냅샷 산출물의 옛 이름)이 대부분이고, 새 것은
+      INFO 3(프로브 경로 리터럴 3곳)뿐 — 우선순위 낮음이고 고치면 하네스 코드 수정이라 3라운드를 강제하므로 두지 않는다
 - [x] 트래커 항목 닫기 — 종결 메모 + INFO 1(상시 가드) 새 항목 등재
 
 ## G. 사전 검토 처분 (`09_56_00`)
