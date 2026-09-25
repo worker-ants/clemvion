@@ -1,6 +1,6 @@
 ---
 title: 경로 워크스페이스 가드 후속 — reflection 골격 · 403 설명 코드 보간 · 서비스 문구
-status: in-progress
+status: complete
 owner: developer
 worktree: workspace-guard-followups
 spec_impact: none
@@ -57,7 +57,12 @@ INFO 4 · 6 · 8, 그리고 `--impl-done`(`review/consistency/2026/09/25/18_42_3
   문자열을 단언하는 테스트도 없다. drift 를 구조로 막는 변경이다.
 - [x] CHANGELOG 판정 — **항목 없음.** 기준 블록 «동작이 그대로인 리팩터» 에 해당한다: 응답 · 에러 코드 · OpenAPI 문자열이 바이트 단위로
       같고(보간 값 = 종전 리터럴), 가드 · CI 검사를 세우거나 조이지 않는다.
-- [ ] TEST WORKFLOW — lint · unit · build · e2e
-- [ ] `/ai-review`
-- [ ] `--impl-done`(spec 연결: `1-auth` · `9-user-profile` · `3-schedule` · `2-navigation/4-integration` · `redis-keys`)
-- [ ] 트래커 항목 닫기
+- [x] TEST WORKFLOW — lint · unit(backend 10058) · build(타입체크 ratchet 포함) · e2e(71 스위트 · 391) PASS
+      (`_test_logs/*-20260925-19{2104,2154,2357,2716}.log`)
+- [x] `/ai-review` — `review/code/2026/09/25/19_27_34` 전수 14명, Critical 0 · Warning 0 · 수정 0 → 1라운드 수렴. INFO 둘(backend
+      README 캐너리 절이 `#1399` 이전 형태 · `transferOwnership` 트랜잭션 재검사 분기 미고정)은 트래커 신규 항목
+- [x] `--impl-done` — `review/consistency/2026/09/25/19_42_27` BLOCK: NO. scope = `code:` 로 변경과 닿는 spec 6개(`12-workspace` 포함 —
+      `1-auth` · `9-user-profile` · `3-schedule` · `2-navigation/4-integration` · `redis-keys`). `redis-keys` 는 `code:` 가
+      `modules/integrations/**/*.ts` 를 잡아 요구 5 와 닿는다(impl-prep plan_coherence 실측). WARNING 1(이 plan 이 아직 in-progress)은
+      이 마무리로 해소. push 게이트 dry-run 허용
+- [x] 트래커 항목 닫기 — «경로 워크스페이스 가드 후속» `[x]` + 닫힘 노트, 후속 «backend README 캐너리 절 · 재검사 분기 테스트» 등재
