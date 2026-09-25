@@ -4982,7 +4982,7 @@ field: T | null;
       > 저장소 가드 `workspace-param-binding` + 오라클 2곳 서비스 인가 선행. e2e `workspace-path-guard.e2e-spec.ts` 가 라우트 클래스별
       > 비멤버 · 부재 · 개인 워크스페이스의 동일 응답을 고정한다.
 
-- [ ] **경로 워크스페이스 가드 후속 — reflection 골격 · 403 설명 코드 보간 · 서비스 문구** (developer, 낮음, 2026-09-25 등재 —
+- [x] **경로 워크스페이스 가드 후속 — reflection 골격 · 403 설명 코드 보간 · 서비스 문구** (developer, 낮음, 2026-09-25 등재 —
       `/ai-review` 5라운드 `review/code/2026/09/25/18_19_47` 의 «수렴 예외» 등재분, 판정은 그 세션 `RESOLUTION.md`). 동작 결함은 없다.
       1. `common/decorators/workspace.decorator.ts` 의 `handlerConsumesWorkspaceId` · `workspaceParamNamesOf` 가 «메서드명 가드 →
          `ROUTE_ARGS_METADATA` 조회 → 팩토리 필터» 골격을 복제한다(W1) — `factoryEntries(controllerClass, handler, factory)` 하나로 모으고
@@ -4997,6 +4997,20 @@ field: T | null;
          `common/constants/workspace-roles.ts` 의 `ADMIN_ROLES` 와 동명이인으로 남았다 — 공용 상수를 import 하거나 이유를 주석으로
          (`--impl-done` `review/consistency/2026/09/25/18_42_32` naming_collision WARNING).
       **착수 조건**: 없음(여유 있을 때). `codebase/**` 편집이라 리뷰 게이트를 한 바퀴 돈다.
+
+      > **2026-09-25 — 닫힘.** `plan/complete/workspace-guard-followups.md` — 다섯 건 모두 처리(구현 `097411779`). `/ai-review`
+      > `review/code/2026/09/25/19_27_34` 1라운드 Critical 0 · Warning 0 · 수정 0 으로 수렴. 그 리뷰의 INFO 둘은 아래 신규 항목으로.
+
+- [ ] **backend README 캐너리 절 · `transferOwnership` 트랜잭션 재검사 분기 테스트** (developer, 낮음, 2026-09-25 등재 — `/ai-review`
+      `review/code/2026/09/25/19_27_34` INFO 8 · 9).
+      1. `codebase/backend/README.md` §«워크스페이스 reflection 캐너리» 가 `#1399` 이전 형태로 남았다 — «`@WorkspaceId()` 를 소비하는 라우트를
+         하나도 인식하지 못하면 부팅을 거부» · 로그 인용 «`@WorkspaceId() 소비 라우트 N건 인식`» 만 적는다. 지금 캐너리는
+         `@WorkspaceParam()` 도 따로 세고(로그에 두 개수), 거부 조건은 **합계** 0 이며, 먼저 볼 곳도 `workspaceParamNamesOf` 까지다.
+         운영자용 문서라 판별 범위를 실제보다 좁게 적는 셈이다.
+      2. `workspaces.service.ts` `transferOwnership` 의 트랜잭션 안 재검사(무락 인가 선행을 지난 뒤 락을 잡고 보니 owner 가 아닌 경우 —
+         동시 강등 경합)가 unit 으로 고정되지 않았다. 사전검사 경로만 문구까지 고정돼 있다 — `memberRepo.findOne` 을
+         `mockResolvedValueOnce` 두 번(owner → admin)으로 이어 재검사 분기의 `OWNER_REQUIRED` · 서비스 문구를 단언한다.
+      **착수 조건**: 없음. 1 은 `codebase/**` 문서라 리뷰 게이트를 돈다.
 
 - [ ] **기존 `@ApiForbiddenResponse` 설명 ~120곳이 가드 거부 코드를 싣지 않는다** (developer, 낮음, 2026-09-25 등재 —
       `plan/complete/workspace-path-guard-impl.md` §구현 중 결정). 가드 거부가 코드를 갖게 됐지만(`NOT_A_MEMBER` ·
