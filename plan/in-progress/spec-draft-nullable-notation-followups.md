@@ -4982,6 +4982,19 @@ field: T | null;
       > 저장소 가드 `workspace-param-binding` + 오라클 2곳 서비스 인가 선행. e2e `workspace-path-guard.e2e-spec.ts` 가 라우트 클래스별
       > 비멤버 · 부재 · 개인 워크스페이스의 동일 응답을 고정한다.
 
+- [ ] **경로 워크스페이스 가드 후속 — reflection 골격 · 403 설명 코드 보간 · 서비스 문구** (developer, 낮음, 2026-09-25 등재 —
+      `/ai-review` 5라운드 `review/code/2026/09/25/18_19_47` 의 «수렴 예외» 등재분, 판정은 그 세션 `RESOLUTION.md`). 동작 결함은 없다.
+      1. `common/decorators/workspace.decorator.ts` 의 `handlerConsumesWorkspaceId` · `workspaceParamNamesOf` 가 «메서드명 가드 →
+         `ROUTE_ARGS_METADATA` 조회 → 팩토리 필터» 골격을 복제한다(W1) — `factoryEntries(controllerClass, handler, factory)` 하나로 모으고
+         두 함수는 `some` / `map` 만 얹는다. 부트 캐너리 · 뮤턴트 M8 · M9 · MB · MB2 가 회귀를 본다.
+      2. `workspaces.controller.ts` 의 `FORBIDDEN_*_ROUTE` 설명 상수가 `common/constants/workspace-roles.ts` 의 `NOT_A_MEMBER.code` ·
+         `ROLE_REQUIRED.*.code` 를 보간하지 않고 리터럴로 적는다(W2) — 보간으로 바꾸면 코드명 변경이 설명에 따라온다.
+      3. `workspaces.service.ts` 의 `throwOwnerTransferRequired` 가 `{ ...ROLE_REQUIRED.owner, message }` 로 이웃 헬퍼와 모양을 맞추고,
+         서비스 고유 문구(«owner 이양은 현재 owner 만…»)를 unit 에서 고정한다(INFO 4 · 6).
+      4. `transferOwnership` docstring 의 «두 멤버를 단일 IN 쿼리로 동시 락» 이 실제(순차 두 번의 개별 락)와 다르다 — 이 PR 이전부터의
+         서술 부채(INFO 8). 워크스페이스 행 락이 임계구역을 직렬화해 데드락 위험은 없다는 사실로 정정.
+      **착수 조건**: 없음(여유 있을 때). `codebase/**` 편집이라 리뷰 게이트를 한 바퀴 돈다.
+
 - [ ] **기존 `@ApiForbiddenResponse` 설명 ~120곳이 가드 거부 코드를 싣지 않는다** (developer, 낮음, 2026-09-25 등재 —
       `plan/complete/workspace-path-guard-impl.md` §구현 중 결정). 가드 거부가 코드를 갖게 됐지만(`NOT_A_MEMBER` ·
       `EDITOR_REQUIRED` · `ADMIN_REQUIRED` · `OWNER_REQUIRED`) 그 PR 은 경로 15곳 · 재실행 · chain 의 설명만 고쳤다. 실측(2026-09-25,

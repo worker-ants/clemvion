@@ -129,7 +129,11 @@ INFO 3(`nestjs-v12-coordinated-upgrade.md` §C 캐너리 기준값 142)은 요�
       | 2 | `16_39_25` | C0 · W8 | `85a38d00f` · `fdd7d8ff7` — 거부 본문 한 표 · `@Roles` 인자 좁히기(ratchet 고정) · 헬퍼 공용화 |
       | 3 | `17_14_49` | C0 · W6 | `dc60b1af8` — 서비스 두 번째 선도 비멤버는 `NOT_A_MEMBER` |
       | 4 | `17_47_18` | C0 · W8 | `1f616ef05` + T3 보강 — **`transferOwnership` 세 번째 오라클(동작 결함)** → 두 번째 planner 턴 |
+      | 5 | `18_19_47` | C0 · W3 | 동작 결함 0 — W3(`@Roles` 라우트 수)은 CHANGELOG · spec(세 번째 planner 턴) 정정, W1(reflection 골격 중복) · W2(403 설명이 공유 코드를 보간하지 않음)는 developer SKILL «수렴 예외»로 트래커 등재(판정 근거는 그 세션 RESOLUTION.md) |
 - [x] 두 번째 planner 턴 — spec «두 메서드» 실측 정정(`--spec` `review/consistency/2026/09/25/18_07_58` BLOCK: NO, WARNING 2 반영).
       draft `plan/complete/spec-draft-workspace-path-guard-oracle-census.md`
+- [x] 세 번째 planner 턴 — spec `@Roles` 라우트 수 정정(66 · 9 · 7 · 5 는 결정 당시 main 기준으로도 틀렸다 → AST 실측 main 63 · 9 · 3 · 4 =
+      79, 머지 시점 63 · 17 · 4 · 4 = 88). `--spec` `review/consistency/2026/09/25/18_35_55` BLOCK: NO(WARNING 1 = 이 표에 5라운드를
+      적는 것 — 반영). draft `plan/complete/spec-draft-workspace-path-guard-role-census.md`
 - [ ] `--impl-done`
 - [ ] 트래커 항목 닫기

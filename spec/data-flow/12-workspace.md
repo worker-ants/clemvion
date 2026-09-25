@@ -412,12 +412,13 @@ personal→첫 멤버십으로 graceful fallback. 목표(end-state)는 토큰이
 `@Roles('viewer')` 는 멤버십과 같다. 여러 역할을 주면 가장 낮은 역할이 요구다(계층 비교). 메시지는 서비스 계층과 같은 한국어다.
 
 **적용 범위는 전역이다.** `RolesGuard` 는 `APP_GUARD` 라 이 표는 경로 라우트 15곳만이 아니라 `@Roles()` 가 붙은 **모든** 라우트
-(2026-09-25 실측: `editor` 66 · `admin` 9 · `owner` 7 · `viewer` 5)와 헤더 위조 거부에 함께 적용된다 — 그 라우트들의 역할 · 멤버십
+(2026-09-25 실측: ~~`editor` 66 · `admin` 9 · `owner` 7 · `viewer` 5~~ — 정정: 결정 당시 main 기준 `editor` 63 · `admin` 9 · `owner` 3 ·
+`viewer` 4, 합 79. 이 변경이 경로 라우트에 `admin` 8 · `owner` 1 을 붙여 합 88. AST 로 다시 셌다)와 헤더 위조 거부에 함께 적용된다 — 그 라우트들의 역할 · 멤버십
 거부 wire 코드가 `FORBIDDEN` 에서 위 코드로 바뀌었다. 상태 코드는 403 그대로다.
 
 **비멤버는 요구 역할과 무관하게 `NOT_A_MEMBER` 다.** 두 규칙을 견줬다 — (가) «라우트 요구의 코드»(비멤버도 Admin 라우트에선
 `ADMIN_REQUIRED`) · (나) «비멤버는 항상 `NOT_A_MEMBER`, 멤버의 역할 미달만 역할 코드». (가)는 경로 라우트의 서비스 시절 본문을
-비멤버까지 그대로 두지만, 헤더 위조 거부가 `editor` 라우트 66곳에서 `EDITOR_REQUIRED` 가 된다 — 비멤버에게 «editor 권한이 필요하다»
+비멤버까지 그대로 두지만, 헤더 위조 거부가 `editor` 라우트 ~~66곳~~ 63곳에서 `EDITOR_REQUIRED` 가 된다 — 비멤버에게 «editor 권한이 필요하다»
 는 틀린 진술이고, frontend 가 «이 워크스페이스에 더는 속하지 않는다» 를 알아챌 단일 신호를 잃는다. (나)를 택했다. 대가는 경로 라우트
 중 Admin/Owner 요구 10곳에서 **비멤버**가 받는 코드가 `ADMIN_REQUIRED` · `OWNER_REQUIRED` 에서 `NOT_A_MEMBER` 로 바뀐 것이고,
 비멤버는 그 화면에 도달하지 않는다. 멤버가 받는 본문은 모두 보존된다.
