@@ -148,7 +148,12 @@ def make_temp_repo_copy(path: Path | str, *subtrees: str) -> Path:
 
     ``origin/main`` points at the copy's own commit, so the committed branch diff
     is empty and whatever the test changes afterwards is the whole change set —
-    nothing from the real branch mixes in.
+    nothing from the real branch mixes in. With no ``subtrees`` the commit is
+    empty (``--allow-empty``) and the result is just a temp repo with that ref.
+
+    The copy reads the **working tree**, not git objects: it takes the files as
+    they are at that moment. What this closes is the write side — no run ever
+    changes a file another run can see.
 
     The orchestrators already take their root as an argument or as the cwd
     (`consistency_orchestrator.repo_root()` is `os.getcwd()`), so pointing them
@@ -161,7 +166,7 @@ def make_temp_repo_copy(path: Path | str, *subtrees: str) -> Path:
     for rel in subtrees:
         shutil.copytree(REPO_ROOT / rel, repo / rel)
     git_in(repo, "add", "-A")
-    git_in(repo, "commit", "-qm", "copy of this checkout")
+    git_in(repo, "commit", "-q", "--allow-empty", "-m", "copy of this checkout")
     git_in(repo, "update-ref", "refs/remotes/origin/main", "HEAD")
     return repo
 

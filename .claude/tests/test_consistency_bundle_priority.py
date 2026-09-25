@@ -28,8 +28,10 @@ import json
 import os
 import subprocess
 import sys
+import tempfile
 import textwrap
 import unittest
+from pathlib import Path
 
 import _harness
 from _harness import REPO_ROOT
@@ -41,6 +43,17 @@ ORCH = (
 
 _PREAMBLE = _harness.orchestrator_preamble(
     ORCH,
+    imports="os",
+    # 파일을 바꾸는 프로브의 루트 — `spec/5-system` 을 커밋한 임시 저장소. 이 체크아웃에
+    # 쓰면 병렬 실행이 서로의 프로브를 되살린다(`TheDocumentBeingEditedIsNeverOmittedTest`
+    # docstring). 다섯 스니펫이 같은 사본을 쓰므로 여기 한 곳에 둔다.
+    extra=textwrap.dedent(
+        """
+        def five_system_copy(tmp):
+            return str(_harness.make_temp_repo_copy(
+                os.path.join(tmp, "repo"), "spec/5-system"))
+        """
+    ),
 )
 
 
@@ -638,8 +651,7 @@ class TheDocumentBeingEditedIsNeverOmittedTest(unittest.TestCase):
             import os, tempfile
             rel = "spec/5-system/7-llm-client.md"
             with tempfile.TemporaryDirectory() as tmp:
-                root = str(_harness.make_temp_repo_copy(
-                    os.path.join(tmp, "repo"), "spec/5-system"))
+                root = five_system_copy(tmp)
                 with open(os.path.join(root, rel), "a", encoding="utf-8") as fh:
                     fh.write("\\n<!-- uncommitted probe -->\\n")
                 edited = orch._edited_rels("origin/main", root)
@@ -676,8 +688,7 @@ class TheDocumentBeingEditedIsNeverOmittedTest(unittest.TestCase):
             import os, re, tempfile
             rel = "spec/5-system/7-llm-client.md"
             with tempfile.TemporaryDirectory() as tmp:
-                root = str(_harness.make_temp_repo_copy(
-                    os.path.join(tmp, "repo"), "spec/5-system"))
+                root = five_system_copy(tmp)
                 with open(os.path.join(root, rel), "a", encoding="utf-8") as fh:
                     fh.write("\\n<!-- uncommitted probe -->\\n")
 
@@ -714,8 +725,7 @@ class TheDocumentBeingEditedIsNeverOmittedTest(unittest.TestCase):
             """
             import os, tempfile
             with tempfile.TemporaryDirectory() as tmp:
-                root = str(_harness.make_temp_repo_copy(
-                    os.path.join(tmp, "repo"), "spec/5-system"))
+                root = five_system_copy(tmp)
                 newdir = os.path.join(root, "spec/5-system/__probe_area__")
                 os.makedirs(newdir)
                 with open(os.path.join(newdir, "draft.md"), "w", encoding="utf-8") as fh:
@@ -768,8 +778,7 @@ class TheRepoCopyFixtureTest(unittest.TestCase):
             import os, tempfile
             rel = "spec/5-system/7-llm-client.md"
             with tempfile.TemporaryDirectory() as tmp:
-                root = str(_harness.make_temp_repo_copy(
-                    os.path.join(tmp, "repo"), "spec/5-system"))
+                root = five_system_copy(tmp)
                 before = sorted(orch._edited_rels("origin/main", root))
                 with open(os.path.join(root, rel), "a", encoding="utf-8") as fh:
                     fh.write("\\n<!-- committed probe -->\\n")
@@ -783,6 +792,17 @@ class TheRepoCopyFixtureTest(unittest.TestCase):
             got["branch"], ["spec/5-system/7-llm-client.md"],
             "사본에서 커밋한 변경이 브랜치 diff 에 없다 — origin/main 이 사본의 커밋을 가리키지 않는다",
         )
+
+    def test_no_subtrees_is_an_empty_copy_not_an_error(self):
+        """`subtrees` 없이 부르면 커밋할 것이 없어 `git commit` 이 실패했다(리뷰
+        `10_27_27` W1 이 실측 재현). 빈 커밋으로 받아 «ref 만 있는 임시 저장소» 가 된다."""
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = _harness.make_temp_repo_copy(Path(tmp) / "repo")
+            head = _harness.git_in(repo, "rev-parse", "HEAD").stdout.strip()
+            ref = _harness.git_in(repo, "rev-parse", "origin/main").stdout.strip()
+            tracked = _harness.git_in(repo, "ls-files").stdout.split()
+        self.assertEqual(ref, head)
+        self.assertEqual(tracked, [".gitkeep"])
 
 
 class TheDiffOutranksTheFolderDumpTest(unittest.TestCase):
@@ -812,6 +832,9 @@ class TheDiffOutranksTheFolderDumpTest(unittest.TestCase):
 
         변경 집합을 실제 브랜치에서 읽으면 main 에 머지된 뒤 0건이 되어 단언이 조용히
         무의미해지므로, 여기서는 고정한다.
+
+        아래 테스트와 달리 사본(`five_system_copy`)을 쓰지 않는다 — 스텁만으로 재고
+        파일을 하나도 쓰지 않아 이 체크아웃을 읽기만 한다.
         """
         order = run_in_orchestrator(
             """
@@ -873,8 +896,7 @@ class TheDiffOutranksTheFolderDumpTest(unittest.TestCase):
             # 에 두면 병렬 실행이 서로의 파일을 지운다(`TheDocumentBeingEditedIsNeverOmittedTest`
             # docstring).
             with tempfile.TemporaryDirectory() as tmp:
-                root = str(_harness.make_temp_repo_copy(
-                    os.path.join(tmp, "repo"), "spec/5-system"))
+                root = five_system_copy(tmp)
                 plan_path = os.path.join(root, "plan/in-progress/__probe_plan__.md")
                 os.makedirs(os.path.dirname(plan_path))
                 with open(plan_path, "w", encoding="utf-8") as fh:
