@@ -302,6 +302,18 @@ describe('IntegrationsController — 소유자 판정 완결성 (§8)', () => {
       );
     });
 
+    it.each(['reauthorize', 'request_scopes'])(
+      '%s — 본인 personal 의 integrationId 는 통과해 OAuth 흐름을 시작한다',
+      async (mode) => {
+        role = 'viewer'; // 본인 personal 은 역할과 무관하다
+        integrationRepo.findOne.mockResolvedValue(googlePersonal());
+        await begin(CREATOR, mode, 'int-1');
+        expect(oauthBegin).toHaveBeenCalledWith(
+          expect.objectContaining({ mode, integrationId: 'int-1' }),
+        );
+      },
+    );
+
     it("mode 'new' 는 integrationId 를 쓰지 않으므로 판정하지 않는다", async () => {
       await begin(OTHER, 'new', 'int-1');
       expect(integrationRepo.findOne).not.toHaveBeenCalled();

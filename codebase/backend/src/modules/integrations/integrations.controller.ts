@@ -114,7 +114,7 @@ function modifyActionOfBeginMode(
     case 'reauthorize':
       return 'reauthorize';
     case 'request_scopes':
-      return 'modify';
+      return 'request-scopes';
     default: {
       const unreachable: never = mode;
       return unreachable;
@@ -457,7 +457,7 @@ export class IntegrationsController {
     description: '입력값 검증 실패 또는 자격 증명 유효성 오류',
   })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
-  @ApiForbiddenResponse({ description: 'organization 범위 생성 권한 부족' })
+  @ApiForbiddenResponse({ description: FORBIDDEN_EDITOR_OR_ORG_ADMIN })
   @ApiConflictResponse({ description: '동일 조건의 통합이 이미 존재' })
   async create(
     @WorkspaceId() workspaceId: string,

@@ -374,6 +374,26 @@ describe('IntegrationOAuthService', () => {
       },
     );
 
+    it.each([
+      ['reauthorize', 'Organization 통합을 재인증하려면'],
+      ['request_scopes', 'Organization 통합에 scope 를 추가하려면'],
+    ])('%s — 거부 문구는 그 동작을 말한다(«%s …»)', async (mode, phrase) => {
+      dataSource.query.mockResolvedValue(stateOf(mode));
+      integrationRepo.findOne.mockResolvedValue(rowOf({}));
+      await expect(
+        serviceWithRole('editor').handleCallback('google', {
+          code: 'code',
+          state: 'abc',
+        }),
+      ).rejects.toMatchObject({
+        response: {
+          code: 'ADMIN_REQUIRED',
+          message: `${phrase} Admin 이상의 권한이 필요합니다.`,
+        },
+      });
+      expect(integrationRepo.save).not.toHaveBeenCalled();
+    });
+
     it.each(['owner', 'admin'])(
       'Organization 통합 — 요청자가 %s 면 커밋한다',
       async (role) => {

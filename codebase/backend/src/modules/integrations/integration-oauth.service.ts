@@ -21,12 +21,12 @@ import {
   buildOauthCallbackUrl,
 } from './third-party-oauth.constants';
 import { Integration } from './entities/integration.entity';
-import { isIntegrationVisibleTo } from './integration-visibility';
-import { WorkspacesService } from '../workspaces/workspaces.service';
 import {
-  ADMIN_ROLES,
-  ROLE_REQUIRED,
-} from '../../common/constants/workspace-roles';
+  assertOrgScopeModifiable,
+  integrationNotFoundError,
+  isIntegrationVisibleTo,
+} from './integration-visibility';
+import { WorkspacesService } from '../workspaces/workspaces.service';
 import {
   IntegrationOAuthState,
   OAuthStateMode,
@@ -404,14 +404,11 @@ export class IntegrationOAuthService {
    */
   private async assertRequesterStillAllowed(
     integration: Integration,
-    record: { workspaceId: string; userId: string },
+    record: { workspaceId: string; userId: string; mode: string },
   ): Promise<void> {
     if (integration.status === 'pending_install') return;
     if (!isIntegrationVisibleTo(integration, record.userId)) {
-      throw new NotFoundException({
-        code: 'RESOURCE_NOT_FOUND',
-        message: 'Integration not found',
-      });
+      throw integrationNotFoundError();
     }
     if (integration.scope !== 'organization') return;
     const role = this.workspacesService
@@ -420,13 +417,11 @@ export class IntegrationOAuthService {
           record.userId,
         )
       : null;
-    if (!role || !ADMIN_ROLES.has(role)) {
-      throw new ForbiddenException({
-        ...ROLE_REQUIRED.admin,
-        message:
-          'Admin role is required to reauthorize organization-scope integrations',
-      });
-    }
+    assertOrgScopeModifiable(
+      integration,
+      role,
+      record.mode === 'request_scopes' ? 'request-scopes' : 'reauthorize',
+    );
   }
 
   /**

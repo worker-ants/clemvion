@@ -37,8 +37,8 @@
   삭제는 Editor 가 했고, 재인증은 Viewer 까지 했다). `POST /api/integrations/oauth/begin` 의 `reauthorize` · `request_scopes` 모드에
   `integrationId` 를 지정하는 요청도 같은 판정을 받는다 — 종전엔 `integrationId` 를 검사하지 않아 `:id` 경로를 우회하는 입구였다.
 - **이 모듈의 Admin 거부 코드가 `FORBIDDEN` 에서 `ADMIN_REQUIRED` 로 바뀐다** — Organization 통합 생성 · 자격 증명 교체 · scope 추가 ·
-  범위 전환(기존 네 자리)과 위의 새 판정. 라우트 가드의 역할 거부와 같은 코드다. 상태 코드는 403 그대로(자사 frontend 는 이 코드로
-  분기하지 않는다).
+  범위 전환(기존 네 자리)과 위의 새 판정. 라우트 가드의 역할 거부와 같은 코드 · 같은 한국어 문구다. 상태 코드는 403 그대로다 — 자사 frontend 는 이 코드로
+  분기하지 않지만, `error.code` 로 분기하는 외부 API 호출자가 있다면 확인할 것.
 - **재인증 · scope 추가 콜백이 자격 증명을 덮어쓰기 직전에 인가를 다시 본다** — 시작과 콜백 사이에 요청자가 Admin 에서 강등됐거나
   통합이 다른 멤버의 Personal 이 됐으면 콜백이 거부된다(설치 대기 중인 cafe24 · MakeShop 설치 흐름은 제외 — 그쪽 인가는 설치 토큰과
   서명이다).

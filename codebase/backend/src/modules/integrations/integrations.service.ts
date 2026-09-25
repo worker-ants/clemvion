@@ -1,10 +1,8 @@
 import {
   Injectable,
   Logger,
-  NotFoundException,
   BadRequestException,
   ConflictException,
-  ForbiddenException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Brackets, DataSource, Repository } from 'typeorm';
@@ -14,14 +12,15 @@ import { isSmtpHostBlocked } from '../../nodes/integration/send-email/smtp-host-
 import { Integration } from './entities/integration.entity';
 import {
   INTEGRATION_USER_PARAM,
+  adminRequiredError,
+  assertOrgScopeModifiable,
+  integrationNotFoundError,
   integrationVisibilityClause,
   isIntegrationVisibleTo,
+  type IntegrationModifyAction,
 } from './integration-visibility';
 import { getAppBaseUrl } from '../../common/utils/app-base-url';
-import {
-  ADMIN_ROLES,
-  ROLE_REQUIRED,
-} from '../../common/constants/workspace-roles';
+import { ADMIN_ROLES } from '../../common/constants/workspace-roles';
 import { IntegrationUsageLog } from './entities/integration-usage-log.entity';
 import { Node } from '../nodes/entities/node.entity';
 import { Workflow } from '../workflows/entities/workflow.entity';
@@ -387,12 +386,7 @@ export type PublicIntegration = Omit<
   autoRefresh: boolean;
 };
 
-/**
- * Organization 통합을 바꾸는 동작 — Admin 거부 문구(`Admin role is required to <action> organization-scope
- * integrations`)의 동사다. 판정 자체는 동작과 무관하게 같다(spec §8).
- */
-export type IntegrationModifyAction =
-  'create' | 'modify' | 'delete' | 'rotate' | 'reauthorize';
+export type { IntegrationModifyAction } from './integration-visibility';
 
 /**
  * Thrown when execution-engine code paths try to use an integration whose
@@ -642,8 +636,8 @@ export class IntegrationsService {
   }
 
   /**
-   * Organization 통합의 변경은 Admin 이상이다(§8). 거부는 라우트 가드의 역할 거부와 같은 `ADMIN_REQUIRED` 코드에 동작별
-   * 문구를 싣는다. Personal 통합은 여기서 막지 않는다 — 보이는 personal 은 본인 것이고 본인은 역할과 무관하게 바꾼다.
+   * Organization 통합의 변경은 Admin 이상이다(§8) — 판정 · 거부 문구는 공유 함수(`assertOrgScopeModifiable`)가 OAuth 콜백의
+   * 재판정과 함께 쓴다. Personal 통합은 여기서 막지 않는다 — 보이는 personal 은 본인 것이고 본인은 역할과 무관하게 바꾼다.
    *
    * rotate 는 이 판정을 락 전(요청 시작 시점 스냅샷)·락 안(재읽은 행) 두 지점에서 부른다 — 보안 직결 판정이라 조건 ·
    * 에러 코드를 이 한 곳에 두지 않으면 두 지점이 drift 한다.
@@ -653,15 +647,7 @@ export class IntegrationsService {
     userRole: string | null,
     action: IntegrationModifyAction,
   ): void {
-    if (row.scope === 'organization' && !this.isAdmin(userRole)) {
-      this.throwAdminRequired(
-        `Admin role is required to ${action} organization-scope integrations`,
-      );
-    }
-  }
-
-  private throwAdminRequired(message: string): never {
-    throw new ForbiddenException({ ...ROLE_REQUIRED.admin, message });
+    assertOrgScopeModifiable(row, userRole, action);
   }
 
   /**
@@ -718,10 +704,7 @@ export class IntegrationsService {
    * maintainability WARNING 2). 남의 personal 도 이 응답이다 — 없는 통합과 구별되면 안 된다({@link requireVisible}).
    */
   private throwIntegrationNotFound(): never {
-    throw new NotFoundException({
-      code: 'RESOURCE_NOT_FOUND',
-      message: 'Integration not found',
-    });
+    throw integrationNotFoundError();
   }
 
   // ---------------------------------------------------------------
@@ -1354,7 +1337,7 @@ export class IntegrationsService {
         message: 'Scope requests are only supported for OAuth integrations',
       });
     }
-    this.assertCanModify(entity, userRole, 'modify');
+    this.assertCanModify(entity, userRole, 'request-scopes');
 
     const existingScopes = Array.isArray(entity.credentials.scopes)
       ? (entity.credentials.scopes as string[])
@@ -1424,11 +1407,7 @@ export class IntegrationsService {
     userRole: string | null,
     body: UpdateScopeDto,
   ): Promise<PublicIntegration> {
-    if (!this.isAdmin(userRole)) {
-      this.throwAdminRequired(
-        'Admin role is required to change integration scope',
-      );
-    }
+    if (!this.isAdmin(userRole)) throw adminRequiredError('change-scope');
     // Admin 도 볼 수 있는 통합만 전환한다 — 남의 personal 은 404(§8). 전환해도 created_by 는 그대로라
     // organization → personal 은 생성자의 personal 이 된다.
     const entity = await this.requireVisible(id, workspaceId, userId);
