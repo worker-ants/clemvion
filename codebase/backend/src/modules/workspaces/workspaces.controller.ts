@@ -51,7 +51,7 @@ import {
   WorkspaceMemberDto,
   WorkspaceSettingsDto,
 } from './dto/responses/workspace-response.dto';
-import { CurrentUser } from '../../common/decorators';
+import { CurrentUser, WorkspaceParam } from '../../common/decorators';
 import type { JwtPayload } from '../../common/decorators';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { Roles } from '../../common/guards/roles.guard';
@@ -116,6 +116,7 @@ export class WorkspacesController {
   }
 
   @Patch(':id')
+  @Roles('admin')
   @ApiOperation({
     summary: '워크스페이스 이름 변경(Admin+)',
     description: '지정한 워크스페이스의 이름을 변경합니다.',
@@ -124,11 +125,14 @@ export class WorkspacesController {
   @ApiOkWrappedResponse(WorkspaceDto, { description: '변경된 워크스페이스' })
   @ApiBadRequestResponse({ description: '입력값 검증 실패' })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
-  @ApiForbiddenResponse({ description: '권한 부족 (Admin+)' })
+  @ApiForbiddenResponse({
+    description:
+      '워크스페이스 멤버가 아님(NOT_A_MEMBER) 또는 Admin 이상 권한 필요(ADMIN_REQUIRED)',
+  })
   @ApiNotFoundResponse({ description: '해당 워크스페이스를 찾을 수 없음' })
   async update(
     @CurrentUser() user: JwtPayload,
-    @Param('id', new ParseUUIDPipe()) workspaceId: string,
+    @WorkspaceParam('id') workspaceId: string,
     @Body() dto: UpdateWorkspaceDto,
   ) {
     const ws = await this.workspacesService.renameWorkspace(
@@ -142,6 +146,7 @@ export class WorkspacesController {
   }
 
   @Patch(':id/settings')
+  @Roles('admin')
   @ApiOperation({
     summary: '워크스페이스 설정 변경(Admin+)',
     description:
@@ -151,11 +156,14 @@ export class WorkspacesController {
   @ApiOkWrappedResponse(WorkspaceDto, { description: '변경된 워크스페이스' })
   @ApiBadRequestResponse({ description: '입력값 검증 실패' })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
-  @ApiForbiddenResponse({ description: '권한 부족 (Admin+)' })
+  @ApiForbiddenResponse({
+    description:
+      '워크스페이스 멤버가 아님(NOT_A_MEMBER) 또는 Admin 이상 권한 필요(ADMIN_REQUIRED)',
+  })
   @ApiNotFoundResponse({ description: '해당 워크스페이스를 찾을 수 없음' })
   async updateSettings(
     @CurrentUser() user: JwtPayload,
-    @Param('id', new ParseUUIDPipe()) workspaceId: string,
+    @WorkspaceParam('id') workspaceId: string,
     @Body() dto: UpdateWorkspaceSettingsDto,
   ) {
     const ws = await this.workspacesService.updateWorkspaceSettings(
@@ -185,11 +193,13 @@ export class WorkspacesController {
     description: '워크스페이스 설정',
   })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
-  @ApiForbiddenResponse({ description: '멤버 아님' })
+  @ApiForbiddenResponse({
+    description: '워크스페이스 멤버가 아님(NOT_A_MEMBER)',
+  })
   @ApiNotFoundResponse({ description: '해당 워크스페이스를 찾을 수 없음' })
   async getSettings(
     @CurrentUser() user: JwtPayload,
-    @Param('id', new ParseUUIDPipe()) workspaceId: string,
+    @WorkspaceParam('id') workspaceId: string,
   ) {
     const settings = await this.workspacesService.getWorkspaceSettings(
       workspaceId,
@@ -199,6 +209,7 @@ export class WorkspacesController {
   }
 
   @Delete(':id')
+  @Roles('owner')
   @ApiOperation({
     summary: '워크스페이스 삭제(Owner)',
     description:
@@ -208,12 +219,13 @@ export class WorkspacesController {
   @ApiOkWrappedResponse(OkResultDto, { description: '삭제 결과' })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
   @ApiForbiddenResponse({
-    description: '권한 부족(Owner) 또는 개인 워크스페이스',
+    description:
+      '워크스페이스 멤버가 아님(NOT_A_MEMBER) 또는 Owner 권한 필요(OWNER_REQUIRED), 또는 개인 워크스페이스',
   })
   @ApiNotFoundResponse({ description: '해당 워크스페이스를 찾을 수 없음' })
   async remove(
     @CurrentUser() user: JwtPayload,
-    @Param('id', new ParseUUIDPipe()) workspaceId: string,
+    @WorkspaceParam('id') workspaceId: string,
   ) {
     await this.workspacesService.deleteWorkspace(workspaceId, user.sub);
     return { data: { ok: true } };
@@ -229,20 +241,22 @@ export class WorkspacesController {
   @ApiOkWrappedResponse(OkResultDto, { description: '나가기 결과' })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
   @ApiForbiddenResponse({
-    description: '개인 워크스페이스이거나 유일한 owner이거나 멤버가 아닌 경우',
+    description:
+      '워크스페이스 멤버가 아님(NOT_A_MEMBER), 또는 개인 워크스페이스이거나 유일한 owner 인 경우',
   })
   @ApiNotFoundResponse({ description: '해당 워크스페이스를 찾을 수 없음' })
   async leave(
     @CurrentUser() user: JwtPayload,
-    @Param('id', new ParseUUIDPipe()) workspaceId: string,
+    @WorkspaceParam('id') workspaceId: string,
   ) {
     await this.workspacesService.leaveWorkspace(workspaceId, user.sub);
     return { data: { ok: true } };
   }
 
   @Post(':id/transfer-ownership')
-  // 가드 + service-level 검증을 함께 둠. 가드는 첫 차단선, service 의 OWNER_REQUIRED 는
-  // 트랜잭션 내부에서 (락 보유 상태로) 동시 다른 owner-related 변경과의 경합을 차단.
+  // 가드 + service-level 검증을 함께 둠. 가드는 첫 차단선(경로 워크스페이스 기준 —
+  // `@WorkspaceParam`), service 의 OWNER_REQUIRED 는 트랜잭션 내부에서 (락 보유 상태로)
+  // 동시 다른 owner-related 변경과의 경합을 차단.
   @Roles('owner')
   @ApiOperation({
     summary: '워크스페이스 owner 이양 (Owner)',
@@ -256,7 +270,8 @@ export class WorkspacesController {
   })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
   @ApiForbiddenResponse({
-    description: '권한 부족 (Owner 필요) 또는 개인 워크스페이스',
+    description:
+      '워크스페이스 멤버가 아님(NOT_A_MEMBER) 또는 Owner 권한 필요(OWNER_REQUIRED), 또는 개인 워크스페이스',
   })
   @ApiNotFoundResponse({
     description: '워크스페이스 또는 대상 멤버를 찾을 수 없음',
@@ -264,7 +279,7 @@ export class WorkspacesController {
   @ApiConflictResponse({ description: '대상이 이미 owner 인 경우' })
   async transferOwnership(
     @CurrentUser() user: JwtPayload,
-    @Param('id', new ParseUUIDPipe()) workspaceId: string,
+    @WorkspaceParam('id') workspaceId: string,
     @Body() dto: TransferOwnershipDto,
   ) {
     await this.workspacesService.transferOwnership(
@@ -283,11 +298,13 @@ export class WorkspacesController {
   @ApiParam({ name: 'id', description: '워크스페이스 UUID', format: 'uuid' })
   @ApiOkWrappedArrayResponse(WorkspaceMemberDto, { description: '멤버 목록' })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
-  @ApiForbiddenResponse({ description: '해당 워크스페이스 멤버가 아님' })
+  @ApiForbiddenResponse({
+    description: '워크스페이스 멤버가 아님(NOT_A_MEMBER)',
+  })
   @ApiNotFoundResponse({ description: '해당 워크스페이스를 찾을 수 없음' })
   async listMembers(
     @CurrentUser() user: JwtPayload,
-    @Param('id', new ParseUUIDPipe()) workspaceId: string,
+    @WorkspaceParam('id') workspaceId: string,
   ) {
     const members = await this.workspacesService.listMembers(
       workspaceId,
@@ -297,6 +314,7 @@ export class WorkspacesController {
   }
 
   @Post(':id/members')
+  @Roles('admin')
   @ApiOperation({
     summary: '이메일로 멤버 추가',
     description:
@@ -308,12 +326,15 @@ export class WorkspacesController {
     description: '입력값 검증 실패 또는 존재하지 않는 이메일',
   })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
-  @ApiForbiddenResponse({ description: '멤버 추가 권한 부족 (Admin+)' })
+  @ApiForbiddenResponse({
+    description:
+      '워크스페이스 멤버가 아님(NOT_A_MEMBER) 또는 Admin 이상 권한 필요(ADMIN_REQUIRED)',
+  })
   @ApiNotFoundResponse({ description: '해당 워크스페이스를 찾을 수 없음' })
   @ApiConflictResponse({ description: '이미 속한 멤버' })
   async addMember(
     @CurrentUser() user: JwtPayload,
-    @Param('id', new ParseUUIDPipe()) workspaceId: string,
+    @WorkspaceParam('id') workspaceId: string,
     @Body() dto: AddMemberDto,
   ) {
     const member = await this.workspacesService.addMemberByEmail(
@@ -326,6 +347,7 @@ export class WorkspacesController {
   }
 
   @Patch(':id/members/:memberId')
+  @Roles('admin')
   @ApiOperation({
     summary: '멤버 역할 변경',
     description: '지정한 멤버의 역할(role)을 변경합니다. Admin+ 권한 필요.',
@@ -335,11 +357,14 @@ export class WorkspacesController {
   @ApiOkWrappedResponse(MemberRoleDto, { description: '변경된 멤버 정보' })
   @ApiBadRequestResponse({ description: '입력값 검증 실패' })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
-  @ApiForbiddenResponse({ description: '역할 변경 권한 부족 (Admin+)' })
+  @ApiForbiddenResponse({
+    description:
+      '워크스페이스 멤버가 아님(NOT_A_MEMBER) 또는 Admin 이상 권한 필요(ADMIN_REQUIRED)',
+  })
   @ApiNotFoundResponse({ description: '워크스페이스 또는 멤버를 찾을 수 없음' })
   async updateMember(
     @CurrentUser() user: JwtPayload,
-    @Param('id', new ParseUUIDPipe()) workspaceId: string,
+    @WorkspaceParam('id') workspaceId: string,
     @Param('memberId', new ParseUUIDPipe()) memberId: string,
     @Body() dto: UpdateMemberRoleDto,
   ) {
@@ -362,11 +387,14 @@ export class WorkspacesController {
   @ApiParam({ name: 'memberId', description: '멤버 UUID', format: 'uuid' })
   @ApiOkWrappedResponse(OkResultDto, { description: '제거 결과' })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
-  @ApiForbiddenResponse({ description: '제거 권한 부족' })
+  @ApiForbiddenResponse({
+    description:
+      '워크스페이스 멤버가 아님(NOT_A_MEMBER), 또는 타인 제거에 Admin 이상 권한 필요(ADMIN_REQUIRED — 서비스 판정)',
+  })
   @ApiNotFoundResponse({ description: '워크스페이스 또는 멤버를 찾을 수 없음' })
   async removeMember(
     @CurrentUser() user: JwtPayload,
-    @Param('id', new ParseUUIDPipe()) workspaceId: string,
+    @WorkspaceParam('id') workspaceId: string,
     @Param('memberId', new ParseUUIDPipe()) memberId: string,
   ) {
     await this.workspacesService.removeMember(workspaceId, memberId, user.sub);
@@ -374,6 +402,7 @@ export class WorkspacesController {
   }
 
   @Get(':id/invitations')
+  @Roles('admin')
   @ApiOperation({
     summary: '대기 중인 초대 목록(Admin+)',
     description: '아직 수락되지 않은 워크스페이스 초대를 조회합니다.',
@@ -383,11 +412,14 @@ export class WorkspacesController {
     description: '대기 중 초대 목록',
   })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
-  @ApiForbiddenResponse({ description: '초대 조회 권한 부족 (Admin+)' })
+  @ApiForbiddenResponse({
+    description:
+      '워크스페이스 멤버가 아님(NOT_A_MEMBER) 또는 Admin 이상 권한 필요(ADMIN_REQUIRED)',
+  })
   @ApiNotFoundResponse({ description: '해당 워크스페이스를 찾을 수 없음' })
   async listInvitations(
     @CurrentUser() user: JwtPayload,
-    @Param('id', new ParseUUIDPipe()) workspaceId: string,
+    @WorkspaceParam('id') workspaceId: string,
   ) {
     const invitations = await this.invitationsService.listPending(
       workspaceId,
@@ -406,6 +438,7 @@ export class WorkspacesController {
   }
 
   @Post(':id/invitations')
+  @Roles('admin')
   // Email-bombing 방지. 같은 워크스페이스에서 분당 10건까지 허용.
   @Throttle(INVITATION_THROTTLE)
   @ApiOperation({
@@ -419,7 +452,10 @@ export class WorkspacesController {
   })
   @ApiBadRequestResponse({ description: '입력값 검증 실패' })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
-  @ApiForbiddenResponse({ description: '초대 권한 부족 (Admin+)' })
+  @ApiForbiddenResponse({
+    description:
+      '워크스페이스 멤버가 아님(NOT_A_MEMBER) 또는 Admin 이상 권한 필요(ADMIN_REQUIRED)',
+  })
   @ApiNotFoundResponse({ description: '해당 워크스페이스를 찾을 수 없음' })
   @ApiConflictResponse({ description: '이미 워크스페이스 멤버인 이메일' })
   @ApiTooManyRequestsResponse({
@@ -427,7 +463,7 @@ export class WorkspacesController {
   })
   async createInvitation(
     @CurrentUser() user: JwtPayload,
-    @Param('id', new ParseUUIDPipe()) workspaceId: string,
+    @WorkspaceParam('id') workspaceId: string,
     @Body() dto: CreateInvitationDto,
   ) {
     const invitation = await this.invitationsService.invite(
@@ -447,6 +483,7 @@ export class WorkspacesController {
   }
 
   @Post(':id/invitations/:invitationId/resend')
+  @Roles('admin')
   @HttpCode(200)
   @Throttle(INVITATION_THROTTLE)
   @ApiOperation({
@@ -464,7 +501,10 @@ export class WorkspacesController {
     description: '갱신된 초대 정보',
   })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
-  @ApiForbiddenResponse({ description: '재발송 권한 부족 (Admin+)' })
+  @ApiForbiddenResponse({
+    description:
+      '워크스페이스 멤버가 아님(NOT_A_MEMBER) 또는 Admin 이상 권한 필요(ADMIN_REQUIRED)',
+  })
   @ApiNotFoundResponse({ description: '초대 또는 워크스페이스를 찾을 수 없음' })
   @ApiConflictResponse({
     description: '이미 수락된 초대는 재발송할 수 없음',
@@ -474,7 +514,7 @@ export class WorkspacesController {
   })
   async resendInvitation(
     @CurrentUser() user: JwtPayload,
-    @Param('id', new ParseUUIDPipe()) workspaceId: string,
+    @WorkspaceParam('id') workspaceId: string,
     @Param('invitationId', new ParseUUIDPipe()) invitationId: string,
   ) {
     const invitation = await this.invitationsService.resend(
@@ -493,6 +533,7 @@ export class WorkspacesController {
   }
 
   @Delete(':id/invitations/:invitationId')
+  @Roles('admin')
   @ApiOperation({
     summary: '대기 중인 초대 취소(Admin+)',
     description: '발송된 초대를 취소합니다. Admin+ 권한 필요.',
@@ -505,11 +546,14 @@ export class WorkspacesController {
   })
   @ApiNoContentResponse({ description: '초대 취소 완료' })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
-  @ApiForbiddenResponse({ description: '초대 취소 권한 부족 (Admin+)' })
+  @ApiForbiddenResponse({
+    description:
+      '워크스페이스 멤버가 아님(NOT_A_MEMBER) 또는 Admin 이상 권한 필요(ADMIN_REQUIRED)',
+  })
   @ApiNotFoundResponse({ description: '초대 또는 워크스페이스를 찾을 수 없음' })
   async revokeInvitation(
     @CurrentUser() user: JwtPayload,
-    @Param('id', new ParseUUIDPipe()) workspaceId: string,
+    @WorkspaceParam('id') workspaceId: string,
     @Param('invitationId', new ParseUUIDPipe()) invitationId: string,
   ) {
     await this.invitationsService.revoke(workspaceId, invitationId, user.sub);

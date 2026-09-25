@@ -71,7 +71,7 @@ describe('경로 UUID 파라미터 계약 가드', () => {
     // (vitest 와 다르다), 무엇을 고쳐야 하는지는 비교 대상 자체가 말하게 한다.
     const violations = scanUuidParams(files, SRC_ROOT).violations.map(
       (v) =>
-        `${v.file} ${v.method}() @Param('${v.param}') — 빠짐: ${v.missing.join(' · ')}`,
+        `${v.file} ${v.method}() @${v.binding}('${v.param}') — 빠짐: ${v.missing.join(' · ')}`,
     );
     expect(violations).toEqual([]);
   });
@@ -89,12 +89,29 @@ describe('경로 UUID 파라미터 계약 가드', () => {
         'excludedPipeless:ParseUUIDPipe',
         'pipeless:ParseUUIDPipe',
         "undocumented:@ApiParam format:'uuid'",
+        "workspaceParamUndocumented:@ApiParam format:'uuid'",
       ]);
     });
 
     it('두 축을 갖춘 자리·비-id 이름·인자 없는 @Param 은 안 잡는다', () => {
-      const clean = ['ok', 'instantiated', 'nonIdShaped', 'whole'];
+      const clean = [
+        'ok',
+        'instantiated',
+        'nonIdShaped',
+        'whole',
+        'workspaceParamOk',
+      ];
       expect(found.filter((v) => clean.includes(v.method))).toEqual([]);
+    });
+
+    it('@WorkspaceParam 도 모집단이다 — 파이프 축은 내장이라 묻지 않고 문서 축만 묻는다', () => {
+      // `workspaceParamUndocumented` 의 사유가 문서 축 **하나**여야 한다. 파이프 축까지 나오면
+      // 내장 파이프를 모르는 것이고, 아예 안 나오면 모집단에서 빠진 것이다.
+      expect(
+        found
+          .filter((v) => v.method === 'workspaceParamUndocumented')
+          .map((v) => [v.binding, v.missing]),
+      ).toEqual([['WorkspaceParam', ["@ApiParam format:'uuid'"]]]);
     });
 
     it('@ApiExcludeEndpoint 핸들러는 문서 축을 면제받는다', () => {

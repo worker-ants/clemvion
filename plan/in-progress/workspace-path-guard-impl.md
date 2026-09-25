@@ -57,12 +57,27 @@ INFO 3(`nestjs-v12-coordinated-upgrade.md` §C 캐너리 기준값 142)은 요�
 
 **planner 턴 순서**: 구현 · 테스트가 끝난 뒤 `/ai-review` 전에 연다(`--spec` → spec 반영 → 커밋). `--impl-done` 은 `/ai-review` 수렴 뒤.
 
+## 구현 중 결정
+
+- **요구 6 — `ERROR_KO` 에 등재하지 않는다.** `ERROR_KO` 를 읽는 함수 `translateBackendError` 의 프로덕션 호출부가 0건이다(트래커
+  «`ERROR_KO` 의 API 에러 코드 매핑을 아무도 읽지 않는다», 2026-09-25 재확인). 등재하면 죽은 매핑이 늘 뿐이다. frontend 가 코드로
+  가르는 자리는 `workspace/settings/page.tsx` 의 `OWNER_REQUIRED` 하나이고 가드도 같은 코드를 낸다.
+- **요구 8 의 범위 — 경로 15곳 · 재실행 · chain 만.** 나머지 `@ApiForbiddenResponse` 설명(2026-09-25 실측: «워크스페이스 멤버가 아님»
+  63 · «editor 이상 권한 필요» 54 · 기타 20여)은 코드를 싣지 않았지만 틀린 문장은 아니고, `swagger.md §5-4` 는 **새 엔드포인트**
+  체크리스트다. 30여 컨트롤러를 건드리면 `--impl-done` 스코프가 spec 영역 여럿으로 번진다 — 트래커 후속으로 등재한다.
+- **`param-uuid-pipe` 가드도 `@WorkspaceParam` 을 모집단에 넣는다.** 넣지 않으면 15곳이 그 가드의 문서 축(`@ApiParam({format:'uuid'})`)
+  검사에서 조용히 빠진다 — 실측: 모집단 136 유지(분기 없으면 121). 파이프 축은 데코레이터에 내장돼 구조적으로 만족한다.
+- **`@WorkspaceId` + `@WorkspaceParam` 을 함께 쓰는 핸들러**(오늘 0곳)는 경로 워크스페이스에 역할을, 헤더 워크스페이스에 멤버십만
+  본다 — 헤더 쪽을 검사 밖에 두면 헤더 위조가 새므로 fail-closed 로 둘 다 본다.
+
 ## 체크리스트
 
 - [x] `--impl-prep` — `15_15_21` BLOCK: NO, 경고 처리 위 표
 - [ ] planner 턴(W1 · W2 · W3 · INFO 1) — `--spec` 게이트
-- [ ] 테스트 선작성(가드 · 데코레이터 · 캐너리 · 저장소 가드) → RED 확인
-- [ ] 구현 1~5 · 8
+- [x] 테스트 선작성(가드 · 데코레이터 · 캐너리 · 저장소 가드 · 서비스 순서) → RED 확인 — 데코레이터(내보내기 없음) · 가드 30 ·
+      캐너리 6 · 저장소 가드(위반 15 = spec 실측과 같은 목록) · `param-uuid-pipe` 대조군 2 · 서비스 6. `workspace-roles-attachment`
+      의 15곳 표는 구현 뒤에 썼다 — 뮤턴트로 따로 검증한다
+- [x] 구현 1~5 · 8 (요구 1 의 캐너리 기준값 재실측은 e2e 부팅 로그에서)
 - [ ] 뮤턴트(가드 분기마다)
 - [ ] TEST WORKFLOW — lint · unit · build · e2e
 - [ ] CHANGELOG(제품 동작 · 가드 신설)

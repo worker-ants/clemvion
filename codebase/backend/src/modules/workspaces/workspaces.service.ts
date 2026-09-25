@@ -253,8 +253,10 @@ export class WorkspacesService {
     role: WorkspaceRole,
     requesterId: string,
   ): Promise<WorkspaceMember> {
-    await this.assertWorkspaceType(workspaceId, 'team');
+    // 인가가 조회보다 먼저다 — 거꾸로면 비관리자가 워크스페이스의 존재 · 유형을 구분한다
+    // (`spec/data-flow/12-workspace.md` §Rationale "경로 파라미터 워크스페이스도 가드가 본다").
     await this.assertAdmin(workspaceId, requesterId);
+    await this.assertWorkspaceType(workspaceId, 'team');
     if (role === 'owner') {
       throw new ForbiddenException({
         code: 'CANNOT_ASSIGN_OWNER',
@@ -645,6 +647,9 @@ export class WorkspacesService {
     workspaceId: string,
     requesterId: string,
   ): Promise<void> {
+    // 인가가 조회보다 먼저다 — 거꾸로면 비멤버가 «없음 · 개인 · 팀» 을 구분한다(존재 · 유형
+    // 오라클). 아래 트랜잭션의 멤버십 재조회는 락을 잡은 채 sole-owner 를 판정하려는 것이라 남는다.
+    await this.assertMembership(workspaceId, requesterId);
     const workspace = await this.workspaceRepository.findOne({
       where: { id: workspaceId },
     });

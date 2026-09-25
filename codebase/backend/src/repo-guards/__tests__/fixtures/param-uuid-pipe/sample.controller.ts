@@ -10,6 +10,7 @@
 
 import { Controller, Get, Param, ParseUUIDPipe, Post } from '@nestjs/common';
 import { ApiExcludeEndpoint, ApiParam } from '@nestjs/swagger';
+import { WorkspaceParam } from '../../../../common/decorators';
 
 @Controller('fixture')
 export class ParamUuidFixtureController {
@@ -80,6 +81,27 @@ export class ParamUuidFixtureController {
   @Post(':workspaceId/_test/backdoor-pipeless')
   @ApiExcludeEndpoint()
   excludedPipeless(@Param('workspaceId') workspaceId: string): string {
+    return workspaceId;
+  }
+
+  /**
+   * `@WorkspaceParam` 은 `ParseUUIDPipe` 를 내장한다 — 파이프 축은 구조적으로 만족하고 문서 축만 묻는다.
+   * 두 축을 갖춘 자리라 위반이 아니다.
+   */
+  @Get('workspaces/:id')
+  @ApiParam({ name: 'id', description: '워크스페이스 UUID', format: 'uuid' })
+  workspaceParamOk(@WorkspaceParam('id') workspaceId: string): string {
+    return workspaceId;
+  }
+
+  /**
+   * `@WorkspaceParam` 이어도 문서 축은 빠질 수 있다 — 이 자리가 모집단에서 빠지면 조용해진다
+   * (2026-09-25 경로 워크스페이스 15곳을 `@Param` 에서 옮기며 이 가드의 모집단이 136 → 121 로 줄 뻔했다).
+   */
+  @Get('workspaces/:id/undocumented')
+  workspaceParamUndocumented(
+    @WorkspaceParam('id') workspaceId: string,
+  ): string {
     return workspaceId;
   }
 

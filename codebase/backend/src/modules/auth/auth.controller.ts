@@ -7,7 +7,6 @@ import {
   HttpCode,
   HttpStatus,
   Param,
-  ParseUUIDPipe,
   ParseEnumPipe,
   Query,
   Req,
@@ -24,6 +23,7 @@ import {
   ApiBadRequestResponse,
   ApiUnauthorizedResponse,
   ApiConflictResponse,
+  ApiForbiddenResponse,
   ApiFoundResponse,
   ApiBearerAuth,
   ApiParam,
@@ -50,7 +50,7 @@ import { AuthOauthService, AUTH_OAUTH_PROVIDERS } from './auth-oauth.service';
 import { TotpService } from './totp.service';
 import { AuditLogsService } from '../audit-logs/audit-logs.service';
 import { AUDIT_ACTIONS } from '../audit-logs/audit-action.const';
-import { Public, CurrentUser } from '../../common/decorators';
+import { Public, CurrentUser, WorkspaceParam } from '../../common/decorators';
 import type { JwtPayload } from '../../common/decorators';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { UseGuards } from '@nestjs/common';
@@ -442,9 +442,12 @@ export class AuthController {
     description: '전환된 워크스페이스로 재발급된 Access Token',
   })
   @ApiUnauthorizedResponse({ description: '인증 필요(JWT)' })
+  @ApiForbiddenResponse({
+    description: '대상 워크스페이스의 멤버가 아님(NOT_A_MEMBER)',
+  })
   async switchWorkspace(
     @CurrentUser() user: JwtPayload,
-    @Param('id', ParseUUIDPipe) targetWorkspaceId: string,
+    @WorkspaceParam('id') targetWorkspaceId: string,
   ) {
     // 전환은 access token 만 재발급한다(refresh 무회전) — refresh cookie 는 건드리지 않는다.
     const result = await this.authService.switchWorkspace(

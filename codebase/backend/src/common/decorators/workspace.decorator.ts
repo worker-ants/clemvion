@@ -2,6 +2,7 @@ import {
   createParamDecorator,
   ExecutionContext,
   BadRequestException,
+  ParseUUIDPipe,
 } from '@nestjs/common';
 import { ROUTE_ARGS_METADATA } from '@nestjs/common/constants';
 import { resolveRequestWorkspaceContext } from '../utils/workspace-context.util';
@@ -77,4 +78,63 @@ export function handlerConsumesWorkspaceId(
   return Object.values(argsMetadata).some(
     (entry) => entry?.factory === extractWorkspaceId,
   );
+}
+
+/**
+ * `@WorkspaceParam()` 의 실제 파라미터 팩토리 — `extractWorkspaceId` 와 같은 이유로 이름을 붙여
+ * top-level 에 둔다(`workspaceParamNamesOf` 가 identity 로 비교한다).
+ */
+function extractWorkspaceParam(
+  name: unknown,
+  ctx: ExecutionContext,
+): string | undefined {
+  const request: { params?: Record<string, string | undefined> } = ctx
+    .switchToHttp()
+    .getRequest();
+  return typeof name === 'string' ? request.params?.[name] : undefined;
+}
+
+const workspaceParamDecorator = createParamDecorator(extractWorkspaceParam);
+
+/**
+ * 워크스페이스 ID 를 **경로 파라미터**로 받는 바인딩 — `@Param('<name>', ParseUUIDPipe)` 자리에 쓴다.
+ *
+ * `RolesGuard` 는 이 팩토리를 `ROUTE_ARGS_METADATA` 에서 identity 로 찾아 **등록 이름의 경로 값**을
+ * 인가 대상으로 쓴다(`workspaceParamNamesOf`). 경로 값은 토큰이 검증한 적이 없으므로 가드가 멤버십을
+ * 매 요청 조회하고, `@Roles()` 요구도 그 워크스페이스에 대해 판정한다 — 헤더 · 토큰의 워크스페이스가
+ * 아니다. 근거: `spec/data-flow/12-workspace.md` §Rationale "경로 파라미터 워크스페이스도 가드가 본다".
+ *
+ * `ParseUUIDPipe` 를 **내장**한다. 가드는 파이프보다 먼저 돌아 원문을 보므로 형식이 아닌 값은 판정 없이
+ * 넘기는데, 그 값을 400 으로 끊는 것이 이 파이프다 — 호출부가 따로 적게 두면 빠뜨린 자리에서 형식 파손
+ * 값이 서비스까지 흐른다.
+ *
+ * 평범한 `@Param` 으로 워크스페이스 ID 를 받으면 가드가 알아보지 못한다 — 그 모양은 저장소 가드
+ * `workspace-param-binding` 이 CI 에서 막는다.
+ */
+export const WorkspaceParam = (name: string): ParameterDecorator =>
+  workspaceParamDecorator(name, new ParseUUIDPipe());
+
+/**
+ * 핸들러가 `@WorkspaceParam(...)` 으로 받는 경로 파라미터 이름들. 없으면 빈 배열.
+ *
+ * `handlerConsumesWorkspaceId` 와 같은 reflection 이다 — 같은 `ROUTE_ARGS_METADATA` 를 같은
+ * `Function.name` 키로 읽고, 팩토리만 다르다. 부트 캐너리(`workspace-reflection-canary.ts`)가 두
+ * 판별을 함께 세는 이유다.
+ */
+export function workspaceParamNamesOf(
+  controllerClass: object,
+  handler: Function, // eslint-disable-line @typescript-eslint/no-unsafe-function-type
+): string[] {
+  const methodName = handler.name;
+  if (!methodName) return [];
+  const argsMetadata = Reflect.getMetadata(
+    ROUTE_ARGS_METADATA,
+    controllerClass,
+    methodName,
+  ) as Record<string, { factory?: unknown; data?: unknown }> | undefined;
+  if (!argsMetadata) return [];
+  return Object.values(argsMetadata)
+    .filter((entry) => entry?.factory === extractWorkspaceParam)
+    .map((entry) => entry.data)
+    .filter((data): data is string => typeof data === 'string');
 }

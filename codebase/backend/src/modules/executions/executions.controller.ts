@@ -274,7 +274,10 @@ export class ExecutionsController {
     description: 'INVALID_TRIGGER_PARAMETERS / RERUN_DRY_RUN_NOT_APPLICABLE',
   })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
-  @ApiForbiddenResponse({ description: 'RERUN_PERMISSION_DENIED (RR-PL-06)' })
+  @ApiForbiddenResponse({
+    description:
+      '워크스페이스 멤버가 아님(NOT_A_MEMBER) · editor 이상 권한 필요(EDITOR_REQUIRED) — RolesGuard / 타인 실행이고 Owner·Admin 아님(RERUN_PERMISSION_DENIED, RR-PL-06) — 서비스',
+  })
   @ApiNotFoundResponse({
     description: 'RERUN_EXECUTION_NOT_FOUND / RERUN_WORKFLOW_DELETED',
   })
@@ -301,7 +304,10 @@ export class ExecutionsController {
     description: 'chain 내 실행 목록 (nodeExecutions 생략)',
   })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
-  @ApiForbiddenResponse({ description: 'RERUN_PERMISSION_DENIED (RR-PL-06)' })
+  @ApiForbiddenResponse({
+    description:
+      '워크스페이스 멤버가 아님(NOT_A_MEMBER) — RolesGuard / RR-PL-06 미충족(RERUN_PERMISSION_DENIED) — 서비스',
+  })
   @ApiNotFoundResponse({ description: 'RERUN_EXECUTION_NOT_FOUND' })
   async getChain(
     @Param('id', ParseUUIDPipe) id: string,

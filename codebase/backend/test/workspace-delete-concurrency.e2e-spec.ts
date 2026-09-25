@@ -20,6 +20,12 @@ import { raceUnderHeldLock } from './helpers/concurrency';
  * `20_43_03` WARNING 1 이 «실 DB 로 고정하라» 고 요구했다).
  *
  * 겹침은 우연에 맡기지 않는다 — 테스트가 그 워크스페이스 행의 락을 직접 쥔다.
+ *
+ * **404 는 «둘 다 가드를 지난 뒤 서비스의 락에서 만난» 경우의 답이다** (2026-09-25~). `RolesGuard` 가
+ * 경로 워크스페이스(`@WorkspaceParam`)의 멤버십을 먼저 조회하는데, 그 조회는 `workspace_member` 의
+ * 잠금 없는 SELECT 라 이 테스트의 워크스페이스 행 락에 막히지 않는다 — 두 요청 모두 멤버로 읽혀
+ * 통과한다. 이긴 쪽이 **커밋한 뒤에** 도착한 요청은 가드가 `403 NOT_A_MEMBER` 로 막는다(부재와
+ * 비멤버를 구분하지 않는다 — `data-flow/12-workspace.md` §"가드 거부의 오류 코드"). 그건 의도된 답이다.
  */
 
 const BASE_URL = process.env.E2E_BASE_URL ?? 'http://backend-e2e:3011';

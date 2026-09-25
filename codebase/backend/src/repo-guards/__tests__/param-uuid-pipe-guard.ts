@@ -14,13 +14,21 @@ import { toPosixRelative } from '../../common/__test-utils__/source-scan';
  */
 export type UuidParamAxis = 'ParseUUIDPipe' | "@ApiParam format:'uuid'";
 
+/**
+ * 경로 파라미터를 받는 데코레이터. `WorkspaceParam` 은 워크스페이스 ID 전용 바인딩으로
+ * `ParseUUIDPipe` 를 내장한다(`common/decorators/workspace.decorator.ts`).
+ */
+export type UuidParamBinding = 'Param' | 'WorkspaceParam';
+
 /** 위반 한 건 — 어느 축이 빠졌는지까지 싣는다. */
 export interface UuidParamViolation {
   /** `src` 기준 POSIX 상대경로. */
   readonly file: string;
   /** 핸들러 메서드 이름 — 줄 번호를 쓰지 않는 이유는 `source-scan.enclosingScopeName` 참조. */
   readonly method: string;
-  /** `@Param('<name>')` 의 이름. 이것이 라우트 경로의 `:name` 이다. */
+  /** 어느 데코레이터로 받았나. */
+  readonly binding: UuidParamBinding;
+  /** `@Param('<name>')` · `@WorkspaceParam('<name>')` 의 이름. 이것이 라우트 경로의 `:name` 이다. */
   readonly param: string;
   /** 빠진 축 (정렬). */
   readonly missing: readonly UuidParamAxis[];
@@ -130,20 +138,28 @@ function collectMethodViolations(
 
   for (const parameter of method.parameters) {
     for (const d of ts.getDecorators(parameter) ?? []) {
-      if (decoratorCallName(d, sf) !== 'Param') continue;
+      const binding = decoratorCallName(d, sf);
+      if (binding !== 'Param' && binding !== 'WorkspaceParam') continue;
       const call = d.expression as ts.CallExpression;
       const first = call.arguments[0];
       // 인자 없는 `@Param()` 은 파라미터 객체 전체를 받는 형태라 이름이 없다.
       if (!first || !ts.isStringLiteralLike(first)) continue;
       const param = first.text;
-      if (!isIdShaped(param)) continue;
+      // `@WorkspaceParam` 은 이름과 무관하게 UUID 다 — 데코레이터가 워크스페이스 ID 전용이다.
+      if (binding === 'Param' && !isIdShaped(param)) continue;
       idParams++;
 
       const missing: UuidParamAxis[] = [];
-      const pipes = call.arguments
-        .slice(1)
-        .map((a) => a.getText(sf))
-        .join(',');
+      // `@WorkspaceParam` 은 파이프를 내장해 파이프 축을 구조적으로 만족한다 — 문서 축만 묻는다.
+      // 2026-09-25 경로 워크스페이스 15곳이 `@Param` 에서 옮겨 오며 이 분기가 없으면 모집단이
+      // 136 → 121 로 줄고 그 15곳의 문서 축이 조용히 검사 밖으로 나갈 뻔했다.
+      const pipes =
+        binding === 'WorkspaceParam'
+          ? 'ParseUUIDPipe'
+          : call.arguments
+              .slice(1)
+              .map((a) => a.getText(sf))
+              .join(',');
       // `ParseUUIDPipe` · `new ParseUUIDPipe({ version: '4' })` 둘 다 받는다 —
       // 2026-09-12 실측(`modules/` 전수, **이 PR 이 마지막 1건을 채운 뒤**): 파이프를 가진
       // id-형 136건이 맨 식별자 108 : 인스턴스화 28 로 갈린다.
@@ -158,7 +174,7 @@ function collectMethodViolations(
         missing.push("@ApiParam format:'uuid'");
       }
       if (missing.length > 0) {
-        violations.push({ file: rel, method: name, param, missing });
+        violations.push({ file: rel, method: name, binding, param, missing });
       }
     }
   }

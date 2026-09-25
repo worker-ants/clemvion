@@ -884,6 +884,12 @@ describe('WorkspacesService', () => {
         ...mockWorkspace,
         type: 'personal',
       });
+      // 멤버여야 유형 판정까지 간다 — 비멤버는 그 전에 NOT_A_MEMBER 다(아래 오라클 케이스).
+      memberRepo.findOne.mockResolvedValue({
+        id: 'mem-1',
+        role: 'owner',
+        userId: 'user-uuid-1',
+      });
 
       await expect(
         service.leaveWorkspace('ws-uuid-1', 'user-uuid-1'),
@@ -944,6 +950,51 @@ describe('WorkspacesService', () => {
         service.leaveWorkspace('ws-uuid-1', 'user-uuid-1'),
       ).rejects.toMatchObject({ response: { code: 'NOT_A_MEMBER' } });
     });
+  });
+
+  /**
+   * 인가가 조회보다 먼저다 — 종전 두 메서드는 워크스페이스를 먼저 조회해 비멤버가 «없음(404) ·
+   * 개인 · 팀» 을 구분할 수 있었다(존재 · 유형 오라클). HTTP 경로에서는 이제 `RolesGuard` 가 먼저
+   * 막지만, 서비스 검사는 가드의 인식이 깨졌을 때의 두 번째 선이라 같은 오라클을 남기지 않는다
+   * (`spec/data-flow/12-workspace.md` §Rationale "경로 파라미터 워크스페이스도 가드가 본다").
+   */
+  describe('비멤버에게 워크스페이스 존재 · 유형을 드러내지 않는다', () => {
+    const workspaces = [
+      ['부재', null],
+      ['개인', { ...mockWorkspace, type: 'personal' as const }],
+      ['팀', { ...mockWorkspace, type: 'team' as const }],
+    ] as const;
+
+    it.each(workspaces)(
+      'leaveWorkspace — 워크스페이스 %s 여도 NOT_A_MEMBER, 워크스페이스는 조회하지 않는다',
+      async (_label, workspace) => {
+        workspaceRepo.findOne.mockResolvedValue(workspace);
+        memberRepo.findOne.mockResolvedValue(null);
+
+        await expect(
+          service.leaveWorkspace('ws-uuid-1', 'user-uuid-1'),
+        ).rejects.toMatchObject({ response: { code: 'NOT_A_MEMBER' } });
+        expect(workspaceRepo.findOne).not.toHaveBeenCalled();
+      },
+    );
+
+    it.each(workspaces)(
+      'addMemberByEmail — 워크스페이스 %s 여도 ADMIN_REQUIRED, 워크스페이스는 조회하지 않는다',
+      async (_label, workspace) => {
+        workspaceRepo.findOne.mockResolvedValue(workspace);
+        memberRepo.findOne.mockResolvedValue(null);
+
+        await expect(
+          service.addMemberByEmail(
+            'ws-uuid-1',
+            'added@example.com',
+            'editor',
+            'user-uuid-1',
+          ),
+        ).rejects.toMatchObject({ response: { code: 'ADMIN_REQUIRED' } });
+        expect(workspaceRepo.findOne).not.toHaveBeenCalled();
+      },
+    );
   });
 
   describe('transferOwnership', () => {

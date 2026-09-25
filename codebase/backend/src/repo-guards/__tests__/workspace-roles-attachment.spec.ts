@@ -2,6 +2,9 @@ import { APP_GUARD } from '@nestjs/core';
 import { MODULE_METADATA } from '@nestjs/common/constants';
 import { AppModule } from '../../app.module';
 import { RolesGuard, ROLES_KEY } from '../../common/guards/roles.guard';
+import { workspaceParamNamesOf } from '../../common/decorators/workspace.decorator';
+import { AuthController } from '../../modules/auth/auth.controller';
+import { WorkspacesController } from '../../modules/workspaces/workspaces.controller';
 import { EdgesController } from '../../modules/edges/edges.controller';
 import { NodesController } from '../../modules/nodes/nodes.controller';
 import { ExecutionsController } from '../../modules/executions/executions.controller';
@@ -69,6 +72,54 @@ describe('workspace membership guard 회귀 가드', () => {
         const roles = Reflect.getMetadata(ROLES_KEY, handler as object) as
           string[] | undefined;
         expect(roles).toEqual(expectedRoles);
+      });
+    },
+  );
+
+  /**
+   * 경로로 워크스페이스를 받는 15곳 — 가드가 **경로 값**으로 판정하는지(`@WorkspaceParam('id')`)와
+   * 역할 요구가 서비스 계층과 같은지를 함께 고정한다(`spec/data-flow/12-workspace.md` §Rationale
+   * "경로 파라미터 워크스페이스도 가드가 본다"). `null` 은 `@Roles()` 없음 = 멤버십만.
+   *
+   * 저장소 가드 `workspace-param-binding` 은 "평범한 `@Param` 으로 받지 않는다" 를 모든 컨트롤러에
+   * 대해 보고, 이 표는 "이 15곳이 가드가 알아보는 바인딩이며 요구 역할이 맞다" 를 본다 — 바인딩을
+   * 지우고 `@Param` 도 안 쓰는(예: 경로 값을 `req.params` 로 직접 읽는) 리팩터는 앞 가드가 못 잡는다.
+   */
+  describe.each([
+    [WorkspacesController, 'update', ['admin']],
+    [WorkspacesController, 'updateSettings', ['admin']],
+    [WorkspacesController, 'getSettings', null],
+    [WorkspacesController, 'remove', ['owner']],
+    [WorkspacesController, 'leave', null],
+    [WorkspacesController, 'transferOwnership', ['owner']],
+    [WorkspacesController, 'listMembers', null],
+    [WorkspacesController, 'addMember', ['admin']],
+    [WorkspacesController, 'updateMember', ['admin']],
+    [WorkspacesController, 'removeMember', null],
+    [WorkspacesController, 'listInvitations', ['admin']],
+    [WorkspacesController, 'createInvitation', ['admin']],
+    [WorkspacesController, 'resendInvitation', ['admin']],
+    [WorkspacesController, 'revokeInvitation', ['admin']],
+    [AuthController, 'switchWorkspace', null],
+  ] as const)(
+    '경로 워크스페이스 %p — %s 핸들러',
+    (ControllerClass, methodName, expectedRoles) => {
+      const handler = (
+        ControllerClass.prototype as unknown as Record<string, unknown>
+      )[methodName];
+
+      it('가드가 경로 파라미터 `id` 를 워크스페이스로 인식한다', () => {
+        expect(typeof handler).toBe('function');
+        expect(
+          workspaceParamNamesOf(ControllerClass, handler as () => unknown),
+        ).toEqual(['id']);
+      });
+
+      it(`역할 요구가 ${JSON.stringify(expectedRoles)} 이다`, () => {
+        expect(typeof handler).toBe('function');
+        const roles = Reflect.getMetadata(ROLES_KEY, handler as object) as
+          string[] | undefined;
+        expect(roles ?? null).toEqual(expectedRoles);
       });
     },
   );
