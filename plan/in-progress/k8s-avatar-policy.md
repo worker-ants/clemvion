@@ -81,7 +81,8 @@ docker 네트워크에서 같은 이미지로 실행했다(env 는 overlay secre
       경계 테스트.
       **리뷰 1라운드 뒤 다시(`1367e14ee`)**: 추출기가 형제 가드 헬퍼로 바뀌어 배선이 새로 생겼으므로 15개로 재측정 —
       데이터 D1~D7 그대로 + 배선 W1 Job · W2 컨테이너 · W3 인자 · W6 heredoc 의 `_expect_one` 우회(첫 매치를 집게) ·
-      W4 · W5 인자 값 검사의 두 절 + 판정 P1 · P2 — **전부 KILLED, 각자 의도한 테스트로**
+      W4 · W5 인자 값 검사의 두 절 + 판정 P1 · P2 — **전부 KILLED, 각자 의도한 테스트로**.
+      **리뷰 2라운드 뒤(`fd3810242`)**: 경로 쌍 단언을 더해 17개 — D8(set-json 경로) · D9(cat 대상 경로) 추가, 전부 KILLED
 - [x] 동작 실측 (§C) + 대조군 — 결과는 §C-2
 - [x] `kubectl kustomize k8s/overlays/local` 렌더 확인
 - [x] CHANGELOG 항목 (커밋 전 staged 확인)
