@@ -106,6 +106,16 @@ anything a *hook* imports, since hooks get no install step.
   `GIT_CONFIG_GLOBAL=/dev/null`) and set `GIT_AUTHOR_DATE`/`GIT_COMMITTER_DATE`
   explicitly. Mocking would assert our model of git, not git. Keep these few and
   fast.
+- **Never write into this checkout** — not a probe edit restored afterwards, not a
+  fixed-name file under `plan/`, not a session under `review/`, not a `mkdtemp`
+  under `REPO_ROOT`. Reviewers run this suite in parallel in one worktree; on
+  2026-09-25 four concurrent runs left `<!-- uncommitted probe -->` lines in a real
+  spec in 5 of 6 rounds, because one run's `cp` restore backed up another run's
+  probe. A test that must change repository files to observe a behaviour uses
+  `_harness.make_temp_repo_copy(path, *subtrees)` — the subtrees committed into a
+  temp repo whose `origin/main` is HEAD — and points the code at it: both
+  orchestrators take their root as the cwd or an argument, and the consistency
+  orchestrator's sessions follow the cwd (or `CONSISTENCY_OUTPUT_DIR`).
 - Load harness modules via `_harness.load_module_by_path` when they would
   collide on the shared `_lib` package name (the two `_lib` packages under
   `hooks/` and `skills/`). See `_harness.py`.

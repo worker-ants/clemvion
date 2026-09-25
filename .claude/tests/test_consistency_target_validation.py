@@ -17,6 +17,7 @@ We drive the real CLI via subprocess (matching test_orchestrator_state).
 
 from __future__ import annotations
 
+import os
 import subprocess
 import sys
 import tempfile
@@ -31,10 +32,11 @@ ORCH = (
 )
 
 
-def _run(*args: str) -> subprocess.CompletedProcess:
+def _run(*args: str, env: dict | None = None) -> subprocess.CompletedProcess:
     return subprocess.run(
         [sys.executable, str(ORCH), *args],
         cwd=str(REPO_ROOT),
+        env=env,
         capture_output=True,
         text=True,
     )
@@ -75,18 +77,24 @@ class TargetValidationTest(unittest.TestCase):
     def test_valid_target_still_prepares_a_session(self):
         # Guard against the validation rejecting legitimate input (the whole CLI is
         # useless if this regresses).
+        #
+        # The session goes to a temp dir, not the default `./review/consistency` of
+        # this checkout: there a failure before cleanup left a committable session
+        # behind, and a parallel run's `git status` saw it meanwhile.
         with tempfile.TemporaryDirectory() as tmp:
             draft = Path(tmp) / "spec-draft-probe.md"
             draft.write_text("# probe\n", encoding="utf-8")
-            r = _run("--spec", str(draft))
-        self.assertEqual(r.returncode, 0, r.stderr)
-        # stdout's last line is the session dir.
-        session = r.stdout.strip().splitlines()[-1]
-        self.assertTrue(Path(session).is_dir(), f"session dir not created: {session}")
-        # Clean up the session this test created.
-        import shutil
-
-        shutil.rmtree(session, ignore_errors=True)
+            out = Path(tmp) / "sessions"
+            r = _run("--spec", str(draft),
+                     env=dict(os.environ, CONSISTENCY_OUTPUT_DIR=str(out)))
+            self.assertEqual(r.returncode, 0, r.stderr)
+            # stdout's last line is the session dir.
+            session = Path(r.stdout.strip().splitlines()[-1])
+            self.assertTrue(session.is_dir(), f"session dir not created: {session}")
+            # If the override stopped being honoured the session would land in this
+            # checkout again — and still pass the check above.
+            self.assertTrue(session.resolve().is_relative_to(out.resolve()),
+                            f"session outside the temp output dir: {session}")
 
 
 if __name__ == "__main__":
