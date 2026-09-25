@@ -1,10 +1,11 @@
 ---
 title: k8s 로컬 오버레이의 버킷 Job 에 아바타 공개 정책을 건다
-status: in-progress
+status: complete
 owner: developer
 worktree: k8s-avatar-policy
 spec_impact: none
 started: 2026-09-25
+completed: 2026-09-25
 ---
 
 # 두 compose 는 정책을 거는데 k8s 오버레이만 안 건다
@@ -86,9 +87,11 @@ docker 네트워크에서 같은 이미지로 실행했다(env 는 overlay secre
 - [x] 동작 실측 (§C) + 대조군 — 결과는 §C-2
 - [x] `kubectl kustomize k8s/overlays/local` 렌더 확인
 - [x] CHANGELOG 항목 (커밋 전 staged 확인)
-- [ ] `python3 -m pytest .claude/tests -q` 전체 · docs 가드
-- [ ] `/ai-review`
-- [ ] 트래커 항목 닫기
+- [x] `python3 -m pytest .claude/tests -q` 전체 · docs 가드 — 마지막 코드 커밋 `edaad558e` 뒤 **1173 passed**
+- [x] `/ai-review` — **3라운드**. 1 `08_33_19`(W3: 중복 매치 · 헬퍼 미재사용 · README 적용 지점) · 2 `08_48_37`(W2:
+      경로 쌍 · README 문구) · 3 `09_03_48`(W3, **전부 문서 · DRY** — 조치 후 종결). 4라운드를 안 돈 근거는 그 세션
+      `RESOLUTION.md`(글자와 목적이 갈린 자리로 명시). 전수 뮤턴트는 라운드마다 다시 쟀고 마지막 20개 전부 KILLED
+- [x] 트래커 항목 닫기 — 종결 메모 + 항목 안의 self-hosting 보탬은 그 plan §3 체크박스로 옮겼다(묻히지 않게)
 
 ## E. `--impl-prep` 처분
 

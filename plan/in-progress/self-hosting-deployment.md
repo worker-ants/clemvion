@@ -54,6 +54,11 @@ PRD 5 §2 / §3 / §7 의 다음 항목이 ❌ :
 - [ ] `.env.example` 정의 (모든 필수 환경변수 + 기본값)
 - [ ] backend startup script — Flyway migrate → 실패 시 exit 1
 - [ ] MinIO 부팅 후 버킷 자동 생성 (`mc mb` 또는 backend 의 startup 훅)
+- [ ] 버킷 생성과 함께 **아바타 공개 정책** 적용 — 없으면 아바타 업로드는 되고 이미지만 403
+      (`scripts/minio/README.md`: 배포 선행 조건 · `set download` 프리셋 금지). 두 compose 는 파일 마운트,
+      k8s 로컬은 heredoc 사본(`k8s/overlays/local/infra-minio.yaml`)으로 건다. 사본을 하나 더 두면
+      `.claude/tests/test_minio_bucket_policy_parity.py` 처럼 원본과의 일치 가드를 함께 둘 것
+      (2026-09-25 · plan `k8s-avatar-policy` 가 k8s 쪽을 닫으며 이 자리로 옮겼다)
 - [ ] 이 파일이 오브젝트 스토리지 이미지를 쓰면 **`.claude/tests/test_minio_image_parity.py` 의 자리
       목록과 `harness-checks.yml` pathspec 에 추가** — 그 가드는 목록에 없는 파일을 발견하지 못한다
       (2026-09-25 등재 · plan `minio-image-parity-guard` · `--impl-prep`
