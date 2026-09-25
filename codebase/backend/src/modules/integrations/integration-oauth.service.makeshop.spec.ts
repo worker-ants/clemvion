@@ -577,7 +577,11 @@ describe('IntegrationOAuthService — MakeShop', () => {
   describe('precheckMakeshopShop', () => {
     it('returns no conflict when no makeshop row exists', async () => {
       integrationRepo.find = jest.fn().mockResolvedValue([]);
-      const result = await service.precheckMakeshopShop('ws-1', 'freshshop');
+      const result = await service.precheckMakeshopShop(
+        'ws-1',
+        'freshshop',
+        'u-1',
+      );
       expect(result).toEqual({ conflict: false });
     });
 
@@ -594,12 +598,71 @@ describe('IntegrationOAuthService — MakeShop', () => {
           mallId: 'myshop',
         }),
       ]);
-      const result = await service.precheckMakeshopShop('ws-1', 'myshop');
+      const result = await service.precheckMakeshopShop(
+        'ws-1',
+        'myshop',
+        'u-1',
+      );
       expect(result).toMatchObject({
         conflict: true,
         existingIntegrationId: 'conn',
         status: 'connected',
       });
+    });
+
+    /**
+     * spec 통합 §8 · §9.2 — 충돌은 scope 를 가리지 않고 알리되, 충돌 행이 남의 personal 이면 식별자(id · 이름)를 싣지
+     * 않는다. cafe24 precheck 와 같은 행렬이다(`buildFakeMakeshopIntegration` 의 기본값은 u-1 의 personal 이라 요청자를
+     * 바꿔 가며 본다).
+     */
+    it.each([
+      ['남의 personal', 'personal', 'u-2', false],
+      ['본인 personal', 'personal', 'u-1', true],
+      ['남이 만든 organization', 'organization', 'u-2', true],
+    ])(
+      '충돌 행이 %s 이면 id · 이름 노출 = %s (충돌 · status 는 항상)',
+      async (_label, scope, createdBy, exposed) => {
+        integrationRepo.find = jest.fn().mockResolvedValue([
+          buildFakeMakeshopIntegration({
+            id: 'conn',
+            name: 'My Shop',
+            status: 'connected',
+            mallId: 'myshop',
+            scope,
+            createdBy,
+          }),
+        ]);
+        const result = await service.precheckMakeshopShop(
+          'ws-1',
+          'myshop',
+          'u-1',
+        );
+        expect(result).toEqual({
+          conflict: true,
+          status: 'connected',
+          ...(exposed
+            ? { existingIntegrationId: 'conn', existingName: 'My Shop' }
+            : {}),
+        });
+      },
+    );
+
+    it('priority 밖 상태의 fallback 행도 남의 personal 이면 id · 이름을 싣지 않는다', async () => {
+      integrationRepo.find = jest.fn().mockResolvedValue([
+        buildFakeMakeshopIntegration({
+          id: 'odd',
+          status: 'initializing',
+          mallId: 'myshop',
+          scope: 'personal',
+          createdBy: 'u-2',
+        }),
+      ]);
+      const result = await service.precheckMakeshopShop(
+        'ws-1',
+        'myshop',
+        'u-1',
+      );
+      expect(result).toEqual({ conflict: true });
     });
   });
 

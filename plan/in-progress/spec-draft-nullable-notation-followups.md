@@ -5100,7 +5100,7 @@ field: T | null;
       | # | 자리 | 낡은 서술 |
       | --- | --- | --- |
       | 1 | `3-error-handling.md:49` | `NOT_A_MEMBER` 발행 경로 열거가 «전환·탈퇴·멤버십 확인» 인데 **세 번째 발행처**(`removeMember` 의 비-멤버 차단)가 빠졌다. 같은 줄의 «`workspaces.service`» 는 이미 맞다 |
-      | 2 | `3-error-handling.md:46` | `ADMIN_REQUIRED` 발행처를 **`WorkspacesService.assertAdmin()` 단수**로 못박는데, 이제 `removeMember` 가 `throwAdminRequired()` 로 직접 던진다 |
+      | 2 | `3-error-handling.md:46` | `ADMIN_REQUIRED` 발행처를 **`WorkspacesService.assertAdmin()` 단수**로 못박는데, 이제 `removeMember` 가 `throwAdminRequired()` 로 직접 던진다 (2026-09-25 조율: `integration-personal-owner` PR 이 이 행에 `IntegrationsService` 발행처를 먼저 더했다 — 남은 것은 `removeMember` 의 `throwAdminRequired()` 한 발행처) |
       | 3 | `1-auth.md:551` | §3.2 정정 노트가 *"`removeMember()` 는 `assertAdmin(workspaceId, requesterId)` 만 요구한다"* 고 적는다. 결론(«Admin 이 멤버 삭제 가능»)은 참이지만 근거로 든 호출이 사라졌다 |
 
       > **자기-반증형 소정정 대상이 아니다.** 조건 1(그 문장을 developer 자신이 썼다)이
@@ -5757,10 +5757,54 @@ field: T | null;
       개별 등재하는 선례를 갖는다(`--impl-done` `review/consistency/2026/09/20/18_24_04` convention INFO 3 —
       글로브로는 이미 매치돼 가드 위반은 아니다).
 
-- [ ] **personal-scope 통합의 «본인 것만» 소유자 검증이 코드에 없다** (planner 결정 + developer, 2026-09-20 등재 ·
+- [x] **personal-scope 통합의 «본인 것만» 소유자 검증이 코드에 없다** (planner 결정 + developer, 2026-09-20 등재 ·
       `/ai-review` `review/code/2026/09/20/18_09_24` requirement INFO 6). `assertCanRotate` 는 organization-scope 만 본다 —
       spec §8 이 말하는 personal 소유자 제약은 강제되지 않는다. **회귀가 아니다**: `git show` 대조로 rotate 락 PR 이전부터
       같았음이 확인됐다. rotate 한 곳이 아니라 권한 모델 전반(조회·수정·삭제)의 문제라 범위를 먼저 정해야 한다.
+
+      > **2026-09-26 — 닫힘.** 전수 조사로 rotate 한 곳이 아니라 목록 · `:id` 경로 전부 · `oauth/begin` 우회 입구 · precheck · 워크플로우
+      > 어시스턴트까지 넓어졌고, **재인증은 역할 검사가 없어 Viewer 가 Organization 통합을 자기 계정으로 바꿔치기할 수 있었다.** 사용자
+      > 결정 셋(쓰기+읽기를 닫고 노드 실행은 후속 · 남의 personal 은 404 · Organization 변경은 Admin)으로 spec §8 판정 규칙
+      > (`plan/complete/spec-draft-integration-personal-owner.md` · `-assistant.md` · `-callback.md`)과 구현(`plan/complete/integration-personal-owner.md`)을
+      > 한 PR 에. `/ai-review` 4라운드(Critical 2 · Warning 23 조치, 4라운드 «수렴 예외»), `--impl-done` `review/consistency/2026/09/26/00_43_55`. 남은 것 —
+      > 노드 실행 시점 · pending 행 재사용 · Viewer 의 자기 Personal · 화면 버튼은 `plan/in-progress/integration-personal-owner-followup.md`
+      > (spec `pending_plans`), 역할 이중 조회 · `handleCallback` 비대 · 테스트 · 구조 잔여는 아래 신설 항목들.
+
+- [ ] **워크스페이스 역할을 가드와 핸들러가 두 번 조회한다 — `RolesGuard` 가 조회한 역할을 요청에 싣지 않는다** (developer, 낮음,
+      2026-09-25 등재 · `/ai-review` `review/code/2026/09/25/22_45_37` WARNING 4 · 6, 같은 PR 3라운드 `23_58_59` WARNING 3 · 4라운드 `review/code/2026/09/26/00_27_56` WARNING 2 가 재지적 — 4라운드는 «대상이 personal 이면 역할을 쓰지도 않는데 먼저 읽는다» 는 지연 조회 처방을 더했다). `@Roles()` 가 붙은 라우트는 가드가
+      `getMemberRole` 로 역할을 읽는데, Admin 판정이 서비스에 있는 핸들러(통합 `create` · `update` · `rotate` · `remove` 등)는
+      `resolveRole()` 로 **한 번 더** 읽는다 — 같은 요청에서 `workspace_member` PK 조회 두 번. 통합 모듈의 기존 패턴(`create` ·
+      `rotate`)이고 `integration-personal-owner` PR 이 `update` · `remove` 로 넓혔다. 처방 후보: 가드가 판정한 역할을 `request` 에
+      싣고 `@CurrentWorkspaceRole()` 파라미터 데코레이터로 읽는다 — 전역 가드 변경이라 가드 캐너리 · 경로 워크스페이스 분기(가드가
+      판정한 워크스페이스와 핸들러의 워크스페이스가 같은가)를 함께 봐야 한다. `@Roles()` 없는 라우트(`reauthorize` 등)는 가드가
+      역할을 읽지 않으므로 그대로 서비스가 읽는다. **착수 조건**: 없음(여유 있을 때).
+
+- [ ] **`IntegrationOAuthService.handleCallback` 이 ~310줄 한 함수다 — 인가 재판정까지 그 안에 산다** (developer, 낮음,
+      2026-09-26 등재 · `/ai-review` `review/code/2026/09/25/23_58_59` WARNING 5 — «수렴 예외» 등재분, 판정은 그 세션
+      `RESOLUTION.md`). provider 검증 · state 소비 · 에러 분기 · 토큰 교환 · provider 별 자격 증명 조립 · install_token 백필이 한
+      함수이고, `integration-personal-owner` PR 이 트랜잭션 임계구역 안에 커밋 직전 인가 재판정(`assertRequesterStillAllowed`)을
+      더했다. 처방 후보: 락 안 «재판정 → 자격 증명 교체 → 상태 갱신» 을 private 메서드로 뽑아 트랜잭션 콜백을 짧게 — 재판정을
+      `handleCallback` 전체 없이 검증할 수 있게 된다. 동작 변경 없는 리팩터라 기존 콜백 테스트가 회귀를 본다. **착수 조건**: 없음.
+
+- [ ] **통합 소유자 강제의 테스트 · 구조 잔여 — 트랜잭션 매니저 분기 · Organization rotate e2e · 조건부 쓰기 헬퍼** (developer, 낮음,
+      2026-09-26 등재 · `/ai-review` `review/code/2026/09/26/00_27_56` WARNING 1 · 3 · 4 — «수렴 예외» 등재분, 판정은 그 세션
+      `RESOLUTION.md`). 동작 결함은 없다.
+      1. `WorkspacesService.getMemberRole(workspaceId, userId, manager?)` 의 `manager` 분기를 실제로 타는 unit 이 없다 — 통합 쪽 테스트는
+         `WorkspacesService` 를 mock 한다. `workspaces.service.spec.ts` 에 «매니저를 주면 `manager.getRepository(WorkspaceMember)` 를 쓰고
+         `memberRepository` 는 안 쓴다» 한 건(W1). 깨져도 역할 재조회 자체는 유지된다 — 잃는 것은 락 보유 중 두 번째 커넥션 회피.
+      2. e2e `integration-personal-owner.e2e-spec.ts` 에 Organization 통합 rotate(Editor 403 · Admin 200)가 없고, 마지막 케이스가
+         `beforeAll` 의 `personalId` 를 지워 선언 순서에 기댄다 — 삭제 케이스는 자기 통합을 만들어 자기완결로(W4). rotate 의 락 안
+         역할 재조회는 unit(뮤턴트 R13)이 본다.
+      3. `integrations.service.ts` 의 «`judgedRow` 조건부 update → `affected === 0` 이면 404» 4줄이 `update` · `updateScope` ·
+         `reauthorize` 세 곳에 반복된다 — `updateJudgedOrNotFound(row, patch)` 헬퍼(W3). 같은 리뷰 INFO 4(컨트롤러가
+         `IntegrationModifyAction` 을 재수출 경유지에서 import) · INFO 13(mode `request_scopes` 와 action `request-scopes` 표기 규약
+         주석)도 함께.
+      4. **질문** — OAuth 콜백의 커밋 직전 인가 재판정이 실패하면(요청자 강등 · 통합이 남의 personal 이 됨) 롤백은 되지만, 공통 오류
+         수집(`markIntegrationCallbackError`)이 그 행의 `last_error` 에 `RESOURCE_NOT_FOUND` · `ADMIN_REQUIRED` 를 쓴다 — 요청자가 더는
+         볼 수 없는 행(남의 personal)에 진단을 남기는 것이 맞는가. 지금은 `connected` 행의 다른 비-교환 실패와 같은 규칙이다(spec
+         §10.4 · data-flow §1.2 가 그대로 적는다). 기록을 막으려면 재판정 실패만 콜백 컨텍스트를 싣지 않게 한다(`--spec`
+         `review/consistency/2026/09/26/00_55_40` W1 · draft `spec-draft-integration-personal-owner-callback.md`).
+      **착수 조건**: 없음(여유 있을 때). `codebase/**` 편집이라 리뷰 게이트를 한 바퀴 돈다.
 
 - [ ] **entity tester 재진입 금지가 문서로만 있다** (developer, 낮음, 2026-09-19 등재 · `/ai-review` `review/code/2026/09/19/16_00_06`
       concurrency · side_effect WARNING 1). entity tester 는 연결 테스트 동시 상한(2) 안에서 도므로, 등록된 테스터가 `testConnection` ·

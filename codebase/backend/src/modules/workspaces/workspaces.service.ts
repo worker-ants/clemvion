@@ -109,11 +109,19 @@ export class WorkspacesService {
     }
   }
 
+  /**
+   * `manager` 를 주면 그 트랜잭션의 커넥션에서 읽는다 — 행 락을 쥔 트랜잭션 안에서 역할을 다시 볼 때(통합 rotate ·
+   * OAuth 재인증 콜백의 커밋 직전 재판정) 풀에서 두 번째 커넥션을 빌리지 않도록.
+   */
   async getMemberRole(
     workspaceId: string,
     userId: string,
+    manager?: EntityManager,
   ): Promise<string | null> {
-    const member = await this.memberRepository.findOne({
+    const repo = manager
+      ? manager.getRepository(WorkspaceMember)
+      : this.memberRepository;
+    const member = await repo.findOne({
       where: { workspaceId, userId },
     });
     return member?.role ?? null;

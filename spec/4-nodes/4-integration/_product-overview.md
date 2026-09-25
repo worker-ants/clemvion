@@ -22,7 +22,7 @@
 | INT-MG-04 | 연동 설정에 별칭(이름) 부여하여 구분 | 필수 |
 | INT-MG-05 | 연동별 상세 페이지 제공 (개요, 보안, 사용처, 최근 활동) | 필수 |
 | INT-MG-06 | 자격 증명 회전(Rotation) 기능 — 비OAuth는 교체 폼, OAuth는 재인증. 연결 테스트 성공 시에만 저장 커밋, 마지막 회전 시각 표시 | 필수 |
-| INT-MG-07 | Personal ↔ Organization 범위 전환 — Admin만 가능하며 확인 다이얼로그 필수. 기존 자격 증명 승계 | 필수 |
+| INT-MG-07 | Personal ↔ Organization 범위 전환 — Admin만 가능하며(대상은 Admin 이 볼 수 있는 통합 — 자기 personal · organization, [통합 관리 §8](../../2-navigation/4-integration.md#8-권한-규칙)) 확인 다이얼로그 필수. 기존 자격 증명 승계 | 필수 |
 | INT-MG-08 | 추가 플로우는 목록 모달(서비스 선택) → 별도 페이지(`/integrations/new?service=…`) 하이브리드 구조로 제공 | 필수 |
 
 ### 2.2 인증 방식

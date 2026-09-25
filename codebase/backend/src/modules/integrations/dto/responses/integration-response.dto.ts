@@ -341,6 +341,10 @@ export class OAuthBeginCafe24PendingResultDto {
   scopesAdded?: string[];
 }
 
+/** precheck 응답의 식별자 필드 공통 조건 — 두 필드 설명이 같은 문장을 쓴다. */
+const PRECHECK_IDENTITY_MASKED =
+  '— 다만 충돌 대상이 다른 멤버의 개인(personal) 통합이면 conflict=true 여도 생략한다(spec 통합 §8 · §9.2).';
+
 /**
  * Cafe24 mall_id 사전 중복 감지 응답.
  *
@@ -350,6 +354,9 @@ export class OAuthBeginCafe24PendingResultDto {
  * 반환. 인증 정보 누설 방지를 위해 (id, name, status) 만 노출 — 자격 증명·
  * 토큰·timestamps 비포함. spec/2-navigation/4-integration.md §9.2 Rationale
  * "precheck endpoint — mall_id 입력 단계 사전 감지 UX".
+ *
+ * 충돌 대상이 다른 멤버의 개인(personal) 통합이면 `existingIntegrationId` ·
+ * `existingName` 을 싣지 않는다 — 충돌 · status 는 그대로 알린다(spec 통합 §8).
  */
 export class Cafe24PrecheckResultDto {
   @ApiProperty({
@@ -360,12 +367,12 @@ export class Cafe24PrecheckResultDto {
 
   @ApiPropertyOptional({
     format: 'uuid',
-    description: '충돌 대상 통합의 UUID. conflict=true 일 때만 채워진다.',
+    description: `충돌 대상 통합의 UUID. conflict=true 일 때만 채워진다 ${PRECHECK_IDENTITY_MASKED}`,
   })
   existingIntegrationId?: string;
 
   @ApiPropertyOptional({
-    description: '충돌 대상 통합의 표시 이름. conflict=true 일 때만 채워진다.',
+    description: `충돌 대상 통합의 표시 이름. conflict=true 일 때만 채워진다 ${PRECHECK_IDENTITY_MASKED}`,
   })
   existingName?: string;
 

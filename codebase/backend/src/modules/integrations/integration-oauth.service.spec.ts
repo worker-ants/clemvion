@@ -298,6 +298,158 @@ describe('IntegrationOAuthService', () => {
     });
   });
 
+  /**
+   * 콜백은 자격 증명을 덮어쓴다 — begin 시점의 판정만으로는 모자라 커밋 직전(락 안)에 다시 본다(spec 통합 §8). begin 과
+   * 콜백 사이(state TTL)에 요청자가 강등됐거나 통합이 남의 personal 로 바뀌었을 수 있다.
+   */
+  describe('handleCallback — 사용자가 시작한 재인증 · scope 추가는 커밋 직전에 인가를 다시 본다', () => {
+    const stateOf = (mode: string) => [
+      [
+        {
+          provider: 'google',
+          serviceType: 'google',
+          mode,
+          workspaceId: 'ws-1',
+          userId: 'u-1',
+          requestedScopes: ['s'],
+          integrationId: 'int-1',
+          expiresAt: new Date(Date.now() + 60_000),
+        },
+      ],
+      1,
+    ];
+    const rowOf = (overrides: Record<string, unknown>) => ({
+      id: 'int-1',
+      workspaceId: 'ws-1',
+      credentials: { access_token: 'old', scopes: ['s0'] },
+      status: 'connected',
+      scope: 'organization',
+      createdBy: 'u-9',
+      ...overrides,
+    });
+    let getMemberRole: Mock;
+    const serviceWithRole = (role: string | null) => {
+      getMemberRole = jest.fn(async () => role);
+      return new IntegrationOAuthService(
+        integrationRepo as never,
+        stateRepo as never,
+        previewRepo as never,
+        dataSource as never,
+        oauthMock.configService as never,
+        undefined,
+        { getMemberRole } as never,
+      );
+    };
+
+    it.each(['reauthorize', 'request_scopes'])(
+      '%s — 통합이 그 사이 남의 personal 이 됐으면 404 · 자격 증명을 쓰지 않는다',
+      async (mode) => {
+        dataSource.query.mockResolvedValue(stateOf(mode));
+        integrationRepo.findOne.mockResolvedValue(
+          rowOf({ scope: 'personal', createdBy: 'u-2' }),
+        );
+        await expect(
+          serviceWithRole('owner').handleCallback('google', {
+            code: 'code',
+            state: 'abc',
+          }),
+        ).rejects.toMatchObject({ response: { code: 'RESOURCE_NOT_FOUND' } });
+        expect(integrationRepo.save).not.toHaveBeenCalled();
+      },
+    );
+
+    it.each([['editor'], ['viewer'], [null]])(
+      'Organization 통합 — 요청자가 그 사이 %s 가 됐으면 403 ADMIN_REQUIRED · 쓰지 않는다',
+      async (role) => {
+        dataSource.query.mockResolvedValue(stateOf('reauthorize'));
+        integrationRepo.findOne.mockResolvedValue(rowOf({}));
+        await expect(
+          serviceWithRole(role).handleCallback('google', {
+            code: 'code',
+            state: 'abc',
+          }),
+        ).rejects.toMatchObject({ response: { code: 'ADMIN_REQUIRED' } });
+        // 행 락을 쥔 트랜잭션의 커넥션(매니저)으로 읽는다 — 풀에서 두 번째 커넥션을 빌리지 않는다.
+        expect(getMemberRole).toHaveBeenCalledWith(
+          'ws-1',
+          'u-1',
+          expect.objectContaining({ getRepository: expect.any(Function) }),
+        );
+        expect(integrationRepo.save).not.toHaveBeenCalled();
+      },
+    );
+
+    it.each([
+      ['reauthorize', 'Organization 통합을 재인증하려면'],
+      ['request_scopes', 'Organization 통합에 scope 를 추가하려면'],
+    ])('%s — 거부 문구는 그 동작을 말한다(«%s …»)', async (mode, phrase) => {
+      dataSource.query.mockResolvedValue(stateOf(mode));
+      integrationRepo.findOne.mockResolvedValue(rowOf({}));
+      await expect(
+        serviceWithRole('editor').handleCallback('google', {
+          code: 'code',
+          state: 'abc',
+        }),
+      ).rejects.toMatchObject({
+        response: {
+          code: 'ADMIN_REQUIRED',
+          message: `${phrase} Admin 이상의 권한이 필요합니다.`,
+        },
+      });
+      expect(integrationRepo.save).not.toHaveBeenCalled();
+    });
+
+    it.each(['owner', 'admin'])(
+      'Organization 통합 — 요청자가 %s 면 커밋한다',
+      async (role) => {
+        dataSource.query.mockResolvedValue(stateOf('reauthorize'));
+        integrationRepo.findOne.mockResolvedValue(rowOf({}));
+        await serviceWithRole(role).handleCallback('google', {
+          code: 'code',
+          state: 'abc',
+        });
+        expect(integrationRepo.save).toHaveBeenCalledWith(
+          expect.objectContaining({ status: 'connected' }),
+        );
+      },
+    );
+
+    it('본인 personal 은 역할을 조회하지 않고 커밋한다', async () => {
+      dataSource.query.mockResolvedValue(stateOf('reauthorize'));
+      integrationRepo.findOne.mockResolvedValue(
+        rowOf({ scope: 'personal', createdBy: 'u-1' }),
+      );
+      await serviceWithRole('viewer').handleCallback('google', {
+        code: 'code',
+        state: 'abc',
+      });
+      expect(getMemberRole).not.toHaveBeenCalled();
+      expect(integrationRepo.save).toHaveBeenCalledTimes(1);
+    });
+
+    it('pending_install 행(설치 흐름)은 재판정하지 않는다 — state 의 userId 가 요청자가 아니라 생성자다', async () => {
+      dataSource.query.mockResolvedValue(stateOf('reauthorize'));
+      integrationRepo.findOne.mockResolvedValue(
+        rowOf({ status: 'pending_install', createdBy: 'u-2' }),
+      );
+      await serviceWithRole('viewer').handleCallback('google', {
+        code: 'code',
+        state: 'abc',
+      });
+      expect(getMemberRole).not.toHaveBeenCalled();
+      expect(integrationRepo.save).toHaveBeenCalledTimes(1);
+    });
+
+    it('역할을 조회할 수 없으면(WorkspacesService 미주입) Organization 재판정은 거부한다 — fail-closed', async () => {
+      dataSource.query.mockResolvedValue(stateOf('reauthorize'));
+      integrationRepo.findOne.mockResolvedValue(rowOf({}));
+      await expect(
+        service.handleCallback('google', { code: 'code', state: 'abc' }),
+      ).rejects.toMatchObject({ response: { code: 'ADMIN_REQUIRED' } });
+      expect(integrationRepo.save).not.toHaveBeenCalled();
+    });
+  });
+
   describe('handleCallback — failure observability', () => {
     // After OAuth state is consumed, any thrown exception must carry
     // { integrationId, workspaceId, mode } context so the controller can

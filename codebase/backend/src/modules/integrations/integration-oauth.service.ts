@@ -10,7 +10,13 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
-import { DataSource, IsNull, LessThan, Repository } from 'typeorm';
+import {
+  DataSource,
+  EntityManager,
+  IsNull,
+  LessThan,
+  Repository,
+} from 'typeorm';
 import { emptyOAuthEnvConfig, type OAuthEnvConfig } from '../../common/config';
 import { createHash, createHmac, randomBytes, timingSafeEqual } from 'crypto';
 import {
@@ -21,6 +27,12 @@ import {
   buildOauthCallbackUrl,
 } from './third-party-oauth.constants';
 import { Integration } from './entities/integration.entity';
+import {
+  assertOrgScopeModifiable,
+  integrationNotFoundError,
+  isIntegrationVisibleTo,
+} from './integration-visibility';
+import { WorkspacesService } from '../workspaces/workspaces.service';
 import {
   IntegrationOAuthState,
   OAuthStateMode,
@@ -324,6 +336,40 @@ const CAFE24_PRECHECK_STATUS_PRIORITY = [
 ] as const;
 type Cafe24PrecheckStatus = (typeof CAFE24_PRECHECK_STATUS_PRIORITY)[number];
 
+type PrecheckResult = {
+  conflict: boolean;
+  existingIntegrationId?: string;
+  existingName?: string;
+  status?: Cafe24PrecheckStatus;
+};
+
+/**
+ * cafe24 · makeshop precheck 의 공통 판정 — 같은 매장의 행들 중 가장 제한적인 상태 하나를 고른다.
+ *
+ * **충돌은 scope 를 가리지 않고 알린다** — 매장 식별자 유일성이 워크스페이스 단위라 남의 personal 과 겹쳐도 새 통합을
+ * 만들 수 없다. 다만 충돌 행이 **남의 personal** 이면 식별자(id · 이름)를 싣지 않는다(`spec/2-navigation/4-integration.md`
+ * §8 판정 규칙 · §9.2).
+ *
+ * priority 에 없는 transitional status(현재 DB enum 에는 없으나 미래 추가 가능성 대비)면 강제 캐스팅 대신 `status` 를
+ * 빼 클라이언트가 «알 수 없는 상태 — 일단 conflict» 로만 해석하게 한다(spec/conventions/swagger.md — enum 범위 밖 값은
+ * frontend silent fallthrough 방지를 위해 미반환).
+ */
+function pickPrecheckConflict(
+  rows: Integration[],
+  userId: string,
+): PrecheckResult {
+  if (rows.length === 0) return { conflict: false };
+  const identity = (row: Integration) =>
+    isIntegrationVisibleTo(row, userId)
+      ? { existingIntegrationId: row.id, existingName: row.name }
+      : {};
+  for (const status of CAFE24_PRECHECK_STATUS_PRIORITY) {
+    const hit = rows.find((row) => row.status === status);
+    if (hit) return { conflict: true, ...identity(hit), status };
+  }
+  return { conflict: true, ...identity(rows[0]) };
+}
+
 @Injectable()
 export class IntegrationOAuthService {
   private readonly logger = new Logger(IntegrationOAuthService.name);
@@ -346,7 +392,45 @@ export class IntegrationOAuthService {
     // graceful degradation.
     @Optional()
     private readonly installNonceCache?: Cafe24InstallNonceCache,
+    // 사용자가 시작한 재인증 · scope 추가의 커밋 직전 인가 재판정(요청자 역할 조회)용. `@Optional()` 은 수동 생성
+    // 테스트 호환일 뿐이다 — 없으면 Organization 통합의 재판정은 거부한다(fail-closed, `assertRequesterStillAllowed`).
+    @Optional()
+    private readonly workspacesService?: WorkspacesService,
   ) {}
+
+  /**
+   * 사용자가 시작한 재인증 · scope 추가는 **커밋 직전에** 인가를 다시 본다 — begin 과 콜백 사이(state TTL)에 요청자가
+   * 강등됐거나 통합이 남의 personal 로 바뀌었을 수 있다. 콜백은 자격 증명을 덮어쓰므로 begin 시점의 판정만으로는
+   * 모자란다(`spec/2-navigation/4-integration.md` §8 판정 규칙 — `:id/reauthorize` · `oauth/begin` 이 이미 본 것과 같은
+   * 판정: 보이는가 → Organization 이면 Admin).
+   *
+   * `pending_install` 행은 보지 않는다 — 설치 흐름(App URL 의 install_token + HMAC 이 인가)이 만든 state 라
+   * `userId` 가 요청자가 아니라 생성자다(`persistReauthorizeState`). 사용자가 `pending_install` 행에 재인증을 시작하는
+   * 입구는 begin 이 막는다(cafe24 private · makeshop 은 `mode: 'new'` 만).
+   */
+  private async assertRequesterStillAllowed(
+    integration: Integration,
+    record: { workspaceId: string; userId: string; mode: string },
+    manager: EntityManager,
+  ): Promise<void> {
+    if (integration.status === 'pending_install') return;
+    if (!isIntegrationVisibleTo(integration, record.userId)) {
+      throw integrationNotFoundError();
+    }
+    if (integration.scope !== 'organization') return;
+    const role = this.workspacesService
+      ? await this.workspacesService.getMemberRole(
+          record.workspaceId,
+          record.userId,
+          manager, // 행 락을 쥔 이 트랜잭션의 커넥션으로 — 풀에서 두 번째 커넥션을 빌리지 않는다
+        )
+      : null;
+    assertOrgScopeModifiable(
+      integration,
+      role,
+      record.mode === 'request_scopes' ? 'request-scopes' : 'reauthorize',
+    );
+  }
 
   /**
    * refactor M-6: `oauth` namespace 의 안전한 조회. configService 미주입(수동 테스트)
@@ -736,6 +820,8 @@ export class IntegrationOAuthService {
             message: 'Integration not found',
           });
         }
+        // 락을 잡은 이 시점 값으로 인가를 다시 본다 — 자격 증명을 덮어쓰기 직전이다.
+        await this.assertRequesterStillAllowed(integration, record, manager);
         if (
           record.mode === 'reauthorize' ||
           integration.status === 'pending_install'
@@ -1900,33 +1986,12 @@ export class IntegrationOAuthService {
   async precheckMakeshopShop(
     workspaceId: string,
     shopUid: string,
-  ): Promise<{
-    conflict: boolean;
-    existingIntegrationId?: string;
-    existingName?: string;
-    status?: Cafe24PrecheckStatus;
-  }> {
+    userId: string,
+  ): Promise<PrecheckResult> {
     const all = await this.integrationRepository.find({
       where: { workspaceId, serviceType: 'makeshop', mallId: shopUid },
     });
-    if (all.length === 0) return { conflict: false };
-    for (const status of CAFE24_PRECHECK_STATUS_PRIORITY) {
-      const hit = all.find((row) => row.status === status);
-      if (hit) {
-        return {
-          conflict: true,
-          existingIntegrationId: hit.id,
-          existingName: hit.name,
-          status,
-        };
-      }
-    }
-    const fallback = all[0];
-    return {
-      conflict: true,
-      existingIntegrationId: fallback.id,
-      existingName: fallback.name,
-    };
+    return pickPrecheckConflict(all, userId);
   }
 
   /**
@@ -2121,39 +2186,10 @@ export class IntegrationOAuthService {
   async precheckCafe24Mall(
     workspaceId: string,
     mallId: string,
-  ): Promise<{
-    conflict: boolean;
-    existingIntegrationId?: string;
-    existingName?: string;
-    status?: Cafe24PrecheckStatus;
-  }> {
+    userId: string,
+  ): Promise<PrecheckResult> {
     const all = await this.findAllCafe24RowsForMall(workspaceId, mallId);
-    if (all.length === 0) return { conflict: false };
-    // Priority 순으로 가장 제한적인 상태부터 검사. 상수는 클래스 상단의
-    // `CAFE24_PRECHECK_STATUS_PRIORITY` 에 정의 — DTO 주석 / 프론트 i18n 분기
-    // 와 단일 진실 유지.
-    for (const status of CAFE24_PRECHECK_STATUS_PRIORITY) {
-      const hit = all.find((row) => row.status === status);
-      if (hit) {
-        return {
-          conflict: true,
-          existingIntegrationId: hit.id,
-          existingName: hit.name,
-          status,
-        };
-      }
-    }
-    // Fallback: priority 에 없는 transitional status (현재 DB enum 에는 없으나
-    // 미래 추가 가능성 대비). 강제 캐스팅 대신 status 를 omit 해 클라이언트가
-    // "알 수 없는 상태 — 일단 conflict" 로만 해석하도록 한다. spec/conventions
-    // /swagger.md — enum 범위 밖 값은 frontend silent fallthrough 방지를
-    // 위해 명시적으로 미반환.
-    const fallback = all[0];
-    return {
-      conflict: true,
-      existingIntegrationId: fallback.id,
-      existingName: fallback.name,
-    };
+    return pickPrecheckConflict(all, userId);
   }
 
   // ---------------------------------------------------------------------

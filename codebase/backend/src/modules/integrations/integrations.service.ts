@@ -1,10 +1,8 @@
 import {
   Injectable,
   Logger,
-  NotFoundException,
   BadRequestException,
   ConflictException,
-  ForbiddenException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Brackets, DataSource, Repository } from 'typeorm';
@@ -12,6 +10,15 @@ import { createTransport } from 'nodemailer';
 import pLimit from 'p-limit';
 import { isSmtpHostBlocked } from '../../nodes/integration/send-email/smtp-host-guard';
 import { Integration } from './entities/integration.entity';
+import {
+  INTEGRATION_USER_PARAM,
+  adminRequiredError,
+  assertOrgScopeModifiable,
+  integrationNotFoundError,
+  integrationVisibilityClause,
+  isIntegrationVisibleTo,
+  type IntegrationModifyAction,
+} from './integration-visibility';
 import { getAppBaseUrl } from '../../common/utils/app-base-url';
 import { ADMIN_ROLES } from '../../common/constants/workspace-roles';
 import { IntegrationUsageLog } from './entities/integration-usage-log.entity';
@@ -379,6 +386,8 @@ export type PublicIntegration = Omit<
   autoRefresh: boolean;
 };
 
+export type { IntegrationModifyAction } from './integration-visibility';
+
 /**
  * Thrown when execution-engine code paths try to use an integration whose
  * stored credentials cannot be decrypted (key rotation / corruption). The
@@ -490,13 +499,18 @@ export class IntegrationsService {
 
   async findAll(
     workspaceId: string,
+    userId: string,
     query: ListIntegrationsQueryDto,
   ): Promise<PaginatedResponseDto<PublicIntegration>> {
     const { page = 1, limit = 20, q, scope, serviceType, status } = query;
 
+    // 남의 personal 은 SQL 에서 거른다 — 메모리에서 거르면 페이지네이션 total 이 그것까지 센다(spec §8).
     const qb = this.integrationRepository
       .createQueryBuilder('i')
-      .where('i.workspace_id = :workspaceId', { workspaceId });
+      .where('i.workspace_id = :workspaceId', { workspaceId })
+      .andWhere(integrationVisibilityClause('i'), {
+        [INTEGRATION_USER_PARAM]: userId,
+      });
 
     if (q) {
       qb.andWhere('i.name ILIKE :search', { search: `%${q}%` });
@@ -594,12 +608,92 @@ export class IntegrationsService {
     return PaginatedResponseDto.create(data, totalItems, page, limit);
   }
 
-  async findById(id: string, workspaceId: string): Promise<PublicIntegration> {
+  async findById(
+    id: string,
+    workspaceId: string,
+    userId: string,
+  ): Promise<PublicIntegration> {
+    return this.toPublic(await this.requireVisible(id, workspaceId, userId));
+  }
+
+  /**
+   * 요청자에게 **보이는** 통합을 읽는다 — 없거나 남의 personal 이면 같은 404(`spec/2-navigation/4-integration.md` §8
+   * 판정 규칙). 역할은 보지 않는다 — Personal 통합에는 역할 우위가 없다. 사용자 요청이 `:id` 로 통합에 닿는 경로는 전부
+   * 이것을 거친다(실행 엔진 전용 {@link getForExecution} 만 예외 — 노드 실행 시점 판정은 후속 plan).
+   */
+  private async requireVisible(
+    id: string,
+    workspaceId: string,
+    userId: string,
+  ): Promise<Integration> {
+    const row = await this.integrationRepository.findOne({
+      where: { id, workspaceId },
+    });
+    if (!row || !isIntegrationVisibleTo(row, userId)) {
+      this.throwIntegrationNotFound();
+    }
+    return row;
+  }
+
+  /**
+   * Organization 통합의 변경은 Admin 이상이다(§8) — 판정 · 거부 문구는 공유 함수(`assertOrgScopeModifiable`)가 OAuth 콜백의
+   * 재판정과 함께 쓴다. Personal 통합은 여기서 막지 않는다 — 보이는 personal 은 본인 것이고 본인은 역할과 무관하게 바꾼다.
+   *
+   * rotate 는 이 판정을 락 전(요청 시작 시점 스냅샷)·락 안(재읽은 행) 두 지점에서 부른다 — 보안 직결 판정이라 조건 ·
+   * 에러 코드를 이 한 곳에 두지 않으면 두 지점이 drift 한다.
+   */
+  private assertCanModify(
+    row: Pick<Integration, 'scope'>,
+    userRole: string | null,
+    action: IntegrationModifyAction,
+  ): void {
+    assertOrgScopeModifiable(row, userRole, action);
+  }
+
+  /**
+   * 판정한 행에만 쓴다 — 쓰기 조건에 **판정 근거인 scope** 를 싣는다(compare-and-set). 판정과 쓰기 사이에 다른 요청이
+   * scope 를 바꿨으면 0행이고 호출부는 404 로 끝낸다. `created_by` 는 바뀌지 않으므로 scope 가 같으면 가시성 판정도
+   * 그대로 유효하다.
+   *
+   * 락이 아니라 조건부 한 문장인 이유: 삭제가 이미 락 없이 원자적 `DELETE` 의 `affected` 로 동시 삭제를 판별한다
+   * (`remove` 주석) — 같은 원자성에 판정 근거를 한 칸 더 실으면 된다. 엔티티 전체 `save()` 도 쓰지 않는다 — TypeORM
+   * `save` 는 메모리의 옛 스냅샷과 DB 를 비교해 바뀐 컬럼을 쓰므로, 그 사이 다른 요청이 바꾼 `scope` 를 옛 값으로
+   * 되돌린다(lost update). 바꾸는 컬럼만 쓴다.
+   */
+  private judgedRow(row: Pick<Integration, 'id' | 'workspaceId' | 'scope'>): {
+    id: string;
+    workspaceId: string;
+    scope: string;
+  } {
+    return { id: row.id, workspaceId: row.workspaceId, scope: row.scope };
+  }
+
+  /** 조건부 쓰기 뒤 응답용으로 다시 읽는다 — `updated_at` 은 DB 가 정한다(rotate 와 같은 이유). */
+  private async reloadOrNotFound(
+    id: string,
+    workspaceId: string,
+  ): Promise<Integration> {
     const row = await this.integrationRepository.findOne({
       where: { id, workspaceId },
     });
     if (!row) this.throwIntegrationNotFound();
-    return this.toPublic(row);
+    return row;
+  }
+
+  /**
+   * 보이는가(404) → Organization 이면 Admin 인가(403) 순서로 판정해 행을 돌려준다. `:id` 로 통합을 바꾸는 경로와
+   * `oauth/begin` 의 `reauthorize` · `request_scopes` 모드(`integrationId` 지정 — 컨트롤러가 부른다)가 같은 판정을 받는다.
+   */
+  async requireModifiable(
+    id: string,
+    workspaceId: string,
+    userId: string,
+    userRole: string | null,
+    action: IntegrationModifyAction,
+  ): Promise<Integration> {
+    const row = await this.requireVisible(id, workspaceId, userId);
+    this.assertCanModify(row, userRole, action);
+    return row;
   }
 
   /**
@@ -607,13 +701,10 @@ export class IntegrationsService {
    * `schedules.service.ts` 의 `throwScheduleNotFound()` 선례와 같은 이유다. 같은 리터럴이
    * `findById` · `update` · `remove`(두 판정) · `rotate`(두 판정) · `requireEntity` 까지
    * 파일 전체 7곳으로 늘어 있었다 (`/ai-review` `review/code/2026/09/21/10_54_47`
-   * maintainability WARNING 2).
+   * maintainability WARNING 2). 남의 personal 도 이 응답이다 — 없는 통합과 구별되면 안 된다({@link requireVisible}).
    */
   private throwIntegrationNotFound(): never {
-    throw new NotFoundException({
-      code: 'RESOURCE_NOT_FOUND',
-      message: 'Integration not found',
-    });
+    throw integrationNotFoundError();
   }
 
   // ---------------------------------------------------------------
@@ -629,13 +720,7 @@ export class IntegrationsService {
     this.validateServiceAuthType(body.serviceType, body.authType);
 
     const requestedScope = body.scope ?? 'personal';
-    if (requestedScope === 'organization' && !this.isAdmin(userRole)) {
-      throw new ForbiddenException({
-        code: 'FORBIDDEN',
-        message:
-          'Admin role is required to create organization-scope integrations',
-      });
-    }
+    this.assertCanModify({ scope: requestedScope }, userRole, 'create');
 
     let credentials: Record<string, unknown> = body.credentials ?? {};
     let tokenExpiresAt: Date | null = null;
@@ -731,43 +816,58 @@ export class IntegrationsService {
     id: string,
     workspaceId: string,
     userId: string,
+    userRole: string | null,
     body: UpdateIntegrationDto,
   ): Promise<PublicIntegration> {
-    const entity = await this.integrationRepository.findOne({
-      where: { id, workspaceId },
-    });
-    if (!entity) this.throwIntegrationNotFound();
-    const changes: Record<string, unknown> = {};
-    if (body.name !== undefined && body.name !== entity.name) {
-      changes.name = { from: entity.name, to: body.name };
-      entity.name = body.name;
+    const entity = await this.requireModifiable(
+      id,
+      workspaceId,
+      userId,
+      userRole,
+      'modify',
+    );
+    if (body.name === undefined || body.name === entity.name) {
+      return this.toPublic(entity);
     }
+    const changes = { name: { from: entity.name, to: body.name } };
     try {
-      const saved = await this.integrationRepository.save(entity);
-      if (Object.keys(changes).length > 0) {
-        await this.auditLogsService.record({
-          workspaceId,
-          userId,
-          action: AUDIT_ACTIONS.INTEGRATION_UPDATED,
-          resourceType: 'integration',
-          resourceId: saved.id,
-          details: changes,
-        });
-      }
-      return this.toPublic(saved);
+      const { affected } = await this.integrationRepository.update(
+        this.judgedRow(entity),
+        { name: body.name },
+      );
+      if (affected === 0) this.throwIntegrationNotFound();
     } catch (err) {
       this.throwIfUniqueViolation(err, entity.serviceType);
       throw err;
     }
+    const saved = await this.reloadOrNotFound(id, workspaceId);
+    await this.auditLogsService.record({
+      workspaceId,
+      userId,
+      action: AUDIT_ACTIONS.INTEGRATION_UPDATED,
+      resourceType: 'integration',
+      resourceId: saved.id,
+      details: changes,
+    });
+    return this.toPublic(saved);
   }
 
-  async remove(id: string, workspaceId: string, userId: string): Promise<void> {
-    const entity = await this.integrationRepository.findOne({
-      where: { id, workspaceId },
-    });
-    if (!entity) this.throwIntegrationNotFound();
+  async remove(
+    id: string,
+    workspaceId: string,
+    userId: string,
+    userRole: string | null,
+  ): Promise<void> {
+    // 인가가 사용처 조회보다 먼저다 — 권한 없는 요청자가 409(`INTEGRATION_IN_USE`)로 존재를 확인하지 못하게.
+    const entity = await this.requireModifiable(
+      id,
+      workspaceId,
+      userId,
+      userRole,
+      'delete',
+    );
 
-    // remove() 가 이미 위에서 findOne 으로 통합 존재·workspace 소유를 검증했으므로,
+    // remove() 가 이미 위에서 requireModifiable 로 통합 존재·workspace 소유·가시성을 검증했으므로,
     // getUsages 의 findById 선검증을 거치지 않고 사용처 조회 헬퍼를 직접 호출한다
     // (통합 행 중복 조회 제거 — PR #633 후속 ⑦).
     const usages = await this.queryUsageNodes(id, workspaceId);
@@ -779,13 +879,16 @@ export class IntegrationsService {
       });
     }
 
-    // **원자적 `DELETE` 의 `affected` 가 판별자다.** 위 `findOne` 은 잠금 없는 선조회라 동시 DELETE 두
+    // **원자적 `DELETE` 의 `affected` 가 판별자다.** 위 선조회는 잠금이 없어 동시 DELETE 두
     // 건이 모두 통과하고, 종전의 `remove(entity)` 는 이미 없는 PK 에 0행이어도 던지지 않아 진 쪽도
     // 성공으로 끝나며 `integration.deleted` 감사를 한 번 더 남겼다(e2e 로 재현: 둘 다 204 · 감사 2건).
     //
+    // 조건에는 **판정 근거인 scope** 도 싣는다(`judgedRow`) — 판정 뒤 다른 요청이 personal 을 organization 으로
+    // 바꿨으면 Editor 의 삭제가 그 Organization 통합을 지우면 안 된다. 그때도 0행이라 404 다.
+    //
     // **형제 네 경로와 처방이 다르다** — 그쪽은 행 락(`pessimistic_write`)이나 advisory lock 안에서
     // 다시 읽어 판정하지만, 이 경로엔 락이 없다. 락을 새로 들이는 대신
-    // `DELETE … WHERE id = $1 AND workspace_id = $2` 한 문장의 원자성에 기댄다 — 둘 중 하나만 1행을
+    // `DELETE … WHERE id = $1 AND workspace_id = $2 AND scope = $3` 한 문장의 원자성에 기댄다 — 둘 중 하나만 1행을
     // 지운다. (`4-integration.md` Rationale 이 기각한 advisory lock 의 재도입이 아니다: 그 기각 사유는
     // «lock 보유 중 HTTP 요청» 이고 여기엔 외부 호출이 없으며, 애초에 락을 쓰지 않는다.)
     //
@@ -795,10 +898,9 @@ export class IntegrationsService {
     // 판정은 `=== 0` **명시 비교**다. `affected` 가 `null`·`undefined` 인 것은 드라이버가 «보고하지
     // 않았다» 는 뜻이지 «지우지 못했다» 가 아니다 — 그것을 0 과 같이 읽으면 정상 삭제를 404 로
     // 뒤집는다(`rewriteTriggerConfigLocked` 가 세운 규율, 스케줄 경로도 같다).
-    const { affected } = await this.integrationRepository.delete({
-      id,
-      workspaceId,
-    });
+    const { affected } = await this.integrationRepository.delete(
+      this.judgedRow(entity),
+    );
     if (affected === 0) this.throwIntegrationNotFound();
     await this.auditLogsService.record({
       workspaceId,
@@ -823,13 +925,14 @@ export class IntegrationsService {
   async getUsages(
     id: string,
     workspaceId: string,
+    userId: string,
   ): Promise<IntegrationUsageWorkflow[]> {
     // Verify integration belongs to workspace (throws if missing). The actual
     // usage-node query lives in {@link queryUsageNodes} so callers that have
     // already established existence (e.g. {@link remove}) can skip this
-    // duplicate findById. Public contract — controller-facing NotFound throw —
-    // is preserved here.
-    await this.findById(id, workspaceId);
+    // duplicate lookup. Public contract — controller-facing NotFound throw
+    // (없거나 남의 personal — spec §8) — is preserved here.
+    await this.requireVisible(id, workspaceId, userId);
     return this.queryUsageNodes(id, workspaceId);
   }
 
@@ -908,6 +1011,7 @@ export class IntegrationsService {
   async getActivity(
     id: string,
     workspaceId: string,
+    userId: string,
     limit: number,
     days: number,
   ): Promise<{
@@ -918,7 +1022,7 @@ export class IntegrationsService {
       dailyCounts: Array<{ date: string; count: number; failed: number }>;
     };
   }> {
-    await this.findById(id, workspaceId);
+    await this.requireVisible(id, workspaceId, userId);
     const effectiveLimit = Math.min(Math.max(limit, 1), 100);
     const effectiveDays = Math.min(Math.max(days, 1), 30);
 
@@ -976,8 +1080,9 @@ export class IntegrationsService {
   async testConnection(
     id: string,
     workspaceId: string,
+    userId: string,
   ): Promise<IntegrationTestResult> {
-    const entity = await this.requireEntity(id, workspaceId);
+    const entity = await this.requireVisible(id, workspaceId, userId);
     if (isUnreadableCredentials(entity.credentials)) {
       return {
         success: false,
@@ -1094,23 +1199,6 @@ export class IntegrationsService {
   }
 
   /**
-   * 조직 스코프 통합은 admin 만 회전할 수 있다. 락 전(요청 시작 시점 스냅샷)·락 안(재읽은 행)
-   * 두 지점에서 같은 조건·에러코드로 호출된다 — 보안 직결 코드라 한 곳에서만 고치면 drift 가 난다.
-   */
-  private assertCanRotate(
-    row: Pick<Integration, 'scope'>,
-    userRole: string | null,
-  ): void {
-    if (row.scope === 'organization' && !this.isAdmin(userRole)) {
-      throw new ForbiddenException({
-        code: 'FORBIDDEN',
-        message:
-          'Admin role is required to rotate organization-scope integrations',
-      });
-    }
-  }
-
-  /**
    * `row.credentials` 를 base 로 `patch` 를 머지하고 구조 검증한다. 락 전(요청 시작 시점
    * 스냅샷)·락 안(재읽은 행) 두 지점에서 base 만 다르게 호출된다 — base 가 다르므로 결과
    * (`merged`/`committed`)도 호출부마다 별도 변수로 받는다.
@@ -1143,7 +1231,7 @@ export class IntegrationsService {
     userRole: string | null,
     body: RotateCredentialsDto,
   ): Promise<PublicIntegration> {
-    const entity = await this.requireEntity(id, workspaceId);
+    const entity = await this.requireVisible(id, workspaceId, userId);
 
     if (entity.authType === 'oauth2') {
       throw new BadRequestException({
@@ -1151,7 +1239,7 @@ export class IntegrationsService {
         message: 'Use the reauthorize endpoint to rotate OAuth credentials',
       });
     }
-    this.assertCanRotate(entity, userRole);
+    this.assertCanModify(entity, userRole, 'rotate');
 
     const merged = this.mergeAndValidateCredentials(entity, body.credentials);
 
@@ -1187,9 +1275,21 @@ export class IntegrationsService {
         where: { id: entity.id, workspaceId },
         lock: { mode: 'pessimistic_write' },
       });
-      if (!fresh) this.throwIntegrationNotFound();
-      // 권한도 이 시점 값으로 다시 본다 — 테스트가 도는 동안 personal → organization 으로 바뀌었을 수 있다.
-      this.assertCanRotate(fresh, userRole);
+      // 권한도 이 시점 값으로 다시 본다 — 테스트(수 초)가 도는 동안 scope 가 바뀌었을 수 있고(personal → organization
+      // 이면 Admin 이어야 하고, organization → 남의 personal 이면 이제 보이지 않는다), 요청자가 강등됐을 수 있다.
+      // 역할은 Organization 일 때만 다시 읽는다 — 같은 트랜잭션 커넥션으로(OAuth 콜백 재판정과 같은 보장).
+      if (!fresh || !isIntegrationVisibleTo(fresh, userId)) {
+        this.throwIntegrationNotFound();
+      }
+      const lockedRole =
+        fresh.scope === 'organization'
+          ? await this.workspacesService.getMemberRole(
+              workspaceId,
+              userId,
+              manager,
+            )
+          : userRole;
+      this.assertCanModify(fresh, lockedRole, 'rotate');
 
       // 머지 base 가 바뀌었으므로 구조 검증도 다시 돈다 — 순수 함수라 임계 구간을 늘리지 않는다.
       const committed = this.mergeAndValidateCredentials(
@@ -1238,7 +1338,7 @@ export class IntegrationsService {
     userRole: string | null,
     body: RequestScopesDto,
   ): Promise<BeginResult> {
-    const entity = await this.requireEntity(id, workspaceId);
+    const entity = await this.requireVisible(id, workspaceId, userId);
 
     if (entity.authType !== 'oauth2') {
       throw new BadRequestException({
@@ -1246,13 +1346,7 @@ export class IntegrationsService {
         message: 'Scope requests are only supported for OAuth integrations',
       });
     }
-    if (entity.scope === 'organization' && !this.isAdmin(userRole)) {
-      throw new ForbiddenException({
-        code: 'FORBIDDEN',
-        message:
-          'Admin role is required to modify organization-scope integrations',
-      });
-    }
+    this.assertCanModify(entity, userRole, 'request-scopes');
 
     const existingScopes = Array.isArray(entity.credentials.scopes)
       ? (entity.credentials.scopes as string[])
@@ -1322,26 +1416,28 @@ export class IntegrationsService {
     userRole: string | null,
     body: UpdateScopeDto,
   ): Promise<PublicIntegration> {
-    if (!this.isAdmin(userRole)) {
-      throw new ForbiddenException({
-        code: 'FORBIDDEN',
-        message: 'Admin role is required to change integration scope',
-      });
-    }
-    const entity = await this.requireEntity(id, workspaceId);
+    // `assertCanModify` 를 쓰지 않는다 — 그쪽은 Organization 이 아니면 통과시키는데, 범위 전환은 personal → organization
+    // 승격(자격 증명을 워크스페이스 전체에 공유)이라 늘 Admin 이어야 한다.
+    if (!this.isAdmin(userRole)) throw adminRequiredError('change-scope');
+    // Admin 도 볼 수 있는 통합만 전환한다 — 남의 personal 은 404(§8). 전환해도 created_by 는 그대로라
+    // organization → personal 은 생성자의 personal 이 된다.
+    const entity = await this.requireVisible(id, workspaceId, userId);
     const from = entity.scope;
-    entity.scope = body.scope;
-    const saved = await this.integrationRepository.save(entity);
-    if (from !== body.scope) {
-      await this.auditLogsService.record({
-        workspaceId,
-        userId,
-        action: AUDIT_ACTIONS.INTEGRATION_SCOPE_CHANGED,
-        resourceType: 'integration',
-        resourceId: saved.id,
-        details: { from, to: body.scope },
-      });
-    }
+    if (from === body.scope) return this.toPublic(entity);
+    const { affected } = await this.integrationRepository.update(
+      this.judgedRow(entity),
+      { scope: body.scope },
+    );
+    if (affected === 0) this.throwIntegrationNotFound();
+    const saved = await this.reloadOrNotFound(id, workspaceId);
+    await this.auditLogsService.record({
+      workspaceId,
+      userId,
+      action: AUDIT_ACTIONS.INTEGRATION_SCOPE_CHANGED,
+      resourceType: 'integration',
+      resourceId: saved.id,
+      details: { from, to: body.scope },
+    });
     return this.toPublic(saved);
   }
 
@@ -1353,15 +1449,32 @@ export class IntegrationsService {
     id: string,
     workspaceId: string,
     userId: string,
+    userRole: string | null,
   ): Promise<BeginResult> {
-    const entity = await this.requireEntity(id, workspaceId);
+    // OAuth 재인증 콜백은 credentials 를 통째로 교체한다 — 판정이 없으면 누구든 Organization 통합을 자기 외부 계정으로
+    // 바꿔치기한다(§8 · Rationale «Personal 통합 소유자 강제»).
+    const entity = await this.requireModifiable(
+      id,
+      workspaceId,
+      userId,
+      userRole,
+      'reauthorize',
+    );
     const service = findService(entity.serviceType);
 
     if (!service?.oauthProvider) {
-      entity.status = 'connected';
-      entity.statusReason = null;
-      entity.lastError = null;
-      await this.integrationRepository.save(entity);
+      // 판정한 행에만 · 바꾸는 컬럼만 쓴다(`judgedRow`) — 엔티티 `save()` 는 그 사이 바뀐 scope 를 되돌린다.
+      // 타입은 `rotate` 의 changes 와 같은 이유로 넓힌다(JSONB 컬럼이 QueryDeepPartialEntity 를 통과하지 못한다).
+      const reset: Record<string, unknown> = {
+        status: 'connected',
+        statusReason: null,
+        lastError: null,
+      };
+      const { affected } = await this.integrationRepository.update(
+        this.judgedRow(entity),
+        reset,
+      );
+      if (affected === 0) this.throwIntegrationNotFound();
       await this.auditLogsService.record({
         workspaceId,
         userId,

@@ -23,6 +23,35 @@
 > 07 37% · 08 30% · 09(25일까지) 49% 였다(나중 PR 의 백필은 세지 않았다). 여기 없다고 그 변경이 없었던 것은 아니다 —
 > `git log` 가 정본이다.
 
+## Unreleased — 남의 Personal 통합은 보이지 않고, Organization 통합의 변경은 Admin 이다 (재인증 바꿔치기 차단)
+
+통합의 Personal 범위(«만든 사람만»)는 spec 표로만 있었고 코드 어디도 생성자를 보지 않았다. Organization 통합도 이름 변경 ·
+삭제가 Editor 에게, 재인증은 **역할 검사 없이 Viewer 에게까지** 열려 있었다. 재인증 콜백은 그 통합의 자격 증명을 통째로 교체하므로,
+워크스페이스의 누구든 Organization 통합을 자기 외부 계정으로 바꿔치기할 수 있었다. 관측되는 변화:
+
+- **다른 멤버의 Personal 통합은 없는 통합과 같다** — `GET /api/integrations` 목록에서 빠지고(페이지네이션 `total` 도 세지 않는다),
+  `/api/integrations/:id` 경로 전부(상세 · 사용처 · 활동 · 연결 테스트 · 이름 변경 · 삭제 · 자격 증명 교체 · 재인증 · scope 추가 ·
+  범위 전환)가 없는 id 와 같은 `404 RESOURCE_NOT_FOUND` 다. Owner · Admin 도 예외가 아니다. 워크플로우 어시스턴트의 통합 목록 ·
+  노드 후보에서도 빠진다.
+- **Organization 통합의 이름 변경 · 삭제 · 재인증은 Admin 이상이다** — Editor · Viewer 는 `403 ADMIN_REQUIRED`(종전 이름 변경 ·
+  삭제는 Editor 가 했고, 재인증은 Viewer 까지 했다). `POST /api/integrations/oauth/begin` 의 `reauthorize` · `request_scopes` 모드에
+  `integrationId` 를 지정하는 요청도 같은 판정을 받는다 — 종전엔 `integrationId` 를 검사하지 않아 `:id` 경로를 우회하는 입구였다.
+- **이 모듈의 Admin 거부 코드가 `FORBIDDEN` 에서 `ADMIN_REQUIRED` 로 바뀐다** — Organization 통합 생성 · 자격 증명 교체 · scope 추가 ·
+  범위 전환(기존 네 자리)과 위의 새 판정. 라우트 가드의 역할 거부와 같은 코드 · 같은 한국어 문구다. 상태 코드는 403 그대로다 — 자사 frontend 는 이 코드로
+  분기하지 않지만, `error.code` 로 분기하는 외부 API 호출자가 있다면 확인할 것.
+- **재인증 · scope 추가 콜백이 자격 증명을 덮어쓰기 직전에 인가를 다시 본다** — 시작과 콜백 사이에 요청자가 Admin 에서 강등됐거나
+  통합이 다른 멤버의 Personal 이 됐으면 콜백이 거부된다(설치 대기 중인 cafe24 · MakeShop 설치 흐름은 제외 — 그쪽 인가는 설치 토큰과
+  서명이다).
+- **판정 뒤 다른 요청이 통합의 범위를 바꿨으면** 이름 변경 · 삭제 · 상태 재설정 · 범위 전환이 쓰지 않고 `404` 로 끝난다 — 판정할 때의
+  범위를 쓰기 조건에 싣는다. 종전의 이름 변경 · 범위 전환 · 상태 재설정은 통합 전체를 다시 저장해, 그 사이 바뀐 범위를 옛 값으로
+  되돌릴 수 있었다.
+- **매장 중복 사전 감지(`cafe24/precheck` · `makeshop/precheck`)** 는 겹치는 쪽이 다른 멤버의 Personal 통합이면 `existingIntegrationId`
+  · `existingName` 을 싣지 않는다(`conflict` · `status` 는 그대로 — 매장 식별자 유일성이 워크스페이스 단위라 겹침 자체는 알려야 한다).
+
+아직 강제되지 않는 것 — 노드 실행 시점의 소유자 판정, cafe24 · MakeShop 설치 대기 행 재사용, Viewer 의 자기 Personal 관리, 상세
+화면의 버튼 가림은 후속(`plan/in-progress/integration-personal-owner-followup.md`). 근거: `spec/2-navigation/4-integration.md` §8
+«판정 규칙» · Rationale «Personal 통합 소유자 강제».
+
 ## Unreleased — 워크스페이스 권한 거부가 코드를 싣고, 경로의 워크스페이스를 가드가 판정한다
 
 `RolesGuard` 의 멤버십 · 역할 거부는 코드 없이 403 을 내 전역 필터가 기본값 `FORBIDDEN` 을 채웠다. 이제 코드를 싣는다 —

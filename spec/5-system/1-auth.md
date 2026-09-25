@@ -384,7 +384,7 @@ counter 역행이 감지되면 `verifyAuthenticationResponse` 가 reject 한다.
 > 가드를 받는다. 별도 행인 `Admin 역할 부여` 는 그대로 Owner 전용이다 — "멤버를 제거할 수
 > 있다" 와 "관리자 역할을 부여할 수 있다" 는 다른 권한이다.
 | Integration (Org) | CRUD | CRUD | R | R |
-| Integration (Personal) | 자기 것 | 자기 것 | 자기 것 | 자기 것 |
+| Integration (Personal) ‡ | 자기 것 | 자기 것 | 자기 것 | 자기 것 |
 | Knowledge Base | CRUD | CRUD | CRUD | R |
 | Auth Config | CRUD | CRUD | R | R |
 | Auth Config Reveal (평문 노출) | ✅ | ✅ | — | — |
@@ -393,6 +393,10 @@ counter 역행이 감지되면 `verifyAuthenticationResponse` 가 reject 한다.
 | System Status ※ | R | R | R | R |
 | Marketplace 설치 | ✅ | ✅ | ✅ | — |
 | Audit Log | R | R | — | — |
+
+> ‡ **Integration (Personal) 의 «자기 것»**: «본인» 의 정의(`created_by`) · 남의 personal 을 없는 통합과 같이 다루는 규칙 · 아직
+> 강제되지 않는 부분(Viewer 의 생성 · 수정 · 삭제, 노드 실행 시점)은 [통합 관리 §8](../2-navigation/4-integration.md#8-권한-규칙) 이
+> SoT 다.
 
 > ※ **System Status**: 큐 적체 집계만 노출하는 시스템 전역 읽기 API(`/api/system-status/overview`)로, 워크스페이스 경계를 갖지 않는다. 개별 job·payload·워크스페이스 식별자를 노출하지 않으므로 모든 역할이 동일하게 읽기만 가능하다 (별도 admin 가드 없음). 상세는 [System Status API §4 보안](./16-system-status-api.md#4-보안).
 

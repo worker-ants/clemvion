@@ -35,6 +35,7 @@ function makeCtx(
   return {
     shadow,
     workspaceId: 'ws-1',
+    userId: 'u-1',
     currentWorkflowId: 'wf-1',
     schemaCache: new Map<string, SchemaCacheEntry>(),
     ...overrides,
@@ -190,7 +191,7 @@ describe('AssistantToolRouter', () => {
       });
     });
 
-    it('delegates generic explore tools to ExploreToolsService with workspace + workflow scope', async () => {
+    it('delegates generic explore tools to ExploreToolsService with workspace + requester + workflow scope', async () => {
       exploreTools.listIntegrations.mockResolvedValue([{ id: 'i1' }]);
       const ctx = makeCtx(makeShadow(EMPTY_SNAPSHOT));
       const { result, reviewCompleted } = await router.dispatchExplore(
@@ -199,7 +200,12 @@ describe('AssistantToolRouter', () => {
         ctx,
       );
       expect(reviewCompleted).toBe(false);
-      expect(exploreTools.listIntegrations).toHaveBeenCalledWith('ws-1', 'crm');
+      // 요청자를 넘긴다 — 통합 목록은 요청자에게 보이는 것만(남의 personal 제외, spec 통합 §8).
+      expect(exploreTools.listIntegrations).toHaveBeenCalledWith(
+        'ws-1',
+        'u-1',
+        'crm',
+      );
       expect(result).toEqual([{ id: 'i1' }]);
     });
 

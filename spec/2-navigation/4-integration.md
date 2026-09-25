@@ -1,6 +1,8 @@
 ---
 id: integration
-status: implemented
+status: partial
+pending_plans:
+  - plan/in-progress/integration-personal-owner-followup.md
 code:
   - codebase/frontend/src/app/(main)/w/[slug]/integrations/page.tsx
   - codebase/frontend/src/app/(main)/w/[slug]/integrations/new/page.tsx
@@ -799,6 +801,32 @@ Please replace or remove these node references first.
 | 삭제 | 본인 것만 (사용처 없을 때) | Admin 이상 (사용처 없을 때) |
 | 워크플로우 노드에서 사용 | 본인 것만 | 모든 멤버 |
 
+**판정 규칙** (2026-09-25 부터 강제 — 그 전까지 Personal 열은 표로만 있었다, Rationale «Personal 통합 소유자 강제»):
+
+- **«본인» 은 `created_by` 다.** Personal 통합에는 역할 우위가 없다 — Owner · Admin 도 남의 personal 을 보거나 바꾸지 못한다
+  ([RBAC §3.2](../5-system/1-auth.md#32-리소스별-권한-매트릭스) 의 «자기 것»).
+- **남의 personal 은 없는 통합과 같다.** 목록(`GET /api/integrations`)에서 빠지고, `:id` 경로 전부 — 상세 · 사용처 · 활동 · 연결 테스트 ·
+  별칭 수정 · 삭제 · rotate · reauthorize · request-scopes · scope 전환 — 가 없는 id 와 같은 `404 RESOURCE_NOT_FOUND` 를 낸다.
+  `POST /api/integrations/oauth/begin` 의 `reauthorize` · `request_scopes` 모드(`integrationId` 지정)도 `:id/reauthorize` ·
+  `:id/request-scopes` 와 같은 판정을 받는다.
+- **표에 없는 조회성 경로는 «조회» 행을 따른다** — 연결 테스트 · 사용처 · 활동, 그리고 워크플로우 어시스턴트의 통합 목록 도구와
+  노드 후보 제시.
+- **Organization 통합의 변경은 Admin 이상이다** — 생성 · 별칭 수정 · 삭제 · reauthorize · rotate · request-scopes · scope 전환.
+  거부는 `403 ADMIN_REQUIRED` — 라우트 가드의 역할 거부와 같은 코드에 동작별 문구를 싣는다(2026-09-25 이전 이 모듈의 Admin 판정 4곳 —
+  생성 · rotate · request-scopes · scope 전환 — 은 `FORBIDDEN` 이었다). 라우트 가드(`@Roles('editor')`)는 그 아래의 첫 번째 선일 뿐이다.
+- **scope 전환은 Admin 이 볼 수 있는 통합에만 된다** — 자기 personal → organization, organization → personal. 전환해도 `created_by`
+  는 바뀌지 않으므로 organization → personal 은 **생성자의** personal 이 된다.
+- **precheck 의 중복 감지는 scope 를 가리지 않는다** — 매장 식별자 유일성이 워크스페이스 단위라서다(§9.2). 다만 충돌 행이 남의
+  personal 이면 `existingIntegrationId` · `existingName` 을 싣지 않는다(`conflict` · `status` 만).
+
+**아직 강제되지 않는 것** — 후속 [`integration-personal-owner-followup.md`](../../plan/in-progress/integration-personal-owner-followup.md):
+
+- «워크플로우 노드에서 사용» 행. 실행 엔진은 워크스페이스만 보고, 노드 설정 저장도 남의 personal 참조를 막지 않는다. 스케줄 ·
+  웹훅 실행에는 요청 사용자가 없어 «본인» 을 누구로 볼지부터 정해야 한다.
+- Viewer 의 자기 personal 생성 · 별칭 수정 · rotate · 삭제. 라우트 가드가 Editor 라 막혀 있다 — 표보다 좁다.
+- cafe24 Private · MakeShop 의 `pending_install` 행 재사용(`oauth/begin`)이 그 행의 생성자를 보지 않는다.
+- 통합 상세 화면은 역할 · 소유에 따라 버튼을 가리지 않는다 — 거부는 서버 응답으로 드러난다.
+
 ---
 
 ## 9. API
@@ -820,8 +848,8 @@ Please replace or remove these node references first.
 | 메서드 | 경로 | 설명 |
 |--------|------|------|
 | POST | `/api/integrations/oauth/begin` | OAuth 시작. body: `{ service, scopes[], mode, integrationId? }`. **Cafe24 Public**: `mall_id`, `app_type='public'` 추가 → `{ authUrl, state }` 반환 (popup 흐름). **Cafe24 Private**: `mall_id`, `app_type='private'`, `client_id`, `client_secret` 추가 → `{ mode:'cafe24_private_pending', integrationId, appUrl, callbackUrl }` 반환 (Integration `pending_install` 생성, popup 없음). **MakeShop**: `client_id`, `client_secret` 추가 → `{ mode:'makeshop_pending_install', integrationId, appUrl, callbackUrl }` 반환 (Integration `pending_install` 생성, popup 없음 — ShopStore 앱 설치가 install flow 진입점). `appUrl` 은 `${APP_URL}/api/3rd-party/makeshop/install/:installToken` 형식. ※ Cafe24 Private 응답의 `appUrl` 은 `${APP_URL}/api/3rd-party/cafe24/install/:installToken` 형식이다 — `installToken` 은 본 begin 호출이 발급한 **16바이트 base64url (22자, `^[A-Za-z0-9_-]{22}$`)** 로 Cafe24 Developers "앱 URL" 에 그대로 등록된다. ※ Cafe24 흐름 진입 시 (app_type 무관 — public/private 모두) 동일 `(workspaceId, mall_id)` 의 cafe24 Integration 중 다음 조건이 맞으면 begin 자체가 `CAFE24_PRIVATE_APP_ALREADY_CONNECTED (409)` 으로 즉시 거부된다: **Public 흐름** — `status='connected'` row 존재 시 (Public 은 begin 단계에서 row 를 만들지 않으므로 통일 store-identifier partial UNIQUE (V072) 가 finalize 단계로 미뤄지면 사용자가 OAuth 동의까지 마친 뒤에야 충돌이 드러난다 → begin 단계 SELECT 로 connected row 만 사전 차단). **Private 흐름** — `status='connected'` row 존재 시 동일 차단; 추가로 `status='pending_install'` 인 row 가 있고 `credentials.app_type='private'` 이면 새 row 를 만들지 않고 기존 row 를 reuse (`install_token` 보존, idempotent begin). **다른 status (`expired`/`error`)** 는 begin 단계에서 차단하지 않고 통일 store-identifier partial UNIQUE 가 finalize 단계의 race backstop 으로 동일 409 코드로 변환한다 — 한 workspace 안에서 같은 (service_type, mall_id) 의 통합은 최대 1행 (`spec/1-data-model.md §3` `idx_integration_workspace_service_mall` 참조) 이며 사용자는 기존 통합을 사용하거나 삭제 후 재등록한다. 자세한 근거는 Rationale "Cafe24 Public 흐름의 begin-time 사전 가드 추가" 항. |
-| GET | `/api/integrations/cafe24/precheck` | 사용자가 mall_id 입력 단계에서 호출하는 사전 중복 감지. 쿼리: `mallId` (`^[a-z0-9-]{3,50}$`). 응답 DTO: `Cafe24PrecheckResultDto` (`ApiOkWrappedResponse` 래퍼) = `{ conflict: bool, existingIntegrationId?: string, existingName?: string, status?: 'connected'\|'pending_install'\|'expired'\|'error' }`. **인증된 사용자의 current workspace** (X-Workspace-Id 헤더 기준) **소속 cafe24 row 만 노출** — cross-workspace 접근 경로 아님. 자격 증명·토큰·timestamps 미노출. priority `connected > pending_install > error > expired` 로 가장 제한적인 row 만 반환. enum 범위 밖 transitional status (`initializing` 등) 가 들어오면 `status` 필드를 omit 해 frontend silent fallthrough 방지. **NestJS 라우트 선언 순서**: `:id` 동적 경로보다 앞에 선언해야 `cafe24` 가 UUID 로 해석되지 않는다 (코드 회귀 안전망은 controller 주석에 명시). **throttle 60/min** — 이 endpoint 전용 상한이며 일반 API rate limit 위에 더해지지 않고 본 값으로 대체된다 (`@Throttle` decorator). 사용자 입력 350ms debounce 기준 정상 호출 1~2회/입력으로 충분. 자세한 근거는 Rationale "precheck endpoint — mall_id 입력 단계 사전 감지 UX" 항. |
-| GET | `/api/integrations/makeshop/precheck` | MakeShop shop_uid 사전 중복 감지. 쿼리: `shopUid` (`^[A-Za-z0-9_-]{2,64}$`). 응답 shape 은 `cafe24/precheck` 와 동형 (`{ conflict: bool, existingIntegrationId?: string, existingName?: string, status?: … }`). **인증된 사용자의 current workspace 소속 makeshop row 만 노출**. throttle 60/min. MakeShop의 begin 흐름은 shop_uid 입력이 없으므로 (ShopStore 설치 redirect 로 도착) 본 endpoint 는 install 후 식별된 shop_uid 의 중복 여부 확인 등 선제적 surface 에서 사용된다. **NestJS 라우트 선언 순서**: `:id` 동적 경로보다 앞에 선언. |
+| GET | `/api/integrations/cafe24/precheck` | 사용자가 mall_id 입력 단계에서 호출하는 사전 중복 감지. 쿼리: `mallId` (`^[a-z0-9-]{3,50}$`). 응답 DTO: `Cafe24PrecheckResultDto` (`ApiOkWrappedResponse` 래퍼) = `{ conflict: bool, existingIntegrationId?: string, existingName?: string, status?: 'connected'\|'pending_install'\|'expired'\|'error' }`. **인증된 사용자의 current workspace** (X-Workspace-Id 헤더 기준) **소속 cafe24 row 만 노출** — cross-workspace 접근 경로 아님. 충돌 행이 **남의 personal** 이면 `existingIntegrationId` · `existingName` 을 싣지 않는다(`conflict` · `status` 만 — [§8 판정 규칙](#8-권한-규칙)). 자격 증명·토큰·timestamps 미노출. priority `connected > pending_install > error > expired` 로 가장 제한적인 row 만 반환. enum 범위 밖 transitional status (`initializing` 등) 가 들어오면 `status` 필드를 omit 해 frontend silent fallthrough 방지. **NestJS 라우트 선언 순서**: `:id` 동적 경로보다 앞에 선언해야 `cafe24` 가 UUID 로 해석되지 않는다 (코드 회귀 안전망은 controller 주석에 명시). **throttle 60/min** — 이 endpoint 전용 상한이며 일반 API rate limit 위에 더해지지 않고 본 값으로 대체된다 (`@Throttle` decorator). 사용자 입력 350ms debounce 기준 정상 호출 1~2회/입력으로 충분. 자세한 근거는 Rationale "precheck endpoint — mall_id 입력 단계 사전 감지 UX" 항. |
+| GET | `/api/integrations/makeshop/precheck` | MakeShop shop_uid 사전 중복 감지. 쿼리: `shopUid` (`^[A-Za-z0-9_-]{2,64}$`). 응답 shape 은 `cafe24/precheck` 와 동형 (`{ conflict: bool, existingIntegrationId?: string, existingName?: string, status?: … }`). **인증된 사용자의 current workspace 소속 makeshop row 만 노출**. 충돌 행이 **남의 personal** 이면 `existingIntegrationId` · `existingName` 을 싣지 않는다(`conflict` · `status` 만 — [§8 판정 규칙](#8-권한-규칙)). throttle 60/min. MakeShop의 begin 흐름은 shop_uid 입력이 없으므로 (ShopStore 설치 redirect 로 도착) 본 endpoint 는 install 후 식별된 shop_uid 의 중복 여부 확인 등 선제적 surface 에서 사용된다. **NestJS 라우트 선언 순서**: `:id` 동적 경로보다 앞에 선언. |
 | GET | `/api/3rd-party/cafe24/install/:installToken` | Cafe24 Private 앱 App URL 엔드포인트. **두 가지 진입점에서 호출됨**: ① 초기 install — Cafe24 Developers "테스트 실행" → OAuth authorize 로 redirect. ② post-install navigation — 카페24 쇼핑몰 관리자의 "앱으로 가기" 버튼 → 우리 frontend 로 redirect. path 의 `:installToken` 은 oauth/begin 응답으로 받은 16바이트 base64url (22자, `^[A-Za-z0-9_-]{22}$`). 쿼리: `mall_id`, `timestamp`, `hmac` 등 Cafe24 표준 파라미터. **식별 절차**: `install_token` 으로 단일 row 조회 → 그 row 의 `client_secret` 으로 HMAC 1회 검증. status 분기: `pending_install` → Cafe24 authorize URL 로 `302`; `connected`/`error(*)`/`expired` → `${FRONTEND_URL}/integrations/<id>` 로 `302` (post-install navigation). `install_token` 은 통합 lifetime 동안 persistent 식별자 (callback 성공 시 NULL 처리 안 함). 에러: `CAFE24_INSTALL_MISSING_PARAMS`(400, `mall_id`/`timestamp`/`hmac` 누락), `CAFE24_INSTALL_INVALID_TOKEN`(404, 토큰 미존재 — TTL 만료 / 통합 삭제 — 단 직접 매칭 실패 시 `tryRecoverByMallId` 회복 흐름 fall-back 후 여전히 미매칭일 때), `CAFE24_INSTALL_INVALID_HMAC`(403), `CAFE24_INSTALL_REPLAY`(400, timestamp ±5분 초과), `CAFE24_INSTALL_RATE_LIMITED`(429, 같은 IP 의 조회/HMAC 실패가 임계치 초과 — enumeration 방어 lockout). **Rate limit**: IP별 `30/min` throttle (Layer 1 — 현재 pod별 in-memory; Redis 분산 store 이전은 후속 infra PR) + 실패 페널티 lockout (Layer 2 — Redis cross-pod). 상세·상수는 [Spec Cafe24 §9.8](../4-nodes/4-integration/4-cafe24.md#98-private-앱-app-url-hmac-검증) Rate limiting note 참조. |
 | GET | `/api/3rd-party/:provider/callback` | OAuth 콜백 (§10) — `:provider ∈ {cafe24, google, github}` |
 | POST | `/api/integrations/preview-test` | 저장 전 인증 정보로 연결 테스트. body: `{ serviceType, authType, credentials }` (`PreviewTestDto`). 외부 호출 여부는 service_type 별로 다름 — **실제 호출**: Email(`verify()`, §5.5) · MCP(§5.6) · HTTP(§5.3) · Database(§5.4). **구조 검증만**: Cafe24(§5.8) · MakeShop · Google · GitHub · Webhook. (Cafe24 · MakeShop 은 연결 뒤 `:id/test` 에서 entity tester 가 실제로 호출한다.) |
@@ -863,6 +891,8 @@ Please replace or remove these node references first.
 - 성공: `{ data: ... }` 또는 `{ data: ..., pagination: ... }` (기존 컨벤션 준수)
 - 실패: `{ code, message, details? }`
   - `INTEGRATION_IN_USE` (409) — 삭제 차단
+  - `INTEGRATION_NAME_TAKEN` (409) — 워크스페이스 안에 같은 이름의 통합이 이미 있다(`integration_workspace_name_unique` — scope
+    무관). 생성 · 별칭 수정이 낸다. 겹친 쪽이 남의 personal 이어도 난다 — Rationale «Personal 통합 소유자 강제» 의 받아들인 잔여.
   - `INTEGRATION_TEST_FAILED` (422) — 연결 테스트 실패. 연결 테스트가 무엇을 확인하는지는 서비스마다 다르다 — §9.2 `preview-test` 행 · §5.x. HTTP 는 `base_url` 이 401 · 403 을 돌려줄 때만 자격증명 거부를 안다(§5.3)
   - `INTEGRATION_INVALID_SERVICE` (400) — 지원하지 않는 `serviceType` / `authType` 조합. `create()`(저장)와 `preview-test`(미저장 미리보기)가 공유하는 단일 guard(`IntegrationsService.validateServiceAuthType`)가 service registry(`findVariant`) 미등록 조합을 거부. 메시지: `Unsupported service/auth combination: {serviceType}/{authType}`.
   - `OAUTH_STATE_MISMATCH` (400)
@@ -944,6 +974,7 @@ window.close();
 | Cafe24 `invalid_scope` (authorize / token exchange 단계 양쪽) | `Authorization rejected: invalid scope.` (안내 본문에 별도 승인 안내 분기) | **status 보존** + `status_reason='oauth_invalid_scope'` ([Spec Integration 데이터 모델 §2.10](../1-data-model.md#210-integration) status_reason 열거 참조) + `last_error.code='OAUTH_INVALID_SCOPE'` + `last_error.details.requiresCafe24Approval: string[]` (요청 scopes ∩ [`cafe24-restricted-scopes.md §1`](../conventions/cafe24-restricted-scopes.md#1-scope-단위-별도-승인-resource-전체-영향) 의 교집합) 기록. 통합 상세 페이지가 본 단서를 읽어 "이 권한은 카페24 별도 승인이 필요해요" 분기 메시지 노출. 진입 경로는 `oauth_token_exchange_failed` 와 분리 — 본 사유는 Cafe24 가 명시적으로 scope 거부한 케이스이고, `oauth_token_exchange_failed` 는 그 외 토큰 교환 실패 전부 (네트워크, 서버 오류, 알 수 없는 invalid_grant 등). |
 | state mismatch / expired (state row 소비 후) | `Security validation failed.` / `OAuth state has expired.` | integrationId 가 식별되면 `status_reason='oauth_state_mismatch'` 또는 `oauth_state_expired` 만 기록, status 보존 |
 | 토큰 발급 후 row 조회 실패 (resource not found) | `Integration not found.` | 변경 불가 (row 가 사라진 케이스. integrationId 만 식별, row 가 없으니 갱신 대상 없음) |
+| 커밋 직전 인가 재판정 실패 (mode=`reauthorize` · `request_scopes`, status≠`pending_install` — 시작과 콜백 사이에 요청자가 강등됐거나 통합이 남의 personal 이 됨) | 서버 메시지 그대로 — `Integration not found` (`RESOURCE_NOT_FOUND`) 또는 `Organization 통합을 재인증하려면 Admin 이상의 권한이 필요합니다.` · `… scope 를 추가하려면 …` (`ADMIN_REQUIRED`) | 자격 증명 불변(롤백) · status 보존 · `last_error` 에 그 코드 기록. 판정은 [§8 판정 규칙](#8-권한-규칙) |
 | 네트워크 오류 | `Connection error.` | integrationId 식별되면 `last_error` 만 기록, status 보존 |
 
 ### 10.5 토큰 자동 갱신
@@ -1150,6 +1181,45 @@ Integration 생성·수정·삭제·회전·재인증·scope 전환 이벤트를
 ---
 
 ## Rationale
+
+### Personal 통합 소유자 강제 — 404 존재 은닉 · 역할 우위 없음 · 노드 실행은 후속 (2026-09-25)
+
+**배경.** §8 의 Personal 열(«본인 것만»)은 표로만 있었고, 코드는 어디서도 `created_by` 를 보지 않았다. 워크스페이스 멤버면 남의
+personal 통합을 목록 · 상세로 봤고, Editor 면 별칭 수정 · 삭제까지 했다. Organization 열도 별칭 수정 · 삭제는 Admin 대신 Editor 로
+열려 있었고, reauthorize 는 역할 검사가 아예 없었다. reauthorize 의 OAuth 콜백은 그 통합의 `credentials` 를 통째로 교체하므로
+([data-flow §1.2](../data-flow/5-integration.md#12-oauth-연결-begin--authorize--callback)), Viewer 가 Organization 통합을 자기 외부
+계정으로 바꿔치기할 수 있었다. `oauth/begin` 의 `reauthorize` 모드는 `integrationId` 를 받기만 하고 검사하지 않아 `:id/reauthorize`
+를 우회하는 두 번째 입구였다. 처음 발견은 rotate 한 곳이었고(`/ai-review` `review/code/2026/09/20/18_09_24` requirement INFO 6),
+2026-09-25 전수 조사에서 위 범위로 넓어졌다.
+
+**결정** (2026-09-25 사용자 결정 — 선택지 셋을 제시했다):
+
+1. **쓰기와 읽기를 함께 닫고, 노드 실행 시점 검사는 후속으로 둔다.** 런타임에는 «본인» 을 누구로 볼지(스케줄 실행엔 요청자가 없다)가
+   먼저 정해져야 하고, 기존 워크플로우가 동료의 personal 통합을 쓰고 있으면 실행이 깨지므로 영향 조사가 필요하다.
+2. **남의 personal 은 404 다** — 없는 통합과 같은 `RESOURCE_NOT_FOUND`. 목록에서 빠진 것과 일관되고, 이 도메인이 워크스페이스
+   밖 · 부재 id 에 이미 쓰는 응답(§9.1)을 그대로 쓰므로 새 에러 코드가 필요 없다. «권한 없음과 부재를 같은 응답으로 묶는다» 는
+   원칙은 경로 파라미터 워크스페이스 가드와 같다([`data-flow/12-workspace.md`](../data-flow/12-workspace.md) Rationale «경로 파라미터
+   워크스페이스도 가드가 본다») — 다만 그쪽 응답은 `403 NOT_A_MEMBER` 다. 원칙은 같고 상태 코드는 도메인마다 다르다.
+3. **Organization 통합의 별칭 수정 · 삭제는 Admin 이상이다.** 이 표 · RBAC §3.2 · 사용자 가이드(Danger zone «Admin»)가 모두 그렇게
+   적는데 코드만 Editor 였다. 표를 코드에 맞추지 않고 코드를 표에 맞췄다.
+
+거부 코드는 `ADMIN_REQUIRED` 로 올렸다(`--spec` `review/consistency/2026/09/25/21_33_10` WARNING 1). 라우트 가드가 역할 거부에 전용 코드를
+싣고(같은 날 `#1399`), 서비스 계층의 두 번째 선(`WorkspacesService.assertAdmin`)도 같은 코드를 쓴다. 이 모듈의 기존 Admin 판정 4곳만
+`FORBIDDEN` 으로 남아 있었다 — 클라이언트는 이 코드로 분기하지 않는다(프런트엔드 `FORBIDDEN` 참조 0곳, 2026-09-25 실측). 이 PR 이
+그 자리를 전부 손보므로 함께 올렸다.
+
+**기각한 대안** (모두 같은 날 선택지로 제시했고 사용자가 고르지 않았다):
+
+- *쓰기 경로만 먼저* — 목록에 보이는 통합을 눌렀을 때 거부되는 어색한 중간 상태가 남는다.
+- *§8 전부를 한 번에(노드 실행 포함)* — 기존 워크플로우 영향 조사와 런타임 «본인» 기준 결정이 선행돼야 해 범위가 커진다.
+- *403 + 새 에러 코드(예: `INTEGRATION_OWNER_REQUIRED`)* — 목록에서는 빠지는데 `:id` 가 존재를 확인해 주는 비대칭이 생기고,
+  카탈로그와 클라이언트 분기가 늘어난다.
+- *Organization 별칭 수정 · 삭제를 Editor 로 두고 spec 을 정정* — spec 두 곳과 가이드가 이미 Admin 이다.
+
+**받아들인 잔여.** 통합 이름(`integration_workspace_name_unique`)과 매장 식별자(`(workspace_id, service_type, mall_id)`)의 유일성은
+워크스페이스 단위다. 그래서 생성 · 이름 변경의 `INTEGRATION_NAME_TAKEN` 과 begin · precheck 의 충돌 응답은 남의 personal 이
+**있다는 사실**을 드러낸다. 유일성을 생성자 단위로 바꾸면 같은 매장을 두 통합이 붙잡는 상태를 허용하게 되는데, 매장 식별자
+유일성은 토큰 · 설치 흐름의 전제다(§9.2). 그래서 존재 신호는 남기고, precheck 가 **식별자(id · 이름)** 를 싣지 않는 데서 멈춘다.
 
 ### 연결 테스트 — Database · HTTP 는 실제로 접속한다, Google · GitHub · Webhook 은 구조 검증만 (2026-09-19)
 
@@ -1643,7 +1713,7 @@ Public 흐름은 begin 단계에서 Integration row 를 만들지 않으므로 �
 사용자가 mall_id 를 다 입력하기 전(타이핑 중)에 conflict 를 감지해 inline 경고 배너로 보여주는 read-only endpoint (`GET /api/integrations/cafe24/precheck`). begin 의 pre-check 와 동일한 SELECT 를 노출하되, 다음 설계 결정을 반영한다.
 
 - **응답 shape 최소화** — `{ conflict, existingIntegrationId?, existingName?, status? }` 만 반환. 자격 증명·토큰·timestamps·workspace 메타 비포함.
-- **노출 범위 격리** — 인증된 사용자의 current workspace (X-Workspace-Id 헤더 기준) 소속 cafe24 row 만 반환. cross-workspace enumeration 경로 아님. Organization-scope 도입 후에도 current workspace 의 정의가 변경되면 본 endpoint 가 자동 추종 (별도 RBAC 처리 불필요).
+- **노출 범위 격리** — 인증된 사용자의 current workspace (X-Workspace-Id 헤더 기준) 소속 cafe24 row 만 반환. cross-workspace enumeration 경로 아님. Organization-scope 도입 후에도 current workspace 의 정의가 변경되면 본 endpoint 가 자동 추종 ~~(별도 RBAC 처리 불필요)~~ (2026-09-25 정정: 워크스페이스 경계는 그대로지만, 충돌 행이 남의 personal 이면 id · 이름을 뺀다 — Rationale «Personal 통합 소유자 강제»).
 - **priority status 단일 반환** — `connected > pending_install > error > expired` 순서로 가장 제한적인 status 만 반환 (전체 row 목록이 아닌 단일 status). frontend i18n 메시지 분기 4종이 priority 순으로 일치.
 - **enum 범위 밖 status 처리** — 미래에 추가될 수 있는 transitional status (예: `initializing`) 가 들어오면 `status` 필드를 omit. 강제 캐스팅으로 frontend 가 unknown enum 을 silent fallthrough 하는 위험 차단.
 - **throttle** — 분당 60회. **이 endpoint 전용 상한** (일반 API rate limit 위에 더해지지 않고 본 값으로 대체 — `@Throttle` decorator). 사용자 입력 350ms debounce 기준 정상 호출 1~2회/입력으로 충분한 여유. mall_id 패턴 정규식 매칭이 frontend 에서 사전 1차 차단되므로 backend 호출 자체가 압축됨. brute-force enumeration 의 비용은 회당 1 SQL 조회 + JWT 검증으로 낮으나 throttle 이 backstop.
