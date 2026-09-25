@@ -856,6 +856,18 @@ describe('RolesGuard', () => {
     });
   });
 
+  /**
+   * 미등록 역할 문자열은 서열 0 이라 요구가 **사라지는** 방향(멤버면 통과)으로 샌다 — 그래서 `@Roles`
+   * 의 인자는 역할 이름 유니온이다. jest 는 타입을 지우므로 이 단언은 런타임이 아니라 build 단계의
+   * 타입체크 ratchet(`tsconfig.json` 이 spec 을 포함한다)이 본다: 시그니처가 `string[]` 로 넓어지면
+   * 아래 `@ts-expect-error` 가 «쓰이지 않는 지시어» 오류가 되어 ratchet 이 늘어난다.
+   */
+  it('@Roles 는 등록된 역할 이름만 받는다 (타입 — build 의 타입체크 ratchet 이 본다)', () => {
+    // @ts-expect-error — 미등록 역할 문자열은 컴파일 오류다
+    const decorate = Roles('superadmin');
+    expect(typeof decorate).toBe('function');
+  });
+
   it('@Roles + ROLES_KEY 메타데이터 라운드트립', () => {
     class T {
       @Roles('admin', 'owner')
