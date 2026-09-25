@@ -1275,12 +1275,21 @@ export class IntegrationsService {
         where: { id: entity.id, workspaceId },
         lock: { mode: 'pessimistic_write' },
       });
-      // 권한도 이 시점 값으로 다시 본다 — 테스트가 도는 동안 scope 가 바뀌었을 수 있다(personal → organization
-      // 이면 Admin 이어야 하고, organization → 남의 personal 이면 이제 보이지 않는다).
+      // 권한도 이 시점 값으로 다시 본다 — 테스트(수 초)가 도는 동안 scope 가 바뀌었을 수 있고(personal → organization
+      // 이면 Admin 이어야 하고, organization → 남의 personal 이면 이제 보이지 않는다), 요청자가 강등됐을 수 있다.
+      // 역할은 Organization 일 때만 다시 읽는다 — 같은 트랜잭션 커넥션으로(OAuth 콜백 재판정과 같은 보장).
       if (!fresh || !isIntegrationVisibleTo(fresh, userId)) {
         this.throwIntegrationNotFound();
       }
-      this.assertCanModify(fresh, userRole, 'rotate');
+      const lockedRole =
+        fresh.scope === 'organization'
+          ? await this.workspacesService.getMemberRole(
+              workspaceId,
+              userId,
+              manager,
+            )
+          : userRole;
+      this.assertCanModify(fresh, lockedRole, 'rotate');
 
       // 머지 base 가 바뀌었으므로 구조 검증도 다시 돈다 — 순수 함수라 임계 구간을 늘리지 않는다.
       const committed = this.mergeAndValidateCredentials(
@@ -1407,6 +1416,8 @@ export class IntegrationsService {
     userRole: string | null,
     body: UpdateScopeDto,
   ): Promise<PublicIntegration> {
+    // `assertCanModify` 를 쓰지 않는다 — 그쪽은 Organization 이 아니면 통과시키는데, 범위 전환은 personal → organization
+    // 승격(자격 증명을 워크스페이스 전체에 공유)이라 늘 Admin 이어야 한다.
     if (!this.isAdmin(userRole)) throw adminRequiredError('change-scope');
     // Admin 도 볼 수 있는 통합만 전환한다 — 남의 personal 은 404(§8). 전환해도 created_by 는 그대로라
     // organization → personal 은 생성자의 personal 이 된다.

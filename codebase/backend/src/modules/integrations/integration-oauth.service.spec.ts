@@ -369,7 +369,12 @@ describe('IntegrationOAuthService', () => {
             state: 'abc',
           }),
         ).rejects.toMatchObject({ response: { code: 'ADMIN_REQUIRED' } });
-        expect(getMemberRole).toHaveBeenCalledWith('ws-1', 'u-1');
+        // 행 락을 쥔 트랜잭션의 커넥션(매니저)으로 읽는다 — 풀에서 두 번째 커넥션을 빌리지 않는다.
+        expect(getMemberRole).toHaveBeenCalledWith(
+          'ws-1',
+          'u-1',
+          expect.objectContaining({ getRepository: expect.any(Function) }),
+        );
         expect(integrationRepo.save).not.toHaveBeenCalled();
       },
     );

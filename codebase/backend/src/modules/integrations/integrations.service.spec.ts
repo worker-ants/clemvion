@@ -1988,6 +1988,8 @@ describe('IntegrationsService', () => {
       '%s — Organization 통합은 %s 가 바꾼다(생성자가 아니어도)',
       async (_name, role, fixture, call, passed) => {
         integrationRepo.findOne.mockResolvedValue(fixture());
+        // rotate 는 락 안에서 역할을 다시 읽는다 — 그 시점에도 같은 역할이다.
+        workspacesService.getMemberRole.mockResolvedValue(role);
         await call(role);
         passed();
       },
@@ -2138,6 +2140,35 @@ describe('IntegrationsService', () => {
         expect(integrationCacheBus.publish).not.toHaveBeenCalled();
       },
     );
+
+    it('rotate — 연결 테스트 동안 요청자가 강등됐으면 락 안에서 403 ADMIN_REQUIRED · 커밋하지 않는다', async () => {
+      integrationRepo.findOne.mockResolvedValue(httpOf('organization'));
+      // 요청 시작엔 admin(선판정 통과) — 락을 잡고 다시 읽으니 editor.
+      workspacesService.getMemberRole.mockResolvedValue('editor');
+
+      await expect(
+        service.rotate('int-1', 'ws-1', OTHER, 'admin', {
+          credentials: { value: 'new-secret' },
+        }),
+      ).rejects.toMatchObject({ response: { code: 'ADMIN_REQUIRED' } });
+      // 락을 쥔 트랜잭션의 커넥션(매니저)으로 읽었다.
+      expect(workspacesService.getMemberRole).toHaveBeenCalledWith(
+        'ws-1',
+        OTHER,
+        expect.objectContaining({ getRepository: expect.any(Function) }),
+      );
+      expect(integrationRepo.update).not.toHaveBeenCalled();
+      expect(auditLogsService.record).not.toHaveBeenCalled();
+    });
+
+    it('rotate — 본인 personal 은 락 안에서 역할을 다시 읽지 않는다', async () => {
+      integrationRepo.findOne.mockResolvedValue(httpOf('personal'));
+      await service.rotate('int-1', 'ws-1', 'user-1', 'viewer', {
+        credentials: { value: 'new-secret' },
+      });
+      expect(workspacesService.getMemberRole).not.toHaveBeenCalled();
+      expect(integrationRepo.update).toHaveBeenCalledTimes(1);
+    });
 
     it('rotate — 락 안 재읽기에서 남의 personal 로 바뀌었으면 404 · 커밋하지 않는다', async () => {
       integrationRepo.findOne

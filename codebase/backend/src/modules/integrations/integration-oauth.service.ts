@@ -10,7 +10,13 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
-import { DataSource, IsNull, LessThan, Repository } from 'typeorm';
+import {
+  DataSource,
+  EntityManager,
+  IsNull,
+  LessThan,
+  Repository,
+} from 'typeorm';
 import { emptyOAuthEnvConfig, type OAuthEnvConfig } from '../../common/config';
 import { createHash, createHmac, randomBytes, timingSafeEqual } from 'crypto';
 import {
@@ -405,6 +411,7 @@ export class IntegrationOAuthService {
   private async assertRequesterStillAllowed(
     integration: Integration,
     record: { workspaceId: string; userId: string; mode: string },
+    manager: EntityManager,
   ): Promise<void> {
     if (integration.status === 'pending_install') return;
     if (!isIntegrationVisibleTo(integration, record.userId)) {
@@ -415,6 +422,7 @@ export class IntegrationOAuthService {
       ? await this.workspacesService.getMemberRole(
           record.workspaceId,
           record.userId,
+          manager, // 행 락을 쥔 이 트랜잭션의 커넥션으로 — 풀에서 두 번째 커넥션을 빌리지 않는다
         )
       : null;
     assertOrgScopeModifiable(
@@ -813,7 +821,7 @@ export class IntegrationOAuthService {
           });
         }
         // 락을 잡은 이 시점 값으로 인가를 다시 본다 — 자격 증명을 덮어쓰기 직전이다.
-        await this.assertRequesterStillAllowed(integration, record);
+        await this.assertRequesterStillAllowed(integration, record, manager);
         if (
           record.mode === 'reauthorize' ||
           integration.status === 'pending_install'

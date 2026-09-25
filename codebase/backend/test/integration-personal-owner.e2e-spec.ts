@@ -17,7 +17,7 @@ import {
  * 검사가 없어 Viewer 가 Organization 통합을 자기 외부 계정으로 재인증할 수 있었다.
  *
  * 보호 대상 invariants:
- *   - 남의 personal 은 목록에서 빠지고, `:id` 경로는 **없는 id 와 같은** `404 RESOURCE_NOT_FOUND` 다 — Owner 에게도
+ *   - 남의 personal 은 목록에서 빠지고, `:id` 경로는 **없는 id 와 같은** `404 RESOURCE_NOT_FOUND` 다 — Owner 도 예외가 아니다
  *   - Organization 통합의 수정 · 삭제 · 재인증은 Editor · Viewer 에게 `403 ADMIN_REQUIRED` 다
  *   - `oauth/begin` 의 reauthorize 모드(`integrationId` 지정)도 같은 판정을 받는다 — `:id/reauthorize` 우회 입구가 아니다
  *   - 생성자는 자기 personal 을 바꾸고 지운다
