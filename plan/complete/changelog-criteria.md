@@ -1,10 +1,11 @@
 ---
 title: CHANGELOG 에 무엇이 들어가는지 성문 기준을 적는다
-status: in-progress
+status: complete
 owner: developer
 worktree: changelog-criteria
 spec_impact: none
 started: 2026-09-25
+completed: 2026-09-25
 ---
 
 # 기준이 없어서 판정 대신 기억이 쓰였다
@@ -86,5 +87,9 @@ started: 2026-09-25
 - [x] 기준 블록 · 백필 · 헤딩 · 리뷰어 관점 6(두 곳)
 - [x] 백필 항목의 사실 확인 — 21개 모두 `CONCURRENTLY` · `executeInTransaction=false` · `DROP INDEX CONCURRENTLY IF EXISTS`
       선행(재시도 안전, `grep -L` 0건), V110 이 옛 `idx_schedule_next_run` 을 지우는 것(SQL 65행), 수치는 각 PR 제목 · 본문 그대로
-- [ ] `/ai-review`
-- [ ] 트래커 항목 닫기 + 재판정 후보 등재
+- [x] `/ai-review` — **1라운드** `13_05_17`: Critical 0 · **Warning 1**(CHANGELOG 가 아직 `in-progress/` 인 이 plan 을
+      `complete/` 경로로 인용 — forward reference). 해소는 아래 이동 자체라 리뷰한 내용이 바뀌지 않는다 — 정지 규칙의
+      글자(Warning 0)와 갈리는 판단을 `RESOLUTION.md` 에 적고 종결. INFO 5 처분도 거기
+- [x] 트래커 항목 닫기 + 재판정 후보 등재 — `9c34f1c74`(종결 메모 · 후보 **12건**: 처음 10건에 `refactor` 지만 제목이 가드 신설 ·
+      동작을 말하는 `#1275` · `#1326` 을 더했다)
+- [x] plan 을 `plan/complete/` 로 이동 — CHANGELOG 기준 블록이 이 경로를 인용한다(`13_05_17` W1)
