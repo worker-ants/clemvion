@@ -49,13 +49,13 @@ npm run start:dev
 
 ### 2. 워크스페이스 reflection 캐너리 — `assertWorkspaceIdReflectionWorks` (환경 무관)
 
-`@WorkspaceId()` 를 소비하는 라우트를 **하나도 인식하지 못하면** 부팅을 거부합니다. `RolesGuard` 가 그 판별로 멤버십 검증 대상을 좁히므로, 판별이 깨지면 워크스페이스 라우트가 검증을 **조용히** 건너뛰어 cross-tenant 접근이 열립니다 — 런타임에 조용히 새는 것보다 배포가 멈추는 편이 낫다는 판단입니다.
+워크스페이스를 소비하는 라우트 — `@WorkspaceId()`(헤더 · 토큰 컨텍스트)와 `@WorkspaceParam(...)`(경로로 받는 워크스페이스) — 를 **합쳐 하나도 인식하지 못하면** 부팅을 거부합니다. `RolesGuard` 가 이 두 판별로 검증 대상을 정하므로, 판별이 깨지면 `@Roles()` 없는 워크스페이스 라우트는 멤버십 검증을 **조용히** 건너뛰고, 경로 워크스페이스 라우트는 역할 요구가 경로가 아니라 헤더 · 토큰의 워크스페이스로 판정됩니다 — cross-tenant 접근이 열립니다. 런타임에 조용히 새는 것보다 배포가 멈추는 편이 낫다는 판단입니다.
 
 > **위 검사와 성격이 다릅니다.** `assertProductionConfig` 는 "production 환경변수" 축이라 dev·CI 에서는 아무 일도 하지 않지만, 이쪽은 **환경과 무관한 구조 불변식**이라 `NODE_ENV` 값에 상관없이 모든 환경에서 같은 조건으로 멈춥니다. 따라서 production 배포에서만 처음 드러나는 종류가 아닙니다 — 다만 파손 계기 중 하나가 빌드 산출물(minify/mangle)이라 **배포 이미지의 부팅 로그를 확인하는 것이 최종 확인**입니다.
 
 - 깨지는 계기: `@nestjs/*` 업그레이드(caret 이라 minor/patch 로도 옵니다) · 핸들러를 감싸는 데코레이터 도입으로 `Function.name` 소실 · 빌드 단계 minify/mangle
-- 정상 기동 시 인식한 라우트 수가 부팅 로그에 남습니다 — `@WorkspaceId() 소비 라우트 N건 인식`. 캐너리는 **0건만** 잡으므로, 일부 라우트만 인식 실패하는 부분 파손은 이 수치의 급락으로만 드러납니다. 배포 후 이 줄을 확인하세요.
-- 먼저 볼 곳: `src/common/decorators/workspace.decorator.ts` 의 `handlerConsumesWorkspaceId`. 설계 근거 전문은 `src/common/decorators/workspace-reflection-canary.ts` 상단 주석.
+- 정상 기동 시 인식한 라우트 수가 두 판별 **따로** 부팅 로그에 남습니다 — `@WorkspaceId() 소비 라우트 N건 인식 · @WorkspaceParam() 소비 라우트 M건 인식`. 캐너리는 **합계 0건만** 잡으므로, 일부 라우트만 인식 실패하는 부분 파손(한쪽 판별만 깨진 경우 포함)은 이 두 수치의 급락으로만 드러납니다. 배포 후 이 줄을 확인하세요.
+- 먼저 볼 곳: `src/common/decorators/workspace.decorator.ts` 의 `handlerConsumesWorkspaceId` · `workspaceParamNamesOf`(둘은 같은 조회 골격을 공유합니다). 설계 근거 전문은 `src/common/decorators/workspace-reflection-canary.ts` 상단 주석.
 
 ## Docker
 
