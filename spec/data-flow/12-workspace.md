@@ -19,7 +19,7 @@ personal workspace 를 가지며, 추가로 N개의 team workspace 에 멤버로
 - `codebase/backend/src/modules/workspaces/workspaces.controller.ts` — `@Controller('workspaces')`. 생성/멤버/초대 발급·수락(`POST /api/workspaces/invitations/accept`)·전체 워크스페이스 HTTP 엔드포인트
 - `codebase/backend/src/modules/workspaces/invitations.controller.ts` — `@Controller('invitations')`. **공개** 토큰 메타 조회(`GET /api/invitations/:token`) 단일 엔드포인트 (가입 페이지 prefill 용)
 
-활성 워크스페이스는 access token 의 **`activeWorkspaceId` 클레임**으로 확정되며(전환기 dual-read 로 legacy `workspaceId` 도 수용), 전환은 토큰 재발급(§1.5, `POST /api/auth/workspaces/:id/switch`)으로 이뤄진다. `jwt.strategy` 가 클레임의 멤버십을 검증해 `request.user.workspaceId` 를 확정하고(비멤버·부재 시 personal→첫 멤버십 fallback), 회원가입 직후 클레임이 없을 때는 personal workspace 가 default 다. **전환기 하위호환**: `X-Workspace-Id` 헤더가 있으면 `WorkspaceId` 데코레이터·`RolesGuard` 가 그 워크스페이스를 **우선**(header-first) 사용한다. 헤더로 지정된 워크스페이스의 **멤버십은 `RolesGuard` 가 라우트 `@Roles()` 유무와 무관하게 항상 검증**하므로 헤더 스푸핑은 403 으로 차단된다(아래 Rationale "멤버십 검증은 가드 1곳에서 — `@Roles()` 와 무관"). 클라이언트가 헤더를 떼면 토큰 클레임이 활성 워크스페이스의 단일 진실이 된다(아래 Rationale).
+활성 워크스페이스는 access token 의 **`activeWorkspaceId` 클레임**으로 확정되며(전환기 dual-read 로 legacy `workspaceId` 도 수용), 전환은 토큰 재발급(§1.5, `POST /api/auth/workspaces/:id/switch`)으로 이뤄진다. `jwt.strategy` 가 클레임의 멤버십을 검증해 `request.user.workspaceId` 를 확정하고(비멤버·부재 시 personal→첫 멤버십 fallback), 회원가입 직후 클레임이 없을 때는 personal workspace 가 default 다. **전환기 하위호환**: `X-Workspace-Id` 헤더가 있으면 `WorkspaceId` 데코레이터·`RolesGuard` 가 그 워크스페이스를 **우선**(header-first) 사용한다. 헤더로 지정된 워크스페이스의 **멤버십은 `RolesGuard` 가 라우트 `@Roles()` 유무와 무관하게 항상 검증**하므로 헤더 스푸핑은 403 으로 차단된다(아래 Rationale "멤버십 검증은 가드 1곳에서 — `@Roles()` 와 무관"). 클라이언트가 헤더를 떼면 토큰 클레임이 활성 워크스페이스의 단일 진실이 된다(아래 Rationale). **경로 파라미터로 워크스페이스를 받는 라우트**(`/workspaces/:id/...` · `/auth/workspaces/:id/switch`)는 헤더 · 토큰이 아니라 **경로 값이 인가 대상**이다 — `RolesGuard` 가 그 워크스페이스의 멤버십 · 역할을 검사한다(아래 Rationale "경로 파라미터 워크스페이스도 가드가 본다").
 
 > **상태(2026-07-07, 구현 완료)**: 위 토큰-SoT 모델(전환 엔드포인트·`activeWorkspaceId` 클레임·`jwt.strategy` 클레임 존중·부분 유니크 인덱스·workspace/member audit)은 구현됐다(결정1·2·3·4). **단, `workspace.deleted` 감사는 제외** — `audit_log.workspace_id` 가 `REFERENCES workspace(id) ON DELETE CASCADE`(V001) 라 삭제 감사 row 가 영속 불가하기 때문이다(§5 · Rationale "workspace.deleted 감사 제외"). dual-read(`activeWorkspaceId ?? workspaceId`)와 `X-Workspace-Id` 헤더 header-first(전환기 하위호환)는 레거시 세션·미마이그레이션 클라이언트 보호용으로 유지된다.
 
@@ -331,6 +331,9 @@ personal→첫 멤버십으로 graceful fallback. 목표(end-state)는 토큰이
 `APP_GUARD` 전역 등록이므로 아래는 제외 — (a) `@Public()` 라우트·`request.user` 부재(미인증):
 인증 판정은 `JwtAuthGuard` 소관, (b) 워크스페이스 컨텍스트를 쓰지 않는 라우트: 검증 대상 없음.
 
+(2026-09-25 보탬) 이 절의 모집단은 «워크스페이스 **컨텍스트**(헤더 · 토큰)를 소비하는 라우트» 였고, 경로 파라미터로
+워크스페이스를 받는 라우트 15곳은 구성상 밖이었다 — 아래 [«경로 파라미터 워크스페이스도 가드가 본다»](#경로-파라미터-워크스페이스도-가드가-본다-2026-09-25) 가 그 빈칸을 닫는다.
+
 **기각된 대안 — 73개 라우트에 `@Roles('viewer')` 부착**: opt-in 모델의 연장이라 74번째 라우트에서
 같은 누락이 재발한다(이미 최소 2회 발생). 원 리뷰(`review/code/2026/08/01/13_46_48/security.md`)도
 구조적 해소를 권고했다.
@@ -348,6 +351,81 @@ personal→첫 멤버십으로 graceful fallback. 목표(end-state)는 토큰이
 
 구현·전수 목록: [`plan/complete/auth-workspace-membership-guard.md`](../../plan/complete/auth-workspace-membership-guard.md).
 
+### 경로 파라미터 워크스페이스도 가드가 본다 (2026-09-25)
+
+위 «멤버십 검증은 가드 1곳에서» 는 헤더 · 토큰 컨텍스트만 봤다. 경로 `:id` 로 워크스페이스를 받는 라우트 15곳
+(`workspaces.controller.ts` 14 · `auth.controller.ts` 전환 1)은 서비스 계층 `assertMembership` · `assertAdmin` 에만 기댔다.
+2026-09-25 실측: 인가 누락은 없었으나 두 메서드(`leaveWorkspace` · `addMemberByEmail`)가 인가 **전에** 워크스페이스를 조회해
+비멤버가 «없음 · 개인 · 팀» 을 구분할 수 있었다(존재 · 유형 오라클). `@Roles('owner')` 가 붙은 `transferOwnership` 조차 가드는
+**헤더 · 토큰의 워크스페이스**를 검사했다 — 핸들러가 다루는 경로 워크스페이스가 아니었다.
+
+**정정**: 워크스페이스를 경로로 받는 파라미터는 **`@WorkspaceParam('<name>')`** 로 바인딩한다. `RolesGuard` 는 `@WorkspaceId()`
+와 같은 방식(`ROUTE_ARGS_METADATA` 의 팩토리 identity)으로 그 소비를 인식하고, 등록된 이름의 경로 값을 인가 대상으로 쓴다. 경로
+값은 토큰이 검증한 적이 없으므로 **멤버십을 항상 조회**한다. 역할 요구는 서비스 계층과 같게 `@Roles()` 로 적는다 — Owner/Admin
+요구 8곳은 `@Roles('admin')`, Owner 요구 2곳(`remove` · `transferOwnership`)은 `@Roles('owner')`, 멤버면 되는 곳은 `@Roles()` 없이.
+
+**74번째 라우트 문제는 데코레이터로 안 닫힌다 — 정적 가드가 닫는다.** `@WorkspaceParam` 도 라우트마다 쓰는 데코레이터라, 다음
+경로 라우트가 평범한 `@Param('id')` 로 워크스페이스를 받으면 같은 빈칸이 생긴다(위 절이 «74번째 라우트에서 재발» 로 기각한 모양).
+그래서 **컨트롤러 핸들러가 워크스페이스 ID 를 `@Param` 으로 바인딩하는 것을 저장소 가드가 금지한다** — `@Param(...)` 로 받은
+파라미터의 이름이 `workspaceId` 이거나 `WorkspaceId` 로 끝나면 CI 실패(허용목록 없음, fail-closed). 이름이 규칙 밖(`id` 등)이면
+못 보는 것이 이 가드의 한계다.
+
+**`@WorkspaceParam` 은 재기각된 «opt-in 마커» 가 아니다.** [`1-auth.md` §Rationale «부트 캐너리» (b)](../5-system/1-auth.md#부트-캐너리--workspaceid-reflection-자가검증-fail-closed-2026-08-09) 가 `SetMetadata`
+마커를 재기각한 이유는, 마커가 값 바인딩 **옆에 따로** 다는 메타데이터라 빠뜨려도 라우트가 멀쩡히 돈다는 것이었다.
+`@WorkspaceParam` 은 핸들러가 워크스페이스 ID 를 **받는 방법 자체**다 — `@WorkspaceId()` 와 같은 자리이고, 가드는 (b) 가 택한 것과
+같은 **소비 reflection** 으로 인식한다. 빠뜨릴 수 있는 것은 «데코레이터» 가 아니라 «같은 값을 평범한 `@Param` 으로 받는 것» 이고,
+그것을 위 정적 가드가 닫는다. **비대칭은 남는다**: 헤더 · 토큰 모델에서 `@WorkspaceId()` 대신 `req.user.workspaceId` 를 직접 읽는
+라우트도 가드가 인식하지 못하는 같은 모양인데, 그쪽에는 정적 가드가 없다(2026-09-25 실측 4곳 — 전부 사용자 단위 작업의 감사
+귀속용이라 워크스페이스 자원에 접근하지 않는다).
+
+**가드는 파이프보다 먼저 돈다.** Nest 는 가드 → 파이프 순이라 가드가 받는 경로 값은 검증 전 원문이다. 가드는 헤더와 같은
+`isUuidShaped` 로 형식만 보고, 형식이 아니면 판정하지 않고 넘긴다 — 뒤의 `ParseUUIDPipe` 가 400 을 내고 핸들러는 돌지 않는다.
+형식은 맞지만 RFC 밖인 값(nil UUID 등)은 가드가 멤버십을 조회해 **403** 이 된다(종전 `ParseUUIDPipe` 400).
+
+**서비스 계층 검사는 남는다 — 가드가 조용히 빠질 때의 두 번째 선이다.** 이 메서드들의 HTTP 밖 호출자는 없다(2026-09-25 실측:
+내부 위임 `removeMember → leaveWorkspace` 하나 — 가드를 거친 HTTP 요청 안이다). 그러니 서비스 검사가 막는 것은 «다른 호출 경로»
+가 아니라 **가드의 인식이 깨져 단축 통과가 일어나는 경우**다. 오라클이 있던 두 메서드도 인가를 앞으로 옮긴다 — 두 번째 선에도
+같은 오라클이 남지 않게.
+
+**기각된 대안**(2026-09-25, 선택지를 실측과 함께 제시해 사용자가 결정) — (1) 오라클 2곳만 서비스에서 인가 선행으로 고친다: 위 절이
+«74번째 라우트» 로 기각한 라우트별 패치의 연장이다. (2) 가드가 경로 파라미터도 보되 거부에 코드를 붙이지 않는다: 경로 라우트 13곳의
+거부 본문이 서비스의 코드에서 `FORBIDDEN` 으로 바뀌고, frontend 가 `OWNER_REQUIRED` 로 소유권 이전 토스트를 가르는 분기가 깨진다.
+채택안은 아래 «가드 거부의 오류 코드» 와 함께다.
+
+### 가드 거부의 오류 코드 (2026-09-25)
+
+위 절들은 가드 거부에 **코드를 지정하지 않았다** — 새 경로에만 코드를 붙이면 같은 실패가 경로에 따라 다른 본문을 낸다는 이유였다.
+코드를 지정하지 않은 403 은 전역 필터가 기본값 **`FORBIDDEN`** 으로 채운다([`2-api-convention.md` 에러 응답 형식](../5-system/2-api-convention.md)) — 그러니
+그때 가드 거부의 wire 코드는 `FORBIDDEN` 이었다. 경로 라우트를 가드로 옮기면 그 라우트들이 서비스에서 내던 코드(`NOT_A_MEMBER` ·
+`ADMIN_REQUIRED` · `OWNER_REQUIRED`)가 `FORBIDDEN` 으로 바뀐다. 그래서 **가드의 모든 멤버십 · 역할 거부에 함께 코드를 붙인다**:
+
+| 거부 | 코드 |
+| --- | --- |
+| 대상 워크스페이스의 멤버가 아니다(헤더 위조 · 경로 워크스페이스 · 부재 워크스페이스 — 구분하지 않는다) | `NOT_A_MEMBER` |
+| 멤버지만 `@Roles()` 가 요구하는 최소 역할 미달 — `editor` / `admin` / `owner` | `EDITOR_REQUIRED` / `ADMIN_REQUIRED` / `OWNER_REQUIRED` |
+
+`@Roles('viewer')` 는 멤버십과 같다. 여러 역할을 주면 가장 낮은 역할이 요구다(계층 비교). 메시지는 서비스 계층과 같은 한국어다.
+
+**적용 범위는 전역이다.** `RolesGuard` 는 `APP_GUARD` 라 이 표는 경로 라우트 15곳만이 아니라 `@Roles()` 가 붙은 **모든** 라우트
+(2026-09-25 실측: `editor` 66 · `admin` 9 · `owner` 7 · `viewer` 5)와 헤더 위조 거부에 함께 적용된다 — 그 라우트들의 역할 · 멤버십
+거부 wire 코드가 `FORBIDDEN` 에서 위 코드로 바뀌었다. 상태 코드는 403 그대로다.
+
+**비멤버는 요구 역할과 무관하게 `NOT_A_MEMBER` 다.** 두 규칙을 견줬다 — (가) «라우트 요구의 코드»(비멤버도 Admin 라우트에선
+`ADMIN_REQUIRED`) · (나) «비멤버는 항상 `NOT_A_MEMBER`, 멤버의 역할 미달만 역할 코드». (가)는 경로 라우트의 서비스 시절 본문을
+비멤버까지 그대로 두지만, 헤더 위조 거부가 `editor` 라우트 66곳에서 `EDITOR_REQUIRED` 가 된다 — 비멤버에게 «editor 권한이 필요하다»
+는 틀린 진술이고, frontend 가 «이 워크스페이스에 더는 속하지 않는다» 를 알아챌 단일 신호를 잃는다. (나)를 택했다. 대가는 경로 라우트
+중 Admin/Owner 요구 10곳에서 **비멤버**가 받는 코드가 `ADMIN_REQUIRED` · `OWNER_REQUIRED` 에서 `NOT_A_MEMBER` 로 바뀐 것이고,
+비멤버는 그 화면에 도달하지 않는다. 멤버가 받는 본문은 모두 보존된다.
+
+**부재와 비멤버를 구분하지 않는다.** `getMemberRole` 이 `workspace_member` 만 보므로 둘 다 `NOT_A_MEMBER` 다 — 이것이 경로 라우트의
+존재 오라클을 가드 층에서 닫는 성질이다.
+
+가드 거부 중 **코드를 붙이지 않는 두 자리**가 남는다 — 미인증 요청이 `@Roles()` 라우트에 닿는 경우(`JwtAuthGuard` 가 먼저 401 을
+내므로 실제로 닿지 않는다)와, `@Roles()` 라우트에 워크스페이스 컨텍스트가 전혀 없는 경우(가입 직후에도 토큰이 personal 워크스페이스를
+갖는다). 도달 경로가 없어 이 결정의 범위 밖이다.
+
+구현 · 결정 기록: [`plan/complete/spec-draft-workspace-path-guard.md`](../../plan/complete/spec-draft-workspace-path-guard.md).
+
 ### URL slug = FE 라우팅 SoT (≠ backend 인가 SoT)
 
 프론트는 활성 워크스페이스를 **URL 경로**(`/w/<slug>/...`)로 반영한다(2-navigation/9-user-profile §3, 구현 완료).
@@ -356,13 +434,14 @@ personal→첫 멤버십으로 graceful fallback. 목표(end-state)는 토큰이
 - **계층 분리**: URL slug 는 **FE 라우팅의 SoT** 일 뿐, **backend 인가의 SoT 가 아니다**. 인가는 여전히 위
   header-first(`X-Workspace-Id`) → 토큰 클레임(`activeWorkspaceId`) 모델이 결정하며, slug 라우팅은 그 위에서
   헤더가 유래하는 값의 출처만 바꾼다. 따라서 이 절의 격리 모델과 **우선순위(header-first)** 는 **무번복**이다
-  (slug 라우팅이 token-first 로의 회귀를 의미하지 않는다 — token-first 는 격리 회귀로 이미 기각됨).
-  `RolesGuard` 403 자체도 유지되나, **그 집행 지점**은 위 §"멤버십 검증은 가드 1곳에서 — `@Roles()` 와
+  (slug 라우팅이 token-first 로의 회귀를 의미하지 않는다 — token-first 는 격리 회귀로 이미 기각됨). (2026-09-25) 단, 경로 파라미터로
+  워크스페이스를 받는 라우트는 이 모델의 예외다 — 경로 값이 인가 대상이다(위 «경로 파라미터 워크스페이스도 가드가 본다»).
+  `RolesGuard` 403(`NOT_A_MEMBER`) 자체도 유지되나, **그 집행 지점**은 위 §"멤버십 검증은 가드 1곳에서 — `@Roles()` 와
   무관" 에서 한 번 정정됐다(라우트별 opt-in → 가드 무조건. 보장을 **넓히는** 방향이라 격리 취지와 무충돌).
 - **`X-Workspace-Id` 헤더 유지가 전제**: slug 라우팅은 axios 인터셉터의 헤더 첨부(`client.ts`) 지속을 전제로
   설계됐다. 헤더 제거는 본 범위 밖 별도 결정이며, 라우팅이 그것을 앞당기지 않는다.
 - **FE 멤버십 체크 = UX 전용**: `[slug]` layout 의 비멤버/무효 slug → default 워크스페이스 redirect 는 **편의**
-  이며 인가 경계가 아니다. 헤더 스푸핑은 `RolesGuard` 가 라우트 `@Roles()` 유무와 무관하게 403 으로 차단한다.
+  이며 인가 경계가 아니다. 헤더 스푸핑은 `RolesGuard` 가 라우트 `@Roles()` 유무와 무관하게 403 `NOT_A_MEMBER` 로 차단한다.
 - **reconcile 방향 = URL 우선**: cold-load(딥링크·북마크) 시 `[slug]` layout 이 URL 워크스페이스로 store·토큰을
   재조정한다. `/w/<slug>` 라우트에서는 §1.5 의 store-우선 reconcile-on-load 대신 **URL 우선**이 적용된다(레이스
   방지 — AuthProvider 는 `pathname` 이 `/w/` 로 시작하면 persisted reconcile 을 건너뛴다). slug 없는 라우트
@@ -380,7 +459,8 @@ personal→첫 멤버십으로 graceful fallback. 목표(end-state)는 토큰이
 | 입구 | 술어 | 통과 범위 |
 |---|---|---|
 | `X-Workspace-Id` 헤더 | `isUuidShaped` (`common/utils/uuid.ts`) | canonical 8-4-4-4-12 hex — **버전·variant nibble 을 보지 않는다** |
-| 워크스페이스 `:id` 경로 파라미터 | `ParseUUIDPipe` (`workspaces.controller.ts` 의 `@Param('id')` **14곳**; 같은 컨트롤러의 `memberId`·`invitationId` 4곳을 합쳐 총 18곳) | RFC v1–v5 + RFC variant |
+| 워크스페이스 `:id` 경로 파라미터 (2026-09-25~) | ① `RolesGuard` 의 `isUuidShaped` → ② `ParseUUIDPipe` (`@WorkspaceParam('id')` 로 바인딩 — `workspaces.controller.ts` 14곳 · 전환 라우트 1곳) | ① 형식이면 인가 판정(403), 아니면 넘김 → ② RFC v1–v5 + RFC variant 아니면 400 |
+| `:memberId` · `:invitationId` 경로 파라미터 | `ParseUUIDPipe` (`workspaces.controller.ts` 4곳) | RFC v1–v5 + RFC variant |
 
 **왜 헤더는 느슨한가 — 조이면 403 이 400 으로 뒤바뀐다.** 헤더 술어가 하는 일은 "Postgres 가
 `uuid` 컬럼 값으로 파싱할 수 있는가" 하나다. 파싱 가능한 값을 미리 걸러 내면, `getMemberRole` 이
@@ -392,6 +472,13 @@ Postgres 는 전부 받아들이는데 `isValidUuid`(RFC v1–v5 + variant)는 �
 **왜 경로 파라미터는 엄격해도 되는가.** `:id` 는 인가 판정의 입력이 아니라 **리소스 지목**이다.
 거기서 400 을 내도 뒤바뀔 인가 응답이 없다 — 없는 리소스는 어차피 404 이고, 400 과 404 는
 "그 리소스에 접근할 수 있는가" 를 누설하지 않는다.
+
+> **(2026-09-25 정정 — 워크스페이스 `:id` 에 한해)** «`:id` 는 인가 판정의 입력이 아니라 리소스 지목» 은 워크스페이스 경로
+> 파라미터에서 더는 참이 아니다 — [«경로 파라미터 워크스페이스도 가드가 본다»](#경로-파라미터-워크스페이스도-가드가-본다-2026-09-25) 가 그것을 인가 입력으로 바꿨다. 그래서 가드
+> 단계의 술어는 헤더와 같은 `isUuidShaped` 이고(인가 결과 403 을 형식 오류 400 으로 바꾸지 않는다는 위 원리 그대로), `ParseUUIDPipe`
+> 는 가드 **뒤**에서 형식 파손만 400 으로 거른다. 같은 문단의 «없는 리소스는 어차피 404» 도 워크스페이스 `:id` 에는 예외다 —
+> 부재 워크스페이스는 가드가 **403 `NOT_A_MEMBER`** 로 답해 존재가 새지 않는다([«가드 거부의 오류 코드»](#가드-거부의-오류-코드-2026-09-25)). 원문은
+> `:memberId` · `:invitationId` 에는 여전히 참이라 남긴다.
 
 **"일관성" 명목으로 헤더를 `ParseUUIDPipe` 급으로 조이는 것은 회귀다.** 두 술어의 경계는 다음
 단위 테스트가 고정한다:
@@ -408,10 +495,11 @@ Postgres 는 전부 받아들이는데 `isValidUuid`(RFC v1–v5 + variant)는 �
 > "적용 범위"). 그 e2e 가 고정하는 것은 **"워크스페이스-무관 전역 라우트는 헤더를 무시한다"** 는
 > 별개 불변식이다. 진짜 캐너리는 위 두 단위 테스트다.
 
-**적용 범위**: 헤더 술어는 `@Roles()` 또는 `@WorkspaceId()` 를 쓰는 인증 라우트에서만 돈다.
+**적용 범위**: 헤더 술어는 `@Roles()` 또는 `@WorkspaceId()` 를 쓰는 인증 라우트에서만 돈다. `@WorkspaceParam(...)` 을 쓰는
+라우트는 헤더를 보지 않고 **경로 값**에 같은 `isUuidShaped` 를 쓴다(`@Roles()` 가 함께 있어도 인가 대상은 경로 워크스페이스다).
 둘 다 없는 전역 라우트는 헤더가 형식 파손이어도 400 이 아니라 **무시**다. 에러 코드 카탈로그는
 [`5-system/3-error-handling.md §1.3`](../5-system/3-error-handling.md#13-유효성-검증-에러)
-(3분기: 부재 → `WORKSPACE_ID_REQUIRED` · 형식 파손 → `VALIDATION_ERROR` · 비멤버 → 403).
+(3분기: 부재 → `WORKSPACE_ID_REQUIRED` · 형식 파손 → `VALIDATION_ERROR` · 비멤버 → 403 `NOT_A_MEMBER`).
 
 ### workspace.deleted 감사 제외 (구조적 제약)
 

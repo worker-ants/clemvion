@@ -122,7 +122,7 @@ type 별 `config` 스키마·자동 발급 규칙의 단일 진실은 [Spec 데�
 
 #### 권한
 
-목록의 **모든 변경 액션 버튼 — Add Config(헤더) · 활성 토글(Activate/Deactivate) · Reveal · Edit · Regenerate · Delete — 은 Admin+ 에만 UI 노출**된다. Editor / Viewer 는 마스킹된 목록 · 상세 · 사용량(읽기)만 보며, 변경 액션 버튼은 미노출 + API 직접 호출 시 403 `FORBIDDEN`. 목록 행 클릭(사용량 드로어 = 읽기)은 전 역할 허용이라 가드하지 않는다. 근거: [Spec 인증 §3.2](../5-system/1-auth.md#32-리소스별-권한-매트릭스) (Auth Config: Owner/Admin = CRUD, Editor/Viewer = R). UI 가드는 일관성·403 혼란 방지용이며 실제 인가는 백엔드 `@Roles('admin')` 가 fail-closed 로 강제한다(이중 방어). `useHasRole("admin")` 는 `ROLE_LEVEL` ≥ 비교라 Owner(상위 레벨)도 포함한다.
+목록의 **모든 변경 액션 버튼 — Add Config(헤더) · 활성 토글(Activate/Deactivate) · Reveal · Edit · Regenerate · Delete — 은 Admin+ 에만 UI 노출**된다. Editor / Viewer 는 마스킹된 목록 · 상세 · 사용량(읽기)만 보며, 변경 액션 버튼은 미노출 + API 직접 호출 시 403 `ADMIN_REQUIRED`(`RolesGuard` 의 `@Roles('admin')` — 2026-09-25 이전에는 가드가 코드를 지정하지 않아 필터 기본값 `FORBIDDEN` 이었다). 목록 행 클릭(사용량 드로어 = 읽기)은 전 역할 허용이라 가드하지 않는다. 근거: [Spec 인증 §3.2](../5-system/1-auth.md#32-리소스별-권한-매트릭스) (Auth Config: Owner/Admin = CRUD, Editor/Viewer = R). UI 가드는 일관성·403 혼란 방지용이며 실제 인가는 백엔드 `@Roles('admin')` 가 fail-closed 로 강제한다(이중 방어). `useHasRole("admin")` 는 `ROLE_LEVEL` ≥ 비교라 Owner(상위 레벨)도 포함한다.
 
 ---
 

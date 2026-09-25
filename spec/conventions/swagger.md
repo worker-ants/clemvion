@@ -483,13 +483,13 @@ async create(...) { ... }
 - [ ] 응답 DTO 가 `dto/responses/` 에 있는지
 - [ ] DTO 필드에 JSDoc + 필요 시 `@ApiProperty` (enum/example/format/nullable)
 - [ ] `ApiOkWrappedResponse` / `ApiOkPaginatedResponse` 등 적절한 래퍼 사용
-- [ ] `@Roles(...)` 가 붙었거나 `@WorkspaceId()` 를 소비하는 엔드포인트는
+- [ ] `@Roles(...)` 가 붙었거나 `@WorkspaceId()` · `@WorkspaceParam(...)` 을 소비하는 엔드포인트는
       `@ApiForbiddenResponse` 도 추가 — `RolesGuard` 는 `@Roles()` 유무와 무관하게
       워크스페이스 멤버십을 항상 검증하므로
-      ([data-flow §Rationale 멤버십 검증은 가드 1곳에서](../data-flow/12-workspace.md#멤버십-검증은-가드-1곳에서--roles-와-무관-2026-08-08)), `@WorkspaceId()` 만 쓰는 조회
+      ([data-flow §Rationale 멤버십 검증은 가드 1곳에서](../data-flow/12-workspace.md#멤버십-검증은-가드-1곳에서--roles-와-무관-2026-08-08) · [경로 파라미터 워크스페이스도 가드가 본다](../data-flow/12-workspace.md#경로-파라미터-워크스페이스도-가드가-본다-2026-09-25)), `@WorkspaceId()` · `@WorkspaceParam(...)` 만 쓰는 조회
       엔드포인트도 403 을 낼 수 있다. `@Roles()` 가 있으면 설명에 "editor 이상 권한
-      필요"처럼 요구 역할을 명시하고, `@Roles()` 없이 `@WorkspaceId()` 만 쓰면
-      "워크스페이스 멤버가 아님"으로 통일한다. (`@Public()` 라우트는 대상 아님.)
+      필요(`EDITOR_REQUIRED`)"처럼 요구 역할과 코드를 명시하고, `@Roles()` 없이 워크스페이스만 받으면
+      "워크스페이스 멤버가 아님(`NOT_A_MEMBER`)"으로 통일한다 — 코드는 [data-flow §Rationale 가드 거부의 오류 코드](../data-flow/12-workspace.md#가드-거부의-오류-코드-2026-09-25). (`@Public()` 라우트는 대상 아님.)
 - [ ] 경로 UUID 파라미터는 `@ApiParam({ format: 'uuid' })` 일관 적용
 - [ ] 요청 DTO 명명 — `Update` 접두는 **top-level 요청 바디**에만, nested 변형은 로컬 패턴 ([§1-7](#1-7-요청-dto-명명--update-접두는-top-level-요청-바디에만-건다))
 

@@ -1,0 +1,14 @@
+{
+  "timestamp": "2026-09-25T14:54:55.459413",
+  "mode": "spec draft 검토 (--spec)",
+  "target_path": "plan/in-progress/spec-draft-workspace-path-guard.md",
+  "checkers": [
+    "cross_spec",
+    "rationale_continuity",
+    "convention_compliance",
+    "plan_coherence",
+    "naming_collision"
+  ],
+  "target_snapshot": "_target/spec-draft-workspace-path-guard.md",
+  "scope_note": "cross_spec · rationale_continuity · convention_compliance · naming_collision 프롬프트 끝에 호출자 블록을 덧붙였다 — 번들이 대상 spec 9개 대부분을 예산 초과로 생략해, 판정 전에 해당 절을 절대경로로 직접 Read 하도록 지시했다(14_19_32 · 14_38_28 와 같은 조치, 선례 #1358)."
+}

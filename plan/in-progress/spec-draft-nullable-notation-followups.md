@@ -4970,6 +4970,21 @@ field: T | null;
       > **`removeMember` 는 이미 닫혔다** — 그 한 자리는 서비스 계층에서 인가를 대상 조회보다
       > 앞으로 옮겨 해소됐다. 남은 12개는 각자 무엇을 노출하는지 **실측부터** 해야 한다
       > (읽기 전용 라우트는 오라클 표면이 다르다).
+      >
+      > **2026-09-25 — 결정 턴 진행**: `plan/in-progress/spec-draft-workspace-path-guard.md`. 실측(바인딩 15곳 — 이 항목의 13 +
+      > `@Roles('owner')` 가 헤더 워크스페이스를 보던 `transferOwnership` + 전환 라우트 · 9곳은 인가 선행으로 안전 · 오라클 2곳)을
+      > 선택지 셋과 함께 제시했고 **사용자가 «가드 확장 + 가드 거부에 코드 부여» 를 택했다.** spec 반영(planner) 뒤 구현은 별도
+      > developer PR — 이 항목은 그 구현 PR 이 닫는다.
+
+- [ ] **`req.user.workspaceId` 를 직접 읽는 라우트는 가드가 인식하지 못한다 — 정적 가드가 없다** (developer, 낮음,
+      2026-09-25 등재 · `--spec` `review/consistency/2026/09/25/14_54_55` rationale_continuity W2).
+      경로 파라미터 쪽은 `@WorkspaceParam` + «`@Param` 으로 워크스페이스 ID 바인딩 금지» 정적 가드로 닫는데
+      (`spec/data-flow/12-workspace.md` §Rationale «경로 파라미터 워크스페이스도 가드가 본다»), 헤더 · 토큰 쪽에서
+      `@WorkspaceId()` 대신 `req.user.workspaceId` 를 직접 읽는 라우트도 `RolesGuard` 가 소비를 인식하지 못하는 같은 모양이다.
+      실측(2026-09-25): 컨트롤러 4곳(`auth.controller.ts` 2 · `webauthn.controller.ts` 2) — **전부 사용자 단위 작업(2FA 등록 ·
+      해제)의 감사 귀속용**이라 워크스페이스 자원에 접근하지 않는다(토큰 확정값이라 헤더 위조와도 무관). 지금은 구멍이 아니다.
+      처방 후보: 워크스페이스 자원을 다루는 핸들러가 `user.workspaceId` 를 읽으면 실패하는 정적 가드(감사 귀속 자리는 허용목록).
+      **착수 조건**: 워크스페이스 자원 접근에 `user.workspaceId` 를 쓰는 자리가 하나라도 생기면.
 
 - [x] **`removeMember` 판정 순서 커버리지의 비대칭 두 칸** (developer, 낮음, 2026-09-24 등재 ·
       `/ai-review` `review/code/2026/09/24/11_10_45` INFO#3·#4 → `11_37_06` INFO#5·#6 **재지적**).

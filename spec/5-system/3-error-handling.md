@@ -43,10 +43,12 @@ code:
 | `TOKEN_EXPIRED` | 토큰 만료 | Access Token 만료 | 401 |
 | `TOKEN_INVALID` | 토큰 무효 | 변조/형식 오류, refresh 토큰 미존재/소유자 부재, 또는 refresh 회전 시 조건부 revoke 매칭 0건(동일 토큰 동시 회전 경합 — [data-flow §1.4](../data-flow/2-auth.md#14-refresh-token-회전)) | 401 |
 | `FORBIDDEN` | 권한 없음 | 역할 권한 부족(generic) | 403 |
-| `ADMIN_REQUIRED` | Admin 권한 필요 | 워크스페이스 Owner/Admin 역할 필요 시 발행되는 `FORBIDDEN` 의 컨텍스트 특화 코드(`WorkspacesService.assertAdmin()` 발행) | 403 |
+| `ADMIN_REQUIRED` | Admin 권한 필요 | 워크스페이스 Owner/Admin 역할 필요 시 발행되는 `FORBIDDEN` 의 컨텍스트 특화 코드(`RolesGuard` 의 `@Roles('admin')` 미달 · `WorkspacesService.assertAdmin()` 발행) | 403 |
+| `EDITOR_REQUIRED` | Editor 권한 필요 | 워크스페이스 Editor 이상 역할 필요 시 발행되는 `FORBIDDEN` 의 컨텍스트 특화 코드(`RolesGuard` 의 `@Roles('editor')` 미달) | 403 |
+| `OWNER_REQUIRED` | Owner 권한 필요 | 워크스페이스 Owner 역할 필요(`RolesGuard` 의 `@Roles('owner')` 미달 · 워크스페이스 삭제 · 소유권 이전) | 403 |
 | `LOGIN_FAILED` | 로그인 실패 | 잘못된 자격 증명 | 401 |
 | `ACCOUNT_LOCKED` | 계정 잠김 | 로그인 시도 초과 (5회 → 10분). `UnauthorizedException` — 아래 Rationale "423 오기 정정" | 401 |
-| `NOT_A_MEMBER` | 워크스페이스 비멤버 | 대상 워크스페이스 멤버십 검증 실패 (전환 `/api/auth/workspaces/:id/switch`·탈퇴·멤버십 확인 경로, `auth.service`·`workspaces.service`) ([1-auth.md §5](./1-auth.md#5-api-엔드포인트) · [data-flow §1.5](../data-flow/12-workspace.md#15-워크스페이스-전환-토큰-재발급)) | 403 |
+| `NOT_A_MEMBER` | 워크스페이스 비멤버 | 대상 워크스페이스 멤버십 검증 실패 — `RolesGuard` 의 멤버십 거부(헤더 위조 · 경로 워크스페이스 · 부재 워크스페이스를 구분하지 않는다, 요구 역할과 무관) 및 전환 `/api/auth/workspaces/:id/switch`·탈퇴·멤버십 확인 경로(`auth.service`·`workspaces.service`) ([1-auth.md §5](./1-auth.md#5-api-엔드포인트) · [data-flow §1.5](../data-flow/12-workspace.md#15-워크스페이스-전환-토큰-재발급)) | 403 |
 
 #### 1.2.1 2FA / WebAuthn / 재인증·비밀번호 재확인 코드 (도메인 spec 참조)
 
@@ -96,7 +98,7 @@ code:
 > *"세 경로를 통일하지 않는다"* 가 아니다. 통일 결정으로 rename 자체는 뒤집혔고, 그 판단
 > 근거·잔여 위험은 [error-codes §5 Rename 이력](../conventions/error-codes.md) 에 있다.
 
-> **`X-Workspace-Id` 3분기**: 같은 헤더 하나가 세 갈래로 갈린다 — (1) 헤더·클레임 **둘 다 부재** → `WORKSPACE_ID_REQUIRED`(400), (2) 헤더 **있으나 형식 파손** → `VALIDATION_ERROR`(400), (3) 헤더 **형식 유효하나 비멤버** → `RolesGuard` 의 **코드 없는 403**. (3)에 전용 error code 를 붙이지 않는 이유는 [data-flow §Rationale "멤버십 검증은 가드 1곳에서"](../data-flow/12-workspace.md#멤버십-검증은-가드-1곳에서--roles-와-무관-2026-08-08) — `@Roles()` 라우트의 비멤버 거부도 종전부터 코드 없는 403 이라, 새 경로에만 코드를 붙이면 동일한 실패가 `@Roles()` 유무에 따라 다른 body 를 내게 된다. (2)와 (3)의 경계가 곧 [UUID 검증 강도 비대칭](../data-flow/12-workspace.md#x-workspace-id-헤더-vs-id-경로-파라미터--uuid-검증-강도-비대칭-2026-08-09) 이다.
+> **`X-Workspace-Id` 3분기**: 같은 헤더 하나가 세 갈래로 갈린다 — (1) 헤더·클레임 **둘 다 부재** → `WORKSPACE_ID_REQUIRED`(400), (2) 헤더 **있으나 형식 파손** → `VALIDATION_ERROR`(400), (3) 헤더 **형식 유효하나 비멤버** → `RolesGuard` 의 **`NOT_A_MEMBER`(403)**. 가드 거부는 전 경로가 함께 코드를 갖는다 — [data-flow §Rationale "가드 거부의 오류 코드"](../data-flow/12-workspace.md#가드-거부의-오류-코드-2026-09-25) (2026-09-25 이전에는 코드를 지정하지 않아 필터 기본값 `FORBIDDEN` 이었다). (2)와 (3)의 경계가 곧 [UUID 검증 강도 비대칭](../data-flow/12-workspace.md#x-workspace-id-헤더-vs-id-경로-파라미터--uuid-검증-강도-비대칭-2026-08-09) 이다.
 >
 > **적용 범위**: (1)·(2)는 `@Roles()` 또는 `@WorkspaceId()` 를 쓰는 인증 라우트에서만 발생한다. 둘 다 없는 워크스페이스-무관 전역 라우트는 `RolesGuard` 가 헤더를 읽기 **전에** 통과시키므로(`handlerConsumesWorkspaceId` 단축), 형식이 깨진 헤더가 실려도 400 이 아니라 **무시**된다 — FE `apiClient` 가 모든 요청에 이 헤더를 습관적으로 붙이기 때문에 필요한 예외다.
 
