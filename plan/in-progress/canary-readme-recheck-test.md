@@ -37,7 +37,7 @@ started: 2026-09-25
       역할을 안 봄) → **RED 1 — 새 테스트 하나뿐**: 전에는 이 분기를 지키는 테스트가 없었다(리뷰 INFO 8 이 맞았다). 커밋 `6aeb57a1a`
 - [x] README(요구 1) — 캐너리 코드(`total === 0` 거부 · 로그 두 개수 · 에러 메시지의 «먼저 볼 곳») · 로그 문구와 한 줄씩 대조해 고쳤다
 - [x] CHANGELOG 판정 — **항목 없음.** 기준 블록 «한 기능의 동작을 고정하는 테스트 추가(가드가 아닌 커버리지) · 문서» 에 해당
-- [ ] TEST WORKFLOW — lint · unit · build · e2e
+- [x] TEST WORKFLOW — lint · unit(backend 10059) · build · e2e(71 스위트 · 391건 PASS)
 - [ ] `/ai-review`
 - [ ] `--impl-done`(spec 연결 여부 확인: `workspaces.service.spec.ts` 는 `9-user-profile` 의 `modules/workspaces/**` 에 걸린다)
 - [ ] 트래커 항목 닫기
