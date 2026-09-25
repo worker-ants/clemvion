@@ -78,6 +78,8 @@ started: 2026-09-25
 | R10 | 콜백 거부 문구가 mode 를 안 따름 — 2라운드 W2 | KILLED | KILLED — 1 failed |
 | R11 | 거부 문구에서 동작 구 제거 — 2라운드 CRITICAL 1 | KILLED | KILLED — 9 failed |
 | R12 | 공유 Organization 판정이 역할 서열을 안 봄(역할만 있으면 통과) | KILLED | KILLED — 21 failed |
+| R13 | rotate 가 락 안에서 역할을 다시 읽지 않음 — 3라운드 CRITICAL 1 | KILLED | KILLED — 1 failed(강등 케이스) |
+| R14 | 콜백 역할 조회가 트랜잭션 매니저를 안 씀 — 3라운드 W2 | KILLED | KILLED — 3 failed |
 
 ## `/ai-review` 처리
 
@@ -88,6 +90,7 @@ started: 2026-09-25
 | --- | --- | --- | --- |
 | 1 | `review/code/2026/09/25/22_45_37` | Critical 0 · Warning 11 | W1 · W2(판정 뒤 scope 변경 · lost update) — compare-and-set(`judgedRow`) · 부분 update. W3(콜백 TOCTOU) — 커밋 직전 재판정. W4 · W5 · W7~W11 조치. W6(역할 이중 조회) — 전역 가드 변경이라 트래커 등재. 커밋 `5999aedfe`. 뮤턴트 R1~R9 전부 KILLED |
 | 2 | `review/code/2026/09/25/23_23_40` | Critical 1 · Warning 6 | CRITICAL 1(Admin 거부 문구를 영문으로 덮어써 한국어 화면에 영문 토스트) — 동작별 한국어 구 + 공유 문구. W1(판정 · 404 · 문구가 OAuth 서비스에 복제) — `integration-visibility.ts` 순수 함수로 두 서비스 공유. W2~W6 조치(콜백 문구가 mode 를 따름 · begin 본인 personal 통과 케이스 · create 403 설명 · CHANGELOG 외부 호출자 · 워크스페이스 가이드 RBAC 예외). 커밋 `2f3562ce7`. 뮤턴트 R10~R12 KILLED |
+| 3 | `review/code/2026/09/25/23_58_59` | Critical 1 · Warning 6 | CRITICAL 1(rotate 락 안 재판정이 옛 역할을 씀 — 연결 테스트 중 강등돼도 커밋) — Organization 이면 같은 트랜잭션 커넥션으로 역할 재조회. W2(콜백 역할 조회가 두 번째 커넥션) — `getMemberRole` 에 선택적 매니저. W4 주석 · W6 문장. W1(실행 엔진 BOLA)은 후속 plan 항목에 악용 경로 보강, W3(역할 이중 조회)은 1라운드 W6 트래커 항목 갱신, W5(`handleCallback` 비대)는 «수렴 예외» 트래커 등재. 커밋 `a8b5c8b13`. 뮤턴트 R13 · R14 KILLED |
 
 ## `--impl-prep` 처리 (`review/consistency/2026/09/25/21_49_24` — BLOCK: NO, WARNING 5)
 

@@ -26,6 +26,11 @@ started: 2026-09-25
          «본인» 을 워크플로우 생성자로 볼지, 노드를 마지막으로 저장한 사람으로 볼지, 실행 시점 검사를 두지 않을지부터 정해야 한다.
       **착수 전 실측**: 기존 워크플로우 중 생성자와 다른 사람의 personal 통합을 참조하는 노드 수 — 0 이 아니면 강제가 곧 실행
       중단이다(마이그레이션 · 안내 필요).
+      **왜 급한가** (`/ai-review` `review/code/2026/09/25/23_58_59` WARNING 1): API 로는 남의 personal 이 보이지 않지만, 그 UUID 를
+      아는 Editor 가 자기 워크플로우 노드의 `integrationId` 에 넣어 실행하면 실행 엔진(`getForExecution` — 워크스페이스만 본다)이 그
+      자격 증명으로 외부를 호출한다. 이 PR 의 §8 불변식이 실행 표면에서는 아직 성립하지 않는다 — 저장 시점 검증만으로도 이
+      경로의 대부분이 닫힌다(실행 시점 판정은 «본인» 기준 결정이 먼저). 착수 시 `getForExecution` 이 가시성 판정을 우회하는
+      **유일한** 경로임을 보는 경계 캐너리도 함께(같은 리뷰 INFO 11).
 - [ ] **cafe24 Private · MakeShop 의 `pending_install` 행 재사용이 생성자를 보지 않는다** (developer — 거부 응답 설계는 planner).
       `integration-oauth.service.ts` 의 `createPrivatePendingIntegration`(같은 몰의 private pending 행) · `createMakeshopPendingIntegration`
       (같은 `client_id` 의 pending 행)이 **누가 만든 행이든** 재사용해 `client_id` · `client_secret` · `scopes` 를 덮어쓰고 그 행의

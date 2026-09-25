@@ -5763,13 +5763,20 @@ field: T | null;
       같았음이 확인됐다. rotate 한 곳이 아니라 권한 모델 전반(조회·수정·삭제)의 문제라 범위를 먼저 정해야 한다.
 
 - [ ] **워크스페이스 역할을 가드와 핸들러가 두 번 조회한다 — `RolesGuard` 가 조회한 역할을 요청에 싣지 않는다** (developer, 낮음,
-      2026-09-25 등재 · `/ai-review` `review/code/2026/09/25/22_45_37` WARNING 4 · 6). `@Roles()` 가 붙은 라우트는 가드가
+      2026-09-25 등재 · `/ai-review` `review/code/2026/09/25/22_45_37` WARNING 4 · 6, 같은 PR 3라운드 `23_58_59` WARNING 3 이 재지적). `@Roles()` 가 붙은 라우트는 가드가
       `getMemberRole` 로 역할을 읽는데, Admin 판정이 서비스에 있는 핸들러(통합 `create` · `update` · `rotate` · `remove` 등)는
       `resolveRole()` 로 **한 번 더** 읽는다 — 같은 요청에서 `workspace_member` PK 조회 두 번. 통합 모듈의 기존 패턴(`create` ·
       `rotate`)이고 `integration-personal-owner` PR 이 `update` · `remove` 로 넓혔다. 처방 후보: 가드가 판정한 역할을 `request` 에
       싣고 `@CurrentWorkspaceRole()` 파라미터 데코레이터로 읽는다 — 전역 가드 변경이라 가드 캐너리 · 경로 워크스페이스 분기(가드가
       판정한 워크스페이스와 핸들러의 워크스페이스가 같은가)를 함께 봐야 한다. `@Roles()` 없는 라우트(`reauthorize` 등)는 가드가
       역할을 읽지 않으므로 그대로 서비스가 읽는다. **착수 조건**: 없음(여유 있을 때).
+
+- [ ] **`IntegrationOAuthService.handleCallback` 이 ~310줄 한 함수다 — 인가 재판정까지 그 안에 산다** (developer, 낮음,
+      2026-09-26 등재 · `/ai-review` `review/code/2026/09/25/23_58_59` WARNING 5 — «수렴 예외» 등재분, 판정은 그 세션
+      `RESOLUTION.md`). provider 검증 · state 소비 · 에러 분기 · 토큰 교환 · provider 별 자격 증명 조립 · install_token 백필이 한
+      함수이고, `integration-personal-owner` PR 이 트랜잭션 임계구역 안에 커밋 직전 인가 재판정(`assertRequesterStillAllowed`)을
+      더했다. 처방 후보: 락 안 «재판정 → 자격 증명 교체 → 상태 갱신» 을 private 메서드로 뽑아 트랜잭션 콜백을 짧게 — 재판정을
+      `handleCallback` 전체 없이 검증할 수 있게 된다. 동작 변경 없는 리팩터라 기존 콜백 테스트가 회귀를 본다. **착수 조건**: 없음.
 
 - [ ] **entity tester 재진입 금지가 문서로만 있다** (developer, 낮음, 2026-09-19 등재 · `/ai-review` `review/code/2026/09/19/16_00_06`
       concurrency · side_effect WARNING 1). entity tester 는 연결 테스트 동시 상한(2) 안에서 도므로, 등록된 테스터가 `testConnection` ·
