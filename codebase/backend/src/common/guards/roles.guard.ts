@@ -121,9 +121,9 @@ interface RequestWithUser {
  *
  * - `@Public()` 라우트·`request.user` 부재(미인증) — 인증 판정은 `JwtAuthGuard` 소관
  * - 워크스페이스 컨텍스트가 없는 라우트 — 검증 대상이 없다
- * - **`@Roles()` 도 `@WorkspaceId()` 도 안 쓰는 라우트** — 워크스페이스와 무관한 전역 API
- *   (예: `system-status`). `handlerConsumesWorkspaceId` 로 실제 소비 여부를 reflection
- *   확인한다. 이 예외가 없으면 FE `apiClient` 가 습관적으로 모든 요청에 붙이는
+ * - **`@Roles()` · `@WorkspaceId()` · `@WorkspaceParam()` 중 어느 것도 안 쓰는 라우트** —
+ *   워크스페이스와 무관한 전역 API(예: `system-status`). `handlerConsumesWorkspaceId` ·
+ *   `workspaceParamNamesOf` 로 실제 소비 여부를 reflection 확인한다. 이 예외가 없으면 FE `apiClient` 가 습관적으로 모든 요청에 붙이는
  *   `X-Workspace-Id` 헤더(`lib/api/client.ts`) 때문에 워크스페이스와 무관한 엔드포인트가
  *   헤더값과 토큰 클레임이 다를 때마다 불필요하게 멤버십 재검증·403 을 받는다
  *   (2026-08-08 e2e 회귀로 실측 — `system-status.e2e-spec.ts`).
