@@ -106,10 +106,38 @@ spec:
                 name: backend-config
             - secretRef:
                 name: backend-secret
+          # 아바타 공개 읽기 정책 — 아바타 업로드의 **배포 선행 조건**이다(`scripts/minio/README.md`).
+          # 없으면 업로드는 성공하고 이미지만 403 이다. 두 compose 의 createbuckets 와 같은 정책.
+          #
+          # 정책을 파일로 마운트하지 않고 heredoc 으로 쓰는 이유: kustomize 는 오버레이 밖 파일
+          # (`scripts/minio/avatars-public-read.json`)을 ConfigMap 으로 못 가져온다(`security; …
+          # is not in or below …`). 사본을 두면 버킷 이름이 또 하드코딩되는데, 이 Job 은 버킷을
+          # `$S3_BUCKET` 으로 받는다 — heredoc 은 그 변수를 그대로 쓴다. 구분자는 따옴표 없는 EOF
+          # 여야 한다(`<<'EOF'` 면 `${S3_BUCKET}` 이 치환되지 않는다). 원본 JSON 과의 일치는
+          # `.claude/tests/test_minio_bucket_policy_parity.py` 가 고정한다.
+          #
+          # `mc anonymous set download` 프리셋은 쓰지 말 것 — 목록까지 연다(README 의 실측).
+          # `set -e`: Job 상태가 마지막 명령의 것이라, 없으면 앞선 `mb` 실패가 가려진다.
+          # (두 compose 는 `exit 0` 으로 끝나 실패를 삼킨다 — 이 Job 과 다른 별 갭이다.)
           command: ["sh", "-c"]
           args:
             - |
+              set -e
               until mc alias set local http://minio:9000 "$S3_ACCESS_KEY" "$S3_SECRET_KEY"; do
                 echo "waiting for minio..."; sleep 2;
               done
               mc mb --ignore-existing local/"$S3_BUCKET"
+              cat > /tmp/avatars-public-read.json <<EOF
+              {
+                "Version": "2012-10-17",
+                "Statement": [
+                  {
+                    "Effect": "Allow",
+                    "Principal": { "AWS": ["*"] },
+                    "Action": ["s3:GetObject"],
+                    "Resource": ["arn:aws:s3:::${S3_BUCKET}/avatars/*"]
+                  }
+                ]
+              }
+              EOF
+              mc anonymous set-json /tmp/avatars-public-read.json local/"$S3_BUCKET"

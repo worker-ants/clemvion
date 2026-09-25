@@ -8,6 +8,16 @@
 `docker-compose.yml` · `docker-compose.e2e.yml` 의 `createbuckets` 가 이 파일을 마운트해
 `mc anonymous set-json` 으로 적용한다.
 
+**세 번째 적용 지점 — k8s 로컬 오버레이는 이 파일을 마운트하지 못한다.**
+`k8s/overlays/local/infra-minio.yaml` 의 Job `minio-create-bucket` 은 같은 정책을 **heredoc 사본**으로
+만들어 적용한다. kustomize 가 오버레이 밖 파일을 ConfigMap 으로 가져오지 못하고(`security; … is not in or
+below …`), 그 Job 은 버킷을 `$S3_BUCKET` 으로 받기 때문이다(사본의 버킷 자리는 `${S3_BUCKET}`). 그래서 이
+정책은 **두 벌**이다 — 이 파일을 고치면 k8s 사본도 함께 고칠 것. 두 벌의 일치(버킷 정규화 후 동일 ·
+`ListBucket` 없음 · 구분자 unquoted 등)는 `.claude/tests/test_minio_bucket_policy_parity.py` 가 고정한다.
+그 가드의 CI 트리거(`harness-checks.yml` pathspec)에는 **정책 JSON(`avatars-public-read.json`)과 k8s
+매니페스트**가 등재돼 있어 둘 중 하나만 고친 PR 에서도 돈다. 이 README 는 등재 대상이 아니다 — 가드가 읽지
+않는 설명 문서다.
+
 ## 왜 `mc anonymous set download` 를 쓰지 않는가 — 실측으로 기각했다
 
 처음에는 `mc anonymous set download local/workflow-storage/avatars` 를 썼다. 이름만 보면

@@ -5837,7 +5837,7 @@ field: T | null;
       (3) `1-workflow-list.md` frontmatter `pending_plans` 가 완료된 `plan/complete/workflow-duplicate-nodes-edges.md` 를 가리킨다 — 빼면 된다
       (남은 미구현 surface 가 따로 있는지 먼저 확인). 셋 다 사실 정정.
 
-- [ ] **k8s 로컬 오버레이의 버킷 Job 이 아바타 공개 정책을 걸지 않는다** (developer, 낮음, 2026-09-24 등재 ·
+- [x] **k8s 로컬 오버레이의 버킷 Job 이 아바타 공개 정책을 걸지 않는다** (developer, 낮음, 2026-09-24 등재 ·
       plan `minio-silo-image` §D — 이미지 교체 중 발견, 그 PR 의 축이 아니라 분리).
       `k8s/overlays/local/infra-minio.yaml` 의 Job `minio-create-bucket` 은 `mc mb` 만 한다. 두 compose 파일의
       `createbuckets` 는 `#1258`(아바타 업로드)이 `mc anonymous set-json /policy/avatars-public-read.json` 을 넣었는데
@@ -5851,6 +5851,14 @@ field: T | null;
       > «MinIO 부팅 후 버킷 자동 생성 (`mc mb` …)» 도 정책을 적지 않는다. 그 번들을 만들 때 이 항목과 함께 닫을 것.
       > (그 plan 에 직접 체크박스를 넣었다가 `/ai-review` 가 두 라운드 연속 스코프 밖이라 짚어 — `00_25_55` W3 ·
       > `00_56_30` W2 — 범위 밖 발견의 자리인 여기로 옮겼다.)
+      >
+      > **2026-09-25 종결** — plan `k8s-avatar-policy`. Job 이 버킷 생성 뒤 같은 정책을 `set-json` 으로 건다.
+      > 처방 후보(«정책 JSON 을 ConfigMap 으로 마운트»)는 **실측으로 불가**였다 — kustomize 가 오버레이 밖 파일을
+      > `security; … is not in or below …` 로 거부한다. 그래서 `$S3_BUCKET` 을 대입하는 heredoc 사본으로 걸고,
+      > 원본과의 일치는 `.claude/tests/test_minio_bucket_policy_parity.py` 가 고정한다. 검증은 이 항목이 적은 세 판정
+      > 그대로 — 렌더한 매니페스트의 Job 스크립트를 실제 서버에 돌려 익명 목록 403 · avatars GET 200 · 그 밖 403
+      > (옛 스크립트는 avatars 403 으로 결함 재현). **위 self-hosting 보탬은 이 종결로 묻히지 않게** 그 plan 의 §3
+      > 체크박스로 옮겼다 — 이번 PR 의 축(배포 경로별 아바타 정책)과 같아 이제는 스코프 안이다.
 
 - [x] **MinIO 계열 이미지 참조 6곳이 서로 같은지 아무것도 보지 않는다** (developer, 낮음, 2026-09-24 등재 ·
       `/ai-review` `review/code/2026/09/24/23_33_07` INFO 3).
