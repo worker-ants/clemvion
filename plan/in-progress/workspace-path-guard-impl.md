@@ -1,0 +1,71 @@
+---
+title: 경로 파라미터 워크스페이스도 가드가 보고, 가드 거부는 코드를 갖는다 — 구현
+status: in-progress
+owner: developer
+worktree: workspace-path-guard
+spec_impact:
+  - spec/data-flow/12-workspace.md
+  - spec/5-system/3-error-handling.md
+  - spec/5-system/1-auth.md
+  - spec/5-system/13-replay-rerun.md
+  - spec/5-system/2-api-convention.md
+  - spec/conventions/swagger.md
+  - spec/conventions/error-codes.md
+  - spec/2-navigation/6-config.md
+  - spec/2-navigation/9-user-profile.md
+started: 2026-09-25
+---
+
+# 구현 — 같은 PR 의 spec 커밋 `e2257707` 을 참으로 만든다
+
+설계 결정 · 실측 · spec 변경은 `plan/complete/spec-draft-workspace-path-guard.md` 와 커밋 `e2257707`(planner 턴) 에 있다. 착지 방식은
+**spec 과 구현을 한 PR 에**(그 draft §B-1) — 이 plan 의 체크리스트가 끝나기 전에는 머지하지 않는다. 트래커 항목 «경로 파라미터로
+워크스페이스를 받는 라우트 13개가 가드 층 보호를 전혀 못 받는다» 는 이 plan 이 닫는다.
+
+## 구현 요구 (draft §D)
+
+1. `@WorkspaceParam('<name>')` 파라미터 데코레이터 + `RolesGuard` 인식(팩토리 identity · 등록 이름 · 경로 값). 부트 캐너리가 경로
+   소비자도 센다. `nestjs-v12-coordinated-upgrade.md` §C 캐너리 기준값(142) 재실측 · 갱신.
+2. 15곳을 `@WorkspaceParam('id')` 로 — 역할 요구는 서비스와 같게: Admin 8(`update` · `updateSettings` · `addMember` · `updateMember` ·
+   초대 넷) `@Roles('admin')`, Owner 2(`remove` · `transferOwnership`) `@Roles('owner')`, 멤버 4(`getSettings` · `leave` · `listMembers`
+   · `removeMember`) + 전환 1 은 `@Roles()` 없이.
+3. 가드 거부 코드 — 비멤버 `NOT_A_MEMBER`, 멤버의 역할 미달 `EDITOR_REQUIRED` / `ADMIN_REQUIRED` / `OWNER_REQUIRED`(최소 요구 역할).
+   메시지는 서비스와 같은 한국어. 가드는 파이프보다 먼저 돌므로 경로 값은 `isUuidShaped` 로만 보고 형식이 아니면 넘긴다.
+4. 저장소 가드 `workspace-param-binding` — `@Param(...)` 로 받은 파라미터 이름이 `workspaceId` 이거나 `WorkspaceId` 로 끝나면 실패.
+   AST · 허용목록 없음 · 공허성(`@WorkspaceParam` 소비 > 0) 단언. `param-uuid-pipe-guard` 모집단에서 빠지는 것을 기록.
+5. `leaveWorkspace` · `addMemberByEmail` 인가 선행(두 번째 선의 오라클 제거).
+6. frontend 403 표시 — `ERROR_KO` 등재 여부 판단(트래커 «`ERROR_KO` 를 아무도 읽지 않는다» 와 함께).
+7. e2e — 라우트 클래스(멤버 · Admin · Owner)마다 비멤버 `NOT_A_MEMBER` · 부재 워크스페이스 같은 응답 · 역할 미달 코드 · 형식 파손
+   400 · nil UUID 403 · 헤더 위조 `NOT_A_MEMBER` · `transferOwnership` 이 경로 워크스페이스로 판정.
+8. `roles.guard.ts` docstring 의 «별도 작업» 문장 갱신. swagger `@ApiForbiddenResponse` 설명(재실행 · chain · 워크스페이스 라우트).
+
+## `--impl-prep` 경고 처리 (`review/consistency/2026/09/25/15_15_21` — BLOCK: NO, WARNING 5 · INFO 4)
+
+scope 는 12-workspace · 1-auth · 3-error-handling 의 scratch 사본(번들 절단 회피, meta.json `scope_note`). 5 checker 가
+나머지 spec 은 저장소 원본을 직접 읽어 대조했다.
+
+| # | 경고 | 처리 |
+| --- | --- | --- |
+| W1 | `9-user-profile.md` §3 «backend 인가 모델은 불변» 이 경로 라우트 예외(12-workspace «URL slug» 절 2026-09-25 보탬)를 미러링하지 않는다 | **planner 턴** — 제품 정의 문장이라 자기-반증형 소정정 대상이 아니다. 아래 planner 턴에 묶는다 |
+| W2 | `1-auth.md` §부트 캐너리 (b) «캐너리는 호출부에 아무것도 요구하지 않는다» 가 (a) 와 달리 정정되지 않았다 | **planner 턴** — 12-workspace 의 두 각주(«보탬» · «정정»)와 같은 모양의 역방향 각주 |
+| W3 | 새 저장소 가드 `workspace-param-binding` 이 어느 spec 의 `code:` 에도 없다 | **planner 턴** — `1-auth.md` frontmatter `code:` 에 가드 · fixture 경로 등재(기존 가드도 전부 개별 glob 으로 등재돼 있다) |
+| W4 | `spec_impact` 가 spec 커밋이 건드린 9개 중 3개만 담았다 | **이 plan 에서 처리** — frontmatter 를 9개로 넓혔다. `--impl-done` 은 이 9개가 들어가는 scope 로 돌린다 |
+| W5 | 가드 이름이 같은 디렉터리의 `workspace-roles-attachment.spec.ts` 와 가깝다 | **이 plan 에서 처리** — 이름은 spec draft · plan 이 이미 쓰는 `workspace-param-binding` 을 유지하고, 새 파일 머리 주석에 두 가드의 경계(이름 패턴 금지 vs 특정 핸들러의 `@Roles` 부착 고정)를 적는다 |
+
+INFO 3(`nestjs-v12-coordinated-upgrade.md` §C 캐너리 기준값 142)은 요구 1 에 이미 있다. INFO 1(`error-codes.md` §5 머리말에 «발행 이력 없는 spec-drift
+항목은 §5 대상 아님») 은 W1~W3 planner 턴에 함께 싣는다.
+
+**planner 턴 순서**: 구현 · 테스트가 끝난 뒤 `/ai-review` 전에 연다(`--spec` → spec 반영 → 커밋). `--impl-done` 은 `/ai-review` 수렴 뒤.
+
+## 체크리스트
+
+- [x] `--impl-prep` — `15_15_21` BLOCK: NO, 경고 처리 위 표
+- [ ] planner 턴(W1 · W2 · W3 · INFO 1) — `--spec` 게이트
+- [ ] 테스트 선작성(가드 · 데코레이터 · 캐너리 · 저장소 가드) → RED 확인
+- [ ] 구현 1~5 · 8
+- [ ] 뮤턴트(가드 분기마다)
+- [ ] TEST WORKFLOW — lint · unit · build · e2e
+- [ ] CHANGELOG(제품 동작 · 가드 신설)
+- [ ] `/ai-review`
+- [ ] `--impl-done`
+- [ ] 트래커 항목 닫기
