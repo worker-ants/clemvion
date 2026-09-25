@@ -30,6 +30,15 @@ started: 2026-09-25
 | W2 | `9-user-profile.md §4.2` 역할 매트릭스가 읽기 권한까지 좁게 읽힐 여지 | 기존부터 있던 spec 모호성, 이 plan 범위 밖(spec 쓰기) — 트래커 planner 항목으로 등재 |
 | W3 | `12-workspace.md` 의 Owner 요구 라우트 수가 «2곳 / 2곳 / 1곳» 으로 어긋난다 | **오독 — 실측으로 확인했다.** 현재 `workspaces.controller.ts` 의 `@Roles('owner')` 는 2곳(`remove` · `transferOwnership`), `#1399` 직전은 1곳(`transferOwnership`) — «`owner` 1 을 붙여» 는 새로 붙인 `remove` 다. 다만 checker 가 한 번 오독한 문장이라 «(`transferOwnership` 은 이미 `@Roles('owner')` 였다)» 괄호 한 줄을 planner 항목으로 등재 |
 
+## `/ai-review` 처리
+
+멈춤 규칙(각 라운드 시작 전 선언): Critical 0 · Warning 0 · 그 라운드 `codebase/**` 수정 0건이면 종결. 2라운드부터 구조 · 문서 잔여만
+남으면 developer SKILL «수렴 예외» 로 트래커 등재.
+
+| 라운드 | 세션 | 결과 | 처분 |
+| --- | --- | --- | --- |
+| 1 | `review/code/2026/09/25/20_20_00` | Critical 0 · Warning 3 | W1(재검사 OR 의 멤버십 소멸 가지 미고정) — `it.each` 로 두 상태(admin · null). 뮤턴트 **예측/실측**: V1(역할 안 봄) → admin 케이스만 RED / **1 failed — admin 케이스** · V2(부재 안 봄, `as WorkspaceMember` 로 컴파일 유지) → null 케이스만 RED / **1 failed — null 케이스**. W3(README 과밀 문장) — 판별별 불릿 둘. 커밋 `47dfdb3c3`. W2(W2 · W3 «등재» 가 트래커에 없음) — **맞는 지적**, 트래커에 planner 항목 둘 등재 |
+
 ## 체크리스트
 
 - [x] `--impl-prep` — `20_01_21` BLOCK: NO, 처리 위
