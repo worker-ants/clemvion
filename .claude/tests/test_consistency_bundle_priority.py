@@ -752,6 +752,39 @@ class TheDocumentBeingEditedIsNeverOmittedTest(unittest.TestCase):
         self.assertFalse(left, "프로브가 편집을 남겼다")
 
 
+class TheRepoCopyFixtureTest(unittest.TestCase):
+    """위 프로브들이 기대는 `_harness.make_temp_repo_copy` 의 계약.
+
+    프로브는 사본의 **미커밋** 변경만 쓴다. 그래서 `origin/main` 을 HEAD 에 두는 줄을
+    지워도 전부 초록이었다 — 커밋 절반(`origin/main...HEAD`)이 git 실패로 빈 집합이 되고
+    합집합은 그대로라서다(뮤턴트 생존, 2026-09-25). 그 줄이 지키는 것을 여기서 직접 잰다:
+    갓 만든 사본의 변경 집합은 비어 있고, 사본에서 **커밋한** 변경은 브랜치 diff 로 보인다.
+    커밋 절반을 재려는 다음 테스트가 조용히 실패 경로를 타지 않게.
+    """
+
+    def test_a_commit_in_the_copy_is_in_the_branch_diff(self):
+        got = run_in_orchestrator(
+            """
+            import os, tempfile
+            rel = "spec/5-system/7-llm-client.md"
+            with tempfile.TemporaryDirectory() as tmp:
+                root = str(_harness.make_temp_repo_copy(
+                    os.path.join(tmp, "repo"), "spec/5-system"))
+                before = sorted(orch._edited_rels("origin/main", root))
+                with open(os.path.join(root, rel), "a", encoding="utf-8") as fh:
+                    fh.write("\\n<!-- committed probe -->\\n")
+                _harness.git_in(root, "commit", "-qam", "probe")
+                emit({"before": before,
+                      "branch": sorted(orch._branch_changed_rels("origin/main", root))})
+            """
+        )
+        self.assertEqual(got["before"], [], "갓 만든 사본의 변경 집합이 비어 있지 않다")
+        self.assertEqual(
+            got["branch"], ["spec/5-system/7-llm-client.md"],
+            "사본에서 커밋한 변경이 브랜치 diff 에 없다 — origin/main 이 사본의 커밋을 가리키지 않는다",
+        )
+
+
 class TheDiffOutranksTheFolderDumpTest(unittest.TestCase):
     """`--impl-done` 의 코드 diff 가 folder dump 뒤에 붙으면 **가장 먼저** 잘린다.
 
