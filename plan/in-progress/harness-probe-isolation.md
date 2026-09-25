@@ -33,7 +33,7 @@ started: 2026-09-25
    > `os.mkdir` · `os.rename` 을 **전부** 버렸고, 넷은 `open` 쓰기 · `rmtree` 이벤트로만 잡혔다. 수정 뒤 census 가
    > **0행**을 내서 «훅이 안 걸렸나» 를 가리려고 양성 대조군(이벤트 종류마다 한 번씩 워크트리에 쓰기, 자식
    > 프로세스 포함)과 음성 대조군(저장소 밖 임시 디렉터리 rmtree)을 돌렸을 때 드러났다. 필터를 `fd >= 0` 로
-   > 고친 뒤 양성 11행 · 음성 0행. 아래 전·후 census 는 고친 훅으로 다시 잰 것이다(§F).
+   > 고친 뒤 양성 11행 · 음성 0행. 아래 전·후 census 는 고친 훅으로 다시 잰 것이다(§E).
 2. **mtime census** — 파이썬 밖 쓰기(셸 · git)는 감사 훅이 못 본다. 표시 파일을 만들고 전체 하네스를 돌린 뒤
    `find . -newer <표시>`(`.git` · `node_modules` · `__pycache__` 제외)로 바뀐 경로를 셌다. 만들었다 지운 것은
    못 보지만 1 이 그것을 본다.
@@ -100,25 +100,37 @@ started: 2026-09-25
 
 | 뮤턴트 | 편집 | 예측 | 실측 |
 | --- | --- | --- | --- |
-| P1 | `_edited_rels` 에서 미커밋 절반(`worktree_changed_files`) 제거 | 순위 · collect_context 테스트 RED | |
-| P1b | `collect_context` 가 `_edited_rels` 대신 `_branch_changed_rels`(커밋 절반만)를 부른다 — 그 테스트 docstring 이 «실제로 살아남았다» 고 적은 뮤턴트 | collect_context 테스트 RED | |
-| P2 | `worktree_changed_files` 의 `-uall` 제거 | untracked 테스트 RED | |
-| P3 | `_n_on_topic` 의 tier 1 절(`_named_in`) 제거 | branch-plan 테스트 RED | |
-| P4 | 프로브 스니펫 하나를 `ROOT` 로 되돌림 | 루트 위치 테스트 RED | |
-| P5 | `make_temp_repo_copy` 의 `update-ref` 제거 | 커밋 diff 가 실패해 빈 집합 — 미커밋 절반만으로 초록일 수 있다(예측: **생존**) | |
+| P1 | `_edited_rels` 의 합집합을 교집합으로(`\| set(` → `& set(`) — 미커밋 절반이 사라진다 | 순위 · collect_context 테스트 RED | **일치** — 순위 · collect_context · untracked 3개 RED |
+| P1b | `collect_context` 가 `_edited_rels` 대신 `_branch_changed_rels`(커밋 절반만)를 부른다 — 그 테스트 docstring 이 «실제로 살아남았다» 고 적은 뮤턴트 | collect_context 테스트 RED | **일치** — collect_context RED. `_edited_rels` 를 스텁하는 branch-plan · diff-위치 테스트 둘도 RED(스텁이 헛돈다) |
+| P2 | `worktree_changed_files` 의 `-uall` 제거 | untracked 테스트 RED | **일치** — untracked 1개만 RED |
+| P3 | `_n_on_topic` 의 tier 1 절(`_named_in`) 제거 | branch-plan 테스트 RED | **일치** — branch-plan 1개만 RED |
+| P4 | 순위 프로브 스니펫의 루트를 `ROOT` 로 되돌림 | 루트 위치 테스트 RED | **일치** — `test_the_probe_runs_outside_this_checkout` 1개만 RED. 실제 spec 에 프로브가 남아 스크립트가 `cp` 로 원복했다 — 막으려는 그 형태 |
+| P5 | `make_temp_repo_copy` 의 `update-ref` 제거 | 커밋 diff 가 실패해 빈 집합 — 미커밋 절반만으로 초록일 수 있다(예측: **생존**) | **일치 — 생존.** 그래서 `TheRepoCopyFixtureTest` 를 더했고(`128cc9746`), 재실행에서 그 테스트 1개만 RED |
+| P6 | target_validation 의 `CONSISTENCY_OUTPUT_DIR` 주입 제거 | 새 단언(`is_relative_to`) RED | **일치** — 그 테스트 1개 RED. 실제 `review/consistency/` 에 세션이 남아 스크립트가 지웠다 |
 
-P1~P3 은 옛 테스트가 잡던 것을 새 fixture 도 잡는지, P4 는 새 단언이, P5 는 fixture 가정이 실제로 쓰이는지 본다.
+P1~P3 은 옛 테스트가 잡던 것을 새 fixture 도 잡는지, P4 · P6 은 새 단언이, P5 는 fixture 가정이 실제로 쓰이는지 본다.
+P1~P5 는 `128cc9746` 뒤 한 번에 다시 돌려 전부 KILLED(바이트코드 끔 · 매번 `.pyc` 삭제 · 끝에 `git status` 빈 것 확인).
 
-## E. 체크리스트
+## E. 고친 뒤 — 같은 측정으로
+
+| 측정 | 고치기 전 | 고친 뒤 |
+| --- | --- | --- |
+| 병렬 재현(4 프로세스 × 6라운드, §B) | 잔여 **5/6** 라운드 · 실패 22/24 | 잔여 **0/6** · 실패 **0/24** |
+| 감사 훅 census(고친 훅, 전체 하네스 1173 passed) | **97행** — 위 넷뿐(`review/consistency` 50 · `7-llm-client.md` 9 · draft 6 · `__probe_area__` 4 · 루트 임시 디렉터리 3+23 · `__probe_plan__` 2) | **0행** |
+
+«고치기 전» census 는 수정 전 테스트 네 파일을 `origin/main` 에서 떠 잠시 넣고(`cp` 백업) 잰 뒤 되돌렸다. «0행» 이
+훅이 안 걸려서가 아니라는 것은 §A 의 양성 대조군이 같은 환경에서 11행을 낸 것으로 확인했다.
+
+## F. 체크리스트
 
 - [x] 사전 일관성 검토 — spec 영역이 없는 harness-only 변경이라 `--impl-prep`(scope = spec 영역 디렉터리)이
       성립하지 않는다. 이 plan 을 target 으로 `--plan` → `review/consistency/2026/09/25/09_56_00`
       **BLOCK: NO · Critical 0 · Warning 2 · INFO 6**(target 본문 5/5 적재 확인). 처분은 §G
 - [x] `_harness.make_temp_repo_copy` + 네 테스트 수정 + `.claude/tests/README.md` 규약 한 줄
-- [ ] 뮤턴트 P1~P5 · P1b (표 §D)
-- [ ] 병렬 재현을 고친 뒤 다시 — 잔여 0 · 실패 0 이어야 한다
-- [ ] 감사 훅 census 재실행 — 실제 트리 쓰기 0 이어야 한다
-- [ ] CHANGELOG 항목 (커밋 전 staged 확인)
+- [x] 뮤턴트 P1 · P1b · P2~P6 (표 §D) — P5 생존 → fixture 계약 테스트 추가 → 전부 KILLED
+- [x] 병렬 재현을 고친 뒤 다시 — 잔여 0/6 · 실패 0/24 (§E)
+- [x] 감사 훅 census 재실행 — 전 97행 → 후 0행 (§E)
+- [x] CHANGELOG 항목 (커밋 전 staged 확인)
 - [ ] `python3 -m pytest .claude/tests -q` 전체
 - [ ] `/ai-review`
 - [ ] 트래커 항목 닫기
