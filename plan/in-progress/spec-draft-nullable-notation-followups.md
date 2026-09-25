@@ -5100,7 +5100,7 @@ field: T | null;
       | # | 자리 | 낡은 서술 |
       | --- | --- | --- |
       | 1 | `3-error-handling.md:49` | `NOT_A_MEMBER` 발행 경로 열거가 «전환·탈퇴·멤버십 확인» 인데 **세 번째 발행처**(`removeMember` 의 비-멤버 차단)가 빠졌다. 같은 줄의 «`workspaces.service`» 는 이미 맞다 |
-      | 2 | `3-error-handling.md:46` | `ADMIN_REQUIRED` 발행처를 **`WorkspacesService.assertAdmin()` 단수**로 못박는데, 이제 `removeMember` 가 `throwAdminRequired()` 로 직접 던진다 |
+      | 2 | `3-error-handling.md:46` | `ADMIN_REQUIRED` 발행처를 **`WorkspacesService.assertAdmin()` 단수**로 못박는데, 이제 `removeMember` 가 `throwAdminRequired()` 로 직접 던진다 (2026-09-25 조율: `integration-personal-owner` PR 이 이 행에 `IntegrationsService` 발행처를 먼저 더했다 — 남은 것은 `removeMember` 의 `throwAdminRequired()` 한 발행처) |
       | 3 | `1-auth.md:551` | §3.2 정정 노트가 *"`removeMember()` 는 `assertAdmin(workspaceId, requesterId)` 만 요구한다"* 고 적는다. 결론(«Admin 이 멤버 삭제 가능»)은 참이지만 근거로 든 호출이 사라졌다 |
 
       > **자기-반증형 소정정 대상이 아니다.** 조건 1(그 문장을 developer 자신이 썼다)이

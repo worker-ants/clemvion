@@ -5,6 +5,9 @@ owner: developer
 worktree: integration-personal-owner
 spec_impact:
   - spec/2-navigation/4-integration.md
+  - spec/3-workflow-editor/4-ai-assistant.md
+  - spec/5-system/3-error-handling.md
+  - spec/4-nodes/4-integration/_product-overview.md
 started: 2026-09-25
 ---
 
@@ -36,11 +39,26 @@ started: 2026-09-25
   공개 `requireModifiable(id, ws, userId, role, action)`(둘을 합친 것, `oauth/begin` 이 쓴다). `requireEntity` 는 실행 엔진
   (`getForExecution`) 전용으로 남긴다 — 후속 plan 범위.
 - 컨트롤러 — 해당 핸들러에 `@CurrentUser()` · `resolveRole` 를 붙여 서비스로 넘긴다.
+- **완결성 안전망 (`--impl-prep` W2)** — 판정이 핸들러별 수동 배치라 새 `:id` 라우트가 빠질 수 있다(라우트별 수동 부착 누락이
+  이 저장소에서 두 번 났다 — `data-flow/12-workspace.md` Rationale «멤버십 검증은 가드 1곳에서» · «경로 파라미터 워크스페이스도 가드가
+  본다»). 컨트롤러 캐너리 테스트가 `IntegrationsController` 의 `:id` 경로 핸들러를 **리플렉션으로 전수** 세고, 각 핸들러를 실제
+  `IntegrationsService` 에 물려 «남의 personal → 404» 를 확인한다. 새 `:id` 라우트는 이 표에 올리기 전까지 테스트가 실패한다.
+
+## `--impl-prep` 처리 (`review/consistency/2026/09/25/21_49_24` — BLOCK: NO, WARNING 5)
+
+| # | 지적 | 처분 |
+| --- | --- | --- |
+| W1 · W3 | 어시스턴트 spec(`4-ai-assistant.md`)의 통합 목록 · 후보 계약이 §8 을 반영하지 않음 | planner 보강 draft `spec-draft-integration-personal-owner-assistant.md` → `--spec` `22_00_14` BLOCK: NO → 반영(`1e7ee5123`). `spec_impact` 추가 |
+| W2 | 판정이 핸들러별 수동 배치 — 완결성 안전망 없음 | 컨트롤러 `:id` 라우트 전수 캐너리(위 «설계») |
+| W4 | `FORBIDDEN → ADMIN_REQUIRED` 가 `error-codes.md §5` Rename 이력에 없음 | **해당 없음 — 실측.** §5 머리말은 «구 코드는 더 이상 발행되지 않는다(코드베이스에서 완전 제거)» 는 retired 코드만 받는다. `FORBIDDEN` 은 전역 기본값으로 계속 발행된다. 같은 성격의 `#1399` 가드 변경(`FORBIDDEN` → `ADMIN_REQUIRED` 등)도 §5 에 없다 |
+| W5 | `3-error-handling.md §1.2` `ADMIN_REQUIRED` 행을 다른 열린 항목(트래커 «`removeMember` 리팩터로 낡은 spec 서술 세 줄» 표 #2)과 겹쳐 편집 | 그 항목에 조율 각주 — 이 PR 이 행을 먼저 편집했고 남은 것은 `removeMember` 한 발행처 |
 
 ## 체크리스트
 
-- [ ] `--impl-prep`
-- [ ] 테스트 선작성(unit) — 경로별 «남의 personal → 404 · 역할 무관», «Organization 변경 → 비Admin 403», «본인 personal → 통과»
+- [x] `--impl-prep` — `21_49_24` BLOCK: NO, 처리 위
+- [ ] 테스트 선작성(unit) — 경로별 «남의 personal → 부재와 같은 404 · 역할 무관», «Organization 변경 → 비Admin 403 `ADMIN_REQUIRED`»,
+      «본인 personal → 역할 무관 통과», 어시스턴트 도구 · 후보는 남의 personal 을 **목록에서 조용히 뺀다(에러 아님)**
+- [ ] 컨트롤러 `:id` 라우트 전수 캐너리(W2)
 - [ ] 구현
 - [ ] 뮤턴트 — 술어 · 각 경로의 판정 제거가 테스트에 잡히는지
 - [ ] e2e — 다중 액터(Admin · Editor · Viewer · 생성자) 권한 경계
