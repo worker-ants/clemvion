@@ -8,6 +8,7 @@ import {
   createTeamWorkspace,
   inviteAndAccept,
 } from './helpers/auth';
+import { NIL_WS } from '../src/common/__test-utils__/workspace-id-fixtures';
 
 /**
  * e2e: 경로로 워크스페이스를 받는 라우트도 `RolesGuard` 가 본다 — `@WorkspaceParam('id')`.
@@ -31,7 +32,6 @@ const BASE_URL = process.env.E2E_BASE_URL ?? 'http://backend-e2e:3011';
 
 /** 어느 워크스페이스에도 없는 UUID(v4 형식). */
 const ABSENT_WS = '7d3b1c52-0d7e-4a8e-9f0b-5b2f4c6a1e90';
-const NIL_WS = '00000000-0000-0000-0000-000000000000';
 
 describe('Workspace path guard (e2e)', () => {
   let db: Client;
@@ -63,6 +63,8 @@ describe('Workspace path guard (e2e)', () => {
       'viewer',
       db,
     );
+    // 초대 API 는 admin 역할도 받지만 헬퍼 `inviteAndAccept` 의 타입이 admin 을 빼 둔다 — editor 로
+    // 초대한 뒤 owner 가 승격한다. 그 PATCH 가 Admin 라우트의 성공 경로(owner → 200)도 함께 확인한다.
     admin = await inviteAndAccept(
       BASE_URL,
       owner.accessToken,

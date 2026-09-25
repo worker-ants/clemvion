@@ -57,6 +57,10 @@ export interface UuidParamScan {
  * `installToken`×2 · `endpointPath`×2 · `token` · `type`). 비-id 는 전부 정당한 비-UUID 라
  * **허용목록이 필요 없다** — 술어가 이름으로 가른다.
  *
+ * > (2026-09-25 보탬) 그 136 중 15건(경로 워크스페이스 `id`)이 `@WorkspaceParam('id')` 로 옮겨 갔다.
+ * > 모집단 합계는 136 그대로이고(`@Param` id-형 121 + `@WorkspaceParam` 15), 이 술어는 `@Param` 쪽에만
+ * > 적용된다 — `@WorkspaceParam` 은 이름과 무관하게 UUID 라 모집단에 곧바로 든다(아래 `collectMethodViolations`).
+ *
  * 언젠가 `externalId` 처럼 id-형이면서 UUID 가 아닌 파라미터가 생기면 이 가드가 RED 를 내고,
  * 그때 사람이 *"이름을 바꿀 것인가 / 예외를 만들 것인가"* 를 판단하면 된다. 조용히 통과하는
  * 쪽보다 시끄러운 쪽이 낫다.
@@ -163,6 +167,9 @@ function collectMethodViolations(
       // > 전** 값이라 **내 수정이 스스로 무효화**한 숫자다 — 저장소가 이미 적어 둔
       // > *"PR 안의 정량 기록은 PR 이 닫히는 시점의 값"* 을 같은 PR 안에서 어긴 셈이다.
       // > 그래서 지금은 **어느 시점의 값인지**를 문장에 박아 둔다.
+      //
+      // (2026-09-25 보탬) 경로 워크스페이스 15건이 `@WorkspaceParam` 으로 옮긴 뒤 실측: `@Param` id-형
+      // 121건 = 맨 식별자 107 : 인스턴스화 14, 그리고 `@WorkspaceParam` 15건(파이프 내장).
       if (!pipes.includes('ParseUUIDPipe')) missing.push('ParseUUIDPipe');
       if (!excluded && declared.get(param) !== true) {
         missing.push("@ApiParam format:'uuid'");

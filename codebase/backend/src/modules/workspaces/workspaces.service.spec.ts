@@ -556,7 +556,8 @@ describe('WorkspacesService', () => {
       ).rejects.toMatchObject({ response: { code: 'ADMIN_REQUIRED' } });
     });
 
-    it('throws ADMIN_REQUIRED when requester is not a member', async () => {
+    // 비멤버는 요구 역할과 무관하게 NOT_A_MEMBER — `RolesGuard` 와 같은 규칙(두 번째 선도 같은 답).
+    it('throws NOT_A_MEMBER when requester is not a member', async () => {
       memberRepo.findOne.mockResolvedValue(null);
 
       await expect(
@@ -565,7 +566,7 @@ describe('WorkspacesService', () => {
           { interactionAllowedOrigins: ['https://example.com'] },
           'user-uuid-1',
         ),
-      ).rejects.toMatchObject({ response: { code: 'ADMIN_REQUIRED' } });
+      ).rejects.toMatchObject({ response: { code: 'NOT_A_MEMBER' } });
     });
 
     it('throws WORKSPACE_NOT_FOUND when workspace missing', async () => {
@@ -618,12 +619,13 @@ describe('WorkspacesService', () => {
       });
     });
 
-    it('throws FORBIDDEN when requester is not a member', async () => {
+    // 종전 FORBIDDEN — spec(`9-user-profile.md` §6.1)과 가드가 NOT_A_MEMBER 라 두 번째 선도 맞춘다.
+    it('throws NOT_A_MEMBER when requester is not a member', async () => {
       memberRepo.findOne.mockResolvedValue(null);
 
       await expect(
         service.getWorkspaceSettings('ws-uuid-1', 'user-uuid-1'),
-      ).rejects.toMatchObject({ response: { code: 'FORBIDDEN' } });
+      ).rejects.toMatchObject({ response: { code: 'NOT_A_MEMBER' } });
     });
 
     it('throws WORKSPACE_NOT_FOUND when member but workspace missing', async () => {
@@ -979,7 +981,7 @@ describe('WorkspacesService', () => {
     );
 
     it.each(workspaces)(
-      'addMemberByEmail — 워크스페이스 %s 여도 ADMIN_REQUIRED, 워크스페이스는 조회하지 않는다',
+      'addMemberByEmail — 워크스페이스 %s 여도 NOT_A_MEMBER, 워크스페이스는 조회하지 않는다',
       async (_label, workspace) => {
         workspaceRepo.findOne.mockResolvedValue(workspace);
         memberRepo.findOne.mockResolvedValue(null);
@@ -991,7 +993,7 @@ describe('WorkspacesService', () => {
             'editor',
             'user-uuid-1',
           ),
-        ).rejects.toMatchObject({ response: { code: 'ADMIN_REQUIRED' } });
+        ).rejects.toMatchObject({ response: { code: 'NOT_A_MEMBER' } });
         expect(workspaceRepo.findOne).not.toHaveBeenCalled();
       },
     );

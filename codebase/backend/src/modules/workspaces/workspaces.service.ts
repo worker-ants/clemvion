@@ -479,12 +479,7 @@ export class WorkspacesService {
     maxConcurrentExecutions?: number;
   }> {
     const role = await this.getMemberRole(workspaceId, userId);
-    if (!role) {
-      throw new ForbiddenException({
-        code: 'FORBIDDEN',
-        message: '워크스페이스 멤버만 조회할 수 있습니다.',
-      });
-    }
+    if (!role) this.throwNotAMember();
     const workspace = await this.workspaceRepository.findOne({
       where: { id: workspaceId },
     });
@@ -947,7 +942,10 @@ export class WorkspacesService {
     userId: string,
   ): Promise<void> {
     const role = await this.getMemberRole(workspaceId, userId);
-    if (!role || !ADMIN_ROLES.has(role)) this.throwAdminRequired();
+    // 비멤버는 요구 역할과 무관하게 NOT_A_MEMBER — `RolesGuard` 와 같은 규칙(`12-workspace.md`
+    // §Rationale "가드 거부의 오류 코드" 규칙 (나)). 두 선이 같은 실패에 같은 답을 낸다.
+    if (!role) this.throwNotAMember();
+    if (!ADMIN_ROLES.has(role)) this.throwAdminRequired();
   }
 
   private async assertWorkspaceType(

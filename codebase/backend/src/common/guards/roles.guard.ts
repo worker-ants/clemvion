@@ -146,10 +146,10 @@ export class RolesGuard implements CanActivate {
 
     const controllerClass = context.getClass();
     const handler = context.getHandler();
-    const consumesRequestContext = handlerConsumesWorkspaceId(
-      controllerClass,
-      handler,
-    );
+    // `@WorkspaceId()` 소비 판별은 필요한 분기에서만 한다 — `@Roles()` 라우트의 헤더 분기는 결과를
+    // 쓰지 않는다(종전 `&&` 단축과 같은 비용).
+    const consumesRequestContext = () =>
+      handlerConsumesWorkspaceId(controllerClass, handler);
 
     // 경로로 워크스페이스를 받는 라우트 — 인가 대상은 경로 값이다(클래스 docstring "경로 워크스페이스").
     const pathParamNames = workspaceParamNamesOf(controllerClass, handler);
@@ -163,7 +163,7 @@ export class RolesGuard implements CanActivate {
       }
       // `@Roles()` 요구는 경로 워크스페이스에 대해 판정했다. 헤더 컨텍스트까지 소비하는 핸들러면
       // 그쪽은 `@Roles()` 없는 `@WorkspaceId()` 라우트와 같게 멤버십만 본다.
-      if (!consumesRequestContext) return true;
+      if (!consumesRequestContext()) return true;
       return this.checkRequestContext(request, userId, []);
     }
 
@@ -171,7 +171,7 @@ export class RolesGuard implements CanActivate {
     // 헤더가 실려 있어도 검증 대상이 없다(클래스 docstring "대상 제외" 참조).
     // `@Roles()` 라우트는 워크스페이스 컨텍스트를 파라미터로 노출하지 않고도 암묵적으로
     // (토큰의 활성 워크스페이스) 쓸 수 있으므로 이 단축 통과에서 항상 제외한다.
-    if (!needsRoleCheck && !consumesRequestContext) return true;
+    if (!needsRoleCheck && !consumesRequestContext()) return true;
 
     return this.checkRequestContext(request, userId, requiredRoles);
   }
