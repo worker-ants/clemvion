@@ -67,6 +67,9 @@ INFO 3(`nestjs-v12-coordinated-upgrade.md` §C 캐너리 기준값 142)은 요�
   체크리스트다. 30여 컨트롤러를 건드리면 `--impl-done` 스코프가 spec 영역 여럿으로 번진다 — 트래커 후속으로 등재한다.
 - **`param-uuid-pipe` 가드도 `@WorkspaceParam` 을 모집단에 넣는다.** 넣지 않으면 15곳이 그 가드의 문서 축(`@ApiParam({format:'uuid'})`)
   검사에서 조용히 빠진다 — 실측: 모집단 136 유지(분기 없으면 121). 파이프 축은 데코레이터에 내장돼 구조적으로 만족한다.
+- **유저 가이드 `07-workspace-and-team/workspaces-and-members.mdx`(+`.en`) — 검토함, 갱신 불필요**(`/ai-review` `16_03_32` W8).
+  가이드의 권한 서술(역할별 권한 표 · 나가기 · Owner 이양 · 삭제)은 그대로 참이다 — 누가 무엇을 할 수 있는지는 바뀌지 않았다. 바뀐 것은
+  거부 코드(가이드는 코드를 적지 않는다)와, frontend 가 만들지 않는 요청(헤더 워크스페이스 ≠ 경로 워크스페이스)의 판정뿐이다.
 - **`@WorkspaceId` + `@WorkspaceParam` 을 함께 쓰는 핸들러**(오늘 0곳)는 경로 워크스페이스에 역할을, 헤더 워크스페이스에 멤버십만
   본다 — 헤더 쪽을 검사 밖에 두면 헤더 위조가 새므로 fail-closed 로 둘 다 본다.
 
@@ -106,6 +109,7 @@ INFO 3(`nestjs-v12-coordinated-upgrade.md` §C 캐너리 기준값 142)은 요�
 | M15 | 저장소 가드 접미 규칙 제거 | RED | RED 1 — 대조군 «네 형태» |
 | M16 | 저장소 가드 경로 이름 미검사 | RED | RED 1 — 대조군 «네 형태» |
 | M17 | `param-uuid-pipe` 가 `@WorkspaceParam` 을 모집단에서 뺌 | RED | RED 2 |
-- [ ] `/ai-review`
+- [ ] `/ai-review` — 1라운드 `review/code/2026/09/25/16_03_32`: Critical 0 · Warning 8 → 조치 `37ee970a2`(RESOLUTION.md). 수정이
+      있었으므로 2라운드를 돈다(정지 규칙: Critical 0 · Warning 0 · 그 라운드 codebase 수정 0건)
 - [ ] `--impl-done`
 - [ ] 트래커 항목 닫기
