@@ -28,8 +28,10 @@
 `RolesGuard` 의 멤버십 · 역할 거부는 코드 없이 403 을 내 전역 필터가 기본값 `FORBIDDEN` 을 채웠다. 이제 코드를 싣는다 —
 상태 코드는 403 그대로다.
 
-- **거부 코드**(전역 — `@Roles()` 가 붙은 모든 라우트와 헤더 위조 거부): 비멤버는 요구 역할과 무관하게 `NOT_A_MEMBER`,
-  멤버의 역할 미달은 요구 중 가장 낮은 역할의 `EDITOR_REQUIRED` · `ADMIN_REQUIRED` · `OWNER_REQUIRED`.
+- **거부 코드 — 경로 라우트만이 아니라 전역이다.** `@Roles()` 가 붙은 **모든** 라우트(2026-09-25 실측 editor 66 · admin 9 ·
+  owner 7 · viewer 5)와 헤더 위조 거부의 403 본문 코드가 `FORBIDDEN` 에서 바뀐다: 비멤버는 요구 역할과 무관하게 `NOT_A_MEMBER`,
+  멤버의 역할 미달은 요구 중 가장 낮은 역할의 `EDITOR_REQUIRED` · `ADMIN_REQUIRED` · `OWNER_REQUIRED`. `error.code` 로 분기하는
+  클라이언트는 확인할 것(자사 frontend 는 `OWNER_REQUIRED` 한 자리만 분기하고 가드도 같은 코드를 낸다).
 - **경로로 워크스페이스를 받는 15곳**(`/api/workspaces/:id/...` 14 · `POST /api/auth/workspaces/:id/switch`)을 가드가 판정한다.
   종전엔 가드가 경로 값을 보지 않아 서비스 검사에만 기댔고, `transferOwnership` 은 `@Roles('owner')` 를 **헤더 · 토큰의
   워크스페이스**로 판정했다 — 자기 워크스페이스의 owner 가 헤더에 다른 워크스페이스를 실으면 정당한 이양이 403 이었다.

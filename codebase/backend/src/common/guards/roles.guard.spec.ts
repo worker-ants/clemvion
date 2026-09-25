@@ -689,17 +689,38 @@ describe('RolesGuard', () => {
       expect(getMemberRole).toHaveBeenCalledWith(OTHER_WS, 'u1');
     });
 
-    it('경로 워크스페이스가 여럿이면 전부 본다 — 하나라도 비멤버면 거부', async () => {
-      const { guard, getMemberRole } = buildGuard({ [SAME_WS]: 'owner' });
-      await expectForbidden(
+    // 비멤버를 양쪽 자리에 한 번씩 둔다 — 한쪽 순서만 있으면 «첫째만» 또는 «마지막만» 보는 회귀
+    // 중 하나가 살아남는다(`review/code/2026/09/25/16_39_25` testing WARNING).
+    it.each([
+      ['뒤', { a: SAME_WS, b: OTHER_WS }],
+      ['앞', { a: OTHER_WS, b: SAME_WS }],
+    ])(
+      '경로 워크스페이스가 여럿이면 전부 본다 — 비멤버가 %s 자리여도 거부',
+      async (_label, params: Record<string, string>) => {
+        const { guard, getMemberRole } = buildGuard({ [SAME_WS]: 'owner' });
+        await expectForbidden(
+          guard.canActivate(pathContext(PathTarget.prototype.twoPaths, params)),
+          'NOT_A_MEMBER',
+        );
+        expect(getMemberRole).toHaveBeenCalledWith(OTHER_WS, 'u1');
+      },
+    );
+
+    it('경로 워크스페이스가 여럿이고 전부 멤버면 각각 조회한 뒤 통과', async () => {
+      const { guard, getMemberRole } = buildGuard({
+        [SAME_WS]: 'owner',
+        [OTHER_WS]: 'viewer',
+      });
+      await expect(
         guard.canActivate(
           pathContext(PathTarget.prototype.twoPaths, {
             a: SAME_WS,
             b: OTHER_WS,
           }),
         ),
-        'NOT_A_MEMBER',
-      );
+      ).resolves.toBe(true);
+      expect(getMemberRole).toHaveBeenCalledTimes(2);
+      expect(getMemberRole).toHaveBeenCalledWith(SAME_WS, 'u1');
       expect(getMemberRole).toHaveBeenCalledWith(OTHER_WS, 'u1');
     });
 

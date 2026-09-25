@@ -5,7 +5,10 @@
 import * as fs from 'node:fs';
 import * as ts from 'typescript';
 
-import { toPosixRelative } from '../../common/__test-utils__/source-scan';
+import {
+  decoratorCallName,
+  toPosixRelative,
+} from '../../common/__test-utils__/source-scan';
 
 /**
  * UUID 경로 파라미터가 지켜야 하는 두 축. 이름을 붙여 선언·사용 지점을 대칭으로 둔다 —
@@ -60,15 +63,6 @@ export interface UuidParamScan {
  */
 function isIdShaped(name: string): boolean {
   return name === 'id' || /Id$/.test(name);
-}
-
-/** 데코레이터 호출의 이름 (`@Foo(...)` → `'Foo'`). 호출이 아니면 `null`. */
-function decoratorCallName(
-  decorator: ts.Decorator,
-  sf: ts.SourceFile,
-): string | null {
-  const expr = decorator.expression;
-  return ts.isCallExpression(expr) ? expr.expression.getText(sf) : null;
 }
 
 /**

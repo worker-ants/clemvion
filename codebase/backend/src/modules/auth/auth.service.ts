@@ -25,6 +25,7 @@ import {
   hashPassword,
   validatePasswordStrength,
 } from '../../common/utils/password.util';
+import { NOT_A_MEMBER } from '../../common/constants/workspace-roles';
 import { LoginHistoryService } from './login-history.service';
 import { deriveDeviceLabel } from './utils/device-label';
 import type { AuthContext } from './types/auth-context';
@@ -1125,17 +1126,16 @@ export class AuthService {
   ): Promise<{ workspaceId: string; role: string }> {
     // 전환 대상이 지정되면 멤버십을 검증해 그 워크스페이스를 활성값으로 확정한다
     // (data-flow/12-workspace §1.5 switchWorkspace). 비멤버면 전환 거부.
+    //
+    // HTTP 전환 라우트(`POST /auth/workspaces/:id/switch`)는 `@WorkspaceParam('id')` 라 `RolesGuard`
+    // 가 같은 멤버십을 **먼저** 조회해 막는다 — 여기 재조회는 가드 인식이 깨졌을 때의 두 번째 선이라
+    // 의도된 중복이다(role 은 토큰 발급에도 쓰므로 어차피 읽어야 한다). 본문은 가드와 같은 표에서 온다.
     if (targetWorkspaceId) {
       const role = await this.workspacesService.getMemberRole(
         targetWorkspaceId,
         user.id,
       );
-      if (!role) {
-        throw new ForbiddenException({
-          code: 'NOT_A_MEMBER',
-          message: '해당 워크스페이스의 멤버가 아닙니다.',
-        });
-      }
+      if (!role) throw new ForbiddenException({ ...NOT_A_MEMBER });
       return { workspaceId: targetWorkspaceId, role };
     }
 

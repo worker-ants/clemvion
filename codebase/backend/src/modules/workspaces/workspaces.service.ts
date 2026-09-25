@@ -20,7 +20,11 @@ import { UpdateWorkspaceSettingsDto } from './dto/update-workspace-settings.dto'
 import { AuditLogsService } from '../audit-logs/audit-logs.service';
 import { AUDIT_ACTIONS } from '../audit-logs/audit-action.const';
 import { resolveTriggerResourceReleaser } from '../triggers/trigger-resource-release';
-import { ADMIN_ROLES } from '../../common/constants/workspace-roles';
+import {
+  ADMIN_ROLES,
+  NOT_A_MEMBER,
+  ROLE_REQUIRED,
+} from '../../common/constants/workspace-roles';
 
 @Injectable()
 export class WorkspacesService {
@@ -673,12 +677,7 @@ export class WorkspacesService {
         where: { workspaceId, userId: requesterId },
         lock: { mode: 'pessimistic_write' },
       });
-      if (!membership) {
-        throw new ForbiddenException({
-          code: 'NOT_A_MEMBER',
-          message: '워크스페이스 멤버가 아닙니다.',
-        });
-      }
+      if (!membership) this.throwNotAMember();
       if (membership.role === 'owner') {
         const owners = await memRepo.find({
           where: { workspaceId, role: 'owner' },
@@ -916,21 +915,16 @@ export class WorkspacesService {
   /**
    * «워크스페이스 멤버가 아니다» — `assertMembership` 과, 요청자 role 을 **직접** 읽어
    * 재사용하는 `removeMember` 가 쓴다. 후자는 `assertMembership` 을 못 부른다(같은
-   * `getMemberRole` 을 두 번 돌리게 된다)므로 **판정문만** 공유한다.
+   * `getMemberRole` 을 두 번 돌리게 된다)므로 **판정문만** 공유한다. 본문은 `RolesGuard` 와 같은
+   * 표(`common/constants/workspace-roles.ts`)에서 온다 — 두 선이 같은 실패에 같은 문장을 낸다.
    */
   private throwNotAMember(): never {
-    throw new ForbiddenException({
-      code: 'NOT_A_MEMBER',
-      message: '워크스페이스 멤버가 아닙니다.',
-    });
+    throw new ForbiddenException({ ...NOT_A_MEMBER });
   }
 
   /** 위 `throwNotAMember()` 와 같은 이유로 판정문만 공유한다. */
   private throwAdminRequired(): never {
-    throw new ForbiddenException({
-      code: 'ADMIN_REQUIRED',
-      message: 'Admin 이상의 권한이 필요합니다.',
-    });
+    throw new ForbiddenException({ ...ROLE_REQUIRED.admin });
   }
 
   /**

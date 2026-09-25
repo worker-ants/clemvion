@@ -5,7 +5,10 @@
 import * as fs from 'node:fs';
 import * as ts from 'typescript';
 
-import { toPosixRelative } from '../../common/__test-utils__/source-scan';
+import {
+  decoratorCallName,
+  toPosixRelative,
+} from '../../common/__test-utils__/source-scan';
 
 /** 위반 한 건. */
 export interface WorkspaceParamBindingViolation {
@@ -42,15 +45,6 @@ export interface WorkspaceParamBindingScan {
  */
 function isWorkspaceIdName(name: string): boolean {
   return name === 'workspaceId' || name.endsWith('WorkspaceId');
-}
-
-/** 데코레이터 호출의 이름 (`@Foo(...)` → `'Foo'`). 호출이 아니면 `null`. */
-function decoratorCallName(
-  decorator: ts.Decorator,
-  sf: ts.SourceFile,
-): string | null {
-  const expr = decorator.expression;
-  return ts.isCallExpression(expr) ? expr.expression.getText(sf) : null;
 }
 
 /**

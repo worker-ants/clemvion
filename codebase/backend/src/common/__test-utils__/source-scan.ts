@@ -131,6 +131,21 @@ export function enclosingScopeName(node: ts.Node, sf: ts.SourceFile): string {
 }
 
 /**
+ * 데코레이터 호출의 이름(`@Foo(...)` → `'Foo'`). 호출이 아니면(`@Foo`) `null`.
+ *
+ * 텍스트 비교라 별칭 import(`Param as P`)면 원래 이름을 모른다 — 쓰는 가드들이 같은 한계를 적어 둔다.
+ * `param-uuid-pipe-guard` 와 `workspace-param-binding-guard` 가 글자 그대로 복제하고 있던 것을 옮겼다
+ * (`review/code/2026/09/25/16_39_25` maintainability WARNING).
+ */
+export function decoratorCallName(
+  decorator: ts.Decorator,
+  sf: ts.SourceFile,
+): string | null {
+  const expr = decorator.expression;
+  return ts.isCallExpression(expr) ? expr.expression.getText(sf) : null;
+}
+
+/**
  * 문자열·템플릿 리터럴 내용을 지운다(따옴표는 남긴다).
  *
  * ## 왜 필요한가 — 가드의 픽스처가 가드에 걸린다

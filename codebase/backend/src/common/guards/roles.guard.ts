@@ -9,7 +9,12 @@ import { Reflector } from '@nestjs/core';
 import { WorkspacesService } from '../../modules/workspaces/workspaces.service';
 import { resolveRequestWorkspaceContext } from '../utils/workspace-context.util';
 import { isUuidShaped } from '../utils/uuid';
-import { workspaceRoleLevel as roleLevel } from '../constants/workspace-roles';
+import {
+  NOT_A_MEMBER,
+  ROLE_REQUIRED,
+  type WorkspaceRoleName,
+  workspaceRoleLevel as roleLevel,
+} from '../constants/workspace-roles';
 import {
   handlerConsumesWorkspaceId,
   workspaceParamNamesOf,
@@ -26,28 +31,12 @@ export const ROLES_KEY = 'roles';
  * **역할 계층 비교만** 통제한다. 워크스페이스 멤버십 검증은 이 데코레이터와 무관하게
  * 항상 수행되므로, "조회 엔드포인트라 `@Roles()` 를 안 붙였다" 가 멤버십 우회로
  * 이어지지 않는다 (아래 `RolesGuard` 주석 참조).
+ *
+ * 인자는 역할 이름 유니온이다 — 미등록 문자열은 서열 0 이라 **요구가 사라지는 방향**(멤버면 통과)으로
+ * 새므로 오탈자를 컴파일에서 막는다.
  */
-export const Roles = (...roles: string[]) => SetMetadata(ROLES_KEY, roles);
-
-const NOT_A_MEMBER = {
-  code: 'NOT_A_MEMBER',
-  message: '워크스페이스 멤버가 아닙니다.',
-} as const;
-
-/**
- * 멤버의 역할 미달 거부 — **라우트가 요구하는 최소 역할**의 코드다. 메시지는 서비스 계층과 같은
- * 한국어다(`workspaces.service.ts` 의 `throwAdminRequired`). `viewer` 는 멤버십과 같아 비멤버와 같은
- * 본문이다 — 멤버는 누구나 viewer 이상이라 이 자리는 DB 에 계층 밖 역할 문자열이 있을 때만 닿는다.
- */
-const ROLE_REQUIRED: Record<string, { code: string; message: string }> = {
-  viewer: NOT_A_MEMBER,
-  editor: {
-    code: 'EDITOR_REQUIRED',
-    message: 'Editor 이상의 권한이 필요합니다.',
-  },
-  admin: { code: 'ADMIN_REQUIRED', message: 'Admin 이상의 권한이 필요합니다.' },
-  owner: { code: 'OWNER_REQUIRED', message: 'Owner 권한이 필요합니다.' },
-};
+export const Roles = (...roles: WorkspaceRoleName[]) =>
+  SetMetadata(ROLES_KEY, roles);
 
 interface RequestWithUser {
   user?: { sub?: string; workspaceId?: string };
@@ -226,13 +215,17 @@ export class RolesGuard implements CanActivate {
       workspaceId,
       userId,
     );
-    if (!role) throw new ForbiddenException(NOT_A_MEMBER);
+    if (!role) throw new ForbiddenException({ ...NOT_A_MEMBER });
     if (requiredRoles.length === 0) return;
 
     const threshold = requiredRoles.reduce((lowest, required) =>
       roleLevel(required) < roleLevel(lowest) ? required : lowest,
     );
     if (roleLevel(role) >= roleLevel(threshold)) return;
-    throw new ForbiddenException(ROLE_REQUIRED[threshold] ?? NOT_A_MEMBER);
+    // 여기 닿았다면 문턱의 서열이 멤버의 서열(≥ 0)보다 높다 — 서열 0 인 미등록 문자열은 문턱이
+    // 될 수 없어 `threshold` 는 늘 등록된 역할이다.
+    throw new ForbiddenException({
+      ...ROLE_REQUIRED[threshold as WorkspaceRoleName],
+    });
   }
 }
