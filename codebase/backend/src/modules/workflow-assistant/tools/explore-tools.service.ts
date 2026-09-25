@@ -5,6 +5,10 @@ import { Workflow } from '../../workflows/entities/workflow.entity';
 import { Node } from '../../nodes/entities/node.entity';
 import { Edge } from '../../edges/entities/edge.entity';
 import { Integration } from '../../integrations/entities/integration.entity';
+import {
+  INTEGRATION_VIEWER_PARAM,
+  integrationVisibilityClause,
+} from '../../integrations/integration-visibility';
 import { KnowledgeBase } from '../../knowledge-base/entities/knowledge-base.entity';
 import { Execution } from '../../executions/entities/execution.entity';
 import {
@@ -159,11 +163,16 @@ export class ExploreToolsService {
 
   async listIntegrations(
     workspaceId: string,
+    userId: string,
     category?: string,
   ): Promise<unknown> {
+    // 요청자에게 보이는 통합만 — 남의 personal 은 목록에서 빠진다(에러가 아니다). spec 통합 §8 · 어시스턴트 §4.1.
     const qb = this.integrationRepo
       .createQueryBuilder('i')
-      .where('i.workspace_id = :workspaceId', { workspaceId });
+      .where('i.workspace_id = :workspaceId', { workspaceId })
+      .andWhere(integrationVisibilityClause('i'), {
+        [INTEGRATION_VIEWER_PARAM]: userId,
+      });
     if (category) {
       qb.andWhere('i.service_type = :t', { t: category });
     }

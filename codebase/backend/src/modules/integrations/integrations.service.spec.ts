@@ -20,6 +20,10 @@ import {
   TestConnectionResultDto,
 } from './dto/responses/integration-response.dto';
 import type { Integration } from './entities/integration.entity';
+import {
+  INTEGRATION_VIEWER_PARAM,
+  integrationVisibilityClause,
+} from './integration-visibility';
 import { AUDIT_ACTIONS } from '../audit-logs/audit-action.const';
 import { UNREADABLE_KEY } from './services/credentials-transformer';
 import { SERVICE_REGISTRY } from './services/service-registry';
@@ -198,16 +202,16 @@ describe('IntegrationsService', () => {
   // -----------------------------------------------------------------
   describe('findById', () => {
     it('masks secret credential fields', async () => {
-      const result = await service.findById('int-1', 'ws-1');
+      const result = await service.findById('int-1', 'ws-1', 'user-1');
       expect(result.credentials.access_token).toBe('********');
       expect(result.credentials.account_email).toBe('user@example.com');
     });
 
     it('throws NotFoundException when missing', async () => {
       integrationRepo.findOne.mockResolvedValue(null);
-      await expect(service.findById('missing', 'ws-1')).rejects.toThrow(
-        NotFoundException,
-      );
+      await expect(
+        service.findById('missing', 'ws-1', 'user-1'),
+      ).rejects.toThrow(NotFoundException);
     });
 
     // -----------------------------------------------------------------
@@ -229,7 +233,7 @@ describe('IntegrationsService', () => {
             },
           }),
         );
-        const result = await service.findById('int-1', 'ws-1');
+        const result = await service.findById('int-1', 'ws-1', 'user-1');
         expect(result.meta).toEqual({ appType: 'private' });
       });
 
@@ -245,13 +249,13 @@ describe('IntegrationsService', () => {
             },
           }),
         );
-        const result = await service.findById('int-1', 'ws-1');
+        const result = await service.findById('int-1', 'ws-1', 'user-1');
         expect(result.meta).toEqual({ appType: 'public' });
       });
 
       it('returns null for non-cafe24 service types', async () => {
         // Default makeIntegration uses serviceType='google'.
-        const result = await service.findById('int-1', 'ws-1');
+        const result = await service.findById('int-1', 'ws-1', 'user-1');
         expect(result.meta).toEqual({ appType: null });
       });
 
@@ -262,7 +266,7 @@ describe('IntegrationsService', () => {
             credentials: { mall_id: 'shop', app_type: 'bogus' },
           }),
         );
-        const result = await service.findById('int-1', 'ws-1');
+        const result = await service.findById('int-1', 'ws-1', 'user-1');
         expect(result.meta).toEqual({ appType: null });
       });
 
@@ -278,7 +282,7 @@ describe('IntegrationsService', () => {
             >,
           }),
         );
-        const result = await service.findById('int-1', 'ws-1');
+        const result = await service.findById('int-1', 'ws-1', 'user-1');
         expect(result.meta).toEqual({ appType: null });
         // Sanity: status flips to error/needs_reauth on unreadable.
         expect(result.credentialsStatus).toBe('needs_reauth');
@@ -300,7 +304,7 @@ describe('IntegrationsService', () => {
             },
           }),
         );
-        const result = await service.findById('int-1', 'ws-1');
+        const result = await service.findById('int-1', 'ws-1', 'user-1');
         expect(result.meta).toEqual({ appType: null });
       });
     });
@@ -338,7 +342,7 @@ describe('IntegrationsService', () => {
             },
           }),
         );
-        const result = await service.findById('int-1', 'ws-1');
+        const result = await service.findById('int-1', 'ws-1', 'user-1');
         expect(result.appUrl).toBe(
           'https://app.example.com/api/3rd-party/cafe24/install/AbCdEfGhIjKlMnOpQrStUv',
         );
@@ -358,7 +362,7 @@ describe('IntegrationsService', () => {
             },
           }),
         );
-        const result = await service.findById('int-1', 'ws-1');
+        const result = await service.findById('int-1', 'ws-1', 'user-1');
         expect(result.appUrl).toBeNull();
       });
 
@@ -375,13 +379,13 @@ describe('IntegrationsService', () => {
             },
           }),
         );
-        const result = await service.findById('int-1', 'ws-1');
+        const result = await service.findById('int-1', 'ws-1', 'user-1');
         expect(result.appUrl).toBeNull();
       });
 
       it('returns null for non-cafe24 service types', async () => {
         // Default makeIntegration uses serviceType='google'.
-        const result = await service.findById('int-1', 'ws-1');
+        const result = await service.findById('int-1', 'ws-1', 'user-1');
         expect(result.appUrl).toBeNull();
       });
 
@@ -399,7 +403,7 @@ describe('IntegrationsService', () => {
             },
           }),
         );
-        const result = await service.findById('int-1', 'ws-1');
+        const result = await service.findById('int-1', 'ws-1', 'user-1');
         expect(
           (result as unknown as Record<string, unknown>).installToken,
         ).toBeUndefined();
@@ -420,7 +424,7 @@ describe('IntegrationsService', () => {
             },
           }),
         );
-        const result = await service.findById('int-1', 'ws-1');
+        const result = await service.findById('int-1', 'ws-1', 'user-1');
         expect(result.appUrl).toBe(
           'https://app.example.com/api/3rd-party/cafe24/install/AbCdEfGhIjKlMnOpQrStUv',
         );
@@ -437,7 +441,7 @@ describe('IntegrationsService', () => {
             >,
           }),
         );
-        const result = await service.findById('int-1', 'ws-1');
+        const result = await service.findById('int-1', 'ws-1', 'user-1');
         expect(result.appUrl).toBeNull();
       });
 
@@ -459,7 +463,7 @@ describe('IntegrationsService', () => {
             },
           }),
         );
-        const result = await service.findById('int-1', 'ws-1');
+        const result = await service.findById('int-1', 'ws-1', 'user-1');
         expect(result.appUrl).toBe(
           'https://app.example.com/api/3rd-party/makeshop/install/AbCdEfGhIjKlMnOpQrStUv',
         );
@@ -481,7 +485,7 @@ describe('IntegrationsService', () => {
             },
           }),
         );
-        const result = await service.findById('int-1', 'ws-1');
+        const result = await service.findById('int-1', 'ws-1', 'user-1');
         expect(result.appUrl).toBeNull();
       });
     });
@@ -502,13 +506,13 @@ describe('IntegrationsService', () => {
             credentials: { mall_id: 'myshop', app_type: 'public' },
           }),
         );
-        const result = await service.findById('int-1', 'ws-1');
+        const result = await service.findById('int-1', 'ws-1', 'user-1');
         expect(result.autoRefresh).toBe(true);
       });
 
       it('returns true for google (refresh_token 발급 provider)', async () => {
         // Default makeIntegration uses serviceType='google'.
-        const result = await service.findById('int-1', 'ws-1');
+        const result = await service.findById('int-1', 'ws-1', 'user-1');
         expect(result.autoRefresh).toBe(true);
       });
 
@@ -528,7 +532,7 @@ describe('IntegrationsService', () => {
             },
           }),
         );
-        const result = await service.findById('int-1', 'ws-1');
+        const result = await service.findById('int-1', 'ws-1', 'user-1');
         expect(result.autoRefresh).toBe(true);
       });
 
@@ -536,7 +540,7 @@ describe('IntegrationsService', () => {
         integrationRepo.findOne.mockResolvedValue(
           makeIntegration({ serviceType: 'github', authType: 'oauth2' }),
         );
-        const result = await service.findById('int-1', 'ws-1');
+        const result = await service.findById('int-1', 'ws-1', 'user-1');
         expect(result.autoRefresh).toBe(false);
       });
 
@@ -544,7 +548,7 @@ describe('IntegrationsService', () => {
         integrationRepo.findOne.mockResolvedValue(
           makeIntegration({ serviceType: 'http', authType: 'api_key' }),
         );
-        const result = await service.findById('int-1', 'ws-1');
+        const result = await service.findById('int-1', 'ws-1', 'user-1');
         expect(result.autoRefresh).toBe(false);
       });
 
@@ -558,7 +562,7 @@ describe('IntegrationsService', () => {
             credentials: { mall_id: 'myshop', app_type: 'private' },
           }),
         );
-        const result = await service.findById('int-1', 'ws-1');
+        const result = await service.findById('int-1', 'ws-1', 'user-1');
         expect(result.autoRefresh).toBe(true);
       });
 
@@ -569,7 +573,7 @@ describe('IntegrationsService', () => {
             authType: 'api_key',
           }),
         );
-        const result = await service.findById('int-1', 'ws-1');
+        const result = await service.findById('int-1', 'ws-1', 'user-1');
         expect(result.autoRefresh).toBe(false);
       });
 
@@ -587,7 +591,7 @@ describe('IntegrationsService', () => {
             >,
           }),
         );
-        const result = await service.findById('int-1', 'ws-1');
+        const result = await service.findById('int-1', 'ws-1', 'user-1');
         expect(result.autoRefresh).toBe(true);
       });
     });
@@ -598,15 +602,15 @@ describe('IntegrationsService', () => {
   // -----------------------------------------------------------------
   describe('testConnection', () => {
     it('returns success for valid credentials', async () => {
-      const result = await service.testConnection('int-1', 'ws-1');
+      const result = await service.testConnection('int-1', 'ws-1', 'user-1');
       expect(result.success).toBe(true);
     });
 
     it('throws NotFoundException for missing integration', async () => {
       integrationRepo.findOne.mockResolvedValue(null);
-      await expect(service.testConnection('missing', 'ws-1')).rejects.toThrow(
-        NotFoundException,
-      );
+      await expect(
+        service.testConnection('missing', 'ws-1', 'user-1'),
+      ).rejects.toThrow(NotFoundException);
     });
 
     it('자격증명을 복호화하지 못하면 테스터를 부르지 않고 INTEGRATION_CREDENTIALS_UNREADABLE', async () => {
@@ -622,7 +626,7 @@ describe('IntegrationsService', () => {
         }),
       );
 
-      const result = await service.testConnection('int-1', 'ws-1');
+      const result = await service.testConnection('int-1', 'ws-1', 'user-1');
 
       expect(result).toMatchObject({
         success: false,
@@ -654,7 +658,7 @@ describe('IntegrationsService', () => {
       });
       service.registerEntityTester('cafe24', probe);
 
-      const result = await service.testConnection('int-1', 'ws-1');
+      const result = await service.testConnection('int-1', 'ws-1', 'user-1');
 
       expect(probe).toHaveBeenCalledWith(cafe24Integration);
       expect(result).toEqual({
@@ -707,7 +711,7 @@ describe('IntegrationsService', () => {
       integrationRepo.findOne.mockResolvedValue(cafe24Integration);
 
       // No entity tester registered — fallback path returns structural success.
-      const result = await service.testConnection('int-1', 'ws-1');
+      const result = await service.testConnection('int-1', 'ws-1', 'user-1');
       expect(result.success).toBe(true);
     });
 
@@ -733,7 +737,7 @@ describe('IntegrationsService', () => {
       const probe = jest.fn();
       service.registerEntityTester('cafe24', probe);
 
-      const result = await service.testConnection('int-1', 'ws-1');
+      const result = await service.testConnection('int-1', 'ws-1', 'user-1');
 
       expect(probe).not.toHaveBeenCalled();
       expect(result).toEqual({
@@ -766,7 +770,7 @@ describe('IntegrationsService', () => {
       });
       integrationRepo.findOne.mockResolvedValue(pendingHttp);
 
-      const result = await service.testConnection('int-1', 'ws-1');
+      const result = await service.testConnection('int-1', 'ws-1', 'user-1');
 
       expect(result).toEqual({
         success: false,
@@ -813,7 +817,7 @@ describe('IntegrationsService', () => {
       const close = jest.fn();
       mockedCreateTransport.mockReturnValue({ verify, close });
 
-      const result = await service.testConnection('int-1', 'ws-1');
+      const result = await service.testConnection('int-1', 'ws-1', 'user-1');
 
       expect(result).toEqual({
         success: true,
@@ -843,7 +847,7 @@ describe('IntegrationsService', () => {
       const close = jest.fn();
       mockedCreateTransport.mockReturnValue({ verify, close });
 
-      const result = await service.testConnection('int-1', 'ws-1');
+      const result = await service.testConnection('int-1', 'ws-1', 'user-1');
 
       expect(result.success).toBe(false);
       expect(result.code).toBe('EMAIL_CONNECT_FAILED');
@@ -868,7 +872,7 @@ describe('IntegrationsService', () => {
         }),
       );
 
-      const result = await service.testConnection('int-1', 'ws-1');
+      const result = await service.testConnection('int-1', 'ws-1', 'user-1');
 
       expect(result.success).toBe(false);
       expect(mockedCreateTransport).not.toHaveBeenCalled();
@@ -892,7 +896,7 @@ describe('IntegrationsService', () => {
       const verify = jest.fn().mockResolvedValue(true);
       mockedCreateTransport.mockReturnValue({ verify, close: jest.fn() });
 
-      await service.testConnection('int-1', 'ws-1');
+      await service.testConnection('int-1', 'ws-1', 'user-1');
 
       expect(mockedCreateTransport).toHaveBeenCalledWith(
         expect.objectContaining({ secure: true, requireTLS: false }),
@@ -942,7 +946,7 @@ describe('IntegrationsService', () => {
         }),
       );
 
-      const result = await service.testConnection('int-1', 'ws-1');
+      const result = await service.testConnection('int-1', 'ws-1', 'user-1');
 
       expect(result.success).toBe(false);
       expect(result.code).toBe('EMAIL_HOST_BLOCKED');
@@ -956,7 +960,12 @@ describe('IntegrationsService', () => {
   // -----------------------------------------------------------------
   describe('reauthorize', () => {
     it('delegates to OAuth service for OAuth integrations', async () => {
-      const result = await service.reauthorize('int-1', 'ws-1', 'user-1');
+      const result = await service.reauthorize(
+        'int-1',
+        'ws-1',
+        'user-1',
+        'editor',
+      );
       expect(result.authUrl).toBe('https://example.com');
       expect(oauthServiceMock.begin).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -979,7 +988,12 @@ describe('IntegrationsService', () => {
           statusReason: 'auth_failed',
         }),
       );
-      const result = await service.reauthorize('int-1', 'ws-1', 'user-1');
+      const result = await service.reauthorize(
+        'int-1',
+        'ws-1',
+        'user-1',
+        'editor',
+      );
       expect(result).toEqual({ authUrl: '', state: '' });
       expect(integrationRepo.save).toHaveBeenCalledWith(
         expect.objectContaining({ status: 'connected', statusReason: null }),
@@ -995,7 +1009,7 @@ describe('IntegrationsService', () => {
           statusReason: 'auth_failed',
         }),
       );
-      await service.reauthorize('int-1', 'ws-1', 'user-1');
+      await service.reauthorize('int-1', 'ws-1', 'user-1', 'editor');
       expect(auditLogsService.record).toHaveBeenCalledWith(
         expect.objectContaining({
           workspaceId: 'ws-1',
@@ -1017,7 +1031,7 @@ describe('IntegrationsService', () => {
       integrationRepo.findOne.mockResolvedValue(
         makeIntegration({ name: 'My Google' }),
       );
-      const result = await service.update('int-1', 'ws-1', 'user-1', {
+      const result = await service.update('int-1', 'ws-1', 'user-1', 'editor', {
         name: 'Renamed',
       });
       expect(result.name).toBe('Renamed');
@@ -1040,14 +1054,14 @@ describe('IntegrationsService', () => {
       integrationRepo.findOne.mockResolvedValue(
         makeIntegration({ name: 'My Google' }),
       );
-      await service.update('int-1', 'ws-1', 'user-1', {});
+      await service.update('int-1', 'ws-1', 'user-1', 'editor', {});
       expect(auditLogsService.record).not.toHaveBeenCalled();
     });
 
     it('throws NotFoundException when integration is absent', async () => {
       integrationRepo.findOne.mockResolvedValue(null);
       await expect(
-        service.update('missing', 'ws-1', 'user-1', { name: 'X' }),
+        service.update('missing', 'ws-1', 'user-1', 'editor', { name: 'X' }),
       ).rejects.toThrow(NotFoundException);
       expect(auditLogsService.record).not.toHaveBeenCalled();
     });
@@ -1058,7 +1072,7 @@ describe('IntegrationsService', () => {
   // -----------------------------------------------------------------
   describe('remove', () => {
     it('deletes when no usages exist', async () => {
-      await service.remove('int-1', 'ws-1', 'user-1');
+      await service.remove('int-1', 'ws-1', 'user-1', 'editor');
       expect(integrationRepo.delete).toHaveBeenCalledWith({
         id: 'int-1',
         workspaceId: 'ws-1',
@@ -1079,7 +1093,7 @@ describe('IntegrationsService', () => {
       integrationRepo.delete.mockResolvedValueOnce({ affected: 0, raw: [] });
 
       await expect(
-        service.remove('int-1', 'ws-1', 'user-1'),
+        service.remove('int-1', 'ws-1', 'user-1', 'editor'),
       ).rejects.toMatchObject({ response: { code: 'RESOURCE_NOT_FOUND' } });
 
       expect(auditLogsService.record).not.toHaveBeenCalled();
@@ -1101,7 +1115,7 @@ describe('IntegrationsService', () => {
         integrationRepo.delete.mockResolvedValueOnce({ affected, raw: [] });
 
         await expect(
-          service.remove('int-1', 'ws-1', 'user-1'),
+          service.remove('int-1', 'ws-1', 'user-1', 'editor'),
         ).resolves.toBeUndefined();
         expect(auditLogsService.record).toHaveBeenCalled();
         expect(integrationCacheBus.publish).toHaveBeenCalled();
@@ -1109,22 +1123,22 @@ describe('IntegrationsService', () => {
     });
 
     it('broadcasts cache invalidation with the integration id (04 m-4)', async () => {
-      await service.remove('int-1', 'ws-1', 'user-1');
+      await service.remove('int-1', 'ws-1', 'user-1', 'editor');
       expect(integrationCacheBus.publish).toHaveBeenCalledWith('int-1');
     });
 
     it('throws NotFoundException when the integration is absent', async () => {
       integrationRepo.findOne.mockResolvedValue(null);
-      await expect(service.remove('missing', 'ws-1', 'user-1')).rejects.toThrow(
-        NotFoundException,
-      );
+      await expect(
+        service.remove('missing', 'ws-1', 'user-1', 'editor'),
+      ).rejects.toThrow(NotFoundException);
       // NotFound short-circuits before the usage-node query runs (post-⑦ the
       // remove()-local findOne is the sole existence gate).
       expect(nodeRepo.createQueryBuilder).not.toHaveBeenCalled();
     });
 
     it('reads the integration row only once (no duplicate findById — PR #633 후속 ⑦)', async () => {
-      await service.remove('int-1', 'ws-1', 'user-1');
+      await service.remove('int-1', 'ws-1', 'user-1', 'editor');
       // remove() validates via findOne and calls queryUsageNodes directly,
       // so it must NOT re-read the integration row through getUsages→findById.
       expect(integrationRepo.findOne).toHaveBeenCalledTimes(1);
@@ -1148,9 +1162,9 @@ describe('IntegrationsService', () => {
           ],
         }),
       );
-      await expect(service.remove('int-1', 'ws-1', 'user-1')).rejects.toThrow(
-        ConflictException,
-      );
+      await expect(
+        service.remove('int-1', 'ws-1', 'user-1', 'editor'),
+      ).rejects.toThrow(ConflictException);
       expect(integrationCacheBus.publish).not.toHaveBeenCalled();
     });
 
@@ -1170,9 +1184,9 @@ describe('IntegrationsService', () => {
           ],
         }),
       );
-      await expect(service.remove('int-1', 'ws-1', 'user-1')).rejects.toThrow(
-        ConflictException,
-      );
+      await expect(
+        service.remove('int-1', 'ws-1', 'user-1', 'editor'),
+      ).rejects.toThrow(ConflictException);
       expect(integrationRepo.delete).not.toHaveBeenCalled();
     });
 
@@ -1192,9 +1206,9 @@ describe('IntegrationsService', () => {
           ],
         }),
       );
-      await expect(service.remove('int-1', 'ws-1', 'user-1')).rejects.toThrow(
-        ConflictException,
-      );
+      await expect(
+        service.remove('int-1', 'ws-1', 'user-1', 'editor'),
+      ).rejects.toThrow(ConflictException);
       expect(integrationRepo.delete).not.toHaveBeenCalled();
     });
   });
@@ -1205,9 +1219,9 @@ describe('IntegrationsService', () => {
   describe('getUsages', () => {
     it('throws NotFoundException when the integration is absent (cross-workspace leak defense)', async () => {
       integrationRepo.findOne.mockResolvedValue(null);
-      await expect(service.getUsages('missing', 'ws-1')).rejects.toThrow(
-        NotFoundException,
-      );
+      await expect(
+        service.getUsages('missing', 'ws-1', 'user-1'),
+      ).rejects.toThrow(NotFoundException);
     });
 
     it('groups rows by workflow', async () => {
@@ -1244,7 +1258,7 @@ describe('IntegrationsService', () => {
           ],
         }),
       );
-      const usages = await service.getUsages('int-1', 'ws-1');
+      const usages = await service.getUsages('int-1', 'ws-1', 'user-1');
       expect(usages).toHaveLength(2);
       expect(usages[0].nodes).toHaveLength(2);
       expect(usages[1].isActive).toBe(false);
@@ -1272,7 +1286,7 @@ describe('IntegrationsService', () => {
           ],
         }),
       );
-      const usages = await service.getUsages('int-1', 'ws-1');
+      const usages = await service.getUsages('int-1', 'ws-1', 'user-1');
       expect(usages).toHaveLength(1);
       expect(usages[0].nodes[0].usageKind).toBe('direct');
     });
@@ -1293,7 +1307,7 @@ describe('IntegrationsService', () => {
           ],
         }),
       );
-      const usages = await service.getUsages('int-1', 'ws-1');
+      const usages = await service.getUsages('int-1', 'ws-1', 'user-1');
       expect(usages).toHaveLength(1);
       expect(usages[0].nodes[0].usageKind).toBe('mcp');
     });
@@ -1320,7 +1334,7 @@ describe('IntegrationsService', () => {
           ],
         }),
       );
-      const usages = await service.getUsages('int-1', 'ws-1');
+      const usages = await service.getUsages('int-1', 'ws-1', 'user-1');
       expect(usages).toHaveLength(1);
       expect(usages[0].nodes).toHaveLength(1);
       expect(usages[0].nodes[0].usageKind).toBe('direct');
@@ -1466,7 +1480,7 @@ describe('IntegrationsService', () => {
           service.rotate('int-1', 'ws-1', 'user-1', 'member', {
             credentials: { value: 'new-secret' },
           }),
-        ).rejects.toMatchObject({ response: { code: 'FORBIDDEN' } });
+        ).rejects.toMatchObject({ response: { code: 'ADMIN_REQUIRED' } });
         expect(integrationRepo.update).not.toHaveBeenCalled();
       });
 
@@ -1562,7 +1576,7 @@ describe('IntegrationsService', () => {
         service.rotate('int-1', 'ws-1', 'user-1', 'member', {
           credentials: { value: 'v2' },
         }),
-      ).rejects.toThrow(ForbiddenException);
+      ).rejects.toMatchObject({ response: { code: 'ADMIN_REQUIRED' } });
     });
   });
 
@@ -1703,7 +1717,7 @@ describe('IntegrationsService', () => {
         service.updateScope('int-1', 'ws-1', 'user-1', 'member', {
           scope: 'organization',
         }),
-      ).rejects.toThrow(ForbiddenException);
+      ).rejects.toMatchObject({ response: { code: 'ADMIN_REQUIRED' } });
     });
 
     it('allows admin to change scope', async () => {
@@ -1724,6 +1738,343 @@ describe('IntegrationsService', () => {
   });
 
   // -----------------------------------------------------------------
+  // 소유자 강제 — spec/2-navigation/4-integration.md §8 판정 규칙
+  // -----------------------------------------------------------------
+  describe('소유자 강제 (§8 판정 규칙)', () => {
+    /** 기본 픽스처(`makeIntegration`)의 생성자는 user-1 이다 — 여기서 요청자는 다른 멤버다. */
+    const OTHER = 'user-2';
+    const ROLES = ['owner', 'admin', 'editor', 'viewer'] as const;
+
+    const httpCreds = {
+      location: 'header',
+      key_name: 'X-Api-Key',
+      value: 'old-secret',
+    };
+    /** 비-OAuth(rotate 가능) · OAuth(request-scopes · 재인증 위임) 두 형태 — 경로마다 받는 형태가 다르다. */
+    const httpOf = (scope: string) =>
+      makeIntegration({
+        scope,
+        createdBy: 'user-1',
+        serviceType: 'http',
+        authType: 'api_key',
+        credentials: { ...httpCreds },
+      });
+    const googleOf = (scope: string) =>
+      makeIntegration({ scope, createdBy: 'user-1' });
+
+    type HttpError = {
+      getStatus?: () => number;
+      getResponse?: () => unknown;
+    };
+    const errorOf = (p: Promise<unknown>): Promise<HttpError> =>
+      p.then(
+        () => {
+          throw new Error('resolved — expected a rejection');
+        },
+        (err: unknown) => err as HttpError,
+      );
+
+    const expectNoSideEffects = () => {
+      expect(integrationRepo.save).not.toHaveBeenCalled();
+      expect(integrationRepo.update).not.toHaveBeenCalled();
+      expect(integrationRepo.delete).not.toHaveBeenCalled();
+      expect(oauthServiceMock.begin).not.toHaveBeenCalled();
+      expect(auditLogsService.record).not.toHaveBeenCalled();
+      expect(integrationCacheBus.publish).not.toHaveBeenCalled();
+    };
+
+    /**
+     * 남의 personal 에 닿는 `:id` 경로 전부. `updateScope` 는 역할 검사가 먼저라(비-Admin 은 존재와 무관하게 403)
+     * 아래에서 따로 본다.
+     */
+    const byId: Array<[string, (role: string) => Promise<unknown>]> = [
+      ['findById', () => service.findById('int-1', 'ws-1', OTHER)],
+      ['getUsages', () => service.getUsages('int-1', 'ws-1', OTHER)],
+      ['getActivity', () => service.getActivity('int-1', 'ws-1', OTHER, 20, 7)],
+      ['testConnection', () => service.testConnection('int-1', 'ws-1', OTHER)],
+      [
+        'update',
+        (role) => service.update('int-1', 'ws-1', OTHER, role, { name: 'X' }),
+      ],
+      ['remove', (role) => service.remove('int-1', 'ws-1', OTHER, role)],
+      [
+        'rotate',
+        (role) =>
+          service.rotate('int-1', 'ws-1', OTHER, role, {
+            credentials: { value: 'n' },
+          }),
+      ],
+      [
+        'reauthorize',
+        (role) => service.reauthorize('int-1', 'ws-1', OTHER, role),
+      ],
+      [
+        'requestScopes',
+        (role) =>
+          service.requestScopes('int-1', 'ws-1', OTHER, role, {
+            scopes: ['s'],
+          }),
+      ],
+      [
+        'requireModifiable',
+        (role) =>
+          service.requireModifiable(
+            'int-1',
+            'ws-1',
+            OTHER,
+            role,
+            'reauthorize',
+          ),
+      ],
+    ];
+
+    it.each(
+      byId.flatMap(([name, call]) =>
+        ROLES.map((role) => [name, role, call] as const),
+      ),
+    )(
+      '%s — 남의 personal 은 %s 에게도 없는 통합과 같은 응답이다 · 부수효과 없음',
+      async (_name, role, call) => {
+        integrationRepo.findOne.mockResolvedValue(null);
+        const absent = await errorOf(call(role));
+        // rotate 가 받을 수 있는 비-OAuth 로 둔다 — OAuth 면 400(`INTEGRATION_ROTATE_UNSUPPORTED`)이 먼저일 수 있다.
+        integrationRepo.findOne.mockResolvedValue(httpOf('personal'));
+        const hidden = await errorOf(call(role));
+
+        expect(hidden.getStatus?.()).toBe(404);
+        expect(hidden.getResponse?.()).toEqual(absent.getResponse?.());
+        expectNoSideEffects();
+      },
+    );
+
+    it.each(['owner', 'admin'])(
+      'updateScope — 남의 personal 은 %s 에게도 404 (Admin 은 볼 수 있는 통합만 전환한다)',
+      async (role) => {
+        integrationRepo.findOne.mockResolvedValue(httpOf('personal'));
+        await expect(
+          service.updateScope('int-1', 'ws-1', OTHER, role, {
+            scope: 'organization',
+          }),
+        ).rejects.toMatchObject({ response: { code: 'RESOURCE_NOT_FOUND' } });
+        expectNoSideEffects();
+      },
+    );
+
+    it('Organization 통합은 생성자가 아닌 멤버에게도 보인다', async () => {
+      integrationRepo.findOne.mockResolvedValue(httpOf('organization'));
+      const row = await service.findById('int-1', 'ws-1', OTHER);
+      expect(row.id).toBe('int-1');
+    });
+
+    /** Organization 통합의 변경 경로 — 각자 받는 형태와 «통과했다» 의 증거가 다르다. */
+    const orgMutations: Array<
+      [
+        string,
+        () => Integration,
+        (role: string) => Promise<unknown>,
+        () => void,
+      ]
+    > = [
+      [
+        'update',
+        () => httpOf('organization'),
+        (r) => service.update('int-1', 'ws-1', OTHER, r, { name: 'Renamed' }),
+        () => expect(integrationRepo.save).toHaveBeenCalledTimes(1),
+      ],
+      [
+        'remove',
+        () => httpOf('organization'),
+        (r) => service.remove('int-1', 'ws-1', OTHER, r),
+        () => expect(integrationRepo.delete).toHaveBeenCalledTimes(1),
+      ],
+      [
+        'rotate',
+        () => httpOf('organization'),
+        (r) =>
+          service.rotate('int-1', 'ws-1', OTHER, r, {
+            credentials: { value: 'new-secret' },
+          }),
+        () => expect(integrationRepo.update).toHaveBeenCalledTimes(1),
+      ],
+      [
+        'reauthorize — OAuth(재인증 위임)',
+        () => googleOf('organization'),
+        (r) => service.reauthorize('int-1', 'ws-1', OTHER, r),
+        () => expect(oauthServiceMock.begin).toHaveBeenCalledTimes(1),
+      ],
+      [
+        'reauthorize — 비-OAuth(상태 reset)',
+        () => httpOf('organization'),
+        (r) => service.reauthorize('int-1', 'ws-1', OTHER, r),
+        () => expect(integrationRepo.save).toHaveBeenCalledTimes(1),
+      ],
+      [
+        'requestScopes',
+        () => googleOf('organization'),
+        (r) =>
+          service.requestScopes('int-1', 'ws-1', OTHER, r, { scopes: ['s'] }),
+        () => expect(oauthServiceMock.begin).toHaveBeenCalledTimes(1),
+      ],
+      [
+        'updateScope',
+        () => httpOf('organization'),
+        (r) =>
+          service.updateScope('int-1', 'ws-1', OTHER, r, { scope: 'personal' }),
+        () => expect(integrationRepo.save).toHaveBeenCalledTimes(1),
+      ],
+    ];
+
+    it.each(
+      orgMutations.flatMap(([name, fixture, call]) =>
+        (['editor', 'viewer'] as const).map(
+          (role) => [name, role, fixture, call] as const,
+        ),
+      ),
+    )(
+      '%s — Organization 통합은 %s 에게 403 ADMIN_REQUIRED · 부수효과 없음',
+      async (_name, role, fixture, call) => {
+        integrationRepo.findOne.mockResolvedValue(fixture());
+        const err = await errorOf(call(role));
+        expect(err).toBeInstanceOf(ForbiddenException);
+        expect(err.getResponse?.()).toMatchObject({ code: 'ADMIN_REQUIRED' });
+        expectNoSideEffects();
+      },
+    );
+
+    it.each(
+      orgMutations.flatMap(([name, fixture, call, passed]) =>
+        (['owner', 'admin'] as const).map(
+          (role) => [name, role, fixture, call, passed] as const,
+        ),
+      ),
+    )(
+      '%s — Organization 통합은 %s 가 바꾼다(생성자가 아니어도)',
+      async (_name, role, fixture, call, passed) => {
+        integrationRepo.findOne.mockResolvedValue(fixture());
+        await call(role);
+        passed();
+      },
+    );
+
+    it.each(['editor', 'viewer'])(
+      'requireModifiable — Organization 통합은 %s 에게 403 ADMIN_REQUIRED',
+      async (role) => {
+        integrationRepo.findOne.mockResolvedValue(googleOf('organization'));
+        await expect(
+          service.requireModifiable(
+            'int-1',
+            'ws-1',
+            OTHER,
+            role,
+            'reauthorize',
+          ),
+        ).rejects.toMatchObject({ response: { code: 'ADMIN_REQUIRED' } });
+      },
+    );
+
+    it.each(['owner', 'admin'])(
+      'requireModifiable — Organization 통합은 %s 에게 그 행을 돌려준다',
+      async (role) => {
+        const row = googleOf('organization');
+        integrationRepo.findOne.mockResolvedValue(row);
+        await expect(
+          service.requireModifiable(
+            'int-1',
+            'ws-1',
+            OTHER,
+            role,
+            'reauthorize',
+          ),
+        ).resolves.toBe(row);
+      },
+    );
+
+    /** 본인 personal — 역할과 무관하게 바꾼다(Admin 불요 — 라우트 가드 floor 는 컨트롤러의 몫이다). */
+    const ownMutations: Array<
+      [
+        string,
+        () => Integration,
+        (role: string) => Promise<unknown>,
+        () => void,
+      ]
+    > = [
+      [
+        'update',
+        () => httpOf('personal'),
+        (r) => service.update('int-1', 'ws-1', 'user-1', r, { name: 'Mine' }),
+        () => expect(integrationRepo.save).toHaveBeenCalledTimes(1),
+      ],
+      [
+        'remove',
+        () => httpOf('personal'),
+        (r) => service.remove('int-1', 'ws-1', 'user-1', r),
+        () => expect(integrationRepo.delete).toHaveBeenCalledTimes(1),
+      ],
+      [
+        'rotate',
+        () => httpOf('personal'),
+        (r) =>
+          service.rotate('int-1', 'ws-1', 'user-1', r, {
+            credentials: { value: 'new-secret' },
+          }),
+        () => expect(integrationRepo.update).toHaveBeenCalledTimes(1),
+      ],
+      [
+        'reauthorize',
+        () => googleOf('personal'),
+        (r) => service.reauthorize('int-1', 'ws-1', 'user-1', r),
+        () => expect(oauthServiceMock.begin).toHaveBeenCalledTimes(1),
+      ],
+      [
+        'requestScopes',
+        () => googleOf('personal'),
+        (r) =>
+          service.requestScopes('int-1', 'ws-1', 'user-1', r, {
+            scopes: ['s'],
+          }),
+        () => expect(oauthServiceMock.begin).toHaveBeenCalledTimes(1),
+      ],
+    ];
+
+    it.each(
+      ownMutations.flatMap(([name, fixture, call, passed]) =>
+        ROLES.map((role) => [name, role, fixture, call, passed] as const),
+      ),
+    )(
+      '%s — 본인 personal 은 %s 도 바꾼다',
+      async (_name, role, fixture, call, passed) => {
+        integrationRepo.findOne.mockResolvedValue(fixture());
+        await call(role);
+        passed();
+      },
+    );
+
+    it('rotate — 락 안 재읽기에서 남의 personal 로 바뀌었으면 404 · 커밋하지 않는다', async () => {
+      integrationRepo.findOne
+        .mockResolvedValueOnce(httpOf('organization')) // 요청 시작 — Admin 이라 통과
+        .mockResolvedValueOnce(httpOf('personal')); // 연결 테스트 동안 생성자(user-1)의 personal 로 전환됨
+
+      await expect(
+        service.rotate('int-1', 'ws-1', OTHER, 'admin', {
+          credentials: { value: 'new-secret' },
+        }),
+      ).rejects.toMatchObject({ response: { code: 'RESOURCE_NOT_FOUND' } });
+      expect(integrationRepo.update).not.toHaveBeenCalled();
+      expect(auditLogsService.record).not.toHaveBeenCalled();
+    });
+
+    it('findAll — 남의 personal 을 SQL 에서 거른다 (페이지네이션 total 이 세지 않도록)', async () => {
+      const qb = makeQueryBuilder({ count: 0, many: [] });
+      integrationRepo.createQueryBuilder.mockReturnValue(qb);
+      await service.findAll('ws-1', OTHER, {});
+      expect(qb.andWhere).toHaveBeenCalledWith(
+        integrationVisibilityClause('i'),
+        { [INTEGRATION_VIEWER_PARAM]: OTHER },
+      );
+    });
+  });
+
+  // -----------------------------------------------------------------
   // create
   // -----------------------------------------------------------------
   describe('create', () => {
@@ -1736,7 +2087,7 @@ describe('IntegrationsService', () => {
           scope: 'organization',
           credentials: { location: 'header', key_name: 'X', value: 'v' },
         }),
-      ).rejects.toThrow(ForbiddenException);
+      ).rejects.toMatchObject({ response: { code: 'ADMIN_REQUIRED' } });
     });
 
     it('validates credentials against schema', async () => {
@@ -1945,7 +2296,7 @@ describe('IntegrationsService', () => {
     it('applies q/scope/serviceType/status filters to query builder', async () => {
       const qb = makeQueryBuilder({ count: 0, many: [] });
       integrationRepo.createQueryBuilder.mockReturnValue(qb);
-      await service.findAll('ws-1', {
+      await service.findAll('ws-1', 'user-1', {
         q: 'google',
         scope: 'organization',
         serviceType: ['google', 'github'],
@@ -1961,7 +2312,7 @@ describe('IntegrationsService', () => {
     it('ignores empty serviceType array', async () => {
       const qb = makeQueryBuilder({ count: 0, many: [] });
       integrationRepo.createQueryBuilder.mockReturnValue(qb);
-      await service.findAll('ws-1', { serviceType: [] });
+      await service.findAll('ws-1', 'user-1', { serviceType: [] });
       const sql = qb.andWhere.mock.calls.map((c) => c[0]).join(' | ');
       expect(sql).not.toContain('service_type IN');
     });
@@ -1974,7 +2325,7 @@ describe('IntegrationsService', () => {
     it('status=attention emits union WHERE covering expired, error, and connected within 7d', async () => {
       const qb = makeQueryBuilder({ count: 0, many: [] });
       integrationRepo.createQueryBuilder.mockReturnValue(qb);
-      await service.findAll('ws-1', { status: 'attention' });
+      await service.findAll('ws-1', 'user-1', { status: 'attention' });
       const sql = qb.andWhere.mock.calls.map((c) => c[0]).join(' | ');
       expect(sql).toContain("'expired'");
       expect(sql).toContain("'error'");
@@ -1994,7 +2345,7 @@ describe('IntegrationsService', () => {
       async (status) => {
         const qb = makeQueryBuilder({ count: 0, many: [] });
         integrationRepo.createQueryBuilder.mockReturnValue(qb);
-        await service.findAll('ws-1', { status });
+        await service.findAll('ws-1', 'user-1', { status });
         const notInCall = qb.andWhere.mock.calls.find((c) =>
           String(c[0]).includes(
             'i.service_type NOT IN (:...autoRefreshServiceTypes)',
@@ -2016,7 +2367,7 @@ describe('IntegrationsService', () => {
     it('status=attention does not include pending_install rows', async () => {
       const qb = makeQueryBuilder({ count: 0, many: [] });
       integrationRepo.createQueryBuilder.mockReturnValue(qb);
-      await service.findAll('ws-1', { status: 'attention' });
+      await service.findAll('ws-1', 'user-1', { status: 'attention' });
       const sql = qb.andWhere.mock.calls.map((c) => c[0]).join(' | ');
       expect(sql).not.toContain("'pending_install'");
     });
@@ -2024,7 +2375,7 @@ describe('IntegrationsService', () => {
     it('status=attention does not also pin status to a single value', async () => {
       const qb = makeQueryBuilder({ count: 0, many: [] });
       integrationRepo.createQueryBuilder.mockReturnValue(qb);
-      await service.findAll('ws-1', { status: 'attention' });
+      await service.findAll('ws-1', 'user-1', { status: 'attention' });
       const sqls = qb.andWhere.mock.calls.map((c) => c[0]) as string[];
       // The single-value branch (used for expired/error/connected filters)
       // would emit `i.status = :s`. Attention's union must not also pin it.
@@ -2260,7 +2611,7 @@ describe('IntegrationsService', () => {
           message: 'connect ECONNREFUSED',
         });
 
-        const result = await service.testConnection('int-1', 'ws-1');
+        const result = await service.testConnection('int-1', 'ws-1', 'user-1');
 
         expect(mockedDbTester).toHaveBeenCalledWith(dbCredentials);
         expect(result).toMatchObject({
@@ -2418,7 +2769,7 @@ describe('IntegrationsService', () => {
               authType: 'bearer_token',
               credentials: { token: 't' },
             }),
-            service.testConnection('int-1', 'ws-1'),
+            service.testConnection('int-1', 'ws-1', 'user-1'),
           ];
           await settle();
           // 서로 다른 종류 둘이 슬롯 둘을 차지하면 셋째(entity tester)는 기다린다.
@@ -2502,7 +2853,13 @@ describe('IntegrationsService', () => {
       usageLogRepo.createQueryBuilder.mockImplementation(() =>
         call++ === 0 ? itemsQb : summaryQb,
       );
-      const result = await service.getActivity('int-1', 'ws-1', 9999, 9999);
+      const result = await service.getActivity(
+        'int-1',
+        'ws-1',
+        'user-1',
+        9999,
+        9999,
+      );
       expect(itemsQb.limit).toHaveBeenCalledWith(100);
       expect(result.summary.successRate).toBe(1);
     });
@@ -2519,7 +2876,13 @@ describe('IntegrationsService', () => {
       usageLogRepo.createQueryBuilder.mockImplementation(() =>
         call++ === 0 ? itemsQb : summaryQb,
       );
-      const result = await service.getActivity('int-1', 'ws-1', 20, 7);
+      const result = await service.getActivity(
+        'int-1',
+        'ws-1',
+        'user-1',
+        20,
+        7,
+      );
       expect(result.summary.totalCalls).toBe(15);
       expect(result.summary.successRate).toBeCloseTo(13 / 15);
       expect(result.summary.dailyCounts).toHaveLength(2);
@@ -2539,7 +2902,7 @@ describe('IntegrationsService', () => {
       integrationRepo.findOne.mockResolvedValue(
         makeIntegration({ credentials: sentinel }),
       );
-      const result = await service.findById('int-1', 'ws-1');
+      const result = await service.findById('int-1', 'ws-1', 'user-1');
       expect(result.credentialsStatus).toBe('needs_reauth');
       expect(result.status).toBe('error');
       expect(result.statusReason).toBe('credentials_unreadable');
@@ -2557,7 +2920,7 @@ describe('IntegrationsService', () => {
       const qb = makeQueryBuilder({ count: 2, many: [healthy, broken] });
       integrationRepo.createQueryBuilder.mockReturnValue(qb);
 
-      const page = await service.findAll('ws-1', {});
+      const page = await service.findAll('ws-1', 'user-1', {});
       expect(page.data).toHaveLength(2);
       const ok = page.data.find((d) => d.id === 'int-ok')!;
       const bad = page.data.find((d) => d.id === 'int-broken')!;
@@ -2573,7 +2936,7 @@ describe('IntegrationsService', () => {
           lastError: sentinel as unknown as Record<string, unknown>,
         }),
       );
-      const result = await service.findById('int-1', 'ws-1');
+      const result = await service.findById('int-1', 'ws-1', 'user-1');
       expect(result.lastError).toBeNull();
     });
 
@@ -2587,7 +2950,7 @@ describe('IntegrationsService', () => {
     });
 
     it('healthy rows expose credentialsStatus: ok', async () => {
-      const result = await service.findById('int-1', 'ws-1');
+      const result = await service.findById('int-1', 'ws-1', 'user-1');
       expect(result.credentialsStatus).toBe('ok');
     });
   });

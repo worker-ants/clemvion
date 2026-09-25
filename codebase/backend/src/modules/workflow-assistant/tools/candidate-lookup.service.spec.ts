@@ -45,10 +45,11 @@ describe('CandidateLookupService', () => {
         },
       ];
 
-      const out = await service.fillCandidates('ws-1', 'wf-1', pending);
+      const out = await service.fillCandidates('ws-1', 'u-1', 'wf-1', pending);
 
       expect(mocks.integrations.findAll).toHaveBeenCalledWith(
         'ws-1',
+        'u-1',
         expect.objectContaining({
           status: 'connected',
           serviceType: ['email'],
@@ -66,7 +67,7 @@ describe('CandidateLookupService', () => {
     it('skips the serviceType filter when no hint is attached (falls back to all connected)', async () => {
       const { service, mocks } = makeService();
       mocks.integrations.findAll.mockResolvedValue({ data: [] });
-      await service.fillCandidates('ws-1', 'wf-1', [
+      await service.fillCandidates('ws-1', 'u-1', 'wf-1', [
         {
           field: 'integrationId',
           widget: 'integration-selector',
@@ -75,7 +76,7 @@ describe('CandidateLookupService', () => {
           candidates: [],
         },
       ]);
-      const call = mocks.integrations.findAll.mock.calls[0][1];
+      const call = mocks.integrations.findAll.mock.calls[0][2]; // (workspaceId, userId, query)
       expect(call).not.toHaveProperty('serviceType');
       expect(call.status).toBe('connected');
     });
@@ -88,7 +89,7 @@ describe('CandidateLookupService', () => {
         serviceType: 'email',
       }));
       mocks.integrations.findAll.mockResolvedValue({ data: many });
-      const out = await service.fillCandidates('ws-1', 'wf-1', [
+      const out = await service.fillCandidates('ws-1', 'u-1', 'wf-1', [
         {
           field: 'integrationId',
           widget: 'integration-selector',
@@ -111,7 +112,7 @@ describe('CandidateLookupService', () => {
           { id: 'cfg-2', name: 'Claude Opus', model: 'claude-opus-4-7' },
         ],
       });
-      const out = await service.fillCandidates('ws-1', 'wf-1', [
+      const out = await service.fillCandidates('ws-1', 'u-1', 'wf-1', [
         {
           field: 'llmConfigId',
           widget: 'llm-config-selector',
@@ -133,7 +134,7 @@ describe('CandidateLookupService', () => {
       mocks.knowledgeBases.findAll.mockResolvedValue({
         data: [{ id: 'kb-1', name: 'Product docs' }],
       });
-      const out = await service.fillCandidates('ws-1', 'wf-1', [
+      const out = await service.fillCandidates('ws-1', 'u-1', 'wf-1', [
         {
           field: 'knowledgeBaseIds',
           widget: 'kb-selector',
@@ -157,7 +158,7 @@ describe('CandidateLookupService', () => {
           { id: 'int-cafe24-1', name: 'My Shop', serviceType: 'cafe24' },
         ],
       });
-      const out = await service.fillCandidates('ws-1', 'wf-1', [
+      const out = await service.fillCandidates('ws-1', 'u-1', 'wf-1', [
         {
           field: 'mcpServers',
           widget: 'mcp-server-selector',
@@ -168,6 +169,7 @@ describe('CandidateLookupService', () => {
       ]);
       expect(mocks.integrations.findAll).toHaveBeenCalledWith(
         'ws-1',
+        'u-1',
         expect.objectContaining({
           status: 'connected',
           serviceType: ['mcp', 'cafe24', 'makeshop'],
@@ -187,7 +189,7 @@ describe('CandidateLookupService', () => {
         serviceType: 'mcp',
       }));
       mocks.integrations.findAll.mockResolvedValue({ data: many });
-      const out = await service.fillCandidates('ws-1', 'wf-1', [
+      const out = await service.fillCandidates('ws-1', 'u-1', 'wf-1', [
         {
           field: 'mcpServers',
           widget: 'mcp-server-selector',
@@ -210,7 +212,7 @@ describe('CandidateLookupService', () => {
           { id: 'wf-3', name: 'Refund', description: '' },
         ],
       });
-      const out = await service.fillCandidates('ws-1', 'wf-1', [
+      const out = await service.fillCandidates('ws-1', 'u-1', 'wf-1', [
         {
           field: 'workflowId',
           widget: 'workflow-selector',
@@ -234,7 +236,7 @@ describe('CandidateLookupService', () => {
     it('returns [] candidates when the underlying service throws (warn + continue)', async () => {
       const { service, mocks } = makeService();
       mocks.integrations.findAll.mockRejectedValue(new Error('db down'));
-      const out = await service.fillCandidates('ws-1', 'wf-1', [
+      const out = await service.fillCandidates('ws-1', 'u-1', 'wf-1', [
         {
           field: 'integrationId',
           widget: 'integration-selector',
@@ -250,7 +252,7 @@ describe('CandidateLookupService', () => {
 
   it('short-circuits when pending is empty', async () => {
     const { service, mocks } = makeService();
-    const out = await service.fillCandidates('ws-1', 'wf-1', []);
+    const out = await service.fillCandidates('ws-1', 'u-1', 'wf-1', []);
     expect(out).toEqual([]);
     expect(mocks.integrations.findAll).not.toHaveBeenCalled();
   });

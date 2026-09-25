@@ -82,6 +82,9 @@ function buildFakeCafe24Integration(
     installTokenIssuedAt: Date | null;
     statusReason: string | null;
     lastError: unknown;
+    /** 생략하면 행에 싣지 않는다(= personal 이 아니므로 누구에게나 보인다 — 기존 케이스의 기본값). */
+    scope: string;
+    createdBy: string;
   }> = {},
 ): Record<string, unknown> {
   const mallId =
@@ -115,6 +118,10 @@ function buildFakeCafe24Integration(
     statusReason: overrides.statusReason ?? null,
     lastError: overrides.lastError ?? null,
     credentials,
+    ...(overrides.scope !== undefined ? { scope: overrides.scope } : {}),
+    ...(overrides.createdBy !== undefined
+      ? { createdBy: overrides.createdBy }
+      : {}),
   };
 }
 
@@ -781,7 +788,11 @@ describe('IntegrationOAuthService — Cafe24', () => {
   describe('precheckCafe24Mall', () => {
     it('returns conflict=false when no cafe24 row exists', async () => {
       integrationRepo.find = jest.fn().mockResolvedValue([]);
-      const result = await service.precheckCafe24Mall('ws-1', 'fresh-mall');
+      const result = await service.precheckCafe24Mall(
+        'ws-1',
+        'fresh-mall',
+        'u-1',
+      );
       expect(result).toEqual({ conflict: false });
     });
 
@@ -793,13 +804,73 @@ describe('IntegrationOAuthService — Cafe24', () => {
           status: 'connected',
         }),
       ]);
-      const result = await service.precheckCafe24Mall('ws-1', 'priv-shop');
+      const result = await service.precheckCafe24Mall(
+        'ws-1',
+        'priv-shop',
+        'u-1',
+      );
       expect(result).toEqual({
         conflict: true,
         existingIntegrationId: 'conn-1',
         existingName: 'priv-shop (Cafe24 Private)',
         status: 'connected',
       });
+    });
+
+    /**
+     * spec/2-navigation/4-integration.md §8 · §9.2 — 충돌은 scope 를 가리지 않고 알리되(매장 식별자 유일성이
+     * 워크스페이스 단위), 충돌 행이 남의 personal 이면 식별자(id · 이름)를 싣지 않는다.
+     */
+    it.each([
+      ['남의 personal', 'personal', 'u-2', false],
+      ['본인 personal', 'personal', 'u-1', true],
+      ['남이 만든 organization', 'organization', 'u-2', true],
+    ])(
+      '충돌 행이 %s 이면 id · 이름 노출 = %s (충돌 · status 는 항상)',
+      async (_label, scope, createdBy, exposed) => {
+        integrationRepo.find = jest.fn().mockResolvedValue([
+          buildFakeCafe24Integration({
+            id: 'conn-1',
+            name: 'priv-shop (Cafe24 Private)',
+            status: 'connected',
+            scope,
+            createdBy,
+          }),
+        ]);
+        const result = await service.precheckCafe24Mall(
+          'ws-1',
+          'priv-shop',
+          'u-1',
+        );
+        expect(result).toEqual({
+          conflict: true,
+          status: 'connected',
+          ...(exposed
+            ? {
+                existingIntegrationId: 'conn-1',
+                existingName: 'priv-shop (Cafe24 Private)',
+              }
+            : {}),
+        });
+      },
+    );
+
+    it('priority 밖 상태의 fallback 행도 남의 personal 이면 id · 이름을 싣지 않는다', async () => {
+      integrationRepo.find = jest.fn().mockResolvedValue([
+        buildFakeCafe24Integration({
+          id: 'odd-1',
+          name: 'odd',
+          status: 'initializing',
+          scope: 'personal',
+          createdBy: 'u-2',
+        }),
+      ]);
+      const result = await service.precheckCafe24Mall(
+        'ws-1',
+        'priv-shop',
+        'u-1',
+      );
+      expect(result).toEqual({ conflict: true });
     });
 
     it('prefers connected over pending_install when both exist', async () => {
@@ -815,7 +886,11 @@ describe('IntegrationOAuthService — Cafe24', () => {
           status: 'connected',
         }),
       ]);
-      const result = await service.precheckCafe24Mall('ws-1', 'priv-shop');
+      const result = await service.precheckCafe24Mall(
+        'ws-1',
+        'priv-shop',
+        'u-1',
+      );
       expect(result.status).toBe('connected');
       expect(result.existingIntegrationId).toBe('conn-1');
     });
@@ -828,7 +903,11 @@ describe('IntegrationOAuthService — Cafe24', () => {
           status: 'pending_install',
         }),
       ]);
-      const result = await service.precheckCafe24Mall('ws-1', 'priv-shop');
+      const result = await service.precheckCafe24Mall(
+        'ws-1',
+        'priv-shop',
+        'u-1',
+      );
       expect(result.status).toBe('pending_install');
       expect(result.existingIntegrationId).toBe('pending-1');
     });
@@ -841,7 +920,11 @@ describe('IntegrationOAuthService — Cafe24', () => {
           status: 'error',
         }),
       ]);
-      const result = await service.precheckCafe24Mall('ws-1', 'priv-shop');
+      const result = await service.precheckCafe24Mall(
+        'ws-1',
+        'priv-shop',
+        'u-1',
+      );
       expect(result.status).toBe('error');
     });
 
@@ -853,7 +936,11 @@ describe('IntegrationOAuthService — Cafe24', () => {
           status: 'expired',
         }),
       ]);
-      const result = await service.precheckCafe24Mall('ws-1', 'priv-shop');
+      const result = await service.precheckCafe24Mall(
+        'ws-1',
+        'priv-shop',
+        'u-1',
+      );
       expect(result.status).toBe('expired');
       expect(result.existingIntegrationId).toBe('exp-1');
     });
@@ -871,7 +958,11 @@ describe('IntegrationOAuthService — Cafe24', () => {
           status: 'initializing',
         }),
       ]);
-      const result = await service.precheckCafe24Mall('ws-1', 'priv-shop');
+      const result = await service.precheckCafe24Mall(
+        'ws-1',
+        'priv-shop',
+        'u-1',
+      );
       expect(result.conflict).toBe(true);
       expect(result.existingIntegrationId).toBe('tx-1');
       expect(result.status).toBeUndefined();
@@ -898,7 +989,11 @@ describe('IntegrationOAuthService — Cafe24', () => {
           }),
         ]);
       });
-      const result = await service.precheckCafe24Mall('ws-1', 'priv-shop');
+      const result = await service.precheckCafe24Mall(
+        'ws-1',
+        'priv-shop',
+        'u-1',
+      );
       expect(result.conflict).toBe(true);
       expect(result.status).toBe('connected');
       expect(result.existingIntegrationId).toBe('legacy-conn');

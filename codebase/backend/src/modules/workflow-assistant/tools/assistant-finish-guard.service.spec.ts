@@ -65,7 +65,7 @@ function makeGuard(): AssistantFinishGuard {
     getComponent: jest.fn(() => undefined),
   };
   const candidateLookup = {
-    fillCandidates: jest.fn(async (_ws, _wf, p: unknown[]) => p),
+    fillCandidates: jest.fn(async (_ws, _user, _wf, p: unknown[]) => p),
   };
   return new AssistantFinishGuard(
     nodeRegistry as never,
@@ -199,6 +199,7 @@ describe('AssistantFinishGuard.evaluateReviewGuard — shouldSkipReview 판정',
       '',
       shadow,
       'ws-1',
+      'u-1',
       'wf-1',
     );
   }

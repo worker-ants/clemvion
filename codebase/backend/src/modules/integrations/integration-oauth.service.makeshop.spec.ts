@@ -577,7 +577,11 @@ describe('IntegrationOAuthService — MakeShop', () => {
   describe('precheckMakeshopShop', () => {
     it('returns no conflict when no makeshop row exists', async () => {
       integrationRepo.find = jest.fn().mockResolvedValue([]);
-      const result = await service.precheckMakeshopShop('ws-1', 'freshshop');
+      const result = await service.precheckMakeshopShop(
+        'ws-1',
+        'freshshop',
+        'u-1',
+      );
       expect(result).toEqual({ conflict: false });
     });
 
@@ -594,12 +598,34 @@ describe('IntegrationOAuthService — MakeShop', () => {
           mallId: 'myshop',
         }),
       ]);
-      const result = await service.precheckMakeshopShop('ws-1', 'myshop');
+      const result = await service.precheckMakeshopShop(
+        'ws-1',
+        'myshop',
+        'u-1',
+      );
       expect(result).toMatchObject({
         conflict: true,
         existingIntegrationId: 'conn',
         status: 'connected',
       });
+    });
+
+    it('충돌 행이 남의 personal 이면 id · 이름을 싣지 않는다 — 충돌 · status 는 알린다 (spec 통합 §8 · §9.2)', async () => {
+      integrationRepo.find = jest.fn().mockResolvedValue([
+        buildFakeMakeshopIntegration({
+          id: 'conn',
+          status: 'connected',
+          mallId: 'myshop',
+          scope: 'personal',
+          createdBy: 'u-1',
+        }),
+      ]);
+      const result = await service.precheckMakeshopShop(
+        'ws-1',
+        'myshop',
+        'u-2',
+      );
+      expect(result).toEqual({ conflict: true, status: 'connected' });
     });
   });
 

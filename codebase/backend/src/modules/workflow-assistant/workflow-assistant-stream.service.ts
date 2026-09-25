@@ -470,6 +470,7 @@ export class WorkflowAssistantStreamService {
                   assistantText,
                   shadow,
                   workspaceId,
+                  userId,
                   session.workflowId,
                 );
                 if (reviewBlock) {
@@ -531,6 +532,7 @@ export class WorkflowAssistantStreamService {
                 {
                   shadow,
                   workspaceId,
+                  userId,
                   currentWorkflowId: session.workflowId,
                   schemaCache,
                 },
@@ -637,6 +639,7 @@ export class WorkflowAssistantStreamService {
                       shadow,
                       shadowResult.id,
                       workspaceId,
+                      userId,
                       session.workflowId,
                     );
                   if (pending.length > 0) {
@@ -1028,12 +1031,14 @@ export class WorkflowAssistantStreamService {
     shadow: ShadowWorkflow,
     nodeId: string,
     workspaceId: string,
+    userId: string,
     currentWorkflowId: string,
   ): Promise<PendingUserConfigField[]> {
     const pending = collectPendingUserConfig(shadow, nodeId, this.nodeRegistry);
     if (pending.length === 0) return pending;
     return this.candidateLookup.fillCandidates(
       workspaceId,
+      userId,
       currentWorkflowId,
       pending,
     );

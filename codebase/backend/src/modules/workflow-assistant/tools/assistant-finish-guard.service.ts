@@ -188,6 +188,7 @@ export class AssistantFinishGuard {
     assistantText: string,
     shadow: ShadowWorkflow,
     workspaceId: string,
+    userId: string,
     currentWorkflowId: string,
   ): Promise<FinishGuardError | null> {
     // shadow.snapshot() 은 nodes/edges 전체를 shallow clone 하므로 한 번만 찍고
@@ -227,6 +228,7 @@ export class AssistantFinishGuard {
         }
         const withCandidates = await this.candidateLookup.fillCandidates(
           workspaceId,
+          userId,
           currentWorkflowId,
           pending,
         );

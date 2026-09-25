@@ -48,6 +48,7 @@ export class CandidateLookupService {
    */
   async fillCandidates(
     workspaceId: string,
+    userId: string,
     currentWorkflowId: string,
     pending: PendingUserConfigField[],
   ): Promise<PendingUserConfigField[]> {
@@ -55,13 +56,19 @@ export class CandidateLookupService {
     return Promise.all(
       pending.map(async (field) => ({
         ...field,
-        candidates: await this.lookup(workspaceId, currentWorkflowId, field),
+        candidates: await this.lookup(
+          workspaceId,
+          userId,
+          currentWorkflowId,
+          field,
+        ),
       })),
     );
   }
 
   private async lookup(
     workspaceId: string,
+    userId: string,
     currentWorkflowId: string,
     field: PendingUserConfigField,
   ): Promise<CandidateEntry[]> {
@@ -70,6 +77,7 @@ export class CandidateLookupService {
         case 'integration-selector':
           return await this.lookupIntegrations(
             workspaceId,
+            userId,
             field.integrationServiceType,
           );
         case 'llm-config-selector':
@@ -79,7 +87,7 @@ export class CandidateLookupService {
         case 'workflow-selector':
           return await this.lookupWorkflows(workspaceId, currentWorkflowId);
         case 'mcp-server-selector':
-          return await this.lookupMcpServers(workspaceId);
+          return await this.lookupMcpServers(workspaceId, userId);
         default:
           return [];
       }
@@ -99,8 +107,10 @@ export class CandidateLookupService {
     }
   }
 
+  /** 요청자에게 보이는 통합만 — 남의 personal 은 후보에서 빠진다(`IntegrationsService.findAll`, spec 통합 §8). */
   private async lookupIntegrations(
     workspaceId: string,
+    userId: string,
     serviceType?: string,
   ): Promise<CandidateEntry[]> {
     const query: ListIntegrationsQueryDto = {
@@ -111,7 +121,7 @@ export class CandidateLookupService {
       // `IN (:...serviceTypes)` 로 내부 처리). hint 가 없으면 전체 connected.
       ...(serviceType ? { serviceType: [serviceType] } : {}),
     };
-    const result = await this.integrations.findAll(workspaceId, query);
+    const result = await this.integrations.findAll(workspaceId, userId, query);
     return result.data.slice(0, MAX_CANDIDATES).map((i) => ({
       id: i.id,
       label: i.name,
@@ -155,6 +165,7 @@ export class CandidateLookupService {
    */
   private async lookupMcpServers(
     workspaceId: string,
+    userId: string,
   ): Promise<CandidateEntry[]> {
     // MCP-capable Integration: external HTTP transport (`service_type='mcp'`)
     // + Internal Bridge transports (currently `'cafe24'`). The AI Agent
@@ -166,7 +177,7 @@ export class CandidateLookupService {
       status: 'connected',
       serviceType: [...MCP_CAPABLE_SERVICE_TYPES],
     };
-    const result = await this.integrations.findAll(workspaceId, query);
+    const result = await this.integrations.findAll(workspaceId, userId, query);
     return result.data.slice(0, MAX_CANDIDATES).map((i) => ({
       id: i.id,
       label: i.name,

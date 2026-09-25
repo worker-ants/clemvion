@@ -147,7 +147,8 @@ function makeService(): {
   // (candidates=[]) 로, 개별 케이스가 필요하면 mockImplementation 으로 override.
   const candidateLookup = {
     fillCandidates: jest.fn(
-      async (_ws: string, _wf: string, pending: unknown[]) => pending,
+      async (_ws: string, _user: string, _wf: string, pending: unknown[]) =>
+        pending,
     ),
   };
 
@@ -416,7 +417,7 @@ describe('WorkflowAssistantStreamService', () => {
     );
     // CandidateLookupService 가 Integration 2개를 채워 돌려주도록 모킹.
     mocks.candidateLookup.fillCandidates.mockImplementation(
-      async (_ws: string, _wf: string, pending: unknown[]) =>
+      async (_ws: string, _user: string, _wf: string, pending: unknown[]) =>
         (pending as Array<Record<string, unknown>>).map((p) => ({
           ...p,
           candidates: [
@@ -468,10 +469,11 @@ describe('WorkflowAssistantStreamService', () => {
       { id: 'int-1', label: 'Gmail SMTP', sublabel: 'email' },
       { id: 'int-2', label: 'Mailgun', sublabel: 'email' },
     ]);
-    // CandidateLookupService 가 현재 세션의 workspaceId / workflowId 로
-    // 호출되었는지 — 경계 누수 방지.
+    // CandidateLookupService 가 현재 세션의 workspaceId / 요청자 / workflowId 로
+    // 호출되었는지 — 경계 누수 방지. 요청자는 통합 후보를 «보이는 것» 으로 거르는 데 쓴다(spec 통합 §8).
     expect(mocks.candidateLookup.fillCandidates).toHaveBeenCalledWith(
       'ws-1',
+      'u-1',
       'wf-1',
       expect.arrayContaining([
         expect.objectContaining({ widget: 'integration-selector' }),

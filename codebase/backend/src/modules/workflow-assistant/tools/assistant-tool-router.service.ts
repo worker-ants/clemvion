@@ -28,6 +28,8 @@ export interface SchemaCacheEntry {
 export interface ExploreDispatchContext {
   shadow: ShadowWorkflow;
   workspaceId: string;
+  /** 요청자 — 통합 목록은 요청자에게 보이는 것만 돌려준다(남의 personal 제외, spec 통합 §8). */
+  userId: string;
   currentWorkflowId: string;
   schemaCache: Map<string, SchemaCacheEntry>;
 }
@@ -112,6 +114,7 @@ export class AssistantToolRouter {
       toolName,
       args,
       ctx.workspaceId,
+      ctx.userId,
       ctx.currentWorkflowId,
     );
     return { result, reviewCompleted: false };
@@ -158,6 +161,7 @@ export class AssistantToolRouter {
       'get_node_schema',
       args,
       ctx.workspaceId,
+      ctx.userId,
       ctx.currentWorkflowId,
     );
     if (typeArg) {
@@ -173,6 +177,7 @@ export class AssistantToolRouter {
     name: string,
     args: Record<string, unknown>,
     workspaceId: string,
+    userId: string,
     currentWorkflowId: string,
   ): Promise<unknown> {
     switch (name) {
@@ -181,6 +186,7 @@ export class AssistantToolRouter {
       case 'list_integrations':
         return this.exploreTools.listIntegrations(
           workspaceId,
+          userId,
           typeof args.category === 'string' ? args.category : undefined,
         );
       case 'list_workflows':

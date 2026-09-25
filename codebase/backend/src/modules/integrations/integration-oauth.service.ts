@@ -21,6 +21,7 @@ import {
   buildOauthCallbackUrl,
 } from './third-party-oauth.constants';
 import { Integration } from './entities/integration.entity';
+import { isIntegrationVisibleTo } from './integration-visibility';
 import {
   IntegrationOAuthState,
   OAuthStateMode,
@@ -323,6 +324,40 @@ const CAFE24_PRECHECK_STATUS_PRIORITY = [
   'expired',
 ] as const;
 type Cafe24PrecheckStatus = (typeof CAFE24_PRECHECK_STATUS_PRIORITY)[number];
+
+type PrecheckResult = {
+  conflict: boolean;
+  existingIntegrationId?: string;
+  existingName?: string;
+  status?: Cafe24PrecheckStatus;
+};
+
+/**
+ * cafe24 · makeshop precheck 의 공통 판정 — 같은 매장의 행들 중 가장 제한적인 상태 하나를 고른다.
+ *
+ * **충돌은 scope 를 가리지 않고 알린다** — 매장 식별자 유일성이 워크스페이스 단위라 남의 personal 과 겹쳐도 새 통합을
+ * 만들 수 없다. 다만 충돌 행이 **남의 personal** 이면 식별자(id · 이름)를 싣지 않는다(`spec/2-navigation/4-integration.md`
+ * §8 판정 규칙 · §9.2).
+ *
+ * priority 에 없는 transitional status(현재 DB enum 에는 없으나 미래 추가 가능성 대비)면 강제 캐스팅 대신 `status` 를
+ * 빼 클라이언트가 «알 수 없는 상태 — 일단 conflict» 로만 해석하게 한다(spec/conventions/swagger.md — enum 범위 밖 값은
+ * frontend silent fallthrough 방지를 위해 미반환).
+ */
+function pickPrecheckConflict(
+  rows: Integration[],
+  viewerId: string,
+): PrecheckResult {
+  if (rows.length === 0) return { conflict: false };
+  const identity = (row: Integration) =>
+    isIntegrationVisibleTo(row, viewerId)
+      ? { existingIntegrationId: row.id, existingName: row.name }
+      : {};
+  for (const status of CAFE24_PRECHECK_STATUS_PRIORITY) {
+    const hit = rows.find((row) => row.status === status);
+    if (hit) return { conflict: true, ...identity(hit), status };
+  }
+  return { conflict: true, ...identity(rows[0]) };
+}
 
 @Injectable()
 export class IntegrationOAuthService {
@@ -1900,33 +1935,12 @@ export class IntegrationOAuthService {
   async precheckMakeshopShop(
     workspaceId: string,
     shopUid: string,
-  ): Promise<{
-    conflict: boolean;
-    existingIntegrationId?: string;
-    existingName?: string;
-    status?: Cafe24PrecheckStatus;
-  }> {
+    viewerId: string,
+  ): Promise<PrecheckResult> {
     const all = await this.integrationRepository.find({
       where: { workspaceId, serviceType: 'makeshop', mallId: shopUid },
     });
-    if (all.length === 0) return { conflict: false };
-    for (const status of CAFE24_PRECHECK_STATUS_PRIORITY) {
-      const hit = all.find((row) => row.status === status);
-      if (hit) {
-        return {
-          conflict: true,
-          existingIntegrationId: hit.id,
-          existingName: hit.name,
-          status,
-        };
-      }
-    }
-    const fallback = all[0];
-    return {
-      conflict: true,
-      existingIntegrationId: fallback.id,
-      existingName: fallback.name,
-    };
+    return pickPrecheckConflict(all, viewerId);
   }
 
   /**
@@ -2121,39 +2135,10 @@ export class IntegrationOAuthService {
   async precheckCafe24Mall(
     workspaceId: string,
     mallId: string,
-  ): Promise<{
-    conflict: boolean;
-    existingIntegrationId?: string;
-    existingName?: string;
-    status?: Cafe24PrecheckStatus;
-  }> {
+    viewerId: string,
+  ): Promise<PrecheckResult> {
     const all = await this.findAllCafe24RowsForMall(workspaceId, mallId);
-    if (all.length === 0) return { conflict: false };
-    // Priority 순으로 가장 제한적인 상태부터 검사. 상수는 클래스 상단의
-    // `CAFE24_PRECHECK_STATUS_PRIORITY` 에 정의 — DTO 주석 / 프론트 i18n 분기
-    // 와 단일 진실 유지.
-    for (const status of CAFE24_PRECHECK_STATUS_PRIORITY) {
-      const hit = all.find((row) => row.status === status);
-      if (hit) {
-        return {
-          conflict: true,
-          existingIntegrationId: hit.id,
-          existingName: hit.name,
-          status,
-        };
-      }
-    }
-    // Fallback: priority 에 없는 transitional status (현재 DB enum 에는 없으나
-    // 미래 추가 가능성 대비). 강제 캐스팅 대신 status 를 omit 해 클라이언트가
-    // "알 수 없는 상태 — 일단 conflict" 로만 해석하도록 한다. spec/conventions
-    // /swagger.md — enum 범위 밖 값은 frontend silent fallthrough 방지를
-    // 위해 명시적으로 미반환.
-    const fallback = all[0];
-    return {
-      conflict: true,
-      existingIntegrationId: fallback.id,
-      existingName: fallback.name,
-    };
+    return pickPrecheckConflict(all, viewerId);
   }
 
   // ---------------------------------------------------------------------
