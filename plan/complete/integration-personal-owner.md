@@ -1,6 +1,6 @@
 ---
 title: Personal 통합 소유자 강제 — 목록 · :id 경로 · oauth/begin · precheck · 워크플로우 어시스턴트
-status: in-progress
+status: complete
 owner: developer
 worktree: integration-personal-owner
 spec_impact:
@@ -116,5 +116,5 @@ started: 2026-09-25
 - [x] CHANGELOG — 한 항목(기준 1 — 제품 동작 변경). 컨트롤러 캐너리는 한 컨트롤러 범위 커버리지라 기준 3(전역 가드)이 아니다
 - [x] TEST WORKFLOW — lint · unit(backend 10200 · frontend 6781) · build · e2e(72 스위트 · 405건)
 - [x] `/ai-review` — 4라운드로 수렴(위 표). 1~3라운드 Critical 2 · Warning 23 조치, 4라운드 «수렴 예외»
-- [ ] `--impl-done`
-- [ ] 트래커 항목 닫기
+- [x] `--impl-done` — `review/consistency/2026/09/26/00_43_55` BLOCK: NO(Warning 2 — 콜백 재판정의 spec 서술은 planner 보강 draft `spec-draft-integration-personal-owner-callback.md` → `--spec` `review/consistency/2026/09/26/00_55_40` BLOCK: NO → 반영 `fafbd59d3`, 후속 plan 의 worktree sentinel 정정)
+- [x] 트래커 항목 닫기 — `[x]` + 닫힘 노트, 후속 셋 신설(역할 이중 조회 · `handleCallback` · 테스트 · 구조 잔여)

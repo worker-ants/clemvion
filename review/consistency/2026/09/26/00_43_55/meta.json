@@ -1,0 +1,13 @@
+{
+  "timestamp": "2026-09-26T00:43:55.096675",
+  "mode": "구현 완료 후 검토 (--impl-done, scope=/private/tmp/claude-501/-Volumes-project-private-clemvion/9bc8ff42-8873-4ae7-986a-b884a1fefbf6/scratchpad/ipo-done-scope/spec, diff-base=origin/main)",
+  "target_path": "spec/2-navigation/4-integration.md · spec/4-nodes/4-integration/0-common.md · spec/4-nodes/4-integration/5-makeshop.md · spec/4-nodes/4-integration/_product-overview.md · spec/3-workflow-editor/4-ai-assistant.md · spec/conventions/egress-masking.md · spec/5-system/3-error-handling.md · spec/5-system/1-auth.md · spec/2-navigation/3-schedule.md · spec/2-navigation/9-user-profile.md · spec/conventions/redis-keys.md",
+  "checkers": [
+    "cross_spec",
+    "rationale_continuity",
+    "convention_compliance",
+    "plan_coherence",
+    "naming_collision"
+  ],
+  "scope_note": "scope 는 scratch 디렉터리(spec 11개 사본 — code: glob 으로 변경 파일과 닿는 spec + 이 PR 이 고친 spec). 절단 대비 절대경로 Read 블록을 main 이 덧붙였다."
+}

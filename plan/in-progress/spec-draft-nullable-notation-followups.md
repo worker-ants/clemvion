@@ -5757,10 +5757,18 @@ field: T | null;
       개별 등재하는 선례를 갖는다(`--impl-done` `review/consistency/2026/09/20/18_24_04` convention INFO 3 —
       글로브로는 이미 매치돼 가드 위반은 아니다).
 
-- [ ] **personal-scope 통합의 «본인 것만» 소유자 검증이 코드에 없다** (planner 결정 + developer, 2026-09-20 등재 ·
+- [x] **personal-scope 통합의 «본인 것만» 소유자 검증이 코드에 없다** (planner 결정 + developer, 2026-09-20 등재 ·
       `/ai-review` `review/code/2026/09/20/18_09_24` requirement INFO 6). `assertCanRotate` 는 organization-scope 만 본다 —
       spec §8 이 말하는 personal 소유자 제약은 강제되지 않는다. **회귀가 아니다**: `git show` 대조로 rotate 락 PR 이전부터
       같았음이 확인됐다. rotate 한 곳이 아니라 권한 모델 전반(조회·수정·삭제)의 문제라 범위를 먼저 정해야 한다.
+
+      > **2026-09-26 — 닫힘.** 전수 조사로 rotate 한 곳이 아니라 목록 · `:id` 경로 전부 · `oauth/begin` 우회 입구 · precheck · 워크플로우
+      > 어시스턴트까지 넓어졌고, **재인증은 역할 검사가 없어 Viewer 가 Organization 통합을 자기 계정으로 바꿔치기할 수 있었다.** 사용자
+      > 결정 셋(쓰기+읽기를 닫고 노드 실행은 후속 · 남의 personal 은 404 · Organization 변경은 Admin)으로 spec §8 판정 규칙
+      > (`plan/complete/spec-draft-integration-personal-owner.md` · `-assistant.md` · `-callback.md`)과 구현(`plan/complete/integration-personal-owner.md`)을
+      > 한 PR 에. `/ai-review` 4라운드(Critical 2 · Warning 23 조치, 4라운드 «수렴 예외»), `--impl-done` `review/consistency/2026/09/26/00_43_55`. 남은 것 —
+      > 노드 실행 시점 · pending 행 재사용 · Viewer 의 자기 Personal · 화면 버튼은 `plan/in-progress/integration-personal-owner-followup.md`
+      > (spec `pending_plans`), 역할 이중 조회 · `handleCallback` 비대 · 테스트 · 구조 잔여는 아래 신설 항목들.
 
 - [ ] **워크스페이스 역할을 가드와 핸들러가 두 번 조회한다 — `RolesGuard` 가 조회한 역할을 요청에 싣지 않는다** (developer, 낮음,
       2026-09-25 등재 · `/ai-review` `review/code/2026/09/25/22_45_37` WARNING 4 · 6, 같은 PR 3라운드 `23_58_59` WARNING 3 · 4라운드 `review/code/2026/09/26/00_27_56` WARNING 2 가 재지적 — 4라운드는 «대상이 personal 이면 역할을 쓰지도 않는데 먼저 읽는다» 는 지연 조회 처방을 더했다). `@Roles()` 가 붙은 라우트는 가드가

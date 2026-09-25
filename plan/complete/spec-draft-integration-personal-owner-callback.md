@@ -1,6 +1,6 @@
 ---
 title: spec draft — OAuth 콜백의 커밋 직전 인가 재판정 서술 (Personal 통합 소유자 강제 보강 2)
-status: in-progress
+status: complete
 owner: planner
 worktree: integration-personal-owner
 spec_impact:

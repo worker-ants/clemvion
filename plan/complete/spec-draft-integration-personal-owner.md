@@ -1,6 +1,6 @@
 ---
 title: spec draft — Personal 통합 소유자 강제 (§8 판정 규칙 · 부분 구현 표기)
-status: in-progress
+status: complete
 owner: planner
 worktree: integration-personal-owner
 spec_impact:

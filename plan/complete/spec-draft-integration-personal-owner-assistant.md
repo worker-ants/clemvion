@@ -1,6 +1,6 @@
 ---
 title: spec draft — 워크플로우 어시스턴트의 통합 후보도 §8 을 따른다 (Personal 통합 소유자 강제 보강)
-status: in-progress
+status: complete
 owner: planner
 worktree: integration-personal-owner
 spec_impact:

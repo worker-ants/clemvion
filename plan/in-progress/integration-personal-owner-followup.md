@@ -12,7 +12,7 @@ started: 2026-09-25
 
 `spec/2-navigation/4-integration.md` 의 `pending_plans` 다(`status: partial`). §8 «판정 규칙» 블록의 **«아직 강제되지 않는 것»** 을
 책임진다. 선행 PR — 목록 · `:id` 경로 · `oauth/begin` · precheck · 워크플로우 어시스턴트의 소유자 강제 — 은
-`plan/complete/integration-personal-owner.md`(머지 후 경로).
+`plan/complete/integration-personal-owner.md`.
 
 이 파일의 항목이 모두 닫히면 spec 을 `status: implemented` 로 승격하고 `pending_plans` 에서 이 파일을 뺀다(`spec-impl-evidence.md`
 §3 라이프사이클).
