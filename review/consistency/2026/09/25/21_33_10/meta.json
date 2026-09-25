@@ -1,0 +1,13 @@
+{
+  "timestamp": "2026-09-25T21:33:10.928114",
+  "mode": "spec draft 검토 (--spec)",
+  "target_path": "plan/in-progress/spec-draft-integration-personal-owner.md",
+  "checkers": [
+    "cross_spec",
+    "rationale_continuity",
+    "convention_compliance",
+    "plan_coherence",
+    "naming_collision"
+  ],
+  "target_snapshot": "_target/spec-draft-integration-personal-owner.md"
+}
