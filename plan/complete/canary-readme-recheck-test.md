@@ -1,6 +1,6 @@
 ---
 title: backend README 캐너리 절 · transferOwnership 트랜잭션 재검사 분기 테스트
-status: in-progress
+status: complete
 owner: developer
 worktree: canary-readme-recheck-test
 spec_impact: none
@@ -49,5 +49,5 @@ started: 2026-09-25
 - [x] CHANGELOG 판정 — **항목 없음.** 기준 블록 «한 기능의 동작을 고정하는 테스트 추가(가드가 아닌 커버리지) · 문서» 에 해당
 - [x] TEST WORKFLOW — lint · unit(backend 10059) · build · e2e(71 스위트 · 391건 PASS)
 - [x] `/ai-review` — 2라운드로 수렴(위 표)
-- [ ] `--impl-done`(spec 연결 여부 확인: `workspaces.service.spec.ts` 는 `9-user-profile` 의 `modules/workspaces/**` 에 걸린다)
-- [ ] 트래커 항목 닫기
+- [x] `--impl-done` — `review/consistency/2026/09/25/20_54_58` BLOCK: NO(Critical · Warning 0, INFO 5). scope 는 scratch 사본 3개 — spec 연결 변경은 `workspaces.service.spec.ts` 하나(`9-user-profile` 의 `modules/workspaces/**`), 대조 SoT 로 `1-auth` · `12-workspace`
+- [x] 트래커 항목 닫기 — `[x]` + 닫힘 노트. `--impl-prep` W2 · W3 는 planner 항목 둘로 등재(1라운드 W2 조치)

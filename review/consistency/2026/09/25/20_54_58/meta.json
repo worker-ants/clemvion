@@ -1,0 +1,13 @@
+{
+  "timestamp": "2026-09-25T20:54:58.676102",
+  "mode": "구현 완료 후 검토 (--impl-done, scope=/private/tmp/claude-501/-Volumes-project-private-clemvion/9bc8ff42-8873-4ae7-986a-b884a1fefbf6/scratchpad/done3-scope/spec, diff-base=origin/main)",
+  "target_path": "spec/2-navigation/9-user-profile.md · spec/5-system/1-auth.md · spec/data-flow/12-workspace.md",
+  "checkers": [
+    "cross_spec",
+    "rationale_continuity",
+    "convention_compliance",
+    "plan_coherence",
+    "naming_collision"
+  ],
+  "scope_note": "scope 는 scratch 디렉터리(spec 3개 사본 — code: glob 으로 변경과 닿는 9-user-profile + 대조 SoT 1-auth · 12-workspace). 절단 대비 절대경로 Read 블록을 main 이 덧붙였다."
+}
