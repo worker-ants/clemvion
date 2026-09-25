@@ -58,8 +58,14 @@ POLICY = REPO_ROOT / "scripts" / "minio" / "avatars-public-read.json"
 
 JOB = ("Job", "minio-create-bucket", "mc")
 BUCKET_VAR = "${S3_BUCKET}"
-# The quote group is captured (not just tolerated) so assertion 3 can reject it.
-_HEREDOC = re.compile(r"<<-?[ \t]*(?P<q>['\"]?)EOF(?P=q)\n(?P<body>.*?)\nEOF\n", re.S)
+# The quote group is captured (not just tolerated) so assertion 3 can reject it,
+# and the `cat > PATH` target so the file written can be matched to the file
+# `set-json` reads. The Job must therefore write the policy as `cat > PATH <<EOF`.
+_HEREDOC = re.compile(
+    r"cat[ \t]*>[ \t]*(?P<path>[^\s<]+)[ \t]*<<-?[ \t]*(?P<q>['\"]?)EOF(?P=q)\n(?P<body>.*?)\nEOF\n",
+    re.S,
+)
+_SET_JSON = re.compile(r'mc anonymous set-json (?P<path>\S+) local/"\$S3_BUCKET"')
 _ARN_BUCKET = re.compile(r"arn:aws:s3:::([^/\"]+)/")
 
 
@@ -84,11 +90,12 @@ def job_script(text: str) -> str:
     return script
 
 
-def heredoc_policy(script: str) -> tuple[str, bool]:
-    """(body, delimiter_quoted) of THE `<<EOF … EOF` heredoc — zero or two fail,
-    since a second heredoc would leave it ambiguous which policy is applied."""
+def heredoc_policy(script: str) -> tuple[str, bool, str]:
+    """(body, delimiter_quoted, written_path) of THE `cat > PATH <<EOF … EOF`
+    heredoc — zero or two fail, since a second one would leave it ambiguous
+    which policy is applied."""
     m = _expect_one(list(_HEREDOC.finditer(script)), "Job script", "<<EOF heredoc")
-    return m.group("body"), bool(m.group("q"))
+    return m.group("body"), bool(m.group("q")), m.group("path")
 
 
 def granted_actions(policy: dict) -> list[str]:
@@ -145,7 +152,7 @@ class ExtractorBoundaryTest(unittest.TestCase):
         for delim, quoted in (("EOF", False), ("'EOF'", True), ('"EOF"', True), ("-EOF", False)):
             with self.subTest(delim=delim):
                 script = f"cat > /tmp/p.json <<{delim}\n{{\"a\": 1}}\nEOF\nnext\n"
-                self.assertEqual(heredoc_policy(script), ('{"a": 1}', quoted))
+                self.assertEqual(heredoc_policy(script), ('{"a": 1}', quoted, "/tmp/p.json"))
 
     def test_heredoc_zero_or_two_is_named(self):
         one = "cat > /tmp/p.json <<EOF\n{}\nEOF\n"
@@ -162,13 +169,19 @@ class ExtractorBoundaryTest(unittest.TestCase):
 class BucketPolicyParityTest(unittest.TestCase):
     def setUp(self):
         self.script = job_script(K8S_MINIO.read_text(encoding="utf-8"))
-        self.heredoc, self.quoted = heredoc_policy(self.script)
+        self.heredoc, self.quoted, self.written = heredoc_policy(self.script)
         self.canonical_text = POLICY.read_text(encoding="utf-8")
         self.canonical = json.loads(self.canonical_text)
 
     def test_policy_is_applied_to_the_created_bucket(self):
         self.assertRegex(self.script, r'mc mb [^\n]*local/"\$S3_BUCKET"')
         self.assertRegex(self.script, r'mc anonymous set-json \S+ local/"\$S3_BUCKET"')
+
+    def test_set_json_reads_the_file_the_heredoc_wrote(self):
+        # Two copies of one path — changing either alone makes `set-json` read a
+        # file that was never written (review round 2: mutated, all green before).
+        applied = [m.group("path") for m in _SET_JSON.finditer(self.script)]
+        self.assertEqual(applied, [self.written])
 
     def test_heredoc_names_the_bucket_through_the_variable(self):
         buckets = set(_ARN_BUCKET.findall(self.heredoc))
