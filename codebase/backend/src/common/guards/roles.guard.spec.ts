@@ -718,8 +718,15 @@ describe('RolesGuard', () => {
     it.each([
       ['둘 다 admin 이상', { [SAME_WS]: 'owner', [OTHER_WS]: 'admin' }, null],
       [
-        '한쪽이 editor',
+        '뒤(b)가 editor',
         { [SAME_WS]: 'owner', [OTHER_WS]: 'editor' },
+        'ADMIN_REQUIRED',
+      ],
+      // 미달을 반대 자리에도 둔다 — 한 자리만 있으면 «첫째에만 역할 적용» 뮤턴트가 메타데이터 순서에 따라
+      // 살아남는다(실측: 그 자리만 있을 때 SURVIVED).
+      [
+        '앞(a)이 editor',
+        { [SAME_WS]: 'editor', [OTHER_WS]: 'owner' },
         'ADMIN_REQUIRED',
       ],
     ] as const)(
