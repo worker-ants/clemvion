@@ -68,6 +68,22 @@ started: 2026-09-25
 | P18 | 스트림이 explore 컨텍스트에 워크스페이스를 요청자로 | **SURVIVED** | SURVIVED → 테스트 추가 후 KILLED(1) |
 | P19 | finish-guard 가 워크스페이스로 후보 조회 | **SURVIVED** | SURVIVED → 테스트 추가 후 KILLED(1) |
 | P20 | requestScopes Admin 판정 제거 | KILLED | KILLED — 2 failed |
+| R1 | 쓰기 조건(`judgedRow`)에서 판정 scope 제거 — 1라운드 W1 · W2 | KILLED | KILLED — 19 failed |
+| R3 | 콜백 재판정 호출 제거 — W3 | KILLED | KILLED — 6 failed |
+| R4 | 콜백 재판정의 `pending_install` 제외 제거 | KILLED | KILLED — 1 failed(설치 흐름) |
+| R5 · R6 | 콜백 재판정이 Organization Admin · 가시성을 안 봄 | KILLED | KILLED — 각 4 · 2 failed |
+| R7 | begin 소진 switch 에서 request_scopes → 판정 없음 — W5 | KILLED | KILLED — 2 failed |
+| R8 | update 의 0행 판정 제거 | KILLED | KILLED — 1 failed |
+| R9 | 역할 조회 불가 시 통과(fail-open) | KILLED | KILLED — 1 failed |
+
+## `/ai-review` 처리
+
+멈춤 규칙(라운드 시작 전 선언): Critical 0 · Warning 0 · 그 라운드 `codebase/**` 수정 0건이면 종결. 2라운드부터 구조 · 문서 잔여만
+남으면 developer SKILL «수렴 예외».
+
+| 라운드 | 세션 | 결과 | 처분 |
+| --- | --- | --- | --- |
+| 1 | `review/code/2026/09/25/22_45_37` | Critical 0 · Warning 11 | W1 · W2(판정 뒤 scope 변경 · lost update) — compare-and-set(`judgedRow`) · 부분 update. W3(콜백 TOCTOU) — 커밋 직전 재판정. W4 · W5 · W7~W11 조치. W6(역할 이중 조회) — 전역 가드 변경이라 트래커 등재. 커밋 `5999aedfe`. 뮤턴트 R1~R9 전부 KILLED |
 
 ## `--impl-prep` 처리 (`review/consistency/2026/09/25/21_49_24` — BLOCK: NO, WARNING 5)
 

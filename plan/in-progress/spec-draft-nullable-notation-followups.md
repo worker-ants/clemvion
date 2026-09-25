@@ -5762,6 +5762,15 @@ field: T | null;
       spec §8 이 말하는 personal 소유자 제약은 강제되지 않는다. **회귀가 아니다**: `git show` 대조로 rotate 락 PR 이전부터
       같았음이 확인됐다. rotate 한 곳이 아니라 권한 모델 전반(조회·수정·삭제)의 문제라 범위를 먼저 정해야 한다.
 
+- [ ] **워크스페이스 역할을 가드와 핸들러가 두 번 조회한다 — `RolesGuard` 가 조회한 역할을 요청에 싣지 않는다** (developer, 낮음,
+      2026-09-25 등재 · `/ai-review` `review/code/2026/09/25/22_45_37` WARNING 4 · 6). `@Roles()` 가 붙은 라우트는 가드가
+      `getMemberRole` 로 역할을 읽는데, Admin 판정이 서비스에 있는 핸들러(통합 `create` · `update` · `rotate` · `remove` 등)는
+      `resolveRole()` 로 **한 번 더** 읽는다 — 같은 요청에서 `workspace_member` PK 조회 두 번. 통합 모듈의 기존 패턴(`create` ·
+      `rotate`)이고 `integration-personal-owner` PR 이 `update` · `remove` 로 넓혔다. 처방 후보: 가드가 판정한 역할을 `request` 에
+      싣고 `@CurrentWorkspaceRole()` 파라미터 데코레이터로 읽는다 — 전역 가드 변경이라 가드 캐너리 · 경로 워크스페이스 분기(가드가
+      판정한 워크스페이스와 핸들러의 워크스페이스가 같은가)를 함께 봐야 한다. `@Roles()` 없는 라우트(`reauthorize` 등)는 가드가
+      역할을 읽지 않으므로 그대로 서비스가 읽는다. **착수 조건**: 없음(여유 있을 때).
+
 - [ ] **entity tester 재진입 금지가 문서로만 있다** (developer, 낮음, 2026-09-19 등재 · `/ai-review` `review/code/2026/09/19/16_00_06`
       concurrency · side_effect WARNING 1). entity tester 는 연결 테스트 동시 상한(2) 안에서 도므로, 등록된 테스터가 `testConnection` ·
       `previewTest` · `rotate` 를 다시 부르면 슬롯끼리 서로를 기다려 교착한다. 지금 둘(Cafe24 · MakeShop)은 부르지 않고
