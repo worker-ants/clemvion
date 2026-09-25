@@ -184,14 +184,18 @@ Rationale «Personal 통합 소유자 강제»)
 ### (G) `spec/5-system/3-error-handling.md §1.2` `ADMIN_REQUIRED` 행 — 발행처 추가 (W1)
 
 «(`RolesGuard` 의 `@Roles('admin')` 미달 · `WorkspacesService.assertAdmin()` 발행)» →
-«(`RolesGuard` 의 `@Roles('admin')` 미달 · `WorkspacesService.assertAdmin()` · `IntegrationsService` 의 Organization 통합 변경 판정
-([통합 관리 §8](../2-navigation/4-integration.md#8-권한-규칙)) 발행)»
+
+```markdown
+(`RolesGuard` 의 `@Roles('admin')` 미달 · `WorkspacesService.assertAdmin()` · `IntegrationsService` 의 Organization 통합 변경 판정 ([통합 관리 §8](../2-navigation/4-integration.md#8-권한-규칙)) 발행)
+```
 
 ### (H) `spec/4-nodes/4-integration/_product-overview.md` INT-MG-07 — 소유자 제약 한 구 (W4)
 
 «Personal ↔ Organization 범위 전환 — Admin만 가능하며 확인 다이얼로그 필수. 기존 자격 증명 승계» →
-«Personal ↔ Organization 범위 전환 — Admin만 가능하며(대상은 Admin 이 볼 수 있는 통합 — 자기 personal · organization,
-[통합 관리 §8](../../2-navigation/4-integration.md#8-권한-규칙)) 확인 다이얼로그 필수. 기존 자격 증명 승계»
+
+```markdown
+Personal ↔ Organization 범위 전환 — Admin만 가능하며(대상은 Admin 이 볼 수 있는 통합 — 자기 personal · organization, [통합 관리 §8](../../2-navigation/4-integration.md#8-권한-규칙)) 확인 다이얼로그 필수. 기존 자격 증명 승계
+```
 
 ## 동반 산출물 (같은 커밋)
 

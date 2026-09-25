@@ -44,6 +44,31 @@ started: 2026-09-25
   본다»). 컨트롤러 캐너리 테스트가 `IntegrationsController` 의 `:id` 경로 핸들러를 **리플렉션으로 전수** 세고, 각 핸들러를 실제
   `IntegrationsService` 에 물려 «남의 personal → 404» 를 확인한다. 새 `:id` 라우트는 이 표에 올리기 전까지 테스트가 실패한다.
 
+## 뮤턴트 (예측 / 실측)
+
+원복은 cp(절대경로), 커밋 뒤에 돌렸다. 하네스: scratch `mutants_ipo.py`.
+
+| # | 뮤턴트 | 예측 | 실측 |
+| --- | --- | --- | --- |
+| P1 | 가시성 술어 항상 참 | KILLED | KILLED — 60 failed |
+| P2 | 술어가 scope 를 안 봄(생성자만) | KILLED | KILLED — 42 failed(Organization 이 남에게 안 보임) |
+| P3 | 목록 SQL 필터 제거 | KILLED | KILLED — 2 failed(서비스 · 컨트롤러) |
+| P4 | `requireVisible` 가 가시성 안 봄 | KILLED | KILLED — 50 failed |
+| P5 | `assertCanModify` 무력화 | KILLED | KILLED — 18 failed |
+| P6 · P7 · P8 | reauthorize · update · remove 가 Admin 판정 없이 가시성만 | KILLED | KILLED — 각 4 · 2 · 2 failed |
+| P9 | rotate 락 안 가시성 재판정 제거 | KILLED | KILLED — 1 failed |
+| P10 | `oauth/begin` 판정 제거 | KILLED | KILLED — 5 failed |
+| P11 | `oauth/begin` 이 reauthorize 만 판정 | KILLED | KILLED — 2 failed(request_scopes · request-scopes) |
+| P12 | precheck 식별자 항상 노출 | KILLED | KILLED — 3 failed |
+| P13 | 어시스턴트 목록 SQL 필터 제거 | **SURVIVED** | SURVIVED → 테스트 추가 후 KILLED(1) |
+| P14a · P14b | 후보 조회가 요청자 대신 워크스페이스(integration · mcp) | KILLED | KILLED — 각 1 failed. 첫 시도는 앵커가 두 자리에 맞아 **무효 뮤턴트** — 둘로 나눠 다시 돌렸다 |
+| P15 | getUsages 가시성 판정 제거 | KILLED | KILLED — 6 failed |
+| P16 | updateScope 가 `requireEntity` | KILLED | KILLED — 3 failed |
+| P17 | 거부 코드 `FORBIDDEN` 으로 회귀 | KILLED | KILLED — 22 failed |
+| P18 | 스트림이 explore 컨텍스트에 워크스페이스를 요청자로 | **SURVIVED** | SURVIVED → 테스트 추가 후 KILLED(1) |
+| P19 | finish-guard 가 워크스페이스로 후보 조회 | **SURVIVED** | SURVIVED → 테스트 추가 후 KILLED(1) |
+| P20 | requestScopes Admin 판정 제거 | KILLED | KILLED — 2 failed |
+
 ## `--impl-prep` 처리 (`review/consistency/2026/09/25/21_49_24` — BLOCK: NO, WARNING 5)
 
 | # | 지적 | 처분 |
@@ -56,14 +81,15 @@ started: 2026-09-25
 ## 체크리스트
 
 - [x] `--impl-prep` — `21_49_24` BLOCK: NO, 처리 위
-- [ ] 테스트 선작성(unit) — 경로별 «남의 personal → 부재와 같은 404 · 역할 무관», «Organization 변경 → 비Admin 403 `ADMIN_REQUIRED`»,
+- [x] 테스트 선작성(unit) — 경로별 «남의 personal → 부재와 같은 404 · 역할 무관», «Organization 변경 → 비Admin 403 `ADMIN_REQUIRED`»,
       «본인 personal → 역할 무관 통과», 어시스턴트 도구 · 후보는 남의 personal 을 **목록에서 조용히 뺀다(에러 아님)**
-- [ ] 컨트롤러 `:id` 라우트 전수 캐너리(W2)
-- [ ] 구현
-- [ ] 뮤턴트 — 술어 · 각 경로의 판정 제거가 테스트에 잡히는지
-- [ ] e2e — 다중 액터(Admin · Editor · Viewer · 생성자) 권한 경계
-- [ ] 사용자 가이드(`integration-management.mdx` + en) — personal 은 생성자만 보인다 · Organization 변경은 Admin
-- [ ] CHANGELOG — 제품 동작 변경(보이는 범위 · Editor 권한 축소) + 보안 수정(reauthorize)
+- [x] 컨트롤러 `:id` 라우트 전수 캐너리(W2) — `integrations.controller.owner.spec.ts`
+- [x] 구현 — `d3ca80080`
+- [x] 뮤턴트 — 아래 표. 예측이 전부 맞았다. 살아남은 셋(P13 · P18 · P19)은 **예측대로** 지키는 테스트가 없던 자리라
+      테스트를 더하고(`d76e21357`) 다시 돌려 모두 죽였다
+- [ ] e2e — 다중 액터(Owner · Admin · Editor(생성자) · Viewer) 권한 경계 — `test/integration-personal-owner.e2e-spec.ts` 작성, 실행은 TEST WORKFLOW
+- [x] 사용자 가이드(`integration-management.mdx` + en) — `user-guide-writer` 위임. 팀 워크스페이스 Personal 가시성 · 역할 표 셋 · Danger zone 권한
+- [x] CHANGELOG — 한 항목(기준 1 — 제품 동작 변경). 컨트롤러 캐너리는 한 컨트롤러 범위 커버리지라 기준 3(전역 가드)이 아니다
 - [ ] TEST WORKFLOW — lint · unit · build · e2e
 - [ ] `/ai-review`
 - [ ] `--impl-done`
