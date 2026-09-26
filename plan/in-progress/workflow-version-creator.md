@@ -55,15 +55,15 @@ started: 2026-09-26
 7. **CHANGELOG** — 항목 1(OpenAPI): 두 엔드포인트가 `creator` 를 항상 실리는 필드로, `changeSummary` 를 항상 실리고 null 일 수 있는
    필드로 광고한다.
 
-## 뮤턴트 (예측 — 실측은 구현 뒤 채운다)
+## 뮤턴트 (저장소 파일 제자리 치환 → 실행 → `shutil.copy` 복원. 커밋 `f35fedaac` 위. M1~M4 는 단위 330건, M5 는 e2e 413건 1회)
 
 | # | 뮤턴트 | 예측 | 실측 · 죽인 케이스 |
 |---|---|---|---|
-| M1 | `WorkflowVersionDto.creator` 를 `@ApiPropertyOptional({ nullable: true })` 로 되돌림 | 래칫 RED · 캐너리 RED | |
-| M2 | `WorkflowVersionListItemDto.creator` 를 `@ApiPropertyOptional()`(nullable 없이)로 | 캐너리 RED · 래칫 GREEN | |
-| M3 | `changeSummary` 의 `type: String` 제거(한 DTO) | 캐너리 RED | |
-| M4 | `findOne` 이 `VERSION_METADATA_SELECT` 대신 5키만 적음 | 기존 리터럴 단언 · 대칭 단언 RED | |
-| M5 | 목록 `select` 의 `creator` 투영 제거(`User` 전 컬럼) | e2e H RED(미선언 키) — e2e 1회 | |
+| M1 | `WorkflowVersionDto.creator` 를 `@ApiPropertyOptional({ nullable: true })` 로 되돌림 | 래칫 RED · 캐너리 RED | KILLED — 래칫 · 캐너리(상세) |
+| M2 | `WorkflowVersionListItemDto.creator` 를 `@ApiPropertyOptional()`(nullable 없이)로 | 캐너리 RED · 래칫 GREEN | KILLED — 캐너리(목록) 한 건만. 래칫은 예측대로 통과 — 캐너리를 둔 이유 |
+| M3 | `changeSummary` 의 `type: String` 제거(한 DTO) | 캐너리 RED | KILLED — 캐너리(상세) 한 건만 |
+| M4 | `findOne` 이 `VERSION_METADATA_SELECT` 대신 5키만 적음 | 기존 리터럴 단언 · 대칭 단언 RED | KILLED — `findOne` 리터럴 단언 · 대칭 단언 |
+| M5 | 목록 `select` 의 `creator` 투영 제거(`User` 전 컬럼) | e2e H RED(미선언 키) — e2e 1회 | KILLED — e2e H 한 건(1 failed / 413). **죽인 것은 새 목록 이름 축**(`expectNoUserSecrets(list.body)` — `data[0].creator.passwordHash` 등 7건)이고, 그 뒤의 계약 대조는 도달하지 않았다. 예측(«미선언 키»)과 축이 다르다. `select` 에서 관계 투영이 빠지면 TypeORM 이 `User` 전 컬럼을 싣는다는 것도 이걸로 확인됐다 |
 
 ## `--impl-prep` 처분 (`review/consistency/2026/09/26/23_55_27` BLOCK: NO)
 
@@ -77,8 +77,8 @@ started: 2026-09-26
 
 - [x] `--impl-prep` — `review/consistency/2026/09/26/23_55_27` BLOCK: NO(W1 · W2 는 무관한 기존 spec 이격 · planner 항목 등재)
 - [x] DTO · 래칫 · 서비스 · 단위 · 캐너리 · e2e · CHANGELOG
-- [ ] 뮤턴트 표 실측
-- [ ] TEST WORKFLOW (lint · unit · build · e2e)
+- [x] 뮤턴트 표 실측 — 5개 전부 KILLED(M5 는 예측과 다른 축이 죽였다)
+- [x] TEST WORKFLOW (lint · unit · build · e2e 413)
 - [ ] `/ai-review`
 - [ ] `--impl-done`
 - [ ] 트래커 두 항목 닫기
