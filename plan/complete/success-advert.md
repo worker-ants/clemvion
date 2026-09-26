@@ -1,6 +1,6 @@
 ---
 title: 성공 응답을 광고하지 않는 라우트 11곳 — 응답 DTO · 광고 · 가드를 «하나 이상 광고» 로
-status: in-progress
+status: complete
 owner: developer
 worktree: success-advert
 spec_impact:
@@ -101,5 +101,7 @@ started: 2026-09-26
 - [x] `/ai-review` — 1R `review/code/2026/09/26/13_39_09`(Critical 0 · Warning 3 → 조치 `bf1fa96fc`) · 2R 전수 14명
       `review/code/2026/09/26/14_07_11`(Critical 0 · Warning 1 — CHANGELOG 경로 표기, `codebase/**` 밖에서 조치). 정지 규칙 «Critical 0 ·
       Warning 0 · 그 라운드 codebase 수정 0건» 을 2R 에서 충족. 테스트 INFO 세 칸은 트래커 등재
-- [ ] `--impl-done`
-- [ ] 트래커 항목 닫기
+- [x] `--impl-done` — `review/consistency/2026/09/26/14_17_49` BLOCK: NO. scope 는 이 브랜치가 바꾼 코드의 spec 소유 문서 10개
+      (`review_guard._spec_linked_changes`). Warning 2 는 이미 트래커에 있는 planner 항목(`sessions/latest` §6 · `revoke-token` 서술) ·
+      INFO 둘(§6 역할 서술 · §5-2 각주)을 트래커에 반영 · W4(Rationale 완료형)는 구현 뒤 참이 됐다
+- [x] 트래커 항목 닫기 — 종결 노트에 채운 곳 · 가드 · 리뷰 · `--impl-done` 세션

@@ -1,6 +1,6 @@
 ---
 title: swagger.md §2-4 — 라우트는 성공 응답을 하나 이상 광고한다 · §5-2 `ApiOkWrappedNullableResponse`
-status: in-progress
+status: complete
 owner: project-planner
 worktree: success-advert
 spec_impact:
@@ -10,7 +10,7 @@ started: 2026-09-26
 
 # spec draft — 성공 응답 광고의 존재
 
-구현 plan `plan/in-progress/success-advert.md` 이 가드 `http-status-advertised` 를 «광고가 있으면 맞아야 한다» 에서 «라우트는 성공
+구현 plan `plan/complete/success-advert.md` 이 가드 `http-status-advertised` 를 «광고가 있으면 맞아야 한다» 에서 «라우트는 성공
 응답을 하나 이상 광고한다» 로 조이고, `data` 가 `null` 일 수 있는 응답을 위한 래퍼를 더한다. `spec/conventions/swagger.md` 가 두
 규칙의 자리다.
 
