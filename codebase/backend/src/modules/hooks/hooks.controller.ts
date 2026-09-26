@@ -16,6 +16,8 @@ import {
   ApiTags,
   ApiOperation,
   ApiParam,
+  ApiBody,
+  ApiConsumes,
   ApiNotFoundResponse,
   ApiResponse,
   ApiUnauthorizedResponse,
@@ -127,6 +129,15 @@ export class HooksController {
     name: 'endpointPath',
     description: '트리거 등록 시 발급된 고유 엔드포인트 경로',
     example: 'abcd1234',
+  })
+  // 본문 형태는 외부 발신자가 정한다(spec 12-webhook WH-EP-04 · WH-EP-05 — JSON · form-urlencoded, 객체가 아닐 수도 있다). 그래서
+  // 스키마는 «임의 값»(`{}`)이고, 파라미터(`unknown`)는 전역 파이프를 타지 않는다.
+  @ApiConsumes('application/json', 'application/x-www-form-urlencoded')
+  @ApiBody({
+    required: false,
+    description:
+      '외부 서비스가 보내는 본문 — 형태는 발신자가 정한다(JSON 또는 form-urlencoded). 전체가 실행 입력 `body` 로 실리고, Manual Trigger 파라미터는 최상위 키에서 추출한다.',
+    schema: {},
   })
   @ApiAcceptedWrappedResponse(WebhookAcceptedDto, {
     description:

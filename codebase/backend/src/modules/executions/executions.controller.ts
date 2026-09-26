@@ -21,6 +21,7 @@ import {
   ApiBearerAuth,
   ApiOperation,
   ApiParam,
+  ApiBody,
   ApiBadRequestResponse,
   ApiUnauthorizedResponse,
   ApiNotFoundResponse,
@@ -40,6 +41,7 @@ import {
 } from '../../common/swagger';
 import { Throttle } from '@nestjs/throttler';
 import { ReRunRequestDto } from './dto/re-run.dto';
+import { ContinueExecutionRequestDto } from './dto/continue-execution.dto';
 import { ExecutionsService } from './executions.service';
 import { ExecutionEngineService } from '../execution-engine/execution-engine.service';
 import {
@@ -156,6 +158,8 @@ export class ExecutionsController {
       '입력 대기(waiting_for_input) 상태의 실행에 폼 데이터를 전달하여 이어 진행시킵니다.',
   })
   @ApiParam({ name: 'id', description: '실행 UUID', format: 'uuid' })
+  // 본문 스키마는 `@ApiBody` 로만 — DTO 로 타입하면 전역 파이프가 진입해 여분 키가 400 이 된다(`ContinueExecutionRequestDto` 머리 주석).
+  @ApiBody({ type: ContinueExecutionRequestDto, required: false })
   @ApiOkWrappedResponse(ExecutionContinueResultDto, {
     description: '이어실행 요청 접수',
   })

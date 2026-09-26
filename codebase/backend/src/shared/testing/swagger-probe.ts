@@ -5,7 +5,9 @@ import {
   type OpenAPIObject,
   SwaggerModule,
 } from '@nestjs/swagger';
-import type { ModuleMetadata } from '@nestjs/common';
+import type { ModuleMetadata, Type } from '@nestjs/common';
+import { ROUTE_ARGS_METADATA } from '@nestjs/common/constants';
+import { RouteParamtypes } from '@nestjs/common/enums/route-paramtypes.enum';
 
 /**
  * DTO 의 **생성된 OpenAPI 스키마**를 캐너리로 고정할 때 쓰는 프로브 헬퍼.
@@ -127,4 +129,36 @@ export function propertyOf(
     );
   }
   return property;
+}
+
+/**
+ * 핸들러의 `@Body()` 자리에 emit 된 설계 타입(`design:paramtypes`) — 문서 전용 DTO 를 `@ApiBody` 로만 쓰는 라우트의 캐너리용.
+ *
+ * `Object` 면 전역 `CustomValidationPipe` 가 검증을 건너뛴다(`toValidate`). DTO 클래스가 나오면 누군가 파라미터를 DTO 로 타입해
+ * 파이프가 진입했다는 뜻이다 — 선례 `workflows-execute-body.spec.ts` 의 «문서 작업이 계약 변경으로 번졌다». 자리는 Nest 의 라우트
+ * 인자 메타데이터로 찾는다(파라미터 순서에 기대지 않는다). `@Body()` 가 없으면 던진다 — 조용히 `undefined` 를 내면 캐너리가 공허해진다.
+ */
+export function bodyParamDesignType(
+  controller: Type<unknown>,
+  method: string,
+): unknown {
+  const args = (Reflect.getMetadata(ROUTE_ARGS_METADATA, controller, method) ??
+    {}) as Record<string, { index: number }>;
+  const body = Object.entries(args).find(
+    ([key]) => key.split(':')[0] === String(RouteParamtypes.BODY),
+  );
+  if (!body)
+    throw new Error(
+      `${controller.name}.${method} 에 @Body() 가 없다 — 캐너리 전제 붕괴`,
+    );
+  const types = Reflect.getMetadata(
+    'design:paramtypes',
+    controller.prototype,
+    method,
+  ) as unknown[] | undefined;
+  if (!types)
+    throw new Error(
+      `${controller.name}.${method} 의 design:paramtypes 가 없다 — 캐너리 전제 붕괴`,
+    );
+  return types[body[1].index];
 }
