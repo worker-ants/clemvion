@@ -312,6 +312,13 @@ describe('Workflow CRUD (e2e)', () => {
     }>;
     expect(nodes).toHaveLength(5);
     expect(edges).toHaveLength(2);
+    // export 가 선언과 맞는가 — 여기엔 index 참조가 채워진 노드와 `null` 인 노드, `description` · `condition` 이 `null` 인
+    // 원소가 모두 있다(F 의 export 는 노드 1 · 엣지 0 이라 원소 대조가 약하다). `formatVersion` 은 F 와 같은 이유로 뺀다.
+    assertMatchesContract(
+      dupExport.body.data,
+      await contractForDto(ExportWorkflowDto),
+      { allowMissing: ['formatVersion'] },
+    );
 
     const idx = (label: string) => nodes.findIndex((n) => n.label === label);
     expect(nodes[idx('HTTP')].containerIndex).toBe(idx('Loop'));

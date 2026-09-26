@@ -57,7 +57,30 @@ DTO 를 둘지 — 을 아래 실측으로 정한다.
 ## 관찰 (이 PR 밖)
 
 - 프런트엔드 `ExportedNode.description?: string`(`codebase/frontend/src/lib/api/workflows.ts`)은 실제로 오는 `null` 을 적지 않는다.
-  소비처가 falsy 로만 다뤄 동작 결함은 아니다.
+  ~~소비처가 falsy 로만 다뤄 동작 결함은 아니다.~~ → **정정**: 소비처 두 곳은 응답 전체를 `JSON.stringify` 해 파일로 내려받을
+  뿐 필드를 읽지 않는다(grep). 그래서 동작 결함이 아니다. 트래커에 낮음으로 등재(`--impl-prep` INFO 1).
+
+## `--impl-prep` 처분 (`review/consistency/2026/09/26/22_52_28` BLOCK: NO)
+
+- **WARNING 1** — `4-integration.md` §9.4 의 실패 응답 형식(`{ code, message, details? }`)이 SoT §5.3 · 구현
+  (`{ error: { code, message, requestId, details? } }`)과 다르다. 실측으로 확인했다. 이 plan 과 무관하고 spec 쓰기라 planner 몫이다.
+  같은 §9.4 블록을 겨냥한 기존 planner 항목(«`INTEGRATION_TEST_FAILED` 의 상태 코드와 발생 경로…»)이 있어 **새로 만들지 않고 그
+  항목을 갱신**했다.
+- **INFO 1** — 프런트엔드 export 타입의 `null` 미반영 → 트래커 등재(위 관찰).
+- **INFO 3** — 두 DTO 가 `NodeDto` · `EdgeDto` 를 재사용하지 않는 이유(UUID 미포함 · index 참조)를 코드에 적으라 → 선언 위 `//`
+  주석으로 반영(import 요청 DTO 를 쓰지 않는 이유도 함께).
+- INFO 2(기존 `NodeDto` · `EdgeDto` 의 §5.4 혼합형) · 4(`formatVersion` 갭) · 5 · 6(무관 문서) — 조치 불요.
+
+## 구현 중 발견 — `string | null` 은 `type: object` 가 된다
+
+생성 스키마를 probe 로 찍어 보니 `ExportedNodeDto.description` 이 `{"type":"object","nullable":true}` 였다. `string | null` 의
+설계 타입이 `Object` 로 emit 되기 때문이다(swagger CLI 플러그인 없이 만든 스키마 — 테스트의 계약 검증자가 쓰는 것). `type: String`
+을 명시하고, 캐너리에 `description` 스키마가 `{ type: 'string', nullable: true }` 인지 단언을 더했다.
+
+- **범위 실측**: 기존 `NodeDto.description` · `.containerId` 도 같은 생성에서 `type: object` 다(probe). 다만 `@nestjs/swagger` 의
+  데코레이터는 플러그인 메타데이터(`_OPENAPI_METADATA_FACTORY`)의 타입을 먼저 보고 없을 때만 설계 타입으로 떨어진다
+  (`dist/decorators/helpers.js`). 배포 빌드(`nest build`)에는 플러그인이 있으므로 이 현상은 **테스트 쪽 생성에만** 있다.
+  검증자는 타입을 대조하지 않으므로 지금 테스트 결과도 바꾸지 않는다 → 기존 DTO 는 건드리지 않는다.
 
 ## 뮤턴트 (예측 — 실측은 구현 뒤 채운다)
 
@@ -66,11 +89,12 @@ DTO 를 둘지 — 을 아래 실측으로 정한다.
 | M1 | `ExportWorkflowDto.nodes` 를 타입 없는 배열로 되돌림 | 캐너리 RED | |
 | M2 | `ExportWorkflowDto.edges` 를 타입 없는 배열로 되돌림 | 캐너리 RED | |
 | M3 | `ExportedNodeDto.description` 의 `nullable` 제거 | e2e C RED(`null` 인데 nullable 아님) — e2e 1회 | |
+| M4 | `ExportedNodeDto.description` 의 `type: String` 제거 | 캐너리 `description` 단언 RED · 나머지 GREEN | |
 
 ## 체크리스트
 
-- [ ] `--impl-prep`
-- [ ] DTO · e2e · 캐너리 · CHANGELOG
+- [x] `--impl-prep` — `review/consistency/2026/09/26/22_52_28` BLOCK: NO(W1 은 무관 · 기존 planner 항목 갱신)
+- [x] DTO · e2e · 캐너리 · CHANGELOG · 트래커(§9.4 항목 갱신 · 프런트엔드 타입 항목 등재)
 - [ ] 뮤턴트 표 실측
 - [ ] TEST WORKFLOW (lint · unit · build · e2e)
 - [ ] `/ai-review`
