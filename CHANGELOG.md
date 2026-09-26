@@ -23,6 +23,14 @@
 > 07 37% · 08 30% · 09(25일까지) 49% 였다(나중 PR 의 백필은 세지 않았다). 여기 없다고 그 변경이 없었던 것은 아니다 —
 > `git log` 가 정본이다.
 
+## Unreleased — OpenAPI 가 `POST /integrations/:id/test` 의 MCP 성공 응답 필드를 광고한다
+
+MCP 통합의 연결 테스트가 성공하면 응답에 `capabilities` · `serverInfo` · `preview`(`toolCount` · `resourceSupported` ·
+`promptSupported`)가 실리는데, OpenAPI 응답 스키마에는 없었다. 같은 값을 돌려주는 `POST /integrations/preview-test` 는 이미
+광고하고 있었다 — 그와 같은 선언을 붙였다. 응답 자체는 그대로다.
+
+- 응답 설명의 «메타 정보» 를 실제 필드(실패 시 분류 코드 · MCP 성공 시 capability 미리보기)로 고쳤다. `meta` 필드는 응답에 없다.
+
 ## Unreleased — 저장소 가드 신설: 요청 본문을 받는 라우트는 본문 스키마를 광고한다
 
 `@Body()` 파라미터를 인라인 객체 타입 · 인터페이스 · `unknown` 으로 받는 라우트는 생성된 OpenAPI 에 요청 본문 스키마가 없는데, 이를 막는

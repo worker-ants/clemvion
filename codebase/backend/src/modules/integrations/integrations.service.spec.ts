@@ -750,9 +750,42 @@ describe('IntegrationsService', () => {
       // 자매 `/api/model-configs/:id/test` 가 정확히 이 배선이 없어서 3층 필드명 불일치를
       // 놓쳤으므로, 같은 배치에서 형제 엔드포인트도 같은 그물에 넣는다.
       //
-      // **성공 경로에는 아직 걸 수 없다** — MCP 성공 응답이 싣는 `capabilities`·`serverInfo`·
-      // `preview` 3종이 여전히 미선언이라 지금 걸면 그 자리에서 RED 가 난다. 그 셋은 DTO 신설이
-      // 필요해 트래커에 등재했고, 닫히면 이 배선을 성공 경로로도 넓힌다.
+      // 성공 경로는 아래 «mcp 성공 응답은 …» 케이스가 같은 그물에 넣는다 — MCP 성공 응답이 싣는
+      // `capabilities`·`serverInfo`·`preview` 가 선언되기 전에는 걸면 그 자리에서 RED 였다.
+      assertMatchesContract(
+        result,
+        await contractForDto(TestConnectionResultDto),
+      );
+    });
+
+    it('mcp 성공 응답은 capability 미리보기 필드 셋까지 선언과 일치한다', async () => {
+      integrationRepo.findOne.mockResolvedValue(
+        makeIntegration({
+          serviceType: 'mcp',
+          authType: 'bearer_token',
+          credentials: { url: 'https://mcp.example.com', token: 'abc' },
+        }),
+      );
+      mcpTestConnection.test.mockResolvedValueOnce({
+        success: true,
+        message: 'Connection successful',
+        capabilities: { tools: {}, resources: {} },
+        serverInfo: { name: 's', version: '1' },
+        preview: {
+          toolCount: 3,
+          resourceSupported: true,
+          promptSupported: false,
+        },
+      });
+
+      const result = await service.testConnection('int-1', 'ws-1', 'user-1');
+
+      expect(result).toMatchObject({
+        success: true,
+        preview: { toolCount: 3 },
+      });
+      // 테스터를 mock 하므로 `preview` 안쪽 키 이름은 여기서 내가 적은 것이다 — 그 이름을 실제
+      // 생산자(`McpTestConnectionService`)에게서 받는 대조는 `integrations.controller.wire.spec.ts` 가 한다.
       assertMatchesContract(
         result,
         await contractForDto(TestConnectionResultDto),
@@ -2598,6 +2631,8 @@ describe('IntegrationsService', () => {
         token: 'abc',
         defaultHeaders: undefined,
       });
+      // 형제 `:id/test` 와 같은 생산자다 — 선언은 있었는데 성공 경로를 선언과 대조하는 자리가 없었다.
+      assertMatchesContract(result, await contractForDto(PreviewTestResultDto));
     });
 
     it('mcp transport failure surfaces MCP_* code in result.code (not message)', async () => {

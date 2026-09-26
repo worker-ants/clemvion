@@ -74,10 +74,20 @@ started: 2026-09-26
 | M6 | 와이어 앱에서 `TransformInterceptor` 제거 | 와이어 전 케이스 RED | |
 | M7 | `McpConnectionPreviewDto.toolCount` 를 required 로 | 와이어 (b) RED | |
 
+## `--impl-prep` 처분 (`review/consistency/2026/09/26/20_32_24` BLOCK: NO)
+
+- **WARNING 1** — `INTEGRATION_TEST_FAILED` 의 상태 코드(§9.4 는 422) · 발생 경로(MCP client §9 는 `:id/test`)가 코드(`rotate()`
+  의 400)와 어긋난다. 실측으로 확인했다. spec 만 틀렸고 이 PR 의 DTO · 테스트와는 무관하다 → planner 항목으로 트래커에 등재.
+- **INFO 2** — `serverInfo` 의 TS 타입은 `{ name; version }` 인데 스키마는 열린 맵이다. 형제와 **같게** 둔다(방향 1). TS 타입은
+  문서 전용 DTO 의 필드 타입이라 런타임 계약은 스키마가 정한다. 형제만 고치거나 이쪽만 고치면 둘이 갈린다.
+- **INFO 5** — 별도 파일로 둔다. 이 모듈엔 평범한 `integrations.controller.spec.ts` 가 없고 `integrations.controller.owner.spec.ts`
+  처럼 관점별 파일이 관례다. 자매는 기존 컨트롤러 spec 에 describe 를 더했지만, 여기선 더할 파일이 관점이 다른 owner spec 뿐이다.
+- INFO 1 · 3(spec 이 서비스 타입명 `IntegrationTestResult` 로 부른다) · 4(무관 문서의 Rationale 번호) — 이 PR 은 spec 을 쓰지 않는다.
+
 ## 체크리스트
 
-- [ ] `--impl-prep`
-- [ ] DTO · 서비스 축 · 와이어 축 · CHANGELOG
+- [x] `--impl-prep` — `review/consistency/2026/09/26/20_32_24` BLOCK: NO(W1 은 트래커 planner 항목)
+- [x] DTO · 서비스 축 · 와이어 축 · CHANGELOG
 - [ ] 뮤턴트 표 실측
 - [ ] TEST WORKFLOW (lint · unit · build · e2e)
 - [ ] `/ai-review`

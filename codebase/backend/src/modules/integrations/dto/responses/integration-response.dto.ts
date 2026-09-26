@@ -480,9 +480,6 @@ export class TestConnectionResultDto {
   // `integrations.service.ts`). `spec/2-navigation/4-integration.md §9.1` 이 이 엔드포인트의
   // `200 + { success:false, code:'INTEGRATION_INCOMPLETE' }` 를 **이미 문서화**하고 있었으므로
   // spec 이 아니라 DTO 가 낡은 상태였다.
-  //
-  // 같은 인터페이스의 MCP 전용 필드(`capabilities`·`serverInfo`·`preview`)도 미선언이지만
-  // 타입이 무거워 별도 등재했다 — `plan/in-progress/spec-draft-nullable-notation-followups.md`.
   /**
    * 실패 분류 코드. `MCP_*` · `EMAIL_*` · `DB_*` · `HTTP_*` · `INTEGRATION_INCOMPLETE` 등이며,
    * 성공 응답에는 실리지 않습니다.
@@ -492,6 +489,35 @@ export class TestConnectionResultDto {
 
   @ApiPropertyOptional({ nullable: true })
   message?: string | null;
+
+  // 아래 셋도 `code` 와 같은 방향의 결함이었다 — `IntegrationTestResult` 가 MCP 성공 시 싣는데(`testMcpTransport`)
+  // 선언이 없었고, spec(`4-integration.md §5.6` · `11-mcp-client.md §9`)은 이미 문서화하고 있었다. 선언은 형제
+  // `PreviewTestResultDto` 와 같게 둔다 — 두 엔드포인트가 같은 `dispatchTest` 결과를 돌려주므로 다르게 적으면 같은 값을
+  // 다르게 광고한다. `serverInfo` 가 닫힌 DTO 가 아니라 열린 맵인 것도 형제와 같은 이유다(SDK 가 `name`·`version` 밖의
+  // 키를 실을 수 있다 — 닫으면 응답 계약 검증자가 그 키를 미선언으로 잡는다).
+
+  /**
+   * MCP service_type 한정 — 성공 시 서버가 보고한 capabilities 객체 그대로.
+   * 다른 service_type 에서는 생략된다.
+   */
+  @ApiProperty({
+    required: false,
+    additionalProperties: true,
+    description: 'MCP capabilities (mcp service_type only)',
+  })
+  capabilities?: Record<string, unknown>;
+
+  /** MCP service_type 한정 — 성공 시 서버 이름·버전 */
+  @ApiProperty({
+    required: false,
+    additionalProperties: true,
+    description: 'MCP server identity (mcp service_type only)',
+  })
+  serverInfo?: { name: string; version: string };
+
+  /** MCP service_type 한정 — 성공 시 capability 미리보기 */
+  @ApiProperty({ required: false, type: McpConnectionPreviewDto })
+  preview?: McpConnectionPreviewDto;
 
   // `meta` 도 `latencyMs` 와 같은 유령이었다 — 이 DTO 를 쓰는 엔드포인트는 하나
   // (`POST /api/integrations/:id/test`, `integrations.controller.ts`)이고 그 핸들러가 돌려주는

@@ -518,7 +518,8 @@ export class IntegrationsController {
   })
   @ApiParam({ name: 'id', description: '통합 UUID', format: 'uuid' })
   @ApiOkWrappedResponse(TestConnectionResultDto, {
-    description: '연결 테스트 결과 (성공 여부, 메타 정보)',
+    description:
+      '연결 테스트 결과 (성공 여부, 실패 시 분류 코드, MCP 성공 시 capability 미리보기)',
   })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
   @ApiForbiddenResponse({ description: FORBIDDEN_NOT_A_MEMBER })

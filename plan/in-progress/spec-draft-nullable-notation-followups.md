@@ -3607,6 +3607,17 @@ field: T | null;
       `assertMatchesContract` 뿐**이다 — 봉투를 만지는 인터셉터가 끼어도 못 본다.
       위 "MCP 전용 3종 미선언" 항목은 **서비스 레벨 축**이라 이 와이어 축을 덮지 않는다.
 
+- [ ] **`INTEGRATION_TEST_FAILED` 의 상태 코드와 발생 경로를 spec 두 문서가 다르게 적는다** (planner, 2026-09-26 등재 ·
+      `--impl-prep` `review/consistency/2026/09/26/20_32_24` WARNING 1 — cross_spec · convention_compliance 둘이 짚었다).
+      - `spec/2-navigation/4-integration.md` §9.4 공통 에러 목록은 `INTEGRATION_TEST_FAILED (422)` 라고 적는다.
+      - `spec/5-system/11-mcp-client.md` §9 는 «credential rotate 경로(`POST /api/integrations/:id/test` 후 갱신)» 가 400 을
+        던진다고 적는다. rotate 는 `:id/rotate` 이고 그 안에서 연결 테스트를 돌린다.
+      > **실측 (2026-09-26, `integration-test-contract` 착수 전)**: 이 코드를 던지는 자리는 `integrations.service.ts` `rotate()`
+      > 한 곳뿐이고 `BadRequestException`(400)이다. 컨트롤러 `@Post(':id/rotate')` 의 400 설명도 이 코드를 적는다.
+      > `:id/test`(`testConnection()`)는 던지지 않고 항상 200 + `{ success, code?, message }` 다. `4-integration.md` 에서 422 는
+      > §9.4 밖에서는 Rationale «연결 테스트 endpoint 의 `pending_install` 가드 — 응답 형식» 이 **기각한 대안**으로만 나온다.
+      > 처분: §9.4 를 400 · rotate 한정으로, MCP client §9 의 경로를 `:id/rotate` 로 고친다. 코드는 그대로다.
+
 - [ ] **`4-cafe24.md §6`·`5-makeshop.md §6` 도메인 에러 코드 카탈로그가 `*_UNRESOLVED_PATH_PARAM`
       을 누락한다** (planner, 2026-09-13 등재 · `--impl-done`
       `review/consistency/2026/09/13/11_33_51` cross_spec WARNING#1, `12_01_01` 재확인).
