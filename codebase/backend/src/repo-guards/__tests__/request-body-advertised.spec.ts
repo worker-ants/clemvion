@@ -120,6 +120,19 @@ describe('요청 본문 스키마 가드', () => {
       @Post('keyed')
       keyedBody(@Body('a') _a: string): void {}
 
+      // 파이프 목록의 나머지 셋 — 목록에서 하나가 빠지면 그 타입이 여기서 사라져 RED 다.
+      /** `number` — 설계 타입 `Number`. 위반. */
+      @Post('number')
+      numberBody(@Body() _body: number): void {}
+
+      /** `boolean` — 설계 타입 `Boolean`. 위반. */
+      @Post('boolean')
+      booleanBody(@Body() _body: boolean): void {}
+
+      /** 배열 — 설계 타입 `Array`. 위반. */
+      @Post('array')
+      arrayBody(@Body() _body: string[]): void {}
+
       /** OpenAPI 에서 빠진 라우트 — 묻지 않는다. */
       @Post('excluded')
       @ApiExcludeEndpoint()
@@ -128,6 +141,16 @@ describe('요청 본문 스키마 가드', () => {
       /** 본문이 없는 라우트 — 세지 않는다. */
       @Get('no-body')
       noBody(): void {}
+    }
+
+    /**
+     * 이름이 앞서는 두 번째 컨트롤러 — 위반 정렬의 1차 키(컨트롤러)가 실제로 순서를 가르는지 본다. 핸들러 이름은 일부러 뒤로 가게
+     * 지었다: 컨트롤러로 정렬하면 맨 앞, 핸들러로만 정렬하면 맨 뒤다.
+     */
+    @Controller('fixture-body-alpha')
+    class AlphaBodyFixtureController {
+      @Post()
+      zInline(@Body() _body: { a?: string }): void {}
     }
 
     @Controller('fixture-body-excluded')
@@ -141,18 +164,25 @@ describe('요청 본문 스키마 가드', () => {
     const scan = scanRequestBodyAdvertised(
       collectRouteHandlers([
         BodyFixtureController,
+        AlphaBodyFixtureController,
         ExcludedBodyFixtureController,
       ]),
     );
 
-    it('인라인 · 인터페이스 · `unknown` · 키 지정 원시 타입의 무광고를 잡는다', () => {
+    it('인라인 · 인터페이스 · `unknown` · 원시 타입 · 배열의 무광고를 잡는다 — 컨트롤러 → 핸들러 순', () => {
       expect(
-        scan.violations.map((v) => `${v.handler}:${v.designType}`),
+        scan.violations.map(
+          (v) => `${v.controller}.${v.handler}:${v.designType}`,
+        ),
       ).toStrictEqual([
-        'inlineBare:Object',
-        'interfaceBody:Object',
-        'keyedBody:String',
-        'unknownBody:Object',
+        'AlphaBodyFixtureController.zInline:Object',
+        'BodyFixtureController.arrayBody:Array',
+        'BodyFixtureController.booleanBody:Boolean',
+        'BodyFixtureController.inlineBare:Object',
+        'BodyFixtureController.interfaceBody:Object',
+        'BodyFixtureController.keyedBody:String',
+        'BodyFixtureController.numberBody:Number',
+        'BodyFixtureController.unknownBody:Object',
       ]);
     });
 
@@ -170,10 +200,11 @@ describe('요청 본문 스키마 가드', () => {
     });
 
     it('본문 자리를 센다 — 제외 라우트와 본문 없는 라우트는 세지 않는다', () => {
-      // 대조한 자리: inlineBare · inlineDocumented · classBody · interfaceBody · unknownBody · unknownDocumented · keyedBody = 7
-      expect(scan.checked).toBe(7);
-      // 그중 클래스가 아닌 자리: classBody 를 뺀 6
-      expect(scan.unschematized).toBe(6);
+      // 대조한 자리: BodyFixture 10(inlineBare · inlineDocumented · classBody · interfaceBody · unknownBody · unknownDocumented ·
+      // keyedBody · numberBody · booleanBody · arrayBody) + AlphaBodyFixture 1 = 11
+      expect(scan.checked).toBe(11);
+      // 그중 클래스가 아닌 자리: classBody 를 뺀 10
+      expect(scan.unschematized).toBe(10);
     });
 
     it('설계 타입이 emit 되지 않은 자리도 비클래스로 센다 — 파이프가 `!metatype` 이면 건너뛰는 것과 같다', () => {

@@ -1,7 +1,7 @@
 import { BadRequestException } from '@nestjs/common';
 import { IsArray, IsIn, IsString, ValidateNested } from 'class-validator';
 import { Type } from 'class-transformer';
-import { CustomValidationPipe } from './validation.pipe';
+import { CustomValidationPipe, UNVALIDATED_METATYPES } from './validation.pipe';
 
 class InnerDto {
   @IsString()
@@ -112,5 +112,21 @@ describe('CustomValidationPipe — forbidNonWhitelisted', () => {
   it('accepts declared keys only — proves the assertion above is not vacuous', async () => {
     const result = await pipe.transform({ known: 'ok' }, narrowMeta);
     expect(result).toBeInstanceOf(NarrowDto);
+  });
+});
+
+describe('UNVALIDATED_METATYPES', () => {
+  it('얼려 있다 — export 된 전역 목록이 런타임에 늘면 그 타입의 본문이 검증 없이 지나간다', () => {
+    expect(Object.isFrozen(UNVALIDATED_METATYPES)).toBe(true);
+  });
+
+  it('파이프는 이 목록의 설계 타입이면 검증하지 않고 값을 그대로 넘긴다', async () => {
+    const pipe = new CustomValidationPipe();
+    const value = { anything: 1 };
+    for (const metatype of UNVALIDATED_METATYPES) {
+      await expect(
+        pipe.transform(value, { type: 'body', metatype: metatype as never }),
+      ).resolves.toBe(value);
+    }
   });
 });

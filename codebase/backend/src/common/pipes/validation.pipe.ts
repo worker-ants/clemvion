@@ -10,15 +10,18 @@ import { plainToInstance } from 'class-transformer';
 /**
  * 이 설계 타입이면 검증하지 않고 값을 그대로 넘긴다 — 인라인 객체 타입 · 인터페이스 · `unknown` 본문이 여기 든다. 저장소 가드
  * `request-body-advertised` 가 **이 상수를 그대로** 써서 «문서도 스키마가 비는 자리» 를 센다(`spec/conventions/swagger.md` §5-4).
+ *
+ * 얼린다 — export 된 전역 목록이라 `readonly` 타입만으로는 런타임 변형(`.push`)을 막지 못한다. 이 목록이 늘면 그 타입의 본문은
+ * 검증 없이 지나간다.
  */
 // eslint-disable-next-line @typescript-eslint/no-unsafe-function-type
-export const UNVALIDATED_METATYPES: readonly Function[] = [
+export const UNVALIDATED_METATYPES: readonly Function[] = Object.freeze([
   String,
   Boolean,
   Number,
   Array,
   Object,
-];
+]);
 
 interface ValidationDetail {
   field: string;
