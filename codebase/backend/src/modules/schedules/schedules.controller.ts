@@ -184,6 +184,7 @@ export class SchedulesController {
   }
 
   @Post('preview')
+  @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: 'Cron 식 미리보기',
     description:

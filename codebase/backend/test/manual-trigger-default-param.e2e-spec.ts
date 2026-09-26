@@ -173,7 +173,7 @@ describe('Manual Trigger defaultValue (e2e)', () => {
           },
         ],
       });
-    expect([200, 201]).toContain(save.status);
+    expect(save.status).toBe(200);
     return { workflowId, triggerId, transformId };
   }
 

@@ -199,7 +199,7 @@ describe('노드 취소 전파 (e2e, node-cancellation.md §5)', () => {
           },
         ],
       });
-    expect([200, 201]).toContain(save.status);
+    expect(save.status).toBe(200);
     return {
       workflowId,
       slowNodeId: slow.id,

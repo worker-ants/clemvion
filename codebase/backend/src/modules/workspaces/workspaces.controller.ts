@@ -4,6 +4,7 @@ import {
   Delete,
   Get,
   HttpCode,
+  HttpStatus,
   Param,
   ParseUUIDPipe,
   Patch,
@@ -17,7 +18,6 @@ import {
   ApiConflictResponse,
   ApiForbiddenResponse,
   ApiGoneResponse,
-  ApiNoContentResponse,
   ApiNotFoundResponse,
   ApiOperation,
   ApiParam,
@@ -241,6 +241,7 @@ export class WorkspacesController {
   }
 
   @Post(':id/leave')
+  @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: '워크스페이스 나가기(본인)',
     description:
@@ -266,6 +267,7 @@ export class WorkspacesController {
   // `@WorkspaceParam`), service 의 OWNER_REQUIRED 는 트랜잭션 내부에서 (락 보유 상태로)
   // 동시 다른 owner-related 변경과의 경합을 차단.
   @Roles('owner')
+  @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: '워크스페이스 owner 이양 (Owner)',
     description:
@@ -545,7 +547,7 @@ export class WorkspacesController {
     description: '초대 UUID',
     format: 'uuid',
   })
-  @ApiNoContentResponse({ description: '초대 취소 완료' })
+  @ApiOkWrappedResponse(OkResultDto, { description: '초대 취소 결과' })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
   @ApiForbiddenResponse({
     description: FORBIDDEN_ADMIN_ROUTE,
@@ -561,6 +563,7 @@ export class WorkspacesController {
   }
 
   @Post('invitations/accept')
+  @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: '초대 수락',
     description:

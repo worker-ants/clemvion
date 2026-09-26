@@ -84,7 +84,7 @@ describe('$trigger / $env expression injection (e2e)', () => {
       .set(authHeader())
       .set('X-Workspace-Id', workspaceId)
       .send({ nodes, edges });
-    expect([200, 201]).toContain(res.status);
+    expect(res.status).toBe(200);
   }
 
   async function createWebhookTrigger(

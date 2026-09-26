@@ -131,8 +131,8 @@ describe('Integration rotate concurrency (e2e)', () => {
       ).rows[0].credentials;
 
       await locker.query('COMMIT');
-      // POST 라 201 이다(인접 e2e 도 `[200, 201]` 로 받는다) — 여기서 보려는 것은 «막혔다 풀려서 성공했다» 다.
-      expect([200, 201]).toContain((await pending).status);
+      // 여기서 보려는 것은 «막혔다 풀려서 성공했다» 다.
+      expect((await pending).status).toBe(200);
 
       const after = await request(BASE_URL)
         .get(`/api/integrations/${target}`)

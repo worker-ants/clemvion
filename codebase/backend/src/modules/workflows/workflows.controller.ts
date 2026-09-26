@@ -449,6 +449,7 @@ export class WorkflowsController {
 
   @Post(':id/save')
   @Roles('editor')
+  @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: '캔버스 저장',
     description:

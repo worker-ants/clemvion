@@ -150,6 +150,7 @@ export class WorkflowAssistantController {
 
   @Post('sessions/:id/messages')
   @Roles('editor')
+  @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: '사용자 메시지 전송 + Assistant 응답 스트림 (SSE)',
     description:
