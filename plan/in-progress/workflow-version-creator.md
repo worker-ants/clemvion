@@ -80,5 +80,7 @@ started: 2026-09-26
 - [x] 뮤턴트 표 실측 — 5개 전부 KILLED(M5 는 예측과 다른 축이 죽였다)
 - [x] TEST WORKFLOW (lint · unit · build · e2e 413)
 - [ ] `/ai-review`
+      - 1R `review/code/2026/09/27/00_20_58` — Critical 0 · Warning 1(`changeSummary` null 값 wire 대조 부재) → `69b1afca0` 로
+        조치(e2e I 에 `toBeNull()` + 목록 계약 대조), TEST WORKFLOW 재통과(e2e 413). RESOLUTION 작성.
 - [ ] `--impl-done`
 - [ ] 트래커 두 항목 닫기
