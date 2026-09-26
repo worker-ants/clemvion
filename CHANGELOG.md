@@ -28,8 +28,9 @@
 생성된 OpenAPI 에 성공 응답 스키마가 없어 클라이언트 생성기가 반환 타입을 알 수 없던 엔드포인트 11곳에 스키마를 붙였다. 응답
 자체(상태 · 본문)는 그대로다 — 문서가 실제 응답을 적게 됐다.
 
-- **workflow-assistant 세션** — `GET /sessions` · `GET /sessions/latest` · `GET /sessions/:id` · `POST /sessions` · `PATCH /sessions/:id` ·
-  `DELETE /sessions/:id`. 세션 · 세션 상세(메시지 포함) · 메시지(도구 호출 · 계획 · 사용량) 스키마. `sessions/latest` 는 세션이 없으면
+- **workflow-assistant 세션** — `GET /workflow-assistant/sessions` · `GET /workflow-assistant/sessions/latest` ·
+  `GET /workflow-assistant/sessions/:id` · `POST /workflow-assistant/sessions` · `PATCH /workflow-assistant/sessions/:id` ·
+  `DELETE /workflow-assistant/sessions/:id`. 세션 · 세션 상세(메시지 포함) · 메시지(도구 호출 · 계획 · 사용량) 스키마. `sessions/latest` 는 세션이 없으면
   `data: null` 이라고 적는다.
 - **WebAuthn** — `GET /auth/2fa/webauthn/availability`(`{ enabled }`) · `DELETE /auth/2fa/webauthn/credentials/:id`(204).
 - **트리거** — `POST /triggers/:id/notification/rotate-secret`(`{ secret, rotatedAt }`) · `POST /triggers/:id/interaction/revoke-token`

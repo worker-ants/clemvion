@@ -5104,6 +5104,17 @@ field: T | null;
       > 규칙 문단과 `code:` 등재) · e2e 대상 라우트 기대값 27곳을 200 으로(`[200, 201]` 22 · 이양 `201` 1 · 저장 `201` 4) · 성공 경로
       > e2e 신설(`action-success-status` · 어시스턴트 SSE). `/ai-review` `review/code/2026/09/26/10_23_50`. `--impl-done` `review/consistency/2026/09/26/10_36_19`. plan `plan/complete/post-status-openapi.md`.
 
+- [ ] **workflow-assistant e2e 의 남은 계약 대조 세 칸** (developer, 낮음, 2026-09-26 등재 · `/ai-review`
+      `review/code/2026/09/26/14_07_11` INFO7 · 8 · 9 — 2R 에서 codebase 수정 0건으로 수렴하려고 등재). `success-advert` 가 붙인 응답
+      DTO 를 `test/workflow-assistant.e2e-spec.ts` 가 대조하는데 세 칸이 비어 있다:
+      1. **`sessions/latest` 의 `data: null`** — 테스트 F 는 조회 직전 세션을 만들어 늘 «있음» 분기만 탄다. 세션이 없는 워크플로로
+         물어 `ApiOkWrappedNullableResponse` 의 null 쪽을 실제 응답으로 본다(스키마는 `api-wrapped.spec.ts` 가 고정한다).
+      2. **테스트 F 의 상태 단언** — `expect([200, 204, 404])` 는 이 컨트롤러가 낼 수 없는 204 · 404 까지 받는다. `toBe(200)` 이면
+         `:id` 라우트가 `latest` 를 가로채는 순서 회귀도 잡힌다.
+      3. **도구 호출의 선택 키 생략** — 테스트 H 는 `result` · `planStepId` · `planStepIds` · `signature` 를 전부 채운 도구 호출만 넣는다.
+         전부 뺀 도구 호출 하나를 더해 «키 생략» 쪽도 대조한다.
+      **착수 조건**: 없음(여유 있을 때). 테스트만 바뀌지만 `codebase/**` 편집이라 리뷰 게이트를 한 바퀴 돈다.
+
 - [ ] **`4-ai-assistant.md` §6 REST API 표에 `GET /api/workflow-assistant/sessions/latest` 가 없다** (planner, 낮음, 2026-09-26 등재 ·
       `--impl-prep` `review/consistency/2026/09/26/13_17_19` cross_spec · plan_coherence W1). 컨트롤러에는 있다
       (`workflow-assistant.controller.ts` `latest` — 쿼리 `workflowId` 필수, 없으면 `null`, 권한은 멤버십만). `success-advert` 가 이 라우트의

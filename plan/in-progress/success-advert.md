@@ -98,6 +98,8 @@ started: 2026-09-26
   | S7 | 못 읽은 `@HttpCode(<식>)` 를 아는 코드로 침 | KILLED / KILLED | 대조군 둘(위반 여섯 · 맞는 자리) |
 - [x] CHANGELOG — 두 항목(스키마 광고 · 가드 강화)
 - [x] TEST WORKFLOW (lint · unit · build · e2e) — 전부 PASS(e2e 411건 — 새 계약 대조 포함, 선언되지 않은 키 0)
-- [ ] `/ai-review`
+- [x] `/ai-review` — 1R `review/code/2026/09/26/13_39_09`(Critical 0 · Warning 3 → 조치 `bf1fa96fc`) · 2R 전수 14명
+      `review/code/2026/09/26/14_07_11`(Critical 0 · Warning 1 — CHANGELOG 경로 표기, `codebase/**` 밖에서 조치). 정지 규칙 «Critical 0 ·
+      Warning 0 · 그 라운드 codebase 수정 0건» 을 2R 에서 충족. 테스트 INFO 세 칸은 트래커 등재
 - [ ] `--impl-done`
 - [ ] 트래커 항목 닫기
