@@ -32,6 +32,7 @@ import {
   ApiOkWrappedOneOfResponse,
   ApiOkWrappedResponse,
   forbiddenForRole,
+  forbiddenWithService,
   FORBIDDEN_NOT_A_MEMBER,
 } from '../../common/swagger';
 import {
@@ -92,9 +93,18 @@ const OAUTH_BEGIN_RESULT_DESCRIPTION =
  * 403 · 404 설명 — 거부 코드는 공유 거부 표(`common/constants/workspace-roles.ts`)의 `.code` 를 보간한다(코드명이 바뀌면
  * 설명이 따라온다). 남의 personal 통합은 없는 통합과 같은 404 다 — `spec/2-navigation/4-integration.md` §8 판정 규칙.
  */
-const FORBIDDEN_MEMBER_OR_ORG_ADMIN = `${FORBIDDEN_NOT_A_MEMBER}, 또는 Organization 통합의 변경에 Admin 이상 권한 필요(${ROLE_REQUIRED.admin.code})`;
-const FORBIDDEN_EDITOR_OR_ORG_ADMIN = `${forbiddenForRole('editor')}, 또는 Organization 통합의 변경에 Admin 이상 권한 필요(${ROLE_REQUIRED.admin.code})`;
-const FORBIDDEN_MEMBER_OR_ADMIN = `${FORBIDDEN_NOT_A_MEMBER}, 또는 Admin 이상 권한 필요(${ROLE_REQUIRED.admin.code})`;
+const FORBIDDEN_MEMBER_OR_ORG_ADMIN = forbiddenWithService(
+  FORBIDDEN_NOT_A_MEMBER,
+  `Organization 통합의 변경에 Admin 이상 권한 필요(${ROLE_REQUIRED.admin.code})`,
+);
+const FORBIDDEN_EDITOR_OR_ORG_ADMIN = forbiddenWithService(
+  forbiddenForRole('editor'),
+  `Organization 통합의 변경에 Admin 이상 권한 필요(${ROLE_REQUIRED.admin.code})`,
+);
+const FORBIDDEN_MEMBER_OR_ADMIN = forbiddenWithService(
+  FORBIDDEN_NOT_A_MEMBER,
+  `Admin 이상 권한 필요(${ROLE_REQUIRED.admin.code})`,
+);
 const NOT_FOUND_INTEGRATION =
   '해당 통합을 찾을 수 없음 — 남의 personal 통합도 같은 응답(`RESOURCE_NOT_FOUND`)';
 
@@ -238,7 +248,10 @@ export class IntegrationsController {
   @ApiBadRequestResponse({ description: '입력값 검증 실패 또는 미지원 서비스' })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
   @ApiForbiddenResponse({
-    description: `${FORBIDDEN_NOT_A_MEMBER}, 또는 reauthorize · request_scopes 모드에서 Organization 통합의 변경에 Admin 이상 권한 필요(${ROLE_REQUIRED.admin.code})`,
+    description: forbiddenWithService(
+      FORBIDDEN_NOT_A_MEMBER,
+      `reauthorize · request_scopes 모드에서 Organization 통합의 변경에 Admin 이상 권한 필요(${ROLE_REQUIRED.admin.code})`,
+    ),
   })
   @ApiNotFoundResponse({
     description: `reauthorize · request_scopes 모드의 integrationId — ${NOT_FOUND_INTEGRATION}`,

@@ -41,12 +41,20 @@ started: 2026-09-26
   이번 결함은 코드가 실린 채 형식만 어긋난 것이라 그 비용을 들이지 않는다.
 - **서비스 문장 표기(«— 서비스 판정» 표지)의 전면 통일** — 8곳 중 표지를 단 곳과 안 단 곳이 섞여 있다. 이음만 맞춘다.
 
+## 검토 경고 처리
+
+| 출처 | 지적 | 처분 |
+| --- | --- | --- |
+| `--impl-prep` `15_08_57` W1 | `swagger.md` §2-4 상태 코드 표에 202 · 410 · 429 행이 없다 — 이 PR 이전부터의 spec 표 갭 | 사실 확인(표 9행) · 트래커 등재(planner) |
+| `--impl-prep` `15_08_57` INFO2 | 이음 구두점 결정의 근거가 spec Rationale 에 없다 | `forbiddenWithService` JSDoc 에 이음 규칙과 근거를 싣는다(헬퍼를 쓰는 사람이 읽는 자리) |
+| `--impl-prep` `15_08_57` INFO4 | `integration-personal-owner-followup.md` Viewer 항목이 같은 상수를 손으로 고칠 예정 | 그 항목에 «상수가 `forbiddenWithService(...)` 형태로 바뀌었다» 한 줄 |
+
 ## 체크리스트
 
-- [ ] `--impl-prep`
-- [ ] 헬퍼 + 단위 테스트
-- [ ] 13 자리 치환
-- [ ] CHANGELOG
+- [x] `--impl-prep` — `review/consistency/2026/09/26/15_08_57` BLOCK: NO(Warning 1 — 위 표)
+- [x] 헬퍼 + 단위 테스트
+- [x] 13 자리 치환 — 평가된 메타데이터로 확인: 바뀐 19 라우트(게시 17 · 테스트 훅 2) 모두 헬퍼 문장으로 시작하고 `, 또는` 이음 0
+- [x] CHANGELOG
 - [ ] TEST WORKFLOW (lint · unit · build · e2e)
 - [ ] `/ai-review`
 - [ ] `--impl-done`

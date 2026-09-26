@@ -17,10 +17,6 @@ import { CurrentUser } from '../../common/decorators';
 import type { JwtPayload } from '../../common/decorators';
 import { Roles } from '../../common/guards/roles.guard';
 import {
-  NOT_A_MEMBER,
-  ROLE_REQUIRED,
-} from '../../common/constants/workspace-roles';
-import {
   ApiTags,
   ApiBearerAuth,
   ApiOperation,
@@ -40,6 +36,7 @@ import {
   ApiCreatedWrappedResponse,
   FORBIDDEN_NOT_A_MEMBER,
   forbiddenForRole,
+  forbiddenWithService,
 } from '../../common/swagger';
 import { Throttle } from '@nestjs/throttler';
 import { ReRunRequestDto } from './dto/re-run.dto';
@@ -224,7 +221,7 @@ export class ExecutionsController {
   @HttpCode(HttpStatus.ACCEPTED)
   @Roles('owner')
   @ApiExcludeEndpoint()
-  @ApiForbiddenResponse({ description: 'owner 이상 권한 필요' })
+  @ApiForbiddenResponse({ description: forbiddenForRole('owner') })
   async triggerStuckRecoveryForTest() {
     if (process.env.NODE_ENV !== 'test' || process.env.E2E_TEST_HOOKS !== '1') {
       throw new NotFoundException();
@@ -245,7 +242,7 @@ export class ExecutionsController {
   @HttpCode(HttpStatus.ACCEPTED)
   @Roles('owner')
   @ApiExcludeEndpoint()
-  @ApiForbiddenResponse({ description: 'owner 이상 권한 필요' })
+  @ApiForbiddenResponse({ description: forbiddenForRole('owner') })
   async simulateExecutionRunRedeliveryForTest(
     @Param('id', ParseUUIDPipe) id: string,
     @WorkspaceId() workspaceId: string,
@@ -281,7 +278,10 @@ export class ExecutionsController {
   })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
   @ApiForbiddenResponse({
-    description: `워크스페이스 멤버가 아님(${NOT_A_MEMBER.code}) · editor 이상 권한 필요(${ROLE_REQUIRED.editor.code}) — RolesGuard / 타인 실행이고 Owner·Admin 아님(RERUN_PERMISSION_DENIED, RR-PL-06) — 서비스`,
+    description: forbiddenWithService(
+      forbiddenForRole('editor'),
+      '타인 실행이고 Owner·Admin 아님(RR-PL-06 · RERUN_PERMISSION_DENIED — 서비스 판정)',
+    ),
   })
   @ApiNotFoundResponse({
     description: 'RERUN_EXECUTION_NOT_FOUND / RERUN_WORKFLOW_DELETED',
@@ -310,7 +310,10 @@ export class ExecutionsController {
   })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
   @ApiForbiddenResponse({
-    description: `워크스페이스 멤버가 아님(${NOT_A_MEMBER.code}) — RolesGuard / RR-PL-06 미충족(RERUN_PERMISSION_DENIED) — 서비스`,
+    description: forbiddenWithService(
+      FORBIDDEN_NOT_A_MEMBER,
+      'RR-PL-06 미충족(RERUN_PERMISSION_DENIED — 서비스 판정)',
+    ),
   })
   @ApiNotFoundResponse({ description: 'RERUN_EXECUTION_NOT_FOUND' })
   async getChain(

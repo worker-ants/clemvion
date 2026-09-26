@@ -32,6 +32,7 @@ import {
   ApiOkWrappedResponse,
   FORBIDDEN_NOT_A_MEMBER,
   forbiddenForRole,
+  forbiddenWithService,
 } from '../../common/swagger';
 import { SENSITIVE_ACTION_THROTTLE } from '../../common/constants/throttle';
 import { ROLE_REQUIRED } from '../../common/constants/workspace-roles';
@@ -64,7 +65,10 @@ import { Roles } from '../../common/guards/roles.guard';
 const INVITATION_THROTTLE = SENSITIVE_ACTION_THROTTLE;
 
 /** 삭제 · 이양의 403 — Owner 요구(가드)와 개인 워크스페이스 거부(서비스). 두 라우트가 같은 문장을 쓴다. */
-const FORBIDDEN_OWNER_OR_PERSONAL = `${forbiddenForRole('owner')}, 또는 개인 워크스페이스`;
+const FORBIDDEN_OWNER_OR_PERSONAL = forbiddenWithService(
+  forbiddenForRole('owner'),
+  '개인 워크스페이스',
+);
 
 @ApiTags('Workspaces')
 @ApiBearerAuth('access-token')
@@ -245,7 +249,10 @@ export class WorkspacesController {
   @ApiOkWrappedResponse(OkResultDto, { description: '나가기 결과' })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
   @ApiForbiddenResponse({
-    description: `${FORBIDDEN_NOT_A_MEMBER}, 또는 개인 워크스페이스이거나 유일한 owner 인 경우`,
+    description: forbiddenWithService(
+      FORBIDDEN_NOT_A_MEMBER,
+      '개인 워크스페이스이거나 유일한 owner 인 경우',
+    ),
   })
   @ApiNotFoundResponse({ description: '해당 워크스페이스를 찾을 수 없음' })
   async leave(
@@ -389,7 +396,10 @@ export class WorkspacesController {
   @ApiOkWrappedResponse(OkResultDto, { description: '제거 결과' })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
   @ApiForbiddenResponse({
-    description: `${FORBIDDEN_NOT_A_MEMBER}, 또는 타인 제거에 Admin 이상 권한 필요(${ROLE_REQUIRED.admin.code} — 서비스 판정)`,
+    description: forbiddenWithService(
+      FORBIDDEN_NOT_A_MEMBER,
+      `타인 제거에 Admin 이상 권한 필요(${ROLE_REQUIRED.admin.code} — 서비스 판정)`,
+    ),
   })
   @ApiNotFoundResponse({ description: '워크스페이스 또는 멤버를 찾을 수 없음' })
   async removeMember(
