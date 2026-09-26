@@ -55,7 +55,13 @@ started: 2026-09-26
 - [x] 헬퍼 + 단위 테스트
 - [x] 13 자리 치환 — 평가된 메타데이터로 확인: 바뀐 19 라우트(게시 17 · 테스트 훅 2) 모두 헬퍼 문장으로 시작하고 `, 또는` 이음 0
 - [x] CHANGELOG
-- [ ] TEST WORKFLOW (lint · unit · build · e2e)
+- [x] 뮤턴트 — 둘 다 예측대로
+
+  | # | 뮤턴트 | 예측 / 실측 | 죽인 케이스 |
+  | --- | --- | --- | --- |
+  | M1 | 헬퍼의 이음을 `, 또는` 으로 | KILLED / KILLED | 헬퍼 단위 테스트(서비스 문장 이음) |
+  | M2 | 재실행 설명을 손 문장으로(코드는 실음) | SURVIVED / SURVIVED | — «안 하는 것 — 형식 가드» 가 받아들인 한계. 가드 `forbidden-response-codes` 는 빠진 코드만 잡는다 |
+- [x] TEST WORKFLOW (lint · unit · build · e2e) — 전부 PASS(e2e 412)
 - [ ] `/ai-review`
 - [ ] `--impl-done`
 - [ ] 트래커 항목 닫기
