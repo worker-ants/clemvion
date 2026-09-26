@@ -19,6 +19,7 @@ import {
   ApiDefaultResponse,
   ApiExcludeEndpoint,
   ApiForbiddenResponse,
+  ApiFoundResponse,
   ApiNoContentResponse,
   ApiOkResponse,
   ApiPartialContentResponse,
@@ -109,6 +110,20 @@ export class HttpStatusAdvertisedFixtureController {
   @ApiOkResponse()
   postResHandler(@Res() res: Response): void {
     res.end();
+  }
+
+  /** 리다이렉트로 끝나는 자리 — 성공 광고는 302 다. 2xx 광고가 없으니 짝을 대조하지 않는다. */
+  @Get('redirect')
+  @ApiFoundResponse({ description: '다른 곳으로 보낸다' })
+  getRedirect(@Res() res: Response): void {
+    res.redirect('/elsewhere');
+  }
+
+  /** `@ApiResponse({ status: 302 })` 로 리다이렉트를 광고한 자리 — 이름 표가 아니라 인자에서 읽는 분기. */
+  @Get('redirect-via-api-response')
+  @ApiResponse({ status: 302, description: '다른 곳으로 보낸다' })
+  getRedirectViaApiResponse(@Res() res: Response): void {
+    res.redirect('/elsewhere');
   }
 
   /** OpenAPI 에서 빠진 자리 — 광고가 문서에 없으니 대조하지 않는다. */

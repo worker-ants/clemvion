@@ -15,6 +15,7 @@ import {
   ApiProduces,
   ApiTags,
   ApiUnauthorizedResponse,
+  ApiOkResponse,
 } from '@nestjs/swagger';
 import type { Response } from 'express';
 import { randomUUID } from 'crypto';
@@ -60,6 +61,9 @@ export class InteractionStreamController {
   })
   @ApiParam({ name: 'executionId', format: 'uuid' })
   @ApiProduces('text/event-stream')
+  @ApiOkResponse({
+    description: 'SSE 스트림 — EventSource 류 클라이언트로 읽는다',
+  })
   @ApiUnauthorizedResponse({ description: 'TOKEN_*' })
   stream(
     @Param('executionId', new ParseUUIDPipe()) executionId: string,

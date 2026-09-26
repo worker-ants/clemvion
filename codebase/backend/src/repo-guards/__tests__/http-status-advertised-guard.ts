@@ -45,8 +45,8 @@ export type ResponseStatusMap = ReadonlyMap<string, number | null>;
 /**
  * `@nestjs/swagger` 의 `Api*Response` 팩토리를 **실제로 적용해** 상태 코드를 읽는다.
  *
- * 이름 → 코드 표를 손으로 쓰지 않는 이유: 이 패키지는 `ApiPartialContentResponse`(206) ·
- * `ApiResetContentResponse`(205) 처럼 2xx 데코레이터를 50개 가까이 내보낸다. 손으로 쓴 표는 그중
+ * 이름 → 코드 표를 손으로 쓰지 않는 이유: 이 패키지는 `Api*Response` 데코레이터를 50개 가까이 내보내고 그중 2xx 만
+ * 일곱이다(`ApiPartialContentResponse`(206) · `ApiResetContentResponse`(205) 포함). 손으로 쓴 표는 그중
  * 저장소가 지금 쓰는 것만 담게 되고, 새 이름이 쓰이는 날 그 핸들러의 광고가 조용히 빈 집합이 된다.
  * `ApiResponse` 는 인자의 `status` 로 정해지므로 표에 넣지 않는다(스캔이 따로 읽는다).
  */
@@ -145,10 +145,21 @@ export interface HttpStatusUnresolved {
   readonly what: string;
 }
 
+/** 성공 응답을 하나도 광고하지 않는 라우트 — 생성된 OpenAPI 에 반환 스키마가 없다. */
+export interface HttpStatusUnadvertised {
+  readonly file: string;
+  readonly method: string;
+  readonly verb: string;
+}
+
 /** 한 번의 스캔 결과. */
 export interface HttpStatusScan {
   readonly violations: readonly HttpStatusViolation[];
   readonly unresolved: readonly HttpStatusUnresolved[];
+  /**
+   * 성공 응답(2xx · 리다이렉트 라우트는 3xx)을 하나도 광고하지 않는 라우트. `@ApiExcludeEndpoint()` 는 OpenAPI 밖이라 묻지 않는다.
+   */
+  readonly unadvertised: readonly HttpStatusUnadvertised[];
   /**
    * 대조한 핸들러 수 — 성공 응답을 **하나 이상 광고하는** 라우트만 센다(광고가 없으면 대조할 것이
    * 없다). vacuity floor 가 본다. 위반과 **같은 순회**에서 센다.
@@ -193,29 +204,38 @@ function apiResponseStatus(
 }
 
 const isSuccess = (code: number): boolean => code >= 200 && code < 300;
+/** 리다이렉트 — 응답을 `res.redirect` 로 끝내는 라우트의 성공 광고(`@ApiFoundResponse` 등). */
+const isRedirect = (code: number): boolean => code >= 300 && code < 400;
 
-/**
- * 핸들러 **하나**를 판정한다. 라우트가 아니거나(`@Get` 등이 없음) OpenAPI 에서 빠진
- * (`@ApiExcludeEndpoint()`) 핸들러는 `null` — 광고가 문서에 실리지 않으니 대조할 것도 없다.
- */
-function judgeHandler(
+/** 핸들러의 데코레이터를 한 번 훑어 모은 사실. 판정은 `judgeHandler` 가 이것으로 한다. */
+interface HandlerDecorators {
+  readonly verb: string | null;
+  readonly httpCode: number | null;
+  readonly excluded: boolean;
+  /** 광고한 2xx — 실제 성공 코드와 짝을 대조한다. */
+  readonly advertised: ReadonlySet<number>;
+  /** 3xx 를 광고했는가 — 응답을 `res.redirect` 로 끝내는 라우트의 성공 광고. */
+  readonly redirectAdvertised: boolean;
+  /** 읽지 못한 데코레이터 — `@HttpCode(<식>)` · `@ApiResponse` 의 status · 표에 없는 `Api*Response` 이름. */
+  readonly unresolved: readonly string[];
+}
+
+/** 핸들러의 데코레이터를 분류한다 — 순수 함수. 무엇이 위반인지는 여기서 정하지 않는다. */
+function classifyDecorators(
   method: ts.MethodDeclaration,
   sf: ts.SourceFile,
-  rel: string,
   statuses: ResponseStatusMap,
-): {
-  violation: HttpStatusViolation | null;
-  unresolved: HttpStatusUnresolved[];
-  checked: boolean;
-} | null {
-  const name = method.name.getText(sf);
+): HandlerDecorators {
   let verb: string | null = null;
   let httpCode: number | null = null;
   let excluded = false;
   const advertised = new Set<number>();
-  const unresolved: HttpStatusUnresolved[] = [];
-  const miss = (what: string): void => {
-    unresolved.push({ file: rel, method: name, what });
+  let redirectAdvertised = false;
+  const unresolved: string[] = [];
+  // 광고한 상태 코드 하나를 분류한다 — `@ApiResponse({ status })` 와 이름 표가 같은 규칙을 쓴다. 4xx · 5xx 는 성공 광고가 아니다.
+  const advertise = (status: number): void => {
+    if (isSuccess(status)) advertised.add(status);
+    else if (isRedirect(status)) redirectAdvertised = true;
   };
 
   for (const d of ts.getDecorators(method) ?? []) {
@@ -227,27 +247,73 @@ function judgeHandler(
     } else if (callee === 'HttpCode') {
       const arg = call.arguments[0];
       httpCode = arg ? statusOf(arg, sf) : null;
-      if (httpCode === null) miss(HTTP_CODE_UNRESOLVED);
+      if (httpCode === null) unresolved.push(HTTP_CODE_UNRESOLVED);
     } else if (callee === 'ApiExcludeEndpoint') {
       excluded = true;
     } else if (callee === 'ApiResponse') {
       const status = apiResponseStatus(call, sf);
-      if (status === null) miss('@ApiResponse status');
-      else if (isSuccess(status)) advertised.add(status);
+      if (status === null) unresolved.push('@ApiResponse status');
+      else advertise(status);
     } else if (statuses.has(callee)) {
       const status = statuses.get(callee);
-      if (typeof status === 'number' && isSuccess(status))
-        advertised.add(status);
+      if (typeof status === 'number') advertise(status);
     } else if (RESPONSE_DECORATOR.test(callee)) {
-      miss(`@${callee}`);
+      unresolved.push(`@${callee}`);
     }
   }
+  return {
+    verb,
+    httpCode,
+    excluded,
+    advertised,
+    redirectAdvertised,
+    unresolved,
+  };
+}
+
+/**
+ * 핸들러 **하나**를 판정한다 — 광고한 2xx 가 실제 성공 코드를 담는가(`violation`), 성공 응답을 하나라도
+ * 광고했는가(`unadvertised`). 라우트가 아니거나(`@Get` 등이 없음) OpenAPI 에서 빠진
+ * (`@ApiExcludeEndpoint()`) 핸들러는 `null` — 광고가 문서에 실리지 않으니 대조할 것도 없다.
+ */
+function judgeHandler(
+  method: ts.MethodDeclaration,
+  sf: ts.SourceFile,
+  rel: string,
+  statuses: ResponseStatusMap,
+): {
+  violation: HttpStatusViolation | null;
+  unresolved: HttpStatusUnresolved[];
+  checked: boolean;
+  unadvertised: HttpStatusUnadvertised | null;
+} | null {
+  const name = method.name.getText(sf);
+  const {
+    verb,
+    httpCode,
+    excluded,
+    advertised,
+    redirectAdvertised,
+    unresolved: unread,
+  } = classifyDecorators(method, sf, statuses);
+  const unresolved = unread.map((what) => ({
+    file: rel,
+    method: name,
+    what,
+  }));
 
   if (verb === null || excluded) return null;
+  // 성공 응답을 하나도 광고하지 않았다 — 2xx 도, 리다이렉트 라우트의 3xx 도 없다.
+  const unadvertised =
+    advertised.size === 0 && !redirectAdvertised
+      ? { file: rel, method: name, verb }
+      : null;
   // `@HttpCode(<식>)` 을 못 읽었으면 실제 코드를 모른다 — 위반으로도 통과로도 치지 않는다.
-  const actualKnown = !unresolved.some((u) => u.what === HTTP_CODE_UNRESOLVED);
+  const actualKnown = !unread.includes(HTTP_CODE_UNRESOLVED);
+  // 2xx 광고가 없으면(리다이렉트만 광고했거나 아무것도 없으면) 짝을 대조하지 않는다 — 리다이렉트의 실제 코드는
+  // 핸들러의 `res.redirect` 가 정한다.
   if (!actualKnown || advertised.size === 0) {
-    return { violation: null, unresolved, checked: false };
+    return { violation: null, unresolved, checked: false, unadvertised };
   }
 
   // Nest 기본값 — `RouterResponseController.getStatusByMethod`: POST 만 201, 나머지 200.
@@ -262,11 +328,12 @@ function judgeHandler(
         actual,
         advertised: [...advertised].sort((a, b) => a - b),
       };
-  return { violation, unresolved, checked: true };
+  return { violation, unresolved, checked: true, unadvertised };
 }
 
 /**
- * `*.controller.ts` 들에서 **광고한 성공 코드가 실제 성공 코드를 담지 않는** 핸들러를 찾는다.
+ * `*.controller.ts` 들에서 **광고한 성공 코드가 실제 성공 코드를 담지 않는** 핸들러를 찾는다. 성공 응답을
+ * **하나도 광고하지 않는** 라우트는 `unadvertised` 로 함께 보고한다.
  *
  * **`@Res()` 핸들러도 면제하지 않는다.** Nest 는 핸들러를 부르기 **전에**
  * `responseController.setStatus(res, httpStatusCode)` 를 무조건 부른다
@@ -284,6 +351,7 @@ export function scanHttpStatusAdvertised(
 ): HttpStatusScan {
   const violations: HttpStatusViolation[] = [];
   const unresolved: HttpStatusUnresolved[] = [];
+  const unadvertised: HttpStatusUnadvertised[] = [];
   let checked = 0;
   for (const file of files) {
     if (!file.endsWith('.controller.ts')) continue;
@@ -299,6 +367,7 @@ export function scanHttpStatusAdvertised(
         const judged = judgeHandler(node, sf, rel, statuses);
         if (judged) {
           if (judged.violation) violations.push(judged.violation);
+          if (judged.unadvertised) unadvertised.push(judged.unadvertised);
           unresolved.push(...judged.unresolved);
           if (judged.checked) checked++;
         }
@@ -314,6 +383,7 @@ export function scanHttpStatusAdvertised(
   return {
     violations: violations.sort(byPlace),
     unresolved: unresolved.sort(byPlace),
+    unadvertised: unadvertised.sort(byPlace),
     checked,
   };
 }

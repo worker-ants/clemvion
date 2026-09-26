@@ -1,0 +1,1185 @@
+diff --git a/codebase/backend/src/common/swagger/api-wrapped.spec.ts b/codebase/backend/src/common/swagger/api-wrapped.spec.ts
+index 05d570e70..d4b0ca61e 100644
+--- a/codebase/backend/src/common/swagger/api-wrapped.spec.ts
++++ b/codebase/backend/src/common/swagger/api-wrapped.spec.ts
+@@ -2,6 +2,7 @@ import { ApiProperty, getSchemaPath } from '@nestjs/swagger';
+ import {
+   wrapDataSchema,
+   wrapItemsSchema,
++  wrapNullableDataSchema,
+   wrapOneOfDataSchema,
+   wrapPaginatedSchema,
+ } from './api-wrapped';
+@@ -32,6 +33,17 @@ describe('api-wrapped schema builders', () => {
+     });
+   });
+ 
++  it('wrapNullableDataSchema builds { data: allOf($ref) + nullable } — data 키는 항상 있다', () => {
++    const schema = wrapNullableDataSchema(SampleDto);
++    expect(schema.type).toBe('object');
++    expect(schema.required).toEqual(['data']);
++    // `$ref` 옆 `nullable` 은 OpenAPI 3.0 이 무시한다 — `allOf` 로 감싼 모양이어야 한다.
++    expect(schema.properties?.data).toStrictEqual({
++      allOf: [{ $ref: getSchemaPath(SampleDto) }],
++      nullable: true,
++    });
++  });
++
+   it('wrapItemsSchema builds { data: array($ref) }', () => {
+     const schema = wrapItemsSchema(SampleDto);
+     expect(schema.type).toBe('object');
+diff --git a/codebase/backend/src/common/swagger/api-wrapped.ts b/codebase/backend/src/common/swagger/api-wrapped.ts
+index 992840e10..3c95abd82 100644
+--- a/codebase/backend/src/common/swagger/api-wrapped.ts
++++ b/codebase/backend/src/common/swagger/api-wrapped.ts
+@@ -34,6 +34,21 @@ export function wrapDataSchema<T>(dto: ClassRef<T>): SchemaObject {
+   };
+ }
+ 
++/**
++ * `{ data: <ref> | null }` 스키마 객체를 생성합니다 — `data` 키는 항상 있고 값이 `null` 일 수 있다(api-convention §5.4 «`null`»).
++ *
++ * OpenAPI 3.0 은 `$ref` 옆의 형제 키(`nullable`)를 무시하므로 `allOf: [<ref>]` 로 감싸 `nullable` 을 붙인다.
++ */
++export function wrapNullableDataSchema<T>(dto: ClassRef<T>): SchemaObject {
++  return {
++    type: 'object',
++    required: ['data'],
++    properties: {
++      data: { allOf: [{ $ref: getSchemaPath(dto) }], nullable: true },
++    },
++  };
++}
++
+ /**
+  * `{ data: { oneOf: [<ref(A)>, <ref(B)>, ...] } }` 스키마 객체를 생성합니다.
+  * 응답이 분기에 따라 서로 다른 DTO shape 을 반환하는 경우 사용합니다 (예:
+@@ -141,6 +156,19 @@ export function ApiOkWrappedResponse<T>(
+   );
+ }
+ 
++/**
++ * `@ApiOkResponse` + `@ApiExtraModels` + `{ data: <ref> | null }` 래퍼 — 없으면 `null` 인 단일 객체 조회(예: «최근 항목»).
++ */
++export function ApiOkWrappedNullableResponse<T>(
++  dto: ClassRef<T>,
++  options: ExtraOptions = {},
++) {
++  return applyDecorators(
++    ApiExtraModels(dto),
++    ApiOkResponse({ ...options, schema: wrapNullableDataSchema(dto) }),
++  );
++}
++
+ /**
+  * `@ApiOkResponse` + `@ApiExtraModels(...dtos)` + `{ data: { oneOf } }` 래퍼.
+  * 분기 응답(예: OAuth begin 의 popup vs cafe24_private_pending) 문서화용.
+diff --git a/codebase/backend/src/modules/auth/webauthn/dto/responses/webauthn-response.dto.ts b/codebase/backend/src/modules/auth/webauthn/dto/responses/webauthn-response.dto.ts
+index 50ca16afa..9e1010abf 100644
+--- a/codebase/backend/src/modules/auth/webauthn/dto/responses/webauthn-response.dto.ts
++++ b/codebase/backend/src/modules/auth/webauthn/dto/responses/webauthn-response.dto.ts
+@@ -93,3 +93,12 @@ export class WebAuthnRecoveryCodesDto {
+   })
+   webauthnRecoveryCodes: string[];
+ }
++
++/** WebAuthn 기능 활성 여부 — 프런트가 Passkey UI 노출을 정할 때 쓴다. */
++export class WebAuthnAvailabilityDto {
++  @ApiProperty({
++    description:
++      '서버에 WEBAUTHN_RP_ID · WEBAUTHN_ORIGIN 이 설정돼 WebAuthn 을 쓸 수 있는가',
++  })
++  enabled: boolean;
++}
+diff --git a/codebase/backend/src/modules/auth/webauthn/webauthn.controller.ts b/codebase/backend/src/modules/auth/webauthn/webauthn.controller.ts
+index cea7f75db..bf989cb1e 100644
+--- a/codebase/backend/src/modules/auth/webauthn/webauthn.controller.ts
++++ b/codebase/backend/src/modules/auth/webauthn/webauthn.controller.ts
+@@ -22,6 +22,7 @@ import {
+   ApiUnauthorizedResponse,
+   ApiBearerAuth,
+   ApiParam,
++  ApiNoContentResponse,
+ } from '@nestjs/swagger';
+ 
+ import { ApiOkWrappedResponse } from '../../../common/swagger';
+@@ -53,6 +54,7 @@ import {
+   WebAuthnRecoveryCodesDto,
+   WebAuthnRegisterOptionsDto,
+   WebAuthnRegisterVerifyResultDto,
++  WebAuthnAvailabilityDto,
+ } from './dto/responses/webauthn-response.dto';
+ 
+ import Express from 'express';
+@@ -81,6 +83,9 @@ export class WebAuthnController {
+     description:
+       '서버 env (WEBAUTHN_RP_ID + WEBAUTHN_ORIGIN) 설정 여부를 알려줍니다. 프론트엔드가 Passkey UI 노출 여부를 결정할 때 사용. 인증 불요.',
+   })
++  @ApiOkWrappedResponse(WebAuthnAvailabilityDto, {
++    description: 'WebAuthn 활성 여부',
++  })
+   webauthnAvailability() {
+     return { data: { enabled: this.webauthnService.isEnabled() } };
+   }
+@@ -322,6 +327,7 @@ export class WebAuthnController {
+       '사용자 본인의 인증기를 삭제합니다. 마지막 credential 삭제 시 `webauthn_recovery_codes` 도 NULL 화됩니다.',
+   })
+   @ApiParam({ name: 'id', format: 'uuid', description: 'credential UUID' })
++  @ApiNoContentResponse({ description: '삭제 완료' })
+   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
+   async webauthnDelete(
+     @CurrentUser() user: JwtPayload,
+diff --git a/codebase/backend/src/modules/external-interaction/interaction-stream.controller.ts b/codebase/backend/src/modules/external-interaction/interaction-stream.controller.ts
+index 21803bf01..cfa0313ff 100644
+--- a/codebase/backend/src/modules/external-interaction/interaction-stream.controller.ts
++++ b/codebase/backend/src/modules/external-interaction/interaction-stream.controller.ts
+@@ -15,6 +15,7 @@ import {
+   ApiProduces,
+   ApiTags,
+   ApiUnauthorizedResponse,
++  ApiOkResponse,
+ } from '@nestjs/swagger';
+ import type { Response } from 'express';
+ import { randomUUID } from 'crypto';
+@@ -60,6 +61,9 @@ export class InteractionStreamController {
+   })
+   @ApiParam({ name: 'executionId', format: 'uuid' })
+   @ApiProduces('text/event-stream')
++  @ApiOkResponse({
++    description: 'SSE 스트림 — EventSource 류 클라이언트로 읽는다',
++  })
+   @ApiUnauthorizedResponse({ description: 'TOKEN_*' })
+   stream(
+     @Param('executionId', new ParseUUIDPipe()) executionId: string,
+diff --git a/codebase/backend/src/modules/triggers/dto/responses/trigger-secret-issue-response.dto.ts b/codebase/backend/src/modules/triggers/dto/responses/trigger-secret-issue-response.dto.ts
+new file mode 100644
+index 000000000..a54496324
+--- /dev/null
++++ b/codebase/backend/src/modules/triggers/dto/responses/trigger-secret-issue-response.dto.ts
+@@ -0,0 +1,24 @@
++import { ApiProperty } from '@nestjs/swagger';
++
++// `POST /api/triggers/:id/notification/rotate-secret` · `:id/interaction/revoke-token` 의 응답. 둘 다 새 비밀을 **평문으로 한 번만**
++// 돌려준다 — 서버는 다시 보여 주지 않는다(`triggers.controller.ts` 의 `@ApiOperation` 설명).
++//
++// 내부 서사를 `//` 에 두는 이유: JSDoc 은 공개 OpenAPI `description` 으로 나간다(`spec/conventions/swagger.md` §3).
++
++/** Outbound notification secret 회전 결과. */
++export class NotificationRotateSecretDto {
++  /** 새 HMAC secret 평문 — 이 응답에서만 보인다. 외부 검증자에 즉시 배포한다. */
++  @ApiProperty()
++  secret: string;
++
++  /** 회전 시각 — 이 시각부터 24시간 동안 이전 secret 과 새 secret 으로 함께 서명한다. */
++  @ApiProperty({ format: 'date-time', example: '2026-09-26T03:14:00.000Z' })
++  rotatedAt: string;
++}
++
++/** Per-trigger interaction token 재발급 결과. */
++export class InteractionRevokeTokenDto {
++  /** 새 interaction token(`itk_*`) 평문 — 이 응답에서만 보인다. 기존 token 은 즉시 무효다. */
++  @ApiProperty({ example: 'itk_...' })
++  token: string;
++}
+diff --git a/codebase/backend/src/modules/triggers/triggers.controller.ts b/codebase/backend/src/modules/triggers/triggers.controller.ts
+index ab13c87e2..180b61ae3 100644
+--- a/codebase/backend/src/modules/triggers/triggers.controller.ts
++++ b/codebase/backend/src/modules/triggers/triggers.controller.ts
+@@ -44,6 +44,10 @@ import {
+   TriggerDto,
+   TriggerHistoryItemDto,
+ } from './dto/responses/trigger-response.dto';
++import {
++  NotificationRotateSecretDto,
++  InteractionRevokeTokenDto,
++} from './dto/responses/trigger-secret-issue-response.dto';
+ 
+ /**
+  * Swagger description SoT — `create` · `update` 두 엔드포인트의 409 설명을 한 곳에서 관리한다
+@@ -208,6 +212,9 @@ export class TriggersController {
+       '새 HMAC secret 을 발급하고 trigger 의 `notification_secret_v2` 컬럼에 저장합니다. 24h grace 동안 NotificationWebhookProcessor 가 두 secret 으로 모두 서명 (v1= 두 개 동봉) — 외부 검증자가 새 secret 으로 미배포 상태여도 기존 secret 으로 통과 가능. grace 종료 후 scheduled job 이 v2 → primary 로 승격. 응답의 `secret` 평문은 1회만 표시되므로 외부 시스템에 즉시 배포해야 합니다.',
+   })
+   @ApiParam({ name: 'id', format: 'uuid' })
++  @ApiOkWrappedResponse(NotificationRotateSecretDto, {
++    description: '새 secret(평문 1회) 과 회전 시각',
++  })
+   @ApiBadRequestResponse({
+     description:
+       'NOTIFICATION_NOT_CONFIGURED — trigger 에 notification 설정 없음',
+@@ -219,7 +226,7 @@ export class TriggersController {
+     @Param('id', ParseUUIDPipe) id: string,
+     @WorkspaceId() workspaceId: string,
+     @CurrentUser('sub') userId: string,
+-  ): Promise<{ secret: string; rotatedAt: string }> {
++  ): Promise<NotificationRotateSecretDto> {
+     return this.triggersService.rotateNotificationSecret(
+       id,
+       workspaceId,
+@@ -236,6 +243,9 @@ export class TriggersController {
+       'trigger 의 `config.interaction.tokenStrategy === "per_trigger"` 일 때만 호출 가능. 기존 itk_* 는 즉시 무효화되고 새 itk_* 가 발급됩니다. 응답의 `token` 평문은 1회만 표시되므로 외부 시스템에 즉시 배포해야 합니다.',
+   })
+   @ApiParam({ name: 'id', format: 'uuid' })
++  @ApiOkWrappedResponse(InteractionRevokeTokenDto, {
++    description: '새 interaction token(평문 1회)',
++  })
+   @ApiBadRequestResponse({
+     description:
+       'NOT_PER_TRIGGER_STRATEGY — interaction.tokenStrategy 가 per_trigger 가 아님',
+@@ -247,7 +257,7 @@ export class TriggersController {
+     @Param('id', ParseUUIDPipe) id: string,
+     @WorkspaceId() workspaceId: string,
+     @CurrentUser('sub') userId: string,
+-  ): Promise<{ token: string }> {
++  ): Promise<InteractionRevokeTokenDto> {
+     return this.triggersService.revokePerTriggerToken(id, workspaceId, userId);
+   }
+ 
+diff --git a/codebase/backend/src/modules/workflow-assistant/dto/responses/assistant-session-response.dto.ts b/codebase/backend/src/modules/workflow-assistant/dto/responses/assistant-session-response.dto.ts
+new file mode 100644
+index 000000000..9e3afafa5
+--- /dev/null
++++ b/codebase/backend/src/modules/workflow-assistant/dto/responses/assistant-session-response.dto.ts
+@@ -0,0 +1,265 @@
++import {
++  ApiExtraModels,
++  ApiProperty,
++  ApiPropertyOptional,
++} from '@nestjs/swagger';
++
++import {
++  AUTO_RESUME_REASONS,
++  PLAN_STEP_ACTIONS,
++  type AssistantMessageRole,
++  type AssistantStepAction,
++  type AssistantToolCallKind,
++  type AutoResumeReason,
++} from '../../entities/workflow-assistant-message.entity';
++import type { AssistantSessionStatus } from '../../entities/workflow-assistant-session.entity';
++
++// 세션 CRUD 는 엔티티를 그대로 반환한다(`workflow-assistant.controller.ts`). 이 DTO 들은 반환 모양을 **바꾸지 않고 적는다** —
++// 컬럼 전부, 관계는 싣지 않는다(조회가 관계를 로드하지 않는다). 맞는지는 e2e 가 `assertMatchesContract` 로 본다 —
++// 선언되지 않은 키가 응답에 있으면 실패한다(api-convention §5.4 «검증 층»).
++//
++// 내부 서사를 `//` 에 두는 이유: JSDoc 은 공개 OpenAPI `description` 으로 나간다(`spec/conventions/swagger.md` §3).
++
++const SESSION_STATUSES = [
++  'active',
++  'archived',
++] as const satisfies readonly AssistantSessionStatus[];
++const MESSAGE_ROLES = [
++  'user',
++  'assistant',
++  'tool',
++] as const satisfies readonly AssistantMessageRole[];
++const TOOL_CALL_KINDS = [
++  'explore',
++  'plan',
++  'edit',
++  'finish',
++] as const satisfies readonly AssistantToolCallKind[];
++
++/** Assistant 세션 한 건. */
++export class AssistantSessionDto {
++  /** 세션 ID. */
++  @ApiProperty({ format: 'uuid' })
++  id: string;
++
++  /** 세션이 속한 워크스페이스 ID. */
++  @ApiProperty({ format: 'uuid' })
++  workspaceId: string;
++
++  /** 세션이 속한 워크플로우 ID. */
++  @ApiProperty({ format: 'uuid' })
++  workflowId: string;
++
++  /** 세션을 만든 사용자 ID — 세션은 만든 사람만 본다. */
++  @ApiProperty({ format: 'uuid' })
++  userId: string;
++
++  /** 세션 제목. 첫 메시지 전에는 없다. */
++  @ApiProperty({
++    type: String,
++    nullable: true,
++    example: '결제 알림 워크플로우 다듬기',
++  })
++  title: string | null;
++
++  /** 세션이 고정한 LLM 설정 ID. 없으면 워크스페이스 기본값을 쓴다. */
++  @ApiProperty({ type: String, format: 'uuid', nullable: true })
++  llmConfigId: string | null;
++
++  /** 세션 상태. */
++  @ApiProperty({ enum: SESSION_STATUSES, enumName: 'AssistantSessionStatus' })
++  status: AssistantSessionStatus;
++
++  /** 저장된 메시지 수. */
++  @ApiProperty({ type: Number, example: 12 })
++  messageCount: number;
++
++  /** 마지막 상호작용 시각 — 목록 정렬 기준. */
++  @ApiProperty({ format: 'date-time', example: '2026-09-26T03:14:00.000Z' })
++  lastInteractionAt: string;
++
++  /** 생성 시각. */
++  @ApiProperty({ format: 'date-time', example: '2026-09-26T03:00:00.000Z' })
++  createdAt: string;
++
++  /** 마지막 변경 시각. */
++  @ApiProperty({ format: 'date-time', example: '2026-09-26T03:14:00.000Z' })
++  updatedAt: string;
++}
++
++/** Assistant 가 호출한 도구 한 건. */
++export class AssistantToolCallDto {
++  /** LLM 이 부여한 도구 호출 ID. `tool` 메시지의 `toolCallId` 가 이 값을 가리킨다. */
++  @ApiProperty()
++  id: string;
++
++  /** 도구 이름. */
++  @ApiProperty({ example: 'add_node' })
++  name: string;
++
++  // 도구마다 인자 스키마가 다르다 — 그 형태의 정본은 도구 정의(`tools/tool-definitions.ts`, LLM 에 넘기는 JSON Schema)다.
++  // 여기서 16개 도구의 인자를 닫힌 union 으로 다시 적으면 정본이 둘이 된다 — `swagger.md` §1-4 «형태는 고정이나 SoT 이중화
++  // 회피로 여는 경우». 엔티티(`AssistantToolCallRecord.arguments: Record<string, unknown>`)와 frontend 타입도 같은 열린 모양이라
++  // 한쪽만 좁혀 둔 타입이 없다.
++  /** 도구 인자 — 형태는 도구마다 다르다. */
++  @ApiProperty({ type: 'object', additionalProperties: true })
++  arguments: Record<string, unknown>;
++
++  /** 도구 분류. */
++  @ApiProperty({ enum: TOOL_CALL_KINDS, enumName: 'AssistantToolCallKind' })
++  kind: AssistantToolCallKind;
++
++  // 결과가 기록되기 전(스트림 중단 등)에는 키가 없다. 결과 모양도 도구마다 다르다 — 정본은 각 도구의 실행부다(위 `arguments` 와 같은 §1-4 예외).
++  /** 도구 실행 결과 — 형태는 도구마다 다르다. 결과가 기록되지 않았으면 키가 없다. */
++  @ApiPropertyOptional({ type: 'object', additionalProperties: true })
++  result?: unknown;
++
++  /** 이 호출이 완료시키는 계획 단계 ID(단일 — 옛 형식). */
++  @ApiPropertyOptional()
++  planStepId?: string;
++
++  /** 이 호출이 완료시키는 계획 단계 ID 목록. `planStepId` 와 함께 오면 합쳐서 센다. */
++  @ApiPropertyOptional({ type: [String] })
++  planStepIds?: string[];
++
++  /** 공급자가 다음 호출에 되돌려 받아야 하는 불투명 서명(Gemini 의 thought signature). 없으면 키가 없다. */
++  @ApiPropertyOptional()
++  signature?: string;
++}
++
++/** 계획의 한 단계. */
++export class AssistantPlanStepDto {
++  /** 단계 ID. */
++  @ApiProperty({ example: 's1' })
++  id: string;
++
++  /** 단계가 하는 일. */
++  @ApiProperty({ enum: PLAN_STEP_ACTIONS, enumName: 'AssistantStepAction' })
++  action: AssistantStepAction;
++
++  /** 단계 설명. */
++  @ApiProperty()
++  description: string;
++
++  /** 단계를 택한 이유. 없으면 키가 없다. */
++  @ApiPropertyOptional()
++  rationale?: string;
++}
++
++/** Assistant 가 제안한 계획. */
++export class AssistantPlanDto {
++  /** 계획 제목. */
++  @ApiProperty()
++  title: string;
++
++  /** 계획 요약. */
++  @ApiProperty()
++  summary: string;
++
++  /** 계획 단계. */
++  @ApiProperty({ type: () => [AssistantPlanStepDto] })
++  steps: AssistantPlanStepDto[];
++
++  /** 사용자에게 되묻는 질문. 없으면 키가 없다. */
++  @ApiPropertyOptional({ type: [String] })
++  openQuestions?: string[];
++
++  /** 사용자가 계획을 승인한 시각. 승인 전에는 키가 없다. */
++  @ApiPropertyOptional({ format: 'date-time' })
++  approvedAt?: string;
++}
++
++/** 한 턴의 토큰 사용량. */
++export class AssistantUsageDto {
++  /** 입력 토큰 수. */
++  @ApiProperty({ type: Number })
++  inputTokens: number;
++
++  /** 출력 토큰 수. */
++  @ApiProperty({ type: Number })
++  outputTokens: number;
++
++  /** 합계 토큰 수. */
++  @ApiProperty({ type: Number })
++  totalTokens: number;
++
++  /** 사고(thinking) 토큰 수. 공급자가 주지 않으면 키가 없다. */
++  @ApiPropertyOptional({ type: Number })
++  thinkingTokens?: number;
++
++  /** 사용한 모델. */
++  @ApiProperty({ example: 'gpt-4o' })
++  model: string;
++}
++
++/** Assistant 세션의 메시지 한 건. */
++@ApiExtraModels(AssistantToolCallDto, AssistantPlanDto, AssistantUsageDto)
++export class AssistantMessageDto {
++  /** 메시지 ID. */
++  @ApiProperty({ format: 'uuid' })
++  id: string;
++
++  /** 메시지가 속한 세션 ID. */
++  @ApiProperty({ format: 'uuid' })
++  sessionId: string;
++
++  /** 발화자. */
++  @ApiProperty({ enum: MESSAGE_ROLES, enumName: 'AssistantMessageRole' })
++  role: AssistantMessageRole;
++
++  /** 본문. 본문 없이 도구만 호출한 메시지는 null. */
++  @ApiProperty({ type: String, nullable: true })
++  content: string | null;
++
++  /** assistant 메시지가 호출한 도구들. 없으면 null. */
++  @ApiProperty({ type: () => [AssistantToolCallDto], nullable: true })
++  toolCalls: AssistantToolCallDto[] | null;
++
++  /** `tool` 메시지가 응답하는 도구 호출 ID. 그 밖의 메시지는 null. */
++  @ApiProperty({ type: String, nullable: true })
++  toolCallId: string | null;
++
++  /** 이 메시지가 제안한 계획. 없으면 null. */
++  @ApiProperty({ type: () => AssistantPlanDto, nullable: true })
++  plan: AssistantPlanDto | null;
++
++  /** 이 턴의 토큰 사용량. 기록되지 않았으면 null. */
++  @ApiProperty({ type: () => AssistantUsageDto, nullable: true })
++  usage: AssistantUsageDto | null;
++
++  /** LLM 이 턴을 끝낸 이유(공급자 값 · `auto_resume_pending` 등). 없으면 null. */
++  @ApiProperty({ type: String, nullable: true })
++  finishReason: string | null;
++
++  /** 이 턴이 자동 재개로 이어졌는가. */
++  @ApiProperty()
++  autoResumed: boolean;
++
++  /** 자동 재개 사유. 재개하지 않았으면 null. */
++  @ApiProperty({
++    enum: AUTO_RESUME_REASONS,
++    enumName: 'AutoResumeReason',
++    nullable: true,
++  })
++  autoResumeReason: AutoResumeReason | null;
++
++  /** 자동 재개 회차. 재개하지 않았으면 null. */
++  @ApiProperty({ type: Number, nullable: true })
++  autoResumeAttempt: number | null;
++
++  /** 생성 시각. */
++  @ApiProperty({ format: 'date-time', example: '2026-09-26T03:14:00.000Z' })
++  createdAt: string;
++}
++
++/** 세션 상세 — 세션과 그 메시지(오래된 것부터). */
++@ApiExtraModels(AssistantSessionDto, AssistantMessageDto)
++export class AssistantSessionDetailDto {
++  /** 세션. */
++  @ApiProperty({ type: () => AssistantSessionDto })
++  session: AssistantSessionDto;
++
++  /** 메시지 — 생성 시각 오름차순. */
++  @ApiProperty({ type: () => [AssistantMessageDto] })
++  messages: AssistantMessageDto[];
++}
+diff --git a/codebase/backend/src/modules/workflow-assistant/workflow-assistant.controller.ts b/codebase/backend/src/modules/workflow-assistant/workflow-assistant.controller.ts
+index dd1620c7c..de1c3a32e 100644
+--- a/codebase/backend/src/modules/workflow-assistant/workflow-assistant.controller.ts
++++ b/codebase/backend/src/modules/workflow-assistant/workflow-assistant.controller.ts
+@@ -27,6 +27,7 @@ import {
+   ApiTags,
+   ApiUnauthorizedResponse,
+   ApiForbiddenResponse,
++  ApiNoContentResponse,
+ } from '@nestjs/swagger';
+ import { Roles } from '../../common/guards/roles.guard';
+ import { WorkspaceId } from '../../common/decorators';
+@@ -37,7 +38,18 @@ import { WorkflowAssistantStreamService } from './workflow-assistant-stream.serv
+ import { CreateAssistantSessionDto } from './dto/create-assistant-session.dto';
+ import { UpdateAssistantSessionDto } from './dto/update-assistant-session.dto';
+ import { AssistantMessageRequestDto } from './dto/assistant-message-request.dto';
+-import { FORBIDDEN_NOT_A_MEMBER, forbiddenForRole } from '../../common/swagger';
++import {
++  FORBIDDEN_NOT_A_MEMBER,
++  forbiddenForRole,
++  ApiCreatedWrappedResponse,
++  ApiOkWrappedArrayResponse,
++  ApiOkWrappedNullableResponse,
++  ApiOkWrappedResponse,
++} from '../../common/swagger';
++import {
++  AssistantSessionDetailDto,
++  AssistantSessionDto,
++} from './dto/responses/assistant-session-response.dto';
+ 
+ @ApiTags('Workflow AI Assistant')
+ @ApiBearerAuth('access-token')
+@@ -57,6 +69,9 @@ export class WorkflowAssistantController {
+       '지정한 워크플로우에 속한 내 세션을 최근 상호작용 순으로 최대 50건 반환한다.',
+   })
+   @ApiQuery({ name: 'workflowId', required: true, format: 'uuid' })
++  @ApiOkWrappedArrayResponse(AssistantSessionDto, {
++    description: '세션 목록 — 최근 상호작용 순, 최대 50건',
++  })
+   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
+   @ApiForbiddenResponse({ description: FORBIDDEN_NOT_A_MEMBER })
+   async list(
+@@ -77,6 +92,9 @@ export class WorkflowAssistantController {
+       '워크플로우 편집기 진입 시 기본 선택할 세션을 조회한다. 없으면 null 반환.',
+   })
+   @ApiQuery({ name: 'workflowId', required: true, format: 'uuid' })
++  @ApiOkWrappedNullableResponse(AssistantSessionDto, {
++    description: '최근 활성 세션 — 없으면 null',
++  })
+   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
+   @ApiForbiddenResponse({ description: FORBIDDEN_NOT_A_MEMBER })
+   async latest(
+@@ -95,6 +113,9 @@ export class WorkflowAssistantController {
+   @Get('sessions/:id')
+   @ApiOperation({ summary: '세션 상세(메시지 포함) 조회' })
+   @ApiParam({ name: 'id', format: 'uuid' })
++  @ApiOkWrappedResponse(AssistantSessionDetailDto, {
++    description: '세션과 그 메시지(오래된 것부터)',
++  })
+   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
+   @ApiForbiddenResponse({ description: FORBIDDEN_NOT_A_MEMBER })
+   async findOne(
+@@ -109,6 +130,9 @@ export class WorkflowAssistantController {
+   @Roles('editor')
+   @HttpCode(HttpStatus.CREATED)
+   @ApiOperation({ summary: '세션 생성' })
++  @ApiCreatedWrappedResponse(AssistantSessionDto, {
++    description: '만든 세션',
++  })
+   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
+   @ApiForbiddenResponse({ description: forbiddenForRole('editor') })
+   async create(
+@@ -123,6 +147,7 @@ export class WorkflowAssistantController {
+   @Roles('editor')
+   @ApiOperation({ summary: '세션 제목/모델/상태 업데이트' })
+   @ApiParam({ name: 'id', format: 'uuid' })
++  @ApiOkWrappedResponse(AssistantSessionDto, { description: '바뀐 세션' })
+   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
+   @ApiForbiddenResponse({ description: forbiddenForRole('editor') })
+   async update(
+@@ -139,6 +164,7 @@ export class WorkflowAssistantController {
+   @HttpCode(HttpStatus.NO_CONTENT)
+   @ApiOperation({ summary: '세션 삭제 (cascade로 메시지 삭제)' })
+   @ApiParam({ name: 'id', format: 'uuid' })
++  @ApiNoContentResponse({ description: '삭제 완료' })
+   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
+   @ApiForbiddenResponse({ description: forbiddenForRole('editor') })
+   async remove(
+diff --git a/codebase/backend/src/repo-guards/__tests__/fixtures/http-status-advertised/sample.controller.ts b/codebase/backend/src/repo-guards/__tests__/fixtures/http-status-advertised/sample.controller.ts
+index 8dded17c6..d03628649 100644
+--- a/codebase/backend/src/repo-guards/__tests__/fixtures/http-status-advertised/sample.controller.ts
++++ b/codebase/backend/src/repo-guards/__tests__/fixtures/http-status-advertised/sample.controller.ts
+@@ -19,6 +19,7 @@ import {
+   ApiDefaultResponse,
+   ApiExcludeEndpoint,
+   ApiForbiddenResponse,
++  ApiFoundResponse,
+   ApiNoContentResponse,
+   ApiOkResponse,
+   ApiPartialContentResponse,
+@@ -111,6 +112,20 @@ export class HttpStatusAdvertisedFixtureController {
+     res.end();
+   }
+ 
++  /** 리다이렉트로 끝나는 자리 — 성공 광고는 302 다. 2xx 광고가 없으니 짝을 대조하지 않는다. */
++  @Get('redirect')
++  @ApiFoundResponse({ description: '다른 곳으로 보낸다' })
++  getRedirect(@Res() res: Response): void {
++    res.redirect('/elsewhere');
++  }
++
++  /** `@ApiResponse({ status: 302 })` 로 리다이렉트를 광고한 자리 — 이름 표가 아니라 인자에서 읽는 분기. */
++  @Get('redirect-via-api-response')
++  @ApiResponse({ status: 302, description: '다른 곳으로 보낸다' })
++  getRedirectViaApiResponse(@Res() res: Response): void {
++    res.redirect('/elsewhere');
++  }
++
+   /** OpenAPI 에서 빠진 자리 — 광고가 문서에 없으니 대조하지 않는다. */
+   @Post('excluded')
+   @ApiExcludeEndpoint()
+diff --git a/codebase/backend/src/repo-guards/__tests__/http-status-advertised-guard.ts b/codebase/backend/src/repo-guards/__tests__/http-status-advertised-guard.ts
+index a73c36977..d4a419b9b 100644
+--- a/codebase/backend/src/repo-guards/__tests__/http-status-advertised-guard.ts
++++ b/codebase/backend/src/repo-guards/__tests__/http-status-advertised-guard.ts
+@@ -45,8 +45,8 @@ export type ResponseStatusMap = ReadonlyMap<string, number | null>;
+ /**
+  * `@nestjs/swagger` 의 `Api*Response` 팩토리를 **실제로 적용해** 상태 코드를 읽는다.
+  *
+- * 이름 → 코드 표를 손으로 쓰지 않는 이유: 이 패키지는 `ApiPartialContentResponse`(206) ·
+- * `ApiResetContentResponse`(205) 처럼 2xx 데코레이터를 50개 가까이 내보낸다. 손으로 쓴 표는 그중
++ * 이름 → 코드 표를 손으로 쓰지 않는 이유: 이 패키지는 `Api*Response` 데코레이터를 50개 가까이 내보내고 그중 2xx 만
++ * 일곱이다(`ApiPartialContentResponse`(206) · `ApiResetContentResponse`(205) 포함). 손으로 쓴 표는 그중
+  * 저장소가 지금 쓰는 것만 담게 되고, 새 이름이 쓰이는 날 그 핸들러의 광고가 조용히 빈 집합이 된다.
+  * `ApiResponse` 는 인자의 `status` 로 정해지므로 표에 넣지 않는다(스캔이 따로 읽는다).
+  */
+@@ -145,10 +145,21 @@ export interface HttpStatusUnresolved {
+   readonly what: string;
+ }
+ 
++/** 성공 응답을 하나도 광고하지 않는 라우트 — 생성된 OpenAPI 에 반환 스키마가 없다. */
++export interface HttpStatusUnadvertised {
++  readonly file: string;
++  readonly method: string;
++  readonly verb: string;
++}
++
+ /** 한 번의 스캔 결과. */
+ export interface HttpStatusScan {
+   readonly violations: readonly HttpStatusViolation[];
+   readonly unresolved: readonly HttpStatusUnresolved[];
++  /**
++   * 성공 응답(2xx · 리다이렉트 라우트는 3xx)을 하나도 광고하지 않는 라우트. `@ApiExcludeEndpoint()` 는 OpenAPI 밖이라 묻지 않는다.
++   */
++  readonly unadvertised: readonly HttpStatusUnadvertised[];
+   /**
+    * 대조한 핸들러 수 — 성공 응답을 **하나 이상 광고하는** 라우트만 센다(광고가 없으면 대조할 것이
+    * 없다). vacuity floor 가 본다. 위반과 **같은 순회**에서 센다.
+@@ -193,29 +204,38 @@ function apiResponseStatus(
+ }
+ 
+ const isSuccess = (code: number): boolean => code >= 200 && code < 300;
++/** 리다이렉트 — 응답을 `res.redirect` 로 끝내는 라우트의 성공 광고(`@ApiFoundResponse` 등). */
++const isRedirect = (code: number): boolean => code >= 300 && code < 400;
+ 
+-/**
+- * 핸들러 **하나**를 판정한다. 라우트가 아니거나(`@Get` 등이 없음) OpenAPI 에서 빠진
+- * (`@ApiExcludeEndpoint()`) 핸들러는 `null` — 광고가 문서에 실리지 않으니 대조할 것도 없다.
+- */
+-function judgeHandler(
++/** 핸들러의 데코레이터를 한 번 훑어 모은 사실. 판정은 `judgeHandler` 가 이것으로 한다. */
++interface HandlerDecorators {
++  readonly verb: string | null;
++  readonly httpCode: number | null;
++  readonly excluded: boolean;
++  /** 광고한 2xx — 실제 성공 코드와 짝을 대조한다. */
++  readonly advertised: ReadonlySet<number>;
++  /** 3xx 를 광고했는가 — 응답을 `res.redirect` 로 끝내는 라우트의 성공 광고. */
++  readonly redirectAdvertised: boolean;
++  /** 읽지 못한 데코레이터 — `@HttpCode(<식>)` · `@ApiResponse` 의 status · 표에 없는 `Api*Response` 이름. */
++  readonly unresolved: readonly string[];
++}
++
++/** 핸들러의 데코레이터를 분류한다 — 순수 함수. 무엇이 위반인지는 여기서 정하지 않는다. */
++function classifyDecorators(
+   method: ts.MethodDeclaration,
+   sf: ts.SourceFile,
+-  rel: string,
+   statuses: ResponseStatusMap,
+-): {
+-  violation: HttpStatusViolation | null;
+-  unresolved: HttpStatusUnresolved[];
+-  checked: boolean;
+-} | null {
+-  const name = method.name.getText(sf);
++): HandlerDecorators {
+   let verb: string | null = null;
+   let httpCode: number | null = null;
+   let excluded = false;
+   const advertised = new Set<number>();
+-  const unresolved: HttpStatusUnresolved[] = [];
+-  const miss = (what: string): void => {
+-    unresolved.push({ file: rel, method: name, what });
++  let redirectAdvertised = false;
++  const unresolved: string[] = [];
++  // 광고한 상태 코드 하나를 분류한다 — `@ApiResponse({ status })` 와 이름 표가 같은 규칙을 쓴다. 4xx · 5xx 는 성공 광고가 아니다.
++  const advertise = (status: number): void => {
++    if (isSuccess(status)) advertised.add(status);
++    else if (isRedirect(status)) redirectAdvertised = true;
+   };
+ 
+   for (const d of ts.getDecorators(method) ?? []) {
+@@ -227,27 +247,73 @@ function judgeHandler(
+     } else if (callee === 'HttpCode') {
+       const arg = call.arguments[0];
+       httpCode = arg ? statusOf(arg, sf) : null;
+-      if (httpCode === null) miss(HTTP_CODE_UNRESOLVED);
++      if (httpCode === null) unresolved.push(HTTP_CODE_UNRESOLVED);
+     } else if (callee === 'ApiExcludeEndpoint') {
+       excluded = true;
+     } else if (callee === 'ApiResponse') {
+       const status = apiResponseStatus(call, sf);
+-      if (status === null) miss('@ApiResponse status');
+-      else if (isSuccess(status)) advertised.add(status);
++      if (status === null) unresolved.push('@ApiResponse status');
++      else advertise(status);
+     } else if (statuses.has(callee)) {
+       const status = statuses.get(callee);
+-      if (typeof status === 'number' && isSuccess(status))
+-        advertised.add(status);
++      if (typeof status === 'number') advertise(status);
+     } else if (RESPONSE_DECORATOR.test(callee)) {
+-      miss(`@${callee}`);
++      unresolved.push(`@${callee}`);
+     }
+   }
++  return {
++    verb,
++    httpCode,
++    excluded,
++    advertised,
++    redirectAdvertised,
++    unresolved,
++  };
++}
++
++/**
++ * 핸들러 **하나**를 판정한다 — 광고한 2xx 가 실제 성공 코드를 담는가(`violation`), 성공 응답을 하나라도
++ * 광고했는가(`unadvertised`). 라우트가 아니거나(`@Get` 등이 없음) OpenAPI 에서 빠진
++ * (`@ApiExcludeEndpoint()`) 핸들러는 `null` — 광고가 문서에 실리지 않으니 대조할 것도 없다.
++ */
++function judgeHandler(
++  method: ts.MethodDeclaration,
++  sf: ts.SourceFile,
++  rel: string,
++  statuses: ResponseStatusMap,
++): {
++  violation: HttpStatusViolation | null;
++  unresolved: HttpStatusUnresolved[];
++  checked: boolean;
++  unadvertised: HttpStatusUnadvertised | null;
++} | null {
++  const name = method.name.getText(sf);
++  const {
++    verb,
++    httpCode,
++    excluded,
++    advertised,
++    redirectAdvertised,
++    unresolved: unread,
++  } = classifyDecorators(method, sf, statuses);
++  const unresolved = unread.map((what) => ({
++    file: rel,
++    method: name,
++    what,
++  }));
+ 
+   if (verb === null || excluded) return null;
++  // 성공 응답을 하나도 광고하지 않았다 — 2xx 도, 리다이렉트 라우트의 3xx 도 없다.
++  const unadvertised =
++    advertised.size === 0 && !redirectAdvertised
++      ? { file: rel, method: name, verb }
++      : null;
+   // `@HttpCode(<식>)` 을 못 읽었으면 실제 코드를 모른다 — 위반으로도 통과로도 치지 않는다.
+-  const actualKnown = !unresolved.some((u) => u.what === HTTP_CODE_UNRESOLVED);
++  const actualKnown = !unread.includes(HTTP_CODE_UNRESOLVED);
++  // 2xx 광고가 없으면(리다이렉트만 광고했거나 아무것도 없으면) 짝을 대조하지 않는다 — 리다이렉트의 실제 코드는
++  // 핸들러의 `res.redirect` 가 정한다.
+   if (!actualKnown || advertised.size === 0) {
+-    return { violation: null, unresolved, checked: false };
++    return { violation: null, unresolved, checked: false, unadvertised };
+   }
+ 
+   // Nest 기본값 — `RouterResponseController.getStatusByMethod`: POST 만 201, 나머지 200.
+@@ -262,11 +328,12 @@ function judgeHandler(
+         actual,
+         advertised: [...advertised].sort((a, b) => a - b),
+       };
+-  return { violation, unresolved, checked: true };
++  return { violation, unresolved, checked: true, unadvertised };
+ }
+ 
+ /**
+- * `*.controller.ts` 들에서 **광고한 성공 코드가 실제 성공 코드를 담지 않는** 핸들러를 찾는다.
++ * `*.controller.ts` 들에서 **광고한 성공 코드가 실제 성공 코드를 담지 않는** 핸들러를 찾는다. 성공 응답을
++ * **하나도 광고하지 않는** 라우트는 `unadvertised` 로 함께 보고한다.
+  *
+  * **`@Res()` 핸들러도 면제하지 않는다.** Nest 는 핸들러를 부르기 **전에**
+  * `responseController.setStatus(res, httpStatusCode)` 를 무조건 부른다
+@@ -284,6 +351,7 @@ export function scanHttpStatusAdvertised(
+ ): HttpStatusScan {
+   const violations: HttpStatusViolation[] = [];
+   const unresolved: HttpStatusUnresolved[] = [];
++  const unadvertised: HttpStatusUnadvertised[] = [];
+   let checked = 0;
+   for (const file of files) {
+     if (!file.endsWith('.controller.ts')) continue;
+@@ -299,6 +367,7 @@ export function scanHttpStatusAdvertised(
+         const judged = judgeHandler(node, sf, rel, statuses);
+         if (judged) {
+           if (judged.violation) violations.push(judged.violation);
++          if (judged.unadvertised) unadvertised.push(judged.unadvertised);
+           unresolved.push(...judged.unresolved);
+           if (judged.checked) checked++;
+         }
+@@ -314,6 +383,7 @@ export function scanHttpStatusAdvertised(
+   return {
+     violations: violations.sort(byPlace),
+     unresolved: unresolved.sort(byPlace),
++    unadvertised: unadvertised.sort(byPlace),
+     checked,
+   };
+ }
+diff --git a/codebase/backend/src/repo-guards/__tests__/http-status-advertised.spec.ts b/codebase/backend/src/repo-guards/__tests__/http-status-advertised.spec.ts
+index 98764cdd2..fbff2951f 100644
+--- a/codebase/backend/src/repo-guards/__tests__/http-status-advertised.spec.ts
++++ b/codebase/backend/src/repo-guards/__tests__/http-status-advertised.spec.ts
+@@ -152,6 +152,16 @@ describe('성공 응답 코드 ↔ OpenAPI 광고 가드', () => {
+     expect(violations).toEqual([]);
+   });
+ 
++  it('라우트는 성공 응답을 하나 이상 광고한다 (리다이렉트 라우트는 3xx)', () => {
++    // 2026-09-26 실측 15곳을 채웠다 — 11곳은 응답 DTO · 광고, 넷은 OpenAPI 밖(`@ApiExcludeEndpoint`)이거나 이미 302 광고.
++    const unadvertised = scanHttpStatusAdvertised(
++      files,
++      SRC_ROOT,
++      statuses,
++    ).unadvertised.map((u) => `${u.file} ${u.method}() ${u.verb}`);
++    expect(unadvertised).toEqual([]);
++  });
++
+   it('판정할 수 없는 자리가 없다', () => {
+     const unresolved = scanHttpStatusAdvertised(
+       files,
+@@ -216,6 +226,25 @@ describe('성공 응답 코드 ↔ OpenAPI 광고 가드', () => {
+       ]);
+     });
+ 
++    it('성공 응답을 하나도 광고하지 않는 자리를 잡는다 — 리다이렉트 · 제외는 잡지 않는다', () => {
++      // 에러 응답만 · `ApiDefaultResponse` 만 · 표에 없는 이름 · status 없는 `@ApiResponse` — 넷 다 2xx 도 3xx 도 없다.
++      // `getRedirect`(`@ApiFoundResponse`) · `getRedirectViaApiResponse`(`@ApiResponse({ status: 302 })`)는 성공 광고가 있고,
++      // `excludedAdvertisedOk` 는 OpenAPI 밖이다.
++      expect(scan.unadvertised.map((u) => u.method).sort()).toStrictEqual([
++        'getApiResponseWithoutStatus',
++        'postDefaultResponseOnly',
++        'postMadeUpResponse',
++        'postNoSuccessAdvertised',
++      ]);
++    });
++
++    it('리다이렉트만 광고한 라우트는 2xx 짝을 대조하지 않는다', () => {
++      // `res.redirect` 가 Nest 가 미리 실은 200 을 덮어쓴다 — 기본값 200 과 대조하면 거짓 위반이다.
++      expect(
++        scan.violations.filter((v) => v.method.startsWith('getRedirect')),
++      ).toStrictEqual([]);
++    });
++
+     it('AST 로 읽는다 — 주석 · 문자열 속 모양은 안 센다', () => {
+       // `decoyHolder` 는 GET + 200 광고라 맞는 자리다. 주석 · 문자열 속 `@Post` · `@ApiNoContentResponse` 가
+       // 세어졌다면 이 핸들러가 위반으로 나타나거나 `decoy-*` 가 따로 생긴다.
+diff --git a/codebase/backend/test/advertised-response-contract.e2e-spec.ts b/codebase/backend/test/advertised-response-contract.e2e-spec.ts
+new file mode 100644
+index 000000000..0d5ec2a83
+--- /dev/null
++++ b/codebase/backend/test/advertised-response-contract.e2e-spec.ts
+@@ -0,0 +1,100 @@
++import { describe, it, expect, beforeAll, afterAll } from '@jest/globals';
++import { randomUUID } from 'crypto';
++import { Client } from 'pg';
++import request from 'supertest';
++
++import { createDbClient, uniqueEmail, uniqueName } from './helpers/db';
++import { registerAndLogin, createTeamWorkspace } from './helpers/auth';
++import {
++  assertMatchesContract,
++  contractForDto,
++} from '../src/shared/testing/response-contract';
++import { WebAuthnAvailabilityDto } from '../src/modules/auth/webauthn/dto/responses/webauthn-response.dto';
++import { NotificationRotateSecretDto } from '../src/modules/triggers/dto/responses/trigger-secret-issue-response.dto';
++
++/**
++ * e2e: 새로 광고한 성공 응답 DTO 가 **실제 응답과 맞는가** — `plan/complete/success-advert.md`.
++ *
++ * 성공 응답을 광고하지 않던 라우트에 응답 DTO 를 붙였다. 광고가 실제와 다르면(필수인데 빠진 키 · 선언하지 않은 키) 생성된
++ * OpenAPI 가 새로 틀린다 — `assertMatchesContract` 가 선언되지 않은 키까지 문다(api-convention §5.4 «검증 층»). 이 파일은 다른
++ * e2e 가 부르지 않던 두 라우트를 맡는다. workflow-assistant 세션은 `workflow-assistant.e2e-spec.ts`, interaction token 재발급은
++ * `chat-channel-trigger-create.e2e-spec.ts` 가 같은 대조를 한다.
++ */
++
++const BASE_URL = process.env.E2E_BASE_URL ?? 'http://backend-e2e:3011';
++
++describe('새로 광고한 성공 응답의 계약 (e2e)', () => {
++  let db: Client;
++  let token: string;
++  let workspaceId: string;
++  let workflowId: string;
++  const createdTriggerIds: string[] = [];
++
++  beforeAll(async () => {
++    db = createDbClient();
++    await db.connect();
++    const owner = await registerAndLogin(BASE_URL, uniqueEmail('advc'), db);
++    token = owner.accessToken;
++    workspaceId = await createTeamWorkspace(
++      BASE_URL,
++      token,
++      uniqueName('ADVC'),
++    );
++    const wf = await request(BASE_URL)
++      .post('/api/workflows')
++      .set('Authorization', `Bearer ${token}`)
++      .set('X-Workspace-Id', workspaceId)
++      .send({ name: uniqueName('advc-wf') });
++    workflowId = wf.body.data.id as string;
++  }, 60_000);
++
++  afterAll(async () => {
++    for (const id of createdTriggerIds) {
++      await db
++        .query('DELETE FROM trigger WHERE id = $1', [id])
++        .catch(() => undefined);
++    }
++    await db.end();
++  });
++
++  it('WebAuthn 활성 여부 — WebAuthnAvailabilityDto', async () => {
++    const res = await request(BASE_URL).get(
++      '/api/auth/2fa/webauthn/availability',
++    );
++    expect(res.status).toBe(200);
++    assertMatchesContract(
++      res.body.data,
++      await contractForDto(WebAuthnAvailabilityDto),
++    );
++  });
++
++  it('notification secret 회전 — NotificationRotateSecretDto', async () => {
++    const created = await request(BASE_URL)
++      .post('/api/triggers')
++      .set('Authorization', `Bearer ${token}`)
++      .set('X-Workspace-Id', workspaceId)
++      .send({
++        workflowId,
++        type: 'webhook',
++        name: uniqueName('advc-notify'),
++        endpointPath: randomUUID(),
++        notification: {
++          url: 'https://hooks.example.com/wf-callback',
++          events: ['execution.completed'],
++        },
++      });
++    expect(created.status).toBe(201);
++    const triggerId = created.body.data.id as string;
++    createdTriggerIds.push(triggerId);
++
++    const res = await request(BASE_URL)
++      .post(`/api/triggers/${triggerId}/notification/rotate-secret`)
++      .set('Authorization', `Bearer ${token}`)
++      .set('X-Workspace-Id', workspaceId);
++    expect(res.status).toBe(200);
++    assertMatchesContract(
++      res.body.data,
++      await contractForDto(NotificationRotateSecretDto),
++    );
++  });
++});
+diff --git a/codebase/backend/test/chat-channel-trigger-create.e2e-spec.ts b/codebase/backend/test/chat-channel-trigger-create.e2e-spec.ts
+index 53ae8622c..673929618 100644
+--- a/codebase/backend/test/chat-channel-trigger-create.e2e-spec.ts
++++ b/codebase/backend/test/chat-channel-trigger-create.e2e-spec.ts
+@@ -17,6 +17,7 @@ import {
+   contractForDto,
+ } from '../src/shared/testing/response-contract';
+ import { TriggerDto } from '../src/modules/triggers/dto/responses/trigger-response.dto';
++import { InteractionRevokeTokenDto } from '../src/modules/triggers/dto/responses/trigger-secret-issue-response.dto';
+ 
+ import { createDbClient, uniqueEmail, uniqueName } from './helpers/db';
+ import { registerAndLogin, createTeamWorkspace } from './helpers/auth';
+@@ -136,6 +137,10 @@ describe('POST /api/triggers — chat-channel multi-provider (e2e)', () => {
+     expect(issued.status).toBe(200);
+     // 1회성 평문은 **이 응답에만** 실린다 (`secret-store.md §1` 근거 (c)).
+     expect(typeof issued.body.data.token).toBe('string');
++    assertMatchesContract(
++      issued.body.data,
++      await contractForDto(InteractionRevokeTokenDto),
++    );
+ 
+     const detail = await request(BASE_URL)
+       .get(`/api/triggers/${triggerId}`)
+diff --git a/codebase/backend/test/workflow-assistant.e2e-spec.ts b/codebase/backend/test/workflow-assistant.e2e-spec.ts
+index edb84d240..b640ac668 100644
+--- a/codebase/backend/test/workflow-assistant.e2e-spec.ts
++++ b/codebase/backend/test/workflow-assistant.e2e-spec.ts
+@@ -5,6 +5,14 @@ import request from 'supertest';
+ 
+ import { createDbClient, uniqueEmail, uniqueName } from './helpers/db';
+ import { registerAndLogin, createTeamWorkspace } from './helpers/auth';
++import {
++  assertMatchesContract,
++  contractForDto,
++} from '../src/shared/testing/response-contract';
++import {
++  AssistantSessionDetailDto,
++  AssistantSessionDto,
++} from '../src/modules/workflow-assistant/dto/responses/assistant-session-response.dto';
+ 
+ /**
+  * e2e: Workflow AI Assistant 세션 관리 — spec/3-workflow-editor/4-ai-assistant.md.
+@@ -60,6 +68,11 @@ describe('Workflow Assistant sessions (e2e)', () => {
+     expect(create.status).toBe(201);
+     const sessionId = create.body.data.id as string;
+     expect(sessionId).toBeDefined();
++    // 응답 DTO 는 엔티티를 그대로 내는 응답을 적는다 — 선언되지 않은 키(관계 · 새 컬럼)가 실리면 여기서 걸린다.
++    assertMatchesContract(
++      create.body.data,
++      await contractForDto(AssistantSessionDto),
++    );
+ 
+     const list = await request(BASE_URL)
+       .get('/api/workflow-assistant/sessions')
+@@ -70,6 +83,17 @@ describe('Workflow Assistant sessions (e2e)', () => {
+       (list.body.data as { items?: Array<{ id: string }> }).items ??
+       (list.body.data as Array<{ id: string }>);
+     expect(items.some((i) => i.id === sessionId)).toBe(true);
++    const sessionContract = await contractForDto(AssistantSessionDto);
++    for (const item of items) assertMatchesContract(item, sessionContract);
++
++    const detail = await request(BASE_URL)
++      .get(`/api/workflow-assistant/sessions/${sessionId}`)
++      .set(authHeaders());
++    expect(detail.status).toBe(200);
++    assertMatchesContract(
++      detail.body.data,
++      await contractForDto(AssistantSessionDetailDto),
++    );
+   });
+ 
+   it('B. PATCH 제목 → 200, GET 반영', async () => {
+@@ -85,6 +109,10 @@ describe('Workflow Assistant sessions (e2e)', () => {
+       .send({ title: 'After' });
+     expect(patch.status).toBe(200);
+     expect(patch.body.data.title).toBe('After');
++    assertMatchesContract(
++      patch.body.data,
++      await contractForDto(AssistantSessionDto),
++    );
+   });
+ 
+   it('C. DELETE 세션 → 204, 후속 GET 404', async () => {
+@@ -169,6 +197,11 @@ describe('Workflow Assistant sessions (e2e)', () => {
+     if (latest.status === 200) {
+       // 반환됐다면 적어도 우리 세션이 가장 최근.
+       expect(latest.body.data?.id).toBeDefined();
++      // `ApiOkWrappedNullableResponse` — 세션이 있으면 그 모양이다(없으면 `data: null`).
++      assertMatchesContract(
++        latest.body.data,
++        await contractForDto(AssistantSessionDto),
++      );
+     }
+     // 정리: 깔끔하게 지움.
+     await request(BASE_URL)
+@@ -200,4 +233,96 @@ describe('Workflow Assistant sessions (e2e)', () => {
+     // 스트림 본문까지 확인해 «4xx 가 아니라 SSE 로 응답했다» 를 가른다 — 상태만 보면 JSON 200 과 구별되지 않는다.
+     expect(res.text).toContain('ASSISTANT_NO_LLM_CONFIG');
+   });
++
++  it('H. 세션 상세 — 메시지(도구 호출 · 계획 · 사용량)까지 응답 DTO 와 맞는다', async () => {
++    // 제목 없이 만든다 — `title: null` 도 계약 대조에 태운다.
++    const create = await request(BASE_URL)
++      .post('/api/workflow-assistant/sessions')
++      .set(authHeaders())
++      .send({ workflowId });
++    expect(create.status).toBe(201);
++    const sessionId = create.body.data.id as string;
++    expect(create.body.data.title).toBeNull();
++    assertMatchesContract(
++      create.body.data,
++      await contractForDto(AssistantSessionDto),
++    );
++
++    // 메시지는 LLM 턴이 쓴다. 이 파일은 LLM 을 부르지 않으므로(머리 주석) 행을 직접 넣는다 — 두 끝을 넣는다: 선택 키가
++    // 전부 빠지고 nullable 컬럼이 전부 null 인 user 메시지, 선택 키를 전부 채운 assistant 메시지. 빈 `messages` 로는
++    // 검증자가 메시지 아래로 내려가지 않아 메시지 · 도구 호출 · 계획 · 계획 단계 · 사용량 DTO 가 한 번도 대조되지 않는다.
++    const toolCalls = [
++      {
++        id: 'call_1',
++        name: 'add_node',
++        arguments: { type: 'http_request', label: 'Fetch' },
++        kind: 'edit',
++        result: { ok: true, nodeId: 'n1' },
++        planStepId: 's1',
++        planStepIds: ['s1', 's2'],
++        signature: 'sig-opaque',
++      },
++    ];
++    const plan = {
++      title: 'HTTP 노드 추가',
++      summary: '요청 노드 하나를 더한다',
++      steps: [
++        {
++          id: 's1',
++          action: 'add_node',
++          description: 'HTTP 노드 추가',
++          rationale: '외부 API 를 부른다',
++        },
++        { id: 's2', action: 'note', description: '응답 확인' },
++      ],
++      openQuestions: ['인증이 필요한가?'],
++      approvedAt: '2026-09-26T03:14:00.000Z',
++    };
++    const usage = {
++      inputTokens: 120,
++      outputTokens: 30,
++      totalTokens: 150,
++      thinkingTokens: 12,
++      model: 'gpt-4o',
++    };
++    await db.query(
++      `INSERT INTO workflow_assistant_message (session_id, role, content, created_at)
++       VALUES ($1, 'user', 'HTTP 노드를 추가해 줘', NOW() - interval '1 second')`,
++      [sessionId],
++    );
++    await db.query(
++      `INSERT INTO workflow_assistant_message
++         (session_id, role, content, tool_calls, plan, usage, finish_reason,
++          auto_resumed, auto_resume_reason, auto_resume_attempt, created_at)
++       VALUES ($1, 'assistant', NULL, $2, $3, $4, 'tool_calls', TRUE, 'stall_pending_steps', 1, NOW())`,
++      [
++        sessionId,
++        JSON.stringify(toolCalls),
++        JSON.stringify(plan),
++        JSON.stringify(usage),
++      ],
++    );
++
++    const detail = await request(BASE_URL)
++      .get(`/api/workflow-assistant/sessions/${sessionId}`)
++      .set(authHeaders());
++    expect(detail.status).toBe(200);
++    // 대조가 공허하지 않은지 먼저 — 넣은 두 행이 그 모양 그대로 왔다.
++    const messages = detail.body.data.messages as Array<
++      Record<string, unknown>
++    >;
++    expect(messages.map((m) => m.role)).toStrictEqual(['user', 'assistant']);
++    expect(messages[0].toolCalls).toBeNull();
++    expect(messages[1].toolCalls).toStrictEqual(toolCalls);
++    expect(messages[1].plan).toStrictEqual(plan);
++    expect(messages[1].usage).toStrictEqual(usage);
++    assertMatchesContract(
++      detail.body.data,
++      await contractForDto(AssistantSessionDetailDto),
++    );
++
++    await request(BASE_URL)
++      .delete(`/api/workflow-assistant/sessions/${sessionId}`)
++      .set(authHeaders());
++  });
+ });

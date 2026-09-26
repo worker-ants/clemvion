@@ -17,6 +17,7 @@ import {
   contractForDto,
 } from '../src/shared/testing/response-contract';
 import { TriggerDto } from '../src/modules/triggers/dto/responses/trigger-response.dto';
+import { InteractionRevokeTokenDto } from '../src/modules/triggers/dto/responses/trigger-secret-issue-response.dto';
 
 import { createDbClient, uniqueEmail, uniqueName } from './helpers/db';
 import { registerAndLogin, createTeamWorkspace } from './helpers/auth';
@@ -136,6 +137,10 @@ describe('POST /api/triggers — chat-channel multi-provider (e2e)', () => {
     expect(issued.status).toBe(200);
     // 1회성 평문은 **이 응답에만** 실린다 (`secret-store.md §1` 근거 (c)).
     expect(typeof issued.body.data.token).toBe('string');
+    assertMatchesContract(
+      issued.body.data,
+      await contractForDto(InteractionRevokeTokenDto),
+    );
 
     const detail = await request(BASE_URL)
       .get(`/api/triggers/${triggerId}`)

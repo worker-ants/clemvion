@@ -5104,7 +5104,39 @@ field: T | null;
       > 규칙 문단과 `code:` 등재) · e2e 대상 라우트 기대값 27곳을 200 으로(`[200, 201]` 22 · 이양 `201` 1 · 저장 `201` 4) · 성공 경로
       > e2e 신설(`action-success-status` · 어시스턴트 SSE). `/ai-review` `review/code/2026/09/26/10_23_50`. `--impl-done` `review/consistency/2026/09/26/10_36_19`. plan `plan/complete/post-status-openapi.md`.
 
-- [ ] **성공 응답을 광고하지 않는 라우트 핸들러가 15곳 있다 — 가드는 «광고가 있으면 맞아야 한다» 만 본다** (developer, 낮음,
+- [ ] **workflow-assistant e2e 의 남은 계약 대조 세 칸** (developer, 낮음, 2026-09-26 등재 · `/ai-review`
+      `review/code/2026/09/26/14_07_11` INFO7 · 8 · 9 — 2R 에서 codebase 수정 0건으로 수렴하려고 등재). `success-advert` 가 붙인 응답
+      DTO 를 `test/workflow-assistant.e2e-spec.ts` 가 대조하는데 세 칸이 비어 있다:
+      1. **`sessions/latest` 의 `data: null`** — 테스트 F 는 조회 직전 세션을 만들어 늘 «있음» 분기만 탄다. 세션이 없는 워크플로로
+         물어 `ApiOkWrappedNullableResponse` 의 null 쪽을 실제 응답으로 본다(스키마는 `api-wrapped.spec.ts` 가 고정한다).
+      2. **테스트 F 의 상태 단언** — `expect([200, 204, 404])` 는 이 컨트롤러가 낼 수 없는 204 · 404 까지 받는다. `toBe(200)` 이면
+         `:id` 라우트가 `latest` 를 가로채는 순서 회귀도 잡힌다.
+      3. **도구 호출의 선택 키 생략** — 테스트 H 는 `result` · `planStepId` · `planStepIds` · `signature` 를 전부 채운 도구 호출만 넣는다.
+         전부 뺀 도구 호출 하나를 더해 «키 생략» 쪽도 대조한다.
+      **착수 조건**: 없음(여유 있을 때). 테스트만 바뀌지만 `codebase/**` 편집이라 리뷰 게이트를 한 바퀴 돈다.
+
+- [ ] **`swagger.md` §5-2 `ApiOkWrappedNullableResponse` 행에 구현 사정 각주가 없다** (planner, 낮음, 2026-09-26 등재 ·
+      `--impl-done` `review/consistency/2026/09/26/14_17_49` convention_compliance INFO4). 래퍼는 `data` 를 `allOf: [<ref>]` + `nullable`
+      로 싣는다 — OpenAPI 3.0 은 `$ref` 옆 형제 키를 무시해서 `{ $ref, nullable }` 로는 nullable 이 사라진다. 이 사정은
+      `codebase/backend/src/common/swagger/api-wrapped.ts` JSDoc 에만 있어, 래퍼를 새로 만드는 사람이 규약 표만 보면 같은 함정을
+      밟는다. §5-2 행 아래 각주 한 줄. **착수 조건**: 없음(다음 `swagger.md` 편집 때 함께). planner 소관 · `--spec` 필요.
+
+- [ ] **`4-ai-assistant.md` §6 REST API 표에 `GET /api/workflow-assistant/sessions/latest` 가 없다** (planner, 낮음, 2026-09-26 등재 ·
+      `--impl-prep` `review/consistency/2026/09/26/13_17_19` cross_spec · plan_coherence W1). 컨트롤러에는 있다
+      (`workflow-assistant.controller.ts` `latest` — 쿼리 `workflowId` 필수, 없으면 `null`, 권한은 멤버십만). `success-advert` 가 이 라우트의
+      성공 응답을 `ApiOkWrappedNullableResponse` 로 광고하면서 «코드 · OpenAPI 에는 있고 제품 spec 표에는 없는» 격차가 드러났다.
+      **같은 절에서 함께**: §6 의 «모든 엔드포인트는 editor 이상 역할 필요» 는 조회 셋(`list` · `latest` · `findOne`)과 다르다 — 셋은
+      `@Roles` 없이 워크스페이스 멤버십만 본다(`--impl-done` `review/consistency/2026/09/26/14_17_49` cross_spec INFO1). «쓰기는 editor
+      이상, 조회는 멤버» 로 정정한다.
+      **착수 조건**: 없음(여유 있을 때). planner 소관 · `--spec` 필요.
+
+- [ ] **`interaction/revoke-token` 의 상태 전이를 두 spec 이 반대로 적는다** (planner, 낮음, 2026-09-26 등재 · `--impl-prep`
+      `review/consistency/2026/09/26/13_17_19` cross_spec W2). `spec/2-navigation/2-trigger-list.md` §3 API 표는 «회전이 아니라 폐기다»,
+      `spec/5-system/14-external-interaction-api.md` §7.3 · EIA-AU-07 은 «새로운 값으로 rotation» 이라 적는다. 구현(`revokePerTriggerToken`)은
+      기존 token 무효화 + 새 token 발급으로 EIA 쪽이 메커니즘상 맞다(감사 액션명만 대화 단절을 강조해 `_revoked`). trigger-list 문구를
+      EIA-AU-07 의 논거로 맞춘다. **착수 조건**: 없음(여유 있을 때). planner 소관 · `--spec` 필요.
+
+- [x] **성공 응답을 광고하지 않는 라우트 핸들러가 15곳 있다 — 가드는 «광고가 있으면 맞아야 한다» 만 본다** (developer, 낮음,
       2026-09-26 등재 — `post-status-openapi` 전수의 부산물). 실측(`src/modules`): `@ApiExcludeEndpoint` 테스트 훅 2(의도 — OpenAPI 밖)
       · OAuth 리다이렉트 2(`auth` `beginOauth` · `oauthCallback`, `res.redirect` — `@ApiFoundResponse` 후보) · SSE 1
       (`interaction-stream` `stream`) · `webauthn` 2(`webauthnAvailability` · `webauthnDelete`) · `triggers` 2
@@ -5115,6 +5147,15 @@ field: T | null;
       가까이 내보낸다» 는 틀렸다 — `Api*Response` 가 50개 가까이이고 그중 2xx 는 일곱이다(형제 spec 헤더 · `swagger.md` Rationale
       은 맞게 적는다). `/ai-review` `review/code/2026/09/26/10_23_50` documentation W2 — 주석 한 줄이라 수렴 예외로 등재했다.
       **착수 조건**: 없음(여유 있을 때). `codebase/**` 편집이라 리뷰 게이트를 한 바퀴 돈다.
+
+      > **2026-09-26 — 닫힘.** 채운 곳 **11** — 처방 없음 4(`@ApiExcludeEndpoint` 테스트 훅 2 · OAuth 리다이렉트 2 는 이미
+      > `@ApiFoundResponse`(302)를 광고하고 있었다 — 등재 때 전수가 2xx 만 셌다). workflow-assistant 세션 6 은 응답 DTO(세션 · 세션
+      > 상세 · 메시지 + 도구 호출 · 계획 · 사용량)로, `sessions/latest` 는 새 래퍼 `ApiOkWrappedNullableResponse`(`data: allOf(<ref>) +
+      > nullable`)로. webauthn 2 · triggers 2 · SSE 1. 가드 `http-status-advertised` 를 «라우트는 성공 응답을 하나 이상 광고한다(리다이렉트
+      > 라우트는 3xx)» 로 조였다 — 베이스라인 0, 적용 전 RED 정확히 11. docstring 수치도 정정. e2e 가 새 DTO 를 실제 응답과 대조한다
+      > (선언되지 않은 키까지 — 메시지 두 끝 포함). `swagger.md` §2-4 · §5-2 · Rationale 은 planner 커밋 `24084fd0e`. `/ai-review`
+      > `review/code/2026/09/26/13_39_09` · `14_07_11`(전수, 수렴). `--impl-done` `review/consistency/2026/09/26/14_17_49` BLOCK: NO.
+      > plan `plan/complete/success-advert.md`.
 
 - [ ] **`req.user.workspaceId` 를 직접 읽는 라우트는 가드가 인식하지 못한다 — 정적 가드가 없다** (developer, 낮음,
       2026-09-25 등재 · `--spec` `review/consistency/2026/09/25/14_54_55` rationale_continuity W2).

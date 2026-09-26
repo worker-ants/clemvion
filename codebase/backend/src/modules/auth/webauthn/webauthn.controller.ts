@@ -22,6 +22,7 @@ import {
   ApiUnauthorizedResponse,
   ApiBearerAuth,
   ApiParam,
+  ApiNoContentResponse,
 } from '@nestjs/swagger';
 
 import { ApiOkWrappedResponse } from '../../../common/swagger';
@@ -53,6 +54,7 @@ import {
   WebAuthnRecoveryCodesDto,
   WebAuthnRegisterOptionsDto,
   WebAuthnRegisterVerifyResultDto,
+  WebAuthnAvailabilityDto,
 } from './dto/responses/webauthn-response.dto';
 
 import Express from 'express';
@@ -80,6 +82,9 @@ export class WebAuthnController {
     summary: 'WebAuthn 기능 활성 여부',
     description:
       '서버 env (WEBAUTHN_RP_ID + WEBAUTHN_ORIGIN) 설정 여부를 알려줍니다. 프론트엔드가 Passkey UI 노출 여부를 결정할 때 사용. 인증 불요.',
+  })
+  @ApiOkWrappedResponse(WebAuthnAvailabilityDto, {
+    description: 'WebAuthn 활성 여부',
   })
   webauthnAvailability() {
     return { data: { enabled: this.webauthnService.isEnabled() } };
@@ -322,6 +327,7 @@ export class WebAuthnController {
       '사용자 본인의 인증기를 삭제합니다. 마지막 credential 삭제 시 `webauthn_recovery_codes` 도 NULL 화됩니다.',
   })
   @ApiParam({ name: 'id', format: 'uuid', description: 'credential UUID' })
+  @ApiNoContentResponse({ description: '삭제 완료' })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
   async webauthnDelete(
     @CurrentUser() user: JwtPayload,

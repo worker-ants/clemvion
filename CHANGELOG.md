@@ -23,6 +23,31 @@
 > 07 37% · 08 30% · 09(25일까지) 49% 였다(나중 PR 의 백필은 세지 않았다). 여기 없다고 그 변경이 없었던 것은 아니다 —
 > `git log` 가 정본이다.
 
+## Unreleased — OpenAPI 가 11개 엔드포인트의 성공 응답 스키마를 광고한다
+
+생성된 OpenAPI 에 성공 응답 스키마가 없어 클라이언트 생성기가 반환 타입을 알 수 없던 엔드포인트 11곳에 스키마를 붙였다. 응답
+자체(상태 · 본문)는 그대로다 — 문서가 실제 응답을 적게 됐다.
+
+- **workflow-assistant 세션** — `GET /workflow-assistant/sessions` · `GET /workflow-assistant/sessions/latest` ·
+  `GET /workflow-assistant/sessions/:id` · `POST /workflow-assistant/sessions` · `PATCH /workflow-assistant/sessions/:id` ·
+  `DELETE /workflow-assistant/sessions/:id`. 세션 · 세션 상세(메시지 포함) · 메시지(도구 호출 · 계획 · 사용량) 스키마. `sessions/latest` 는 세션이 없으면
+  `data: null` 이라고 적는다.
+- **WebAuthn** — `GET /auth/2fa/webauthn/availability`(`{ enabled }`) · `DELETE /auth/2fa/webauthn/credentials/:id`(204).
+- **트리거** — `POST /triggers/:id/notification/rotate-secret`(`{ secret, rotatedAt }`) · `POST /triggers/:id/interaction/revoke-token`
+  (`{ token }`) — 둘 다 새 비밀을 평문으로 한 번만 돌려준다.
+- **External Interaction** — `GET /external/executions/:executionId/stream`(SSE 200).
+
+근거: `spec/conventions/swagger.md` §2-4 «라우트는 성공 응답을 하나 이상 광고한다» · §5-2 `ApiOkWrappedNullableResponse`.
+
+## Unreleased — 저장소 가드 강화: 라우트는 성공 응답을 하나 이상 광고한다
+
+`http-status-advertised` 는 «광고가 있으면 실제 코드와 맞아야 한다» 만 봤고, 성공 응답을 아예 광고하지 않는 라우트는 대조할 것이 없다며
+건너뛰었다(15곳). 이제 `@ApiExcludeEndpoint()` 가 아닌 모든 라우트가 성공 응답을 하나 이상 광고해야 한다(베이스라인 0).
+
+- 응답을 `res.redirect` 로 끝내는 라우트는 3xx(`@ApiFoundResponse` 등)가 성공 광고다 — OAuth 두 라우트가 이미 302 를 광고하고
+  있었다. 리다이렉트만 광고한 라우트는 2xx 짝 대조를 하지 않는다(`res.redirect` 가 상태를 덮어쓴다).
+- e2e 가 새 응답 DTO 를 실제 응답과 대조한다(`assertMatchesContract` — 선언되지 않은 키까지).
+
 ## Unreleased — 403 응답 설명이 가드 거부 코드를 싣는다 (129개 라우트)
 
 OpenAPI 의 403 설명이 `RolesGuard` 가 실제로 내는 거부 코드를 싣지 않던 라우트 129곳을 고쳤다(가드가 403 을 낼 수 있는 라우트 157곳

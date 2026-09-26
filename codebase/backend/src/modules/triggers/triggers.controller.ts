@@ -44,6 +44,10 @@ import {
   TriggerDto,
   TriggerHistoryItemDto,
 } from './dto/responses/trigger-response.dto';
+import {
+  NotificationRotateSecretDto,
+  InteractionRevokeTokenDto,
+} from './dto/responses/trigger-secret-issue-response.dto';
 
 /**
  * Swagger description SoT — `create` · `update` 두 엔드포인트의 409 설명을 한 곳에서 관리한다
@@ -208,6 +212,9 @@ export class TriggersController {
       '새 HMAC secret 을 발급하고 trigger 의 `notification_secret_v2` 컬럼에 저장합니다. 24h grace 동안 NotificationWebhookProcessor 가 두 secret 으로 모두 서명 (v1= 두 개 동봉) — 외부 검증자가 새 secret 으로 미배포 상태여도 기존 secret 으로 통과 가능. grace 종료 후 scheduled job 이 v2 → primary 로 승격. 응답의 `secret` 평문은 1회만 표시되므로 외부 시스템에 즉시 배포해야 합니다.',
   })
   @ApiParam({ name: 'id', format: 'uuid' })
+  @ApiOkWrappedResponse(NotificationRotateSecretDto, {
+    description: '새 secret(평문 1회) 과 회전 시각',
+  })
   @ApiBadRequestResponse({
     description:
       'NOTIFICATION_NOT_CONFIGURED — trigger 에 notification 설정 없음',
@@ -219,7 +226,7 @@ export class TriggersController {
     @Param('id', ParseUUIDPipe) id: string,
     @WorkspaceId() workspaceId: string,
     @CurrentUser('sub') userId: string,
-  ): Promise<{ secret: string; rotatedAt: string }> {
+  ): Promise<NotificationRotateSecretDto> {
     return this.triggersService.rotateNotificationSecret(
       id,
       workspaceId,
@@ -236,6 +243,9 @@ export class TriggersController {
       'trigger 의 `config.interaction.tokenStrategy === "per_trigger"` 일 때만 호출 가능. 기존 itk_* 는 즉시 무효화되고 새 itk_* 가 발급됩니다. 응답의 `token` 평문은 1회만 표시되므로 외부 시스템에 즉시 배포해야 합니다.',
   })
   @ApiParam({ name: 'id', format: 'uuid' })
+  @ApiOkWrappedResponse(InteractionRevokeTokenDto, {
+    description: '새 interaction token(평문 1회)',
+  })
   @ApiBadRequestResponse({
     description:
       'NOT_PER_TRIGGER_STRATEGY — interaction.tokenStrategy 가 per_trigger 가 아님',
@@ -247,7 +257,7 @@ export class TriggersController {
     @Param('id', ParseUUIDPipe) id: string,
     @WorkspaceId() workspaceId: string,
     @CurrentUser('sub') userId: string,
-  ): Promise<{ token: string }> {
+  ): Promise<InteractionRevokeTokenDto> {
     return this.triggersService.revokePerTriggerToken(id, workspaceId, userId);
   }
 
