@@ -293,6 +293,7 @@ async findAll(@Query() query: QueryWorkflowDto) { ... }
 | 200 OK (조회/수정) | `@ApiOkResponse` |
 | 201 Created | `@ApiCreatedResponse` |
 | 204 No Content | `@ApiNoContentResponse` |
+| 3xx 리다이렉트 (`res.redirect` 로 끝나는 라우트) | `@ApiFoundResponse` 등 |
 | 400 검증 실패 | `@ApiBadRequestResponse` |
 | 401 인증 실패 | `@ApiUnauthorizedResponse` |
 | 403 권한 부족 | `@ApiForbiddenResponse` |
@@ -303,8 +304,10 @@ async findAll(@Query() query: QueryWorkflowDto) { ... }
 **광고한 성공 코드는 실제 성공 코드를 담는다.** 실제 성공 코드는 `@HttpCode(n)` 이 있으면 n, 없으면 Nest 기본값(POST 201 ·
 그 외 200)이다. 그래서 200 을 광고하는 POST 에는 `@HttpCode(HttpStatus.OK)` 가, 204 를 광고하는 DELETE 에는
 `@HttpCode(HttpStatus.NO_CONTENT)` 가 함께 있어야 한다. `@Res()` 로 응답을 직접 쓰는 핸들러(SSE 등)도 같다 — Nest 는 핸들러를
-부르기 전에 이 코드를 응답에 싣는다. 저장소 가드 `http-status-advertised` 가 강제한다. 성공 응답을 하나도 광고하지 않는
-핸들러와 `@ApiExcludeEndpoint()` 핸들러는 대조하지 않는다.
+부르기 전에 이 코드를 응답에 싣는다. 저장소 가드 `http-status-advertised` 가 강제한다. **라우트는 성공 응답을 하나 이상 광고한다** — 2xx 응답 데코레이터, 응답을 `res.redirect` 로 끝내는 라우트는 3xx(`@ApiFoundResponse`
+등). 리다이렉트만 광고한 라우트는 위 짝을 대조하지 않는다 — `res.redirect(url)` 는 Nest 가 미리 실은 상태를 **명시적으로 덮어쓴다**.
+위 SSE 가 면제되지 않는 것(핸들러가 상태를 건드리지 않아 Nest 기본값이 그대로 나간다)과 반대 경우이고, 이 예외는 리다이렉트만 광고한
+라우트에 한한다. `@ApiExcludeEndpoint()` 핸들러는 OpenAPI 밖이라 묻지 않는다.
 
 보호된 엔드포인트는 기본적으로 `@ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })`를 포함합니다.
 
@@ -461,6 +464,7 @@ status: ExecutionStatusLiteral;
 | 헬퍼 | 용도 | 반환 스키마 |
 |------|------|------------|
 | `ApiOkWrappedResponse(Dto)` | 단일 객체 200 OK | `{ data: <Dto> }` |
+| `ApiOkWrappedNullableResponse(Dto)` | 단일 객체 또는 `null` 200 OK (예: 없으면 `null` 인 «최근 항목» 조회) | `{ data: <Dto> \| null }` |
 | `ApiOkWrappedOneOfResponse([DtoA, DtoB], { discriminator })` | 200 OK, `data` 가 여러 DTO 중 하나 (예: OAuth begin 분기 응답) | `{ data: oneOf(<DtoA>, <DtoB>) }` (`wrapOneOfDataSchema`) |
 | `ApiCreatedWrappedResponse(Dto)` | 단일 객체 201 Created | `{ data: <Dto> }` |
 | `ApiAcceptedWrappedResponse(Dto)` | 단일 객체 202 Accepted | `{ data: <Dto> }` |
@@ -507,7 +511,7 @@ async create(...) { ... }
       멤버십과 같아 앞 문장뿐이다). 문장은 공용 헬퍼 `FORBIDDEN_NOT_A_MEMBER` · `forbiddenForRole(role)`(`common/swagger`)로 만들고,
       서비스가 내는 403 은 그 뒤에 덧붙인다 — 코드는 [data-flow §Rationale 가드 거부의 오류 코드](../data-flow/12-workspace.md#가드-거부의-오류-코드-2026-09-25).
       저장소 가드 `forbidden-response-codes` 가 새 엔드포인트만이 아니라 **모든 라우트**에서 **빠진** 가드 코드를 잡는다 — 설명에 남은 코드(역할을 내린 뒤의 옛 역할 코드)와 서비스 거부는 세지 않으니, `@Roles()` 를 바꾸면 설명도 손으로 맞춘다. (`@Public()` 라우트는 대상 아님.)
-- [ ] 광고한 성공 코드(`ApiOk*` · `ApiCreated*` · `ApiAccepted*` · `ApiNoContent*` · `ApiResponse({ status })` 등 성공 응답 데코레이터 전부 — 저장소 래퍼 포함)와 실제 성공 코드(`@HttpCode` 또는 Nest 기본값)가 짝을 이루는지 ([§2-4](#2-4-상태-코드-응답-규칙))
+- [ ] 광고한 성공 코드(`ApiOk*` · `ApiCreated*` · `ApiAccepted*` · `ApiNoContent*` · `ApiResponse({ status })` 등 성공 응답 데코레이터 전부 — 저장소 래퍼 포함)와 실제 성공 코드(`@HttpCode` 또는 Nest 기본값)가 짝을 이루는지 ([§2-4](#2-4-상태-코드-응답-규칙)) — 성공 응답을 하나도 광고하지 않는 라우트는 없어야 한다(리다이렉트 라우트는 3xx)
 - [ ] 경로 UUID 파라미터는 `@ApiParam({ format: 'uuid' })` 일관 적용
 - [ ] 요청 DTO 명명 — `Update` 접두는 **top-level 요청 바디**에만, nested 변형은 로컬 패턴 ([§1-7](#1-7-요청-dto-명명--update-접두는-top-level-요청-바디에만-건다))
 
@@ -695,8 +699,10 @@ fallthrough 자체를 없애 판별자를 sound 하게 만드는 대안은 wire 
 - **이름 → 코드 표를 손으로 쓰지 않는다.** `@nestjs/swagger` 는 2xx 데코레이터만 해도 일곱을 내보낸다(203 · 205 · 206 포함). 손으로
   쓴 표는 지금 쓰는 이름만 담고, 새 이름을 쓰는 날 그 핸들러의 광고가 빈 집합이 되어 대조에서 조용히 빠진다. 그래서 팩토리를
   적용해 메타데이터에서 읽고, 저장소 래퍼는 이름 접두사가 아니라 내부 호출로 옮긴다. 표에 없는 `Api*Response` 는 실패다.
-- **«광고가 있어야 한다» 는 이 규칙이 아니다.** 성공 응답을 광고하지 않는 핸들러(같은 날 15곳)는 대조할 것이 없어 건너뛴다.
-  그쪽을 조이는 것은 광고를 채운 뒤의 별 결정이다(트래커 등재).
+- **«광고가 있어야 한다» 는 광고를 채운 뒤 조였다.** 처음엔 성공 응답을 광고하지 않는 핸들러(같은 날 15곳)를 대조할 것이 없다며
+  건너뛰었다 — 광고를 채우는 일이 먼저였다. 이 규칙과 같은 변경에서 11곳을 채웠고(응답 DTO 가 없던 workflow-assistant 세션 6곳
+  포함), 남은 넷은 OpenAPI 밖(`@ApiExcludeEndpoint()` 2)이거나 이미 302 를 광고하고 있었다(OAuth 리다이렉트 2 — 전수가 2xx 만
+  셌다). 그래서 3xx 도 성공 광고로 친다. 새 라우트가 광고 없이 들어오는 순간 가드가 실패한다.
 - **어느 코드가 맞는지는 이 규칙이 정하지 않는다.** 이번에 고친 14곳은 광고(200)에 실제를 맞췄다 — 액션이고, `@HttpCode(200)` 을
   단 POST 42곳 중 광고가 있는 40곳이 전부 200 을 광고한다. 두 자리는 행이 생긴다: OAuth begin 은 cafe24 Private · MakeShop 분기에서
   설치 대기 통합 행을 만들고(§2-5 래퍼 표가 그 분기 응답을 200 으로 적는다), 초대 수락은 멤버십 행을 만든다(1차 자원은 소비되는
