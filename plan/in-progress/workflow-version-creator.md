@@ -79,8 +79,15 @@ started: 2026-09-26
 - [x] DTO · 래칫 · 서비스 · 단위 · 캐너리 · e2e · CHANGELOG
 - [x] 뮤턴트 표 실측 — 5개 전부 KILLED(M5 는 예측과 다른 축이 죽였다)
 - [x] TEST WORKFLOW (lint · unit · build · e2e 413)
-- [ ] `/ai-review`
+- [x] `/ai-review`
       - 1R `review/code/2026/09/27/00_20_58` — Critical 0 · Warning 1(`changeSummary` null 값 wire 대조 부재) → `69b1afca0` 로
         조치(e2e I 에 `toBeNull()` + 목록 계약 대조), TEST WORKFLOW 재통과(e2e 413). RESOLUTION 작성.
+      - 2R `review/code/2026/09/27/00_39_57` — Critical 0 · Warning 0 · 이 라운드 `codebase/` 수정 0 → 정지 규칙 충족. 판정 기준
+        커밋 `ea3130bc0`, 통합 전 트리는 HEAD 와 같았고 리뷰어 트랜스크립트에 저장소 쓰기가 없었다. INFO 처분:
+        - #7 `changeSummary` null 의 wire 대조가 목록에만 있고 상세엔 없다 — 맞다. 두 DTO 의 선언은 캐너리가 같은 형태로 고정하고,
+          두 조회는 같은 `VERSION_METADATA_SELECT` 를 쓴다(대칭 단언). 상세 null 대조를 더하면 새 라운드가 돈다 — 조치하지 않는다.
+        - #12 CHANGELOG 제목 — 리뷰어 간 상충이었고 summary 가 파일을 대조해 «이미 반영됨» 으로 해소했다.
+        - 나머지(기존 spec 이격 등재됨 · 방어 확인 · 번들링 고지 · DTO 쌍 중복 · 명명 · JSDoc 길이 · 페이지네이션 · 엔티티 nullable
+          표기 · email 노출 기존 설계) — 조치 불요.
 - [ ] `--impl-done`
 - [ ] 트래커 두 항목 닫기
