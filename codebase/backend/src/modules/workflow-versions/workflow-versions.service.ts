@@ -66,6 +66,11 @@ export type WorkflowVersionListItem = Omit<
  * `creator` 의 nullability)을 한쪽으로 맞춰야 하는데, 그것은 이 결함이 요구하는 것보다
  * 넓은 변경이다. `Projection` 접미는 이 타입이 **DB 투영 결과**라는 사실도 함께 말한다 —
  * 아래 `CREATOR_PROJECTION` 이 그 투영이다.
+ *
+ * 응답 DTO(`WorkflowVersionDto` · `WorkflowVersionListItemDto`)는 이제 `creator` 를 **항상 실리는** 필드로 광고한다
+ * (2026-09-27). 프런트엔드 미러는 그대로 넓게(`creator?: … | null`) 둔다 — 소비처 `version-history-panel.tsx` 가
+ * `creator` 가 없으면 `createdBy` 로 떨어지는 방어 분기와 그 테스트를 갖고 있고, 넓은 쪽은 런타임에 안전하다. 좁히는 것은
+ * 그 분기를 걷어 내는 프런트엔드 변경이라 따로 다룬다.
  */
 export type WorkflowVersionDetailProjection = Omit<
   WorkflowVersion,
@@ -93,6 +98,21 @@ export const CREATOR_PROJECTION = Object.freeze({
   id: true,
   name: true,
   email: true,
+} as const);
+
+/**
+ * 두 조회(`findByWorkflow` · `findOne`)가 공유하는 메타 컬럼. 목록은 이것 + `creator`, 상세는 여기에 `snapshot` 을 더한다.
+ *
+ * 손으로 두 번 적으면 자매 중 하나만 바뀌어 두 응답이 갈린다 — `CREATOR_PROJECTION` 에서 실제로 난 결함 클래스다. 여기는
+ * 갈려도 표시 버그지 유출은 아니지만 같은 형태라 같은 방식으로 막는다. 두 응답 DTO 가 이 키들을 전부 required 로 광고한다.
+ */
+const VERSION_METADATA_SELECT = Object.freeze({
+  id: true,
+  workflowId: true,
+  version: true,
+  changeSummary: true,
+  createdBy: true,
+  createdAt: true,
 } as const);
 
 @Injectable()
@@ -135,15 +155,7 @@ export class WorkflowVersionsService {
       where: { workflowId },
       order: { version: 'DESC' },
       relations: { creator: true },
-      select: {
-        id: true,
-        workflowId: true,
-        version: true,
-        changeSummary: true,
-        createdBy: true,
-        createdAt: true,
-        creator: CREATOR_PROJECTION,
-      },
+      select: { ...VERSION_METADATA_SELECT, creator: CREATOR_PROJECTION },
     });
   }
 
@@ -162,13 +174,8 @@ export class WorkflowVersionsService {
       // 자매 메서드 `findByWorkflow` 는 처음부터 이 투영을 갖고 있었다 — **한쪽만 있었다.**
       // `WorkflowVersionCreatorDto` 가 광고하는 세 필드와 같은 집합이다.
       select: {
-        id: true,
-        workflowId: true,
-        version: true,
-        changeSummary: true,
+        ...VERSION_METADATA_SELECT,
         snapshot: true,
-        createdBy: true,
-        createdAt: true,
         creator: CREATOR_PROJECTION,
       },
     });

@@ -166,6 +166,29 @@ describe('WorkflowVersionsService', () => {
     });
   });
 
+  /**
+   * 두 조회의 `select` 는 `snapshot` 하나만 다르다 — 메타 컬럼은 한 상수(`VERSION_METADATA_SELECT`)에서 온다.
+   *
+   * 위 두 리터럴 단언이 각 조회를 따로 고정하지만, 한쪽 단언만 고치면서 한 조회에만 키를 더하는 편집은 둘 다 통과한다.
+   * 이 단언은 «자매가 같은 메타를 싣는다» 는 성질 자체를 고정한다.
+   */
+  it('목록과 상세의 select 는 snapshot 하나만 다르다', async () => {
+    mockRepo.find.mockResolvedValue([]);
+    mockRepo.findOne.mockResolvedValue({ id: 'v-1', workflowId: 'wf-1' });
+    await service.findByWorkflow('wf-1');
+    await service.findOne('wf-1', 'v-1');
+
+    const listSelect = (
+      mockRepo.find.mock.calls[0][0] as { select: Record<string, unknown> }
+    ).select;
+    const { snapshot, ...detailWithoutSnapshot } = (
+      mockRepo.findOne.mock.calls[0][0] as { select: Record<string, unknown> }
+    ).select;
+
+    expect(snapshot).toBe(true);
+    expect(detailWithoutSnapshot).toStrictEqual(listSelect);
+  });
+
   describe('assertWorkspaceOwnership', () => {
     it('returns when workflow belongs to workspace', async () => {
       mockWorkflowRepo.findOne.mockResolvedValue({ id: 'wf-1' });
