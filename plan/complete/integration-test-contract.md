@@ -1,6 +1,6 @@
 ---
 title: "`POST /api/integrations/:id/test` 응답 계약 — MCP 전용 필드 3종 선언 · 성공 경로 계약 검증 · HTTP 와이어 검증"
-status: in-progress
+status: complete
 owner: developer
 worktree: integration-test-contract
 spec_impact: none
@@ -111,5 +111,12 @@ JSDoc 문구 차이(`preview` 의 «등록 UI» · «성공 시»)는 대조 대
       - #2 `serverInfo` TS 타입 ↔ 열린 맵 — `--impl-prep` INFO 2 와 같은 처분(형제와 같게).
       - #4 와이어 docblock «같은 틀» — 파일을 나눈 이유는 `--impl-prep` 처분 INFO 5 에 적었다.
       - #5 · #6 · #7 · #8 · #9 · #10 — 조치 불요(스코프 밖 · 이미 등재 · 고지 완료).
-- [ ] `--impl-done`
-- [ ] 트래커 두 항목 닫기
+- [x] `--impl-done` — `review/consistency/2026/09/26/21_11_30` BLOCK: NO(scope `spec/2-navigation/`). 번들에 코드 diff 가 실리지
+      않아 세션에 `_code_diff.patch` 를 두고 절대경로 Read 블록을 덧붙였다. 처분:
+      - W1 트래커 `spec_impact` 에 새 planner 항목의 편집 대상 두 파일 누락 — 맞다. 두 파일을 올리고 근거 주석을 달았다.
+      - W2 `INTEGRATION_TEST_FAILED` 불일치 — `--impl-prep` W1 과 같은 것, 이미 등재. 재등재하지 않는다.
+      - W3 `capabilities` · `serverInfo` 에 `type: 'object'` 표기가 없다(swagger §1-4 예시 형태) — **실측**: 생성 스키마는
+        두 필드 모두 이미 `"type":"object","additionalProperties":true` 다(설계 타입 `Object` 에서 추론, 두 DTO 동일). 소스 표기만
+        다르고 OpenAPI 는 같아서 고치지 않는다. 고치면 형제와 함께 바꿔야 하고(형제 대조 캐너리) 출력 변화 없이 리뷰 한 바퀴가 는다.
+      - INFO 1~6 — 조치 불요(기존 형제 패턴 · 저장소 전반 기존 상태 · 역할 경계 확인).
+- [x] 트래커 두 항목 닫기 — 등재 당시 «DTO 클래스를 새로 세워야 한다» 는 서술은 틀려서 취소선 + 정정 노트

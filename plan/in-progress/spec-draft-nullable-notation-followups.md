@@ -61,6 +61,12 @@ spec_impact:
   # (`--impl-done` `review/consistency/2026/09/11/19_41_52` W1.)
   - spec/conventions/chat-channel-adapter.md
   - spec/data-flow/14-chat-channel.md
+  # 「`INTEGRATION_TEST_FAILED` 의 상태 코드와 발생 경로를 spec 두 문서가 다르게 적는다」 항목의 편집 대상 둘.
+  # 위 «`4-integration.md` 는 의도적으로 넣지 않았다» 는 **조건부** 항목(`consecutiveNetworkFailures`) 기준의 판단이고
+  # 그대로 유효하다 — 이 항목은 조건 없이 §9.4 를 고치라고 처방하므로 따로 넣는다. 등재 턴에 frontmatter 를 또
+  # 빠뜨렸다(`--impl-done` `review/consistency/2026/09/26/21_11_30` W1) — 위 두 주석이 적은 실패 모드의 재발이다.
+  - spec/2-navigation/4-integration.md
+  - spec/5-system/11-mcp-client.md
 ---
 
 # nullable 표기 후속 3건 (planner 턴)
@@ -3431,13 +3437,18 @@ field: T | null;
       > 것이다. 조건은 위 문단대로 «문단마다 고정 테스트가 있는가» 로 두고, 이 표는
       > 재개 시 대조용으로 남긴다.
 
-- [ ] **`/api/integrations/:id/test` 의 MCP 전용 응답 필드 3종이 미선언 + 계약 검증자 미배선**
+- [x] **`/api/integrations/:id/test` 의 MCP 전용 응답 필드 3종이 미선언 + 계약 검증자 미배선**
       (developer, 2026-09-13 등재 · `/ai-review` `review/code/2026/09/13/10_12_19`
-      api_contract WARNING#3 의 잔여분). `#1330` 이 같은 DTO 에 `code?: string` 을 넣어 **가장
+      api_contract WARNING#3 의 잔여분 · **2026-09-26 해소** `plan/complete/integration-test-contract.md` — 셋을 형제
+      `PreviewTestResultDto` 와 같게 선언 + `testConnection` MCP 성공 케이스에 `assertMatchesContract` + 두 DTO 선언의 형제 대조
+      캐너리. 뮤턴트 10개 KILLED). `#1330` 이 같은 DTO 에 `code?: string` 을 넣어 **가장
       넓은 미선언**(spec §9.1 이 이미 문서화하던 필드)을 닫았지만, `IntegrationTestResult` 의
       `capabilities`·`serverInfo`·`preview` 는 여전히 `TestConnectionResultDto` 선언 밖이다.
-      셋은 `service_type='mcp'` 전용이고 타입이 무거워(`ServerCapabilities`·`ServerInfo`·
-      `ConnectionPreview`) DTO 클래스를 새로 세워야 하므로 한 줄로 끝나지 않는다.
+      셋은 `service_type='mcp'` 전용이고 ~~타입이 무거워(`ServerCapabilities`·`ServerInfo`·
+      `ConnectionPreview`) DTO 클래스를 새로 세워야 하므로 한 줄로 끝나지 않는다.~~
+      > **정정 (2026-09-26, 해소 턴)**: DTO 클래스 신설은 필요 없었다. `preview` 의 `McpConnectionPreviewDto` 는 형제
+      > `PreviewTestResultDto` 가 이미 쓰고 있었고, `capabilities` · `serverInfo` 는 형제처럼 열린 맵이다(`additionalProperties`).
+      > 형제를 보지 않고 서비스 타입만 보고 크기를 쟀다.
       > **한 번 틀린 숫자를 전재했다.** 리뷰 SUMMARY 의 *"26곳에서 반환"* 을 그대로 옮겨
       > 적었는데, 실측하니 그건 `integrations.service.ts` 안 `code:` **원시 grep 수**이고
       > **그중 22곳은 throw 되는 `HttpException` 의 code** — 이 DTO 와 다른 축이다.
@@ -3600,9 +3611,11 @@ field: T | null;
       붙인다. `cafe24{,.en}.mdx` 는 이 이름을 인용하지 않아 오늘 가이드 결함은 **없다**(실측:
       `content/docs/` 전수 grep 0건). 두 handler 를 함께 고칠 때 같이 본다.
 
-- [ ] **`/api/integrations/:id/test` 에 HTTP 와이어-레벨 계약 검증이 없다**
+- [x] **`/api/integrations/:id/test` 에 HTTP 와이어-레벨 계약 검증이 없다**
       (developer, 2026-09-13 등재 · `/ai-review` `review/code/2026/09/13/11_33_23`
-      testing WARNING#2). `#1330` 이 자매 `/api/model-configs/:id/test` 에는 supertest 왕복
+      testing WARNING#2 · **2026-09-26 해소** `plan/complete/integration-test-contract.md` —
+      `integrations.controller.wire.spec.ts`: 진짜 컨트롤러 · `IntegrationsService` · `McpTestConnectionService` + 전역
+      `TransformInterceptor`. MCP 성공 둘(tools 유무) · 실패 하나, 계약 대조 + 키 전수). `#1330` 이 자매 `/api/model-configs/:id/test` 에는 supertest 왕복
       (전역 `TransformInterceptor` 포함) 검증을 신설했지만 형제는 **서비스 레벨
       `assertMatchesContract` 뿐**이다 — 봉투를 만지는 인터셉터가 끼어도 못 본다.
       위 "MCP 전용 3종 미선언" 항목은 **서비스 레벨 축**이라 이 와이어 축을 덮지 않는다.
@@ -3617,6 +3630,7 @@ field: T | null;
       > `:id/test`(`testConnection()`)는 던지지 않고 항상 200 + `{ success, code?, message }` 다. `4-integration.md` 에서 422 는
       > §9.4 밖에서는 Rationale «연결 테스트 endpoint 의 `pending_install` 가드 — 응답 형식» 이 **기각한 대안**으로만 나온다.
       > 처분: §9.4 를 400 · rotate 한정으로, MCP client §9 의 경로를 `:id/rotate` 로 고친다. 코드는 그대로다.
+      > 두 파일은 이 트래커 `spec_impact` 에 올렸다. 두 spec 의 frontmatter `pending_plans` 역참조는 spec 쓰기라 그 planner 턴에서 한다.
 
 - [ ] **`4-cafe24.md §6`·`5-makeshop.md §6` 도메인 에러 코드 카탈로그가 `*_UNRESOLVED_PATH_PARAM`
       을 누락한다** (planner, 2026-09-13 등재 · `--impl-done`
