@@ -51,10 +51,20 @@ started: 2026-09-26
 | M2 | `edges` 를 타입 없는 배열로 되돌림 | 캐너리 RED | |
 | M3 | `NodeDto.toolOwnerId` 선언 제거 | e2e C · I RED(미선언 키) — **e2e 뮤턴트라 한 번만 돌린다** | |
 
+## `--impl-prep` 처분 (`review/consistency/2026/09/26/21_38_44` BLOCK: NO)
+
+- **WARNING 1** — `GET /api/triggers/:id/history` 행의 형태 · 상한 미표기(`2-trigger-list.md` §3). 이 plan 과 무관하다 — scope 를
+  `spec/2-navigation/` 로 잡아 딸려 왔다. 트래커에 **이미 있다**(«`GET /api/triggers/:id/history` 행이 형태 · 상한을 적지 않는다»)
+  → 재등재하지 않는다.
+- **INFO 1** — `NodeDto` · `EdgeDto` 의 기존 §5.4 금지 조합(optional + nullable: `description` · `containerId` · `toolOwnerId` ·
+  `condition`)이 두 엔드포인트 스키마에 처음 드러난다. 기존 drift(`swagger-dto-contract` 가 얼려 둔 목록)이고, 검증자는 그 조합에서
+  부재 · `null` 을 모두 받으므로 e2e 대조를 막지 않는다. 확인: 이 변경 뒤 `repo-guards` · `workflows` 단위 489건 통과.
+- INFO 2~6 — 조치 불요(ExportWorkflowDto 분리 판단 정합 확인 · 무관 문서 · I 케이스는 `workflow-crud.e2e-spec.ts` 에 둔다).
+
 ## 체크리스트
 
-- [ ] `--impl-prep`
-- [ ] DTO · e2e · 캐너리 · CHANGELOG · 트래커 등재
+- [x] `--impl-prep` — `review/consistency/2026/09/26/21_38_44` BLOCK: NO(W1 은 무관 · 기존 트래커 항목)
+- [x] DTO · e2e · 캐너리 · CHANGELOG · 트래커 등재
 - [ ] 뮤턴트 표 실측
 - [ ] TEST WORKFLOW (lint · unit · build · e2e)
 - [ ] `/ai-review`

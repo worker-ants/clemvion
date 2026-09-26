@@ -1,4 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { EdgeDto } from '../../../edges/dto/responses/edge-response.dto';
+import { NodeDto } from '../../../nodes/dto/responses/node-response.dto';
 
 /**
  * 워크플로우 기본 속성 응답 DTO.
@@ -71,13 +73,16 @@ export class CanvasSaveResultDto {
   @ApiProperty({ type: () => WorkflowDto })
   workflow: WorkflowDto;
 
+  // 원소를 타입 없는 객체(`items: { type: 'object' }`)로 두면 응답 계약 검증자가 그 안으로 내려가지 않아, 원소에 무엇이
+  // 실려도 대조를 통과한다. 서비스는 엔티티(`Node` · `Edge`)를 그대로 돌려주고 두 DTO 가 그 컬럼과 1:1 이다.
+
   /** 저장 후 노드 배열 */
-  @ApiProperty({ type: 'array', items: { type: 'object' } })
-  nodes: Record<string, unknown>[];
+  @ApiProperty({ type: () => [NodeDto] })
+  nodes: NodeDto[];
 
   /** 저장 후 엣지 배열 */
-  @ApiProperty({ type: 'array', items: { type: 'object' } })
-  edges: Record<string, unknown>[];
+  @ApiProperty({ type: () => [EdgeDto] })
+  edges: EdgeDto[];
 }
 
 /**
