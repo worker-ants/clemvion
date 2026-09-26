@@ -1,6 +1,6 @@
 ---
 title: OpenAPI 가 요청 본문을 모르는 라우트 3곳 — rotate-bot-token · execution continue · webhook 에 `@ApiBody`(런타임 불변)
-status: in-progress
+status: complete
 owner: developer
 worktree: rotate-bot-token-body
 spec_impact: none
@@ -77,5 +77,5 @@ CHANGELOG — OpenAPI 가 세 엔드포인트의 요청 본문 스키마를 광�
 - [x] `/ai-review` — 1R `review/code/2026/09/26/17_55_14`(Critical 0 · Warning 3 → W1 조치 `fafc6b8ac` · W2 유지 · W3 마무리 커밋) · 2R 전수
       14명 `review/code/2026/09/26/18_17_12`: Critical 0 · Warning 0 — 정지 규칙 충족. 2R INFO4(헬퍼 JSDoc 의 «메이저 업그레이드» 를 «마이너 ·
       패치 포함» 으로)는 코드 라운드를 새로 열지 않고 트래커 후속 항목에
-- [ ] `--impl-done`
-- [ ] 트래커 항목 닫기 · 전역 가드 후속 등재
+- [x] `--impl-done` — `review/consistency/2026/09/26/18_25_08` BLOCK: NO(Warning 1 — 문서 전용 `*RequestDto` 명명이 §1-7 밖 → 아래 후속 항목에). scope 는 바꾼 코드의 spec 소유 문서 12개
+- [x] 트래커 항목 닫기 · 전역 가드 후속 등재 — 종결 노트에 채택안과 이유(«요청 DTO 승격» 을 하지 않은 까닭), 후속 항목 «요청 본문 스키마의 규칙과 가드»(규칙 · 가드 · 곁가지 둘)
