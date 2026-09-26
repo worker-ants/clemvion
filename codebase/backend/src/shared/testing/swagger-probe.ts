@@ -139,18 +139,14 @@ export function propertyOf(
  * 인자 메타데이터로 찾는다(파라미터 순서에 기대지 않는다). `@Body()` 가 없거나 둘 이상이면 던진다 — 조용히 `undefined` 나 첫 자리를
  * 내면 캐너리가 공허해진다.
  *
- * `ROUTE_ARGS_METADATA` · `RouteParamtypes` 는 `@nestjs/common` 의 공개 진입점이 아닌 내부 경로다. Nest 메이저 업그레이드로 키 형식이
- * 바뀌면 이 헬퍼의 에러 경로 테스트(`swagger-probe.spec.ts`)가 먼저 깨진다.
+ * `ROUTE_ARGS_METADATA` · `RouteParamtypes` 는 `@nestjs/common` 의 공개 진입점이 아닌 내부 경로다(딥 임포트). `^` 범위 안의 마이너 ·
+ * 패치 업그레이드로도 키 형식이 바뀔 수 있고, 그러면 이 헬퍼의 에러 경로 테스트(`swagger-probe.spec.ts`)가 먼저 깨진다.
  */
 export function bodyParamDesignType(
   controller: Type<unknown>,
   method: string,
 ): unknown {
-  const args = (Reflect.getMetadata(ROUTE_ARGS_METADATA, controller, method) ??
-    {}) as Record<string, { index: number }>;
-  const bodyArgs = Object.entries(args).filter(
-    ([key]) => key.split(':')[0] === String(RouteParamtypes.BODY),
-  );
+  const bodyArgs = bodyArgIndexes(controller, method);
   if (bodyArgs.length === 0)
     throw new Error(
       `${controller.name}.${method} 에 @Body() 가 없다 — 캐너리 전제 붕괴`,
@@ -168,5 +164,18 @@ export function bodyParamDesignType(
     throw new Error(
       `${controller.name}.${method} 의 design:paramtypes 가 없다 — 캐너리 전제 붕괴`,
     );
-  return types[bodyArgs[0][1].index];
+  return types[bodyArgs[0]];
+}
+
+/**
+ * 핸들러의 `@Body()` 자리(파라미터 인덱스)들 — Nest 라우트 인자 메타데이터(`ROUTE_ARGS_METADATA`)에서 읽는다. 키 지정 본문
+ * (`@Body('a')` · `@Body('b')`)이면 여럿이다. 저장소 가드 `request-body-advertised` 도 이 함수로 자리를 찾는다.
+ */
+export function bodyArgIndexes(controller: object, method: string): number[] {
+  const args = (Reflect.getMetadata(ROUTE_ARGS_METADATA, controller, method) ??
+    {}) as Record<string, { index: number }>;
+  return Object.entries(args)
+    .filter(([key]) => key.split(':')[0] === String(RouteParamtypes.BODY))
+    .map(([, arg]) => arg.index)
+    .sort((a, b) => a - b);
 }

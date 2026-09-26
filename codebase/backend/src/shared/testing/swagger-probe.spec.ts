@@ -4,6 +4,7 @@ import { RouteParamtypes } from '@nestjs/common/enums/route-paramtypes.enum';
 import { ApiOkResponse, ApiProperty } from '@nestjs/swagger';
 
 import {
+  bodyArgIndexes,
   bodyParamDesignType,
   buildSwaggerDocument,
   propertyOf,
@@ -94,6 +95,14 @@ describe('bodyParamDesignType — 에러 경로', () => {
     expect(() => bodyParamDesignType(BodyProbeController, 'noBody')).toThrow(
       /noBody 에 @Body\(\) 가 없다/,
     );
+  });
+
+  it('bodyArgIndexes — 키 지정 본문이 여럿이면 자리를 오름차순으로 낸다', () => {
+    // 파라미터 데코레이터는 오른쪽부터 평가돼 메타데이터 삽입 순서가 `[1, 0]` 이다 — 정렬이 빠지면 여기서 드러난다.
+    expect(bodyArgIndexes(BodyProbeController, 'twoBodies')).toStrictEqual([
+      0, 1,
+    ]);
+    expect(bodyArgIndexes(BodyProbeController, 'noBody')).toStrictEqual([]);
   });
 
   it('`@Body()` 가 둘 이상이면 첫 자리를 내지 않고 던진다', () => {

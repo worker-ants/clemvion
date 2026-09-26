@@ -1,0 +1,506 @@
+diff --git a/codebase/backend/src/common/pipes/validation.pipe.spec.ts b/codebase/backend/src/common/pipes/validation.pipe.spec.ts
+index 2c6de3416..9424693f4 100644
+--- a/codebase/backend/src/common/pipes/validation.pipe.spec.ts
++++ b/codebase/backend/src/common/pipes/validation.pipe.spec.ts
+@@ -1,7 +1,7 @@
+ import { BadRequestException } from '@nestjs/common';
+ import { IsArray, IsIn, IsString, ValidateNested } from 'class-validator';
+ import { Type } from 'class-transformer';
+-import { CustomValidationPipe } from './validation.pipe';
++import { CustomValidationPipe, UNVALIDATED_METATYPES } from './validation.pipe';
+ 
+ class InnerDto {
+   @IsString()
+@@ -114,3 +114,19 @@ describe('CustomValidationPipe — forbidNonWhitelisted', () => {
+     expect(result).toBeInstanceOf(NarrowDto);
+   });
+ });
++
++describe('UNVALIDATED_METATYPES', () => {
++  it('얼려 있다 — export 된 전역 목록이 런타임에 늘면 그 타입의 본문이 검증 없이 지나간다', () => {
++    expect(Object.isFrozen(UNVALIDATED_METATYPES)).toBe(true);
++  });
++
++  it('파이프는 이 목록의 설계 타입이면 검증하지 않고 값을 그대로 넘긴다', async () => {
++    const pipe = new CustomValidationPipe();
++    const value = { anything: 1 };
++    for (const metatype of UNVALIDATED_METATYPES) {
++      await expect(
++        pipe.transform(value, { type: 'body', metatype: metatype as never }),
++      ).resolves.toBe(value);
++    }
++  });
++});
+diff --git a/codebase/backend/src/common/pipes/validation.pipe.ts b/codebase/backend/src/common/pipes/validation.pipe.ts
+index 8054d63da..ce330bc1d 100644
+--- a/codebase/backend/src/common/pipes/validation.pipe.ts
++++ b/codebase/backend/src/common/pipes/validation.pipe.ts
+@@ -7,6 +7,22 @@ import {
+ import { validate, ValidationError } from 'class-validator';
+ import { plainToInstance } from 'class-transformer';
+ 
++/**
++ * 이 설계 타입이면 검증하지 않고 값을 그대로 넘긴다 — 인라인 객체 타입 · 인터페이스 · `unknown` 본문이 여기 든다. 저장소 가드
++ * `request-body-advertised` 가 **이 상수를 그대로** 써서 «문서도 스키마가 비는 자리» 를 센다(`spec/conventions/swagger.md` §5-4).
++ *
++ * 얼린다 — export 된 전역 목록이라 `readonly` 타입만으로는 런타임 변형(`.push`)을 막지 못한다. 이 목록이 늘면 그 타입의 본문은
++ * 검증 없이 지나간다.
++ */
++// eslint-disable-next-line @typescript-eslint/no-unsafe-function-type
++export const UNVALIDATED_METATYPES: readonly Function[] = Object.freeze([
++  String,
++  Boolean,
++  Number,
++  Array,
++  Object,
++]);
++
+ interface ValidationDetail {
+   field: string;
+   message: string;
+@@ -74,8 +90,6 @@ export class CustomValidationPipe implements PipeTransform<unknown> {
+ 
+   // eslint-disable-next-line @typescript-eslint/no-unsafe-function-type
+   private toValidate(metatype: Function): boolean {
+-    // eslint-disable-next-line @typescript-eslint/no-unsafe-function-type
+-    const types: Function[] = [String, Boolean, Number, Array, Object];
+-    return !types.includes(metatype);
++    return !UNVALIDATED_METATYPES.includes(metatype);
+   }
+ }
+diff --git a/codebase/backend/src/repo-guards/__tests__/request-body-advertised-guard.ts b/codebase/backend/src/repo-guards/__tests__/request-body-advertised-guard.ts
+new file mode 100644
+index 000000000..f116633b4
+--- /dev/null
++++ b/codebase/backend/src/repo-guards/__tests__/request-body-advertised-guard.ts
+@@ -0,0 +1,110 @@
++// 라우트의 요청 본문(`@Body()`)이 OpenAPI 에 스키마로 광고되는지 세는 가드 — 순수 로직(reflection).
++//
++// 소비처는 형제 파일 `request-body-advertised.spec.ts`. 배경·근거는 그 파일 헤더에 있다.
++
++import 'reflect-metadata';
++
++import { UNVALIDATED_METATYPES } from '../../common/pipes/validation.pipe';
++import { bodyArgIndexes } from '../../shared/testing/swagger-probe';
++import type { RouteHandler } from './forbidden-response-codes-guard';
++
++/**
++ * `@nestjs/swagger` 가 파라미터 · 제외 메타데이터를 싣는 키(`DECORATORS.API_PARAMETERS` · `API_EXCLUDE_ENDPOINT` ·
++ * `API_EXCLUDE_CONTROLLER`). 패키지가 `dist/constants` 를 `exports` 로 열지 않아 값을 옮겨 적었다 — 키가 바뀌면 `@ApiBody` 가
++ * 전부 «없음» 으로 읽혀 인라인 본문이 위반으로 쏟아지므로 조용히 통과하지는 않는다(형제 가드와 같은 사정).
++ */
++const SWAGGER_API_PARAMETERS = 'swagger/apiParameters';
++const SWAGGER_EXCLUDE_ENDPOINT = 'swagger/apiExcludeEndpoint';
++const SWAGGER_EXCLUDE_CONTROLLER = 'swagger/apiExcludeController';
++
++/** 위반 한 건 — `@Body()` 자리의 설계 타입이 클래스가 아닌데 `@ApiBody` 가 없다. */
++export interface RequestBodyViolation {
++  readonly controller: string;
++  readonly handler: string;
++  /** 그 자리의 설계 타입 이름(`Object` · `String` …). emit 되지 않았으면 `(없음)`. */
++  readonly designType: string;
++}
++
++/** 한 번의 판정 결과. */
++export interface RequestBodyScan {
++  readonly violations: readonly RequestBodyViolation[];
++  /** 대조한 `@Body()` 자리 수 — vacuity floor 가 본다. 위반과 같은 순회에서 센다. */
++  readonly checked: number;
++  /** 그중 설계 타입이 클래스가 아닌 자리 — 판정 분기가 실제 코드에서 도는지 floor 가 본다. */
++  readonly unschematized: number;
++}
++
++/**
++ * 이 설계 타입이면 전역 `CustomValidationPipe` 가 검증을 건너뛰고(`toValidate`), 플러그인도 스키마를 만들지 못한다. 목록은 파이프가
++ * export 하는 **그 상수**를 쓴다 — 옮겨 적으면 둘이 갈리는 날 가드가 파이프가 보지 않는 타입을 묻거나 보는 타입을 놓친다. 설계 타입이
++ * emit 되지 않은 자리(`undefined`)도 파이프가 건너뛴다(`!metatype`).
++ */
++function isUnschematized(designType: unknown): boolean {
++  return (
++    designType === undefined ||
++    (UNVALIDATED_METATYPES as readonly unknown[]).includes(designType)
++  );
++}
++
++/** OpenAPI 에서 빠진 라우트인가 — 핸들러 `@ApiExcludeEndpoint()` 또는 클래스 `@ApiExcludeController()`. */
++function isExcluded(route: RouteHandler): boolean {
++  return (
++    Reflect.getMetadata(SWAGGER_EXCLUDE_ENDPOINT, route.handler) !==
++      undefined ||
++    Reflect.getMetadata(SWAGGER_EXCLUDE_CONTROLLER, route.controller) !==
++      undefined
++  );
++}
++
++/** 핸들러에 `@ApiBody` 가 있는가 — swagger 파라미터 메타데이터의 `in: 'body'`. */
++function advertisesBody(route: RouteHandler): boolean {
++  const params = Reflect.getMetadata(SWAGGER_API_PARAMETERS, route.handler) as
++    ReadonlyArray<{ in?: unknown }> | undefined;
++  return (params ?? []).some((p) => p.in === 'body');
++}
++
++/**
++ * 라우트마다 `@Body()` 자리의 설계 타입을 보고, 클래스가 아닌데 `@ApiBody` 가 없는 자리를 모은다. OpenAPI 에서 빠진 라우트는 묻지
++ * 않는다.
++ *
++ * `@ApiBody` 가 **맞는** DTO 를 가리키는지는 보지 않는다 — 광고의 존재만 센다. 그 짝은 라우트별 캐너리(`*-body.spec.ts`)가 본다.
++ */
++export function scanRequestBodyAdvertised(
++  routes: readonly RouteHandler[],
++): RequestBodyScan {
++  const violations: RequestBodyViolation[] = [];
++  let checked = 0;
++  let unschematized = 0;
++  for (const route of routes) {
++    if (isExcluded(route)) continue;
++    const indexes = bodyArgIndexes(route.controller, route.name);
++    if (indexes.length === 0) continue;
++    const types = Reflect.getMetadata(
++      'design:paramtypes',
++      route.controller.prototype as object,
++      route.name,
++    ) as unknown[] | undefined;
++    for (const index of indexes) {
++      checked++;
++      const designType = types?.[index];
++      if (!isUnschematized(designType)) continue;
++      unschematized++;
++      if (advertisesBody(route)) continue;
++      violations.push({
++        controller: route.controller.name,
++        handler: route.name,
++        designType:
++          typeof designType === 'function' ? designType.name : '(없음)',
++      });
++    }
++  }
++  return {
++    violations: violations.sort(
++      (a, b) =>
++        a.controller.localeCompare(b.controller) ||
++        a.handler.localeCompare(b.handler),
++    ),
++    checked,
++    unschematized,
++  };
++}
+diff --git a/codebase/backend/src/repo-guards/__tests__/request-body-advertised.spec.ts b/codebase/backend/src/repo-guards/__tests__/request-body-advertised.spec.ts
+new file mode 100644
+index 000000000..b1828d963
+--- /dev/null
++++ b/codebase/backend/src/repo-guards/__tests__/request-body-advertised.spec.ts
+@@ -0,0 +1,241 @@
++import { beforeAll, describe, expect, it } from '@jest/globals';
++import * as path from 'node:path';
++import { Body, Controller, Get, Post, RequestMethod } from '@nestjs/common';
++import { METHOD_METADATA, ROUTE_ARGS_METADATA } from '@nestjs/common/constants';
++import { RouteParamtypes } from '@nestjs/common/enums/route-paramtypes.enum';
++import {
++  ApiBody,
++  ApiExcludeController,
++  ApiExcludeEndpoint,
++  ApiProperty,
++} from '@nestjs/swagger';
++
++import { collectTsFiles } from '../../common/__test-utils__/source-scan';
++import {
++  collectRouteHandlers,
++  loadControllers,
++  type RouteHandler,
++} from './forbidden-response-codes-guard';
++import { scanRequestBodyAdvertised } from './request-body-advertised-guard';
++
++/**
++ * 요청 본문을 받는 라우트(`@Body()`)가 **본문 스키마를 광고하는지** 조인다(`spec/conventions/swagger.md` §5-4).
++ *
++ * ## 왜 이 가드인가
++ *
++ * `@Body()` 파라미터를 인라인 객체 타입(또는 `unknown` · 인터페이스)으로 받으면 플러그인이 스키마를 만들지 못해, 생성된 OpenAPI 에
++ * `requestBody` 가 없다 — 클라이언트 생성기가 무엇을 보내야 하는지 모른다. 2026-09-26 에 그런 라우트가 3곳이었다(`rotate-bot-token` ·
++ * 실행 `continue` · 웹훅 수신 — #1408 이 채웠다).
++ *
++ * ## 무엇을 대조하나
++ *
++ * | 칸 | 무엇 |
++ * |---|---|
++ * | 본문 자리 | 라우트 인자 메타데이터의 `@Body()` 자리(파라미터 순서가 아니다) |
++ * | 설계 타입 | 그 자리의 `design:paramtypes` — 전역 `CustomValidationPipe` 가 받는 바로 그 값 |
++ * | 위반 | 설계 타입이 파이프의 비검증 목록(`UNVALIDATED_METATYPES` · 없음)인데 `@ApiBody` 가 없음 |
++ *
++ * **왜 AST 가 아닌가**: `interface` · 타입 별칭 참조는 런타임에 `Object` 가 된다 — 소스로는 클래스 참조와 구별되지 않는다.
++ *
++ * **왜 클래스로 받게 강제하지 않나**: 파이프는 클래스 파라미터에만 진입하고, 진입하면 `whitelist` · `forbidNonWhitelisted` 로 에러
++ * 코드와 여분 키 처리가 바뀐다(계약 변경). 그래서 인라인 타입은 그대로 두고 문서 전용 DTO 를 `@ApiBody` 로 광고하는 것도 통과다 —
++ * 선례 `workflows/dto/execute-workflow.dto.ts`.
++ *
++ * **못 보는 것**: `@ApiBody` 가 **맞는** DTO 를 가리키는지(라우트별 캐너리 `*-body.spec.ts` 가 본다) · 클래스 파라미터의 DTO 가 실제
++ * 본문과 맞는지(요청 쪽 검증은 파이프가 한다).
++ *
++ * ## 베이스라인은 0이다
++ *
++ * 실측(2026-09-26, `src/modules`): `@Body()` 78 — 클래스 74 · 인라인 + `@ApiBody` 4. 동결 목록이 없으니 위반이 생기는 순간 실패한다.
++ */
++describe('요청 본문 스키마 가드', () => {
++  const SRC_ROOT = path.resolve(__dirname, '..', '..');
++  // `src/modules` 만 본다 — 컨트롤러가 전부 거기 있고, 대조군은 이 파일 안의 클래스다.
++  const SCAN_ROOT = path.join(SRC_ROOT, 'modules');
++  let routes: RouteHandler[] = [];
++  let controllerCount = 0;
++
++  beforeAll(async () => {
++    const controllers = await loadControllers(collectTsFiles(SCAN_ROOT));
++    controllerCount = controllers.length;
++    routes = collectRouteHandlers(controllers);
++  }, 120_000);
++
++  it('스캔 대상이 비어 있지 않다 (vacuous 방지)', () => {
++    expect(controllerCount).toBeGreaterThan(30);
++    const scan = scanRequestBodyAdvertised(routes);
++    // 실측(2026-09-26) 78 — 대조한 `@Body()` 자리. 판정과 같은 순회가 센 값이다.
++    expect(scan.checked).toBeGreaterThan(70);
++    // 실측 4 — 설계 타입이 클래스가 아닌 자리. 0 이면 판정 분기가 실제 코드에서 한 번도 돌지 않는다.
++    expect(scan.unschematized).toBeGreaterThan(0);
++  });
++
++  it('요청 본문을 받는 라우트는 본문 스키마를 광고한다', () => {
++    const violations = scanRequestBodyAdvertised(routes).violations.map(
++      (v) =>
++        `${v.controller}.${v.handler}() — @Body() 설계 타입 ${v.designType} · @ApiBody 없음`,
++    );
++    expect(violations).toStrictEqual([]);
++  });
++
++  describe('[대조군] 판정 함수가 실제로 가른다', () => {
++    interface InlineShape {
++      a?: string;
++    }
++
++    class FixtureBodyDto {
++      @ApiProperty()
++      a!: string;
++    }
++
++    @Controller('fixture-body')
++    class BodyFixtureController {
++      /** 인라인 객체 타입 · 광고 없음 — 위반. */
++      @Post('inline-bare')
++      inlineBare(@Body() _body: { a?: string }): void {}
++
++      /** 인라인 객체 타입 · 문서 전용 DTO 를 `@ApiBody` 로 — 맞다(선례 `ExecuteWorkflowDto`). */
++      @Post('inline-documented')
++      @ApiBody({ type: FixtureBodyDto })
++      inlineDocumented(@Body() _body: { a?: string }): void {}
++
++      /** DTO 클래스 — 플러그인이 스키마를 만든다. 맞다. */
++      @Post('class')
++      classBody(@Body() _body: FixtureBodyDto): void {}
++
++      /** 인터페이스 — 런타임에 `Object` 다. AST 로는 클래스와 구별되지 않는 자리 — 위반. */
++      @Post('interface')
++      interfaceBody(@Body() _body: InlineShape): void {}
++
++      /** `unknown` · 광고 없음 — 위반. */
++      @Post('unknown')
++      unknownBody(@Body() _body: unknown): void {}
++
++      /** `unknown` · `@ApiBody({ schema: {} })` — 형태를 발신자가 정하는 본문. 맞다(웹훅 수신). */
++      @Post('unknown-documented')
++      @ApiBody({ schema: {} })
++      unknownDocumented(@Body() _body: unknown): void {}
++
++      /** 키 지정 본문의 원시 타입 — 설계 타입 `String`. 광고 없음 — 위반. */
++      @Post('keyed')
++      keyedBody(@Body('a') _a: string): void {}
++
++      // 파이프 목록의 나머지 셋 — 목록에서 하나가 빠지면 그 타입이 여기서 사라져 RED 다.
++      /** `number` — 설계 타입 `Number`. 위반. */
++      @Post('number')
++      numberBody(@Body() _body: number): void {}
++
++      /** `boolean` — 설계 타입 `Boolean`. 위반. */
++      @Post('boolean')
++      booleanBody(@Body() _body: boolean): void {}
++
++      /** 배열 — 설계 타입 `Array`. 위반. */
++      @Post('array')
++      arrayBody(@Body() _body: string[]): void {}
++
++      /** OpenAPI 에서 빠진 라우트 — 묻지 않는다. */
++      @Post('excluded')
++      @ApiExcludeEndpoint()
++      excludedBody(@Body() _body: { a?: string }): void {}
++
++      /** 본문이 없는 라우트 — 세지 않는다. */
++      @Get('no-body')
++      noBody(): void {}
++    }
++
++    /**
++     * 이름이 앞서는 두 번째 컨트롤러 — 위반 정렬의 1차 키(컨트롤러)가 실제로 순서를 가르는지 본다. 핸들러 이름은 일부러 뒤로 가게
++     * 지었다: 컨트롤러로 정렬하면 맨 앞, 핸들러로만 정렬하면 맨 뒤다.
++     */
++    @Controller('fixture-body-alpha')
++    class AlphaBodyFixtureController {
++      @Post()
++      zInline(@Body() _body: { a?: string }): void {}
++    }
++
++    @Controller('fixture-body-excluded')
++    @ApiExcludeController()
++    class ExcludedBodyFixtureController {
++      /** 컨트롤러째 OpenAPI 에서 빠졌다 — 묻지 않는다. */
++      @Post()
++      bare(@Body() _body: { a?: string }): void {}
++    }
++
++    const scan = scanRequestBodyAdvertised(
++      collectRouteHandlers([
++        BodyFixtureController,
++        AlphaBodyFixtureController,
++        ExcludedBodyFixtureController,
++      ]),
++    );
++
++    it('인라인 · 인터페이스 · `unknown` · 원시 타입 · 배열의 무광고를 잡는다 — 컨트롤러 → 핸들러 순', () => {
++      expect(
++        scan.violations.map(
++          (v) => `${v.controller}.${v.handler}:${v.designType}`,
++        ),
++      ).toStrictEqual([
++        'AlphaBodyFixtureController.zInline:Object',
++        'BodyFixtureController.arrayBody:Array',
++        'BodyFixtureController.booleanBody:Boolean',
++        'BodyFixtureController.inlineBare:Object',
++        'BodyFixtureController.interfaceBody:Object',
++        'BodyFixtureController.keyedBody:String',
++        'BodyFixtureController.numberBody:Number',
++        'BodyFixtureController.unknownBody:Object',
++      ]);
++    });
++
++    it('광고한 인라인 본문 · DTO 클래스 · 제외 라우트는 안 잡는다', () => {
++      const handlers = scan.violations.map((v) => v.handler);
++      for (const clean of [
++        'inlineDocumented',
++        'classBody',
++        'unknownDocumented',
++        'excludedBody',
++        'bare',
++      ]) {
++        expect(handlers).not.toContain(clean);
++      }
++    });
++
++    it('본문 자리를 센다 — 제외 라우트와 본문 없는 라우트는 세지 않는다', () => {
++      // 대조한 자리: BodyFixture 10(inlineBare · inlineDocumented · classBody · interfaceBody · unknownBody · unknownDocumented ·
++      // keyedBody · numberBody · booleanBody · arrayBody) + AlphaBodyFixture 1 = 11
++      expect(scan.checked).toBe(11);
++      // 그중 클래스가 아닌 자리: classBody 를 뺀 10
++      expect(scan.unschematized).toBe(10);
++    });
++
++    it('설계 타입이 emit 되지 않은 자리도 비클래스로 센다 — 파이프가 `!metatype` 이면 건너뛰는 것과 같다', () => {
++      // 실제 Nest 라우트에서는 생기지 않는다(데코레이터가 있으면 `design:paramtypes` 가 emit 된다). 가드가 파이프와 같은 축을 따른다는
++      // 주장이 이 항까지 참인지 고정하려고, 데코레이터 없는 메서드에 라우트 메타데이터만 손으로 싣는다.
++      class BareRouteController {
++        noDesignType(_body: unknown): void {}
++      }
++      Reflect.defineMetadata(
++        METHOD_METADATA,
++        RequestMethod.POST,
++        BareRouteController.prototype.noDesignType,
++      );
++      Reflect.defineMetadata(
++        ROUTE_ARGS_METADATA,
++        { [`${RouteParamtypes.BODY}:0`]: { index: 0 } },
++        BareRouteController,
++        'noDesignType',
++      );
++      const bare = scanRequestBodyAdvertised(
++        collectRouteHandlers([BareRouteController]),
++      );
++      expect(bare.violations).toStrictEqual([
++        {
++          controller: 'BareRouteController',
++          handler: 'noDesignType',
++          designType: '(없음)',
++        },
++      ]);
++      expect(bare.checked).toBe(1);
++      expect(bare.unschematized).toBe(1);
++    });
++  });
++});
+diff --git a/codebase/backend/src/shared/testing/swagger-probe.spec.ts b/codebase/backend/src/shared/testing/swagger-probe.spec.ts
+index be0f4c159..b17dc3141 100644
+--- a/codebase/backend/src/shared/testing/swagger-probe.spec.ts
++++ b/codebase/backend/src/shared/testing/swagger-probe.spec.ts
+@@ -4,6 +4,7 @@ import { RouteParamtypes } from '@nestjs/common/enums/route-paramtypes.enum';
+ import { ApiOkResponse, ApiProperty } from '@nestjs/swagger';
+ 
+ import {
++  bodyArgIndexes,
+   bodyParamDesignType,
+   buildSwaggerDocument,
+   propertyOf,
+@@ -96,6 +97,14 @@ describe('bodyParamDesignType — 에러 경로', () => {
+     );
+   });
+ 
++  it('bodyArgIndexes — 키 지정 본문이 여럿이면 자리를 오름차순으로 낸다', () => {
++    // 파라미터 데코레이터는 오른쪽부터 평가돼 메타데이터 삽입 순서가 `[1, 0]` 이다 — 정렬이 빠지면 여기서 드러난다.
++    expect(bodyArgIndexes(BodyProbeController, 'twoBodies')).toStrictEqual([
++      0, 1,
++    ]);
++    expect(bodyArgIndexes(BodyProbeController, 'noBody')).toStrictEqual([]);
++  });
++
+   it('`@Body()` 가 둘 이상이면 첫 자리를 내지 않고 던진다', () => {
+     expect(() => bodyParamDesignType(BodyProbeController, 'twoBodies')).toThrow(
+       /@Body\(\) 가 2개다/,
+diff --git a/codebase/backend/src/shared/testing/swagger-probe.ts b/codebase/backend/src/shared/testing/swagger-probe.ts
+index 7a1d06c73..1088ef625 100644
+--- a/codebase/backend/src/shared/testing/swagger-probe.ts
++++ b/codebase/backend/src/shared/testing/swagger-probe.ts
+@@ -139,18 +139,14 @@ export function propertyOf(
+  * 인자 메타데이터로 찾는다(파라미터 순서에 기대지 않는다). `@Body()` 가 없거나 둘 이상이면 던진다 — 조용히 `undefined` 나 첫 자리를
+  * 내면 캐너리가 공허해진다.
+  *
+- * `ROUTE_ARGS_METADATA` · `RouteParamtypes` 는 `@nestjs/common` 의 공개 진입점이 아닌 내부 경로다. Nest 메이저 업그레이드로 키 형식이
+- * 바뀌면 이 헬퍼의 에러 경로 테스트(`swagger-probe.spec.ts`)가 먼저 깨진다.
++ * `ROUTE_ARGS_METADATA` · `RouteParamtypes` 는 `@nestjs/common` 의 공개 진입점이 아닌 내부 경로다(딥 임포트). `^` 범위 안의 마이너 ·
++ * 패치 업그레이드로도 키 형식이 바뀔 수 있고, 그러면 이 헬퍼의 에러 경로 테스트(`swagger-probe.spec.ts`)가 먼저 깨진다.
+  */
+ export function bodyParamDesignType(
+   controller: Type<unknown>,
+   method: string,
+ ): unknown {
+-  const args = (Reflect.getMetadata(ROUTE_ARGS_METADATA, controller, method) ??
+-    {}) as Record<string, { index: number }>;
+-  const bodyArgs = Object.entries(args).filter(
+-    ([key]) => key.split(':')[0] === String(RouteParamtypes.BODY),
+-  );
++  const bodyArgs = bodyArgIndexes(controller, method);
+   if (bodyArgs.length === 0)
+     throw new Error(
+       `${controller.name}.${method} 에 @Body() 가 없다 — 캐너리 전제 붕괴`,
+@@ -168,5 +164,18 @@ export function bodyParamDesignType(
+     throw new Error(
+       `${controller.name}.${method} 의 design:paramtypes 가 없다 — 캐너리 전제 붕괴`,
+     );
+-  return types[bodyArgs[0][1].index];
++  return types[bodyArgs[0]];
++}
++
++/**
++ * 핸들러의 `@Body()` 자리(파라미터 인덱스)들 — Nest 라우트 인자 메타데이터(`ROUTE_ARGS_METADATA`)에서 읽는다. 키 지정 본문
++ * (`@Body('a')` · `@Body('b')`)이면 여럿이다. 저장소 가드 `request-body-advertised` 도 이 함수로 자리를 찾는다.
++ */
++export function bodyArgIndexes(controller: object, method: string): number[] {
++  const args = (Reflect.getMetadata(ROUTE_ARGS_METADATA, controller, method) ??
++    {}) as Record<string, { index: number }>;
++  return Object.entries(args)
++    .filter(([key]) => key.split(':')[0] === String(RouteParamtypes.BODY))
++    .map(([, arg]) => arg.index)
++    .sort((a, b) => a - b);
+ }

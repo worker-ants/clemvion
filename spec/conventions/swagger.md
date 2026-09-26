@@ -26,6 +26,8 @@ code:
   - codebase/backend/src/repo-guards/__tests__/fixtures/http-status-advertised/**
   # §5-4 의 403 설명 ↔ 가드 거부 코드(`NOT_A_MEMBER` · 역할 코드) 짝을 세는 가드(reflection, 대조군은 spec 안의 클래스).
   - codebase/backend/src/repo-guards/__tests__/forbidden-response-codes*.ts
+  # §5-4 의 요청 본문 스키마 — `@Body()` 설계 타입이 클래스가 아니면 `@ApiBody` 필수(reflection, 대조군은 spec 안의 클래스).
+  - codebase/backend/src/repo-guards/__tests__/request-body-advertised*.ts
 ---
 
 # Swagger 문서화 일관된 패턴 가이드
@@ -512,6 +514,12 @@ async create(...) { ... }
       서비스가 내는 403 은 그 뒤에 덧붙인다 — 코드는 [data-flow §Rationale 가드 거부의 오류 코드](../data-flow/12-workspace.md#가드-거부의-오류-코드-2026-09-25).
       저장소 가드 `forbidden-response-codes` 가 새 엔드포인트만이 아니라 **모든 라우트**에서 **빠진** 가드 코드를 잡는다 — 설명에 남은 코드(역할을 내린 뒤의 옛 역할 코드)와 서비스 거부는 세지 않으니, `@Roles()` 를 바꾸면 설명도 손으로 맞춘다. (`@Public()` 라우트는 대상 아님.)
 - [ ] 광고한 성공 코드(`ApiOk*` · `ApiCreated*` · `ApiAccepted*` · `ApiNoContent*` · `ApiResponse({ status })` 등 성공 응답 데코레이터 전부 — 저장소 래퍼 포함)와 실제 성공 코드(`@HttpCode` 또는 Nest 기본값)가 짝을 이루는지 ([§2-4](#2-4-상태-코드-응답-규칙)) — 성공 응답을 하나도 광고하지 않는 라우트는 없어야 한다(리다이렉트 라우트는 3xx)
+- [ ] 요청 본문을 받는 라우트(`@Body()`)는 본문 스키마를 광고한다 — 파라미터를 DTO 클래스로 받으면 플러그인이 스키마를 만든다. 클래스로
+      받을 수 없으면(전역 `CustomValidationPipe` 는 클래스 파라미터에만 진입해 `whitelist` · `forbidNonWhitelisted` 로 에러 코드와 여분 키
+      처리를 바꾼다) **문서 전용 DTO**(class-validator 데코레이터 없이 `@ApiProperty` 만)를 `@ApiBody({ type })` 로 광고하고 파라미터는
+      인라인 타입을 유지한다. 형태를 발신자가 정하는 본문(외부 웹훅 — 객체가 아닐 수도 있다)은 `@ApiBody({ schema: {} })`. 저장소 가드
+      `request-body-advertised` 가 **모든 라우트**에서 `@Body()` 자리의 설계 타입이 클래스가 아닌데 `@ApiBody` 가 없는 자리를 잡는다
+      (`@ApiExcludeEndpoint()` · `@ApiExcludeController()` 제외).
 - [ ] 경로 UUID 파라미터는 `@ApiParam({ format: 'uuid' })` 일관 적용
 - [ ] 요청 DTO 명명 — `Update` 접두는 **top-level 요청 바디**에만, nested 변형은 로컬 패턴 ([§1-7](#1-7-요청-dto-명명--update-접두는-top-level-요청-바디에만-건다))
 
@@ -738,3 +746,21 @@ fallthrough 자체를 없애 판별자를 sound 하게 만드는 대안은 wire 
   맞는가** 의 문제다 — 틀린 광고는 이미 배포된 라우트에서 클라이언트를 오도한다.
 - **서비스 거부는 세지 않는다.** 서비스가 내는 403 은 자리마다 조건과 코드가 달라 기계적 판정이 안 된다. 헬퍼 문장 뒤에 덧붙이도록
   안내만 한다.
+
+### §5-4 요청 본문 스키마 — 왜 클래스로 받게 강제하지 않고, 왜 reflection 으로 세는가 (2026-09-26)
+
+2026-09-26 실측(`src/modules` 컨트롤러의 `@Body()` 78개): OpenAPI 에 요청 본문이 없던 라우트 3곳(`rotate-bot-token` · 실행 `continue` ·
+웹훅 수신)을 채운 뒤 DTO 클래스 74 · 인라인 타입 + `@ApiBody` 4 — 광고하지 않는 자리 0.
+
+- **클래스로 받게 강제하지 않는다.** 전역 `CustomValidationPipe` 는 파라미터 설계 타입이 클래스일 때만 진입하고, 진입하면
+  `whitelist` · `forbidNonWhitelisted` 가 켜진다. 인라인 타입으로 받던 라우트를 클래스로 바꾸면 문서를 다는 작업이 **계약 변경**이
+  된다 — `rotate-bot-token` 은 비-string `newBotToken` 에 spec 이 약속한 `INVALID_BOT_TOKEN`(`15-chat-channel.md` §5.4) 대신
+  `VALIDATION_ERROR` 를 내고, 여분 키를 보내던 요청이 400 이 된다. 그래서 트래커가 처음 적었던 처방(«요청 DTO 승격»)을 택하지 않고
+  문서 전용 DTO 를 `@ApiBody` 로만 쓴다. 선례는 `ExecuteWorkflowDto`(워크플로 실행 본문 — 캐너리 `workflows-execute-body.spec.ts`).
+- **`schema: {}` 와 열린 map 은 다르다.** 본문이 객체라는 것조차 보장되지 않으면(웹훅 — JSON 배열 · 원시값도 온다) `@ApiBody({ schema: {} })`
+  로 «임의 값» 을 적는다. 객체는 보장되고 키만 열려 있으면 §1-4 의 `additionalProperties: true` 다.
+- **reflection 으로 센다.** 판정 축은 파이프가 받는 바로 그 값이어야 한다 — 파이프는 `design:paramtypes` 가 `Object` · `String` ·
+  `Number` · `Boolean` · `Array` 면 건너뛰고, 그 자리는 플러그인도 스키마를 만들지 못한다. 가드는 파이프가 export 하는 그 목록을 그대로
+  쓴다. 소스(AST)로는 `interface` · 타입 별칭 참조가 런타임에 `Object` 가 되는 것을 클래스 참조와 구별할 수 없다.
+- **못 보는 것.** `@ApiBody` 가 **맞는** DTO 를 가리키는지는 라우트별 캐너리(`*-body.spec.ts`)가 본다 — 이 가드는 광고의 **존재**만 센다.
+  클래스 파라미터의 DTO 가 실제 본문과 맞는지도 이 가드 밖이다(요청 쪽 검증은 파이프가 한다).

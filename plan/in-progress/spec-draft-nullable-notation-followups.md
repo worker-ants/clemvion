@@ -5138,7 +5138,7 @@ field: T | null;
       > spec 모순(ED-AI-19 PRD ↔ 상세 spec)으로 BLOCK: YES 를 내 같은 PR 에 planner 턴으로 PRD 표기를 정정했다
       > (`plan/complete/spec-draft-ed-ai-19-status.md`). `/ai-review` `review/code/2026/09/26/16_56_51`(1R 수렴). plan `plan/complete/assistant-e2e-contract-gaps.md`.
 
-- [ ] **요청 본문 스키마의 규칙과 가드 — «`@Body()` 가 DTO 클래스가 아니면 `@ApiBody` 필수» · 문서 전용 `*RequestDto` 명명** (planner → developer,
+- [ ] **요청 본문 — 남은 것은 문서 전용 요청 DTO 의 명명(§1-7)** ~~· «`@Body()` 가 DTO 클래스가 아니면 `@ApiBody` 필수» 규칙과 가드~~(닫힘 — 아래) (planner → developer,
       낮음, 2026-09-26 등재 · `plan/complete/rotate-bot-token-body.md` «안 하는 것» · `/ai-review` `review/code/2026/09/26/17_55_14` W3 · INFO4 ·
       `--impl-prep` `review/consistency/2026/09/26/17_20_45` INFO2 · `--impl-done` `review/consistency/2026/09/26/18_25_08` W1 · INFO1).
       `rotate-bot-token-body` 뒤 `@Body()` 78개 중 OpenAPI 가 요청 본문을 모르는 라우트는 0이다(DTO 클래스 74 · 인라인 + `@ApiBody` 4). 그런데
@@ -5147,12 +5147,32 @@ field: T | null;
       1. **규칙(planner)**: §5-4 에 «요청 본문은 DTO 클래스로 받거나, 파라미터를 DTO 로 타입할 수 없으면(전역 파이프가 계약을 바꾼다) 문서 전용
          DTO 를 `@ApiBody` 로 광고한다», §1-7 표에 문서 전용(비검증) top-level 요청 DTO 의 `<Domain><Action>RequestDto` 행. 선례
          `ExecuteWorkflowDto` 는 접미가 없다 — 규칙이 둘 중 하나로 정한다.
-      2. **가드(developer)**: AST — `@Body()` 파라미터 타입이 클래스 참조가 아니면 같은 메서드에 `@ApiBody` 가 있어야 한다(`@ApiExcludeEndpoint()`
-         제외). 베이스라인 0.
+      2. **가드(developer)**: ~~AST~~ **reflection**(인터페이스 · 타입 별칭은 런타임에 `Object` 라 AST 로는 클래스와 구별되지 않는다 —
+         `swagger.md` §5-4 Rationale) — `@Body()` 자리의 설계 타입이 클래스가 아니면 같은 메서드에 `@ApiBody` 가 있어야 한다(`@ApiExcludeEndpoint()`
+         · `@ApiExcludeController()` 제외). 베이스라인 0.
       3. **곁가지(developer, 낮음)**: `ContinueExecutionRequestDto` ↔ 응답 `ExecutionContinueResultDto` 어순이 반대다 — 문서 전용이라 리네임은
          계약 영향이 없다(`--impl-done` INFO1). `shared/testing/swagger-probe.ts` `bodyParamDesignType` JSDoc 의 «Nest 메이저 업그레이드» 를
          «마이너 · 패치 포함» 으로(딥 임포트라 caret 범위 안에서도 깨질 수 있다 — `18_17_12` INFO4).
       **착수 조건**: 없음(여유 있을 때). 1 이 먼저 — 규칙 문단 없이 가드를 세우면 문서가 구현보다 좁다.
+
+      > **2026-09-26 — 1 의 §5-4 · 2 · 3 의 JSDoc 문구 닫힘.** `swagger.md` §5-4 체크리스트 «요청 본문을 받는 라우트는 본문 스키마를
+      > 광고한다» · `code:` 등재 · Rationale 한 절(planner 커밋 `f71f5df06`). 가드 `request-body-advertised`(reflection — 파이프가 export 하는
+      > `UNVALIDATED_METATYPES` 를 그대로 쓴다, `Object.freeze`) · 실측 컨트롤러 35 · `@Body()` 자리 78 · 비클래스 4 · 위반 0. `/ai-review`
+      > `review/code/2026/09/26/19_32_47` · `19_54_03`(전수, 수렴). `--impl-done` `review/consistency/2026/09/26/20_05_38` BLOCK: NO. plan
+      > `plan/complete/request-body-guard.md`.
+      >
+      > **남는 것(이 항목을 그것으로 좁힌다)**:
+      > - §1-7 표에 문서 전용(비검증) top-level 요청 DTO 의 명명 행 — `<Domain><Action>RequestDto` 로 할지, 선례 `ExecuteWorkflowDto`(접미 없음)를
+      >   따를지. DTO 이름은 OpenAPI 컴포넌트 이름이라 기존 이름을 바꾸면 생성 클라이언트의 타입명이 바뀐다 — 기존 이름 처리를 함께 정한다.
+      >   정해지면 `ContinueExecutionRequestDto` ↔ `ExecutionContinueResultDto` 어순도 맞춘다. 용어도 하나로(규약의 «문서 전용 DTO» ·
+      >   선례 주석의 «OpenAPI 스키마 전용»).
+      > - (planner, 같은 김에) `swagger.md` §5-4 제목 «새 엔드포인트 체크리스트» 가 기존 라우트에도 소급하는 항목(성공 코드 · 403 · 요청 본문)과
+      >   어긋난다(`--impl-prep` `review/consistency/2026/09/26/19_09_17` INFO4). `spec/5-system/15-chat-channel.md` §7 파일 트리에 #1408 의
+      >   `dto/chat-channel-rotate-bot-token-request.dto.ts` 가 없다(같은 세션 INFO1). §5-4 요청 본문 Rationale 절에 «기존 라우트까지 소급한다»
+      >   한 문장 — 인접 403 절과 같은 형(`--impl-done` `review/consistency/2026/09/26/20_05_38` INFO1).
+      > - (developer, 낮음) `codebase/backend/src/common/pipes/validation.pipe.spec.ts` 가 `UNVALIDATED_METATYPES` 를 자기참조로 순회한다 — 고정 배열
+      >   (`[String, Boolean, Number, Array, Object]`)과 `toStrictEqual` 로 목록을 그 파일에서도 고정한다(`/ai-review` `review/code/2026/09/26/19_54_03`
+      >   W1 — 수렴 예외. 목록 축소는 지금도 가드 spec 의 대조군이 잡는다).
 
 - [ ] **`swagger.md` §2-4 상태 코드 표에 202 · 410 · 429 행이 없다** (planner, 낮음, 2026-09-26 등재 · `--impl-prep`
       `review/consistency/2026/09/26/15_08_57` convention_compliance W1). 표는 200 · 201 · 204 · 400 · 401 · 403 · 404 · 409 · 502 만 적는데,
