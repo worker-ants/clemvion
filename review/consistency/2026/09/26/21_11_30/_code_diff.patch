@@ -1,0 +1,365 @@
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+index 923bc25c0..1029f6b70 100644
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -23,6 +23,14 @@
+ > 07 37% · 08 30% · 09(25일까지) 49% 였다(나중 PR 의 백필은 세지 않았다). 여기 없다고 그 변경이 없었던 것은 아니다 —
+ > `git log` 가 정본이다.
+ 
++## Unreleased — OpenAPI 가 `POST /integrations/:id/test` 의 MCP 성공 응답 필드를 광고한다
++
++MCP 통합의 연결 테스트가 성공하면 응답에 `capabilities` · `serverInfo` · `preview`(`toolCount` · `resourceSupported` ·
++`promptSupported`)가 실리는데, OpenAPI 응답 스키마에는 없었다. 같은 값을 돌려주는 `POST /integrations/preview-test` 는 이미
++광고하고 있었다 — 그와 같은 선언을 붙였다. 응답 자체는 그대로다.
++
++- 응답 설명의 «메타 정보» 를 실제 필드(실패 시 분류 코드 · MCP 성공 시 capability 미리보기)로 고쳤다. `meta` 필드는 응답에 없다.
++
+ ## Unreleased — 저장소 가드 신설: 요청 본문을 받는 라우트는 본문 스키마를 광고한다
+ 
+ `@Body()` 파라미터를 인라인 객체 타입 · 인터페이스 · `unknown` 으로 받는 라우트는 생성된 OpenAPI 에 요청 본문 스키마가 없는데, 이를 막는
+diff --git a/codebase/backend/src/modules/integrations/dto/responses/integration-response.dto.ts b/codebase/backend/src/modules/integrations/dto/responses/integration-response.dto.ts
+index a8df588aa..a478ed10b 100644
+--- a/codebase/backend/src/modules/integrations/dto/responses/integration-response.dto.ts
++++ b/codebase/backend/src/modules/integrations/dto/responses/integration-response.dto.ts
+@@ -480,9 +480,6 @@ export class TestConnectionResultDto {
+   // `integrations.service.ts`). `spec/2-navigation/4-integration.md §9.1` 이 이 엔드포인트의
+   // `200 + { success:false, code:'INTEGRATION_INCOMPLETE' }` 를 **이미 문서화**하고 있었으므로
+   // spec 이 아니라 DTO 가 낡은 상태였다.
+-  //
+-  // 같은 인터페이스의 MCP 전용 필드(`capabilities`·`serverInfo`·`preview`)도 미선언이지만
+-  // 타입이 무거워 별도 등재했다 — `plan/in-progress/spec-draft-nullable-notation-followups.md`.
+   /**
+    * 실패 분류 코드. `MCP_*` · `EMAIL_*` · `DB_*` · `HTTP_*` · `INTEGRATION_INCOMPLETE` 등이며,
+    * 성공 응답에는 실리지 않습니다.
+@@ -493,6 +490,35 @@ export class TestConnectionResultDto {
+   @ApiPropertyOptional({ nullable: true })
+   message?: string | null;
+ 
++  // 아래 셋도 `code` 와 같은 방향의 결함이었다 — `IntegrationTestResult` 가 MCP 성공 시 싣는데(`testMcpTransport`)
++  // 선언이 없었고, spec(`4-integration.md §5.6` · `11-mcp-client.md §9`)은 이미 문서화하고 있었다. 선언은 형제
++  // `PreviewTestResultDto` 와 같게 둔다 — 두 엔드포인트가 같은 `dispatchTest` 결과를 돌려주므로 다르게 적으면 같은 값을
++  // 다르게 광고한다. `serverInfo` 가 닫힌 DTO 가 아니라 열린 맵인 것도 형제와 같은 이유다(SDK 가 `name`·`version` 밖의
++  // 키를 실을 수 있다 — 닫으면 응답 계약 검증자가 그 키를 미선언으로 잡는다).
++
++  /**
++   * MCP service_type 한정 — 성공 시 서버가 보고한 capabilities 객체 그대로.
++   * 다른 service_type 에서는 생략된다.
++   */
++  @ApiProperty({
++    required: false,
++    additionalProperties: true,
++    description: 'MCP capabilities (mcp service_type only)',
++  })
++  capabilities?: Record<string, unknown>;
++
++  /** MCP service_type 한정 — 성공 시 서버 이름·버전 */
++  @ApiProperty({
++    required: false,
++    additionalProperties: true,
++    description: 'MCP server identity (mcp service_type only)',
++  })
++  serverInfo?: { name: string; version: string };
++
++  /** MCP service_type 한정 — 성공 시 capability 미리보기 */
++  @ApiProperty({ required: false, type: McpConnectionPreviewDto })
++  preview?: McpConnectionPreviewDto;
++
+   // `meta` 도 `latencyMs` 와 같은 유령이었다 — 이 DTO 를 쓰는 엔드포인트는 하나
+   // (`POST /api/integrations/:id/test`, `integrations.controller.ts`)이고 그 핸들러가 돌려주는
+   // `IntegrationTestResult` 에는 `meta` 필드가 **없다**(전수 확인). 같은 서비스의 `meta:`
+diff --git a/codebase/backend/src/modules/integrations/integrations.controller.ts b/codebase/backend/src/modules/integrations/integrations.controller.ts
+index 641f3adcb..bfab27666 100644
+--- a/codebase/backend/src/modules/integrations/integrations.controller.ts
++++ b/codebase/backend/src/modules/integrations/integrations.controller.ts
+@@ -518,7 +518,8 @@ export class IntegrationsController {
+   })
+   @ApiParam({ name: 'id', description: '통합 UUID', format: 'uuid' })
+   @ApiOkWrappedResponse(TestConnectionResultDto, {
+-    description: '연결 테스트 결과 (성공 여부, 메타 정보)',
++    description:
++      '연결 테스트 결과 (성공 여부, 실패 시 분류 코드, MCP 성공 시 capability 미리보기)',
+   })
+   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
+   @ApiForbiddenResponse({ description: FORBIDDEN_NOT_A_MEMBER })
+diff --git a/codebase/backend/src/modules/integrations/integrations.controller.wire.spec.ts b/codebase/backend/src/modules/integrations/integrations.controller.wire.spec.ts
+new file mode 100644
+index 000000000..d669e0306
+--- /dev/null
++++ b/codebase/backend/src/modules/integrations/integrations.controller.wire.spec.ts
+@@ -0,0 +1,192 @@
++import type { INestApplication } from '@nestjs/common';
++import { Test } from '@nestjs/testing';
++import { getRepositoryToken } from '@nestjs/typeorm';
++import request from 'supertest';
++import { DataSource } from 'typeorm';
++
++import { IntegrationsController } from './integrations.controller';
++import { IntegrationsService } from './integrations.service';
++import { IntegrationOAuthService } from './integration-oauth.service';
++import { Integration } from './entities/integration.entity';
++import { IntegrationUsageLog } from './entities/integration-usage-log.entity';
++import { Node } from '../nodes/entities/node.entity';
++import { WorkspacesService } from '../workspaces/workspaces.service';
++import { AuditLogsService } from '../audit-logs/audit-logs.service';
++import { IntegrationCacheBus } from '../../common/redis/integration-cache-bus.service';
++import { McpTestConnectionService } from '../mcp/mcp-test-connection.service';
++import { McpAuthError, McpClientService } from '../mcp/mcp-client.service';
++import { TransformInterceptor } from '../../common/interceptors/transform.interceptor';
++import {
++  assertMatchesContract,
++  contractForDto,
++} from '../../shared/testing/response-contract';
++import { TestConnectionResultDto } from './dto/responses/integration-response.dto';
++
++/**
++ * `POST /integrations/:id/test` — **와이어에 실제로 실리는 것**을 본다. 자매
++ * `llm-model-config.controller.spec.ts` 의 `POST /model-configs/:id/test` describe 와 같은 틀이다.
++ *
++ * ## 서비스 단위 대조로 부족한 이유
++ *
++ * `integrations.service.spec.ts` 는 서비스 **반환 객체**를 `TestConnectionResultDto` 와 대조한다. 반환과 응답
++ * 본문 사이에는 전역 `TransformInterceptor` 가 한 층 더 있고, 단위 대조는 그 층을 태우지 않는다. 오늘 그 층은
++ * `{ data }` 로 감싸기만 한다 — 그 «오늘» 을 고정하는 것이 이 describe 다.
++ *
++ * ## 무엇이 진짜이고 무엇이 mock 인가
++ *
++ * 컨트롤러 · `IntegrationsService` · `McpTestConnectionService` 는 진짜다. mock 은 그 아래(`McpClientService.connect`
++ * · 레포지토리 · 워크스페이스 · 감사 로그 등)뿐이다.
++ *
++ * MCP 테스터까지 진짜로 두는 이유: 테스터를 mock 하면 `preview` 의 안쪽 키(`toolCount` · `resourceSupported` ·
++ * `promptSupported`)를 내가 적고 내가 단언하게 된다 — 필드 이름 축에서 vacuous 하다. 서비스 spec 이 바로 그렇게
++ * 테스터를 mock 하므로, 그 이름을 실제 생산자에게서 받는 자리는 여기뿐이다.
++ */
++describe('POST /integrations/:id/test — 와이어 계약 (HTTP)', () => {
++  let app: INestApplication;
++  let connect: jest.Mock;
++
++  const INTEGRATION_UUID = '11111111-2222-4333-8444-555555555555';
++  const WORKSPACE_UUID = '66666666-7777-4888-8999-aaaaaaaaaaaa';
++  const CREATOR = 'user-1';
++
++  // 본인의 personal 통합 — `requireVisible` 을 통과하는 최소 형태다.
++  const mcpIntegration: Partial<Integration> = {
++    id: INTEGRATION_UUID,
++    workspaceId: WORKSPACE_UUID,
++    serviceType: 'mcp',
++    name: 'My MCP',
++    authType: 'bearer_token',
++    credentials: { url: 'https://mcp.example.com', token: 'abc' },
++    scope: 'personal',
++    status: 'connected',
++    createdBy: CREATOR,
++  };
++
++  /** `connect` 가 돌려줄 세션 — `McpTestConnectionService` 가 읽는 것만 채운다. */
++  const session = (
++    capabilities: Record<string, unknown>,
++    toolNames: string[] = [],
++  ) => ({
++    capabilities,
++    serverInfo: { name: 'filesystem-mcp', version: '1.2.0' },
++    listTools: jest.fn().mockResolvedValue({
++      tools: toolNames.map((name) => ({
++        name,
++        inputSchema: { type: 'object' },
++      })),
++    }),
++    close: jest.fn().mockResolvedValue(undefined),
++  });
++
++  // `@WorkspaceId()` 는 헤더·JWT 클레임이 없으면 400 `WORKSPACE_ID_REQUIRED` 를 먼저 던진다 — 헤더로 그 축을
++  // 고정해 응답 shape 축만 남긴다.
++  const post = () =>
++    request(app.getHttpServer())
++      .post(`/integrations/${INTEGRATION_UUID}/test`)
++      .set('X-Workspace-Id', WORKSPACE_UUID);
++
++  beforeAll(async () => {
++    connect = jest.fn();
++    const moduleRef = await Test.createTestingModule({
++      controllers: [IntegrationsController],
++      providers: [
++        IntegrationsService,
++        McpTestConnectionService,
++        { provide: McpClientService, useValue: { connect } },
++        {
++          provide: getRepositoryToken(Integration),
++          useValue: { findOne: jest.fn().mockResolvedValue(mcpIntegration) },
++        },
++        // 아래는 이 경로가 닿지 않는 의존이다 — 생성자 주입만 채운다.
++        { provide: getRepositoryToken(IntegrationUsageLog), useValue: {} },
++        { provide: getRepositoryToken(Node), useValue: {} },
++        { provide: WorkspacesService, useValue: {} },
++        { provide: IntegrationOAuthService, useValue: {} },
++        { provide: AuditLogsService, useValue: {} },
++        { provide: IntegrationCacheBus, useValue: {} },
++        { provide: DataSource, useValue: {} },
++      ],
++    }).compile();
++
++    app = moduleRef.createNestApplication();
++    // `@CurrentUser()` 는 인증 가드가 채운 `req.user` 를 읽는다. 이 앱엔 가드가 없으므로 여기서 채운다.
++    app.use((req: { user?: unknown }, _res: unknown, next: () => void) => {
++      req.user = { sub: CREATOR };
++      next();
++    });
++    // 봉투(`{ data }`)는 이 인터셉터가 만든다 — 붙이지 않으면 클라이언트가 실제로 읽는 자리를 보지 못한다.
++    app.useGlobalInterceptors(new TransformInterceptor());
++    await app.init();
++  });
++
++  afterAll(async () => {
++    await app.close();
++  });
++
++  beforeEach(() => {
++    connect.mockReset();
++  });
++
++  it('MCP 성공 — capability 미리보기 필드 셋이 봉투를 통과해 선언대로 실린다', async () => {
++    connect.mockResolvedValue(
++      session({ tools: {}, resources: {} }, ['read', 'write', 'list']),
++    );
++
++    const res = await post();
++
++    expect(res.status).toBe(200);
++    assertMatchesContract(
++      res.body.data,
++      await contractForDto(TestConnectionResultDto),
++    );
++    // 키 전수 — 검증자는 optional 필드가 통째로 빠져도 통과시킨다.
++    expect(Object.keys(res.body.data).sort()).toEqual([
++      'capabilities',
++      'message',
++      'preview',
++      'serverInfo',
++      'success',
++    ]);
++    expect(res.body.data.preview).toStrictEqual({
++      toolCount: 3,
++      resourceSupported: true,
++      promptSupported: false,
++    });
++  });
++
++  it('MCP 성공 — tools capability 가 없으면 toolCount 가 와이어에서 빠진다', async () => {
++    connect.mockResolvedValue(session({ prompts: {} }));
++
++    const res = await post();
++
++    expect(res.status).toBe(200);
++    // `McpConnectionPreviewDto.toolCount` 가 optional 로 선언된 근거가 이 케이스다 — required 였다면 여기서 RED.
++    assertMatchesContract(
++      res.body.data,
++      await contractForDto(TestConnectionResultDto),
++    );
++    expect(res.body.data.preview).toStrictEqual({
++      resourceSupported: false,
++      promptSupported: true,
++    });
++  });
++
++  it('MCP 실패 — 미리보기 필드 없이 code 가 실린다', async () => {
++    connect.mockRejectedValue(
++      new McpAuthError('MCP server rejected the credentials (401).'),
++    );
++
++    const res = await post();
++
++    expect(res.status).toBe(200);
++    assertMatchesContract(
++      res.body.data,
++      await contractForDto(TestConnectionResultDto),
++    );
++    expect(res.body.data).toStrictEqual({
++      success: false,
++      code: 'MCP_AUTH_FAILED',
++      message: 'MCP server rejected the credentials (401).',
++    });
++  });
++});
+diff --git a/codebase/backend/src/modules/integrations/integrations.service.spec.ts b/codebase/backend/src/modules/integrations/integrations.service.spec.ts
+index 99e3f990d..f9ba6aa4e 100644
+--- a/codebase/backend/src/modules/integrations/integrations.service.spec.ts
++++ b/codebase/backend/src/modules/integrations/integrations.service.spec.ts
+@@ -750,15 +750,67 @@ describe('IntegrationsService', () => {
+       // 자매 `/api/model-configs/:id/test` 가 정확히 이 배선이 없어서 3층 필드명 불일치를
+       // 놓쳤으므로, 같은 배치에서 형제 엔드포인트도 같은 그물에 넣는다.
+       //
+-      // **성공 경로에는 아직 걸 수 없다** — MCP 성공 응답이 싣는 `capabilities`·`serverInfo`·
+-      // `preview` 3종이 여전히 미선언이라 지금 걸면 그 자리에서 RED 가 난다. 그 셋은 DTO 신설이
+-      // 필요해 트래커에 등재했고, 닫히면 이 배선을 성공 경로로도 넓힌다.
++      // 성공 경로는 아래 «mcp 성공 응답은 …» 케이스가 같은 그물에 넣는다 — MCP 성공 응답이 싣는
++      // `capabilities`·`serverInfo`·`preview` 가 선언되기 전에는 걸면 그 자리에서 RED 였다.
+       assertMatchesContract(
+         result,
+         await contractForDto(TestConnectionResultDto),
+       );
+     });
+ 
++    it('mcp 성공 응답은 capability 미리보기 필드 셋까지 선언과 일치한다', async () => {
++      integrationRepo.findOne.mockResolvedValue(
++        makeIntegration({
++          serviceType: 'mcp',
++          authType: 'bearer_token',
++          credentials: { url: 'https://mcp.example.com', token: 'abc' },
++        }),
++      );
++      mcpTestConnection.test.mockResolvedValueOnce({
++        success: true,
++        message: 'Connection successful',
++        capabilities: { tools: {}, resources: {} },
++        serverInfo: { name: 's', version: '1' },
++        preview: {
++          toolCount: 3,
++          resourceSupported: true,
++          promptSupported: false,
++        },
++      });
++
++      const result = await service.testConnection('int-1', 'ws-1', 'user-1');
++
++      expect(result).toMatchObject({
++        success: true,
++        preview: { toolCount: 3 },
++      });
++      // 테스터를 mock 하므로 `preview` 안쪽 키 이름은 여기서 내가 적은 것이다 — 그 이름을 실제
++      // 생산자(`McpTestConnectionService`)에게서 받는 대조는 `integrations.controller.wire.spec.ts` 가 한다.
++      assertMatchesContract(
++        result,
++        await contractForDto(TestConnectionResultDto),
++      );
++    });
++
++    it('[형제 대조] MCP 필드 셋의 선언이 PreviewTestResultDto 와 같다', async () => {
++      // 두 엔드포인트는 같은 `dispatchTest` 결과를 돌려준다. 한쪽 선언만 약해져도(예: `preview` 를 열린 맵으로) 값 대조는
++      // 전부 통과한다 — 검증자는 열린 맵 안을 보지 않는다(뮤턴트로 확인). 두 선언의 갈림을 잡는 자리가 여기다.
++      const [ours, sibling] = await Promise.all([
++        contractForDto(TestConnectionResultDto),
++        contractForDto(PreviewTestResultDto),
++      ]);
++      for (const key of ['capabilities', 'serverInfo', 'preview']) {
++        // 양쪽에서 함께 사라져도 아래 대조는 통과한다 — 존재를 먼저 본다.
++        expect(ours.schema.properties?.[key]).toBeDefined();
++        expect(ours.schema.properties?.[key]).toStrictEqual(
++          sibling.schema.properties?.[key],
++        );
++        expect((ours.schema.required ?? []).includes(key)).toBe(
++          (sibling.schema.required ?? []).includes(key),
++        );
++      }
++    });
++
+     it('pending_install guard is service_type-agnostic — same response for non-cafe24 row', async () => {
+       // The guard checks status only; future providers adopting pending_install
+       // inherit the protection automatically.
+@@ -2598,6 +2650,8 @@ describe('IntegrationsService', () => {
+         token: 'abc',
+         defaultHeaders: undefined,
+       });
++      // 형제 `:id/test` 와 같은 생산자다 — 선언은 있었는데 성공 경로를 선언과 대조하는 자리가 없었다.
++      assertMatchesContract(result, await contractForDto(PreviewTestResultDto));
+     });
+ 
+     it('mcp transport failure surfaces MCP_* code in result.code (not message)', async () => {

@@ -1,0 +1,122 @@
+---
+title: "`POST /api/integrations/:id/test` 응답 계약 — MCP 전용 필드 3종 선언 · 성공 경로 계약 검증 · HTTP 와이어 검증"
+status: complete
+owner: developer
+worktree: integration-test-contract
+spec_impact: none
+started: 2026-09-26
+---
+
+# `/api/integrations/:id/test` 응답 계약
+
+트래커 `plan/in-progress/spec-draft-nullable-notation-followups.md` 의 두 항목을 한 PR 로 닫는다.
+
+- «`/api/integrations/:id/test` 의 MCP 전용 응답 필드 3종이 미선언 + 계약 검증자 미배선» (서비스 축)
+- «`/api/integrations/:id/test` 에 HTTP 와이어-레벨 계약 검증이 없다» (와이어 축)
+
+**한 PR 로 묶는 이유**: 필드 셋이 선언돼야 성공 경로에 계약 검증을 걸 수 있다. 셋이 미선언인 채로 와이어 검증을 걸면 성공
+케이스가 그 자리에서 RED 다. 즉 와이어 항목은 서비스 항목에 막혀 있었다.
+
+## 실측 (2026-09-26, origin/main `7e617acd6`)
+
+- 생산자: `IntegrationsService.testMcpTransport` 가 성공 시 `{ success, message, capabilities, serverInfo, preview }` 를 돌려준다
+  (`integrations.service.ts`). 값은 `McpTestConnectionService.test` 가 만든다 — `preview` 의 안쪽 키(`toolCount` ·
+  `resourceSupported` · `promptSupported`)도 그쪽 리터럴이다.
+- 선언: `TestConnectionResultDto` 는 `success` · `code?` · `message?` 만 선언한다. 같은 `dispatchTest` 결과를 돌려주는 형제
+  `PreviewTestResultDto` 는 셋을 이미 선언한다(`capabilities` · `serverInfo` 는 열린 맵, `preview` 는 `McpConnectionPreviewDto`).
+- spec: `spec/2-navigation/4-integration.md` §5.6 «테스트» 가 성공 응답의 세 필드를 이미 문서화한다(`spec/5-system/11-mcp-client.md` §9 도
+  같다). 낡은 쪽은 spec 이 아니라 DTO 다 → `spec_impact: none`.
+- 계약 검증: 서비스 spec 은 `testConnection` 의 `pending_install` 실패 경로 한 곳만 `assertMatchesContract(…, TestConnectionResultDto)`
+  를 건다. 그 자리 주석이 «성공 경로에는 아직 걸 수 없다 … 닫히면 이 배선을 성공 경로로도 넓힌다» 고 예고한다. `testConnection` 의
+  MCP 성공 케이스는 서비스 spec 에 **없다**. `previewTest` 의 MCP 성공 케이스는 있지만 계약 검증이 없다.
+- 와이어: 이 엔드포인트의 supertest 왕복(전역 `TransformInterceptor` 포함)은 없다. 자매 `/api/model-configs/:id/test` 는
+  `llm-model-config.controller.spec.ts` 에 있다.
+
+## 방향
+
+1. **DTO** — `TestConnectionResultDto` 에 `capabilities?` · `serverInfo?` · `preview?` 를 선언한다. 선언은 `PreviewTestResultDto` 와
+   **같게** 한다(같은 생산자). `serverInfo` 를 닫힌 DTO 로 만들지 않는 이유: SDK 가 `name` · `version` 밖의 키를 실을 수 있어서다.
+   열린 맵이면 검증자가 안으로 내려가지 않으므로 그 키가 거짓 RED 를 만들지 않는다. 형제와 다르게 선언하면 두 엔드포인트가
+   같은 값을 다르게 광고한다.
+   - 필드 옆 `//` 주석(«MCP 전용 필드도 미선언 … 별도 등재»)을 닫힘에 맞게 고친다.
+   - 핸들러의 `@ApiOkWrappedResponse` 설명 «(성공 여부, 메타 정보)» 를 고친다. `meta` 는 `#1330` 이 제거한 유령 필드다. 새 설명:
+     성공 여부 · 실패 코드 · MCP capability 미리보기.
+2. **서비스 축** (`integrations.service.spec.ts`)
+   - `testConnection` describe 에 MCP 성공 케이스를 추가하고 `assertMatchesContract(…, TestConnectionResultDto)` 를 건다.
+     `pending_install` 자리 주석의 예고를 닫힘으로 고친다.
+   - `previewTest` 의 MCP 성공 케이스에 `assertMatchesContract(…, PreviewTestResultDto)` 한 줄을 더한다. 같은 생산자의 형제
+     응답인데 선언이 있으면서 검증이 없는 비대칭이다.
+3. **와이어 축** — 새 `integrations.controller.wire.spec.ts`. 자매 패턴을 따른다.
+   - `Test.createTestingModule` 에 진짜 `IntegrationsController` · 진짜 `IntegrationsService` · **진짜 `McpTestConnectionService`**
+     를 넣는다. mock 은 그 의존(`McpClientService.connect` · 레포지토리 · 기타 서비스)뿐이다.
+   - **왜 MCP 테스터까지 진짜인가**: 테스터를 mock 하면 `preview` 의 안쪽 키 이름을 내가 적고 내가 단언한다. 그러면 필드 이름
+     축에서 vacuous 하다(자매 describe 의 docblock 이 적은 논지와 같다).
+   - `app.useGlobalInterceptors(new TransformInterceptor())` 로 봉투를 태운다.
+   - `@CurrentUser()` 는 가드가 `req.user` 를 채운다고 가정한다. 테스트 앱에는 가드가 없으므로 미들웨어로 `req.user` 를 채운다.
+     `@WorkspaceId()` 는 헤더 `X-Workspace-Id` 로 채운다.
+   - 케이스:
+     - (a) MCP 성공 — `tools` capability 있음.
+     - (b) MCP 성공 — `tools` 없음. `toolCount` 가 와이어에서 빠지는지(optional 선언이 맞는지) 본다.
+     - (c) MCP 실패 — connect 가 `McpAuthError` → `MCP_AUTH_FAILED`.
+   - 각 케이스는 `assertMatchesContract(res.body.data, …)` 에 더해 **키 전수**를 단언한다. `preview` 안쪽 키도 센다. 이유는 둘이다.
+     검증자는 optional 필드가 통째로 빠져도 통과시킨다. 열린 맵 · `$ref` 밖의 변화는 보지 못한다.
+4. **CHANGELOG** — 항목 1(OpenAPI): `/integrations/:id/test` 응답 스키마가 MCP 성공 필드 셋을 광고한다.
+
+## 뮤턴트 (저장소 파일 제자리 치환 → 두 spec 실행 → `shutil.copy` 복원. 커밋 `7138f02b7` 위, 캐너리 추가 뒤 재실행분 표기)
+
+(a)(b)(c) = 와이어 케이스. «서비스 성공» = `testConnection` MCP 성공 케이스. «형제 대조» = 아래 캐너리.
+
+| # | 뮤턴트 | 예측 | 실측 · 죽인 케이스 |
+|---|---|---|---|
+| M1 | DTO 에서 `capabilities` 선언 제거 | 서비스 성공 · 와이어 (a)(b) RED | KILLED — 서비스 성공 · (a) · (b) |
+| M2 | DTO 에서 `preview` 선언 제거 | 서비스 성공 · 와이어 (a)(b) RED | KILLED — 서비스 성공 · (a) · (b) |
+| M3 | `serverInfo` 선언에서 `additionalProperties` 제거 | 검증자 판정 확인 필요 | 캐너리 전 **SURVIVED** — 검증자는 properties 없는 object 를 원래 열린 것으로 본다(차이는 OpenAPI 산출물에만). 캐너리 뒤 KILLED — 형제 대조 |
+| M4 | `testMcpTransport` 가 `preview` 를 복사하지 않음 | 계약 GREEN(optional) · 와이어 키 전수 RED | KILLED — 서비스 성공(`toMatchObject`) · `previewTest` MCP 성공(같은 함수) · (a) · (b) |
+| M5 | `McpTestConnectionService` 가 `toolCount` → `toolsCount` | 서비스 spec GREEN(테스터 mock) · 와이어 (a) RED | KILLED — (a) 만. 서비스 spec 은 예측대로 GREEN |
+| M6 | 와이어 앱에서 `TransformInterceptor` 제거 | 와이어 전 케이스 RED | KILLED — (a) · (b) · (c) |
+| M7 | `McpConnectionPreviewDto.toolCount` 를 required 로 | 와이어 (b) RED | KILLED — (b) 만 |
+| M9 | `TestConnectionResultDto.preview` 를 열린 맵으로 약화 | (표에 없던 추가분) | 캐너리 전 **SURVIVED** — 값 대조는 전부 통과. 캐너리 뒤 KILLED — 형제 대조 |
+| M10 | `capabilities` 를 required 로 | — | KILLED — `pending_install` 실패 경로 · 형제 대조 · (c) |
+| M11 | 형제 쪽 `PreviewTestResultDto.serverInfo` 에서 `additionalProperties` 제거 | — | KILLED — 형제 대조 |
+
+**M3 · M9 가 캐너리를 만들었다.** DTO 주석이 «형제와 같게 둔다» 고 적었지만 그것을 강제하는 테스트가 없었다. 서비스 spec 에
+«[형제 대조] MCP 필드 셋의 선언이 `PreviewTestResultDto` 와 같다» 를 더했다. 세 필드마다 존재 · 스키마(`toStrictEqual`) ·
+required 여부를 본다. 양쪽에서 함께 사라지는 경우를 대비해 존재를 먼저 본다. jest 에는 swagger CLI 플러그인이 없으므로
+JSDoc 문구 차이(`preview` 의 «등록 UI» · «성공 시»)는 대조 대상이 아니다. 대조하는 것은 데코레이터가 만든 스키마다.
+
+## `--impl-prep` 처분 (`review/consistency/2026/09/26/20_32_24` BLOCK: NO)
+
+- **WARNING 1** — `INTEGRATION_TEST_FAILED` 의 상태 코드(§9.4 는 422) · 발생 경로(MCP client §9 는 `:id/test`)가 코드(`rotate()`
+  의 400)와 어긋난다. 실측으로 확인했다. spec 만 틀렸고 이 PR 의 DTO · 테스트와는 무관하다 → planner 항목으로 트래커에 등재.
+- **INFO 2** — `serverInfo` 의 TS 타입은 `{ name; version }` 인데 스키마는 열린 맵이다. 형제와 **같게** 둔다(방향 1). TS 타입은
+  문서 전용 DTO 의 필드 타입이라 런타임 계약은 스키마가 정한다. 형제만 고치거나 이쪽만 고치면 둘이 갈린다.
+- **INFO 5** — 별도 파일로 둔다. 이 모듈엔 평범한 `integrations.controller.spec.ts` 가 없고 `integrations.controller.owner.spec.ts`
+  처럼 관점별 파일이 관례다. 자매는 기존 컨트롤러 spec 에 describe 를 더했지만, 여기선 더할 파일이 관점이 다른 owner spec 뿐이다.
+- INFO 1 · 3(spec 이 서비스 타입명 `IntegrationTestResult` 로 부른다) · 4(무관 문서의 Rationale 번호) — 이 PR 은 spec 을 쓰지 않는다.
+
+## 체크리스트
+
+- [x] `--impl-prep` — `review/consistency/2026/09/26/20_32_24` BLOCK: NO(W1 은 트래커 planner 항목)
+- [x] DTO · 서비스 축 · 와이어 축 · CHANGELOG
+- [x] 뮤턴트 표 실측 — 10개 전부 KILLED(M3 · M9 는 캐너리 추가 뒤)
+- [x] TEST WORKFLOW (lint · unit · build · e2e 412) — 첫 build 에서 backend typecheck ratchet 이 와이어 spec 픽스처의 TS2352 를
+      잡았다(`as Integration` — `scope` 가 string 으로 넓혀짐. jest 는 타입을 strip). `Partial<Integration>` 으로 고치고(`53e11963d`)
+      lint 부터 다시 통과
+- [x] `/ai-review` — `review/code/2026/09/26/21_03_01`(1R · router 8명 · forced 7 전원 결과 확보) Critical 0 · Warning 0 · 이
+      라운드 `codebase/` 수정 0 → 정지 규칙 충족. 판정은 커밋 `5b1799ad8` 기준. 통합 전 `git diff --stat HEAD` 가 비어 있었고
+      리뷰어 트랜스크립트에 저장소 쓰기가 없었다(뮤턴트 표를 미리 채워 둔 라운드). INFO 처분:
+      - #1 형제 DTO 선언 중복 · #3 `preview` JSDoc 문구 차이 — 형제 대조 캐너리가 스키마 갈림을 잡는다. JSDoc 은 대조 대상이
+        아니다(jest 에 swagger 플러그인 없음 — 뮤턴트 표 아래 문단). mixin 추출은 두 DTO 의 `message` 선언이 서로 달라(`string` ·
+        `string | null` optional) 이 PR 의 축이 아니다.
+      - #2 `serverInfo` TS 타입 ↔ 열린 맵 — `--impl-prep` INFO 2 와 같은 처분(형제와 같게).
+      - #4 와이어 docblock «같은 틀» — 파일을 나눈 이유는 `--impl-prep` 처분 INFO 5 에 적었다.
+      - #5 · #6 · #7 · #8 · #9 · #10 — 조치 불요(스코프 밖 · 이미 등재 · 고지 완료).
+- [x] `--impl-done` — `review/consistency/2026/09/26/21_11_30` BLOCK: NO(scope `spec/2-navigation/`). 번들에 코드 diff 가 실리지
+      않아 세션에 `_code_diff.patch` 를 두고 절대경로 Read 블록을 덧붙였다. 처분:
+      - W1 트래커 `spec_impact` 에 새 planner 항목의 편집 대상 두 파일 누락 — 맞다. 두 파일을 올리고 근거 주석을 달았다.
+      - W2 `INTEGRATION_TEST_FAILED` 불일치 — `--impl-prep` W1 과 같은 것, 이미 등재. 재등재하지 않는다.
+      - W3 `capabilities` · `serverInfo` 에 `type: 'object'` 표기가 없다(swagger §1-4 예시 형태) — **실측**: 생성 스키마는
+        두 필드 모두 이미 `"type":"object","additionalProperties":true` 다(설계 타입 `Object` 에서 추론, 두 DTO 동일). 소스 표기만
+        다르고 OpenAPI 는 같아서 고치지 않는다. 고치면 형제와 함께 바꿔야 하고(형제 대조 캐너리) 출력 변화 없이 리뷰 한 바퀴가 는다.
+      - INFO 1~6 — 조치 불요(기존 형제 패턴 · 저장소 전반 기존 상태 · 역할 경계 확인).
+- [x] 트래커 두 항목 닫기 — 등재 당시 «DTO 클래스를 새로 세워야 한다» 는 서술은 틀려서 취소선 + 정정 노트
