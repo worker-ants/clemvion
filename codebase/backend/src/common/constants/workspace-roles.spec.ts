@@ -34,6 +34,8 @@ describe('workspace-roles — 가드와 서비스가 보는 단일 역할 서열
     expect(lowestRequiredRole(['owner', 'viewer', 'admin'])).toBe('viewer');
     // 서열 밖 문자열(0)은 어떤 역할보다 낮다 — 그것이 문턱이 되어 요구가 사라진다(주석의 경고를 고정).
     expect(lowestRequiredRole(['admin', 'superadmin'])).toBe('superadmin');
+    // 빈 요구는 호출자 계약 위반이다 — 조용히 문턱을 지어내지 않고 던진다.
+    expect(() => lowestRequiredRole([])).toThrow(TypeError);
   });
 
   it('ADMIN_ROLES 는 서열에서 파생된다 — admin 이상(admin · owner)', () => {

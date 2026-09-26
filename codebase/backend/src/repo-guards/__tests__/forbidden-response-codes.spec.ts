@@ -13,6 +13,7 @@ import { ApiExcludeEndpoint, ApiForbiddenResponse } from '@nestjs/swagger';
 import { collectTsFiles } from '../../common/__test-utils__/source-scan';
 import { IS_PUBLIC_KEY } from '../../common/decorators/public.decorator';
 import { Public, WorkspaceId, WorkspaceParam } from '../../common/decorators';
+import type { WorkspaceRoleName } from '../../common/constants/workspace-roles';
 import { Roles, RolesGuard } from '../../common/guards/roles.guard';
 import { FORBIDDEN_NOT_A_MEMBER, forbiddenForRole } from '../../common/swagger';
 import type { WorkspacesService } from '../../modules/workspaces/workspaces.service';
@@ -147,6 +148,22 @@ describe('403 설명 ↔ 가드 거부 코드 가드', () => {
       @ApiForbiddenResponse({ description: forbiddenForRole('owner') })
       owner(): void {}
 
+      /** 경로 워크스페이스 + `@Roles` — 저장소에서 가장 흔한 조합(`workspaces` 컨트롤러). 두 코드. */
+      @Post('path-admin/:id')
+      @Roles('admin')
+      @ApiForbiddenResponse({ description: forbiddenForRole('admin') })
+      pathAdmin(@WorkspaceParam('id') _id: string): void {}
+
+      /**
+       * 서열 밖 문자열이 요구에 섞인 자리 — 그것(서열 0)이 문턱이 되어 멤버는 누구나 통과하고, 비멤버만 `NOT_A_MEMBER` 다.
+       * 프로토타입 키(`constructor`)라 `ROLE_REQUIRED[...]` 를 곧장 인덱싱하면 `Object.prototype.constructor` 가 걸린다 —
+       * 모델이 `Object.hasOwn` 으로 거르는지 본다(`@Roles` 는 `WorkspaceRoleName` 만 받아 캐스트로만 만들 수 있다).
+       */
+      @Post('out-of-hierarchy')
+      @Roles('editor', 'constructor' as WorkspaceRoleName)
+      @ApiForbiddenResponse({ description: FORBIDDEN_NOT_A_MEMBER })
+      outOfHierarchy(): void {}
+
       /** 403 광고 자체가 없다 — 가드 코드 전부 빠짐. */
       @Post('no-forbidden')
       @Roles('admin')
@@ -201,8 +218,9 @@ describe('403 설명 ↔ 가드 거부 코드 가드', () => {
     });
 
     it('대조하는 라우트 수 — 전역 · Public · 제외는 세지 않는다', () => {
-      // member · memberLegacy · pathMember · editor · editorRoleOnly · multi · viewer · owner · noForbidden · inherit · override
-      expect(scan.checked).toBe(11);
+      // member · memberLegacy · pathMember · editor · editorRoleOnly · multi · viewer · owner · pathAdmin · outOfHierarchy ·
+      // noForbidden · inherit · override
+      expect(scan.checked).toBe(13);
     });
 
     it('가드 코드 모델', () => {
@@ -221,6 +239,8 @@ describe('403 설명 ↔ 가드 거부 코드 가드', () => {
         'EDITOR_REQUIRED',
       ]);
       expect(codesOf('owner')).toEqual(['NOT_A_MEMBER', 'OWNER_REQUIRED']);
+      expect(codesOf('pathAdmin')).toEqual(['NOT_A_MEMBER', 'ADMIN_REQUIRED']);
+      expect(codesOf('outOfHierarchy')).toEqual(['NOT_A_MEMBER']);
       expect(codesOf('inherit')).toEqual(['NOT_A_MEMBER', 'ADMIN_REQUIRED']);
       expect(codesOf('override')).toEqual(['NOT_A_MEMBER']);
     });

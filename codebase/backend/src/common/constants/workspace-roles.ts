@@ -31,7 +31,9 @@ export function workspaceRoleLevel(role: string): number {
  * 둘이 갈리는 날 검사가 가드가 내지 않는 코드를 요구한다. 서열 밖 문자열(서열 0)이 섞이면 그것이 문턱이 되고, 어떤 멤버도 그
  * 문턱을 넘으므로 요구가 사라진다 — `@Roles(...)` 가 `WorkspaceRoleName` 만 받아 컴파일에서 막힌다.
  *
- * `requiredRoles` 는 비어 있지 않아야 한다(호출자는 `@Roles()` 가 있을 때만 부른다).
+ * `requiredRoles` 는 비어 있지 않아야 한다(호출자는 `@Roles()` 가 있을 때만 부른다 — 비면 `reduce` 가 던진다).
+ * 매개변수가 `WorkspaceRoleName[]` 이 아니라 `string[]` 인 이유: 가드 · 검사 모두 reflection 메타데이터(타입이 지워진 문자열)를
+ * 넘긴다.
  */
 export function lowestRequiredRole(requiredRoles: readonly string[]): string {
   return requiredRoles.reduce((lowest, required) =>

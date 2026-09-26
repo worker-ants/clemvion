@@ -35,6 +35,9 @@ import { CreateWorkflowTestDatasetDto } from './dto/create-workflow-test-dataset
 import { UpdateWorkflowTestDatasetDto } from './dto/update-workflow-test-dataset.dto';
 import { WorkflowTestDatasetDto } from './dto/responses/workflow-test-dataset-response.dto';
 
+/** 수정 · 삭제의 403 — Editor 요구(가드)와 소유자 아님(서비스 `FORBIDDEN`). 두 라우트가 같은 문장을 쓴다. */
+const FORBIDDEN_EDITOR_OR_NOT_OWNER = `${forbiddenForRole('editor')}, 또는 데이터셋 소유자가 아님(FORBIDDEN — 서비스 판정)`;
+
 /**
  * §2.2 테스트 데이터셋 저장 — 워크플로우 Mock Input 을 이름 붙여 저장/재사용.
  * 권한·가시성 모델은 {@link WorkflowTestDatasetsService} 참조. 에디터 surface 라
@@ -96,7 +99,7 @@ export class WorkflowTestDatasetsController {
   @ApiParam({ name: 'id', format: 'uuid' })
   @ApiOkWrappedResponse(WorkflowTestDatasetDto, { description: '수정됨' })
   @ApiForbiddenResponse({
-    description: `${forbiddenForRole('editor')}, 또는 데이터셋 소유자가 아님(FORBIDDEN — 서비스 판정)`,
+    description: FORBIDDEN_EDITOR_OR_NOT_OWNER,
   })
   @ApiNotFoundResponse({ description: '없음' })
   @ApiConflictResponse({ description: '같은 이름 데이터셋 중복' })
@@ -116,7 +119,7 @@ export class WorkflowTestDatasetsController {
   @ApiParam({ name: 'id', format: 'uuid' })
   @ApiNoContentResponse({ description: '삭제됨' })
   @ApiForbiddenResponse({
-    description: `${forbiddenForRole('editor')}, 또는 데이터셋 소유자가 아님(FORBIDDEN — 서비스 판정)`,
+    description: FORBIDDEN_EDITOR_OR_NOT_OWNER,
   })
   @ApiNotFoundResponse({ description: '없음' })
   async remove(
