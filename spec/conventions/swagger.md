@@ -21,6 +21,9 @@ code:
   - codebase/backend/src/repo-guards/__tests__/fixtures/user-eager-relation*.ts
   - codebase/backend/src/repo-guards/__tests__/fixtures/user-relation-load*.ts
   - codebase/backend/src/repo-guards/__tests__/fixtures/dto-class-collision/*.ts
+  # §2-4 의 광고한 성공 코드 ↔ 실제 성공 코드(`@HttpCode` · Nest 기본값) 짝을 세는 가드와 그 대조군.
+  - codebase/backend/src/repo-guards/__tests__/http-status-advertised*.ts
+  - codebase/backend/src/repo-guards/__tests__/fixtures/http-status-advertised/**
 ---
 
 # Swagger 문서화 일관된 패턴 가이드
@@ -295,6 +298,12 @@ async findAll(@Query() query: QueryWorkflowDto) { ... }
 | 409 중복/충돌 | `@ApiConflictResponse` |
 | 502 외부 provider 호출 실패 | `@ApiBadGatewayResponse` |
 
+**광고한 성공 코드는 실제 성공 코드를 담는다.** 실제 성공 코드는 `@HttpCode(n)` 이 있으면 n, 없으면 Nest 기본값(POST 201 ·
+그 외 200)이다. 그래서 200 을 광고하는 POST 에는 `@HttpCode(HttpStatus.OK)` 가, 204 를 광고하는 DELETE 에는
+`@HttpCode(HttpStatus.NO_CONTENT)` 가 함께 있어야 한다. `@Res()` 로 응답을 직접 쓰는 핸들러(SSE 등)도 같다 — Nest 는 핸들러를
+부르기 전에 이 코드를 응답에 싣는다. 저장소 가드 `http-status-advertised` 가 강제한다. 성공 응답을 하나도 광고하지 않는
+핸들러와 `@ApiExcludeEndpoint()` 핸들러는 대조하지 않는다.
+
 보호된 엔드포인트는 기본적으로 `@ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })`를 포함합니다.
 
 ### 2-5. 응답 wrapping
@@ -493,6 +502,7 @@ async create(...) { ... }
       엔드포인트도 403 을 낼 수 있다. `@Roles()` 가 있으면 설명에 "editor 이상 권한
       필요(`EDITOR_REQUIRED`)"처럼 요구 역할과 코드를 명시하고, `@Roles()` 없이 워크스페이스만 받으면
       "워크스페이스 멤버가 아님(`NOT_A_MEMBER`)"으로 통일한다 — 코드는 [data-flow §Rationale 가드 거부의 오류 코드](../data-flow/12-workspace.md#가드-거부의-오류-코드-2026-09-25). (`@Public()` 라우트는 대상 아님.)
+- [ ] 광고한 성공 코드(`ApiOk*` · `ApiCreated*` · `ApiAccepted*` · `ApiNoContent*` · `ApiResponse({ status })` 등 성공 응답 데코레이터 전부 — 저장소 래퍼 포함)와 실제 성공 코드(`@HttpCode` 또는 Nest 기본값)가 짝을 이루는지 ([§2-4](#2-4-상태-코드-응답-규칙))
 - [ ] 경로 UUID 파라미터는 `@ApiParam({ format: 'uuid' })` 일관 적용
 - [ ] 요청 DTO 명명 — `Update` 접두는 **top-level 요청 바디**에만, nested 변형은 로컬 패턴 ([§1-7](#1-7-요청-dto-명명--update-접두는-top-level-요청-바디에만-건다))
 
@@ -666,3 +676,24 @@ fallthrough 자체를 없애 판별자를 sound 하게 만드는 대안은 wire 
 
 ### §5-4 확장 배경 — `@WorkspaceId()` 소비 라우트로 확대 (2026-08-08)
 종전 §5-4 는 "`@Roles()` 가 있어야 403 이 가능하다"는 **opt-in 가드 모델**을 전제로 적혔다. `auth-workspace-membership-guard` PR (보안 CRITICAL fix)이 `RolesGuard` 를 **opt-out 불가능한** 구조로 재구성하면서 그 전제가 깨졌다 — 멤버십 검증이 `@Roles()` 유무와 무관하게 항상 수행되므로 `@WorkspaceId()` 만 쓰는 조회 엔드포인트도 403 을 낼 수 있다(정본: [data-flow §Rationale "멤버십 검증은 가드 1곳에서 — `@Roles()` 와 무관"](../data-flow/12-workspace.md#멤버십-검증은-가드-1곳에서--roles-와-무관-2026-08-08)). 이 정정은 동작 변경이 아니라 **문서-구현 동기화**다. **왜 규약 문구까지 고치는가**: §5-4 는 신규 엔드포인트 작성 시 판단 기준으로 쓰이는데, 문구가 실제 403 발생 조건과 어긋나면 규약을 그대로 따른 다음 작성자에게서 같은 갭이 재발한다 — "사람이 규칙을 기억해야 하는 opt-in" 구조를 규약 레벨에서 반복하지 않는다(그 PR 이 코드에서 닫은 것과 같은 결함 클래스).
+
+### §2-4 광고한 성공 코드 ↔ 실제 성공 코드 — 왜 가드로 세는가 (2026-09-26)
+
+광고는 응답 데코레이터에, 실제 코드는 `@HttpCode` 또는 Nest 기본값에 있어 둘을 한 번에 보는 곳이 없었다. 컴파일도 단위
+테스트도 이 짝을 보지 않고, e2e 는 `[200, 201]` 로 둘 다 받아 불일치를 가렸다. 전수(2026-09-26, `src/modules` 핸들러 223개)에서
+불일치가 15곳이었다 — 200 을 광고하는 POST 액션 14곳이 201 을 냈고, 204 를 광고하는 초대 취소 DELETE 가 200 을 냈다. 그중 둘
+(MCP `preview-test` · 통합 `:id/test`)은 spec 본문이 이미 200 으로 적은 자리였다.
+
+- **`@Res()` 를 면제하지 않는다.** SSE 핸들러는 «응답을 직접 쓰니 상태도 스스로 정한다» 고 보기 쉽지만, Nest 는 핸들러 호출
+  전에 기본 상태를 싣는다(`@nestjs/core` `router-execution-context`). 가드 spec 의 캐너리가 이 동작을 실제 요청으로 고정한다 —
+  Nest 가 동작을 바꾸면 그 캐너리가 먼저 RED 가 되고, 그때 면제를 다시 판단한다.
+- **이름 → 코드 표를 손으로 쓰지 않는다.** `@nestjs/swagger` 는 2xx 데코레이터만 해도 일곱을 내보낸다(203 · 205 · 206 포함). 손으로
+  쓴 표는 지금 쓰는 이름만 담고, 새 이름을 쓰는 날 그 핸들러의 광고가 빈 집합이 되어 대조에서 조용히 빠진다. 그래서 팩토리를
+  적용해 메타데이터에서 읽고, 저장소 래퍼는 이름 접두사가 아니라 내부 호출로 옮긴다. 표에 없는 `Api*Response` 는 실패다.
+- **«광고가 있어야 한다» 는 이 규칙이 아니다.** 성공 응답을 광고하지 않는 핸들러(같은 날 15곳)는 대조할 것이 없어 건너뛴다.
+  그쪽을 조이는 것은 광고를 채운 뒤의 별 결정이다(트래커 등재).
+- **어느 코드가 맞는지는 이 규칙이 정하지 않는다.** 이번에 고친 14곳은 광고(200)에 실제를 맞췄다 — 액션이고, `@HttpCode(200)` 을
+  단 POST 42곳 중 광고가 있는 40곳이 전부 200 을 광고한다. 두 자리는 행이 생긴다: OAuth begin 은 cafe24 Private · MakeShop 분기에서
+  설치 대기 통합 행을 만들고(§2-5 래퍼 표가 그 분기 응답을 200 으로 적는다), 초대 수락은 멤버십 행을 만든다(1차 자원은 소비되는
+  초대이고 응답은 기존 워크스페이스다). 둘 다 설치 · 합류 흐름의 부수효과로 보고 200 을 유지했다. 그러나 §2-4 ·
+  api-convention §6 표에는 «자원을 만들지 않는 POST» 칸이 없다 — 그 명문화는 별 결정이다(트래커 등재).
