@@ -39,8 +39,9 @@ started: 2026-09-25
 - [ ] **Viewer 가 자기 personal 을 만들고 · 이름을 바꾸고 · rotate · 삭제하지 못한다** (planner 결정 → developer). §8 표 · RBAC §3.2
       는 허용하는데 라우트 가드(`@Roles('editor')` — create · update · rotate · remove)가 막는다. 가드를 내리면 Viewer 가 Organization
       통합에 닿는 경로를 서비스가 전부 막는지(Admin 판정은 이미 서비스에 있다) 확인 후 내리거나, 표를 Editor 로 정정한다.
-      (2026-09-26 보탬) 가드를 내리면 이 네 라우트의 `@ApiForbiddenResponse` 설명(`forbiddenForRole('editor')` 로 시작)도 함께 바꿔야
-      한다 — 저장소 가드 `forbidden-response-codes` 가 `@Roles` 를 읽어 설명의 코드를 대조하므로 빠뜨리면 RED 다(`plan/complete/forbidden-desc-codes.md`).
+      (2026-09-26 보탬) 가드를 내리면 이 네 라우트의 `@ApiForbiddenResponse` 설명(`forbiddenForRole('editor')` 로 시작)도 **손으로**
+      바꿔야 한다 — 저장소 가드 `forbidden-response-codes` 는 설명에 **빠진** 가드 코드만 잡고 **남은** 코드(`EDITOR_REQUIRED`)는 못 잡는다
+      (서비스가 같은 이름의 코드를 내는 자리와 구별할 수 없어서다 — `plan/complete/forbidden-desc-codes.md`).
 - [ ] **통합 상세 화면이 역할 · 소유에 따라 버튼을 가리지 않는다** (developer). Editor 가 Organization 통합의 이름 변경 · 삭제 ·
       reauthorize · rotate 버튼을 눌러야 403 토스트로 안다. `useHasRole("admin")` 선례(`spec/2-navigation/6-config.md §A.4`)처럼
       Organization 통합의 변경 액션은 Admin+ 에만 보인다.

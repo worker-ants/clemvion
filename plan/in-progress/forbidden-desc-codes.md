@@ -84,7 +84,7 @@ started: 2026-09-26
 | `--spec` `11_12_13` W1 · W2 | 모집단 하한 · 대조군 fixture 가 draft 에 안 보인다 | 가드 spec 초안에 이미 있다(하한 · 대조군 클래스 · 모델 캐너리) — draft Rationale 에 명시 |
 | `--spec` `11_12_13` W3 | 트래커 repo-guard `code:` census 가 stale 해진다 | 트래커 정리에서 `http-status-advertised` 때와 같은 한 줄 각주 |
 | `--impl-prep` `11_12_24` **C1** (BLOCK: YES) | 현재 §5-4 문구가 data-flow 결정과 어긋난다 | 이 PR 의 spec draft 가 고치는 그것 — planner 커밋 `f262a638e` 로 반영, `--impl-prep` 재실행 |
-| `--impl-prep` `11_12_24` W1 | integrations 4곳의 `@Roles('editor')` 자체가 `integration-personal-owner-followup.md` 에서 결정 대기(Viewer 의 자기 Personal) | 설명을 헬퍼로 바꾸면 **역할이 바뀌는 날 가드가 RED** 를 낸다(reflection 이 `@Roles` 를 읽는다) — rework 가 조용히 남지 않는다. 그 plan 에 포인터 한 줄 |
+| `--impl-prep` `11_12_24` W1 | integrations 4곳의 `@Roles('editor')` 자체가 `integration-personal-owner-followup.md` 에서 결정 대기(Viewer 의 자기 Personal) | 순서를 바꾸지 않는다 — 지금 역할에 맞는 설명이 옳다. 다만 **역할을 내리는 날 가드는 RED 를 내지 않는다**: 가드는 설명에 빠진 코드만 잡고 남은 코드(`EDITOR_REQUIRED`)는 못 잡는다(서비스가 같은 이름의 코드를 내는 자리 — integrations 의 `ADMIN_REQUIRED` — 와 구별 불가). 그래서 그 plan 에 «설명도 손으로 바꿀 것» 포인터 한 줄. ~~역할이 바뀌는 날 가드가 RED 를 낸다~~ — 처음 이렇게 적었다가 가드 술어(`missing` 만 센다)로 반증했다 |
 | `--impl-prep` `11_12_24` W2 | §3 길이 규약 표에 응답 데코레이터 `description` 범주가 없다 | 트래커 신규 등재(planner 소관 · 이 PR 범위 밖) |
 | `--impl-prep` `11_12_24` INFO5 | 트래커 수치(63/54/4/2/20여)와 이 전수(54/53/4/14)가 다르다 | 트래커는 문구를 **부분 문자열로** 세어 이미 코드를 싣던 자리를 포함했다 — «워크스페이스 멤버가 아님» 63 = 빠짐 54 + 이미 `(NOT_A_MEMBER)` 9, «editor 이상 권한 필요» 54 = 빠짐 53 + executions 1. 이 전수는 **빠진 자리**만 센다 |
 
