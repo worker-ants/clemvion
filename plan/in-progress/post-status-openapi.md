@@ -98,7 +98,11 @@ started: 2026-09-26
 - [x] 트래커 W4 등재 · W5 · INFO4 갱신
 - [x] 가드 + fixture (RED 확인) — 적용 전 위반 **정확히 15곳**(전수 census 와 일치), 나머지 10 케이스 GREEN
 - [x] `@HttpCode` 14곳 · 초대 취소 광고 — 적용 후 11/11 · `5e1f6ab36`
-- [x] e2e 기대값 — `[200, 201]` 22곳 · 이양 `201` → `200` · workflow-assistant G(SSE 상태 줄) 신설
+- [x] e2e 기대값 — `[200, 201]` 22곳 · 이양 `201` → `200` · workflow-assistant G(SSE 상태 줄) 신설. **첫 e2e 에서 3파일 RED** —
+  저장 성공을 `201` 로 기대한 4곳(`background-monitoring` · `execution-failed-notification` · `graph-warning-save` ×2)이 앞선 전수에서
+  빠졌다. 원인: 201 기대값 grep 을 `head -30` 으로 잘라 봤다. `\b201\b` 전 줄(138)을 가장 가까운 요청 경로와 짝지어 다시 세어 대상
+  라우트의 201 을 코드 0 · 주석 0 으로 만들었다(`83d095532`)
+- [x] CHANGELOG
 - [x] 뮤턴트 — 15/15 예측대로 KILLED, 매번 예측한 케이스가 사망 목록에 있었다(하네스 `PYTHONDONTWRITEBYTECODE=1` · `--no-cache` · cp 원복)
 
   | # | 뮤턴트 | 예측 / 실측 | 죽인 케이스 |
@@ -118,8 +122,7 @@ started: 2026-09-26
   | P1 | `sendMessage` 의 `@HttpCode` 제거 | KILLED / KILLED | 본 판정 |
   | P2 | 초대 취소 광고를 204 로 되돌림 | KILLED / KILLED | 본 판정 |
   | P3 | 이양을 `HttpStatus.CREATED` 로 | KILLED / KILLED | 본 판정 |
-- [ ] CHANGELOG
-- [ ] TEST WORKFLOW (lint · unit · build · e2e)
+- [x] TEST WORKFLOW (lint · unit · build · e2e) — 2회차 전부 PASS: unit backend 478 스위트 · e2e 72 스위트 406건(1회차 e2e 3파일 RED → 위 항목)
 - [ ] `/ai-review`
 - [ ] `--impl-done`
 - [ ] 트래커 항목 닫기 · 신규 등재
