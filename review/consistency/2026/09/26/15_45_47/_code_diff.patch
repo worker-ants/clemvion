@@ -1,0 +1,262 @@
+diff --git a/codebase/backend/src/common/swagger/forbidden-descriptions.spec.ts b/codebase/backend/src/common/swagger/forbidden-descriptions.spec.ts
+index 527410fe5..31addd9a3 100644
+--- a/codebase/backend/src/common/swagger/forbidden-descriptions.spec.ts
++++ b/codebase/backend/src/common/swagger/forbidden-descriptions.spec.ts
+@@ -1,6 +1,7 @@
+ import {
+   FORBIDDEN_NOT_A_MEMBER,
+   forbiddenForRole,
++  forbiddenWithService,
+ } from './forbidden-descriptions';
+ 
+ describe('403 설명 헬퍼 — 가드 거부 코드를 싣는 문장', () => {
+@@ -25,4 +26,18 @@ describe('403 설명 헬퍼 — 가드 거부 코드를 싣는 문장', () => {
+   it('viewer 는 멤버십과 같다 — 비멤버 문장뿐이다', () => {
+     expect(forbiddenForRole('viewer')).toBe(FORBIDDEN_NOT_A_MEMBER);
+   });
++
++  it('서비스 문장은 가드 문장 뒤에 역할 문장과 같은 « 또는 » 으로 잇는다', () => {
++    expect(
++      forbiddenWithService(
++        forbiddenForRole('editor'),
++        '소유자가 아님(FORBIDDEN — 서비스 판정)',
++      ),
++    ).toBe(
++      '워크스페이스 멤버가 아님(NOT_A_MEMBER) 또는 Editor 이상 권한 필요(EDITOR_REQUIRED) 또는 소유자가 아님(FORBIDDEN — 서비스 판정)',
++    );
++    expect(
++      forbiddenWithService(FORBIDDEN_NOT_A_MEMBER, '개인 워크스페이스'),
++    ).toBe('워크스페이스 멤버가 아님(NOT_A_MEMBER) 또는 개인 워크스페이스');
++  });
+ });
+diff --git a/codebase/backend/src/common/swagger/forbidden-descriptions.ts b/codebase/backend/src/common/swagger/forbidden-descriptions.ts
+index aaaf095f6..0f8c97a94 100644
+--- a/codebase/backend/src/common/swagger/forbidden-descriptions.ts
++++ b/codebase/backend/src/common/swagger/forbidden-descriptions.ts
+@@ -31,9 +31,19 @@ const ROLE_SHORTFALL: Readonly<
+  * `@Roles(role)` 라우트의 403 설명 — 비멤버(`NOT_A_MEMBER`)와 역할 미달(`ROLE_REQUIRED[role]`) 두 거부를 싣는다.
+  *
+  * `viewer` 는 멤버십과 같아(`ROLE_REQUIRED.viewer` 가 `NOT_A_MEMBER`) 비멤버 문장뿐이다. 여러 역할을 주는 라우트는 가장
+- * 낮은 역할을 넘긴다 — 가드의 문턱이다(`lowestRequiredRole`). 서비스가 내는 403 은 이 문장 뒤에 덧붙인다.
++ * 낮은 역할을 넘긴다 — 가드의 문턱이다(`lowestRequiredRole`). 서비스가 내는 403 은 `forbiddenWithService` 로 덧붙인다.
+  */
+ export function forbiddenForRole(role: WorkspaceRoleName): string {
+   if (role === 'viewer') return FORBIDDEN_NOT_A_MEMBER;
+   return `${FORBIDDEN_NOT_A_MEMBER} 또는 ${ROLE_SHORTFALL[role]}(${ROLE_REQUIRED[role].code})`;
+ }
++
++/**
++ * 가드 거부 문장 뒤에 서비스가 내는 403 을 잇는다 — 이음(` 또는 `)을 이 한 곳에서 정한다.
++ *
++ * `guard` 는 위 두 헬퍼의 결과를 넘긴다. 서비스 문장은 자리마다 조건과 코드가 달라 호출자가 쓴다. 이음을 손으로 쓰던 시절
++ * `forbiddenForRole` 안의 ` 또는 ` 과 덧붙인 `, 또는 ` 이 한 문장에서 갈렸다(«A 또는 B, 또는 C»).
++ */
++export function forbiddenWithService(guard: string, service: string): string {
++  return `${guard} 또는 ${service}`;
++}
+diff --git a/codebase/backend/src/modules/auth/auth.controller.ts b/codebase/backend/src/modules/auth/auth.controller.ts
+index f60d3a07b..62d3e4881 100644
+--- a/codebase/backend/src/modules/auth/auth.controller.ts
++++ b/codebase/backend/src/modules/auth/auth.controller.ts
+@@ -33,6 +33,7 @@ import {
+   ApiCreatedWrappedResponse,
+   ApiOkWrappedResponse,
+   ApiOkWrappedOneOfResponse,
++  FORBIDDEN_NOT_A_MEMBER,
+ } from '../../common/swagger';
+ import {
+   AccessTokenDto,
+@@ -442,9 +443,7 @@ export class AuthController {
+     description: '전환된 워크스페이스로 재발급된 Access Token',
+   })
+   @ApiUnauthorizedResponse({ description: '인증 필요(JWT)' })
+-  @ApiForbiddenResponse({
+-    description: `대상 워크스페이스의 멤버가 아님(${NOT_A_MEMBER.code})`,
+-  })
++  @ApiForbiddenResponse({ description: FORBIDDEN_NOT_A_MEMBER })
+   async switchWorkspace(
+     @CurrentUser() user: JwtPayload,
+     @WorkspaceParam('id') targetWorkspaceId: string,
+diff --git a/codebase/backend/src/modules/executions/executions.controller.ts b/codebase/backend/src/modules/executions/executions.controller.ts
+index c587c4969..bb1c9ac45 100644
+--- a/codebase/backend/src/modules/executions/executions.controller.ts
++++ b/codebase/backend/src/modules/executions/executions.controller.ts
+@@ -16,10 +16,6 @@ import { WorkspaceId } from '../../common/decorators/workspace.decorator';
+ import { CurrentUser } from '../../common/decorators';
+ import type { JwtPayload } from '../../common/decorators';
+ import { Roles } from '../../common/guards/roles.guard';
+-import {
+-  NOT_A_MEMBER,
+-  ROLE_REQUIRED,
+-} from '../../common/constants/workspace-roles';
+ import {
+   ApiTags,
+   ApiBearerAuth,
+@@ -40,6 +36,7 @@ import {
+   ApiCreatedWrappedResponse,
+   FORBIDDEN_NOT_A_MEMBER,
+   forbiddenForRole,
++  forbiddenWithService,
+ } from '../../common/swagger';
+ import { Throttle } from '@nestjs/throttler';
+ import { ReRunRequestDto } from './dto/re-run.dto';
+@@ -224,7 +221,7 @@ export class ExecutionsController {
+   @HttpCode(HttpStatus.ACCEPTED)
+   @Roles('owner')
+   @ApiExcludeEndpoint()
+-  @ApiForbiddenResponse({ description: 'owner 이상 권한 필요' })
++  @ApiForbiddenResponse({ description: forbiddenForRole('owner') })
+   async triggerStuckRecoveryForTest() {
+     if (process.env.NODE_ENV !== 'test' || process.env.E2E_TEST_HOOKS !== '1') {
+       throw new NotFoundException();
+@@ -245,7 +242,7 @@ export class ExecutionsController {
+   @HttpCode(HttpStatus.ACCEPTED)
+   @Roles('owner')
+   @ApiExcludeEndpoint()
+-  @ApiForbiddenResponse({ description: 'owner 이상 권한 필요' })
++  @ApiForbiddenResponse({ description: forbiddenForRole('owner') })
+   async simulateExecutionRunRedeliveryForTest(
+     @Param('id', ParseUUIDPipe) id: string,
+     @WorkspaceId() workspaceId: string,
+@@ -281,7 +278,10 @@ export class ExecutionsController {
+   })
+   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
+   @ApiForbiddenResponse({
+-    description: `워크스페이스 멤버가 아님(${NOT_A_MEMBER.code}) · editor 이상 권한 필요(${ROLE_REQUIRED.editor.code}) — RolesGuard / 타인 실행이고 Owner·Admin 아님(RERUN_PERMISSION_DENIED, RR-PL-06) — 서비스`,
++    description: forbiddenWithService(
++      forbiddenForRole('editor'),
++      '타인 실행이고 Owner·Admin 아님(RR-PL-06 · RERUN_PERMISSION_DENIED — 서비스 판정)',
++    ),
+   })
+   @ApiNotFoundResponse({
+     description: 'RERUN_EXECUTION_NOT_FOUND / RERUN_WORKFLOW_DELETED',
+@@ -310,7 +310,10 @@ export class ExecutionsController {
+   })
+   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
+   @ApiForbiddenResponse({
+-    description: `워크스페이스 멤버가 아님(${NOT_A_MEMBER.code}) — RolesGuard / RR-PL-06 미충족(RERUN_PERMISSION_DENIED) — 서비스`,
++    description: forbiddenWithService(
++      FORBIDDEN_NOT_A_MEMBER,
++      'RR-PL-06 미충족(RERUN_PERMISSION_DENIED — 서비스 판정)',
++    ),
+   })
+   @ApiNotFoundResponse({ description: 'RERUN_EXECUTION_NOT_FOUND' })
+   async getChain(
+diff --git a/codebase/backend/src/modules/integrations/integrations.controller.ts b/codebase/backend/src/modules/integrations/integrations.controller.ts
+index e1cd43f61..641f3adcb 100644
+--- a/codebase/backend/src/modules/integrations/integrations.controller.ts
++++ b/codebase/backend/src/modules/integrations/integrations.controller.ts
+@@ -32,6 +32,7 @@ import {
+   ApiOkWrappedOneOfResponse,
+   ApiOkWrappedResponse,
+   forbiddenForRole,
++  forbiddenWithService,
+   FORBIDDEN_NOT_A_MEMBER,
+ } from '../../common/swagger';
+ import {
+@@ -92,9 +93,18 @@ const OAUTH_BEGIN_RESULT_DESCRIPTION =
+  * 403 · 404 설명 — 거부 코드는 공유 거부 표(`common/constants/workspace-roles.ts`)의 `.code` 를 보간한다(코드명이 바뀌면
+  * 설명이 따라온다). 남의 personal 통합은 없는 통합과 같은 404 다 — `spec/2-navigation/4-integration.md` §8 판정 규칙.
+  */
+-const FORBIDDEN_MEMBER_OR_ORG_ADMIN = `${FORBIDDEN_NOT_A_MEMBER}, 또는 Organization 통합의 변경에 Admin 이상 권한 필요(${ROLE_REQUIRED.admin.code})`;
+-const FORBIDDEN_EDITOR_OR_ORG_ADMIN = `${forbiddenForRole('editor')}, 또는 Organization 통합의 변경에 Admin 이상 권한 필요(${ROLE_REQUIRED.admin.code})`;
+-const FORBIDDEN_MEMBER_OR_ADMIN = `${FORBIDDEN_NOT_A_MEMBER}, 또는 Admin 이상 권한 필요(${ROLE_REQUIRED.admin.code})`;
++const FORBIDDEN_MEMBER_OR_ORG_ADMIN = forbiddenWithService(
++  FORBIDDEN_NOT_A_MEMBER,
++  `Organization 통합의 변경에 Admin 이상 권한 필요(${ROLE_REQUIRED.admin.code})`,
++);
++const FORBIDDEN_EDITOR_OR_ORG_ADMIN = forbiddenWithService(
++  forbiddenForRole('editor'),
++  `Organization 통합의 변경에 Admin 이상 권한 필요(${ROLE_REQUIRED.admin.code})`,
++);
++const FORBIDDEN_MEMBER_OR_ADMIN = forbiddenWithService(
++  FORBIDDEN_NOT_A_MEMBER,
++  `Admin 이상 권한 필요(${ROLE_REQUIRED.admin.code})`,
++);
+ const NOT_FOUND_INTEGRATION =
+   '해당 통합을 찾을 수 없음 — 남의 personal 통합도 같은 응답(`RESOURCE_NOT_FOUND`)';
+ 
+@@ -238,7 +248,10 @@ export class IntegrationsController {
+   @ApiBadRequestResponse({ description: '입력값 검증 실패 또는 미지원 서비스' })
+   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
+   @ApiForbiddenResponse({
+-    description: `${FORBIDDEN_NOT_A_MEMBER}, 또는 reauthorize · request_scopes 모드에서 Organization 통합의 변경에 Admin 이상 권한 필요(${ROLE_REQUIRED.admin.code})`,
++    description: forbiddenWithService(
++      FORBIDDEN_NOT_A_MEMBER,
++      `reauthorize · request_scopes 모드에서 Organization 통합의 변경에 Admin 이상 권한 필요(${ROLE_REQUIRED.admin.code})`,
++    ),
+   })
+   @ApiNotFoundResponse({
+     description: `reauthorize · request_scopes 모드의 integrationId — ${NOT_FOUND_INTEGRATION}`,
+diff --git a/codebase/backend/src/modules/workflow-test-datasets/workflow-test-datasets.controller.ts b/codebase/backend/src/modules/workflow-test-datasets/workflow-test-datasets.controller.ts
+index 49ad95674..50ff98d62 100644
+--- a/codebase/backend/src/modules/workflow-test-datasets/workflow-test-datasets.controller.ts
++++ b/codebase/backend/src/modules/workflow-test-datasets/workflow-test-datasets.controller.ts
+@@ -27,6 +27,7 @@ import {
+   ApiOkWrappedResponse,
+   ApiOkWrappedArrayResponse,
+   forbiddenForRole,
++  forbiddenWithService,
+ } from '../../common/swagger';
+ import { Roles } from '../../common/guards/roles.guard';
+ import { WorkspaceId, CurrentUser } from '../../common/decorators';
+@@ -36,7 +37,10 @@ import { UpdateWorkflowTestDatasetDto } from './dto/update-workflow-test-dataset
+ import { WorkflowTestDatasetDto } from './dto/responses/workflow-test-dataset-response.dto';
+ 
+ /** 수정 · 삭제의 403 — Editor 요구(가드)와 소유자 아님(서비스 `FORBIDDEN`). 두 라우트가 같은 문장을 쓴다. */
+-const FORBIDDEN_EDITOR_OR_NOT_OWNER = `${forbiddenForRole('editor')}, 또는 데이터셋 소유자가 아님(FORBIDDEN — 서비스 판정)`;
++const FORBIDDEN_EDITOR_OR_NOT_OWNER = forbiddenWithService(
++  forbiddenForRole('editor'),
++  '데이터셋 소유자가 아님(FORBIDDEN — 서비스 판정)',
++);
+ 
+ /**
+  * §2.2 테스트 데이터셋 저장 — 워크플로우 Mock Input 을 이름 붙여 저장/재사용.
+diff --git a/codebase/backend/src/modules/workspaces/workspaces.controller.ts b/codebase/backend/src/modules/workspaces/workspaces.controller.ts
+index 25da80839..12df7a5ef 100644
+--- a/codebase/backend/src/modules/workspaces/workspaces.controller.ts
++++ b/codebase/backend/src/modules/workspaces/workspaces.controller.ts
+@@ -32,6 +32,7 @@ import {
+   ApiOkWrappedResponse,
+   FORBIDDEN_NOT_A_MEMBER,
+   forbiddenForRole,
++  forbiddenWithService,
+ } from '../../common/swagger';
+ import { SENSITIVE_ACTION_THROTTLE } from '../../common/constants/throttle';
+ import { ROLE_REQUIRED } from '../../common/constants/workspace-roles';
+@@ -64,7 +65,10 @@ import { Roles } from '../../common/guards/roles.guard';
+ const INVITATION_THROTTLE = SENSITIVE_ACTION_THROTTLE;
+ 
+ /** 삭제 · 이양의 403 — Owner 요구(가드)와 개인 워크스페이스 거부(서비스). 두 라우트가 같은 문장을 쓴다. */
+-const FORBIDDEN_OWNER_OR_PERSONAL = `${forbiddenForRole('owner')}, 또는 개인 워크스페이스`;
++const FORBIDDEN_OWNER_OR_PERSONAL = forbiddenWithService(
++  forbiddenForRole('owner'),
++  '개인 워크스페이스',
++);
+ 
+ @ApiTags('Workspaces')
+ @ApiBearerAuth('access-token')
+@@ -245,7 +249,10 @@ export class WorkspacesController {
+   @ApiOkWrappedResponse(OkResultDto, { description: '나가기 결과' })
+   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
+   @ApiForbiddenResponse({
+-    description: `${FORBIDDEN_NOT_A_MEMBER}, 또는 개인 워크스페이스이거나 유일한 owner 인 경우`,
++    description: forbiddenWithService(
++      FORBIDDEN_NOT_A_MEMBER,
++      '개인 워크스페이스이거나 유일한 owner 인 경우',
++    ),
+   })
+   @ApiNotFoundResponse({ description: '해당 워크스페이스를 찾을 수 없음' })
+   async leave(
+@@ -389,7 +396,10 @@ export class WorkspacesController {
+   @ApiOkWrappedResponse(OkResultDto, { description: '제거 결과' })
+   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
+   @ApiForbiddenResponse({
+-    description: `${FORBIDDEN_NOT_A_MEMBER}, 또는 타인 제거에 Admin 이상 권한 필요(${ROLE_REQUIRED.admin.code} — 서비스 판정)`,
++    description: forbiddenWithService(
++      FORBIDDEN_NOT_A_MEMBER,
++      `타인 제거에 Admin 이상 권한 필요(${ROLE_REQUIRED.admin.code} — 서비스 판정)`,
++    ),
+   })
+   @ApiNotFoundResponse({ description: '워크스페이스 또는 멤버를 찾을 수 없음' })
+   async removeMember(

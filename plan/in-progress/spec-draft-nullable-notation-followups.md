@@ -5078,7 +5078,7 @@ field: T | null;
       > 캐너리가 실제 `RolesGuard` 와 대조)를 세웠다. 가드는 **빠진** 코드만 잡는다 — 역할을 내린 뒤 남은 코드와 서비스 거부는 세지
       > 않는다. `--impl-done` `review/consistency/2026/09/26/12_31_09`. plan `plan/complete/forbidden-desc-codes.md`.
 
-- [ ] **403 설명 3곳이 공용 헬퍼를 거치지 않고 코드를 손으로 보간한다** (developer, 낮음, 2026-09-26 등재 · `--impl-done`
+- [x] **403 설명 3곳이 공용 헬퍼를 거치지 않고 코드를 손으로 보간한다** (developer, 낮음, 2026-09-26 등재 · `--impl-done`
       `review/consistency/2026/09/26/12_31_09` convention_compliance W1 · `/ai-review` `review/code/2026/09/26/12_20_03` INFO4).
       `auth.controller.ts` `switchWorkspace`(«대상 워크스페이스의 멤버가 아님(`${NOT_A_MEMBER.code}`)») · `executions.controller.ts`
       재실행 두 라우트(«… · editor 이상 권한 필요(`${ROLE_REQUIRED.editor.code}`) — RolesGuard / … — 서비스»). 코드는 이미 실려 있어 가드
@@ -5087,6 +5087,14 @@ field: T | null;
       한 바퀴 더 돈다 — 동작 결함이 아니다). 처방: `FORBIDDEN_NOT_A_MEMBER` / `forbiddenForRole('editor')` 뒤에 서비스 문장을 덧붙이는
       형태로. 같은 김에 서비스 문장을 잇는 구두점(`, 또는` · `또는` — 5곳에서 갈린다, `review/code/2026/09/26/12_20_03` INFO15)도 맞춘다.
       **착수 조건**: 없음(여유 있을 때).
+
+      > **2026-09-26 — 닫힘.** 전수(AST, `@ApiForbiddenResponse` 164곳)로 등재보다 넓었다 — 손 보간 3(등재대로) · 코드 없는 `_test/*`
+      > 훅 2(`'owner 이상 권한 필요'`, OpenAPI 밖) · 서비스 문장을 `, 또는` 으로 잇던 14 라우트(편집 자리 8 — 등재의 «5곳» 은 모듈 상수만
+      > 센 수). 새 헬퍼 `forbiddenWithService(guard, service)` 가 `forbiddenForRole` 안과 같은 ` 또는 ` 으로 잇고 13 자리가 헬퍼를 거친다
+      > — 평가된 메타데이터로 바뀐 19 라우트 전부 헬퍼 문장으로 시작 · `, 또는` 0. 재실행 두 곳의 «— RolesGuard / … — 서비스» 는 «(<코드>
+      > — 서비스 판정)» 로. 형식 가드는 두지 않았다(§5-4 규칙 문단 · Rationale 변경이 필요 — 뮤턴트 M2 SURVIVED 로 한계를 적었다).
+      > `/ai-review` `review/code/2026/09/26/15_36_42`(1R 수렴). `--impl-prep` `review/consistency/2026/09/26/15_08_57` · `--impl-done`
+      > `review/consistency/2026/09/26/15_45_47` BLOCK: NO. plan `plan/complete/forbidden-helper-sentences.md`.
 
 - [x] **POST 라우트가 OpenAPI 로 200 을 광고하면서 실제로는 201 을 낸다** (developer, 낮음, 2026-09-25 등재 — e2e 실측).
       `workspaces.controller.ts` 의 `POST /:id/leave` · `POST /:id/transfer-ownership` 은 `@ApiOkWrappedResponse(OkResultDto)`(200)

@@ -1,6 +1,6 @@
 ---
 title: 403 설명의 가드 문장을 공용 헬퍼로 — 손으로 쓴 3곳 · 서비스 문장을 잇는 구두점 한 곳에서
-status: in-progress
+status: complete
 owner: developer
 worktree: forbidden-helper-sentences
 spec_impact: none
@@ -64,5 +64,5 @@ started: 2026-09-26
 - [x] TEST WORKFLOW (lint · unit · build · e2e) — 전부 PASS(e2e 412)
 - [x] `/ai-review` — 1R `review/code/2026/09/26/15_36_42`(라우터 선별 9명 · forced 7명 전원): Critical 0 · Warning 1(이 plan 을 옮길
       경로의 선행 인용 — 마무리 커밋의 이동으로 참이 된다). codebase 수정 0건으로 정지 규칙을 1R 에서 충족
-- [ ] `--impl-done`
-- [ ] 트래커 항목 닫기
+- [x] `--impl-done` — `review/consistency/2026/09/26/15_45_47` BLOCK: NO(Critical · Warning 0). scope 는 바꾼 코드의 spec 소유 문서 9개 + `data-flow/12-workspace.md`
+- [x] 트래커 항목 닫기 — 종결 노트에 전수 · 헬퍼 · 리뷰 · 게이트 세션
