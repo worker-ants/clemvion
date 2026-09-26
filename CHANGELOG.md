@@ -23,7 +23,7 @@
 > 07 37% · 08 30% · 09(25일까지) 49% 였다(나중 PR 의 백필은 세지 않았다). 여기 없다고 그 변경이 없었던 것은 아니다 —
 > `git log` 가 정본이다.
 
-## Unreleased — OpenAPI 가 워크플로 버전 응답의 `creator` 를 항상 실리는 필드로 광고한다
+## Unreleased — OpenAPI 가 워크플로 버전 응답의 `creator` · `changeSummary` 를 항상 실리는 필드로 광고한다
 
 `GET /workflows/:wfId/versions`(목록)와 `GET /workflows/:wfId/versions/:versionId`(상세)의 응답 스키마가 `creator` 를
 «없을 수도, null 일 수도 있는» 필드로 적고 있었다. 실제로는 항상 실린다 — 버전 작성자 컬럼은 NOT NULL 이고, 그 사용자를

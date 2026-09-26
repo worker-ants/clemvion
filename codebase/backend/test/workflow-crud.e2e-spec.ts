@@ -32,6 +32,7 @@ import { expectNoUserSecrets } from '../src/shared/testing/user-secret-absence';
  *   - DELETE 후 GET 404
  *   - 동시 PATCH 가 마지막 쓰기로 수렴 (실패 없이)
  *   - 캔버스 저장(C) · 버전 복원(I) 응답이 `CanvasSaveResultDto` 선언과 맞는다 — 노드 생성 가지와 갱신 가지
+ *   - 버전 목록 · 상세(H · I) 응답이 선언과 맞고 `User` 비밀을 싣지 않는다 — `changeSummary` 가 있는 버전(H)과 null 인 버전(I)
  *
  * 권한·격리 invariants 는 workspace-rbac.e2e-spec.ts 가 담당. 본 spec 은 단일 owner
  * 단일 워크스페이스 하에서의 CRUD 의미만 본다.
@@ -631,8 +632,18 @@ describe('Workflow CRUD (e2e)', () => {
       .set('Authorization', `Bearer ${ownerToken}`)
       .set('X-Workspace-Id', workspaceId);
     expect(list.status).toBe(200);
-    const versions = list.body.data as Array<{ id: string }>;
+    const versions = list.body.data as Array<{
+      id: string;
+      changeSummary: string | null;
+    }>;
     expect(versions.length).toBeGreaterThanOrEqual(1);
+    // `changeSummary` 없이 저장한 버전 — 키는 실리고 값은 null 이다(선언: required + nullable). H 는 값이 있는 쪽만 보므로
+    // null 쪽은 여기서 고정한다. 양성 단언이 먼저인 이유: 대조는 null 이 아닌 문자열도 통과시킨다.
+    expect(versions[0].changeSummary).toBeNull();
+    assertMatchesContract(
+      versions[0],
+      await contractForDto(WorkflowVersionListItemDto),
+    );
 
     const restored = await request(BASE_URL)
       .post(`/api/workflows/${workflowId}/versions/${versions[0].id}/restore`)
