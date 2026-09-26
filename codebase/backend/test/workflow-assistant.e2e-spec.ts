@@ -182,27 +182,41 @@ describe('Workflow Assistant sessions (e2e)', () => {
     expect(res.status).toBe(403);
   });
 
-  it('F. sessions/latest — 최근 생성 세션 반환 (또는 없음)', async () => {
+  it('F. sessions/latest — 방금 만든 세션을 돌려주고, 세션이 없으면 data: null', async () => {
     const newSession = await request(BASE_URL)
       .post('/api/workflow-assistant/sessions')
       .set(authHeaders())
       .send({ workflowId, title: 'Latest test' });
-    const sessionId = newSession.body.data.id;
+    expect(newSession.status).toBe(201);
+    const sessionId = newSession.body.data.id as string;
 
     const latest = await request(BASE_URL)
       .get('/api/workflow-assistant/sessions/latest')
       .set(authHeaders())
       .query({ workflowId });
-    expect([200, 204, 404]).toContain(latest.status);
-    if (latest.status === 200) {
-      // 반환됐다면 적어도 우리 세션이 가장 최근.
-      expect(latest.body.data?.id).toBeDefined();
-      // `ApiOkWrappedNullableResponse` — 세션이 있으면 그 모양이다(없으면 `data: null`).
-      assertMatchesContract(
-        latest.body.data,
-        await contractForDto(AssistantSessionDto),
-      );
-    }
+    // 이 컨트롤러는 200 만 낸다 — 세션이 없어도 `data: null` 로 200 이다. `sessions/:id` 가 `latest` 를 가로채면
+    // `ParseUUIDPipe` 가 400 을 내므로 라우트 순서 회귀도 여기서 걸린다.
+    expect(latest.status).toBe(200);
+    // `findLatestActive` 는 `lastInteractionAt` 내림차순이고 생성이 그 값을 지금으로 싣는다 — 방금 만든 세션이 가장 최근이다.
+    expect(latest.body.data.id).toBe(sessionId);
+    assertMatchesContract(
+      latest.body.data,
+      await contractForDto(AssistantSessionDto),
+    );
+
+    // 세션이 하나도 없는 워크플로 — `ApiOkWrappedNullableResponse` 의 null 쪽을 실제 응답으로 본다.
+    const emptyWorkflow = await request(BASE_URL)
+      .post('/api/workflows')
+      .set(authHeaders())
+      .send({ name: uniqueName('asst-empty-wf') });
+    expect(emptyWorkflow.status).toBe(201);
+    const none = await request(BASE_URL)
+      .get('/api/workflow-assistant/sessions/latest')
+      .set(authHeaders())
+      .query({ workflowId: emptyWorkflow.body.data.id as string });
+    expect(none.status).toBe(200);
+    expect(none.body).toStrictEqual({ data: null });
+
     // 정리: 깔끔하게 지움.
     await request(BASE_URL)
       .delete(`/api/workflow-assistant/sessions/${sessionId}`)
@@ -251,6 +265,7 @@ describe('Workflow Assistant sessions (e2e)', () => {
     // 메시지는 LLM 턴이 쓴다. 이 파일은 LLM 을 부르지 않으므로(머리 주석) 행을 직접 넣는다 — 두 끝을 넣는다: 선택 키가
     // 전부 빠지고 nullable 컬럼이 전부 null 인 user 메시지, 선택 키를 전부 채운 assistant 메시지. 빈 `messages` 로는
     // 검증자가 메시지 아래로 내려가지 않아 메시지 · 도구 호출 · 계획 · 계획 단계 · 사용량 DTO 가 한 번도 대조되지 않는다.
+    // 도구 호출도 두 끝이다 — 선택 키(`result` · `planStepId` · `planStepIds` · `signature`)를 전부 채운 것과 전부 뺀 것.
     const toolCalls = [
       {
         id: 'call_1',
@@ -261,6 +276,12 @@ describe('Workflow Assistant sessions (e2e)', () => {
         planStepId: 's1',
         planStepIds: ['s1', 's2'],
         signature: 'sig-opaque',
+      },
+      {
+        id: 'call_2',
+        name: 'get_workflow',
+        arguments: {},
+        kind: 'explore',
       },
     ];
     const plan = {

@@ -44,8 +44,16 @@ CHANGELOG 없음 — 한 기능의 동작을 고정하는 테스트 추가(가�
 ## 체크리스트
 
 - [x] `--impl-prep` — 첫 라운드 `review/consistency/2026/09/26/16_14_14` BLOCK: YES(위 Critical) → planner 턴 뒤 `16_35_16` BLOCK: NO
-- [ ] e2e 세 칸
-- [ ] 공허성 확인 — 각 단언이 실제로 가르는지(뮤턴트 · 프로브)
+- [x] e2e 세 칸
+- [x] 공허성 확인 — 도구 호출 «전부 뺌» 원소가 실제로 가르는지 검증자 프로브(H 와 같은 payload)로 봤다:
+
+  | 조건 | 전부 채움 + 전부 뺌 | 전부 채움만(종전) |
+  | --- | --- | --- |
+  | 원본 DTO | 위반 0 | 위반 0 |
+  | 뮤턴트 — `planStepId` 를 `@ApiProperty()`(필수)로 | **`missing messages[0].toolCalls[1].planStepId`** | 위반 0 — 종전 fixture 로는 살아남는다 |
+
+  «선택 키를 필수로 잘못 선언» 하는 회귀는 전부 뺀 원소만 잡는다. F 의 `toStrictEqual({ data: null })` 과 `toBe(sessionId)` 는 값을 그대로
+  단언해 제3상태가 없다.
 - [ ] TEST WORKFLOW (lint · unit · build · e2e)
 - [ ] `/ai-review`
 - [ ] 트래커 항목 닫기
