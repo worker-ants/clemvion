@@ -5104,6 +5104,18 @@ field: T | null;
       > 규칙 문단과 `code:` 등재) · e2e 대상 라우트 기대값 27곳을 200 으로(`[200, 201]` 22 · 이양 `201` 1 · 저장 `201` 4) · 성공 경로
       > e2e 신설(`action-success-status` · 어시스턴트 SSE). `/ai-review` `review/code/2026/09/26/10_23_50`. `--impl-done` `review/consistency/2026/09/26/10_36_19`. plan `plan/complete/post-status-openapi.md`.
 
+- [ ] **`4-ai-assistant.md` §6 REST API 표에 `GET /api/workflow-assistant/sessions/latest` 가 없다** (planner, 낮음, 2026-09-26 등재 ·
+      `--impl-prep` `review/consistency/2026/09/26/13_17_19` cross_spec · plan_coherence W1). 컨트롤러에는 있다
+      (`workflow-assistant.controller.ts` `latest` — 쿼리 `workflowId` 필수, 없으면 `null`, 권한은 멤버십만). `success-advert` 가 이 라우트의
+      성공 응답을 `ApiOkWrappedNullableResponse` 로 광고하면서 «코드 · OpenAPI 에는 있고 제품 spec 표에는 없는» 격차가 드러났다.
+      **착수 조건**: 없음(여유 있을 때). planner 소관 · `--spec` 필요.
+
+- [ ] **`interaction/revoke-token` 의 상태 전이를 두 spec 이 반대로 적는다** (planner, 낮음, 2026-09-26 등재 · `--impl-prep`
+      `review/consistency/2026/09/26/13_17_19` cross_spec W2). `spec/2-navigation/2-trigger-list.md` §3 API 표는 «회전이 아니라 폐기다»,
+      `spec/5-system/14-external-interaction-api.md` §7.3 · EIA-AU-07 은 «새로운 값으로 rotation» 이라 적는다. 구현(`revokePerTriggerToken`)은
+      기존 token 무효화 + 새 token 발급으로 EIA 쪽이 메커니즘상 맞다(감사 액션명만 대화 단절을 강조해 `_revoked`). trigger-list 문구를
+      EIA-AU-07 의 논거로 맞춘다. **착수 조건**: 없음(여유 있을 때). planner 소관 · `--spec` 필요.
+
 - [ ] **성공 응답을 광고하지 않는 라우트 핸들러가 15곳 있다 — 가드는 «광고가 있으면 맞아야 한다» 만 본다** (developer, 낮음,
       2026-09-26 등재 — `post-status-openapi` 전수의 부산물). 실측(`src/modules`): `@ApiExcludeEndpoint` 테스트 훅 2(의도 — OpenAPI 밖)
       · OAuth 리다이렉트 2(`auth` `beginOauth` · `oauthCallback`, `res.redirect` — `@ApiFoundResponse` 후보) · SSE 1

@@ -43,6 +43,17 @@ started: 2026-09-26
 - **spec** — `swagger.md` §2-4 의 «성공 응답을 하나도 광고하지 않는 핸들러는 대조하지 않는다» 와 Rationale 의 ««광고가 있어야 한다» 는
   이 규칙이 아니다(별 결정)» 를 이 결정으로 바꾸고, §5-2 래퍼 표에 `ApiOkWrappedNullableResponse` 한 줄. planner draft → `--spec`.
 
+## 검토 경고 처리
+
+| 출처 | 지적 | 처분 |
+| --- | --- | --- |
+| `--spec` `13_07_11` W1~W3 · INFO | Rationale 의 완료 plan 경로 선인용 · 리다이렉트 예외와 SSE `@Res()` 불면제의 구분 · 절 번호 표기 | draft 반영(draft `## Rationale` 끝 «`--spec` 경고 처리») |
+| `--impl-prep` `13_17_19` W1 | `4-ai-assistant.md` §6 API 표에 `GET sessions/latest` 가 없다 — 이 PR 전부터의 spec 갭 | 트래커 등재(planner) |
+| `--impl-prep` `13_17_19` W2 | `revoke-token` 을 trigger-list 는 «회전이 아니라 폐기», EIA §7.3 · AU-07 은 «rotation» 으로 적는다 | 트래커 등재(planner). 새 응답 DTO 설명은 메커니즘(무효화 + 새 발급)대로 적었다 |
+| `--impl-prep` `13_17_19` W3 | 도구 호출 `arguments` · `result` 를 여는 근거가 §1-4 가 기각한 «번거롭다» 와 구별되지 않는다 | DTO 주석에 §1-4 «SoT 이중화 회피» 예외를 근거로 — 인자 형태의 정본은 `tools/tool-definitions.ts`, 엔티티 · frontend 타입도 열린 모양 |
+| `--impl-prep` `13_17_19` W4 | `swagger.md` Rationale 불릿이 구현 전인데 완료형 | 같은 PR 의 구현 커밋 뒤 참이 된다 — `--impl-done` 에서 재확인 |
+| `--impl-prep` `13_17_19` W5 · INFO8 | DTO 이름 — 모듈 접두 · 도메인 접두 | workflow-assistant 는 `Assistant` 접두(`AssistantSessionDto` 등), triggers 는 같은 모듈 선례 `ChatChannelRotateBotTokenDto` 를 따라 `NotificationRotateSecretDto` · `InteractionRevokeTokenDto` |
+
 ## 요구 (순서대로)
 
 1. spec draft → `--spec` → 반영(planner 커밋) → `--impl-prep`.
@@ -55,8 +66,8 @@ started: 2026-09-26
 
 ## 체크리스트
 
-- [ ] spec draft `--spec` · 반영
-- [ ] `--impl-prep`
+- [x] spec draft `--spec` · 반영 — `review/consistency/2026/09/26/13_07_11` BLOCK: NO · planner 커밋 `24084fd0e`
+- [x] `--impl-prep` — `review/consistency/2026/09/26/13_17_19` BLOCK: NO(Warning 5 — 아래 표)
 - [ ] 래퍼 · DTO · 광고 11곳
 - [ ] 가드 강화(RED 확인) · docstring 정정
 - [ ] e2e 계약 대조
