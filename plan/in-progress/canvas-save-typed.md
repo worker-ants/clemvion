@@ -43,13 +43,15 @@ started: 2026-09-26
 5. **트래커** — 이 항목을 닫고, 조사 중 발견한 `ExportWorkflowDto.nodes`/`.edges`(같은 타입 없는 배열, 다만 export 포맷은
    인덱스로 정규화된 다른 형태라 새 DTO 가 필요하다)를 새 항목으로 등재한다.
 
-## 뮤턴트 (예측 — 실측은 구현 뒤 채운다)
+## 뮤턴트 (저장소 파일 제자리 치환 → 실행 → `shutil.copy` 복원. 커밋 `04f603996` 위)
+
+M1 · M2 는 단위(`src/modules/workflows` · `src/repo-guards` 489건), M3 는 e2e 전체(413건) 1회.
 
 | # | 뮤턴트 | 예측 | 실측 · 죽인 케이스 |
 |---|---|---|---|
-| M1 | `nodes` 를 타입 없는 배열로 되돌림 | 캐너리 RED · e2e GREEN(검증자가 안 본다) | |
-| M2 | `edges` 를 타입 없는 배열로 되돌림 | 캐너리 RED | |
-| M3 | `NodeDto.toolOwnerId` 선언 제거 | e2e C · I RED(미선언 키) — **e2e 뮤턴트라 한 번만 돌린다** | |
+| M1 | `nodes` 를 타입 없는 배열로 되돌림 | 캐너리 RED · e2e GREEN(검증자가 안 본다) | KILLED — 캐너리 `nodes` 한 건만. 다른 단위 테스트는 못 잡는다(예측대로) |
+| M2 | `edges` 를 타입 없는 배열로 되돌림 | 캐너리 RED | KILLED — 캐너리 `edges` 한 건만 |
+| M3 | `NodeDto.toolOwnerId` 선언 제거 | e2e C · I RED(미선언 키) | KILLED — e2e C · I 두 건만(2 failed / 413). 사유 `nodes[i].toolOwnerId [undeclared]` — 검증자가 `$ref` 배열 원소 안까지 내려간다 |
 
 ## `--impl-prep` 처분 (`review/consistency/2026/09/26/21_38_44` BLOCK: NO)
 
@@ -65,8 +67,8 @@ started: 2026-09-26
 
 - [x] `--impl-prep` — `review/consistency/2026/09/26/21_38_44` BLOCK: NO(W1 은 무관 · 기존 트래커 항목)
 - [x] DTO · e2e · 캐너리 · CHANGELOG · 트래커 등재
-- [ ] 뮤턴트 표 실측
-- [ ] TEST WORKFLOW (lint · unit · build · e2e)
+- [x] 뮤턴트 표 실측 — 3개 전부 KILLED
+- [x] TEST WORKFLOW (lint · unit · build · e2e 413 — 이전 412 + 신규 I)
 - [ ] `/ai-review`
 - [ ] `--impl-done`
 - [ ] 트래커 항목 닫기
