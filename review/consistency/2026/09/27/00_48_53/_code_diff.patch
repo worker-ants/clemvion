@@ -1,0 +1,315 @@
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+index b1db510ca..e76311544 100644
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -23,6 +23,13 @@
+ > 07 37% · 08 30% · 09(25일까지) 49% 였다(나중 PR 의 백필은 세지 않았다). 여기 없다고 그 변경이 없었던 것은 아니다 —
+ > `git log` 가 정본이다.
+ 
++## Unreleased — OpenAPI 가 워크플로 버전 응답의 `creator` · `changeSummary` 를 항상 실리는 필드로 광고한다
++
++`GET /workflows/:wfId/versions`(목록)와 `GET /workflows/:wfId/versions/:versionId`(상세)의 응답 스키마가 `creator` 를
++«없을 수도, null 일 수도 있는» 필드로 적고 있었다. 실제로는 항상 실린다 — 버전 작성자 컬럼은 NOT NULL 이고, 그 사용자를
++가리키는 외래 키가 사용자 삭제를 막는다. 이제 `creator`(작성자 `id` · `name` · `email`)는 required 로, `changeSummary` 는 항상 실리고 값이 null 일 수 있는 필드로
++광고된다. 응답 자체는 그대로다 — 생성 클라이언트의 타입이 실제에 맞게 좁아진다.
++
+ ## Unreleased — OpenAPI 가 워크플로우 export 응답의 노드 · 엣지 형태를 광고한다
+ 
+ `GET /workflows/:id/export` 의 응답 `nodes` · `edges` 가 OpenAPI 에서 타입 없는 객체 배열이었다. 이제 원소가 export 전용 스키마
+diff --git a/codebase/backend/src/modules/workflow-versions/dto/responses/workflow-version-response.dto.spec.ts b/codebase/backend/src/modules/workflow-versions/dto/responses/workflow-version-response.dto.spec.ts
+new file mode 100644
+index 000000000..05986948c
+--- /dev/null
++++ b/codebase/backend/src/modules/workflow-versions/dto/responses/workflow-version-response.dto.spec.ts
+@@ -0,0 +1,40 @@
++import { describe, it, expect } from '@jest/globals';
++
++import { contractForDto } from '../../../../shared/testing/response-contract';
++import {
++  WorkflowVersionDto,
++  WorkflowVersionListItemDto,
++} from './workflow-version-response.dto';
++
++/**
++ * 버전 응답 DTO 의 `creator` · `changeSummary` 선언 회귀 가드 — `GET /workflows/:wfId/versions`(목록) ·
++ * `GET /workflows/:wfId/versions/:versionId`(상세).
++ *
++ * 두 필드는 §5.4 금지 조합(optional + nullable)이었다가 기본형으로 갚았다: `creator` 는 항상 실리는 참조, `changeSummary` 는
++ * 항상 실리고 값이 null 일 수 있다.
++ *
++ * ## 왜 래칫 · e2e 로 부족한가
++ *
++ * - `swagger-dto-contract` 래칫은 «optional + nullable» 로 되돌리는 회귀만 잡는다. `@ApiPropertyOptional()`(nullable 없이)로
++ *   되돌리면 래칫은 통과한다.
++ * - e2e 계약 대조는 **선언을 기준으로** 값을 본다 — optional 선언은 값이 있든 없든 통과하므로 선언이 넓어지는 회귀를 못 본다.
++ */
++describe('워크플로 버전 응답 DTO 선언', () => {
++  it.each([{ dto: WorkflowVersionDto }, { dto: WorkflowVersionListItemDto }])(
++    '$dto.name — creator 는 항상 실리는 참조, changeSummary 는 항상 실리고 null 일 수 있다',
++    async ({ dto }) => {
++      const { schema } = await contractForDto(dto);
++
++      expect(schema.required).toEqual(
++        expect.arrayContaining(['creator', 'changeSummary']),
++      );
++      expect(schema.properties?.creator).toStrictEqual({
++        $ref: '#/components/schemas/WorkflowVersionCreatorDto',
++      });
++      expect(schema.properties?.changeSummary).toStrictEqual({
++        type: 'string',
++        nullable: true,
++      });
++    },
++  );
++});
+diff --git a/codebase/backend/src/modules/workflow-versions/dto/responses/workflow-version-response.dto.ts b/codebase/backend/src/modules/workflow-versions/dto/responses/workflow-version-response.dto.ts
+index 8afd295b4..d11115abb 100644
+--- a/codebase/backend/src/modules/workflow-versions/dto/responses/workflow-version-response.dto.ts
++++ b/codebase/backend/src/modules/workflow-versions/dto/responses/workflow-version-response.dto.ts
+@@ -1,4 +1,4 @@
+-import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
++import { ApiProperty } from '@nestjs/swagger';
+ 
+ export class WorkflowVersionCreatorDto {
+   /** 작성자 UUID */
+@@ -33,20 +33,21 @@ export class WorkflowVersionListItemDto {
+   @ApiProperty({ example: 3 })
+   version: number;
+ 
+-  /** 변경 요약 */
+-  @ApiPropertyOptional({ nullable: true })
+-  changeSummary?: string | null;
++  /** 변경 요약. 없으면 null */
++  // §5.4 기본형 — 두 조회의 `select` 가 늘 싣는 키라 required, 컬럼이 nullable 이라 값은 null 일 수 있다. `type` 을 적는 것은
++  // `string | null` 의 설계 타입(`Object`)이 플러그인 없는 스키마에서 `type: object` 로 새지 않게 하려는 것이다.
++  @ApiProperty({ type: String, nullable: true })
++  changeSummary: string | null;
+ 
+   /** 작성자 UUID */
+   @ApiProperty({ format: 'uuid' })
+   createdBy: string;
+ 
+-  /** 작성자 정보 (조인 시 포함) */
+-  @ApiPropertyOptional({
+-    type: () => WorkflowVersionCreatorDto,
+-    nullable: true,
+-  })
+-  creator?: WorkflowVersionCreatorDto | null;
++  /** 작성자 정보 */
++  // 항상 실린다 — `created_by` 가 `NOT NULL REFERENCES "user"(id)`(`ON DELETE` 없음)라 관계 로드가 늘 행을 찾고, 두 조회가
++  // `CREATOR_PROJECTION` 으로 싣는다. 종전 선언(optional + nullable)은 런타임보다 넓었다.
++  @ApiProperty({ type: () => WorkflowVersionCreatorDto })
++  creator: WorkflowVersionCreatorDto;
+ 
+   /** 생성 시각 */
+   @ApiProperty({ format: 'date-time' })
+@@ -66,9 +67,11 @@ export class WorkflowVersionDto {
+   @ApiProperty({ example: 3 })
+   version: number;
+ 
+-  /** 변경 요약 */
+-  @ApiPropertyOptional({ nullable: true })
+-  changeSummary?: string | null;
++  /** 변경 요약. 없으면 null */
++  // §5.4 기본형 — 두 조회의 `select` 가 늘 싣는 키라 required, 컬럼이 nullable 이라 값은 null 일 수 있다. `type` 을 적는 것은
++  // `string | null` 의 설계 타입(`Object`)이 플러그인 없는 스키마에서 `type: object` 로 새지 않게 하려는 것이다.
++  @ApiProperty({ type: String, nullable: true })
++  changeSummary: string | null;
+ 
+   /** 버전 스냅샷 (노드/엣지 포함) */
+   @ApiProperty({ type: 'object', additionalProperties: true })
+@@ -78,12 +81,11 @@ export class WorkflowVersionDto {
+   @ApiProperty({ format: 'uuid' })
+   createdBy: string;
+ 
+-  /** 작성자 정보 (조인 시 포함) */
+-  @ApiPropertyOptional({
+-    type: () => WorkflowVersionCreatorDto,
+-    nullable: true,
+-  })
+-  creator?: WorkflowVersionCreatorDto | null;
++  /** 작성자 정보 */
++  // 항상 실린다 — `created_by` 가 `NOT NULL REFERENCES "user"(id)`(`ON DELETE` 없음)라 관계 로드가 늘 행을 찾고, 두 조회가
++  // `CREATOR_PROJECTION` 으로 싣는다. 종전 선언(optional + nullable)은 런타임보다 넓었다.
++  @ApiProperty({ type: () => WorkflowVersionCreatorDto })
++  creator: WorkflowVersionCreatorDto;
+ 
+   /** 생성 시각 */
+   @ApiProperty({ format: 'date-time' })
+diff --git a/codebase/backend/src/modules/workflow-versions/workflow-versions.service.spec.ts b/codebase/backend/src/modules/workflow-versions/workflow-versions.service.spec.ts
+index ed59f2cd6..6c2c5f868 100644
+--- a/codebase/backend/src/modules/workflow-versions/workflow-versions.service.spec.ts
++++ b/codebase/backend/src/modules/workflow-versions/workflow-versions.service.spec.ts
+@@ -166,6 +166,29 @@ describe('WorkflowVersionsService', () => {
+     });
+   });
+ 
++  /**
++   * 두 조회의 `select` 는 `snapshot` 하나만 다르다 — 메타 컬럼은 한 상수(`VERSION_METADATA_SELECT`)에서 온다.
++   *
++   * 위 두 리터럴 단언이 각 조회를 따로 고정하지만, 한쪽 단언만 고치면서 한 조회에만 키를 더하는 편집은 둘 다 통과한다.
++   * 이 단언은 «자매가 같은 메타를 싣는다» 는 성질 자체를 고정한다.
++   */
++  it('목록과 상세의 select 는 snapshot 하나만 다르다', async () => {
++    mockRepo.find.mockResolvedValue([]);
++    mockRepo.findOne.mockResolvedValue({ id: 'v-1', workflowId: 'wf-1' });
++    await service.findByWorkflow('wf-1');
++    await service.findOne('wf-1', 'v-1');
++
++    const listSelect = (
++      mockRepo.find.mock.calls[0][0] as { select: Record<string, unknown> }
++    ).select;
++    const { snapshot, ...detailWithoutSnapshot } = (
++      mockRepo.findOne.mock.calls[0][0] as { select: Record<string, unknown> }
++    ).select;
++
++    expect(snapshot).toBe(true);
++    expect(detailWithoutSnapshot).toStrictEqual(listSelect);
++  });
++
+   describe('assertWorkspaceOwnership', () => {
+     it('returns when workflow belongs to workspace', async () => {
+       mockWorkflowRepo.findOne.mockResolvedValue({ id: 'wf-1' });
+diff --git a/codebase/backend/src/modules/workflow-versions/workflow-versions.service.ts b/codebase/backend/src/modules/workflow-versions/workflow-versions.service.ts
+index bd1074ad5..174374026 100644
+--- a/codebase/backend/src/modules/workflow-versions/workflow-versions.service.ts
++++ b/codebase/backend/src/modules/workflow-versions/workflow-versions.service.ts
+@@ -66,6 +66,11 @@ export type WorkflowVersionListItem = Omit<
+  * `creator` 의 nullability)을 한쪽으로 맞춰야 하는데, 그것은 이 결함이 요구하는 것보다
+  * 넓은 변경이다. `Projection` 접미는 이 타입이 **DB 투영 결과**라는 사실도 함께 말한다 —
+  * 아래 `CREATOR_PROJECTION` 이 그 투영이다.
++ *
++ * 응답 DTO(`WorkflowVersionDto` · `WorkflowVersionListItemDto`)는 이제 `creator` 를 **항상 실리는** 필드로 광고한다
++ * (2026-09-27). 프런트엔드 미러는 그대로 넓게(`creator?: … | null`) 둔다 — 소비처 `version-history-panel.tsx` 가
++ * `creator` 가 없으면 `createdBy` 로 떨어지는 방어 분기와 그 테스트를 갖고 있고, 넓은 쪽은 런타임에 안전하다. 좁히는 것은
++ * 그 분기를 걷어 내는 프런트엔드 변경이라 따로 다룬다.
+  */
+ export type WorkflowVersionDetailProjection = Omit<
+   WorkflowVersion,
+@@ -95,6 +100,21 @@ export const CREATOR_PROJECTION = Object.freeze({
+   email: true,
+ } as const);
+ 
++/**
++ * 두 조회(`findByWorkflow` · `findOne`)가 공유하는 메타 컬럼. 목록은 이것 + `creator`, 상세는 여기에 `snapshot` 을 더한다.
++ *
++ * 손으로 두 번 적으면 자매 중 하나만 바뀌어 두 응답이 갈린다 — `CREATOR_PROJECTION` 에서 실제로 난 결함 클래스다. 여기는
++ * 갈려도 표시 버그지 유출은 아니지만 같은 형태라 같은 방식으로 막는다. 두 응답 DTO 가 이 키들을 전부 required 로 광고한다.
++ */
++const VERSION_METADATA_SELECT = Object.freeze({
++  id: true,
++  workflowId: true,
++  version: true,
++  changeSummary: true,
++  createdBy: true,
++  createdAt: true,
++} as const);
++
+ @Injectable()
+ export class WorkflowVersionsService {
+   constructor(
+@@ -135,15 +155,7 @@ export class WorkflowVersionsService {
+       where: { workflowId },
+       order: { version: 'DESC' },
+       relations: { creator: true },
+-      select: {
+-        id: true,
+-        workflowId: true,
+-        version: true,
+-        changeSummary: true,
+-        createdBy: true,
+-        createdAt: true,
+-        creator: CREATOR_PROJECTION,
+-      },
++      select: { ...VERSION_METADATA_SELECT, creator: CREATOR_PROJECTION },
+     });
+   }
+ 
+@@ -162,13 +174,8 @@ export class WorkflowVersionsService {
+       // 자매 메서드 `findByWorkflow` 는 처음부터 이 투영을 갖고 있었다 — **한쪽만 있었다.**
+       // `WorkflowVersionCreatorDto` 가 광고하는 세 필드와 같은 집합이다.
+       select: {
+-        id: true,
+-        workflowId: true,
+-        version: true,
+-        changeSummary: true,
++        ...VERSION_METADATA_SELECT,
+         snapshot: true,
+-        createdBy: true,
+-        createdAt: true,
+         creator: CREATOR_PROJECTION,
+       },
+     });
+diff --git a/codebase/backend/src/repo-guards/__tests__/swagger-dto-contract.spec.ts b/codebase/backend/src/repo-guards/__tests__/swagger-dto-contract.spec.ts
+index ff218d7d8..07c568dae 100644
+--- a/codebase/backend/src/repo-guards/__tests__/swagger-dto-contract.spec.ts
++++ b/codebase/backend/src/repo-guards/__tests__/swagger-dto-contract.spec.ts
+@@ -426,10 +426,6 @@ const EXPECTED_OPTIONAL_NULLABLE_DRIFT: readonly string[] = [
+   'workflow-response.dto.ts:ExportWorkflowDto.description',
+   'workflow-response.dto.ts:WorkflowDto.description',
+   'workflow-response.dto.ts:WorkflowDto.folderId',
+-  'workflow-version-response.dto.ts:WorkflowVersionDto.changeSummary',
+-  'workflow-version-response.dto.ts:WorkflowVersionDto.creator',
+-  'workflow-version-response.dto.ts:WorkflowVersionListItemDto.changeSummary',
+-  'workflow-version-response.dto.ts:WorkflowVersionListItemDto.creator',
+   'workspace-response.dto.ts:WorkspaceInvitationDto.invitedBy',
+ ];
+ 
+diff --git a/codebase/backend/test/workflow-crud.e2e-spec.ts b/codebase/backend/test/workflow-crud.e2e-spec.ts
+index 1da2d67eb..9376c3229 100644
+--- a/codebase/backend/test/workflow-crud.e2e-spec.ts
++++ b/codebase/backend/test/workflow-crud.e2e-spec.ts
+@@ -15,7 +15,10 @@ import {
+   ExportWorkflowDto,
+ } from '../src/modules/workflows/dto/responses/workflow-response.dto';
+ import { WorkflowDto } from '../src/modules/workflows/dto/responses/workflow-response.dto';
+-import { WorkflowVersionDto } from '../src/modules/workflow-versions/dto/responses/workflow-version-response.dto';
++import {
++  WorkflowVersionDto,
++  WorkflowVersionListItemDto,
++} from '../src/modules/workflow-versions/dto/responses/workflow-version-response.dto';
+ import { expectNoUserSecrets } from '../src/shared/testing/user-secret-absence';
+ 
+ /**
+@@ -29,6 +32,7 @@ import { expectNoUserSecrets } from '../src/shared/testing/user-secret-absence';
+  *   - DELETE 후 GET 404
+  *   - 동시 PATCH 가 마지막 쓰기로 수렴 (실패 없이)
+  *   - 캔버스 저장(C) · 버전 복원(I) 응답이 `CanvasSaveResultDto` 선언과 맞는다 — 노드 생성 가지와 갱신 가지
++ *   - 버전 목록 · 상세(H · I) 응답이 선언과 맞고 `User` 비밀을 싣지 않는다 — `changeSummary` 가 있는 버전(H)과 null 인 버전(I)
+  *
+  * 권한·격리 invariants 는 workspace-rbac.e2e-spec.ts 가 담당. 본 spec 은 단일 owner
+  * 단일 워크스페이스 하에서의 CRUD 의미만 본다.
+@@ -567,6 +571,13 @@ describe('Workflow CRUD (e2e)', () => {
+     const versions = list.body.data as Array<{ id: string }>;
+     // 버전이 0개면 아래 단언이 통째로 vacuous 하다.
+     expect(versions.length).toBeGreaterThanOrEqual(1);
++    // 목록도 두 축을 건다 — 이 엔드포인트엔 계약 대조가 없었다. `creator` 가 required 라 부재 · null 이 위반이고, 중첩
++    // `$ref` 라 `User` 의 다른 컬럼이 실리면 미선언으로 잡힌다.
++    expectNoUserSecrets(list.body);
++    const listItemContract = await contractForDto(WorkflowVersionListItemDto);
++    for (const item of versions) {
++      assertMatchesContract(item, listItemContract);
++    }
+ 
+     const detail = await request(BASE_URL)
+       .get(`/api/workflows/${workflowId}/versions/${versions[0].id}`)
+@@ -621,8 +632,18 @@ describe('Workflow CRUD (e2e)', () => {
+       .set('Authorization', `Bearer ${ownerToken}`)
+       .set('X-Workspace-Id', workspaceId);
+     expect(list.status).toBe(200);
+-    const versions = list.body.data as Array<{ id: string }>;
++    const versions = list.body.data as Array<{
++      id: string;
++      changeSummary: string | null;
++    }>;
+     expect(versions.length).toBeGreaterThanOrEqual(1);
++    // `changeSummary` 없이 저장한 버전 — 키는 실리고 값은 null 이다(선언: required + nullable). H 는 값이 있는 쪽만 보므로
++    // null 쪽은 여기서 고정한다. 양성 단언이 먼저인 이유: 대조는 null 이 아닌 문자열도 통과시킨다.
++    expect(versions[0].changeSummary).toBeNull();
++    assertMatchesContract(
++      versions[0],
++      await contractForDto(WorkflowVersionListItemDto),
++    );
+ 
+     const restored = await request(BASE_URL)
+       .post(`/api/workflows/${workflowId}/versions/${versions[0].id}/restore`)
