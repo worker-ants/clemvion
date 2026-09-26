@@ -5,7 +5,6 @@ owner: planner
 worktree: dto-class-jsdoc-citation
 spec_impact:
   - spec/conventions/review-citations.md
-  - spec/conventions/swagger.md
 started: 2026-09-27
 ---
 
@@ -40,7 +39,7 @@ started: 2026-09-27
 바꾼 두 행:
 
 > | **DTO 필드 · 컨트롤러의 `/** */` JSDoc** | **대상 아님** | 그 JSDoc 은 **공개 OpenAPI `description` 으로 나간다**(DTO 필드: swagger CLI 플러그인이 프로퍼티별 `description` 으로 싣는다). 리뷰 인용은 소비자가 읽을 문장이 아니므로 애초에 거기 쓰지 않는다 — [`swagger.md` §3](./swagger.md) 이 정한 대로 **바로 위 `//` 주석**에 적고, 그 `//` 주석은 위 첫 행에 따라 이 규약을 따른다 |
-> | **응답 DTO 클래스의 `/** */` JSDoc** | **대상 아님** | 필드와 같이 **쓰지 않는다.** 지금 플러그인은 클래스 JSDoc 을 스키마에 싣지 않는다(프로퍼티 메타데이터만 만든다 — [Rationale](#3--응답-dto-클래스-jsdoc-도-인용을-쓰지-않는다-2026-09-27)). 그래도 필드 행과 같은 규칙을 둔다: 응답 DTO 파일의 `/** */` 를 **공개 문서 채널 하나**로 다룬다. 회피처도 같다 — 바로 위 `//` 주석 |
+> | **응답 DTO 클래스의 `/** */` JSDoc** | **대상 아님 — 필드와 같이 쓰지 않는다** | 지금 플러그인은 클래스 JSDoc 을 스키마에 싣지 않는다(프로퍼티 메타데이터만 만든다 — [Rationale](#3--응답-dto-클래스-jsdoc-도-인용을-쓰지-않는다-2026-09-27)). 그래도 필드 행과 같은 규칙을 둔다: 응답 DTO 파일의 `/** */` 를 **공개 문서 채널 하나**로 다룬다. 회피처도 같다 — 바로 위 `//` 주석 |
 
 ### `## Rationale` — 절 하나 추가
 
@@ -50,8 +49,7 @@ started: 2026-09-27
 > 재 보니 이 근거는 **필드 JSDoc 에만 맞는다** — 플러그인의 `_OPENAPI_METADATA_FACTORY` 는 프로퍼티 메타데이터만 만들고,
 > `TriggerWorkflowRefDto` 의 클래스 JSDoc 문구는 산출물 어디에도 없었다(`codebase/backend/dist`, 2026-09-27).
 >
-> 그래서 클래스 JSDoc 에 대해 두 방향을 검토했다. 질문은 `#1292` 가 트래커에 남겼고, 두 선택지는 이 결정에서 처음 적는다
-> (`git log -S '클래스 JSDoc'` — 규약 두 문서에는 이 절이 처음이다):
+> 그래서 클래스 JSDoc 에 대해 두 방향을 검토했다(이번 결정에서 처음 나온 선택지다):
 >
 > | 방향 | 무엇 | 비용 |
 > |---|---|---|
@@ -66,33 +64,7 @@ started: 2026-09-27
 > 표의 «실제 위반 사례는 없지만»(위 «DTO JSDoc 행이 왜 필요한가» 인용문, 2026-09-05)은 쓰인 시점에 맞았다. 그 다음 날 두 클래스
 > JSDoc 인용이 들어왔고(`#1291`), 가드가 그 둘을 동결했다가 이번 결정으로 갚는다.
 
-### `swagger.md` §3 — «JSDoc 은 공개 OpenAPI 로 나간다» 문단에 필드 한정을 붙인다
-
-현재:
-
-> 플러그인이 `introspectComments` 로 JSDoc 을 `description` 에 그대로 싣는다(문서 상단).
-> 즉 DTO 의 `/** ... */` 는 **API 소비자가 읽는 문장**이다.
-
-바꾼 문장:
-
-> 플러그인이 `introspectComments` 로 **프로퍼티** JSDoc 을 `description` 에 그대로 싣는다(문서 상단).
-> 즉 DTO 필드의 `/** ... */` 는 **API 소비자가 읽는 문장**이다. 클래스 JSDoc 은 플러그인이 싣지 않지만 같은 분리를
-> 따른다 — 응답 DTO 파일의 `/** */` 는 한 채널로 다룬다([`review-citations.md` §3](./review-citations.md)).
-
 ## 구현 위임 (developer, 같은 PR)
 
 `plan/in-progress/dto-class-jsdoc-citation.md` — 두 클래스 JSDoc 의 인용을 바로 위 `//` 로 옮기고 `EXPECTED_DTO_JSDOC_CITATIONS` 를
-비운다. 가드 spec 머리 주석의 «DTO 의 JSDoc 은 공개 OpenAPI `description` 이 된다» 와 가드 본체 주석의 «클래스는 스키마
-description 으로 나간다» 도 필드/클래스를 갈라 바로잡는다. 완료 후 트래커 항목 «`Ref` DTO **클래스** JSDoc 두 곳에 리뷰 인용이
-남아 있다» 를 닫고 이 결정을 참조로 남긴다.
-
-## Rationale (draft)
-
-- **왜 근거 문장을 고치면서 결론은 유지하나**: §3 의 결론(«DTO JSDoc 에 리뷰 인용을 쓰지 않는다»)은 필드에 대해 여전히
-  맞고, 클래스에 대해서도 같은 결론을 택했다(규약 본문 Rationale 의 (B)). 틀린 것은 결론이 아니라 «클래스 JSDoc 도 공개된다» 는
-  근거다 — 그래서 근거를 실측대로 가르고 결론을 명시한다.
-- **`--spec` `review/consistency/2026/09/27/08_41_33` 반영** (BLOCK: NO · WARNING 3):
-  - W1 — 짝 규약 `swagger.md` §3 에 같은 과잉일반화 문장이 있었다 → `spec_impact` 에 추가하고 그 문단에 필드 한정을 붙였다.
-  - W2 — draft 고유 `## Rationale` 이 없었다 → 이 절.
-  - W3 — 선행 트래커 항목을 누가 닫는지 없었다 → 구현 위임 절에 적었다.
-  - INFO 3 — «처음 나온 선택지» 를 `git log -S` 로 확인해 문구에 근거를 붙였다. INFO 6 — 표 두 번째 칸을 `대상 아님` 단독으로.
+비운다. 가드 spec 머리 주석의 «DTO 의 JSDoc 은 공개 OpenAPI `description` 이 된다» 도 필드/클래스를 갈라 바로잡는다.
