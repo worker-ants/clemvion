@@ -1,6 +1,8 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { EdgeDto } from '../../../edges/dto/responses/edge-response.dto';
+import { EdgeType } from '../../../edges/entities/edge.entity';
 import { NodeDto } from '../../../nodes/dto/responses/node-response.dto';
+import { NodeCategory } from '../../../nodes/entities/node.entity';
 
 /**
  * 워크플로우 기본 속성 응답 DTO.
@@ -134,6 +136,88 @@ export class GraphWarningsResponseDto {
   hasWarning: boolean;
 }
 
+// 아래 두 DTO 는 `NodeDto` · `EdgeDto` 를 재사용하지 않는다 — export 는 UUID 를 싣지 않고 노드 간 참조를 같은 응답
+// `nodes[]` 의 index 로 정규화한다(`spec/2-navigation/1-workflow-list.md` §3.2). import 요청 DTO(`ImportNodeDto` ·
+// `ImportEdgeDto`)도 쓰지 않는다 — export 는 모든 키를 항상 싣고 `description` · `condition` 에 `null` 을 싣는데, 요청
+// DTO 는 그 키들이 optional 이고 그 둘이 nullable 이 아니다. 요청은 «무엇을 받는가», 응답은 «무엇이 항상 실리는가» 다.
+
+/**
+ * 워크플로우 내보내기 JSON 의 노드 한 개.
+ */
+export class ExportedNodeDto {
+  /** 노드 타입 식별자 */
+  @ApiProperty({ example: 'http_request' })
+  type: string;
+
+  /** 노드 카테고리 */
+  @ApiProperty({ enum: NodeCategory, enumName: 'NodeCategory' })
+  category: NodeCategory;
+
+  /** 노드 라벨. 워크플로우 안에서 유일하다. */
+  @ApiProperty({ example: 'Fetch API' })
+  label: string;
+
+  /** 캔버스 X 좌표 */
+  @ApiProperty({ example: 250 })
+  positionX: number;
+
+  /** 캔버스 Y 좌표 */
+  @ApiProperty({ example: 300 })
+  positionY: number;
+
+  /** 노드별 설정 객체 */
+  @ApiProperty({ type: 'object', additionalProperties: true })
+  config: Record<string, unknown>;
+
+  /** 노드 비활성화 여부 */
+  @ApiProperty()
+  isDisabled: boolean;
+
+  /** 노드 설명. 없으면 null */
+  // `type` 을 적는다 — `string | null` 은 설계 타입이 `Object` 로 emit 된다. 데코레이터는 swagger CLI 플러그인 메타데이터를
+  // 먼저 보고 없으면 설계 타입으로 떨어지므로, 플러그인이 없는 생성(테스트의 응답 계약 검증자)에서는 `type: object` 가
+  // 된다(실측). 적어 두면 배포 빌드와 테스트가 같은 스키마를 본다. `workflow-response.dto.spec.ts` 가 고정한다.
+  @ApiProperty({ type: String, nullable: true })
+  description: string | null;
+
+  /** 컨테이너 노드의 `nodes[]` 배열 index. 루트 노드면 null */
+  @ApiProperty({ type: 'integer', nullable: true, example: null })
+  containerIndex: number | null;
+
+  /** Tool 소유 노드의 `nodes[]` 배열 index. 없으면 null */
+  @ApiProperty({ type: 'integer', nullable: true, example: null })
+  toolOwnerIndex: number | null;
+}
+
+/**
+ * 워크플로우 내보내기 JSON 의 엣지 한 개.
+ */
+export class ExportedEdgeDto {
+  /** source 노드의 `nodes[]` 배열 index */
+  @ApiProperty({ type: 'integer', example: 0 })
+  sourceNodeIndex: number;
+
+  /** source 포트 이름 */
+  @ApiProperty({ example: 'out' })
+  sourcePort: string;
+
+  /** target 노드의 `nodes[]` 배열 index */
+  @ApiProperty({ type: 'integer', example: 1 })
+  targetNodeIndex: number;
+
+  /** target 포트 이름 */
+  @ApiProperty({ example: 'in' })
+  targetPort: string;
+
+  /** 엣지 타입 */
+  @ApiProperty({ enum: EdgeType, enumName: 'EdgeType' })
+  type: EdgeType;
+
+  /** 조건부 엣지의 조건 객체. 없으면 null */
+  @ApiProperty({ type: 'object', additionalProperties: true, nullable: true })
+  condition: Record<string, unknown> | null;
+}
+
 /**
  * 워크플로우 내보내기 결과 (JSON 포맷).
  */
@@ -158,11 +242,11 @@ export class ExportWorkflowDto {
   @ApiProperty({ type: 'object', additionalProperties: true })
   settings: Record<string, unknown>;
 
-  /** 노드 배열 */
-  @ApiProperty({ type: 'array', items: { type: 'object' } })
-  nodes: Record<string, unknown>[];
+  /** 노드 배열. 노드 간 참조(`containerIndex` · `toolOwnerIndex` · 엣지의 `*NodeIndex`)는 이 배열의 index 다. */
+  @ApiProperty({ type: () => [ExportedNodeDto] })
+  nodes: ExportedNodeDto[];
 
   /** 엣지 배열 */
-  @ApiProperty({ type: 'array', items: { type: 'object' } })
-  edges: Record<string, unknown>[];
+  @ApiProperty({ type: () => [ExportedEdgeDto] })
+  edges: ExportedEdgeDto[];
 }

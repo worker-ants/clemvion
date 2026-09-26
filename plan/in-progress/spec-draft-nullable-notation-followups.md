@@ -1312,14 +1312,23 @@ field: T | null;
       실려도 계약 검사를 통과한다. e2e 11개 스펙이 이 엔드포인트를 때리므로 배선 자체는
       쉬운데, `NodeDto`/`EdgeDto` 로 선언을 바꾸는 것이 선행이다.
 
-- [ ] **`ExportWorkflowDto.nodes`/`.edges` 도 타입 없는 객체 배열이다** (developer, 2026-09-26 등재 · `canvas-save-typed`
-      조사 중 발견). `GET /workflows/:id/export` 응답. 같은 `items: { type: 'object' }` 라 검증자가 원소를 보지 않는다 —
+- [x] **`ExportWorkflowDto.nodes`/`.edges` 도 타입 없는 객체 배열이다** (developer, 2026-09-26 등재 · `canvas-save-typed`
+      조사 중 발견 · **2026-09-26 해소** `plan/complete/export-workflow-typed.md` — 아래 선행 결정을 실측으로 **응답 전용 DTO** 로
+      정했다(export 는 모든 키를 항상 싣고 `description` · `condition` 에 null 을 싣는데 요청 DTO 는 optional · non-nullable).
+      `ExportedNodeDto`(10) · `ExportedEdgeDto`(6) + e2e `workflow-crud` C 계약 대조 + 캐너리. 뮤턴트 4개 KILLED). `GET /workflows/:id/export` 응답. 같은 `items: { type: 'object' }` 라 검증자가 원소를 보지 않는다 —
       `workflow-crud.e2e` F 가 export 응답을 `ExportWorkflowDto` 와 대조하지만 원소는 무엇이든 통과한다.
       > **`NodeDto`/`EdgeDto` 를 재사용할 수 없다** — export 포맷은 노드 간 참조를 인덱스로 정규화한다(`containerIndex` ·
       > `toolOwnerIndex` · `sourceNodeIndex` · `targetNodeIndex`). 같은 포맷을 받는 import 요청 쪽에 이미
       > `ImportNodeDto` · `ImportEdgeDto`(`import-workflow.dto.ts` 파일 내부 클래스)가 있다. 그것을 응답에도 쓸지(export 가
       > 곧 import 입력이라는 계약을 한 선언으로 묶는다), 응답 전용 DTO 를 따로 둘지(요청 DTO 의 검증 데코레이터 · 선택
       > 필드 지위가 응답과 맞는지 먼저 잰다)를 정하는 것이 선행이다.
+
+- [ ] **프런트엔드 export 타입이 `null` 을 적지 않는다** (developer, 낮음, 2026-09-26 등재 · `export-workflow-typed` `--impl-prep`
+      `review/consistency/2026/09/26/22_52_28` INFO 1). `codebase/frontend/src/lib/api/workflows.ts` 의 `ExportedNode.description?: string` ·
+      `ExportedWorkflow.description?: string` 은 optional 로 적지만 서버는 키를 항상 싣고 값이 `null` 일 수 있다(백엔드
+      `ExportedNodeDto` · `ExportWorkflowDto` 선언). **지금은 동작 결함이 아니다** — 소비처 두 곳(워크플로 목록 · 에디터 툴바의
+      내보내기)은 응답 전체를 `JSON.stringify` 해 파일로 내려받을 뿐 필드를 읽지 않는다(2026-09-26 grep). 필드를 읽는 소비처가
+      생기면 그때 `string | null` 로 맞춘다.
 
 - [ ] **`IntegrationDto.consecutiveNetworkFailures` 노출 중단 검토** (developer,
       2026-09-05 등재). 내부 health 카운터인데 응답에 실려 나간다. **프런트엔드 참조
@@ -3642,6 +3651,10 @@ field: T | null;
       > §9.4 밖에서는 Rationale «연결 테스트 endpoint 의 `pending_install` 가드 — 응답 형식» 이 **기각한 대안**으로만 나온다.
       > 처분: §9.4 를 400 · rotate 한정으로, MCP client §9 의 경로를 `:id/rotate` 로 고친다. 코드는 그대로다.
       > 두 파일은 이 트래커 `spec_impact` 에 올렸다. 두 spec 의 frontmatter `pending_plans` 역참조는 spec 쓰기라 그 planner 턴에서 한다.
+      > **같은 §9.4 의 실패 응답 형식도 틀렸다** (2026-09-26 보강 · `export-workflow-typed` `--impl-prep`
+      > `review/consistency/2026/09/26/22_52_28` W1). §9.4 는 실패를 `{ code, message, details? }` 로 적는다. SoT
+      > `spec/5-system/2-api-convention.md` §5.3 과 구현(`GlobalExceptionFilter`)은 `{ error: { code, message, requestId, details? } }`
+      > 다. 같은 블록이라 같은 planner 턴에서 함께 고친다 — §5.3 링크로 대체해도 된다.
 
 - [ ] **`4-cafe24.md §6`·`5-makeshop.md §6` 도메인 에러 코드 카탈로그가 `*_UNRESOLVED_PATH_PARAM`
       을 누락한다** (planner, 2026-09-13 등재 · `--impl-done`

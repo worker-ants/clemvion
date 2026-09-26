@@ -23,6 +23,13 @@
 > 07 37% · 08 30% · 09(25일까지) 49% 였다(나중 PR 의 백필은 세지 않았다). 여기 없다고 그 변경이 없었던 것은 아니다 —
 > `git log` 가 정본이다.
 
+## Unreleased — OpenAPI 가 워크플로우 export 응답의 노드 · 엣지 형태를 광고한다
+
+`GET /workflows/:id/export` 의 응답 `nodes` · `edges` 가 OpenAPI 에서 타입 없는 객체 배열이었다. 이제 원소가 export 전용 스키마
+`ExportedNodeDto`(노드 10필드) · `ExportedEdgeDto`(엣지 6필드)로 광고된다. 노드 간 참조는 UUID 가 아니라 `nodes[]` 배열 index 다.
+모든 필드가 항상 실리고, `description` · `containerIndex` · `toolOwnerIndex` · `condition` 은 `null` 일 수 있다. 서버는 원래 이
+형태를 돌려주고 있었다 — 응답 자체는 그대로다. (`formatVersion` 이 선언만 있고 실리지 않는 기존 갭은 그대로다.)
+
 ## Unreleased — OpenAPI 가 캔버스 저장 · 버전 복원 응답의 노드 · 엣지 형태를 광고한다
 
 `POST /workflows/:id/save` 와 `POST /workflows/:id/versions/:versionId/restore` 의 응답 `nodes` · `edges` 가 OpenAPI 에서
