@@ -70,5 +70,7 @@ M1 · M2 는 단위(`src/modules/workflows` · `src/repo-guards` 489건), M3 는
 - [x] 뮤턴트 표 실측 — 3개 전부 KILLED
 - [x] TEST WORKFLOW (lint · unit · build · e2e 413 — 이전 412 + 신규 I)
 - [ ] `/ai-review`
+      - 1R `review/code/2026/09/26/22_05_52` — Critical 0 · Warning 1(I 가 노드 수를 고정하지 않음) → `2ca8a7767` 로 조치,
+        TEST WORKFLOW 재통과(e2e 413). RESOLUTION 작성.
 - [ ] `--impl-done`
 - [ ] 트래커 항목 닫기
