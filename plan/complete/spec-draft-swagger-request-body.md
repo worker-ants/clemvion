@@ -1,6 +1,6 @@
 ---
 title: swagger.md §5-4 — 요청 본문을 받는 라우트는 본문 스키마를 광고한다 (가드 등재)
-status: in-progress
+status: complete
 owner: project-planner
 worktree: request-body-guard
 spec_impact:
@@ -10,7 +10,7 @@ started: 2026-09-26
 
 # spec draft — 요청 본문 스키마의 광고
 
-구현 plan `plan/in-progress/request-body-guard.md` 이 저장소 가드 `request-body-advertised` 를 세운다. `spec/conventions/swagger.md` 가 그
+구현 plan `plan/complete/request-body-guard.md` 이 저장소 가드 `request-body-advertised` 를 세운다. `spec/conventions/swagger.md` 가 그
 규칙의 자리다. 지금 규약은 요청 본문에 대해 **이름**(§1-7 `Update` 접두)만 적고, 본문 스키마를 광고해야 한다는 규칙은 없다.
 
 **왜 지금**: `rotate-bot-token-body`(#1408)가 OpenAPI 에 요청 본문이 없던 라우트 3곳을 채워, `@Body()` 78개 중 스키마를 광고하지 않는

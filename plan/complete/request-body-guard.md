@@ -1,6 +1,6 @@
 ---
 title: 요청 본문 스키마 가드 — `@Body()` 설계 타입이 클래스가 아니면 `@ApiBody` 필수 (swagger §5-4 규칙 + reflection 가드)
-status: in-progress
+status: complete
 owner: developer
 worktree: request-body-guard
 spec_impact:
@@ -56,5 +56,5 @@ started: 2026-09-26
 - [x] `/ai-review` — 1R `review/code/2026/09/26/19_32_47`(Critical 0 · Warning 2 → `8bc7e8f19`, 커버리지 뮤턴트 R1~R6 KILLED) · 2R 전수 14명
       `review/code/2026/09/26/19_54_03`: Critical 0 · Warning 1(파이프 spec 의 자기참조 순회 — 목록 축소는 가드 spec 이 이미 잡는다) → 수렴
       예외 + 트래커. 2R codebase 수정 0건으로 정지 규칙 충족
-- [ ] `--impl-done`
-- [ ] 트래커 항목 좁히기(남는 §1-7 · 리네임) · 닫힌 부분 기록
+- [x] `--impl-done` — `review/consistency/2026/09/26/20_05_38` BLOCK: NO(Warning 0). scope 는 바꾼 코드의 spec 소유 문서 셋(`swagger.md` · `2-api-convention.md` · `3-error-handling.md`)
+- [x] 트래커 항목 좁히기(남는 §1-7 · 리네임) · 닫힌 부분 기록 — 제목을 남는 명명 결정으로, «AST» 는 취소선 + «reflection», 닫힘 노트 · 남는 것 넷(명명 · §5-4 제목 · 15-chat-channel §7 · 파이프 spec 고정 배열)

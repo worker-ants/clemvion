@@ -1,0 +1,12 @@
+{
+  "timestamp": "2026-09-26T20:05:38.168888",
+  "mode": "구현 완료 후 검토 (--impl-done, scope=/private/tmp/claude-501/-Volumes-project-private-clemvion/9bc8ff42-8873-4ae7-986a-b884a1fefbf6/scratchpad/impl-done-scope-rbg/spec, diff-base=origin/main)",
+  "target_path": "/private/tmp/claude-501/-Volumes-project-private-clemvion/9bc8ff42-8873-4ae7-986a-b884a1fefbf6/scratchpad/impl-done-scope-rbg/spec",
+  "checkers": [
+    "cross_spec",
+    "rationale_continuity",
+    "convention_compliance",
+    "plan_coherence",
+    "naming_collision"
+  ]
+}
