@@ -3,7 +3,8 @@ title: 성공 응답 코드를 OpenAPI 광고와 맞춘다 — POST 액션 14곳
 status: in-progress
 owner: developer
 worktree: post-status-openapi
-spec_impact: none
+spec_impact:
+  - spec/conventions/swagger.md
 started: 2026-09-26
 ---
 
@@ -40,9 +41,17 @@ started: 2026-09-26
 
 ## 방향 — 광고에 맞춘다(200)
 
-- **규약**: `spec/conventions/swagger.md` §2-4 는 200 = 조회/수정, 201 = Created. 위 14곳은 자원을 만들지 않는 **액션**이다
-  (`spec/5-system/2-api-convention.md` 의 «POST = 리소스 생성, 액션 실행» 중 후자).
-- **관례**: POST 93개 중 `@HttpCode(200)` 이 42개이고 그 42개가 **전부** 200 을 광고한다(같은 파일의 `resend` 가 예).
+- **규약**: `spec/conventions/swagger.md` §2-4 는 200 = 조회/수정, 201 = Created. 위 14곳은 **액션**이다
+  (`spec/5-system/2-api-convention.md` 의 «POST = 리소스 생성, 액션 실행» 중 후자). 두 자리는 행이 생기지만 판정을 바꾸지 않는다
+  (`--impl-prep` WARNING 2 · 3):
+  - `oauthBegin` — cafe24 Private · MakeShop 분기가 `pending_install` 통합 행을 만든다. 그러나 한 핸들러가 분기별 응답
+    (`authUrl` · pending 안내)을 내는 OAuth **시작** 액션이고, `swagger.md` §2-5 래퍼 표가 이 분기 응답을 «200 OK» 예시로
+    적는다(`ApiOkWrappedOneOfResponse`). 생성은 설치 흐름의 부수효과다.
+  - `acceptInvitation` — 멤버십 행이 생긴다. 그러나 1차 자원은 **초대**(토큰을 소비하는 액션)이고 응답은 새 멤버십이 아니라
+    합류한 **기존** 워크스페이스다. 초대 **생성**(`POST /:id/invitations`)은 201 이다.
+- **관례**: `src/modules` 의 POST 91개 중 `@HttpCode(200)` 이 42개이고, 그중 광고가 있는 40개가 **전부** 200 을 광고한다
+  (나머지 2개는 광고 없음 · 같은 파일의 `resend` 가 예). ~~POST 93개 중 42개가 전부 200 을 광고한다~~ — 첫 집계는 가드 대조군
+  fixture 를 함께 세었고(POST 2개), 광고 없는 2개를 «전부» 에 넣었다.
 - **spec 본문**: `spec/5-system/11-mcp-client.md` 는 `preview-test` 를 «HTTP 200 OK», `spec/2-navigation/4-integration.md` 는
   `POST /api/integrations/:id/test` 의 `pending_install` 응답을 «`200 + { success:false }`» 로 적는다 — 지금 코드가 spec 과 다르다.
 - **클라이언트**: `frontend` · `channel-web-chat` · `packages` 에 201 을 정확히 비교하는 자리 0건(`=== 201` 등 grep). assistant SSE
@@ -50,6 +59,17 @@ started: 2026-09-26
 - **`revokeInvitation`**: 런타임은 그대로 두고 **광고를 200 으로** 고친다(같은 파일 DELETE 형제들처럼 `ApiOkWrappedResponse(OkResultDto)`).
   이 컨트롤러를 204 로 바꿀지는 planner 트래커 항목 «`workspaces.controller.ts` 만 삭제 성공에 204 대신 `200 {ok:true}` 를 쓴다» 의
   결정이다 — 이 PR 이 선점하지 않는다. 그 결정이 204 로 나면 런타임과 광고를 함께 바꾸면 되고, 가드가 짝을 강제한다.
+
+## `--impl-prep` 경고 처리 (`review/consistency/2026/09/26/09_10_09` BLOCK: NO · Critical 0 · Warning 5)
+
+| # | 지적 | 처분 |
+| --- | --- | --- |
+| W1 | 신설 가드가 `swagger.md` · `api-convention.md` 의 `code:` 에 없다(세 checker 공통) | planner draft `plan/in-progress/spec-draft-swagger-http-status-guard.md` — `swagger.md` 에만 등재 + §2-4 규칙 문단 · §5-4 체크리스트 · Rationale. `api-convention.md` 는 기각(draft Rationale). `--spec` 후 반영 |
+| W2 | `oauthBegin` 은 일부 분기에서 행을 만든다 — «14곳 전부 자원 미생성» 전칭이 틀렸다 | 위 «방향» 의 근거 문장을 좁혔다(§2-5 래퍼 표가 이 분기 응답을 200 으로 적는다) |
+| W3 | `acceptInvitation` 은 멤버십 행을 만든다 — 판단 근거 미기록 | 위 «방향» 에 기록(1차 자원=초대, 응답=기존 워크스페이스) |
+| W4 | §2-4 · api-convention §6 표에 «자원을 만들지 않는 POST» 칸이 없다 | 트래커 등재(착수는 이 PR 불요 — checker 제안 그대로) |
+| W5 | 초대 취소가 planner 항목 «삭제 성공에 204 대신 200» 의 위반 라우트 목록에 없다(2→3) | 그 항목의 실측 문구를 세 라우트로 갱신 |
+| INFO4 | 트래커 «신규 repo-guard 가 spec `code:` 에 미등재» 의 모집단이 하나 늘어난다 | 그 항목에 «`http-status-advertised` 는 `swagger.md` 에 등재» 한 줄 |
 
 ## 요구
 
@@ -61,7 +81,8 @@ started: 2026-09-26
 4. **e2e**: `workspace-path-guard.e2e-spec.ts` 의 이양 성공 `201` → `200`. `[200, 201]` 로 둘 다 받던 대상 호출은 `200` 으로 조인다
    (불일치를 가리던 자리).
 5. **CHANGELOG** 두 항목 — (1) 제품 동작: 14개 엔드포인트의 성공 코드 201→200 + OpenAPI 광고 정정 1곳, (3) 가드 신설.
-6. **트래커**: 이 항목 닫기 + «광고 없음 15곳» 신규 등재.
+6. **트래커**: 이 항목 닫기 + «광고 없음 15곳» · W4 신규 등재 + W5 · INFO4 갱신.
+7. **spec**: W1 draft → `--spec` → `swagger.md` 반영(planner 커밋).
 
 ## 남기는 것
 
@@ -72,7 +93,8 @@ started: 2026-09-26
 
 ## 체크리스트
 
-- [ ] `--impl-prep`
+- [x] `--impl-prep` — `review/consistency/2026/09/26/09_10_09` BLOCK: NO(Warning 5 — 위 표)
+- [ ] spec draft `--spec` · 반영
 - [ ] 가드 + fixture (RED 확인)
 - [ ] `@HttpCode` 14곳 · 초대 취소 광고
 - [ ] e2e 기대값

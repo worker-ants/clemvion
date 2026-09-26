@@ -1,0 +1,13 @@
+{
+  "timestamp": "2026-09-26T09:10:09.669379",
+  "mode": "구현 착수 전 검토 (--impl-prep, scope=spec/conventions/swagger.md · spec/5-system/2-api-convention.md · spec/5-system/11-mcp-client.md · spec/2-navigation/4-integration.md · spec/2-navigation/9-user-profile.md · spec/2-navigation/6-config.md · spec/2-navigation/5-knowledge-base.md · spec/2-navigation/3-schedule.md · spec/3-workflow-editor/3-execution.md · spec/3-workflow-editor/4-ai-assistant.md)",
+  "target_path": "spec/conventions/swagger.md · spec/5-system/2-api-convention.md · spec/5-system/11-mcp-client.md · spec/2-navigation/4-integration.md · spec/2-navigation/9-user-profile.md · spec/2-navigation/6-config.md · spec/2-navigation/5-knowledge-base.md · spec/2-navigation/3-schedule.md · spec/3-workflow-editor/3-execution.md · spec/3-workflow-editor/4-ai-assistant.md",
+  "checkers": [
+    "cross_spec",
+    "rationale_continuity",
+    "convention_compliance",
+    "plan_coherence",
+    "naming_collision"
+  ],
+  "scope_note": "이 PR 이 건드리는 컨트롤러를 `code:` 로 소유하는 spec 과 판단 기준 규약 10개만 담은 세션 전용 scratch 사본 디렉터리를 scope 로 돌렸다(내용은 그 시점 저장소 파일과 동일). 영역 디렉터리 여럿을 한 scope 로 묶을 방법이 없어서다. 번들이 10개 전부를 예산 절단해 main 이 _prompts/*.md 끝에 «판단 전에 Read 로 직접 읽을 것» 블록(절대경로 · 판단 질문)을 덧붙였다. 원래 기록된 scratch 절대경로는 세션 밖에서 해석되지 않아 이 경로로 정정했다."
+}
