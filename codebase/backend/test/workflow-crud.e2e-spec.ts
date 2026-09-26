@@ -10,7 +10,10 @@ import {
   contractForDto,
   type DtoContract,
 } from '../src/shared/testing/response-contract';
-import { ExportWorkflowDto } from '../src/modules/workflows/dto/responses/workflow-response.dto';
+import {
+  CanvasSaveResultDto,
+  ExportWorkflowDto,
+} from '../src/modules/workflows/dto/responses/workflow-response.dto';
 import { WorkflowDto } from '../src/modules/workflows/dto/responses/workflow-response.dto';
 import { WorkflowVersionDto } from '../src/modules/workflow-versions/dto/responses/workflow-version-response.dto';
 import { expectNoUserSecrets } from '../src/shared/testing/user-secret-absence';
@@ -25,6 +28,7 @@ import { expectNoUserSecrets } from '../src/shared/testing/user-secret-absence';
  *     포함한 캔버스 전체를 새 UUID 로 재매핑해 복사 (data-flow §1.5). 버전 이력은 비승계
  *   - DELETE 후 GET 404
  *   - 동시 PATCH 가 마지막 쓰기로 수렴 (실패 없이)
+ *   - 캔버스 저장(C) · 버전 복원(I) 응답이 `CanvasSaveResultDto` 선언과 맞는다 — 노드 생성 가지와 갱신 가지
  *
  * 권한·격리 invariants 는 workspace-rbac.e2e-spec.ts 가 담당. 본 spec 은 단일 owner
  * 단일 워크스페이스 하에서의 CRUD 의미만 본다.
@@ -265,6 +269,14 @@ describe('Workflow CRUD (e2e)', () => {
       );
     }
     expect(save.status).toBe(200);
+    // 저장 응답이 선언과 맞는가 — 여기는 새 노드 생성 가지(`manager.create`)다. 복원(I)이 기존 노드 갱신 가지를 본다.
+    // 원소가 없으면 원소 대조가 vacuous 하므로 개수부터 고정한다(자동 생성된 Manual Trigger 는 제출 목록에 없어 삭제된다).
+    expect(save.body.data.nodes).toHaveLength(5);
+    expect(save.body.data.edges).toHaveLength(2);
+    assertMatchesContract(
+      save.body.data,
+      await contractForDto(CanvasSaveResultDto),
+    );
 
     const dup = await request(BASE_URL)
       .post(`/api/workflows/${id}/duplicate`)
@@ -568,5 +580,58 @@ describe('Workflow CRUD (e2e)', () => {
       .creator;
     expect(creator).toBeTruthy();
     expect(Object.keys(creator!).sort()).toEqual(['email', 'id', 'name']);
+  });
+
+  /**
+   * 버전 복원 — 이 엔드포인트의 첫 e2e. 응답은 저장과 같은 `CanvasSaveResultDto` 다(`restoreVersion` 이 `saveCanvas` 를
+   * 재사용한다).
+   *
+   * C 와 **다른 가지**를 탄다. 복원은 스냅샷의 같은 노드 id 로 저장하므로 `syncNodes` 가 새로 만들지 않고 기존 행을
+   * 고친다. 생성 가지는 `manager.create` 에 적은 필드로, 갱신 가지는 `find` 로 읽은 행으로 엔티티를 채운다 — 두 가지의
+   * 와이어 키가 갈리면 C 만으로는 보이지 않는다.
+   */
+  it('I. 버전 복원 → 응답이 저장과 같은 선언을 따른다 (기존 노드 갱신 경로)', async () => {
+    const created = await request(BASE_URL)
+      .post('/api/workflows')
+      .set('Authorization', `Bearer ${ownerToken}`)
+      .set('X-Workspace-Id', workspaceId)
+      .send({ name: uniqueName('wf-restore') });
+    expect(created.status).toBe(201);
+    const workflowId = (created.body.data as { id: string }).id;
+
+    const saved = await request(BASE_URL)
+      .post(`/api/workflows/${workflowId}/save`)
+      .set('Authorization', `Bearer ${ownerToken}`)
+      .set('X-Workspace-Id', workspaceId)
+      .send(buildFiveNodeGraphPayload());
+    expect(saved.status).toBe(200);
+    // 아래 id 대조는 양쪽이 빈 배열이어도 통과한다 — 원소 수를 먼저 고정한다(C 와 같은 이유).
+    expect(saved.body.data.nodes).toHaveLength(5);
+
+    // 버전은 저장만 만든다(생성은 만들지 않는다) — 목록은 최신순이라 [0] 이 방금 저장한 5노드 스냅샷이다.
+    const list = await request(BASE_URL)
+      .get(`/api/workflows/${workflowId}/versions`)
+      .set('Authorization', `Bearer ${ownerToken}`)
+      .set('X-Workspace-Id', workspaceId);
+    expect(list.status).toBe(200);
+    const versions = list.body.data as Array<{ id: string }>;
+    expect(versions.length).toBeGreaterThanOrEqual(1);
+
+    const restored = await request(BASE_URL)
+      .post(`/api/workflows/${workflowId}/versions/${versions[0].id}/restore`)
+      .set('Authorization', `Bearer ${ownerToken}`)
+      .set('X-Workspace-Id', workspaceId);
+    expect(restored.status).toBe(200);
+
+    // 갱신 가지를 탔다는 증거 — 노드 id 가 저장 때와 같다. 달랐다면 생성 가지(C 와 같은 가지)다.
+    const idsOf = (body: { data: { nodes: Array<{ id: string }> } }) =>
+      body.data.nodes.map((n) => n.id).sort();
+    expect(restored.body.data.nodes).toHaveLength(5);
+    expect(idsOf(restored.body)).toEqual(idsOf(saved.body));
+    expect(restored.body.data.edges).toHaveLength(2);
+    assertMatchesContract(
+      restored.body.data,
+      await contractForDto(CanvasSaveResultDto),
+    );
   });
 });

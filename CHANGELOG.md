@@ -23,6 +23,12 @@
 > 07 37% · 08 30% · 09(25일까지) 49% 였다(나중 PR 의 백필은 세지 않았다). 여기 없다고 그 변경이 없었던 것은 아니다 —
 > `git log` 가 정본이다.
 
+## Unreleased — OpenAPI 가 캔버스 저장 · 버전 복원 응답의 노드 · 엣지 형태를 광고한다
+
+`POST /workflows/:id/save` 와 `POST /workflows/:id/versions/:versionId/restore` 의 응답 `nodes` · `edges` 가 OpenAPI 에서
+타입 없는 객체 배열이었다. 이제 원소가 노드 조회 · 엣지 조회 응답과 같은 스키마(`NodeDto` · `EdgeDto`)로 광고된다. 서버는 원래
+이 형태를 돌려주고 있었다 — 응답 자체는 그대로다.
+
 ## Unreleased — OpenAPI 가 `POST /integrations/:id/test` 의 MCP 성공 응답 필드를 광고한다
 
 MCP 통합의 연결 테스트가 성공하면 응답에 `capabilities` · `serverInfo` · `preview`(`toolCount` · `resourceSupported` ·
