@@ -23,6 +23,43 @@
 > 07 37% · 08 30% · 09(25일까지) 49% 였다(나중 PR 의 백필은 세지 않았다). 여기 없다고 그 변경이 없었던 것은 아니다 —
 > `git log` 가 정본이다.
 
+## Unreleased — POST 액션 14곳의 성공 응답이 광고대로 200 이다 (종전 201)
+
+아래 엔드포인트는 OpenAPI 로 `200 OK` 를 광고하면서 실제로는 Nest 의 POST 기본값 `201 Created` 를 냈다. 광고 쪽에 맞췄다 —
+자원 생성이 아니라 액션이고(OAuth 시작 · 초대 수락은 부수적으로 행이 생기지만 1차 대상은 설치 흐름 · 초대다), `@HttpCode(200)`
+을 단 POST 42곳 중 광고가 있는 40곳이 전부 200 을 광고한다. 응답 본문은 그대로다.
+
+- `POST /api/auth-configs/:id/regenerate`
+- `POST /api/integrations/preview-test` · `/oauth/begin` · `/:id/test` · `/:id/rotate` · `/:id/reauthorize` · `/:id/request-scopes`
+  (`preview-test` · `:id/test` 는 spec 이 이미 200 으로 적고 있었다)
+- `POST /api/knowledge-bases/search`
+- `POST /api/schedules/preview`
+- `POST /api/workflow-assistant/sessions/:id/messages` — SSE 스트림의 상태 줄. 핸들러가 응답을 직접 쓰지만 Nest 가 그 전에
+  기본 상태를 실어 201 로 나가고 있었다.
+- `POST /api/workflows/:id/save`
+- `POST /api/workspaces/:id/leave` · `/:id/transfer-ownership` · `/invitations/accept`
+
+자사 frontend 는 상태를 `2xx` 로만 판정해 영향이 없다(201 을 정확히 비교하는 자리 0건). 상태 코드를 `=== 201` 로 비교하는 외부
+API 호출자가 있다면 확인할 것.
+
+`DELETE /api/workspaces/:id/invitations/:invitationId` 는 **광고만** 바뀐다 — `204 No Content` 를 광고했지만 실제로는
+`200 { data: { ok: true } }` 를 냈고, 이제 광고가 그 실제를 적는다(런타임 그대로). 이 컨트롤러의 삭제 응답을 204 로 옮길지는
+별도 결정이다.
+
+## Unreleased — 저장소 가드: OpenAPI 로 광고한 성공 코드가 실제 성공 코드를 담는다
+
+광고(응답 데코레이터)와 실제 코드(`@HttpCode` 또는 Nest 기본값)를 한 번에 보는 검사가 없어, 위 15곳이 컴파일 · 단위 테스트를
+통과했고 e2e 는 `[200, 201]` 로 둘 다 받아 가리고 있었다. `src/repo-guards/__tests__/http-status-advertised.spec.ts` 가
+`src/modules` 의 모든 라우트 핸들러를 AST 로 읽어 «성공 응답을 광고했다면 그 집합이 실제 코드를 담는다» 를 강제한다(베이스라인 0,
+동결 목록 없음).
+
+- `@Res()` 로 응답을 직접 쓰는 핸들러도 면제하지 않는다 — Nest 가 핸들러 호출 전에 상태를 싣는다는 근거를 실제 요청 캐너리로
+  고정했다.
+- 응답 데코레이터 이름 → 상태 코드 표를 손으로 쓰지 않는다. `@nestjs/swagger` 팩토리를 적용해 메타데이터에서 읽고, 저장소 래퍼는
+  내부 호출로 옮긴다. 표에 없는 `Api*Response` 나 값을 못 읽는 `@HttpCode(<식>)` 은 통과가 아니라 실패다.
+- 광고가 **없는** 핸들러(2026-09-26 실측 15곳)는 대조하지 않는다 — 이 가드가 보는 범위 밖이다.
+- e2e 가 대상 라우트에 `[200, 201]` 로 받던 22곳과 이양 성공 `201` 을 `200` 으로 조였고, SSE 라우트의 상태를 보는 e2e 를 더했다.
+
 ## Unreleased — 남의 Personal 통합은 보이지 않고, Organization 통합의 변경은 Admin 이다 (재인증 바꿔치기 차단)
 
 통합의 Personal 범위(«만든 사람만»)는 spec 표로만 있었고 코드 어디도 생성자를 보지 않았다. Organization 통합도 이름 변경 ·

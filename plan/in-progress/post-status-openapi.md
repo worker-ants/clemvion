@@ -96,10 +96,28 @@ started: 2026-09-26
 - [x] `--impl-prep` — `review/consistency/2026/09/26/09_10_09` BLOCK: NO(Warning 5 — 위 표)
 - [x] spec draft `--spec` · 반영 — `review/consistency/2026/09/26/09_22_45` BLOCK: NO(Warning 3 — draft Rationale) · `4b88bcf74`
 - [x] 트래커 W4 등재 · W5 · INFO4 갱신
-- [ ] 가드 + fixture (RED 확인)
-- [ ] `@HttpCode` 14곳 · 초대 취소 광고
-- [ ] e2e 기대값
-- [ ] 뮤턴트
+- [x] 가드 + fixture (RED 확인) — 적용 전 위반 **정확히 15곳**(전수 census 와 일치), 나머지 10 케이스 GREEN
+- [x] `@HttpCode` 14곳 · 초대 취소 광고 — 적용 후 11/11 · `5e1f6ab36`
+- [x] e2e 기대값 — `[200, 201]` 22곳 · 이양 `201` → `200` · workflow-assistant G(SSE 상태 줄) 신설
+- [x] 뮤턴트 — 15/15 예측대로 KILLED, 매번 예측한 케이스가 사망 목록에 있었다(하네스 `PYTHONDONTWRITEBYTECODE=1` · `--no-cache` · cp 원복)
+
+  | # | 뮤턴트 | 예측 / 실측 | 죽인 케이스 |
+  | --- | --- | --- | --- |
+  | G1 | 기본값이 POST 도 200 | KILLED / KILLED | 본 판정 · 대조군 둘 |
+  | G2 | `@ApiExcludeEndpoint` 면제 제거 | KILLED / KILLED | 대조군 둘 (저장소엔 광고 있는 제외 핸들러가 없다) |
+  | G3 | 광고 없는 핸들러도 대조 | KILLED / KILLED | 본 판정 · 대조군 둘 |
+  | G4 | 표에 없는 `Api*Response` 를 조용히 넘김 | KILLED / KILLED | **대조군 unresolved 만** |
+  | G5 | 못 읽는 `@HttpCode(<식>)` 를 조용히 기본값으로 | KILLED / KILLED | 대조군 셋 |
+  | G6 | 래퍼 표 비움 | KILLED / KILLED | 래퍼 표 · floor · unresolved · 대조군 둘 |
+  | G7 | swagger 메타데이터 키 오타(표가 빈다) | KILLED / KILLED | swagger 표 외 5 |
+  | G8 | `HttpStatus.X` 를 못 읽음 | KILLED / KILLED | floor · unresolved · 대조군 둘 |
+  | G9 | `@ApiResponse` status 를 안 읽음 | KILLED / KILLED | unresolved · 대조군 둘 |
+  | G10 | 위반 판정 무력화 | KILLED / KILLED | **대조군 위반 목록만** — 저장소 스캔은 초록 |
+  | G11 | 성공 범위가 비어 광고가 전부 사라짐 | KILLED / KILLED | **floor**(`checked > 150`) · 대조군 |
+  | C1 | 캐너리의 `@HttpCode` 쪽에서 데코레이터 제거 | KILLED / KILLED | 캐너리 200 케이스 |
+  | P1 | `sendMessage` 의 `@HttpCode` 제거 | KILLED / KILLED | 본 판정 |
+  | P2 | 초대 취소 광고를 204 로 되돌림 | KILLED / KILLED | 본 판정 |
+  | P3 | 이양을 `HttpStatus.CREATED` 로 | KILLED / KILLED | 본 판정 |
 - [ ] CHANGELOG
 - [ ] TEST WORKFLOW (lint · unit · build · e2e)
 - [ ] `/ai-review`
