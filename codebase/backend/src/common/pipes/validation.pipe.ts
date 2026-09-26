@@ -7,6 +7,19 @@ import {
 import { validate, ValidationError } from 'class-validator';
 import { plainToInstance } from 'class-transformer';
 
+/**
+ * 이 설계 타입이면 검증하지 않고 값을 그대로 넘긴다 — 인라인 객체 타입 · 인터페이스 · `unknown` 본문이 여기 든다. 저장소 가드
+ * `request-body-advertised` 가 **이 상수를 그대로** 써서 «문서도 스키마가 비는 자리» 를 센다(`spec/conventions/swagger.md` §5-4).
+ */
+// eslint-disable-next-line @typescript-eslint/no-unsafe-function-type
+export const UNVALIDATED_METATYPES: readonly Function[] = [
+  String,
+  Boolean,
+  Number,
+  Array,
+  Object,
+];
+
 interface ValidationDetail {
   field: string;
   message: string;
@@ -74,8 +87,6 @@ export class CustomValidationPipe implements PipeTransform<unknown> {
 
   // eslint-disable-next-line @typescript-eslint/no-unsafe-function-type
   private toValidate(metatype: Function): boolean {
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-function-type
-    const types: Function[] = [String, Boolean, Number, Array, Object];
-    return !types.includes(metatype);
+    return !UNVALIDATED_METATYPES.includes(metatype);
   }
 }
