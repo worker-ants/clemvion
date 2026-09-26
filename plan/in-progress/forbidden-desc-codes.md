@@ -67,15 +67,26 @@ started: 2026-09-26
 - **spec** — `swagger.md` §5-4 의 403 항목은 «`@Roles()` 가 있으면 요구 역할과 코드» 만 적었는데 가드는 그 라우트에서도 비멤버에게
   `NOT_A_MEMBER` 를 낸다(기존 28곳도 두 코드를 싣는다). planner draft 로 §5-4 문구(두 코드 · `viewer`) · 가드 `code:` 등재 · Rationale.
 
-## 요구
+## 요구 (순서대로)
 
-1. 헬퍼 + 단위 테스트.
-2. `lowestRequiredRole` 추출(가드가 사용) + 단위 테스트.
-3. 저장소 가드 + 대조군(spec 안의 데코레이트된 클래스) — RED 확인(위반 129).
-4. 129곳 설명 교체 · 워크스페이스 · integrations 상수를 헬퍼로.
-5. CHANGELOG — (1) OpenAPI 403 설명이 거부 코드를 싣는다(계약 광고 변화) · (3) 가드 신설.
-6. spec draft → `--spec` → 반영(planner 커밋).
-7. 트래커 항목 닫기.
+1. spec draft → `--spec` → 반영(planner 커밋) → `--impl-prep`.
+2. 헬퍼 + 단위 테스트.
+3. `lowestRequiredRole` 추출(가드가 사용) + 단위 테스트.
+4. 저장소 가드 + 대조군(spec 안의 데코레이트된 클래스) + 모델 캐너리 — RED 확인(위반 129).
+5. 129곳 설명 교체 · 워크스페이스 · integrations 상수를 헬퍼로.
+6. CHANGELOG — (1) OpenAPI 403 설명이 거부 코드를 싣는다(계약 광고 변화) · (3) 가드 신설.
+7. 트래커 — 이 항목 닫기(수치 차이 각주) · «신규 repo-guard 가 spec `code:` 에 미등재» 각주 · §3 길이 규약 항목 신규 등재.
+
+## 검토 경고 처리
+
+| 출처 | 지적 | 처분 |
+| --- | --- | --- |
+| `--spec` `11_12_13` W1 · W2 | 모집단 하한 · 대조군 fixture 가 draft 에 안 보인다 | 가드 spec 초안에 이미 있다(하한 · 대조군 클래스 · 모델 캐너리) — draft Rationale 에 명시 |
+| `--spec` `11_12_13` W3 | 트래커 repo-guard `code:` census 가 stale 해진다 | 트래커 정리에서 `http-status-advertised` 때와 같은 한 줄 각주 |
+| `--impl-prep` `11_12_24` **C1** (BLOCK: YES) | 현재 §5-4 문구가 data-flow 결정과 어긋난다 | 이 PR 의 spec draft 가 고치는 그것 — planner 커밋 `f262a638e` 로 반영, `--impl-prep` 재실행 |
+| `--impl-prep` `11_12_24` W1 | integrations 4곳의 `@Roles('editor')` 자체가 `integration-personal-owner-followup.md` 에서 결정 대기(Viewer 의 자기 Personal) | 설명을 헬퍼로 바꾸면 **역할이 바뀌는 날 가드가 RED** 를 낸다(reflection 이 `@Roles` 를 읽는다) — rework 가 조용히 남지 않는다. 그 plan 에 포인터 한 줄 |
+| `--impl-prep` `11_12_24` W2 | §3 길이 규약 표에 응답 데코레이터 `description` 범주가 없다 | 트래커 신규 등재(planner 소관 · 이 PR 범위 밖) |
+| `--impl-prep` `11_12_24` INFO5 | 트래커 수치(63/54/4/2/20여)와 이 전수(54/53/4/14)가 다르다 | 트래커는 문구를 **부분 문자열로** 세어 이미 코드를 싣던 자리를 포함했다 — «워크스페이스 멤버가 아님» 63 = 빠짐 54 + 이미 `(NOT_A_MEMBER)` 9, «editor 이상 권한 필요» 54 = 빠짐 53 + executions 1. 이 전수는 **빠진 자리**만 센다 |
 
 ## 남기는 것
 
@@ -84,7 +95,7 @@ started: 2026-09-26
 
 ## 체크리스트
 
-- [ ] spec draft `--spec` · 반영
+- [x] spec draft `--spec` · 반영 — `review/consistency/2026/09/26/11_12_13` BLOCK: NO · planner 커밋 `f262a638e`
 - [ ] `--impl-prep`
 - [ ] 헬퍼 · `lowestRequiredRole` · 가드(RED 확인)
 - [ ] 129곳 교체
