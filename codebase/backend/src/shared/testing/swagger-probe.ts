@@ -136,7 +136,11 @@ export function propertyOf(
  *
  * `Object` 면 전역 `CustomValidationPipe` 가 검증을 건너뛴다(`toValidate`). DTO 클래스가 나오면 누군가 파라미터를 DTO 로 타입해
  * 파이프가 진입했다는 뜻이다 — 선례 `workflows-execute-body.spec.ts` 의 «문서 작업이 계약 변경으로 번졌다». 자리는 Nest 의 라우트
- * 인자 메타데이터로 찾는다(파라미터 순서에 기대지 않는다). `@Body()` 가 없으면 던진다 — 조용히 `undefined` 를 내면 캐너리가 공허해진다.
+ * 인자 메타데이터로 찾는다(파라미터 순서에 기대지 않는다). `@Body()` 가 없거나 둘 이상이면 던진다 — 조용히 `undefined` 나 첫 자리를
+ * 내면 캐너리가 공허해진다.
+ *
+ * `ROUTE_ARGS_METADATA` · `RouteParamtypes` 는 `@nestjs/common` 의 공개 진입점이 아닌 내부 경로다. Nest 메이저 업그레이드로 키 형식이
+ * 바뀌면 이 헬퍼의 에러 경로 테스트(`swagger-probe.spec.ts`)가 먼저 깨진다.
  */
 export function bodyParamDesignType(
   controller: Type<unknown>,
@@ -144,12 +148,16 @@ export function bodyParamDesignType(
 ): unknown {
   const args = (Reflect.getMetadata(ROUTE_ARGS_METADATA, controller, method) ??
     {}) as Record<string, { index: number }>;
-  const body = Object.entries(args).find(
+  const bodyArgs = Object.entries(args).filter(
     ([key]) => key.split(':')[0] === String(RouteParamtypes.BODY),
   );
-  if (!body)
+  if (bodyArgs.length === 0)
     throw new Error(
       `${controller.name}.${method} 에 @Body() 가 없다 — 캐너리 전제 붕괴`,
+    );
+  if (bodyArgs.length > 1)
+    throw new Error(
+      `${controller.name}.${method} 에 @Body() 가 ${bodyArgs.length}개다 — 어느 자리를 볼지 정할 수 없다`,
     );
   const types = Reflect.getMetadata(
     'design:paramtypes',
@@ -160,5 +168,5 @@ export function bodyParamDesignType(
     throw new Error(
       `${controller.name}.${method} 의 design:paramtypes 가 없다 — 캐너리 전제 붕괴`,
     );
-  return types[body[1].index];
+  return types[bodyArgs[0][1].index];
 }
