@@ -102,6 +102,14 @@ JSDoc 문구 차이(`preview` 의 «등록 UI» · «성공 시»)는 대조 대
 - [x] TEST WORKFLOW (lint · unit · build · e2e 412) — 첫 build 에서 backend typecheck ratchet 이 와이어 spec 픽스처의 TS2352 를
       잡았다(`as Integration` — `scope` 가 string 으로 넓혀짐. jest 는 타입을 strip). `Partial<Integration>` 으로 고치고(`53e11963d`)
       lint 부터 다시 통과
-- [ ] `/ai-review`
+- [x] `/ai-review` — `review/code/2026/09/26/21_03_01`(1R · router 8명 · forced 7 전원 결과 확보) Critical 0 · Warning 0 · 이
+      라운드 `codebase/` 수정 0 → 정지 규칙 충족. 판정은 커밋 `5b1799ad8` 기준. 통합 전 `git diff --stat HEAD` 가 비어 있었고
+      리뷰어 트랜스크립트에 저장소 쓰기가 없었다(뮤턴트 표를 미리 채워 둔 라운드). INFO 처분:
+      - #1 형제 DTO 선언 중복 · #3 `preview` JSDoc 문구 차이 — 형제 대조 캐너리가 스키마 갈림을 잡는다. JSDoc 은 대조 대상이
+        아니다(jest 에 swagger 플러그인 없음 — 뮤턴트 표 아래 문단). mixin 추출은 두 DTO 의 `message` 선언이 서로 달라(`string` ·
+        `string | null` optional) 이 PR 의 축이 아니다.
+      - #2 `serverInfo` TS 타입 ↔ 열린 맵 — `--impl-prep` INFO 2 와 같은 처분(형제와 같게).
+      - #4 와이어 docblock «같은 틀» — 파일을 나눈 이유는 `--impl-prep` 처분 INFO 5 에 적었다.
+      - #5 · #6 · #7 · #8 · #9 · #10 — 조치 불요(스코프 밖 · 이미 등재 · 고지 완료).
 - [ ] `--impl-done`
 - [ ] 트래커 두 항목 닫기
