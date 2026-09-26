@@ -233,4 +233,96 @@ describe('Workflow Assistant sessions (e2e)', () => {
     // 스트림 본문까지 확인해 «4xx 가 아니라 SSE 로 응답했다» 를 가른다 — 상태만 보면 JSON 200 과 구별되지 않는다.
     expect(res.text).toContain('ASSISTANT_NO_LLM_CONFIG');
   });
+
+  it('H. 세션 상세 — 메시지(도구 호출 · 계획 · 사용량)까지 응답 DTO 와 맞는다', async () => {
+    // 제목 없이 만든다 — `title: null` 도 계약 대조에 태운다.
+    const create = await request(BASE_URL)
+      .post('/api/workflow-assistant/sessions')
+      .set(authHeaders())
+      .send({ workflowId });
+    expect(create.status).toBe(201);
+    const sessionId = create.body.data.id as string;
+    expect(create.body.data.title).toBeNull();
+    assertMatchesContract(
+      create.body.data,
+      await contractForDto(AssistantSessionDto),
+    );
+
+    // 메시지는 LLM 턴이 쓴다. 이 파일은 LLM 을 부르지 않으므로(머리 주석) 행을 직접 넣는다 — 두 끝을 넣는다: 선택 키가
+    // 전부 빠지고 nullable 컬럼이 전부 null 인 user 메시지, 선택 키를 전부 채운 assistant 메시지. 빈 `messages` 로는
+    // 검증자가 메시지 아래로 내려가지 않아 메시지 · 도구 호출 · 계획 · 계획 단계 · 사용량 DTO 가 한 번도 대조되지 않는다.
+    const toolCalls = [
+      {
+        id: 'call_1',
+        name: 'add_node',
+        arguments: { type: 'http_request', label: 'Fetch' },
+        kind: 'edit',
+        result: { ok: true, nodeId: 'n1' },
+        planStepId: 's1',
+        planStepIds: ['s1', 's2'],
+        signature: 'sig-opaque',
+      },
+    ];
+    const plan = {
+      title: 'HTTP 노드 추가',
+      summary: '요청 노드 하나를 더한다',
+      steps: [
+        {
+          id: 's1',
+          action: 'add_node',
+          description: 'HTTP 노드 추가',
+          rationale: '외부 API 를 부른다',
+        },
+        { id: 's2', action: 'note', description: '응답 확인' },
+      ],
+      openQuestions: ['인증이 필요한가?'],
+      approvedAt: '2026-09-26T03:14:00.000Z',
+    };
+    const usage = {
+      inputTokens: 120,
+      outputTokens: 30,
+      totalTokens: 150,
+      thinkingTokens: 12,
+      model: 'gpt-4o',
+    };
+    await db.query(
+      `INSERT INTO workflow_assistant_message (session_id, role, content, created_at)
+       VALUES ($1, 'user', 'HTTP 노드를 추가해 줘', NOW() - interval '1 second')`,
+      [sessionId],
+    );
+    await db.query(
+      `INSERT INTO workflow_assistant_message
+         (session_id, role, content, tool_calls, plan, usage, finish_reason,
+          auto_resumed, auto_resume_reason, auto_resume_attempt, created_at)
+       VALUES ($1, 'assistant', NULL, $2, $3, $4, 'tool_calls', TRUE, 'stall_pending_steps', 1, NOW())`,
+      [
+        sessionId,
+        JSON.stringify(toolCalls),
+        JSON.stringify(plan),
+        JSON.stringify(usage),
+      ],
+    );
+
+    const detail = await request(BASE_URL)
+      .get(`/api/workflow-assistant/sessions/${sessionId}`)
+      .set(authHeaders());
+    expect(detail.status).toBe(200);
+    // 대조가 공허하지 않은지 먼저 — 넣은 두 행이 그 모양 그대로 왔다.
+    const messages = detail.body.data.messages as Array<
+      Record<string, unknown>
+    >;
+    expect(messages.map((m) => m.role)).toStrictEqual(['user', 'assistant']);
+    expect(messages[0].toolCalls).toBeNull();
+    expect(messages[1].toolCalls).toStrictEqual(toolCalls);
+    expect(messages[1].plan).toStrictEqual(plan);
+    expect(messages[1].usage).toStrictEqual(usage);
+    assertMatchesContract(
+      detail.body.data,
+      await contractForDto(AssistantSessionDetailDto),
+    );
+
+    await request(BASE_URL)
+      .delete(`/api/workflow-assistant/sessions/${sessionId}`)
+      .set(authHeaders());
+  });
 });

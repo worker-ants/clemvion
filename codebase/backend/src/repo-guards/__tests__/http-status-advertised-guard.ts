@@ -207,8 +207,73 @@ const isSuccess = (code: number): boolean => code >= 200 && code < 300;
 /** 리다이렉트 — 응답을 `res.redirect` 로 끝내는 라우트의 성공 광고(`@ApiFoundResponse` 등). */
 const isRedirect = (code: number): boolean => code >= 300 && code < 400;
 
+/** 핸들러의 데코레이터를 한 번 훑어 모은 사실. 판정은 `judgeHandler` 가 이것으로 한다. */
+interface HandlerDecorators {
+  readonly verb: string | null;
+  readonly httpCode: number | null;
+  readonly excluded: boolean;
+  /** 광고한 2xx — 실제 성공 코드와 짝을 대조한다. */
+  readonly advertised: ReadonlySet<number>;
+  /** 3xx 를 광고했는가 — 응답을 `res.redirect` 로 끝내는 라우트의 성공 광고. */
+  readonly redirectAdvertised: boolean;
+  /** 읽지 못한 데코레이터 — `@HttpCode(<식>)` · `@ApiResponse` 의 status · 표에 없는 `Api*Response` 이름. */
+  readonly unresolved: readonly string[];
+}
+
+/** 핸들러의 데코레이터를 분류한다 — 순수 함수. 무엇이 위반인지는 여기서 정하지 않는다. */
+function classifyDecorators(
+  method: ts.MethodDeclaration,
+  sf: ts.SourceFile,
+  statuses: ResponseStatusMap,
+): HandlerDecorators {
+  let verb: string | null = null;
+  let httpCode: number | null = null;
+  let excluded = false;
+  const advertised = new Set<number>();
+  let redirectAdvertised = false;
+  const unresolved: string[] = [];
+  // 광고한 상태 코드 하나를 분류한다 — `@ApiResponse({ status })` 와 이름 표가 같은 규칙을 쓴다. 4xx · 5xx 는 성공 광고가 아니다.
+  const advertise = (status: number): void => {
+    if (isSuccess(status)) advertised.add(status);
+    else if (isRedirect(status)) redirectAdvertised = true;
+  };
+
+  for (const d of ts.getDecorators(method) ?? []) {
+    const callee = decoratorCallName(d, sf);
+    if (callee === null) continue;
+    const call = d.expression as ts.CallExpression;
+    if (HTTP_VERBS.has(callee)) {
+      verb = callee.toUpperCase();
+    } else if (callee === 'HttpCode') {
+      const arg = call.arguments[0];
+      httpCode = arg ? statusOf(arg, sf) : null;
+      if (httpCode === null) unresolved.push(HTTP_CODE_UNRESOLVED);
+    } else if (callee === 'ApiExcludeEndpoint') {
+      excluded = true;
+    } else if (callee === 'ApiResponse') {
+      const status = apiResponseStatus(call, sf);
+      if (status === null) unresolved.push('@ApiResponse status');
+      else advertise(status);
+    } else if (statuses.has(callee)) {
+      const status = statuses.get(callee);
+      if (typeof status === 'number') advertise(status);
+    } else if (RESPONSE_DECORATOR.test(callee)) {
+      unresolved.push(`@${callee}`);
+    }
+  }
+  return {
+    verb,
+    httpCode,
+    excluded,
+    advertised,
+    redirectAdvertised,
+    unresolved,
+  };
+}
+
 /**
- * 핸들러 **하나**를 판정한다. 라우트가 아니거나(`@Get` 등이 없음) OpenAPI 에서 빠진
+ * 핸들러 **하나**를 판정한다 — 광고한 2xx 가 실제 성공 코드를 담는가(`violation`), 성공 응답을 하나라도
+ * 광고했는가(`unadvertised`). 라우트가 아니거나(`@Get` 등이 없음) OpenAPI 에서 빠진
  * (`@ApiExcludeEndpoint()`) 핸들러는 `null` — 광고가 문서에 실리지 않으니 대조할 것도 없다.
  */
 function judgeHandler(
@@ -223,43 +288,19 @@ function judgeHandler(
   unadvertised: HttpStatusUnadvertised | null;
 } | null {
   const name = method.name.getText(sf);
-  let verb: string | null = null;
-  let httpCode: number | null = null;
-  let excluded = false;
-  const advertised = new Set<number>();
-  let redirectAdvertised = false;
-  const unresolved: HttpStatusUnresolved[] = [];
-  const miss = (what: string): void => {
-    unresolved.push({ file: rel, method: name, what });
-  };
-
-  for (const d of ts.getDecorators(method) ?? []) {
-    const callee = decoratorCallName(d, sf);
-    if (callee === null) continue;
-    const call = d.expression as ts.CallExpression;
-    if (HTTP_VERBS.has(callee)) {
-      verb = callee.toUpperCase();
-    } else if (callee === 'HttpCode') {
-      const arg = call.arguments[0];
-      httpCode = arg ? statusOf(arg, sf) : null;
-      if (httpCode === null) miss(HTTP_CODE_UNRESOLVED);
-    } else if (callee === 'ApiExcludeEndpoint') {
-      excluded = true;
-    } else if (callee === 'ApiResponse') {
-      const status = apiResponseStatus(call, sf);
-      if (status === null) miss('@ApiResponse status');
-      else if (isSuccess(status)) advertised.add(status);
-      else if (isRedirect(status)) redirectAdvertised = true;
-    } else if (statuses.has(callee)) {
-      const status = statuses.get(callee);
-      if (typeof status === 'number' && isSuccess(status))
-        advertised.add(status);
-      else if (typeof status === 'number' && isRedirect(status))
-        redirectAdvertised = true;
-    } else if (RESPONSE_DECORATOR.test(callee)) {
-      miss(`@${callee}`);
-    }
-  }
+  const {
+    verb,
+    httpCode,
+    excluded,
+    advertised,
+    redirectAdvertised,
+    unresolved: unread,
+  } = classifyDecorators(method, sf, statuses);
+  const unresolved = unread.map((what) => ({
+    file: rel,
+    method: name,
+    what,
+  }));
 
   if (verb === null || excluded) return null;
   // 성공 응답을 하나도 광고하지 않았다 — 2xx 도, 리다이렉트 라우트의 3xx 도 없다.
@@ -268,7 +309,7 @@ function judgeHandler(
       ? { file: rel, method: name, verb }
       : null;
   // `@HttpCode(<식>)` 을 못 읽었으면 실제 코드를 모른다 — 위반으로도 통과로도 치지 않는다.
-  const actualKnown = !unresolved.some((u) => u.what === HTTP_CODE_UNRESOLVED);
+  const actualKnown = !unread.includes(HTTP_CODE_UNRESOLVED);
   // 2xx 광고가 없으면(리다이렉트만 광고했거나 아무것도 없으면) 짝을 대조하지 않는다 — 리다이렉트의 실제 코드는
   // 핸들러의 `res.redirect` 가 정한다.
   if (!actualKnown || advertised.size === 0) {
@@ -291,7 +332,8 @@ function judgeHandler(
 }
 
 /**
- * `*.controller.ts` 들에서 **광고한 성공 코드가 실제 성공 코드를 담지 않는** 핸들러를 찾는다.
+ * `*.controller.ts` 들에서 **광고한 성공 코드가 실제 성공 코드를 담지 않는** 핸들러를 찾는다. 성공 응답을
+ * **하나도 광고하지 않는** 라우트는 `unadvertised` 로 함께 보고한다.
  *
  * **`@Res()` 핸들러도 면제하지 않는다.** Nest 는 핸들러를 부르기 **전에**
  * `responseController.setStatus(res, httpStatusCode)` 를 무조건 부른다

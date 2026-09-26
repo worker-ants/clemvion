@@ -226,7 +226,7 @@ export class TriggersController {
     @Param('id', ParseUUIDPipe) id: string,
     @WorkspaceId() workspaceId: string,
     @CurrentUser('sub') userId: string,
-  ): Promise<{ secret: string; rotatedAt: string }> {
+  ): Promise<NotificationRotateSecretDto> {
     return this.triggersService.rotateNotificationSecret(
       id,
       workspaceId,
@@ -257,7 +257,7 @@ export class TriggersController {
     @Param('id', ParseUUIDPipe) id: string,
     @WorkspaceId() workspaceId: string,
     @CurrentUser('sub') userId: string,
-  ): Promise<{ token: string }> {
+  ): Promise<InteractionRevokeTokenDto> {
     return this.triggersService.revokePerTriggerToken(id, workspaceId, userId);
   }
 
