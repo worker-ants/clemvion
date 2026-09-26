@@ -1,6 +1,6 @@
 ---
 title: "워크플로우 export 응답의 `nodes`/`edges` 를 응답 전용 DTO(`ExportedNodeDto` · `ExportedEdgeDto`)로 선언하고 와이어 계약을 건다"
-status: in-progress
+status: complete
 owner: developer
 worktree: export-workflow-typed
 spec_impact: none
@@ -108,5 +108,7 @@ DTO 를 둘지 — 을 아래 실측으로 정한다.
         `condition` null) — 같은 사유로 죽을 것으로 예측하지만 e2e 1회씩이라 돌리지 않았다.
       - #1~#4(의도된 필드 중복 · 모듈 배치 · 파일 크기 · 명명 시제) · #5 · #6 · #7 · #8 · #11~#13 — 조치 불요(근거 주석 존재 · 기존
         설계 · 이미 추적 중).
-- [ ] `--impl-done`
-- [ ] 트래커 항목 닫기
+- [x] `--impl-done` — `review/consistency/2026/09/26/23_33_46` BLOCK: NO · Warning 0(scope `spec/2-navigation/`). 세션에
+      `_code_diff.patch` 를 두고 절대경로 Read 블록을 덧붙였다. INFO 4건: 트래커 항목 닫기(이 마무리 커밋) · 이미 등재된 둘(프런트엔드
+      타입 · §9.4) · 부모/자식 DTO 접두 형태(`Export` · `Exported`, 강제 규약 없음 — 프런트엔드 타입 이름을 따랐다).
+- [x] 트래커 항목 닫기

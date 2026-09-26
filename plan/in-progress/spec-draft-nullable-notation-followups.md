@@ -1312,8 +1312,10 @@ field: T | null;
       실려도 계약 검사를 통과한다. e2e 11개 스펙이 이 엔드포인트를 때리므로 배선 자체는
       쉬운데, `NodeDto`/`EdgeDto` 로 선언을 바꾸는 것이 선행이다.
 
-- [ ] **`ExportWorkflowDto.nodes`/`.edges` 도 타입 없는 객체 배열이다** (developer, 2026-09-26 등재 · `canvas-save-typed`
-      조사 중 발견). `GET /workflows/:id/export` 응답. 같은 `items: { type: 'object' }` 라 검증자가 원소를 보지 않는다 —
+- [x] **`ExportWorkflowDto.nodes`/`.edges` 도 타입 없는 객체 배열이다** (developer, 2026-09-26 등재 · `canvas-save-typed`
+      조사 중 발견 · **2026-09-26 해소** `plan/complete/export-workflow-typed.md` — 아래 선행 결정을 실측으로 **응답 전용 DTO** 로
+      정했다(export 는 모든 키를 항상 싣고 `description` · `condition` 에 null 을 싣는데 요청 DTO 는 optional · non-nullable).
+      `ExportedNodeDto`(10) · `ExportedEdgeDto`(6) + e2e `workflow-crud` C 계약 대조 + 캐너리. 뮤턴트 4개 KILLED). `GET /workflows/:id/export` 응답. 같은 `items: { type: 'object' }` 라 검증자가 원소를 보지 않는다 —
       `workflow-crud.e2e` F 가 export 응답을 `ExportWorkflowDto` 와 대조하지만 원소는 무엇이든 통과한다.
       > **`NodeDto`/`EdgeDto` 를 재사용할 수 없다** — export 포맷은 노드 간 참조를 인덱스로 정규화한다(`containerIndex` ·
       > `toolOwnerIndex` · `sourceNodeIndex` · `targetNodeIndex`). 같은 포맷을 받는 import 요청 쪽에 이미
