@@ -1,6 +1,6 @@
 ---
 title: 403 설명이 가드 거부 코드를 싣는다 — 129곳 · 공용 헬퍼 · reflection 가드
-status: in-progress
+status: complete
 owner: developer
 worktree: forbidden-desc-codes
 spec_impact:
@@ -119,5 +119,5 @@ started: 2026-09-26
 - [x] CHANGELOG — 두 항목(403 설명 · 가드)
 - [x] TEST WORKFLOW (lint · unit · build · e2e) — 전부 PASS(e2e 409건). 1회차 unit 은 frontend plan 링크 가드가 spec draft 의 인용 표기 `[…](…)` 를 상대 링크로 읽어 실패 → `3db7fab59` 로 고쳐 재통과
 - [x] `/ai-review` — 정지 규칙(사전 선언) «Critical 0 · Warning 0 · 그 라운드 codebase 수정 0». 1라운드 `review/code/2026/09/26/11_53_46` Critical 0 · Warning 2 → 조치 `37aff2a37` · `cb8999dfb`(서열 밖 역할 대조군 · 복합 문장 상수 · `toStrictEqual`). 2라운드 `review/code/2026/09/26/12_20_03` Critical 0 · Warning 0 · codebase 수정 0 — 수렴(INFO 15건 선택 사항)
-- [ ] `--impl-done`
-- [ ] 트래커 항목 닫기
+- [x] `--impl-done` — `review/consistency/2026/09/26/12_31_09` BLOCK: NO. W1(헬퍼를 거치지 않는 기존 403 설명 3곳 — auth `switchWorkspace` · executions 재실행 2)은 코드가 이미 실려 가드를 통과하는 형식 문제이고 고치면 spec 연결 코드라 리뷰 · `--impl-done` 을 한 바퀴 더 돈다 — 트래커 등재. W2(다른 plan 이 `plan/complete/` 를 먼저 인용)는 이 커밋의 이동으로 해소
+- [x] 트래커 항목 닫기 — 닫힘 노트(등재 수치 63/54 와 전수 54/53 의 차이 각주) · repo-guard `code:` 등재 항목 각주 · 신규 «헬퍼 미경유 3곳» · §3 항목에 소급 예외 각주 보탬(§3 항목 자체는 `--impl-prep` 재실행 때 등재)

@@ -4032,6 +4032,8 @@ field: T | null;
       것인가, (b) repo-guard 등재를 규약으로 세울 것인가. (b) 를 정하지 않으면 (a) 만 고쳐도
       다음 가드에서 같은 지적이 반복된다(미등재가 9개다).
 
+      > (2026-09-26 보탬) `forbidden-response-codes`(403 설명 ↔ 가드 거부 코드, reflection) 도 `swagger.md` 에 **등재했다** — 대조군이
+      > spec 안의 클래스라 가드 파일 한 쌍만 올렸다(`--spec` `review/consistency/2026/09/26/11_12_13` W3).
       > (2026-09-26 보탬) `http-status-advertised`(성공 응답 코드 ↔ OpenAPI 광고) 는 **등재했다** — `swagger.md` 가 자기 조항을
       > 세는 가드(`param-uuid-pipe` 등)를 `code:` 에 올려 온 문서라 그 선례를 따랐다(`--impl-prep`
       > `review/consistency/2026/09/26/09_10_09` W1 · INFO4). 위 표는 2026-09-14 시점 모집단이라 이 가드를 세지 않는다.
@@ -4893,7 +4895,9 @@ field: T | null;
       §3 «길이 — 강제되는 것과 지향하는 것을 가른다» 표는 `@ApiOperation` 의 `summary` · `description` 과 DTO 필드 `description` 세 갈래만
       적는다. `forbidden-desc-codes` 가 403 설명을 공용 헬퍼(`forbiddenForRole` — 두 코드 문장)로 157곳에 채우면서 이 범주의 문장이
       길어졌다 — 표에 «응답 데코레이터 `description`: 지향(무제한)» 한 행을 두거나 «위 표는 `@ApiOperation` · DTO 필드에 한정» 각주를
-      단다. **착수 조건**: 없음(여유 있을 때). planner 소관 · `--spec` 필요.
+      단다. 같은 턴에 §1-4 · §3 의 «신규 변경 한정 · 소급하지 않음» 옆에 «예외: §2-4 · §5-4 는 광고가 실제와 맞는가의 문제라 소급한다»
+      각주도(`--impl-done` `review/consistency/2026/09/26/12_31_09` cross_spec INFO1 — 근거가 §5-4 Rationale 에만 있어 §1-4 · §3 만 읽으면
+      오독한다). **착수 조건**: 없음(여유 있을 때). planner 소관 · `--spec` 필요.
 
 - [x] **`removeMember()` 의 권한 검사가 대상 조회·owner 판정보다 뒤에 있어 존재 오라클이 된다**
       (developer, **중간**, 2026-09-21 등재 · `/ai-review` `review/code/2026/09/21/12_57_05` WARNING 1).
@@ -5056,7 +5060,7 @@ field: T | null;
       `remove`). 다만 한 번 오독된 문장이라 «(`transferOwnership` 은 이미 `@Roles('owner')` 였다)» 괄호 한 줄로 다음 독자를 막는다.
       **착수 조건**: 없음(여유 있을 때).
 
-- [ ] **기존 `@ApiForbiddenResponse` 설명 ~120곳이 가드 거부 코드를 싣지 않는다** (developer, 낮음, 2026-09-25 등재 —
+- [x] **기존 `@ApiForbiddenResponse` 설명 ~120곳이 가드 거부 코드를 싣지 않는다** (developer, 낮음, 2026-09-25 등재 —
       `plan/complete/workspace-path-guard-impl.md` §구현 중 결정). 가드 거부가 코드를 갖게 됐지만(`NOT_A_MEMBER` ·
       `EDITOR_REQUIRED` · `ADMIN_REQUIRED` · `OWNER_REQUIRED`) 그 PR 은 경로 15곳 · 재실행 · chain 의 설명만 고쳤다. 실측(2026-09-25,
       `modules/**`): «워크스페이스 멤버가 아님» 63 · «editor 이상 권한 필요» 54 · «viewer 이상 권한 필요» 4 · «owner 이상 권한 필요» 2 ·
@@ -5064,6 +5068,25 @@ field: T | null;
       `swagger.md §5-4` 는 **새 엔드포인트** 체크리스트라 위반도 아니다 — OpenAPI 로 클라이언트를 만드는 쪽이 코드를 알 수 없을 뿐.
       처방: 앞 넷은 기계적 부기(`(NOT_A_MEMBER)` 등), 기타는 가드 거부인지 서비스 거부인지 자리마다 판정. 30여 컨트롤러라 spec 연결
       영역이 여럿이다 — `--impl-done` 스코프를 먼저 셀 것. **착수 조건**: 없음(여유 있을 때).
+
+      > **2026-09-26 — 닫힘.** reflection 전수(`src/modules` 핸들러 223개): 가드가 403 을 낼 수 있는 157곳 중 **129곳**의 설명에
+      > 코드가 빠졌다(«워크스페이스 멤버가 아님» 54 · «editor 이상 권한 필요» 53 · «viewer 이상 권한 필요» 4 · 표기가 제각각인 역할
+      > 문장 14 · 비멤버 코드만 빠진 통합 4). 위 등재 수치(63 · 54 · 4 · 2 · 20여)와 다른 이유: 등재 때는 문구를 **부분 문자열로** 세어
+      > 이미 코드를 싣던 자리까지 포함했다(«워크스페이스 멤버가 아님» 63 = 빠짐 54 + 이미 `(NOT_A_MEMBER)` 9). `swagger.md` §5-4 는
+      > `@Roles()` 라우트에 역할 코드만 적게 했는데 가드는 그 라우트에서도 비멤버에게 `NOT_A_MEMBER` 를 낸다 — planner 커밋으로 문구를
+      > 두 코드로 고치고 공용 헬퍼(`FORBIDDEN_NOT_A_MEMBER` · `forbiddenForRole`)와 reflection 가드 `forbidden-response-codes`(모델
+      > 캐너리가 실제 `RolesGuard` 와 대조)를 세웠다. 가드는 **빠진** 코드만 잡는다 — 역할을 내린 뒤 남은 코드와 서비스 거부는 세지
+      > 않는다. `--impl-done` `review/consistency/2026/09/26/12_31_09`. plan `plan/complete/forbidden-desc-codes.md`.
+
+- [ ] **403 설명 3곳이 공용 헬퍼를 거치지 않고 코드를 손으로 보간한다** (developer, 낮음, 2026-09-26 등재 · `--impl-done`
+      `review/consistency/2026/09/26/12_31_09` convention_compliance W1 · `/ai-review` `review/code/2026/09/26/12_20_03` INFO4).
+      `auth.controller.ts` `switchWorkspace`(«대상 워크스페이스의 멤버가 아님(`${NOT_A_MEMBER.code}`)») · `executions.controller.ts`
+      재실행 두 라우트(«… · editor 이상 권한 필요(`${ROLE_REQUIRED.editor.code}`) — RolesGuard / … — 서비스»). 코드는 이미 실려 있어 가드
+      `forbidden-response-codes` 는 통과한다 — `swagger.md` §5-4 의 «문장은 공용 헬퍼로 만들고» 만 어긋난다. `forbidden-desc-codes` 는
+      빠진 129곳만 고쳤고, 이미 코드를 싣던 28곳 중 형식이 다른 이 셋은 건드리지 않았다(고치면 spec 연결 코드라 리뷰 · `--impl-done` 을
+      한 바퀴 더 돈다 — 동작 결함이 아니다). 처방: `FORBIDDEN_NOT_A_MEMBER` / `forbiddenForRole('editor')` 뒤에 서비스 문장을 덧붙이는
+      형태로. 같은 김에 서비스 문장을 잇는 구두점(`, 또는` · `또는` — 5곳에서 갈린다, `review/code/2026/09/26/12_20_03` INFO15)도 맞춘다.
+      **착수 조건**: 없음(여유 있을 때).
 
 - [x] **POST 라우트가 OpenAPI 로 200 을 광고하면서 실제로는 201 을 낸다** (developer, 낮음, 2026-09-25 등재 — e2e 실측).
       `workspaces.controller.ts` 의 `POST /:id/leave` · `POST /:id/transfer-ownership` 은 `@ApiOkWrappedResponse(OkResultDto)`(200)

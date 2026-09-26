@@ -1,6 +1,6 @@
 ---
 title: swagger.md §5-4 — 403 설명은 가드가 낼 수 있는 거부 코드를 전부 싣는다 (가드 등재)
-status: in-progress
+status: complete
 owner: project-planner
 worktree: forbidden-desc-codes
 spec_impact:
@@ -10,7 +10,7 @@ started: 2026-09-26
 
 # spec draft — 403 설명의 가드 거부 코드
 
-구현 plan `plan/in-progress/forbidden-desc-codes.md` 이 신설하는 저장소 가드 `forbidden-response-codes` 의 규칙을
+구현 plan `plan/complete/forbidden-desc-codes.md` 이 신설하는 저장소 가드 `forbidden-response-codes` 의 규칙을
 `spec/conventions/swagger.md` §5-4 에 적고 가드를 `code:` 에 등재한다.
 
 **왜 §5-4 를 고치는가**: 지금 403 항목은 «`@Roles()` 가 있으면 요구 역할과 코드를 명시하고, `@Roles()` 없이 워크스페이스만 받으면
