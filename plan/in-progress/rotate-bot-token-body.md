@@ -61,10 +61,19 @@ CHANGELOG — OpenAPI 가 세 엔드포인트의 요청 본문 스키마를 광�
 ## 체크리스트
 
 - [x] `--impl-prep` — `review/consistency/2026/09/26/17_20_45` BLOCK: NO(Warning 5 — 위 표)
-- [ ] 문서 전용 DTO 둘 · `@ApiBody` 셋
-- [ ] 캐너리(모듈별) · 뮤턴트
-- [ ] CHANGELOG
-- [ ] TEST WORKFLOW (lint · unit · build · e2e)
+- [x] 문서 전용 DTO 둘 · `@ApiBody` 셋 — `bb1ff4d8f`
+- [x] 캐너리(모듈별) · 뮤턴트 — 6/6 예측대로 KILLED
+
+  | # | 뮤턴트 | 예측 / 실측 | 죽인 케이스 |
+  | --- | --- | --- | --- |
+  | M1 | `rotateBotToken` 본문을 DTO 로 타입 | KILLED / KILLED | 캐너리 둘(설계 타입 `Object` · 비-string · 여분 키가 파이프 통과) |
+  | M2 | `newBotToken` 의 `writeOnly` 제거 | KILLED / KILLED | 렌더(`writeOnly`) |
+  | M3 | `@ApiBody` 가 형제 응답 DTO 를 가리킴 | KILLED / KILLED | 가드(`@ApiBody` 대상) |
+  | M4 | continue 본문을 필수로 | KILLED / KILLED | 가드(본문은 선택) |
+  | M5 | webhook 의 form-urlencoded 누락 | KILLED / KILLED | 가드(WH-EP-04) |
+  | M6 | 헬퍼가 첫 파라미터를 본문 자리로 | KILLED / KILLED | 세 모듈의 설계 타입 캐너리 |
+- [x] CHANGELOG — 항목 1(요청 본문 스키마 광고)
+- [x] TEST WORKFLOW (lint · unit · build · e2e) — 첫 lint 가 새 헬퍼의 `no-unsafe-argument` 경고로 실패 → `ecaed6534` 로 고치고 1단계부터 재실행, 전부 PASS(e2e 412)
 - [ ] `/ai-review`
 - [ ] `--impl-done`
 - [ ] 트래커 항목 닫기 · 전역 가드 후속 등재
