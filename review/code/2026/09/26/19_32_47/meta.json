@@ -1,0 +1,157 @@
+{
+  "timestamp": "2026-09-26T19:32:47.448490",
+  "files": [
+    {
+      "file_path": "CHANGELOG.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "codebase/backend/src/common/pipes/validation.pipe.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "codebase/backend/src/repo-guards/__tests__/request-body-advertised-guard.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "codebase/backend/src/repo-guards/__tests__/request-body-advertised.spec.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "codebase/backend/src/shared/testing/swagger-probe.ts",
+      "change_type": "Review",
+      "file_extension": "ts"
+    },
+    {
+      "file_path": "plan/in-progress/request-body-guard.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "plan/in-progress/spec-draft-swagger-request-body.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "review/consistency/2026/09/26/18_59_58/SUMMARY.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "review/consistency/2026/09/26/18_59_58/_retry_state.json",
+      "change_type": "Review",
+      "file_extension": "json"
+    },
+    {
+      "file_path": "review/consistency/2026/09/26/18_59_58/_target/spec-draft-swagger-request-body.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "review/consistency/2026/09/26/18_59_58/convention_compliance.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "review/consistency/2026/09/26/18_59_58/cross_spec.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "review/consistency/2026/09/26/18_59_58/meta.json",
+      "change_type": "Review",
+      "file_extension": "json"
+    },
+    {
+      "file_path": "review/consistency/2026/09/26/18_59_58/naming_collision.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "review/consistency/2026/09/26/18_59_58/plan_coherence.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "review/consistency/2026/09/26/18_59_58/rationale_continuity.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "review/consistency/2026/09/26/19_09_17/SUMMARY.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "review/consistency/2026/09/26/19_09_17/_retry_state.json",
+      "change_type": "Review",
+      "file_extension": "json"
+    },
+    {
+      "file_path": "review/consistency/2026/09/26/19_09_17/convention_compliance.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "review/consistency/2026/09/26/19_09_17/cross_spec.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "review/consistency/2026/09/26/19_09_17/meta.json",
+      "change_type": "Review",
+      "file_extension": "json"
+    },
+    {
+      "file_path": "review/consistency/2026/09/26/19_09_17/naming_collision.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "review/consistency/2026/09/26/19_09_17/plan_coherence.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "review/consistency/2026/09/26/19_09_17/rationale_continuity.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    },
+    {
+      "file_path": "spec/conventions/swagger.md",
+      "change_type": "Review",
+      "file_extension": "md"
+    }
+  ],
+  "agents": [
+    "security",
+    "performance",
+    "architecture",
+    "requirement",
+    "scope",
+    "side_effect",
+    "maintainability",
+    "testing",
+    "documentation",
+    "dependency",
+    "database",
+    "concurrency",
+    "api_contract",
+    "user_guide_sync"
+  ],
+  "route_mode": "auto",
+  "agents_explicit": false,
+  "agents_forced": [
+    "documentation",
+    "maintainability",
+    "requirement",
+    "scope",
+    "security",
+    "side_effect",
+    "testing"
+  ]
+}
