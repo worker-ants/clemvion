@@ -1,6 +1,8 @@
 import { beforeAll, describe, expect, it } from '@jest/globals';
 import * as path from 'node:path';
-import { Body, Controller, Get, Post } from '@nestjs/common';
+import { Body, Controller, Get, Post, RequestMethod } from '@nestjs/common';
+import { METHOD_METADATA, ROUTE_ARGS_METADATA } from '@nestjs/common/constants';
+import { RouteParamtypes } from '@nestjs/common/enums/route-paramtypes.enum';
 import {
   ApiBody,
   ApiExcludeController,
@@ -172,6 +174,37 @@ describe('요청 본문 스키마 가드', () => {
       expect(scan.checked).toBe(7);
       // 그중 클래스가 아닌 자리: classBody 를 뺀 6
       expect(scan.unschematized).toBe(6);
+    });
+
+    it('설계 타입이 emit 되지 않은 자리도 비클래스로 센다 — 파이프가 `!metatype` 이면 건너뛰는 것과 같다', () => {
+      // 실제 Nest 라우트에서는 생기지 않는다(데코레이터가 있으면 `design:paramtypes` 가 emit 된다). 가드가 파이프와 같은 축을 따른다는
+      // 주장이 이 항까지 참인지 고정하려고, 데코레이터 없는 메서드에 라우트 메타데이터만 손으로 싣는다.
+      class BareRouteController {
+        noDesignType(_body: unknown): void {}
+      }
+      Reflect.defineMetadata(
+        METHOD_METADATA,
+        RequestMethod.POST,
+        BareRouteController.prototype.noDesignType,
+      );
+      Reflect.defineMetadata(
+        ROUTE_ARGS_METADATA,
+        { [`${RouteParamtypes.BODY}:0`]: { index: 0 } },
+        BareRouteController,
+        'noDesignType',
+      );
+      const bare = scanRequestBodyAdvertised(
+        collectRouteHandlers([BareRouteController]),
+      );
+      expect(bare.violations).toStrictEqual([
+        {
+          controller: 'BareRouteController',
+          handler: 'noDesignType',
+          designType: '(없음)',
+        },
+      ]);
+      expect(bare.checked).toBe(1);
+      expect(bare.unschematized).toBe(1);
     });
   });
 });
