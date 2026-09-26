@@ -37,6 +37,8 @@ import {
   ApiCreatedWrappedResponse,
   ApiOkPaginatedResponse,
   ApiOkWrappedResponse,
+  FORBIDDEN_NOT_A_MEMBER,
+  forbiddenForRole,
 } from '../../common/swagger';
 import { Node } from '../nodes/entities/node.entity';
 import { Execution } from '../executions/entities/execution.entity';
@@ -92,7 +94,7 @@ export class WorkflowsController {
     description: '워크플로우 목록 (페이지네이션 포함)',
   })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
-  @ApiForbiddenResponse({ description: '워크스페이스 멤버가 아님' })
+  @ApiForbiddenResponse({ description: FORBIDDEN_NOT_A_MEMBER })
   async findAll(
     @CurrentUser() user: JwtPayload,
     @WorkspaceId() workspaceId: string,
@@ -110,7 +112,7 @@ export class WorkflowsController {
   @ApiParam({ name: 'id', description: '워크플로우 UUID', format: 'uuid' })
   @ApiOkWrappedResponse(WorkflowDto, { description: '워크플로우 상세' })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
-  @ApiForbiddenResponse({ description: '워크스페이스 멤버가 아님' })
+  @ApiForbiddenResponse({ description: FORBIDDEN_NOT_A_MEMBER })
   @ApiNotFoundResponse({ description: '해당 워크플로우를 찾을 수 없음' })
   async findOne(
     @Param('id', ParseUUIDPipe) id: string,
@@ -133,7 +135,7 @@ export class WorkflowsController {
     type: GraphWarningsResponseDto,
   })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
-  @ApiForbiddenResponse({ description: 'viewer 이상 권한 필요' })
+  @ApiForbiddenResponse({ description: forbiddenForRole('viewer') })
   @ApiNotFoundResponse({ description: '해당 워크플로우를 찾을 수 없음' })
   async graphWarnings(
     @Param('id', ParseUUIDPipe) id: string,
@@ -159,7 +161,7 @@ export class WorkflowsController {
   })
   @ApiBadRequestResponse({ description: '입력값 검증 실패' })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
-  @ApiForbiddenResponse({ description: 'editor 이상 권한 필요' })
+  @ApiForbiddenResponse({ description: forbiddenForRole('editor') })
   async create(
     @WorkspaceId() workspaceId: string,
     @CurrentUser() user: JwtPayload,
@@ -181,7 +183,7 @@ export class WorkflowsController {
   })
   @ApiBadRequestResponse({ description: '입력값 검증 실패' })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
-  @ApiForbiddenResponse({ description: 'editor 이상 권한 필요' })
+  @ApiForbiddenResponse({ description: forbiddenForRole('editor') })
   @ApiNotFoundResponse({ description: '해당 워크플로우를 찾을 수 없음' })
   async update(
     @Param('id', ParseUUIDPipe) id: string,
@@ -203,7 +205,7 @@ export class WorkflowsController {
   @ApiParam({ name: 'id', description: '워크플로우 UUID', format: 'uuid' })
   @ApiNoContentResponse({ description: '삭제 완료' })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
-  @ApiForbiddenResponse({ description: 'editor 이상 권한 필요' })
+  @ApiForbiddenResponse({ description: forbiddenForRole('editor') })
   @ApiNotFoundResponse({ description: '해당 워크플로우를 찾을 수 없음' })
   async remove(
     @Param('id', ParseUUIDPipe) id: string,
@@ -231,7 +233,7 @@ export class WorkflowsController {
     description: '복제된 워크플로우 정보',
   })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
-  @ApiForbiddenResponse({ description: 'editor 이상 권한 필요' })
+  @ApiForbiddenResponse({ description: forbiddenForRole('editor') })
   @ApiNotFoundResponse({ description: '원본 워크플로우를 찾을 수 없음' })
   async duplicate(
     @Param('id', ParseUUIDPipe) id: string,
@@ -259,7 +261,7 @@ export class WorkflowsController {
   })
   @ApiBadRequestResponse({ description: '트리거 파라미터 검증 실패' })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
-  @ApiForbiddenResponse({ description: 'editor 이상 권한 필요' })
+  @ApiForbiddenResponse({ description: forbiddenForRole('editor') })
   @ApiNotFoundResponse({ description: '해당 워크플로우를 찾을 수 없음' })
   // W-14 fix (SUMMARY#W-14): Graceful Shutdown gate 의 503 응답 문서화.
   @ApiResponse({
@@ -370,7 +372,7 @@ export class WorkflowsController {
       '대상 노드가 워크플로우에 없거나 previousExecutionId 가 유효하지 않음',
   })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
-  @ApiForbiddenResponse({ description: 'editor 이상 권한 필요' })
+  @ApiForbiddenResponse({ description: forbiddenForRole('editor') })
   @ApiNotFoundResponse({ description: '해당 워크플로우를 찾을 수 없음' })
   @ApiResponse({
     status: 503,
@@ -463,7 +465,7 @@ export class WorkflowsController {
     description: 'Manual Trigger 누락/중복 또는 입력값 검증 실패',
   })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
-  @ApiForbiddenResponse({ description: 'editor 이상 권한 필요' })
+  @ApiForbiddenResponse({ description: forbiddenForRole('editor') })
   @ApiNotFoundResponse({ description: '해당 워크플로우를 찾을 수 없음' })
   @ApiConflictResponse({ description: '노드 라벨 중복' })
   async saveCanvas(
@@ -489,7 +491,7 @@ export class WorkflowsController {
     description: '복원 결과 (워크플로우/노드/엣지)',
   })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
-  @ApiForbiddenResponse({ description: 'editor 이상 권한 필요' })
+  @ApiForbiddenResponse({ description: forbiddenForRole('editor') })
   @ApiNotFoundResponse({ description: '워크플로우 또는 버전을 찾을 수 없음' })
   @ApiConflictResponse({ description: '스냅샷 노드 라벨 충돌' })
   async restoreVersion(
@@ -517,7 +519,7 @@ export class WorkflowsController {
     description: '내보내기 JSON 객체',
   })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
-  @ApiForbiddenResponse({ description: '워크스페이스 멤버가 아님' })
+  @ApiForbiddenResponse({ description: FORBIDDEN_NOT_A_MEMBER })
   @ApiNotFoundResponse({ description: '해당 워크플로우를 찾을 수 없음' })
   async exportWorkflow(
     @Param('id', ParseUUIDPipe) id: string,
@@ -539,7 +541,7 @@ export class WorkflowsController {
   })
   @ApiBadRequestResponse({ description: '입력값 검증 실패' })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
-  @ApiForbiddenResponse({ description: 'editor 이상 권한 필요' })
+  @ApiForbiddenResponse({ description: forbiddenForRole('editor') })
   @ApiConflictResponse({ description: '페이로드 내 노드 라벨 중복' })
   async importWorkflow(
     @WorkspaceId() workspaceId: string,

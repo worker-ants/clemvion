@@ -25,7 +25,7 @@ import {
   ApiNotFoundResponse,
   ApiHeader,
 } from '@nestjs/swagger';
-import { ApiOkPaginatedResponse } from '../../common/swagger';
+import { ApiOkPaginatedResponse, forbiddenForRole } from '../../common/swagger';
 import { WorkspaceId } from '../../common/decorators';
 import { Roles } from '../../common/guards/roles.guard';
 import { PaginatedResponseDto } from '../../common/dto/paginated-response.dto';
@@ -68,7 +68,7 @@ export class AgentMemoryController {
     description: 'scope 목록 및 페이지네이션 메타',
   })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
-  @ApiForbiddenResponse({ description: 'viewer 이상 권한 필요' })
+  @ApiForbiddenResponse({ description: forbiddenForRole('viewer') })
   async listScopes(
     @WorkspaceId() workspaceId: string,
     @Query() query: ListAgentMemoryScopesQueryDto,
@@ -97,7 +97,7 @@ export class AgentMemoryController {
   })
   @ApiBadRequestResponse({ description: 'scopeKey 누락 또는 입력값 검증 실패' })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
-  @ApiForbiddenResponse({ description: 'viewer 이상 권한 필요' })
+  @ApiForbiddenResponse({ description: forbiddenForRole('viewer') })
   async listMemories(
     @WorkspaceId() workspaceId: string,
     @Query() query: ListAgentMemoriesQueryDto,
@@ -124,7 +124,7 @@ export class AgentMemoryController {
   @ApiParam({ name: 'id', description: '메모리 UUID', format: 'uuid' })
   @ApiNoContentResponse({ description: '삭제 성공' })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
-  @ApiForbiddenResponse({ description: 'editor 이상 권한 필요' })
+  @ApiForbiddenResponse({ description: forbiddenForRole('editor') })
   @ApiNotFoundResponse({
     description: '해당 메모리를 찾을 수 없음 (워크스페이스 교차 차단 포함)',
   })
@@ -163,7 +163,7 @@ export class AgentMemoryController {
   })
   @ApiBadRequestResponse({ description: 'scopeKey 누락' })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
-  @ApiForbiddenResponse({ description: 'editor 이상 권한 필요' })
+  @ApiForbiddenResponse({ description: forbiddenForRole('editor') })
   async clearScope(
     @WorkspaceId() workspaceId: string,
     @Query() query: ClearAgentMemoriesQueryDto,

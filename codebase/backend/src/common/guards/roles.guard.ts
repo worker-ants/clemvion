@@ -10,6 +10,7 @@ import { WorkspacesService } from '../../modules/workspaces/workspaces.service';
 import { resolveRequestWorkspaceContext } from '../utils/workspace-context.util';
 import { isUuidShaped } from '../utils/uuid';
 import {
+  lowestRequiredRole,
   NOT_A_MEMBER,
   ROLE_REQUIRED,
   type WorkspaceRoleName,
@@ -218,9 +219,7 @@ export class RolesGuard implements CanActivate {
     if (!role) throw new ForbiddenException({ ...NOT_A_MEMBER });
     if (requiredRoles.length === 0) return;
 
-    const threshold = requiredRoles.reduce((lowest, required) =>
-      roleLevel(required) < roleLevel(lowest) ? required : lowest,
-    );
+    const threshold = lowestRequiredRole(requiredRoles);
     if (roleLevel(role) >= roleLevel(threshold)) return;
     // 여기 닿았다면 문턱의 서열이 멤버의 서열(≥ 0)보다 높다 — 서열 0 인 미등록 문자열은 문턱이
     // 될 수 없어 `threshold` 는 늘 등록된 역할이다.

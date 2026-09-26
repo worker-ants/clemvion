@@ -1,0 +1,13 @@
+{
+  "timestamp": "2026-09-26T11:12:24.774251",
+  "mode": "구현 착수 전 검토 (--impl-prep, scope=spec/conventions/swagger.md · spec/data-flow/12-workspace.md · spec/5-system/1-auth.md · spec/5-system/3-error-handling.md)",
+  "target_path": "spec/conventions/swagger.md · spec/data-flow/12-workspace.md · spec/5-system/1-auth.md · spec/5-system/3-error-handling.md",
+  "checkers": [
+    "cross_spec",
+    "rationale_continuity",
+    "convention_compliance",
+    "plan_coherence",
+    "naming_collision"
+  ],
+  "scope_note": "판단 기준 spec 4개만 담은 세션 전용 scratch 사본 디렉터리를 scope 로 돌렸다(내용은 그 시점 저장소 파일과 동일). main 이 _prompts/*.md 끝에 «판단 전에 Read 로 직접 읽을 것» 블록(plan · draft · 가드 소스 절대경로)을 덧붙였다. BLOCK: YES 는 이 PR 의 spec draft 가 고치는 §5-4 문구 자체였고, draft 반영 뒤 재실행한다."
+}

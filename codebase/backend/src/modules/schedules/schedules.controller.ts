@@ -31,6 +31,8 @@ import {
   ApiCreatedWrappedResponse,
   ApiOkPaginatedResponse,
   ApiOkWrappedResponse,
+  FORBIDDEN_NOT_A_MEMBER,
+  forbiddenForRole,
 } from '../../common/swagger';
 import { SchedulesService } from './schedules.service';
 import { CreateScheduleDto } from './dto/create-schedule.dto';
@@ -122,7 +124,7 @@ export class SchedulesController {
     description: '스케줄 목록 (페이지네이션)',
   })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
-  @ApiForbiddenResponse({ description: '워크스페이스 멤버가 아님' })
+  @ApiForbiddenResponse({ description: FORBIDDEN_NOT_A_MEMBER })
   async findAll(
     @WorkspaceId() workspaceId: string,
     @Query() query: QueryScheduleDto,
@@ -140,7 +142,7 @@ export class SchedulesController {
   @ApiParam({ name: 'id', description: '스케줄 UUID', format: 'uuid' })
   @ApiOkWrappedResponse(ScheduleDto, { description: '스케줄 상세' })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
-  @ApiForbiddenResponse({ description: '워크스페이스 멤버가 아님' })
+  @ApiForbiddenResponse({ description: FORBIDDEN_NOT_A_MEMBER })
   @ApiNotFoundResponse({ description: '해당 스케줄을 찾을 수 없음' })
   async findOne(
     @Param('id', ParseUUIDPipe) id: string,
@@ -169,7 +171,7 @@ export class SchedulesController {
   })
   @ApiBadRequestResponse({ description: '유효하지 않은 cron 식' })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
-  @ApiForbiddenResponse({ description: '워크스페이스 멤버가 아님' })
+  @ApiForbiddenResponse({ description: FORBIDDEN_NOT_A_MEMBER })
   @ApiNotFoundResponse({ description: '해당 스케줄을 찾을 수 없음' })
   async getPreview(
     @Param('id', ParseUUIDPipe) id: string,
@@ -216,7 +218,7 @@ export class SchedulesController {
     description: '입력값 검증 실패 또는 유효하지 않은 cron 식',
   })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
-  @ApiForbiddenResponse({ description: 'editor 이상 권한 필요' })
+  @ApiForbiddenResponse({ description: forbiddenForRole('editor') })
   async create(
     @WorkspaceId() workspaceId: string,
     @Body() dto: CreateScheduleDto,
@@ -243,7 +245,7 @@ export class SchedulesController {
     description: '스케줄에 연결된 워크플로우가 없음',
   })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
-  @ApiForbiddenResponse({ description: 'editor 이상 권한 필요' })
+  @ApiForbiddenResponse({ description: forbiddenForRole('editor') })
   @ApiNotFoundResponse({ description: '해당 스케줄을 찾을 수 없음' })
   async runNow(
     @Param('id', ParseUUIDPipe) id: string,
@@ -266,7 +268,7 @@ export class SchedulesController {
     description: '입력값 검증 실패 또는 유효하지 않은 cron 식',
   })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
-  @ApiForbiddenResponse({ description: 'editor 이상 권한 필요' })
+  @ApiForbiddenResponse({ description: forbiddenForRole('editor') })
   @ApiNotFoundResponse({ description: '해당 스케줄을 찾을 수 없음' })
   async update(
     @Param('id', ParseUUIDPipe) id: string,
@@ -290,7 +292,7 @@ export class SchedulesController {
   @ApiParam({ name: 'id', description: '스케줄 UUID', format: 'uuid' })
   @ApiNoContentResponse({ description: '삭제 성공 (본문 없음)' })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
-  @ApiForbiddenResponse({ description: 'editor 이상 권한 필요' })
+  @ApiForbiddenResponse({ description: forbiddenForRole('editor') })
   @ApiNotFoundResponse({ description: '해당 스케줄을 찾을 수 없음' })
   async remove(
     @Param('id', ParseUUIDPipe) id: string,

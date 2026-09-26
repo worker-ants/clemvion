@@ -24,6 +24,8 @@ code:
   # §2-4 의 광고한 성공 코드 ↔ 실제 성공 코드(`@HttpCode` · Nest 기본값) 짝을 세는 가드와 그 대조군.
   - codebase/backend/src/repo-guards/__tests__/http-status-advertised*.ts
   - codebase/backend/src/repo-guards/__tests__/fixtures/http-status-advertised/**
+  # §5-4 의 403 설명 ↔ 가드 거부 코드(`NOT_A_MEMBER` · 역할 코드) 짝을 세는 가드(reflection, 대조군은 spec 안의 클래스).
+  - codebase/backend/src/repo-guards/__tests__/forbidden-response-codes*.ts
 ---
 
 # Swagger 문서화 일관된 패턴 가이드
@@ -499,9 +501,12 @@ async create(...) { ... }
       `@ApiForbiddenResponse` 도 추가 — `RolesGuard` 는 `@Roles()` 유무와 무관하게
       워크스페이스 멤버십을 항상 검증하므로
       ([data-flow §Rationale 멤버십 검증은 가드 1곳에서](../data-flow/12-workspace.md#멤버십-검증은-가드-1곳에서--roles-와-무관-2026-08-08) · [경로 파라미터 워크스페이스도 가드가 본다](../data-flow/12-workspace.md#경로-파라미터-워크스페이스도-가드가-본다-2026-09-25)), `@WorkspaceId()` · `@WorkspaceParam(...)` 만 쓰는 조회
-      엔드포인트도 403 을 낼 수 있다. `@Roles()` 가 있으면 설명에 "editor 이상 권한
-      필요(`EDITOR_REQUIRED`)"처럼 요구 역할과 코드를 명시하고, `@Roles()` 없이 워크스페이스만 받으면
-      "워크스페이스 멤버가 아님(`NOT_A_MEMBER`)"으로 통일한다 — 코드는 [data-flow §Rationale 가드 거부의 오류 코드](../data-flow/12-workspace.md#가드-거부의-오류-코드-2026-09-25). (`@Public()` 라우트는 대상 아님.)
+      엔드포인트도 403 을 낼 수 있다. 설명에는 **가드가 낼 수 있는 거부 코드를 전부** 싣는다 — 비멤버는 요구 역할과 무관하게 `NOT_A_MEMBER` 이므로
+      대상 라우트는 모두 "워크스페이스 멤버가 아님(`NOT_A_MEMBER`)" 을 싣고, `@Roles()` 가 있으면 요구 중 가장 낮은 역할의 코드를
+      더한다(예: "워크스페이스 멤버가 아님(`NOT_A_MEMBER`) 또는 Editor 이상 권한 필요(`EDITOR_REQUIRED`)". `@Roles('viewer')` 는
+      멤버십과 같아 앞 문장뿐이다). 문장은 공용 헬퍼 `FORBIDDEN_NOT_A_MEMBER` · `forbiddenForRole(role)`(`common/swagger`)로 만들고,
+      서비스가 내는 403 은 그 뒤에 덧붙인다 — 코드는 [data-flow §Rationale 가드 거부의 오류 코드](../data-flow/12-workspace.md#가드-거부의-오류-코드-2026-09-25).
+      저장소 가드 `forbidden-response-codes` 가 새 엔드포인트만이 아니라 **모든 라우트**에서 **빠진** 가드 코드를 잡는다 — 설명에 남은 코드(역할을 내린 뒤의 옛 역할 코드)와 서비스 거부는 세지 않으니, `@Roles()` 를 바꾸면 설명도 손으로 맞춘다. (`@Public()` 라우트는 대상 아님.)
 - [ ] 광고한 성공 코드(`ApiOk*` · `ApiCreated*` · `ApiAccepted*` · `ApiNoContent*` · `ApiResponse({ status })` 등 성공 응답 데코레이터 전부 — 저장소 래퍼 포함)와 실제 성공 코드(`@HttpCode` 또는 Nest 기본값)가 짝을 이루는지 ([§2-4](#2-4-상태-코드-응답-규칙))
 - [ ] 경로 UUID 파라미터는 `@ApiParam({ format: 'uuid' })` 일관 적용
 - [ ] 요청 DTO 명명 — `Update` 접두는 **top-level 요청 바디**에만, nested 변형은 로컬 패턴 ([§1-7](#1-7-요청-dto-명명--update-접두는-top-level-요청-바디에만-건다))
@@ -697,3 +702,33 @@ fallthrough 자체를 없애 판별자를 sound 하게 만드는 대안은 wire 
   설치 대기 통합 행을 만들고(§2-5 래퍼 표가 그 분기 응답을 200 으로 적는다), 초대 수락은 멤버십 행을 만든다(1차 자원은 소비되는
   초대이고 응답은 기존 워크스페이스다). 둘 다 설치 · 합류 흐름의 부수효과로 보고 200 을 유지했다. 그러나 §2-4 ·
   api-convention §6 표에는 «자원을 만들지 않는 POST» 칸이 없다 — 그 명문화는 별 결정이다(트래커 등재).
+
+### §5-4 403 설명의 거부 코드 — 왜 두 코드이고 왜 가드로 세는가 (2026-09-26)
+
+가드 거부가 코드를 갖게 된 뒤([data-flow «가드 거부의 오류 코드»](../data-flow/12-workspace.md#가드-거부의-오류-코드-2026-09-25))에도
+기존 라우트의 403 설명은 따라가지 않았다. §5-4 는 새 엔드포인트 체크리스트라 기존 라우트를 묶지 않았고, 그 결정을 적용한 PR 은
+경로 라우트 15곳 · 재실행 · chain 의 설명만 고쳤다. 2026-09-26 실측(`src/modules`, reflection): 가드가 403 을 낼 수 있는 라우트 157곳 중
+129곳의 설명에 코드가 빠져 있었다 — «워크스페이스 멤버가 아님» 54 · «editor 이상 권한 필요» 53 · «viewer 이상 권한 필요» 4 · 표기가
+제각각인 역할 문장 14 · 비멤버 코드만 빠진 통합 4.
+
+- **`@Roles()` 라우트도 `NOT_A_MEMBER` 를 싣는다.** 비멤버는 요구 역할과 무관하게 `NOT_A_MEMBER` 라는 것이 위 data-flow 결정의 채택안
+  (나)다. 종전 문구(«`@Roles()` 가 있으면 요구 역할과 코드»)대로면 비멤버 코드가 광고에서 빠진다. 이미 코드를 싣던 28곳은 두 코드를
+  함께 싣고 있었다 — 문구를 그 실제에 맞췄다.
+- **`viewer` 는 코드가 하나다.** `@Roles('viewer')` 의 거부는 멤버십 거부와 같다(`ROLE_REQUIRED.viewer` 가 `NOT_A_MEMBER`). «viewer
+  이상 권한 필요» 라고 쓰면 오지 않는 코드를 암시한다.
+- **공용 헬퍼로 쓴다.** 문장 형식이 컨트롤러마다 갈렸다(«Admin 미만 권한» · «관리자 권한 필요» · «권한 부족 (Admin 미만) 또는 비멤버»).
+  헬퍼가 코드를 `NOT_A_MEMBER` · `ROLE_REQUIRED` 상수에서 보간하므로 코드 이름이 바뀌어도 문장이 따라간다. 역할 문구의 표기는
+  `ROLE_REQUIRED` 메시지(«Editor 이상의 권한이 필요합니다.»)를 따른다 — 종전 이 항목 예시의 소문자 `editor` 는 예시였다. 컨트롤러가
+  따로 두던 같은 문장의 상수(`workspaces` 의 `FORBIDDEN_*_ROUTE` · `integrations` 의 `FORBIDDEN_MEMBER`)는 이 헬퍼로 흡수한다.
+- **reflection 으로 센다.** 설명은 상수 보간(`${NOT_A_MEMBER.code}`)이라 소스 텍스트로는 최종 문장을 알 수 없다 — 데코레이터가 평가된
+  메타데이터를 읽는다. 가드가 낼 코드는 `RolesGuard` 와 같은 규칙(`@Public` · `@Roles` · 워크스페이스 소비)으로 계산하고, 요구 중
+  가장 낮은 역할을 고르는 식은 가드와 **같은 함수**(`lowestRequiredRole`)를 쓴다 — 따로 옮겨 적으면 둘이 갈리는 날 검사가 가드가 내지
+  않는 코드를 요구한다. 나머지 분기가 가드와 같은지는 가드 spec 의 «모델 캐너리» 가 **실제 `RolesGuard` 를 돌려** 대조한다. 스캔
+  모집단이 비는 공허함은 하한(컨트롤러 30 · 대조 라우트 150 초과)이 막는다.
+- **대조군은 가드 spec 안의 클래스다.** reflection 가드라 대조군도 데코레이터가 실제로 평가된 클래스여야 하고, 모델 캐너리가 같은
+  클래스를 실제 `RolesGuard` 에 돌린다 — 별 파일(`fixtures/**`)로 두면 대조군과 캐너리가 두 곳이 된다. 그래서 `code:` 에는 가드 파일
+  한 쌍만 등재한다(대조군은 같은 glob 안이다).
+- **기존 라우트까지 소급한다.** §1-4 · §3 의 규약은 새 변경에만 걸지만(«신규 변경 한정» · «소급 정리 대상이 아니다»), 이 규칙은 §2-4(광고한 성공 코드)처럼 **광고가 실제와
+  맞는가** 의 문제다 — 틀린 광고는 이미 배포된 라우트에서 클라이언트를 오도한다.
+- **서비스 거부는 세지 않는다.** 서비스가 내는 403 은 자리마다 조건과 코드가 달라 기계적 판정이 안 된다. 헬퍼 문장 뒤에 덧붙이도록
+  안내만 한다.

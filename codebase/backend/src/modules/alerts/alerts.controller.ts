@@ -25,6 +25,8 @@ import {
   ApiCreatedWrappedResponse,
   ApiOkWrappedArrayResponse,
   ApiOkWrappedResponse,
+  FORBIDDEN_NOT_A_MEMBER,
+  forbiddenForRole,
 } from '../../common/swagger';
 import { AlertsService } from './alerts.service';
 import { CreateAlertRuleDto, UpdateAlertRuleDto } from './dto/alert-rule.dto';
@@ -47,7 +49,7 @@ export class AlertsController {
   })
   @ApiOkWrappedArrayResponse(AlertRuleDto, { description: '알림 규칙 배열' })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
-  @ApiForbiddenResponse({ description: '워크스페이스 멤버가 아님' })
+  @ApiForbiddenResponse({ description: FORBIDDEN_NOT_A_MEMBER })
   async list(@WorkspaceId() workspaceId: string) {
     const rules = await this.alertsService.list(workspaceId);
     return { data: rules };
@@ -64,7 +66,7 @@ export class AlertsController {
   @ApiCreatedWrappedResponse(AlertRuleDto, { description: '생성된 알림 규칙' })
   @ApiBadRequestResponse({ description: '입력값 검증 실패' })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
-  @ApiForbiddenResponse({ description: '관리자 권한 필요' })
+  @ApiForbiddenResponse({ description: forbiddenForRole('admin') })
   async create(
     @WorkspaceId() workspaceId: string,
     @CurrentUser() user: JwtPayload,
@@ -85,7 +87,7 @@ export class AlertsController {
   @ApiOkWrappedResponse(AlertRuleDto, { description: '수정된 알림 규칙' })
   @ApiBadRequestResponse({ description: '입력값 검증 실패' })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
-  @ApiForbiddenResponse({ description: '관리자 권한 필요' })
+  @ApiForbiddenResponse({ description: forbiddenForRole('admin') })
   @ApiNotFoundResponse({ description: '해당 알림 규칙을 찾을 수 없음' })
   async update(
     @WorkspaceId() workspaceId: string,
@@ -106,7 +108,7 @@ export class AlertsController {
   @ApiParam({ name: 'id', description: '알림 규칙 UUID', format: 'uuid' })
   @ApiNoContentResponse({ description: '삭제 완료' })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
-  @ApiForbiddenResponse({ description: '관리자 권한 필요' })
+  @ApiForbiddenResponse({ description: forbiddenForRole('admin') })
   @ApiNotFoundResponse({ description: '해당 알림 규칙을 찾을 수 없음' })
   async remove(
     @WorkspaceId() workspaceId: string,

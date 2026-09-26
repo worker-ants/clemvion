@@ -26,6 +26,8 @@ import {
   ApiCreatedWrappedResponse,
   ApiOkWrappedArrayResponse,
   ApiOkWrappedResponse,
+  FORBIDDEN_NOT_A_MEMBER,
+  forbiddenForRole,
 } from '../../common/swagger';
 import { NodesService } from './nodes.service';
 import { CreateNodeDto } from './dto/create-node.dto';
@@ -76,7 +78,7 @@ export class NodesController {
   })
   @ApiOkWrappedArrayResponse(NodeDto, { description: '노드 목록' })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
-  @ApiForbiddenResponse({ description: '워크스페이스 멤버가 아님' })
+  @ApiForbiddenResponse({ description: FORBIDDEN_NOT_A_MEMBER })
   @ApiNotFoundResponse({
     description: '워크플로우를 찾을 수 없음 또는 접근 권한 없음',
   })
@@ -103,7 +105,7 @@ export class NodesController {
   @ApiCreatedWrappedResponse(NodeDto, { description: '생성된 노드' })
   @ApiBadRequestResponse({ description: '입력값 검증 실패' })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
-  @ApiForbiddenResponse({ description: 'editor 이상 권한 필요' })
+  @ApiForbiddenResponse({ description: forbiddenForRole('editor') })
   @ApiNotFoundResponse({
     description: '워크플로우를 찾을 수 없음 또는 접근 권한 없음',
   })
@@ -126,7 +128,7 @@ export class NodesController {
   @ApiOkWrappedResponse(NodeDto, { description: '수정된 노드' })
   @ApiBadRequestResponse({ description: '입력값 검증 실패' })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
-  @ApiForbiddenResponse({ description: 'editor 이상 권한 필요' })
+  @ApiForbiddenResponse({ description: forbiddenForRole('editor') })
   @ApiNotFoundResponse({ description: '해당 노드를 찾을 수 없음' })
   @ApiConflictResponse({ description: '동일 워크플로우 내 라벨 중복' })
   async update(
@@ -148,7 +150,7 @@ export class NodesController {
   @ApiParam({ name: 'id', description: '노드 UUID', format: 'uuid' })
   @ApiNoContentResponse({ description: '삭제 완료' })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
-  @ApiForbiddenResponse({ description: 'editor 이상 권한 필요' })
+  @ApiForbiddenResponse({ description: forbiddenForRole('editor') })
   @ApiNotFoundResponse({ description: '해당 노드를 찾을 수 없음' })
   async remove(
     @Param('id', ParseUUIDPipe) id: string,

@@ -30,6 +30,8 @@ import {
   ApiAcceptedWrappedResponse,
   ApiOkPaginatedResponse,
   ApiOkWrappedResponse,
+  FORBIDDEN_NOT_A_MEMBER,
+  forbiddenForRole,
 } from '../../common/swagger';
 import { KnowledgeBaseService } from './knowledge-base.service';
 import { GraphQueryService } from './graph/graph-query.service';
@@ -78,7 +80,7 @@ export class GraphController {
     description: 'KB 전체 그래프 재추출 작업이 큐잉됨',
   })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
-  @ApiForbiddenResponse({ description: 'editor 이상 권한 필요' })
+  @ApiForbiddenResponse({ description: forbiddenForRole('editor') })
   @ApiNotFoundResponse({ description: '해당 지식 베이스를 찾을 수 없음' })
   async reExtractAll(
     @Param('id', ParseUUIDPipe) id: string,
@@ -109,7 +111,7 @@ export class GraphController {
     description: '그래프 재추출 작업이 큐잉됨',
   })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
-  @ApiForbiddenResponse({ description: 'editor 이상 권한 필요' })
+  @ApiForbiddenResponse({ description: forbiddenForRole('editor') })
   @ApiNotFoundResponse({ description: '해당 문서를 찾을 수 없음' })
   async reExtractDocument(
     @Param('id', ParseUUIDPipe) id: string,
@@ -139,7 +141,7 @@ export class GraphController {
     description: 'Entity 목록 + 페이지네이션 메타',
   })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
-  @ApiForbiddenResponse({ description: '워크스페이스 멤버가 아님' })
+  @ApiForbiddenResponse({ description: FORBIDDEN_NOT_A_MEMBER })
   @ApiNotFoundResponse({ description: '해당 지식 베이스를 찾을 수 없음' })
   async listEntities(
     @Param('id', ParseUUIDPipe) id: string,
@@ -165,7 +167,7 @@ export class GraphController {
     description: 'Entity 상세 + 등장 chunk 미리보기 (최대 100건)',
   })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
-  @ApiForbiddenResponse({ description: '워크스페이스 멤버가 아님' })
+  @ApiForbiddenResponse({ description: FORBIDDEN_NOT_A_MEMBER })
   @ApiNotFoundResponse({ description: '해당 entity 를 찾을 수 없음' })
   async getEntity(
     @Param('id', ParseUUIDPipe) id: string,
@@ -187,7 +189,7 @@ export class GraphController {
   @ApiParam({ name: 'entityId', description: 'Entity UUID', format: 'uuid' })
   @ApiNoContentResponse({ description: '삭제 성공' })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
-  @ApiForbiddenResponse({ description: 'editor 이상 권한 필요' })
+  @ApiForbiddenResponse({ description: forbiddenForRole('editor') })
   @ApiNotFoundResponse({ description: '해당 entity 를 찾을 수 없음' })
   async deleteEntity(
     @Param('id', ParseUUIDPipe) id: string,
@@ -208,7 +210,7 @@ export class GraphController {
     description: 'Relation 목록 + 페이지네이션 메타',
   })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
-  @ApiForbiddenResponse({ description: '워크스페이스 멤버가 아님' })
+  @ApiForbiddenResponse({ description: FORBIDDEN_NOT_A_MEMBER })
   @ApiNotFoundResponse({ description: '해당 지식 베이스를 찾을 수 없음' })
   async listRelations(
     @Param('id', ParseUUIDPipe) id: string,
@@ -230,7 +232,7 @@ export class GraphController {
   })
   @ApiNoContentResponse({ description: '삭제 성공' })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
-  @ApiForbiddenResponse({ description: 'editor 이상 권한 필요' })
+  @ApiForbiddenResponse({ description: forbiddenForRole('editor') })
   @ApiNotFoundResponse({ description: '해당 relation 을 찾을 수 없음' })
   async deleteRelation(
     @Param('id', ParseUUIDPipe) id: string,
@@ -258,7 +260,7 @@ export class GraphController {
     description: '그래프 시각화 페이로드',
   })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
-  @ApiForbiddenResponse({ description: '워크스페이스 멤버가 아님' })
+  @ApiForbiddenResponse({ description: FORBIDDEN_NOT_A_MEMBER })
   @ApiNotFoundResponse({ description: '해당 지식 베이스를 찾을 수 없음' })
   async graphVisualization(
     @Param('id', ParseUUIDPipe) id: string,
@@ -285,7 +287,7 @@ export class GraphController {
     description: '그래프 통계 + 추출 진행 상태',
   })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
-  @ApiForbiddenResponse({ description: '워크스페이스 멤버가 아님' })
+  @ApiForbiddenResponse({ description: FORBIDDEN_NOT_A_MEMBER })
   @ApiNotFoundResponse({ description: '해당 지식 베이스를 찾을 수 없음' })
   async graphStats(
     @Param('id', ParseUUIDPipe) id: string,

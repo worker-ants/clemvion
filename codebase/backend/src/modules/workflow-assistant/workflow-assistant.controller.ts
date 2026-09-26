@@ -37,6 +37,7 @@ import { WorkflowAssistantStreamService } from './workflow-assistant-stream.serv
 import { CreateAssistantSessionDto } from './dto/create-assistant-session.dto';
 import { UpdateAssistantSessionDto } from './dto/update-assistant-session.dto';
 import { AssistantMessageRequestDto } from './dto/assistant-message-request.dto';
+import { FORBIDDEN_NOT_A_MEMBER, forbiddenForRole } from '../../common/swagger';
 
 @ApiTags('Workflow AI Assistant')
 @ApiBearerAuth('access-token')
@@ -57,7 +58,7 @@ export class WorkflowAssistantController {
   })
   @ApiQuery({ name: 'workflowId', required: true, format: 'uuid' })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
-  @ApiForbiddenResponse({ description: '워크스페이스 멤버가 아님' })
+  @ApiForbiddenResponse({ description: FORBIDDEN_NOT_A_MEMBER })
   async list(
     @WorkspaceId() workspaceId: string,
     @CurrentUser('sub') userId: string,
@@ -77,7 +78,7 @@ export class WorkflowAssistantController {
   })
   @ApiQuery({ name: 'workflowId', required: true, format: 'uuid' })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
-  @ApiForbiddenResponse({ description: '워크스페이스 멤버가 아님' })
+  @ApiForbiddenResponse({ description: FORBIDDEN_NOT_A_MEMBER })
   async latest(
     @WorkspaceId() workspaceId: string,
     @CurrentUser('sub') userId: string,
@@ -95,7 +96,7 @@ export class WorkflowAssistantController {
   @ApiOperation({ summary: '세션 상세(메시지 포함) 조회' })
   @ApiParam({ name: 'id', format: 'uuid' })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
-  @ApiForbiddenResponse({ description: '워크스페이스 멤버가 아님' })
+  @ApiForbiddenResponse({ description: FORBIDDEN_NOT_A_MEMBER })
   async findOne(
     @WorkspaceId() workspaceId: string,
     @CurrentUser('sub') userId: string,
@@ -109,7 +110,7 @@ export class WorkflowAssistantController {
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({ summary: '세션 생성' })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
-  @ApiForbiddenResponse({ description: 'editor 이상 권한 필요' })
+  @ApiForbiddenResponse({ description: forbiddenForRole('editor') })
   async create(
     @WorkspaceId() workspaceId: string,
     @CurrentUser('sub') userId: string,
@@ -123,7 +124,7 @@ export class WorkflowAssistantController {
   @ApiOperation({ summary: '세션 제목/모델/상태 업데이트' })
   @ApiParam({ name: 'id', format: 'uuid' })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
-  @ApiForbiddenResponse({ description: 'editor 이상 권한 필요' })
+  @ApiForbiddenResponse({ description: forbiddenForRole('editor') })
   async update(
     @WorkspaceId() workspaceId: string,
     @CurrentUser('sub') userId: string,
@@ -139,7 +140,7 @@ export class WorkflowAssistantController {
   @ApiOperation({ summary: '세션 삭제 (cascade로 메시지 삭제)' })
   @ApiParam({ name: 'id', format: 'uuid' })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
-  @ApiForbiddenResponse({ description: 'editor 이상 권한 필요' })
+  @ApiForbiddenResponse({ description: forbiddenForRole('editor') })
   async remove(
     @WorkspaceId() workspaceId: string,
     @CurrentUser('sub') userId: string,
@@ -163,7 +164,7 @@ export class WorkflowAssistantController {
     description: 'SSE stream. Parse with an EventSource-style client.',
   })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
-  @ApiForbiddenResponse({ description: 'editor 이상 권한 필요' })
+  @ApiForbiddenResponse({ description: forbiddenForRole('editor') })
   async sendMessage(
     @WorkspaceId() workspaceId: string,
     @CurrentUser() user: JwtPayload,

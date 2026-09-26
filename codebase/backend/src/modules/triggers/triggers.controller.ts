@@ -31,6 +31,8 @@ import {
   ApiOkPaginatedResponse,
   ApiOkWrappedArrayResponse,
   ApiOkWrappedResponse,
+  FORBIDDEN_NOT_A_MEMBER,
+  forbiddenForRole,
 } from '../../common/swagger';
 import { TriggersService } from './triggers.service';
 import { CreateTriggerDto } from './dto/create-trigger.dto';
@@ -66,7 +68,7 @@ export class TriggersController {
     description: '트리거 목록 (페이지네이션)',
   })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
-  @ApiForbiddenResponse({ description: '워크스페이스 멤버가 아님' })
+  @ApiForbiddenResponse({ description: FORBIDDEN_NOT_A_MEMBER })
   async findAll(
     @WorkspaceId() workspaceId: string,
     @Query() query: QueryTriggerDto,
@@ -83,7 +85,7 @@ export class TriggersController {
   @ApiParam({ name: 'id', description: '트리거 UUID', format: 'uuid' })
   @ApiOkWrappedResponse(TriggerDto, { description: '트리거 상세' })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
-  @ApiForbiddenResponse({ description: '워크스페이스 멤버가 아님' })
+  @ApiForbiddenResponse({ description: FORBIDDEN_NOT_A_MEMBER })
   @ApiNotFoundResponse({ description: '해당 트리거를 찾을 수 없음' })
   async findOne(
     @Param('id', ParseUUIDPipe) id: string,
@@ -103,7 +105,7 @@ export class TriggersController {
   @ApiCreatedWrappedResponse(TriggerDto, { description: '생성된 트리거 정보' })
   @ApiBadRequestResponse({ description: '입력값 검증 실패' })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
-  @ApiForbiddenResponse({ description: 'editor 이상 권한 필요' })
+  @ApiForbiddenResponse({ description: forbiddenForRole('editor') })
   @ApiConflictResponse({
     description: TRIGGER_ENDPOINT_PATH_CONFLICT_DESCRIPTION,
   })
@@ -138,7 +140,7 @@ export class TriggersController {
       '(최초 설정은 생성 POST 한정), (3) provider 를 바꾸려는 경우: details.field="provider".',
   })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
-  @ApiForbiddenResponse({ description: 'editor 이상 권한 필요' })
+  @ApiForbiddenResponse({ description: forbiddenForRole('editor') })
   @ApiNotFoundResponse({ description: '해당 트리거를 찾을 수 없음' })
   @ApiConflictResponse({
     description: TRIGGER_ENDPOINT_PATH_CONFLICT_DESCRIPTION,
@@ -163,7 +165,7 @@ export class TriggersController {
     description: '최근 실행 이력 (최대 10건)',
   })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
-  @ApiForbiddenResponse({ description: '워크스페이스 멤버가 아님' })
+  @ApiForbiddenResponse({ description: FORBIDDEN_NOT_A_MEMBER })
   @ApiNotFoundResponse({ description: '해당 트리거를 찾을 수 없음' })
   async getHistory(
     @Param('id', ParseUUIDPipe) id: string,
@@ -182,7 +184,7 @@ export class TriggersController {
   @ApiParam({ name: 'id', description: '트리거 UUID', format: 'uuid' })
   @ApiNoContentResponse({ description: '삭제 성공 (본문 없음)' })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
-  @ApiForbiddenResponse({ description: 'editor 이상 권한 필요' })
+  @ApiForbiddenResponse({ description: forbiddenForRole('editor') })
   @ApiNotFoundResponse({ description: '해당 트리거를 찾을 수 없음' })
   async remove(
     @Param('id', ParseUUIDPipe) id: string,
@@ -211,7 +213,7 @@ export class TriggersController {
       'NOTIFICATION_NOT_CONFIGURED — trigger 에 notification 설정 없음',
   })
   @ApiUnauthorizedResponse({ description: '인증 실패' })
-  @ApiForbiddenResponse({ description: 'editor 이상 권한 필요' })
+  @ApiForbiddenResponse({ description: forbiddenForRole('editor') })
   @ApiNotFoundResponse({ description: 'Trigger 없음' })
   async rotateNotificationSecret(
     @Param('id', ParseUUIDPipe) id: string,
@@ -239,7 +241,7 @@ export class TriggersController {
       'NOT_PER_TRIGGER_STRATEGY — interaction.tokenStrategy 가 per_trigger 가 아님',
   })
   @ApiUnauthorizedResponse({ description: '인증 실패' })
-  @ApiForbiddenResponse({ description: 'editor 이상 권한 필요' })
+  @ApiForbiddenResponse({ description: forbiddenForRole('editor') })
   @ApiNotFoundResponse({ description: 'Trigger 없음' })
   async revokePerTriggerToken(
     @Param('id', ParseUUIDPipe) id: string,
@@ -269,7 +271,7 @@ export class TriggersController {
   })
   @ApiParam({ name: 'id', description: '트리거 UUID', format: 'uuid' })
   @ApiUnauthorizedResponse({ description: '인증 실패' })
-  @ApiForbiddenResponse({ description: 'editor 이상 권한 필요' })
+  @ApiForbiddenResponse({ description: forbiddenForRole('editor') })
   // §5.4 실패 응답 표의 두 축을 함께 문서화한다 — 400 과 502 를 **가르는 것**이 이 엔드포인트의
   // 계약이라(R-CC-23) 한쪽만 적으면 나머지 절반이 문서에 없는 상태로 남는다.
   @ApiBadRequestResponse({

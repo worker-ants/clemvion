@@ -38,6 +38,8 @@ import {
   ApiOkWrappedResponse,
   ApiOkWrappedArrayResponse,
   ApiCreatedWrappedResponse,
+  FORBIDDEN_NOT_A_MEMBER,
+  forbiddenForRole,
 } from '../../common/swagger';
 import { Throttle } from '@nestjs/throttler';
 import { ReRunRequestDto } from './dto/re-run.dto';
@@ -75,7 +77,7 @@ export class ExecutionsController {
     description: '실행 상세 정보 (노드 실행 목록 포함)',
   })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
-  @ApiForbiddenResponse({ description: '워크스페이스 멤버가 아님' })
+  @ApiForbiddenResponse({ description: FORBIDDEN_NOT_A_MEMBER })
   @ApiNotFoundResponse({ description: '해당 실행을 찾을 수 없음' })
   async findOne(
     @Param('id', ParseUUIDPipe) id: string,
@@ -107,7 +109,7 @@ export class ExecutionsController {
     description: '실행 목록 (페이지네이션)',
   })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
-  @ApiForbiddenResponse({ description: '워크스페이스 멤버가 아님' })
+  @ApiForbiddenResponse({ description: FORBIDDEN_NOT_A_MEMBER })
   async findByWorkflow(
     @Param('workflowId', ParseUUIDPipe) workflowId: string,
     @WorkspaceId() workspaceId: string,
@@ -138,7 +140,7 @@ export class ExecutionsController {
     description: '중지 불가능한 상태 (이미 완료/실패/취소된 실행)',
   })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
-  @ApiForbiddenResponse({ description: 'editor 이상 권한 필요' })
+  @ApiForbiddenResponse({ description: forbiddenForRole('editor') })
   @ApiNotFoundResponse({ description: '해당 실행을 찾을 수 없음' })
   async stop(
     @Param('id', ParseUUIDPipe) id: string,
@@ -161,7 +163,7 @@ export class ExecutionsController {
     description: '이어실행 요청 접수',
   })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
-  @ApiForbiddenResponse({ description: '워크스페이스 멤버가 아님' })
+  @ApiForbiddenResponse({ description: FORBIDDEN_NOT_A_MEMBER })
   @ApiNotFoundResponse({ description: '해당 실행을 찾을 수 없음' })
   @ApiBadRequestResponse({
     description:
