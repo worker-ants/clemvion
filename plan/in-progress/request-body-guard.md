@@ -37,10 +37,22 @@ started: 2026-09-26
 
 - [x] spec draft `--spec` · 반영(planner) — `review/consistency/2026/09/26/18_59_58` BLOCK: NO(W1 제외 범위 · INFO4 반영) · planner 커밋 `f71f5df06`
 - [x] `--impl-prep` — `review/consistency/2026/09/26/19_09_17` BLOCK: NO(Warning 0). INFO: 트래커 «AST» → «reflection» 정정 · draft 이동(마무리 커밋) · `15-chat-channel.md` §7 파일 트리에 #1408 의 요청 DTO 누락 · §5-4 제목 «새 엔드포인트» 와 소급 항목의 괴리(셋째) — 뒤 둘은 planner 몫이라 남는 트래커 항목에
-- [ ] 가드 · 대조군 · 곁가지 — RED 확인(인라인 무광고 대조군)
-- [ ] 뮤턴트
-- [ ] CHANGELOG
-- [ ] TEST WORKFLOW (lint · unit · build · e2e)
+- [x] 가드 · 대조군 · 곁가지 — `1c19eebc7`. 실측(`src/modules`): 컨트롤러 35 · `@Body()` 자리 78 · 비클래스 4(전부 `@ApiBody`) · 위반 0.
+      대조군은 위반을 정확히 넷 잡는다(인라인 · 인터페이스 · `unknown` · 키 지정 `String`). RED 는 실제 코드에서 `@ApiBody` 를 빼는 뮤턴트 G8 이 보인다
+- [x] 뮤턴트 — 8/8 예측대로(G3 은 처음에 예측대로 SURVIVED → 대조군을 더해 KILLED)
+
+  | # | 뮤턴트 | 예측 / 실측 | 죽인 케이스 |
+  | --- | --- | --- | --- |
+  | G1 | `@ApiBody` 를 못 봄 | KILLED / KILLED | 본 판정 · 대조군 둘 |
+  | G2 | 비클래스 판정이 늘 거짓 | KILLED / KILLED | floor(`unschematized > 0`) · 대조군 둘 |
+  | G3 | 설계 타입 없음(`undefined`) 항 제거 | SURVIVED / SURVIVED → 대조군 추가(`866678c8f`) 뒤 KILLED / KILLED | 새 대조군(emit 되지 않은 자리) |
+  | G4 | `@ApiExcludeEndpoint` 도 묻는다 | KILLED / KILLED | 대조군 셋 |
+  | G5 | `@ApiExcludeController` 도 묻는다 | KILLED / KILLED | 대조군 셋 |
+  | G6 | 본문 자리 대신 쿼리 자리 | KILLED / KILLED | 헬퍼 테스트 · floor · 본 판정 · 대조군 |
+  | G7 | 파이프 목록에서 `Object` 제거 | KILLED / KILLED | floor · 대조군 둘 — 파이프와 가드가 같은 상수를 쓴다 |
+  | G8 | `rotateBotToken` 의 `@ApiBody` 제거(실제 코드) | KILLED / KILLED | 본 판정 |
+- [x] CHANGELOG — 항목 3(가드 신설)
+- [x] TEST WORKFLOW (lint · unit · build · e2e) — 전부 PASS(e2e 412)
 - [ ] `/ai-review`
 - [ ] `--impl-done`
 - [ ] 트래커 항목 좁히기(남는 §1-7 · 리네임) · 닫힌 부분 기록
