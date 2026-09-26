@@ -153,7 +153,7 @@ export function bodyParamDesignType(
     );
   const types = Reflect.getMetadata(
     'design:paramtypes',
-    controller.prototype,
+    controller.prototype as object,
     method,
   ) as unknown[] | undefined;
   if (!types)
