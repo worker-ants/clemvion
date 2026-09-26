@@ -2,6 +2,7 @@ import { ApiProperty, getSchemaPath } from '@nestjs/swagger';
 import {
   wrapDataSchema,
   wrapItemsSchema,
+  wrapNullableDataSchema,
   wrapOneOfDataSchema,
   wrapPaginatedSchema,
 } from './api-wrapped';
@@ -29,6 +30,17 @@ describe('api-wrapped schema builders', () => {
     expect(schema.required).toEqual(['data']);
     expect(schema.properties?.data).toEqual({
       $ref: getSchemaPath(SampleDto),
+    });
+  });
+
+  it('wrapNullableDataSchema builds { data: allOf($ref) + nullable } — data 키는 항상 있다', () => {
+    const schema = wrapNullableDataSchema(SampleDto);
+    expect(schema.type).toBe('object');
+    expect(schema.required).toEqual(['data']);
+    // `$ref` 옆 `nullable` 은 OpenAPI 3.0 이 무시한다 — `allOf` 로 감싼 모양이어야 한다.
+    expect(schema.properties?.data).toStrictEqual({
+      allOf: [{ $ref: getSchemaPath(SampleDto) }],
+      nullable: true,
     });
   });
 

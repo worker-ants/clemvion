@@ -27,6 +27,7 @@ import {
   ApiTags,
   ApiUnauthorizedResponse,
   ApiForbiddenResponse,
+  ApiNoContentResponse,
 } from '@nestjs/swagger';
 import { Roles } from '../../common/guards/roles.guard';
 import { WorkspaceId } from '../../common/decorators';
@@ -37,7 +38,18 @@ import { WorkflowAssistantStreamService } from './workflow-assistant-stream.serv
 import { CreateAssistantSessionDto } from './dto/create-assistant-session.dto';
 import { UpdateAssistantSessionDto } from './dto/update-assistant-session.dto';
 import { AssistantMessageRequestDto } from './dto/assistant-message-request.dto';
-import { FORBIDDEN_NOT_A_MEMBER, forbiddenForRole } from '../../common/swagger';
+import {
+  FORBIDDEN_NOT_A_MEMBER,
+  forbiddenForRole,
+  ApiCreatedWrappedResponse,
+  ApiOkWrappedArrayResponse,
+  ApiOkWrappedNullableResponse,
+  ApiOkWrappedResponse,
+} from '../../common/swagger';
+import {
+  AssistantSessionDetailDto,
+  AssistantSessionDto,
+} from './dto/responses/assistant-session-response.dto';
 
 @ApiTags('Workflow AI Assistant')
 @ApiBearerAuth('access-token')
@@ -57,6 +69,9 @@ export class WorkflowAssistantController {
       '지정한 워크플로우에 속한 내 세션을 최근 상호작용 순으로 최대 50건 반환한다.',
   })
   @ApiQuery({ name: 'workflowId', required: true, format: 'uuid' })
+  @ApiOkWrappedArrayResponse(AssistantSessionDto, {
+    description: '세션 목록 — 최근 상호작용 순, 최대 50건',
+  })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
   @ApiForbiddenResponse({ description: FORBIDDEN_NOT_A_MEMBER })
   async list(
@@ -77,6 +92,9 @@ export class WorkflowAssistantController {
       '워크플로우 편집기 진입 시 기본 선택할 세션을 조회한다. 없으면 null 반환.',
   })
   @ApiQuery({ name: 'workflowId', required: true, format: 'uuid' })
+  @ApiOkWrappedNullableResponse(AssistantSessionDto, {
+    description: '최근 활성 세션 — 없으면 null',
+  })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
   @ApiForbiddenResponse({ description: FORBIDDEN_NOT_A_MEMBER })
   async latest(
@@ -95,6 +113,9 @@ export class WorkflowAssistantController {
   @Get('sessions/:id')
   @ApiOperation({ summary: '세션 상세(메시지 포함) 조회' })
   @ApiParam({ name: 'id', format: 'uuid' })
+  @ApiOkWrappedResponse(AssistantSessionDetailDto, {
+    description: '세션과 그 메시지(오래된 것부터)',
+  })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
   @ApiForbiddenResponse({ description: FORBIDDEN_NOT_A_MEMBER })
   async findOne(
@@ -109,6 +130,9 @@ export class WorkflowAssistantController {
   @Roles('editor')
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({ summary: '세션 생성' })
+  @ApiCreatedWrappedResponse(AssistantSessionDto, {
+    description: '만든 세션',
+  })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
   @ApiForbiddenResponse({ description: forbiddenForRole('editor') })
   async create(
@@ -123,6 +147,7 @@ export class WorkflowAssistantController {
   @Roles('editor')
   @ApiOperation({ summary: '세션 제목/모델/상태 업데이트' })
   @ApiParam({ name: 'id', format: 'uuid' })
+  @ApiOkWrappedResponse(AssistantSessionDto, { description: '바뀐 세션' })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
   @ApiForbiddenResponse({ description: forbiddenForRole('editor') })
   async update(
@@ -139,6 +164,7 @@ export class WorkflowAssistantController {
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: '세션 삭제 (cascade로 메시지 삭제)' })
   @ApiParam({ name: 'id', format: 'uuid' })
+  @ApiNoContentResponse({ description: '삭제 완료' })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
   @ApiForbiddenResponse({ description: forbiddenForRole('editor') })
   async remove(

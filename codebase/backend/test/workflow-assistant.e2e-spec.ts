@@ -5,6 +5,14 @@ import request from 'supertest';
 
 import { createDbClient, uniqueEmail, uniqueName } from './helpers/db';
 import { registerAndLogin, createTeamWorkspace } from './helpers/auth';
+import {
+  assertMatchesContract,
+  contractForDto,
+} from '../src/shared/testing/response-contract';
+import {
+  AssistantSessionDetailDto,
+  AssistantSessionDto,
+} from '../src/modules/workflow-assistant/dto/responses/assistant-session-response.dto';
 
 /**
  * e2e: Workflow AI Assistant 세션 관리 — spec/3-workflow-editor/4-ai-assistant.md.
@@ -60,6 +68,11 @@ describe('Workflow Assistant sessions (e2e)', () => {
     expect(create.status).toBe(201);
     const sessionId = create.body.data.id as string;
     expect(sessionId).toBeDefined();
+    // 응답 DTO 는 엔티티를 그대로 내는 응답을 적는다 — 선언되지 않은 키(관계 · 새 컬럼)가 실리면 여기서 걸린다.
+    assertMatchesContract(
+      create.body.data,
+      await contractForDto(AssistantSessionDto),
+    );
 
     const list = await request(BASE_URL)
       .get('/api/workflow-assistant/sessions')
@@ -70,6 +83,17 @@ describe('Workflow Assistant sessions (e2e)', () => {
       (list.body.data as { items?: Array<{ id: string }> }).items ??
       (list.body.data as Array<{ id: string }>);
     expect(items.some((i) => i.id === sessionId)).toBe(true);
+    const sessionContract = await contractForDto(AssistantSessionDto);
+    for (const item of items) assertMatchesContract(item, sessionContract);
+
+    const detail = await request(BASE_URL)
+      .get(`/api/workflow-assistant/sessions/${sessionId}`)
+      .set(authHeaders());
+    expect(detail.status).toBe(200);
+    assertMatchesContract(
+      detail.body.data,
+      await contractForDto(AssistantSessionDetailDto),
+    );
   });
 
   it('B. PATCH 제목 → 200, GET 반영', async () => {
@@ -85,6 +109,10 @@ describe('Workflow Assistant sessions (e2e)', () => {
       .send({ title: 'After' });
     expect(patch.status).toBe(200);
     expect(patch.body.data.title).toBe('After');
+    assertMatchesContract(
+      patch.body.data,
+      await contractForDto(AssistantSessionDto),
+    );
   });
 
   it('C. DELETE 세션 → 204, 후속 GET 404', async () => {
@@ -169,6 +197,11 @@ describe('Workflow Assistant sessions (e2e)', () => {
     if (latest.status === 200) {
       // 반환됐다면 적어도 우리 세션이 가장 최근.
       expect(latest.body.data?.id).toBeDefined();
+      // `ApiOkWrappedNullableResponse` — 세션이 있으면 그 모양이다(없으면 `data: null`).
+      assertMatchesContract(
+        latest.body.data,
+        await contractForDto(AssistantSessionDto),
+      );
     }
     // 정리: 깔끔하게 지움.
     await request(BASE_URL)

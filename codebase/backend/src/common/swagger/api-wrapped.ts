@@ -35,6 +35,21 @@ export function wrapDataSchema<T>(dto: ClassRef<T>): SchemaObject {
 }
 
 /**
+ * `{ data: <ref> | null }` 스키마 객체를 생성합니다 — `data` 키는 항상 있고 값이 `null` 일 수 있다(api-convention §5.4 «`null`»).
+ *
+ * OpenAPI 3.0 은 `$ref` 옆의 형제 키(`nullable`)를 무시하므로 `allOf: [<ref>]` 로 감싸 `nullable` 을 붙인다.
+ */
+export function wrapNullableDataSchema<T>(dto: ClassRef<T>): SchemaObject {
+  return {
+    type: 'object',
+    required: ['data'],
+    properties: {
+      data: { allOf: [{ $ref: getSchemaPath(dto) }], nullable: true },
+    },
+  };
+}
+
+/**
  * `{ data: { oneOf: [<ref(A)>, <ref(B)>, ...] } }` 스키마 객체를 생성합니다.
  * 응답이 분기에 따라 서로 다른 DTO shape 을 반환하는 경우 사용합니다 (예:
  * `OAuthBeginPopupResultDto` vs `OAuthBeginCafe24PendingResultDto`).
@@ -138,6 +153,19 @@ export function ApiOkWrappedResponse<T>(
   return applyDecorators(
     ApiExtraModels(dto),
     ApiOkResponse({ ...options, schema: wrapDataSchema(dto) }),
+  );
+}
+
+/**
+ * `@ApiOkResponse` + `@ApiExtraModels` + `{ data: <ref> | null }` 래퍼 — 없으면 `null` 인 단일 객체 조회(예: «최근 항목»).
+ */
+export function ApiOkWrappedNullableResponse<T>(
+  dto: ClassRef<T>,
+  options: ExtraOptions = {},
+) {
+  return applyDecorators(
+    ApiExtraModels(dto),
+    ApiOkResponse({ ...options, schema: wrapNullableDataSchema(dto) }),
   );
 }
 

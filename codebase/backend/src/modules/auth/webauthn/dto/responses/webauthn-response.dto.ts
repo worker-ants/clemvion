@@ -93,3 +93,12 @@ export class WebAuthnRecoveryCodesDto {
   })
   webauthnRecoveryCodes: string[];
 }
+
+/** WebAuthn 기능 활성 여부 — 프런트가 Passkey UI 노출을 정할 때 쓴다. */
+export class WebAuthnAvailabilityDto {
+  @ApiProperty({
+    description:
+      '서버에 WEBAUTHN_RP_ID · WEBAUTHN_ORIGIN 이 설정돼 WebAuthn 을 쓸 수 있는가',
+  })
+  enabled: boolean;
+}

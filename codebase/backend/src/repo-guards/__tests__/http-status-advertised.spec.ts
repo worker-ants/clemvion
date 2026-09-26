@@ -152,6 +152,16 @@ describe('성공 응답 코드 ↔ OpenAPI 광고 가드', () => {
     expect(violations).toEqual([]);
   });
 
+  it('라우트는 성공 응답을 하나 이상 광고한다 (리다이렉트 라우트는 3xx)', () => {
+    // 2026-09-26 실측 15곳을 채웠다 — 11곳은 응답 DTO · 광고, 넷은 OpenAPI 밖(`@ApiExcludeEndpoint`)이거나 이미 302 광고.
+    const unadvertised = scanHttpStatusAdvertised(
+      files,
+      SRC_ROOT,
+      statuses,
+    ).unadvertised.map((u) => `${u.file} ${u.method}() ${u.verb}`);
+    expect(unadvertised).toEqual([]);
+  });
+
   it('판정할 수 없는 자리가 없다', () => {
     const unresolved = scanHttpStatusAdvertised(
       files,
@@ -214,6 +224,24 @@ describe('성공 응답 코드 ↔ OpenAPI 광고 가드', () => {
         'postComputedHttpCode:@HttpCode(<식>)',
         'postMadeUpResponse:@ApiMadeUpSuccessResponse',
       ]);
+    });
+
+    it('성공 응답을 하나도 광고하지 않는 자리를 잡는다 — 리다이렉트 · 제외는 잡지 않는다', () => {
+      // 에러 응답만 · `ApiDefaultResponse` 만 · 표에 없는 이름 · status 없는 `@ApiResponse` — 넷 다 2xx 도 3xx 도 없다.
+      // `getRedirect`(`@ApiFoundResponse`)는 성공 광고가 있고, `excludedAdvertisedOk` 는 OpenAPI 밖이다.
+      expect(scan.unadvertised.map((u) => u.method).sort()).toStrictEqual([
+        'getApiResponseWithoutStatus',
+        'postDefaultResponseOnly',
+        'postMadeUpResponse',
+        'postNoSuccessAdvertised',
+      ]);
+    });
+
+    it('리다이렉트만 광고한 라우트는 2xx 짝을 대조하지 않는다', () => {
+      // `res.redirect` 가 Nest 가 미리 실은 200 을 덮어쓴다 — 기본값 200 과 대조하면 거짓 위반이다.
+      expect(
+        scan.violations.filter((v) => v.method === 'getRedirect'),
+      ).toStrictEqual([]);
     });
 
     it('AST 로 읽는다 — 주석 · 문자열 속 모양은 안 센다', () => {
