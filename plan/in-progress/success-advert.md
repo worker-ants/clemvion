@@ -68,11 +68,20 @@ started: 2026-09-26
 
 - [x] spec draft `--spec` · 반영 — `review/consistency/2026/09/26/13_07_11` BLOCK: NO · planner 커밋 `24084fd0e`
 - [x] `--impl-prep` — `review/consistency/2026/09/26/13_17_19` BLOCK: NO(Warning 5 — 아래 표)
-- [ ] 래퍼 · DTO · 광고 11곳
-- [ ] 가드 강화(RED 확인) · docstring 정정
-- [ ] e2e 계약 대조
-- [ ] 뮤턴트
-- [ ] CHANGELOG
+- [x] 래퍼 · DTO · 광고 11곳 — `b98dfe1da`
+- [x] 가드 강화(RED 확인) · docstring 정정 — 적용 전 광고 없음 **정확히 11**(제외 2 · 리다이렉트 2 는 안 잡힘), 적용 후 GREEN
+- [x] e2e 계약 대조 — workflow-assistant(생성 · 목록 · 상세 · 수정 · 최근) · revoke-token · 새 `advertised-response-contract.e2e-spec.ts`(webauthn availability · rotate-secret)
+- [x] 뮤턴트 — 6/6 예측대로 KILLED, 예측 케이스 전부 사망. 뮤턴트 전에 `@ApiResponse({ status: 302 })` 대조군을 먼저 더했다(`a7202d9eb`) — 그 분기(S3)를 저장소도 대조군도 쓰지 않아 살아남을 자리였고, 실제로 S3 는 그 대조군만 죽인다
+
+  | # | 뮤턴트 | 예측 / 실측 | 죽인 케이스 |
+  | --- | --- | --- | --- |
+  | S1 | 광고 없음을 보고하지 않음 | KILLED / KILLED | **대조군만** — 저장소 스캔은 이제 초록 |
+  | S2 | 이름 표의 3xx 를 성공 광고로 안 침 | KILLED / KILLED | 본 판정(OAuth 리다이렉트 2) · 대조군 |
+  | S3 | `@ApiResponse` 의 3xx 를 성공 광고로 안 침 | KILLED / KILLED | **대조군만**(302 대조군) |
+  | S4 | `@ApiExcludeEndpoint` 도 묻는다 | KILLED / KILLED | 본 판정(테스트 훅 2) · 대조군 둘 |
+  | S5 | nullable 래퍼가 `nullable` 을 잃음 | KILLED / KILLED | 래퍼 단위 테스트 |
+  | S6 | `sessions/latest` 광고 제거 | KILLED / KILLED | 본 판정 |
+- [x] CHANGELOG — 두 항목(스키마 광고 · 가드 강화)
 - [ ] TEST WORKFLOW (lint · unit · build · e2e)
 - [ ] `/ai-review`
 - [ ] `--impl-done`
