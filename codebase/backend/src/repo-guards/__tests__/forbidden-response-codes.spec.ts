@@ -224,25 +224,38 @@ describe('403 설명 ↔ 가드 거부 코드 가드', () => {
     });
 
     it('가드 코드 모델', () => {
+      // `toStrictEqual` — `toEqual` 은 배열의 `undefined` 원소를 무시해 `['NOT_A_MEMBER', undefined]` 를 통과시켰다(뮤턴트 F12 실측).
       const codesOf = (name: string): string[] =>
         guardRejectionCodes(
           fixtureRoutes.find((r) => r.name === name) as RouteHandler,
         );
-      expect(codesOf('global')).toEqual([]);
-      expect(codesOf('publicRoute')).toEqual([]);
-      expect(codesOf('member')).toEqual(['NOT_A_MEMBER']);
-      expect(codesOf('pathMember')).toEqual(['NOT_A_MEMBER']);
-      expect(codesOf('viewer')).toEqual(['NOT_A_MEMBER']);
-      expect(codesOf('editor')).toEqual(['NOT_A_MEMBER', 'EDITOR_REQUIRED']);
-      expect(codesOf('multiDescribedAsAdmin')).toEqual([
+      expect(codesOf('global')).toStrictEqual([]);
+      expect(codesOf('publicRoute')).toStrictEqual([]);
+      expect(codesOf('member')).toStrictEqual(['NOT_A_MEMBER']);
+      expect(codesOf('pathMember')).toStrictEqual(['NOT_A_MEMBER']);
+      expect(codesOf('viewer')).toStrictEqual(['NOT_A_MEMBER']);
+      expect(codesOf('editor')).toStrictEqual([
         'NOT_A_MEMBER',
         'EDITOR_REQUIRED',
       ]);
-      expect(codesOf('owner')).toEqual(['NOT_A_MEMBER', 'OWNER_REQUIRED']);
-      expect(codesOf('pathAdmin')).toEqual(['NOT_A_MEMBER', 'ADMIN_REQUIRED']);
-      expect(codesOf('outOfHierarchy')).toEqual(['NOT_A_MEMBER']);
-      expect(codesOf('inherit')).toEqual(['NOT_A_MEMBER', 'ADMIN_REQUIRED']);
-      expect(codesOf('override')).toEqual(['NOT_A_MEMBER']);
+      expect(codesOf('multiDescribedAsAdmin')).toStrictEqual([
+        'NOT_A_MEMBER',
+        'EDITOR_REQUIRED',
+      ]);
+      expect(codesOf('owner')).toStrictEqual([
+        'NOT_A_MEMBER',
+        'OWNER_REQUIRED',
+      ]);
+      expect(codesOf('pathAdmin')).toStrictEqual([
+        'NOT_A_MEMBER',
+        'ADMIN_REQUIRED',
+      ]);
+      expect(codesOf('outOfHierarchy')).toStrictEqual(['NOT_A_MEMBER']);
+      expect(codesOf('inherit')).toStrictEqual([
+        'NOT_A_MEMBER',
+        'ADMIN_REQUIRED',
+      ]);
+      expect(codesOf('override')).toStrictEqual(['NOT_A_MEMBER']);
     });
 
     /**
