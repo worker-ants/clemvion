@@ -45,7 +45,7 @@ started: 2026-09-26
       더한다(예: "워크스페이스 멤버가 아님(`NOT_A_MEMBER`) 또는 Editor 이상 권한 필요(`EDITOR_REQUIRED`)". `@Roles('viewer')` 는
       멤버십과 같아 앞 문장뿐이다). 문장은 공용 헬퍼 `FORBIDDEN_NOT_A_MEMBER` · `forbiddenForRole(role)`(`common/swagger`)로 만들고,
       서비스가 내는 403 은 그 뒤에 덧붙인다 — 코드는 [data-flow §Rationale 가드 거부의 오류 코드](../data-flow/12-workspace.md#가드-거부의-오류-코드-2026-09-25).
-      저장소 가드 `forbidden-response-codes` 가 새 엔드포인트만이 아니라 **모든 라우트**에 이 짝을 강제한다(서비스 거부는 세지 않는다).
+      저장소 가드 `forbidden-response-codes` 가 새 엔드포인트만이 아니라 **모든 라우트**에서 **빠진** 가드 코드를 잡는다 — 설명에 남은 코드(역할을 내린 뒤의 옛 역할 코드)와 서비스 거부는 세지 않으니, `@Roles()` 를 바꾸면 설명도 손으로 맞춘다.
 ```
 
 ## 변경 (3) — `## Rationale` 끝
@@ -95,3 +95,6 @@ started: 2026-09-26
   구현 plan 의 트래커 정리에서 각주. `--impl-prep` `review/consistency/2026/09/26/11_12_24` **BLOCK: YES** — Critical 1 은 «현재 §5-4
   문구가 data-flow 결정과 어긋난다» 로, 이 draft 가 고치는 바로 그것이다(두 검토를 병렬로 돌려 순서가 뒤집혔다 — 반영 뒤 `--impl-prep`
   재실행). 그 W2(§3 길이 규약에 응답 데코레이터 `description` 범주가 없다)는 트래커 등재, INFO1(대소문자 근거)은 위 «공용 헬퍼» 불릿.
+- **반영 뒤 정정 — 보장의 방향**: 처음 문구 «가드가 … 이 짝을 강제한다» 는 양방향으로 읽힌다. 가드 술어는 설명에 **빠진** 코드만
+  센다 — 남은 코드는 서비스가 같은 이름의 코드를 내는 자리(integrations 의 `ADMIN_REQUIRED`)와 구별할 수 없다. 문구를 «빠진 가드 코드를
+  잡는다 · 남은 코드와 서비스 거부는 세지 않는다» 로 좁혔다(구현 plan 의 `--impl-prep` W1 처분에서 같은 오판을 먼저 반증했다).

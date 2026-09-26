@@ -506,7 +506,7 @@ async create(...) { ... }
       더한다(예: "워크스페이스 멤버가 아님(`NOT_A_MEMBER`) 또는 Editor 이상 권한 필요(`EDITOR_REQUIRED`)". `@Roles('viewer')` 는
       멤버십과 같아 앞 문장뿐이다). 문장은 공용 헬퍼 `FORBIDDEN_NOT_A_MEMBER` · `forbiddenForRole(role)`(`common/swagger`)로 만들고,
       서비스가 내는 403 은 그 뒤에 덧붙인다 — 코드는 [data-flow §Rationale 가드 거부의 오류 코드](../data-flow/12-workspace.md#가드-거부의-오류-코드-2026-09-25).
-      저장소 가드 `forbidden-response-codes` 가 새 엔드포인트만이 아니라 **모든 라우트**에 이 짝을 강제한다(서비스 거부는 세지 않는다). (`@Public()` 라우트는 대상 아님.)
+      저장소 가드 `forbidden-response-codes` 가 새 엔드포인트만이 아니라 **모든 라우트**에서 **빠진** 가드 코드를 잡는다 — 설명에 남은 코드(역할을 내린 뒤의 옛 역할 코드)와 서비스 거부는 세지 않으니, `@Roles()` 를 바꾸면 설명도 손으로 맞춘다. (`@Public()` 라우트는 대상 아님.)
 - [ ] 광고한 성공 코드(`ApiOk*` · `ApiCreated*` · `ApiAccepted*` · `ApiNoContent*` · `ApiResponse({ status })` 등 성공 응답 데코레이터 전부 — 저장소 래퍼 포함)와 실제 성공 코드(`@HttpCode` 또는 Nest 기본값)가 짝을 이루는지 ([§2-4](#2-4-상태-코드-응답-규칙))
 - [ ] 경로 UUID 파라미터는 `@ApiParam({ format: 'uuid' })` 일관 적용
 - [ ] 요청 DTO 명명 — `Update` 접두는 **top-level 요청 바디**에만, nested 변형은 로컬 패턴 ([§1-7](#1-7-요청-dto-명명--update-접두는-top-level-요청-바디에만-건다))
