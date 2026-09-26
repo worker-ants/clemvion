@@ -605,6 +605,8 @@ describe('Workflow CRUD (e2e)', () => {
       .set('X-Workspace-Id', workspaceId)
       .send(buildFiveNodeGraphPayload());
     expect(saved.status).toBe(200);
+    // 아래 id 대조는 양쪽이 빈 배열이어도 통과한다 — 원소 수를 먼저 고정한다(C 와 같은 이유).
+    expect(saved.body.data.nodes).toHaveLength(5);
 
     // 버전은 저장만 만든다(생성은 만들지 않는다) — 목록은 최신순이라 [0] 이 방금 저장한 5노드 스냅샷이다.
     const list = await request(BASE_URL)
@@ -624,6 +626,7 @@ describe('Workflow CRUD (e2e)', () => {
     // 갱신 가지를 탔다는 증거 — 노드 id 가 저장 때와 같다. 달랐다면 생성 가지(C 와 같은 가지)다.
     const idsOf = (body: { data: { nodes: Array<{ id: string }> } }) =>
       body.data.nodes.map((n) => n.id).sort();
+    expect(restored.body.data.nodes).toHaveLength(5);
     expect(idsOf(restored.body)).toEqual(idsOf(saved.body));
     expect(restored.body.data.edges).toHaveLength(2);
     assertMatchesContract(
