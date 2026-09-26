@@ -4888,6 +4888,13 @@ field: T | null;
       `review/consistency/2026/09/26/09_22_45` cross_spec INFO 1 — §5.2 · §5.4 의 상호참조 관례와 비대칭). **착수 조건**: 없음(여유 있을 때).
       두 문서 모두 planner 소관 · `--spec` 필요.
 
+- [ ] **§3 길이 규약 표가 응답 데코레이터(`@ApiXxxResponse`)의 `description` 을 분류하지 않는다** (planner, 낮음, 2026-09-26 등재 ·
+      `--impl-prep` `review/consistency/2026/09/26/11_12_24` convention_compliance W2 → `11_28_17` W1 재지적). `spec/conventions/swagger.md`
+      §3 «길이 — 강제되는 것과 지향하는 것을 가른다» 표는 `@ApiOperation` 의 `summary` · `description` 과 DTO 필드 `description` 세 갈래만
+      적는다. `forbidden-desc-codes` 가 403 설명을 공용 헬퍼(`forbiddenForRole` — 두 코드 문장)로 157곳에 채우면서 이 범주의 문장이
+      길어졌다 — 표에 «응답 데코레이터 `description`: 지향(무제한)» 한 행을 두거나 «위 표는 `@ApiOperation` · DTO 필드에 한정» 각주를
+      단다. **착수 조건**: 없음(여유 있을 때). planner 소관 · `--spec` 필요.
+
 - [x] **`removeMember()` 의 권한 검사가 대상 조회·owner 판정보다 뒤에 있어 존재 오라클이 된다**
       (developer, **중간**, 2026-09-21 등재 · `/ai-review` `review/code/2026/09/21/12_57_05` WARNING 1).
       순서가 `findOne`(`:783`) → 404 → self 위임 → owner 403 → `assertAdmin`(`:803`) 이라,
