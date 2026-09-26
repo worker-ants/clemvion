@@ -1,6 +1,6 @@
 ---
 title: "워크플로 버전 응답의 §5.4 금지 조합(`creator` · `changeSummary`)을 갚고, 두 조회의 공유 `select` 를 상수로"
-status: in-progress
+status: complete
 owner: developer
 worktree: workflow-version-creator
 spec_impact: none
@@ -89,5 +89,7 @@ started: 2026-09-26
         - #12 CHANGELOG 제목 — 리뷰어 간 상충이었고 summary 가 파일을 대조해 «이미 반영됨» 으로 해소했다.
         - 나머지(기존 spec 이격 등재됨 · 방어 확인 · 번들링 고지 · DTO 쌍 중복 · 명명 · JSDoc 길이 · 페이지네이션 · 엔티티 nullable
           표기 · email 노출 기존 설계) — 조치 불요.
-- [ ] `--impl-done`
-- [ ] 트래커 두 항목 닫기
+- [x] `--impl-done` — `review/consistency/2026/09/27/00_48_53` BLOCK: NO(scope `spec/3-workflow-editor/`). 세션에 `_code_diff.patch`
+      를 두고 절대경로 Read 블록을 덧붙였다. W1 · W2 는 `--impl-prep` 때 등재한 기존 spec 이격(§7.2 타입명 · Rationale 부재)이라 추가
+      조치 없음. INFO 는 조치 불요(준수 사례 · 충돌 없음 · 마무리 안내).
+- [x] 트래커 두 항목 닫기 — creator 항목에 프런트엔드 미러 유지 완료 각주

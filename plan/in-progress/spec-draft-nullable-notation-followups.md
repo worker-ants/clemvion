@@ -1023,8 +1023,10 @@ field: T | null;
       > **당장의 안전망은 있다**: 저장소 전수 대조(387개 파일, 731 대 731, 갈리는 파일
       > 0)를 실측으로 확인했다. 이 항목은 그 대조를 **테스트로 상시화**하는 것이다.
 
-- [ ] **`workflow-versions.service.ts` 의 공유 `select` 6키를 상수로**
-      (developer, 2026-09-06 등재, `review/code/2026/09/06/14_25_40` INFO#3).
+- [x] **`workflow-versions.service.ts` 의 공유 `select` 6키를 상수로**
+      (developer, 2026-09-06 등재, `review/code/2026/09/06/14_25_40` INFO#3 · **2026-09-27 해소**
+      `plan/complete/workflow-version-creator.md` — `VERSION_METADATA_SELECT` 로 뽑아 두 조회가 펼쳐 쓴다 + «목록과 상세의 select 는
+      snapshot 하나만 다르다» 대칭 단언).
 
       `findByWorkflow`/`findOne` 이 `id`·`workflowId`·`version`·`changeSummary`·
       `createdBy`·`createdAt` 를 손으로 두 번 나열한다. **이 PR 이 고친 결함 클래스가
@@ -1033,9 +1035,12 @@ field: T | null;
       `creator` 는 이미 `CREATOR_PROJECTION` 으로 공유한다(그쪽이 보안 경계였다).
       남은 6키는 갈려도 **표시 버그**지 유출이 아니라, 이번 PR 범위 밖으로 미룬다.
 
-- [ ] **`WorkflowVersion*Dto.creator` 의 §5.4 금지 조합을 갚는다** (developer, 2026-09-06
+- [x] **`WorkflowVersion*Dto.creator` 의 §5.4 금지 조합을 갚는다** (developer, 2026-09-06
       등재, `review/code/2026/09/06/13_39_20` INFO#16 + `review/consistency/2026/09/06/13_39_25`
-      INFO#2 — 두 게이트가 독립 지적).
+      INFO#2 — 두 게이트가 독립 지적 · **2026-09-27 해소** `plan/complete/workflow-version-creator.md` — `creator` required
+      `WorkflowVersionCreatorDto` · 같은 DTO 의 `changeSummary` 도 required + nullable 로, 래칫 4행 제거 · 선언 캐너리 · e2e 목록 대조.
+      **프런트엔드 미러는 의도적으로 유지했다** — 넓은 쪽은 런타임에 안전하고 `version-history-panel.tsx` 에 `creator` 부재 시
+      `createdBy` 로 떨어지는 방어 분기와 그 테스트가 있다. 좁히는 것은 그 분기를 걷어 내는 별개 프런트엔드 변경이다).
 
       두 DTO 가 `@ApiPropertyOptional({ nullable: true })` + `creator?: T | null` 로
       **§5.4 가 금지한 조합**을 쓴다. 이미 동결돼 있다 —
