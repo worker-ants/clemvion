@@ -82,21 +82,21 @@ DTO 를 둘지 — 을 아래 실측으로 정한다.
   (`dist/decorators/helpers.js`). 배포 빌드(`nest build`)에는 플러그인이 있으므로 이 현상은 **테스트 쪽 생성에만** 있다.
   검증자는 타입을 대조하지 않으므로 지금 테스트 결과도 바꾸지 않는다 → 기존 DTO 는 건드리지 않는다.
 
-## 뮤턴트 (예측 — 실측은 구현 뒤 채운다)
+## 뮤턴트 (저장소 파일 제자리 치환 → 실행 → `shutil.copy` 복원. 커밋 `b39ddd802` 위. M1 · M2 · M4 는 단위 492건, M3 는 e2e 413건 1회)
 
 | # | 뮤턴트 | 예측 | 실측 · 죽인 케이스 |
 |---|---|---|---|
-| M1 | `ExportWorkflowDto.nodes` 를 타입 없는 배열로 되돌림 | 캐너리 RED | |
-| M2 | `ExportWorkflowDto.edges` 를 타입 없는 배열로 되돌림 | 캐너리 RED | |
-| M3 | `ExportedNodeDto.description` 의 `nullable` 제거 | e2e C RED(`null` 인데 nullable 아님) — e2e 1회 | |
-| M4 | `ExportedNodeDto.description` 의 `type: String` 제거 | 캐너리 `description` 단언 RED · 나머지 GREEN | |
+| M1 | `ExportWorkflowDto.nodes` 를 타입 없는 배열로 되돌림 | 캐너리 RED | KILLED — 캐너리 `nodes` + `description` 단언(`ExportedNodeDto` 스키마가 아예 생성되지 않는다) |
+| M2 | `ExportWorkflowDto.edges` 를 타입 없는 배열로 되돌림 | 캐너리 RED | KILLED — 캐너리 `edges` 한 건만 |
+| M3 | `ExportedNodeDto.description` 의 `nullable` 제거 | e2e C RED(`null` 인데 nullable 아님) — e2e 1회 | KILLED — e2e C · F 두 건(2 failed / 413). 사유 `nodes[i].description [null] nullable 선언 없이 null`. F 도 죽은 것은 자동 생성된 Manual Trigger 의 설명이 null 이라서다 |
+| M4 | `ExportedNodeDto.description` 의 `type: String` 제거 | 캐너리 `description` 단언 RED · 나머지 GREEN | KILLED — 캐너리 `description` 한 건만(예측대로) |
 
 ## 체크리스트
 
 - [x] `--impl-prep` — `review/consistency/2026/09/26/22_52_28` BLOCK: NO(W1 은 무관 · 기존 planner 항목 갱신)
 - [x] DTO · e2e · 캐너리 · CHANGELOG · 트래커(§9.4 항목 갱신 · 프런트엔드 타입 항목 등재)
-- [ ] 뮤턴트 표 실측
-- [ ] TEST WORKFLOW (lint · unit · build · e2e)
+- [x] 뮤턴트 표 실측 — 4개 전부 KILLED
+- [x] TEST WORKFLOW (lint · unit · build · e2e 413)
 - [ ] `/ai-review`
 - [ ] `--impl-done`
 - [ ] 트래커 항목 닫기
