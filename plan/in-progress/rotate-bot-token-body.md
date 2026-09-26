@@ -48,9 +48,19 @@ CHANGELOG — OpenAPI 가 세 엔드포인트의 요청 본문 스키마를 광�
 - **전역 가드**(«`@Body()` 가 클래스가 아니면 `@ApiBody` 필수») — 이 PR 뒤 0곳이지만 `swagger.md` 에 요청 본문 규칙이 없다(§1-7 은 이름만).
   가드를 세우려면 규칙 문단부터 planner 턴이다. 트래커 등재.
 
+## 검토 경고 처리
+
+| 출처 | 지적 | 처분 |
+| --- | --- | --- |
+| `--impl-prep` `17_20_45` W1 | `newBotToken` 을 선례처럼 선택으로 적으면 안 된다 — 핸들러가 누락을 400 으로 거부 | `@ApiProperty`(필수). JSDoc 에 «없거나 문자열이 아니면 400 `INVALID_BOT_TOKEN`» |
+| `--impl-prep` `17_20_45` W2 | secret store 입력 plaintext 는 `writeOnly: true` 의무(`swagger.md` §1-5 — 예시가 바로 `botToken`) | `@ApiProperty({ writeOnly: true })` + 렌더 캐너리가 `writeOnly` 를 단언 |
+| `--impl-prep` `17_20_45` W3 · W5 | 파일명이 `15-chat-channel.md` `code:` glob(`dto/**/chat-channel-*.dto.ts`)에 들어야 하고, 응답 DTO(`…-response.dto.ts`)와 대칭이면 좋다 | `dto/chat-channel-rotate-bot-token-request.dto.ts` |
+| `--impl-prep` `17_20_45` W4 | 선례 `ExecuteWorkflowDto` 의 class JSDoc 은 설계 서사를 담아 공개 OpenAPI 로 나간다(`swagger.md` §3) — 복제하지 말 것 | 새 DTO 두 개는 설계 서사를 `//` 주석에, JSDoc 에는 소비자 설명만 |
+| `--impl-prep` `17_20_45` INFO2 · INFO4 · INFO5 | `*RequestDto` 접미가 §1-7 에 없다 · 트래커 처방 문구(«요청 DTO 승격»)와 채택안이 다르다 · 전역 가드 후속 등재 | 트래커 종결 노트에 채택안과 이유를, 전역 가드 후속 항목에 §1-7 접미 행을 함께 |
+
 ## 체크리스트
 
-- [ ] `--impl-prep`
+- [x] `--impl-prep` — `review/consistency/2026/09/26/17_20_45` BLOCK: NO(Warning 5 — 위 표)
 - [ ] 문서 전용 DTO 둘 · `@ApiBody` 셋
 - [ ] 캐너리(모듈별) · 뮤턴트
 - [ ] CHANGELOG
