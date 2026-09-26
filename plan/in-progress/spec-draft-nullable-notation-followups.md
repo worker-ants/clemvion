@@ -5112,7 +5112,7 @@ field: T | null;
       > 규칙 문단과 `code:` 등재) · e2e 대상 라우트 기대값 27곳을 200 으로(`[200, 201]` 22 · 이양 `201` 1 · 저장 `201` 4) · 성공 경로
       > e2e 신설(`action-success-status` · 어시스턴트 SSE). `/ai-review` `review/code/2026/09/26/10_23_50`. `--impl-done` `review/consistency/2026/09/26/10_36_19`. plan `plan/complete/post-status-openapi.md`.
 
-- [ ] **workflow-assistant e2e 의 남은 계약 대조 세 칸** (developer, 낮음, 2026-09-26 등재 · `/ai-review`
+- [x] **workflow-assistant e2e 의 남은 계약 대조 세 칸** (developer, 낮음, 2026-09-26 등재 · `/ai-review`
       `review/code/2026/09/26/14_07_11` INFO7 · 8 · 9 — 2R 에서 codebase 수정 0건으로 수렴하려고 등재). `success-advert` 가 붙인 응답
       DTO 를 `test/workflow-assistant.e2e-spec.ts` 가 대조하는데 세 칸이 비어 있다:
       1. **`sessions/latest` 의 `data: null`** — 테스트 F 는 조회 직전 세션을 만들어 늘 «있음» 분기만 탄다. 세션이 없는 워크플로로
@@ -5122,6 +5122,12 @@ field: T | null;
       3. **도구 호출의 선택 키 생략** — 테스트 H 는 `result` · `planStepId` · `planStepIds` · `signature` 를 전부 채운 도구 호출만 넣는다.
          전부 뺀 도구 호출 하나를 더해 «키 생략» 쪽도 대조한다.
       **착수 조건**: 없음(여유 있을 때). 테스트만 바뀌지만 `codebase/**` 편집이라 리뷰 게이트를 한 바퀴 돈다.
+
+      > **2026-09-26 — 닫힘.** 세 칸 모두 `test/workflow-assistant.e2e-spec.ts` 에서: F 는 `toBe(200)` + 돌아온 세션이 방금 만든 그 세션인지
+      > id 로(조건 분기 제거) · 세션 없는 새 워크플로로 `{ data: null }` · H 에 선택 키를 전부 뺀 도구 호출. 검증자 프로브로 새 원소만
+      > «선택 키를 필수로 잘못 선언» 회귀를 잡음을 확인했다(뮤턴트 `planStepId` → `@ApiProperty()`). 착수 `--impl-prep` 이 무관한 기존
+      > spec 모순(ED-AI-19 PRD ↔ 상세 spec)으로 BLOCK: YES 를 내 같은 PR 에 planner 턴으로 PRD 표기를 정정했다
+      > (`plan/complete/spec-draft-ed-ai-19-status.md`). `/ai-review` `review/code/2026/09/26/16_56_51`(1R 수렴). plan `plan/complete/assistant-e2e-contract-gaps.md`.
 
 - [ ] **`swagger.md` §2-4 상태 코드 표에 202 · 410 · 429 행이 없다** (planner, 낮음, 2026-09-26 등재 · `--impl-prep`
       `review/consistency/2026/09/26/15_08_57` convention_compliance W1). 표는 200 · 201 · 204 · 400 · 401 · 403 · 404 · 409 · 502 만 적는데,

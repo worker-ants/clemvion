@@ -1,6 +1,6 @@
 ---
 title: workflow-assistant e2e 의 남은 계약 대조 세 칸 — latest 의 null · 테스트 F 상태 단언 · 도구 호출 선택 키 생략
-status: in-progress
+status: complete
 owner: developer
 worktree: assistant-e2e-contract-gaps
 spec_impact: none
@@ -35,7 +35,7 @@ CHANGELOG 없음 — 한 기능의 동작을 고정하는 테스트 추가(가�
 
 | 출처 | 지적 | 처분 |
 | --- | --- | --- |
-| `--impl-prep` `16_14_14` **Critical** | PRD `_product-overview.md` §10.4 ED-AI-19 는 표기 없이, 상세 spec `4-ai-assistant.md` §12.2 는 «(계획) 미구현» — 이 작업과 무관한 기존 모순 | 실측(`ASSISTANT_WORKFLOW_RUNNING` 0건 · 프론트 분기 없음)으로 상세 spec 이 맞음을 확인하고 **planner 턴**으로 PRD 행에 미구현 표기(`802bd61d5`, draft `plan/in-progress/spec-draft-ed-ai-19-status.md`, `--spec` `16_27_26` BLOCK: NO). 우회(검사 범위에서 PRD 빼기)는 하지 않았다 |
+| `--impl-prep` `16_14_14` **Critical** | PRD `_product-overview.md` §10.4 ED-AI-19 는 표기 없이, 상세 spec `4-ai-assistant.md` §12.2 는 «(계획) 미구현» — 이 작업과 무관한 기존 모순 | 실측(`ASSISTANT_WORKFLOW_RUNNING` 0건 · 프론트 분기 없음)으로 상세 spec 이 맞음을 확인하고 **planner 턴**으로 PRD 행에 미구현 표기(`802bd61d5`, draft `plan/complete/spec-draft-ed-ai-19-status.md`, `--spec` `16_27_26` BLOCK: NO). 우회(검사 범위에서 PRD 빼기)는 하지 않았다 |
 | `--impl-prep` `16_14_14` W1 · W2 | §6 표 `sessions/latest` 누락 · §6 RBAC 일괄 서술 | 이미 트래커 planner 항목 |
 | `--impl-prep` `16_14_14` W3~W6 · `--spec` `16_27_26` W2 | frontmatter 상태 · 에러 카탈로그 · SSE 봉투 · 배지 i18n · 상위 문서 «전체 구현 완료» | 트래커 한 항목 «`4-ai-assistant.md` 규약 위생 일곱 칸» |
 | `--impl-prep` `16_35_16` W1 | §6 표 `sessions/latest` · Rationale «REST API 5개» | 기존 §6 항목에 «5개 → 6개» 덧붙임 |
@@ -57,4 +57,4 @@ CHANGELOG 없음 — 한 기능의 동작을 고정하는 테스트 추가(가�
 - [x] TEST WORKFLOW (lint · unit · build · e2e) — 전부 PASS(e2e 412 — 새 `it` 없이 F · H 를 고쳐 건수는 그대로)
 - [x] `/ai-review` — 1R `review/code/2026/09/26/16_56_51`(라우터 선별 8명 · forced 7명 전원): Critical 0 · Warning 1(draft 를 옮길 경로의
       선행 인용 — 마무리 커밋의 이동으로 참이 된다). codebase 수정 0건으로 정지 규칙을 1R 에서 충족
-- [ ] 트래커 항목 닫기
+- [x] 트래커 항목 닫기 — 종결 노트에 세 칸 · 프로브 · planner 턴 · 리뷰 세션

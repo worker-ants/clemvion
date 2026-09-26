@@ -1,6 +1,6 @@
 ---
 title: _product-overview.md §10.4 ED-AI-19 — 미구현 표기를 상세 spec 과 맞춘다
-status: in-progress
+status: complete
 owner: project-planner
 worktree: assistant-e2e-contract-gaps
 spec_impact:
@@ -10,7 +10,7 @@ started: 2026-09-26
 
 # spec draft — ED-AI-19 의 구현 상태 표기
 
-구현 plan `plan/in-progress/assistant-e2e-contract-gaps.md` 의 `--impl-prep`(`review/consistency/2026/09/26/16_14_14`)이 **BLOCK: YES** 를
+구현 plan `plan/complete/assistant-e2e-contract-gaps.md` 의 `--impl-prep`(`review/consistency/2026/09/26/16_14_14`)이 **BLOCK: YES** 를
 냈다. Critical 1건은 그 작업(테스트 한 파일)과 무관한 **기존 spec 모순**이다:
 
 - `spec/3-workflow-editor/_product-overview.md` §10.4 ED-AI-19 는 «워크플로우 실행 중(Run 상태)에는 편집 도구가 거부되고 사용자에게
