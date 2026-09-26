@@ -35,8 +35,8 @@ started: 2026-09-26
 
 ## 체크리스트
 
-- [ ] spec draft `--spec` · 반영(planner)
-- [ ] `--impl-prep`
+- [x] spec draft `--spec` · 반영(planner) — `review/consistency/2026/09/26/18_59_58` BLOCK: NO(W1 제외 범위 · INFO4 반영) · planner 커밋 `f71f5df06`
+- [x] `--impl-prep` — `review/consistency/2026/09/26/19_09_17` BLOCK: NO(Warning 0). INFO: 트래커 «AST» → «reflection» 정정 · draft 이동(마무리 커밋) · `15-chat-channel.md` §7 파일 트리에 #1408 의 요청 DTO 누락 · §5-4 제목 «새 엔드포인트» 와 소급 항목의 괴리(셋째) — 뒤 둘은 planner 몫이라 남는 트래커 항목에
 - [ ] 가드 · 대조군 · 곁가지 — RED 확인(인라인 무광고 대조군)
 - [ ] 뮤턴트
 - [ ] CHANGELOG
