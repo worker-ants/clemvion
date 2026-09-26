@@ -304,7 +304,6 @@ describe('Workspace RBAC (e2e)', () => {
       .post(`/api/workspaces/${ws}/transfer-ownership`)
       .set('Authorization', `Bearer ${oldOwner.accessToken}`)
       .send({ newOwnerMemberId: successorMember.rows[0].id });
-    // POST default 201; controller 가 @HttpCode(200) 명시했다면 200. 둘 다 허용.
     expect(transfer.status).toBe(200);
 
     const roles = await db.query<{ user_id: string; role: string }>(

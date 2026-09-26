@@ -129,7 +129,7 @@ describe('execution_failed notification firing (e2e)', () => {
       .set('Authorization', `Bearer ${owner.accessToken}`)
       .set('X-Workspace-Id', workspaceId)
       .send({ nodes, edges });
-    if (save.status !== 201) {
+    if (save.status !== 200) {
       throw new Error(
         `saveCanvas failed: ${save.status} ${JSON.stringify(save.body)}`,
       );

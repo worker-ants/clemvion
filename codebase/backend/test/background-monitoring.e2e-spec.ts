@@ -224,7 +224,7 @@ describe('Background body monitoring (e2e)', () => {
           },
         ],
       });
-    if (save.status !== 201) {
+    if (save.status !== 200) {
       throw new Error(
         `saveCanvas failed: ${save.status} ${JSON.stringify(save.body)}`,
       );
