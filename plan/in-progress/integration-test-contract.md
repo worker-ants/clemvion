@@ -99,7 +99,9 @@ JSDoc 문구 차이(`preview` 의 «등록 UI» · «성공 시»)는 대조 대
 - [x] `--impl-prep` — `review/consistency/2026/09/26/20_32_24` BLOCK: NO(W1 은 트래커 planner 항목)
 - [x] DTO · 서비스 축 · 와이어 축 · CHANGELOG
 - [x] 뮤턴트 표 실측 — 10개 전부 KILLED(M3 · M9 는 캐너리 추가 뒤)
-- [ ] TEST WORKFLOW (lint · unit · build · e2e)
+- [x] TEST WORKFLOW (lint · unit · build · e2e 412) — 첫 build 에서 backend typecheck ratchet 이 와이어 spec 픽스처의 TS2352 를
+      잡았다(`as Integration` — `scope` 가 string 으로 넓혀짐. jest 는 타입을 strip). `Partial<Integration>` 으로 고치고(`53e11963d`)
+      lint 부터 다시 통과
 - [ ] `/ai-review`
 - [ ] `--impl-done`
 - [ ] 트래커 두 항목 닫기
