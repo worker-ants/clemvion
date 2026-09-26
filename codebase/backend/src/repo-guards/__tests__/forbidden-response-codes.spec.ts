@@ -164,7 +164,29 @@ describe('403 설명 ↔ 가드 거부 코드 가드', () => {
       excluded(): void {}
     }
 
-    const fixtureRoutes = collectRouteHandlers([ForbiddenFixtureController]);
+    /**
+     * 클래스 단위 `@Roles` — 가드는 `getAllAndOverride([handler, class])` 로 읽는다. 저장소에 이 모양은 아직 없지만(2026-09-26
+     * 실측 0) 모델이 이 fallback 을 주장하므로 대조군이 있어야 한다 — 없을 때 fallback 을 지운 뮤턴트가 살아남았다.
+     */
+    @Controller('fixture-forbidden-class-roles')
+    @Roles('admin')
+    class ClassRolesFixtureController {
+      /** 클래스의 `@Roles('admin')` 를 물려받는다 — 두 코드. */
+      @Post('inherit')
+      @ApiForbiddenResponse({ description: forbiddenForRole('admin') })
+      inherit(): void {}
+
+      /** 핸들러의 `@Roles` 가 클래스를 덮는다(핸들러 우선) — `viewer` 라 비멤버 코드 하나. */
+      @Get('override')
+      @Roles('viewer')
+      @ApiForbiddenResponse({ description: FORBIDDEN_NOT_A_MEMBER })
+      override(): void {}
+    }
+
+    const fixtureRoutes = collectRouteHandlers([
+      ForbiddenFixtureController,
+      ClassRolesFixtureController,
+    ]);
     const scan = scanForbiddenResponseCodes(fixtureRoutes);
     const key = (v: ForbiddenCodeViolation): string =>
       `${v.handler}:${v.missing.join('+')}`;
@@ -179,8 +201,8 @@ describe('403 설명 ↔ 가드 거부 코드 가드', () => {
     });
 
     it('대조하는 라우트 수 — 전역 · Public · 제외는 세지 않는다', () => {
-      // member · memberLegacy · pathMember · editor · editorRoleOnly · multi · viewer · owner · noForbidden
-      expect(scan.checked).toBe(9);
+      // member · memberLegacy · pathMember · editor · editorRoleOnly · multi · viewer · owner · noForbidden · inherit · override
+      expect(scan.checked).toBe(11);
     });
 
     it('가드 코드 모델', () => {
@@ -199,6 +221,8 @@ describe('403 설명 ↔ 가드 거부 코드 가드', () => {
         'EDITOR_REQUIRED',
       ]);
       expect(codesOf('owner')).toEqual(['NOT_A_MEMBER', 'OWNER_REQUIRED']);
+      expect(codesOf('inherit')).toEqual(['NOT_A_MEMBER', 'ADMIN_REQUIRED']);
+      expect(codesOf('override')).toEqual(['NOT_A_MEMBER']);
     });
 
     /**
