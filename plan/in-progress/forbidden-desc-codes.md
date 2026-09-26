@@ -118,6 +118,6 @@ started: 2026-09-26
   | C1 | 캐너리가 비멤버만 찌름 | KILLED / KILLED | 캐너리(공허성 — 역할 코드가 한 번도 안 나온다) |
 - [x] CHANGELOG — 두 항목(403 설명 · 가드)
 - [x] TEST WORKFLOW (lint · unit · build · e2e) — 전부 PASS(e2e 409건). 1회차 unit 은 frontend plan 링크 가드가 spec draft 의 인용 표기 `[…](…)` 를 상대 링크로 읽어 실패 → `3db7fab59` 로 고쳐 재통과
-- [ ] `/ai-review`
+- [x] `/ai-review` — 정지 규칙(사전 선언) «Critical 0 · Warning 0 · 그 라운드 codebase 수정 0». 1라운드 `review/code/2026/09/26/11_53_46` Critical 0 · Warning 2 → 조치 `37aff2a37` · `cb8999dfb`(서열 밖 역할 대조군 · 복합 문장 상수 · `toStrictEqual`). 2라운드 `review/code/2026/09/26/12_20_03` Critical 0 · Warning 0 · codebase 수정 0 — 수렴(INFO 15건 선택 사항)
 - [ ] `--impl-done`
 - [ ] 트래커 항목 닫기
