@@ -228,7 +228,8 @@ describe('성공 응답 코드 ↔ OpenAPI 광고 가드', () => {
 
     it('성공 응답을 하나도 광고하지 않는 자리를 잡는다 — 리다이렉트 · 제외는 잡지 않는다', () => {
       // 에러 응답만 · `ApiDefaultResponse` 만 · 표에 없는 이름 · status 없는 `@ApiResponse` — 넷 다 2xx 도 3xx 도 없다.
-      // `getRedirect`(`@ApiFoundResponse`)는 성공 광고가 있고, `excludedAdvertisedOk` 는 OpenAPI 밖이다.
+      // `getRedirect`(`@ApiFoundResponse`) · `getRedirectViaApiResponse`(`@ApiResponse({ status: 302 })`)는 성공 광고가 있고,
+      // `excludedAdvertisedOk` 는 OpenAPI 밖이다.
       expect(scan.unadvertised.map((u) => u.method).sort()).toStrictEqual([
         'getApiResponseWithoutStatus',
         'postDefaultResponseOnly',
@@ -240,7 +241,7 @@ describe('성공 응답 코드 ↔ OpenAPI 광고 가드', () => {
     it('리다이렉트만 광고한 라우트는 2xx 짝을 대조하지 않는다', () => {
       // `res.redirect` 가 Nest 가 미리 실은 200 을 덮어쓴다 — 기본값 200 과 대조하면 거짓 위반이다.
       expect(
-        scan.violations.filter((v) => v.method === 'getRedirect'),
+        scan.violations.filter((v) => v.method.startsWith('getRedirect')),
       ).toStrictEqual([]);
     });
 

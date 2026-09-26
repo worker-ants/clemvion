@@ -119,6 +119,13 @@ export class HttpStatusAdvertisedFixtureController {
     res.redirect('/elsewhere');
   }
 
+  /** `@ApiResponse({ status: 302 })` 로 리다이렉트를 광고한 자리 — 이름 표가 아니라 인자에서 읽는 분기. */
+  @Get('redirect-via-api-response')
+  @ApiResponse({ status: 302, description: '다른 곳으로 보낸다' })
+  getRedirectViaApiResponse(@Res() res: Response): void {
+    res.redirect('/elsewhere');
+  }
+
   /** OpenAPI 에서 빠진 자리 — 광고가 문서에 없으니 대조하지 않는다. */
   @Post('excluded')
   @ApiExcludeEndpoint()
