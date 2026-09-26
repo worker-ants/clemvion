@@ -31,9 +31,19 @@ const ROLE_SHORTFALL: Readonly<
  * `@Roles(role)` 라우트의 403 설명 — 비멤버(`NOT_A_MEMBER`)와 역할 미달(`ROLE_REQUIRED[role]`) 두 거부를 싣는다.
  *
  * `viewer` 는 멤버십과 같아(`ROLE_REQUIRED.viewer` 가 `NOT_A_MEMBER`) 비멤버 문장뿐이다. 여러 역할을 주는 라우트는 가장
- * 낮은 역할을 넘긴다 — 가드의 문턱이다(`lowestRequiredRole`). 서비스가 내는 403 은 이 문장 뒤에 덧붙인다.
+ * 낮은 역할을 넘긴다 — 가드의 문턱이다(`lowestRequiredRole`). 서비스가 내는 403 은 `forbiddenWithService` 로 덧붙인다.
  */
 export function forbiddenForRole(role: WorkspaceRoleName): string {
   if (role === 'viewer') return FORBIDDEN_NOT_A_MEMBER;
   return `${FORBIDDEN_NOT_A_MEMBER} 또는 ${ROLE_SHORTFALL[role]}(${ROLE_REQUIRED[role].code})`;
+}
+
+/**
+ * 가드 거부 문장 뒤에 서비스가 내는 403 을 잇는다 — 이음(` 또는 `)을 이 한 곳에서 정한다.
+ *
+ * `guard` 는 위 두 헬퍼의 결과를 넘긴다. 서비스 문장은 자리마다 조건과 코드가 달라 호출자가 쓴다. 이음을 손으로 쓰던 시절
+ * `forbiddenForRole` 안의 ` 또는 ` 과 덧붙인 `, 또는 ` 이 한 문장에서 갈렸다(«A 또는 B, 또는 C»).
+ */
+export function forbiddenWithService(guard: string, service: string): string {
+  return `${guard} 또는 ${service}`;
 }

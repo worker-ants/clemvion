@@ -42,6 +42,8 @@ started: 2026-09-25
       (2026-09-26 보탬) 가드를 내리면 이 네 라우트의 `@ApiForbiddenResponse` 설명(`forbiddenForRole('editor')` 로 시작)도 **손으로**
       바꿔야 한다 — 저장소 가드 `forbidden-response-codes` 는 설명에 **빠진** 가드 코드만 잡고 **남은** 코드(`EDITOR_REQUIRED`)는 못 잡는다
       (서비스가 같은 이름의 코드를 내는 자리와 구별할 수 없어서다 — `plan/complete/forbidden-desc-codes.md`).
+      네 라우트의 설명은 모듈 상수 `FORBIDDEN_EDITOR_OR_ORG_ADMIN` 한 곳이다 — `forbiddenWithService(forbiddenForRole('editor'), …)` 의
+      첫 인자를 바꾼다(`plan/complete/forbidden-helper-sentences.md` 가 이음을 헬퍼로 옮겼다).
 - [ ] **통합 상세 화면이 역할 · 소유에 따라 버튼을 가리지 않는다** (developer). Editor 가 Organization 통합의 이름 변경 · 삭제 ·
       reauthorize · rotate 버튼을 눌러야 403 토스트로 안다. `useHasRole("admin")` 선례(`spec/2-navigation/6-config.md §A.4`)처럼
       Organization 통합의 변경 액션은 Admin+ 에만 보인다.

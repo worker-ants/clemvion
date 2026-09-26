@@ -33,6 +33,7 @@ import {
   ApiCreatedWrappedResponse,
   ApiOkWrappedResponse,
   ApiOkWrappedOneOfResponse,
+  FORBIDDEN_NOT_A_MEMBER,
 } from '../../common/swagger';
 import {
   AccessTokenDto,
@@ -442,9 +443,7 @@ export class AuthController {
     description: '전환된 워크스페이스로 재발급된 Access Token',
   })
   @ApiUnauthorizedResponse({ description: '인증 필요(JWT)' })
-  @ApiForbiddenResponse({
-    description: `대상 워크스페이스의 멤버가 아님(${NOT_A_MEMBER.code})`,
-  })
+  @ApiForbiddenResponse({ description: FORBIDDEN_NOT_A_MEMBER })
   async switchWorkspace(
     @CurrentUser() user: JwtPayload,
     @WorkspaceParam('id') targetWorkspaceId: string,

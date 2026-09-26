@@ -27,6 +27,7 @@ import {
   ApiOkWrappedResponse,
   ApiOkWrappedArrayResponse,
   forbiddenForRole,
+  forbiddenWithService,
 } from '../../common/swagger';
 import { Roles } from '../../common/guards/roles.guard';
 import { WorkspaceId, CurrentUser } from '../../common/decorators';
@@ -36,7 +37,10 @@ import { UpdateWorkflowTestDatasetDto } from './dto/update-workflow-test-dataset
 import { WorkflowTestDatasetDto } from './dto/responses/workflow-test-dataset-response.dto';
 
 /** 수정 · 삭제의 403 — Editor 요구(가드)와 소유자 아님(서비스 `FORBIDDEN`). 두 라우트가 같은 문장을 쓴다. */
-const FORBIDDEN_EDITOR_OR_NOT_OWNER = `${forbiddenForRole('editor')}, 또는 데이터셋 소유자가 아님(FORBIDDEN — 서비스 판정)`;
+const FORBIDDEN_EDITOR_OR_NOT_OWNER = forbiddenWithService(
+  forbiddenForRole('editor'),
+  '데이터셋 소유자가 아님(FORBIDDEN — 서비스 판정)',
+);
 
 /**
  * §2.2 테스트 데이터셋 저장 — 워크플로우 Mock Input 을 이름 붙여 저장/재사용.
