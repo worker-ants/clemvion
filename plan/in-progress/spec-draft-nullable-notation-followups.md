@@ -4032,6 +4032,10 @@ field: T | null;
       것인가, (b) repo-guard 등재를 규약으로 세울 것인가. (b) 를 정하지 않으면 (a) 만 고쳐도
       다음 가드에서 같은 지적이 반복된다(미등재가 9개다).
 
+      > (2026-09-26 보탬) `http-status-advertised`(성공 응답 코드 ↔ OpenAPI 광고) 는 **등재했다** — `swagger.md` 가 자기 조항을
+      > 세는 가드(`param-uuid-pipe` 등)를 `code:` 에 올려 온 문서라 그 선례를 따랐다(`--impl-prep`
+      > `review/consistency/2026/09/26/09_10_09` W1 · INFO4). 위 표는 2026-09-14 시점 모집단이라 이 가드를 세지 않는다.
+
       > **인접 항목**: `plan/in-progress/spec-conventions-engine-error-code-surface.md` 의
       > *"repo-guard 3파일 패턴에 소유 규약 문서가 없다 — `spec/conventions/repo-guards.md`
       > 신설 검토"*. **같은 항목이 아니다** — 그쪽은 «소유 규약 문서 신설», 이쪽은 «`code:`
@@ -4862,11 +4866,27 @@ field: T | null;
       (planner, 낮음, 2026-09-21 등재 · `/ai-review` `review/code/2026/09/21/13_28_12` WARNING 4).
       `spec/5-system/2-api-convention.md` §6 은 «204 No Content = 삭제 성공» 으로 적는데,
       `DELETE /api/workspaces/:id` 와 `DELETE /api/workspaces/:id/members/:memberId` 는 200 을 준다.
+      (2026-09-26 보탬) **셋째 라우트** `DELETE /api/workspaces/:id/invitations/:invitationId` 도 `200 {ok:true}` 다 — 이 라우트만
+      `@ApiNoContentResponse`(204)를 광고하고 있었는데, `post-status-openapi` 가 **광고를 실제(200)에 맞췄다**(런타임은 이 항목의
+      결정 몫이라 그대로 · `--impl-prep` `review/consistency/2026/09/26/09_10_09` W5). 204 로 가면 세 라우트의 런타임과 광고를 함께
+      바꾸면 되고, 저장소 가드 `http-status-advertised` 가 그 짝을 강제한다.
       **실측**: `workflows`·`triggers`·`schedules`·`integrations` 컨트롤러는 각각
       `HttpCode(204)` 가 **1개**, `workspaces.controller.ts` 는 **0개**이고 `ok: true` 가 **5곳**이다.
       즉 라우트 하나의 일탈이 아니라 **컨트롤러 단위의 다른 관례**다.
       둘 중 하나여야 한다 — 컨트롤러를 204 로 맞추거나(클라이언트 계약 변경), §6 에 이 예외를
       각주로 적거나. **바로 위 §3 멱등성 각주 작업과 같은 문서라 함께 처리하는 편이 싸다.**
+
+- [ ] **상태 코드 표에 «자원을 만들지 않는 POST 액션» 칸이 없다** (planner, 낮음, 2026-09-26 등재 · `--impl-prep`
+      `review/consistency/2026/09/26/09_10_09` convention_compliance W4). `spec/conventions/swagger.md` §2-4 는 «200 OK (조회/수정)»,
+      `spec/5-system/2-api-convention.md` §6 은 «200 조회·수정 / 201 생성» 만 적는다. 그런데 POST 는 «리소스 생성, 액션 실행» 둘 다다
+      (같은 문서 HTTP 메서드 표). `post-status-openapi` 가 POST 액션 14곳을 광고대로 200 에 맞춘 근거는 표 문면이 아니라 교차 추론
+      (자원 액션 경로 규칙 · §2-5 래퍼 표의 OAuth begin 200 예시 · `@HttpCode(200)` POST 42곳 중 광고 있는 40곳이 전부 200)이었다.
+      경계 사례 둘 — `oauthBegin`(일부 분기가 `pending_install` 행을 만든다) · `invitations/accept`(멤버십 행이 생긴다) — 는 그 plan
+      (`plan/complete/post-status-openapi.md`)이 «1차 자원 · 응답이 무엇인가» 로 판단했다. 처방 후보: 두 표에 «자원을 만들지 않는
+      POST 액션 = 200 (`@HttpCode(HttpStatus.OK)`)» 한 줄과, 부수적으로 행이 생기는 액션의 판단 기준. 같은 턴에 api-convention §6
+      표에서 `swagger.md` §2-4 «광고한 성공 코드는 실제 성공 코드를 담는다» 로의 역참조도(`--spec`
+      `review/consistency/2026/09/26/09_22_45` cross_spec INFO 1 — §5.2 · §5.4 의 상호참조 관례와 비대칭). **착수 조건**: 없음(여유 있을 때).
+      두 문서 모두 planner 소관 · `--spec` 필요.
 
 - [x] **`removeMember()` 의 권한 검사가 대상 조회·owner 판정보다 뒤에 있어 존재 오라클이 된다**
       (developer, **중간**, 2026-09-21 등재 · `/ai-review` `review/code/2026/09/21/12_57_05` WARNING 1).

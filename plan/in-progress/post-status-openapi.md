@@ -94,7 +94,8 @@ started: 2026-09-26
 ## 체크리스트
 
 - [x] `--impl-prep` — `review/consistency/2026/09/26/09_10_09` BLOCK: NO(Warning 5 — 위 표)
-- [ ] spec draft `--spec` · 반영
+- [x] spec draft `--spec` · 반영 — `review/consistency/2026/09/26/09_22_45` BLOCK: NO(Warning 3 — draft Rationale) · `4b88bcf74`
+- [x] 트래커 W4 등재 · W5 · INFO4 갱신
 - [ ] 가드 + fixture (RED 확인)
 - [ ] `@HttpCode` 14곳 · 초대 취소 광고
 - [ ] e2e 기대값
