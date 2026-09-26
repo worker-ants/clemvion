@@ -117,7 +117,7 @@ started: 2026-09-26
   | F11 | 한 자리를 옛 문장으로 | KILLED / KILLED | 본 판정 |
   | C1 | 캐너리가 비멤버만 찌름 | KILLED / KILLED | 캐너리(공허성 — 역할 코드가 한 번도 안 나온다) |
 - [x] CHANGELOG — 두 항목(403 설명 · 가드)
-- [ ] TEST WORKFLOW (lint · unit · build · e2e)
+- [x] TEST WORKFLOW (lint · unit · build · e2e) — 전부 PASS(e2e 409건). 1회차 unit 은 frontend plan 링크 가드가 spec draft 의 인용 표기 `[…](…)` 를 상대 링크로 읽어 실패 → `3db7fab59` 로 고쳐 재통과
 - [ ] `/ai-review`
 - [ ] `--impl-done`
 - [ ] 트래커 항목 닫기
