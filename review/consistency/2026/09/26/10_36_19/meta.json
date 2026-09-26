@@ -1,0 +1,13 @@
+{
+  "timestamp": "2026-09-26T10:36:19.705573",
+  "mode": "구현 완료 후 검토 (--impl-done, scope=/private/tmp/claude-501/-Volumes-project-private-clemvion/9bc8ff42-8873-4ae7-986a-b884a1fefbf6/scratchpad/pso-done-scope/spec, diff-base=origin/main)",
+  "target_path": "spec/2-navigation/2-trigger-list.md · spec/2-navigation/3-schedule.md · spec/2-navigation/4-integration.md · spec/2-navigation/5-knowledge-base.md · spec/2-navigation/6-config.md · spec/2-navigation/9-user-profile.md · spec/3-workflow-editor/3-execution.md · spec/3-workflow-editor/4-ai-assistant.md · spec/4-nodes/7-trigger/0-common.md · spec/5-system/14-external-interaction-api.md · spec/conventions/redis-keys.md · spec/conventions/swagger.md",
+  "checkers": [
+    "cross_spec",
+    "rationale_continuity",
+    "convention_compliance",
+    "plan_coherence",
+    "naming_collision"
+  ],
+  "scope_note": "게이트(`review_guard._spec_linked_changes`)가 이 변경의 소유자로 보는 spec 12개의 세션 전용 scratch 사본 디렉터리를 scope 로 돌렸다(내용은 그 시점 저장소 파일과 동일). 번들이 코드 diff(55,958자)와 spec 11개를 예산 절단해, main 이 diff 를 `_prompts/_code_diff.patch`(gitignored)로 쓰고 _prompts/*.md 끝에 «판단 전에 Read 로 직접 읽을 것» 블록(절대경로 · 판단 질문)을 덧붙였다."
+}

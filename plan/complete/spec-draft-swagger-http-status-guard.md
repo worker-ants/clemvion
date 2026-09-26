@@ -1,6 +1,6 @@
 ---
 title: swagger.md §2-4 — 광고한 성공 코드는 실제 성공 코드를 담는다 (가드 등재)
-status: in-progress
+status: complete
 owner: project-planner
 worktree: post-status-openapi
 spec_impact:
@@ -10,7 +10,7 @@ started: 2026-09-26
 
 # spec draft — 광고 ↔ 실제 성공 코드 규칙과 가드 등재
 
-구현 plan `plan/in-progress/post-status-openapi.md` 이 신설하는 저장소 가드 `http-status-advertised` 의 규칙을
+구현 plan `plan/complete/post-status-openapi.md` 이 신설하는 저장소 가드 `http-status-advertised` 의 규칙을
 `spec/conventions/swagger.md` 에 적고 가드를 `code:` 에 등재한다. `--impl-prep` `review/consistency/2026/09/26/09_10_09`
 WARNING 1(cross_spec · rationale_continuity · convention_compliance 세 checker 가 독립적으로 지적)의 처분이다.
 

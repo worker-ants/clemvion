@@ -1,6 +1,6 @@
 ---
 title: 성공 응답 코드를 OpenAPI 광고와 맞춘다 — POST 액션 14곳 201→200 · 초대 취소 광고 204→200 · 정적 가드
-status: in-progress
+status: complete
 owner: developer
 worktree: post-status-openapi
 spec_impact:
@@ -64,7 +64,7 @@ started: 2026-09-26
 
 | # | 지적 | 처분 |
 | --- | --- | --- |
-| W1 | 신설 가드가 `swagger.md` · `api-convention.md` 의 `code:` 에 없다(세 checker 공통) | planner draft `plan/in-progress/spec-draft-swagger-http-status-guard.md` — `swagger.md` 에만 등재 + §2-4 규칙 문단 · §5-4 체크리스트 · Rationale. `api-convention.md` 는 기각(draft Rationale). `--spec` 후 반영 |
+| W1 | 신설 가드가 `swagger.md` · `api-convention.md` 의 `code:` 에 없다(세 checker 공통) | planner draft `plan/complete/spec-draft-swagger-http-status-guard.md` — `swagger.md` 에만 등재 + §2-4 규칙 문단 · §5-4 체크리스트 · Rationale. `api-convention.md` 는 기각(draft Rationale). `--spec` 후 반영 |
 | W2 | `oauthBegin` 은 일부 분기에서 행을 만든다 — «14곳 전부 자원 미생성» 전칭이 틀렸다 | 위 «방향» 의 근거 문장을 좁혔다(§2-5 래퍼 표가 이 분기 응답을 200 으로 적는다) |
 | W3 | `acceptInvitation` 은 멤버십 행을 만든다 — 판단 근거 미기록 | 위 «방향» 에 기록(1차 자원=초대, 응답=기존 워크스페이스) |
 | W4 | §2-4 · api-convention §6 표에 «자원을 만들지 않는 POST» 칸이 없다 | 트래커 등재(착수는 이 PR 불요 — checker 제안 그대로) |
@@ -124,5 +124,5 @@ started: 2026-09-26
   | P3 | 이양을 `HttpStatus.CREATED` 로 | KILLED / KILLED | 본 판정 |
 - [x] TEST WORKFLOW (lint · unit · build · e2e) — 2회차 전부 PASS: unit backend 478 스위트 · e2e 72 스위트 406건(1회차 e2e 3파일 RED → 위 항목)
 - [x] `/ai-review` — 정지 규칙(사전 선언) «Critical 0 · Warning 0 · 그 라운드 codebase 수정 0». 1라운드 `review/code/2026/09/26/10_00_52` Critical 0 · Warning 3 → 조치 `f5b10f57b`(성공 경로 e2e · `regenerate` 순서 · import 단언). 2라운드 `review/code/2026/09/26/10_23_50` Critical 0 · Warning 2 · codebase 수정 0 — 수렴(W1 기조치 · W2 가드 docstring 수치 오기는 수렴 예외로 트래커 등재)
-- [ ] `--impl-done`
-- [ ] 트래커 항목 닫기 · 신규 등재
+- [x] `--impl-done` — `review/consistency/2026/09/26/10_36_19` BLOCK: NO(Warning 2 — 트래커 신규 항목 · 반영 끝난 draft 이동, 이 마무리 커밋에서 처리)
+- [x] 트래커 항목 닫기 · 신규 등재 — 닫힘 노트 + «성공 응답을 광고하지 않는 라우트 핸들러가 15곳 있다»(가드 docstring 정정 동반 — `/ai-review` 2R W2 수렴 예외)
