@@ -81,6 +81,21 @@ started: 2026-09-26
   | S4 | `@ApiExcludeEndpoint` 도 묻는다 | KILLED / KILLED | 본 판정(테스트 훅 2) · 대조군 둘 |
   | S5 | nullable 래퍼가 `nullable` 을 잃음 | KILLED / KILLED | 래퍼 단위 테스트 |
   | S6 | `sessions/latest` 광고 제거 | KILLED / KILLED | 본 판정 |
+
+  `/ai-review` 1R 이 분류를 `classifyDecorators` + 헬퍼 `advertise` 로 옮긴 뒤(`bf1fa96fc`) 새 자리로 다시 돌렸다 — **8/8 예측대로
+  KILLED**, 예측 케이스 전부 사망. 헬퍼를 공유하게 된 두 분기가 따로 덮이는지 S3 를 둘로 나눴고, 리팩터가 옮긴 `actualKnown` 을
+  S7 로 더했다.
+
+  | # | 뮤턴트(리팩터 뒤) | 예측 / 실측 | 죽인 케이스 |
+  | --- | --- | --- | --- |
+  | S1 | 광고 없음을 보고하지 않음 | KILLED / KILLED | 대조군만 |
+  | S2 | 헬퍼 `advertise` 가 3xx 를 성공 광고로 안 침 | KILLED / KILLED | 본 판정 · 대조군 |
+  | S3a | `@ApiResponse` 분기만 3xx 를 버림 | KILLED / KILLED | **대조군만**(302 대조군) |
+  | S3b | 이름 표 분기만 3xx 를 버림 | KILLED / KILLED | 본 판정(OAuth 리다이렉트 2) · 대조군 |
+  | S4 | `@ApiExcludeEndpoint` 도 묻는다 | KILLED / KILLED | 본 판정 · 대조군 둘 |
+  | S5 | nullable 래퍼가 `nullable` 을 잃음 | KILLED / KILLED | 래퍼 단위 테스트 |
+  | S6 | `sessions/latest` 광고 제거 | KILLED / KILLED | 본 판정 |
+  | S7 | 못 읽은 `@HttpCode(<식>)` 를 아는 코드로 침 | KILLED / KILLED | 대조군 둘(위반 여섯 · 맞는 자리) |
 - [x] CHANGELOG — 두 항목(스키마 광고 · 가드 강화)
 - [x] TEST WORKFLOW (lint · unit · build · e2e) — 전부 PASS(e2e 411건 — 새 계약 대조 포함, 선언되지 않은 키 0)
 - [ ] `/ai-review`
