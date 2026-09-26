@@ -1,6 +1,6 @@
 ---
 title: "캔버스 저장 · 버전 복원 응답의 `nodes`/`edges` 를 `NodeDto`/`EdgeDto` 로 선언하고 와이어 계약을 건다"
-status: in-progress
+status: complete
 owner: developer
 worktree: canvas-save-typed
 spec_impact: none
@@ -75,5 +75,10 @@ M1 · M2 는 단위(`src/modules/workflows` · `src/repo-guards` 489건), M3 는
       - 2R `review/code/2026/09/26/22_24_07` — Critical 0 · Warning 0 · 이 라운드 `codebase/` 수정 0 → 정지 규칙 충족. 판정 기준
         커밋 `ba88b7318`, 통합 전 트리는 HEAD 와 같았고 리뷰어 트랜스크립트에 저장소 쓰기가 없었다. INFO 11건은 조치 불요(기존
         drift · 스코프 밖 · 마무리 안내 · `//` 주석은 swagger §3 부합 재확인).
-- [ ] `--impl-done`
-- [ ] 트래커 항목 닫기
+- [x] `--impl-done` — `review/consistency/2026/09/26/22_31_14` BLOCK: NO(scope `spec/2-navigation/`). 세션에 `_code_diff.patch`
+      를 두고 절대경로 Read 블록을 덧붙였다. 처분:
+      - W1 트래커 항목 미체크 — 이 마무리 커밋에서 닫는다(예정된 마지막 단계).
+      - INFO 1 · 3 `1-workflow-list.md` 의 `code:` 글롭(`workflows/dto/**`)이 캔버스 저장 DTO 까지 목록 spec 으로 보낸다(그래서
+        `--impl-prep` 이 무관한 트리거 문서 갭을 끌어왔다). spec frontmatter 라 planner 몫이고 급하지 않아 등재하지 않는다.
+      - INFO 2 기존 §5.4 drift(`--impl-prep` INFO 1 과 같음) · INFO 4 swagger §1-4 배열형 예시 — 조치 불요.
+- [x] 트래커 항목 닫기

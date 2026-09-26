@@ -1304,8 +1304,10 @@ field: T | null;
       **2곳**뿐이다 (`grep -rn "unexpected error occurred" src test`). 즉 문구 교체 자체는
       작다 — 판단이 필요한 것은 **API 응답 문구의 언어 정책**이지 배선이 아니다.
 
-- [ ] **`CanvasSaveResultDto.nodes`/`.edges` 가 타입 없는 객체 배열** (developer,
-      2026-09-05 등재). `@ApiProperty({ type: 'array', items: { type: 'object' } })` 라
+- [x] **`CanvasSaveResultDto.nodes`/`.edges` 가 타입 없는 객체 배열** (developer,
+      2026-09-05 등재 · **2026-09-26 해소** `plan/complete/canvas-save-typed.md` — `NodeDto[]` · `EdgeDto[]` 선언(엔티티 컬럼과
+      1:1 이라 선언만 바꿨다) + e2e `workflow-crud` C(저장) · I(복원 — 이 엔드포인트의 첫 e2e) 계약 대조 + 원소 선언 캐너리.
+      뮤턴트 3개 KILLED). `@ApiProperty({ type: 'array', items: { type: 'object' } })` 라
       **검증자가 그 아래로 내려가지 않는다** — 캔버스 저장 응답에 어떤 엔티티 필드가
       실려도 계약 검사를 통과한다. e2e 11개 스펙이 이 엔드포인트를 때리므로 배선 자체는
       쉬운데, `NodeDto`/`EdgeDto` 로 선언을 바꾸는 것이 선행이다.
