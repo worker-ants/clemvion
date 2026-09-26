@@ -448,7 +448,7 @@ describe('Workflow CRUD (e2e)', () => {
       .set('Authorization', `Bearer ${ownerToken}`)
       .set('X-Workspace-Id', workspaceId)
       .send(exportRes.body.data);
-    expect([200, 201]).toContain(importRes.status);
+    expect(importRes.status).toBe(201);
     const newId = importRes.body.data.id;
     expect(newId).not.toBe(id);
   });
@@ -481,7 +481,7 @@ describe('Workflow CRUD (e2e)', () => {
       .set('Authorization', `Bearer ${ownerToken}`)
       .set('X-Workspace-Id', workspaceId)
       .send(exportRes.body.data);
-    expect([200, 201]).toContain(importRes.status);
+    expect(importRes.status).toBe(201);
     const newId = importRes.body.data.id;
     const getNew = await request(BASE_URL)
       .get(`/api/workflows/${newId}`)
