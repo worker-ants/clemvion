@@ -55,5 +55,6 @@ CHANGELOG 없음 — 한 기능의 동작을 고정하는 테스트 추가(가�
   «선택 키를 필수로 잘못 선언» 하는 회귀는 전부 뺀 원소만 잡는다. F 의 `toStrictEqual({ data: null })` 과 `toBe(sessionId)` 는 값을 그대로
   단언해 제3상태가 없다.
 - [x] TEST WORKFLOW (lint · unit · build · e2e) — 전부 PASS(e2e 412 — 새 `it` 없이 F · H 를 고쳐 건수는 그대로)
-- [ ] `/ai-review`
+- [x] `/ai-review` — 1R `review/code/2026/09/26/16_56_51`(라우터 선별 8명 · forced 7명 전원): Critical 0 · Warning 1(draft 를 옮길 경로의
+      선행 인용 — 마무리 커밋의 이동으로 참이 된다). codebase 수정 0건으로 정지 규칙을 1R 에서 충족
 - [ ] 트래커 항목 닫기
