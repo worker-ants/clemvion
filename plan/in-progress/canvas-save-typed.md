@@ -69,8 +69,11 @@ M1 · M2 는 단위(`src/modules/workflows` · `src/repo-guards` 489건), M3 는
 - [x] DTO · e2e · 캐너리 · CHANGELOG · 트래커 등재
 - [x] 뮤턴트 표 실측 — 3개 전부 KILLED
 - [x] TEST WORKFLOW (lint · unit · build · e2e 413 — 이전 412 + 신규 I)
-- [ ] `/ai-review`
+- [x] `/ai-review`
       - 1R `review/code/2026/09/26/22_05_52` — Critical 0 · Warning 1(I 가 노드 수를 고정하지 않음) → `2ca8a7767` 로 조치,
         TEST WORKFLOW 재통과(e2e 413). RESOLUTION 작성.
+      - 2R `review/code/2026/09/26/22_24_07` — Critical 0 · Warning 0 · 이 라운드 `codebase/` 수정 0 → 정지 규칙 충족. 판정 기준
+        커밋 `ba88b7318`, 통합 전 트리는 HEAD 와 같았고 리뷰어 트랜스크립트에 저장소 쓰기가 없었다. INFO 11건은 조치 불요(기존
+        drift · 스코프 밖 · 마무리 안내 · `//` 주석은 swagger §3 부합 재확인).
 - [ ] `--impl-done`
 - [ ] 트래커 항목 닫기
