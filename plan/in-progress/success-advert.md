@@ -82,7 +82,7 @@ started: 2026-09-26
   | S5 | nullable 래퍼가 `nullable` 을 잃음 | KILLED / KILLED | 래퍼 단위 테스트 |
   | S6 | `sessions/latest` 광고 제거 | KILLED / KILLED | 본 판정 |
 - [x] CHANGELOG — 두 항목(스키마 광고 · 가드 강화)
-- [ ] TEST WORKFLOW (lint · unit · build · e2e)
+- [x] TEST WORKFLOW (lint · unit · build · e2e) — 전부 PASS(e2e 411건 — 새 계약 대조 포함, 선언되지 않은 키 0)
 - [ ] `/ai-review`
 - [ ] `--impl-done`
 - [ ] 트래커 항목 닫기
