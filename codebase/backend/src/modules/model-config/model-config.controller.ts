@@ -29,6 +29,8 @@ import {
   ApiCreatedWrappedResponse,
   ApiOkPaginatedResponse,
   ApiOkWrappedResponse,
+  FORBIDDEN_NOT_A_MEMBER,
+  forbiddenForRole,
 } from '../../common/swagger';
 import { ModelConfigService } from './model-config.service';
 import { CreateModelConfigDto } from './dto/create-model-config.dto';
@@ -76,7 +78,7 @@ export class ModelConfigController {
   @ApiQuery({ name: 'kind', enum: MODEL_CONFIG_KINDS, required: true })
   @ApiOkPaginatedResponse(ModelConfigDto, { description: '모델 설정 목록' })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
-  @ApiForbiddenResponse({ description: '워크스페이스 멤버가 아님' })
+  @ApiForbiddenResponse({ description: FORBIDDEN_NOT_A_MEMBER })
   async findAll(
     @WorkspaceId() workspaceId: string,
     @Query() query: ListModelConfigsQueryDto,
@@ -92,7 +94,7 @@ export class ModelConfigController {
   @ApiOperation({ summary: '모델 설정 단건 조회' })
   @ApiParam({ name: 'id', description: '모델 설정 UUID', format: 'uuid' })
   @ApiOkWrappedResponse(ModelConfigDto, { description: '모델 설정 상세' })
-  @ApiForbiddenResponse({ description: '워크스페이스 멤버가 아님' })
+  @ApiForbiddenResponse({ description: FORBIDDEN_NOT_A_MEMBER })
   @ApiNotFoundResponse({ description: '해당 모델 설정을 찾을 수 없음' })
   async findOne(
     @Param('id', ParseUUIDPipe) id: string,
@@ -113,7 +115,7 @@ export class ModelConfigController {
     description: '생성된 모델 설정',
   })
   @ApiBadRequestResponse({ description: '입력값 검증 실패' })
-  @ApiForbiddenResponse({ description: 'editor 이상 권한 필요' })
+  @ApiForbiddenResponse({ description: forbiddenForRole('editor') })
   async create(
     @WorkspaceId() workspaceId: string,
     @Body() dto: CreateModelConfigDto,
@@ -128,7 +130,7 @@ export class ModelConfigController {
   @ApiParam({ name: 'id', description: '모델 설정 UUID', format: 'uuid' })
   @ApiOkWrappedResponse(ModelConfigDto, { description: '수정된 모델 설정' })
   @ApiBadRequestResponse({ description: '입력값 검증 실패' })
-  @ApiForbiddenResponse({ description: 'editor 이상 권한 필요' })
+  @ApiForbiddenResponse({ description: forbiddenForRole('editor') })
   @ApiNotFoundResponse({ description: '해당 모델 설정을 찾을 수 없음' })
   async update(
     @Param('id', ParseUUIDPipe) id: string,
@@ -149,7 +151,7 @@ export class ModelConfigController {
   })
   @ApiParam({ name: 'id', description: '모델 설정 UUID', format: 'uuid' })
   @ApiNoContentResponse({ description: '기본 설정 변경 완료' })
-  @ApiForbiddenResponse({ description: 'editor 이상 권한 필요' })
+  @ApiForbiddenResponse({ description: forbiddenForRole('editor') })
   @ApiNotFoundResponse({ description: '해당 모델 설정을 찾을 수 없음' })
   async setDefault(
     @Param('id', ParseUUIDPipe) id: string,
@@ -165,7 +167,7 @@ export class ModelConfigController {
   @ApiOperation({ summary: '모델 설정 삭제' })
   @ApiParam({ name: 'id', description: '모델 설정 UUID', format: 'uuid' })
   @ApiNoContentResponse({ description: '삭제 성공' })
-  @ApiForbiddenResponse({ description: 'editor 이상 권한 필요' })
+  @ApiForbiddenResponse({ description: forbiddenForRole('editor') })
   @ApiNotFoundResponse({ description: '해당 모델 설정을 찾을 수 없음' })
   async remove(
     @Param('id', ParseUUIDPipe) id: string,

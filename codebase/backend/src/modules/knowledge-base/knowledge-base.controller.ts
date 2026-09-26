@@ -36,6 +36,8 @@ import {
   ApiCreatedWrappedResponse,
   ApiOkPaginatedResponse,
   ApiOkWrappedResponse,
+  FORBIDDEN_NOT_A_MEMBER,
+  forbiddenForRole,
 } from '../../common/swagger';
 import { KnowledgeBaseService } from './knowledge-base.service';
 import { RagSearchService } from './search/rag-search.service';
@@ -82,7 +84,7 @@ export class KnowledgeBaseController {
     description: '지식 베이스 목록 및 페이지네이션 메타',
   })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
-  @ApiForbiddenResponse({ description: '워크스페이스 멤버가 아님' })
+  @ApiForbiddenResponse({ description: FORBIDDEN_NOT_A_MEMBER })
   async findAll(
     @WorkspaceId() workspaceId: string,
     @Query() query: PaginationQueryDto,
@@ -98,7 +100,7 @@ export class KnowledgeBaseController {
   @ApiParam({ name: 'id', description: '지식 베이스 UUID', format: 'uuid' })
   @ApiOkWrappedResponse(KnowledgeBaseDto, { description: '지식 베이스 상세' })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
-  @ApiForbiddenResponse({ description: '워크스페이스 멤버가 아님' })
+  @ApiForbiddenResponse({ description: FORBIDDEN_NOT_A_MEMBER })
   @ApiNotFoundResponse({ description: '해당 지식 베이스를 찾을 수 없음' })
   async findOne(
     @Param('id', ParseUUIDPipe) id: string,
@@ -120,7 +122,7 @@ export class KnowledgeBaseController {
   })
   @ApiBadRequestResponse({ description: '입력값 검증 실패' })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
-  @ApiForbiddenResponse({ description: 'editor 이상 권한 필요' })
+  @ApiForbiddenResponse({ description: forbiddenForRole('editor') })
   async create(
     @WorkspaceId() workspaceId: string,
     @Body() dto: CreateKnowledgeBaseDto,
@@ -145,7 +147,7 @@ export class KnowledgeBaseController {
   })
   @ApiBadRequestResponse({ description: '입력값 검증 실패 또는 probe 실패' })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
-  @ApiForbiddenResponse({ description: 'editor 이상 권한 필요' })
+  @ApiForbiddenResponse({ description: forbiddenForRole('editor') })
   async probeEmbedding(
     @WorkspaceId() workspaceId: string,
     @Body() dto: EmbeddingProbeDto,
@@ -164,7 +166,7 @@ export class KnowledgeBaseController {
   @ApiOkWrappedResponse(KnowledgeBaseDto, { description: '수정된 지식 베이스' })
   @ApiBadRequestResponse({ description: '입력값 검증 실패' })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
-  @ApiForbiddenResponse({ description: 'editor 이상 권한 필요' })
+  @ApiForbiddenResponse({ description: forbiddenForRole('editor') })
   @ApiNotFoundResponse({ description: '해당 지식 베이스를 찾을 수 없음' })
   async update(
     @Param('id', ParseUUIDPipe) id: string,
@@ -195,7 +197,7 @@ export class KnowledgeBaseController {
     description: 'KB 전체 재임베딩 작업이 큐잉됨',
   })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
-  @ApiForbiddenResponse({ description: 'editor 이상 권한 필요' })
+  @ApiForbiddenResponse({ description: forbiddenForRole('editor') })
   @ApiNotFoundResponse({ description: '해당 지식 베이스를 찾을 수 없음' })
   async reEmbedAll(
     @Param('id', ParseUUIDPipe) id: string,
@@ -222,7 +224,7 @@ export class KnowledgeBaseController {
     description: '임베딩 진행 통계',
   })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
-  @ApiForbiddenResponse({ description: '워크스페이스 멤버가 아님' })
+  @ApiForbiddenResponse({ description: FORBIDDEN_NOT_A_MEMBER })
   @ApiNotFoundResponse({ description: '해당 지식 베이스를 찾을 수 없음' })
   async embeddingStats(
     @Param('id', ParseUUIDPipe) id: string,
@@ -249,7 +251,7 @@ export class KnowledgeBaseController {
     description: '실패 문서 재시도 큐잉 완료',
   })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
-  @ApiForbiddenResponse({ description: 'editor 이상 권한 필요' })
+  @ApiForbiddenResponse({ description: forbiddenForRole('editor') })
   @ApiNotFoundResponse({ description: '해당 지식 베이스를 찾을 수 없음' })
   async retryFailed(
     @Param('id', ParseUUIDPipe) id: string,
@@ -276,7 +278,7 @@ export class KnowledgeBaseController {
   @ApiParam({ name: 'id', description: '지식 베이스 UUID', format: 'uuid' })
   @ApiNoContentResponse({ description: '삭제 성공' })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
-  @ApiForbiddenResponse({ description: 'editor 이상 권한 필요' })
+  @ApiForbiddenResponse({ description: forbiddenForRole('editor') })
   @ApiNotFoundResponse({ description: '해당 지식 베이스를 찾을 수 없음' })
   async remove(
     @Param('id', ParseUUIDPipe) id: string,
@@ -297,7 +299,7 @@ export class KnowledgeBaseController {
     description: '문서 목록 및 페이지네이션 메타',
   })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
-  @ApiForbiddenResponse({ description: '워크스페이스 멤버가 아님' })
+  @ApiForbiddenResponse({ description: FORBIDDEN_NOT_A_MEMBER })
   @ApiNotFoundResponse({ description: '해당 지식 베이스를 찾을 수 없음' })
   async findDocuments(
     @Param('id', ParseUUIDPipe) id: string,
@@ -318,7 +320,7 @@ export class KnowledgeBaseController {
     description: '문서 상세 (청크/임베딩 상태 포함)',
   })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
-  @ApiForbiddenResponse({ description: '워크스페이스 멤버가 아님' })
+  @ApiForbiddenResponse({ description: FORBIDDEN_NOT_A_MEMBER })
   @ApiNotFoundResponse({ description: '해당 문서를 찾을 수 없음' })
   async findDocument(
     @Param('id', ParseUUIDPipe) id: string,
@@ -363,7 +365,7 @@ export class KnowledgeBaseController {
   @ApiBadRequestResponse({ description: '파일 누락 또는 지원하지 않는 포맷' })
   @ApiPayloadTooLargeResponse({ description: '파일 크기 초과 (50MB)' })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
-  @ApiForbiddenResponse({ description: 'editor 이상 권한 필요' })
+  @ApiForbiddenResponse({ description: forbiddenForRole('editor') })
   @ApiNotFoundResponse({ description: '해당 지식 베이스를 찾을 수 없음' })
   async uploadDocument(
     @Param('id', ParseUUIDPipe) id: string,
@@ -387,7 +389,7 @@ export class KnowledgeBaseController {
   @ApiParam({ name: 'docId', description: '문서 UUID', format: 'uuid' })
   @ApiNoContentResponse({ description: '삭제 성공' })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
-  @ApiForbiddenResponse({ description: 'editor 이상 권한 필요' })
+  @ApiForbiddenResponse({ description: forbiddenForRole('editor') })
   @ApiNotFoundResponse({ description: '해당 문서를 찾을 수 없음' })
   async removeDocument(
     @Param('id', ParseUUIDPipe) id: string,
@@ -411,7 +413,7 @@ export class KnowledgeBaseController {
     description: '재임베딩 작업이 큐잉됨',
   })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
-  @ApiForbiddenResponse({ description: 'editor 이상 권한 필요' })
+  @ApiForbiddenResponse({ description: forbiddenForRole('editor') })
   @ApiNotFoundResponse({ description: '해당 문서를 찾을 수 없음' })
   async reEmbed(
     @Param('id', ParseUUIDPipe) id: string,
@@ -440,7 +442,7 @@ export class KnowledgeBaseController {
   })
   @ApiBadRequestResponse({ description: '입력값 검증 실패' })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
-  @ApiForbiddenResponse({ description: 'viewer 이상 권한 필요' })
+  @ApiForbiddenResponse({ description: forbiddenForRole('viewer') })
   async search(@WorkspaceId() workspaceId: string, @Body() body: RagSearchDto) {
     return this.ragSearchService.search(
       body.query,

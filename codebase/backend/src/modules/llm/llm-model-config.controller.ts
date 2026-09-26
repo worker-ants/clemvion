@@ -28,6 +28,8 @@ import { Roles } from '../../common/guards/roles.guard';
 import {
   ApiOkWrappedResponse,
   ApiOkWrappedArrayResponse,
+  FORBIDDEN_NOT_A_MEMBER,
+  forbiddenForRole,
 } from '../../common/swagger';
 import { WorkspaceId } from '../../common/decorators';
 import { LlmService } from './llm.service';
@@ -86,7 +88,7 @@ export class LlmModelConfigController {
     description: '자격증명 검증 실패 또는 Provider 호출 실패',
   })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
-  @ApiForbiddenResponse({ description: 'editor 이상 권한 필요' })
+  @ApiForbiddenResponse({ description: forbiddenForRole('editor') })
   @ApiTooManyRequestsResponse({ description: '요청 빈도 초과 (분당 10회)' })
   async previewModels(@Body() dto: PreviewModelListDto) {
     return this.llmPreviewService.previewModels(dto);
@@ -105,7 +107,7 @@ export class LlmModelConfigController {
     description: '연결 테스트 결과',
   })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
-  @ApiForbiddenResponse({ description: 'editor 이상 권한 필요' })
+  @ApiForbiddenResponse({ description: forbiddenForRole('editor') })
   @ApiNotFoundResponse({ description: '해당 모델 설정을 찾을 수 없음' })
   @ApiTooManyRequestsResponse({ description: '요청 빈도 초과 (분당 10회)' })
   async testConnection(
@@ -139,7 +141,7 @@ export class LlmModelConfigController {
     description: '사용 가능한 모델 목록',
   })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
-  @ApiForbiddenResponse({ description: '워크스페이스 멤버가 아님' })
+  @ApiForbiddenResponse({ description: FORBIDDEN_NOT_A_MEMBER })
   @ApiNotFoundResponse({ description: '해당 모델 설정을 찾을 수 없음' })
   @ApiBadRequestResponse({
     description: '유효하지 않은 type 파라미터 (허용값: chat | embedding)',

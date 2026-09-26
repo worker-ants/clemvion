@@ -22,6 +22,7 @@ import {
 import {
   ApiOkPaginatedResponse,
   ApiOkWrappedResponse,
+  FORBIDDEN_NOT_A_MEMBER,
 } from '../../common/swagger';
 import { NotificationsService } from './notifications.service';
 import { QueryNotificationDto } from './dto/query-notification.dto';
@@ -53,7 +54,7 @@ export class NotificationsController {
     description: '알림 목록 (페이지네이션)',
   })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
-  @ApiForbiddenResponse({ description: '워크스페이스 멤버가 아님' })
+  @ApiForbiddenResponse({ description: FORBIDDEN_NOT_A_MEMBER })
   async findAll(
     @WorkspaceId() workspaceId: string,
     @CurrentUser() user: JwtPayload,
@@ -70,7 +71,7 @@ export class NotificationsController {
   })
   @ApiOkWrappedResponse(UnreadCountDto, { description: '읽지 않은 알림 개수' })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
-  @ApiForbiddenResponse({ description: '워크스페이스 멤버가 아님' })
+  @ApiForbiddenResponse({ description: FORBIDDEN_NOT_A_MEMBER })
   async getUnreadCount(
     @WorkspaceId() workspaceId: string,
     @CurrentUser() user: JwtPayload,
@@ -139,7 +140,7 @@ export class NotificationsController {
     description: '읽음 처리된 건수',
   })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
-  @ApiForbiddenResponse({ description: '워크스페이스 멤버가 아님' })
+  @ApiForbiddenResponse({ description: FORBIDDEN_NOT_A_MEMBER })
   async markAllRead(
     @WorkspaceId() workspaceId: string,
     @CurrentUser() user: JwtPayload,
@@ -162,7 +163,7 @@ export class NotificationsController {
     description: 'dismiss 처리된 건수',
   })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
-  @ApiForbiddenResponse({ description: '워크스페이스 멤버가 아님' })
+  @ApiForbiddenResponse({ description: FORBIDDEN_NOT_A_MEMBER })
   async dismissAll(
     @WorkspaceId() workspaceId: string,
     @CurrentUser() user: JwtPayload,

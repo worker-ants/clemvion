@@ -26,6 +26,7 @@ import {
   ApiCreatedWrappedResponse,
   ApiOkWrappedResponse,
   ApiOkWrappedArrayResponse,
+  forbiddenForRole,
 } from '../../common/swagger';
 import { Roles } from '../../common/guards/roles.guard';
 import { WorkspaceId, CurrentUser } from '../../common/decorators';
@@ -57,7 +58,7 @@ export class WorkflowTestDatasetsController {
     description: '데이터셋 목록',
   })
   @ApiUnauthorizedResponse({ description: '인증 실패' })
-  @ApiForbiddenResponse({ description: 'editor 이상 권한 필요' })
+  @ApiForbiddenResponse({ description: forbiddenForRole('editor') })
   @ApiNotFoundResponse({ description: '워크플로우 없음' })
   async list(
     @Param('workflowId', ParseUUIDPipe) workflowId: string,
@@ -75,7 +76,7 @@ export class WorkflowTestDatasetsController {
   @ApiCreatedWrappedResponse(WorkflowTestDatasetDto, { description: '생성됨' })
   @ApiBadRequestResponse({ description: '유효성 오류' })
   @ApiConflictResponse({ description: '같은 이름 데이터셋 중복' })
-  @ApiForbiddenResponse({ description: 'editor 이상 권한 필요' })
+  @ApiForbiddenResponse({ description: forbiddenForRole('editor') })
   @ApiNotFoundResponse({ description: '워크플로우 없음' })
   async create(
     @Param('workflowId', ParseUUIDPipe) workflowId: string,
@@ -94,7 +95,9 @@ export class WorkflowTestDatasetsController {
   })
   @ApiParam({ name: 'id', format: 'uuid' })
   @ApiOkWrappedResponse(WorkflowTestDatasetDto, { description: '수정됨' })
-  @ApiForbiddenResponse({ description: '소유자 아님' })
+  @ApiForbiddenResponse({
+    description: `${forbiddenForRole('editor')}, 또는 데이터셋 소유자가 아님(FORBIDDEN — 서비스 판정)`,
+  })
   @ApiNotFoundResponse({ description: '없음' })
   @ApiConflictResponse({ description: '같은 이름 데이터셋 중복' })
   async update(
@@ -112,7 +115,9 @@ export class WorkflowTestDatasetsController {
   @ApiOperation({ summary: '테스트 데이터셋 삭제 (소유자만)' })
   @ApiParam({ name: 'id', format: 'uuid' })
   @ApiNoContentResponse({ description: '삭제됨' })
-  @ApiForbiddenResponse({ description: '소유자 아님' })
+  @ApiForbiddenResponse({
+    description: `${forbiddenForRole('editor')}, 또는 데이터셋 소유자가 아님(FORBIDDEN — 서비스 판정)`,
+  })
   @ApiNotFoundResponse({ description: '없음' })
   async remove(
     @Param('id', ParseUUIDPipe) id: string,
@@ -132,7 +137,7 @@ export class WorkflowTestDatasetsController {
   })
   @ApiParam({ name: 'id', format: 'uuid' })
   @ApiCreatedWrappedResponse(WorkflowTestDatasetDto, { description: '복제됨' })
-  @ApiForbiddenResponse({ description: 'editor 이상 권한 필요' })
+  @ApiForbiddenResponse({ description: forbiddenForRole('editor') })
   @ApiNotFoundResponse({ description: '없음 또는 비공유' })
   @ApiConflictResponse({
     description: '동일 이름 복제본 이미 존재 (DUPLICATE_NAME)',

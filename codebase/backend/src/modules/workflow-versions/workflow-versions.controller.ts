@@ -11,6 +11,7 @@ import {
 import {
   ApiOkWrappedArrayResponse,
   ApiOkWrappedResponse,
+  FORBIDDEN_NOT_A_MEMBER,
 } from '../../common/swagger';
 import { WorkflowVersionsService } from './workflow-versions.service';
 import { WorkspaceId } from '../../common/decorators';
@@ -38,7 +39,7 @@ export class WorkflowVersionsController {
     description: '버전 이력 목록 (최신순, snapshot 비포함)',
   })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
-  @ApiForbiddenResponse({ description: '워크스페이스 멤버가 아님' })
+  @ApiForbiddenResponse({ description: FORBIDDEN_NOT_A_MEMBER })
   @ApiNotFoundResponse({
     description: '워크플로우가 현재 워크스페이스에 속하지 않음',
   })
@@ -65,7 +66,7 @@ export class WorkflowVersionsController {
     description: '버전 상세 (snapshot 포함)',
   })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
-  @ApiForbiddenResponse({ description: '워크스페이스 멤버가 아님' })
+  @ApiForbiddenResponse({ description: FORBIDDEN_NOT_A_MEMBER })
   @ApiNotFoundResponse({
     description: '해당 버전을 찾을 수 없거나 다른 워크스페이스 소속',
   })

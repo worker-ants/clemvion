@@ -24,6 +24,23 @@ export function workspaceRoleLevel(role: string): number {
     : 0;
 }
 
+/**
+ * 요구 역할 중 실제 문턱 — **가장 낮은** 역할. 여럿 중 하나라도 충족하면 통과하므로 가장 낮은 것이 문턱이다.
+ *
+ * `RolesGuard.assertMember` 와 저장소 가드 `forbidden-response-codes` 가 이 함수를 함께 쓴다 — 검사가 식을 따로 옮겨 적으면
+ * 둘이 갈리는 날 검사가 가드가 내지 않는 코드를 요구한다. 서열 밖 문자열(서열 0)이 섞이면 그것이 문턱이 되고, 어떤 멤버도 그
+ * 문턱을 넘으므로 요구가 사라진다 — `@Roles(...)` 가 `WorkspaceRoleName` 만 받아 컴파일에서 막힌다.
+ *
+ * `requiredRoles` 는 비어 있지 않아야 한다(호출자는 `@Roles()` 가 있을 때만 부른다).
+ */
+export function lowestRequiredRole(requiredRoles: readonly string[]): string {
+  return requiredRoles.reduce((lowest, required) =>
+    workspaceRoleLevel(required) < workspaceRoleLevel(lowest)
+      ? required
+      : lowest,
+  );
+}
+
 /** Admin 이상(admin · owner). 서비스 계층의 Admin 판정이 쓴다. */
 export const ADMIN_ROLES: ReadonlySet<string> = new Set(
   Object.keys(WORKSPACE_ROLE_LEVEL).filter(

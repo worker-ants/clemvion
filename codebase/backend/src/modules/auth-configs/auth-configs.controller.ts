@@ -29,6 +29,8 @@ import {
   ApiCreatedWrappedResponse,
   ApiOkPaginatedResponse,
   ApiOkWrappedResponse,
+  FORBIDDEN_NOT_A_MEMBER,
+  forbiddenForRole,
 } from '../../common/swagger';
 import { AuthConfigsService } from './auth-configs.service';
 import { WorkspaceId, CurrentUser } from '../../common/decorators';
@@ -58,7 +60,7 @@ export class AuthConfigsController {
     description: '인증 설정 목록 및 페이지네이션 메타',
   })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
-  @ApiForbiddenResponse({ description: '워크스페이스 멤버가 아님' })
+  @ApiForbiddenResponse({ description: FORBIDDEN_NOT_A_MEMBER })
   async findAll(
     @WorkspaceId() workspaceId: string,
     @Query() query: PaginationQueryDto,
@@ -74,7 +76,7 @@ export class AuthConfigsController {
   @ApiParam({ name: 'id', description: '인증 설정 UUID', format: 'uuid' })
   @ApiOkWrappedResponse(AuthConfigDto, { description: '인증 설정 상세' })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
-  @ApiForbiddenResponse({ description: '워크스페이스 멤버가 아님' })
+  @ApiForbiddenResponse({ description: FORBIDDEN_NOT_A_MEMBER })
   @ApiNotFoundResponse({ description: '해당 인증 설정을 찾을 수 없음' })
   async findOne(
     @Param('id', ParseUUIDPipe) id: string,
@@ -95,7 +97,7 @@ export class AuthConfigsController {
   @ApiCreatedWrappedResponse(AuthConfigDto, { description: '생성된 인증 설정' })
   @ApiBadRequestResponse({ description: '입력값 검증 실패' })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
-  @ApiForbiddenResponse({ description: 'Admin 미만 권한' })
+  @ApiForbiddenResponse({ description: forbiddenForRole('admin') })
   async create(
     @WorkspaceId() workspaceId: string,
     @Body() body: CreateAuthConfigDto,
@@ -118,7 +120,7 @@ export class AuthConfigsController {
   @ApiOkWrappedResponse(AuthConfigDto, { description: '수정된 인증 설정' })
   @ApiBadRequestResponse({ description: '입력값 검증 실패' })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
-  @ApiForbiddenResponse({ description: 'Admin 미만 권한' })
+  @ApiForbiddenResponse({ description: forbiddenForRole('admin') })
   @ApiNotFoundResponse({ description: '해당 인증 설정을 찾을 수 없음' })
   async update(
     @Param('id', ParseUUIDPipe) id: string,
@@ -145,7 +147,7 @@ export class AuthConfigsController {
   @ApiParam({ name: 'id', description: '인증 설정 UUID', format: 'uuid' })
   @ApiOkWrappedResponse(AuthConfigUsageDto, { description: '사용 통계' })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
-  @ApiForbiddenResponse({ description: '워크스페이스 멤버가 아님' })
+  @ApiForbiddenResponse({ description: FORBIDDEN_NOT_A_MEMBER })
   @ApiNotFoundResponse({ description: '해당 인증 설정을 찾을 수 없음' })
   async getUsage(
     @Param('id', ParseUUIDPipe) id: string,
@@ -168,7 +170,7 @@ export class AuthConfigsController {
     description: '재발급 후 인증 설정 (새 키/토큰 포함)',
   })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
-  @ApiForbiddenResponse({ description: 'Admin 미만 권한' })
+  @ApiForbiddenResponse({ description: forbiddenForRole('admin') })
   @ApiNotFoundResponse({ description: '해당 인증 설정을 찾을 수 없음' })
   async regenerate(
     @Param('id', ParseUUIDPipe) id: string,
@@ -196,7 +198,7 @@ export class AuthConfigsController {
   @ApiUnauthorizedResponse({
     description: '비밀번호 재확인 실패 또는 토큰 만료',
   })
-  @ApiForbiddenResponse({ description: 'Admin 미만 권한' })
+  @ApiForbiddenResponse({ description: forbiddenForRole('admin') })
   @ApiNotFoundResponse({ description: '해당 인증 설정을 찾을 수 없음' })
   async reveal(
     @Param('id', ParseUUIDPipe) id: string,
@@ -225,7 +227,7 @@ export class AuthConfigsController {
   @ApiParam({ name: 'id', description: '인증 설정 UUID', format: 'uuid' })
   @ApiNoContentResponse({ description: '삭제 성공' })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
-  @ApiForbiddenResponse({ description: 'Admin 미만 권한' })
+  @ApiForbiddenResponse({ description: forbiddenForRole('admin') })
   @ApiNotFoundResponse({ description: '해당 인증 설정을 찾을 수 없음' })
   async remove(
     @Param('id', ParseUUIDPipe) id: string,

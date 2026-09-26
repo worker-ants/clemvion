@@ -27,6 +27,8 @@ import {
   ApiCreatedWrappedResponse,
   ApiOkWrappedArrayResponse,
   ApiOkWrappedResponse,
+  FORBIDDEN_NOT_A_MEMBER,
+  forbiddenForRole,
 } from '../../common/swagger';
 import { FoldersService } from './folders.service';
 import { WorkspaceId } from '../../common/decorators';
@@ -48,7 +50,7 @@ export class FoldersController {
   })
   @ApiOkWrappedArrayResponse(FolderDto, { description: '폴더 목록' })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
-  @ApiForbiddenResponse({ description: '워크스페이스 멤버가 아님' })
+  @ApiForbiddenResponse({ description: FORBIDDEN_NOT_A_MEMBER })
   async findAll(@WorkspaceId() workspaceId: string) {
     return this.foldersService.findAll(workspaceId);
   }
@@ -61,7 +63,7 @@ export class FoldersController {
   @ApiParam({ name: 'id', description: '폴더 UUID', format: 'uuid' })
   @ApiOkWrappedResponse(FolderDto, { description: '폴더 상세' })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
-  @ApiForbiddenResponse({ description: '워크스페이스 멤버가 아님' })
+  @ApiForbiddenResponse({ description: FORBIDDEN_NOT_A_MEMBER })
   @ApiNotFoundResponse({ description: '해당 폴더를 찾을 수 없음' })
   async findOne(
     @Param('id', ParseUUIDPipe) id: string,
@@ -83,7 +85,7 @@ export class FoldersController {
     description: '입력값 검증 실패 또는 중첩 깊이 초과',
   })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
-  @ApiForbiddenResponse({ description: 'Editor 미만 권한' })
+  @ApiForbiddenResponse({ description: forbiddenForRole('editor') })
   @ApiConflictResponse({ description: '동일 부모 아래 이름 중복' })
   async create(
     @WorkspaceId() workspaceId: string,
@@ -103,7 +105,7 @@ export class FoldersController {
   @ApiOkWrappedResponse(FolderDto, { description: '수정된 폴더' })
   @ApiBadRequestResponse({ description: '입력값 검증 실패' })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
-  @ApiForbiddenResponse({ description: 'Editor 미만 권한' })
+  @ApiForbiddenResponse({ description: forbiddenForRole('editor') })
   @ApiNotFoundResponse({ description: '해당 폴더를 찾을 수 없음' })
   @ApiConflictResponse({ description: '동일 부모 아래 이름 중복' })
   async update(
@@ -125,7 +127,7 @@ export class FoldersController {
   @ApiParam({ name: 'id', description: '폴더 UUID', format: 'uuid' })
   @ApiNoContentResponse({ description: '삭제 완료' })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
-  @ApiForbiddenResponse({ description: 'Editor 미만 권한' })
+  @ApiForbiddenResponse({ description: forbiddenForRole('editor') })
   @ApiNotFoundResponse({ description: '해당 폴더를 찾을 수 없음' })
   async remove(
     @Param('id', ParseUUIDPipe) id: string,

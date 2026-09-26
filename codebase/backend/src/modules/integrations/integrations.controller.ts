@@ -31,6 +31,8 @@ import {
   ApiOkPaginatedResponse,
   ApiOkWrappedOneOfResponse,
   ApiOkWrappedResponse,
+  forbiddenForRole,
+  FORBIDDEN_NOT_A_MEMBER,
 } from '../../common/swagger';
 import {
   Cafe24PrecheckResultDto,
@@ -48,10 +50,7 @@ import {
   IntegrationsService,
   type IntegrationModifyAction,
 } from './integrations.service';
-import {
-  NOT_A_MEMBER,
-  ROLE_REQUIRED,
-} from '../../common/constants/workspace-roles';
+import { ROLE_REQUIRED } from '../../common/constants/workspace-roles';
 import { IntegrationOAuthService } from './integration-oauth.service';
 import { CurrentUser, WorkspaceId } from '../../common/decorators';
 import type { JwtPayload } from '../../common/decorators';
@@ -93,10 +92,9 @@ const OAUTH_BEGIN_RESULT_DESCRIPTION =
  * 403 · 404 설명 — 거부 코드는 공유 거부 표(`common/constants/workspace-roles.ts`)의 `.code` 를 보간한다(코드명이 바뀌면
  * 설명이 따라온다). 남의 personal 통합은 없는 통합과 같은 404 다 — `spec/2-navigation/4-integration.md` §8 판정 규칙.
  */
-const FORBIDDEN_MEMBER = `워크스페이스 멤버가 아님(${NOT_A_MEMBER.code})`;
-const FORBIDDEN_MEMBER_OR_ORG_ADMIN = `${FORBIDDEN_MEMBER}, 또는 Organization 통합의 변경에 Admin 이상 권한 필요(${ROLE_REQUIRED.admin.code})`;
-const FORBIDDEN_EDITOR_OR_ORG_ADMIN = `editor 이상 권한 필요(${ROLE_REQUIRED.editor.code}), 또는 Organization 통합의 변경에 Admin 이상 권한 필요(${ROLE_REQUIRED.admin.code})`;
-const FORBIDDEN_MEMBER_OR_ADMIN = `${FORBIDDEN_MEMBER}, 또는 Admin 이상 권한 필요(${ROLE_REQUIRED.admin.code})`;
+const FORBIDDEN_MEMBER_OR_ORG_ADMIN = `${FORBIDDEN_NOT_A_MEMBER}, 또는 Organization 통합의 변경에 Admin 이상 권한 필요(${ROLE_REQUIRED.admin.code})`;
+const FORBIDDEN_EDITOR_OR_ORG_ADMIN = `${forbiddenForRole('editor')}, 또는 Organization 통합의 변경에 Admin 이상 권한 필요(${ROLE_REQUIRED.admin.code})`;
+const FORBIDDEN_MEMBER_OR_ADMIN = `${FORBIDDEN_NOT_A_MEMBER}, 또는 Admin 이상 권한 필요(${ROLE_REQUIRED.admin.code})`;
 const NOT_FOUND_INTEGRATION =
   '해당 통합을 찾을 수 없음 — 남의 personal 통합도 같은 응답(`RESOURCE_NOT_FOUND`)';
 
@@ -149,7 +147,7 @@ export class IntegrationsController {
     description: '통합 목록 및 페이지네이션 메타',
   })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
-  @ApiForbiddenResponse({ description: FORBIDDEN_MEMBER })
+  @ApiForbiddenResponse({ description: FORBIDDEN_NOT_A_MEMBER })
   async findAll(
     @WorkspaceId() workspaceId: string,
     @CurrentUser() user: JwtPayload,
@@ -240,7 +238,7 @@ export class IntegrationsController {
   @ApiBadRequestResponse({ description: '입력값 검증 실패 또는 미지원 서비스' })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
   @ApiForbiddenResponse({
-    description: `${FORBIDDEN_MEMBER}, 또는 reauthorize · request_scopes 모드에서 Organization 통합의 변경에 Admin 이상 권한 필요(${ROLE_REQUIRED.admin.code})`,
+    description: `${FORBIDDEN_NOT_A_MEMBER}, 또는 reauthorize · request_scopes 모드에서 Organization 통합의 변경에 Admin 이상 권한 필요(${ROLE_REQUIRED.admin.code})`,
   })
   @ApiNotFoundResponse({
     description: `reauthorize · request_scopes 모드의 integrationId — ${NOT_FOUND_INTEGRATION}`,
@@ -331,7 +329,7 @@ export class IntegrationsController {
   })
   @ApiTooManyRequestsResponse({ description: '요청 한도 초과 (분당 60회)' })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
-  @ApiForbiddenResponse({ description: FORBIDDEN_MEMBER })
+  @ApiForbiddenResponse({ description: FORBIDDEN_NOT_A_MEMBER })
   async cafe24Precheck(
     @WorkspaceId() workspaceId: string,
     @CurrentUser() user: JwtPayload,
@@ -361,7 +359,7 @@ export class IntegrationsController {
   })
   @ApiTooManyRequestsResponse({ description: '요청 한도 초과 (분당 60회)' })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
-  @ApiForbiddenResponse({ description: FORBIDDEN_MEMBER })
+  @ApiForbiddenResponse({ description: FORBIDDEN_NOT_A_MEMBER })
   async makeshopPrecheck(
     @WorkspaceId() workspaceId: string,
     @CurrentUser() user: JwtPayload,
@@ -385,7 +383,7 @@ export class IntegrationsController {
     description: '통합 상세 정보 (마스킹된 자격 증명 포함)',
   })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
-  @ApiForbiddenResponse({ description: FORBIDDEN_MEMBER })
+  @ApiForbiddenResponse({ description: FORBIDDEN_NOT_A_MEMBER })
   @ApiNotFoundResponse({ description: NOT_FOUND_INTEGRATION })
   async findOne(
     @Param('id', ParseUUIDPipe) id: string,
@@ -406,7 +404,7 @@ export class IntegrationsController {
     description: '통합이 사용 중인 워크플로우·노드 목록',
   })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
-  @ApiForbiddenResponse({ description: FORBIDDEN_MEMBER })
+  @ApiForbiddenResponse({ description: FORBIDDEN_NOT_A_MEMBER })
   @ApiNotFoundResponse({ description: NOT_FOUND_INTEGRATION })
   async listUsages(
     @Param('id', ParseUUIDPipe) id: string,
@@ -427,7 +425,7 @@ export class IntegrationsController {
     description: '최근 활동 로그 목록',
   })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
-  @ApiForbiddenResponse({ description: FORBIDDEN_MEMBER })
+  @ApiForbiddenResponse({ description: FORBIDDEN_NOT_A_MEMBER })
   @ApiNotFoundResponse({ description: NOT_FOUND_INTEGRATION })
   async activity(
     @Param('id', ParseUUIDPipe) id: string,
@@ -510,7 +508,7 @@ export class IntegrationsController {
     description: '연결 테스트 결과 (성공 여부, 메타 정보)',
   })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
-  @ApiForbiddenResponse({ description: FORBIDDEN_MEMBER })
+  @ApiForbiddenResponse({ description: FORBIDDEN_NOT_A_MEMBER })
   @ApiNotFoundResponse({ description: NOT_FOUND_INTEGRATION })
   async testConnection(
     @Param('id', ParseUUIDPipe) id: string,

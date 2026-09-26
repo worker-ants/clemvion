@@ -13,6 +13,7 @@ import {
 import {
   ApiOkWrappedArrayResponse,
   ApiOkWrappedResponse,
+  FORBIDDEN_NOT_A_MEMBER,
 } from '../../common/swagger';
 import { StatisticsService } from './statistics.service';
 import { QueryStatisticsDto } from './dto/query-statistics.dto';
@@ -41,7 +42,7 @@ export class StatisticsController {
   })
   @ApiOkWrappedResponse(StatisticsSummaryDto, { description: '실행 통계 요약' })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
-  @ApiForbiddenResponse({ description: '워크스페이스 멤버가 아님' })
+  @ApiForbiddenResponse({ description: FORBIDDEN_NOT_A_MEMBER })
   async getSummary(
     @WorkspaceId() workspaceId: string,
     @Query() query: QueryStatisticsDto,
@@ -59,7 +60,7 @@ export class StatisticsController {
     description: '일자별 실행 집계 배열',
   })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
-  @ApiForbiddenResponse({ description: '워크스페이스 멤버가 아님' })
+  @ApiForbiddenResponse({ description: FORBIDDEN_NOT_A_MEMBER })
   async getExecutionsByPeriod(
     @WorkspaceId() workspaceId: string,
     @Query() query: QueryStatisticsDto,
@@ -77,7 +78,7 @@ export class StatisticsController {
     description: '오류 집계 목록',
   })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
-  @ApiForbiddenResponse({ description: '워크스페이스 멤버가 아님' })
+  @ApiForbiddenResponse({ description: FORBIDDEN_NOT_A_MEMBER })
   async getErrors(
     @WorkspaceId() workspaceId: string,
     @Query() query: QueryStatisticsDto,
@@ -95,7 +96,7 @@ export class StatisticsController {
     description: '상위 워크플로우 목록',
   })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
-  @ApiForbiddenResponse({ description: '워크스페이스 멤버가 아님' })
+  @ApiForbiddenResponse({ description: FORBIDDEN_NOT_A_MEMBER })
   async getTopWorkflows(
     @WorkspaceId() workspaceId: string,
     @Query() query: QueryStatisticsDto,
@@ -111,7 +112,7 @@ export class StatisticsController {
   })
   @ApiOkWrappedArrayResponse(NodeStatDto, { description: '노드별 실행 집계' })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
-  @ApiForbiddenResponse({ description: '워크스페이스 멤버가 아님' })
+  @ApiForbiddenResponse({ description: FORBIDDEN_NOT_A_MEMBER })
   async getNodeStats(
     @WorkspaceId() workspaceId: string,
     @Query() query: QueryStatisticsDto,
@@ -127,7 +128,7 @@ export class StatisticsController {
   })
   @ApiOkWrappedResponse(LlmUsageSummaryDto, { description: 'LLM 사용량 요약' })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
-  @ApiForbiddenResponse({ description: '워크스페이스 멤버가 아님' })
+  @ApiForbiddenResponse({ description: FORBIDDEN_NOT_A_MEMBER })
   async getLlmUsageSummary(
     @WorkspaceId() workspaceId: string,
     @Query() query: QueryStatisticsDto,
@@ -145,7 +146,7 @@ export class StatisticsController {
     description: '일자별 LLM 사용량',
   })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
-  @ApiForbiddenResponse({ description: '워크스페이스 멤버가 아님' })
+  @ApiForbiddenResponse({ description: FORBIDDEN_NOT_A_MEMBER })
   async getLlmUsageTimeseries(
     @WorkspaceId() workspaceId: string,
     @Query() query: QueryStatisticsDto,
@@ -192,7 +193,7 @@ export class StatisticsController {
     },
   })
   @ApiUnauthorizedResponse({ description: '인증 실패 또는 토큰 만료' })
-  @ApiForbiddenResponse({ description: '워크스페이스 멤버가 아님' })
+  @ApiForbiddenResponse({ description: FORBIDDEN_NOT_A_MEMBER })
   async exportData(
     @WorkspaceId() workspaceId: string,
     @Query() query: QueryStatisticsDto,
