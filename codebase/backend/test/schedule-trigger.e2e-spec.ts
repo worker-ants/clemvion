@@ -102,9 +102,8 @@ describe('Schedule trigger (e2e)', () => {
         timezone: 'Asia/Seoul',
         count: 3,
       });
-    // POST 의 default 응답이 201. preview 는 새로운 자원 생성은 없지만 controller
-    // 에 @HttpCode override 가 없어 201 로 응답한다.
-    expect([200, 201]).toContain(res.status);
+    // preview 는 자원을 만들지 않는 액션이라 `@HttpCode(HttpStatus.OK)` 로 200 이다.
+    expect(res.status).toBe(200);
     const nextRuns = res.body.data.nextRuns as string[];
     expect(Array.isArray(nextRuns)).toBe(true);
     expect(nextRuns.length).toBeGreaterThan(0);

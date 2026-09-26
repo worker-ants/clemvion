@@ -85,19 +85,16 @@ export async function createTeamWorkspace(
 export type WorkspaceRole = 'owner' | 'editor' | 'viewer';
 
 /**
- * 초대 → 토큰 회수 → register 로 가입 + 자동 멤버 등록. 최종적으로 invitee 의
- * accessToken 까지 회수한다. 멀티 액터 RBAC 시나리오 setup 에 유용.
+ * 초대 1건을 만들고 그 초대 id 를 돌려준다. 토큰은 돌려주지 않는다 — 필요하면 호출자가
+ * `workspace_invitation` 에서 읽는다(`inviteAndAccept` 처럼).
  */
-export async function inviteAndAccept(
+export async function createInvitation(
   baseUrl: string,
   ownerToken: string,
   workspaceId: string,
   inviteeEmail: string,
   role: Exclude<WorkspaceRole, 'owner'>,
-  db: Client,
-  inviteeName: string = 'E2E Invitee',
-  password: string = TEST_PASSWORD,
-): Promise<RegisteredUser> {
+): Promise<string> {
   // invitation 엔드포인트는 1분당 10건 throttler 가 걸려있어, e2e suite 들의
   // 누적 invitation 이 한도를 넘으면 429 가 나온다. 최대 3회 backoff 재시도로
   // throttle window 가 회전하길 기다린다 (총 최대 ~30s 대기).
@@ -118,6 +115,24 @@ export async function inviteAndAccept(
       `invite failed: ${inviteRes.status} ${JSON.stringify(inviteRes.body)}`,
     );
   }
+  return (inviteRes.body.data as { id: string }).id;
+}
+
+/**
+ * 초대 → 토큰 회수 → register 로 가입 + 자동 멤버 등록. 최종적으로 invitee 의
+ * accessToken 까지 회수한다. 멀티 액터 RBAC 시나리오 setup 에 유용.
+ */
+export async function inviteAndAccept(
+  baseUrl: string,
+  ownerToken: string,
+  workspaceId: string,
+  inviteeEmail: string,
+  role: Exclude<WorkspaceRole, 'owner'>,
+  db: Client,
+  inviteeName: string = 'E2E Invitee',
+  password: string = TEST_PASSWORD,
+): Promise<RegisteredUser> {
+  await createInvitation(baseUrl, ownerToken, workspaceId, inviteeEmail, role);
 
   const tokenRow = await db.query<{ token: string }>(
     `SELECT token FROM workspace_invitation

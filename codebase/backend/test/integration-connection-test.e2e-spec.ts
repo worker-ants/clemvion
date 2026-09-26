@@ -83,7 +83,7 @@ describe('Integration connection test — Database · HTTP (e2e)', () => {
       credentials: privateDb,
     });
 
-    expect([200, 201]).toContain(res.status);
+    expect(res.status).toBe(200);
     const data = res.body.data as {
       success: boolean;
       code?: string;
@@ -101,7 +101,7 @@ describe('Integration connection test — Database · HTTP (e2e)', () => {
       credentials: loopbackHttp,
     });
 
-    expect([200, 201]).toContain(res.status);
+    expect(res.status).toBe(200);
     const data = res.body.data as {
       success: boolean;
       code?: string;
@@ -155,7 +155,7 @@ describe('Integration connection test — Database · HTTP (e2e)', () => {
         credentials,
       });
 
-      expect([200, 201]).toContain(res.status);
+      expect(res.status).toBe(200);
       const data = res.body.data as {
         success: boolean;
         code?: string;
@@ -177,7 +177,7 @@ describe('Integration connection test — Database · HTTP (e2e)', () => {
 
     const res = await post(`/api/integrations/${id}/test`).send();
 
-    expect([200, 201]).toContain(res.status);
+    expect(res.status).toBe(200);
     expect(res.body.data).toMatchObject({
       success: false,
       code: 'DB_HOST_BLOCKED',
@@ -238,7 +238,7 @@ describe('Integration connection test — Database · HTTP (e2e)', () => {
       credentials: { token: secret },
     });
 
-    expect([200, 201]).toContain(res.status);
+    expect(res.status).toBe(200);
     expect(res.body.data).toMatchObject({ id, status: 'connected' });
     const after = (await readRow()).rows[0];
     expect(after.credentials).not.toBe(before.credentials);

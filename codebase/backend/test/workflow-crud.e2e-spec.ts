@@ -264,7 +264,7 @@ describe('Workflow CRUD (e2e)', () => {
         `saveCanvas ${save.status}: ${JSON.stringify(save.body)}`,
       );
     }
-    expect([200, 201]).toContain(save.status);
+    expect(save.status).toBe(200);
 
     const dup = await request(BASE_URL)
       .post(`/api/workflows/${id}/duplicate`)
@@ -448,7 +448,7 @@ describe('Workflow CRUD (e2e)', () => {
       .set('Authorization', `Bearer ${ownerToken}`)
       .set('X-Workspace-Id', workspaceId)
       .send(exportRes.body.data);
-    expect([200, 201]).toContain(importRes.status);
+    expect(importRes.status).toBe(201);
     const newId = importRes.body.data.id;
     expect(newId).not.toBe(id);
   });
@@ -481,7 +481,7 @@ describe('Workflow CRUD (e2e)', () => {
       .set('Authorization', `Bearer ${ownerToken}`)
       .set('X-Workspace-Id', workspaceId)
       .send(exportRes.body.data);
-    expect([200, 201]).toContain(importRes.status);
+    expect(importRes.status).toBe(201);
     const newId = importRes.body.data.id;
     const getNew = await request(BASE_URL)
       .get(`/api/workflows/${newId}`)
@@ -538,7 +538,7 @@ describe('Workflow CRUD (e2e)', () => {
         edges: [],
         changeSummary: 'v1',
       });
-    expect([200, 201]).toContain(saved.status);
+    expect(saved.status).toBe(200);
 
     const list = await request(BASE_URL)
       .get(`/api/workflows/${workflowId}/versions`)

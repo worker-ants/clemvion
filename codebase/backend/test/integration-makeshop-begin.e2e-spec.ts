@@ -101,7 +101,7 @@ describe('MakeShop begin + catalog (e2e)', () => {
           clientSecret: 'e2e-makeshop-secret',
           integrationName: uniqueName('MakeShopConn'),
         });
-      expect([200, 201]).toContain(res.status);
+      expect(res.status).toBe(200);
       const data = res.body.data as {
         mode: string;
         integrationId: string;
@@ -175,8 +175,8 @@ describe('MakeShop begin + catalog (e2e)', () => {
         .set('Authorization', `Bearer ${token}`)
         .set('X-Workspace-Id', workspaceId)
         .send(body);
-      expect([200, 201]).toContain(res1.status);
-      expect([200, 201]).toContain(res2.status);
+      expect(res1.status).toBe(200);
+      expect(res2.status).toBe(200);
       // Idempotent begin reuses the same pending row for the same client_id —
       // a second "Connect" click must NOT accumulate a dangling pending row.
       // (credentials are encrypted at rest via encryptedJsonTransformer, so we

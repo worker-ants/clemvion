@@ -157,6 +157,7 @@ export class AuthConfigsController {
   @Post(':id/regenerate')
   // 키 교체는 기존 토큰을 즉시 무효화해 외부 호출자 중단을 유발하므로 Admin+ 으로 제한.
   @Roles('admin')
+  @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: '인증 키/토큰 재발급',
     description:

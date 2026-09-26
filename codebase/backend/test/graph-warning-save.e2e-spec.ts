@@ -192,8 +192,7 @@ describe('Graph Warning Save Validate (e2e)', () => {
     ];
 
     const res = await save(id, nodes, edges);
-    // POST 기본 201 (saveCanvas 컨트롤러는 @HttpCode override 없음).
-    expect(res.status).toBe(201);
+    expect(res.status).toBe(200);
     expect(res.body.data).toBeDefined();
     // 저장된 노드가 응답에 반영되어야 한다.
     const savedNodes = res.body.data.nodes as Array<{ id: string }>;
@@ -218,7 +217,7 @@ describe('Graph Warning Save Validate (e2e)', () => {
     ];
 
     const res = await save(id, nodes, edges);
-    expect(res.status).toBe(201);
+    expect(res.status).toBe(200);
     expect(res.body.data.nodes.length).toBe(2);
   }, 30_000);
 });

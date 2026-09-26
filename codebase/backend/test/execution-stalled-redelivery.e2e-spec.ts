@@ -84,7 +84,7 @@ describe('BullMQ stalled 재배달 → RUNNING 세그먼트 재구동 (e2e, PR4 
       .set('Authorization', `Bearer ${ownerToken}`)
       .set('X-Workspace-Id', workspaceId)
       .send({ nodes, edges });
-    expect([200, 201]).toContain(res.status);
+    expect(res.status).toBe(200);
   }
 
   async function poll(

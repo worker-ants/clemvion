@@ -206,6 +206,7 @@ export class IntegrationsController {
    */
   @Throttle({ default: { limit: 20, ttl: 60_000 } })
   @Post('preview-test')
+  @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: '자격 증명 사전 검증',
     description:
@@ -227,6 +228,7 @@ export class IntegrationsController {
   }
 
   @Post('oauth/begin')
+  @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: 'OAuth 인증 시작',
     description:
@@ -497,6 +499,7 @@ export class IntegrationsController {
   }
 
   @Post(':id/test')
+  @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: '통합 연결 테스트',
     description:
@@ -519,6 +522,7 @@ export class IntegrationsController {
 
   @Post(':id/rotate')
   @Roles('editor')
+  @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: '자격 증명 교체(rotate)',
     description:
@@ -552,6 +556,7 @@ export class IntegrationsController {
   }
 
   @Post(':id/reauthorize')
+  @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: '재인증(reauthorize) 시작',
     description:
@@ -580,6 +585,7 @@ export class IntegrationsController {
   }
 
   @Post(':id/request-scopes')
+  @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: '추가 스코프 요청',
     description:

@@ -110,9 +110,8 @@ describe('Integration cache invalidate pub/sub (e2e, 04 m-4)', () => {
       .set('Authorization', `Bearer ${token}`)
       .set('X-Workspace-Id', workspaceId)
       .send({ credentials: { value: 'secret-2' } });
-    // POST :id/rotate 는 NestJS 기본 201 (HttpCode 미지정). 본 테스트의 핵심은
-    // 회전 성공 후 broadcast 이므로 성공 코드(200/201)만 확인한다.
-    expect([200, 201]).toContain(rot.status);
+    // 본 테스트의 핵심은 회전 성공 후 broadcast 다 — 여기서는 성공 코드만 확인한다.
+    expect(rot.status).toBe(200);
 
     await waitForBroadcast(id);
     // toContain 은 실패 시 수신된 배열과 기대 id 를 함께 출력해 디버깅을 돕는다.

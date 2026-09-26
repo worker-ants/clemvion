@@ -109,7 +109,7 @@ describe('동시성 cap admission gate (e2e, PR2b §8)', () => {
           },
         ],
       });
-    expect([200, 201]).toContain(save.status);
+    expect(save.status).toBe(200);
 
     // per-workflow cap (DB 직접 — settings write API 는 별도 테스트 범위). workflowCap=null
     // 이면 workflow cap 미설정(기본값 유지) — workspace-level cap 을 단독 검증할 때 사용한다.

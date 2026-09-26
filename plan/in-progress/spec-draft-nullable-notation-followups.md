@@ -4032,6 +4032,10 @@ field: T | null;
       것인가, (b) repo-guard 등재를 규약으로 세울 것인가. (b) 를 정하지 않으면 (a) 만 고쳐도
       다음 가드에서 같은 지적이 반복된다(미등재가 9개다).
 
+      > (2026-09-26 보탬) `http-status-advertised`(성공 응답 코드 ↔ OpenAPI 광고) 는 **등재했다** — `swagger.md` 가 자기 조항을
+      > 세는 가드(`param-uuid-pipe` 등)를 `code:` 에 올려 온 문서라 그 선례를 따랐다(`--impl-prep`
+      > `review/consistency/2026/09/26/09_10_09` W1 · INFO4). 위 표는 2026-09-14 시점 모집단이라 이 가드를 세지 않는다.
+
       > **인접 항목**: `plan/in-progress/spec-conventions-engine-error-code-surface.md` 의
       > *"repo-guard 3파일 패턴에 소유 규약 문서가 없다 — `spec/conventions/repo-guards.md`
       > 신설 검토"*. **같은 항목이 아니다** — 그쪽은 «소유 규약 문서 신설», 이쪽은 «`code:`
@@ -4862,11 +4866,27 @@ field: T | null;
       (planner, 낮음, 2026-09-21 등재 · `/ai-review` `review/code/2026/09/21/13_28_12` WARNING 4).
       `spec/5-system/2-api-convention.md` §6 은 «204 No Content = 삭제 성공» 으로 적는데,
       `DELETE /api/workspaces/:id` 와 `DELETE /api/workspaces/:id/members/:memberId` 는 200 을 준다.
+      (2026-09-26 보탬) **셋째 라우트** `DELETE /api/workspaces/:id/invitations/:invitationId` 도 `200 {ok:true}` 다 — 이 라우트만
+      `@ApiNoContentResponse`(204)를 광고하고 있었는데, `post-status-openapi` 가 **광고를 실제(200)에 맞췄다**(런타임은 이 항목의
+      결정 몫이라 그대로 · `--impl-prep` `review/consistency/2026/09/26/09_10_09` W5). 204 로 가면 세 라우트의 런타임과 광고를 함께
+      바꾸면 되고, 저장소 가드 `http-status-advertised` 가 그 짝을 강제한다.
       **실측**: `workflows`·`triggers`·`schedules`·`integrations` 컨트롤러는 각각
       `HttpCode(204)` 가 **1개**, `workspaces.controller.ts` 는 **0개**이고 `ok: true` 가 **5곳**이다.
       즉 라우트 하나의 일탈이 아니라 **컨트롤러 단위의 다른 관례**다.
       둘 중 하나여야 한다 — 컨트롤러를 204 로 맞추거나(클라이언트 계약 변경), §6 에 이 예외를
       각주로 적거나. **바로 위 §3 멱등성 각주 작업과 같은 문서라 함께 처리하는 편이 싸다.**
+
+- [ ] **상태 코드 표에 «자원을 만들지 않는 POST 액션» 칸이 없다** (planner, 낮음, 2026-09-26 등재 · `--impl-prep`
+      `review/consistency/2026/09/26/09_10_09` convention_compliance W4). `spec/conventions/swagger.md` §2-4 는 «200 OK (조회/수정)»,
+      `spec/5-system/2-api-convention.md` §6 은 «200 조회·수정 / 201 생성» 만 적는다. 그런데 POST 는 «리소스 생성, 액션 실행» 둘 다다
+      (같은 문서 HTTP 메서드 표). `post-status-openapi` 가 POST 액션 14곳을 광고대로 200 에 맞춘 근거는 표 문면이 아니라 교차 추론
+      (자원 액션 경로 규칙 · §2-5 래퍼 표의 OAuth begin 200 예시 · `@HttpCode(200)` POST 42곳 중 광고 있는 40곳이 전부 200)이었다.
+      경계 사례 둘 — `oauthBegin`(일부 분기가 `pending_install` 행을 만든다) · `invitations/accept`(멤버십 행이 생긴다) — 는 그 plan
+      (`plan/complete/post-status-openapi.md`)이 «1차 자원 · 응답이 무엇인가» 로 판단했다. 처방 후보: 두 표에 «자원을 만들지 않는
+      POST 액션 = 200 (`@HttpCode(HttpStatus.OK)`)» 한 줄과, 부수적으로 행이 생기는 액션의 판단 기준. 같은 턴에 api-convention §6
+      표에서 `swagger.md` §2-4 «광고한 성공 코드는 실제 성공 코드를 담는다» 로의 역참조도(`--spec`
+      `review/consistency/2026/09/26/09_22_45` cross_spec INFO 1 — §5.2 · §5.4 의 상호참조 관례와 비대칭). **착수 조건**: 없음(여유 있을 때).
+      두 문서 모두 planner 소관 · `--spec` 필요.
 
 - [x] **`removeMember()` 의 권한 검사가 대상 조회·owner 판정보다 뒤에 있어 존재 오라클이 된다**
       (developer, **중간**, 2026-09-21 등재 · `/ai-review` `review/code/2026/09/21/12_57_05` WARNING 1).
@@ -5038,13 +5058,33 @@ field: T | null;
       처방: 앞 넷은 기계적 부기(`(NOT_A_MEMBER)` 등), 기타는 가드 거부인지 서비스 거부인지 자리마다 판정. 30여 컨트롤러라 spec 연결
       영역이 여럿이다 — `--impl-done` 스코프를 먼저 셀 것. **착수 조건**: 없음(여유 있을 때).
 
-- [ ] **POST 라우트가 OpenAPI 로 200 을 광고하면서 실제로는 201 을 낸다** (developer, 낮음, 2026-09-25 등재 — e2e 실측).
+- [x] **POST 라우트가 OpenAPI 로 200 을 광고하면서 실제로는 201 을 낸다** (developer, 낮음, 2026-09-25 등재 — e2e 실측).
       `workspaces.controller.ts` 의 `POST /:id/leave` · `POST /:id/transfer-ownership` 은 `@ApiOkWrappedResponse(OkResultDto)`(200)
       인데 `@HttpCode` 가 없어 Nest 기본값 201 을 낸다(`workspace-path-guard.e2e-spec.ts` 가 이양 성공을 201 로 관측 — 그 테스트는
       실제 값을 적었다). 같은 파일의 `resend` 는 `@HttpCode(200)` 으로 맞췄다. `workspace-rbac.e2e-spec.ts` E 는 `[200, 201]` 로 둘 다
       받아 불일치를 가린다. 처방 후보: `@HttpCode(HttpStatus.OK)` 로 광고에 맞추거나 광고를 201 로 — 상태 코드 변경은 제품 동작이라
       CHANGELOG 대상. 이 모양이 이 파일 밖에도 있는지(POST + `ApiOkWrapped*` + `@HttpCode` 없음)는 전수 스캔이 먼저다 — 정적 가드 후보.
       `POST /workspaces/invitations/accept` 도 같은 모양인지 확인할 것. **착수 조건**: 없음.
+
+      > **2026-09-26 — 닫힘.** 전수(AST, `src/modules` 핸들러 223개)로 불일치 **15곳** — POST 액션 14곳(200 광고 · 201 실제,
+      > `invitations/accept` 포함)과 초대 취소 DELETE 1곳(204 광고 · 200 실제). 14곳은 `@HttpCode(HttpStatus.OK)`, 초대 취소는
+      > **광고를** 200 으로(런타임 204 전환은 위 planner 항목 «`workspaces.controller.ts` 만 삭제 성공에 204 대신 …» 의 결정이라
+      > 선점하지 않았다). SSE `sendMessage` 는 `@Res()` 라 오탐으로 봤다가 Nest 가 핸들러 전에 상태를 싣는다는 것을 소스로
+      > 확인해 대상에 넣었다. 정적 가드 `src/repo-guards/__tests__/http-status-advertised.spec.ts`(베이스라인 0 · `swagger.md` §2-4
+      > 규칙 문단과 `code:` 등재) · e2e 대상 라우트 기대값 27곳을 200 으로(`[200, 201]` 22 · 이양 `201` 1 · 저장 `201` 4) · 성공 경로
+      > e2e 신설(`action-success-status` · 어시스턴트 SSE). `/ai-review` `review/code/2026/09/26/10_23_50`. `--impl-done` `review/consistency/2026/09/26/10_36_19`. plan `plan/complete/post-status-openapi.md`.
+
+- [ ] **성공 응답을 광고하지 않는 라우트 핸들러가 15곳 있다 — 가드는 «광고가 있으면 맞아야 한다» 만 본다** (developer, 낮음,
+      2026-09-26 등재 — `post-status-openapi` 전수의 부산물). 실측(`src/modules`): `@ApiExcludeEndpoint` 테스트 훅 2(의도 — OpenAPI 밖)
+      · OAuth 리다이렉트 2(`auth` `beginOauth` · `oauthCallback`, `res.redirect` — `@ApiFoundResponse` 후보) · SSE 1
+      (`interaction-stream` `stream`) · `webauthn` 2(`webauthnAvailability` · `webauthnDelete`) · `triggers` 2
+      (`rotateNotificationSecret` · `revokePerTriggerToken`) · `workflow-assistant` 세션 CRUD 6(`list` · `latest` · `findOne` ·
+      `create` · `update` · `remove`). 생성된 OpenAPI 에 이 라우트들의 성공 응답 스키마가 없다. 처방 후보: 광고를 채운 뒤
+      `http-status-advertised` 가드를 «라우트는 성공 응답을 하나 이상 광고한다(`@ApiExcludeEndpoint` 제외)» 로 조인다.
+      **가드를 여는 김에 함께**: `http-status-advertised-guard.ts` `swaggerResponseStatuses` docstring 의 «2xx 데코레이터를 50개
+      가까이 내보낸다» 는 틀렸다 — `Api*Response` 가 50개 가까이이고 그중 2xx 는 일곱이다(형제 spec 헤더 · `swagger.md` Rationale
+      은 맞게 적는다). `/ai-review` `review/code/2026/09/26/10_23_50` documentation W2 — 주석 한 줄이라 수렴 예외로 등재했다.
+      **착수 조건**: 없음(여유 있을 때). `codebase/**` 편집이라 리뷰 게이트를 한 바퀴 돈다.
 
 - [ ] **`req.user.workspaceId` 를 직접 읽는 라우트는 가드가 인식하지 못한다 — 정적 가드가 없다** (developer, 낮음,
       2026-09-25 등재 · `--spec` `review/consistency/2026/09/25/14_54_55` rationale_continuity W2).

@@ -86,7 +86,7 @@ describe('Crash/restart RUNNING 세그먼트 제어된 re-drive (e2e, PR3 §7.5 
       .set('Authorization', `Bearer ${ownerToken}`)
       .set('X-Workspace-Id', workspaceId)
       .send({ nodes, edges });
-    expect([200, 201]).toContain(res.status);
+    expect(res.status).toBe(200);
   }
 
   async function poll(

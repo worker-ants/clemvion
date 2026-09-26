@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll } from '@jest/globals';
+import { randomUUID } from 'crypto';
 import { Client } from 'pg';
 import request from 'supertest';
 
@@ -9,7 +10,8 @@ import { registerAndLogin, createTeamWorkspace } from './helpers/auth';
  * e2e: Workflow AI Assistant 세션 관리 — spec/3-workflow-editor/4-ai-assistant.md.
  *
  * SSE 스트리밍·LLM 호출 자체는 LLM 의존이라 unit / integration 이 담당. 본 e2e 는
- * 세션 엔티티 라이프사이클·RBAC·격리에 집중한다.
+ * 세션 엔티티 라이프사이클·RBAC·격리에 집중한다. 예외 하나 — SSE 응답의 **상태 줄**은 LLM 에
+ * 닿기 전에 정해지므로 여기서 본다(G).
  */
 
 const BASE_URL = process.env.E2E_BASE_URL ?? 'http://backend-e2e:3011';
@@ -172,5 +174,30 @@ describe('Workflow Assistant sessions (e2e)', () => {
     await request(BASE_URL)
       .delete(`/api/workflow-assistant/sessions/${sessionId}`)
       .set(authHeaders());
+  });
+
+  it('G. POST /sessions/:id/messages — SSE 스트림은 200 으로 나간다', async () => {
+    const create = await request(BASE_URL)
+      .post('/api/workflow-assistant/sessions')
+      .set(authHeaders())
+      .send({ workflowId, title: 'SSE status' });
+    expect(create.status).toBe(201);
+    const sessionId = create.body.data.id as string;
+
+    // 없는 LLM Config 를 지정해 config 해석에서 끝나게 한다 — 외부 LLM 호출 없이 스트림이 error 이벤트
+    // 하나로 닫힌다. 보려는 것은 상태 줄이다: 핸들러는 `@Res()` 로 헤더만 쓰고 `res.status()` 를 부르지
+    // 않으므로 Nest 가 핸들러 전에 싣는 값이 그대로 나간다(`@HttpCode(HttpStatus.OK)` 전에는 201 이었다).
+    const res = await request(BASE_URL)
+      .post(`/api/workflow-assistant/sessions/${sessionId}/messages`)
+      .set(authHeaders())
+      .send({
+        content: 'hello',
+        currentWorkflow: { nodes: [], edges: [] },
+        llmConfigId: randomUUID(),
+      });
+    expect(res.status).toBe(200);
+    expect(res.headers['content-type']).toContain('text/event-stream');
+    // 스트림 본문까지 확인해 «4xx 가 아니라 SSE 로 응답했다» 를 가른다 — 상태만 보면 JSON 200 과 구별되지 않는다.
+    expect(res.text).toContain('ASSISTANT_NO_LLM_CONFIG');
   });
 });

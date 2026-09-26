@@ -117,7 +117,7 @@ describe('Execution park → cold rehydration resume (e2e, PR-B1)', () => {
       .set('Authorization', `Bearer ${ownerToken}`)
       .set('X-Workspace-Id', workspaceId)
       .send({ nodes, edges });
-    expect([200, 201]).toContain(res.status);
+    expect(res.status).toBe(200);
   }
 
   async function poll(
@@ -782,7 +782,7 @@ describe('Top-level multi-turn AI turn-park → cold rehydration resume (e2e, PR
       .set('Authorization', `Bearer ${ownerToken}`)
       .set('X-Workspace-Id', workspaceId)
       .send({ nodes, edges });
-    expect([200, 201]).toContain(res.status);
+    expect(res.status).toBe(200);
   }
 
   async function poll(
