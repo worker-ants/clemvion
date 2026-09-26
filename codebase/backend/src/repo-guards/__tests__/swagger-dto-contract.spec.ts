@@ -426,10 +426,6 @@ const EXPECTED_OPTIONAL_NULLABLE_DRIFT: readonly string[] = [
   'workflow-response.dto.ts:ExportWorkflowDto.description',
   'workflow-response.dto.ts:WorkflowDto.description',
   'workflow-response.dto.ts:WorkflowDto.folderId',
-  'workflow-version-response.dto.ts:WorkflowVersionDto.changeSummary',
-  'workflow-version-response.dto.ts:WorkflowVersionDto.creator',
-  'workflow-version-response.dto.ts:WorkflowVersionListItemDto.changeSummary',
-  'workflow-version-response.dto.ts:WorkflowVersionListItemDto.creator',
   'workspace-response.dto.ts:WorkspaceInvitationDto.invitedBy',
 ];
 

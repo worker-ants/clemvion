@@ -65,10 +65,18 @@ started: 2026-09-26
 | M4 | `findOne` 이 `VERSION_METADATA_SELECT` 대신 5키만 적음 | 기존 리터럴 단언 · 대칭 단언 RED | |
 | M5 | 목록 `select` 의 `creator` 투영 제거(`User` 전 컬럼) | e2e H RED(미선언 키) — e2e 1회 | |
 
+## `--impl-prep` 처분 (`review/consistency/2026/09/26/23_55_27` BLOCK: NO)
+
+- **WARNING 1 · 2** — `5-version-history.md` §7.2 의 응답 타입명(`WorkflowVersion`) · `## Rationale` 부재. 실측으로 맞다. 이 PR 과
+  무관한 기존 spec 이격이고 spec 쓰기라 planner 몫 → 트래커에 planner 항목으로 등재(INFO 1 · 3 곁가지 포함).
+- **INFO 2** — 프런트엔드 미러를 좁히지 않는 근거가 plan 에만 있다 → `workflow-versions.service.ts` 의
+  `WorkflowVersionDetailProjection` JSDoc(프런트엔드 미러를 이미 다루는 자리)에 한 문단 남겼다.
+- **INFO 4** — 트래커 항목을 닫을 때 프런트엔드 미러 미변경 결정을 완료 각주로 적는다 → 마무리 커밋에서.
+
 ## 체크리스트
 
-- [ ] `--impl-prep`
-- [ ] DTO · 래칫 · 서비스 · 단위 · 캐너리 · e2e · CHANGELOG
+- [x] `--impl-prep` — `review/consistency/2026/09/26/23_55_27` BLOCK: NO(W1 · W2 는 무관한 기존 spec 이격 · planner 항목 등재)
+- [x] DTO · 래칫 · 서비스 · 단위 · 캐너리 · e2e · CHANGELOG
 - [ ] 뮤턴트 표 실측
 - [ ] TEST WORKFLOW (lint · unit · build · e2e)
 - [ ] `/ai-review`

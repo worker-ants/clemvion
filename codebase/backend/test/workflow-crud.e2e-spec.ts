@@ -15,7 +15,10 @@ import {
   ExportWorkflowDto,
 } from '../src/modules/workflows/dto/responses/workflow-response.dto';
 import { WorkflowDto } from '../src/modules/workflows/dto/responses/workflow-response.dto';
-import { WorkflowVersionDto } from '../src/modules/workflow-versions/dto/responses/workflow-version-response.dto';
+import {
+  WorkflowVersionDto,
+  WorkflowVersionListItemDto,
+} from '../src/modules/workflow-versions/dto/responses/workflow-version-response.dto';
 import { expectNoUserSecrets } from '../src/shared/testing/user-secret-absence';
 
 /**
@@ -567,6 +570,13 @@ describe('Workflow CRUD (e2e)', () => {
     const versions = list.body.data as Array<{ id: string }>;
     // 버전이 0개면 아래 단언이 통째로 vacuous 하다.
     expect(versions.length).toBeGreaterThanOrEqual(1);
+    // 목록도 두 축을 건다 — 이 엔드포인트엔 계약 대조가 없었다. `creator` 가 required 라 부재 · null 이 위반이고, 중첩
+    // `$ref` 라 `User` 의 다른 컬럼이 실리면 미선언으로 잡힌다.
+    expectNoUserSecrets(list.body);
+    const listItemContract = await contractForDto(WorkflowVersionListItemDto);
+    for (const item of versions) {
+      assertMatchesContract(item, listItemContract);
+    }
 
     const detail = await request(BASE_URL)
       .get(`/api/workflows/${workflowId}/versions/${versions[0].id}`)

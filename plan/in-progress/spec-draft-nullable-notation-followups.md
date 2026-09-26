@@ -1053,6 +1053,14 @@ field: T | null;
       `lib/api/workflows.ts` 의 손수 맞춘 미러(`creator?: {…} | null`)도 같은 턴에 봐야
       한다(같은 이름의 별도 선언 — `workflow-versions.service.ts` 의 JSDoc 참조).
 
+- [ ] **`5-version-history.md` 의 기존 이격 두 건 — §7.2 응답 타입명 · `## Rationale` 부재** (planner, 2026-09-27 등재 ·
+      `workflow-version-creator` `--impl-prep` `review/consistency/2026/09/26/23_55_27` W1 · W2). 둘 다 이 PR 과 무관한 기존 상태다.
+      - §7.2 는 응답을 엔티티와 같은 이름 `WorkflowVersion` 으로 적는다. 실제 응답 DTO 는 `WorkflowVersionDto` 이고 형제 §7.1 은
+        `WorkflowVersionListItemDto[]` 로 정확히 적는다(swagger §5-1 — 엔티티를 그대로 문서화하지 않는다).
+      - 같은 디렉터리 다른 다섯 문서와 달리 `## Rationale` 이 없다. §7.1 의 «`snapshot` 제외(m-3)» · §6 의 «페이지 리로드» 근거가
+        본문에 흩어져 있다.
+      - 곁가지(INFO, 급하지 않음): §7.1 의 `m-3` 이 링크 없는 bare 토큰 · §7.1~§7.3 이 응답 봉투(`{ data: … }`)를 적지 않는다.
+
 - [x] **`User` 민감 7컬럼의 응답 노출 금지를 규약 문장으로** (planner, 2026-09-06 등재,
       `review/consistency/2026/09/06/10_13_23` W2).
 
