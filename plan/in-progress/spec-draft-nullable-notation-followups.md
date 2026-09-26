@@ -5136,7 +5136,7 @@ field: T | null;
       `codebase/backend/src/common/swagger/api-wrapped.ts` JSDoc 에만 있어, 래퍼를 새로 만드는 사람이 규약 표만 보면 같은 함정을
       밟는다. §5-2 행 아래 각주 한 줄. **착수 조건**: 없음(다음 `swagger.md` 편집 때 함께). planner 소관 · `--spec` 필요.
 
-- [ ] **`4-ai-assistant.md` 규약 위생 다섯 칸 — 상태 표기 · 에러 카탈로그 · SSE 에러 봉투 · 배지 i18n · 상위 문서 구현 상태** (planner, 낮음, 2026-09-26 등재 ·
+- [ ] **`4-ai-assistant.md` 규약 위생 일곱 칸 — 상태 표기 · 에러 카탈로그 · SSE 에러 봉투 · 배지 i18n · 상위 문서 구현 상태 · 표 누락 · 전칭** (planner, 낮음, 2026-09-26 등재 ·
       `--impl-prep` `review/consistency/2026/09/26/16_14_14` convention_compliance W3 · W4 · W5 · W6). 테스트만 바꾸던 `assistant-e2e-contract-gaps`
       의 `--impl-prep` 이 같은 문서에서 끌어온 기존 결함이다 — 그 작업과 무관해 이 PR 에서 고치지 않았다.
       1. **frontmatter `status: implemented`** 인데 본문이 §7 · §10 · §12.2 세 곳에서 «(계획) 미구현» 을 적는다(`spec-impl-evidence.md` §3 —
@@ -5148,7 +5148,10 @@ field: T | null;
       5. **다른 두 문서의 «전체 구현 완료»** — `spec/0-overview.md` §6.1 표의 Workflow AI Assistant 행 · `spec/4-nodes/3-ai/_product-overview.md`
          «구현 상태: 구현 완료(✅)» 두 곳(`--spec` `review/consistency/2026/09/26/16_27_26` cross_spec W2). 기능 단위 표기라 요구사항 하나의
          미구현(ED-AI-19)을 어떻게 싣을지 정한다.
-      **착수 조건**: 없음(여유 있을 때). planner 소관 · `--spec` 필요. 1 · 5 는 ED-AI-19 표기 정정(`plan/complete/spec-draft-ed-ai-19-status.md`)과
+      6. **§4.4 Shadow 검증 규칙 표에 `PORT_NOT_FOUND` 가 없다** — `add_edge` 의 포트 존재성 검사는 노드 존재성과 별 규칙이고 같은 문서
+         Rationale · §3.2 가 이 코드를 반복 인용한다(`--impl-prep` `review/consistency/2026/09/26/16_35_16` convention_compliance W2).
+      7. **§7 «(계획) 미구현 에러코드 — 다음 두 코드는» 의 전칭**이 §12.2 의 `ASSISTANT_WORKFLOW_RUNNING` 으로 반증된다(같은 세션 W3).
+      **착수 조건**: 없음(여유 있을 때). planner 소관 · `--spec` 필요. 1 · 5 · 7 은 ED-AI-19 표기 정정(`plan/complete/spec-draft-ed-ai-19-status.md`)과
       같은 뿌리다.
 
 - [ ] **`4-ai-assistant.md` §6 REST API 표에 `GET /api/workflow-assistant/sessions/latest` 가 없다** (planner, 낮음, 2026-09-26 등재 ·
@@ -5157,7 +5160,8 @@ field: T | null;
       성공 응답을 `ApiOkWrappedNullableResponse` 로 광고하면서 «코드 · OpenAPI 에는 있고 제품 spec 표에는 없는» 격차가 드러났다.
       **같은 절에서 함께**: §6 의 «모든 엔드포인트는 editor 이상 역할 필요» 는 조회 셋(`list` · `latest` · `findOne`)과 다르다 — 셋은
       `@Roles` 없이 워크스페이스 멤버십만 본다(`--impl-done` `review/consistency/2026/09/26/14_17_49` cross_spec INFO1). «쓰기는 editor
-      이상, 조회는 멤버» 로 정정한다.
+      이상, 조회는 멤버» 로 정정한다. 같은 문서 Rationale 의 «REST API 5개» 도 실제 6개다(`--impl-prep`
+      `review/consistency/2026/09/26/16_35_16` convention_compliance W1).
       **착수 조건**: 없음(여유 있을 때). planner 소관 · `--spec` 필요.
 
 - [ ] **`interaction/revoke-token` 의 상태 전이를 두 spec 이 반대로 적는다** (planner, 낮음, 2026-09-26 등재 · `--impl-prep`

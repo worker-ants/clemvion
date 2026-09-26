@@ -31,9 +31,19 @@ started: 2026-09-26
 
 CHANGELOG 없음 — 한 기능의 동작을 고정하는 테스트 추가(가드가 아닌 커버리지)는 항목을 내지 않는다(`CHANGELOG.md` 기준 머리말).
 
+## 검토 경고 처리
+
+| 출처 | 지적 | 처분 |
+| --- | --- | --- |
+| `--impl-prep` `16_14_14` **Critical** | PRD `_product-overview.md` §10.4 ED-AI-19 는 표기 없이, 상세 spec `4-ai-assistant.md` §12.2 는 «(계획) 미구현» — 이 작업과 무관한 기존 모순 | 실측(`ASSISTANT_WORKFLOW_RUNNING` 0건 · 프론트 분기 없음)으로 상세 spec 이 맞음을 확인하고 **planner 턴**으로 PRD 행에 미구현 표기(`802bd61d5`, draft `plan/in-progress/spec-draft-ed-ai-19-status.md`, `--spec` `16_27_26` BLOCK: NO). 우회(검사 범위에서 PRD 빼기)는 하지 않았다 |
+| `--impl-prep` `16_14_14` W1 · W2 | §6 표 `sessions/latest` 누락 · §6 RBAC 일괄 서술 | 이미 트래커 planner 항목 |
+| `--impl-prep` `16_14_14` W3~W6 · `--spec` `16_27_26` W2 | frontmatter 상태 · 에러 카탈로그 · SSE 봉투 · 배지 i18n · 상위 문서 «전체 구현 완료» | 트래커 한 항목 «`4-ai-assistant.md` 규약 위생 일곱 칸» |
+| `--impl-prep` `16_35_16` W1 | §6 표 `sessions/latest` · Rationale «REST API 5개» | 기존 §6 항목에 «5개 → 6개» 덧붙임 |
+| `--impl-prep` `16_35_16` W2 · W3 | §4.4 표 `PORT_NOT_FOUND` 누락 · §7 «두 코드» 전칭 | 규약 위생 항목의 6 · 7 칸 |
+
 ## 체크리스트
 
-- [ ] `--impl-prep`
+- [x] `--impl-prep` — 첫 라운드 `review/consistency/2026/09/26/16_14_14` BLOCK: YES(위 Critical) → planner 턴 뒤 `16_35_16` BLOCK: NO
 - [ ] e2e 세 칸
 - [ ] 공허성 확인 — 각 단언이 실제로 가르는지(뮤턴트 · 프로브)
 - [ ] TEST WORKFLOW (lint · unit · build · e2e)
