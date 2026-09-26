@@ -26,8 +26,7 @@ started: 2026-09-26
 >       받을 수 없으면(전역 `CustomValidationPipe` 는 클래스 파라미터에만 진입해 `whitelist` · `forbidNonWhitelisted` 로 에러 코드와 여분 키
 >       처리를 바꾼다) **문서 전용 DTO**(class-validator 데코레이터 없이 `@ApiProperty` 만)를 `@ApiBody({ type })` 로 광고하고 파라미터는
 >       인라인 타입을 유지한다. 형태를 발신자가 정하는 본문(외부 웹훅)은 `@ApiBody({ schema: {} })`. 저장소 가드 `request-body-advertised`
->       가 **모든 라우트**에서 `@Body()` 자리의 설계 타입이 클래스가 아닌데 `@ApiBody` 가 없는 자리를 잡는다(`@ApiExcludeEndpoint()` ·
->       `@ApiExcludeController()` 제외).
+>       가 **모든 라우트**에서 `@Body()` 자리의 설계 타입이 클래스가 아닌데 `@ApiBody` 가 없는 자리를 잡는다(`@ApiExcludeEndpoint()` 제외).
 
 ### 2. frontmatter `code:` — 가드 등재
 
@@ -52,8 +51,6 @@ started: 2026-09-26
 >   된다 — `rotate-bot-token` 은 비-string `newBotToken` 에 spec 이 약속한 `INVALID_BOT_TOKEN`(`15-chat-channel.md` §5.4) 대신
 >   `VALIDATION_ERROR` 를 내고, 여분 키를 보내던 요청이 400 이 된다. 그래서 트래커가 처음 적었던 처방(«요청 DTO 승격»)을 택하지 않고
 >   문서 전용 DTO 를 `@ApiBody` 로만 쓴다. 선례는 `ExecuteWorkflowDto`(워크플로 실행 본문 — 캐너리 `workflows-execute-body.spec.ts`).
-> - **`schema: {}` 와 열린 map 은 다르다.** 본문이 객체라는 것조차 보장되지 않으면(웹훅 — JSON 배열 · 원시값도 온다) `@ApiBody({ schema: {} })`
->   로 «임의 값» 을 적는다. 객체는 보장되고 키만 열려 있으면 §1-4 의 `additionalProperties: true` 다.
 > - **reflection 으로 센다.** 판정 축은 파이프가 받는 바로 그 값이어야 한다 — 파이프는 `design:paramtypes` 가 `Object` · `String` ·
 >   `Number` · `Boolean` · `Array` 면 건너뛰고, 그 자리는 플러그인도 스키마를 만들지 못한다. 소스(AST)로는 `interface` · 타입 별칭
 >   참조가 런타임에 `Object` 가 되는 것을 클래스 참조와 구별할 수 없다.
@@ -68,11 +65,3 @@ started: 2026-09-26
   — 접미 없음 · `ContinueExecutionRequestDto` 의 어순)을 어떻게 다룰지 함께 정해야 한다. DTO 이름은 OpenAPI 컴포넌트 이름이라 바꾸면 생성
   클라이언트의 타입명이 바뀐다. 가드는 이름과 무관하므로 두 결정을 섞지 않는다 — 트래커에 남긴다.
 - **소급**: 이 규칙도 §2-4 · 403 과 같이 **광고가 실제와 맞는가** 의 문제라 기존 라우트까지 가드가 본다. 베이스라인 0 이라 소급 비용이 없다.
-
-### `--spec` 경고 처리 (`review/consistency/2026/09/26/18_59_58`, BLOCK: NO)
-
-- **W1 — 체크리스트의 제외 범위가 가드보다 좁다**: 사실. 가드는 형제 `forbidden-response-codes` 와 같이 `@ApiExcludeController()` 도 묻지
-  않는다 — 체크리스트에 함께 적었다.
-- **INFO4 — `schema: {}` 와 §1-4 열린 map 의 기준**: Rationale 에 한 불릿(객체조차 보장되지 않으면 `schema: {}`, 객체면 `additionalProperties`).
-- **INFO3 · 7 — 트래커가 «AST» 로 적은 판정 축**: 트래커 항목을 좁힐 때 «reflection(인터페이스 · 타입 별칭이 런타임에 `Object`)» 으로 정정한다.
-- **INFO5 — «문서 전용 DTO» 와 선례 주석의 «OpenAPI 스키마 전용»**: 같은 뜻이다. 용어 통일은 §1-7 명명 결정(트래커)과 함께.
