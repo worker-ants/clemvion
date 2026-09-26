@@ -50,7 +50,7 @@ describe('POST /integrations/:id/test — 와이어 계약 (HTTP)', () => {
   const CREATOR = 'user-1';
 
   // 본인의 personal 통합 — `requireVisible` 을 통과하는 최소 형태다.
-  const mcpIntegration = {
+  const mcpIntegration: Partial<Integration> = {
     id: INTEGRATION_UUID,
     workspaceId: WORKSPACE_UUID,
     serviceType: 'mcp',
@@ -60,7 +60,7 @@ describe('POST /integrations/:id/test — 와이어 계약 (HTTP)', () => {
     scope: 'personal',
     status: 'connected',
     createdBy: CREATOR,
-  } as Integration;
+  };
 
   /** `connect` 가 돌려줄 세션 — `McpTestConnectionService` 가 읽는 것만 채운다. */
   const session = (
