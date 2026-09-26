@@ -5115,6 +5115,13 @@ field: T | null;
          전부 뺀 도구 호출 하나를 더해 «키 생략» 쪽도 대조한다.
       **착수 조건**: 없음(여유 있을 때). 테스트만 바뀌지만 `codebase/**` 편집이라 리뷰 게이트를 한 바퀴 돈다.
 
+- [ ] **`swagger.md` §2-4 상태 코드 표에 202 · 410 · 429 행이 없다** (planner, 낮음, 2026-09-26 등재 · `--impl-prep`
+      `review/consistency/2026/09/26/15_08_57` convention_compliance W1). 표는 200 · 201 · 204 · 400 · 401 · 403 · 404 · 409 · 502 만 적는데,
+      같은 문서 §5-2(`ApiAcceptedWrappedResponse`) · §5-4 체크리스트와 `spec/5-system/2-api-convention.md` §6 은 202 · 410 · 429 를 다루고
+      컨트롤러도 쓴다(`@ApiAcceptedResponse` · `HttpStatus.GONE` · 429). 사람이 새 라우트를 쓸 때 참고하는 표만 좁다 — 가드
+      `http-status-advertised` 는 `@nestjs/swagger` 의 응답 데코레이터를 런타임에 전부 읽어 이 표에 기대지 않는다.
+      **착수 조건**: 없음(다음 `swagger.md` 편집 때 함께). planner 소관 · `--spec` 필요.
+
 - [ ] **`swagger.md` §5-2 `ApiOkWrappedNullableResponse` 행에 구현 사정 각주가 없다** (planner, 낮음, 2026-09-26 등재 ·
       `--impl-done` `review/consistency/2026/09/26/14_17_49` convention_compliance INFO4). 래퍼는 `data` 를 `allOf: [<ref>]` + `nullable`
       로 싣는다 — OpenAPI 3.0 은 `$ref` 옆 형제 키를 무시해서 `{ $ref, nullable }` 로는 nullable 이 사라진다. 이 사정은
