@@ -18,6 +18,7 @@ import {
   ApiBearerAuth,
   ApiOperation,
   ApiParam,
+  ApiBody,
   ApiNoContentResponse,
   ApiBadRequestResponse,
   ApiBadGatewayResponse,
@@ -40,6 +41,7 @@ import { UpdateTriggerDto } from './dto/update-trigger.dto';
 import { CurrentUser, WorkspaceId } from '../../common/decorators';
 import { QueryTriggerDto } from './dto/query-trigger.dto';
 import { ChatChannelRotateBotTokenDto } from './dto/responses/chat-channel-rotate-bot-token-response.dto';
+import { ChatChannelRotateBotTokenRequestDto } from './dto/chat-channel-rotate-bot-token-request.dto';
 import {
   TriggerDto,
   TriggerHistoryItemDto,
@@ -280,6 +282,9 @@ export class TriggersController {
       'Spec CCH-SE-04 — 외부 provider bot token 회전. 기존 token 은 24h grace 동안 chat_channel_token_v2 (secret store v2 ref) 로 보관, CCH-SE-04-C cron 이 grace 만료 시 정리.',
   })
   @ApiParam({ name: 'id', description: '트리거 UUID', format: 'uuid' })
+  // 본문 스키마는 `@ApiBody` 로만 선언하고 `@Body()` 파라미터는 인라인 타입을 유지한다 — DTO 로 타입하면 전역 파이프가 진입해
+  // `INVALID_BOT_TOKEN` 이 `VALIDATION_ERROR` 로 바뀌고 여분 키가 400 이 된다. 근거: `ChatChannelRotateBotTokenRequestDto` 머리 주석.
+  @ApiBody({ type: ChatChannelRotateBotTokenRequestDto })
   @ApiUnauthorizedResponse({ description: '인증 실패' })
   @ApiForbiddenResponse({ description: forbiddenForRole('editor') })
   // §5.4 실패 응답 표의 두 축을 함께 문서화한다 — 400 과 502 를 **가르는 것**이 이 엔드포인트의

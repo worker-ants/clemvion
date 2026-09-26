@@ -1,0 +1,457 @@
+diff --git a/codebase/backend/src/modules/executions/dto/continue-execution.dto.ts b/codebase/backend/src/modules/executions/dto/continue-execution.dto.ts
+new file mode 100644
+index 000000000..a0cc41393
+--- /dev/null
++++ b/codebase/backend/src/modules/executions/dto/continue-execution.dto.ts
+@@ -0,0 +1,17 @@
++import { ApiPropertyOptional } from '@nestjs/swagger';
++
++// `POST /api/executions/:id/continue` 요청 본문 — **OpenAPI 스키마 전용**.
++//
++// `continueExecution` 의 `@Body()` 파라미터는 인라인 객체 타입을 유지하고 이 클래스는 `@ApiBody({ type })` 로만 쓴다 — 선례
++// `workflows/dto/execute-workflow.dto.ts`. 파라미터 타입을 이 클래스로 바꾸면 전역 `CustomValidationPipe` 가 진입해 여분 키가
++// 400 이 된다(데코레이터가 없으면 모든 요청이 거부된다). 폼 값 검증은 엔진이 대기 중인 폼 노드의 필드 정의로 한다. 캐너리:
++// `executions-continue-body.spec.ts`.
++//
++// 내부 서사를 `//` 에 두는 이유: JSDoc 은 공개 OpenAPI `description` 으로 나간다(`spec/conventions/swagger.md` §3).
++
++/** 입력 대기 실행에 전달하는 폼 제출. */
++export class ContinueExecutionRequestDto {
++  /** 폼 필드 이름 → 값. 대기 중인 폼 노드의 필드 정의로 검증되고, 어긋나면 400 `VALIDATION_ERROR`(첫 오류만). */
++  @ApiPropertyOptional({ type: 'object', additionalProperties: true })
++  formData?: Record<string, unknown>;
++}
+diff --git a/codebase/backend/src/modules/executions/executions-continue-body.spec.ts b/codebase/backend/src/modules/executions/executions-continue-body.spec.ts
+new file mode 100644
+index 000000000..1a1244fe1
+--- /dev/null
++++ b/codebase/backend/src/modules/executions/executions-continue-body.spec.ts
+@@ -0,0 +1,69 @@
++import 'reflect-metadata';
++import { Body, Controller, Post } from '@nestjs/common';
++import { ApiBody } from '@nestjs/swagger';
++
++import { CustomValidationPipe } from '../../common/pipes/validation.pipe';
++import {
++  bodyParamDesignType,
++  buildSwaggerDocument,
++  schemaOf,
++} from '../../shared/testing/swagger-probe';
++import { ExecutionsController } from './executions.controller';
++import { ContinueExecutionRequestDto } from './dto/continue-execution.dto';
++
++/**
++ * `POST /executions/:id/continue` 본문 — **문서만 광고하고 계약은 그대로**인지 지키는 캐너리.
++ *
++ * `@Body()` 는 인라인 객체 타입이라 전역 `CustomValidationPipe` 가 검증을 건너뛴다(폼 값 검증은 엔진이 폼 노드 정의로 한다).
++ * `ContinueExecutionRequestDto` 는 OpenAPI 스키마만 제공한다 — 선례 `workflows/workflows-execute-body.spec.ts`.
++ *
++ * > **여기가 RED 면 문서 작업이 계약 변경으로 번진 것이다.** 이 테스트를 조용히 고쳐 통과시키지 말 것.
++ */
++describe('POST /executions/:id/continue 본문', () => {
++  it('[캐너리] `@Body()` 파라미터는 DTO 로 타입되지 않는다 — 타입하면 파이프가 진입한다', () => {
++    expect(bodyParamDesignType(ExecutionsController, 'continueExecution')).toBe(
++      Object,
++    );
++  });
++
++  it('[캐너리] 여분 키를 실은 본문도 파이프를 통과한다', async () => {
++    const body = { formData: { name: 'a' }, legacyClientField: 'x' };
++    await expect(
++      new CustomValidationPipe().transform(body, {
++        type: 'body',
++        metatype: bodyParamDesignType(
++          ExecutionsController,
++          'continueExecution',
++        ) as never,
++      }),
++    ).resolves.toStrictEqual(body);
++  });
++
++  it('[가드] 실 컨트롤러의 `@ApiBody` 가 ContinueExecutionRequestDto 를 가리키고 본문은 선택이다', () => {
++    const params = Reflect.getMetadata(
++      'swagger/apiParameters',
++      ExecutionsController.prototype.continueExecution,
++    ) as Array<Record<string, unknown>> | undefined;
++    const bodyParam = (params ?? []).find((p) => p.in === 'body');
++    expect(bodyParam?.type).toBe(ContinueExecutionRequestDto);
++    // 본문 없이 이어 진행하는 폼(필드 0개)이 정상 경로다 — 핸들러도 `body?.formData` 로 읽는다.
++    expect(bodyParam?.required).toBe(false);
++  });
++
++  it('[렌더] 스키마 — formData 하나, 선택 · 열린 map', async () => {
++    @Controller('stub')
++    class StubController {
++      @Post()
++      @ApiBody({ type: ContinueExecutionRequestDto, required: false })
++      run(@Body() _body?: unknown): void {}
++    }
++    const doc = await buildSwaggerDocument({ controllers: [StubController] });
++    const schema = schemaOf(doc, 'ContinueExecutionRequestDto');
++    expect(Object.keys(schema.properties ?? {})).toStrictEqual(['formData']);
++    expect(schema.required ?? []).toStrictEqual([]);
++    const formData = schema.properties?.formData as
++      { type?: string; additionalProperties?: unknown } | undefined;
++    expect(formData?.type).toBe('object');
++    expect(formData?.additionalProperties).toBe(true);
++  });
++});
+diff --git a/codebase/backend/src/modules/executions/executions.controller.ts b/codebase/backend/src/modules/executions/executions.controller.ts
+index bb1c9ac45..4251de8a6 100644
+--- a/codebase/backend/src/modules/executions/executions.controller.ts
++++ b/codebase/backend/src/modules/executions/executions.controller.ts
+@@ -21,6 +21,7 @@ import {
+   ApiBearerAuth,
+   ApiOperation,
+   ApiParam,
++  ApiBody,
+   ApiBadRequestResponse,
+   ApiUnauthorizedResponse,
+   ApiNotFoundResponse,
+@@ -40,6 +41,7 @@ import {
+ } from '../../common/swagger';
+ import { Throttle } from '@nestjs/throttler';
+ import { ReRunRequestDto } from './dto/re-run.dto';
++import { ContinueExecutionRequestDto } from './dto/continue-execution.dto';
+ import { ExecutionsService } from './executions.service';
+ import { ExecutionEngineService } from '../execution-engine/execution-engine.service';
+ import {
+@@ -156,6 +158,8 @@ export class ExecutionsController {
+       '입력 대기(waiting_for_input) 상태의 실행에 폼 데이터를 전달하여 이어 진행시킵니다.',
+   })
+   @ApiParam({ name: 'id', description: '실행 UUID', format: 'uuid' })
++  // 본문 스키마는 `@ApiBody` 로만 — DTO 로 타입하면 전역 파이프가 진입해 여분 키가 400 이 된다(`ContinueExecutionRequestDto` 머리 주석).
++  @ApiBody({ type: ContinueExecutionRequestDto, required: false })
+   @ApiOkWrappedResponse(ExecutionContinueResultDto, {
+     description: '이어실행 요청 접수',
+   })
+diff --git a/codebase/backend/src/modules/hooks/hooks-webhook-body.spec.ts b/codebase/backend/src/modules/hooks/hooks-webhook-body.spec.ts
+new file mode 100644
+index 000000000..22608a702
+--- /dev/null
++++ b/codebase/backend/src/modules/hooks/hooks-webhook-body.spec.ts
+@@ -0,0 +1,38 @@
++import 'reflect-metadata';
++
++import { bodyParamDesignType } from '../../shared/testing/swagger-probe';
++import { HooksController } from './hooks.controller';
++
++/**
++ * `POST /hooks/:endpointPath` 본문 — OpenAPI 가 «본문을 받는다» 는 사실을 광고하는지.
++ *
++ * 형태는 외부 발신자가 정한다(`spec/5-system/12-webhook.md` WH-EP-04 · WH-EP-05 — JSON · form-urlencoded, 객체가 아닐 수도 있다).
++ * 그래서 스키마는 «임의 값»(`{}`)이고 선택이다. 파라미터는 `unknown` 이라 전역 파이프를 타지 않는다.
++ */
++describe('POST /hooks/:endpointPath 본문', () => {
++  it('[캐너리] `@Body()` 파라미터는 DTO 로 타입되지 않는다', () => {
++    expect(bodyParamDesignType(HooksController, 'receiveWebhook')).toBe(Object);
++  });
++
++  it('[가드] `@ApiBody` 는 선택 · 임의 값 스키마다', () => {
++    const params = Reflect.getMetadata(
++      'swagger/apiParameters',
++      HooksController.prototype.receiveWebhook,
++    ) as Array<Record<string, unknown>> | undefined;
++    const bodyParam = (params ?? []).find((p) => p.in === 'body');
++    expect(bodyParam).toBeDefined();
++    expect(bodyParam?.required).toBe(false);
++    expect(bodyParam?.schema).toStrictEqual({});
++  });
++
++  it('[가드] JSON 과 form-urlencoded 를 받는다고 광고한다(WH-EP-04)', () => {
++    const consumes = Reflect.getMetadata(
++      'swagger/apiConsumes',
++      HooksController.prototype.receiveWebhook,
++    ) as string[] | undefined;
++    expect(consumes).toStrictEqual([
++      'application/json',
++      'application/x-www-form-urlencoded',
++    ]);
++  });
++});
+diff --git a/codebase/backend/src/modules/hooks/hooks.controller.ts b/codebase/backend/src/modules/hooks/hooks.controller.ts
+index faec03ac6..ac77df772 100644
+--- a/codebase/backend/src/modules/hooks/hooks.controller.ts
++++ b/codebase/backend/src/modules/hooks/hooks.controller.ts
+@@ -16,6 +16,8 @@ import {
+   ApiTags,
+   ApiOperation,
+   ApiParam,
++  ApiBody,
++  ApiConsumes,
+   ApiNotFoundResponse,
+   ApiResponse,
+   ApiUnauthorizedResponse,
+@@ -128,6 +130,15 @@ export class HooksController {
+     description: '트리거 등록 시 발급된 고유 엔드포인트 경로',
+     example: 'abcd1234',
+   })
++  // 본문 형태는 외부 발신자가 정한다(spec 12-webhook WH-EP-04 · WH-EP-05 — JSON · form-urlencoded, 객체가 아닐 수도 있다). 그래서
++  // 스키마는 «임의 값»(`{}`)이고, 파라미터(`unknown`)는 전역 파이프를 타지 않는다.
++  @ApiConsumes('application/json', 'application/x-www-form-urlencoded')
++  @ApiBody({
++    required: false,
++    description:
++      '외부 서비스가 보내는 본문 — 형태는 발신자가 정한다(JSON 또는 form-urlencoded). 전체가 실행 입력 `body` 로 실리고, Manual Trigger 파라미터는 최상위 키에서 추출한다.',
++    schema: {},
++  })
+   @ApiAcceptedWrappedResponse(WebhookAcceptedDto, {
+     description:
+       '웹훅 접수 및 워크플로우 실행 시작. 전역 TransformInterceptor 에 의해 `{ data: ... }` 로 래핑되어 반환됩니다.',
+diff --git a/codebase/backend/src/modules/triggers/dto/chat-channel-rotate-bot-token-request.dto.ts b/codebase/backend/src/modules/triggers/dto/chat-channel-rotate-bot-token-request.dto.ts
+new file mode 100644
+index 000000000..272ec45d6
+--- /dev/null
++++ b/codebase/backend/src/modules/triggers/dto/chat-channel-rotate-bot-token-request.dto.ts
+@@ -0,0 +1,19 @@
++import { ApiProperty } from '@nestjs/swagger';
++
++// `POST /api/triggers/:id/chat-channel/rotate-bot-token` 요청 본문 — **OpenAPI 스키마 전용**.
++//
++// `rotateBotToken` 의 `@Body()` 파라미터는 인라인 객체 타입을 유지하고 이 클래스는 `@ApiBody({ type })` 로만 쓴다 — 선례
++// `workflows/dto/execute-workflow.dto.ts`. 파라미터 타입을 이 클래스로 바꾸면 전역 `CustomValidationPipe` 가 진입해 계약이
++// 바뀐다: 데코레이터가 없으면 **모든 요청**이 `VALIDATION_ERROR`, 달면 비-string `newBotToken` 이 `INVALID_BOT_TOKEN`
++// (`spec/5-system/15-chat-channel.md` §5.4) 대신 `VALIDATION_ERROR` 가 되고 여분 키가 400 이 된다. 그래서 class-validator
++// 데코레이터를 **일부러 달지 않았다** — 검사는 핸들러가 한다. 캐너리: `triggers-rotate-bot-token-body.spec.ts`.
++//
++// 내부 서사를 `//` 에 두는 이유: JSDoc 은 공개 OpenAPI `description` 으로 나간다(`spec/conventions/swagger.md` §3).
++
++/** Chat Channel bot token 회전 요청. */
++export class ChatChannelRotateBotTokenRequestDto {
++  /** 새 bot token 평문. 없거나 문자열이 아니면 400 `INVALID_BOT_TOKEN`. */
++  // secret store 에 들어가는 plaintext 라 `writeOnly` 가 의무다(`spec/conventions/swagger.md` §1-5).
++  @ApiProperty({ writeOnly: true })
++  newBotToken: string;
++}
+diff --git a/codebase/backend/src/modules/triggers/triggers-rotate-bot-token-body.spec.ts b/codebase/backend/src/modules/triggers/triggers-rotate-bot-token-body.spec.ts
+new file mode 100644
+index 000000000..a44608fbc
+--- /dev/null
++++ b/codebase/backend/src/modules/triggers/triggers-rotate-bot-token-body.spec.ts
+@@ -0,0 +1,70 @@
++import 'reflect-metadata';
++import { Body, Controller, Post } from '@nestjs/common';
++import { ApiBody } from '@nestjs/swagger';
++
++import { CustomValidationPipe } from '../../common/pipes/validation.pipe';
++import {
++  bodyParamDesignType,
++  buildSwaggerDocument,
++  schemaOf,
++} from '../../shared/testing/swagger-probe';
++import { TriggersController } from './triggers.controller';
++import { ChatChannelRotateBotTokenRequestDto } from './dto/chat-channel-rotate-bot-token-request.dto';
++
++/**
++ * `POST /triggers/:id/chat-channel/rotate-bot-token` 본문 — **문서만 광고하고 계약은 그대로**인지 지키는 캐너리.
++ *
++ * `@Body()` 는 인라인 객체 타입이라 전역 `CustomValidationPipe` 가 검증을 건너뛴다. `newBotToken` 의 누락 · 비-string 은
++ * 핸들러가 `INVALID_BOT_TOKEN` 으로 거부한다(`spec/5-system/15-chat-channel.md` §5.4). `ChatChannelRotateBotTokenRequestDto` 는
++ * 그 사실을 바꾸지 않고 OpenAPI 스키마만 제공한다 — 선례 `workflows/workflows-execute-body.spec.ts`.
++ *
++ * > **여기가 RED 면 문서 작업이 계약 변경으로 번진 것이다.** 파라미터를 DTO 로 타입하고 싶다면 그건 에러 코드 · 여분 키
++ * > 계약을 바꾸는 별도 결정이다 — 이 테스트를 조용히 고쳐 통과시키지 말 것.
++ */
++describe('POST /triggers/:id/chat-channel/rotate-bot-token 본문', () => {
++  it('[캐너리] `@Body()` 파라미터는 DTO 로 타입되지 않는다 — 타입하면 파이프가 진입한다', () => {
++    expect(bodyParamDesignType(TriggersController, 'rotateBotToken')).toBe(
++      Object,
++    );
++  });
++
++  it('[캐너리] 비-string newBotToken · 여분 키도 파이프를 통과한다 — 거부는 핸들러의 INVALID_BOT_TOKEN 몫이다', async () => {
++    const body = { newBotToken: 12345, legacyClientField: 'ignored-so-far' };
++    await expect(
++      new CustomValidationPipe().transform(body, {
++        type: 'body',
++        metatype: bodyParamDesignType(
++          TriggersController,
++          'rotateBotToken',
++        ) as never,
++      }),
++    ).resolves.toStrictEqual(body);
++  });
++
++  it('[가드] 실 컨트롤러의 `@ApiBody` 가 ChatChannelRotateBotTokenRequestDto 를 가리킨다', () => {
++    const params = Reflect.getMetadata(
++      'swagger/apiParameters',
++      TriggersController.prototype.rotateBotToken,
++    ) as Array<Record<string, unknown>> | undefined;
++    const bodyParam = (params ?? []).find((p) => p.in === 'body');
++    expect(bodyParam?.type).toBe(ChatChannelRotateBotTokenRequestDto);
++  });
++
++  it('[렌더] 스키마 — newBotToken 하나, 필수 · writeOnly string', async () => {
++    @Controller('stub')
++    class StubController {
++      @Post()
++      @ApiBody({ type: ChatChannelRotateBotTokenRequestDto })
++      run(@Body() _body: unknown): void {}
++    }
++    const doc = await buildSwaggerDocument({ controllers: [StubController] });
++    const schema = schemaOf(doc, 'ChatChannelRotateBotTokenRequestDto');
++    expect(Object.keys(schema.properties ?? {})).toStrictEqual(['newBotToken']);
++    expect(schema.required).toStrictEqual(['newBotToken']);
++    const token = schema.properties?.newBotToken as
++      { type?: string; writeOnly?: boolean } | undefined;
++    expect(token?.type).toBe('string');
++    // secret store 입력 plaintext — `swagger.md` §1-5 의무.
++    expect(token?.writeOnly).toBe(true);
++  });
++});
+diff --git a/codebase/backend/src/modules/triggers/triggers.controller.ts b/codebase/backend/src/modules/triggers/triggers.controller.ts
+index 180b61ae3..48e4d4b0c 100644
+--- a/codebase/backend/src/modules/triggers/triggers.controller.ts
++++ b/codebase/backend/src/modules/triggers/triggers.controller.ts
+@@ -18,6 +18,7 @@ import {
+   ApiBearerAuth,
+   ApiOperation,
+   ApiParam,
++  ApiBody,
+   ApiNoContentResponse,
+   ApiBadRequestResponse,
+   ApiBadGatewayResponse,
+@@ -40,6 +41,7 @@ import { UpdateTriggerDto } from './dto/update-trigger.dto';
+ import { CurrentUser, WorkspaceId } from '../../common/decorators';
+ import { QueryTriggerDto } from './dto/query-trigger.dto';
+ import { ChatChannelRotateBotTokenDto } from './dto/responses/chat-channel-rotate-bot-token-response.dto';
++import { ChatChannelRotateBotTokenRequestDto } from './dto/chat-channel-rotate-bot-token-request.dto';
+ import {
+   TriggerDto,
+   TriggerHistoryItemDto,
+@@ -280,6 +282,9 @@ export class TriggersController {
+       'Spec CCH-SE-04 — 외부 provider bot token 회전. 기존 token 은 24h grace 동안 chat_channel_token_v2 (secret store v2 ref) 로 보관, CCH-SE-04-C cron 이 grace 만료 시 정리.',
+   })
+   @ApiParam({ name: 'id', description: '트리거 UUID', format: 'uuid' })
++  // 본문 스키마는 `@ApiBody` 로만 선언하고 `@Body()` 파라미터는 인라인 타입을 유지한다 — DTO 로 타입하면 전역 파이프가 진입해
++  // `INVALID_BOT_TOKEN` 이 `VALIDATION_ERROR` 로 바뀌고 여분 키가 400 이 된다. 근거: `ChatChannelRotateBotTokenRequestDto` 머리 주석.
++  @ApiBody({ type: ChatChannelRotateBotTokenRequestDto })
+   @ApiUnauthorizedResponse({ description: '인증 실패' })
+   @ApiForbiddenResponse({ description: forbiddenForRole('editor') })
+   // §5.4 실패 응답 표의 두 축을 함께 문서화한다 — 400 과 502 를 **가르는 것**이 이 엔드포인트의
+diff --git a/codebase/backend/src/shared/testing/swagger-probe.spec.ts b/codebase/backend/src/shared/testing/swagger-probe.spec.ts
+index 7995f91d2..be0f4c159 100644
+--- a/codebase/backend/src/shared/testing/swagger-probe.spec.ts
++++ b/codebase/backend/src/shared/testing/swagger-probe.spec.ts
+@@ -1,7 +1,10 @@
+-import { Controller, Get } from '@nestjs/common';
++import { Body, Controller, Get, Param, Post } from '@nestjs/common';
++import { ROUTE_ARGS_METADATA } from '@nestjs/common/constants';
++import { RouteParamtypes } from '@nestjs/common/enums/route-paramtypes.enum';
+ import { ApiOkResponse, ApiProperty } from '@nestjs/swagger';
+ 
+ import {
++  bodyParamDesignType,
+   buildSwaggerDocument,
+   propertyOf,
+   schemaOf,
+@@ -68,3 +71,50 @@ describe('swagger-probe — 에러 경로', () => {
+     expect(() => schemasOf(doc)).toThrow(/등재된 DTO 스키마가 없다/);
+   });
+ });
++
++describe('bodyParamDesignType — 에러 경로', () => {
++  @Controller('body-probe')
++  class BodyProbeController {
++    @Post(':id')
++    run(@Param('id') _id: string, @Body() _body: unknown): void {}
++
++    @Post('none/:id')
++    noBody(@Param('id') _id: string): void {}
++
++    @Post('two')
++    twoBodies(@Body('a') _a: unknown, @Body('b') _b: unknown): void {}
++  }
++
++  it('[전제] 본문 자리를 파라미터 순서가 아니라 라우트 인자 메타데이터로 찾는다', () => {
++    // 첫 파라미터는 `string` 이다 — 순서로 찾으면 `String` 이 나온다.
++    expect(bodyParamDesignType(BodyProbeController, 'run')).toBe(Object);
++  });
++
++  it('`@Body()` 가 없으면 원인을 지목해 던진다', () => {
++    expect(() => bodyParamDesignType(BodyProbeController, 'noBody')).toThrow(
++      /noBody 에 @Body\(\) 가 없다/,
++    );
++  });
++
++  it('`@Body()` 가 둘 이상이면 첫 자리를 내지 않고 던진다', () => {
++    expect(() => bodyParamDesignType(BodyProbeController, 'twoBodies')).toThrow(
++      /@Body\(\) 가 2개다/,
++    );
++  });
++
++  it('`design:paramtypes` 가 없으면(데코레이터 메타데이터가 emit 되지 않은 메서드) 던진다', () => {
++    // 데코레이터 없는 메서드에는 `design:paramtypes` 가 없다 — 라우트 인자 메타데이터만 손으로 싣는다.
++    class Bare {
++      run(_body: unknown): void {}
++    }
++    Reflect.defineMetadata(
++      ROUTE_ARGS_METADATA,
++      { [`${RouteParamtypes.BODY}:0`]: { index: 0 } },
++      Bare,
++      'run',
++    );
++    expect(() => bodyParamDesignType(Bare, 'run')).toThrow(
++      /design:paramtypes 가 없다/,
++    );
++  });
++});
+diff --git a/codebase/backend/src/shared/testing/swagger-probe.ts b/codebase/backend/src/shared/testing/swagger-probe.ts
+index 3ba838143..7a1d06c73 100644
+--- a/codebase/backend/src/shared/testing/swagger-probe.ts
++++ b/codebase/backend/src/shared/testing/swagger-probe.ts
+@@ -5,7 +5,9 @@ import {
+   type OpenAPIObject,
+   SwaggerModule,
+ } from '@nestjs/swagger';
+-import type { ModuleMetadata } from '@nestjs/common';
++import type { ModuleMetadata, Type } from '@nestjs/common';
++import { ROUTE_ARGS_METADATA } from '@nestjs/common/constants';
++import { RouteParamtypes } from '@nestjs/common/enums/route-paramtypes.enum';
+ 
+ /**
+  * DTO 의 **생성된 OpenAPI 스키마**를 캐너리로 고정할 때 쓰는 프로브 헬퍼.
+@@ -128,3 +130,43 @@ export function propertyOf(
+   }
+   return property;
+ }
++
++/**
++ * 핸들러의 `@Body()` 자리에 emit 된 설계 타입(`design:paramtypes`) — 문서 전용 DTO 를 `@ApiBody` 로만 쓰는 라우트의 캐너리용.
++ *
++ * `Object` 면 전역 `CustomValidationPipe` 가 검증을 건너뛴다(`toValidate`). DTO 클래스가 나오면 누군가 파라미터를 DTO 로 타입해
++ * 파이프가 진입했다는 뜻이다 — 선례 `workflows-execute-body.spec.ts` 의 «문서 작업이 계약 변경으로 번졌다». 자리는 Nest 의 라우트
++ * 인자 메타데이터로 찾는다(파라미터 순서에 기대지 않는다). `@Body()` 가 없거나 둘 이상이면 던진다 — 조용히 `undefined` 나 첫 자리를
++ * 내면 캐너리가 공허해진다.
++ *
++ * `ROUTE_ARGS_METADATA` · `RouteParamtypes` 는 `@nestjs/common` 의 공개 진입점이 아닌 내부 경로다. Nest 메이저 업그레이드로 키 형식이
++ * 바뀌면 이 헬퍼의 에러 경로 테스트(`swagger-probe.spec.ts`)가 먼저 깨진다.
++ */
++export function bodyParamDesignType(
++  controller: Type<unknown>,
++  method: string,
++): unknown {
++  const args = (Reflect.getMetadata(ROUTE_ARGS_METADATA, controller, method) ??
++    {}) as Record<string, { index: number }>;
++  const bodyArgs = Object.entries(args).filter(
++    ([key]) => key.split(':')[0] === String(RouteParamtypes.BODY),
++  );
++  if (bodyArgs.length === 0)
++    throw new Error(
++      `${controller.name}.${method} 에 @Body() 가 없다 — 캐너리 전제 붕괴`,
++    );
++  if (bodyArgs.length > 1)
++    throw new Error(
++      `${controller.name}.${method} 에 @Body() 가 ${bodyArgs.length}개다 — 어느 자리를 볼지 정할 수 없다`,
++    );
++  const types = Reflect.getMetadata(
++    'design:paramtypes',
++    controller.prototype as object,
++    method,
++  ) as unknown[] | undefined;
++  if (!types)
++    throw new Error(
++      `${controller.name}.${method} 의 design:paramtypes 가 없다 — 캐너리 전제 붕괴`,
++    );
++  return types[bodyArgs[0][1].index];
++}

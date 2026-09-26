@@ -23,6 +23,19 @@
 > 07 37% · 08 30% · 09(25일까지) 49% 였다(나중 PR 의 백필은 세지 않았다). 여기 없다고 그 변경이 없었던 것은 아니다 —
 > `git log` 가 정본이다.
 
+## Unreleased — OpenAPI 가 3개 엔드포인트의 요청 본문 스키마를 광고한다
+
+생성된 OpenAPI 에 요청 본문(`requestBody`)이 없어 클라이언트 생성기가 무엇을 보내야 하는지 알 수 없던 엔드포인트 3곳에 스키마를
+붙였다. 서버가 본문을 받고 검증하는 방식은 그대로다 — 문서가 실제 본문을 적게 됐다.
+
+- `POST /triggers/:id/chat-channel/rotate-bot-token` — `{ newBotToken }`(필수 · `writeOnly`). 없거나 문자열이 아니면 종전대로 400
+  `INVALID_BOT_TOKEN`.
+- `POST /executions/:id/continue` — `{ formData? }`(폼 필드 이름 → 값). 본문은 선택.
+- `POST /hooks/:endpointPath` — 형태는 외부 발신자가 정한다(임의 값). JSON · form-urlencoded 를 받는다고 적는다.
+
+본문 파라미터를 DTO 클래스로 바꾸지 않은 이유: 전역 검증 파이프가 진입해 에러 코드와 여분 키 처리가 바뀐다(계약 변경). `POST
+/workflows/:id/execute` 와 같은 방식이다.
+
 ## Unreleased — 403 응답 설명의 문장 형식을 공용 헬퍼로 맞췄다 (17개 라우트)
 
 OpenAPI 403 설명 중 가드 거부 문장을 손으로 쓴 3곳과, 서비스 거부를 `, 또는` 으로 덧붙여 한 문장 안에서 이음이 갈리던 14곳을 공용

@@ -2456,7 +2456,7 @@ field: T | null;
       > **교훈: 키워드를 하나 더 넣는 것은 처방이 아니다**(다음 키워드를 모른다). 이동 리팩터의
       > 귀속 드리프트는 **옮긴 심볼 집합**을 기준으로 열거해야 0이 된다.
 
-- [ ] **`rotate-bot-token` 엔드포인트에 OpenAPI 데코레이터가 전무하다** (developer, 2026-09-11
+- [x] **`rotate-bot-token` 엔드포인트에 OpenAPI 데코레이터가 전무하다** (developer, 2026-09-11
       등재 · `--impl-prep` `review/consistency/2026/09/11/17_39_32` W3). spec `15-chat-channel.md`
       §5.4 가 성공 응답 DTO · 요청 DTO · **에러 코드 6종**을 문서화하는데
       `triggers.controller.ts` 의 `rotateBotToken` 에는 `@ApiOkResponse`/`@ApiBody`/
@@ -2464,6 +2464,15 @@ field: T | null;
       갖추고 있어** 같은 컨트롤러 안에서 비대칭이다.
       **사전 존재 갭이고 T2 diff 범위 밖**이라 그 PR 에서 닫지 않았다. 처방: 응답 DTO 신설 +
       `RotateBotTokenDto` 요청 DTO 승격 + 에러 데코레이터. `swagger.md §1/§2-4/§5` 가 SoT.
+
+      > **2026-09-26 — 닫힘(처방을 바꿔서).** 응답 DTO(`ChatChannelRotateBotTokenDto`, #1326)와 에러 데코레이터(400 · 502 · 404, #1324)는
+      > 등재 뒤 이미 붙어 있었고, 남은 것은 요청 본문이었다. 위 처방의 «`RotateBotTokenDto` 요청 DTO 승격» 은 **하지 않았다** — `@Body()`
+      > 파라미터를 DTO 로 타입하면 전역 `CustomValidationPipe` 가 진입해 비-string `newBotToken` 의 `INVALID_BOT_TOKEN`(15-chat-channel §5.4)이
+      > `VALIDATION_ERROR` 로 바뀌고 여분 키가 400 이 된다(계약 변경). 대신 `workflows.execute` 선례대로 **문서 전용 DTO**
+      > `ChatChannelRotateBotTokenRequestDto`(`newBotToken` 필수 · `writeOnly`)를 `@ApiBody` 로만 쓰고 파라미터는 인라인 타입을 유지했다.
+      > `@Body()` 78개 전수로 같은 형태 둘(`continueExecution` · `receiveWebhook`)도 함께 광고했다. 모듈별 캐너리가 «파라미터가 DTO 로
+      > 타입되지 않았다» 를 고정한다. `/ai-review` `review/code/2026/09/26/17_55_14` · `18_17_12`(전수, 수렴). `--impl-done`
+      > `review/consistency/2026/09/26/18_25_08` BLOCK: NO. plan `plan/complete/rotate-bot-token-body.md`.
 
 - [ ] **`buildTriggerCallbackUrl` 과 `getAppBaseUrl()` 이 같은 fallback 을 두 벌 갖는다**
       (developer, 2026-09-11 등재 · `--impl-prep` `review/consistency/2026/09/11/17_39_32` W4).
@@ -5128,6 +5137,22 @@ field: T | null;
       > «선택 키를 필수로 잘못 선언» 회귀를 잡음을 확인했다(뮤턴트 `planStepId` → `@ApiProperty()`). 착수 `--impl-prep` 이 무관한 기존
       > spec 모순(ED-AI-19 PRD ↔ 상세 spec)으로 BLOCK: YES 를 내 같은 PR 에 planner 턴으로 PRD 표기를 정정했다
       > (`plan/complete/spec-draft-ed-ai-19-status.md`). `/ai-review` `review/code/2026/09/26/16_56_51`(1R 수렴). plan `plan/complete/assistant-e2e-contract-gaps.md`.
+
+- [ ] **요청 본문 스키마의 규칙과 가드 — «`@Body()` 가 DTO 클래스가 아니면 `@ApiBody` 필수» · 문서 전용 `*RequestDto` 명명** (planner → developer,
+      낮음, 2026-09-26 등재 · `plan/complete/rotate-bot-token-body.md` «안 하는 것» · `/ai-review` `review/code/2026/09/26/17_55_14` W3 · INFO4 ·
+      `--impl-prep` `review/consistency/2026/09/26/17_20_45` INFO2 · `--impl-done` `review/consistency/2026/09/26/18_25_08` W1 · INFO1).
+      `rotate-bot-token-body` 뒤 `@Body()` 78개 중 OpenAPI 가 요청 본문을 모르는 라우트는 0이다(DTO 클래스 74 · 인라인 + `@ApiBody` 4). 그런데
+      `spec/conventions/swagger.md` 에는 요청 본문 규칙이 없다 — §1-7 은 `Update` 접두만, §5-4 체크리스트도 요청 쪽은 이름만 본다. 새 라우트가
+      인라인 타입을 쓰면 다시 문서가 빈다.
+      1. **규칙(planner)**: §5-4 에 «요청 본문은 DTO 클래스로 받거나, 파라미터를 DTO 로 타입할 수 없으면(전역 파이프가 계약을 바꾼다) 문서 전용
+         DTO 를 `@ApiBody` 로 광고한다», §1-7 표에 문서 전용(비검증) top-level 요청 DTO 의 `<Domain><Action>RequestDto` 행. 선례
+         `ExecuteWorkflowDto` 는 접미가 없다 — 규칙이 둘 중 하나로 정한다.
+      2. **가드(developer)**: AST — `@Body()` 파라미터 타입이 클래스 참조가 아니면 같은 메서드에 `@ApiBody` 가 있어야 한다(`@ApiExcludeEndpoint()`
+         제외). 베이스라인 0.
+      3. **곁가지(developer, 낮음)**: `ContinueExecutionRequestDto` ↔ 응답 `ExecutionContinueResultDto` 어순이 반대다 — 문서 전용이라 리네임은
+         계약 영향이 없다(`--impl-done` INFO1). `shared/testing/swagger-probe.ts` `bodyParamDesignType` JSDoc 의 «Nest 메이저 업그레이드» 를
+         «마이너 · 패치 포함» 으로(딥 임포트라 caret 범위 안에서도 깨질 수 있다 — `18_17_12` INFO4).
+      **착수 조건**: 없음(여유 있을 때). 1 이 먼저 — 규칙 문단 없이 가드를 세우면 문서가 구현보다 좁다.
 
 - [ ] **`swagger.md` §2-4 상태 코드 표에 202 · 410 · 429 행이 없다** (planner, 낮음, 2026-09-26 등재 · `--impl-prep`
       `review/consistency/2026/09/26/15_08_57` convention_compliance W1). 표는 200 · 201 · 204 · 400 · 401 · 403 · 404 · 409 · 502 만 적는데,

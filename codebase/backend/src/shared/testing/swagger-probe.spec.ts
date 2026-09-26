@@ -1,7 +1,10 @@
-import { Controller, Get } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post } from '@nestjs/common';
+import { ROUTE_ARGS_METADATA } from '@nestjs/common/constants';
+import { RouteParamtypes } from '@nestjs/common/enums/route-paramtypes.enum';
 import { ApiOkResponse, ApiProperty } from '@nestjs/swagger';
 
 import {
+  bodyParamDesignType,
   buildSwaggerDocument,
   propertyOf,
   schemaOf,
@@ -66,5 +69,52 @@ describe('swagger-probe — 에러 경로', () => {
     // 실측: `createDocument` 는 이 경우 `{"schemas":{}}` 를 낸다 — `components` 가
     // `undefined` 인 상태는 도달하지 않는다. 도달하는 것은 **빈 레코드**다.
     expect(() => schemasOf(doc)).toThrow(/등재된 DTO 스키마가 없다/);
+  });
+});
+
+describe('bodyParamDesignType — 에러 경로', () => {
+  @Controller('body-probe')
+  class BodyProbeController {
+    @Post(':id')
+    run(@Param('id') _id: string, @Body() _body: unknown): void {}
+
+    @Post('none/:id')
+    noBody(@Param('id') _id: string): void {}
+
+    @Post('two')
+    twoBodies(@Body('a') _a: unknown, @Body('b') _b: unknown): void {}
+  }
+
+  it('[전제] 본문 자리를 파라미터 순서가 아니라 라우트 인자 메타데이터로 찾는다', () => {
+    // 첫 파라미터는 `string` 이다 — 순서로 찾으면 `String` 이 나온다.
+    expect(bodyParamDesignType(BodyProbeController, 'run')).toBe(Object);
+  });
+
+  it('`@Body()` 가 없으면 원인을 지목해 던진다', () => {
+    expect(() => bodyParamDesignType(BodyProbeController, 'noBody')).toThrow(
+      /noBody 에 @Body\(\) 가 없다/,
+    );
+  });
+
+  it('`@Body()` 가 둘 이상이면 첫 자리를 내지 않고 던진다', () => {
+    expect(() => bodyParamDesignType(BodyProbeController, 'twoBodies')).toThrow(
+      /@Body\(\) 가 2개다/,
+    );
+  });
+
+  it('`design:paramtypes` 가 없으면(데코레이터 메타데이터가 emit 되지 않은 메서드) 던진다', () => {
+    // 데코레이터 없는 메서드에는 `design:paramtypes` 가 없다 — 라우트 인자 메타데이터만 손으로 싣는다.
+    class Bare {
+      run(_body: unknown): void {}
+    }
+    Reflect.defineMetadata(
+      ROUTE_ARGS_METADATA,
+      { [`${RouteParamtypes.BODY}:0`]: { index: 0 } },
+      Bare,
+      'run',
+    );
+    expect(() => bodyParamDesignType(Bare, 'run')).toThrow(
+      /design:paramtypes 가 없다/,
+    );
   });
 });
