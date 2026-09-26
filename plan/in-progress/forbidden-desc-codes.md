@@ -96,11 +96,27 @@ started: 2026-09-26
 ## 체크리스트
 
 - [x] spec draft `--spec` · 반영 — `review/consistency/2026/09/26/11_12_13` BLOCK: NO · planner 커밋 `f262a638e`
-- [ ] `--impl-prep`
-- [ ] 헬퍼 · `lowestRequiredRole` · 가드(RED 확인)
-- [ ] 129곳 교체
-- [ ] 뮤턴트
-- [ ] CHANGELOG
+- [x] `--impl-prep` — 1회차 `review/consistency/2026/09/26/11_12_24` BLOCK: YES(§5-4 문구 — spec draft 가 고치는 그것) → 반영 뒤 재실행 `review/consistency/2026/09/26/11_28_17` BLOCK: NO
+- [x] 헬퍼 · `lowestRequiredRole` · 가드(RED 확인) — 적용 전 위반 **정확히 129**(전수와 일치), 대조군 · 모델 캐너리 · 기존 가드 테스트 GREEN
+- [x] 129곳 교체 — 자리별 가드 코드로 헬퍼 선택 · 옛 로컬 상수 별칭 없이 제거(grep 0) · `175387b65`
+- [x] 뮤턴트 — 12개. 11 예측대로 KILLED, **F7(클래스 단위 메타데이터 fallback 제거)은 예측대로 SURVIVED** → 대조군에 클래스
+  단위 `@Roles` 두 자리(물려받기 · 핸들러 우선)를 더해(`b03432baa`) 재실행 KILLED. 하네스 `PYTHONDONTWRITEBYTECODE=1` · `--no-cache` · cp 원복
+
+  | # | 뮤턴트 | 예측 / 실측 | 죽인 케이스 |
+  | --- | --- | --- | --- |
+  | F1 | `@Public` 무시 | KILLED / KILLED | 대조군 셋 · 모델 캐너리 |
+  | F2 | 워크스페이스 소비 무시 | KILLED / KILLED | **floor** · 대조군 · 캐너리 |
+  | F3 | `@WorkspaceParam` 무시 | KILLED / KILLED | 대조 수 · 모델 · 캐너리 |
+  | F4 | 문턱을 첫 역할로(가장 낮은 것 아님) | KILLED / KILLED | 대조군 · 모델 · 캐너리 |
+  | F5 | 설명 포함 판정 무력화 | KILLED / KILLED | **대조군 위반 목록만** — 저장소 스캔은 초록 |
+  | F6 | OpenAPI 제외 무시 | KILLED / KILLED | 본 판정 · 대조군 · 대조 수 |
+  | F7 | 클래스 단위 메타데이터 fallback 제거 | SURVIVED / SURVIVED → 대조군 보강 뒤 KILLED | 대조 수 · 모델 · 캐너리 |
+  | F8 | swagger 응답 키 오타 | KILLED / KILLED | 본 판정 · 대조군 |
+  | F9 | `lowestRequiredRole` 이 가장 높은 역할 | KILLED / KILLED | 단위 · **기존 `roles.guard` spec 셋** · 대조군 · 모델 |
+  | F10 | 헬퍼가 비멤버 문장을 뺌 | KILLED / KILLED | 헬퍼 spec · 본 판정 · 대조군 |
+  | F11 | 한 자리를 옛 문장으로 | KILLED / KILLED | 본 판정 |
+  | C1 | 캐너리가 비멤버만 찌름 | KILLED / KILLED | 캐너리(공허성 — 역할 코드가 한 번도 안 나온다) |
+- [x] CHANGELOG — 두 항목(403 설명 · 가드)
 - [ ] TEST WORKFLOW (lint · unit · build · e2e)
 - [ ] `/ai-review`
 - [ ] `--impl-done`
