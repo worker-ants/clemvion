@@ -97,6 +97,16 @@ DTO 를 둘지 — 을 아래 실측으로 정한다.
 - [x] DTO · e2e · 캐너리 · CHANGELOG · 트래커(§9.4 항목 갱신 · 프런트엔드 타입 항목 등재)
 - [x] 뮤턴트 표 실측 — 4개 전부 KILLED
 - [x] TEST WORKFLOW (lint · unit · build · e2e 413)
-- [ ] `/ai-review`
+- [x] `/ai-review` — `review/code/2026/09/26/23_25_01`(1R · router 10명 · forced 7 전원) Critical 0 · Warning 0 · 이 라운드
+      `codebase/` 수정 0 → 정지 규칙 충족. 판정 기준 커밋 `1fe801ff7`, 통합 전 트리는 HEAD 와 같았고 리뷰어 트랜스크립트에 저장소
+      쓰기가 없었다. INFO 처분:
+      - #9 `condition` 이 non-null 로 실리는 경로를 어느 테스트도 싣지 않는다 — 맞다. 선언이 열린 맵(`additionalProperties`)이라
+        검증자가 안을 보지 않으므로 non-null fixture 를 더해도 대조가 가르는 것은 «null 이 아닌 객체가 실린다» 뿐이다. 이 PR 이
+        고정하려는 축(원소 선언 · nullable)은 null 원소로 이미 서므로 추가하지 않는다.
+      - #10 `containerIndex` · `toolOwnerIndex` · `condition` 의 nullable 제거는 **미실측**이다. M3 와 같은 메커니즘이고 C 의
+        데이터에 세 필드가 `null` 인 원소가 있다(노드 5 중 `containerIndex` null 4 · `toolOwnerIndex` null 4 · 엣지 둘 다
+        `condition` null) — 같은 사유로 죽을 것으로 예측하지만 e2e 1회씩이라 돌리지 않았다.
+      - #1~#4(의도된 필드 중복 · 모듈 배치 · 파일 크기 · 명명 시제) · #5 · #6 · #7 · #8 · #11~#13 — 조치 불요(근거 주석 존재 · 기존
+        설계 · 이미 추적 중).
 - [ ] `--impl-done`
 - [ ] 트래커 항목 닫기
