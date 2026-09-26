@@ -792,6 +792,25 @@ describe('IntegrationsService', () => {
       );
     });
 
+    it('[형제 대조] MCP 필드 셋의 선언이 PreviewTestResultDto 와 같다', async () => {
+      // 두 엔드포인트는 같은 `dispatchTest` 결과를 돌려준다. 한쪽 선언만 약해져도(예: `preview` 를 열린 맵으로) 값 대조는
+      // 전부 통과한다 — 검증자는 열린 맵 안을 보지 않는다(뮤턴트로 확인). 두 선언의 갈림을 잡는 자리가 여기다.
+      const [ours, sibling] = await Promise.all([
+        contractForDto(TestConnectionResultDto),
+        contractForDto(PreviewTestResultDto),
+      ]);
+      for (const key of ['capabilities', 'serverInfo', 'preview']) {
+        // 양쪽에서 함께 사라져도 아래 대조는 통과한다 — 존재를 먼저 본다.
+        expect(ours.schema.properties?.[key]).toBeDefined();
+        expect(ours.schema.properties?.[key]).toStrictEqual(
+          sibling.schema.properties?.[key],
+        );
+        expect((ours.schema.required ?? []).includes(key)).toBe(
+          (sibling.schema.required ?? []).includes(key),
+        );
+      }
+    });
+
     it('pending_install guard is service_type-agnostic — same response for non-cafe24 row', async () => {
       // The guard checks status only; future providers adopting pending_install
       // inherit the protection automatically.

@@ -62,17 +62,27 @@ started: 2026-09-26
      검증자는 optional 필드가 통째로 빠져도 통과시킨다. 열린 맵 · `$ref` 밖의 변화는 보지 못한다.
 4. **CHANGELOG** — 항목 1(OpenAPI): `/integrations/:id/test` 응답 스키마가 MCP 성공 필드 셋을 광고한다.
 
-## 뮤턴트 (예측 — 실측은 구현 뒤 이 표에 채운다)
+## 뮤턴트 (저장소 파일 제자리 치환 → 두 spec 실행 → `shutil.copy` 복원. 커밋 `7138f02b7` 위, 캐너리 추가 뒤 재실행분 표기)
+
+(a)(b)(c) = 와이어 케이스. «서비스 성공» = `testConnection` MCP 성공 케이스. «형제 대조» = 아래 캐너리.
 
 | # | 뮤턴트 | 예측 | 실측 · 죽인 케이스 |
 |---|---|---|---|
-| M1 | DTO 에서 `capabilities` 선언 제거 | 서비스 성공 · 와이어 (a)(b) RED | |
-| M2 | DTO 에서 `preview` 선언 제거 | 서비스 성공 · 와이어 (a)(b) RED | |
-| M3 | `serverInfo` 를 `additionalProperties` 없는 선언으로 | 검증자 판정 확인 필요 — 열린 맵과 닫힌 빈 객체의 차이 | |
-| M4 | `testMcpTransport` 가 `preview` 를 복사하지 않음 | 계약 GREEN(optional) · 와이어 키 전수 RED | |
-| M5 | `McpTestConnectionService` 가 `toolCount` → `toolsCount` | 서비스 spec GREEN(테스터 mock) · 와이어 (a) RED | |
-| M6 | 와이어 앱에서 `TransformInterceptor` 제거 | 와이어 전 케이스 RED | |
-| M7 | `McpConnectionPreviewDto.toolCount` 를 required 로 | 와이어 (b) RED | |
+| M1 | DTO 에서 `capabilities` 선언 제거 | 서비스 성공 · 와이어 (a)(b) RED | KILLED — 서비스 성공 · (a) · (b) |
+| M2 | DTO 에서 `preview` 선언 제거 | 서비스 성공 · 와이어 (a)(b) RED | KILLED — 서비스 성공 · (a) · (b) |
+| M3 | `serverInfo` 선언에서 `additionalProperties` 제거 | 검증자 판정 확인 필요 | 캐너리 전 **SURVIVED** — 검증자는 properties 없는 object 를 원래 열린 것으로 본다(차이는 OpenAPI 산출물에만). 캐너리 뒤 KILLED — 형제 대조 |
+| M4 | `testMcpTransport` 가 `preview` 를 복사하지 않음 | 계약 GREEN(optional) · 와이어 키 전수 RED | KILLED — 서비스 성공(`toMatchObject`) · `previewTest` MCP 성공(같은 함수) · (a) · (b) |
+| M5 | `McpTestConnectionService` 가 `toolCount` → `toolsCount` | 서비스 spec GREEN(테스터 mock) · 와이어 (a) RED | KILLED — (a) 만. 서비스 spec 은 예측대로 GREEN |
+| M6 | 와이어 앱에서 `TransformInterceptor` 제거 | 와이어 전 케이스 RED | KILLED — (a) · (b) · (c) |
+| M7 | `McpConnectionPreviewDto.toolCount` 를 required 로 | 와이어 (b) RED | KILLED — (b) 만 |
+| M9 | `TestConnectionResultDto.preview` 를 열린 맵으로 약화 | (표에 없던 추가분) | 캐너리 전 **SURVIVED** — 값 대조는 전부 통과. 캐너리 뒤 KILLED — 형제 대조 |
+| M10 | `capabilities` 를 required 로 | — | KILLED — `pending_install` 실패 경로 · 형제 대조 · (c) |
+| M11 | 형제 쪽 `PreviewTestResultDto.serverInfo` 에서 `additionalProperties` 제거 | — | KILLED — 형제 대조 |
+
+**M3 · M9 가 캐너리를 만들었다.** DTO 주석이 «형제와 같게 둔다» 고 적었지만 그것을 강제하는 테스트가 없었다. 서비스 spec 에
+«[형제 대조] MCP 필드 셋의 선언이 `PreviewTestResultDto` 와 같다» 를 더했다. 세 필드마다 존재 · 스키마(`toStrictEqual`) ·
+required 여부를 본다. 양쪽에서 함께 사라지는 경우를 대비해 존재를 먼저 본다. jest 에는 swagger CLI 플러그인이 없으므로
+JSDoc 문구 차이(`preview` 의 «등록 UI» · «성공 시»)는 대조 대상이 아니다. 대조하는 것은 데코레이터가 만든 스키마다.
 
 ## `--impl-prep` 처분 (`review/consistency/2026/09/26/20_32_24` BLOCK: NO)
 
@@ -88,7 +98,7 @@ started: 2026-09-26
 
 - [x] `--impl-prep` — `review/consistency/2026/09/26/20_32_24` BLOCK: NO(W1 은 트래커 planner 항목)
 - [x] DTO · 서비스 축 · 와이어 축 · CHANGELOG
-- [ ] 뮤턴트 표 실측
+- [x] 뮤턴트 표 실측 — 10개 전부 KILLED(M3 · M9 는 캐너리 추가 뒤)
 - [ ] TEST WORKFLOW (lint · unit · build · e2e)
 - [ ] `/ai-review`
 - [ ] `--impl-done`
