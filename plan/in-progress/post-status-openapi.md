@@ -123,6 +123,6 @@ started: 2026-09-26
   | P2 | 초대 취소 광고를 204 로 되돌림 | KILLED / KILLED | 본 판정 |
   | P3 | 이양을 `HttpStatus.CREATED` 로 | KILLED / KILLED | 본 판정 |
 - [x] TEST WORKFLOW (lint · unit · build · e2e) — 2회차 전부 PASS: unit backend 478 스위트 · e2e 72 스위트 406건(1회차 e2e 3파일 RED → 위 항목)
-- [ ] `/ai-review`
+- [x] `/ai-review` — 정지 규칙(사전 선언) «Critical 0 · Warning 0 · 그 라운드 codebase 수정 0». 1라운드 `review/code/2026/09/26/10_00_52` Critical 0 · Warning 3 → 조치 `f5b10f57b`(성공 경로 e2e · `regenerate` 순서 · import 단언). 2라운드 `review/code/2026/09/26/10_23_50` Critical 0 · Warning 2 · codebase 수정 0 — 수렴(W1 기조치 · W2 가드 docstring 수치 오기는 수렴 예외로 트래커 등재)
 - [ ] `--impl-done`
 - [ ] 트래커 항목 닫기 · 신규 등재
