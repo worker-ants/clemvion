@@ -37,13 +37,13 @@ spec 커밋 `c8bf27c8e`: **필드와 같이 쓰지 않는다**(`review-citations
 4. CHANGELOG — 항목 3(가드): 응답 DTO JSDoc 리뷰 인용 가드의 동결 목록이 비었다(예외 0).
 5. 트래커 항목 닫기 + planner draft 를 `plan/complete/` 로(마무리 커밋).
 
-## 뮤턴트 (예측 — 실측은 구현 뒤 채운다)
+## 뮤턴트 (저장소 파일 제자리 치환 → 가드 spec 실행 → `shutil.copy` 복원. 커밋 `8ff74be40` 위)
 
 | # | 뮤턴트 | 예측 | 실측 · 죽인 케이스 |
 |---|---|---|---|
-| M1 | `TriggerWorkflowRefDto` 클래스 JSDoc 에 인용을 되돌림 | 래칫 «정확히 일치» RED | |
-| M2 | 인용을 **필드** JSDoc(`TriggerWorkflowRefDto.id`)에 넣음 | 래칫 RED | |
-| M3 | 가드가 클래스 JSDoc 을 보지 않게 함(클래스 검사 분기 제거) | 대조군 fixture 단언 RED(`ViolationClassCitationDto`) | |
+| M1 | `TriggerWorkflowRefDto` 클래스 JSDoc 에 인용을 되돌림 | 래칫 «정확히 일치» RED | KILLED — 래칫 «정확히 일치» 한 건 |
+| M2 | 인용을 **필드** JSDoc(`TriggerWorkflowRefDto.id`)에 넣음 | 래칫 RED | KILLED — 래칫 «정확히 일치» 한 건 |
+| M3 | 가드가 클래스 JSDoc 을 보지 않게 함(클래스 검사 분기 제거) | 대조군 fixture 단언 RED(`ViolationClassCitationDto`) | KILLED — 대조군 fixture 단언 한 건. 실코드 래칫은 이제 베이스라인 0 이라 이 뮤턴트를 못 잡는다 — 대조군이 그 축을 지킨다 |
 
 ## 체크리스트
 
@@ -52,7 +52,7 @@ spec 커밋 `c8bf27c8e`: **필드와 같이 쓰지 않는다**(`review-citations
       순방향 포인터 · `swagger.md` §3 제목 날짜 병기)은 spec 문구 제안이라 developer 가 손대지 않는다 — 앞의 것은 planner 턴이 추가한
       Rationale 새 절이 이미 «쓰인 시점에 맞았다 · 다음 날 반증» 을 적는다.
 - [x] 두 DTO · 가드 목록 · 가드 주석 · CHANGELOG
-- [ ] 뮤턴트 표 실측
+- [x] 뮤턴트 표 실측 — 3개 전부 KILLED
 - [ ] TEST WORKFLOW (lint · unit · build · e2e)
 - [ ] `/ai-review`
 - [ ] `--impl-done`

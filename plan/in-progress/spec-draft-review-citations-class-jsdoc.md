@@ -35,11 +35,11 @@ started: 2026-09-27
 
 현재 행:
 
-> | **DTO·컨트롤러의 `/** */` JSDoc** | **대상 아님** | 그 JSDoc 은 **공개 OpenAPI `description` 으로 나간다.** 리뷰 인용은 소비자가 읽을 문장이 아니므로 애초에 거기 쓰지 않는다 — [`swagger.md` §3](./swagger.md) 이 정한 대로 **바로 위 `//` 주석**에 적고, 그 `//` 주석은 위 첫 행에 따라 이 규약을 따른다 |
+> | **DTO·컨트롤러의 `/** */` JSDoc** | **대상 아님** | 그 JSDoc 은 **공개 OpenAPI `description` 으로 나간다.** 리뷰 인용은 소비자가 읽을 문장이 아니므로 애초에 거기 쓰지 않는다 — [`swagger.md` §3](../../spec/conventions/swagger.md) 이 정한 대로 **바로 위 `//` 주석**에 적고, 그 `//` 주석은 위 첫 행에 따라 이 규약을 따른다 |
 
 바꾼 두 행:
 
-> | **DTO 필드 · 컨트롤러의 `/** */` JSDoc** | **대상 아님** | 그 JSDoc 은 **공개 OpenAPI `description` 으로 나간다**(DTO 필드: swagger CLI 플러그인이 프로퍼티별 `description` 으로 싣는다). 리뷰 인용은 소비자가 읽을 문장이 아니므로 애초에 거기 쓰지 않는다 — [`swagger.md` §3](./swagger.md) 이 정한 대로 **바로 위 `//` 주석**에 적고, 그 `//` 주석은 위 첫 행에 따라 이 규약을 따른다 |
+> | **DTO 필드 · 컨트롤러의 `/** */` JSDoc** | **대상 아님** | 그 JSDoc 은 **공개 OpenAPI `description` 으로 나간다**(DTO 필드: swagger CLI 플러그인이 프로퍼티별 `description` 으로 싣는다). 리뷰 인용은 소비자가 읽을 문장이 아니므로 애초에 거기 쓰지 않는다 — [`swagger.md` §3](../../spec/conventions/swagger.md) 이 정한 대로 **바로 위 `//` 주석**에 적고, 그 `//` 주석은 위 첫 행에 따라 이 규약을 따른다 |
 > | **응답 DTO 클래스의 `/** */` JSDoc** | **대상 아님** | 필드와 같이 **쓰지 않는다.** 지금 플러그인은 클래스 JSDoc 을 스키마에 싣지 않는다(프로퍼티 메타데이터만 만든다 — [Rationale](#3--응답-dto-클래스-jsdoc-도-인용을-쓰지-않는다-2026-09-27)). 그래도 필드 행과 같은 규칙을 둔다: 응답 DTO 파일의 `/** */` 를 **공개 문서 채널 하나**로 다룬다. 회피처도 같다 — 바로 위 `//` 주석 |
 
 ### `## Rationale` — 절 하나 추가
@@ -77,7 +77,7 @@ started: 2026-09-27
 
 > 플러그인이 `introspectComments` 로 **프로퍼티** JSDoc 을 `description` 에 그대로 싣는다(문서 상단).
 > 즉 DTO 필드의 `/** ... */` 는 **API 소비자가 읽는 문장**이다. 클래스 JSDoc 은 플러그인이 싣지 않지만 같은 분리를
-> 따른다 — 응답 DTO 파일의 `/** */` 는 한 채널로 다룬다([`review-citations.md` §3](./review-citations.md)).
+> 따른다 — 응답 DTO 파일의 `/** */` 는 한 채널로 다룬다([`review-citations.md` §3](../../spec/conventions/review-citations.md)).
 
 ## 구현 위임 (developer, 같은 PR)
 
