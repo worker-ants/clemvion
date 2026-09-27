@@ -14,10 +14,13 @@ import { FolderDto } from '../src/modules/folders/dto/responses/folder-response.
 /**
  * e2e: 폴더 API 의 응답 계약 — `GET/POST /folders` · `GET/PATCH/DELETE /folders/:id`.
  *
- * 이 모듈엔 e2e 가 없어 `FolderDto` 를 실제 응답과 대조한 적이 없었다(§5.4 응답-계약 스윕 2차). 대조를 걸면서 드러난 것:
- * 루트 폴더의 POST 응답에 `parentId` **키가 없었다**. TypeORM 은 INSERT 뒤 default 가 있는 컬럼만 되읽는데, 루트 폴더는
- * `parentId` 없이 만들어졌기 때문이다. 같은 폴더를 GET 하면 `null` 이었다 — 같은 리소스가 응답마다 부재 표현이 달랐다.
- * 서비스가 이제 `null` 을 명시해 저장하고, DTO 는 `parentId` 를 항상 실리는 필드(§5.4 기본형)로 광고한다.
+ * 이 모듈엔 e2e 가 없어 `FolderDto` 를 실제 응답과 대조한 적이 없었다(§5.4 응답-계약 스윕 2차). 대조를 걸면서 드러난 것은
+ * PATCH 쪽이다 — 일부 필드만 보내면 보내지 않은 필드가 응답에서 사라지거나 틀린 값으로 실렸다(C · E). 원인과 처방은
+ * `folders.service.ts` `update()` 주석에 있다.
+ *
+ * POST 는 이격이 없었다 — 루트 폴더도 생성 응답에 `parentId: null` 이 실린다. 서비스 코드가 아니라 TypeORM 이 저장 뒤
+ * nullable 컬럼의 `undefined` 를 `null` 로 채우기 때문이다(`SubjectExecutor.updateSpecialColumnsInInsertedAndUpdatedEntities`).
+ * A 가 그 형태를 고정한다 — 저장 경로가 바뀌어 그 채움을 잃으면 여기서 드러난다.
  *
  * 계층 무결성(깊이 · 순환 · 다른 워크스페이스 부모)은 단위 테스트(`folders.service.spec.ts`)가 덮는다 — 여기는 응답 형태만 본다.
  */
@@ -61,7 +64,6 @@ describe('Folders (e2e)', () => {
 
     // 양성 단언이 먼저다 — 대조는 선언을 기준으로 보므로, 선언이 optional 이면 키가 빠져도 통과한다.
     expect(res.body.data).toHaveProperty('parentId', null);
-    // default 가 있는 컬럼은 INSERT 뒤 되읽힌다 — 같은 응답에서 두 컬럼의 차이를 함께 고정한다.
     expect(res.body.data).toHaveProperty('sortOrder', 0);
     assertMatchesContract(res.body.data, folderContract);
   });
@@ -132,5 +134,37 @@ describe('Folders (e2e)', () => {
 
     const after = await authed(request(BASE_URL).get(`/api/folders/${rootId}`));
     expect(after.status).toBe(404);
+  });
+
+  it('E. 하위 폴더의 이름만 수정해도 응답의 parentId · sortOrder 는 저장된 값이다', async () => {
+    const root = await authed(request(BASE_URL).post('/api/folders')).send({
+      name: uniqueName('root-e'),
+    });
+    const rootId = (root.body.data as { id: string }).id;
+    // sortOrder 를 기본값(0)과 다르게 둬야 «저장된 값» 과 «기본값» 이 갈린다.
+    const child = await authed(request(BASE_URL).post('/api/folders')).send({
+      name: uniqueName('child-e'),
+      parentId: rootId,
+      sortOrder: 2,
+    });
+    expect(child.status).toBe(201);
+    const childId = (child.body.data as { id: string }).id;
+
+    const patched = await authed(
+      request(BASE_URL).patch(`/api/folders/${childId}`),
+    ).send({ name: uniqueName('renamed-e') });
+    expect(patched.status).toBe(200);
+    // 두 필드를 한 단언에 묶는다 — 실패하면 둘의 실제 값이 함께 보인다.
+    const body = patched.body.data as Record<string, unknown>;
+    expect({
+      parentId: body.parentId,
+      sortOrder: body.sortOrder,
+    }).toStrictEqual({ parentId: rootId, sortOrder: 2 });
+    assertMatchesContract(patched.body.data, folderContract);
+
+    // 저장된 값은 처음부터 멀쩡했다 — 틀렸던 것은 응답뿐이다.
+    const one = await authed(request(BASE_URL).get(`/api/folders/${childId}`));
+    expect(one.body.data).toHaveProperty('parentId', rootId);
+    expect(one.body.data).toHaveProperty('sortOrder', 2);
   });
 });
