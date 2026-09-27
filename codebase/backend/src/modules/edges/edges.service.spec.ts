@@ -126,7 +126,7 @@ describe('EdgesService', () => {
       mockNodeRepo.find.mockResolvedValue([]);
       const err = await service
         .create('wf-1', WS, { sourceNodeId: 'a', targetNodeId: 'b' } as any)
-        .catch((e: unknown) => e);
+        .catch((err_: unknown) => err_);
       expect(err).toBeInstanceOf(BadRequestException);
       expect((err as BadRequestException).getResponse()).toMatchObject({
         code: 'VALIDATION_ERROR',
@@ -142,7 +142,7 @@ describe('EdgesService', () => {
       mockNodeRepo.find.mockResolvedValue([{ id: 'a' }]);
       const err = await service
         .create('wf-1', WS, { sourceNodeId: 'a', targetNodeId: 'b' } as any)
-        .catch((e: unknown) => e);
+        .catch((err_: unknown) => err_);
       expect(
         ((err as BadRequestException).getResponse() as { details: unknown })
           .details,

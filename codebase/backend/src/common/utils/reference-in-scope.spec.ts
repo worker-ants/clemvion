@@ -28,8 +28,8 @@ describe('throwInvalidReferences', () => {
           message: 'Target node not found in this canvas',
         },
       ]);
-    } catch (e) {
-      caught = e;
+    } catch (err) {
+      caught = err;
     }
     expect(caught).toBeInstanceOf(BadRequestException);
     expect((caught as BadRequestException).getResponse()).toStrictEqual({
@@ -74,7 +74,7 @@ describe('assertReferenceInScope', () => {
       where,
       'workflowId',
       'Workflow not found in this workspace',
-    ).catch((e: unknown) => e);
+    ).catch((err_: unknown) => err_);
     expect((err as BadRequestException).getResponse()).toStrictEqual({
       code: 'VALIDATION_ERROR',
       message: 'Workflow not found in this workspace',

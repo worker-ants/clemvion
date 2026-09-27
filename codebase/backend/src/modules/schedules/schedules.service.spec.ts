@@ -288,7 +288,7 @@ describe('SchedulesService.runNow', () => {
           } as unknown as CreateScheduleDto,
           'u-spec',
         )
-        .catch((e: unknown) => e);
+        .catch((err_: unknown) => err_);
       expect(workflowRepo.exists).toHaveBeenLastCalledWith({
         where: { id: 'wf-1', workspaceId: 'ws-1' },
       });

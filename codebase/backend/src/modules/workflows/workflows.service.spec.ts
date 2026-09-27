@@ -379,7 +379,7 @@ describe('WorkflowsService', () => {
           { folderId: 'other-ws-folder' } as UpdateWorkflowDto,
           'u-spec',
         )
-        .catch((e: unknown) => e);
+        .catch((err_: unknown) => err_);
       expect(mockFolderRepository.exists).toHaveBeenLastCalledWith({
         where: { id: 'other-ws-folder', workspaceId: 'ws-uuid-1' },
       });
@@ -584,7 +584,7 @@ describe('WorkflowsService', () => {
           name: 'New Workflow',
           folderId: 'other-ws-folder',
         })
-        .catch((e: unknown) => e);
+        .catch((err_: unknown) => err_);
       expect(mockFolderRepository.exists).toHaveBeenLastCalledWith({
         where: { id: 'other-ws-folder', workspaceId: 'ws-uuid-1' },
       });
@@ -1827,7 +1827,7 @@ describe('WorkflowsService', () => {
         } as unknown as SaveCanvasDto;
         const err = await service
           .saveCanvas('wf-uuid-1', 'ws-uuid-1', 'user-uuid-1', dto)
-          .catch((e: unknown) => e);
+          .catch((err_: unknown) => err_);
         expect(
           (
             err as { response: { details: Array<{ field: string }> } }
@@ -1852,7 +1852,7 @@ describe('WorkflowsService', () => {
         } as unknown as SaveCanvasDto;
         const err = await service
           .saveCanvas('wf-uuid-1', 'ws-uuid-1', 'user-uuid-1', dto)
-          .catch((e: unknown) => e);
+          .catch((err_: unknown) => err_);
         expect(mockTransactionManager.find).toHaveBeenNthCalledWith(2, Node, {
           where: { id: In(['n-trig', 'n-taken']) },
           select: { id: true },

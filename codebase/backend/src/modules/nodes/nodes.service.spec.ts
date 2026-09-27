@@ -163,7 +163,7 @@ describe('NodesService', () => {
           label: 'HTTP Request',
           containerId: 'box-other',
         })
-        .catch((e: unknown) => e);
+        .catch((err_: unknown) => err_);
       expect(mockRepo.exists).toHaveBeenCalledWith({
         where: { id: 'box-other', workflowId: 'wf-1' },
       });
@@ -252,7 +252,7 @@ describe('NodesService', () => {
       mockRepo.exists.mockResolvedValue(false);
       const err = await service
         .update('n1', WS, { toolOwnerId: 'agent-other' })
-        .catch((e: unknown) => e);
+        .catch((err_: unknown) => err_);
       expect(mockRepo.exists).toHaveBeenCalledWith({
         where: { id: 'agent-other', workflowId: 'wf-1' },
       });

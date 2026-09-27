@@ -99,7 +99,7 @@ describe('FoldersService', () => {
       mockRepository.exists.mockResolvedValueOnce(false);
       const err = await service
         .create('ws-uuid-1', { name: 'x', parentId: 'other-ws-folder' })
-        .catch((e: unknown) => e);
+        .catch((err_: unknown) => err_);
       expect(mockRepository.exists).toHaveBeenLastCalledWith({
         where: { id: 'other-ws-folder', workspaceId: 'ws-uuid-1' },
       });
@@ -187,7 +187,7 @@ describe('FoldersService', () => {
       mockRepository.exists.mockResolvedValueOnce(false); // 부모가 이 워크스페이스에 없음
       const err = await service
         .update('f1', 'ws-uuid-1', { parentId: 'other-ws-folder' })
-        .catch((e: unknown) => e);
+        .catch((err_: unknown) => err_);
       expect(mockRepository.exists).toHaveBeenLastCalledWith({
         where: { id: 'other-ws-folder', workspaceId: 'ws-uuid-1' },
       });
