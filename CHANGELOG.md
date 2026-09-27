@@ -23,6 +23,23 @@
 > 07 37% · 08 30% · 09(25일까지) 49% 였다(나중 PR 의 백필은 세지 않았다). 여기 없다고 그 변경이 없었던 것은 아니다 —
 > `git log` 가 정본이다.
 
+## Unreleased — 요청이 다른 워크스페이스의 워크플로 · 폴더 · 노드를 가리키면 400 이다 (트리거로 남의 워크플로가 실행되던 결함)
+
+쓰기 요청 본문에 **다른 워크스페이스**(구조 참조는 **다른 워크플로**)의 행 id 를 넣어도 그대로 저장됐다. 이제 저장 전에 거부한다 —
+400 `VALIDATION_ERROR` + `details[].field`(없는 id 와 남의 id 는 구분하지 않는다). 규칙: `spec/1-data-model.md` §1.1.
+
+- **트리거 · 스케줄 생성의 `workflowId`** — 다른 워크스페이스의 워크플로 id 로 트리거를 만들면 201 이었고, 그 웹훅을 부르면 **그
+  워크플로가 실행**됐다(실행 엔진이 워크플로를 id 로만 읽어 그쪽 워크스페이스의 실행 · 자격증명으로 돈다). 트리거 목록에는 그 워크플로가
+  실렸다. 이제 400.
+- **캔버스 저장(`POST /workflows/:id/save`)** — 자기 워크플로에 없는 노드 id 를 실으면 그 id 의 **다른 워크플로 노드 행을 이쪽으로 옮기고
+  덮어썼다**. 이제 `nodes[i].id` 로 400. `containerId` · `toolOwnerId` · 엣지 끝점이 이번 페이로드에 없는 노드를 가리켜도 400(종전 저장
+  또는 500).
+- **그 밖의 참조** — 알림 규칙 생성 `workflowId`, 워크플로 생성 · 수정 `folderId`, 폴더 생성 `parentId`, 노드 생성 · 수정 `containerId` ·
+  `toolOwnerId`, 엣지 생성 끝점(종전 없는 id 는 500), 폴더 수정 `parentId` 의 거부에도 `details[].field` 가 실린다.
+- **모델 설정 참조는 404 `MODEL_CONFIG_NOT_FOUND`** — 어시스턴트 세션의 `llmConfigId`, 지식 베이스의 `extractionLlmConfigId` · `rerankConfigId`
+  · `rerankLlmConfigId` 는 쓰는 시점에만 걸러져 끊긴 참조로 저장됐다(그래프 추출 실패 · rerank 조용한 강등). 같은 요청의
+  `embeddingModelConfigId` 와 같은 코드다.
+
 ## Unreleased — PATCH 에 null 을 보내면 500 대신 400 이다 (값을 지울 수 없는 필드)
 
 수정 API(`PATCH`) 에 **값을 지울 수 없는 필드**(이름 · 활성 여부 · 태그 · 설정 등)를 `null` 로 보내면 서버 오류(500)가 났다. 이제

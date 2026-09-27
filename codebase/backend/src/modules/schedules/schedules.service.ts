@@ -13,6 +13,8 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Schedule } from './entities/schedule.entity';
 import { Trigger } from '../triggers/entities/trigger.entity';
+import { Workflow } from '../workflows/entities/workflow.entity';
+import { assertReferenceInScope } from '../../common/utils/reference-in-scope';
 import {
   acquireTriggerConfigLock,
   TRIGGER_DELETE_LOCK_TIMEOUT_MS,
@@ -41,6 +43,8 @@ export class SchedulesService {
     private readonly scheduleRepository: Repository<Schedule>,
     @InjectRepository(Trigger)
     private readonly triggerRepository: Repository<Trigger>,
+    @InjectRepository(Workflow)
+    private readonly workflowRepository: Repository<Workflow>,
     private readonly workspacesService: WorkspacesService,
     private readonly executionEngineService: ExecutionEngineService,
     private readonly auditLogsService: AuditLogsService,
@@ -179,6 +183,14 @@ export class SchedulesService {
     dto: CreateScheduleDto,
     userId: string,
   ): Promise<Schedule> {
+    // 연결 트리거의 workflow_id 가 된다 — 같은 워크스페이스의 워크플로만(spec 1-data-model §1.1). 종전엔 다른 워크스페이스의
+    // 워크플로가 이 스케줄로 그쪽 실행으로 돌았다(cron · 지금 실행 모두 워크플로를 id 로만 읽는다).
+    await assertReferenceInScope(
+      this.workflowRepository,
+      { id: dto.workflowId, workspaceId },
+      'workflowId',
+      'Workflow not found in this workspace',
+    );
     // Auto-create linked trigger (type=schedule)
     const trigger = this.triggerRepository.create({
       workspaceId,

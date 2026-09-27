@@ -6,6 +6,10 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import { In, Not, Repository } from 'typeorm';
 import { omitUndefined } from '../../common/utils/omit-undefined';
+import {
+  type InvalidReference,
+  throwInvalidReferences,
+} from '../../common/utils/reference-in-scope';
 import { Node } from './entities/node.entity';
 import { Workflow } from '../workflows/entities/workflow.entity';
 import { assertWorkflowInWorkspace } from '../workflows/workflow-ownership.util';
@@ -47,6 +51,7 @@ export class NodesService {
       workspaceId,
     );
     await this.assertLabelUnique(workflowId, dto.label);
+    await this.assertPlacementInWorkflow(workflowId, dto);
     const node = this.nodeRepository.create({ ...dto, workflowId });
     return this.saveWithUniqueConstraint(node);
   }
@@ -73,6 +78,7 @@ export class NodesService {
     if (dto.label !== undefined && dto.label !== node.label) {
       await this.assertLabelUnique(node.workflowId, dto.label, id);
     }
+    await this.assertPlacementInWorkflow(node.workflowId, dto);
     // 보내지 않은 필드는 뺀다(이유는 `omitUndefined` JSDoc). 빼지 않으면 응답에 `description` · `containerId` 가
     // null 로 실리고 위치 · 설정 · 비활성 여부가 빠졌다 — `test/patch-partial-body.e2e-spec.ts` 가 고정한다.
     Object.assign(node, omitUndefined(dto));
@@ -81,6 +87,35 @@ export class NodesService {
     // 실렸다(`test/patch-partial-body.e2e-spec.ts` 의 계약 대조가 드러냈다).
     const { workflow: _workflow, ...response } = saved;
     return response;
+  }
+
+  /**
+   * `containerId` · `toolOwnerId` 는 **같은 워크플로**의 노드만 가리킨다(spec 1-data-model §1.1). 종전엔 다른 워크플로 — 다른
+   * 워크스페이스 포함 — 의 노드를 그대로 저장했다(엔진은 워크플로 단위로 읽은 노드 안에서만 매칭해 그 노드는 조용히 실행되지 않았다).
+   * type · 순환 검사는 여기서 하지 않는다 — 실행 시점 몫이다(spec data-flow/11-workflow §1.2).
+   */
+  private async assertPlacementInWorkflow(
+    workflowId: string,
+    dto: { containerId?: string | null; toolOwnerId?: string | null },
+  ): Promise<void> {
+    const refs = [
+      { field: 'containerId', id: dto.containerId, what: 'Container' },
+      { field: 'toolOwnerId', id: dto.toolOwnerId, what: 'Tool owner' },
+    ];
+    const invalid: InvalidReference[] = [];
+    for (const ref of refs) {
+      if (ref.id == null) continue;
+      const found = await this.nodeRepository.exists({
+        where: { id: ref.id, workflowId },
+      });
+      if (!found) {
+        invalid.push({
+          field: ref.field,
+          message: `${ref.what} node not found in this workflow`,
+        });
+      }
+    }
+    if (invalid.length > 0) throwInvalidReferences(invalid);
   }
 
   async remove(id: string, workspaceId: string): Promise<void> {

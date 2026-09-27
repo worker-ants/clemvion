@@ -6,6 +6,7 @@ import { DeleteResult, Repository } from 'typeorm';
 import { SchedulesService } from './schedules.service';
 import { Schedule } from './entities/schedule.entity';
 import { Trigger } from '../triggers/entities/trigger.entity';
+import { Workflow } from '../workflows/entities/workflow.entity';
 import { withTransactionMock } from '../triggers/__test-utils__/trigger-transaction-mock';
 import { WorkspacesService } from '../workspaces/workspaces.service';
 import { CreateScheduleDto } from './dto/create-schedule.dto';
@@ -19,6 +20,7 @@ describe('SchedulesService.runNow', () => {
   let auditLogs: { record: jest.Mock };
   let scheduleRepo: jest.Mocked<Repository<Schedule>>;
   let triggerRepo: jest.Mocked<Repository<Trigger>>;
+  let workflowRepo: { exists: jest.Mock };
   /**
    * schedule 삭제가 trigger 행을 지우기까지의 **순서**: 상한 → 락 → 삭제.
    *
@@ -56,6 +58,11 @@ describe('SchedulesService.runNow', () => {
             delete: jest.fn().mockResolvedValue({ affected: 1 }),
             createQueryBuilder: jest.fn(),
           },
+        },
+        {
+          provide: getRepositoryToken(Workflow),
+          // 생성의 workflowId 소속 검사(spec 1-data-model §1.1) — 기본은 같은 워크스페이스의 워크플로.
+          useValue: { exists: jest.fn().mockResolvedValue(true) },
         },
         {
           provide: getRepositoryToken(Trigger),
@@ -117,6 +124,7 @@ describe('SchedulesService.runNow', () => {
     service = moduleRef.get(SchedulesService);
     scheduleRepo = moduleRef.get(getRepositoryToken(Schedule));
     triggerRepo = moduleRef.get(getRepositoryToken(Trigger));
+    workflowRepo = moduleRef.get(getRepositoryToken(Workflow));
     workspacesService = moduleRef.get(WorkspacesService);
     engine = moduleRef.get(ExecutionEngineService);
     runner = moduleRef.get(ScheduleRunnerService);
@@ -266,6 +274,31 @@ describe('SchedulesService.runNow', () => {
       scheduleRepo.save.mockImplementation(
         async (x) => x as unknown as Schedule,
       );
+    });
+
+    // spec 1-data-model §1.1 — 연결 트리거의 workflow_id 가 된다. 종전엔 다른 워크스페이스의 워크플로가 이 스케줄로 그쪽 실행으로 돌았다.
+    it('workflowId 가 이 워크스페이스의 워크플로가 아니면 400 이고 트리거를 만들지 않는다', async () => {
+      workflowRepo.exists.mockResolvedValueOnce(false);
+      const err = await service
+        .create(
+          'ws-1',
+          {
+            ...baseDto,
+            timezone: 'Asia/Seoul',
+          } as unknown as CreateScheduleDto,
+          'u-spec',
+        )
+        .catch((e: unknown) => e);
+      expect(workflowRepo.exists).toHaveBeenLastCalledWith({
+        where: { id: 'wf-1', workspaceId: 'ws-1' },
+      });
+      expect(err).toMatchObject({
+        response: {
+          code: 'VALIDATION_ERROR',
+          details: [{ field: 'workflowId', code: 'INVALID_FIELD' }],
+        },
+      });
+      expect(triggerRepo.save).not.toHaveBeenCalled();
     });
 
     it('dto.timezone 명시(유효) 시 우선 (workspace 미조회)', async () => {

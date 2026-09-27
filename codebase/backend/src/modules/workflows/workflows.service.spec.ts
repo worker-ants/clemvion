@@ -2,7 +2,7 @@ import { AuditLogsService } from '../audit-logs/audit-logs.service';
 import { Logger } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
-import { DataSource } from 'typeorm';
+import { DataSource, In } from 'typeorm';
 import {
   BadRequestException,
   ConflictException,
@@ -13,6 +13,7 @@ import { Workflow } from './entities/workflow.entity';
 import { Node, NodeCategory } from '../nodes/entities/node.entity';
 import { Edge, EdgeType } from '../edges/entities/edge.entity';
 import { Integration } from '../integrations/entities/integration.entity';
+import { Folder } from '../folders/entities/folder.entity';
 import { WorkflowVersionsService } from '../workflow-versions/workflow-versions.service';
 import { NodeComponentRegistry } from '../../nodes/core/node-component.registry';
 import { ModelConfigService } from '../model-config/model-config.service';
@@ -126,6 +127,11 @@ describe('WorkflowsService', () => {
     find: jest.fn().mockResolvedValue([]),
   };
 
+  // folderId 소속 검사(spec 1-data-model §1.1) — 기본은 같은 워크스페이스의 폴더.
+  const mockFolderRepository = {
+    exists: jest.fn().mockResolvedValue(true),
+  };
+
   const mockTransactionManager = {
     save: jest
       .fn()
@@ -187,6 +193,7 @@ describe('WorkflowsService', () => {
           provide: getRepositoryToken(Integration),
           useValue: mockIntegrationRepository,
         },
+        { provide: getRepositoryToken(Folder), useValue: mockFolderRepository },
         { provide: DataSource, useValue: mockDataSource },
         {
           provide: WorkflowVersionsService,
@@ -355,6 +362,31 @@ describe('WorkflowsService', () => {
       await expect(
         service.findById('nonexistent', 'ws-uuid-1'),
       ).rejects.toThrow(NotFoundException);
+    });
+  });
+
+  describe('update — folderId 소속 검사 (spec 1-data-model §1.1)', () => {
+    it('folderId 가 이 워크스페이스의 폴더가 아니면 400 이고 저장하지 않는다', async () => {
+      mockRepository.findOne.mockResolvedValueOnce({
+        id: 'wf-uuid-1',
+        workspaceId: 'ws-uuid-1',
+      });
+      mockFolderRepository.exists.mockResolvedValueOnce(false);
+      const err = await service
+        .update(
+          'wf-uuid-1',
+          'ws-uuid-1',
+          { folderId: 'other-ws-folder' } as UpdateWorkflowDto,
+          'u-spec',
+        )
+        .catch((e: unknown) => e);
+      expect(mockFolderRepository.exists).toHaveBeenLastCalledWith({
+        where: { id: 'other-ws-folder', workspaceId: 'ws-uuid-1' },
+      });
+      expect(err).toMatchObject({
+        response: { details: [{ field: 'folderId', code: 'INVALID_FIELD' }] },
+      });
+      expect(mockRepository.save).not.toHaveBeenCalled();
     });
   });
 
@@ -542,6 +574,36 @@ describe('WorkflowsService', () => {
       );
 
       expect(result).toBeDefined();
+    });
+
+    // spec 1-data-model §1.1 — 종전엔 다른 워크스페이스의 폴더를 그대로 저장했다(FK SET NULL · duplicate 가 복사).
+    it('folderId 가 이 워크스페이스의 폴더가 아니면 400 이고 트랜잭션을 열지 않는다', async () => {
+      mockFolderRepository.exists.mockResolvedValueOnce(false);
+      const err = await service
+        .create('ws-uuid-1', 'user-uuid-1', {
+          name: 'New Workflow',
+          folderId: 'other-ws-folder',
+        })
+        .catch((e: unknown) => e);
+      expect(mockFolderRepository.exists).toHaveBeenLastCalledWith({
+        where: { id: 'other-ws-folder', workspaceId: 'ws-uuid-1' },
+      });
+      expect(err).toMatchObject({
+        response: {
+          code: 'VALIDATION_ERROR',
+          details: [{ field: 'folderId', code: 'INVALID_FIELD' }],
+        },
+      });
+      expect(mockDataSource.transaction).not.toHaveBeenCalled();
+    });
+
+    it('folderId 가 없거나 null 이면 조회하지 않는다', async () => {
+      await service.create('ws-uuid-1', 'user-uuid-1', { name: 'A' });
+      await service.create('ws-uuid-1', 'user-uuid-1', {
+        name: 'B',
+        folderId: null,
+      });
+      expect(mockFolderRepository.exists).not.toHaveBeenCalled();
     });
   });
 
@@ -1193,6 +1255,10 @@ describe('WorkflowsService', () => {
             provide: getRepositoryToken(Integration),
             useValue: mockIntegrationRepository,
           },
+          {
+            provide: getRepositoryToken(Folder),
+            useValue: mockFolderRepository,
+          },
           { provide: DataSource, useValue: mockDataSource },
           {
             provide: WorkflowVersionsService,
@@ -1722,6 +1788,101 @@ describe('WorkflowsService', () => {
         await expect(
           service.saveCanvas('wf-uuid-1', 'ws-uuid-1', 'user-uuid-1', dto),
         ).resolves.toBeDefined();
+      });
+    });
+
+    // spec 1-data-model §1.1 — 노드 간 참조는 이번 페이로드의 노드만, 새 노드 id 는 어느 행도 쓰지 않는 값만.
+    describe('참조의 소속', () => {
+      const trigger = {
+        id: 'n-trig',
+        type: 'manual_trigger',
+        category: NodeCategory.TRIGGER,
+        label: 'Start',
+        positionX: 0,
+        positionY: 0,
+        config: {},
+      };
+      const code = (id: string, label: string, extra = {}) => ({
+        id,
+        type: 'code',
+        category: NodeCategory.DATA,
+        label,
+        positionX: 100,
+        positionY: 0,
+        config: {},
+        ...extra,
+      });
+
+      it('페이로드 밖을 가리키는 containerId · toolOwnerId · 엣지 끝점을 전부 싣고, 트랜잭션을 열지 않는다', async () => {
+        const dto = {
+          nodes: [
+            trigger,
+            code('n-a', 'A', { containerId: 'elsewhere-1' }),
+            code('n-b', 'B', { toolOwnerId: 'elsewhere-2' }),
+          ],
+          edges: [
+            { sourceNodeId: 'n-trig', targetNodeId: 'n-a' },
+            { sourceNodeId: 'elsewhere-3', targetNodeId: 'n-b' },
+          ],
+        } as unknown as SaveCanvasDto;
+        const err = await service
+          .saveCanvas('wf-uuid-1', 'ws-uuid-1', 'user-uuid-1', dto)
+          .catch((e: unknown) => e);
+        expect(
+          (
+            err as { response: { details: Array<{ field: string }> } }
+          ).response.details.map((d) => d.field),
+        ).toStrictEqual([
+          'nodes[1].containerId',
+          'nodes[2].toolOwnerId',
+          'edges[1].sourceNodeId',
+        ]);
+        expect(mockDataSource.transaction).not.toHaveBeenCalled();
+      });
+
+      it('이 워크플로에 없는 노드 id 가 다른 행이 쓰는 id 면 400 이고 저장하지 않는다', async () => {
+        // 1차 find = 이 워크플로의 기존 노드(없음), 2차 find = 새 id 중 이미 쓰이는 것.
+        mockTransactionManager.find = jest
+          .fn()
+          .mockResolvedValueOnce([])
+          .mockResolvedValueOnce([{ id: 'n-taken' }]);
+        const dto = {
+          nodes: [trigger, code('n-taken', 'Taken')],
+          edges: [],
+        } as unknown as SaveCanvasDto;
+        const err = await service
+          .saveCanvas('wf-uuid-1', 'ws-uuid-1', 'user-uuid-1', dto)
+          .catch((e: unknown) => e);
+        expect(mockTransactionManager.find).toHaveBeenNthCalledWith(2, Node, {
+          where: { id: In(['n-trig', 'n-taken']) },
+          select: { id: true },
+        });
+        expect(err).toMatchObject({
+          response: {
+            code: 'VALIDATION_ERROR',
+            details: [{ field: 'nodes[1].id', code: 'INVALID_FIELD' }],
+          },
+        });
+        expect(mockTransactionManager.save).not.toHaveBeenCalledWith(
+          Node,
+          expect.anything(),
+        );
+      });
+
+      it('이미 이 워크플로의 노드인 id 는 충돌 조회에 넣지 않는다', async () => {
+        mockTransactionManager.find = jest
+          .fn()
+          .mockResolvedValueOnce([{ id: 'n-trig', workflowId: 'wf-uuid-1' }])
+          .mockResolvedValue([]);
+        const dto = {
+          nodes: [trigger, code('n-new', 'New')],
+          edges: [],
+        } as unknown as SaveCanvasDto;
+        await service.saveCanvas('wf-uuid-1', 'ws-uuid-1', 'user-uuid-1', dto);
+        expect(mockTransactionManager.find).toHaveBeenNthCalledWith(2, Node, {
+          where: { id: In(['n-new']) },
+          select: { id: true },
+        });
       });
     });
   });

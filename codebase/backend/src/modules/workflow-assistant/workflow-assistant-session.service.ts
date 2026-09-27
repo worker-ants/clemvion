@@ -10,6 +10,7 @@ import { WorkflowAssistantMessage } from './entities/workflow-assistant-message.
 import { Workflow } from '../workflows/entities/workflow.entity';
 import { CreateAssistantSessionDto } from './dto/create-assistant-session.dto';
 import { UpdateAssistantSessionDto } from './dto/update-assistant-session.dto';
+import { LlmService } from '../llm/llm.service';
 
 /**
  * Workflow AI Assistant 세션/메시지 영속화 담당.
@@ -29,6 +30,7 @@ export class WorkflowAssistantSessionService {
     private readonly workflowRepo: Repository<Workflow>,
     @InjectDataSource()
     private readonly dataSource: DataSource,
+    private readonly llmService: LlmService,
   ) {}
 
   async listForWorkflow(
@@ -82,6 +84,7 @@ export class WorkflowAssistantSessionService {
     dto: CreateAssistantSessionDto,
   ): Promise<WorkflowAssistantSession> {
     await this.ensureWorkflowBelongsToWorkspace(dto.workflowId, workspaceId);
+    await this.assertLlmConfigInWorkspace(dto.llmConfigId, workspaceId);
     const now = new Date();
     const session = this.sessionRepo.create({
       workspaceId,
@@ -103,6 +106,7 @@ export class WorkflowAssistantSessionService {
     dto: UpdateAssistantSessionDto,
   ): Promise<WorkflowAssistantSession> {
     const session = await this.findOneForUser(id, workspaceId, userId);
+    await this.assertLlmConfigInWorkspace(dto.llmConfigId, workspaceId);
     if (dto.title !== undefined) session.title = dto.title;
     if (dto.llmConfigId !== undefined) session.llmConfigId = dto.llmConfigId;
     if (dto.status !== undefined) session.status = dto.status;
@@ -190,6 +194,19 @@ export class WorkflowAssistantSessionService {
       .set({ title })
       .where('id = :id AND title IS NULL', { id: sessionId })
       .execute();
+  }
+
+  /**
+   * 세션에 고정하는 모델 설정은 같은 워크스페이스의 chat 설정만(spec 1-data-model §1.1). 쓰는 시점(`resolveConfig`)은 이미 워크스페이스로
+   * 거르므로 남의 설정을 쓰지는 못했지만 끊긴 참조가 저장됐다 — 같은 검증기를 저장 전에 돌린다(404 `MODEL_CONFIG_NOT_FOUND`).
+   * `null`(고정 해제)은 통과.
+   */
+  private async assertLlmConfigInWorkspace(
+    llmConfigId: string | null | undefined,
+    workspaceId: string,
+  ): Promise<void> {
+    if (!llmConfigId) return;
+    await this.llmService.resolveConfig(llmConfigId, workspaceId);
   }
 
   private async ensureWorkflowBelongsToWorkspace(

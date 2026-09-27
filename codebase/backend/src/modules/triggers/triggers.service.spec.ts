@@ -27,6 +27,7 @@ import {
 import { Execution } from '../executions/entities/execution.entity';
 import { Schedule } from '../schedules/entities/schedule.entity';
 import { AuthConfig } from '../auth-configs/entities/auth-config.entity';
+import { Workflow } from '../workflows/entities/workflow.entity';
 import { ChannelAdapterRegistry } from '../chat-channel/channel-adapter.registry';
 import { ChannelListenerRegistry } from '../chat-channel/channel-listener.registry';
 import { SecretResolverService } from '../secret-store/secret-resolver.service';
@@ -69,6 +70,11 @@ function createBaseProviders(
     {
       provide: getRepositoryToken(AuthConfig),
       useValue: { findOne: jest.fn() },
+    },
+    {
+      // 생성의 workflowId 소속 검사(spec 1-data-model §1.1) — 기본은 같은 워크스페이스의 워크플로.
+      provide: getRepositoryToken(Workflow),
+      useValue: { exists: jest.fn().mockResolvedValue(true) },
     },
     {
       provide: ChannelAdapterRegistry,
@@ -141,6 +147,11 @@ describe('TriggersService.findOneDetail', () => {
         {
           provide: getRepositoryToken(AuthConfig),
           useValue: { findOne: jest.fn() },
+        },
+        {
+          // 생성의 workflowId 소속 검사(spec 1-data-model §1.1) — 기본은 같은 워크스페이스의 워크플로.
+          provide: getRepositoryToken(Workflow),
+          useValue: { exists: jest.fn().mockResolvedValue(true) },
         },
         {
           provide: ChannelAdapterRegistry,
@@ -455,6 +466,11 @@ describe('TriggersService.findAll — schedule 목록 enrichment (V-10)', () => 
           useValue: { findOne: jest.fn() },
         },
         {
+          // 생성의 workflowId 소속 검사(spec 1-data-model §1.1) — 기본은 같은 워크스페이스의 워크플로.
+          provide: getRepositoryToken(Workflow),
+          useValue: { exists: jest.fn().mockResolvedValue(true) },
+        },
+        {
           provide: ChannelAdapterRegistry,
           useValue: { has: jest.fn(() => false), get: jest.fn() },
         },
@@ -619,6 +635,7 @@ describe('TriggersService — notification/interaction config 병합 (External I
   let service: TriggersService;
   let triggerRepo: jest.Mocked<Repository<Trigger>>;
   let authConfigRepo: jest.Mocked<Repository<AuthConfig>>;
+  let workflowRepo: { exists: jest.Mock };
 
   beforeEach(async () => {
     const moduleRef = await Test.createTestingModule({
@@ -650,6 +667,11 @@ describe('TriggersService — notification/interaction config 병합 (External I
         {
           provide: getRepositoryToken(AuthConfig),
           useValue: { findOne: jest.fn() },
+        },
+        {
+          // 생성의 workflowId 소속 검사(spec 1-data-model §1.1) — 기본은 같은 워크스페이스의 워크플로.
+          provide: getRepositoryToken(Workflow),
+          useValue: { exists: jest.fn().mockResolvedValue(true) },
         },
         {
           provide: ChannelAdapterRegistry,
@@ -691,6 +713,28 @@ describe('TriggersService — notification/interaction config 병합 (External I
     service = moduleRef.get(TriggersService);
     triggerRepo = moduleRef.get(getRepositoryToken(Trigger));
     authConfigRepo = moduleRef.get(getRepositoryToken(AuthConfig));
+    workflowRepo = moduleRef.get(getRepositoryToken(Workflow));
+  });
+
+  // spec 1-data-model §1.1 — 실행 엔진은 워크플로를 id 로만 읽어, 종전엔 다른 워크스페이스의 워크플로가 이 트리거로 그쪽 실행으로 돌았다.
+  it('create — workflowId 는 워크스페이스로 조회하고, 아니면 400 + create 미호출', async () => {
+    workflowRepo.exists.mockResolvedValue(false);
+    const err = await service
+      .create(
+        'ws',
+        { workflowId: 'other-ws-wf', type: 'webhook', name: 'hook' },
+        'u-spec',
+      )
+      .catch((err_: unknown) => err_ as BadRequestException);
+    expect(workflowRepo.exists).toHaveBeenCalledWith({
+      where: { id: 'other-ws-wf', workspaceId: 'ws' },
+    });
+    expect(err).toBeInstanceOf(BadRequestException);
+    expect((err as BadRequestException).getResponse()).toMatchObject({
+      code: 'VALIDATION_ERROR',
+      details: [{ field: 'workflowId', code: 'INVALID_FIELD' }],
+    });
+    expect(triggerRepo.create).not.toHaveBeenCalled();
   });
 
   it('create — authConfigId 가 같은 워크스페이스면 통과', async () => {
@@ -1641,6 +1685,11 @@ describe('TriggersService — webhook callbackUrl 조립 (app.url 사용 회귀 
           useValue: { findOne: jest.fn() },
         },
         {
+          // 생성의 workflowId 소속 검사(spec 1-data-model §1.1) — 기본은 같은 워크스페이스의 워크플로.
+          provide: getRepositoryToken(Workflow),
+          useValue: { exists: jest.fn().mockResolvedValue(true) },
+        },
+        {
           provide: ChannelAdapterRegistry,
           useValue: {
             has: jest.fn().mockReturnValue(true),
@@ -1802,6 +1851,11 @@ describe('TriggersService.remove — deleteByPrefix 호출 검증 (SUMMARY#13)',
           useValue: { findOne: jest.fn() },
         },
         {
+          // 생성의 workflowId 소속 검사(spec 1-data-model §1.1) — 기본은 같은 워크스페이스의 워크플로.
+          provide: getRepositoryToken(Workflow),
+          useValue: { exists: jest.fn().mockResolvedValue(true) },
+        },
+        {
           provide: ChannelAdapterRegistry,
           useValue: { has: jest.fn(() => false), get: jest.fn() },
         },
@@ -1944,6 +1998,11 @@ describe('TriggersService.rotateBotToken — 6단계 오케스트레이션', () 
         {
           provide: getRepositoryToken(AuthConfig),
           useValue: { findOne: jest.fn() },
+        },
+        {
+          // 생성의 workflowId 소속 검사(spec 1-data-model §1.1) — 기본은 같은 워크스페이스의 워크플로.
+          provide: getRepositoryToken(Workflow),
+          useValue: { exists: jest.fn().mockResolvedValue(true) },
         },
         {
           provide: ChannelAdapterRegistry,
@@ -2333,6 +2392,11 @@ describe('TriggersService — Schedule 역방향 동기화 (data-flow 10-trigger
           useValue: { findOne: jest.fn() },
         },
         {
+          // 생성의 workflowId 소속 검사(spec 1-data-model §1.1) — 기본은 같은 워크스페이스의 워크플로.
+          provide: getRepositoryToken(Workflow),
+          useValue: { exists: jest.fn().mockResolvedValue(true) },
+        },
+        {
           provide: ChannelAdapterRegistry,
           useValue: { has: jest.fn(() => false), get: jest.fn() },
         },
@@ -2535,6 +2599,10 @@ describe('TriggersService.promoteRotatedNotificationSecrets — secret store 경
           },
         },
         { provide: getRepositoryToken(AuthConfig), useValue: {} },
+        {
+          provide: getRepositoryToken(Workflow),
+          useValue: { exists: jest.fn().mockResolvedValue(true) },
+        },
         {
           provide: ChannelAdapterRegistry,
           useValue: { has: jest.fn(() => false), get: jest.fn() },

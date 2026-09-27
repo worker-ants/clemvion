@@ -2,11 +2,12 @@ import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { Edge } from './entities/edge.entity';
 import { Workflow } from '../workflows/entities/workflow.entity';
+import { Node } from '../nodes/entities/node.entity';
 import { EdgesController } from './edges.controller';
 import { EdgesService } from './edges.service';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([Edge, Workflow])],
+  imports: [TypeOrmModule.forFeature([Edge, Workflow, Node])],
   controllers: [EdgesController],
   providers: [EdgesService],
   exports: [EdgesService],
