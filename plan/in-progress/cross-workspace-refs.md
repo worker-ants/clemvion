@@ -140,5 +140,5 @@ M2~M5 는 서로 다른 테스트를 죽이도록 골라 한 번에 돌렸다(6�
 - [x] 구현 · 단위 · CHANGELOG · 트래커 — `c2c97de24`
 - [x] 뮤턴트 — M1~M5 전부 KILLED
 - [x] TEST WORKFLOW — lint · unit · build · e2e 전부 PASS, e2e 477(`_test_logs/e2e-20260927-213723.log` — 새 18케이스 · 캔버스 왕복 `workflow-crud` 포함). 첫 lint 는 새 테스트의 catch 매개변수 이름 13건 → 고치고 lint 부터 재실행
-- [ ] `/ai-review` — 1R `21_43_01` W3 → `698ad8ab7` · 2R `22_11_22` W1 → `421b69088`, W2 · W3 수렴 예외로 트래커 · 3R 진행
+- [x] `/ai-review` — 1R `21_43_01` Warning 3 → `698ad8ab7` · 2R `22_11_22` W1 → `421b69088`(M6 KILLED), W2 · W3 수렴 예외로 트래커 · 3R `22_36_12` Critical 0 · Warning 1(층 경계, 구조) → 미리 정한 정지 규칙대로 수렴 예외로 트래커, codebase 수정 0 — 수렴
 - [ ] `--impl-done`

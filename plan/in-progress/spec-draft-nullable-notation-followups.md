@@ -1517,6 +1517,10 @@ field: T | null;
       - **(developer, 낮음) 폴더 생성의 부모 조회가 두 번이다** — `assertParentInWorkspace` 의 `exists` 뒤 `getDepth` 의 첫 조회가 같은 조건
         (`{ id: parentId, workspaceId }`)이다(같은 세션 W3). `getDepth` 가 «첫 행 없음» 을 돌려주게 하면 한 번으로 줄지만, 그 함수의 조회
         순서에 묶인 단위 테스트(목 호출 순서)가 여럿이라 따로 한다.
+      - **(developer, 낮음) `common/utils/reference-in-scope.ts` 가 `nodes/core/error-codes` 를 import 한다** — `common/` → `nodes/` 역방향 import 는
+        저장소에서 이 파일뿐이고, `common/utils/password.util.ts` 주석(«`common/` 이 `nodes/` 를 import 하는 선례가 0건 — 리터럴 유지»)의 층
+        결정을 어긴다. `ErrorCode.INVALID_FIELD` 를 리터럴 `'INVALID_FIELD'` 로(`/ai-review` `review/code/2026/09/27/22_36_12` W1, 수렴 예외로 등재 —
+        근거는 그 세션 RESOLUTION). 같은 김에 `assertReferenceInScope(repo, where, field, message)` 의 인접 string 인자를 객체로(같은 세션 INFO 11).
 
 - [ ] **§5.4 스윕 2차 — 엔드포인트인데 e2e 미도달인 DTO** (developer, 2026-09-05 등재).
       1차가 닿지 못한 자리다. 배선 한 줄이 아니라 **새 e2e 시나리오**가 선행이므로 모듈
