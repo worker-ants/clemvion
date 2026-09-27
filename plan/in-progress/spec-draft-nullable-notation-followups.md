@@ -1401,6 +1401,23 @@ field: T | null;
       > **가드는 두지 않았다** — 판단 근거(남은 `Object.assign(` 4곳이 전부 다른 형태 · 결함은 타입의 문제라 정규식이 못 가른다)는
       > 그 plan §가드.
 
+- [ ] **PATCH 부분 본문 후속 — 요청 DTO `description` 의 nullable 선언 · 응답 직렬화 계층 부재 · 캐너리 둘** (developer, 낮음,
+      2026-09-27 등재 · `plan/complete/patch-omit-undefined.md` `/ai-review` 2R `review/code/2026/09/27/14_20_00` — 수렴 예외로 등재,
+      근거는 그 세션 RESOLUTION).
+      - (W2) `UpdateWorkflowDto.description` · `UpdateNodeDto.description` 이 `description?: string` · nullable 미선언이다. 런타임은
+        `@IsOptional()` 이 null 을 통과시켜 **값을 지운다**(워크플로 단위 «명시적 null 은 로드한 값을 지운다» 가 고정) — OpenAPI 가 실제
+        지원하는 입력을 덜 광고한다. `@ApiPropertyOptional({ nullable: true })` + `string | null` 로. 부수: 그 캐너리를 쓰며
+        `null as unknown as string` 캐스트는 `nullable-type-lie-cast` 가드가 잡았지만, `Object.assign(new Dto(), { description: null })`
+        (교차 타입이라 캐스트가 필요 없다)은 가드가 못 본다 — 같은 거짓말의 다른 형태다.
+      - (W1) 응답 형태를 강제하는 직렬화 계층이 없다(`ClassSerializerInterceptor` · `@Exclude()` 0건 — 위 `User` 컬럼 방어 항목의
+        조사와 같은 사실). 서비스가 돌려준 엔티티가 곧 응답이라, **인가 검사용으로 읽은 관계**가 응답에 샌다 — 노드 `update()` 의
+        `workflow` 가 그랬다(그 PR 은 구조분해로 뗐다). 같은 형태가 다른 서비스에 있는지 전수(`relations:` 로 읽고 그 엔티티를 그대로
+        반환하는 곳)부터 재고, 응답 매퍼 vs 화이트리스트 직렬화를 정한다.
+      - (INFO 1) «명시적 null 은 로드한 값을 지운다» 캐너리가 워크플로에만 있다 — 노드(`description` · `containerId`) · 인증 설정
+        (`ipWhitelist`)에도 하나씩.
+      - (INFO 2) `omit-undefined.ts` JSDoc 에 «인자 자체가 런타임 null 이면 `Object.entries` 가 던진다 — 필드 전체가 null 일 수 있는
+        호출부(중첩 DTO)는 먼저 `!= null` 로 가드하라» 한 문장. 그 PR 의 1R Critical(`settings: null` 500)의 뿌리다.
+
 - [ ] **§5.4 스윕 2차 — 엔드포인트인데 e2e 미도달인 DTO** (developer, 2026-09-05 등재).
       1차가 닿지 못한 자리다. 배선 한 줄이 아니라 **새 e2e 시나리오**가 선행이므로 모듈
       단위로 끊는다. 후보(매퍼 기준, census 아님): `DashboardSummaryDto` ·
@@ -6315,7 +6332,10 @@ field: T | null;
       > 도메인 spec 양쪽에 두는 안은 이제 다섯 문서다 — §5.4 를 가진 `2-api-convention.md` 한 곳 쪽으로 기우는 근거다(결정은 planner).
       > **같은 날 보강** (같은 세션 W2 · W3): (7) PATCH 의 «키 생략 = 값 불변»(§5.4 tri-state)이 `2-trigger-list.md` §3 註에만 있고
       > `1-workflow-list.md` §3.2(워크플로 · `settings`) · `6-config.md`(인증 설정)에는 없다 — 두 문서에 한 문장씩. `patch-omit-undefined` 가
-      > 그 동작을 코드로 맞췄다(워크플로 `settings: {}` 는 이제 아무것도 바꾸지 않는다). (8) `1-workflow-list.md` §2.3 필터 표 «상태»
+      > 그 동작을 코드로 맞췄다(워크플로 `settings: {}` 는 이제 아무것도 바꾸지 않는다). 같은 문장에 `settings` 의 null 의미도 적는다 —
+      > 최상위 `settings: null` 은 **no-op**(원래 동작, `patch-omit-undefined` 가 500 회귀만 없앴다)이고 스칼라 필드(`description` ·
+      > `folderId`)의 null 은 **값을 지운다**. 같은 엔드포인트 안에서 필드마다 null 의 뜻이 갈린다(`review/code/2026/09/27/14_20_00` INFO 4).
+      > (8) `1-workflow-list.md` §2.3 필터 표 «상태»
       > 행이 이미 해소된 파라미터 불일치(#519)를 진행 중으로 적는다 — 같은 절 하단 보강 문구와 자기모순이다. 행의 경고를 걷는다.
       > 여덟 다 spec 쓰기라 planner 턴에서 한 번에.
 

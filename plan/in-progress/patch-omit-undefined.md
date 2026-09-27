@@ -134,6 +134,15 @@ e2e 는 **네 자리를 모두 되돌린 상태 = 고치기 전 코드** 1회(�
 - INFO 4 · 5 · 9 → 조치(e2e C 에 `toolOwnerId` 도구 노드 · 명시적 null 캐너리 · `NotArray` 설명). INFO 6 · 7 · 8 · 10 · 11 · 12 — 조치 불요
   (6 · 7 은 기존 설계 · 8 은 plan §가드가 검토한 트레이드오프 · 10 은 undeclared 키 제거라 계약 복원 · 11 · 12 는 이미 트래커).
 
+## `/ai-review` 2R (`review/code/2026/09/27/14_20_00` — Critical 0 · Warning 2 · codebase 수정 0 → 수렴)
+
+- **W1** (architecture) 응답 직렬화 계층이 없어 인가용 관계가 응답에 샌다(노드 `workflow` 의 뿌리) — 리뷰어가 이 PR 범위 밖이라 적었다.
+- **W2** (requirement · api_contract) `UpdateWorkflowDto.description` · `UpdateNodeDto.description` 이 nullable 을 선언하지 않는다 —
+  런타임은 null 을 받아 값을 지운다(1R INFO 5 캐너리가 고정). 기존 drift 다. 부수로 `nullable-type-lie-cast` 가드가 캐스트는 잡지만
+  `Object.assign` 교차 우회는 못 본다는 사각을 적었다.
+- 둘 다 **수렴 예외**로 트래커 새 항목에 등재했다(동작 결함 아님 · 고치면 라운드 재무장 · 근거는 그 세션 RESOLUTION). INFO 1 · 2 도
+  같은 항목, INFO 4(`settings` null 의미)는 planner 항목 (7).
+
 ## `--impl-prep` 처분 (`review/consistency/2026/09/27/13_11_33` BLOCK: NO)
 
 - **W4** (plan_coherence) 헬퍼의 `code:` 등재처를 묻는 트래커 planner 항목 (6)이 호출부 둘(폴더 · 트리거)을 전제하는데 이 PR 로
@@ -152,5 +161,5 @@ e2e 는 **네 자리를 모두 되돌린 상태 = 고치기 전 코드** 1회(�
 - [x] 서비스 셋 · e2e · 단위 · 헬퍼 손질 · CHANGELOG · 트래커
 - [x] 뮤턴트 표 실측 — P1~P4 · T1 전부 KILLED
 - [x] TEST WORKFLOW (lint · unit · build · e2e) — 전부 PASS, e2e 422 (`_test_logs/e2e-20260927-134537.log`, `5a4bb2bd4`). 첫 회는 C 의 계약 대조 1 failed → 노드 응답의 `workflow` 를 떼고 lint 부터 재실행
-- [ ] `/ai-review`
+- [x] `/ai-review` — 1R `review/code/2026/09/27/13_50_41`(Critical 1 = `settings: null` 500 회귀 → `edd79ca40`) · 2R `review/code/2026/09/27/14_20_00`(Critical 0 · Warning 2 → 수렴 예외로 트래커, codebase 수정 0)
 - [ ] `--impl-done`
