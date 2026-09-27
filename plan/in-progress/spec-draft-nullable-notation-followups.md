@@ -1370,14 +1370,18 @@ field: T | null;
 
 - [ ] **`Object.assign(엔티티, DTO)` 가 보내지 않은 필드로 로드한 값을 덮는다 — 남은 세 곳** (developer, 2026-09-27 등재 ·
       `folders-contract-e2e` 가 폴더에서 실측). DTO 인스턴스는 값이 없는 optional 필드도 `undefined` own property 로 갖는다
-      (`target: ES2023` → `useDefineForClassFields`). 그대로 `Object.assign` 하면 로드한 값을 `undefined` 로 덮어써 **PATCH 응답에서
-      그 키가 사라진다** — DB 는 TypeORM 이 undefined 를 건너뛰어 무사하다. 트리거(2026-09-05, `PATCH /triggers/:id` 응답의 `name`)와
-      폴더(2026-09-27, `sortOrder`)는 `defined` 필터로 고쳤다. 같은 형태가 남은 자리(2026-09-27 `grep "Object.assign("` · `*service.ts`):
+      (`target: ES2023` → `useDefineForClassFields`). 그대로 `Object.assign` 하면 로드한 값을 `undefined` 로 덮어써 **PATCH 응답이
+      틀린다** — DB 는 TypeORM 이 undefined 를 건너뛰어 무사하다. 증상은 둘이다: nullable 이 아닌 컬럼은 키가 사라지고, nullable
+      컬럼은 TypeORM 이 저장 뒤 undefined 를 null 로 채워(`SubjectExecutor.updateSpecialColumnsInInsertedAndUpdatedEntities`)
+      **거짓 null** 이 실린다. 트리거(2026-09-05, `PATCH /triggers/:id` 응답의 `name`)와 폴더(2026-09-27, `sortOrder` 키 부재 ·
+      하위 폴더의 `parentId: null` — 폴더 e2e C · E 가 옛 코드 뮤턴트로 실측)는 `defined` 필터로 고쳤다. 같은 형태가 남은 자리(2026-09-27 `grep "Object.assign("` · `*service.ts`):
       - `workflows.service.ts` `update()` — `const { settings, ...rest } = dto; Object.assign(workflow, rest)`
       - `nodes.service.ts` `update()` — `Object.assign(node, dto)`
       - `auth-configs.service.ts` `update()` — `Object.assign(config, rest)`
       > **셋 다 실측은 아직 없다** — 메커니즘이 같아 결함일 가능성이 높을 뿐이다. 확인은 그 PATCH 를 부분 본문으로 불러 응답을
-      > 계약과 대조하는 e2e 로 한다(폴더 e2e C 가 그 형태). `workflow-crud.e2e` B 는 PATCH 뒤 **GET** 으로만 확인해 이 결함을 못 본다.
+      > 계약과 대조하는 e2e 로 한다(폴더 e2e C · E 가 그 형태). 계약 대조는 **거짓 null 을 못 잡는다** — nullable 선언이면 null 이
+      > 통과한다. 보내지 않은 nullable 필드에 **null 이 아닌 값**을 미리 넣어 두고 응답 값을 단언해야 한다(폴더 E 의 하위 폴더).
+      > `workflow-crud.e2e` B 는 PATCH 뒤 **GET** 으로만 확인해 이 결함을 못 본다.
       > 같은 형태가 이미 **다섯 자리**(고친 둘 + 남은 셋)다 — 착수할 때 개별 수정보다 공용 헬퍼 + 가드(`Object.assign(<엔티티>, <DTO>)`
       > 형태 금지)가 맞는지부터 판단한다.
 
@@ -1390,7 +1394,8 @@ field: T | null;
 
       > **진행 (2026-09-27 재측정 — `contractForDto(…)` 호출 grep)**: 닿은 것 — `NodeDto` · `EdgeDto`(#1411, `CanvasSaveResultDto`
       > 경유) · `WorkflowVersionDto` · `WorkflowVersionListItemDto`(#1413) · `FolderDto`(`plan/complete/folders-contract-e2e.md` —
-      > 폴더 e2e 신설. 대조가 **루트 폴더 생성 응답에서 `parentId` 키가 빠지는 실제 이격**을 드러내 서비스 · DTO 를 함께 고쳤다).
+      > 폴더 e2e 신설. 대조가 **PATCH 부분 본문 응답 결함**(키 부재 · 거짓 null)을 드러내 고쳤다. 착수 때 소스로 추론한 «루트 폴더
+      > POST 응답의 `parentId` 부재» 는 e2e 뮤턴트에 **반증**됐다 — 응답은 원래 키를 실었고 넓었던 것은 선언뿐이다).
       > 남은 것 — `DashboardSummaryDto` · `StatisticsSummaryDto` · `LlmUsageSummaryDto`(대시보드 · 통계는 e2e 스펙 자체가 없다) ·
       > `GraphEntityDto` · `DocumentDto`(지식 베이스 — `knowledge-base.e2e-spec.ts` 는 있으나 대조 0건).
 
@@ -6282,7 +6287,7 @@ field: T | null;
       > **2026-09-27 보강** (`folders-contract-e2e` `--impl-prep` `review/consistency/2026/09/27/10_39_26` W1 · W2 — 같은 폴더 API 자리라
       > 새 항목 대신 여기에 모은다): (4) `spec/5-system/1-auth.md` §3.2 리소스별 권한 매트릭스에 **Folder 행이 없다** — 폴더 API 는
       > `editor+` 로 쓰기를 막고(`folders.controller.ts` `@Roles('editor')`) `1-workflow-list.md` §3.1 · NF-SC-02 도 그것을 전제한다.
-      > (5) 신설 e2e `codebase/backend/test/folder-crud.e2e-spec.ts`(§3.1 응답 계약 · 루트 폴더 `parentId: null` 을 고정)를
+      > (5) 신설 e2e `codebase/backend/test/folder-crud.e2e-spec.ts`(§3.1 응답 계약 · PATCH 부분 본문 응답을 고정)를
       > `1-workflow-list.md` frontmatter `code:` 에 올리는 것 — `2-trigger-list.md` 처럼 자기 도메인의 1차 시행 e2e 를 등재하는 관행.
       > 다섯 다 spec 쓰기라 planner 턴에서 한 번에.
 
