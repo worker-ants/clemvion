@@ -1,4 +1,8 @@
-/** 배열이면 `never` — `omitUndefined` 가 배열을 받지 못하게 한다(구현이 배열을 인덱스 키 객체로 무너뜨린다). */
+/**
+ * 배열이면 `never` — `omitUndefined` 가 배열을 받지 못하게 한다(구현이 배열을 인덱스 키 객체로 무너뜨린다). 인자 타입
+ * `T & NotArray<T>` 에서 배열이 아니면 `T & unknown` = `T` 라 아무것도 바꾸지 않고, 배열이면 `T & never` = `never` 라 어떤
+ * 값도 그 자리에 올 수 없다. `T` 는 인자에서 그대로 추론된다.
+ */
 type NotArray<T> = T extends readonly unknown[] ? never : unknown;
 
 /**

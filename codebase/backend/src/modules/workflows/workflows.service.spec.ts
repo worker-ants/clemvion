@@ -442,6 +442,23 @@ describe('WorkflowsService', () => {
       const saved = mockRepository.save.mock.calls.at(-1)?.[0] as Workflow;
       expect(saved.settings).toStrictEqual({ maxConcurrentExecutions: 5 });
     });
+
+    // `@IsOptional()` 은 `settings: null` 도 통과시킨다 — 병합은 그것을 no-op 으로 다룬다(던지면 500).
+    it('settings: null 은 던지지 않고 저장된 설정을 그대로 둔다', async () => {
+      mockRepository.findOne.mockResolvedValueOnce({
+        id: 'wf-uuid-1',
+        workspaceId: 'ws-uuid-1',
+        settings: { maxConcurrentExecutions: 5 },
+      });
+      await service.update(
+        'wf-uuid-1',
+        'ws-uuid-1',
+        Object.assign(new UpdateWorkflowDto(), { settings: null }),
+        'u-spec',
+      );
+      const saved = mockRepository.save.mock.calls.at(-1)?.[0] as Workflow;
+      expect(saved.settings).toStrictEqual({ maxConcurrentExecutions: 5 });
+    });
   });
 
   describe('update — 보내지 않은 필드', () => {
@@ -468,6 +485,30 @@ describe('WorkflowsService', () => {
         folderId: 'folder-1',
         tags: ['a'],
         isActive: true,
+      });
+    });
+
+    // §5.4 tri-state 의 나머지 한 칸 — 명시적 `null` 은 «값을 지운다» 는 요청이라 걸러내면 안 된다.
+    it('명시적 null 은 로드한 값을 지운다', async () => {
+      mockRepository.findOne.mockResolvedValueOnce({
+        id: 'wf-uuid-1',
+        workspaceId: 'ws-uuid-1',
+        description: 'keep',
+        folderId: 'folder-1',
+        settings: {},
+      });
+      await service.update(
+        'wf-uuid-1',
+        'ws-uuid-1',
+        Object.assign(new UpdateWorkflowDto(), {
+          description: null as unknown as string,
+          folderId: null,
+        }),
+        'u-spec',
+      );
+      expect(mockRepository.save.mock.calls.at(-1)?.[0]).toMatchObject({
+        description: null,
+        folderId: null,
       });
     });
   });

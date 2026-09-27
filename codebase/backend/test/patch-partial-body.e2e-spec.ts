@@ -120,6 +120,18 @@ describe('PATCH 부분 본문 (e2e)', () => {
     expect(patched.body.data.settings).toStrictEqual({
       maxConcurrentExecutions: 5,
     });
+
+    // `settings: null` 도 검증을 통과한다(`@IsOptional()`) — 병합은 그것을 no-op 으로 다룬다(던지면 500).
+    const nulled = await authed(
+      request(BASE_URL).patch(`/api/workflows/${id}`),
+    ).send({ settings: null });
+    expect(nulled.status).toBe(200);
+    const afterNull = await authed(
+      request(BASE_URL).get(`/api/workflows/${id}`),
+    );
+    expect(afterNull.body.data.settings).toStrictEqual({
+      maxConcurrentExecutions: 5,
+    });
   });
 
   it('C. 노드 — 라벨만 PATCH 해도 설명 · 컨테이너 · 위치 · 비활성 · 설정이 응답에 저장값으로 실린다', async () => {
@@ -156,15 +168,17 @@ describe('PATCH 부분 본문 (e2e)', () => {
       'isDisabled',
       'config',
     ] as const;
-    const readChild = async (): Promise<Record<string, unknown>> => {
+    const readNode = async (
+      nodeId: string,
+    ): Promise<Record<string, unknown>> => {
       const list = await authed(request(BASE_URL).get(nodesUrl));
       const found = (list.body.data as Array<Record<string, unknown>>).find(
-        (n) => n.id === childId,
+        (n) => n.id === nodeId,
       );
       expect(found).toBeDefined();
       return found as Record<string, unknown>;
     };
-    const stored = pick(await readChild(), keys);
+    const stored = pick(await readNode(childId), keys);
     expect(stored.description).toBe('memo');
     expect(stored.containerId).toEqual(expect.any(String));
 
@@ -173,10 +187,29 @@ describe('PATCH 부분 본문 (e2e)', () => {
     ).send({ label: 'Child renamed' });
     expect(patched.status).toBe(200);
 
-    expect(pick(await readChild(), keys)).toStrictEqual(stored);
+    expect(pick(await readNode(childId), keys)).toStrictEqual(stored);
 
     expect(pick(patched.body.data, keys)).toStrictEqual(stored);
     assertMatchesContract(patched.body.data, await contractForDto(NodeDto));
+
+    // `toolOwnerId` 는 `containerId` 와 한 노드에 함께 둘 수 없다(`chk_node_placement`) — 도구 노드로 따로 본다.
+    const tool = await authed(request(BASE_URL).post(nodesUrl)).send({
+      type: 'http_request',
+      category: 'integration',
+      label: 'Tool',
+      toolOwnerId: (box.body.data as { id: string }).id,
+    });
+    expect(tool.status).toBe(201);
+    const toolId = (tool.body.data as { id: string }).id;
+    const toolStored = pick(await readNode(toolId), keys);
+    expect(toolStored.toolOwnerId).toEqual(expect.any(String));
+
+    const toolPatched = await authed(
+      request(BASE_URL).patch(`/api/nodes/${toolId}`),
+    ).send({ label: 'Tool renamed' });
+    expect(toolPatched.status).toBe(200);
+    expect(pick(await readNode(toolId), keys)).toStrictEqual(toolStored);
+    expect(pick(toolPatched.body.data, keys)).toStrictEqual(toolStored);
   });
 
   it('D. 인증 설정 — 이름만 PATCH 해도 IP 화이트리스트 · 활성 여부가 응답에 저장값으로 실린다', async () => {
