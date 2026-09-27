@@ -50,8 +50,12 @@ export class FoldersService {
       }
     }
 
+    // `parentId` 를 null 로 명시한다 — 루트 폴더는 이 값 없이 만들어지는데, TypeORM 은 INSERT 뒤 default 가 있는 컬럼만
+    // 되읽으므로(`parent_id` 는 default 없음) 저장된 엔티티에 키가 없고 POST 응답에서 빠졌다. 같은 폴더를 GET 하면 null 이라
+    // 응답마다 부재 표현이 갈렸다(API 규약 §5.4 — 키는 늘 싣고 값만 null).
     const folder = this.folderRepository.create({
       ...data,
+      parentId: data.parentId ?? null,
       workspaceId,
     });
     return this.folderRepository.save(folder);

@@ -42,7 +42,7 @@ started: 2026-09-27
 2. **DTO** — `FolderDto.parentId` → `@ApiProperty({ type: String, format: 'uuid', nullable: true })` + `parentId: string | null`
    (§5.4 기본형. `type` 명시는 `string | null` 이 테스트 쪽 스키마에서 `type: object` 가 되는 것을 막는다 — #1412 실측).
 3. **래칫** — `EXPECTED_OPTIONAL_NULLABLE_DRIFT` 에서 `folder-response.dto.ts:FolderDto.parentId` 1행 제거.
-4. **e2e 신설** `folders.e2e-spec.ts` — 한 워크스페이스에서 루트 생성 → 하위 생성 → 목록 → 단건 → 수정(이름 · 루트로 이동) → 삭제.
+4. **e2e 신설** `folder-crud.e2e-spec.ts`(형제 `workflow-crud.e2e-spec.ts` 의 `<도메인>-<시나리오>` 명명) — 한 워크스페이스에서 루트 생성 → 하위 생성 → 목록 → 단건 → 수정(이름 · 루트로 이동) → 삭제.
    각 응답을 `FolderDto` 와 대조하고, **POST 루트 응답의 `parentId` 키가 있고 null 인지**를 양성으로 단언한다(대조는 required
    선언이 된 뒤에야 부재를 잡으므로, 선언 전 상태를 재현하는 뮤턴트로 그 단언이 실제로 무는지 본다).
 5. **단위** — `folders.service.spec.ts` 의 루트 생성 케이스가 `create` 에 `parentId: null` 을 넘기는지. 선언 캐너리
@@ -50,7 +50,7 @@ started: 2026-09-27
    인지 — 래칫은 «optional + nullable» 로의 회귀만, e2e 대조는 선언이 넓어지는 회귀를 못 잡는다(#1413 과 같은 이유).
 6. **CHANGELOG** — 항목 1(API 응답): 루트 폴더 생성 응답에 `parentId: null` 이 실린다(종전 키 생략) · OpenAPI 가 `parentId` 를
    항상 실리는 필드로 광고한다.
-7. **트래커** — 스윕 2차 항목을 폴더 몫만큼 좁힌다(닫지 않음).
+7. **트래커** — 스윕 2차 항목을 좁힌다(닫지 않음). 이미 닫힌 넷(`WorkflowVersion*Dto` · `NodeDto` · `EdgeDto`)도 함께 지운다.
 
 ## 뮤턴트 (예측 — 실측은 구현 뒤 채운다)
 
@@ -61,10 +61,20 @@ started: 2026-09-27
 | M3 | `FolderDto.parentId` 의 `type: String` 제거 | 캐너리 RED | |
 | M4 | `FolderDto.parentId` 를 `@ApiPropertyOptional({ format: 'uuid' })`(nullable 없이)로 | 캐너리 RED · 래칫 GREEN | |
 
+## `--impl-prep` 처분 (`review/consistency/2026/09/27/10_39_26` BLOCK: NO)
+
+- **W1** `spec/5-system/1-auth.md` §3.2 권한 매트릭스에 Folder 행이 없다 · **W2** 신설 e2e 를 `1-workflow-list.md` frontmatter
+  `code:` 에 올리지 않는다 · **W3** 같은 §3.1 을 겨냥한 기존 planner 항목(목록 응답 형태 · 완료된 `pending_plans`)을 인지하지
+  않았다. 셋 다 spec 쓰기라 developer 가 고칠 수 없다 → W3 의 그 **기존 항목에 (4)(5)로 W1 · W2 를 보강**했다(새 항목을 만들지
+  않는다). 그 항목의 편집 대상 `1-workflow-list.md` 가 트래커 `spec_impact` 에 빠져 있어 함께 올렸다.
+- **INFO 4** 스윕 후보 목록의 이미 닫힌 넷 → 트래커에서 함께 지웠다. **INFO 5** 파일명 → `folder-crud.e2e-spec.ts` 로 형제 관례에 맞췄다.
+- **INFO 2** 서비스가 `FolderDto` 대신 엔티티를 그대로 돌려준다 — 지금은 관계를 싣지 않아 유출이 없고, 이 PR 의 e2e 대조가 응답
+  키를 고정한다. 매핑 도입은 이 PR 의 축이 아니다. INFO 1 · 3 · 6 — 조치 불요(기존 추적 · 무관).
+
 ## 체크리스트
 
-- [ ] `--impl-prep`
-- [ ] 서비스 · DTO · 래칫 · e2e · 단위 · 캐너리 · CHANGELOG · 트래커
+- [x] `--impl-prep` — `review/consistency/2026/09/27/10_39_26` BLOCK: NO(W1~W3 는 spec 쓰기 — 기존 planner 항목 보강)
+- [x] 서비스 · DTO · 래칫 · e2e · 단위 · 캐너리 · CHANGELOG · 트래커
 - [ ] 뮤턴트 표 실측
 - [ ] TEST WORKFLOW (lint · unit · build · e2e)
 - [ ] `/ai-review`

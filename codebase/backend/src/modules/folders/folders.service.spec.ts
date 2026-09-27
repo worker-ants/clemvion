@@ -68,6 +68,15 @@ describe('FoldersService', () => {
       expect(result.name).toBe('New Folder');
     });
 
+    // 루트 폴더도 `parentId: null` 을 명시해 저장한다 — TypeORM 은 INSERT 뒤 default 없는 컬럼을 되읽지 않아, 빠뜨리면
+    // POST 응답에서 키가 사라진다(GET 은 null). 실제 응답 형태는 `folder-crud.e2e-spec.ts` A 가 본다.
+    it('루트 폴더는 parentId 를 null 로 명시해 만든다 (응답에서 키가 빠지지 않게)', async () => {
+      await service.create('ws-uuid-1', { name: 'Root' });
+      expect(mockRepository.create).toHaveBeenCalledWith(
+        expect.objectContaining({ parentId: null, workspaceId: 'ws-uuid-1' }),
+      );
+    });
+
     it('should enforce max nesting depth', async () => {
       // Build a chain of 5 parents
       let callCount = 0;

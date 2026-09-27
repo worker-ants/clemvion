@@ -67,6 +67,9 @@ spec_impact:
   # 빠뜨렸다(`--impl-done` `review/consistency/2026/09/26/21_11_30` W1) — 위 두 주석이 적은 실패 모드의 재발이다.
   - spec/2-navigation/4-integration.md
   - spec/5-system/11-mcp-client.md
+  # 「`spec/2-navigation/` 목록 API 둘의 응답 형태 · 완료된 `pending_plans`」 항목(2026-09-20 등재)의 편집 대상인데 빠져 있었다
+  # — 2026-09-27 그 항목에 (4)(5)를 보강하며 발견(`folders-contract-e2e`). `2-trigger-list.md` 는 이미 위에 있다.
+  - spec/2-navigation/1-workflow-list.md
 ---
 
 # nullable 표기 후속 3건 (planner 턴)
@@ -1368,9 +1371,15 @@ field: T | null;
 - [ ] **§5.4 스윕 2차 — 엔드포인트인데 e2e 미도달인 DTO** (developer, 2026-09-05 등재).
       1차가 닿지 못한 자리다. 배선 한 줄이 아니라 **새 e2e 시나리오**가 선행이므로 모듈
       단위로 끊는다. 후보(매퍼 기준, census 아님): `DashboardSummaryDto` ·
-      `StatisticsSummaryDto` · `LlmUsageSummaryDto` · `WorkflowVersionDto` ·
-      `WorkflowVersionListItemDto` · `GraphEntityDto` · `FolderDto` · `DocumentDto` ·
-      `NodeDto` · `EdgeDto` 등.
+      `StatisticsSummaryDto` · `LlmUsageSummaryDto` · ~~`WorkflowVersionDto`~~ ·
+      ~~`WorkflowVersionListItemDto`~~ · `GraphEntityDto` · ~~`FolderDto`~~ · `DocumentDto` ·
+      ~~`NodeDto`~~ · ~~`EdgeDto`~~ 등.
+
+      > **진행 (2026-09-27 재측정 — `contractForDto(…)` 호출 grep)**: 닿은 것 — `NodeDto` · `EdgeDto`(#1411, `CanvasSaveResultDto`
+      > 경유) · `WorkflowVersionDto` · `WorkflowVersionListItemDto`(#1413) · `FolderDto`(`plan/complete/folders-contract-e2e.md` —
+      > 폴더 e2e 신설. 대조가 **루트 폴더 생성 응답에서 `parentId` 키가 빠지는 실제 이격**을 드러내 서비스 · DTO 를 함께 고쳤다).
+      > 남은 것 — `DashboardSummaryDto` · `StatisticsSummaryDto` · `LlmUsageSummaryDto`(대시보드 · 통계는 e2e 스펙 자체가 없다) ·
+      > `GraphEntityDto` · `DocumentDto`(지식 베이스 — `knowledge-base.e2e-spec.ts` 는 있으나 대조 0건).
 
       > #### (a) 가 왜 안 되는가 — DTO 와 엔티티는 **다른 것**을 기술한다
       >
@@ -6257,6 +6266,12 @@ field: T | null;
       `GET /api/triggers/:id/history` 행이 형태 · 상한을 적지 않는다 — 구현은 배열 wrap, 최근 10건(`triggers.service.ts` `.limit(10)`).
       (3) `1-workflow-list.md` frontmatter `pending_plans` 가 완료된 `plan/complete/workflow-duplicate-nodes-edges.md` 를 가리킨다 — 빼면 된다
       (남은 미구현 surface 가 따로 있는지 먼저 확인). 셋 다 사실 정정.
+      > **2026-09-27 보강** (`folders-contract-e2e` `--impl-prep` `review/consistency/2026/09/27/10_39_26` W1 · W2 — 같은 폴더 API 자리라
+      > 새 항목 대신 여기에 모은다): (4) `spec/5-system/1-auth.md` §3.2 리소스별 권한 매트릭스에 **Folder 행이 없다** — 폴더 API 는
+      > `editor+` 로 쓰기를 막고(`folders.controller.ts` `@Roles('editor')`) `1-workflow-list.md` §3.1 · NF-SC-02 도 그것을 전제한다.
+      > (5) 신설 e2e `codebase/backend/test/folder-crud.e2e-spec.ts`(§3.1 응답 계약 · 루트 폴더 `parentId: null` 을 고정)를
+      > `1-workflow-list.md` frontmatter `code:` 에 올리는 것 — `2-trigger-list.md` 처럼 자기 도메인의 1차 시행 e2e 를 등재하는 관행.
+      > 다섯 다 spec 쓰기라 planner 턴에서 한 번에.
 
 - [x] **k8s 로컬 오버레이의 버킷 Job 이 아바타 공개 정책을 걸지 않는다** (developer, 낮음, 2026-09-24 등재 ·
       plan `minio-silo-image` §D — 이미지 교체 중 발견, 그 PR 의 축이 아니라 분리).

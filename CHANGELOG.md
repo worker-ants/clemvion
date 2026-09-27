@@ -23,6 +23,12 @@
 > 07 37% · 08 30% · 09(25일까지) 49% 였다(나중 PR 의 백필은 세지 않았다). 여기 없다고 그 변경이 없었던 것은 아니다 —
 > `git log` 가 정본이다.
 
+## Unreleased — 루트 폴더 생성 응답에 `parentId: null` 이 실린다
+
+`POST /folders` 로 루트 폴더(부모 없음)를 만들면 응답에 `parentId` 키가 없었다. 같은 폴더를 `GET /folders/:id` 로 읽으면
+`parentId: null` 이라 응답마다 표현이 갈렸다. 이제 생성 응답에도 `parentId: null` 이 실린다(하위 폴더는 종전대로 부모 UUID).
+OpenAPI 도 `parentId` 를 «없을 수도 있는» 필드가 아니라 **항상 실리고 루트면 null 인** 필드로 광고한다.
+
 ## Unreleased — 저장소 가드: 응답 DTO JSDoc 의 리뷰 인용 예외가 0 이 됐다
 
 응답 DTO 의 `/** */` JSDoc 에 리뷰 산출물 인용을 쓰면 실패하는 가드(`dto-jsdoc-citation`)가 기존 두 자리(트리거 · 스케줄 응답의
