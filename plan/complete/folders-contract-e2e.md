@@ -1,10 +1,11 @@
 ---
 title: "§5.4 스윕 2차 — 폴더 모듈: e2e 신설 · 계약 대조 · PATCH 부분 본문 응답 결함 수정"
-status: in-progress
+status: complete
 owner: developer
 worktree: folders-contract-e2e
 spec_impact: none
 started: 2026-09-27
+completed: 2026-09-27
 ---
 
 # §5.4 스윕 2차 — 폴더 모듈
