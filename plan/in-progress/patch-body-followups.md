@@ -65,25 +65,49 @@ started: 2026-09-27
    타입을 함께 바꾼다.
 2. **e2e** — `patch-partial-body.e2e-spec.ts` 에 «nullable 필드에 null 을 보내면 값을 지운다» 케이스: 세 필드의 응답 값 · 저장값.
    선언이 광고하는 동작을 고정한다.
+   **선언 캐너리**(구현 중 추가) — 각 DTO 옆 검증 spec 에 «검증기가 null 을 통과시킨다 · OpenAPI 가 nullable 로 광고한다». swagger
+   가드는 데코레이터와 타입 중 **하나만** 되돌리면 잡지만 **둘을 함께** 되돌리면(= 고치기 전 상태) 못 잡는다 — 뮤턴트 D4~D6 이 그 빈 곳을
+   실측했다(아래 표).
 3. **단위 캐너리**(INFO 1) — 노드 `description` · 인증 설정 `ipWhitelist` 에 «명시적 null 은 로드한 값을 지운다»(워크플로엔 이미 있다).
 4. **헬퍼 JSDoc**(INFO 2) — «인자 자체가 런타임 null 이면 `Object.entries` 가 던진다 — 필드 전체가 null 일 수 있는 호출부(중첩 DTO)는
    먼저 `!= null` 로 가드하라».
 5. **CHANGELOG** — 항목 1(OpenAPI): 세 필드가 null 을 받는다고 광고한다(동작 변화 없음).
 6. **트래커** — 항목을 닫지 않고 좁힌다(W1 → executions `findById`). 새 항목: PATCH NOT NULL 필드의 null 이 500(위 실측 표).
 
-## 뮤턴트 (예측 — 실측은 구현 뒤 채운다)
+## 뮤턴트 — 예측 / 실측
+
+제자리 치환 → jest → `shutil.copy` 복원. D1~D3 · H1 은 `c7d8d75df`(baseline 215 GREEN), D4~D6 은 캐너리 추가 뒤 `b5c1e7cda`
+(baseline 127 GREEN — DTO 폴더 셋 + swagger 가드).
 
 | # | 뮤턴트 | 예측 | 실측 · 죽인 테스트 |
 |---|---|---|---|
-| D1 | `UpdateWorkflowDto.description` 의 `nullable: true` 만 제거 | swagger 가드 RED(null 축) | |
-| D2 | `UpdateNodeDto.description` 의 `| null` 만 제거 | swagger 가드 RED(반대 방향) | |
-| D3 | `UpdateAuthConfigDto.ipWhitelist` 의 `nullable: true` 만 제거 | swagger 가드 RED | |
+| D1 | `UpdateWorkflowDto.description` 의 `nullable: true` 만 제거 | swagger 가드 RED(null 축) | KILLED 1 — swagger 가드 «OpenAPI 선언과 TS 타입이 어긋난 필드가 없다» |
+| D2 | `UpdateNodeDto.description` 의 `\| null` 만 제거 | swagger 가드 RED(반대 방향) | KILLED 1 — 같은 가드 |
+| D3 | `UpdateAuthConfigDto.ipWhitelist` 의 `nullable: true` 만 제거 | swagger 가드 RED | KILLED 1 — 같은 가드 |
+| H1 | 헬퍼 필터를 `v != null` 로(null 까지 거름) | 세 서비스의 «명시적 null» 캐너리 RED | KILLED 4 — 워크플로 · 노드 · 인증 설정 «명시적 null 은 로드한 값을 지운다» · 헬퍼 «falsy 값은 남긴다» |
+| D4 | `UpdateWorkflowDto.description` 의 데코레이터 · 타입을 **함께** 되돌림(고치기 전 상태) | 캐너리 없이는 생존 · 캐너리 RED | KILLED 1 — `workflow-dto-validation.spec.ts` «OpenAPI 가 nullable 로 광고한다» **하나뿐**(swagger 가드는 GREEN) |
+| D5 | `UpdateNodeDto.description` 을 함께 되돌림 | 같음 | KILLED 1 — `node-dto-validation.spec.ts` 캐너리 하나뿐 |
+| D6 | `UpdateAuthConfigDto.ipWhitelist` 를 함께 되돌림 | 같음 | KILLED 1 — `auth-config-ip-whitelist.dto.spec.ts` 캐너리 하나뿐 |
+
+D4~D6 을 죽인 것이 캐너리 **하나뿐**이라는 것이 «캐너리가 없으면 살아남는다» 의 실측이다.
+
+## `--impl-prep` 처분 (`review/consistency/2026/09/27/15_19_25` BLOCK: NO)
+
+- **W1** (cross_spec) 트리거 `name` 등 트리거 · 스케줄의 NOT NULL 필드도 같은 메커니즘인데 프로브가 재지 않았다 → 새 트래커 항목에
+  «미측정 — 같은 메커니즘» 으로 적었다.
+- **W2** (cross_spec) 실행 상세의 `nodeExecutions[].node` 폭을 REST 문서(`14-execution-history.md` §5, 좁은 3필드 예시)와 WS 문서
+  (`6-websocket-protocol.md` §6.2, «`findById` 그대로»)가 다르게 적는다 → 좁힌 executions 항목에 «어느 쪽이 목표 계약인가» 결정을
+  하위 작업으로 적었다.
+- **W4** (plan_coherence) «필터의 23502 매핑» 은 `plan/in-progress/keyset-cursor-uuid-validation.md` §A 가 이미 기각했다(필터는 값의
+  출처를 모른다 · 500 은 입구 검증 누락의 알람이다 · 전략은 입구마다 조기 거부) → 새 항목은 그 결정을 인용하고 처방을 **입구(DTO)
+  검증**으로만 적었다. 이번 500 이 바로 그 알람이 작동한 경우다.
+- W3 · INFO 1~6 — 기존 트래커 항목(8) · planner 항목과 같은 자리이거나 조치 불요.
 
 ## 체크리스트
 
-- [ ] `--impl-prep`
-- [ ] DTO 셋 · e2e · 단위 캐너리 · 헬퍼 JSDoc · CHANGELOG · 트래커
-- [ ] 뮤턴트 표 실측
+- [x] `--impl-prep` — `review/consistency/2026/09/27/15_19_25` BLOCK: NO(W1 · W2 · W4 → 트래커 새 항목 · 좁힌 항목에 반영)
+- [x] DTO 셋 · e2e · 단위 캐너리 · 선언 캐너리 · 헬퍼 JSDoc · CHANGELOG · 트래커
+- [x] 뮤턴트 표 실측 — D1~D6 · H1 전부 KILLED
 - [ ] TEST WORKFLOW (lint · unit · build · e2e)
 - [ ] `/ai-review`
 - [ ] `--impl-done`

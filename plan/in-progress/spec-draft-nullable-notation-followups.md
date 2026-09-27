@@ -14,6 +14,7 @@ spec_impact:
   # 스코프에서 누락된다 (`review/consistency/2026/09/06/16_29_00` INFO#2).
   - spec/2-navigation/2-trigger-list.md
   - spec/2-navigation/6-config.md
+  - spec/2-navigation/14-execution-history.md
   - spec/3-workflow-editor/1-node-common.md
   - spec/2-navigation/3-schedule.md
   - spec/5-system/15-chat-channel.md
@@ -1401,7 +1402,8 @@ field: T | null;
       > **가드는 두지 않았다** — 판단 근거(남은 `Object.assign(` 4곳이 전부 다른 형태 · 결함은 타입의 문제라 정규식이 못 가른다)는
       > 그 plan §가드.
 
-- [ ] **PATCH 부분 본문 후속 — 요청 DTO `description` 의 nullable 선언 · 응답 직렬화 계층 부재 · 캐너리 둘** (developer, 낮음,
+- [ ] **~~PATCH 부분 본문 후속 — 요청 DTO `description` 의 nullable 선언 · 응답 직렬화 계층 부재 · 캐너리 둘~~ → 남은 것: 실행 상세
+      응답에 선언 없는 관계 둘(`executions.service.ts` `findById`)** (developer, 낮음,
       2026-09-27 등재 · `plan/complete/patch-omit-undefined.md` `/ai-review` 2R `review/code/2026/09/27/14_20_00` — 수렴 예외로 등재,
       근거는 그 세션 RESOLUTION).
       - (W2) `UpdateWorkflowDto.description` · `UpdateNodeDto.description` 이 `description?: string` · nullable 미선언이다. 런타임은
@@ -1417,6 +1419,39 @@ field: T | null;
         (`ipWhitelist`)에도 하나씩.
       - (INFO 2) `omit-undefined.ts` JSDoc 에 «인자 자체가 런타임 null 이면 `Object.entries` 가 던진다 — 필드 전체가 null 일 수 있는
         호출부(중첩 DTO)는 먼저 `!= null` 로 가드하라» 한 문장. 그 PR 의 1R Critical(`settings: null` 500)의 뿌리다.
+
+      > **진행 (2026-09-27, `plan/complete/patch-body-followups.md`)** — W2 · INFO 1 · INFO 2 는 닫았다. 고치기 전 코드로 돌린 임시
+      > 프로브가 세 필드(워크플로 · 노드 `description`, 인증 설정 `ipWhitelist` — 마지막은 이 항목에 없던 같은 형태)가 null 을 받아
+      > 지운다는 것을 먼저 쟀고, 선언을 `nullable` 로 맞췄다. 선언 캐너리도 뒀다 — swagger 가드는 데코레이터 · 타입을 **함께** 되돌리는
+      > 회귀를 못 본다(뮤턴트로 실측). W1 은 **전수만** 닫았다: 서비스의 관계 로딩 39줄을 전부 분류하니 결함 후보는 2건, 둘 다 아래 한
+      > 자리다. 민감 컬럼은 0건.
+      >
+      > **남은 것 — `executions.service.ts` `findById`**: 부모 `workflow`(Workflow 전 컬럼)와 `nodeExecutions[].node`(Node 전 컬럼, `config`
+      > 원문)가 `ExecutionDetailDto` 에 선언 없이 실린다. 표면 셋 — `GET /executions/:id` · `POST /executions/:id/re-run` · WS
+      > `execution_snapshot`. `toResponseExecution` 이 `trigger` · `executor` 만 떼고 `workflow` 는 두며 `nodeExecutions` map 이 `node` 를 그대로
+      > 둔다. 착수 전에 정할 것 둘:
+      > - **`node` 는 그냥 뗄 수 없다** — 프런트가 `ne.node?.label` · `ne.node?.type` 을 읽는다(실행 상세 페이지 · WS 스냅샷 적용).
+      >   `nodeLabel` · `nodeType` 으로 좁혀 싣고 프런트를 함께 고칠지, 좁힌 `node` 참조 DTO 를 선언할지.
+      > - **목표 계약이 문서끼리 다르다** — `spec/2-navigation/14-execution-history.md` §5 는 좁은 3필드 예시, `spec/5-system/6-websocket-protocol.md`
+      >   §6.2 는 «`findById` 그대로»(`patch-body-followups` `--impl-prep` `review/consistency/2026/09/27/15_19_25` W2). planner 결정이 선행.
+      > - 곁눈으로 본 것(확인 안 함): `toResponseExecution` 의 `...rest` 가 `ExecutionDetailDto` 에 없는 컬럼(`conversationThread` ·
+      >   `userVariables` · `resumeCallStack` 등)도 펼치는 것으로 보인다. 위 «§5.4 drift 배치 — 2단계» 의 `ExecutionDto` 몫과 함께 본다.
+
+- [ ] **PATCH 의 NOT NULL 필드에 `null` 을 보내면 500 이다 — `@IsOptional()` 이 null 을 통과시킨다** (developer, 2026-09-27 등재 ·
+      `plan/complete/patch-body-followups.md` 임시 프로브가 실측).
+      `@IsOptional()` 은 null 도 «값 없음» 으로 보고 다른 검증기를 건너뛴다. null 이 엔티티에 병합되고 저장 때 Postgres NOT NULL 위반
+      (23502)이 나 전역 예외 필터가 500 `INTERNAL_ERROR` 로 답한다. 클라이언트 입력이 500 을 만든다.
+      실측(`_test_logs/e2e-20260927-151214.log`, 고치기 전 코드): 폴더 `name` · 워크플로 `name` · `tags` · `isActive` · 노드 `config` · 인증 설정
+      `name` · `isActive` — **7개 모두 500**. 노드 `label: null` 은 라벨 중복 검사가 `label: null` 로 다른 노드를 찾아 **엉뚱한 409**
+      (`DUPLICATE_NODE_LABEL` «label "null" already exists»). 트리거 · 스케줄 등 나머지 PATCH 는 **미측정** — 같은 메커니즘이라 같을
+      가능성이 높을 뿐이다(`--impl-prep` `review/consistency/2026/09/27/15_19_25` W1).
+      > **처방은 입구(DTO) 검증이다 — 필터에 23502 매핑을 넣지 않는다.** `plan/in-progress/keyset-cursor-uuid-validation.md` §A 가 이미
+      > 그 방향을 기각했다: 필터는 값의 출처를 모르고, 500 은 «어느 입구가 검증을 빠뜨렸다» 는 알람이며, 저장소 전략은 입구마다 조기
+      > 거부다. 이번 500 이 바로 그 알람이 작동한 경우다.
+      > 착수 때: (1) 전수 — PATCH 요청 DTO 의 `@IsOptional()` 필드 중 엔티티 컬럼이 NOT NULL 인 것(축은 «요청이 무엇을 하는가»: 부분
+      > 본문을 엔티티에 병합하는 모든 PATCH, `!== undefined` 필드 가드를 쓰는 서비스도 null 은 통과시킨다). (2) 형태 — 필드마다
+      > `@ValidateIf((_, v) => v !== undefined)` 로 null 이 검증기에 닿게 할지, 공용 데코레이터(예: «생략은 되지만 null 은 안 됨»)를 만들지.
+      > (3) 선언 — 그 필드들은 OpenAPI 에서 nullable 이 아니어야 하고 지금도 아니다(선언은 맞고 런타임이 느슨하다).
 
 - [ ] **§5.4 스윕 2차 — 엔드포인트인데 e2e 미도달인 DTO** (developer, 2026-09-05 등재).
       1차가 닿지 못한 자리다. 배선 한 줄이 아니라 **새 e2e 시나리오**가 선행이므로 모듈
