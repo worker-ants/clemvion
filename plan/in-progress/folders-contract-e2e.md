@@ -101,6 +101,6 @@ started: 2026-09-27
 - [x] `--impl-prep` — `review/consistency/2026/09/27/10_39_26` BLOCK: NO(W1~W3 는 spec 쓰기 — 기존 planner 항목 보강)
 - [x] 서비스 · DTO · 래칫 · e2e · 단위 · 캐너리 · CHANGELOG · 트래커
 - [x] 뮤턴트 표 실측 — M1 e2e 생존으로 POST 전제 반증 · `create()` 변경 되돌림
-- [ ] TEST WORKFLOW (lint · unit · build · e2e)
+- [x] TEST WORKFLOW (lint · unit · build · e2e) — 전부 PASS, e2e 418 (`_test_logs/e2e-20260927-114841.log`, `3567f5577`)
 - [ ] `/ai-review`
 - [ ] `--impl-done`
