@@ -1,10 +1,11 @@
 ---
 title: "PATCH 의 NOT NULL 필드에 null 을 보내면 500 — 입구(DTO) 검증으로 400"
-status: in-progress
+status: complete
 owner: developer
 worktree: patch-null-validation
 spec_impact: none
 started: 2026-09-27
+completed: 2026-09-27
 ---
 
 # PATCH 의 NOT NULL 필드에 null → 500
@@ -141,3 +142,5 @@ assistant `title` · model-configs `baseUrl`·`dimension`(embedding) · knowledg
   — spec «hard-fail» 서술과 어긋남) → 트래커 «PATCH null 후속» 보강, W3 · W4 · INFO 2(`2-trigger-list.md` `endpointPath` 행 · §5.4 검증
   층 표) → planner 항목 (10) 범위 보강, W5 · INFO 4(응답 계약 어휘와의 층 구분) → `optional-non-null.ts` JSDoc. 그 파일은 spec `code:`
   연결이 아니라(`review_guard._spec_linked_changes`) 이 산출물은 유효하고, 코드 리뷰 게이트만 다시 무장된다 → 3R
+- [x] 3R `/ai-review` — `review/code/2026/09/27/18_48_42` Critical 0 · Warning 0 · codebase 수정 0 수렴(TEST WORKFLOW 재통과, e2e 459 —
+  `_test_logs/e2e-20260927-184407.log`). SPEC-DRIFT 2건(§5.4 · `2-trigger-list.md` `endpointPath`)은 트래커 planner 항목 (10) 범위 안
