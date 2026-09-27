@@ -127,5 +127,5 @@ started: 2026-09-27
 - [x] 서비스 · DTO · 래칫 · e2e · 단위 · 캐너리 · CHANGELOG · 트래커
 - [x] 뮤턴트 표 실측 — M1 e2e 생존으로 POST 전제 반증 · `create()` 변경 되돌림
 - [x] TEST WORKFLOW (lint · unit · build · e2e) — 전부 PASS, e2e 418 (`_test_logs/e2e-20260927-114841.log`, `3567f5577`)
-- [ ] `/ai-review`
+- [x] `/ai-review` — 1R `review/code/2026/09/27/11_53_51`(Critical 0 · Warning 2 → 헬퍼 추출 · 마무리 커밋) · 2R `review/code/2026/09/27/12_17_57`(Critical 0 · Warning 1 = 1R W2 동일, codebase 수정 0 — 수렴)
 - [ ] `--impl-done`

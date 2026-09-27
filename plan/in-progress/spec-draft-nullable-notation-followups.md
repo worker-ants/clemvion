@@ -1386,6 +1386,10 @@ field: T | null;
       > (`folders-contract-e2e`, 2026-09-27 `/ai-review` W1 로 트리거 · 폴더 두 사본을 합쳤다). 남은 셋은 그 헬퍼 호출로 고친다.
       > 남은 판단은 가드(`Object.assign(<엔티티>, <DTO>)` 형태 금지)가 맞는지 하나다. 착수 때 그 컨트롤러의 `@Body()` 가 타입 있는
       > DTO 클래스인지도 함께 본다 — 헬퍼는 키를 거르지 않고, 화이트리스트 방어는 전역 `CustomValidationPipe`(`whitelist` · `forbidNonWhitelisted`)가 한다(같은 리뷰 INFO 1).
+      > 헬퍼를 다시 여는 김에 함께 할 비차단 손질(`review/code/2026/09/27/12_17_57` INFO): (10) `omit-undefined.spec.ts` 에 빈 객체 ·
+      > 전 필드 `undefined` 입력 캐너리 — 지금은 폴더 단위 테스트가 간접으로만 본다. (11) 타입 제약 `T extends object` 가 배열을 받는데
+      > 구현은 배열을 인덱스 키 객체로 무너뜨린다 — 호출부 둘은 배열을 안 넘긴다. (8) `folders.service.spec.ts` 의 주석이 아직
+      > e2e 케이스 문자(«C · E»)를 인용한다 — 서비스 주석은 파일명으로 바꿨다.
 
 - [ ] **§5.4 스윕 2차 — 엔드포인트인데 e2e 미도달인 DTO** (developer, 2026-09-05 등재).
       1차가 닿지 못한 자리다. 배선 한 줄이 아니라 **새 e2e 시나리오**가 선행이므로 모듈
