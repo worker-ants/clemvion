@@ -6337,7 +6337,10 @@ field: T | null;
       > `folderId`)의 null 은 **값을 지운다**. 같은 엔드포인트 안에서 필드마다 null 의 뜻이 갈린다(`review/code/2026/09/27/14_20_00` INFO 4).
       > (8) `1-workflow-list.md` §2.3 필터 표 «상태»
       > 행이 이미 해소된 파라미터 불일치(#519)를 진행 중으로 적는다 — 같은 절 하단 보강 문구와 자기모순이다. 행의 경고를 걷는다.
-      > 여덟 다 spec 쓰기라 planner 턴에서 한 번에.
+      > (9) `2-trigger-list.md` §2.3.1 `botToken` 행의 링크 라벨이 «Spec Chat Channel §1.11» 인데 가리키는 곳은 `3-error-handling.md`
+      > §1.11 이다 — 라벨만 고친다(`patch-omit-undefined` `--impl-done` `review/consistency/2026/09/27/14_33_36` INFO 5). (7)의 `settings`
+      > null 의미 문장은 `1-workflow-list.md` `## Rationale` §2(strict DTO 결정)에 두는 것도 후보다(같은 세션 INFO 4).
+      > 아홉 다 spec 쓰기라 planner 턴에서 한 번에.
 
 - [ ] **`1-data-model.md` §2.2 가 Schedule 타임존의 최종 fallback 을 AI 노드와 같은 체인으로 적는다** (planner, 낮음, 2026-09-27 등재 ·
       `patch-omit-undefined` `--impl-prep` `review/consistency/2026/09/27/13_11_33` cross_spec W1 — 그 PR 과 무관한 기존 drift).
