@@ -1,6 +1,6 @@
 ---
 title: "요청 본문의 참조 id 가 다른 워크스페이스(또는 다른 워크플로)를 가리켜도 저장된다 — 저장 전 소속 검사"
-status: in-progress
+status: complete
 owner: developer
 worktree: cross-workspace-refs
 spec_impact:
@@ -10,6 +10,7 @@ spec_impact:
   - spec/data-flow/12-workspace.md
   - spec/3-workflow-editor/0-canvas.md
 started: 2026-09-27
+completed: 2026-09-27
 ---
 
 # 교차 워크스페이스 참조 — 저장 전 소속 검사
@@ -141,4 +142,6 @@ M2~M5 는 서로 다른 테스트를 죽이도록 골라 한 번에 돌렸다(6�
 - [x] 뮤턴트 — M1~M5 전부 KILLED
 - [x] TEST WORKFLOW — lint · unit · build · e2e 전부 PASS, e2e 477(`_test_logs/e2e-20260927-213723.log` — 새 18케이스 · 캔버스 왕복 `workflow-crud` 포함). 첫 lint 는 새 테스트의 catch 매개변수 이름 13건 → 고치고 lint 부터 재실행
 - [x] `/ai-review` — 1R `21_43_01` Warning 3 → `698ad8ab7` · 2R `22_11_22` W1 → `421b69088`(M6 KILLED), W2 · W3 수렴 예외로 트래커 · 3R `22_36_12` Critical 0 · Warning 1(층 경계, 구조) → 미리 정한 정지 규칙대로 수렴 예외로 트래커, codebase 수정 0 — 수렴
-- [ ] `--impl-done`
+- [x] `--impl-done` — `review/consistency/2026/09/27/22_50_00` BLOCK: NO(판정 HEAD `74e637fd4`). W1(1-workflow-list Rationale §3 상호
+  참조) · W3(API 문서 셋 미러)는 트래커에 이미 있다. W2(«저장이 입구 하나다» 는 서비스별 opt-in 이라 구현보다 넓다 — 정적 가드 없음) ·
+  INFO 2(`details[].code` 인용) → 트래커 «교차 워크스페이스 참조 후속» 에 등재
