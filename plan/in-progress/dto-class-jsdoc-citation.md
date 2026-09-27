@@ -53,7 +53,9 @@ spec 커밋 `c8bf27c8e`: **필드와 같이 쓰지 않는다**(`review-citations
       Rationale 새 절이 이미 «쓰인 시점에 맞았다 · 다음 날 반증» 을 적는다.
 - [x] 두 DTO · 가드 목록 · 가드 주석 · CHANGELOG
 - [x] 뮤턴트 표 실측 — 3개 전부 KILLED
-- [ ] TEST WORKFLOW (lint · unit · build · e2e)
+- [x] TEST WORKFLOW (lint · unit · build · e2e 413) — 첫 unit 에서 frontend 의 plan 링크 가드(`plan-frontmatter.test.ts`)가 planner
+      draft 의 상대 링크 3건(spec 문장을 인용하며 들어간 `./swagger.md` · `./review-citations.md`)을 깨진 링크로 잡았다. plan 기준
+      경로로 고치고(`1f5c4273f`) lint 부터 다시 통과
 - [ ] `/ai-review`
 - [ ] `--impl-done`
 - [ ] 트래커 항목 닫기 · planner draft 이동
