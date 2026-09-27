@@ -501,7 +501,7 @@ describe('WorkflowsService', () => {
         'wf-uuid-1',
         'ws-uuid-1',
         Object.assign(new UpdateWorkflowDto(), {
-          description: null as unknown as string,
+          description: null,
           folderId: null,
         }),
         'u-spec',
