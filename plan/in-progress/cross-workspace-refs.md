@@ -102,6 +102,12 @@ started: 2026-09-27
   W1(Trigger · Schedule 제약 문구) → §2.8 · §2.9 에 반영. W2(«이 PR 밖» 두 항목 트래커 미등재) → 트래커 새 항목 «교차 워크스페이스
   참조 후속».
 - `--spec` W1(`details` 단일 객체 → 배열) · W2(AlertRule §2.25) · INFO 1 · 5 → draft 에 반영하고 적용. W3 → 위 트래커 항목.
+- `--impl-prep` 재실행 `20_21_21` **BLOCK: YES** — Critical 1: planner 턴의 `1-workflow-list.md` 서술이 구현보다 먼저 착지했는데
+  `pending_plans` 가 없고 Rationale 이 아직 없는 `plan/complete/…` 를 완료형으로 인용. → planner 턴 2: draft
+  `plan/complete/spec-draft-cross-workspace-refs-2.md` → `--spec` 세 번(`20_35_40` BLOCK: YES — `0-canvas.md` 에도 같은 결함 ·
+  `20_45_35` BLOCK: YES — 제가 쓴 «`1-data-model.md` 승격은 가드가 강제» 가 거짓(그 파일은 `EXCLUDE_BASENAMES`) · `20_56_04`
+  BLOCK: NO) → `18f235a81`(`1-workflow-list` · `0-canvas` `pending_plans` 에 이 plan, Rationale 현재형 · in-progress 경로).
+  W2(PATCH `parentId` `details` 형태) → 아래 구현이 맞춘다. W3 · INFO 1(API 문서 셋의 §1.1 미러) · W4(트래커 «닫음» 경로) → 트래커.
 
 ## 테스트 설계
 
