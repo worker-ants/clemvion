@@ -112,6 +112,18 @@ started: 2026-09-27
   BLOCK: NO) → `18f235a81`(`1-workflow-list` · `0-canvas` `pending_plans` 에 이 plan, Rationale 현재형 · in-progress 경로).
   W2(PATCH `parentId` `details` 형태) → 아래 구현이 맞춘다. W3 · INFO 1(API 문서 셋의 §1.1 미러) · W4(트래커 «닫음» 경로) → 트래커.
 
+## 뮤턴트 — 예측 / 실측 (`c2c97de24`, 단위 단계 · `shutil.copy` 원복)
+
+| # | 뮤턴트 | 예측 | 실측 · 죽인 테스트 |
+|---|---|---|---|
+| M1 | 헬퍼 `assertReferenceInScope` 가 조회도 거부도 안 함 | 헬퍼 2 + 그 헬퍼를 쓰는 서비스들의 거부 케이스 | KILLED 8 — 헬퍼 2 · 워크플로 `folderId` 생성 · 수정 2 · 트리거 1 · 스케줄 1 · 폴더 생성 · 수정 2 |
+| M2 | 트리거 `where` 에서 `workspaceId` 제거(= 존재 확인으로 줄어듦) | 트리거 where 단언 1 | KILLED 1 |
+| M3 | 캔버스 새 노드 id 충돌 조회 제거 | 충돌 거부 · 기존 id 제외 2 | KILLED 2 |
+| M4 | 캔버스 엣지 끝점 검사 제거 | 페이로드 참조 목록 1 | KILLED 1 |
+| M5 | 노드 `where` 에서 `workflowId` 제거 | 생성 `containerId` · 수정 `toolOwnerId` 2 | KILLED 2 |
+
+M2~M5 는 서로 다른 테스트를 죽이도록 골라 한 번에 돌렸다(6건 — 예측 합과 같다).
+
 ## 테스트 설계
 
 - e2e `test/cross-workspace-references.e2e-spec.ts` — 필드마다 A 의 요청에 B 의 id → 400 + `details[].field`. 같은 워크스페이스 다른 워크플로도
@@ -124,8 +136,8 @@ started: 2026-09-27
 - [x] 전수 — 읽기 전용 조사 둘, (X) 3 · (D) 7 요청 · 대조군 8
 - [x] `--impl-prep` — 19_43_46 · 20_21_21 BLOCK: YES → planner 턴 두 번(`a8bfd1492` · `18f235a81`) → `21_03_31` **BLOCK: NO**(W1 → 위 «이 PR 밖», W2 → 트래커 planner 불릿)
 - [x] 실측(고치기 전 e2e) — 18 RED · 프로브 2 재현
-- [ ] 구현 · 단위 · CHANGELOG · 트래커
-- [ ] 뮤턴트
-- [ ] TEST WORKFLOW
+- [x] 구현 · 단위 · CHANGELOG · 트래커 — `c2c97de24`
+- [x] 뮤턴트 — M1~M5 전부 KILLED
+- [x] TEST WORKFLOW — lint · unit · build · e2e 전부 PASS, e2e 477(`_test_logs/e2e-20260927-213723.log` — 새 18케이스 · 캔버스 왕복 `workflow-crud` 포함). 첫 lint 는 새 테스트의 catch 매개변수 이름 13건 → 고치고 lint 부터 재실행
 - [ ] `/ai-review`
 - [ ] `--impl-done`
