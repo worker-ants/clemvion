@@ -133,6 +133,6 @@ assistant `title` · model-configs `baseUrl`·`dimension`(embedding) · knowledg
 - [x] `--impl-prep` — `review/consistency/2026/09/27/17_14_44` BLOCK: NO(W1 · W2 → 트래커)
 - [x] 데코레이터 · DTO · e2e · 단위 · CHANGELOG · 트래커
 - [x] 뮤턴트 표 실측 — M1~M4 전부 KILLED
-- [ ] TEST WORKFLOW (lint · unit · build · e2e)
+- [x] TEST WORKFLOW (lint · unit · build · e2e) — 전부 PASS, e2e 458 (`_test_logs/e2e-20260927-174241.log`, `feac5ef37`). 첫 unit 에서 `update-me.dto.spec.ts` 가 «theme=null 통과» 를 고정하고 있어 RED — 결함을 고정하던 테스트라 기대값을 바꾸고 lint 부터 재실행
 - [ ] `/ai-review`
 - [ ] `--impl-done`
