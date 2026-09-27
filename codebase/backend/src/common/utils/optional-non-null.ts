@@ -10,6 +10,9 @@ import { IsDefined, ValidateIf, type ValidationOptions } from 'class-validator';
  *
  * 쓰지 말아야 할 자리: 컬럼이 nullable 이고 `null` 이 «값을 지운다» 는 뜻인 필드 — 거기는 `@IsOptional()` + `nullable: true` 가
  * 맞다(API 규약 §5.4 의 PATCH tri-state).
+ *
+ * 같은 «생략 가능 · null 불가» 조합을 **응답** 쪽에서 강제하는 것은 `shared/testing/response-contract.ts`(§5.4 — 키 생략형 필드에
+ * null 이 오면 위반)다. 이쪽은 **요청** DTO 의 입구 검증이다. 부분 본문을 엔티티에 병합하는 쪽의 짝은 `omit-undefined.ts` 다.
  */
 export function IsOptionalNonNull(
   validationOptions?: ValidationOptions,
