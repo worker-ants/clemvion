@@ -1,6 +1,6 @@
 ---
 title: "review-citations §3 — 응답 DTO 의 필드 JSDoc 과 클래스 JSDoc 을 가르고, 둘 다 리뷰 인용을 쓰지 않는다고 적는다"
-status: in-progress
+status: complete
 owner: planner
 worktree: dto-class-jsdoc-citation
 spec_impact:

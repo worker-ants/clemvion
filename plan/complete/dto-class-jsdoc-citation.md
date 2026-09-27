@@ -1,6 +1,6 @@
 ---
 title: "응답 DTO 클래스 JSDoc 두 곳의 리뷰 인용을 `//` 로 옮기고 가드 동결 목록을 비운다"
-status: in-progress
+status: complete
 owner: developer
 worktree: dto-class-jsdoc-citation
 spec_impact: none
@@ -60,5 +60,6 @@ spec 커밋 `c8bf27c8e`: **필드와 같이 쓰지 않는다**(`review-citations
       `codebase/` 수정 0 → 정지 규칙 충족. 판정 기준 커밋 `ddb4d7511`, 통합 전 트리는 HEAD 와 같았고 리뷰어 트랜스크립트에 저장소
       쓰기가 없었다. INFO 11건은 조치 불요(마무리 안내 · 스코프 확인 · 기존 관행). summary 의 «사용자가 이미 머지했다» 는 이전 PR 에
       대한 말을 잘못 읽은 것이다 — 이 PR 은 아직 열리지 않았다.
-- [ ] `--impl-done`
-- [ ] 트래커 항목 닫기 · planner draft 이동
+- [x] `--impl-done` — `review/consistency/2026/09/27/09_29_41` BLOCK: NO · Warning 0(scope `spec/conventions/`). 세션에 코드 · spec
+      diff 를 `_code_diff.patch` 로 두고 절대경로 Read 블록을 덧붙였다. INFO 는 조치 불요(상호 링크 정합 · 기존 구조 · 마무리 안내).
+- [x] 트래커 항목 닫기 · planner draft 이동
