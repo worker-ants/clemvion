@@ -3,6 +3,7 @@ import {
   ConflictException,
   NotFoundException,
 } from '@nestjs/common';
+import { In } from 'typeorm';
 import { NodesService } from './nodes.service';
 import { Node, NodeCategory } from './entities/node.entity';
 import { UpdateNodeDto } from './dto/update-node.dto';
@@ -50,8 +51,6 @@ describe('NodesService', () => {
       create: jest.fn((data: any) => ({ ...data }) as Node),
       save: jest.fn((node: any) => Promise.resolve(node)),
       remove: jest.fn(),
-      // Default: containerId / toolOwnerId 가 가리키는 노드는 같은 워크플로에 있다.
-      exists: jest.fn().mockResolvedValue(true),
     };
     mockWorkflowRepo = {
       // Default: workflow belongs to the caller's workspace.
@@ -153,9 +152,9 @@ describe('NodesService', () => {
     });
 
     // spec 1-data-model §1.1 — containerId · toolOwnerId 는 같은 워크플로의 노드만.
-    it('containerId 는 같은 워크플로의 노드인지 조회한다 — 없으면 400 이고 저장하지 않는다', async () => {
+    it('containerId 는 같은 워크플로의 노드인지 한 번에 조회한다 — 없으면 400 이고 저장하지 않는다', async () => {
       mockRepo.findOne.mockResolvedValue(null);
-      mockRepo.exists.mockResolvedValue(false);
+      mockRepo.find.mockResolvedValueOnce([]);
       const err = await service
         .create('wf-1', WS, {
           type: 'http_request',
@@ -164,8 +163,9 @@ describe('NodesService', () => {
           containerId: 'box-other',
         })
         .catch((err_: unknown) => err_);
-      expect(mockRepo.exists).toHaveBeenCalledWith({
-        where: { id: 'box-other', workflowId: 'wf-1' },
+      expect(mockRepo.find).toHaveBeenCalledWith({
+        where: { id: In(['box-other']), workflowId: 'wf-1' },
+        select: { id: true },
       });
       expect(err).toBeInstanceOf(BadRequestException);
       expect((err as BadRequestException).getResponse()).toMatchObject({
@@ -173,6 +173,35 @@ describe('NodesService', () => {
         details: [{ field: 'containerId', code: 'INVALID_FIELD' }],
       });
       expect(mockRepo.save).not.toHaveBeenCalled();
+    });
+
+    it('containerId · toolOwnerId 가 둘 다 없으면 둘 다 싣는다', async () => {
+      mockRepo.findOne.mockResolvedValue(null);
+      mockRepo.find.mockResolvedValueOnce([]);
+      const err = await service
+        .create('wf-1', WS, {
+          type: 'http_request',
+          category: NodeCategory.INTEGRATION,
+          label: 'HTTP Request',
+          containerId: 'box-other',
+          toolOwnerId: 'agent-other',
+        })
+        .catch((err_: unknown) => err_);
+      expect(
+        ((err as BadRequestException).getResponse() as { details: unknown })
+          .details,
+      ).toStrictEqual([
+        {
+          field: 'containerId',
+          message: 'Container node not found in this workflow',
+          code: 'INVALID_FIELD',
+        },
+        {
+          field: 'toolOwnerId',
+          message: 'Tool owner node not found in this workflow',
+          code: 'INVALID_FIELD',
+        },
+      ]);
     });
   });
 
@@ -249,12 +278,13 @@ describe('NodesService', () => {
       mockRepo.findOne.mockResolvedValueOnce(
         makeNode('n1', 'HTTP Request', 'wf-1'),
       );
-      mockRepo.exists.mockResolvedValue(false);
+      mockRepo.find.mockResolvedValueOnce([]);
       const err = await service
         .update('n1', WS, { toolOwnerId: 'agent-other' })
         .catch((err_: unknown) => err_);
-      expect(mockRepo.exists).toHaveBeenCalledWith({
-        where: { id: 'agent-other', workflowId: 'wf-1' },
+      expect(mockRepo.find).toHaveBeenCalledWith({
+        where: { id: In(['agent-other']), workflowId: 'wf-1' },
+        select: { id: true },
       });
       expect((err as BadRequestException).getResponse()).toMatchObject({
         details: [{ field: 'toolOwnerId', code: 'INVALID_FIELD' }],
@@ -267,7 +297,7 @@ describe('NodesService', () => {
         .mockResolvedValueOnce(makeNode('n1', 'HTTP Request', 'wf-1'))
         .mockResolvedValueOnce(null);
       await service.update('n1', WS, { containerId: null });
-      expect(mockRepo.exists).not.toHaveBeenCalled();
+      expect(mockRepo.find).not.toHaveBeenCalled();
     });
 
     // IDOR 검사용으로 함께 읽은 `workflow` 관계가 응답에 부모 워크플로 행째로 실렸다(`NodeDto` 미선언).

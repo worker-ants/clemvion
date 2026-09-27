@@ -11,7 +11,8 @@ import { registerAndLogin, createTeamWorkspace } from './helpers/auth';
  *
  * 종전엔 서비스가 그 id 를 컬럼에 그대로 저장했다. 트리거 · 스케줄의 `workflowId` 는 실행 경로가 워크스페이스로 거르지 않아 상대
  * 워크플로가 이쪽 트리거로 실행됐고, 캔버스 저장은 자기 워크플로에 없는 노드 id 를 «신규» 로 `save` 해 상대 노드 행을 이쪽으로
- * 옮겼다(`plan/complete/cross-workspace-refs.md` §실측 — 고치기 전 코드에서 이 파일의 18케이스가 전부 RED). 나머지는 끊긴 참조로 남았다.
+ * 옮겼다 — 고치기 전 코드에서 이 파일의 18케이스가 전부 RED 였다(실측은 `spec/data-flow/12-workspace.md` `## Rationale` «본문
+ * 참조 id 도 저장 전에 소속을 본다»). 나머지는 끊긴 참조로 남았다.
  *
  * 규칙 · 에러는 `spec/1-data-model.md` §1.1: 400 `VALIDATION_ERROR` + `details: [{ field, message, code: 'INVALID_FIELD' }]`, 모델 설정
  * 참조는 기존 검증기(`findEntity(id, workspaceId, kind)`)를 재사용해 404 `MODEL_CONFIG_NOT_FOUND`. 없는 id 와 남의 id 를 구분하지 않는다.

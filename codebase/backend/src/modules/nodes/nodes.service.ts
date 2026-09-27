@@ -98,23 +98,34 @@ export class NodesService {
     workflowId: string,
     dto: { containerId?: string | null; toolOwnerId?: string | null },
   ): Promise<void> {
-    const refs = [
-      { field: 'containerId', id: dto.containerId, what: 'Container' },
-      { field: 'toolOwnerId', id: dto.toolOwnerId, what: 'Tool owner' },
-    ];
-    const invalid: InvalidReference[] = [];
-    for (const ref of refs) {
-      if (ref.id == null) continue;
-      const found = await this.nodeRepository.exists({
-        where: { id: ref.id, workflowId },
+    const refs: Array<{ field: string; id: string; what: string }> = [];
+    if (dto.containerId != null) {
+      refs.push({
+        field: 'containerId',
+        id: dto.containerId,
+        what: 'Container',
       });
-      if (!found) {
-        invalid.push({
-          field: ref.field,
-          message: `${ref.what} node not found in this workflow`,
-        });
-      }
     }
+    if (dto.toolOwnerId != null) {
+      refs.push({
+        field: 'toolOwnerId',
+        id: dto.toolOwnerId,
+        what: 'Tool owner',
+      });
+    }
+    if (refs.length === 0) return;
+    // 엣지 끝점 검사(`EdgesService.assertEndpointsInWorkflow`)와 같은 형태 — 한 번의 `In()` 조회로 전부 본다.
+    const found = await this.nodeRepository.find({
+      where: { id: In(refs.map((ref) => ref.id)), workflowId },
+      select: { id: true },
+    });
+    const foundIds = new Set(found.map((node) => node.id));
+    const invalid: InvalidReference[] = refs
+      .filter((ref) => !foundIds.has(ref.id))
+      .map((ref) => ({
+        field: ref.field,
+        message: `${ref.what} node not found in this workflow`,
+      }));
     if (invalid.length > 0) throwInvalidReferences(invalid);
   }
 
