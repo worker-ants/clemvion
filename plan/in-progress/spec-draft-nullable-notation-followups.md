@@ -15,6 +15,7 @@ spec_impact:
   - spec/2-navigation/2-trigger-list.md
   - spec/2-navigation/6-config.md
   - spec/2-navigation/14-execution-history.md
+  - spec/2-navigation/9-user-profile.md
   - spec/3-workflow-editor/1-node-common.md
   - spec/2-navigation/3-schedule.md
   - spec/5-system/15-chat-channel.md
@@ -1437,7 +1438,7 @@ field: T | null;
       > - 곁눈으로 본 것(확인 안 함): `toResponseExecution` 의 `...rest` 가 `ExecutionDetailDto` 에 없는 컬럼(`conversationThread` ·
       >   `userVariables` · `resumeCallStack` 등)도 펼치는 것으로 보인다. 위 «§5.4 drift 배치 — 2단계» 의 `ExecutionDto` 몫과 함께 본다.
 
-- [ ] **PATCH 의 NOT NULL 필드에 `null` 을 보내면 500 이다 — `@IsOptional()` 이 null 을 통과시킨다** (developer, 2026-09-27 등재 ·
+- [x] **PATCH 의 NOT NULL 필드에 `null` 을 보내면 500 이다 — `@IsOptional()` 이 null 을 통과시킨다** (developer, 2026-09-27 등재 ·
       `plan/complete/patch-body-followups.md` 임시 프로브가 실측).
       `@IsOptional()` 은 null 도 «값 없음» 으로 보고 다른 검증기를 건너뛴다. null 이 엔티티에 병합되고 저장 때 Postgres NOT NULL 위반
       (23502)이 나 전역 예외 필터가 500 `INTERNAL_ERROR` 로 답한다. 클라이언트 입력이 500 을 만든다.
@@ -1452,6 +1453,33 @@ field: T | null;
       > 본문을 엔티티에 병합하는 모든 PATCH, `!== undefined` 필드 가드를 쓰는 서비스도 null 은 통과시킨다). (2) 형태 — 필드마다
       > `@ValidateIf((_, v) => v !== undefined)` 로 null 이 검증기에 닿게 할지, 공용 데코레이터(예: «생략은 되지만 null 은 안 됨»)를 만들지.
       > (3) 선언 — 그 필드들은 OpenAPI 에서 nullable 이 아니어야 하고 지금도 아니다(선언은 맞고 런타임이 느슨하다).
+
+      > **완료 (2026-09-27, `plan/complete/patch-null-validation.md`)**. PATCH 21라우트 전수(읽기 전용 조사)로 NOT NULL 컬럼(또는 null 이면
+      > 서비스가 깨지는 값)에 대응하는 **43필드**를 찾아 공용 데코레이터 `IsOptionalNonNull()`(`common/utils/optional-non-null.ts` —
+      > `ValidateIf(v !== undefined)` + `IsDefined`)로 바꿨다. 고치기 전 코드로 돌린 새 e2e(12라우트 33케이스)가 **500 31건 · 엉뚱한 409 1건 ·
+      > 조용한 경로 삭제(200) 1건**을 쟀다(트리거 `endpointPath`). 43필드 표는 단위 테스트가 고정한다(새 필드는 자동 포착 아님).
+      > 넘긴 것 — 아래 새 항목 «PATCH null 후속».
+
+- [ ] **PATCH null 후속 — 선언 누락 8 · JSONB 안의 null · 미측정 둘 · 교차 워크스페이스 참조(미검증)** (developer, 2026-09-27 등재 ·
+      `plan/complete/patch-null-validation.md` 전수가 곁눈으로 본 것).
+      - **(B) nullable 컬럼인데 요청 DTO 가 nullable 을 선언하지 않은 8필드** — 런타임은 null 을 받아 값을 지운다(#1417 이 워크플로 ·
+        노드 · 인증 설정에서 닫은 형태): assistant `title` · model-configs `baseUrl`·`dimension`(embedding) · knowledge-bases
+        `description`·`rerankConfigId`·`rerankScoreThreshold`·`rerankLlmConfigId` · users/me `avatarUrl`. 선언 + 선언 캐너리(요청 DTO 는
+        §5.4 래칫 대상이 아니다 — `feedback_swagger_union_null_design_type` 참고).
+      - **JSONB 안에 null 이 저장돼 «사실상 제거 · 기본값 복귀» 로 동작하는데 선언이 없는 필드** — trigger `notification`·`interaction`
+        (null 이면 해제로 읽힌다) · 워크플로 · 워크스페이스 `settings.maxConcurrentExecutions`(기본값으로 복귀) · notifications settings 3개.
+        그 의미를 계약할지(nullable 선언) 거부할지(`IsOptionalNonNull`) 정한다. `maxConcurrentExecutions` 는 spec 서술과도 어긋난다 —
+        `spec/2-navigation/1-workflow-list.md` §3.2 6번 · 같은 절 «permissive 예외에 포함되지 않는다» 문단은 `settings` 를 «미지 키 ·
+        비양수 · 비정수는 400» 인 **hard-fail** 로 적는데 null 은 `@IsOptional()` 을 지나 저장된다(`patch-null-validation` `--impl-done`
+        `review/consistency/2026/09/27/18_23_40` W2 — 체커의 관찰이고 이 PR 은 재지 않았다). 거부로 정하면 서술은 그대로 맞고, 계약으로
+        정하면 그 두 문단이 planner 몫이다.
+      - **미측정 둘** — `triggers.chatChannel.languageHints` 는 PATCH 가 200 이고 이후 실패 메시지 렌더에서 TypeError 가 예측된다
+        (`language-hint-defaults.ts` 의 `languageHints['executionFailed']` — 실행 안 해 봄, `15-chat-channel.md` 소관). trigger
+        `interaction.appearance` 하위 7개는 null 이 그대로 저장 · 응답되는데 백엔드 소비자가 없고 프런트 영향은 확인 못 했다.
+      - **교차 워크스페이스 참조(미검증 · 보안 성격)** — `workflows.folderId` · `nodes.containerId`·`toolOwnerId` · assistant `llmConfigId`
+        는 update 경로에서 **같은 워크스페이스 소속인지 검사하지 않는** 것으로 보인다(조사가 곁눈으로 본 것 — 재현하지 않았다). 폴더 ·
+        트리거 `authConfigId` 는 검사한다(`validateParentChange` · `assertAuthConfigInWorkspace`). 확인되면 다른 워크스페이스의 행을 FK 로
+        가리키게 된다 — 착수 전 e2e 로 재현부터.
 
 - [ ] **§5.4 스윕 2차 — 엔드포인트인데 e2e 미도달인 DTO** (developer, 2026-09-05 등재).
       1차가 닿지 못한 자리다. 배선 한 줄이 아니라 **새 e2e 시나리오**가 선행이므로 모듈
@@ -6375,7 +6403,17 @@ field: T | null;
       > (9) `2-trigger-list.md` §2.3.1 `botToken` 행의 링크 라벨이 «Spec Chat Channel §1.11» 인데 가리키는 곳은 `3-error-handling.md`
       > §1.11 이다 — 라벨만 고친다(`patch-omit-undefined` `--impl-done` `review/consistency/2026/09/27/14_33_36` INFO 5). (7)의 `settings`
       > null 의미 문장은 `1-workflow-list.md` `## Rationale` §2(strict DTO 결정)에 두는 것도 후보다(같은 세션 INFO 4).
-      > 아홉 다 spec 쓰기라 planner 턴에서 한 번에.
+      > **2026-09-27 보강** (`patch-null-validation` `--impl-prep` `review/consistency/2026/09/27/17_14_44` W1 · W2): (6) 의 모집단에 두 번째
+      > 공용 헬퍼 `codebase/backend/src/common/utils/optional-non-null.ts`(`IsOptionalNonNull` — 14개 요청 DTO 가 쓴다)를 더한다. (10)
+      > `spec/5-system/2-api-convention.md` §5.4 블록쿼트의 PATCH tri-state «`null` = 초기화» 는 **nullable 로 선언된 필드**에만 적용되고
+      > 미선언 필드의 `null` 은 400 `VALIDATION_ERROR` 라는 문장이 없다 — 글자 그대로는 `patch-null-validation` 의 null 거부와 부딪혀 보인다.
+      > 한 문장 추가. 같은 김에 `9-user-profile.md` §6.1 `interactionAllowedOrigins` 바디 표기에 `?`(같은 세션 INFO 1).
+      > (10) 의 범위 보강 (`patch-null-validation` `--impl-done` `review/consistency/2026/09/27/18_23_40` W3 · W4 · INFO 2): §5.4 문장만
+      > 넣으면 `endpointPath` 의 spec 서술 갭이 남는다 — `2-trigger-list.md` §2.3.1 필드 권한 매트릭스 `endpointPath` 행과 §3 註(PATCH
+      > 부분 갱신 키 목록)에 «`null` 은 400 `VALIDATION_ERROR` — 경로를 유지하려면 키 생략» 한 줄. 그러면 DTO description
+      > (`update-trigger.dto.ts`)이 `swagger.md` §3 의 «요약 + SoT 링크» 형태로 그 앵커를 가리킬 수 있다(지금은 링크할 본문이 없어
+      > description 이 캐비엇을 직접 적는다). 같은 김에 §5.4 «검증 층» 표에 `optional-non-null.ts` 를 더할지 본다.
+      > 열 다 spec 쓰기라 planner 턴에서 한 번에.
 
 - [ ] **`1-data-model.md` §2.2 가 Schedule 타임존의 최종 fallback 을 AI 노드와 같은 체인으로 적는다** (planner, 낮음, 2026-09-27 등재 ·
       `patch-omit-undefined` `--impl-prep` `review/consistency/2026/09/27/13_11_33` cross_spec W1 — 그 PR 과 무관한 기존 drift).

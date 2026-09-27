@@ -8,6 +8,7 @@ import {
   IsObject,
   ValidateNested,
 } from 'class-validator';
+import { IsOptionalNonNull } from '../../../common/utils/optional-non-null';
 import { Transform, Type } from 'class-transformer';
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { WorkflowSettingsDto } from './workflow-settings.dto';
@@ -19,7 +20,7 @@ export class UpdateWorkflowDto {
     maxLength: 255,
     example: '리드 처리 자동화 v2',
   })
-  @IsOptional()
+  @IsOptionalNonNull()
   @IsString()
   @MaxLength(255)
   name?: string;
@@ -39,7 +40,7 @@ export class UpdateWorkflowDto {
     description: '활성화 여부',
     example: true,
   })
-  @IsOptional()
+  @IsOptionalNonNull()
   @IsBoolean()
   isActive?: boolean;
 
@@ -49,7 +50,7 @@ export class UpdateWorkflowDto {
     type: [String],
     example: ['sales', 'v2'],
   })
-  @IsOptional()
+  @IsOptionalNonNull()
   @IsArray()
   @IsString({ each: true })
   tags?: string[];

@@ -5,6 +5,7 @@ import {
   IsObject,
   MaxLength,
 } from 'class-validator';
+import { IsOptionalNonNull } from '../../../common/utils/optional-non-null';
 import { ApiPropertyOptional } from '@nestjs/swagger';
 
 export class UpdateScheduleDto {
@@ -47,7 +48,7 @@ export class UpdateScheduleDto {
       '활성화 여부. false로 설정 시 BullMQ 반복 작업이 제거되고 트리거도 비활성화됩니다.',
     example: true,
   })
-  @IsOptional()
+  @IsOptionalNonNull()
   @IsBoolean()
   isActive?: boolean;
 
@@ -58,7 +59,7 @@ export class UpdateScheduleDto {
     additionalProperties: true,
     example: { region: 'kr' },
   })
-  @IsOptional()
+  @IsOptionalNonNull()
   @IsObject()
   parameterValues?: Record<string, unknown>;
 }

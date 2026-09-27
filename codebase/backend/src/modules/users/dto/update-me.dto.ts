@@ -6,6 +6,7 @@ import {
   MaxLength,
   MinLength,
 } from 'class-validator';
+import { IsOptionalNonNull } from '../../../common/utils/optional-non-null';
 import { ApiPropertyOptional } from '@nestjs/swagger';
 
 export const USER_LOCALES = ['ko', 'en'] as const;
@@ -23,7 +24,7 @@ export class UpdateMeDto {
     maxLength: 50,
     example: '홍길동',
   })
-  @IsOptional()
+  @IsOptionalNonNull()
   @IsString()
   @MinLength(2)
   @MaxLength(50)
@@ -34,7 +35,7 @@ export class UpdateMeDto {
     enum: USER_LOCALES,
     example: 'ko',
   })
-  @IsOptional()
+  @IsOptionalNonNull()
   @IsIn(USER_LOCALES)
   locale?: UserLocale;
 
@@ -43,7 +44,7 @@ export class UpdateMeDto {
     enum: USER_THEMES,
     example: 'light',
   })
-  @IsOptional()
+  @IsOptionalNonNull()
   @IsIn(USER_THEMES)
   theme?: UserTheme;
 

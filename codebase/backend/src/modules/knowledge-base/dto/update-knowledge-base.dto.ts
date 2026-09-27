@@ -10,6 +10,7 @@ import {
   MaxLength,
   ValidateIf,
 } from 'class-validator';
+import { IsOptionalNonNull } from '../../../common/utils/optional-non-null';
 import { ApiPropertyOptional } from '@nestjs/swagger';
 
 export class UpdateKnowledgeBaseDto {
@@ -19,7 +20,7 @@ export class UpdateKnowledgeBaseDto {
     example: 'Product Docs (v2)',
     maxLength: 255,
   })
-  @IsOptional()
+  @IsOptionalNonNull()
   @IsString()
   @MaxLength(255)
   name?: string;
@@ -39,7 +40,7 @@ export class UpdateKnowledgeBaseDto {
     maximum: 8000,
     example: 1500,
   })
-  @IsOptional()
+  @IsOptionalNonNull()
   @IsInt()
   @Min(100)
   @Max(8000)
@@ -52,7 +53,7 @@ export class UpdateKnowledgeBaseDto {
     maximum: 2000,
     example: 300,
   })
-  @IsOptional()
+  @IsOptionalNonNull()
   @IsInt()
   @Min(0)
   @Max(2000)
@@ -89,7 +90,7 @@ export class UpdateKnowledgeBaseDto {
     minimum: 1,
     maximum: 2,
   })
-  @IsOptional()
+  @IsOptionalNonNull()
   @IsInt()
   @Min(1)
   @Max(2)
@@ -100,7 +101,7 @@ export class UpdateKnowledgeBaseDto {
     minimum: 1,
     maximum: 50,
   })
-  @IsOptional()
+  @IsOptionalNonNull()
   @IsInt()
   @Min(1)
   @Max(50)
@@ -111,7 +112,7 @@ export class UpdateKnowledgeBaseDto {
     minimum: 1,
     maximum: 100,
   })
-  @IsOptional()
+  @IsOptionalNonNull()
   @IsInt()
   @Min(1)
   @Max(100)
@@ -123,7 +124,7 @@ export class UpdateKnowledgeBaseDto {
     description: '리랭킹 모드 (off / cross_encoder / cross_encoder_llm).',
     enum: ['off', 'cross_encoder', 'cross_encoder_llm'],
   })
-  @IsOptional()
+  @IsOptionalNonNull()
   @IsString()
   @IsIn(['off', 'cross_encoder', 'cross_encoder_llm'])
   rerankMode?: 'off' | 'cross_encoder' | 'cross_encoder_llm';
@@ -143,7 +144,7 @@ export class UpdateKnowledgeBaseDto {
     minimum: 1,
     maximum: 200,
   })
-  @IsOptional()
+  @IsOptionalNonNull()
   @IsInt()
   @Min(1)
   @Max(200)
