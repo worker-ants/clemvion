@@ -1840,6 +1840,25 @@ describe('WorkflowsService', () => {
         expect(mockDataSource.transaction).not.toHaveBeenCalled();
       });
 
+      // 버전 복원(`skipLegacyDataGates=true`)은 옛 데이터 호환 게이트만 끈다 — 참조 검사는 워크스페이스 경계라 끄지 않는다.
+      // 이 검사를 그 조건 안으로 옮기면 복원 경로가 교차 참조의 우회로가 된다(`review/code/2026/09/27/22_11_22` W1).
+      it('버전 복원 경로에서도 참조 검사를 건너뛰지 않는다', async () => {
+        const dto = {
+          nodes: [trigger, code('n-a', 'A', { containerId: 'elsewhere-1' })],
+          edges: [],
+        } as unknown as SaveCanvasDto;
+        const err = await service
+          .saveCanvas('wf-uuid-1', 'ws-uuid-1', 'user-uuid-1', dto, true)
+          .catch((err_: unknown) => err_);
+        expect(err).toMatchObject({
+          response: {
+            code: 'VALIDATION_ERROR',
+            details: [{ field: 'nodes[1].containerId', code: 'INVALID_FIELD' }],
+          },
+        });
+        expect(mockDataSource.transaction).not.toHaveBeenCalled();
+      });
+
       it('이 워크플로에 없는 노드 id 가 다른 행이 쓰는 id 면 400 이고 저장하지 않는다', async () => {
         // 1차 find = 이 워크플로의 기존 노드(없음), 2차 find = 새 id 중 이미 쓰이는 것.
         mockTransactionManager.find = jest
