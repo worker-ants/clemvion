@@ -80,8 +80,9 @@ sequenceDiagram
 
 > 위 표의 `container.type` / `CONTAINER_INVALID_CHILD` / `CONTAINER_CYCLE` 검증은 **편집·저장
 > 시점이 아니다** — (a) 실행 엔진 런타임 (`execution-engine.service.ts`) 과 (b) Assistant 의
-> `ShadowWorkflow` 가 수행한다. 저장 경로(`saveCanvas`)는 `container_id`/`tool_owner_id` 를
-> 검증 없이 그대로 저장하며, 편집 시점의 DB 단 강제는 CHECK `chk_node_placement` (둘 다 set 금지) 뿐이다.
+> `ShadowWorkflow` 가 수행한다. 저장 경로(`saveCanvas` · 노드 API)가 저장 시점에 보는 것은 **참조의 소속**뿐이다 —
+> `container_id` · `tool_owner_id` 는 같은 워크플로의 노드(캔버스 저장은 이번 페이로드의 노드)여야 하고, 아니면 400
+> `VALIDATION_ERROR`([데이터 모델 §1.1](../1-data-model.md#11-참조의-소속)). DB 단 강제는 CHECK `chk_node_placement` (둘 다 set 금지) 뿐이다.
 
 ### 1.3 AI Assistant 세션·메시지
 
@@ -146,16 +147,16 @@ Assistant 의 `edit` 류 tool_call 은 **DB 를 직접 건드리지 않는다**.
 
 | Sink (table) | 흐름 | read/write 컬럼 | 인덱스 / 제약 |
 | --- | --- | --- | --- |
-| `workflow` | 생성 | INSERT `workspace_id, name, description?, is_active=false, tags='{}', folder_id?, settings={}, current_version=1, created_by` | FK `workspace_id` (CASCADE), `folder_id` (SET NULL) · V123 `(folder_id)` partial (FK SET NULL — 폴더 삭제) |
+| `workflow` | 생성 | INSERT `workspace_id, name, description?, is_active=false, tags='{}', folder_id?, settings={}, current_version=1, created_by` | `folder_id` 는 같은 워크스페이스 폴더만(저장 전 거부) · FK `workspace_id` (CASCADE), `folder_id` (SET NULL) · V123 `(folder_id)` partial (FK SET NULL — 폴더 삭제) |
 | `workflow` | 복제 (§1.5) | INSERT — "생성" 과 같은 컬럼 집합. `name` 은 원본 + `" (Copy)"`, `is_active=false`, `current_version=1` 고정. description/tags/folder_id/settings 는 원본 값 승계, `created_by` 는 **요청자** | 동일 |
 | `workflow` | 활성 토글 | UPDATE `is_active, updated_at` | — |
 | `workflow` | 버전 커밋 | UPDATE `current_version, updated_at` | — |
 | `workflow` | 삭제 | DELETE — 자식 행의 FK 파급은 §3.1. **트리거 자원 정리**: 외부 자원을 트랜잭션 **전에** 해제하고, 삭제 트랜잭션의 첫 호출로 잠금 대기 상한(5초)을 건 뒤 `workflow` 행을 먼저 잠그고(`pessimistic_write`) 그 워크플로의 트리거 id 를 열거한 다음 삭제, 커밋 **뒤** 그 트리거들의 `secret_store` 비밀을 지운다 ([트리거 목록 §4.3](../2-navigation/2-trigger-list.md#43-cascade-동작)) | 행 잠금은 트리거 INSERT 의 FK 검사(`FOR KEY SHARE`)를 막아 열거 누락을 없앤다 |
-| `node` | 추가 | INSERT `workflow_id, type, category, label, position_x/y, config={}, container_id?, tool_owner_id?` | CHECK `chk_node_placement` (둘 다 set 금지) |
+| `node` | 추가 | INSERT `workflow_id, type, category, label, position_x/y, config={}, container_id?, tool_owner_id?` | CHECK `chk_node_placement` (둘 다 set 금지) · `container_id` / `tool_owner_id` 는 같은 워크플로 노드만(저장 전 거부). 캔버스 저장이 새 노드로 싣는 `id` 가 다른 행의 id 면 거부(그 행을 덮어쓰지 않는다) |
 | `node` | 복제 (§1.5) | INSERT — "추가" 와 같은 컬럼 집합. `id` 를 새로 발급하고 `container_id`/`tool_owner_id` 를 사본 UUID 로 재매핑. `config` 는 원본 그대로(defaults 재적용·LLM 주입 없음) | 동일. 원본이 이미 통과한 label 유니크는 재검증하지 않음 |
 | `node` | 이동 / 설정 변경 | UPDATE `position_x, position_y, config, label, is_disabled` | — |
-| `node` | 컨테이너 / Tool Area 배치 | UPDATE `container_id` 또는 `tool_owner_id` | cycle 검사는 런타임·Assistant ShadowWorkflow 에서 (`CONTAINER_CYCLE`, §1.2 각주) |
-| `edge` | 추가 | INSERT `workflow_id, source_node_id, source_port, target_node_id, target_port, type IN (data/error), condition?` | `(source_node_id, source_port, target_node_id, target_port) UNIQUE`, `chk_no_self_loop`, FK CASCADE · V121 `(target_node_id)` (FK CASCADE — 노드 삭제) |
+| `node` | 컨테이너 / Tool Area 배치 | UPDATE `container_id` 또는 `tool_owner_id` | 같은 워크플로 노드만 — 저장 전 거부([데이터 모델 §1.1](../1-data-model.md#11-참조의-소속)). cycle 검사는 런타임·Assistant ShadowWorkflow 에서 (`CONTAINER_CYCLE`, §1.2 각주) |
+| `edge` | 추가 | INSERT `workflow_id, source_node_id, source_port, target_node_id, target_port, type IN (data/error), condition?` | 끝점은 같은 워크플로 노드만(저장 전 거부) · `(source_node_id, source_port, target_node_id, target_port) UNIQUE`, `chk_no_self_loop`, FK CASCADE · V121 `(target_node_id)` (FK CASCADE — 노드 삭제) |
 | `edge` | 복제 (§1.5) | INSERT — "추가" 와 같은 컬럼 집합. `source_node_id`/`target_node_id` 를 사본 노드 UUID 로 재매핑 | 동일 |
 | `workflow_version` | 버전 커밋 | INSERT `workflow_id, version, snapshot=JSONB, change_summary?, created_by, created_at` | `(workflow_id, version) UNIQUE` |
 | `workflow_assistant_session` | 세션 생성 | INSERT `workspace_id, workflow_id, user_id, title?, llm_config_id?, status='active', message_count=0, last_interaction_at` | `(workflow_id, user_id, status, last_interaction_at DESC)`, `(workspace_id, user_id, updated_at DESC)` (V019) · V125 `(llm_config_id)` partial (FK SET NULL — 모델 설정 삭제) |

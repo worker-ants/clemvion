@@ -432,6 +432,36 @@ personal→첫 멤버십으로 graceful fallback. 목표(end-state)는 토큰이
 
 구현 · 결정 기록: [`plan/complete/spec-draft-workspace-path-guard.md`](../../plan/complete/spec-draft-workspace-path-guard.md).
 
+### 본문 참조 id 도 저장 전에 소속을 본다 (2026-09-27)
+
+가드(헤더 · 토큰 · 경로 파라미터)는 **요청이 어느 워크스페이스에서 도는지**를 본다. 요청 **본문**이 다른 행을 가리키는 id 는
+보지 않는다 — 그건 서비스가 저장할 때 볼 몫인데, 2026-09-27 전수(쓰기 요청 본문의 참조 id, 소스 판독)에서 **10개 묶음(요청 ·
+필드)이 그 id 를 그대로 저장**했다. 대조군은 트리거 `authConfigId` · 폴더 PATCH `parentId` · 지식 베이스 `embeddingModelConfigId` 등 8자리.
+규칙은 [데이터 모델 §1.1](../1-data-model.md#11-참조의-소속).
+
+고치기 전 e2e 가 둘을 재현했다: A 가 B 의 워크플로로 웹훅 트리거를 만들면 201, 부르면 202 로 **B 의 워크플로가 실행**됐고(실행
+엔진은 워크플로를 id 로만 읽는다 — 실행의 워크스페이스 · 자격증명이 그 워크플로 쪽이다), A 의 트리거 목록에 B 워크플로가 실렸다.
+캔버스 저장에 B 의 노드 id 를 실으면 200 으로 **B 의 노드 행이 A 로 옮겨졌다** — 자기 워크플로에 없는 id 를 «신규» 로 만들어
+`save` 하는데, TypeORM `save` 는 id 로만 행을 찾아 있으면 UPDATE 한다. 나머지는 끊긴 참조로 남았다 — 소스 판독으로는 FK
+`ON DELETE` 로 상대의 삭제가 이쪽 행을 비우고(폴더 `parent_id` 는 CASCADE 라 함께 지운다), 엣지 UNIQUE 에 `workflow_id` 가 없어
+남의 연결 튜플을 선점할 수 있다(둘 다 재지 않았다).
+
+- **왜 저장 시점인가**: 읽는 쪽이 거르는 자리(모델 설정 `findEntity(id, workspaceId, kind)`)도 있지만 실행 엔진은 거르지 않는다.
+  읽는 자리마다 필터를 기대하는 것은 위 «멤버십 검증은 가드 1곳에서» 가 «74번째 라우트» 로 기각한 모양 그대로다 — 저장이 입구 하나다.
+- **에러**: 400 `VALIDATION_ERROR` + `details[]`(배열 — 파이프가 내는 `VALIDATION_ERROR` 와 같은 모양이고, 캔버스 저장처럼 한
+  요청에 여러 항목이 틀릴 수 있다). 본문의 교차 참조는 «리소스 부재가 아니라 입력값 유효성» 이라는
+  [에러 처리 §1.11](../5-system/3-error-handling.md#111-트리거-authconfig-binding-에러-코드-도메인-spec-참조) 의 판단을 따른다. 그 절의 `AUTH_CONFIG_NOT_FOUND` 는 top-level 이 도메인 코드인 **예외**이고,
+  `details[].code` 를 실은 다른 자리는 `VALIDATION_ERROR` 가 다수다 — 새 자리는 다수를 따른다. 없는 id 와 남의 id 를 구분하지 않는다.
+- **모델 설정 참조만 404**: 지식 베이스 `embeddingModelConfigId` 가 이미 `findEntity` 로 404 `MODEL_CONFIG_NOT_FOUND` 를 낸다. 같은
+  요청의 `rerankConfigId` 등이 400 이면 한 본문 안에서 필드마다 코드가 갈린다 — 같은 검증기를 재사용한다.
+- **캔버스 저장 노드 id 는 존재 신호를 준다**: 새 id 는 통과하고 쓰이는 id 는 거부하므로 «있다 · 없다» 가 갈린다. 그 UUID 를 이미
+  쥔 사람에게만 의미가 있고(v4 라 추측 불가), 대안이었던 «충돌한 id 를 서버가 조용히 재발급» 은 같은 페이로드의 `containerId` ·
+  엣지가 가리키는 id 와 클라이언트가 쥔 id 를 어긋나게 한다.
+- **실행 시점 격리와는 다른 층이다**: 서브 워크플로 호출의 `WORKFLOW_FORBIDDEN_WORKSPACE`([워크플로 노드 W-6](../4-nodes/2-flow/1-workflow.md))는
+  **실행 중** 노드 설정이 가리키는 워크플로를 막는다. 이 절은 **저장 시점** 요청 본문이다.
+- **남긴 것**: 트리거 `config` JSONB 안의 비밀 참조(`secret://…`, id 가 아닌 문자열)와, 이미 저장된 교차 행에 대한 실행 시점
+  방어선 · 운영 데이터 점검은 이 결정 밖이다 — `plan/in-progress/spec-draft-nullable-notation-followups.md`.
+
 ### URL slug = FE 라우팅 SoT (≠ backend 인가 SoT)
 
 프론트는 활성 워크스페이스를 **URL 경로**(`/w/<slug>/...`)로 반영한다(2-navigation/9-user-profile §3, 구현 완료).
