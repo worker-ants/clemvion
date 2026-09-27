@@ -11,6 +11,7 @@ code:
 pending_plans:
   - plan/in-progress/marketplace-and-plugin-sdk.md
   - plan/complete/workflow-duplicate-nodes-edges.md
+  - plan/in-progress/cross-workspace-refs.md
 ---
 
 # Spec: 워크플로우 목록 화면
@@ -197,7 +198,7 @@ JSON 가져오기 시 노드 `config` 의 schema parse 가 실패해도 가져�
 - **에러 코드**: 세 위반(같은 워크스페이스·순환·깊이) 모두 생성 경로와 동일한 `VALIDATION_ERROR` 를 재사용한다. 노드 컨테이너의 `CONTAINER_CYCLE`·워크플로우 그래프의 `CYCLE_DETECTED` 와 이름·의미가 겹치는 폴더 전용 순환 코드를 신설하지 않아 도메인 간 혼동을 피한다.
 - **무한 루프 방어**: `getDepth`/서브트리 순회는 방문 집합 + 깊이 상한 가드로, 이미 손상된(순환) 데이터가 있어도 항상 종료한다 — 검증 신설 이전에 저장됐을 수 있는 순환에 대한 방어.
 
-(2026-09-27 정정) 이 결정 뒤에도 **생성** 경로는 깊이만 봤다 — 다른 워크스페이스의 부모를 `getDepth` 가 «없음» 으로 읽어 깊이 1 로 통과시켰다(고치기 전 e2e 가 201 을 쟀다). `plan/complete/cross-workspace-refs.md` 가 생성에도 소속 검사를 더했다 — 규칙은 [데이터 모델 §1.1](../1-data-model.md#11-참조의-소속).
+(2026-09-27 정정) 이 결정 뒤에도 **생성** 경로는 깊이만 봤다 — 다른 워크스페이스의 부모를 `getDepth` 가 «없음» 으로 읽어 깊이 1 로 통과시켰다(고치기 전 e2e 가 201 을 쟀다). `plan/in-progress/cross-workspace-refs.md` 가 생성에도 소속 검사를 더한다(같은 PR — spec 과 코드가 함께 착지) — 규칙은 [데이터 모델 §1.1](../1-data-model.md#11-참조의-소속).
 
 ### 4. 태그 필터는 단일 free-text 로 하향 (2026-07-06)
 

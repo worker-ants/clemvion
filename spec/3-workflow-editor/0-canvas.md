@@ -12,6 +12,7 @@ code:
   - codebase/frontend/src/lib/stores/palette-canvas-bridge.ts
 pending_plans:
   - plan/in-progress/ai-agent-tool-connection-rewrite.md
+  - plan/in-progress/cross-workspace-refs.md
   - plan/complete/spec-sync-canvas-gaps.md
 ---
 
