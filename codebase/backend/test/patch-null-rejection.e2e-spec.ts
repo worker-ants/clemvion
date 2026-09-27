@@ -261,4 +261,29 @@ describe('PATCH 의 NOT NULL 필드에 null (e2e)', () => {
       expect(fields).toContain(field);
     },
   );
+
+  // null 을 막은 데코레이터가 유효 값 · 키 생략까지 막지 않는지 — 모델 설정 PATCH 는 다른 e2e 가 값 경로를 밟지 않는다
+  // (나머지 라우트는 각자 e2e 가 유효 값 PATCH 를 이미 돈다).
+  it('모델 설정 PATCH — 유효 값은 200 으로 저장되고, 생략한 키는 값이 그대로다', async () => {
+    const url = `/api/model-configs/${ids.modelConfig}`;
+    const name = uniqueName('np-mc2');
+    const set = await authed(request(BASE_URL).patch(url)).send({
+      provider: 'openai',
+      name,
+      defaultModel: 'stub-model-2',
+      defaultParams: { temperature: 0.2 },
+    });
+    expect(set.status).toBe(200);
+    const expected = {
+      provider: 'openai',
+      name,
+      defaultModel: 'stub-model-2',
+      defaultParams: { temperature: 0.2 },
+    };
+    expect(set.body.data).toMatchObject(expected);
+
+    const omitted = await authed(request(BASE_URL).patch(url)).send({});
+    expect(omitted.status).toBe(200);
+    expect(omitted.body.data).toMatchObject(expected);
+  });
 });

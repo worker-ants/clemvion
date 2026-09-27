@@ -54,12 +54,16 @@ export class UpdateTriggerDto {
    * 예측 가능 경로 직접 지정(squatting) 차단용([Spec Webhook WH-SC-01·WH-MG-02]).
    * 변경을 거부하는 것은 **schedule 타입 트리거에 한해서**다 (스케줄 메타 동기화 보호,
    * `triggers.service.ts` update() — [Spec 데이터 모델 §2.9.1]).
+   *
+   * `null` 은 400 `VALIDATION_ERROR` 로 거부한다(`IsOptionalNonNull`) — 경로를 유지하려면 키를
+   * 생략한다. 종전 `@IsOptional()` 은 null 을 통과시켜 웹훅 수신 경로가 200 과 함께 조용히 지워졌다.
    */
   @ApiPropertyOptional({
     description:
       'Webhook 트리거 전용. 수신 엔드포인트 경로 — v4 UUID 형식만 허용 ' +
       '([Spec Webhook WH-SC-01·WH-MG-02]). webhook 트리거는 변경 가능하나 변경 시 기존 URL 은 ' +
-      '404 가 된다. schedule 타입 트리거에 한해 service 가 변경을 거부한다(VALIDATION_ERROR).',
+      '404 가 된다. schedule 타입 트리거에 한해 service 가 변경을 거부한다(VALIDATION_ERROR). ' +
+      'null 은 400 VALIDATION_ERROR — 경로를 유지하려면 키를 생략한다.',
     format: 'uuid',
     example: '550e8400-e29b-41d4-a716-446655440000',
   })
