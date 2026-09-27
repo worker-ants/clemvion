@@ -8,6 +8,7 @@ import {
   IsUUID,
   Min,
 } from 'class-validator';
+import { IsOptionalNonNull } from '../../../common/utils/optional-non-null';
 
 const RULE_TYPES = ['failure_rate', 'duration', 'llm_cost'] as const;
 const CHANNELS = ['in_app', 'email'] as const;
@@ -82,7 +83,7 @@ export class UpdateAlertRuleDto {
     example: 15,
     minimum: 0,
   })
-  @IsOptional()
+  @IsOptionalNonNull()
   @IsNumber()
   @Min(0)
   threshold?: number;
@@ -92,7 +93,7 @@ export class UpdateAlertRuleDto {
     description: '임계값을 평가할 시간 윈도우 (ISO 8601 duration).',
     example: 'PT30M',
   })
-  @IsOptional()
+  @IsOptionalNonNull()
   @IsString()
   window?: string;
 
@@ -102,7 +103,7 @@ export class UpdateAlertRuleDto {
     enum: CHANNELS,
     example: 'email',
   })
-  @IsOptional()
+  @IsOptionalNonNull()
   @IsEnum(CHANNELS)
   channel?: (typeof CHANNELS)[number];
 
@@ -111,7 +112,7 @@ export class UpdateAlertRuleDto {
     description: '활성화 여부.',
     example: false,
   })
-  @IsOptional()
+  @IsOptionalNonNull()
   @IsBoolean()
   enabled?: boolean;
 }

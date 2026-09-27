@@ -6,6 +6,7 @@ import {
   MaxLength,
   ValidateIf,
 } from 'class-validator';
+import { IsOptionalNonNull } from '../../../common/utils/optional-non-null';
 import { ApiPropertyOptional } from '@nestjs/swagger';
 
 export class UpdateAssistantSessionDto {
@@ -32,7 +33,7 @@ export class UpdateAssistantSessionDto {
     description: '세션 상태',
     enum: ['active', 'archived'],
   })
-  @IsOptional()
+  @IsOptionalNonNull()
   @IsIn(['active', 'archived'])
   status?: 'active' | 'archived';
 }

@@ -9,6 +9,7 @@ import {
   MaxLength,
   Min,
 } from 'class-validator';
+import { IsOptionalNonNull } from '../../../common/utils/optional-non-null';
 
 export class UpdateWorkspaceSettingsDto {
   @ApiPropertyOptional({
@@ -17,7 +18,7 @@ export class UpdateWorkspaceSettingsDto {
     description:
       '외부 상호작용을 허용할 origin 목록 (scheme://host[:port] 형식, path/query/fragment 불가, 후행 슬래시는 정규화). 빈 배열 = 추가 origin 없음(공식 위젯 CDN origin 은 항상 허용되므로 "전체 차단"이 아님). 미전송 시 기존 값 보존(partial patch — 예: timezone 단독 저장).',
   })
-  @IsOptional()
+  @IsOptionalNonNull()
   @IsArray()
   @ArrayMaxSize(100)
   @IsString({ each: true })
@@ -38,7 +39,7 @@ export class UpdateWorkspaceSettingsDto {
     description:
       'IANA 타임존 식별자. 스케줄 타임존 미지정 시 기본값으로 사용 (미설정 시 Asia/Seoul). 빈 문자열("")을 전송하면 타임존 설정이 해제된다.',
   })
-  @IsOptional()
+  @IsOptionalNonNull()
   @IsString()
   @MaxLength(64)
   timezone?: string;

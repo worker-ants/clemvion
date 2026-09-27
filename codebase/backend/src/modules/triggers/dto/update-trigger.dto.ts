@@ -7,6 +7,7 @@ import {
   MaxLength,
   ValidateNested,
 } from 'class-validator';
+import { IsOptionalNonNull } from '../../../common/utils/optional-non-null';
 import { Transform, Type } from 'class-transformer';
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { NotificationConfigDto } from './notification-config.dto';
@@ -20,7 +21,7 @@ export class UpdateTriggerDto {
     maxLength: 255,
     example: 'Webhook 수신 훅',
   })
-  @IsOptional()
+  @IsOptionalNonNull()
   @IsString()
   @MaxLength(255)
   name?: string;
@@ -30,7 +31,7 @@ export class UpdateTriggerDto {
     description: '활성화 여부. false일 경우 이벤트를 받아도 실행되지 않음',
     example: true,
   })
-  @IsOptional()
+  @IsOptionalNonNull()
   @IsBoolean()
   isActive?: boolean;
 
@@ -62,7 +63,7 @@ export class UpdateTriggerDto {
     format: 'uuid',
     example: '550e8400-e29b-41d4-a716-446655440000',
   })
-  @IsOptional()
+  @IsOptionalNonNull()
   @IsUUID('4')
   endpointPath?: string;
 

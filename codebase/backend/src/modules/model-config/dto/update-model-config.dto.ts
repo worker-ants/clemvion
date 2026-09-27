@@ -8,6 +8,7 @@ import {
   Min,
   MaxLength,
 } from 'class-validator';
+import { IsOptionalNonNull } from '../../../common/utils/optional-non-null';
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { MODEL_PROVIDERS, type ModelProvider } from './create-model-config.dto';
 
@@ -17,7 +18,7 @@ export class UpdateModelConfigDto {
     description: '변경할 Provider',
     enum: MODEL_PROVIDERS,
   })
-  @IsOptional()
+  @IsOptionalNonNull()
   @IsIn(MODEL_PROVIDERS)
   provider?: ModelProvider;
 
@@ -25,7 +26,7 @@ export class UpdateModelConfigDto {
     description: '변경할 표시 이름',
     maxLength: 255,
   })
-  @IsOptional()
+  @IsOptionalNonNull()
   @IsString()
   @MaxLength(255)
   name?: string;
@@ -49,7 +50,7 @@ export class UpdateModelConfigDto {
     description: '변경할 기본 모델 ID',
     maxLength: 100,
   })
-  @IsOptional()
+  @IsOptionalNonNull()
   @IsString()
   @MaxLength(100)
   defaultModel?: string;
@@ -59,7 +60,7 @@ export class UpdateModelConfigDto {
     type: 'object',
     additionalProperties: true,
   })
-  @IsOptional()
+  @IsOptionalNonNull()
   @IsObject()
   defaultParams?: Record<string, unknown>;
 

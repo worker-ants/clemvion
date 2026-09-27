@@ -6,6 +6,7 @@ import {
   MaxLength,
   MinLength,
 } from 'class-validator';
+import { IsOptionalNonNull } from '../../../common/utils/optional-non-null';
 import { Transform } from 'class-transformer';
 import { ApiPropertyOptional } from '@nestjs/swagger';
 
@@ -17,7 +18,7 @@ export class UpdateFolderDto {
     maxLength: 100,
     example: '세일즈',
   })
-  @IsOptional()
+  @IsOptionalNonNull()
   @IsString()
   @MinLength(1)
   @MaxLength(100)
@@ -36,7 +37,7 @@ export class UpdateFolderDto {
 
   /** 정렬 순서 */
   @ApiPropertyOptional({ description: '정렬 순서', example: 1 })
-  @IsOptional()
+  @IsOptionalNonNull()
   @IsInt()
   sortOrder?: number;
 }

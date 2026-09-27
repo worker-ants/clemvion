@@ -8,6 +8,7 @@ import {
   MaxLength,
   Matches,
 } from 'class-validator';
+import { IsOptionalNonNull } from '../../../common/utils/optional-non-null';
 import { Transform } from 'class-transformer';
 import { ApiPropertyOptional } from '@nestjs/swagger';
 
@@ -18,7 +19,7 @@ export class UpdateNodeDto {
     maxLength: 255,
     example: 'Fetch API v2',
   })
-  @IsOptional()
+  @IsOptionalNonNull()
   @IsString()
   @MaxLength(255)
   @Matches(/^[^#]*$/, { message: 'Node label must not contain "#" character' })
@@ -26,13 +27,13 @@ export class UpdateNodeDto {
 
   /** 캔버스 X 좌표 */
   @ApiPropertyOptional({ description: '캔버스 X 좌표', example: 260 })
-  @IsOptional()
+  @IsOptionalNonNull()
   @IsNumber()
   positionX?: number;
 
   /** 캔버스 Y 좌표 */
   @ApiPropertyOptional({ description: '캔버스 Y 좌표', example: 320 })
-  @IsOptional()
+  @IsOptionalNonNull()
   @IsNumber()
   positionY?: number;
 
@@ -42,13 +43,13 @@ export class UpdateNodeDto {
     type: 'object',
     additionalProperties: true,
   })
-  @IsOptional()
+  @IsOptionalNonNull()
   @IsObject()
   config?: Record<string, unknown>;
 
   /** 비활성화 여부 */
   @ApiPropertyOptional({ description: '비활성화 여부' })
-  @IsOptional()
+  @IsOptionalNonNull()
   @IsBoolean()
   isDisabled?: boolean;
 

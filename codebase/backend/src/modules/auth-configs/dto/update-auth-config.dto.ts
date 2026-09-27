@@ -7,6 +7,7 @@ import {
   IsString,
   MaxLength,
 } from 'class-validator';
+import { IsOptionalNonNull } from '../../../common/utils/optional-non-null';
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { AUTH_CONFIG_TYPES } from './create-auth-config.dto';
 import type { AuthConfigType } from './create-auth-config.dto';
@@ -19,7 +20,7 @@ export class UpdateAuthConfigDto {
     example: 'Webhook Auth (renamed)',
     maxLength: 255,
   })
-  @IsOptional()
+  @IsOptionalNonNull()
   @IsString()
   @MaxLength(255)
   name?: string;
@@ -66,7 +67,7 @@ export class UpdateAuthConfigDto {
     description: '활성 상태 여부',
     example: true,
   })
-  @IsOptional()
+  @IsOptionalNonNull()
   @IsBoolean()
   isActive?: boolean;
 }

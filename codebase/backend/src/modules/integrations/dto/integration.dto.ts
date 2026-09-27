@@ -14,6 +14,7 @@ import {
   MinLength,
   Min,
 } from 'class-validator';
+import { IsOptionalNonNull } from '../../../common/utils/optional-non-null';
 import { Type, Transform } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { PaginationQueryDto } from '../../../common/dto/pagination.dto';
@@ -321,7 +322,7 @@ export class UpdateIntegrationDto {
     example: 'Team Google (renamed)',
     maxLength: 255,
   })
-  @IsOptional()
+  @IsOptionalNonNull()
   @IsString()
   @MaxLength(255)
   name?: string;
