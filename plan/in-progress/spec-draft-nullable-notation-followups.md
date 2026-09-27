@@ -1480,14 +1480,18 @@ field: T | null;
         는 update 경로에서 **같은 워크스페이스 소속인지 검사하지 않는** 것으로 보인다(조사가 곁눈으로 본 것 — 재현하지 않았다). 폴더 ·
         트리거 `authConfigId` 는 검사한다(`validateParentChange` · `assertAuthConfigInWorkspace`). 확인되면 다른 워크스페이스의 행을 FK 로
         가리키게 된다 — 착수 전 e2e 로 재현부터.
-        > **닫음 (2026-09-27, `plan/complete/cross-workspace-refs.md`)** — 곁눈으로 본 네 필드가 아니라 **쓰기 요청 본문의 참조 id 전부**로
-        > 넓혀 다시 셌고(10개 묶음 · 대조군 8), 전부 저장 전에 거부한다. 고치기 전 e2e 가 곁눈 추정보다 큰 것을 재현했다: 트리거 ·
+        > **진행 (2026-09-27, `plan/in-progress/cross-workspace-refs.md` — 이 PR 이 닫는다)** — 곁눈으로 본 네 필드가 아니라 **쓰기 요청 본문의 참조 id 전부**로
+        > 넓혀 다시 셌고(10개 묶음 · 대조군 8), 전부 저장 전에 거부하게 고친다. 고치기 전 e2e 가 곁눈 추정보다 큰 것을 재현했다: 트리거 ·
         > 스케줄 생성의 `workflowId` 로 **다른 워크스페이스의 워크플로가 이쪽 트리거로 실행**됐고, 캔버스 저장이 **다른 워크스페이스의
         > 노드 행을 옮겼다**. 규칙은 `spec/1-data-model.md` §1.1(같은 PR 의 planner 턴). 넘긴 것 — 아래 새 항목 «교차 워크스페이스 참조 후속».
 
 - [ ] **교차 워크스페이스 참조 후속 — 트리거 `config` 안의 비밀 참조 · 이미 저장된 교차 행 · OAuth begin `mode=new`** (developer + 보안 판단,
-      2026-09-27 등재 · `plan/complete/cross-workspace-refs.md` 가 넘긴 것 · `--impl-prep` `review/consistency/2026/09/27/19_43_46` W2 ·
+      2026-09-27 등재 · `plan/in-progress/cross-workspace-refs.md` 가 넘긴 것 · `--impl-prep` `review/consistency/2026/09/27/19_43_46` W2 ·
       `--spec` `20_05_26` W3).
+      - **(planner) API 문서 셋에 `spec/1-data-model.md` §1.1 한 줄 미러** — `2-trigger-list.md` §3 註(트리거 생성 `workflowId`) ·
+        `3-schedule.md` API 표(스케줄 생성 `workflowId`) · `9-user-profile.md` 알림 규칙 API(`workflowId`)에 «같은 워크스페이스의 워크플로만 —
+        아니면 400 `VALIDATION_ERROR`» 와 §1.1 링크(`--impl-prep` `20_21_21` W3 · INFO 1). 구현이 착지한 **뒤**에 넣는다 — 먼저 넣으면 세 문서에도
+        `pending_plans` 가 필요해진다(`plan/complete/spec-draft-cross-workspace-refs-2.md` Rationale).
       - **트리거 `config` JSONB 안의 비밀 참조(미검증 · 보안)** — `chatChannel.botTokenRef` · `inboundSigningRef` ·
         `notification.signing.secretRef` 는 `secret://triggers/<triggerId>/…` 문자열이다. 금지 검사(`@IsEmpty` · `assertChatChannelInputSafe`)는
         타입 필드 `chatChannel` 에만 걸리고 원시 `config` 는 `@IsObject` 뿐이며, 타입 필드가 없으면 `mergeExternalConfig` 가 `config` 를 그대로
