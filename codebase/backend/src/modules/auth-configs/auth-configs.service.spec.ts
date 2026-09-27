@@ -380,6 +380,26 @@ describe('AuthConfigsService', () => {
         isActive: false,
       });
     });
+
+    // §5.4 tri-state 의 나머지 한 칸 — 명시적 `null` 은 «값을 지운다» 는 요청이라 걸러내면 안 된다.
+    it('명시적 null 은 로드한 값을 지운다', async () => {
+      const ac = await service.create(
+        WS,
+        {
+          type: 'api_key',
+          name: 'a',
+          ipWhitelist: ['10.0.0.0/8'],
+        } as Partial<AuthConfig>,
+        USER,
+      );
+      const result = await service.update(
+        ac.id,
+        WS,
+        Object.assign(new UpdateAuthConfigDto(), { ipWhitelist: null }),
+        USER,
+      );
+      expect(result).toHaveProperty('ipWhitelist', null);
+    });
   });
 
   describe('update — shallow-merge·비밀값 보호', () => {

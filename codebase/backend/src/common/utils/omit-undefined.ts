@@ -17,6 +17,10 @@ type NotArray<T> = T extends readonly unknown[] ? never : unknown;
  *   `maxConcurrentExecutions` 를 지웠다.
  *
  * `null` 은 남긴다 — «값을 지운다» 는 명시적 요청이다. 얕게만 본다 — 중첩 객체 안의 `undefined` 는 그대로다. 배열은 받지 않는다.
+ *
+ * 인자 **자체**가 런타임에 `null` 이면 `Object.entries` 가 던진다. 타입(`T extends object`)은 null 을 막지만 `@IsOptional()` 은
+ * 필드째 `null` 을 통과시키므로, 중첩 DTO 필드처럼 필드 전체가 null 일 수 있는 호출부는 먼저 `!= null` 로 가드하라(워크플로
+ * `settings: null` 이 그렇게 500 이 됐었다). 부분 본문 전체는 `ValidationPipe` 가 늘 객체로 준다.
  */
 export function omitUndefined<T extends object>(
   obj: T & NotArray<T>,

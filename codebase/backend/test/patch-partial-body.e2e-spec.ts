@@ -249,4 +249,58 @@ describe('PATCH 부분 본문 (e2e)', () => {
       await contractForDto(AuthConfigDto),
     );
   });
+
+  // 요청 DTO 가 `nullable: true` 로 광고하는 동작 — §5.4 tri-state 에서 명시적 null 은 «값을 지운다».
+  it('E. nullable 필드에 null 을 보내면 값을 지운다 — 워크플로 · 노드 설명, 인증 설정 IP 화이트리스트', async () => {
+    const wf = await authed(request(BASE_URL).post('/api/workflows')).send({
+      name: uniqueName('pp-wf-null'),
+      description: 'before',
+    });
+    const wfId = (wf.body.data as { id: string }).id;
+    const wfPatched = await authed(
+      request(BASE_URL).patch(`/api/workflows/${wfId}`),
+    ).send({ description: null });
+    expect(wfPatched.status).toBe(200);
+    expect(wfPatched.body.data).toHaveProperty('description', null);
+    const wfAfter = await authed(
+      request(BASE_URL).get(`/api/workflows/${wfId}`),
+    );
+    expect(wfAfter.body.data).toHaveProperty('description', null);
+
+    const nodesUrl = `/api/workflows/${wfId}/nodes`;
+    const node = await authed(request(BASE_URL).post(nodesUrl)).send({
+      type: 'code',
+      category: 'data',
+      label: 'Null me',
+      description: 'memo',
+    });
+    expect(node.status).toBe(201);
+    const nodeId = (node.body.data as { id: string }).id;
+    const nodePatched = await authed(
+      request(BASE_URL).patch(`/api/nodes/${nodeId}`),
+    ).send({ description: null });
+    expect(nodePatched.status).toBe(200);
+    expect(nodePatched.body.data).toHaveProperty('description', null);
+    const list = await authed(request(BASE_URL).get(nodesUrl));
+    const stored = (list.body.data as Array<Record<string, unknown>>).find(
+      (n) => n.id === nodeId,
+    );
+    expect(stored).toHaveProperty('description', null);
+
+    const ac = await authed(request(BASE_URL).post('/api/auth-configs')).send({
+      name: uniqueName('pp-ac-null'),
+      type: 'bearer_token',
+      ipWhitelist: ['10.0.0.1'],
+    });
+    const acId = (ac.body.data as { id: string }).id;
+    const acPatched = await authed(
+      request(BASE_URL).patch(`/api/auth-configs/${acId}`),
+    ).send({ ipWhitelist: null });
+    expect(acPatched.status).toBe(200);
+    expect(acPatched.body.data).toHaveProperty('ipWhitelist', null);
+    const acAfter = await authed(
+      request(BASE_URL).get(`/api/auth-configs/${acId}`),
+    );
+    expect(acAfter.body.data).toHaveProperty('ipWhitelist', null);
+  });
 });

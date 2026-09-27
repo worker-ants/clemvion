@@ -227,6 +227,23 @@ describe('NodesService', () => {
       expect(result).toHaveProperty('workflowId', 'wf-1');
       expect(result).not.toHaveProperty('workflow');
     });
+
+    // §5.4 tri-state 의 나머지 한 칸 — 명시적 `null` 은 «값을 지운다» 는 요청이라 걸러내면 안 된다.
+    it('명시적 null 은 로드한 값을 지운다', async () => {
+      const existing = makeNode('n1', 'HTTP Request', 'wf-1');
+      Object.assign(existing, { description: 'memo', containerId: 'box-1' });
+      mockRepo.findOne.mockResolvedValueOnce(existing);
+
+      const result = await service.update(
+        'n1',
+        WS,
+        Object.assign(new UpdateNodeDto(), {
+          description: null,
+          containerId: null,
+        }),
+      );
+      expect(result).toMatchObject({ description: null, containerId: null });
+    });
   });
 
   describe('bulkCreate', () => {
