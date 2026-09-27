@@ -108,6 +108,6 @@ D4~D6 을 죽인 것이 캐너리 **하나뿐**이라는 것이 «캐너리가 �
 - [x] `--impl-prep` — `review/consistency/2026/09/27/15_19_25` BLOCK: NO(W1 · W2 · W4 → 트래커 새 항목 · 좁힌 항목에 반영)
 - [x] DTO 셋 · e2e · 단위 캐너리 · 선언 캐너리 · 헬퍼 JSDoc · CHANGELOG · 트래커
 - [x] 뮤턴트 표 실측 — D1~D6 · H1 전부 KILLED
-- [ ] TEST WORKFLOW (lint · unit · build · e2e)
+- [x] TEST WORKFLOW (lint · unit · build · e2e) — 전부 PASS, e2e 423 (`_test_logs/e2e-20260927-154209.log`, `6c7c976b0`)
 - [ ] `/ai-review`
 - [ ] `--impl-done`
