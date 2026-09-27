@@ -154,17 +154,19 @@ describe('Folders (e2e)', () => {
       request(BASE_URL).patch(`/api/folders/${childId}`),
     ).send({ name: uniqueName('renamed-e') });
     expect(patched.status).toBe(200);
-    // 두 필드를 한 단언에 묶는다 — 실패하면 둘의 실제 값이 함께 보인다.
+
+    // 저장된 값을 먼저 본다 — 이 순서라서 아래 응답 단언이 실패해도 DB 는 이미 확인된 뒤다(옛 코드에서도 DB 는 멀쩡했고
+    // 틀린 것은 응답뿐이었다).
+    const one = await authed(request(BASE_URL).get(`/api/folders/${childId}`));
+    expect(one.body.data).toHaveProperty('parentId', rootId);
+    expect(one.body.data).toHaveProperty('sortOrder', 2);
+
+    // 두 필드를 한 단언에 묶는다 — 실패하면 둘의 실제 값이 함께 보인다(옛 코드: `parentId` 는 null, `sortOrder` 는 키 없음).
     const body = patched.body.data as Record<string, unknown>;
     expect({
       parentId: body.parentId,
       sortOrder: body.sortOrder,
     }).toStrictEqual({ parentId: rootId, sortOrder: 2 });
     assertMatchesContract(patched.body.data, folderContract);
-
-    // 저장된 값은 처음부터 멀쩡했다 — 틀렸던 것은 응답뿐이다.
-    const one = await authed(request(BASE_URL).get(`/api/folders/${childId}`));
-    expect(one.body.data).toHaveProperty('parentId', rootId);
-    expect(one.body.data).toHaveProperty('sortOrder', 2);
   });
 });

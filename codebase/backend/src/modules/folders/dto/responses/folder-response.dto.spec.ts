@@ -6,8 +6,8 @@ import { FolderDto } from './folder-response.dto';
 /**
  * `FolderDto.parentId` 선언 회귀 가드 — 폴더 API 5개 라우트의 응답.
  *
- * `parentId` 는 §5.4 금지 조합(optional + nullable)이었다가 기본형(required + nullable)으로 갚았다. 생성 응답에서 키가 빠지던
- * 이격을 서비스가 고쳤으므로, 이제 모든 응답에서 키가 늘 실린다.
+ * `parentId` 는 §5.4 금지 조합(optional + nullable)이었다가 기본형(required + nullable)으로 갚았다. 키는 원래 모든 응답(생성
+ * 포함)에 실렸다 — 넓었던 것은 선언뿐이다(`folder-crud.e2e-spec.ts` 가 응답마다 키를 단언한다).
  *
  * ## 왜 래칫 · e2e 로 부족한가
  *

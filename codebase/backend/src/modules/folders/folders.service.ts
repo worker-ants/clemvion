@@ -70,9 +70,10 @@ export class FoldersService {
       await this.validateParentChange(id, workspaceId, data.parentId ?? null);
     }
     // 보내지 않은 필드는 뺀다 — DTO 인스턴스는 값이 없는 optional 필드도 `undefined` own property 로 갖는다(`target: ES2023`
-    // → `useDefineForClassFields`). 그대로 `Object.assign` 하면 로드한 값을 `undefined` 로 덮어써, DB 는 TypeORM 이 undefined 를
-    // 건너뛰어 무사하지만 **PATCH 응답에서 그 키가 사라진다**(`sortOrder` 를 안 보내면 응답에 `sortOrder` 가 없었다 — 폴더 e2e C 가
-    // 드러냈다). `triggers.service.ts` 의 `update()` 가 같은 이유로 같은 처방을 쓴다.
+    // → `useDefineForClassFields`). 그대로 `Object.assign` 하면 로드한 값이 `undefined` 로 덮인다. DB 는 TypeORM 이 undefined 를
+    // 건너뛰어 무사하지만 **PATCH 응답이 틀린다** — nullable 이 아닌 컬럼은 키가 사라지고(`sortOrder`), nullable 컬럼은 TypeORM 이
+    // 저장 뒤 undefined 를 null 로 채워 거짓 null 이 실린다(하위 폴더의 이름만 바꿔도 `parentId: null`). 폴더 e2e C · E 가
+    // 드러냈다. `triggers.service.ts` 의 `update()` 가 같은 이유로 같은 처방을 쓴다.
     const defined = Object.fromEntries(
       Object.entries(data).filter(([, v]) => v !== undefined),
     );
