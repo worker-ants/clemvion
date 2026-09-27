@@ -67,6 +67,9 @@ spec_impact:
   # 빠뜨렸다(`--impl-done` `review/consistency/2026/09/26/21_11_30` W1) — 위 두 주석이 적은 실패 모드의 재발이다.
   - spec/2-navigation/4-integration.md
   - spec/5-system/11-mcp-client.md
+  # 「`spec/2-navigation/` 목록 API 둘의 응답 형태 · 완료된 `pending_plans`」 항목(2026-09-20 등재)의 편집 대상인데 빠져 있었다
+  # — 2026-09-27 그 항목에 (4)(5)를 보강하며 발견(`folders-contract-e2e`). `2-trigger-list.md` 는 이미 위에 있다.
+  - spec/2-navigation/1-workflow-list.md
 ---
 
 # nullable 표기 후속 3건 (planner 턴)
@@ -1365,12 +1368,42 @@ field: T | null;
       > 없으면 다음 FE 작업자가 그 목록을 보고 소비하고, 그러면 제거가 파괴적 변경으로 승격되어
       > 이 항목이 영구히 닫히지 못한다.
 
+- [ ] **`Object.assign(엔티티, DTO)` 가 보내지 않은 필드로 로드한 값을 덮는다 — 남은 세 곳** (developer, 2026-09-27 등재 ·
+      `folders-contract-e2e` 가 폴더에서 실측). DTO 인스턴스는 값이 없는 optional 필드도 `undefined` own property 로 갖는다
+      (`target: ES2023` → `useDefineForClassFields`). 그대로 `Object.assign` 하면 로드한 값을 `undefined` 로 덮어써 **PATCH 응답이
+      틀린다** — DB 는 TypeORM 이 undefined 를 건너뛰어 무사하다. 증상은 둘이다: nullable 이 아닌 컬럼은 키가 사라지고, nullable
+      컬럼은 TypeORM 이 저장 뒤 undefined 를 null 로 채워(`SubjectExecutor.updateSpecialColumnsInInsertedAndUpdatedEntities`)
+      **거짓 null** 이 실린다. 트리거(2026-09-05, `PATCH /triggers/:id` 응답의 `name`)와 폴더(2026-09-27, `sortOrder` 키 부재 ·
+      하위 폴더의 `parentId: null` — 폴더 e2e C · E 가 옛 코드 뮤턴트로 실측)는 `defined` 필터로 고쳤다. 같은 형태가 남은 자리(2026-09-27 `grep "Object.assign("` · `*service.ts`):
+      - `workflows.service.ts` `update()` — `const { settings, ...rest } = dto; Object.assign(workflow, rest)`
+      - `nodes.service.ts` `update()` — `Object.assign(node, dto)`
+      - `auth-configs.service.ts` `update()` — `Object.assign(config, rest)`
+      > **셋 다 실측은 아직 없다** — 메커니즘이 같아 결함일 가능성이 높을 뿐이다. 확인은 그 PATCH 를 부분 본문으로 불러 응답을
+      > 계약과 대조하는 e2e 로 한다(폴더 e2e C · E 가 그 형태). 계약 대조는 **거짓 null 을 못 잡는다** — nullable 선언이면 null 이
+      > 통과한다. 보내지 않은 nullable 필드에 **null 이 아닌 값**을 미리 넣어 두고 응답 값을 단언해야 한다(폴더 E 의 하위 폴더).
+      > `workflow-crud.e2e` B 는 PATCH 뒤 **GET** 으로만 확인해 이 결함을 못 본다.
+      > 같은 형태가 이미 **다섯 자리**(고친 둘 + 남은 셋)다. **공용 헬퍼는 생겼다** — `src/common/utils/omit-undefined.ts`
+      > (`folders-contract-e2e`, 2026-09-27 `/ai-review` W1 로 트리거 · 폴더 두 사본을 합쳤다). 남은 셋은 그 헬퍼 호출로 고친다.
+      > 남은 판단은 가드(`Object.assign(<엔티티>, <DTO>)` 형태 금지)가 맞는지 하나다. 착수 때 그 컨트롤러의 `@Body()` 가 타입 있는
+      > DTO 클래스인지도 함께 본다 — 헬퍼는 키를 거르지 않고, 화이트리스트 방어는 전역 `CustomValidationPipe`(`whitelist` · `forbidNonWhitelisted`)가 한다(같은 리뷰 INFO 1).
+      > 헬퍼를 다시 여는 김에 함께 할 비차단 손질(`review/code/2026/09/27/12_17_57` INFO): (10) `omit-undefined.spec.ts` 에 빈 객체 ·
+      > 전 필드 `undefined` 입력 캐너리 — 지금은 폴더 단위 테스트가 간접으로만 본다. (11) 타입 제약 `T extends object` 가 배열을 받는데
+      > 구현은 배열을 인덱스 키 객체로 무너뜨린다 — 호출부 둘은 배열을 안 넘긴다. (8) `folders.service.spec.ts` 의 주석이 아직
+      > e2e 케이스 문자(«C · E»)를 인용한다 — 서비스 주석은 파일명으로 바꿨다.
+
 - [ ] **§5.4 스윕 2차 — 엔드포인트인데 e2e 미도달인 DTO** (developer, 2026-09-05 등재).
       1차가 닿지 못한 자리다. 배선 한 줄이 아니라 **새 e2e 시나리오**가 선행이므로 모듈
       단위로 끊는다. 후보(매퍼 기준, census 아님): `DashboardSummaryDto` ·
-      `StatisticsSummaryDto` · `LlmUsageSummaryDto` · `WorkflowVersionDto` ·
-      `WorkflowVersionListItemDto` · `GraphEntityDto` · `FolderDto` · `DocumentDto` ·
-      `NodeDto` · `EdgeDto` 등.
+      `StatisticsSummaryDto` · `LlmUsageSummaryDto` · ~~`WorkflowVersionDto`~~ ·
+      ~~`WorkflowVersionListItemDto`~~ · `GraphEntityDto` · ~~`FolderDto`~~ · `DocumentDto` ·
+      ~~`NodeDto`~~ · ~~`EdgeDto`~~ 등.
+
+      > **진행 (2026-09-27 재측정 — `contractForDto(…)` 호출 grep)**: 닿은 것 — `NodeDto` · `EdgeDto`(#1411, `CanvasSaveResultDto`
+      > 경유) · `WorkflowVersionDto` · `WorkflowVersionListItemDto`(#1413) · `FolderDto`(`plan/complete/folders-contract-e2e.md` —
+      > 폴더 e2e 신설. 대조가 **PATCH 부분 본문 응답 결함**(키 부재 · 거짓 null)을 드러내 고쳤다. 착수 때 소스로 추론한 «루트 폴더
+      > POST 응답의 `parentId` 부재» 는 e2e 뮤턴트에 **반증**됐다 — 응답은 원래 키를 실었고 넓었던 것은 선언뿐이다).
+      > 남은 것 — `DashboardSummaryDto` · `StatisticsSummaryDto` · `LlmUsageSummaryDto`(대시보드 · 통계는 e2e 스펙 자체가 없다) ·
+      > `GraphEntityDto` · `DocumentDto`(지식 베이스 — `knowledge-base.e2e-spec.ts` 는 있으나 대조 0건).
 
       > #### (a) 가 왜 안 되는가 — DTO 와 엔티티는 **다른 것**을 기술한다
       >
@@ -6257,6 +6290,16 @@ field: T | null;
       `GET /api/triggers/:id/history` 행이 형태 · 상한을 적지 않는다 — 구현은 배열 wrap, 최근 10건(`triggers.service.ts` `.limit(10)`).
       (3) `1-workflow-list.md` frontmatter `pending_plans` 가 완료된 `plan/complete/workflow-duplicate-nodes-edges.md` 를 가리킨다 — 빼면 된다
       (남은 미구현 surface 가 따로 있는지 먼저 확인). 셋 다 사실 정정.
+      > **2026-09-27 보강** (`folders-contract-e2e` `--impl-prep` `review/consistency/2026/09/27/10_39_26` W1 · W2 — 같은 폴더 API 자리라
+      > 새 항목 대신 여기에 모은다): (4) `spec/5-system/1-auth.md` §3.2 리소스별 권한 매트릭스에 **Folder 행이 없다** — 폴더 API 는
+      > `editor+` 로 쓰기를 막고(`folders.controller.ts` `@Roles('editor')`) `1-workflow-list.md` §3.1 · NF-SC-02 도 그것을 전제한다.
+      > (5) 신설 e2e `codebase/backend/test/folder-crud.e2e-spec.ts`(§3.1 응답 계약 · PATCH 부분 본문 응답을 고정)를
+      > `1-workflow-list.md` frontmatter `code:` 에 올리는 것 — `2-trigger-list.md` 처럼 자기 도메인의 1차 시행 e2e 를 등재하는 관행.
+      > (6) 공용 헬퍼 `codebase/backend/src/common/utils/omit-undefined.ts`(`folders-contract-e2e` 가 트리거 · 폴더 `update()` 의 두
+      > 사본을 합쳐 신설)가 어느 spec 의 `code:` 에도 없다(`--impl-done` `review/consistency/2026/09/27/12_27_18` W1). 둘 곳은 planner
+      > 가 정한다 — 호출하는 두 도메인 spec(`1-workflow-list.md` · `2-trigger-list.md`) 양쪽인지, 헬퍼가 지키는 규칙(§5.4 부재 표현)을
+      > 가진 `spec/5-system/2-api-convention.md` 인지(그 문서가 이미 `common/utils/throttler-skip.ts` 를 둔다).
+      > 여섯 다 spec 쓰기라 planner 턴에서 한 번에.
 
 - [x] **k8s 로컬 오버레이의 버킷 Job 이 아바타 공개 정책을 걸지 않는다** (developer, 낮음, 2026-09-24 등재 ·
       plan `minio-silo-image` §D — 이미지 교체 중 발견, 그 PR 의 축이 아니라 분리).

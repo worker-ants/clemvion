@@ -378,7 +378,6 @@ const EXPECTED_OPTIONAL_NULLABLE_DRIFT: readonly string[] = [
   'execution-response.dto.ts:NodeExecutionSummaryDto.finishedAt',
   'execution-response.dto.ts:NodeExecutionSummaryDto.inputData',
   'execution-response.dto.ts:NodeExecutionSummaryDto.outputData',
-  'folder-response.dto.ts:FolderDto.parentId',
   'integration-response.dto.ts:IntegrationActivityItemDto.apiLabel',
   'integration-response.dto.ts:IntegrationActivityItemDto.apiMethod',
   'integration-response.dto.ts:IntegrationActivityItemDto.apiPath',

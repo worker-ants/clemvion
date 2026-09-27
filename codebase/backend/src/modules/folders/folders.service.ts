@@ -5,6 +5,7 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
+import { omitUndefined } from '../../common/utils/omit-undefined';
 import { Folder } from './entities/folder.entity';
 
 const MAX_NESTING_DEPTH = 5;
@@ -69,7 +70,9 @@ export class FoldersService {
     if (data.parentId !== undefined && data.parentId !== folder.parentId) {
       await this.validateParentChange(id, workspaceId, data.parentId ?? null);
     }
-    Object.assign(folder, data);
+    // 보내지 않은 필드는 뺀다(이유는 `omitUndefined` JSDoc). 빼지 않으면 `sortOrder` 가 응답에서 사라지고 하위 폴더의
+    // `parentId` 가 null 로 실렸다 — `test/folder-crud.e2e-spec.ts` 가 고정한다.
+    Object.assign(folder, omitUndefined(data));
     return this.folderRepository.save(folder);
   }
 
