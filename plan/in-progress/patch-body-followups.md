@@ -91,6 +91,26 @@ started: 2026-09-27
 
 D4~D6 을 죽인 것이 캐너리 **하나뿐**이라는 것이 «캐너리가 없으면 살아남는다» 의 실측이다.
 
+1R 조치 뒤(`3cc0d092f`, baseline 62 GREEN — 헬퍼 spec + 인증 설정 서비스 spec):
+
+| # | 뮤턴트 | 예측 | 실측 · 죽인 테스트 |
+|---|---|---|---|
+| N1 | 헬퍼를 null-safe 로(`Object.entries(obj ?? {})`) | 헬퍼 «null 이면 TypeError» RED | KILLED 1 — 그 테스트 |
+| W1 | 웹훅 검증이 null 도 목록 검사(`ipWhitelist !== undefined`) | null · `[]` 둘 다 RED | KILLED 2 — `it.each` 두 행 |
+| W2 | 웹훅 검증이 `[]` 도 목록 검사(`if (ac.ipWhitelist)`) | `[]` 행만 RED | KILLED 1 — «빈 배열 이면 제한 없음» 행만(판별력 확인) |
+
+## `/ai-review` 1R (`review/code/2026/09/27/15_46_38` — Critical 0 · Warning 2)
+
+- **W1** (testing) 헬퍼 JSDoc 이 새로 적은 «인자 자체가 null 이면 던진다» 가 테스트로 고정되지 않았다 → `toThrow(TypeError)` 캐너리.
+  뮤턴트 N1 KILLED.
+- **W2** (maintainability · testing) e2e E 가 세 리소스를 한 `it` 에 묶어 앞이 실패하면 뒤를 못 본다 → E1 · E2 · E3 로 나누고 각 픽스처가
+  null 이 아닌 값으로 시작하는지 먼저 단언.
+- INFO 4 → `verifyWebhookRequest` 에 null · `[]` 동치 `it.each`(CHANGELOG 주장의 검증 레벨 실측, 뮤턴트 W1 · W2). INFO 6 → 두 DTO 의
+  필드 JSDoc 문구 통일. INFO 5 → 노드 캐너리가 `containerId` 까지 단언하는 것은 의도(같은 tri-state 칸, nullable 컬럼 둘) — 이 plan
+  §방향 3 을 그렇게 읽으면 된다. INFO 1 · 2 · 3 · 7 · 8 — 조치 불요(1 은 새 트래커 항목 · 2 는 `[]` 로 이미 가능했던 동작 · 3 은
+  의도된 동치 · 7 은 로컬리티 트레이드오프 · 8 은 additive).
+- 리뷰 뒤 `git status --short` · `git diff --stat HEAD` 가 세션 디렉터리 외 변경 0, 리뷰어 transcript 에 워크트리 쓰기 명령 0건.
+
 ## `--impl-prep` 처분 (`review/consistency/2026/09/27/15_19_25` BLOCK: NO)
 
 - **W1** (cross_spec) 트리거 `name` 등 트리거 · 스케줄의 NOT NULL 필드도 같은 메커니즘인데 프로브가 재지 않았다 → 새 트래커 항목에
