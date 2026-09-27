@@ -130,6 +130,6 @@ e2e 는 **네 자리를 모두 되돌린 상태 = 고치기 전 코드** 1회(�
 - [x] `--impl-prep` — `review/consistency/2026/09/27/13_11_33` BLOCK: NO(W2 · W3 · W4 → 트래커, W1 → 새 planner 항목)
 - [x] 서비스 셋 · e2e · 단위 · 헬퍼 손질 · CHANGELOG · 트래커
 - [x] 뮤턴트 표 실측 — P1~P4 · T1 전부 KILLED
-- [ ] TEST WORKFLOW (lint · unit · build · e2e)
+- [x] TEST WORKFLOW (lint · unit · build · e2e) — 전부 PASS, e2e 422 (`_test_logs/e2e-20260927-134537.log`, `5a4bb2bd4`). 첫 회는 C 의 계약 대조 1 failed → 노드 응답의 `workflow` 를 떼고 lint 부터 재실행
 - [ ] `/ai-review`
 - [ ] `--impl-done`
