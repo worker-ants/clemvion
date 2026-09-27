@@ -48,8 +48,10 @@ spec 커밋 `c8bf27c8e`: **필드와 같이 쓰지 않는다**(`review-citations
 ## 체크리스트
 
 - [x] planner — draft · `--spec` `review/consistency/2026/09/27/08_41_33` BLOCK: NO · spec 적용(`c8bf27c8e`)
-- [ ] `--impl-prep`
-- [ ] 두 DTO · 가드 목록 · 가드 주석 · CHANGELOG
+- [x] `--impl-prep` — `review/consistency/2026/09/27/08_53_02` BLOCK: NO · Warning 0. INFO 2건(`review-citations.md` §3 콜아웃에
+      순방향 포인터 · `swagger.md` §3 제목 날짜 병기)은 spec 문구 제안이라 developer 가 손대지 않는다 — 앞의 것은 planner 턴이 추가한
+      Rationale 새 절이 이미 «쓰인 시점에 맞았다 · 다음 날 반증» 을 적는다.
+- [x] 두 DTO · 가드 목록 · 가드 주석 · CHANGELOG
 - [ ] 뮤턴트 표 실측
 - [ ] TEST WORKFLOW (lint · unit · build · e2e)
 - [ ] `/ai-review`
