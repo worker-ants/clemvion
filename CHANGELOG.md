@@ -23,6 +23,13 @@
 > 07 37% · 08 30% · 09(25일까지) 49% 였다(나중 PR 의 백필은 세지 않았다). 여기 없다고 그 변경이 없었던 것은 아니다 —
 > `git log` 가 정본이다.
 
+## Unreleased — 저장소 가드: 응답 DTO JSDoc 의 리뷰 인용 예외가 0 이 됐다
+
+응답 DTO 의 `/** */` JSDoc 에 리뷰 산출물 인용을 쓰면 실패하는 가드(`dto-jsdoc-citation`)가 기존 두 자리(트리거 · 스케줄 응답의
+워크플로 참조 DTO 클래스 JSDoc)를 예외로 동결하고 있었다. 두 인용을 바로 위 `//` 주석으로 옮겨 예외 목록이 비었다 — 이제 클래스 ·
+필드 JSDoc 어디든 새 인용은 예외 없이 실패한다. 규약(`spec/conventions/review-citations.md` §3)도 필드 JSDoc 과 클래스 JSDoc 을
+갈라 적었다: 플러그인은 필드 JSDoc 만 OpenAPI 설명으로 싣지만, 응답 DTO 파일의 `/** */` 는 한 규칙으로 다룬다.
+
 ## Unreleased — OpenAPI 가 워크플로 버전 응답의 `creator` · `changeSummary` 를 항상 실리는 필드로 광고한다
 
 `GET /workflows/:wfId/versions`(목록)와 `GET /workflows/:wfId/versions/:versionId`(상세)의 응답 스키마가 `creator` 를

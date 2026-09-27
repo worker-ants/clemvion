@@ -79,8 +79,9 @@ function jsDocText(node: ts.Node): string {
 /**
  * 응답 DTO 파일에서 **JSDoc 안의 리뷰 인용**을 전부 찾는다.
  *
- * 클래스 선언과 프로퍼티 선언 둘 다 본다 — 둘 다 OpenAPI 로 나간다(클래스는 스키마
- * description, 프로퍼티는 필드 description).
+ * 클래스 선언과 프로퍼티 선언 둘 다 본다. 프로퍼티 JSDoc 은 swagger CLI 플러그인이 필드
+ * `description` 으로 싣는다. 클래스 JSDoc 은 지금 플러그인이 싣지 않지만 규약이 같은 규칙을 둔다
+ * — 응답 DTO 파일의 `/** *\/` 를 공개 문서 채널 하나로 다룬다(`review-citations.md §3`).
  */
 export function findDtoJsDocCitations(
   files: readonly string[],

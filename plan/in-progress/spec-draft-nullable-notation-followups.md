@@ -1274,8 +1274,12 @@ field: T | null;
         > 실어 보낸다 — 종전에는 `isActive: false` 면 트리거를 만들어 놓고 응답에서만
         > 빠졌다.
 
-- [ ] **`Ref` DTO **클래스** JSDoc 두 곳에 리뷰 인용이 남아 있다** (developer, 2026-09-06
-      등재, `review/consistency/2026/09/06/11_55_37` W3 을 고치다 전수 grep 으로 발견).
+- [x] **`Ref` DTO **클래스** JSDoc 두 곳에 리뷰 인용이 남아 있다** (developer, 2026-09-06
+      등재, `review/consistency/2026/09/06/11_55_37` W3 을 고치다 전수 grep 으로 발견 · **2026-09-27 해소**
+      `plan/complete/dto-class-jsdoc-citation.md` · `plan/complete/spec-draft-review-citations-class-jsdoc.md` — 선행 질문은 planner 턴이
+      정했다: `review-citations.md` §3 을 필드/클래스로 가르고 클래스 JSDoc 도 인용을 쓰지 않는다. 실측으로 «클래스 JSDoc 도 공개
+      OpenAPI 로 나간다» 는 근거는 틀렸다(플러그인은 프로퍼티 JSDoc 만 싣는다) — 결론은 유지, 근거만 정정. 두 인용은 바로 위 `//` 로
+      옮기고 `EXPECTED_DTO_JSDOC_CITATIONS` 를 비웠다).
 
       `review-citations.md §3` 은 *"DTO·컨트롤러의 `/** */` JSDoc 은 대상 아님 — 그 JSDoc 은
       **공개 OpenAPI description** 으로 나가므로 리뷰 인용을 애초에 거기 쓰지 않는다"* 고

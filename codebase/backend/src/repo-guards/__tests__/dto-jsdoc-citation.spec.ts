@@ -13,10 +13,12 @@ import {
  *
  * ## 왜 이 가드인가 — 같은 위반이 세 번 났다
  *
- * DTO 의 JSDoc 은 `introspectComments` 로 **공개 OpenAPI `description`** 이 된다
- * (`swagger.md §3`). 그래서 `review-citations.md §3` 은 *"DTO·컨트롤러의 JSDoc 은 (인용)
+ * DTO **필드**의 JSDoc 은 `introspectComments` 로 **공개 OpenAPI `description`** 이 된다
+ * (`swagger.md §3`). 그래서 `review-citations.md §3` 은 *"DTO 필드·컨트롤러의 JSDoc 은 (인용)
  * 대상이 아니다 — 소비자가 읽을 문장이 아니므로 애초에 거기 쓰지 않는다"* 고 적고,
- * 바로 위 `//` 주석을 회피처로 처방한다.
+ * 바로 위 `//` 주석을 회피처로 처방한다. **클래스** JSDoc 은 지금 플러그인이 싣지 않지만 같은
+ * 절이 같은 규칙을 둔다 — 응답 DTO 파일의 `/** *\/` 를 공개 문서 채널 하나로 다룬다
+ * (2026-09-27 규약 정정 — 그 전에는 «클래스 JSDoc 도 나간다» 는 틀린 근거로 같은 결론을 냈다).
  *
  * 그런데 이 브랜치 계열에서 같은 위반이 **세 번** 났다:
  *
@@ -36,21 +38,15 @@ import {
  * (`review-citations.md §2` 의 세 형태 — 전체 경로 · 날짜+시각 · bare 시각).
  * `//` 주석은 **보지 않는다** — 그것이 규약이 처방하는 회피처다.
  *
- * ## 베이스라인이 0이 아니다
+ * ## 베이스라인은 0 이다 (2026-09-27)
  *
- * 두 자리가 이미 있고 **이 브랜치가 만든 것이 아니다** — 둘 다 `#1291` 이 넣었고 그 PR 의
- * 게이트를 통과했다(그때도 checker 가 "필드 JSDoc" 만 봤다). `review-citations.md §4`
- * (*"기존 인용은 소급 정리 대상이 아니다 — 그 자리를 다음에 건드릴 때 함께 맞춘다"*)에
- * 따라 지우지 않고 **동결**한다. 새로 생기면 목록에 없어 실패하고, 갚아서 없애면 목록에서
- * 빼야 통과한다.
- *
- * > 이 두 자리의 처분과 **`§3` 표가 필드/클래스를 안 가른다**는 선행 질문은
- * > `plan/in-progress/spec-draft-nullable-notation-followups.md` 에 등재돼 있다.
+ * 처음엔 두 자리를 동결했다 — `#1291` 이 넣은 `TriggerWorkflowRefDto` · `ScheduleTriggerWorkflowRefDto`
+ * 의 클래스 JSDoc 인용이다(그때 checker 가 "필드 JSDoc" 만 봤다). `review-citations.md §3` 표가
+ * 필드/클래스를 가르지 않는다는 선행 질문이 풀리면서(클래스도 쓰지 않는다) 두 인용을 바로 위
+ * `//` 블록으로 옮겼다. 목록 상수와 «정확히 일치» 단언은 남긴다 — 새 인용이 생기면 목록에 없어
+ * 실패하고, 예외를 두려면 이 목록에 이름으로 올려야 한다.
  */
-const EXPECTED_DTO_JSDOC_CITATIONS: readonly string[] = [
-  'modules/schedules/dto/responses/schedule-response.dto.ts#ScheduleTriggerWorkflowRefDto',
-  'modules/triggers/dto/responses/trigger-response.dto.ts#TriggerWorkflowRefDto',
-];
+const EXPECTED_DTO_JSDOC_CITATIONS: readonly string[] = [];
 
 /** 양성/음성 대조군 fixture — 스캔 범위(`src/modules`) 밖에 둔다. */
 const CITATION_FIXTURE = path.join(

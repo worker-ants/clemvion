@@ -10,6 +10,9 @@ import type {
 // (`review/code/2026/09/05/21_40_37` W1). `ScheduleDto.trigger` 와 같은 처방이다.
 // 소비처는 `triggers/page.tsx` 두 곳뿐 — `t.workflow?.id` · `t.workflow?.name`.
 //
+// 자매 참조 타입(`ScheduleTriggerWorkflowRefDto`)과 담는 필드가 다른 것은 의도다(아래 JSDoc)
+// — `review/consistency/2026/09/06/00_48_52` W2.
+//
 // 내부 서사를 `//` 에 두는 이유: `swagger.md §3` · `review-citations.md §3`.
 /**
  * 트리거에 연결된 워크플로우의 **참조** — `id` 와 `name` 을 담는다.
@@ -17,8 +20,7 @@ import type {
  * 스케줄 응답의 자매 타입 `ScheduleTriggerWorkflowRefDto` 는 `name` **하나만** 싣는다 —
  * **의도적으로 다르다.** 각 참조는 그 응답의 소비처가 실제로 읽는 필드만 담는다:
  * `triggers/page.tsx` 는 `t.workflow?.id` 로 링크를 걸지만 스케줄 화면은 이름만 표시한다.
- * 이름이 접두어 하나만 다르므로 **한쪽을 다른 쪽으로 갈아 끼우지 말 것**
- * (`review/consistency/2026/09/06/00_48_52` W2).
+ * 이름이 접두어 하나만 다르므로 **한쪽을 다른 쪽으로 갈아 끼우지 말 것**.
  */
 export class TriggerWorkflowRefDto {
   /** 워크플로우 UUID */

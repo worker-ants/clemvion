@@ -354,8 +354,9 @@ DTO `description` 은 *"한 줄로 읽히는가"* 가 기준이지 글자 수가
 
 **JSDoc 은 공개 OpenAPI 로 나간다 — 내부 서사를 담지 않는다** (2026-09-05 규약화):
 
-플러그인이 `introspectComments` 로 JSDoc 을 `description` 에 그대로 싣는다(문서 상단).
-즉 DTO 의 `/** ... */` 는 **API 소비자가 읽는 문장**이다. 정정 경위·리뷰 참조·"왜 이렇게
+플러그인이 `introspectComments` 로 **프로퍼티** JSDoc 을 `description` 에 그대로 싣는다(문서 상단).
+즉 DTO 필드의 `/** ... */` 는 **API 소비자가 읽는 문장**이다. 클래스 JSDoc 은 플러그인이 싣지 않지만 같은 분리를
+따른다 — 응답 DTO 파일의 `/** */` 는 한 채널로 다룬다([`review-citations.md` §3](./review-citations.md)). 정정 경위·리뷰 참조·"왜 이렇게
 바꿨는지" 같은 **내부 서사는 JSDoc 이 아니라 그 위의 `//` 주석**에 적는다 — `//` 는
 플러그인이 읽지 않는다.
 
