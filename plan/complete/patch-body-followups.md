@@ -1,10 +1,11 @@
 ---
 title: "PATCH 부분 본문 후속 — nullable 요청 필드 선언 · null 캐너리 · 헬퍼 JSDoc · 응답에 새는 관계 전수"
-status: in-progress
+status: complete
 owner: developer
 worktree: patch-body-followups
 spec_impact: none
 started: 2026-09-27
+completed: 2026-09-27
 ---
 
 # PATCH 부분 본문 후속
@@ -124,6 +125,13 @@ D4~D6 을 죽인 것이 캐너리 **하나뿐**이라는 것이 «캐너리가 �
   KILLED(래칫). 요청 DTO 는 래칫이 안 보는 자리라 캐너리를 뒀고, 응답 DTO 는 래칫이 그 몫을 한다. 단서: 그 필드를 §5.4 기본형으로
   갚으면 보호가 사라지니 그때 선언 캐너리를 함께 둔다(RESOLUTION 에 적었다).
 
+## `--impl-done` 처분 (`review/consistency/2026/09/27/16_42_21` BLOCK: NO — scope `spec/2-navigation/`)
+
+Critical 0 · Warning 0. 다섯 checker 가 세 요청 DTO 의 nullable 선언이 `2-api-convention.md` §5.4(요청 바디 예외 · 선례
+`UpdateAssistantSessionDto.llmConfigId`)와 맞는다고 독립 확인했다. INFO 4(`contractForDto` 가 이름은 «response» 인데 요청 DTO 캐너리에도
+쓰인다)는 조치 불요 — 헬퍼는 임의 클래스의 OpenAPI 스키마를 만든다. INFO 5(plan 을 `plan/complete/` 로 옮겨 트래커 전방 참조를
+유효화)는 이 마무리 커밋이 한다. 나머지 INFO 조치 불요.
+
 ## `--impl-prep` 처분 (`review/consistency/2026/09/27/15_19_25` BLOCK: NO)
 
 - **W1** (cross_spec) 트리거 `name` 등 트리거 · 스케줄의 NOT NULL 필드도 같은 메커니즘인데 프로브가 재지 않았다 → 새 트래커 항목에
@@ -140,7 +148,7 @@ D4~D6 을 죽인 것이 캐너리 **하나뿐**이라는 것이 «캐너리가 �
 
 - [x] `--impl-prep` — `review/consistency/2026/09/27/15_19_25` BLOCK: NO(W1 · W2 · W4 → 트래커 새 항목 · 좁힌 항목에 반영)
 - [x] DTO 셋 · e2e · 단위 캐너리 · 선언 캐너리 · 헬퍼 JSDoc · CHANGELOG · 트래커
-- [x] 뮤턴트 표 실측 — D1~D6 · H1 전부 KILLED
-- [x] TEST WORKFLOW (lint · unit · build · e2e) — 전부 PASS, e2e 423 (`_test_logs/e2e-20260927-154209.log`, `6c7c976b0`)
+- [x] 뮤턴트 표 실측 — D1~D6 · H1 · N1 · W1 · W2 전부 KILLED · 3R 반증용 R1 · R2 KILLED(래칫)
+- [x] TEST WORKFLOW (lint · unit · build · e2e) — 전부 PASS. 마지막은 2R 조치 뒤 `6add3194e`(e2e 425, `_test_logs/e2e-20260927-162421.log`) — 그 뒤 codebase 수정 0
 - [x] `/ai-review` — 1R `review/code/2026/09/27/15_46_38`(W2 → 조치) · 2R `review/code/2026/09/27/16_07_49`(W1 = 1R 조치가 만든 낡은 참조 → 조치) · 3R `review/code/2026/09/27/16_29_51`(W1 반증 · codebase 수정 0 — 수렴)
-- [ ] `--impl-done`
+- [x] `--impl-done` — `review/consistency/2026/09/27/16_42_21` BLOCK: NO(Critical 0 · Warning 0)
