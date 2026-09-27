@@ -66,24 +66,56 @@ started: 2026-09-27
 5. **CHANGELOG** — 항목 1(API 응답): 세 PATCH 응답 정정 + 워크플로 `settings: {}` 가 저장된 설정을 지우던 결함.
 6. **트래커** — 항목을 닫는다. 가드(`Object.assign(<엔티티>, <DTO>)` 형태 금지) 판단은 아래 절.
 
-## 가드를 둘까 — 판단
+## 가드를 둘까 — 판단: **두지 않는다**
 
-(작성 예정 — 구현 뒤 전수 결과로 판단한다.)
+트래커가 남긴 판단(«`Object.assign(<엔티티>, <DTO>)` 형태 금지 가드가 맞는지»). 고친 뒤 전수(`src/**/*.ts`, spec · 테스트 유틸
+제외)에서 `Object.assign(` 의 두 번째 인자가 객체 리터럴도 `omitUndefined(…)` 도 아닌 자리는 **4곳**이고 넷 다 이 결함 형태가
+아니다 — AI 에이전트 에코(`ai-turn-executor.ts`) · 실행 컨텍스트 변수(`execution-context.service.ts`) · 트리거의 이미 거른
+`patch`(`triggers.service.ts`) · 스트립 사본(같은 파일).
 
-## 뮤턴트 (예측 — 실측은 구현 뒤 채운다)
+- **정규식 가드**는 첫날부터 허용 목록 4개로 시작하고, 같은 결함의 다른 형태(`{ ...엔티티, ...dto }` spread · `repository.merge` ·
+  필드 루프)는 못 본다. 결함은 문법이 아니라 «두 번째 인자가 DTO 인스턴스인가» 라는 **타입**의 문제다.
+- **타입을 보는 가드**(AST + 타입 체커)는 표면이 넓다 — 정밀 파서로 옮겼다 철회한 선례(#970)가 있다. 이 결함 클래스가 다섯 자리를
+  다 닫은 지금 그 비용을 치를 근거가 약하다.
+- 대신 남기는 것: 헬퍼 JSDoc 이 두 증상(응답 · JSONB 저장값)을 적고, 세 도메인의 e2e 가 **값**을 단언한다. 새 PATCH 가 같은
+  형태로 생기면 그 PATCH 의 e2e 가 보내지 않은 필드의 값을 단언해야 잡힌다 — 가드가 아니라 테스트 관행이다.
+- 검토만 한 대안(이번에 처음 검토): `tsconfig` `useDefineForClassFields: false` 로 뿌리를 없앨 수 있다(optional 필드가 own property 가
+  되지 않는다). 그러나 저장소의 모든 클래스 필드 의미가 바뀐다(엔티티 · 필드 이니셜라이저 · 데코레이터) — 이 PR 의 크기가 아니다.
+
+## 뮤턴트 — 예측 / 실측
+
+단위는 `jest` omit-undefined · workflows · nodes · auth-configs · folders · triggers 서비스(baseline 360 GREEN, `fd21691c9`). 타입 뮤턴트는
+`tsc --noEmit -p tsconfig.json` 의 `omit-undefined` 오류 수(baseline 0) — build 단계 ratchet 이 보는 것과 같은 입력이다.
+e2e 는 **네 자리를 모두 되돌린 상태 = 고치기 전 코드** 1회(위 §실측, `e2e-20260927-130629.log`)다. 케이스마다 한 자리만 부르므로
+(A=`update()` rest, B=`settings` 병합, C=노드, D=인증 설정) 케이스별로 귀속된다.
 
 | # | 뮤턴트 | 예측 | 실측 · 죽인 테스트 |
 |---|---|---|---|
-| P1 | 워크플로 `update()` 가 헬퍼를 거치지 않음 | 단위 RED · e2e A RED | |
-| P2 | 워크플로 `settings` 병합이 헬퍼를 거치지 않음 | 단위 RED · e2e B RED(GET) | |
-| P3 | 노드 `update()` 가 헬퍼를 거치지 않음 | 단위 RED · e2e C RED | |
-| P4 | 인증 설정 `update()` 가 헬퍼를 거치지 않음 | 단위 RED · e2e D RED | |
+| P1 | 워크플로 `update()` 가 헬퍼를 거치지 않음(`Object.assign(workflow, rest)`) | 단위 RED · e2e A RED | 단위 KILLED 1 — workflows «보내지 않은 필드(undefined)로 로드한 값을 덮지 않는다» · e2e A RED(응답 값) |
+| P2 | 워크플로 `settings` 병합이 헬퍼를 거치지 않음(`...settings`) | 단위 RED · e2e B RED(GET) | 단위 KILLED 1 — workflows «빈 settings 는 저장된 설정 키를 지우지 않는다» · e2e B RED(**GET** — 저장값) |
+| P3 | 노드 `update()` 가 헬퍼를 거치지 않음 | 단위 RED · e2e C RED | 단위 KILLED 1 — nodes «보내지 않은 필드(undefined)로…» · e2e C RED(응답 값) |
+| P4 | 인증 설정 `update()` 가 헬퍼를 거치지 않음 | 단위 RED · e2e D RED | 단위 KILLED 1 — auth-configs «보내지 않은 필드(undefined)로…» · e2e D RED(응답 값) |
+| T1 | 헬퍼 타입 제약에서 `NotArray` 제거(`obj: T`) | TS2578 1 | KILLED — `omit-undefined.spec.ts` «배열은 받지 않는다» 의 `@ts-expect-error` 가 TS2578 |
+
+헬퍼 스펙의 «빈 객체 · 전 필드 undefined» 캐너리(INFO 10)는 표의 어느 뮤턴트도 단독으로 가르지 않는다 — 경계를 문서화하는 테스트다.
+
+## `--impl-prep` 처분 (`review/consistency/2026/09/27/13_11_33` BLOCK: NO)
+
+- **W4** (plan_coherence) 헬퍼의 `code:` 등재처를 묻는 트래커 planner 항목 (6)이 호출부 둘(폴더 · 트리거)을 전제하는데 이 PR 로
+  다섯이 되고 그중 노드는 `spec/3-workflow-editor/1-node-common.md` 소관이다 → 트래커 (6)에 반영했다(plan 쓰기).
+- **W2** (cross_spec) PATCH 의 «키 생략 = 값 불변» 이 `2-trigger-list.md` 에만 적혀 있고 `1-workflow-list.md` §3.2 · `6-config.md` 에는
+  없다 → spec 쓰기라 같은 planner 항목에 **(7)** 로 보강했다. 이 PR 이 그 동작을 코드로 맞춘다.
+- **W3** (rationale_continuity) `1-workflow-list.md` §2.3 «상태» 행이 이미 해소된 불일치를 진행 중으로 적는다 → 같은 항목 **(8)**.
+- **W1** (cross_spec) `1-data-model.md` §2.2 가 Schedule 타임존 최종 fallback 을 AI 노드와 같은 체인으로 적는다(실제는 도메인
+  전용 `'Asia/Seoul'`) → 이 PR 과 무관한 기존 drift. 트래커에 planner 항목을 새로 등재했다.
+- INFO 1~3(폴더 API 응답 형태 · 에러 details · export DTO 명칭)은 기존 planner 항목 (1)~(3)과 같은 자리 · INFO 4 조치 불요 ·
+  INFO 5(e2e 파일명이 결함 클래스 축) 는 파일 docblock 이 이유를 적는다.
 
 ## 체크리스트
 
-- [ ] `--impl-prep`
-- [ ] 서비스 셋 · e2e · 단위 · 헬퍼 손질 · CHANGELOG · 트래커
-- [ ] 뮤턴트 표 실측
+- [x] `--impl-prep` — `review/consistency/2026/09/27/13_11_33` BLOCK: NO(W2 · W3 · W4 → 트래커, W1 → 새 planner 항목)
+- [x] 서비스 셋 · e2e · 단위 · 헬퍼 손질 · CHANGELOG · 트래커
+- [x] 뮤턴트 표 실측 — P1~P4 · T1 전부 KILLED
 - [ ] TEST WORKFLOW (lint · unit · build · e2e)
 - [ ] `/ai-review`
 - [ ] `--impl-done`

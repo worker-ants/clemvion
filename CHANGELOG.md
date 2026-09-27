@@ -23,6 +23,20 @@
 > 07 37% · 08 30% · 09(25일까지) 49% 였다(나중 PR 의 백필은 세지 않았다). 여기 없다고 그 변경이 없었던 것은 아니다 —
 > `git log` 가 정본이다.
 
+## Unreleased — 워크플로 · 노드 · 인증 설정 수정이 보내지 않은 필드를 잃지 않는다
+
+폴더 수정(아래 항목)과 같은 결함이 세 API 에 더 있었다. 일부 필드만 보내면(예: 이름만) 보내지 않은 필드가 틀렸다.
+
+- **`PATCH /workflows/:id` 에 `settings: {}` 를 보내면 저장된 `maxConcurrentExecutions` 가 지워졌다** — 응답만이 아니라 저장값이
+  지워져 워크플로 동시 실행 상한이 기본값(3)으로 돌아갔다. 이제 빈 `settings` 는 아무것도 바꾸지 않는다.
+- `PATCH /workflows/:id` 응답: `description` · `folderId` 가 `null` 로 실리고 `isActive` · `tags` 가 빠졌다.
+- `PATCH /nodes/:id` 응답: `description` · `containerId` 가 `null` 로 실리고 위치(`positionX` · `positionY`) · `isDisabled` ·
+  `config` 가 빠졌다.
+- `PATCH /auth-configs/:id` 응답: `ipWhitelist` 가 `null` 로 실리고 `isActive` 가 빠졌다.
+
+첫째를 뺀 셋은 저장값이 그대로였고 응답만 틀렸다 — 다시 조회하면 맞는 값이 나왔다. 앱 화면은 수정 뒤 목록을 다시 읽어 영향이
+없었고, API 를 직접 부르는 클라이언트가 틀린 응답을 받았다. 이제 세 수정 응답에 모든 필드가 저장된 값으로 실린다.
+
 ## Unreleased — 폴더 수정 응답이 보내지 않은 필드를 틀리게 싣지 않는다
 
 `PATCH /folders/:id` 에 일부 필드만 보내면(예: 이름만) 보내지 않은 필드가 응답에서 틀렸다. 저장된 값은 그대로였고 응답만
