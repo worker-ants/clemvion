@@ -1480,6 +1480,27 @@ field: T | null;
         는 update 경로에서 **같은 워크스페이스 소속인지 검사하지 않는** 것으로 보인다(조사가 곁눈으로 본 것 — 재현하지 않았다). 폴더 ·
         트리거 `authConfigId` 는 검사한다(`validateParentChange` · `assertAuthConfigInWorkspace`). 확인되면 다른 워크스페이스의 행을 FK 로
         가리키게 된다 — 착수 전 e2e 로 재현부터.
+        > **닫음 (2026-09-27, `plan/complete/cross-workspace-refs.md`)** — 곁눈으로 본 네 필드가 아니라 **쓰기 요청 본문의 참조 id 전부**로
+        > 넓혀 다시 셌고(10개 묶음 · 대조군 8), 전부 저장 전에 거부한다. 고치기 전 e2e 가 곁눈 추정보다 큰 것을 재현했다: 트리거 ·
+        > 스케줄 생성의 `workflowId` 로 **다른 워크스페이스의 워크플로가 이쪽 트리거로 실행**됐고, 캔버스 저장이 **다른 워크스페이스의
+        > 노드 행을 옮겼다**. 규칙은 `spec/1-data-model.md` §1.1(같은 PR 의 planner 턴). 넘긴 것 — 아래 새 항목 «교차 워크스페이스 참조 후속».
+
+- [ ] **교차 워크스페이스 참조 후속 — 트리거 `config` 안의 비밀 참조 · 이미 저장된 교차 행 · OAuth begin `mode=new`** (developer + 보안 판단,
+      2026-09-27 등재 · `plan/complete/cross-workspace-refs.md` 가 넘긴 것 · `--impl-prep` `review/consistency/2026/09/27/19_43_46` W2 ·
+      `--spec` `20_05_26` W3).
+      - **트리거 `config` JSONB 안의 비밀 참조(미검증 · 보안)** — `chatChannel.botTokenRef` · `inboundSigningRef` ·
+        `notification.signing.secretRef` 는 `secret://triggers/<triggerId>/…` 문자열이다. 금지 검사(`@IsEmpty` · `assertChatChannelInputSafe`)는
+        타입 필드 `chatChannel` 에만 걸리고 원시 `config` 는 `@IsObject` 뿐이며, 타입 필드가 없으면 `mergeExternalConfig` 가 `config` 를 그대로
+        둔다. 읽는 쪽 `secret-resolver.service.ts` `resolve` 는 `ref` 만 본다(소스 판독 — 재지 않았다). 그렇다면 다른 트리거의 UUID 를 아는
+        사람이 그 비밀을 해석하게 하거나 rotate 로 덮어쓸 수 있다. 참조가 id 가 아니라 JSONB 안의 문자열이고 chat-channel 비밀 정책
+        (`15-chat-channel.md` R-CC-21 · §5.4.1)이 얽혀 있어 `spec/1-data-model.md` §1.1 의 표 밖이다. 착수 전 e2e 프로브부터 — 그리고
+        프런트가 PATCH `config` 에 그 키를 왕복시키는지(거부하면 정상 저장이 깨지는지) 먼저 본다.
+      - **이미 저장된 교차 행** — 저장 전 검사는 새 행만 막는다. 실행 엔진 `execute()` 는 워크플로를 `findOneBy({ id })` 로 읽고 웹훅 ·
+        cron · 지금 실행이 모두 그 경로다. 운영 DB 에 트리거 · 스케줄의 `workflow_id` 가 다른 워크스페이스를 가리키는 행이 있는지 점검하는
+        쿼리(`trigger.workspace_id <> workflow.workspace_id`)와, 실행 시점 방어선(트리거 워크스페이스 ≠ 워크플로 워크스페이스면 거부)을 둘지
+        정한다. 노드 · 엣지 · 폴더의 끊긴 참조도 같은 점검 대상이다.
+      - **OAuth begin `mode=new` 에 실린 `integrationId`** — state 에 저장되지만 new 콜백은 그 값을 쓰기 전에 끝난다(소스 판독, 콜백
+        `integration-oauth.service.ts` 일부만 읽음). `mode=new` 면 거부할지(DTO 조건부 금지) 무시할지.
 
 - [ ] **§5.4 스윕 2차 — 엔드포인트인데 e2e 미도달인 DTO** (developer, 2026-09-05 등재).
       1차가 닿지 못한 자리다. 배선 한 줄이 아니라 **새 e2e 시나리오**가 선행이므로 모듈

@@ -3,7 +3,12 @@ title: "요청 본문의 참조 id 가 다른 워크스페이스(또는 다른 �
 status: in-progress
 owner: developer
 worktree: cross-workspace-refs
-spec_impact: none
+spec_impact:
+  - spec/1-data-model.md
+  - spec/2-navigation/1-workflow-list.md
+  - spec/data-flow/11-workflow.md
+  - spec/data-flow/12-workspace.md
+  - spec/3-workflow-editor/0-canvas.md
 started: 2026-09-27
 ---
 
@@ -65,26 +70,42 @@ started: 2026-09-27
 
 ## 처방
 
-- **(X) · (D) 전부 저장 전에 거부한다** — 400 `VALIDATION_ERROR` + `details: { field, code: 'INVALID_FIELD' }`(메시지 «… not found in this
-  workspace» / «… in this workflow»). 근거는 `spec/5-system/3-error-handling.md` §1.11: 본문의 교차 참조는 «리소스 부재가 아니라 입력값
-  유효성» 이고, 폴더 `parentId`(`1-workflow-list.md` §3.x) · 트리거 `authConfigId` 가 400 이다. 없는 id 와 남의 id 를 구분하지 않는다
-  (존재 여부 노출 차단 — 같은 절).
+- **(X) · (D) 전부 저장 전에 거부한다** — 규칙 · 에러는 `spec/1-data-model.md` §1.1(같은 PR 의 planner 턴이 신설): 400
+  `VALIDATION_ERROR` + `details: [{ field, message, code: 'INVALID_FIELD' }]`(**배열** — 캔버스 저장 · 엣지 생성은 틀린 필드를 전부 싣는다).
+  모델 설정 참조(어시스턴트 `llmConfigId` · KB 셋)는 기존 검증기 `findEntity(id, workspaceId, kind)` 를 재사용해 404
+  `MODEL_CONFIG_NOT_FOUND` — 같은 KB 요청의 `embeddingModelConfigId` 가 이미 그렇다. 없는 id 와 남의 id 를 구분하지 않는다.
+  폴더 PATCH `parentId` 의 기존 거부도 같은 배열 `details` 를 싣는다(종전 `details` 없음).
 - 폴더 `parentId` 는 **생성 경로에 소속 검사를 더한다** — PATCH 의 `validateParentChange` 와 같은 조회.
 - 캔버스 저장:
   - `nodes[].id` 가 이 워크플로에 없으면 **어디에도 없는 id** 여야 한다(새 노드). 다른 행이 이미 쓰는 id 면 `nodes[i].id` 로 400. 프런트는
     새 노드 · 붙여넣기 · 복제 때 `crypto.randomUUID()` 로 id 를 새로 발급하므로(`editor-store.ts` `idRemap`) 정상 흐름은 걸리지 않는다.
   - `containerId` · `toolOwnerId` · 엣지 끝점은 **이번 페이로드의 노드 id 집합** 안이어야 한다(저장 뒤 워크플로의 노드가 정확히 그
     집합이다 — 페이로드에 없는 노드는 지워진다).
-- 에러 코드 · 필드명의 spec 미러링은 planner 몫 → 트래커.
 
-## 실측 — 고치기 전 코드 (예정)
+## 실측 — 고치기 전 코드 (`_test_logs/e2e-20260927-195807.log`, 18 failed / 479)
 
-두 워크스페이스(A = 요청자, B = 상대)로 e2e 를 돌려 (X) 셋의 추정을 잰다: A 가 B 의 워크플로로 웹훅 트리거를 만들고 호출하면 `execution`
-행이 B 의 워크플로로 생기는가 · A 가 캔버스 저장에 B 의 노드 id 를 실으면 B 의 노드가 A 로 옮겨지는가.
+새 e2e `test/cross-workspace-references.e2e-spec.ts` 를 고치기 **전** 코드로 돌렸다(A = 요청자, B = 상대).
+
+- **임시 프로브 2건 — 둘 다 추정대로 재현(통과)** — 실측 뒤 파일에서 지웠다.
+  - A 가 B 의 워크플로로 웹훅 트리거를 만들면 201, 그 경로를 부르면 202, 생긴 `execution.workflow_id` 가 B 의 워크플로. A 의
+    `GET /api/triggers` 응답에 B 워크플로 id.
+  - A 가 캔버스 저장에 B 의 노드 id 를 새 노드로 실으면 200, B 의 노드 행이 A 의 워크플로로 옮겨지고 라벨이 덮인다.
+- **거부를 기대한 18케이스 — 전부 RED.** 201/200 14건. 500 4건은 앞 케이스의 200 이 만든 상태 때문이다 — 캔버스 저장이 B 의 노드를
+  옮긴 뒤 다음 저장이 그 노드를 지워(페이로드에 없으면 삭제) 이어진 `containerId` · `toolOwnerId` · 엣지 끝점 캔버스 케이스가 FK 위반,
+  앞 케이스가 `containerId` 를 넣어 둔 노드에 `toolOwnerId` 를 더한 노드 PATCH 가 CHECK `chk_node_placement` 위반.
+
+## `--impl-prep` · planner 턴 처분
+
+- `--impl-prep` `review/consistency/2026/09/27/19_43_46` **BLOCK: YES** — Critical 2(폴더 생성 «같은 워크스페이스» 서술이 코드에 없음 ·
+  캔버스 저장 «검증 없이 저장» 계약을 처방이 깸). 둘 다 spec 쓰기라 **같은 PR 의 planner 턴**으로 해소했다: draft
+  `plan/complete/spec-draft-cross-workspace-refs.md` → `--spec` `20_05_26` BLOCK: NO → `a8bfd1492`(`1-data-model.md` §1.1 신설 외 4파일).
+  W1(Trigger · Schedule 제약 문구) → §2.8 · §2.9 에 반영. W2(«이 PR 밖» 두 항목 트래커 미등재) → 트래커 새 항목 «교차 워크스페이스
+  참조 후속».
+- `--spec` W1(`details` 단일 객체 → 배열) · W2(AlertRule §2.25) · INFO 1 · 5 → draft 에 반영하고 적용. W3 → 위 트래커 항목.
 
 ## 테스트 설계
 
-- e2e `test/cross-workspace-references.e2e-spec.ts` — 필드마다 A 의 요청에 B 의 id → 400 + `details.field`. 같은 워크스페이스 다른 워크플로도
+- e2e `test/cross-workspace-references.e2e-spec.ts` — 필드마다 A 의 요청에 B 의 id → 400 + `details[].field`. 같은 워크스페이스 다른 워크플로도
   (워크플로 범위 필드). 캔버스 저장은 거부 뒤 **B 의 노드가 그대로인지**까지.
 - 단위 — 서비스별 검사 헬퍼(조회 조건에 `workspaceId` · `workflowId` 가 실리는지, 없으면 400 형태).
 - 뮤턴트 — 검사 한 줄씩 빼서 그 행만 RED.
@@ -92,8 +113,8 @@ started: 2026-09-27
 ## 체크리스트
 
 - [x] 전수 — 읽기 전용 조사 둘, (X) 3 · (D) 7 요청 · 대조군 8
-- [ ] `--impl-prep`
-- [ ] 실측(고치기 전 e2e)
+- [x] `--impl-prep` — 19_43_46 BLOCK: YES → planner 턴(`a8bfd1492`) → 재실행 (아래)
+- [x] 실측(고치기 전 e2e) — 18 RED · 프로브 2 재현
 - [ ] 구현 · 단위 · CHANGELOG · 트래커
 - [ ] 뮤턴트
 - [ ] TEST WORKFLOW
