@@ -23,10 +23,15 @@
 > 07 37% · 08 30% · 09(25일까지) 49% 였다(나중 PR 의 백필은 세지 않았다). 여기 없다고 그 변경이 없었던 것은 아니다 —
 > `git log` 가 정본이다.
 
-## Unreleased — 루트 폴더 생성 응답에 `parentId: null` 이 실린다
+## Unreleased — 폴더 생성 · 수정 응답에서 필드가 빠지지 않는다
 
-`POST /folders` 로 루트 폴더(부모 없음)를 만들면 응답에 `parentId` 키가 없었다. 같은 폴더를 `GET /folders/:id` 로 읽으면
-`parentId: null` 이라 응답마다 표현이 갈렸다. 이제 생성 응답에도 `parentId: null` 이 실린다(하위 폴더는 종전대로 부모 UUID).
+폴더 API 응답 두 곳에서 키가 빠졌다. 저장된 값은 두 경우 모두 그대로였고, 응답만 틀렸다.
+
+- `POST /folders` 로 루트 폴더(부모 없음)를 만들면 응답에 `parentId` 키가 없었다. 같은 폴더를 `GET /folders/:id` 로 읽으면
+  `parentId: null` 이었다. 이제 생성 응답에도 `parentId: null` 이 실린다(하위 폴더는 종전대로 부모 UUID).
+- `PATCH /folders/:id` 에 일부 필드만 보내면(예: 이름만) 보내지 않은 필드가 응답에서 사라졌다 — `sortOrder` 등.
+  이제 수정 응답에 폴더의 모든 필드가 실린다.
+
 OpenAPI 도 `parentId` 를 «없을 수도 있는» 필드가 아니라 **항상 실리고 루트면 null 인** 필드로 광고한다.
 
 ## Unreleased — 저장소 가드: 응답 DTO JSDoc 의 리뷰 인용 예외가 0 이 됐다

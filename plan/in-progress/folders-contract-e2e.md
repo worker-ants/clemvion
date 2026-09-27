@@ -36,9 +36,22 @@ started: 2026-09-27
   `spec/5-system/2-api-convention.md` §5.4(키 상시 존재 · 값 null)다 → 이 수정은 규약을 따르는 것이라 `spec_impact: none`.
 - 프런트엔드: 폴더 **관리** UI 는 없고(spec §3.1) 목록 필터가 `GET /folders` 만 쓴다. POST 응답을 읽는 소비처가 없다.
 
+## e2e 가 드러낸 두 번째 이격 — PATCH 응답에서 보내지 않은 필드가 빠진다 (2026-09-27)
+
+첫 e2e 에서 C(이름 · 루트로 이동)가 `sortOrder [missing]` 으로 실패했다(`_test_logs/e2e-20260927-110251.log`, 1 failed / 417).
+
+- 원인: `update()` 의 `Object.assign(folder, data)`. DTO 인스턴스는 값이 없는 optional 필드도 `undefined` own property 로 갖는다
+  (`tsconfig.json` `target: ES2023` → `useDefineForClassFields` 기본 켜짐). 그 `undefined` 가 로드한 값을 덮어쓴다 — DB 는 TypeORM 이
+  undefined 를 건너뛰어 무사하지만 응답에서 키가 사라진다.
+- 선례: `triggers.service.ts` `update()` 가 2026-09-05 에 **같은 원인**(`PATCH /triggers/:id` 응답의 `name`)을 `defined` 필터로
+  고쳤다. 폴더도 같은 관용구로 고친다 + 단위 회귀 테스트.
+- 같은 형태가 남은 세 곳(`workflows` · `nodes` · `auth-configs` 의 `update()`)은 이 PR 의 축(폴더 모듈)이 아니라 트래커에 등재했다
+  — 실측은 아직 없다.
+
 ## 방향
 
 1. **서비스** — `create()` 가 `parentId: data.parentId ?? null` 을 명시해 저장한다. POST 응답에도 키가 늘 실린다(값 null).
+   `update()` 는 `undefined` 필드를 걸러 `Object.assign` 한다(위 절).
 2. **DTO** — `FolderDto.parentId` → `@ApiProperty({ type: String, format: 'uuid', nullable: true })` + `parentId: string | null`
    (§5.4 기본형. `type` 명시는 `string | null` 이 테스트 쪽 스키마에서 `type: object` 가 되는 것을 막는다 — #1412 실측).
 3. **래칫** — `EXPECTED_OPTIONAL_NULLABLE_DRIFT` 에서 `folder-response.dto.ts:FolderDto.parentId` 1행 제거.
@@ -60,6 +73,7 @@ started: 2026-09-27
 | M2 | `FolderDto.parentId` 를 optional + nullable 로 되돌림 | 래칫 RED · 캐너리 RED | |
 | M3 | `FolderDto.parentId` 의 `type: String` 제거 | 캐너리 RED | |
 | M4 | `FolderDto.parentId` 를 `@ApiPropertyOptional({ format: 'uuid' })`(nullable 없이)로 | 캐너리 RED · 래칫 GREEN | |
+| M5 | `update()` 의 `defined` 필터를 되돌림(`Object.assign(folder, data)`) | 단위 «undefined 로 덮지 않는다» RED · e2e C RED | |
 
 ## `--impl-prep` 처분 (`review/consistency/2026/09/27/10_39_26` BLOCK: NO)
 

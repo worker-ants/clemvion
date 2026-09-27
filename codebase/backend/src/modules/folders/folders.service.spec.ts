@@ -121,6 +121,23 @@ describe('FoldersService', () => {
       expect(mockRepository.find).not.toHaveBeenCalled();
     });
 
+    // DTO 인스턴스는 보내지 않은 optional 필드도 `undefined` own property 로 갖는다(`useDefineForClassFields`). 그것으로
+    // 로드한 값을 덮으면 PATCH 응답에서 그 키가 사라진다 — 폴더 e2e C 가 `sortOrder` 로 드러냈다.
+    it('보내지 않은 필드(undefined)로 로드한 값을 덮지 않는다', async () => {
+      mockRepository.findOne.mockResolvedValueOnce({
+        id: 'f1',
+        workspaceId: 'ws-uuid-1',
+        name: 'F1',
+        parentId: null,
+        sortOrder: 3,
+      });
+      const result = await service.update('f1', 'ws-uuid-1', {
+        name: 'Renamed',
+        sortOrder: undefined,
+      });
+      expect(result).toMatchObject({ name: 'Renamed', sortOrder: 3 });
+    });
+
     it('rejects self as parent (cycle → VALIDATION_ERROR)', async () => {
       mockRepository.findOne.mockResolvedValueOnce({
         id: 'f1',

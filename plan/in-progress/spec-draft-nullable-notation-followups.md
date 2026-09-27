@@ -1368,6 +1368,19 @@ field: T | null;
       > 없으면 다음 FE 작업자가 그 목록을 보고 소비하고, 그러면 제거가 파괴적 변경으로 승격되어
       > 이 항목이 영구히 닫히지 못한다.
 
+- [ ] **`Object.assign(엔티티, DTO)` 가 보내지 않은 필드로 로드한 값을 덮는다 — 남은 세 곳** (developer, 2026-09-27 등재 ·
+      `folders-contract-e2e` 가 폴더에서 실측). DTO 인스턴스는 값이 없는 optional 필드도 `undefined` own property 로 갖는다
+      (`target: ES2023` → `useDefineForClassFields`). 그대로 `Object.assign` 하면 로드한 값을 `undefined` 로 덮어써 **PATCH 응답에서
+      그 키가 사라진다** — DB 는 TypeORM 이 undefined 를 건너뛰어 무사하다. 트리거(2026-09-05, `PATCH /triggers/:id` 응답의 `name`)와
+      폴더(2026-09-27, `sortOrder`)는 `defined` 필터로 고쳤다. 같은 형태가 남은 자리(2026-09-27 `grep "Object.assign("` · `*service.ts`):
+      - `workflows.service.ts` `update()` — `const { settings, ...rest } = dto; Object.assign(workflow, rest)`
+      - `nodes.service.ts` `update()` — `Object.assign(node, dto)`
+      - `auth-configs.service.ts` `update()` — `Object.assign(config, rest)`
+      > **셋 다 실측은 아직 없다** — 메커니즘이 같아 결함일 가능성이 높을 뿐이다. 확인은 그 PATCH 를 부분 본문으로 불러 응답을
+      > 계약과 대조하는 e2e 로 한다(폴더 e2e C 가 그 형태). `workflow-crud.e2e` B 는 PATCH 뒤 **GET** 으로만 확인해 이 결함을 못 본다.
+      > 같은 형태가 이미 **다섯 자리**(고친 둘 + 남은 셋)다 — 착수할 때 개별 수정보다 공용 헬퍼 + 가드(`Object.assign(<엔티티>, <DTO>)`
+      > 형태 금지)가 맞는지부터 판단한다.
+
 - [ ] **§5.4 스윕 2차 — 엔드포인트인데 e2e 미도달인 DTO** (developer, 2026-09-05 등재).
       1차가 닿지 못한 자리다. 배선 한 줄이 아니라 **새 e2e 시나리오**가 선행이므로 모듈
       단위로 끊는다. 후보(매퍼 기준, census 아님): `DashboardSummaryDto` ·
