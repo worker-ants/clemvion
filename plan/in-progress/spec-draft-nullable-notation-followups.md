@@ -1468,7 +1468,11 @@ field: T | null;
         §5.4 래칫 대상이 아니다 — `feedback_swagger_union_null_design_type` 참고).
       - **JSONB 안에 null 이 저장돼 «사실상 제거 · 기본값 복귀» 로 동작하는데 선언이 없는 필드** — trigger `notification`·`interaction`
         (null 이면 해제로 읽힌다) · 워크플로 · 워크스페이스 `settings.maxConcurrentExecutions`(기본값으로 복귀) · notifications settings 3개.
-        그 의미를 계약할지(nullable 선언) 거부할지(`IsOptionalNonNull`) 정한다.
+        그 의미를 계약할지(nullable 선언) 거부할지(`IsOptionalNonNull`) 정한다. `maxConcurrentExecutions` 는 spec 서술과도 어긋난다 —
+        `spec/2-navigation/1-workflow-list.md` §3.2 6번 · 같은 절 «permissive 예외에 포함되지 않는다» 문단은 `settings` 를 «미지 키 ·
+        비양수 · 비정수는 400» 인 **hard-fail** 로 적는데 null 은 `@IsOptional()` 을 지나 저장된다(`patch-null-validation` `--impl-done`
+        `review/consistency/2026/09/27/18_23_40` W2 — 체커의 관찰이고 이 PR 은 재지 않았다). 거부로 정하면 서술은 그대로 맞고, 계약으로
+        정하면 그 두 문단이 planner 몫이다.
       - **미측정 둘** — `triggers.chatChannel.languageHints` 는 PATCH 가 200 이고 이후 실패 메시지 렌더에서 TypeError 가 예측된다
         (`language-hint-defaults.ts` 의 `languageHints['executionFailed']` — 실행 안 해 봄, `15-chat-channel.md` 소관). trigger
         `interaction.appearance` 하위 7개는 null 이 그대로 저장 · 응답되는데 백엔드 소비자가 없고 프런트 영향은 확인 못 했다.
@@ -6404,6 +6408,11 @@ field: T | null;
       > `spec/5-system/2-api-convention.md` §5.4 블록쿼트의 PATCH tri-state «`null` = 초기화» 는 **nullable 로 선언된 필드**에만 적용되고
       > 미선언 필드의 `null` 은 400 `VALIDATION_ERROR` 라는 문장이 없다 — 글자 그대로는 `patch-null-validation` 의 null 거부와 부딪혀 보인다.
       > 한 문장 추가. 같은 김에 `9-user-profile.md` §6.1 `interactionAllowedOrigins` 바디 표기에 `?`(같은 세션 INFO 1).
+      > (10) 의 범위 보강 (`patch-null-validation` `--impl-done` `review/consistency/2026/09/27/18_23_40` W3 · W4 · INFO 2): §5.4 문장만
+      > 넣으면 `endpointPath` 의 spec 서술 갭이 남는다 — `2-trigger-list.md` §2.3.1 필드 권한 매트릭스 `endpointPath` 행과 §3 註(PATCH
+      > 부분 갱신 키 목록)에 «`null` 은 400 `VALIDATION_ERROR` — 경로를 유지하려면 키 생략» 한 줄. 그러면 DTO description
+      > (`update-trigger.dto.ts`)이 `swagger.md` §3 의 «요약 + SoT 링크» 형태로 그 앵커를 가리킬 수 있다(지금은 링크할 본문이 없어
+      > description 이 캐비엇을 직접 적는다). 같은 김에 §5.4 «검증 층» 표에 `optional-non-null.ts` 를 더할지 본다.
       > 열 다 spec 쓰기라 planner 턴에서 한 번에.
 
 - [ ] **`1-data-model.md` §2.2 가 Schedule 타임존의 최종 fallback 을 AI 노드와 같은 체인으로 적는다** (planner, 낮음, 2026-09-27 등재 ·

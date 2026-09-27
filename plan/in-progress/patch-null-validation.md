@@ -137,4 +137,7 @@ assistant `title` · model-configs `baseUrl`·`dimension`(embedding) · knowledg
 - [x] `/ai-review` — 1R `review/code/2026/09/27/17_47_49` Critical 0 · Warning 2(모델 설정 PATCH 유효 값 e2e 부재 · `endpointPath` 문서) →
   `e5de5226c` 로 조치, TEST WORKFLOW 재통과(e2e 459). 2R `18_13_53` Critical 0 · Warning 0 · codebase 수정 0 — 수렴. SPEC-DRIFT(§5.4
   tri-state 범위)는 두 라운드 모두 트래커 planner 항목 (10)
-- [ ] `--impl-done`
+- [x] `--impl-done` — `review/consistency/2026/09/27/18_23_40` BLOCK: NO(판정 HEAD `15a094c6a`). W1(§5.4) · W2(`maxConcurrentExecutions`
+  — spec «hard-fail» 서술과 어긋남) → 트래커 «PATCH null 후속» 보강, W3 · W4 · INFO 2(`2-trigger-list.md` `endpointPath` 행 · §5.4 검증
+  층 표) → planner 항목 (10) 범위 보강, W5 · INFO 4(응답 계약 어휘와의 층 구분) → `optional-non-null.ts` JSDoc. 그 파일은 spec `code:`
+  연결이 아니라(`review_guard._spec_linked_changes`) 이 산출물은 유효하고, 코드 리뷰 게이트만 다시 무장된다 → 3R
