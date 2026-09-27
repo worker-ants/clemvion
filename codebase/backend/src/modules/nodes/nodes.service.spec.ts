@@ -1,6 +1,7 @@
 import { ConflictException, NotFoundException } from '@nestjs/common';
 import { NodesService } from './nodes.service';
 import { Node, NodeCategory } from './entities/node.entity';
+import { UpdateNodeDto } from './dto/update-node.dto';
 
 const WS = 'ws-1';
 
@@ -183,6 +184,48 @@ describe('NodesService', () => {
       await expect(
         service.update('n1', WS, { label: 'API Call' }),
       ).rejects.toThrow(ConflictException);
+    });
+
+    // 실제 요청처럼 DTO **인스턴스**를 넘긴다 — 보내지 않은 필드가 `undefined` own property 로 있는 형태다
+    // (`useDefineForClassFields`). 걸러내지 않으면 PATCH 응답에서 그 값이 사라지거나 null 로 실렸다.
+    it('보내지 않은 필드(undefined)로 로드한 값을 덮지 않는다', async () => {
+      const existing = makeNode('n1', 'HTTP Request', 'wf-1');
+      Object.assign(existing, {
+        description: 'memo',
+        containerId: 'box-1',
+        positionX: 120,
+        isDisabled: true,
+        config: { url: 'keep' },
+      });
+      mockRepo.findOne
+        .mockResolvedValueOnce(existing)
+        .mockResolvedValueOnce(null);
+
+      const result = await service.update(
+        'n1',
+        WS,
+        Object.assign(new UpdateNodeDto(), { label: 'API Call' }),
+      );
+      expect(result).toMatchObject({
+        label: 'API Call',
+        description: 'memo',
+        containerId: 'box-1',
+        positionX: 120,
+        isDisabled: true,
+        config: { url: 'keep' },
+      });
+    });
+
+    // IDOR 검사용으로 함께 읽은 `workflow` 관계가 응답에 부모 워크플로 행째로 실렸다(`NodeDto` 미선언).
+    it('응답에 IDOR 검사용 workflow 관계를 싣지 않는다', async () => {
+      const existing = makeNode('n1', 'HTTP Request', 'wf-1');
+      mockRepo.findOne.mockResolvedValueOnce(existing);
+
+      const result = await service.update('n1', WS, {
+        label: 'HTTP Request',
+      });
+      expect(result).toHaveProperty('workflowId', 'wf-1');
+      expect(result).not.toHaveProperty('workflow');
     });
   });
 

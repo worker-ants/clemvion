@@ -13,6 +13,8 @@ spec_impact:
   # 아래 셋은 본문 항목이 정정을 요구하는 파일 — 빠지면 `--spec`/`--impl-done` 번들
   # 스코프에서 누락된다 (`review/consistency/2026/09/06/16_29_00` INFO#2).
   - spec/2-navigation/2-trigger-list.md
+  - spec/2-navigation/6-config.md
+  - spec/3-workflow-editor/1-node-common.md
   - spec/2-navigation/3-schedule.md
   - spec/5-system/15-chat-channel.md
   - spec/conventions/review-citations.md
@@ -1368,7 +1370,7 @@ field: T | null;
       > 없으면 다음 FE 작업자가 그 목록을 보고 소비하고, 그러면 제거가 파괴적 변경으로 승격되어
       > 이 항목이 영구히 닫히지 못한다.
 
-- [ ] **`Object.assign(엔티티, DTO)` 가 보내지 않은 필드로 로드한 값을 덮는다 — 남은 세 곳** (developer, 2026-09-27 등재 ·
+- [x] **`Object.assign(엔티티, DTO)` 가 보내지 않은 필드로 로드한 값을 덮는다 — 남은 세 곳** (developer, 2026-09-27 등재 ·
       `folders-contract-e2e` 가 폴더에서 실측). DTO 인스턴스는 값이 없는 optional 필드도 `undefined` own property 로 갖는다
       (`target: ES2023` → `useDefineForClassFields`). 그대로 `Object.assign` 하면 로드한 값을 `undefined` 로 덮어써 **PATCH 응답이
       틀린다** — DB 는 TypeORM 이 undefined 를 건너뛰어 무사하다. 증상은 둘이다: nullable 이 아닌 컬럼은 키가 사라지고, nullable
@@ -1390,6 +1392,31 @@ field: T | null;
       > 전 필드 `undefined` 입력 캐너리 — 지금은 폴더 단위 테스트가 간접으로만 본다. (11) 타입 제약 `T extends object` 가 배열을 받는데
       > 구현은 배열을 인덱스 키 객체로 무너뜨린다 — 호출부 둘은 배열을 안 넘긴다. (8) `folders.service.spec.ts` 의 주석이 아직
       > e2e 케이스 문자(«C · E»)를 인용한다 — 서비스 주석은 파일명으로 바꿨다.
+
+      > **완료 (2026-09-27, `plan/complete/patch-omit-undefined.md`)**. 고치기 전 코드로 돌린 e2e(`patch-partial-body`)가 셋 다 결함임을
+      > 실측했다 — 워크플로 · 노드 · 인증 설정 PATCH 응답의 거짓 null · 키 부재. 그리고 **넷째 표면**이 나왔다: 워크플로 `settings`
+      > 병합(`{ ...기존, ...settings }`)도 중첩 DTO 인스턴스를 펼쳐 `settings: {}` 가 저장된 `maxConcurrentExecutions` 를 **DB 에서**
+      > 지웠다(JSONB 직렬화가 undefined 키를 버린다). 넷 다 `omitUndefined` 로 고쳤고 헬퍼 손질 셋(10 · 11 · 8)도 닫았다.
+      > 전수는 «PATCH 가 부분 본문을 엔티티에 합치는 곳» 축(PATCH 21개 라우트)으로 했다 — 통째 병합은 이 셋뿐이었다.
+      > **가드는 두지 않았다** — 판단 근거(남은 `Object.assign(` 4곳이 전부 다른 형태 · 결함은 타입의 문제라 정규식이 못 가른다)는
+      > 그 plan §가드.
+
+- [ ] **PATCH 부분 본문 후속 — 요청 DTO `description` 의 nullable 선언 · 응답 직렬화 계층 부재 · 캐너리 둘** (developer, 낮음,
+      2026-09-27 등재 · `plan/complete/patch-omit-undefined.md` `/ai-review` 2R `review/code/2026/09/27/14_20_00` — 수렴 예외로 등재,
+      근거는 그 세션 RESOLUTION).
+      - (W2) `UpdateWorkflowDto.description` · `UpdateNodeDto.description` 이 `description?: string` · nullable 미선언이다. 런타임은
+        `@IsOptional()` 이 null 을 통과시켜 **값을 지운다**(워크플로 단위 «명시적 null 은 로드한 값을 지운다» 가 고정) — OpenAPI 가 실제
+        지원하는 입력을 덜 광고한다. `@ApiPropertyOptional({ nullable: true })` + `string | null` 로. 부수: 그 캐너리를 쓰며
+        `null as unknown as string` 캐스트는 `nullable-type-lie-cast` 가드가 잡았지만, `Object.assign(new Dto(), { description: null })`
+        (교차 타입이라 캐스트가 필요 없다)은 가드가 못 본다 — 같은 거짓말의 다른 형태다.
+      - (W1) 응답 형태를 강제하는 직렬화 계층이 없다(`ClassSerializerInterceptor` · `@Exclude()` 0건 — 위 `User` 컬럼 방어 항목의
+        조사와 같은 사실). 서비스가 돌려준 엔티티가 곧 응답이라, **인가 검사용으로 읽은 관계**가 응답에 샌다 — 노드 `update()` 의
+        `workflow` 가 그랬다(그 PR 은 구조분해로 뗐다). 같은 형태가 다른 서비스에 있는지 전수(`relations:` 로 읽고 그 엔티티를 그대로
+        반환하는 곳)부터 재고, 응답 매퍼 vs 화이트리스트 직렬화를 정한다.
+      - (INFO 1) «명시적 null 은 로드한 값을 지운다» 캐너리가 워크플로에만 있다 — 노드(`description` · `containerId`) · 인증 설정
+        (`ipWhitelist`)에도 하나씩.
+      - (INFO 2) `omit-undefined.ts` JSDoc 에 «인자 자체가 런타임 null 이면 `Object.entries` 가 던진다 — 필드 전체가 null 일 수 있는
+        호출부(중첩 DTO)는 먼저 `!= null` 로 가드하라» 한 문장. 그 PR 의 1R Critical(`settings: null` 500)의 뿌리다.
 
 - [ ] **§5.4 스윕 2차 — 엔드포인트인데 e2e 미도달인 DTO** (developer, 2026-09-05 등재).
       1차가 닿지 못한 자리다. 배선 한 줄이 아니라 **새 e2e 시나리오**가 선행이므로 모듈
@@ -6299,7 +6326,27 @@ field: T | null;
       > 사본을 합쳐 신설)가 어느 spec 의 `code:` 에도 없다(`--impl-done` `review/consistency/2026/09/27/12_27_18` W1). 둘 곳은 planner
       > 가 정한다 — 호출하는 두 도메인 spec(`1-workflow-list.md` · `2-trigger-list.md`) 양쪽인지, 헬퍼가 지키는 규칙(§5.4 부재 표현)을
       > 가진 `spec/5-system/2-api-convention.md` 인지(그 문서가 이미 `common/utils/throttler-skip.ts` 를 둔다).
-      > 여섯 다 spec 쓰기라 planner 턴에서 한 번에.
+      > **2026-09-27 모집단 확장** (`patch-omit-undefined` `--impl-prep` `review/consistency/2026/09/27/13_11_33` W4): 호출부가 둘에서
+      > **다섯**이 됐다 — 폴더 · 트리거 · 워크플로 · 노드 · 인증 설정. 소관 spec 도 넓어졌다: `1-workflow-list.md`(폴더 · 워크플로) ·
+      > `2-trigger-list.md` · `spec/3-workflow-editor/1-node-common.md`(노드, `code:` 가 `modules/nodes/**`) · `6-config.md`(인증 설정).
+      > 도메인 spec 양쪽에 두는 안은 이제 다섯 문서다 — §5.4 를 가진 `2-api-convention.md` 한 곳 쪽으로 기우는 근거다(결정은 planner).
+      > **같은 날 보강** (같은 세션 W2 · W3): (7) PATCH 의 «키 생략 = 값 불변»(§5.4 tri-state)이 `2-trigger-list.md` §3 註에만 있고
+      > `1-workflow-list.md` §3.2(워크플로 · `settings`) · `6-config.md`(인증 설정)에는 없다 — 두 문서에 한 문장씩. `patch-omit-undefined` 가
+      > 그 동작을 코드로 맞췄다(워크플로 `settings: {}` 는 이제 아무것도 바꾸지 않는다). 같은 문장에 `settings` 의 null 의미도 적는다 —
+      > 최상위 `settings: null` 은 **no-op**(원래 동작, `patch-omit-undefined` 가 500 회귀만 없앴다)이고 스칼라 필드(`description` ·
+      > `folderId`)의 null 은 **값을 지운다**. 같은 엔드포인트 안에서 필드마다 null 의 뜻이 갈린다(`review/code/2026/09/27/14_20_00` INFO 4).
+      > (8) `1-workflow-list.md` §2.3 필터 표 «상태»
+      > 행이 이미 해소된 파라미터 불일치(#519)를 진행 중으로 적는다 — 같은 절 하단 보강 문구와 자기모순이다. 행의 경고를 걷는다.
+      > (9) `2-trigger-list.md` §2.3.1 `botToken` 행의 링크 라벨이 «Spec Chat Channel §1.11» 인데 가리키는 곳은 `3-error-handling.md`
+      > §1.11 이다 — 라벨만 고친다(`patch-omit-undefined` `--impl-done` `review/consistency/2026/09/27/14_33_36` INFO 5). (7)의 `settings`
+      > null 의미 문장은 `1-workflow-list.md` `## Rationale` §2(strict DTO 결정)에 두는 것도 후보다(같은 세션 INFO 4).
+      > 아홉 다 spec 쓰기라 planner 턴에서 한 번에.
+
+- [ ] **`1-data-model.md` §2.2 가 Schedule 타임존의 최종 fallback 을 AI 노드와 같은 체인으로 적는다** (planner, 낮음, 2026-09-27 등재 ·
+      `patch-omit-undefined` `--impl-prep` `review/consistency/2026/09/27/13_11_33` cross_spec W1 — 그 PR 과 무관한 기존 drift).
+      Workspace `settings` 필드 설명의 괄호 서술이 fallback 을 UTC 계열로 한 줄에 묶는데, Schedule 은 도메인 전용 `'Asia/Seoul'` 로
+      떨어진다(`spec/2-navigation/3-schedule.md` §2.2 · `schedules.service.ts` `resolveTimezone`). AI 노드(`spec/4-nodes/3-ai/0-common.md`
+      §11.3)와는 체인이 다르다 — 괄호에서 Schedule 을 떼거나 각주 한 줄.
 
 - [x] **k8s 로컬 오버레이의 버킷 Job 이 아바타 공개 정책을 걸지 않는다** (developer, 낮음, 2026-09-24 등재 ·
       plan `minio-silo-image` §D — 이미지 교체 중 발견, 그 PR 의 축이 아니라 분리).

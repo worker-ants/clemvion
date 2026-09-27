@@ -19,6 +19,7 @@ import { ModelConfigService } from '../model-config/model-config.service';
 import { WorkspacesService } from '../workspaces/workspaces.service';
 import { TRIGGER_RESOURCE_RELEASER } from '../triggers/trigger-resource-release';
 import { UpdateWorkflowDto } from './dto/update-workflow.dto';
+import { WorkflowSettingsDto } from './dto/workflow-settings.dto';
 // 이 파일은 `SaveCanvasDto` 를 타입 주석으로 4곳에서 쓰면서 import 가 없었다(TS2304).
 // jest 가 타입을 strip 해서 실행에는 문제가 없었고, `nest build` 는 `*.spec.ts` 를
 // exclude 해서 어떤 게이트에도 안 걸렸다 — 이 PR 의 ratchet 이 막으려는 바로 그 구멍이다.
@@ -420,6 +421,95 @@ describe('WorkflowsService', () => {
           settings: { maxConcurrentExecutions: 7 },
         }),
       );
+    });
+
+    // 실제 요청처럼 DTO **인스턴스**를 넘긴다 — 보내지 않은 필드가 `undefined` own property 로 있는 형태다
+    // (`useDefineForClassFields`). 걸러내지 않으면 `settings: {}` 가 저장된 키를 지우고 JSONB 가 그 키를 버렸다.
+    it('빈 settings 는 저장된 설정 키를 지우지 않는다', async () => {
+      mockRepository.findOne.mockResolvedValueOnce({
+        id: 'wf-uuid-1',
+        workspaceId: 'ws-uuid-1',
+        settings: { maxConcurrentExecutions: 5 },
+      });
+      await service.update(
+        'wf-uuid-1',
+        'ws-uuid-1',
+        Object.assign(new UpdateWorkflowDto(), {
+          settings: new WorkflowSettingsDto(),
+        }),
+        'u-spec',
+      );
+      const saved = mockRepository.save.mock.calls.at(-1)?.[0] as Workflow;
+      expect(saved.settings).toStrictEqual({ maxConcurrentExecutions: 5 });
+    });
+
+    // `@IsOptional()` 은 `settings: null` 도 통과시킨다 — 병합은 그것을 no-op 으로 다룬다(던지면 500).
+    it('settings: null 은 던지지 않고 저장된 설정을 그대로 둔다', async () => {
+      mockRepository.findOne.mockResolvedValueOnce({
+        id: 'wf-uuid-1',
+        workspaceId: 'ws-uuid-1',
+        settings: { maxConcurrentExecutions: 5 },
+      });
+      await service.update(
+        'wf-uuid-1',
+        'ws-uuid-1',
+        Object.assign(new UpdateWorkflowDto(), { settings: null }),
+        'u-spec',
+      );
+      const saved = mockRepository.save.mock.calls.at(-1)?.[0] as Workflow;
+      expect(saved.settings).toStrictEqual({ maxConcurrentExecutions: 5 });
+    });
+  });
+
+  describe('update — 보내지 않은 필드', () => {
+    it('보내지 않은 필드(undefined)로 로드한 값을 덮지 않는다', async () => {
+      mockRepository.findOne.mockResolvedValueOnce({
+        id: 'wf-uuid-1',
+        workspaceId: 'ws-uuid-1',
+        name: 'Old',
+        description: 'keep',
+        folderId: 'folder-1',
+        tags: ['a'],
+        isActive: true,
+        settings: {},
+      });
+      await service.update(
+        'wf-uuid-1',
+        'ws-uuid-1',
+        Object.assign(new UpdateWorkflowDto(), { name: 'Renamed' }),
+        'u-spec',
+      );
+      expect(mockRepository.save.mock.calls.at(-1)?.[0]).toMatchObject({
+        name: 'Renamed',
+        description: 'keep',
+        folderId: 'folder-1',
+        tags: ['a'],
+        isActive: true,
+      });
+    });
+
+    // §5.4 tri-state 의 나머지 한 칸 — 명시적 `null` 은 «값을 지운다» 는 요청이라 걸러내면 안 된다.
+    it('명시적 null 은 로드한 값을 지운다', async () => {
+      mockRepository.findOne.mockResolvedValueOnce({
+        id: 'wf-uuid-1',
+        workspaceId: 'ws-uuid-1',
+        description: 'keep',
+        folderId: 'folder-1',
+        settings: {},
+      });
+      await service.update(
+        'wf-uuid-1',
+        'ws-uuid-1',
+        Object.assign(new UpdateWorkflowDto(), {
+          description: null,
+          folderId: null,
+        }),
+        'u-spec',
+      );
+      expect(mockRepository.save.mock.calls.at(-1)?.[0]).toMatchObject({
+        description: null,
+        folderId: null,
+      });
     });
   });
 

@@ -6,6 +6,7 @@ import * as crypto from 'crypto';
 import * as bcrypt from 'bcrypt';
 import { AuthConfigsService } from './auth-configs.service';
 import { AuthConfig } from './entities/auth-config.entity';
+import { UpdateAuthConfigDto } from './dto/update-auth-config.dto';
 import { Execution } from '../executions/entities/execution.entity';
 import { Trigger } from '../triggers/entities/trigger.entity';
 import { User } from '../users/entities/user.entity';
@@ -348,6 +349,36 @@ describe('AuthConfigsService', () => {
       ).rejects.toMatchObject({ response: { code: 'RESOURCE_NOT_FOUND' } });
       expect(repo.delete).not.toHaveBeenCalled();
       expect(audit.record).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('update — 보내지 않은 필드', () => {
+    // 실제 요청처럼 DTO **인스턴스**를 넘긴다 — 보내지 않은 필드가 `undefined` own property 로 있는 형태다
+    // (`useDefineForClassFields`). 걸러내지 않으면 PATCH 응답에서 그 값이 사라지거나 null 로 실렸다.
+    it('보내지 않은 필드(undefined)로 로드한 값을 덮지 않는다', async () => {
+      const ac = await service.create(
+        WS,
+        {
+          type: 'api_key',
+          name: 'a',
+          ipWhitelist: ['10.0.0.0/8'],
+          isActive: false,
+        } as Partial<AuthConfig>,
+        USER,
+      );
+      const result = await service.update(
+        ac.id,
+        WS,
+        Object.assign(new UpdateAuthConfigDto(), {
+          name: 'renamed',
+        }) as Partial<AuthConfig>,
+        USER,
+      );
+      expect(result).toMatchObject({
+        name: 'renamed',
+        ipWhitelist: ['10.0.0.0/8'],
+        isActive: false,
+      });
     });
   });
 
