@@ -46,7 +46,7 @@ export class UpdateAuthConfigDto {
   @IsObject()
   config?: Record<string, unknown>;
 
-  /** 변경할 IP 화이트리스트 */
+  /** 변경할 IP 화이트리스트 (null · 빈 배열이면 전체 삭제) */
   @ApiPropertyOptional({
     description:
       '변경할 IP 화이트리스트 (CIDR 또는 단일 IP). ' +

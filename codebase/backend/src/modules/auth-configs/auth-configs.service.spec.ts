@@ -713,6 +713,24 @@ describe('AuthConfigsService', () => {
       ).rejects.toThrow(UnauthorizedException);
     });
 
+    // null 과 빈 배열은 같은 뜻 — 화이트리스트 없음. PATCH 가 둘 다 받는다고 광고하므로(`UpdateAuthConfigDto.ipWhitelist`) 판정도 같아야 한다.
+    it.each([
+      ['null', null],
+      ['빈 배열', []],
+    ])(
+      'ip_whitelist: %s 이면 제한 없음 — 목록 밖 IP 도 통과',
+      async (_label, ipWhitelist) => {
+        const ac = await seed('bearer_token', {}, { ipWhitelist });
+        const token = ac.config.token as string;
+        await expect(
+          service.verifyWebhookRequest(ac.id, WS, {
+            headers: { authorization: `Bearer ${token}` },
+            clientIp: '203.0.113.9',
+          }),
+        ).resolves.toBeUndefined();
+      },
+    );
+
     it('ip_whitelist: CIDR 범위 내 IP → 통과', async () => {
       const ac = await seed(
         'bearer_token',
