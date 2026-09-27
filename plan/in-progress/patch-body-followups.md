@@ -111,6 +111,12 @@ D4~D6 을 죽인 것이 캐너리 **하나뿐**이라는 것이 «캐너리가 �
   의도된 동치 · 7 은 로컬리티 트레이드오프 · 8 은 additive).
 - 리뷰 뒤 `git status --short` · `git diff --stat HEAD` 가 세션 디렉터리 외 변경 0, 리뷰어 transcript 에 워크트리 쓰기 명령 0건.
 
+## `/ai-review` 2R (`review/code/2026/09/27/16_07_49` — Critical 0 · Warning 1)
+
+- **W1** (maintainability · documentation) 세 DTO spec 주석의 «e2e E 가 본다» 가 **1R 조치(E → E1~E3 분리)가 만든** 낡은 참조다 →
+  케이스 문자를 빼고 파일명만 인용(`6add3194e`). 수렴 예외로 넘기지 않았다 — 알면서 틀린 참조를 남기지 않으려고. 그래서 3R 을 돈다.
+- INFO 1~13 조치 불요(리뷰어 스스로 «재-flag 금지 · 1R 처분 재확인»).
+
 ## `--impl-prep` 처분 (`review/consistency/2026/09/27/15_19_25` BLOCK: NO)
 
 - **W1** (cross_spec) 트리거 `name` 등 트리거 · 스케줄의 NOT NULL 필드도 같은 메커니즘인데 프로브가 재지 않았다 → 새 트래커 항목에
