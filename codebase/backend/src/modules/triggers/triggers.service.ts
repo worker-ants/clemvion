@@ -28,6 +28,7 @@ import { Execution } from '../executions/entities/execution.entity';
 import { Schedule } from '../schedules/entities/schedule.entity';
 import { ScheduleRunnerService } from '../schedules/schedule-runner.service';
 import { AuthConfig } from '../auth-configs/entities/auth-config.entity';
+import { Workflow } from '../workflows/entities/workflow.entity';
 import { CreateTriggerDto } from './dto/create-trigger.dto';
 import { UpdateTriggerDto } from './dto/update-trigger.dto';
 import {
@@ -42,6 +43,7 @@ import { buildSecretRef } from '../secret-store/secret-ref';
 import { PaginatedResponseDto } from '../../common/dto/paginated-response.dto';
 import { PaginationQueryDto } from '../../common/dto/pagination.dto';
 import { omitUndefined } from '../../common/utils/omit-undefined';
+import { assertReferenceInScope } from '../../common/utils/reference-in-scope';
 import { ErrorCode } from '../../nodes/core/error-codes';
 import {
   assertChatChannelAlreadySetUp,
@@ -262,6 +264,8 @@ export class TriggersService {
     private readonly scheduleRepository: Repository<Schedule>,
     @InjectRepository(AuthConfig)
     private readonly authConfigRepository: Repository<AuthConfig>,
+    @InjectRepository(Workflow)
+    private readonly workflowRepository: Repository<Workflow>,
     private readonly channelAdapterRegistry: ChannelAdapterRegistry,
     private readonly configService: ConfigService,
     private readonly secrets: SecretResolverService,
@@ -478,6 +482,14 @@ export class TriggersService {
     const { notification, interaction, chatChannel, config, ...rest } = dto;
     this.assertNotificationUrlSafe(notification);
     assertChatChannelInputSafe(chatChannel, 'create');
+    // 연결 워크플로는 같은 워크스페이스의 것만 — 실행 엔진은 워크플로를 id 로만 읽어, 종전엔 다른 워크스페이스의 워크플로가
+    // 이 트리거로 그쪽 실행으로 돌았다(spec 1-data-model §1.1).
+    await assertReferenceInScope(
+      this.workflowRepository,
+      { id: rest.workflowId, workspaceId },
+      'workflowId',
+      'Workflow not found in this workspace',
+    );
     // authConfigId 가 주어지면 같은 워크스페이스의 AuthConfig 인지 검증 (cross-workspace 차단).
     if (rest.authConfigId) {
       await this.assertAuthConfigInWorkspace(rest.authConfigId, workspaceId);

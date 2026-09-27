@@ -1480,6 +1480,56 @@ field: T | null;
         는 update 경로에서 **같은 워크스페이스 소속인지 검사하지 않는** 것으로 보인다(조사가 곁눈으로 본 것 — 재현하지 않았다). 폴더 ·
         트리거 `authConfigId` 는 검사한다(`validateParentChange` · `assertAuthConfigInWorkspace`). 확인되면 다른 워크스페이스의 행을 FK 로
         가리키게 된다 — 착수 전 e2e 로 재현부터.
+        > **닫음 (2026-09-27, `plan/complete/cross-workspace-refs.md`)** — 곁눈으로 본 네 필드가 아니라 **쓰기 요청 본문의 참조 id 전부**로
+        > 넓혀 다시 셌고(10개 묶음 · 대조군 8), 전부 저장 전에 거부한다. 고치기 전 e2e 가 곁눈 추정보다 큰 것을 재현했다: 트리거 ·
+        > 스케줄 생성의 `workflowId` 로 **다른 워크스페이스의 워크플로가 이쪽 트리거로 실행**됐고, 캔버스 저장이 **다른 워크스페이스의
+        > 노드 행을 옮겼다**. 규칙은 `spec/1-data-model.md` §1.1(같은 PR 의 planner 턴). 넘긴 것 — 아래 새 항목 «교차 워크스페이스 참조 후속».
+
+- [ ] **교차 워크스페이스 참조 후속 — 트리거 `config` 안의 비밀 참조 · 이미 저장된 교차 행 · OAuth begin `mode=new`** (developer + 보안 판단,
+      2026-09-27 등재 · `plan/complete/cross-workspace-refs.md` 가 넘긴 것 · `--impl-prep` `review/consistency/2026/09/27/19_43_46` W2 ·
+      `--spec` `20_05_26` W3).
+      - **(planner) API 문서 셋에 `spec/1-data-model.md` §1.1 한 줄 미러** — `2-trigger-list.md` §3 註(트리거 생성 `workflowId`) ·
+        `3-schedule.md` API 표(스케줄 생성 `workflowId`) · `9-user-profile.md` 알림 규칙 API(`workflowId`)에 «같은 워크스페이스의 워크플로만 —
+        아니면 400 `VALIDATION_ERROR`» 와 §1.1 링크(`--impl-prep` `20_21_21` W3 · INFO 1). 구현이 착지한 **뒤**에 넣는다 — 먼저 넣으면 세 문서에도
+        `pending_plans` 가 필요해진다(`plan/complete/spec-draft-cross-workspace-refs-2.md` Rationale). KB 설정 참조(`5-knowledge-base.md`)도
+        같다. 같은 턴에: `1-workflow-list.md` `## Rationale` §3 의 2026-07-05 원문 불릿(«세 위반(같은 워크스페이스·순환·깊이) 모두 생성
+        경로와 동일한 `VALIDATION_ERROR`») 이 바로 아래 «(2026-09-27 정정)» 단락과 모순인데 서로를 가리키지 않는다 — 원문의 «같은
+        워크스페이스» 에 정정 단락을 가리키는 각주(`--impl-prep` `review/consistency/2026/09/27/21_03_31` W2), 그리고 `1-data-model.md` §1.1
+        의 «행마다 구현 상태가 다를 수 있다» 한 줄 여부(같은 세션 권장 3).
+      - **트리거 `config` JSONB 안의 비밀 참조(미검증 · 보안)** — `chatChannel.botTokenRef` · `inboundSigningRef` ·
+        `notification.signing.secretRef` 는 `secret://triggers/<triggerId>/…` 문자열이다. 금지 검사(`@IsEmpty` · `assertChatChannelInputSafe`)는
+        타입 필드 `chatChannel` 에만 걸리고 원시 `config` 는 `@IsObject` 뿐이며, 타입 필드가 없으면 `mergeExternalConfig` 가 `config` 를 그대로
+        둔다. 읽는 쪽 `secret-resolver.service.ts` `resolve` 는 `ref` 만 본다(소스 판독 — 재지 않았다). 그렇다면 다른 트리거의 UUID 를 아는
+        사람이 그 비밀을 해석하게 하거나 rotate 로 덮어쓸 수 있다. 참조가 id 가 아니라 JSONB 안의 문자열이고 chat-channel 비밀 정책
+        (`15-chat-channel.md` R-CC-21 · §5.4.1)이 얽혀 있어 `spec/1-data-model.md` §1.1 의 표 밖이다. 착수 전 e2e 프로브부터 — 그리고
+        프런트가 PATCH `config` 에 그 키를 왕복시키는지(거부하면 정상 저장이 깨지는지) 먼저 본다.
+      - **이미 저장된 교차 행** — 저장 전 검사는 새 행만 막는다. 실행 엔진 `execute()` 는 워크플로를 `findOneBy({ id })` 로 읽고 웹훅 ·
+        cron · 지금 실행이 모두 그 경로다. 운영 DB 에 트리거 · 스케줄의 `workflow_id` 가 다른 워크스페이스를 가리키는 행이 있는지 점검하는
+        쿼리(`trigger.workspace_id <> workflow.workspace_id`)와, 실행 시점 방어선(트리거 워크스페이스 ≠ 워크플로 워크스페이스면 거부)을 둘지
+        정한다. 노드 · 엣지 · 폴더의 끊긴 참조도 같은 점검 대상이다.
+      - **OAuth begin `mode=new` 에 실린 `integrationId`** — state 에 저장되지만 new 콜백은 그 값을 쓰기 전에 끝난다(소스 판독, 콜백
+        `integration-oauth.service.ts` 일부만 읽음). `mode=new` 면 거부할지(DTO 조건부 금지) 무시할지.
+      - **(developer, 낮음) 여러 참조를 한 번에 검사하는 형태가 네 자리에 따로 있다** — `EdgesService.assertEndpointsInWorkflow` ·
+        `NodesService.assertPlacementInWorkflow`(둘 다 `In()` 한 번) · `WorkflowsService.validateCanvasReferences`(페이로드 Set) ·
+        `assertNewNodeIdsUnused`. 단일 참조는 `common/utils/reference-in-scope.ts` `assertReferenceInScope` 로 모았지만 배치는 아니다 —
+        `{ field, id, message }` 후보를 받아 invalid 목록을 만드는 헬퍼로 모을지(`/ai-review` `review/code/2026/09/27/22_11_22` W2, 수렴 예외로
+        등재 — 근거는 그 세션 RESOLUTION). 같은 김에 `'Workflow not found in this workspace'` 리터럴 3곳 · truthy vs `!= null` 혼용(INFO 7).
+      - **(developer, 낮음) 폴더 생성의 부모 조회가 두 번이다** — `assertParentInWorkspace` 의 `exists` 뒤 `getDepth` 의 첫 조회가 같은 조건
+        (`{ id: parentId, workspaceId }`)이다(같은 세션 W3). `getDepth` 가 «첫 행 없음» 을 돌려주게 하면 한 번으로 줄지만, 그 함수의 조회
+        순서에 묶인 단위 테스트(목 호출 순서)가 여럿이라 따로 한다.
+      - **(developer, 낮음) `common/utils/reference-in-scope.ts` 가 `nodes/core/error-codes` 를 import 한다** — `common/` → `nodes/` 역방향 import 는
+        저장소에서 이 파일뿐이고, `common/utils/password.util.ts` 주석(«`common/` 이 `nodes/` 를 import 하는 선례가 0건 — 리터럴 유지»)의 층
+        결정을 어긴다. `ErrorCode.INVALID_FIELD` 를 리터럴 `'INVALID_FIELD'` 로(`/ai-review` `review/code/2026/09/27/22_36_12` W1, 수렴 예외로 등재 —
+        근거는 그 세션 RESOLUTION). 같은 김에 `assertReferenceInScope(repo, where, field, message)` 의 인접 string 인자를 객체로(같은 세션 INFO 11).
+      - **«저장이 입구 하나다» 는 구현보다 넓다 — 정적 가드 또는 한계 명시** (`--impl-done` `review/consistency/2026/09/27/22_50_00` W2).
+        `spec/data-flow/12-workspace.md` Rationale «본문 참조 id 도 저장 전에 소속을 본다» 는 «읽는 자리마다 필터를 기대하는 것은 74번째
+        라우트 모양 — 저장이 입구 하나다» 라고 적는데, 실제 저장 입구는 서비스마다 따로(`folders` · `workflows` · `triggers` · `schedules` ·
+        `alerts` · `nodes` · `edges` · `knowledge-base` · `workflow-assistant`)이고 각자 `assertReferenceInScope` 를 **부르기로 기억해야** 한다.
+        다음 참조 필드가 헬퍼를 빼먹어도 잡는 것이 없다. (developer) `endpointPath` 저장 래핑 AST 가드(`endpoint-path-conflict-wrap*.ts`)처럼
+        «요청 DTO 의 참조 id 필드를 엔티티에 넘기는 저장이 소속 검사를 거치는가» 를 보는 repo-guard 가 되는지 먼저 본다(`*Id` 필드 전수가
+        기준 — 이번 전수 표가 출발점). (planner) 가드가 없다면 그 Rationale 에 «입구는 서비스별 호출이라 완전성은 리뷰에 기댄다» 한계 문장.
+        같은 턴에 `1-workflow-list.md` §3 · §3.1 의 네 자리에 `details[].code='INVALID_FIELD'` 도 함께 인용(같은 세션 INFO 2 — 형제 문서
+        `2-trigger-list.md` §2.3.1 관례).
 
 - [ ] **§5.4 스윕 2차 — 엔드포인트인데 e2e 미도달인 DTO** (developer, 2026-09-05 등재).
       1차가 닿지 못한 자리다. 배선 한 줄이 아니라 **새 e2e 시나리오**가 선행이므로 모듈

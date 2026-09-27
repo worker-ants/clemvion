@@ -25,6 +25,12 @@ import { QueryWorkflowDto } from './dto/query-workflow.dto';
 import { SaveCanvasDto } from './dto/save-canvas.dto';
 import { PaginatedResponseDto } from '../../common/dto/paginated-response.dto';
 import { omitUndefined } from '../../common/utils/omit-undefined';
+import {
+  assertReferenceInScope,
+  type InvalidReference,
+  throwInvalidReferences,
+} from '../../common/utils/reference-in-scope';
+import { Folder } from '../folders/entities/folder.entity';
 import { WorkflowVersionsService } from '../workflow-versions/workflow-versions.service';
 import { NodeComponentRegistry } from '../../nodes/core/node-component.registry';
 import {
@@ -81,6 +87,8 @@ export class WorkflowsService {
     // shared pure rule 로 표현 불가하므로 backend-only 평가가 직접 로드한다.
     @InjectRepository(Integration)
     private readonly integrationRepository: Repository<Integration>,
+    @InjectRepository(Folder)
+    private readonly folderRepository: Repository<Folder>,
     private readonly dataSource: DataSource,
     private readonly workflowVersionsService: WorkflowVersionsService,
     private readonly registry: NodeComponentRegistry,
@@ -203,6 +211,7 @@ export class WorkflowsService {
     userId: string,
     dto: CreateWorkflowDto,
   ): Promise<Workflow> {
+    await this.assertFolderInWorkspace(dto.folderId, workspaceId);
     const created = await this.dataSource.transaction(async (manager) => {
       const workflow = manager.create(Workflow, {
         ...dto,
@@ -243,6 +252,7 @@ export class WorkflowsService {
     userId: string,
   ): Promise<Workflow> {
     const workflow = await this.findById(id, workspaceId);
+    await this.assertFolderInWorkspace(dto.folderId, workspaceId);
     const { settings, ...rest } = dto;
     // 보내지 않은 필드는 뺀다(이유는 `omitUndefined` JSDoc). 빼지 않으면 응답에 `description` · `folderId` 가
     // null 로 실리고 `isActive` · `tags` 가 빠졌다 — `test/patch-partial-body.e2e-spec.ts` 가 고정한다.
@@ -268,6 +278,23 @@ export class WorkflowsService {
       resourceId: id,
     });
     return saved;
+  }
+
+  /**
+   * `folderId` 는 같은 워크스페이스의 폴더만(spec 1-data-model §1.1). 종전엔 다른 워크스페이스의 폴더를 그대로 저장했다 — FK 가
+   * `SET NULL` 이라 상대가 폴더를 지우면 이 워크플로의 폴더가 비워지고, `duplicate` 가 그 값을 복사했다. `null`(폴더 밖으로)은 통과.
+   */
+  private async assertFolderInWorkspace(
+    folderId: string | null | undefined,
+    workspaceId: string,
+  ): Promise<void> {
+    if (folderId == null) return;
+    await assertReferenceInScope(
+      this.folderRepository,
+      { id: folderId, workspaceId },
+      'folderId',
+      'Folder not found in this workspace',
+    );
   }
 
   async remove(id: string, workspaceId: string, userId: string): Promise<void> {
@@ -665,6 +692,8 @@ export class WorkflowsService {
     // Server-side validation: Manual Trigger must exist and be unique
     this.validateManualTrigger(dto, skipLegacyDataGates);
     this.validateUniqueLabels(dto);
+    // 버전 복원(`skipLegacyDataGates`)에서도 건너뛰지 않는다 — 옛 데이터 호환 게이트가 아니라 워크스페이스 경계다.
+    this.validateCanvasReferences(dto);
     if (!skipLegacyDataGates) this.validateReservedVariableNames(dto.nodes);
 
     return this.dataSource.transaction(async (manager) => {
@@ -1073,6 +1102,46 @@ export class WorkflowsService {
     }
   }
 
+  /**
+   * 노드 간 참조(`containerId` · `toolOwnerId` · 엣지 끝점)는 **이번 페이로드의 노드**만 가리킨다(spec 1-data-model §1.1). 저장 뒤
+   * 워크플로의 노드가 정확히 페이로드의 노드라(없는 노드는 `syncNodes` 가 지운다), 페이로드 밖을 가리키면 다른 워크플로 — 다른
+   * 워크스페이스 포함 — 의 노드이거나 곧 지워질 노드다. 종전엔 그대로 저장돼 남의 노드를 가리키거나 FK 위반(500)이 났다.
+   * 틀린 참조는 전부 싣는다. type · 순환 검사는 실행 시점 몫이다(spec data-flow/11-workflow §1.2).
+   */
+  private validateCanvasReferences(dto: SaveCanvasDto): void {
+    const nodeIds = new Set(dto.nodes.map((node) => node.id));
+    const invalid: InvalidReference[] = [];
+    dto.nodes.forEach((node, i) => {
+      if (node.containerId && !nodeIds.has(node.containerId)) {
+        invalid.push({
+          field: `nodes[${i}].containerId`,
+          message: 'Container node not found in this canvas',
+        });
+      }
+      if (node.toolOwnerId && !nodeIds.has(node.toolOwnerId)) {
+        invalid.push({
+          field: `nodes[${i}].toolOwnerId`,
+          message: 'Tool owner node not found in this canvas',
+        });
+      }
+    });
+    dto.edges.forEach((edge, i) => {
+      if (!nodeIds.has(edge.sourceNodeId)) {
+        invalid.push({
+          field: `edges[${i}].sourceNodeId`,
+          message: 'Source node not found in this canvas',
+        });
+      }
+      if (!nodeIds.has(edge.targetNodeId)) {
+        invalid.push({
+          field: `edges[${i}].targetNodeId`,
+          message: 'Target node not found in this canvas',
+        });
+      }
+    });
+    if (invalid.length > 0) throwInvalidReferences(invalid);
+  }
+
   private async syncNodes(
     manager: EntityManager,
     workflowId: string,
@@ -1082,6 +1151,7 @@ export class WorkflowsService {
       where: { workflowId },
     });
     const existingNodeMap = new Map(existingNodes.map((n) => [n.id, n]));
+    await this.assertNewNodeIdsUnused(manager, dto, existingNodeMap);
     const submittedNodeIds = new Set(dto.nodes.map((n) => n.id));
 
     // Delete nodes not in submitted list
@@ -1129,6 +1199,37 @@ export class WorkflowsService {
 
     // Batch save all nodes at once
     return manager.save(Node, nodesToSave);
+  }
+
+  /**
+   * 이 워크플로에 없는 노드 id 는 새 노드다 — **어느 행도 쓰지 않는** id 여야 한다(spec 1-data-model §1.1). 아래 신규 분기는
+   * `manager.create(Node, { id, … })` 를 `save` 하는데, TypeORM `save` 는 id 로만 행을 찾아 있으면 UPDATE 한다. 그래서 종전엔
+   * 다른 워크플로(다른 워크스페이스 포함)의 노드 id 를 실으면 그 행이 이 워크플로로 옮겨지고 덮였다. 프런트는 새 노드 · 붙여넣기 ·
+   * 복제 때 id 를 새로 발급하므로 정상 흐름은 여기 걸리지 않는다.
+   */
+  private async assertNewNodeIdsUnused(
+    manager: EntityManager,
+    dto: SaveCanvasDto,
+    existingNodeMap: Map<string, Node>,
+  ): Promise<void> {
+    const fresh = dto.nodes
+      .map((node, i) => ({ id: node.id, i }))
+      .filter(({ id }) => !existingNodeMap.has(id));
+    if (fresh.length === 0) return;
+    const taken = await manager.find(Node, {
+      where: { id: In(fresh.map(({ id }) => id)) },
+      select: { id: true },
+    });
+    if (taken.length === 0) return;
+    const takenIds = new Set(taken.map((node) => node.id));
+    throwInvalidReferences(
+      fresh
+        .filter(({ id }) => takenIds.has(id))
+        .map(({ i }) => ({
+          field: `nodes[${i}].id`,
+          message: 'Node id is already used by another workflow',
+        })),
+    );
   }
 
   private async syncEdges(

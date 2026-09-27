@@ -7,6 +7,7 @@ import { Trigger } from './entities/trigger.entity';
 import { Execution } from '../executions/entities/execution.entity';
 import { Schedule } from '../schedules/entities/schedule.entity';
 import { AuthConfig } from '../auth-configs/entities/auth-config.entity';
+import { Workflow } from '../workflows/entities/workflow.entity';
 import { TriggersController } from './triggers.controller';
 import { TriggersService } from './triggers.service';
 import {
@@ -26,7 +27,13 @@ import { SchedulesModule } from '../schedules/schedules.module';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Trigger, Execution, Schedule, AuthConfig]),
+    TypeOrmModule.forFeature([
+      Trigger,
+      Execution,
+      Schedule,
+      AuthConfig,
+      Workflow,
+    ]),
     // AuditLogsModule: trigger.* CRUD 감사 기록 (1-auth §4.1).
     AuditLogsModule,
     ConfigModule,

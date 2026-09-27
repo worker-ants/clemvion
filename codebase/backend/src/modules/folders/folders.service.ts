@@ -6,6 +6,7 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { omitUndefined } from '../../common/utils/omit-undefined';
+import { assertReferenceInScope } from '../../common/utils/reference-in-scope';
 import { Folder } from './entities/folder.entity';
 
 const MAX_NESTING_DEPTH = 5;
@@ -42,6 +43,9 @@ export class FoldersService {
     data: { name: string; parentId?: string; sortOrder?: number },
   ): Promise<Folder> {
     if (data.parentId) {
+      // 부모는 같은 워크스페이스의 폴더만(spec 1-data-model §1.1). 종전엔 `getDepth` 가 다른 워크스페이스의 부모를 «없음» 으로 읽어
+      // 깊이 1 로 통과시켰다 — FK 가 CASCADE 라 상대가 폴더를 지우면 이 폴더가 함께 지워진다.
+      await this.assertParentInWorkspace(data.parentId, workspaceId);
       const depth = await this.getDepth(data.parentId, workspaceId);
       if (depth >= MAX_NESTING_DEPTH) {
         throw new BadRequestException({
@@ -121,15 +125,7 @@ export class FoldersService {
         message: 'A folder cannot be its own parent',
       });
     }
-    const parent = await this.folderRepository.findOne({
-      where: { id: newParentId, workspaceId },
-    });
-    if (!parent) {
-      throw new BadRequestException({
-        code: 'VALIDATION_ERROR',
-        message: 'Parent folder not found in this workspace',
-      });
-    }
+    await this.assertParentInWorkspace(newParentId, workspaceId);
     // 서브트리 수집: 새 부모가 자기 자손이면 cycle. 동시에 서브트리 높이 확보.
     const { ids: descendants, height } = await this.collectSubtree(
       id,
@@ -148,6 +144,19 @@ export class FoldersService {
         message: `Maximum folder nesting depth is ${MAX_NESTING_DEPTH}`,
       });
     }
+  }
+
+  /** 생성 · 재부모화 공용 — 부모가 이 워크스페이스의 폴더가 아니면 `details[].field='parentId'` 로 400. */
+  private assertParentInWorkspace(
+    parentId: string,
+    workspaceId: string,
+  ): Promise<void> {
+    return assertReferenceInScope(
+      this.folderRepository,
+      { id: parentId, workspaceId },
+      'parentId',
+      'Parent folder not found in this workspace',
+    );
   }
 
   /**

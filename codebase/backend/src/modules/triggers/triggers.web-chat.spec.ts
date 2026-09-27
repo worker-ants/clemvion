@@ -11,6 +11,7 @@ import { withTransactionMock } from './__test-utils__/trigger-transaction-mock';
 import { Execution } from '../executions/entities/execution.entity';
 import { Schedule } from '../schedules/entities/schedule.entity';
 import { AuthConfig } from '../auth-configs/entities/auth-config.entity';
+import { Workflow } from '../workflows/entities/workflow.entity';
 import { ChannelAdapterRegistry } from '../chat-channel/channel-adapter.registry';
 import { ChannelListenerRegistry } from '../chat-channel/channel-listener.registry';
 import { SecretResolverService } from '../secret-store/secret-resolver.service';
@@ -32,6 +33,11 @@ function otherProviders(): Provider[] {
     {
       provide: getRepositoryToken(AuthConfig),
       useValue: { findOne: jest.fn() },
+    },
+    {
+      // 생성의 workflowId 소속 검사(spec 1-data-model §1.1) — 기본은 같은 워크스페이스의 워크플로.
+      provide: getRepositoryToken(Workflow),
+      useValue: { exists: jest.fn().mockResolvedValue(true) },
     },
     {
       provide: ChannelAdapterRegistry,

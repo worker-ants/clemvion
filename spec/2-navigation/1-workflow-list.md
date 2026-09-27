@@ -11,6 +11,7 @@ code:
 pending_plans:
   - plan/in-progress/marketplace-and-plugin-sdk.md
   - plan/complete/workflow-duplicate-nodes-edges.md
+  - plan/in-progress/cross-workspace-refs.md
 ---
 
 # Spec: 워크플로우 목록 화면
@@ -120,8 +121,8 @@ pending_plans:
 | 메서드 | 경로 | 설명 |
 |--------|------|------|
 | GET | /api/workflows | 목록 조회 (쿼리: search, status, tag, folderId, sort, order, page, limit, ownership). 페이지네이션 응답 형식은 [API 규약 §5.2](../5-system/2-api-convention.md#52-목록-응답) 준수. `ownership` 은 팀 워크스페이스 컨텍스트에서만 의미가 있으며 (`mine` / `shared` / `all`, default `all`), 개인 워크스페이스에서는 서버가 무시한다 (= `all` 처럼 동작) |
-| POST | /api/workflows | 새 워크플로우 생성 |
-| PATCH | /api/workflows/:id | 워크플로우 수정 (이름, 상태 등) |
+| POST | /api/workflows | 새 워크플로우 생성. `folderId` 는 같은 워크스페이스의 폴더만 — 아니면 400 `VALIDATION_ERROR`(`details[].field='folderId'`, [데이터 모델 §1.1](../1-data-model.md#11-참조의-소속)) |
+| PATCH | /api/workflows/:id | 워크플로우 수정 (이름, 상태 등). `folderId` 는 생성과 같은 검사 |
 | POST | /api/workflows/:id/duplicate | 워크플로우 복제 — 노드·엣지 포함 캔버스 전체를 한 트랜잭션으로 복사. 복제 범위·재매핑 규칙은 [data-flow §1.5](../data-flow/11-workflow.md#15-복제--내보내기--가져오기) |
 | DELETE | /api/workflows/:id | 워크플로우 삭제 |
 | GET | /api/workflows/:id/export | JSON 내보내기 — 파일 포맷은 [§3.2](#32-exportimport-json-포맷) |
@@ -137,8 +138,8 @@ pending_plans:
 |--------|------|------|
 | GET | /api/folders | 폴더 목록 조회 — `sortOrder` → `name` 순 정렬. 계층 구조는 `parentId` 로 구성 |
 | GET | /api/folders/:id | 폴더 단건 조회 |
-| POST | /api/folders | 폴더 생성 (`editor`+). `parentId` 지정 시 하위로 생성. 깊이 5 초과 시 400 `VALIDATION_ERROR`, 동일 부모 아래 이름 중복 시 409 `RESOURCE_CONFLICT` (unique violation → 409 매핑, 전역 exception filter) |
-| PATCH | /api/folders/:id | 폴더 수정 (`editor`+) — 이름·부모·정렬 순서 부분 수정. **`parentId` 변경 시 create 와 동일한 계층 무결성 검증**: 새 부모가 같은 워크스페이스에 없거나, 자기 자신·자손이거나(순환), 이동 결과 서브트리 깊이가 5 초과면 400 `VALIDATION_ERROR`. `parentId: null` 로 루트 이동은 항상 허용 |
+| POST | /api/folders | 폴더 생성 (`editor`+). `parentId` 지정 시 하위로 생성. `parentId` 가 같은 워크스페이스의 폴더가 아니면 400 `VALIDATION_ERROR`(`details[].field='parentId'`), 깊이 5 초과 시 400 `VALIDATION_ERROR`, 동일 부모 아래 이름 중복 시 409 `RESOURCE_CONFLICT` (unique violation → 409 매핑, 전역 exception filter) |
+| PATCH | /api/folders/:id | 폴더 수정 (`editor`+) — 이름·부모·정렬 순서 부분 수정. **`parentId` 변경 시 create 와 동일한 계층 무결성 검증**: 새 부모가 같은 워크스페이스에 없거나(`details[].field='parentId'` — 생성과 같은 형태), 자기 자신·자손이거나(순환), 이동 결과 서브트리 깊이가 5 초과면 400 `VALIDATION_ERROR`. `parentId: null` 로 루트 이동은 항상 허용 |
 | DELETE | /api/folders/:id | 폴더 삭제 (`editor`+, 204). 하위 폴더는 DB cascade 로 함께 삭제, 폴더에 속한 워크플로우는 FK SET NULL 로 루트로 이동 (워크플로우 자체는 보존) |
 
 ### 3.2 Export/Import JSON 포맷
@@ -196,6 +197,8 @@ JSON 가져오기 시 노드 `config` 의 schema parse 가 실패해도 가져�
 - **왜 spec 하향(create-only)이 아니라 코드 구현인가**: 깊이는 spec 하향으로 완화할 수 있어도, 순환은 데이터 무결성·가용성 결함(무한 루프)이라 spec 문구로 사라지지 않는다. §2.5 를 SoT 로 유지하고 코드를 맞추는 것이 옳다.
 - **에러 코드**: 세 위반(같은 워크스페이스·순환·깊이) 모두 생성 경로와 동일한 `VALIDATION_ERROR` 를 재사용한다. 노드 컨테이너의 `CONTAINER_CYCLE`·워크플로우 그래프의 `CYCLE_DETECTED` 와 이름·의미가 겹치는 폴더 전용 순환 코드를 신설하지 않아 도메인 간 혼동을 피한다.
 - **무한 루프 방어**: `getDepth`/서브트리 순회는 방문 집합 + 깊이 상한 가드로, 이미 손상된(순환) 데이터가 있어도 항상 종료한다 — 검증 신설 이전에 저장됐을 수 있는 순환에 대한 방어.
+
+(2026-09-27 정정) 이 결정 뒤에도 **생성** 경로는 깊이만 봤다 — 다른 워크스페이스의 부모를 `getDepth` 가 «없음» 으로 읽어 깊이 1 로 통과시켰다(고치기 전 e2e 가 201 을 쟀다). `plan/in-progress/cross-workspace-refs.md` 가 생성에도 소속 검사를 더한다(같은 PR — spec 과 코드가 함께 착지) — 규칙은 [데이터 모델 §1.1](../1-data-model.md#11-참조의-소속).
 
 ### 4. 태그 필터는 단일 free-text 로 하향 (2026-07-06)
 

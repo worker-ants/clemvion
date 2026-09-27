@@ -54,6 +54,29 @@ User ──┬── Workspace (1:N)
        └── WorkspaceMember (N:M via join)
 ```
 
+### 1.1 참조의 소속
+
+클라이언트가 요청 본문으로 보내 **컬럼에 저장되는 참조 id** 는 요청자의 **워크스페이스** 행만 가리킨다. 워크플로 안의 구조
+참조 — 노드 `container_id` · `tool_owner_id`, 엣지 끝점, 캔버스 저장이 새 노드로 싣는 노드 `id` — 는 **같은 워크플로** 행만
+가리킨다. 서버는 이것을 **저장 전에** 거부한다. 실행 · 조회 경로가 워크스페이스로 거르는지에 기대지 않는다 — 실행 엔진은
+워크플로를 id 로만 읽는다.
+
+| 요청 본문 필드 | 가리키는 행 | 범위 |
+|---|---|---|
+| 트리거 생성 `workflowId` · 스케줄 생성 `workflowId`(연결 트리거의 `workflow_id` 가 된다) · 알림 규칙 생성 `workflowId` | Workflow | 워크스페이스 |
+| 워크플로 생성 · 수정 `folderId` · 폴더 생성 · 수정 `parentId` | Folder | 워크스페이스 |
+| 트리거 생성 · 수정 `authConfigId` | AuthConfig | 워크스페이스 |
+| 어시스턴트 세션 생성 · 수정 `llmConfigId` · 지식 베이스 생성 · 수정 `embeddingModelConfigId` · `extractionLlmConfigId` · `rerankConfigId` · `rerankLlmConfigId` | ModelConfig(각 필드의 `kind`) | 워크스페이스 |
+| 노드 생성 · 수정 `containerId` · `toolOwnerId` · 엣지 생성 `sourceNodeId` · `targetNodeId` | Node | 같은 워크플로 |
+| 캔버스 저장 `nodes[].containerId` · `nodes[].toolOwnerId` · `edges[].sourceNodeId` · `edges[].targetNodeId` | Node | **이번 페이로드의 노드**(저장 뒤 워크플로의 노드가 정확히 그 집합이다) |
+| 캔버스 저장 `nodes[].id` 중 이 워크플로에 없는 것 | — | 어느 행도 쓰지 않는 id(새 노드). 다른 행이 쓰는 id 면 거부 — 그 행을 덮어쓰지 않는다 |
+
+**거부 응답**: 400 `VALIDATION_ERROR` + `details: [{ field, message, code: 'INVALID_FIELD' }]` — **배열**이다([API 규약 §5.3](./5-system/2-api-convention.md#53-에러-응답)
+의 형태 표: 여러 항목이 각각 실패할 수 있을 때). 캔버스 저장 · 엣지 생성은 틀린 필드를 **전부** 싣고, `field` 는 §5.3 의 중첩 경로
+표기(`nodes[1].id`)를 쓴다. 예외 둘 — 모델 설정 참조는 기존 검증기(`findEntity(id, workspaceId, kind)`)를 그대로 써서 404
+`MODEL_CONFIG_NOT_FOUND`, 트리거 `authConfigId` 는 400 `AUTH_CONFIG_NOT_FOUND`([에러 처리 §1.11](./5-system/3-error-handling.md#111-트리거-authconfig-binding-에러-코드-도메인-spec-참조)).
+없는 id 와 남의 id 를 구분하지 않는다. 근거: [data-flow 워크스페이스 Rationale «본문 참조 id 도 저장 전에 소속을 본다»](./data-flow/12-workspace.md#본문-참조-id-도-저장-전에-소속을-본다-2026-09-27).
+
 ---
 
 ## 2. 핵심 엔티티
@@ -135,7 +158,7 @@ WebAuthn (Passkey/보안 키) credential 자체는 별도 엔티티 [§2.21 WebA
 | description | String? | 설명 |
 | is_active | Boolean | 활성 상태 |
 | tags | String[] | 태그 목록 |
-| folder_id | UUID? | FK → Folder (SET NULL · 정리용) |
+| folder_id | UUID? | FK → Folder (SET NULL · 정리용). 같은 워크스페이스의 폴더만([§1.1](#11-참조의-소속)) |
 | settings | JSONB | 워크플로우 레벨 설정. 알려진 키: `maxConcurrentExecutions: number?` (워크플로우당 동시 `running` Execution cap, 미설정 시 기본 3 — 실행 엔진 admission gate, [§8](./5-system/4-execution-engine.md#8-동시-실행-제한). 편집: workflow 편집 권한 `PATCH /api/workflows/:id`(Editor+)) |
 | current_version | Integer | 현재 버전 번호 |
 | created_by | UUID | FK → User (NO ACTION) |
@@ -181,6 +204,7 @@ WebAuthn (Passkey/보안 키) credential 자체는 별도 엔티티 [§2.21 WebA
 
 **제약 조건:**
 - `container_id`와 `tool_owner_id`는 동시에 값을 가질 수 없음 (CHECK 제약)
+- `container_id` · `tool_owner_id` 는 **같은 워크플로**의 노드만 가리킨다 — 저장 시점에 거부한다([§1.1](#11-참조의-소속)). 아래 type · 순환 · 트리거 자식 검사는 여전히 실행 시점 몫이다
 - `container_id`가 참조하는 노드의 type은 `loop`, `foreach`, `map` 중 하나여야 함 (Background는 도입 시 추가)
 - `container_id` 체인은 순환하지 않아야 함 — 실행 시 `CONTAINER_CYCLE` 에러로 거부
 - 트리거 카테고리 노드(`manual_trigger` 등)는 `container_id`를 가질 수 없음 — 실행 시 `CONTAINER_INVALID_CHILD` 에러로 거부
@@ -236,7 +260,7 @@ WebAuthn (Passkey/보안 키) credential 자체는 별도 엔티티 [§2.21 WebA
 **제약 조건:**
 - `(source_node_id, source_port, target_node_id, target_port)` UNIQUE — 동일 연결 중복 방지
 - 자기 자신으로의 연결 불가 (`source_node_id != target_node_id`)
-- source_node와 target_node는 같은 workflow_id에 속해야 함
+- source_node와 target_node는 같은 workflow_id에 속해야 함 — 저장 시점에 거부([§1.1](#11-참조의-소속))
 
 ### 2.8 Trigger
 
@@ -244,7 +268,7 @@ WebAuthn (Passkey/보안 키) credential 자체는 별도 엔티티 [§2.21 WebA
 |------|------|------|
 | id | UUID | PK |
 | workspace_id | UUID | FK → Workspace (CASCADE) |
-| workflow_id | UUID | FK → Workflow (CASCADE) |
+| workflow_id | UUID | FK → Workflow (CASCADE). 같은 워크스페이스의 워크플로만([§1.1](#11-참조의-소속)) |
 | type | Enum | webhook / schedule / manual (chat-channel 은 별도 type 이 아니라 `webhook` 트리거의 `config.chatChannel` 변형 — [Spec Chat Channel](./5-system/15-chat-channel.md) 참조) |
 | name | String | 트리거 이름 |
 | is_active | Boolean | 활성 상태 |
@@ -310,6 +334,8 @@ PK 가 UUID 대리키가 아니라 `endpoint_path` 인 이유: 예약하는 대�
 | parameter_values | JSONB | 워크플로우 Manual Trigger 노드 스키마에 대응하는 파라미터 값 맵. 값 문자열에 `{{ $now }}`, `{{ $schedule.* }}` 등 제한 표현식 사용 가능. 기본값 `{}`. |
 | created_at | Timestamp | 생성 시각 |
 | updated_at | Timestamp | 수정 시각 |
+
+스케줄 생성 요청의 `workflowId` 는 연결 트리거의 `workflow_id` 가 된다 — §2.8 과 같은 제약([§1.1](#11-참조의-소속)).
 
 ### 2.9.1 Trigger ↔ Schedule 동기화 규칙
 
@@ -922,7 +948,7 @@ evaluator 가 cron 으로 평가해 알림을 발사한다.
 |------|------|------|
 | id | UUID | PK |
 | workspace_id | UUID | FK → Workspace (CASCADE) |
-| workflow_id | UUID? | FK → Workflow (CASCADE). **NULL = 워크스페이스 전역 규칙** |
+| workflow_id | UUID? | FK → Workflow (CASCADE). **NULL = 워크스페이스 전역 규칙**. 값이 있으면 같은 워크스페이스의 워크플로만([§1.1](#11-참조의-소속)) |
 | type | Enum | failure_rate / duration / llm_cost |
 | threshold | Numeric(12,4) | 임계치. **응답에는 문자열로 실린다** — 엔티티를 그대로 내보내는 경로라 TypeORM 의 numeric 표현이 그대로 나간다 ([swagger.md §1-6](./conventions/swagger.md#1-6-numeric-컬럼의-wire-타입)). 쓰기는 `number` 를 받는다 |
 | window_iso | String | 평가 창, ISO-8601 기간. 기본 `PT1H` |

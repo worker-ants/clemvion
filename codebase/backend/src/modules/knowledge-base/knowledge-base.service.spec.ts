@@ -327,6 +327,47 @@ describe('KnowledgeBaseService', () => {
         }),
       );
     });
+
+    // spec 1-data-model §1.1 — 추출 · rerank 설정은 같은 워크스페이스의 그 kind 설정만. embeddingModelConfigId 와 같은 검증기.
+    it('추출 · rerank 설정 id 를 워크스페이스 · kind 로 검증한다', async () => {
+      await service.create('ws-1', {
+        name: 'KB',
+        extractionLlmConfigId: 'cfg-x',
+        rerankConfigId: 'cfg-r',
+        rerankLlmConfigId: 'cfg-rl',
+      });
+      expect(mockModelConfigService.findEntity.mock.calls).toStrictEqual([
+        ['cfg-x', 'ws-1', 'chat'],
+        ['cfg-r', 'ws-1', 'rerank'],
+        ['cfg-rl', 'ws-1', 'chat'],
+      ]);
+    });
+
+    it('다른 워크스페이스의 설정이면 findEntity 의 404 를 그대로 내고 저장하지 않는다', async () => {
+      mockModelConfigService.findEntity.mockRejectedValueOnce(
+        new NotFoundException({ code: 'MODEL_CONFIG_NOT_FOUND' }),
+      );
+      await expect(
+        service.create('ws-1', { name: 'KB', rerankConfigId: 'other-ws-cfg' }),
+      ).rejects.toMatchObject({ response: { code: 'MODEL_CONFIG_NOT_FOUND' } });
+      expect(mockKbRepo.save).not.toHaveBeenCalled();
+    });
+
+    it('수정도 같은 검증을 탄다', async () => {
+      mockKbRepo.findOne.mockResolvedValue({ id: 'kb-1', workspaceId: 'ws-1' });
+      mockModelConfigService.findEntity.mockRejectedValueOnce(
+        new NotFoundException({ code: 'MODEL_CONFIG_NOT_FOUND' }),
+      );
+      await expect(
+        service.update('kb-1', 'ws-1', { rerankLlmConfigId: 'other-ws-cfg' }),
+      ).rejects.toMatchObject({ response: { code: 'MODEL_CONFIG_NOT_FOUND' } });
+      expect(mockModelConfigService.findEntity).toHaveBeenCalledWith(
+        'other-ws-cfg',
+        'ws-1',
+        'chat',
+      );
+      expect(mockKbRepo.save).not.toHaveBeenCalled();
+    });
   });
 
   describe('reExtractAll', () => {

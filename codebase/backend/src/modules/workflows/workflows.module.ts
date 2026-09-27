@@ -6,6 +6,7 @@ import { Node } from '../nodes/entities/node.entity';
 import { Edge } from '../edges/entities/edge.entity';
 import { Execution } from '../executions/entities/execution.entity';
 import { Integration } from '../integrations/entities/integration.entity';
+import { Folder } from '../folders/entities/folder.entity';
 import { WorkflowsController } from './workflows.controller';
 import { WorkflowsService } from './workflows.service';
 import { ExecutionEngineModule } from '../execution-engine/execution-engine.module';
@@ -19,7 +20,14 @@ import { WorkflowChannelAuthorizer } from './workflow-channel-authorizer';
     // (backend-only graph warning)가 통합의 정적 도구 카탈로그를 재현하려고
     // credentials(scopes)/status 를 조회한다. WorkflowsService 에 repository 만
     // 주입하며 IntegrationsModule 을 import 하지 않아 모듈 순환이 없다.
-    TypeOrmModule.forFeature([Workflow, Node, Edge, Execution, Integration]),
+    TypeOrmModule.forFeature([
+      Workflow,
+      Node,
+      Edge,
+      Execution,
+      Integration,
+      Folder,
+    ]),
     // AuditLogsModule: workflow.* CRUD 감사 기록 (1-auth §4.1).
     AuditLogsModule,
     // #570(M-6 WS IDOR)이 WebsocketModule → WorkflowsModule 엣지를 추가하면서

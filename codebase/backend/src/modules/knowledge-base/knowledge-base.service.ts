@@ -157,6 +157,7 @@ export class KnowledgeBaseService {
     // 지정 시 존재·kind 를 서버에서 검증해 잘못된 id 를 조기에 거른다(embed 시점이 아닌 생성 시점).
     // W3: 이미 로드한 config 를 저장해 save 이후 재조회를 피한다.
     let embeddingConfig: { defaultModel: string } | null = null;
+    await this.assertModelConfigRefsInWorkspace(dto, workspaceId);
     if (dto.embeddingModelConfigId) {
       embeddingConfig = await this.modelConfigService.findEntity(
         dto.embeddingModelConfigId,
@@ -196,12 +197,50 @@ export class KnowledgeBaseService {
     return saved;
   }
 
+  /**
+   * 추출 · rerank 가 쓰는 모델 설정은 같은 워크스페이스의 그 `kind` 설정만(spec 1-data-model §1.1). `embeddingModelConfigId` 가 이미
+   * 쓰는 `findEntity(id, workspaceId, kind)` 를 재사용해 같은 404 `MODEL_CONFIG_NOT_FOUND` 를 낸다 — 한 요청 안에서 필드마다 코드가
+   * 갈리지 않게. 종전엔 저장됐고 쓰는 시점에만 걸러져 그래프 추출이 실패하거나 rerank 가 조용히 cosine 순서로 강등됐다.
+   * 비었으면(생략 · `null` 해제) 통과.
+   */
+  private async assertModelConfigRefsInWorkspace(
+    dto: {
+      extractionLlmConfigId?: string | null;
+      rerankConfigId?: string | null;
+      rerankLlmConfigId?: string | null;
+    },
+    workspaceId: string,
+  ): Promise<void> {
+    if (dto.extractionLlmConfigId) {
+      await this.modelConfigService.findEntity(
+        dto.extractionLlmConfigId,
+        workspaceId,
+        'chat',
+      );
+    }
+    if (dto.rerankConfigId) {
+      await this.modelConfigService.findEntity(
+        dto.rerankConfigId,
+        workspaceId,
+        'rerank',
+      );
+    }
+    if (dto.rerankLlmConfigId) {
+      await this.modelConfigService.findEntity(
+        dto.rerankLlmConfigId,
+        workspaceId,
+        'chat',
+      );
+    }
+  }
+
   async update(
     id: string,
     workspaceId: string,
     dto: UpdateKnowledgeBaseDto,
   ): Promise<KnowledgeBase> {
     const kb = await this.findById(id, workspaceId);
+    await this.assertModelConfigRefsInWorkspace(dto, workspaceId);
     if (dto.name !== undefined) kb.name = dto.name;
     if (dto.description !== undefined) kb.description = dto.description;
     if (dto.chunkSize !== undefined) kb.chunkSize = dto.chunkSize;

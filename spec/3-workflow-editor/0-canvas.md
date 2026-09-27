@@ -12,6 +12,7 @@ code:
   - codebase/frontend/src/lib/stores/palette-canvas-bridge.ts
 pending_plans:
   - plan/in-progress/ai-agent-tool-connection-rewrite.md
+  - plan/in-progress/cross-workspace-refs.md
   - plan/complete/spec-sync-canvas-gaps.md
 ---
 
@@ -510,7 +511,7 @@ pending_plans:
 | 수동 저장 | 헤더 `Save` 버튼 또는 `Ctrl+S`(Mac `Cmd+S`) — 즉시 저장. 미저장 변경이 없거나 그래프 오류(hasError)가 있으면 버튼 비활성 |
 | 실행 직전 자동 저장 | `Run`(전체·부분·단일 노드) 시 `isDirty` 면 실행 직전에 먼저 저장 → 실행은 항상 최신 캔버스 기준 |
 | 저장 표시 | 헤더 상태 텍스트 — "저장 중..." / "저장되지 않은 변경 사항" / "저장됨" (`isSaving`·`isDirty` 기반) |
-| 저장 API | store 액션 `saveWorkflow` 가 API client `saveCanvas`(`POST /workflows/:id/save`)를 호출해 현재 노드/엣지 전체 스냅샷을 저장. 마지막 저장이 서버 상태가 된다 |
+| 저장 API | store 액션 `saveWorkflow` 가 API client `saveCanvas`(`POST /workflows/:id/save`)를 호출해 현재 노드/엣지 전체 스냅샷을 저장. 마지막 저장이 서버 상태가 된다. 새 노드 id 는 클라이언트가 발급한 UUID 다(붙여넣기 · 복제도 새로 발급) — 다른 워크플로의 노드가 쓰는 id 면 저장이 400 이다 |
 
 ### 8.1 저장과 버전의 관계
 
@@ -630,6 +631,7 @@ Loop, ForEach, Map 노드는 **컨테이너**로 렌더링된다. 내부에 자�
 
 | 제약 | 동작 |
 |------|------|
+| 같은 워크플로의 노드만 | `containerId` · `toolOwnerId` 와 엣지 끝점은 이 워크플로의 노드만 가리킨다. 캔버스 저장은 이번 페이로드에 없는 노드를 가리키면 400 `VALIDATION_ERROR`(`details[].field` 예: `nodes[2].containerId`, [데이터 모델 §1.1](../1-data-model.md#11-참조의-소속)) — 위 엣지 기반 재계산은 늘 페이로드 안의 노드를 가리키므로 정상 편집에서는 걸리지 않는다 |
 | 트리거 노드 child 금지 | trigger 카테고리 노드는 컨테이너 child가 될 수 없음. 엣지 자동 전파가 거부하고, 실행 시에도 백엔드가 `CONTAINER_INVALID_CHILD` 에러로 실패 |
 | 자기 자신 child 금지 | 컨테이너는 자기 자신을 `containerId`로 가질 수 없음 |
 | 자손 컨테이너 child 금지 | A의 자손 컨테이너 B를 다시 A의 부모로 지정하면 cycle. 실행 시 `CONTAINER_CYCLE` 에러로 거부 |

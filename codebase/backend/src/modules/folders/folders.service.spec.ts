@@ -23,6 +23,8 @@ describe('FoldersService', () => {
       .fn()
       .mockImplementation((data) => Promise.resolve({ id: 'new-id', ...data })),
     remove: jest.fn().mockResolvedValue(undefined),
+    // 부모 소속 검사(spec 1-data-model §1.1) — 기본은 같은 워크스페이스의 부모.
+    exists: jest.fn().mockResolvedValue(true),
   };
 
   beforeEach(async () => {
@@ -89,6 +91,24 @@ describe('FoldersService', () => {
           parentId: 'parent-1',
         }),
       ).rejects.toThrow(BadRequestException);
+    });
+
+    // spec 1-data-model §1.1 — 종전엔 getDepth 가 다른 워크스페이스의 부모를 «없음» 으로 읽어 깊이 1 로 통과시켰다.
+    it('부모가 이 워크스페이스의 폴더가 아니면 400 이고 저장하지 않는다', async () => {
+      mockRepository.save.mockClear();
+      mockRepository.exists.mockResolvedValueOnce(false);
+      const err = await service
+        .create('ws-uuid-1', { name: 'x', parentId: 'other-ws-folder' })
+        .catch((err_: unknown) => err_);
+      expect(mockRepository.exists).toHaveBeenLastCalledWith({
+        where: { id: 'other-ws-folder', workspaceId: 'ws-uuid-1' },
+      });
+      expect(err).toBeInstanceOf(BadRequestException);
+      expect((err as BadRequestException).getResponse()).toMatchObject({
+        code: 'VALIDATION_ERROR',
+        details: [{ field: 'parentId', code: 'INVALID_FIELD' }],
+      });
+      expect(mockRepository.save).not.toHaveBeenCalled();
     });
   });
 
@@ -159,30 +179,31 @@ describe('FoldersService', () => {
     });
 
     it('rejects parent in another workspace / nonexistent', async () => {
-      mockRepository.findOne
-        .mockResolvedValueOnce({
-          id: 'f1',
-          workspaceId: 'ws-uuid-1',
-          parentId: null,
-        }) // findById
-        .mockResolvedValueOnce(null); // parent lookup → 없음
-      await expect(
-        service.update('f1', 'ws-uuid-1', { parentId: 'other-ws-folder' }),
-      ).rejects.toThrow(BadRequestException);
+      mockRepository.findOne.mockResolvedValueOnce({
+        id: 'f1',
+        workspaceId: 'ws-uuid-1',
+        parentId: null,
+      }); // findById
+      mockRepository.exists.mockResolvedValueOnce(false); // 부모가 이 워크스페이스에 없음
+      const err = await service
+        .update('f1', 'ws-uuid-1', { parentId: 'other-ws-folder' })
+        .catch((err_: unknown) => err_);
+      expect(mockRepository.exists).toHaveBeenLastCalledWith({
+        where: { id: 'other-ws-folder', workspaceId: 'ws-uuid-1' },
+      });
+      expect((err as BadRequestException).getResponse()).toMatchObject({
+        code: 'VALIDATION_ERROR',
+        details: [{ field: 'parentId', code: 'INVALID_FIELD' }],
+      });
     });
 
     it('rejects moving under own descendant (cycle)', async () => {
-      mockRepository.findOne
-        .mockResolvedValueOnce({
-          id: 'f1',
-          workspaceId: 'ws-uuid-1',
-          parentId: null,
-        }) // findById
-        .mockResolvedValueOnce({
-          id: 'f2',
-          workspaceId: 'ws-uuid-1',
-          parentId: 'f1',
-        }); // parent(f2) lookup
+      mockRepository.findOne.mockResolvedValueOnce({
+        id: 'f1',
+        workspaceId: 'ws-uuid-1',
+        parentId: null,
+      }); // findById
+      // 부모(f2) 소속은 exists 가 본다(기본 true)
       // collectSubtree(f1): f1 의 자식 [f2], f2 의 자식 []
       mockRepository.find
         .mockResolvedValueOnce([{ id: 'f2', parentId: 'f1' }])
@@ -200,11 +221,6 @@ describe('FoldersService', () => {
           workspaceId: 'ws-uuid-1',
           parentId: null,
         }) // findById
-        .mockResolvedValueOnce({
-          id: 'p1',
-          workspaceId: 'ws-uuid-1',
-          parentId: 'p2',
-        }) // parent lookup
         // getDepth(p1) 체인: p1→p2→p3→p4→p5→null = depth 5
         .mockResolvedValueOnce({ id: 'p1', parentId: 'p2' })
         .mockResolvedValueOnce({ id: 'p2', parentId: 'p3' })
@@ -239,11 +255,6 @@ describe('FoldersService', () => {
           workspaceId: 'ws-uuid-1',
           parentId: null,
         }) // findById
-        .mockResolvedValueOnce({
-          id: 'p1',
-          workspaceId: 'ws-uuid-1',
-          parentId: null,
-        }) // parent lookup
         .mockResolvedValueOnce({ id: 'p1', parentId: null }); // getDepth(p1) → 1
       mockRepository.find.mockResolvedValueOnce([]); // collectSubtree(f1) → leaf, height 1
       const result = await service.update('f1', 'ws-uuid-1', {
@@ -285,11 +296,6 @@ describe('FoldersService', () => {
           workspaceId: 'ws-uuid-1',
           parentId: null,
         }) // findById
-        .mockResolvedValueOnce({
-          id: 'p1',
-          workspaceId: 'ws-uuid-1',
-          parentId: 'p2',
-        }) // parent lookup
         // getDepth(p1): p1→p2→p3→p4→null = depth 4
         .mockResolvedValueOnce({ id: 'p1', parentId: 'p2' })
         .mockResolvedValueOnce({ id: 'p2', parentId: 'p3' })
@@ -304,17 +310,12 @@ describe('FoldersService', () => {
 
     it('detects cycle across a multi-child, multi-level subtree (BFS 다중 frontier)', async () => {
       // f1 서브트리: [c1, c2] → c1 의 자식 [gc1]. f1 을 gc1(손자) 아래로 이동 → cycle.
-      mockRepository.findOne
-        .mockResolvedValueOnce({
-          id: 'f1',
-          workspaceId: 'ws-uuid-1',
-          parentId: null,
-        }) // findById
-        .mockResolvedValueOnce({
-          id: 'gc1',
-          workspaceId: 'ws-uuid-1',
-          parentId: 'c1',
-        }); // parent(gc1) lookup
+      mockRepository.findOne.mockResolvedValueOnce({
+        id: 'f1',
+        workspaceId: 'ws-uuid-1',
+        parentId: null,
+      }); // findById
+      // 부모(gc1) 소속은 exists 가 본다(기본 true)
       // collectSubtree(f1): L1 [c1,c2](형제 다중), L2 [gc1](c1·c2 자식 batch), L3 []
       mockRepository.find
         .mockResolvedValueOnce([
