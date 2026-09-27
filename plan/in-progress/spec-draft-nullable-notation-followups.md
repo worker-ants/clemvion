@@ -6295,7 +6295,11 @@ field: T | null;
       > `editor+` 로 쓰기를 막고(`folders.controller.ts` `@Roles('editor')`) `1-workflow-list.md` §3.1 · NF-SC-02 도 그것을 전제한다.
       > (5) 신설 e2e `codebase/backend/test/folder-crud.e2e-spec.ts`(§3.1 응답 계약 · PATCH 부분 본문 응답을 고정)를
       > `1-workflow-list.md` frontmatter `code:` 에 올리는 것 — `2-trigger-list.md` 처럼 자기 도메인의 1차 시행 e2e 를 등재하는 관행.
-      > 다섯 다 spec 쓰기라 planner 턴에서 한 번에.
+      > (6) 공용 헬퍼 `codebase/backend/src/common/utils/omit-undefined.ts`(`folders-contract-e2e` 가 트리거 · 폴더 `update()` 의 두
+      > 사본을 합쳐 신설)가 어느 spec 의 `code:` 에도 없다(`--impl-done` `review/consistency/2026/09/27/12_27_18` W1). 둘 곳은 planner
+      > 가 정한다 — 호출하는 두 도메인 spec(`1-workflow-list.md` · `2-trigger-list.md`) 양쪽인지, 헬퍼가 지키는 규칙(§5.4 부재 표현)을
+      > 가진 `spec/5-system/2-api-convention.md` 인지(그 문서가 이미 `common/utils/throttler-skip.ts` 를 둔다).
+      > 여섯 다 spec 쓰기라 planner 턴에서 한 번에.
 
 - [x] **k8s 로컬 오버레이의 버킷 Job 이 아바타 공개 정책을 걸지 않는다** (developer, 낮음, 2026-09-24 등재 ·
       plan `minio-silo-image` §D — 이미지 교체 중 발견, 그 PR 의 축이 아니라 분리).

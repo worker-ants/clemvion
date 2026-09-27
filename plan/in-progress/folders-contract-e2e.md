@@ -111,6 +111,18 @@ started: 2026-09-27
   5 는 관례 · 6 은 형제 유틸 스펙 `with-timeout.spec.ts` 처럼 저장소의 신규 테스트가 한국어 서술을 쓴다 — 이 파일에 한국어
   이름이 처음 들어간 것은 맞다).
 
+## `--impl-done` 처분 (`review/consistency/2026/09/27/12_27_18` BLOCK: NO — scope `spec/2-navigation/`)
+
+`triggers.service.ts` 는 `spec/5-system/12-webhook.md` 도 `code:` 에 두므로 Read 블록에 그 문서를 함께 실었다(동작 불변 리팩터라는 설명과).
+
+- **W1** (plan_coherence) 신설 헬퍼 `omit-undefined.ts` 가 어느 spec 의 `code:` 에도 없다 → spec 쓰기라 트래커의 `1-workflow-list.md`
+  §3.1 planner 항목에 **(6)** 으로 보강했다. 둘 곳(두 도메인 spec 양쪽 vs §5.4 를 가진 `2-api-convention.md`)은 planner 가 정한다.
+- **W2** (naming_collision) `omitUndefined` 와 `triggers.service.ts` 의 모듈-로컬 `omitKeys` 가 `omit*` 접두를 공유한다(입력 정제 vs
+  출력 redaction) → 조치 불요. `omitKeys` 는 제거할 키 목록을 인자로 받아 서명부터 달라 서로 바꿔 쓸 여지가 낮고, 상호 참조
+  주석은 codebase 수정이라 수렴한 리뷰 라운드를 다시 연다(비강제 권고).
+- INFO 1(`GET /folders` bare array 가 §5.2 비-페이징 예외에 명시 안 됨)은 트래커 planner 항목 (1)이 이미 같은 자리(§3.1 목록 응답
+  형태)를 본다. INFO 2~4 조치 불요.
+
 ## `--impl-prep` 처분 (`review/consistency/2026/09/27/10_39_26` BLOCK: NO)
 
 - **W1** `spec/5-system/1-auth.md` §3.2 권한 매트릭스에 Folder 행이 없다 · **W2** 신설 e2e 를 `1-workflow-list.md` frontmatter
@@ -126,6 +138,6 @@ started: 2026-09-27
 - [x] `--impl-prep` — `review/consistency/2026/09/27/10_39_26` BLOCK: NO(W1~W3 는 spec 쓰기 — 기존 planner 항목 보강)
 - [x] 서비스 · DTO · 래칫 · e2e · 단위 · 캐너리 · CHANGELOG · 트래커
 - [x] 뮤턴트 표 실측 — M1 e2e 생존으로 POST 전제 반증 · `create()` 변경 되돌림
-- [x] TEST WORKFLOW (lint · unit · build · e2e) — 전부 PASS, e2e 418 (`_test_logs/e2e-20260927-114841.log`, `3567f5577`)
+- [x] TEST WORKFLOW (lint · unit · build · e2e) — 전부 PASS, e2e 418. 마지막은 헬퍼 추출 뒤 `55aaf0e1e`(`_test_logs/e2e-20260927-121245.log`) — 그 뒤 codebase 수정 0
 - [x] `/ai-review` — 1R `review/code/2026/09/27/11_53_51`(Critical 0 · Warning 2 → 헬퍼 추출 · 마무리 커밋) · 2R `review/code/2026/09/27/12_17_57`(Critical 0 · Warning 1 = 1R W2 동일, codebase 수정 0 — 수렴)
-- [ ] `--impl-done`
+- [x] `--impl-done` — `review/consistency/2026/09/27/12_27_18` BLOCK: NO(W1 → 트래커 planner 항목 (6) · W2 조치 불요)
