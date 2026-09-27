@@ -109,7 +109,7 @@ e2e 는 **네 자리를 모두 되돌린 상태 = 고치기 전 코드** 1회(�
 | P3 | 노드 `update()` 가 헬퍼를 거치지 않음 | 단위 RED · e2e C RED | 단위 KILLED 1 — nodes «보내지 않은 필드(undefined)로…» · e2e C RED(응답 값) |
 | P4 | 인증 설정 `update()` 가 헬퍼를 거치지 않음 | 단위 RED · e2e D RED | 단위 KILLED 1 — auth-configs «보내지 않은 필드(undefined)로…» · e2e D RED(응답 값) |
 | T1 | 헬퍼 타입 제약에서 `NotArray` 제거(`obj: T`) | TS2578 1 | KILLED — `omit-undefined.spec.ts` «배열은 받지 않는다» 의 `@ts-expect-error` 가 TS2578 |
-| N1 | 노드 `update()` 가 `workflow` 를 떼지 않음(`return saved`) | 단위 RED · e2e C RED(계약) | @@N1@@ |
+| N1 | 노드 `update()` 가 `workflow` 를 떼지 않음(`return saved`) | 단위 RED · e2e C RED(계약) | 단위 KILLED 1 — nodes «응답에 IDOR 검사용 workflow 관계를 싣지 않는다»(baseline 361, `814a99605`) · e2e C RED(계약 — 떼기 전 코드의 `e2e-20260927-133438.log` 가 곧 이 상태) |
 
 헬퍼 스펙의 «빈 객체 · 전 필드 undefined» 캐너리(INFO 10)는 표의 어느 뮤턴트도 단독으로 가르지 않는다 — 경계를 문서화하는 테스트다.
 
