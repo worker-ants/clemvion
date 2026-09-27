@@ -94,12 +94,45 @@ assistant `title` · model-configs `baseUrl`·`dimension`(embedding) · knowledg
   설정 · users/me · 스케줄 · 모델 설정 · 어시스턴트 세션. 각 null → 400 `VALIDATION_ERROR` + `details[].field`. **고치기 전 코드로 먼저 돌려**
   현재 동작(500 · 409 · 200)을 RED 로 기록한다. 통합 · 지식 베이스는 픽스처가 무거워 단위로만.
 
+## 실측 — 고치기 전 코드로 돌린 새 e2e (`_test_logs/e2e-20260927-172450.log`, 33 failed / 458)
+
+`test/patch-null-rejection.e2e-spec.ts`(12라우트 33케이스 — 각 null → 400 `VALIDATION_ERROR` + `details[].field` 를 기대)를 DTO 를
+고치기 **전**에 돌렸다. 33케이스 전부 RED 였고 받은 것은:
+
+- **500 `INTERNAL_ERROR` 31건** — 폴더 `name`·`sortOrder` · 워크플로 `name`·`tags`·`isActive` · 노드 `config`·`positionX`·`isDisabled` · 인증 설정
+  `name`·`isActive` · 트리거 `name`·`isActive` · 알림 규칙 `threshold`·`window`·`channel`·`enabled` · 테스트 데이터셋 `name`·`input`·`visibility` ·
+  워크스페이스 설정 `timezone`·`interactionAllowedOrigins` · 내 프로필 `name`·`locale`·`theme` · 스케줄 `isActive`·`parameterValues` · 모델 설정
+  `provider`·`name`·`defaultModel`·`defaultParams` · 어시스턴트 세션 `status`.
+- **409 `DUPLICATE_NODE_LABEL`** — 노드 `label`.
+- **200** — 트리거 `endpointPath`(웹훅 경로가 지워졌다).
+
+전수의 (A) · (D) 예측이 e2e 가 닿은 33필드에서 전부 맞았다. 통합 `name` · 지식 베이스 8필드는 e2e 가 닿지 않는다 — 단위 표만 본다.
+
+## 뮤턴트 — 예측 / 실측
+
+`jest` 데코레이터 스펙 + 43필드 표(baseline 91 GREEN, `fc997ae56`). 제자리 치환 → `shutil.copy` 복원.
+
+| # | 뮤턴트 | 예측 | 실측 · 죽인 테스트 |
+|---|---|---|---|
+| M1 | 데코레이터가 null 도 건너뜀(`v !== undefined && v !== null` = `@IsOptional` 과 같은 동작) | 표 43행 + 데코레이터 RED | KILLED 45 — 표 «null 이면 isDefined 위반» 43행 · 데코레이터 «null 이면 거부» · «거부 메시지» |
+| M2 | `IsDefined` 를 뺌(null 은 타입 검증기만 잡는다 — 런타임은 여전히 400) | 표 43행 RED(메시지 칸) | KILLED 45 — 같은 43행 + 데코레이터 둘. 400 자체는 유지되므로 이 뮤턴트가 죽이는 것은 «원인이 보이는 메시지» 다 |
+| M3 | 트리거 `endpointPath` 한 필드만 `@IsOptional()` 로 되돌림 | 그 행만 RED | KILLED 1 — `UpdateTriggerDto 의 endpointPath` 행 |
+| M4 | 워크스페이스 설정 `timezone` 한 필드만 되돌림 | 그 행만 RED | KILLED 1 — `UpdateWorkspaceSettingsDto 의 timezone` 행 |
+
+## `--impl-prep` 처분 (`review/consistency/2026/09/27/17_14_44` BLOCK: NO)
+
+- **W1** (plan_coherence) 새 헬퍼 `optional-non-null.ts` 도 `omit-undefined.ts` 처럼 어느 spec `code:` 에도 없다 → 트래커 planner 항목 (6)
+  에 모집단으로 더했다(결정은 planner).
+- **W2** (cross_spec) §5.4 의 PATCH tri-state «`null` = 초기화» 가 nullable 선언 필드에만 적용된다는 문장이 없어, 글자 그대로는 이 PR 의
+  null 거부와 부딪혀 보인다 → 같은 planner 항목에 (10) 으로 등재(§5.4 블록쿼트에 «미선언 필드의 null 은 400» 한 문장).
+- INFO 1(`9-user-profile.md` §6.1 `interactionAllowedOrigins` 표기에 `?`) → (10) 에 함께. INFO 2 · 4 · 5 조치 불요, INFO 3 은 검토 범위 고지.
+
 ## 체크리스트
 
 - [x] 전수 — 21라우트, (A) 38 · (D) 6 · (B) 8
-- [ ] `--impl-prep`
-- [ ] 데코레이터 · DTO · e2e · 단위 · CHANGELOG · 트래커
-- [ ] 뮤턴트 표 실측
+- [x] `--impl-prep` — `review/consistency/2026/09/27/17_14_44` BLOCK: NO(W1 · W2 → 트래커)
+- [x] 데코레이터 · DTO · e2e · 단위 · CHANGELOG · 트래커
+- [x] 뮤턴트 표 실측 — M1~M4 전부 KILLED
 - [ ] TEST WORKFLOW (lint · unit · build · e2e)
 - [ ] `/ai-review`
 - [ ] `--impl-done`
