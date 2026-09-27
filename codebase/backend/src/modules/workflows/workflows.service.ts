@@ -24,6 +24,7 @@ import { UpdateWorkflowDto } from './dto/update-workflow.dto';
 import { QueryWorkflowDto } from './dto/query-workflow.dto';
 import { SaveCanvasDto } from './dto/save-canvas.dto';
 import { PaginatedResponseDto } from '../../common/dto/paginated-response.dto';
+import { omitUndefined } from '../../common/utils/omit-undefined';
 import { WorkflowVersionsService } from '../workflow-versions/workflow-versions.service';
 import { NodeComponentRegistry } from '../../nodes/core/node-component.registry';
 import {
@@ -243,12 +244,19 @@ export class WorkflowsService {
   ): Promise<Workflow> {
     const workflow = await this.findById(id, workspaceId);
     const { settings, ...rest } = dto;
-    Object.assign(workflow, rest);
+    // 보내지 않은 필드는 뺀다(이유는 `omitUndefined` JSDoc). 빼지 않으면 응답에 `description` · `folderId` 가
+    // null 로 실리고 `isActive` · `tags` 가 빠졌다 — `test/patch-partial-body.e2e-spec.ts` 가 고정한다.
+    Object.assign(workflow, omitUndefined(rest));
     // settings 는 전체 교체 대신 병합 — DB 잔여 키를 보존한다(workspace
     // updateWorkspaceSettings 의 spread-merge 대칭). DTO 검증(WorkflowSettingsDto)을
     // 통과한 키만 전달되므로 부적합 값이 유입되지 않는다.
+    // `settings` 도 DTO 인스턴스라 같은 필터를 거친다 — 거르지 않으면 `settings: {}` 가 저장된 키를
+    // undefined 로 덮고, JSONB 직렬화가 그 키를 버려 **DB 에서 지워졌다**.
     if (settings !== undefined) {
-      workflow.settings = { ...(workflow.settings ?? {}), ...settings };
+      workflow.settings = {
+        ...(workflow.settings ?? {}),
+        ...omitUndefined(settings),
+      };
     }
     const saved = await this.workflowRepository.save(workflow);
     await this.recordAudit({

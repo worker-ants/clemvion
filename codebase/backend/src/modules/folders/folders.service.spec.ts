@@ -113,7 +113,7 @@ describe('FoldersService', () => {
     });
 
     // DTO 인스턴스는 보내지 않은 optional 필드도 `undefined` own property 로 갖는다(`useDefineForClassFields`). 그것으로
-    // 로드한 값을 덮으면 PATCH 응답이 틀린다 — 폴더 e2e C · E 가 `sortOrder`(키 부재) · `parentId`(거짓 null)로 드러냈다.
+    // 로드한 값을 덮으면 PATCH 응답이 틀린다 — `test/folder-crud.e2e-spec.ts` 가 `sortOrder`(키 부재) · `parentId`(거짓 null)로 드러냈다.
     it('보내지 않은 필드(undefined)로 로드한 값을 덮지 않는다', async () => {
       mockRepository.findOne.mockResolvedValueOnce({
         id: 'f1',

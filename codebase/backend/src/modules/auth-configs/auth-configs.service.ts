@@ -20,6 +20,7 @@ import {
 } from '../audit-logs/audit-action.const';
 import { PaginatedResponseDto } from '../../common/dto/paginated-response.dto';
 import { PaginationQueryDto } from '../../common/dto/pagination.dto';
+import { omitUndefined } from '../../common/utils/omit-undefined';
 
 // HMAC 알고리즘 허용 목록. 외부 입력(인증 설정)이 crypto.createHmac 에 전달되므로
 // 화이트리스트로 좁혀 임의 알고리즘·약한 다이제스트 사용을 차단한다.
@@ -241,7 +242,9 @@ export class AuthConfigsService {
       type: _type,
       ...rest
     } = data;
-    Object.assign(config, rest);
+    // 보내지 않은 필드는 뺀다(이유는 `omitUndefined` JSDoc). 빼지 않으면 응답에 `ipWhitelist` 가 null 로
+    // 실리고 `isActive` 가 빠졌다 — `test/patch-partial-body.e2e-spec.ts` 가 고정한다.
+    Object.assign(config, omitUndefined(rest));
     if (configPatch && typeof configPatch === 'object') {
       const merged: Record<string, unknown> = { ...config.config };
       for (const [k, v] of Object.entries(configPatch)) {

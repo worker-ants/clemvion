@@ -5,6 +5,7 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { In, Not, Repository } from 'typeorm';
+import { omitUndefined } from '../../common/utils/omit-undefined';
 import { Node } from './entities/node.entity';
 import { Workflow } from '../workflows/entities/workflow.entity';
 import { assertWorkflowInWorkspace } from '../workflows/workflow-ownership.util';
@@ -72,7 +73,9 @@ export class NodesService {
     if (dto.label !== undefined && dto.label !== node.label) {
       await this.assertLabelUnique(node.workflowId, dto.label, id);
     }
-    Object.assign(node, dto);
+    // 보내지 않은 필드는 뺀다(이유는 `omitUndefined` JSDoc). 빼지 않으면 응답에 `description` · `containerId` 가
+    // null 로 실리고 위치 · 설정 · 비활성 여부가 빠졌다 — `test/patch-partial-body.e2e-spec.ts` 가 고정한다.
+    Object.assign(node, omitUndefined(dto));
     return this.saveWithUniqueConstraint(node);
   }
 

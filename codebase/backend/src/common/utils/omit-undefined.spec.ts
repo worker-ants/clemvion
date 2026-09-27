@@ -36,4 +36,24 @@ describe('omitUndefined', () => {
     expect(Object.keys(body)).toEqual(['name', 'sortOrder']);
     expect(omitUndefined(body)).toStrictEqual({ name: 'Renamed' });
   });
+
+  // 경계 — 빈 본문(`{}`)과 아무 필드도 안 보낸 DTO 인스턴스는 병합해도 아무것도 바꾸지 않아야 한다(워크플로 `settings: {}`).
+  it('빈 객체 · 전 필드가 undefined 인 입력은 빈 객체가 된다', () => {
+    class Settings {
+      maxConcurrentExecutions?: number;
+    }
+    expect(omitUndefined({})).toStrictEqual({});
+    expect(omitUndefined(new Settings())).toStrictEqual({});
+  });
+
+  /**
+   * 배열은 인덱스 키 객체(`{ 0: … }`)로 무너지므로 타입이 막는다. jest 는 타입을 지우므로 이 단언은 build 단계의 타입체크
+   * ratchet(`tsconfig.json` 이 spec 을 포함한다)이 본다 — 제약이 풀리면 아래 `@ts-expect-error` 가 «쓰이지 않는 지시어»(TS2578)가
+   * 되어 ratchet 이 늘어난다.
+   */
+  it('배열은 받지 않는다 (타입 — build 의 타입체크 ratchet 이 본다)', () => {
+    // @ts-expect-error — 배열은 받지 않는다
+    const out = omitUndefined([1, undefined]);
+    expect(out).toStrictEqual({ 0: 1 });
+  });
 });
