@@ -23,6 +23,12 @@
 > 07 37% · 08 30% · 09(25일까지) 49% 였다(나중 PR 의 백필은 세지 않았다). 여기 없다고 그 변경이 없었던 것은 아니다 —
 > `git log` 가 정본이다.
 
+## Unreleased — OpenAPI: 설명 · IP 화이트리스트를 null 로 지울 수 있다고 광고한다
+
+`PATCH /workflows/:id` · `PATCH /nodes/:id` 의 `description` 과 `PATCH /auth-configs/:id` 의 `ipWhitelist` 는 `null` 을 받아 값을
+지운다 — 원래 그렇게 동작했는데 OpenAPI 가 적지 않았다(«문자열 · 배열만 받는» 필드로 광고했다). 이제 `nullable` 로 광고한다.
+`ipWhitelist` 는 `null` 과 빈 배열(`[]`)이 같은 뜻이다(화이트리스트 없음). 동작 변화는 없다.
+
 ## Unreleased — 워크플로 · 노드 · 인증 설정 수정이 보내지 않은 필드를 잃지 않는다
 
 폴더 수정(아래 항목)과 같은 결함이 세 API 에 더 있었다. 일부 필드만 보내면(예: 이름만) 보내지 않은 필드가 틀렸다.

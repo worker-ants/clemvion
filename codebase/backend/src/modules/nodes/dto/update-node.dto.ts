@@ -52,11 +52,14 @@ export class UpdateNodeDto {
   @IsBoolean()
   isDisabled?: boolean;
 
-  /** 노드 설명 */
-  @ApiPropertyOptional({ description: '노드 설명' })
+  /** 노드 설명 (null 이면 지운다) */
+  @ApiPropertyOptional({
+    description: '노드 설명. null 이면 설명을 지운다',
+    nullable: true,
+  })
   @IsOptional()
   @IsString()
-  description?: string;
+  description?: string | null;
 
   /** 소속 컨테이너 노드 UUID (없으면 null) */
   @ApiPropertyOptional({

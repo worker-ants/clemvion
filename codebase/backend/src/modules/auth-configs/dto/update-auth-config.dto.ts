@@ -46,19 +46,20 @@ export class UpdateAuthConfigDto {
   @IsObject()
   config?: Record<string, unknown>;
 
-  /** 변경할 IP 화이트리스트 */
+  /** 변경할 IP 화이트리스트 (null · 빈 배열이면 전체 삭제) */
   @ApiPropertyOptional({
     description:
       '변경할 IP 화이트리스트 (CIDR 또는 단일 IP). ' +
-      '빈 배열(`[]`) 전송 시 화이트리스트 전체 삭제.',
+      '빈 배열(`[]`) 또는 null 전송 시 화이트리스트 전체 삭제.',
     type: [String],
+    nullable: true,
     example: ['10.0.0.0/8', '203.0.113.42'],
   })
   @IsOptional()
   @IsArray()
   @IsString({ each: true })
   @IsIpOrCidr({ each: true })
-  ipWhitelist?: string[];
+  ipWhitelist?: string[] | null;
 
   /** 활성 상태 여부 */
   @ApiPropertyOptional({

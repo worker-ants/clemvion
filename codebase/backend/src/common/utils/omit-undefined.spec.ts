@@ -46,6 +46,12 @@ describe('omitUndefined', () => {
     expect(omitUndefined(new Settings())).toStrictEqual({});
   });
 
+  // JSDoc 이 적은 계약 — 인자 자체가 런타임 null 이면 던진다. 필드째 null 일 수 있는 호출부가 `!= null` 가드를 빠뜨리면
+  // 이 형태로 500 이 난다(워크플로 `settings: null`). 헬퍼를 null-safe 로 바꾸려면 이 테스트와 호출부 가드를 함께 고쳐야 한다.
+  it('인자 자체가 null 이면 TypeError 를 던진다 — 호출부가 가드해야 한다', () => {
+    expect(() => omitUndefined(null as never)).toThrow(TypeError);
+  });
+
   /**
    * 배열은 인덱스 키 객체(`{ 0: … }`)로 무너지므로 타입이 막는다. jest 는 타입을 지우므로 이 단언은 build 단계의 타입체크
    * ratchet(`tsconfig.json` 이 spec 을 포함한다)이 본다 — 제약이 풀리면 아래 `@ts-expect-error` 가 «쓰이지 않는 지시어»(TS2578)가

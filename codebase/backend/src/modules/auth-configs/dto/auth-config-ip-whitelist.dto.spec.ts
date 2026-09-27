@@ -3,6 +3,9 @@ import { plainToInstance } from 'class-transformer';
 import { CreateAuthConfigDto } from './create-auth-config.dto';
 import { UpdateAuthConfigDto } from './update-auth-config.dto';
 import { IsIpOrCidrConstraint, isIpOrCidr } from './is-ip-or-cidr.validator';
+import { contractForDto } from '../../../shared/testing/response-contract';
+
+const VALIDATE_OPTIONS = { whitelist: true, forbidNonWhitelisted: true };
 
 /**
  * ip_whitelist 저장 시점 형식 검증 (spec/1-data-model.md §2.17,
@@ -117,5 +120,23 @@ describe('UpdateAuthConfigDto — ipWhitelist @IsIpOrCidr', () => {
   it('빈 배열(전체 삭제 의도) → 통과', async () => {
     const errors = await validateWhitelist([]);
     expect(errors).toHaveLength(0);
+  });
+});
+
+/**
+ * `ipWhitelist` 는 null 을 받는다 — 선언과 동작 둘 다. swagger 가드(`swagger-dto-contract.spec.ts`)는 데코레이터와 TS 타입 중
+ * **하나만** 되돌리면 잡지만, 둘을 함께 되돌리면 원래의 과소 광고(런타임은 null 을 받는데 OpenAPI 는 모른다)로 조용히 돌아간다.
+ * 그 회귀를 여기서 잡는다. 동작(null 이 값을 지운다)은 `test/patch-partial-body.e2e-spec.ts` 가 본다.
+ */
+describe('UpdateAuthConfigDto.ipWhitelist — null 을 받는다', () => {
+  it('검증기가 null 을 통과시킨다', async () => {
+    const dto = plainToInstance(UpdateAuthConfigDto, { ipWhitelist: null });
+    expect(await validate(dto, VALIDATE_OPTIONS)).toHaveLength(0);
+    expect(dto.ipWhitelist).toBeNull();
+  });
+
+  it('OpenAPI 가 nullable 로 광고한다', async () => {
+    const { schema } = await contractForDto(UpdateAuthConfigDto);
+    expect(schema.properties?.ipWhitelist).toHaveProperty('nullable', true);
   });
 });

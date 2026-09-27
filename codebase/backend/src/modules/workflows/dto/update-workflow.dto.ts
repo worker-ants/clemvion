@@ -24,14 +24,15 @@ export class UpdateWorkflowDto {
   @MaxLength(255)
   name?: string;
 
-  /** 변경할 설명 */
+  /** 변경할 설명 (null 이면 지운다) */
   @ApiPropertyOptional({
-    description: '변경할 워크플로우 설명',
+    description: '변경할 워크플로우 설명. null 이면 설명을 지운다',
     example: '설명을 갱신합니다.',
+    nullable: true,
   })
   @IsOptional()
   @IsString()
-  description?: string;
+  description?: string | null;
 
   /** 활성화 여부 */
   @ApiPropertyOptional({

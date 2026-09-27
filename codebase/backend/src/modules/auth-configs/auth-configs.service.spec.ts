@@ -380,6 +380,26 @@ describe('AuthConfigsService', () => {
         isActive: false,
       });
     });
+
+    // §5.4 tri-state 의 나머지 한 칸 — 명시적 `null` 은 «값을 지운다» 는 요청이라 걸러내면 안 된다.
+    it('명시적 null 은 로드한 값을 지운다', async () => {
+      const ac = await service.create(
+        WS,
+        {
+          type: 'api_key',
+          name: 'a',
+          ipWhitelist: ['10.0.0.0/8'],
+        } as Partial<AuthConfig>,
+        USER,
+      );
+      const result = await service.update(
+        ac.id,
+        WS,
+        Object.assign(new UpdateAuthConfigDto(), { ipWhitelist: null }),
+        USER,
+      );
+      expect(result).toHaveProperty('ipWhitelist', null);
+    });
   });
 
   describe('update — shallow-merge·비밀값 보호', () => {
@@ -692,6 +712,24 @@ describe('AuthConfigsService', () => {
         }),
       ).rejects.toThrow(UnauthorizedException);
     });
+
+    // null 과 빈 배열은 같은 뜻 — 화이트리스트 없음. PATCH 가 둘 다 받는다고 광고하므로(`UpdateAuthConfigDto.ipWhitelist`) 판정도 같아야 한다.
+    it.each([
+      ['null', null],
+      ['빈 배열', []],
+    ])(
+      'ip_whitelist: %s 이면 제한 없음 — 목록 밖 IP 도 통과',
+      async (_label, ipWhitelist) => {
+        const ac = await seed('bearer_token', {}, { ipWhitelist });
+        const token = ac.config.token as string;
+        await expect(
+          service.verifyWebhookRequest(ac.id, WS, {
+            headers: { authorization: `Bearer ${token}` },
+            clientIp: '203.0.113.9',
+          }),
+        ).resolves.toBeUndefined();
+      },
+    );
 
     it('ip_whitelist: CIDR 범위 내 IP → 통과', async () => {
       const ac = await seed(
