@@ -52,6 +52,19 @@ started: 2026-09-27
   빠져도, 거짓 null 이어도 통과한다. 그래서 프로브가 **값**을 단언한다. 선언 정정은 이 PR 의 축이 아니다 — 그 DTO 를 내는 다른
   경로(노드는 캔버스 저장 · 복원 등)마다 키 상시 존재를 e2e 로 보여야 하는 «§5.4 drift 배치» 몫이다.
 
+## 첫 TEST WORKFLOW 가 드러낸 것 — 노드 PATCH 응답에 `workflow` 가 통째로 실린다 (2026-09-27)
+
+고친 뒤 첫 e2e 에서 C 가 **값 단언은 통과**하고 계약 대조에서 실패했다(`_test_logs/e2e-20260927-133438.log`, 1 failed / 422):
+`NodeDto 응답이 선언과 어긋난다 — workflow [undeclared]`.
+
+- 원인: 노드 `update()` 가 IDOR 검사(노드의 워크플로가 호출자 워크스페이스인지)를 한 쿼리로 하려고 `relations: ['workflow']` 로
+  읽고, 저장한 엔티티를 그대로 돌려준다. 그래서 부모 워크플로 행 전체(이름 · 설명 · 태그 · 설정 · `createdBy` …)가 응답에 실렸다.
+  비밀값은 없고 같은 워크스페이스 사용자가 이미 읽을 수 있는 값이지만 `NodeDto` 에 없는 키다.
+- 고치기 전부터 있던 결함이다 — 이 PR 이 같은 라우트에 계약 대조를 처음 걸어 드러났다. 노드 생성 · 캔버스 저장은 관계를 읽지
+  않아 해당 없다.
+- 처방: 저장 뒤 `workflow` 를 떼고 돌려준다(반환 타입 `Omit<Node, 'workflow'>` — 호출처는 컨트롤러 하나). IDOR 쿼리는 건드리지
+  않는다. 단위 «응답에 IDOR 검사용 workflow 관계를 싣지 않는다» 추가.
+
 ## 방향
 
 1. **서비스 셋** — `Object.assign(<엔티티>, omitUndefined(<부분 본문>))`. 워크플로는 `settings` 병합도
@@ -96,6 +109,7 @@ e2e 는 **네 자리를 모두 되돌린 상태 = 고치기 전 코드** 1회(�
 | P3 | 노드 `update()` 가 헬퍼를 거치지 않음 | 단위 RED · e2e C RED | 단위 KILLED 1 — nodes «보내지 않은 필드(undefined)로…» · e2e C RED(응답 값) |
 | P4 | 인증 설정 `update()` 가 헬퍼를 거치지 않음 | 단위 RED · e2e D RED | 단위 KILLED 1 — auth-configs «보내지 않은 필드(undefined)로…» · e2e D RED(응답 값) |
 | T1 | 헬퍼 타입 제약에서 `NotArray` 제거(`obj: T`) | TS2578 1 | KILLED — `omit-undefined.spec.ts` «배열은 받지 않는다» 의 `@ts-expect-error` 가 TS2578 |
+| N1 | 노드 `update()` 가 `workflow` 를 떼지 않음(`return saved`) | 단위 RED · e2e C RED(계약) | @@N1@@ |
 
 헬퍼 스펙의 «빈 객체 · 전 필드 undefined» 캐너리(INFO 10)는 표의 어느 뮤턴트도 단독으로 가르지 않는다 — 경계를 문서화하는 테스트다.
 

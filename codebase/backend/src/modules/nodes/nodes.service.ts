@@ -55,7 +55,7 @@ export class NodesService {
     id: string,
     workspaceId: string,
     dto: UpdateNodeDto,
-  ): Promise<Node> {
+  ): Promise<Omit<Node, 'workflow'>> {
     // Single query: load the node with its workflow relation and verify the
     // workflow belongs to the caller's workspace. A miss (no row, or a row in a
     // foreign workspace) throws the same NotFoundException so callers cannot
@@ -76,7 +76,11 @@ export class NodesService {
     // 보내지 않은 필드는 뺀다(이유는 `omitUndefined` JSDoc). 빼지 않으면 응답에 `description` · `containerId` 가
     // null 로 실리고 위치 · 설정 · 비활성 여부가 빠졌다 — `test/patch-partial-body.e2e-spec.ts` 가 고정한다.
     Object.assign(node, omitUndefined(dto));
-    return this.saveWithUniqueConstraint(node);
+    const saved = await this.saveWithUniqueConstraint(node);
+    // IDOR 검사에 쓰려고 함께 읽은 `workflow` 관계는 응답이 아니다 — `NodeDto` 가 선언하지 않는데 부모 워크플로 행이 통째로
+    // 실렸다(`test/patch-partial-body.e2e-spec.ts` 의 계약 대조가 드러냈다).
+    const { workflow: _workflow, ...response } = saved;
+    return response;
   }
 
   async remove(id: string, workspaceId: string): Promise<void> {

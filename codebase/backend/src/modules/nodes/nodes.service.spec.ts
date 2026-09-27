@@ -215,6 +215,18 @@ describe('NodesService', () => {
         config: { url: 'keep' },
       });
     });
+
+    // IDOR 검사용으로 함께 읽은 `workflow` 관계가 응답에 부모 워크플로 행째로 실렸다(`NodeDto` 미선언).
+    it('응답에 IDOR 검사용 workflow 관계를 싣지 않는다', async () => {
+      const existing = makeNode('n1', 'HTTP Request', 'wf-1');
+      mockRepo.findOne.mockResolvedValueOnce(existing);
+
+      const result = await service.update('n1', WS, {
+        label: 'HTTP Request',
+      });
+      expect(result).toHaveProperty('workflowId', 'wf-1');
+      expect(result).not.toHaveProperty('workflow');
+    });
   });
 
   describe('bulkCreate', () => {
