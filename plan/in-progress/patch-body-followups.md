@@ -117,6 +117,13 @@ D4~D6 을 죽인 것이 캐너리 **하나뿐**이라는 것이 «캐너리가 �
   케이스 문자를 빼고 파일명만 인용(`6add3194e`). 수렴 예외로 넘기지 않았다 — 알면서 틀린 참조를 남기지 않으려고. 그래서 3R 을 돈다.
 - INFO 1~13 조치 불요(리뷰어 스스로 «재-flag 금지 · 1R 처분 재확인»).
 
+## `/ai-review` 3R (`review/code/2026/09/27/16_29_51` — Critical 0 · Warning 1 → 반증, codebase 수정 0 → 수렴)
+
+- **W1** (testing) «응답 DTO 의 nullable 선언은 선언 · 타입을 함께 되돌리는 회귀에 캐너리가 없다» — 전제가 **틀렸다**. 두 필드
+  (`NodeDto.description` · `AuthConfigDto.ipWhitelist`)는 §5.4 래칫(양방향)에 있어 함께 되돌리면 목록에서 빠져 RED 다. 뮤턴트 R1 · R2
+  KILLED(래칫). 요청 DTO 는 래칫이 안 보는 자리라 캐너리를 뒀고, 응답 DTO 는 래칫이 그 몫을 한다. 단서: 그 필드를 §5.4 기본형으로
+  갚으면 보호가 사라지니 그때 선언 캐너리를 함께 둔다(RESOLUTION 에 적었다).
+
 ## `--impl-prep` 처분 (`review/consistency/2026/09/27/15_19_25` BLOCK: NO)
 
 - **W1** (cross_spec) 트리거 `name` 등 트리거 · 스케줄의 NOT NULL 필드도 같은 메커니즘인데 프로브가 재지 않았다 → 새 트래커 항목에
@@ -135,5 +142,5 @@ D4~D6 을 죽인 것이 캐너리 **하나뿐**이라는 것이 «캐너리가 �
 - [x] DTO 셋 · e2e · 단위 캐너리 · 선언 캐너리 · 헬퍼 JSDoc · CHANGELOG · 트래커
 - [x] 뮤턴트 표 실측 — D1~D6 · H1 전부 KILLED
 - [x] TEST WORKFLOW (lint · unit · build · e2e) — 전부 PASS, e2e 423 (`_test_logs/e2e-20260927-154209.log`, `6c7c976b0`)
-- [ ] `/ai-review`
+- [x] `/ai-review` — 1R `review/code/2026/09/27/15_46_38`(W2 → 조치) · 2R `review/code/2026/09/27/16_07_49`(W1 = 1R 조치가 만든 낡은 참조 → 조치) · 3R `review/code/2026/09/27/16_29_51`(W1 반증 · codebase 수정 0 — 수렴)
 - [ ] `--impl-done`
