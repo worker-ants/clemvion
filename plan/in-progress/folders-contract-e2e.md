@@ -59,7 +59,8 @@ started: 2026-09-27
 
 ## 방향
 
-1. **서비스** — `update()` 가 `undefined` 필드를 걸러 `Object.assign` 한다(위 절). ~~`create()` 가 `parentId: data.parentId ?? null`
+1. **서비스** — `update()` 가 `undefined` 필드를 걸러 `Object.assign` 한다(위 절). 필터는 `/ai-review` 1R W1 에 따라 공용 헬퍼
+   `src/common/utils/omit-undefined.ts` 로 올렸고 트리거 `update()` 의 같은 사본도 그 헬퍼로 바꿨다(아래 리뷰 절). ~~`create()` 가 `parentId: data.parentId ?? null`
    을 명시해 저장한다~~ — 전제가 반증돼 되돌렸다(위 실측 절).
 2. **DTO** — `FolderDto.parentId` → `@ApiProperty({ type: String, format: 'uuid', nullable: true })` + `parentId: string | null`
    (§5.4 기본형. `type` 명시는 `string | null` 이 테스트 쪽 스키마에서 `type: object` 가 되는 것을 막는다 — #1412 실측).
@@ -84,7 +85,31 @@ started: 2026-09-27
 | M2 | `FolderDto.parentId` 를 optional + nullable 로 되돌림 | 래칫 RED · 캐너리 RED | KILLED 2 — 캐너리 · `swagger-dto-contract` «§5.4 금지 조합 래칫» |
 | M3 | `FolderDto.parentId` 의 `type: String` 제거 | 캐너리 RED | KILLED 1 — 캐너리 |
 | M4 | `FolderDto.parentId` 를 `@ApiPropertyOptional({ format: 'uuid' })`(nullable 없이)로 | 캐너리 RED · 래칫 GREEN | KILLED 2 — 캐너리 · `swagger-dto-contract` «OpenAPI 선언과 TS 타입이 어긋난 필드가 없다»(래칫은 예측대로 GREEN, 같은 파일의 다른 테스트가 죽였다 — 예측이 못 본 그물) |
-| M5 | `update()` 의 `defined` 필터를 되돌림(`Object.assign(folder, data)`) | 단위 RED · e2e C RED · (E 추가 뒤) e2e E RED — `parentId` null | 단위 KILLED 1 — «보내지 않은 필드(undefined)로 로드한 값을 덮지 않는다» · e2e C · E RED(`e2e-20260927-113056.log`, E 응답 `{ parentId: null, sortOrder: undefined }`) · 재실행(`e2e-20260927-113844.log`)에서 E 가 GET 단언을 통과한 뒤 응답 단언에서 실패 — DB 무사 실측 |
+| M5 | `update()` 의 `defined` 필터를 되돌림(`Object.assign(folder, data)`) — 헬퍼 추출 전 형태 | 단위 RED · e2e C RED · (E 추가 뒤) e2e E RED — `parentId` null | 단위 KILLED 1 — «보내지 않은 필드(undefined)로 로드한 값을 덮지 않는다» · e2e C · E RED(`e2e-20260927-113056.log`, E 응답 `{ parentId: null, sortOrder: undefined }`) · 재실행(`e2e-20260927-113844.log`)에서 E 가 GET 단언을 통과한 뒤 응답 단언에서 실패 — DB 무사 실측 |
+
+헬퍼 추출(`692f1e8fd`) 뒤 단위 뮤턴트 — `jest src/common/utils/omit-undefined src/modules/folders src/modules/triggers`(baseline 389 GREEN):
+
+| # | 뮤턴트 | 예측 | 실측 · 죽인 테스트 |
+|---|---|---|---|
+| H1 | 헬퍼 필터를 `v != null` 로(null 까지 거름) | 헬퍼 스펙 RED · 폴더 «루트로 이동» RED | KILLED 2 — 헬퍼 «falsy 값은 남긴다» · 폴더 «allows moving to root»(리뷰 INFO 8 로 `toBeNull()` 을 단언하게 한 테스트) |
+| H2 | 헬퍼가 입력을 그대로 돌려줌 | 헬퍼 스펙 RED · 폴더 · 트리거 부분 PATCH 테스트 RED | KILLED 5 — 헬퍼 셋 · 폴더 «보내지 않은 필드로 덮지 않는다» · 트리거 «PATCH 에서 생략된 필드는 로드된 값을 유지한다» |
+| H3 | 폴더가 헬퍼를 거치지 않음(`Object.assign(folder, data)`) | 폴더 단위 RED | KILLED 1 — 폴더 «보내지 않은 필드로 덮지 않는다» |
+| H4 | 트리거가 헬퍼를 거치지 않음(`const defined = rest`) | 트리거 단위 RED | KILLED 1 — 트리거 «PATCH 에서 생략된 필드는 로드된 값을 유지한다» |
+
+폴더 «빈 본문이면 로드한 값을 그대로 저장한다»(리뷰 INFO 9)는 위 어느 뮤턴트도 **단독으로 가르지 않는다** — 경계를 문서화하는
+테스트이지 회귀 그물이 아니다.
+
+## `/ai-review` 1R (`review/code/2026/09/27/11_53_51` — Critical 0 · Warning 2)
+
+- **W1** (maintainability) 필터 관용구 + 장문 근거가 트리거 → 폴더로 통째 복제, 트래커가 세 곳을 더 예고 → `omitUndefined` 헬퍼로
+  추출하고 근거를 JSDoc 한 곳에 모았다. 두 호출부는 헬퍼 한 줄 + 자리 고유 사실만(`692f1e8fd`). 정보 추출기
+  (`information-extractor.handler.ts`)의 로컬 `defined()` 는 같은 모양이지만 목적이 다르다(스냅샷 정리, PATCH 병합 아님) — 건드리지 않았다.
+- **W2** (documentation) 트래커가 아직 옮기지 않은 `plan/complete/folders-contract-e2e.md` 를 인용 → 이 PR 의 마무리 커밋이
+  `git mv` 로 그 경로를 만든다. push 전 `git show HEAD:plan/complete/folders-contract-e2e.md` 로 확인한다.
+- INFO 8 · 9 → 단위 테스트 강화 · 추가(위). INFO 7(서비스 주석의 e2e 케이스 문자 인용) → 헬퍼 추출로 주석을 줄이며 파일명만 남겼다.
+  INFO 1 · 2 · 3 · 4 · 5 · 6 — 조치 불요(1 은 후속 세 곳 착수 때 트래커 항목이 본다 · 2 · 3 은 기존 추적 · 4 는 선언 정정 ·
+  5 는 관례 · 6 은 형제 유틸 스펙 `with-timeout.spec.ts` 처럼 저장소의 신규 테스트가 한국어 서술을 쓴다 — 이 파일에 한국어
+  이름이 처음 들어간 것은 맞다).
 
 ## `--impl-prep` 처분 (`review/consistency/2026/09/27/10_39_26` BLOCK: NO)
 

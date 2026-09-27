@@ -1382,8 +1382,10 @@ field: T | null;
       > 계약과 대조하는 e2e 로 한다(폴더 e2e C · E 가 그 형태). 계약 대조는 **거짓 null 을 못 잡는다** — nullable 선언이면 null 이
       > 통과한다. 보내지 않은 nullable 필드에 **null 이 아닌 값**을 미리 넣어 두고 응답 값을 단언해야 한다(폴더 E 의 하위 폴더).
       > `workflow-crud.e2e` B 는 PATCH 뒤 **GET** 으로만 확인해 이 결함을 못 본다.
-      > 같은 형태가 이미 **다섯 자리**(고친 둘 + 남은 셋)다 — 착수할 때 개별 수정보다 공용 헬퍼 + 가드(`Object.assign(<엔티티>, <DTO>)`
-      > 형태 금지)가 맞는지부터 판단한다.
+      > 같은 형태가 이미 **다섯 자리**(고친 둘 + 남은 셋)다. **공용 헬퍼는 생겼다** — `src/common/utils/omit-undefined.ts`
+      > (`folders-contract-e2e`, 2026-09-27 `/ai-review` W1 로 트리거 · 폴더 두 사본을 합쳤다). 남은 셋은 그 헬퍼 호출로 고친다.
+      > 남은 판단은 가드(`Object.assign(<엔티티>, <DTO>)` 형태 금지)가 맞는지 하나다. 착수 때 그 컨트롤러의 `@Body()` 가 타입 있는
+      > DTO 클래스인지도 함께 본다 — 헬퍼는 키를 거르지 않고, 화이트리스트 방어는 전역 `CustomValidationPipe`(`whitelist` · `forbidNonWhitelisted`)가 한다(같은 리뷰 INFO 1).
 
 - [ ] **§5.4 스윕 2차 — 엔드포인트인데 e2e 미도달인 DTO** (developer, 2026-09-05 등재).
       1차가 닿지 못한 자리다. 배선 한 줄이 아니라 **새 e2e 시나리오**가 선행이므로 모듈
