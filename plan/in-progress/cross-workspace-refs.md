@@ -64,6 +64,9 @@ started: 2026-09-27
 - **트리거 `config` 안의 비밀 참조**(`chatChannel.botTokenRef` · `inboundSigningRef` · `notification.signing.secretRef`) — 타입 필드
   `chatChannel` 의 금지 검사가 원시 `config` 에는 걸리지 않고, `secret-resolver.service.ts` `resolve` 는 `ref` 만 본다(소스 판독). 참조가 id 가
   아니라 JSONB 안의 문자열이고 chat-channel 의 비밀 정책(R-CC-21 · §5.4.1)이 얽혀 있어 따로 잰다 → 트래커 새 항목.
+- **API 문서 셋의 `spec/1-data-model.md` §1.1 미러**(`2-trigger-list.md` · `3-schedule.md` · `9-user-profile.md`, 그리고 KB 설정 참조의
+  `5-knowledge-base.md`) — 구현이 착지한 뒤 planner 턴으로. 추적: 트래커 «교차 워크스페이스 참조 후속» 의 planner 불릿(`--impl-prep`
+  `21_03_31` W1).
 - **OAuth begin `mode=new` 에 실린 `integrationId`** — state 에 저장되지만 new 콜백은 그 값을 쓰기 전에 끝난다(소스 판독, 콜백 일부만 읽음).
 - **실행 경로의 방어선** — `execute()` 가 `findOneBy({ id })` 로 워크플로를 읽는다. 저장 전 검사로 새 교차 행은 막히지만, 이미 저장된
   행이 있다면 계속 돈다. 운영 데이터 점검 쿼리와 실행 시점 방어선을 둘지는 트래커로.
@@ -119,7 +122,7 @@ started: 2026-09-27
 ## 체크리스트
 
 - [x] 전수 — 읽기 전용 조사 둘, (X) 3 · (D) 7 요청 · 대조군 8
-- [x] `--impl-prep` — 19_43_46 BLOCK: YES → planner 턴(`a8bfd1492`) → 재실행 (아래)
+- [x] `--impl-prep` — 19_43_46 · 20_21_21 BLOCK: YES → planner 턴 두 번(`a8bfd1492` · `18f235a81`) → `21_03_31` **BLOCK: NO**(W1 → 위 «이 PR 밖», W2 → 트래커 planner 불릿)
 - [x] 실측(고치기 전 e2e) — 18 RED · 프로브 2 재현
 - [ ] 구현 · 단위 · CHANGELOG · 트래커
 - [ ] 뮤턴트

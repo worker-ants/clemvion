@@ -1491,7 +1491,11 @@ field: T | null;
       - **(planner) API 문서 셋에 `spec/1-data-model.md` §1.1 한 줄 미러** — `2-trigger-list.md` §3 註(트리거 생성 `workflowId`) ·
         `3-schedule.md` API 표(스케줄 생성 `workflowId`) · `9-user-profile.md` 알림 규칙 API(`workflowId`)에 «같은 워크스페이스의 워크플로만 —
         아니면 400 `VALIDATION_ERROR`» 와 §1.1 링크(`--impl-prep` `20_21_21` W3 · INFO 1). 구현이 착지한 **뒤**에 넣는다 — 먼저 넣으면 세 문서에도
-        `pending_plans` 가 필요해진다(`plan/complete/spec-draft-cross-workspace-refs-2.md` Rationale).
+        `pending_plans` 가 필요해진다(`plan/complete/spec-draft-cross-workspace-refs-2.md` Rationale). KB 설정 참조(`5-knowledge-base.md`)도
+        같다. 같은 턴에: `1-workflow-list.md` `## Rationale` §3 의 2026-07-05 원문 불릿(«세 위반(같은 워크스페이스·순환·깊이) 모두 생성
+        경로와 동일한 `VALIDATION_ERROR`») 이 바로 아래 «(2026-09-27 정정)» 단락과 모순인데 서로를 가리키지 않는다 — 원문의 «같은
+        워크스페이스» 에 정정 단락을 가리키는 각주(`--impl-prep` `review/consistency/2026/09/27/21_03_31` W2), 그리고 `1-data-model.md` §1.1
+        의 «행마다 구현 상태가 다를 수 있다» 한 줄 여부(같은 세션 권장 3).
       - **트리거 `config` JSONB 안의 비밀 참조(미검증 · 보안)** — `chatChannel.botTokenRef` · `inboundSigningRef` ·
         `notification.signing.secretRef` 는 `secret://triggers/<triggerId>/…` 문자열이다. 금지 검사(`@IsEmpty` · `assertChatChannelInputSafe`)는
         타입 필드 `chatChannel` 에만 걸리고 원시 `config` 는 `@IsObject` 뿐이며, 타입 필드가 없으면 `mergeExternalConfig` 가 `config` 를 그대로
