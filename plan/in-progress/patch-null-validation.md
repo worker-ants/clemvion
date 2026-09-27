@@ -134,5 +134,7 @@ assistant `title` · model-configs `baseUrl`·`dimension`(embedding) · knowledg
 - [x] 데코레이터 · DTO · e2e · 단위 · CHANGELOG · 트래커
 - [x] 뮤턴트 표 실측 — M1~M4 전부 KILLED
 - [x] TEST WORKFLOW (lint · unit · build · e2e) — 전부 PASS, e2e 458 (`_test_logs/e2e-20260927-174241.log`, `feac5ef37`). 첫 unit 에서 `update-me.dto.spec.ts` 가 «theme=null 통과» 를 고정하고 있어 RED — 결함을 고정하던 테스트라 기대값을 바꾸고 lint 부터 재실행
-- [ ] `/ai-review`
+- [x] `/ai-review` — 1R `review/code/2026/09/27/17_47_49` Critical 0 · Warning 2(모델 설정 PATCH 유효 값 e2e 부재 · `endpointPath` 문서) →
+  `e5de5226c` 로 조치, TEST WORKFLOW 재통과(e2e 459). 2R `18_13_53` Critical 0 · Warning 0 · codebase 수정 0 — 수렴. SPEC-DRIFT(§5.4
+  tri-state 범위)는 두 라운드 모두 트래커 planner 항목 (10)
 - [ ] `--impl-done`
