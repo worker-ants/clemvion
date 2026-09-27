@@ -1,10 +1,11 @@
 ---
 title: "PATCH 부분 본문 결함 — 남은 세 곳(워크플로 · 노드 · 인증 설정)을 omitUndefined 로 · 워크플로 settings 의 DB 키 소실"
-status: in-progress
+status: complete
 owner: developer
 worktree: patch-omit-undefined
 spec_impact: none
 started: 2026-09-27
+completed: 2026-09-27
 ---
 
 # PATCH 부분 본문 결함 — 남은 세 곳
@@ -143,6 +144,13 @@ e2e 는 **네 자리를 모두 되돌린 상태 = 고치기 전 코드** 1회(�
 - 둘 다 **수렴 예외**로 트래커 새 항목에 등재했다(동작 결함 아님 · 고치면 라운드 재무장 · 근거는 그 세션 RESOLUTION). INFO 1 · 2 도
   같은 항목, INFO 4(`settings` null 의미)는 planner 항목 (7).
 
+## `--impl-done` 처분 (`review/consistency/2026/09/27/14_33_36` BLOCK: NO — scope `spec/2-navigation/`)
+
+Critical 0 · Warning 0. `workflows.service.ts` · `auth-configs.service.ts` · `nodes/**` 를 소유하는 scope 밖 spec(`1-node-common.md` ·
+`1-auth.md` · `12-webhook.md` · `1-manual-trigger.md` · `cross-node-warning-rules.md`)은 Read 블록으로 실었다. INFO 1 · 2 · 6 은 이미
+트래커 항목 (7) · «PATCH 부분 본문 후속» 에 있다. INFO 4(`settings` null 의미를 Rationale §2 에 둘 후보) · INFO 5(`2-trigger-list.md`
+§2.3.1 링크 라벨 오기)는 planner 항목에 (7) 보강 · (9) 로 더했다. INFO 3 · 7 조치 불요, INFO 8 은 이 마무리 커밋이 해소한다.
+
 ## `--impl-prep` 처분 (`review/consistency/2026/09/27/13_11_33` BLOCK: NO)
 
 - **W4** (plan_coherence) 헬퍼의 `code:` 등재처를 묻는 트래커 planner 항목 (6)이 호출부 둘(폴더 · 트리거)을 전제하는데 이 PR 로
@@ -159,7 +167,7 @@ e2e 는 **네 자리를 모두 되돌린 상태 = 고치기 전 코드** 1회(�
 
 - [x] `--impl-prep` — `review/consistency/2026/09/27/13_11_33` BLOCK: NO(W2 · W3 · W4 → 트래커, W1 → 새 planner 항목)
 - [x] 서비스 셋 · e2e · 단위 · 헬퍼 손질 · CHANGELOG · 트래커
-- [x] 뮤턴트 표 실측 — P1~P4 · T1 전부 KILLED
-- [x] TEST WORKFLOW (lint · unit · build · e2e) — 전부 PASS, e2e 422 (`_test_logs/e2e-20260927-134537.log`, `5a4bb2bd4`). 첫 회는 C 의 계약 대조 1 failed → 노드 응답의 `workflow` 를 떼고 lint 부터 재실행
+- [x] 뮤턴트 표 실측 — P1~P4 · T1 · N1 · G1 · H1 전부 KILLED
+- [x] TEST WORKFLOW (lint · unit · build · e2e) — 전부 PASS, e2e 422. 마지막은 1R 조치 뒤 `e16a35beb`(`_test_logs/e2e-20260927-141445.log`) — 그 뒤 codebase 수정 0. 도중 두 번 lint 부터 재실행: 첫 e2e 의 C 계약 대조(노드 응답 `workflow`) · 1R 조치 뒤 unit 의 `nullable-type-lie-cast` 가드
 - [x] `/ai-review` — 1R `review/code/2026/09/27/13_50_41`(Critical 1 = `settings: null` 500 회귀 → `edd79ca40`) · 2R `review/code/2026/09/27/14_20_00`(Critical 0 · Warning 2 → 수렴 예외로 트래커, codebase 수정 0)
-- [ ] `--impl-done`
+- [x] `--impl-done` — `review/consistency/2026/09/27/14_33_36` BLOCK: NO(Warning 0, INFO 4 · 5 → planner 항목)
