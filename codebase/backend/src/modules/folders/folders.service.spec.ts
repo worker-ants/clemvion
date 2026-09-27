@@ -134,6 +134,19 @@ describe('FoldersService', () => {
       });
     });
 
+    it('빈 본문이면 로드한 값을 그대로 저장한다', async () => {
+      const loaded = {
+        id: 'f1',
+        workspaceId: 'ws-uuid-1',
+        name: 'F1',
+        parentId: 'p1',
+        sortOrder: 3,
+      };
+      mockRepository.findOne.mockResolvedValueOnce({ ...loaded });
+      await service.update('f1', 'ws-uuid-1', {});
+      expect(mockRepository.save).toHaveBeenLastCalledWith(loaded);
+    });
+
     it('rejects self as parent (cycle → VALIDATION_ERROR)', async () => {
       mockRepository.findOne.mockResolvedValueOnce({
         id: 'f1',
@@ -214,7 +227,8 @@ describe('FoldersService', () => {
       const result = await service.update('f1', 'ws-uuid-1', {
         parentId: null,
       });
-      expect(result).toBeDefined();
+      // null 은 «루트로 옮긴다» 는 명시적 요청이다 — undefined 만 거르는 필터가 null 까지 거르면 여기가 깨진다.
+      expect(result.parentId).toBeNull();
       expect(mockRepository.find).not.toHaveBeenCalled();
     });
 

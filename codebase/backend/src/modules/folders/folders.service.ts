@@ -5,6 +5,7 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
+import { omitUndefined } from '../../common/utils/omit-undefined';
 import { Folder } from './entities/folder.entity';
 
 const MAX_NESTING_DEPTH = 5;
@@ -69,15 +70,9 @@ export class FoldersService {
     if (data.parentId !== undefined && data.parentId !== folder.parentId) {
       await this.validateParentChange(id, workspaceId, data.parentId ?? null);
     }
-    // 보내지 않은 필드는 뺀다 — DTO 인스턴스는 값이 없는 optional 필드도 `undefined` own property 로 갖는다(`target: ES2023`
-    // → `useDefineForClassFields`). 그대로 `Object.assign` 하면 로드한 값이 `undefined` 로 덮인다. DB 는 TypeORM 이 undefined 를
-    // 건너뛰어 무사하지만 **PATCH 응답이 틀린다** — nullable 이 아닌 컬럼은 키가 사라지고(`sortOrder`), nullable 컬럼은 TypeORM 이
-    // 저장 뒤 undefined 를 null 로 채워 거짓 null 이 실린다(하위 폴더의 이름만 바꿔도 `parentId: null`). 폴더 e2e C · E 가
-    // 드러냈다. `triggers.service.ts` 의 `update()` 가 같은 이유로 같은 처방을 쓴다.
-    const defined = Object.fromEntries(
-      Object.entries(data).filter(([, v]) => v !== undefined),
-    );
-    Object.assign(folder, defined);
+    // 보내지 않은 필드는 뺀다(이유는 `omitUndefined` JSDoc). 빼지 않으면 `sortOrder` 가 응답에서 사라지고 하위 폴더의
+    // `parentId` 가 null 로 실렸다 — `test/folder-crud.e2e-spec.ts` 가 고정한다.
+    Object.assign(folder, omitUndefined(data));
     return this.folderRepository.save(folder);
   }
 

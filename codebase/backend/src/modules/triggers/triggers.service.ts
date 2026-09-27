@@ -41,6 +41,7 @@ import { SecretResolverService } from '../secret-store/secret-resolver.service';
 import { buildSecretRef } from '../secret-store/secret-ref';
 import { PaginatedResponseDto } from '../../common/dto/paginated-response.dto';
 import { PaginationQueryDto } from '../../common/dto/pagination.dto';
+import { omitUndefined } from '../../common/utils/omit-undefined';
 import { ErrorCode } from '../../nodes/core/error-codes';
 import {
   assertChatChannelAlreadySetUp,
@@ -615,15 +616,10 @@ export class TriggersService {
     const safeChatChannel = chatChannel
       ? stripChatChannelPlaintext(chatChannel)
       : undefined;
-    // `rest` 에는 **값이 없는 optional 필드도 `undefined` 로 존재**한다 — `target: ES2023`
-    // 에서 클래스 필드가 own property 로 정의되기 때문이다(`useDefineForClassFields`).
-    // 그대로 `Object.assign` 하면 로드된 값을 `undefined` 로 **덮어쓴다** — DB 는 TypeORM
-    // 이 undefined 를 건너뛰어 무사하지만 **응답에서 필드가 사라진다.**
-    // `PATCH /api/triggers/:id` 응답에 `name` 이 없던 원인이고, §5.4 계약 대조를 그
+    // `rest` 의 `undefined` 필드(보내지 않은 optional 필드)를 뺀다 — 이유는 `omitUndefined`
+    // JSDoc. `PATCH /api/triggers/:id` 응답에 `name` 이 없던 원인이고, §5.4 계약 대조를 그
     // 경로로 넓히자 드러났다 (`review/code/2026/09/05/21_40_37` W1).
-    const defined = Object.fromEntries(
-      Object.entries(rest).filter(([, v]) => v !== undefined),
-    );
+    const defined = omitUndefined(rest);
 
     // ── 창 1 — 병합과 저장을 **같은 advisory lock 안에서** 한다 ────────────────────────
     //
