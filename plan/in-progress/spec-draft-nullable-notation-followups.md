@@ -1509,6 +1509,14 @@ field: T | null;
         정한다. 노드 · 엣지 · 폴더의 끊긴 참조도 같은 점검 대상이다.
       - **OAuth begin `mode=new` 에 실린 `integrationId`** — state 에 저장되지만 new 콜백은 그 값을 쓰기 전에 끝난다(소스 판독, 콜백
         `integration-oauth.service.ts` 일부만 읽음). `mode=new` 면 거부할지(DTO 조건부 금지) 무시할지.
+      - **(developer, 낮음) 여러 참조를 한 번에 검사하는 형태가 네 자리에 따로 있다** — `EdgesService.assertEndpointsInWorkflow` ·
+        `NodesService.assertPlacementInWorkflow`(둘 다 `In()` 한 번) · `WorkflowsService.validateCanvasReferences`(페이로드 Set) ·
+        `assertNewNodeIdsUnused`. 단일 참조는 `common/utils/reference-in-scope.ts` `assertReferenceInScope` 로 모았지만 배치는 아니다 —
+        `{ field, id, message }` 후보를 받아 invalid 목록을 만드는 헬퍼로 모을지(`/ai-review` `review/code/2026/09/27/22_11_22` W2, 수렴 예외로
+        등재 — 근거는 그 세션 RESOLUTION). 같은 김에 `'Workflow not found in this workspace'` 리터럴 3곳 · truthy vs `!= null` 혼용(INFO 7).
+      - **(developer, 낮음) 폴더 생성의 부모 조회가 두 번이다** — `assertParentInWorkspace` 의 `exists` 뒤 `getDepth` 의 첫 조회가 같은 조건
+        (`{ id: parentId, workspaceId }`)이다(같은 세션 W3). `getDepth` 가 «첫 행 없음» 을 돌려주게 하면 한 번으로 줄지만, 그 함수의 조회
+        순서에 묶인 단위 테스트(목 호출 순서)가 여럿이라 따로 한다.
 
 - [ ] **§5.4 스윕 2차 — 엔드포인트인데 e2e 미도달인 DTO** (developer, 2026-09-05 등재).
       1차가 닿지 못한 자리다. 배선 한 줄이 아니라 **새 e2e 시나리오**가 선행이므로 모듈

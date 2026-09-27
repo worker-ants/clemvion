@@ -121,6 +121,7 @@ started: 2026-09-27
 | M3 | 캔버스 새 노드 id 충돌 조회 제거 | 충돌 거부 · 기존 id 제외 2 | KILLED 2 |
 | M4 | 캔버스 엣지 끝점 검사 제거 | 페이로드 참조 목록 1 | KILLED 1 |
 | M5 | 노드 `where` 에서 `workflowId` 제거 | 생성 `containerId` · 수정 `toolOwnerId` 2 | KILLED 2 |
+| M6 | 캔버스 참조 검사를 `if (!skipLegacyDataGates)` 안으로(버전 복원이 우회로가 됨) — 2R W1 뒤 추가(`421b69088`) | 복원 경로 테스트 1 | KILLED 1 |
 
 M2~M5 는 서로 다른 테스트를 죽이도록 골라 한 번에 돌렸다(6건 — 예측 합과 같다).
 
@@ -139,5 +140,5 @@ M2~M5 는 서로 다른 테스트를 죽이도록 골라 한 번에 돌렸다(6�
 - [x] 구현 · 단위 · CHANGELOG · 트래커 — `c2c97de24`
 - [x] 뮤턴트 — M1~M5 전부 KILLED
 - [x] TEST WORKFLOW — lint · unit · build · e2e 전부 PASS, e2e 477(`_test_logs/e2e-20260927-213723.log` — 새 18케이스 · 캔버스 왕복 `workflow-crud` 포함). 첫 lint 는 새 테스트의 catch 매개변수 이름 13건 → 고치고 lint 부터 재실행
-- [ ] `/ai-review`
+- [ ] `/ai-review` — 1R `21_43_01` W3 → `698ad8ab7` · 2R `22_11_22` W1 → `421b69088`, W2 · W3 수렴 예외로 트래커 · 3R 진행
 - [ ] `--impl-done`
