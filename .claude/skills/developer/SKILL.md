@@ -14,8 +14,8 @@ model: opus
 
 - **Worktree 강제**: main 워크트리에서는 작업 시작 안 함 ([`.claude/docs/worktree-policy.md`](../../docs/worktree-policy.md)).
 - **사전 일관성 검토**: 구현 착수 전 `/consistency-check --impl-prep <spec/영역>` 의무. Critical 발견 시 즉시 멈춤.
-- **기획 금지**: `spec/` 신규 정의·대규모 개정 안 함. 필요 시 `project-planner` 위임.
-- **스펙 선독**: 관련 spec 문서 전체(Overview / 본문 / Rationale) 를 먼저 읽고 영향 범위·side-effect 파악.
+- **기획은 위임, 스펙 결함은 초안으로**: 신규 정의·대규모 개정은 `project-planner` 위임. 구현 중 발견한 스펙 결함은 NERV 초안(`/nerv:spec edit`)이나 리뷰 발견(`area=spec`)으로 올린다. 승인은 사람이 한다. 저장소 `spec/` 은 NERV 미러라 직접 고치지 않는다.
+- **스펙 선독**: 관련 스펙 문서 전체(Overview / 본문 / Rationale) 를 먼저 읽고 영향 범위·side-effect 파악. NERV 스펙은 **작업 기준 버전**으로 읽는다(`nerv_spec_get(spec_id, task=<Task 키>)`, 응답의 `read_as` 확인).
 - **TDD 준수**: 스펙 해석 즉시 테스트 선작성, 구현 후 보강.
 - **품질 책임**: Warning 이상 이슈와 누락 테스트는 지시 범위 밖이라도 해결. 기존부터 있던 이슈도 발견 시 조치.
 - **누락 방지**: `plan/in-progress/` 에 진행 메모 작성·갱신, 재진입 시 먼저 확인. plan 라이프사이클: [`.claude/docs/plan-lifecycle.md`](../../docs/plan-lifecycle.md).
@@ -25,7 +25,7 @@ model: opus
 
 | 경로 | 권한 |
 | --- | --- |
-| `spec/` | Read only — 수정 시 `project-planner` 위임. 갱신 제안은 `plan/in-progress/spec-update-<name>.md`. **좁은 예외 1건**(자기가 쓴 예고를 실측으로 반증하는 소정정): 조건·게이트는 [`CLAUDE.md` §자기-반증형 소정정](../../../CLAUDE.md#자기-반증형-소정정--developer-가-spec-을-고칠-수-있는-유일한-경우) 이 SoT — **여기에 복제하지 않는다** |
+| `spec/` | NERV 미러. 구현 PR 에서 `python3 .claude/tools/nerv-mirror/pull.py --task <Task 키>` 로만 갱신한다(손편집은 `guard_nerv_owned_paths.py` 훅 · CI `spec-mirror-integrity` 가 막는다). 스펙을 고칠 일은 NERV 초안으로(`/nerv:spec edit`, 승인은 사람) |
 | `plan/in-progress/` | Read/Write 자유 |
 | `plan/complete/` | Read/Write — 모든 항목 끝나면 `git mv` |
 | `codebase/**` | Read/Write — 구현 주 영역 |
@@ -40,12 +40,13 @@ model: opus
 
 0. **Worktree 확인** — `pwd` 가 `.claude/worktrees/<...>/` 안인지. 아니면 즉시 멈춤 + worktree 생성. 예외: 사용자 명시 read-only turn.
    - **백그라운드(bg) 세션이면 `EnterWorktree` *툴* 로 격리한다** — 셸 `cd` 만으로는 부족하다. `/ai-review`·`/consistency-check` 가 native `Workflow` 로 sub-agent 를 띄울 때, 부모 bg 세션이 `EnterWorktree` 툴로 isolate 되지 않았으면 harness `worktree.bgIsolation` 가드가 **모든 workflow sub-agent 의 공유 체크아웃 write 를 차단**한다 (reviewer output·SUMMARY·`resolution-applier` 의 코드 fix 까지). 즉 셸 `cd` 로만 들어간 bg 세션은 review/fix 가 구조적으로 막혀 "미루기" 의 빌미가 된다. `EnterWorktree` 로 들어가면 9단계 REVIEW WORKFLOW 의 fix write 까지 정상 동작한다. (배경: [`.claude/docs/orchestrator-workflow-migration.md`](../../docs/orchestrator-workflow-migration.md) §bgIsolation.)
-1. **스펙 분석** — `spec/` 의 관련 문서 + `plan/in-progress/` 이전 컨텍스트.
+1. **스펙 분석** — 클레임한 Task 의 NERV 스펙을 작업 기준 버전으로(`nerv_spec_get(spec_id, task=<Task 키>)`) + 재진입이면 Task `handoff_note` · `plan/in-progress/` 이전 컨텍스트. 저장소 `spec/` 미러는 주변 문서 grep 용이다(구현된 스펙의 스냅샷이라 최신본이 아닐 수 있다).
 2. **모호성 해소** — 공백·충돌은 사용자와 정의. 스펙 정의 필요 시 `project-planner` 위임.
 3. **사전 일관성 검토** — `/consistency-check --impl-prep <spec/영역>`. Critical → 즉시 중단. Warning → `plan/in-progress/<task>.md` 기록 + 진행.
 4. **DOCUMENTATION 업데이트** — `PROJECT.md §변경 유형 → 갱신 위치 매핑` white list 누락 없이 갱신. 매핑 검증 명령 통과해야 5단계. **사용자 가이드 신규 작성·기존 갱신은 [`user-guide-writer`](../../agents/user-guide-writer.md) sub-agent 위임** — 본 sub-agent 가 `PROJECT.md §유저 가이드 파일 컨벤션` 의 SoT 인덱스를 적재해 컨벤션을 일관 적용. 위임 직전 `is_agent_enabled(cfg, "writers", "user_guide")` (`.claude.project.json` 의 `agents.writers.user_guide`) 로 게이팅 — disable 된 프로젝트는 본 단계 안에서 직접 작성. PROJECT.md 매트릭스에 명시된 동반 갱신은 호출자(본 단계) 가 받아 처리. **partial-implementation 분리**: spec 의 일부만 구현하고 나머지 surface 가 남아있는 경우, 본 PR 머지 전 `plan/in-progress/<spec-name>-followup-<surface>.md` 신설 + 해당 spec frontmatter `status: partial` + `pending_plans:` 등록 의무 (SoT: [`spec/conventions/spec-impl-evidence.md`](../../../spec/conventions/spec-impl-evidence.md)). 자가 체크리스트는 `PROJECT.md §DOCUMENTATION 단계 종료 사전 체크리스트` 마지막 항목.
 5. **테스트 선작성** — TDD.
 6. **구현** — 스펙과 테스트 기준.
+   - **스펙 미러를 함께 커밋한다**(결정 D3): `python3 .claude/tools/nerv-mirror/pull.py --task <Task 키>` 로 클레임 scope 의 스펙(`scope.spec_ids`)을 작업 기준 버전으로 받아 코드와 같은 PR 에 커밋한다. `--spec <KEY>` 로 좁힐 수 있다. 같은 문서를 다른 PR 이 다른 버전으로 받았으면 그 파일에서만 충돌한다. 뒤에 머지하는 쪽이 다시 pull 해서 푼다.
 7. **테스트 보강** — 누락 추가, 잘못된 테스트 수정.
 8. **TEST WORKFLOW** (§아래).
 9. **REVIEW WORKFLOW** (§아래).
@@ -91,7 +92,7 @@ model: opus
    ```
 
    반환 STATUS 의 `ESCALATE` 분기 (`code-review-agents` SKILL §6 표) 를 — `ESCALATE=no` (조치 완료) 또는 사용자 escalate 까지 — 처리하기 전엔 턴을 끝내지 않는다.
-   - **SPEC-DRIFT 처리**: SUMMARY 에 `[SPEC-DRIFT]` 발견사항(구현이 spec 을 의도적으로 개선해 spec 이 낡음)이 있으면, resolution-applier 가 코드를 되돌리지 않고 `plan/in-progress/spec-update-<area>.md` draft + `ESCALATE=spec` 로 반환한다. main 은 `/consistency-check --spec <draft>` → `BLOCK: NO` 시 spec 에 반영 후 resolution-applier 재호출. 이것이 "구현 중 개선된 flow 가 spec 에 역류" 하는 정식 경로다.
+   - **SPEC-DRIFT 처리**: SUMMARY 에 `[SPEC-DRIFT]` 발견사항(구현이 spec 을 의도적으로 개선해 spec 이 낡음)이 있으면, resolution-applier 가 코드를 되돌리지 않고 `plan/in-progress/spec-update-<area>.md` draft + `ESCALATE=spec` 로 반환한다. main 은 draft 를 근거로 NERV 스펙 초안을 쓰고(`/nerv:spec edit`) 제출 전 검토(`nerv_spec_check` + `/consistency-check --spec <초안 본문 파일>`)를 거쳐 `BLOCK: NO` 면 검토 요청한 뒤 resolution-applier 재호출. 저장소 `spec/` 에는 쓰지 않는다(미러는 승인 뒤 구현 PR 이 pull 한다). 이것이 "구현 중 개선된 flow 가 spec 에 역류" 하는 정식 경로다.
 4. **(post-impl 일관성 검토 — spec 연결 코드 변경 시 의무)** 변경에 spec 의 frontmatter `code:` glob 에 매칭되는 파일이 포함되면 `/consistency-check --impl-done <spec/영역>` 호출은 **의무**다 (이전의 "권장" 에서 승격). 구현 코드 diff vs spec 본문 / Rationale / conventions / plan 정합성을 5 checker 가 사후 검증하고, Critical 발견(`BLOCK: YES`) 시 `resolution-applier` 가 동일 흐름으로 처리. **강제**: spec 연결 코드 변경이 있는데 `BLOCK: NO` 인 fresh `--impl-done` 산출물이 없으면 `guard_review_before_push.py`/`guard_review_before_stop.py` 가 push·턴종료를 차단한다 (`review_guard.py` SPEC-CONSISTENCY 게이트). spec 무관 코드(어떤 spec 도 참조 않는 내부 리팩토링)는 이 게이트에 걸리지 않는다.
 
    > ### ⚠️ 순서 — `--impl-done` 은 **spec-linked 편집이 전부 끝난 뒤** 준비한다
@@ -128,7 +129,7 @@ model: opus
 - [ ] TEST WORKFLOW (lint·unit·build·e2e) 통과
 - [ ] `/ai-review` 실행 + SUMMARY 기록
 - [ ] SUMMARY 의 Critical/Warning 0 (애초에 없었거나, `resolution-applier`/수동으로 fix + RESOLUTION.md)
-- [ ] SPEC-DRIFT 발견사항은 spec 반영(`spec-update-<area>` → `/consistency-check --spec` → 반영) 또는 사용자 escalate 로 처리
+- [ ] SPEC-DRIFT 발견사항은 NERV 스펙 초안(`spec-update-<area>` → `/consistency-check --spec` → `/nerv:spec edit` 초안 · 검토 요청) 또는 사용자 escalate 로 처리
 - [ ] (spec 연결 코드 변경 시) `/consistency-check --impl-done <spec/영역>` `BLOCK: NO` 산출물 존재 (SPEC-CONSISTENCY 가드)
       — **`/ai-review` 수렴 뒤에** 준비할 것. 리뷰 fix 가 spec-linked 파일을 건드리면
       먼저 돌린 `--impl-done` 은 세션 시각 비교에서 무효가 된다 (§4 순서 규약)
