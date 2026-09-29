@@ -31,8 +31,9 @@ NERV 연동 설정(`.mcp.json` · `.claude/settings.local.json` · `.nerv/`)은 
 
 - `ensure-worktree.sh` 가 새 워크트리에 세 자리를 main checkout 을 가리키는 심볼릭 링크로 건다. 이미 있는 파일은 덮지 않는다.
   워크트리 안에서 부르면 빠진 링크만 채운다.
-- **자격 증명 원문이 든 `.mcp.json` 은 링크하지 않는다.** `${NERV_TOKEN}` 같은 참조로 바꾼 뒤에 링크한다. 판정은 값이 아니라 위치만
-  출력한다.
+- **자격 증명 원문이 든 `.mcp.json` 은 링크하지 않는다.** 토큰을 `headersHelper`(연결 때 `settings.local.json` 의 토큰을 읽어 헤더를
+  내는 명령)로 옮긴 뒤에 링크한다. 판정은 값이 아니라 위치만 출력한다. `"Bearer ${NERV_TOKEN}"` 참조형은 붙지 않는다(실측: 연결
+  실패 — `settings.local.json` 의 `env` 가 `.mcp.json` 확장에 쓰이지 않는다).
 - 세션 시작 때(`bootstrap-session.sh`) 빠진 자리 · 끊긴 링크 · `.mcp.json` 의 원문 토큰을 경고한다.
   이미 만든 워크트리는 그 안에서 `python3 .claude/tools/local_config.py link` 를 돌리고 Claude Code 를 다시 띄우면 붙는다.
 - 링크라서 세 자리는 main 의 원본 하나를 함께 쓴다. 워크트리 세션에서 허용한 권한 · env 변경도 모든 워크트리에 퍼진다.

@@ -106,6 +106,15 @@ class LiteralCredentialsTest(unittest.TestCase):
             ["mcpServers.s.headers.Authorization"],
         )
 
+    def test_headers_helper_form_has_no_literal(self):
+        # 권장 형태: 토큰을 헤더가 아니라 연결 때 도는 명령이 settings.local.json 에서 읽는다.
+        doc = {"mcpServers": {"nerv": {
+            "type": "http", "url": "https://nerv.example.invalid/mcp",
+            "headers": {"X-NERV-Project": "clemvion"},
+            "headersHelper": "python3 -c 'print(1)'",
+        }}}
+        self.assertEqual(self._creds(doc), [])
+
     def test_non_secret_header_is_ignored(self):
         self.assertEqual(self._creds(_mcp(headers={"X-NERV-Project": "clemvion"})), [])
 

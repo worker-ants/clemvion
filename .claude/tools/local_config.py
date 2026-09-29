@@ -19,9 +19,16 @@ NERV 연동 전용이다(NERV Task `CLE-T-0EZEYF`, 정책은 `.claude/docs/workt
   `check` 가 `link` 가 거부할 항목에 "링크하라" 고 안내하게 된다.
 
 **원문 자격 증명이 든 `.mcp.json` 은 링크하지 않는다.** 토큰 원문을 워크트리마다 늘리지 않고
-`.mcp.json` 은 `${NERV_TOKEN}` 참조만 담게 하려는 것이다. 토큰 값의 정해진 자리는
+`.mcp.json` 에는 토큰을 두지 않으려는 것이다. 토큰 값의 정해진 자리는
 `.claude/settings.local.json` 의 `env` 라서 그 파일은 원문이 있어도 링크한다. 판정은 값이
 아니라 **위치**만 돌려준다. 이 스크립트는 어떤 경로로도 자격 증명 값을 출력하지 않는다.
+
+**권장 형태는 `headersHelper` 다.** 연결할 때 명령이 `settings.local.json` 의 토큰을 읽어
+헤더 JSON 을 출력한다. `"Authorization": "Bearer ${NERV_TOKEN}"` 참조는 원문이 아니라서
+이 판정을 통과하지만 **붙지 않는다.** 실측(2026-09-29, Claude Code 2.1.284, `claude mcp get
+nerv`, 셸 env 에서 `NERV_*` 제거): 참조형은 연결 실패, `headersHelper` 는 연결 성공, 틀린
+토큰을 내는 헬퍼는 401 로 실패했다. `settings.local.json` 의 `env` 가 `.mcp.json` 확장에
+쓰이지 않는다(NERV 플러그인 `nerv-init` 템플릿은 참조형이다).
 
 판정 범위(좁히지도 넓히지도 않은 경계를 적어 둔다): `mcpServers.<이름>.headers` 와
 `mcpServers.<이름>.env` 에서 이름이 자격 증명처럼 보이는 키(``_SECRET_HINTS``)의 값만 본다.
@@ -67,8 +74,9 @@ _AUTH_SCHEME = re.compile(r"\b(?:bearer|basic|token)\b", re.IGNORECASE)
 
 # 원문 자격 증명을 발견했을 때의 조치. `link` · `check` 가 같은 문장을 쓴다.
 _REMEDIATION = (
-    "`Bearer ${NERV_TOKEN}` 같은 참조로 바꾸고 값은 `.claude/settings.local.json` 의 "
-    "`env` 에 둔다. gitignore 대상 로컬 설정이라 사람이 승인하고 바꾼다"
+    "헤더 대신 `headersHelper` 로 `.claude/settings.local.json` 의 `env.NERV_TOKEN` 을 읽어 "
+    "헤더를 내게 한다(`${NERV_TOKEN}` 참조형은 붙지 않는다 — 모듈 docstring). "
+    "gitignore 대상 로컬 설정이라 사람이 승인하고 바꾼다"
 )
 
 
