@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
-"""main checkout 의 로컬 설정을 워크트리에 링크하고, 빠진 것을 세션 시작 때 알린다.
+"""main checkout 의 NERV 로컬 설정을 워크트리에 링크하고, 빠진 것을 세션 시작 때 알린다.
+
+NERV 연동 전용이다(NERV Task `CLE-T-0EZEYF`, 정책은 `.claude/docs/worktree-policy.md` §8).
 
 **왜 필요한가.** NERV 연동 설정 세 자리(`.mcp.json` · `.claude/settings.local.json` ·
 `.nerv/`)는 gitignore 대상이라 `git worktree add` 가 새 워크트리에 옮겨 주지 않는다. 그래서
@@ -13,17 +15,27 @@
 - ``link`` — 워크트리에 main checkout 의 세 자리를 심볼릭 링크로 건다. 이미 있는 것은
   건드리지 않는다. `ensure-worktree.sh` 가 워크트리를 만든 직후 부른다.
 - ``check`` — 세션 루트에 빠진 것을 경고한다. `bootstrap-session.sh` 가 부른다.
+  두 명령은 "무엇을 링크할 수 있는가" 를 ``_link_blocker`` 하나로 판정한다. 따로 판정하면
+  `check` 가 `link` 가 거부할 항목에 "링크하라" 고 안내하게 된다.
 
-**원문 자격 증명이 든 `.mcp.json` 은 링크하지 않는다.** 토큰 원문을 워크트리로 퍼뜨리면
-노출면이 넓어진다(NERV 정본 전환안 §12). `${NERV_TOKEN}` 참조로 바꾼 뒤에야 링크한다. 이
-판정은 값이 아니라 **위치**만 돌려준다 — 이 스크립트는 어떤 경로로도 자격 증명 값을 출력하지
-않는다.
+**원문 자격 증명이 든 `.mcp.json` 은 링크하지 않는다.** 토큰 원문을 워크트리마다 늘리지 않고
+`.mcp.json` 은 `${NERV_TOKEN}` 참조만 담게 하려는 것이다. 토큰 값의 정해진 자리는
+`.claude/settings.local.json` 의 `env` 라서 그 파일은 원문이 있어도 링크한다. 판정은 값이
+아니라 **위치**만 돌려준다. 이 스크립트는 어떤 경로로도 자격 증명 값을 출력하지 않는다.
 
 판정 범위(좁히지도 넓히지도 않은 경계를 적어 둔다): `mcpServers.<이름>.headers` 와
 `mcpServers.<이름>.env` 에서 이름이 자격 증명처럼 보이는 키(``_SECRET_HINTS``)의 값만 본다.
-`url` 쿼리나 `args` 에 박힌 토큰은 보지 않는다 — 이 저장소의 `.mcp.json` 에는 그런 자리가 없다.
+`url` 쿼리나 `args` 에 박힌 토큰은 보지 않는다. 이 저장소의 `.mcp.json` 에는 그런 자리가 없다.
+
+**링크의 공유 동작.** 링크라서 세 자리는 모든 워크트리가 main 의 원본 하나를 쓴다.
+`.claude/settings.local.json` 에 링크를 통해 쓰면 권한 허용 · env 변경이 모든 워크트리에
+퍼진다. 쓰는 쪽이 임시 파일 뒤 rename 으로 쓰면 그 워크트리의 링크는 일반 파일로 바뀐다.
+`.nerv/outbox` 도 공유되며 중복 전송은 큐 파일의 `idempotency_key` 로 막는다.
 
 표준 라이브러리만 쓴다(훅과 같은 규약, `.claude/tests/README.md`).
+
+종료 코드: ``check`` 는 늘 0 이다(세션 시작을 막지 않는다). ``link`` 는 git 정보를 얻지
+못하면 2, 그 밖에는 0 이다. 항목별 링크 실패는 종료 코드가 아니라 결과 줄로 알린다.
 """
 
 from __future__ import annotations
@@ -36,19 +48,28 @@ import subprocess
 import sys
 from pathlib import Path
 
-# main checkout 에만 있고 git 이 옮겨 주지 않는 자리. 순서는 출력 순서다.
-LOCAL_CONFIG_PATHS = (".mcp.json", ".claude/settings.local.json", ".nerv")
 MCP_JSON = ".mcp.json"
+SETTINGS_LOCAL = ".claude/settings.local.json"
+NERV_DIR = ".nerv"
+# main checkout 에만 있고 git 이 옮겨 주지 않는 자리. 순서는 출력 순서다.
+LOCAL_CONFIG_PATHS = (MCP_JSON, SETTINGS_LOCAL, NERV_DIR)
 
 # 이름에 이 조각이 들어간 헤더 · env 키는 자격 증명으로 본다(대소문자 무시). `auth` 는
-# Authorization · Proxy-Authorization · X-Auth-* 를, `key` 는 X-Api-Key · *_API_KEY 를 잡는다.
+# Authorization · Proxy-Authorization · X-Auth-* 를, `key` 는 X-Api-Key · *_API_KEY 를,
+# `passw` · `pwd` 는 *_PASSWORD · *_PASSWD · *_PWD 를 잡는다.
 # 잘못 잡으면 `.mcp.json` 을 링크하지 않고 이유를 말한다 — 새는 쪽이 아니라 막는 쪽으로 틀린다.
-_SECRET_HINTS = ("auth", "token", "secret", "password", "key", "cookie", "credential")
+_SECRET_HINTS = ("auth", "token", "secret", "passw", "pwd", "key", "jwt", "cookie", "credential")
 
 # Claude Code 가 `.mcp.json` 에서 펴는 참조: `${VAR}` 와 `${VAR:-기본값}`. 기본값은 원문이다.
 _ENV_REF = re.compile(r"\$\{[A-Za-z_][A-Za-z0-9_]*(?::-([^}]*))?\}")
 # 참조 앞에 붙는 인증 방식 이름. 값이 아니다.
 _AUTH_SCHEME = re.compile(r"\b(?:bearer|basic|token)\b", re.IGNORECASE)
+
+# 원문 자격 증명을 발견했을 때의 조치. `link` · `check` 가 같은 문장을 쓴다.
+_REMEDIATION = (
+    "`Bearer ${NERV_TOKEN}` 같은 참조로 바꾸고 값은 `.claude/settings.local.json` 의 "
+    "`env` 에 둔다. gitignore 대상 로컬 설정이라 사람이 승인하고 바꾼다"
+)
 
 
 def _looks_secret(name: str) -> bool:
@@ -56,8 +77,12 @@ def _looks_secret(name: str) -> bool:
     return any(hint in lowered for hint in _SECRET_HINTS)
 
 
-def _literal_part(value: str) -> str:
-    """참조를 걷어 내고 남은 원문. 비어 있으면 원문 자격 증명이 없다."""
+def _literal_remainder(value: str) -> str:
+    """참조와 인증 방식 이름을 걷어 내고 남은 원문. 비어 있으면 원문 자격 증명이 없다.
+
+    예: ``"Bearer ${NERV_TOKEN}"`` → ``""`` · ``"Bearer abc"`` → ``"abc"`` ·
+    ``"${NERV_TOKEN:-abc}"`` → ``"abc"``(기본값은 원문이다).
+    """
     defaults: list[str] = []
 
     def _drop(match: re.Match[str]) -> str:
@@ -94,7 +119,7 @@ def literal_credentials(mcp_path: Path) -> list[str] | None:
             for key, value in block.items():
                 if not isinstance(value, str) or not _looks_secret(str(key)):
                     continue
-                if _literal_part(value):
+                if _literal_remainder(value):
                     found.append(f"mcpServers.{name}.{field}.{key}")
     return found
 
@@ -102,6 +127,22 @@ def literal_credentials(mcp_path: Path) -> list[str] | None:
 def _present(path: Path) -> bool:
     # 끊긴 심볼릭 링크도 "있다" 로 센다 — 그 자리를 덮어쓰지 않기 위해서다.
     return path.exists() or path.is_symlink()
+
+
+def _is_broken_symlink(path: Path) -> bool:
+    return path.is_symlink() and not path.exists()
+
+
+def _link_blocker(rel: str, src: Path) -> str | None:
+    """``src`` 를 링크하면 안 되는 이유. 링크해도 되면 None."""
+    if rel != MCP_JSON:
+        return None
+    creds = literal_credentials(src)
+    if creds is None:
+        return "JSON 으로 읽지 못해 원문 토큰이 없는지 확인할 수 없다"
+    if creds:
+        return f"원문 자격 증명이 있다({', '.join(creds)})"
+    return None
 
 
 def link(dest_root: Path, main_root: Path) -> list[str]:
@@ -119,65 +160,80 @@ def link(dest_root: Path, main_root: Path) -> list[str]:
         if _present(dst):
             lines.append(f"그대로  {rel} — 이미 있다")
             continue
-        if rel == MCP_JSON:
-            creds = literal_credentials(src)
-            if creds is None:
-                lines.append(f"건너뜀  {rel} — JSON 으로 읽지 못해 원문 토큰이 없는지 확인할 수 없다")
-                continue
-            if creds:
-                lines.append(
-                    f"건너뜀  {rel} — 원문 자격 증명이 있다({', '.join(creds)}). "
-                    "`${NERV_TOKEN}` 같은 참조로 바꾼 뒤 다시 링크한다"
-                )
-                continue
-        dst.parent.mkdir(parents=True, exist_ok=True)
-        os.symlink(src, dst)
+        blocker = _link_blocker(rel, src)
+        if blocker:
+            lines.append(f"건너뜀  {rel} — {blocker}. {_REMEDIATION}")
+            continue
+        # 확인과 생성 사이에 다른 세션이 같은 자리를 만들 수 있다. 한 항목의 실패가
+        # 나머지 항목과 이미 모은 결과 줄을 없애지 않도록 항목마다 잡는다.
+        try:
+            dst.parent.mkdir(parents=True, exist_ok=True)
+            os.symlink(src, dst)
+        except OSError as exc:
+            lines.append(f"실패    {rel} — {exc.strerror or exc.__class__.__name__}")
+            continue
         lines.append(f"링크    {rel} -> {src}")
     return lines
+
+
+def _credential_warnings(session_root: Path, main_root: Path) -> list[str]:
+    warnings: list[str] = []
+    main_mcp = main_root / MCP_JSON
+    if main_mcp.is_file():
+        blocker = _link_blocker(MCP_JSON, main_mcp)
+        if blocker:
+            warnings.append(
+                f"{main_mcp}: {blocker}. {_REMEDIATION}. 그전까지 새 워크트리에는 이 파일을 "
+                "링크하지 않는다."
+            )
+    # 워크트리가 링크가 아닌 자기 사본을 갖고 있으면 그 파일도 본다.
+    own_mcp = session_root / MCP_JSON
+    if own_mcp.is_file() and not own_mcp.is_symlink():
+        creds = literal_credentials(own_mcp)
+        if creds:
+            warnings.append(f"{own_mcp}: 원문 자격 증명이 있다({', '.join(creds)}). {_REMEDIATION}.")
+    return warnings
+
+
+def _link_warnings(session_root: Path, main_root: Path) -> list[str]:
+    warnings: list[str] = []
+    missing = [
+        rel for rel in LOCAL_CONFIG_PATHS
+        if _present(main_root / rel) and not _present(session_root / rel)
+    ]
+    # 링크할 수 없는 자리에 "링크하라" 고 안내하지 않는다. 그 이유는 원문 경고가 이미 말한다.
+    linkable = [rel for rel in missing if _link_blocker(rel, main_root / rel) is None]
+    blocked = [rel for rel in missing if rel not in linkable]
+    if linkable:
+        warnings.append(
+            "이 워크트리에 main checkout 의 로컬 설정이 없다: " + ", ".join(linkable)
+            + ". 이 세션에는 NERV MCP 나 NERV_* env 가 없을 수 있다. 워크트리 안에서 "
+            "`python3 .claude/tools/local_config.py link` 로 링크를 걸고 Claude Code 를 "
+            "다시 띄운다."
+        )
+    if blocked:
+        warnings.append(
+            "이 워크트리에 " + ", ".join(blocked) + " 도 없다. 위 원문 자격 증명 경고를 "
+            "해결하면 `local_config.py link` 로 링크된다."
+        )
+    broken = [rel for rel in LOCAL_CONFIG_PATHS if _is_broken_symlink(session_root / rel)]
+    if broken:
+        warnings.append(
+            "이 워크트리의 로컬 설정 링크가 끊겼다: " + ", ".join(broken)
+            + ". main checkout 에서 원본이 사라졌다."
+        )
+    return warnings
 
 
 def check(session_root: Path, main_root: Path) -> list[str]:
     """세션 루트에 빠진 설정과 원문 토큰을 경고 줄로 돌려준다. 문제가 없으면 빈 목록."""
     session_root = Path(session_root)
     main_root = Path(main_root)
-    warnings: list[str] = []
-
-    main_mcp = main_root / MCP_JSON
-    if main_mcp.is_file():
-        creds = literal_credentials(main_mcp)
-        if creds is None:
-            warnings.append(
-                f"{main_mcp} 를 JSON 으로 읽지 못한다 — 새 워크트리에 링크하지 않는다."
-            )
-        elif creds:
-            warnings.append(
-                f"{main_mcp} 에 자격 증명 원문이 있다({', '.join(creds)}). "
-                "`Bearer ${NERV_TOKEN}` 같은 참조로 바꾸고 값은 `.claude/settings.local.json` 의 "
-                "`env` 에 둔다. gitignore 대상 로컬 설정이라 사람이 승인하고 바꾼다. "
-                "그전까지 새 워크트리에는 이 파일을 링크하지 않는다."
-            )
-
+    warnings = _credential_warnings(session_root, main_root)
+    # main checkout 세션은 링크 대상이 아니다. main 의 자리가 비었거나 끊긴 것은
+    # 플러그인의 `nerv-init --check` 가 말한다.
     if os.path.realpath(session_root) != os.path.realpath(main_root):
-        missing = [
-            rel for rel in LOCAL_CONFIG_PATHS
-            if _present(main_root / rel) and not _present(session_root / rel)
-        ]
-        broken = [
-            rel for rel in LOCAL_CONFIG_PATHS
-            if (session_root / rel).is_symlink() and not (session_root / rel).exists()
-        ]
-        if missing:
-            warnings.append(
-                "이 워크트리에 main checkout 의 로컬 설정이 없다: " + ", ".join(missing)
-                + ". 이 세션에는 NERV MCP 나 NERV_* env 가 없을 수 있다. 워크트리 안에서 "
-                "`python3 .claude/tools/local_config.py link` 로 링크를 걸고 Claude Code 를 "
-                "다시 띄운다."
-            )
-        if broken:
-            warnings.append(
-                "이 워크트리의 로컬 설정 링크가 끊겼다: " + ", ".join(broken)
-                + ". main checkout 에서 원본이 사라졌다."
-            )
+        warnings.extend(_link_warnings(session_root, main_root))
     return warnings
 
 
@@ -208,15 +264,14 @@ def main(argv: list[str] | None = None) -> int:
         root = args.root or Path(_git(cwd, "rev-parse", "--show-toplevel"))
         main_root = args.main or _main_root(root)
     except (OSError, subprocess.CalledProcessError):
-        print("local_config: git 저장소가 아니다 — 건너뛴다", file=sys.stderr)
+        # 저장소 밖이거나 `--path-format` 을 모르는 옛 git(2.31 미만)이다.
+        print("local_config: git 정보를 얻지 못했다 — 건너뛴다", file=sys.stderr)
+        # check 는 세션 시작을 막지 않는다. link 는 호출자가 실패를 알 수 있게 2 로 끝낸다.
         return 0 if args.command == "check" else 2
 
-    if args.command == "link":
-        for line in link(root, main_root):
-            print(line)
-        return 0
-    for line in check(root, main_root):
-        print(f"bootstrap: {line}")
+    lines = link(root, main_root) if args.command == "link" else check(root, main_root)
+    for line in lines:
+        print(line)
     return 0
 
 

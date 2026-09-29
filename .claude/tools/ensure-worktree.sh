@@ -52,13 +52,14 @@ if ! [[ "$TASK" =~ ^[a-z0-9][a-z0-9-]*$ ]]; then
   exit 2
 fi
 
-# Are we already inside a worktree under .claude/worktrees/?
 # Resolved now, before the `cd "$REPO_ROOT"` below: BASH_SOURCE may be a path
 # relative to the caller's cwd (e.g. `../.claude/tools/ensure-worktree.sh`).
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # Link the main checkout's gitignored local config into a worktree. Fails
-# open: a missing python3 or helper only costs the links, never the worktree.
+# open: a missing python3, a missing helper or a crashing helper only costs the
+# links, never the worktree — `set -e` would otherwise abort before the final
+# `cd` line the caller copies (pinned by test_local_config.py).
 link_local_config() {
   local dest="$1" helper
   helper="$SCRIPT_DIR/local_config.py"
@@ -67,6 +68,7 @@ link_local_config() {
   fi
 }
 
+# Are we already inside a worktree under .claude/worktrees/?
 case "$PWD" in
   */.claude/worktrees/*)
     echo "Already inside a worktree: $PWD"

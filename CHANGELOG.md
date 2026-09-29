@@ -34,6 +34,9 @@ NERV 연동 설정(`.mcp.json` · `.claude/settings.local.json` · `.nerv/`)은 
 - **자격 증명 원문이 든 `.mcp.json` 은 링크하지 않는다.** `${NERV_TOKEN}` 같은 참조로 바꾼 뒤에 링크한다. 판정은 값이 아니라 위치만
   출력한다.
 - 세션 시작 때(`bootstrap-session.sh`) 빠진 자리 · 끊긴 링크 · `.mcp.json` 의 원문 토큰을 경고한다.
+  이미 만든 워크트리는 그 안에서 `python3 .claude/tools/local_config.py link` 를 돌리고 Claude Code 를 다시 띄우면 붙는다.
+- 링크라서 세 자리는 main 의 원본 하나를 함께 쓴다. 워크트리 세션에서 허용한 권한 · env 변경도 모든 워크트리에 퍼진다.
+- `harness-checks` 가 `.gitignore` 만 고친 PR 에서도 돈다(위 링크 무시 판정의 입력이다).
 - `.gitignore` 의 `.nerv/` 를 `.nerv` 로 바꾸고 `.claude/settings.local.json` 을 더했다. 끝 슬래시 패턴은 디렉터리에만 맞아 `.nerv`
   링크를 놓쳤고, `settings.local.json` 은 개인 전역 ignore 에만 있었다. 그대로 두면 `git add -A` 가 링크를 커밋하고 머지된 워크트리
   정리(reaper)가 그 워크트리를 dirty 로 보고 건너뛴다.
