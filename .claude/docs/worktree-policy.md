@@ -36,7 +36,7 @@
 # 출력 마지막 줄의 `cd ...` 를 그대로 실행
 ```
 
-이미 worktree 안이면 no-op. branch guard hook 의 차단 메시지가 가리키는 canonical 명령.
+새 worktree 를 만든 직후 main checkout 의 로컬 설정을 링크로 건다(§8). 이미 worktree 안이면 새로 만들지 않고, 빠진 로컬 설정 링크만 채운다. branch guard hook 의 차단 메시지가 가리키는 canonical 명령.
 
 **② `EnterWorktree` tool (백그라운드 세션)**
 
@@ -55,6 +55,8 @@ TASK=<task>; SLUG=$(openssl rand -hex 3)
 git worktree add ".claude/worktrees/${TASK}-${SLUG}" -b "claude/${TASK}-${SLUG}"
 cd ".claude/worktrees/${TASK}-${SLUG}"
 ```
+
+②·③ 은 로컬 설정 링크를 걸지 않는다. 그 worktree 에서 **새로 띄운** 세션에는 `bootstrap-session.sh` 가 빠진 자리를 경고한다(§8). `EnterWorktree` 로 옮겨 간 세션은 main checkout 에서 뜬 설정을 그대로 쓰므로 영향이 없다.
 
 ## 5. Enforcement (자동 차단 4-layer)
 
@@ -119,8 +121,36 @@ PR 이 merge 되면 그 worktree·local branch 는 더 이상 필요 없다. 정
   - **셸 cwd** (`git rev-parse --show-toplevel`).
   - **세션 앵커** — `bootstrap-session.sh` 가 `--keep` 으로 전달하는 `$CLAUDE_PROJECT_DIR`. 모든 훅이 `$CLAUDE_PROJECT_DIR/.claude/hooks/*.py` 로 실행되므로 앵커를 reap 하면 **세션이 wedge 된다** (Bash·Write·Edit 전부 훅 로드 실패 → 자력 복구 불가). 평소엔 cwd == 앵커라 앵커가 우연히 보호되지만 `EnterWorktree` 이후 둘이 갈라지고, 그때 cwd skip 은 엉뚱한 쪽을 지킨다. 앵커는 `BASH_SOURCE` 로 유도한다 — `git rev-parse` 는 cwd 기반이라 같은 오답을 낸다.
   - **한계**: 자기 세션의 앵커만 알 수 있다. 동시에 열린 다른 세션이 앵커로 쓰는 worktree 의 PR 이 merge 되면 그 세션은 여전히 죽는다("살아있는 세션 앵커 레지스트리" 가 필요해 과하다고 판단 — 하네스의 worktree recycle 로 복구되는 것이 관측됨).
-- **dirty worktree 보존**(in-flight 작업 안전).
+- **dirty worktree 보존**(in-flight 작업 안전). 판정은 `git status --porcelain` 이다. 그래서 §8 의 로컬 설정 링크는 반드시 `.gitignore` 에 잡혀야 한다. 잡히지 않으면 링크가 untracked 로 보여 그 worktree 는 영영 정리되지 않는다.
 - **fail-safe** — `gh` 없음/미인증/오류면 worktree 제거를 건너뛴다(조상-merge dangling 의 `-d` 만 수행). 증명 못 한 merge 는 그대로 두고 수동 `cleanup-worktree.sh` 로 처리.
 - **throttle** — 세션 시작마다의 `gh` 비용을 묶기 위해 실제 실행은 `REAP_MIN_INTERVAL`(기본 6h)당 1회. `--force` 는 throttle 무시, `--dry-run` 은 read-only 라 항상 실행. 한 번 실행될 때의 `gh` 왕복 수는 위 **배치 조회**(`REAP_GH_PR_LIMIT`, 기본 200)가 1회로 묶는다.
 
 활성화: `.claude/settings.json` 의 SessionStart(`bootstrap-session.sh`) 등록만으로 자동.
+
+## 8. 로컬 설정 전파
+
+> 시행 시점: 짝 하네스 PR `#1427`(`local_config.py` 도입, NERV Task `CLE-T-0EZEYF`) 머지.
+
+NERV 연동 설정 세 자리는 gitignore 대상이라 `git worktree add` 가 옮기지 않는다. 옮기지 않으면 worktree 에서 새로 띄운 세션에 NERV MCP · 플러그인 훅의 `NERV_*` env · 오프라인 큐가 없다. 플러그인의 `nerv-init --check` 는 NERV 흔적이 전혀 없으면 아무 말도 하지 않도록 짜여 있어 이 상태를 알리지 않는다.
+
+| 자리 | 담는 것 |
+|---|---|
+| `.mcp.json` | NERV MCP 접속(서버 주소 · 인증 헤더) |
+| `.claude/settings.local.json` | `NERV_SERVER` · `NERV_PROJECT` · `NERV_TOKEN` env, 개인 권한 허용 목록 |
+| `.nerv/` | 플러그인 캐시 · 오프라인 큐(`outbox`) |
+
+**규칙** — 판정·실행은 `.claude/tools/local_config.py` 한 곳에서 한다.
+
+- **링크로 건다.** worktree 의 세 자리는 main checkout 의 원본을 가리키는 심볼릭 링크다. 사본을 두지 않으므로 토큰을 바꾸면 모든 worktree 에 바로 반영된다.
+- **덮어쓰지 않는다.** 이미 있는 파일 · 디렉터리 · 끊긴 링크는 그대로 둔다. 사람이 일부러 둔 로컬 사본일 수 있다.
+- **자격 증명 원문이 든 `.mcp.json` 은 링크하지 않는다.** 원문 토큰을 worktree 로 퍼뜨리면 노출면이 넓어진다. `Bearer ${NERV_TOKEN}` 같은 참조로 바꾸고 값은 `.claude/settings.local.json` 의 `env` 에 둔다. 이 파일은 gitignore 대상 로컬 설정이라 사람이 승인하고 바꾼다. 판정은 값 대신 위치만 출력한다. 읽지 못하는 JSON 도 링크하지 않는다.
+- **`.gitignore` 가 링크를 잡아야 한다.** 패턴은 `.nerv`(끝 슬래시 없이)와 `.claude/settings.local.json` 이다. 끝 슬래시 패턴 `.nerv/` 는 디렉터리에만 맞아 `.nerv` 링크를 놓친다. 링크가 잡히지 않으면 `git add -A` 가 링크를 커밋하고 §7 reaper 가 그 worktree 를 dirty 로 본다.
+
+| 시점 | 호출 | 동작 |
+|---|---|---|
+| worktree 생성 | `ensure-worktree.sh` → `local_config.py link` | 세 자리를 링크한다 |
+| worktree 안에서 `ensure-worktree.sh` | 같음 | 빠진 링크만 채운다 |
+| 수동 | `python3 .claude/tools/local_config.py link` | 현재 worktree 에 링크한다 |
+| SessionStart | `bootstrap-session.sh` → `local_config.py check` | 세션 앵커 기준으로 빠진 자리 · 끊긴 링크 · `.mcp.json` 원문 토큰을 경고한다 |
+
+링크를 새로 건 세션은 Claude Code 를 다시 띄워야 MCP 가 붙는다. MCP 설정은 세션 시작 때 읽힌다. 계약은 `.claude/tests/test_local_config.py` 가 고정한다.
