@@ -68,6 +68,9 @@ jobs:
         # 범위를 바꾼 PR 에서 정작 그걸 지키는 가드가 안 돈다 — 위 .githooks/** · .claude/_shared/**
         # 와 동일한 실패 클래스.
         .github/dependabot.yml
+        # test_local_config.py 가 이 파일로 "워크트리에 건 로컬 설정 링크가 git 에 잡히지
+        # 않는다" 를 판정한다. `.nerv/` 처럼 끝 슬래시를 되돌리는 PR 은 이 파일만 고친다.
+        .gitignore
         # 워크플로 디렉토리 전체 — 세 가드가 여기에 걸린다.
         #   (a) test_e2e_exemption_paths_sync.py — e2e.yml 의 paths-ignore 를 PROJECT.md
         #       §e2e 면제 화이트리스트와 대조한다. 등재가 없으면 **paths-ignore 를 넓히는

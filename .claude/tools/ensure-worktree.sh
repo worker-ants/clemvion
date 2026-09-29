@@ -8,9 +8,16 @@
 #
 # Effects:
 #   - If the current shell is already inside .claude/worktrees/<...>/,
-#     prints a notice and exits 0 without creating anything.
+#     prints a notice, links any missing local config (below) into that
+#     worktree, and exits 0 without creating anything.
 #   - Otherwise creates the worktree and prints the `cd` command on
 #     the last line of stdout so the caller can copy-paste it.
+#   - Either way, links the main checkout's gitignored local config —
+#     `.mcp.json`, `.claude/settings.local.json`, `.nerv/` — into the
+#     worktree as symlinks (`local_config.py link`). Without them a session
+#     started in the worktree has no NERV MCP, no NERV_* env and no outbox.
+#     Existing files are never overwritten, and a `.mcp.json` that still
+#     carries a literal credential is NOT linked (see local_config.py).
 #
 # The script CANNOT change the caller's CWD (subprocess limitation).
 # The caller must run the printed `cd` command to enter the worktree.
@@ -46,10 +53,27 @@ if ! [[ "$TASK" =~ ^[a-z0-9][a-z0-9-]*$ ]]; then
 fi
 
 # Are we already inside a worktree under .claude/worktrees/?
+# Resolved now, before the `cd "$REPO_ROOT"` below: BASH_SOURCE may be a path
+# relative to the caller's cwd (e.g. `../.claude/tools/ensure-worktree.sh`).
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# Link the main checkout's gitignored local config into a worktree. Fails
+# open: a missing python3 or helper only costs the links, never the worktree.
+link_local_config() {
+  local dest="$1" helper
+  helper="$SCRIPT_DIR/local_config.py"
+  if [[ -f "$helper" ]] && command -v python3 >/dev/null 2>&1; then
+    python3 "$helper" link --root "$dest" || true
+  fi
+}
+
 case "$PWD" in
   */.claude/worktrees/*)
     echo "Already inside a worktree: $PWD"
     echo "No new worktree created."
+    if WT_TOP="$(git rev-parse --show-toplevel 2>/dev/null)"; then
+      link_local_config "$WT_TOP"
+    fi
     exit 0
     ;;
 esac
@@ -93,6 +117,7 @@ git worktree add "$WT_DIR" -b "$BRANCH" "$BASE_REF" >/dev/null
 echo "Created worktree: $REPO_ROOT/$WT_DIR"
 echo "On branch:       $BRANCH"
 echo "Based on:        $BASE_REF"
+link_local_config "$REPO_ROOT/$WT_DIR"
 echo ""
 echo "Next step — run this in the same shell:"
 echo "  cd $REPO_ROOT/$WT_DIR"

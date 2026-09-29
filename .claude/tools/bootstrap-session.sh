@@ -6,7 +6,7 @@
 # safe to run on every session start. Always exits 0 — bootstrap must never
 # block a session.
 #
-# Four responsibilities:
+# Five responsibilities:
 #   1. Point git at .githooks so the version-controlled pre-commit hooks
 #      (branch guard + mermaid lint) actually run. This replaces the
 #      easy-to-forget `scripts/setup-githooks.sh` step.
@@ -16,6 +16,9 @@
 #   3. Garbage-collect stale guard state markers (>30 days) so .claude/state/
 #      does not grow unbounded.
 #   4. Reap worktrees / local branches whose PR has merged (see section 4).
+#   5. Warn when this session's checkout lacks the main checkout's gitignored
+#      local config (NERV MCP · NERV_* env · outbox), or when `.mcp.json`
+#      carries a literal credential (see section 5).
 
 set -u
 
@@ -202,6 +205,20 @@ anchor=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." 2>/dev/null && pwd -P) || anc
 reaper="$main_root/.claude/tools/reap-merged-worktrees.sh"
 if [ -f "$reaper" ]; then
     bash "$reaper" ${anchor:+--keep "$anchor"} || true
+fi
+
+# 5. Local config propagation check. `.mcp.json`, `.claude/settings.local.json`
+#    and `.nerv/` are gitignored, so `git worktree add` does not carry them, and
+#    a session started in such a worktree has no NERV MCP and no NERV_* env.
+#    The NERV plugin's own `nerv-init --check` stays silent exactly then — it is
+#    built to say nothing when it finds NO trace of NERV, and a bare worktree
+#    has none. `ensure-worktree.sh` links them; this catches worktrees made any
+#    other way. Uses the ANCHOR (this session's checkout), not the cwd, for the
+#    same reason as section 4. Output goes to stdout so the session sees it;
+#    the helper never prints a credential value. Fails open like everything here.
+helper="$(dirname "${BASH_SOURCE[0]}")/local_config.py"
+if [ -n "$anchor" ] && [ -f "$helper" ] && command -v python3 >/dev/null 2>&1; then
+    python3 "$helper" check --root "$anchor" --main "$main_root" 2>/dev/null || true
 fi
 
 exit 0

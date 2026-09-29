@@ -23,6 +23,21 @@
 > 07 37% · 08 30% · 09(25일까지) 49% 였다(나중 PR 의 백필은 세지 않았다). 여기 없다고 그 변경이 없었던 것은 아니다 —
 > `git log` 가 정본이다.
 
+## Unreleased — 하네스: 워크트리 세션에도 NERV 설정이 붙는다
+
+NERV 연동 설정(`.mcp.json` · `.claude/settings.local.json` · `.nerv/`)은 gitignore 대상이라 `git worktree add` 가 옮기지 않았다.
+그래서 워크트리에서 띄운 세션에는 NERV MCP 와 `NERV_*` env 가 없었다. 플러그인의 설정 점검은 NERV 흔적이 하나도 없으면 아무 말도
+하지 않도록 짜여 있어 이 상태를 알리지도 않았다.
+
+- `ensure-worktree.sh` 가 새 워크트리에 세 자리를 main checkout 을 가리키는 심볼릭 링크로 건다. 이미 있는 파일은 덮지 않는다.
+  워크트리 안에서 부르면 빠진 링크만 채운다.
+- **자격 증명 원문이 든 `.mcp.json` 은 링크하지 않는다.** `${NERV_TOKEN}` 같은 참조로 바꾼 뒤에 링크한다. 판정은 값이 아니라 위치만
+  출력한다.
+- 세션 시작 때(`bootstrap-session.sh`) 빠진 자리 · 끊긴 링크 · `.mcp.json` 의 원문 토큰을 경고한다.
+- `.gitignore` 의 `.nerv/` 를 `.nerv` 로 바꾸고 `.claude/settings.local.json` 을 더했다. 끝 슬래시 패턴은 디렉터리에만 맞아 `.nerv`
+  링크를 놓쳤고, `settings.local.json` 은 개인 전역 ignore 에만 있었다. 그대로 두면 `git add -A` 가 링크를 커밋하고 머지된 워크트리
+  정리(reaper)가 그 워크트리를 dirty 로 보고 건너뛴다.
+
 ## Unreleased — 요청이 다른 워크스페이스의 워크플로 · 폴더 · 노드를 가리키면 400 이다 (트리거로 남의 워크플로가 실행되던 결함)
 
 쓰기 요청 본문에 **다른 워크스페이스**(구조 참조는 **다른 워크플로**)의 행 id 를 넣어도 그대로 저장됐다. 이제 저장 전에 거부한다 —
