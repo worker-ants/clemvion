@@ -143,7 +143,8 @@ NERV 연동 설정 세 자리는 gitignore 대상이라 `git worktree add` 가 �
 
 - **링크로 건다.** worktree 의 세 자리는 main checkout 의 원본을 가리키는 심볼릭 링크다. 사본을 두지 않으므로 토큰을 바꾸면 모든 worktree 에 바로 반영된다.
 - **덮어쓰지 않는다.** 이미 있는 파일 · 디렉터리 · 끊긴 링크는 그대로 둔다. 사람이 일부러 둔 로컬 사본일 수 있다.
-- **자격 증명 원문이 든 `.mcp.json` 은 링크하지 않는다.** 원문 토큰을 worktree 로 퍼뜨리면 노출면이 넓어진다. `Bearer ${NERV_TOKEN}` 같은 참조로 바꾸고 값은 `.claude/settings.local.json` 의 `env` 에 둔다. 이 파일은 gitignore 대상 로컬 설정이라 사람이 승인하고 바꾼다. 판정은 값 대신 위치만 출력한다. 읽지 못하는 JSON 도 링크하지 않는다.
+- **자격 증명 원문이 든 `.mcp.json` 은 링크하지 않는다.** 원문 토큰을 worktree 로 퍼뜨리면 노출면이 넓어진다. 토큰 값은 `.claude/settings.local.json` 의 `env.NERV_TOKEN` 에 두고, `.mcp.json` 은 `Authorization` 헤더 대신 `headersHelper`(연결할 때 그 값을 읽어 헤더 JSON 을 출력하는 명령)를 쓴다. 이 파일은 gitignore 대상 로컬 설정이라 사람이 승인하고 바꾼다. 판정은 값 대신 위치만 출력한다. 읽지 못하는 JSON 도 링크하지 않는다.
+- **`${NERV_TOKEN}` 참조형은 쓰지 않는다.** `"Authorization": "Bearer ${NERV_TOKEN}"` 는 원문이 아니라 판정은 통과하지만 붙지 않는다. `settings.local.json` 의 `env` 가 `.mcp.json` 확장에 쓰이지 않기 때문이다. 실측(2026-09-29, Claude Code 2.1.284, `claude mcp get nerv`): 참조형은 연결 실패, `headersHelper` 는 연결 성공, 틀린 토큰을 내는 헬퍼는 401 로 실패했다. NERV 플러그인 `nerv-init` 템플릿은 참조형이라 그대로 쓰면 안 된다.
 - **`.gitignore` 가 링크를 잡아야 한다.** 패턴은 `.nerv`(끝 슬래시 없이)와 `.claude/settings.local.json` 이다. 끝 슬래시 패턴 `.nerv/` 는 디렉터리에만 맞아 `.nerv` 링크를 놓친다. 링크가 잡히지 않으면 `git add -A` 가 링크를 커밋하고 §7 reaper 가 그 worktree 를 dirty 로 본다.
 
 | 시점 | 호출 | 동작 |
