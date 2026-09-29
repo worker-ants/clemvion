@@ -260,6 +260,7 @@ class WorkflowStructureTest(unittest.TestCase):
         ("packages-checks.yml", "packages"): "${{ !cancelled() }}",
         ("repo-guards.yml", "mirror-guard"): "${{ !cancelled() }}",
         ("spec-link-checks.yml", "spec-link-integrity"): "${{ !cancelled() }}",
+        ("spec-link-checks.yml", "spec-mirror-integrity"): "${{ !cancelled() }}",
         ("web-chat-checks.yml", "sdk"): "${{ !cancelled() }}",
         ("web-chat-checks.yml", "sdk-client"): "${{ !cancelled() }}",
         ("web-chat-checks.yml", "widget"): "${{ !cancelled() }}",

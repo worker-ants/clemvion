@@ -23,6 +23,20 @@
 > 07 37% · 08 30% · 09(25일까지) 49% 였다(나중 PR 의 백필은 세지 않았다). 여기 없다고 그 변경이 없었던 것은 아니다 —
 > `git log` 가 정본이다.
 
+## Unreleased — 하네스: 스펙의 정본이 NERV 로 옮겨 가고 `spec/` 은 읽기 전용 미러가 된다
+
+이 변경부터 스펙은 NERV 에서만 고친다. 저장소 `spec/` 에는 NERV 스펙의 사본이 `spec/<영역 키>/<KEY>.md` 로 들어간다
+(첫 미러 169편, 카탈로그 영역 `CLE-C24` · `CLE-MKS` 는 제외). 옛 `spec/<영역>/` 트리는 그대로 두되 동결한다.
+
+- **미러 도구** `.claude/tools/nerv-mirror/pull.py`: `--all` 은 NERV 전체 내보내기로, `--task <CLE-T-…>` 는 클레임한 스펙을 작업
+  기준 버전으로 받는다(ETag 가 같으면 건너뜀). 링크는 미러 파일 사이 상대 경로로 바꾸고, frontmatter 에 옛 경로(`source_paths`) ·
+  본문 지문(`mirror_sha256`) · `etag` 를 더한다.
+- **편집 가드(신설)** `.claude/hooks/guard_nerv_owned_paths.py`: Write · Edit 로 `spec/` 을 고치려 하면 막는다(main 과 워크트리
+  모두). 스펙은 `/nerv:spec edit` 으로 안내한다. `review/` 는 리뷰 전환(단계 2), `plan/` 은 plan 제거(단계 3)에서 더한다.
+- **CI 가드(신설)** `spec-link-checks` 의 `spec-mirror-integrity` 잡: 셸 · 손 편집을 잡는다. 미러 파일마다 본문 지문과 위치를 본다.
+- 옛 트리 가드(`spec-link-integrity` scope 1 · `spec-area-index`)와 consistency 오케스트레이터 코퍼스는 미러를 대상에서 뺀다.
+  미러가 옛 트리 규칙(영역 목차 · 슬러그 앵커)을 따르지 않아서다. 미러 넣기 전 실측: docs 가드 49건 RED, 번들 순서 단언 RED.
+
 ## Unreleased — 하네스: 워크트리 세션에도 NERV 설정이 붙는다
 
 NERV 연동 설정(`.mcp.json` · `.claude/settings.local.json` · `.nerv/`)은 gitignore 대상이라 `git worktree add` 가 옮기지 않았다.

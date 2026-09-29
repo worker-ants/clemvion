@@ -10,6 +10,7 @@ import {
   findBrokenGovernanceLinks,
   findBrokenLinks,
   findBrokenSpecLinksInSources,
+  inNervMirror,
   slugify,
   type LinkViolation,
 } from "./spec-links";
@@ -18,7 +19,9 @@ import {
 //   - DEAD: the relative `[..](path)` target file does not exist.
 //   - ANCHOR: the `#fragment` does not match any heading slug in the target.
 // Two scopes:
-//   1. All `spec/**.md` narrative docs (EXCEPT generated `*-api-catalog/`).
+//   1. All `spec/**.md` narrative docs (EXCEPT generated `*-api-catalog/` and the
+//      NERV mirror `spec/CLE-*` · `spec/README.md` — NERV owns those, `pull.py --check`
+//      guards their integrity).
 //   2. Codebase `.ts`/`.tsx` sources under `codebase/{backend,frontend,
 //      channel-web-chat,packages}` — but only for links that target a
 //      `spec/**.md` file (JSDoc spec cross-refs, whose hand-counted `../`
@@ -71,6 +74,29 @@ describe("spec-link-integrity guard", () => {
     ).toBe(true);
     // …yet none of them may appear in scope.
     expect(files.every((f) => !f.relPath.includes("-api-catalog/"))).toBe(true);
+  });
+
+  it("excludes the NERV spec mirror from scope", () => {
+    const files = collectSpecMarkdown(root);
+    // 제외가 공허하지 않도록 미러가 실제로 있어야 한다.
+    expect(
+      fs.existsSync(path.join(root, "spec", "CLE-VISION.md")),
+      "expected the NERV mirror (spec/CLE-VISION.md) to exist so the exclusion is meaningful",
+    ).toBe(true);
+    expect(files.filter((f) => /^spec\/(README\.md|CLE-)/.test(f.relPath))).toEqual([]);
+    // 옛 트리는 그대로 대상이다.
+    expect(files.some((f) => f.relPath === "spec/5-system/1-auth.md")).toBe(true);
+  });
+
+  it("inNervMirror matches only mirror paths", () => {
+    for (const p of ["spec/README.md", "spec/CLE-VISION.md", "spec/CLE-ACCT/CLE-ACCT-SESSION.md",
+      "spec/CLE-NODE-AI/CLE-NODE-AI.md"]) {
+      expect(inNervMirror(p), p).toBe(true);
+    }
+    for (const p of ["spec/0-overview.md", "spec/5-system/1-auth.md",
+      "spec/conventions/README.md", "spec/5-system/CLE-x.md", "plan/CLE-VISION.md"]) {
+      expect(inNervMirror(p), p).toBe(false);
+    }
   });
 
   // Scans the whole in-repo spec set synchronously. It completes in ~2-3s

@@ -116,3 +116,25 @@ jobs:
       - name: docs guards (src/lib/docs/__tests__ 전체)
         if: needs.changes.outputs.relevant != 'false'
         run: pnpm --filter frontend test src/lib/docs/__tests__/
+
+  # NERV 스펙 미러 무결성 (NERV 정본 전환 단계 1). `spec/CLE-*` 는 NERV 스펙의 사본이라 손으로
+  # 고치지 않는다. 도구 편집은 `.claude/hooks/guard_nerv_owned_paths.py` 가 막고, 그 훅이 보지
+  # 못하는 셸 편집과 사람의 손 편집은 여기서 잡는다. `pull.py --check` 는 파일마다 본문 지문이
+  # frontmatter 의 `mirror_sha256` 과 같은지, 위치가 `id` · `area` 와 맞는지 본다. 네트워크와
+  # 토큰 없이 돌고 표준 라이브러리만 쓴다. 위 docs 가드는 미러를 대상에서 뺀다(`inNervMirror`).
+  spec-mirror-integrity:
+    needs: changes
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: 무관한 변경 — 검사 생략 (체크는 통과로 보고)
+        if: needs.changes.outputs.relevant == 'false'
+        run: echo "spec · .claude 경로 변경 없음 — 이 잡은 no-op 으로 통과한다."
+
+      - uses: actions/checkout@v7
+        if: needs.changes.outputs.relevant != 'false'
+
+      - name: spec mirror integrity (pull.py --check)
+        if: needs.changes.outputs.relevant != 'false'
+        run: python3 .claude/tools/nerv-mirror/pull.py --check
