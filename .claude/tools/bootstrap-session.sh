@@ -6,7 +6,7 @@
 # safe to run on every session start. Always exits 0 — bootstrap must never
 # block a session.
 #
-# Four responsibilities:
+# Five responsibilities:
 #   1. Point git at .githooks so the version-controlled pre-commit hooks
 #      (branch guard + mermaid lint) actually run. This replaces the
 #      easy-to-forget `scripts/setup-githooks.sh` step.
@@ -16,6 +16,9 @@
 #   3. Garbage-collect stale guard state markers (>30 days) so .claude/state/
 #      does not grow unbounded.
 #   4. Reap worktrees / local branches whose PR has merged (see section 4).
+#   5. Warn when this session's checkout lacks the main checkout's gitignored
+#      local config (NERV MCP · NERV_* env · outbox), or when `.mcp.json`
+#      carries a literal credential (see section 5).
 
 set -u
 
@@ -27,7 +30,7 @@ set -u
 # Every other skip in this file explains itself; this one is the first thing
 # that runs, so its silence hid the most (harness-guard-followups §A W1).
 if ! common=$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null); then
-    echo "bootstrap: not a git checkout — skipped (githooks, mermaid deps, reap)" >&2
+    echo "bootstrap: not a git checkout — skipped (githooks, mermaid deps, reap, local config)" >&2
     exit 0
 fi
 main_root=$(dirname "$common")
@@ -202,6 +205,29 @@ anchor=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." 2>/dev/null && pwd -P) || anc
 reaper="$main_root/.claude/tools/reap-merged-worktrees.sh"
 if [ -f "$reaper" ]; then
     bash "$reaper" ${anchor:+--keep "$anchor"} || true
+fi
+
+# 5. Local config propagation check. `.mcp.json`, `.claude/settings.local.json`
+#    and `.nerv/` are gitignored, so `git worktree add` does not carry them, and
+#    a session started in such a worktree has no NERV MCP and no NERV_* env.
+#    The NERV plugin's own `nerv-init --check` stays silent exactly then — it is
+#    built to say nothing when it finds NO trace of NERV, and a bare worktree
+#    has none. `ensure-worktree.sh` links them; this catches worktrees made any
+#    other way. Uses the ANCHOR (this session's checkout), not the cwd, for the
+#    same reason as section 4 — `anchor` is computed there, so moving or
+#    guarding section 4 must keep it defined here. Warnings go to stdout so the
+#    session sees them; the helper never prints a credential value. Fails open
+#    like everything here, but a crashed check says so on stderr instead of
+#    silently disabling the very warning this section exists for.
+local_config_helper="${anchor:+$anchor/.claude/tools/local_config.py}"
+if [ -n "$local_config_helper" ] && [ -f "$local_config_helper" ] \
+    && command -v python3 >/dev/null 2>&1; then
+    if local_config_out=$(python3 "$local_config_helper" check \
+            --root "$anchor" --main "$main_root" 2>/dev/null); then
+        [ -n "$local_config_out" ] && printf '%s\n' "$local_config_out" | sed 's/^/bootstrap: /'
+    else
+        echo "bootstrap: local config check failed — NERV local config warnings skipped" >&2
+    fi
 fi
 
 exit 0

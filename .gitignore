@@ -42,5 +42,10 @@ codebase/packages/sdk/package-lock.json
 # Cafe24 카탈로그 생성기 응답 JSON 캐시 (재fetch 가능, 미커밋)
 spec/conventions/cafe24-api-catalog/.resp-cache/
 # NERV 플러그인 — 캐시·오프라인 큐·Codex 환경 파일
-.nerv/
+# 워크트리에는 이 셋이 main checkout 을 가리키는 심볼릭 링크로 걸린다(ensure-worktree.sh).
+# 그래서 `.nerv/` 처럼 끝에 슬래시를 붙이지 않는다. 슬래시 패턴은 디렉터리에만 맞아
+# `.nerv` 링크를 놓친다(2026-09-29 실측). settings.local.json 도 사용자 전역 ignore 가
+# 아니라 여기서 무시해야 다른 머신에서 링크가 커밋되지 않는다(test_local_config.py).
+.nerv
 .mcp.json
+.claude/settings.local.json
