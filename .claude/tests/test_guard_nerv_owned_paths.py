@@ -5,18 +5,20 @@ NERV 정본 전환 단계 1부터 `spec/` 은 `pull.py` 만 쓰는 미러다(옛
 모양 그대로).
 
 고정하는 것:
-- main checkout 과 워크트리 모두 `<루트>/spec/…` 는 exit 2.
+- main checkout 과 워크트리 모두 `<루트>/spec/…` 는 exit 2. 실제 저장소에서도 그렇다(표지 파일이
+  옮겨지면 훅이 조용히 꺼지므로 실제 저장소의 표지를 따로 본다).
 - 상대 경로는 페이로드 `cwd` 기준으로 푼다. `..` 와 심볼릭 링크는 풀어서 판정한다.
   첫 경로 조각은 대소문자를 무시한다(macOS 기본 APFS 에서 `SPEC/` 은 `spec/` 과 같은 폴더).
 - 표지 파일(`.claude/tools/nerv-mirror/pull.py`)이 없는 다른 git 저장소의 `spec/` 은 막지 않는다.
 - 더 깊은 곳의 `spec` 이름(`codebase/…/spec/…`)과 저장소 밖(scratchpad)은 막지 않는다.
 - `review/` · `plan/` 은 아직 막지 않는다. 거버넌스 문서가 단계 2 · 3 전까지 그 쓰기를
   안내한다. 그 단계 PR 이 이 테스트의 기대를 바꾼다.
-- `BYPASS_NERV_OWNED_PATHS=1` 이면 통과(다른 값은 우회가 아니다). 페이로드가 비거나
-  깨지거나 객체가 아니어도 세션을 막지 않는다.
+- `BYPASS_NERV_OWNED_PATHS=1` 이면 통과(다른 값은 우회가 아니다).
+- fail-open: 모양이 틀린 페이로드(최상위 · `tool_input` · 경로 값)는 조용히 통과하고, 예상 밖
+  런타임 오류도 exit 0 이다(traceback 은 stderr 에 남긴다). exit 2 는 차단이라 오류에서 내면 안 된다.
 - `settings.json` 의 등록 명령은 훅 파일이 없는 `$CLAUDE_PROJECT_DIR` 에서 exit 0 이다.
   pull 하지 않은 main checkout 에서 python 이 "can't open file" 로 exit 2 를 내면 모든 편집이
-  막힌다(2026-10-01 이 PR 을 만들던 세션에서 실측).
+  막힌다(2026-10-01 실측, Task `CLE-T-VA4YA1` 작업 세션).
 """
 
 from __future__ import annotations
@@ -34,16 +36,27 @@ import _harness
 
 HOOK = _harness.REPO_ROOT / ".claude" / "hooks" / "guard_nerv_owned_paths.py"
 SETTINGS = _harness.REPO_ROOT / ".claude" / "settings.json"
-MARKER = Path(".claude", "tools", "nerv-mirror", "pull.py")
+hook = _harness.load_module_by_path("guard_nerv_owned_paths_under_test", HOOK)
+MARKER = hook.MARKER
+
+# 훅 모듈을 `__main__` 으로 돌리되 `json.loads` 가 예상 밖 오류를 내게 한다. 조기 반환 경로가
+# 아니라 `except Exception` 분기를 밟는 유일한 결정적 방법이다.
+RUNTIME_ERROR_PROBE = """
+import json, runpy, sys
+def boom(*a, **k):
+    raise RuntimeError("probe")
+json.loads = boom
+runpy.run_path(sys.argv[1], run_name="__main__")
+"""
 
 
 def _registered_command() -> tuple[str, str]:
     """(matcher, command) — 이 훅을 부르는 PreToolUse 등록 하나."""
     doc = json.loads(SETTINGS.read_text(encoding="utf-8"))
     wired = [
-        (entry.get("matcher", ""), hook.get("command", ""))
-        for entry in doc["hooks"]["PreToolUse"] for hook in entry.get("hooks", [])
-        if "guard_nerv_owned_paths.py" in hook.get("command", "")
+        (entry.get("matcher", ""), h.get("command", ""))
+        for entry in doc["hooks"]["PreToolUse"] for h in entry.get("hooks", [])
+        if "guard_nerv_owned_paths.py" in h.get("command", "")
     ]
     assert len(wired) == 1, wired
     return wired[0]
@@ -86,6 +99,13 @@ class GuardTest(unittest.TestCase):
                     r = self.run_hook(root / rel)
                     self.assertEqual(r.returncode, 2, r.stderr)
                     self.assertIn("NERV", r.stderr)
+                    self.assertIn("source_paths", r.stderr)  # 옛 경로에서 키를 찾는 법
+
+    def test_the_real_repository_is_guarded(self):
+        # 표지(미러 도구)를 옮기면 훅이 조용히 꺼진다. 실제 저장소에서 표지와 차단을 함께 본다.
+        self.assertTrue((_harness.REPO_ROOT / MARKER).is_file(), "표지 파일이 옮겨졌다 — 훅의 MARKER 도 고친다")
+        r = self.run_hook(_harness.REPO_ROOT / "spec" / "CLE-VISION.md", cwd=_harness.REPO_ROOT)
+        self.assertEqual(r.returncode, 2, r.stderr)
 
     def test_relative_path_is_resolved_against_the_payload_cwd(self):
         self.assertEqual(self.run_hook("spec/x.md", cwd=self.wt).returncode, 2)
@@ -143,13 +163,38 @@ class GuardTest(unittest.TestCase):
         self.assertEqual(
             self.run_hook(target, env_extra={"BYPASS_NERV_OWNED_PATHS": "0"}).returncode, 2)
 
-    def test_empty_or_broken_payload_fails_open(self):
-        for raw in ("", "{not json", "[]", "null", json.dumps({"tool_name": "Write"})):
-            with self.subTest(raw=raw[:10]):
+    def test_malformed_payloads_pass_quietly(self):
+        spec_path = str(self.main / "spec/x.md")
+        malformed = (
+            "", "{not json", "[]", "null", json.dumps({"tool_name": "Write"}),
+            json.dumps({"tool_input": "x"}),
+            json.dumps({"tool_input": ["x"]}),
+            json.dumps({"tool_input": {"file_path": 5}}),
+            json.dumps({"tool_input": {"file_path": [spec_path]}}),
+            json.dumps({"tool_input": {"file_path": spec_path + "\x00"}}),
+            json.dumps({"tool_input": {"path": spec_path}}),  # 편집 도구가 쓰지 않는 키
+        )
+        for raw in malformed:
+            with self.subTest(raw=raw[:30]):
                 r = self.run_hook(raw=raw)
                 self.assertEqual(r.returncode, 0, r.stderr)
                 # 모양이 틀린 페이로드는 런타임 오류가 아니라 "대상 없음" 이다(traceback 없음).
                 self.assertEqual(r.stderr, "")
+        # `cwd` 가 문자열이 아니면 프로세스 cwd 로 푼다(상대 경로 판정은 그대로 한다).
+        odd_cwd = json.dumps({"cwd": 5, "tool_input": {"file_path": "spec/x.md"}})
+        r = subprocess.run([sys.executable, str(HOOK)], input=odd_cwd, cwd=self.main,
+                           capture_output=True, text=True,
+                           env={k: v for k, v in os.environ.items() if k != "BYPASS_NERV_OWNED_PATHS"})
+        self.assertEqual(r.returncode, 2, r.stderr)
+
+    def test_runtime_errors_fail_open(self):
+        # 이 PR 을 부른 사고가 "훅이 exit 2 로 죽어 모든 편집이 막힘" 이다. 예상 밖 오류는 통과시킨다.
+        env = {k: v for k, v in os.environ.items() if k != "BYPASS_NERV_OWNED_PATHS"}
+        r = subprocess.run([sys.executable, "-c", RUNTIME_ERROR_PROBE, str(HOOK)],
+                           input=self.payload(self.main / "spec/x.md"), env=env,
+                           capture_output=True, text=True)
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertIn("RuntimeError: probe", r.stderr)
 
     def test_wired_for_every_edit_tool_in_settings(self):
         matcher, _ = _registered_command()

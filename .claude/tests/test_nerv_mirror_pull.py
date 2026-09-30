@@ -1,25 +1,31 @@
 """Tests for `.claude/tools/nerv-mirror/pull.py` — NERV 스펙의 저장소 미러.
 
-네트워크 없이 돈다. `--all` 은 합성 export.zip(`--from-zip`)으로, `--task` 는 가짜 NERV
-클라이언트로, curl 경계는 PATH 앞에 둔 가짜 `curl` 로 돈다. 실제 NERV 응답 형태(ETag = md 바이트
-sha256, frontmatter JSON 인용, 영역 문서의 `area` 는 부모 영역, 트리 배치 = 가장 가까운 area
-조상-또는-자신, 클레임 `status: "active"`)는 2026-09-29 실측에서 왔다. 그 실측에서 트리로 계산한
-경로와 export 배치가 169편 전부 일치했다.
+네트워크 없이 돈다. `--all` 은 합성 export.zip(`--from-zip` 또는 가짜 클라이언트)으로, `--task` 는
+가짜 NERV 클라이언트로, curl 경계는 PATH 앞에 둔 가짜 `curl` 로 돈다. 실제 NERV 응답 형태(ETag = md
+바이트 sha256, frontmatter JSON 인용, 영역 문서의 `area` 는 부모 영역, 트리 배치 = 가장 가까운 area
+조상-또는-자신, 클레임 `status: "active"`, scope 는 문서 id)는 2026-09-29 · 10-01 실측에서 왔다.
+그 실측에서 트리로 계산한 경로와 export 배치가 169편 전부 일치했다.
 
-고정하는 것:
-- 결정성: 같은 입력을 두 번 받으면 두 번째는 아무것도 쓰지 않는다(diff 0).
-- 배치(D1): `spec/<영역>/<KEY>.md`, 영역 문서는 자기 폴더, 영역 밖은 `spec/<KEY>.md`.
-- 카탈로그 영역(`CLE-C24` · `CLE-MKS`)은 미러하지 않는다(D4). 카탈로그 계층 키(`--`)도.
-- 링크: `](CLE-X#a)` → 미러 상대 경로. 미러에 없는 키는 그대로.
-- frontmatter 에 `source_paths` · `mirror_sha256` · `etag` 를 더한다. CRLF · 끝 줄바꿈 정규화.
-- `--check`: 본문 한 글자 · frontmatter 한 값 손편집, 파일 이동, 빈 미러를 잡는다.
-- 입력 검증: 키 형식이 아닌 zip 항목(`..` 포함)과 배치 깊이 이상을 거부한다. 빈 export 와
-  절반 넘는 삭제는 멈춘다. 미러 밖 경로와 심볼릭 링크에는 쓰지 않는다. 트리 순환에서 멈춘다.
-- `--task`: 활성 클레임 scope(키든 문서 id 든), ETag 304 면 캐시 원문으로 **다시 렌더**(다른 문서가
-  옮겨졌으면 링크가 따라간다), 캐시가 미러와 다른 버전이면 조건부 요청을 하지 않음, 영역이 바뀐
-  문서의 옛 파일 삭제, scope 가 비면 멈춤.
-- curl 경계: 토큰은 argv 에 없고 stdin 설정에만 있다, If-None-Match 인용, 1xx 블록 건너뜀,
-  curl 실패는 예외, 설정 줄 주입 문자 거부.
+고정하는 것(클래스별):
+- `AllModeTest`: 결정성(두 번째 pull 은 diff 0), 배치(D1: 영역 문서는 자기 폴더, 영역 밖은
+  `spec/<KEY>.md`), 카탈로그 영역 제외(D4, 계층 키 `--` 포함), 링크 재작성(모르는 키는 그대로),
+  frontmatter 세 줄, CRLF · 끝 줄바꿈 정규화, 머리 인용 줄의 `원문:` 만 읽기, prune, README.
+- `InputValidationTest`: 키 형식 · 배치 깊이 · 끝 개행, 빈 export, 절반 넘는 삭제, 크기 상한,
+  심볼릭 링크(쓰기 · prune · 쓰기 전 전체 검사), 트리 순환, 모드에 안 맞는 옵션 거절.
+- `CheckTest`: 본문 · frontmatter · 본문 속 `mirror_sha256:` 줄 손편집, 파일 이동, 지문 없는 미러
+  파일 추가, 미러 자리의 링크 · 다른 파일, 빈 미러, CLI 종료 코드. `test_limitation_*` 은 문서에
+  적은 한계(삭제 · 지문까지 맞춘 위조는 못 잡는다)를 고정한다. 한계를 없애는 변경은 이 테스트를
+  함께 바꾼다.
+- `TaskModeTest`: 활성 클레임 scope(키든 문서 id 든), ETag 304 면 캐시 원문으로 다시 렌더, 캐시가
+  없거나 다른 버전 · 미러 etag 가 깨졌으면 조건부 요청 없음, 옮겨진 문서의 옛 파일 삭제와 받지 않은
+  문서의 옛 링크를 `--check` 가 잡음, 오류 응답에서 멈추고 아무것도 안 씀, scope 가 비면 멈춤.
+- `AllNetworkTest`: `--all` 의 네트워크 경로(요청 경로 · 환경 변수 누락).
+- `CurlBoundaryTest`: 토큰은 argv 에 없고 stdin 설정에만 있다, curl 인자(`-K -` · `-D -` · `-g` ·
+  `--proto` · `-A` · URL 마지막), If-None-Match 인용, 1xx · CONNECT 블록 건너뜀, curl 실패는
+  예외, 설정 줄 주입 문자 · 끝 개행 거부, 서버 경계(https 또는 loopback, 사용자 정보 거부), 프로젝트 이름.
+- `CiWiringTest`: CI 잡이 `--check` 를 부르고, 커밋된 미러가 그 검사를 통과한다.
+- `MirrorPredicateParityTest`: 미러 판정 세 곳(이 도구 · 오케스트레이터 · `spec-links.ts`)이
+  실제 `spec/` 에서 같은 집합을 고른다.
 """
 
 from __future__ import annotations
@@ -29,6 +35,7 @@ import hashlib
 import io
 import json
 import os
+import re
 import shutil
 import stat
 import subprocess
@@ -38,6 +45,7 @@ import threading
 import unittest
 import zipfile
 from pathlib import Path
+from unittest import mock
 
 import _harness
 
@@ -61,7 +69,7 @@ def md(key, *, type_="feature", area=None, parent=None, body="본문\n", crlf=Fa
 
 
 # 트리: VISION(영역 밖) · ACCT(영역) ⊃ ACCT-SESSION · IX(영역) ⊃ CHAT(중첩 영역) ⊃ CHAT-ADAPTER ·
-# NOTE(원문 없음, CRLF, 끝 줄바꿈 없음) · C24 · MKS(카탈로그 영역).
+# NOTE(`원문:` 이 인용 줄이 아니거나 머리 밖에만 있음, CRLF, 끝 줄바꿈 없음) · C24 · MKS(카탈로그 영역).
 DOCS = {
     "specs/CLE-VISION.md": md("CLE-VISION", type_="vision",
                               body="> 원문: `spec/0-overview.md` (§1)\n\n[계정](CLE-ACCT) · [세션](CLE-ACCT-SESSION#토큰)\n"),
@@ -73,7 +81,7 @@ DOCS = {
              "## 토큰\n\n[개요](CLE-VISION) [없는 키](CLE-NOPE)\n"),
     "specs/CLE-ACCT/CLE-ACCT-NOTE.md": md(
         "CLE-ACCT-NOTE", area="CLE-ACCT", parent="CLE-ACCT", crlf=True,
-        body="본문 첫 줄\n\n여섯째 줄 뒤에 나오는 원문: `spec/x.md` 는 머리 인용이 아니다\n" * 3
+        body="본문 첫 줄\n\n인용이 아닌 줄의 원문: `spec/x.md` 는 머리 인용이 아니다\n" * 3
              + "> 원문: `spec/late.md` — 인용 줄이지만 머리(앞 5줄) 밖이다\n끝"),
     "specs/CLE-IX/CLE-IX.md": md("CLE-IX", type_="area", parent="CLE-VISION"),
     "specs/CLE-CHAT/CLE-CHAT.md": md("CLE-CHAT", type_="area", area="CLE-IX", parent="CLE-IX"),
@@ -90,6 +98,7 @@ MIRRORED = [
     "CLE-ACCT/CLE-ACCT-NOTE.md", "CLE-ACCT/CLE-ACCT-SESSION.md", "CLE-ACCT/CLE-ACCT.md",
     "CLE-CHAT/CLE-CHAT-ADAPTER.md", "CLE-CHAT/CLE-CHAT.md", "CLE-IX/CLE-IX.md", "CLE-VISION.md",
 ]
+VALID_ETAG = "sha256-" + "a" * 64
 
 
 def make_zip(docs=DOCS) -> bytes:
@@ -143,7 +152,7 @@ class AllModeTest(_Fixture):
         self.pull_all()
         before = {p: p.read_bytes() for p in self.spec.rglob("*.md")}
         docs = pull.docs_from_zip(self.zip.read_bytes())
-        report = pull.apply(self.spec, docs, {d.key: d.relpath for d in docs}, prune=True)
+        report = pull.apply(self.spec, docs, pull.paths_of(docs), prune=True)
         self.assertEqual((report["written"], report["removed"]), ([], []))
         self.assertEqual({p: p.read_bytes() for p in self.spec.rglob("*.md")}, before)
 
@@ -168,6 +177,9 @@ class AllModeTest(_Fixture):
         raw = DOCS["specs/CLE-ACCT/CLE-ACCT-SESSION.md"]
         self.assertEqual(pull.fm_value(lines, "etag"), "sha256-" + hashlib.sha256(raw).hexdigest())
         self.assertEqual(pull.fm_value(lines, "id"), "CLE-ACCT-SESSION")
+        # 더한 세 줄의 순서: source_paths → mirror_sha256 → etag (frontmatter 끝)
+        self.assertEqual([ln.split(":")[0] for ln in lines[-3:]],
+                         ["source_paths", "mirror_sha256", "etag"])
 
     def test_crlf_and_missing_final_newline_are_normalised(self):
         self.pull_all()
@@ -200,20 +212,21 @@ class AllModeTest(_Fixture):
         self.assertIn("[CLE-VISION](CLE-VISION.md)", readme)
         self.assertNotIn("CLE-C24]", readme)
         self.assertIn("옛 트리", readme)
+        self.assertIn("source_paths", readme)
 
 
 class InputValidationTest(_Fixture):
     def test_empty_export_does_not_wipe_the_mirror(self):
         self.pull_all()
         self.zip.write_bytes(make_zip({}))
-        with self.assertRaises(SystemExit):
+        with self.assertRaises(pull.PullError):
             self.pull_all()
         self.assertEqual(self.mirrored(), MIRRORED)
 
     def test_empty_export_stops_even_without_a_mirror(self):
         # 미러가 없으면 대량 삭제 방어가 발동하지 않는다. 빈 export 검사만 남는다.
         self.zip.write_bytes(make_zip({}))
-        with self.assertRaisesRegex(SystemExit, "빈 export"):
+        with self.assertRaisesRegex(pull.PullError, "빈 export"):
             self.pull_all()
         self.assertFalse((self.spec / "README.md").exists())
 
@@ -229,7 +242,7 @@ class InputValidationTest(_Fixture):
     def test_mass_prune_needs_an_explicit_flag(self):
         self.pull_all()
         self.zip.write_bytes(make_zip({"specs/CLE-VISION.md": DOCS["specs/CLE-VISION.md"]}))
-        with self.assertRaises(SystemExit):
+        with self.assertRaisesRegex(pull.PullError, "--allow-mass-prune"):
             self.pull_all()
         self.assertEqual(self.mirrored(), MIRRORED)
         self.pull_all("--allow-mass-prune")
@@ -237,29 +250,45 @@ class InputValidationTest(_Fixture):
 
     def test_non_key_zip_entries_are_rejected(self):
         for name in ("specs/../CLAUDE.md", "specs/CLE-X/../../x.md", "specs/lower/CLE-X.md",
-                     "specs/CLE-A/CLE-B/CLE-C.md"):
+                     "specs/CLE-A/CLE-B/CLE-C.md", "specs/CLE-X\n.md"):
             with self.subTest(name=name):
                 bad = dict(DOCS)
                 bad[name] = md("CLE-X")
                 self.zip.write_bytes(make_zip(bad))
-                with self.assertRaises(SystemExit):
+                with self.assertRaises(pull.PullError):
                     self.pull_all()
                 self.assertFalse((self.root / "CLAUDE.md").exists())
                 # 쓰기 단계(mirror_relpath)도 키를 보지만, 거부는 읽는 단계에서 먼저 한다.
-                with self.assertRaisesRegex(SystemExit, "export"):
+                with self.assertRaisesRegex(pull.PullError, "export"):
                     pull.docs_from_zip(make_zip(bad))
 
+    def test_keys_with_a_trailing_newline_are_not_keys(self):
+        # `re.match` 와 `$` 는 끝 개행을 받아들인다. 형식 검사는 fullmatch 여야 한다.
+        for bad in ("CLE-X\n", "CLE-X\nCLE-Y"):
+            with self.subTest(bad=bad), self.assertRaises(pull.PullError):
+                pull.mirror_relpath(bad, None)
+
+    def test_oversized_export_entries_stop(self):
+        with mock.patch.object(pull, "MAX_ENTRY_BYTES", 64), \
+                self.assertRaisesRegex(pull.PullError, "상한"):
+            pull.docs_from_zip(make_zip())
+        with mock.patch.object(pull, "MAX_EXPORT_BYTES", 600), \
+                self.assertRaisesRegex(pull.PullError, "상한"):
+            pull.docs_from_zip(make_zip())
+
     def test_non_key_tree_nodes_cannot_escape(self):
-        with self.assertRaises(SystemExit):
+        with self.assertRaises(pull.PullError):
             pull.mirror_relpath("CLE-X", "../..")
-        with self.assertRaises(SystemExit):
+        with self.assertRaises(pull.PullError):
             pull.mirror_relpath("../CLAUDE", None)
 
     def test_never_writes_through_a_symlink(self):
         (self.spec / "CLE-VISION.md").symlink_to(self.root / "outside.md")
-        with self.assertRaises(SystemExit):
+        with self.assertRaises(pull.PullError):
             self.pull_all()
         self.assertFalse((self.root / "outside.md").exists())
+        # 쓰기 전에 모든 대상을 먼저 검사하므로 키 순서상 앞선 문서도 쓰지 않았다.
+        self.assertEqual(self.mirrored(), [])
 
     def test_never_writes_through_a_symlink_inside_the_mirror(self):
         # 대상이 spec/ 안이어도 링크를 따라 쓰면 다른 미러 파일을 덮는다.
@@ -268,9 +297,25 @@ class InputValidationTest(_Fixture):
         before = victim.read_text(encoding="utf-8")
         (self.spec / "CLE-VISION.md").unlink()
         (self.spec / "CLE-VISION.md").symlink_to(victim)
-        with self.assertRaises(SystemExit):
+        with self.assertRaises(pull.PullError):
             self.pull_all()
         self.assertEqual(victim.read_text(encoding="utf-8"), before)
+
+    def test_prune_never_follows_a_directory_symlink(self):
+        # 링크 폴더 안의 `CLE-*.md` 를 미러로 보면 prune 이 `spec/` 밖 파일을 지운다(라운드 2 재현).
+        outside = self.root / "outside"
+        outside.mkdir()
+        (outside / "CLE-VICTIM.md").write_text("지우면 안 된다\n", encoding="utf-8")
+        (self.spec / "CLE-EVIL").symlink_to(outside, target_is_directory=True)
+        self.pull_all()
+        self.assertTrue((outside / "CLE-VICTIM.md").exists())
+        self.assertTrue((self.spec / "CLE-EVIL").is_symlink())
+        self.assertTrue(any("CLE-EVIL" in p and "심볼릭" in p for p in pull.check(self.spec)))
+
+    def test_only_empty_mirror_folders_are_removed(self):
+        (self.spec / "CLE-lower").mkdir()
+        self.pull_all()
+        self.assertTrue((self.spec / "CLE-lower").is_dir())
 
     def test_tree_cycle_stops(self):
         # 방어가 빠지면 무한 루프라 같은 스레드에서는 실패 대신 테스트 전체가 멈춘다(뮤턴트로
@@ -282,21 +327,30 @@ class InputValidationTest(_Fixture):
         def run():
             try:
                 pull.area_map(tree)
-            except SystemExit as exc:
-                outcome["exit"] = str(exc)
+            except pull.PullError as exc:
+                outcome["error"] = str(exc)
 
         worker = threading.Thread(target=run, daemon=True)
         worker.start()
         worker.join(10)
         self.assertFalse(worker.is_alive(), "순환 트리에서 area_map 이 끝나지 않는다")
-        self.assertIn("순환", outcome.get("exit", ""))
+        self.assertIn("순환", outcome.get("error", ""))
 
     def test_incompatible_flags_are_rejected(self):
         for argv in (["--check", "--spec", "CLE-X"], ["--check", "--allow-mass-prune"],
                      ["--task", "CLE-T-X", "--from-zip", "x.zip"]):
             with self.subTest(argv=argv), contextlib.redirect_stderr(io.StringIO()):
-                with self.assertRaises(SystemExit):
+                with self.assertRaises(SystemExit) as caught:
                     pull.main([*argv, "--root", str(self.root)])
+                self.assertEqual(caught.exception.code, 2)  # argparse 가 거절했다
+
+    def test_cli_reports_errors_in_one_line(self):
+        self.zip.write_bytes(make_zip({}))
+        r = subprocess.run([sys.executable, str(PULL_SRC), "--all", "--from-zip", str(self.zip),
+                            "--root", str(self.root)], capture_output=True, text=True)
+        self.assertEqual(r.returncode, 1)
+        self.assertTrue(r.stderr.startswith("pull: "), r.stderr)
+        self.assertNotIn("Traceback", r.stderr)
 
 
 class CheckTest(_Fixture):
@@ -320,10 +374,39 @@ class CheckTest(_Fixture):
                         encoding="utf-8")
         self.assertEqual(len(pull.check(self.spec)), 1)
 
+    def test_body_line_that_looks_like_the_fingerprint_is_still_covered(self):
+        # 지문은 frontmatter 의 그 줄 하나만 뺀다. 본문의 같은 접두 줄을 고쳐도 잡는다.
+        self.pull_all()
+        path = self.spec / "CLE-VISION.md"
+        path.write_text(path.read_text(encoding="utf-8") + "mirror_sha256: 본문에 끼운 줄\n",
+                        encoding="utf-8")
+        self.assertEqual(len(pull.check(self.spec)), 1)
+
     def test_moved_file_is_caught(self):
         self.pull_all()
         (self.spec / "CLE-IX" / "CLE-IX.md").rename(self.spec / "CLE-ACCT" / "CLE-IX.md")
         self.assertTrue(any("위치" in p for p in pull.check(self.spec)))
+
+    def test_added_mirror_file_without_a_fingerprint_is_caught(self):
+        self.pull_all()
+        (self.spec / "CLE-ACCT" / "CLE-ACCT-NEW.md").write_bytes(
+            md("CLE-ACCT-NEW", area="CLE-ACCT"))
+        problems = pull.check(self.spec)
+        self.assertTrue(any("CLE-ACCT-NEW" in p and "mirror_sha256" in p for p in problems))
+
+    def test_other_files_in_the_mirror_place_are_caught(self):
+        self.pull_all()
+        (self.spec / "CLE-ACCT" / "notes.md").write_text("메모\n", encoding="utf-8")
+        (self.spec / "CLE-lower.md").write_text("메모\n", encoding="utf-8")
+        (self.spec / "CLE-ACCT" / ".DS_Store").write_bytes(b"")  # 점 파일은 보지 않는다
+        stray = [p for p in pull.check(self.spec) if "미러가 아닌" in p]
+        self.assertEqual(sorted(p.split(":")[0] for p in stray),
+                         ["CLE-ACCT/notes.md", "CLE-lower.md"])
+
+    def test_symlink_in_the_mirror_place_is_caught(self):
+        self.pull_all()
+        (self.spec / "CLE-ACCT" / "CLE-ACCT-LINK.md").symlink_to(self.spec / "CLE-VISION.md")
+        self.assertTrue(any("CLE-ACCT-LINK" in p and "심볼릭" in p for p in pull.check(self.spec)))
 
     def test_file_without_frontmatter_is_reported(self):
         self.pull_all()
@@ -332,6 +415,24 @@ class CheckTest(_Fixture):
 
     def test_empty_mirror_fails(self):
         self.assertEqual(len(pull.check(self.spec)), 1)
+
+    def test_limitation_deleting_a_mirror_file_is_not_caught(self):
+        # 문서에 적은 한계: 미러는 부분 스냅샷(결정 D3)이라 "없는 파일" 을 문제로 볼 기준이 없다.
+        self.pull_all()
+        (self.spec / "CLE-IX" / "CLE-IX.md").unlink()
+        self.assertEqual(pull.check(self.spec), [])
+
+    def test_limitation_a_forged_file_with_a_recomputed_fingerprint_passes(self):
+        # 문서에 적은 한계: 지문은 같은 파일 안의 값이라 변조 방지가 아니다.
+        self.pull_all()
+        path = self.spec / "CLE-VISION.md"
+        text = path.read_text(encoding="utf-8").replace("계정", "계좌")
+        lines = text.split("\n")
+        i = next(n for n, ln in enumerate(lines) if ln.startswith("mirror_sha256: "))
+        del lines[i]
+        lines.insert(i, f"mirror_sha256: {json.dumps(pull.fingerprint(text))}")
+        path.write_text("\n".join(lines), encoding="utf-8")
+        self.assertEqual(pull.check(self.spec), [])
 
     def test_cli_exit_code(self):
         self.pull_all()
@@ -346,19 +447,25 @@ class CheckTest(_Fixture):
 
 
 class FakeNerv:
-    """`Nerv` 대역. 받은 경로 · If-None-Match 를 기록한다."""
+    """`Nerv` 대역. 받은 경로 · If-None-Match 를 기록한다. ``statuses`` 로 경로별 응답 코드를 바꾼다."""
 
-    def __init__(self, tree, mds, claims=None):
+    def __init__(self, tree, mds, claims=None, statuses=None, export=None):
         self.project = "clemvion"
         self.tree, self.mds, self.claims = tree, mds, claims or []
+        self.statuses, self.export = statuses or {}, export
         self.calls = []
 
     def get(self, path, etag=None):
         self.calls.append((path, etag))
+        for prefix, status in self.statuses.items():
+            if path.startswith(prefix):
+                return status, b"error"
         if path == "/api/v1/projects/clemvion/specs/tree":
             return 200, json.dumps(self.tree).encode()
         if path.startswith("/api/v1/projects/clemvion/tasks/"):
             return 200, json.dumps({"claims": self.claims}).encode()
+        if path.startswith("/api/projects/clemvion/export.zip"):
+            return 200, self.export
         assert path.startswith("/api/projects/clemvion/specs/"), path
         key = path.split("/specs/")[1].split(".md")[0]
         raw = self.mds[key]
@@ -367,9 +474,7 @@ class FakeNerv:
         return 200, raw
 
     def get_ok(self, path):
-        status, body = self.get(path)
-        assert status == 200
-        return body
+        return pull.Nerv.get_ok(self, path)
 
 
 def tree_nodes(moves=None):
@@ -400,9 +505,12 @@ class TaskModeTest(_Fixture):
         return quiet(pull.cmd_task, self.spec, "CLE-T-TEST", list(keys), nerv=fake,
                      cache=self.cache)
 
+    def md_etags(self, fake):
+        return [e for p, e in fake.calls if p.endswith(".md?task=CLE-T-TEST")]
+
     def test_area_map_matches_the_export_layout(self):
         paths = pull.paths_for(pull.area_map(tree_nodes()))
-        zip_paths = {d.key: d.relpath for d in pull.docs_from_zip(make_zip())}
+        zip_paths = pull.paths_of(pull.docs_from_zip(make_zip()))
         self.assertEqual(paths, zip_paths)
 
     def test_pulls_scope_specs_from_the_active_claim_by_key_or_id(self):
@@ -418,7 +526,7 @@ class TaskModeTest(_Fixture):
     def test_empty_scope_stops(self):
         fake = FakeNerv(tree_nodes(), raw_by_key(), claims=[{"status": "active",
                                                              "scope_spec_ids": []}])
-        with self.assertRaises(SystemExit):
+        with self.assertRaisesRegex(pull.PullError, "scope"):
             self.run_task(fake)
 
     def test_same_etag_is_a_conditional_request_and_output_is_stable(self):
@@ -427,8 +535,8 @@ class TaskModeTest(_Fixture):
         before = self.read("CLE-VISION.md")
         fake.calls.clear()
         self.run_task(fake, "CLE-VISION")
-        sent = [etag for path, etag in fake.calls if path.endswith(".md?task=CLE-T-TEST")]
-        self.assertEqual(sent, ["sha256-" + hashlib.sha256(DOCS["specs/CLE-VISION.md"]).hexdigest()])
+        self.assertEqual(self.md_etags(fake),
+                         ["sha256-" + hashlib.sha256(DOCS["specs/CLE-VISION.md"]).hexdigest()])
         self.assertEqual(self.read("CLE-VISION.md"), before)
 
     def test_304_re_renders_links_when_a_target_moved(self):
@@ -442,6 +550,24 @@ class TaskModeTest(_Fixture):
         self.assertIn("[세션](../CLE-IX/CLE-ACCT-SESSION.md)",
                       self.read("CLE-CHAT/CLE-CHAT-ADAPTER.md"))
 
+    def test_check_catches_links_left_behind_in_docs_not_pulled(self):
+        # 옮겨진 문서만 받으면 그 문서를 가리키던 다른 문서의 링크는 옛 자리로 남는다(라운드 2 재현).
+        full = FakeNerv(tree_nodes(), raw_by_key())
+        self.run_task(full, "CLE-VISION", "CLE-ACCT", "CLE-ACCT-SESSION", "CLE-CHAT-ADAPTER")
+        self.assertEqual(pull.check(self.spec), [])
+        # NERV 에서 옮기면 트리와 문서 frontmatter `area` 가 함께 바뀐다.
+        mds = raw_by_key()
+        mds["CLE-ACCT-SESSION"] = mds["CLE-ACCT-SESSION"].replace(b'area: "CLE-ACCT"',
+                                                                  b'area: "CLE-IX"')
+        moved = FakeNerv(tree_nodes({"CLE-ACCT-SESSION": "CLE-IX"}), mds)
+        self.run_task(moved, "CLE-ACCT-SESSION")
+        stale = [p for p in pull.check(self.spec) if "옛 자리" in p]
+        self.assertEqual(sorted(p.split(":")[0] for p in stale),
+                         ["CLE-CHAT/CLE-CHAT-ADAPTER.md", "CLE-VISION.md"])
+        # 그 문서들도 받으면 풀린다.
+        self.run_task(moved, "CLE-VISION", "CLE-CHAT-ADAPTER")
+        self.assertEqual(pull.check(self.spec), [])
+
     def test_cache_of_another_version_means_no_conditional_request(self):
         # 캐시가 미러의 etag 와 다른 버전이면 304 를 받아도 렌더할 원문이 틀리다.
         fake = FakeNerv(tree_nodes(), raw_by_key())
@@ -449,7 +575,7 @@ class TaskModeTest(_Fixture):
         (self.cache / "CLE-VISION.md").write_bytes(b"---\nid: \"CLE-VISION\"\n---\nstale\n")
         fake.calls.clear()
         self.run_task(fake, "CLE-VISION")
-        self.assertEqual([e for p, e in fake.calls if p.endswith("CLE-T-TEST")], [None])
+        self.assertEqual(self.md_etags(fake), [None])
 
     def test_no_cache_means_no_conditional_request(self):
         fake = FakeNerv(tree_nodes(), raw_by_key())
@@ -457,7 +583,21 @@ class TaskModeTest(_Fixture):
         shutil.rmtree(self.cache)
         fake.calls.clear()
         self.run_task(fake, "CLE-VISION")
-        self.assertEqual([e for p, e in fake.calls if p.endswith("CLE-T-TEST")], [None])
+        self.assertEqual(self.md_etags(fake), [None])
+
+    def test_malformed_mirror_etag_is_refetched_not_sent(self):
+        # 미러 frontmatter 의 etag 는 설정 줄에 절대 실리지 않는다. 캐시 원문에서 계산한 값만 보낸다.
+        for bad in ('"x\\"\\nurl = \\"https://evil.invalid\\""', "5"):
+            with self.subTest(bad=bad):
+                fake = FakeNerv(tree_nodes(), raw_by_key())
+                self.run_task(fake, "CLE-VISION")
+                path = self.spec / "CLE-VISION.md"
+                text = path.read_text(encoding="utf-8")
+                path.write_text(re.sub(r"(?m)^etag: .*$", f"etag: {bad}", text), encoding="utf-8")
+                fake.calls.clear()
+                self.run_task(fake, "CLE-VISION")
+                self.assertEqual(self.md_etags(fake), [None])
+                self.assertEqual(pull.check(self.spec), [])
 
     def test_moved_doc_leaves_no_old_file(self):
         self.run_task(FakeNerv(tree_nodes(), raw_by_key()), "CLE-CHAT-ADAPTER")
@@ -471,13 +611,26 @@ class TaskModeTest(_Fixture):
         self.assertEqual(pull.mirror_files(self.spec), [])
 
     def test_unknown_key_stops(self):
-        with self.assertRaises(SystemExit):
+        with self.assertRaisesRegex(pull.PullError, "없는 키"):
             self.run_task(FakeNerv(tree_nodes(), raw_by_key()), "CLE-NOPE")
+
+    def test_error_responses_stop_and_write_nothing(self):
+        # 304 도 조건부 요청을 하지 않았으면 오류다(재렌더할 캐시 원문이 없다).
+        for prefix, status in (("/api/v1/projects/clemvion/specs/tree", 404),
+                               ("/api/projects/clemvion/specs/CLE-VISION.md", 404),
+                               ("/api/projects/clemvion/specs/CLE-VISION.md", 304)):
+            with self.subTest(prefix=prefix, status=status):
+                fake = FakeNerv(tree_nodes(), raw_by_key(), statuses={prefix: status})
+                with self.assertRaisesRegex(pull.PullError, str(status)):
+                    self.run_task(fake, "CLE-VISION")
+                self.assertEqual(pull.mirror_files(self.spec), [])
+                self.assertFalse((self.cache / "CLE-VISION.md").exists())
 
     def test_bad_task_key_stops_before_any_request(self):
         fake = FakeNerv(tree_nodes(), raw_by_key())
-        with self.assertRaises(SystemExit):
-            quiet(pull.cmd_task, self.spec, "../x", [], nerv=fake, cache=self.cache)
+        for task in ("../x", "CLE-T-X\n"):
+            with self.subTest(task=task), self.assertRaisesRegex(pull.PullError, "Task"):
+                quiet(pull.cmd_task, self.spec, task, [], nerv=fake, cache=self.cache)
         self.assertEqual(fake.calls, [])
 
     def test_corrupt_mirror_file_is_refetched(self):
@@ -486,8 +639,27 @@ class TaskModeTest(_Fixture):
         (self.spec / "CLE-VISION.md").write_text("손상\n", encoding="utf-8")
         fake.calls.clear()
         self.run_task(fake, "CLE-VISION")
-        self.assertEqual([e for p, e in fake.calls if p.endswith("CLE-T-TEST")], [None])
+        self.assertEqual(self.md_etags(fake), [None])
         self.assertEqual(pull.check(self.spec), [])
+
+
+class AllNetworkTest(_Fixture):
+    def test_all_requests_the_approved_tree_export(self):
+        fake = FakeNerv(tree_nodes(), raw_by_key(), export=make_zip())
+        quiet(pull.cmd_all, self.spec, nerv=fake)
+        self.assertEqual([p for p, _ in fake.calls],
+                         ["/api/projects/clemvion/export.zip?basis=approved&layout=tree"])
+        self.assertEqual(self.mirrored(), MIRRORED)
+
+    def test_all_stops_on_an_error_response(self):
+        fake = FakeNerv(tree_nodes(), raw_by_key(), statuses={"/api/projects/clemvion/export": 503})
+        with self.assertRaisesRegex(pull.PullError, "503"):
+            quiet(pull.cmd_all, self.spec, nerv=fake)
+
+    def test_missing_environment_stops(self):
+        with mock.patch.dict(os.environ, {"NERV_SERVER": "", "NERV_TOKEN": ""}), \
+                self.assertRaisesRegex(pull.PullError, "NERV_SERVER"):
+            quiet(pull.cmd_all, self.spec)
 
 
 FAKE_CURL = r"""#!/usr/bin/env python3
@@ -511,60 +683,86 @@ class CurlBoundaryTest(unittest.TestCase):
         curl.write_text(FAKE_CURL, encoding="utf-8")
         curl.chmod(curl.stat().st_mode | stat.S_IEXEC)
         self.log = self.tmp / "curl.log"
-        self.env = mock_env = {
+        patcher = mock.patch.dict(os.environ, {
             "PATH": f"{curl.parent}{os.pathsep}{os.environ['PATH']}",
             "FAKE_CURL_LOG": str(self.log),
             "FAKE_CURL_OUT": "HTTP/1.1 100 Continue\\r\\n\\r\\nHTTP/2 304\\r\\netag: x\\r\\n\\r\\n",
-        }
-        self._saved = {k: os.environ.get(k) for k in mock_env}
-        os.environ.update(mock_env)
-        self.addCleanup(self._restore)
-
-    def _restore(self):
-        for k, v in self._saved.items():
-            if v is None:
-                os.environ.pop(k, None)
-            else:
-                os.environ[k] = v
+        })
+        patcher.start()
+        self.addCleanup(patcher.stop)
 
     def calls(self):
         return [json.loads(line) for line in self.log.read_text().splitlines()]
 
-    def test_token_only_in_stdin_and_etag_quoted(self):
+    def test_token_only_in_stdin_and_curl_reads_it_as_config(self):
         nerv = pull.Nerv("https://nerv.example.invalid", "clemvion", SECRET)
-        etag = "sha256-" + "a" * 64
-        status, body = nerv.get("/api/projects/clemvion/specs/CLE-X.md?task=CLE-T-1", etag=etag)
+        url_path = "/api/projects/clemvion/specs/CLE-X.md?task=CLE-T-1"
+        status, body = nerv.get(url_path, etag=VALID_ETAG)
         self.assertEqual((status, body), (304, b""))
         call = self.calls()[0]
-        self.assertNotIn(SECRET, " ".join(call["argv"]))
+        argv = call["argv"]
+        self.assertNotIn(SECRET, " ".join(argv))
         self.assertIn(f'header = "Authorization: Bearer {SECRET}"', call["stdin"])
-        self.assertIn(f'header = "If-None-Match: \\"{etag}\\""', call["stdin"])
+        self.assertIn(f'header = "If-None-Match: \\"{VALID_ETAG}\\""', call["stdin"])
+        # stdin 에 토큰이 있어도 curl 이 그것을 설정으로 읽어야 헤더가 나간다(`-K -`).
+        # 응답 헤더를 본문 앞에 받아야 status 를 읽는다(`-D -`).
+        pairs = list(zip(argv, argv[1:]))
+        self.assertIn(("-K", "-"), pairs)
+        self.assertIn(("-D", "-"), pairs)
+        self.assertIn(("--proto", "=https,http"), pairs)
+        self.assertIn(("-A", pull.USER_AGENT), pairs)
+        self.assertIn(("--max-time", pull.CURL_MAX_TIME), pairs)
+        self.assertIn("-g", argv)  # URL 의 [] {} 를 글로브로 풀지 않는다
+        self.assertEqual(argv[-1], "https://nerv.example.invalid" + url_path)
 
     def test_curl_failure_raises(self):
-        os.environ["FAKE_CURL_FAIL"] = "1"
-        self.addCleanup(os.environ.pop, "FAKE_CURL_FAIL", None)
-        with self.assertRaisesRegex(RuntimeError, "curl 실패"):
+        with mock.patch.dict(os.environ, {"FAKE_CURL_FAIL": "1"}), \
+                self.assertRaisesRegex(RuntimeError, "curl 실패"):
             pull.Nerv("https://x.invalid", "clemvion", SECRET).get("/x")
 
     def test_config_injection_values_are_rejected(self):
-        with self.assertRaises(SystemExit):
-            pull.Nerv("https://x.invalid", "clemvion", 'tok"\nurl = "https://evil.invalid"')
+        for ch in ('"', "\\", "\r", "\n", "\t", "\x00"):
+            with self.subTest(ch=repr(ch)), self.assertRaises(pull.PullError):
+                pull.Nerv("https://x.invalid", "clemvion", f"tok{ch}url")
         nerv = pull.Nerv("https://x.invalid", "clemvion", SECRET)
-        with self.assertRaises(SystemExit):
-            nerv.get("/x", etag='sha256-x"\nurl = "https://evil.invalid')
+        for etag in ('sha256-x"\nurl = "https://evil.invalid', VALID_ETAG + "\n"):
+            with self.subTest(etag=etag), self.assertRaises(pull.PullError):
+                nerv.get("/x", etag=etag)
         self.assertFalse(self.log.exists(), "주입 값이 curl 에 닿았다")
 
-    def test_plain_http_is_rejected(self):
-        with self.assertRaises(SystemExit):
-            pull.Nerv("http://nerv.example.invalid", "clemvion", SECRET)
+    def test_server_must_be_https_or_loopback_http(self):
+        for ok in ("https://nerv.example.invalid", "https://nerv.example.invalid:8443/base",
+                   "http://127.0.0.1:8080", "http://localhost:3000", "http://[::1]:8000"):
+            with self.subTest(ok=ok):
+                self.assertTrue(pull.server_ok(ok))
+                pull.Nerv(ok, "clemvion", SECRET)
+        for bad in ("http://nerv.example.invalid", "http://localhost.evil.invalid",
+                    "http://127.0.0.1.evil.invalid", "http://localhost@evil.invalid",
+                    "http://127.0.0.1@evil.invalid", "http://localhostevil.invalid",
+                    "https://user:pw@nerv.example.invalid", "https://nerv.example.invalid?x=1",
+                    "ftp://nerv.example.invalid", "nerv.example.invalid"):
+            with self.subTest(bad=bad):
+                self.assertFalse(pull.server_ok(bad))
+                with self.assertRaises(pull.PullError):
+                    pull.Nerv(bad, "clemvion", SECRET)
 
-    def test_parse_response_skips_informational_blocks(self):
+    def test_project_name_is_checked(self):
+        for bad in ("clem vion", "../x", "[a]", "clemvion\n", ""):
+            with self.subTest(bad=bad), self.assertRaises(pull.PullError):
+                pull.Nerv("https://x.invalid", bad, SECRET)
+
+    def test_parse_response_skips_informational_and_connect_blocks(self):
         raw = b"HTTP/1.1 100 Continue\r\n\r\nHTTP/2 200\r\ncontent-type: text/markdown\r\n\r\nbody\r\n\r\nmore"
         self.assertEqual(pull.parse_response(raw), (200, b"body\r\n\r\nmore"))
+        proxied = b"HTTP/1.1 200 Connection established\r\n\r\nHTTP/2 404\r\n\r\nnope"
+        self.assertEqual(pull.parse_response(proxied), (404, b"nope"))
+        # `established` 가 없는 200 뒤의 `HTTP/` 는 본문이다.
+        self.assertEqual(pull.parse_response(b"HTTP/2 200\r\n\r\nHTTP/ is body"),
+                         (200, b"HTTP/ is body"))
 
 
 class CiWiringTest(unittest.TestCase):
-    """CI `spec-mirror-integrity` 가 이 도구의 `--check` 를 부른다 — 잡이 빠지면 셸 편집을 못 잡는다."""
+    """CI `spec-mirror-integrity` 가 이 도구의 `--check` 를 부른다. 잡이 빠지면 셸 편집을 못 잡는다."""
 
     WORKFLOW = _harness.REPO_ROOT / ".github" / "workflows" / "spec-link-checks.yml"
 
@@ -587,9 +785,9 @@ class MirrorPredicateParityTest(unittest.TestCase):
 
     실제 `spec/` 을 훑어 세 판정이 같은 집합을 고르는지 본다. 키 형식이 바뀌면 각 스위트가
     초록인 채 갈라지는 것을 막는다. frontend 정규식은 `spec-links.ts` 의 `NERV_MIRROR` 리터럴을
-    읽어 쓴다. 오케스트레이터는 서브프로세스에서 부른다. 같은 프로세스에서 읽으면 그 모듈의
-    `_lib` 가 먼저 적재된 `.claude/hooks/_lib` 와 부딪혀 전체 실행에서만 ImportError 가 난다
-    (2026-10-01 실측).
+    읽어 쓴다. 세 파일 모두 `harness-checks.yml` 의 경로 목록에 있어 어느 하나만 고쳐도 이 테스트가
+    돈다. 오케스트레이터는 서브프로세스에서 부른다. 같은 프로세스에서 읽으면 그 모듈의 `_lib` 가
+    먼저 적재된 `.claude/hooks/_lib` 와 부딪혀 전체 실행에서만 ImportError 가 난다(2026-10-01 실측).
     """
 
     ROOT = _harness.REPO_ROOT
@@ -597,8 +795,6 @@ class MirrorPredicateParityTest(unittest.TestCase):
     ORCH = ROOT / ".claude" / "skills" / "consistency-checker" / "scripts" / "consistency_orchestrator.py"
 
     def test_three_predicates_agree_on_the_real_tree(self):
-        import re
-
         literal = re.search(r"const NERV_MIRROR = /(.+)/;", self.TS.read_text(encoding="utf-8"))
         self.assertIsNotNone(literal, "spec-links.ts 에서 NERV_MIRROR 를 찾지 못했다")
         ts_re = re.compile(literal.group(1).replace("\\/", "/"))
@@ -615,9 +811,20 @@ class MirrorPredicateParityTest(unittest.TestCase):
             rels,
         ))
         by_ts = {r for r in rels if ts_re.match(r)}
-        self.assertGreater(len(tool), 100, "미러가 없다 — 이 대조는 공허하다")
+        self.assertGreater(len(tool), 1, "미러가 없다 — 이 대조는 공허하다")
         self.assertEqual(by_orch, tool)
         self.assertEqual(by_ts, tool)
+
+    def test_the_three_files_trigger_the_harness_workflow(self):
+        import yaml
+
+        wf = yaml.safe_load((self.ROOT / ".github" / "workflows" / "harness-checks.yml")
+                            .read_text(encoding="utf-8"))
+        specs = wf["jobs"]["changes"]["with"]["pathspecs"].split()
+        rel = self.TS.relative_to(self.ROOT).as_posix()
+        self.assertIn(rel, specs, "spec-links.ts 만 고친 PR 에서 이 동치 테스트가 돌지 않는다")
+        self.assertIn(".claude/tools/**", specs)   # pull.py
+        self.assertIn(".claude/skills/**", specs)  # 오케스트레이터
 
 
 if __name__ == "__main__":

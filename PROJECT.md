@@ -302,8 +302,8 @@ developer workflow §4 종료 직전, 5단계로 진행하기 전 자가 점검:
 - `codebase/frontend/src/lib/docs/__tests__/integrations-coverage.test.ts` — `06-integrations-and-config/<provider>.mdx` 의 GUI 흐름 절에 `<ImplAnchor kind="ui-entry">` ≥1 의무
 - `codebase/frontend/src/lib/docs/__tests__/triggers-coverage.test.ts` — `02-nodes/triggers.mdx` 의 provider 별 절에 `<ImplAnchor kind="ui-entry">` ≥1 의무
 - `codebase/frontend/src/lib/docs/__tests__/no-internal-refs.test.ts` — 사용자 가이드 MDX 본문(frontmatter / HTML·MDX 주석 / `<ImplAnchor>` 제거 후)에 내부 SoT (`spec/`·`plan/in-progress|complete/`·`별 plan`/`separate plan`·`CCH-XX-NN`·`R-XX-N`·`ERROR_KO` 등 i18n 매핑 테이블·`backend-labels.ts`) 가 노출되지 않는지 검증. SoT invariant: 본 절 §자주 누락되는 작성 패턴 + [`spec/conventions/i18n-userguide.md`](spec/conventions/i18n-userguide.md) Principle 6
-- `codebase/frontend/src/lib/docs/__tests__/spec-link-integrity.test.ts` — in-repo 링크/heading 앵커 실존 검증 (slug = `rehype-slug`=`mdast`+`github-slugger`). 스코프 3가지 — **(1)** `spec/**.md` 본문, **(2)** codebase `.ts`/`.tsx` JSDoc 중 `spec/**.md` 타깃, **(3)** 거버넌스 문서(루트 `*.md` 비재귀 + `.claude/**.md`, `worktrees`/`node_modules` 제외, 2026-08-27 추가). SoT: `spec/conventions/spec-impl-evidence.md §4.2`
-- `codebase/frontend/src/lib/docs/__tests__/spec-area-index.test.ts` — 영역 폴더(≥2 sibling)의 index 가 모든 sibling spec 을 링크하는지 검증 (`spec/conventions/` flat reference 면제). SoT: `spec/conventions/spec-impl-evidence.md §4.2`
+- `codebase/frontend/src/lib/docs/__tests__/spec-link-integrity.test.ts` — in-repo 링크/heading 앵커 실존 검증 (slug = `rehype-slug`=`mdast`+`github-slugger`). 스코프 3가지 — **(1)** `spec/**.md` 본문(NERV 미러 `spec/README.md` · `spec/CLE-*` 제외), **(2)** codebase `.ts`/`.tsx` JSDoc 중 `spec/**.md` 타깃, **(3)** 거버넌스 문서(루트 `*.md` 비재귀 + `.claude/**.md`, `worktrees`/`node_modules` 제외, 2026-08-27 추가). SoT: `spec/conventions/spec-impl-evidence.md §4.2`
+- `codebase/frontend/src/lib/docs/__tests__/spec-area-index.test.ts` — 영역 폴더(≥2 sibling)의 index 가 모든 sibling spec 을 링크하는지 검증 (`spec/conventions/` flat reference · NERV 미러 면제). SoT: `spec/conventions/spec-impl-evidence.md §4.2`
 - `codebase/frontend/src/lib/docs/__tests__/plan-frontmatter.test.ts` — plan 라이프사이클 가드 **3종**: (1) top-level `plan/in-progress/*.md` 의 `worktree`(sentinel `(unstarted)` 허용)/`started`/`owner` frontmatter 강제, (2) `plan/complete/**` 가 `status` 를 선언했다면 종료 상태여야 함(`complete`/`implemented`/`applied`/`superseded`; 선언 자체가 없으면 위반 아님 — 선택 필드), (3) top-level 살아있는 plan 의 상대링크 무결성(`plan/complete/**` 는 시점 기록이라 제외). 판정 로직은 `plan-scan.ts`(수집·frontmatter·status)와 `spec-links.ts`(링크)에 있고, 셋 다 합성 fixture 로 negative-path 가 증명된다. SoT: `.claude/docs/plan-lifecycle.md §4`
 - `codebase/frontend/src/lib/docs/__tests__/spec-plan-completion.test.ts` — `started ≥ 2026-06-04` 완료 plan 의 `spec_impact` 선언 강제 (Gate C, date-cutoff grandfather). SoT: `spec/conventions/spec-impl-evidence.md §4.2`
 - `codebase/frontend/src/__tests__/e2e-no-sub-global-timeout.test.ts` — `e2e/**` 스펙의 bare-numeric `timeout: N`(N < `playwright.config.ts` 의 `expect.timeout`) sub-global override 차단(전역값은 config 파싱=SoT 동기). 위 doc-sync 계열과 달리 invariant 홈은 §Frontend e2e 패턴 절의 timeout 항목
@@ -398,6 +398,25 @@ pnpm --filter frontend test src/lib/docs/__tests__/
 
 MDX frontmatter `spec:`/`code:` 경로 실재는 별도 가드가 본다 —
 `src/lib/docs/__tests__/registry.test.ts`.
+
+### NERV 스펙 미러
+
+NERV 정본 전환 단계 1 부터 `spec/<영역 키>/<KEY>.md` · `spec/README.md` 는 NERV 스펙의 읽기 전용
+미러다. 쓰는 것은 `.claude/tools/nerv-mirror/pull.py` 하나다. 같은 워크플로의 두 번째 잡
+`spec-mirror-integrity` 가 아래 `--check` 를 돌린다.
+
+```bash
+python3 .claude/tools/nerv-mirror/pull.py --check
+```
+
+```bash
+python3 .claude/tools/nerv-mirror/pull.py --task CLE-T-XXXXXX
+```
+
+- `--check` 는 네트워크 없이 미러 파일의 지문 · 위치 · 링크와 미러 자리의 다른 파일을 본다.
+- `--task` 는 클레임한 Task 의 scope 스펙을 작업 기준 버전으로 받는다(구현 PR 에 함께 커밋).
+  `--all` 은 전체를 다시 받는다. 둘 다 `NERV_SERVER` · `NERV_TOKEN` 이 필요하고 값은
+  `.claude/settings.local.json` 의 `env` 가 준다.
 
 > **2026-08-27 변경**: 종전의 `scripts/check-doc-links.py` 를 **삭제**하고 위 가드로 합쳤다.
 > 그 스크립트는 (a) 어떤 CI·hook 도 호출하지 않아 실제로는 아무것도 지키지 못했고,

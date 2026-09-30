@@ -958,7 +958,7 @@ class NervMirrorStaysOutOfTheOldCorpusTest(unittest.TestCase):
 
     섞으면 같은 내용이 두 모양으로 들어가 예산을 두 번 쓰고 우선순위가 흐려진다. 실측
     (2026-09-29): 미러 169편을 넣자 `related_specs` 번들 순서 단언이 깨졌다. 코퍼스를
-    미러로 옮기는 일은 단계 4e 다.
+    미러로 옮기는 일은 단계 4e(NERV Task `CLE-T-VP5KDJ`)다.
     """
 
     def test_no_mirror_file_in_related_specs_or_conventions(self):

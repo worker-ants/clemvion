@@ -139,8 +139,14 @@ jobs:
         if: needs.changes.outputs.relevant == 'false'
         run: echo "이 워크플로의 대상 경로(codebase · spec · plan · 거버넌스 문서) 변경 없음 — 이 잡은 no-op 으로 통과한다."
 
+      # 이 잡이 읽는 것은 `spec/` 과 도구 하나다. 저장소 전체(추적 파일 약 3.3만 개, 대부분 `review/`)를
+      # 받지 않는다. `--check` 는 표준 라이브러리만 쓴다.
       - uses: actions/checkout@v7
         if: needs.changes.outputs.relevant != 'false'
+        with:
+          sparse-checkout: |
+            spec
+            .claude/tools/nerv-mirror
 
       - name: spec mirror integrity (pull.py --check)
         if: needs.changes.outputs.relevant != 'false'

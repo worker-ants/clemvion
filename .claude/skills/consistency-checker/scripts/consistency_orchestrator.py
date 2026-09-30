@@ -196,7 +196,9 @@ def _natural_key(path):
 
 # NERV 스펙 미러(`spec/CLE-*.md` · `spec/CLE-*/**` · `spec/README.md`, NERV 전환 단계 1).
 # 옛 트리 코퍼스(related_specs · conventions)에 섞지 않는다 — 두 벌이 같은 내용을 다른 모양으로
-# 담아 예산을 두 번 쓰고 우선순위를 흐린다. 코퍼스를 미러로 옮기는 일은 단계 4e 다.
+# 담아 예산을 두 번 쓰고 우선순위를 흐린다. 코퍼스를 미러로 옮기는 일은 단계 4e(NERV Task
+# `CLE-T-VP5KDJ`)다. 같은 판정이 `pull.py` 와 frontend `spec-links.ts` 에도 있고, 세 곳이 같은
+# 파일을 고르는지 `.claude/tests/test_nerv_mirror_pull.py` 의 `MirrorPredicateParityTest` 가 본다.
 _NERV_MIRROR_REL = re.compile(r"^(?:README\.md|CLE-[A-Z0-9-]+\.md|CLE-[A-Z0-9-]+/)")
 
 

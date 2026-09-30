@@ -29,17 +29,20 @@
 (첫 미러 169편, 카탈로그 영역 `CLE-C24` · `CLE-MKS` 는 제외). 옛 `spec/<영역>/` 트리는 그대로 두되 동결한다.
 
 - **미러 도구** `.claude/tools/nerv-mirror/pull.py`: `--all` 은 NERV 전체 내보내기로, `--task <CLE-T-…>` 는 클레임한 스펙을 작업
-  기준 버전으로 받는다(ETag 가 같으면 건너뜀). 링크는 미러 파일 사이 상대 경로로 바꾸고, frontmatter 에 옛 경로(`source_paths`) ·
-  파일 지문(`mirror_sha256`) · `etag` 를 더한다. 받은 이름 · 경로 · ETag · 토큰을 검증하고, 빈 내보내기나 미러 절반 넘는 삭제는
-  멈춘다(`--allow-mass-prune` 으로만 진행).
+  기준 버전으로 받는다(ETag 가 같으면 본문을 다시 받지 않고 캐시 원문으로 링크만 다시 만든다). 링크는 미러 파일 사이 상대
+  경로로 바꾸고, frontmatter 에 옛 경로(`source_paths`) · 파일 지문(`mirror_sha256`) · `etag` 를 더한다. 받은 이름 · 경로 · 크기 ·
+  ETag · 토큰 · 서버 주소(https, 예외는 loopback)를 검증하고, 빈 내보내기나 미러 절반 넘는 삭제는 멈춘다(`--allow-mass-prune`
+  으로만 진행). 심볼릭 링크는 따라가 쓰거나 지우지 않는다.
 - **편집 가드(신설)** `.claude/hooks/guard_nerv_owned_paths.py`: Write · Edit · MultiEdit · NotebookEdit 로 `spec/` 을 고치려 하면
   막는다(main 과 워크트리 모두, 이 저장소만). 스펙은 `/nerv:spec edit` 으로 안내한다. 일회성 우회는 `BYPASS_NERV_OWNED_PATHS=1`.
   `review/` 는 리뷰 전환(단계 2), `plan/` 은 plan 제거(단계 3)에서 더한다. 훅 파일이 없는 main checkout(아직 pull 하지 않음)
   에서는 통과한다. 파일이 없을 때 모든 편집이 막히는 것을 이 PR 을 만들며 겪었다.
-- **CI 가드(신설)** `spec-link-checks` 의 `spec-mirror-integrity` 잡: 미러 파일의 셸 · 손 편집(본문 · frontmatter)과 위치 이동을
-  잡는다. 미러가 0편이면 실패한다. 미러 파일의 추가 · 삭제와 옛 트리의 셸 편집은 잡지 않는다.
+- **CI 가드(신설)** `spec-link-checks` 의 `spec-mirror-integrity` 잡: 미러 파일의 셸 · 손 편집(본문 · frontmatter), 위치 이동,
+  지문 없는 미러 파일 추가, 옮겨진 문서의 옛 자리를 가리키는 링크, 미러 자리의 링크 · 다른 파일을 잡는다. 미러가 0편이면
+  실패한다. 미러 파일 삭제, 지문까지 다시 계산한 위조, 옛 트리의 셸 편집은 잡지 않는다.
 - 옛 트리 가드(`spec-link-integrity` scope 1 · `spec-area-index`)와 consistency 오케스트레이터 코퍼스는 미러를 대상에서 뺀다.
-  미러가 옛 트리 규칙(영역 목차 · 슬러그 앵커)을 따르지 않아서다. 미러 넣기 전 실측: docs 가드 49건 RED, 번들 순서 단언 RED.
+  미러가 옛 트리 규칙(영역 목차 · 슬러그 앵커)을 따르지 않아서다. 미러를 넣은 채 제외 규칙이 없을 때 실측: docs 가드 49건 RED,
+  번들 순서 단언 RED. 세 곳의 미러 판정은 `MirrorPredicateParityTest` 가 묶는다.
 
 ## Unreleased — 하네스: 워크트리 세션에도 NERV 설정이 붙는다
 
