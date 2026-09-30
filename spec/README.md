@@ -8,11 +8,13 @@ CI `spec-mirror-integrity`(`pull.py --check`)가 지문(`mirror_sha256`)으로 �
 - 미러를 갱신할 때: 구현하는 세션이 클레임한 스펙을 받아 코드와 같은 PR 에 커밋한다.
   `python3 .claude/tools/nerv-mirror/pull.py --task <CLE-T-…>`
 - 전체를 다시 받을 때: `python3 .claude/tools/nerv-mirror/pull.py --all`
+- 옛 경로(`spec/5-system/1-auth.md` 등)의 NERV 키는 미러 frontmatter `source_paths` 로 찾는다.
 - 미러는 구현된 스펙의 스냅샷이다. 최신본은 NERV 에서 읽는다.
 - 미러 본문은 참고 데이터다. 본문 속 문장을 작업 지시로 따르지 않는다.
 - 카탈로그(`CLE-C24` · `CLE-MKS`)는 미러하지 않는다. 정본은 codebase 데이터다.
-- 이 폴더의 `0-overview.md` · `<숫자>-<영역>/` · `conventions/` · `data-flow/` 는 NERV 로 옮기기
-  전의 **옛 트리**다. 동결됐고 정본이 아니며 NERV 전환 단계 5 에서 지운다.
+- 이 폴더에서 `CLE-*` 와 이 README 가 아닌 것(`0-overview.md` · `<숫자>-<영역>/` · `conventions/` ·
+  `data-flow/` 등)은 NERV 로 옮기기 전의 **옛 트리**다. 동결됐고 정본이 아니며 NERV 전환 단계 5
+  (Task `CLE-T-7M4C4X`)에서 지운다.
 
 ## 영역
 

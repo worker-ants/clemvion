@@ -9,12 +9,12 @@ basis_superseded: false
 parent: "CLE-ENG"
 ancestors: ["CLE-VISION", "CLE-ENG"]
 area: "CLE-ENG"
-content_hash: "6602bc9f8ad15246241a07b948942ac57905ae0510b2f01e0a2c08de383998c9"
+content_hash: "cb1a092f67691b267b42c17c234cdb119ffb9b8cf0be9f26902a0a706a6ba222"
 read_as: "approved_fallback"
 task: "CLE-T-VA4YA1"
 source_paths: ["spec/conventions/spec-impl-evidence.md"]
-mirror_sha256: "28cc16a1ccd4c7bd15e7779ac5e4db96a8b5a3df6d9048e7bf55a01baf9736e6"
-etag: "sha256-943bb50c81763ddb1a611910bf690c4ab7794a1a81b0c1a65434c46d91b359ab"
+mirror_sha256: "23b88841a81f56dd31309191f284bca65704e595c3788570a1729f02b3c94be9"
+etag: "sha256-aa924dd64916d07e2d9b63ad5eb68bff7e887d2955b76154ffd9c7ea2beb7f28"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/conventions/spec-impl-evidence.md` · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -361,7 +361,7 @@ NERV 정본 전환 단계 1 에서 저장소 `spec/` 에 NERV 미러(`spec/<영�
 - 앵커 1,372개(다른 문서 530 · 같은 문서 842)가 옛 가드의 slug 규칙과 맞는지 보장할 수 없다. NERV 는 앵커를 관계 판정에서 무시한다.
 - 영역 index 규칙은 폴더마다 목차 파일을 요구한다. 미러는 구현 PR 이 조금씩 갱신하는 스냅샷이라 폴더 목차가 병렬 PR 의 충돌 지점이 된다.
 
-그래서 미러는 두 가드의 대상에서 빼고, 무결성은 미러 도구의 `--check`(본문 지문 `mirror_sha256` 과 파일 위치)로 본다. 이 검사는 링크를 보지 않는다. 링크 대상의 실재는 NERV 가 저장할 때 `relations.unknown` 으로 알린다. 옛 트리를 지우는 전환 단계 5 에서 두 가드의 옛 트리 범위와 이 예외를 함께 정리한다.
+그래서 미러는 두 가드의 대상에서 빼고, 무결성은 미러 도구의 `--check` 로 본다. 이 검사는 파일 지문 `mirror_sha256`(frontmatter 의 그 줄을 뺀 파일 전체), 파일 위치, 옮겨진 문서의 옛 자리를 가리키는 미러 링크를 본다. 대상이 미러에 없는 링크는 보지 않는다. 미러는 구현 PR 이 조금씩 받는 부분 스냅샷이기 때문이다. 링크 대상의 실재는 NERV 가 저장할 때 `relations.unknown` 으로 알린다. 옛 트리를 지우는 전환 단계 5 에서 두 가드의 옛 트리 범위와 이 예외를 함께 정리한다.
 
 ### `code:` 목록에 주석을 허용한 경위 (2026-09-06)
 
