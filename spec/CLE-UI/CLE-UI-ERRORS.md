@@ -13,7 +13,7 @@ content_hash: "bcb255526423b22177fc309a16ff926c4d204f84355054781cf85afbb3dc770f"
 read_as: "approved"
 task: null
 source_paths: ["spec/2-navigation/11-error-empty-states.md"]
-mirror_sha256: "82bb6da10a0f6f8c6de96eb9ab7740a222b37052972786f5128d243e337dc0e1"
+mirror_sha256: "928855b8770ba36f866c0d31cbc36d10a5e40dcd384e34d6ab9e7949fd650bdf"
 etag: "sha256-e615cf6539983ddf6bdd97509238da11b0a7c6de761eea2300426a532cb44e4e"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/2-navigation/11-error-empty-states.md` (전체) · 용어: [용어 사전](../CLE-GLOSSARY.md)

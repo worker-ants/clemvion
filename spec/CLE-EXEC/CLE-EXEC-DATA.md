@@ -13,7 +13,7 @@ content_hash: "72ff71d94f5d6a40295ace1fe151a543744cc895214e531310f304d388c6e9fe"
 read_as: "approved"
 task: null
 source_paths: ["spec/1-data-model.md", "spec/5-system/4-execution-engine.md", "spec/data-flow/3-execution.md"]
-mirror_sha256: "48fb35ceaa2366bb885a76a2b3cc5026eb61e7a82bf4b7a042bf67be3e3fe565"
+mirror_sha256: "bab3e8e646bd5b1627ce7185c80341abc169586554a95ed47bf2dfec34f5ed82"
 etag: "sha256-6a684f3f1192cd592186909cc6aebececd3a8fce74ad3e3307442e3eef08a7a2"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/data-flow/3-execution.md`, `spec/1-data-model.md` (§2.13 Execution, §2.13.1 ExecutionNodeLog, §2.13.3 WorkflowTestDataset, §2.14 NodeExecution, Rationale "삭제 연쇄의 FK 인덱스 다섯", "Execution.execution_path → ExecutionNodeLog"), `spec/5-system/4-execution-engine.md` (§7.4 `execution_node_log` 모델) · 용어: [용어 사전](../CLE-GLOSSARY.md)

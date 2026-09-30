@@ -13,7 +13,7 @@ content_hash: "6b9d496c4e9c15bcc628e5144e8c773fffd098cfabcc9a0d68e59cf4747667dc"
 read_as: "approved"
 task: null
 source_paths: ["spec/4-nodes/1-logic/10-parallel.md", "spec/4-nodes/_product-overview.md"]
-mirror_sha256: "8925299c7b5254bba4a126442c4fc41d1dcf297daf02a93b79489ba49ccffb0c"
+mirror_sha256: "e1da33fc0f0cbdf727abf976077a0291d14e01cff61dc374b98f54e192492a4e"
 etag: "sha256-778ae5ae461bc9f2e95a10cbd5c4b43f1453d0758a64fd77ea9d7bff03756b39"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/4-nodes/1-logic/10-parallel.md`, `spec/4-nodes/_product-overview.md` (§4.10) · 용어: [용어 사전](../CLE-GLOSSARY.md)

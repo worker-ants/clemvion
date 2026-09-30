@@ -13,7 +13,7 @@ content_hash: "7874e4c302c48d36a9c40bceb714da0dd86c9338f7ecf2796ca3b47273c85c12"
 read_as: "approved"
 task: null
 source_paths: ["spec/4-nodes/0-overview.md", "spec/4-nodes/_product-overview.md"]
-mirror_sha256: "fc91ea4f6e42bb5c6336e4e604b60e4a0681cbc1c2acf95878ea89db6dfdaa0b"
+mirror_sha256: "d8785fbcef09762f06918e71c7bebd335538701c42e260fb5e143d24712b2193"
 etag: "sha256-326b03ae9f419ef09fe6778441765941805398a7fe24cd26099483f109e9e4da"
 ---
 > 구현 상태: 부분 구현(플러그인·마켓플레이스와 파일 시스템 샌드박스 정책은 미구현) · 원문: `spec/4-nodes/0-overview.md`, `spec/4-nodes/_product-overview.md` (§1, §2, §10) · 용어: [용어 사전](../CLE-GLOSSARY.md)

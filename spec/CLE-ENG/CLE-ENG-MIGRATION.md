@@ -13,7 +13,7 @@ content_hash: "0571b4a4731a19cd858a95b54558119ecf2035b3bc890cfb2e67e9b3e4d982c4"
 read_as: "approved"
 task: null
 source_paths: ["spec/0-overview.md", "spec/conventions/migrations.md"]
-mirror_sha256: "4b74747accbb47c30eb93f4cbb6f2c7bbaaf4a2a49c008b49083fcc4b601116b"
+mirror_sha256: "ae8a1da671821be8eae1451077d17994a3bc2253e00d2cf84e54fa50a6b35637"
 etag: "sha256-b50b04c604a24aebb3dea2f3dd0a1ab31390373c90b6634fe337ddfc749eb907"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/conventions/migrations.md`, `spec/0-overview.md` (§2.8 DB 마이그레이션, Rationale «DB 마이그레이션 도구로 Flyway 채택») · 용어: [용어 사전](../CLE-GLOSSARY.md)

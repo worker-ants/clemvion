@@ -13,7 +13,7 @@ content_hash: "ebe38d4dab1f072db33b10db49401fbcd1c2683d1e91a3839e51bfe2ab1d6f7c"
 read_as: "approved"
 task: null
 source_paths: ["spec/3-workflow-editor/1-node-common.md", "spec/3-workflow-editor/_product-overview.md", "spec/5-system/5-expression-language.md"]
-mirror_sha256: "814ecab9ddce1eed867ad570c99a3272196e325d716fa983e68c2f2a95bdc76b"
+mirror_sha256: "2c439c7f3b0fa83970e5c70b33cad447dcf98b1e60eae4c982fb77667cc074c9"
 etag: "sha256-e74333529ba06626883ea2d7c2356e26adf9e9af64ed730c03c250e3370bcd6f"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/5-system/5-expression-language.md`, `spec/3-workflow-editor/1-node-common.md` (§3 표현식 시스템), `spec/3-workflow-editor/_product-overview.md` (§5 ED-SP-03·04) · 용어: [용어 사전](../CLE-GLOSSARY.md)

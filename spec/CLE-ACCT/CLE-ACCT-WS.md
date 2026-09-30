@@ -13,7 +13,7 @@ content_hash: "760d1b9d15feb09ef106d0baa12a898e730ade95f70e6f21bd2873c229197eb2"
 read_as: "approved"
 task: null
 source_paths: ["spec/0-overview.md", "spec/2-navigation/10-auth-flow.md", "spec/2-navigation/9-user-profile.md", "spec/5-system/1-auth.md", "spec/data-flow/12-workspace.md"]
-mirror_sha256: "a8107fa4660c50b62f209e3daac373ac1dd8eeabb5d9f7b37bbd0e438aeefa85"
+mirror_sha256: "584a5d2e8b81871e28c57e9d064cecf6a8864875c01a702491786d9480f7f17f"
 etag: "sha256-0523a413f9d126f70733215386f6c2125aa7f1ff40b16e6b86714367c7e6c115"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/5-system/1-auth.md` (§1.5, §3, §5 전환·초대 행, Rationale 1.5.A~D·멤버 관리 정정·부트 캐너리), `spec/2-navigation/9-user-profile.md` (§3, §4, §6.1 워크스페이스 행), `spec/2-navigation/10-auth-flow.md` (§2.6, §6), `spec/0-overview.md` (§4 사용 단위), `spec/data-flow/12-workspace.md` (규칙·Rationale 중 인가와 멤버 관리 부분) · 용어: [용어 사전](../CLE-GLOSSARY.md)

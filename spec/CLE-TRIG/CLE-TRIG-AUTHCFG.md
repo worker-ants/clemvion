@@ -13,7 +13,7 @@ content_hash: "66442c1f7b03caa4b8f85e9ec5d1b24eae945b31362ea5c52a598da9dcbd8792"
 read_as: "approved"
 task: null
 source_paths: ["spec/1-data-model.md", "spec/2-navigation/6-config.md", "spec/2-navigation/_product-overview.md"]
-mirror_sha256: "5c193ad78a92f39aea84f4a426e0c62dbb3f789f063c6ab05fc233dc34ef82a9"
+mirror_sha256: "35d5bbfa99bdd46bdfba1130a7aab9f00b01df71e8da67ccc9a898e55c5cab42"
 etag: "sha256-05e45537b48061b3c72d6633272e6f4784d2311c5fa6181f2019cbfa26b41d60"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/2-navigation/6-config.md` (Overview, Part A, §3 Authentication API, Rationale R-2·R-6), `spec/2-navigation/_product-overview.md` (§3.6 Authentication), `spec/1-data-model.md` (§2.17.2 마스킹·노출 정책) · 용어: [용어 사전](../CLE-GLOSSARY.md)

@@ -13,7 +13,7 @@ content_hash: "8ffc671c8e572b3c94d803f2da999392131993847fbdf73d6ecccc5e82b8c943"
 read_as: "approved"
 task: null
 source_paths: []
-mirror_sha256: "c8bd201ace180e84d00bbc017cec12b7f9a0407402d44b30f1d75de3d4a1f785"
+mirror_sha256: "8ecd001152c76206c6fd551679971956d3ba8b6117fb1a59436d7ac3dbdd9b78"
 etag: "sha256-ad5bcb8374d5a2631f8b6ff585b7388bdd0889e1e4cbed9e7eb14e16d5389122"
 ---
 > 구현 상태: 구현됨(메타 노출 일부 미구현) · 원문: `spec/4-nodes/2-flow/` · 용어: [용어 사전](../CLE-GLOSSARY.md)

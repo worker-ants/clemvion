@@ -13,7 +13,7 @@ content_hash: "c6ccb0823f9dabad00505ee2876f28eb8f9e4e24c687b01d45fa72a65bf7cb3a"
 read_as: "approved"
 task: null
 source_paths: ["spec/2-navigation/4-integration.md", "spec/4-nodes/4-integration/_product-overview.md"]
-mirror_sha256: "234fc9e2a6ba8dd95909ad3cdd5e1fbd04305888a8ebf937b1d3549ffb550bed"
+mirror_sha256: "1c3c54988a4ef7f63e0843353502eb75efadedbb5fc964e729882f0db1255a94"
 etag: "sha256-a3728d0bf4dde837e80db55df5360865610c6961744ebf7b9929475c17945fe8"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/4-nodes/4-integration/_product-overview.md` (§1), `spec/2-navigation/4-integration.md` · 용어: [용어 사전](../CLE-GLOSSARY.md)

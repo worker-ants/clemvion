@@ -13,7 +13,7 @@ content_hash: "d2b4c8ef89e4624be90dbf3f90644f08386c4d6a47460f6d83b6411f71ff51c9"
 read_as: "approved"
 task: null
 source_paths: ["spec/5-system/4-execution-engine.md", "spec/data-flow/3-execution.md"]
-mirror_sha256: "035707c11691dd202d31fd65752b9065f1d7869e0f5eadcc3a0980f886b2cc4f"
+mirror_sha256: "653054309b73c92958bb28aa40a750140465271941f32a1c536dd697f1b67663"
 etag: "sha256-6b39a5c0c55398a528276b205b7830c2f4fde110f0fb084da21fd7849c0e4415"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/5-system/4-execution-engine.md` (§7.1–§7.5, §11, Rationale), `spec/data-flow/3-execution.md` (§3.3, Rationale) · 용어: [용어 사전](../CLE-GLOSSARY.md)

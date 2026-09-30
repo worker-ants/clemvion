@@ -13,7 +13,7 @@ content_hash: "ebdbbc16d76eafb1a3c3f48f4ba502b52ce60c5e2cf36d148ed4d8be8faa31a0"
 read_as: "approved"
 task: null
 source_paths: ["spec/conventions/chat-channel-adapter.md"]
-mirror_sha256: "8ed62446ace7027362b67a19756d8b50164141a05cb31fb6ddc5c79e8ded19d0"
+mirror_sha256: "d009e7ebfc41c151180f2d875b8a51817a35b25928dc4c578a927a1def9338ee"
 etag: "sha256-6bae38e017e078a50d7b148414c5e05ffc95a1e0eda6d570e8cd62ed574ebb09"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/conventions/chat-channel-adapter.md` · 용어: [용어 사전](../CLE-GLOSSARY.md)

@@ -13,7 +13,7 @@ content_hash: "62502cd551d5f813f419fb5f16ac931c755444ab74d1755d50ee2e568465f9f9"
 read_as: "approved"
 task: null
 source_paths: ["spec/4-nodes/3-ai/_product-overview.md", "spec/4-nodes/_product-overview.md"]
-mirror_sha256: "b2dce310daf486d1d8586149a1da9c9c519eb40d461acdcdc870aee38dfae8cf"
+mirror_sha256: "4963ee574e7c52937c4c613c4e71d0625a2384b4d30f8295a7c303a036d99ca1"
 etag: "sha256-1c4841f7b48ac30ae4372a1300fac5914bf3256c6f5b8491de8fc9164b07df66"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/4-nodes/3-ai/_product-overview.md` (§1 목표, §2 범위), `spec/4-nodes/_product-overview.md` (§6) · 용어: [용어 사전](../CLE-GLOSSARY.md)

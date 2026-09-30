@@ -13,7 +13,7 @@ content_hash: "498e468732566e48553142424918ab399c81671e808e1d7fb772a85d0a1be371"
 read_as: "approved"
 task: null
 source_paths: ["spec/4-nodes/6-presentation/0-common.md", "spec/4-nodes/_product-overview.md"]
-mirror_sha256: "c9c92a8326560d31e95d0dc1568db9929e885b7a7d2abce68c543dea8700e15e"
+mirror_sha256: "2e8c2d172e4dc8b17f03258967d535154234c1d72b40f6653478374c2bf5617e"
 etag: "sha256-6e3bb1de38d216d827512ad3b91a29caf37ab8c2c3c17622b2a896ded206c8d6"
 ---
 > 구현 상태: 구현됨 (대화 스레드 opt-out 필드의 스키마 선언·설정 UI 노출은 미구현) · 원문: `spec/4-nodes/6-presentation/0-common.md`, `spec/4-nodes/_product-overview.md` (§9 머리글) · 용어: [용어 사전](../CLE-GLOSSARY.md)

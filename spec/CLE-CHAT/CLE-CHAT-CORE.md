@@ -13,7 +13,7 @@ content_hash: "453ca0ea4980467fe1f745c90fbc91a739b9d666bf205598e50d8a15fe273c08"
 read_as: "approved"
 task: null
 source_paths: ["spec/4-nodes/7-trigger/providers/_overview.md", "spec/5-system/15-chat-channel.md"]
-mirror_sha256: "8873cde7b04240c4874c111676a1a91aeec69df23f460d54ccec6b1ace1499c9"
+mirror_sha256: "5286c51c9871adaa80626c1d10abbb0ea6a61fc6081b8a88331e3edc63e3a102"
 etag: "sha256-e029c99ac435c77ee3655caf000052c636cc9a5fc1ee851e91bc82588c35d739"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/5-system/15-chat-channel.md` (Overview, §3 처리 흐름, §5–§8, Rationale), `spec/4-nodes/7-trigger/providers/_overview.md` · 용어: [용어 사전](../CLE-GLOSSARY.md)

@@ -13,7 +13,7 @@ content_hash: "c9689c40ca1a93c22cbce4c54952b98597664714e6355e14813d6b98aab0e856"
 read_as: "approved"
 task: null
 source_paths: ["spec/4-nodes/1-logic/11-merge.md", "spec/4-nodes/_product-overview.md"]
-mirror_sha256: "3acf05508d11ce40f0e74c823e0eea88f99f7f1b501116e284f1d9c0db06f51c"
+mirror_sha256: "1616847a67dc2a460c97edbcbb6ae45ce2230b1e342d7d220fa5feed541a258c"
 etag: "sha256-ff0c238ca10bc8de4c225ed3e05c8bed5e4c05cdfbe18f370f0768983aa77e3a"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/4-nodes/1-logic/11-merge.md`, `spec/4-nodes/_product-overview.md` (§4.11) · 용어: [용어 사전](../CLE-GLOSSARY.md)

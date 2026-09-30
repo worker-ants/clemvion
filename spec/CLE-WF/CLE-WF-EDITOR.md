@@ -13,7 +13,7 @@ content_hash: "d36d568b31dbf02f8d16705c901189848d4aad6f9abb14b107eb05c99ae12993"
 read_as: "approved"
 task: null
 source_paths: ["spec/3-workflow-editor/0-canvas.md", "spec/3-workflow-editor/_product-overview.md"]
-mirror_sha256: "a222c109f8fc6dbecd9ca5b8fa4a955a51570dda2965c71aec77f4f07cd5bc36"
+mirror_sha256: "bca4df82fcb86be2f7029312c41959c372996fc85c0fd8b08ae4d23a95d61002"
 etag: "sha256-a4865903220e6d169b2a1ad154104801f3572a64c16b6d2d4d447d05f4bbbeea"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/3-workflow-editor/_product-overview.md` (§1~§4, §6 ED-SV-01·02, §9), `spec/3-workflow-editor/0-canvas.md` · 용어: [용어 사전](../CLE-GLOSSARY.md)

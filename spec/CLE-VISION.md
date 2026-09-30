@@ -13,7 +13,7 @@ content_hash: "f056c3be502cb511c6d1dd0b458a85aabd0b2271391553bf0c37ee39c18e6c1c"
 read_as: "approved"
 task: null
 source_paths: ["spec/0-overview.md"]
-mirror_sha256: "ba1cd6f5cd2591473eb746abf2f824da2c5c88961a466fcea697603fb69452b8"
+mirror_sha256: "86b81528c904e527dcf517ce983accbcb41ccbd05334b9ca7c0c7f502bb83ac7"
 etag: "sha256-76dbaceca1a87ffcfa1adff9355ea9bbec1f974eeb111d4e8c90c5fa690f80e0"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/0-overview.md` (Overview §1~§8, §4 영역별 진입 문서) · 용어: [용어 사전](CLE-GLOSSARY.md)

@@ -13,7 +13,7 @@ content_hash: "267ffaf607947cd9320b82df148d7b040205be69dd68049dddfd03232bbb6e17"
 read_as: "approved"
 task: null
 source_paths: ["spec/2-navigation/14-execution-history.md", "spec/2-navigation/_product-overview.md"]
-mirror_sha256: "b6a5a1deb70907e03a3e669c140ac14cfaeae7af37681cd1d30cfa5fd415f9d0"
+mirror_sha256: "82ab3a3f394748f033ecd7372731cf59362708b8499e57aaa092c0971c21d57d"
 etag: "sha256-cf9eb416a9a0972789a38006da0440470a1bf34df6c347f09eef43ae0e3d8bea"
 ---
 > 구현 상태: 구현됨 (EH-DETAIL-12 여러 노드 대화 재구성 보기만 v2 미구현) · 원문: `spec/2-navigation/14-execution-history.md`, `spec/2-navigation/_product-overview.md` (§3.15 Execution History) · 용어: [용어 사전](../CLE-GLOSSARY.md)

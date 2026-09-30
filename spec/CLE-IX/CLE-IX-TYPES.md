@@ -13,7 +13,7 @@ content_hash: "9aaced4d852138fcd21bfc1173a3b750d36202e28a126a7da408e80dd5368ceb"
 read_as: "approved"
 task: null
 source_paths: ["spec/conventions/interaction-type-registry.md"]
-mirror_sha256: "e6936f5ffdf9f9cee4b741965d9e94fdc2fe7a4e73cce73af1cf1aaae0ba8b7f"
+mirror_sha256: "b4ea25d59a5cc0ca79a2d5b24ed19b2a615f953ed69b463827bec710bc4e2cd0"
 etag: "sha256-08f7b143c5edb2a851cc6f475ed55e85ede94f35c2ea6ee346b149159a8a5fb6"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/conventions/interaction-type-registry.md` · 용어: [용어 사전](../CLE-GLOSSARY.md)

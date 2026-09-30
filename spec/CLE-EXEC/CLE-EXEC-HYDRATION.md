@@ -13,7 +13,7 @@ content_hash: "33ad468d6038937f91ada935375aaa5c489d003113c0ff5a7b4dc47c01db562a"
 read_as: "approved"
 task: null
 source_paths: ["spec/conventions/data-hydration-surfaces.md"]
-mirror_sha256: "09946922b4e8f958df79ee684542aff44f41ddeb4dfb04d9759ed1c9f4d95095"
+mirror_sha256: "3a9eb1aa3fb2249193980b3d7e3083d8234c6c2b9bdb87228e2d27974d0171bc"
 etag: "sha256-1a7cbd2c9f719be39fe50cc9546997359eb7e9b93b3e130eaaa4ba3f6ede0150"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/conventions/data-hydration-surfaces.md` · 용어: [용어 사전](../CLE-GLOSSARY.md)

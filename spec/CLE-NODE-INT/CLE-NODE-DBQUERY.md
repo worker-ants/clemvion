@@ -13,7 +13,7 @@ content_hash: "3f86c364c4eeee1d9240687dbd40b684b2b7a9d8102f724663a2032409a9ae4a"
 read_as: "approved"
 task: null
 source_paths: ["spec/4-nodes/4-integration/2-database-query.md", "spec/4-nodes/_product-overview.md"]
-mirror_sha256: "0b3cbf67ec9a2ef978deb06cc0c14abdef82ab344236c68d4db063c654db27e2"
+mirror_sha256: "cd55e573f8972d0046637ae59a719a020443dd1a6d393d30d6e9fea0dda0b147"
 etag: "sha256-01e511a98d4b4e44dc012fa3d073b49e9732b35786c5769da2af61562224ca59"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/4-nodes/4-integration/2-database-query.md`, `spec/4-nodes/_product-overview.md` (§7.2) · 용어: [용어 사전](../CLE-GLOSSARY.md)

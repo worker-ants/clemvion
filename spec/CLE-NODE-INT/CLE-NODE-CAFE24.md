@@ -13,7 +13,7 @@ content_hash: "8fb545e7e2921c065e6b6ee925cde2a0ebf5a81055195154b2e1f27a3fb228ee"
 read_as: "approved"
 task: null
 source_paths: ["spec/4-nodes/4-integration/4-cafe24.md", "spec/4-nodes/_product-overview.md"]
-mirror_sha256: "c2c654a9d7d724972f995cafba4c10c0a62c78b4fa0c75f896ebafcd66c9b968"
+mirror_sha256: "111d9ffca8ed50b46603c6c1f36473bf20cfcde988e5a7a0cabb2790ee6a4b8a"
 etag: "sha256-d88d4b46ba5c96770d17c11a419f00bd6fb07537b035a70d93fd006c7b8c3628"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/4-nodes/4-integration/4-cafe24.md`, `spec/4-nodes/_product-overview.md` (§7.4) · 용어: [용어 사전](../CLE-GLOSSARY.md)

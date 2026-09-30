@@ -13,7 +13,7 @@ content_hash: "2245a576e575ba21ac2d7c35aa78350a6cc84ded4c00bdc501dbf0178e5a3dda"
 read_as: "approved"
 task: null
 source_paths: ["spec/4-nodes/6-presentation/4-form.md", "spec/4-nodes/_product-overview.md"]
-mirror_sha256: "5e8f9daec54732774ab04d79b1dbce396aed181e80f2d37aaee9c63614db847c"
+mirror_sha256: "16a7aa296e4abde1af00cdac1cfc29b309776553a45a00bfcf8e27bdb6596937"
 etag: "sha256-9852065dbdea06feff7a0dd5dc738381f9ce3e4f4207b5cc2be2ab279331de6a"
 ---
 > 구현 상태: 구현됨 (검증 preset 카탈로그와 캔버스 설정 요약은 미구현) · 원문: `spec/4-nodes/6-presentation/4-form.md`, `spec/4-nodes/_product-overview.md` (§9.4) · 용어: [용어 사전](../CLE-GLOSSARY.md)

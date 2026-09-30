@@ -13,7 +13,7 @@ content_hash: "55b546e050acc55d51314b23eb27a45ea4fec5de96773e93832118cc5a7557f7"
 read_as: "approved"
 task: null
 source_paths: ["spec/1-data-model.md", "spec/5-system/1-auth.md", "spec/conventions/audit-actions.md", "spec/data-flow/1-audit.md"]
-mirror_sha256: "fa697abd3d2fbc67932e50d314bd40d0cf65ac6a88ff13b3b39299d9c14d6850"
+mirror_sha256: "cf4573e52b8b8f68f47ac41115fcbf7c868f3ad5cb2c6e510986e0b54d10bf47"
 etag: "sha256-d4e1769b9547e3e99013a1a4b9ab75d33dde2231c03a4ab12dcb479174709225"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/5-system/1-auth.md` (§4, Rationale 4.1.B), `spec/data-flow/1-audit.md`, `spec/1-data-model.md` (§2.18), `spec/conventions/audit-actions.md` (§3 레지스트리의 구현 상태와 기록 규칙) · 용어: [용어 사전](../CLE-GLOSSARY.md)

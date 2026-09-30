@@ -13,7 +13,7 @@ content_hash: "d401b3028150e3660024945f12344c38170d634de7c6a5254e378bbd4fa2c886"
 read_as: "approved"
 task: null
 source_paths: ["spec/1-data-model.md", "spec/3-workflow-editor/4-ai-assistant.md", "spec/data-flow/11-workflow.md"]
-mirror_sha256: "e1ac2865bf4cc76d1852e9fe7aa7407272e29f614c8b553be21ceca4ded28c71"
+mirror_sha256: "ef4bb143840aca9698e820d7d36b373017c4caceddd1457004c40da32ab5b010"
 etag: "sha256-c4010708cc335e113fa93cd93b6490fe0ef62d7d6b2568b97e1fdd738b7980de"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/3-workflow-editor/4-ai-assistant.md` (§5, §6, Rationale 의 채팅 히스토리 서버 영속화·Stall 자동 복구 UX 메시지 분리), `spec/1-data-model.md` (§2.20, §2.22), `spec/data-flow/11-workflow.md` (§1.3, §2.1, §3.2, §3.3, Rationale 의 Assistant message usage JSONB) · 용어: [용어 사전](../CLE-GLOSSARY.md)

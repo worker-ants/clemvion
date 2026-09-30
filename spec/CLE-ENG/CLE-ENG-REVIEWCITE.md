@@ -13,7 +13,7 @@ content_hash: "acd99e7299b98349186f7facc3139a8f98cdf11075dc87bf093ec2ce355e461f"
 read_as: "approved"
 task: null
 source_paths: ["spec/conventions/review-citations.md"]
-mirror_sha256: "d7146b392ae67cdc12f012f527bc099f4390ea1ae56e97ab4a54d6649c2d46f9"
+mirror_sha256: "bb95a6120799c899e30660c079a51e22d01e64a29fb50463805cd6e56980283c"
 etag: "sha256-a167e8fcd660864297139c9b9db4dcebc7093fbd0d05835745ae0d475dbb8c83"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/conventions/review-citations.md` · 용어: [용어 사전](../CLE-GLOSSARY.md)

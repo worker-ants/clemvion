@@ -13,7 +13,7 @@ content_hash: "ed9ab5c6b2feee177bc92f62e047d8965d371b47311e4304d1d13070245546e2"
 read_as: "approved"
 task: null
 source_paths: ["spec/2-navigation/13-user-guide.md", "spec/2-navigation/_product-overview.md"]
-mirror_sha256: "afa104e1de5d279247ebef3fb9396156a11f4fa7eccfeecd96b654f1efacc147"
+mirror_sha256: "0a9e8e16b0c1536a692fb4a2df27093dd773dc98e4acb22e2d6f82728739d57d"
 etag: "sha256-19b72c7bfc8cfd28ac4af36f16b70edf9fd835c71e3e269c90f778f5cef94aea"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/2-navigation/13-user-guide.md` (전체), `spec/2-navigation/_product-overview.md` (§3.11 User Guide) · 용어: [용어 사전](../CLE-GLOSSARY.md)

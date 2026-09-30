@@ -13,7 +13,7 @@ content_hash: "580860e6dba720f06ee8bbb9dc532b33a56c0223da358497cf5c24a5786baf1f"
 read_as: "approved"
 task: null
 source_paths: ["spec/7-channel-web-chat/_product-overview.md"]
-mirror_sha256: "39e79166696f7e54451a8cd23128058d5f81c883f764534f9563961057b29f75"
+mirror_sha256: "2c9814a9d1ba50c45fedcb9acd31f30d55c3febde4bde0d7c3431f06d67dd239"
 etag: "sha256-38b96e263422208dbb258d21d09f54339f35c08db358ed00622d8fb6bd489c29"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/7-channel-web-chat/_product-overview.md` · 용어: [용어 사전](../CLE-GLOSSARY.md)

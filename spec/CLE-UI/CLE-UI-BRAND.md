@@ -13,7 +13,7 @@ content_hash: "566abd220ce95e3f8eeaf048a668856a9d4a3157ec06695b47be5276e2366034"
 read_as: "approved"
 task: null
 source_paths: ["spec/6-brand.md"]
-mirror_sha256: "6ac18b4a8ba052bc88676883052176fa54f9a40d65e44c875fc0571387a5d4c2"
+mirror_sha256: "082d5c5c09dd15ea73d87cdc2ba287364974b8993e49068e2916d48b181ac2a3"
 etag: "sha256-ab0c6450b2981266040f59adaf80fe4ebbbc50577b734d8e56b7950361109846"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/6-brand.md` (전체) · 용어: [용어 사전](../CLE-GLOSSARY.md)

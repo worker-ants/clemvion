@@ -13,7 +13,7 @@ content_hash: "d3c75161e32c6ad8e323540ab1eba7be9c7fb283bb498dda003db4a6d9c19a29"
 read_as: "approved"
 task: null
 source_paths: ["spec/3-workflow-editor/1-node-common.md", "spec/3-workflow-editor/_product-overview.md"]
-mirror_sha256: "2ea7d633808f8a673f835add9069998caf88fe5fd7ebb53ccc355e24ccef8b14"
+mirror_sha256: "ddbb424f5607dca796ce218a3146d959921b2d0dfc755e65a13242cfcf15246f"
 etag: "sha256-454fbc11396e32b7bec7fc353682c00206e83d4aa4704395571c798a71b8ae9b"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/3-workflow-editor/1-node-common.md`, `spec/3-workflow-editor/_product-overview.md` (§5 ED-SP-01·02·05~08) · 용어: [용어 사전](../CLE-GLOSSARY.md)

@@ -13,7 +13,7 @@ content_hash: "110aabdbcee40057ef591496f5656b1fa4dfa74ba8c98f0b9cad21eef75b35e9"
 read_as: "approved"
 task: null
 source_paths: ["spec/2-navigation/0-dashboard.md", "spec/2-navigation/7-statistics.md", "spec/2-navigation/_product-overview.md", "spec/data-flow/9-observability.md"]
-mirror_sha256: "44662f04781a295d3169c22a953986ca3199a9897a64a3d1f36e712bde09a9d1"
+mirror_sha256: "9b95fd571ca7a92d3ad75e0c31fe22a2a5ebb5f578a8230555da4115c69514e1"
 etag: "sha256-f31fc7d83ad1bf41b5ded32181c3a758fed1dc8880435733b3bc38bc33967e63"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/2-navigation/7-statistics.md`, `spec/2-navigation/_product-overview.md` (§3.8), `spec/2-navigation/0-dashboard.md` (Rationale 의 지표 정의), `spec/data-flow/9-observability.md` (§1.2·§2.1·Rationale 의 통계 부분) · 용어: [용어 사전](../CLE-GLOSSARY.md)

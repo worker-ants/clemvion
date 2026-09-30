@@ -13,7 +13,7 @@ content_hash: "5024258472e58a93249cc8f2de845a4f80059c674c0bbb8ab0fb3be11ed54f75"
 read_as: "approved"
 task: null
 source_paths: ["spec/4-nodes/3-ai/0-common.md", "spec/4-nodes/3-ai/_product-overview.md", "spec/4-nodes/_product-overview.md"]
-mirror_sha256: "fb507e26bf34cbe6bceb29e683630327b984e9e5aaf0f8a948b8c049b522be97"
+mirror_sha256: "3fe523d86483a1f34ddeb05c707d06650c3628c2ef1ab98b392d8c4d7f3be76f"
 etag: "sha256-221c56c4592895282c4996c51bbbb11d54021916bba5871ece7eacb5282bdd95"
 ---
 > 구현 상태: 구현됨 (캔버스 요약 일부 미구현) · 원문: `spec/4-nodes/3-ai/0-common.md`, `spec/4-nodes/3-ai/_product-overview.md` (§4 기술 결정, §5 비기능 요구사항), `spec/4-nodes/_product-overview.md` (§6 머리말) · 용어: [용어 사전](../CLE-GLOSSARY.md)

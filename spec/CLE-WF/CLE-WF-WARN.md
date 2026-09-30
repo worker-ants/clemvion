@@ -13,7 +13,7 @@ content_hash: "44c52e21d48ef5aae7d12e02aab559f19ba3707b001fc0256dd1bb137b981668"
 read_as: "approved"
 task: null
 source_paths: ["spec/conventions/cross-node-warning-rules.md"]
-mirror_sha256: "9d6daf09407154916980c8b8e41c5584ead4bb27f01ba9034893870bb49984fc"
+mirror_sha256: "2cb91de4efb6ed268a04ed3359ab5e1fce8bb620ef171a9e994136157998d992"
 etag: "sha256-a47970a2fa5695c8678680910cfba78cc2a775fded6f22c87daa970c3b42ccc0"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/conventions/cross-node-warning-rules.md` · 용어: [용어 사전](../CLE-GLOSSARY.md)

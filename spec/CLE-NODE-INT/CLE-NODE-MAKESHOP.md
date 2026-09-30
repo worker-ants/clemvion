@@ -13,7 +13,7 @@ content_hash: "f112b5a92e902ec4c3273346a8faf7e4575276fa88eb70cef041328efedadbd4"
 read_as: "approved"
 task: null
 source_paths: ["spec/4-nodes/4-integration/5-makeshop.md"]
-mirror_sha256: "02be735ad99b63feb7d59fe9def1bd8046241c87ed5b9b298da5a102077c5c18"
+mirror_sha256: "63d082442bee2ca88fb7457fe60a1ff0645f5d05a866490cb429f7adf7648983"
 etag: "sha256-219938cfc136ddd5d3b22ee86723556fa00732a93fd5638f2d8c1a12d247fa73"
 ---
 > 구현 상태: 구현됨 (일부 외부 규약은 공식 문서로 재확인 필요) · 원문: `spec/4-nodes/4-integration/5-makeshop.md` · 용어: [용어 사전](../CLE-GLOSSARY.md)

@@ -13,7 +13,7 @@ content_hash: "205e30d555bea8775db58242803d78b9abeb59d31a9438d03f5697a6ab1514d1"
 read_as: "approved"
 task: null
 source_paths: ["spec/2-navigation/10-auth-flow.md", "spec/2-navigation/9-user-profile.md", "spec/5-system/1-auth.md"]
-mirror_sha256: "5c61e938ef3edf73be8c2610a444ff935b526ebb0432122cf7917c05d04511ca"
+mirror_sha256: "c076fcb8be4f4166bd1104a201481153d618474fad4575eae5b93f0bf40fab8c"
 etag: "sha256-36246a759e1af7333c330c5389667e2106ce7ea194cf0342abe60cb8ab13b1d3"
 ---
 > 구현 상태: 부분 구현 (셀프 호스팅 LDAP·SAML 인증은 미구현) · 원문: `spec/5-system/1-auth.md` (§1.1~§1.4, §5, Rationale), `spec/2-navigation/10-auth-flow.md` (§1~§5, §8, Rationale), `spec/2-navigation/9-user-profile.md` (§2.0·§2.2 이메일 변경·2단계 인증 설정, §6.1 이메일 변경 행) · 용어: [용어 사전](../CLE-GLOSSARY.md)

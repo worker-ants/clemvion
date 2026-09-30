@@ -13,7 +13,7 @@ content_hash: "a1f6690b4f1f62afcb5bf47951681288f71caf4b2b15151de5d8afe981bc5fe7"
 read_as: "approved"
 task: null
 source_paths: ["spec/2-navigation/14-execution-history.md", "spec/5-system/14-external-interaction-api.md", "spec/5-system/6-websocket-protocol.md", "spec/conventions/egress-masking.md"]
-mirror_sha256: "c0f6ba963c9f2b9dc1a9076da5b12964c9b0cecb6a94ac0375d923d09aea7f49"
+mirror_sha256: "2924496164e987c5c68d57e405073dcea917225b58145f0857253332a8d1aaec"
 etag: "sha256-06f068d9c640db3b4dba6c0de3921de3db5b19b16c5159850b1c5dca7cea4457"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/conventions/egress-masking.md`, `spec/5-system/14-external-interaction-api.md` (R17 의 마스킹 정책 부분), `spec/5-system/6-websocket-protocol.md` (§4.1 값-패턴 마스킹 캐비엇, `llmCalls` strip Rationale), `spec/2-navigation/14-execution-history.md` (R-5 의 설정 에코 보안 trade-off) · 용어: [용어 사전](../CLE-GLOSSARY.md)

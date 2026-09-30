@@ -13,7 +13,7 @@ content_hash: "3b1b825a136cb43b6608087da903ae884dcb1d63fb42adb3c446fe2974491f83"
 read_as: "approved"
 task: null
 source_paths: []
-mirror_sha256: "7c9959d555acbc1a0431b8d268caf339a44679bd0ce38d11ecb43cca1cb52193"
+mirror_sha256: "52b9bfbc47bca5ed4afda3d29f3731db44c0c82f536a65b68d92ad1e65c43ab7"
 etag: "sha256-3c800a1845ac0d6bd9b1a7385713414511f9fd043e816d136fc76bfb2a7c1db5"
 ---
 > 성격: 리서치 영역 · 원문: 저장소 `plan/research/` · 용어: [용어 사전](../CLE-GLOSSARY.md)

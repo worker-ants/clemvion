@@ -13,7 +13,7 @@ content_hash: "bcf44490b83a9df4edfc3b127ac20ceffdedd2a579e9d6900322f0e443b8445c"
 read_as: "approved"
 task: null
 source_paths: ["spec/conventions/rag-evaluation.md"]
-mirror_sha256: "4c14c9cc5dc2b035efe4b49bb019f2f76784b77e6ee1edb145908591fb0e5474"
+mirror_sha256: "9a97cb796108b04dac2c2007d4a77d666f6d357ce70f50fd93f960aeb73856b8"
 etag: "sha256-4d03397e2415ad4d1c45bd2cc4eeb8d3fead763241be02b10cb57386b4e9a447"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/conventions/rag-evaluation.md` · 용어: [용어 사전](../CLE-GLOSSARY.md)

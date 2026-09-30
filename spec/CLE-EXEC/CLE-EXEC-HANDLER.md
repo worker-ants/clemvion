@@ -13,7 +13,7 @@ content_hash: "b7e8d9561ccd3fd6493ab1eaae1daa5e66d01101058499fb34ab764f4544fbda"
 read_as: "approved"
 task: null
 source_paths: ["spec/4-nodes/_product-overview.md", "spec/5-system/4-execution-engine.md"]
-mirror_sha256: "0ad7711d40460c2446ee6bc49e8de7eec6ea4eb0d46b80ea2a173fce4e116a95"
+mirror_sha256: "8b1009c74c232c3f335683a10b877899ddb04dbfd3bdff85eaedcce144085ace"
 etag: "sha256-65797eec4993646430ce3a1793b59729783822b8f00f64d00054c7c9fcb35bc6"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/5-system/4-execution-engine.md` (§5.1~§5.7, Rationale "Engine Raw Config Exposure"), `spec/4-nodes/_product-overview.md` (§11 ENG-RC-01~04) · 용어: [용어 사전](../CLE-GLOSSARY.md)

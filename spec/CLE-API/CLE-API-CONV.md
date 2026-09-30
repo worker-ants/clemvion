@@ -13,7 +13,7 @@ content_hash: "859a65aa764f852c8e3def6738c73f807138a2e43a78fa96ce7fd9f91a6dd651"
 read_as: "approved"
 task: null
 source_paths: ["spec/5-system/2-api-convention.md"]
-mirror_sha256: "7f54cb5951920e2ac4b15a18b67e33ea1300db69d24760cd6402e0694f6c1dce"
+mirror_sha256: "1ce1340233c14afea78e54483ebaf1ad5cf6dc6dfb30bfca20b007495c1c34a2"
 etag: "sha256-82ed0645d55f13d3ae2d5205452bab22cb945bbb8073bedf98f09ca9800ba6f0"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/5-system/2-api-convention.md` · 용어: [용어 사전](../CLE-GLOSSARY.md)

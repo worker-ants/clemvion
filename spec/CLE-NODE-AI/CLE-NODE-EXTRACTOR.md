@@ -13,7 +13,7 @@ content_hash: "fdda91ea2df75cf8e71ce7cb7f6f0d711b27dab5b6f5ce66a8c798e6ff12fdb8"
 read_as: "approved"
 task: null
 source_paths: ["spec/4-nodes/3-ai/3-information-extractor.md", "spec/4-nodes/3-ai/_product-overview.md", "spec/4-nodes/_product-overview.md"]
-mirror_sha256: "5558706824ef84afe3ee25d3fdaf77c85a02b036e1bf3f10b796084e921c56da"
+mirror_sha256: "4966e8eb454b617497e28358ffd33a44305e24b566c677d1c4848595b9fb5235"
 etag: "sha256-b47591a99aac9ff4a5a3d10fa4e5a8aa68061877e6c4699abe36e2714a7f88a7"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/4-nodes/3-ai/3-information-extractor.md`, `spec/4-nodes/3-ai/_product-overview.md` (§3.4), `spec/4-nodes/_product-overview.md` (§6.3) · 용어: [용어 사전](../CLE-GLOSSARY.md)

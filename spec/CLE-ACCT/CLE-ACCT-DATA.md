@@ -13,7 +13,7 @@ content_hash: "d0eb763b342fd1475b88242789c30afb98cff58da58e5d77be2fedc013a9b304"
 read_as: "approved"
 task: null
 source_paths: ["spec/1-data-model.md", "spec/5-system/1-auth.md", "spec/data-flow/12-workspace.md", "spec/data-flow/2-auth.md"]
-mirror_sha256: "875331d2260f236d5a4e77ce9a07ee3d8d9e095af1c8230e61eb5e68cf39cfe8"
+mirror_sha256: "4f4e43cbe1aaf901607e6e983902537fdf680aa10b76c12c04a0baa1f18acd70"
 etag: "sha256-0c1433c8cfb718cd6973387f6e38ba607833d8a5624b14075d4759d2689d5ac9"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/data-flow/2-auth.md`, `spec/data-flow/12-workspace.md` (흐름·Schema 매핑·상태 전이·Rationale 중 데이터 부분), `spec/1-data-model.md` (§2.1~§2.3, §2.18.1, §2.18.2, §2.21, Rationale «User 민감 컬럼 방어»), `spec/5-system/1-auth.md` (Rationale 1.4.G) · 용어: [용어 사전](../CLE-GLOSSARY.md)

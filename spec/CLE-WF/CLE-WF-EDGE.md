@@ -13,7 +13,7 @@ content_hash: "db3939e82c9acdeebaa945aea739640c2b45018e2da34eb0bf3d6aa7dc510801"
 read_as: "approved"
 task: null
 source_paths: ["spec/3-workflow-editor/2-edge.md", "spec/3-workflow-editor/_product-overview.md"]
-mirror_sha256: "361517de4bc90b92cdf34ff77c1cf39f7051a3ba18866e5f1236097d0441b012"
+mirror_sha256: "f4fe4057818890ab359e64469b86a58171ac735daa1056c1c23c295f2cc7ca3c"
 etag: "sha256-f6236b4598d20fa5369203976825b02777ea3ff8004e8d8775416433db04aff0"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/3-workflow-editor/2-edge.md`, `spec/3-workflow-editor/_product-overview.md` (§3.3 ED-EG-01~06) · 용어: [용어 사전](../CLE-GLOSSARY.md)

@@ -13,7 +13,7 @@ content_hash: "f4b7d1528f4ce061276a3fb88263e883811d4b60d25ae4e2d938b89abd9d3304"
 read_as: "approved"
 task: null
 source_paths: ["spec/5-system/3-error-handling.md", "spec/conventions/error-codes.md"]
-mirror_sha256: "20ad26aff5d35a310c2f703c6ca40a87c0e0de25ed5634485a34ea9a4c25f04c"
+mirror_sha256: "1f3809fee39350c1233c04dc735308456b0d06b3157f7fc743269b432deb3b3c"
 etag: "sha256-a3c3f7b501ce59beafdd07c30f93dde183aeae12cbda2478b45d4288fe3a8167"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/conventions/error-codes.md`, `spec/5-system/3-error-handling.md` (§1, Rationale 일부) · 용어: [용어 사전](../CLE-GLOSSARY.md)

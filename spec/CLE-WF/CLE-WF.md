@@ -13,7 +13,7 @@ content_hash: "51e87c93f0152a2fa6e50ffb4e7f2b128b80742a9ebea0f3f5674bb463984967"
 read_as: "approved"
 task: null
 source_paths: ["spec/2-navigation/1-workflow-list.md", "spec/3-workflow-editor/*.md", "spec/3-workflow-editor/_product-overview.md", "spec/5-system/5-expression-language.md", "spec/conventions/cross-node-warning-rules.md", "spec/data-flow/11-workflow.md"]
-mirror_sha256: "dd3da34e469f9e5c0a6c10512c646d6c9dbbe84416e1b18569a7ea0751a2cfac"
+mirror_sha256: "2969602cd7de19a200a88688549f113475b7cd2df7985210bb628c96de51273d"
 etag: "sha256-30cc65931929c3ff5ab6b82ad2a30d64f2bc1a9002b30ebdb15e26e5e7b71bd5"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/3-workflow-editor/_product-overview.md` (§1), `spec/2-navigation/1-workflow-list.md`, `spec/3-workflow-editor/*.md`, `spec/5-system/5-expression-language.md`, `spec/conventions/cross-node-warning-rules.md`, `spec/data-flow/11-workflow.md` · 용어: [용어 사전](../CLE-GLOSSARY.md)

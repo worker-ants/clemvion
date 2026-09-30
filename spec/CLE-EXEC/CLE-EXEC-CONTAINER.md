@@ -13,7 +13,7 @@ content_hash: "31d189dabcc694fc7608a75adc36a0d54e8d0c36bf001c5c20b247ec695f4c50"
 read_as: "approved"
 task: null
 source_paths: ["spec/4-nodes/1-logic/0-common.md", "spec/5-system/4-execution-engine.md", "spec/conventions/node-output.md"]
-mirror_sha256: "b4c3df174bdfe77d8a377bd5d2dcbba58df1a140cee0540e0dd2698cd7d692f7"
+mirror_sha256: "2bbfdac70e6421719c677fc1f000b4ad754bb4d34a68888ca02d71733967b337"
 etag: "sha256-7fb12c59ba1e4eb6bd951c90693a77e9b359bda64785ab2d88555e4972e019fa"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/5-system/4-execution-engine.md` (§3.0~§3.4), 엔진 덮어쓰기 대조: `spec/conventions/node-output.md` (Principle 9), `spec/4-nodes/1-logic/0-common.md` (§4, §9.1) · 용어: [용어 사전](../CLE-GLOSSARY.md)

@@ -13,7 +13,7 @@ content_hash: "dd210182281ab30cda0b92f81dc8eb39e921655925a3b600ed2bd381bae18a71"
 read_as: "approved"
 task: null
 source_paths: ["spec/1-data-model.md", "spec/2-navigation/9-user-profile.md", "spec/2-navigation/_layout.md", "spec/data-flow/8-notifications.md", "spec/data-flow/9-observability.md"]
-mirror_sha256: "c8f41bed2d3456d5eb23eef8321d6fc7514c64c663952babb8d84f89a5d3ef66"
+mirror_sha256: "0d853c0ad2bcc9d9fe242f10dcfa7dc8e389968657ab1ad6324cebbffdfbe83b"
 etag: "sha256-4e316010196f2b38b720d50d41786cbeeb8de2cd75ea03d09a56c20daf0da58f"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/data-flow/8-notifications.md`, `spec/2-navigation/9-user-profile.md` (§5 알림 설정, §6.2 알림 API, §6.3 알림 규칙 API), `spec/2-navigation/_layout.md` (§3.1 알림 벨, §3.2 알림 설정 항목), `spec/data-flow/9-observability.md` (§1.3·§2.1·§3 알림 규칙 평가와 관련 Rationale), `spec/1-data-model.md` (§2.19, §2.25, Rationale "alert_rule 을 §2.25 로 등재") · 용어: [용어 사전](../CLE-GLOSSARY.md)

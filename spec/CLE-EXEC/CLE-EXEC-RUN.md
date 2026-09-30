@@ -13,7 +13,7 @@ content_hash: "03e10d6b6fe35ad3a3d7af720ced3d36232c866918b790387be951df2cf3f067"
 read_as: "approved"
 task: null
 source_paths: ["spec/2-navigation/14-execution-history.md", "spec/3-workflow-editor/3-execution.md", "spec/3-workflow-editor/_product-overview.md"]
-mirror_sha256: "e16c31ae8c61a9768caac85008466327bc360aa74020fc09a0a9f073cf75f055"
+mirror_sha256: "43f521a98d2a2e2102472c33a7cd0b45c212a786ce3b4513ad7131ebfa7dae74"
 etag: "sha256-9ff04cfbbcf4113b0984df232af9ab68e24a7e473b81c2013c60a22f6bc2149e"
 ---
 > 구현 상태: 구현됨 (브레이크포인트만 미구현 로드맵) · 원문: `spec/3-workflow-editor/3-execution.md`, `spec/3-workflow-editor/_product-overview.md` (§7 워크플로우 실행, §8 실행 디버깅), `spec/2-navigation/14-execution-history.md` (§3.4.1·§3.4.2 AI 탭 설명과 R-3) · 용어: [용어 사전](../CLE-GLOSSARY.md)

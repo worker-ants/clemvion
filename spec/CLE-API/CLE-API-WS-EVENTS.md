@@ -13,7 +13,7 @@ content_hash: "6cf7d775314c9a23b73e4101d4c22af90374ba59488a67ebd2e4e65d9358106d"
 read_as: "approved"
 task: null
 source_paths: ["spec/5-system/6-websocket-protocol.md"]
-mirror_sha256: "6478986182cb723f3b4fc818f3b8b50238b30769cd147ff867819c9deb146daa"
+mirror_sha256: "4852460b4d4a3177af3020da18f9b20f22f15d8347da1ae12d71b7427805f9a3"
 etag: "sha256-5ee1a1481f04ba17e3b7acb21cbf9b3de3f1f93370d832d525c179e2fef7ea92"
 ---
 > 구현 상태: 구현됨 (브레이크포인트 관련 이벤트·명령은 미구현, 실행 시작·중단 명령은 비채택) · 원문: `spec/5-system/6-websocket-protocol.md` (§4, Rationale 일부) · 용어: [용어 사전](../CLE-GLOSSARY.md)

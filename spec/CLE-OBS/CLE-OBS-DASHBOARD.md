@@ -13,7 +13,7 @@ content_hash: "57f146ac47813aa41eb619888d9d844e653890129de09d5d0ab9103a20ec615b"
 read_as: "approved"
 task: null
 source_paths: ["spec/2-navigation/0-dashboard.md", "spec/data-flow/9-observability.md"]
-mirror_sha256: "45d209e168236ddabd7722f1d5ee167f73258e89f51057bf568e51cc72a2f800"
+mirror_sha256: "81d78c867c4fdd4a41f886e24c665714c38071bce0cb816a731422966a2ff06b"
 etag: "sha256-713052a327b1f0c87a07705271e03539b72d47cd4880db82d28d36ee5f3afe1f"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/2-navigation/0-dashboard.md`, `spec/data-flow/9-observability.md` (§1.2 의 대시보드 부분) · 용어: [용어 사전](../CLE-GLOSSARY.md)

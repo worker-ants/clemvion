@@ -13,7 +13,7 @@ content_hash: "723cd9016b6044b21bc9ba6e0c7575ad8c8d98a8676d418cb422ded5cb00cae2"
 read_as: "approved"
 task: null
 source_paths: ["spec/5-system/8-embedding-pipeline.md", "spec/5-system/9-rag-search.md", "spec/data-flow/6-knowledge-base.md"]
-mirror_sha256: "4c8a11bd3db6915cda05636c82ef0919b82952e13c58597b05ed601714960db8"
+mirror_sha256: "b0e2b674e4a15d33f3197d07c8f255d1ef538dc06195a518aceaf6443f0e33a5"
 etag: "sha256-0a7c3b0fc20b301dae43d28beef5ca1e256b5584d835d3e7fcefd46a850fd2e1"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/data-flow/6-knowledge-base.md` (Overview), `spec/5-system/8-embedding-pipeline.md` (Overview), `spec/5-system/9-rag-search.md` (Overview) · 용어: [용어 사전](../CLE-GLOSSARY.md)

@@ -13,7 +13,7 @@ content_hash: "1cdc748b6925739d9157162af86e9da1629db168a63dc1a31dec6d5fd6271350"
 read_as: "approved"
 task: null
 source_paths: ["spec/0-overview.md", "spec/data-flow/0-overview.md", "spec/data-flow/4-file-storage.md"]
-mirror_sha256: "0e5335f95d9c801b80893e3dbd6e9fdbd5cb5e1836adc1f698724a6e55564d51"
+mirror_sha256: "ef1b2399f2bbf104fe60017007855dc8cad8f0f44cee41870217baf21663ff41"
 etag: "sha256-a6d0d44661fc403793a7adaa8c7e2c505738cdaf33d801ee68e192ff44d3ac45"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/0-overview.md` (§2.7 Object Storage, Rationale «S3 객체 키 prefix 설계»), `spec/data-flow/4-file-storage.md` (전체), `spec/data-flow/0-overview.md` (Rationale «KB 원본 문서 S3 key 구조») · 용어: [용어 사전](../CLE-GLOSSARY.md)

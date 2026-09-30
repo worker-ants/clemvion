@@ -13,7 +13,7 @@ content_hash: "7362eeb8fe282aa447f80d07c9e24a63789ced3f796948e8681a16fa9bf2d311"
 read_as: "approved"
 task: null
 source_paths: ["spec/conventions/user-guide-evidence.md"]
-mirror_sha256: "b1658fa71822aa52daa625674c29d97d919bdd2daeb9f2a2ae6943be93303593"
+mirror_sha256: "3428c82d7ba88379789935e7a11010349f7853bfe107d3afe7fe87bbb085aac4"
 etag: "sha256-bfd3991f9c2bd0b65b8a3aca88f4fe5175b5de2558bdb2106e39d41d6872983b"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/conventions/user-guide-evidence.md` · 용어: [용어 사전](../CLE-GLOSSARY.md)

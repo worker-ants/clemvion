@@ -13,7 +13,7 @@ content_hash: "495b4ecebc4a288691b6ed2479995fc86f0fadeb65d83d6055ee941a7f79981f"
 read_as: "approved"
 task: null
 source_paths: ["spec/5-system/1-auth.md", "spec/conventions/audit-actions.md"]
-mirror_sha256: "d312034e964828c6110a59c0a1905eff6a2365d7577e38ba3861062321053965"
+mirror_sha256: "0cf939023143f094045a5f586d940e7c8a15cf08877fc24437eabaec41c743b0"
 etag: "sha256-84065e9d0916406d2f09aeef80e5a2c45194155b001c0256f1abab22d2ede9c7"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/conventions/audit-actions.md`, `spec/5-system/1-auth.md` (Rationale 4.1.A) · 용어: [용어 사전](../CLE-GLOSSARY.md)

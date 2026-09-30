@@ -13,7 +13,7 @@ content_hash: "e8132a45d022ff3a4ece3e7e52a298c3b5ce0a1fbe9cc64263c83c288b433205"
 read_as: "approved"
 task: null
 source_paths: ["spec/5-system/4-execution-engine.md", "spec/data-flow/3-execution.md"]
-mirror_sha256: "ff307a6ed516b320dfaa997410942870dcd34ac1a749b494f054100ff68c8ea1"
+mirror_sha256: "7a5ae46ac6c0d8b6c29d16ba829680b2663caf07c31e996306049c235401b5e7"
 etag: "sha256-523d2f667f9e74e551fefbf445ed6974cbe7f6b9ac2232971804a9ce698a5d79"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/5-system/4-execution-engine.md` (§4, §7.4 Continuation Bus, §7.5.1, §7.5.2, §8, §11 환경 변수 표, Rationale), `spec/data-flow/3-execution.md` (§1.1, §1.5, Rationale) · 용어: [용어 사전](../CLE-GLOSSARY.md)

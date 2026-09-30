@@ -13,7 +13,7 @@ content_hash: "fbaaee832301f1923a71193b0f9af6093ac9ead77c6a187c82315b9e630b49a1"
 read_as: "approved"
 task: null
 source_paths: ["spec/conventions/conversation-thread.md"]
-mirror_sha256: "2f72f872e9cbc269d9c957e49c7c17a293680aa0afbf525da4981be180c93492"
+mirror_sha256: "f7931adeeced42c5ed8d7de34b8d114e9404d1d9a895d1e704993d5bc544c6d0"
 etag: "sha256-476c8e111993649ef71eec60bb243e9c3d45f84863e0a6f7a19b74c573bf8339"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/conventions/conversation-thread.md` (§9 미리보기 UI 렌더 규칙, 줄 433–756. 근거는 §8.1·§8.2·§8.3·§8.5·§8.6) · 용어: [용어 사전](../CLE-GLOSSARY.md)

@@ -13,7 +13,7 @@ content_hash: "bca47ff1935cf4aaccbd4e47aef4786db6c8e448e7e21b4c80bdbcb9fa127ff3"
 read_as: "approved"
 task: null
 source_paths: ["spec/4-nodes/7-trigger/providers/telegram.md"]
-mirror_sha256: "03a48e64cb087b051b7dfbb9d1c30e3ae717cdaea2342e3c3e72dd9a6c99e21a"
+mirror_sha256: "3cce8b23ff6277538f70cfdcf9085c5afc52de33a87874a0de91a0b158b4efbd"
 etag: "sha256-d09ee1dfae7fc86e2c8014ac4cecad52ad4dacb33b8e6ff9ca18b25ca900a8e7"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/4-nodes/7-trigger/providers/telegram.md` · 용어: [용어 사전](../CLE-GLOSSARY.md)

@@ -13,7 +13,7 @@ content_hash: "39f5eba793b6dde1c70e388941d8c86dc24629115c8d248be7ea24a8e33c94b9"
 read_as: "approved"
 task: null
 source_paths: ["spec/2-navigation/2-trigger-list.md", "spec/2-navigation/_product-overview.md"]
-mirror_sha256: "5d7330d4ed8d97668d92e9b085c7b536193c82e855b56629264a5cd4c9bb60ee"
+mirror_sha256: "7c7bdf00688d0e29421f0a1e2f08920d7661bfa56b555e043313454b35abede7"
 etag: "sha256-6b4f28a0fdda34d83efefccbd4ff2c7f769593ae1061e8c2e4801b811220d6fd"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/2-navigation/2-trigger-list.md`, `spec/2-navigation/_product-overview.md` (§3.2 Trigger List) · 용어: [용어 사전](../CLE-GLOSSARY.md)

@@ -13,7 +13,7 @@ content_hash: "ff1a990076dcb363276eff2ed74c9170fbeedce2e18aa9abee67e453f23387f7"
 read_as: "approved"
 task: null
 source_paths: ["spec/4-nodes/1-logic/0-common.md", "spec/4-nodes/_product-overview.md"]
-mirror_sha256: "acf91d29b67a739eb3b1758cc16029378a5e05b10bdb8d4dfe9d818461cc7113"
+mirror_sha256: "c3452512e6625add3af2a5bd3069a0ef61a0f7ec85fefdd424c0acbe7f40de87"
 etag: "sha256-32ad12b1d9492b2dd0493c5c0d95c3179421335a206400e0dfd6c098c7372db6"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/4-nodes/1-logic/0-common.md`, `spec/4-nodes/_product-overview.md` (§4 머리말) · 용어: [용어 사전](../CLE-GLOSSARY.md)

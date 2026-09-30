@@ -13,7 +13,7 @@ content_hash: "1f46442c62414704b770472d4f943154bdbedd2a6ecce179694d97905b96cf7b"
 read_as: "approved"
 task: null
 source_paths: ["spec/5-system/4-execution-engine.md"]
-mirror_sha256: "c00f1d12361ec5f522c315e5b2aaab46ab25e8b2b1957a2ca785f6fa52dbce2d"
+mirror_sha256: "f364d77a45671b2a2bc6c844cb3e26e073d848cbe74dfa71acbcb52096281770"
 etag: "sha256-d9cdb5deb5ca1642c912c282c386136861f7330b67694b5031e8952d91916ac6"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/5-system/4-execution-engine.md` (§1.1~§1.3, Rationale 중 상태 전이·대기·재개·마지막 턴 재시도 항목) · 용어: [용어 사전](../CLE-GLOSSARY.md)

@@ -13,7 +13,7 @@ content_hash: "beee9232cf73f381eb2053306ddba519075db43fc989057770f7c570987eb7e9"
 read_as: "approved"
 task: null
 source_paths: ["spec/1-data-model.md", "spec/data-flow/0-overview.md", "spec/data-flow/12-workspace.md"]
-mirror_sha256: "6de49199b82cf80f061787f1856e956558e6236e62cffcdb14df50f8636359c8"
+mirror_sha256: "aa1c30fcfb0614d1a820b5dbbf28c18777b6c860215d4f2326c31cae5139fddd"
 etag: "sha256-526238a93475bb88442cce602890f13bda81e35745c84bd3557d7076d22ac813"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/1-data-model.md` (§1 엔티티 관계 개요, §1.1 참조의 소속, §2 FK 표기, §3 인덱스 전략, Rationale «`code:` 에 전용 e2e 가드 셋» · «§2 FK 삭제 동작 · 빠진 컬럼» · «쓸 인덱스가 없는 FK 서른하나의 처분»), `spec/data-flow/0-overview.md` (§3.3, §5 벡터 인덱스), `spec/data-flow/12-workspace.md` (Rationale «본문 참조 id 도 저장 전에 소속을 본다») · 용어: [용어 사전](../CLE-GLOSSARY.md)

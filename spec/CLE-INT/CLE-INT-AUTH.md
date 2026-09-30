@@ -13,7 +13,7 @@ content_hash: "67b42fec4c806b8effb906f94a13bd1d0647b38e3b3b565c68b8a6ae27a1f4c0"
 read_as: "approved"
 task: null
 source_paths: ["spec/2-navigation/4-integration.md"]
-mirror_sha256: "17fafb50c437566388d7e6c1f9d17bffa0f58a89de27083097404ab961da9130"
+mirror_sha256: "d50d3f3615142a65c3d5e696cca474b2a602be9f32892440e2238cb4956d5d0e"
 etag: "sha256-37f4be67677c31470ba516234f25b92ed264f6699670d53611974da094d9e628"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/2-navigation/4-integration.md` (§5, Rationale «연결 테스트 — Database · HTTP 는 실제로 접속한다»·«SMTP 연결 테스트를 verify() 로 구현»·«SMTP SSRF 가드를 http/db 와 동일 ALLOW_PRIVATE_HOST_TARGETS 로 통일»·«연결 테스트 endpoint 를 /store 에서 /apps 로 전환») · 용어: [용어 사전](../CLE-GLOSSARY.md)

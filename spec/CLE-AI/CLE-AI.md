@@ -13,7 +13,7 @@ content_hash: "48e92f93f7339520a85c9f4a2d072c31e0e03c697710f1ab82a09469ddf56d18"
 read_as: "approved"
 task: null
 source_paths: []
-mirror_sha256: "618d06f14300d111267177bc52465519ef368ee904807441f32c1d37e60a9281"
+mirror_sha256: "13d0f89565f7353f17f834831a1c6558fa9a534a4b4b2c8a3f6c506e802f8e6e"
 etag: "sha256-9a490140c9ab8785c9c63569fd4cf4055128ad7ba6e7ccadd6fbd9682d75f7c6"
 ---
 > 구현 상태: 구현됨 · 원문: 없음(영역 문서) · 용어: [용어 사전](../CLE-GLOSSARY.md)

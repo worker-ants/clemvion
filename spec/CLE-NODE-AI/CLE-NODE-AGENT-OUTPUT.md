@@ -13,7 +13,7 @@ content_hash: "c49b17719d2962172435d1aa5b1d64dee79734baa25bff51a61c399bf5b3d2a5"
 read_as: "approved"
 task: null
 source_paths: ["spec/4-nodes/3-ai/1-ai-agent.md"]
-mirror_sha256: "dcaaf5a57c5fc629392708f1467c6242887f6fdbb52c5c5492a8f0e503c765f9"
+mirror_sha256: "a381bcbfff9f8c48e14428956c6bc421ff2c8baacc77134c64931f76dce593db"
 etag: "sha256-66d92c98f9ff8d7950381376e63a46f66deebef5b374f3843b12705f03dcce1e"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/4-nodes/3-ai/1-ai-agent.md` (§7 출력 구조, §8 디버그 데이터) · 용어: [용어 사전](../CLE-GLOSSARY.md)

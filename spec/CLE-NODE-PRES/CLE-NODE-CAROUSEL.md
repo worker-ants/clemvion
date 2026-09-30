@@ -13,7 +13,7 @@ content_hash: "9783c7bffdffc9400efd927184a66a06d2059c355eb400dcce530a9a14dece2a"
 read_as: "approved"
 task: null
 source_paths: ["spec/4-nodes/6-presentation/1-carousel.md", "spec/4-nodes/_product-overview.md"]
-mirror_sha256: "daaeefec5753a4b98dd617dd85d3a02703a2937ea2501360d71f780f639a2a7e"
+mirror_sha256: "8d42ea25ae90c92a6b0dafc30010b4abaaea0e3b0592c5af219c44d9ddfcfbdc"
 etag: "sha256-e1fe715af332d6ace4cb7bb3e47f8fce7994556f3f0022c8ad4e37ca952dc727"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/4-nodes/6-presentation/1-carousel.md`, `spec/4-nodes/_product-overview.md` (§9.1) · 용어: [용어 사전](../CLE-GLOSSARY.md)

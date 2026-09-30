@@ -13,7 +13,7 @@ content_hash: "58cb8524c8373a840d30024bbc331c4e9e1aca82e89862a1aff119d5f1f06c61"
 read_as: "approved"
 task: null
 source_paths: []
-mirror_sha256: "41f8c5351182255168f0d231109afbb241fe7035c7c875cb33da438b9018a457"
+mirror_sha256: "7795e65fd658b04946f38fa2874a6558399c6ba55068382417fbfcb49763e2d6"
 etag: "sha256-776663b46380e07bf727227bc455d067792686a65d79e5e7a125cee535435f5a"
 ---
 > 성격: 전략 리서치(2026-06-03 작성, 2026-07-16 교정) · 원문: `plan/research/competitive-analysis-n8n-flowise.md` · 용어: [용어 사전](../CLE-GLOSSARY.md)

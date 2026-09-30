@@ -13,7 +13,7 @@ content_hash: "cf60faec8557f44a3baec2675f90d564f185a9ff3fbb051d8f600fd4a44b1483"
 read_as: "approved"
 task: null
 source_paths: ["spec/2-navigation/10-auth-flow.md", "spec/2-navigation/9-user-profile.md", "spec/5-system/1-auth.md", "spec/data-flow/2-auth.md"]
-mirror_sha256: "71d6e14230b08f6fced32fc9777c64d72020ec8e6cbf6c7ec2e8035bc383cd5e"
+mirror_sha256: "0af60247a12f3caa7027031632720e553a81414741181406cfe9ddae0b89c1cf"
 etag: "sha256-95a8f1a7ee67eff3b2265120fb20d38eb72e2cc353c3dc4fbfebaf9ad314e9c0"
 ---
 > 구현 상태: 부분 구현 (동시 세션 제한·비활동 만료는 구현 여부 미확인) · 원문: `spec/5-system/1-auth.md` (§2, §5 로그아웃·갱신 행, Rationale 2.3.A~D·Production fail-closed 가드), `spec/2-navigation/10-auth-flow.md` (§3.3, §7), `spec/2-navigation/9-user-profile.md` (§2.2 활성 세션 행, §6.1 세션 행), `spec/data-flow/2-auth.md` (§1.4~§1.6, Rationale family_id) · 용어: [용어 사전](../CLE-GLOSSARY.md)

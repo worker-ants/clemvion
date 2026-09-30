@@ -13,7 +13,7 @@ content_hash: "c8b9dd50795dc708f380e5daf6a902ca53f8a92c8fba067028b6cb12d27d8cbb"
 read_as: "approved"
 task: null
 source_paths: ["spec/conventions/raw-query-results.md"]
-mirror_sha256: "f569404312981c74a6fe38332c05c47b9e5c0f389770477496b8790fb84901d7"
+mirror_sha256: "acc59f6e0cd5c65c24301eb23d590abc83cc045a849a52083acd0a98e6a91d01"
 etag: "sha256-d5b90e73eafa1ac06581cf74875b08c9e992e21652a5beafaf1efa0ecb32beb4"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/conventions/raw-query-results.md` · 용어: [용어 사전](../CLE-GLOSSARY.md)

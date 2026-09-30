@@ -13,7 +13,7 @@ content_hash: "0135dc15b7c7533ac3e53dede51b1a11b47774432689cac8f59a035f7f1b75f9"
 read_as: "approved"
 task: null
 source_paths: []
-mirror_sha256: "864d5b21c142cf0a1ea69bc476e94c3d8202b647da880d3010cfedfaff5bddc6"
+mirror_sha256: "e3bedb505bd4232da2c5beeceef849a3928ae0ed6227f13d5f2c8cca4d7938b1"
 etag: "sha256-9a423052cbc5198c40013ddf0c1cbdf84efb6bbb388c57ffeb61001c8a700ed5"
 ---
 > 구현 상태: 부분 구현 · 원문: 없음(영역 문서) · 용어: [용어 사전](../CLE-GLOSSARY.md)

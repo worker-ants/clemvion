@@ -13,7 +13,7 @@ content_hash: "144d7cc1a0e6443fd6776d7e900d1d204e31e7aad1c2bb0b122d679670cf3dd3"
 read_as: "approved"
 task: null
 source_paths: ["spec/5-system/3-error-handling.md"]
-mirror_sha256: "694b8ac29029f076cb71c3cd04628da303bff5bb5025629c62ca59e9f48ec959"
+mirror_sha256: "fb9c57498d4f967a1a534edef2f8d495825cc0abc9a76000a5e22a44aa42672b"
 etag: "sha256-7733fdd165a5d468537d721bebe44f07f206a7ee4d8294138213f5fe508bd33e"
 ---
 > 구현 상태: 부분 구현(재시도 간격 상한·워크플로우 수준 자동 재시도는 미구현) · 원문: `spec/5-system/3-error-handling.md` (§3, §4) · 용어: [용어 사전](../CLE-GLOSSARY.md)

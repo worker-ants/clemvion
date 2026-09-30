@@ -13,7 +13,7 @@ content_hash: "fa9aec49984179352b1d23dbb369a0613b74a8fae792413851bfff7fe8edb7a3"
 read_as: "approved"
 task: null
 source_paths: ["spec/4-nodes/7-trigger/1-manual-trigger.md", "spec/4-nodes/_product-overview.md"]
-mirror_sha256: "279d84c5789d85c832b6beb1437df17d7a760049d96cfa9f303402f212f500ce"
+mirror_sha256: "614a3fd64fc3f187ea7b01b347b06e48425033f247132b2ae1024276f020d49e"
 etag: "sha256-7c9ef9a4982162ec5e7a586dfc56246d519774200c754a6c78926f5275836978"
 ---
 > 구현 상태: 구현됨(설정 요약은 미구현) · 원문: `spec/4-nodes/7-trigger/1-manual-trigger.md`, `spec/4-nodes/_product-overview.md` (§3) · 용어: [용어 사전](../CLE-GLOSSARY.md)

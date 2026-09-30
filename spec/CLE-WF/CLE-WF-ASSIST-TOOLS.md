@@ -13,7 +13,7 @@ content_hash: "c3b40f5cfda54e6a54976f5554e4a527ad5bf2b70463963364e1faf34f5acec3"
 read_as: "approved"
 task: null
 source_paths: ["spec/3-workflow-editor/4-ai-assistant.md"]
-mirror_sha256: "a7db01e6c03d573bd2a484dfaafb32902685c3af4ef104b0d7f904a298e3573f"
+mirror_sha256: "bd9a6258d5d0f6b09f152e43104e7cd6473b025b00d615954af54de0ac33ce02"
 etag: "sha256-45ef3932b0e7e5c6956afef579e468516c0c2ebcd62ea67bcf1e65563a53674c"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/3-workflow-editor/4-ai-assistant.md` (§4, §8 워크플로우 조립 규칙 중 버튼 ID 부여, Rationale 의 에러 풍부화 Part A·프로바이더 이상동작 4·11·실행 조회 도구 결정·Runtime ports hint) · 용어: [용어 사전](../CLE-GLOSSARY.md)

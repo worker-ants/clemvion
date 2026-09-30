@@ -13,7 +13,7 @@ content_hash: "ef40dfd7a0d806c55ea378e423b61400afdd7b346e92d67d7a5ddda5be5a94a1"
 read_as: "approved"
 task: null
 source_paths: ["spec/2-navigation/_product-overview.md", "spec/7-channel-web-chat/5-admin-console.md"]
-mirror_sha256: "4121e11cb63ac75fd4c6434b744c58ae42e13b485b32b4a40515c99bd6fd61c0"
+mirror_sha256: "84e21bc9b8c24631fe379901b73d34b264e5b3c91610fd2662f273b33cafe524"
 etag: "sha256-b66f295596d24f5670ed9e18dad25c98d7d984f90e970b011d53931ec542fbac"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/7-channel-web-chat/5-admin-console.md`, `spec/2-navigation/_product-overview.md` (§3.14 NAV-WC-01..06) · 용어: [용어 사전](../CLE-GLOSSARY.md)

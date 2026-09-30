@@ -13,7 +13,7 @@ content_hash: "b462518dbc7b4969455c4c098ca695283ee727a595225b1b88cc79fc04c996c7"
 read_as: "approved"
 task: null
 source_paths: ["spec/3-workflow-editor/4-ai-assistant.md", "spec/4-nodes/3-ai/1-ai-agent.md", "spec/4-nodes/3-ai/_product-overview.md", "spec/5-system/7-llm-client.md", "spec/data-flow/7-llm-usage.md"]
-mirror_sha256: "7542ddc98d6798c8effb14aa6a6779699cc7493f2cebdc4ee09a280832ed2e8b"
+mirror_sha256: "e7800f25a21e19e22453d066a295d5ef88dde23ce202b1207d6085b236b1c9b7"
 etag: "sha256-c3332afd97621eee882d1037a78476c80abc462078908044883dc8fe299c6340"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/5-system/7-llm-client.md`, `spec/4-nodes/3-ai/_product-overview.md` (§3.1), `spec/data-flow/7-llm-usage.md` (§1.1·§1.2 호출 계약), `spec/3-workflow-editor/4-ai-assistant.md` (harmony 제어 토큰 대응), `spec/4-nodes/3-ai/1-ai-agent.md` (§12.16 SDK 타임아웃과의 관계) · 용어: [용어 사전](../CLE-GLOSSARY.md)

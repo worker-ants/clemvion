@@ -13,7 +13,7 @@ content_hash: "ba30534da37eae4edde9a15f6871a4a4ae7f774ce5653b6497796689fa3fc678"
 read_as: "approved"
 task: null
 source_paths: ["spec/7-channel-web-chat/2-sdk.md"]
-mirror_sha256: "4c03e0beed13fb0e3b20480cf9793f2fd609538470fed2a1a9e9bece899c01f5"
+mirror_sha256: "7a6ae88b2a1e63e06088ffdf7f59ed35b6c878d5b259937b2960fef8c6ce4123"
 etag: "sha256-e7e1655d81fb2448edb3e0c6730e9142d6fb06c6721159d7fb09055641465034"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/7-channel-web-chat/2-sdk.md` · 용어: [용어 사전](../CLE-GLOSSARY.md)

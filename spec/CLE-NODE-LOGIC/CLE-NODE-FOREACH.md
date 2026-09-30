@@ -13,7 +13,7 @@ content_hash: "bb9e052efe24f1d1099546cd751b3225279a699607a8ea73b30f6c06b8c79d2f"
 read_as: "approved"
 task: null
 source_paths: ["spec/4-nodes/1-logic/9-foreach.md", "spec/4-nodes/_product-overview.md"]
-mirror_sha256: "c7f1ec728acec87ecc10d52b446d5a7e137e62857c444b7e6d7d7a7ba3f7543f"
+mirror_sha256: "ffacd936f3a571ae4f6c2c8541e19e771b34361af8e0e35aebbcd0e9ed294f2b"
 etag: "sha256-2ce36913c540e9e3351bbaf14285ac54fa85bd24037ed6b5c6d52243460546e9"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/4-nodes/1-logic/9-foreach.md`, `spec/4-nodes/_product-overview.md` (§4.9) · 용어: [용어 사전](../CLE-GLOSSARY.md)

@@ -13,7 +13,7 @@ content_hash: "6c37d1dcc42bad6e59243bdb440a9a2564219892f72bb8f88141dae969b0dcc1"
 read_as: "approved"
 task: null
 source_paths: ["spec/conventions/node-cancellation.md"]
-mirror_sha256: "6fdbf04e854de868d7ae38e6a049fe8ec2d772e87b72801bad8044bdc771df49"
+mirror_sha256: "4e295aef18477b7f2ae81df3594284343353f89392517ab169cb80bdbde6ca7b"
 etag: "sha256-df5da55a4c5b00ad6e84293572ed466011a626e89eb208282422f9a82e25fa00"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/conventions/node-cancellation.md` (전체) · 용어: [용어 사전](../CLE-GLOSSARY.md)

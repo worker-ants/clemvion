@@ -13,7 +13,7 @@ content_hash: "fedbc56f7d89186aff7d406eb0158b9256868f840fa707c07fd35da3513ce30c"
 read_as: "approved"
 task: null
 source_paths: ["spec/1-data-model.md", "spec/data-flow/6-knowledge-base.md"]
-mirror_sha256: "df9cc6e1eeec2ee9947715bf83c379d3230e83e237a5792afec4301c6872b5cf"
+mirror_sha256: "85985ec3f2a2c9a7dfe0e9043e72c213e8d2fd2a8f4c64d4b49c13451d417207"
 etag: "sha256-50e03f4f48afd644c2a9efbed3a5113193243bb8398b8a022bb7cb17d4cf1f3a"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/data-flow/6-knowledge-base.md`, `spec/1-data-model.md` (§2.11 KnowledgeBase, §2.12 Document, §2.12.1~§2.12.4, Rationale «그래프 RAG 삭제 연쇄의 FK 인덱스 넷») · 용어: [용어 사전](../CLE-GLOSSARY.md)

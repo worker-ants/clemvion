@@ -13,7 +13,7 @@ content_hash: "5fb551f9673b2d1443a70fefc54ad8a252d8e86412f460bcd430c57cfe59ac8c"
 read_as: "approved"
 task: null
 source_paths: ["spec/5-system/6-websocket-protocol.md"]
-mirror_sha256: "1f49577c773f52c072e0a4f880470d781c25923a1264082b943611fd34045080"
+mirror_sha256: "01e0027211685e409c8e454e804ef28fe5a2caee6759f5548847b7159cf0d5a9"
 etag: "sha256-697e3e9f7b70f471a0b1c5361321d16c097321de59be25ce399ac22088a3961e"
 ---
 > 구현 상태: 구현됨 (raw WebSocket 전제 항목 일부는 비채택) · 원문: `spec/5-system/6-websocket-protocol.md` (Overview, §1~§3, §5~§9, Rationale 일부) · 용어: [용어 사전](../CLE-GLOSSARY.md)

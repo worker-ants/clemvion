@@ -13,7 +13,7 @@ content_hash: "f4feb012b70228b130715da31df8a861a30f3c63813ca235769c403a1cff9878"
 read_as: "approved"
 task: null
 source_paths: ["spec/5-system/14-external-interaction-api.md", "spec/data-flow/15-external-interaction.md"]
-mirror_sha256: "9d4ac6e9d40700aa875ec7aa8c62200adfd5979680219562cf761bc5ef27f25a"
+mirror_sha256: "e6942c357efc4d93eda33fdb592f33b5f6e3bf2a5421894cfaf9be362725b5cd"
 etag: "sha256-647a8edfc0323d977c53a798166d897d2b2624307c1c7cf7199f2ed8fdf22d5a"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/5-system/14-external-interaction-api.md` (§3.1, §6, §8.1·§8.2, Rationale R2·R6·R12·R-outbound-flood), `spec/data-flow/15-external-interaction.md` (§1.4 발송 사실) · 용어: [용어 사전](../CLE-GLOSSARY.md)

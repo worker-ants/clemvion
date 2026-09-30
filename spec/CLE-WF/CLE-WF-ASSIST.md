@@ -13,7 +13,7 @@ content_hash: "426489f52ec9c206d3684bc8bb1ced99f9b7f45534ae36176f9ca89cde9d5012"
 read_as: "approved"
 task: null
 source_paths: ["spec/3-workflow-editor/4-ai-assistant.md", "spec/3-workflow-editor/_product-overview.md", "spec/4-nodes/3-ai/_product-overview.md"]
-mirror_sha256: "e21e78230867cefc78a2ea7592521c31ef480205a640b206c90abe4de7636ad9"
+mirror_sha256: "402dbccdfafc22f415bb5b111f29ab71ebc5e327a164abba925eedd263ff4eb4"
 etag: "sha256-c7ef654584d277756f973b0444bde4d3f664e13a863a9e158a79306672f924e4"
 ---
 > 구현 상태: 구현됨 (요구사항에 미구현으로 표시한 항목 제외) · 원문: `spec/3-workflow-editor/4-ai-assistant.md` (§1~§3, §7~§13, §15, Rationale), `spec/3-workflow-editor/_product-overview.md` (§10), `spec/4-nodes/3-ai/_product-overview.md` (§3.6) · 용어: [용어 사전](../CLE-GLOSSARY.md)

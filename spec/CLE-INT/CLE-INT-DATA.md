@@ -13,7 +13,7 @@ content_hash: "dbcc62f80aa15ea049d7427ccf708eab41ddc1a5aa2ee010bf234c515a29c3b0"
 read_as: "approved"
 task: null
 source_paths: ["spec/1-data-model.md", "spec/2-navigation/4-integration.md", "spec/data-flow/5-integration.md"]
-mirror_sha256: "46178aa7a4307ccd8d2a6f803f1b58bddaadcf25b18dccdf273ee2dce93c0a6a"
+mirror_sha256: "90380a3a05b59fae159d2fb07f881f6e30b4a2f9aafaffd8b26432ce08110f3a"
 etag: "sha256-3279b97240c8825a94a18b77b8cb6d0988cc50d4ac1ec3f0d6205afa94bdbba6"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/data-flow/5-integration.md`, `spec/1-data-model.md` (§2.10, §2.10.1, §2.21.1, §3 통합 인덱스 행, Rationale «install_token 형식»), `spec/2-navigation/4-integration.md` (§13) · 용어: [용어 사전](../CLE-GLOSSARY.md)

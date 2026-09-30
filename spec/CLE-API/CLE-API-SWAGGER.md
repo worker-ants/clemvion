@@ -13,7 +13,7 @@ content_hash: "6c8ec28296107cdde35d3ed8f692459c9e1669271166b6cae33b886f3aa31e32"
 read_as: "approved"
 task: null
 source_paths: ["spec/conventions/swagger.md"]
-mirror_sha256: "dfc43dd8278478401b0523b586c158a08504445950e4c753b25517ccb92a7226"
+mirror_sha256: "69ad991e4cb9d50172899b40a531a7ed4d8bde94edb19e75705aa658107a00c4"
 etag: "sha256-946b9f690939b53ea44aa38a579c4e4988c2cf2d09a4894734cf768209802a24"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/conventions/swagger.md` · 용어: [용어 사전](../CLE-GLOSSARY.md)

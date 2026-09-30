@@ -13,7 +13,7 @@ content_hash: "259ef776b4dc25f78790ffde53195428f100af22ab60a44264863e8cdfef7818"
 read_as: "approved"
 task: null
 source_paths: ["spec/5-system/14-external-interaction-api.md"]
-mirror_sha256: "7483876c5b8f3318a7d1e0d64fb2ee688631428b9d318d9da21735de3a58b0c5"
+mirror_sha256: "0abaeb74bc6efe7d023972ad203164b0089eb5f362a553a27338f14268cecd88"
 etag: "sha256-d4c1539ed06ca72161c1686bc6f45e2eebfdd470bf95a39cd827210cf51777da"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/5-system/14-external-interaction-api.md` (§3.2, §5, §11, Rationale R3·R5·R8·R11·R13·R14·R16·R17 앞부분·R18·R-replay-unavailable) · 용어: [용어 사전](../CLE-GLOSSARY.md)

@@ -13,7 +13,7 @@ content_hash: "ab89895d69e25ac517b9de6b092377b6dcea9783c77521a9db4a83c8d15cfd9b"
 read_as: "approved"
 task: null
 source_paths: ["spec/2-navigation/5-knowledge-base.md", "spec/2-navigation/_product-overview.md", "spec/4-nodes/3-ai/_product-overview.md", "spec/4-nodes/4-integration/_product-overview.md", "spec/data-flow/6-knowledge-base.md"]
-mirror_sha256: "9caf6543d57ec5b11ad99814aa28dfa3a190424631ff30f6b6967ab53b9c17f9"
+mirror_sha256: "9186a474119512f7ba6ade01b0850b8a073531d9518450409a45b4d3a8641a95"
 etag: "sha256-752a2532d7869f8277867078b11448b52a1ff7966e225e19150159660dce9d20"
 ---
 > 구현 상태: 부분 구현 (화면과 API 는 구현됨, PRD 요구사항 일부 미구현) · 원문: `spec/2-navigation/5-knowledge-base.md`, `spec/2-navigation/_product-overview.md` (§3.5), `spec/4-nodes/4-integration/_product-overview.md` (§3), `spec/4-nodes/3-ai/_product-overview.md` (§3.5, §5 NF-AI-05), `spec/data-flow/6-knowledge-base.md` (§1.6 임베딩 테스트) · 용어: [용어 사전](../CLE-GLOSSARY.md)

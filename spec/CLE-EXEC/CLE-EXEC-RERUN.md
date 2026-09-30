@@ -13,7 +13,7 @@ content_hash: "cd859f09bc542dcc3ef88183dbc21f4c8e5c535cedfbb722388d6be4d0e97b00"
 read_as: "approved"
 task: null
 source_paths: ["spec/5-system/13-replay-rerun.md"]
-mirror_sha256: "71091c0c46b841b24405e4b82980d4116630a6c29d41aeb17bc3199ad6b4d3e1"
+mirror_sha256: "9888ba94710ea929c135e794bb13e668754e257b4323241f47e41656dd88849d"
 etag: "sha256-66cd8ccf7ab74ec7c206d8d2775f9b6eb03d616aa9924cd5b4a726c1173b5c6a"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/5-system/13-replay-rerun.md` · 용어: [용어 사전](../CLE-GLOSSARY.md)

@@ -13,7 +13,7 @@ content_hash: "65aae99b1e8c61d5c57516c244e3043ad4e7faf4591ef081ed98d52812d90e26"
 read_as: "approved"
 task: null
 source_paths: ["spec/0-overview.md", "spec/data-flow/0-overview.md"]
-mirror_sha256: "7ac0b0a2517b3429794a07100743c3d9bdda2530d4685ad51e5e960a075c3f8f"
+mirror_sha256: "319ad3503541afd210d70bdf0d512e79dfd9d548cebcc24e135ca05ef830bde4"
 etag: "sha256-8205a094c8598526c4b6d83fa8fd5eb2acc82718886c261c51cef30ea47ec4d0"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/0-overview.md` (§1 시스템 구성 개요, §2.1~§2.6 주요 컴포넌트, §5 배포 환경 분리, Rationale «실행 엔진: Redis 큐 + 분산 워커 풀»), `spec/data-flow/0-overview.md` (Overview, §1 시스템 수준 데이터 흐름, §2 도메인 인덱스, §3 공통 규약, §5 다중 인스턴스·동시성 모델, Rationale) · 용어: [용어 사전](../CLE-GLOSSARY.md)

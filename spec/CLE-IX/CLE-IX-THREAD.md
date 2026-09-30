@@ -13,7 +13,7 @@ content_hash: "509a0cc1552234311d52b455dd451e147dd952af3218c2acabafb8d02a1a5451"
 read_as: "approved"
 task: null
 source_paths: ["spec/conventions/conversation-thread.md"]
-mirror_sha256: "04b56ccf757f2be547cc62c6a3d926f43c9d68a031f707e21c7d2a2e188817c3"
+mirror_sha256: "e1c79d6f18aabe753bbc128a1ee304e36713332d034e9d4b64671d67fca03072"
 etag: "sha256-bf03b8e9113aaa02f29885fc5d5ce433fef758df1f41508ef8132d2a2bd79d1e"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/conventions/conversation-thread.md` (§1~§8, 1–467행. §9 미리보기 렌더 규칙과 §8.1·§8.2·§8.5 근거는 [대화 미리보기](../CLE-EXEC/CLE-EXEC-PREVIEW.md) 에 있다) · 용어: [용어 사전](../CLE-GLOSSARY.md)

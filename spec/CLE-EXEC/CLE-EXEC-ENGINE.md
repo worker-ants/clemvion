@@ -13,7 +13,7 @@ content_hash: "51f386d4d6f7939209a245efa90db6ea235d2c7c92ac03d1329b3f706093134c"
 read_as: "approved"
 task: null
 source_paths: ["spec/5-system/4-execution-engine.md"]
-mirror_sha256: "91cddda9b794ba27d39a64b2f18e1bd3637a759230374b74c180013e7799152f"
+mirror_sha256: "6f39804686dd9ac0c854f791e94784738e20406e93cb77c8a64cdf8827c5808f"
 etag: "sha256-426173522f2aa808704c722bdfb5b4e84790142713d3fca02b5eaa79adbfbb8c"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/5-system/4-execution-engine.md` (Overview, §2, Rationale "C-1 god-class strangler-fig 분할"·"park 즉시 해제 + slow-path 일원화" 중 registry 항목과 `runNodeDispatchLoop` 반환 계약) · 용어: [용어 사전](../CLE-GLOSSARY.md)

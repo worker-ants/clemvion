@@ -13,7 +13,7 @@ content_hash: "fd05eff4fdbc4f1564fa41d2b7c788937939f44213762acb7b3d5472240a14ac"
 read_as: "approved"
 task: null
 source_paths: ["spec/4-nodes/7-trigger/providers/*.md", "spec/5-system/15-chat-channel.md", "spec/conventions/chat-channel-adapter.md", "spec/data-flow/14-chat-channel.md"]
-mirror_sha256: "0491b8186bc0e48df4f0f10cd45fa44ad8f6a5caf3ca86fb4c3771fce7472f49"
+mirror_sha256: "cfd03faf625646dbb667878ca83de8191e29afa0f49ea0fb937cbdb4330c1363"
 etag: "sha256-37239a1f240758ef52d26d26d8c0b41a7328a95cb32b7c728243aa0dedba58e4"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/5-system/15-chat-channel.md`, `spec/conventions/chat-channel-adapter.md`, `spec/4-nodes/7-trigger/providers/*.md`, `spec/data-flow/14-chat-channel.md` · 용어: [용어 사전](../CLE-GLOSSARY.md)

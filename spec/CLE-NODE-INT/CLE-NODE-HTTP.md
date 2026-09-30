@@ -13,7 +13,7 @@ content_hash: "ffb77105d417523c0a5e8e65166f4a1d0b2a3642425602a097501e3edb05c7c5"
 read_as: "approved"
 task: null
 source_paths: ["spec/4-nodes/4-integration/1-http-request.md", "spec/4-nodes/_product-overview.md"]
-mirror_sha256: "89070255fd6292f2c07f4e38f76e36bff1a62abf2c157148142c40b2e08fd0e3"
+mirror_sha256: "9778f3935e6323410c712704749f5b4c4620a12879aaa104ddd4b26e639f54cd"
 etag: "sha256-53cd95fd68548d1067f7f4fb19faf1a07c35f35213b7bc8a31d8093b185d0dd2"
 ---
 > 구현 상태: 구현됨 (바이너리 처리·리다이렉트 토글·SSL 검증 토글은 미구현) · 원문: `spec/4-nodes/4-integration/1-http-request.md`, `spec/4-nodes/_product-overview.md` (§7.1) · 용어: [용어 사전](../CLE-GLOSSARY.md)

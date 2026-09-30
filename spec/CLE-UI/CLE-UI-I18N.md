@@ -13,7 +13,7 @@ content_hash: "fb2e5c93af8fc656c5b1e0ebe58d4c79c299f900faa038ee79a6d967a594e334"
 read_as: "approved"
 task: null
 source_paths: ["spec/5-system/_product-overview.md", "spec/conventions/i18n-userguide.md"]
-mirror_sha256: "01e39bca5c4fd3b8640436e7dd80aad238d0baedf70f81945a0f6db948662409"
+mirror_sha256: "560e7c2d1747ef1357864a25632dd677aa79e30e4d7c6bae959ae9a032a27519"
 etag: "sha256-02e3191bdad48971f3ba7ed9fe8078f0205275b76a31aa4f231d45ced83ffd71"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/conventions/i18n-userguide.md` (전체), `spec/5-system/_product-overview.md` (§6 국제화 및 접근성) · 용어: [용어 사전](../CLE-GLOSSARY.md)

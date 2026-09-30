@@ -13,7 +13,7 @@ content_hash: "ece00b53cb1e4de83c4c1d4b0623d0525b7bf14c1fc2a3d8c26d2720453e0714"
 read_as: "approved"
 task: null
 source_paths: ["spec/2-navigation/8-marketplace.md", "spec/2-navigation/_product-overview.md", "spec/4-nodes/4-integration/_product-overview.md"]
-mirror_sha256: "b4ccd3990a6112e5ec224df871656d30a4e82fbdc69471705f23a51526af8654"
+mirror_sha256: "9210ddaf9e49444e19ae01d8aa7bea19a07802b5b9e2668eca40b0eedae5ff69"
 etag: "sha256-125f5a185e7232175a4dce8e96d03ef537f56cd185f6a635132b455ca57796dc"
 ---
 > 구현 상태: 미구현 · 원문: `spec/2-navigation/8-marketplace.md` (전체), `spec/2-navigation/_product-overview.md` (§3.10 Marketplace), `spec/4-nodes/4-integration/_product-overview.md` (§4 Marketplace) · 용어: [용어 사전](../CLE-GLOSSARY.md)

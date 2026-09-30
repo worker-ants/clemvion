@@ -13,7 +13,7 @@ content_hash: "70c98f038bc80caea7322bc23757d372fb0daaaf8f5519f5d03f00cc84b3e2d2"
 read_as: "approved"
 task: null
 source_paths: ["spec/4-nodes/4-integration/0-common.md", "spec/4-nodes/_product-overview.md", "spec/5-system/4-execution-engine.md"]
-mirror_sha256: "ad619c05e67dc105e9df0645fcba4d56034c6f1d741869ac40a4fe9578538ee8"
+mirror_sha256: "9b8bc52960a1ca17b2bdeb4a48857fda714b39022908fb1babd0f8d551576f9b"
 etag: "sha256-6fc76652b07f5dc52867cb11925c9a1faf11f43f201cfdfa367f09169322922a"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/4-nodes/4-integration/0-common.md`, `spec/5-system/4-execution-engine.md` (§10 Integration Handler 계약), `spec/4-nodes/_product-overview.md` (§7 머리말) · 용어: [용어 사전](../CLE-GLOSSARY.md)

@@ -13,7 +13,7 @@ content_hash: "a2f24749e4790216a067dfeefcc644b07be41263b66b7f21c8b4273ee54aab54"
 read_as: "approved"
 task: null
 source_paths: ["spec/conventions/redis-keys.md"]
-mirror_sha256: "6b13d6eb909873e6b44c2b81084e680b1a82aad8e57c10d19cae911d87c5e91e"
+mirror_sha256: "ca07487f2a3d43768910a60e36bb9f08c4520998870517ee32072e3ac08e0425"
 etag: "sha256-c06e20a9ae06458a3187683101977afa7789cd6f0a1bb6ac21e550a12a764ba6"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/conventions/redis-keys.md` · 용어: [용어 사전](../CLE-GLOSSARY.md)

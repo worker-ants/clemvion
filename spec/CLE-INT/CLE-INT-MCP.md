@@ -13,7 +13,7 @@ content_hash: "8f982ab0ce51b93df0f2ad48c27a4731f42b0cd7956d068ba272ae6bd51dca38"
 read_as: "approved"
 task: null
 source_paths: ["spec/5-system/11-mcp-client.md"]
-mirror_sha256: "ac34ec4c92b70b7f316a6bafb9e104b185d6be1ff6f981229dda88c0ea2f698d"
+mirror_sha256: "93df4c409308435cdc0f7322919f78ac1f19938e7842e89721439f021207d9d8"
 etag: "sha256-61af9f17ff9aeab6f33b3d2cfcbd493813736984a995ea72aea1ff049ac018c0"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/5-system/11-mcp-client.md` · 용어: [용어 사전](../CLE-GLOSSARY.md)

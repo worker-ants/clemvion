@@ -13,7 +13,7 @@ content_hash: "6949c33fabc3f069d39635dee572e092dd7a26bfbbc6a68c9cc47e6cf3b6397c"
 read_as: "approved"
 task: null
 source_paths: ["spec/5-system/4-execution-engine.md", "spec/conventions/execution-context.md"]
-mirror_sha256: "4028ba364e0cb5fd259c9f1b94e92ce460cba75e9e23e5774e1d99b2161ff7de"
+mirror_sha256: "befe013506b6912d358286a5e22750bc1272fa76289927535fc60a7f1edc5ce8"
 etag: "sha256-75f8e52955f88a045c00b207618cea2831dc71cb03ff0bb734bf3c1a36c7ac1f"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/conventions/execution-context.md` (전체), `spec/5-system/4-execution-engine.md` (§6.1~§6.3, Rationale "실행 컨텍스트 in-memory + DB durable") · 용어: [용어 사전](../CLE-GLOSSARY.md)

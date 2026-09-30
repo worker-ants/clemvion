@@ -13,7 +13,7 @@ content_hash: "83fd5d0073c59bd109ed6ae0329c555d2372c546e1dbff144bd6db80ce75b28f"
 read_as: "approved"
 task: null
 source_paths: ["spec/2-navigation/3-schedule.md", "spec/2-navigation/_product-overview.md"]
-mirror_sha256: "43374865c2eb8f2463302395a426a964ed15fcc4f4feb0beb985b73353b80e66"
+mirror_sha256: "ad0f4c2e0003892d767cb70e63ac59543de8981dfc49e8beeaf13ad7fbc153c3"
 etag: "sha256-145091b97d63cff40854a9bc80c22289225bb612d9cace01bec632c90ef1ad28"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/2-navigation/3-schedule.md`, `spec/2-navigation/_product-overview.md` (§3.3 Schedule) · 용어: [용어 사전](../CLE-GLOSSARY.md)

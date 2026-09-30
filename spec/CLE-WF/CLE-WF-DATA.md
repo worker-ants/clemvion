@@ -13,7 +13,7 @@ content_hash: "f39af27c1565afb926b889d4116cec51d34543f9d33494aadcd4707adb44fb84"
 read_as: "approved"
 task: null
 source_paths: ["spec/1-data-model.md", "spec/data-flow/11-workflow.md"]
-mirror_sha256: "42b64b9355267d954723d245a5090b162cfa02de199942a252661d4aa8de21e7"
+mirror_sha256: "359bd10b934fabe4ac3a7b9a02ae5fb29b2fcf8c4238a5fce077f5163ec3c2d5"
 etag: "sha256-3db0ba750c64db281a45ecbf2f1ce2aefdba4eb5c79bd3642d6656abeb15bbca"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/data-flow/11-workflow.md`, `spec/1-data-model.md` (§2.4 Workflow, §2.5 Folder, §2.6 Node, §2.7 Edge, §2.15 WorkflowVersion, Rationale "WorkflowVersion.snapshot 구성 서술 정정") · 용어: [용어 사전](../CLE-GLOSSARY.md)

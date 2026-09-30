@@ -13,7 +13,7 @@ content_hash: "627c46af9c574c20bc7a5efa3e3320d66da5598dcb4c9c6d8addaafe723bd2ac"
 read_as: "approved"
 task: null
 source_paths: ["spec/4-nodes/3-ai/_product-overview.md", "spec/4-nodes/4-integration/_product-overview.md", "spec/5-system/8-embedding-pipeline.md", "spec/data-flow/6-knowledge-base.md"]
-mirror_sha256: "1a9ace32c5aef55bf462a841ba2a2ee9db7f13c22d7638563e3d0cd1307201f6"
+mirror_sha256: "50f7d5492139597c7dde6e28c6ba0c119a530d380a905ef47fb5b4ea234ad76d"
 etag: "sha256-d13e684a025536b23372a356d420bfb83c6b7303723ae0d8ad62c8a54dba9ffa"
 ---
 > 구현 상태: 구현됨 (문서 수정 시 자동 재임베딩만 미구현) · 원문: `spec/5-system/8-embedding-pipeline.md`, `spec/data-flow/6-knowledge-base.md` (§1.2·§1.5·§3.1), `spec/4-nodes/3-ai/_product-overview.md` (§3.5 KB-VE, §4 기술 결정, §5 NF-AI-02·NF-AI-06), `spec/4-nodes/4-integration/_product-overview.md` (§3.3 KB-VE) · 용어: [용어 사전](../CLE-GLOSSARY.md)

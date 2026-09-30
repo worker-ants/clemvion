@@ -13,7 +13,7 @@ content_hash: "5f83cfcf716b4faa1e686a3feb821422c3b40ed205c368b1bca187e99051e0cb"
 read_as: "approved"
 task: null
 source_paths: ["spec/4-nodes/7-trigger/providers/slack.md"]
-mirror_sha256: "5cc9eb83dd5d800ac35bd88fdc43a8e315f59e0a96dfbcde913680c1de1a588e"
+mirror_sha256: "4dd418e28d6cde269ac13df7734019339f9513e5c23adfeaae8be031821ebfab"
 etag: "sha256-917bc6bc18f568479cfebaf18d1bb0e10c0e23992af6ff25d034d54a84c1544c"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/4-nodes/7-trigger/providers/slack.md` · 용어: [용어 사전](../CLE-GLOSSARY.md)

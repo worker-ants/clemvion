@@ -9,12 +9,12 @@ basis_superseded: false
 parent: "CLE-ENG"
 ancestors: ["CLE-VISION", "CLE-ENG"]
 area: "CLE-ENG"
-content_hash: "b1f2f8406b86781570eae0ba0a1d69af18fe3ba83d1bf5d2c4d7f2cb6f1d5072"
-read_as: "approved"
-task: null
+content_hash: "6602bc9f8ad15246241a07b948942ac57905ae0510b2f01e0a2c08de383998c9"
+read_as: "approved_fallback"
+task: "CLE-T-VA4YA1"
 source_paths: ["spec/conventions/spec-impl-evidence.md"]
-mirror_sha256: "495a14bd0bf5b238c67177e90ae9f699608cc68e4f6abbad434cb786fcf57554"
-etag: "sha256-e84d428087a9094aa65a5c8087f3964aaadc8bcdadfcbddae7f116a229ed15c4"
+mirror_sha256: "28cc16a1ccd4c7bd15e7779ac5e4db96a8b5a3df6d9048e7bf55a01baf9736e6"
+etag: "sha256-943bb50c81763ddb1a611910bf690c4ab7794a1a81b0c1a65434c46d91b359ab"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/conventions/spec-impl-evidence.md` · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -173,15 +173,15 @@ frontmatter 근거 가드와 **다른 가족**이다. 스펙 문서 저장소(�
 
 | 가드 | 대상 / 검증 | 예외 / 비고 |
 | --- | --- | --- |
-| `spec-link-integrity.test.ts` (빌드 차단) | 저장소 경로를 대상으로 하는 마크다운 링크의 타깃이 있는지, `#anchor` 가 헤딩 slug 와 맞는지 본다. slug 는 실제 렌더러(`rehype-slug` = `mdast` + `github-slugger`) 파이프라인과 같게 만든다. 대상 범위는 아래 세 가지다 | 생성형 `*-api-catalog/` 트리는 뺀다. 범위별 세부는 표 아래 |
-| `spec-area-index.test.ts` (빌드 차단) | 영역 폴더(형제 문서 2개 이상)마다 index 문서가 있고 모든 형제 스펙이 index 에서 링크된다 | `spec/conventions/`(평면 레퍼런스라 index 없음)와 카탈로그는 면제 |
+| `spec-link-integrity.test.ts` (빌드 차단) | 저장소 경로를 대상으로 하는 마크다운 링크의 타깃이 있는지, `#anchor` 가 헤딩 slug 와 맞는지 본다. slug 는 실제 렌더러(`rehype-slug` = `mdast` + `github-slugger`) 파이프라인과 같게 만든다. 대상 범위는 아래 세 가지다 | 생성형 `*-api-catalog/` 트리와 NERV 미러(`spec/README.md` · `spec/CLE-*`)는 뺀다(Rationale R-12). 범위별 세부는 표 아래 |
+| `spec-area-index.test.ts` (빌드 차단) | 영역 폴더(형제 문서 2개 이상)마다 index 문서가 있고 모든 형제 스펙이 index 에서 링크된다 | `spec/conventions/`(평면 레퍼런스라 index 없음)와 카탈로그 · NERV 미러는 면제(Rationale R-12) |
 | `plan-frontmatter.test.ts` (빌드 차단) | 세 가지를 본다. (1) top-level `plan/in-progress/*.md` 의 `worktree`(표시값 `(unstarted)` 허용)·`started`(ISO)·`owner` 필수 (2) `plan/complete/**` 가 `status` 를 선언했다면 종료 상태(`complete`/`implemented`/`applied`/`superseded`)여야 함 (3) 살아 있는 top-level plan 의 상대 링크 무결성. 판정 로직은 `plan-scan.ts`(수집·frontmatter·status)와 `spec-links.ts`(링크)에 있고 이 파일은 호출부다. 셋 다 `plan-scan.test.ts`/`spec-links.test.ts` 의 합성 fixture 가 음성 경로를 증명한다 | 하위 폴더 묶음과 `0-`/`_` index 는 면제. `status` 는 선택 필드라 없어도 위반이 아니다. 링크 검사는 `plan/complete/**` 를 보지 않는다. 시점 기록 문서는 옛 경로를 그대로 두는 것이 정상이다(plan-lifecycle §3). 이 가드의 규약 기준은 `.claude/docs/plan-lifecycle.md` §4 이고 이 절은 가드 파일 위치만 밝힌다 |
 | `spec-plan-completion.test.ts` (**Gate C**, 빌드 차단) | `started ≥ 2026-06-04` 인 완료 plan(`plan/complete/`)은 frontmatter `spec_impact` 선언이 필수다. 값은 실존하는 스펙 경로 목록이거나 no-op 표시(`none`/`없음`/`n/a`/`na`)다. plan 과 스펙의 정합 결정을 완료 시점에 강제한다 | cutoff 전에 시작한 plan 은 면제(grandfather). plan frontmatter 가드라 frontmatter 근거 가족이 아니다(Rationale R-8) |
 | **Gate D** (권고. 빌드를 막지 않음) | `/spec-coverage --mode reverse`(orchestrator `--mode` 인자로 구현됨). 스펙이 가리키지 않는 controller route·이벤트·환경변수를 찾는다(구현에서 스펙으로 가는 역커버리지) | NLP 휴리스틱이라 보고만 하고 CI 를 막지 않는다 |
 
 `spec-link-integrity.test.ts` 의 대상 범위:
 
-1. **`spec/**.md` 본문.** 이 범위에는 타깃 필터가 없다. 스펙 문서가 쓴 `plan/**` 링크도 검사하므로 plan 을 in-progress 에서 complete 로 옮길 때 링크를 고치지 않으면 빌드가 깨진다(규칙 17).
+1. **`spec/**.md` 본문.** 이 범위에는 타깃 필터가 없다. 스펙 문서가 쓴 `plan/**` 링크도 검사하므로 plan 을 in-progress 에서 complete 로 옮길 때 링크를 고치지 않으면 빌드가 깨진다(규칙 17). NERV 미러(`spec/README.md` · `spec/CLE-*`)는 이 범위에서 뺀다(Rationale R-12).
 2. **codebase 소스의 JSDoc·주석.** `codebase/{backend,frontend,channel-web-chat,packages}` 의 `.ts`/`.tsx` 를 본다. 이 범위만 `spec/**.md` 를 가리키는 링크로 거른다(스펙이 아닌 상대 링크는 뺀다). 빌드 출력(`dist`/`.next`/`build`/`node_modules`)도 뺀다.
 3. **거버넌스 문서.** 루트 `*.md`(`CLAUDE.md`·`PROJECT.md` 등, 재귀하지 않음)와 `.claude/**.md` 를 본다. `.claude/worktrees/` 는 저장소 사본이라 빼고 `node_modules` 도 뺀다.
 
@@ -252,6 +252,7 @@ user_guide:                                # 선택 필드. 로케일 쌍을 모
 | 링크 무결성 가드 범위 1 | 스펙 본문의 저장소 상대 경로 링크와 헤딩 slug 를 대조한다 | NERV 는 본문에서 문서 키(`CLE-…`)를 대상으로 하는 마크다운 링크만 읽어 references 관계를 만든다. 없는 문서를 가리킨 링크는 저장 응답의 `relations.unknown` 으로 알린다. 앵커(`#…`)는 관계 판정에서 무시한다 |
 | 링크 무결성 가드 범위 2 | 코드 주석이 저장소 `spec/**.md` 파일을 가리킨다 | 가리킬 스펙이 저장소 파일에서 NERV 문서로 바뀌면 이 범위가 검사할 타깃의 전제가 바뀐다 |
 | 영역 index 가드 | 영역 폴더마다 index 문서가 형제 문서를 링크한다 | NERV 는 `area` 종류 문서와 트리의 부모 관계로 영역을 묶는다. 이번 이전에서 `area` 문서는 자식 문서 목록을 `## 문서` 절에 둔다 |
+| 저장소 미러와 링크 · 영역 index 가드 | 저장소 `spec/` 에는 옛 트리만 있다 | 전환 단계 1(2026-09-29)부터 NERV 미러(`spec/<영역 키>/<KEY>.md` · `spec/README.md`)가 옛 트리 옆에 있다. 두 가드는 미러를 대상에서 빼고(`spec-links.ts` 의 `inNervMirror`), 미러 무결성은 `.claude/tools/nerv-mirror/pull.py --check`(CI `spec-mirror-integrity`)가 본다(Rationale R-12) |
 | Gate D spec-coverage | 산출물을 `review/spec-coverage/**` 에 둔다 | NERV 리뷰 레코드의 종류(`kind`)에 `spec_coverage` 가 있다. NERV 리뷰는 저장소에 파일로 커밋하지 않는다([리뷰 산출물 인용 규약](CLE-ENG-REVIEWCITE.md)) |
 | 스펙 편집 경로 | 사람이 저장소 `spec/` 파일을 직접 고친다 | NERV 플러그인의 스펙 스킬은 저장소 `spec/**` 를 NERV 가 내보낸 읽기 전용 미러로 보고 직접 편집을 금지한다. 스펙 변경은 초안 저장·사전 검토(`nerv_spec_check`: cross-spec·rationale-continuity·convention-compliance·requirement-shape·task-coherence 5개 검사기)·사람 승인 경로로 한다 |
 
@@ -268,9 +269,10 @@ user_guide:                                # 선택 필드. 로케일 쌍을 모
 - `codebase/frontend/src/lib/docs/__tests__/spec-area-index.test.ts`
 - `codebase/frontend/src/lib/docs/__tests__/plan-frontmatter.test.ts`
 - `codebase/frontend/src/lib/docs/__tests__/plan-scan.ts`
-- `codebase/frontend/src/lib/docs/__tests__/spec-links.ts`
+- `codebase/frontend/src/lib/docs/__tests__/spec-links.ts` (`inNervMirror`)
 - `codebase/frontend/src/lib/docs/__tests__/tree-walk.ts`
 - `codebase/frontend/src/lib/docs/__tests__/tree-walk.test.ts`
+- `.claude/tools/nerv-mirror/pull.py` (`--check`, CI `spec-mirror-integrity`)
 
 ## Rationale
 
@@ -350,6 +352,16 @@ user_guide:                                # 선택 필드. 로케일 쌍을 모
 가드가 보던 자리를 사람이 본다. `spec-status-lifecycle.test.ts` 는 "전부 `complete/` 면 승격" 만 강제하므로 이 방향의 승격은 기계가 검사하지 않는다. 그래서 판정 근거(열린 항목 전부와 항목별 분류)를 승격 커밋에 남기게 했다.
 
 이해상충도 밝혀 둔다. 이 규칙의 첫 적용 대상은 규칙을 세운 같은 변경의 [시크릿 저장소](../CLE-INT/CLE-INT-SECRET.md) 원문이다. 트리거 삭제 때 자원 정리 하나 때문에 `partial` 로 내려갔다가 그 구현이 머지된 뒤 올라갔다. 규칙을 결론에 맞춰 만들었다는 의심을 덜려고 판정(열린 항목 6개 전부, 미구현 표면 0)을 규칙 없이도 따라갈 수 있게 `plan/complete/spec-draft-deletion-release-current-tense.md` 에 표로 남겼다. 또 그 문서는 같은 항목들이 열린 채로 2026-09-05~09-17 에 이미 `implemented` 였다. 규칙이 새 결론을 만든 것이 아니라 트리거 정리 전 상태로 되돌린 것이다.
+
+### R-12. NERV 미러를 링크 무결성 · 영역 index 가드에서 뺀다 (2026-09-29)
+
+NERV 정본 전환 단계 1 에서 저장소 `spec/` 에 NERV 미러(`spec/<영역 키>/<KEY>.md` 169편과 `spec/README.md`)가 옛 트리 옆에 들어왔다. 미러를 두 가드에 그대로 태우자 49건이 빨간불이 됐다(영역 폴더마다 index 문서 없음, 링크 무결성). 미러가 옛 트리 규칙을 따르게 만드는 안은 기각했다.
+
+- 카탈로그 영역은 미러하지 않아서 카탈로그 키를 가리키는 링크 125개가 풀리지 않는다.
+- 앵커 1,372개(다른 문서 530 · 같은 문서 842)가 옛 가드의 slug 규칙과 맞는지 보장할 수 없다. NERV 는 앵커를 관계 판정에서 무시한다.
+- 영역 index 규칙은 폴더마다 목차 파일을 요구한다. 미러는 구현 PR 이 조금씩 갱신하는 스냅샷이라 폴더 목차가 병렬 PR 의 충돌 지점이 된다.
+
+그래서 미러는 두 가드의 대상에서 빼고, 무결성은 미러 도구의 `--check`(본문 지문 `mirror_sha256` 과 파일 위치)로 본다. 이 검사는 링크를 보지 않는다. 링크 대상의 실재는 NERV 가 저장할 때 `relations.unknown` 으로 알린다. 옛 트리를 지우는 전환 단계 5 에서 두 가드의 옛 트리 범위와 이 예외를 함께 정리한다.
 
 ### `code:` 목록에 주석을 허용한 경위 (2026-09-06)
 

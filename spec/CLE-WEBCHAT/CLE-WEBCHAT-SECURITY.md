@@ -13,7 +13,7 @@ content_hash: "153fc6a51a1131dab9a00dbbb54e5029216e86881f26cce7c763057b56d339f0"
 read_as: "approved"
 task: null
 source_paths: ["spec/7-channel-web-chat/4-security.md"]
-mirror_sha256: "190b4a9ed66e61b7c87e1b73eef462fe9af76bbcabe1c4fc16cfaa6fb55fe3b1"
+mirror_sha256: "103047db2625391f85260eb48c27fe68e87f808e60a355d4d3a4da745a0d1998"
 etag: "sha256-f91e9345771db43a3c8eb323a45a4722346b34a65a92ec56f59e880541b696c8"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/7-channel-web-chat/4-security.md` · 용어: [용어 사전](../CLE-GLOSSARY.md)

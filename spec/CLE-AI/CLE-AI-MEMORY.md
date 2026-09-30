@@ -13,7 +13,7 @@ content_hash: "28cf3dab6ec97b7923054b522414e334be73bd903db603815f2827a0cb9d58ed"
 read_as: "approved"
 task: null
 source_paths: ["spec/1-data-model.md", "spec/2-navigation/16-agent-memory.md", "spec/2-navigation/_product-overview.md", "spec/5-system/17-agent-memory.md", "spec/5-system/_product-overview.md", "spec/data-flow/13-agent-memory.md"]
-mirror_sha256: "179327379d283d5f641d9027864993c79f184a2980c53c49c898036b34c46970"
+mirror_sha256: "9ab453ae1a81bba1a86b0f7aa074ca546383f8aee4eca61c75bd51c1b687e71b"
 etag: "sha256-cf6e2f4cda196439f509c4ddff4e29d4eff7db2451bec5f50652ff76d878e70a"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/5-system/17-agent-memory.md`, `spec/2-navigation/16-agent-memory.md`, `spec/data-flow/13-agent-memory.md`, `spec/1-data-model.md` (§2.23), `spec/5-system/_product-overview.md` (§8), `spec/2-navigation/_product-overview.md` (§3.13) · 용어: [용어 사전](../CLE-GLOSSARY.md)

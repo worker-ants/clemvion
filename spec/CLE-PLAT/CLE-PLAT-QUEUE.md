@@ -13,7 +13,7 @@ content_hash: "6bc996da44405776dfbb8c151d327fd2dcc8276d3f159a91688ceb1fec48e97e"
 read_as: "approved"
 task: null
 source_paths: ["spec/5-system/4-execution-engine.md", "spec/conventions/redis-keys.md", "spec/data-flow/0-overview.md"]
-mirror_sha256: "3971bee88ee7c8759c4ee34815454eeffe620058d44e7cc55cfa6dabd3903325"
+mirror_sha256: "0f1e102855c044a60855df25de0aadad577adee71970050397028f4a7d2a0575"
 etag: "sha256-bbb81ea32c077f7348e12bf8b9c24377444cf3981da4946486977be78c8c15f1"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/data-flow/0-overview.md` (§4 BullMQ 큐 카탈로그), `spec/5-system/4-execution-engine.md` (§9 Redis 키 네이밍 컨벤션: §9.1~§9.3, Dead-letter 모니터링), `spec/conventions/redis-keys.md` (§3 전역 인벤토리) · 용어: [용어 사전](../CLE-GLOSSARY.md)

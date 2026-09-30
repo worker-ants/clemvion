@@ -13,7 +13,7 @@ content_hash: "4e3263d59a906b59d79c3e4c54635b165710de6d658d8f8f7e50150b9eb43752"
 read_as: "approved"
 task: null
 source_paths: ["spec/1-data-model.md", "spec/data-flow/7-llm-usage.md"]
-mirror_sha256: "71978fadf718dd8f4ea22093ae3a45f2493a3abfea65909d3aaa5c75d6fed82d"
+mirror_sha256: "b09dc18102bee0f62a518487c60af16a00585d4436669ca90d03b4177d279d6a"
 etag: "sha256-cef7e52df6c8c52361c9330acb0d657fd7afebf392af48aa4df9708c1d630789"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/data-flow/7-llm-usage.md`, `spec/1-data-model.md` (§2.16 ModelConfig, §2.24 LlmUsageLog) · 용어: [용어 사전](../CLE-GLOSSARY.md)

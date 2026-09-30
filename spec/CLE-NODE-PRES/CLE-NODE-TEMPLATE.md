@@ -13,7 +13,7 @@ content_hash: "ab3374eb42ac45a293909fcf2c3a88ae176473de6f5ebe33be2f738c1f7eb7c9"
 read_as: "approved"
 task: null
 source_paths: ["spec/4-nodes/6-presentation/5-template.md", "spec/4-nodes/_product-overview.md"]
-mirror_sha256: "b28b1b077ad2af42a19529fb5de1513e775a8c34227113031ab7d70ebcc89e96"
+mirror_sha256: "e2e9eb0f242c1066133d15981d223f783de4b888b627ab49913b4d8923c8efac"
 etag: "sha256-870f6f77ad287623707a9699287075ffe2409f1b2bd40ef166ad4aba220d0fb3"
 ---
 > 구현 상태: 구현됨 (Handlebars 블록 구문·내장 헬퍼 지원 여부는 [미결 사항](#미결-사항)) · 원문: `spec/4-nodes/6-presentation/5-template.md`, `spec/4-nodes/_product-overview.md` (§9.5) · 용어: [용어 사전](../CLE-GLOSSARY.md)

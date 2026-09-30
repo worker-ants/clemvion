@@ -13,7 +13,7 @@ content_hash: "5591281afd4797596f03f3ad1f931fc946acdad75a6179ca6e12e337a09bc362"
 read_as: "approved"
 task: null
 source_paths: ["spec/2-navigation/1-workflow-list.md", "spec/2-navigation/_product-overview.md", "spec/3-workflow-editor/_product-overview.md"]
-mirror_sha256: "5e5c28b662127e7f74a7ba13590958c4fbaa71884d4e5beeaf76273f58b14f6b"
+mirror_sha256: "7b19392763f2070e63ae3d66f342d2483f4f30414260365c501186e385293c4f"
 etag: "sha256-b7e64616d6610bd30d2171a00ccb1b0eba0c584c5eb5d22f45d421e90ad1efd7"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/2-navigation/1-workflow-list.md`, `spec/2-navigation/_product-overview.md` (§3.1), `spec/3-workflow-editor/_product-overview.md` (§6 ED-SV-05·06) · 용어: [용어 사전](../CLE-GLOSSARY.md)

@@ -13,7 +13,7 @@ content_hash: "595460e3e9709c695a9360154ee2873860e47ee84deebca69a39181c911505d1"
 read_as: "approved"
 task: null
 source_paths: ["spec/4-nodes/4-integration/_product-overview.md", "spec/5-system/10-graph-rag.md", "spec/data-flow/6-knowledge-base.md"]
-mirror_sha256: "bec8fb9a3e9473a263e35849eb6d5c656e71d2067fd821957ee66291547a9b67"
+mirror_sha256: "bff91276324c9b967931c738caf596fd6152ec87cbe74d2308b6ce2e3a0c416f"
 etag: "sha256-0b3eca7d28ff88fa8ce373859c8b6a4dd41c2ab24a5fa79b7ab0dd66acfef151"
 ---
 > 구현 상태: 구현됨 (P0~P2) · 원문: `spec/5-system/10-graph-rag.md`, `spec/4-nodes/4-integration/_product-overview.md` (§3.2 KB-MD-03, §3.4 KB-AG-04), `spec/data-flow/6-knowledge-base.md` (§1.2·§1.3 그래프 부분) · 용어: [용어 사전](../CLE-GLOSSARY.md)

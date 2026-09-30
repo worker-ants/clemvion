@@ -13,7 +13,7 @@ content_hash: "e09f8056a08e4e198607c06faa3041f22faa6ca9b89c056ca4e4364be87a0097"
 read_as: "approved"
 task: null
 source_paths: ["spec/4-nodes/4-integration/3-send-email.md", "spec/4-nodes/_product-overview.md"]
-mirror_sha256: "a877c9ae18690f07ac86966d9d8ddd37f6ef29cfd0588741d21feaf266b979fc"
+mirror_sha256: "c9babbaf35d9baca229586251adf3593157bd7954a7d0246d3cdd2e12cb5a589"
 etag: "sha256-a14f9d983428ed933228499dcee900b57cd3565529378069f6a16a46f43d922a"
 ---
 > 구현 상태: 구현됨 (일부 에러 코드 노출은 미구현) · 원문: `spec/4-nodes/4-integration/3-send-email.md`, `spec/4-nodes/_product-overview.md` (§7.3) · 용어: [용어 사전](../CLE-GLOSSARY.md)

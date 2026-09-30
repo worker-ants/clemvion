@@ -13,7 +13,7 @@ content_hash: "dad7e839fc7c695ef3cdd9c8f02490bcd76369158a25e80fb780ae765f055cb0"
 read_as: "approved"
 task: null
 source_paths: ["spec/conventions/secret-store.md"]
-mirror_sha256: "ed16bc57d0c8741016969063508cebc7f09ab06a76412d86135a2ad2869037a1"
+mirror_sha256: "11662c86f44bed72b860472cbe1631ada41442480f0726cba9fa81ffced1689e"
 etag: "sha256-66973e2f1d3fd87617a7354901335560adca19aa37f306fdfd45a609d0c330a8"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/conventions/secret-store.md` · 용어: [용어 사전](../CLE-GLOSSARY.md)

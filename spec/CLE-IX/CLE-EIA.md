@@ -13,7 +13,7 @@ content_hash: "6adf9cc1dcc3f0919c382198a0bea7ba5c22f896ca751d120b7dd7cd8c8458a2"
 read_as: "approved"
 task: null
 source_paths: ["spec/5-system/14-external-interaction-api.md"]
-mirror_sha256: "68975652852d0d41f295a80a8df16983e93a2cc69477b944a74e5934fc245c03"
+mirror_sha256: "69ef012a7e30b3333b6c6047303ebbe2978ffbb40a58e31bc9979f90e698cd8f"
 etag: "sha256-f07e5b453dbcd5853d88bc3b7de08b188cf3d16098efdd4f80b30fec7136081b"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/5-system/14-external-interaction-api.md` (§1~§4, §8.3~§8.5, §9, §10, §12, Rationale R1·R4·R7·R9·R10·R15·R19) · 용어: [용어 사전](../CLE-GLOSSARY.md)

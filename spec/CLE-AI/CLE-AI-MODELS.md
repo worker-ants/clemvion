@@ -13,7 +13,7 @@ content_hash: "2338bb0e3a94db332b2744bbcab5c4d4da5f33307771d796ccb3ca9361dd3a13"
 read_as: "approved"
 task: null
 source_paths: ["spec/2-navigation/6-config.md", "spec/2-navigation/_product-overview.md", "spec/4-nodes/3-ai/_product-overview.md"]
-mirror_sha256: "0364b7a2899f12f17274339186cf31c52a8596287c0493f3b8865e767d22bd6d"
+mirror_sha256: "3d3d1f2b819ab2611a732fb1b4dd074f348d29fc5f2ea79f159658a31f7c39a6"
 etag: "sha256-54a5c8b284741a2524a8f57db6f47a6eb9cc471543af31fd82f8facb7482a3b4"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/2-navigation/6-config.md` (Part B, §3 API 의 모델 설정 표, R-1·R-3·R-4·R-5·R-7), `spec/2-navigation/_product-overview.md` (§3.7), `spec/4-nodes/3-ai/_product-overview.md` (§3.1, §4 API 키 암호화, §5 NF-AI-04) · 용어: [용어 사전](../CLE-GLOSSARY.md)

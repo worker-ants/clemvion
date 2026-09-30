@@ -13,7 +13,7 @@ content_hash: "f268c0aa6e593060c361d1ef2bb11238a0d99d0598ee7f7508cdedcbe3bcf4bc"
 read_as: "approved"
 task: null
 source_paths: ["spec/4-nodes/2-flow/1-workflow.md", "spec/4-nodes/_product-overview.md"]
-mirror_sha256: "789c59153a561a02ab32e756da7c144f8cc8bc396d99efad740e9c40fd5de36b"
+mirror_sha256: "4fe45291f5acbd19bceceeb9a8a1367e73b1f7c271d2c9c222b8c779ebf22064"
 etag: "sha256-d90cbe8d7fa83fd8672662e079036ee39fd063365ba25f3f55ae57b18f3c246f"
 ---
 > 구현 상태: 구현됨(메타 노출 일부 미구현) · 원문: `spec/4-nodes/2-flow/1-workflow.md`, `spec/4-nodes/_product-overview.md` (§5.1) · 용어: [용어 사전](../CLE-GLOSSARY.md)

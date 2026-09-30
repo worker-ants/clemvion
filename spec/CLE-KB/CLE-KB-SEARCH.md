@@ -13,7 +13,7 @@ content_hash: "16f4cd76998ebc9573ba5aec5e3a0154b32b268b226dbe8be23e0ac774fa3121"
 read_as: "approved"
 task: null
 source_paths: ["spec/2-navigation/_product-overview.md", "spec/4-nodes/3-ai/_product-overview.md", "spec/4-nodes/4-integration/_product-overview.md", "spec/5-system/9-rag-search.md", "spec/data-flow/6-knowledge-base.md"]
-mirror_sha256: "6d05f7f6cfde99d6d228c642214d7ff01c1a7dbba60b548f9903d7d102d6ffb9"
+mirror_sha256: "1f22df960ac70f959a039c0bcce99e19a6c1485d67aebefc34f590ea4e781918"
 etag: "sha256-6438008736a2b8f2509ef2cc8d3b8c2514113f6370365cd77d708408583c1590"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/5-system/9-rag-search.md`, `spec/data-flow/6-knowledge-base.md` (§1.3·§1.4), `spec/4-nodes/3-ai/_product-overview.md` (§3.5 KB-AG, §5 NF-AI-03), `spec/4-nodes/4-integration/_product-overview.md` (§3.4 KB-AG), `spec/2-navigation/_product-overview.md` (§3.5 NAV-KB-06) · 용어: [용어 사전](../CLE-GLOSSARY.md)

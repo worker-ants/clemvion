@@ -13,7 +13,7 @@ content_hash: "919d2e178cc1841402dfeb94912af8f87ee3311f1a63c28afbfc7726f0e0a57d"
 read_as: "approved"
 task: null
 source_paths: ["spec/5-system/_product-overview.md"]
-mirror_sha256: "62f3b2fd884814f74d9e2de236896b5b62e88a3f6e129b4378dd01dbb3086978"
+mirror_sha256: "89faeec08f71b828b342ffdcbd9ca593c701610e8e29ab8b00441242243e0692"
 etag: "sha256-fc764114d01560513780019720915d8760a6448f1760952ec0141bd1559ccd03"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/5-system/_product-overview.md` (§1~§7) · 용어: [용어 사전](../CLE-GLOSSARY.md)

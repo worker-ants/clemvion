@@ -13,7 +13,7 @@ content_hash: "05cbbeff938eeb828baee99498618facd39f9cea8aecd96f4521c627202a1192"
 read_as: "approved"
 task: null
 source_paths: ["spec/4-nodes/7-trigger/providers/discord.md"]
-mirror_sha256: "ac14b902e91af477d68ffbe6eb72db8c3b0903b99969a3234c78405bf6b388e1"
+mirror_sha256: "7d9c21a53662dbc7560649487b56fb0395a42d6aaf07bec990a8219747fdf690"
 etag: "sha256-48bafdbfb3e6fc5625e46a62421b8be1cee0737aa6479efb652dd09c2020ec71"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/4-nodes/7-trigger/providers/discord.md` · 용어: [용어 사전](../CLE-GLOSSARY.md)

@@ -13,7 +13,7 @@ content_hash: "02bff874d4a07d85ef67d489f14e49d142e13c6eecb908af5db8e59311d3b606"
 read_as: "approved"
 task: null
 source_paths: ["spec/7-channel-web-chat/3-auth-session.md", "spec/7-channel-web-chat/5-admin-console.md"]
-mirror_sha256: "cf878c0404b92286b5820d7f9bb05a33e1d48e87b7d457bce221adc01fdf3e83"
+mirror_sha256: "1e359106fddf3f514ac74eff353c45ec9d30f3973c736e3b30a06660f7705e2c"
 etag: "sha256-812b08ee7433ef7081d23bf3d30e0570a60bb9566080ca4fded75eba03fe6ecf"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/7-channel-web-chat/3-auth-session.md`, `spec/7-channel-web-chat/5-admin-console.md` (§6 첫 노드 race 보정) · 용어: [용어 사전](../CLE-GLOSSARY.md)

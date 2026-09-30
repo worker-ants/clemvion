@@ -13,7 +13,7 @@ content_hash: "3e782bd0b40039bac1e9b198bcc3b77ae2eb281b052610605dda4a491bd3d9c9"
 read_as: "approved"
 task: null
 source_paths: ["spec/4-nodes/1-logic/4-variable-declaration.md", "spec/4-nodes/_product-overview.md"]
-mirror_sha256: "5543ac2baefb1f78270a9f11d75ec15c7b064b3a011f1a486e720ee1ed8335d6"
+mirror_sha256: "2b234983fff90f8871a2bce5d1922d00264987377f4e2f6d10779b21edad1df0"
 etag: "sha256-38ff329eaee53c52f5df85bf091325df49c29baa87184d9d955590473805760a"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/4-nodes/1-logic/4-variable-declaration.md`, `spec/4-nodes/_product-overview.md` (§4.4) · 용어: [용어 사전](../CLE-GLOSSARY.md)

@@ -13,7 +13,7 @@ content_hash: "f0b8465a4c7456eeeadb317e1780228e11913b98f35dcf983a6fad257b9456a6"
 read_as: "approved"
 task: null
 source_paths: ["spec/4-nodes/3-ai/2-text-classifier.md", "spec/4-nodes/3-ai/_product-overview.md", "spec/4-nodes/_product-overview.md"]
-mirror_sha256: "2b5d720b94218c59f9fbd5d3f6061c170190158a45e5677c1b3f2333920b3756"
+mirror_sha256: "3e3d1fc8a0ff0f8d52ba1ba5c16be0a748b467a48758d2dc4449308f1cf52b14"
 etag: "sha256-949d0310e263ade62ec20e2726d50332cdc6a1a18665e0306680457744538e4f"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/4-nodes/3-ai/2-text-classifier.md`, `spec/4-nodes/3-ai/_product-overview.md` (§3.3), `spec/4-nodes/_product-overview.md` (§6.2) · 용어: [용어 사전](../CLE-GLOSSARY.md)

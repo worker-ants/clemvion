@@ -13,7 +13,7 @@ content_hash: "bef10bae8ff9d8d8d301e170c5fe97cde183f1b35e0884efd27231033cc67780"
 read_as: "approved"
 task: null
 source_paths: ["spec/5-system/15-chat-channel.md", "spec/data-flow/14-chat-channel.md"]
-mirror_sha256: "1e0f48fda6bc29fbdb4b0b420f1671142407ba50cdfcf9b72a93c6ffd7433969"
+mirror_sha256: "eb370f6bdaa80c076eae96dde05417a87ad804f1afa6deee14a0c8bc6ac7ff40"
 etag: "sha256-709cd8c4b63182d498741be0bfe7643ee615fcc49c7e5b07532efe3b05568b48"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/5-system/15-chat-channel.md` (§4 데이터 모델), `spec/data-flow/14-chat-channel.md` · 용어: [용어 사전](../CLE-GLOSSARY.md)

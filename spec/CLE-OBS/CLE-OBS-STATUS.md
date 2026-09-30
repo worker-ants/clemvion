@@ -13,7 +13,7 @@ content_hash: "eeb0f03206f23b8cf6493ede76145722f8de19e78703025dd88d6c178ecd00cc"
 read_as: "approved"
 task: null
 source_paths: ["spec/2-navigation/15-system-status.md", "spec/2-navigation/_product-overview.md", "spec/5-system/16-system-status-api.md", "spec/data-flow/9-observability.md"]
-mirror_sha256: "3d4c2e4d5d8792c6a4837e21e570e7fdaa454180335dceee872804a8b7b6c823"
+mirror_sha256: "2f111dcf438489ed241ace0a663cacaa77ba9bfdf11d13d5922925b6576cd94b"
 etag: "sha256-cfb35217d6f857e8d087541e2a041206693f22711905945201b43f15601954d8"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/2-navigation/15-system-status.md`, `spec/5-system/16-system-status-api.md`, `spec/2-navigation/_product-overview.md` (§3.9), `spec/data-flow/9-observability.md` (§1.4) · 용어: [용어 사전](../CLE-GLOSSARY.md)

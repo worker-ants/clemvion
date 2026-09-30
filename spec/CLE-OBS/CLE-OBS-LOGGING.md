@@ -13,7 +13,7 @@ content_hash: "ab655b623e6590e48e6565a76a165f23336415bdf5640799b5d11a0f6507227b"
 read_as: "approved"
 task: null
 source_paths: ["spec/5-system/3-error-handling.md", "spec/5-system/_product-overview.md", "spec/data-flow/9-observability.md"]
-mirror_sha256: "e6db32e50c942b55171b9cd80fa8337a0c4902c6aa666020634cddc70e6f76b7"
+mirror_sha256: "5144ad5216a426292cb5ad40d93d23b751391020f3f27e8eb414f953430002c8"
 etag: "sha256-ffe0cb6404d6130c9262e9eeb729392924d356398a7c41b7c7628b017a1b8acf"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/5-system/3-error-handling.md` (§6 로깅 정책, §7 헬스 체크, Rationale 의 `Error.cause` 항목), `spec/data-flow/9-observability.md`, `spec/5-system/_product-overview.md` (§5 관측성) · 용어: [용어 사전](../CLE-GLOSSARY.md)

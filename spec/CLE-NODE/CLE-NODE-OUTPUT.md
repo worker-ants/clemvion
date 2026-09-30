@@ -13,7 +13,7 @@ content_hash: "658c7bb77c339993bdb0065327c464f517b5ff839b8705f170b9cc8444e2113d"
 read_as: "approved"
 task: null
 source_paths: ["spec/conventions/node-output.md"]
-mirror_sha256: "588d7176cd5cd3e2c68e6eb4bf7f2aa5e64a14d2b1297fdd990580afb836e18e"
+mirror_sha256: "93d6ded88d1bbd464ee1ac8afab9e5a423de8f5b3fe7a229071d3e9262694194"
 etag: "sha256-9c00e2b465bedc28476308c07973de5e5db1454b9cedc6571a601ef21f53fe9d"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/conventions/node-output.md` · 용어: [용어 사전](../CLE-GLOSSARY.md)

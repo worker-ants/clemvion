@@ -13,7 +13,7 @@ content_hash: "9f423a48e67910f8c9fc3ab093c36cc320c738218c9dcb86b2567c1bd65d455e"
 read_as: "approved"
 task: null
 source_paths: ["spec/0-overview.md", "spec/2-navigation/_layout.md", "spec/2-navigation/_product-overview.md"]
-mirror_sha256: "d4b8919f845d2da6fe218159cc17248f36e47d49fff73b26b21f68f2428b29db"
+mirror_sha256: "9cd4cee14a31ae6d2837f2ecbae63bf3783037bccacceb3f400d989db60acd2a"
 etag: "sha256-2264a3e1523bd932098400a2cdcf37dc1f7f3395fbdb6579d00446a1622df9d5"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/2-navigation/_layout.md` (§1 레이아웃 구조, §2 사이드바, §4 메인 컨텐츠 영역, §5 공통 헤더, Rationale), `spec/2-navigation/_product-overview.md` (§1 개요, §2 내비게이션 구조), `spec/0-overview.md` (§3 공통 UI 패턴, Rationale «Inline Alert 의 위치») · 용어: [용어 사전](../CLE-GLOSSARY.md)

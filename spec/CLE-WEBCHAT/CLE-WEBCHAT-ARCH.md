@@ -13,7 +13,7 @@ content_hash: "fbbfb74d1b5af171b662b16793af6b4bce3de9a2106e880749b6c5255bc2b1a3"
 read_as: "approved"
 task: null
 source_paths: ["spec/7-channel-web-chat/0-architecture.md", "spec/7-channel-web-chat/5-admin-console.md"]
-mirror_sha256: "cd9092c471edee0c23b790a236cef5bc7dc59f4690d3ae23d7936d28f996f6ee"
+mirror_sha256: "b23f709b6463778c283322b0ee8728e82f63a2c69e095b67556674f25443013f"
 etag: "sha256-1ca7c9362384a399f02937d26994028afb058b046b9bc797afc3c20f65322cb3"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/7-channel-web-chat/0-architecture.md`, `spec/7-channel-web-chat/5-admin-console.md` (R4·R6 의 배포 결정 부분) · 용어: [용어 사전](../CLE-GLOSSARY.md)

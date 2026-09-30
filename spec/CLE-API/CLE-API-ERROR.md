@@ -13,7 +13,7 @@ content_hash: "803d8db217317550aaea7b1521f00d455830944d4cf27539469d47f29b17befd"
 read_as: "approved"
 task: null
 source_paths: ["spec/5-system/2-api-convention.md", "spec/5-system/3-error-handling.md"]
-mirror_sha256: "91281d138a3e987994669fe2eb0c42d9ea14e67804dc11518dc67e69e7df947e"
+mirror_sha256: "533613b83ad3c5b4b4a9ae321b951b1801379cb8ca84cf685ade532d3d78b9da"
 etag: "sha256-357aadab1c72bf917324d133e74b20026bd248b6938ae97fd550a3307aa3d5b2"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/5-system/3-error-handling.md` (Overview, §2, §5, Rationale 일부), `spec/5-system/2-api-convention.md` (§5.3, Rationale 일부) · 용어: [용어 사전](../CLE-GLOSSARY.md)

@@ -13,7 +13,7 @@ content_hash: "adfd17d9ece177906e41f7c8224c09bf2fbfb45c8c641f1f35012e600d583086"
 read_as: "approved"
 task: null
 source_paths: ["spec/conventions/frontend-layering.md"]
-mirror_sha256: "c5113506c37b923f6c9bc24f2e78d982325e246d99efa7c805ce0d5770a94ed2"
+mirror_sha256: "1edc49c67127c0f4aaedbe201333be8b25ef723dc7ca3e1237fdc95411933fe5"
 etag: "sha256-79038d50bb3317f4710f5f7dc1bbb199a1e07cf5f1d43e4b09e051a29612e12b"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/conventions/frontend-layering.md` · 용어: [용어 사전](../CLE-GLOSSARY.md)

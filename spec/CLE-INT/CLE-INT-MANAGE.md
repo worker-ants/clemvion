@@ -13,7 +13,7 @@ content_hash: "dbc896d9840dc50eacb235de1d97c4a3fedd5a11a3d23fa38f90b7542de45962"
 read_as: "approved"
 task: null
 source_paths: ["spec/2-navigation/4-integration.md", "spec/2-navigation/_product-overview.md", "spec/4-nodes/4-integration/_product-overview.md"]
-mirror_sha256: "0c992da97bb58f1b3ba19127a49ea6a7b623d2fc9dea485b73a3ad88c9d3b35f"
+mirror_sha256: "515bc555d5672cecfe33e7e4367169aa4ec3e891c7e87d3029044d0652ff7edd"
 etag: "sha256-1ec80aacc30d1aaac04b0ba5a610c0cc6af6322633d9541428bbf298792ab025"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/2-navigation/4-integration.md` (§1~§4, §7, §8, §9, §12, §14, 관련 Rationale), `spec/4-nodes/4-integration/_product-overview.md` (§1, §2 의 INT-MG·INT-AU·INT-US·INT-WH·INT-SV·INT-OG), `spec/2-navigation/_product-overview.md` (§3.4 NAV-IN) · 용어: [용어 사전](../CLE-GLOSSARY.md)
