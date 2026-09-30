@@ -30,6 +30,10 @@
 # 그래서 **파일을 열거하지 않고 디렉터리째** 돌린다. 열거하면 새 docs 가드가 생길 때마다
 # 여기를 고치는 것을 잊는다 — 이 파일이 두 번 겪은 형태다. 디렉터리 전체도 vitest 로 수 초라
 # 「가벼운 대체 트리거」 라는 이 워크플로의 목적은 그대로다(`next build`·lint·typecheck 없음).
+#
+# 2026-09-29: 잡 `spec-mirror-integrity` 를 더했다(NERV 정본 전환 단계 1). docs 가드와 같은
+# 경로 판정(`changes`)을 쓴다. 판정을 따로 두면 `spec/**` 와 `.claude/tools/nerv-mirror/**` 를
+# 목록 두 벌에 맞춰 적어야 하는데, 잡이 1초 안에 끝나 넓게 도는 쪽이 싸다.
 
 name: spec-link-checks
 
@@ -119,9 +123,12 @@ jobs:
 
   # NERV 스펙 미러 무결성 (NERV 정본 전환 단계 1). `spec/CLE-*` 는 NERV 스펙의 사본이라 손으로
   # 고치지 않는다. 도구 편집은 `.claude/hooks/guard_nerv_owned_paths.py` 가 막고, 그 훅이 보지
-  # 못하는 셸 편집과 사람의 손 편집은 여기서 잡는다. `pull.py --check` 는 파일마다 본문 지문이
-  # frontmatter 의 `mirror_sha256` 과 같은지, 위치가 `id` · `area` 와 맞는지 본다. 네트워크와
-  # 토큰 없이 돌고 표준 라이브러리만 쓴다. 위 docs 가드는 미러를 대상에서 뺀다(`inNervMirror`).
+  # 못하는 미러 파일의 셸 · 손 편집은 여기서 잡는다. `pull.py --check` 는 파일마다 지문
+  # (`mirror_sha256` 줄을 뺀 파일 전체, frontmatter 포함)이 `mirror_sha256` 과 같은지, 위치가
+  # `id` · `area` 와 맞는지 본다. 미러가 0편이면 실패한다. 미러 파일의 추가 · 삭제와 옛
+  # `spec/<영역>/` 트리의 셸 편집은 잡지 않는다. 지문은 같은 파일 안의 값이라 실수를 잡는
+  # 장치이지 변조 방지가 아니다(PR 이 넣은 `pull.py` 로 돈다). 네트워크와 토큰 없이 돌고
+  # 표준 라이브러리만 쓴다. 위 docs 가드는 미러를 대상에서 뺀다(`inNervMirror`).
   spec-mirror-integrity:
     needs: changes
     if: ${{ !cancelled() }}
@@ -130,7 +137,7 @@ jobs:
     steps:
       - name: 무관한 변경 — 검사 생략 (체크는 통과로 보고)
         if: needs.changes.outputs.relevant == 'false'
-        run: echo "spec · .claude 경로 변경 없음 — 이 잡은 no-op 으로 통과한다."
+        run: echo "이 워크플로의 대상 경로(codebase · spec · plan · 거버넌스 문서) 변경 없음 — 이 잡은 no-op 으로 통과한다."
 
       - uses: actions/checkout@v7
         if: needs.changes.outputs.relevant != 'false'

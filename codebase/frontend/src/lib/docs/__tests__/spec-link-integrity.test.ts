@@ -78,11 +78,14 @@ describe("spec-link-integrity guard", () => {
 
   it("excludes the NERV spec mirror from scope", () => {
     const files = collectSpecMarkdown(root);
-    // 제외가 공허하지 않도록 미러가 실제로 있어야 한다.
+    // 제외가 공허하지 않도록 미러가 실제로 있어야 한다. 특정 키에 묶지 않는다.
+    const mirrorTop = fs
+      .readdirSync(path.join(root, "spec"))
+      .filter((name) => inNervMirror(`spec/${name}`) && name.endsWith(".md"));
     expect(
-      fs.existsSync(path.join(root, "spec", "CLE-VISION.md")),
-      "expected the NERV mirror (spec/CLE-VISION.md) to exist so the exclusion is meaningful",
-    ).toBe(true);
+      mirrorTop.filter((name) => name !== "README.md").length,
+      "expected at least one NERV mirror doc (spec/CLE-*.md) so the exclusion is meaningful",
+    ).toBeGreaterThan(0);
     expect(files.filter((f) => /^spec\/(README\.md|CLE-)/.test(f.relPath))).toEqual([]);
     // 옛 트리는 그대로 대상이다.
     expect(files.some((f) => f.relPath === "spec/5-system/1-auth.md")).toBe(true);

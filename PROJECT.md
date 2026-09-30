@@ -389,7 +389,8 @@ pnpm --filter frontend test src/lib/docs/__tests__/
 
 검사 스코프 3가지 (SoT: [`spec/conventions/spec-impl-evidence.md`](spec/conventions/spec-impl-evidence.md) §4.2):
 
-1. `spec/**.md` 본문의 in-repo 링크 + `#anchor` 헤딩 슬러그 (생성형 `*-api-catalog/` 제외)
+1. `spec/**.md` 본문의 in-repo 링크 + `#anchor` 헤딩 슬러그 (생성형 `*-api-catalog/` 와
+   NERV 미러 `spec/README.md` · `spec/CLE-*` 제외. 미러 무결성은 `.claude/tools/nerv-mirror/pull.py --check` 가 본다)
 2. `codebase/{backend,frontend,channel-web-chat,packages}` 의 `.ts`/`.tsx` 주석 중
    `spec/**.md` 를 가리키는 링크
 3. **거버넌스 문서** — 루트 `*.md`(`CLAUDE.md`·`PROJECT.md` 등, 비재귀) + `.claude/**.md`

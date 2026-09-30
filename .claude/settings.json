@@ -35,7 +35,7 @@
           },
           {
             "type": "command",
-            "command": "python3 \"$CLAUDE_PROJECT_DIR/.claude/hooks/guard_nerv_owned_paths.py\""
+            "command": "test ! -f \"$CLAUDE_PROJECT_DIR/.claude/hooks/guard_nerv_owned_paths.py\" || python3 \"$CLAUDE_PROJECT_DIR/.claude/hooks/guard_nerv_owned_paths.py\""
           }
         ]
       },

@@ -153,6 +153,9 @@ describe("수집기 필터 배선 — 합성 트리", () => {
    * | `collectSpecMarkdown` (링크 무결성) | **본다** | **안 본다** | 안 본다 |
    * | `collectApplicableSpecs` (frontmatter) | **안 본다** | **본다** | 안 본다 |
    *
+   * 「`spec/` 루트 파일」은 옛 트리의 루트 파일이다. NERV 미러(`spec/README.md` · `spec/CLE-*`)는
+   * 전환 단계 1 부터 `collectSpecMarkdown` 도 보지 않는다(`inNervMirror`).
+   *
    * 근거가 서로 다르다 — 전자는 `relPath.includes("-api-catalog/")` 라 카탈로그 **전체**를
    * 링크 검사에서 빼고(생성물의 링크는 기계가 만든다), 후자는 `INCLUDE_PREFIXES` 로
    * 영역 폴더만 보되 카탈로그 최상위 `<resource>.md` 는 진짜 spec 이라 남긴다

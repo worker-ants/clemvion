@@ -962,6 +962,9 @@ class NervMirrorStaysOutOfTheOldCorpusTest(unittest.TestCase):
     """
 
     def test_no_mirror_file_in_related_specs_or_conventions(self):
+        # 미러가 트리에 없으면 "미러 헤더 0개" 는 제외 로직과 무관하게 참이다.
+        mirror = sorted((REPO_ROOT / "spec").glob("CLE-*.md"))
+        self.assertTrue(mirror, "spec/CLE-*.md 가 없다 — 제외 검사가 공허해진다")
         heads = run_in_orchestrator(
             """
             import re
