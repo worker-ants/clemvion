@@ -62,6 +62,8 @@ python3 .claude/skills/consistency-checker/scripts/consistency_orchestrator.py -
 - `--impl-prep <scope>` — 구현 착수 직전. scope = spec 영역 경로.
 - `--impl-done <scope>` — **구현 완료 후 사후 검증**. scope = spec 영역 경로. target_doc 에 spec 영역 파일 + `git diff <diff-base>...HEAD -- <code_areas>` 가 함께 묶여, 5 checker 가 "spec 본문 vs 실 구현 diff" 정합성을 사후 분석. `--diff-base <ref>` 로 base 변경 (default: `origin/main`). **이 base 는 전 모드 공통으로 번들 우선순위 산정에도 쓰인다** — 이 브랜치가 변경한 파일이 컨텍스트 예산의 앞자리를 받는다. **spec 연결 코드(어떤 spec 의 frontmatter `code:` glob 에 매칭) 변경 시 developer REVIEW WORKFLOW 의 의무 단계** — `BLOCK: NO` 산출물이 없으면 `review_guard.py` 의 SPEC-CONSISTENCY 게이트가 push·턴종료를 차단한다. (이전엔 "권장" 이었으나 종료 게이트로 승격: code-vs-spec 일치 검증의 비대칭 해소.) target_doc 맨 앞에는 **HEAD 워킹트리 절대경로 + "CWD 상대 Read/Grep 은 diff-base(변경 전) 라 신뢰 금지" 가드**가 박힌다 — checker sub-agent 의 CWD 가 default-branch 체크아웃이라 신규 추가 코드를 "미구현" 으로 오탐하던 #738 버그 차단 (코드 확인은 절대경로 / `git -C <root>` 로).
 
+> **NERV 미러와 대조 코퍼스 (전환 단계 1 ~ 4e)**: 오케스트레이터는 미러(`spec/README.md` · `spec/CLE-*`)를 대조 코퍼스(`related_specs` · `conventions`)에서 뺀다. 같은 내용이 두 모양으로 들어가 예산을 두 번 쓰기 때문이다. 그래서 `--impl-prep` · `--impl-done` 의 scope 는 옛 트리 영역 경로를 준다. 미러 경로를 scope 로 주면 대상은 미러, 대조는 동결된 옛 트리가 되어 결과는 참고용이다. 코퍼스를 미러로 옮기는 일은 단계 4e 다.
+
 stdout 마지막 줄 = 세션 디렉토리.
 
 ### Checker 프로젝트별 토글
