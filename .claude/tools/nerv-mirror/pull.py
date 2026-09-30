@@ -515,8 +515,10 @@ def check(spec_root: Path) -> list[str]:
         if recorded != fingerprint(text):
             problems.append(f"{rel}: 내용이 mirror_sha256 과 다르다 — 미러는 손으로 고치지 않는다"
                             " (/nerv:spec edit 로 NERV 에서 고친 뒤 pull)")
+        # frontmatter 값이 문자열이 아니면(손편집) 기대 위치가 없다 — traceback 대신 위치 문제로 알린다.
+        well_typed = isinstance(key, str) and (folder is None or isinstance(folder, str))
         try:
-            expected = mirror_relpath(key, folder).as_posix() if isinstance(key, str) else None
+            expected = mirror_relpath(key, folder).as_posix() if well_typed else None
         except PullError:
             expected = None
         if expected != rel:

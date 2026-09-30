@@ -408,6 +408,17 @@ class CheckTest(_Fixture):
         (self.spec / "CLE-ACCT" / "CLE-ACCT-LINK.md").symlink_to(self.spec / "CLE-VISION.md")
         self.assertTrue(any("CLE-ACCT-LINK" in p and "심볼릭" in p for p in pull.check(self.spec)))
 
+    def test_odd_frontmatter_values_are_reported_not_raised(self):
+        self.pull_all()
+        path = self.spec / "CLE-ACCT" / "CLE-ACCT-SESSION.md"
+        text = path.read_text(encoding="utf-8")
+        for old, new in (('id: "CLE-ACCT-SESSION"', "id: 5"), ('area: "CLE-ACCT"', "area: 5"),
+                         ('id: "CLE-ACCT-SESSION"', 'id: ["CLE-ACCT-SESSION"]')):
+            with self.subTest(new=new):
+                path.write_text(text.replace(old, new), encoding="utf-8")
+                self.assertTrue(any("위치" in p for p in pull.check(self.spec)))
+        path.write_text(text, encoding="utf-8")
+
     def test_file_without_frontmatter_is_reported(self):
         self.pull_all()
         (self.spec / "CLE-VISION.md").write_text("손으로 쓴 파일\n", encoding="utf-8")
