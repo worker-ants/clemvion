@@ -9,12 +9,12 @@ basis_superseded: false
 parent: "CLE-ENG"
 ancestors: ["CLE-VISION", "CLE-ENG"]
 area: "CLE-ENG"
-content_hash: "cb1a092f67691b267b42c17c234cdb119ffb9b8cf0be9f26902a0a706a6ba222"
+content_hash: "4d8eed0a11c76c5e55a25ae15695bc529c0341931561331618027860d1b771a5"
 read_as: "approved_fallback"
 task: "CLE-T-VA4YA1"
 source_paths: ["spec/conventions/spec-impl-evidence.md"]
-mirror_sha256: "23b88841a81f56dd31309191f284bca65704e595c3788570a1729f02b3c94be9"
-etag: "sha256-aa924dd64916d07e2d9b63ad5eb68bff7e887d2955b76154ffd9c7ea2beb7f28"
+mirror_sha256: "7648b96cd40a4d91cc15e101c8e05c100c30f0268f196ff6165a2892381e217b"
+etag: "sha256-535f4c7b0917e15534770e22d50907f476991b9a8fe27514788364fcd311dbbb"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/conventions/spec-impl-evidence.md` · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -355,13 +355,13 @@ user_guide:                                # 선택 필드. 로케일 쌍을 모
 
 ### R-12. NERV 미러를 링크 무결성 · 영역 index 가드에서 뺀다 (2026-09-29)
 
-NERV 정본 전환 단계 1 에서 저장소 `spec/` 에 NERV 미러(`spec/<영역 키>/<KEY>.md` 169편과 `spec/README.md`)가 옛 트리 옆에 들어왔다. 미러를 두 가드에 그대로 태우자 49건이 빨간불이 됐다(영역 폴더마다 index 문서 없음, 링크 무결성). 미러가 옛 트리 규칙을 따르게 만드는 안은 기각했다.
+NERV 정본 전환 단계 1 에서 저장소 `spec/` 에 NERV 미러 169편(영역 문서와 그 아래는 `spec/<영역 키>/<KEY>.md`, 영역 밖 문서는 `spec/<KEY>.md`)과 `spec/README.md` 가 옛 트리 옆에 들어왔다. 미러를 두 가드에 그대로 태우자 49건이 빨간불이 됐다(영역 폴더마다 index 문서 없음, 링크 무결성). 미러가 옛 트리 규칙을 따르게 만드는 안은 기각했다.
 
 - 카탈로그 영역은 미러하지 않아서 카탈로그 키를 가리키는 링크 125개가 풀리지 않는다.
 - 앵커 1,372개(다른 문서 530 · 같은 문서 842)가 옛 가드의 slug 규칙과 맞는지 보장할 수 없다. NERV 는 앵커를 관계 판정에서 무시한다.
 - 영역 index 규칙은 폴더마다 목차 파일을 요구한다. 미러는 구현 PR 이 조금씩 갱신하는 스냅샷이라 폴더 목차가 병렬 PR 의 충돌 지점이 된다.
 
-그래서 미러는 두 가드의 대상에서 빼고, 무결성은 미러 도구의 `--check` 로 본다. 이 검사는 파일 지문 `mirror_sha256`(frontmatter 의 그 줄을 뺀 파일 전체), 파일 위치, 옮겨진 문서의 옛 자리를 가리키는 미러 링크를 본다. 대상이 미러에 없는 링크는 보지 않는다. 미러는 구현 PR 이 조금씩 받는 부분 스냅샷이기 때문이다. 링크 대상의 실재는 NERV 가 저장할 때 `relations.unknown` 으로 알린다. 옛 트리를 지우는 전환 단계 5 에서 두 가드의 옛 트리 범위와 이 예외를 함께 정리한다.
+그래서 미러는 두 가드의 대상에서 빼고, 무결성은 미러 도구의 `--check` 로 본다. 이 검사는 파일 지문 `mirror_sha256`(frontmatter 의 그 줄을 뺀 파일 전체), 파일 위치, 자리가 어긋난 미러 링크(대상 파일이 없는데 같은 키의 미러가 다른 자리에 있다)를 본다. 미러 자리(`spec/CLE-*` 와 미러 폴더 안)의 심볼릭 링크와 미러가 아닌 파일도 본다. 두 가드가 그 자리를 통째로 빼므로 거기 놓인 다른 파일은 이 검사 말고는 아무도 보지 않는다. 대상이 미러에 없는 링크는 보지 않는다. 미러는 구현 PR 이 조금씩 받는 부분 스냅샷이기 때문이다. 링크 대상의 실재는 NERV 가 저장할 때 `relations.unknown` 으로 알린다. 옛 트리를 지우는 전환 단계 5 에서 두 가드의 옛 트리 범위와 이 예외를 함께 정리한다.
 
 ### `code:` 목록에 주석을 허용한 경위 (2026-09-06)
 
