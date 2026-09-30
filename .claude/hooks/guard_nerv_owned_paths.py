@@ -32,9 +32,9 @@ NERV 정본 전환 단계 1(NERV Task `CLE-T-VA4YA1`)부터 스펙의 정본은 
 이 저장소로 본다. 표지가 없는 다른 git 저장소와 git 체크아웃 밖(scratchpad 등)은 대상이 아니다.
 경로는 `realpath` 로 풀고(`..` · 심볼릭 링크), 첫 경로 조각은 대소문자를 무시하고 비교한다.
 
-셸 편집(`sed -i`, 리다이렉트)은 이 훅이 보지 못한다. CI `spec-mirror-integrity`
-(`pull.py --check`)가 미러 파일의 손편집(본문 · frontmatter), 위치 이동, 지문 없는 미러 파일
-추가를 잡는다. 미러 파일 삭제와 옛 `spec/<영역>/` 트리의 셸 편집은 어느 층도 잡지 않는다.
+셸 편집(`sed -i`, 리다이렉트)은 이 훅이 보지 못한다. 그 편집을 CI `spec-mirror-integrity`
+(`pull.py --check`)가 어디까지 잡는지는 `pull.py` docstring 의 "보장 범위" 가 정본이다. 미러
+파일 삭제와 옛 `spec/<영역>/` 트리의 셸 편집은 어느 층도 잡지 않는다.
 
 일회성 우회: `BYPASS_NERV_OWNED_PATHS=1`.
 """
@@ -43,6 +43,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import sys
 import traceback
 from pathlib import Path
@@ -54,9 +55,12 @@ MARKER = Path(".claude", "tools", "nerv-mirror", "pull.py")
 OWNED_ROOTS = {
     "spec": "스펙은 NERV 가 정본이다. `/nerv:spec edit <KEY>` 로 초안을 쓰고, 미러는 "
             "`python3 .claude/tools/nerv-mirror/pull.py --task <CLE-T-…>` 로 갱신한다. "
-            "옛 경로의 NERV 키는 미러 frontmatter `source_paths` 로 찾는다 "
-            "(`grep -rl '<옛 경로>' spec/CLE-*`)",
+            "옛 경로의 NERV 키는 미러 frontmatter `source_paths` 로 찾는다. 옛 문서 하나가 "
+            "여러 키로 나뉘었을 수 있다(`grep -rl '<옛 경로>' spec/CLE-*`)",
 }
+# 짝 없는 서로게이트. 하네스(Node)는 이 문자를 U+FFFD 로 바꿔 쓴다. Python 은 이 문자가 든 경로를
+# 파일 시스템에 넘기지 못한다(`UnicodeEncodeError`). 그대로 두면 그 예외가 fail-open 으로 통과한다.
+_LONE_SURROGATE = re.compile("[\ud800-\udfff]")
 
 
 def _read_payload() -> dict:
@@ -72,17 +76,20 @@ def _read_payload() -> dict:
 
 def _target(payload: dict) -> Path | None:
     """편집 대상 경로(`realpath`). 모양이 틀리면 None — 하네스가 보내지 않는 페이로드다."""
+    # 키 집합은 형제 훅(`guard_default_branch_edit` · `lint_mermaid_posttooluse`)과 같다. Write ·
+    # Edit · MultiEdit 는 `file_path`, NotebookEdit 는 `notebook_path` 를 쓴다. `path` · `input` 은
+    # 형제 훅과 맞추려고 받는다. 받는 키가 늘면 막는 쪽으로만 넓어진다.
     tool_input = payload.get("tool_input") or payload.get("input") or {}
     if not isinstance(tool_input, dict):
         return None
-    # Write · Edit · MultiEdit 는 `file_path`, NotebookEdit 는 `notebook_path` 를 쓴다.
-    value = tool_input.get("file_path") or tool_input.get("notebook_path")
+    value = tool_input.get("file_path") or tool_input.get("path") or tool_input.get("notebook_path")
     if not isinstance(value, str) or not value or "\x00" in value:
         return None
-    path = Path(value)
+    path = Path(_LONE_SURROGATE.sub("\ufffd", value))
     if not path.is_absolute():
         cwd = payload.get("cwd")
-        path = Path(cwd if isinstance(cwd, str) and cwd else os.getcwd()) / path
+        base = cwd if isinstance(cwd, str) and cwd else os.getcwd()
+        path = Path(_LONE_SURROGATE.sub("\ufffd", base)) / path
     return Path(os.path.realpath(path))
 
 

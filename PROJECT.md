@@ -399,11 +399,18 @@ pnpm --filter frontend test src/lib/docs/__tests__/
 MDX frontmatter `spec:`/`code:` 경로 실재는 별도 가드가 본다 —
 `src/lib/docs/__tests__/registry.test.ts`.
 
+> **2026-08-27 변경**: 종전의 `scripts/check-doc-links.py` 를 **삭제**하고 위 가드로 합쳤다.
+> 그 스크립트는 (a) 어떤 CI·hook 도 호출하지 않아 실제로는 아무것도 지키지 못했고,
+> (b) `origin/main` 에서 이미 `exit 1` 이었으며, (c) 그 2건은 산문 속 링크 문법 예시
+> (`` `[..](path)` ``·ASCII 상태도의 `[panel](transient)`)를 링크로 오파싱한 **오탐**이었다.
+> 같은 스코프를 보는 가드가 둘이고 판정이 갈리는 상태 자체가 결함이었다.
+
 ### NERV 스펙 미러
 
-NERV 정본 전환 단계 1 부터 `spec/<영역 키>/<KEY>.md` · `spec/README.md` 는 NERV 스펙의 읽기 전용
-미러다. 쓰는 것은 `.claude/tools/nerv-mirror/pull.py` 하나다. 같은 워크플로의 두 번째 잡
-`spec-mirror-integrity` 가 아래 `--check` 를 돌린다.
+NERV 정본 전환 단계 1 부터 `spec/CLE-*` 와 `spec/README.md` 는 NERV 스펙의 읽기 전용 미러다.
+영역 문서와 그 아래 문서는 `spec/<영역 키>/<KEY>.md`, 영역 밖 문서(`CLE-VISION` 등)는
+`spec/<KEY>.md` 에 둔다. 쓰는 것은 `.claude/tools/nerv-mirror/pull.py` 하나다. `spec-link-checks`
+워크플로의 잡 `spec-mirror-integrity` 가 아래 `--check` 를 돌린다.
 
 ```bash
 python3 .claude/tools/nerv-mirror/pull.py --check
@@ -413,16 +420,11 @@ python3 .claude/tools/nerv-mirror/pull.py --check
 python3 .claude/tools/nerv-mirror/pull.py --task CLE-T-XXXXXX
 ```
 
-- `--check` 는 네트워크 없이 미러 파일의 지문 · 위치 · 링크와 미러 자리의 다른 파일을 본다.
+- `--check` 는 네트워크 없이 돈다. 무엇을 잡고 무엇을 못 잡는지는 `pull.py` docstring 의 "보장
+  범위" 가 정본이다.
 - `--task` 는 클레임한 Task 의 scope 스펙을 작업 기준 버전으로 받는다(구현 PR 에 함께 커밋).
-  `--all` 은 전체를 다시 받는다. 둘 다 `NERV_SERVER` · `NERV_TOKEN` 이 필요하고 값은
-  `.claude/settings.local.json` 의 `env` 가 준다.
-
-> **2026-08-27 변경**: 종전의 `scripts/check-doc-links.py` 를 **삭제**하고 위 가드로 합쳤다.
-> 그 스크립트는 (a) 어떤 CI·hook 도 호출하지 않아 실제로는 아무것도 지키지 못했고,
-> (b) `origin/main` 에서 이미 `exit 1` 이었으며, (c) 그 2건은 산문 속 링크 문법 예시
-> (`` `[..](path)` ``·ASCII 상태도의 `[panel](transient)`)를 링크로 오파싱한 **오탐**이었다.
-> 같은 스코프를 보는 가드가 둘이고 판정이 갈리는 상태 자체가 결함이었다.
+  `--all` 은 전체를 다시 받는다. 둘 다 `NERV_SERVER` · `NERV_TOKEN` 이 필요하다. `NERV_PROJECT` 는
+  선택이고 기본값은 `clemvion` 이다. 값은 `.claude/settings.local.json` 의 `env` 가 준다.
 
 ### Playwright flaky surfacing
 

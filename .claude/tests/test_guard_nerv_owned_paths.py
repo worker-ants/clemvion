@@ -14,6 +14,9 @@ NERV 정본 전환 단계 1부터 `spec/` 은 `pull.py` 만 쓰는 미러다(옛
 - `review/` · `plan/` 은 아직 막지 않는다. 거버넌스 문서가 단계 2 · 3 전까지 그 쓰기를
   안내한다. 그 단계 PR 이 이 테스트의 기대를 바꾼다.
 - `BYPASS_NERV_OWNED_PATHS=1` 이면 통과(다른 값은 우회가 아니다).
+- 경로 키는 형제 훅과 같은 `file_path` · `path` · `notebook_path`(`tool_input` 또는 `input`)다.
+- 짝 없는 서로게이트가 든 경로도 판정한다. 파일 시스템에 넘기지 못하는 문자라 예외가 나면
+  fail-open 으로 통과했다(2026-10-01 보안 리뷰 실측).
 - fail-open: 모양이 틀린 페이로드(최상위 · `tool_input` · 경로 값)는 조용히 통과하고, 예상 밖
   런타임 오류도 exit 0 이다(traceback 은 stderr 에 남긴다). exit 2 는 차단이라 오류에서 내면 안 된다.
 - `settings.json` 의 등록 명령은 훅 파일이 없는 `$CLAUDE_PROJECT_DIR` 에서 exit 0 이다.
@@ -36,11 +39,12 @@ import _harness
 
 HOOK = _harness.REPO_ROOT / ".claude" / "hooks" / "guard_nerv_owned_paths.py"
 SETTINGS = _harness.REPO_ROOT / ".claude" / "settings.json"
-hook = _harness.load_module_by_path("guard_nerv_owned_paths_under_test", HOOK)
-MARKER = hook.MARKER
+hook_module = _harness.load_module_by_path("guard_nerv_owned_paths_under_test", HOOK)
+MARKER = hook_module.MARKER
 
 # 훅 모듈을 `__main__` 으로 돌리되 `json.loads` 가 예상 밖 오류를 내게 한다. 조기 반환 경로가
-# 아니라 `except Exception` 분기를 밟는 유일한 결정적 방법이다.
+# 아니라 `except Exception` 분기를 밟는 결정적 방법 한 가지다. 훅이 페이로드를 `json.loads` 로
+# 읽는다는 구현에 기댄다. 훅이 읽는 방법을 바꾸면 이 프로브도 바꾼다.
 RUNTIME_ERROR_PROBE = """
 import json, runpy, sys
 def boom(*a, **k):
@@ -60,6 +64,13 @@ def _registered_command() -> tuple[str, str]:
     ]
     assert len(wired) == 1, wired
     return wired[0]
+
+
+def _clean_env(**extra) -> dict:
+    """우회 변수가 없는 환경. 테스트를 돌리는 셸에 우회가 켜져 있어도 판정을 본다."""
+    env = {k: v for k, v in os.environ.items() if k != "BYPASS_NERV_OWNED_PATHS"}
+    env.update(extra)
+    return env
 
 
 class GuardTest(unittest.TestCase):
@@ -83,13 +94,11 @@ class GuardTest(unittest.TestCase):
             "tool_input": {"file_path": str(file_path)},
         })
 
-    def run_hook(self, file_path=None, *, cwd=None, tool="Write", env_extra=None, raw=None):
+    def run_hook(self, file_path=None, *, cwd=None, tool="Write", env_extra=None, raw=None,
+                 proc_cwd=None):
         payload = raw if raw is not None else self.payload(file_path, cwd=cwd, tool=tool)
-        env = dict(os.environ)
-        env.pop("BYPASS_NERV_OWNED_PATHS", None)
-        env.update(env_extra or {})
-        return subprocess.run([sys.executable, str(HOOK)], input=payload, env=env,
-                              capture_output=True, text=True)
+        return subprocess.run([sys.executable, str(HOOK)], input=payload, cwd=proc_cwd,
+                              env=_clean_env(**(env_extra or {})), capture_output=True, text=True)
 
     def test_spec_is_blocked_in_main_and_worktree(self):
         for root in (self.main, self.wt):
@@ -145,6 +154,27 @@ class GuardTest(unittest.TestCase):
         alias = json.dumps({"tool_name": "Write", "cwd": str(self.main),
                             "input": {"file_path": str(self.main / "spec/x.md")}})
         self.assertEqual(self.run_hook(raw=alias).returncode, 2)
+        # 형제 훅과 같은 키 집합. `path` 도 막는 쪽으로 읽는다.
+        path_key = json.dumps({"tool_name": "Write", "cwd": str(self.main),
+                               "tool_input": {"path": str(self.main / "spec/x.md")}})
+        self.assertEqual(self.run_hook(raw=path_key).returncode, 2)
+
+    def test_lone_surrogates_do_not_fail_open(self):
+        # Python 은 이 문자가 든 경로를 파일 시스템에 넘기지 못한다. 예외가 나면 fail-open 이다.
+        for rel in ("spec/\ud800/x.md", "spec/CLE-X\udfff.md"):
+            with self.subTest(rel=ascii(rel)):
+                r = self.run_hook(raw=json.dumps({"tool_name": "Write", "cwd": str(self.main),
+                                                  "tool_input": {"file_path": f"{self.main}/{rel}"}}))
+                self.assertEqual(r.returncode, 2, r.stderr)
+        r = self.run_hook(raw=json.dumps({"tool_name": "Write", "cwd": f"{self.main}/\ud800/..",
+                                          "tool_input": {"file_path": "spec/x.md"}}))
+        self.assertEqual(r.returncode, 2, r.stderr)
+        # 링크 폴더를 거쳐도 판정한다. 치환 없이 경로를 모양으로만 보면 첫 조각이 `docs` 라 통과한다.
+        (self.main / "spec").mkdir()
+        (self.main / "docs").symlink_to(self.main / "spec")
+        r = self.run_hook(raw=json.dumps({"tool_name": "Write", "cwd": str(self.main),
+                                          "tool_input": {"file_path": f"{self.main}/docs/\ud800.md"}}))
+        self.assertEqual(r.returncode, 2, r.stderr)
 
     def test_other_paths_are_allowed(self):
         for target in (self.main / "codebase/frontend/src/lib/spec/x.ts",
@@ -172,7 +202,6 @@ class GuardTest(unittest.TestCase):
             json.dumps({"tool_input": {"file_path": 5}}),
             json.dumps({"tool_input": {"file_path": [spec_path]}}),
             json.dumps({"tool_input": {"file_path": spec_path + "\x00"}}),
-            json.dumps({"tool_input": {"path": spec_path}}),  # 편집 도구가 쓰지 않는 키
         )
         for raw in malformed:
             with self.subTest(raw=raw[:30]):
@@ -180,21 +209,21 @@ class GuardTest(unittest.TestCase):
                 self.assertEqual(r.returncode, 0, r.stderr)
                 # 모양이 틀린 페이로드는 런타임 오류가 아니라 "대상 없음" 이다(traceback 없음).
                 self.assertEqual(r.stderr, "")
-        # `cwd` 가 문자열이 아니면 프로세스 cwd 로 푼다(상대 경로 판정은 그대로 한다).
+
+    def test_non_string_cwd_falls_back_to_process_cwd(self):
+        # 페이로드 `cwd` 가 문자열이 아니면 훅 프로세스의 cwd 로 푼다. 상대 경로 판정은 그대로 한다.
         odd_cwd = json.dumps({"cwd": 5, "tool_input": {"file_path": "spec/x.md"}})
-        r = subprocess.run([sys.executable, str(HOOK)], input=odd_cwd, cwd=self.main,
-                           capture_output=True, text=True,
-                           env={k: v for k, v in os.environ.items() if k != "BYPASS_NERV_OWNED_PATHS"})
-        self.assertEqual(r.returncode, 2, r.stderr)
+        self.assertEqual(self.run_hook(raw=odd_cwd, proc_cwd=self.main).returncode, 2)
+        self.assertEqual(self.run_hook(raw=odd_cwd, proc_cwd=self.tmp).returncode, 0)
 
     def test_runtime_errors_fail_open(self):
-        # 이 PR 을 부른 사고가 "훅이 exit 2 로 죽어 모든 편집이 막힘" 이다. 예상 밖 오류는 통과시킨다.
-        env = {k: v for k, v in os.environ.items() if k != "BYPASS_NERV_OWNED_PATHS"}
+        # 2026-10-01 사고는 "훅이 exit 2 로 죽어 모든 편집이 막힘" 이었다. 예상 밖 오류는 통과시킨다.
         r = subprocess.run([sys.executable, "-c", RUNTIME_ERROR_PROBE, str(HOOK)],
-                           input=self.payload(self.main / "spec/x.md"), env=env,
+                           input=self.payload(self.main / "spec/x.md"), env=_clean_env(),
                            capture_output=True, text=True)
         self.assertEqual(r.returncode, 0, r.stderr)
-        self.assertIn("RuntimeError: probe", r.stderr)
+        self.assertIn("RuntimeError: probe", r.stderr,
+                      "프로브가 훅의 읽기 경로를 밟지 못했다 — 훅이 json.loads 로 읽는지 본다")
 
     def test_wired_for_every_edit_tool_in_settings(self):
         matcher, _ = _registered_command()
@@ -206,10 +235,9 @@ class GuardTest(unittest.TestCase):
         target = self.main / "spec/x.md"
 
         def run(project_dir):
-            env = dict(os.environ, CLAUDE_PROJECT_DIR=str(project_dir))
-            env.pop("BYPASS_NERV_OWNED_PATHS", None)
             return subprocess.run(["bash", "-c", command], input=self.payload(target),
-                                  env=env, capture_output=True, text=True)
+                                  env=_clean_env(CLAUDE_PROJECT_DIR=str(project_dir)),
+                                  capture_output=True, text=True)
 
         missing = run(self.tmp / "stale-main-checkout")
         self.assertEqual(missing.returncode, 0, missing.stderr)

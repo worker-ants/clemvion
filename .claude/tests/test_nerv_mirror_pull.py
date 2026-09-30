@@ -11,21 +11,29 @@
   `spec/<KEY>.md`), 카탈로그 영역 제외(D4, 계층 키 `--` 포함), 링크 재작성(모르는 키는 그대로),
   frontmatter 세 줄, CRLF · 끝 줄바꿈 정규화, 머리 인용 줄의 `원문:` 만 읽기, prune, README.
 - `InputValidationTest`: 키 형식 · 배치 깊이 · 끝 개행, 빈 export, 절반 넘는 삭제, 크기 상한,
-  심볼릭 링크(쓰기 · prune · 쓰기 전 전체 검사), 트리 순환, 모드에 안 맞는 옵션 거절.
+  심볼릭 링크(쓰기 · 경로 중간의 폴더 링크 · README · prune · 빈 폴더 정리 · 쓰기 전 전체 검사),
+  렌더 오류는 쓰기 전에 멈춤, 트리 순환, 모드에 안 맞는 옵션 거절, CLI 오류는 한 줄
+  (`test_cli_reports_errors_in_one_line`).
 - `CheckTest`: 본문 · frontmatter · 본문 속 `mirror_sha256:` 줄 손편집, 파일 이동, 지문 없는 미러
-  파일 추가, 미러 자리의 링크 · 다른 파일, 빈 미러, CLI 종료 코드. `test_limitation_*` 은 문서에
-  적은 한계(삭제 · 지문까지 맞춘 위조는 못 잡는다)를 고정한다. 한계를 없애는 변경은 이 테스트를
-  함께 바꾼다.
-- `TaskModeTest`: 활성 클레임 scope(키든 문서 id 든), ETag 304 면 캐시 원문으로 다시 렌더, 캐시가
-  없거나 다른 버전 · 미러 etag 가 깨졌으면 조건부 요청 없음, 옮겨진 문서의 옛 파일 삭제와 받지 않은
-  문서의 옛 링크를 `--check` 가 잡음, 오류 응답에서 멈추고 아무것도 안 씀, scope 가 비면 멈춤.
+  파일 추가, 미러 자리의 링크 · 다른 파일(하위 폴더 · 점 이름 `.md` · 키가 아닌 폴더 포함), 읽을 수
+  없는 파일과 이상한 frontmatter 값은 예외가 아니라 문제 줄(`test_odd_frontmatter_values_are_reported_not_raised`),
+  빈 미러, CLI 종료 코드, 출력의 제어 문자 이스케이프. `test_limitation_*` 은 문서에 적은 한계(삭제 ·
+  지문까지 맞춘 위조는 못 잡는다)를 고정한다. 한계를 없애는 변경은 이 테스트를 함께 바꾼다.
+- `TaskModeTest`: 활성 클레임 scope(키든 문서 id 든), ETag 304 면 캐시 원문으로 다시 렌더(캐시는
+  다시 쓰지 않는다), 캐시가 없거나 다른 버전 · 미러 etag 가 깨졌으면 조건부 요청 없음, 조건부 요청
+  없이 받은 304 는 오류, 옮겨진 문서의 옛 파일 삭제와 받지 않은 문서의 어긋난 링크를 `--check` 가
+  잡음, 오류 응답 · 모양이 틀린 응답에서 멈추고 아무것도 안 씀, 키를 검증하기 전에 캐시를 읽지 않음,
+  scope 가 비면 멈춤.
 - `AllNetworkTest`: `--all` 의 네트워크 경로(요청 경로 · 환경 변수 누락).
 - `CurlBoundaryTest`: 토큰은 argv 에 없고 stdin 설정에만 있다, curl 인자(`-K -` · `-D -` · `-g` ·
-  `--proto` · `-A` · URL 마지막), If-None-Match 인용, 1xx · CONNECT 블록 건너뜀, curl 실패는
-  예외, 설정 줄 주입 문자 · 끝 개행 거부, 서버 경계(https 또는 loopback, 사용자 정보 거부), 프로젝트 이름.
-- `CiWiringTest`: CI 잡이 `--check` 를 부르고, 커밋된 미러가 그 검사를 통과한다.
+  `--proto` · `-A` · URL 마지막), If-None-Match 인용, 1xx · CONNECT 블록 건너뜀, curl 실패 · curl
+  없음은 `PullError`, 설정 줄 주입 문자 · 끝 개행 거부, 서버 경계(https 또는 loopback, 사용자 정보 ·
+  쿼리 · 조각 · 잘못된 주소 거부), 프로젝트 이름.
+- `CiWiringTest`: CI 잡이 `--check` 를 부르고, 잡이 받는 경로(sparse checkout)만으로 `--check` 가
+  돌고, 커밋된 미러가 그 검사를 통과한다.
 - `MirrorPredicateParityTest`: 미러 판정 세 곳(이 도구 · 오케스트레이터 · `spec-links.ts`)이
-  실제 `spec/` 에서 같은 집합을 고른다.
+  실제 `spec/` 과 합성 경계 이름에서 맞는다. 세 파일 중 어느 것만 고쳐도 harness CI 가 돈다
+  (`test_the_three_files_trigger_the_harness_workflow`).
 """
 
 from __future__ import annotations
@@ -44,10 +52,11 @@ import tempfile
 import threading
 import unittest
 import zipfile
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from unittest import mock
 
 import _harness
+from test_harness_checks_paths_coverage import filter_covers_file, parse_pathspecs_block
 
 PULL_SRC = _harness.REPO_ROOT / ".claude" / "tools" / "nerv-mirror" / "pull.py"
 pull = _harness.load_module_by_path("nerv_mirror_pull_under_test", PULL_SRC)
@@ -128,8 +137,9 @@ class _Fixture(unittest.TestCase):
         self.zip.write_bytes(make_zip())
 
     def pull_all(self, *extra):
-        return quiet(pull.main, ["--all", "--from-zip", str(self.zip), "--root", str(self.root),
-                                 *extra])
+        # `run` 은 `PullError` 를 그대로 올린다(`main` 은 한 줄로 바꾸고 1 을 돌려준다).
+        return quiet(pull.run, ["--all", "--from-zip", str(self.zip), "--root", str(self.root),
+                                *extra])
 
     def read(self, rel):
         return (self.spec / rel).read_text(encoding="utf-8")
@@ -290,6 +300,52 @@ class InputValidationTest(_Fixture):
         # 쓰기 전에 모든 대상을 먼저 검사하므로 키 순서상 앞선 문서도 쓰지 않았다.
         self.assertEqual(self.mirrored(), [])
 
+    def test_never_writes_through_a_readme_symlink(self):
+        # README 도 쓰기 전 검사에 든다. 빠지면 문서를 다 쓴 뒤에야 멈춘다.
+        outside = self.root / "outside.md"
+        outside.write_text("밖\n", encoding="utf-8")
+        (self.spec / "README.md").symlink_to(outside)
+        with self.assertRaises(pull.PullError):
+            self.pull_all()
+        self.assertEqual(outside.read_text(encoding="utf-8"), "밖\n")
+        self.assertEqual(self.mirrored(), [])
+
+    def test_never_writes_through_a_folder_symlink_inside_spec(self):
+        # `spec/` 안을 가리키는 폴더 링크(예: 옛 트리)도 따라가 쓰지 않는다.
+        (self.spec / "CLE-ACCT").symlink_to(self.spec / "5-system", target_is_directory=True)
+        with self.assertRaises(pull.PullError):
+            self.pull_all()
+        self.assertEqual(sorted(p.name for p in (self.spec / "5-system").iterdir()), ["1-auth.md"])
+
+    def test_write_if_changed_refuses_links_on_its_own(self):
+        # 쓰기 전 검사와 별개로 쓰는 함수 자신도 링크를 거부한다. 검사 뒤 링크로 바뀐 자리
+        # (`_write_target` 을 지난 뒤)도 `O_NOFOLLOW` 로 따라가지 않는다.
+        outside = self.root / "outside.md"
+        outside.write_text("밖\n", encoding="utf-8")
+        (self.spec / "CLE-X.md").symlink_to(outside)
+        with self.assertRaises(pull.PullError):
+            pull.write_if_changed(self.spec, PurePosixPath("CLE-X.md"), "안\n")
+        with mock.patch.object(pull, "_write_target", lambda root, rel: root / rel), \
+                self.assertRaises(pull.PullError):
+            pull.write_if_changed(self.spec, PurePosixPath("CLE-X.md"), "안\n")
+        self.assertEqual(outside.read_text(encoding="utf-8"), "밖\n")
+        # 경로 중간의 폴더 링크는 `O_NOFOLLOW`(마지막 조각만 본다)가 막지 못한다. 쓰는 함수가 직접 본다.
+        (self.spec / "CLE-D").symlink_to(self.spec / "5-system", target_is_directory=True)
+        with self.assertRaises(pull.PullError):
+            pull.write_if_changed(self.spec, PurePosixPath("CLE-D/CLE-D.md"), "안\n")
+        self.assertEqual(sorted(p.name for p in (self.spec / "5-system").iterdir()), ["1-auth.md"])
+
+    def test_render_errors_stop_before_any_write(self):
+        # 키 순서상 마지막 문서가 렌더되지 않아도 앞선 문서를 쓰지 않는다.
+        for raw in (b"frontmatter \xec\x97\x86\xec\x9d\x8c\n", b"---\nid: \"CLE-ZZZ\"\n---\n\xff\xfe\n"):
+            with self.subTest(raw=raw[:12]):
+                docs = dict(DOCS)
+                docs["specs/CLE-ZZZ.md"] = raw
+                self.zip.write_bytes(make_zip(docs))
+                with self.assertRaisesRegex(pull.PullError, "CLE-ZZZ"):
+                    self.pull_all()
+                self.assertEqual(self.mirrored(), [])
+
     def test_never_writes_through_a_symlink_inside_the_mirror(self):
         # 대상이 spec/ 안이어도 링크를 따라 쓰면 다른 미러 파일을 덮는다.
         self.pull_all()
@@ -314,8 +370,13 @@ class InputValidationTest(_Fixture):
 
     def test_only_empty_mirror_folders_are_removed(self):
         (self.spec / "CLE-lower").mkdir()
+        empty = self.root / "empty"
+        empty.mkdir()
+        (self.spec / "CLE-EMPTY").symlink_to(empty, target_is_directory=True)
         self.pull_all()
         self.assertTrue((self.spec / "CLE-lower").is_dir())
+        self.assertTrue((self.spec / "CLE-EMPTY").is_symlink())  # 빈 폴더를 가리키는 링크
+        self.assertTrue(empty.is_dir())
 
     def test_tree_cycle_stops(self):
         # 방어가 빠지면 무한 루프라 같은 스레드에서는 실패 대신 테스트 전체가 멈춘다(뮤턴트로
@@ -341,16 +402,33 @@ class InputValidationTest(_Fixture):
                      ["--task", "CLE-T-X", "--from-zip", "x.zip"]):
             with self.subTest(argv=argv), contextlib.redirect_stderr(io.StringIO()):
                 with self.assertRaises(SystemExit) as caught:
-                    pull.main([*argv, "--root", str(self.root)])
+                    pull.run([*argv, "--root", str(self.root)])
                 self.assertEqual(caught.exception.code, 2)  # argparse 가 거절했다
 
     def test_cli_reports_errors_in_one_line(self):
-        self.zip.write_bytes(make_zip({}))
-        r = subprocess.run([sys.executable, str(PULL_SRC), "--all", "--from-zip", str(self.zip),
-                            "--root", str(self.root)], capture_output=True, text=True)
-        self.assertEqual(r.returncode, 1)
-        self.assertTrue(r.stderr.startswith("pull: "), r.stderr)
-        self.assertNotIn("Traceback", r.stderr)
+        not_zip = self.root / "not.zip"
+        not_zip.write_text("<html>", encoding="utf-8")
+        empty_zip = self.root / "empty.zip"
+        empty_zip.write_bytes(make_zip({}))
+        cases = {
+            "빈 export": (["--all", "--from-zip", str(empty_zip)], {}),
+            "zip 아님": (["--all", "--from-zip", str(not_zip)], {}),
+            "없는 zip": (["--all", "--from-zip", str(self.root / "missing.zip")], {}),
+            "잘못된 서버": (["--all"], {"NERV_SERVER": "https://[::1", "NERV_TOKEN": SECRET}),
+        }
+        for name, (argv, env) in cases.items():
+            with self.subTest(name):
+                r = subprocess.run([sys.executable, str(PULL_SRC), *argv, "--root", str(self.root)],
+                                   capture_output=True, text=True, env={**os.environ, **env})
+                self.assertEqual(r.returncode, 1, r.stderr)
+                self.assertTrue(r.stderr.startswith("pull: "), r.stderr)
+                self.assertEqual(r.stderr.count("\n"), 1, r.stderr)  # traceback 없이 한 줄
+                self.assertNotIn(SECRET, r.stderr)
+        # 같은 계약을 프로세스 안에서도: `main` 은 1 을 돌려주고 `run` 은 예외를 올린다.
+        with contextlib.redirect_stderr(io.StringIO()) as err:
+            self.assertEqual(pull.main(["--all", "--from-zip", str(not_zip),
+                                        "--root", str(self.root)]), 1)
+        self.assertTrue(err.getvalue().startswith("pull: "))
 
 
 class CheckTest(_Fixture):
@@ -398,10 +476,18 @@ class CheckTest(_Fixture):
         self.pull_all()
         (self.spec / "CLE-ACCT" / "notes.md").write_text("메모\n", encoding="utf-8")
         (self.spec / "CLE-lower.md").write_text("메모\n", encoding="utf-8")
-        (self.spec / "CLE-ACCT" / ".DS_Store").write_bytes(b"")  # 점 파일은 보지 않는다
-        stray = [p for p in pull.check(self.spec) if "미러가 아닌" in p]
+        (self.spec / "CLE-lower").mkdir()                   # 키가 아닌 폴더
+        (self.spec / "CLE-ACCT" / "sub").mkdir()            # 미러 폴더 안의 하위 폴더
+        (self.spec / "CLE-ACCT" / "CLE-DIR.md").mkdir()     # 미러 이름인 폴더
+        (self.spec / "CLE-ACCT" / ".hidden.md").write_text("메모\n", encoding="utf-8")
+        (self.spec / "CLE-ACCT" / ".DS_Store").write_bytes(b"")  # `.md` 가 아닌 점 파일은 보지 않는다
+        problems = pull.check(self.spec)
+        stray = [p for p in problems if "미러가 아닌" in p]
         self.assertEqual(sorted(p.split(":")[0] for p in stray),
-                         ["CLE-ACCT/notes.md", "CLE-lower.md"])
+                         ["CLE-ACCT/.hidden.md", "CLE-ACCT/CLE-DIR.md", "CLE-ACCT/notes.md",
+                          "CLE-ACCT/sub", "CLE-lower", "CLE-lower.md"])
+        # 미러 이름인 폴더는 미러 파일로 세지 않는다(읽기 오류로 한 번 더 알리지 않는다).
+        self.assertEqual(len([p for p in problems if p.startswith("CLE-ACCT/CLE-DIR.md:")]), 1, problems)
 
     def test_symlink_in_the_mirror_place_is_caught(self):
         self.pull_all()
@@ -418,6 +504,28 @@ class CheckTest(_Fixture):
                 path.write_text(text.replace(old, new), encoding="utf-8")
                 self.assertTrue(any("위치" in p for p in pull.check(self.spec)))
         path.write_text(text, encoding="utf-8")
+
+    def test_unreadable_mirror_files_are_reported_not_raised(self):
+        self.pull_all()
+        (self.spec / "CLE-VISION.md").write_bytes(b"---\nid: \"CLE-VISION\"\n---\n\xff\xfe\n")
+        locked = self.spec / "CLE-IX" / "CLE-IX.md"
+        locked.chmod(0)  # 권한 오류(OSError)
+        self.addCleanup(locked.chmod, 0o644)
+        problems = pull.check(self.spec)
+        for rel in ("CLE-VISION.md", "CLE-IX/CLE-IX.md"):
+            with self.subTest(rel=rel):
+                self.assertTrue(any(p.startswith(rel + ":") and "읽지 못했다" in p for p in problems),
+                                problems)
+
+    def test_check_output_escapes_control_characters(self):
+        # 파일 이름은 PR 이 정한다. 개행이 그대로 찍히면 CI 로그에 워크플로 명령 줄을 끼운다.
+        self.pull_all()
+        (self.spec / "CLE-ACCT" / "x\n::error::y.md").write_text("메모\n", encoding="utf-8")
+        r = subprocess.run([sys.executable, str(PULL_SRC), "--check", "--root", str(self.root)],
+                           capture_output=True, text=True)
+        self.assertEqual(r.returncode, 1)
+        self.assertFalse([ln for ln in r.stdout.splitlines() if ln.startswith("::")], r.stdout)
+        self.assertIn("x\\x0a::error::y.md", r.stdout)
 
     def test_file_without_frontmatter_is_reported(self):
         self.pull_all()
@@ -458,12 +566,16 @@ class CheckTest(_Fixture):
 
 
 class FakeNerv:
-    """`Nerv` 대역. 받은 경로 · If-None-Match 를 기록한다. ``statuses`` 로 경로별 응답 코드를 바꾼다."""
+    """`Nerv` 대역. 받은 경로 · If-None-Match 를 기록한다.
 
-    def __init__(self, tree, mds, claims=None, statuses=None, export=None):
+    `pull` 이 클라이언트에 기대는 것은 `project` 와 `get` 뿐이다(`ok_body` · `json_body` 는 `get`
+    위의 모듈 함수다). ``statuses`` 는 경로 접두별 응답 코드, ``bodies`` 는 경로 접두별 200 본문을 바꾼다.
+    """
+
+    def __init__(self, tree, mds, claims=None, statuses=None, export=None, bodies=None):
         self.project = "clemvion"
         self.tree, self.mds, self.claims = tree, mds, claims or []
-        self.statuses, self.export = statuses or {}, export
+        self.statuses, self.export, self.bodies = statuses or {}, export, bodies or {}
         self.calls = []
 
     def get(self, path, etag=None):
@@ -471,6 +583,9 @@ class FakeNerv:
         for prefix, status in self.statuses.items():
             if path.startswith(prefix):
                 return status, b"error"
+        for prefix, body in self.bodies.items():
+            if path.startswith(prefix):
+                return 200, body
         if path == "/api/v1/projects/clemvion/specs/tree":
             return 200, json.dumps(self.tree).encode()
         if path.startswith("/api/v1/projects/clemvion/tasks/"):
@@ -483,9 +598,6 @@ class FakeNerv:
         if etag == "sha256-" + hashlib.sha256(raw).hexdigest():
             return 304, b""
         return 200, raw
-
-    def get_ok(self, path):
-        return pull.Nerv.get_ok(self, path)
 
 
 def tree_nodes(moves=None):
@@ -561,8 +673,19 @@ class TaskModeTest(_Fixture):
         self.assertIn("[세션](../CLE-IX/CLE-ACCT-SESSION.md)",
                       self.read("CLE-CHAT/CLE-CHAT-ADAPTER.md"))
 
+    def test_304_keeps_the_cache_file(self):
+        # 304 면 캐시 원문이 그대로 맞다. 다시 쓰면 공유 캐시를 읽는 다른 세션과 겹칠 뿐이다.
+        fake = FakeNerv(tree_nodes(), raw_by_key())
+        self.run_task(fake, "CLE-VISION")
+        with mock.patch.object(pull, "_write_cache", wraps=pull._write_cache) as spy:
+            self.run_task(fake, "CLE-VISION")
+        self.assertEqual(self.md_etags(fake)[-1],
+                         "sha256-" + hashlib.sha256(DOCS["specs/CLE-VISION.md"]).hexdigest())
+        spy.assert_not_called()
+        self.assertEqual(sorted(p.name for p in self.cache.iterdir()), ["CLE-VISION.md"])  # 임시 파일 없음
+
     def test_check_catches_links_left_behind_in_docs_not_pulled(self):
-        # 옮겨진 문서만 받으면 그 문서를 가리키던 다른 문서의 링크는 옛 자리로 남는다(라운드 2 재현).
+        # 옮겨진 문서만 받으면 그 문서를 가리키던 다른 문서의 링크는 옛 자리로 남는다(2026-10-01 리뷰 재현).
         full = FakeNerv(tree_nodes(), raw_by_key())
         self.run_task(full, "CLE-VISION", "CLE-ACCT", "CLE-ACCT-SESSION", "CLE-CHAT-ADAPTER")
         self.assertEqual(pull.check(self.spec), [])
@@ -572,7 +695,7 @@ class TaskModeTest(_Fixture):
                                                                   b'area: "CLE-IX"')
         moved = FakeNerv(tree_nodes({"CLE-ACCT-SESSION": "CLE-IX"}), mds)
         self.run_task(moved, "CLE-ACCT-SESSION")
-        stale = [p for p in pull.check(self.spec) if "옛 자리" in p]
+        stale = [p for p in pull.check(self.spec) if "대상이 없다" in p]
         self.assertEqual(sorted(p.split(":")[0] for p in stale),
                          ["CLE-CHAT/CLE-CHAT-ADAPTER.md", "CLE-VISION.md"])
         # 그 문서들도 받으면 풀린다.
@@ -604,7 +727,12 @@ class TaskModeTest(_Fixture):
                 self.run_task(fake, "CLE-VISION")
                 path = self.spec / "CLE-VISION.md"
                 text = path.read_text(encoding="utf-8")
-                path.write_text(re.sub(r"(?m)^etag: .*$", f"etag: {bad}", text), encoding="utf-8")
+                # 치환 문자열이면 `re.sub` 가 `\n` 을 개행으로 풀어 줄이 깨진다. 함수로 넘긴다.
+                path.write_text(re.sub(r"(?m)^etag: .*$", lambda m: f"etag: {bad}", text),
+                                encoding="utf-8")
+                written = pull.fm_value(pull.split_frontmatter(path.read_text(encoding="utf-8"))[0],
+                                        "etag")
+                self.assertEqual(written, json.loads(bad), "fixture 가 의도한 값으로 들어가지 않았다")
                 fake.calls.clear()
                 self.run_task(fake, "CLE-VISION")
                 self.assertEqual(self.md_etags(fake), [None])
@@ -636,6 +764,43 @@ class TaskModeTest(_Fixture):
                     self.run_task(fake, "CLE-VISION")
                 self.assertEqual(pull.mirror_files(self.spec), [])
                 self.assertFalse((self.cache / "CLE-VISION.md").exists())
+
+    def test_unrequested_304_stops_even_with_a_cache_of_another_version(self):
+        # 조건부 요청을 하지 않았는데 304 가 오면, 캐시가 있어도 그 캐시는 미러와 다른 버전이다.
+        # 그 원문으로 렌더하면 지문까지 맞는 틀린 미러가 생겨 `--check` 도 통과한다.
+        fake = FakeNerv(tree_nodes(), raw_by_key())
+        self.run_task(fake, "CLE-VISION")
+        before = self.read("CLE-VISION.md")
+        (self.cache / "CLE-VISION.md").write_bytes(md("CLE-VISION", type_="vision", body="stale\n"))
+        fake.statuses = {"/api/projects/clemvion/specs/CLE-VISION.md": 304}
+        fake.calls.clear()
+        with self.assertRaisesRegex(pull.PullError, "304"):
+            self.run_task(fake, "CLE-VISION")
+        self.assertEqual(self.md_etags(fake), [None])
+        self.assertEqual(self.read("CLE-VISION.md"), before)
+
+    def test_malformed_tree_or_task_stops_with_a_reason(self):
+        tree_path, task_path = "/api/v1/projects/clemvion/specs/tree", "/api/v1/projects/clemvion/tasks/"
+        for name, bodies, keys in (
+                ("트리가 JSON 아님", {tree_path: b"<html>"}, ["CLE-VISION"]),
+                ("트리가 목록 아님", {tree_path: b'{"a": 1}'}, ["CLE-VISION"]),
+                ("노드에 id 없음", {tree_path: b'[{"key": "CLE-VISION"}]'}, ["CLE-VISION"]),
+                ("Task 가 객체 아님", {task_path: b"[]"}, [])):
+            with self.subTest(name):
+                fake = FakeNerv(tree_nodes(), raw_by_key(), bodies=bodies)
+                with self.assertRaises(pull.PullError):
+                    self.run_task(fake, *keys)
+                self.assertEqual(pull.mirror_files(self.spec), [])
+
+    def test_keys_are_checked_before_the_cache_is_read(self):
+        # 트리에서 온 키로 캐시 경로를 만들기 전에 키 형식을 본다.
+        tree = tree_nodes() + [{"id": "id-x", "key": "../victim", "type": "feature", "parent_id": None}]
+        fake = FakeNerv(tree, raw_by_key())
+        with mock.patch.object(pull, "_cached_raw", wraps=pull._cached_raw) as spy, \
+                self.assertRaisesRegex(pull.PullError, "키 형식"):
+            self.run_task(fake, "../victim")
+        spy.assert_not_called()
+        self.assertEqual(self.md_etags(fake), [])
 
     def test_bad_task_key_stops_before_any_request(self):
         fake = FakeNerv(tree_nodes(), raw_by_key())
@@ -728,8 +893,18 @@ class CurlBoundaryTest(unittest.TestCase):
 
     def test_curl_failure_raises(self):
         with mock.patch.dict(os.environ, {"FAKE_CURL_FAIL": "1"}), \
-                self.assertRaisesRegex(RuntimeError, "curl 실패"):
+                self.assertRaisesRegex(pull.PullError, "curl 실패"):
             pull.Nerv("https://x.invalid", "clemvion", SECRET).get("/x")
+        empty = self.tmp / "no-curl"
+        empty.mkdir()
+        with mock.patch.dict(os.environ, {"PATH": str(empty)}), \
+                self.assertRaisesRegex(pull.PullError, "curl 을 실행하지 못했다"):
+            pull.Nerv("https://x.invalid", "clemvion", SECRET).get("/x")
+
+    def test_unparseable_responses_raise_pull_error(self):
+        for raw in (b"no header end", b"HTTP/2\r\n\r\n", b"HTTP/2 abc\r\n\r\n"):
+            with self.subTest(raw=raw), self.assertRaises(pull.PullError):
+                pull.parse_response(raw)
 
     def test_config_injection_values_are_rejected(self):
         for ch in ('"', "\\", "\r", "\n", "\t", "\x00"):
@@ -751,8 +926,10 @@ class CurlBoundaryTest(unittest.TestCase):
                     "http://127.0.0.1.evil.invalid", "http://localhost@evil.invalid",
                     "http://127.0.0.1@evil.invalid", "http://localhostevil.invalid",
                     "https://user:pw@nerv.example.invalid", "https://nerv.example.invalid?x=1",
+                    "https://:pw@nerv.example.invalid", "https://nerv.example.invalid#x",
+                    "https://[::1", "https://nerv.example.invalid\n", "https://nerv .invalid",
                     "ftp://nerv.example.invalid", "nerv.example.invalid"):
-            with self.subTest(bad=bad):
+            with self.subTest(bad=repr(bad)):
                 self.assertFalse(pull.server_ok(bad))
                 with self.assertRaises(pull.PullError):
                     pull.Nerv(bad, "clemvion", SECRET)
@@ -777,14 +954,33 @@ class CiWiringTest(unittest.TestCase):
 
     WORKFLOW = _harness.REPO_ROOT / ".github" / "workflows" / "spec-link-checks.yml"
 
-    def test_integrity_job_runs_the_check(self):
+    def job(self):
         import yaml  # harness 테스트의 유일한 서드파티 예외(.claude/tests/README.md)
 
-        doc = yaml.safe_load(self.WORKFLOW.read_text(encoding="utf-8"))
-        job = doc["jobs"]["spec-mirror-integrity"]
+        return yaml.safe_load(self.WORKFLOW.read_text(encoding="utf-8"))["jobs"]["spec-mirror-integrity"]
+
+    def sparse_paths(self):
+        checkouts = [s for s in self.job()["steps"] if str(s.get("uses", "")).startswith("actions/checkout")]
+        self.assertEqual(len(checkouts), 1, checkouts)
+        return checkouts[0]["with"]["sparse-checkout"].split()
+
+    def test_integrity_job_runs_the_check(self):
+        job = self.job()
         runs = [s.get("run", "") for s in job["steps"]]
         self.assertIn("python3 .claude/tools/nerv-mirror/pull.py --check", runs)
         self.assertEqual(job.get("needs"), "changes")
+
+    def test_the_check_runs_with_only_the_sparse_paths(self):
+        # 잡은 저장소 일부만 받는다. `pull.py` 가 그 밖의 파일을 읽게 되면 CI 에서만 깨진다.
+        self.assertEqual(sorted(self.sparse_paths()), [".claude/tools/nerv-mirror", "spec"])
+        tmp = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, tmp, ignore_errors=True)
+        for rel in self.sparse_paths():
+            shutil.copytree(_harness.REPO_ROOT / rel, tmp / rel, symlinks=True,
+                            ignore=shutil.ignore_patterns("__pycache__"))
+        r = subprocess.run([sys.executable, str(tmp / ".claude/tools/nerv-mirror/pull.py"), "--check"],
+                           capture_output=True, text=True, cwd=tmp)
+        self.assertEqual(r.returncode, 0, r.stdout[-2000:] + r.stderr[-2000:])
 
     def test_the_repo_mirror_passes_its_own_check(self):
         # 커밋된 미러가 무결성 검사를 통과해야 CI 가 초록이다. `check` 는 미러 0편을 실패로 본다.
@@ -805,37 +1001,72 @@ class MirrorPredicateParityTest(unittest.TestCase):
     TS = ROOT / "codebase" / "frontend" / "src" / "lib" / "docs" / "__tests__" / "spec-links.ts"
     ORCH = ROOT / ".claude" / "skills" / "consistency-checker" / "scripts" / "consistency_orchestrator.py"
 
-    def test_three_predicates_agree_on_the_real_tree(self):
+    def ts_regex(self):
         literal = re.search(r"const NERV_MIRROR = /(.+)/;", self.TS.read_text(encoding="utf-8"))
         self.assertIsNotNone(literal, "spec-links.ts 에서 NERV_MIRROR 를 찾지 못했다")
-        ts_re = re.compile(literal.group(1).replace("\\/", "/"))
+        return re.compile(literal.group(1).replace("\\/", "/"))
+
+    def by_orchestrator(self, root, rels):
+        return set(_harness.run_in_orchestrator(
+            _harness.orchestrator_preamble(self.ORCH, imports="os"),
+            """
+            spec = os.path.join(ARG["root"], "spec")
+            emit([r for r in ARG["rels"] if orch.is_nerv_mirror(os.path.join(ARG["root"], r), spec)])
+            """,
+            {"root": str(root), "rels": rels},
+        ))
+
+    def test_three_predicates_agree_on_the_real_tree(self):
         spec = self.ROOT / "spec"
         rels = sorted(p.relative_to(self.ROOT).as_posix() for p in spec.rglob("*.md"))
         tool = {p.relative_to(self.ROOT).as_posix() for p in pull.mirror_files(spec)}
+        # 공허하지 않으려면 두 배치(영역 폴더 · 영역 밖)가 모두 있어야 한다. 미러는 부분 스냅샷이라
+        # 편 수로는 하한을 정하지 않는다.
+        self.assertTrue(any(r.count("/") == 2 for r in tool), "영역 폴더의 미러가 없다 — 이 대조는 공허하다")
+        self.assertTrue(any(r.count("/") == 1 for r in tool), "영역 밖 미러가 없다 — 이 대조는 공허하다")
         tool.add("spec/README.md")
-        by_orch = set(_harness.run_in_orchestrator(
-            _harness.orchestrator_preamble(self.ORCH, imports="os"),
-            """
-            spec = os.path.join(ROOT, "spec")
-            emit([r for r in ARG if orch.is_nerv_mirror(os.path.join(ROOT, r), spec)])
-            """,
-            rels,
-        ))
-        by_ts = {r for r in rels if ts_re.match(r)}
-        self.assertGreater(len(tool), 1, "미러가 없다 — 이 대조는 공허하다")
-        self.assertEqual(by_orch, tool)
-        self.assertEqual(by_ts, tool)
+        self.assertEqual(self.by_orchestrator(self.ROOT, rels), tool)
+        self.assertEqual({r for r in rels if self.ts_regex().match(r)}, tool)
+
+    def test_loose_predicates_leave_nothing_unchecked_on_boundary_names(self):
+        # 오케스트레이터와 TS 는 접두로 느슨하게(`CLE-…/` 아래 전부), 이 도구는 파일 단위로 엄격하게
+        # 판정한다. 지킬 성질: 느슨한 쪽이 옛 트리 검사에서 빼는 경로는 이 도구의 미러 파일이거나
+        # `--check` 가 문제로 알린다. 옛 트리 이름은 어느 쪽도 미러로 보지 않는다. 합성 이름이라
+        # 실제 `spec/` 의 옛 트리가 지워져도(단계 5) 이 대조는 남는다.
+        mirror_like = ["spec/CLE-A.md", "spec/CLE-A/CLE-A.md", "spec/CLE-A/CLE-A-B.md",
+                       "spec/CLE-A/notes.md", "spec/CLE-A/.hidden.md", "spec/CLE-A/sub/CLE-Z.md",
+                       "spec/CLE-A/cle-x.md", "spec/CLE-A-.md", "spec/CLE--A.md", "spec/CLE-B-/x.md"]
+        old_tree = ["spec/0-overview.md", "spec/5-system/1-auth.md", "spec/conventions/x.md",
+                    "spec/cle-x.md", "spec/CLE-lower.md", "spec/data-flow/CLE-X.md"]
+        tmp = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, tmp, ignore_errors=True)
+        for rel in mirror_like + old_tree:
+            (tmp / rel).parent.mkdir(parents=True, exist_ok=True)
+            (tmp / rel).write_text("x\n", encoding="utf-8")
+        rels = mirror_like + old_tree
+        tool = {p.relative_to(tmp).as_posix() for p in pull.mirror_files(tmp / "spec")}
+        reported = {"spec/" + p.split(":")[0] for p in pull.check(tmp / "spec")}
+        by_orch = self.by_orchestrator(tmp, rels)
+        by_ts = {r for r in rels if self.ts_regex().match(r)}
+        self.assertEqual(by_orch, by_ts)
+        self.assertEqual(tool, {"spec/CLE-A.md", "spec/CLE-A/CLE-A.md", "spec/CLE-A/CLE-A-B.md"})
+        self.assertLessEqual(tool, by_orch)
+        for rel in sorted(by_orch - tool):
+            with self.subTest(rel=rel):
+                self.assertTrue(any(rel == r or rel.startswith(r + "/") for r in reported),
+                                f"{rel} 는 옛 트리 검사에서 빠지는데 --check 도 보지 않는다")
+        self.assertEqual(by_orch & set(old_tree), set())
 
     def test_the_three_files_trigger_the_harness_workflow(self):
-        import yaml
-
-        wf = yaml.safe_load((self.ROOT / ".github" / "workflows" / "harness-checks.yml")
-                            .read_text(encoding="utf-8"))
-        specs = wf["jobs"]["changes"]["with"]["pathspecs"].split()
-        rel = self.TS.relative_to(self.ROOT).as_posix()
-        self.assertIn(rel, specs, "spec-links.ts 만 고친 PR 에서 이 동치 테스트가 돌지 않는다")
-        self.assertIn(".claude/tools/**", specs)   # pull.py
-        self.assertIn(".claude/skills/**", specs)  # 오케스트레이터
+        # 경로 목록을 런타임과 같은 규칙으로 읽고(주석 줄 제외) 파일마다 걸리는 항목이 있는지 본다.
+        # 단어로 쪼개 찾으면 주석에 적힌 경로도 통과한다.
+        text = (self.ROOT / ".github" / "workflows" / "harness-checks.yml").read_text(encoding="utf-8")
+        specs = parse_pathspecs_block(text)
+        for path in (self.TS, PULL_SRC, self.ORCH):
+            rel = path.relative_to(self.ROOT).as_posix()
+            with self.subTest(rel=rel):
+                self.assertTrue(any(filter_covers_file(f, rel) for f in specs),
+                                f"{rel} 만 고친 PR 에서 이 동치 테스트가 돌지 않는다")
 
 
 if __name__ == "__main__":
