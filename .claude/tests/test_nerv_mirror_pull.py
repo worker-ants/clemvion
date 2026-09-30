@@ -358,7 +358,7 @@ class InputValidationTest(_Fixture):
         self.assertEqual(victim.read_text(encoding="utf-8"), before)
 
     def test_prune_never_follows_a_directory_symlink(self):
-        # 링크 폴더 안의 `CLE-*.md` 를 미러로 보면 prune 이 `spec/` 밖 파일을 지운다(라운드 2 재현).
+        # 링크 폴더 안의 `CLE-*.md` 를 미러로 보면 prune 이 `spec/` 밖 파일을 지운다(2026-10-01 리뷰 재현).
         outside = self.root / "outside"
         outside.mkdir()
         (outside / "CLE-VICTIM.md").write_text("지우면 안 된다\n", encoding="utf-8")
