@@ -93,7 +93,7 @@ CLAUDE.md §정보 저장 위치 표에 등재.
 
 ### R-1. CI 차단 아닌 보고형
 
-NLP 휴리스틱 기반이라 false-positive 빈도 높음. CI 차단 시 false-block 부담 > 검출 가치. 보고만 산출하고 사용자가 picking — `i18n-userguide` ratchet 패턴과 다른 사유 (ratchet 은 잔존 문제 점진 감소, 본 audit 은 신뢰도 낮은 휴리스틱).
+NLP 휴리스틱 기반이라 false-positive 빈도 높음. CI 차단 시 false-block 부담 > 검출 가치. 보고만 산출하고 사용자가 picking — `i18n-userguide`(미러 `CLE-UI-I18N`) ratchet 패턴과 다른 사유 (ratchet 은 잔존 문제 점진 감소, 본 audit 은 신뢰도 낮은 휴리스틱).
 
 ### R-2. cron 도입 안 함 — 수동 호출만
 

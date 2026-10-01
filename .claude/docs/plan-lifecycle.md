@@ -95,7 +95,7 @@ owner: <역할/이름>                 # planner / developer / 사용자 본인 
   > **재현 방법을 함께 적는다 — 수치만 적으면 세는 방법이 갈린다.** 위 값은 각 파일의
   > **frontmatter 블록만 파싱**해 `pending_plans:` 키를 센 것이다. `grep -rl '^pending_plans:'`
   > 로 세면 **본문 코드블록 안의 예시까지 잡혀 과다 계상**된다 — 실제로
-  > `spec/conventions/spec-impl-evidence.md`(스키마 예시 2곳)와
+  > `spec/conventions/spec-impl-evidence.md`(옛 트리, 당시 측정 대상. 스키마 예시 2곳)와
   > `plan/complete/spec-draft-web-chat-console.md:158`(제안된 spec 의 frontmatter 를 보여주는
   > 펜스 블록)이 그 방식에서 오탐으로 잡힌다.
   >
