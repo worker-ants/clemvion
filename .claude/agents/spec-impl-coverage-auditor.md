@@ -21,7 +21,7 @@ prompt_file 의 `MODE` 값으로 방향을 결정한다 (미지정 시 `forward`
 
 ## 검출 대상
 
-`spec/conventions/spec-impl-evidence.md §1` 의 적용 대상 spec (`spec/{2-navigation,3-workflow-editor,4-nodes,5-system,conventions}/**.md`, 제외 룰 적용) 전수.
+`spec/CLE-ENG/CLE-ENG-SPECEVIDENCE.md` 「적용 대상」 의 적용 대상 spec (`spec/{2-navigation,3-workflow-editor,4-nodes,5-system,conventions}/**.md`, 제외 룰 적용) 전수.
 
 각 spec 에 대해 다음 3 heuristic 적용:
 
