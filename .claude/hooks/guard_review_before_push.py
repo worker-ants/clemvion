@@ -711,6 +711,7 @@ _REVIEW_MSG = (
     "  4. TEST WORKFLOW 재수행 후 다시 push\n"
     "\n"
     "라운드 뒤에 fix 커밋만 더했다면 그 커밋을 처분의 commit_sha 로 기록하면 통과합니다.\n"
+    "같은 발견의 후속 수정(e2e 실패 뒤 등)은 커밋 메시지에 finding <발견 전체 ID> 를 적습니다.\n"
     "그 밖의 codebase/ 커밋이 생겼거나 rebase 로 라운드 head 가 사라졌으면 지금 HEAD 로\n"
     "다시 제출합니다. 판정 규칙: .claude/hooks/_lib/review_guard.py\n"
     "\n"

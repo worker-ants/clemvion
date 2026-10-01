@@ -1,0 +1,250 @@
+"""`.claude/tools/nerv_review_handoff.py` — main 과 `resolution-applier` 사이의 인계 파일.
+
+NERV 정본 전환 단계 2(NERV Task `CLE-T-4ABTG7`). 두 LLM 이 손으로 옮겨 적던 발견 ID 와 처분을 이
+도구가 만들고 검사한다. 여기서 고정하는 것:
+
+  - `fetch` — NERV 의 열린 발견을 커서를 따라 모두 읽고, 이미 사람에게 넘긴 발견은 뺀다.
+  - `check` — 처분 파일의 불변식(전체 ID · 한 번씩 · fixed 는 HEAD 에서 닿는 40자 해시 · escalated
+    사유 · critical 하향 금지 · 제안 파일 이름과 존재 · critical/warning 전수 처분).
+  - `pending` — NERV 에 이미 기록된 처분은 다시 내지 않는다.
+  - CLI — 문제가 있으면 exit 1, 실물 `pull.Nerv` 로 loopback 가짜 서버를 읽는다.
+"""
+
+from __future__ import annotations
+
+import json
+import os
+import shutil
+import subprocess
+import sys
+import tempfile
+import unittest
+from pathlib import Path
+from unittest import mock
+
+import _harness
+
+TOOL_PATH = _harness.CLAUDE_DIR / "tools" / "nerv_review_handoff.py"
+tool = _harness.load_module_by_path("nerv_review_handoff_under_test", TOOL_PATH)
+
+CRIT = "01a0f648-f601-7000-8000-000000000001"
+WARN = "01a0f648-f602-7000-8000-000000000002"
+INFO = "01a0f648-f603-7000-8000-000000000003"
+
+
+def item(fid, severity, **extra):
+    base = {"id": fid, "severity": severity, "status": "open", "category": "security",
+            "title": f"{severity} 발견", "file_path": "codebase/a.ts", "line_start": 3,
+            "detail_md": "상세", "suggestion_md": "제안", "round_no": 1, "head_sha": "ab" * 20,
+            "area": "codebase", "tags": [], "resolution_kind": None}
+    base.update(extra)
+    return base
+
+
+class FakeClient:
+    project = "clemvion"
+
+    def __init__(self, pages=None, *, status=200, raw=None):
+        self.pages = pages if pages is not None else [[]]
+        self.status = status
+        self.raw = raw
+        self.calls: list[str] = []
+
+    def get(self, path):
+        self.calls.append(path)
+        if self.raw is not None:
+            return self.status, self.raw
+        n = len(self.calls) - 1
+        nxt = f"c{n + 1}" if n + 1 < len(self.pages) else None
+        return self.status, json.dumps({"items": self.pages[n], "next_cursor": nxt}).encode()
+
+
+class _SessionCase(unittest.TestCase):
+    def setUp(self):
+        self.tmp = Path(os.path.realpath(tempfile.mkdtemp()))
+        self.addCleanup(shutil.rmtree, self.tmp, ignore_errors=True)
+        self.repo = _harness.make_temp_git_repo(self.tmp / "repo")
+        (self.repo / "codebase").mkdir()
+        (self.repo / "codebase" / "a.ts").write_text("a\n", encoding="utf-8")
+        _harness.git_in(self.repo, "add", "-A")
+        _harness.git_in(self.repo, "commit", "-qm", "fix")
+        self.head = _harness.git_in(self.repo, "rev-parse", "HEAD").stdout.strip()
+        self.sd = self.repo / ".review" / "code" / "2026" / "10" / "01" / "12_00_00"
+        self.sd.mkdir(parents=True)
+
+    def write_findings(self, *items):
+        tool.fetch(str(self.sd), "feature", FakeClient([list(items)]))
+
+    def write_dispositions(self, dispositions, proposals=(), **extra):
+        doc = {"version": 1, "dispositions": list(dispositions), "spec_proposals": list(proposals)}
+        doc.update(extra)
+        (self.sd / "_dispositions.json").write_text(json.dumps(doc), encoding="utf-8")
+
+    def fixed(self, fid, sha=None):
+        return {"finding_id": fid, "resolution": "fixed", "commit_sha": sha or self.head, "rationale": "고쳤다"}
+
+
+class FetchTest(_SessionCase):
+    def test_writes_every_open_finding_across_pages(self):
+        client = FakeClient([[item(CRIT, "critical")], [item(WARN, "warning")]])
+        out = tool.fetch(str(self.sd), "feature", client)
+        doc = json.loads((self.sd / "_nerv_findings.json").read_text(encoding="utf-8"))
+        self.assertEqual([f["finding_id"] for f in doc["findings"]], [CRIT, WARN])
+        self.assertEqual(out["counts"], {"critical": 1, "warning": 1, "info": 0})
+        self.assertEqual(len(client.calls), 2)
+        self.assertIn("cursor=c1", client.calls[1])
+        for path in client.calls:
+            self.assertIn("branch=feature", path)
+            self.assertIn("status=open", path)
+
+    def test_fields_are_renamed_to_the_handoff_schema(self):
+        self.write_findings(item(WARN, "warning"))
+        f = json.loads((self.sd / "_nerv_findings.json").read_text(encoding="utf-8"))["findings"][0]
+        self.assertEqual(f["role"], "security")
+        self.assertEqual((f["file"], f["line"]), ("codebase/a.ts", 3))
+        self.assertEqual((f["detail"], f["suggestion"]), ("상세", "제안"))
+
+    def test_findings_already_escalated_are_left_out(self):
+        self.write_findings(item(CRIT, "critical", resolution_kind="escalated"), item(WARN, "warning"))
+        doc = json.loads((self.sd / "_nerv_findings.json").read_text(encoding="utf-8"))
+        self.assertEqual([f["finding_id"] for f in doc["findings"]], [WARN])
+
+    def test_bad_responses_raise(self):
+        for client in (FakeClient(status=503), FakeClient(raw=b"nope"), FakeClient(raw=b'{"items": 1}')):
+            with self.subTest(client=client.status), self.assertRaises(tool.HandoffError):
+                tool.fetch(str(self.sd), "feature", client)
+
+    def test_a_cursor_that_never_ends_is_cut(self):
+        class Loop(FakeClient):
+            def get(self, path):
+                self.calls.append(path)
+                return 200, json.dumps({"items": [], "next_cursor": "again"}).encode()
+        with self.assertRaises(tool.HandoffError):
+            tool.fetch(str(self.sd), "feature", Loop())
+
+
+class CheckTest(_SessionCase):
+    def setUp(self):
+        super().setUp()
+        self.write_findings(item(CRIT, "critical"), item(WARN, "warning"), item(INFO, "info"))
+        (self.sd / "_spec-proposal-auth.md").write_text("제안\n", encoding="utf-8")
+
+    def errors(self):
+        return tool.check(str(self.sd))["errors"]
+
+    def test_a_complete_handoff_passes_and_leaves_info_to_main(self):
+        self.write_dispositions([self.fixed(CRIT)],
+                                [{"finding_id": WARN, "file": "_spec-proposal-auth.md"}])
+        out = tool.check(str(self.sd))
+        self.assertTrue(out["ok"], out["errors"])
+        self.assertEqual(out["left_to_main"], [INFO])
+
+    def test_each_broken_invariant_is_reported(self):
+        ok_warn = {"finding_id": WARN, "resolution": "wont_fix", "rationale": "근거"}
+        cases = {
+            "전체 ID": [self.fixed(CRIT[:8]), ok_warn],
+            "없다": [self.fixed(CRIT), ok_warn, {"finding_id": "01a0f648-0000-7000-8000-000000000009",
+                                                 "resolution": "dismissed", "rationale": "x"}],
+            "두 번": [self.fixed(CRIT), ok_warn, dict(ok_warn)],
+            "resolution 은": [self.fixed(CRIT), dict(ok_warn, resolution="spec_change")],
+            "rationale": [self.fixed(CRIT), dict(ok_warn, rationale=" ")],
+            "40자": [self.fixed(CRIT, self.head[:12]), ok_warn],
+            "닿지 않는다": [self.fixed(CRIT, "ab" * 20), ok_warn],
+            "escalate_reason": [self.fixed(CRIT), dict(ok_warn, resolution="escalated")],
+            "critical 발견을": [{"finding_id": CRIT, "resolution": "dismissed", "rationale": "x"}, ok_warn],
+            "처분이 없다": [self.fixed(CRIT)],
+        }
+        for needle, dispositions in cases.items():
+            with self.subTest(needle=needle):
+                self.write_dispositions(dispositions)
+                errors = self.errors()
+                self.assertTrue(any(needle in e for e in errors), errors)
+
+    def test_escalated_with_a_reason_and_critical_escalation_pass(self):
+        self.write_dispositions([
+            {"finding_id": CRIT, "resolution": "escalated", "escalate_reason": "user-decision", "rationale": "x"},
+            {"finding_id": WARN, "resolution": "escalated", "escalate_reason": "spec", "rationale": "x"},
+        ])
+        self.assertEqual(self.errors(), [])
+
+    def test_proposal_files_must_be_underscored_and_present(self):
+        (self.sd / "spec-proposal-auth.md").write_text("x\n", encoding="utf-8")
+        for name, needle in (("spec-proposal-auth.md", "_spec-proposal-<area>.md"),
+                             ("_spec-proposal-../x.md", "_spec-proposal-<area>.md"),
+                             ("_spec-proposal-Auth.md", "_spec-proposal-<area>.md"),
+                             ("_spec-proposal-gone.md", "없다")):
+            with self.subTest(name=name):
+                self.write_dispositions([self.fixed(CRIT)], [{"finding_id": WARN, "file": name}])
+                errors = self.errors()
+                self.assertTrue(any(needle in e for e in errors), errors)
+
+    def test_a_finding_in_both_a_disposition_and_a_proposal_is_a_duplicate(self):
+        self.write_dispositions([self.fixed(CRIT), {"finding_id": WARN, "resolution": "wont_fix", "rationale": "x"}],
+                                [{"finding_id": WARN, "file": "_spec-proposal-auth.md"}])
+        self.assertTrue(any("두 번" in e for e in self.errors()))
+
+    def test_missing_or_wrong_version_files_raise(self):
+        with self.assertRaises(tool.HandoffError):
+            tool.check(str(self.sd))  # _dispositions.json 없음
+        self.write_dispositions([self.fixed(CRIT)])
+        doc = json.loads((self.sd / "_dispositions.json").read_text(encoding="utf-8"))
+        doc["version"] = 2
+        (self.sd / "_dispositions.json").write_text(json.dumps(doc), encoding="utf-8")
+        with self.assertRaises(tool.HandoffError):
+            tool.check(str(self.sd))
+
+
+class PendingTest(_SessionCase):
+    def test_only_findings_still_open_and_unresolved_are_pending(self):
+        self.write_dispositions([
+            self.fixed(CRIT),
+            {"finding_id": WARN, "resolution": "escalated", "escalate_reason": "infra", "rationale": "x"},
+            {"finding_id": INFO, "resolution": "wont_fix", "rationale": "x"},
+        ])
+        # CRIT 은 아직 열림, WARN 은 이미 escalated 로 기록됨, INFO 는 이미 닫힘(목록에 없음).
+        client = FakeClient([[item(CRIT, "critical"), item(WARN, "warning", resolution_kind="escalated")]])
+        out = tool.pending(str(self.sd), "feature", client)
+        self.assertEqual([d["finding_id"] for d in out["pending"]], [CRIT])
+        self.assertEqual(sorted(out["already_recorded"]), sorted([WARN, INFO]))
+
+
+class CliTest(_SessionCase):
+    def run_cli(self, *args, env=None):
+        return subprocess.run([sys.executable, str(TOOL_PATH), *args], capture_output=True, text=True,
+                              timeout=60, env=env)
+
+    def test_check_exits_one_on_problems_and_zero_when_clean(self):
+        self.write_findings(item(WARN, "warning"))
+        self.write_dispositions([])
+        r = self.run_cli("check", str(self.sd))
+        self.assertEqual(r.returncode, 1, r.stdout)
+        self.write_dispositions([{"finding_id": WARN, "resolution": "wont_fix", "rationale": "x"}])
+        r = self.run_cli("check", str(self.sd))
+        self.assertEqual(r.returncode, 0, r.stdout)
+
+    def test_fetch_needs_a_branch(self):
+        r = self.run_cli("fetch", str(self.sd))
+        self.assertEqual(r.returncode, 2)
+
+    def test_fetch_over_the_wire(self):
+        body = json.dumps({"items": [item(WARN, "warning")], "next_cursor": None}).encode()
+        with _harness.FakeNervServer(raw=body) as server:
+            env = {"NERV_SERVER": server.url, "NERV_TOKEN": "tok-9", "PATH": os.environ.get("PATH", "")}
+            r = self.run_cli("fetch", str(self.sd), "--branch", "feature", env=env)
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        path, auth = server.requests[0]
+        self.assertTrue(path.startswith("/api/v1/projects/clemvion/findings?"), path)
+        self.assertEqual(auth, "Bearer tok-9")
+        doc = json.loads((self.sd / "_nerv_findings.json").read_text(encoding="utf-8"))
+        self.assertEqual([f["finding_id"] for f in doc["findings"]], [WARN])
+
+    def test_missing_configuration_is_an_error_not_a_crash(self):
+        with mock.patch.dict(os.environ, {}, clear=True):
+            r = self.run_cli("fetch", str(self.sd), "--branch", "feature",
+                             env={"PATH": os.environ.get("PATH", "")})
+        self.assertEqual(r.returncode, 1, r.stderr)
+        self.assertIn("NERV_SERVER", r.stdout)
+
+
+if __name__ == "__main__":
+    unittest.main()

@@ -476,12 +476,12 @@ class SourceFileClassifierTest(unittest.TestCase):
         self.assertIn("security", got["forced"])
 
 
-class CodeAreaForcesTheNervRolesTest(unittest.TestCase):
-    """`codebase/**` 아래 파일은 확장자와 무관하게 필수 6역할을 강제한다.
+class EveryChangeForcesTheNervRolesTest(unittest.TestCase):
+    """바뀐 파일이 하나라도 있으면 확장자 · 위치와 무관하게 필수 6역할을 강제한다.
 
-    NERV 정책 `review_roles.code` 가 코드 라운드마다 이 6역할을 요구하고, push 훅 · CI 게이트가 그
-    라운드를 읽는다(전환 단계 2). JSON · YAML · Markdown 만 바꾼 codebase 변경이 router 에서 일부
-    역할을 잃으면 라운드가 `missing_roles` 로 남아 push 가 막힌다."""
+    NERV 정책 `review_roles.code` 가 코드 라운드마다 이 6역할을 요구한다(전환 단계 2). push 훅 ·
+    CI 게이트는 `codebase/**` 변경의 라운드를 읽고, NERV done 게이트는 하네스 · 문서만 바꾼 Task 에도
+    passed 라운드를 요구한다. router 에서 일부 역할을 잃으면 라운드가 `missing_roles` 로 남는다."""
 
     # 상속하지 않고 빌린다 — 상속하면 위 클래스의 테스트가 한 번 더 돈다.
     SKILL_DIR = SourceFileClassifierTest.SKILL_DIR
@@ -497,25 +497,36 @@ class CodeAreaForcesTheNervRolesTest(unittest.TestCase):
             "print(json.dumps(forced))"
         )
 
-    def test_non_source_files_under_codebase_force_the_six(self):
+    def test_non_source_files_force_the_six(self):
         for path in ("codebase/frontend/src/locales/ko.json",
                      "codebase/backend/config/app.yaml",
-                     "codebase/frontend/src/content/docs/x.mdx"):
+                     "codebase/frontend/src/content/docs/x.mdx",
+                     ".claude/skills/developer/SKILL.md",
+                     "CLAUDE.md",
+                     ".gitignore",
+                     "data.json"):
             with self.subTest(path=path):
                 self.assertTrue(set(self.SIX) <= set(self._forced([path])), path)
 
-    def test_outside_the_code_area_nothing_changes(self):
-        """`codebase-x/`(이름 앞부분만 같다) · 루트 JSON 은 코드 영역이 아니다."""
-        for path in ("codebase-x/a.json", "codebasefile.json", "data.json"):
-            with self.subTest(path=path):
-                self.assertFalse(set(self.SIX) & set(self._forced([path])), path)
+    def test_no_change_forces_nothing(self):
+        self.assertEqual(self._forced([]), [])
+        self.assertEqual(self._forced([""]), [])
 
-    def test_code_area_files_helper(self):
+    def test_an_explicit_selection_still_wins(self):
         got = self._eval(
-            "print(json.dumps(rs.code_area_files(['codebase/a.json', 'codebase', "
-            "'codebase-x/b.json', './codebase/c.yml', 'docs/d.md'], ['codebase', '/', ''])))"
+            "forced,_r = rs.compute_forced_agents(['CLAUDE.md'], ['documentation', 'security'])\n"
+            "print(json.dumps(forced))"
         )
-        self.assertEqual(got, ["codebase/a.json"])
+        self.assertEqual(got, ["documentation", "security"])
+
+    def test_the_note_names_the_nerv_policy(self):
+        got = self._eval(
+            f"forced,r = rs.compute_forced_agents(['CLAUDE.md'], {self.ALL!r})\n"
+            "print(json.dumps(r['security']))"
+        )
+        self.assertEqual(len(got), 1, got)
+        self.assertIn("review_roles.code", got[0])
+        self.assertIn("CLAUDE.md", got[0])
 
 
 if __name__ == "__main__":

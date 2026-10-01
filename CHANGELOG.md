@@ -29,11 +29,14 @@
 `nerv_review_submit` 으로 제출하고 발견을 `nerv_finding_resolve` 로 처분한다. 저장소에는 리뷰 산출물을 커밋하지 않는다.
 
 - **push 게이트 · CI 백스톱(판정 교체)** `.claude/hooks/_lib/review_guard.py`: `codebase/**` 를 바꾼 브랜치는 NERV 판정 API(N1)의
-  kind=code 최신 라운드가 `passed` 여야 push · 머지된다. 라운드 head 가 HEAD 의 조상이어야 하고, 라운드 뒤 `codebase/**` 커밋은
-  그 라운드 발견의 `fixed` 처분 커밋이어야 하며(리뷰 뒤 fix 커밋만 있으면 새 라운드 없이 통과), 처분 커밋은 이 브랜치에서
-  닿아야 한다(다른 브랜치의 같은 지적 처분으로 통과하지 못한다). 전에는 `review/code/**/SUMMARY.md` 의 존재와 문구를 봐서 PR 에
-  몇 줄짜리 가짜 SUMMARY · RESOLUTION 을 커밋하면 통과했다. 세션 디렉터리 시각과 편집 시각을 비교하던 순서 함정과 "fix 커밋이
-  리뷰를 stale 로 만든다" 루프도 사라진다. NERV 가 응답하지 않으면 push 는 fail-open 하고 배너로 센다.
+  kind=code 최신 라운드가 `passed` 여야 push · 머지된다. 라운드 head 가 HEAD 의 조상이어야 하고, 처분 커밋은 이 브랜치에서
+  닿아야 한다(다른 브랜치의 같은 지적 처분으로 통과하지 못한다). 라운드 뒤 `codebase/**` 커밋은 code · consistency 라운드에서
+  `fixed` 로 처분된 발견의 커밋이거나, 커밋 메시지가 그런 발견을 `finding <발견 전체 ID>` 로 인용해야 한다(e2e 실패 뒤 후속
+  수정). 리뷰 뒤 fix 커밋만 있으면 새 라운드 없이 통과하고, fix 커밋은 다시 리뷰되지 않는다. merge 커밋은 모든 부모와 다른
+  `codebase/**` 파일이 있으면 센다(충돌을 손으로 푼 코드 · merge 에 끼워 넣은 코드). 전에는 `review/code/**/SUMMARY.md` 의
+  존재와 문구를 봐서 PR 에 몇 줄짜리 가짜 SUMMARY · RESOLUTION 을 커밋하면 통과했다. 세션 디렉터리 시각과 편집 시각을 비교하던
+  순서 함정과 "fix 커밋이 리뷰를 stale 로 만든다" 루프도 사라진다. NERV 가 응답하지 않거나 로컬에 `NERV_SERVER` · `NERV_TOKEN`
+  이 없으면 push 는 fail-open 하고 배너로 센다.
 - **CI `review-gate`**: PR 의 head 커밋과 브랜치를 판정하고 NERV 를 읽기 전용 토큰으로 읽는다(secret `NERV_CI_TOKEN`, 변수
   `NERV_SERVER`). 토큰 · 주소가 없거나 거절되면 실패한다. NERV 장애는 통과시키고 알린다.
 - **spec-impl 정합 게이트(Gate 2) 제거**: spec frontmatter `code:` 와 `--impl-done` 세션 시각으로 막던 push 검사를 걷었다.
@@ -43,11 +46,18 @@
   배선을 지웠다. 이 PR 이 머지되기 전에 시작한 세션은 지운 훅을 부르므로 main pull 뒤 새 세션을 연다.
 - **편집 가드 확장** `guard_nerv_owned_paths.py`: `review/` 도 도구 편집을 막는다. 리뷰 · 일관성 · 통합 · spec-coverage
   오케스트레이터는 산출물을 gitignore 대상 `.review/` 에 쓴다. 옛 `review/` 는 단계 3 에서 지운다.
-- **router 강제 규칙 확장**: `codebase/**` 아래 파일이면 확장자와 무관하게 필수 6역할(security · requirement · scope ·
-  side_effect · maintainability · testing)을 강제한다. NERV 정책 `review_roles.code` 가 라운드마다 이 6역할을 요구한다.
-- **제출 도우미(신설)** `.claude/tools/nerv_review_payload.py`: 세션의 역할 리포트를 역할별 제출 묶음(JSON)으로 바꾼다. 형식 밖의
-  심각도 표지는 경고로 알리고, 강제 역할 리포트가 빠지면 exit 1 이다. consistency SUMMARY 가 checker 의 [CRITICAL] 을 낮춰
-  `BLOCK: NO` 로 적었으면 경고한다.
+- **router 강제 규칙 확장**: 바뀐 파일이 하나라도 있으면 확장자 · 위치와 무관하게 필수 6역할(security · requirement · scope ·
+  side_effect · maintainability · testing)을 강제한다. 전에는 소스 파일이 있을 때만 강제해서 문서 · 하네스만 바꾼 Task 는
+  라운드가 `missing_roles` 로 남았다. NERV 정책 `review_roles.code` 가 라운드마다 이 6역할을 요구하고, done 게이트는 모든 Task 에
+  passed 라운드를 요구한다. `REVIEW_AGENTS` 로 직접 고르면 그 선택을 따른다.
+- **제출 도우미(신설)** `.claude/tools/nerv_review_payload.py`: 세션의 역할 리포트를 역할별 제출 묶음(JSON)으로 바꾼다. 역할은
+  세션 상태 파일의 호출 목록이 정하고, 목록 밖의 `*.md` 는 내지 않는다. 형식 밖의 심각도 표지는 경고로 알린다. 강제 역할
+  리포트가 빠졌거나, kind=code 세션에 상태 파일이 없거나, 낼 묶음이 없으면 exit 1 이다. consistency SUMMARY 가 checker 의
+  [CRITICAL] 을 낮춰 `BLOCK: NO` 로 적었으면 경고한다.
+- **처리 인계 도구(신설)** `.claude/tools/nerv_review_handoff.py`: main 과 `resolution-applier` 가 주고받는 두 파일을 만들고
+  검사한다. `fetch` 는 브랜치의 열린 발견을 NERV REST 로 읽어 `_nerv_findings.json` 을 쓴다(발견 ID 를 손으로 옮기지 않는다).
+  `check` 는 applier 의 `_dispositions.json` 이 형식 · 전체 ID · fixed 커밋의 소속 · critical 하향 금지 · 전수 처분을 지키는지
+  보고, `pending` 은 NERV 에 아직 기록되지 않은 처분만 낸다(다시 기록할 때 이미 기록된 처분을 덮지 않는다).
 
 ## Unreleased — 하네스: 스펙의 정본이 NERV 로 옮겨 가고 `spec/` 은 읽기 전용 미러가 된다
 

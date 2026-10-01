@@ -8,6 +8,8 @@ NERV 정본 전환 단계 2(NERV Task `CLE-T-4ABTG7`)부터 리뷰 결과는 NER
   - 형식에서 벗어난 심각도 표지는 버리지 않고 `warnings` 로 알린다. 조용히 버리면 그 발견 없이
     라운드가 passed 가 된다.
   - 강제 역할의 리포트가 빠지면 exit 1 — 그대로 내면 라운드가 `missing_roles` 로 남는다.
+  - 역할은 상태 파일의 `subagent_invocations` 가 정한다. 목록에 없는 `*.md` 는 내지 않는다.
+  - kind=code 에서 상태 파일이 없거나, 낼 묶음이 없으면 exit 1 — 조용히 통과하지 않는다.
   - 세션 경로에서 kind 를 읽는다(`.review/<kind>/<Y>/<m>/<d>/<H_M_S>`).
 """
 
@@ -129,7 +131,8 @@ class BuildTest(unittest.TestCase):
         (self.sd / "SUMMARY.md").write_text("# 통합\n- **[CRITICAL]** 요약 속 발견\n", encoding="utf-8")
         (self.sd / "_retry_state.json").write_text(json.dumps({
             "agents_forced": ["security", "scope"],
-            "subagent_invocations": [{"name": "security", "output_file": "security.md"},
+            # 실제 오케스트레이터는 절대 경로를 쓴다.
+            "subagent_invocations": [{"name": "security", "output_file": str(self.sd / "security.md")},
                                      {"name": "scope", "output_file": "scope.md"}],
         }), encoding="utf-8")
 
@@ -160,6 +163,53 @@ class BuildTest(unittest.TestCase):
         self.assertEqual([s["reviewer"]["role"] for s in out["submissions"]], ["security"])
         self.assertEqual(out["missing_forced"], ["scope"])
         self.assertTrue(any("scope.md" in w for w in out["warnings"]))
+
+    def test_a_report_outside_the_role_list_is_not_submitted(self):
+        """처리 중에 세션에 생긴 제안 파일이 가짜 역할로 라운드에 실리면 안 된다."""
+        (self.sd / "spec-proposal-auth.md").write_text("- **[WARNING]** 인용된 발견\n", encoding="utf-8")
+        out = tool.build(str(self.sd))
+        self.assertEqual([s["reviewer"]["role"] for s in out["submissions"]], ["scope", "security"])
+        self.assertTrue(any("spec-proposal-auth.md" in w for w in out["warnings"]), out["warnings"])
+        self.assertEqual(self.run_cli().returncode, 0)
+
+    def test_a_code_session_without_its_state_fails(self):
+        for body in (None, "{broken", json.dumps({"agents_forced": ["security"]})):
+            with self.subTest(body=body):
+                state = self.sd / "_retry_state.json"
+                if body is None:
+                    state.unlink(missing_ok=True)
+                else:
+                    state.write_text(body, encoding="utf-8")
+                r = self.run_cli()
+                self.assertEqual(r.returncode, 1, r.stdout)
+                self.assertTrue(any("_retry_state.json" in x for x in json.loads(r.stdout)["errors"]))
+
+    def test_other_kinds_without_state_fall_back_to_every_report(self):
+        d = self.tmp / ".review" / "merge" / "2026" / "10" / "01" / "12_00_00"
+        d.mkdir(parents=True)
+        (d / "merge-conflict-analyzer.md").write_text(REPORT, encoding="utf-8")
+        out = tool.build(str(d))
+        self.assertEqual([s["reviewer"]["role"] for s in out["submissions"]], ["merge-conflict-analyzer"])
+        self.assertEqual(out["errors"], [])
+        self.assertTrue(out["warnings"])
+
+    def test_nothing_to_submit_fails(self):
+        d = self.tmp / ".review" / "spec-coverage" / "2026" / "10" / "01" / "12_00_00"
+        d.mkdir(parents=True)
+        (d / "SUMMARY.md").write_text("# 후보\n", encoding="utf-8")
+        (d / "meta.json").write_text("{}", encoding="utf-8")
+        r = subprocess.run([sys.executable, str(TOOL_PATH), str(d)], capture_output=True, text=True, timeout=60)
+        self.assertEqual(r.returncode, 1, r.stdout)
+        out = json.loads(r.stdout)
+        self.assertEqual(out["submissions"], [])
+        self.assertTrue(any("전환 4e" in x for x in out["errors"]), out["errors"])
+
+    def test_the_changeset_comes_from_meta(self):
+        self.assertNotIn("changeset", tool.build(str(self.sd)))
+        (self.sd / "meta.json").write_text(json.dumps({"files": ["a.ts", "b.md"]}), encoding="utf-8")
+        self.assertEqual(tool.build(str(self.sd))["changeset"], ["a.ts", "b.md"])
+        (self.sd / "meta.json").write_text(json.dumps({"files": [1]}), encoding="utf-8")
+        self.assertNotIn("changeset", tool.build(str(self.sd)))
 
     def test_kind_comes_from_the_path_or_the_flag(self):
         for name, kind in (("consistency", "consistency"), ("merge", "merge"),

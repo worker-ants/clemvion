@@ -3,7 +3,8 @@
 NERV 정본 전환 단계 2(NERV Task `CLE-T-4ABTG7`)부터 리뷰 결과의 정본은 NERV 리뷰 레코드다.
 저장소 `review/**` 파일은 더 이상 판정 근거가 아니다. 이 모듈은 NERV 의 판정 API(N1,
 `GET /api/v1/projects/<p>/gates/reviews/check`)를 읽기만 하고, 그 위에 git 으로만 볼 수 있는
-두 가지(라운드 이후 커밋, 처분 커밋의 소속)를 더해 판정한다.
+두 가지(라운드 이후 커밋, 처분 커밋의 소속)를 더해 판정한다. 같은 응답의 kind=consistency 라운드는
+라운드 이후 커밋을 설명하는 데만 쓴다(판정 상태는 보지 않는다. 그것은 NERV done 게이트의 몫이다).
 
 소비자:
   - `.claude/hooks/guard_review_before_push.py` (PreToolUse(Bash): `git push` 를 막는다)
@@ -17,12 +18,19 @@ NERV 정본 전환 단계 2(NERV Task `CLE-T-4ABTG7`)부터 리뷰 결과의 정
      열린 critical · warning 은 서버가 `pending` 으로 판정한다.
   2. 라운드 `head_sha` 가 이 체크아웃에 있고 HEAD 의 조상이어야 한다. rebase · amend 로 라운드
      head 가 사라졌으면 새 HEAD 로 리뷰를 다시 제출해야 한다.
-  3. 라운드 head 이후 `codebase/**` 를 바꾼 커밋(merge 커밋과 기준 브랜치에서 들어온 커밋은
-     뺀다)은 모두 그 라운드 발견의 `fixed` 처분 `commit_sha` 여야 한다. 리뷰 뒤 fix 커밋만 있으면
-     새 라운드 없이 통과한다.
-  4. `fixed` 로 처분된 발견의 `commit_sha` 는 HEAD 에서 닿는 커밋이어야 한다. NERV 는 발견을
-     프로젝트 전체에서 지문으로 합친다. 그래서 다른 브랜치에서 고친 같은 지적도 이 라운드에
-     `fixed` 로 보인다. 그 수정이 이 브랜치에 없으면 막는다.
+  3. 라운드 head 이후 `codebase/**` 를 바꾼 커밋은 모두 설명돼야 한다. 기준 브랜치에서 들어온
+     커밋은 뺀다. merge 커밋은 모든 부모와 다른 `codebase/**` 파일이 있을 때만 센다(`git diff-tree
+     --cc`. 충돌을 손으로 푼 코드 · evil merge). 설명된 커밋은 둘 중 하나다.
+       - code · consistency 라운드에서 `fixed` 로 처분된 발견의 `commit_sha` 다.
+       - 커밋 메시지가 그런 발견을 `finding <발견 전체 ID>` 로 인용한다(e2e 실패 뒤 후속 수정처럼
+         처분 하나에 커밋이 여럿인 경우).
+     리뷰 뒤 fix 커밋만 있으면 새 라운드 없이 통과한다. **fix 커밋은 다시 리뷰되지 않는다.** `fixed`
+     처분과 인용은 main 세션의 자기 신고이고, 이 게이트는 커밋이 처분에 묶였는지만 본다. 리뷰 뒤
+     변경이 크면 새 라운드를 제출한다(`code-review-agents` SKILL §4).
+  4. code 라운드에서 `fixed` 로 처분된 발견의 `commit_sha` 는 HEAD 에서 닿는 커밋이어야 한다. NERV 는
+     발견을 프로젝트 전체에서 지문으로 합친다. 그래서 다른 브랜치에서 고친 같은 지적도 이 라운드에
+     `fixed` 로 보인다. 그 수정이 이 브랜치에 없으면 막는다. consistency 라운드의 그런 처분은 막지 않고
+     설명에도 쓰지 않는다(push 판정이 consistency 상태에 기대지 않기 때문이다).
   변경이 없으면 통과한다. 커밋하지 않은 변경은 push 되지 않으므로 보지 않는다.
 
 판정하지 못하면(`GateUnavailable`) 호출자가 fail-open 하고 그 사실을 센다(push 훅의 배너와
@@ -31,14 +39,15 @@ NERV 정본 전환 단계 2(NERV Task `CLE-T-4ABTG7`)부터 리뷰 결과의 정
 초록인 채로 영원히 꺼져 있기 때문이다.
 
 NERV 쓰기는 이 모듈이 하지 않는다. 리뷰 제출과 처분은 main 세션의 MCP 호출로만 한다(`CLAUDE.md`).
-읽기는 `.claude/tools/nerv-mirror/pull.py` 의 `Nerv` 클라이언트를 쓴다(curl, `-K -` 로 토큰 전달).
+읽기는 `.claude/_shared/nerv_read.py` 가 만든 `pull.py` 의 `Nerv` 클라이언트를 쓴다(curl, `-K -` 로
+토큰 전달).
 """
 
 from __future__ import annotations
 
-import importlib.util
 import json
 import os
+import re
 import sys
 from dataclasses import dataclass
 
@@ -50,6 +59,7 @@ _CLAUDE_DIR = os.path.dirname(os.path.dirname(THIS_DIR))  # …/.claude
 if _CLAUDE_DIR not in sys.path:
     sys.path.insert(0, _CLAUDE_DIR)
 from _shared import git_probe as _git_probe  # noqa: E402
+from _shared import nerv_read as _nerv_read  # noqa: E402
 
 _run_git = _git_probe._run_git
 _repo_root = _git_probe._repo_root
@@ -58,9 +68,15 @@ _current_branch = _git_probe._current_branch
 
 CODE_PREFIX = "codebase/"
 N1_PATH = "/api/v1/projects/{project}/gates/reviews/check"
+# N1 에 함께 묻는 kind. code 는 판정, consistency 는 라운드 이후 커밋의 설명에만 쓴다.
+N1_KINDS = ("code", "consistency")
+# 커밋 메시지의 발견 인용. NERV 발견 ID 는 UUIDv7 이라 앞 8자는 같은 분 안에서 겹친다
+# (실측 2026-10-01: 한 제출의 발견 13건이 모두 `01a0f648-`). 그래서 전체 ID 만 인용으로 본다.
+_FINDING_CITE = re.compile(
+    r"\bfinding ([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\b", re.IGNORECASE
+)
 # 훅은 모든 push 앞에서 동기로 돈다. 서버가 멈추면 이 시간 뒤 fail-open 한다.
 N1_MAX_TIME = "15"
-_PULL_PY = os.path.join(_CLAUDE_DIR, "tools", "nerv-mirror", "pull.py")
 # 메시지에 나열할 커밋 · 발견 수 상한.
 _LIST_LIMIT = 5
 
@@ -96,50 +112,25 @@ class ReviewDecision:
 
 # -- NERV 읽기 ----------------------------------------------------------------------
 
-def _load_pull():
-    """`pull.py` 를 모듈로 불러온다. 이름이 흔해서 `nerv_mirror_pull` 로 등록한다."""
-    name = "nerv_mirror_pull"
-    if name in sys.modules:
-        return sys.modules[name]
-    spec = importlib.util.spec_from_file_location(name, _PULL_PY)
-    if spec is None or spec.loader is None:
-        raise GateUnavailable(f"NERV 클라이언트를 찾지 못했다 — {_PULL_PY}")
-    module = importlib.util.module_from_spec(spec)
-    sys.modules[name] = module
-    try:
-        spec.loader.exec_module(module)
-    except Exception as exc:  # noqa: BLE001 — 불러오기 실패는 판정 불가다
-        sys.modules.pop(name, None)
-        raise GateUnavailable(f"NERV 클라이언트를 불러오지 못했다 — {type(exc).__name__}: {exc}") from exc
-    return module
-
-
 def _client_from_env():
-    """환경의 `NERV_SERVER` · `NERV_TOKEN` · `NERV_PROJECT` 로 읽기 클라이언트를 만든다.
-
-    로컬은 `.claude/settings.local.json` 의 `env`, CI 는 워크플로 `env`(secret)가 채운다.
-    값은 오류 메시지에 싣지 않는다."""
-    pull = _load_pull()
-    server = os.environ.get("NERV_SERVER", "")
-    token = os.environ.get("NERV_TOKEN", "")
-    project = os.environ.get("NERV_PROJECT", "") or "clemvion"
-    missing = [n for n, v in (("NERV_SERVER", server), ("NERV_TOKEN", token)) if not v]
-    if missing:
-        raise GateMisconfigured(f"{' · '.join(missing)} 가 없다 — NERV 판정을 읽을 수 없다")
+    """환경의 `NERV_SERVER` · `NERV_TOKEN` · `NERV_PROJECT` 로 읽기 클라이언트를 만든다(짧은 훅 시간 제한)."""
     try:
-        return pull.Nerv(server, project, token, max_time=N1_MAX_TIME)
-    except pull.PullError as exc:
-        raise GateMisconfigured(f"NERV 클라이언트 설정이 틀렸다 — {exc}") from exc
+        return _nerv_read.client_from_env(max_time=N1_MAX_TIME)
+    except _nerv_read.NervConfigError as exc:
+        raise GateMisconfigured(str(exc)) from exc
+    except _nerv_read.NervReadError as exc:
+        raise GateUnavailable(str(exc)) from exc
 
 
-def fetch_code_round(client, branch: str) -> dict:
-    """N1 에서 이 브랜치의 kind=code 최신 라운드를 읽는다.
+def fetch_rounds(client, branch: str) -> dict[str, dict]:
+    """N1 에서 이 브랜치의 kind=code · consistency 최신 라운드를 읽는다. `{kind: 항목}`.
 
-    `head_sha` 인자는 넘기지 않는다. 넘기면 서버가 그 커밋의 라운드만 찾는다(실측 2026-10-01: 라운드
-    head 의 자손 커밋을 넘기면 `uncovered`). 조상 · 이후 커밋 판정은 이 모듈이 git 으로 한다."""
+    kind=code 항목이 없으면 판정 불가다. consistency 항목은 없어도 된다. `head_sha` 인자는 넘기지
+    않는다. 넘기면 서버가 그 커밋의 라운드만 찾는다(실측 2026-10-01: 라운드 head 의 자손 커밋을
+    넘기면 `uncovered`). 조상 · 이후 커밋 판정은 이 모듈이 git 으로 한다."""
     import urllib.parse  # noqa: PLC0415 — 이 함수만 쓴다
 
-    query = urllib.parse.urlencode({"branch": branch, "kind": "code"})
+    query = urllib.parse.urlencode({"branch": branch, "kind": ",".join(N1_KINDS)})
     path = N1_PATH.format(project=client.project) + "?" + query
     try:
         status, body = client.get(path)
@@ -156,10 +147,13 @@ def fetch_code_round(client, branch: str) -> dict:
     items = doc.get("items") if isinstance(doc, dict) else None
     if not isinstance(items, list):
         raise GateUnavailable("NERV 판정 응답에 items 가 없다")
+    rounds: dict[str, dict] = {}
     for item in items:
-        if isinstance(item, dict) and item.get("kind") == "code":
-            return item
-    raise GateUnavailable("NERV 판정 응답에 kind=code 항목이 없다")
+        if isinstance(item, dict) and item.get("kind") in N1_KINDS:
+            rounds.setdefault(str(item["kind"]), item)
+    if "code" not in rounds:
+        raise GateUnavailable("NERV 판정 응답에 kind=code 항목이 없다")
+    return rounds
 
 
 # -- git ------------------------------------------------------------------------------
@@ -169,11 +163,15 @@ def _git_ok(args: list[str], cwd: str) -> bool:
     return rc == 0
 
 
-def _git_lines(args: list[str], cwd: str) -> list[str]:
+def _git_text(args: list[str], cwd: str) -> str:
     rc, out, err = _run_git(args, cwd)
     if rc != 0:
         raise GateUnavailable(f"git {args[0]} 실패 — {err or f'rc={rc}'}")
-    return [ln for ln in out.splitlines() if ln.strip()]
+    return out
+
+
+def _git_lines(args: list[str], cwd: str) -> list[str]:
+    return [ln for ln in _git_text(args, cwd).splitlines() if ln.strip()]
 
 
 def _commit_of(ref: str, cwd: str) -> str | None:
@@ -210,16 +208,67 @@ def _base_ref(cwd: str, given: str | None) -> str:
     raise GateUnavailable("기준 브랜치를 찾지 못했다 — 이 브랜치의 변경 범위를 정할 수 없다")
 
 
-def _fixed_commits(item: dict) -> list[tuple[str, str]]:
-    """라운드 발견 중 `fixed` 처분의 (commit_sha 소문자, 발견 제목)."""
-    out: list[tuple[str, str]] = []
-    for f in item.get("findings") or []:
+@dataclass(frozen=True)
+class _Fix:
+    finding_id: str  # 소문자. 비어 있을 수 있다
+    sha: str  # 처분의 commit_sha 소문자(축약 가능)
+    title: str
+
+
+def _fixed_findings(item: dict | None) -> list[_Fix]:
+    """라운드 발견 중 `fixed` 처분이고 `commit_sha` 가 있는 것."""
+    out: list[_Fix] = []
+    for f in (item or {}).get("findings") or []:
         if not isinstance(f, dict) or f.get("status") != "fixed":
             continue
         res = f.get("resolution") if isinstance(f.get("resolution"), dict) else {}
         sha = str(res.get("commit_sha") or "").strip().lower()
         if sha:
-            out.append((sha, str(f.get("title") or f.get("id") or "")))
+            fid = str(f.get("id") or "").strip().lower()
+            out.append(_Fix(fid, sha, str(f.get("title") or fid)))
+    return out
+
+
+def _settle(fixes: list[_Fix], head_sha: str, cwd: str) -> tuple[dict[str, str], list[str]]:
+    """처분 커밋을 이 브랜치에서 푼다. (`{처분 sha: 전체 해시}` — HEAD 에서 닿는 것만, 닿지 않는 sha).
+
+    같은 커밋을 여러 발견이 가리키므로 한 번씩만 본다. 축약 해시는 git 이 푼다(모호하거나 없으면
+    None → 이 브랜치의 커밋이 아니다)."""
+    reachable: dict[str, str] = {}
+    foreign: list[str] = []
+    for sha in sorted({f.sha for f in fixes}):
+        full = _resolve_commit(sha, cwd)
+        if full is not None and _git_ok(["merge-base", "--is-ancestor", full, head_sha], cwd):
+            reachable[sha] = full
+        else:
+            foreign.append(sha)
+    return reachable, foreign
+
+
+def _commits_after(round_head: str, head_sha: str, base: str, cwd: str) -> list[str]:
+    """라운드 head 이후 이 브랜치가 `codebase/**` 를 바꾼 커밋. 기준 브랜치에서 온 커밋은 뺀다.
+
+    merge 커밋은 `--cc` 로 모든 부모와 다른 파일만 본다. 기준 브랜치를 merge 한 깨끗한 merge 는 빈
+    출력이라 세지 않고, 충돌을 손으로 푼 코드 · merge 에 끼워 넣은 코드는 센다."""
+    rng = [f"{round_head}..{head_sha}", "--not", base]
+    after = _git_lines(["rev-list", "--no-merges", *rng, "--", CODE_PREFIX], cwd)
+    for merge in _git_lines(["rev-list", "--merges", *rng], cwd):
+        if _git_lines(["diff-tree", "--cc", "--no-commit-id", "--name-only", "-r", merge, "--", CODE_PREFIX], cwd):
+            after.append(merge)
+    return after
+
+
+def _citations(commits: list[str], cwd: str) -> dict[str, set[str]]:
+    """커밋마다 메시지가 인용한 발견 ID(소문자). `finding <전체 ID>` 형식만 센다."""
+    if not commits:
+        return {}
+    out: dict[str, set[str]] = {}
+    text = _git_text(["show", "-s", "--format=%H%x1f%B%x1e", *commits], cwd)
+    # `str.strip()` 은 \x1e · \x1f 도 공백으로 본다. 레코드 앞의 줄바꿈만 걷는다.
+    for record in text.split("\x1e"):
+        sha, sep, body = record.lstrip("\n").partition("\x1f")
+        if sep:
+            out[sha] = {m.lower() for m in _FINDING_CITE.findall(body)}
     return out
 
 
@@ -285,7 +334,8 @@ def evaluate_review(
     if not branch:
         raise GateUnavailable("브랜치 이름이 없다(detached HEAD) — NERV 라운드를 찾을 수 없다")
 
-    item = fetch_code_round(client if client is not None else _client_from_env(), branch)
+    rounds = fetch_rounds(client if client is not None else _client_from_env(), branch)
+    item = rounds["code"]
     if item.get("state") != "passed":
         return ReviewDecision(True, f"codebase/ 파일 {len(changed)}개를 바꿨다. " + _not_passed_reason(item, branch))
 
@@ -299,32 +349,33 @@ def evaluate_review(
             "제출한다.",
         )
 
-    # (4) 처분 커밋이 이 브랜치에 있는가. 같은 커밋을 여러 발견이 가리키므로 한 번씩만 본다.
-    # 축약 해시는 git 이 푼다(모호하거나 없으면 None → 이 브랜치의 커밋이 아니다).
-    fixed = _fixed_commits(item)
-    foreign: list[str] = []
-    fixed_full: set[str] = set()
-    for sha in sorted({s for s, _ in fixed}):
-        full = _resolve_commit(sha, cwd)
-        if full is not None and _git_ok(["merge-base", "--is-ancestor", full, head_sha], cwd):
-            fixed_full.add(full)
-            continue
-        titles = [t for s, t in fixed if s == sha]
-        foreign.append(f"`{_short(sha)}` ({titles[0][:60]}{' 외' if len(titles) > 1 else ''})")
-    if foreign:
-        shown = ", ".join(foreign[:_LIST_LIMIT]) + (f" 외 {len(foreign) - _LIST_LIMIT}건" if len(foreign) > _LIST_LIMIT else "")
+    # (4) code 라운드의 처분 커밋이 이 브랜치에 있는가.
+    code_fixes = _fixed_findings(item)
+    code_reach, code_foreign = _settle(code_fixes, head_sha, cwd)
+    if code_foreign:
+        labels = []
+        for sha in code_foreign:
+            titles = [f.title for f in code_fixes if f.sha == sha]
+            labels.append(f"`{_short(sha)}` ({titles[0][:60]}{' 외' if len(titles) > 1 else ''})")
+        shown = ", ".join(labels[:_LIST_LIMIT]) + (f" 외 {len(labels) - _LIST_LIMIT}건" if len(labels) > _LIST_LIMIT else "")
         return ReviewDecision(
             True,
             f"kind=code 라운드 {round_no} 의 fixed 처분 커밋이 이 브랜치에 없다: {shown}. 다른 브랜치에서 "
             "고친 같은 지적일 수 있다. 이 브랜치에서 고치고 그 커밋으로 처분하거나 리뷰를 다시 제출한다.",
         )
 
-    # (3) 라운드 이후 codebase/ 커밋은 모두 처분 커밋이어야 한다. merge 커밋과 기준 브랜치에서 들어온
-    # 커밋은 뺀다(`sync_with_base_branch` 가 만든 merge 가 남의 코드를 이 브랜치 변경으로 세지 않게).
-    after = _git_lines(
-        ["rev-list", "--no-merges", f"{round_head}..{head_sha}", "--not", base, "--", CODE_PREFIX], cwd
-    )
-    unexplained = [c for c in after if c not in fixed_full]
+    # (3) 라운드 이후 codebase/ 커밋은 모두 설명돼야 한다. consistency 라운드의 처분은 이 브랜치에서
+    # 닿는 것만 쓴다(닿지 않는 것은 막지도 설명하지도 않는다).
+    cons_fixes = _fixed_findings(rounds.get("consistency"))
+    cons_reach, _ = _settle(cons_fixes, head_sha, cwd)
+    reach = {**code_reach, **cons_reach}
+    fixed_full = set(reach.values())
+    fixed_ids = {f.finding_id for f in code_fixes + cons_fixes if f.finding_id and f.sha in reach}
+
+    after = _commits_after(round_head, head_sha, base, cwd)
+    by_sha = [c for c in after if c not in fixed_full]
+    cited = _citations(by_sha, cwd)
+    unexplained = [c for c in by_sha if not (cited.get(c, set()) & fixed_ids)]
     if unexplained:
         shown = ", ".join(f"`{_short(c)}`" for c in unexplained[:_LIST_LIMIT])
         if len(unexplained) > _LIST_LIMIT:
@@ -336,13 +387,18 @@ def evaluate_review(
                      "빠진 발견의 처분 커밋은 보지 못했다.",)
         return ReviewDecision(
             True,
-            f"kind=code 라운드 {round_no} 이후 codebase/ 를 바꾼 커밋 {len(unexplained)}개가 그 라운드 "
-            f"발견의 fixed 처분 커밋이 아니다: {shown}. 발견을 그 커밋으로 처분"
-            "(`nerv_finding_resolve` resolution=fixed, commit_sha)하거나 지금 HEAD 로 리뷰를 다시 제출한다.",
+            f"kind=code 라운드 {round_no} 이후 codebase/ 를 바꾼 커밋 {len(unexplained)}개가 fixed 처분 "
+            f"커밋도 아니고 fixed 발견을 인용하지도 않는다: {shown}. 발견을 그 커밋으로 처분"
+            "(`nerv_finding_resolve` resolution=fixed, commit_sha)하거나, 같은 발견의 후속 수정이면 커밋 "
+            "메시지에 `finding <발견 전체 ID>` 를 적거나, 지금 HEAD 로 리뷰를 다시 제출한다.",
             notes,
         )
 
-    tail = f", 이후 codebase/ 커밋 {len(after)}개는 모두 처분 커밋" if after else ""
+    tail = ""
+    if after:
+        tail = f", 이후 codebase/ 커밋 {len(after)}개는 모두 처분 커밋"
+        if by_sha:
+            tail += f"(그중 {len(by_sha)}개는 메시지 인용)"
     return ReviewDecision(
         False,
         f"codebase/ 파일 {len(changed)}개를 kind=code 라운드 {round_no}(head `{_short(round_head)}`, passed)가 "

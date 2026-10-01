@@ -34,7 +34,7 @@ Policy matrix (this module is the SSOT for the table below)
 | Trigger                                  | Forced reviewers                                                     | Source                       |
 |------------------------------------------|----------------------------------------------------------------------|------------------------------|
 | Source-code file (44 extensions below)   | security, requirement, scope, side_effect, maintainability, testing  | _SOURCE_FORCED_REVIEWERS     |
-|   or any file under `code_areas`         |                                                                      | (codebase/** — NERV policy)  |
+|   or any other changed file              |                                                                      | (NERV review_roles.code)     |
 | Package manifest / lockfile              | dependency + documentation                                           | _RULES → _PACKAGE_PATTERNS   |
 | Doc file (.md/.txt/.rst/.adoc/LICENSE/   | documentation                                                        | _RULES → _DOC_PATTERNS       |
 |   NOTICE/AUTHORS/CHANGELOG/README/...)   |                                                                      |                              |
@@ -44,14 +44,15 @@ Policy matrix (this module is the SSOT for the table below)
 | Dockerfile / docker-compose*.{yml,yaml}  | dependency + security                                                | _RULES → _DOCKER_PATTERNS    |
 | .dockerignore                            | security                                                             | _RULES → _DOCKERIGNORE_PATTERNS |
 | .env / .env.* / *.env / *.env.example    | security                                                             | _RULES → _ENV_PATTERNS       |
-| Unclassified (.gitignore, binary 외)     | (none) → router fatal → main writes minimal SUMMARY                  | —                            |
+| Unclassified (.gitignore, binary 외)     | only the six of the first row                                        | —                            |
 
-The `code_areas` half of the first row (`.claude.project.json`, default `codebase`):
-every file under a code area forces the same six reviewers whatever its extension.
-NERV's `review_roles.code` policy requires all six roles in every code round, and the
-push hook and the CI backstop read that round (NERV cutover stage 2). A `codebase/`
-change made only of JSON, YAML or Markdown would otherwise leave the round
-`missing_roles` and the branch unpushable.
+The "any other changed file" half of the first row: NERV's `review_roles.code` policy
+requires all six roles in every code round, whatever the round changed (NERV cutover
+stage 2). The push hook and the CI backstop read that round for `codebase/**`, and the
+NERV done gate wants a passed code round for every Task — harness-only and docs-only
+Tasks included. A change made only of JSON, YAML or Markdown would otherwise leave the
+round `missing_roles`: the branch unpushable, or the Task impossible to close. An
+explicit `REVIEW_AGENTS` selection still wins (rules drop unavailable reviewers).
 
 Source-code extensions counted by `_SOURCE_FORCED_REVIEWERS`:
   ts tsx js jsx mjs cjs · py pyi · java kt kts scala groovy ·
@@ -350,11 +351,13 @@ def compute_forced_agents(
       ``corpora.conventions`` rebuild the spec-md rule's patterns; all other
       rules are repo-agnostic.
 
-    Two rule kinds are folded together:
+    Three rule kinds are folded together:
       1. Path-pattern rules in `_RULES` (e.g. lockfile → dependency).
       2. The source-code blanket rule: if any changed file has a source
          extension, the six reviewers in `_SOURCE_FORCED_REVIEWERS` are
          all included. Reason annotated with up to 3 sample paths.
+      3. The NERV rule: any other changed file forces the same six
+         (`review_roles.code`, see the module docstring).
 
     `reasons_by_agent[<reviewer>]` is a list of human-readable why-strings
     (one per matching rule), suitable for debug logging and SUMMARY.
@@ -408,25 +411,16 @@ def compute_forced_agents(
             if reviewer in available:
                 forced.setdefault(reviewer, []).append(note)
 
-    # Rule kind 3 — any file under a code area forces the same six, whatever its
-    # extension (see the module docstring: NERV `review_roles.code`).
-    in_code_area = sorted(set(code_area_files(paths, cfg["code_areas"])))
-    if in_code_area:
-        sample = in_code_area[:3]
-        note = f"코드 영역 변경 — NERV 필수 리뷰 역할: {', '.join(sample)}"
-        if len(in_code_area) > 3:
-            note += f" (외 {len(in_code_area) - 3}건)"
+    # Rule kind 3 — every other changed file forces the same six, whatever its
+    # extension or location (see the module docstring: NERV `review_roles.code`).
+    others = sorted(set(paths) - set(changed_source))
+    if others:
+        sample = others[:3]
+        note = f"NERV 필수 리뷰 역할(review_roles.code) — 비소스 변경: {', '.join(sample)}"
+        if len(others) > 3:
+            note += f" (외 {len(others) - 3}건)"
         for reviewer in _SOURCE_FORCED_REVIEWERS:
             if reviewer in available:
                 forced.setdefault(reviewer, []).append(note)
 
     return sorted(forced.keys()), forced
-
-
-def code_area_files(file_paths: Iterable[str], code_areas: Iterable[str]) -> list[str]:
-    """The changed paths that sit under one of `code_areas` (`.claude.project.json`).
-
-    A path equal to the area name itself is not under it, and `codebase-x/a` is not
-    under `codebase` — the match is on a whole leading path segment."""
-    roots = [a.strip("/") + "/" for a in code_areas if isinstance(a, str) and a.strip("/")]
-    return [p for p in file_paths if any(_normalize(p).startswith(r) for r in roots)]

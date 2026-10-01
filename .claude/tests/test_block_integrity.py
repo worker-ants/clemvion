@@ -23,6 +23,7 @@ and a warning that fires always is one nobody reads.
 
 from __future__ import annotations
 
+import json
 import os
 import shutil
 import tempfile
@@ -275,6 +276,9 @@ class PayloadSurfacesTheContradictionTest(unittest.TestCase):
             f.write(f"**BLOCK: {block}** — 요약\n")
         with open(os.path.join(d, "cross_spec.md"), "w", encoding="utf-8") as f:
             f.write(report_body)
+        # 역할 목록이 없으면 도구가 그 사실을 따로 경고한다 — 이 클래스가 보려는 경고만 남긴다.
+        with open(os.path.join(d, "_retry_state.json"), "w", encoding="utf-8") as f:
+            json.dump({"subagent_invocations": [{"name": "cross_spec", "output_file": "cross_spec.md"}]}, f)
         return d
 
     def _warnings(self, session_dir):

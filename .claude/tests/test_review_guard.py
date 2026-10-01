@@ -3,7 +3,8 @@
 NERV 정본 전환 단계 2(NERV Task `CLE-T-4ABTG7`)에서 판정 근거가 저장소 `review/**` 파일에서
 NERV 리뷰 라운드로 바뀌었다. 여기서 고정하는 것:
 
-  - 판정표 — 라운드 상태 · 라운드 head 의 소속 · 라운드 이후 커밋 · 처분 커밋의 소속.
+  - 판정표 — 라운드 상태 · 라운드 head 의 소속 · 라운드 이후 커밋(merge 포함) · 처분 커밋의 소속 ·
+    커밋 메시지의 발견 인용 · consistency 라운드 처분의 쓰임.
   - 판정 불가 — 서버 · 응답 · git 문제는 `GateUnavailable`, 설정 문제는 `GateMisconfigured`.
     통과로 돌려주지 않는다(호출자가 세야 fail-open 이 조용히 지나가지 않는다).
   - 서버 응답을 git 인자로 넘기기 전에 거른다.
@@ -32,8 +33,9 @@ class FakeClient:
 
     project = "clemvion"
 
-    def __init__(self, item=None, *, status=200, raw=None, exc=None):
+    def __init__(self, item=None, *, extra=(), status=200, raw=None, exc=None):
         self.item = item
+        self.extra = list(extra)
         self.status = status
         self.raw = raw
         self.exc = exc
@@ -45,14 +47,14 @@ class FakeClient:
             raise self.exc
         if self.raw is not None:
             return self.status, self.raw
-        items = [self.item] if self.item is not None else []
+        items = ([self.item] if self.item is not None else []) + self.extra
         return self.status, json.dumps({"branch": "feature", "items": items}).encode()
 
 
 def code_item(state="passed", head=None, *, findings=(), round_no=1, reasons=(),
-              missing=(), total=None):
+              missing=(), total=None, kind="code"):
     item = {
-        "kind": "code", "state": state, "round_no": round_no, "head_sha": head,
+        "kind": kind, "state": state, "round_no": round_no, "head_sha": head,
         "reasons": list(reasons), "open": {"critical": 0, "warning": 0, "info": 0},
         "roles": {"required": [], "reported": [], "missing": list(missing)},
         "findings": list(findings),
@@ -62,9 +64,17 @@ def code_item(state="passed", head=None, *, findings=(), round_no=1, reasons=(),
     return item
 
 
-def fixed(sha, title="발견"):
-    return {"id": "f", "severity": "warning", "title": title, "status": "fixed",
-            "resolution": {"kind": "fixed", "commit_sha": sha}}
+_IDS = iter(range(1, 10_000))
+
+
+def finding_id():
+    """UUIDv7 모양의 발견 ID. 앞 8자를 일부러 같게 둔다(실제 NERV ID 처럼)."""
+    return f"01a0f648-f6{next(_IDS):02x}-7000-8000-{0:012x}"
+
+
+def fixed(sha, title="발견", *, fid=None, status="fixed"):
+    return {"id": fid or finding_id(), "severity": "warning", "title": title, "status": status,
+            "resolution": {"kind": status, "commit_sha": sha}}
 
 
 class _RepoCase(unittest.TestCase):
@@ -175,6 +185,18 @@ class DecisionTableTest(_RepoCase):
         self.assertIn(c3[:12], d.reason)
         self.assertNotIn(c2[:12], d.reason)
 
+    def test_two_findings_fixed_by_one_commit(self):
+        c2 = self.commit("codebase/backend/src/a.ts", "export const a = 2;\n")
+        d = self.evaluate(FakeClient(code_item("passed", self.c1, findings=[fixed(c2, "앞"), fixed(c2, "뒤")])))
+        self.assertFalse(d.blocked, d.reason)
+
+    def test_a_commit_sha_on_a_non_fixed_disposition_explains_nothing(self):
+        """서버가 wont_fix 처분에 commit_sha 를 담아 와도 그 커밋은 설명되지 않는다."""
+        c2 = self.commit("codebase/backend/src/a.ts", "export const a = 2;\n")
+        d = self.evaluate(FakeClient(code_item("passed", self.c1, findings=[fixed(c2, status="wont_fix")])))
+        self.assertTrue(d.blocked)
+        self.assertIn(c2[:12], d.reason)
+
     def test_a_fix_commit_from_another_branch_blocks(self):
         """NERV 는 발견을 지문으로 합친다. 다른 브랜치의 처분이 이 라운드에 fixed 로 보인다."""
         self.git("checkout", "-q", "main")
@@ -211,6 +233,104 @@ class DecisionTableTest(_RepoCase):
         d = self.evaluate(FakeClient(code_item("passed", self.c1)))
         self.assertFalse(d.blocked, d.reason)
 
+    def _merge_main_with(self, extra_rel=None):
+        """main 에 커밋 하나를 더하고 feature 로 merge 한다. `extra_rel` 이면 merge 커밋에 파일을 끼운다."""
+        self.git("checkout", "-q", "main")
+        self.commit("codebase/shared/y.ts", "y\n")
+        self.git("update-ref", "refs/remotes/origin/main", "HEAD")
+        self.git("checkout", "-q", "feature")
+        if extra_rel is None:
+            self.git("merge", "-q", "--no-edit", "main")
+        else:
+            self.git("merge", "-q", "--no-commit", "main")
+            path = self.repo / extra_rel
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text("evil\n", encoding="utf-8")
+            self.git("add", "-A")
+            self.git("commit", "-qm", "merge main")
+        return self.git("rev-parse", "HEAD")
+
+    def test_code_slipped_into_a_merge_commit_blocks(self):
+        """evil merge — merge 커밋 안에서만 바뀐 codebase/ 파일도 라운드 이후 변경이다."""
+        merge = self._merge_main_with("codebase/backend/src/evil.ts")
+        d = self.evaluate(FakeClient(code_item("passed", self.c1)))
+        self.assertTrue(d.blocked)
+        self.assertIn(merge[:12], d.reason)
+
+    def test_a_merge_that_only_adds_files_outside_codebase_passes(self):
+        self._merge_main_with("docs/evil.md")
+        d = self.evaluate(FakeClient(code_item("passed", self.c1)))
+        self.assertFalse(d.blocked, d.reason)
+
+    def test_a_follow_up_commit_citing_a_fixed_finding_passes(self):
+        """e2e 실패 뒤 후속 수정 — 처분은 commit_sha 하나만 받으므로 메시지 인용으로 묶는다."""
+        c2 = self.commit("codebase/backend/src/a.ts", "export const a = 2;\n")
+        fid = finding_id()
+        self.commit("codebase/backend/src/a.ts", "export const a = 3;\n", msg=f"fix(a): finding {fid} e2e 후속")
+        d = self.evaluate(FakeClient(code_item("passed", self.c1, findings=[fixed(c2, fid=fid)])))
+        self.assertFalse(d.blocked, d.reason)
+        self.assertIn("메시지 인용", d.reason)
+
+    def test_the_citation_is_case_insensitive(self):
+        c2 = self.commit("codebase/backend/src/a.ts", "export const a = 2;\n")
+        fid = finding_id()
+        self.commit("codebase/backend/src/a.ts", "x\n", msg=f"Finding {fid.upper()}")
+        d = self.evaluate(FakeClient(code_item("passed", self.c1, findings=[fixed(c2, fid=fid)])))
+        self.assertFalse(d.blocked, d.reason)
+
+    def test_citing_a_finding_that_is_not_fixed_blocks(self):
+        c2 = self.commit("codebase/backend/src/a.ts", "export const a = 2;\n")
+        fid = finding_id()
+        c3 = self.commit("codebase/backend/src/a.ts", "x\n", msg=f"fix: finding {fid}")
+        open_finding = {"id": fid, "severity": "warning", "title": "열림", "status": "open"}
+        d = self.evaluate(FakeClient(code_item("passed", self.c1, findings=[fixed(c2), open_finding])))
+        self.assertTrue(d.blocked)
+        self.assertIn(c3[:12], d.reason)
+        self.assertIn("finding <발견 전체 ID>", d.reason)
+
+    def test_citing_only_the_id_prefix_does_not_count(self):
+        """UUIDv7 의 앞 8자는 같은 분의 발견끼리 겹친다 — 접두 인용은 인용이 아니다."""
+        c2 = self.commit("codebase/backend/src/a.ts", "export const a = 2;\n")
+        fid = finding_id()
+        c3 = self.commit("codebase/backend/src/a.ts", "x\n", msg=f"fix: finding {fid[:8]}")
+        d = self.evaluate(FakeClient(code_item("passed", self.c1, findings=[fixed(c2, fid=fid)])))
+        self.assertTrue(d.blocked)
+        self.assertIn(c3[:12], d.reason)
+
+    def test_citing_a_finding_fixed_on_another_branch_does_not_count(self):
+        """consistency 라운드의 남의 브랜치 처분은 막지 않지만 인용의 근거도 되지 않는다."""
+        self.git("checkout", "-q", "main")
+        self.git("checkout", "-q", "-b", "other")
+        foreign = self.commit("codebase/backend/src/a.ts", "export const a = 9;\n")
+        self.git("checkout", "-q", "feature")
+        fid = finding_id()
+        c2 = self.commit("codebase/backend/src/a.ts", "x\n", msg=f"fix: finding {fid}")
+        cons = code_item("passed", self.c1, kind="consistency", findings=[fixed(foreign, fid=fid)])
+        d = self.evaluate(FakeClient(code_item("passed", self.c1), extra=[cons]))
+        self.assertTrue(d.blocked)
+        self.assertIn(c2[:12], d.reason)
+
+    def test_a_consistency_fix_commit_explains_a_later_commit(self):
+        """`--impl-done` 발견을 고친 codebase/ 커밋 — 새 code 라운드 없이 통과한다."""
+        c2 = self.commit("codebase/backend/src/a.ts", "export const a = 2;\n")
+        cons = code_item("pending", None, kind="consistency", findings=[fixed(c2)])
+        d = self.evaluate(FakeClient(code_item("passed", self.c1), extra=[cons]))
+        self.assertFalse(d.blocked, d.reason)
+
+    def test_a_foreign_consistency_fix_does_not_block(self):
+        self.git("checkout", "-q", "main")
+        self.git("checkout", "-q", "-b", "other")
+        foreign = self.commit("codebase/backend/src/a.ts", "export const a = 9;\n")
+        self.git("checkout", "-q", "feature")
+        cons = code_item("passed", self.c1, kind="consistency", findings=[fixed(foreign)])
+        d = self.evaluate(FakeClient(code_item("passed", self.c1), extra=[cons]))
+        self.assertFalse(d.blocked, d.reason)
+
+    def test_the_consistency_state_does_not_decide_the_push(self):
+        cons = code_item("pending", self.c1, kind="consistency", reasons=["open_critical"])
+        d = self.evaluate(FakeClient(code_item("passed", self.c1), extra=[cons]))
+        self.assertFalse(d.blocked, d.reason)
+
     def test_a_round_whose_head_is_not_an_ancestor_blocks(self):
         """rebase · amend 로 라운드 head 가 브랜치에서 사라진 경우."""
         old = self.c1
@@ -245,7 +365,7 @@ class DecisionTableTest(_RepoCase):
         path = client.calls[0]
         self.assertTrue(path.startswith("/api/v1/projects/clemvion/gates/reviews/check?"), path)
         self.assertIn("branch=feature", path)
-        self.assertIn("kind=code", path)
+        self.assertIn("kind=code%2Cconsistency", path)
         self.assertNotIn("head_sha", path)
 
     def test_branch_head_and_base_can_be_given_explicitly(self):

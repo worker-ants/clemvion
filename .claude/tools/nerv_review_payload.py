@@ -10,14 +10,24 @@ main 만). 이 도구는 네트워크를 쓰지 않고 모델도 부르지 않�
     python3 .claude/tools/nerv_review_payload.py <session_dir> [--kind code|consistency|merge|spec_coverage]
 
 출력(JSON):
-    {"kind": "code", "session_dir": "...",
+    {"kind": "code", "session_dir": "...", "changeset": ["a/b.ts", ...],
      "submissions": [{"reviewer": {"role": "security", "risk": "low"},
                       "summary": "...", "findings": [{"severity": "warning", "title": "...",
                       "body": "...", "file": "a/b.ts", "line": 12, "suggestion": "...",
                       "category": "security"}]}],
-     "missing_forced": [], "warnings": []}
+     "missing_forced": [], "errors": [], "warnings": []}
 
-main 이 붙이는 것: `branch` · `base_sha` · `head_sha`(리뷰한 커밋) · `task_id` · `idempotency_key`.
+main 이 붙이는 것: `branch` · `base_sha` · `head_sha`(리뷰한 커밋) · `task_id` · `idempotency_key`
+(`<task>:<kind>:<head 앞 9자>:<role>`. 같은 키로 다시 내면 서버가 같은 제출로 본다). `changeset` 은
+세션 `meta.json` 의 `files` 다(없으면 키가 없다. main 이 `git diff --name-only <base>..<head>` 로 채운다).
+
+역할은 세션 `_retry_state.json` 의 `subagent_invocations` 가 정한다. 그 목록에 없는 `*.md`(예: 처리
+중에 생긴 제안 파일)는 역할 리포트가 아니므로 내지 않고 `warnings` 에 남긴다. `errors` 가 있거나
+`missing_forced` 가 비어 있지 않으면 exit 1 이다. 그대로 내면 라운드가 틀린다.
+  - 강제 역할의 리포트가 빠졌다(`missing_forced`). 라운드가 `missing_roles` 로 남는다.
+  - kind=code 인데 상태 파일이 없거나 역할 목록이 없다. 강제 역할 누락을 확인하지 못한다.
+  - 낼 묶음이 하나도 없다. spec_coverage 세션은 `SUMMARY.md` 하나뿐이라 이 도구가 묶음을 만들지
+    않는다(제출 절차는 NERV Task `CLE-T-VP5KDJ` 전환 4e 에서 정한다).
 리포트 형식은 리뷰어 · checker 정의(`.claude/agents/*.md` §출력 형식)가 정본이다:
 `- **[CRITICAL|WARNING|INFO]** 제목` 아래 `위치:` · `상세:` · `제안:` 하위 항목, `### 요약`, `### 위험도`.
 그 형식에서 벗어난 심각도 표지는 `warnings` 에 줄 번호와 함께 남긴다. 조용히 버리면 발견이 빠진
@@ -168,6 +178,31 @@ def kind_of(session_dir: str) -> str | None:
     return None
 
 
+def _load_json(path: str):
+    try:
+        with open(path, encoding="utf-8") as f:
+            return json.load(f)
+    except (OSError, ValueError):
+        return None
+
+
+def _roles(state) -> dict[str, str] | None:
+    """역할 이름 → 세션의 리포트 파일 이름. 상태 파일에 역할 목록이 없으면 None.
+
+    `output_file` 은 오케스트레이터가 절대 경로로 쓴다. 세션 디렉터리 바로 아래 파일만 보므로 이름만
+    쓴다."""
+    invocations = state.get("subagent_invocations") if isinstance(state, dict) else None
+    if not isinstance(invocations, list):
+        return None
+    roles: dict[str, str] = {}
+    for inv in invocations:
+        name = inv.get("name") if isinstance(inv, dict) else None
+        if isinstance(name, str) and name:
+            out = inv.get("output_file")
+            roles[name] = os.path.basename(out) if isinstance(out, str) and out else f"{name}.md"
+    return roles or None
+
+
 def build(session_dir: str, kind: str | None = None) -> dict:
     if not os.path.isdir(session_dir):
         raise SystemExit(f"nerv_review_payload: 세션 디렉터리가 없다 — {session_dir}")
@@ -179,9 +214,26 @@ def build(session_dir: str, kind: str | None = None) -> dict:
         if n.endswith(".md") and n not in _NOT_REPORTS and not n.startswith("_")
         and os.path.isfile(os.path.join(session_dir, n))
     )
-    submissions, warnings = [], []
-    for name in names:
-        role = name[:-3]
+    submissions: list[dict] = []
+    errors: list[str] = []
+    warnings: list[str] = []
+
+    state = _load_json(os.path.join(session_dir, "_retry_state.json"))
+    roles = _roles(state)
+    if roles is None:
+        plan = [(n[:-3], n) for n in names]
+        if kind == "code":
+            errors.append("_retry_state.json 이 없거나 역할 목록(subagent_invocations)이 없다 — "
+                          "강제 역할 누락을 확인하지 못했다")
+        elif names:
+            warnings.append("_retry_state.json 에 역할 목록이 없다 — 세션의 리포트 파일을 모두 역할로 본다")
+    else:
+        plan = sorted((role, name) for role, name in roles.items() if name in names)
+        for name in names:
+            if name not in roles.values():
+                warnings.append(f"{name}: 이 세션이 부른 역할의 리포트가 아니다 — 제출하지 않는다")
+
+    for role, name in plan:
         with open(os.path.join(session_dir, name), encoding="utf-8", errors="replace") as f:
             text = f.read()
         if not text.strip():
@@ -192,13 +244,12 @@ def build(session_dir: str, kind: str | None = None) -> dict:
         warnings.extend(w)
 
     missing: list[str] = []
-    try:
-        with open(os.path.join(session_dir, "_retry_state.json"), encoding="utf-8") as f:
-            state = json.load(f)
-    except (OSError, ValueError):
-        state = None
     if isinstance(state, dict):
         missing = report_paths.missing_reports(session_dir, state.get("agents_forced") or [], state)
+    if not submissions:
+        why = (" spec_coverage 세션은 SUMMARY.md 하나뿐이라 이 도구가 묶음을 만들지 않는다"
+               "(제출 절차는 전환 4e)." if kind == "spec_coverage" else "")
+        errors.append("제출할 역할 리포트가 없다." + why)
     if kind == "consistency":
         # 통합 SUMMARY 가 checker 의 [CRITICAL] 을 낮춰 `BLOCK: NO` 라고 적은 경우. NERV 에는
         # checker 리포트가 그대로 올라가므로 판정은 서버가 바로잡는다. 다만 사람이 읽는 SUMMARY 가
@@ -206,13 +257,14 @@ def build(session_dir: str, kind: str | None = None) -> dict:
         note = block_integrity.contradiction_note(session_dir)
         if note:
             warnings.append(f"SUMMARY.md: {note}")
-    return {
-        "kind": kind,
-        "session_dir": os.path.abspath(session_dir),
-        "submissions": submissions,
-        "missing_forced": missing,
-        "warnings": warnings,
-    }
+    out: dict = {"kind": kind, "session_dir": os.path.abspath(session_dir)}
+    meta = _load_json(os.path.join(session_dir, "meta.json"))
+    files = meta.get("files") if isinstance(meta, dict) else None
+    if isinstance(files, list) and files and all(isinstance(x, str) for x in files):
+        out["changeset"] = files
+    out.update({"submissions": submissions, "missing_forced": missing,
+                "errors": errors, "warnings": warnings})
+    return out
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -223,8 +275,8 @@ def main(argv: list[str] | None = None) -> int:
     out = build(args.session_dir, args.kind)
     json.dump(out, sys.stdout, ensure_ascii=False, indent=1)
     sys.stdout.write("\n")
-    # 강제 역할의 리포트가 빠졌으면 그대로 제출하면 라운드가 `missing_roles` 가 된다. 알리고 실패한다.
-    return 1 if out["missing_forced"] else 0
+    # 그대로 제출하면 라운드가 틀린다(모듈 docstring). 알리고 실패한다.
+    return 1 if out["missing_forced"] or out["errors"] else 0
 
 
 if __name__ == "__main__":

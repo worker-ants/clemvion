@@ -695,9 +695,10 @@ class TheGateItselfDoesNotBranchOnCiEnvTest(unittest.TestCase):
 
     # (파일, 읽는 환경변수) — 이 목록 밖의 접근은 실패한다.
     _ALLOWED = {
-        ("review_guard.py", "NERV_SERVER"),
-        ("review_guard.py", "NERV_TOKEN"),
-        ("review_guard.py", "NERV_PROJECT"),
+        # 게이트는 `_shared/nerv_read.py` 로 클라이언트를 만든다(리뷰 인계 도구와 공유).
+        ("nerv_read.py", "NERV_SERVER"),
+        ("nerv_read.py", "NERV_TOKEN"),
+        ("nerv_read.py", "NERV_PROJECT"),
         # 게이트가 전송을 위임하는 클라이언트 모듈. `load_env` 는 미러 도구 CLI 가 쓰고 게이트는
         # 부르지 않지만, 같은 파일이라 스캔 대상이다.
         ("pull.py", "NERV_SERVER"),
