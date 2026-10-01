@@ -177,8 +177,12 @@ def _git_lines(args: list[str], cwd: str) -> list[str]:
 
 
 def _commit_of(ref: str, cwd: str) -> str | None:
-    """`ref` 가 가리키는 커밋의 전체 해시. 없으면 None. `-` 로 시작하는 값은 옵션으로 읽히므로 받지 않는다."""
-    if not ref or ref.startswith("-"):
+    """`ref` 가 가리키는 커밋의 전체 해시. 없으면 None.
+
+    `^{commit}` 을 붙여 넘기므로 옵션 모양 값(`--all`)은 옵션이 아니라 풀리지 않는 리비전이 된다
+    (실측 2026-10-01: `--all^{commit}` · `--show-toplevel^{commit}` 모두 rc=1). 브랜치 이름은 `-` 로
+    시작할 수 없으니, 여기서 풀린 ref 는 뒤의 git 인자로 넘겨도 옵션으로 읽히지 않는다."""
+    if not ref:
         return None
     rc, out, _ = _run_git(["rev-parse", "--verify", "--quiet", f"{ref}^{{commit}}"], cwd)
     return out.strip() if rc == 0 and out.strip() else None
@@ -296,13 +300,17 @@ def evaluate_review(
         )
 
     # (4) 처분 커밋이 이 브랜치에 있는가. 같은 커밋을 여러 발견이 가리키므로 한 번씩만 본다.
+    # 축약 해시는 git 이 푼다(모호하거나 없으면 None → 이 브랜치의 커밋이 아니다).
     fixed = _fixed_commits(item)
     foreign: list[str] = []
+    fixed_full: set[str] = set()
     for sha in sorted({s for s, _ in fixed}):
         full = _resolve_commit(sha, cwd)
-        if full is None or not _git_ok(["merge-base", "--is-ancestor", full, head_sha], cwd):
-            titles = [t for s, t in fixed if s == sha]
-            foreign.append(f"`{_short(sha)}` ({titles[0][:60]}{' 외' if len(titles) > 1 else ''})")
+        if full is not None and _git_ok(["merge-base", "--is-ancestor", full, head_sha], cwd):
+            fixed_full.add(full)
+            continue
+        titles = [t for s, t in fixed if s == sha]
+        foreign.append(f"`{_short(sha)}` ({titles[0][:60]}{' 외' if len(titles) > 1 else ''})")
     if foreign:
         shown = ", ".join(foreign[:_LIST_LIMIT]) + (f" 외 {len(foreign) - _LIST_LIMIT}건" if len(foreign) > _LIST_LIMIT else "")
         return ReviewDecision(
@@ -316,8 +324,7 @@ def evaluate_review(
     after = _git_lines(
         ["rev-list", "--no-merges", f"{round_head}..{head_sha}", "--not", base, "--", CODE_PREFIX], cwd
     )
-    fixed_shas = {s for s, _ in fixed if len(s) >= 7}
-    unexplained = [c for c in after if not any(c.lower().startswith(s) for s in fixed_shas)]
+    unexplained = [c for c in after if c not in fixed_full]
     if unexplained:
         shown = ", ".join(f"`{_short(c)}`" for c in unexplained[:_LIST_LIMIT])
         if len(unexplained) > _LIST_LIMIT:

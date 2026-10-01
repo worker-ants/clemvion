@@ -161,6 +161,12 @@ class DecisionTableTest(_RepoCase):
         self.assertIn(c2[:12], d.reason)
         self.assertIn("nerv_finding_resolve", d.reason)
 
+    def test_a_fix_sha_git_cannot_resolve_uniquely_does_not_count(self):
+        """너무 짧은 축약은 git 이 풀지 않는다 — 앞글자가 같은 아무 커밋이나 설명하면 안 된다."""
+        c2 = self.commit("codebase/backend/src/a.ts", "export const a = 2;\n")
+        d = self.evaluate(FakeClient(code_item("passed", self.c1, findings=[fixed(c2[:3])])))
+        self.assertTrue(d.blocked)
+
     def test_one_fix_does_not_explain_another_commit(self):
         c2 = self.commit("codebase/backend/src/a.ts", "export const a = 2;\n")
         c3 = self.commit("codebase/backend/src/b.ts", "export const b = 1;\n")
@@ -264,9 +270,11 @@ class UntrustedServerValuesTest(_RepoCase):
     def test_a_branch_name_as_head_is_not_resolved(self):
         """`main` 은 이 저장소에서 커밋으로 풀리지만 서버가 줄 값이 아니다.
 
-        main 은 feature 의 조상이라 풀어 주면 통과로 뒤집힌다 — 거름이 판정을 바꾸는 입력이다."""
-        d = self.evaluate(FakeClient(code_item("passed", "main")))
+        main 은 feature 의 조상이고 그 뒤 커밋(c1)은 처분 커밋이라, 풀어 주면 통과로 뒤집힌다 —
+        거름이 판정을 바꾸는 입력이다(처분 없이 두면 다른 이유로 막혀 이 테스트가 공허해진다)."""
+        d = self.evaluate(FakeClient(code_item("passed", "main", findings=[fixed(self.c1)])))
         self.assertTrue(d.blocked)
+        self.assertIn("조상이 아니다", d.reason)
 
     def test_an_option_shaped_fix_sha_is_ignored(self):
         self.commit("codebase/backend/src/a.ts", "export const a = 2;\n")
@@ -285,10 +293,12 @@ class UnavailableTest(_RepoCase):
             self.evaluate(FakeClient(exc=OSError("boom")))
         self.assertNotIsInstance(cm.exception, rg.GateMisconfigured)
 
-    def test_server_error(self):
-        with self.assertRaises(rg.GateUnavailable) as cm:
-            self.evaluate(FakeClient(code_item(), status=503))
-        self.assertNotIsInstance(cm.exception, rg.GateMisconfigured)
+    def test_any_non_200_with_a_valid_looking_body_is_not_an_answer(self):
+        """429 · 302 에 판정처럼 생긴 본문이 와도 판정이 아니다(통과 라운드 본문으로 확인)."""
+        for status in (503, 429, 302, 204):
+            with self.subTest(status=status), self.assertRaises(rg.GateUnavailable) as cm:
+                self.evaluate(FakeClient(code_item("passed", self.c1), status=status))
+            self.assertNotIsInstance(cm.exception, rg.GateMisconfigured)
 
     def test_auth_and_project_errors_are_misconfiguration(self):
         for status in (401, 403, 404):
