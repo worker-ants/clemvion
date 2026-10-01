@@ -24,7 +24,7 @@ spec / plan / 구현 변경이 **저장되기 전** 단계에서 기존 문서�
 | `cross-spec-checker` | 다른 영역 spec 의 데이터 모델·API·요구사항 ID 충돌 |
 | `rationale-continuity-checker` | 과거 Rationale 의 기각 결정 재도입 |
 | `convention-compliance-checker` | `spec/conventions/**` 위반 |
-| `plan-coherence-checker` | `plan/in-progress/**` 미해결 결정·선행 plan 미해소·후속 항목 누락. **이 저장소에서는 꺼져 있다**(`.claude.project.json` `plan_coherence: false`). 유일한 코퍼스 `plan/` 이 전환 단계 3 에서 없어졌다. 정의 정리는 4e(NERV Task `CLE-T-VP5KDJ`) |
+| `plan-coherence-checker` | `plan/in-progress/**` 미해결 결정·선행 plan 미해소·후속 항목 누락. **이 저장소에서는 꺼져 있다**(`.claude.project.json` 의 `agents.checkers.plan_coherence: false`). 유일한 코퍼스 `plan/` 이 전환 단계 3 에서 없어졌다. 정의 정리는 4e(NERV Task `CLE-T-VP5KDJ`) |
 | `naming-collision-checker` | 신규 식별자 기존 사용처 중복 |
 
 summary: `consistency-summary` 가 통합 + `BLOCK: YES/NO` 표기.
@@ -68,7 +68,7 @@ stdout 마지막 줄 = 세션 디렉토리.
 
 ### Checker 프로젝트별 토글
 
-`.claude.project.json` 의 `agents.checkers.<name>: false` 로 특정 checker 비활성. 디폴트는 전부 활성화 (키 누락·`true` ⇒ enabled, 명시 `false` ⇒ disabled). 일회성 override 는 `CONSISTENCY_AGENTS` env (project_config 보다 우선). 5 checker key: `cross_spec` · `rationale_continuity` · `convention_compliance` · `plan_coherence` · `naming_collision`.
+`.claude.project.json` 의 `agents.checkers.<name>: false` 로 특정 checker 비활성. 디폴트는 전부 활성화 (키 누락·`true` ⇒ enabled, 명시 `false` ⇒ disabled). 이 저장소는 `plan_coherence` 를 꺼서 4개가 돈다. 일회성 override 는 `CONSISTENCY_AGENTS` env (project_config 보다 우선). 5 checker key: `cross_spec` · `rationale_continuity` · `convention_compliance` · `plan_coherence` · `naming_collision`.
 
 ### 2. Workflow 실행 (기본 경로)
 
@@ -146,7 +146,7 @@ Workflow 가 불가한 환경에서는 orchestrator 의 `--summary-state` / `--u
 흐름의 비용은 아직 재지 않았다.
 
 > 이 경로가 문서화되기 전에는 요약 에이전트가 스스로 하향을 발명해 진행했다
-> (`review/code/2026/07/25/22_58_00`). 막다른 길처럼 보이면 우회가 생긴다 — 그래서 금지와
+> (옛 `review/code/2026/07/25/22_58_00`, git 이력). 막다른 길처럼 보이면 우회가 생긴다 — 그래서 금지와
 > 인계 경로를 함께 둔다.
 
 ## 호출자 워크플로
@@ -164,7 +164,7 @@ Workflow 가 불가한 환경에서는 orchestrator 의 `--summary-state` / `--u
 
 | 환경변수 | 기본값 | 설명 |
 | --- | --- | --- |
-| `CONSISTENCY_AGENTS` | (전체 5) | 실행할 checker 쉼표 구분 |
+| `CONSISTENCY_AGENTS` | `.claude.project.json` 이 켠 checker(이 저장소는 `plan_coherence` 를 뺀 4개) | 실행할 checker 쉼표 구분 |
 | `CONSISTENCY_OUTPUT_DIR` | `./.review/consistency` | 결과 디렉토리 (gitignore, 커밋하지 않는다) |
 | `CONSISTENCY_MAX_CONTEXT_SIZE` | `262144` | checker 1명분 prompt body 상한 |
 | `AI_REVIEW_LOOP` | `0` | `1` → loop_mode=true |

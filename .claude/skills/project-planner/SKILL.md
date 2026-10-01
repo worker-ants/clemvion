@@ -40,7 +40,7 @@ model: opus
    - 새 문서의 제목 · 부모 · 타입은 만든 뒤 바꿀 수 없다. 만들기 전에 용어 사전(`CLE-GLOSSARY`)과 트리 위치를 맞춘다. 키는 `CLE-<영역>-<슬러그>`.
 5. **제출 전 검토**:
    - `nerv_spec_check(spec_version_id)`: 서버의 규칙 기반 검사.
-   - `/consistency-check --spec <초안 본문 파일>`: 로컬 5 checker 의 의미 검토. 본문은 `nerv_spec_get(basis=latest)` 로 받아 scratchpad 파일에 둔다. 결과는 `nerv_review_submit(kind=consistency)` 로 제출한다.
+   - `/consistency-check --spec <초안 본문 파일>`: 로컬 checker 의 의미 검토. 본문은 `nerv_spec_get(basis=latest)` 로 받아 scratchpad 파일에 둔다. 결과는 `nerv_review_submit(kind=consistency)` 로 제출한다.
    - **BLOCK: YES** → 멈춤. 충돌 해소 후 다시 검토. **BLOCK: NO + Warning** → `## Rationale` 에 노트 남기고 진행.
 6. **검토 요청**: `nerv_spec_submit_review` — 사람이 승인한다. 승인 결과는 하트비트 `pending` 의 `approval_decided` 로 온다.
 7. **side-effect 점검**: 다른 스펙 · 다른 초안과 충돌이 새로 생기지 않았는지 확인한다. 필요하면 관계(`nerv_spec_relate`)를 선언하고 다른 문서도 함께 초안을 쓴다.

@@ -101,7 +101,7 @@ spec 본문에 시나리오 약속 패턴:
 ### 1. `<spec path>` — <heuristic name>
 - **신호**: 본문 line <N> 의 UI 키워드 `<kw>` 등장
 - **부재**: frontmatter `code:` 에 frontend (`codebase/frontend/`) 매칭 없음 (현재 code: <목록>)
-- **권고**: spec 영역의 frontend 구현을 맡을 NERV Task 생성(`nerv_task_create`)
+- **권고**: spec 영역의 frontend 구현을 맡을 NERV Task 를 main 세션이 만든다(이 에이전트는 NERV 에 쓰지 않는다)
 
 ### 2. ...
 
@@ -117,7 +117,7 @@ spec 본문에 시나리오 약속 패턴:
 
 - 본 audit 은 NLP 휴리스틱 기반. 결과는 *후보* 일 뿐 confirmed 결함 아님
 - high confidence 도 spec 본문이 단순 예시·참조용으로 UI 키워드를 쓴 경우 false-positive 가능
-- 사용자가 검토 후 실제 결함 인정한 항목만 NERV Task 로 올린다 — 본 audit 은 picking 보조
+- 사용자가 검토 후 실제 결함 인정한 항목만 main 세션이 NERV Task 로 올린다 — 본 audit 은 picking 보조
 
 ## 환경
 

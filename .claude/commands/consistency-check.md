@@ -2,7 +2,7 @@ spec / plan / 구현 착수 전 다관점 일관성 검토 (sub-agent 위임)
 
 ## 실행 방법 (main Claude 가 따른다)
 
-5개 checker 는 `.claude/agents/<checker>-checker.md` sub-agent 다. fan-out 은 `Workflow` tool 이 결정적으로 처리한다 (옛 수동 Agent fan-out + STATUS/retry 루프 대체). Workflow 의 `agent()` 는 plan-metered harness 경로라 빌링 정책 부합 (CLAUDE.md §외부 LLM 호출 정책). 절차 SSOT: [`.claude/skills/consistency-checker/SKILL.md`](../skills/consistency-checker/SKILL.md).
+checker(정의 5개, 이 저장소는 `plan_coherence` 를 꺼서 4개가 돈다)는 `.claude/agents/<checker>-checker.md` sub-agent 다. fan-out 은 `Workflow` tool 이 결정적으로 처리한다 (옛 수동 Agent fan-out + STATUS/retry 루프 대체). Workflow 의 `agent()` 는 plan-metered harness 경로라 빌링 정책 부합 (CLAUDE.md §외부 LLM 호출 정책). 절차 SSOT: [`.claude/skills/consistency-checker/SKILL.md`](../skills/consistency-checker/SKILL.md).
 
 0. **사전 점검**: 현재 worktree 확인. main 워크트리 호출 시 worktree 안내 후 거부.
 
@@ -21,9 +21,10 @@ spec / plan / 구현 착수 전 다관점 일관성 검토 (sub-agent 위임)
 
 ## 모드 (택일 필수)
 
-- `--spec <path>` — spec draft 검토. project-planner 가 `spec/` 본문에 쓰기 **직전** 의무 호출.
+- `--spec <path>` — 스펙 초안 검토. NERV 초안을 저장한 뒤 검토 요청 **전에** 호출한다(`nerv_spec_check` 와 함께). `<path>` 는 초안 본문 파일이다.
 - `--plan <path>` — plan draft 검토. 전환 단계 3 에서 `plan/` 이 없어져 쓸 일이 없다(모드 제거는 4e).
 - `--impl-prep <scope>` — 구현 착수 **직전** 검토. scope 는 spec 영역 경로 (예: `spec/2-navigation/`).
+- `--impl-done <scope>` — 구현 완료 **후** 사후 검증. 결과를 checker 마다 `kind=consistency` 로 제출한다(developer 의 의무 단계).
 
 ## 사용 예시
 
@@ -36,7 +37,7 @@ spec / plan / 구현 착수 전 다관점 일관성 검토 (sub-agent 위임)
 로컬 산출물은 `.review/consistency/` 아래에 쓰고 커밋하지 않는다(gitignore). 결과는 checker 마다 NERV `kind=consistency` 로 제출한다(`python3 .claude/tools/nerv_review_payload.py <session_dir>`).
 
 - `.review/consistency/<YYYY>/<MM>/<DD>/<hh>_<mm>_<ss>/SUMMARY.md` — 통합 보고서 (BLOCK 결정 명시)
-- `.review/consistency/<YYYY>/<MM>/<DD>/<hh>_<mm>_<ss>/<checker>.md` — 5 checker 별 상세
+- `.review/consistency/<YYYY>/<MM>/<DD>/<hh>_<mm>_<ss>/<checker>.md` — checker 별 상세
 - `.review/consistency/<YYYY>/<MM>/<DD>/<hh>_<mm>_<ss>/_retry_state.json` — pending/success/fatal 상태
 - `.review/consistency/<YYYY>/<MM>/<DD>/<hh>_<mm>_<ss>/_prompts/<checker>.md` — orchestrator 가 만든 입력 페이로드
 - `.review/consistency/<YYYY>/<MM>/<DD>/<hh>_<mm>_<ss>/meta.json` — 모드·target·checker 명단

@@ -18,8 +18,8 @@ model: opus
 - **스펙 선독**: 관련 스펙 문서 전체(Overview / 본문 / Rationale) 를 먼저 읽고 영향 범위·side-effect 파악. NERV 스펙은 **작업 기준 버전**으로 읽는다(`nerv_spec_get(spec_id, task=<Task 키>)`, 응답의 `read_as` 확인).
 - **TDD 준수**: 스펙 해석 즉시 테스트 선작성, 구현 후 보강.
 - **품질 책임**: Warning 이상 이슈와 누락 테스트는 지시 범위 밖이라도 해결. 기존부터 있던 이슈도 발견 시 조치.
-- **누락 방지**: 진행 메모는 클레임한 NERV Task 에 남긴다(heartbeat `progress`, 중단 · 인계 때 `handoff_note`). 재진입하면 `nerv_task_get` 으로 먼저 확인한다. 새로 생긴 후속 작업은 `nerv_task_create` 로 만든다.
-- **Task 기록 = 실제 상태**: NERV Task 의 진행 기록(heartbeat progress · handoff_note)과 증적(`evidence`)에는 실제로 통과한 단계만 적는다. 아직 안 돌린 단계(e2e·`/ai-review` 등)를 미리 통과로 적지 않는다. 리뷰 상태의 근거는 NERV 라운드다(전환 단계 2 부터). 옛 `plan/in-progress/<task>.md` 체크박스 규칙은 전환 단계 3 에서 `plan/` 과 함께 없어졌다.
+- **누락 방지**: 진행 메모는 클레임한 NERV Task 에 남긴다. 한 줄 진행은 heartbeat `progress`, 여러 줄 메모는 Task 본문(`nerv_task_update` 의 `body_md`), 중단 · 인계는 `nerv_task_release` 의 `state_note` 다(다음 클레이머에게 `handoff_note` 로 보인다). 재진입하면 `nerv_task_get` 으로 먼저 확인한다. 새로 생긴 후속 작업은 `nerv_task_create` 로 만든다.
+- **Task 기록 = 실제 상태**: NERV Task 의 진행 기록(heartbeat `progress` · Task 본문 · 릴리스 `state_note`)과 증적(`evidence`)에는 실제로 통과한 단계만 적는다. 아직 안 돌린 단계(e2e·`/ai-review` 등)를 미리 통과로 적지 않는다. 리뷰 상태의 근거는 NERV 라운드다(전환 단계 2 부터). 옛 `plan/in-progress/<task>.md` 체크박스 규칙은 전환 단계 3 에서 `plan/` 과 함께 없어졌다.
 
 ## 경로별 권한
 
@@ -41,7 +41,7 @@ model: opus
    - **백그라운드(bg) 세션이면 `EnterWorktree` *툴* 로 격리한다** — 셸 `cd` 만으로는 부족하다. `/ai-review`·`/consistency-check` 가 native `Workflow` 로 sub-agent 를 띄울 때, 부모 bg 세션이 `EnterWorktree` 툴로 isolate 되지 않았으면 harness `worktree.bgIsolation` 가드가 **모든 workflow sub-agent 의 공유 체크아웃 write 를 차단**한다 (reviewer output·SUMMARY·`resolution-applier` 의 코드 fix 까지). 즉 셸 `cd` 로만 들어간 bg 세션은 review/fix 가 구조적으로 막혀 "미루기" 의 빌미가 된다. `EnterWorktree` 로 들어가면 9단계 REVIEW WORKFLOW 의 fix write 까지 정상 동작한다. (배경: [`.claude/docs/orchestrator-workflow-migration.md`](../../docs/orchestrator-workflow-migration.md) §bgIsolation.)
 1. **스펙 분석** — 클레임한 Task 의 NERV 스펙을 작업 기준 버전으로(`nerv_spec_get(spec_id, task=<Task 키>)`) + 재진입이면 Task `handoff_note` · 진행 기록. 저장소 `spec/` 미러는 주변 문서 grep 용이다(구현된 스펙의 스냅샷이라 최신본이 아닐 수 있다).
 2. **모호성 해소** — 공백·충돌은 사용자와 정의. 스펙 정의 필요 시 `project-planner` 위임.
-3. **사전 일관성 검토** — `/consistency-check --impl-prep <spec/영역>`. Critical → 즉시 중단. Warning → Task 진행 기록(heartbeat `progress`)에 남기고 진행.
+3. **사전 일관성 검토** — `/consistency-check --impl-prep <spec/영역>`. Critical → 즉시 중단. Warning → Task 본문에 적고(여러 건이면 목록으로) 진행.
 4. **DOCUMENTATION 업데이트** — `PROJECT.md §변경 유형 → 갱신 위치 매핑` white list 누락 없이 갱신. 매핑 검증 명령 통과해야 5단계. **사용자 가이드 신규 작성·기존 갱신은 [`user-guide-writer`](../../agents/user-guide-writer.md) sub-agent 위임** — 본 sub-agent 가 `PROJECT.md §유저 가이드 파일 컨벤션` 의 SoT 인덱스를 적재해 컨벤션을 일관 적용. 위임 직전 `is_agent_enabled(cfg, "writers", "user_guide")` (`.claude.project.json` 의 `agents.writers.user_guide`) 로 게이팅 — disable 된 프로젝트는 본 단계 안에서 직접 작성. PROJECT.md 매트릭스에 명시된 동반 갱신은 호출자(본 단계) 가 받아 처리. **partial-implementation 분리**: spec 의 일부만 구현하고 나머지 surface 가 남아있는 경우, 본 PR 머지 전 남은 surface 를 NERV Task 로 만들고 스펙 본문의 구현 상태 표시는 NERV 초안으로 고친다. 옛 트리(전환 단계 1 ~ 5 동결)에 `status: partial` · `pending_plans:` 를 새로 등록하지 않는다(SoT: [`spec/CLE-ENG/CLE-ENG-SPECEVIDENCE.md`](../../../spec/CLE-ENG/CLE-ENG-SPECEVIDENCE.md) 「NERV 이전 영향」). 자가 체크리스트는 `PROJECT.md §DOCUMENTATION 단계 종료 사전 체크리스트` 마지막 항목.
 5. **테스트 선작성** — TDD.
 6. **구현** — 스펙과 테스트 기준.
@@ -120,7 +120,7 @@ model: opus
      유지한다(충돌을 손으로 푼 `codebase/**` 변경이 없을 때). rebase 는 필수 6역할을 포함한 재리뷰가 든다.
    - **SPEC-DRIFT 처리**: `[SPEC-DRIFT]` 발견사항(구현이 spec 을 의도적으로 개선해 spec 이 낡음)은 resolution-applier 가 코드를 되돌리지 않고 `ESCALATE=spec` 과 제안 파일(`spec_proposals`)로 돌려준다. main 은 그 발견을 처분하지 않은 채 NERV 스펙 초안을 쓴다(`/nerv:spec edit`). 제출 전 검토(`nerv_spec_check` + `/consistency-check --spec <초안 본문 파일>`)를 거쳐 `BLOCK: NO` 면 검토 요청하고, 초안 저장의 `spec_version_id` 로 그 발견을 `spec_change` 처분한다. 초안을 쓸 수 없으면 `escalated`(`escalate_reason=spec`)로 넘긴다. 저장소 `spec/` 에는 쓰지 않는다(미러는 승인 뒤 구현 PR 이 pull 한다). 이것이 "구현 중 개선된 flow 가 spec 에 역류" 하는 정식 경로다.
      - **승인 대기 중**: 초안이 승인되기 전에는 대조 대상이 옛 본문이라 같은 drift 가 다음 `--impl-done` 에서 다시 나온다. 그 발견도 `spec_change`(초안 저장의 `spec_version_id`)로 처분한다. 실측(2026-10-01): 승인본이 **없는** 문서는 `pull.py --task` 가 초안을 받았다(`read_as: "approved_fallback"`). 승인본이 있는 문서의 동작은 아직 재지 않았다.
-5. **post-impl 일관성 검토** — `/consistency-check --impl-done <spec/영역>` 을 돌려 5 checker 결과를
+5. **post-impl 일관성 검토** — `/consistency-check --impl-done <spec/영역>` 을 돌려 켜진 checker 결과를
    checker 마다 `kind=consistency` 로 제출한다(절차는 `consistency-checker` SKILL §3.5). 구현 코드 diff vs
    spec 본문 / Rationale / conventions 정합성을 사후 검증한다. Critical 은 위 4 와 같은 흐름으로
    고치고 처분한다. 그 fix 커밋도 consistency 라운드의 `fixed` 처분이거나 `finding <발견 전체 ID>` 인용이면
@@ -144,6 +144,7 @@ model: opus
 - [ ] `/consistency-check --impl-done <spec/영역>` 결과를 checker 마다 `kind=consistency` 로 제출하고 처분
 - [ ] fix 가 있었으면 TEST WORKFLOW 재통과
 - [ ] (codebase 변경 시) push 게이트 통과 — 라운드 뒤 커밋은 모두 처분 커밋이거나 fixed 발견을 인용
+- [ ] Task done 전이(`nerv_task_update(status=done)`): 증적(`evidence`)과 `spec_impact`(바꾼 스펙 키 목록 또는 `none`)를 함께 낸다. done 게이트가 거부하면 우회하지 않고 사유를 사용자에게 보고한다. 그다음 `nerv_task_release(reason=done)`
 
 ### 처분 기록
 

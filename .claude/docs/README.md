@@ -9,6 +9,7 @@ drift across copies). Each doc is the **SSOT** for its topic.
 | [`worktree-policy.md`](worktree-policy.md) | Worktree-based work rule, naming, the 4-layer default-branch guard, the NERV-owned path guard (§5.1), `worktree-*`→`claude/*` normalization | Everyone, before starting any write. CLAUDE.md §0 is the TL;DR; this is the detail. |
 | [`subagent-call-contract.md`](subagent-call-contract.md) | How main Claude invokes sub-agents: `prompt_file`/`output_file`/`session_dir` args, the STATUS return line, retry/rate-limit flow, risk grades | Anyone writing or invoking a `.claude/agents/<name>.md`; every reviewer/checker/analyzer cites it. |
 | [`test-wrapper.md`](test-wrapper.md) | The `.claude/tools/run-test.sh` wrapper contract (one-line pass / failure summary), stage definitions | `developer` during TEST WORKFLOW. |
+| [`plan-lifecycle.md`](plan-lifecycle.md) | **폐기**(전환 단계 3). 옛 `plan/` 규칙은 git 이력에 있다. 옛 링크 · 인용 때문에 안내만 남겼고 단계 5 에서 지운다 | — |
 | [`orchestrator-workflow-migration.md`](orchestrator-workflow-migration.md) | **Design only** (not executed): plan + gating billing-path question for migrating the bespoke orchestrators to the native `Workflow` tool | Whoever picks up 테마4-② later. |
 
 ## Reading order for a newcomer

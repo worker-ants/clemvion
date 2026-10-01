@@ -261,4 +261,4 @@ orchestrator 가 `/tmp/code-review-agents-log.txt` 에 prepare 단계의 이벤�
 | prompt 출처 | `prompts/agents/<role>.md` | `.claude/agents/<role>-reviewer.md` system prompt |
 | 호출 인자 | `--cli ...` | `--prepare ...` (옛 `--cli` 는 deprecated alias) |
 
-결과 디렉토리는 `./.review/code/<YYYY>/<MM>/<DD>/<hh>_<mm>_<ss>/<role>.md` 로 떨어진다. 옛 `review/` 아래 누적 데이터는 NERV 정본 전환 단계 3 에서 지운다.
+결과 디렉토리는 `./.review/code/<YYYY>/<MM>/<DD>/<hh>_<mm>_<ss>/<role>.md` 로 떨어진다. 옛 `review/` 아래 누적 데이터는 NERV 정본 전환 단계 3 에서 지웠다(원문은 git 이력).
