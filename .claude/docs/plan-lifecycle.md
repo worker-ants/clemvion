@@ -39,7 +39,7 @@
 
 - **이동 방식**: 프로젝트가 [`PROJECT.md`](../../PROJECT.md) 에서 지정한 이동 방식을 따른다. 미명시 시 `git mv` 로 history 보존 (단순 복사·삭제 아님).
 - **이동 시점**: 작업 단계가 끝날 때마다 plan 갱신, 모든 항목이 완료된 순간 `complete/` 로 이동.
-- **이동은 마지막 작업 PR 안에서**: 모든 체크박스 `[x]` + 미해결 follow-up 0건이 되는 PR 안에 `chore(plan): mark <name> complete` 형태의 별 commit 으로. **plan 이동만 담은 별 PR 분리 금지** (PR 증식 + 이동 누락 패턴 차단).
+- **이동은 마지막 작업 PR 안에서**: 모든 체크박스 `[x]` + 미해결 follow-up 0건이 되는 PR 안에 `chore(plan): mark <name> complete` 형태의 별 commit 으로. 후속을 NERV Task 로 낸 항목은 미해결 follow-up 으로 세지 않는다. 그 항목 자리에 Task 키를 남긴다(NERV 전환 단계 1 부터 새 후속은 plan 이 아니라 Task 로 낸다). **plan 이동만 담은 별 PR 분리 금지** (PR 증식 + 이동 누락 패턴 차단).
 - **revert 패턴**: review 중 follow-up 으로 빠지면 `[ ]` 복원 + 이동(PROJECT.md 지정 방식, 미명시 시 `git mv`)도 `in-progress/` 로 revert.
 - **인입 참조**: `review/**` 같은 시점 기록 문서는 옛 경로 유지. `spec/` 등 살아있는 문서의 plan 링크는 이동과 동시에 갱신.
   > **옛 `spec/<영역>/` 트리 (NERV 전환 단계 1 ~ 5)**: 단계 1 부터 옛 트리는 동결이고 `guard_nerv_owned_paths.py` 훅이 도구 편집을 막는다. 그래도 docs 가드가 계속 요구하는 다음 세 가지만 `BYPASS_NERV_OWNED_PATHS=1` 로 고친다. (1) plan 이동으로 깨지는 plan 링크 (2) `pending_plans` 에서 옮겨진 plan 빼기 (3) `status` 승격(`spec-status-lifecycle` 가드 (c)). 이 변수는 세션 환경 변수라 켜 둔 동안 `spec/` 전체가 열린다. 그 줄들을 고친 직후 끈다. 스펙 **내용**은 옛 트리가 아니라 NERV 초안으로 고친다. 새 `status: partial` · `pending_plans` 등록도 하지 않는다(남은 표면은 NERV Task 로 남긴다, developer SKILL §4). 이 예외는 단계 3(plan 제거)에서 사라진다.

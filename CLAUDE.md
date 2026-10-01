@@ -71,7 +71,7 @@ Workflow 의 generic 단계 정의: [`developer/SKILL.md`](.claude/skills/develo
 
 | 역할 | Skill | 쓰기 권한 |
 | --- | --- | --- |
-| 기획자 | [`project-planner`](.claude/skills/project-planner/SKILL.md) | NERV 스펙 초안(`/nerv:spec`), `plan/**`, **거버넌스 문서** (`CLAUDE.md`·`.claude/skills/**/SKILL.md`·`.claude/docs/**`) |
+| 기획자 | [`project-planner`](.claude/skills/project-planner/SKILL.md) | NERV 스펙 초안(`/nerv:spec`), `plan/**`, **거버넌스 문서** (`CLAUDE.md`·`.claude/skills/**/SKILL.md`·`.claude/docs/**`·`.claude/agents/**`·`.claude/commands/**`), `PROJECT.md`(developer 와 공유) |
 | 개발자 | [`developer`](.claude/skills/developer/SKILL.md) | `codebase/**`, `plan/**`, **harness 실행물** (`.claude/hooks/**`·`.claude/tools/**`·`.claude/tests/**`), `spec/` 미러(`pull.py` 로만), NERV 스펙 초안, NERV 리뷰 제출 · 발견 처분 |
 | 일관성 검토자 | [`consistency-checker`](.claude/skills/consistency-checker/SKILL.md) (`/consistency-check`) | `.review/consistency/**`(로컬) → NERV `kind=consistency` |
 | 코드 리뷰어 | [`code-review-agents`](.claude/skills/code-review-agents/SKILL.md) (`/ai-review`) | `.review/code/**`(로컬) → NERV `kind=code` |
@@ -83,7 +83,7 @@ Workflow 의 generic 단계 정의: [`developer/SKILL.md`](.claude/skills/develo
   > 옛 "§자기-반증형 소정정"(developer 가 `spec/` 을 직접 고칠 수 있는 좁은 예외)은 이 규칙에 흡수돼 없어졌다(2026-09-29 결정 D8 안 A). 반증한 사람이 곧 초안을 쓸 수 있으므로 예외가 필요 없다.
 - 구현 중 스펙과 부딪치면 추측으로 진행하지 않는다. 초안을 쓰거나 리뷰 발견(`area=spec`)으로 올리고, 막히면 `nerv_task_update(status=blocked, blocked_reason=spec_conflict)`.
 - 스펙 초안은 **저장 뒤 검토 요청 전에** 검토한다: `nerv_spec_check` + 로컬 `/consistency-check --spec <초안 본문 파일>`(`nerv_spec_get(basis=latest)` 본문을 scratchpad 에 둔 파일). 로컬 결과는 `kind=consistency` 로 제출한다. Critical 이면 검토 요청하지 않는다. `developer` 는 구현 착수 직전 `consistency-check --impl-prep` 의무. Critical 발견 시 차단.
-- **harness(`.claude/**`) 는 두 축으로 갈린다** — 코드·테스트·도구(`hooks/`·`tools/`·`tests/`)는 `developer`, **거버넌스 문서**(`CLAUDE.md`·`.claude/skills/**/SKILL.md`·`.claude/docs/**`)는 `project-planner`. 역할 정의를 그 역할 자신이 고치는 것을 막는 경계다. `.claude/worktrees/**` 는 각 세션의 작업 트리이며 `integrate-*` 만 `merge-coordinator` 소유(위 표).
+- **harness(`.claude/**`) 는 두 축으로 갈린다** — 코드·테스트·도구(`hooks/`·`tools/`·`tests/`)는 `developer`, **거버넌스 문서**(`CLAUDE.md`·`.claude/skills/**/SKILL.md`·`.claude/docs/**`, 서브에이전트 정의 `.claude/agents/**`, 슬래시 명령 `.claude/commands/**`)는 `project-planner`. 역할 정의를 그 역할 자신이 고치는 것을 막는 경계다. 실행 절차 문서 `PROJECT.md` 는 두 역할이 함께 고친다. `.claude/worktrees/**` 는 각 세션의 작업 트리이며 `integrate-*` 만 `merge-coordinator` 소유(위 표).
 - **push 게이트는 `codebase/**` 만 본다** — push 훅과 CI `review-gate` 는 `codebase/**` 를 바꾼 브랜치에 passed 상태의 NERV `kind=code` 라운드를 요구한다(판정 규칙: `.claude/hooks/_lib/review_guard.py`). harness-only 변경은 push 가 막히지 않으므로 **검증은 `python3 -m pytest .claude/tests -q` 가 대신한다** (선례 `051c7e7c1` 이 그 명령으로 검증했다). 다만 NERV Task 의 done 게이트(`done_gate.review_coverage: ["code","consistency"]`)는 변경 영역과 무관하게 **그 Task 에 묶인** code · consistency 라운드가 N1 판정 `passed` 이기를 요구한다. 그래서 harness Task 도 리뷰를 돌려 `task_id` 를 붙여 제출한다. router 는 바뀐 파일이 있으면 늘 필수 6역할을 돌리므로 harness Task 의 라운드도 역할이 빠지지 않는다. 이 비대칭을 적지 않으면 "harness 도 push 게이트가 본다" 는 보장을 문서가 구현보다 넓게 말하게 된다.
 - **push 게이트는 NERV 가 답할 때만 막는다(fail-open)** — NERV 가 응답하지 않거나 로컬에 `NERV_SERVER` · `NERV_TOKEN` 이 없으면 push 훅은 통과시키고 배너로 센다. CI `review-gate` 는 토큰 · 주소 설정 문제만 실패로 보고 장애는 통과시킨다. 리뷰 뒤 fix 커밋은 다시 리뷰되지 않는다(처분은 자기 신고다). 설정 · 판정 규칙: `PROJECT.md` §NERV 리뷰 게이트, `code-review-agents` SKILL §4.
 

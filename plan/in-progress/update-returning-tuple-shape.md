@@ -321,6 +321,10 @@ raw `.query()` 는 ORM 매핑을 타지 않아 행의 키가 **DB 그대로 snak
         (b) 는 세션 중 워크트리를 건드리면 훅이 전부 깨지는 알려진 위험이 있어 신중해야 한다.
       - 판정 자체는 push 를 막지 못한다 — 게이트는 **BLOCK: NO 세션만** 세고 최신을 취한다
         (`_newest_resolved_impl_done_mtime`). 비용은 라운드 낭비와 **오탐에 익숙해지는 것**이다.
+        > **NERV 전환 단계 2 뒤 (2026-10-01, NERV Task `CLE-T-4ABTG7`)**: 위 함수와 Gate 2 는 없어졌다.
+        > consistency 결과는 checker 마다 NERV `kind=consistency` 로 제출하고 발견마다 처분한다. 그래서
+        > 이 오탐의 비용은 이제 push 가 아니라 **오탐 CRITICAL 하나하나를 처분하는 일**로 든다. critical
+        > 을 `dismissed` 로 낮추려면 사람 승인이 필요하다. 프롬프트 오염 자체(워크트리 경로)는 그대로다.
 - [x] **구조적 가드가 "이 3개 파일" 하드코딩이다** (`01_12_26` architecture W1). 새 raw
       UPDATE/DELETE 지점이 그 밖의 파일에 생기면 **아무 가드도 RED 를 내지 않는다.**
       현재 방식은 "이미 아는 지점이 후퇴하지 않는지" 만 지키고 "새 지점이 생겼는지" 는 못 본다.

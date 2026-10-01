@@ -110,13 +110,15 @@ python3 .claude/tools/nerv_review_payload.py <session_dir>   # 역할별 제출 
    nerv_review_submit(kind=code, branch=<브랜치>, base_sha=<merge-base>, head_sha=<리뷰한 커밋>,
                       changeset=<출력의 changeset>, reviewer=<묶음의 reviewer>,
                       findings=<묶음의 findings>, summary=<묶음의 summary>,
-                      task_id=<클레임한 Task 키>, idempotency_key=<task>:<kind>:<head 앞 9자>:<role>)
+                      task_id=<클레임한 Task 키>, idempotency_key=<task>:<kind>:<mode>:<head 앞 9자>:<role>[:n])
    ```
+
+   - `idempotency_key` 의 `<mode>` 는 코드 리뷰면 `review`, 일관성 검토면 `spec` · `prep` · `done`(각각 `--spec` · `--impl-prep` · `--impl-done`)이다. 같은 head 에서 같은 모드를 다시 돌려 내면 끝에 실행 번호 `:2` · `:3` 을 붙인다. 모드나 실행 번호가 없으면 같은 head 의 다른 검토가 같은 키를 써서 재전송으로 묶인다.
 
    - 필수 6역할(security · requirement · scope · side_effect · maintainability · testing)은 발견 0건이어도 낸다. NERV 정책 `review_roles.code` 가 역할 리포트로 센다. router 는 바뀐 파일이 하나라도 있으면 이 6역할을 강제한다(하네스 · 문서만 바꾼 Task 도 done 게이트에 passed 라운드가 필요하다). `REVIEW_AGENTS` 로 직접 고를 때는 6역할을 넣는다.
    - `changeset` 이 출력에 없으면 `git diff --name-only <base_sha>..<head_sha>` 로 채운다.
    - 같은 커밋 · 같은 `changeset` 이면 한 라운드로 모인다(응답의 `merged_into_existing_session`). `changeset` 이 다르면 같은 커밋이라도 새 라운드가 생긴다. N1 판정은 같은 head 의 라운드들에서 낸 역할을 합쳐 센다(실측 2026-10-01). 역할마다 같은 `changeset` 을 넘긴다. 중간에 끊기면 남은 역할부터 같은 규칙의 키로 낸다. `idempotency_key` 는 같은 제출의 재전송을 묶는 NERV 인자다.
-3. `warnings[]` 가 있으면 해당 리포트를 읽는다. 형식 밖의 심각도 표지라면 빠진 발견을 그 역할로 한 번 더 낸다(키 끝에 `:2`). 목록 밖의 `*.md` 는 역할 리포트가 아니므로 내지 않는다.
+3. `warnings[]` 가 있으면 해당 리포트를 읽는다. 형식 밖의 심각도 표지라면 빠진 발견을 그 역할로 한 번 더 낸다(키 끝에 실행 번호). 목록 밖의 `*.md` 는 역할 리포트가 아니므로 내지 않는다.
 4. 이번 라운드가 막는지는 마지막 응답의 `round_block` · `blocking_findings` 로 본다. `block` 은 프로젝트 전체의 열린 critical 이라 판정에 쓰지 않는다. `carried_over` 는 다른 브랜치의 열린 발견이고 앞 50건만 담는다.
 5. 처리할 발견을 인계 파일로 받는다. 발견 ID 를 손으로 옮겨 적지 않는다.
 
@@ -127,7 +129,7 @@ python3 .claude/tools/nerv_review_payload.py <session_dir>   # 역할별 제출 
    이 브랜치의 열린 발견이 `<session_dir>/_nerv_findings.json` 에 적힌다. 파일 형식은 그 도구의 docstring 이 정본이다. 발견은 전체 ID 로 가리킨다. NERV 발견 ID 는 UUIDv7 이라 앞 8자는 같은 분에 생긴 발견끼리 겹친다.
 6. 발견은 모두 처분한다(`nerv_finding_resolve`). critical · warning 은 §6 `resolution-applier` 가 처분을 정하고, INFO 는 applier 가 남긴 것(`left_to_main`)을 main 이 정한다. INFO 까지 처분하는 이유가 있다. 열린 발견은 이후 모든 제출 응답에 `carried_over` 로 따라붙는다(이 전환 Task 에서 387건). critical 을 `dismissed`/`wont_fix` 로 낮추는 처분은 사람 승인이 필요하다. 처분은 발견 단위다. NERV 는 같은 지적을 지문으로 합치므로 처분이 같은 발견을 담은 다른 브랜치의 라운드에도 보인다. 다른 브랜치에서 온 발견을 이 브랜치 커밋으로 `fixed` 처분하지 않는다. 반대로 push 게이트가 "처분 커밋이 이 브랜치에 없다" 로 막으면 이 브랜치에서 고친 커밋으로 그 발견을 다시 처분한다. 이미 `fixed` 인 발견도 다시 처분할 수 있다(실측 2026-10-01: 같은 발견에 새 처분이 쌓인다).
 
-**라운드 뒤 커밋.** push 게이트는 라운드 head 이후의 `codebase/**` 커밋을 두 경우에 새 라운드 없이 통과시킨다. code · consistency 라운드에서 `fixed` 로 처분된 발견의 `commit_sha` 이거나, 커밋 메시지가 그런 발견을 `finding <발견 전체 ID>` 로 인용하는 경우다(e2e 실패 뒤 후속 수정). merge 커밋은 충돌을 손으로 푼 `codebase/**` 변경이 있으면 센다. **fix 커밋은 다시 리뷰되지 않는다.** `fixed` 처분과 인용은 main 의 자기 신고이고 게이트는 커밋이 처분에 묶였는지만 본다. 리뷰 뒤 변경이 처분한 발견의 범위를 넘으면 새 라운드를 낸다. 판정 규칙의 정본은 `.claude/hooks/_lib/review_guard.py` docstring 이다.
+**라운드 뒤 커밋.** push 게이트는 라운드 head 이후의 `codebase/**` 커밋을 두 경우에 새 라운드 없이 통과시킨다. code · consistency 라운드에서 `fixed` 로 처분된 발견의 `commit_sha` 이거나, 커밋 메시지가 그런 발견을 `finding <발견 전체 ID>` 로 인용하는 경우다(e2e 실패 뒤 후속 수정). 한 커밋이 발견 여럿을 고치면 `finding <ID> · <ID>` 처럼 `finding` 이 든 한 문단에 전체 ID 를 나열한다. 빈 줄로 나뉜 다른 문단의 ID 는 인용으로 세지 않는다. merge 커밋은 충돌을 손으로 푼 `codebase/**` 변경이 있으면 센다. **fix 커밋은 다시 리뷰되지 않는다.** `fixed` 처분과 인용은 main 의 자기 신고이고 게이트는 커밋이 처분에 묶였는지만 본다. 리뷰 뒤 변경이 처분한 발견의 범위를 넘으면 새 라운드를 낸다. 판정 규칙의 정본은 `.claude/hooks/_lib/review_guard.py` docstring 이다.
 
 **게이트가 판정하지 못할 때(fail-open).** push 훅은 NERV 가 응답하지 않거나 로컬에 `NERV_SERVER` · `NERV_TOKEN` 이 없으면 통과시키고 배너로 센다. CI `review-gate` 는 토큰 · 주소 설정 문제(없음, 401 · 403 · 404)만 실패로 보고, 장애(시간 초과 · 5xx · 429)는 통과시킨다. 그래서 두 게이트는 NERV 가 답할 때만 막는다. NERV 가 내려가 있어도 리뷰 결과를 저장소 파일로 커밋하지 않는다. NERV 가 돌아오면 그때 제출한다.
 
@@ -148,7 +150,8 @@ Workflow 불가 환경에서는 orchestrator 의 `--summary-state` / `--apply-ro
 > - **그 밖의 강제 reviewer 는 도구만 알린다.** `documentation` · `dependency` · `database` ·
 >   `api_contract` 가 빠지면 `nerv_review_payload.py` 가 exit 1 로 알릴 뿐 push · CI 는 이들을 보지
 >   않는다. exit 1 을 무시하고 제출하지 않는다. (전환 단계 2 전에는 `review_guard` 가 디스크의
->   리포트 파일로 forced 전체를 봤다.)
+>   리포트 파일로 forced 전체를 봤다. NERV `review_roles` 는 변경 종류에 따라 달라지는 조건부 역할을
+>   표현하지 않아서 정책에는 늘 강제되는 6역할만 둔다. 이 축소를 다시 닫는 일은 전환 4e Task 가 맡는다.)
 > - 미리 확인하려면(제출하기 전에):
 >   ```bash
 >   python3 .claude/skills/code-review-agents/scripts/code_review_orchestrator.py \

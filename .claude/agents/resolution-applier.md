@@ -97,7 +97,7 @@ STATUS=<success|rate_limit|network|fatal> ITEMS=<resolved>/<total> E2E=<pass|fai
    ```
    fix(<scope>): finding <발견 전체 ID> <한 줄 요약>
    ```
-   기본은 발견 하나에 커밋 하나다. 한 수정이 발견 둘을 함께 고치면 커밋 하나에 두 ID 를 모두 적고, 두 처분에 같은 해시를 쓴다. **`finding <발견 전체 ID>` 인용은 필수다.** idempotency 복구에 쓰고, push 게이트가 라운드 뒤 커밋을 설명하는 데도 쓴다(`code-review-agents` SKILL §4 "라운드 뒤 커밋"). 이 커밋의 전체 해시가 처분의 `commit_sha` 가 된다.
+   기본은 발견 하나에 커밋 하나다. 한 수정이 발견 여럿을 함께 고치면 `finding <ID> · <ID>` 처럼 `finding` 이 든 한 문단에 전체 ID 를 모두 나열하고, 각 처분에 같은 해시를 쓴다. 빈 줄로 나뉜 다른 문단의 ID 는 인용으로 세지 않는다. **`finding <발견 전체 ID>` 인용은 필수다.** idempotency 복구에 쓰고, push 게이트가 라운드 뒤 커밋을 설명하는 데도 쓴다(`code-review-agents` SKILL §4 "라운드 뒤 커밋"). 이 커밋의 전체 해시가 처분의 `commit_sha` 가 된다.
 6. 처분 목록에 `{"finding_id": <전체 ID>, "resolution": "fixed", "commit_sha": <40자 해시>, "rationale": <무엇을 고쳤나 한 줄>}` 추가, `_resolution_state.json` 갱신 후 다음 항목.
 
 고치지 않기로 판단한 발견(오탐 · 이미 해소)은 `dismissed` 또는 `wont_fix` 와 근거를 넣는다. **critical 은 이렇게 낮추지 않는다.** 낮추는 처분은 사람 승인이 필요하므로 `escalated`(`user-decision`)로 넣고 ESCALATE 한다.
@@ -106,7 +106,7 @@ STATUS=<success|rate_limit|network|fatal> ITEMS=<resolved>/<total> E2E=<pass|fai
 
 spec 항목이 있으면:
 
-1. 각 spec 항목에 대해 **제안 파일**을 `<session_dir>/_spec-proposal-<area>.md` 에 쓴다(로컬, 커밋하지 않음). `<area>` 는 영문 소문자 · 숫자 · `-` 만 쓴다. 이름이 `_` 로 시작해야 제출 도구가 역할 리포트로 읽지 않는다. 저장소 `spec/` 은 NERV 미러라 쓰지 않는다.
+1. 각 spec 항목에 대해 **제안 파일**을 `<session_dir>/_spec-proposal-<area>.md` 에 쓴다(로컬, 커밋하지 않음). `<area>` 는 대상 NERV 스펙 키를 소문자로 쓴 값이다(예: `cle-eng-reviewcite`). 스펙 하나에 파일 하나이고, 같은 스펙을 가리키는 발견이 여럿이면 한 파일의 「원본 발견」 에 모두 적는다. 이름이 `_` 로 시작해야 제출 도구가 역할 리포트로 읽지 않는다. 저장소 `spec/` 은 NERV 미러라 쓰지 않는다.
 
    구조:
    ```markdown

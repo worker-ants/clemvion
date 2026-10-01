@@ -30,10 +30,10 @@ model: opus
 | `plan/complete/` | Read/Write — 모든 항목 끝나면 `git mv` |
 | `codebase/**` | Read/Write — 구현 주 영역 |
 | `review/` | Read only — 옛 리뷰 산출물(동결, 전환 단계 3 에서 삭제). 도구 편집은 `guard_nerv_owned_paths.py` 훅이 막는다 |
-| `.review/` | Read/Write — 오케스트레이터의 로컬 산출물(gitignore). 커밋하지 않는다. 리뷰 결과는 NERV 리뷰 레코드로 제출한다 |
+| `.review/` | Read/Write — 오케스트레이터의 로컬 산출물(gitignore). 커밋하지 않는다. 리뷰 결과는 NERV 리뷰 레코드로 제출한다. 코드 주석 · 커밋 메시지에 `.review/**` 경로를 인용하지 않는다(다른 체크아웃에는 없는 파일이다). 리뷰는 `finding <발견 전체 ID>` 로 가리킨다 |
 | `README.md`, `PROJECT.md` | Read/Write |
 | `.claude/hooks/**`, `.claude/tools/**`, `.claude/tests/**` | Read/Write — harness **실행물**. 검증은 `python3 -m pytest .claude/tests -q` — push 리뷰 게이트의 스코프는 `codebase/**` 라 harness-only 변경은 **push 가 차단되지 않는다**. NERV Task done 게이트는 그래도 그 Task 의 code · consistency 라운드를 요구한다 |
-| `.claude/docs/**`, `.claude/skills/**/SKILL.md`, `CLAUDE.md` | Read only — **거버넌스 문서**(역할 정의·워크플로 규약). 수정은 `project-planner` 위임 ([`CLAUDE.md` §Skill 체계](../../../CLAUDE.md#skill-체계) 가 SoT) |
+| `.claude/docs/**`, `.claude/skills/**/SKILL.md`, `.claude/agents/**`, `.claude/commands/**`, `CLAUDE.md` | Read only — **거버넌스 문서**(역할 정의·워크플로 규약). 수정은 `project-planner` 위임 ([`CLAUDE.md` §Skill 체계](../../../CLAUDE.md#skill-체계) 가 SoT) |
 
 ## 작업 워크플로
 
@@ -116,8 +116,10 @@ model: opus
    처리하기 전엔 턴을 끝내지 않는다. applier 가 남긴 INFO(`left_to_main`)는 main 이 처분한다(SKILL §4-6).
    - **라운드 뒤 커밋** — push 게이트는 라운드 head 이후의 `codebase/**` 커밋이 code · consistency 라운드의
      `fixed` 처분 `commit_sha` 이거나, 메시지가 그런 발견을 `finding <발견 전체 ID>` 로 인용하면 새 라운드
-     없이 통과시킨다. fix 커밋은 다시 리뷰되지 않는다. 처분과 무관한 `codebase/**` 커밋을 더했거나
-     rebase 로 라운드 head 가 사라졌으면 지금 HEAD 로 다시 제출한다(SKILL §4 "라운드 뒤 커밋").
+     없이 통과시킨다(발견 여럿이면 `finding <ID> · <ID>` 를 한 문단에). fix 커밋은 다시 리뷰되지 않는다.
+     처분과 무관한 `codebase/**` 커밋을 더했거나 rebase 로 라운드 head 가 사라졌으면 지금 HEAD 로 다시
+     제출한다(SKILL §4 "라운드 뒤 커밋"). 기준 브랜치를 따라잡을 때 `git merge origin/main` 은 라운드를
+     유지한다(충돌을 손으로 푼 `codebase/**` 변경이 없을 때). rebase 는 필수 6역할을 포함한 재리뷰가 든다.
    - **SPEC-DRIFT 처리**: `[SPEC-DRIFT]` 발견사항(구현이 spec 을 의도적으로 개선해 spec 이 낡음)은 resolution-applier 가 코드를 되돌리지 않고 `ESCALATE=spec` 과 제안 파일(`spec_proposals`)로 돌려준다. main 은 그 발견을 처분하지 않은 채 NERV 스펙 초안을 쓴다(`/nerv:spec edit`). 제출 전 검토(`nerv_spec_check` + `/consistency-check --spec <초안 본문 파일>`)를 거쳐 `BLOCK: NO` 면 검토 요청하고, 초안 저장의 `spec_version_id` 로 그 발견을 `spec_change` 처분한다. 초안을 쓸 수 없으면 `escalated`(`escalate_reason=spec`)로 넘긴다. 저장소 `spec/` 에는 쓰지 않는다(미러는 승인 뒤 구현 PR 이 pull 한다). 이것이 "구현 중 개선된 flow 가 spec 에 역류" 하는 정식 경로다.
      - **승인 대기 중**: 초안이 승인되기 전에는 대조 대상이 옛 본문이라 같은 drift 가 다음 `--impl-done` 에서 다시 나온다. 그 발견도 `spec_change`(초안 저장의 `spec_version_id`)로 처분한다. 실측(2026-10-01): 승인본이 **없는** 문서는 `pull.py --task` 가 초안을 받았다(`read_as: "approved_fallback"`). 승인본이 있는 문서의 동작은 아직 재지 않았다.
 5. **post-impl 일관성 검토** — `/consistency-check --impl-done <spec/영역>` 을 돌려 5 checker 결과를
@@ -211,7 +213,7 @@ Warning 이상·테스트 누락은 지시 범위 밖이라도 해결. TEST·REV
 | 4. DOCUMENTATION | 문서 갱신 + lint(해당 시) 통과 직후 | `docs(<scope>):` |
 | 5–7. 테스트+구현 | 단위 테스트 통과 직후 (8단계 진입 직전) | `feat(<scope>):` / `fix(<scope>):` / `refactor(<scope>):` |
 | 8. TEST WORKFLOW | lint·unit·build·e2e 모두 통과 직후. 코드 수정 없으면 skip | `test(<scope>):` / `style(<scope>):` |
-| 9. REVIEW WORKFLOW | 발견마다 fix 커밋(그 커밋이 `fixed` 처분의 `commit_sha` 가 된다). 리뷰 산출물은 커밋하지 않는다 | `fix(<scope>): finding <발견 전체 ID> …` |
+| 9. REVIEW WORKFLOW | 발견마다 fix 커밋(그 커밋이 `fixed` 처분의 `commit_sha` 가 된다). 리뷰 산출물은 커밋하지 않는다 | `fix(<scope>): finding <발견 전체 ID> …`(여럿이면 `finding <ID> · <ID>`) |
 | 10. plan complete | 본 PR 의 모든 체크박스 `[x]` + follow-up 0건 시 `git mv` (같은 PR 안 별 commit). plan 이동만 담은 별 PR 금지 | `chore(plan): mark <name> complete` |
 
 규칙:

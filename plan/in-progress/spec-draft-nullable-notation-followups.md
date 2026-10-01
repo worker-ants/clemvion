@@ -3609,6 +3609,17 @@ field: T | null;
       > (라운드 6 에서 실제로 그 이유로 하나를 뺐다), `plan/` 경로는 완료 시
       > `in-progress/` → `complete/` 로 **이동해서 깨진다**. 즉 "더 안정적인 앵커"가
       > 자명하지 않다는 것이 이 항목의 핵심이고, 그래서 택일을 기록해야 한다.
+      >
+      > **NERV 전환 단계 2 뒤 (2026-10-01, NERV Task `CLE-T-4ABTG7`).** 새 리뷰는 `review/**` 를
+      > 만들지 않는다. 결과는 NERV 리뷰 레코드이고 로컬 `.review/**` 는 커밋하지 않는다. 그래서
+      > 대안이 하나 늘었다. **NERV 발견 전체 ID**(`finding <UUID>`)는 파일 이동 · 삭제와 무관하고
+      > push 전에 확정되며, push 게이트가 커밋 메시지에서 이미 이 형식을 읽는다. 앞 8자는 같은 분에
+      > 생긴 발견끼리 겹치므로 전체 ID 만 쓴다. 옛 `review/` 트리는 전환 단계 3(NERV Task
+      > `CLE-T-FN2JWK`)에서 지운다. **그 삭제 전에 이 택일을 정해야 한다.** 지우는 순간 기존 인용이
+      > 모두 죽은 링크가 된다. 규약 결정은 NERV 스펙 `CLE-ENG-REVIEWCITE` 초안으로 한다.
+      > 현재 규모(2026-10-01, `543d407a7` 에서 `git grep -o -E "review/(code|consistency|merge|spec-coverage)/20[0-9]{2}/" -- codebase`):
+      > **97개 파일 · 350회**. 등재 때의 75개 · 225회와 패턴이 같은지는 확인하지 않았다(등재 때 명령이
+      > 남아 있지 않다).
 
 - [ ] **`guide-identifier-scan.ts` 가 코드 84줄에 주석 260줄이다 (72%)** (developer,
       2026-09-13 등재 · `/ai-review` `review/code/2026/09/13/17_26_33` maintainability
