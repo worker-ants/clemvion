@@ -326,6 +326,11 @@ class DecisionTableTest(_RepoCase):
         d = self.evaluate(FakeClient(code_item("passed", self.c1), extra=[cons]))
         self.assertFalse(d.blocked, d.reason)
 
+    def test_the_first_item_of_a_kind_is_the_one_judged(self):
+        """N1 은 kind 마다 최신 라운드 하나를 준다. 같은 kind 가 또 오면 뒤의 것으로 바꾸지 않는다."""
+        d = self.evaluate(FakeClient(code_item("passed", self.c1), extra=[code_item("uncovered")]))
+        self.assertFalse(d.blocked, d.reason)
+
     def test_the_consistency_state_does_not_decide_the_push(self):
         cons = code_item("pending", self.c1, kind="consistency", reasons=["open_critical"])
         d = self.evaluate(FakeClient(code_item("passed", self.c1), extra=[cons]))
