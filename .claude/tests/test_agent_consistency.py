@@ -136,6 +136,20 @@ class ProjectJsonToggleTest(unittest.TestCase):
                     f"  only in SSOT: {sorted(ssot_keys - json_keys)}",
                 )
 
+    def test_plan_coherence_is_off_and_the_rest_run(self):
+        """NERV cutover stage 3 (Task `CLE-T-FN2JWK`) removed `plan/`, the only
+        corpus `plan_coherence` reads, and switched it off here. The governance
+        docs say "this repo runs the other four"; this pins the value, not just
+        the key set above, so flipping it back to `true` fails here first."""
+        pc = load_module_by_path(
+            "project_config", CLAUDE_DIR / "skills" / "_lib" / "project_config.py",
+        )
+        cfg = pc.load(str(REPO_ROOT))
+        all_checkers = sorted(ROLE.CHECKER_INSTRUCTIONS)
+        enabled = pc.filter_enabled_agents(cfg, "checkers", all_checkers)
+        self.assertNotIn("plan_coherence", enabled)
+        self.assertEqual(sorted(enabled), sorted(set(all_checkers) - {"plan_coherence"}))
+
 
 class ReadmeToggleColumnTest(unittest.TestCase):
     """README reviewer table's toggle column == REVIEWER_INSTRUCTIONS keys."""
