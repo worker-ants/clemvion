@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { isApplicable } from "./spec-frontmatter-parse";
+import { isApplicable, matterNoCache } from "./spec-frontmatter-parse";
 
 // Guard for the `isApplicable` scope rules used by all four spec-frontmatter
 // guards (frontmatter / code-paths / status-lifecycle / pending-plan).
@@ -72,5 +72,26 @@ describe("isApplicable", () => {
     expect(
       isApplicable("spec/conventions/makeshop-api-catalog/product.md"),
     ).toBe(true);
+  });
+});
+
+// gray-matter 캐시 우회 계약. NERV 전환 단계 3 에서 `plan-scan.ts` 와 그 테스트를 지우며
+// 이 함수를 여기로 옮겼고 계약 테스트도 함께 옮긴다. 이 테스트가 없으면 `{}` 를 빠뜨린
+// `matter(raw)` 로 되돌려도 아무것도 실패하지 않는다.
+describe("matterNoCache", () => {
+  const BROKEN = "---\n: : bad yaml for the parse contract : :\n---\n";
+
+  it("throws on unparseable frontmatter — on every call, not just the first", () => {
+    // gray-matter 는 옵션 없이 부르면 파싱 **전에** 캐시를 등록해, throw 한 내용의
+    // 2회차 호출이 조용히 `data={}` 로 성공한다. 깨진 frontmatter 가 호출 순서에 따라
+    // 빈 값으로 보이면 `parseError` 가 리포트에서 사라진다.
+    expect(() => matterNoCache(BROKEN)).toThrow();
+    expect(() => matterNoCache(BROKEN), "2회차가 조용히 성공했다 — 캐시 우회가 깨졌다").toThrow();
+    expect(() => matterNoCache(BROKEN)).toThrow();
+  });
+
+  it("parses a valid document and treats no frontmatter as empty", () => {
+    expect(matterNoCache("---\nid: x\n---\n# Doc\n").data).toEqual({ id: "x" });
+    expect(matterNoCache("# 제목만 있는 문서\n").data).toEqual({});
   });
 });

@@ -533,16 +533,57 @@ class CollectContextUsesPriorityTest(unittest.TestCase):
     def test_conventions_uses_the_ranked_order(self):
         self._assert_sentinel_order("impl_done", "conventions")
 
+    @staticmethod
+    def _plan_bundle_with_leftover(config):
+        """`plan_in_progress` bundle entries for a copy holding a leftover plan.
+
+        `config` is written as the copy's `.claude.project.json`, or nothing is
+        written when it is None (the harness DEFAULTS apply)."""
+        return run_in_orchestrator(
+            """
+            import os, re, tempfile
+            with tempfile.TemporaryDirectory() as tmp:
+                root = five_system_copy(tmp)
+                if ARG["config"] is not None:
+                    with open(os.path.join(root, ".claude.project.json"), "w",
+                              encoding="utf-8") as fh:
+                        fh.write(ARG["config"])
+                leftover = os.path.join(root, "plan/in-progress/leftover.md")
+                os.makedirs(os.path.dirname(leftover))
+                with open(leftover, "w", encoding="utf-8") as fh:
+                    fh.write("# 지우기 전 체크아웃에 남은 plan\\n")
+
+                class Args:
+                    spec = plan = impl_prep = diff_base = None
+                    impl_done = None
+                args = Args()
+                args.impl_done = os.path.join(root, "spec/5-system")
+                ctx = orch.collect_context(args, root)
+                text = re.sub(r"```.*?```", "", ctx["plan_in_progress"], flags=re.S)
+                emit(re.findall(r"^#### `([^`]+)`", text, re.M))
+            """,
+            {"config": config},
+        )
+
     def test_plan_in_progress_renders_empty_without_a_plan_corpus(self):
         """`plan_coherence`'s ONLY corpus left with `plan/` in NERV cutover stage 3.
 
         The bundle used to be ranked like the others (it was ~10x its budget
-        share on this repo). With no `corpora.plan_in_progress` configured the
-        orchestrator must render it empty rather than crash or read a stale
-        path; `plan_coherence` is switched off in `.claude.project.json`. The
-        dormant ranking machinery goes in cutover 4e (NERV Task `CLE-T-VP5KDJ`).
+        share on this repo). The harness DEFAULTS no longer name a plan corpus,
+        so a `plan/in-progress/` left behind in some checkout must not be read
+        back in; `plan_coherence` is also switched off in `.claude.project.json`.
+        The control proves the fixture would render: with the corpus configured
+        the same leftover file shows up. The dormant machinery goes in cutover
+        4e (NERV Task `CLE-T-VP5KDJ`).
         """
-        self.assertEqual(self._order("impl_done", "plan_in_progress"), [])
+        self.assertEqual(self._plan_bundle_with_leftover(None), [],
+                         "기본 설정이 남은 plan/in-progress 를 다시 읽었다")
+        self.assertEqual(
+            self._plan_bundle_with_leftover(
+                '{"corpora": {"plan_in_progress": "plan/in-progress"}}'),
+            ["plan/in-progress/leftover.md"],
+            "대조군: plan 코퍼스를 설정해도 번들이 안 나온다 — 위 단언이 공허하다",
+        )
 
 
 class ThisBranchsPlanOutranksEveryOtherPlanTest(unittest.TestCase):
