@@ -208,6 +208,9 @@ spec_impact: none
 - [ ] **신규 가드를 `spec-impl-evidence.md §4.2` SoT 에 등재** (리뷰 1R documentation W5).
       `stray-tool-tags.test.ts` 는 build 차단 가드인데 그 family 의 규약 SoT(§4.2 표 +
       frontmatter `code:` + "build 차단 **4건**" 카운트)에 없다.
+      → **(2026-10-01, NERV 전환 단계 2)** 세 번째 유예가 되지 않게 처리했다. 대상 문서가 NERV 로 옮겨져
+      옛 경로 `spec/conventions/spec-impl-evidence.md` 는 읽기 전용이다. 그래서 NERV `CLE-ENG-SPECEVIDENCE`
+      초안에 가드 표 한 행 · 구현 위치 한 줄 · "빌드 차단 5건" 을 넣었다(사람 승인 대기). 승인되면 이 항목을 체크한다.
 
       **이번 PR 에서 안 하는 이유**: `spec/` 편집이라 planner 턴 + 별도 `--spec` 라운드가
       필요한데, 같은 리뷰의 scope WARNING #1 이 **"이 PR 에 spec 축이 이미 과하게 묶였다"**
