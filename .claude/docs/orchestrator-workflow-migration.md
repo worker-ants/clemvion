@@ -232,14 +232,19 @@ analysis found five compounding pressures, all pushing the same way:
   - **Superseded by NERV cutover stage 2 (2026-10-01, NERV Task `CLE-T-4ABTG7`)
     for the review gate only.** The push gate (`guard_review_before_push.py`) now
     reads NERV review rounds (N1) instead of `review/**` files, and the CI backstop
-    (`review-gate.yml`) reads the same. `guard_review_before_stop.py` still exists
-    but keeps only its plan nudge: the review nudge was removed, because the NERV
+    (`review-gate.yml`) reads the same. `guard_review_before_stop.py` kept
+    only its plan nudge after this stage: the review nudge was removed, because the NERV
     plugin's Stop hook already blocks a turn-end once while a claim is open
     (observed 2026-10-01 in the `CLE-T-4ABTG7` session: the turn-end was blocked
     with "아직 정리하지 않은 클레임이 있다"). That hook speaks only while a claim is
     open, so a session that works without a claim no longer gets a review nudge at
     turn-end; the push gate still stops it at `git push`. The three bullets above
     describe the review gate as it was.
+  - **NERV cutover stage 3 (2026-10-01, NERV Task `CLE-T-FN2JWK`)** removed the
+    plan nudge with `plan/` and unwired the `Stop` hook from `settings.json`.
+    `guard_review_before_stop.py` stays as an empty stub so sessions started before
+    that merge (which still carry the old wiring) are not blocked at turn-end; stage 5
+    (`CLE-T-7M4C4X`) deletes it.
 - **Standing opt-in (remedies 1–2).** CLAUDE.md §외부 LLM 호출 정책 now records
   that post-impl auto review/fix is a **standing sanctioned obligation**, exempt
   from the Workflow "inferred scale" guard; auto-triggers may use the fallback
