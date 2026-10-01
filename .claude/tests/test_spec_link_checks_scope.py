@@ -57,14 +57,12 @@ def _docs_guard_run_commands() -> list[str]:
 class SpecLinkChecksScopeTest(unittest.TestCase):
     def test_pathspecs_trigger_on_spec(self) -> None:
         pathspecs = parse_pathspecs_block(WORKFLOW.read_text(encoding="utf-8"))
-        for needed in ("spec/**",):
-            with self.subTest(pathspec=needed):
-                self.assertIn(
-                    needed,
-                    pathspecs,
-                    f"{WORKFLOW.name}: pathspecs lost {needed!r} — docs guards that "
-                    f"scan it will not run on a PR that only changes it",
-                )
+        self.assertIn(
+            "spec/**",
+            pathspecs,
+            f"{WORKFLOW.name}: pathspecs lost 'spec/**' — docs guards that "
+            f"scan it will not run on a PR that only changes it",
+        )
 
     def test_runs_the_docs_guard_directory_not_one_file(self) -> None:
         runs = _docs_guard_run_commands()

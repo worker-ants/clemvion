@@ -79,6 +79,7 @@ def evaluate_review(cwd=None):
     return _Decision(blocked=False, reason="clean")
 '''
 
+
 def _ensure_on_path(entry: str) -> None:
     """Insert `entry` at the front of sys.path once.
 
@@ -549,7 +550,6 @@ class PushBlocksContractTest(unittest.TestCase):
         RD = self.review.ReviewDecision
         self.assertTrue(RD(blocked=True, reason="x").push_blocks)
         self.assertFalse(RD(blocked=False, reason="x").push_blocks)
-
 
 
 class PushTargetsUnitTest(unittest.TestCase):

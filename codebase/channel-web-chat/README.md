@@ -71,4 +71,4 @@ DOMPurify+marked 기반 template 안전 HTML 렌더(`src/lib/safe-html.ts`),
 차트 축 레이블·범례·툴팁(`CartesianChart`/`PieChart` inline SVG),
 chrome 문자열 ko/en i18n(`src/lib/i18n` — 위젯 로컬 catalog·`resolveLocale`·`I18nProvider`/`useTranslation`,
 `BootConfig.locale` 소비: 명시→auto-detect→ko, boot 1회 고정).
-진행 추적: [`channel-web-chat-impl.md`](../../plan/in-progress/channel-web-chat-impl.md).
+진행 추적: NERV Task(옛 plan `channel-web-chat-impl.md` 는 git 이력에 있다).

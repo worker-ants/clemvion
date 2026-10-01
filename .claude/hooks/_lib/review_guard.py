@@ -117,7 +117,7 @@ class ReviewDecision:
 
     @property
     def push_blocks(self) -> bool:
-        """push 훅이 게이트마다 같은 이름으로 읽는 차단 여부(`PlanDecision` 과 짝)."""
+        """push 훅이 게이트 결정에서 읽는 차단 여부."""
         return self.blocked
 
 

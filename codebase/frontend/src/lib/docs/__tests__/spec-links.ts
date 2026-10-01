@@ -376,22 +376,6 @@ function findBrokenLinksInFiles(
 }
 
 /**
- * Validate every in-repo markdown link in `spec/**`. Returns the list of
- * broken links (empty = healthy). A link is broken when its relative path
- * target does not exist (DEAD) or its `#anchor` does not resolve to a heading
- * in the target markdown file (ANCHOR). Same-file `#anchor` links are checked
- * against the file's own headings.
- */
-export function findBrokenLinks(root: string): LinkViolation[] {
-  const retired = RETIRED_ROOT_TREES.map((name) => path.resolve(root, name));
-  return findBrokenLinksInFiles(collectSpecMarkdown(root), {
-    checkSelfAnchors: true,
-    skipResolved: (abs) =>
-      retired.some((dir) => abs === dir || abs.startsWith(dir + path.sep)),
-  });
-}
-
-/**
  * Repo-root trees removed in NERV cutover stage 3 (NERV Task `CLE-T-FN2JWK`):
  * work tracking moved to NERV Tasks, review results to NERV review records.
  * The frozen old `spec/<area>/` tree still links into them and is not edited;
@@ -401,6 +385,23 @@ export function findBrokenLinks(root: string): LinkViolation[] {
  * drop such links instead (`findBrokenGovernanceLinks` keeps reporting them).
  */
 const RETIRED_ROOT_TREES = ["plan", "review"];
+
+/**
+ * Validate every in-repo markdown link in `spec/**`. Returns the list of
+ * broken links (empty = healthy). A link is broken when its relative path
+ * target does not exist (DEAD) or its `#anchor` does not resolve to a heading
+ * in the target markdown file (ANCHOR). Same-file `#anchor` links are checked
+ * against the file's own headings. Links that resolve into `RETIRED_ROOT_TREES`
+ * (the root `plan/` and `review/`, or the folder itself) are skipped.
+ */
+export function findBrokenLinks(root: string): LinkViolation[] {
+  const retired = RETIRED_ROOT_TREES.map((name) => path.resolve(root, name));
+  return findBrokenLinksInFiles(collectSpecMarkdown(root), {
+    checkSelfAnchors: true,
+    skipResolved: (abs) =>
+      retired.some((dir) => abs === dir || abs.startsWith(dir + path.sep)),
+  });
+}
 
 // ---------------------------------------------------------------------------
 // 거버넌스 문서 (루트 `*.md` + `.claude/**.md`)

@@ -589,7 +589,10 @@ class GitProbesAreNotReDuplicatedTest(unittest.TestCase):
     from `test_plan_guard.py` when `plan_guard` left in NERV cutover stage 3.
     """
 
-    _MODULES = ("review_guard.py", "branch_guard.py")
+    # Derived, like the function set: a new `_lib/*_guard.py` joins the check
+    # without anyone remembering to list it (it was hand-listed until stage 3).
+    _MODULES = tuple(sorted(
+        p.name for p in (_harness.HOOKS_DIR / "_lib").glob("*_guard.py")))
 
     @staticmethod
     def _bodies(src):
@@ -605,6 +608,8 @@ class GitProbesAreNotReDuplicatedTest(unittest.TestCase):
 
     def test_no_identical_function_survives_in_two_guards(self):
         import itertools
+        self.assertGreaterEqual(len(self._MODULES), 2,
+                                f"fewer than two guards found — nothing to compare: {self._MODULES}")
         srcs = {m: (_harness.HOOKS_DIR / "_lib" / m).read_text(encoding="utf-8")
                 for m in self._MODULES}
         bodies = {m: self._bodies(s) for m, s in srcs.items()}

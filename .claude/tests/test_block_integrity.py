@@ -541,7 +541,7 @@ class VerdictParserStaysLinearTest(unittest.TestCase):
     # so the fourth is not written by someone filling an obvious gap.
 
 
-class GateStubsMirrorTheRealInterfaceTest(unittest.TestCase):
+class GateStubsDefinePushBlocksTest(unittest.TestCase):
     """Every hand-written `evaluate_review` stub must expose `push_blocks`.
 
     Found twice, in two files, the same way (on the since-removed PLAN gate's
@@ -569,19 +569,19 @@ class GateStubsMirrorTheRealInterfaceTest(unittest.TestCase):
         # `_evaluate_over_targets` reads `push_blocks` off whatever the gate
         # returns. (The PLAN gate's `evaluate_plan` stubs were the other half
         # until NERV cutover stage 3.)
-        marker = ("def evaluate_review",)
+        marker = "def evaluate_review"
         for path in sorted(glob.glob(str(tests_dir / "test_*.py"))):
             with open(path, encoding="utf-8") as f:
                 src = f.read()
-            if not any(m in src for m in marker):
+            if marker not in src:
                 continue
-            # `"\n" in v` 로 마커 상수 자체를 걸러낸다 — 이 가드가 쓰는 `marker` 튜플도
+            # `"\n" in v` 로 마커 상수 자체를 걸러낸다 — 이 가드가 쓰는 `marker` 상수도
             # `"def evaluate_review"` 를 담은 문자열이라, 그것 없이는 자기 자신을 스텁으로
             # 세고 실패한다. 진짜 스텁은 소스 텍스트라 반드시 줄바꿈을 갖는다.
             stubs = [n.value for n in ast.walk(ast.parse(src))
                      if isinstance(n, ast.Constant) and isinstance(n.value, str)
                      and "\n" in n.value
-                     and any(m in n.value for m in marker)]
+                     and marker in n.value]
             # The stub is usually built by concatenating adjacent literals, which
             # `ast` folds into one Constant; if a file ever splits it across
             # separate expressions, join what we found for that file.

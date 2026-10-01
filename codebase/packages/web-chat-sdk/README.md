@@ -3,7 +3,7 @@
 CDN 스니펫 로더 + npm 패키지. host↔iframe(`wc:*`) bridge + 공개 JS API. EIA HTTP/SSE 호출은
 [`@workflow/sdk`](../sdk/) 를 재사용한다(web-chat → @workflow/sdk).
 
-> **scope 확정**: `@workflow/*` — [`plan/in-progress/eia-sdk-publish.md`](../../../plan/in-progress/eia-sdk-publish.md) §결정 #3 에서 `@workflow/sdk` 와 일관되게 통일. publish 정책은 internal-only(별도 지정 전까지).
+> **scope 확정**: `@workflow/*` — 옛 plan `eia-sdk-publish.md`(git 이력) §결정 #3 에서 `@workflow/sdk` 와 일관되게 통일. publish 정책은 internal-only(별도 지정 전까지).
 
 - Spec(SoT): [`spec/7-channel-web-chat/2-sdk.md`](../../../spec/7-channel-web-chat/2-sdk.md).
 - 위젯 SPA(iframe 내부 앱): [`codebase/channel-web-chat`](../../channel-web-chat/).
@@ -38,7 +38,7 @@ chat.off("unread", handleUnread);
 구현됨: 타입(`BootConfig`/`ChatInstance`/`wc:*` 프로토콜) + `boot`/`validateBootConfig`/`setWidgetBase` +
 `WidgetBridge`(iframe 주입·양방향 origin 검증·명령 큐) + 스니펫 로더 IIFE(`dist/loader.js`, 전역 `ClemvionChat`).
 EIA HTTP/SSE 호출은 위젯 SPA 내부([`channel-web-chat`](../../channel-web-chat/))에서 수행한다.
-잔여(rich presentation·rate-limit 등)는 [`channel-web-chat-followups.md`](../../../plan/in-progress/channel-web-chat-followups.md).
+잔여(rich presentation·rate-limit 등)는 NERV Task 가 추적한다(옛 plan `channel-web-chat-followups.md`, git 이력).
 
 ### setWidgetBase
 

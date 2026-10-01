@@ -1,8 +1,8 @@
 import { describe, it, expect } from "vitest";
 import { isApplicable, matterNoCache } from "./spec-frontmatter-parse";
 
-// Guard for the `isApplicable` scope rules used by all four spec-frontmatter
-// guards (frontmatter / code-paths / status-lifecycle / pending-plan).
+// Guard for the `isApplicable` scope rules used by both spec-frontmatter
+// guards (frontmatter / code-paths).
 // SoT: spec/conventions/spec-impl-evidence.md §1.
 describe("isApplicable", () => {
   // One sample per INCLUDE_PREFIXES entry — guards against a silent regression

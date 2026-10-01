@@ -15,8 +15,9 @@ Two things differ per hook and are therefore parameters, not assumptions:
 
 * **Which stream the banner goes to.** The push hook picks by exit code — on
   exit 2 the harness reads stderr, on exit 0 it injects stdout. The Stop hook
-  cannot do that: its stdout carries the `{"decision": ...}` JSON protocol, so a
-  banner there would corrupt the payload. It always reports on stderr.
+  (retired in NERV cutover stage 3) could not do that: its stdout carried the
+  `{"decision": ...}` JSON protocol, so it always reported on stderr. The push
+  hook is the only caller now; the parameter stays for the next one.
 * **The state file and wording**, so one hook's streak never resets the other's.
 
 Nothing here may ever raise into a guard: observability that breaks the thing it

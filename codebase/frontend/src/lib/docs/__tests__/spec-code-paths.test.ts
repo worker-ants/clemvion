@@ -5,7 +5,7 @@ import {
   repoRoot,
 } from "./spec-frontmatter-parse";
 
-// Guard 2/4: every spec with status `partial` or `implemented` MUST have
+// Guard 2/2: every spec with status `partial` or `implemented` MUST have
 // at least one `code:` glob that matches at least one real file.
 // `spec-only` / `backlog` / `archived` allow empty code.
 // SoT: spec/conventions/spec-impl-evidence.md §3.

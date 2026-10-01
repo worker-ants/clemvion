@@ -13,6 +13,7 @@ left with `plan/` in NERV cutover stage 3 (NERV Task `CLE-T-FN2JWK`); the histor
 below names it because the drift it describes happened there. `_merge_base` was
 its only caller and went with it.
 
+The rest of this docstring is the record from when `plan_guard` existed.
 
 `review_guard.py` and `plan_guard.py` each carried byte-identical copies of these
 five functions. AST-compared before extracting (docstrings excluded): all five
@@ -162,10 +163,10 @@ def _run_git_raw(args: list[str], cwd: str, timeout: float = 5.0) -> tuple[int, 
 
     The `except` stays NARROW, deliberately. The two orchestrator copies each
     wrapped their git call in `except Exception`, and restoring that promise is
-    right for *them* — but this function is also the primitive the three
-    push-gate guards run on, and there a swallowed `TypeError` becomes "git
-    failed", which `review_guard` reads as fail-open and `plan_guard` as a false
-    BLOCK. A guard degrading silently is the exact failure class this repo keeps
+    right for *them* — but this function is also the primitive the push-gate
+    guards run on, and there a swallowed `TypeError` becomes "git failed",
+    which `review_guard` reads as fail-open (and the retired `plan_guard` read
+    as a false BLOCK). A guard degrading silently is the exact failure class this repo keeps
     getting burned by; a guard crashing is loud and gets fixed. So the broad
     catch lives on `branch_diff_files` instead, scoped to the callers whose
     documented contract asks for it. Encoding is the one thing fixed for

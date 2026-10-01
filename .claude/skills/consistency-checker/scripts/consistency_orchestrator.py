@@ -131,7 +131,7 @@ _READ_CACHE: dict[str, str] = {}
 def read_text_file(path):
     """파일을 읽되 **한 실행 안에서는 한 번만** 읽는다 (백로그 §7).
 
-    `collect_context` 는 `plan/in-progress/` 전체를 랭킹 신호용으로 한 번 읽고,
+    `collect_context` 는 plan 코퍼스를 설정한 경우 그 디렉터리 전체를 랭킹 신호용으로 한 번 읽고,
     곧이어 `format_file_bundle` 이 같은 디렉터리를 처음부터 다시 읽는다 — 세션당 2배 I/O.
     실측 규모는 30개 430,929 bytes(≈3.5ms)라 오늘 아프지는 않지만, 호출부를 고쳐 없애는
     것보다 읽기 자체를 기억하는 편이 **다른 이중 읽기까지 함께** 닫는다(호출부는 6곳이다).
@@ -213,7 +213,8 @@ def collect_markdown_files(root_dir, exclude_paths=None):
     else:
         exclude_paths = {os.path.abspath(p) for p in exclude_paths}
 
-    if not os.path.isdir(root_dir):
+    # `None` 은 "코퍼스를 설정하지 않았다" 다(plan 코퍼스, 단계 3 부터 선택 항목).
+    if not root_dir or not os.path.isdir(root_dir):
         return []
 
     files = []
@@ -639,7 +640,7 @@ def collect_context(args, root):
     # ranking wants every in-progress plan, not just the ones that survive into
     # the plan bundle.
     _rank_changed = _edited_rels(diff_base, root)
-    _rank_plan_files = collect_markdown_files(plan_dir) if plan_dir else []
+    _rank_plan_files = collect_markdown_files(plan_dir)
     _rank_plan_text = "\n".join(read_text_file(p) for p in _rank_plan_files)
     # The plans THIS BRANCH touched are the task's own plans, and their
     # `spec_impact:` frontmatter is the most direct statement of what the work
@@ -822,8 +823,7 @@ def collect_context(args, root):
     else:
         convention_files = collect_markdown_files(conventions_dir, exclude_paths=excluded)
         other_spec_files = all_spec_files
-    plan_files = (collect_markdown_files(plan_dir, exclude_paths=excluded)
-                  if plan_dir else [])
+    plan_files = collect_markdown_files(plan_dir, exclude_paths=excluded)
 
     # Same treatment for the two big supporting bundles. For `conventions` this
     # is the fix for the observed case where ~230 auto-generated catalog files
@@ -832,8 +832,9 @@ def collect_context(args, root):
     other_spec_files = _prioritized(other_spec_files)
     convention_files = _prioritized(convention_files)
     # `plan_in_progress` needs this most, not least: it is `plan_coherence`'s ONLY
-    # corpus. Measured on this repo it is ~10x its own budget share, so the
-    # alphabetical tail-drop is not an edge case there — it is the normal case,
+    # corpus. Measured on this repo while `plan/` existed (before NERV cutover
+    # stage 3) it was ~10x its own budget share, so the alphabetical tail-drop
+    # was not an edge case there — it was the normal case,
     # and the 4th recurrence recorded in the ticket was exactly this bundle with
     # this checker. It was left out by oversight; nothing documents an exclusion.
     plan_files = _prioritized(plan_files)

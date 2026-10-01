@@ -31,25 +31,39 @@ NERV 정본 전환 단계 3(Task `CLE-T-FN2JWK`). 작업 추적의 정본은 NER
 
 - **push 게이트(느슨하게)**: PLAN 게이트(`_lib/plan_guard.py`, "PR 전 plan 갱신 · 이동")를 걷었다. 그 자리는 NERV Task 의
   done 게이트(`spec_impact` 선언 · 증적 · Task 에 묶인 code · consistency 라운드)가 맡는다. push 훅에는 REVIEW 게이트 하나만
-  남는다. fail-open 연속 횟수는 그 게이트가 답하면 지워진다.
+  남는다. fail-open 연속 횟수는 그 게이트가 답하면 지워진다. 우회 변수 `BYPASS_PLAN_GUARD` 도 없어졌다. 셸 설정에 남아
+  있어도 효과가 없다. `BYPASS_REVIEW_GUARD=1` 은 이제 push 훅의 검사를 모두 건너뛴다(전에는 PLAN 게이트가 따로 막았다).
 - **Stop 훅(제거)**: `guard_review_before_stop.py` 의 마지막 기능(완료한 plan 을 `plan/complete/` 로 옮기라는 권유)과
   `settings.json` 의 `Stop` 배선을 뺐다. 파일은 빈 스텁으로 남긴다. 이 PR 머지 전에 시작한 세션은 옛 settings 로 그 파일을
   부르고, 파일이 없으면 exit 2 로 세션 종료가 막힌다. 스텁은 단계 5(`CLE-T-7M4C4X`)에서 지운다. 단계 2 의 마커 훅 스텁
-  둘(`mark_resolution_in_flight.py` · `clear_resolution_in_flight.py`)은 이번에 지웠다.
+  둘(`mark_resolution_in_flight.py` · `clear_resolution_in_flight.py`)은 이번에 지웠다. 단계 2 머지 전에 시작한 세션이
+  남아 있지 않음을 사용자가 2026-10-01 작업 세션에서 확인했다. 그래도 옛 settings 로 도는 세션이 main 을 pull 하면 Agent
+  호출이 exit 2 로 막힌다. 세션을 다시 시작하면 풀린다.
 - **docs 가드(제거)**: `plan-frontmatter` · `spec-plan-completion`(Gate C) · `spec-pending-plan-existence` ·
-  `spec-status-lifecycle` 과 `plan-scan.ts` 를 지웠다. 넷 다 `plan/` 이나 `pending_plans:` 의 plan 경로를 읽었다. Gate C 자리는
+  `spec-status-lifecycle` 과 `plan-scan.ts` 를 지웠다. 셋과 `spec-status-lifecycle` 의 두 갈래(`pending_plans:` 의무 · 승격)는
+  `plan/` 이나 `pending_plans:` 의 plan 경로를 읽었다. 나머지 두 갈래(`spec-only` TTL · `backlog` 등재)는 plan 경로가 아니라
+  옛 트리 frontmatter 와 `spec/0-overview.md` 를 읽었다. 그 전제가 NERV 의 문서 머리 줄 "구현 상태" 와 영역 문서로 바뀌어
+  같은 PR 에서 함께 걷었다. 약해지는 곳도 있다. "`partial` 인데 남은 표면을 맡은 작업이 없음" 은 이제 기계가 잡지 못한다. Gate C 자리는
   Task done 게이트의 `spec_impact` 가, `pending_plans` 자리는 NERV Task 추적이 맡는다. `stray-tool-tags` 는 `spec/**` 만 본다.
+  그 루트의 하한은 190 에서 85 로 낮췄다(느슨하게). 기준을 전체 `.md` 수(557)에서 NERV 미러 수(170)로 바꿨다. 옛 트리를 지우는
+  단계 5 PR 이 하한에 걸리지 않게 하려는 것이다. 그때까지 옛 트리만 통째로 빠지는 부분 실패는 이 하한으로 잡히지 않는다.
 - **`spec-link-integrity` 범위 1(좁힘)**: 루트 `plan/` · `review/` 로 해석되는 링크를 건너뛴다. 동결된 옛 `spec/<영역>/`
   트리에 그런 링크가 남아 있고, 그 트리는 단계 5 에서 지운다. 판정은 해석한 경로로 한다. `spec/x/plan/` 같은 같은 이름 폴더는
   그대로 검사한다. 거버넌스 문서(범위 3)에는 적용하지 않는다.
 - **`guard_nerv_owned_paths.py`(조임)**: `plan/` 아래 도구 편집도 막는다. 진행 상황은 NERV Task 에 남긴다.
 - **CI**: `spec-link-checks` 의 pathspec 에서 `plan/**` 를, `e2e.yml` 의 `paths-ignore` 와 PROJECT.md e2e 면제
-  화이트리스트에서 `plan/**` · `review/**` 를 뺐다. `.gitignore` 는 `review/` 를 통째로 무시한다. 체크아웃마다 남은 로컬
-  잔재(`review/**/_prompts/`)가 untracked 로 뜨지 않게 하려는 것이다.
+  화이트리스트에서 `plan/**` · `review/**` 를 뺐다. `.gitignore` 는 루트의 `/review/` 를 통째로 무시한다. 체크아웃마다 남은
+  로컬 잔재(`review/**/_prompts/`)가 untracked 로 뜨지 않게 하려는 것이다. 더 깊은 `review` 디렉터리는 무시하지 않는다.
 - **consistency**: `plan_coherence` checker 를 껐다(`.claude.project.json`). 유일한 코퍼스 `plan/in-progress` 가 없어졌다.
   plan 코퍼스 설정(`corpora.plan_in_progress`)은 선택 항목이 됐다. 설정이 없으면 plan 묶음과 랭킹의 plan 신호가 빈다.
   `--plan` 모드와 남은 plan 기계는 4e(`CLE-T-VP5KDJ`)에서 걷는다. 읽는 곳이 없던 `outputs` 설정 키도 지웠다.
 - statusline 의 plan 조각과 `plan-stale-audit.sh` 를 지웠다.
+- **`test_line_anchors.py`(결함 수정)**: 실제 이력을 재생하는 두 테스트가 이 단계의 삭제 커밋(30,085 파일)을 만나 harness job
+  한도(15분)를 넘겼다. fixture 선택은 파일이 500개를 넘는 커밋을 건너뛴다(최근 300 커밋의 최대 381). Gutter 검사는 지운
+  파일을 처음부터 목록에서 뺀다. 전에는 로컬에서 Gutter 검사 하나가 약 12분 걸렸고 그 커밋의 `--prepare` 는 16분이 지나도
+  끝나지 않았다. 고친 뒤 모듈 전체가 15초 안에 끝난다. 이 커밋은 main 에 그대로 남으므로 같은 PR 에서 고쳤다.
+- 거버넌스 문서(`CLAUDE.md` · developer SKILL · `plan-lifecycle.md` 등)의 `plan/` 안내는 짝 planner PR 이 같은 단계에서
+  고친다. 그 PR 이 먼저 머지돼야 `plan/` 차단과 거버넌스 링크 가드가 문서와 어긋나지 않는다.
 
 ## Unreleased — 하네스: doc-sync 매트릭스 가드가 NERV 미러 경로를 검사한다
 

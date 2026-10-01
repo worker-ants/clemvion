@@ -138,9 +138,10 @@ class ProjectJsonToggleTest(unittest.TestCase):
 
     def test_plan_coherence_is_off_and_the_rest_run(self):
         """NERV cutover stage 3 (Task `CLE-T-FN2JWK`) removed `plan/`, the only
-        corpus `plan_coherence` reads, and switched it off here. The governance
-        docs say "this repo runs the other four"; this pins the value, not just
-        the key set above, so flipping it back to `true` fails here first."""
+        corpus `plan_coherence` reads, and switched it off here. The consistency
+        checker SKILL and `/consistency-check` say this repo runs four checkers
+        with `plan_coherence` off; this pins the value, not just the key set
+        above, so flipping it back to `true` fails here first."""
         pc = load_module_by_path(
             "project_config", CLAUDE_DIR / "skills" / "_lib" / "project_config.py",
         )

@@ -172,6 +172,7 @@ describe("findBrokenLinks — 지운 루트 트리를 가리키는 링크", () =
         mkLink("retired plan", "../../plan/in-progress/gone.md"), // 루트 plan/ → 건너뜀
         mkLink("retired plan anchor", "../../plan/complete/gone.md#sec"), // 앵커가 있어도 건너뜀
         mkLink("retired review", "../../review/code/2026/x/SUMMARY.md"), // 루트 review/ → 건너뜀
+        mkLink("retired root itself", "../../plan/"), // 폴더 자체 → 건너뜀
         mkLink("same-name dir", "./plan/gone.md"), // spec/5-system/plan/ — 루트가 아니다 → DEAD
         mkLink("look-alike", "../../planning/gone.md"), // 접두만 같은 형제 → DEAD
       ].join("\n"),

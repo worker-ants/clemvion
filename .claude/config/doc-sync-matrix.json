@@ -122,7 +122,7 @@
       "change_type": "신규 errorCode 발행 (ErrorCode enum 추가)",
       "trigger": { "globs": ["codebase/backend/src/nodes/core/error-codes.ts"], "match": "glob" },
       "targets": [
-        "backend-labels.ts 에 ERROR_KO 매핑 테이블이 없어 영문 message 노출됨. errorCode 추가 시 사용자 가시 ko 노출을 PR 본문에 명시 (후속 plan 에서 ERROR_KO 신설 검토)"
+        "backend-labels.ts 에 ERROR_KO 매핑 테이블이 없어 영문 message 노출됨. errorCode 추가 시 사용자 가시 ko 노출을 PR 본문에 명시 (후속 작업(NERV Task)에서 ERROR_KO 신설 검토)"
       ],
       "verify": null,
       "guard_tests": [],

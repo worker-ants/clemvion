@@ -35,9 +35,9 @@ import, `evaluate_*()` raised, or push detection itself blew up — the push is
 still allowed, but the hook prints an explicit "this push was not checked"
 banner and records the CONSECUTIVE count in
 `.claude/state/push_guard_failopen.json`; three in a row escalates the wording.
-Only a push where EVERY gate answered cleanly clears the counter. A BYPASS_*
-skip, a non-push, and a push where one gate blocked before the other ever ran
-are all "no evidence" — not "healthy" — and leave the streak untouched. That
+Only a push where EVERY gate in `_ALL_GATES` answered clears the counter. A
+blocking answer counts: the gate worked. A BYPASS_* skip and a non-push are
+"no evidence" — not "healthy" — and leave the streak untouched. That
 predicate was wrong three times in review, each time by accepting weaker
 evidence than "all of them answered", so `_report_fail_open` compares against
 the named `_ALL_GATES` set rather than testing truthiness. Read it there before
@@ -90,7 +90,7 @@ except Exception:  # noqa: BLE001
 # text-transforming features are an UNBOUNDED surface, whereas this regex's
 # defect (false POSITIVES) is a finite, enumerable one. Do not "improve" this
 # regex into a parser — that trade goes the wrong way.
-# SoR: plan/complete/harness-push-guard-subcommand-detection.md
+# SoR: 옛 plan `harness-push-guard-subcommand-detection.md`(git 이력).
 #
 # DO NOT EDIT this pattern. Releases belong in _redact_inert_text() below, which
 # is the bounded half of the design. test_push_guard_allowlist.py pins this
@@ -245,7 +245,7 @@ except Exception:  # noqa: BLE001
 # (a push split across lines by a backslash) are far rarer than the shapes the
 # fixes broke (heredoc commits, `git \push`). Do not reopen this without
 # measuring against BOTH lists above.
-# SoR: plan/complete/harness-push-detection-split-then-match.md.
+# SoR: 옛 plan `harness-push-detection-split-then-match.md`(git 이력).
 #
 # ── 왜 이 정규식이 `_lib/` 이 아니라 훅 파일 안에 있는가 ──────────────────────
 # env-value 서브패턴이 `guard_default_branch_bash._MUTATING` 과 글자 그대로 같고,
@@ -537,7 +537,7 @@ def _is_git_push(command: str) -> bool:
 # ---------------------------------------------------------------------------
 # Which worktree(s) does this push publish?
 #
-# Both gates evaluate a *worktree* (HEAD + working tree). Historically they only
+# The gate evaluates a *worktree* (HEAD + working tree). Historically it only
 # ever evaluated the hook process's own cwd, which is wrong in a multi-worktree
 # repo — this project keeps every task in `.claude/worktrees/<task>-<slug>/`, so
 # an agent routinely runs `cd <other-worktree> && git push origin <its-branch>`.
@@ -711,7 +711,6 @@ _REVIEW_MSG = (
 )
 
 
-
 # --- fail-open observability -------------------------------------------------
 # The gates fail OPEN by design: a broken guard must not stop routine work. The
 # cost is that a gate can be effectively OFF and nobody notices — this module
@@ -855,8 +854,8 @@ def _evaluate_over_targets(evaluate, targets, *, gate, outcome, render):
                 outcome.degraded.append((gate, f"{type(exc).__name__}: {exc}"))
             continue  # fail open for THIS target — keep checking the rest
         if result is None:
-            # Neither gate returns None today (both always build a decision
-            # object), so this is defensive. Deliberately does NOT set
+            # The review gate never returns None today (it always builds a
+            # decision object), so this is defensive. Deliberately does NOT set
             # `answered`: a gate that returned nothing did not answer, and
             # counting it would let it reset the §E streak having decided
             # nothing. If a gate ever returns None on purpose, that silence
@@ -916,8 +915,8 @@ def _run_gates(outcome: _Outcome, targets: list[str]) -> int:
 
 def main() -> int:
     # `finally` so the report happens on every exit path, including the blocking
-    # ones (a gate can block while the OTHER one failed open — that is exactly
-    # when it would otherwise be quietest).
+    # one (the gate can block on one worktree after failing open on another —
+    # that is exactly when it would otherwise be quietest).
     outcome = _Outcome()
     exit_code = 0
     try:
