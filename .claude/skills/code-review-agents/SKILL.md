@@ -115,7 +115,7 @@ python3 .claude/tools/nerv_review_payload.py <session_dir>   # 역할별 제출 
 
    - 필수 6역할(security · requirement · scope · side_effect · maintainability · testing)은 발견 0건이어도 낸다. NERV 정책 `review_roles.code` 가 역할 리포트로 센다. router 는 바뀐 파일이 하나라도 있으면 이 6역할을 강제한다(하네스 · 문서만 바꾼 Task 도 done 게이트에 passed 라운드가 필요하다). `REVIEW_AGENTS` 로 직접 고를 때는 6역할을 넣는다.
    - `changeset` 이 출력에 없으면 `git diff --name-only <base_sha>..<head_sha>` 로 채운다.
-   - 같은 커밋이면 한 라운드로 모인다(실측 2026-10-01: 응답의 `merged_into_existing_session`). 중간에 끊기면 남은 역할부터 같은 규칙의 키로 낸다. `idempotency_key` 는 같은 제출의 재전송을 묶는 NERV 인자다.
+   - 같은 커밋 · 같은 `changeset` 이면 한 라운드로 모인다(응답의 `merged_into_existing_session`). `changeset` 이 다르면 같은 커밋이라도 새 라운드가 생긴다. N1 판정은 같은 head 의 라운드들에서 낸 역할을 합쳐 센다(실측 2026-10-01). 역할마다 같은 `changeset` 을 넘긴다. 중간에 끊기면 남은 역할부터 같은 규칙의 키로 낸다. `idempotency_key` 는 같은 제출의 재전송을 묶는 NERV 인자다.
 3. `warnings[]` 가 있으면 해당 리포트를 읽는다. 형식 밖의 심각도 표지라면 빠진 발견을 그 역할로 한 번 더 낸다(키 끝에 `:2`). 목록 밖의 `*.md` 는 역할 리포트가 아니므로 내지 않는다.
 4. 이번 라운드가 막는지는 마지막 응답의 `round_block` · `blocking_findings` 로 본다. `block` 은 프로젝트 전체의 열린 critical 이라 판정에 쓰지 않는다. `carried_over` 는 다른 브랜치의 열린 발견이고 앞 50건만 담는다.
 5. 처리할 발견을 인계 파일로 받는다. 발견 ID 를 손으로 옮겨 적지 않는다.
@@ -125,7 +125,7 @@ python3 .claude/tools/nerv_review_payload.py <session_dir>   # 역할별 제출 
    ```
 
    이 브랜치의 열린 발견이 `<session_dir>/_nerv_findings.json` 에 적힌다. 파일 형식은 그 도구의 docstring 이 정본이다. 발견은 전체 ID 로 가리킨다. NERV 발견 ID 는 UUIDv7 이라 앞 8자는 같은 분에 생긴 발견끼리 겹친다.
-6. 발견은 모두 처분한다(`nerv_finding_resolve`). critical · warning 은 §6 `resolution-applier` 가 처분을 정하고, INFO 는 applier 가 남긴 것(`left_to_main`)을 main 이 정한다. INFO 까지 처분하는 이유가 있다. 열린 발견은 이후 모든 제출 응답에 `carried_over` 로 따라붙는다(이 전환 Task 에서 387건). critical 을 `dismissed`/`wont_fix` 로 낮추는 처분은 사람 승인이 필요하다. 처분은 발견 단위다. NERV 는 같은 지적을 지문으로 합치므로 처분이 같은 발견을 담은 다른 브랜치의 라운드에도 보인다. 다른 브랜치에서 온 발견을 이 브랜치 커밋으로 `fixed` 처분하지 않는다.
+6. 발견은 모두 처분한다(`nerv_finding_resolve`). critical · warning 은 §6 `resolution-applier` 가 처분을 정하고, INFO 는 applier 가 남긴 것(`left_to_main`)을 main 이 정한다. INFO 까지 처분하는 이유가 있다. 열린 발견은 이후 모든 제출 응답에 `carried_over` 로 따라붙는다(이 전환 Task 에서 387건). critical 을 `dismissed`/`wont_fix` 로 낮추는 처분은 사람 승인이 필요하다. 처분은 발견 단위다. NERV 는 같은 지적을 지문으로 합치므로 처분이 같은 발견을 담은 다른 브랜치의 라운드에도 보인다. 다른 브랜치에서 온 발견을 이 브랜치 커밋으로 `fixed` 처분하지 않는다. 반대로 push 게이트가 "처분 커밋이 이 브랜치에 없다" 로 막으면 이 브랜치에서 고친 커밋으로 그 발견을 다시 처분한다. 이미 `fixed` 인 발견도 다시 처분할 수 있다(실측 2026-10-01: 같은 발견에 새 처분이 쌓인다).
 
 **라운드 뒤 커밋.** push 게이트는 라운드 head 이후의 `codebase/**` 커밋을 두 경우에 새 라운드 없이 통과시킨다. code · consistency 라운드에서 `fixed` 로 처분된 발견의 `commit_sha` 이거나, 커밋 메시지가 그런 발견을 `finding <발견 전체 ID>` 로 인용하는 경우다(e2e 실패 뒤 후속 수정). merge 커밋은 충돌을 손으로 푼 `codebase/**` 변경이 있으면 센다. **fix 커밋은 다시 리뷰되지 않는다.** `fixed` 처분과 인용은 main 의 자기 신고이고 게이트는 커밋이 처분에 묶였는지만 본다. 리뷰 뒤 변경이 처분한 발견의 범위를 넘으면 새 라운드를 낸다. 판정 규칙의 정본은 `.claude/hooks/_lib/review_guard.py` docstring 이다.
 
