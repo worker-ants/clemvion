@@ -1,11 +1,17 @@
 #!/usr/bin/env python3
 """PreToolUse hook — block `git push` when the branch carries `codebase/**`
-changes that have NOT been covered by a *resolved* AI code review.
+changes that a passed NERV code-review round does not cover.
 
 Registered in `.claude/settings.json` for the `Bash` matcher. This is the hard
 gate for the "review/fix 를 PR 로 미룸" failure mode: you cannot ship the branch
 (push → PR) while code changes remain unreviewed or while a review left
 Critical/Warning items unresolved.
+
+Since NERV cutover stage 2 (NERV Task `CLE-T-4ABTG7`) the verdict comes from the
+NERV review gate API (N1) instead of `review/**` files — see `_lib/review_guard.py`
+for the rule. The CI backstop (`scripts/check-review-gate.py`) applies the same
+rule on every PR, independent of this hook's push detection, so a push this
+regex misses is still caught before merge.
 
 Contract (same as guard_default_branch_edit.py):
   exit 0 → allow the tool call.
@@ -696,19 +702,20 @@ _REVIEW_MSG = (
     "  reason:    {reason}\n"
     "\n"
     "구현을 완료하면 test·review·critical/warning fix 는 강제 사항입니다.\n"
-    "이 branch 는 codebase/ 변경을 담고 있지만, 그것을 커버하는 *해결된*\n"
-    "코드 리뷰가 없습니다. PR 로 미루지 말고 지금 끝내세요:\n"
+    "이 브랜치는 codebase/ 변경을 담고 있지만, 그것을 덮는 passed 상태의\n"
+    "NERV 코드 리뷰 라운드가 없습니다. PR 로 미루지 말고 지금 끝내세요:\n"
     "\n"
-    "  1. /ai-review  — 변경에 대한 리뷰 (REVIEW WORKFLOW)\n"
-    "  2. SUMMARY 의 Critical/Warning > 0 이면 resolution-applier 로 fix\n"
-    "     (또는 수동 조치 + review/code/<...>/RESOLUTION.md 기록)\n"
-    "  3. TEST WORKFLOW 재수행 후 다시 push\n"
+    "  1. 커밋한 뒤 /ai-review  — 변경에 대한 리뷰 (REVIEW WORKFLOW)\n"
+    "  2. 역할마다 nerv_review_submit(kind=code, branch, head_sha=HEAD, task_id)\n"
+    "  3. 발견을 nerv_finding_resolve 로 처분 (fix 커밋은 resolution=fixed + commit_sha)\n"
+    "  4. TEST WORKFLOW 재수행 후 다시 push\n"
     "\n"
-    "리뷰가 깨끗(전체 위험도 NONE/LOW, Critical·Warning 0)하면 SUMMARY.md\n"
-    "만으로 통과합니다. Critical/Warning 이 있었다면 같은 세션 디렉토리에\n"
-    "RESOLUTION.md 가 있어야 '해결됨' 으로 인정됩니다.\n"
+    "라운드 뒤에 fix 커밋만 더했다면 그 커밋을 처분의 commit_sha 로 기록하면 통과합니다.\n"
+    "같은 발견의 후속 수정(e2e 실패 뒤 등)은 커밋 메시지에 finding <발견 전체 ID> 를 적습니다.\n"
+    "그 밖의 codebase/ 커밋이 생겼거나 rebase 로 라운드 head 가 사라졌으면 지금 HEAD 로\n"
+    "다시 제출합니다. 판정 규칙: .claude/hooks/_lib/review_guard.py\n"
     "\n"
-    "의식적 우회 (docs/spec-only branch 오판 등 드문 경우):\n"
+    "의식적 우회 (드문 경우):\n"
     "  BYPASS_REVIEW_GUARD=1\n"
 )
 

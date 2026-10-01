@@ -9,20 +9,17 @@
 # 전부다. 판정 자체는 로컬 훅과 **같은** `review_guard.evaluate_review()` 를 호출한다 —
 # 두 번째 구현을 두면 로컬과 CI 가 갈리고, 그 drift 는 이 저장소가 이미 두 번 겪었다.
 #
-# 정책 본문: `plan/in-progress/harness-review-gate-ci-backstop.md`.
+# NERV 정본 전환 단계 2(NERV Task `CLE-T-4ABTG7`)부터 판정 근거는 저장소 `review/**` 파일이
+# 아니라 NERV 리뷰 라운드(N1 `gates/reviews/check`)다. 그래서 이 잡은 NERV 를 **읽기만** 하는
+# 토큰이 필요하다 — secret `NERV_CI_TOKEN`(읽기 전용) · 저장소 변수 `NERV_SERVER`. 둘 중 하나라도
+# 없으면 `--enforce` 에서 실패한다(설정이 빠진 백스톱은 초록인 채로 영원히 꺼지기 때문이다).
+# NERV 장애 같은 일시적 판정 불가는 fail-open 이다. 규칙: `scripts/check-review-gate.py` docstring.
 #
 # **enforce 모드다** — 아래 `run:` 이 `--enforce` 를 넘기고, 위반이면 exit 1 로 PR 을 막는다.
 # `#1097`(`cdf3b6832`, 2026-08-07)이 관측 모드에서 전환했다.
 #
-# > 이 주석은 전환 후에도 "현재 관측 모드다(`--enforce` 없음) … 켤 때는 아래 `run:` 에
-# > `--enforce` 를 붙인다" 라고 적혀 있었다. **코드가 이미 켜져 있는데 문서는 꺼져 있다고
-# > 말하는 상태**가 3일간 남아 있었다(2026-08-09 발견). 읽는 사람은 이 층이 조언이라고
-# > 믿게 되는데, 실제로는 머지를 막는다 — 방향이 정확히 반대라 가장 비싼 종류의 stale 이다.
-#
-# 전환 전 근거였던 실측은 그대로 남긴다: 로컬 훅은 미커밋 파일도 보지만 CI 는 커밋된 것만
-# 보는데, 이 저장소의 실제 관행은 리뷰 산출물이 그 코드의 PR 안에 커밋되지 않는다는 것이었다
-# (게이트 도입 이후 codebase/** PR 435건 중 80건). 그래서 "리뷰를 안 했다" 가 아니라
-# "산출물을 이 PR 에 안 담았다" 를 막게 될 위험이 있었고, 실데이터를 모은 뒤 켰다.
+# 체크아웃은 PR 의 **head 커밋**이다. 기본값(merge 커밋)으로 두면 라운드 이후 커밋을 셀 때 기준
+# 브랜치의 커밋이 섞인다. NERV 라운드는 PR 의 head 브랜치 이름으로 찾는다.
 #
 # 되돌리려면 `run:` 의 `--enforce` 를 빼는 것만으로는 안 된다 —
 # `test_review_gate_ci.py::test_the_expectation_still_describes_a_gate_that_runs` 의
@@ -36,11 +33,11 @@ on:
       - 'codebase/**'
       # 게이트 자신과 그것이 읽는 판정 로직이 바뀌면 이 워크플로도 돌아야 한다 —
       # harness-checks.yml 이 같은 실패 클래스를 여섯 번 겪고 세운 규칙.
-      # 개별 파일명이 아니라 글롭이다. 초판은 review_guard.py 만 적었다가 그것이 import 하는
-      # branch_guard.py 를 빠뜨렸고(1R), 그 다음엔 _lib 에 세 번째 모듈이 생기면 같은 일이
-      # 반복될 자리였다 — 이 저장소가 여섯 번 겪은 paths 커버리지 갭 클래스다.
+      # 개별 파일명이 아니라 글롭이다. _lib 에 모듈이 늘면 같은 갭이 반복될 자리다.
       - '.claude/hooks/_lib/**'
       - '.claude/_shared/**'
+      # 게이트가 NERV 를 읽는 클라이언트(`Nerv`)가 여기 있다.
+      - '.claude/tools/nerv-mirror/pull.py'
       - 'scripts/check-review-gate.py'
       - '.github/workflows/review-gate.yml'
 
@@ -48,7 +45,7 @@ concurrency:
   group: review-gate-${{ github.ref }}
   cancel-in-progress: true
 
-# 이 워크플로는 읽기만 한다. 기존 파일 다수가 생략하고 있지만 신규 파일이니 명시한다.
+# 이 워크플로는 읽기만 한다.
 permissions:
   contents: read
 
@@ -56,30 +53,35 @@ jobs:
   gate:
     runs-on: ubuntu-latest
     timeout-minutes: 5
-    # 봇 PR 은 로컬 훅을 아예 거치지 않으므로 리뷰 산출물이 있을 수 없다. 실측: 게이트 도입
-    # 이후 미커버 80건 중 11건이 dependabot 이고, 2026-08 은 9건 중 8건이 그렇다. 예외를
-    # 두지 않으면 이 워크플로는 사실상 dependabot 전용 알람이 된다.
+    # 봇 PR 은 로컬 훅도 리뷰 흐름도 거치지 않는다. 예외를 두지 않으면 이 워크플로는 사실상
+    # dependabot 전용 알람이 된다(전환 전 실측: 미커버 80건 중 11건이 dependabot). dependabot
+    # PR 에는 secret 도 전달되지 않는다.
     if: github.actor != 'dependabot[bot]'
     steps:
-      # 게이트는 base 와의 merge-base 로 "이 브랜치가 바꾼 것" 을 정하고, 커밋의 author date
-      # 로 신선도를 잰다 — 둘 다 전체 히스토리가 필요하다.
+      # 게이트는 기준 브랜치와의 merge-base 와 라운드 이후 커밋을 git 으로 센다 — 전체 히스토리가
+      # 필요하다.
       - uses: actions/checkout@v7
         with:
           fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha }}
 
       - uses: actions/setup-python@v7
         with:
           python-version: '3.x'
 
-      # base ref 가 origin/<base> 로 해석돼야 `_merge_base()` 가 merge-base 를 찾는다.
       # `${{ }}` 를 셸 명령에 직접 보간하지 않는다 — env 경유가 GH Actions 의
-      # expression-injection 방어 관행이다. `pull_request` 이벤트에 시크릿도 없어 노출은
-      # 낮지만, 신규 파일이라 처음부터 안전한 형태로 둔다.
+      # expression-injection 방어 관행이다(브랜치 이름은 PR 작성자가 정한다).
       - name: Fetch base ref
         env:
           BASE_REF: ${{ github.base_ref }}
         run: git fetch --no-tags origin "$BASE_REF"
 
-      # 표준 라이브러리만 쓴다 (harness 규약) — 설치 단계 없음.
+      # 표준 라이브러리 + curl 만 쓴다 (harness 규약) — 설치 단계 없음.
       - name: Review coverage backstop
-        run: python3 scripts/check-review-gate.py --enforce
+        env:
+          NERV_SERVER: ${{ vars.NERV_SERVER }}
+          NERV_TOKEN: ${{ secrets.NERV_CI_TOKEN }}
+          HEAD_REF: ${{ github.head_ref }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          BASE_REF: ${{ github.base_ref }}
+        run: python3 scripts/check-review-gate.py --enforce --branch "$HEAD_REF" --head "$HEAD_SHA" --base "origin/$BASE_REF"

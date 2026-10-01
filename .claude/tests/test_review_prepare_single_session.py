@@ -166,6 +166,11 @@ class ForcedSetShrinksWithTheChangesetTest(unittest.TestCase):
     This is the amplification, and it is the reason the fix had to remove the
     split rather than merely document it. Pinned separately so that restoring a
     split (for any reason) cannot quietly re-arm the false PASS.
+
+    Since NERV cutover stage 2 every non-empty changeset forces the six NERV roles
+    (`review_roles.code`), so the six no longer shrink. The path rules still do —
+    a manifest or a migration in the head of a split batch forces `dependency` /
+    `database`, and a docs-only tail loses them.
     """
 
     def _forced(self, paths):
@@ -190,8 +195,9 @@ class ForcedSetShrinksWithTheChangesetTest(unittest.TestCase):
         )
         return set(out)
 
-    def test_a_docs_only_tail_loses_the_source_reviewers(self):
+    def test_a_docs_only_tail_loses_the_path_rule_reviewers(self):
         src = [f"codebase/backend/src/mod{i}.ts" for i in range(50)]
+        src += ["codebase/backend/package.json", "codebase/backend/src/migrations/1-init.ts"]
         docs = [f"spec/5-system/doc{i}.md" for i in range(10)]
 
         full = self._forced(src + docs)
@@ -199,21 +205,29 @@ class ForcedSetShrinksWithTheChangesetTest(unittest.TestCase):
 
         lost = full - tail
         self.assertTrue(
-            {"security", "testing", "scope", "maintainability", "side_effect"} <= lost,
-            "the source-blanket rule must be what a docs-only tail loses — "
+            {"dependency", "database"} <= lost,
+            "the path rules must be what a docs-only tail loses — "
             f"full={sorted(full)} tail={sorted(tail)}",
+        )
+
+    def test_the_six_nerv_roles_do_not_shrink(self):
+        """Every changeset forces the six — a docs-only tail keeps them."""
+        tail = self._forced([f"spec/5-system/doc{i}.md" for i in range(10)])
+        self.assertTrue(
+            {"security", "requirement", "scope", "side_effect", "maintainability", "testing"} <= tail,
+            sorted(tail),
         )
 
     def test_the_fixture_actually_discriminates(self):
         """Guard against a vacuous version of the test above.
 
-        If the `.ts` half stopped forcing the source reviewers, `lost` would be
-        empty and the assertion would still need to fail — but a future edit
-        could weaken the fixture instead. Assert the premise directly.
+        If the manifest and the migration stopped forcing their reviewers, `lost`
+        would be empty and the assertion would still need to fail — but a future
+        edit could weaken the fixture instead. Assert the premise directly.
         """
-        src_only = self._forced([f"codebase/backend/src/mod{i}.ts" for i in range(3)])
-        self.assertIn("security", src_only)
-        self.assertIn("testing", src_only)
+        head = self._forced(["codebase/backend/package.json", "codebase/backend/src/migrations/1-init.ts"])
+        self.assertIn("dependency", head)
+        self.assertIn("database", head)
 
 
 class DocsOnlyFramingIsCrossCheckedTest(unittest.TestCase):

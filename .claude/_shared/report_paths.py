@@ -1,12 +1,16 @@
 """Where a review/consistency session's per-agent reports live, and what counts as one.
 
-**Single source for two enforcement points that must agree**: the push/stop gate
-(`hooks/_lib/review_guard.py`) and the orchestrator CLIs (`--verify-coverage`,
-`--sync-from-disk`, `--summary-state`, `--resume`). When they disagree, a caller sees
-`--verify-coverage` report OK and then gets blocked at push — or, in the other direction,
-the gate silently accepts what the CLI would have refused.
+**Single source for the orchestrator CLIs** (`--verify-coverage`, `--sync-from-disk`,
+`--summary-state`, `--resume`) of both the code-review and consistency skills.
 
-That is not hypothetical. Both sides carried their own copy behind a "change both"
+Until NERV cutover stage 2 (NERV Task `CLE-T-4ABTG7`) the push/stop gate
+(`hooks/_lib/review_guard.py`) was a second consumer that had to answer identically.
+The gate now reads NERV review rounds instead of report files, and required-role
+coverage is the NERV policy `review_roles` — so this module is local bookkeeping that
+tells main which reports to submit, not an enforcement point any more. The history
+below is why it stays a module rather than per-CLI copies.
+
+That was not hypothetical. Both sides carried their own copy behind a "change both"
 comment, and the comment failed within one PR: the gate gained a non-empty requirement
 (#962 W7) while `--verify-coverage` kept checking mere existence, so `touch security.md`
 passed the CLI and failed the gate at the same moment (measured 2026-07-17). Hence a
@@ -16,9 +20,9 @@ module, not a convention.
 
 **Location.** Resolve reports against the **session directory**, never against the
 manifest's `output_file`. That field records the worktree the session was *prepared* in
-(`…/.claude/worktrees/<task>-<slug>/review/code/…`). Worktrees are deleted when their task
-ends while `review/**` is committed, so the same session is read later from a different
-worktree at a different absolute path. Trusting the recorded path reports "no report" for
+(`…/.claude/worktrees/<task>-<slug>/.review/code/…`). Worktrees are deleted when their task
+ends, and a session can be read from a different worktree than the one that prepared it
+(until NERV cutover stage 2 `review/**` was committed and read back from any worktree). Trusting the recorded path reports "no report" for
 every session whose worktree is gone — 537 of 575 committed sessions when measured, which
 would fire a coverage gate on nearly everything. Only the directory is re-anchored; the
 basename still comes from the manifest so a future naming change follows automatically.

@@ -4,6 +4,8 @@
 `[CRITICAL]` during integration. Until this backstop existed the rule lived only
 in the agent's prompt: `review_guard` parsed one `BLOCK:` line and never looked
 at the reports sitting beside it, so a downgrade cleared the gate in silence.
+Since NERV cutover stage 2 the gate reads NERV rounds instead; the backstop now
+warns in `.claude/tools/nerv_review_payload.py` before the submission.
 
 Measured across the 732 consistency sessions on `origin/main` before writing it:
 
@@ -21,6 +23,7 @@ and a warning that fires always is one nobody reads.
 
 from __future__ import annotations
 
+import json
 import os
 import shutil
 import tempfile
@@ -254,63 +257,48 @@ class DowngradedCriticalsTest(unittest.TestCase):
         self.assertEqual(BI.contradiction_note(d), "")
 
 
-class GateSurfacesTheContradictionTest(unittest.TestCase):
-    """`review_guard` must actually CALL the check — not merely be able to.
+class PayloadSurfacesTheContradictionTest(unittest.TestCase):
+    """The NERV payload tool must actually CALL the check — not merely be able to.
 
     Every test above exercises the predicate directly, so deleting the call site
-    in `_newest_resolved_impl_done_mtime` would leave them all GREEN while the
-    warning disappears. That is the exact failure this backstop exists to
-    prevent, one level up: a rule that nothing reads.
+    would leave them all GREEN while the warning disappears. Until NERV cutover
+    stage 2 the caller was the push gate (`review_guard`); the gate now reads NERV
+    rounds, and the warning is raised where main assembles the submission
+    (`.claude/tools/nerv_review_payload.py`).
     """
 
-    def _repo_with_session(self, block, report_body):
+    def _session(self, block, report_body, kind_dir="consistency"):
         root = tempfile.mkdtemp()
         self.addCleanup(shutil.rmtree, root, ignore_errors=True)
-        d = os.path.join(root, "review", "consistency", "2026", "07", "31", "12_00_00")
+        d = os.path.join(root, ".review", kind_dir, "2026", "07", "31", "12_00_00")
         os.makedirs(d)
-        with open(os.path.join(d, "meta.json"), "w", encoding="utf-8") as f:
-            f.write('{"mode": "구현 완료 후 검토 (--impl-done, scope=spec/x)"}')
         with open(os.path.join(d, "SUMMARY.md"), "w", encoding="utf-8") as f:
             f.write(f"**BLOCK: {block}** — 요약\n")
         with open(os.path.join(d, "cross_spec.md"), "w", encoding="utf-8") as f:
             f.write(report_body)
-        return root
+        # 역할 목록이 없으면 도구가 그 사실을 따로 경고한다 — 이 클래스가 보려는 경고만 남긴다.
+        with open(os.path.join(d, "_retry_state.json"), "w", encoding="utf-8") as f:
+            json.dump({"subagent_invocations": [{"name": "cross_spec", "output_file": "cross_spec.md"}]}, f)
+        return d
 
-    def _notes(self, root):
-        RG = _harness.load_module_by_path(
-            "review_guard_probe", _harness.HOOKS_DIR / "_lib" / "review_guard.py"
+    def _warnings(self, session_dir):
+        tool = _harness.load_module_by_path(
+            "nerv_review_payload_probe", _harness.CLAUDE_DIR / "tools" / "nerv_review_payload.py"
         )
-        notes = []
-        RG._newest_resolved_impl_done_mtime(root, dirty=set(), notes=notes)
-        return notes
+        return tool.build(session_dir)["warnings"]
 
-    def test_the_adopted_session_is_reported(self):
-        root = self._repo_with_session("NO", "- **[CRITICAL]** 모순\n")
-        self.assertTrue(any("[CRITICAL]" in n for n in self._notes(root)))
+    def test_a_downgrade_is_reported(self):
+        d = self._session("NO", "- **[CRITICAL]** 모순\n")
+        self.assertTrue(any("[CRITICAL]" in w and "SUMMARY.md" in w for w in self._warnings(d)))
 
     def test_quiet_when_the_session_agrees(self):
-        """A gate that always warns is the same as one that never does."""
-        root = self._repo_with_session("NO", "CRITICAL 없음\n")
-        self.assertEqual(self._notes(root), [])
+        """A check that always warns is the same as one that never does."""
+        self.assertEqual(self._warnings(self._session("NO", "CRITICAL 없음\n")), [])
 
-    def test_only_the_session_the_gate_adopts_is_checked(self):
-        """Scanning all history re-warned about ~8 old sessions on every hook.
-
-        The gate trusts exactly one session — the newest resolved one. A verdict
-        nobody is relying on is not worth a warning, and a warning that fires on
-        every push is one that stops being read.
-        """
-        root = self._repo_with_session("NO", "CRITICAL 없음\n")
-        older = os.path.join(root, "review", "consistency",
-                             "2026", "07", "30", "09_00_00")
-        os.makedirs(older)
-        with open(os.path.join(older, "meta.json"), "w", encoding="utf-8") as f:
-            f.write('{"mode": "구현 완료 후 검토 (--impl-done, scope=spec/x)"}')
-        with open(os.path.join(older, "SUMMARY.md"), "w", encoding="utf-8") as f:
-            f.write("**BLOCK: NO** — 요약\n")
-        with open(os.path.join(older, "cross_spec.md"), "w", encoding="utf-8") as f:
-            f.write("- **[CRITICAL]** 옛 세션의 하향\n")
-        self.assertEqual(self._notes(root), [])
+    def test_quiet_for_code_sessions(self):
+        """`BLOCK:` is a consistency-summary convention; code sessions have no verdict line."""
+        d = self._session("NO", "- **[CRITICAL]** 모순\n", kind_dir="code")
+        self.assertFalse(any("SUMMARY.md" in w for w in self._warnings(d)))
 
 
 class AdvisoryReachesTheModelTest(unittest.TestCase):
@@ -353,8 +341,11 @@ class AdvisoryReachesTheModelTest(unittest.TestCase):
         self.assertEqual(out.getvalue(), "")
 
 
-class NotesReachBothHooksTest(unittest.TestCase):
+class NotesReachThePushHookTest(unittest.TestCase):
     """The wiring, not just the reporter.
+
+    (The Stop hook used to carry the same advisory; its review nudge went with
+    NERV cutover stage 2, so only the push side remains.)
 
     Deleting the collection block in `_evaluate_over_targets` left all 735 tests
     GREEN — the advisory vanished and nothing noticed, which is this branch's own
@@ -371,7 +362,7 @@ class NotesReachBothHooksTest(unittest.TestCase):
         "    @property\n"
         "    def push_blocks(self):\n"
         "        return self.blocked\n"
-        "def evaluate_review(cwd=None, *, in_flight_ok=False):\n"
+        "def evaluate_review(cwd=None, **_kw):\n"
         "    return _D()\n"
     )
     # `push_blocks` mirrors the real `PlanDecision` property. Omitting it did not
@@ -417,22 +408,6 @@ class NotesReachBothHooksTest(unittest.TestCase):
         # Pins the reason it passed. Without this the ALLOW path and the
         # crash-then-fail-open path are indistinguishable from stdout alone.
         self.assertNotIn("Traceback", r.stderr)
-
-    def test_stop_hook_surfaces_notes_on_stderr(self):
-        """Stop's stdout is a JSON protocol, so its advisories go to stderr."""
-        import json as _json
-        import subprocess
-        import sys as _sys
-        tmp, hooks = self._hook_env()
-        r = subprocess.run(
-            [_sys.executable, os.path.join(hooks, "guard_review_before_stop.py")],
-            input=_json.dumps({"session_id": "s1"}),
-            capture_output=True, text=True, timeout=30,
-            env={**os.environ, "CLAUDE_PROJECT_DIR": tmp}, cwd=tmp,
-        )
-        self.assertEqual(r.returncode, 0)
-        self.assertIn("하향 감지", r.stderr)
-        self.assertNotIn("하향 감지", r.stdout)
 
 
 class NotesFromLaterTargetsSurviveAnEarlierBlockTest(unittest.TestCase):
@@ -574,69 +549,6 @@ class VerdictParserStaysLinearTest(unittest.TestCase):
     # so the fourth is not written by someone filling an obvious gap.
 
 
-class SpecGlobCompilationIsBoundedTest(unittest.TestCase):
-    """A spec `code:` glob must not be able to wedge the gate.
-
-    Each `*` becomes its own unbounded quantifier, so `a*a*a*…` against a failing
-    candidate is exponential (×16 per two extra stars; 10s at sixteen). The input
-    comes from a spec file's frontmatter, so anyone who can edit `spec/**` could
-    stall every push and turn-end for everyone who checks that file out.
-    """
-
-    def setUp(self):
-        self.RG = _harness.load_module_by_path(
-            "review_guard_glob_probe",
-            _harness.HOOKS_DIR / "_lib" / "review_guard.py",
-        )
-
-    def test_a_pathological_glob_compiles_to_something_that_matches_fast(self):
-        import subprocess
-        import sys as _sys
-        path = _harness.HOOKS_DIR / "_lib" / "review_guard.py"
-        prog = (
-            "import importlib.util,sys\n"
-            f"spec=importlib.util.spec_from_file_location('rg', r'{path}')\n"
-            "m=importlib.util.module_from_spec(spec)\n"
-            "sys.modules['rg']=m\n"
-            "spec.loader.exec_module(m)\n"
-            "p=m._glob_to_regex('a*'*24+'!')\n"
-            "p.match('a'*48)\n"
-            "print('ok')\n"
-        )
-        try:
-            r = subprocess.run([_sys.executable, "-c", prog],
-                               capture_output=True, text=True, timeout=5)
-        except subprocess.TimeoutExpired:
-            self.fail("_glob_to_regex went exponential on a many-wildcard glob")
-        self.assertEqual(r.returncode, 0, r.stderr[-2000:])
-
-    def test_over_the_cap_matches_everything_not_nothing(self):
-        """Direction matters more than the cap.
-
-        This predicate decides whether Gate 2 applies. "No match" would switch
-        the gate OFF, which is a length limit silently disabling detection — the
-        failure `_MAX_REDACTION_INPUT` exists to warn about. Matching everything
-        asks for a report that may be unnecessary: loud, and safe.
-        """
-        p = self.RG._glob_to_regex("a*" * 24 + "!")
-        self.assertTrue(p.match("codebase/backend/src/anything.ts"))
-
-    def test_real_spec_globs_are_all_under_the_cap(self):
-        """The cap must never fire on legitimate input.
-
-        Measured when it was chosen: 633 real globs, 528 with no `*` at all, and
-        the busiest single path segment holding exactly one.
-        """
-        import glob as _glob
-        globs = []
-        for path in _glob.glob(str(_harness.REPO_ROOT / "spec" / "**" / "*.md"),
-                               recursive=True):
-            globs.extend(self.RG._parse_frontmatter_code(path))
-        self.assertGreater(len(globs), 100, "spec globs not found — probe is stale")
-        over = [g for g in globs if g.count("*") > self.RG._MAX_GLOB_WILDCARDS]
-        self.assertEqual(over, [], "a real spec glob exceeds the wildcard cap")
-
-
 class PlanStubsMirrorTheRealInterfaceTest(unittest.TestCase):
     """Every hand-written `evaluate_plan` stub must expose `push_blocks`.
 
@@ -701,143 +613,6 @@ class PlanStubsMirrorTheRealInterfaceTest(unittest.TestCase):
                     "so that test would pass via fail-open",
                 )
         self.assertGreaterEqual(len(checked), 4, f"stub files found: {checked}")
-
-
-class StopThrottleKeysOnTextTest(unittest.TestCase):
-    """Repeat the same advisory → silence. A different one → still heard.
-
-    The throttle keyed on `enumerate`'s index, which is always 0 because the
-    gate reports at most one adopted session. So the first downgrade warning on
-    a branch suppressed every later one — different session, different checker,
-    any text — which is precisely the "a downgrade passes silently" failure this
-    branch exists to close, rebuilt inside the mechanism meant to close it.
-
-    Nothing caught it: no test in the suite ran either hook twice.
-    """
-
-    _STUB = (
-        "from dataclasses import dataclass\n"
-        "import os\n"
-        "@dataclass\n"
-        "class _D:\n"
-        "    blocked: bool = False\n"
-        "    reason: str = 'clean'\n"
-        "    @property\n"
-        "    def notes(self):\n"
-        "        return (os.environ['FAKE_NOTE'],)\n"
-        "    @property\n"
-        "    def push_blocks(self):\n"
-        "        return self.blocked\n"
-        "def evaluate_review(cwd=None, *, in_flight_ok=False):\n"
-        "    return _D()\n"
-    )
-
-    def setUp(self):
-        import shutil as _sh
-        self.tmp = tempfile.mkdtemp()
-        self.addCleanup(_sh.rmtree, self.tmp, ignore_errors=True)
-        self.hooks = os.path.join(self.tmp, "hooks")
-        _sh.copytree(str(_harness.HOOKS_DIR), self.hooks)
-        with open(os.path.join(self.hooks, "_lib", "review_guard.py"), "w",
-                  encoding="utf-8") as f:
-            f.write(self._STUB)
-        with open(os.path.join(self.hooks, "_lib", "plan_guard.py"), "w",
-                  encoding="utf-8") as f:
-            f.write(NotesReachBothHooksTest._CLEAN_PLAN)
-
-    def _run(self, note):
-        import json as _json
-        import subprocess
-        import sys as _sys
-        r = subprocess.run(
-            [_sys.executable, os.path.join(self.hooks, "guard_review_before_stop.py")],
-            input=_json.dumps({"session_id": "same-session"}),
-            capture_output=True, text=True, timeout=30,
-            env={**os.environ, "CLAUDE_PROJECT_DIR": self.tmp, "FAKE_NOTE": note},
-            cwd=self.tmp,
-        )
-        self.assertEqual(r.returncode, 0)
-        return r.stderr
-
-    def test_identical_note_is_throttled(self):
-        note = "⚠️  세션A: convention_compliance 하향 감지"
-        self.assertIn("세션A", self._run(note))
-        self.assertNotIn("세션A", self._run(note))
-
-    def test_a_different_note_still_gets_through(self):
-        self.assertIn("세션A", self._run("⚠️  세션A: convention_compliance 하향 감지"))
-        # Same position in `notes`, same session, same branch — only the text
-        # differs. Index keying swallowed this one.
-        self.assertIn("세션B", self._run("⚠️  세션B: plan_coherence 하향 감지"))
-
-
-class NotesSurviveBlockingTest(unittest.TestCase):
-    """Blocking does not make the advisory moot — it may be the same session.
-
-    Gate 2 rejects a stale `--impl-done` session; that session can be exactly the
-    one that downgraded a Critical. Dropping the note on the blocking path loses
-    the only place the downgrade surfaces. Mutation showed the wiring was
-    unprotected: removing `tuple(notes)` from the returns left all 738 GREEN.
-    """
-
-    def _decision(self, *, stale):
-        """Drive `evaluate_review` over a repo with one contradicting session."""
-        import importlib.util
-        RG = _harness.load_module_by_path(
-            "review_guard_notes_probe",
-            _harness.HOOKS_DIR / "_lib" / "review_guard.py",
-        )
-        root = tempfile.mkdtemp()
-        self.addCleanup(shutil.rmtree, root, ignore_errors=True)
-        d = os.path.join(root, "review", "consistency", "2026", "07", "31", "12_00_00")
-        os.makedirs(d)
-        with open(os.path.join(d, "meta.json"), "w", encoding="utf-8") as f:
-            f.write('{"mode": "구현 완료 후 검토 (--impl-done, scope=spec/x)"}')
-        with open(os.path.join(d, "SUMMARY.md"), "w", encoding="utf-8") as f:
-            f.write("**BLOCK: NO** — 요약\n")
-        with open(os.path.join(d, "cross_spec.md"), "w", encoding="utf-8") as f:
-            f.write("- **[CRITICAL]** 모순\n")
-        notes = []
-        RG._newest_resolved_impl_done_mtime(root, dirty=set(), notes=notes)
-        return RG, notes
-
-    def test_the_contradiction_is_collected_for_the_adopted_session(self):
-        _RG, notes = self._decision(stale=False)
-        self.assertTrue(notes, "the adopted session's contradiction was not collected")
-
-    def test_blocking_returns_carry_notes(self):
-        """Every Gate 2 `ReviewDecision` must pass the advisory.
-
-        Parsed with `ast`, not a regex: the first version used
-        `return ReviewDecision\\((.*?)\\n        \\)` and matched **1 of the 3**
-        returns — the nested ones close at a deeper indent — so it passed while
-        two of them silently dropped the notes. Structure is what this asserts,
-        so structure is what it should read.
-        """
-        import ast
-        src = (_harness.HOOKS_DIR / "_lib" / "review_guard.py").read_text(encoding="utf-8")
-        tree = ast.parse(src)
-        fn = next(n for n in ast.walk(tree)
-                  if isinstance(n, ast.FunctionDef) and n.name == "evaluate_review")
-        gate2_line = next(
-            n.lineno for n in ast.walk(fn)
-            if isinstance(n, ast.Assign)
-            and any(getattr(t, "id", "") == "spec_linked" for t in n.targets)
-        )
-        checked = 0
-        for node in ast.walk(fn):
-            if not (isinstance(node, ast.Return) and isinstance(node.value, ast.Call)):
-                continue
-            if getattr(node.value.func, "id", "") != "ReviewDecision":
-                continue
-            if node.lineno < gate2_line:
-                continue  # early returns predate the advisory and cannot carry one
-            checked += 1
-            self.assertGreaterEqual(
-                len(node.value.args), 3,
-                f"ReviewDecision at line {node.lineno} drops the advisory",
-            )
-        self.assertGreaterEqual(checked, 3, "expected Gate 2's three returns")
 
 
 if __name__ == "__main__":

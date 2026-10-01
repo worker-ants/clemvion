@@ -21,7 +21,8 @@ NERV 정본 전환 단계 1(NERV Task `CLE-T-VA4YA1`). 스펙의 정본은 NERV 
   frontmatter `read_as` · `task` 만 달랐다.
 - ``--check`` 네트워크 없이 미러를 검사한다(아래 "보장 범위").
 
-환경 변수: ``NERV_SERVER``(https), ``NERV_TOKEN``(`spec:read`), ``NERV_PROJECT``(기본 clemvion).
+환경 변수: ``NERV_SERVER``(https), ``NERV_TOKEN``(이 도구는 `spec:read`. 같은 변수를 쓰는 리뷰 게이트 ·
+인계 도구는 리뷰 판정 · 발견 읽기 권한도 쓴다), ``NERV_PROJECT``(기본 clemvion).
 세션에서는 `.claude/settings.local.json` 의 `env` 가 준다. 토큰 값은 어떤 출력에도 싣지 않는다.
 
 배치(결정 D1): `spec/<영역 키>/<KEY>.md`. 영역은 가장 가까운 `area` 조상-또는-자신이다(영역
@@ -477,15 +478,22 @@ def server_ok(server: str) -> bool:
 
 class Nerv:
     """NERV REST 클라이언트(읽기 전용). 테스트 대역은 `project` 와 `get` 만 흉내 내면 된다
-    (`ok_body` · `json_body` 는 `get` 위에 있다)."""
+    (`ok_body` · `json_body` 는 `get` 위에 있다).
 
-    def __init__(self, server: str, project: str, token: str):
+    push 리뷰 게이트(`.claude/hooks/_lib/review_guard.py`)도 이 클래스로 N1 판정을 읽는다.
+    훅은 모든 push 앞에서 동기로 돌기 때문에 `max_time` 을 짧게 넘긴다."""
+
+    def __init__(self, server: str, project: str, token: str, *, max_time: str = CURL_MAX_TIME):
         if not server_ok(server):
             raise PullError("NERV_SERVER 는 https 여야 한다(토큰이 평문으로 나간다. 예외는 loopback)")
         if not PROJECT_RE.fullmatch(project):
             raise PullError(f"NERV_PROJECT 형식이 아니다 — {project!r}")
+        # argv 로 curl 에 그대로 넘어간다. ASCII 숫자만 받는다(`str.isdigit` 은 다른 문자권 숫자도 받는다).
+        if not re.fullmatch(r"[1-9][0-9]*", str(max_time)):
+            raise PullError(f"max_time 은 양의 정수(초)여야 한다 — {max_time!r}")
         self.server, self.project = server.rstrip("/"), project
         self.token = _curl_value("NERV_TOKEN", token)
+        self.max_time = str(max_time)
 
     def get(self, path: str, etag: str | None = None) -> tuple[int, bytes]:
         cfg = [f'header = "Authorization: Bearer {self.token}"']
@@ -493,8 +501,9 @@ class Nerv:
             if not ETAG_RE.fullmatch(etag):
                 raise PullError("etag 형식이 아니다")
             cfg.append(f'header = "If-None-Match: \\"{etag}\\""')
-        cmd = ["curl", "-sS", "-q", "-g", "--proto", "=https,http", "-K", "-", "-D", "-",
-               "--max-time", CURL_MAX_TIME, "--max-filesize", str(MAX_DOWNLOAD_BYTES),
+        # `-q` 는 첫 인자일 때만 `~/.curlrc` 를 끈다(curl 문서).
+        cmd = ["curl", "-q", "-sS", "-g", "--proto", "=https,http", "-K", "-", "-D", "-",
+               "--max-time", self.max_time, "--max-filesize", str(MAX_DOWNLOAD_BYTES),
                "-A", USER_AGENT, f"{self.server}{path}"]
         try:
             r = subprocess.run(cmd, input="\n".join(cfg).encode(), capture_output=True)
@@ -537,13 +546,17 @@ def parse_response(raw: bytes) -> tuple[int, bytes]:
         return status, body
 
 
-def load_env() -> Nerv:
+def load_env(*, max_time: str = CURL_MAX_TIME) -> Nerv:
+    """환경의 `NERV_SERVER` · `NERV_TOKEN` · `NERV_PROJECT`(기본 `clemvion`)로 클라이언트를 만든다.
+
+    미러 도구 CLI 와 리뷰 게이트 · 인계 도구(`.claude/_shared/nerv_read.py`)가 함께 쓴다. 값은 오류
+    메시지에 싣지 않는다."""
     server = os.environ.get("NERV_SERVER", "")
     token = os.environ.get("NERV_TOKEN", "")
     project = os.environ.get("NERV_PROJECT", "clemvion")
     if not server or not token:
         raise PullError("NERV_SERVER · NERV_TOKEN 이 필요하다(.claude/settings.local.json env)")
-    return Nerv(server, project, token)
+    return Nerv(server, project, token, max_time=max_time)
 
 
 # -- --check ---------------------------------------------------------------------

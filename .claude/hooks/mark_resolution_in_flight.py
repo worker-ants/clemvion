@@ -1,80 +1,21 @@
 #!/usr/bin/env python3
-"""PreToolUse(Agent) hook — stamp a "resolution in flight" marker the instant the
-main agent dispatches the `resolution-applier` sub-agent.
+"""은퇴한 훅의 빈 스텁 — 아무것도 하지 않고 exit 0 한다.
 
-Why this exists
----------------
-After `/ai-review` writes SUMMARY.md, the `resolution-applier` sub-agent edits
-`codebase/**` files to fix the findings. Those edits postdate the review session,
-so `review_guard.evaluate_review()` (consumed by the Stop hook) correctly sees
-"code changed AFTER the most recent resolved review" and fires its nudge — even
-though the fix is *legitimately in flight*. The model, obeying the nudge, then
-launches a premature, redundant `/ai-review` over work the background sub-agent
-is already doing → wasted tokens + a race. This marker lets
-`guard_review_before_stop.py` suppress that one nudge while resolution is
-genuinely in progress (Stop only — the push guard still hard-gates).
+NERV 정본 전환 단계 2(NERV Task `CLE-T-4ABTG7`)에서 resolution 마커 훅 두 개
+(`mark_resolution_in_flight.py` · `clear_resolution_in_flight.py`)와 `settings.json` 배선을 걷었다.
+리뷰 게이트가 NERV 라운드로 판정하므로 "resolution 진행 중" 마커가 필요 없다.
 
-Lifecycle
----------
-- Written HERE at dispatch. PreToolUse fires *before* the sub-agent executes
-  (confirmed empirically), so the marker precedes any of the applier's edits —
-  closing the immediate-after-dispatch race that a filesystem-state signal alone
-  would miss.
-- Cleared by `clear_resolution_in_flight.py` on `SubagentStop` (same
-  `tool_use_id`). A TTL in `review_guard._resolution_in_flight` is the backstop
-  when SubagentStop never fires (crash / unusual async path), so an abandoned
-  resolution re-arms the gate.
-
-Marker file: `<state>/resolution_in_flight/<tool_use_id>`, content = epoch
-seconds. `<state>` = `$CLAUDE_PROJECT_DIR/.claude/state` (the stable main-project
-dir both marker hooks and the Stop guard resolve), gitignored.
-
-Contract: this hook is advisory plumbing, never a gate. Any error → no marker
-(degrades to the prior behaviour). It always allows the tool call (exit 0).
+파일을 남기는 이유: 훅 명령은 `$CLAUDE_PROJECT_DIR`(main 체크아웃)의 파일을 부르고, 세션은 시작할 때
+읽은 settings 를 끝까지 쓴다. 이 변경이 머지되기 전에 시작한 세션은 main 을 pull 한 뒤에도 옛 배선으로
+이 파일을 부른다. 파일이 없으면 `python3` 가 exit 2 로 끝나고, PreToolUse 의 exit 2 는 차단이라 그
+세션의 모든 Agent 호출이 막힌다. 단계 3(NERV Task `CLE-T-FN2JWK`)에서 지운다.
 """
 
-from __future__ import annotations
-
-import json
-import os
-import re
 import sys
-import time
-
-# Everything outside this set collapses to `_` so a tool_use_id can never escape
-# the state dir into another path (defence-in-depth; ids are harness-issued).
-_MARKER_SAFE = re.compile(r"[^A-Za-z0-9._-]")
-
-_RESOLUTION_SUBAGENT = "resolution-applier"
-
-
-def _state_dir() -> str:
-    project_dir = os.environ.get("CLAUDE_PROJECT_DIR") or os.getcwd()
-    return os.path.join(project_dir, ".claude", "state", "resolution_in_flight")
-
-
-def main() -> int:
-    try:
-        raw = sys.stdin.read()
-        payload = json.loads(raw) if raw.strip() else {}
-    except Exception:
-        return 0  # unparseable payload → allow, no marker
-
-    try:
-        if payload.get("tool_name") != "Agent":
-            return 0
-        tool_input = payload.get("tool_input") or {}
-        if (tool_input.get("subagent_type") or "") != _RESOLUTION_SUBAGENT:
-            return 0
-        tool_use_id = str(payload.get("tool_use_id") or "nouseid")
-        marker = os.path.join(_state_dir(), _MARKER_SAFE.sub("_", tool_use_id))
-        os.makedirs(os.path.dirname(marker), exist_ok=True)
-        with open(marker, "w", encoding="utf-8") as f:
-            f.write(str(time.time()))
-    except Exception:
-        pass  # fail-open: a marker write must never block a dispatch
-    return 0
-
 
 if __name__ == "__main__":
-    sys.exit(main())
+    try:
+        sys.stdin.read()
+    except Exception:  # noqa: BLE001 — 스텁은 어떤 입력에도 통과한다
+        pass
+    sys.exit(0)

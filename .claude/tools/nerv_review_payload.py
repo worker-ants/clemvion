@@ -1,0 +1,327 @@
+#!/usr/bin/env python3
+"""리뷰 세션의 역할 리포트를 NERV `nerv_review_submit` 페이로드로 바꾼다.
+
+NERV 정본 전환 단계 2(NERV Task `CLE-T-4ABTG7`)부터 리뷰 결과는 저장소 파일이 아니라 NERV 리뷰
+레코드다. 오케스트레이터는 지금처럼 세션 디렉터리(`.review/<kind>/<시각>/`, gitignore 대상)에
+역할마다 `<role>.md` 를 남긴다. 이 도구는 그 리포트를 읽어 역할별 제출 묶음을 JSON 으로 낸다.
+제출은 main 세션이 역할마다 `nerv_review_submit` 을 불러 한다(결정 D7 역할별 제출 · D9 NERV 쓰기는
+main 만). 이 도구는 네트워크를 쓰지 않고 모델도 부르지 않는다.
+
+    python3 .claude/tools/nerv_review_payload.py <session_dir> [--kind code|consistency]
+
+출력(JSON):
+    {"kind": "code", "session_dir": "...", "changeset": ["a/b.ts", ...],
+     "submissions": [{"reviewer": {"role": "security", "risk": "low"},
+                      "summary": "...", "findings": [{"severity": "warning", "title": "...",
+                      "body": "...", "file": "a/b.ts", "line": 12, "suggestion": "...",
+                      "category": "security"}]}],
+     "missing_forced": [], "errors": [], "warnings": []}
+
+main 이 붙이는 것: `branch` · `base_sha` · `head_sha`(리뷰한 커밋) · `task_id` · `idempotency_key`
+(`<task>:<kind>:<mode>:<head 앞 9자>:<role>[:n]`, 형식의 정본은 code-review-agents SKILL §4). `changeset` 은 세션 `meta.json` 의 `files` 에서 경로만 뽑은
+것이다(오케스트레이터는 `{"file_path": …}` 객체로 쓴다. 뽑을 수 없으면 키가 없고, main 이
+`git diff --name-only <base>..<head>` 로 채운다).
+
+역할은 세션 `_retry_state.json` 의 `subagent_invocations` 가 정한다. 그 목록에 없는 `*.md`(예: 처리
+중에 생긴 제안 파일)는 역할 리포트가 아니므로 내지 않고 `warnings` 에 남긴다. `errors` 가 있거나
+`missing_forced` 가 비어 있지 않으면 exit 1 이다. 그대로 내면 라운드가 틀린다.
+  - 강제 역할의 리포트가 빠졌다(`missing_forced`). 라운드가 `missing_roles` 로 남는다.
+  - kind=code 인데 상태 파일이 없거나 역할 목록이 없다. 강제 역할 누락을 확인하지 못한다.
+  - 낼 묶음이 하나도 없다.
+  - 어느 역할의 위험도가 HIGH 인데 critical · warning 발견을 하나도 읽지 못했다.
+  - merge · spec_coverage 세션이다. 두 kind 의 제출 절차는 NERV Task `CLE-T-VP5KDJ`(전환 4e)에서 정한다.
+리포트 형식은 리뷰어 · checker 정의(`.claude/agents/*.md` §출력 형식)가 정본이다:
+`- **[CRITICAL|WARNING|INFO]** 제목` 아래 `위치:` · `상세:` · `제안:` 하위 항목, `### 요약`, `### 위험도`.
+`- **[SEV] 제목**` 처럼 굵게가 제목까지 감싼 줄도 발견으로 읽는다. 그 밖에 심각도 표지가 있는 줄은
+`warnings` 에 줄 번호와 함께 남긴다. 조용히 버리면 발견이 빠진 채 라운드가 passed 가 된다.
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import re
+import sys
+
+_CLAUDE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if _CLAUDE_DIR not in sys.path:
+    sys.path.insert(0, _CLAUDE_DIR)
+from _shared import block_integrity, report_paths  # noqa: E402
+
+KINDS = ("code", "consistency")
+# NERV 정책 `review_roles.code` 의 필수 역할. router 가 늘 강제하지만 `REVIEW_AGENTS` 로 좁히면 빠질 수
+# 있어 kind=code 에서 빠지면 경고한다(라운드가 `missing_roles` 로 남는다).
+NERV_REQUIRED_ROLES = ("security", "requirement", "scope", "side_effect", "maintainability", "testing")
+_SPEC_DRIFT_RE = re.compile(r"\[?SPEC[-_ ]DRIFT\]?", re.I)
+# 세션 경로로 알아보지만 제출 절차가 아직 없는 kind(NERV Task `CLE-T-VP5KDJ` 전환 4e).
+DEFERRED_KINDS = ("merge", "spec_coverage")
+# 세션 디렉터리 이름 → kind. 오케스트레이터가 `.review/<이름>/<Y>/<m>/<d>/<H_M_S>` 에 쓴다.
+_DIR_KIND = {"code": "code", "consistency": "consistency", "merge": "merge",
+             "spec-coverage": "spec_coverage"}
+# 리포트가 아닌 세션 파일. `_` 로 시작하는 파일(상태 · 프롬프트)도 뺀다.
+_NOT_REPORTS = {"SUMMARY.md", "RESOLUTION.md", "README.md"}
+
+# 발견 줄. 정의의 형식(`**[SEV]** 제목`)과, 리뷰어가 흔히 쓰는 `**[SEV] 제목**` 을 함께 받는다(9월 역할
+# 리포트 5,447개 중 187개가 뒤의 형식이었다. 2026-10-01 리뷰 실측).
+_FINDING_RE = re.compile(
+    r"^\s{0,3}(?:[-*]|\d+[.)])\s+\*\*\[(CRITICAL|WARNING|INFO)\](?:\*\*\s*(.*)|\s*(.*?)\*\*\s*(.*))$", re.I)
+_HEADING_FINDING_RE = re.compile(r"^#{2,6}\s+\[(CRITICAL|WARNING|INFO)\]\s*(.*)$", re.I)
+# 형식 밖 표지: `[` 나 `**` 바로 뒤(공백 허용)에 오는 심각도 단어. `[CRITICAL/HIGH]` · `[WARNING — 인증]` ·
+# `[ CRITICAL ]` · `**CRITICAL**` 이 모두 걸린다(2026-10-01 리뷰 재현: 옛 `\[(CRITICAL|WARNING)\]` 는 넷 다
+# 놓쳤다). `### 위험도` 의 맨 단어 `CRITICAL` 은 괄호 · 굵게가 아니라 걸리지 않는다.
+_MARKER_RE = re.compile(r"(?:\[|\*\*)\s*(CRITICAL|WARNING)\b", re.I)
+_HEADING_RE = re.compile(r"^#{1,6}\s")
+# 리뷰어 · checker · analyzer 정의(`.claude/agents/*.md` §출력 형식)가 쓰는 하위 항목 이름. 모르는 이름은
+# 앞 항목에 붙어 버리므로 정의에 이름이 늘면 여기도 는다(RealSessionShapeTest 가 대조한다).
+LOCATION_FIELDS = ("위치", "target 위치")
+LABELED_FIELDS = ("위반 규약", "과거 결정 출처", "관련 plan", "target 신규 식별자", "기존 사용처",
+                  "변경 파일", "매트릭스 항목", "누락된 동반 갱신")
+FIELD_NAMES = LOCATION_FIELDS + ("충돌 대상", "상세", "제안") + LABELED_FIELDS
+_FIELD_RE = re.compile(r"^\s+[-*]\s+(" + "|".join(map(re.escape, FIELD_NAMES)) + r")\s*[:：]\s*(.*)$")
+_LOCATION_RE = re.compile(r"`([^`\s]+?)(?::(\d+)(?:[-~]\d+)?)?`")
+_RISK_RE = re.compile(r"\b(NONE|LOW|MEDIUM|HIGH|CRITICAL)\b")
+_RISK_MAP = {"NONE": "low", "LOW": "low", "MEDIUM": "medium", "HIGH": "high", "CRITICAL": "high"}
+
+MAX_TITLE = 300
+MAX_BODY = 4000
+MAX_SUGGESTION = 2000
+MAX_SUMMARY = 1000
+
+
+def _cap(text: str, limit: int) -> str:
+    text = text.strip()
+    return text if len(text) <= limit else text[: limit - 1].rstrip() + "…"
+
+
+def _section(lines: list[str], name: str) -> list[str]:
+    """`### <name>` 절의 본문 줄(다음 제목 전까지)."""
+    out: list[str] = []
+    inside = False
+    for ln in lines:
+        if _HEADING_RE.match(ln):
+            if inside:
+                break
+            inside = ln.lstrip("#").strip().startswith(name)
+            continue
+        if inside:
+            out.append(ln)
+    return out
+
+
+def _location(text: str) -> tuple[str | None, int | None]:
+    for m in _LOCATION_RE.finditer(text):
+        path = m.group(1)
+        path = path[2:] if path.startswith("./") else path  # removeprefix 는 3.9+ (block_integrity 주석)
+        if "/" in path or "." in path:
+            return path, int(m.group(2)) if m.group(2) else None
+    return None, None
+
+
+def _finding(severity: str, title: str, block: list[str], role: str) -> dict:
+    """한 발견 블록(첫 줄 다음 줄들)을 NERV 발견으로."""
+    fields: dict[str, list[str]] = {}
+    current = None
+    for ln in block:
+        m = _FIELD_RE.match(ln)
+        if m:
+            current = m.group(1)
+            fields.setdefault(current, []).append(m.group(2))
+        elif current:
+            fields[current].append(ln.strip())
+    location = " ".join(fields.get("위치") or fields.get("target 위치") or [])
+    path, line = _location(location)
+    body_parts = []
+    if location:
+        body_parts.append(f"위치: {location.strip()}")
+    if fields.get("충돌 대상"):
+        body_parts.append("\n".join(x for x in fields["충돌 대상"] if x).strip())
+    for name in LABELED_FIELDS:
+        if fields.get(name):
+            body_parts.append(f"{name}: " + "\n".join(x for x in fields[name] if x).strip())
+    if fields.get("상세"):
+        body_parts.append("\n".join(x for x in fields["상세"] if x).strip())
+    if not fields:  # 하위 항목 없이 산문으로 쓴 블록
+        body_parts.append("\n".join(x.strip() for x in block if x.strip()))
+    out = {
+        "severity": severity.lower(),
+        "title": _cap(re.sub(r"\s+", " ", title) or "(제목 없음)", MAX_TITLE),
+        "body": _cap("\n\n".join(p for p in body_parts if p), MAX_BODY),
+        "category": role,
+    }
+    # 구현이 아니라 스펙이 낡은 발견(requirement-reviewer 의 `[SPEC-DRIFT]`)은 NERV 분류에 그대로 싣는다.
+    if _SPEC_DRIFT_RE.search(title):
+        out["tags"] = ["spec_drift"]
+        out["area"] = "spec"
+    suggestion = "\n".join(x for x in fields.get("제안", []) if x).strip()
+    if suggestion:
+        out["suggestion"] = _cap(suggestion, MAX_SUGGESTION)
+    if path:
+        out["file"] = path
+    if line:
+        out["line"] = line
+    return out
+
+
+def parse_report(text: str, role: str) -> tuple[dict, list[str]]:
+    """리포트 본문 → (제출 묶음, 경고). 경고는 형식에서 벗어난 심각도 표지다."""
+    lines = text.splitlines()
+    findings: list[dict] = []
+    warnings: list[str] = []
+    starts: list[tuple[int, str, str]] = []
+    for i, ln in enumerate(lines):
+        m = _FINDING_RE.match(ln) or _HEADING_FINDING_RE.match(ln)
+        if m:
+            # `**[SEV]:** 제목` 은 뒤 형식으로 읽혀 제목 앞에 `:` 가 남는다. 걷는다.
+            title = " ".join(g for g in m.groups()[1:] if g).lstrip(":：-— ").strip()
+            starts.append((i, m.group(1), title))
+        elif _MARKER_RE.search(ln):
+            # 표 · 인용 줄도 센다. 9월 역할 리포트 5,457개 중 그런 줄은 1개(인용)라 경고가 흔하지 않고,
+            # 빼면 표에 쓴 발견이 경고 없이 빠진다.
+            warnings.append(f"{role}.md:{i + 1}: 발견 형식이 아닌 줄에 심각도 표지가 있다 — {ln.strip()[:80]}")
+    for n, (i, severity, title) in enumerate(starts):
+        end = starts[n + 1][0] if n + 1 < len(starts) else len(lines)
+        block = []
+        for ln in lines[i + 1:end]:
+            if _HEADING_RE.match(ln):
+                break
+            block.append(ln)
+        findings.append(_finding(severity, title, block, role))
+
+    submission: dict = {"reviewer": {"role": role}, "findings": findings}
+    risk_lines = _section(lines, "위험도")
+    for ln in risk_lines:
+        m = _RISK_RE.search(ln)
+        if m:
+            submission["reviewer"]["risk"] = _RISK_MAP[m.group(1)]
+            break
+    summary = " ".join(x.strip() for x in _section(lines, "요약") if x.strip())
+    if summary:
+        submission["summary"] = _cap(summary, MAX_SUMMARY)
+    return submission, warnings
+
+
+def kind_of(session_dir: str) -> str | None:
+    parts = os.path.normpath(os.path.abspath(session_dir)).split(os.sep)
+    # 시각 경로(<Y>/<m>/<d>/<H_M_S>) 바로 위가 kind 디렉터리다.
+    if len(parts) >= 5:
+        return _DIR_KIND.get(parts[-5])
+    return None
+
+
+def _load_json(path: str):
+    try:
+        with open(path, encoding="utf-8") as f:
+            return json.load(f)
+    except (OSError, ValueError):
+        return None
+
+
+def _roles(session_dir: str, state) -> dict[str, str] | None:
+    """역할 이름 → 세션의 리포트 파일 이름. 상태 파일에 역할 목록이 없으면 None.
+
+    경로 해석은 강제 역할 검사(`report_paths.missing_reports`)와 같은 `report_paths` 를 쓴다. 따로
+    풀면 둘이 갈린다. `output_file` 이 `/` 로 끝나면 이 함수만 빈 이름을 얻어 그 역할을 빼고, 검사는
+    `<name>.md` 로 풀어 "있다" 고 봐서 강제 역할이 조용히 빠졌다(2026-10-01 리뷰 재현)."""
+    if not isinstance(state, dict) or not isinstance(state.get("subagent_invocations"), list):
+        return None
+    roles = {name: os.path.basename(path) for name, path in report_paths.report_paths(session_dir, state).items()
+             if isinstance(name, str)}
+    return roles or None
+
+
+def build(session_dir: str, kind: str | None = None) -> dict:
+    if not os.path.isdir(session_dir):
+        raise SystemExit(f"nerv_review_payload: 세션 디렉터리가 없다 — {session_dir}")
+    kind = kind or kind_of(session_dir)
+    if kind in DEFERRED_KINDS:
+        return {"kind": kind, "session_dir": os.path.abspath(session_dir), "submissions": [],
+                "missing_forced": [], "warnings": [],
+                "errors": [f"kind={kind} 의 NERV 제출 절차는 전환 4e(NERV Task CLE-T-VP5KDJ)에서 정한다 — "
+                           "이 도구는 아직 묶음을 만들지 않는다"]}
+    if kind not in KINDS:
+        raise SystemExit("nerv_review_payload: kind 를 정하지 못했다 — --kind 로 준다")
+    names = sorted(
+        n for n in os.listdir(session_dir)
+        if n.endswith(".md") and n not in _NOT_REPORTS and not n.startswith("_")
+        and os.path.isfile(os.path.join(session_dir, n))
+    )
+    submissions: list[dict] = []
+    errors: list[str] = []
+    warnings: list[str] = []
+
+    state = _load_json(os.path.join(session_dir, "_retry_state.json"))
+    roles = _roles(session_dir, state)
+    if roles is None:
+        plan = [(n[:-3], n) for n in names]
+        if kind == "code":
+            errors.append("_retry_state.json 이 없거나 역할 목록(subagent_invocations)이 없다 — "
+                          "강제 역할 누락을 확인하지 못했다")
+        elif names:
+            warnings.append("_retry_state.json 에 역할 목록이 없다 — 세션의 리포트 파일을 모두 역할로 본다")
+    else:
+        plan = sorted((role, name) for role, name in roles.items() if name in names)
+        for name in names:
+            if name not in roles.values():
+                warnings.append(f"{name}: 이 세션이 부른 역할의 리포트가 아니다 — 제출하지 않는다")
+
+    for role, name in plan:
+        with open(os.path.join(session_dir, name), encoding="utf-8", errors="replace") as f:
+            text = f.read()
+        if not text.strip():
+            warnings.append(f"{name}: 비어 있다 — 제출하지 않는다")
+            continue
+        submission, w = parse_report(text, role)
+        submissions.append(submission)
+        warnings.extend(w)
+        # 위험도는 HIGH 인데 막는 발견이 하나도 안 읽혔으면 형식이 어긋나 발견이 빠졌을 공산이 크다.
+        blocking = [f for f in submission["findings"] if f["severity"] in ("critical", "warning")]
+        if submission["reviewer"].get("risk") == "high" and not blocking:
+            errors.append(f"{name}: 위험도가 HIGH 인데 critical · warning 발견을 하나도 읽지 못했다 — 발견 형식을 확인한다")
+
+    missing: list[str] = []
+    if isinstance(state, dict):
+        forced = state.get("agents_forced") or []
+        missing = report_paths.missing_reports(session_dir, forced, state)
+        # 리포트가 있어도 묶음에 안 들어갔으면 빠진 것이다(해석이 갈려도 조용히 지나가지 않게).
+        submitted = {s["reviewer"]["role"] for s in submissions}
+        missing += [r for r in forced if isinstance(r, str) and r not in submitted and r not in missing]
+    if not submissions:
+        errors.append("제출할 역할 리포트가 없다.")
+    if kind == "code" and submissions:
+        absent = [r for r in NERV_REQUIRED_ROLES if r not in {s["reviewer"]["role"] for s in submissions}]
+        if absent:
+            warnings.append(f"NERV 필수 역할이 묶음에 없다: {', '.join(absent)} — 라운드가 missing_roles 로 남는다")
+    if kind == "consistency":
+        # 통합 SUMMARY 가 checker 의 [CRITICAL] 을 낮춰 `BLOCK: NO` 라고 적은 경우. NERV 에는
+        # checker 리포트가 그대로 올라가므로 판정은 서버가 바로잡는다. 다만 사람이 읽는 SUMMARY 가
+        # 틀렸다는 사실은 제출 전에 알린다(`consistency-summary.md` §요약 지침 3).
+        note = block_integrity.contradiction_note(session_dir)
+        if note:
+            warnings.append(f"SUMMARY.md: {note}")
+    out: dict = {"kind": kind, "session_dir": os.path.abspath(session_dir)}
+    meta = _load_json(os.path.join(session_dir, "meta.json"))
+    files = meta.get("files") if isinstance(meta, dict) else None
+    if isinstance(files, list) and files:
+        paths = [f.get("file_path") if isinstance(f, dict) else f for f in files]
+        if all(isinstance(x, str) and x for x in paths):
+            out["changeset"] = paths
+    out.update({"submissions": submissions, "missing_forced": missing,
+                "errors": errors, "warnings": warnings})
+    return out
+
+
+def main(argv: list[str] | None = None) -> int:
+    ap = argparse.ArgumentParser(description=__doc__.split("\n")[0], allow_abbrev=False)
+    ap.add_argument("session_dir")
+    ap.add_argument("--kind", choices=KINDS)
+    args = ap.parse_args(argv)
+    out = build(args.session_dir, args.kind)
+    json.dump(out, sys.stdout, ensure_ascii=False, indent=1)
+    sys.stdout.write("\n")
+    # 그대로 제출하면 라운드가 틀린다(모듈 docstring). 알리고 실패한다.
+    return 1 if out["missing_forced"] or out["errors"] else 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

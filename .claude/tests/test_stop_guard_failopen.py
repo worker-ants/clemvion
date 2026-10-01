@@ -3,8 +3,9 @@
 `guard_review_before_push.py` got this treatment in #999 (harness-guard-followups
 §E). The Stop hook has the same three fail-open paths — gate import,
 `evaluate_*()` raising, `main()` itself — and was still silent about all of
-them, so a session could end with the review nudge quietly disabled and nothing
-to show for it.
+them, so a session could end with a nudge quietly disabled and nothing to show
+for it. Since NERV cutover stage 2 the Stop hook carries only the plan nudge;
+the review nudge left with the move of review records to NERV.
 
 Rather than copy ~120 lines of carefully-reasoned reporting into a second file
 (the duplication class this repo keeps getting bitten by), the push hook's logic
@@ -39,15 +40,14 @@ HOOKS_DIR = _harness.HOOKS_DIR
 STOP_HOOK = HOOKS_DIR / "guard_review_before_stop.py"
 PUSH_HOOK = HOOKS_DIR / "guard_review_before_push.py"
 
-# Mirrors the real signature: the Stop guard calls evaluate_review(in_flight_ok=True),
-# so a mock that rejects the kwarg would make the gate degrade instead of answer —
-# which is exactly the silent-failure mode these tests exist to catch.
+# Only the push hook still imports this (one test drives it below). Keyword
+# arguments are accepted like the real `evaluate_review(cwd, *, branch, head, …)`.
 _CLEAN_REVIEW = (
     "class _D:\n    blocked = False\n    reason = ''\n"
     # `push_blocks` 는 실제 `ReviewDecision` 의 프로퍼티다. 이 소비자는 안 읽지만, 스텁이
     # 진짜 인터페이스를 그대로 비추게 두는 편이 무엇을 빼도 되는지 매번 판단하는 것보다 싸다.
     "    push_blocks = False\n"
-    "def evaluate_review(cwd=None, *, in_flight_ok=False):\n    return _D()\n"
+    "def evaluate_review(cwd=None, **_kw):\n    return _D()\n"
 )
 _CLEAN_PLAN = (
     "class _P:\n    untouched = False\n    complete_but_in_progress = False\n"
@@ -109,42 +109,17 @@ class StopGuardFailOpenTest(unittest.TestCase):
         self.assertIn("PLAN gate", r.stderr)
         self.assertEqual(self._state()["streak"], 1)
 
-    def test_review_gate_degradation_is_reported_too(self):
-        """Every other test here breaks the PLAN gate, which left the REVIEW
-        branch entirely unexercised — deleting its `degraded.append` passed the
-        whole file. The two branches are hand-written twins; both need a case."""
+    def test_the_stop_hook_no_longer_reads_the_review_gate(self):
+        """The review nudge left with NERV cutover stage 2. A broken `review_guard`
+        must not register as a Stop-hook degradation — counting a gate the hook no
+        longer has would pin the streak (`_ALL_GATES` must match the real gates)."""
         self._write("review_guard.py", "raise RuntimeError('review is broken')\n")
         r = self._run()
         self.assertEqual(r.returncode, 0)
-        self.assertIn("REVIEW gate", r.stderr)
-        self.assertIn("review is broken", r.stderr)
-        self.assertEqual(self._state()["streak"], 1)
-
-    def test_stop_passes_in_flight_opt_in(self):
-        """The Stop→evaluate_review seam must carry `in_flight_ok=True`.
-
-        This is the only thing distinguishing the Stop call from the push
-        call, and dropping it is invisible in every other assertion here (the
-        decision object is identical). Asserting on the recorded kwarg keeps
-        the call shape intact, so a mutant that reverts to `evaluate_review()`
-        goes RED instead of silently disabling the in-flight concession.
-        """
-        seam = Path(self.tmp) / "seam.txt"
-        self._write("review_guard.py",
-                    "class _D:\n    blocked = False\n    reason = ''\n"
-                    "    push_blocks = False\n"
-                    "def evaluate_review(cwd=None, *, in_flight_ok=False):\n"
-                    f"    open({str(seam)!r}, 'w').write(repr(in_flight_ok))\n"
-                    "    return _D()\n")
-        r = self._run()
-        self.assertEqual(r.returncode, 0)
-        self.assertTrue(seam.exists(), "evaluate_review was never called")
-        self.assertEqual(seam.read_text(encoding="utf-8"), "True")
-
-    def test_review_gate_present_but_none_is_accurate_too(self):
-        self._write("review_guard.py", "evaluate_review = None\n")
-        r = self._run()
-        self.assertIn("imported but evaluate_review is None", r.stderr)
+        self.assertNotIn("REVIEW gate", r.stderr)
+        self.assertNotIn("review is broken", r.stderr)
+        self.assertEqual(r.stdout.strip(), "", "no nudge should fire on a clean plan")
+        self.assertIsNone(self._state(), "a clean PLAN answer must leave no streak")
 
     def test_evaluate_exception_is_reported(self):
         self._write("plan_guard.py",
@@ -212,7 +187,7 @@ class StopGuardFailOpenTest(unittest.TestCase):
         self._write("plan_guard.py", "raise RuntimeError('broken')\n")
         self._run()
         self._write("plan_guard.py", _CLEAN_PLAN)
-        self._run(env={"BYPASS_REVIEW_GUARD": "1"})
+        self._run(env={"BYPASS_PLAN_GUARD": "1"})
         self.assertIsNotNone(self._state(), "a bypassed run is not proof of health")
 
     # ---- isolation between the two hooks ----------------------------------

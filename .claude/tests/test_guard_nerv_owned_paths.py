@@ -11,8 +11,10 @@ NERV 정본 전환 단계 1부터 `spec/` 은 `pull.py` 만 쓰는 미러다(옛
   첫 경로 조각은 대소문자를 무시한다(macOS 기본 APFS 에서 `SPEC/` 은 `spec/` 과 같은 폴더).
 - 표지 파일(`.claude/tools/nerv-mirror/pull.py`)이 없는 다른 git 저장소의 `spec/` 은 막지 않는다.
 - 더 깊은 곳의 `spec` 이름(`codebase/…/spec/…`)과 저장소 밖(scratchpad)은 막지 않는다.
-- `review/` · `plan/` 은 아직 막지 않는다. 거버넌스 문서가 단계 2 · 3 전까지 그 쓰기를
-  안내한다. 그 단계 PR 이 이 테스트의 기대를 바꾼다.
+- 단계 2(NERV Task `CLE-T-4ABTG7`)부터 `review/` 도 막는다. 리뷰 결과는 NERV 레코드이고
+  오케스트레이터 산출물은 gitignore 대상 `.review/` 에 쓴다(그 경로는 막지 않는다).
+- `plan/` 은 아직 막지 않는다. 거버넌스 문서가 단계 3 전까지 그 쓰기를 안내한다. 그 단계 PR 이
+  이 테스트의 기대를 바꾼다.
 - `BYPASS_NERV_OWNED_PATHS=1` 이면 통과(다른 값은 우회가 아니다).
 - 경로 키는 형제 훅과 같은 `file_path` · `path` · `notebook_path`(`tool_input` 또는 `input`)다.
 - 짝 없는 서로게이트가 든 경로도 판정한다. 파일 시스템에 넘기지 못하는 문자라 예외가 나면
@@ -116,6 +118,18 @@ class GuardTest(unittest.TestCase):
         r = self.run_hook(_harness.REPO_ROOT / "spec" / "CLE-VISION.md", cwd=_harness.REPO_ROOT)
         self.assertEqual(r.returncode, 2, r.stderr)
 
+    def test_review_is_blocked_and_the_local_artifact_root_is_not(self):
+        for root in (self.main, self.wt):
+            with self.subTest(root=root.name):
+                r = self.run_hook(root / "review/code/2026/10/01/00_00_00/SUMMARY.md")
+                self.assertEqual(r.returncode, 2, r.stderr)
+                self.assertIn("nerv_review_submit", r.stderr)
+                self.assertIn(".review/", r.stderr)
+                self.assertEqual(self.run_hook("REVIEW/x.md", cwd=root).returncode, 2)
+                for rel in (".review/code/2026/10/01/00_00_00/security.md",
+                            ".review/consistency/2026/10/01/00_00_00/SUMMARY.md"):
+                    self.assertEqual(self.run_hook(root / rel).returncode, 0, rel)
+
     def test_relative_path_is_resolved_against_the_payload_cwd(self):
         self.assertEqual(self.run_hook("spec/x.md", cwd=self.wt).returncode, 2)
         self.assertEqual(self.run_hook("codebase/x.ts", cwd=self.wt).returncode, 0)
@@ -180,7 +194,6 @@ class GuardTest(unittest.TestCase):
         for target in (self.main / "codebase/frontend/src/lib/spec/x.ts",
                        self.main / ".claude/tools/x.py",
                        self.main / "specs/x.md",
-                       self.main / "review/code/2026/SUMMARY.md",   # 단계 2 에서 막는다
                        self.main / "plan/in-progress/x.md",        # 단계 3 에서 막는다
                        self.tmp / "scratch" / "spec" / "x.md"):
             with self.subTest(target=str(target)):

@@ -24,6 +24,14 @@ findings and may raise severity; only lowering is forbidden. Turning that into a
 hard block would refuse sessions the rule permits, and the failure mode this
 addresses is silence, not malice — the discretion was being exercised in the
 open, just where nothing read it. Making it visible is the fix.
+
+**Who reads it now.** NERV cutover stage 2 (NERV Task `CLE-T-4ABTG7`) took the
+gate off `review/**` files. Each checker's report is submitted to NERV as its own
+`kind=consistency` role, so a SUMMARY downgrade can no longer open a gate — NERV
+judges the round from the checkers' findings. What is left is the human-facing
+SUMMARY being wrong, and `.claude/tools/nerv_review_payload.py` reports that as a
+warning before the submission. The consistency orchestrator still takes
+`ALL_CHECKERS` from here.
 """
 
 from __future__ import annotations
@@ -77,8 +85,9 @@ _CRITICAL_TAG = re.compile(r"\[CRITICAL\]")
 #     `\s`      0.027s   0.085s   0.331s   1.333s   5.375s   (×4 per doubling)
 #     ` \t`     0.000s   0.000s   0.000s   0.001s   0.001s
 #
-# It matters because this runs on every push and every turn-end, over every
-# session on disk, and a SUMMARY is LLM-written markdown with no enforced size.
+# It mattered because this ran on every push and every turn-end, over every session on
+# disk (the review gate until NERV cutover stage 2). It still runs on every NERV
+# submission, and a SUMMARY is LLM-written markdown with no enforced size.
 # A length cap is deliberately NOT the fix: it cannot bound a quadratic pattern
 # (256KB is still catastrophic), and this repo's own `_MAX_REDACTION_INPUT` note
 # warns that a cap must never gate detection. The linear pattern is the fix; the
@@ -152,10 +161,10 @@ def _read(path: str) -> str:
 def summary_block_verdict(summary_text: str) -> str | None:
     """`"YES"` / `"NO"` from the SUMMARY's verdict line, or None if absent.
 
-    The single parser for this question — `review_guard._summary_block_is_no`
-    delegates here. Two copies of a `BLOCK:` regex is the "Change both" shape
-    this branch is elsewhere removing, and it would have been created in the
-    same diff.
+    The single parser for this question — `contradiction_note()` below and the
+    NERV submission tool reach it here. Two copies of a `BLOCK:` regex is the
+    "Change both" shape this module exists to remove. (The review gate's
+    `_summary_block_is_no` delegated here until NERV cutover stage 2.)
 
     What actually separates a real verdict from a superseded one is the **end
     anchor**, not position: the observed override case
@@ -199,10 +208,9 @@ def contradiction_note(session_dir: str) -> str:
     found = downgraded_criticals(session_dir)
     if not found:
         return ""
-    # Not `removesuffix`: it needs Python 3.9 and would be this tree's first use,
-    # silently raising the harness's minimum. On an older `python3` the
-    # AttributeError does not merely drop this advisory — the caller's broad
-    # `except Exception` fails the REVIEW gate open for that push entirely.
+    # Not `removesuffix`: it needs Python 3.9 and would silently raise the
+    # harness's minimum. (When the push gate was this function's caller, the
+    # AttributeError on an older `python3` failed that gate open entirely.)
     parts = ", ".join(
         f"{k[:-3] if k.endswith('.md') else k}={v}" for k, v in sorted(found.items())
     )

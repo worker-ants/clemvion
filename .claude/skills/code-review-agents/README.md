@@ -10,11 +10,13 @@
                                   → STATUS 파싱 + _retry_state.json 갱신
                                   → 모두 완료 → code-review-summary sub-agent → SUMMARY.md
                                   → 남음 + /loop → ScheduleWakeup → turn 종료
-                                  → SUMMARY 에 Critical/Warning → 자동 후속
-                                    (분류 → spec/코드 수정 → e2e → 재리뷰 → RESOLUTION.md)
+                                  → main 이 역할마다 NERV 에 제출(nerv_review_submit)
+                                  → 열린 발견 → 자동 후속(resolution-applier)
+                                    (분류 → 코드 수정 · 스펙 제안 → e2e → _dispositions.json
+                                     → main 이 nerv_finding_resolve 로 처분)
 ```
 
-자동 후속 흐름은 SKILL.md "단계 8. 자동 후속 흐름" 참고. 안전 가드(consistency-check `BLOCK: YES`, e2e 누적 3회 실패, DB 마이그레이션·외부 API 계약 변경 등) 가 발화되면 자동 진행 중단 + 사용자 보고.
+제출과 자동 후속 흐름은 SKILL.md §4 · §6 참고. 인계 파일 형식은 `.claude/tools/nerv_review_handoff.py` docstring 이 정본이다. 안전 가드(consistency-check `BLOCK: YES`, e2e 누적 3회 실패, DB 마이그레이션·외부 API 계약 변경 등) 가 발화되면 자동 진행 중단 + 사용자 보고.
 
 `claude -p` subprocess 와 Anthropic SDK 직접 호출은 요금제 정책상 사용 불가하므로 제거되었다. 모든 model 호출은 main session 의 `Agent` tool 한 곳을 통한다.
 
@@ -65,7 +67,7 @@
 
 | Trigger | Forced reviewers | 근거 |
 |---|---|---|
-| 소스 파일 (44 확장자) | **security, requirement, scope, side_effect, maintainability, testing** | 코드 변경의 핵심 6관점은 router 판단 무관하게 항상 점검 |
+| 소스 파일 (44 확장자) 또는 그 밖의 모든 변경 파일 | **security, requirement, scope, side_effect, maintainability, testing** | 코드 변경의 핵심 6관점은 router 판단 무관하게 항상 점검. NERV 정책 `review_roles.code` 가 변경 종류와 무관하게 코드 라운드마다 이 6역할을 요구한다(하네스 · 문서만 바꾼 Task 도 done 게이트에 passed 라운드가 필요하다). `REVIEW_AGENTS` 로 직접 고른 경우는 그 선택을 따른다 |
 | `package.json`/`package-lock.json`/`requirements*.txt`/`Pipfile`/`pyproject.toml`/`go.mod`/`Cargo.toml` 등 | dependency + documentation | dependency 변경은 보통 README/CHANGELOG 갱신 동반 |
 | 문서 파일 (`*.md`, `*.txt`, `*.rst`, `*.adoc`, `LICENSE`, `NOTICE`, `AUTHORS`, `CHANGELOG`, `README` 등) | documentation | |
 | `**/migrations/*`, `*.sql`, `**/prisma/schema*` | database | 마이그레이션·스키마 안전성 |
@@ -74,7 +76,7 @@
 | `Dockerfile`, `Dockerfile.*`, `docker-compose*.{yml,yaml}` | dependency + security | base image·package install (dependency) + USER·secret·port·privileged (security) |
 | `.dockerignore` | security | 잘못된 제외 시 `.env`/`.git`/secret 이 build context 에 포함될 위험 |
 | `.env`, `.env.*`, `*.env`, `*.env.example` | security | secret / connection string / API key 누설 |
-| **위 어디에도 안 잡힘** | (강제 없음) | router 가 모두 false 로 결정 시 fatal → main 이 minimal SUMMARY 작성 후 종료 (전체 fallback 안 함) |
+| **위 어디에도 안 잡힘** | (첫 행의 6역할만) | 다른 규칙이 더하는 reviewer 는 없다 |
 
 소스 코드 확장자: `ts tsx js jsx mjs cjs · py pyi · java kt kts scala groovy · go rs · c cc cpp cxx h hh hpp hxx · swift m mm · rb php lua · cs fs vb · ex exs erl hrl ml mli clj cljs · dart · sh bash zsh`
 
@@ -103,7 +105,7 @@
 ## 산출물 디렉토리 구조
 
 ```
-review/
+.review/
 └── code/
     └── 2026/
         └── 05/
@@ -123,16 +125,18 @@ review/
                     ├── performance.md
                     ├── ...
                     ├── SUMMARY.md           ← summary sub-agent 의 통합 보고서
-                    └── RESOLUTION.md        ← 사용자/developer 가 조치 결과 기록 (선택)
+                    ├── _nerv_findings.json  ← 처리할 NERV 발견(nerv_review_handoff.py fetch)
+                    ├── _dispositions.json   ← resolution-applier 의 처분 목록(main 이 NERV 에 기록)
+                    └── _spec-proposal-<area>.md ← 스펙 결함 제안(main 이 NERV 초안으로 옮긴다)
 ```
 
-> 일관성 검토(`/consistency-check`) 도 동일하게 `review/consistency/<YYYY>/<MM>/<DD>/<hh>_<mm>_<ss>/` 로 떨어진다. nested 형식은 누적된 세션 수가 한 디렉토리 안에서 폭주하지 않도록 한 단계 분리하기 위함이다 — `REVIEW_OUTPUT_DIR` / `CONSISTENCY_OUTPUT_DIR` 로 prefix(`./review/code`, `./review/consistency`) 만 바꾸고 내부 nested 분할은 `lib.session.create_session_dir` 가 관리한다.
+> 세션 디렉터리의 부모는 `./.review/code` 이고 gitignore 대상이라 커밋하지 않는다. 결과의 정본은 NERV 리뷰 레코드다(NERV 정본 전환 단계 2, `CLAUDE.md` §정보 저장 위치). 일관성 검토(`/consistency-check`) 도 동일하게 `.review/consistency/<YYYY>/<MM>/<DD>/<hh>_<mm>_<ss>/` 로 떨어진다. nested 형식은 누적된 세션 수가 한 디렉토리 안에서 폭주하지 않도록 한 단계 분리하기 위함이다. `REVIEW_OUTPUT_DIR` / `CONSISTENCY_OUTPUT_DIR` 로 prefix(`./.review/code`, `./.review/consistency`) 만 바꾸고 내부 nested 분할은 `lib.session.create_session_dir` 가 관리한다.
 
 ## `_retry_state.json` 스키마
 
 ```jsonc
 {
-  "session_dir": "/abs/path/to/review/code/<YYYY>/<MM>/<DD>/<hh>_<mm>_<ss>",
+  "session_dir": "/abs/path/to/.review/code/<YYYY>/<MM>/<DD>/<hh>_<mm>_<ss>",
   "summary_subagent_type": "code-review-summary",
   "summary_output_file": "/abs/.../SUMMARY.md",
   "router_subagent_type": "review-router",
@@ -224,7 +228,7 @@ ScheduleWakeup delay:
 | 변수 | 기본값 | 의미 |
 | --- | --- | --- |
 | `REVIEW_AGENTS` | (전체 13) | 실행할 reviewer 쉼표 구분 |
-| `REVIEW_OUTPUT_DIR` | `./review/code` | 세션 디렉토리 부모 (nested ISO 분할은 lib.session 이 담당) |
+| `REVIEW_OUTPUT_DIR` | `./.review/code` | 세션 디렉토리 부모 (nested ISO 분할은 lib.session 이 담당) |
 | `REVIEW_SKIP_EXTENSIONS` | (없음) | 건너뛸 확장자 |
 | `REVIEW_MAX_FILE_SIZE` | `55296` | 개별 파일 컨텐츠 상한 (자). 라인번호 게이트 도입 전 51200 → 게이트 오버헤드(+8%) 만큼 상향. |
 | `REVIEW_MAX_PROMPT_SIZE` | `141557` | reviewer 1명분 prompt body 상한 (자). 게이트 도입 전 131072 → +8%. 게이트는 리뷰 대상 코드가 아니라 메타데이터이므로, 상한을 그대로 두면 reviewer 가 보는 **코드량**이 조용히 줄어든다. |
@@ -257,4 +261,4 @@ orchestrator 가 `/tmp/code-review-agents-log.txt` 에 prepare 단계의 이벤�
 | prompt 출처 | `prompts/agents/<role>.md` | `.claude/agents/<role>-reviewer.md` system prompt |
 | 호출 인자 | `--cli ...` | `--prepare ...` (옛 `--cli` 는 deprecated alias) |
 
-결과 디렉토리는 `./review/code/<YYYY>/<MM>/<DD>/<hh>_<mm>_<ss>/<role>.md` 로 떨어진다 (옛 `<role>/review.md` 구조와 옛 flat 형식 `./review/<ts>/` 의 누적 데이터는 history 보존 차원에서 그대로 둠 — 새 세션부터 평탄 구조 적용).
+결과 디렉토리는 `./.review/code/<YYYY>/<MM>/<DD>/<hh>_<mm>_<ss>/<role>.md` 로 떨어진다. 옛 `review/` 아래 누적 데이터는 NERV 정본 전환 단계 3 에서 지운다.

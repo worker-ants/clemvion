@@ -15,9 +15,9 @@ Schema (every key optional; missing keys fall back to DEFAULTS below):
         "plan_complete":     "plan/complete"
       },
       "outputs": {
-        "review_code":         "review/code",
-        "review_consistency":  "review/consistency",
-        "review_merge":        "review/merge"
+        "review_code":         ".review/code",
+        "review_consistency":  ".review/consistency",
+        "review_merge":        ".review/merge"
       },
       "code_areas": ["codebase"],
       "agents": {
@@ -77,9 +77,9 @@ DEFAULTS: dict[str, Any] = {
         "plan_complete":    "plan/complete",
     },
     "outputs": {
-        "review_code":         "review/code",
-        "review_consistency":  "review/consistency",
-        "review_merge":        "review/merge",
+        "review_code":         ".review/code",
+        "review_consistency":  ".review/consistency",
+        "review_merge":        ".review/merge",
     },
     "code_areas": ["codebase"],
     "agents": {

@@ -37,7 +37,7 @@ main Claude
 /loop /merge-coordinate 123 456
 
 # wake 사이클 (자동 발화)
-/loop /merge-coordinate --resume /abs/path/to/review/merge/.../HH_MM_SS
+/loop /merge-coordinate --resume /abs/path/to/.review/merge/.../HH_MM_SS
 ```
 
 ## 6개 sub-agent
@@ -61,7 +61,7 @@ resolver 의 patch 본문은 응답이 아닌 `output_file` 에 기록.
 ## 산출물 디렉토리 구조
 
 ```
-review/
+.review/
 └── merge/
     └── 2026/05/15/13_30_00/
         ├── _prompts/
@@ -80,8 +80,7 @@ review/
         ├── semantic_conflict_analyzer.md
         ├── integration_order_planner.md
         ├── cross_branch_spec_analyzer.md
-        ├── SUMMARY.md
-        └── RESOLUTION.md (선택)
+        └── SUMMARY.md
 ```
 
 ## `_retry_state.json` 추가 필드
@@ -134,7 +133,7 @@ ai-review · consistency-check 와 동일. ScheduleWakeup delay = `last_reset_hi
 
 | 변수 | 기본값 | 의미 |
 | --- | --- | --- |
-| `MERGE_OUTPUT_DIR` | `./review/merge` | 세션 디렉토리 부모 |
+| `MERGE_OUTPUT_DIR` | `./.review/merge` | 세션 디렉토리 부모(gitignore, 커밋하지 않는다) |
 | `MERGE_BASE_HINT` | (없음) | base 힌트 |
 | `MERGE_AUTO_APPLY_PATCH` | `0` | `1` 이면 success patch 자동 apply (기본 OFF) |
 | `MERGE_MAX_PROMPT_SIZE` | `131072` | analyzer prompt body 상한 |

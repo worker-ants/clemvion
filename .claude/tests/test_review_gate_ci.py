@@ -4,28 +4,23 @@
 놓치면 게이트가 조용히 skip 되고, 놓쳤다는 사실을 인지할 주체가 없다. 그래서 판정은 로컬과
 **같은** `evaluate_review()` 를 쓰되, 트리거만 훅 밖(GitHub PR 이벤트)에 둔다.
 
-여기서 고정하는 성질 넷:
+NERV 정본 전환 단계 2(NERV Task `CLE-T-4ABTG7`)부터 그 판정은 저장소 `review/**` 파일이 아니라
+NERV 리뷰 라운드(N1)를 읽는다. 테스트는 loopback 가짜 서버(`_harness.FakeNervServer`)를
+`NERV_SERVER` 로 넘겨 실물 클라이언트(curl)까지 돌린다. 네트워크는 쓰지 않는다.
+
+여기서 고정하는 성질:
 
 1. **판정자가 하나다** — 스크립트가 자기 판정 로직을 새로 갖지 않는다. 두 번째 구현은 로컬과
    CI 판정이 갈리는 drift 이고, 이 저장소는 `report_paths` / `retry_state` 로 그 실패를 이미
    두 번 겪었다.
-2. **`--enforce` 가 기본이다 (2026-08-07 전환)** — 위반이면 exit 1. 종전에는 관측 모드가
-   기본이었고, 그 근거는 "지금 켜면 이력상 18% 를 막는데 그건 미리뷰가 아니라 산출물
-   미커밋" 이었다. 전환 시점에 재측정한 값은 그보다 낮다 — dependabot 을 뺀
-   `codebase/**` 커밋 기준 **최근 5주 12.7%(20/158) · 9주 10.0%(41/409)**. dependabot 은
-   워크플로가 `github.actor` 로 이미 제외하므로 그쪽 비중(5주 기준 34건)은 마찰이 아니다.
-   남는 마찰은 실제 기능·수정 PR 의 약 1/8 이고, 해소 방법은 리뷰 산출물을 그 PR 에 함께
-   커밋하는 것 — 이 저장소가 이미 규약으로 요구하는 절차다.
-
-   **이 게이트가 증명하지 못하는 것**: "리뷰가 실제로 수행됐는가" 가 아니라 **산출물의 존재와
-   텍스트 형태**만 본다. 8R 이 격리 저장소로 실증했다 — `codebase/` 1줄 변경 + 손으로 쓴
-   3줄짜리 `SUMMARY.md` 만으로 `--enforce` 가 통과한다. 즉 이 층이 막는 것은 "리뷰 없음" 과
-   "stale 리뷰" 이지 "형식만 갖춘 가짜" 가 아니다. 그 축은 여전히 열려 있다.
-3. **fail-open** — 게이트를 못 **불러오거나** 게이트가 예외를 던지면 exit 0. `--enforce` 로
-   뒤집힌 뒤에도 이 성질은 그대로다: 막는 것은 **판정된 위반**이지 판정기의 고장이 아니다.
-   백스톱 자신의 버그가 무관한 PR 을 세우면 그건 방어가 아니라 새 장애다.
-4. **advisory 는 판정과 무관하게 나온다** — 차단 시에만 내면, 거부되는 그 세션이 바로 Critical
-   을 하향한 세션일 때 그 사실이 드러나는 유일한 자리를 잃는다.
+2. **`--enforce` 가 기본이다 (2026-08-07 전환)** — 위반이면 exit 1.
+3. **판정 불가는 둘로 나뉜다** — 게이트를 못 불러오거나 NERV 가 응답하지 않으면 exit 0
+   (fail-open: 막는 것은 판정된 위반이지 판정기의 고장이 아니다). 설정 문제(토큰 · 서버 주소
+   없음, 401 · 403 · 404)는 `--enforce` 에서 exit 1 — secret 이 빠진 백스톱은 초록인 채로
+   영원히 꺼진다.
+4. **advisory 는 판정과 무관하게 나온다**.
+5. **산출물 파일은 판정 근거가 아니다** — PR 에 커밋한 가짜 `SUMMARY.md`/`RESOLUTION.md` 로
+   통과하던 우회(옛 리뷰 정리 `legacy-triage` 라운드 1)가 닫혔다.
 
 서브프로세스로 구동한다. 스크립트가 `sys.path` 에 `.claude/hooks/_lib` 를 얹는데, 그 이름은
 `.claude/skills/_lib` 와 겹쳐 in-process import 가 스위트 전체를 오염시킨다 — 형제 suite 들이
@@ -46,24 +41,39 @@ import _harness  # noqa: F401  — side effect: harness path setup
 
 SCRIPT = _harness.REPO_ROOT / "scripts" / "check-review-gate.py"
 
+# 부모 환경에서 넘어오면 안 되는 이름. 개발자 셸에는 실제 NERV 토큰이 있다 — 테스트가 그대로
+# 물려받으면 실서버에 요청이 나간다.
+_NERV_ENV = ("NERV_SERVER", "NERV_TOKEN", "NERV_PROJECT")
+
+
+def _clean_env(extra=None):
+    env = {k: v for k, v in os.environ.items() if k not in _NERV_ENV}
+    env.update(extra or {})
+    return env
+
+
+def _copy_gate(root):
+    """게이트 본체와 그것이 import 하는 것을 임시 저장소로 복사한다(CI 체크아웃과 같은 모양)."""
+    os.makedirs(os.path.join(root, ".claude", "tools"), exist_ok=True)
+    shutil.copytree(str(_harness.CLAUDE_DIR / "hooks"), os.path.join(root, ".claude", "hooks"))
+    shutil.copytree(str(_harness.CLAUDE_DIR / "_shared"), os.path.join(root, ".claude", "_shared"))
+    shutil.copytree(str(_harness.CLAUDE_DIR / "tools" / "nerv-mirror"),
+                    os.path.join(root, ".claude", "tools", "nerv-mirror"))
+
 
 class ReviewGateCliTest(unittest.TestCase):
     def setUp(self):
         self.root = os.path.realpath(tempfile.mkdtemp())
         self.addCleanup(shutil.rmtree, self.root, ignore_errors=True)
-        # 게이트 본체를 복사한다 — 심볼릭 링크가 아니라 복사여야 `_load_gate` 가
-        # 계산하는 경로가 실제 CI 체크아웃과 같은 모양이 된다.
-        os.makedirs(os.path.join(self.root, ".claude"))
-        shutil.copytree(str(_harness.CLAUDE_DIR / "hooks"),
-                        os.path.join(self.root, ".claude", "hooks"))
-        shutil.copytree(str(_harness.CLAUDE_DIR / "_shared"),
-                        os.path.join(self.root, ".claude", "_shared"))
-        # 세 곳에서 되풀이하던 경로 — 한 번만 계산한다. 리터럴이 흩어져 있으면
-        # "한 인스턴스만 고치고 나머지는 남기는" 실패가 쉬워진다.
+        _copy_gate(self.root)
         self.gate_module = os.path.join(
             self.root, ".claude", "hooks", "_lib", "review_guard.py")
         self._git("init", "-b", "main")
-        self._git("commit", "--allow-empty", "-m", "base")
+        # 게이트 사본을 main 에 커밋한다. 브랜치에서 처음 커밋하면 main 으로 체크아웃할 때
+        # 게이트가 작업 트리에서 사라져 "불러오지 못함"(fail-open)으로 통과한다 — 실제로 그랬다.
+        self._git("add", "-A")
+        self._git("commit", "-m", "base")
+        self._git("update-ref", "refs/remotes/origin/main", "HEAD")
 
     def _git(self, *args):
         env = dict(os.environ)
@@ -76,8 +86,9 @@ class ReviewGateCliTest(unittest.TestCase):
         # 상위로 저장소를 찾아 올라가지 못하게 막고, cwd 를 명시로 고정한다.
         root = os.path.realpath(self.root)
         env["GIT_CEILING_DIRECTORIES"] = root
-        subprocess.run(["git", "-C", root, *args], env=env, check=True,
-                       capture_output=True, text=True)
+        r = subprocess.run(["git", "-C", root, *args], env=env, check=True,
+                           capture_output=True, text=True)
+        return r.stdout.strip()
 
     def _write(self, rel, body):
         path = os.path.join(self.root, rel)
@@ -90,22 +101,23 @@ class ReviewGateCliTest(unittest.TestCase):
         self._write("codebase/backend/src/a.ts", "export const a = 1;\n")
         self._git("add", "-A")
         self._git("commit", "-m", "feat")
+        return self._git("rev-parse", "HEAD")
 
-    def _run(self, *extra, env=None):
-        """`env` 를 받는 이유: 이게 없어서 notes 테스트가 같은 호출을 손으로 다시 타이핑한
-        두 번째 `subprocess.run` 을 갖고 있었다 — timeout 이나 인자를 고칠 때 한쪽만 고치기
-        딱 좋은 모양이다."""
+    def _run(self, *extra, server=None, env=None):
+        """`server` 가 있으면 그 주소와 토큰을 넘긴다. 없으면 NERV 설정 없이 돈다."""
+        nerv = {"NERV_SERVER": server.url, "NERV_TOKEN": "ci-token"} if server else {}
         return subprocess.run(
             [sys.executable, str(SCRIPT), "--root", self.root, *extra],
             capture_output=True, text=True, timeout=120,
-            env={**os.environ, **(env or {})},
+            env=_clean_env({**nerv, **(env or {})}),
         )
 
-    # -- 2. 관측 모드가 기본 --------------------------------------------------
+    # -- 2. 관측 · enforce ---------------------------------------------------
 
     def test_unreviewed_branch_is_reported_but_not_failed_by_default(self):
         self._unreviewed_branch()
-        r = self._run()
+        with _harness.FakeNervServer() as server:
+            r = self._run(server=server)
         self.assertEqual(r.returncode, 0, r.stderr[-2000:])
         self.assertIn("미커버", r.stdout)
         self.assertIn("관측 모드", r.stdout)
@@ -113,71 +125,115 @@ class ReviewGateCliTest(unittest.TestCase):
     def test_enforce_turns_the_same_verdict_into_a_failure(self):
         """같은 저장소 상태, 플래그만 다르다 — 판정이 아니라 처분만 바뀐다는 것이 요점."""
         self._unreviewed_branch()
-        observed, enforced = self._run(), self._run("--enforce")
+        with _harness.FakeNervServer() as server:
+            observed, enforced = self._run(server=server), self._run("--enforce", server=server)
         self.assertEqual(observed.returncode, 0)
         self.assertEqual(enforced.returncode, 1)
         self.assertIn("미커버", observed.stdout)
         self.assertIn("미커버", enforced.stdout)
 
-    def test_a_clean_branch_passes_under_enforce(self):
-        r = self._run("--enforce")
+    def test_a_clean_branch_passes_under_enforce_without_asking_nerv(self):
+        with _harness.FakeNervServer() as server:
+            r = self._run("--enforce", server=server)
         self.assertEqual(r.returncode, 0, r.stderr[-2000:])
         self.assertIn("통과", r.stdout)
+        self.assertEqual(server.requests, [])
 
-    def test_a_resolved_review_lets_the_branch_through(self):
+    def test_a_passed_round_lets_the_branch_through(self):
         """차단이 아니라 **통과**도 고정한다. 통과 경로가 없으면 이 스크립트는 늘 우는
         경고가 되고, 그건 이 저장소가 반복해서 실패로 분류해 온 형태다."""
-        self._unreviewed_branch()
-        self.assertEqual(self._run("--enforce").returncode, 1)
-        session = "review/code/2099/01/01/00_00_00"
-        self._write(f"{session}/SUMMARY.md", "## 전체 위험도\n\nNONE\n")
-        self._write(f"{session}/RESOLUTION.md", "처분 완료\n")
-        self._git("add", "-A")
-        self._git("commit", "-m", "review")
-        r = self._run("--enforce")
+        head = self._unreviewed_branch()
+        item = {"kind": "code", "state": "passed", "round_no": 1, "head_sha": head,
+                "findings": []}
+        with _harness.FakeNervServer(item) as server:
+            r = self._run("--enforce", server=server)
         self.assertEqual(r.returncode, 0, r.stdout + r.stderr[-2000:])
+        self.assertIn("통과", r.stdout)
+        path, auth = server.requests[0]
+        self.assertIn("branch=feature", path)
+        self.assertEqual(auth, "Bearer ci-token")
 
-    def test_an_unfinished_review_session_does_not_open_the_gate(self):
-        """`meta.json` 만 있고 `SUMMARY.md` 는 아직 없는 세션 — 여전히 미커버여야 한다.
+    def test_branch_head_and_base_arguments_reach_the_gate(self):
+        """CI 는 merge 커밋이 아니라 PR head 를 판정한다 — 인자가 그대로 쓰여야 한다."""
+        head = self._unreviewed_branch()
+        self._git("checkout", "--detach", "main")
+        item = {"kind": "code", "state": "passed", "round_no": 1, "head_sha": head,
+                "findings": []}
+        with _harness.FakeNervServer(item) as server:
+            r = self._run("--enforce", "--branch", "pr-branch", "--head", head,
+                          "--base", "origin/main", server=server)
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr[-2000:])
+        self.assertIn("통과", r.stdout, "fail-open 으로 0 이 나온 것이 아니어야 한다")
+        self.assertIn("branch=pr-branch", server.requests[0][0])
 
-        `evaluate_review(in_flight_ok=True)` 는 "리뷰가 도는 중" 을 차단하지 않는 스위치이고,
-        이 저장소는 그것이 **무조건** 적용돼 push 게이트가 TTL 내내 열린 사고를 겪고 opt-in 으로
-        고쳤다. CI 호출부가 그 스위치를 켜는 회귀는 아무 테스트도 잡지 못했다 — 리뷰어가
-        `evaluate(root, in_flight_ok=True)` 로 바꿔 통과로 뒤집히는 것을 실측했다.
-
-        push 게이트와 같은 이유로 CI 도 켜면 안 된다: 진행 중인 리뷰는 커버리지가 아니다.
-        """
-        self._unreviewed_branch()
-        session = "review/code/2099/01/01/00_00_00"
-        self._write(f"{session}/meta.json", '{"agents": []}')
+    def test_a_non_default_base_is_used(self):
+        """적층 PR — 기준이 main 이 아니면 그 기준과의 차이만 본다(`--base` 를 무시하면 main 기준으로 막힌다)."""
+        self._git("checkout", "-b", "release")
+        self._write("codebase/backend/src/r.ts", "export const r = 1;\n")
         self._git("add", "-A")
-        self._git("commit", "-m", "review started")
-        r = self._run("--enforce")
-        self.assertEqual(r.returncode, 1,
-                         "진행 중인 리뷰 세션이 게이트를 열었다 — in_flight_ok 회귀")
-        self.assertIn("미커버", r.stdout)
+        self._git("commit", "-m", "release")
+        self._git("update-ref", "refs/remotes/origin/release", "HEAD")
+        self._git("checkout", "-b", "pr-branch")
+        with _harness.FakeNervServer() as server:
+            r = self._run("--enforce", "--branch", "pr-branch", "--head", "HEAD", "--base", "origin/release",
+                          server=server)
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr[-2000:])
+        self.assertIn("변경이 없다", r.stdout)
+        self.assertEqual(server.requests, [])
 
     def test_the_default_root_resolves_to_this_repository(self):
         """`--root` 없이 도는 경로 — CI 가 매번 쓰는 바로 그 경로다.
 
-        형제 테스트가 전부 `--root <tempdir>` 를 명시로 넘겨서, 스크립트가 자기 위치로부터
-        저장소 루트를 계산하는 두 단계 상위 가정은 한 번도 실행되지 않았다. 그 가정이 깨지면
-        (스크립트가 다른 깊이로 이동) 게이트를 못 불러와 **fail-open** 하고, 그건 관측 모드의
-        정상 출력과 구분이 안 된다 — CI 는 계속 초록인데 백스톱만 영구히 죽는다.
-        """
-        r = subprocess.run([sys.executable, str(SCRIPT)],
-                           capture_output=True, text=True, timeout=120,
-                           cwd=str(_harness.REPO_ROOT))
-        self.assertEqual(r.returncode, 0, r.stderr[-2000:])
-        self.assertNotIn("불러오지 못했습니다", r.stderr,
-                         "기본 루트 산정이 깨져 백스톱이 조용히 무력화됐다")
-        self.assertNotIn("예외를 던졌습니다", r.stderr)
-        self.assertTrue(
-            "통과" in r.stdout or "미커버" in r.stdout,
-            f"판정을 내지 못했다: {r.stdout!r}",
-        )
+        형제 테스트가 전부 `--root <tempdir>` 를 넘겨서, 스크립트가 자기 위치로부터 저장소 루트를
+        계산하는 두 단계 상위 가정은 한 번도 실행되지 않았다. 그 가정이 깨지면 게이트를 못
+        불러와 **fail-open** 하고, CI 는 계속 초록인데 백스톱만 영구히 죽는다. NERV 설정은
+        주지 않는다.
 
-    # -- 3. fail-open ---------------------------------------------------------
+        기준을 HEAD 로 준다. PR CI 의 체크아웃은 `origin/main` 도 로컬 `main` 도 없는 detached 위상이라
+        기본 기준을 고르면 "기준 브랜치를 찾지 못했다"(fail-open)로 끝나 이 테스트가 그 위상에서만
+        RED 가 된다(2026-10-01 리뷰 재현). 기준이 HEAD 면 변경이 없어 늘 "통과" 다.
+        """
+        r = subprocess.run([sys.executable, str(SCRIPT), "--branch", "x", "--head", "HEAD", "--base", "HEAD"],
+                           capture_output=True, text=True, timeout=120,
+                           cwd=str(_harness.REPO_ROOT), env=_clean_env())
+        self.assertEqual(r.returncode, 0, r.stderr[-2000:])
+        self.assertNotIn("불러오지 못했습니다", r.stdout + r.stderr,
+                         "기본 루트 산정이 깨져 백스톱이 조용히 무력화됐다")
+        self.assertNotIn("::warning::", r.stdout, f"판정을 내지 못했다: {r.stdout!r}")
+        self.assertIn("통과", r.stdout, f"판정을 내지 못했다: {r.stdout!r} {r.stderr[-500:]!r}")
+
+    # -- 3. 판정 불가 ---------------------------------------------------------
+
+    def test_missing_configuration_fails_only_under_enforce(self):
+        """secret 이 빠진 백스톱은 모든 PR 을 그냥 통과시킨다. 그 상태는 실패로 알린다."""
+        self._unreviewed_branch()
+        observed, enforced = self._run(), self._run("--enforce")
+        self.assertEqual(observed.returncode, 0)
+        self.assertEqual(enforced.returncode, 1, enforced.stdout)
+        self.assertIn("설정 문제", enforced.stdout)
+        self.assertIn("NERV_CI_TOKEN", enforced.stdout)
+
+    def test_a_rejected_token_is_misconfiguration(self):
+        self._unreviewed_branch()
+        with _harness.FakeNervServer(status=401, raw=b"{}") as server:
+            r = self._run("--enforce", server=server)
+        self.assertEqual(r.returncode, 1, r.stdout)
+        self.assertIn("설정 문제", r.stdout)
+
+    def test_an_unreachable_server_fails_open(self):
+        self._unreviewed_branch()
+        with _harness.FakeNervServer() as server:
+            pass  # 닫힌 포트 — 연결이 거부된다
+        r = self._run("--enforce", server=server)
+        self.assertEqual(r.returncode, 0, r.stdout)
+        self.assertIn("::warning::review-gate: 판정하지 못했습니다", r.stdout)
+
+    def test_a_server_error_fails_open(self):
+        self._unreviewed_branch()
+        with _harness.FakeNervServer(status=503, raw=b"busy") as server:
+            r = self._run("--enforce", server=server)
+        self.assertEqual(r.returncode, 0, r.stdout)
+        self.assertIn("::warning::review-gate: 판정하지 못했습니다", r.stdout)
 
     def test_a_missing_gate_module_does_not_fail_ci(self):
         """백스톱이 자기 부재로 CI 를 막으면 그건 방어가 아니라 새 장애다."""
@@ -195,21 +251,24 @@ class ReviewGateCliTest(unittest.TestCase):
             # 무엇을 빼도 되는지 매번 판단하는 것보다 싸다 (#1057 의 가드가 강제).
             f.write("class _R:\n"
                     "    push_blocks = False\n"
-                    "def evaluate_review(cwd=None, *, in_flight_ok=False):\n"
+                    "class GateMisconfigured(Exception):\n"
+                    "    pass\n"
+                    "def evaluate_review(cwd=None, **_kw):\n"
                     "    raise RuntimeError('boom')\n")
         r = self._run("--enforce")
         self.assertEqual(r.returncode, 0, r.stdout)
-        self.assertIn("예외를 던졌습니다", r.stderr)
+        self.assertIn("::warning::review-gate: 판정하지 못했습니다", r.stdout)
 
     # -- 4. advisory 는 판정과 무관 -------------------------------------------
 
     def test_notes_are_printed_on_both_verdicts(self):
-        """차단이든 통과든 나와야 한다. 차단 시에만 내면, 거부되는 그 세션이 바로 Critical 을
-        하향한 세션일 때 그 사실이 드러나는 유일한 자리를 잃는다."""
+        """차단이든 통과든 나와야 한다."""
         self._unreviewed_branch()
         stub = (
             "from dataclasses import dataclass\n"
             "import os\n"
+            "class GateMisconfigured(Exception):\n"
+            "    pass\n"
             "@dataclass\n"
             "class _D:\n"
             "    blocked: bool\n"
@@ -219,8 +278,8 @@ class ReviewGateCliTest(unittest.TestCase):
             "        return self.blocked\n"
             "    @property\n"
             "    def notes(self):\n"
-            "        return ('⚠️  세션X: 하향 감지',)\n"
-            "def evaluate_review(cwd=None, *, in_flight_ok=False):\n"
+            "        return ('참고: 발견 99건 중 일부만',)\n"
+            "def evaluate_review(cwd=None, **_kw):\n"
             "    return _D(os.environ['FAKE_BLOCKED'] == '1')\n"
         )
         with open(self.gate_module, "w", encoding="utf-8") as f:
@@ -229,8 +288,23 @@ class ReviewGateCliTest(unittest.TestCase):
             with self.subTest(blocked=blocked):
                 r = self._run(env={"FAKE_BLOCKED": blocked})
                 self.assertEqual(r.returncode, 0)
-                self.assertIn("하향 감지", r.stdout)
+                self.assertIn("발견 99건", r.stdout)
 
+    # -- 5. 산출물 파일은 근거가 아니다 ---------------------------------------
+
+    def test_a_committed_summary_and_resolution_do_not_open_the_gate(self):
+        """옛 게이트는 PR 에 커밋한 몇 줄짜리 SUMMARY.md · RESOLUTION.md 로 통과했다
+        (`legacy-triage` 라운드 1 warning). 지금은 NERV 라운드만 본다."""
+        self._unreviewed_branch()
+        session = "review/code/2099/01/01/00_00_00"
+        self._write(f"{session}/SUMMARY.md", "## 전체 위험도\n\nNONE\n")
+        self._write(f"{session}/RESOLUTION.md", "처분 완료\n")
+        self._git("add", "-A")
+        self._git("commit", "-m", "forged review")
+        with _harness.FakeNervServer() as server:
+            r = self._run("--enforce", server=server)
+        self.assertEqual(r.returncode, 1, r.stdout)
+        self.assertIn("미커버", r.stdout)
 
 class OneJudgeTest(unittest.TestCase):
     """스크립트의 **import 표면**과 명백한 재구현 신호를 좁게 유지한다.
@@ -392,6 +466,10 @@ class OneJudgeTest(unittest.TestCase):
                       "review_guard.evaluate_review 를 가져오지 않는다")
 
 
+GATE_RUN = ('python3 scripts/check-review-gate.py --enforce --branch "$HEAD_REF" '
+            '--head "$HEAD_SHA" --base "origin/$BASE_REF"')
+
+
 class WorkflowWiringTest(unittest.TestCase):
     """워크플로 **문서 전체**를 기대값과 정확 일치로 고정한다.
 
@@ -427,6 +505,7 @@ class WorkflowWiringTest(unittest.TestCase):
                     "codebase/**",
                     ".claude/hooks/_lib/**",
                     ".claude/_shared/**",
+                    ".claude/tools/nerv-mirror/pull.py",
                     "scripts/check-review-gate.py",
                     ".github/workflows/review-gate.yml",
                 ]
@@ -443,14 +522,21 @@ class WorkflowWiringTest(unittest.TestCase):
                 "timeout-minutes": 5,
                 "if": "github.actor != 'dependabot[bot]'",
                 "steps": [
-                    {"uses": "actions/checkout@v7", "with": {"fetch-depth": 0}},
+                    {"uses": "actions/checkout@v7",
+                     "with": {"fetch-depth": 0,
+                              "ref": "${{ github.event.pull_request.head.sha }}"}},
                     {"uses": "actions/setup-python@v7",
                      "with": {"python-version": "3.x"}},
                     {"name": "Fetch base ref",
                      "env": {"BASE_REF": "${{ github.base_ref }}"},
                      "run": 'git fetch --no-tags origin "$BASE_REF"'},
                     {"name": "Review coverage backstop",
-                     "run": "python3 scripts/check-review-gate.py --enforce"},
+                     "env": {"NERV_SERVER": "${{ vars.NERV_SERVER }}",
+                             "NERV_TOKEN": "${{ secrets.NERV_CI_TOKEN }}",
+                             "HEAD_REF": "${{ github.head_ref }}",
+                             "HEAD_SHA": "${{ github.event.pull_request.head.sha }}",
+                             "BASE_REF": "${{ github.base_ref }}"},
+                     "run": GATE_RUN},
                 ],
             }
         },
@@ -484,8 +570,11 @@ class WorkflowWiringTest(unittest.TestCase):
         steps = job["steps"]
         gate = [st for st in steps if st.get("run", "").startswith("python3 ")]
         self.assertEqual(len(gate), 1, "게이트를 부르는 step 이 정확히 하나가 아니다")
-        self.assertEqual(gate[0]["run"],
-                         "python3 scripts/check-review-gate.py --enforce")
+        self.assertEqual(gate[0]["run"], GATE_RUN)
+        # 판정 근거가 NERV 라운드다. 토큰이 secret 에서 오고 PR head 를 판정해야 한다.
+        self.assertEqual(gate[0]["env"]["NERV_TOKEN"], "${{ secrets.NERV_CI_TOKEN }}")
+        self.assertIn("--head", gate[0]["run"])
+        self.assertIn("--branch", gate[0]["run"])
 
         # 실행을 막거나(if) 실패를 삼키거나(continue-on-error) 즉시 끝내는(timeout 0) 키는
         # job 에도 step 에도 없어야 한다. 4R 은 step 만 막혀 있어 job 레벨로 우회됐다.
@@ -505,6 +594,8 @@ class WorkflowWiringTest(unittest.TestCase):
         self.assertEqual(len(checkout), 1)
         self.assertEqual(checkout[0]["with"]["fetch-depth"], 0,
                          "shallow 체크아웃이면 merge-base 가 없어 게이트가 fail-open 한다")
+        self.assertEqual(checkout[0]["with"]["ref"], "${{ github.event.pull_request.head.sha }}",
+                         "merge 커밋을 판정하면 라운드 이후 커밋에 기준 브랜치 커밋이 섞인다")
         self.assertLess(steps.index(checkout[0]), steps.index(gate[0]))
 
         # 2026-08-07 관측 모드 → enforce. 종전 단언은 `assertNotIn` 이었다("켤 때는 이
@@ -541,12 +632,14 @@ class VerdictComesFromTheGateTest(unittest.TestCase):
                                "review_guard.py"), "w", encoding="utf-8") as f:
             f.write(
                 "import os\n"
+                "class GateMisconfigured(Exception):\n"
+                "    pass\n"
                 "class _D:\n"
                 "    push_blocks = False\n"
                 "    notes = ()\n"
                 "    reason = 'stub'\n"
                 "    blocked = os.environ['STUB_BLOCKED'] == '1'\n"
-                "def evaluate_review(cwd=None, *, in_flight_ok=False):\n"
+                "def evaluate_review(cwd=None, **_kw):\n"
                 "    return _D()\n"
             )
 
@@ -611,14 +704,19 @@ class TheGateItselfDoesNotBranchOnCiEnvTest(unittest.TestCase):
     `OneJudgeTest` 는 스크립트만 스캔하고, 행위 테스트는 `review_guard.py` 를 스텁으로 통째로
     교체해 실물을 한 번도 실행하지 않는다.
 
-    금지가 아니라 **등재제**다 — 게이트에는 정당한 환경 사용이 하나 있다
-    (`CLAUDE_PROJECT_DIR`, 훅이 워크트리 루트를 알려주는 경로). 새 환경 접근이 생기면 여기서
-    마주치고, 등재하는 순간이 "이게 CI 에서만 다르게 굴게 만드는가" 를 판단할 자리다.
+    금지가 아니라 **등재제**다 — 게이트의 정당한 환경 사용은 NERV 접속 정보뿐이다
+    (`NERV_SERVER` · `NERV_TOKEN` · `NERV_PROJECT`, 단계 2 부터). 로컬은 settings 의 env, CI 는
+    워크플로 secret 이 같은 이름으로 채우므로 "CI 에서만 다른 값" 이 아니다. 새 환경 접근이
+    생기면 여기서 마주치고, 등재하는 순간이 "이게 CI 에서만 다르게 굴게 만드는가" 를 판단할 자리다.
     """
 
     # (파일, 읽는 환경변수) — 이 목록 밖의 접근은 실패한다.
     _ALLOWED = {
-        ("review_guard.py", "CLAUDE_PROJECT_DIR"),
+        # 게이트가 전송과 환경 해석을 위임하는 클라이언트 모듈. 게이트는 `_shared/nerv_read.py` 를
+        # 거쳐 `load_env` 를 부른다(미러 도구 CLI · 리뷰 인계 도구와 같은 함수).
+        ("pull.py", "NERV_SERVER"),
+        ("pull.py", "NERV_TOKEN"),
+        ("pull.py", "NERV_PROJECT"),
     }
     # `hooks/_lib` 셋 + 게이트가 **위임하는** `_shared` 전부. 9R 리뷰어가 `report_paths.py`/
     # `block_integrity.py` 에 `GITHUB_JOB == "gate"` 분기를 심어 127개 테스트가 전부 통과하는
@@ -630,6 +728,7 @@ class TheGateItselfDoesNotBranchOnCiEnvTest(unittest.TestCase):
         seen = set()
         targets = [_harness.HOOKS_DIR / "_lib" / n for n in self._SCANNED_LIB]
         targets += sorted((_harness.CLAUDE_DIR / "_shared").glob("*.py"))
+        targets.append(_harness.CLAUDE_DIR / "tools" / "nerv-mirror" / "pull.py")
         for path in targets:
             name = path.name
             if not path.exists() or name == "__init__.py":
@@ -697,14 +796,13 @@ class TheRealGateIgnoresTheEnvironmentTest(unittest.TestCase):
     def setUp(self):
         self.root = os.path.realpath(tempfile.mkdtemp())
         self.addCleanup(shutil.rmtree, self.root, ignore_errors=True)
-        os.makedirs(os.path.join(self.root, ".claude"))
-        shutil.copytree(str(_harness.CLAUDE_DIR / "hooks"),
-                        os.path.join(self.root, ".claude", "hooks"))
-        shutil.copytree(str(_harness.CLAUDE_DIR / "_shared"),
-                        os.path.join(self.root, ".claude", "_shared"))
+        _copy_gate(self.root)
         self._git("init", "-b", "main")
         self._git("commit", "--allow-empty", "-m", "base")
+        self._git("update-ref", "refs/remotes/origin/main", "HEAD")
         self._git("checkout", "-b", "feature")
+        self.server = _harness.FakeNervServer().__enter__()
+        self.addCleanup(self.server.__exit__, None, None, None)
         self._write("codebase/backend/src/a.ts", "export const a = 1;\n")
         self._git("add", "-A")
         self._git("commit", "-m", "feat")
@@ -739,7 +837,8 @@ class TheRealGateIgnoresTheEnvironmentTest(unittest.TestCase):
             'print(json.dumps({"blocked": bool(d.blocked), "reason": d.reason}))\n'
         )
         env = {"PATH": os.environ.get("PATH", ""), "HOME": os.environ.get("HOME", ""),
-               "LANG": "C.UTF-8", **extra_env}
+               "LANG": "C.UTF-8", "NERV_SERVER": self.server.url, "NERV_TOKEN": "t",
+               **extra_env}
         r = subprocess.run([sys.executable, "-c", prog], capture_output=True,
                            text=True, timeout=180, env=env, cwd=self.root)
         self.assertEqual(r.returncode, 0, r.stderr[-3000:])
@@ -761,62 +860,40 @@ class TheRealGateIgnoresTheEnvironmentTest(unittest.TestCase):
                         "픽스처가 차단을 못 만든다 — 이 비교는 vacuous 하다")
 
 
-class ReviewArtifactsStayTrackedTest(unittest.TestCase):
-    """이 백스톱 전체가 서 있는 전제 — `review/**` 가 git 에 추적된다.
+class ReviewArtifactsStayLocalTest(unittest.TestCase):
+    """단계 2 부터 오케스트레이터 산출물은 `.review/` 에 쓰고 커밋하지 않는다.
 
-    CI 는 커밋된 것만 본다. 산출물이 추적되지 않으면 게이트는 아무 리뷰도 못 찾고, 관측 모드
-    에서는 **모든 PR 이 "미커버"** 로 뜬다 — 늘 우는 경고가 되어 아무도 안 읽고, 백스톱은
-    살아있는 채로 죽는다. `--enforce` 로 뒤집은 뒤라면 모든 PR 이 막힌다.
-
-    실증: 산출물을 커밋한 저장소에서 `통과` 였던 것이, `.gitignore` 에 `review/` 한 줄을
-    넣자 `미커버` + exit 1 로 뒤집혔다.
-
-    티켓의 원래 전제("산출물은 gitignored 라 PR 에 없다")는 착수 전 실측으로 반증됐고 — 실제로는
-    `origin/main` 이 `review/code` 아래 8,851개를 추적한다 — 그 반증이 이 층 전체를 가능하게
-    했다. 그런데 그 사실을 지키는 것이 아무것도 없었다. 다섯 라운드 동안 우회는 매번 한 층
-    밖으로 이동했고, 이건 그 바깥이다.
+    전에는 정반대 성질을 지켰다 — CI 가 커밋된 `review/**` 위에서만 판정할 수 있었으므로 산출물이
+    추적되지 않으면 백스톱이 아무 리뷰도 못 봤다. 지금 판정 근거는 NERV 라운드이고, 산출물을
+    커밋하면 저장소만 무거워진다(`review/` 는 23,492 파일까지 쌓였다). 옛 `review/` 는 단계 3 에서
+    지운다.
     """
 
-    def test_gitignore_does_not_exclude_review_artifacts(self):
-        """`_prompts/` 만 제외한다 — 그것이 현재 규약이고, 나머지는 남아야 한다."""
+    def test_local_review_artifacts_are_ignored(self):
         import subprocess as _sp
-        probes = {
-            "review/code/2099/01/01/00_00_00/SUMMARY.md": False,
-            "review/code/2099/01/01/00_00_00/RESOLUTION.md": False,
-            "review/code/2099/01/01/00_00_00/meta.json": False,
-            "review/consistency/2099/01/01/00_00_00/SUMMARY.md": False,
-            # 유일한 의도적 제외 — 프롬프트는 review/ 부피의 ~70% 이고 판정에 안 쓰인다.
-            "review/code/2099/01/01/00_00_00/_prompts/security.md": True,
-        }
-        for rel, should_be_ignored in probes.items():
+        for rel in (".review/code/2099/01/01/00_00_00/SUMMARY.md",
+                    ".review/consistency/2099/01/01/00_00_00/cross_spec.md",
+                    ".review/merge/2099/01/01/00_00_00/meta.json",
+                    ".review/spec-coverage/2099/01/01/00_00_00/SUMMARY.md"):
             with self.subTest(path=rel):
                 r = _sp.run(["git", "check-ignore", "-q", rel],
                             cwd=str(_harness.REPO_ROOT),
                             capture_output=True, text=True, timeout=60)
-                ignored = r.returncode == 0
-                self.assertEqual(
-                    ignored, should_be_ignored,
-                    f"{rel} 의 gitignore 상태가 기대와 다르다 — "
-                    "산출물이 추적되지 않으면 CI 게이트는 아무 리뷰도 못 본다"
-                    if not should_be_ignored else
-                    f"{rel} 는 제외 대상인데 추적된다",
-                )
+                self.assertEqual(r.returncode, 0, f"{rel} 가 무시되지 않는다 — 커밋에 섞인다")
 
-    def test_the_committed_tree_actually_carries_review_artifacts(self):
-        """규칙만이 아니라 **사실**도 본다. `.gitignore` 가 깨끗해도 아무도 커밋하지 않으면
-        CI 는 여전히 아무것도 못 본다 — 그 경우 이 백스톱은 조용히 무의미해진다."""
-        import subprocess as _sp
-        r = _sp.run(["git", "ls-files", "--", "review/code"],
-                    cwd=str(_harness.REPO_ROOT), capture_output=True, text=True,
-                    timeout=120)
-        self.assertEqual(r.returncode, 0, r.stderr[-2000:])
-        tracked = [ln for ln in r.stdout.splitlines() if ln.endswith("SUMMARY.md")]
-        self.assertGreater(
-            len(tracked), 100,
-            f"추적되는 리뷰 SUMMARY 가 {len(tracked)}개뿐이다 — "
-            "CI 백스톱은 커밋된 산출물 위에서만 판정할 수 있다",
-        )
-
+    def test_every_orchestrator_writes_under_the_ignored_root(self):
+        """기본 출력 경로가 `.review/` 아래여야 한다. 하나라도 `review/` 에 쓰면 편집 가드
+        (`guard_nerv_owned_paths.py`)가 서브에이전트의 리포트 쓰기를 막는다."""
+        sources = {
+            "code-review-agents/scripts/code_review_orchestrator.py": '"./.review/code"',
+            "consistency-checker/scripts/consistency_orchestrator.py": '"./.review/consistency"',
+            "merge-coordinator/scripts/merge_coordinator_orchestrator.py": '"./.review/merge"',
+            "spec-coverage/scripts/spec_coverage_orchestrator.py": 'root / ".review" / "spec-coverage"',
+        }
+        for rel, needle in sources.items():
+            with self.subTest(file=rel):
+                text = (_harness.CLAUDE_DIR / "skills" / rel).read_text(encoding="utf-8")
+                self.assertIn(needle, text)
 
 class PyYamlPinsAgreeTest(unittest.TestCase):
     """세 곳에 손으로 적힌 `pyyaml` pin 이 서로 같아야 한다.

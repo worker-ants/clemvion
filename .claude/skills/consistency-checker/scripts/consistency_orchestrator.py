@@ -47,7 +47,7 @@ from _lib import project_config  # noqa: E402
 # described it outlived the import by one refactor. It is still the single rule
 # for "did this agent leave a report", reached now through
 # `retry_state.reconcile_state_with_disk`; the direct consumers are
-# `review_guard.py` and `code_review_orchestrator.py`.
+# `code_review_orchestrator.py` and `.claude/tools/nerv_review_payload.py`.
 from _shared import block_integrity as _block_integrity  # noqa: E402
 from _shared import git_probe as _git_probe  # noqa: E402
 from _shared import retry_state as _retry_state_lib  # noqa: E402
@@ -78,7 +78,7 @@ def load_config():
         agents = project_config.filter_enabled_agents(cfg, "checkers", list(ALL_CHECKERS))
 
     return {
-        "output_dir": os.environ.get("CONSISTENCY_OUTPUT_DIR", "./review/consistency"),
+        "output_dir": os.environ.get("CONSISTENCY_OUTPUT_DIR", "./.review/consistency"),
         "agents": agents,
         "max_context_size": int(os.environ.get("CONSISTENCY_MAX_CONTEXT_SIZE", "262144")),
     }

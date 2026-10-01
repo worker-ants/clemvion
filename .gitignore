@@ -36,6 +36,9 @@ temp/
 # <role>.md / SUMMARY.md / meta.json 에 남는다. review/ 전체의 ~70% 를 차지해
 # blob 누적이 빠르므로 git 에 두지 않는다.
 review/**/_prompts/
+# 리뷰 · 일관성 · 통합 · spec-coverage 오케스트레이터의 로컬 산출물(NERV 전환 단계 2 부터).
+# 리뷰 결과의 정본은 NERV 리뷰 레코드라 커밋하지 않는다. 옛 `review/` 는 단계 3 에서 지운다.
+.review/
 _test_logs/
 codebase/packages/sdk/package-lock.json
 

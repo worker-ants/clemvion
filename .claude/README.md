@@ -30,7 +30,7 @@ Claude Code 의 설정·자동화·역할별 skill·sub-agent definition 이 모
 | 소속 흐름 (trigger) | agents | 부르는 시점 | 내용 SSOT |
 |---|---|---|---|
 | `/ai-review` (code-review-agents) | 14 reviewer + `review-router` + `code-review-summary` | router 가 부분집합 선별 → 병렬 reviewer → summary 수렴 | [`skills/code-review-agents/README.md`](skills/code-review-agents/README.md) |
-| `/ai-review` §6 자동 후속 | `resolution-applier` | SUMMARY Critical/Warning > 0 일 때만 | [`agents/resolution-applier.md`](agents/resolution-applier.md) |
+| `/ai-review` §6 자동 후속 | `resolution-applier` | NERV 에 제출한 라운드에 열린 Critical/Warning 이 있을 때만 | [`agents/resolution-applier.md`](agents/resolution-applier.md) |
 | `/consistency-check` (consistency-checker) | 5 checker + `consistency-summary` | spec/구현 착수 전 병렬 → summary | [`skills/consistency-checker/SKILL.md`](skills/consistency-checker/SKILL.md) |
 | `/merge-coordinate` (merge-coordinator) | 4 analyzer + `integration-risk-summary` | Phase 1 병렬 분석 → summary | [`skills/merge-coordinator/SKILL.md`](skills/merge-coordinator/SKILL.md) |
 | `/merge-coordinate` (조건부) | `merge-conflict-resolver` | Phase 3 에서 **conflict 한 건당** 만 | [`skills/merge-coordinator/SKILL.md`](skills/merge-coordinator/SKILL.md) §Phase 3 |

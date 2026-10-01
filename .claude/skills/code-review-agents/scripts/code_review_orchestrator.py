@@ -2,10 +2,10 @@
 """Code Review Agents Orchestrator — prepare-only mode.
 
 Collects diff/context for `/ai-review` and writes:
-  - review/<timestamp>/_prompts/<agent>.md  (one prompt body per reviewer)
-  - review/<timestamp>/_retry_state.json    (pending/success/fatal lists +
+  - .review/code/<timestamp>/_prompts/<agent>.md  (one prompt body per reviewer)
+  - .review/code/<timestamp>/_retry_state.json    (pending/success/fatal lists +
                                              subagent invocation contract)
-  - review/<timestamp>/meta.json            (initial metadata)
+  - .review/code/<timestamp>/meta.json            (initial metadata)
 
 Prints **exactly one** session directory path to stdout — the last line is the
 session, and there is never more than one. (Until 2026-08-10 this printed one
@@ -44,10 +44,11 @@ from lib.role_instructions import REVIEWER_INSTRUCTIONS  # noqa: E402
 from lib.router_safety import compute_forced_agents  # noqa: E402
 from _lib import project_config  # noqa: E402
 
-# Report location/validity is shared with the push/stop gate — see
-# `.claude/_shared/report_paths.py`. `--verify-coverage` and `review_guard` must answer
-# "did this agent leave a report?" identically; each keeping its own copy behind a
-# "change both" comment already diverged inside one PR.
+# Report location/validity is shared with the NERV submission tool — see
+# `.claude/_shared/report_paths.py`. `--verify-coverage` and
+# `.claude/tools/nerv_review_payload.py` must answer "did this agent leave a report?"
+# identically; each keeping its own copy behind a "change both" comment already diverged
+# inside one PR. (Until NERV cutover stage 2 the other consumer was `review_guard`.)
 from _shared import git_probe as _git_probe  # noqa: E402
 from _shared import report_paths as _report_paths_lib  # noqa: E402
 from _shared import retry_state as _retry_state_lib  # noqa: E402
@@ -163,7 +164,7 @@ def load_config(route_mode="auto"):
         skip_extensions = set()
 
     return {
-        "output_dir": os.environ.get("REVIEW_OUTPUT_DIR", "./review/code"),
+        "output_dir": os.environ.get("REVIEW_OUTPUT_DIR", "./.review/code"),
         "agents": agents,
         "agents_explicit": agents_explicit,
         "route_mode": route_mode,

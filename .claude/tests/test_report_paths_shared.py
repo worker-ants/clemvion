@@ -1,12 +1,16 @@
-"""`.claude/_shared/report_paths.py` — the one rule two enforcement points must share.
+"""`.claude/_shared/report_paths.py` — the one rule two consumers must share.
 
-The push/stop gate (`hooks/_lib/review_guard`) and the orchestrator CLIs
-(`--verify-coverage`, `--sync-from-disk`) both answer "did this agent leave a report?".
-When each owned a copy behind a "change both" comment, they diverged inside a single PR:
-the gate gained a non-empty requirement while `--verify-coverage` still checked mere
-existence, so `touch security.md` passed the CLI and failed the gate at the same moment
-(measured 2026-07-17). The unit tests below pin the rule; `AgreementTest` pins the thing
-that actually matters — that both consumers still answer identically.
+The orchestrator CLI (`--verify-coverage`) and the NERV payload tool
+(`.claude/tools/nerv_review_payload.py`, `missing_forced`) both answer "did this agent
+leave a report?". The second consumer used to be the push/stop gate
+(`hooks/_lib/review_guard`); NERV cutover stage 2 moved the gate to NERV review rounds,
+and the payload tool is now the one that must not submit a round with a forced role
+silently missing. When two consumers each owned a copy behind a "change both" comment
+they diverged inside a single PR: one gained a non-empty requirement while
+`--verify-coverage` still checked mere existence, so `touch security.md` passed one and
+failed the other (measured 2026-07-17). The unit tests below pin the rule;
+`AgreementTest` pins the thing that actually matters — that both consumers still answer
+identically.
 """
 
 from __future__ import annotations
@@ -21,7 +25,6 @@ from pathlib import Path
 
 import _harness  # noqa: F401  — side effect: puts .claude/hooks on sys.path
 from _harness import REPO_ROOT, load_module_by_path
-from _lib import review_guard as rg
 
 rp = load_module_by_path(
     "_shared_report_paths", REPO_ROOT / ".claude" / "_shared" / "report_paths.py"
@@ -31,6 +34,7 @@ ORCH = (
     REPO_ROOT / ".claude" / "skills" / "code-review-agents" / "scripts"
     / "code_review_orchestrator.py"
 )
+PAYLOAD = REPO_ROOT / ".claude" / "tools" / "nerv_review_payload.py"
 
 # The shape every finished task leaves behind: `output_file` names a worktree that has
 # since been deleted, while `review/**` lives on in git and is read from elsewhere.
@@ -154,11 +158,10 @@ class ReportPathsTest(unittest.TestCase):
 
 
 class AgreementTest(unittest.TestCase):
-    """The gate and the CLI must reach the same verdict — the point of the module.
+    """The payload tool and the CLI must reach the same verdict — the point of the module.
 
-    Driven end-to-end (real `review_guard` call + real CLI subprocess) rather than by
-    asserting they both call the shared helper: the divergence this replaces was invisible
-    at that level too.
+    Driven end-to-end (two real CLI subprocesses) rather than by asserting they both call
+    the shared helper: the divergence this replaces was invisible at that level too.
     """
 
     def setUp(self):
@@ -181,21 +184,28 @@ class AgreementTest(unittest.TestCase):
         return r.returncode != 0
 
     def _gate_blocks(self) -> bool:
-        return bool(rg._forced_coverage_missing(str(self.sd)))
+        """`nerv_review_payload` — exit 1 and a non-empty `missing_forced` mean "missing"."""
+        r = subprocess.run(
+            [sys.executable, str(PAYLOAD), str(self.sd), "--kind", "code"],
+            cwd=str(REPO_ROOT), capture_output=True, text=True,
+        )
+        missing = json.loads(r.stdout)["missing_forced"]
+        self.assertEqual(r.returncode != 0, bool(missing), r.stdout + r.stderr)
+        return bool(missing)
 
     def test_agree_on_an_empty_report(self):
         # The exact 2026-07-17 divergence: CLI said OK, gate said missing.
         (self.sd / "security.md").write_text("", encoding="utf-8")
-        self.assertEqual(self._cli_blocks(), self._gate_blocks(), "CLI and gate disagree on an empty report")
+        self.assertEqual(self._cli_blocks(), self._gate_blocks(), "CLI and payload tool disagree on an empty report")
         self.assertTrue(self._gate_blocks(), "an empty report must not satisfy the whitelist")
 
     def test_agree_on_a_real_report_whose_worktree_is_gone(self):
         (self.sd / "security.md").write_text("# report\n", encoding="utf-8")
-        self.assertEqual(self._cli_blocks(), self._gate_blocks(), "CLI and gate disagree")
+        self.assertEqual(self._cli_blocks(), self._gate_blocks(), "CLI and payload tool disagree")
         self.assertFalse(self._gate_blocks(), "a real report must count even from a dead worktree path")
 
     def test_agree_on_a_missing_report(self):
-        self.assertEqual(self._cli_blocks(), self._gate_blocks(), "CLI and gate disagree")
+        self.assertEqual(self._cli_blocks(), self._gate_blocks(), "CLI and payload tool disagree")
         self.assertTrue(self._gate_blocks())
 
 
