@@ -25,7 +25,7 @@ model: haiku
    - `agents_forced` 목록은 무조건 `selected=true` (reason: orchestrator 가 제공한 사유 그대로).
    - 그 외는 변경 코드 의미 + reviewer 관점 교집합으로 판단.
    - **확신 없으면 selected=true 가 기본** — false-negative 가 false-positive 보다 훨씬 위험.
-4. `agents_forced ∪ router_selected` 가 **0 명**이면 `STATUS=fatal` + `output_file` 에 "no applicable reviewer for this change" 사유 + 변경 파일 목록. 호출자가 minimal SUMMARY 작성. **1명 이상이면 그대로 진행** (옛 0~1 가드의 전체 fallback 은 폐기).
+4. `agents_forced ∪ router_selected` 가 **0 명**이면 `STATUS=fatal` + `output_file` 에 "no applicable reviewer for this change" 사유 + 변경 파일 목록. 호출자가 minimal SUMMARY 작성. **1명 이상이면 그대로 진행** (옛 0~1 가드의 전체 fallback 은 폐기). NERV 정본 전환 단계 2 부터 바뀐 파일이 하나라도 있으면 `agents_forced` 에 필수 6역할이 들어오므로, 이 갈래는 `.claude.project.json` 의 `agents.reviewers` 가 6역할을 모두 끈 경우에만 닿는다(`REVIEW_AGENTS` 를 주면 router 자체를 부르지 않는다).
 5. 다음 JSON 을 `output_file` 에 Write:
    ```json
    {

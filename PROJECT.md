@@ -95,7 +95,7 @@
 
 ### 회피 안티패턴
 
-다음 사유는 자동(`resolution-applier`) · 수동 흐름 모두에서 회피로 분류된다. RESOLUTION.md 의 `e2e` 줄에 적어도 그 자체가 차단 신호가 된다:
+다음 사유는 자동(`resolution-applier`) · 수동 흐름 모두에서 회피로 분류된다. Task 증적(`evidence` kind=test)이나 처분 근거에 적어도 그 자체가 차단 신호가 된다:
 
 - **"단위·integration 으로 충분"** — e2e 는 docker compose 의 실 Postgres·Redis·MinIO·Flyway·BullMQ 회귀 안전망이다. unit 으로 절대 검출 못 함
 - **"변경이 frontend 만 / backend 만"** — cross-stack 회귀 검출 자체가 e2e 의 본 목적
@@ -104,7 +104,7 @@
 - **"review 반영 직후 fix 가 1~2 줄"** — 코드 변경이면 변경량 무관 재수행. 마지막 코드 commit 다음에 e2e 통과 줄이 없으면 회피로 본다
 - **"docker 가 느려서 다음 turn 에"** — 가용성을 실제 확인하지 않은 보류 금지. 미루기 전에 `docker info` 로 daemon 가용성 먼저 확인
 
-> `[skip-e2e]` 자체 발급 절대 금지. 자동 흐름은 `resolution-applier` sub-agent 가 wrapper 호출을 강제하며, 수동 흐름이라도 `.claude/skills/developer/SKILL.md §RESOLUTION.md schema` 의 e2e 줄 4형식 (통과 / 면제 (화이트리스트 인용) / 보류 (사용자 응답 인용) / 자동 흐름 환경 차단) 외 어떤 표현도 차단된다.
+> `[skip-e2e]` 자체 발급 절대 금지. 자동 흐름은 `resolution-applier` sub-agent 가 wrapper 호출을 강제하며, 수동 흐름이라도 `.claude/skills/developer/SKILL.md §처분 기록` 의 e2e 형식 (통과 / 면제 (화이트리스트 인용) / 자동 흐름 환경 차단, 보류는 `nerv_question_create` 로 받은 사용자 답) 외 어떤 표현도 쓰지 않는다. 이 형식을 기계로 검사하는 장치는 없고 리뷰가 잡는다.
 
 ### 실행 사전 체크리스트
 
@@ -150,7 +150,7 @@
 - outbound third-party API stub 인프라 부재 등 구조적 한계
 - 환경상 docker 실행 불가 (디스크/메모리/daemon)
 
-이 경우에도 **`[skip-e2e]` 자체 발급 금지**. 멈추고 사용자 보고 → 명시 응답 받은 뒤에만 보류. RESOLUTION.md `## TEST 결과` 에 사유 + 응답 시점 인용 기록.
+이 경우에도 **`[skip-e2e]` 자체 발급 금지**. 멈추고 사용자 보고(`nerv_question_create`) → 명시 응답 받은 뒤에만 보류. 사유와 응답을 Task 증적(`evidence` kind=test)에 인용 기록.
 
 ## 변경 유형 → 갱신 위치 매핑
 
@@ -180,7 +180,7 @@
 | 환경 변수·기동 방법·런타임 변경 (제품 최종 상태) | `README.md` | 수동 |
 | **spec 신규/대규모 변경** (`spec/{2,3,4,5}-**.md`, `spec/conventions/**.md`) | (a) frontmatter `code:` / `status:` / `pending_plans:` 정합 갱신<br>(b) `status: partial` 이면 `pending_plans:` 의 plan 신설<br>(c) `status: implemented` 이면 `code:` 글로브 ≥1 매치 보장. SoT: `spec/conventions/spec-impl-evidence.md` | `pnpm --filter frontend test -- spec-frontmatter spec-code-paths spec-pending-plan-existence` |
 | **user-guide GUI 흐름 절 신규/변경** (`02-nodes/**.mdx`, `06-integrations-and-config/**.mdx` 의 GUI 안내 절) | `<ImplAnchor kind="ui-entry">` 동반 작성 — `file`/`symbol` 실존 의무. SoT: `spec/conventions/user-guide-evidence.md` | `pnpm --filter frontend test -- impl-anchor-existence integrations-coverage triggers-coverage` |
-| spec 자체에 누락·오류가 있다고 판단됨 | `plan/in-progress/spec-update-<name>.md` 에 제안 노트 작성 후 `project-planner` 위임 | — |
+| spec 자체에 누락·오류가 있다고 판단됨 | NERV 스펙 초안(`/nerv:spec edit`)을 쓰거나 리뷰 발견(`area=spec`)으로 올린다. 승인은 사람이 한다(`CLAUDE.md` §Skill 체계) | — |
 
 ### 사후 보정 PR 패턴 금지 — 같은 turn 원칙
 
@@ -219,7 +219,7 @@ developer workflow §4 종료 직전, 5단계로 진행하기 전 자가 점검:
 - [ ] 표가 가리키는 모든 위치를 **동일 turn 안에** 갱신했는가? 한 위치라도 별 turn 으로 미루지 않았는가
 - [ ] 표의 "검증 명령" 을 실제로 실행했는가? (i18n parity / locale / backend-labels / docs registry)
 - [ ] 사용자 가시면 (UI 라벨·에러 메시지·노드 카드·가이드 본문) 이 코드 변경의 의미를 정확히 반영하는가? 단순 동기화가 아닌 *의미 갱신*
-- [ ] 본 turn 안에서 spec 자체에 변경이 필요한 것을 발견했으면 `plan/in-progress/spec-update-<name>.md` 작성 후 `project-planner` 위임 (developer 가 spec 직접 수정 금지)
+- [ ] 본 turn 안에서 spec 자체에 변경이 필요한 것을 발견했으면 NERV 스펙 초안(`/nerv:spec edit`)을 쓰거나 리뷰 발견(`area=spec`)으로 올린다. 승인은 사람이 한다(CLAUDE.md §Skill 체계). 저장소 `spec/` 미러는 손으로 고치지 않는다
 - [ ] **partial-implementation 분리** — 본 PR 이 구현하는 spec 섹션의 *나머지 surface* 가 있다면 (Phase 분리, 후속 UI, 미구현 enum 값) `plan/in-progress/<spec-name>-followup-<surface>.md` 가 신설/갱신됐는가? 본 spec 의 frontmatter `pending_plans:` 가 해당 plan 을 가리키는가? spec `status:` 가 `partial` 로 정확히 설정됐는가? (SoT: `spec/conventions/spec-impl-evidence.md`)
 
 > 한 항목이라도 미충족이면 §5 (테스트 선작성) 로 진행하지 말고 §4 안에서 마무리. `fix(i18n):` · `fix(docs):` commit 빈도가 워크플로 건강 지표 — 본 PR/turn 안에서 0건이 default.
@@ -426,6 +426,26 @@ python3 .claude/tools/nerv-mirror/pull.py --task CLE-T-XXXXXX
 - `--task` 는 클레임한 Task 의 scope 스펙을 작업 기준 버전으로 받는다(구현 PR 에 함께 커밋).
   `--all` 은 전체를 다시 받는다. 둘 다 `NERV_SERVER` · `NERV_TOKEN` 이 필요하다. `NERV_PROJECT` 는
   선택이고 기본값은 `clemvion` 이다. 값은 `.claude/settings.local.json` 의 `env` 가 준다.
+
+### NERV 리뷰 게이트
+
+NERV 정본 전환 단계 2 부터 `codebase/**` 를 바꾼 브랜치의 push 와 PR 머지는 NERV 코드 리뷰 라운드로
+판정한다. 판정 규칙의 정본은 `.claude/hooks/_lib/review_guard.py` docstring 이다. 제출 · 처분 절차는
+`code-review-agents` SKILL §4 · §6 이다.
+
+```bash
+python3 scripts/check-review-gate.py
+```
+
+- 로컬 push 훅(`guard_review_before_push.py`)은 `NERV_SERVER` · `NERV_TOKEN` · `NERV_PROJECT`(선택,
+  기본 `clemvion`)를 `.claude/settings.local.json` 의 `env` 에서 읽는다. 위 명령은 같은 판정을 미리
+  돌린다(막힐 사유를 내고 exit 0).
+- CI `review-gate` 는 저장소 secret `NERV_CI_TOKEN`(읽기 전용 토큰)과 저장소 변수 `NERV_SERVER` 를 쓴다.
+  둘이 없거나 NERV 가 401 · 403 · 404 로 거절하면 `--enforce` 에서 실패한다. 포크나 새 저장소는 이
+  설정부터 만든다. 없으면 `codebase/**` PR 이 모두 이 잡에서 실패한다.
+- 실패 모드: 설정 문제는 CI 에서 실패, 일시 장애(시간 초과 · 5xx · 429)는 통과(fail-open)와 경고다.
+  로컬 훅은 설정이 없거나 NERV 가 응답하지 않으면 통과시키고 배너로 센다.
+- 의식적 우회: `BYPASS_REVIEW_GUARD=1`(로컬 push 훅만).
 
 ### Playwright flaky surfacing
 

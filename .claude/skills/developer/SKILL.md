@@ -19,7 +19,7 @@ model: opus
 - **TDD 준수**: 스펙 해석 즉시 테스트 선작성, 구현 후 보강.
 - **품질 책임**: Warning 이상 이슈와 누락 테스트는 지시 범위 밖이라도 해결. 기존부터 있던 이슈도 발견 시 조치.
 - **누락 방지**: `plan/in-progress/` 에 진행 메모 작성·갱신, 재진입 시 먼저 확인. plan 라이프사이클: [`.claude/docs/plan-lifecycle.md`](../../docs/plan-lifecycle.md).
-- **plan 체크박스 = 실제 상태**: `plan/in-progress/<task>.md` 의 체크리스트는 **각 단계가 끝날 때마다 그 즉시** 갱신한다 (실제 통과한 단계만 `[x]`). 아직 안 돌린 단계(e2e·`/ai-review` 등)를 **미리 `[x]` 로 적거나, 코드 커밋 시 forward-looking 으로 적어두고 방치 금지**. 근거: 체크박스는 "그 단계를 실제로 통과했다" 는 **상태 주장**이다 — 미리 `[x]` 를 적으면 PR 을 읽는 사람이 통과로 읽고, 수행해 놓고 `[ ]` 로 두면 반대로 "단계 건너뜀" 으로 오인된다. (종전 이 자리의 근거였던 "review 산출물(`review/code/**`)은 gitignored 라 PR 에 없다" 는 **사실이 아니다** — `.gitignore` 가 무시하는 것은 `review/**/_prompts/` 한 줄뿐이고 `SUMMARY.md`·`<role>.md`·`meta.json`·`RESOLUTION.md` 는 커밋된다. 2026-08-29 `git check-ignore` 실측.) e2e/ai-review 결과는 통과 직후 갱신해 REVIEW WORKFLOW 커밋(step 9) 또는 별도 `docs(plan):` 커밋으로 PR 에 반영한다.
+- **plan 체크박스 = 실제 상태**: `plan/in-progress/<task>.md` 의 체크리스트는 **각 단계가 끝날 때마다 그 즉시** 갱신한다 (실제 통과한 단계만 `[x]`). 아직 안 돌린 단계(e2e·`/ai-review` 등)를 **미리 `[x]` 로 적거나, 코드 커밋 시 forward-looking 으로 적어두고 방치 금지**. 근거: 체크박스는 "그 단계를 실제로 통과했다" 는 **상태 주장**이다. 미리 `[x]` 를 적으면 PR 을 읽는 사람이 통과로 읽고, 수행해 놓고 `[ ]` 로 두면 반대로 "단계 건너뜀" 으로 오인된다. 리뷰 결과는 NERV 레코드라 PR 에 파일로 남지 않는다(전환 단계 2 부터). 그래서 체크박스와 NERV 라운드가 PR 에서 리뷰 상태를 읽는 두 근거다. e2e 결과는 통과를 담은 커밋에, ai-review 결과는 처분이 끝난 뒤 별도 `docs(plan):` 커밋에 반영한다(§단계별 자동 commit).
 
 ## 경로별 권한
 
@@ -29,10 +29,11 @@ model: opus
 | `plan/in-progress/` | Read/Write 자유 |
 | `plan/complete/` | Read/Write — 모든 항목 끝나면 `git mv` |
 | `codebase/**` | Read/Write — 구현 주 영역 |
-| `review/` | Read/Write — 라운드 산출물 **전체**(`SUMMARY.md`·`<role>.md`·`meta.json`·`RESOLUTION.md`)를 커밋한다(`_prompts/` 만 gitignored). `RESOLUTION.md` 는 구현자 (또는 resolution-applier sub-agent) 가 작성 |
+| `review/` | Read only — 옛 리뷰 산출물(동결, 전환 단계 3 에서 삭제). 도구 편집은 `guard_nerv_owned_paths.py` 훅이 막는다 |
+| `.review/` | Read/Write — 오케스트레이터의 로컬 산출물(gitignore). 커밋하지 않는다. 리뷰 결과는 NERV 리뷰 레코드로 제출한다. 코드 주석 · 커밋 메시지에 `.review/**` 경로를 인용하지 않는다(다른 체크아웃에는 없는 파일이다). 리뷰는 `finding <발견 전체 ID>` 로 가리킨다 |
 | `README.md`, `PROJECT.md` | Read/Write |
-| `.claude/hooks/**`, `.claude/tools/**`, `.claude/tests/**` | Read/Write — harness **실행물**. 검증은 `python3 -m pytest .claude/tests -q` — 리뷰 게이트(`/ai-review`·`--impl-done`)의 스코프는 `codebase/**` 라 harness-only 변경은 **push 가 차단되지 않는다** |
-| `.claude/docs/**`, `.claude/skills/**/SKILL.md`, `CLAUDE.md` | Read only — **거버넌스 문서**(역할 정의·워크플로 규약). 수정은 `project-planner` 위임 ([`CLAUDE.md` §Skill 체계](../../../CLAUDE.md#skill-체계) 가 SoT) |
+| `.claude/hooks/**`, `.claude/tools/**`, `.claude/tests/**` | Read/Write — harness **실행물**. 검증은 `python3 -m pytest .claude/tests -q` — push 리뷰 게이트의 스코프는 `codebase/**` 라 harness-only 변경은 **push 가 차단되지 않는다**. NERV Task done 게이트는 그래도 그 Task 의 code · consistency 라운드를 요구한다 |
+| `.claude/docs/**`, `.claude/skills/**/SKILL.md`, `.claude/agents/**`, `.claude/commands/**`, `CLAUDE.md` | Read only — **거버넌스 문서**(역할 정의·워크플로 규약). 수정은 `project-planner` 위임 ([`CLAUDE.md` §Skill 체계](../../../CLAUDE.md#skill-체계) 가 SoT) |
 
 ## 작업 워크플로
 
@@ -74,82 +75,96 @@ model: opus
 
 ## REVIEW WORKFLOW
 
-> **강제 — 미루기 금지.** 구현(5–7) 이 끝났으면 test·review·critical/warning fix 는
-> **본 턴 안에서** 이행한다. "범위가 커서" / "다음 턴에" / "PR 에서" 미루는 것은 위반이며,
-> hook 으로 강제된다: 미리뷰 codebase 변경이 남은 채 턴을 끝내면 `Stop` 가드
-> (`guard_review_before_stop.py`) 가 1회 막고, `git push` 는 `guard_review_before_push.py`
-> 가 차단한다. `/ai-review` 가 **Workflow 경유라 "비싸 보여" 호출을 망설일 필요 없다** —
-> 구현 완료 후 자동 review/fix 는 상시 승인된 강제 의무이지 "사용자가 추론하게 한 scale"
-> 이 아니다 (CLAUDE.md §외부 LLM 호출 정책).
+> **강제 — 미루기 금지.** 구현(5–7) 이 끝났으면 test · review · critical/warning fix · 처분은
+> **본 턴 안에서** 이행한다. "범위가 커서" / "다음 턴에" / "PR 에서" 미루는 것은 위반이다.
+> `git push` 는 `guard_review_before_push.py` 가, PR 머지는 CI `review-gate` 가 막는다. 둘 다
+> passed 상태의 NERV `kind=code` 라운드를 요구한다(판정 규칙: `.claude/hooks/_lib/review_guard.py`).
+> 단 NERV 가 응답하지 않으면 두 게이트는 통과시키고 알린다(fail-open. `code-review-agents` SKILL §4).
+> NERV Task 의 done 은 그 Task 에 묶인 code · consistency 라운드가 있어야 된다. `/ai-review` 가
+> **Workflow 경유라 "비싸 보여" 호출을 망설일 필요 없다** — 구현 완료 후 자동 review/fix 는 상시
+> 승인된 강제 의무이지 "사용자가 추론하게 한 scale" 이 아니다 (CLAUDE.md §외부 LLM 호출 정책).
+> 예외는 사람 승인 대기(critical 을 낮추는 처분 · 스펙 초안 검토 요청)뿐이다. 그 동안 세션은
+> `awaiting_input` 이다.
+>
+> **리뷰 결과는 NERV 레코드다**(전환 단계 2, 결정 D7 · D9). 로컬 산출물(`.review/`)은 커밋하지 않는다.
+> NERV 쓰기(제출 · 처분)는 main 세션의 MCP 호출로만 한다.
 
-1. **`/ai-review` 호출** — 등록된 reviewer 병렬 (디폴트 14, `.claude.project.json` 의 `agents.reviewers` 로 부분 disable 가능) + SUMMARY 통합. router 가 변경 성격에 맞는 reviewer 부분집합만 활성화.
-   - **비동기 주의 (Workflow 경로)**: `/ai-review` 가 native `Workflow` 로 fan-out 하면 호출은 **즉시 반환**하고 완료는 task-notification 으로 도착한다. 발사 ≠ 완료. 알림을 받아 SUMMARY 반환값을 읽기 전까지 **턴을 끝내지 않는다.** 비동기 간극 없이 가려면 자동 트리거 시 `code-review-agents` SKILL §(fallback) 평문 Agent fan-out 경로를 쓸 수 있다.
-2. **SUMMARY 판독** — Workflow 반환값을 `<session_dir>/SUMMARY.md` 에 기록하고 전체 위험도·Critical/Warning 수를 확인.
-3. **Critical/Warning > 0 → `resolution-applier` 호출 (main 의 명시적 의무)** — 자동으로 따라오지 않는다. main 이 직접 한 줄로 위임한다:
+0. **커밋 먼저** — 리뷰할 코드를 커밋한다. 라운드는 커밋(`head_sha`)에 묶인다. 커밋하지 않은 변경은
+   라운드가 덮지 못한다.
+1. **`/ai-review` 호출** — `--branch origin/main` 으로 브랜치 diff 전체를 리뷰한다. 등록된 reviewer
+   병렬 (디폴트 14, `.claude.project.json` 의 `agents.reviewers` 로 부분 disable 가능) + SUMMARY 통합.
+   router 가 변경 성격에 맞는 reviewer 부분집합만 활성화하되, 바뀐 파일이 하나라도 있으면 NERV 필수
+   6역할(security · requirement · scope · side_effect · maintainability · testing)은 router 가 끄지
+   못한다. 하네스 · 문서만 바꾼 Task 도 같다(done 게이트가 passed 라운드를 요구한다).
+   - **비동기 주의 (Workflow 경로)**: `/ai-review` 가 native `Workflow` 로 fan-out 하면 호출은 **즉시 반환**하고 완료는 task-notification 으로 도착한다. 발사 ≠ 완료. 알림을 받아 SUMMARY 반환값을 읽기 전까지 **턴을 끝내지 않는다.** 비동기 간극 없이 가려면 자동 트리거 시 `code-review-agents` SKILL §5 평문 Agent fan-out 경로를 쓸 수 있다.
+2. **SUMMARY 판독** — Workflow 반환값을 `<session_dir>/SUMMARY.md` 에 기록(로컬)하고 전체 위험도·Critical/Warning 수를 확인.
+3. **역할별 NERV 제출 · 발견 받기** — 절차의 정본은 `code-review-agents` SKILL §4 다(제출 도우미,
+   `nerv_review_submit` 인자, 재제출, `round_block`). 마지막에 `nerv_review_handoff.py fetch` 로
+   처리할 발견을 `<session_dir>/_nerv_findings.json` 에 받는다.
+4. **Critical/Warning > 0 → `resolution-applier` 호출 (main 의 명시적 의무)** — 자동으로 따라오지 않는다. main 이 직접 한 줄로 위임한다:
 
    ```
    Agent(subagent_type="resolution-applier", prompt="session_dir=<session_dir>")
    ```
 
-   반환 STATUS 의 `ESCALATE` 분기 (`code-review-agents` SKILL §6 표) 를 — `ESCALATE=no` (조치 완료) 또는 사용자 escalate 까지 — 처리하기 전엔 턴을 끝내지 않는다.
-   - **SPEC-DRIFT 처리**: SUMMARY 에 `[SPEC-DRIFT]` 발견사항(구현이 spec 을 의도적으로 개선해 spec 이 낡음)이 있으면, resolution-applier 가 코드를 되돌리지 않고 `plan/in-progress/spec-update-<area>.md` draft + `ESCALATE=spec` 로 반환한다. main 은 draft 를 근거로 NERV 스펙 초안을 쓰고(`/nerv:spec edit`) 제출 전 검토(`nerv_spec_check` + `/consistency-check --spec <초안 본문 파일>`)를 거쳐 `BLOCK: NO` 면 검토 요청한 뒤 resolution-applier 재호출. 저장소 `spec/` 에는 쓰지 않는다(미러는 승인 뒤 구현 PR 이 pull 한다). 이것이 "구현 중 개선된 flow 가 spec 에 역류" 하는 정식 경로다.
-     - **승인 대기 중의 게이트**: 초안이 승인되기 전에는 대조 대상이 옛 본문이라 같은 drift 가 다음 `--impl-done` 에서 다시 나온다. 그 발견은 NERV 에서 `spec_change`(초안 저장의 `spec_version_id`)로 처분하고, push 는 승인 뒤 `pull.py --task` 로 미러를 다시 받고 `--impl-done` 을 다시 돌린 다음에 한다. 실측(2026-10-01): 승인본이 **없는** 문서는 `--task` 가 초안을 받았다(`read_as: "approved_fallback"`). 승인본이 있는 문서의 동작은 아직 재지 않았다.
-4. **(post-impl 일관성 검토 — spec 연결 코드 변경 시 의무)** 변경에 spec 의 frontmatter `code:` glob 에 매칭되는 파일이 포함되면 `/consistency-check --impl-done <spec/영역>` 호출은 **의무**다 (이전의 "권장" 에서 승격). NERV 전환 단계 4e 전까지 `<spec/영역>` 과 `code:` 는 **옛 트리** 기준이다(미러 frontmatter 에는 `code:` 가 없다). 구현 코드 diff vs spec 본문 / Rationale / conventions / plan 정합성을 5 checker 가 사후 검증하고, Critical 발견(`BLOCK: YES`) 시 `resolution-applier` 가 동일 흐름으로 처리. **강제**: spec 연결 코드 변경이 있는데 `BLOCK: NO` 인 fresh `--impl-done` 산출물이 없으면 `guard_review_before_push.py`/`guard_review_before_stop.py` 가 push·턴종료를 차단한다 (`review_guard.py` SPEC-CONSISTENCY 게이트). spec 무관 코드(어떤 spec 도 참조 않는 내부 리팩토링)는 이 게이트에 걸리지 않는다.
-
-   > ### ⚠️ 순서 — `--impl-done` 은 **spec-linked 편집이 전부 끝난 뒤** 준비한다
-   >
-   > 게이트는 **리포트 세션 디렉터리 시각**(`review/consistency/<…>/<hh>_<mm>_<ss>/`)과
-   > **최신 spec-linked 코드 편집 시각**을 비교한다. 리포트가 더 이르면 막는다.
-   >
-   > 그래서 checker 5개를 돌린 **뒤에** 후속 fix 가 spec-linked 파일을 건드리면 **그
-   > 라운드가 통째로 버려진다** — 다시 준비해서 다시 돌려야 한다.
-   >
-   > **왜 반복해서 밟히나**: 게이트 메시지는 *"재실행하라"* 고만 말하고 **왜 방금 것이
-   > 무효인지**는 말하지 않는다. 세션 시각이 판정 기준이라는 사실이 메시지에 없어서,
-   > 게이트 결함으로 오진하기 쉽다.
-   >
-   > **실측 (2026-08-28, 이 규약을 쓰게 만든 근거)**: 한 세션에서 이 순서 함정을 **다섯
-   > 번** 밟았다 — `masking-expression-egress-split`(2회) · `doclink-guard-scope`(2회) ·
-   > `eia-misc-hygiene`(1회). 매번 리뷰/consistency 를 한 바퀴 더 태웠다.
-   >
-   > **따르는 순서**:
-   > 1. 코드·spec 편집을 **전부** 끝낸다 (리뷰 fix 포함).
-   > 2. `/ai-review` 를 돌려 Critical/Warning 을 **먼저** 닫는다 — 그 fix 가 spec-linked
-   >    파일을 건드릴 수 있기 때문이다.
-   > 3. 코드가 **고정된 뒤** `--impl-done` 을 준비·실행한다. 이 한 번으로 두 게이트
-   >    (코드 리뷰 freshness · SPEC-CONSISTENCY)가 동시에 만족된다.
-   >
-   > 반대로 하면(=`--impl-done` 을 먼저) 리뷰 fix 마다 그것이 무효가 된다.
-5. **수동 처리 시**: SUMMARY 보고 이슈 해결 + `review/code/<...>/RESOLUTION.md` 에 §RESOLUTION schema 로 기록. (RESOLUTION.md 가 있어야 push 가드가 '해결됨' 으로 인정한다.)
-6. **조치 끝나면 TEST WORKFLOW 재수행.**
+   applier 는 코드를 고쳐 발견마다 커밋하고, **처분 목록**(`<session_dir>/_dispositions.json`)을 돌려준다.
+   NERV 에는 쓰지 않는다(결정 D9). main 은 `nerv_review_handoff.py check` 로 검사하고 `pending` 이 낸
+   처분만 `nerv_finding_resolve` 로 기록한다(`code-review-agents` SKILL §6). 고친 것은 `fixed` +
+   `commit_sha`, 고치지 않는 것은 `wont_fix`/`dismissed` + 근거, 사람 판단이 필요한 것은 `escalated` +
+   `escalate_reason`. critical 을 `dismissed`/`wont_fix` 로 낮추는 처분은 사람 승인이 필요하다. 반환
+   STATUS 의 `ESCALATE` 분기 (SKILL §6 표) 를 — `ESCALATE=no` (조치 완료) 또는 사용자 escalate 까지 —
+   처리하기 전엔 턴을 끝내지 않는다. applier 가 남긴 INFO(`left_to_main`)는 main 이 처분한다(SKILL §4-6).
+   - **라운드 뒤 커밋** — push 게이트는 라운드 head 이후의 `codebase/**` 커밋이 code · consistency 라운드의
+     `fixed` 처분 `commit_sha` 이거나, 메시지가 그런 발견을 `finding <발견 전체 ID>` 로 인용하면 새 라운드
+     없이 통과시킨다(발견 여럿이면 `finding <ID> · <ID>` 를 한 문단에). fix 커밋은 다시 리뷰되지 않는다.
+     처분과 무관한 `codebase/**` 커밋을 더했거나 rebase 로 라운드 head 가 사라졌으면 지금 HEAD 로 다시
+     제출한다(SKILL §4 "라운드 뒤 커밋"). 기준 브랜치를 따라잡을 때 `git merge origin/main` 은 라운드를
+     유지한다(충돌을 손으로 푼 `codebase/**` 변경이 없을 때). rebase 는 필수 6역할을 포함한 재리뷰가 든다.
+   - **SPEC-DRIFT 처리**: `[SPEC-DRIFT]` 발견사항(구현이 spec 을 의도적으로 개선해 spec 이 낡음)은 resolution-applier 가 코드를 되돌리지 않고 `ESCALATE=spec` 과 제안 파일(`spec_proposals`)로 돌려준다. main 은 그 발견을 처분하지 않은 채 NERV 스펙 초안을 쓴다(`/nerv:spec edit`). 제출 전 검토(`nerv_spec_check` + `/consistency-check --spec <초안 본문 파일>`)를 거쳐 `BLOCK: NO` 면 검토 요청하고, 초안 저장의 `spec_version_id` 로 그 발견을 `spec_change` 처분한다. 초안을 쓸 수 없으면 `escalated`(`escalate_reason=spec`)로 넘긴다. 저장소 `spec/` 에는 쓰지 않는다(미러는 승인 뒤 구현 PR 이 pull 한다). 이것이 "구현 중 개선된 flow 가 spec 에 역류" 하는 정식 경로다.
+     - **승인 대기 중**: 초안이 승인되기 전에는 대조 대상이 옛 본문이라 같은 drift 가 다음 `--impl-done` 에서 다시 나온다. 그 발견도 `spec_change`(초안 저장의 `spec_version_id`)로 처분한다. 실측(2026-10-01): 승인본이 **없는** 문서는 `pull.py --task` 가 초안을 받았다(`read_as: "approved_fallback"`). 승인본이 있는 문서의 동작은 아직 재지 않았다.
+5. **post-impl 일관성 검토** — `/consistency-check --impl-done <spec/영역>` 을 돌려 5 checker 결과를
+   checker 마다 `kind=consistency` 로 제출한다(절차는 `consistency-checker` SKILL §3.5). 구현 코드 diff vs
+   spec 본문 / Rationale / conventions / plan 정합성을 사후 검증한다. Critical 은 위 4 와 같은 흐름으로
+   고치고 처분한다. 그 fix 커밋도 consistency 라운드의 `fixed` 처분이거나 `finding <발견 전체 ID>` 인용이면
+   push 게이트가 설명된 커밋으로 본다. NERV Task done 게이트가 consistency 라운드를 요구하므로 spec 연결
+   여부와 무관하게 Task 마다 돈다. 하네스 · 문서만 바꾼 Task 는 바꾼 문서가 서술하는 영역을 scope 로
+   준다. NERV 전환 단계 4e 전까지 `<spec/영역>` 은 **옛 트리** 기준이다.
+   - **순서**: 코드 리뷰 fix 를 먼저 끝내고 돌린다. 리뷰 fix 가 spec 연결 코드를 바꾸면 먼저 돌린
+     consistency 라운드가 옛 코드를 본 셈이다.
+6. **조치 끝나면 TEST WORKFLOW 재수행.** 결과(e2e 포함)는 Task 증적(`evidence` kind=test, `locator` 에
+   로그 경로나 명령)으로 남긴다. applier 가 넘긴 `tests` 도 같이 옮긴다. e2e 를 보류해야 하면
+   `nerv_question_create` 로 사람에게 묻는다.
 
 ### 완료 정의 (Definition of Done)
 
 구현 작업은 아래를 **모두** 만족해야 "완료" 다. 하나라도 빠지면 미완 — 턴을 끝내지 않는다.
 
 - [ ] TEST WORKFLOW (lint·unit·build·e2e) 통과
-- [ ] `/ai-review` 실행 + SUMMARY 기록
-- [ ] SUMMARY 의 Critical/Warning 0 (애초에 없었거나, `resolution-applier`/수동으로 fix + RESOLUTION.md)
-- [ ] SPEC-DRIFT 발견사항은 NERV 스펙 초안(`spec-update-<area>` → `/consistency-check --spec` → `/nerv:spec edit` 초안 · 검토 요청) 또는 사용자 escalate 로 처리
-- [ ] (spec 연결 코드 변경 시) `/consistency-check --impl-done <spec/영역>` `BLOCK: NO` 산출물 존재 (SPEC-CONSISTENCY 가드)
-      — **`/ai-review` 수렴 뒤에** 준비할 것. 리뷰 fix 가 spec-linked 파일을 건드리면
-      먼저 돌린 `--impl-done` 은 세션 시각 비교에서 무효가 된다 (§4 순서 규약)
+- [ ] `/ai-review` 실행 + 역할별 `kind=code` 제출(필수 6역할 포함, `task_id`)
+- [ ] 모든 발견 처분(`nerv_finding_resolve`). 라운드가 N1 판정 `passed`. 게이트가 보는 것은 critical · warning 이지만 INFO 도 처분한다. 열린 발견은 이후 모든 제출 응답에 `carried_over` 로 따라붙는다
+- [ ] SPEC-DRIFT 발견사항은 NERV 스펙 초안(`/consistency-check --spec` → `/nerv:spec edit` 초안 · 검토 요청)으로 처리하고 `spec_change` 처분, 또는 사용자 escalate
+- [ ] `/consistency-check --impl-done <spec/영역>` 결과를 checker 마다 `kind=consistency` 로 제출하고 처분
 - [ ] fix 가 있었으면 TEST WORKFLOW 재통과
-- [ ] (codebase 변경 시) push/stop 강제 가드 통과
+- [ ] (codebase 변경 시) push 게이트 통과 — 라운드 뒤 커밋은 모두 처분 커밋이거나 fixed 발견을 인용
 
-### RESOLUTION.md schema
+### 처분 기록
 
-| 섹션 | 내용 | 필수 |
-|---|---|---|
-| `## 조치 항목` | SUMMARY # 와 fix commit hash 매핑 표 | ✓ |
-| `## TEST 결과` | lint / unit / build / e2e 각 결과. e2e 는 4형식만: 통과 / 면제 (화이트리스트 인용) / 보류 (사용자 응답 인용 — **수동 흐름 전용**) / 자동 흐름 환경 차단 | ✓ |
-| `## 보류·후속 항목` | 별도 plan 으로 이관한 항목 | 있을 때 |
+옛 `RESOLUTION.md` 는 없어졌다(전환 단계 2). 그 역할은 NERV 처분이 맡는다.
 
-push 전 자가 검증:
+| 옛 RESOLUTION 절 | 지금 |
+|---|---|
+| `## 조치 항목` (SUMMARY # ↔ fix 커밋) | 발견마다 `nerv_finding_resolve(resolution=fixed, commit_sha)`. 커밋 메시지는 `finding <발견 전체 ID>` 를 인용한다 |
+| `## TEST 결과` | Task 증적 `evidence(kind=test, locator=<로그 경로 · 명령>, note=…)`. e2e 는 통과 / 면제(화이트리스트 인용) / 자동 흐름 환경 차단 중 하나. 보류는 `nerv_question_create` 로 사람 답을 받는다 |
+| `## 보류·후속 항목` | `nerv_task_create` 로 후속 Task 를 만들고 발견은 `wont_fix`(근거에 Task 키) |
 
-- [ ] `## 조치 항목` · `## TEST 결과` 두 섹션 모두 있는가
-- [ ] `## TEST 결과` 의 e2e 줄이 4가지 형식 중 하나인가
-- [ ] 보류라면 사용자 응답이 RESOLUTION 안에 인용돼 있는가
+push 전 자가 검증 — push 게이트와 같은 판정을 미리 돌린다:
+
+```bash
+python3 scripts/check-review-gate.py   # 막히면 사유를 낸다. --enforce 없이는 늘 exit 0
+```
+
+- [ ] 라운드의 열린 critical · warning 이 0 인가(`round_block` false, 또는 REST `gates/reviews/check` `state=passed`)
+- [ ] 라운드 뒤 `codebase/**` 커밋이 모두 `fixed` 처분의 `commit_sha` 이거나 fixed 발견을 인용하는가
 
 ## E2E 테스트 작성
 
@@ -165,16 +180,19 @@ Warning 이상·테스트 누락은 지시 범위 밖이라도 해결. TEST·REV
 
 ### 수렴 예외 — 등재로 갈음할 수 있는 좁은 경우
 
-한 PR 이 리뷰-fix 라운드를 반복하는 중, **아래를 모두** 만족하면 `plan/in-progress/` 즉시
-등재로 갈음할 수 있다. 하나라도 어긋나면 위 원칙대로 **그 턴에 조치**한다.
+한 PR 이 리뷰-fix 라운드를 반복하는 중, **아래를 모두** 만족하면 후속 NERV Task 등재로 갈음할
+수 있다(`nerv_task_create` 후 그 발견을 `wont_fix` 로 처분하고 근거에 Task 키를 적는다). 하나라도
+어긋나면 위 원칙대로 **그 턴에 조치**한다.
 
 - (a) 남은 지적이 **동작 결함이 아니다** — 재현되는 오동작이 없고 테스트 커버리지·구조·
       문서 수준이다(발견의 성격이 동작 → 구조 → 문서로 이동했다는 신호).
-- (b) fix 자체가 **새 라운드를 강제한다** — 게이트 freshness 가 코드 변경 시각으로
-      재무장되므로, 고치면 리뷰를 한 번 더 돌아야 하고 그 라운드가 또 잔여를 낼 형태다.
-- (c) `RESOLUTION.md` 의 종결 판정에 **근거와 이 조항을 함께 인용**한다 — 등재 사유가
-      "비용" 이 아니라 "수렴" 임을 다음 사람이 확인할 수 있어야 한다.
-- (d) 등재는 **그 턴에** 한다. 기존 항목이 있으면 추가가 아니라 **갱신**한다.
+- (b) fix 자체가 **새 라운드를 강제한다** — 고치면 리뷰를 한 번 더 돌아야 하고 그 라운드가
+      또 잔여를 낼 형태다. (push 게이트는 처분 커밋만 더한 라운드를 다시 요구하지 않지만, fix 가
+      새 코드를 들이면 리뷰어가 그 코드를 다시 봐야 한다.)
+- (c) `wont_fix` 처분의 근거(`rationale`)에 **이 조항과 후속 Task 키를 함께 적는다**. 등재 사유가
+      "비용" 이 아니라 "수렴" 임을 다음 사람이 확인할 수 있어야 한다. critical 은 이 예외의 대상이
+      아니다(낮추는 처분은 사람 승인이 필요하다).
+- (d) 등재는 **그 턴에** 한다. 같은 내용의 Task 가 이미 있으면 새로 만들지 않고 그 Task 본문을 **갱신**한다.
 
 > **왜 좁게 쓰는가**: 위 §REVIEW WORKFLOW 는 `"PR 에서"` 미루는 것을 명시적으로 위반이라
 > 부른다. 이 예외가 넓어지면 그 문구가 무력해진다. 조건 (a)(b)가 경계다 — 동작 결함이거나
@@ -195,19 +213,19 @@ Warning 이상·테스트 누락은 지시 범위 밖이라도 해결. TEST·REV
 | 4. DOCUMENTATION | 문서 갱신 + lint(해당 시) 통과 직후 | `docs(<scope>):` |
 | 5–7. 테스트+구현 | 단위 테스트 통과 직후 (8단계 진입 직전) | `feat(<scope>):` / `fix(<scope>):` / `refactor(<scope>):` |
 | 8. TEST WORKFLOW | lint·unit·build·e2e 모두 통과 직후. 코드 수정 없으면 skip | `test(<scope>):` / `style(<scope>):` |
-| 9. REVIEW WORKFLOW | 이슈 조치 + RESOLUTION.md + 재테스트 통과까지 끝난 뒤 **단일 commit** | `refactor(<scope>):` / `docs(review):` |
+| 9. REVIEW WORKFLOW | 발견마다 fix 커밋(그 커밋이 `fixed` 처분의 `commit_sha` 가 된다). 리뷰 산출물은 커밋하지 않는다 | `fix(<scope>): finding <발견 전체 ID> …`(여럿이면 `finding <ID> · <ID>`) |
 | 10. plan complete | 본 PR 의 모든 체크박스 `[x]` + follow-up 0건 시 `git mv` (같은 PR 안 별 commit). plan 이동만 담은 별 PR 금지 | `chore(plan): mark <name> complete` |
 
 규칙:
 
 - **항상 새 commit** (`--amend` 금지).
 - 단계 실패·사용자 중단 시 commit 안 함.
-- 한 단계당 1 commit 원칙. 영역 분리 필요 시 사용자 먼저 묻기.
+- 한 단계당 1 commit 원칙. 단 9단계는 발견마다 1 commit 이다(위 표). 영역 분리 필요 시 사용자 먼저 묻기.
 - **`git add -A` 금지** — 변경 파일 명시 add.
 - **commit 사이 `git status`·`git diff` 호출 최소화**. 단계 종료 후 1회만 `git status --short` 로 변경 set 확인. `git diff --staged` 는 commit 직전 자가 점검이 필요할 때만, 그 외엔 pre-commit hook 결과로 검증.
 - pre-commit hook 실패 → `--no-verify` 우회 금지. 원인 fix 후 새 commit.
 - 사용자가 "잠깐"·"한 번에 합쳐"·"보고 결정할게" 명시 시 자동 commit 일시 중단.
-- **plan 체크박스는 그 단계의 통과를 담은 commit 에 함께 갱신**한다. 예: 8단계 TEST WORKFLOW(e2e 포함) 통과 → 그 commit 에 `[x] e2e`; 9단계 REVIEW WORKFLOW 완료 → 그 commit 에 `[x] /ai-review`. 단계를 수행해놓고 plan 박스를 `[ ]` 로 남긴 채 push 금지 (§절대 원칙 "plan 체크박스 = 실제 상태").
+- **plan 체크박스는 그 단계가 끝난 직후 갱신**한다. 8단계 TEST WORKFLOW(e2e 포함) 통과 → 그 commit 에 `[x] e2e`. 9단계 REVIEW WORKFLOW 는 fix 커밋이 발견마다 따로이고 0건일 수도 있으므로, 처분까지 끝나면 별도 `docs(plan):` 커밋으로 `[x] /ai-review` 를 단다(fix 커밋에 섞지 않는다. 그 커밋이 처분의 `commit_sha` 다). 단계를 수행해놓고 plan 박스를 `[ ]` 로 남긴 채 push 금지 (§절대 원칙 "plan 체크박스 = 실제 상태").
 
 > 0~3단계는 자체 commit 없음. 산출물은 4단계 commit 또는 `chore(plan):` 별 commit.
 

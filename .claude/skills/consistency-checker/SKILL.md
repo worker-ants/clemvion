@@ -14,7 +14,7 @@ spec / plan / 구현 변경이 **저장되기 전** 단계에서 기존 문서�
 
 - **사전 검출**: target 문서 디스크 쓰기 전 호출이 정상.
 - **Critical = 차단**: SUMMARY.md 상단 `BLOCK: YES` 면 호출자 즉시 멈춤.
-- **출력은 markdown**: `review/consistency/<YYYY>/<MM>/<DD>/<hh>_<mm>_<ss>/SUMMARY.md` 단일 결과 진입점.
+- **출력은 markdown + NERV 레코드**: 로컬 `.review/consistency/<YYYY>/<MM>/<DD>/<hh>_<mm>_<ss>/SUMMARY.md`(gitignore, 커밋하지 않음)가 단일 결과 진입점이고, checker 리포트는 checker 마다 NERV `kind=consistency` 로 제출한다(전환 단계 2).
 - **재진입성**: plan/spec 자동 수정 안 함, 산출물 디렉토리만 누적.
 
 ## 5개 Checker
@@ -60,7 +60,7 @@ python3 .claude/skills/consistency-checker/scripts/consistency_orchestrator.py -
   > 증거 보존만 자동화했다.
 - `--plan <path>` — plan draft.
 - `--impl-prep <scope>` — 구현 착수 직전. scope = spec 영역 경로.
-- `--impl-done <scope>` — **구현 완료 후 사후 검증**. scope = spec 영역 경로. target_doc 에 spec 영역 파일 + `git diff <diff-base>...HEAD -- <code_areas>` 가 함께 묶여, 5 checker 가 "spec 본문 vs 실 구현 diff" 정합성을 사후 분석. `--diff-base <ref>` 로 base 변경 (default: `origin/main`). **이 base 는 전 모드 공통으로 번들 우선순위 산정에도 쓰인다** — 이 브랜치가 변경한 파일이 컨텍스트 예산의 앞자리를 받는다. **spec 연결 코드(어떤 spec 의 frontmatter `code:` glob 에 매칭) 변경 시 developer REVIEW WORKFLOW 의 의무 단계** — `BLOCK: NO` 산출물이 없으면 `review_guard.py` 의 SPEC-CONSISTENCY 게이트가 push·턴종료를 차단한다. (이전엔 "권장" 이었으나 종료 게이트로 승격: code-vs-spec 일치 검증의 비대칭 해소.) target_doc 맨 앞에는 **HEAD 워킹트리 절대경로 + "CWD 상대 Read/Grep 은 diff-base(변경 전) 라 신뢰 금지" 가드**가 박힌다 — checker sub-agent 의 CWD 가 default-branch 체크아웃이라 신규 추가 코드를 "미구현" 으로 오탐하던 #738 버그 차단 (코드 확인은 절대경로 / `git -C <root>` 로).
+- `--impl-done <scope>` — **구현 완료 후 사후 검증**. scope = spec 영역 경로. target_doc 에 spec 영역 파일 + `git diff <diff-base>...HEAD -- <code_areas>` 가 함께 묶여, 5 checker 가 "spec 본문 vs 실 구현 diff" 정합성을 사후 분석. `--diff-base <ref>` 로 base 변경 (default: `origin/main`). **이 base 는 전 모드 공통으로 번들 우선순위 산정에도 쓰인다** — 이 브랜치가 변경한 파일이 컨텍스트 예산의 앞자리를 받는다. **developer REVIEW WORKFLOW 의 의무 단계** — 결과를 checker 마다 `kind=consistency` 로 NERV 에 제출하고(`task_id` 포함) 발견을 처분한다. NERV Task done 게이트(`done_gate.review_coverage`)가 그 Task 의 consistency 라운드를 요구한다. (전환 단계 2 전에는 `review_guard.py` 의 SPEC-CONSISTENCY 게이트가 spec 연결 코드 변경의 push 를 이 산출물의 세션 시각으로 막았다. 그 게이트는 걷혔다.) target_doc 맨 앞에는 **HEAD 워킹트리 절대경로 + "CWD 상대 Read/Grep 은 diff-base(변경 전) 라 신뢰 금지" 가드**가 박힌다 — checker sub-agent 의 CWD 가 default-branch 체크아웃이라 신규 추가 코드를 "미구현" 으로 오탐하던 #738 버그 차단 (코드 확인은 절대경로 / `git -C <root>` 로).
 
 > **NERV 미러와 대조 코퍼스 (전환 단계 1 ~ 4e)**: 오케스트레이터는 미러(`spec/README.md` · `spec/CLE-*`)를 대조 코퍼스(`related_specs` · `conventions`)에서 뺀다. 같은 내용이 두 모양으로 들어가 예산을 두 번 쓰기 때문이다. 그래서 `--impl-prep` · `--impl-done` 의 scope 는 옛 트리 영역 경로를 준다. 미러 경로를 scope 로 주면 대상은 미러, 대조는 동결된 옛 트리가 되어 결과는 참고용이다. 코퍼스를 미러로 옮기는 일은 단계 4e 다. 그 전까지 NERV 에서 새로 쓴 스펙 · Rationale 과의 연속성은 로컬 checker 가 보지 못하고 `nerv_spec_check` 가 맡는다.
 
@@ -94,7 +94,11 @@ Workflow 반환값 (항상 경로+전문):
 - `recovered[]` — 계약을 어기고 파일 대신 텍스트로 전문을 반환한 checker. 스크립트가 전문을 건져 summary 에 넘겼고 파일 영속화도 지시했다. `ls` 로 확인.
 - `unfinished[]` — **전문조차 확보 못 한** checker(파일도 없고 반환 본문도 없음). 비어있지 않으면 해당 checker 만 재실행. status 가 success 가 아니어도 전문이 있으면 여기 포함되지 않는다 — 재실행 불요.
 
-**반드시** `summary_markdown` 을 `summary_output` 에 Write 한다 — `summary_written` 값과 **무관하게 멱등 persist**. 하네스가 `SUMMARY.md` 를 어떤 sub-agent 도 못 쓰게 막고 workflow 스크립트는 FS 접근이 없으므로, **디스크 단일 진실의 유일한 경로가 main 의 이 Write** 다. 그 다음 반환의 `block` (또는 기록한 SUMMARY 상단)으로 `BLOCK: YES/NO` 판정.
+**반드시** `summary_markdown` 을 `summary_output` 에 Write 한다 — `summary_written` 값과 **무관하게 멱등 persist**. 하네스가 `SUMMARY.md` 를 어떤 sub-agent 도 못 쓰게 막고 workflow 스크립트는 FS 접근이 없으므로, **로컬 SUMMARY 의 유일한 경로가 main 의 이 Write** 다. 그 다음 반환의 `block` (또는 기록한 SUMMARY 상단)으로 `BLOCK: YES/NO` 판정.
+
+### 3.5 NERV 제출 (main 의 의무)
+
+절차는 `code-review-agents` SKILL §4 와 같고 `kind=consistency` 만 다르다. `python3 .claude/tools/nerv_review_payload.py <session_dir>` 가 checker 리포트를 checker 별 제출 묶음으로 바꾼다(kind 는 세션 경로에서 `consistency` 로 읽는다). 묶음마다 `nerv_review_submit(kind=consistency, …)` 를 부른다(인자 · `idempotency_key` · `changeset` 은 그 절. 키의 `<mode>` 는 `spec` · `prep` · `done`). 발견은 `nerv_finding_resolve` 로 처분한다. 출력의 `warnings[]` 에 `SUMMARY.md: … 하향 …` 이 있으면 SUMMARY 가 checker 의 `[CRITICAL]` 을 낮춘 것이다 — 아래 §4 금지 조항 위반이니 SUMMARY 를 바로잡는다. NERV 판정은 checker 리포트로 서므로 SUMMARY 의 하향이 라운드를 통과시키지는 못한다. `--spec`(스펙 초안) · `--impl-prep` · `--impl-done` 결과 모두 같은 방법으로 낸다. 단 `task_id` 는 `--impl-done` 결과에만 붙인다. NERV done 게이트는 Task 에 묶인 consistency 라운드를 보므로, 구현 전 검토(`--impl-prep`)나 스펙 초안 검토(`--spec`)가 그 자리를 채우면 사후 검증 없이 done 이 된다.
 
 > **재시도 정책 차이**: Workflow 경로는 옛 ScheduleWakeup cross-turn quota 자동 재시도를 갖지 않는다. 사전 쓰기 게이트(대화형 실행)라 수용 가능 — 한도 시 사용자가 재호출하거나 `unfinished` checker 만 다시 돌린다.
 
@@ -130,11 +134,9 @@ Workflow 가 불가한 환경에서는 orchestrator 의 `--summary-state` / `--u
 - 사용자 직접 호출이면 → 핵심 보여주고 결정 요청.
 
 **Critical 하향은 금지다.** checker 의 `[CRITICAL]` 을 통합 단계에서 WARNING 으로 낮춰 `BLOCK: NO`
-를 내는 것은 근거가 타당해 보여도 규약 위반이다 — 게이트는 판정 자체를 `BLOCK:` 줄로 읽으므로
-그 하향이 차단을 실제로 통과시킨다 — 다만 이제 게이트가 checker 리포트의 `[CRITICAL]` 과
-모순되면 경고를 낸다(차단은 아니다). 단 그 경고는 `--impl-done` 세션이 게이트에 채택될 때만
-발화하므로, `--spec`/`--plan`/`--impl-prep` 이나 spec-linked 변경이 없는 경우는 이 금지 조항이
-유일한 방어다 (`consistency-summary.md §요약 지침 3`).
+를 내는 것은 근거가 타당해 보여도 규약 위반이다. 호출자는 `BLOCK:` 줄을 읽고 다음 단계로 가기
+때문이다(스펙 초안의 검토 요청 · 구현 착수). NERV 라운드는 checker 리포트로 판정하므로 그쪽은
+하향에 속지 않는다. 제출 도우미가 하향을 경고로 알린다(§3.5). (`consistency-summary.md §요약 지침 3`)
 
 **근본 원인이 스펙이면 (`developer` 턴의 스펙 drift 등) 스펙 초안으로 넘긴다.**
 "구현은 끝났는데 스펙 표가 stale" 은 코드만으로 닫을 수 없는 정상적인 중간 상태다. 우회하지
@@ -163,7 +165,7 @@ Workflow 가 불가한 환경에서는 orchestrator 의 `--summary-state` / `--u
 | 환경변수 | 기본값 | 설명 |
 | --- | --- | --- |
 | `CONSISTENCY_AGENTS` | (전체 5) | 실행할 checker 쉼표 구분 |
-| `CONSISTENCY_OUTPUT_DIR` | `./review/consistency` | 결과 디렉토리 |
+| `CONSISTENCY_OUTPUT_DIR` | `./.review/consistency` | 결과 디렉토리 (gitignore, 커밋하지 않는다) |
 | `CONSISTENCY_MAX_CONTEXT_SIZE` | `262144` | checker 1명분 prompt body 상한 |
 | `AI_REVIEW_LOOP` | `0` | `1` → loop_mode=true |
 | `DISABLE_CONSISTENCY_CHECK` | `0` | `1` 이면 비활성화 |

@@ -33,6 +33,13 @@ spec_impact: none
 > `plan_guard._frontmatter_worktree` 가 줄 전체를 값으로 읽어 **연결이 끊겼고** push 가
 > 막혔다(`linked = [deps-peer-gating-and-eslint10.md]` 하나뿐). 경위는 본문에 적는다.
 
+> _(2026-10-01, NERV 전환 단계 2 — NERV Task `CLE-T-4ABTG7`)_ 리뷰 게이트가 NERV 라운드 판정으로
+> 바뀌면서 `review_guard.py` 의 Gate 2(`_newest_resolved_impl_done_mtime` · `_spec_linked_changes` ·
+> `_spec_code_patterns`)와 `evaluate_review` 의 `in_flight_ok` 가 없어졌다. 그래서 defer 5번(boolean
+> flag 구조)과 §O 의 (조사) Gate 2 scope 대조는 대상이 사라져 닫았다. §O 의 `spec/*.md` 파일 scope
+> 항목은 스펙 경로가 NERV 미러로 바뀌어 전환 4e(NERV Task `CLE-T-VP5KDJ`)에서 다룬다. 번들 예산 ·
+> 기본 브랜치 해석 · tier 굶주림 · §M · §N 은 consistency 오케스트레이터 쪽이라 그대로다.
+
 ## 현재 상태 (2026-09-10 갱신)
 
 원 번호 14건 중 **12건 종결 + 1건 철회(§5)**.
@@ -201,6 +208,9 @@ spec_impact: none
 - [ ] **신규 가드를 `spec-impl-evidence.md §4.2` SoT 에 등재** (리뷰 1R documentation W5).
       `stray-tool-tags.test.ts` 는 build 차단 가드인데 그 family 의 규약 SoT(§4.2 표 +
       frontmatter `code:` + "build 차단 **4건**" 카운트)에 없다.
+      → **(2026-10-01, NERV 전환 단계 2)** 세 번째 유예가 되지 않게 처리했다. 대상 문서가 NERV 로 옮겨져
+      옛 경로 `spec/conventions/spec-impl-evidence.md` 는 읽기 전용이다. 그래서 NERV `CLE-ENG-SPECEVIDENCE`
+      초안에 가드 표 한 행 · 구현 위치 한 줄 · "빌드 차단 5건" 을 넣었다(사람 승인 대기). 승인되면 이 항목을 체크한다.
 
       **이번 PR 에서 안 하는 이유**: `spec/` 편집이라 planner 턴 + 별도 `--spec` 라운드가
       필요한데, 같은 리뷰의 scope WARNING #1 이 **"이 PR 에 spec 축이 이미 과하게 묶였다"**
@@ -403,10 +413,12 @@ spec_impact: none
    재개한다면 import 표면을 넓히지 않는 형태여야 한다 — 예컨대 라이브러리 쪽에서
    `in_flight_ok` 를 **호출부 식별자로 요구**(키워드 필수화)해 기본값 자체를 없애는 쪽.
 
-5. **`evaluate_review` 의 boolean flag 구조** — push(hard block)/stop(soft nudge) 두 보증
+5. ~~**`evaluate_review` 의 boolean flag 구조** — push(hard block)/stop(soft nudge) 두 보증
    수준을 `in_flight_ok` 하나로 스위칭한다. 현재는 fail-safe 기본값 + 양방향 seam 테스트로
    봉쇄돼 있으나, 세 번째 호출부가 생기면 다시 기본값에 의존한다.
-   `evaluate_review_for_push()` / `_for_stop()` 얇은 wrapper 로 시그니처 레벨 차단 검토.
+   `evaluate_review_for_push()` / `_for_stop()` 얇은 wrapper 로 시그니처 레벨 차단 검토.~~
+   → **대상 소멸 (2026-10-01, NERV 전환 단계 2).** `evaluate_review` 는 NERV 라운드 판정으로 바뀌었고
+   `in_flight_ok` 와 Stop 쪽 리뷰 호출부가 없어졌다.
 6. ~~**git 브랜치-diff 헬퍼가 두 orchestrator 에 중복**~~ → **처분 완료 (2026-08-07).**
    **선행 조건 전제가 반증됐다.** 이 항목은 "실제 코드 공유엔 `hooks/_lib` 와 `skills/_lib`
    의 네임스페이스 충돌 해소가 선행" 이라 적혀 있었으나, `.claude/_shared/` 가 **이미 그
@@ -1337,6 +1349,8 @@ scope 로 주고, 실제 대상 spec 을 직접 읽으라는 «(main 추가)» �
 
 - [ ] `--impl-prep` · `--impl-done` 이 `spec/*.md` **파일**도 scope 로 받게 한다 — 번들은 그 파일 하나 + 그 `code:` glob 의 diff. 사용법 예에
       `--impl-done spec/1-data-model.md` 한 줄. 이러면 보정 블록 관례가 사라진다.
-- [ ] (조사) Gate 2 가 scope 와 바뀐 spec-linked 파일의 spec 을 대조할지 — 덮지 않으면 경고(차단 아님)부터. 지금 판정
+      → 스펙 경로가 NERV 미러(`spec/<영역 키>/<KEY>.md`)로 바뀌어 전환 4e(NERV Task `CLE-T-VP5KDJ`)에서 다룬다(2026-10-01).
+- [x] ~~(조사) Gate 2 가 scope 와 바뀐 spec-linked 파일의 spec 을 대조할지 — 덮지 않으면 경고(차단 아님)부터. 지금 판정
       (`_spec_linked_changes` → `_spec_code_patterns`)은 모든 spec 의 `code:` glob 을 **한 묶음**으로 모아 «어느 spec 이 무는가» 를 버린다 —
-      대조하려면 그 대응부터 남겨야 한다. **정밀화 전에 `#970` 철회 이력을 읽을 것** — 차단으로 올리는 순간 표면이 커진다.
+      대조하려면 그 대응부터 남겨야 한다. **정밀화 전에 `#970` 철회 이력을 읽을 것** — 차단으로 올리는 순간 표면이 커진다.~~
+      → **대상 소멸 (2026-10-01, NERV 전환 단계 2)**: Gate 2 와 `_spec_linked_changes` · `_spec_code_patterns` 가 없어졌다.

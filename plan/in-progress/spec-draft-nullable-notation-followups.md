@@ -1012,8 +1012,13 @@ field: T | null;
       > 있는** 자격증명용이라 write-only 필드에 차용하지 않는다는 경계를 함께 적어, 다음
       > 구현자가 last4 노출 필드를 신설할 여지를 닫았다.
 
-- [ ] **`code:` 파서 두 벌을 golden fixture 코퍼스로 묶는다** (harness, 2026-09-06 등재,
+- [x] ~~**`code:` 파서 두 벌을 golden fixture 코퍼스로 묶는다**~~ (harness, 2026-09-06 등재,
       `review/code/2026/09/06/14_25_40` W2).
+      → **대상 소멸 (2026-10-01, NERV 전환 단계 2 — NERV Task `CLE-T-4ABTG7`)**: Python 파서
+      `review_guard._parse_frontmatter_code` 가 리뷰 게이트 교체와 함께 지워져 두 벌이 하나가 됐다.
+      남은 공백(주석을 끼운 `code:` 목록을 고정하는 프론트엔드 테스트가 없다)은 의도적으로 두고 전환 단계 5
+      (옛 트리 삭제)에서 함께 사라진다. NERV 로 옮긴 문서는 `code:` 를 쓰지 않는다. 이 판단은 NERV
+      `CLE-ENG-SPECEVIDENCE` 초안 Rationale «`code:` 목록에 주석을 허용한 경위» 에 적었다. 아래 원문은 이력이다.
 
       같은 YAML 을 Python(`review_guard._parse_frontmatter_code`)과
       TypeScript(`spec-frontmatter-parse.ts`, gray-matter)가 **각자 재구현**한다. 이
@@ -3609,6 +3614,25 @@ field: T | null;
       > (라운드 6 에서 실제로 그 이유로 하나를 뺐다), `plan/` 경로는 완료 시
       > `in-progress/` → `complete/` 로 **이동해서 깨진다**. 즉 "더 안정적인 앵커"가
       > 자명하지 않다는 것이 이 항목의 핵심이고, 그래서 택일을 기록해야 한다.
+      >
+      > **NERV 전환 단계 2 뒤 (2026-10-01, NERV Task `CLE-T-4ABTG7`).** 새 리뷰는 `review/**` 를
+      > 만들지 않는다. 결과는 NERV 리뷰 레코드이고 로컬 `.review/**` 는 커밋하지 않는다. 그래서
+      > 대안이 하나 늘었다. **NERV 발견 전체 ID**(`finding <UUID>`)는 파일 이동 · 삭제와 무관하고
+      > push 전에 확정되며, push 게이트가 커밋 메시지에서 이미 이 형식을 읽는다. 앞 8자는 같은 분에
+      > 생긴 발견끼리 겹치므로 전체 ID 만 쓴다. 옛 `review/` 트리는 전환 단계 3(NERV Task
+      > `CLE-T-FN2JWK`)에서 지운다. **그 삭제 전에 이 택일을 정해야 한다.** 지우는 순간 기존 인용이
+      > 모두 죽은 링크가 된다. 규약 결정은 NERV 스펙 `CLE-ENG-REVIEWCITE` 초안으로 한다.
+      > 현재 규모(2026-10-01, `543d407a7` 에서 `git grep -o -E "review/(code|consistency|merge|spec-coverage)/20[0-9]{2}/" -- codebase`):
+      > **97개 파일 · 350회**. 등재 때의 75개 · 225회와 패턴이 같은지는 확인하지 않았다(등재 때 명령이
+      > 남아 있지 않다).
+      >
+      > **결정안 (2026-10-01)**: 새 리뷰는 NERV 발견 전체 ID 로 인용하고(`finding <ID>`), 옛 경로 인용은
+      > 소급하지 않고 git 이력으로 되짚는다. `CLE-ENG-REVIEWCITE` 초안 규칙 9 · 10 이 정했고 사람 승인
+      > 대기다. **승인되면 이 항목을 체크한다.** 함께 생긴 다른 결정은 아래 하위 항목으로 나눴다.
+
+      - [ ] 리뷰 인용 가드(`dto-jsdoc-citation-guard.ts`)를 줄인 발견 ID · `.review/**` 경로까지 넓힐지
+            정한다(planner). 지금은 응답 DTO JSDoc 의 `.review/code/…` 가 옛 경로 정규식에 우연히 걸린다.
+            소유: NERV Task `CLE-T-M7K35H`(전환 4g) 본문 「단계 2 에서 넘어온 항목」.
 
 - [ ] **`guide-identifier-scan.ts` 가 코드 84줄에 주석 260줄이다 (72%)** (developer,
       2026-09-13 등재 · `/ai-review` `review/code/2026/09/13/17_26_33` maintainability

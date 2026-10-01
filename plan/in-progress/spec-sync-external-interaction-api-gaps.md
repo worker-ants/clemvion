@@ -2045,6 +2045,17 @@ consistency `--impl-prep`(`15_35_56`, 2026-08-22)가 하나 더 냈다 — 역�
       > `meta.json` 의 `agents_forced` 를 읽게 한다 — 자기검사가 입력에 의존하지 않게.
       > (b) orchestrator 가 `--agents` 를 받아 forced 목록 자체를 좁혀 기록하게 한다.
       > (a) 가 옳아 보이지만 forced 화이트리스트의 **취지**(축소 불가)를 확인해야 한다.
+      >
+      > **NERV 전환 단계 2 뒤 (2026-10-01, NERV Task `CLE-T-4ABTG7`).** 위 서사의 게이트 함수
+      > (`_summary_is_resolved` · `newest_review` · `_forced_coverage_missing`)는 없어졌다. push · CI
+      > 게이트는 이제 NERV 라운드를 보고, 필수 6역할(security · requirement · scope · side_effect ·
+      > maintainability · testing)은 NERV 정책 `review_roles.code` 가 **제출된 역할 리포트**로 센다.
+      > 그래서 좁힌 `agents_forced` 로 SUMMARY 를 초록으로 만들어도 6역할이 빠지면 라운드가
+      > `missing_roles` 로 남아 막힌다. 진단은 `python3 .claude/tools/nerv_review_payload.py <session_dir>`
+      > (forced 리포트가 빠지면 `missing_forced` 와 exit 1)와 REST 판정의 `roles.missing` 으로 한다.
+      > 남는 구멍은 6역할 밖 강제 reviewer 넷(documentation · dependency · database · api_contract)이다.
+      > 이들은 도구만 알리고 게이트는 보지 않는다. 이 축소를 닫는 일은 전환 4e(NERV Task
+      > `CLE-T-VP5KDJ`)로 넘겼다.
 
 ## `config` 장기 참조 × egress identity 캐시 (2026-08-27 등재, `12_52_43` W4, **오늘은 도달 불가**)
 
