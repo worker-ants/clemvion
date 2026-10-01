@@ -46,10 +46,10 @@ python3 .claude/skills/consistency-checker/scripts/consistency_orchestrator.py -
 ```
 
 모드 (첫 호출 — `--resume` 없을 때 택일):
-- `--spec <path>` — spec draft (project-planner 의 `spec/` 쓰기 직전 의무).
+- `--spec <path>` — 스펙 초안. NERV 초안을 **저장한 뒤 검토 요청 전** 의무다(`nerv_spec_check` 와 함께, 결정 D10). `<path>` 는 `nerv_spec_get(basis=latest)` 로 받은 초안 본문을 둔 파일이다(scratchpad 의 절대 경로도 받는다). 결과는 `kind=consistency` 로 NERV 에 제출한다.
   > **draft 원본이 `<session>/_target/` 에 보존된다** (`meta.json` 의 `target_snapshot`).
-  > draft 는 임시 파일이 아니라 **산출물**이다 — `developer` 가 `spec/` 을 직접 못 고치는
-  > 경계는 "planner 턴을 밟았다" 로만 정당화되고 draft 가 그 유일한 증거다. planner 턴 끝에
+  > draft 는 임시 파일이 아니라 **산출물**이다 — 옛 흐름에서 `developer` 가 `spec/` 을 직접 못 고치는
+  > 경계는 "planner 턴을 밟았다" 로만 정당화되고 draft 가 그 유일한 증거였다. planner 턴 끝에
   > draft 를 지우는 일이 두 턴 연속 벌어져(`#1242`·`#1243`) main 이 존재하지 않는 파일을
   > 인용하는 상태가 됐고, 그때 복원은 `_prompts/` 코드펜스에 원문이 **우연히** 남아 있어서
   > 가능했다(프롬프트의 target 은 예산에 따라 잘린다). 그 우연을 계약으로 바꾼 것이 이
@@ -61,6 +61,8 @@ python3 .claude/skills/consistency-checker/scripts/consistency_orchestrator.py -
 - `--plan <path>` — plan draft.
 - `--impl-prep <scope>` — 구현 착수 직전. scope = spec 영역 경로.
 - `--impl-done <scope>` — **구현 완료 후 사후 검증**. scope = spec 영역 경로. target_doc 에 spec 영역 파일 + `git diff <diff-base>...HEAD -- <code_areas>` 가 함께 묶여, 5 checker 가 "spec 본문 vs 실 구현 diff" 정합성을 사후 분석. `--diff-base <ref>` 로 base 변경 (default: `origin/main`). **이 base 는 전 모드 공통으로 번들 우선순위 산정에도 쓰인다** — 이 브랜치가 변경한 파일이 컨텍스트 예산의 앞자리를 받는다. **spec 연결 코드(어떤 spec 의 frontmatter `code:` glob 에 매칭) 변경 시 developer REVIEW WORKFLOW 의 의무 단계** — `BLOCK: NO` 산출물이 없으면 `review_guard.py` 의 SPEC-CONSISTENCY 게이트가 push·턴종료를 차단한다. (이전엔 "권장" 이었으나 종료 게이트로 승격: code-vs-spec 일치 검증의 비대칭 해소.) target_doc 맨 앞에는 **HEAD 워킹트리 절대경로 + "CWD 상대 Read/Grep 은 diff-base(변경 전) 라 신뢰 금지" 가드**가 박힌다 — checker sub-agent 의 CWD 가 default-branch 체크아웃이라 신규 추가 코드를 "미구현" 으로 오탐하던 #738 버그 차단 (코드 확인은 절대경로 / `git -C <root>` 로).
+
+> **NERV 미러와 대조 코퍼스 (전환 단계 1 ~ 4e)**: 오케스트레이터는 미러(`spec/README.md` · `spec/CLE-*`)를 대조 코퍼스(`related_specs` · `conventions`)에서 뺀다. 같은 내용이 두 모양으로 들어가 예산을 두 번 쓰기 때문이다. 그래서 `--impl-prep` · `--impl-done` 의 scope 는 옛 트리 영역 경로를 준다. 미러 경로를 scope 로 주면 대상은 미러, 대조는 동결된 옛 트리가 되어 결과는 참고용이다. 코퍼스를 미러로 옮기는 일은 단계 4e 다. 그 전까지 NERV 에서 새로 쓴 스펙 · Rationale 과의 연속성은 로컬 checker 가 보지 못하고 `nerv_spec_check` 가 맡는다.
 
 stdout 마지막 줄 = 세션 디렉토리.
 
@@ -124,7 +126,7 @@ Workflow 가 불가한 환경에서는 orchestrator 의 `--summary-state` / `--u
 
 `BLOCK: YES` 발견 시:
 - `developer` 안 호출이면 → 구현 진입 중단.
-- `project-planner` 안 호출이면 → `spec/` 쓰기 중단.
+- 스펙 초안 검토면 → 검토 요청(`nerv_spec_submit_review`) 중단.
 - 사용자 직접 호출이면 → 핵심 보여주고 결정 요청.
 
 **Critical 하향은 금지다.** checker 의 `[CRITICAL]` 을 통합 단계에서 WARNING 으로 낮춰 `BLOCK: NO`
@@ -134,10 +136,12 @@ Workflow 가 불가한 환경에서는 orchestrator 의 `--summary-state` / `--u
 발화하므로, `--spec`/`--plan`/`--impl-prep` 이나 spec-linked 변경이 없는 경우는 이 금지 조항이
 유일한 방어다 (`consistency-summary.md §요약 지침 3`).
 
-**근본 원인이 호출자 권한 밖이면 (`developer` 턴의 `spec/` drift 등) planner 로 즉시 인계한다.**
-"구현은 끝났는데 spec 표가 stale" 은 developer 혼자 닫을 수 없는 정상적인 중간 상태다. 우회하지
-말고 SUMMARY 의 **§planner 인계** 표를 근거로 `project-planner` 턴을 열어 spec 을 정정한 뒤
-재실행한다. 실측상 planner 턴의 spec 정정이 우회 설계보다 쌌다(3줄).
+**근본 원인이 스펙이면 (`developer` 턴의 스펙 drift 등) 스펙 초안으로 넘긴다.**
+"구현은 끝났는데 스펙 표가 stale" 은 코드만으로 닫을 수 없는 정상적인 중간 상태다. 우회하지
+말고 SUMMARY 의 **§planner 인계** 표를 근거로 NERV 스펙 초안(`/nerv:spec edit`)을 쓰고 검토
+요청한 뒤 재실행한다. 초안은 developer 도 쓸 수 있고 승인은 사람이 한다(결정 D8). planner 가
+`spec/` 을 바로 고치던 옛 흐름에서는 스펙 정정이 우회 설계보다 쌌다(3줄). 승인 대기가 들어간 지금
+흐름의 비용은 아직 재지 않았다.
 
 > 이 경로가 문서화되기 전에는 요약 에이전트가 스스로 하향을 발명해 진행했다
 > (`review/code/2026/07/25/22_58_00`). 막다른 길처럼 보이면 우회가 생긴다 — 그래서 금지와
@@ -145,10 +149,10 @@ Workflow 가 불가한 환경에서는 orchestrator 의 `--summary-state` / `--u
 
 ## 호출자 워크플로
 
-**project-planner**:
-1. spec 변경안을 `plan/in-progress/spec-draft-<name>.md` 에 작성.
-2. `/consistency-check --spec <path>` 호출.
-3. `BLOCK: NO` 일 때만 `spec/` 반영. Warning 은 `## Rationale` 에 노트.
+**스펙 초안 작성자**(project-planner · developer):
+1. NERV 초안을 저장한다(`/nerv:spec new|edit`).
+2. 초안 본문을 파일로 받아 `/consistency-check --spec <path>` 호출, `nerv_spec_check` 도 돈다.
+3. `BLOCK: NO` 일 때만 검토 요청(`nerv_spec_submit_review`). Warning 은 초안 `## Rationale` 에 노트. 저장소 `spec/` 은 쓰지 않는다(미러는 구현 PR 이 pull 한다).
 
 **developer**:
 1. `/consistency-check --impl-prep <spec/영역>` 을 구현 착수 전.

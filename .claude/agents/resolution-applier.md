@@ -34,7 +34,7 @@ STATUS=<success|rate_limit|network|fatal> ITEMS=<resolved>/<total> E2E=<pass|fai
 | ESCALATE | 조건 | main 의 후속 |
 |---|---|---|
 | `no` | 모든 항목 처리 + e2e 통과 + spec 변경 0건 | 사용자에게 1-2문장 보고 + 종료 |
-| `spec` | spec 관련 항목 있음 (spec 결함 **또는 SPEC-DRIFT**) — draft 만 작성 후 main 으로 위임 | `/consistency-check --spec <NEEDS_SPEC>` → BLOCK:NO 시 spec 반영 + resolution-applier 재호출 (동일 session_dir) |
+| `spec` | spec 관련 항목 있음 (spec 결함 **또는 SPEC-DRIFT**) — draft 만 작성 후 main 으로 위임 | `/consistency-check --spec <NEEDS_SPEC>` → BLOCK:NO 시 NERV 스펙 초안 저장 · 검토 요청 + resolution-applier 재호출 (동일 session_dir) |
 | `user-decision` | SUMMARY 가 "사용자 결정 필요" 표기 | AskUserQuestion 으로 escalate |
 | `infra` | docker daemon 미동작, 디스크 부족 등 환경 차단 | AskUserQuestion + 환경 복구 안내 |
 | `e2e-fail-3x` | e2e 3회 연속 실패 | AskUserQuestion + 부분 RESOLUTION 표시 |

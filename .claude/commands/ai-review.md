@@ -16,7 +16,7 @@ Route → Review → Summary 는 `Workflow` tool 이 결정적으로 처리한�
 3. **SUMMARY 디스크 기록 + 위험도 확인**: **반드시** 반환의 `summary_markdown` 을 `summary_output` 에 Write 한다 (`summary_written` 값과 **무관하게 멱등 persist** — 하네스가 `SUMMARY.md` **basename** Write 를 어떤 sub-agent 에게도 허용하지 않고(terminal 여부와 무관 — `subagent-call-contract.md §7` 실측표) workflow 스크립트는 FS 접근이 없으므로, 디스크 단일 진실의 **유일한** 경로가 main 의 이 Write 다. 건너뛰면 SUMMARY.md 가 디스크에 없어 review-before-stop 가드 미해소). 그 다음 반환의 `risk`/`critical_count`/`warning_count` 로 위험도 확인. `unfinished[]` 있으면 해당 reviewer 재실행.
 4. **자동 후속 흐름**: 반환의 `critical_count` + `warning_count` 가 0 보다 크면 `Agent(subagent_type="resolution-applier", prompt="session_dir=<...>")` (이 단계는 코드 수정·commit·e2e 라 bespoke Agent — Workflow 부적합). ESCALATE flag 분기:
    - `no` → 사용자 1-2문장 보고 + 종료
-   - `spec` → `/consistency-check --spec <NEEDS_SPEC>` → BLOCK:NO 시 spec 반영 + resolution-applier 재호출
+   - `spec` → `/consistency-check --spec <NEEDS_SPEC>` → BLOCK:NO 시 NERV 스펙 초안 저장 · 검토 요청 + resolution-applier 재호출
    - `user-decision` / `infra` / `e2e-fail-3x` / `sensitive-fix` → AskUserQuestion 으로 escalate
    - `rate_limit` / `network` → ScheduleWakeup 으로 재예약 (idempotency 복구)
 
