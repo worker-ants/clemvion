@@ -146,7 +146,9 @@ def parse_report(text: str, role: str) -> tuple[dict, list[str]]:
         m = _FINDING_RE.match(ln) or _HEADING_FINDING_RE.match(ln)
         if m:
             starts.append((i, m.group(1), m.group(2)))
-        elif _MARKER_RE.search(ln) and not ln.lstrip().startswith(("|", ">")):
+        elif _MARKER_RE.search(ln):
+            # 표 · 인용 줄도 센다. 9월 역할 리포트 5,457개 중 그런 줄은 1개(인용)라 경고가 흔하지 않고,
+            # 빼면 표에 쓴 발견이 경고 없이 빠진다.
             warnings.append(f"{role}.md:{i + 1}: 발견 형식이 아닌 줄에 심각도 표지가 있다 — {ln.strip()[:80]}")
     for n, (i, severity, title) in enumerate(starts):
         end = starts[n + 1][0] if n + 1 < len(starts) else len(lines)

@@ -101,11 +101,11 @@ class ParseReportTest(unittest.TestCase):
         self.assertEqual(w, [])
 
     def test_off_format_markers_are_warned_not_dropped_silently(self):
-        text = "## 발견사항\n\n[CRITICAL] 형식 밖의 발견\n\n| 1 | [WARNING] 표 안 |\n"
+        text = "## 발견사항\n\n[CRITICAL] 형식 밖의 발견\n\n| 1 | [WARNING] 표 안 |\n> [CRITICAL] 인용\n"
         sub, w = tool.parse_report(text, "testing")
         self.assertEqual(sub["findings"], [])
-        self.assertEqual(len(w), 1, w)
-        self.assertIn("testing.md:3", w[0])
+        self.assertEqual(len(w), 3, w)
+        self.assertEqual([x.split(":")[1] for x in w], ["3", "5", "6"])
 
     def test_heading_shaped_findings_are_read(self):
         sub, _ = tool.parse_report("### [WARNING] 제목형 발견\n- 상세: 본문\n", "cross_spec")

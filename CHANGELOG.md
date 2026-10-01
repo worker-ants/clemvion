@@ -42,8 +42,10 @@
 - **spec-impl 정합 게이트(Gate 2) 제거**: spec frontmatter `code:` 와 `--impl-done` 세션 시각으로 막던 push 검사를 걷었다.
   `--impl-done` 결과는 `kind=consistency` 로 제출하고, NERV `done_gate.review_coverage` 가 Task done 을 막는다.
 - **Stop 훅 리뷰 nudge · resolution 마커 훅 2종 제거**: NERV 플러그인 Stop 훅이 열린 클레임으로 턴 종료를 한 번 막으므로 두 훅이
-  겹쳤다. `mark_resolution_in_flight.py` · `clear_resolution_in_flight.py` 와 `settings.json` 의 PreToolUse(Agent) · SubagentStop
-  배선을 지웠다. 이 PR 이 머지되기 전에 시작한 세션은 지운 훅을 부르므로 main pull 뒤 새 세션을 연다.
+  겹쳤다. `settings.json` 의 PreToolUse(Agent) · SubagentStop 배선을 지웠다. `mark_resolution_in_flight.py` ·
+  `clear_resolution_in_flight.py` 는 빈 스텁(exit 0)으로 남기고 단계 3 에서 지운다. 이 PR 이 머지되기 전에 시작한 세션은
+  옛 배선으로 그 파일을 부르는데, 파일이 없으면 모든 Agent 호출이 막힌다. 그래도 main pull 뒤에는 새 세션을 연다.
+- **제출 도우미 경고 확대**: 표 · 인용 줄의 심각도 표지도 경고한다(9월 역할 리포트 5,457개 중 1개).
 - **편집 가드 확장** `guard_nerv_owned_paths.py`: `review/` 도 도구 편집을 막는다. 리뷰 · 일관성 · 통합 · spec-coverage
   오케스트레이터는 산출물을 gitignore 대상 `.review/` 에 쓴다. 옛 `review/` 는 단계 3 에서 지운다.
 - **router 강제 규칙 확장**: 바뀐 파일이 하나라도 있으면 확장자 · 위치와 무관하게 필수 6역할(security · requirement · scope ·
