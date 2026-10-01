@@ -2,10 +2,10 @@
 """Code Review Agents Orchestrator — prepare-only mode.
 
 Collects diff/context for `/ai-review` and writes:
-  - review/<timestamp>/_prompts/<agent>.md  (one prompt body per reviewer)
-  - review/<timestamp>/_retry_state.json    (pending/success/fatal lists +
+  - .review/code/<timestamp>/_prompts/<agent>.md  (one prompt body per reviewer)
+  - .review/code/<timestamp>/_retry_state.json    (pending/success/fatal lists +
                                              subagent invocation contract)
-  - review/<timestamp>/meta.json            (initial metadata)
+  - .review/code/<timestamp>/meta.json            (initial metadata)
 
 Prints **exactly one** session directory path to stdout — the last line is the
 session, and there is never more than one. (Until 2026-08-10 this printed one
@@ -163,7 +163,7 @@ def load_config(route_mode="auto"):
         skip_extensions = set()
 
     return {
-        "output_dir": os.environ.get("REVIEW_OUTPUT_DIR", "./review/code"),
+        "output_dir": os.environ.get("REVIEW_OUTPUT_DIR", "./.review/code"),
         "agents": agents,
         "agents_explicit": agents_explicit,
         "route_mode": route_mode,

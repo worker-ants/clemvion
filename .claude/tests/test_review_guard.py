@@ -1,561 +1,386 @@
-"""Unit tests for the review-coverage guard.
+"""리뷰 커버리지 게이트(`.claude/hooks/_lib/review_guard.py`) — NERV 라운드(N1)로 판정한다.
 
-Two surfaces:
-  - `_summary_is_resolved` — the SUMMARY.md / RESOLUTION.md parser (real temp
-    files; this is where format drift would bite).
-  - `evaluate_review` — the block/allow decision table (git + fs helpers are
-    patched so the table is asserted hermetically, mirroring test_branch_guard).
+NERV 정본 전환 단계 2(NERV Task `CLE-T-4ABTG7`)에서 판정 근거가 저장소 `review/**` 파일에서
+NERV 리뷰 라운드로 바뀌었다. 여기서 고정하는 것:
+
+  - 판정표 — 라운드 상태 · 라운드 head 의 소속 · 라운드 이후 커밋 · 처분 커밋의 소속.
+  - 판정 불가 — 서버 · 응답 · git 문제는 `GateUnavailable`, 설정 문제는 `GateMisconfigured`.
+    통과로 돌려주지 않는다(호출자가 세야 fail-open 이 조용히 지나가지 않는다).
+  - 서버 응답을 git 인자로 넘기기 전에 거른다.
+  - 실제 전송 경로 — loopback 가짜 서버 + 실물 `pull.Nerv`(curl).
+
+저장소는 매번 임시로 만든다(`_harness.make_temp_git_repo`). 판정표는 `client=` 대역으로,
+전송 경로는 `_harness.FakeNervServer` 로 돈다.
 """
 
 from __future__ import annotations
 
 import json
 import os
+import shutil
 import tempfile
 import unittest
+from pathlib import Path
 from unittest import mock
 
-import _harness  # noqa: F401  — side effect: puts .claude/hooks on sys.path
+import _harness
 from _lib import review_guard as rg
 
 
-CLEAN_SUMMARY = """# Code Review 통합 보고서
+class FakeClient:
+    """`pull.Nerv` 의 대역 — `project` 와 `get(path) -> (status, body)` 만 있으면 된다."""
 
-## 전체 위험도
-**NONE** — 변경 없음 수준
+    project = "clemvion"
 
-## Critical 발견사항
+    def __init__(self, item=None, *, status=200, raw=None, exc=None):
+        self.item = item
+        self.status = status
+        self.raw = raw
+        self.exc = exc
+        self.calls: list[str] = []
 
-| # | 카테고리 | 발견사항 | 위치 | 제안 |
-|---|----------|----------|------|------|
-
-## 경고 (WARNING)
-
-| # | 카테고리 | 발견사항 | 위치 | 제안 |
-|---|----------|----------|------|------|
-"""
-
-CRITICAL_SUMMARY = """# Code Review 통합 보고서
-
-## 전체 위험도
-**CRITICAL** — 인증 우회
-
-## Critical 발견사항
-
-| # | 카테고리 | 발견사항 | 위치 | 제안 |
-|---|----------|----------|------|------|
-| 1 | 보안 | 인증 우회 | auth.py:10 | 검증 추가 |
-
-## 경고 (WARNING)
-
-| # | 카테고리 | 발견사항 | 위치 | 제안 |
-|---|----------|----------|------|------|
-"""
-
-WARNING_ONLY_SUMMARY = """# Code Review 통합 보고서
-
-## 전체 위험도
-**MEDIUM** — 경고 1건
-
-## Critical 발견사항
-
-| # | 카테고리 | 발견사항 | 위치 | 제안 |
-|---|----------|----------|------|------|
-
-## 경고 (WARNING)
-
-| # | 카테고리 | 발견사항 | 위치 | 제안 |
-|---|----------|----------|------|------|
-| 1 | 유지보수 | 매직 넘버 | foo.py:3 | 상수화 |
-"""
+    def get(self, path):
+        self.calls.append(path)
+        if self.exc is not None:
+            raise self.exc
+        if self.raw is not None:
+            return self.status, self.raw
+        items = [self.item] if self.item is not None else []
+        return self.status, json.dumps({"branch": "feature", "items": items}).encode()
 
 
-class SummaryResolvedTest(unittest.TestCase):
-    def _write(self, summary_text, *, with_resolution=False):
-        d = tempfile.mkdtemp()
-        sp = os.path.join(d, "SUMMARY.md")
-        with open(sp, "w", encoding="utf-8") as f:
-            f.write(summary_text)
-        if with_resolution:
-            with open(os.path.join(d, "RESOLUTION.md"), "w") as f:
-                f.write("## 조치 항목\n## TEST 결과\n")
-        return sp
-
-    def test_clean_report_is_resolved(self):
-        self.assertTrue(rg._summary_is_resolved(self._write(CLEAN_SUMMARY)))
-
-    def test_critical_without_resolution_is_unresolved(self):
-        self.assertFalse(rg._summary_is_resolved(self._write(CRITICAL_SUMMARY)))
-
-    def test_warning_rows_without_resolution_is_unresolved(self):
-        self.assertFalse(
-            rg._summary_is_resolved(self._write(WARNING_ONLY_SUMMARY))
-        )
-
-    def test_critical_with_resolution_is_resolved(self):
-        self.assertTrue(
-            rg._summary_is_resolved(
-                self._write(CRITICAL_SUMMARY, with_resolution=True)
-            )
-        )
-
-    def test_warning_with_resolution_is_resolved(self):
-        self.assertTrue(
-            rg._summary_is_resolved(
-                self._write(WARNING_ONLY_SUMMARY, with_resolution=True)
-            )
-        )
+def code_item(state="passed", head=None, *, findings=(), round_no=1, reasons=(),
+              missing=(), total=None):
+    item = {
+        "kind": "code", "state": state, "round_no": round_no, "head_sha": head,
+        "reasons": list(reasons), "open": {"critical": 0, "warning": 0, "info": 0},
+        "roles": {"required": [], "reported": [], "missing": list(missing)},
+        "findings": list(findings),
+    }
+    if total is not None:
+        item["findings_total"] = total
+    return item
 
 
-class ForcedCoverageTest(unittest.TestCase):
-    """`agents_forced` (router_safety whitelist) must have run for a review to count.
-
-    Until this gate the whitelist was prose, and prose is what a "this diff is small"
-    judgement call talks itself past: 160 of 575 committed sessions were short a forced
-    reviewer when measured (2026-07-17), 107 of them carrying a RESOLUTION.md and so
-    passing as "resolved". One had skipped `security` on a diff editing the
-    open-redirect boundary.
-    """
-
-    def _session(self, *, forced, reports, with_resolution=True, output_dir=None):
-        d = tempfile.mkdtemp()
-        with open(os.path.join(d, "SUMMARY.md"), "w", encoding="utf-8") as f:
-            f.write(CLEAN_SUMMARY)
-        if with_resolution:
-            with open(os.path.join(d, "RESOLUTION.md"), "w") as f:
-                f.write("## 조치 항목\n## TEST 결과\n")
-        # `output_dir` lets a test record paths into a worktree that no longer exists —
-        # the shape every finished task leaves behind in a committed session.
-        base = output_dir if output_dir is not None else d
-        state = {
-            "agents_forced": list(forced),
-            "subagent_invocations": [
-                {"name": n, "output_file": os.path.join(base, f"{n}.md")} for n in forced
-            ],
-        }
-        with open(os.path.join(d, "_retry_state.json"), "w", encoding="utf-8") as f:
-            json.dump(state, f)
-        for n in reports:
-            with open(os.path.join(d, f"{n}.md"), "w", encoding="utf-8") as f:
-                f.write("# report\n")
-        return os.path.join(d, "SUMMARY.md")
-
-    def test_full_forced_coverage_is_resolved(self):
-        sp = self._session(forced=["security", "scope"], reports=["security", "scope"])
-        self.assertTrue(rg._summary_is_resolved(sp))
-
-    def test_a_missing_forced_reviewer_is_unresolved_even_with_a_RESOLUTION(self):
-        # The exact 2026-07-17 shape: RESOLUTION.md written, forced reviewer skipped.
-        sp = self._session(forced=["security", "scope"], reports=["scope"])
-        self.assertFalse(rg._summary_is_resolved(sp))
-
-    def test_a_claimed_success_without_a_report_does_not_count(self):
-        # Coverage is judged by files, never by agents_success — a self-reported status
-        # with no file behind it is the fake success this contract removes.
-        d = tempfile.mkdtemp()
-        with open(os.path.join(d, "SUMMARY.md"), "w", encoding="utf-8") as f:
-            f.write(CLEAN_SUMMARY)
-        with open(os.path.join(d, "_retry_state.json"), "w", encoding="utf-8") as f:
-            json.dump(
-                {
-                    "agents_forced": ["security"],
-                    "agents_success": ["security"],  # claimed…
-                    "subagent_invocations": [
-                        {"name": "security", "output_file": os.path.join(d, "security.md")}
-                    ],
-                },
-                f,
-            )  # …but no security.md on disk
-        self.assertFalse(rg._summary_is_resolved(os.path.join(d, "SUMMARY.md")))
-
-    def test_reports_are_found_when_the_recorded_worktree_is_gone(self):
-        # `output_file` points at the worktree the session ran in; that directory is
-        # deleted when the task ends while `review/**` lives on in git. Resolving against
-        # it would mark 537/575 committed sessions uncovered and fire on nearly all of them.
-        sp = self._session(
-            forced=["security"],
-            reports=["security"],
-            output_dir="/Volumes/gone/.claude/worktrees/dead-1234/review/code/2026/01/01/00_00_00",
-        )
-        self.assertTrue(rg._summary_is_resolved(sp))
-
-    def test_a_session_without_a_manifest_is_unaffected(self):
-        # Hand-written sessions and pre-manifest history must not be swept up: this gate
-        # only tightens sessions that declared a whitelist.
-        d = tempfile.mkdtemp()
-        sp = os.path.join(d, "SUMMARY.md")
-        with open(sp, "w", encoding="utf-8") as f:
-            f.write(CLEAN_SUMMARY)
-        self.assertEqual(rg._forced_coverage_missing(d), [])
-        self.assertTrue(rg._summary_is_resolved(sp))
-
-    def test_an_empty_forced_list_is_unaffected(self):
-        sp = self._session(forced=[], reports=[])
-        self.assertTrue(rg._summary_is_resolved(sp))
-
-    def test_a_corrupt_manifest_fails_open(self):
-        d = tempfile.mkdtemp()
-        sp = os.path.join(d, "SUMMARY.md")
-        with open(sp, "w", encoding="utf-8") as f:
-            f.write(CLEAN_SUMMARY)
-        with open(os.path.join(d, "_retry_state.json"), "w", encoding="utf-8") as f:
-            f.write("{not json")
-        self.assertEqual(rg._forced_coverage_missing(d), [])
-
-    def test_an_empty_report_does_not_count_as_coverage(self):
-        # `touch security.md` must not satisfy the whitelist — "looks done, isn't" is the
-        # shape this gate exists to catch. Every real report is ≥254 bytes.
-        sp = self._session(forced=["security"], reports=[])
-        with open(os.path.join(os.path.dirname(sp), "security.md"), "w") as f:
-            f.write("")
-        self.assertEqual(rg._forced_coverage_missing(os.path.dirname(sp)), ["security"])
-        self.assertFalse(rg._summary_is_resolved(sp))
-
-    def test_malformed_field_types_do_not_crash_the_guard(self):
-        d = tempfile.mkdtemp()
-        sp = os.path.join(d, "SUMMARY.md")
-        with open(sp, "w", encoding="utf-8") as f:
-            f.write(CLEAN_SUMMARY)
-        with open(os.path.join(d, "_retry_state.json"), "w", encoding="utf-8") as f:
-            # valid JSON, wrong shapes — a str would otherwise be iterated per-character
-            json.dump({"agents_forced": "security", "subagent_invocations": {"x": 1}}, f)
-        self.assertEqual(rg._forced_coverage_missing(d), [])
-
-    def test_a_forced_name_absent_from_invocations_falls_back_to_name_md(self):
-        d = tempfile.mkdtemp()
-        sp = os.path.join(d, "SUMMARY.md")
-        with open(sp, "w", encoding="utf-8") as f:
-            f.write(CLEAN_SUMMARY)
-        with open(os.path.join(d, "_retry_state.json"), "w", encoding="utf-8") as f:
-            json.dump({"agents_forced": ["security"], "subagent_invocations": []}, f)
-        self.assertEqual(rg._forced_coverage_missing(d), ["security"])
-        with open(os.path.join(d, "security.md"), "w") as f:
-            f.write("# report\n")
-        self.assertEqual(rg._forced_coverage_missing(d), [])
+def fixed(sha, title="발견"):
+    return {"id": "f", "severity": "warning", "title": title, "status": "fixed",
+            "resolution": {"kind": "fixed", "commit_sha": sha}}
 
 
-class EvaluateDecisionTableTest(unittest.TestCase):
-    def _evaluate(self, *, committed, uncommitted, code_mtime, review_mtime):
-        with mock.patch.object(rg, "_repo_root", return_value="/r"), \
-             mock.patch.object(rg, "_default_branch", return_value="main"), \
-             mock.patch.object(rg, "_merge_base", return_value="base"), \
-             mock.patch.object(rg, "_committed_code_changes", return_value=committed), \
-             mock.patch.object(rg, "_uncommitted_code_changes", return_value=uncommitted), \
-             mock.patch.object(rg, "_newest_code_mtime", return_value=code_mtime), \
-             mock.patch.object(rg, "_newest_resolved_review_mtime", return_value=review_mtime):
-            return rg.evaluate_review("/fake/cwd")
+class _RepoCase(unittest.TestCase):
+    """main 에 커밋 하나, `feature` 브랜치에 codebase 커밋 하나. origin/main 은 main 이다."""
 
-    def test_allows_when_no_code_change(self):
-        d = self._evaluate(committed=[], uncommitted=[], code_mtime=0.0, review_mtime=0.0)
-        self.assertFalse(d.blocked)
+    def setUp(self):
+        self.tmp = Path(os.path.realpath(tempfile.mkdtemp()))
+        self.addCleanup(shutil.rmtree, self.tmp, ignore_errors=True)
+        self.repo = _harness.make_temp_git_repo(self.tmp / "repo")
+        self.git("update-ref", "refs/remotes/origin/main", "HEAD")
+        self.git("checkout", "-q", "-b", "feature")
+        self.c1 = self.commit("codebase/backend/src/a.ts", "export const a = 1;\n")
 
-    def test_blocks_code_change_with_no_review(self):
-        d = self._evaluate(
-            committed=["codebase/backend/a.py"], uncommitted=[],
-            code_mtime=100.0, review_mtime=0.0,
-        )
+    def git(self, *args):
+        return _harness.git_in(self.repo, *args).stdout.strip()
+
+    def commit(self, rel, body, msg="change"):
+        path = self.repo / rel
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(body, encoding="utf-8")
+        self.git("add", "-A")
+        self.git("commit", "-qm", msg)
+        return self.git("rev-parse", "HEAD")
+
+    def evaluate(self, client, **kw):
+        return rg.evaluate_review(str(self.repo), client=client, **kw)
+
+
+class DecisionTableTest(_RepoCase):
+    def test_no_codebase_change_allows_without_asking_nerv(self):
+        self.git("checkout", "-q", "main")
+        self.git("checkout", "-q", "-b", "docs")
+        self.commit("docs/x.md", "x\n")
+        client = FakeClient(code_item("uncovered"))
+        d = self.evaluate(client)
+        self.assertFalse(d.blocked, d.reason)
+        self.assertIn("변경이 없다", d.reason)
+        self.assertEqual(client.calls, [], "변경이 없는데 NERV 를 불렀다")
+
+    def test_uncommitted_codebase_edits_do_not_count(self):
+        """push 는 커밋만 내보낸다. 작업 트리의 변경은 판정 대상이 아니다."""
+        self.git("checkout", "-q", "main")
+        self.git("checkout", "-q", "-b", "dirty")
+        (self.repo / "codebase" / "z.ts").parent.mkdir(parents=True, exist_ok=True)
+        (self.repo / "codebase" / "z.ts").write_text("x\n", encoding="utf-8")
+        self.assertFalse(self.evaluate(FakeClient(code_item("uncovered"))).blocked)
+
+    def test_uncovered_blocks_and_says_how_to_submit(self):
+        d = self.evaluate(FakeClient(code_item("uncovered")))
         self.assertTrue(d.blocked)
-        self.assertIn("no resolved review", d.reason)
+        self.assertIn("nerv_review_submit", d.reason)
+        self.assertIn("feature", d.reason)
 
-    def test_blocks_code_edited_after_review(self):
-        d = self._evaluate(
-            committed=["codebase/backend/a.py"], uncommitted=[],
-            code_mtime=200.0, review_mtime=100.0,
-        )
+    def test_pending_blocks_with_reasons_and_missing_roles(self):
+        item = code_item("pending", self.c1, reasons=["open_warning", "missing_roles"],
+                         missing=["testing"])
+        item["open"]["warning"] = 2
+        d = self.evaluate(FakeClient(item))
         self.assertTrue(d.blocked)
-        self.assertIn("AFTER", d.reason)
+        self.assertIn("열린 warning", d.reason)
+        self.assertIn("testing", d.reason)
+        self.assertIn("warning 2", d.reason)
 
-    def test_allows_fresh_resolved_review(self):
-        d = self._evaluate(
-            committed=["codebase/backend/a.py"], uncommitted=[],
-            code_mtime=100.0, review_mtime=150.0,
-        )
-        self.assertFalse(d.blocked)
+    def test_unknown_reason_is_shown_verbatim(self):
+        d = self.evaluate(FakeClient(code_item("pending", self.c1, reasons=["new_reason"])))
+        self.assertTrue(d.blocked)
+        self.assertIn("new_reason", d.reason)
 
-    def test_uncommitted_code_change_counts(self):
-        d = self._evaluate(
-            committed=[], uncommitted=["codebase/frontend/x.ts"],
-            code_mtime=100.0, review_mtime=0.0,
-        )
+    def test_passed_round_at_head_allows(self):
+        d = self.evaluate(FakeClient(code_item("passed", self.c1)))
+        self.assertFalse(d.blocked, d.reason)
+        self.assertIn("passed", d.reason)
+
+    def test_a_later_commit_outside_codebase_does_not_need_a_new_round(self):
+        self.commit("docs/notes.md", "n\n")
+        d = self.evaluate(FakeClient(code_item("passed", self.c1)))
+        self.assertFalse(d.blocked, d.reason)
+
+    def test_a_later_codebase_commit_recorded_as_a_fix_passes(self):
+        c2 = self.commit("codebase/backend/src/a.ts", "export const a = 2;\n")
+        d = self.evaluate(FakeClient(code_item("passed", self.c1, findings=[fixed(c2)])))
+        self.assertFalse(d.blocked, d.reason)
+        self.assertIn("처분 커밋", d.reason)
+
+    def test_an_abbreviated_fix_sha_still_matches(self):
+        c2 = self.commit("codebase/backend/src/a.ts", "export const a = 2;\n")
+        d = self.evaluate(FakeClient(code_item("passed", self.c1, findings=[fixed(c2[:7])])))
+        self.assertFalse(d.blocked, d.reason)
+
+    def test_a_later_codebase_commit_that_is_not_a_fix_blocks(self):
+        c2 = self.commit("codebase/backend/src/a.ts", "export const a = 2;\n")
+        d = self.evaluate(FakeClient(code_item("passed", self.c1)))
+        self.assertTrue(d.blocked)
+        self.assertIn(c2[:12], d.reason)
+        self.assertIn("nerv_finding_resolve", d.reason)
+
+    def test_one_fix_does_not_explain_another_commit(self):
+        c2 = self.commit("codebase/backend/src/a.ts", "export const a = 2;\n")
+        c3 = self.commit("codebase/backend/src/b.ts", "export const b = 1;\n")
+        d = self.evaluate(FakeClient(code_item("passed", self.c1, findings=[fixed(c2)])))
+        self.assertTrue(d.blocked)
+        self.assertIn(c3[:12], d.reason)
+        self.assertNotIn(c2[:12], d.reason)
+
+    def test_a_fix_commit_from_another_branch_blocks(self):
+        """NERV 는 발견을 지문으로 합친다. 다른 브랜치의 처분이 이 라운드에 fixed 로 보인다."""
+        self.git("checkout", "-q", "main")
+        self.git("checkout", "-q", "-b", "other")
+        foreign = self.commit("codebase/backend/src/a.ts", "export const a = 9;\n")
+        self.git("checkout", "-q", "feature")
+        d = self.evaluate(FakeClient(code_item("passed", self.c1, findings=[fixed(foreign, "남의 수정")])))
+        self.assertTrue(d.blocked)
+        self.assertIn(foreign[:12], d.reason)
+        self.assertIn("남의 수정", d.reason)
+
+    def test_a_fix_commit_this_checkout_has_never_seen_blocks(self):
+        d = self.evaluate(FakeClient(code_item("passed", self.c1, findings=[fixed("ab" * 20)])))
+        self.assertTrue(d.blocked)
+        self.assertIn("abababababab", d.reason)
+
+    def test_a_fix_that_landed_on_main_and_was_merged_in_counts(self):
+        """main 에서 고쳐 머지한 수정도 이 브랜치에서 닿으면 이 브랜치의 수정이다."""
+        self.git("checkout", "-q", "main")
+        on_main = self.commit("codebase/shared/x.ts", "x\n")
+        self.git("update-ref", "refs/remotes/origin/main", "HEAD")
+        self.git("checkout", "-q", "feature")
+        self.git("merge", "-q", "--no-edit", "main")
+        d = self.evaluate(FakeClient(code_item("passed", self.c1, findings=[fixed(on_main)])))
+        self.assertFalse(d.blocked, d.reason)
+
+    def test_merging_the_base_branch_does_not_count_its_commits(self):
+        """`sync_with_base_branch` 가 만든 merge — main 의 codebase 커밋은 이 브랜치 변경이 아니다."""
+        self.git("checkout", "-q", "main")
+        self.commit("codebase/shared/y.ts", "y\n")
+        self.git("update-ref", "refs/remotes/origin/main", "HEAD")
+        self.git("checkout", "-q", "feature")
+        self.git("merge", "-q", "--no-edit", "main")
+        d = self.evaluate(FakeClient(code_item("passed", self.c1)))
+        self.assertFalse(d.blocked, d.reason)
+
+    def test_a_round_whose_head_is_not_an_ancestor_blocks(self):
+        """rebase · amend 로 라운드 head 가 브랜치에서 사라진 경우."""
+        old = self.c1
+        self.git("commit", "-q", "--amend", "-m", "amended")
+        d = self.evaluate(FakeClient(code_item("passed", old)))
+        self.assertTrue(d.blocked)
+        self.assertIn("조상이 아니다", d.reason)
+
+    def test_a_round_head_this_checkout_lacks_blocks(self):
+        d = self.evaluate(FakeClient(code_item("passed", "cd" * 20)))
+        self.assertTrue(d.blocked)
+        self.assertIn("조상이 아니다", d.reason)
+
+    def test_a_round_with_no_head_blocks(self):
+        self.assertTrue(self.evaluate(FakeClient(code_item("passed", None))).blocked)
+
+    def test_a_truncated_findings_list_is_mentioned_when_it_matters(self):
+        self.commit("codebase/backend/src/a.ts", "export const a = 2;\n")
+        d = self.evaluate(FakeClient(code_item("passed", self.c1, total=99)))
+        self.assertTrue(d.blocked)
+        self.assertTrue(any("99" in n for n in d.notes), d.notes)
+
+    def test_push_blocks_mirrors_blocked(self):
+        d = self.evaluate(FakeClient(code_item("uncovered")))
+        self.assertEqual(d.push_blocks, d.blocked)
+
+    def test_the_query_names_the_branch_and_kind_and_no_head(self):
+        """head_sha 를 넘기면 서버가 그 커밋의 라운드만 찾는다(자손이면 uncovered)."""
+        client = FakeClient(code_item("passed", self.c1))
+        self.evaluate(client)
+        self.assertEqual(len(client.calls), 1)
+        path = client.calls[0]
+        self.assertTrue(path.startswith("/api/v1/projects/clemvion/gates/reviews/check?"), path)
+        self.assertIn("branch=feature", path)
+        self.assertIn("kind=code", path)
+        self.assertNotIn("head_sha", path)
+
+    def test_branch_head_and_base_can_be_given_explicitly(self):
+        """CI 경로 — merge 커밋이 아니라 PR head 를 판정한다."""
+        client = FakeClient(code_item("passed", self.c1))
+        self.git("checkout", "-q", "--detach", "main")
+        d = self.evaluate(client, branch="feature", head=self.c1, base_ref="origin/main")
+        self.assertFalse(d.blocked, d.reason)
+        self.assertIn("branch=feature", client.calls[0])
+
+
+class UntrustedServerValuesTest(_RepoCase):
+    """서버 응답의 sha 는 그대로 git 인자가 된다. 16진수가 아니면 커밋으로 보지 않는다."""
+
+    def test_an_option_shaped_head_is_not_passed_to_git(self):
+        with mock.patch.object(rg, "_run_git", wraps=rg._run_git) as spy:
+            d = self.evaluate(FakeClient(code_item("passed", "--output=/tmp/x")))
+        self.assertTrue(d.blocked)
+        for call in spy.call_args_list:
+            self.assertFalse(any("--output" in a for a in call.args[0]), call)
+
+    def test_a_branch_name_as_head_is_not_resolved(self):
+        """`main` 은 이 저장소에서 커밋으로 풀리지만 서버가 줄 값이 아니다.
+
+        main 은 feature 의 조상이라 풀어 주면 통과로 뒤집힌다 — 거름이 판정을 바꾸는 입력이다."""
+        d = self.evaluate(FakeClient(code_item("passed", "main")))
         self.assertTrue(d.blocked)
 
-    def test_allows_outside_git_repo(self):
-        with mock.patch.object(rg, "_repo_root", return_value=None):
-            d = rg.evaluate_review("/fake/cwd")
-        self.assertFalse(d.blocked)
-
-
-class GlobAndFrontmatterTest(unittest.TestCase):
-    def test_glob_double_star_crosses_dirs(self):
-        p = rg._glob_to_regex("codebase/backend/src/**/*.ts")
-        self.assertTrue(p.match("codebase/backend/src/a.ts"))
-        self.assertTrue(p.match("codebase/backend/src/x/y/z.ts"))
-        self.assertFalse(p.match("codebase/frontend/src/a.ts"))
-        self.assertFalse(p.match("codebase/backend/src/a.js"))
-
-    def test_glob_single_star_stays_in_segment(self):
-        p = rg._glob_to_regex("codebase/backend/*.ts")
-        self.assertTrue(p.match("codebase/backend/a.ts"))
-        self.assertFalse(p.match("codebase/backend/sub/a.ts"))
-
-    def test_glob_trailing_double_star_dir(self):
-        p = rg._glob_to_regex("codebase/frontend/src/app/**")
-        self.assertTrue(p.match("codebase/frontend/src/app/page.tsx"))
-        self.assertTrue(p.match("codebase/frontend/src/app/deep/x.tsx"))
-
-    def _spec(self, body):
-        d = tempfile.mkdtemp()
-        sp = os.path.join(d, "x.md")
-        with open(sp, "w", encoding="utf-8") as f:
-            f.write(body)
-        return sp
-
-    def test_parse_inline_list(self):
-        sp = self._spec("---\nid: a\nstatus: implemented\n"
-                        "code: [codebase/backend/a.ts, codebase/frontend/b.ts]\n---\n# x\n")
-        self.assertEqual(
-            rg._parse_frontmatter_code(sp),
-            ["codebase/backend/a.ts", "codebase/frontend/b.ts"],
-        )
-
-    def test_parse_block_list(self):
-        sp = self._spec("---\nid: a\ncode:\n  - codebase/backend/a.ts\n"
-                        "  - codebase/frontend/b.ts\nstatus: partial\n---\n# x\n")
-        self.assertEqual(
-            rg._parse_frontmatter_code(sp),
-            ["codebase/backend/a.ts", "codebase/frontend/b.ts"],
-        )
-
-    def test_parse_block_list_survives_yaml_comment(self):
-        """`#` 주석 뒤 항목이 사라지면 안 된다.
-
-        블록 리스트 루프가 `- ` 가 아닌 첫 줄에서 break 하던 판은, 유효한 YAML 인
-        인라인 주석 하나에 **뒤 항목을 전부** 떨궜다. 그러면 `code:` 에 등재된 파일이
-        spec-linked 판정에서 조용히 빠진다 — 게이트가 안 무는 것이 기본값이 된다.
-
-        실측(2026-09-06): 저장소 spec 387개 중 7개 파일이 이 형태였고 **41개 entry**
-        가 유실 중이었다. 그중 하나(`spec/2-navigation/9-user-profile.md` 의
-        `codebase/backend/src/modules/workspaces/**`)는 당시 작업 중이던 PR 자신의
-        수정 파일을 덮고 있었다 (`review/consistency/2026/09/06/13_52_23` Critical 1).
-
-        gray-matter 를 쓰는 프런트엔드 파서(`spec-frontmatter-parse.ts`)는 처음부터
-        주석 뒤를 봤다 — 두 파서가 유효한 YAML 에 서로 다른 답을 내고 있었다.
-        """
-        sp = self._spec("---\nid: a\ncode:\n  - codebase/backend/a.ts\n"
-                        "  # 범주 구분 주석\n"
-                        "  - codebase/frontend/b.ts\nstatus: partial\n---\n# x\n")
-        self.assertEqual(
-            rg._parse_frontmatter_code(sp),
-            ["codebase/backend/a.ts", "codebase/frontend/b.ts"],
-        )
-
-    def test_parse_block_list_survives_blank_line(self):
-        """빈 줄도 같은 이유로 리스트를 끊으면 안 된다."""
-        sp = self._spec("---\nid: a\ncode:\n  - codebase/backend/a.ts\n"
-                        "\n"
-                        "  - codebase/frontend/b.ts\nstatus: partial\n---\n# x\n")
-        self.assertEqual(
-            rg._parse_frontmatter_code(sp),
-            ["codebase/backend/a.ts", "codebase/frontend/b.ts"],
-        )
-
-    def test_parse_block_list_still_stops_at_next_key(self):
-        """주석·빈 줄만 건너뛴다 — **다음 키에서는 여전히 멈춘다.**
-
-        이 단언이 없으면 위 두 수정이 리스트를 다음 키의 항목까지 삼키는 방향으로
-        넓어져도 통과한다. 넓힌 술어에는 반대 방향 대조군이 필요하다.
-        """
-        sp = self._spec("---\nid: a\ncode:\n  - codebase/backend/a.ts\n"
-                        "\n"
-                        "  # 주석\n"
-                        "pending_plans:\n  - plan/in-progress/x.md\n---\n# x\n")
-        self.assertEqual(
-            rg._parse_frontmatter_code(sp), ["codebase/backend/a.ts"]
-        )
-
-    def test_parse_block_list_starting_with_comment(self):
-        """리스트의 **첫 줄**이 주석인 경우 (`review/code/2026/09/06/14_25_40` INFO#8)."""
-        sp = self._spec("---\nid: a\ncode:\n  # 범주 주석\n"
-                        "  - codebase/backend/a.ts\nstatus: partial\n---\n# x\n")
-        self.assertEqual(
-            rg._parse_frontmatter_code(sp), ["codebase/backend/a.ts"]
-        )
-
-    def test_parse_strips_trailing_comment_block_list(self):
-        """항목과 **같은 줄**에 붙은 주석은 값이 아니다.
-
-        줄 전체 주석만 건너뛰던 판은 트레일링 주석을 값에 붙여 **어떤 파일과도 매치되지
-        않는 죽은 glob** 을 만들었다 — 항목이 사라지는 것과 같은 등급의 조용한 유실이다.
-        직전 수정이 한 칸 좁았다 (`review/code/2026/09/06/14_25_40` W1 — maintainability·
-        testing 두 reviewer 가 정규식을 직접 실행해 독립 재현).
-        """
-        sp = self._spec("---\nid: a\ncode:\n"
-                        "  - codebase/backend/a.ts  # 시행 코드\n"
-                        "  - codebase/frontend/b.ts\nstatus: partial\n---\n# x\n")
-        self.assertEqual(
-            rg._parse_frontmatter_code(sp),
-            ["codebase/backend/a.ts", "codebase/frontend/b.ts"],
-        )
-
-    def test_parse_strips_trailing_comment_single_and_inline(self):
-        """단일값·인라인 리스트 형태도 같다 — 세 분기 전부 같은 경로를 탄다."""
-        sp = self._spec("---\ncode: codebase/backend/a.ts  # 비고\n---\n# x\n")
-        self.assertEqual(rg._parse_frontmatter_code(sp), ["codebase/backend/a.ts"])
-
-        sp2 = self._spec("---\ncode: [codebase/backend/a.ts, codebase/frontend/b.ts]  # 비고\n"
-                         "---\n# x\n")
-        self.assertEqual(
-            rg._parse_frontmatter_code(sp2),
-            ["codebase/backend/a.ts", "codebase/frontend/b.ts"],
-        )
-
-    def test_parse_strips_trailing_comment_after_quoted_scalar(self):
-        """**따옴표로 감싼 값 + 트레일링 주석**도 같다.
-
-        언쿼트 세 형태만 닫았더니 이 인접 변형이 남았다 — 닫는 따옴표와 주석이 값에 붙어
-        `a.ts"  # note` 라는 **죽은 glob** 이 재생산된다(재현 확인). 같은 결함 클래스를
-        **세 번째**로 한 칸씩 좁게 닫은 셈이라, 이번엔 인용 부호 안팎을 갈라 처리한다
-        (`review/code/2026/09/06/14_59_48` W3).
-        """
-        sp = self._spec('---\nid: a\ncode:\n'
-                        '  - "codebase/backend/a.ts"  # note\n'
-                        "  - 'codebase/frontend/b.ts'  # note\n"
-                        "status: partial\n---\n# x\n")
-        self.assertEqual(
-            rg._parse_frontmatter_code(sp),
-            ["codebase/backend/a.ts", "codebase/frontend/b.ts"],
-        )
-
-    def test_parse_quoted_scalar_trailing_comment_single_and_inline(self):
-        """인용+주석을 **세 분기 모두**에서 문는다.
-
-        직전 판은 블록 리스트 형태만 태웠다. 같은 `_strip_comment` 를 타므로 구현은
-        맞았지만, **관측되지 않는 분기는 다음 편집에서 조용히 죽는다** — 이 파일이
-        이미 세 번 겪은 형태다 (`review/code/2026/09/06/15_30_59` W2).
-        """
-        sp = self._spec('---\ncode: "codebase/backend/a.ts"  # note\n---\n# x\n')
-        self.assertEqual(rg._parse_frontmatter_code(sp), ["codebase/backend/a.ts"])
-
-        sp2 = self._spec(
-            '---\ncode: ["codebase/backend/a.ts", "codebase/frontend/b.ts"]  # note\n'
-            "---\n# x\n"
-        )
-        self.assertEqual(
-            rg._parse_frontmatter_code(sp2),
-            ["codebase/backend/a.ts", "codebase/frontend/b.ts"],
-        )
-
-    def test_parse_quoted_scalar_keeps_inner_hash(self):
-        """따옴표 **안**의 `#` 은 주석이 아니다 — 반대 방향 대조군."""
-        sp = self._spec('---\nid: a\ncode:\n'
-                        '  - "codebase/backend/a #b.ts"\n'
-                        "status: partial\n---\n# x\n")
-        self.assertEqual(
-            rg._parse_frontmatter_code(sp), ["codebase/backend/a #b.ts"]
-        )
-
-    def test_parse_unterminated_quote_falls_back(self):
-        """닫는 따옴표가 없으면 잘라내지 않는다 — 추측해서 자르면 값이 사라진다."""
-        sp = self._spec('---\nid: a\ncode:\n'
-                        '  - "codebase/backend/a.ts\n'
-                        "status: partial\n---\n# x\n")
-        self.assertEqual(
-            rg._parse_frontmatter_code(sp), ["codebase/backend/a.ts"]
-        )
-
-    def test_parse_hash_without_leading_space_is_not_a_comment(self):
-        """**앞에 공백이 없는 `#` 은 주석이 아니다** — YAML 규칙 그대로.
-
-        넓힌 술어의 반대 방향 대조군이다. 이게 없으면 `#` 을 무조건 자르는 방향으로
-        넓어져도 통과해, 이번엔 **값을 잘라 먹는** 쪽으로 같은 유실이 난다.
-        """
-        sp = self._spec("---\nid: a\ncode:\n"
-                        "  - codebase/backend/a#b.ts\nstatus: partial\n---\n# x\n")
-        self.assertEqual(
-            rg._parse_frontmatter_code(sp), ["codebase/backend/a#b.ts"]
-        )
-
-    def test_parse_single_value(self):
-        sp = self._spec("---\ncode: codebase/backend/a.ts\n---\n# x\n")
-        self.assertEqual(rg._parse_frontmatter_code(sp), ["codebase/backend/a.ts"])
-
-    def test_parse_no_frontmatter(self):
-        sp = self._spec("# just a heading\ncode: not-frontmatter\n")
-        self.assertEqual(rg._parse_frontmatter_code(sp), [])
-
-    def test_parse_no_code_field(self):
-        sp = self._spec("---\nid: a\nstatus: spec-only\n---\n# x\n")
-        self.assertEqual(rg._parse_frontmatter_code(sp), [])
-
-
-class ImplDoneSessionTest(unittest.TestCase):
-    def _session(self, mode, block):
-        d = tempfile.mkdtemp()
-        with open(os.path.join(d, "meta.json"), "w", encoding="utf-8") as f:
-            f.write('{"mode": "%s", "target_path": "spec/x"}' % mode)
-        sp = os.path.join(d, "SUMMARY.md")
-        with open(sp, "w", encoding="utf-8") as f:
-            f.write("# Consistency Check 통합 보고서\n\n**BLOCK: %s** — ...\n" % block)
-        return d, sp
-
-    def test_impl_done_mode_detected(self):
-        d, _ = self._session("구현 완료 후 검토 (--impl-done, scope=spec/4-nodes)", "NO")
-        self.assertTrue(rg._is_impl_done_session(d))
-
-    def test_non_impl_done_mode_rejected(self):
-        d, _ = self._session("spec draft 검토 (--spec)", "NO")
-        self.assertFalse(rg._is_impl_done_session(d))
-
-    def test_block_no_parsed(self):
-        _, sp = self._session("(--impl-done)", "NO")
-        self.assertTrue(rg._summary_block_is_no(sp))
-
-    def test_block_yes_rejected(self):
-        _, sp = self._session("(--impl-done)", "YES")
-        self.assertFalse(rg._summary_block_is_no(sp))
-
-
-class SpecConsistencyGateTest(unittest.TestCase):
-    """Gate 2: spec-linked changes require a fresh --impl-done consistency report.
-    The code-review gate is held satisfied (review_mtime >= code_mtime)."""
-
-    def _evaluate(self, *, spec_linked, code_mtime, impl_done_mtime):
-        with mock.patch.object(rg, "_repo_root", return_value="/r"), \
-             mock.patch.object(rg, "_default_branch", return_value="main"), \
-             mock.patch.object(rg, "_merge_base", return_value="base"), \
-             mock.patch.object(rg, "_committed_code_changes",
-                               return_value=["codebase/backend/a.ts"]), \
-             mock.patch.object(rg, "_uncommitted_code_changes", return_value=[]), \
-             mock.patch.object(rg, "_newest_code_mtime", return_value=code_mtime), \
-             mock.patch.object(rg, "_newest_resolved_review_mtime", return_value=9999.0), \
-             mock.patch.object(rg, "_spec_linked_changes", return_value=spec_linked), \
-             mock.patch.object(rg, "_newest_resolved_impl_done_mtime",
-                               return_value=impl_done_mtime):
-            return rg.evaluate_review("/fake/cwd")
-
-    def test_non_spec_linked_change_not_gated(self):
-        d = self._evaluate(spec_linked=[], code_mtime=100.0, impl_done_mtime=0.0)
-        self.assertFalse(d.blocked)
-
-    def test_spec_linked_without_impl_done_blocks(self):
-        d = self._evaluate(
-            spec_linked=["codebase/backend/a.ts"], code_mtime=100.0, impl_done_mtime=0.0
-        )
+    def test_an_option_shaped_fix_sha_is_ignored(self):
+        self.commit("codebase/backend/src/a.ts", "export const a = 2;\n")
+        with mock.patch.object(rg, "_run_git", wraps=rg._run_git) as spy:
+            d = self.evaluate(FakeClient(code_item("passed", self.c1, findings=[fixed("--all")])))
         self.assertTrue(d.blocked)
-        self.assertIn("--impl-done", d.reason)
+        for call in spy.call_args_list:
+            self.assertNotIn("--all", call.args[0], call)
 
-    def test_spec_linked_with_stale_impl_done_blocks(self):
-        d = self._evaluate(
-            spec_linked=["codebase/backend/a.ts"], code_mtime=200.0, impl_done_mtime=100.0
-        )
-        self.assertTrue(d.blocked)
-        self.assertIn("AFTER", d.reason)
 
-    def test_spec_linked_with_fresh_impl_done_allows(self):
-        d = self._evaluate(
-            spec_linked=["codebase/backend/a.ts"], code_mtime=100.0, impl_done_mtime=150.0
-        )
+class UnavailableTest(_RepoCase):
+    """판정하지 못하면 예외다. 통과(blocked=False)로 돌려주면 fail-open 이 세어지지 않는다."""
+
+    def test_transport_failure(self):
+        with self.assertRaises(rg.GateUnavailable) as cm:
+            self.evaluate(FakeClient(exc=OSError("boom")))
+        self.assertNotIsInstance(cm.exception, rg.GateMisconfigured)
+
+    def test_server_error(self):
+        with self.assertRaises(rg.GateUnavailable) as cm:
+            self.evaluate(FakeClient(code_item(), status=503))
+        self.assertNotIsInstance(cm.exception, rg.GateMisconfigured)
+
+    def test_auth_and_project_errors_are_misconfiguration(self):
+        for status in (401, 403, 404):
+            with self.subTest(status=status), self.assertRaises(rg.GateMisconfigured):
+                self.evaluate(FakeClient(code_item(), status=status))
+
+    def test_malformed_bodies(self):
+        for raw in (b"not json", b"[]", b'{"items": 3}', b'{"items": [{"kind": "consistency"}]}'):
+            with self.subTest(raw=raw), self.assertRaises(rg.GateUnavailable):
+                self.evaluate(FakeClient(raw=raw))
+
+    def test_detached_head_without_a_branch(self):
+        self.git("checkout", "-q", "--detach")
+        with self.assertRaises(rg.GateUnavailable):
+            self.evaluate(FakeClient(code_item("passed", self.c1)))
+
+    def test_no_base_branch(self):
+        self.git("update-ref", "-d", "refs/remotes/origin/main")
+        self.git("branch", "-q", "-m", "main", "trunk")
+        with self.assertRaises(rg.GateUnavailable):
+            self.evaluate(FakeClient(code_item("passed", self.c1)))
+
+    def test_an_explicit_base_that_does_not_exist(self):
+        with self.assertRaises(rg.GateUnavailable):
+            self.evaluate(FakeClient(code_item("passed", self.c1)), base_ref="origin/nope")
+
+    def test_an_option_shaped_base_or_head_is_refused(self):
+        with self.assertRaises(rg.GateUnavailable):
+            self.evaluate(FakeClient(code_item("passed", self.c1)), base_ref="--all")
+        with self.assertRaises(rg.GateUnavailable):
+            self.evaluate(FakeClient(code_item("passed", self.c1)), head="--all")
+
+    def test_missing_configuration(self):
+        for env in ({}, {"NERV_SERVER": "https://nerv.example.invalid"}, {"NERV_TOKEN": "t"}):
+            with self.subTest(env=sorted(env)), mock.patch.dict(os.environ, env, clear=True):
+                with self.assertRaises(rg.GateMisconfigured) as cm:
+                    rg.evaluate_review(str(self.repo))
+                self.assertNotIn("t\n", str(cm.exception))
+
+    def test_a_plain_http_remote_server_is_misconfiguration(self):
+        env = {"NERV_SERVER": "http://nerv.example.invalid", "NERV_TOKEN": "tok"}
+        with mock.patch.dict(os.environ, env, clear=True), self.assertRaises(rg.GateMisconfigured):
+            rg.evaluate_review(str(self.repo))
+
+    def test_not_a_git_repository_allows(self):
+        d = rg.evaluate_review(str(self.tmp), client=FakeClient(code_item("uncovered")))
         self.assertFalse(d.blocked)
+
+
+class RealTransportTest(_RepoCase):
+    """실물 `pull.Nerv` + curl + loopback 가짜 서버. 토큰이 헤더로 가고 응답이 판정이 된다."""
+
+    def _env(self, server, token="tok-123"):
+        return {"NERV_SERVER": server.url, "NERV_TOKEN": token, "NERV_PROJECT": "clemvion",
+                "PATH": os.environ.get("PATH", "")}
+
+    def test_a_passed_round_over_the_wire(self):
+        with _harness.FakeNervServer(code_item("passed", self.c1)) as server, \
+                mock.patch.dict(os.environ, self._env(server), clear=True):
+            d = rg.evaluate_review(str(self.repo))
+        self.assertFalse(d.blocked, d.reason)
+        self.assertEqual(len(server.requests), 1)
+        path, auth = server.requests[0]
+        self.assertEqual(auth, "Bearer tok-123")
+        self.assertIn("branch=feature", path)
+
+    def test_an_uncovered_round_over_the_wire(self):
+        with _harness.FakeNervServer() as server, \
+                mock.patch.dict(os.environ, self._env(server), clear=True):
+            self.assertTrue(rg.evaluate_review(str(self.repo)).blocked)
+
+    def test_401_over_the_wire_is_misconfiguration(self):
+        with _harness.FakeNervServer(status=401, raw=b"{}") as server, \
+                mock.patch.dict(os.environ, self._env(server), clear=True), \
+                self.assertRaises(rg.GateMisconfigured):
+            rg.evaluate_review(str(self.repo))
+
+    def test_a_refused_connection_is_unavailable_not_misconfigured(self):
+        with _harness.FakeNervServer() as server:
+            url = server.url
+        env = {"NERV_SERVER": url, "NERV_TOKEN": "t", "PATH": os.environ.get("PATH", "")}
+        with mock.patch.dict(os.environ, env, clear=True), \
+                self.assertRaises(rg.GateUnavailable) as cm:
+            rg.evaluate_review(str(self.repo))
+        self.assertNotIsInstance(cm.exception, rg.GateMisconfigured)
+
+    def test_the_client_uses_the_short_hook_timeout(self):
+        with mock.patch.dict(os.environ, {"NERV_SERVER": "https://nerv.example.invalid",
+                                          "NERV_TOKEN": "t"}, clear=True):
+            client = rg._client_from_env()
+        self.assertEqual(client.max_time, rg.N1_MAX_TIME)
+        self.assertLess(int(rg.N1_MAX_TIME), 60)
 
 
 if __name__ == "__main__":

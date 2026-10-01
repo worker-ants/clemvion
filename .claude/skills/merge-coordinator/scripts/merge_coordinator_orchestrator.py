@@ -2,15 +2,15 @@
 """Merge Coordinator Orchestrator — prepare + resume.
 
 Collects branch / PR metadata for `/merge-coordinate` and writes:
-  - review/merge/<YYYY>/<MM>/<DD>/<hh>_<mm>_<ss>/_prompts/<analyzer>.md
+  - .review/merge/<YYYY>/<MM>/<DD>/<hh>_<mm>_<ss>/_prompts/<analyzer>.md
         per-analyzer role-specific input (perspective + checklist + branches)
-  - review/merge/<YYYY>/<MM>/<DD>/<hh>_<mm>_<ss>/_retry_state.json
+  - .review/merge/<YYYY>/<MM>/<DD>/<hh>_<mm>_<ss>/_retry_state.json
         same schema as code-review-agents / consistency-checker:
           {session_dir, summary_subagent_type, summary_output_file,
            subagent_invocations[], agents_pending/success/fatal,
            agent_history, rate_limit_episodes, total_wait_sec,
            wake_history, last_reset_hint_sec, loop_mode}
-  - review/merge/<YYYY>/<MM>/<DD>/<hh>_<mm>_<ss>/meta.json
+  - .review/merge/<YYYY>/<MM>/<DD>/<hh>_<mm>_<ss>/meta.json
         {branches[], base_hint, mode, timestamp}
 
 Prints the session directory absolute path on stdout.
@@ -69,7 +69,7 @@ def _subagent_type(name):
 
 def load_config():
     return {
-        "output_dir": os.environ.get("MERGE_OUTPUT_DIR", "./review/merge"),
+        "output_dir": os.environ.get("MERGE_OUTPUT_DIR", "./.review/merge"),
         "base_hint": os.environ.get("MERGE_BASE_HINT", ""),
         "auto_apply_patch": os.environ.get("MERGE_AUTO_APPLY_PATCH", "0") == "1",
         "max_prompt_size": int(os.environ.get("MERGE_MAX_PROMPT_SIZE", "131072")),

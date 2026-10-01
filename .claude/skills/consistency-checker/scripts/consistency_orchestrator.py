@@ -78,7 +78,7 @@ def load_config():
         agents = project_config.filter_enabled_agents(cfg, "checkers", list(ALL_CHECKERS))
 
     return {
-        "output_dir": os.environ.get("CONSISTENCY_OUTPUT_DIR", "./review/consistency"),
+        "output_dir": os.environ.get("CONSISTENCY_OUTPUT_DIR", "./.review/consistency"),
         "agents": agents,
         "max_context_size": int(os.environ.get("CONSISTENCY_MAX_CONTEXT_SIZE", "262144")),
     }

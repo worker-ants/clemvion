@@ -34,6 +34,7 @@ Policy matrix (this module is the SSOT for the table below)
 | Trigger                                  | Forced reviewers                                                     | Source                       |
 |------------------------------------------|----------------------------------------------------------------------|------------------------------|
 | Source-code file (44 extensions below)   | security, requirement, scope, side_effect, maintainability, testing  | _SOURCE_FORCED_REVIEWERS     |
+|   or any file under `code_areas`         |                                                                      | (codebase/** — NERV policy)  |
 | Package manifest / lockfile              | dependency + documentation                                           | _RULES → _PACKAGE_PATTERNS   |
 | Doc file (.md/.txt/.rst/.adoc/LICENSE/   | documentation                                                        | _RULES → _DOC_PATTERNS       |
 |   NOTICE/AUTHORS/CHANGELOG/README/...)   |                                                                      |                              |
@@ -44,6 +45,13 @@ Policy matrix (this module is the SSOT for the table below)
 | .dockerignore                            | security                                                             | _RULES → _DOCKERIGNORE_PATTERNS |
 | .env / .env.* / *.env / *.env.example    | security                                                             | _RULES → _ENV_PATTERNS       |
 | Unclassified (.gitignore, binary 외)     | (none) → router fatal → main writes minimal SUMMARY                  | —                            |
+
+The `code_areas` half of the first row (`.claude.project.json`, default `codebase`):
+every file under a code area forces the same six reviewers whatever its extension.
+NERV's `review_roles.code` policy requires all six roles in every code round, and the
+push hook and the CI backstop read that round (NERV cutover stage 2). A `codebase/`
+change made only of JSON, YAML or Markdown would otherwise leave the round
+`missing_roles` and the branch unpushable.
 
 Source-code extensions counted by `_SOURCE_FORCED_REVIEWERS`:
   ts tsx js jsx mjs cjs · py pyi · java kt kts scala groovy ·
@@ -400,4 +408,25 @@ def compute_forced_agents(
             if reviewer in available:
                 forced.setdefault(reviewer, []).append(note)
 
+    # Rule kind 3 — any file under a code area forces the same six, whatever its
+    # extension (see the module docstring: NERV `review_roles.code`).
+    in_code_area = sorted(set(code_area_files(paths, cfg["code_areas"])))
+    if in_code_area:
+        sample = in_code_area[:3]
+        note = f"코드 영역 변경 — NERV 필수 리뷰 역할: {', '.join(sample)}"
+        if len(in_code_area) > 3:
+            note += f" (외 {len(in_code_area) - 3}건)"
+        for reviewer in _SOURCE_FORCED_REVIEWERS:
+            if reviewer in available:
+                forced.setdefault(reviewer, []).append(note)
+
     return sorted(forced.keys()), forced
+
+
+def code_area_files(file_paths: Iterable[str], code_areas: Iterable[str]) -> list[str]:
+    """The changed paths that sit under one of `code_areas` (`.claude.project.json`).
+
+    A path equal to the area name itself is not under it, and `codebase-x/a` is not
+    under `codebase` — the match is on a whole leading path segment."""
+    roots = [a.strip("/") + "/" for a in code_areas if isinstance(a, str) and a.strip("/")]
+    return [p for p in file_paths if any(_normalize(p).startswith(r) for r in roots)]

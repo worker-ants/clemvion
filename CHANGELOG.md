@@ -23,6 +23,32 @@
 > 07 37% · 08 30% · 09(25일까지) 49% 였다(나중 PR 의 백필은 세지 않았다). 여기 없다고 그 변경이 없었던 것은 아니다 —
 > `git log` 가 정본이다.
 
+## Unreleased — 하네스: 리뷰 게이트가 저장소 `review/` 파일 대신 NERV 리뷰 라운드로 판정한다
+
+이 변경부터 리뷰 결과의 정본은 NERV 리뷰 레코드다. 리뷰어 fan-out 은 그대로 로컬에서 돌고, main 이 역할마다
+`nerv_review_submit` 으로 제출하고 발견을 `nerv_finding_resolve` 로 처분한다. 저장소에는 리뷰 산출물을 커밋하지 않는다.
+
+- **push 게이트 · CI 백스톱(판정 교체)** `.claude/hooks/_lib/review_guard.py`: `codebase/**` 를 바꾼 브랜치는 NERV 판정 API(N1)의
+  kind=code 최신 라운드가 `passed` 여야 push · 머지된다. 라운드 head 가 HEAD 의 조상이어야 하고, 라운드 뒤 `codebase/**` 커밋은
+  그 라운드 발견의 `fixed` 처분 커밋이어야 하며(리뷰 뒤 fix 커밋만 있으면 새 라운드 없이 통과), 처분 커밋은 이 브랜치에서
+  닿아야 한다(다른 브랜치의 같은 지적 처분으로 통과하지 못한다). 전에는 `review/code/**/SUMMARY.md` 의 존재와 문구를 봐서 PR 에
+  몇 줄짜리 가짜 SUMMARY · RESOLUTION 을 커밋하면 통과했다. 세션 디렉터리 시각과 편집 시각을 비교하던 순서 함정과 "fix 커밋이
+  리뷰를 stale 로 만든다" 루프도 사라진다. NERV 가 응답하지 않으면 push 는 fail-open 하고 배너로 센다.
+- **CI `review-gate`**: PR 의 head 커밋과 브랜치를 판정하고 NERV 를 읽기 전용 토큰으로 읽는다(secret `NERV_CI_TOKEN`, 변수
+  `NERV_SERVER`). 토큰 · 주소가 없거나 거절되면 실패한다. NERV 장애는 통과시키고 알린다.
+- **spec-impl 정합 게이트(Gate 2) 제거**: spec frontmatter `code:` 와 `--impl-done` 세션 시각으로 막던 push 검사를 걷었다.
+  `--impl-done` 결과는 `kind=consistency` 로 제출하고, NERV `done_gate.review_coverage` 가 Task done 을 막는다.
+- **Stop 훅 리뷰 nudge · resolution 마커 훅 2종 제거**: NERV 플러그인 Stop 훅이 열린 클레임으로 턴 종료를 한 번 막으므로 두 훅이
+  겹쳤다. `mark_resolution_in_flight.py` · `clear_resolution_in_flight.py` 와 `settings.json` 의 PreToolUse(Agent) · SubagentStop
+  배선을 지웠다. 이 PR 이 머지되기 전에 시작한 세션은 지운 훅을 부르므로 main pull 뒤 새 세션을 연다.
+- **편집 가드 확장** `guard_nerv_owned_paths.py`: `review/` 도 도구 편집을 막는다. 리뷰 · 일관성 · 통합 · spec-coverage
+  오케스트레이터는 산출물을 gitignore 대상 `.review/` 에 쓴다. 옛 `review/` 는 단계 3 에서 지운다.
+- **router 강제 규칙 확장**: `codebase/**` 아래 파일이면 확장자와 무관하게 필수 6역할(security · requirement · scope ·
+  side_effect · maintainability · testing)을 강제한다. NERV 정책 `review_roles.code` 가 라운드마다 이 6역할을 요구한다.
+- **제출 도우미(신설)** `.claude/tools/nerv_review_payload.py`: 세션의 역할 리포트를 역할별 제출 묶음(JSON)으로 바꾼다. 형식 밖의
+  심각도 표지는 경고로 알리고, 강제 역할 리포트가 빠지면 exit 1 이다. consistency SUMMARY 가 checker 의 [CRITICAL] 을 낮춰
+  `BLOCK: NO` 로 적었으면 경고한다.
+
 ## Unreleased — 하네스: 스펙의 정본이 NERV 로 옮겨 가고 `spec/` 은 읽기 전용 미러가 된다
 
 이 변경부터 스펙은 NERV 에서만 고친다. 저장소 `spec/` 에는 NERV 스펙의 사본이 `spec/<영역 키>/<KEY>.md` 로 들어간다

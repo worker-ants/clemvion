@@ -1,12 +1,16 @@
 """Where a review/consistency session's per-agent reports live, and what counts as one.
 
-**Single source for two enforcement points that must agree**: the push/stop gate
-(`hooks/_lib/review_guard.py`) and the orchestrator CLIs (`--verify-coverage`,
-`--sync-from-disk`, `--summary-state`, `--resume`). When they disagree, a caller sees
-`--verify-coverage` report OK and then gets blocked at push — or, in the other direction,
-the gate silently accepts what the CLI would have refused.
+**Single source for the orchestrator CLIs** (`--verify-coverage`, `--sync-from-disk`,
+`--summary-state`, `--resume`) of both the code-review and consistency skills.
 
-That is not hypothetical. Both sides carried their own copy behind a "change both"
+Until NERV cutover stage 2 (NERV Task `CLE-T-4ABTG7`) the push/stop gate
+(`hooks/_lib/review_guard.py`) was a second consumer that had to answer identically.
+The gate now reads NERV review rounds instead of report files, and required-role
+coverage is the NERV policy `review_roles` — so this module is local bookkeeping that
+tells main which reports to submit, not an enforcement point any more. The history
+below is why it stays a module rather than per-CLI copies.
+
+That was not hypothetical. Both sides carried their own copy behind a "change both"
 comment, and the comment failed within one PR: the gate gained a non-empty requirement
 (#962 W7) while `--verify-coverage` kept checking mere existence, so `touch security.md`
 passed the CLI and failed the gate at the same moment (measured 2026-07-17). Hence a

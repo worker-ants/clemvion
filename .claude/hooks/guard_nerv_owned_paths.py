@@ -22,8 +22,9 @@ NERV 정본 전환 단계 1(NERV Task `CLE-T-VA4YA1`)부터 스펙의 정본은 
 
 막는 경로는 전환 단계에 따라 늘어난다. 거버넌스 문서가 그 경로의 쓰기를 더는 안내하지 않을 때
 더한다. 먼저 막으면 문서가 시키는 일을 훅이 막는다.
-- `spec/` — 단계 1(지금).
-- `review/` — 단계 2(리뷰 전환: 리뷰 결과를 NERV 레코드로 낸다).
+- `spec/` — 단계 1.
+- `review/` — 단계 2(지금. 리뷰 결과를 NERV 레코드로 낸다. 로컬 산출물은 gitignore 대상
+  `.review/` 에 쓴다).
 - `plan/` — 단계 3(plan 제거: 작업은 NERV Task 로 추적한다).
 
 판정은 **대상 파일이 속한 체크아웃 루트 기준 상대 경로**다. main checkout 이든 워크트리든
@@ -57,6 +58,9 @@ OWNED_ROOTS = {
             "`python3 .claude/tools/nerv-mirror/pull.py --task <CLE-T-…>` 로 갱신한다. "
             "옛 경로의 NERV 키는 미러 frontmatter `source_paths` 로 찾는다. 옛 문서 하나가 "
             "여러 키로 나뉘었을 수 있다(`grep -rl '<옛 경로>' spec/CLE-*`)",
+    "review": "리뷰 결과는 NERV 레코드다. 역할마다 `nerv_review_submit` 으로 제출하고 발견은 "
+              "`nerv_finding_resolve` 로 처분한다. 오케스트레이터 산출물(리포트 · SUMMARY)은 "
+              "gitignore 대상 `.review/` 에 쓴다. 옛 `review/` 는 단계 3 에서 지운다",
 }
 # 짝 없는 서로게이트. 하네스(Node)는 이 문자를 U+FFFD 로 바꿔 쓴다. Python 은 이 문자가 든 경로를
 # 파일 시스템에 넘기지 못한다(`UnicodeEncodeError`). 그대로 두면 그 예외가 fail-open 으로 통과한다.

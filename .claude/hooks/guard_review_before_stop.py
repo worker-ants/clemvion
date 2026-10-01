@@ -1,11 +1,16 @@
 #!/usr/bin/env python3
-"""Stop hook — block the turn from ending while the branch carries
-`codebase/**` changes not yet covered by a *resolved* AI code review.
+"""Stop hook — nudge once at turn-end when the linked in-progress plan is
+fully checked off but still sits in `plan/in-progress/`.
 
-Registered in `.claude/settings.json` under `Stop`. This is the soft-teeth
-counterpart to guard_review_before_push.py: it catches the "review/fix 를
-다음 턴으로 미룸" failure mode at turn-end, before the push gate ever comes
-into play.
+Registered in `.claude/settings.json` under `Stop`.
+
+It used to carry a second nudge — "codebase/ changes not covered by a resolved
+review" — read from `review/**` files. NERV cutover stage 2 (NERV Task
+`CLE-T-4ABTG7`) removed it: the review record now lives in NERV, the push gate
+and the CI backstop read it there (`_lib/review_guard.py`), and the NERV
+plugin's own Stop hook already blocks a turn-end once while a claim is open.
+Two hooks nudging for the same thing was the double-block the cutover plan
+(§5.4) set out to remove. The plan nudge goes with `plan/` in stage 3.
 
 Stop-hook contract (Claude Code):
   stdout JSON `{"decision":"block","reason":"..."}` → block stopping; `reason`
@@ -21,14 +26,11 @@ Anti-wedge: this guard never loops.
      the same branch will not be nudged again in this session. Keying on the
      branch (not HEAD) avoids re-arming the nudge on every new commit.
 
-The hard gate remains guard_review_before_push.py: even if the model stops
-after this single nudge, it cannot push/ship the branch unreviewed. Override
-with `BYPASS_REVIEW_GUARD=1`.
+Override with `BYPASS_PLAN_GUARD=1`.
 """
 
 from __future__ import annotations
 
-import hashlib
 import json
 import os
 import re
@@ -49,9 +51,7 @@ def _sanitize_component(value: str) -> str:
     return _MARKER_SAFE.sub("_", value)
 
 
-# Both nudges are imported independently and best-effort: a failure to import one
-# must not silence the other (a Stop hook must never wedge a session either way).
-_REVIEW_IMPORT_ERROR = ""
+# Imported best-effort: a Stop hook must never wedge a session.
 _PLAN_IMPORT_ERROR = ""
 
 # Same three fail-open paths as the push gate, and until now equally silent.
@@ -64,37 +64,18 @@ except Exception:  # noqa: BLE001
     failopen_state = None
 
 try:
-    from review_guard import evaluate_review  # noqa: E402
-except Exception as exc:  # noqa: BLE001
-    traceback.print_exc(file=sys.stderr)
-    _REVIEW_IMPORT_ERROR = f"{type(exc).__name__}: {exc}"
-    evaluate_review = None  # review nudge disabled; plan nudge still runs.
-
-# Resolution-in-flight suppression + nudge-text branching helpers. Imported
-# separately so a failure here only disables the *suppression/branching* (the
-# core review nudge still fires), never the other way round.
-try:
-    from review_guard import (  # noqa: E402
-        _resolution_in_flight,
-        _repo_root,
-        _iter_summaries,
-    )
-except Exception:
-    _resolution_in_flight = None
-    _repo_root = None
-    _iter_summaries = None
-
-try:
     from plan_guard import evaluate_plan  # noqa: E402
 except Exception as exc:  # noqa: BLE001
     _PLAN_IMPORT_ERROR = f"{type(exc).__name__}: {exc}"
-    evaluate_plan = None  # plan nudge disabled; review nudge still runs.
+    evaluate_plan = None  # plan nudge disabled — counted as fail-open below.
 
 
 _FAILOPEN_STATE_NAME = "stop_guard_failopen.json"
-_GATE_REVIEW = "REVIEW"
 _GATE_PLAN = "PLAN"
-_ALL_GATES = frozenset({_GATE_REVIEW, _GATE_PLAN})
+# Every gate that must answer before the fail-open streak may be cleared. The
+# REVIEW gate left with stage 2; keeping it here would make "all answered"
+# unreachable and pin the streak forever (failopen_state.report compares sets).
+_ALL_GATES = frozenset({_GATE_PLAN})
 
 
 def _new_outcome():
@@ -202,8 +183,8 @@ def _marker_path(session_id: str | None, token: str, kind: str = "") -> str:
     # which is the safe direction (the push guard is the hard gate). Both
     # components are sanitized — session_id comes from the harness payload and
     # the token from `git`, so neither is trusted to stay inside the state dir.
-    # `kind` separates independent nudges (review vs plan-complete) so firing one
-    # never throttles the other; empty kind keeps the original review marker name.
+    # `kind` separates independent nudges so firing one never throttles another.
+    # The empty kind was the retired review nudge's marker name; nothing passes it now.
     sid = _sanitize_component(session_id or "nosession")
     base = f"{sid}__{_sanitize_component(token)}"
     if kind:
@@ -246,70 +227,9 @@ def _nudge_once(session_id: str | None, token: str, kind: str, reason: str) -> i
     return _block(reason)
 
 
-def _suppress_for_resolution() -> bool:
-    """True when a `resolution-applier` fix is in flight → skip the review nudge.
-
-    Stop-only suppression: once `/ai-review` writes SUMMARY.md the applier's
-    codebase edits postdate the review and re-arm the gate, but the fix is
-    legitimately in progress — nudging then just goads a premature, redundant
-    re-review over work the background sub-agent is already doing. The push guard
-    still hard-gates (it never consults this). Fail-open: any error → False."""
-    if _resolution_in_flight is None or _repo_root is None:
-        return False
-    try:
-        repo_root = _repo_root(os.getcwd())
-        return bool(repo_root) and bool(_resolution_in_flight(repo_root))
-    except Exception:
-        traceback.print_exc(file=sys.stderr)
-        return False
-
-
-def _review_was_performed() -> bool:
-    """True when ≥1 review SUMMARY exists (a review ran) — picks the nudge
-    wording. Fail-open: any error → False (use the 'run /ai-review' wording)."""
-    if _iter_summaries is None or _repo_root is None:
-        return False
-    try:
-        repo_root = _repo_root(os.getcwd())
-        return bool(repo_root) and bool(_iter_summaries(repo_root))
-    except Exception:
-        return False
-
-
-def _review_nudge_reason(decision_reason: str, review_done: bool) -> str:
-    """The Stop nudge body. When a review already ran (`review_done`) we steer
-    toward *resolution* (wait for resolution-applier / write RESOLUTION.md)
-    instead of re-running `/ai-review` from scratch — that redundant re-review
-    over an in-progress fix is the token-waste this whole change targets."""
-    if review_done:
-        return (
-            "구현을 완료하면 test·review·critical/warning fix 는 강제 사항입니다. "
-            f"({decision_reason}) 단, 리뷰(SUMMARY)는 이미 수행됐습니다 — 처음부터 "
-            "/ai-review 를 다시 돌리지 마세요:\n"
-            "  1. resolution-applier 가 진행 중이면 완료(SubagentStop)를 기다리세요.\n"
-            "  2. 아니면 SUMMARY 의 Critical/Warning 을 fix + "
-            "<session_dir>/RESOLUTION.md 작성(또는 수동 조치).\n"
-            "  3. TEST WORKFLOW 재수행.\n"
-            "리뷰/fix 를 다음 턴·PR 로 미루지 마세요. (이 nudge 는 현재 branch 기준 "
-            "세션당 1회만 표시됩니다.)"
-        )
-    return (
-        "구현을 완료하면 test·review·critical/warning fix 는 강제 사항입니다. "
-        f"({decision_reason}) 턴을 끝내기 전에 REVIEW WORKFLOW 를 이행하세요:\n"
-        "  1. /ai-review — 변경에 대한 리뷰.\n"
-        "  2. SUMMARY 의 Critical/Warning > 0 이면 resolution-applier 로 fix "
-        "(또는 수동 조치 + RESOLUTION.md).\n"
-        "  3. TEST WORKFLOW 재수행.\n"
-        "리뷰를 다음 턴/PR 로 미루지 마세요. 정말 지금 멈춰야 하는 사정이 "
-        "있으면 사용자에게 그 사정을 먼저 보고하세요. (이 nudge 는 현재 branch "
-        "기준 세션당 1회만 표시됩니다.)"
-    )
-
-
 def main() -> int:
-    # `finally` so the report happens on every exit path, including the ones
-    # that fire a nudge — a nudge firing while the OTHER gate failed open is
-    # exactly when the degradation would otherwise be quietest.
+    # `finally` so the report happens on every exit path, including the one that
+    # fires the nudge.
     outcome = _new_outcome()
     try:
         return _run(outcome)
@@ -334,71 +254,6 @@ def _run(outcome) -> int:
 
     session_id = payload.get("session_id") or payload.get("sessionId")
     token = _throttle_token()
-
-    # ---- REVIEW nudge (soft counterpart of the push review gate) -----------
-    if os.environ.get("BYPASS_REVIEW_GUARD") == "1":
-        outcome.bypassed.append(_GATE_REVIEW)
-    elif evaluate_review is None:
-        outcome.degraded.append((_GATE_REVIEW, _import_reason(
-            "_lib/review_guard.py", "evaluate_review", _REVIEW_IMPORT_ERROR)))
-    else:
-        try:
-            # `in_flight_ok=True` is Stop-only: a review that has started but not
-            # yet written SUMMARY.md must not trigger this nudge. The push guard
-            # deliberately omits it so a merely-started session cannot open the
-            # hard gate (see review_guard.evaluate_review).
-            decision = evaluate_review(in_flight_ok=True)
-        except Exception as exc:  # noqa: BLE001
-            traceback.print_exc(file=sys.stderr)
-            outcome.degraded.append((_GATE_REVIEW, f"{type(exc).__name__}: {exc}"))
-            decision = None
-        else:
-            outcome.answered.append(_GATE_REVIEW)
-        # Advisories that do not block. Always stderr here — this hook's stdout
-        # is the `{"decision": …}` JSON protocol, so the push guard's
-        # "stderr on refuse, stdout on allow" rule must NOT be copied over
-        # (`_report_fail_open` documents the same asymmetry for its banner).
-        #
-        # Wired here as well as on push because this hook runs FIRST: the turn
-        # ends before anything is pushed, and a session the gate stops trusting
-        # in between takes its advisory with it — the warning would not be late,
-        # it would be gone.
-        try:
-            # Throttled like the nudge below. Without it the same advisory
-            # reprints on every turn-end attempt of the session — and this
-            # module's own docstrings argue that a warning which always fires is
-            # one nobody reads. The marker keys on a digest of the note TEXT, so
-            # a DIFFERENT contradiction still gets through.
-            #
-            # It keyed on `enumerate`'s index until a review measured what that
-            # actually did. `notes` holds at most one entry (the gate reports
-            # only the session it adopted), so the index is always 0 — meaning
-            # the first downgrade warning on a branch permanently suppressed
-            # every later one, from a different session, a different checker,
-            # any text at all. That is this PR's own failure mode ("a downgrade
-            # passes silently") rebuilt inside the thing meant to catch it.
-            for note in ((getattr(decision, "notes", ()) or ()) if decision else ()):
-                digest = hashlib.sha1(note.encode("utf-8")).hexdigest()[:12]
-                marker = _marker_path(session_id, token, f"note{digest}")
-                if _already_nudged(marker):
-                    continue
-                _mark_nudged(marker)
-                print(note, file=sys.stderr)
-        except Exception:  # noqa: BLE001
-            # Observation must never break the guard — and here it would break
-            # more than itself: an exception escaping this block skips the
-            # PLAN-COMPLETE gate below for this run. The push hook wraps the
-            # same responsibility; this one has more to lose by not doing so.
-            pass
-        # Suppress while a resolution-applier fix is in flight (Stop only); fall
-        # through to the plan nudge rather than returning, so an unrelated
-        # plan-complete nudge can still fire.
-        if (decision is not None and decision.blocked
-                and not _suppress_for_resolution()):
-            reason = _review_nudge_reason(decision.reason, _review_was_performed())
-            fired = _nudge_once(session_id, token, "", reason)
-            if fired is not None:
-                return fired
 
     # ---- PLAN-COMPLETE nudge (move a finished plan to plan/complete/) -------
     if os.environ.get("BYPASS_PLAN_GUARD") == "1":

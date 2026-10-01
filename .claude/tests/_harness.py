@@ -244,3 +244,64 @@ def run_in_orchestrator(preamble: str, snippet: str, arg=None,
         raise AssertionError(proc.stderr[-3000:])
     out = proc.stdout
     return _json.loads(out[out.index("<<<") + 3:out.rindex(">>>")])
+
+
+class FakeNervServer:
+    """Loopback HTTP server that answers NERV's review-gate API (N1) with canned JSON.
+
+    The push gate and the CI backstop read `GET /api/v1/projects/<p>/gates/reviews/check`
+    through the real `pull.Nerv` client, which shells out to curl. Serving the answer
+    from 127.0.0.1 lets a test drive that whole path — curl, `-K -` token config,
+    status handling — in a subprocess with ``NERV_SERVER=<url>`` and no network.
+    `pull.server_ok` accepts plain http only for loopback hosts, so this is the one
+    shape a fake can take without weakening the client.
+
+    ``item`` is the kind=code entry of the response (``items[0]``); ``status`` and
+    ``raw`` override the response wholesale. ``requests`` records ``(path, auth)``
+    for every call so a test can assert what was asked and that a token was sent.
+    """
+
+    def __init__(self, item: dict | None = None, *, status: int = 200,
+                 raw: bytes | None = None):
+        self.item = item if item is not None else {"kind": "code", "state": "uncovered"}
+        self.status = status
+        self.raw = raw
+        self.requests: list[tuple[str, str]] = []
+        self._server = None
+        self._thread = None
+
+    @property
+    def url(self) -> str:
+        host, port = self._server.server_address[:2]
+        return f"http://{host}:{port}"
+
+    def __enter__(self) -> "FakeNervServer":
+        import http.server
+        import json as _json
+        import threading
+
+        fake = self
+
+        class Handler(http.server.BaseHTTPRequestHandler):
+            def do_GET(self):  # noqa: N802 — http.server's naming
+                fake.requests.append((self.path, self.headers.get("Authorization", "")))
+                body = fake.raw if fake.raw is not None else _json.dumps(
+                    {"branch": "x", "head_sha": None, "items": [fake.item]}).encode()
+                self.send_response(fake.status)
+                self.send_header("Content-Type", "application/json")
+                self.send_header("Content-Length", str(len(body)))
+                self.end_headers()
+                self.wfile.write(body)
+
+            def log_message(self, *args):  # keep test output clean
+                return
+
+        self._server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+        self._thread = threading.Thread(target=self._server.serve_forever, daemon=True)
+        self._thread.start()
+        return self
+
+    def __exit__(self, *exc) -> None:
+        self._server.shutdown()
+        self._server.server_close()
+        self._thread.join(timeout=5)

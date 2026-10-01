@@ -1,1068 +1,343 @@
-"""Review-coverage guard — judges whether the current branch carries
-`codebase/**` changes that have NOT yet been covered by a *resolved* AI code
-review.
+"""리뷰 커버리지 게이트 — 브랜치의 `codebase/**` 변경을 NERV 코드 리뷰 라운드가 덮는지 판정한다.
 
-This is the enforcement teeth behind CLAUDE.md / developer SKILL's "구현을
-완료하면 test·review·critical/warning fix 는 강제 사항" rule. Until now that
-rule lived only as SKILL prose, while the *worktree* rule was hook-enforced —
-an asymmetry that let the workflow-era cost/async pressures push review/fix to
-"next turn or the PR". This module gives review/fix the same kind of teeth the
-worktree guard has.
+NERV 정본 전환 단계 2(NERV Task `CLE-T-4ABTG7`)부터 리뷰 결과의 정본은 NERV 리뷰 레코드다.
+저장소 `review/**` 파일은 더 이상 판정 근거가 아니다. 이 모듈은 NERV 의 판정 API(N1,
+`GET /api/v1/projects/<p>/gates/reviews/check`)를 읽기만 하고, 그 위에 git 으로만 볼 수 있는
+두 가지(라운드 이후 커밋, 처분 커밋의 소속)를 더해 판정한다.
 
-Consumed by:
-  - .claude/hooks/guard_review_before_push.py  (PreToolUse(Bash): blocks `git push`)
-  - .claude/hooks/guard_review_before_stop.py  (Stop: blocks turn-end once)
+소비자:
+  - `.claude/hooks/guard_review_before_push.py` (PreToolUse(Bash): `git push` 를 막는다)
+  - `scripts/check-review-gate.py` (CI 백스톱, `review-gate.yml`)
 
-Scope decision — **only `codebase/**` counts as "code that needs review".**
-  spec/plan/docs/.claude changes go through `consistency-check`, not `ai-review`,
-  so a spec-only or harness-only PR is never blocked by this guard. This both
-  matches the review domain and avoids false-blocking doc/spec/meta PRs.
+범위 — **`codebase/**` 만 리뷰 대상이다.** spec · plan · docs · `.claude` 변경은 이 게이트에 걸리지
+않는다. 하네스만 바꾼 PR 은 `python3 -m pytest .claude/tests` 로 검증한다(`CLAUDE.md`).
 
-Policy (see evaluate_review): BLOCK when the branch has codebase/ changes
-(uncommitted, or committed since the merge-base with the default branch) AND
-EITHER of these coverage gates fails:
-    1. CODE-REVIEW gate — there is no *fresh, resolved* code review covering the
-       changes, OR
-    2. SPEC-CONSISTENCY gate (spec-impl drift) — some changed file matches a
-       spec's frontmatter `code:` glob (i.e. it implements a documented spec
-       surface) but there is no *fresh* `--impl-done` consistency report
-       (BLOCK: NO) postdating that change. This is the enforcement teeth behind
-       developer SKILL's "구현이 spec 을 준수하는지" — promoting the previously
-       *advisory* `/consistency-check --impl-done` to a hard exit gate, but only
-       for changes that touch spec-linked code (a refactor of code no spec
-       references is never blocked by this gate).
-  ALLOW otherwise — including no code change, no git repo, detached HEAD, no
-  spec-linked change, or any internal error (fail-open: a guard must never
-  wedge the session; either gate's parsing falls back to "not blocked").
+판정(`evaluate_review`) — 브랜치가 merge-base 이후 커밋한 `codebase/**` 변경이 있을 때:
+  1. N1 의 kind=code 최신 라운드가 `passed` 여야 한다. 역할 누락(정책 `review_roles`) ·
+     열린 critical · warning 은 서버가 `pending` 으로 판정한다.
+  2. 라운드 `head_sha` 가 이 체크아웃에 있고 HEAD 의 조상이어야 한다. rebase · amend 로 라운드
+     head 가 사라졌으면 새 HEAD 로 리뷰를 다시 제출해야 한다.
+  3. 라운드 head 이후 `codebase/**` 를 바꾼 커밋(merge 커밋과 기준 브랜치에서 들어온 커밋은
+     뺀다)은 모두 그 라운드 발견의 `fixed` 처분 `commit_sha` 여야 한다. 리뷰 뒤 fix 커밋만 있으면
+     새 라운드 없이 통과한다.
+  4. `fixed` 로 처분된 발견의 `commit_sha` 는 HEAD 에서 닿는 커밋이어야 한다. NERV 는 발견을
+     프로젝트 전체에서 지문으로 합친다. 그래서 다른 브랜치에서 고친 같은 지적도 이 라운드에
+     `fixed` 로 보인다. 그 수정이 이 브랜치에 없으면 막는다.
+  변경이 없으면 통과한다. 커밋하지 않은 변경은 push 되지 않으므로 보지 않는다.
 
-Advisory, orthogonal to the above: when Gate 2 adopts a consistency session
-whose SUMMARY says `BLOCK: NO` while one of its checkers tagged a `[CRITICAL]`,
-the decision carries a `notes` entry naming the contradiction. It is NOT a third
-blocking condition — the verdict is whatever the two gates above compute, and a
-downgraded session that is otherwise fresh and resolved still opens the gate.
-The note exists because that downgrade violates a policy (`consistency-summary`
-§요약 지침 3) which until now lived only in prose, so nothing surfaced when it
-was broken: measured 24 contradictions across 732 committed sessions (3.3%).
-Only the *adopted* session is examined — reporting on sessions the gate ignored
-would train the reader to ignore the note. See `_shared/block_integrity.py`.
+판정하지 못하면(`GateUnavailable`) 호출자가 fail-open 하고 그 사실을 센다(push 훅의 배너와
+연속 횟수, CI 의 경고). 그중 설정 문제(`GateMisconfigured` — 토큰 · 서버 주소 없음, 401 · 403 ·
+404)는 일시 장애와 구분한다. CI 는 설정 문제를 `--enforce` 에서 실패로 본다. 비밀이 빠진 백스톱은
+초록인 채로 영원히 꺼져 있기 때문이다.
 
-Ordering, since it looks like a leak and is not: Gate 1 runs first, so a branch
-that fails it (no resolved code review) returns before Gate 2 computes anything,
-and the downgrade note does not appear on that attempt. It is deferred, not
-dropped — the push is already refused for the code-review reason, and once a
-review exists the next attempt runs Gate 2 and surfaces the note. Computing
-Gate 2 eagerly just to decorate a block that has already been decided would scan
-every consistency session on a path that is not going to allow the push anyway.
-
-"Fresh, resolved review" =
-  a `review/code/**/SUMMARY.md` in the working tree satisfying ALL of:
-    1. coverage:   every `agents_forced` reviewer left a report on disk — the
-                   router_safety whitelist actually ran (`_forced_coverage_missing`);
-    2. risk:       EITHER a sibling `RESOLUTION.md` exists (critical/warning were
-                   addressed) OR `## 전체 위험도` is NONE/LOW with no actionable rows;
-    3. freshness:  it postdates the newest changed codebase file.
-
-"Fresh impl-done consistency report" =
-  a `review/consistency/**/SUMMARY.md` whose session `meta.json` mode names
-  `--impl-done` AND whose top `BLOCK:` line is NO (no Critical spec-impl
-  divergence), postdating the newest spec-linked changed file.
-
-Freshness uses **checkout- and rebase-immune** clocks, NOT raw filesystem
-mtime, and NOT a commit's committer date. Two distinct history rewrites would
-otherwise poison the comparison:
-  - `git worktree add` / checkout reset a file's *mtime* to the checkout
-    instant — which made a genuinely-resolved review look stale (its committed
-    SUMMARY.md mtime jumped behind the code) and false-blocked;
-  - `git rebase` (also `commit --amend`, `cherry-pick`) rewrite each replayed
-    commit's *committer* date to the rewrite instant while PRESERVING its author
-    date — so a content-identical rebase pushed the code's committer clock past
-    the review session that already covered it, re-arming the gate on unchanged
-    code (the symptom this module's author-date clock fixes).
-Instead:
-  - a review's "done" time is its session-dir timestamp (`<Y>/<m>/<d>/<H>_<M>_
-    <S>`, encoded in the path — never reset by checkout/rebase), with a
-    just-written (dirty) SUMMARY/RESOLUTION's mtime folded in;
-  - a code file's edit time is the newest *author* date among the commits that
-    touch it when clean (rebase-immune; see _newest_commit_time), or its mtime
-    when it carries an uncommitted change (genuinely just edited).
-Both sides therefore share one stable, rewrite-immune clock. The residual hole
-is deliberate-and-rare: a commit authored before the review but introduced onto
-the branch *after* it (cherry-pick of an old commit, or `--date` backdating)
-reads as already-covered — a conscious bypass, accepted per the fail-open
-contract below. Additionally, a review that has
-*started but not finished* (session dir + meta.json present, SUMMARY.md not yet
-written, within _IN_FLIGHT_TTL_SECONDS) suppresses the *Stop nudge* — the async
-`/ai-review` is mid-flight, not an unreviewed branch. That suppression applies
-only when the caller opts in with `evaluate_review(in_flight_ok=True)`, which
-the Stop guard does and the push guard does not: both guards share this one
-function, so while the suppression was unconditional it silently opened the
-**push** gate for the whole TTL. Symmetrically, the *Stop*
-guard (not the push guard) also suppresses its nudge while a `resolution-applier`
-fix is in flight — after SUMMARY.md exists, the applier's codebase edits postdate
-the review and would re-arm the gate, goading a premature redundant re-review
-(see _resolution_in_flight, driven by the PreToolUse(Agent)/SubagentStop marker).
-
-This is a strong nudge, not a precise oracle; like the CWD-based worktree guard
-it errs toward not false-blocking, and BYPASS_REVIEW_GUARD=1 (handled by
-callers) provides a conscious one-off override.
+NERV 쓰기는 이 모듈이 하지 않는다. 리뷰 제출과 처분은 main 세션의 MCP 호출로만 한다(`CLAUDE.md`).
+읽기는 `.claude/tools/nerv-mirror/pull.py` 의 `Nerv` 클라이언트를 쓴다(curl, `-K -` 로 토큰 전달).
 """
 
 from __future__ import annotations
 
+import importlib.util
 import json
 import os
-import re
 import sys
-import time
 from dataclasses import dataclass
-from datetime import datetime
 
 THIS_DIR = os.path.dirname(os.path.abspath(__file__))
 _CLAUDE_DIR = os.path.dirname(os.path.dirname(THIS_DIR))  # …/.claude
 
-
-# Report location/validity is shared with the orchestrator CLIs — see
-# `.claude/_shared/report_paths.py`. Both this gate and `--verify-coverage` must answer
-# "did this agent leave a report?" identically; when each kept its own copy behind a
-# "change both" comment they diverged inside one PR (the gate required non-empty, the CLI
-# only existence, so `touch security.md` passed one and failed the other).
-#
-# NOT wrapped in a local try/except: this module's own two callers
-# (`guard_review_before_push.py`, `guard_review_before_stop.py`) already wrap
-# `from review_guard import evaluate_review` in a broad `try/except Exception` that sets
-# `evaluate_review = None` on failure — so an import error here does not raise past this
-# file; it fails the *whole module* to load and both callers quietly disable the entire
-# review gate (push block, stop nudge, resolution-in-flight suppression alike), same as
-# any other runtime error this gate can hit. That is consistent with the gate's own
-# fail-open philosophy elsewhere, so it is not a functional gap — the one place a local
-# try/except here would matter is a unit test that imports this module directly and
-# would otherwise see the failure silently swallowed instead of raised.
+# git 헬퍼는 형제 가드와 공유한다(`.claude/_shared/git_probe.py`). 복사본을 두면 갈린다 — 이 저장소가
+# `_run_git` 의 `.strip()` 으로 두 번 겪었다.
 if _CLAUDE_DIR not in sys.path:
     sys.path.insert(0, _CLAUDE_DIR)
-from _shared import report_paths as _report_paths_lib  # noqa: E402
-from _shared import block_integrity as _block_integrity  # noqa: E402
 from _shared import git_probe as _git_probe  # noqa: E402
 
+_run_git = _git_probe._run_git
+_repo_root = _git_probe._repo_root
+_default_branch = _git_probe._default_branch
+_current_branch = _git_probe._current_branch
 
 CODE_PREFIX = "codebase/"
-REVIEW_GLOB_ROOT = os.path.join("review", "code")
-SPEC_DIR = "spec"
-CONSISTENCY_GLOB_ROOT = os.path.join("review", "consistency")
-# The impl-done consistency mode label written into each session's meta.json
-# carries this token (see consistency_orchestrator.py mode_label for --impl-done).
-_IMPL_DONE_MODE_TOKEN = "--impl-done"
+N1_PATH = "/api/v1/projects/{project}/gates/reviews/check"
+# 훅은 모든 push 앞에서 동기로 돈다. 서버가 멈추면 이 시간 뒤 fail-open 한다.
+N1_MAX_TIME = "15"
+_PULL_PY = os.path.join(_CLAUDE_DIR, "tools", "nerv-mirror", "pull.py")
+# 메시지에 나열할 커밋 · 발견 수 상한.
+_LIST_LIMIT = 5
 
-# How long a started-but-unfinished review session suppresses the *Stop nudge*.
-# A `/ai-review` run that has created its session dir (meta.json) but not yet
-# written SUMMARY.md is "in flight" — blocking turn-end then would fire the
-# nudge for a review the model is *already* running. Past this TTL an abandoned
-# session no longer suppresses even the nudge.
-# The push guard is unaffected in the first place: the suppression only applies
-# when the caller passes `in_flight_ok=True`, and only the Stop guard does.
-# Do NOT make that suppression unconditional — both guards share
-# `evaluate_review`, so an always-on concession opens the push gate for the
-# whole TTL. That regression is locked by EvaluateInFlightShortCircuitTest.
-_IN_FLIGHT_TTL_SECONDS = 1800  # 30 min — comfortably covers a slow review fan-out
+# N1 `reasons` 값 → 사람이 읽을 문장. 모르는 값은 그대로 보여 준다.
+_REASON_TEXT = {
+    "open_critical": "열린 critical 발견이 있다",
+    "open_warning": "열린 warning 발견이 있다",
+    "missing_roles": "필수 역할 리포트가 빠졌다",
+}
 
-# Trailing `<YYYY>/<MM>/<DD>/<hh>_<mm>_<ss>` of a review/consistency session dir.
-# This path is checkout-immune (it is the directory *name*, not its mtime), so
-# it is the authoritative "when did this review run" clock — unlike file mtime,
-# which `git worktree add` / checkout / rebase reset to the checkout instant.
-_SESSION_TS_RE = re.compile(
-    r"(?P<Y>\d{4})/(?P<m>\d{2})/(?P<d>\d{2})/(?P<H>\d{2})_(?P<M>\d{2})_(?P<S>\d{2})/?$"
-)
+
+class GateUnavailable(Exception):
+    """판정하지 못했다(서버 불통 · 응답 형식 · git 실패). 호출자는 fail-open 하고 센다."""
+
+
+class GateMisconfigured(GateUnavailable):
+    """설정 문제라 고칠 때까지 계속 판정하지 못한다(토큰 · 서버 주소 없음, 401 · 403 · 404)."""
 
 
 @dataclass(frozen=True)
 class ReviewDecision:
     blocked: bool
-    reason: str  # human-readable; used for stderr / system-reminder bodies.
-    # Advisories that do not change the verdict but must still reach the model.
-    # A field rather than a `print`, because the stream depends on the exit code:
-    # the push hook reads stderr when it refuses (exit 2) and stdout when it
-    # allows (exit 0) — and these advisories fire precisely on the allow path.
-    # Hardcoding stderr put them where nothing reads them. `_report_fail_open`
-    # documents the same rule for its own banner.
+    reason: str  # 사람이 읽는 이유. stderr · CI 로그에 그대로 나간다.
+    # 판정을 바꾸지 않는 참고. 필드로 두는 이유: push 훅은 차단(exit 2)이면 stderr, 통과(exit 0)면
+    # stdout 을 모델에 보여 준다. 출력 스트림은 호출자가 고른다.
     notes: tuple[str, ...] = ()
 
     @property
     def push_blocks(self) -> bool:
-        """Whether the push hard-gate should refuse on this decision.
-
-        The push runner reads this on every gate's decision so it never has to
-        know each class's field name (`ReviewDecision.blocked` vs
-        `PlanDecision.untouched`). A gate that hard-blocks the push declares it
-        here; the gate contract is then a property, not a per-call lambda the
-        caller has to keep matched by hand."""
+        """push 훅이 게이트마다 같은 이름으로 읽는 차단 여부(`PlanDecision` 과 짝)."""
         return self.blocked
 
 
-# These five git probes now live in `.claude/_shared/git_probe.py`, shared with the
-# sibling guard. They were byte-identical copies (AST-compared before moving), and
-# the pair drifted twice in a row: round 7 fixed `_run_git`'s `.strip()` here and
-# round 8 found the same line still in the other copy, false-blocking pushes.
-# Delegating rather than re-copying is the same move `report_paths` and
-# `retry_state` already made for the same reason.
-_run_git = _git_probe._run_git
-_repo_root = _git_probe._repo_root
-_default_branch = _git_probe._default_branch
-_merge_base = _git_probe._merge_base
-_porcelain_path = _git_probe._porcelain_path
+# -- NERV 읽기 ----------------------------------------------------------------------
+
+def _load_pull():
+    """`pull.py` 를 모듈로 불러온다. 이름이 흔해서 `nerv_mirror_pull` 로 등록한다."""
+    name = "nerv_mirror_pull"
+    if name in sys.modules:
+        return sys.modules[name]
+    spec = importlib.util.spec_from_file_location(name, _PULL_PY)
+    if spec is None or spec.loader is None:
+        raise GateUnavailable(f"NERV 클라이언트를 찾지 못했다 — {_PULL_PY}")
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[name] = module
+    try:
+        spec.loader.exec_module(module)
+    except Exception as exc:  # noqa: BLE001 — 불러오기 실패는 판정 불가다
+        sys.modules.pop(name, None)
+        raise GateUnavailable(f"NERV 클라이언트를 불러오지 못했다 — {type(exc).__name__}: {exc}") from exc
+    return module
 
 
-def _committed_code_changes(cwd: str, base: str) -> list[str]:
-    rc, out, _ = _run_git(
-        ["diff", "--name-only", f"{base}..HEAD", "--", CODE_PREFIX], cwd
-    )
-    if rc != 0 or not out:
-        return []
+def _client_from_env():
+    """환경의 `NERV_SERVER` · `NERV_TOKEN` · `NERV_PROJECT` 로 읽기 클라이언트를 만든다.
+
+    로컬은 `.claude/settings.local.json` 의 `env`, CI 는 워크플로 `env`(secret)가 채운다.
+    값은 오류 메시지에 싣지 않는다."""
+    pull = _load_pull()
+    server = os.environ.get("NERV_SERVER", "")
+    token = os.environ.get("NERV_TOKEN", "")
+    project = os.environ.get("NERV_PROJECT", "") or "clemvion"
+    missing = [n for n, v in (("NERV_SERVER", server), ("NERV_TOKEN", token)) if not v]
+    if missing:
+        raise GateMisconfigured(f"{' · '.join(missing)} 가 없다 — NERV 판정을 읽을 수 없다")
+    try:
+        return pull.Nerv(server, project, token, max_time=N1_MAX_TIME)
+    except pull.PullError as exc:
+        raise GateMisconfigured(f"NERV 클라이언트 설정이 틀렸다 — {exc}") from exc
+
+
+def fetch_code_round(client, branch: str) -> dict:
+    """N1 에서 이 브랜치의 kind=code 최신 라운드를 읽는다.
+
+    `head_sha` 인자는 넘기지 않는다. 넘기면 서버가 그 커밋의 라운드만 찾는다(실측 2026-10-01: 라운드
+    head 의 자손 커밋을 넘기면 `uncovered`). 조상 · 이후 커밋 판정은 이 모듈이 git 으로 한다."""
+    import urllib.parse  # noqa: PLC0415 — 이 함수만 쓴다
+
+    query = urllib.parse.urlencode({"branch": branch, "kind": "code"})
+    path = N1_PATH.format(project=client.project) + "?" + query
+    try:
+        status, body = client.get(path)
+    except Exception as exc:  # noqa: BLE001 — 전송 실패(curl 없음 · 시간 초과 등)
+        raise GateUnavailable(f"NERV 판정을 읽지 못했다 — {type(exc).__name__}: {exc}") from exc
+    if status in (401, 403, 404):
+        raise GateMisconfigured(f"NERV 판정 응답 {status} — 토큰 권한이나 프로젝트를 확인한다")
+    if status != 200:
+        raise GateUnavailable(f"NERV 판정 응답 {status}")
+    try:
+        doc = json.loads(body)
+    except ValueError as exc:
+        raise GateUnavailable("NERV 판정 응답이 JSON 이 아니다") from exc
+    items = doc.get("items") if isinstance(doc, dict) else None
+    if not isinstance(items, list):
+        raise GateUnavailable("NERV 판정 응답에 items 가 없다")
+    for item in items:
+        if isinstance(item, dict) and item.get("kind") == "code":
+            return item
+    raise GateUnavailable("NERV 판정 응답에 kind=code 항목이 없다")
+
+
+# -- git ------------------------------------------------------------------------------
+
+def _git_ok(args: list[str], cwd: str) -> bool:
+    rc, _, _ = _run_git(args, cwd)
+    return rc == 0
+
+
+def _git_lines(args: list[str], cwd: str) -> list[str]:
+    rc, out, err = _run_git(args, cwd)
+    if rc != 0:
+        raise GateUnavailable(f"git {args[0]} 실패 — {err or f'rc={rc}'}")
     return [ln for ln in out.splitlines() if ln.strip()]
 
 
-def _uncommitted_code_changes(cwd: str) -> list[str]:
-    rc, out, _ = _run_git(["status", "--porcelain", "--", CODE_PREFIX], cwd)
-    if rc != 0 or not out:
-        return []
-    return [p for p in (_porcelain_path(ln) for ln in out.splitlines()) if p]
+def _commit_of(ref: str, cwd: str) -> str | None:
+    """`ref` 가 가리키는 커밋의 전체 해시. 없으면 None. `-` 로 시작하는 값은 옵션으로 읽히므로 받지 않는다."""
+    if not ref or ref.startswith("-"):
+        return None
+    rc, out, _ = _run_git(["rev-parse", "--verify", "--quiet", f"{ref}^{{commit}}"], cwd)
+    return out.strip() if rc == 0 and out.strip() else None
 
 
-def _mtime(path: str) -> float:
-    try:
-        return os.path.getmtime(path)
-    except OSError:
-        return 0.0
+def _resolve_commit(sha: str, cwd: str) -> str | None:
+    """NERV 가 준 `sha`(축약 가능)를 전체 해시로. 16진수가 아니거나 이 체크아웃에 없으면 None.
+
+    서버 응답은 그대로 git 인자가 되므로 모양부터 거른다(브랜치 이름 · 옵션이 섞이지 않게)."""
+    if not sha or not all(c in "0123456789abcdefABCDEF" for c in sha):
+        return None
+    return _commit_of(sha, cwd)
 
 
-def _dirty_set(repo_root: str) -> set[str]:
-    """Repo-relative paths with any uncommitted change (one `git status` call).
+def _base_ref(cwd: str, given: str | None) -> str:
+    """기준 브랜치 ref. 주면 그것만, 아니면 origin/<기본 브랜치> → <기본 브랜치> 순서로 고른다."""
+    if given:
+        candidates = [given]
+    else:
+        default = _default_branch(cwd)
+        candidates = [f"origin/{default}", default] if default else []
+    for ref in candidates:
+        if _commit_of(ref, cwd):
+            return ref
+    raise GateUnavailable("기준 브랜치를 찾지 못했다 — 이 브랜치의 변경 범위를 정할 수 없다")
 
-    Used to decide, per file, whether its *real* edit time is the filesystem
-    mtime (the file was just edited in the working tree) or its last commit time
-    (the file is clean — its mtime may be a meaningless checkout/rebase artifact).
-    """
-    rc, out, _ = _run_git(["status", "--porcelain"], repo_root)
-    if rc != 0 or not out:
-        return set()
-    return {p for p in (_porcelain_path(ln) for ln in out.splitlines()) if p}
 
-
-def _newest_commit_time(repo_root: str, rel_paths: list[str]) -> float:
-    """Newest *author* date (epoch) across the commits touching any of rel_paths.
-
-    Both checkout- AND rebase-immune. Two distinct history rewrites would poison
-    a naive code clock:
-      - `git worktree add` / `git checkout` reset a file's *mtime* to the
-        checkout instant — sidestepped by reading commit metadata at all rather
-        than fs mtime;
-      - `git rebase` (also `git commit --amend`, `git cherry-pick`) rewrite each
-        replayed commit's *committer* date to the rewrite instant while
-        PRESERVING its author date. Using committer date (`%ct`, the old
-        behaviour) therefore made a content-identical rebase look newer than the
-        resolved review that already covered it → false-stale re-arming of the
-        gate. Author date (`%at`) is the stable "when was this content authored"
-        clock that survives a rebase.
-
-    We take the MAX author date across *every* commit touching the paths, not
-    `git log -1`'s topmost: after a rebase all replayed commits share ~one
-    committer date, so the commit-date-ordered `-1` could return a non-latest
-    commit; a max over author dates is order-independent. 0.0 if none are
-    tracked / committed. One `git log` call regardless of count.
-
-    Residual (deliberate, rare) hole: a commit authored *before* the review but
-    introduced onto the branch *after* it — a cherry-pick of an old commit, or
-    an explicit `--date` backdate — reads as already-covered. This guard is a
-    nudge, not an oracle; that bypass is conscious and accepted per fail-open."""
-    if not rel_paths:
-        return 0.0
-    rc, out, _ = _run_git(
-        ["log", "--format=%at", "HEAD", "--", *rel_paths], repo_root
-    )
-    if rc != 0 or not out.strip():
-        return 0.0
-    newest = 0.0
-    for line in out.splitlines():
-        line = line.strip()
-        if not line:
+def _fixed_commits(item: dict) -> list[tuple[str, str]]:
+    """라운드 발견 중 `fixed` 처분의 (commit_sha 소문자, 발견 제목)."""
+    out: list[tuple[str, str]] = []
+    for f in item.get("findings") or []:
+        if not isinstance(f, dict) or f.get("status") != "fixed":
             continue
-        try:
-            v = float(line)
-        except ValueError:
-            continue
-        if v > newest:
-            newest = v
-    return newest
-
-
-def _authoritative_code_time(repo_root: str, rel_paths: list[str],
-                             dirty: set[str] | None = None) -> float:
-    """Newest *real* edit time across rel_paths, immune to checkout mtime resets.
-
-    Dirty (uncommitted) files → filesystem mtime (they were genuinely just
-    edited). Clean tracked files → the newest author date of the commits that
-    touch them (rebase-immune; see _newest_commit_time — a committer date or fs
-    mtime would be a rebase/checkout artifact in a worktree). This is the same
-    clock on both the code and review sides, so the freshness comparison stays
-    internally consistent."""
-    if not rel_paths:
-        return 0.0
-    if dirty is None:
-        dirty = _dirty_set(repo_root)
-    dirty_paths = [p for p in rel_paths if p in dirty]
-    clean_paths = [p for p in rel_paths if p not in dirty]
-    newest = 0.0
-    for rel in dirty_paths:
-        m = _mtime(os.path.join(repo_root, rel))
-        if m > newest:
-            newest = m
-    ct = _newest_commit_time(repo_root, clean_paths)
-    if ct > newest:
-        newest = ct
-    return newest
-
-
-def _newest_code_mtime(repo_root: str, rel_paths: list[str],
-                       dirty: set[str] | None = None) -> float:
-    """Back-compat name retained as the seam evaluate_review/tests reference;
-    the body is now checkout-immune (see _authoritative_code_time). `dirty` is
-    an optional pre-computed dirty set to avoid a redundant `git status`."""
-    return _authoritative_code_time(repo_root, rel_paths, dirty)
-
-
-def _path_session_time(session_dir: str) -> float:
-    """Epoch parsed from a review session dir's `<Y>/<m>/<d>/<H>_<M>_<S>` tail.
-
-    Checkout-immune authoritative "when this review ran" clock. 0.0 if the path
-    does not carry the timestamp layout."""
-    posix = session_dir.replace(os.sep, "/")
-    m = _SESSION_TS_RE.search(posix)
-    if not m:
-        return 0.0
-    try:
-        dt = datetime(
-            int(m["Y"]), int(m["m"]), int(m["d"]),
-            int(m["H"]), int(m["M"]), int(m["S"]),
-        )
-        return dt.timestamp()
-    except (ValueError, OverflowError):
-        return 0.0
-
-
-def _iter_summaries(repo_root: str) -> list[str]:
-    root = os.path.join(repo_root, REVIEW_GLOB_ROOT)
-    found: list[str] = []
-    if not os.path.isdir(root):
-        return found
-    for dirpath, _dirs, files in os.walk(root):
-        if "SUMMARY.md" in files:
-            found.append(os.path.join(dirpath, "SUMMARY.md"))
-    return found
-
-
-_RISK_LINE = re.compile(r"전체\s*위험도")
-_RISK_LEVEL = re.compile(r"\b(NONE|LOW|MEDIUM|HIGH|CRITICAL)\b")
-# A markdown table data row that is not the header / separator and has real text.
-_TABLE_DATA_ROW = re.compile(r"^\s*\|\s*\d+\s*\|")  # rows start with a "| 1 |" index
-
-
-def _forced_coverage_missing(session_dir: str) -> list[str]:
-    """`agents_forced` reviewers with no report in this session (empty ⇒ complete).
-
-    `agents_forced` is the router_safety whitelist a router "override 하지 못한다"
-    (code-review-agents SKILL). Nothing mechanical held anyone to it: the Workflow only
-    logged the list, and `--apply-routing` honoured it solely when consuming a router
-    decision — so on the hand-picked fallback path the whitelist was prose, and prose is
-    what a "this diff is small" judgement call talks itself past. It did: 160 of 575
-    committed sessions were short a forced reviewer when this was measured (2026-07-17),
-    107 of them carrying a RESOLUTION.md and therefore passing this gate as "resolved".
-    One of those skipped `security` on a diff that edited the open-redirect boundary.
-
-    Coverage is judged by **reports on disk**, not by `agents_success`: a self-reported
-    status with no file behind it is exactly the fake-success this whole line of work
-    exists to remove, and reading disk also makes the gate immune to a stale state file.
-    What counts as a report — where it lives, and that it be non-empty — is
-    `.claude/_shared/report_paths.py`, shared verbatim with `--verify-coverage` so the
-    gate and the CLI cannot answer differently (they once did).
-    """
-    state_path = os.path.join(session_dir, "_retry_state.json")
-    try:
-        with open(state_path, "r", encoding="utf-8", errors="replace") as f:
-            state = json.load(f)
-    except (OSError, ValueError):
-        # No manifest (hand-written session, or a consistency dir that never had one) —
-        # nothing to enforce. Fail open: this gate only tightens sessions that declared
-        # a whitelist. A session can therefore dodge it by having no manifest, but the
-        # manifest is what names the whitelist in the first place: with none there is
-        # nothing to check against, and failing closed would block every pre-manifest
-        # session in history.
-        return []
-
-    forced = state.get("agents_forced") or []
-    if not isinstance(forced, list) or not forced:
-        return []
-    return _report_paths_lib.missing_reports(session_dir, forced, state)
-
-
-def _summary_is_resolved(summary_path: str) -> bool:
-    """A review is 'resolved' when BOTH hold:
-
-      1. **coverage** — every `agents_forced` reviewer left a report on disk
-         (`_forced_coverage_missing`); AND
-      2. **findings dealt with** — EITHER a sibling RESOLUTION.md exists (critical/warning
-         were addressed) OR the overall risk is NONE/LOW with no data row under either the
-         Critical or the Warning table.
-
-    (Written as an explicit 1-AND-2 rather than a flat bullet list: read with normal
-    operator precedence, `A, AND B, OR C` parses as `(A AND B) OR C` — i.e. "risk is low
-    ⇒ resolved regardless of coverage", the exact hole this gate closes.)
-
-    An under-covered session simply is not "resolved", so it cannot satisfy the gate and
-    a complete review has to run. Nothing is retroactively broken: the guard takes the
-    newest *resolved* review, so historical sessions that fall out of that set only stop
-    counting — and they were already older than any code being changed now.
-    """
-    session_dir = os.path.dirname(summary_path)
-
-    missing_forced = _forced_coverage_missing(session_dir)
-    if missing_forced:
-        return False
-
-    if os.path.exists(os.path.join(session_dir, "RESOLUTION.md")):
-        return True
-
-    try:
-        with open(summary_path, "r", encoding="utf-8", errors="replace") as f:
-            text = f.read()
-    except OSError:
-        return False
-
-    lines = text.splitlines()
-
-    # Overall risk: the first level token after the '전체 위험도' heading, up to
-    # the next markdown heading (the level often sits a few lines below the
-    # heading, e.g. under a bold "**HIGH**" line — a fixed 3-line window missed
-    # those and silently defaulted risk_level to None).
-    risk_level = None
-    for i, ln in enumerate(lines):
-        if _RISK_LINE.search(ln):
-            # Index-based (`j > 0`) rather than `probe is not ln` — object
-            # identity would lean on CPython string interning.
-            for j, probe in enumerate(lines[i:]):
-                if j > 0 and probe.lstrip().startswith("#"):
-                    break  # next section — stop before bleeding into it
-                m = _RISK_LEVEL.search(probe)
-                if m:
-                    risk_level = m.group(1)
-                    break
-            # Stop only once a level was actually read. The outer `break` used to
-            # be unconditional, so ONE decoy mention of the heading phrase before
-            # the real heading — a sentence citing the section by name — ended the
-            # scan with `risk_level = None`, and a narrative HIGH/CRITICAL report
-            # with no table rows then read as "resolved". Reproduced: the same
-            # document passes as unresolved without the decoy line and resolved
-            # with it.
-            #
-            # Measured across all 1,548 committed SUMMARY files: this shape occurs
-            # **zero** times today (21 have two or more heading matches, but the
-            # first always yields a level), so this is a latent path, not a live
-            # miss. It costs one condition to close.
-            if risk_level is not None:
-                break
-
-    # Count actionable rows under the Critical and Warning sections.
-    has_actionable = _section_has_rows(lines, "Critical") or _section_has_rows(
-        lines, "경고"
-    )
-
-    if risk_level in ("HIGH", "CRITICAL"):
-        return False
-    if has_actionable:
-        return False
-    # NONE/LOW/MEDIUM (or unparsed) with no actionable rows and no RESOLUTION:
-    # a clean report that surfaced nothing to act on → resolved.
-    return True
-
-
-def _section_has_rows(lines: list[str], heading_token: str) -> bool:
-    """True if the markdown section whose heading contains `heading_token` has
-    at least one numbered table data row before the next heading."""
-    in_section = False
-    for ln in lines:
-        if ln.lstrip().startswith("#"):
-            in_section = heading_token in ln
-            continue
-        if in_section and _TABLE_DATA_ROW.match(ln):
-            return True
-    return False
-
-
-def _fmt_ts(t: float) -> str:
-    """게이트 메시지용 짧은 시각 표기. 0/음수면 `(없음)`."""
-    if t <= 0:
-        return "(없음)"
-    return datetime.fromtimestamp(t).strftime("%m-%d %H:%M:%S")
-
-
-def _newest_resolved_review_mtime(repo_root: str,
-                                  dirty: set[str] | None = None) -> float:
-    """Authoritative time of the most recent *resolved* review (0.0 if none).
-
-    Checkout-immune: the review's "done" clock is the session-dir timestamp
-    (encoded in the path, never reset by a worktree checkout). For a RESOLUTION
-    or SUMMARY that is still *dirty* (just written this session, not yet
-    committed) we also fold in its filesystem mtime — that is a genuine, later
-    write time and covers the case where the resolving edits landed after the
-    session dir was created. Committed-and-clean artifacts rely on the path time
-    alone, never on their (checkout-poisoned) mtime. `dirty` may be passed in to
-    reuse a single `git status` across the evaluate_review call."""
-    if dirty is None:
-        dirty = _dirty_set(repo_root)
-    best = 0.0
-    for summary in _iter_summaries(repo_root):
-        if not _summary_is_resolved(summary):
-            continue
-        session_dir = os.path.dirname(summary)
-        t = _path_session_time(session_dir)
-        rel_summary = os.path.relpath(summary, repo_root).replace(os.sep, "/")
-        if rel_summary in dirty:
-            t = max(t, _mtime(summary))
-        res = os.path.join(session_dir, "RESOLUTION.md")
-        if os.path.exists(res):
-            rel_res = os.path.relpath(res, repo_root).replace(os.sep, "/")
-            if rel_res in dirty:
-                t = max(t, _mtime(res))
-        if t > best:
-            best = t
-    return best
-
-
-# ---------------------------------------------------------------------------
-# SPEC-CONSISTENCY gate (spec-impl drift) — see module docstring §2.
-# ---------------------------------------------------------------------------
-
-
-# Real spec `code:` globs, measured across all 633 of them: 528 have no `*` at
-# all, and the busiest single path segment anywhere holds exactly ONE `*`. Six is
-# therefore far above anything legitimate while still bounding the blow-up below.
-_MAX_GLOB_WILDCARDS = 6
-
-
-def _glob_to_regex(glob: str) -> re.Pattern:
-    """Compile a spec `code:` glob into an anchored regex over repo-relative
-    POSIX paths. Supports `**` (across directories), `*` (within a segment) and
-    `?`. Best-effort — the gate fails open if anything here misbehaves.
-
-    Wildcards are capped. Each `*` becomes its own unbounded quantifier, and a
-    run of them separated by literals (`a*a*a*…`) makes the engine try every way
-    of splitting a failing candidate between them — exponential, not quadratic.
-    Measured on `"a*"*k + "!"` against `"a"*2k`:
-
-        k          8       10       12       14       16
-        time  0.0002s  0.0026s  0.0406s  0.6500s  10.2598s     (×16 per +2)
-
-    That input arrives from a spec file's frontmatter, so anyone who can edit
-    `spec/**` can wedge every push and turn-end for everyone who checks it out.
-
-    Over the cap the glob is treated as matching EVERYTHING, which is the safe
-    direction here and the opposite of what a cap usually does: this predicate
-    decides whether Gate 2 applies at all, so "no match" would switch the gate
-    OFF — a length limit silently disabling detection is the failure
-    `_MAX_REDACTION_INPUT` warns about. Matching everything makes the gate ask
-    for a consistency report it may not need, which is loud and safe; the
-    malformed glob then gets fixed at its source.
-    """
-    if glob.count("*") > _MAX_GLOB_WILDCARDS:
-        return re.compile(".*", re.DOTALL)
-    out: list[str] = []
-    i, n = 0, len(glob)
-    while i < n:
-        c = glob[i]
-        if c == "*":
-            if i + 1 < n and glob[i + 1] == "*":
-                i += 2
-                if i < n and glob[i] == "/":
-                    # `**/` → zero or more *whole* directory segments. Emitting a
-                    # bare `.*` here let `**/x` match `ax`; `(?:.*/)?` keeps the
-                    # match on a segment boundary.
-                    out.append("(?:.*/)?")
-                    i += 1
-                else:
-                    out.append(".*")       # trailing `**` → cross-directory wildcard
-                continue
-            out.append("[^/]*")            # * → within one path segment
-        elif c == "?":
-            out.append("[^/]")
-        else:
-            out.append(re.escape(c))
-        i += 1
-    return re.compile("^" + "".join(out) + "$")
-
-
-def _parse_frontmatter_code(path: str) -> list[str]:
-    """Extract the `code:` glob list from a markdown file's YAML frontmatter.
-    Handles inline (`code: [a, b]`), single-value (`code: a`) and block-list
-    (`code:\\n  - a\\n  - b`) forms. Returns [] when there is no frontmatter or
-    no `code:` field.
-
-    **YAML 주석은 값이 아니다.** 블록 리스트 안의 빈 줄·줄 전체 주석은 건너뛰고
-    (`break` 는 다음 키에서만), 항목과 같은 줄의 트레일링 ` #...` 은 잘라낸다.
-    앞에 공백이 없는 `#`(`a#b.ts`)은 YAML 규칙대로 값의 일부로 남긴다.
-
-    두 처리 모두 **entry 가 조용히 사라지는 것**을 막는다 — 사라진 entry 는
-    "게이트가 안 무는 쪽" 이 기본값이 되게 하고, 실제로 41개가 그렇게 유실 중이었다.
-    이 파서는 프런트엔드 `spec-frontmatter-parse.ts`(gray-matter)와 **같은 답을
-    내야 한다** (2026-09-06 기준 731 대 731, 갈리는 파일 0)."""
-    try:
-        with open(path, "r", encoding="utf-8", errors="replace") as f:
-            if f.readline().strip() != "---":
-                return []
-            fm: list[str] = []
-            for line in f:
-                if line.strip() == "---":
-                    break
-                fm.append(line.rstrip("\n"))
-    except OSError:
-        return []
-
-    def _strip_comment(tok: str) -> str:
-        """트레일링 YAML 주석을 잘라낸다 — **따옴표 유무로 갈라** 처리한다.
-
-        - 언쿼트 스칼라: ` #` **이후**를 자른다. `#` 앞에 공백이 있어야 주석이므로
-          `a#b.ts` 는 값이다. 무조건 자르면 이번엔 값을 잘라 먹는 쪽으로 같은 유실이 난다.
-        - 인용 스칼라: **닫는 따옴표 뒤**를 자른다. 따옴표 **안**의 `#` 은 값이고,
-          닫는 따옴표가 없으면 자르지 않는다.
-
-        이 docstring 이 분기와 어긋나면 다음 사람이 없는 동작을 믿는다 — 실제로 인용
-        분기를 더하고도 첫 줄이 *"따옴표 없는 스칼라의"* 로 남아 있었다
-        (`review/code/2026/09/06/15_30_59` W3). 같은 결함 클래스를 이미 세 번 좁게
-        닫아 온 자리라 서술이 특히 앞서면 안 된다.
-        """
-        t = tok.strip()
-        quote = t[0] if t[:1] in ('"', "'") else ""
-        if quote:
-            # 인용 스칼라는 **닫는 따옴표 뒤**를 잘라낸다. 종전에는 통째로 돌려줘서
-            # `"a.ts"  # note` 가 `a.ts"  # note` 라는 죽은 glob 이 됐다
-            # (`review/code/2026/09/06/14_59_48` W3). 닫는 따옴표가 없으면 **자르지
-            # 않는다** — 추측해서 자르면 값이 사라진다.
-            end = t.find(quote, 1)
-            return t[: end + 1] if end > 0 else t
-        return re.split(r"\s+#", t, maxsplit=1)[0].rstrip()
-
-    def _clean(tok: str) -> str:
-        return _strip_comment(tok).strip('"').strip("'")
-
-    globs: list[str] = []
-    i, n = 0, len(fm)
-    while i < n:
-        m = re.match(r"^code:\s*(.*)$", fm[i])
-        if not m:
-            i += 1
-            continue
-        # 인라인 리스트는 `[...]` 를 벗기기 **전에** 주석을 걷는다 — 나중에 걷으면
-        # `[a, b]  # 비고` 의 마지막 항목에 `]` 가 남는다.
-        rest = _strip_comment(m.group(1))
-        if rest.startswith("["):
-            for part in rest.strip("[]").split(","):
-                g = _clean(part)
-                if g:
-                    globs.append(g)
-        elif rest:
-            g = _clean(rest)
-            if g:
-                globs.append(g)
-        else:  # block list on following `  - <glob>` lines
-            j = i + 1
-            while j < n:
-                # 빈 줄·`#` 주석은 **건너뛴다**. 종전에는 여기서 break 했는데, 유효한
-                # YAML 인 인라인 주석 하나가 **뒤 항목을 전부** 떨궈 등재된 파일이
-                # spec-linked 판정에서 조용히 빠졌다 — 게이트가 안 무는 쪽이 기본값이
-                # 됐다. 실측(2026-09-06): spec 387개 중 7개 파일에서 **41개 entry** 유실,
-                # 그중 하나가 당시 작업 중이던 PR 자신의 수정 파일을 덮고 있었다
-                # (`review/consistency/2026/09/06/13_52_23` Critical 1).
-                # gray-matter 를 쓰는 프런트엔드 파서는 처음부터 주석 뒤를 봤다 —
-                # 두 파서가 유효한 YAML 에 다른 답을 내던 상태를 여기서 닫는다.
-                stripped = fm[j].strip()
-                if not stripped or stripped.startswith("#"):
-                    j += 1
-                    continue
-                mm = re.match(r"^\s*-\s*(.+)$", fm[j])
-                if not mm:
-                    break  # 다음 키 — 리스트는 여기서 끝난다
-                g = _clean(mm.group(1))
-                if g:
-                    globs.append(g)
-                j += 1
-        break  # only the first `code:` key matters
-    return globs
-
-
-def _spec_code_patterns(repo_root: str) -> list[re.Pattern]:
-    """All compiled `code:` glob regexes across spec/**/*.md (deduped)."""
-    spec_root = os.path.join(repo_root, SPEC_DIR)
-    if not os.path.isdir(spec_root):
-        return []
-    seen: set[str] = set()
-    patterns: list[re.Pattern] = []
-    for dirpath, _dirs, files in os.walk(spec_root):
-        for name in files:
-            if not name.endswith(".md"):
-                continue
-            for g in _parse_frontmatter_code(os.path.join(dirpath, name)):
-                if g in seen:
-                    continue
-                seen.add(g)
-                try:
-                    patterns.append(_glob_to_regex(g))
-                except re.error:
-                    continue
-    return patterns
-
-
-def _spec_linked_changes(repo_root: str, changed: list[str]) -> list[str]:
-    """Subset of `changed` (repo-relative codebase/ paths) that matches at least
-    one spec `code:` glob — i.e. code that implements a documented spec surface."""
-    patterns = _spec_code_patterns(repo_root)
-    if not patterns:
-        return []
-    linked: list[str] = []
-    for rel in changed:
-        posix = rel.replace(os.sep, "/")
-        if any(p.match(posix) for p in patterns):
-            linked.append(rel)
-    return linked
-
-
-def _iter_consistency_summaries(repo_root: str) -> list[str]:
-    root = os.path.join(repo_root, CONSISTENCY_GLOB_ROOT)
-    found: list[str] = []
-    if not os.path.isdir(root):
-        return found
-    for dirpath, _dirs, files in os.walk(root):
-        if "SUMMARY.md" in files:
-            found.append(os.path.join(dirpath, "SUMMARY.md"))
-    return found
-
-
-def _is_impl_done_session(session_dir: str) -> bool:
-    """True when the session's meta.json mode names the --impl-done mode."""
-    try:
-        with open(os.path.join(session_dir, "meta.json"), "r", encoding="utf-8") as f:
-            mode = (json.load(f) or {}).get("mode", "")
-    except (OSError, ValueError):
-        return False
-    return _IMPL_DONE_MODE_TOKEN in (mode or "")
-
-
-def _summary_block_is_no(summary_path: str) -> bool:
-    """True when the consistency SUMMARY's top `BLOCK:` line reads NO (no
-    Critical spec-impl divergence). Unparseable / BLOCK: YES → False."""
-    try:
-        with open(summary_path, "r", encoding="utf-8", errors="replace") as f:
-            text = f.read()
-    except OSError:
-        return False
-    # Read the whole file: a 4 KB cap could miss a BLOCK: line pushed past the
-    # boundary by a long preamble. SUMMARY.md files are small (a few KB).
-    #
-    # The parse itself lives in `_shared/block_integrity` — one implementation,
-    # because a second `BLOCK:` regex here is exactly the "Change both" pair this
-    # branch removes elsewhere. It also anchors the match, which this copy did
-    # not: measured over 732 summaries, four narrate an earlier session's verdict
-    # in prose and a first-match search believed the narration.
-    return _block_integrity.summary_block_verdict(text) == "NO"
-
-
-def _newest_resolved_impl_done_mtime(repo_root: str,
-                                     dirty: set[str] | None = None,
-                                     notes: list[str] | None = None) -> float:
-    """Authoritative time of the most recent --impl-done consistency SUMMARY with
-    BLOCK: NO (0.0 if none). Checkout-immune via the session-dir timestamp, with
-    a dirty (just-written) SUMMARY's mtime folded in — same rule as the code
-    review side. `dirty` may be passed in to reuse a single `git status`.
-
-    `notes` collects advisories about the session this gate ends up trusting."""
-    if dirty is None:
-        dirty = _dirty_set(repo_root)
-    best = 0.0
-    best_dir = ""
-    for summary in _iter_consistency_summaries(repo_root):
-        session_dir = os.path.dirname(summary)
-        if not _is_impl_done_session(session_dir):
-            continue
-        if not _summary_block_is_no(summary):
-            continue
-        t = _path_session_time(session_dir)
-        rel_summary = os.path.relpath(summary, repo_root).replace(os.sep, "/")
-        if rel_summary in dirty:
-            t = max(t, _mtime(summary))
-        if t > best:
-            best = t
-            best_dir = session_dir
-
-    # Only the session the gate actually adopts. Checking every historical one
-    # re-warned about ~8 of them on every push and every turn end (+0.39s
-    # measured) over verdicts nothing is relying on now — and a warning that
-    # fires constantly is one nobody reads, which is the failure this backstop
-    # exists to prevent, one level up.
-    #
-    # `consistency-summary.md` §요약 지침 3 forbids the downgrade; this is where
-    # it stops being invisible, because nothing else reads the checker reports
-    # sitting beside the SUMMARY. It warns rather than rejecting the session:
-    # merging duplicates and raising severity stay legal, so refusing here would
-    # block sessions the rule allows.
-    if best_dir and notes is not None:
-        note = _block_integrity.contradiction_note(best_dir)
-        if note:
-            notes.append(f"⚠️  {os.path.relpath(best_dir, repo_root)}: {note}")
-    return best
-
-
-def _code_review_in_flight(repo_root: str, now: float | None = None) -> bool:
-    """True when a `/ai-review` session has been *started* but not finished.
-
-    A started review has created its session dir + meta.json (the orchestrator's
-    --prepare step) but not yet written SUMMARY.md (the reviewers are still
-    running). Blocking turn-end in that window is the root of the "I just
-    launched /ai-review and the Stop hook fired anyway" symptom — the gate has
-    no other way to see an async review in progress. We only honour recent
-    sessions (within _IN_FLIGHT_TTL_SECONDS, by the checkout-immune session-dir
-    timestamp) so an abandoned/crashed session cannot suppress the nudge forever.
-
-    The push guard remains the hard backstop — but that is NOT this function's
-    doing. It holds only because `evaluate_review` consults this predicate
-    exclusively under `in_flight_ok=True`, which the Stop guard passes and the
-    push guard does not. Read as an unconditional guarantee this docstring was
-    false for as long as the caller applied it unconditionally.
-
-    `now` is injectable for tests; production callers omit it (time.time())."""
-    now = time.time() if now is None else now
-    root = os.path.join(repo_root, REVIEW_GLOB_ROOT)
-    if not os.path.isdir(root):
-        return False
-    for dirpath, _dirs, files in os.walk(root):
-        if "meta.json" not in files or "SUMMARY.md" in files:
-            continue
-        t = _path_session_time(dirpath)
-        if t <= 0.0 or (now - t) > _IN_FLIGHT_TTL_SECONDS:
-            continue
-        # Require a parseable meta.json — a stray/empty file in the tree must not
-        # silently suppress the gate (defence-in-depth; the orchestrator always
-        # writes valid JSON here).
-        try:
-            with open(os.path.join(dirpath, "meta.json"), "r", encoding="utf-8") as f:
-                json.load(f)
-        except (OSError, ValueError):
-            continue
-        return True
-    return False
-
-
-# ---------------------------------------------------------------------------
-# RESOLUTION-IN-FLIGHT suppression (Stop nudge only) — see module docstring.
-# ---------------------------------------------------------------------------
-# Subdir (under the project's gitignored .claude/state/) where the
-# PreToolUse(Agent) hook stamps a marker the instant `resolution-applier` is
-# dispatched. Kept in sync with mark_/clear_resolution_in_flight.py.
-RESOLUTION_MARKER_SUBDIR = os.path.join(".claude", "state", "resolution_in_flight")
-# Idempotency state file the resolution-applier writes on entry (its first
-# action) — the corroborating "applier has started" signal.
-_RESOLUTION_STATE_FILE = "_resolution_state.json"
-
-
-def _resolution_marker_dir() -> str:
-    """Dir the PreToolUse(Agent) hook writes resolution markers to.
-
-    Resolved from CLAUDE_PROJECT_DIR (the stable main-project dir both the marker
-    hooks and the Stop guard share), falling back to cwd — NOT repo_root, so a
-    worktree-isolated session and the main session agree on one location."""
-    base = os.environ.get("CLAUDE_PROJECT_DIR") or os.getcwd()
-    return os.path.join(base, RESOLUTION_MARKER_SUBDIR)
-
-
-def _marker_epoch(path: str) -> float:
-    """Epoch recorded inside a marker file (its content), falling back to mtime.
-
-    The content (written by the dispatch hook) is rewrite-immune; mtime is the
-    fallback for an empty/legacy marker (and is reliable here since the marker
-    lives in the working tree during an active, no-checkout resolution)."""
-    try:
-        with open(path, "r", encoding="utf-8", errors="replace") as f:
-            txt = f.read().strip()
-        if txt:
-            return float(txt.split()[0])
-    except (OSError, ValueError):
-        pass
-    return _mtime(path)
-
-
-def _resolution_in_flight(repo_root: str, now: float | None = None,
-                          marker_dir: str | None = None) -> bool:
-    """True when a `resolution-applier` fix is genuinely in progress.
-
-    Used by guard_review_before_stop.py ONLY (not evaluate_review): once
-    `/ai-review` writes SUMMARY.md, the applier edits codebase/ files to fix the
-    findings, which postdate the review — so the Stop guard would fire its nudge
-    and goad a premature, redundant re-review over work the background sub-agent
-    is already doing. This suppresses that one nudge while the fix is in flight.
-    It is deliberately NOT consulted by the push guard: pushing half-fixed code
-    must still be blocked.
-
-    Two corroborating signals, either within _IN_FLIGHT_TTL_SECONDS:
-      1. A dispatch marker under .claude/state/resolution_in_flight/ — written by
-         the PreToolUse(Agent) hook the instant resolution-applier is launched
-         (before any edit), cleared on SubagentStop. The precise, race-free
-         signal that covers the immediate-after-dispatch window.
-      2. A review session with `_resolution_state.json` present AND SUMMARY.md
-         present AND RESOLUTION.md absent — the applier started but has not
-         finished. Corroborates / backs up signal 1 (e.g. if a marker write was
-         lost), bounded by the checkout-immune session-dir timestamp.
-
-    Both are TTL-bounded so a crashed/abandoned resolution re-arms the gate. `now`
-    and `marker_dir` are injectable for tests."""
-    now = time.time() if now is None else now
-
-    # Signal 1 — dispatch marker (precise; covers immediate-after-dispatch).
-    mdir = marker_dir if marker_dir is not None else _resolution_marker_dir()
-    try:
-        if os.path.isdir(mdir):
-            for name in os.listdir(mdir):
-                p = os.path.join(mdir, name)
-                if not os.path.isfile(p):
-                    continue
-                t = _marker_epoch(p)
-                if t > 0.0 and (now - t) <= _IN_FLIGHT_TTL_SECONDS:
-                    return True
-    except OSError:
-        pass
-
-    # Signal 2 — applier-started filesystem state (corroboration / fallback).
-    root = os.path.join(repo_root, REVIEW_GLOB_ROOT)
-    if os.path.isdir(root):
-        for dirpath, _dirs, files in os.walk(root):
-            if (_RESOLUTION_STATE_FILE not in files
-                    or "SUMMARY.md" not in files
-                    or "RESOLUTION.md" in files):
-                continue
-            t = _path_session_time(dirpath)
-            if t > 0.0 and (now - t) <= _IN_FLIGHT_TTL_SECONDS:
-                return True
-    return False
-
+        res = f.get("resolution") if isinstance(f.get("resolution"), dict) else {}
+        sha = str(res.get("commit_sha") or "").strip().lower()
+        if sha:
+            out.append((sha, str(f.get("title") or f.get("id") or "")))
+    return out
+
+
+def _short(sha: str) -> str:
+    return sha[:12]
+
+
+def _not_passed_reason(item: dict, branch: str) -> str:
+    state = item.get("state")
+    if state == "uncovered":
+        return (f"브랜치 `{branch}` 에 kind=code 리뷰 라운드가 없다. `/ai-review` 뒤 역할마다 "
+                "`nerv_review_submit`(kind=code, branch, head_sha=HEAD, task_id)으로 제출한다.")
+    reasons = [_REASON_TEXT.get(r, str(r)) for r in item.get("reasons") or []]
+    opened = item.get("open") if isinstance(item.get("open"), dict) else {}
+    counts = " · ".join(f"{k} {v}" for k, v in opened.items() if v)
+    roles = item.get("roles") if isinstance(item.get("roles"), dict) else {}
+    missing = roles.get("missing") or []
+    detail = "; ".join(reasons) or "판정이 passed 가 아니다"
+    if counts:
+        detail += f" (열린 발견 {counts})"
+    if missing:
+        detail += f" (빠진 역할 {', '.join(map(str, missing))})"
+    return (f"kind=code 라운드 {item.get('round_no')} 가 `{state}` 다 — {detail}. "
+            "발견을 `nerv_finding_resolve` 로 처분하거나 빠진 역할을 제출한다.")
+
+
+# -- 판정 ------------------------------------------------------------------------------
 
 def evaluate_review(
-    cwd: str | None = None, *, in_flight_ok: bool = False
+    cwd: str | None = None,
+    *,
+    branch: str | None = None,
+    head: str | None = None,
+    base_ref: str | None = None,
+    client=None,
 ) -> ReviewDecision:
-    """Return a ReviewDecision for the working dir (cwd or '.').
+    """이 체크아웃(`cwd`)의 브랜치를 판정한다.
 
-    blocked == True  → caller should refuse (push) / block stop.
-    blocked == False → proceed; `reason` may carry context for logging.
+    `branch` · `head` · `base_ref` 는 CI 가 넘긴다(PR 의 head 브랜치 · head 커밋 · `origin/<base>`).
+    로컬 push 훅은 넘기지 않고 체크아웃에서 읽는다. `client` 는 테스트 대역 자리다(`project` 와
+    `get(path) -> (status, body)` 만 있으면 된다).
 
-    `in_flight_ok` opts into the started-but-unfinished review suppression
-    (see `_code_review_in_flight`). It exists for ONE caller — the Stop nudge,
-    which must not nag about a review the model is running right now. It
-    defaults to False so the push guard keeps hard-gating: both guards call
-    this same function, so a shared default-on suppression would have opened
-    the push gate for the whole TTL. (That was the bug; the constant's own
-    comment and `_code_review_in_flight`'s docstring both asserted "the push
-    guard still hard-gates", which was false while this was unconditional.)
-    """
+    판정하지 못하면 `GateUnavailable` 을 던진다. 통과로 돌려주지 않는다 — 호출자가 그것을 세야
+    fail-open 이 조용히 지나가지 않는다."""
     cwd = cwd or os.getcwd()
-
     repo_root = _repo_root(cwd)
     if repo_root is None:
-        return ReviewDecision(False, "not inside a git repository — allowed")
+        return ReviewDecision(False, "git 저장소가 아니다 — 통과")
 
-    default = _default_branch(cwd)
-    base = _merge_base(cwd, default) if default else None
+    head_sha = _commit_of(head or "HEAD", cwd)
+    if not head_sha:
+        raise GateUnavailable(f"판정할 커밋을 찾지 못했다 — {head or 'HEAD'}")
 
-    committed = _committed_code_changes(cwd, base) if base else []
-    uncommitted = _uncommitted_code_changes(cwd)
-    changed = sorted(set(committed) | set(uncommitted))
-
+    base = _base_ref(cwd, base_ref)
+    fork = _git_lines(["merge-base", head_sha, base], cwd)
+    if not fork:
+        raise GateUnavailable(f"`{base}` 와의 merge-base 가 없다")
+    changed = _git_lines(["diff", "--name-only", f"{fork[0]}..{head_sha}", "--", CODE_PREFIX], cwd)
     if not changed:
-        return ReviewDecision(False, "no codebase/ changes on this branch — allowed")
+        return ReviewDecision(False, "이 브랜치에 codebase/ 변경이 없다 — 통과")
 
-    # A `/ai-review` started this turn but still running is not an unreviewed
-    # branch — it is a review mid-flight. Don't fire the *nudge* for work the
-    # model is already doing. (Targets the async-review ↔ synchronous-Stop race.)
-    # Gated on `in_flight_ok` so this stays a Stop-nudge concession: the push
-    # guard calls the same function and must NOT be opened by a session that has
-    # merely been started.
-    if in_flight_ok and _code_review_in_flight(repo_root):
-        return ReviewDecision(
-            False, "a code review session is in flight (started, SUMMARY pending) — allowed"
-        )
+    branch = branch or _current_branch(cwd)
+    if not branch:
+        raise GateUnavailable("브랜치 이름이 없다(detached HEAD) — NERV 라운드를 찾을 수 없다")
 
-    # One `git status` shared across every freshness query below (the dirty set
-    # decides mtime-vs-commit-time per file on both the code and review sides).
-    dirty = _dirty_set(repo_root)
+    item = fetch_code_round(client if client is not None else _client_from_env(), branch)
+    if item.get("state") != "passed":
+        return ReviewDecision(True, f"codebase/ 파일 {len(changed)}개를 바꿨다. " + _not_passed_reason(item, branch))
 
-    # ---- Gate 1: code review coverage --------------------------------------
-    newest_code = _newest_code_mtime(repo_root, changed, dirty)
-    newest_review = _newest_resolved_review_mtime(repo_root, dirty)
-
-    if newest_review <= 0.0:
+    round_no = item.get("round_no")
+    round_head = _resolve_commit(str(item.get("head_sha") or ""), cwd)
+    if round_head is None or not _git_ok(["merge-base", "--is-ancestor", round_head, head_sha], cwd):
         return ReviewDecision(
             True,
-            f"{len(changed)} codebase/ file(s) changed on this branch but no "
-            f"resolved review (review/code/**/SUMMARY.md) was found.",
+            f"kind=code 라운드 {round_no} 의 head `{_short(str(item.get('head_sha') or '?'))}` 가 이 "
+            "브랜치의 조상이 아니다(rebase · amend · 다른 브랜치의 라운드). 지금 HEAD 로 리뷰를 다시 "
+            "제출한다.",
         )
 
-    if newest_review < newest_code:
+    # (4) 처분 커밋이 이 브랜치에 있는가. 같은 커밋을 여러 발견이 가리키므로 한 번씩만 본다.
+    fixed = _fixed_commits(item)
+    foreign: list[str] = []
+    for sha in sorted({s for s, _ in fixed}):
+        full = _resolve_commit(sha, cwd)
+        if full is None or not _git_ok(["merge-base", "--is-ancestor", full, head_sha], cwd):
+            titles = [t for s, t in fixed if s == sha]
+            foreign.append(f"`{_short(sha)}` ({titles[0][:60]}{' 외' if len(titles) > 1 else ''})")
+    if foreign:
+        shown = ", ".join(foreign[:_LIST_LIMIT]) + (f" 외 {len(foreign) - _LIST_LIMIT}건" if len(foreign) > _LIST_LIMIT else "")
         return ReviewDecision(
             True,
-            f"{len(changed)} codebase/ file(s) changed AFTER the most recent "
-            f"resolved review — the code was edited since it was reviewed.",
+            f"kind=code 라운드 {round_no} 의 fixed 처분 커밋이 이 브랜치에 없다: {shown}. 다른 브랜치에서 "
+            "고친 같은 지적일 수 있다. 이 브랜치에서 고치고 그 커밋으로 처분하거나 리뷰를 다시 제출한다.",
         )
 
-    # ---- Gate 2: spec-impl consistency (--impl-done) -----------------------
-    # Only the subset of changes that implement a documented spec surface
-    # (matches a spec frontmatter `code:` glob) is held to this gate.
-    notes: list[str] = []
-    spec_linked = _spec_linked_changes(repo_root, changed)
-    if spec_linked:
-        newest_spec_code = _newest_code_mtime(repo_root, spec_linked, dirty)
-        newest_impl_done = _newest_resolved_impl_done_mtime(repo_root, dirty, notes)
-        if newest_impl_done <= 0.0:
-            return ReviewDecision(
-                True,
-                f"{len(spec_linked)} changed file(s) implement a spec-documented "
-                f"surface (matched a spec `code:` glob) but no passing "
-                f"`--impl-done` consistency report (review/consistency/**, "
-                f"BLOCK: NO) was found. Run "
-                f"`/consistency-check --impl-done <spec/영역>` to verify the "
-                f"implementation still matches the spec.",
-                tuple(notes),
-            )
-        if newest_impl_done < newest_spec_code:
-            # 두 시각을 **메시지에 싣는다**. 종전에는 "재실행하라" 고만 말해서, 방금 5개
-            # checker 를 돌린 사람이 **왜 그것이 무효인지** 를 알 수 없었다 — 게이트 결함으로
-            # 오진하기 쉬웠고 실제로 한 세션에서 다섯 번 반복됐다(2026-08-28 실측).
-            # 판정 기준이 세션 디렉터리 시각이라는 사실이 보이면 두 번 돌릴 이유가 없다.
-            return ReviewDecision(
-                True,
-                f"{len(spec_linked)} spec-linked file(s) changed AFTER the most "
-                f"recent `--impl-done` consistency report — re-run "
-                f"`/consistency-check --impl-done <spec/영역>` so the spec-impl "
-                f"check postdates the latest edit. "
-                f"(리포트 세션 시각 {_fmt_ts(newest_impl_done)} < 최신 spec-linked 편집 "
-                f"{_fmt_ts(newest_spec_code)} — 판정 기준은 세션 디렉터리 시각이다. "
-                f"규약: developer/SKILL.md §4 '순서'.)",
-                # Blocking does not make the advisory moot: the session being
-                # rejected as stale may be the very one that downgraded a
-                # Critical, and dropping the note here loses the only place that
-                # fact surfaces.
-                tuple(notes),
-            )
+    # (3) 라운드 이후 codebase/ 커밋은 모두 처분 커밋이어야 한다. merge 커밋과 기준 브랜치에서 들어온
+    # 커밋은 뺀다(`sync_with_base_branch` 가 만든 merge 가 남의 코드를 이 브랜치 변경으로 세지 않게).
+    after = _git_lines(
+        ["rev-list", "--no-merges", f"{round_head}..{head_sha}", "--not", base, "--", CODE_PREFIX], cwd
+    )
+    fixed_shas = {s for s, _ in fixed if len(s) >= 7}
+    unexplained = [c for c in after if not any(c.lower().startswith(s) for s in fixed_shas)]
+    if unexplained:
+        shown = ", ".join(f"`{_short(c)}`" for c in unexplained[:_LIST_LIMIT])
+        if len(unexplained) > _LIST_LIMIT:
+            shown += f" 외 {len(unexplained) - _LIST_LIMIT}개"
+        notes: tuple[str, ...] = ()
+        total = item.get("findings_total")
+        if isinstance(total, int) and total > len(item.get("findings") or []):
+            notes = (f"참고: N1 응답이 발견 {total}건 중 {len(item.get('findings') or [])}건만 담았다. "
+                     "빠진 발견의 처분 커밋은 보지 못했다.",)
+        return ReviewDecision(
+            True,
+            f"kind=code 라운드 {round_no} 이후 codebase/ 를 바꾼 커밋 {len(unexplained)}개가 그 라운드 "
+            f"발견의 fixed 처분 커밋이 아니다: {shown}. 발견을 그 커밋으로 처분"
+            "(`nerv_finding_resolve` resolution=fixed, commit_sha)하거나 지금 HEAD 로 리뷰를 다시 제출한다.",
+            notes,
+        )
 
+    tail = f", 이후 codebase/ 커밋 {len(after)}개는 모두 처분 커밋" if after else ""
     return ReviewDecision(
         False,
-        f"{len(changed)} codebase/ change(s) covered by a fresh resolved review"
-        + (
-            f" and a fresh --impl-done consistency report ({len(spec_linked)} "
-            f"spec-linked)"
-            if spec_linked
-            else ""
-        )
-        + " — allowed",
-        tuple(notes),
+        f"codebase/ 파일 {len(changed)}개를 kind=code 라운드 {round_no}(head `{_short(round_head)}`, passed)가 "
+        f"덮는다{tail} — 통과",
     )

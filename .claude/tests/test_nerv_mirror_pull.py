@@ -893,6 +893,15 @@ class CurlBoundaryTest(unittest.TestCase):
         self.assertIn("-g", argv)  # URL 의 [] {} 를 글로브로 풀지 않는다
         self.assertEqual(argv[-1], "https://nerv.example.invalid" + url_path)
 
+    def test_max_time_is_configurable_and_validated(self):
+        """push 리뷰 게이트(`review_guard`)가 이 클라이언트를 짧은 시간 제한으로 쓴다."""
+        pull.Nerv("https://nerv.example.invalid", "clemvion", SECRET, max_time="15").get("/x")
+        argv = self.calls()[0]["argv"]
+        self.assertIn(("--max-time", "15"), list(zip(argv, argv[1:])))
+        for bad in ("0", "-1", "1.5", "", "15\n", "١٥", 15.0):
+            with self.subTest(bad=repr(bad)), self.assertRaises(pull.PullError):
+                pull.Nerv("https://x.invalid", "clemvion", SECRET, max_time=bad)
+
     def test_curl_failure_raises(self):
         with mock.patch.dict(os.environ, {"FAKE_CURL_FAIL": "1"}), \
                 self.assertRaisesRegex(pull.PullError, "curl 실패"):

@@ -24,6 +24,14 @@ findings and may raise severity; only lowering is forbidden. Turning that into a
 hard block would refuse sessions the rule permits, and the failure mode this
 addresses is silence, not malice — the discretion was being exercised in the
 open, just where nothing read it. Making it visible is the fix.
+
+**Who reads it now.** NERV cutover stage 2 (NERV Task `CLE-T-4ABTG7`) took the
+gate off `review/**` files. Each checker's report is submitted to NERV as its own
+`kind=consistency` role, so a SUMMARY downgrade can no longer open a gate — NERV
+judges the round from the checkers' findings. What is left is the human-facing
+SUMMARY being wrong, and `.claude/tools/nerv_review_payload.py` reports that as a
+warning before the submission. The consistency orchestrator still takes
+`ALL_CHECKERS` from here.
 """
 
 from __future__ import annotations
@@ -199,10 +207,9 @@ def contradiction_note(session_dir: str) -> str:
     found = downgraded_criticals(session_dir)
     if not found:
         return ""
-    # Not `removesuffix`: it needs Python 3.9 and would be this tree's first use,
-    # silently raising the harness's minimum. On an older `python3` the
-    # AttributeError does not merely drop this advisory — the caller's broad
-    # `except Exception` fails the REVIEW gate open for that push entirely.
+    # Not `removesuffix`: it needs Python 3.9 and would silently raise the
+    # harness's minimum. (When the push gate was this function's caller, the
+    # AttributeError on an older `python3` failed that gate open entirely.)
     parts = ", ".join(
         f"{k[:-3] if k.endswith('.md') else k}={v}" for k, v in sorted(found.items())
     )

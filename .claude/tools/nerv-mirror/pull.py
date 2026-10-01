@@ -477,15 +477,22 @@ def server_ok(server: str) -> bool:
 
 class Nerv:
     """NERV REST 클라이언트(읽기 전용). 테스트 대역은 `project` 와 `get` 만 흉내 내면 된다
-    (`ok_body` · `json_body` 는 `get` 위에 있다)."""
+    (`ok_body` · `json_body` 는 `get` 위에 있다).
 
-    def __init__(self, server: str, project: str, token: str):
+    push 리뷰 게이트(`.claude/hooks/_lib/review_guard.py`)도 이 클래스로 N1 판정을 읽는다.
+    훅은 모든 push 앞에서 동기로 돌기 때문에 `max_time` 을 짧게 넘긴다."""
+
+    def __init__(self, server: str, project: str, token: str, *, max_time: str = CURL_MAX_TIME):
         if not server_ok(server):
             raise PullError("NERV_SERVER 는 https 여야 한다(토큰이 평문으로 나간다. 예외는 loopback)")
         if not PROJECT_RE.fullmatch(project):
             raise PullError(f"NERV_PROJECT 형식이 아니다 — {project!r}")
+        # argv 로 curl 에 그대로 넘어간다. ASCII 숫자만 받는다(`str.isdigit` 은 다른 문자권 숫자도 받는다).
+        if not re.fullmatch(r"[1-9][0-9]*", str(max_time)):
+            raise PullError(f"max_time 은 양의 정수(초)여야 한다 — {max_time!r}")
         self.server, self.project = server.rstrip("/"), project
         self.token = _curl_value("NERV_TOKEN", token)
+        self.max_time = str(max_time)
 
     def get(self, path: str, etag: str | None = None) -> tuple[int, bytes]:
         cfg = [f'header = "Authorization: Bearer {self.token}"']
@@ -494,7 +501,7 @@ class Nerv:
                 raise PullError("etag 형식이 아니다")
             cfg.append(f'header = "If-None-Match: \\"{etag}\\""')
         cmd = ["curl", "-sS", "-q", "-g", "--proto", "=https,http", "-K", "-", "-D", "-",
-               "--max-time", CURL_MAX_TIME, "--max-filesize", str(MAX_DOWNLOAD_BYTES),
+               "--max-time", self.max_time, "--max-filesize", str(MAX_DOWNLOAD_BYTES),
                "-A", USER_AGENT, f"{self.server}{path}"]
         try:
             r = subprocess.run(cmd, input="\n".join(cfg).encode(), capture_output=True)

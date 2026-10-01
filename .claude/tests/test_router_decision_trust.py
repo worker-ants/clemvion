@@ -476,5 +476,47 @@ class SourceFileClassifierTest(unittest.TestCase):
         self.assertIn("security", got["forced"])
 
 
+class CodeAreaForcesTheNervRolesTest(unittest.TestCase):
+    """`codebase/**` 아래 파일은 확장자와 무관하게 필수 6역할을 강제한다.
+
+    NERV 정책 `review_roles.code` 가 코드 라운드마다 이 6역할을 요구하고, push 훅 · CI 게이트가 그
+    라운드를 읽는다(전환 단계 2). JSON · YAML · Markdown 만 바꾼 codebase 변경이 router 에서 일부
+    역할을 잃으면 라운드가 `missing_roles` 로 남아 push 가 막힌다."""
+
+    # 상속하지 않고 빌린다 — 상속하면 위 클래스의 테스트가 한 번 더 돈다.
+    SKILL_DIR = SourceFileClassifierTest.SKILL_DIR
+    SKILLS_DIR = SourceFileClassifierTest.SKILLS_DIR
+    _eval = SourceFileClassifierTest._eval
+
+    SIX = ["maintainability", "requirement", "scope", "security", "side_effect", "testing"]
+    ALL = SIX + ["documentation", "dependency", "database", "api_contract"]
+
+    def _forced(self, paths):
+        return self._eval(
+            f"forced,_r = rs.compute_forced_agents({paths!r}, {self.ALL!r})\n"
+            "print(json.dumps(forced))"
+        )
+
+    def test_non_source_files_under_codebase_force_the_six(self):
+        for path in ("codebase/frontend/src/locales/ko.json",
+                     "codebase/backend/config/app.yaml",
+                     "codebase/frontend/src/content/docs/x.mdx"):
+            with self.subTest(path=path):
+                self.assertTrue(set(self.SIX) <= set(self._forced([path])), path)
+
+    def test_outside_the_code_area_nothing_changes(self):
+        """`codebase-x/`(이름 앞부분만 같다) · 루트 JSON 은 코드 영역이 아니다."""
+        for path in ("codebase-x/a.json", "codebasefile.json", "data.json"):
+            with self.subTest(path=path):
+                self.assertFalse(set(self.SIX) & set(self._forced([path])), path)
+
+    def test_code_area_files_helper(self):
+        got = self._eval(
+            "print(json.dumps(rs.code_area_files(['codebase/a.json', 'codebase', "
+            "'codebase-x/b.json', './codebase/c.yml', 'docs/d.md'], ['codebase', '/', ''])))"
+        )
+        self.assertEqual(got, ["codebase/a.json"])
+
+
 if __name__ == "__main__":
     unittest.main()

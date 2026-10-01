@@ -69,18 +69,16 @@ class _Decision:
         return self.blocked
 
 
-# Mirrors the real signature (`cwd=None, *, in_flight_ok=False`). A no-arg stub
-# would accept whatever the push guard passes and hide the thing that matters
-# here: the push guard must NEVER opt into the in-flight concession — that is
-# what keeps a merely-started review session from opening the hard gate. If it
-# ever did, the real function would raise TypeError, `_evaluate_over_targets`'s
-# broad `except Exception` would swallow it, and the gate would fail open with
-# no diagnosis. Recording the kwarg turns that into a RED test instead.
-def evaluate_review(cwd=None, *, in_flight_ok=False):
+# Mirrors the real signature (`cwd=None, *, branch, head, base_ref, client`). A
+# no-arg stub would accept whatever the push guard passes and hide the thing that
+# matters here: the push guard must let the gate read the branch and HEAD from the
+# worktree it publishes. Passing any of them would judge something other than what
+# is being pushed (the CI backstop is the caller that passes them, for the PR head).
+def evaluate_review(cwd=None, *, branch=None, head=None, base_ref=None, client=None):
     seam = os.environ.get("SEAM_OUT")
     if seam:
         with open(seam, "a") as f:
-            f.write(repr(in_flight_ok) + "\\n")
+            f.write(repr((branch, head, base_ref, client)) + "\\n")
     mode = os.environ.get("STUB_REVIEW", "clean")
     if mode == "raise":
         raise RuntimeError("boom in evaluate_review")
@@ -219,22 +217,17 @@ class GuardReviewBeforePushMainTest(unittest.TestCase):
         r = self._run(_PUSH, review="clean", plan="clean")
         self.assertEqual(r.returncode, 0, r.stderr)
 
-    def test_push_never_opts_into_the_in_flight_concession(self):
-        """The push counterpart of `test_stop_passes_in_flight_opt_in`.
-
-        `evaluate_review`'s in-flight suppression is Stop-only; both guards call
-        the same function, so if the push side ever passed `in_flight_ok=True` a
-        merely-started review session would open the hard gate for the whole TTL
-        — which is the exact bug this branch fixes. Nothing else here would
-        notice: the decision object is identical either way.
-        """
+    def test_push_lets_the_gate_read_branch_and_head_from_the_worktree(self):
+        """The hook passes only the worktree. Overriding the branch, HEAD, base or
+        client would judge a NERV round for something other than what is being
+        pushed — and the decision object would look identical either way."""
         seam = os.path.join(self.tmp, "push_seam.txt")
         r = self._run("git push", seam_out=seam)
         self.assertEqual(r.returncode, 0)
         with open(seam) as f:
             observed = [ln.strip() for ln in f if ln.strip()]
         self.assertTrue(observed, "evaluate_review was never called")
-        self.assertEqual(set(observed), {"False"})
+        self.assertEqual(set(observed), {"(None, None, None, None)"})
 
     def test_push_blocked_by_review_gate(self):
         r = self._run(_PUSH, review="blocked", plan="clean")
