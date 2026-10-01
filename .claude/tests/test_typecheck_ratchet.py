@@ -28,7 +28,7 @@ ratchet 이 그 사각의 유일한 관측 지점이므로, **ratchet 자신이 
 
 판정 규칙은 `scripts/_typecheck_ratchet.py` 하나에 있고 패키지별 엔트리포인트는 설정만 담는다.
 사본을 만들면 규칙이 갈리는데 **틀리는 방향이 조용한 통과**라 특히 나쁘다 — 이 저장소는 같은
-클래스(`plan_guard.py` ↔ `plan-stale-audit.sh`)로 이미 세 번 데였다.
+클래스(`plan_guard.py` ↔ `plan-stale-audit.sh`, 둘 다 전환 단계 3 에서 지웠다)로 이미 세 번 데였다.
 """
 
 from __future__ import annotations

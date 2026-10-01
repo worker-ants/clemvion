@@ -134,7 +134,7 @@ except Exception:
 # 그대로여도) `.pattern` 문자열이 달라져 그 비교가 깨진다. 비교를 공백 정규화로 느슨하게
 # 만드는 선택지는 문자 클래스 안의 공백(`[ \t]` 류)까지 지워 **진짜 드리프트를 숨긴다**.
 # 즉 읽기 편한 포맷과 바이트 동일 비교는 양립하지 않고, 후자를 택했다.
-# 추적: plan/in-progress/harness-env-value-subpattern-dedup.md.
+# 추적: NERV Task `CLE-T-ZJ1VW6`(옛 plan `harness-env-value-subpattern-dedup.md`, git 이력).
 _MUTATING = re.compile(
     r"""
     ^\s*(?:(?:[A-Za-z_][A-Za-z0-9_]*=(?:'[^']*'|"(?:\\.|[^"\\])*"|'(?![^']*')|"(?!(?:\\.|[^"\\])*")|[^\s'"])*[^\S\n]+)*|(?:[A-Za-z_][A-Za-z0-9_]*=\S+[^\S\n]+)*)(?:

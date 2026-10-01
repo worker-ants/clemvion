@@ -51,7 +51,9 @@ class TargetValidationTest(unittest.TestCase):
         # A caller who did this needs to know *where* the context belongs, not just
         # that the path is wrong.
         self.assertIn("설명문", r.stderr)
-        self.assertIn("plan/in-progress", r.stderr)
+        # Since NERV cutover stage 3 the work context lives in the NERV Task, not
+        # in a `plan/in-progress/<task>.md` file.
+        self.assertIn("NERV Task", r.stderr)
 
     def test_nonexistent_spec_file_is_rejected(self):
         r = _run("--spec", "plan/in-progress/does-not-exist.md")

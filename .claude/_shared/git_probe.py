@@ -1,11 +1,17 @@
-"""Git probes shared by the three push-gate guards and two skill orchestrators.
+"""Git probes shared by the push-gate guards and two skill orchestrators.
 
-The consumer set outgrew "the three guards" when `branch_diff_files` was added:
+The consumer set outgrew "the guards" when `branch_diff_files` was added:
 `code_review_orchestrator` and `consistency_orchestrator` import this module too,
 so it now spans the hook layer and the skill layer. The `_`-prefixed probes below
 are the hook-layer set (each guard delegates to them by name, which
-`test_plan_guard.py` derives and enforces); `branch_diff_files` is public because
-it is consumed from outside this package rather than delegated to.
+`test_branch_diff_shared.py` (`GitProbesAreNotReDuplicatedTest`) derives and
+enforces); `branch_diff_files` is public because it is consumed from outside this
+package rather than delegated to.
+
+The guards are `review_guard.py` and `branch_guard.py`. A third, `plan_guard.py`,
+left with `plan/` in NERV cutover stage 3 (NERV Task `CLE-T-FN2JWK`); the history
+below names it because the drift it describes happened there. `_merge_base` was
+its only caller and went with it.
 
 
 `review_guard.py` and `plan_guard.py` each carried byte-identical copies of these
@@ -382,16 +388,6 @@ def _default_branch(cwd: str) -> str | None:
         return _origin_default_branch_over_network(cwd)
     except Exception:  # noqa: BLE001
         return None
-
-
-def _merge_base(cwd: str, default_branch: str) -> str | None:
-    # Prefer the remote ref (origin/<default>) so we diff against where the
-    # branch forked, falling back to the local branch ref.
-    for ref in (f"origin/{default_branch}", default_branch):
-        rc, out, _ = _run_git(["merge-base", "HEAD", ref], cwd)
-        if rc == 0 and out:
-            return out
-    return None
 
 
 def _porcelain_path(ln: str) -> str:

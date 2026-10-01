@@ -10,14 +10,7 @@ Schema (every key optional; missing keys fall back to DEFAULTS below):
     {
       "corpora": {
         "spec":              "spec",
-        "conventions":       "spec/conventions",
-        "plan_in_progress":  "plan/in-progress",
-        "plan_complete":     "plan/complete"
-      },
-      "outputs": {
-        "review_code":         ".review/code",
-        "review_consistency":  ".review/consistency",
-        "review_merge":        ".review/merge"
+        "conventions":       "spec/conventions"
       },
       "code_areas": ["codebase"],
       "agents": {
@@ -52,12 +45,20 @@ fall back to inline work when the writer is disabled.
 Unknown keys are silently preserved (forward-compatible with future
 schema additions). The result of ``load()`` always carries every
 top-level key from DEFAULTS, with caller-provided values overriding
-(one level deep for the ``corpora`` and ``outputs`` dicts).
+(one level deep for the ``corpora`` dict).
 
-The corpora/outputs/code_areas keys reflect the harness's required
-folder conventions. The values can be relocated, but the *concepts*
-(spec corpus, plan tracking, review outputs, code areas) are part of
-the harness contract — see CLAUDE.md "폴더 구조".
+The corpora/code_areas keys reflect the harness's required folder
+conventions. The values can be relocated, but the *concepts* (spec corpus,
+code areas) are part of the harness contract — see CLAUDE.md "폴더 구조".
+
+Removed in NERV cutover stage 3 (NERV Task ``CLE-T-FN2JWK``):
+``corpora.plan_in_progress`` / ``corpora.plan_complete`` left with ``plan/``
+(work tracking is NERV Tasks). A project that still sets
+``plan_in_progress`` keeps the consistency orchestrator's plan bundle; without
+it the bundle renders empty. ``outputs`` had no reader — the orchestrators
+take their output roots from ``REVIEW_OUTPUT_DIR`` / ``CONSISTENCY_OUTPUT_DIR``
+defaults (``.review/<kind>``), which ``test_review_gate_ci.py``
+(``ReviewArtifactsStayLocalTest``) pins.
 """
 
 from __future__ import annotations
@@ -73,13 +74,6 @@ DEFAULTS: dict[str, Any] = {
     "corpora": {
         "spec":             "spec",
         "conventions":      "spec/conventions",
-        "plan_in_progress": "plan/in-progress",
-        "plan_complete":    "plan/complete",
-    },
-    "outputs": {
-        "review_code":         ".review/code",
-        "review_consistency":  ".review/consistency",
-        "review_merge":        ".review/merge",
     },
     "code_areas": ["codebase"],
     "agents": {

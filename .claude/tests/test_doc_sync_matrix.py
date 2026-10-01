@@ -20,9 +20,11 @@ Only file existence is checked. A 「section title」 quoted after a mirror path
 is not (NERV titles change on the web; see PROJECT.md 「매트릭스 참조 무결성 가드」).
 
 TRANSITIONAL (NERV cutover step 5, Task CLE-T-7M4C4X): until the frozen old
-tree is deleted, PROJECT.md still names a few `spec/conventions/*` ·
-`spec/<n>-<area>/*` files where it describes what an old-tree guard reads. Those
-are pinned in `OLD_TREE_ALLOWED`; step 5 empties that set and drops `_LEGACY`.
+tree is deleted, `SPEC_PATH_RE` still matches old-tree paths so a cited one is
+caught. `OLD_TREE_ALLOWED` pinned the old-tree files PROJECT.md named where it
+described what an old-tree guard read; the last one (`spec/0-overview.md`, read
+by `spec-status-lifecycle`) left with that guard in step 3 (CLE-T-FN2JWK), so the
+set is empty. Step 5 drops `_LEGACY`.
 
 Scope note: this is a harness self-test that deliberately reaches into product
 paths (`codebase/`, `spec/`) because the matrix is precisely a harness↔product
@@ -55,10 +57,11 @@ _MIRROR = r"CLE-[A-Z0-9-]+(?:/CLE-[A-Z0-9-]+)?"
 _LEGACY = r"conventions/[A-Za-z0-9_./-]+|[0-9][A-Za-z0-9_./-]+"
 MIRROR_PATH_RE = re.compile(rf"spec/{_MIRROR}\.md")
 SPEC_PATH_RE = re.compile(rf"spec/(?:{_LEGACY}|{_MIRROR})\.md")
-# Old-tree files PROJECT.md may still name: each line describes what a guard
-# reads today (`spec-status-lifecycle` reads `spec/0-overview.md`). Anything
-# else must point at the mirror. TRANSITIONAL — emptied in CLE-T-7M4C4X.
-OLD_TREE_ALLOWED = frozenset({"spec/0-overview.md"})
+# Old-tree files PROJECT.md may still name, each where it describes what a
+# guard reads. Empty since step 3 (CLE-T-FN2JWK) removed `spec-status-lifecycle`,
+# the last guard that read one (`spec/0-overview.md`). Anything cited must point
+# at the mirror.
+OLD_TREE_ALLOWED: frozenset[str] = frozenset()
 
 
 def _project_text() -> str:

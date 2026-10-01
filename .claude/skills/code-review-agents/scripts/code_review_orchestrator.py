@@ -462,7 +462,7 @@ LINE_ANCHOR_LEGEND = (
 # `LINE_ANCHOR_LEGEND` 와 같은 자리에 사는 이유는 같은 성격이기 때문이다 — 역할과 무관하게
 # **모든** 리뷰어에게 항상 붙어야 하는 계약이고, 한 곳에서 조립돼야 드리프트가 없다.
 #
-# ## 왜 필요한가 — 네 번 재발했다 (전부 `plan/in-progress/harness-review-gate-followups.md` 기록)
+# ## 왜 필요한가 — 네 번 재발했다 (전부 옛 plan `harness-review-gate-followups.md` 기록, git 이력)
 #
 #   2026-08-11 `13_04_55`  scope 리뷰어가 저장소 안 소스에 뮤턴트를 심었다. side_effect 는
 #                          그 상태를 보고 **CRITICAL 로 에스컬레이션**, testing 은 **3회**
@@ -1399,7 +1399,7 @@ def _source_files_missing_from_changeset(all_paths):
     the wrongness is laundered into a confident "소스 코드 변경 없음" and the router
     deselects every source reviewer. One bad changeset then reads as a clean
     review: that amplification, not any single computation bug, is the standing
-    risk (`plan/in-progress/harness-review-gate-followups.md`).
+    risk (old plan `harness-review-gate-followups.md`, in git history).
 
     Observed once for real (session `03_12_29`): a 27-file changeset carried none
     of the three code files the two preceding commits had changed, the router

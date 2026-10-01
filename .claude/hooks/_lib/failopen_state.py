@@ -1,9 +1,12 @@
-"""Shared fail-open reporting for the review/plan guards.
+"""Shared fail-open reporting for the push guard.
 
 Extracted verbatim (behaviour-preserving) from `guard_review_before_push.py`,
 where this logic landed with PR #999 as harness-guard-followups §E. It moved
-here the moment a *second* hook needed it: `guard_review_before_stop.py` has the
-same three fail-open paths and was still silent about all of them. Copying ~120
+here the moment a *second* hook needed it: `guard_review_before_stop.py` had the
+same three fail-open paths and was still silent about all of them. (That Stop
+hook retired with `plan/` in NERV cutover stage 3, NERV Task `CLE-T-FN2JWK`;
+the push hook is the only consumer now, and the parameters below stay so a
+second hook can reuse the module without editing it.) Copying ~120
 lines of carefully-reasoned reporting into a second file is the duplication
 class this repo keeps getting bitten by, and the push hook's 35 subprocess tests
 are the safety net that made the move checkable.
@@ -140,7 +143,7 @@ def report(
         lines += [
             "",
             f"    {subject} 는 해당 검사를 **받지 않았습니다**. 통과했다는 사실이",
-            "    리뷰/plan 이 갖춰졌다는 근거가 되지 못합니다.",
+            "    리뷰가 갖춰졌다는 근거가 되지 못합니다.",
             f"    연속 fail-open: {streak}회",
         ]
         if streak >= ESCALATE_AT:

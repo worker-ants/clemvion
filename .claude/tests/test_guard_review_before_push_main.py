@@ -1,11 +1,17 @@
 """End-to-end tests for guard_review_before_push.py's main() entry point.
 
 Scope: `main()`'s ORCHESTRATION only — the exit codes (0 allow / 2 block), the
-REVIEW-then-PLAN gate order, the BYPASS_* per-gate overrides, the triple
-fail-open (a gate module that fails to import, or whose evaluate_*() raises),
-and stdin JSON handling. A silent regression there (e.g. the plan gate running
-before the review gate, or a bypass leaking across gates, or fail-open turning
-into fail-closed) would ship unnoticed.
+BYPASS_REVIEW_GUARD override, the triple fail-open (the gate module fails to
+import, its evaluate_review() raises, or push detection / target selection
+blows up), and stdin JSON handling. A silent regression there (e.g. fail-open
+turning into fail-closed, or a degraded check going unreported) would ship
+unnoticed.
+
+The hook used to run a second, PLAN gate (`_lib/plan_guard.py`). It left with
+`plan/` in NERV cutover stage 3 (NERV Task `CLE-T-FN2JWK`); the tests that only
+made sense with two gates (gate order, a bypass leaking into the other gate, one
+gate's streak surviving the other's block) went with it. Where a second
+degraded check is still needed, a target-selection failure plays that role.
 
 NOT covered here: `_is_git_push`'s own detection logic. That lives in
 `test_push_guard_allowlist.py`, which freezes the blind first pass byte-for-byte
@@ -18,15 +24,14 @@ than probing detection edges.
 
 These run the REAL hook as a subprocess with a JSON payload on stdin, exactly
 as the harness invokes it, so the assertions are on the actual process exit
-code and stderr. The two gate modules are replaced with stubs (a temp `_lib/`
-next to a copy of the hook) whose behaviour is env-driven:
+code and stderr. The gate module is replaced with a stub (a temp `_lib/` next
+to a copy of the hook) whose behaviour is env-driven:
 
   STUB_REVIEW = clean | blocked | raise | import_error   (default clean)
-  STUB_PLAN   = clean | untouched | raise | import_error  (default clean)
 
-`import_error` makes that stub raise at import time, reproducing the hook's
-`except Exception: <gate> = None` disable path. This lets one fixture exercise
-every branch of main() without needing real review/plan state on disk.
+`import_error` makes the stub raise at import time, reproducing the hook's
+`except Exception: evaluate_review = None` disable path. This lets one fixture
+exercise every branch of main() without needing real review state.
 """
 
 from __future__ import annotations
@@ -43,14 +48,12 @@ import _harness  # noqa: F401  — side effect: harness path setup; HOOKS_DIR us
 
 HOOK_SRC = _harness.HOOKS_DIR / "guard_review_before_push.py"
 
-# Stub gate modules. They mimic the real return contract:
+# Stub gate module. It mimics the real return contract:
 #   review_guard.evaluate_review() -> obj with .blocked / .reason
-#   plan_guard.evaluate_plan()     -> obj with .untouched / .reason / .plan_path
 # Behaviour is chosen at runtime from an env var so ONE copy covers every case.
 #
-# These are deliberately NARROWER than the real dataclasses (PlanDecision also
-# carries e.g. `complete_but_in_progress`): they model only the fields main()
-# actually reads. If main() starts reading another one, these stubs raise
+# Deliberately NARROWER than the real dataclass: it models only the fields main()
+# actually reads. If main() starts reading another one, the stub raises
 # AttributeError rather than silently returning a wrong default — fail-loud.
 _REVIEW_STUB = '''\
 import os
@@ -87,38 +90,10 @@ def evaluate_review(cwd=None, *, branch=None, head=None, base_ref=None, client=N
     return _Decision(blocked=False, reason="clean")
 '''
 
-_PLAN_STUB = '''\
-import os
-if os.environ.get("STUB_PLAN") == "import_error":
-    raise ImportError("simulated plan_guard import failure")
-from dataclasses import dataclass
-
-
-@dataclass
-class _Plan:
-    untouched: bool
-    reason: str
-    plan_path: str
-
-    @property
-    def push_blocks(self):  # push gate blocks on `untouched`
-        return self.untouched
-
-
-def evaluate_plan():
-    mode = os.environ.get("STUB_PLAN", "clean")
-    if mode == "raise":
-        raise RuntimeError("boom in evaluate_plan")
-    if mode == "untouched":
-        return _Plan(untouched=True, reason="plan not updated",
-                     plan_path="plan/in-progress/x.md")
-    return _Plan(untouched=False, reason="plan touched", plan_path="plan/in-progress/x.md")
-'''
-
 _PUSH = "git push origin HEAD"
 
 # §M: a push on its own line, after a non-git command — this repo's commonest
-# form. Until §M `_is_git_push` returned False for this and main() skipped BOTH
+# form. Until §M `_is_git_push` returned False for this and main() skipped the
 # gates (the reproduced bypass). `test_multiline_push_still_gates` pins that the
 # ORCHESTRATION now reaches the gates for it, end to end.
 _MULTILINE_PUSH = 'cd /some/worktree\necho "pushing"\ngit push -u origin HEAD'
@@ -129,7 +104,7 @@ class GuardReviewBeforePushMainTest(unittest.TestCase):
         self.tmp = tempfile.mkdtemp()
         self.addCleanup(shutil.rmtree, self.tmp, ignore_errors=True)
         # A copy of the real hook with a stub _lib beside it. THIS_DIR/_lib is
-        # what the hook puts on sys.path, so these stubs win over the real gates.
+        # what the hook puts on sys.path, so the stub wins over the real gate.
         self.hooks_dir = os.path.join(self.tmp, "hooks")
         os.makedirs(os.path.join(self.hooks_dir, "_lib"))
         self.hook = os.path.join(self.hooks_dir, "guard_review_before_push.py")
@@ -141,19 +116,17 @@ class GuardReviewBeforePushMainTest(unittest.TestCase):
         shutil.copy(_harness.HOOKS_DIR / "_lib" / "failopen_state.py",
                     os.path.join(self.hooks_dir, "_lib", "failopen_state.py"))
         self._write(os.path.join(self.hooks_dir, "_lib", "review_guard.py"), _REVIEW_STUB)
-        self._write(os.path.join(self.hooks_dir, "_lib", "plan_guard.py"), _PLAN_STUB)
 
     def _write(self, path, content):
         with open(path, "w", encoding="utf-8") as f:
             f.write(content)
 
     def _run(self, command="", *, payload=None, raw_stdin=None, seam_out=None,
-             review="clean", plan="clean", bypass_review=False, bypass_plan=False):
+             review="clean", bypass_review=False):
         """Run the hook. `command` builds a standard payload; `payload` / `raw_stdin`
         override for the stdin-shape tests."""
         env = dict(os.environ)
         env["STUB_REVIEW"] = review
-        env["STUB_PLAN"] = plan
         # The fail-open reporter writes its streak under
         # $CLAUDE_PROJECT_DIR/.claude/state/. Point it at the per-test temp dir:
         # otherwise every fail-open case would write into the real repo and the
@@ -161,11 +134,8 @@ class GuardReviewBeforePushMainTest(unittest.TestCase):
         env["CLAUDE_PROJECT_DIR"] = self.tmp
         # Start from a clean slate so the parent shell's env can't leak a bypass.
         env.pop("BYPASS_REVIEW_GUARD", None)
-        env.pop("BYPASS_PLAN_GUARD", None)
         if bypass_review:
             env["BYPASS_REVIEW_GUARD"] = "1"
-        if bypass_plan:
-            env["BYPASS_PLAN_GUARD"] = "1"
         if seam_out:
             env["SEAM_OUT"] = seam_out
         else:
@@ -181,8 +151,7 @@ class GuardReviewBeforePushMainTest(unittest.TestCase):
         return subprocess.run(
             [sys.executable, self.hook],
             input=stdin, capture_output=True, text=True, env=env, timeout=10,
-            # Pin the cwd to the per-test temp dir, as `test_stop_guard_failopen`
-            # does. Inheriting the caller's checkout made the hook see whatever
+            # Pin the cwd to the per-test temp dir. Inheriting the caller's checkout made the hook see whatever
             # worktrees happen to exist on the machine — a review flagged one
             # non-reproducing failure out of 14 runs from exactly that coupling.
             # These tests are about the hook's decision table, not the repo.
@@ -191,9 +160,9 @@ class GuardReviewBeforePushMainTest(unittest.TestCase):
 
     # --- push detection gate (main's consumption of _is_git_push) ----------
     def test_non_push_command_allows(self):
-        r = self._run("git status", review="blocked", plan="untouched")
+        r = self._run("git status", review="blocked")
         self.assertEqual(r.returncode, 0,
-                         "a non-push must pass even when both gates would block")
+                         "a non-push must pass even when the gate would block")
         self.assertEqual(r.stderr, "", "no gate output on a non-push")
         # main() now routes EVERY command through the fail-open reporter (in a
         # `finally`), so pin that a non-push stays a complete no-op: no banner
@@ -213,8 +182,8 @@ class GuardReviewBeforePushMainTest(unittest.TestCase):
         self.assertIn("(review gate)", r.stderr)
 
     # --- clean / block outcomes --------------------------------------------
-    def test_push_allowed_when_both_gates_clean(self):
-        r = self._run(_PUSH, review="clean", plan="clean")
+    def test_push_allowed_when_the_gate_is_clean(self):
+        r = self._run(_PUSH, review="clean")
         self.assertEqual(r.returncode, 0, r.stderr)
 
     def test_push_lets_the_gate_read_branch_and_head_from_the_worktree(self):
@@ -230,7 +199,7 @@ class GuardReviewBeforePushMainTest(unittest.TestCase):
         self.assertEqual(set(observed), {"(None, None, None, None)"})
 
     def test_push_blocked_by_review_gate(self):
-        r = self._run(_PUSH, review="blocked", plan="clean")
+        r = self._run(_PUSH, review="blocked")
         self.assertEqual(r.returncode, 2)
         self.assertIn("(review gate)", r.stderr)
         self.assertIn("unreviewed codebase/ changes", r.stderr)
@@ -239,8 +208,8 @@ class GuardReviewBeforePushMainTest(unittest.TestCase):
         """§M end-to-end: a push on its OWN LINE after a non-git command reaches
         the gates. This is the exact shape that slipped through in the field —
         `main()` used to return 0 here because `_is_git_push` missed the newline
-        separator, skipping both gates with no banner. It must now block."""
-        r = self._run(_MULTILINE_PUSH, review="blocked", plan="clean")
+        separator, skipping the gates with no banner. It must now block."""
+        r = self._run(_MULTILINE_PUSH, review="blocked")
         self.assertEqual(
             r.returncode, 2,
             "a multi-line push must reach the review gate, not skip it as a "
@@ -250,99 +219,38 @@ class GuardReviewBeforePushMainTest(unittest.TestCase):
 
     def test_multiline_push_clean_is_a_normal_allow(self):
         """The mirror: detection widening must not turn the multi-line form into
-        a false BLOCK — with both gates clean it passes, same as the one-liner."""
-        r = self._run(_MULTILINE_PUSH, review="clean", plan="clean")
+        a false BLOCK — with the gate clean it passes, same as the one-liner."""
+        r = self._run(_MULTILINE_PUSH, review="clean")
         self.assertEqual(r.returncode, 0, r.stderr)
 
-    def test_push_blocked_by_plan_gate_when_review_clean(self):
-        r = self._run(_PUSH, review="clean", plan="untouched")
-        self.assertEqual(r.returncode, 2)
-        self.assertIn("(plan gate)", r.stderr)
-
-    # --- gate ORDER: review runs and returns before plan -------------------
-    def test_review_gate_precedes_plan_gate(self):
-        # Both would block. main() must surface the REVIEW refusal and return
-        # before ever consulting the plan gate.
-        r = self._run(_PUSH, review="blocked", plan="untouched")
-        self.assertEqual(r.returncode, 2)
-        self.assertIn("(review gate)", r.stderr)
-        self.assertNotIn("(plan gate)", r.stderr,
-                         "review must short-circuit before the plan gate runs")
-
-    # --- BYPASS_* are per-gate --------------------------------------------
-    def test_bypass_review_skips_only_the_review_gate(self):
-        # Review would block but is bypassed; plan is clean → allow.
-        r = self._run(_PUSH, review="blocked", plan="clean", bypass_review=True)
+    # --- BYPASS_REVIEW_GUARD ---------------------------------------------
+    def test_bypass_review_skips_the_gate(self):
+        r = self._run(_PUSH, review="blocked", bypass_review=True)
         self.assertEqual(r.returncode, 0, r.stderr)
 
-    def test_bypass_review_still_enforces_plan_gate(self):
-        # The bypass must NOT leak into the plan gate.
-        r = self._run(_PUSH, review="blocked", plan="untouched", bypass_review=True)
-        self.assertEqual(r.returncode, 2)
-        self.assertIn("(plan gate)", r.stderr)
-
-    def test_bypass_plan_skips_only_the_plan_gate(self):
-        r = self._run(_PUSH, review="clean", plan="untouched", bypass_plan=True)
-        self.assertEqual(r.returncode, 0, r.stderr)
-
-    def test_bypass_plan_still_enforces_review_gate(self):
-        r = self._run(_PUSH, review="blocked", plan="untouched", bypass_plan=True)
-        self.assertEqual(r.returncode, 2)
-        self.assertIn("(review gate)", r.stderr)
-
-    # --- fail-open: evaluate_*() raises -----------------------------------
-    def test_review_evaluate_exception_fails_open_and_runs_plan(self):
-        # review raises → treated as no-decision (fail open), plan still runs.
-        r = self._run(_PUSH, review="raise", plan="untouched")
-        self.assertEqual(r.returncode, 2,
-                         "a raising review gate must not silence the plan gate")
-        self.assertIn("(plan gate)", r.stderr)
+    # --- fail-open: evaluate_review() raises -------------------------------
+    def test_review_evaluate_exception_fails_open(self):
+        r = self._run(_PUSH, review="raise")
+        self.assertEqual(r.returncode, 0, "a raising review gate must fail open")
         self.assertIn("Traceback", r.stderr, "the swallowed exception is logged")
 
-    def test_review_exception_alone_allows_when_plan_clean(self):
-        r = self._run(_PUSH, review="raise", plan="clean")
-        self.assertEqual(r.returncode, 0,
-                         "review exception fails open; clean plan → push allowed")
-
-    def test_plan_evaluate_exception_fails_open(self):
-        r = self._run(_PUSH, review="clean", plan="raise")
-        self.assertEqual(r.returncode, 0, "a raising plan gate must fail open")
-        self.assertIn("Traceback", r.stderr)
-
-    # --- fail-open: a gate module fails to import -------------------------
-    def test_review_import_failure_disables_only_that_gate(self):
-        # review_guard import blows up → review gate disabled (None); plan runs.
-        r = self._run(_PUSH, review="import_error", plan="untouched")
-        self.assertEqual(r.returncode, 2)
-        self.assertIn("(plan gate)", r.stderr)
-
-    def test_review_import_failure_still_allows_when_plan_clean(self):
-        r = self._run(_PUSH, review="import_error", plan="clean")
-        self.assertEqual(r.returncode, 0, r.stderr)
-
-    def test_plan_import_failure_disables_only_that_gate(self):
-        # plan_guard import blows up → plan gate disabled; review still blocks.
-        r = self._run(_PUSH, review="blocked", plan="import_error")
-        self.assertEqual(r.returncode, 2)
-        self.assertIn("(review gate)", r.stderr)
-
-    def test_both_gate_imports_fail_allows_the_push(self):
-        r = self._run(_PUSH, review="import_error", plan="import_error")
-        self.assertEqual(r.returncode, 0,
-                         "both gates disabled → fail open, push allowed")
+    # --- fail-open: the gate module fails to import -------------------------
+    def test_review_import_failure_allows_the_push(self):
+        r = self._run(_PUSH, review="import_error")
+        self.assertEqual(r.returncode, 0, "gate disabled → fail open, push allowed")
 
     # --- stdin shapes ------------------------------------------------------
     def test_malformed_stdin_json_allows(self):
-        r = self._run(raw_stdin="not json {{{", review="blocked", plan="untouched")
+        r = self._run(raw_stdin="not json {{{", review="blocked")
         self.assertEqual(r.returncode, 0,
                          "unparseable stdin → empty payload → no command → allow")
 
     def test_empty_stdin_allows(self):
-        r = self._run(raw_stdin="", review="blocked", plan="untouched")
+        r = self._run(raw_stdin="", review="blocked")
         self.assertEqual(r.returncode, 0)
 
     def test_payload_without_command_allows(self):
-        r = self._run(payload={"tool_input": {}}, review="blocked", plan="untouched")
+        r = self._run(payload={"tool_input": {}}, review="blocked")
         self.assertEqual(r.returncode, 0)
 
     # --- fail-open OBSERVABILITY (§E policy, 2026-07-23) -------------------
@@ -357,14 +265,14 @@ class GuardReviewBeforePushMainTest(unittest.TestCase):
             return json.load(fh)["streak"]
 
     def test_import_failure_is_announced_and_counted(self):
-        r = self._run(_PUSH, review="import_error", plan="clean")
+        r = self._run(_PUSH, review="import_error")
         self.assertEqual(r.returncode, 0, "still fails OPEN — policy unchanged")
         self.assertIn("fail-open", r.stdout)
         self.assertIn("REVIEW gate", r.stdout)
         self.assertEqual(self._streak(), 1)
 
     def test_evaluate_exception_is_announced_and_counted(self):
-        r = self._run(_PUSH, review="raise", plan="clean")
+        r = self._run(_PUSH, review="raise")
         self.assertEqual(r.returncode, 0)
         self.assertIn("fail-open", r.stdout)
         self.assertEqual(self._streak(), 1)
@@ -373,7 +281,7 @@ class GuardReviewBeforePushMainTest(unittest.TestCase):
         """Escalation must fire AT the threshold and not before — asserting only
         its presence at 3 would let `>= 1` pass and make every blip shout."""
         for expected in (1, 2, 3):
-            r = self._run(_PUSH, review="import_error", plan="clean")
+            r = self._run(_PUSH, review="import_error")
             self.assertEqual(self._streak(), expected)
             if expected < 3:
                 self.assertNotIn(
@@ -387,23 +295,40 @@ class GuardReviewBeforePushMainTest(unittest.TestCase):
             "not read the same",
         )
 
-    def test_both_gates_degraded_counts_once_and_names_both(self):
-        r = self._run(_PUSH, review="import_error", plan="import_error")
+    def _break_target_selection(self):
+        """Make `_push_targets` raise, so TARGET_SELECTION degrades while the gate
+        still runs on the cwd — the second independent degraded check now that
+        the PLAN gate is gone."""
+        with open(self.hook, encoding="utf-8") as fh:
+            source = fh.read()
+        broken = source.replace(
+            "def _push_targets(command: str, cwd: str) -> list[str]:\n",
+            "def _push_targets(command: str, cwd: str) -> list[str]:\n"
+            '    raise RuntimeError("simulated target selection failure")\n',
+            1,
+        )
+        self.assertNotEqual(broken, source, "the injection point moved")
+        with open(self.hook, "w", encoding="utf-8") as fh:
+            fh.write(broken)
+
+    def test_two_degraded_checks_count_once_and_name_both(self):
+        self._break_target_selection()
+        r = self._run(_PUSH, review="import_error")
         self.assertEqual(r.returncode, 0)
         self.assertEqual(
             self._streak(), 1,
-            "the streak counts PUSHES with degradation, not degraded gates",
+            "the streak counts PUSHES with degradation, not degraded checks",
         )
         self.assertIn("REVIEW gate", r.stdout)
-        self.assertIn("PLAN gate", r.stdout)
+        self.assertIn("TARGET_SELECTION", r.stdout)
         with open(self._streak_file(), encoding="utf-8") as fh:
             gates = {entry["gate"] for entry in json.load(fh)["gates"]}
-        self.assertEqual(gates, {"REVIEW", "PLAN"})
+        self.assertEqual(gates, {"REVIEW", "TARGET_SELECTION"})
 
     def test_a_clean_run_resets_the_streak(self):
-        self._run(_PUSH, review="import_error", plan="clean")
+        self._run(_PUSH, review="import_error")
         self.assertTrue(os.path.exists(self._streak_file()))
-        self._run(_PUSH, review="clean", plan="clean")
+        self._run(_PUSH, review="clean")
         self.assertFalse(
             os.path.exists(self._streak_file()),
             "the counter measures CONSECUTIVE degradation; a working run clears it",
@@ -412,7 +337,7 @@ class GuardReviewBeforePushMainTest(unittest.TestCase):
     def test_conscious_bypass_is_not_counted_as_degradation(self):
         """BYPASS_* is a deliberate override, not a silent failure. Counting it
         would drown the signal this exists to produce."""
-        r = self._run(_PUSH, review="blocked", plan="clean", bypass_review=True)
+        r = self._run(_PUSH, review="blocked", bypass_review=True)
         self.assertEqual(r.returncode, 0)
         self.assertNotIn("fail-open", r.stdout)
         self.assertFalse(os.path.exists(self._streak_file()))
@@ -421,7 +346,7 @@ class GuardReviewBeforePushMainTest(unittest.TestCase):
         """The precise boundary: a gate that WOULD have failed open, skipped by
         an explicit override. The other case above uses a healthy-but-blocking
         gate, which never reaches the degradation path at all."""
-        r = self._run(_PUSH, review="import_error", plan="clean",
+        r = self._run(_PUSH, review="import_error",
                       bypass_review=True)
         self.assertEqual(r.returncode, 0)
         self.assertNotIn("fail-open", r.stdout)
@@ -432,24 +357,24 @@ class GuardReviewBeforePushMainTest(unittest.TestCase):
         erase evidence that it has been broken for several pushes. Resetting
         here would let an unrelated override wipe the signal (review W2)."""
         for _ in range(2):
-            self._run(_PUSH, review="import_error", plan="clean")
+            self._run(_PUSH, review="import_error")
         self.assertEqual(self._streak(), 2)
 
-        self._run(_PUSH, review="import_error", plan="clean", bypass_review=True)
+        self._run(_PUSH, review="import_error", bypass_review=True)
         self.assertEqual(
             self._streak(), 2,
             "a bypassed push is neither degradation nor proof of health — the "
             "streak must survive it untouched",
         )
 
-        self._run(_PUSH, review="clean", plan="clean")
+        self._run(_PUSH, review="clean")
         self.assertFalse(
             os.path.exists(self._streak_file()),
             "only a gate that actually answered clears the streak",
         )
 
     def test_non_push_does_not_clear_an_existing_streak(self):
-        self._run(_PUSH, review="import_error", plan="clean")
+        self._run(_PUSH, review="import_error")
         self.assertEqual(self._streak(), 1)
         self._run("git status")
         self.assertEqual(
@@ -457,12 +382,15 @@ class GuardReviewBeforePushMainTest(unittest.TestCase):
             "an unrelated command is not evidence the gate recovered",
         )
 
-    def test_degradation_is_reported_even_when_the_other_gate_blocks(self):
+    def test_degradation_is_reported_even_when_the_gate_blocks(self):
         """The report runs in a `finally`, so a blocking exit still surfaces the
-        gate that failed open — otherwise the loudest case would be the quietest."""
-        r = self._run(_PUSH, review="import_error", plan="untouched")
-        self.assertEqual(r.returncode, 2, "the plan gate still blocks")
-        self.assertIn("(plan gate)", r.stderr)
+        check that failed open — otherwise the loudest case would be the
+        quietest. Target selection degrades; the gate still runs on the cwd and
+        blocks."""
+        self._break_target_selection()
+        r = self._run(_PUSH, review="blocked")
+        self.assertEqual(r.returncode, 2, "the review gate still blocks")
+        self.assertIn("(review gate)", r.stderr)
         self.assertIn("fail-open", r.stderr)
         self.assertEqual(self._streak(), 1)
 
@@ -499,46 +427,32 @@ class GuardReviewBeforePushMainTest(unittest.TestCase):
         are pinned here — an earlier version always used stderr, which would
         have quietly undone the whole point of this policy on the common path.
         """
-        allowed = self._run(_PUSH, review="import_error", plan="clean")
+        allowed = self._run(_PUSH, review="import_error")
         self.assertEqual(allowed.returncode, 0)
         self.assertIn("fail-open", allowed.stdout)
         self.assertNotIn("fail-open", allowed.stderr)
 
-        blocked = self._run(_PUSH, review="import_error", plan="untouched")
+        self._break_target_selection()
+        blocked = self._run(_PUSH, review="blocked")
         self.assertEqual(blocked.returncode, 2)
         self.assertIn("fail-open", blocked.stderr)
         self.assertNotIn("fail-open", blocked.stdout)
 
-    def test_a_blocking_gate_does_not_reset_the_other_gates_streak(self):
-        """CRITICAL (review 17_22_18): a REVIEW block returns before the PLAN
-        gate runs, so PLAN never answers. Treating "someone answered" as proof
-        of health wiped a live PLAN streak on an ordinary blocked push — and
-        REVIEW blocking is this hook's most common event, so the escalation
-        would essentially never fire."""
+    def test_a_blocking_answer_still_proves_the_gate_works(self):
+        """With one gate, a push it BLOCKS is still a push it ANSWERED: the gate
+        imported, ran, and decided. That is the evidence the streak waits for,
+        so it clears — the same rule `failopen_state.report` applies to any set
+        of gates (degraded → count, all answered → reset, otherwise untouched)."""
         for _ in range(2):
-            self._run(_PUSH, review="clean", plan="import_error")
+            self._run(_PUSH, review="import_error")
         self.assertEqual(self._streak(), 2)
 
-        r = self._run(_PUSH, review="blocked", plan="import_error")
+        r = self._run(_PUSH, review="blocked")
         self.assertEqual(r.returncode, 2, "the review gate still blocks")
-        self.assertEqual(
-            self._streak(), 2,
-            "PLAN never ran on this push, so it is neither proven healthy nor "
-            "observed broken: the streak must be PRESERVED — not cleared (the "
-            "CRITICAL) and not incremented (nothing was observed)",
+        self.assertFalse(
+            os.path.exists(self._streak_file()),
+            "the gate answered (by blocking), so the degradation streak is over",
         )
-
-        # …and once PLAN is actually reached again, counting resumes from 2.
-        self._run(_PUSH, review="clean", plan="import_error")
-        self.assertEqual(self._streak(), 3)
-
-    def test_a_fully_clean_push_still_resets(self):
-        """The other direction: when BOTH gates answer, the streak clears.
-        Without this the fix above could degenerate into 'never reset'."""
-        self._run(_PUSH, review="clean", plan="import_error")
-        self.assertTrue(os.path.exists(self._streak_file()))
-        self._run(_PUSH, review="clean", plan="clean")
-        self.assertFalse(os.path.exists(self._streak_file()))
 
     def test_unwritable_state_dir_does_not_break_the_guard(self):
         """Observability must never break the thing it observes — and that
@@ -550,7 +464,7 @@ class GuardReviewBeforePushMainTest(unittest.TestCase):
         # A FILE where the state directory should be — makedirs/open will fail.
         with open(env_dir, "w") as fh:
             fh.write("not a directory")
-        r = self._run(_PUSH, review="import_error", plan="clean")
+        r = self._run(_PUSH, review="import_error")
         self.assertEqual(
             r.returncode, 0,
             "a failed state write must not change the guard's verdict",
@@ -559,6 +473,30 @@ class GuardReviewBeforePushMainTest(unittest.TestCase):
             "fail-open", r.stdout,
             "the banner is the PRIMARY signal and must survive a failed write",
         )
+
+    # ---- degrading the reporter itself ------------------------------------
+    # Moved from `test_stop_guard_failopen.py` when the Stop hook retired (NERV
+    # cutover stage 3): the push hook is now the only consumer of
+    # `failopen_state`, so the reporter's own failure modes are pinned here.
+
+    def test_missing_shared_module_costs_the_counter_not_the_signal(self):
+        """Extraction into `_lib/` added a dependency that can go missing.
+        Silence is the one outcome that must not happen — it is the failure this
+        whole mechanism exists to prevent."""
+        os.unlink(os.path.join(self.hooks_dir, "_lib", "failopen_state.py"))
+        r = self._run(_PUSH, review="import_error")
+        self.assertEqual(r.returncode, 0)
+        self.assertIn("fail-open", r.stdout)
+        self.assertFalse(os.path.exists(self._streak_file()),
+                         "no module → no counter, by design")
+
+    def test_broken_shared_module_does_not_break_the_hook(self):
+        self._write(os.path.join(self.hooks_dir, "_lib", "failopen_state.py"),
+                    "raise RuntimeError('module is broken')\n")
+        r = self._run(_PUSH, review="clean")
+        self.assertEqual(r.returncode, 0, r.stderr[-600:])
+        r = self._run(_PUSH, review="blocked")
+        self.assertEqual(r.returncode, 2, "a broken reporter must not cost the verdict")
 
 
 class DetectionSurvivesABroken_libTest(unittest.TestCase):
@@ -599,7 +537,6 @@ class DetectionSurvivesABroken_libTest(unittest.TestCase):
         env = dict(os.environ)
         env["CLAUDE_PROJECT_DIR"] = self.tmp
         env.pop("BYPASS_REVIEW_GUARD", None)
-        env.pop("BYPASS_PLAN_GUARD", None)
         return subprocess.run(
             [sys.executable, self.hook],
             input=json.dumps({"tool_input": {"command": command}}),
@@ -607,8 +544,8 @@ class DetectionSurvivesABroken_libTest(unittest.TestCase):
         )
 
     def _break_every_lib_module(self):
-        """`_lib` 의 세 모듈을 전부 import 불가로 만든다 — 최악의 경우."""
-        for name in ("review_guard.py", "plan_guard.py", "failopen_state.py"):
+        """`_lib` 의 두 모듈을 전부 import 불가로 만든다 — 최악의 경우."""
+        for name in ("review_guard.py", "failopen_state.py"):
             self._write(name, "raise RuntimeError('_lib is broken')\n")
 
     def test_a_push_is_still_recognised_when_every_gate_import_fails(self):
@@ -620,7 +557,7 @@ class DetectionSurvivesABroken_libTest(unittest.TestCase):
             f"훅이 죽었다 (rc={r.returncode}) — 하네스는 이걸 allow 로 읽는다.\n"
             f"stderr:\n{r.stderr}",
         )
-        # 그리고 이 명령을 **push 로 알아봤어야** 한다. 게이트가 전부 죽었으니 차단은
+        # 그리고 이 명령을 **push 로 알아봤어야** 한다. 게이트가 죽었으니 차단은
         # 못 하지만, fail-open 을 소리 내어 보고하는 것이 그 증거다.
         self.assertIn(
             "fail-open", r.stdout + r.stderr,
@@ -646,6 +583,33 @@ class DetectionSurvivesABroken_libTest(unittest.TestCase):
         r = self._run(_MULTILINE_PUSH)
         self.assertIn(r.returncode, (0, 2))
         self.assertIn("fail-open", r.stdout + r.stderr)
+
+
+class SuiteLeavesNoRealStateTest(unittest.TestCase):
+    """The harness suite must not write fail-open state into the real repo.
+
+    Measured twice on 2026-07-23: a hermetic test that patches a gate to `None`
+    makes the hook (correctly) record a degradation, and without
+    `CLAUDE_PROJECT_DIR` isolation that lands in the working tree — a few suite
+    runs and a perfectly healthy gate escalates to "사실상 꺼져 있습니다".
+    Pinned so the next hook test that forgets to isolate fails loudly instead of
+    quietly poisoning a counter nobody thinks to look at. (Moved here from
+    `test_stop_guard_failopen.py` when the Stop hook retired in NERV cutover
+    stage 3.)
+    """
+
+    def test_no_failopen_state_after_the_suite_runs(self):
+        state_dir = _harness.REPO_ROOT / ".claude" / "state"
+        if not state_dir.exists():
+            return
+        leftovers = sorted(
+            p.name for p in state_dir.iterdir() if p.name.endswith("_failopen.json")
+        )
+        self.assertEqual(
+            leftovers, [],
+            f"harness tests wrote real fail-open state: {leftovers}. A test ran a "
+            f"guard hook without pointing CLAUDE_PROJECT_DIR at a temp dir.",
+        )
 
 
 class StubMirrorsTheGateSignatureTest(unittest.TestCase):

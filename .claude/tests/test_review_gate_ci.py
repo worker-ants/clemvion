@@ -718,11 +718,12 @@ class TheGateItselfDoesNotBranchOnCiEnvTest(unittest.TestCase):
         ("pull.py", "NERV_TOKEN"),
         ("pull.py", "NERV_PROJECT"),
     }
-    # `hooks/_lib` 셋 + 게이트가 **위임하는** `_shared` 전부. 9R 리뷰어가 `report_paths.py`/
+    # `hooks/_lib` 둘(plan 게이트 `plan_guard.py` 는 전환 단계 3 에서 `plan/` 과 함께 걷었다)
+    # + 게이트가 **위임하는** `_shared` 전부. 9R 리뷰어가 `report_paths.py`/
     # `block_integrity.py` 에 `GITHUB_JOB == "gate"` 분기를 심어 127개 테스트가 전부 통과하는
     # 것을 실증했다 — 실제 판정(Gate1 커버리지, Gate2 하향 감지)이 그 두 함수로 내려가는데
     # 스캔 대상에 없었다. 목록을 손으로 유지하지 않고 디렉터리에서 도출한다.
-    _SCANNED_LIB = ("review_guard.py", "branch_guard.py", "plan_guard.py")
+    _SCANNED_LIB = ("review_guard.py", "branch_guard.py")
 
     def test_no_unregistered_environment_reads_in_the_gate(self):
         seen = set()

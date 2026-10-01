@@ -2,7 +2,7 @@
 """
 i18n dict 파일 (ko.ts / en.ts) 을 top-level 섹션 단위로 분리한다.
 
-본 스크립트는 plan/in-progress/i18n-dict-split.md 의 refactor 를 한 번에
+본 스크립트는 옛 plan `i18n-dict-split.md`(git 이력) 의 refactor 를 한 번에
 수행하기 위한 one-time tool. 분리 후에도 보존해 history 와 재실행 가능성을
 유지한다 (예: 신규 locale 추가 시 동일 패턴으로 split).
 

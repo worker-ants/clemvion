@@ -613,7 +613,13 @@ def collect_context(args, root):
     corpora = cfg["corpora"]
     spec_dir = os.path.join(root, corpora["spec"])
     conventions_dir = os.path.join(root, corpora["conventions"])
-    plan_dir = os.path.join(root, corpora["plan_in_progress"])
+    # The plan corpus is optional since NERV cutover stage 3 (`plan/` left; work
+    # tracking is NERV Tasks). Absent → no plan files, empty plan-name ranking
+    # signals, and an empty `plan_in_progress` bundle (`plan_coherence` is off in
+    # `.claude.project.json`). Removing the dormant machinery is NERV Task
+    # `CLE-T-VP5KDJ` (cutover 4e, the corpus redesign).
+    _plan_rel = corpora.get("plan_in_progress")
+    plan_dir = os.path.join(root, _plan_rel) if _plan_rel else None
 
     excluded = set()
     target_path_rel = ""
@@ -633,7 +639,7 @@ def collect_context(args, root):
     # ranking wants every in-progress plan, not just the ones that survive into
     # the plan bundle.
     _rank_changed = _edited_rels(diff_base, root)
-    _rank_plan_files = collect_markdown_files(plan_dir)
+    _rank_plan_files = collect_markdown_files(plan_dir) if plan_dir else []
     _rank_plan_text = "\n".join(read_text_file(p) for p in _rank_plan_files)
     # The plans THIS BRANCH touched are the task's own plans, and their
     # `spec_impact:` frontmatter is the most direct statement of what the work
@@ -710,16 +716,15 @@ def collect_context(args, root):
             # Repo paths have no spaces; a space almost always means prose landed here.
             hint = (
                 "\n  → 설명문을 넣은 것 같습니다. 이 인자는 **경로만** 받습니다.\n"
-                "     작업 배경·수정 계획은 plan/in-progress/<task>.md 에 쓰세요 —\n"
-                "     checker 가 그 파일을 알아서 읽습니다."
+                "     작업 배경·수정 계획은 NERV Task 에 적습니다(nerv_task_update ·\n"
+                "     heartbeat progress). 이 인자에는 검토할 경로만 줍니다."
             )
         sys.stderr.write(
             f"Error: {flag} 의 인자가 실존하는 {kind} 경로가 아닙니다.{hint}\n"
             f"  받은 값: {value!r}\n"
             f"  해석된 경로: {path}\n"
             f"\n사용법: {flag} <{kind} 경로>\n"
-            f"  예) --spec plan/in-progress/spec-draft-foo.md\n"
-            f"      --plan plan/in-progress/my-task.md\n"
+            f"  예) --spec <scratchpad>/CLE-ENG-FOO.md   (NERV 초안 본문을 둔 파일)\n"
             f"      --impl-prep spec/2-navigation/\n"
             f"      --impl-done spec/2-navigation/\n"
         )
@@ -817,7 +822,8 @@ def collect_context(args, root):
     else:
         convention_files = collect_markdown_files(conventions_dir, exclude_paths=excluded)
         other_spec_files = all_spec_files
-    plan_files = collect_markdown_files(plan_dir, exclude_paths=excluded)
+    plan_files = (collect_markdown_files(plan_dir, exclude_paths=excluded)
+                  if plan_dir else [])
 
     # Same treatment for the two big supporting bundles. For `conventions` this
     # is the fix for the observed case where ~230 auto-generated catalog files
@@ -1210,7 +1216,7 @@ def main():
     parser = argparse.ArgumentParser(description="Consistency Checker Orchestrator (prepare).")
     mode = parser.add_mutually_exclusive_group(required=False)
     mode.add_argument("--spec", type=str, metavar="PATH",
-                      help="spec draft path (e.g., plan/in-progress/spec-draft-foo.md)")
+                      help="spec draft body file (NERV draft body saved to a scratchpad file)")
     mode.add_argument("--plan", type=str, metavar="PATH",
                       help="plan draft path")
     mode.add_argument("--impl-prep", type=str, dest="impl_prep", metavar="SCOPE",

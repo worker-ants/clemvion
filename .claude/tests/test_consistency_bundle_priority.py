@@ -533,14 +533,16 @@ class CollectContextUsesPriorityTest(unittest.TestCase):
     def test_conventions_uses_the_ranked_order(self):
         self._assert_sentinel_order("impl_done", "conventions")
 
-    def test_plan_in_progress_uses_the_ranked_order(self):
-        """`plan_coherence`'s ONLY corpus — the one that needs ranking most.
+    def test_plan_in_progress_renders_empty_without_a_plan_corpus(self):
+        """`plan_coherence`'s ONLY corpus left with `plan/` in NERV cutover stage 3.
 
-        Measured on this repo it is roughly 10x its own budget share, so the
-        alphabetical tail-drop is the normal case there, not an edge case. It
-        was the one bundle left unranked, with nothing documenting a reason.
+        The bundle used to be ranked like the others (it was ~10x its budget
+        share on this repo). With no `corpora.plan_in_progress` configured the
+        orchestrator must render it empty rather than crash or read a stale
+        path; `plan_coherence` is switched off in `.claude.project.json`. The
+        dormant ranking machinery goes in cutover 4e (NERV Task `CLE-T-VP5KDJ`).
         """
-        self._assert_sentinel_order("impl_done", "plan_in_progress")
+        self.assertEqual(self._order("impl_done", "plan_in_progress"), [])
 
 
 class ThisBranchsPlanOutranksEveryOtherPlanTest(unittest.TestCase):
@@ -596,9 +598,11 @@ class ThisBranchsPlanOutranksEveryOtherPlanTest(unittest.TestCase):
         )
         self.assertEqual(order, ["zzz.md", "x.md"])
 
-    def test_collect_context_ranks_with_this_branchs_plans_only(self):
-        """호출부 계약. 헬퍼가 두 텍스트를 구분해도 호출부가 같은 값을 두 번 넘기면
-        결함은 그대로다 — 그 뮤턴트가 실제로 살아남았다."""
+    def test_collect_context_passes_no_plan_signal_without_a_plan_corpus(self):
+        """호출부 계약. 전환 단계 3 뒤 기본 설정에는 plan 코퍼스가 없다. 그때 랭킹은 plan
+        언급 신호를 받지 않아야 한다(옛 경로를 읽어 엉뚱한 파일을 올리지 않는다). plan 코퍼스를
+        둔 설정에서 "이 브랜치의 plan 만" 좁히는 계약은 위 `prioritize_bundle_files` 단위 테스트가
+        그대로 본다."""
         sizes = run_in_orchestrator(
             """
             seen = {}
@@ -618,11 +622,8 @@ class ThisBranchsPlanOutranksEveryOtherPlanTest(unittest.TestCase):
             emit({"plan": len(seen["plan"]), "branch": len(seen["branch"])})
             """
         )
-        self.assertGreater(sizes["plan"], 0, "plan 코퍼스가 비었다 — 단언이 vacuous")
-        self.assertLess(
-            sizes["branch"], sizes["plan"],
-            "branch_plan_text 가 전체 plan 과 같다 — 좁히는 효과가 없다",
-        )
+        self.assertEqual(sizes, {"plan": 0, "branch": 0},
+                         "plan 코퍼스가 없는데 plan 언급 신호가 랭킹에 들어갔다")
 
 
 class TheDocumentBeingEditedIsNeverOmittedTest(unittest.TestCase):
@@ -897,6 +898,11 @@ class TheDiffOutranksTheFolderDumpTest(unittest.TestCase):
             # docstring).
             with tempfile.TemporaryDirectory() as tmp:
                 root = five_system_copy(tmp)
+                # 전환 단계 3 뒤 기본 설정에는 plan 코퍼스가 없다. 이 분기(tier 1)는 plan
+                # 코퍼스를 설정한 프로젝트에서만 살아 있으므로 사본에 그 설정을 둔다.
+                with open(os.path.join(root, ".claude.project.json"), "w",
+                          encoding="utf-8") as fh:
+                    fh.write('{"corpora": {"plan_in_progress": "plan/in-progress"}}')
                 plan_path = os.path.join(root, "plan/in-progress/__probe_plan__.md")
                 os.makedirs(os.path.dirname(plan_path))
                 with open(plan_path, "w", encoding="utf-8") as fh:

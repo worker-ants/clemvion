@@ -5,7 +5,7 @@ import { describe, it, expect } from "vitest";
 import { repoRoot } from "./impl-anchor-parse";
 import { walkTree } from "./tree-walk";
 
-// Guard: `plan/**` · `spec/**` 마크다운에 **도구 아티팩트 태그**가 남아 있으면 안 된다.
+// Guard: `spec/**` 마크다운에 **도구 아티팩트 태그**가 남아 있으면 안 된다.
 //
 // ## 무엇을 막나
 //
@@ -20,15 +20,14 @@ import { walkTree } from "./tree-walk";
 //
 // ## 범위를 왜 직접 정하나
 //
-// `plan-scan.ts` 의 `collectLivePlanMarkdown` 은 `recurse: false` 라 `in-progress` 하위
-// 폴더(`node-output-redesign/**`)를 안 본다. 그 스코핑은 "라이프사이클 plan 만 센다" 는
-// 다른 목적에서 나온 것이라, 오염 검사가 그것을 물려받으면 **사각지대를 함께 물려받는다.**
-// 여기서는 `walkTree` 를 직접 불러 `plan/`·`spec/` 전체를 본다 — 인덱스 파일(`0-`/`_` 접두)도
-// 포함한다. 오염은 파일의 성격을 가리지 않는다. NERV 미러(`spec/CLE-*`, 전환 단계 1)도 일부러
-// 본다. 링크 · 목차 가드와 달리 이 검사는 옛 트리 규칙이 아니라 NERV 본문에 태그가 새어 드는지를 본다.
+// 다른 가드의 수집기를 물려받으면 그 수집기의 스코핑(예: 최상위만 · 접두 제외)이 만든
+// **사각지대도 함께 물려받는다.** 여기서는 `walkTree` 를 직접 불러 `spec/` 전체를 본다 —
+// 인덱스 파일(`0-`/`_` 접두)도 포함한다. 오염은 파일의 성격을 가리지 않는다. NERV
+// 미러(`spec/CLE-*`, 전환 단계 1)도 일부러 본다. 링크 · 목차 가드와 달리 이 검사는 옛 트리
+// 규칙이 아니라 NERV 본문에 태그가 새어 드는지를 본다.
 //
-// `review/**` 는 **일부러 뺐다.** 봉인된 세션 산출물이라 아무도 편집하지 않고, 그 안의
-// 잔재는 읽히지 않는 자리에 있다. 31파일을 지금 훑으면 이력 diff 만 부풀고 얻는 것이 없다.
+// `plan/**` 도 스캔하던 루트였는데 NERV 정본 전환 단계 3(Task `CLE-T-FN2JWK`)에서 `plan/` 과
+// `review/` 를 지우면서 뺐다. 작업 추적은 NERV Task 이고 리뷰 결과는 NERV 리뷰 레코드다.
 //
 // ## 왜 코드펜스를 예외로 두지 않나
 //
@@ -50,26 +49,28 @@ const TOOL_TAGS = [
 ] as const;
 
 /** 스캔 루트 — `walkTree` 에 넘기는 하위 디렉터리. */
-const SCAN_ROOTS = ["plan", "spec"] as const;
+const SCAN_ROOTS = ["spec"] as const;
 type ScanRoot = (typeof SCAN_ROOTS)[number];
 
 /**
  * 전제 테스트의 하한 — **루트별로** 건다.
  *
  * 2026-09-01 실측(archive 제외): `plan/` **505** · `spec/` **386** (합 891).
+ * 2026-10-01 실측: `spec/` **557** — 그중 NERV 미러(`spec/README.md` · `spec/CLE-*`)가 **170**.
  *
  * 합계 하나로 걸면 **한 루트가 통째로 빠지는 부분 실패를 못 잡는다** — 각 루트가 단독으로도
  * 합계 하한을 넘기 때문이다(리뷰 2R testing WARNING). 루트별 하한이라야 "`spec` 이 조용히
  * 스캔에서 빠졌다" 가 RED 로 드러난다.
  *
- * 값은 실측의 절반 언저리 — 자연 감소에는 안 걸리고 루트 소실만 잡는다.
+ * 값은 실측의 절반 언저리 — 자연 감소에는 안 걸리고 루트 소실만 잡는다. `spec` 의 기준은
+ * **미러** 수(170)다. 옛 트리는 전환 단계 5(Task `CLE-T-7M4C4X`)에서 지우므로 전체 수의
+ * 절반으로 잡으면 그 PR 이 이 하한에 걸린다.
  *
  * (초판은 합계 자리에 **436** 이라 적었다. 재지 않고 쓴 숫자였고 리뷰가 아니라 내가 다시
  * 세서 잡았다 — 주석의 "실측" 도 실측이어야 한다.)
  */
 const MIN_EXPECTED_MD_FILES: Record<ScanRoot, number> = {
-  plan: 250,
-  spec: 190,
+  spec: 85,
 };
 
 /**
@@ -118,7 +119,7 @@ function findStrayTags(root: string): StrayHit[] {
   return hits;
 }
 
-describe("plan/spec 마크다운에 도구 아티팩트 태그가 없다", () => {
+describe("spec 마크다운에 도구 아티팩트 태그가 없다", () => {
   const root = repoRoot();
 
   // **케이스를 검사 대상 상수에서 뽑지 않는다.**
@@ -131,7 +132,7 @@ describe("plan/spec 마크다운에 도구 아티팩트 태그가 없다", () =>
   // 2판은 `MIN_EXPECTED_MD_FILES` 의 키와 대조했는데, **둘을 함께 줄이는 뮤턴트**가 다시
   // 통과했다(실측). 그래서 기대 루트를 **테스트 본문의 리터럴**로 못박는다 — 프로덕션
   // 상수를 어떻게 고쳐도 이 리터럴은 안 따라온다.
-  const EXPECTED_ROOTS = ["plan", "spec"];
+  const EXPECTED_ROOTS = ["spec"];
 
   it("[전제] 스캔 루트가 기대 목록 그대로다 — 루트가 조용히 빠지지 않는다", () => {
     expect([...SCAN_ROOTS].sort()).toEqual(EXPECTED_ROOTS);
@@ -157,8 +158,7 @@ describe("plan/spec 마크다운에 도구 아티팩트 태그가 없다", () =>
   });
 
   // 탐지가 실제로 작동하는지 — "위반 0건" 은 검사가 도는 증거가 아니다.
-  // (이 파일 위쪽 `plan-scan.ts` 헤더가 같은 교훈을 적고 있다: 158 tests GREEN 인데
-  //  위반 수집 분기가 한 번도 실행되지 않았던 이력.)
+  // (옛 plan 스캐너에서 158 tests GREEN 인데 위반 수집 분기가 한 번도 실행되지 않았던 이력.)
   it.each([
     ["닫는 태그", "</content>"],
     ["여는 태그", "<content>"],
@@ -175,22 +175,23 @@ describe("plan/spec 마크다운에 도구 아티팩트 태그가 없다", () =>
     const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "stray-tags-fixture-"));
     try {
       // `skipDir` 은 **경로가 아니라 basename** 을 본다 — `archive` 라는 이름이면 어디든
-      // 제외된다. fixture 를 한 자리(`plan/complete/archive/`)에만 두면 그 사실이 안 드러나
-      // 검증 범위가 실제 스코프보다 좁아진다(리뷰 4R testing INFO). **두 자리**에 심는다.
+      // 제외된다. fixture 를 한 자리(`spec/archive/`)에만 두면 그 사실이 안 드러나
+      // 검증 범위가 실제 스코프보다 좁아진다(리뷰 4R testing INFO). **두 자리**에 심는다
+      // — 루트 바로 아래와 한 단계 깊은 곳.
       for (const dir of [
-        path.join(tmp, "plan", "complete", "archive", "from-x"),
+        path.join(tmp, "spec", "5-system", "archive", "from-x"),
         path.join(tmp, "spec", "archive"),
       ]) {
         fs.mkdirSync(dir, { recursive: true });
         fs.writeFileSync(path.join(dir, "old.md"), "# Old\n</content>\n");
       }
 
-      const live = path.join(tmp, "plan", "complete");
+      const live = path.join(tmp, "spec", "5-system");
       fs.writeFileSync(path.join(live, "kept.md"), "# Kept\n</content>\n");
 
       const hits = findStrayTags(tmp).map((h) => h.relPath);
       // 대조군이 없으면 "0건" 이 제외 때문인지 스캔 실패 때문인지 안 갈린다.
-      expect(hits).toEqual(["plan/complete/kept.md"]);
+      expect(hits).toEqual(["spec/5-system/kept.md"]);
     } finally {
       fs.rmSync(tmp, { recursive: true, force: true });
     }

@@ -35,8 +35,9 @@ ORCH = (
     / "consistency_orchestrator.py"
 )
 
-# 실제 draft 처럼 보이되 이 테스트만 쓰는 이름. 실제 호출처럼 `plan/in-progress/` 아래
-# **상대경로**로 준다 — orchestrator 는 target 을 cwd 상대로 읽는다(`repo_root()` 가
+# 실제 draft 처럼 보이되 이 테스트만 쓰는 이름. 옛 관례(`plan/in-progress/` 아래 draft)의
+# 경로 모양을 그대로 쓴다. NERV 정본 전환 단계 3 뒤 실제 호출은 scratchpad 의 초안 본문 파일을
+# 준다. 어느 쪽이든 **상대경로**로 준다 — orchestrator 는 target 을 cwd 상대로 읽는다(`repo_root()` 가
 # `os.getcwd()`). 그 cwd 는 테스트마다 새 임시 저장소다: 이 체크아웃에 두던 시절에는 같은
 # 워크트리의 병렬 실행이 서로의 draft 를 지워 `--spec` 이 실패했다(실측 2026-09-25).
 DRAFT_REL = "plan/in-progress/spec-draft-__snapshot_selftest__.md"
@@ -55,7 +56,7 @@ DRAFT_BODY = (
 
 
 def _run(cwd: Path, *args: str) -> subprocess.CompletedProcess:
-    # 세션 위치를 셸 환경에 맡기지 않는다 — 기본값(cwd 상대 `./review/consistency`)이어야
+    # 세션 위치를 셸 환경에 맡기지 않는다 — 기본값(cwd 상대 `.review/consistency`)이어야
     # 세션이 임시 저장소 안에 생겨 함께 지워진다.
     env = {k: v for k, v in os.environ.items() if k != "CONSISTENCY_OUTPUT_DIR"}
     return subprocess.run(

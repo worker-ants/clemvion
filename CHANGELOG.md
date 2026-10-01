@@ -1,6 +1,6 @@
 # Changelog
 
-> **무엇이 항목을 만드는가** — 2026-09-25 성문화(`plan/complete/changelog-criteria.md`). 새 항목은 맨 위에
+> **무엇이 항목을 만드는가** — 2026-09-25 성문화(옛 plan `changelog-criteria.md`, git 이력). 새 항목은 맨 위에
 > `## Unreleased — <무엇이 바뀌었나>` 로 쓴다(접두 필수). 한 PR 이 서로 다른 변경을 둘 이상 담으면 항목도 둘 이상이다.
 >
 > **항목을 낸다**
@@ -22,6 +22,34 @@
 > **이 기준 이전의 이력은 완전하지 않다.** 제품 코드를 바꾼 PR 중 이 파일을 함께 고친 비율은 2026-05 0% · 06 5% ·
 > 07 37% · 08 30% · 09(25일까지) 49% 였다(나중 PR 의 백필은 세지 않았다). 여기 없다고 그 변경이 없었던 것은 아니다 —
 > `git log` 가 정본이다.
+
+## Unreleased — 하네스: `plan/` · `review/` 를 지우고 plan 게이트 · 가드를 걷는다
+
+NERV 정본 전환 단계 3(Task `CLE-T-FN2JWK`). 작업 추적의 정본은 NERV Task 다. 저장소의 `plan/`(650 파일)과 단계 2 뒤로
+읽는 곳이 없던 `review/`(29,374 파일)를 지웠다. 원문은 git 이력에 있다. `plan/in-progress/` 의 열린 항목은 이미 NERV Task 가
+맡고 있다.
+
+- **push 게이트(느슨하게)**: PLAN 게이트(`_lib/plan_guard.py`, "PR 전 plan 갱신 · 이동")를 걷었다. 그 자리는 NERV Task 의
+  done 게이트(`spec_impact` 선언 · 증적 · Task 에 묶인 code · consistency 라운드)가 맡는다. push 훅에는 REVIEW 게이트 하나만
+  남는다. fail-open 연속 횟수는 그 게이트가 답하면 지워진다.
+- **Stop 훅(제거)**: `guard_review_before_stop.py` 의 마지막 기능(완료한 plan 을 `plan/complete/` 로 옮기라는 권유)과
+  `settings.json` 의 `Stop` 배선을 뺐다. 파일은 빈 스텁으로 남긴다. 이 PR 머지 전에 시작한 세션은 옛 settings 로 그 파일을
+  부르고, 파일이 없으면 exit 2 로 세션 종료가 막힌다. 스텁은 단계 5(`CLE-T-7M4C4X`)에서 지운다. 단계 2 의 마커 훅 스텁
+  둘(`mark_resolution_in_flight.py` · `clear_resolution_in_flight.py`)은 이번에 지웠다.
+- **docs 가드(제거)**: `plan-frontmatter` · `spec-plan-completion`(Gate C) · `spec-pending-plan-existence` ·
+  `spec-status-lifecycle` 과 `plan-scan.ts` 를 지웠다. 넷 다 `plan/` 이나 `pending_plans:` 의 plan 경로를 읽었다. Gate C 자리는
+  Task done 게이트의 `spec_impact` 가, `pending_plans` 자리는 NERV Task 추적이 맡는다. `stray-tool-tags` 는 `spec/**` 만 본다.
+- **`spec-link-integrity` 범위 1(좁힘)**: 루트 `plan/` · `review/` 로 해석되는 링크를 건너뛴다. 동결된 옛 `spec/<영역>/`
+  트리에 그런 링크가 남아 있고, 그 트리는 단계 5 에서 지운다. 판정은 해석한 경로로 한다. `spec/x/plan/` 같은 같은 이름 폴더는
+  그대로 검사한다. 거버넌스 문서(범위 3)에는 적용하지 않는다.
+- **`guard_nerv_owned_paths.py`(조임)**: `plan/` 아래 도구 편집도 막는다. 진행 상황은 NERV Task 에 남긴다.
+- **CI**: `spec-link-checks` 의 pathspec 에서 `plan/**` 를, `e2e.yml` 의 `paths-ignore` 와 PROJECT.md e2e 면제
+  화이트리스트에서 `plan/**` · `review/**` 를 뺐다. `.gitignore` 는 `review/` 를 통째로 무시한다. 체크아웃마다 남은 로컬
+  잔재(`review/**/_prompts/`)가 untracked 로 뜨지 않게 하려는 것이다.
+- **consistency**: `plan_coherence` checker 를 껐다(`.claude.project.json`). 유일한 코퍼스 `plan/in-progress` 가 없어졌다.
+  plan 코퍼스 설정(`corpora.plan_in_progress`)은 선택 항목이 됐다. 설정이 없으면 plan 묶음과 랭킹의 plan 신호가 빈다.
+  `--plan` 모드와 남은 plan 기계는 4e(`CLE-T-VP5KDJ`)에서 걷는다. 읽는 곳이 없던 `outputs` 설정 키도 지웠다.
+- statusline 의 plan 조각과 `plan-stale-audit.sh` 를 지웠다.
 
 ## Unreleased — 하네스: doc-sync 매트릭스 가드가 NERV 미러 경로를 검사한다
 

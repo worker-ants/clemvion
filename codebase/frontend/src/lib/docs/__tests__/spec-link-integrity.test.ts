@@ -30,10 +30,11 @@ import {
 //      `.claude/**.md`. Added 2026-08-27; four links were already broken the
 //      first time it ran, one of them an anchor that never existed. Replaces
 //      `scripts/check-doc-links.py`, which no CI or hook ever invoked.
-// Scope (1) applies no target filter: a `plan/**` link written in a spec doc IS
-// checked here and breaks the build when the plan file moves (e.g. in-progress →
-// complete). Only scope (2) filters to `spec/**.md` targets. What plan-coherence-
-// checker owns is link hygiene *inside* `plan/**` docs — not spec→plan links.
+// Scope (1) applies no target filter, with one exemption: links that resolve
+// into the repo-root `plan/` or `review/` trees are skipped. NERV cutover stage 3
+// (NERV Task `CLE-T-FN2JWK`) removed both trees, and the frozen old spec tree that
+// still links into them is deleted in stage 5 (`CLE-T-7M4C4X`). Scope (2) filters
+// to `spec/**.md` targets. Scope (3) has no exemption — governance docs are live.
 // SoT: spec/conventions/spec-impl-evidence.md §4.2.
 
 function fmt(violations: LinkViolation[]): string {

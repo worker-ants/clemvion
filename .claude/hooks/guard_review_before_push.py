@@ -19,17 +19,15 @@ Contract (same as guard_default_branch_edit.py):
   any other → treated as runtime error; tool call proceeds (fail-open).
 
 Only `git push` commands are inspected; every other Bash command passes
-through untouched. Each gate evaluates not just the hook's own cwd but also
+through untouched. The gate evaluates not just the hook's own cwd but also
 any other checked-out worktree the command names (by branch or by path) —
 see "Which worktree(s) does this push publish?" below for why (a cwd-only
-check was a working bypass). Two independent gates run, each with its own override:
+check was a working bypass). One gate runs:
   - REVIEW gate (`_lib/review_guard.py`) — unreviewed `codebase/**` changes.
-    Override: `BYPASS_REVIEW_GUARD=1`.
-  - PLAN gate (`_lib/plan_guard.py`) — the linked in-progress plan was neither
-    updated nor moved to plan/complete/ before the push ("PR 전 plan 갱신/이동"
-    rule). Override: `BYPASS_PLAN_GUARD=1`.
-Each override is a conscious one-off (e.g. a docs/spec-only branch the heuristic
-misjudged, or ad-hoc work the plan link mis-resolved).
+    Override: `BYPASS_REVIEW_GUARD=1` (a conscious one-off).
+The PLAN gate (`_lib/plan_guard.py`, "PR 전 plan 갱신/이동") left with `plan/` in
+NERV cutover stage 3 (NERV Task `CLE-T-FN2JWK`): work tracking is NERV Tasks, and
+the NERV done gate (evidence + `spec_impact`) replaces it.
 
 Fail-open is OBSERVED, not silent (policy decision 2026-07-23,
 harness-guard-followups §E). When a gate cannot answer — its module failed to
@@ -59,17 +57,16 @@ import traceback
 THIS_DIR = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(THIS_DIR, "_lib"))
 
-# Both gates are imported independently and best-effort: a failure to import one
-# (e.g. a syntax error introduced in that module) must not silence the other.
+# Imported best-effort: a failure to import the gate (e.g. a syntax error
+# introduced in that module) must be counted as fail-open, not crash the hook.
 _REVIEW_IMPORT_ERROR = ""
-_PLAN_IMPORT_ERROR = ""
 
 try:
     from review_guard import evaluate_review  # noqa: E402
 except Exception as exc:  # noqa: BLE001
     traceback.print_exc(file=sys.stderr)
     _REVIEW_IMPORT_ERROR = f"{type(exc).__name__}: {exc}"
-    evaluate_review = None  # review gate disabled; plan gate still runs.
+    evaluate_review = None  # review gate disabled — counted as fail-open.
 
 # Guarded: extracting this reporting into _lib/ means the hook now depends on a
 # module that can be absent or broken. Losing it must not cost the *signal* —
@@ -79,12 +76,6 @@ try:
     import failopen_state  # noqa: E402
 except Exception:  # noqa: BLE001
     failopen_state = None
-
-try:
-    from plan_guard import evaluate_plan  # noqa: E402
-except Exception as exc:  # noqa: BLE001
-    _PLAN_IMPORT_ERROR = f"{type(exc).__name__}: {exc}"
-    evaluate_plan = None  # plan gate disabled; review gate still runs.
 
 
 # ---------------------------------------------------------------------------
@@ -276,7 +267,7 @@ except Exception as exc:  # noqa: BLE001
 #
 # 전면 공유(훅까지 `_lib` import)는 import 실패를 **fail-CLOSED**(exit 2)로 뒤집어야
 # 안전해지는데, 그건 "가드가 깨지면 작업이 멈춘다" 는 정책 반전이라 별도 합의가 필요하다.
-# 추적: plan/in-progress/harness-env-value-subpattern-dedup.md (C).
+# 추적: NERV Task `CLE-T-ZJ1VW6`(옛 plan `harness-env-value-subpattern-dedup.md` 의 (C), git 이력).
 _GIT_PUSH = re.compile(
     r"(?:^|&&|[;|&\n])[^\S\n]*(?:"
     r"(?:[A-Za-z_][A-Za-z0-9_]*="
@@ -719,23 +710,6 @@ _REVIEW_MSG = (
     "  BYPASS_REVIEW_GUARD=1\n"
 )
 
-_PLAN_MSG = (
-    "BLOCKED by .claude/hooks/guard_review_before_push.py (plan gate)\n"
-    "  attempted: git push\n"
-    "  worktree:  {worktree}\n"
-    "  reason:    {reason}\n"
-    "\n"
-    "PR 를 올리기 전에는 처리하던 plan 을 갱신하거나 (모두 완료 시) complete 로\n"
-    "이동하는 것이 강제 사항입니다. 다음 중 하나를 하고 다시 push 하세요:\n"
-    "\n"
-    "  - 진행 중이면:  {plan} 에 진행 메모/체크박스를 갱신\n"
-    "  - 완료됐으면:   {plan} 을 plan/complete/ 로 이동\n"
-    "                  (마지막 작업 PR 안에서 `chore(plan): mark <name> complete`,\n"
-    "                   plan-lifecycle.md §3 — 별도 PR 로 분리 금지)\n"
-    "\n"
-    "의식적 우회 (이 branch 에 연결된 plan 이 없다고 오판된 드문 경우):\n"
-    "  BYPASS_PLAN_GUARD=1\n"
-)
 
 
 # --- fail-open observability -------------------------------------------------
@@ -753,10 +727,12 @@ _FAILOPEN_STATE_NAME = "push_guard_failopen.json"
 # suppressing the reset — fail-safe in direction, but invisible to every static
 # check.
 _GATE_REVIEW = "REVIEW"
-_GATE_PLAN = "PLAN"
 # Every gate that must answer before the streak may be cleared. Named, not
-# counted, so a future third gate cannot silently satisfy the reset with two.
-_ALL_GATES = frozenset({_GATE_REVIEW, _GATE_PLAN})
+# counted, so a future second gate cannot silently satisfy the reset with one.
+# The PLAN gate left with `plan/` (stage 3); keeping it here would make "all
+# answered" unreachable and pin the streak forever (`failopen_state.report`
+# compares sets).
+_ALL_GATES = frozenset({_GATE_REVIEW})
 
 
 def _report_notes(outcome, exit_code: int) -> None:
@@ -913,7 +889,7 @@ def _evaluate_over_targets(evaluate, targets, *, gate, outcome, render):
 
 
 def _run_gates(outcome: _Outcome, targets: list[str]) -> int:
-    """Run both gates, recording into `outcome` what each one did."""
+    """Run the gate, recording into `outcome` what it did."""
     # ---- REVIEW gate -------------------------------------------------------
     if os.environ.get("BYPASS_REVIEW_GUARD") == "1":
         outcome.bypassed.append(_GATE_REVIEW)
@@ -929,27 +905,6 @@ def _run_gates(outcome: _Outcome, targets: list[str]) -> int:
                 outcome=outcome,
                 render=lambda d, wt: _REVIEW_MSG.format(
                     reason=d.reason, worktree=wt
-                ),
-            )
-            if blocked is not None:
-                print(blocked, file=sys.stderr)
-                return 2
-
-    # ---- PLAN gate ---------------------------------------------------------
-    if os.environ.get("BYPASS_PLAN_GUARD") == "1":
-        outcome.bypassed.append(_GATE_PLAN)
-    else:
-        if evaluate_plan is None:
-            outcome.degraded.append((_GATE_PLAN, _import_reason(
-                "_lib/plan_guard.py", "evaluate_plan", _PLAN_IMPORT_ERROR)))
-        else:
-            blocked = _evaluate_over_targets(
-                evaluate_plan,
-                targets,
-                gate=_GATE_PLAN,
-                outcome=outcome,
-                render=lambda pl, wt: _PLAN_MSG.format(
-                    reason=pl.reason, plan=pl.plan_path, worktree=wt
                 ),
             )
             if blocked is not None:

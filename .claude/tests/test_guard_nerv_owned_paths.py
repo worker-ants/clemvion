@@ -13,8 +13,8 @@ NERV 정본 전환 단계 1부터 `spec/` 은 `pull.py` 만 쓰는 미러다(옛
 - 더 깊은 곳의 `spec` 이름(`codebase/…/spec/…`)과 저장소 밖(scratchpad)은 막지 않는다.
 - 단계 2(NERV Task `CLE-T-4ABTG7`)부터 `review/` 도 막는다. 리뷰 결과는 NERV 레코드이고
   오케스트레이터 산출물은 gitignore 대상 `.review/` 에 쓴다(그 경로는 막지 않는다).
-- `plan/` 은 아직 막지 않는다. 거버넌스 문서가 단계 3 전까지 그 쓰기를 안내한다. 그 단계 PR 이
-  이 테스트의 기대를 바꾼다.
+- 단계 3(NERV Task `CLE-T-FN2JWK`)부터 `plan/` 도 막는다. 작업 추적은 NERV Task 이고 옛 `plan/`
+  · `review/` 는 그 단계에서 지웠다. 두 차단은 지운 트리가 다시 생기지 않게 한다.
 - `BYPASS_NERV_OWNED_PATHS=1` 이면 통과(다른 값은 우회가 아니다).
 - 경로 키는 형제 훅과 같은 `file_path` · `path` · `notebook_path`(`tool_input` 또는 `input`)다.
 - 짝 없는 서로게이트가 든 경로도 판정한다. 파일 시스템에 넘기지 못하는 문자라 예외가 나면
@@ -130,6 +130,14 @@ class GuardTest(unittest.TestCase):
                             ".review/consistency/2026/10/01/00_00_00/SUMMARY.md"):
                     self.assertEqual(self.run_hook(root / rel).returncode, 0, rel)
 
+    def test_plan_is_blocked_from_stage_3(self):
+        for root in (self.main, self.wt):
+            with self.subTest(root=root.name):
+                r = self.run_hook(root / "plan/in-progress/x.md")
+                self.assertEqual(r.returncode, 2, r.stderr)
+                self.assertIn("nerv_task_create", r.stderr)
+                self.assertEqual(self.run_hook("PLAN/x.md", cwd=root).returncode, 2)
+
     def test_relative_path_is_resolved_against_the_payload_cwd(self):
         self.assertEqual(self.run_hook("spec/x.md", cwd=self.wt).returncode, 2)
         self.assertEqual(self.run_hook("codebase/x.ts", cwd=self.wt).returncode, 0)
@@ -194,7 +202,7 @@ class GuardTest(unittest.TestCase):
         for target in (self.main / "codebase/frontend/src/lib/spec/x.ts",
                        self.main / ".claude/tools/x.py",
                        self.main / "specs/x.md",
-                       self.main / "plan/in-progress/x.md",        # 단계 3 에서 막는다
+                       self.main / "plans/x.md",                   # 첫 조각이 `plan` 이 아니다
                        self.tmp / "scratch" / "spec" / "x.md"):
             with self.subTest(target=str(target)):
                 self.assertEqual(self.run_hook(target).returncode, 0)

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Claude Code statusLine — 2-line layout
 #   line 1: model · dir · context · cost · style
-#   line 2: git · plan
+#   line 2: git
 
 set -u
 
@@ -71,23 +71,6 @@ CYAN=$'\033[36m'; BLUE=$'\033[34m'; YELLOW=$'\033[33m'
 GREEN=$'\033[32m'; MAGENTA=$'\033[35m'; GRAY=$'\033[90m'
 SEP="${DIM} │ ${RESET}"
 
-plan_segment=""
-plan_dir="$cwd/plan/in-progress"
-if [ -d "$plan_dir" ]; then
-  plan_count=$(find "$plan_dir" -type f -name '*.md' 2>/dev/null | wc -l | tr -d ' ')
-  plan_current=""
-  if [ "$plan_count" -gt 0 ]; then
-    latest=$(find "$plan_dir" -type f -name '*.md' -exec stat -f '%m %N' {} \; 2>/dev/null \
-              | sort -rn | head -1 | cut -d' ' -f2-)
-    [ -n "$latest" ] && plan_current=$(basename "$latest" .md)
-  fi
-  plan_segment=$(printf '%splan: %s%d%s in-progress%s▶ %s%s%s' \
-    "$SEP" \
-    "${BOLD}" "$plan_count" "${RESET}" \
-    "$SEP" \
-    "${BOLD}" "${plan_current:-none}" "${RESET}")
-fi
-
 # line 1: model · dir · ctx · cost · style
 printf '%s%s%s%s%s%s%s%sctx %s%d%%%s (%s)%s%s%s%s (%s tok)%sstyle: %s%s%s\n' \
   "${BOLD}${CYAN}" "$model" "${RESET}" \
@@ -100,7 +83,6 @@ printf '%s%s%s%s%s%s%s%sctx %s%d%%%s (%s)%s%s%s%s (%s tok)%sstyle: %s%s%s\n' \
   "$SEP" \
   "${GRAY}" "$output_style" "${RESET}"
 
-# line 2: git (+ plan if plan/in-progress/ exists)
-printf '  %s%s%s%s' \
-  "${MAGENTA}" "${git_segment:-no-git}" "${RESET}" \
-  "$plan_segment"
+# line 2: git (the plan segment left with plan/ in NERV cutover stage 3)
+printf '  %s%s%s' \
+  "${MAGENTA}" "${git_segment:-no-git}" "${RESET}"
