@@ -72,7 +72,13 @@ _HEADING_FINDING_RE = re.compile(r"^#{2,6}\s+\[(CRITICAL|WARNING|INFO)\]\s*(.*)$
 # 놓쳤다). `### 위험도` 의 맨 단어 `CRITICAL` 은 괄호 · 굵게가 아니라 걸리지 않는다.
 _MARKER_RE = re.compile(r"(?:\[|\*\*)\s*(CRITICAL|WARNING)\b", re.I)
 _HEADING_RE = re.compile(r"^#{1,6}\s")
-_FIELD_RE = re.compile(r"^\s+[-*]\s+(위치|target 위치|상세|제안|충돌 대상)\s*[:：]\s*(.*)$")
+# 리뷰어 · checker · analyzer 정의(`.claude/agents/*.md` §출력 형식)가 쓰는 하위 항목 이름. 모르는 이름은
+# 앞 항목에 붙어 버리므로 정의에 이름이 늘면 여기도 는다(RealSessionShapeTest 가 대조한다).
+LOCATION_FIELDS = ("위치", "target 위치")
+LABELED_FIELDS = ("위반 규약", "과거 결정 출처", "관련 plan", "target 신규 식별자", "기존 사용처",
+                  "변경 파일", "매트릭스 항목", "누락된 동반 갱신")
+FIELD_NAMES = LOCATION_FIELDS + ("충돌 대상", "상세", "제안") + LABELED_FIELDS
+_FIELD_RE = re.compile(r"^\s+[-*]\s+(" + "|".join(map(re.escape, FIELD_NAMES)) + r")\s*[:：]\s*(.*)$")
 _LOCATION_RE = re.compile(r"`([^`\s]+?)(?::(\d+)(?:[-~]\d+)?)?`")
 _RISK_RE = re.compile(r"\b(NONE|LOW|MEDIUM|HIGH|CRITICAL)\b")
 _RISK_MAP = {"NONE": "low", "LOW": "low", "MEDIUM": "medium", "HIGH": "high", "CRITICAL": "high"}
@@ -128,9 +134,13 @@ def _finding(severity: str, title: str, block: list[str], role: str) -> dict:
     body_parts = []
     if location:
         body_parts.append(f"위치: {location.strip()}")
-    for name in ("충돌 대상", "상세"):
+    if fields.get("충돌 대상"):
+        body_parts.append("\n".join(x for x in fields["충돌 대상"] if x).strip())
+    for name in LABELED_FIELDS:
         if fields.get(name):
-            body_parts.append("\n".join(x for x in fields[name] if x).strip())
+            body_parts.append(f"{name}: " + "\n".join(x for x in fields[name] if x).strip())
+    if fields.get("상세"):
+        body_parts.append("\n".join(x for x in fields["상세"] if x).strip())
     if not fields:  # 하위 항목 없이 산문으로 쓴 블록
         body_parts.append("\n".join(x.strip() for x in block if x.strip()))
     out = {

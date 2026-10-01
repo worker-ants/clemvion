@@ -251,7 +251,7 @@
       "change_type": "spec 자체에 누락·오류가 있다고 판단됨",
       "trigger": { "globs": [], "match": "semantic" },
       "targets": [
-        "plan/in-progress/spec-update-<name>.md 에 제안 노트 작성 후 project-planner 위임"
+        "NERV 스펙 초안(/nerv:spec edit)을 쓰거나 리뷰 발견(area=spec)으로 올린다. 승인은 사람이 한다(CLAUDE.md §Skill 체계)"
       ],
       "verify": null,
       "guard_tests": [],

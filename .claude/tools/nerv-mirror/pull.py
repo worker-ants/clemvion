@@ -21,7 +21,8 @@ NERV 정본 전환 단계 1(NERV Task `CLE-T-VA4YA1`). 스펙의 정본은 NERV 
   frontmatter `read_as` · `task` 만 달랐다.
 - ``--check`` 네트워크 없이 미러를 검사한다(아래 "보장 범위").
 
-환경 변수: ``NERV_SERVER``(https), ``NERV_TOKEN``(`spec:read`), ``NERV_PROJECT``(기본 clemvion).
+환경 변수: ``NERV_SERVER``(https), ``NERV_TOKEN``(이 도구는 `spec:read`. 같은 변수를 쓰는 리뷰 게이트 ·
+인계 도구는 리뷰 판정 · 발견 읽기 권한도 쓴다), ``NERV_PROJECT``(기본 clemvion).
 세션에서는 `.claude/settings.local.json` 의 `env` 가 준다. 토큰 값은 어떤 출력에도 싣지 않는다.
 
 배치(결정 D1): `spec/<영역 키>/<KEY>.md`. 영역은 가장 가까운 `area` 조상-또는-자신이다(영역

@@ -312,6 +312,24 @@ class DecisionTableTest(_RepoCase):
         self.assertTrue(d.blocked)
         self.assertIn("외 2건", d.reason)
 
+    def test_a_listed_citation_covers_every_id_in_the_paragraph(self):
+        """`finding <ID> · <ID>` — 한 커밋이 발견 여럿을 고치면 ID 를 한 문단에 나열한다."""
+        c2 = self.commit("codebase/backend/src/a.ts", "export const a = 2;\n")
+        f1, f2 = finding_id(), finding_id()
+        self.commit("codebase/backend/src/a.ts", "x\n", msg=f"fix: follow-up\n\nfinding {f1} ·\n{f2}")
+        d = self.evaluate(FakeClient(code_item("passed", self.c1, findings=[fixed("ab" * 20, fid=f1)])))
+        self.assertTrue(d.blocked)  # f1 은 남의 커밋 처분이라 막힌다(아래와 대조)
+        d = self.evaluate(FakeClient(code_item("passed", self.c1, findings=[fixed(c2, fid=f2)])))
+        self.assertFalse(d.blocked, d.reason)
+
+    def test_an_id_outside_the_finding_paragraph_is_not_a_citation(self):
+        c2 = self.commit("codebase/backend/src/a.ts", "export const a = 2;\n")
+        fid = finding_id()
+        c3 = self.commit("codebase/backend/src/a.ts", "x\n", msg=f"fix: finding 설명만\n\n참고 {fid}")
+        d = self.evaluate(FakeClient(code_item("passed", self.c1, findings=[fixed(c2, fid=fid)])))
+        self.assertTrue(d.blocked)
+        self.assertIn(c3[:12], d.reason)
+
     def test_the_citation_is_case_insensitive(self):
         c2 = self.commit("codebase/backend/src/a.ts", "export const a = 2;\n")
         fid = finding_id()

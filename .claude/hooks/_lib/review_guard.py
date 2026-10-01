@@ -72,11 +72,20 @@ CODE_PREFIX = "codebase/"
 N1_PATH = "/api/v1/projects/{project}/gates/reviews/check"
 # N1 에 함께 묻는 kind. code 는 판정, consistency 는 라운드 이후 커밋의 설명에만 쓴다.
 N1_KINDS = ("code", "consistency")
-# 커밋 메시지의 발견 인용. NERV 발견 ID 는 UUIDv7 이라 앞 8자는 같은 분 안에서 겹친다
-# (실측 2026-10-01: 한 제출의 발견 13건이 모두 `01a0f648-`). 그래서 전체 ID 만 인용으로 본다.
-_FINDING_CITE = re.compile(
-    r"\bfinding ([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\b", re.IGNORECASE
-)
+# 커밋 메시지의 발견 인용. `finding` 뒤 같은 문단에 나오는 전체 ID 를 모두 센다(`finding <ID> · <ID>`
+# 처럼 나열해도 된다). NERV 발견 ID 는 UUIDv7 이라 앞 8자는 같은 분 안에서 겹친다(실측 2026-10-01: 한
+# 제출의 발견 13건이 모두 `01a0f648-`). 그래서 전체 ID 만 인용으로 본다.
+_FINDING_WORD = re.compile(r"\bfindings?\b", re.IGNORECASE)
+_FULL_ID = re.compile(r"\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b", re.IGNORECASE)
+
+
+def _cited_ids(message: str) -> set[str]:
+    """메시지가 `finding` 으로 인용한 발견 전체 ID(소문자). 인용은 `finding` 이 있는 문단 안에서만 센다."""
+    ids: set[str] = set()
+    for m in _FINDING_WORD.finditer(message):
+        paragraph = re.split(r"\n\s*\n", message[m.end():], maxsplit=1)[0]
+        ids.update(x.lower() for x in _FULL_ID.findall(paragraph))
+    return ids
 # 훅은 모든 push 앞에서 동기로 돈다. 서버가 멈추면 이 시간 뒤 fail-open 한다.
 N1_MAX_TIME = "15"
 # 메시지에 나열할 커밋 · 발견 수 상한.
@@ -263,7 +272,7 @@ def _commits_after(round_head: str, head_sha: str, base: str, cwd: str) -> list[
 
 
 def _citations(commits: list[str], cwd: str) -> dict[str, set[str]]:
-    """커밋마다 메시지가 인용한 발견 ID(소문자). `finding <전체 ID>` 형식만 센다."""
+    """커밋마다 메시지가 인용한 발견 ID(소문자). `_cited_ids` 규칙을 따른다."""
     if not commits:
         return {}
     out: dict[str, set[str]] = {}
@@ -272,7 +281,7 @@ def _citations(commits: list[str], cwd: str) -> dict[str, set[str]]:
     for record in text.split("\x1e"):
         sha, sep, body = record.lstrip("\n").partition("\x1f")
         if sep:
-            out[sha] = {m.lower() for m in _FINDING_CITE.findall(body)}
+            out[sha] = _cited_ids(body)
     return out
 
 

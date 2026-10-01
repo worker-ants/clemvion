@@ -32,7 +32,7 @@
   kind=code 최신 라운드가 `passed` 여야 push · 머지된다. 라운드 head 가 HEAD 의 조상이어야 하고, 처분 커밋은 이 브랜치에서
   닿아야 한다(다른 브랜치의 같은 지적 처분으로 통과하지 못한다). 라운드 뒤 `codebase/**` 커밋은 code · consistency 라운드에서
   `fixed` 로 처분된 발견의 커밋이거나, 커밋 메시지가 그런 발견을 `finding <발견 전체 ID>` 로 인용해야 한다(e2e 실패 뒤 후속
-  수정). 리뷰 뒤 fix 커밋만 있으면 새 라운드 없이 통과하고, fix 커밋은 다시 리뷰되지 않는다. merge 커밋은 모든 부모와 다른
+  수정. `finding <ID> · <ID>` 처럼 한 문단에 나열해도 된다). 리뷰 뒤 fix 커밋만 있으면 새 라운드 없이 통과하고, fix 커밋은 다시 리뷰되지 않는다. merge 커밋은 모든 부모와 다른
   `codebase/**` 파일이 있으면 센다(충돌을 손으로 푼 코드 · merge 에 끼워 넣은 코드). 전에는 `review/code/**/SUMMARY.md` 의
   존재와 문구를 봐서 PR 에 몇 줄짜리 가짜 SUMMARY · RESOLUTION 을 커밋하면 통과했다. 세션 디렉터리 시각과 편집 시각을 비교하던
   순서 함정과 "fix 커밋이 리뷰를 stale 로 만든다" 루프도 사라진다. NERV 가 응답하지 않거나 로컬에 `NERV_SERVER` · `NERV_TOKEN`
@@ -48,6 +48,10 @@
   옛 배선으로 그 파일을 부르는데, 파일이 없으면 모든 Agent 호출이 막힌다. 그래도 main pull 뒤에는 새 세션을 연다.
 - **편집 가드 확장** `guard_nerv_owned_paths.py`: `review/` 도 도구 편집을 막는다. 리뷰 · 일관성 · 통합 · spec-coverage
   오케스트레이터는 산출물을 gitignore 대상 `.review/` 에 쓴다. 옛 `review/` 는 단계 3 에서 지운다.
+- **6역할 밖 강제 reviewer 의 게이트 검증 축소**: 옛 게이트는 `agents_forced` 전체(documentation · dependency · database ·
+  api_contract 포함)의 리포트를 디스크에서 확인했다. 새 push · CI 게이트는 NERV 정책 `review_roles.code` 의 6역할만 센다.
+  나머지 넷이 빠지면 제출 도우미가 exit 1 로 알릴 뿐 게이트는 통과시킨다. NERV `review_roles` 는 변경 종류에 따른 조건부
+  역할을 표현하지 않는다.
 - **router 강제 규칙 확장**: 바뀐 파일이 하나라도 있으면 확장자 · 위치와 무관하게 필수 6역할(security · requirement · scope ·
   side_effect · maintainability · testing)을 강제한다. 전에는 소스 파일이 있을 때만 강제해서 문서 · 하네스만 바꾼 Task 는
   라운드가 `missing_roles` 로 남았다. NERV 정책 `review_roles.code` 가 라운드마다 이 6역할을 요구하고, done 게이트는 모든 Task 에

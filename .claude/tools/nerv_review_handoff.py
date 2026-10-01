@@ -35,8 +35,10 @@ main 세션의 MCP 호출로만 한다(결정 D9). 그래서 applier 는 처분�
   - critical 발견은 `wont_fix` · `dismissed` 로 처분하지 않는다(사람 승인이 필요하다).
   - `spec_change` 는 applier 가 쓰지 않는다. 스펙 결함은 `spec_proposals` 로 넘기고 main 이 NERV 초안을
     저장한 뒤 `spec_change` 로 처분한다. 초안을 쓸 수 없으면 main 이 `escalated(spec)` 로 넘긴다.
-  - 제안 파일은 세션 디렉터리 바로 아래 `_spec-proposal-<area>.md`(`<area>` 는 `[a-z0-9-]`)다.
-    `_` 로 시작해야 제출 도구(`nerv_review_payload.py`)가 역할 리포트로 읽지 않는다.
+  - 제안 파일은 세션 디렉터리 바로 아래 `_spec-proposal-<area>.md` 다. `<area>` 는 대상 NERV 스펙 키를
+    소문자로 쓴 값이다(예: `cle-eng-reviewcite`, `[a-z0-9-]`). 스펙 하나에 파일 하나이고, 같은 스펙의 발견
+    여럿이 한 파일을 가리켜도 된다. `_` 로 시작해야 제출 도구(`nerv_review_payload.py`)가 역할 리포트로
+    읽지 않는다.
   - critical · warning 발견은 처분이나 제안 중 하나에 있어야 한다. info 는 `left_to_main` 으로 알린다.
 
 `pending` — `_dispositions.json` 의 처분 중 NERV 에서 아직 열려 있고 처분이 붙지 않은 것만 낸다. main 은

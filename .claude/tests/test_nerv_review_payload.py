@@ -15,8 +15,10 @@ NERV 정본 전환 단계 2(NERV Task `CLE-T-4ABTG7`)부터 리뷰 결과는 NER
 
 from __future__ import annotations
 
+import ast
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -221,6 +223,16 @@ class BuildTest(unittest.TestCase):
         self.assertEqual(r.returncode, 1, r.stdout)
         self.assertTrue(any("scope.md" in e and "HIGH" in e for e in json.loads(r.stdout)["errors"]))
 
+    def test_the_required_roles_match_the_router_constant(self):
+        """같은 6역할을 router(`_SOURCE_FORCED_REVIEWERS`)와 이 도구가 따로 든다. 둘이 갈리면 안 된다.
+        router 모듈은 `_lib` 이름 충돌 때문에 불러오지 않고 소스에서 상수를 읽는다."""
+        src = (_harness.CLAUDE_DIR / "skills" / "code-review-agents" / "lib" / "router_safety.py").read_text(
+            encoding="utf-8")
+        tree = ast.parse(src)
+        value = next(ast.literal_eval(n.value) for n in tree.body if isinstance(n, ast.Assign)
+                     and any(getattr(t, "id", None) == "_SOURCE_FORCED_REVIEWERS" for t in n.targets))
+        self.assertEqual(set(value), set(tool.NERV_REQUIRED_ROLES))
+
     def test_missing_nerv_roles_are_warned_in_a_code_session(self):
         """이 fixture 는 security · scope 만 돈다 — 나머지 넷이 빠졌다고 알린다(실패는 아니다)."""
         out = tool.build(str(self.sd))
@@ -308,6 +320,34 @@ class BuildTest(unittest.TestCase):
 
 class RealSessionShapeTest(unittest.TestCase):
     """리뷰어 정의가 문서로 정한 형식이 실제 정의 파일과 맞는지 — 형식이 바뀌면 이 도구도 바뀐다."""
+
+    _FIELD_LINE = re.compile(r"^\s+- ([^`:：*\s][^`:：*]{0,19}?)\s*[:：]")
+
+    def test_every_sub_field_name_in_the_definitions_is_known(self):
+        """정의가 쓰는 하위 항목 이름이 파서 어휘에 없으면 그 줄이 앞 항목에 붙어 버린다(2026-10-01
+        consistency 리뷰 실측: naming_collision 리포트의 두 줄이 통째로 버려졌다)."""
+        agents = _harness.CLAUDE_DIR / "agents"
+        seen: dict[str, str] = {}
+        for path in sorted(agents.glob("*.md")):
+            if not path.name.endswith(("-reviewer.md", "-checker.md", "-analyzer.md")):
+                continue
+            for ln in path.read_text(encoding="utf-8").splitlines():
+                m = self._FIELD_LINE.match(ln)
+                if m:
+                    seen.setdefault(m.group(1).strip(), path.name)
+        self.assertGreaterEqual(len(seen), 5, seen)  # 공허 방지: 위치 · 상세 · 제안 등은 있다
+        unknown = {k: v for k, v in seen.items() if k not in tool.FIELD_NAMES}
+        self.assertEqual(unknown, {})
+
+    def test_labeled_fields_reach_the_body(self):
+        text = ("- **[WARNING]** 규약 위반\n  - target 위치: `spec/a.md:3`\n  - 위반 규약: CLE-ENG-X 규칙 2\n"
+                "  - 상세: 본문\n")
+        sub, w = tool.parse_report(text, "convention_compliance")
+        f = sub["findings"][0]
+        self.assertEqual((f["file"], f["line"]), ("spec/a.md", 3))
+        self.assertIn("위반 규약: CLE-ENG-X 규칙 2", f["body"])
+        self.assertIn("본문", f["body"])
+        self.assertNotIn("CLE-ENG-X", f.get("file", ""))
 
     def test_reviewer_and_checker_definitions_still_use_the_parsed_shape(self):
         agents = _harness.CLAUDE_DIR / "agents"
