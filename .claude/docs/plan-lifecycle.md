@@ -85,7 +85,7 @@ owner: <역할/이름>                 # planner / developer / 사용자 본인 
 
 | 선언 위치 | 의미 | 방향 | SoT | build guard |
 |---|---|---|---|---|
-| `spec/**` frontmatter | 이 spec 의 **미구현 surface 를 책임지는** plan (`status: partial` 시 의무) | spec → plan | [`spec/conventions/spec-impl-evidence.md §2.1`](../../spec/conventions/spec-impl-evidence.md) | `spec-pending-plan-existence.test.ts` · `spec-status-lifecycle.test.ts` |
+| `spec/**` frontmatter | 이 spec 의 **미구현 surface 를 책임지는** plan (`status: partial` 시 의무) | spec → plan | [`spec/CLE-ENG/CLE-ENG-SPECEVIDENCE.md` 「필드 정의」](../../spec/CLE-ENG/CLE-ENG-SPECEVIDENCE.md) | `spec-pending-plan-existence.test.ts` · `spec-status-lifecycle.test.ts` |
 | `plan/**` frontmatter | 이 plan 의 **선행/의존** plan (먼저 닫혀야 하는 것) | plan → plan | 본 문서 §4 | **없음** — 선언적 cross-link 전용 |
 
   실측(2026-08-16 스냅샷): spec 레벨 **17건** · plan 레벨 **4건**. 같은 키가 두 의미로 쓰이는 것을 금지하지는
@@ -95,7 +95,7 @@ owner: <역할/이름>                 # planner / developer / 사용자 본인 
   > **재현 방법을 함께 적는다 — 수치만 적으면 세는 방법이 갈린다.** 위 값은 각 파일의
   > **frontmatter 블록만 파싱**해 `pending_plans:` 키를 센 것이다. `grep -rl '^pending_plans:'`
   > 로 세면 **본문 코드블록 안의 예시까지 잡혀 과다 계상**된다 — 실제로
-  > `spec/conventions/spec-impl-evidence.md`(스키마 예시 2곳)와
+  > `spec/conventions/spec-impl-evidence.md`(옛 트리, 당시 측정 대상. 스키마 예시 2곳)와
   > `plan/complete/spec-draft-web-chat-console.md:158`(제안된 spec 의 frontmatter 를 보여주는
   > 펜스 블록)이 그 방식에서 오탐으로 잡힌다.
   >
@@ -168,7 +168,7 @@ spec_impact:                            # 또는: 본 작업이 건드린 spec �
 - **빈 배열 `spec_impact: []`** (behavior-preserving 리팩터에 무심코) → `length>0` 위반으로 "미선언" 처리돼 fail. spec 무변경이면 `[]` 가 아니라 **`none` 리터럴**.
 - spec-only PR 은 TEST WORKFLOW(unit)를 안 돌려 이 회귀가 그 PR 에서 안 잡히고 main 에 샌다 — `complete/` 이동 직후 최소 `pnpm --filter frontend test -- spec-plan-completion` 로 Gate C 만이라도 확인.
 
-리스트 항목은 실존 spec 파일이어야 한다(dangling 금지 — `spec-pending-plan-existence` 와 동형). build guard `spec-plan-completion.test.ts` 가 강제하되, **`started` 가 2026-06-04 이후인 plan 만** 대상(그 전 시작 plan 은 grandfather — 기존 백로그 소급 면제). SoT: [`spec/conventions/spec-impl-evidence.md`](../../spec/conventions/spec-impl-evidence.md).
+리스트 항목은 실존 spec 파일이어야 한다(dangling 금지 — `spec-pending-plan-existence` 와 동형). build guard `spec-plan-completion.test.ts` 가 강제하되, **`started` 가 2026-06-04 이후인 plan 만** 대상(그 전 시작 plan 은 grandfather — 기존 백로그 소급 면제). SoT: [`spec/CLE-ENG/CLE-ENG-SPECEVIDENCE.md`](../../spec/CLE-ENG/CLE-ENG-SPECEVIDENCE.md).
 
 ## 6. Audit 도구 (운영 보조)
 
@@ -185,7 +185,7 @@ spec_impact:                            # 또는: 본 작업이 건드린 spec �
 산출 — stdout 표:
 - 30일 이상 갱신 없는 `plan/in-progress/*.md` 목록
 - 각 plan 의 checkbox 진행률 (예: `7/12 done`) + 마지막 commit 일자
-- 어느 spec frontmatter `pending_plans:` 에 등록됐는지 cross-link ([`spec/conventions/spec-impl-evidence.md`](../../spec/conventions/spec-impl-evidence.md) §2 참조)
+- 어느 spec frontmatter `pending_plans:` 에 등록됐는지 cross-link ([`spec/CLE-ENG/CLE-ENG-SPECEVIDENCE.md`](../../spec/CLE-ENG/CLE-ENG-SPECEVIDENCE.md) 「frontmatter 스키마」 참조)
 
 **fail 안 함** — 정보 출력만. 사용자가 수동 grooming (`complete/` 이동, 추가 작업 picking, 또는 `archived` 격하 결정).
 

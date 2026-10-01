@@ -6,7 +6,7 @@ model: opus
 
 # Spec Coverage Standing Audit
 
-`spec/conventions/spec-impl-evidence.md` 의 frontmatter 가드는 **명시적 약속** (frontmatter `code:` 글로브) 만 검증. 본 skill 은 그 외 영역 — **본문 안 자유 텍스트로 약속된 surface** — 의 갭을 NLP 휴리스틱으로 검출.
+`spec/CLE-ENG/CLE-ENG-SPECEVIDENCE.md` 의 frontmatter 가드는 **명시적 약속** (frontmatter `code:` 글로브) 만 검증. 본 skill 은 그 외 영역 — **본문 안 자유 텍스트로 약속된 surface** — 의 갭을 NLP 휴리스틱으로 검출.
 
 전형 검출 대상 (텔레그램 chat-channel UI 영구 누락 사례의 일반화):
 - spec 본문에 "트리거 생성 dialog 의 체크박스" 같은 UI 키워드 등장 + frontmatter `code:` 에 frontend 경로 매칭 없음
@@ -17,7 +17,7 @@ model: opus
 
 - **수동 호출만** (사용자 결정 ⑤ 옵션 A) — GitHub Actions cron 도입 안 함. NLP 휴리스틱 false-positive 부담 > 자동화 가치
 - **CI 차단 아님** — 후보 보고만. 사용자가 picking 해 별 plan 으로 이관
-- **현재 main 상태 전수 분석** — PR diff 기반 아님. spec 적용 대상 ([`spec/conventions/spec-impl-evidence.md §1`](../../../spec/conventions/spec-impl-evidence.md)) 전수 walk
+- **현재 main 상태 전수 분석** — PR diff 기반 아님. spec 적용 대상 ([`spec/CLE-ENG/CLE-ENG-SPECEVIDENCE.md` 「적용 대상」](../../../spec/CLE-ENG/CLE-ENG-SPECEVIDENCE.md)) 전수 walk
 - **출력은 markdown**: 로컬 `.review/spec-coverage/<YYYY>/<MM>/<DD>/<hh>_<mm>_<ss>/SUMMARY.md`(gitignore) 단일 결과 진입점. NERV `kind=spec_coverage` 제출 절차는 전환 4e(NERV Task `CLE-T-VP5KDJ`)에서 정한다. 제출 도우미(`nerv_review_payload.py`)는 이 세션에 묶음을 만들지 않고 exit 1 로 알린다. 그때까지 조치할 후보는 `nerv_task_create` 로 올린다
 
 호출 규약·STATUS 라인: [`.claude/docs/subagent-call-contract.md`](../../docs/subagent-call-contract.md).
@@ -93,7 +93,7 @@ CLAUDE.md §정보 저장 위치 표에 등재.
 
 ### R-1. CI 차단 아닌 보고형
 
-NLP 휴리스틱 기반이라 false-positive 빈도 높음. CI 차단 시 false-block 부담 > 검출 가치. 보고만 산출하고 사용자가 picking — `i18n-userguide` ratchet 패턴과 다른 사유 (ratchet 은 잔존 문제 점진 감소, 본 audit 은 신뢰도 낮은 휴리스틱).
+NLP 휴리스틱 기반이라 false-positive 빈도 높음. CI 차단 시 false-block 부담 > 검출 가치. 보고만 산출하고 사용자가 picking — `i18n-userguide`(미러 `CLE-UI-I18N`) ratchet 패턴과 다른 사유 (ratchet 은 잔존 문제 점진 감소, 본 audit 은 신뢰도 낮은 휴리스틱).
 
 ### R-2. cron 도입 안 함 — 수동 호출만
 

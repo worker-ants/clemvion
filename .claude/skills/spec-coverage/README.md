@@ -49,5 +49,5 @@ move them into a plan under `plan/in-progress/`. Tune noise with
 ## SoT
 
 Evidence model (frontmatter `status`/`code:`/`pending_plans:`):
-[`spec/conventions/spec-impl-evidence.md`](../../../spec/conventions/spec-impl-evidence.md).
+[`spec/CLE-ENG/CLE-ENG-SPECEVIDENCE.md`](../../../spec/CLE-ENG/CLE-ENG-SPECEVIDENCE.md).
 This audit covers the prose surfaces that the frontmatter guards can't.
