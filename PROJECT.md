@@ -158,7 +158,7 @@
 
 > **machine-readable companion**: 본 표의 구조적 spine(`change_type → trigger → targets → verify → guard_test → convention_ref`)은 [`.claude/config/doc-sync-matrix.json`](.claude/config/doc-sync-matrix.json) 에 SSOT 로 정리돼 있다 — `user-guide-sync-reviewer` 가 안정적 색인으로 읽고, [`.claude/tests/test_doc_sync_matrix.py`](.claude/tests/test_doc_sync_matrix.py) 가 본 표와의 행 수 1:1 · 참조 실존을 검증한다(divergence 시 빌드 fail). 본 표는 사람용 뷰 — 한 행 추가/삭제 시 JSON 도 같이 고친다. 의미 기반 trigger(glob 없는 행)는 JSON 에서 `match:"semantic"` 로 표기되며 reviewer 가 판단으로 매칭한다.
 >
-> 표의 `spec/<영역 키>/<KEY>.md` 는 NERV 스펙의 읽기 전용 미러다. 스펙 쪽을 갱신할 때는 그 문서의 NERV 초안(`/nerv:spec edit <KEY>`)을 쓴다(마지막 행 · `CLAUDE.md` §Skill 체계). 절은 번호 대신 「제목」 으로 가리킨다(NERV 제목에는 `§` 번호가 없다).
+> 표의 `spec/<영역 키>/<KEY>.md` 는 NERV 스펙의 읽기 전용 미러다. 스펙 쪽을 갱신할 때는 그 문서의 NERV 초안(`/nerv:spec edit <KEY>`)을 쓴다(「spec 자체에 누락·오류가 있다고 판단됨」 행 · `CLAUDE.md` §Skill 체계). 절은 옛 `§N.N` 대신 미러 문서의 「제목」 을 그대로 인용한다(제목에 번호가 들어 있으면 그 번호까지 제목이다). 「spec 신규/대규모 변경」 행의 트리거는 아직 동결된 옛 트리 기준이다. 그 행이 기대는 가드를 걷는 전환 단계 5 에서 함께 바꾼다.
 
 | 변경 유형 | 필수 갱신 위치 | 검증 명령 |
 | --- | --- | --- |
@@ -488,4 +488,4 @@ npx ts-node codebase/backend/src/scripts/cleanup-invalid-queue-jobs.ts --apply -
 - **표현식 언어**: `{{ ... }}` 템플릿. tokenizer / parser / AST evaluator 는 `codebase/packages/expression-engine` SSOT. 평가 의미는 백엔드·프론트엔드 공유
 - **노드 출력 컨벤션**: `spec/CLE-NODE/CLE-NODE-OUTPUT.md` 의 11 Principle (5필드 invariant: `{config, output, meta?, port?, status?}`, config↔output 직교, meta=메트릭, 에러 컨트랙트 `port:'error'` + `output.error.{code,message,details?}` 등)
 - **인프라 의존**: PostgreSQL (DB) · Redis/BullMQ (캐시·큐) · MinIO (오브젝트 스토리지) · Flyway (DB 마이그레이션) · Socket.io (실시간)
-- **정식 규약**: NERV `convention` 타입 스펙 — `CLE-NODE-OUTPUT`, `CLE-API-SWAGGER`, `CLE-ENG-MIGRATION`, `CLE-IX-THREAD`, `CLE-C24-META` 등. 미러 경로는 `spec/<영역 키>/<KEY>.md` 다(카탈로그 영역 `CLE-C24` · `CLE-MKS` 는 미러에 없다. 결정 D4)
+- **정식 규약**: NERV `convention` 타입 스펙 — `CLE-NODE-OUTPUT`, `CLE-API-SWAGGER`, `CLE-ENG-MIGRATION`, `CLE-IX-THREAD`, `CLE-C24-META` 등. 미러 경로는 `spec/<영역 키>/<KEY>.md` 다(카탈로그 영역 `CLE-C24` · `CLE-MKS` 는 codebase 데이터가 정본이라 미러에 없다)

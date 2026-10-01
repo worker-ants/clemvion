@@ -4,7 +4,7 @@
     "id": "stable slug",
     "change_type": "human label; its core phrase must also appear in the PROJECT.md table",
     "trigger": "{ globs: [...], match: 'glob' | 'semantic' } — semantic rows have no clean glob and need reviewer judgment",
-    "targets": "human-readable required co-update locations (may contain <placeholders>/{ko,en} braces)",
+    "targets": "human-readable required co-update locations (may contain <placeholders>/{ko,en} braces). A spec/<area key>/<KEY>.md target is the read-only NERV mirror: update the spec through a NERV draft (/nerv:spec edit <KEY>); implementation PRs commit the mirror pulled with pull.py --task. Spec paths here must be existing mirror files (test_doc_sync_matrix.py). The spec-major-change trigger still names the frozen old tree until cutover step 5",
     "verify": "verification command string (literal), or null if manual/none",
     "guard_tests": "specific *.test.ts files this row's guard relies on (subset, existence-checked)",
     "convention_ref": "NERV mirror path spec/<area key>/<KEY>.md of the SoT spec, or null"

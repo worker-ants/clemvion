@@ -35,9 +35,11 @@
   `.claude/**` 를 바꾸는 다음 PR 에서 실패하므로 미러 파일이 옮겨지면 같은 PR 에서 이 테스트를 직접 돌려 경로를 고친다.
   파일 존재만 보고 경로 뒤의 「제목」 은 검사하지 않는다. `convention_ref` 는 미러 경로만 받는다. 옛 트리는 단계 5 까지
   파일이 남아 있어 실재 검사만으로는 동결된 문서를 가리켜도 통과했다.
-- 옛 트리 경로가 남은 곳은 가드가 실제로 읽는 파일을 설명하는 줄뿐이다(`spec-status-lifecycle` 의 `spec/0-overview.md`,
-  `guide-identifier-existence` 의 `3-error-handling.md`, `spec-frontmatter` · `spec-area-index` 의 대상 범위)과 그 가드에 묶인
-  매트릭스 「spec 신규/대규모 변경」 행의 트리거다. 그 가드를 옮기거나 걷는 단계(4f · 5)에서 함께 바꾼다.
+- 옛 트리 경로가 남은 곳은 두 종류다. 하나는 가드가 지금 읽는 파일을 설명하는 줄이다(`spec-status-lifecycle` 의
+  `spec/0-overview.md`, `guide-identifier-existence` 의 `3-error-handling.md`, `spec-frontmatter` · `spec-area-index` 의 대상 범위).
+  다른 하나는 그 가드에 묶인 매트릭스 「spec 신규/대규모 변경」 행의 트리거다. 그 가드를 옮기거나 걷는 단계(4f · 5)에서 함께
+  바꾼다. `spec/...md` 꼴로 남은 옛 경로는 테스트의 허용 집합(`OLD_TREE_ALLOWED`)에 고정했다. 그 밖의 옛 경로를 다시 적으면
+  실패한다. 매트릭스 JSON 의 `targets` 에 적힌 스펙 경로도 미러 파일이어야 한다.
 
 ## Unreleased — 하네스: 리뷰 게이트가 저장소 `review/` 파일 대신 NERV 리뷰 라운드로 판정한다
 
