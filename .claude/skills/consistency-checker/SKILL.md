@@ -98,7 +98,7 @@ Workflow 반환값 (항상 경로+전문):
 
 ### 3.5 NERV 제출 (main 의 의무)
 
-`python3 .claude/tools/nerv_review_payload.py <session_dir>` 가 checker 리포트를 checker 별 제출 묶음으로 바꾼다(kind 는 세션 경로에서 `consistency` 로 읽는다). 묶음마다 `nerv_review_submit(kind=consistency, branch, base_sha, head_sha=<검토한 커밋>, reviewer=<묶음의 reviewer>, findings, summary, task_id)` 를 부르고, 발견은 `nerv_finding_resolve` 로 처분한다. 출력의 `warnings[]` 에 `SUMMARY.md: … 하향 …` 이 있으면 SUMMARY 가 checker 의 `[CRITICAL]` 을 낮춘 것이다 — 아래 §4 금지 조항 위반이니 SUMMARY 를 바로잡는다. NERV 판정은 checker 리포트로 서므로 SUMMARY 의 하향이 라운드를 통과시키지는 못한다. `--spec`(스펙 초안) · `--impl-prep` · `--impl-done` 결과 모두 같은 방법으로 낸다.
+절차는 `code-review-agents` SKILL §4 와 같고 `kind=consistency` 만 다르다. `python3 .claude/tools/nerv_review_payload.py <session_dir>` 가 checker 리포트를 checker 별 제출 묶음으로 바꾼다(kind 는 세션 경로에서 `consistency` 로 읽는다). 묶음마다 `nerv_review_submit(kind=consistency, …)` 를 부른다(인자 · `idempotency_key` · `changeset` 은 그 절). 발견은 `nerv_finding_resolve` 로 처분한다. 출력의 `warnings[]` 에 `SUMMARY.md: … 하향 …` 이 있으면 SUMMARY 가 checker 의 `[CRITICAL]` 을 낮춘 것이다 — 아래 §4 금지 조항 위반이니 SUMMARY 를 바로잡는다. NERV 판정은 checker 리포트로 서므로 SUMMARY 의 하향이 라운드를 통과시키지는 못한다. `--spec`(스펙 초안) · `--impl-prep` · `--impl-done` 결과 모두 같은 방법으로 낸다. 단 `task_id` 는 `--impl-done` 결과에만 붙인다. NERV done 게이트는 Task 에 묶인 consistency 라운드를 보므로, 구현 전 검토(`--impl-prep`)나 스펙 초안 검토(`--spec`)가 그 자리를 채우면 사후 검증 없이 done 이 된다.
 
 > **재시도 정책 차이**: Workflow 경로는 옛 ScheduleWakeup cross-turn quota 자동 재시도를 갖지 않는다. 사전 쓰기 게이트(대화형 실행)라 수용 가능 — 한도 시 사용자가 재호출하거나 `unfinished` checker 만 다시 돌린다.
 

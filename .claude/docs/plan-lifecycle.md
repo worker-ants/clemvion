@@ -197,7 +197,7 @@ spec_impact:                            # 또는: 본 작업이 건드린 spec �
 /spec-coverage
 ```
 
-산출 위치: `review/spec-coverage/<YYYY>/<MM>/<DD>/<hh>_<mm>_<ss>/SUMMARY.md` ([`CLAUDE.md §정보 저장 위치`](../../CLAUDE.md) 참조).
+산출 위치: `.review/spec-coverage/<YYYY>/<MM>/<DD>/<hh>_<mm>_<ss>/SUMMARY.md`(gitignore, 커밋하지 않는다. [`CLAUDE.md §정보 저장 위치`](../../CLAUDE.md) 참조).
 
 sub-agent (`spec-impl-coverage-auditor`) 가 `spec/**` walk:
 1. spec 본문 UI 키워드 (page, dialog, card, button, drawer, modal) 등장 + frontmatter `code:` 에 frontend 경로 매칭 없음 → 후보

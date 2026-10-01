@@ -1,6 +1,6 @@
 ---
 name: spec-coverage
-description: spec/ 본문이 약속한 surface (UI / API / e2e 시나리오) 와 frontmatter `code:` 가 가리키는 구현 코드 사이의 정적 갭을 standing audit 으로 검출하는 slash command. 사용자가 "/spec-coverage", "spec 커버리지", "spec-impl 갭 검사" 등을 호출하거나, harness 의 주기적 grooming 시점에 수동으로 실행합니다. `consistency-check` 와 달리 PR diff / draft 기반이 아니라 **현재 main 상태 전수 분석** — NLP 휴리스틱 기반이라 CI 차단 아닌 보고형. 결과는 NERV 리뷰 레코드 `kind=spec_coverage` 로 제출하고, 로컬 산출물은 `.review/spec-coverage/<YYYY>/<MM>/<DD>/<hh>_<mm>_<ss>/SUMMARY.md`(커밋하지 않음).
+description: spec/ 본문이 약속한 surface (UI / API / e2e 시나리오) 와 frontmatter `code:` 가 가리키는 구현 코드 사이의 정적 갭을 standing audit 으로 검출하는 slash command. 사용자가 "/spec-coverage", "spec 커버리지", "spec-impl 갭 검사" 등을 호출하거나, harness 의 주기적 grooming 시점에 수동으로 실행합니다. `consistency-check` 와 달리 PR diff / draft 기반이 아니라 **현재 main 상태 전수 분석** — NLP 휴리스틱 기반이라 CI 차단 아닌 보고형. 로컬 산출물은 `.review/spec-coverage/<YYYY>/<MM>/<DD>/<hh>_<mm>_<ss>/SUMMARY.md`(커밋하지 않음). NERV `kind=spec_coverage` 제출 절차는 전환 4e 에서 정한다.
 model: opus
 ---
 
@@ -18,14 +18,14 @@ model: opus
 - **수동 호출만** (사용자 결정 ⑤ 옵션 A) — GitHub Actions cron 도입 안 함. NLP 휴리스틱 false-positive 부담 > 자동화 가치
 - **CI 차단 아님** — 후보 보고만. 사용자가 picking 해 별 plan 으로 이관
 - **현재 main 상태 전수 분석** — PR diff 기반 아님. spec 적용 대상 ([`spec/conventions/spec-impl-evidence.md §1`](../../../spec/conventions/spec-impl-evidence.md)) 전수 walk
-- **출력은 markdown + NERV 레코드**: 로컬 `.review/spec-coverage/<YYYY>/<MM>/<DD>/<hh>_<mm>_<ss>/SUMMARY.md`(gitignore) 단일 결과 진입점. 결과는 main 이 `kind=spec_coverage` 로 NERV 에 제출한다
+- **출력은 markdown**: 로컬 `.review/spec-coverage/<YYYY>/<MM>/<DD>/<hh>_<mm>_<ss>/SUMMARY.md`(gitignore) 단일 결과 진입점. NERV `kind=spec_coverage` 제출 절차는 전환 4e(NERV Task `CLE-T-VP5KDJ`)에서 정한다. 제출 도우미(`nerv_review_payload.py`)는 이 세션에 묶음을 만들지 않고 exit 1 로 알린다. 그때까지 조치할 후보는 `nerv_task_create` 로 올린다
 
 호출 규약·STATUS 라인: [`.claude/docs/subagent-call-contract.md`](../../docs/subagent-call-contract.md).
 
 ## 실행 절차 (main Claude 가 따른다)
 
 ### 0. 사전 점검
-worktree 확인 — read-only 분석이므로 main 워크트리에서도 호출 가능 (산출물 `review/` 만 쓰기).
+worktree 확인 — read-only 분석이므로 main 워크트리에서도 호출 가능 (산출물은 gitignore 대상 `.review/` 에만 쓴다).
 
 ### 1. 세션 준비
 
@@ -80,7 +80,7 @@ SUMMARY.md 상단 30라인 Read → 후보 갯수 (high/medium/low) 요약 → �
 - `.review/spec-coverage/<YYYY>/<MM>/<DD>/<hh>_<mm>_<ss>/_prompt.md` (orchestrator 가 만든 입력)
 - `.review/spec-coverage/<YYYY>/<MM>/<DD>/<hh>_<mm>_<ss>/meta.json`
 
-모두 gitignore 대상이라 커밋하지 않는다(NERV 정본 전환 단계 2). 결과는 NERV `kind=spec_coverage` 레코드다.
+모두 gitignore 대상이라 커밋하지 않는다(NERV 정본 전환 단계 2). NERV `kind=spec_coverage` 제출 절차는 전환 4e 에서 정한다.
 
 CLAUDE.md §정보 저장 위치 표에 등재.
 
@@ -99,7 +99,7 @@ NLP 휴리스틱 기반이라 false-positive 빈도 높음. CI 차단 시 false-
 
 사용자 결정 ⑤ 옵션 A. 초기에는 false-positive 비율 측정 단계 — cron 자동화 시 noise 만 누적. 운영 데이터 충분히 쌓이고 휴리스틱 정확도 검증되면 후속 plan 에서 GitHub Actions weekly cron 도입 검토.
 
-### R-3. 산출 위치 = `review/spec-coverage/` 하위 (PR #287 결정 번복)
+### R-3. 산출 위치 = `review/spec-coverage/` 하위 (PR #287 결정 번복. 단계 2 에서 `.review/` 로 이동)
 
 PR #287 의 초기 결정은 `review/consistency/coverage/` 였음 — `consistency-check` 5 checker 결과와 같은 일관성 검토 계열로 묶기 위함. 운영 후 두 가지 문제 발견:
 1. 시각적 식별성 저하 — `review/consistency/` 아래 `coverage/` 가 묻혀 사용자가 산출물 위치를 즉시 인지하기 어려움

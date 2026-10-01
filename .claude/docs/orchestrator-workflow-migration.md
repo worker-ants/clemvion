@@ -229,11 +229,13 @@ analysis found five compounding pressures, all pushing the same way:
     "다음 턴으로 미룸"; never loops — `stop_hook_active` + dedup marker).
   - Unit-tested in [`.claude/tests/test_review_guard.py`](../tests/test_review_guard.py).
   - Override: `BYPASS_REVIEW_GUARD=1`.
-  - **Superseded by NERV cutover stage 2 (2026-10-01, NERV Task `CLE-T-4ABTG7`).**
-    The push gate now reads NERV review rounds (N1) instead of `review/**` files,
-    the CI backstop (`review-gate.yml`) reads the same, and the Stop nudge was
-    removed — the NERV plugin's Stop hook already blocks a turn-end once while a
-    claim is open. The bullets above describe the design as it was.
+  - **Superseded by NERV cutover stage 2 (2026-10-01, NERV Task `CLE-T-4ABTG7`)
+    for the review gate only.** The push gate (`guard_review_before_push.py`) now
+    reads NERV review rounds (N1) instead of `review/**` files, and the CI backstop
+    (`review-gate.yml`) reads the same. `guard_review_before_stop.py` still exists
+    but keeps only its plan nudge: the review nudge was removed, because the NERV
+    plugin's Stop hook already blocks a turn-end once while a claim is open. The
+    three bullets above describe the review gate as it was.
 - **Standing opt-in (remedies 1–2).** CLAUDE.md §외부 LLM 호출 정책 now records
   that post-impl auto review/fix is a **standing sanctioned obligation**, exempt
   from the Workflow "inferred scale" guard; auto-triggers may use the fallback

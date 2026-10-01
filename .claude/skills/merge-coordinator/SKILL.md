@@ -60,7 +60,7 @@ python3 .claude/skills/merge-coordinator/scripts/merge_coordinator_orchestrator.
 
 `_retry_state.json` Read (경로뿐) → `Workflow(name="merge-coordinate", args={invocations, branches, base, summary})`. Workflow 가 4 analyzer 를 병렬 실행(각자 prompt_file Read·output_file Write) → `integration-risk-summary` 가 통합 SUMMARY 마크다운 **반환**. 매핑: `invocations=subagent_invocations`, `summary={subagent_type: summary_subagent_type, output_file: summary_output_file}`, `branches`·`base` 는 동명 필드.
 
-완료 시 Workflow 는 `summary_output`(경로) + `summary_markdown`(전문, 항상) + `summary_written` + `block` 을 반환. **반드시** `summary_markdown` 을 `summary_output` 에 Write 한다 — `summary_written` 값과 **무관하게 멱등 persist** (하네스가 `SUMMARY.md` **basename** Write 를 어떤 sub-agent 에게도 허용하지 않고(terminal 여부와 무관 — [`subagent-call-contract.md §7`](../../docs/subagent-call-contract.md) 실측표) workflow 스크립트는 FS 접근이 없으므로, 디스크 단일 진실의 **유일한** 경로가 main 의 이 Write 다). 그 다음 반환의 `block` 으로 `BLOCK: YES/NO` 판정. `unfinished[]` 있으면 해당 analyzer 재실행.
+완료 시 Workflow 는 `summary_output`(경로) + `summary_markdown`(전문, 항상) + `summary_written` + `block` 을 반환. **반드시** `summary_markdown` 을 `summary_output` 에 Write 한다 — `summary_written` 값과 **무관하게 멱등 persist** (하네스가 `SUMMARY.md` **basename** Write 를 어떤 sub-agent 에게도 허용하지 않고(terminal 여부와 무관 — [`subagent-call-contract.md §7`](../../docs/subagent-call-contract.md) 실측표) workflow 스크립트는 FS 접근이 없으므로, 로컬 SUMMARY 의 **유일한** 경로가 main 의 이 Write 다. 판정 근거는 아니다(판정은 NERV 레코드다)). 그 다음 반환의 `block` 으로 `BLOCK: YES/NO` 판정. `unfinished[]` 있으면 해당 analyzer 재실행.
 
 > **Phase 1 만 Workflow.** Phase 2 confirm·Phase 3 execute(격리 worktree git merge/rebase + conflict resolver 루프 + patch-apply confirm)·Phase 4 chain/rollback 은 사용자 개입·git side effect 라 background Workflow 부적합 → main-driven bespoke 유지. 상세: [`.claude/docs/orchestrator-workflow-migration.md`](../../docs/orchestrator-workflow-migration.md).
 
@@ -125,7 +125,7 @@ SUMMARY 의 통합 plan 표 + Critical/Warning 을 사용자에게 1-2문단 요
 | --- | --- | --- |
 | `MERGE_BRANCHES` | (cli 인자) | 통합 대상 쉼표 구분 |
 | `MERGE_BASE_HINT` | (orchestrator 결정) | base branch 힌트 |
-| `MERGE_OUTPUT_DIR` | `./.review/merge` | 세션 디렉토리 부모 (gitignore, 커밋하지 않는다. 결과는 NERV `kind=merge` 로 제출) |
+| `MERGE_OUTPUT_DIR` | `./.review/merge` | 세션 디렉토리 부모 (gitignore, 커밋하지 않는다. NERV `kind=merge` 제출은 전환 4e) |
 | `AI_REVIEW_LOOP` | `0` | loop_mode |
 | `RETRY_WAKE_DEFAULT_SEC` | `1800` | wake delay |
 

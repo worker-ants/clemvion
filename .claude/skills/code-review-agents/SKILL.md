@@ -20,7 +20,7 @@ model: sonnet
 
 **백그라운드(bg) 세션이면 `EnterWorktree` *툴* 로 격리됐는지 확인** — 셸 `cd` 만으로는 부족하다. 부모 bg 세션이 isolate 되지 않으면 harness `worktree.bgIsolation` 가드가 **Workflow sub-agent (reviewer·summary·resolution-applier) 의 공유 체크아웃 write 를 전부 차단**한다. 미격리 bg 세션에서 본 skill 을 돌리면 reviewer output_file·SUMMARY·후속 fix write 가 막히므로, 먼저 `EnterWorktree` 로 부모 세션을 격리한 뒤 진행한다. (배경: [`.claude/docs/orchestrator-workflow-migration.md`](../../docs/orchestrator-workflow-migration.md).)
 
-> **자동 트리거(구현 완료 후) vs 대화형 호출**: `developer` 의 REVIEW WORKFLOW 가 자동으로 본 skill 을 트리거한 경우, 이는 **상시 승인된 강제 의무**이지 사용자가 추론하게 한 비싼 scale 이 아니다 (CLAUDE.md §외부 LLM 호출 정책 — standing opt-in). Workflow 의 "명시 opt-in 시에만" 가드 때문에 미루지 말 것. 비동기 task-notification 간극을 피하고 싶으면 자동 트리거 시 §(fallback) 평문 Agent fan-out 경로를 택할 수 있다 — 한 번에 완주하고 SUMMARY 를 같은 흐름에서 받는다. 사용자가 직접 `/ai-review` 를 친 대화형 호출은 Workflow 경로(§2)가 자연스럽다.
+> **자동 트리거(구현 완료 후) vs 대화형 호출**: `developer` 의 REVIEW WORKFLOW 가 자동으로 본 skill 을 트리거한 경우, 이는 **상시 승인된 강제 의무**이지 사용자가 추론하게 한 비싼 scale 이 아니다 (CLAUDE.md §외부 LLM 호출 정책 — standing opt-in). Workflow 의 "명시 opt-in 시에만" 가드 때문에 미루지 말 것. 비동기 task-notification 간극을 피하고 싶으면 자동 트리거 시 §5 평문 Agent fan-out 경로를 택할 수 있다 — 한 번에 완주하고 SUMMARY 를 같은 흐름에서 받는다. 사용자가 직접 `/ai-review` 를 친 대화형 호출은 Workflow 경로(§2)가 자연스럽다.
 
 ### 1. 세션 준비 (model 호출 없음)
 
@@ -97,34 +97,58 @@ Workflow 반환값 (ai-review.js 가 항상 경로+전문을 함께 반환):
 
 ### 4. NERV 제출 (main 의 의무)
 
-리뷰 결과의 정본은 NERV 리뷰 레코드다(전환 단계 2). push 훅과 CI `review-gate` 는 NERV 라운드만 본다.
+리뷰 결과의 정본은 NERV 리뷰 레코드다(전환 단계 2). push 훅과 CI `review-gate` 는 NERV 라운드만 본다. **이 절이 제출 절차의 정본이다.** developer SKILL · `/ai-review` · consistency-checker SKILL 은 이 절을 가리킨다.
 
 ```bash
-python3 .claude/tools/nerv_review_payload.py <session_dir>   # 역할별 제출 묶음 JSON. exit 1 = 강제 역할 리포트 누락
+python3 .claude/tools/nerv_review_payload.py <session_dir>   # 역할별 제출 묶음 JSON
 ```
 
-1. exit 1 이면 `missing_forced` 의 reviewer 를 다시 돌린 뒤 반복한다. 그대로 내면 라운드가 `missing_roles` 로 남는다.
-2. `submissions[]` 마다 `nerv_review_submit(kind=code, branch=<브랜치>, base_sha=<merge-base>, head_sha=<리뷰한 커밋>, reviewer=<묶음의 reviewer>, findings=<묶음의 findings>, summary=<묶음의 summary>, task_id=<클레임한 Task 키>)`. 필수 6역할(security · requirement · scope · side_effect · maintainability · testing)은 발견 0건이어도 낸다. NERV 정책 `review_roles.code` 가 역할 리포트로 센다. 같은 커밋이면 한 라운드로 모인다.
-3. `warnings[]` 가 있으면(형식 밖의 심각도 표지 · 빈 리포트 · consistency SUMMARY 의 하향) 해당 리포트를 읽고 빠진 발견을 손으로 더해 다시 낸다.
-4. 이번 라운드가 막는지는 마지막 응답의 `round_block` · `blocking_findings` 로 본다. `block` 은 프로젝트 전체의 열린 critical 이라 판정에 쓰지 않는다. `carried_over` 는 앞 50건만 담는다(나머지는 `nerv_finding_list`).
-5. 응답들의 발견(ID · 심각도 · 제목 · 파일 · 줄 · 역할)을 `<session_dir>/_nerv_findings.json` 에 적는다. §6 `resolution-applier` 가 이 파일을 입력으로 읽는다.
-6. 발견은 모두 처분한다(`nerv_finding_resolve`). critical 을 `dismissed`/`wont_fix` 로 낮추는 처분은 사람 승인이 필요하다.
+1. exit 1 이면 `errors` · `missing_forced` 를 먼저 푼다. 강제 역할 리포트가 빠졌으면 그 reviewer 를 다시 돌린다. 그대로 내면 라운드가 `missing_roles` 로 남는다.
+2. `submissions[]` 마다 `nerv_review_submit` 을 부른다.
 
-같은 판정을 REST 로 읽을 수 있다: `GET /api/v1/projects/clemvion/gates/reviews/check?branch=<브랜치>&kind=code`(push 훅 · CI 가 쓰는 그 응답).
+   ```
+   nerv_review_submit(kind=code, branch=<브랜치>, base_sha=<merge-base>, head_sha=<리뷰한 커밋>,
+                      changeset=<출력의 changeset>, reviewer=<묶음의 reviewer>,
+                      findings=<묶음의 findings>, summary=<묶음의 summary>,
+                      task_id=<클레임한 Task 키>, idempotency_key=<task>:<kind>:<head 앞 9자>:<role>)
+   ```
 
-### (fallback) 수동 Agent 경로
+   - 필수 6역할(security · requirement · scope · side_effect · maintainability · testing)은 발견 0건이어도 낸다. NERV 정책 `review_roles.code` 가 역할 리포트로 센다. router 는 바뀐 파일이 하나라도 있으면 이 6역할을 강제한다(하네스 · 문서만 바꾼 Task 도 done 게이트에 passed 라운드가 필요하다). `REVIEW_AGENTS` 로 직접 고를 때는 6역할을 넣는다.
+   - `changeset` 이 출력에 없으면 `git diff --name-only <base_sha>..<head_sha>` 로 채운다.
+   - 같은 커밋이면 한 라운드로 모인다(실측 2026-10-01: 응답의 `merged_into_existing_session`). 중간에 끊기면 남은 역할부터 같은 규칙의 키로 낸다. `idempotency_key` 는 같은 제출의 재전송을 묶는 NERV 인자다.
+3. `warnings[]` 가 있으면 해당 리포트를 읽는다. 형식 밖의 심각도 표지라면 빠진 발견을 그 역할로 한 번 더 낸다(키 끝에 `:2`). 목록 밖의 `*.md` 는 역할 리포트가 아니므로 내지 않는다.
+4. 이번 라운드가 막는지는 마지막 응답의 `round_block` · `blocking_findings` 로 본다. `block` 은 프로젝트 전체의 열린 critical 이라 판정에 쓰지 않는다. `carried_over` 는 다른 브랜치의 열린 발견이고 앞 50건만 담는다.
+5. 처리할 발견을 인계 파일로 받는다. 발견 ID 를 손으로 옮겨 적지 않는다.
+
+   ```bash
+   python3 .claude/tools/nerv_review_handoff.py fetch <session_dir> --branch <브랜치>
+   ```
+
+   이 브랜치의 열린 발견이 `<session_dir>/_nerv_findings.json` 에 적힌다. 파일 형식은 그 도구의 docstring 이 정본이다. 발견은 전체 ID 로 가리킨다. NERV 발견 ID 는 UUIDv7 이라 앞 8자는 같은 분에 생긴 발견끼리 겹친다.
+6. 발견은 모두 처분한다(`nerv_finding_resolve`). critical · warning 은 §6 `resolution-applier` 가 처분을 정하고, INFO 는 applier 가 남긴 것(`left_to_main`)을 main 이 정한다. INFO 까지 처분하는 이유가 있다. 열린 발견은 이후 모든 제출 응답에 `carried_over` 로 따라붙는다(이 전환 Task 에서 387건). critical 을 `dismissed`/`wont_fix` 로 낮추는 처분은 사람 승인이 필요하다. 처분은 발견 단위다. NERV 는 같은 지적을 지문으로 합치므로 처분이 같은 발견을 담은 다른 브랜치의 라운드에도 보인다. 다른 브랜치에서 온 발견을 이 브랜치 커밋으로 `fixed` 처분하지 않는다.
+
+**라운드 뒤 커밋.** push 게이트는 라운드 head 이후의 `codebase/**` 커밋을 두 경우에 새 라운드 없이 통과시킨다. code · consistency 라운드에서 `fixed` 로 처분된 발견의 `commit_sha` 이거나, 커밋 메시지가 그런 발견을 `finding <발견 전체 ID>` 로 인용하는 경우다(e2e 실패 뒤 후속 수정). merge 커밋은 충돌을 손으로 푼 `codebase/**` 변경이 있으면 센다. **fix 커밋은 다시 리뷰되지 않는다.** `fixed` 처분과 인용은 main 의 자기 신고이고 게이트는 커밋이 처분에 묶였는지만 본다. 리뷰 뒤 변경이 처분한 발견의 범위를 넘으면 새 라운드를 낸다. 판정 규칙의 정본은 `.claude/hooks/_lib/review_guard.py` docstring 이다.
+
+**게이트가 판정하지 못할 때(fail-open).** push 훅은 NERV 가 응답하지 않거나 로컬에 `NERV_SERVER` · `NERV_TOKEN` 이 없으면 통과시키고 배너로 센다. CI `review-gate` 는 토큰 · 주소 설정 문제(없음, 401 · 403 · 404)만 실패로 보고, 장애(시간 초과 · 5xx · 429)는 통과시킨다. 그래서 두 게이트는 NERV 가 답할 때만 막는다. NERV 가 내려가 있어도 리뷰 결과를 저장소 파일로 커밋하지 않는다. NERV 가 돌아오면 그때 제출한다.
+
+같은 판정을 REST 로 읽을 수 있다: `GET /api/v1/projects/clemvion/gates/reviews/check?branch=<브랜치>&kind=code,consistency`(push 훅 · CI 가 쓰는 그 응답).
+
+### 5. (fallback) 수동 Agent 경로
 
 Workflow 불가 환경에서는 orchestrator 의 `--summary-state` / `--apply-routing` / `--update` CLI + 직접 `Agent` fan-out + `Agent(code-review-summary, session_dir=<...>)` + `/loop` ScheduleWakeup 로 동일 결과를 낸다 (state CLI 는 `test_orchestrator_state.py` 로 검증되는 안정 인터페이스).
 
 > **⚠ 이 경로를 택하면 Workflow 의 Route 보정(`selected = agents_forced ∪ picked`)이 사라진다.**
 > "변경이 작아 보인다" 는 자가 판단으로 forced reviewer 를 빠뜨리기 쉽다 — 화이트리스트는 정확히
-> 그 판단을 막으려고 존재한다. 그래서 **이 규약은 더 이상 산문이 아니다**:
+> 그 판단을 막으려고 존재한다. 그래서 **이 규약의 일부는 더 이상 산문이 아니다**:
 >
-> - **기계적으로 강제된다.** `nerv_review_payload.py` 는 forced 중 리포트가 없으면 exit 1 이다.
->   필수 6역할을 빠뜨린 채 제출하면 NERV 정책 `review_roles.code` 가 라운드를 `missing_roles`
->   (`pending`)로 두고, push 훅과 CI `review-gate` 가 그 라운드를 통과시키지 않는다. 판정은
->   **제출된 역할 리포트** 기준이라 `agents_success` 를 꾸며도 통과하지 못한다.
->   (전환 단계 2 전에는 `review_guard` 가 디스크의 리포트 파일로 같은 일을 했다.)
+> - **필수 6역할은 서버가 센다.** 6역할을 빠뜨린 채 제출하면 NERV 정책 `review_roles.code` 가
+>   라운드를 `missing_roles`(`pending`)로 두고, push 훅과 CI `review-gate` 가 그 라운드를 통과시키지
+>   않는다(NERV 가 답할 때. §4 fail-open). 판정은 **제출된 역할 리포트** 기준이라 `agents_success`
+>   를 꾸며도 통과하지 못한다.
+> - **그 밖의 강제 reviewer 는 도구만 알린다.** `documentation` · `dependency` · `database` ·
+>   `api_contract` 가 빠지면 `nerv_review_payload.py` 가 exit 1 로 알릴 뿐 push · CI 는 이들을 보지
+>   않는다. exit 1 을 무시하고 제출하지 않는다. (전환 단계 2 전에는 `review_guard` 가 디스크의
+>   리포트 파일로 forced 전체를 봤다.)
 > - 미리 확인하려면(제출하기 전에):
 >   ```bash
 >   python3 .claude/skills/code-review-agents/scripts/code_review_orchestrator.py \
@@ -150,32 +174,38 @@ Workflow 불가 환경에서는 orchestrator 의 `--summary-state` / `--apply-ro
 
 ### 6. 자동 후속 흐름 — `resolution-applier` 위임
 
-SUMMARY 의 Critical/Warning > 0 이면 main 은 다음 한 호출로 끝낸다:
+§4-5 의 `_nerv_findings.json` 에 critical · warning 이 있으면 main 은 다음 한 호출로 끝낸다:
 
 ```
 Agent(subagent_type="resolution-applier",
       prompt="session_dir=<session_dir>")
 ```
 
-resolution-applier 는 `<session_dir>/_nerv_findings.json`(§4-5)의 발견을 분류 · 코드 fix · spec 제안 · e2e 까지 자기 컨텍스트 안에서 수행하고, **처분 목록** `<session_dir>/_dispositions.json` 을 쓴다. NERV 에는 쓰지 않는다(결정 D9). main 으로 돌아오는 건 확장 STATUS 한 줄:
+resolution-applier 는 `_nerv_findings.json` 의 발견을 분류 · 코드 fix · spec 제안 · e2e 까지 자기 컨텍스트 안에서 수행하고, **처분 목록** `<session_dir>/_dispositions.json` 을 쓴다. NERV 에는 쓰지 않는다(결정 D9). 파일 형식은 `.claude/tools/nerv_review_handoff.py` docstring 이 정본이다. main 으로 돌아오는 건 확장 STATUS 한 줄:
 
 ```
 STATUS=<...> ITEMS=<r>/<t> E2E=<pass|fail|blocked|skipped> ESCALATE=<flag> NEEDS_SPEC=<path> DISPOSITIONS=<path> RESET_HINT=<sec>
 ```
 
-main 은 `DISPOSITIONS` 의 항목마다 `nerv_finding_resolve` 를 부른다(`fixed` 는 `commit_sha`, `wont_fix`/`dismissed` 는 근거, `escalated` 는 `escalate_reason`). 그 뒤 push 한다. push 게이트는 라운드 뒤 커밋이 `fixed` 처분의 `commit_sha` 인지 본다.
+main 의 기록 순서:
+
+1. `python3 .claude/tools/nerv_review_handoff.py check <session_dir>` — exit 1 이면 기록하지 않고 같은 session_dir 로 applier 를 다시 부른다(처분 파일은 applier 가 쓴다).
+2. `python3 .claude/tools/nerv_review_handoff.py pending <session_dir> --branch <브랜치>` 가 낸 처분만 `nerv_finding_resolve` 로 기록한다(`fixed` 는 `commit_sha`, `wont_fix`/`dismissed` 는 근거, `escalated` 는 `escalate_reason`). NERV 에 이미 기록된 처분은 건너뛴다. 사람이 NERV 에서 바꾼 처분도 덮지 않는다. applier 재호출 · wake 뒤에도 같다.
+3. `spec_proposals` 는 아래 `spec` 행대로, `left_to_main`(INFO)은 §4-6 대로 처분한다.
+4. `tests` 는 Task 증적(`evidence` kind=test)으로 옮긴다.
+5. push 한다. 게이트 조건은 §4 "라운드 뒤 커밋".
 
 분기:
 
 | ESCALATE | main 후속 |
 |---|---|
 | `no` | 처분 기록 뒤 ITEMS·E2E 결과를 1-2문장으로 보고 + 종료 |
-| `spec` | spec 결함 **또는 SPEC-DRIFT(구현이 spec 을 의도적으로 개선해 spec 이 낡음)**. 그 발견은 `escalated`(`escalate_reason=spec`)로 처분해 둔다. `NEEDS_SPEC` 의 제안 변경으로 NERV 스펙 초안을 쓰고(`/nerv:spec edit`), 초안 본문 파일로 `/consistency-check --spec` 실행 → BLOCK:NO 시 검토 요청 + 초안 저장의 `spec_version_id` 로 `spec_change` 처분, resolution-applier 재호출 (동일 session_dir). 저장소 `spec/` 은 미러라 커밋하지 않는다. BLOCK:YES 시 사용자 escalate. SPEC-DRIFT 는 코드를 되돌리지 않고 spec 만 갱신하는 정식 역류 경로다 |
-| `user-decision` / `infra` / `e2e-fail-3x` / `sensitive-fix` | `AskUserQuestion` 으로 사유·옵션 제시. 해당 발견은 `escalated`(같은 사유)로 처분. 사용자 결정 후 resolution-applier 재호출 |
+| `spec` | spec 결함 **또는 SPEC-DRIFT(구현이 spec 을 의도적으로 개선해 spec 이 낡음)**. applier 는 그 발견을 처분하지 않고 `spec_proposals` 로 넘긴다(`NEEDS_SPEC` = `_spec-proposal-<area>.md`). main 은 제안대로 NERV 스펙 초안을 쓰고(`/nerv:spec edit`), 초안 본문 파일로 `/consistency-check --spec` 을 돌린다. BLOCK:NO 면 검토 요청을 하고 초안 저장의 `spec_version_id` 로 그 발견을 `spec_change` 처분한다. 초안을 쓸 수 없거나 BLOCK:YES 면 `escalated`(`escalate_reason=spec`)로 처분하고 사용자에게 알린다. 저장소 `spec/` 은 미러라 커밋하지 않는다. SPEC-DRIFT 는 코드를 되돌리지 않고 spec 만 갱신하는 정식 역류 경로다 |
+| `user-decision` / `infra` / `e2e-fail-3x` / `sensitive-fix` | applier 가 해당 발견을 `escalated`(같은 사유)로 넘겼다. main 은 그대로 기록하고 `AskUserQuestion` 으로 사유·옵션을 묻는다(사람이 이 세션에 없으면 `nerv_question_create`). 사용자 결정 후 resolution-applier 재호출 |
 | `rate_limit` / `network` (STATUS 자체) | ScheduleWakeup 으로 재예약 — wake 시 resolution-applier 같은 session_dir 로 재호출 (idempotency 로 복구) |
-| `fatal` | 받은 처분까지 기록 + 사유 사용자 보고 |
+| `fatal` | `check` 를 통과한 처분까지 기록 + 사유 사용자 보고 |
 
-> **idempotency**: resolution-applier 가 중간 종료돼도 `_resolution_state.json` + 커밋 이력(메시지의 `finding <ID>` 인용) + `_dispositions.json` 으로 복구. main 은 같은 session_dir 로 재호출만 하면 된다.
+> **idempotency**: resolution-applier 가 중간 종료돼도 `_resolution_state.json` + 커밋 이력(메시지의 `finding <발견 전체 ID>` 인용) + `_dispositions.json` 으로 복구한다. main 은 같은 session_dir 로 재호출하고, 기록은 `pending` 이 낸 처분만 한다.
 
 ### 7. /loop 결합 (fallback 경로 + resolution-applier 한도 복구)
 
