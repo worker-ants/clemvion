@@ -128,7 +128,7 @@ spec 본문에 시나리오 약속 패턴:
 ## 실행 절차
 
 1. **prompt_file Read** — orchestrator 가 생성한 입력. `MODE` (forward/reverse/both) / 환경변수 / 적용 대상 prefix 명시.
-2. **적용 대상 spec walk** — `spec-impl-evidence.md §1` 의 prefix + 제외 룰. `find spec -name '*.md'` + filter. (reverse 에서도 spec 본문/`code:` 는 "참조처" 인덱스로 한 번 적재.)
+2. **적용 대상 spec walk** — `CLE-ENG-SPECEVIDENCE` 「적용 대상」 의 prefix + 제외 룰. `find spec -name '*.md'` + filter. (reverse 에서도 spec 본문/`code:` 는 "참조처" 인덱스로 한 번 적재.)
 3. **각 spec 마다 frontmatter parse + 본문 read** — gray-matter 없이 단순 파싱 (Bash + sed/awk + node 또는 python).
 4. **(forward) Heuristic 1** — UI 키워드 grep + frontend 부재 확인. high candidate.
 5. **(forward) Heuristic 2** — API endpoint regex + controller grep. medium candidate.
