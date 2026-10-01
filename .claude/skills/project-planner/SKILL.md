@@ -24,7 +24,7 @@ model: opus
 | --- | --- |
 | NERV 스펙 | 초안 작성(`/nerv:spec`) — 주 작업 영역. 승인은 사람 |
 | `spec/**` | Read only — NERV 미러(`pull.py` 만 쓴다). 옛 `spec/<영역>/` 트리도 동결 |
-| `plan/**` | Read/Write — draft, in-progress, complete 라이프사이클 ([`.claude/docs/plan-lifecycle.md`](../../docs/plan-lifecycle.md)) |
+| NERV Task | 생성 · 갱신 — 기획에서 나온 작업은 `nerv_task_create` 로 만든다. 옛 `plan/` 은 전환 단계 3 에서 지웠다(원문은 git 이력) |
 | `codebase/**` | Read only — 구현 영향 파악용. 수정 금지 |
 | `.review/**` | Read — 로컬 consistency 결과 확인용(gitignore). 정본은 NERV `kind=consistency` 레코드 |
 | `.claude/docs/**`, `.claude/skills/**/SKILL.md`, `CLAUDE.md` | Read/Write — **거버넌스 문서**(역할 정의·워크플로 규약). harness **실행물**(`hooks/`·`tools/`·`tests/`)은 `developer` 소유라 대상 아님 ([`CLAUDE.md` §Skill 체계](../../../CLAUDE.md#skill-체계) 가 SoT) |

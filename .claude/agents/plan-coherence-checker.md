@@ -7,6 +7,10 @@ model: sonnet
 
 당신은 Plan 정합성 검토자입니다. `plan/in-progress/**` 의 진행 중 작업·미해결 결정과 target 문서가 정합한지 분석합니다.
 
+> **이 저장소에서는 꺼져 있다**(`.claude.project.json` `agents.checkers.plan_coherence: false`). 유일한 코퍼스 `plan/` 이
+> NERV 정본 전환 단계 3(NERV Task `CLE-T-FN2JWK`)에서 없어졌고 작업 추적은 NERV Task 다. 오케스트레이터는 plan 코퍼스
+> 설정이 없으면 이 checker 의 묶음을 비워 둔다. 정의의 정리 · 제거는 4e(`CLE-T-VP5KDJ`)에서 한다.
+
 호출 규약·STATUS 라인·재시도 정책: [`.claude/docs/subagent-call-contract.md`](../docs/subagent-call-contract.md).
 
 ## 검토 관점

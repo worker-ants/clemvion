@@ -24,7 +24,7 @@ spec / plan / 구현 변경이 **저장되기 전** 단계에서 기존 문서�
 | `cross-spec-checker` | 다른 영역 spec 의 데이터 모델·API·요구사항 ID 충돌 |
 | `rationale-continuity-checker` | 과거 Rationale 의 기각 결정 재도입 |
 | `convention-compliance-checker` | `spec/conventions/**` 위반 |
-| `plan-coherence-checker` | `plan/in-progress/**` 미해결 결정·선행 plan 미해소·후속 항목 누락 |
+| `plan-coherence-checker` | `plan/in-progress/**` 미해결 결정·선행 plan 미해소·후속 항목 누락. **이 저장소에서는 꺼져 있다**(`.claude.project.json` `plan_coherence: false`). 유일한 코퍼스 `plan/` 이 전환 단계 3 에서 없어졌다. 정의 정리는 4e(NERV Task `CLE-T-VP5KDJ`) |
 | `naming-collision-checker` | 신규 식별자 기존 사용처 중복 |
 
 summary: `consistency-summary` 가 통합 + `BLOCK: YES/NO` 표기.
@@ -55,10 +55,10 @@ python3 .claude/skills/consistency-checker/scripts/consistency_orchestrator.py -
   > 가능했다(프롬프트의 target 은 예산에 따라 잘린다). 그 우연을 계약으로 바꾼 것이 이
   > 사본이다.
   >
-  > **차단 가드가 아니다.** draft 를 `plan/complete/` 로 옮기는 관례(보존된 69개 중 66개)는
-  > 여전히 사람이 지킨다 — push 가드를 정밀화했다 철회한 이력(`#970`)을 반복하지 않으려고
-  > 증거 보존만 자동화했다.
-- `--plan <path>` — plan draft.
+  > **차단 가드가 아니다.** 옛 흐름에서는 draft 를 `plan/complete/` 로 옮겨 남겼다(보존된 69개 중 66개).
+  > 전환 단계 3 에서 `plan/` 이 없어졌고 지금 초안의 정본은 NERV 버전이다. 이 사본은 로컬 세션의
+  > 증거로만 남는다.
+- `--plan <path>` — plan draft. 전환 단계 3 에서 `plan/` 이 없어져 쓸 일이 없다. 모드 제거는 4e(`CLE-T-VP5KDJ`).
 - `--impl-prep <scope>` — 구현 착수 직전. scope = spec 영역 경로.
 - `--impl-done <scope>` — **구현 완료 후 사후 검증**. scope = spec 영역 경로. target_doc 에 spec 영역 파일 + `git diff <diff-base>...HEAD -- <code_areas>` 가 함께 묶여, 5 checker 가 "spec 본문 vs 실 구현 diff" 정합성을 사후 분석. `--diff-base <ref>` 로 base 변경 (default: `origin/main`). **이 base 는 전 모드 공통으로 번들 우선순위 산정에도 쓰인다** — 이 브랜치가 변경한 파일이 컨텍스트 예산의 앞자리를 받는다. **developer REVIEW WORKFLOW 의 의무 단계** — 결과를 checker 마다 `kind=consistency` 로 NERV 에 제출하고(`task_id` 포함) 발견을 처분한다. NERV Task done 게이트(`done_gate.review_coverage`)가 그 Task 의 consistency 라운드를 요구한다. (전환 단계 2 전에는 `review_guard.py` 의 SPEC-CONSISTENCY 게이트가 spec 연결 코드 변경의 push 를 이 산출물의 세션 시각으로 막았다. 그 게이트는 걷혔다.) target_doc 맨 앞에는 **HEAD 워킹트리 절대경로 + "CWD 상대 Read/Grep 은 diff-base(변경 전) 라 신뢰 금지" 가드**가 박힌다 — checker sub-agent 의 CWD 가 default-branch 체크아웃이라 신규 추가 코드를 "미구현" 으로 오탐하던 #738 버그 차단 (코드 확인은 절대경로 / `git -C <root>` 로).
 
@@ -158,7 +158,7 @@ Workflow 가 불가한 환경에서는 orchestrator 의 `--summary-state` / `--u
 
 **developer**:
 1. `/consistency-check --impl-prep <spec/영역>` 을 구현 착수 전.
-2. `BLOCK: YES` → 위임. Warning 은 plan 에 기록 + 진행.
+2. `BLOCK: YES` → 위임. Warning 은 Task 진행 기록에 남기고 진행.
 
 ## 환경변수
 

@@ -20,8 +20,8 @@
 ## 3. 운영 규칙
 
 - **수명 = PR 단위**: worktree 는 PR 이 merge 되면 정리한다. **자동**: 세션 시작 시 GC reaper(§7)가 merge 된 PR 의 worktree·branch 를 제거한다. **수동**(즉시): `.claude/tools/cleanup-worktree.sh <name>`.
-- **plan 과 결속**: 새 plan frontmatter 의 `worktree` 필드에 현재 worktree 이름을 기록한다.
-- **공유 자원 직렬화**: 동일 `spec/` 파일·코드 영역을 두 worktree 가 동시 수정 중이면 plan 에 명시하고 직렬화한다. **자동 검출은 없다** — 사용자와 통합 단계(`/merge-coordinate`)의 책임이다.
+- **Task 와 결속**: worktree 는 클레임한 NERV Task 하나의 작업 공간이다. NERV 세션은 `nerv_bootstrap` 에 넘긴 `worktree_path` · `branch` 로 이 worktree 를 기록한다.
+- **공유 자원 직렬화**: 동일 코드 영역을 두 worktree 가 동시 수정 중이면 직렬화한다. 클레임 scope(`file_globs` · `spec_ids`)가 겹치면 NERV 가 클레임 · heartbeat 응답(`scope_overlaps`)으로 알린다. 그 밖의 충돌은 사용자와 통합 단계(`/merge-coordinate`)의 책임이다.
   > 종전 이 자리는 `consistency-checker plan_coherence` 가 사전 검출한다고 적었으나 그 기능은 `3da85dc3b`(#576)에서 제거됐다(병렬 작업이 다른 머신·세션이면 로컬에 안 보여 신뢰할 수 없다). checker 정의 본문도 그것이 검토 대상이 **아님**을 명시한다.
 - **e2e 인프라 자동 격리**: `make e2e-*` 는 worktree dir basename 으로 compose project name 을 도출 — 여러 worktree 동시 실행 시 컨테이너·볼륨·network 자동 분리. 정리는 `make e2e-prune`.
 - **hotfix 예외**: 별도 branch 에서 작업. 정말 default branch 에서 직접 commit 해야 하면 `BYPASS_DEFAULT_BRANCH_GUARD=1` 로 한 commit 만 우회.
@@ -81,9 +81,9 @@ D 의 read/silent 정책: `ls`, `cat`, `grep`, `find`, `pwd`, `git status`, `git
 
 ### 5.1 NERV 소유 경로 가드 (4-layer 와 별개)
 
-`guard_nerv_owned_paths.py`(PreToolUse, Write/Edit/MultiEdit/NotebookEdit)는 브랜치와 무관하게 **NERV 가 정본인 경로**의 도구 편집을 막는다. main checkout 과 워크트리 모두 대상이고, 루트에 `.claude/tools/nerv-mirror/pull.py` 가 있는 체크아웃만 본다(다른 저장소는 통과). 전환 단계 1 은 `spec/`, 단계 2 는 `review/`, 단계 3 은 `plan/` 을 더한다. 셸 편집은 이 훅이 못 본다. 미러 파일은 CI `spec-mirror-integrity` 가 지문으로 잡는다.
+`guard_nerv_owned_paths.py`(PreToolUse, Write/Edit/MultiEdit/NotebookEdit)는 브랜치와 무관하게 **NERV 가 정본인 경로**의 도구 편집을 막는다. main checkout 과 워크트리 모두 대상이고, 루트에 `.claude/tools/nerv-mirror/pull.py` 가 있는 체크아웃만 본다(다른 저장소는 통과). 전환 단계 1 은 `spec/`, 단계 2 는 `review/`, 단계 3 은 `plan/` 을 더했다. 단계 3 에서 `review/` 와 `plan/` 은 저장소에서 지웠다. 셸 편집은 이 훅이 못 본다. 미러 파일은 CI `spec-mirror-integrity` 가 지문으로 잡는다.
 
-- 우회: `BYPASS_NERV_OWNED_PATHS=1`. 세션 환경 변수라 켜 둔 동안 막는 경로 전체가 열린다. 문서가 허용한 경우([`plan-lifecycle.md §3`](plan-lifecycle.md#3-이동-규칙)의 세 가지)에만 켜고, 그 줄을 고친 직후 끈다.
+- 우회: `BYPASS_NERV_OWNED_PATHS=1`. 세션 환경 변수라 켜 둔 동안 막는 경로 전체가 열린다. 옛 트리의 plan 링크 · `pending_plans` · `status` 를 고치던 예외는 단계 3 에서 `plan/` 과 함께 없어졌다. 지금은 문서가 허용한 경우가 없다. 가드 자체를 고치는 것처럼 꼭 필요할 때만 켜고, 그 편집 직후 끈다.
 - 훅은 `$CLAUDE_PROJECT_DIR`(main checkout)에서 실행된다. 등록 명령은 훅 파일이 없으면 통과한다(`test ! -f … || python3 …`). 새 훅을 등록한 PR 이 머지되면 main checkout 을 pull 해야 그 훅이 실제로 돈다.
 - **새 훅을 등록할 때는 같은 형태로 등록한다.** 설정(`settings.json`)은 세션이 연 워크트리에서 읽고 훅 파일은 main checkout 에서 찾는다. 둘이 어긋나면(워크트리에는 새 등록이 있고 main 에는 아직 파일이 없으면) `python3 <없는 파일>` 이 exit 2 로 끝나 그 세션의 모든 편집이 막힌다. 2026-10-01 이 훅을 들이던 세션이 재개 뒤 실제로 막혔다(NERV Task `CLE-T-VA4YA1`). 등록 명령을 `bash -c` 로 돌려 파일이 없을 때 exit 0 인지 보는 테스트를 함께 둔다(`test_guard_nerv_owned_paths.py` 선례).
 

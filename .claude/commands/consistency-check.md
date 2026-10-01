@@ -22,15 +22,14 @@ spec / plan / 구현 착수 전 다관점 일관성 검토 (sub-agent 위임)
 ## 모드 (택일 필수)
 
 - `--spec <path>` — spec draft 검토. project-planner 가 `spec/` 본문에 쓰기 **직전** 의무 호출.
-- `--plan <path>` — plan draft 검토. plan 작성 단계에서 호출.
+- `--plan <path>` — plan draft 검토. 전환 단계 3 에서 `plan/` 이 없어져 쓸 일이 없다(모드 제거는 4e).
 - `--impl-prep <scope>` — 구현 착수 **직전** 검토. scope 는 spec 영역 경로 (예: `spec/2-navigation/`).
 
 ## 사용 예시
 
-- `/consistency-check --spec plan/in-progress/spec-draft-<area>.md`
-- `/consistency-check --plan plan/in-progress/<task>.md`
+- `/consistency-check --spec <scratchpad>/CLE-ENG-FOO.md` — `nerv_spec_get(basis=latest)` 로 받은 초안 본문 파일
 - `/consistency-check --impl-prep spec/<area>/`
-- `/loop /consistency-check --plan plan/in-progress/<task>.md` — 사용량 한도 자동 재시도
+- `/loop /consistency-check --impl-done spec/<area>/` — 사용량 한도 자동 재시도
 
 ## 산출물
 
@@ -45,6 +44,6 @@ spec / plan / 구현 착수 전 다관점 일관성 검토 (sub-agent 위임)
 ## 환경변수
 
 자세한 옵션은 `.claude/skills/consistency-checker/SKILL.md` 참고. 주요 변수:
-- `CONSISTENCY_AGENTS` (기본 전체 5개 — `cross_spec,rationale_continuity,convention_compliance,plan_coherence,naming_collision`)
+- `CONSISTENCY_AGENTS` (기본은 `.claude.project.json` 이 켠 checker — 이 저장소는 `plan_coherence` 를 뺀 4개. 전체 키: `cross_spec,rationale_continuity,convention_compliance,plan_coherence,naming_collision`)
 - `CONSISTENCY_MAX_CONTEXT_SIZE` (기본 262144자)
 - `DISABLE_CONSISTENCY_CHECK=1` 로 비활성화 가능 (예외 케이스만)

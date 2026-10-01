@@ -18,18 +18,16 @@ model: opus
 - **스펙 선독**: 관련 스펙 문서 전체(Overview / 본문 / Rationale) 를 먼저 읽고 영향 범위·side-effect 파악. NERV 스펙은 **작업 기준 버전**으로 읽는다(`nerv_spec_get(spec_id, task=<Task 키>)`, 응답의 `read_as` 확인).
 - **TDD 준수**: 스펙 해석 즉시 테스트 선작성, 구현 후 보강.
 - **품질 책임**: Warning 이상 이슈와 누락 테스트는 지시 범위 밖이라도 해결. 기존부터 있던 이슈도 발견 시 조치.
-- **누락 방지**: `plan/in-progress/` 에 진행 메모 작성·갱신, 재진입 시 먼저 확인. plan 라이프사이클: [`.claude/docs/plan-lifecycle.md`](../../docs/plan-lifecycle.md).
-- **plan 체크박스 = 실제 상태**: `plan/in-progress/<task>.md` 의 체크리스트는 **각 단계가 끝날 때마다 그 즉시** 갱신한다 (실제 통과한 단계만 `[x]`). 아직 안 돌린 단계(e2e·`/ai-review` 등)를 **미리 `[x]` 로 적거나, 코드 커밋 시 forward-looking 으로 적어두고 방치 금지**. 근거: 체크박스는 "그 단계를 실제로 통과했다" 는 **상태 주장**이다. 미리 `[x]` 를 적으면 PR 을 읽는 사람이 통과로 읽고, 수행해 놓고 `[ ]` 로 두면 반대로 "단계 건너뜀" 으로 오인된다. 리뷰 결과는 NERV 레코드라 PR 에 파일로 남지 않는다(전환 단계 2 부터). 그래서 체크박스와 NERV 라운드가 PR 에서 리뷰 상태를 읽는 두 근거다. e2e 결과는 통과를 담은 커밋에, ai-review 결과는 처분이 끝난 뒤 별도 `docs(plan):` 커밋에 반영한다(§단계별 자동 commit).
+- **누락 방지**: 진행 메모는 클레임한 NERV Task 에 남긴다(heartbeat `progress`, 중단 · 인계 때 `handoff_note`). 재진입하면 `nerv_task_get` 으로 먼저 확인한다. 새로 생긴 후속 작업은 `nerv_task_create` 로 만든다.
+- **Task 기록 = 실제 상태**: NERV Task 의 진행 기록(heartbeat progress · handoff_note)과 증적(`evidence`)에는 실제로 통과한 단계만 적는다. 아직 안 돌린 단계(e2e·`/ai-review` 등)를 미리 통과로 적지 않는다. 리뷰 상태의 근거는 NERV 라운드다(전환 단계 2 부터). 옛 `plan/in-progress/<task>.md` 체크박스 규칙은 전환 단계 3 에서 `plan/` 과 함께 없어졌다.
 
 ## 경로별 권한
 
 | 경로 | 권한 |
 | --- | --- |
 | `spec/` | NERV 미러. 구현 PR 에서 `python3 .claude/tools/nerv-mirror/pull.py --task <Task 키>` 로만 갱신한다(손편집은 `guard_nerv_owned_paths.py` 훅 · CI `spec-mirror-integrity` 가 막는다). 스펙을 고칠 일은 NERV 초안으로(`/nerv:spec edit`, 승인은 사람) |
-| `plan/in-progress/` | Read/Write 자유 |
-| `plan/complete/` | Read/Write — 모든 항목 끝나면 `git mv` |
 | `codebase/**` | Read/Write — 구현 주 영역 |
-| `review/` | Read only — 옛 리뷰 산출물(동결, 전환 단계 3 에서 삭제). 도구 편집은 `guard_nerv_owned_paths.py` 훅이 막는다 |
+| `plan/` · `review/` | 없음 — 전환 단계 3 에서 지웠다(원문은 git 이력). 작업 추적은 NERV Task, 리뷰 결과는 NERV 리뷰 레코드다. 도구 편집은 `guard_nerv_owned_paths.py` 훅이 막는다 |
 | `.review/` | Read/Write — 오케스트레이터의 로컬 산출물(gitignore). 커밋하지 않는다. 리뷰 결과는 NERV 리뷰 레코드로 제출한다. 코드 주석 · 커밋 메시지에 `.review/**` 경로를 인용하지 않는다(다른 체크아웃에는 없는 파일이다). 리뷰는 `finding <발견 전체 ID>` 로 가리킨다 |
 | `README.md`, `PROJECT.md` | Read/Write |
 | `.claude/hooks/**`, `.claude/tools/**`, `.claude/tests/**` | Read/Write — harness **실행물**. 검증은 `python3 -m pytest .claude/tests -q` — push 리뷰 게이트의 스코프는 `codebase/**` 라 harness-only 변경은 **push 가 차단되지 않는다**. NERV Task done 게이트는 그래도 그 Task 의 code · consistency 라운드를 요구한다 |
@@ -41,9 +39,9 @@ model: opus
 
 0. **Worktree 확인** — `pwd` 가 `.claude/worktrees/<...>/` 안인지. 아니면 즉시 멈춤 + worktree 생성. 예외: 사용자 명시 read-only turn.
    - **백그라운드(bg) 세션이면 `EnterWorktree` *툴* 로 격리한다** — 셸 `cd` 만으로는 부족하다. `/ai-review`·`/consistency-check` 가 native `Workflow` 로 sub-agent 를 띄울 때, 부모 bg 세션이 `EnterWorktree` 툴로 isolate 되지 않았으면 harness `worktree.bgIsolation` 가드가 **모든 workflow sub-agent 의 공유 체크아웃 write 를 차단**한다 (reviewer output·SUMMARY·`resolution-applier` 의 코드 fix 까지). 즉 셸 `cd` 로만 들어간 bg 세션은 review/fix 가 구조적으로 막혀 "미루기" 의 빌미가 된다. `EnterWorktree` 로 들어가면 9단계 REVIEW WORKFLOW 의 fix write 까지 정상 동작한다. (배경: [`.claude/docs/orchestrator-workflow-migration.md`](../../docs/orchestrator-workflow-migration.md) §bgIsolation.)
-1. **스펙 분석** — 클레임한 Task 의 NERV 스펙을 작업 기준 버전으로(`nerv_spec_get(spec_id, task=<Task 키>)`) + 재진입이면 Task `handoff_note` · `plan/in-progress/` 이전 컨텍스트. 저장소 `spec/` 미러는 주변 문서 grep 용이다(구현된 스펙의 스냅샷이라 최신본이 아닐 수 있다).
+1. **스펙 분석** — 클레임한 Task 의 NERV 스펙을 작업 기준 버전으로(`nerv_spec_get(spec_id, task=<Task 키>)`) + 재진입이면 Task `handoff_note` · 진행 기록. 저장소 `spec/` 미러는 주변 문서 grep 용이다(구현된 스펙의 스냅샷이라 최신본이 아닐 수 있다).
 2. **모호성 해소** — 공백·충돌은 사용자와 정의. 스펙 정의 필요 시 `project-planner` 위임.
-3. **사전 일관성 검토** — `/consistency-check --impl-prep <spec/영역>`. Critical → 즉시 중단. Warning → `plan/in-progress/<task>.md` 기록 + 진행.
+3. **사전 일관성 검토** — `/consistency-check --impl-prep <spec/영역>`. Critical → 즉시 중단. Warning → Task 진행 기록(heartbeat `progress`)에 남기고 진행.
 4. **DOCUMENTATION 업데이트** — `PROJECT.md §변경 유형 → 갱신 위치 매핑` white list 누락 없이 갱신. 매핑 검증 명령 통과해야 5단계. **사용자 가이드 신규 작성·기존 갱신은 [`user-guide-writer`](../../agents/user-guide-writer.md) sub-agent 위임** — 본 sub-agent 가 `PROJECT.md §유저 가이드 파일 컨벤션` 의 SoT 인덱스를 적재해 컨벤션을 일관 적용. 위임 직전 `is_agent_enabled(cfg, "writers", "user_guide")` (`.claude.project.json` 의 `agents.writers.user_guide`) 로 게이팅 — disable 된 프로젝트는 본 단계 안에서 직접 작성. PROJECT.md 매트릭스에 명시된 동반 갱신은 호출자(본 단계) 가 받아 처리. **partial-implementation 분리**: spec 의 일부만 구현하고 나머지 surface 가 남아있는 경우, 본 PR 머지 전 남은 surface 를 NERV Task 로 만들고 스펙 본문의 구현 상태 표시는 NERV 초안으로 고친다. 옛 트리(전환 단계 1 ~ 5 동결)에 `status: partial` · `pending_plans:` 를 새로 등록하지 않는다(SoT: [`spec/CLE-ENG/CLE-ENG-SPECEVIDENCE.md`](../../../spec/CLE-ENG/CLE-ENG-SPECEVIDENCE.md) 「NERV 이전 영향」). 자가 체크리스트는 `PROJECT.md §DOCUMENTATION 단계 종료 사전 체크리스트` 마지막 항목.
 5. **테스트 선작성** — TDD.
 6. **구현** — 스펙과 테스트 기준.
@@ -124,7 +122,7 @@ model: opus
      - **승인 대기 중**: 초안이 승인되기 전에는 대조 대상이 옛 본문이라 같은 drift 가 다음 `--impl-done` 에서 다시 나온다. 그 발견도 `spec_change`(초안 저장의 `spec_version_id`)로 처분한다. 실측(2026-10-01): 승인본이 **없는** 문서는 `pull.py --task` 가 초안을 받았다(`read_as: "approved_fallback"`). 승인본이 있는 문서의 동작은 아직 재지 않았다.
 5. **post-impl 일관성 검토** — `/consistency-check --impl-done <spec/영역>` 을 돌려 5 checker 결과를
    checker 마다 `kind=consistency` 로 제출한다(절차는 `consistency-checker` SKILL §3.5). 구현 코드 diff vs
-   spec 본문 / Rationale / conventions / plan 정합성을 사후 검증한다. Critical 은 위 4 와 같은 흐름으로
+   spec 본문 / Rationale / conventions 정합성을 사후 검증한다. Critical 은 위 4 와 같은 흐름으로
    고치고 처분한다. 그 fix 커밋도 consistency 라운드의 `fixed` 처분이거나 `finding <발견 전체 ID>` 인용이면
    push 게이트가 설명된 커밋으로 본다. NERV Task done 게이트가 consistency 라운드를 요구하므로 spec 연결
    여부와 무관하게 Task 마다 돈다. 하네스 · 문서만 바꾼 Task 는 바꾼 문서가 서술하는 영역을 scope 로
@@ -199,7 +197,7 @@ Warning 이상·테스트 누락은 지시 범위 밖이라도 해결. TEST·REV
 > 고쳐도 라운드가 안 늘면 예외가 아니다.
 >
 > 2026-08-10 신설. `plan-lifecycle-gates` PR 에서 이 충돌이 **세 라운드 연속** 미해소로
-> 이월됐다(`review/consistency/2026/08/10/{02_47_31,04_07_54,05_48_52}/rationale_continuity.md`).
+> 이월됐다(옛 `review/consistency/2026/08/10/{02_47_31,04_07_54,05_48_52}/rationale_continuity.md`, git 이력).
 > 매번 실질 판단은 타당했으나 규칙 문언을 뒤집으면서 근거를 규칙 쪽에 남기지 않아,
 > checker 가 "무근거 번복" 으로 세 번 지적했다 — **실질 정당성과 규약 성문화는 다른
 > 문제**라는 것이 그 교훈이다.
@@ -214,7 +212,6 @@ Warning 이상·테스트 누락은 지시 범위 밖이라도 해결. TEST·REV
 | 5–7. 테스트+구현 | 단위 테스트 통과 직후 (8단계 진입 직전) | `feat(<scope>):` / `fix(<scope>):` / `refactor(<scope>):` |
 | 8. TEST WORKFLOW | lint·unit·build·e2e 모두 통과 직후. 코드 수정 없으면 skip | `test(<scope>):` / `style(<scope>):` |
 | 9. REVIEW WORKFLOW | 발견마다 fix 커밋(그 커밋이 `fixed` 처분의 `commit_sha` 가 된다). 리뷰 산출물은 커밋하지 않는다 | `fix(<scope>): finding <발견 전체 ID> …`(여럿이면 `finding <ID> · <ID>`) |
-| 10. plan complete | 본 PR 의 모든 체크박스 `[x]` + follow-up 0건 시 `git mv` (같은 PR 안 별 commit). plan 이동만 담은 별 PR 금지 | `chore(plan): mark <name> complete` |
 
 규칙:
 
@@ -225,8 +222,6 @@ Warning 이상·테스트 누락은 지시 범위 밖이라도 해결. TEST·REV
 - **commit 사이 `git status`·`git diff` 호출 최소화**. 단계 종료 후 1회만 `git status --short` 로 변경 set 확인. `git diff --staged` 는 commit 직전 자가 점검이 필요할 때만, 그 외엔 pre-commit hook 결과로 검증.
 - pre-commit hook 실패 → `--no-verify` 우회 금지. 원인 fix 후 새 commit.
 - 사용자가 "잠깐"·"한 번에 합쳐"·"보고 결정할게" 명시 시 자동 commit 일시 중단.
-- **plan 체크박스는 그 단계가 끝난 직후 갱신**한다. 8단계 TEST WORKFLOW(e2e 포함) 통과 → 그 commit 에 `[x] e2e`. 9단계 REVIEW WORKFLOW 는 fix 커밋이 발견마다 따로이고 0건일 수도 있으므로, 처분까지 끝나면 별도 `docs(plan):` 커밋으로 `[x] /ai-review` 를 단다(fix 커밋에 섞지 않는다. 그 커밋이 처분의 `commit_sha` 다). 단계를 수행해놓고 plan 박스를 `[ ]` 로 남긴 채 push 금지 (§절대 원칙 "plan 체크박스 = 실제 상태").
 
-> 0~3단계는 자체 commit 없음. 산출물은 4단계 commit 또는 `chore(plan):` 별 commit.
+> 0~3단계는 자체 commit 없음. 산출물은 4단계 commit 에 담는다.
 
-> **10단계 자가 점검**: 모든 체크박스 `[x]` / follow-up 0건 / `git mv` 사용 / commit 메시지 형식 — 한 항목이라도 미충족이면 10단계 skip, plan 은 `in-progress/` 유지.

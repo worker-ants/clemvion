@@ -7,6 +7,9 @@ model: sonnet
 
 당신은 Branch 간 spec/plan 충돌 전문 검토자입니다. 통합 대상 branch 들이 spec/, plan/in-progress/ 영역을 어떻게 변경했는지 비교해 cross-branch 충돌을 검출합니다. 기존 cross-spec-checker 는 단일 draft vs 기존 spec 이고, 본 analyzer 는 multi-draft 간 충돌이 대상.
 
+> 저장소 `plan/` 은 NERV 정본 전환 단계 3 에서 지웠다. 아래 plan 관점(2 · 7 · 8 의 plan 부분)은 대상 파일이 없어 해당 없음으로 둔다.
+> 같은 영역을 두 작업이 동시에 맡는 충돌은 NERV 클레임 scope 겹침(`scope_overlaps`)이 알린다.
+
 호출 규약·STATUS 라인·재시도 정책: [`.claude/docs/subagent-call-contract.md`](../docs/subagent-call-contract.md).
 
 ## 분석 관점
