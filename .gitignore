@@ -32,8 +32,9 @@ temp/
 
 # 옛 `review/` 는 NERV 정본 전환 단계 3(Task `CLE-T-FN2JWK`)에서 지웠다. 그 전에 각 체크아웃에 생긴
 # 로컬 잔재(추적하지 않던 서브에이전트 입력 페이로드 `review/**/_prompts/` 등)가 untracked 로 뜨지
-# 않게 통째로 무시한다. 새 파일은 `guard_nerv_owned_paths.py` 훅이 막는다.
-review/
+# 않게 통째로 무시한다. 새 파일은 `guard_nerv_owned_paths.py` 훅이 막는다. 앞의 `/` 로 저장소 루트에
+# 고정한다. 없으면 이름이 `review` 인 하위 디렉터리(화면 라우트 등)까지 조용히 무시된다.
+/review/
 # 리뷰 · 일관성 · 통합 · spec-coverage 오케스트레이터의 로컬 산출물(NERV 전환 단계 2 부터).
 # 리뷰 결과의 정본은 NERV 리뷰 레코드라 커밋하지 않는다.
 .review/

@@ -266,5 +266,41 @@ class GuardTest(unittest.TestCase):
         self.assertEqual(present.returncode, 2, present.stderr)
 
 
+class RetiredReviewTreeIgnoreTest(unittest.TestCase):
+    """실제 `.gitignore` 가 루트의 옛 `review/` 잔재만 무시하는지 본다.
+
+    단계 3 에서 처음 넣은 `review/` 는 앞에 `/` 가 없어 저장소 어느 깊이의 `review` 디렉터리든
+    무시했다(코드 리뷰 여섯 역할이 같은 지적, 2026-10-02). 나중에 `codebase/**/review/` 모듈이나
+    라우트를 만들면 `git add` 가 말없이 건너뛰고 push 게이트도 그 변경을 보지 못한다.
+    """
+
+    def setUp(self):
+        tmp = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, tmp, ignore_errors=True)
+        self.repo = _harness.make_temp_git_repo(Path(os.path.realpath(tmp)) / "repo")
+        shutil.copy(_harness.REPO_ROOT / ".gitignore", self.repo / ".gitignore")
+
+    def ignored(self, rel):
+        # 사용자 전역 ignore 는 끈다. 그 덕에 초록이 되면 다른 머신에서 깨진다.
+        r = _harness.git_in(self.repo, "-c", "core.excludesFile=/dev/null",
+                            "check-ignore", "-q", rel, check=False)
+        self.assertIn(r.returncode, (0, 1), r.stderr)
+        return r.returncode == 0
+
+    def test_root_leftovers_are_ignored(self):
+        for rel in ("review/code/2026/10/01/00_00_00/_prompts/security.md",
+                    "review/consistency/2026/10/01/00_00_00/SUMMARY.md",
+                    ".review/code/2026/10/02/00_00_00/SUMMARY.md"):
+            with self.subTest(rel=rel):
+                self.assertTrue(self.ignored(rel))
+
+    def test_a_nested_review_directory_is_not_ignored(self):
+        for rel in ("codebase/frontend/src/app/review/page.tsx",
+                    "codebase/backend/src/modules/review/review.service.ts",
+                    "spec/review/x.md"):
+            with self.subTest(rel=rel):
+                self.assertFalse(self.ignored(rel), f"{rel} 가 무시된다 — 패턴이 루트에 고정되지 않았다")
+
+
 if __name__ == "__main__":
     unittest.main()
