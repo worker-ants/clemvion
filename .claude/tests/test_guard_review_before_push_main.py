@@ -151,8 +151,9 @@ class GuardReviewBeforePushMainTest(unittest.TestCase):
         return subprocess.run(
             [sys.executable, self.hook],
             input=stdin, capture_output=True, text=True, env=env, timeout=10,
-            # Pin the cwd to the per-test temp dir. Inheriting the caller's checkout made the hook see whatever
-            # worktrees happen to exist on the machine — a review flagged one
+            # Pin the cwd to the per-test temp dir. Inheriting the caller's
+            # checkout made the hook see whatever worktrees happen to exist on
+            # the machine — a review flagged one
             # non-reproducing failure out of 14 runs from exactly that coupling.
             # These tests are about the hook's decision table, not the repo.
             cwd=self.tmp,
@@ -497,6 +498,38 @@ class GuardReviewBeforePushMainTest(unittest.TestCase):
         self.assertEqual(r.returncode, 0, r.stderr[-600:])
         r = self._run(_PUSH, review="blocked")
         self.assertEqual(r.returncode, 2, "a broken reporter must not cost the verdict")
+
+    # ---- accuracy of the reason --------------------------------------------
+    # Also moved from the Stop tests (stage 3). They were the only callers that
+    # told `failopen_state.import_failure_reason`'s two branches apart; without
+    # them a mutant answering "failed to import" for both survived 65 push tests.
+
+    def _degraded_reasons(self):
+        with open(self._streak_file(), encoding="utf-8") as fh:
+            return [g["reason"] for g in json.load(fh)["gates"]]
+
+    def test_present_but_none_is_not_called_an_import_failure(self):
+        """A module can import cleanly and bind the symbol to None — which is
+        exactly how tests disable a gate. Calling that "failed to import" put a
+        reason in the state file that never happened."""
+        self._write(os.path.join(self.hooks_dir, "_lib", "review_guard.py"),
+                    "evaluate_review = None\n")
+        r = self._run(_PUSH)
+        self.assertEqual(r.returncode, 0)
+        self.assertIn("imported but evaluate_review is None", r.stdout)
+        self.assertNotIn("failed to import", r.stdout)
+        self.assertEqual(self._degraded_reasons(),
+                         ["_lib/review_guard.py imported but evaluate_review is None"])
+
+    def test_a_real_import_failure_carries_the_exception_text(self):
+        self._write(os.path.join(self.hooks_dir, "_lib", "review_guard.py"),
+                    "raise RuntimeError('very specific')\n")
+        r = self._run(_PUSH)
+        self.assertEqual(r.returncode, 0)
+        self.assertIn("failed to import", r.stdout)
+        self.assertIn("very specific", r.stdout)
+        [reason] = self._degraded_reasons()
+        self.assertIn("RuntimeError: very specific", reason)
 
 
 class DetectionSurvivesABroken_libTest(unittest.TestCase):
