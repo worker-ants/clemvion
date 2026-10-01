@@ -7,7 +7,7 @@
     "targets": "human-readable required co-update locations (may contain <placeholders>/{ko,en} braces)",
     "verify": "verification command string (literal), or null if manual/none",
     "guard_tests": "specific *.test.ts files this row's guard relies on (subset, existence-checked)",
-    "convention_ref": "spec/conventions/*.md or spec/*.md SoT path, or null"
+    "convention_ref": "NERV mirror path spec/<area key>/<KEY>.md of the SoT spec, or null"
   },
   "rows": [
     {
@@ -56,7 +56,7 @@
       ],
       "verify": "cd codebase/channel-web-chat && npm test -- i18n",
       "guard_tests": ["catalog.test.ts"],
-      "convention_ref": "spec/conventions/i18n-userguide.md"
+      "convention_ref": "spec/CLE-UI/CLE-UI-I18N.md"
     },
     {
       "id": "integration-provider-change",
@@ -90,7 +90,7 @@
       ],
       "verify": null,
       "guard_tests": [],
-      "convention_ref": "spec/conventions/swagger.md"
+      "convention_ref": "spec/CLE-API/CLE-API-SWAGGER.md"
     },
     {
       "id": "new-bullmq-queue",
@@ -99,12 +99,12 @@
       "targets": [
         "codebase/backend/src/modules/system-status/system-status.constants.ts 의 MONITORED_QUEUES 등록",
         "codebase/backend/test/system-status.e2e-spec.ts 의 EXPECTED_QUEUE_NAMES",
-        "spec/5-system/16-system-status-api.md §1 모니터링 큐 표",
-        "spec/data-flow/0-overview.md §3 인프라 큐 개수 + §4 BullMQ 큐 카탈로그"
+        "spec/CLE-OBS/CLE-OBS-STATUS.md 「모니터링 대상 큐」 표",
+        "spec/CLE-PLAT/CLE-PLAT-ARCH.md 「핵심 사실」 큐 개수 + spec/CLE-PLAT/CLE-PLAT-QUEUE.md 「BullMQ 큐 목록」"
       ],
       "verify": "make e2e-test",
       "guard_tests": [],
-      "convention_ref": "spec/5-system/16-system-status-api.md"
+      "convention_ref": "spec/CLE-OBS/CLE-OBS-STATUS.md"
     },
     {
       "id": "new-warning-code",
@@ -133,13 +133,13 @@
       "change_type": "신규 cross-cutting enum 값 추가",
       "trigger": { "globs": [], "match": "semantic" },
       "targets": [
-        "spec/conventions/interaction-type-registry.md 의 매트릭스에 행 추가",
+        "spec/CLE-IX/CLE-IX-TYPES.md 「처리 분기 매트릭스」에 행 추가",
         "매트릭스가 가리키는 모든 코드 분기 위치 동시 갱신 (TS assertNever 패턴)",
         "AST 가드 통과"
       ],
       "verify": "cd codebase/frontend && npm test -- interaction-type-exhaustiveness",
       "guard_tests": ["interaction-type-exhaustiveness.test.ts"],
-      "convention_ref": "spec/conventions/interaction-type-registry.md"
+      "convention_ref": "spec/CLE-IX/CLE-IX-TYPES.md"
     },
     {
       "id": "new-backend-ui-zod-value",
@@ -150,20 +150,20 @@
       ],
       "verify": "cd codebase/frontend && npm test -- ui-label-parity",
       "guard_tests": ["ui-label-parity.test.ts"],
-      "convention_ref": "spec/conventions/i18n-userguide.md"
+      "convention_ref": "spec/CLE-UI/CLE-UI-I18N.md"
     },
     {
       "id": "new-handler-output-field",
       "change_type": "신규 handler output field (output.result.* 의 신규 키)",
       "trigger": { "globs": [], "match": "semantic" },
       "targets": [
-        "spec/conventions/data-hydration-surfaces.md §1 매트릭스에 행 추가",
+        "spec/CLE-EXEC/CLE-EXEC-HYDRATION.md 「출력 필드별 복원 매트릭스」에 행 추가",
         "표가 가리키는 모든 frontend hydration 함수 (parseHistoryMessages / threadTurnsToConversationItems / applyExecutionSnapshot 등) 처리 추가",
         "backend handler 의 모든 종결 분기 (single-turn out / multi-turn user_ended / max_turns / condition / error) 에 동일 field 동시 echo"
       ],
       "verify": "cd codebase/frontend && npm test -- hydration-coverage",
       "guard_tests": ["hydration-coverage.test.ts"],
-      "convention_ref": "spec/conventions/data-hydration-surfaces.md"
+      "convention_ref": "spec/CLE-EXEC/CLE-EXEC-HYDRATION.md"
     },
     {
       "id": "auth-session-flow-change",
@@ -181,15 +181,15 @@
       "change_type": "AuthConfig type enum 변경 (api_key / bearer_token / basic_auth / hmac)",
       "trigger": { "globs": [], "match": "semantic" },
       "targets": [
-        "spec/1-data-model.md §2.17 + §2.17.1",
-        "spec/2-navigation/6-config.md Part A AUTH_TYPES",
+        "spec/CLE-TRIG/CLE-TRIG-DATA.md 「AuthConfig」 + 「config JSONB 스키마」",
+        "spec/CLE-TRIG/CLE-TRIG-AUTHCFG.md 「인증 방식별 입력 항목」",
         "codebase/frontend/src/lib/i18n/dict/{ko,en}/authentication.ts 의 type 라벨 + 폼 helper text",
         "codebase/frontend/src/content/docs/06-integrations-and-config/ 의 인증 설정 안내 페이지",
         "DB migration (CHECK 제약)"
       ],
       "verify": "cd codebase/frontend && npm test -- i18n docs",
       "guard_tests": ["i18n.test.ts"],
-      "convention_ref": "spec/1-data-model.md"
+      "convention_ref": "spec/CLE-TRIG/CLE-TRIG-DATA.md"
     },
     {
       "id": "expression-language-change",
@@ -233,7 +233,7 @@
       ],
       "verify": "cd codebase/frontend && npm test -- spec-frontmatter spec-code-paths spec-pending-plan-existence",
       "guard_tests": ["spec-frontmatter.test.ts", "spec-code-paths.test.ts", "spec-pending-plan-existence.test.ts"],
-      "convention_ref": "spec/conventions/spec-impl-evidence.md"
+      "convention_ref": "spec/CLE-ENG/CLE-ENG-SPECEVIDENCE.md"
     },
     {
       "id": "userguide-gui-flow-section",
@@ -244,7 +244,7 @@
       ],
       "verify": "cd codebase/frontend && npm test -- impl-anchor-existence integrations-coverage triggers-coverage",
       "guard_tests": ["impl-anchor-existence.test.ts", "integrations-coverage.test.ts", "triggers-coverage.test.ts"],
-      "convention_ref": "spec/conventions/user-guide-evidence.md"
+      "convention_ref": "spec/CLE-ENG/CLE-ENG-GUIDEEVIDENCE.md"
     },
     {
       "id": "spec-defect-found",

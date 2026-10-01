@@ -5,7 +5,10 @@ guards / conventions that enforce them. Its rows reference, by name, things that
 live elsewhere in the repo:
 
   - `*.test.ts` build-time guards under `codebase/`
-  - `spec/conventions/*.md` and `spec/<area>/*.md` documents
+  - NERV spec mirror documents `spec/<area key>/<KEY>.md` (and, until the
+    frozen old tree is deleted in cutover step 5, `spec/conventions/*.md` and
+    `spec/<n>-<area>/*.md` — PROJECT.md still names a few of those where it
+    describes what an old-tree guard reads)
 
 When one of those is renamed or removed, the matrix silently goes stale — the
 exact failure mode this guard exists for. Rather than re-extract the whole
@@ -33,7 +36,13 @@ MATRIX_HEADING = "## 변경 유형 → 갱신 위치 매핑"
 
 # Reference patterns the matrix carries, each anchored to a concrete file.
 TEST_FILE_RE = re.compile(r"[A-Za-z0-9_-]+\.test\.ts")
-SPEC_PATH_RE = re.compile(r"spec/(?:conventions/[A-Za-z0-9_./-]+|[0-9][A-Za-z0-9_./-]+)\.md")
+# NERV mirror layout (cutover decision D1): `spec/<area key>/<KEY>.md`, or
+# `spec/<KEY>.md` for documents outside any area (`CLE-VISION`).
+MIRROR_PATH_RE = re.compile(r"spec/CLE-[A-Z0-9-]+(?:/CLE-[A-Z0-9-]+)?\.md")
+SPEC_PATH_RE = re.compile(
+    r"spec/(?:conventions/[A-Za-z0-9_./-]+|[0-9][A-Za-z0-9_./-]+"
+    r"|CLE-[A-Z0-9-]+(?:/CLE-[A-Z0-9-]+)?)\.md"
+)
 
 
 def _project_text() -> str:
@@ -97,6 +106,20 @@ class DocSyncMatrixReferencesTest(unittest.TestCase):
             f"Update the matrix or restore the document.",
         )
 
+    def test_references_nerv_mirror_docs(self):
+        """PROJECT.md points at spec documents through the NERV mirror.
+
+        Without this, the existence check above passes vacuously for mirror
+        paths when a regex edit stops matching them — the old-tree branch alone
+        keeps `paths` non-empty until cutover step 5."""
+        mirror = set(MIRROR_PATH_RE.findall(_project_text()))
+        self.assertTrue(
+            mirror,
+            "expected PROJECT.md to reference NERV mirror documents "
+            "(spec/<area key>/<KEY>.md)",
+        )
+        self.assertLessEqual(mirror, set(SPEC_PATH_RE.findall(_project_text())))
+
 
 VALID_MATCH = {"glob", "semantic"}
 ROW_KEYS = {"id", "change_type", "trigger", "targets", "verify", "guard_tests", "convention_ref"}
@@ -155,6 +178,25 @@ class MatrixJsonSsotTest(unittest.TestCase):
                 missing[row["id"]] = ref
         self.assertFalse(
             missing, f"doc-sync-matrix.json convention_ref paths do not exist: {missing}"
+        )
+
+    def test_json_convention_refs_point_to_nerv_mirror(self):
+        """A convention_ref names the rule's SoT, and the SoT is the NERV spec.
+
+        The old `spec/<n>-<area>/` · `spec/conventions/` tree is frozen (cutover
+        step 1) and only removed in step 5, so a ref into it would still pass
+        the existence check above while pointing at a document nobody updates."""
+        refs = [row["convention_ref"] for row in _load_matrix()["rows"]]
+        self.assertTrue(any(refs), "expected at least one non-null convention_ref")
+        stale = {
+            row["id"]: row["convention_ref"]
+            for row in _load_matrix()["rows"]
+            if row["convention_ref"] and not MIRROR_PATH_RE.fullmatch(row["convention_ref"])
+        }
+        self.assertFalse(
+            stale,
+            f"doc-sync-matrix.json convention_ref must be a NERV mirror path "
+            f"spec/<area key>/<KEY>.md: {stale}",
         )
 
     def test_json_concrete_globs_have_existing_base(self):
