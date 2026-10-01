@@ -34,6 +34,7 @@ from __future__ import annotations
 
 import json
 import re
+import sys
 import unittest
 
 from _harness import CLAUDE_DIR, REPO_ROOT
@@ -45,7 +46,10 @@ MATRIX_HEADING = "## 변경 유형 → 갱신 위치 매핑"
 # Reference patterns the matrix carries, each anchored to a concrete file.
 TEST_FILE_RE = re.compile(r"[A-Za-z0-9_-]+\.test\.ts")
 # NERV mirror layout: `spec/<area key>/<KEY>.md`, or `spec/<KEY>.md` for
-# documents outside any area (`CLE-VISION`).
+# documents outside any area (`CLE-VISION`). Deliberately looser than the key
+# grammar in `pull.py` (`KEY_RE`): this only finds candidates in prose. Every
+# cited key is then held to `KEY_RE` by `test_cited_mirror_keys_match_pull_key_grammar`,
+# so the two cannot drift apart silently.
 _MIRROR = r"CLE-[A-Z0-9-]+(?:/CLE-[A-Z0-9-]+)?"
 # Frozen old tree. TRANSITIONAL — remove with the old tree (CLE-T-7M4C4X).
 _LEGACY = r"conventions/[A-Za-z0-9_./-]+|[0-9][A-Za-z0-9_./-]+"
@@ -146,6 +150,29 @@ class DocSyncMatrixReferencesTest(unittest.TestCase):
             f"{sorted(old_tree - OLD_TREE_ALLOWED)}. Point at the NERV mirror "
             f"(spec/<area key>/<KEY>.md) instead.",
         )
+
+
+    def test_cited_mirror_keys_match_pull_key_grammar(self):
+        """Every key in a cited mirror path is a key `pull.py` would write.
+
+        `pull.py` names mirror files after NERV keys (`KEY_RE`). A path whose
+        folder or file stem falls outside that grammar can never be produced by
+        a pull, so a match there means the prose regex above has drifted."""
+        if str(CLAUDE_DIR) not in sys.path:
+            sys.path.insert(0, str(CLAUDE_DIR))
+        from _shared.nerv_read import load_pull
+
+        key_re = load_pull().KEY_RE
+        cited = set(MIRROR_PATH_RE.findall(_project_text()))
+        for row in _load_matrix()["rows"]:
+            for value in [row["convention_ref"] or "", *row["targets"]]:
+                cited.update(MIRROR_PATH_RE.findall(value))
+        self.assertTrue(cited, "expected cited mirror paths")
+        bad = sorted(
+            path for path in cited
+            if not all(key_re.fullmatch(part) for part in path[len("spec/"):-len(".md")].split("/"))
+        )
+        self.assertFalse(bad, f"mirror paths whose keys pull.py KEY_RE rejects: {bad}")
 
 
 VALID_MATCH = {"glob", "semantic"}

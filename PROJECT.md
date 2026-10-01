@@ -488,4 +488,4 @@ npx ts-node codebase/backend/src/scripts/cleanup-invalid-queue-jobs.ts --apply -
 - **표현식 언어**: `{{ ... }}` 템플릿. tokenizer / parser / AST evaluator 는 `codebase/packages/expression-engine` SSOT. 평가 의미는 백엔드·프론트엔드 공유
 - **노드 출력 컨벤션**: `spec/CLE-NODE/CLE-NODE-OUTPUT.md` 의 11 Principle (5필드 invariant: `{config, output, meta?, port?, status?}`, config↔output 직교, meta=메트릭, 에러 컨트랙트 `port:'error'` + `output.error.{code,message,details?}` 등)
 - **인프라 의존**: PostgreSQL (DB) · Redis/BullMQ (캐시·큐) · MinIO (오브젝트 스토리지) · Flyway (DB 마이그레이션) · Socket.io (실시간)
-- **정식 규약**: NERV `convention` 타입 스펙 — `CLE-NODE-OUTPUT`, `CLE-API-SWAGGER`, `CLE-ENG-MIGRATION`, `CLE-IX-THREAD`, `CLE-C24-META` 등. 미러 경로는 `spec/<영역 키>/<KEY>.md` 다(카탈로그 영역 `CLE-C24` · `CLE-MKS` 는 codebase 데이터가 정본이라 미러에 없다)
+- **정식 규약**: NERV `convention` 타입 스펙 — `CLE-NODE-OUTPUT`, `CLE-API-SWAGGER`, `CLE-ENG-MIGRATION`, `CLE-IX-THREAD`, `CLE-C24-META` 등. 미러 경로는 `spec/<영역 키>/<KEY>.md` 다(카탈로그 영역 `CLE-C24` · `CLE-MKS` 는 미러에 넣지 않는다. 카탈로그는 codebase 데이터로 옮기고 있어(전환 4a) 그 전까지 표 파일은 옛 `spec/conventions/*-api-catalog/` 에 있다. `CLE-C24-META` 같은 카탈로그 영역 규약은 NERV 에서 읽는다)
