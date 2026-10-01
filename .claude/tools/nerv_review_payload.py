@@ -18,7 +18,7 @@ main 만). 이 도구는 네트워크를 쓰지 않고 모델도 부르지 않�
      "missing_forced": [], "errors": [], "warnings": []}
 
 main 이 붙이는 것: `branch` · `base_sha` · `head_sha`(리뷰한 커밋) · `task_id` · `idempotency_key`
-(`<task>:<kind>:<head 앞 9자>:<role>`). `changeset` 은 세션 `meta.json` 의 `files` 에서 경로만 뽑은
+(`<task>:<kind>:<mode>:<head 앞 9자>:<role>[:n]`, 형식의 정본은 code-review-agents SKILL §4). `changeset` 은 세션 `meta.json` 의 `files` 에서 경로만 뽑은
 것이다(오케스트레이터는 `{"file_path": …}` 객체로 쓴다. 뽑을 수 없으면 키가 없고, main 이
 `git diff --name-only <base>..<head>` 로 채운다).
 
