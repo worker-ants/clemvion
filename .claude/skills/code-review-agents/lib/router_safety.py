@@ -95,8 +95,8 @@ if _SKILLS_DIR not in sys.path:
 from _lib import project_config  # noqa: E402
 
 
-# Reviewers that must always run when any source-code file changes. The
-# router cannot drop these. Decided with the user after observing that
+# Reviewers that must always run when any file changes — source files by rule 2,
+# every other file by rule 3 (NERV `review_roles.code`). The router cannot drop these. Decided with the user after observing that
 # the router's pattern-only judgment misses domain areas whose path
 # happens not to match any keyword (e.g. `account/`, `payment/`).
 #

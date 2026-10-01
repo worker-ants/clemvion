@@ -18,7 +18,12 @@ NERV 정본 전환 단계 2(NERV Task `CLE-T-4ABTG7`)부터 리뷰 결과의 정
      열린 critical · warning 은 서버가 `pending` 으로 판정한다.
   2. 라운드 `head_sha` 가 이 체크아웃에 있고 HEAD 의 조상이어야 한다. rebase · amend 로 라운드
      head 가 사라졌으면 새 HEAD 로 리뷰를 다시 제출해야 한다.
-  3. 라운드 head 이후 `codebase/**` 를 바꾼 커밋은 모두 설명돼야 한다. 기준 브랜치에서 들어온
+  3. code 라운드에서 `fixed` 로 처분된 발견의 `commit_sha` 는 HEAD 에서 닿는 커밋이어야 한다. NERV 는
+     발견을 프로젝트 전체에서 지문으로 합친다. 그래서 다른 브랜치에서 고친 같은 지적도 이 라운드에
+     `fixed` 로 보인다. 그 수정이 이 브랜치에 없으면 막는다. consistency 라운드의 그런 처분은 막지 않고
+     설명에도 쓰지 않는다(push 판정이 consistency 상태에 기대지 않기 때문이다). 4 가 처분 커밋을
+     설명의 근거로 쓰므로 이 검사가 먼저다.
+  4. 라운드 head 이후 `codebase/**` 를 바꾼 커밋은 모두 설명돼야 한다. 기준 브랜치에서 들어온
      커밋은 뺀다. merge 커밋은 모든 부모와 다른 `codebase/**` 파일이 있을 때만 센다(`git diff-tree
      --cc`. 충돌을 손으로 푼 코드 · evil merge). 설명된 커밋은 둘 중 하나다.
        - code · consistency 라운드에서 `fixed` 로 처분된 발견의 `commit_sha` 다.
@@ -26,11 +31,8 @@ NERV 정본 전환 단계 2(NERV Task `CLE-T-4ABTG7`)부터 리뷰 결과의 정
          처분 하나에 커밋이 여럿인 경우).
      리뷰 뒤 fix 커밋만 있으면 새 라운드 없이 통과한다. **fix 커밋은 다시 리뷰되지 않는다.** `fixed`
      처분과 인용은 main 세션의 자기 신고이고, 이 게이트는 커밋이 처분에 묶였는지만 본다. 리뷰 뒤
-     변경이 크면 새 라운드를 제출한다(`code-review-agents` SKILL §4).
-  4. code 라운드에서 `fixed` 로 처분된 발견의 `commit_sha` 는 HEAD 에서 닿는 커밋이어야 한다. NERV 는
-     발견을 프로젝트 전체에서 지문으로 합친다. 그래서 다른 브랜치에서 고친 같은 지적도 이 라운드에
-     `fixed` 로 보인다. 그 수정이 이 브랜치에 없으면 막는다. consistency 라운드의 그런 처분은 막지 않고
-     설명에도 쓰지 않는다(push 판정이 consistency 상태에 기대지 않기 때문이다).
+     변경이 크면 새 라운드를 제출한다(`code-review-agents` SKILL §4). 이 게이트가 막는 것은 누락이지
+     의도적 우회가 아니다.
   변경이 없으면 통과한다. 커밋하지 않은 변경은 push 되지 않으므로 보지 않는다.
 
 판정하지 못하면(`GateUnavailable`) 호출자가 fail-open 하고 그 사실을 센다(push 훅의 배너와
@@ -119,7 +121,9 @@ def _client_from_env():
     except _nerv_read.NervConfigError as exc:
         raise GateMisconfigured(str(exc)) from exc
     except _nerv_read.NervReadError as exc:
-        raise GateUnavailable(str(exc)) from exc
+        # pull.py 를 불러오지 못하면 고칠 때까지 계속 실패한다. 일시 장애가 아니라 설정 문제로 둔다
+        # (CI 가 --enforce 에서 실패로 본다).
+        raise GateMisconfigured(str(exc)) from exc
 
 
 def fetch_rounds(client, branch: str) -> dict[str, dict]:
@@ -276,12 +280,25 @@ def _short(sha: str) -> str:
     return sha[:12]
 
 
+def _one_line(text: str, limit: int = 60) -> str:
+    """서버가 준 문자열을 메시지에 넣기 전에 줄바꿈 · 제어 문자를 접고 자른다."""
+    return " ".join(str(text).split())[:limit]
+
+
+def _shown(labels: list[str], unit: str) -> str:
+    """메시지용 목록. `_LIST_LIMIT` 개까지 보이고 나머지는 수로만 적는다."""
+    text = ", ".join(labels[:_LIST_LIMIT])
+    if len(labels) > _LIST_LIMIT:
+        text += f" 외 {len(labels) - _LIST_LIMIT}{unit}"
+    return text
+
+
 def _not_passed_reason(item: dict, branch: str) -> str:
     state = item.get("state")
     if state == "uncovered":
         return (f"브랜치 `{branch}` 에 kind=code 리뷰 라운드가 없다. `/ai-review` 뒤 역할마다 "
                 "`nerv_review_submit`(kind=code, branch, head_sha=HEAD, task_id)으로 제출한다.")
-    reasons = [_REASON_TEXT.get(r, str(r)) for r in item.get("reasons") or []]
+    reasons = [_REASON_TEXT.get(r, _one_line(r)) for r in item.get("reasons") or []]
     opened = item.get("open") if isinstance(item.get("open"), dict) else {}
     counts = " · ".join(f"{k} {v}" for k, v in opened.items() if v)
     roles = item.get("roles") if isinstance(item.get("roles"), dict) else {}
@@ -290,7 +307,7 @@ def _not_passed_reason(item: dict, branch: str) -> str:
     if counts:
         detail += f" (열린 발견 {counts})"
     if missing:
-        detail += f" (빠진 역할 {', '.join(map(str, missing))})"
+        detail += f" (빠진 역할 {', '.join(_one_line(m, 40) for m in missing)})"
     return (f"kind=code 라운드 {item.get('round_no')} 가 `{state}` 다 — {detail}. "
             "발견을 `nerv_finding_resolve` 로 처분하거나 빠진 역할을 제출한다.")
 
@@ -349,22 +366,29 @@ def evaluate_review(
             "제출한다.",
         )
 
-    # (4) code 라운드의 처분 커밋이 이 브랜치에 있는가.
+    # N1 이 발견 목록을 잘라 보냈으면 (3) · (4) 는 받은 목록만 본다. 어느 판정에든 알린다.
+    total = item.get("findings_total")
+    got = len(item.get("findings") or [])
+    notes: tuple[str, ...] = ()
+    if isinstance(total, int) and total > got:
+        notes = (f"참고: N1 응답이 발견 {total}건 중 {got}건만 담았다. 빠진 발견의 처분 커밋은 보지 못했다.",)
+
+    # (3) code 라운드의 처분 커밋이 이 브랜치에 있는가.
     code_fixes = _fixed_findings(item)
     code_reach, code_foreign = _settle(code_fixes, head_sha, cwd)
     if code_foreign:
         labels = []
         for sha in code_foreign:
             titles = [f.title for f in code_fixes if f.sha == sha]
-            labels.append(f"`{_short(sha)}` ({titles[0][:60]}{' 외' if len(titles) > 1 else ''})")
-        shown = ", ".join(labels[:_LIST_LIMIT]) + (f" 외 {len(labels) - _LIST_LIMIT}건" if len(labels) > _LIST_LIMIT else "")
+            labels.append(f"`{_short(sha)}` ({_one_line(titles[0])}{' 외' if len(titles) > 1 else ''})")
         return ReviewDecision(
             True,
-            f"kind=code 라운드 {round_no} 의 fixed 처분 커밋이 이 브랜치에 없다: {shown}. 다른 브랜치에서 "
-            "고친 같은 지적일 수 있다. 이 브랜치에서 고치고 그 커밋으로 처분하거나 리뷰를 다시 제출한다.",
+            f"kind=code 라운드 {round_no} 의 fixed 처분 커밋이 이 브랜치에 없다: {_shown(labels, '건')}. 다른 "
+            "브랜치에서 고친 같은 지적일 수 있다. 이 브랜치에서 고치고 그 커밋으로 처분하거나 리뷰를 다시 제출한다.",
+            notes,
         )
 
-    # (3) 라운드 이후 codebase/ 커밋은 모두 설명돼야 한다. consistency 라운드의 처분은 이 브랜치에서
+    # (4) 라운드 이후 codebase/ 커밋은 모두 설명돼야 한다. consistency 라운드의 처분은 이 브랜치에서
     # 닿는 것만 쓴다(닿지 않는 것은 막지도 설명하지도 않는다).
     cons_fixes = _fixed_findings(rounds.get("consistency"))
     cons_reach, _ = _settle(cons_fixes, head_sha, cwd)
@@ -377,14 +401,7 @@ def evaluate_review(
     cited = _citations(by_sha, cwd)
     unexplained = [c for c in by_sha if not (cited.get(c, set()) & fixed_ids)]
     if unexplained:
-        shown = ", ".join(f"`{_short(c)}`" for c in unexplained[:_LIST_LIMIT])
-        if len(unexplained) > _LIST_LIMIT:
-            shown += f" 외 {len(unexplained) - _LIST_LIMIT}개"
-        notes: tuple[str, ...] = ()
-        total = item.get("findings_total")
-        if isinstance(total, int) and total > len(item.get("findings") or []):
-            notes = (f"참고: N1 응답이 발견 {total}건 중 {len(item.get('findings') or [])}건만 담았다. "
-                     "빠진 발견의 처분 커밋은 보지 못했다.",)
+        shown = _shown([f"`{_short(c)}`" for c in unexplained], "개")
         return ReviewDecision(
             True,
             f"kind=code 라운드 {round_no} 이후 codebase/ 를 바꾼 커밋 {len(unexplained)}개가 fixed 처분 "
@@ -403,4 +420,5 @@ def evaluate_review(
         False,
         f"codebase/ 파일 {len(changed)}개를 kind=code 라운드 {round_no}(head `{_short(round_head)}`, passed)가 "
         f"덮는다{tail} — 통과",
+        notes,
     )

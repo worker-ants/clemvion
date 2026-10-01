@@ -94,8 +94,8 @@ def main(argv=None) -> int:
             return 1
         return 0
     except Exception as exc:  # noqa: BLE001
-        print(f"review-gate: 판정하지 못했습니다 — 통과시킵니다 ({type(exc).__name__}: {exc})",
-              file=sys.stderr)
+        # `::warning::` 는 Actions 가 PR 화면에 어노테이션으로 띄운다. 로컬에서는 그냥 한 줄이다.
+        print(f"::warning::review-gate: 판정하지 못했습니다 — 통과시킵니다 ({type(exc).__name__}: {exc})")
         return 0
 
     for note in notes:

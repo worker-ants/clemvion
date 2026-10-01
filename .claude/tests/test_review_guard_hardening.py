@@ -30,6 +30,7 @@ from _shared import git_probe
 
 TESTS_DIR = pathlib.Path(__file__).resolve().parent
 
+
 class PorcelainPathTest(unittest.TestCase):
     def test_plain_modified(self):
         self.assertEqual(git_probe._porcelain_path(" M codebase/a.ts"), "codebase/a.ts")

@@ -20,9 +20,9 @@ module, not a convention.
 
 **Location.** Resolve reports against the **session directory**, never against the
 manifest's `output_file`. That field records the worktree the session was *prepared* in
-(`…/.claude/worktrees/<task>-<slug>/review/code/…`). Worktrees are deleted when their task
-ends while `review/**` is committed, so the same session is read later from a different
-worktree at a different absolute path. Trusting the recorded path reports "no report" for
+(`…/.claude/worktrees/<task>-<slug>/.review/code/…`). Worktrees are deleted when their task
+ends, and a session can be read from a different worktree than the one that prepared it
+(until NERV cutover stage 2 `review/**` was committed and read back from any worktree). Trusting the recorded path reports "no report" for
 every session whose worktree is gone — 537 of 575 committed sessions when measured, which
 would fire a coverage gate on nearly everything. Only the directory is re-anchored; the
 basename still comes from the manifest so a future naming change follows automatically.

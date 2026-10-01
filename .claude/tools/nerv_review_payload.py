@@ -7,7 +7,7 @@ NERV 정본 전환 단계 2(NERV Task `CLE-T-4ABTG7`)부터 리뷰 결과는 저
 제출은 main 세션이 역할마다 `nerv_review_submit` 을 불러 한다(결정 D7 역할별 제출 · D9 NERV 쓰기는
 main 만). 이 도구는 네트워크를 쓰지 않고 모델도 부르지 않는다.
 
-    python3 .claude/tools/nerv_review_payload.py <session_dir> [--kind code|consistency|merge|spec_coverage]
+    python3 .claude/tools/nerv_review_payload.py <session_dir> [--kind code|consistency]
 
 출력(JSON):
     {"kind": "code", "session_dir": "...", "changeset": ["a/b.ts", ...],
@@ -18,20 +18,22 @@ main 만). 이 도구는 네트워크를 쓰지 않고 모델도 부르지 않�
      "missing_forced": [], "errors": [], "warnings": []}
 
 main 이 붙이는 것: `branch` · `base_sha` · `head_sha`(리뷰한 커밋) · `task_id` · `idempotency_key`
-(`<task>:<kind>:<head 앞 9자>:<role>`. 같은 키로 다시 내면 서버가 같은 제출로 본다). `changeset` 은
-세션 `meta.json` 의 `files` 다(없으면 키가 없다. main 이 `git diff --name-only <base>..<head>` 로 채운다).
+(`<task>:<kind>:<head 앞 9자>:<role>`). `changeset` 은 세션 `meta.json` 의 `files` 에서 경로만 뽑은
+것이다(오케스트레이터는 `{"file_path": …}` 객체로 쓴다. 뽑을 수 없으면 키가 없고, main 이
+`git diff --name-only <base>..<head>` 로 채운다).
 
 역할은 세션 `_retry_state.json` 의 `subagent_invocations` 가 정한다. 그 목록에 없는 `*.md`(예: 처리
 중에 생긴 제안 파일)는 역할 리포트가 아니므로 내지 않고 `warnings` 에 남긴다. `errors` 가 있거나
 `missing_forced` 가 비어 있지 않으면 exit 1 이다. 그대로 내면 라운드가 틀린다.
   - 강제 역할의 리포트가 빠졌다(`missing_forced`). 라운드가 `missing_roles` 로 남는다.
   - kind=code 인데 상태 파일이 없거나 역할 목록이 없다. 강제 역할 누락을 확인하지 못한다.
-  - 낼 묶음이 하나도 없다. spec_coverage 세션은 `SUMMARY.md` 하나뿐이라 이 도구가 묶음을 만들지
-    않는다(제출 절차는 NERV Task `CLE-T-VP5KDJ` 전환 4e 에서 정한다).
+  - 낼 묶음이 하나도 없다.
+  - 어느 역할의 위험도가 HIGH 인데 critical · warning 발견을 하나도 읽지 못했다.
+  - merge · spec_coverage 세션이다. 두 kind 의 제출 절차는 NERV Task `CLE-T-VP5KDJ`(전환 4e)에서 정한다.
 리포트 형식은 리뷰어 · checker 정의(`.claude/agents/*.md` §출력 형식)가 정본이다:
 `- **[CRITICAL|WARNING|INFO]** 제목` 아래 `위치:` · `상세:` · `제안:` 하위 항목, `### 요약`, `### 위험도`.
-그 형식에서 벗어난 심각도 표지는 `warnings` 에 줄 번호와 함께 남긴다. 조용히 버리면 발견이 빠진
-채 라운드가 passed 가 된다.
+`- **[SEV] 제목**` 처럼 굵게가 제목까지 감싼 줄도 발견으로 읽는다. 그 밖에 심각도 표지가 있는 줄은
+`warnings` 에 줄 번호와 함께 남긴다. 조용히 버리면 발견이 빠진 채 라운드가 passed 가 된다.
 """
 
 from __future__ import annotations
@@ -47,17 +49,28 @@ if _CLAUDE_DIR not in sys.path:
     sys.path.insert(0, _CLAUDE_DIR)
 from _shared import block_integrity, report_paths  # noqa: E402
 
-KINDS = ("code", "consistency", "merge", "spec_coverage")
+KINDS = ("code", "consistency")
+# NERV 정책 `review_roles.code` 의 필수 역할. router 가 늘 강제하지만 `REVIEW_AGENTS` 로 좁히면 빠질 수
+# 있어 kind=code 에서 빠지면 경고한다(라운드가 `missing_roles` 로 남는다).
+NERV_REQUIRED_ROLES = ("security", "requirement", "scope", "side_effect", "maintainability", "testing")
+_SPEC_DRIFT_RE = re.compile(r"\[?SPEC[-_ ]DRIFT\]?", re.I)
+# 세션 경로로 알아보지만 제출 절차가 아직 없는 kind(NERV Task `CLE-T-VP5KDJ` 전환 4e).
+DEFERRED_KINDS = ("merge", "spec_coverage")
 # 세션 디렉터리 이름 → kind. 오케스트레이터가 `.review/<이름>/<Y>/<m>/<d>/<H_M_S>` 에 쓴다.
 _DIR_KIND = {"code": "code", "consistency": "consistency", "merge": "merge",
              "spec-coverage": "spec_coverage"}
 # 리포트가 아닌 세션 파일. `_` 로 시작하는 파일(상태 · 프롬프트)도 뺀다.
 _NOT_REPORTS = {"SUMMARY.md", "RESOLUTION.md", "README.md"}
 
+# 발견 줄. 정의의 형식(`**[SEV]** 제목`)과, 리뷰어가 흔히 쓰는 `**[SEV] 제목**` 을 함께 받는다(9월 역할
+# 리포트 5,447개 중 187개가 뒤의 형식이었다. 2026-10-01 리뷰 실측).
 _FINDING_RE = re.compile(
-    r"^\s{0,3}(?:[-*]|\d+[.)])\s+\*\*\[(CRITICAL|WARNING|INFO)\]\*\*\s*(.*)$", re.I)
+    r"^\s{0,3}(?:[-*]|\d+[.)])\s+\*\*\[(CRITICAL|WARNING|INFO)\](?:\*\*\s*(.*)|\s*(.*?)\*\*\s*(.*))$", re.I)
 _HEADING_FINDING_RE = re.compile(r"^#{2,6}\s+\[(CRITICAL|WARNING|INFO)\]\s*(.*)$", re.I)
-_MARKER_RE = re.compile(r"\[(CRITICAL|WARNING)\]", re.I)
+# 형식 밖 표지: `[` 나 `**` 바로 뒤(공백 허용)에 오는 심각도 단어. `[CRITICAL/HIGH]` · `[WARNING — 인증]` ·
+# `[ CRITICAL ]` · `**CRITICAL**` 이 모두 걸린다(2026-10-01 리뷰 재현: 옛 `\[(CRITICAL|WARNING)\]` 는 넷 다
+# 놓쳤다). `### 위험도` 의 맨 단어 `CRITICAL` 은 괄호 · 굵게가 아니라 걸리지 않는다.
+_MARKER_RE = re.compile(r"(?:\[|\*\*)\s*(CRITICAL|WARNING)\b", re.I)
 _HEADING_RE = re.compile(r"^#{1,6}\s")
 _FIELD_RE = re.compile(r"^\s+[-*]\s+(위치|target 위치|상세|제안|충돌 대상)\s*[:：]\s*(.*)$")
 _LOCATION_RE = re.compile(r"`([^`\s]+?)(?::(\d+)(?:[-~]\d+)?)?`")
@@ -126,6 +139,10 @@ def _finding(severity: str, title: str, block: list[str], role: str) -> dict:
         "body": _cap("\n\n".join(p for p in body_parts if p), MAX_BODY),
         "category": role,
     }
+    # 구현이 아니라 스펙이 낡은 발견(requirement-reviewer 의 `[SPEC-DRIFT]`)은 NERV 분류에 그대로 싣는다.
+    if _SPEC_DRIFT_RE.search(title):
+        out["tags"] = ["spec_drift"]
+        out["area"] = "spec"
     suggestion = "\n".join(x for x in fields.get("제안", []) if x).strip()
     if suggestion:
         out["suggestion"] = _cap(suggestion, MAX_SUGGESTION)
@@ -145,7 +162,9 @@ def parse_report(text: str, role: str) -> tuple[dict, list[str]]:
     for i, ln in enumerate(lines):
         m = _FINDING_RE.match(ln) or _HEADING_FINDING_RE.match(ln)
         if m:
-            starts.append((i, m.group(1), m.group(2)))
+            # `**[SEV]:** 제목` 은 뒤 형식으로 읽혀 제목 앞에 `:` 가 남는다. 걷는다.
+            title = " ".join(g for g in m.groups()[1:] if g).lstrip(":：-— ").strip()
+            starts.append((i, m.group(1), title))
         elif _MARKER_RE.search(ln):
             # 표 · 인용 줄도 센다. 9월 역할 리포트 5,457개 중 그런 줄은 1개(인용)라 경고가 흔하지 않고,
             # 빼면 표에 쓴 발견이 경고 없이 빠진다.
@@ -188,20 +207,16 @@ def _load_json(path: str):
         return None
 
 
-def _roles(state) -> dict[str, str] | None:
+def _roles(session_dir: str, state) -> dict[str, str] | None:
     """역할 이름 → 세션의 리포트 파일 이름. 상태 파일에 역할 목록이 없으면 None.
 
-    `output_file` 은 오케스트레이터가 절대 경로로 쓴다. 세션 디렉터리 바로 아래 파일만 보므로 이름만
-    쓴다."""
-    invocations = state.get("subagent_invocations") if isinstance(state, dict) else None
-    if not isinstance(invocations, list):
+    경로 해석은 강제 역할 검사(`report_paths.missing_reports`)와 같은 `report_paths` 를 쓴다. 따로
+    풀면 둘이 갈린다. `output_file` 이 `/` 로 끝나면 이 함수만 빈 이름을 얻어 그 역할을 빼고, 검사는
+    `<name>.md` 로 풀어 "있다" 고 봐서 강제 역할이 조용히 빠졌다(2026-10-01 리뷰 재현)."""
+    if not isinstance(state, dict) or not isinstance(state.get("subagent_invocations"), list):
         return None
-    roles: dict[str, str] = {}
-    for inv in invocations:
-        name = inv.get("name") if isinstance(inv, dict) else None
-        if isinstance(name, str) and name:
-            out = inv.get("output_file")
-            roles[name] = os.path.basename(out) if isinstance(out, str) and out else f"{name}.md"
+    roles = {name: os.path.basename(path) for name, path in report_paths.report_paths(session_dir, state).items()
+             if isinstance(name, str)}
     return roles or None
 
 
@@ -209,6 +224,11 @@ def build(session_dir: str, kind: str | None = None) -> dict:
     if not os.path.isdir(session_dir):
         raise SystemExit(f"nerv_review_payload: 세션 디렉터리가 없다 — {session_dir}")
     kind = kind or kind_of(session_dir)
+    if kind in DEFERRED_KINDS:
+        return {"kind": kind, "session_dir": os.path.abspath(session_dir), "submissions": [],
+                "missing_forced": [], "warnings": [],
+                "errors": [f"kind={kind} 의 NERV 제출 절차는 전환 4e(NERV Task CLE-T-VP5KDJ)에서 정한다 — "
+                           "이 도구는 아직 묶음을 만들지 않는다"]}
     if kind not in KINDS:
         raise SystemExit("nerv_review_payload: kind 를 정하지 못했다 — --kind 로 준다")
     names = sorted(
@@ -221,7 +241,7 @@ def build(session_dir: str, kind: str | None = None) -> dict:
     warnings: list[str] = []
 
     state = _load_json(os.path.join(session_dir, "_retry_state.json"))
-    roles = _roles(state)
+    roles = _roles(session_dir, state)
     if roles is None:
         plan = [(n[:-3], n) for n in names]
         if kind == "code":
@@ -244,14 +264,24 @@ def build(session_dir: str, kind: str | None = None) -> dict:
         submission, w = parse_report(text, role)
         submissions.append(submission)
         warnings.extend(w)
+        # 위험도는 HIGH 인데 막는 발견이 하나도 안 읽혔으면 형식이 어긋나 발견이 빠졌을 공산이 크다.
+        blocking = [f for f in submission["findings"] if f["severity"] in ("critical", "warning")]
+        if submission["reviewer"].get("risk") == "high" and not blocking:
+            errors.append(f"{name}: 위험도가 HIGH 인데 critical · warning 발견을 하나도 읽지 못했다 — 발견 형식을 확인한다")
 
     missing: list[str] = []
     if isinstance(state, dict):
-        missing = report_paths.missing_reports(session_dir, state.get("agents_forced") or [], state)
+        forced = state.get("agents_forced") or []
+        missing = report_paths.missing_reports(session_dir, forced, state)
+        # 리포트가 있어도 묶음에 안 들어갔으면 빠진 것이다(해석이 갈려도 조용히 지나가지 않게).
+        submitted = {s["reviewer"]["role"] for s in submissions}
+        missing += [r for r in forced if isinstance(r, str) and r not in submitted and r not in missing]
     if not submissions:
-        why = (" spec_coverage 세션은 SUMMARY.md 하나뿐이라 이 도구가 묶음을 만들지 않는다"
-               "(제출 절차는 전환 4e)." if kind == "spec_coverage" else "")
-        errors.append("제출할 역할 리포트가 없다." + why)
+        errors.append("제출할 역할 리포트가 없다.")
+    if kind == "code" and submissions:
+        absent = [r for r in NERV_REQUIRED_ROLES if r not in {s["reviewer"]["role"] for s in submissions}]
+        if absent:
+            warnings.append(f"NERV 필수 역할이 묶음에 없다: {', '.join(absent)} — 라운드가 missing_roles 로 남는다")
     if kind == "consistency":
         # 통합 SUMMARY 가 checker 의 [CRITICAL] 을 낮춰 `BLOCK: NO` 라고 적은 경우. NERV 에는
         # checker 리포트가 그대로 올라가므로 판정은 서버가 바로잡는다. 다만 사람이 읽는 SUMMARY 가
@@ -262,8 +292,10 @@ def build(session_dir: str, kind: str | None = None) -> dict:
     out: dict = {"kind": kind, "session_dir": os.path.abspath(session_dir)}
     meta = _load_json(os.path.join(session_dir, "meta.json"))
     files = meta.get("files") if isinstance(meta, dict) else None
-    if isinstance(files, list) and files and all(isinstance(x, str) for x in files):
-        out["changeset"] = files
+    if isinstance(files, list) and files:
+        paths = [f.get("file_path") if isinstance(f, dict) else f for f in files]
+        if all(isinstance(x, str) and x for x in paths):
+            out["changeset"] = paths
     out.update({"submissions": submissions, "missing_forced": missing,
                 "errors": errors, "warnings": warnings})
     return out

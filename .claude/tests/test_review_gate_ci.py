@@ -166,24 +166,41 @@ class ReviewGateCliTest(unittest.TestCase):
         self.assertIn("통과", r.stdout, "fail-open 으로 0 이 나온 것이 아니어야 한다")
         self.assertIn("branch=pr-branch", server.requests[0][0])
 
+    def test_a_non_default_base_is_used(self):
+        """적층 PR — 기준이 main 이 아니면 그 기준과의 차이만 본다(`--base` 를 무시하면 main 기준으로 막힌다)."""
+        self._git("checkout", "-b", "release")
+        self._write("codebase/backend/src/r.ts", "export const r = 1;\n")
+        self._git("add", "-A")
+        self._git("commit", "-m", "release")
+        self._git("update-ref", "refs/remotes/origin/release", "HEAD")
+        self._git("checkout", "-b", "pr-branch")
+        with _harness.FakeNervServer() as server:
+            r = self._run("--enforce", "--branch", "pr-branch", "--head", "HEAD", "--base", "origin/release",
+                          server=server)
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr[-2000:])
+        self.assertIn("변경이 없다", r.stdout)
+        self.assertEqual(server.requests, [])
+
     def test_the_default_root_resolves_to_this_repository(self):
         """`--root` 없이 도는 경로 — CI 가 매번 쓰는 바로 그 경로다.
 
         형제 테스트가 전부 `--root <tempdir>` 를 넘겨서, 스크립트가 자기 위치로부터 저장소 루트를
         계산하는 두 단계 상위 가정은 한 번도 실행되지 않았다. 그 가정이 깨지면 게이트를 못
         불러와 **fail-open** 하고, CI 는 계속 초록인데 백스톱만 영구히 죽는다. NERV 설정은
-        주지 않는다 — 판정은 "변경 없음" 이거나 "설정 문제" 둘 중 하나여야 한다.
+        주지 않는다.
+
+        기준을 HEAD 로 준다. PR CI 의 체크아웃은 `origin/main` 도 로컬 `main` 도 없는 detached 위상이라
+        기본 기준을 고르면 "기준 브랜치를 찾지 못했다"(fail-open)로 끝나 이 테스트가 그 위상에서만
+        RED 가 된다(2026-10-01 리뷰 재현). 기준이 HEAD 면 변경이 없어 늘 "통과" 다.
         """
-        r = subprocess.run([sys.executable, str(SCRIPT)],
+        r = subprocess.run([sys.executable, str(SCRIPT), "--branch", "x", "--head", "HEAD", "--base", "HEAD"],
                            capture_output=True, text=True, timeout=120,
                            cwd=str(_harness.REPO_ROOT), env=_clean_env())
         self.assertEqual(r.returncode, 0, r.stderr[-2000:])
-        self.assertNotIn("불러오지 못했습니다", r.stderr,
+        self.assertNotIn("불러오지 못했습니다", r.stdout + r.stderr,
                          "기본 루트 산정이 깨져 백스톱이 조용히 무력화됐다")
-        self.assertTrue(
-            "통과" in r.stdout or "설정 문제" in r.stdout,
-            f"판정을 내지 못했다: {r.stdout!r} {r.stderr[-500:]!r}",
-        )
+        self.assertNotIn("::warning::", r.stdout, f"판정을 내지 못했다: {r.stdout!r}")
+        self.assertIn("통과", r.stdout, f"판정을 내지 못했다: {r.stdout!r} {r.stderr[-500:]!r}")
 
     # -- 3. 판정 불가 ---------------------------------------------------------
 
@@ -209,14 +226,14 @@ class ReviewGateCliTest(unittest.TestCase):
             pass  # 닫힌 포트 — 연결이 거부된다
         r = self._run("--enforce", server=server)
         self.assertEqual(r.returncode, 0, r.stdout)
-        self.assertIn("판정하지 못했습니다", r.stderr)
+        self.assertIn("::warning::review-gate: 판정하지 못했습니다", r.stdout)
 
     def test_a_server_error_fails_open(self):
         self._unreviewed_branch()
         with _harness.FakeNervServer(status=503, raw=b"busy") as server:
             r = self._run("--enforce", server=server)
         self.assertEqual(r.returncode, 0, r.stdout)
-        self.assertIn("판정하지 못했습니다", r.stderr)
+        self.assertIn("::warning::review-gate: 판정하지 못했습니다", r.stdout)
 
     def test_a_missing_gate_module_does_not_fail_ci(self):
         """백스톱이 자기 부재로 CI 를 막으면 그건 방어가 아니라 새 장애다."""
@@ -240,7 +257,7 @@ class ReviewGateCliTest(unittest.TestCase):
                     "    raise RuntimeError('boom')\n")
         r = self._run("--enforce")
         self.assertEqual(r.returncode, 0, r.stdout)
-        self.assertIn("판정하지 못했습니다", r.stderr)
+        self.assertIn("::warning::review-gate: 판정하지 못했습니다", r.stdout)
 
     # -- 4. advisory 는 판정과 무관 -------------------------------------------
 
@@ -695,12 +712,8 @@ class TheGateItselfDoesNotBranchOnCiEnvTest(unittest.TestCase):
 
     # (파일, 읽는 환경변수) — 이 목록 밖의 접근은 실패한다.
     _ALLOWED = {
-        # 게이트는 `_shared/nerv_read.py` 로 클라이언트를 만든다(리뷰 인계 도구와 공유).
-        ("nerv_read.py", "NERV_SERVER"),
-        ("nerv_read.py", "NERV_TOKEN"),
-        ("nerv_read.py", "NERV_PROJECT"),
-        # 게이트가 전송을 위임하는 클라이언트 모듈. `load_env` 는 미러 도구 CLI 가 쓰고 게이트는
-        # 부르지 않지만, 같은 파일이라 스캔 대상이다.
+        # 게이트가 전송과 환경 해석을 위임하는 클라이언트 모듈. 게이트는 `_shared/nerv_read.py` 를
+        # 거쳐 `load_env` 를 부른다(미러 도구 CLI · 리뷰 인계 도구와 같은 함수).
         ("pull.py", "NERV_SERVER"),
         ("pull.py", "NERV_TOKEN"),
         ("pull.py", "NERV_PROJECT"),

@@ -500,7 +500,8 @@ class Nerv:
             if not ETAG_RE.fullmatch(etag):
                 raise PullError("etag 형식이 아니다")
             cfg.append(f'header = "If-None-Match: \\"{etag}\\""')
-        cmd = ["curl", "-sS", "-q", "-g", "--proto", "=https,http", "-K", "-", "-D", "-",
+        # `-q` 는 첫 인자일 때만 `~/.curlrc` 를 끈다(curl 문서).
+        cmd = ["curl", "-q", "-sS", "-g", "--proto", "=https,http", "-K", "-", "-D", "-",
                "--max-time", self.max_time, "--max-filesize", str(MAX_DOWNLOAD_BYTES),
                "-A", USER_AGENT, f"{self.server}{path}"]
         try:
@@ -544,13 +545,17 @@ def parse_response(raw: bytes) -> tuple[int, bytes]:
         return status, body
 
 
-def load_env() -> Nerv:
+def load_env(*, max_time: str = CURL_MAX_TIME) -> Nerv:
+    """환경의 `NERV_SERVER` · `NERV_TOKEN` · `NERV_PROJECT`(기본 `clemvion`)로 클라이언트를 만든다.
+
+    미러 도구 CLI 와 리뷰 게이트 · 인계 도구(`.claude/_shared/nerv_read.py`)가 함께 쓴다. 값은 오류
+    메시지에 싣지 않는다."""
     server = os.environ.get("NERV_SERVER", "")
     token = os.environ.get("NERV_TOKEN", "")
     project = os.environ.get("NERV_PROJECT", "clemvion")
     if not server or not token:
         raise PullError("NERV_SERVER · NERV_TOKEN 이 필요하다(.claude/settings.local.json env)")
-    return Nerv(server, project, token)
+    return Nerv(server, project, token, max_time=max_time)
 
 
 # -- --check ---------------------------------------------------------------------

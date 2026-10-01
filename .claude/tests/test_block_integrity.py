@@ -300,6 +300,7 @@ class PayloadSurfacesTheContradictionTest(unittest.TestCase):
         d = self._session("NO", "- **[CRITICAL]** 모순\n", kind_dir="code")
         self.assertFalse(any("SUMMARY.md" in w for w in self._warnings(d)))
 
+
 class AdvisoryReachesTheModelTest(unittest.TestCase):
     """On ALLOW the harness injects stdout, not stderr — and this fires on ALLOW.
 
@@ -407,6 +408,7 @@ class NotesReachThePushHookTest(unittest.TestCase):
         # Pins the reason it passed. Without this the ALLOW path and the
         # crash-then-fail-open path are indistinguishable from stdout alone.
         self.assertNotIn("Traceback", r.stderr)
+
 
 class NotesFromLaterTargetsSurviveAnEarlierBlockTest(unittest.TestCase):
     """Target order must not decide whether an advisory is heard.

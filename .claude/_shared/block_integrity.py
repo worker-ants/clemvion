@@ -85,8 +85,9 @@ _CRITICAL_TAG = re.compile(r"\[CRITICAL\]")
 #     `\s`      0.027s   0.085s   0.331s   1.333s   5.375s   (×4 per doubling)
 #     ` \t`     0.000s   0.000s   0.000s   0.001s   0.001s
 #
-# It matters because this runs on every push and every turn-end, over every
-# session on disk, and a SUMMARY is LLM-written markdown with no enforced size.
+# It mattered because this ran on every push and every turn-end, over every session on
+# disk (the review gate until NERV cutover stage 2). It still runs on every NERV
+# submission, and a SUMMARY is LLM-written markdown with no enforced size.
 # A length cap is deliberately NOT the fix: it cannot bound a quadratic pattern
 # (256KB is still catastrophic), and this repo's own `_MAX_REDACTION_INPUT` note
 # warns that a cap must never gate detection. The linear pattern is the fix; the
@@ -160,10 +161,10 @@ def _read(path: str) -> str:
 def summary_block_verdict(summary_text: str) -> str | None:
     """`"YES"` / `"NO"` from the SUMMARY's verdict line, or None if absent.
 
-    The single parser for this question — `review_guard._summary_block_is_no`
-    delegates here. Two copies of a `BLOCK:` regex is the "Change both" shape
-    this branch is elsewhere removing, and it would have been created in the
-    same diff.
+    The single parser for this question — `contradiction_note()` below and the
+    NERV submission tool reach it here. Two copies of a `BLOCK:` regex is the
+    "Change both" shape this module exists to remove. (The review gate's
+    `_summary_block_is_no` delegated here until NERV cutover stage 2.)
 
     What actually separates a real verdict from a superseded one is the **end
     anchor**, not position: the observed override case

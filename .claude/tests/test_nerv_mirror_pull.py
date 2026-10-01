@@ -891,6 +891,7 @@ class CurlBoundaryTest(unittest.TestCase):
         self.assertIn(("-A", pull.USER_AGENT), pairs)
         self.assertIn(("--max-time", pull.CURL_MAX_TIME), pairs)
         self.assertIn("-g", argv)  # URL 의 [] {} 를 글로브로 풀지 않는다
+        self.assertEqual(argv[0], "-q")  # 첫 인자여야 ~/.curlrc 를 읽지 않는다(로그는 argv[1:])
         self.assertEqual(argv[-1], "https://nerv.example.invalid" + url_path)
 
     def test_max_time_is_configurable_and_validated(self):

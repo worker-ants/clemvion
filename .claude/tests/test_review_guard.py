@@ -138,6 +138,14 @@ class DecisionTableTest(_RepoCase):
         self.assertIn("testing", d.reason)
         self.assertIn("warning 2", d.reason)
 
+    def test_server_strings_are_folded_to_one_line(self):
+        """서버가 준 문자열이 훅 stderr · CI 로그에 줄을 만들지 않는다."""
+        item = code_item("pending", self.c1, reasons=["a\nFAKE: line"], missing=["x\r\ny"])
+        d = self.evaluate(FakeClient(item))
+        self.assertNotIn("\n", d.reason)
+        self.assertNotIn("\r", d.reason)
+        self.assertIn("a FAKE: line", d.reason)
+
     def test_unknown_reason_is_shown_verbatim(self):
         d = self.evaluate(FakeClient(code_item("pending", self.c1, reasons=["new_reason"])))
         self.assertTrue(d.blocked)
@@ -271,6 +279,39 @@ class DecisionTableTest(_RepoCase):
         self.assertFalse(d.blocked, d.reason)
         self.assertIn("메시지 인용", d.reason)
 
+    def test_two_follow_up_commits_citing_the_same_fixed_finding_pass(self):
+        """`git show` 는 두 번째 레코드 앞에 줄바꿈을 붙인다 — 레코드 경계가 둘 다 풀려야 한다."""
+        c2 = self.commit("codebase/backend/src/a.ts", "export const a = 2;\n")
+        fid = finding_id()
+        self.commit("codebase/backend/src/a.ts", "export const a = 3;\n", msg=f"fix: finding {fid} 1")
+        self.commit("codebase/backend/src/a.ts", "export const a = 4;\n", msg=f"fix: finding {fid} 2")
+        d = self.evaluate(FakeClient(code_item("passed", self.c1, findings=[fixed(c2, fid=fid)])))
+        self.assertFalse(d.blocked, d.reason)
+
+    def test_only_the_uncited_commit_among_several_is_named(self):
+        c2 = self.commit("codebase/backend/src/a.ts", "export const a = 2;\n")
+        fid = finding_id()
+        self.commit("codebase/backend/src/a.ts", "export const a = 3;\n", msg=f"fix: finding {fid}")
+        bare = self.commit("codebase/backend/src/b.ts", "export const b = 1;\n", msg="unrelated")
+        self.commit("codebase/backend/src/a.ts", "export const a = 4;\n", msg=f"fix: finding {fid} again")
+        d = self.evaluate(FakeClient(code_item("passed", self.c1, findings=[fixed(c2, fid=fid)])))
+        self.assertTrue(d.blocked)
+        self.assertIn(bare[:12], d.reason)
+        self.assertIn("1개", d.reason)
+
+    def test_many_unexplained_commits_are_summarised(self):
+        shas = [self.commit("codebase/backend/src/a.ts", f"export const a = {i};\n") for i in range(7)]
+        d = self.evaluate(FakeClient(code_item("passed", self.c1)))
+        self.assertTrue(d.blocked)
+        self.assertIn("외 2개", d.reason)
+        self.assertEqual(sum(s[:12] in d.reason for s in shas), 5)
+
+    def test_many_foreign_fixes_are_summarised(self):
+        foreign = [f"{i:x}" * 40 for i in range(1, 8)]
+        d = self.evaluate(FakeClient(code_item("passed", self.c1, findings=[fixed(s[:40]) for s in foreign])))
+        self.assertTrue(d.blocked)
+        self.assertIn("외 2건", d.reason)
+
     def test_the_citation_is_case_insensitive(self):
         c2 = self.commit("codebase/backend/src/a.ts", "export const a = 2;\n")
         fid = finding_id()
@@ -358,6 +399,12 @@ class DecisionTableTest(_RepoCase):
         self.assertTrue(d.blocked)
         self.assertTrue(any("99" in n for n in d.notes), d.notes)
 
+    def test_a_truncated_findings_list_is_mentioned_on_a_pass_too(self):
+        """잘린 목록이면 처분 커밋 소속 검사도 불완전하다. 통과에도 알린다."""
+        d = self.evaluate(FakeClient(code_item("passed", self.c1, total=99)))
+        self.assertFalse(d.blocked, d.reason)
+        self.assertTrue(any("99" in n for n in d.notes), d.notes)
+
     def test_push_blocks_mirrors_blocked(self):
         d = self.evaluate(FakeClient(code_item("uncovered")))
         self.assertEqual(d.push_blocks, d.blocked)
@@ -372,6 +419,13 @@ class DecisionTableTest(_RepoCase):
         self.assertIn("branch=feature", path)
         self.assertIn("kind=code%2Cconsistency", path)
         self.assertNotIn("head_sha", path)
+
+    def test_a_branch_name_with_a_slash_is_encoded(self):
+        """이 저장소의 브랜치는 `claude/<task>-<slug>` 다."""
+        self.git("branch", "-m", "claude/task-abc123")
+        client = FakeClient(code_item("passed", self.c1))
+        self.assertFalse(self.evaluate(client).blocked)
+        self.assertIn("branch=claude%2Ftask-abc123", client.calls[0])
 
     def test_branch_head_and_base_can_be_given_explicitly(self):
         """CI 경로 — merge 커밋이 아니라 PR head 를 판정한다."""
@@ -509,6 +563,13 @@ class RealTransportTest(_RepoCase):
                 self.assertRaises(rg.GateUnavailable) as cm:
             rg.evaluate_review(str(self.repo))
         self.assertNotIsInstance(cm.exception, rg.GateMisconfigured)
+
+    def test_an_unloadable_client_is_misconfiguration(self):
+        """pull.py 가 깨져 불러오지 못하면 고칠 때까지 계속 실패한다 — CI 가 실패로 본다."""
+        with mock.patch.object(rg._nerv_read, "load_pull", side_effect=rg._nerv_read.NervReadError("깨짐")), \
+                mock.patch.dict(os.environ, {"NERV_SERVER": "https://nerv.example.invalid", "NERV_TOKEN": "t"}, clear=True), \
+                self.assertRaises(rg.GateMisconfigured):
+            rg._client_from_env()
 
     def test_the_client_uses_the_short_hook_timeout(self):
         with mock.patch.dict(os.environ, {"NERV_SERVER": "https://nerv.example.invalid",

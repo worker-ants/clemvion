@@ -30,7 +30,8 @@ main 세션의 MCP 호출로만 한다(결정 D9). 그래서 applier 는 처분�
                "e2e_log": "<경로>"}}
 
   - 처분 · 제안의 `finding_id` 는 `_nerv_findings.json` 에 있어야 하고 한 번씩만 나온다.
-  - `fixed` 는 HEAD 에서 닿는 커밋의 전체 해시를 `commit_sha` 로 단다.
+  - `fixed` 는 리뷰한 브랜치(`_nerv_findings.json` 의 `branch`, 이 저장소에 없으면 HEAD)에서 닿는 커밋의
+    전체 해시를 `commit_sha` 로 단다.
   - critical 발견은 `wont_fix` · `dismissed` 로 처분하지 않는다(사람 승인이 필요하다).
   - `spec_change` 는 applier 가 쓰지 않는다. 스펙 결함은 `spec_proposals` 로 넘기고 main 이 NERV 초안을
     저장한 뒤 `spec_change` 로 처분한다. 초안을 쓸 수 없으면 main 이 `escalated(spec)` 로 넘긴다.
@@ -40,9 +41,12 @@ main 세션의 MCP 호출로만 한다(결정 D9). 그래서 applier 는 처분�
 
 `pending` — `_dispositions.json` 의 처분 중 NERV 에서 아직 열려 있고 처분이 붙지 않은 것만 낸다. main 은
 이것만 `nerv_finding_resolve` 로 기록한다. applier 를 다시 부르거나 처분을 다시 기록할 때 이미 기록된
-처분(사람이 NERV 에서 바꾼 것 포함)을 덮지 않는다.
+처분(사람이 NERV 에서 바꾼 것 포함)을 덮지 않는다. `_nerv_findings.json` 에 없는 ID 나 전체 ID 가
+아닌 값은 "이미 기록됨" 으로 섞지 않고 `unknown` 으로 내며 exit 1 이다(`check` 를 먼저 돌린다).
 
 출력은 JSON 이고, 문제가 있으면 exit 1 이다. 이 도구는 NERV 를 읽기만 한다(`_shared/nerv_read.py`).
+`fetch` · `pending` 은 NERV 를 읽으므로 `NERV_SERVER` · `NERV_TOKEN`(선택 `NERV_PROJECT`)이 필요하다.
+로컬은 `.claude/settings.local.json` 의 `env` 가 준다. `check` 는 네트워크를 쓰지 않는다.
 """
 
 from __future__ import annotations
@@ -81,7 +85,7 @@ class HandoffError(Exception):
 # -- NERV 읽기 ----------------------------------------------------------------------
 
 def open_findings(client, branch: str) -> list[dict]:
-    """이 브랜치의 열린 발견 전부(커서를 따라간다)."""
+    """이 브랜치의 열린 발견 전부(커서를 따라간다). 처분이 붙은 것(escalated)도 섞여 있다."""
     items: list[dict] = []
     cursor = None
     for _ in range(MAX_PAGES):
@@ -109,6 +113,11 @@ def open_findings(client, branch: str) -> list[dict]:
     raise HandoffError(f"NERV 발견 목록이 {MAX_PAGES} 쪽을 넘는다 — 끊는다")
 
 
+def unresolved_findings(client, branch: str) -> list[dict]:
+    """열린 발견 중 아직 처분이 붙지 않은 것. `fetch` 와 `pending` 이 같은 기준을 쓴다."""
+    return [i for i in open_findings(client, branch) if not i.get("resolution_kind")]
+
+
 def _normalize(item: dict) -> dict:
     return {
         "finding_id": str(item.get("id") or "").lower(),
@@ -127,7 +136,7 @@ def _normalize(item: dict) -> dict:
 
 
 def fetch(session_dir: str, branch: str, client) -> dict:
-    items = [i for i in open_findings(client, branch) if not i.get("resolution_kind")]
+    items = unresolved_findings(client, branch)
     doc = {"version": VERSION, "branch": branch, "findings": [_normalize(i) for i in items]}
     path = os.path.join(session_dir, FINDINGS_FILE)
     with open(path, "w", encoding="utf-8") as f:
@@ -153,95 +162,130 @@ def _load(session_dir: str, name: str) -> dict:
     return doc
 
 
-def _is_ancestor(sha: str, cwd: str) -> bool:
-    rc, _, _ = git_probe._run_git(["merge-base", "--is-ancestor", sha, "HEAD"], cwd)
+def _ancestor_target(branch, cwd: str) -> str:
+    """fixed 커밋이 닿아야 하는 곳. 리뷰한 브랜치가 이 저장소에 있으면 그것, 없으면 HEAD.
+
+    워크트리는 ref 를 공유하므로 짝 워크트리에서 다른 브랜치를 리뷰해도 브랜치 이름이 풀린다."""
+    if isinstance(branch, str) and branch and not branch.startswith("-"):
+        rc, _, _ = git_probe._run_git(["rev-parse", "--verify", "--quiet", f"refs/heads/{branch}"], cwd)
+        if rc == 0:
+            return f"refs/heads/{branch}"
+    return "HEAD"
+
+
+def _is_ancestor(sha: str, target: str, cwd: str) -> bool:
+    rc, _, _ = git_probe._run_git(["merge-base", "--is-ancestor", sha, target], cwd)
     return rc == 0
+
+
+class _Claims:
+    """처분 · 제안이 가리킨 발견 ID 를 검사하고 한 번씩만 받는다."""
+
+    def __init__(self, severity: dict[str, str], errors: list[str]):
+        self.severity = severity
+        self.errors = errors
+        self.seen: set[str] = set()
+
+    def take(self, fid, where: str) -> bool:
+        if not isinstance(fid, str) or not _UUID.match(fid):
+            self.errors.append(f"{where}: finding_id 가 전체 ID 가 아니다 — {fid!r}")
+            return False
+        if fid not in self.severity:
+            self.errors.append(f"{where}: {fid} 는 {FINDINGS_FILE} 에 없다")
+            return False
+        if fid in self.seen:
+            self.errors.append(f"{where}: {fid} 가 두 번 나온다")
+            return False
+        self.seen.add(fid)
+        return True
+
+
+def _check_disposition(d, where: str, claims: _Claims, target: str, cwd: str) -> None:
+    errors = claims.errors
+    if not isinstance(d, dict):
+        errors.append(f"{where}: 객체가 아니다")
+        return
+    fid = d.get("finding_id")
+    known = claims.take(fid, where)
+    res = d.get("resolution")
+    if res not in RESOLUTIONS:
+        errors.append(f"{where}: resolution 은 {', '.join(RESOLUTIONS)} 중 하나다 — {res!r}")
+    if not isinstance(d.get("rationale"), str) or not d["rationale"].strip():
+        errors.append(f"{where}: rationale 이 없다")
+    if res == "fixed":
+        sha = d.get("commit_sha")
+        if not isinstance(sha, str) or not _FULL_SHA.match(sha):
+            errors.append(f"{where}: fixed 는 40자 commit_sha 를 단다 — {sha!r}")
+        elif not _is_ancestor(sha, target, cwd):
+            errors.append(f"{where}: commit_sha {sha[:12]} 가 리뷰한 브랜치({target})에서 닿지 않는다")
+    if res == "escalated" and d.get("escalate_reason") not in ESCALATE_REASONS:
+        errors.append(f"{where}: escalated 는 escalate_reason 을 단다({', '.join(ESCALATE_REASONS)})")
+    if known and claims.severity.get(fid) == "critical" and res in ("wont_fix", "dismissed"):
+        errors.append(f"{where}: critical 발견을 {res} 로 처분하지 않는다 — 사람 승인이 필요하다")
+
+
+def _check_proposal(p, where: str, claims: _Claims, session_dir: str) -> None:
+    if not isinstance(p, dict):
+        claims.errors.append(f"{where}: 객체가 아니다")
+        return
+    claims.take(p.get("finding_id"), where)
+    name = p.get("file")
+    if not isinstance(name, str) or not _PROPOSAL.match(name):
+        claims.errors.append(f"{where}: file 은 _spec-proposal-<area>.md 다([a-z0-9-]) — {name!r}")
+    elif not os.path.isfile(os.path.join(session_dir, name)):
+        claims.errors.append(f"{where}: {name} 이 세션 디렉터리에 없다")
+
+
+def _list_field(doc: dict, key: str, errors: list[str], *, required: bool) -> list:
+    value = doc.get(key) if required else (doc.get(key) or [])
+    if not isinstance(value, list):
+        errors.append(f"{key} 가 목록이 아니다")
+        return []
+    return value
 
 
 def check(session_dir: str) -> dict:
     findings_doc = _load(session_dir, FINDINGS_FILE)
     disp_doc = _load(session_dir, DISPOSITIONS_FILE)
-    severity = {}
-    for f in findings_doc.get("findings") or []:
-        if isinstance(f, dict) and isinstance(f.get("finding_id"), str):
-            severity[f["finding_id"]] = f.get("severity")
+    severity = {f["finding_id"]: f.get("severity") for f in findings_doc.get("findings") or []
+                if isinstance(f, dict) and isinstance(f.get("finding_id"), str)}
     errors: list[str] = []
-    seen: set[str] = set()
+    claims = _Claims(severity, errors)
+    target = _ancestor_target(findings_doc.get("branch"), session_dir)
 
-    def claim(fid, where) -> bool:
-        if not isinstance(fid, str) or not _UUID.match(fid):
-            errors.append(f"{where}: finding_id 가 전체 ID 가 아니다 — {fid!r}")
-            return False
-        if fid not in severity:
-            errors.append(f"{where}: {fid} 는 {FINDINGS_FILE} 에 없다")
-            return False
-        if fid in seen:
-            errors.append(f"{where}: {fid} 가 두 번 나온다")
-            return False
-        seen.add(fid)
-        return True
-
-    dispositions = disp_doc.get("dispositions")
-    if not isinstance(dispositions, list):
-        errors.append("dispositions 가 목록이 아니다")
-        dispositions = []
+    dispositions = _list_field(disp_doc, "dispositions", errors, required=True)
     for n, d in enumerate(dispositions):
-        where = f"dispositions[{n}]"
-        if not isinstance(d, dict):
-            errors.append(f"{where}: 객체가 아니다")
-            continue
-        fid = d.get("finding_id")
-        known = claim(fid, where)
-        res = d.get("resolution")
-        if res not in RESOLUTIONS:
-            errors.append(f"{where}: resolution 은 {', '.join(RESOLUTIONS)} 중 하나다 — {res!r}")
-        if not isinstance(d.get("rationale"), str) or not d["rationale"].strip():
-            errors.append(f"{where}: rationale 이 없다")
-        if res == "fixed":
-            sha = d.get("commit_sha")
-            if not isinstance(sha, str) or not _FULL_SHA.match(sha):
-                errors.append(f"{where}: fixed 는 40자 commit_sha 를 단다 — {sha!r}")
-            elif not _is_ancestor(sha, session_dir):
-                errors.append(f"{where}: commit_sha {sha[:12]} 가 HEAD 에서 닿지 않는다")
-        if res == "escalated" and d.get("escalate_reason") not in ESCALATE_REASONS:
-            errors.append(f"{where}: escalated 는 escalate_reason 을 단다({', '.join(ESCALATE_REASONS)})")
-        if known and severity.get(fid) == "critical" and res in ("wont_fix", "dismissed"):
-            errors.append(f"{where}: critical 발견을 {res} 로 처분하지 않는다 — 사람 승인이 필요하다")
-
-    proposals = disp_doc.get("spec_proposals") or []
-    if not isinstance(proposals, list):
-        errors.append("spec_proposals 가 목록이 아니다")
-        proposals = []
+        _check_disposition(d, f"dispositions[{n}]", claims, target, session_dir)
+    proposals = _list_field(disp_doc, "spec_proposals", errors, required=False)
     for n, p in enumerate(proposals):
-        where = f"spec_proposals[{n}]"
-        if not isinstance(p, dict):
-            errors.append(f"{where}: 객체가 아니다")
-            continue
-        claim(p.get("finding_id"), where)
-        name = p.get("file")
-        if not isinstance(name, str) or not _PROPOSAL.match(name):
-            errors.append(f"{where}: file 은 _spec-proposal-<area>.md 다([a-z0-9-]) — {name!r}")
-        elif not os.path.isfile(os.path.join(session_dir, name)):
-            errors.append(f"{where}: {name} 이 세션 디렉터리에 없다")
+        _check_proposal(p, f"spec_proposals[{n}]", claims, session_dir)
 
-    undisposed = [fid for fid, sev in severity.items() if fid not in seen and sev in ("critical", "warning")]
-    for fid in undisposed:
-        errors.append(f"{fid} ({severity[fid]}) 의 처분이 없다")
-    left = [fid for fid, sev in severity.items() if fid not in seen and sev not in ("critical", "warning")]
+    for fid, sev in severity.items():
+        if fid not in claims.seen and sev in ("critical", "warning"):
+            errors.append(f"{fid} ({sev}) 의 처분이 없다")
+    left = [fid for fid, sev in severity.items() if fid not in claims.seen and sev not in ("critical", "warning")]
     return {"ok": not errors, "errors": errors, "left_to_main": left,
             "dispositions": len(dispositions), "spec_proposals": len(proposals)}
 
 
 def pending(session_dir: str, branch: str, client) -> dict:
+    known = {f.get("finding_id") for f in _load(session_dir, FINDINGS_FILE).get("findings") or []
+             if isinstance(f, dict)}
     disp_doc = _load(session_dir, DISPOSITIONS_FILE)
-    open_ids = {str(i.get("id") or "").lower() for i in open_findings(client, branch)
-                if not i.get("resolution_kind")}
-    todo, done = [], []
+    open_ids = {str(i.get("id") or "").lower() for i in unresolved_findings(client, branch)}
+    todo, done, unknown = [], [], []
     for d in disp_doc.get("dispositions") or []:
-        if not isinstance(d, dict):
-            continue
-        (todo if d.get("finding_id") in open_ids else done).append(d)
-    return {"ok": True, "pending": todo, "already_recorded": [d.get("finding_id") for d in done]}
+        fid = d.get("finding_id") if isinstance(d, dict) else None
+        if not isinstance(fid, str) or not _UUID.match(fid) or fid not in known:
+            unknown.append(fid)
+        elif fid in open_ids:
+            todo.append(d)
+        else:
+            done.append(fid)
+    out = {"ok": not unknown, "pending": todo, "already_recorded": done, "unknown": unknown}
+    if unknown:
+        out["errors"] = [f"{FINDINGS_FILE} 에 없거나 전체 ID 가 아닌 처분이 있다 — check 를 먼저 돌린다"]
+    return out
 
 
 def main(argv: list[str] | None = None) -> int:

@@ -167,6 +167,23 @@ class CheckTest(_SessionCase):
         ])
         self.assertEqual(self.errors(), [])
 
+    def test_fixed_commits_are_checked_against_the_reviewed_branch(self):
+        """짝 워크트리에서 다른 브랜치를 리뷰해도 그 브랜치 기준으로 판정한다(워크트리는 ref 를 공유한다)."""
+        _harness.git_in(self.repo, "checkout", "-q", "-b", "reviewed")
+        (self.repo / "codebase" / "b.ts").write_text("b\n", encoding="utf-8")
+        # 세션 디렉터리(.review/)는 추적하지 않는다 — `add -A` 면 브랜치를 오갈 때 지워진다.
+        _harness.git_in(self.repo, "add", "codebase/b.ts")
+        _harness.git_in(self.repo, "commit", "-qm", "fix on reviewed")
+        on_branch = _harness.git_in(self.repo, "rev-parse", "HEAD").stdout.strip()
+        _harness.git_in(self.repo, "checkout", "-q", "-")
+        tool.fetch(str(self.sd), "reviewed", FakeClient([[item(CRIT, "critical"), item(WARN, "warning"),
+                                                          item(INFO, "info")]]))
+        ok_warn = {"finding_id": WARN, "resolution": "wont_fix", "rationale": "근거"}
+        self.write_dispositions([self.fixed(CRIT, on_branch), ok_warn])
+        self.assertEqual(self.errors(), [])
+        tool.fetch(str(self.sd), "no-such-branch", FakeClient([[item(CRIT, "critical"), item(WARN, "warning")]]))
+        self.assertTrue(any("HEAD" in e for e in self.errors()))
+
     def test_proposal_files_must_be_underscored_and_present(self):
         (self.sd / "spec-proposal-auth.md").write_text("x\n", encoding="utf-8")
         for name, needle in (("spec-proposal-auth.md", "_spec-proposal-<area>.md"),
@@ -203,9 +220,20 @@ class PendingTest(_SessionCase):
         ])
         # CRIT 은 아직 열림, WARN 은 이미 escalated 로 기록됨, INFO 는 이미 닫힘(목록에 없음).
         client = FakeClient([[item(CRIT, "critical"), item(WARN, "warning", resolution_kind="escalated")]])
+        self.write_findings(item(CRIT, "critical"), item(WARN, "warning"), item(INFO, "info"))
         out = tool.pending(str(self.sd), "feature", client)
+        self.assertTrue(out["ok"], out)
         self.assertEqual([d["finding_id"] for d in out["pending"]], [CRIT])
         self.assertEqual(sorted(out["already_recorded"]), sorted([WARN, INFO]))
+
+    def test_unknown_or_malformed_ids_are_not_counted_as_recorded(self):
+        self.write_findings(item(CRIT, "critical"))
+        self.write_dispositions([self.fixed(CRIT), self.fixed("01a0f648-ffff-7000-8000-000000000000"),
+                                 self.fixed(CRIT[:8])])
+        out = tool.pending(str(self.sd), "feature", FakeClient([[item(CRIT, "critical")]]))
+        self.assertFalse(out["ok"])
+        self.assertEqual(out["unknown"], ["01a0f648-ffff-7000-8000-000000000000", CRIT[:8]])
+        self.assertEqual(out["already_recorded"], [])
 
 
 class CliTest(_SessionCase):

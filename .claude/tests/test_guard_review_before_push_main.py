@@ -648,5 +648,28 @@ class DetectionSurvivesABroken_libTest(unittest.TestCase):
         self.assertIn("fail-open", r.stdout + r.stderr)
 
 
+class StubMirrorsTheGateSignatureTest(unittest.TestCase):
+    """훅 테스트는 게이트를 손으로 쓴 스텁으로 바꿔 돈다. 실물 시그니처가 바뀌면 스텁도 따라가야 한다.
+
+    스텁이 실물보다 너그러우면(이름이 바뀐 인자를 받아 줌) 훅이 실물을 부르는 이음매가 깨져도 이 파일은
+    초록이다(2026-10-01 리뷰). 인자 이름과 종류(위치 · 키워드 전용)를 실물과 대조한다."""
+
+    def test_the_stub_mirrors_the_real_signature(self):
+        import ast
+        import inspect
+        import re
+
+        from _lib import review_guard as rg
+
+        m = re.search(r"def evaluate_review\((.*?)\):", _REVIEW_STUB)
+        self.assertIsNotNone(m)
+        args = ast.parse(f"def f({m.group(1)}): pass").body[0].args
+        stub = [a.arg for a in args.args] + ["*"] + [a.arg for a in args.kwonlyargs]
+        params = list(inspect.signature(rg.evaluate_review).parameters.values())
+        real = ([p.name for p in params if p.kind is p.POSITIONAL_OR_KEYWORD] + ["*"]
+                + [p.name for p in params if p.kind is p.KEYWORD_ONLY])
+        self.assertEqual(stub, real)
+
+
 if __name__ == "__main__":
     unittest.main()

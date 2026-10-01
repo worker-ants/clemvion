@@ -107,6 +107,33 @@ class ParseReportTest(unittest.TestCase):
         self.assertEqual(len(w), 3, w)
         self.assertEqual([x.split(":")[1] for x in w], ["3", "5", "6"])
 
+    def test_near_miss_severity_shapes_are_warned(self):
+        """리뷰어 정의의 예시(`[CRITICAL/WARNING/INFO]`)를 흉내 낸 변형이 경고 없이 빠지면 안 된다."""
+        for line in ("- **[CRITICAL/HIGH]** x", "- **[WARNING — 인증]** x", "- **[ CRITICAL ]** x",
+                     "- **CRITICAL** x"):
+            with self.subTest(line=line):
+                sub, w = tool.parse_report(f"## 발견사항\n\n{line}\n", "security")
+                self.assertEqual(sub["findings"], [])
+                self.assertEqual(len(w), 1, w)
+
+    def test_plain_risk_words_are_not_markers(self):
+        _, w = tool.parse_report("### 위험도\nCRITICAL\n\nCRITICAL 없음. | WARNING | 0 |\n", "security")
+        self.assertEqual(w, [])
+
+    def test_bold_wrapping_the_title_is_read_as_a_finding(self):
+        """`- **[WARNING] 제목**` — 9월 역할 리포트 187개가 이 형식이었다."""
+        sub, w = tool.parse_report("- **[WARNING] 제목이 굵다**\n  - 상세: 본문\n- **[INFO]** 보통\n"
+                                   "- **[critical]:** 쌍점 뒤 제목\n", "testing")
+        self.assertEqual([(f["severity"], f["title"]) for f in sub["findings"]],
+                         [("warning", "제목이 굵다"), ("info", "보통"), ("critical", "쌍점 뒤 제목")])
+        self.assertEqual(w, [])
+
+    def test_spec_drift_is_tagged_for_nerv(self):
+        sub, _ = tool.parse_report("- **[WARNING]** [SPEC-DRIFT] 스펙이 낡았다\n- **[INFO]** 보통\n", "requirement")
+        self.assertEqual(sub["findings"][0].get("tags"), ["spec_drift"])
+        self.assertEqual(sub["findings"][0].get("area"), "spec")
+        self.assertNotIn("tags", sub["findings"][1])
+
     def test_heading_shaped_findings_are_read(self):
         sub, _ = tool.parse_report("### [WARNING] 제목형 발견\n- 상세: 본문\n", "cross_spec")
         self.assertEqual([(f["severity"], f["title"]) for f in sub["findings"]],
@@ -172,6 +199,37 @@ class BuildTest(unittest.TestCase):
         self.assertTrue(any("spec-proposal-auth.md" in w for w in out["warnings"]), out["warnings"])
         self.assertEqual(self.run_cli().returncode, 0)
 
+    def test_an_output_file_ending_in_a_slash_still_submits_the_role(self):
+        """`report_paths` 는 빈 basename 을 `<name>.md` 로 푼다. 도우미도 같아야 강제 역할이 안 빠진다."""
+        state = json.loads((self.sd / "_retry_state.json").read_text(encoding="utf-8"))
+        state["subagent_invocations"][0]["output_file"] = "/gone/wt/security/"
+        (self.sd / "_retry_state.json").write_text(json.dumps(state), encoding="utf-8")
+        out = tool.build(str(self.sd))
+        self.assertEqual([s["reviewer"]["role"] for s in out["submissions"]], ["scope", "security"])
+        self.assertEqual(out["missing_forced"], [])
+
+    def test_a_whitespace_only_forced_report_fails(self):
+        """`has_report` 는 0바이트만 빈 리포트로 본다. 공백뿐인 리포트는 묶음에서 빠지니 누락으로 센다."""
+        (self.sd / "scope.md").write_text("\n  \n", encoding="utf-8")
+        out = tool.build(str(self.sd))
+        self.assertEqual(out["missing_forced"], ["scope"])
+        self.assertEqual(self.run_cli().returncode, 1)
+
+    def test_high_risk_without_blocking_findings_fails(self):
+        (self.sd / "scope.md").write_text("- **[CRITICAL/HIGH]** 빠진 발견\n\n### 위험도\nHIGH\n", encoding="utf-8")
+        r = self.run_cli()
+        self.assertEqual(r.returncode, 1, r.stdout)
+        self.assertTrue(any("scope.md" in e and "HIGH" in e for e in json.loads(r.stdout)["errors"]))
+
+    def test_missing_nerv_roles_are_warned_in_a_code_session(self):
+        """이 fixture 는 security · scope 만 돈다 — 나머지 넷이 빠졌다고 알린다(실패는 아니다)."""
+        out = tool.build(str(self.sd))
+        w = [x for x in out["warnings"] if "NERV 필수 역할" in x]
+        self.assertEqual(len(w), 1, out["warnings"])
+        for role in ("requirement", "side_effect", "maintainability", "testing"):
+            self.assertIn(role, w[0])
+        self.assertNotIn("security", w[0].split(":", 1)[1])
+
     def test_a_code_session_without_its_state_fails(self):
         for body in (None, "{broken", json.dumps({"agents_forced": ["security"]})):
             with self.subTest(body=body):
@@ -184,36 +242,55 @@ class BuildTest(unittest.TestCase):
                 self.assertEqual(r.returncode, 1, r.stdout)
                 self.assertTrue(any("_retry_state.json" in x for x in json.loads(r.stdout)["errors"]))
 
-    def test_other_kinds_without_state_fall_back_to_every_report(self):
-        d = self.tmp / ".review" / "merge" / "2026" / "10" / "01" / "12_00_00"
+    def test_a_consistency_session_without_state_falls_back_to_every_report(self):
+        d = self.tmp / ".review" / "consistency" / "2026" / "10" / "01" / "12_00_00"
         d.mkdir(parents=True)
-        (d / "merge-conflict-analyzer.md").write_text(REPORT, encoding="utf-8")
+        (d / "cross_spec.md").write_text(REPORT, encoding="utf-8")
         out = tool.build(str(d))
-        self.assertEqual([s["reviewer"]["role"] for s in out["submissions"]], ["merge-conflict-analyzer"])
+        self.assertEqual([s["reviewer"]["role"] for s in out["submissions"]], ["cross_spec"])
         self.assertEqual(out["errors"], [])
         self.assertTrue(out["warnings"])
 
+    def test_deferred_kinds_are_refused(self):
+        """merge · spec_coverage 의 제출 절차는 전환 4e 에서 정한다. 그 전에는 묶음을 만들지 않는다."""
+        for name in ("merge", "spec-coverage"):
+            with self.subTest(name=name):
+                d = self.tmp / ".review" / name / "2026" / "10" / "01" / "12_00_00"
+                d.mkdir(parents=True)
+                (d / "merge_conflict_analyzer.md").write_text(REPORT, encoding="utf-8")
+                r = subprocess.run([sys.executable, str(TOOL_PATH), str(d)], capture_output=True, text=True,
+                                   timeout=60)
+                self.assertEqual(r.returncode, 1, r.stdout)
+                out = json.loads(r.stdout)
+                self.assertEqual(out["submissions"], [])
+                self.assertTrue(any("전환 4e" in e for e in out["errors"]), out["errors"])
+
     def test_nothing_to_submit_fails(self):
-        d = self.tmp / ".review" / "spec-coverage" / "2026" / "10" / "01" / "12_00_00"
+        d = self.tmp / ".review" / "consistency" / "2026" / "10" / "01" / "12_00_00"
         d.mkdir(parents=True)
-        (d / "SUMMARY.md").write_text("# 후보\n", encoding="utf-8")
-        (d / "meta.json").write_text("{}", encoding="utf-8")
+        (d / "SUMMARY.md").write_text("# 요약\n", encoding="utf-8")
         r = subprocess.run([sys.executable, str(TOOL_PATH), str(d)], capture_output=True, text=True, timeout=60)
         self.assertEqual(r.returncode, 1, r.stdout)
         out = json.loads(r.stdout)
         self.assertEqual(out["submissions"], [])
-        self.assertTrue(any("전환 4e" in x for x in out["errors"]), out["errors"])
+        self.assertTrue(any("리포트가 없다" in x for x in out["errors"]), out["errors"])
 
     def test_the_changeset_comes_from_meta(self):
+        """오케스트레이터가 쓰는 운영 형태(`{"file_path", "change_type", …}`)에서 경로만 뽑는다."""
         self.assertNotIn("changeset", tool.build(str(self.sd)))
+        meta = {"files": [{"file_path": "a.ts", "change_type": "modified", "file_extension": ".ts"},
+                          {"file_path": "b.md", "change_type": "added", "file_extension": ".md"}]}
+        (self.sd / "meta.json").write_text(json.dumps(meta), encoding="utf-8")
+        self.assertEqual(tool.build(str(self.sd))["changeset"], ["a.ts", "b.md"])
         (self.sd / "meta.json").write_text(json.dumps({"files": ["a.ts", "b.md"]}), encoding="utf-8")
         self.assertEqual(tool.build(str(self.sd))["changeset"], ["a.ts", "b.md"])
-        (self.sd / "meta.json").write_text(json.dumps({"files": [1]}), encoding="utf-8")
-        self.assertNotIn("changeset", tool.build(str(self.sd)))
+        for bad in ([1], [{"file_path": ""}], [{"other": "x"}]):
+            (self.sd / "meta.json").write_text(json.dumps({"files": bad}), encoding="utf-8")
+            self.assertNotIn("changeset", tool.build(str(self.sd)))
 
     def test_kind_comes_from_the_path_or_the_flag(self):
         for name, kind in (("consistency", "consistency"), ("merge", "merge"),
-                           ("spec-coverage", "spec_coverage")):
+                           ("spec-coverage", "spec_coverage")):  # 뒤의 둘은 거절되지만 kind 는 알아본다
             with self.subTest(name=name):
                 d = self.tmp / ".review" / name / "2026" / "10" / "01" / "12_00_00"
                 d.mkdir(parents=True)
