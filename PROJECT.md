@@ -312,7 +312,7 @@ developer workflow §4 종료 직전, 5단계로 진행하기 전 자가 점검:
 
 이들은 코드 리뷰가 검출하지 못한 누락도 빌드 단계에서 차단한다 (마이그레이션 V번호 가드와 동일 패턴). 위반의 invariant 자체는 [`spec/CLE-UI/CLE-UI-I18N.md`](spec/CLE-UI/CLE-UI-I18N.md) · [`spec/CLE-ENG/CLE-ENG-SPECEVIDENCE.md`](spec/CLE-ENG/CLE-ENG-SPECEVIDENCE.md) · [`spec/CLE-ENG/CLE-ENG-GUIDEEVIDENCE.md`](spec/CLE-ENG/CLE-ENG-GUIDEEVIDENCE.md) 에 정식 등록되어 있어 `convention-compliance-checker` 가 sub-agent 단에서도 점검한다.
 
-> **매트릭스 참조 무결성 가드**: 위 표·목록이 이름으로 참조하는 `*.test.ts` 가드와 `spec/...md` 문서가 rename·삭제로 stale 되지 않았는지 [`.claude/tests/test_doc_sync_matrix.py`](.claude/tests/test_doc_sync_matrix.py) 가 검증한다 (harness-checks CI, PROJECT.md 변경 시 실행). dangling 참조 시 빌드 fail. 미러 경로(`spec/<영역 키>/<KEY>.md`)는 웹에서 문서의 부모를 옮기면 다음 pull 때 바뀌므로 이 검사가 잡는다. `doc-sync-matrix.json` 의 `convention_ref` 는 미러 경로만 받는다(동결된 옛 트리를 가리키면 fail).
+> **매트릭스 참조 무결성 가드**: 위 표·목록이 이름으로 참조하는 `*.test.ts` 가드와 `spec/...md` 문서가 rename·삭제로 stale 되지 않았는지 [`.claude/tests/test_doc_sync_matrix.py`](.claude/tests/test_doc_sync_matrix.py) 가 검증한다 (harness-checks CI, PROJECT.md 변경 시 실행). dangling 참조 시 빌드 fail. 미러 경로(`spec/<영역 키>/<KEY>.md`)는 웹에서 문서의 부모를 옮기면 다음 pull 때 바뀐다. 그런데 harness-checks 의 `changes.pathspecs` 에 `spec/**` 는 없다(제품 경로 변경이 이 스위트를 돌리지 않게 하려는 설계이고 `test_harness_checks_paths_coverage.py` 규칙 3 이 고정한다). 그래서 pull 로 미러 파일만 바뀐 PR 에서는 이 가드가 돌지 않고 PROJECT.md · `.claude/**` 를 바꾸는 다음 PR 에서 실패한다. pull 로 미러 파일이 옮겨지면 같은 PR 에서 `python3 -m pytest .claude/tests/test_doc_sync_matrix.py -q` 를 직접 돌려 경로를 고친다. 검사하는 것은 파일 존재뿐이고 경로 뒤의 「제목」 은 검사하지 않는다. `doc-sync-matrix.json` 의 `convention_ref` 는 미러 경로만 받는다(동결된 옛 트리를 가리키면 fail).
 
 ## e2e 테스트 작성 가이드
 
