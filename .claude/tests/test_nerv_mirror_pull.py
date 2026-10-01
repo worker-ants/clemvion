@@ -223,6 +223,8 @@ class AllModeTest(_Fixture):
         self.assertNotIn("CLE-C24]", readme)
         self.assertIn("옛 트리", readme)
         self.assertIn("source_paths", readme)
+        # 미러의 `status` 는 NERV 문서 상태라 옛 트리의 구현 상태와 다르다는 안내.
+        self.assertIn("구현 상태:", readme)
 
 
 class InputValidationTest(_Fixture):

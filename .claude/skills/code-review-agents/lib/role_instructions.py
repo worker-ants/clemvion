@@ -240,7 +240,7 @@ CHECKER_INSTRUCTIONS = {
         "perspective": "target 문서가 정식 규약(`spec/conventions/**`) 을 따르고 있는지 분석한다.",
         "checklist": """1. **명명 규약** — 파일·식별자·API endpoint 명명이 conventions 규칙과 일치하는가
 2. **출력 포맷 규약** — API 응답·이벤트 페이로드·에러 코드 등 출력 형식이 `spec/conventions/` 의 정식 규약을 따르는가
-3. **문서 구조 규약** — Overview / 본문 / Rationale 3섹션 권장, `_product-overview.md`·`0-` prefix 등 CLAUDE.md 의 명명 컨벤션 준수
+3. **문서 구조 규약** — Overview / 본문 / Rationale 3섹션 권장. 새 스펙은 NERV 키 규칙(`CLE-<영역>-<슬러그>`, project-planner SKILL `## 트리 규칙`)을 따른다. 미러 경로 `spec/<영역 키>/<KEY>.md` 는 `pull.py` 가 정하고, 동결된 옛 트리(`N-name.md`·`_product-overview.md`·`0-` prefix)에는 새 파일이 생기지 않는다
 4. **API 문서 규약** — API 문서 도구(OpenAPI/Swagger 등)의 데코레이터·DTO 명명 패턴 준수
 5. **금지 항목** — conventions 에서 명시적으로 금지한 패턴을 답습하고 있지 않은가""",
         "context_label": "정식 규약 모음 (spec/conventions/)",
@@ -263,7 +263,7 @@ CHECKER_INSTRUCTIONS = {
 3. **API endpoint 충돌** — 새 endpoint(method + path)가 기존 spec 에 이미 정의되어 있는가
 4. **이벤트/메시지명 충돌** — webhook·queue·sse 이벤트 이름 충돌
 5. **환경변수·설정키 충돌** — 새 ENV var, config key 가 기존 사용처와 겹치는가
-6. **파일 경로 충돌** — 새 spec 파일 경로/이름이 기존 명명 컨벤션을 깨거나 기존 파일과 겹치는가""",
+6. **파일 경로 충돌** — 새 스펙 키가 NERV 키 규칙(`CLE-<영역>-<슬러그>`)을 깨거나 기존 키 · 파일과 겹치는가. 미러 경로 `spec/<영역 키>/<KEY>.md` 는 키에서 정해진다""",
         "context_label": "검색 대상 코퍼스 (spec/, plan/in-progress/, conventions/)",
         # `naming_collision` consumes three sub-corpora; the orchestrator
         # concatenates them when it sees this sentinel value.
