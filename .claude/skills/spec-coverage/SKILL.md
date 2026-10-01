@@ -1,6 +1,6 @@
 ---
 name: spec-coverage
-description: spec/ 본문이 약속한 surface (UI / API / e2e 시나리오) 와 frontmatter `code:` 가 가리키는 구현 코드 사이의 정적 갭을 standing audit 으로 검출하는 slash command. 사용자가 "/spec-coverage", "spec 커버리지", "spec-impl 갭 검사" 등을 호출하거나, harness 의 주기적 grooming 시점에 수동으로 실행합니다. `consistency-check` 와 달리 PR diff / draft 기반이 아니라 **현재 main 상태 전수 분석** — NLP 휴리스틱 기반이라 CI 차단 아닌 보고형. 결과는 `review/spec-coverage/<YYYY>/<MM>/<DD>/<hh>_<mm>_<ss>/SUMMARY.md`.
+description: spec/ 본문이 약속한 surface (UI / API / e2e 시나리오) 와 frontmatter `code:` 가 가리키는 구현 코드 사이의 정적 갭을 standing audit 으로 검출하는 slash command. 사용자가 "/spec-coverage", "spec 커버리지", "spec-impl 갭 검사" 등을 호출하거나, harness 의 주기적 grooming 시점에 수동으로 실행합니다. `consistency-check` 와 달리 PR diff / draft 기반이 아니라 **현재 main 상태 전수 분석** — NLP 휴리스틱 기반이라 CI 차단 아닌 보고형. 결과는 NERV 리뷰 레코드 `kind=spec_coverage` 로 제출하고, 로컬 산출물은 `.review/spec-coverage/<YYYY>/<MM>/<DD>/<hh>_<mm>_<ss>/SUMMARY.md`(커밋하지 않음).
 model: opus
 ---
 
@@ -18,7 +18,7 @@ model: opus
 - **수동 호출만** (사용자 결정 ⑤ 옵션 A) — GitHub Actions cron 도입 안 함. NLP 휴리스틱 false-positive 부담 > 자동화 가치
 - **CI 차단 아님** — 후보 보고만. 사용자가 picking 해 별 plan 으로 이관
 - **현재 main 상태 전수 분석** — PR diff 기반 아님. spec 적용 대상 ([`spec/conventions/spec-impl-evidence.md §1`](../../../spec/conventions/spec-impl-evidence.md)) 전수 walk
-- **출력은 markdown**: `review/spec-coverage/<YYYY>/<MM>/<DD>/<hh>_<mm>_<ss>/SUMMARY.md` 단일 결과 진입점
+- **출력은 markdown + NERV 레코드**: 로컬 `.review/spec-coverage/<YYYY>/<MM>/<DD>/<hh>_<mm>_<ss>/SUMMARY.md`(gitignore) 단일 결과 진입점. 결과는 main 이 `kind=spec_coverage` 로 NERV 에 제출한다
 
 호출 규약·STATUS 라인: [`.claude/docs/subagent-call-contract.md`](../../docs/subagent-call-contract.md).
 
@@ -76,9 +76,11 @@ SUMMARY.md 상단 30라인 Read → 후보 갯수 (high/medium/low) 요약 → �
 
 ## 출력 위치
 
-- `review/spec-coverage/<YYYY>/<MM>/<DD>/<hh>_<mm>_<ss>/SUMMARY.md`
-- `review/spec-coverage/<YYYY>/<MM>/<DD>/<hh>_<mm>_<ss>/_prompt.md` (orchestrator 가 만든 입력)
-- `review/spec-coverage/<YYYY>/<MM>/<DD>/<hh>_<mm>_<ss>/meta.json`
+- `.review/spec-coverage/<YYYY>/<MM>/<DD>/<hh>_<mm>_<ss>/SUMMARY.md`
+- `.review/spec-coverage/<YYYY>/<MM>/<DD>/<hh>_<mm>_<ss>/_prompt.md` (orchestrator 가 만든 입력)
+- `.review/spec-coverage/<YYYY>/<MM>/<DD>/<hh>_<mm>_<ss>/meta.json`
+
+모두 gitignore 대상이라 커밋하지 않는다(NERV 정본 전환 단계 2). 결과는 NERV `kind=spec_coverage` 레코드다.
 
 CLAUDE.md §정보 저장 위치 표에 등재.
 
@@ -104,6 +106,8 @@ PR #287 의 초기 결정은 `review/consistency/coverage/` 였음 — `consiste
 2. 본 audit 의 산출 흐름 (단일 sub-agent, NLP 휴리스틱 기반 보고형) 은 `consistency-check` (5 checker 병렬, Critical 차단형) 와 운영 모델이 다름 — 동일 경로 그룹화의 의미가 약함
 
 번복 후 결정: `review/spec-coverage/<YYYY>/<MM>/<DD>/<hh>_<mm>_<ss>/`. 슬래시 command 이름 `/spec-coverage` 와 1:1 매칭되어 사용자가 산출물 위치를 추론하기 쉬움. `review/code/`, `review/consistency/`, `review/merge/` 와 어깨를 나란히 하는 1-depth 최상위 경로.
+
+NERV 정본 전환 단계 2(2026-10-01)에서 리뷰 결과가 NERV 레코드로 옮겨 가며 로컬 산출물 루트가 `review/` 에서 gitignore 대상 `.review/` 로 바뀌었다. 그 아래 `spec-coverage/` 1-depth 배치는 이 결정 그대로다.
 
 ### R-4. single sub-agent (multi-agent 아님)
 

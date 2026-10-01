@@ -6,7 +6,7 @@ model: sonnet
 
 # Code Review Agents
 
-전문 관점 reviewer sub-agent (디폴트 14개; 프로젝트별 `agents.reviewers` 토글로 부분 disable 가능) 가 격리 컨텍스트에서 병렬 리뷰를 수행하고, `code-review-summary` sub-agent 가 결과를 단일 SUMMARY.md 로 통합합니다. Critical/Warning 발견 시 `resolution-applier` sub-agent 가 자동으로 fix + e2e + RESOLUTION 까지 처리합니다 (사용자 결정이 필요한 순간만 main 으로 escalate).
+전문 관점 reviewer sub-agent (디폴트 14개; 프로젝트별 `agents.reviewers` 토글로 부분 disable 가능) 가 격리 컨텍스트에서 병렬 리뷰를 수행하고, `code-review-summary` sub-agent 가 결과를 단일 SUMMARY.md 로 통합합니다(로컬 `.review/code/<…>/`, 커밋하지 않음). main 이 역할 리포트를 NERV 에 `kind=code` 로 역할마다 제출하고(결정 D7), Critical/Warning 발견 시 `resolution-applier` sub-agent 가 fix + e2e 를 처리해 처분 목록을 돌려주면 main 이 `nerv_finding_resolve` 로 기록합니다(결정 D9. NERV 쓰기는 main 만 한다). 사용자 결정이 필요한 순간만 main 으로 escalate 합니다.
 
 > **프로젝트별 reviewer 토글**: `.claude.project.json` 의 `agents.reviewers.<name>: false` 로 특정 reviewer 비활성. 예: 유저 가이드 매트릭스(PROJECT.md §변경 시 동반 갱신) 가 없는 프로젝트는 `agents.reviewers.user_guide_sync: false`. 디폴트는 전부 활성화 — 키 누락·`true` 면 enabled. 일회성 override 는 `REVIEW_AGENTS` env (project_config 보다 우선).
 
@@ -88,12 +88,29 @@ Workflow 반환값 (ai-review.js 가 항상 경로+전문을 함께 반환):
 - `risk` / `critical_count` / `warning_count` / `skipped[]` / `unfinished[]` / `routing` / `router_decisions`.
 
 분기:
-1. **반드시** `summary_markdown` 을 `summary_output` 에 Write 한다 — `summary_written` 값과 **무관하게 멱등 persist**. 하네스가 `SUMMARY.md` 를 어떤 sub-agent 도 못 쓰게 막고 workflow 스크립트는 FS 접근이 없으므로, **디스크 단일 진실의 유일한 경로가 main 의 이 Write** 다. 건너뛰면 SUMMARY.md 가 없어 review-before-stop 가드도 미해소된다.
-2. 기록 후 `summary_markdown`(또는 상단 30줄)으로 전체 위험도 확인. Critical/Warning > 0 이면 §6 자동 후속 흐름 진입. 아니면 종료 + 1-2문장 보고.
+1. **반드시** `summary_markdown` 을 `summary_output` 에 Write 한다 — `summary_written` 값과 **무관하게 멱등 persist**. 하네스가 `SUMMARY.md` 를 어떤 sub-agent 도 못 쓰게 막고 workflow 스크립트는 FS 접근이 없으므로, **로컬 SUMMARY 의 유일한 경로가 main 의 이 Write** 다. `resolution-applier` 가 이 파일을 읽는다. 판정 근거는 아니다(판정은 NERV 라운드다).
+2. 기록 후 `summary_markdown`(또는 상단 30줄)으로 전체 위험도 확인. 이어서 §4 NERV 제출. Critical/Warning > 0 이면 제출 뒤 §6 자동 후속 흐름 진입. 아니면 제출 · 처분 뒤 종료 + 1-2문장 보고.
 3. `forced_missing[]` 가 있으면 **그 reviewer 를 실행하기 전에 종료하지 않는다** — router 도 override 못 하는 화이트리스트다.
 4. `unfinished[]` 가 있으면(rate_limit/network, 전문도 확보 못 함) 해당 reviewer 만 재실행 — loop 결합은 §7.
 
 > **재시도 정책 차이**: Workflow 경로는 옛 cross-turn ScheduleWakeup quota 자동 재시도를 갖지 않는다. `unfinished` reviewer 는 main 이 재실행하거나 `/loop` (fallback 경로)로 처리. 한도 상황의 무한 재시도가 꼭 필요하면 아래 fallback 경로 사용.
+
+### 4. NERV 제출 (main 의 의무)
+
+리뷰 결과의 정본은 NERV 리뷰 레코드다(전환 단계 2). push 훅과 CI `review-gate` 는 NERV 라운드만 본다.
+
+```bash
+python3 .claude/tools/nerv_review_payload.py <session_dir>   # 역할별 제출 묶음 JSON. exit 1 = 강제 역할 리포트 누락
+```
+
+1. exit 1 이면 `missing_forced` 의 reviewer 를 다시 돌린 뒤 반복한다. 그대로 내면 라운드가 `missing_roles` 로 남는다.
+2. `submissions[]` 마다 `nerv_review_submit(kind=code, branch=<브랜치>, base_sha=<merge-base>, head_sha=<리뷰한 커밋>, reviewer=<묶음의 reviewer>, findings=<묶음의 findings>, summary=<묶음의 summary>, task_id=<클레임한 Task 키>)`. 필수 6역할(security · requirement · scope · side_effect · maintainability · testing)은 발견 0건이어도 낸다. NERV 정책 `review_roles.code` 가 역할 리포트로 센다. 같은 커밋이면 한 라운드로 모인다.
+3. `warnings[]` 가 있으면(형식 밖의 심각도 표지 · 빈 리포트 · consistency SUMMARY 의 하향) 해당 리포트를 읽고 빠진 발견을 손으로 더해 다시 낸다.
+4. 이번 라운드가 막는지는 마지막 응답의 `round_block` · `blocking_findings` 로 본다. `block` 은 프로젝트 전체의 열린 critical 이라 판정에 쓰지 않는다. `carried_over` 는 앞 50건만 담는다(나머지는 `nerv_finding_list`).
+5. 응답들의 발견(ID · 심각도 · 제목 · 파일 · 줄 · 역할)을 `<session_dir>/_nerv_findings.json` 에 적는다. §6 `resolution-applier` 가 이 파일을 입력으로 읽는다.
+6. 발견은 모두 처분한다(`nerv_finding_resolve`). critical 을 `dismissed`/`wont_fix` 로 낮추는 처분은 사람 승인이 필요하다.
+
+같은 판정을 REST 로 읽을 수 있다: `GET /api/v1/projects/clemvion/gates/reviews/check?branch=<브랜치>&kind=code`(push 훅 · CI 가 쓰는 그 응답).
 
 ### (fallback) 수동 Agent 경로
 
@@ -103,11 +120,12 @@ Workflow 불가 환경에서는 orchestrator 의 `--summary-state` / `--apply-ro
 > "변경이 작아 보인다" 는 자가 판단으로 forced reviewer 를 빠뜨리기 쉽다 — 화이트리스트는 정확히
 > 그 판단을 막으려고 존재한다. 그래서 **이 규약은 더 이상 산문이 아니다**:
 >
-> - **push/stop 가드가 기계적으로 강제한다.** forced 중 산출물이 없는 세션은 `review_guard` 가
->   **"해소" 로 인정하지 않는다** — RESOLUTION.md 가 있어도 마찬가지다. 즉 누락된 채로는 턴을
->   끝내거나 push 할 수 없고, 완전한 리뷰를 돌려야 한다. 판정은 **디스크의 리포트 파일** 기준이라
->   `agents_success` 를 꾸며도 통과하지 못한다.
-> - 미리 확인하려면(가드에 걸리기 전에):
+> - **기계적으로 강제된다.** `nerv_review_payload.py` 는 forced 중 리포트가 없으면 exit 1 이다.
+>   필수 6역할을 빠뜨린 채 제출하면 NERV 정책 `review_roles.code` 가 라운드를 `missing_roles`
+>   (`pending`)로 두고, push 훅과 CI `review-gate` 가 그 라운드를 통과시키지 않는다. 판정은
+>   **제출된 역할 리포트** 기준이라 `agents_success` 를 꾸며도 통과하지 못한다.
+>   (전환 단계 2 전에는 `review_guard` 가 디스크의 리포트 파일로 같은 일을 했다.)
+> - 미리 확인하려면(제출하기 전에):
 >   ```bash
 >   python3 .claude/skills/code-review-agents/scripts/code_review_orchestrator.py \
 >     --verify-coverage <session_dir>     # forced 중 산출물 없으면 exit 1 + 누락 명단
@@ -126,8 +144,8 @@ Workflow 불가 환경에서는 orchestrator 의 `--summary-state` / `--apply-ro
 >
 > 근거: 2026-07-17 세션에서 두 결함이 동시에 발생 — forced 인 `security` 가 open-redirect 방어
 > 경계(`buildWorkspaceHref`) 수정 diff 에서 누락됐고, 7개 세션이 stale 상태로 커밋됐다. 이후 전수
-> 조사에서 **커밋된 575 세션 중 160건이 forced 미충족**(그중 107건은 RESOLUTION.md 를 갖고 게이트를
-> 통과 중)으로 드러났다 — 산문 의무는 예외가 아니라 상시로 무너지고 있었다.
+> 조사에서 **커밋된 575 세션 중 160건이 forced 미충족**(그중 107건은 당시 RESOLUTION.md 를 갖고
+> 게이트를 통과 중)으로 드러났다 — 산문 의무는 예외가 아니라 상시로 무너지고 있었다.
 > 하네스의 Write 차단·전문 반환 동작은 [`subagent-call-contract.md §7`](../../docs/subagent-call-contract.md).
 
 ### 6. 자동 후속 흐름 — `resolution-applier` 위임
@@ -139,23 +157,25 @@ Agent(subagent_type="resolution-applier",
       prompt="session_dir=<session_dir>")
 ```
 
-resolution-applier 는 §8.1–8.6 (분류·코드 fix·spec draft·e2e·RESOLUTION) 을 자기 컨텍스트 안에서 수행한다. main 으로 돌아오는 건 확장 STATUS 한 줄:
+resolution-applier 는 `<session_dir>/_nerv_findings.json`(§4-5)의 발견을 분류 · 코드 fix · spec 제안 · e2e 까지 자기 컨텍스트 안에서 수행하고, **처분 목록** `<session_dir>/_dispositions.json` 을 쓴다. NERV 에는 쓰지 않는다(결정 D9). main 으로 돌아오는 건 확장 STATUS 한 줄:
 
 ```
-STATUS=<...> ITEMS=<r>/<t> E2E=<pass|fail|blocked|skipped> ESCALATE=<flag> NEEDS_SPEC=<path> RESOLUTION=<path> RESET_HINT=<sec>
+STATUS=<...> ITEMS=<r>/<t> E2E=<pass|fail|blocked|skipped> ESCALATE=<flag> NEEDS_SPEC=<path> DISPOSITIONS=<path> RESET_HINT=<sec>
 ```
+
+main 은 `DISPOSITIONS` 의 항목마다 `nerv_finding_resolve` 를 부른다(`fixed` 는 `commit_sha`, `wont_fix`/`dismissed` 는 근거, `escalated` 는 `escalate_reason`). 그 뒤 push 한다. push 게이트는 라운드 뒤 커밋이 `fixed` 처분의 `commit_sha` 인지 본다.
 
 분기:
 
 | ESCALATE | main 후속 |
 |---|---|
-| `no` | RESOLUTION 경로와 ITEMS·E2E 결과를 1-2문장으로 보고 + 종료 |
-| `spec` | spec 결함 **또는 SPEC-DRIFT(구현이 spec 을 의도적으로 개선해 spec 이 낡음)**. `/consistency-check --spec <NEEDS_SPEC>` 실행 → BLOCK:NO 시 NERV 스펙 초안(`/nerv:spec edit`) 저장 · 검토 요청, resolution-applier 재호출 (동일 session_dir). 저장소 `spec/` 은 미러라 커밋하지 않는다. BLOCK:YES 시 사용자 escalate. SPEC-DRIFT 는 코드를 되돌리지 않고 spec 만 갱신하는 정식 역류 경로다 |
-| `user-decision` / `infra` / `e2e-fail-3x` / `sensitive-fix` | `AskUserQuestion` 으로 사유·옵션 제시. 사용자 결정 후 resolution-applier 재호출 또는 부분 RESOLUTION 종료 |
+| `no` | 처분 기록 뒤 ITEMS·E2E 결과를 1-2문장으로 보고 + 종료 |
+| `spec` | spec 결함 **또는 SPEC-DRIFT(구현이 spec 을 의도적으로 개선해 spec 이 낡음)**. 그 발견은 `escalated`(`escalate_reason=spec`)로 처분해 둔다. `NEEDS_SPEC` 의 제안 변경으로 NERV 스펙 초안을 쓰고(`/nerv:spec edit`), 초안 본문 파일로 `/consistency-check --spec` 실행 → BLOCK:NO 시 검토 요청 + 초안 저장의 `spec_version_id` 로 `spec_change` 처분, resolution-applier 재호출 (동일 session_dir). 저장소 `spec/` 은 미러라 커밋하지 않는다. BLOCK:YES 시 사용자 escalate. SPEC-DRIFT 는 코드를 되돌리지 않고 spec 만 갱신하는 정식 역류 경로다 |
+| `user-decision` / `infra` / `e2e-fail-3x` / `sensitive-fix` | `AskUserQuestion` 으로 사유·옵션 제시. 해당 발견은 `escalated`(같은 사유)로 처분. 사용자 결정 후 resolution-applier 재호출 |
 | `rate_limit` / `network` (STATUS 자체) | ScheduleWakeup 으로 재예약 — wake 시 resolution-applier 같은 session_dir 로 재호출 (idempotency 로 복구) |
-| `fatal` | RESOLUTION 부분 + 사유 사용자 보고 |
+| `fatal` | 받은 처분까지 기록 + 사유 사용자 보고 |
 
-> **idempotency**: resolution-applier 가 중간 종료돼도 `_resolution_state.json` + git log + RESOLUTION.md 로 복구. main 은 같은 session_dir 로 재호출만 하면 된다.
+> **idempotency**: resolution-applier 가 중간 종료돼도 `_resolution_state.json` + 커밋 이력(메시지의 `finding <ID>` 인용) + `_dispositions.json` 으로 복구. main 은 같은 session_dir 로 재호출만 하면 된다.
 
 ### 7. /loop 결합 (fallback 경로 + resolution-applier 한도 복구)
 
@@ -164,7 +184,7 @@ Workflow 경로(§2)는 한 번에 완주하거나 `unfinished[]` 를 반환한�
 - 첫 사이클(fallback): 사용자 인자(`/ai-review --staged` 등) 로 step 1 `--prepare`. session_dir 기록.
 - wake 사이클(fallback): prompt 안의 `--resume <session_dir>` 로 orchestrator 호출 → fallback fan-out. `routing=done` 이면 router 재호출 skip.
 - §6 resolution-applier 가 `rate_limit/network` STATUS 면 ScheduleWakeup 재예약(같은 session_dir, idempotency 복구).
-- 자연 종료: SUMMARY 완료 + resolution-applier ESCALATE=no → ScheduleWakeup 미호출 → /loop 종료.
+- 자연 종료: SUMMARY 완료 + NERV 제출 + resolution-applier ESCALATE=no + 처분 기록 → ScheduleWakeup 미호출 → /loop 종료.
 
 ## Reviewer 매트릭스 (디폴트 14)
 
@@ -192,7 +212,7 @@ Workflow 경로(§2)는 한 번에 완주하거나 `unfinished[]` 를 반환한�
 | 환경변수 | 기본값 | 설명 |
 |---|---|---|
 | `REVIEW_AGENTS` | (project_config 통과 후 전체) | 실행할 reviewer 쉼표 구분. 설정 시 router 자동 skip + project_config 토글보다 우선 (일회성 override). |
-| `REVIEW_OUTPUT_DIR` | `./review/code` | 세션 디렉토리 부모 |
+| `REVIEW_OUTPUT_DIR` | `./.review/code` | 세션 디렉토리 부모 (gitignore, 커밋하지 않는다. 옛 `review/` 는 편집 가드가 막는다) |
 | `REVIEW_SKIP_EXTENSIONS` | (없음) | 건너뛸 확장자 |
 | `REVIEW_MAX_FILE_SIZE` | `55296` | 개별 파일 컨텐츠 상한 (자). 라인번호 게이트 도입 전 51200 → 게이트 오버헤드(+8%) 만큼 상향. |
 | `REVIEW_MAX_PROMPT_SIZE` | `141557` | reviewer 1명분 prompt body 상한 (자). 게이트 도입 전 131072 → +8%. 게이트는 리뷰 대상 코드가 아니라 메타데이터이므로, 상한을 그대로 두면 reviewer 가 보는 **코드량**이 조용히 줄어든다. |

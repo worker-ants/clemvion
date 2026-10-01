@@ -42,7 +42,7 @@ STATUS=<success|rate_limit|network|fatal> ISSUES=<n> PATH=<output_file> RESET_HI
 
 | sub-agent | 벗어나는 점 | SSOT |
 |---|---|---|
-| [`resolution-applier`](../agents/resolution-applier.md) | STATUS 라인에 `ITEMS` / `E2E` / `ESCALATE` / `NEEDS_SPEC` / `RESOLUTION` 추가 필드. 입력은 `session_dir=` 한 줄. | `resolution-applier.md` §반환 형식 + §ESCALATE 매트릭스 |
+| [`resolution-applier`](../agents/resolution-applier.md) | STATUS 라인에 `ITEMS` / `E2E` / `ESCALATE` / `NEEDS_SPEC` / `DISPOSITIONS` 추가 필드. 입력은 `session_dir=` 한 줄(세션의 `_nerv_findings.json` 을 읽는다). NERV 에 쓰지 않고 처분 목록을 돌려준다 — 기록은 main 의 `nerv_finding_resolve`(결정 D9). | `resolution-applier.md` §반환 형식 + §ESCALATE 매트릭스 |
 | [`review-router`](../agents/review-router.md) | `output_file` 가 markdown 이 아니라 **JSON**. STATUS 의 `ISSUES` 자리를 `selected_count` 의미로 재사용. | `review-router.md` §출력 형식 |
 
 `code-review-summary` / `consistency-summary` / `integration-risk-summary` 은 입력만 `session_dir=` 한 줄이고 (§1 에 명시) 반환 라인은 기본 4필드 그대로라 확장이 아니다.
@@ -101,7 +101,7 @@ sub-agent 는 하네스로부터 **본 규약과 상충하는 지시**를 함께
 | 대상 | 결과 |
 |---|---|
 | `SUMMARY.md` · `summary.md` · `REPORT.md` · `findings.md` | **차단** |
-| `RESOLUTION.md` · `<checker>.md`(`cross_spec.md` 등) · `notes.md` | 허용 |
+| `RESOLUTION.md` · `<checker>.md`(`cross_spec.md` 등) · `notes.md` | 허용 (`RESOLUTION.md` 는 전환 단계 2 에서 쓰지 않게 됐다. 측정 당시 값이다) |
 | `SUMMARY.txt` · `my-SUMMARY.md` | 허용 |
 
 - **basename 정확 일치** 규칙이며 **agent 의 terminal 여부와 무관**하다 (비-terminal agent 의
@@ -121,6 +121,8 @@ sub-agent 는 하네스로부터 **본 규약과 상충하는 지시**를 함께
 
 상태 기록(`_retry_state.json`)은 신경 쓰지 않아도 된다: `--summary-state`/`--resume` 가 읽을 때
 디스크로 자가 reconcile 한다. `agents_forced`(router_safety 화이트리스트) 미이행은
-**`review_guard` 가 push/stop 에서 기계적으로 차단**한다 — 그 세션은 RESOLUTION.md 가 있어도
-"해소" 로 인정되지 않는다. 판정은 **세션 디렉토리의 리포트 파일** 기준이지 `agents_success` 나
-`output_file` 의 절대경로가 아니다(후자는 이미 삭제된 워크트리를 가리킨다).
+**기계적으로 막힌다** — `.claude/tools/nerv_review_payload.py` 가 forced 리포트 누락에 exit 1 을
+내고, 필수 6역할이 빠진 NERV 라운드는 정책 `review_roles.code` 로 `missing_roles`(`pending`)가 되어
+push 훅 · CI `review-gate` 를 통과하지 못한다. 리포트 판정은 **세션 디렉토리의 리포트 파일**
+기준이지 `agents_success` 나 `output_file` 의 절대경로가 아니다(후자는 이미 삭제된 워크트리를
+가리킨다). 리뷰 결과의 정본은 NERV 리뷰 레코드이고 세션 디렉토리(`.review/`)는 커밋하지 않는다.

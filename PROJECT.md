@@ -95,7 +95,7 @@
 
 ### 회피 안티패턴
 
-다음 사유는 자동(`resolution-applier`) · 수동 흐름 모두에서 회피로 분류된다. RESOLUTION.md 의 `e2e` 줄에 적어도 그 자체가 차단 신호가 된다:
+다음 사유는 자동(`resolution-applier`) · 수동 흐름 모두에서 회피로 분류된다. Task 증적(`evidence` kind=test)이나 처분 근거에 적어도 그 자체가 차단 신호가 된다:
 
 - **"단위·integration 으로 충분"** — e2e 는 docker compose 의 실 Postgres·Redis·MinIO·Flyway·BullMQ 회귀 안전망이다. unit 으로 절대 검출 못 함
 - **"변경이 frontend 만 / backend 만"** — cross-stack 회귀 검출 자체가 e2e 의 본 목적
@@ -104,7 +104,7 @@
 - **"review 반영 직후 fix 가 1~2 줄"** — 코드 변경이면 변경량 무관 재수행. 마지막 코드 commit 다음에 e2e 통과 줄이 없으면 회피로 본다
 - **"docker 가 느려서 다음 turn 에"** — 가용성을 실제 확인하지 않은 보류 금지. 미루기 전에 `docker info` 로 daemon 가용성 먼저 확인
 
-> `[skip-e2e]` 자체 발급 절대 금지. 자동 흐름은 `resolution-applier` sub-agent 가 wrapper 호출을 강제하며, 수동 흐름이라도 `.claude/skills/developer/SKILL.md §RESOLUTION.md schema` 의 e2e 줄 4형식 (통과 / 면제 (화이트리스트 인용) / 보류 (사용자 응답 인용) / 자동 흐름 환경 차단) 외 어떤 표현도 차단된다.
+> `[skip-e2e]` 자체 발급 절대 금지. 자동 흐름은 `resolution-applier` sub-agent 가 wrapper 호출을 강제하며, 수동 흐름이라도 `.claude/skills/developer/SKILL.md §처분 기록` 의 e2e 형식 (통과 / 면제 (화이트리스트 인용) / 자동 흐름 환경 차단, 보류는 `nerv_question_create` 로 받은 사용자 답) 외 어떤 표현도 차단된다.
 
 ### 실행 사전 체크리스트
 
@@ -150,7 +150,7 @@
 - outbound third-party API stub 인프라 부재 등 구조적 한계
 - 환경상 docker 실행 불가 (디스크/메모리/daemon)
 
-이 경우에도 **`[skip-e2e]` 자체 발급 금지**. 멈추고 사용자 보고 → 명시 응답 받은 뒤에만 보류. RESOLUTION.md `## TEST 결과` 에 사유 + 응답 시점 인용 기록.
+이 경우에도 **`[skip-e2e]` 자체 발급 금지**. 멈추고 사용자 보고(`nerv_question_create`) → 명시 응답 받은 뒤에만 보류. 사유와 응답을 Task 증적(`evidence` kind=test)에 인용 기록.
 
 ## 변경 유형 → 갱신 위치 매핑
 

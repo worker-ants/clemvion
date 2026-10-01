@@ -125,7 +125,7 @@ SUMMARY 의 통합 plan 표 + Critical/Warning 을 사용자에게 1-2문단 요
 | --- | --- | --- |
 | `MERGE_BRANCHES` | (cli 인자) | 통합 대상 쉼표 구분 |
 | `MERGE_BASE_HINT` | (orchestrator 결정) | base branch 힌트 |
-| `MERGE_OUTPUT_DIR` | `./review/merge` | 세션 디렉토리 부모 |
+| `MERGE_OUTPUT_DIR` | `./.review/merge` | 세션 디렉토리 부모 (gitignore, 커밋하지 않는다. 결과는 NERV `kind=merge` 로 제출) |
 | `AI_REVIEW_LOOP` | `0` | loop_mode |
 | `RETRY_WAKE_DEFAULT_SEC` | `1800` | wake delay |
 

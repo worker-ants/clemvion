@@ -23,7 +23,8 @@ Monorepo. 애플리케이션 코드는 `codebase/` 하위 (서버 `codebase/back
 ./
   ├── spec/                # NERV 스펙 미러 spec/<영역 키>/<KEY>.md (읽기 전용) + 옛 트리(동결, 전환 단계 5 에서 삭제)
   ├── plan/                # 작업 추적 (in-progress/ ↔ complete/) + research/ (리서치 산출물)
-  ├── review/              # 코드 리뷰 / 일관성 검토 산출물 (nested ISO)
+  ├── review/              # 옛 리뷰 산출물(동결, 전환 단계 3 에서 삭제). 새 리뷰 결과는 NERV 리뷰 레코드
+  ├── .review/             # 리뷰 · 검토 오케스트레이터의 로컬 산출물 (gitignore, 커밋하지 않음)
   ├── codebase/{frontend,backend,packages,channel-web-chat}/  # channel-web-chat: 임베드형 웹채팅 위젯 SPA (Next.js CSR, spec/7-channel-web-chat)
   └── .claude/worktrees/   # 모든 신규 작업의 git worktree
 ```
@@ -41,11 +42,14 @@ Monorepo. 애플리케이션 코드는 `codebase/` 하위 (서버 `codebase/back
 | 완료된 작업 | `plan/complete/` — 라이프사이클·이동 방식은 [`.claude/docs/plan-lifecycle.md`](.claude/docs/plan-lifecycle.md) |
 | 리서치·분석 산출물 (작업 plan 아님) | `plan/research/` — 경쟁 분석·기술 조사 등 "참조되는" 문서. 완료 종착점이 없어 in-progress/complete 축과 분리. 판별 기준: [`.claude/docs/plan-lifecycle.md §2`](.claude/docs/plan-lifecycle.md) |
 | 1회성·역사 문서 | `plan/complete/archive/from-*/` 만 보관, 신규 생성 금지 |
-| 코드 리뷰 산출물 | `review/code/<YYYY>/<MM>/<DD>/<hh>_<mm>_<ss>/` |
-| 일관성 검토 산출물 | `review/consistency/<YYYY>/<MM>/<DD>/<hh>_<mm>_<ss>/` |
-| 통합 검토 산출물 | `review/merge/<YYYY>/<MM>/<DD>/<hh>_<mm>_<ss>/` |
-| Spec-impl coverage standing audit 산출물 | `review/spec-coverage/<YYYY>/<MM>/<DD>/<hh>_<mm>_<ss>/` (slash `/spec-coverage` 산출. SoT: [`spec/conventions/spec-impl-evidence.md`](spec/conventions/spec-impl-evidence.md) + [`.claude/docs/plan-lifecycle.md §6.2`](.claude/docs/plan-lifecycle.md)) |
+| 코드 리뷰 결과 | NERV 리뷰 레코드 `kind=code` — 역할마다 `nerv_review_submit`, 발견 처분은 `nerv_finding_resolve`. 로컬 산출물 `.review/code/<YYYY>/<MM>/<DD>/<hh>_<mm>_<ss>/` 는 커밋하지 않는다 |
+| 일관성 검토 결과 | NERV 리뷰 레코드 `kind=consistency`(checker 마다 제출). 로컬 `.review/consistency/<…>/` |
+| 통합 검토 결과 | NERV 리뷰 레코드 `kind=merge`. 로컬 `.review/merge/<…>/` |
+| Spec-impl coverage standing audit 결과 | NERV 리뷰 레코드 `kind=spec_coverage`. 로컬 `.review/spec-coverage/<…>/` (slash `/spec-coverage` 산출. SoT: [`spec/conventions/spec-impl-evidence.md`](spec/conventions/spec-impl-evidence.md) + [`.claude/docs/plan-lifecycle.md §6.2`](.claude/docs/plan-lifecycle.md)) |
 
+> **리뷰 결과는 저장소 파일이 아니다**(NERV 정본 전환 단계 2, 2026-10-01). 옛 `review/` 는 도구 편집을 `guard_nerv_owned_paths.py` 훅이 막고
+> 단계 3 에서 지운다. 오케스트레이터는 `.review/` 에 쓰고, `.claude/tools/nerv_review_payload.py` 가 그 역할 리포트를 제출 묶음으로 바꾼다.
+>
 > PLAN 라이프사이클·이동 규칙·frontmatter 스키마: [`.claude/docs/plan-lifecycle.md`](.claude/docs/plan-lifecycle.md)
 > Spec 문서 3섹션 구성 (Overview / 본문 / Rationale): 각 SKILL.md 참고.
 >
@@ -66,19 +70,21 @@ Workflow 의 generic 단계 정의: [`developer/SKILL.md`](.claude/skills/develo
 | 역할 | Skill | 쓰기 권한 |
 | --- | --- | --- |
 | 기획자 | [`project-planner`](.claude/skills/project-planner/SKILL.md) | NERV 스펙 초안(`/nerv:spec`), `plan/**`, **거버넌스 문서** (`CLAUDE.md`·`.claude/skills/**/SKILL.md`·`.claude/docs/**`) |
-| 개발자 | [`developer`](.claude/skills/developer/SKILL.md) | `codebase/**`, `plan/**`, `review/**`, **harness 실행물** (`.claude/hooks/**`·`.claude/tools/**`·`.claude/tests/**`), `spec/` 미러(`pull.py` 로만), NERV 스펙 초안 |
-| 일관성 검토자 | [`consistency-checker`](.claude/skills/consistency-checker/SKILL.md) (`/consistency-check`) | `review/consistency/**` |
-| 코드 리뷰어 | [`code-review-agents`](.claude/skills/code-review-agents/SKILL.md) (`/ai-review`) | `review/code/**` |
-| 통합 조율자 | [`merge-coordinator`](.claude/skills/merge-coordinator/SKILL.md) (`/merge-coordinate`) | `review/merge/**`, `.claude/worktrees/integrate-*/**` |
+| 개발자 | [`developer`](.claude/skills/developer/SKILL.md) | `codebase/**`, `plan/**`, **harness 실행물** (`.claude/hooks/**`·`.claude/tools/**`·`.claude/tests/**`), `spec/` 미러(`pull.py` 로만), NERV 스펙 초안, NERV 리뷰 제출 · 발견 처분 |
+| 일관성 검토자 | [`consistency-checker`](.claude/skills/consistency-checker/SKILL.md) (`/consistency-check`) | `.review/consistency/**`(로컬) → NERV `kind=consistency` |
+| 코드 리뷰어 | [`code-review-agents`](.claude/skills/code-review-agents/SKILL.md) (`/ai-review`) | `.review/code/**`(로컬) → NERV `kind=code` |
+| 통합 조율자 | [`merge-coordinator`](.claude/skills/merge-coordinator/SKILL.md) (`/merge-coordinate`) | `.review/merge/**`(로컬) → NERV `kind=merge`, `.claude/worktrees/integrate-*/**` |
+
+- **NERV 쓰기는 main 세션의 MCP 호출로만 한다** — 리뷰 제출 · 발견 처분 · Task 갱신 모두. 훅 · CI · 스크립트는 REST 로 읽기만 한다. 서브에이전트(`resolution-applier` 등)는 처분 목록을 돌려주고 main 이 기록한다(결정 D9). 토큰 값은 커밋하지도 출력하지도 않는다.
 
 - **스펙은 NERV 초안으로 고친다** — 누구나 초안을 쓰고(`/nerv:spec new|edit`), **승인은 사람**이 한다. 기획 주도의 신규 정의 · 대규모 개정은 `project-planner`, 구현 중 발견한 스펙 결함은 `developer` 도 초안을 쓴다. `codebase/` 변경 → `developer`.
   > 옛 "§자기-반증형 소정정"(developer 가 `spec/` 을 직접 고칠 수 있는 좁은 예외)은 이 규칙에 흡수돼 없어졌다(2026-09-29 결정 D8 안 A). 반증한 사람이 곧 초안을 쓸 수 있으므로 예외가 필요 없다.
 - 구현 중 스펙과 부딪치면 추측으로 진행하지 않는다. 초안을 쓰거나 리뷰 발견(`area=spec`)으로 올리고, 막히면 `nerv_task_update(status=blocked, blocked_reason=spec_conflict)`.
 - 스펙 초안은 **저장 뒤 검토 요청 전에** 검토한다: `nerv_spec_check` + 로컬 `/consistency-check --spec <초안 본문 파일>`(`nerv_spec_get(basis=latest)` 본문을 scratchpad 에 둔 파일). 로컬 결과는 `kind=consistency` 로 제출한다. Critical 이면 검토 요청하지 않는다. `developer` 는 구현 착수 직전 `consistency-check --impl-prep` 의무. Critical 발견 시 차단.
 - **harness(`.claude/**`) 는 두 축으로 갈린다** — 코드·테스트·도구(`hooks/`·`tools/`·`tests/`)는 `developer`, **거버넌스 문서**(`CLAUDE.md`·`.claude/skills/**/SKILL.md`·`.claude/docs/**`)는 `project-planner`. 역할 정의를 그 역할 자신이 고치는 것을 막는 경계다. `.claude/worktrees/**` 는 각 세션의 작업 트리이며 `integrate-*` 만 `merge-coordinator` 소유(위 표).
-- **harness 변경은 리뷰 게이트가 물지 않는다** — `/ai-review`·`--impl-done` push 게이트의 스코프는 `codebase/**` 다. harness-only 변경은 차단되지 않으므로 **검증은 `python3 -m pytest .claude/tests -q` 가 대신한다** (선례 `051c7e7c1` 이 그 명령으로 검증했다). 이 비대칭을 적지 않으면 "harness 도 게이트가 본다" 는 보장을 문서가 구현보다 넓게 말하게 된다.
+- **push 게이트는 `codebase/**` 만 본다** — push 훅과 CI `review-gate` 는 `codebase/**` 를 바꾼 브랜치에 passed 상태의 NERV `kind=code` 라운드를 요구한다(판정 규칙: `.claude/hooks/_lib/review_guard.py`). harness-only 변경은 push 가 막히지 않으므로 **검증은 `python3 -m pytest .claude/tests -q` 가 대신한다** (선례 `051c7e7c1` 이 그 명령으로 검증했다). 다만 NERV Task 의 done 게이트(`done_gate.review_coverage: ["code","consistency"]`)는 변경 영역과 무관하게 **그 Task 에 묶인** code · consistency 라운드를 요구한다. 그래서 harness Task 도 리뷰를 돌려 `task_id` 를 붙여 제출한다. 이 비대칭을 적지 않으면 "harness 도 push 게이트가 본다" 는 보장을 문서가 구현보다 넓게 말하게 된다.
 
-**보조 도구**: [`spec-coverage`](.claude/skills/spec-coverage/SKILL.md) (`/spec-coverage`) — spec 본문 약속 vs 구현 갭 standing audit (NLP 휴리스틱). 수동 호출만, CI 차단 아님. 산출 `review/spec-coverage/**`. SoT: [`spec/conventions/spec-impl-evidence.md`](spec/conventions/spec-impl-evidence.md) + [`.claude/docs/plan-lifecycle.md §6.2`](.claude/docs/plan-lifecycle.md).
+**보조 도구**: [`spec-coverage`](.claude/skills/spec-coverage/SKILL.md) (`/spec-coverage`) — spec 본문 약속 vs 구현 갭 standing audit (NLP 휴리스틱). 수동 호출만, CI 차단 아님. 결과는 NERV `kind=spec_coverage`, 로컬 산출 `.review/spec-coverage/**`. SoT: [`spec/conventions/spec-impl-evidence.md`](spec/conventions/spec-impl-evidence.md) + [`.claude/docs/plan-lifecycle.md §6.2`](.claude/docs/plan-lifecycle.md).
 
 ## 외부 LLM 호출 정책
 
@@ -93,10 +99,11 @@ auxiliary Python 스크립트(예: `.claude/skills/**/scripts/*orchestrator*.py`
 
 ### 구현 완료 후 자동 review/fix 는 상시 승인된 강제 의무 (standing opt-in)
 
-`Workflow` tool 의 일반 가드는 "사용자가 명시적으로 multi-agent orchestration 에 opt-in 했을 때만 호출" 하라고 한다. 이는 **임의 작업에 대한 비용 보호**다. 그러나 **구현(`developer`) 완료 후의 `/ai-review` + critical/warning fix 는 그 가드의 예외** — 본 프로젝트가 **상시 사전 승인한 강제 단계**다 (developer SKILL §REVIEW WORKFLOW, hook 강제). 따라서:
+`Workflow` tool 의 일반 가드는 "사용자가 명시적으로 multi-agent orchestration 에 opt-in 했을 때만 호출" 하라고 한다. 이는 **임의 작업에 대한 비용 보호**다. 그러나 **구현(`developer`) 완료 후의 `/ai-review`(로컬 fan-out) + 역할별 NERV 제출 + critical/warning fix · 처분은 그 가드의 예외** — 본 프로젝트가 **상시 사전 승인한 강제 단계**다 (developer SKILL §REVIEW WORKFLOW. push 훅과 CI `review-gate` 가 NERV 라운드로, NERV done 게이트가 Task 마다 강제한다). 따라서:
 
 - 구현이 끝나면 `/ai-review` 를 "범위가 커 보인다 / 사용자가 이번 턴에 명시 안 했다" 는 이유로 미루지 않는다. 이 자동 리뷰는 "추론된 scale" 이 아니라 **명시 규약**이므로 Workflow opt-in 가드에 걸리지 않는다.
-- 마찬가지로 SUMMARY 의 Critical/Warning 에 대한 `resolution-applier` fix 도 같은 턴의 강제 의무다.
+- 마찬가지로 Critical/Warning 에 대한 `resolution-applier` fix 와 main 의 `nerv_finding_resolve` 처분도 같은 턴의 강제 의무다.
+- **예외 — 사람 승인 대기**: critical 을 dismissed · wont_fix 로 낮추는 처분이나 스펙 초안 검토 요청처럼 NERV 가 사람 승인(A3)을 요구하는 지점에서 기다리는 것은 미루기가 아니다. 그 동안 세션은 `awaiting_input` 이다. 기다리는 이유를 사용자에게 알리고 그 외 할 일은 끝낸다.
 - **자동 트리거(구현 완료 후) 시에는** Workflow 의 비동기 간극을 피하기 위해 `code-review-agents` SKILL 의 **fallback 평문 Agent fan-out 경로**를 선택할 수 있다 — 사용자가 명시적으로 `/ai-review` 를 친 경우(대화형)는 Workflow 경로가 자연스럽다.
 
 Sub-agent 호출 규약(prompt_file/output_file/STATUS 라인) + 한도 무한 재시도 정책: [`.claude/docs/subagent-call-contract.md`](.claude/docs/subagent-call-contract.md).

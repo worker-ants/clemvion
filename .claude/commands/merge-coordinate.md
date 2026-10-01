@@ -75,16 +75,18 @@ Phase 1 반환의 `block` 으로 판정 (SUMMARY.md 전문 재Read 불필요):
 
 ## 산출물
 
-- `review/merge/<YYYY>/<MM>/<DD>/<hh>_<mm>_<ss>/SUMMARY.md` — 통합 보고서 + BLOCK 결정
-- `review/merge/<YYYY>/<MM>/<DD>/<hh>_<mm>_<ss>/<analyzer>.md` — 4 analyzer 별 상세
-- `review/merge/<YYYY>/<MM>/<DD>/<hh>_<mm>_<ss>/_retry_state.json` — pending/success/fatal + resolver invocations + branches/base
-- `review/merge/<YYYY>/<MM>/<DD>/<hh>_<mm>_<ss>/_prompts/<analyzer>.md` — orchestrator 가 만든 페이로드
-- `review/merge/<YYYY>/<MM>/<DD>/<hh>_<mm>_<ss>/_conflicts/<n>.{md,patch}` — Phase 3 conflict 정보 + resolver patch
+로컬 산출물은 `.review/merge/` 아래에 쓰고 커밋하지 않는다(gitignore). 결과는 NERV `kind=merge` 로 제출한다.
+
+- `.review/merge/<YYYY>/<MM>/<DD>/<hh>_<mm>_<ss>/SUMMARY.md` — 통합 보고서 + BLOCK 결정
+- `.review/merge/<YYYY>/<MM>/<DD>/<hh>_<mm>_<ss>/<analyzer>.md` — 4 analyzer 별 상세
+- `.review/merge/<YYYY>/<MM>/<DD>/<hh>_<mm>_<ss>/_retry_state.json` — pending/success/fatal + resolver invocations + branches/base
+- `.review/merge/<YYYY>/<MM>/<DD>/<hh>_<mm>_<ss>/_prompts/<analyzer>.md` — orchestrator 가 만든 페이로드
+- `.review/merge/<YYYY>/<MM>/<DD>/<hh>_<mm>_<ss>/_conflicts/<n>.{md,patch}` — Phase 3 conflict 정보 + resolver patch
 
 ## 환경변수
 
 자세한 옵션은 `.claude/skills/merge-coordinator/SKILL.md` 참고. 주요 변수:
-- `MERGE_OUTPUT_DIR` (기본 `./review/merge`)
+- `MERGE_OUTPUT_DIR` (기본 `./.review/merge`)
 - `MERGE_BASE_HINT` — base 힌트
 - `MERGE_AUTO_APPLY_PATCH` — `1` 이면 success patch 자동 apply (기본 OFF)
 - `MERGE_MAX_PROMPT_SIZE` (기본 131072)
