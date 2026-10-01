@@ -24,7 +24,7 @@ model: opus
 | --- | --- |
 | NERV 스펙 | 초안 작성(`/nerv:spec`) — 주 작업 영역. 승인은 사람 |
 | `spec/**` | Read only — NERV 미러(`pull.py` 만 쓴다). 옛 `spec/<영역>/` 트리도 동결 |
-| `plan/**` | Read/Write — draft, in-progress, complete 라이프사이클 ([`.claude/docs/plan-lifecycle.md`](../../docs/plan-lifecycle.md)) |
+| NERV Task | 생성 · 갱신 — 기획에서 나온 작업은 `nerv_task_create` 로 만든다. 옛 `plan/` 은 전환 단계 3 에서 지웠다(원문은 git 이력) |
 | `codebase/**` | Read only — 구현 영향 파악용. 수정 금지 |
 | `.review/**` | Read — 로컬 consistency 결과 확인용(gitignore). 정본은 NERV `kind=consistency` 레코드 |
 | `.claude/docs/**`, `.claude/skills/**/SKILL.md`, `CLAUDE.md` | Read/Write — **거버넌스 문서**(역할 정의·워크플로 규약). harness **실행물**(`hooks/`·`tools/`·`tests/`)은 `developer` 소유라 대상 아님 ([`CLAUDE.md` §Skill 체계](../../../CLAUDE.md#skill-체계) 가 SoT) |
@@ -40,7 +40,7 @@ model: opus
    - 새 문서의 제목 · 부모 · 타입은 만든 뒤 바꿀 수 없다. 만들기 전에 용어 사전(`CLE-GLOSSARY`)과 트리 위치를 맞춘다. 키는 `CLE-<영역>-<슬러그>`.
 5. **제출 전 검토**:
    - `nerv_spec_check(spec_version_id)`: 서버의 규칙 기반 검사.
-   - `/consistency-check --spec <초안 본문 파일>`: 로컬 5 checker 의 의미 검토. 본문은 `nerv_spec_get(basis=latest)` 로 받아 scratchpad 파일에 둔다. 결과는 `nerv_review_submit(kind=consistency)` 로 제출한다.
+   - `/consistency-check --spec <초안 본문 파일>`: 로컬 checker 의 의미 검토. 본문은 `nerv_spec_get(basis=latest)` 로 받아 scratchpad 파일에 둔다. 결과는 `nerv_review_submit(kind=consistency)` 로 제출한다.
    - **BLOCK: YES** → 멈춤. 충돌 해소 후 다시 검토. **BLOCK: NO + Warning** → `## Rationale` 에 노트 남기고 진행.
 6. **검토 요청**: `nerv_spec_submit_review` — 사람이 승인한다. 승인 결과는 하트비트 `pending` 의 `approval_decided` 로 온다.
 7. **side-effect 점검**: 다른 스펙 · 다른 초안과 충돌이 새로 생기지 않았는지 확인한다. 필요하면 관계(`nerv_spec_relate`)를 선언하고 다른 문서도 함께 초안을 쓴다.

@@ -43,7 +43,7 @@ The three heuristics (SKILL.md §검출 heuristic) trade precision for recall:
   rate.
 
 Treat findings as **candidates to triage**, not defects. Pick the real ones and
-move them into a plan under `plan/in-progress/`. Tune noise with
+file them as NERV Tasks (`nerv_task_create`). Tune noise with
 `SPEC_COVERAGE_CONFIDENCE_FLOOR=medium|high` and `SPEC_COVERAGE_MAX_FINDINGS`.
 
 ## SoT
