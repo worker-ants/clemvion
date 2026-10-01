@@ -953,5 +953,46 @@ class TheDiffOutranksTheFolderDumpTest(unittest.TestCase):
         self.assertIn("DIFF", out)
 
 
+class NervMirrorStaysOutOfTheOldCorpusTest(unittest.TestCase):
+    """NERV 전환 단계 1 의 미러(`spec/CLE-*` · `spec/README.md`)는 옛 코퍼스에 섞지 않는다.
+
+    섞으면 같은 내용이 두 모양으로 들어가 예산을 두 번 쓰고 우선순위가 흐려진다. 실측
+    (2026-09-29): 미러 169편을 넣자 `related_specs` 번들 순서 단언이 깨졌다. 코퍼스를
+    미러로 옮기는 일은 단계 4e(NERV Task `CLE-T-VP5KDJ`)다.
+    """
+
+    def test_no_mirror_file_in_related_specs_or_conventions(self):
+        # 미러가 트리에 없으면 "미러 헤더 0개" 는 제외 로직과 무관하게 참이다.
+        mirror = sorted((REPO_ROOT / "spec").glob("CLE-*.md"))
+        self.assertTrue(mirror, "spec/CLE-*.md 가 없다 — 제외 검사가 공허해진다")
+        heads = run_in_orchestrator(
+            """
+            import re
+            class Args:
+                spec = plan = impl_prep = impl_done = diff_base = None
+            args = Args()
+            args.impl_done = ROOT + "/spec/5-system"
+            ctx = orch.collect_context(args, ROOT)
+            text = ctx["related_specs"] + ctx["conventions"]
+            emit(sorted(set(re.findall(r"^#### `(spec/[^`]+)`", text, re.M))))
+            """,
+            None,
+        )
+        self.assertTrue(heads, "bundle rendered no file headers — the check would be vacuous")
+        self.assertEqual([h for h in heads if h.startswith(("spec/CLE-", "spec/README.md"))], [])
+
+    def test_is_nerv_mirror(self):
+        out = run_in_orchestrator(
+            """
+            cases = ["spec/README.md", "spec/CLE-VISION.md", "spec/CLE-ACCT/CLE-ACCT.md",
+                     "spec/0-overview.md", "spec/5-system/1-auth.md",
+                     "spec/conventions/README.md", "spec/5-system/CLE-x.md"]
+            emit([orch.is_nerv_mirror(ROOT + "/" + c, ROOT + "/spec") for c in cases])
+            """,
+            None,
+        )
+        self.assertEqual(out, [True, True, True, False, False, False, False])
+
+
 if __name__ == "__main__":
     unittest.main()

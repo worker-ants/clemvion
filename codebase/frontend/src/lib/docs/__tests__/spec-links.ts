@@ -248,11 +248,23 @@ function inGeneratedCatalog(relPath: string): boolean {
   return relPath.includes("-api-catalog/");
 }
 
-/** All narrative markdown under `spec/` (excludes generated catalogs). */
+// NERV 스펙 미러(`spec/CLE-*` · `spec/<영역 키>/**` · `spec/README.md`). NERV 가 정본이고
+// `.claude/tools/nerv-mirror/pull.py` 가 쓰는 사본이라 이 가드들(옛 `spec/<영역>/` 트리의
+// 링크 · 영역 목차 규칙)의 대상이 아니다. 미러 무결성은 `pull.py --check`
+// (CI `spec-mirror-integrity`)가 본다. 옛 트리는 NERV 전환 단계 5(Task `CLE-T-7M4C4X`)에서
+// 지운다. 같은 판정이 `pull.py` 와 consistency 오케스트레이터에도 있고, 세 곳이 같은 파일을
+// 고르는지 `.claude/tests/test_nerv_mirror_pull.py` 의 `MirrorPredicateParityTest` 가 본다.
+const NERV_MIRROR = /^spec\/(?:README\.md|CLE-[A-Z0-9-]+\.md|CLE-[A-Z0-9-]+\/)/;
+
+export function inNervMirror(relPath: string): boolean {
+  return NERV_MIRROR.test(relPath);
+}
+
+/** All narrative markdown under `spec/` (excludes generated catalogs and the NERV mirror). */
 export function collectSpecMarkdown(root: string): MdFileRef[] {
   return walkTree(root, ["spec"], {
     includeFile: (name, relPath) =>
-      name.endsWith(".md") && !inGeneratedCatalog(relPath),
+      name.endsWith(".md") && !inGeneratedCatalog(relPath) && !inNervMirror(relPath),
   });
 }
 

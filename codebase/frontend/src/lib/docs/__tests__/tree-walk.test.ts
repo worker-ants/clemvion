@@ -121,6 +121,10 @@ describe("수집기 필터 배선 — 합성 트리", () => {
       path.join(root, "spec/conventions/cafe24-api-catalog/order/detail.md"),
     );
     write(path.join(root, "spec/not-md.txt"));
+    // NERV 미러(전환 단계 1) — 루트 `CLE-*.md` · 영역 폴더 `CLE-*/` · `README.md` 는 뺀다(`inNervMirror`).
+    write(path.join(root, "spec/CLE-X.md"));
+    write(path.join(root, "spec/CLE-ACCT/CLE-ACCT.md"));
+    write(path.join(root, "spec/README.md"));
 
     // collectCodebaseSources — skip 디렉터리 4종 + 확장자.
     write(path.join(root, "codebase/frontend/src/keep.ts"));
@@ -153,12 +157,15 @@ describe("수집기 필터 배선 — 합성 트리", () => {
    * | `collectSpecMarkdown` (링크 무결성) | **본다** | **안 본다** | 안 본다 |
    * | `collectApplicableSpecs` (frontmatter) | **안 본다** | **본다** | 안 본다 |
    *
+   * 「`spec/` 루트 파일」은 옛 트리의 루트 파일이다. NERV 미러(`spec/README.md` · `spec/CLE-*`)는
+   * 전환 단계 1 부터 `collectSpecMarkdown` 도 보지 않는다(`inNervMirror`).
+   *
    * 근거가 서로 다르다 — 전자는 `relPath.includes("-api-catalog/")` 라 카탈로그 **전체**를
    * 링크 검사에서 빼고(생성물의 링크는 기계가 만든다), 후자는 `INCLUDE_PREFIXES` 로
    * 영역 폴더만 보되 카탈로그 최상위 `<resource>.md` 는 진짜 spec 이라 남긴다
    * (`spec/conventions/spec-impl-evidence.md §1`).
    */
-  it("collectSpecMarkdown — 카탈로그를 **통째로** 뺀다 (최상위 인덱스 포함)", () => {
+  it("collectSpecMarkdown — 카탈로그를 **통째로** 뺀다 (최상위 인덱스 포함) · NERV 미러도 뺀다", () => {
     expect(collectSpecMarkdown(root).map((f) => f.relPath)).toEqual([
       "spec/real.md",
     ]);

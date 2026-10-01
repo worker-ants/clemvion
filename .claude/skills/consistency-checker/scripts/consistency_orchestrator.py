@@ -194,6 +194,19 @@ def _natural_key(path):
             for tok in re.split(r"(\d+)", path)]
 
 
+# NERV 스펙 미러(`spec/CLE-*.md` · `spec/CLE-*/**` · `spec/README.md`, NERV 전환 단계 1).
+# 옛 트리 코퍼스(related_specs · conventions)에 섞지 않는다 — 두 벌이 같은 내용을 다른 모양으로
+# 담아 예산을 두 번 쓰고 우선순위를 흐린다. 코퍼스를 미러로 옮기는 일은 단계 4e(NERV Task
+# `CLE-T-VP5KDJ`)다. 같은 판정이 `pull.py` 와 frontend `spec-links.ts` 에도 있고, 세 곳이 같은
+# 파일을 고르는지 `.claude/tests/test_nerv_mirror_pull.py` 의 `MirrorPredicateParityTest` 가 본다.
+_NERV_MIRROR_REL = re.compile(r"^(?:README\.md|CLE-[A-Z0-9-]+\.md|CLE-[A-Z0-9-]+/)")
+
+
+def is_nerv_mirror(path, spec_dir):
+    rel = os.path.relpath(os.path.abspath(path), os.path.abspath(spec_dir)).replace(os.sep, "/")
+    return bool(_NERV_MIRROR_REL.match(rel))
+
+
 def collect_markdown_files(root_dir, exclude_paths=None):
     if exclude_paths is None:
         exclude_paths = set()
@@ -792,7 +805,8 @@ def collect_context(args, root):
             "Mode 가 지정되지 않았습니다: --spec / --plan / --impl-prep / --impl-done 중 하나가 필요합니다."
         )
 
-    all_spec_files = collect_markdown_files(spec_dir, exclude_paths=excluded)
+    all_spec_files = [p for p in collect_markdown_files(spec_dir, exclude_paths=excluded)
+                      if not is_nerv_mirror(p, spec_dir)]
     # Conventions may live under spec_dir (default) or be relocated by
     # .claude.project.json — handle both. When relocated, collect the
     # conventions corpus separately so the convention-compliance checker

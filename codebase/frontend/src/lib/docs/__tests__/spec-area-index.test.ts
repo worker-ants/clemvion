@@ -13,7 +13,8 @@ import { collectSpecMarkdown, extractLinks } from "./spec-links";
 // fragments). A folder with <2 siblings needs no TOC.
 //
 // `spec/conventions/` is a FLAT reference collection (no entry/index doc by
-// design) and is exempt. Generated `*-api-catalog/` trees are exempt.
+// design) and is exempt. Generated `*-api-catalog/` trees are exempt, and so is
+// the NERV spec mirror (`spec/README.md` · `spec/CLE-*`, see `inNervMirror`).
 // This guard belongs to the §4.2 knowledge-base/plan-integrity family.
 // SoT: spec/conventions/spec-impl-evidence.md §4.2.
 
@@ -33,7 +34,7 @@ interface Area {
 }
 
 function collectAreas(root: string): Area[] {
-  const files = collectSpecMarkdown(root); // excludes catalogs
+  const files = collectSpecMarkdown(root); // excludes catalogs and the NERV mirror
   const byDir = new Map<string, string[]>(); // absDir -> basenames
   for (const f of files) {
     const dir = path.dirname(f.absPath);

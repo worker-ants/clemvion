@@ -32,6 +32,10 @@
           {
             "type": "command",
             "command": "python3 \"$CLAUDE_PROJECT_DIR/.claude/hooks/guard_default_branch_edit.py\""
+          },
+          {
+            "type": "command",
+            "command": "test ! -f \"$CLAUDE_PROJECT_DIR/.claude/hooks/guard_nerv_owned_paths.py\" || python3 \"$CLAUDE_PROJECT_DIR/.claude/hooks/guard_nerv_owned_paths.py\""
           }
         ]
       },
