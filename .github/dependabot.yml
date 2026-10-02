@@ -44,6 +44,26 @@ updates:
     schedule:
       interval: "weekly"
     rebase-strategy: "auto"
+    # minor · patch 업데이트는 그룹 PR 하나로 묶는다(2026-10-02, NERV Task `CLE-T-M8RB67`).
+    #
+    # 의존성마다 PR 이 따로 오면 모두 같은 `pnpm-lock.yaml` 을 고친다. 한 건을 머지하면 나머지가
+    # lockfile 충돌로 rebase · CI 재실행을 기다린다. 2026-10-02 에는 #1422 머지 뒤 #1423 이,
+    # #1423 머지 뒤 #1445 · #1446 · #1447 이 그렇게 멈췄다. main 에는 필수 검사가 없어서 따로
+    # 만든 lockfile 을 차례로 합칠 때마다 사람이 `--frozen-lockfile` 을 다시 확인해야 했다.
+    # 그룹 PR 은 lockfile 을 한 번에 다시 풀어 만들므로 이 순차 충돌이 없다.
+    #
+    # major 는 묶지 않는다. 사람이 판단할 일이고(예: Nest 12 는 `@nestjs/*` 를 함께 올려야 한다)
+    # 하나가 깨지면 그룹 전체가 막힌다. 그룹 PR 안의 한 의존성이 CI 를 깨면 그 PR 에
+    # `@dependabot ignore <의존성 이름> minor version` 처럼 남겨 그 업데이트만 뺀다.
+    #
+    # 보안 업데이트(repo Settings 의 security updates)도 이 트리에서는 그룹 하나로 받는다.
+    groups:
+      npm-minor-patch:
+        applies-to: version-updates
+        update-types: ["minor", "patch"]
+      npm-security:
+        applies-to: security-updates
+        patterns: ["*"]
     ignore:
       # typescript major 는 자동 bump 대상에서 제외한다.
       #
