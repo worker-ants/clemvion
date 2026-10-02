@@ -1,4 +1,4 @@
-/** MakeShop Shop API — 회원 (Member) 섹션 (16 operations). SoT: spec/conventions/makeshop-api-catalog/member.md */
+/** MakeShop Shop API — 회원 (Member) 섹션 (16 operations). SoT: codebase/api-catalogs/makeshop/member.md */
 
 import type { MakeshopOperationMetadata } from './types.js';
 

@@ -7,7 +7,7 @@
  * Adding a new endpoint: refer to `spec/conventions/makeshop-api-metadata.md`
  * §6 for the procedure (1 row in the matching section file + catalog row).
  *
- * Generated from `spec/conventions/makeshop-api-catalog/openapi/<section>.openapi.json`.
+ * Generated from `codebase/api-catalogs/makeshop/openapi/<section>.openapi.json`.
  */
 
 import { benefitOperations } from './benefit.js';

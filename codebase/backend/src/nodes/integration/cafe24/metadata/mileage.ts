@@ -9,7 +9,7 @@ import {
  * Cafe24 `mileage` (points / credits) resource metadata.
  *
  * G-1-remaining (plan `cafe24-backlog-residual.md`, 2026-07-05): field-set 을
- * 공식 docs 카탈로그(`spec/conventions/cafe24-api-catalog/mileage/*.md` 의 각
+ * 공식 docs 카탈로그(`codebase/api-catalogs/cafe24/mileage/*.md` 의 각
  * operation `요청 파라미터` 표)와 **전량 미러**했다. 필드명은 docs Parameter 를
  * 그대로 사용한다 — 핸들러가 field key 를 query/body 파라미터명으로 그대로
  * 전송하므로 (`cafe24.handler.ts` buildRequest), docs 명이 아닌 alias 는 Cafe24 가

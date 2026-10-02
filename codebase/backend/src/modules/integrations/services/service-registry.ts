@@ -284,7 +284,7 @@ const MAKESHOP_OAUTH_FIELDS: CredentialField[] = [
  * ⚠ 파트너 별도승인(restricted) 티어가 없어 `requiresApproval` 플래그를 두지
  * 않는다 (앱 심사 시 일괄 검토만). scope wire format = 공백 구분 (OAuth 2.1
  * 표준 — cafe24 의 콤마 예외 미적용). spec/2-navigation/4-integration.md §5.9
- * "Scope 권장 프리셋" + spec/conventions/makeshop-api-catalog/_overview.md.
+ * "Scope 권장 프리셋" + codebase/api-catalogs/makeshop/_overview.md.
  */
 const MAKESHOP_SCOPES: ScopeOption[] = [
   { value: 'store.read', label: '상점 설정 조회', recommended: true },

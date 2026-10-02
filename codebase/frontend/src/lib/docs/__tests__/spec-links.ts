@@ -241,7 +241,9 @@ export function isExternal(target: string): boolean {
 
 // Generated API reference catalogs (cafe24-api-catalog, makeshop-api-catalog, …)
 // are not narrative specs; their cross-links are machine-generated and out of
-// scope for the link-integrity guard.
+// scope for the link-integrity guard. Since NERV cutover stage 4a the catalogs
+// live in `codebase/api-catalogs/` (see `RELOCATED_SPEC_TREES`), so nothing
+// under `spec/` matches today; the rule goes with the old tree in stage 5.
 function inGeneratedCatalog(relPath: string): boolean {
   return relPath.includes("-api-catalog/");
 }
@@ -293,6 +295,12 @@ interface LinkScanOptions {
    * elsewhere (`spec/x/plan/`) is not mistaken for the repo-root one.
    */
   skipResolved?: (absPath: string) => boolean;
+  /**
+   * Map a link's **resolved** absolute path to the place it is checked at.
+   * Applied before `skipResolved` and the existence/anchor checks, so a link
+   * into a moved tree is verified at the new place, not skipped.
+   */
+  relocateResolved?: (absPath: string) => string;
 }
 
 /**
@@ -344,7 +352,8 @@ function findBrokenLinksInFiles(
       if (pathPart === "") continue;
       if (options.targetFilter && !options.targetFilter(pathPart)) continue;
 
-      const resolved = path.resolve(path.dirname(f.absPath), pathPart);
+      const linked = path.resolve(path.dirname(f.absPath), pathPart);
+      const resolved = options.relocateResolved?.(linked) ?? linked;
       if (options.skipResolved?.(resolved)) continue;
       if (!fs.existsSync(resolved)) {
         violations.push({
@@ -387,19 +396,55 @@ function findBrokenLinksInFiles(
 const RETIRED_ROOT_TREES = ["plan", "review"];
 
 /**
+ * Trees moved out of `spec/`, as `[old place, new place]` relative to the repo
+ * root. NERV cutover stage 4a (NERV Task `CLE-T-BD48J3`, decision D4) made the
+ * Cafe24 · MakeShop API catalogs codebase data. The frozen old `spec/<area>/`
+ * tree still links to the old place and is not edited, so those links are
+ * checked at the new place — path and anchor alike. This goes with the old tree
+ * in stage 5 (`CLE-T-7M4C4X`).
+ *
+ * Only the spec scope relocates. Governance docs are live and must name the new
+ * path (`findBrokenGovernanceLinks` keeps reporting the old one).
+ */
+export interface RelocatedTree {
+  /** Old place, repo-relative (where the frozen tree still links). */
+  readonly from: string;
+  /** New place, repo-relative (where the link is checked). */
+  readonly to: string;
+}
+
+export const RELOCATED_SPEC_TREES: readonly RelocatedTree[] = [
+  { from: "spec/conventions/cafe24-api-catalog", to: "codebase/api-catalogs/cafe24" },
+  { from: "spec/conventions/makeshop-api-catalog", to: "codebase/api-catalogs/makeshop" },
+];
+
+function isUnder(abs: string, dir: string): boolean {
+  return abs === dir || abs.startsWith(dir + path.sep);
+}
+
+/**
  * Validate every in-repo markdown link in `spec/**`. Returns the list of
  * broken links (empty = healthy). A link is broken when its relative path
  * target does not exist (DEAD) or its `#anchor` does not resolve to a heading
  * in the target markdown file (ANCHOR). Same-file `#anchor` links are checked
  * against the file's own headings. Links that resolve into `RETIRED_ROOT_TREES`
- * (the root `plan/` and `review/`, or the folder itself) are skipped.
+ * (the root `plan/` and `review/`, or the folder itself) are skipped. Links
+ * that resolve into a `RELOCATED_SPEC_TREES` old place are checked at its new
+ * place.
  */
 export function findBrokenLinks(root: string): LinkViolation[] {
   const retired = RETIRED_ROOT_TREES.map((name) => path.resolve(root, name));
+  const relocated = RELOCATED_SPEC_TREES.map(({ from, to }) => ({
+    from: path.resolve(root, from),
+    to: path.resolve(root, to),
+  }));
   return findBrokenLinksInFiles(collectSpecMarkdown(root), {
     checkSelfAnchors: true,
-    skipResolved: (abs) =>
-      retired.some((dir) => abs === dir || abs.startsWith(dir + path.sep)),
+    relocateResolved: (abs) => {
+      const hit = relocated.find(({ from }) => isUnder(abs, from));
+      return hit ? hit.to + abs.slice(hit.from.length) : abs;
+    },
+    skipResolved: (abs) => retired.some((dir) => isUnder(abs, dir)),
   });
 }
 

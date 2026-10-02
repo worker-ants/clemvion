@@ -1,4 +1,4 @@
-/** MakeShop Shop API — CPIK (외부연동) 섹션 (8 operations). SoT: spec/conventions/makeshop-api-catalog/cpik.md */
+/** MakeShop Shop API — CPIK (외부연동) 섹션 (8 operations). SoT: codebase/api-catalogs/makeshop/cpik.md */
 
 import type { MakeshopOperationMetadata } from './types.js';
 

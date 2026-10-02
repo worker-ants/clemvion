@@ -16,7 +16,7 @@
  * is `supported`.
  *
  * SoT: spec/conventions/makeshop-api-metadata.md §2,
- *      spec/conventions/makeshop-api-catalog/<resource>.md.
+ *      codebase/api-catalogs/makeshop/<resource>.md.
  */
 
 import { describe, expect, it } from "vitest";
@@ -31,7 +31,7 @@ import { resolveMakeshopOperationLabel } from "@/lib/node-definitions/makeshop-e
 
 // Resolve repo root — frontend lives at <root>/codebase/frontend.
 const REPO_ROOT = resolve(__dirname, "../../../../../../");
-const CATALOG_DIR = join(REPO_ROOT, "spec", "conventions", "makeshop-api-catalog");
+const CATALOG_DIR = join(REPO_ROOT, "codebase", "api-catalogs", "makeshop");
 
 const MAKESHOP_RESOURCES = [
   "shop",
@@ -45,7 +45,7 @@ const MAKESHOP_RESOURCES = [
 
 type MakeshopResource = (typeof MAKESHOP_RESOURCES)[number];
 
-// REST table header order (makeshop-api-catalog `_overview.md`):
+// REST table header order (`codebase/api-catalogs/makeshop/_overview.md`):
 // `id | 라벨 (한) | method | path | scope | paginated | status | docs`.
 // The webhook table (`id | 라벨 (한) | event_code | docs`) lacks path/scope so
 // it is skipped as non-REST.

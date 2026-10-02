@@ -5,12 +5,12 @@
  * 를 lookup 키로 사용한다. makeshop 노드 Operation 드롭다운 + AI Agent allowlist
  * 에디터 + (cafe24 와 달리) Activity 탭은 이 dict 로 사람 친화 라벨을 렌더한다.
  *
- * 라벨은 카탈로그 `spec/conventions/makeshop-api-catalog/<resource>.md` 의
+ * 라벨은 카탈로그 `codebase/api-catalogs/makeshop/<resource>.md` 의
  * `라벨 (한)` 컬럼에서 그대로 가져온다. 새 operation 추가 시 KO/EN 동반 갱신
  * 필요 (같은 PR 안). 키 누락 시 lookup miss → labelKey 자체 fallback (drift 즉시 감지).
  *
  * SoT: spec/conventions/makeshop-api-metadata.md §2,
- *      spec/conventions/makeshop-api-catalog/<resource>.md
+ *      codebase/api-catalogs/makeshop/<resource>.md
  */
 export const makeshopCatalog: Record<string, string> = {
   "makeshop.shop.get-authority": "상점 권한 조회",

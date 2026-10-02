@@ -11,6 +11,7 @@ import {
   findBrokenLinks,
   findBrokenSpecLinksInSources,
   inNervMirror,
+  RELOCATED_SPEC_TREES,
   slugify,
   type LinkViolation,
 } from "./spec-links";
@@ -19,9 +20,10 @@ import {
 //   - DEAD: the relative `[..](path)` target file does not exist.
 //   - ANCHOR: the `#fragment` does not match any heading slug in the target.
 // Two scopes:
-//   1. All `spec/**.md` narrative docs (EXCEPT generated `*-api-catalog/` and the
-//      NERV mirror `spec/CLE-*` · `spec/README.md` — NERV owns those, `pull.py --check`
-//      guards their integrity).
+//   1. All `spec/**.md` narrative docs (EXCEPT generated `*-api-catalog/` — none left
+//      under `spec/` since stage 4a, the rule goes in stage 5 — and the NERV mirror
+//      `spec/CLE-*` · `spec/README.md` — NERV owns those, `pull.py --check` guards
+//      their integrity).
 //   2. Codebase `.ts`/`.tsx` sources under `codebase/{backend,frontend,
 //      channel-web-chat,packages}` — but only for links that target a
 //      `spec/**.md` file (JSDoc spec cross-refs, whose hand-counted `../`
@@ -33,8 +35,11 @@ import {
 // Scope (1) applies no target filter, with one exemption: links that resolve
 // into the repo-root `plan/` or `review/` trees are skipped. NERV cutover stage 3
 // (NERV Task `CLE-T-FN2JWK`) removed both trees, and the frozen old spec tree that
-// still links into them is deleted in stage 5 (`CLE-T-7M4C4X`). Scope (2) filters
-// to `spec/**.md` targets. Scope (3) has no exemption — governance docs are live.
+// still links into them is deleted in stage 5 (`CLE-T-7M4C4X`). Links that resolve
+// into a relocated tree (`RELOCATED_SPEC_TREES` — the API catalogs moved to
+// `codebase/api-catalogs/` in stage 4a, `CLE-T-BD48J3`) are checked at the new place.
+// Scope (2) filters to `spec/**.md` targets. Scope (3) has no exemption —
+// governance docs are live.
 // SoT: spec/conventions/spec-impl-evidence.md §4.2.
 
 function fmt(violations: LinkViolation[]): string {
@@ -65,16 +70,20 @@ describe("spec-link-integrity guard", () => {
     expect(files.some((f) => f.relPath === "spec/0-overview.md")).toBe(true);
   });
 
-  it("excludes generated API catalogs from scope", () => {
-    const files = collectSpecMarkdown(root);
-    // Exclusion must be non-trivial: catalog field files must actually exist…
-    const catalogDir = path.join(root, "spec", "conventions", "cafe24-api-catalog");
-    expect(
-      fs.existsSync(catalogDir),
-      "expected cafe24-api-catalog/ to exist so the exclusion is meaningful",
-    ).toBe(true);
-    // …yet none of them may appear in scope.
-    expect(files.every((f) => !f.relPath.includes("-api-catalog/"))).toBe(true);
+  // 단계 4a 에서 카탈로그를 codebase 데이터로 옮겼다. 옛 자리로 가는 링크를 새 자리에서
+  // 검사하려면 두 자리가 실제로 그렇게 있어야 한다. 옛 자리에 사본이 다시 생기면 링크가
+  // 어느 쪽을 보는지 흐려지고, 새 자리가 비면 그 링크가 모두 DEAD 로 바뀐다.
+  // 옛 자리는 디렉터리가 아니라 `_overview.md` 로 본다. 옛 `.gitignore` 가 그 안의
+  // 생성기 캐시를 무시했으므로 로컬 체크아웃에는 빈 디렉터리 · 캐시가 남을 수 있다.
+  it("relocated API catalogs exist only at their new place", () => {
+    expect(RELOCATED_SPEC_TREES.length).toBeGreaterThan(0);
+    for (const { from, to } of RELOCATED_SPEC_TREES) {
+      expect(
+        fs.existsSync(path.join(root, from, "_overview.md")),
+        `${from}/_overview.md must stay removed (a leftover generator cache dir is fine)`,
+      ).toBe(false);
+      expect(fs.existsSync(path.join(root, to, "_overview.md")), `${to}/_overview.md`).toBe(true);
+    }
   });
 
   it("excludes the NERV spec mirror from scope", () => {

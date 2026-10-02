@@ -13,9 +13,9 @@ import type { Cafe24Resource } from './types.js';
 /**
  * Catalog ↔ metadata 양방향 동기 가드.
  *
- * `spec/conventions/cafe24-api-catalog/<resource>.md` 가 Cafe24 Admin API 의
+ * `codebase/api-catalogs/cafe24/<resource>.md` 가 Cafe24 Admin API 의
  * 단일 진실(SoT)이며, 본 테스트는 카탈로그 표와 `CAFE24_OPERATIONS_BY_RESOURCE`
- * 가 어긋나면 즉시 fail 시킨다 — 정책: `spec/conventions/cafe24-api-catalog/_overview.md` §4.
+ * 가 어긋나면 즉시 fail 시킨다 — 정책: `codebase/api-catalogs/cafe24/_overview.md` §4.
  *
  * 검증:
  * 1. `status: supported` row 는 `findCafe24Operation` 으로 조회 가능해야 함
@@ -53,12 +53,7 @@ function resolveRepoRoot(): string {
   }
 }
 const REPO_ROOT = resolveRepoRoot();
-const CATALOG_DIR = join(
-  REPO_ROOT,
-  'spec',
-  'conventions',
-  'cafe24-api-catalog',
-);
+const CATALOG_DIR = join(REPO_ROOT, 'codebase', 'api-catalogs', 'cafe24');
 
 type CatalogStatus = 'supported' | 'planned' | 'deprecated';
 type CatalogRestricted = 'scope' | 'operation' | '';

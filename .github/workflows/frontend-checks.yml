@@ -53,6 +53,9 @@ jobs:
         # > 소비처를 하나만 보고 지웠다가 두 번째 소비처를 놓칠 뻔했다(`14_02_49` W1).
         codebase/channel-web-chat/**
         codebase/packages/**
+        # Cafe24 · MakeShop 카탈로그. frontend 의 i18n catalog-sync 테스트가 이 디렉터리를
+        # 읽는다(`.claude/tests/test_api_catalog_ci_coverage.py`).
+        codebase/api-catalogs/**
         pnpm-lock.yaml
         pnpm-workspace.yaml
         scripts/ci-paths-changed.sh

@@ -13,7 +13,7 @@ import type { MakeshopResource } from './types.js';
 /**
  * Catalog ↔ metadata 양방향 동기 가드.
  *
- * `spec/conventions/makeshop-api-catalog/<resource>.md` 의 REST 표가 단일 진실
+ * `codebase/api-catalogs/makeshop/<resource>.md` 의 REST 표가 단일 진실
  * (SoT)이며, 본 테스트는 카탈로그 표와 `MAKESHOP_OPERATIONS_BY_RESOURCE` 가
  * 어긋나면 즉시 fail 시킨다 — 정책: cafe24 catalog `_overview.md §4` 패턴을
  * makeshop 에 도입 (makeshop-api-metadata §5).
@@ -41,12 +41,7 @@ function resolveRepoRoot(): string {
   }
 }
 const REPO_ROOT = resolveRepoRoot();
-const CATALOG_DIR = join(
-  REPO_ROOT,
-  'spec',
-  'conventions',
-  'makeshop-api-catalog',
-);
+const CATALOG_DIR = join(REPO_ROOT, 'codebase', 'api-catalogs', 'makeshop');
 
 type CatalogStatus = 'supported' | 'planned';
 
@@ -61,7 +56,7 @@ interface CatalogRow {
   docsUrl: string;
 }
 
-// REST table canonical header order (makeshop-api-catalog `_overview.md §3·§6`):
+// REST table canonical header order (`codebase/api-catalogs/makeshop/_overview.md` §3·§6):
 // `id | 라벨 (한) | method | path | scope | paginated | status | docs`.
 // The webhook table header (`id | 라벨 (한) | event_code | docs`) lacks the
 // `path`/`scope` columns, so `buildColumnIndex` yields no `path`/`scope` index

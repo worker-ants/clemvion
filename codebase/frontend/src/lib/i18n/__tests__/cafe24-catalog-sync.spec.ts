@@ -37,7 +37,7 @@ const REPO_ROOT = resolve(__dirname, "../../../../../../");
 // guard) as the authoritative list of supported operations — simpler than
 // importing backend TS from a frontend Vitest run.
 // ---------------------------------------------------------------------------
-const CATALOG_DIR = join(REPO_ROOT, "spec", "conventions", "cafe24-api-catalog");
+const CATALOG_DIR = join(REPO_ROOT, "codebase", "api-catalogs", "cafe24");
 
 const CAFE24_RESOURCES = [
   "store",
