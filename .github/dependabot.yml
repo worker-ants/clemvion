@@ -71,6 +71,10 @@ updates:
     #                    아래 `ignore:` 에는 남지 않는다. 오래 둘 제외는 사유와 함께 `ignore:` 로 옮긴다.
     #   npm-security     ignore 를 쓰지 않는다. 취약 버전을 벗어나는 업데이트까지 막을 수 있다. 깨진
     #                    의존성은 사람이 따로 올리거나 `pnpm-workspace.yaml` 의 `overrides` 로 바닥을 올린다.
+    # 예외: `@playwright/test` 의 minor 는 e2e 이미지(`codebase/frontend/Dockerfile.playwright-e2e` 의
+    # `FROM` 태그)와 major.minor 가 같아야 config-guard 를 통과한다. dependabot 은 그 태그를 고치지 못하므로
+    # 그룹 PR 은 매번 깨진다. ignore 로 빼지 말고 둘을 함께 올리는 PR 을 따로 만든다. 그 PR 이 머지되면
+    # 다음 그룹 PR 에서 playwright 가 빠진다(2026-10-02 #1449).
     #
     # 보안 업데이트를 켜고 끄는 것은 지금처럼 repo Settings 의 security updates 토글이고, 토글은 켜 둔다.
     # `npm-security` 그룹은 그 PR 을 묶는 방식만 정한다. major 가 필요한 보안 수정은 그룹 밖에서 따로 온다.
