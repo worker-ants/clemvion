@@ -23,6 +23,20 @@
 > 07 37% · 08 30% · 09(25일까지) 49% 였다(나중 PR 의 백필은 세지 않았다). 여기 없다고 그 변경이 없었던 것은 아니다 —
 > `git log` 가 정본이다.
 
+## Unreleased — 개발 흐름: dependabot 의 minor · patch 업데이트를 그룹 PR 로 받는다
+
+NERV Task `CLE-T-M8RB67`. 루트 pnpm 워크스페이스의 dependabot PR 이 의존성마다 따로 와서 모두 같은 `pnpm-lock.yaml` 을
+고쳤다. 한 건을 머지하면 나머지가 lockfile 충돌로 rebase · CI 재실행을 기다렸다(2026-10-02 #1423 머지 뒤 #1445 · #1446).
+
+- `.github/dependabot.yml` 루트 항목에 `groups` 를 둔다. minor · patch 버전 업데이트는 `npm-minor-patch` PR 하나로,
+  minor · patch 보안 업데이트는 `npm-security` PR 하나로 온다. major 는 지금처럼 의존성마다 따로 온다.
+- 사유 핀 `dompurify` · `marked`(sanitize 경로) · `three`(0.x tilde)는 두 그룹에서 빼서 개별 PR 로 검토한다.
+- 그룹이 없애는 충돌은 한 그룹 안의 것뿐이다. 그룹 밖 PR 과 두 그룹 PR 사이는 dependabot rebase 로 풀린다.
+- 가드: `.claude/tests/test_dependabot_npm_coverage.py` 의 `DependabotGroupsTest` 가 그룹 이름 · `applies-to` ·
+  `update-types`(정확히 minor · patch) · `patterns` · `exclude-patterns` 를 고정한다. 전에는 `groups:` 를 지우거나 `major` 를
+  넣어도 아무 검사도 깨지지 않았다.
+- 그룹 PR 이 CI 를 깼을 때의 처리는 그룹마다 다르다(`dependabot.yml` 주석). 보안 그룹 PR 에는 `@dependabot ignore` 를 쓰지 않는다.
+
 ## Unreleased — 하네스: `plan/` · `review/` 를 지우고 plan 게이트 · 가드를 걷는다
 
 NERV 정본 전환 단계 3(Task `CLE-T-FN2JWK`). 작업 추적의 정본은 NERV Task 다. 저장소의 `plan/`(650 파일)과 단계 2 뒤로
