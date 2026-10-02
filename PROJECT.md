@@ -398,7 +398,8 @@ pnpm --filter frontend test src/lib/docs/__tests__/
    NERV 정본 전환 단계 3 에서 지웠고 그 링크가 남은 옛 트리는 단계 5 에서 지운다. 옛 카탈로그 자리
    (`spec/conventions/<vendor>-api-catalog/`)로 해석되는 링크는 새 자리 `codebase/api-catalogs/<vendor>/` 에서
    경로와 앵커를 검사한다(`spec-links.ts` 의 `RELOCATED_SPEC_TREES`, 단계 4a. 단계 5 에서 옛 트리와 함께 걷는다)
-2. `codebase/{backend,frontend,channel-web-chat}/src` 와 `codebase/packages` 의 `.ts`/`.tsx` 주석.
+2. `codebase/{backend,frontend,channel-web-chat}/src` · `codebase/backend/test` · `codebase/frontend/e2e` ·
+   `codebase/packages` 의 `.ts`/`.tsx` 주석.
    스펙은 키 링크 `[글](CLE-KEY#앵커)` 로 가리킨다. 키는 미러 파일(`spec/<영역 키>/<KEY>.md`)이
    있어야 하고(`KEY`), 앵커는 그 파일의 제목 slug 여야 한다(`ANCHOR`). `spec/**.md` 를 경로로
    링크하면 대상이 있어도 위반이다(`PATH`, 단계 4c). 공개 OpenAPI 로 나가는 DTO · 컨트롤러의

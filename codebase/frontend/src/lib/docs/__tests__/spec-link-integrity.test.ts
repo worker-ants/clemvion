@@ -25,7 +25,8 @@ import {
 //      `spec/CLE-*` · `spec/README.md` — NERV owns those, `pull.py --check` guards
 //      their integrity).
 //   2. Codebase `.ts`/`.tsx` sources under `codebase/{backend,frontend,
-//      channel-web-chat,packages}` — spec cross-refs only. They are key links
+//      channel-web-chat,packages}` (`backend/test` · `frontend/e2e` included
+//      besides `src`) — spec cross-refs only. They are key links
 //      (`[글](CLE-KEY#앵커)`): the key must have a mirror file (KEY) and the
 //      anchor must be a heading in it (ANCHOR). A relative `spec/**.md` path link
 //      is PATH — hand-counted `../` depths drifted silently and the old tree goes
@@ -135,6 +136,13 @@ describe("spec-link-integrity guard", () => {
           "codebase/channel-web-chat/src/lib/eia-types.ts",
       ),
     ).toBe(true);
+    // 두 e2e 루트가 각각 비어 있지 않아야 한다. `src` 만 세면 한쪽이 빠져도 위 하한을 넘는다.
+    for (const dir of ["codebase/backend/test/", "codebase/frontend/e2e/"]) {
+      expect(
+        sources.some((f) => f.relPath.startsWith(dir)),
+        `no source collected under ${dir}`,
+      ).toBe(true);
+    }
     // Build output must be excluded.
     expect(sources.every((f) => !f.relPath.includes("/dist/"))).toBe(true);
     expect(sources.every((f) => !f.relPath.includes("/node_modules/"))).toBe(

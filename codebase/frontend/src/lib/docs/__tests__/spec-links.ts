@@ -553,9 +553,13 @@ export function findBrokenGovernanceLinks(root: string): LinkViolation[] {
 // scope — this guard only catches spec-link rot.
 // ---------------------------------------------------------------------------
 
+// `backend/test`(e2e 스펙)와 `frontend/e2e`(Playwright)도 소스다. 두 곳은 `src` 밖이라 처음엔
+// 빠져 있었고 `backend/test` 에 옛 경로 링크가 하나 남은 채 통과했다.
 const CODEBASE_SOURCE_ROOTS = [
   "codebase/backend/src",
+  "codebase/backend/test",
   "codebase/frontend/src",
+  "codebase/frontend/e2e",
   "codebase/channel-web-chat/src",
   "codebase/packages",
 ];

@@ -35,6 +35,8 @@ NERV 정본 전환 단계 4c(Task `CLE-T-9AM31N`). 코드 주석의 스펙 링�
   전에는 범위 2 가 `spec/**.md` 경로 링크만 봤고 키 모양 링크는 아무도 보지 않았다.
 - 가드 조임: 범위 2 에서 `spec/**.md` 를 경로로 링크하면 대상 파일이 있어도 실패한다(`PATH`). 새 경로 링크가
   옛 트리로 다시 들어오는 것을 막는다.
+- 가드 범위: 범위 2 가 `src` 밖의 `codebase/backend/test`(e2e 스펙)와 `codebase/frontend/e2e`(Playwright)도 본다.
+  처음엔 두 곳이 빠져 `webhook-trigger.e2e-spec.ts` 에 옛 경로 링크 1개가 남은 채 통과했다. 그 링크도 키 링크로 바꿨다.
 - 스펙: NERV 초안 `CLE-ENG-SPECEVIDENCE`(범위 2 · 3 의 키 링크 규칙, R-14)를 함께 고쳤다.
 
 ## Unreleased — 제품 동작: 공개 OpenAPI 문장과 배포 파일에서 저장소 내부 참조를 걷어 낸다
