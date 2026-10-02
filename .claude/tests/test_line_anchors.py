@@ -60,6 +60,11 @@ def _git(*args: str, cwd=None) -> str:
 # same selection against a purpose-built repository.
 FIXTURE_SEARCH_DEPTH = 40
 MIN_FIXTURE_CHANGED_LINES = 80
+# Upper bound on a fixture's file count — the fifth variant in
+# `pick_commit_fixture`. Measured 2026-10-02 over the last 300 commits on
+# `main`: the largest touched 381 files (p99 272). The commit that exposed it
+# (`3118f06f1`, removing `plan/` and `review/`) touched 30,085.
+MAX_FIXTURE_FILES = 500
 
 
 def _is_shallow_boundary(sha, cwd=None) -> bool:
@@ -144,6 +149,14 @@ def pick_commit_fixture(cwd=None) -> str:
     `rev-list` while the commit OBJECT still carries its `parent` lines. A real
     root commit has neither. That distinction is load-bearing — the purpose-built
     fixtures below rely on their first commit staying selectable.
+
+    Fifth variant, 2026-10-02 — the **bulk** commit. Same failure as the shallow
+    boundary, reached without a shallow clone: `3118f06f1` deleted `plan/` and
+    `review/` in one commit (30,085 files) and also changed source, so it cleared
+    every filter above. `--prepare --commit` on it ran past 16 minutes before it
+    was stopped; CI's harness job has 15. Selection therefore also requires at
+    most `MAX_FIXTURE_FILES` files. `CommitFixtureSelectionTest._make_bulk_repo`
+    pins it, for the same reason as the other purpose-built fixtures.
     """
     log = _git("log", "-n", str(FIXTURE_SEARCH_DEPTH), "--format=%H", cwd=cwd)
     for sha in filter(None, (line.strip() for line in log.split("\n"))):
@@ -154,7 +167,7 @@ def pick_commit_fixture(cwd=None) -> str:
                 "show", "--no-renames", "--name-only", "--pretty=format:", sha, cwd=cwd
             ).split("\n") if f
         }
-        if not files:
+        if not files or len(files) > MAX_FIXTURE_FILES:
             continue
         changed = 0
         for row in _git("show", "--numstat", "--format=", sha, cwd=cwd).split("\n"):
@@ -372,9 +385,14 @@ class GutterCorrectnessAgainstRealGitTest(unittest.TestCase):
 
         checked = annotated_files = 0
         for commit in commits:
+            # `--diff-filter=d` drops deleted paths up front. They have no new
+            # side and were always skipped below (`if not source`), but each
+            # still cost two `git show` calls: the 30,085-file `3118f06f1` made
+            # this one test take about 12 minutes against CI's 15.
             names = [
                 f for f in _git(
-                    "show", "--no-renames", "--name-only", "--pretty=format:", commit
+                    "show", "--no-renames", "--name-only", "--diff-filter=d",
+                    "--pretty=format:", commit,
                 ).split("\n") if f
             ]
             for path in names:
@@ -914,6 +932,69 @@ class CommitFixtureSelectionTest(unittest.TestCase):
             "a real root commit is no longer selectable — the filter is keying "
             "on parentlessness rather than on the graft",
         )
+
+    # -- fifth variant: bulk commit (2026-10-02) --------------------------------
+
+    def _make_bulk_repo(self, n_files):
+        """`base` is a normal commit; HEAD adds `n_files` one-line files.
+
+        Returns `(repo, base_sha, head_sha)`. HEAD passes every other filter —
+        not shallow, not a merge, over the line threshold, has content — so
+        only the file count can turn it away.
+        """
+        import os
+
+        repo, git = self._new_repo()
+        with open(os.path.join(repo, "keep.txt"), "w", encoding="utf-8") as fh:
+            fh.write("".join(f"keep{i}\n" for i in range(120)))
+        git("add", "-A")
+        git("commit", "-qm", "base")
+        base = self._git(repo, "rev-parse", "HEAD").strip()
+        os.mkdir(os.path.join(repo, "bulk"))
+        for i in range(n_files):
+            with open(os.path.join(repo, "bulk", f"f{i}.txt"), "w", encoding="utf-8") as fh:
+                fh.write(f"bulk{i}\n")
+        git("add", "-A")
+        git("commit", "-qm", "bulk")
+        return repo, base, self._git(repo, "rev-parse", "HEAD").strip()
+
+    def test_the_bulk_commit_passes_every_other_filter(self):
+        """Non-vacuity: if HEAD failed some other filter, the test below would
+        pass without the file cap ever being consulted."""
+        repo, _base, head = self._make_bulk_repo(MAX_FIXTURE_FILES + 1)
+        self.assertFalse(_is_shallow_boundary(head, cwd=repo))
+        self.assertEqual(
+            len(self._git(repo, "log", "-1", "--format=%P", head).split()), 1,
+            "HEAD is a merge — wrong fixture shape",
+        )
+        names = [f for f in self._git(
+            repo, "show", "--no-renames", "--name-only", "--pretty=format:",
+            head).split("\n") if f]
+        self.assertEqual(len(names), MAX_FIXTURE_FILES + 1)
+        changed = 0
+        for row in self._git(repo, "show", "--numstat", "--format=", head).split("\n"):
+            cols = row.split("\t")
+            if len(cols) >= 3 and cols[2] in names:
+                changed += sum(int(c) for c in cols[:2] if c.isdigit())
+        self.assertGreaterEqual(changed, MIN_FIXTURE_CHANGED_LINES)
+        self.assertTrue(self._git(repo, "show", f"{head}:{names[0]}").strip())
+
+    def test_a_commit_over_the_file_cap_is_never_selected(self):
+        repo, base, head = self._make_bulk_repo(MAX_FIXTURE_FILES + 1)
+        picked = pick_commit_fixture(cwd=repo)
+        self.assertNotEqual(
+            picked, head,
+            "the fixture search selected a commit with more than "
+            f"{MAX_FIXTURE_FILES} files; `--prepare` on 30,085 such files ran "
+            "past CI's 15-minute job limit",
+        )
+        self.assertEqual(picked, base, "the earlier normal commit was not selected")
+
+    def test_a_commit_at_the_file_cap_is_still_selected(self):
+        """The cap is inclusive. Over-rejection would be silent: the search just
+        walks further back, or skips the suite."""
+        repo, _base, head = self._make_bulk_repo(MAX_FIXTURE_FILES)
+        self.assertEqual(pick_commit_fixture(cwd=repo), head)
 
 
 class CheckoutDepthCoversFixtureSearchTest(unittest.TestCase):

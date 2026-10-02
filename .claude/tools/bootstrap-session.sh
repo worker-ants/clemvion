@@ -177,6 +177,8 @@ fi
 # 3. Garbage-collect stale guard state markers. These accumulate one file per
 #    (session, branch) and are never read once their session/branch is gone, so
 #    prune anything older than 30 days to keep the dirs from growing unbounded.
+#    `review_stop_nudged` stays listed after its Stop hook retired (NERV cutover
+#    stage 3) so the markers it left behind still age out.
 for state_dir in \
     "$main_root/.claude/state/review_stop_nudged" \
     "$main_root/.claude/state/main_worktree_bash_warned"; do

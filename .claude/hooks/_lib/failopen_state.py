@@ -1,9 +1,12 @@
-"""Shared fail-open reporting for the review/plan guards.
+"""Shared fail-open reporting for the push guard.
 
 Extracted verbatim (behaviour-preserving) from `guard_review_before_push.py`,
 where this logic landed with PR #999 as harness-guard-followups §E. It moved
-here the moment a *second* hook needed it: `guard_review_before_stop.py` has the
-same three fail-open paths and was still silent about all of them. Copying ~120
+here the moment a *second* hook needed it: `guard_review_before_stop.py` had the
+same three fail-open paths and was still silent about all of them. (That Stop
+hook retired with `plan/` in NERV cutover stage 3, NERV Task `CLE-T-FN2JWK`;
+the push hook is the only consumer now, and the parameters below stay so a
+second hook can reuse the module without editing it.) Copying ~120
 lines of carefully-reasoned reporting into a second file is the duplication
 class this repo keeps getting bitten by, and the push hook's 35 subprocess tests
 are the safety net that made the move checkable.
@@ -12,8 +15,9 @@ Two things differ per hook and are therefore parameters, not assumptions:
 
 * **Which stream the banner goes to.** The push hook picks by exit code — on
   exit 2 the harness reads stderr, on exit 0 it injects stdout. The Stop hook
-  cannot do that: its stdout carries the `{"decision": ...}` JSON protocol, so a
-  banner there would corrupt the payload. It always reports on stderr.
+  (retired in NERV cutover stage 3) could not do that: its stdout carried the
+  `{"decision": ...}` JSON protocol, so it always reported on stderr. The push
+  hook is the only caller now; the parameter stays for the next one.
 * **The state file and wording**, so one hook's streak never resets the other's.
 
 Nothing here may ever raise into a guard: observability that breaks the thing it
@@ -140,7 +144,7 @@ def report(
         lines += [
             "",
             f"    {subject} 는 해당 검사를 **받지 않았습니다**. 통과했다는 사실이",
-            "    리뷰/plan 이 갖춰졌다는 근거가 되지 못합니다.",
+            "    리뷰가 갖춰졌다는 근거가 되지 못합니다.",
             f"    연속 fail-open: {streak}회",
         ]
         if streak >= ESCALATE_AT:

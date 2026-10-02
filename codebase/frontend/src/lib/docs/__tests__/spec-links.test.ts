@@ -3,9 +3,8 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import {
-  collectLivePlanMarkdown,
+  findBrokenGovernanceLinks,
   findBrokenLinks,
-  findBrokenPlanLinks,
   findBrokenSpecLinksInSources,
   extractLinks,
 } from "./spec-links";
@@ -54,6 +53,14 @@ describe("findBrokenLinksInFiles core (via public entry points)", () => {
         // 퇴행하면 이 링크는 **아예 안 보이고** ANCHOR 판정도 함께 사라진다.
         "[multiline anchor",
         'text](./real.md#no-such-anchor)',
+        // 코드펜스 안 링크는 무시돼야 한다 — 문서의 예시 스니펫은 없는 경로를 적을 수
+        // 있어야 한다. 아래 `toEqual` 이 정확한 목록이라 펜스 무시가 무너지면
+        // `DEAD ./does-not-exist.md` 가 끼어들어 실패한다. (NERV 전환 단계 3 에서 지운
+        // plan 링크 진입점 fixture 가 이 계약을 고정하던 자리를 옮겼다.)
+        "",
+        "```md",
+        mkLink("inside a fence", "./does-not-exist.md"),
+        "```",
       ].join("\n"),
     );
     fs.writeFileSync(path.join(root, "spec", "real.md"), "# Good Anchor\n");
@@ -143,112 +150,57 @@ describe("findBrokenLinksInFiles core (via public entry points)", () => {
 });
 
 // ---------------------------------------------------------------------------
-// findBrokenPlanLinks — 세 번째 진입점(살아있는 plan).
+// 지운 트리(`plan/` · `review/`)를 가리키는 링크.
 //
-// 실저장소 가드(`plan-frontmatter.test.ts`)는 위 둘과 같은 이유로 positive-only 다 —
-// "위반 0건" 은 스캐너가 **작동한다**는 증거가 아니다. 자매 진입점이 이미 갖고 있던
-// negative-path 픽스처를 여기에도 맞춘다 (ai-review WARNING #2).
+// NERV 정본 전환 단계 3(Task `CLE-T-FN2JWK`)에서 저장소 루트의 `plan/` 과 `review/` 를
+// 지웠다. 옛 `spec/<영역>/` 트리는 동결 상태로 단계 5(`CLE-T-7M4C4X`)까지 남고, 그 안에는
+// 두 트리를 가리키는 링크가 있다. 동결 문서는 고치지 않으므로 그 링크는 건너뛴다.
 //
-// 특히 **코드펜스 무시**를 고정하는 것이 이 진입점의 존재 이유와 직결된다: 초판은
-// `plan-frontmatter.test.ts` 안에 자체 정규식을 썼고 그것이 펜스 안 링크까지 검사해,
-// plan 문서가 예시 스니펫에 없는 경로를 적는 순간 거짓 양성으로 push 를 막을 수 있었다.
-describe("findBrokenPlanLinks (living plans)", () => {
+// 판정은 **해석한 경로**로 한다. 원문 문자열로 `plan/` 을 찾으면 `spec/plan/x.md` 처럼
+// 루트 밖의 같은 이름 폴더까지 함께 빠진다. 아래 대조군이 그 차이를 가른다.
+describe("findBrokenLinks — 지운 루트 트리를 가리키는 링크", () => {
   let root: string;
 
   beforeAll(() => {
-    root = fs.mkdtempSync(path.join(os.tmpdir(), "plan-links-fixture-"));
-    const dir = path.join(root, "plan", "in-progress");
-    fs.mkdirSync(dir, { recursive: true });
-    fs.mkdirSync(path.join(root, "plan", "complete"), { recursive: true });
-    fs.writeFileSync(path.join(root, "plan", "complete", "moved.md"), "# Moved\n");
-    // `plan/complete/**` 는 스코프 밖이다 — 시점 기록의 깨진 링크는 정상 상태다.
-    // 이 파일은 `sealed.md` 로 **일부러 깨진 링크**를 품는다(아래 전용 단언이 고정).
+    root = fs.mkdtempSync(path.join(os.tmpdir(), "spec-links-retired-"));
+    fs.mkdirSync(path.join(root, "spec", "5-system"), { recursive: true });
     fs.writeFileSync(
-      path.join(root, "plan", "complete", "sealed.md"),
-      mkLink("sealed dead", "./gone.md"),
-    );
-
-    fs.writeFileSync(
-      path.join(dir, "live.md"),
+      path.join(root, "spec", "5-system", "doc.md"),
       [
-        "# Live Plan",
+        "# Doc",
         "",
-        mkLink("moved sibling", "../complete/moved.md"), // 정상
-        mkLink("stale sibling", "./moved.md"), // DEAD — 이동 후 그대로 남은 형태
-        // **없는** 헤딩을 가리켜야 한다 — `#live-plan` 처럼 실재하는 헤딩을 쓰면
-        // `checkSelfAnchors` 를 `true` 로 뒤집어도 위반이 안 나서 아래 단언이
-        // 제3상태에서 참인 vacuous 테스트가 된다(뮤테이션으로 실증: M2 가 살아남았다).
-        mkLink("ignored self", "#no-such-heading"), // checkSelfAnchors:false → 무시
-        "",
-        "```md",
-        mkLink("inside a fence", "./does-not-exist.md"), // 펜스 안 → 무시돼야 한다
-        "```",
+        mkLink("retired plan", "../../plan/in-progress/gone.md"), // 루트 plan/ → 건너뜀
+        mkLink("retired plan anchor", "../../plan/complete/gone.md#sec"), // 앵커가 있어도 건너뜀
+        mkLink("retired review", "../../review/code/2026/x/SUMMARY.md"), // 루트 review/ → 건너뜀
+        mkLink("retired root itself", "../../plan/"), // 폴더 자체 → 건너뜀
+        mkLink("same-name dir", "./plan/gone.md"), // spec/5-system/plan/ — 루트가 아니다 → DEAD
+        mkLink("look-alike", "../../planning/gone.md"), // 접두만 같은 형제 → DEAD
       ].join("\n"),
     );
-
-    // 하위 그룹 폴더와 `0-`/`_` 접두 인덱스는 스코프 밖이다.
-    fs.mkdirSync(path.join(dir, "cluster"), { recursive: true });
-    fs.writeFileSync(
-      path.join(dir, "cluster", "child.md"),
-      mkLink("subfolder dead", "./nope.md"),
-    );
-    fs.writeFileSync(path.join(dir, "0-index.md"), mkLink("index dead", "./nope.md"));
-    fs.writeFileSync(path.join(dir, "_scratch.md"), mkLink("underscore dead", "./nope.md"));
   });
 
   afterAll(() => {
     fs.rmSync(root, { recursive: true, force: true });
   });
 
-  it("reports the DEAD sibling link a plan move leaves behind", () => {
-    expect(fingerprint(findBrokenPlanLinks(root))).toEqual(["DEAD ./moved.md"]);
-  });
-
-  // `plan/complete/**` 제외는 **의도된 계약**이고 이번 PR 이 `plan-lifecycle.md §3` 에
-  // 명문화했다. 그런데 이 자매 스코프 결정(하위 폴더·`0-`/`_` 접두·코드펜스)들이 전부
-  // fixture 로 고정돼 있는 사이 이 조합만 산문에만 있었다(리뷰 3R testing WARNING).
-  //
-  // 문서화한 보장은 코드로 봉인한다 — 안 그러면 `collectLivePlanMarkdown` 이 `complete/`
-  // 까지 넓혀지는 회귀가 그 문서가 경고하는 "대량 실패" 를 그대로 일으킨다.
-  it("plan/complete/ 의 깨진 링크는 보고하지 않는다 — 봉인된 시점 기록", () => {
-    const reported = fingerprint(findBrokenPlanLinks(root));
-    expect(reported).not.toContain("DEAD ./gone.md");
-    // 대조군: 같은 스캔이 살아있는 쪽 위반은 실제로 잡고 있다(0건이면 vacuous).
-    expect(reported).toEqual(["DEAD ./moved.md"]);
-  });
-
-  it("ignores links inside fenced code blocks", () => {
-    // 펜스 안의 `./does-not-exist.md` 가 결과에 없어야 한다. 이것이 무너지면 plan 문서의
-    // 예시 스니펫이 거짓 양성을 만든다.
-    expect(
-      findBrokenPlanLinks(root).some((v) => v.target.includes("does-not-exist")),
-    ).toBe(false);
-  });
-
-  it("ignores same-file anchors (checkSelfAnchors: false)", () => {
-    expect(findBrokenPlanLinks(root).some((v) => v.target.startsWith("#"))).toBe(false);
-  });
-
-  it("scans top level only — subfolders and 0-/_ index files are exempt", () => {
-    const scanned = collectLivePlanMarkdown(root).map((f) => f.relPath);
-    expect(scanned).toEqual(["plan/in-progress/live.md"]);
-    // 위 세 파일 전부 깨진 링크를 갖고 있으므로, 스코프가 새면 즉시 위반으로 드러난다.
-    expect(findBrokenPlanLinks(root).map((v) => v.source)).toEqual([
-      "plan/in-progress/live.md",
+  it("루트 plan/ · review/ 로 해석되는 링크만 건너뛰고 나머지는 그대로 본다", () => {
+    expect(fingerprint(findBrokenLinks(root))).toEqual([
+      "DEAD ../../planning/gone.md",
+      "DEAD ./plan/gone.md",
     ]);
   });
 
-  it("returns no violations when every live-plan link resolves", () => {
-    const clean = fs.mkdtempSync(path.join(os.tmpdir(), "plan-links-clean-"));
+  it("거버넌스 문서에는 적용하지 않는다 — 살아 있는 문서의 죽은 링크는 고쳐야 한다", () => {
+    fs.writeFileSync(
+      path.join(root, "CLAUDE.md"),
+      mkLink("plan link", "plan/in-progress/gone.md"),
+    );
     try {
-      const d = path.join(clean, "plan", "in-progress");
-      fs.mkdirSync(d, { recursive: true });
-      fs.mkdirSync(path.join(clean, "plan", "complete"), { recursive: true });
-      fs.writeFileSync(path.join(clean, "plan", "complete", "done.md"), "# Done\n");
-      fs.writeFileSync(path.join(d, "a.md"), mkLink("ok", "../complete/done.md"));
-      expect(findBrokenPlanLinks(clean)).toEqual([]);
+      expect(fingerprint(findBrokenGovernanceLinks(root))).toEqual([
+        "DEAD plan/in-progress/gone.md",
+      ]);
     } finally {
-      fs.rmSync(clean, { recursive: true, force: true });
+      fs.rmSync(path.join(root, "CLAUDE.md"));
     }
   });
 });

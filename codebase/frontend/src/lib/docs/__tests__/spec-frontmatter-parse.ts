@@ -1,11 +1,14 @@
-// Shared helpers for spec-frontmatter / spec-code-paths /
-// spec-status-lifecycle / spec-pending-plan-existence guards.
+// Shared helpers for the spec-frontmatter / spec-code-paths guards.
 // SoT: spec/conventions/spec-impl-evidence.md
+//
+// The plan-coupled guards (spec-status-lifecycle, spec-pending-plan-existence)
+// and their `pending_plans:` path predicate left with `plan/` in NERV cutover
+// stage 3 (NERV Task `CLE-T-FN2JWK`) — work tracking is NERV Tasks.
 
 import fs from "node:fs";
 import path from "node:path";
+import matter from "gray-matter";
 import { walkTree } from "./tree-walk";
-import { matterNoCache } from "./plan-scan";
 
 export type SpecStatus =
   | "backlog"
@@ -82,26 +85,18 @@ export function isApplicable(relPath: string): boolean {
   return true;
 }
 
-// What a `pending_plans:` entry may point at: a work plan under
-// `plan/in-progress/` or `plan/complete/`. SoT: spec-impl-evidence.md §2.1
-// (`pending_plans` row) and §4. `plan/research/` is excluded on purpose — it
-// holds referenced material with no completion endpoint, so it can never make a
-// `partial` spec `implemented`.
-//
-// The path is normalised BEFORE the prefix check. A prefix test on the raw
-// string lets `plan/in-progress/../../codebase/x.md` through while it points
-// outside `plan/` — the same presence-vs-correctness gap this predicate exists
-// to close.
-const PENDING_PLAN_DIRS = ["plan/in-progress/", "plan/complete/"];
-
-export function isPendingPlanPath(relPath: unknown): boolean {
-  // YAML parses `- 42` or `- true` as non-strings. Answer "not a plan" so the
-  // guard reports the offending entry, instead of `path.posix.normalize`
-  // throwing a TypeError that hides which spec/entry was wrong.
-  if (typeof relPath !== "string") return false;
-  const norm = path.posix.normalize(relPath);
-  if (!norm.endsWith(".md")) return false;
-  return PENDING_PLAN_DIRS.some((dir) => norm.startsWith(dir));
+/**
+ * gray-matter without its content-keyed cache. The empty options object is the
+ * point: with no options gray-matter caches by content and registers the entry
+ * BEFORE parsing, so when a parse throws, a second parse of the same content
+ * returns `data={}` without throwing — a broken frontmatter then looks empty
+ * depending on call order. The scope is one test file (vitest `isolate: true`).
+ *
+ * This lived in `plan-scan.ts` as the single gray-matter entry point until NERV
+ * cutover stage 3 removed the plan scanner; this module is now its only caller.
+ */
+export function matterNoCache(raw: string): matter.GrayMatterFile<string> {
+  return matter(raw, {});
 }
 
 export function collectApplicableSpecs(root: string): SpecRecord[] {
@@ -119,8 +114,7 @@ function parseSpecFile(absPath: string, relPath: string): SpecRecord {
   let body = raw;
   let parseError: string | null = null;
   try {
-    // 캐시 우회는 `plan-scan.ts` 소관이다 — 종전에는 여기만 옵션 없는 `matter(raw)` 라,
-    // 그 파일이 다섯 곳에서 없앤 오염 클래스가 저장소에 한 자리 남아 있었다.
+    // 옵션 없는 `matter(raw)` 를 쓰면 위 `matterNoCache` 가 막는 캐시 오염이 되살아난다.
     const parsed = matterNoCache(raw);
     body = parsed.content;
     if (parsed.data && Object.keys(parsed.data).length > 0) {

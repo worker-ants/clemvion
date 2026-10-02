@@ -13,7 +13,7 @@ flaky 는 결함이 아니라 "관측 대상"이다 (retries 의 취지=순간 f
 사용: `python3 scripts/report_playwright_flaky.py [<results.json 경로>]`
       (기본 경로: DEFAULT_REPORT).
 
-배경/SoT: plan/complete/e2e-retry-visibility-followup.md, PR #872(retries 도입).
+배경/SoT: 옛 plan `e2e-retry-visibility-followup.md`(git 이력), PR #872(retries 도입).
 stdlib 전용(설치 불요) — `.claude/tests/test_report_playwright_flaky.py` 가 로직을 검증한다.
 """
 

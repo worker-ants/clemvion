@@ -22,16 +22,12 @@ on:
       - '.claude/**'
       - '.github/**'
       - 'spec/**'
-      - 'plan/**'
-      - 'review/**'
       - '*.md'
   pull_request:
     paths-ignore:
       - '.claude/**'
       - '.github/**'
       - 'spec/**'
-      - 'plan/**'
-      - 'review/**'
       - '*.md'
   workflow_dispatch:
 

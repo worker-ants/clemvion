@@ -4,7 +4,7 @@ pnpm 보안 설정(overrides / onlyBuiltDependencies / auditConfig.ignoreCves) �
 
 pnpm 10.23 이 package.json 의 `pnpm` 필드를 더 이상 읽지 않아, CVE 상향 핀(overrides)과
 native lifecycle-script 허용목록(onlyBuiltDependencies)은 pnpm-workspace.yaml 로 이전됐다
-(plan/in-progress/pnpm-migration-followups.md §1 부수 발견). 그런데 `--frozen-lockfile` CI
+(옛 plan `pnpm-migration-followups.md` §1 부수 발견, git 이력). 그런데 `--frozen-lockfile` CI
 는 pnpm-workspace.yaml 에서 override 를 지우거나 값을 약화(downgrade)하고 lockfile 을 함께
 재생성해도 (manifest ↔ lockfile 이 정합하므로) **통과**한다 — 즉 CVE 상향 핀이 조용히
 사라지거나 취약 버전대로 되돌아갈 수 있다(OWASP A06/A08). 본 가드는 기대 baseline 과 실제

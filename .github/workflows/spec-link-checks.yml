@@ -1,5 +1,5 @@
 # `codebase/frontend/src/lib/docs/__tests__/` 의 **docs 가드 전체**를, 그 가드들이 스캔하는
-# 데이터(codebase 소스 · `spec/**` · `plan/**` · 거버넌스 문서)가 바뀔 때마다 돌린다.
+# 데이터(codebase 소스 · `spec/**` · 거버넌스 문서)가 바뀔 때마다 돌린다.
 # (2026-09-24 전까지는 spec-link-integrity 가드 하나만 — codebase 주석·spec·거버넌스 문서의
 #  spec 상대링크 부패 — 돌았다. 확장 경위는 아래 2026-09-24 문단.)
 #
@@ -30,6 +30,10 @@
 # 그래서 **파일을 열거하지 않고 디렉터리째** 돌린다. 열거하면 새 docs 가드가 생길 때마다
 # 여기를 고치는 것을 잊는다 — 이 파일이 두 번 겪은 형태다. 디렉터리 전체도 vitest 로 수 초라
 # 「가벼운 대체 트리거」 라는 이 워크플로의 목적은 그대로다(`next build`·lint·typecheck 없음).
+#
+# 2026-10-01: pathspec 에서 `plan/**` 를 뺐다(NERV 정본 전환 단계 3, Task `CLE-T-FN2JWK`). `plan/` 과
+# 그것을 읽던 plan 가드(`plan-frontmatter` · `spec-pending-plan-existence` · `spec-plan-completion` ·
+# `spec-status-lifecycle`)를 같은 PR 에서 지웠다. 작업 추적은 NERV Task 다.
 #
 # 2026-09-29: 잡 `spec-mirror-integrity` 를 더했다(NERV 정본 전환 단계 1). docs 가드와 같은
 # 경로 판정(`changes`)을 쓴다. 판정을 따로 두면 `spec/**` 와 `.claude/tools/nerv-mirror/**` 를
@@ -73,12 +77,9 @@ jobs:
         codebase/channel-web-chat/**
         codebase/packages/**
         spec/**
-        # plan 문서 (2026-09-24 추가) — `plan-frontmatter`·`spec-pending-plan-existence` 등이
-        # 스캔한다. 이게 없으면 plan 만 바꾼 PR 에서 그 가드들이 안 돈다.
-        plan/**
         # 거버넌스 문서 (2026-08-27 추가) — 가드 scope 3.
-        # `:(glob)` 매직이 없으면 git pathspec 의 `*` 가 `/` 를 넘어 **17,202개**(spec·plan·
-        # review 전부)를 잡는다(실측). 루트 레벨 `*.md` 만 잡으려면 이 매직이 필수다.
+        # `:(glob)` 매직이 없으면 git pathspec 의 `*` 가 `/` 를 넘어 **17,202개**(당시 spec·plan·
+        # review 전부)를 잡았다(실측). 루트 레벨 `*.md` 만 잡으려면 이 매직이 필수다.
         :(glob)*.md
         .claude/**
         scripts/ci-paths-changed.sh
@@ -104,7 +105,7 @@ jobs:
     steps:
       - name: 무관한 변경 — 검사 생략 (체크는 통과로 보고)
         if: needs.changes.outputs.relevant == 'false'
-        run: echo "codebase 소스·spec·plan·거버넌스 문서 경로 변경 없음 — 이 잡은 no-op 으로 통과한다."
+        run: echo "codebase 소스·spec·거버넌스 문서 경로 변경 없음 — 이 잡은 no-op 으로 통과한다."
 
       - uses: actions/checkout@v7
         if: needs.changes.outputs.relevant != 'false'
@@ -136,10 +137,10 @@ jobs:
     steps:
       - name: 무관한 변경 — 검사 생략 (체크는 통과로 보고)
         if: needs.changes.outputs.relevant == 'false'
-        run: echo "이 워크플로의 대상 경로(codebase · spec · plan · 거버넌스 문서) 변경 없음 — 이 잡은 no-op 으로 통과한다."
+        run: echo "이 워크플로의 대상 경로(codebase · spec · 거버넌스 문서) 변경 없음 — 이 잡은 no-op 으로 통과한다."
 
-      # 이 잡이 읽는 것은 `spec/` 과 도구 하나다. 저장소 전체(추적 파일 약 3.3만 개, 대부분 `review/`)를
-      # 받지 않는다. `--check` 는 표준 라이브러리만 쓴다.
+      # 이 잡이 읽는 것은 `spec/` 과 도구 하나다. 저장소 전체를 받지 않는다(단계 3 전에는 추적 파일
+      # 약 3.3만 개, 대부분 `review/` 였다). `--check` 는 표준 라이브러리만 쓴다.
       - uses: actions/checkout@v7
         if: needs.changes.outputs.relevant != 'false'
         with:

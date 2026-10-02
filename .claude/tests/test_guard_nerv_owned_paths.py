@@ -13,8 +13,8 @@ NERV 정본 전환 단계 1부터 `spec/` 은 `pull.py` 만 쓰는 미러다(옛
 - 더 깊은 곳의 `spec` 이름(`codebase/…/spec/…`)과 저장소 밖(scratchpad)은 막지 않는다.
 - 단계 2(NERV Task `CLE-T-4ABTG7`)부터 `review/` 도 막는다. 리뷰 결과는 NERV 레코드이고
   오케스트레이터 산출물은 gitignore 대상 `.review/` 에 쓴다(그 경로는 막지 않는다).
-- `plan/` 은 아직 막지 않는다. 거버넌스 문서가 단계 3 전까지 그 쓰기를 안내한다. 그 단계 PR 이
-  이 테스트의 기대를 바꾼다.
+- 단계 3(NERV Task `CLE-T-FN2JWK`)부터 `plan/` 도 막는다. 작업 추적은 NERV Task 이고 옛 `plan/`
+  · `review/` 는 그 단계에서 지웠다. 두 차단은 지운 트리가 다시 생기지 않게 한다.
 - `BYPASS_NERV_OWNED_PATHS=1` 이면 통과(다른 값은 우회가 아니다).
 - 경로 키는 형제 훅과 같은 `file_path` · `path` · `notebook_path`(`tool_input` 또는 `input`)다.
 - 짝 없는 서로게이트가 든 경로도 판정한다. 파일 시스템에 넘기지 못하는 문자라 예외가 나면
@@ -130,6 +130,14 @@ class GuardTest(unittest.TestCase):
                             ".review/consistency/2026/10/01/00_00_00/SUMMARY.md"):
                     self.assertEqual(self.run_hook(root / rel).returncode, 0, rel)
 
+    def test_plan_is_blocked_from_stage_3(self):
+        for root in (self.main, self.wt):
+            with self.subTest(root=root.name):
+                r = self.run_hook(root / "plan/in-progress/x.md")
+                self.assertEqual(r.returncode, 2, r.stderr)
+                self.assertIn("nerv_task_create", r.stderr)
+                self.assertEqual(self.run_hook("PLAN/x.md", cwd=root).returncode, 2)
+
     def test_relative_path_is_resolved_against_the_payload_cwd(self):
         self.assertEqual(self.run_hook("spec/x.md", cwd=self.wt).returncode, 2)
         self.assertEqual(self.run_hook("codebase/x.ts", cwd=self.wt).returncode, 0)
@@ -194,7 +202,7 @@ class GuardTest(unittest.TestCase):
         for target in (self.main / "codebase/frontend/src/lib/spec/x.ts",
                        self.main / ".claude/tools/x.py",
                        self.main / "specs/x.md",
-                       self.main / "plan/in-progress/x.md",        # 단계 3 에서 막는다
+                       self.main / "plans/x.md",                   # 첫 조각이 `plan` 이 아니다
                        self.tmp / "scratch" / "spec" / "x.md"):
             with self.subTest(target=str(target)):
                 self.assertEqual(self.run_hook(target).returncode, 0)
@@ -256,6 +264,42 @@ class GuardTest(unittest.TestCase):
         self.assertEqual(missing.returncode, 0, missing.stderr)
         present = run(_harness.REPO_ROOT)
         self.assertEqual(present.returncode, 2, present.stderr)
+
+
+class RetiredReviewTreeIgnoreTest(unittest.TestCase):
+    """실제 `.gitignore` 가 루트의 옛 `review/` 잔재만 무시하는지 본다.
+
+    단계 3 에서 처음 넣은 `review/` 는 앞에 `/` 가 없어 저장소 어느 깊이의 `review` 디렉터리든
+    무시했다(코드 리뷰 여섯 역할이 같은 지적, 2026-10-02). 나중에 `codebase/**/review/` 모듈이나
+    라우트를 만들면 `git add` 가 말없이 건너뛰고 push 게이트도 그 변경을 보지 못한다.
+    """
+
+    def setUp(self):
+        tmp = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, tmp, ignore_errors=True)
+        self.repo = _harness.make_temp_git_repo(Path(os.path.realpath(tmp)) / "repo")
+        shutil.copy(_harness.REPO_ROOT / ".gitignore", self.repo / ".gitignore")
+
+    def ignored(self, rel):
+        # 사용자 전역 ignore 는 끈다. 그 덕에 초록이 되면 다른 머신에서 깨진다.
+        r = _harness.git_in(self.repo, "-c", "core.excludesFile=/dev/null",
+                            "check-ignore", "-q", rel, check=False)
+        self.assertIn(r.returncode, (0, 1), r.stderr)
+        return r.returncode == 0
+
+    def test_root_leftovers_are_ignored(self):
+        for rel in ("review/code/2026/10/01/00_00_00/_prompts/security.md",
+                    "review/consistency/2026/10/01/00_00_00/SUMMARY.md",
+                    ".review/code/2026/10/02/00_00_00/SUMMARY.md"):
+            with self.subTest(rel=rel):
+                self.assertTrue(self.ignored(rel))
+
+    def test_a_nested_review_directory_is_not_ignored(self):
+        for rel in ("codebase/frontend/src/app/review/page.tsx",
+                    "codebase/backend/src/modules/review/review.service.ts",
+                    "spec/review/x.md"):
+            with self.subTest(rel=rel):
+                self.assertFalse(self.ignored(rel), f"{rel} 가 무시된다 — 패턴이 루트에 고정되지 않았다")
 
 
 if __name__ == "__main__":

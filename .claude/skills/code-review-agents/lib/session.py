@@ -33,9 +33,9 @@ def create_session_dir(output_dir, subdir=None):
 
     The nested layout (year/month/day/HH_MM_SS) keeps any single directory
     bounded in size — flat timestamp directories had become impractical to
-    list (`ls`) as review history accumulated. Existing review/<timestamp>/
-    directories are migrated separately by the operator; this function only
-    governs newly created sessions.
+    list (`ls`) as review history accumulated. The old committed
+    `review/<timestamp>/` tree left the repository in NERV cutover stage 3 (NERV
+    Task `CLE-T-FN2JWK`); this function governs local `.review/` sessions.
 
     **The name is second-resolution, so two sessions in the same second collide.**
     That is not hypothetical. The shape it was first measured on no longer

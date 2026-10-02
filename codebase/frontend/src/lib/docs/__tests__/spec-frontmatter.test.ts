@@ -5,7 +5,7 @@ import {
   SPEC_STATUS_VALUES,
 } from "./spec-frontmatter-parse";
 
-// Guard 1/4: every applicable spec MUST have valid frontmatter with the
+// Guard 1/2: every applicable spec MUST have valid frontmatter with the
 // required keys `id` (string) and `status` (enum 5 values).
 // SoT: spec/conventions/spec-impl-evidence.md §2.1.
 

@@ -365,18 +365,13 @@ class NotesReachThePushHookTest(unittest.TestCase):
         "def evaluate_review(cwd=None, **_kw):\n"
         "    return _D()\n"
     )
-    # `push_blocks` mirrors the real `PlanDecision` property. Omitting it did not
-    # make this test fail — it made it pass for the wrong reason: the push hook
-    # reads `result.push_blocks` for BOTH gates, the AttributeError escaped the
-    # try/except (which wraps only `evaluate()`), and the top-level handler
-    # fail-opened with exit 0 while still printing the notes. So the test proved
-    # "notes survive a PLAN-gate crash", not "notes appear on a clean allow".
-    _CLEAN_PLAN = (
-        "class _P:\n    untouched = False\n    complete_but_in_progress = False\n"
-        "    reason = ''\n    plan_path = ''\n"
-        "    @property\n    def push_blocks(self):\n        return self.untouched\n"
-        "def evaluate_plan():\n    return _P()\n"
-    )
+    # The stub carries `push_blocks` like the real `ReviewDecision`. A stub
+    # missing it does not make this test fail — it makes it pass for the wrong
+    # reason: the push hook reads `result.push_blocks`, the AttributeError escapes
+    # the try/except (which wraps only `evaluate()`), and the top-level handler
+    # fail-opens with exit 0 while still printing the notes. (This file once kept
+    # a second, PLAN-gate stub with the same trap; the PLAN gate left with
+    # `plan/` in NERV cutover stage 3, NERV Task `CLE-T-FN2JWK`.)
 
     def _hook_env(self):
         import shutil as _sh
@@ -387,9 +382,6 @@ class NotesReachThePushHookTest(unittest.TestCase):
         with open(os.path.join(hooks, "_lib", "review_guard.py"), "w",
                   encoding="utf-8") as f:
             f.write(self._STUB)
-        with open(os.path.join(hooks, "_lib", "plan_guard.py"), "w",
-                  encoding="utf-8") as f:
-            f.write(self._CLEAN_PLAN)
         return tmp, hooks
 
     def test_push_hook_surfaces_notes_on_stdout(self):
@@ -549,20 +541,20 @@ class VerdictParserStaysLinearTest(unittest.TestCase):
     # so the fourth is not written by someone filling an obvious gap.
 
 
-class PlanStubsMirrorTheRealInterfaceTest(unittest.TestCase):
-    """Every hand-written `evaluate_plan` stub must expose `push_blocks`.
+class GateStubsDefinePushBlocksTest(unittest.TestCase):
+    """Every hand-written `evaluate_review` stub must expose `push_blocks`.
 
-    Found twice, in two files, the same way: the push hook reads
-    `result.push_blocks` for BOTH gates, so a stub missing it raises
-    AttributeError, the top-level handler fail-opens with exit 0, and the test
-    still sees what it asserted on. It passes — for the wrong reason, hiding
-    whichever ALLOW path it claimed to cover.
+    Found twice, in two files, the same way (on the since-removed PLAN gate's
+    stubs): the push hook reads `result.push_blocks`, so a stub missing it
+    raises AttributeError, the top-level handler fail-opens with exit 0, and the
+    test still sees what it asserted on. It passes — for the wrong reason,
+    hiding whichever ALLOW path it claimed to cover.
 
-    An audit fixes the instances; this fixes the class. A fifth stub added later
+    An audit fixes the instances; this fixes the class. A stub added later
     fails here instead of quietly testing the crash path.
     """
 
-    def test_every_plan_stub_defines_push_blocks(self):
+    def test_every_gate_stub_defines_push_blocks(self):
         """Reads the stub *literal*, not the file.
 
         The first version of this searched the whole file for `push_blocks`,
@@ -574,23 +566,22 @@ class PlanStubsMirrorTheRealInterfaceTest(unittest.TestCase):
         import glob
         checked = []
         tests_dir = _harness.CLAUDE_DIR / "tests"
-        # Both gates, not just PLAN. `_evaluate_over_targets` reads `push_blocks`
-        # off whatever each gate returns, so a `evaluate_review` stub missing it
-        # fails open exactly the same way — the first version of this guard
-        # watched only one of the two symmetric halves.
-        marker = ("def evaluate_plan", "def evaluate_review")
+        # `_evaluate_over_targets` reads `push_blocks` off whatever the gate
+        # returns. (The PLAN gate's `evaluate_plan` stubs were the other half
+        # until NERV cutover stage 3.)
+        marker = "def evaluate_review"
         for path in sorted(glob.glob(str(tests_dir / "test_*.py"))):
             with open(path, encoding="utf-8") as f:
                 src = f.read()
-            if not any(m in src for m in marker):
+            if marker not in src:
                 continue
-            # `"\n" in v` 로 마커 상수 자체를 걸러낸다 — 이 가드가 쓰는 `marker` 튜플도
-            # `"def evaluate_plan"` 을 담은 문자열이라, 그것 없이는 자기 자신을 스텁으로
+            # `"\n" in v` 로 마커 상수 자체를 걸러낸다 — 이 가드가 쓰는 `marker` 상수도
+            # `"def evaluate_review"` 를 담은 문자열이라, 그것 없이는 자기 자신을 스텁으로
             # 세고 실패한다. 진짜 스텁은 소스 텍스트라 반드시 줄바꿈을 갖는다.
             stubs = [n.value for n in ast.walk(ast.parse(src))
                      if isinstance(n, ast.Constant) and isinstance(n.value, str)
                      and "\n" in n.value
-                     and any(m in n.value for m in marker)]
+                     and marker in n.value]
             # The stub is usually built by concatenating adjacent literals, which
             # `ast` folds into one Constant; if a file ever splits it across
             # separate expressions, join what we found for that file.
@@ -608,8 +599,8 @@ class PlanStubsMirrorTheRealInterfaceTest(unittest.TestCase):
                     continue
                 self.assertIn(
                     "push_blocks", stub,
-                    f"{name} stub #{idx} declares evaluate_plan/evaluate_review "
-                    "without push_blocks — the push hook reads it for both gates, "
+                    f"{name} stub #{idx} declares evaluate_review "
+                    "without push_blocks — the push hook reads it, "
                     "so that test would pass via fail-open",
                 )
         self.assertGreaterEqual(len(checked), 4, f"stub files found: {checked}")

@@ -37,7 +37,7 @@ updates:
   # 사고의 원인이 정확히 "구 base 에서 만들어진 PR" 이라 의도를 명시적으로 남긴다.
   #
   # 남은 갭: **`--frozen-lockfile` 검증을 required check 로 승격**하는 것은 repo Settings
-  # (Branch protection) 소관이라 이 파일로 못 한다 — `plan/in-progress/deps-guard-hardening.md`
+  # (Branch protection) 소관이라 이 파일로 못 한다 — 옛 plan `deps-guard-hardening.md`(git 이력)
   # §3 에 수동 조치로 남겼다.
   - package-ecosystem: "npm"
     directory: "/"
@@ -75,7 +75,7 @@ updates:
       # (묘비) `eslint-plugin-unicorn` major ignore 는 2026-08-28 부로 제거했다 — 위 항목이
       # 이 리스트의 유일한 원소인 이유. 존재 이유였던 "unicorn 66+ 가 `eslint@>=10.4` 를
       # 요구하는데 이 저장소는 eslint 9 였다" 는 backend·packages 의 eslint 10 상향
-      # (`plan/in-progress/deps-peer-gating-and-eslint10.md` §2, unicorn 도 `^73` 동반 상향)
+      # (옛 plan `deps-peer-gating-and-eslint10.md` §2(git 이력), unicorn 도 `^73` 동반 상향)
       # 으로 소멸했다. 재발 방지는 상시 가드로 이관: `eslint-unicorn-peer.spec.ts`(설치본
       # peer 실측) + CI `--strict-peer-dependencies`(unmet peer 즉시 실패) — `#1049` 당시엔
       # 둘 다 없어 무방비였다. 상세 이력은 `PROJECT.md` §버전·도구 정책 의 동명 각주.

@@ -3,7 +3,7 @@
 ## 왜 이 파일이 있는가 — 프롬프트 문구는 조용히 사라진다
 
 병렬 fan-out 중 한 리뷰어가 저장소 파일을 뮤테이션하면 다른 리뷰어들의 판정이 오염된다.
-`plan/in-progress/harness-review-gate-followups.md` 에 **네 번** 기록됐다:
+옛 plan `harness-review-gate-followups.md`(git 이력)에 **네 번** 기록됐다:
 
     2026-08-11 `13_04_55`  scope 가 소스에 뮤턴트를 심었다 → side_effect 는 CRITICAL 로
                            에스컬레이션, testing 은 3회 관측 후 `git restore` 로 **남의

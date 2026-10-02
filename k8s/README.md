@@ -132,7 +132,7 @@ Cafe24 Private 앱 설치 진입점 `GET /api/3rd-party/cafe24/install/:installT
 
 **대안 (미채택):** install_token 을 path → query parameter 로 이동하면 일부 LB 의 기본 로그가 query 를 생략해 노출이 줄지만, Cafe24 App URL 100자 한도(spec §9.2 Rationale)·HMAC 메시지 구성·App URL 등록 UX 에 영향을 주므로 **앱 변경 없이 로그 마스킹** 으로 해결한다.
 
-> 트래킹: `plan/in-progress/cafe24-backlog-residual.md` A-2.
+> 트래킹: NERV Task(옛 plan `cafe24-backlog-residual.md` A-2, git 이력).
 
 ## Placeholder 체크리스트 (배포 전 필수 교체)
 

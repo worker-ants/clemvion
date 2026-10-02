@@ -110,7 +110,7 @@
 
 매 turn TEST WORKFLOW 진입 시 순서대로 자가 점검:
 
-1. `git status --short` 로 **변경 set 확인** — `.md` · `spec/` · `plan/` 만으로 보였어도 `codebase/` 가 한 줄이라도 끼었는지 재확인
+1. `git status --short` 로 **변경 set 확인** — `.md` · `spec/` 만으로 보였어도 `codebase/` 가 한 줄이라도 끼었는지 재확인
 2. 변경 set 이 §e2e 면제 화이트리스트 의 **부분집합** 인가? 화이트리스트 밖이 한 줄이라도 있으면 실행
 3. `docker info` 로 daemon 가용성 확인 — 없으면 자동 흐름은 "자동 흐름 환경 차단", 수동 흐름은 사용자 보고 후 응답 인용
 4. 이전 turn 의 stale 컨테이너가 있다면 `make e2e-down` (worktree 격리되어 있으나 충돌 시 명시 정리)
@@ -122,7 +122,7 @@
 ### 자주 누락되는 turn 패턴
 
 - 한 줄짜리 핫픽스 ("typo", "변수명 한 글자") — 짧은 변경이 곧 짧은 e2e 가 아님. 실 인프라 회귀 가능성은 변경량 무관
-- "spec·plan 만 손댔다" 인데 실은 `codebase/` 한 줄이 같이 간 경우 — 1번 체크 누락
+- "spec·문서만 손댔다" 인데 실은 `codebase/` 한 줄이 같이 간 경우 — 1번 체크 누락
 - review 이슈 fix 완료 직후 — review 가 코드 수정을 동반했으면 다시 e2e
 - 이미 e2e 가 통과한 직후의 추가 작은 fix — fix 도 코드면 다시 e2e
 - merge·rebase 후 본인 변경이 아닌 줄이 섞여 들어왔을 때 — 변경 set 의 *전체* 가 화이트리스트 부분집합인지 재판정
@@ -132,7 +132,7 @@
 코드 변경 (`.ts` / `.tsx` / `.sql` / 런타임 `.json` / `Dockerfile` / `Makefile` / 빌드 설정 등) 이 한 줄이라도 포함되면 **e2e 는 default 로 수행**. 변경 set 이 다음 목록의 **부분집합** 일 때에 한해 e2e 면제:
 
 - `*.md` · `*.mdx` 본문 (frontmatter 포함)
-- `spec/**` · `plan/**` · `review/**` · `CLAUDE.md` · `AGENTS.md` · `README.md` · `PROJECT.md`
+- `spec/**` · `CLAUDE.md` · `AGENTS.md` · `README.md` · `PROJECT.md`
 - `.claude/**` (skills, hooks, agents 정의)
 - `codebase/frontend/src/content/docs/**` (유저 가이드 본문)
 - `codebase/frontend/src/lib/i18n/dict/**` (사전 키만; 호출 코드 변경 없음)
@@ -171,7 +171,7 @@
 | 백엔드 API 추가·변경 | (a) controller·DTO 의 swagger jsdoc<br>(b) API 노출 변경이 사용자 안내에 영향 → 관련 user-guide 페이지 | swagger 단위 테스트 / 빌드 |
 | **신규 BullMQ 큐 추가** (`@Processor` 신설 + `MONITORED_QUEUES` 등록) | (a) `codebase/backend/src/modules/system-status/system-status.constants.ts` 의 `MONITORED_QUEUES` 등록<br>(b) `codebase/backend/test/system-status.e2e-spec.ts` 의 `EXPECTED_QUEUE_NAMES`<br>(c) `spec/CLE-OBS/CLE-OBS-STATUS.md` 「모니터링 대상 큐」 표<br>(d) `spec/CLE-PLAT/CLE-PLAT-ARCH.md` 「핵심 사실」 큐 개수 + `spec/CLE-PLAT/CLE-PLAT-QUEUE.md` 「BullMQ 큐 목록」 | `make e2e-test` (system-status e2e) |
 | 신규 warningCode 발행 (backend warningRules) | `codebase/frontend/src/lib/i18n/backend-labels.ts` 의 `WARNING_KO` 에 한국어 매핑 등록. 영문 SoT 원칙 — 백엔드는 영문 코드/메시지, frontend 가 매핑 | `pnpm --filter frontend test -- backend-labels` |
-| 신규 errorCode 발행 (`codebase/backend/src/nodes/core/error-codes.ts` 의 `ErrorCode` enum 추가) | 현재 `backend-labels.ts` 에 `ERROR_KO` 매핑 테이블이 없어 영문 message 가 그대로 노출됨. 후속 plan 에서 `ERROR_KO` 신설 검토 — 그 전까지는 errorCode 추가 시 사용자 가시 ko 노출을 PR 본문에 명시 | — (후속 가드 미도입) |
+| 신규 errorCode 발행 (`codebase/backend/src/nodes/core/error-codes.ts` 의 `ErrorCode` enum 추가) | 현재 `backend-labels.ts` 에 `ERROR_KO` 매핑 테이블이 없어 영문 message 가 그대로 노출됨. 후속 작업(NERV Task)에서 `ERROR_KO` 신설 검토 — 그 전까지는 errorCode 추가 시 사용자 가시 ko 노출을 PR 본문에 명시 | — (후속 가드 미도입) |
 | **신규 cross-cutting enum 값 추가** (`WaitingInteractionType` / `ConversationTurnSource` / `PresentationType` 등) | (a) `spec/CLE-IX/CLE-IX-TYPES.md` 「처리 분기 매트릭스」에 행 추가<br>(b) 매트릭스가 가리키는 모든 코드 분기 위치를 동시 갱신 (TS `assertNever` 패턴 사용)<br>(c) AST 가드 (`interaction-type-exhaustiveness.test.ts`) 통과 | `pnpm --filter frontend test -- interaction-type-exhaustiveness` |
 | **신규 backend zod `ui.label` / `hint` / `group` / `itemLabel` 값** | `codebase/frontend/src/lib/i18n/backend-labels.ts` 의 `LABEL_KO` / `HINT_KO` / `GROUP_KO` / `ITEM_LABEL_KO` / `OPTION_LABEL_KO` 중 적절한 매핑에 동일 PR 안에서 한국어 등록. SoT: `spec/CLE-UI/CLE-UI-I18N.md` 「규칙」 4(원본 Principle 3-B) | `pnpm --filter frontend test -- ui-label-parity` |
 | **신규 handler output field** (`output.result.*` 의 신규 키) | (a) `spec/CLE-EXEC/CLE-EXEC-HYDRATION.md` 「출력 필드별 복원 매트릭스」에 행 추가<br>(b) 표가 가리키는 모든 frontend hydration 함수 (parseHistoryMessages / threadTurnsToConversationItems / applyExecutionSnapshot 등) 에 처리 추가<br>(c) backend handler 의 모든 종결 분기 (single-turn out / multi-turn user_ended / max_turns / condition / error) 에 동일 field 동시 echo | `pnpm --filter frontend test -- hydration-coverage` |
@@ -180,7 +180,7 @@
 | 표현식 언어 변경 | `codebase/frontend/src/content/docs/04-expression-language/{basics,variables-and-context,cheatsheet}.mdx` + `.en.mdx` | 수동 (registry 테스트로 frontmatter 검증) |
 | 실행·디버깅 흐름 변경 | `codebase/frontend/src/content/docs/05-run-and-debug/` | 동일 |
 | 환경 변수·기동 방법·런타임 변경 (제품 최종 상태) | `README.md` | 수동 |
-| **spec 신규/대규모 변경** (`spec/{2,3,4,5}-**.md`, `spec/conventions/**.md`) | (a) frontmatter `code:` / `status:` / `pending_plans:` 정합 갱신<br>(b) `status: partial` 이면 `pending_plans:` 의 plan 신설<br>(c) `status: implemented` 이면 `code:` 글로브 ≥1 매치 보장. SoT: `spec/CLE-ENG/CLE-ENG-SPECEVIDENCE.md` | `pnpm --filter frontend test -- spec-frontmatter spec-code-paths spec-pending-plan-existence` |
+| **spec 신규/대규모 변경** (`spec/{2,3,4,5}-**.md`, `spec/conventions/**.md`) | (a) frontmatter `code:` / `status:` 정합 갱신<br>(b) `status: implemented` 이면 `code:` 글로브 ≥1 매치 보장<br>(c) 미구현 surface 는 후속 NERV Task 로 올린다(`nerv_task_create`). SoT: `spec/CLE-ENG/CLE-ENG-SPECEVIDENCE.md` | `pnpm --filter frontend test -- spec-frontmatter spec-code-paths` |
 | **user-guide GUI 흐름 절 신규/변경** (`02-nodes/**.mdx`, `06-integrations-and-config/**.mdx` 의 GUI 안내 절) | `<ImplAnchor kind="ui-entry">` 동반 작성 — `file`/`symbol` 실존 의무. SoT: `spec/CLE-ENG/CLE-ENG-GUIDEEVIDENCE.md` | `pnpm --filter frontend test -- impl-anchor-existence integrations-coverage triggers-coverage` |
 | spec 자체에 누락·오류가 있다고 판단됨 | NERV 스펙 초안(`/nerv:spec edit`)을 쓰거나 리뷰 발견(`area=spec`)으로 올린다. 승인은 사람이 한다(`CLAUDE.md` §Skill 체계) | — |
 
@@ -190,7 +190,7 @@
 
 - 코드 머지와 가이드 머지 사이에 *사용자 가시 동작은 바뀌었는데 가이드는 안 바뀐 기간* 이 생긴다
 - 코드 PR 의 reviewer 가 사용자 가시 영향까지 보지 못한 채 머지된다
-- 사후 보정 commit 이 plan·spec 추적에서 단절된다
+- 사후 보정 commit 이 NERV Task·spec 추적에서 단절된다
 - git history 상 사용자 가시 변경의 정확한 commit 이 흩어진다
 
 > developer workflow 의 **§4 DOCUMENTATION** 단계는 §5–7 (테스트 선작성·구현) **직전** 에 끝낸다. 단계 종료 후의 `fix(i18n):` · `fix(docs):` 별 commit 은 *그 시점 발견 누락의 신호* 이지 정상 워크플로가 아니다.
@@ -211,7 +211,7 @@
 - **인증·권한·세션 흐름 변경 vs 워크스페이스 가이드 (`07-workspace-and-team/`) 미갱신** — 흐름 변경 + 가이드 갱신 + e2e 가 한 묶음
 - **API 추가 vs swagger jsdoc 누락** — controller·DTO 의 swagger jsdoc 동반 필수. 빌드 단위 테스트가 일부만 잡음
 - **spec frontmatter `code:` 글로브 stale** — backend 경로만 명시하고 frontend 경로 누락. 텔레그램 chat-channel UI 영구 누락 사례(2026-05-23 발견) 의 재현 패턴. `spec-code-paths.test.ts` 가드가 `partial`/`implemented` 시점에 차단. SoT: `spec/CLE-ENG/CLE-ENG-SPECEVIDENCE.md`
-- **`status: partial` 의 `pending_plans:` 미작성** — 미구현 surface 가 어떤 plan 에도 책임지지 않은 채 영구 누락. spec-pending-plan-existence.test.ts 가 plan 실존 강제. 본 PR 머지 전 후속 plan 신설 의무 (developer/SKILL.md §4 partial-implementation 분리)
+- **부분 구현의 나머지 surface 미등록** — 미구현 surface 가 어떤 작업에도 책임지지 않은 채 영구 누락. 본 PR 머지 전 후속 NERV Task 를 만든다(`nerv_task_create`, developer/SKILL.md §4 partial-implementation 분리). 옛 `pending_plans:` 와 그 실존 가드는 NERV 정본 전환 단계 3 에서 `plan/` 과 함께 지웠다
 
 #### DOCUMENTATION 단계 종료 사전 체크리스트
 
@@ -222,7 +222,7 @@ developer workflow §4 종료 직전, 5단계로 진행하기 전 자가 점검:
 - [ ] 표의 "검증 명령" 을 실제로 실행했는가? (i18n parity / locale / backend-labels / docs registry)
 - [ ] 사용자 가시면 (UI 라벨·에러 메시지·노드 카드·가이드 본문) 이 코드 변경의 의미를 정확히 반영하는가? 단순 동기화가 아닌 *의미 갱신*
 - [ ] 본 turn 안에서 spec 자체에 변경이 필요한 것을 발견했으면 NERV 스펙 초안(`/nerv:spec edit`)을 쓰거나 리뷰 발견(`area=spec`)으로 올린다. 승인은 사람이 한다(CLAUDE.md §Skill 체계). 저장소 `spec/` 미러는 손으로 고치지 않는다
-- [ ] **partial-implementation 분리** — 본 PR 이 구현하는 spec 섹션의 *나머지 surface* 가 있다면 (Phase 분리, 후속 UI, 미구현 enum 값) `plan/in-progress/<spec-name>-followup-<surface>.md` 가 신설/갱신됐는가? 본 spec 의 frontmatter `pending_plans:` 가 해당 plan 을 가리키는가? spec `status:` 가 `partial` 로 정확히 설정됐는가? (SoT: `spec/CLE-ENG/CLE-ENG-SPECEVIDENCE.md`)
+- [ ] **partial-implementation 분리** — 본 PR 이 구현하는 spec 섹션의 *나머지 surface* 가 있다면 (Phase 분리, 후속 UI, 미구현 enum 값) 후속 NERV Task 를 만들었는가(`nerv_task_create`)? 스펙 본문의 구현 상태 표시를 바꿔야 하면 NERV 초안으로 고쳤는가? (SoT: `spec/CLE-ENG/CLE-ENG-SPECEVIDENCE.md`)
 
 > 한 항목이라도 미충족이면 §5 (테스트 선작성) 로 진행하지 말고 §4 안에서 마무리. `fix(i18n):` · `fix(docs):` commit 빈도가 워크플로 건강 지표 — 본 PR/turn 안에서 0건이 default.
 
@@ -239,7 +239,7 @@ developer workflow §4 종료 직전, 5단계로 진행하기 전 자가 점검:
 | [`spec/CLE-UI/CLE-UI-I18N.md`](spec/CLE-UI/CLE-UI-I18N.md) | i18n 7 Principle (TSX 하드코딩 금지·ko/en parity·backend-labels 매핑·노드 MDX 의무·sibling 규약·글로서리·page stale) |
 | [`codebase/frontend/src/content/docs/_i18n-conventions.md`](codebase/frontend/src/content/docs/_i18n-conventions.md) | 파일 구조 · 프론트매터 필드 · 내부 docs 링크 규약 · 섹션 레이블 번역 |
 | [`codebase/frontend/src/content/docs/_glossary.md`](codebase/frontend/src/content/docs/_glossary.md) | 해요체 · 용어 표기 · 문장 스타일 · 금지어·지양어 |
-| [`spec/CLE-ENG/CLE-ENG-SPECEVIDENCE.md`](spec/CLE-ENG/CLE-ENG-SPECEVIDENCE.md) | spec frontmatter (`status` 5값·`code:` 글로브·`pending_plans:`) 와 4개 build-time 가드 SoT |
+| [`spec/CLE-ENG/CLE-ENG-SPECEVIDENCE.md`](spec/CLE-ENG/CLE-ENG-SPECEVIDENCE.md) | spec frontmatter (`status` 5값·`code:` 글로브) 와 build-time 가드 SoT |
 | [`spec/CLE-ENG/CLE-ENG-GUIDEEVIDENCE.md`](spec/CLE-ENG/CLE-ENG-GUIDEEVIDENCE.md) | `<ImplAnchor>` MDX 컴포넌트 + 3개 reverse-coverage 가드 (`impl-anchor-existence` / `integrations-coverage` / `triggers-coverage`) SoT. `user-guide-writer` 가 GUI 흐름 절 작성 시 동반 의무 |
 
 #### 파일 구조 요약
@@ -294,20 +294,16 @@ developer workflow §4 종료 직전, 5단계로 진행하기 전 자가 점검:
 - `codebase/frontend/src/lib/docs/__tests__/locale.test.ts` — 모든 (숨김 아닌) 섹션이 `SECTION_LABELS_BY_LOCALE` 양쪽 로케일 등록 검증
 - `codebase/frontend/src/lib/docs/__tests__/nodes-coverage.test.ts` — backend 의 모든 노드가 `02-nodes/<cat>.mdx` 본문 안에 카드/항목으로 등장하는지 검증
 - `codebase/frontend/src/lib/docs/__tests__/registry.test.ts` — MDX frontmatter 의 `spec:`/`code:` 경로 실존 검증
-- `codebase/frontend/src/lib/docs/__tests__/spec-frontmatter.test.ts` — `spec/{2,3,4,5}-**.md` + `spec/conventions/**.md` 의 frontmatter 의무 (id/status) 존재 검증. SoT: `spec/CLE-ENG/CLE-ENG-SPECEVIDENCE.md` 「빌드 가드 — frontmatter 근거 (4건)」
+- `codebase/frontend/src/lib/docs/__tests__/spec-frontmatter.test.ts` — `spec/{2,3,4,5}-**.md` + `spec/conventions/**.md` 의 frontmatter 의무 (id/status) 존재 검증. SoT: `spec/CLE-ENG/CLE-ENG-SPECEVIDENCE.md` 「빌드 가드 — frontmatter 근거」
 - `codebase/frontend/src/lib/docs/__tests__/spec-code-paths.test.ts` — `status ∈ {partial, implemented}` spec 의 `code:` 글로브 ≥1 매치 강제
-- `codebase/frontend/src/lib/docs/__tests__/spec-status-lifecycle.test.ts` — `spec-only` 90일 TTL / `partial` 의 `pending_plans:` 미작성 / pending_plans 모두 complete 인데 status 미승격 / `backlog` 의 `spec/0-overview.md §6.3` 매칭 누락 차단
-- `codebase/frontend/src/lib/docs/__tests__/spec-pending-plan-existence.test.ts` — spec frontmatter `pending_plans:` path 가 (1) **plan 인가**(`plan/in-progress/**.md` 또는 `plan/complete/**.md`, 판정은 `isPendingPlanPath`) (2) 거기 **실존하는가** 를 검증 (spec → plan 역방향 링크 가드). (1) 은 2026-09-24 추가 — 그 전엔 (2) 만 봐서 실재하는 `.sql` 도 통과했다
 - `codebase/frontend/src/lib/docs/__tests__/impl-anchor-existence.test.ts` — 모든 `<ImplAnchor>` 의 `file` 실존 + `symbol` grep ≥1 매치. SoT: `spec/CLE-ENG/CLE-ENG-GUIDEEVIDENCE.md` 「빌드 가드 (3건)」
 - `codebase/frontend/src/lib/docs/__tests__/guide-identifier-existence.test.ts` — 유저 가이드가 이름 붙인 UPPER_SNAKE **식별자**(에러 코드 + 환경변수)가 실재하는지 검증. 기준집합 = backend·packages 소스 토큰 **∪ env 선언처**(`.env.example`·compose). 3축: `<FieldTable>` 의 `name` · `code:` 값 · **백틱 전수**. 베이스라인 0. **외부 어휘 허용목록**(`GUIDE_EXTERNAL_VOCABULARY`)이 있고 테스트가 4가지를 강제한다 — 외부 시스템 이름 의무 · 상한 · 여전히 인용될 것 · 기준집합에 없을 것. **발행 축**(2026-09-13 추가): *"소스에 **메시지 접두로만** 등장하고 `3-error-handling.md` 카탈로그에도 없는"* 인용은 `GUIDE_NON_EMITTED_VOCABULARY` 에 **사유와 함께 등록**해야 통과한다 — 카탈로그는 요구 조건이 아니라 **탈출구**다(요구 조건으로 쓰면 카탈로그 미등재 25종에 거짓 RED 가 난다). **잔여 한계**: 여전히 *존재* 검사에 가깝다 — 소비자·분류기 목록이 토큰을 따옴표로 인용하면 접두-전용 판정이 풀려 통과한다(`spec/CLE-API/CLE-API-ERRCODES.md` 「6.5 워크플로우 실행: 엔진 수준」 이 그 구분을 명시). 아무도 읽지 않는 env 변수도 통과한다. SoT: `spec/CLE-API/CLE-API-ERRCODES.md`(명명 규칙과 「6. 카탈로그」) — **`CLE-ENG-GUIDEEVIDENCE` 「빌드 가드 (3건)」 표에는 아직 없다**(가족 규약은 거기지만 이 가드의 등재는 planner 트래커 대기)
 - `codebase/frontend/src/lib/docs/__tests__/guide-sanitized-message-parity.test.ts` — `models{,.en}.mdx` 의 연결 테스트 실패 문장표가 `sanitize-error.util.ts` 의 반환 리터럴 8갈래와 **양방향**(표→SoT · SoT→표) 일치하는지 검증. 부분집합만 보면 행 삭제가 조용히 통과하므로 누락 방향을 함께 본다
 - `codebase/frontend/src/lib/docs/__tests__/integrations-coverage.test.ts` — `06-integrations-and-config/<provider>.mdx` 의 GUI 흐름 절에 `<ImplAnchor kind="ui-entry">` ≥1 의무
 - `codebase/frontend/src/lib/docs/__tests__/triggers-coverage.test.ts` — `02-nodes/triggers.mdx` 의 provider 별 절에 `<ImplAnchor kind="ui-entry">` ≥1 의무
 - `codebase/frontend/src/lib/docs/__tests__/no-internal-refs.test.ts` — 사용자 가이드 MDX 본문(frontmatter / HTML·MDX 주석 / `<ImplAnchor>` 제거 후)에 내부 SoT (`spec/`·`plan/in-progress|complete/`·`별 plan`/`separate plan`·`CCH-XX-NN`·`R-XX-N`·`ERROR_KO` 등 i18n 매핑 테이블·`backend-labels.ts`) 가 노출되지 않는지 검증. SoT invariant: 본 절 §자주 누락되는 작성 패턴 + [`spec/CLE-UI/CLE-UI-I18N.md`](spec/CLE-UI/CLE-UI-I18N.md) 「규칙」 8(원본 Principle 6-B)
-- `codebase/frontend/src/lib/docs/__tests__/spec-link-integrity.test.ts` — in-repo 링크/heading 앵커 실존 검증 (slug = `rehype-slug`=`mdast`+`github-slugger`). 스코프 3가지 — **(1)** `spec/**.md` 본문(NERV 미러 `spec/README.md` · `spec/CLE-*` 제외), **(2)** codebase `.ts`/`.tsx` JSDoc 중 `spec/**.md` 타깃, **(3)** 거버넌스 문서(루트 `*.md` 비재귀 + `.claude/**.md`, `worktrees`/`node_modules` 제외, 2026-08-27 추가). SoT: `spec/CLE-ENG/CLE-ENG-SPECEVIDENCE.md` 「빌드 가드 — 스펙 문서 저장소와 plan 무결성」
+- `codebase/frontend/src/lib/docs/__tests__/spec-link-integrity.test.ts` — in-repo 링크/heading 앵커 실존 검증 (slug = `rehype-slug`=`mdast`+`github-slugger`). 스코프 3가지 — **(1)** `spec/**.md` 본문(NERV 미러 `spec/README.md` · `spec/CLE-*` 제외, 지운 루트 `plan/` · `review/` 로 해석되는 링크는 건너뜀), **(2)** codebase `.ts`/`.tsx` JSDoc 중 `spec/**.md` 타깃, **(3)** 거버넌스 문서(루트 `*.md` 비재귀 + `.claude/**.md`, `worktrees`/`node_modules` 제외, 2026-08-27 추가). SoT: `spec/CLE-ENG/CLE-ENG-SPECEVIDENCE.md` 「빌드 가드 — 스펙 문서 저장소와 plan 무결성」
 - `codebase/frontend/src/lib/docs/__tests__/spec-area-index.test.ts` — 영역 폴더(≥2 sibling)의 index 가 모든 sibling spec 을 링크하는지 검증 (`spec/conventions/` flat reference · NERV 미러 면제). SoT: `spec/CLE-ENG/CLE-ENG-SPECEVIDENCE.md` 「빌드 가드 — 스펙 문서 저장소와 plan 무결성」
-- `codebase/frontend/src/lib/docs/__tests__/plan-frontmatter.test.ts` — plan 라이프사이클 가드 **3종**: (1) top-level `plan/in-progress/*.md` 의 `worktree`(sentinel `(unstarted)` 허용)/`started`/`owner` frontmatter 강제, (2) `plan/complete/**` 가 `status` 를 선언했다면 종료 상태여야 함(`complete`/`implemented`/`applied`/`superseded`; 선언 자체가 없으면 위반 아님 — 선택 필드), (3) top-level 살아있는 plan 의 상대링크 무결성(`plan/complete/**` 는 시점 기록이라 제외). 판정 로직은 `plan-scan.ts`(수집·frontmatter·status)와 `spec-links.ts`(링크)에 있고, 셋 다 합성 fixture 로 negative-path 가 증명된다. SoT: `.claude/docs/plan-lifecycle.md §4`
-- `codebase/frontend/src/lib/docs/__tests__/spec-plan-completion.test.ts` — `started ≥ 2026-06-04` 완료 plan 의 `spec_impact` 선언 강제 (Gate C, date-cutoff grandfather). SoT: `spec/CLE-ENG/CLE-ENG-SPECEVIDENCE.md` 「빌드 가드 — 스펙 문서 저장소와 plan 무결성」
 - `codebase/frontend/src/__tests__/e2e-no-sub-global-timeout.test.ts` — `e2e/**` 스펙의 bare-numeric `timeout: N`(N < `playwright.config.ts` 의 `expect.timeout`) sub-global override 차단(전역값은 config 파싱=SoT 동기). 위 doc-sync 계열과 달리 invariant 홈은 §Frontend e2e 패턴 절의 timeout 항목
 
 이들은 코드 리뷰가 검출하지 못한 누락도 빌드 단계에서 차단한다 (마이그레이션 V번호 가드와 동일 패턴). 위반의 invariant 자체는 [`spec/CLE-UI/CLE-UI-I18N.md`](spec/CLE-UI/CLE-UI-I18N.md) · [`spec/CLE-ENG/CLE-ENG-SPECEVIDENCE.md`](spec/CLE-ENG/CLE-ENG-SPECEVIDENCE.md) · [`spec/CLE-ENG/CLE-ENG-GUIDEEVIDENCE.md`](spec/CLE-ENG/CLE-ENG-GUIDEEVIDENCE.md) 에 정식 등록되어 있어 `convention-compliance-checker` 가 sub-agent 단에서도 점검한다.
@@ -378,9 +374,9 @@ e2e 는 **인프라 의존성과 multi-actor 흐름** 을 보장하는 회귀 �
 ### 문서 링크 검증
 
 **CI 가 강제한다** — `spec-link-checks` 워크플로가 `src/lib/docs/__tests__/` 의 **docs 가드 전체**를
-돌린다(2026-09-24 부터 — 그 전엔 `spec-link-integrity` 하나만 돌았다). `spec/**`·`plan/**`·거버넌스
-문서·`codebase/**` 어느 쪽을 바꿔도 트리거되므로, `frontend-checks` 가 안 도는 **plan/spec 만 바꾼
-PR** 에서도 `plan-frontmatter`·`spec-pending-plan-existence` 같은 가드가 돈다. 수동 확인이 필요하면
+돌린다(2026-09-24 부터 — 그 전엔 `spec-link-integrity` 하나만 돌았다). `spec/**`·거버넌스
+문서·`codebase/**` 어느 쪽을 바꿔도 트리거되므로, `frontend-checks` 가 안 도는 **spec·문서만 바꾼
+PR** 에서도 `spec-frontmatter`·`spec-link-integrity` 같은 가드가 돈다. 수동 확인이 필요하면
 같은 명령을 직접 실행한다.
 
 ```bash
@@ -393,7 +389,8 @@ pnpm --filter frontend test src/lib/docs/__tests__/
 
 1. `spec/**.md` 본문의 in-repo 링크 + `#anchor` 헤딩 슬러그 (생성형 `*-api-catalog/` 와
    NERV 미러 `spec/README.md` · `spec/CLE-*` 제외. 미러 무결성은 `.claude/tools/nerv-mirror/pull.py --check` 가 본다.
-   미러 제외의 근거는 위 SoT 의 R-12 다)
+   미러 제외의 근거는 위 SoT 의 R-12 다). 루트 `plan/` · `review/` 로 해석되는 링크는 건너뛴다. 두 트리는
+   NERV 정본 전환 단계 3 에서 지웠고 그 링크가 남은 옛 트리는 단계 5 에서 지운다
 2. `codebase/{backend,frontend,channel-web-chat,packages}` 의 `.ts`/`.tsx` 주석 중
    `spec/**.md` 를 가리키는 링크
 3. **거버넌스 문서** — 루트 `*.md`(`CLAUDE.md`·`PROJECT.md` 등, 비재귀) + `.claude/**.md`
@@ -460,7 +457,7 @@ python3 scripts/report_playwright_flaky.py [<results.json 경로>]
 - 의존성 없음 (Python 3 표준 라이브러리만). 로직은 `.claude/tests/test_report_playwright_flaky.py` 가 검증(harness-checks)
 - **항상 exit 0** — flaky 는 비차단 관측 신호(리포트 부재·파싱 실패·예상 밖 스키마에도 CI 무영향)
 - `.github/workflows/e2e.yml` 의 `e2e-frontend` job 이 `make e2e-test-full` 뒤 `if: always()` 로 호출. 리포트 경로 SoT=스크립트 `DEFAULT_REPORT`(= e2e.yml 인자 = `playwright.config.ts` json `outputFile`, cross-file 가드로 정합 강제)
-- 배경: `plan/complete/e2e-retry-visibility-followup.md`, PR #872(retries 도입)
+- 배경: 옛 plan `e2e-retry-visibility-followup`(git 이력), PR #872(retries 도입)
 
 ### 운영 스크립트 (`codebase/backend/scripts`)
 

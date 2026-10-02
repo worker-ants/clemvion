@@ -122,7 +122,7 @@
       "change_type": "신규 errorCode 발행 (ErrorCode enum 추가)",
       "trigger": { "globs": ["codebase/backend/src/nodes/core/error-codes.ts"], "match": "glob" },
       "targets": [
-        "backend-labels.ts 에 ERROR_KO 매핑 테이블이 없어 영문 message 노출됨. errorCode 추가 시 사용자 가시 ko 노출을 PR 본문에 명시 (후속 plan 에서 ERROR_KO 신설 검토)"
+        "backend-labels.ts 에 ERROR_KO 매핑 테이블이 없어 영문 message 노출됨. errorCode 추가 시 사용자 가시 ko 노출을 PR 본문에 명시 (후속 작업(NERV Task)에서 ERROR_KO 신설 검토)"
       ],
       "verify": null,
       "guard_tests": [],
@@ -227,12 +227,12 @@
       "change_type": "spec 신규/대규모 변경",
       "trigger": { "globs": ["spec/2-*/**", "spec/3-*/**", "spec/4-*/**", "spec/5-*/**", "spec/conventions/**"], "match": "glob" },
       "targets": [
-        "frontmatter code: / status: / pending_plans: 정합 갱신",
-        "status: partial 이면 pending_plans: 의 plan 신설",
-        "status: implemented 이면 code: 글로브 ≥1 매치 보장"
+        "frontmatter code: / status: 정합 갱신",
+        "status: implemented 이면 code: 글로브 ≥1 매치 보장",
+        "미구현 surface 는 후속 NERV Task 로 올린다(nerv_task_create)"
       ],
-      "verify": "cd codebase/frontend && npm test -- spec-frontmatter spec-code-paths spec-pending-plan-existence",
-      "guard_tests": ["spec-frontmatter.test.ts", "spec-code-paths.test.ts", "spec-pending-plan-existence.test.ts"],
+      "verify": "cd codebase/frontend && npm test -- spec-frontmatter spec-code-paths",
+      "guard_tests": ["spec-frontmatter.test.ts", "spec-code-paths.test.ts"],
       "convention_ref": "spec/CLE-ENG/CLE-ENG-SPECEVIDENCE.md"
     },
     {

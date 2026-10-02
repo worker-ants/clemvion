@@ -4,7 +4,7 @@
 ## 왜 필요한가 (2026-08-28 실측)
 
 이 저장소는 `pnpm install --strict-peer-dependencies` 를 **설치 호출부 5곳 전부**에
-넣어 뒀다(`plan/in-progress/deps-peer-gating-and-eslint10.md` §1). 그런데 그 5곳이
+넣어 뒀다(옛 plan `deps-peer-gating-and-eslint10.md` §1, git 이력). 그런데 그 5곳이
 **전부 `--frozen-lockfile` 과 함께** 쓴다. frozen 은 해소를 다시 하지 않으므로 pnpm 이
 peer 를 재계산할 일이 없고, 따라서 **이미 lockfile 에 박혀 있는 미충족 peer 는 영원히
 보고되지 않는다.**

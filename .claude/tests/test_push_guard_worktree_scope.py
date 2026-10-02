@@ -43,7 +43,7 @@ HOOK_SRC = _harness.HOOKS_DIR / "guard_review_before_push.py"
 def _load_hook():
     """The real hook module, importable in-process for unit tests.
 
-    `_lib` (review_guard / plan_guard / failopen_state) has to be reachable, and
+    `_lib` (review_guard / failopen_state) has to be reachable, and
     `_harness` already fronts the hooks dir — mirror `AcceptsCwdContractTest`."""
     _ensure_on_path(str(_harness.HOOKS_DIR))
     _ensure_on_path(str(_harness.HOOKS_DIR / "_lib"))
@@ -79,37 +79,13 @@ def evaluate_review(cwd=None):
     return _Decision(blocked=False, reason="clean")
 '''
 
-_PLAN_STUB = '''\
-import os
-from dataclasses import dataclass
-
-
-@dataclass
-class _Plan:
-    untouched: bool
-    reason: str
-    plan_path: str
-
-    @property
-    def push_blocks(self):
-        return self.untouched
-
-
-def evaluate_plan(cwd=None):
-    blocked = [p for p in os.environ.get("STUB_PLAN_BLOCKED_PATHS", "").split(os.pathsep) if p]
-    if cwd and os.path.realpath(cwd) in [os.path.realpath(p) for p in blocked]:
-        return _Plan(untouched=True, reason=f"plan untouched in {cwd}",
-                     plan_path="plan/in-progress/x.md")
-    return _Plan(untouched=False, reason="plan touched", plan_path="plan/in-progress/x.md")
-'''
-
 
 def _ensure_on_path(entry: str) -> None:
     """Insert `entry` at the front of sys.path once.
 
     `_harness.py` warns that repeated unguarded inserts (a) grow sys.path for the
     rest of the run and (b) can shadow a same-named module from another tree —
-    `_lib/` here holds top-level `review_guard`/`plan_guard`, exactly the
+    `_lib/` here holds top-level `review_guard`/`failopen_state`, exactly the
     collision surface it names."""
     if entry not in sys.path:
         sys.path.insert(0, entry)
@@ -149,14 +125,13 @@ class PushGuardWorktreeScopeTest(unittest.TestCase):
         self.hook = os.path.join(self.hooks_dir, "guard_review_before_push.py")
         shutil.copy(HOOK_SRC, self.hook)
         self._write(os.path.join(self.hooks_dir, "_lib", "review_guard.py"), _REVIEW_STUB)
-        self._write(os.path.join(self.hooks_dir, "_lib", "plan_guard.py"), _PLAN_STUB)
 
     def _write(self, path, content):
         with open(path, "w", encoding="utf-8") as f:
             f.write(content)
 
     def _run(
-        self, command, cwd, blocked_paths=(), plan_blocked_paths=(), raise_paths=(),
+        self, command, cwd, blocked_paths=(), raise_paths=(),
         extra_env=None, script=None,
     ):
         """Run the hook as a subprocess against the stub gates.
@@ -170,10 +145,8 @@ class PushGuardWorktreeScopeTest(unittest.TestCase):
         (review 10_47_09 WARNING 3)."""
         env = dict(os.environ)
         env["STUB_BLOCKED_PATHS"] = os.pathsep.join(blocked_paths)
-        env["STUB_PLAN_BLOCKED_PATHS"] = os.pathsep.join(plan_blocked_paths)
         env["STUB_RAISE_PATHS"] = os.pathsep.join(raise_paths)
         env.pop("BYPASS_REVIEW_GUARD", None)
-        env.pop("BYPASS_PLAN_GUARD", None)
         if extra_env:
             env.update(extra_env)
         return subprocess.run(
@@ -238,46 +211,8 @@ class PushGuardWorktreeScopeTest(unittest.TestCase):
         )
         self.assertEqual(r.returncode, 0, r.stderr)
 
-    def test_bypass_plan_also_suppresses_a_scoped_block(self):
-        """`BYPASS_PLAN_GUARD` must suppress a SCOPED plan block too.
-
-        The REVIEW side has `test_bypass_still_applies_to_scoped_targets`; the
-        PLAN side had no counterpart. This file has already been burned once by
-        exactly that asymmetry — review 17_28_02 WARNING 1 found the PLAN gate's
-        scoping entirely unverified because only REVIEW had a test."""
-        r = self._run(
-            f"git push origin {self.side_branch}",
-            cwd=self.main_wt,
-            plan_blocked_paths=[self.side_wt],
-            extra_env={"BYPASS_PLAN_GUARD": "1"},
-        )
-        self.assertEqual(r.returncode, 0, r.stderr)
-
     def test_non_push_is_untouched(self):
         r = self._run("git status", cwd=self.main_wt, blocked_paths=[self.side_wt])
-        self.assertEqual(r.returncode, 0, r.stderr)
-
-    # -------------------------------------------------- PLAN gate scoping
-
-    def test_plan_gate_is_scoped_too(self):
-        """The PLAN gate must scope identically — it was the untested half of
-        the fix (review 17_28_02 WARNING 1). REVIEW clean everywhere, PLAN dirty
-        only in the named branch's worktree: the hook must still block."""
-        r = self._run(
-            f"git push origin {self.side_branch}",
-            cwd=self.main_wt,
-            plan_blocked_paths=[self.side_wt],
-        )
-        self.assertEqual(r.returncode, 2, r.stderr)
-        self.assertIn("plan gate", r.stderr)
-        self.assertIn(self.side_wt, r.stderr)
-
-    def test_plan_gate_unrelated_worktree_does_not_block(self):
-        r = self._run(
-            "git push origin main",
-            cwd=self.main_wt,
-            plan_blocked_paths=[self.side_wt],
-        )
         self.assertEqual(r.returncode, 0, r.stderr)
 
     # ------------------------------------------------------- fail-open paths
@@ -579,17 +514,12 @@ class AcceptsCwdContractTest(unittest.TestCase):
 
         self.mod = importlib.import_module("guard_review_before_push")
         self.review = importlib.import_module("review_guard")
-        self.plan = importlib.import_module("plan_guard")
 
     def test_real_gates_accept_a_positional_cwd(self):
         self.assertTrue(
             self.mod._accepts_cwd(self.review.evaluate_review),
             "review_guard.evaluate_review no longer takes a positional cwd — the "
             "hook would silently fall back to cwd-only and reopen the false-ALLOW hole",
-        )
-        self.assertTrue(
-            self.mod._accepts_cwd(self.plan.evaluate_plan),
-            "plan_guard.evaluate_plan no longer takes a positional cwd — same hole",
         )
 
     def test_keyword_only_signature_is_rejected(self):
@@ -605,33 +535,21 @@ class AcceptsCwdContractTest(unittest.TestCase):
 
 
 class PushBlocksContractTest(unittest.TestCase):
-    """Every gate decision exposes `push_blocks`, meaning "the PUSH hard-gate
-    refuses on this". The runner reads that property uniformly instead of a
-    per-gate field, so it must track the right field on each class — and, on the
-    two-gate `PlanDecision`, must be `untouched` and NOT the Stop gate's signal
-    (review 01_25_15 WARNING 5). A drift here makes a gate silently never block."""
+    """The gate decision exposes `push_blocks`, meaning "the PUSH hard-gate
+    refuses on this". The runner reads that property instead of a per-gate field,
+    so it must track the right field. A drift here makes the gate silently never
+    block. (The PLAN gate's `PlanDecision` and its Stop-signal trap left with
+    `plan/` in NERV cutover stage 3, NERV Task `CLE-T-FN2JWK`.)"""
 
     def setUp(self):
         _ensure_on_path(str(_harness.HOOKS_DIR))
         _ensure_on_path(str(_harness.HOOKS_DIR / "_lib"))
         self.review = importlib.import_module("review_guard")
-        self.plan = importlib.import_module("plan_guard")
 
     def test_review_push_blocks_tracks_blocked(self):
         RD = self.review.ReviewDecision
         self.assertTrue(RD(blocked=True, reason="x").push_blocks)
         self.assertFalse(RD(blocked=False, reason="x").push_blocks)
-
-    def test_plan_push_blocks_is_untouched_not_the_stop_signal(self):
-        PD = self.plan.PlanDecision
-        self.assertTrue(
-            PD(untouched=True, complete_but_in_progress=False,
-               reason="x", plan_path=None).push_blocks)
-        self.assertFalse(
-            PD(untouched=False, complete_but_in_progress=True,
-               reason="x", plan_path=None).push_blocks,
-            "complete_but_in_progress is the Stop gate's signal — the push gate "
-            "must not hard-block on it")
 
 
 class PushTargetsUnitTest(unittest.TestCase):

@@ -718,14 +718,17 @@ class TheGateItselfDoesNotBranchOnCiEnvTest(unittest.TestCase):
         ("pull.py", "NERV_TOKEN"),
         ("pull.py", "NERV_PROJECT"),
     }
-    # `hooks/_lib` 셋 + 게이트가 **위임하는** `_shared` 전부. 9R 리뷰어가 `report_paths.py`/
+    # `hooks/_lib` 의 `*_guard.py`(plan 게이트 `plan_guard.py` 는 전환 단계 3 에서 `plan/` 과 함께 걷었다)
+    # + 게이트가 **위임하는** `_shared` 전부. 9R 리뷰어가 `report_paths.py`/
     # `block_integrity.py` 에 `GITHUB_JOB == "gate"` 분기를 심어 127개 테스트가 전부 통과하는
     # 것을 실증했다 — 실제 판정(Gate1 커버리지, Gate2 하향 감지)이 그 두 함수로 내려가는데
     # 스캔 대상에 없었다. 목록을 손으로 유지하지 않고 디렉터리에서 도출한다.
-    _SCANNED_LIB = ("review_guard.py", "branch_guard.py", "plan_guard.py")
+    _SCANNED_LIB = tuple(sorted(
+        p.name for p in (_harness.HOOKS_DIR / "_lib").glob("*_guard.py")))
 
     def test_no_unregistered_environment_reads_in_the_gate(self):
         seen = set()
+        self.assertIn("review_guard.py", self._SCANNED_LIB, "the gate module was not found")
         targets = [_harness.HOOKS_DIR / "_lib" / n for n in self._SCANNED_LIB]
         targets += sorted((_harness.CLAUDE_DIR / "_shared").glob("*.py"))
         targets.append(_harness.CLAUDE_DIR / "tools" / "nerv-mirror" / "pull.py")
@@ -866,7 +869,7 @@ class ReviewArtifactsStayLocalTest(unittest.TestCase):
     전에는 정반대 성질을 지켰다 — CI 가 커밋된 `review/**` 위에서만 판정할 수 있었으므로 산출물이
     추적되지 않으면 백스톱이 아무 리뷰도 못 봤다. 지금 판정 근거는 NERV 라운드이고, 산출물을
     커밋하면 저장소만 무거워진다(`review/` 는 23,492 파일까지 쌓였다). 옛 `review/` 는 단계 3 에서
-    지운다.
+    지웠다.
     """
 
     def test_local_review_artifacts_are_ignored(self):

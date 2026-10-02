@@ -551,5 +551,105 @@ class TheDiffTextProbeCarriesTheHardeningTest(unittest.TestCase):
         self.assertIn("\udce4", out, "호출부가 하드닝을 못 받았다")
 
 
+class TheWorktreeProbeKeepsNonAsciiPaths(unittest.TestCase):
+    """git C-quotes non-ASCII paths by default. A Korean file name must come back
+    as itself, not as an octal-escaped string that matches no file. Moved here
+    from `test_plan_guard.py` when `plan_guard` left in NERV cutover stage 3; the
+    probe it exercised (`_porcelain_path` under `git status --porcelain`) is the
+    one `worktree_changed_files` still runs on."""
+
+    def test_a_non_ascii_path_survives_git_quoting(self):
+        import sys
+        if str(_harness.CLAUDE_DIR) not in sys.path:
+            sys.path.insert(0, str(_harness.CLAUDE_DIR))
+        from _shared import git_probe as gp
+
+        tmp = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, tmp, ignore_errors=True)
+        repo = _harness.make_temp_git_repo(os.path.join(tmp, "r"), branch="main")
+        rel = "spec/한글문서.md"
+        path = os.path.join(repo, rel)
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, "w", encoding="utf-8") as f:
+            f.write("x\n")
+        self.assertEqual(gp.worktree_changed_files(repo), [rel])
+
+
+class GitProbesAreNotReDuplicatedTest(unittest.TestCase):
+    """The guards do not hand-copy the git probes again — the list is derived.
+
+    `review_guard`, `branch_guard` and the since-removed `plan_guard` each carried
+    their own copy of the same git helpers, and the copies drifted three rounds in
+    a row (7R fixed `_run_git`'s `.strip()` in one, 8R found the same line in the
+    second as a false BLOCK, 9R found a third). Every suite mocked those helpers,
+    so none of them ever ran. 9R moved five into `_shared/git_probe.py`, and 10R
+    found a sixth (`_current_branch`) — the consolidation and its guard had been
+    driven by a hand-written list. So this compares the modules' ASTs instead: a
+    function whose body is identical in two guards fails by itself. Moved here
+    from `test_plan_guard.py` when `plan_guard` left in NERV cutover stage 3.
+    """
+
+    # Derived, like the function set: a new `_lib/*_guard.py` joins the check
+    # without anyone remembering to list it (it was hand-listed until stage 3).
+    _MODULES = tuple(sorted(
+        p.name for p in (_harness.HOOKS_DIR / "_lib").glob("*_guard.py")))
+
+    @staticmethod
+    def _bodies(src):
+        import ast as _ast
+        out = {}
+        for n in _ast.walk(_ast.parse(src)):
+            if isinstance(n, _ast.FunctionDef):
+                body = [x for x in n.body
+                        if not (isinstance(x, _ast.Expr)
+                                and isinstance(x.value, _ast.Constant))]
+                out[n.name] = _ast.dump(_ast.Module(body=body, type_ignores=[]))
+        return out
+
+    def test_no_identical_function_survives_in_two_guards(self):
+        import itertools
+        self.assertGreaterEqual(len(self._MODULES), 2,
+                                f"fewer than two guards found — nothing to compare: {self._MODULES}")
+        srcs = {m: (_harness.HOOKS_DIR / "_lib" / m).read_text(encoding="utf-8")
+                for m in self._MODULES}
+        bodies = {m: self._bodies(s) for m, s in srcs.items()}
+        dupes = []
+        for a, b in itertools.combinations(self._MODULES, 2):
+            for name in sorted(set(bodies[a]) & set(bodies[b])):
+                if bodies[a][name] == bodies[b][name]:
+                    dupes.append(f"{name} ({a} == {b})")
+        self.assertEqual(
+            dupes, [],
+            "a function body is identical in two guards — move it to "
+            f"`_shared/git_probe.py` and delegate from both: {dupes}",
+        )
+
+    def test_the_shared_probes_are_the_same_objects_everywhere(self):
+        """The direction the derivation cannot see: a redefinition after
+        `_x = _git_probe._x` makes the bodies differ and the test above pass. Check
+        the guards really hold the shared objects."""
+        import sys as _sys
+        from _lib import review_guard as rg  # noqa: PLC0415
+        from _lib import branch_guard as bg  # noqa: PLC0415
+        claude_dir = str(_harness.CLAUDE_DIR)
+        if claude_dir not in _sys.path:
+            _sys.path.insert(0, claude_dir)
+        from _shared import git_probe as gp  # noqa: PLC0415
+
+        exported = [n for n in dir(gp) if n.startswith("_") and callable(getattr(gp, n))
+                    and not n.startswith("__")]
+        self.assertGreaterEqual(len(exported), 6, f"too few shared probes: {exported}")
+        for mod, obj in (("review_guard", rg), ("branch_guard", bg)):
+            for name in exported:
+                if not hasattr(obj, name):
+                    continue  # a probe the guard does not use has nothing to delegate
+                with self.subTest(module=mod, fn=name):
+                    self.assertIs(
+                        getattr(obj, name), getattr(gp, name),
+                        f"{mod}.{name} is not the shared implementation — a local "
+                        "redefinition came back",
+                    )
+
+
 if __name__ == "__main__":
     unittest.main()

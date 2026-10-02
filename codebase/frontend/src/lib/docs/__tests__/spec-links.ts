@@ -14,7 +14,6 @@
 import fs from "node:fs";
 import path from "node:path";
 
-import { collectLivePlanMarkdown } from "./plan-scan";
 import { walkTree, type MdFileRef } from "./tree-walk";
 import { fromMarkdown } from "mdast-util-from-markdown";
 import { toString as mdToString } from "mdast-util-to-string";
@@ -239,7 +238,6 @@ export function isExternal(target: string): boolean {
 // `@deprecated` 별칭으로 남기려던 근거("외부 호출부를 한 번에 못 바꾼다")는 **거짓이었다**
 // — 전수 grep 결과 외부 소비처 0건이고 유일한 사용처가 이 파일 안 한 곳이었다(리뷰 실측).
 // 근거가 반증된 별칭은 남길 이유가 없다.
-// (`plan-scan.ts` 는 이미 `PlanMdFile` 을 따로 두어 이 혼동에서 빠져 있었다.)
 
 // Generated API reference catalogs (cafe24-api-catalog, makeshop-api-catalog, …)
 // are not narrative specs; their cross-links are machine-generated and out of
@@ -289,6 +287,12 @@ interface LinkScanOptions {
    * matches this predicate. Omit to check every in-repo relative link.
    */
   targetFilter?: (pathPart: string) => boolean;
+  /**
+   * Skip a path-target link whose **resolved** absolute path matches. Unlike
+   * `targetFilter` this sees where the link lands, so a same-named folder
+   * elsewhere (`spec/x/plan/`) is not mistaken for the repo-root one.
+   */
+  skipResolved?: (absPath: string) => boolean;
 }
 
 /**
@@ -341,6 +345,7 @@ function findBrokenLinksInFiles(
       if (options.targetFilter && !options.targetFilter(pathPart)) continue;
 
       const resolved = path.resolve(path.dirname(f.absPath), pathPart);
+      if (options.skipResolved?.(resolved)) continue;
       if (!fs.existsSync(resolved)) {
         violations.push({
           kind: "DEAD",
@@ -371,15 +376,30 @@ function findBrokenLinksInFiles(
 }
 
 /**
+ * Repo-root trees removed in NERV cutover stage 3 (NERV Task `CLE-T-FN2JWK`):
+ * work tracking moved to NERV Tasks, review results to NERV review records.
+ * The frozen old `spec/<area>/` tree still links into them and is not edited;
+ * it goes in stage 5 (`CLE-T-7M4C4X`), and this exemption with it.
+ *
+ * Only the spec scope gets the exemption. Governance docs are live and must
+ * drop such links instead (`findBrokenGovernanceLinks` keeps reporting them).
+ */
+const RETIRED_ROOT_TREES = ["plan", "review"];
+
+/**
  * Validate every in-repo markdown link in `spec/**`. Returns the list of
  * broken links (empty = healthy). A link is broken when its relative path
  * target does not exist (DEAD) or its `#anchor` does not resolve to a heading
  * in the target markdown file (ANCHOR). Same-file `#anchor` links are checked
- * against the file's own headings.
+ * against the file's own headings. Links that resolve into `RETIRED_ROOT_TREES`
+ * (the root `plan/` and `review/`, or the folder itself) are skipped.
  */
 export function findBrokenLinks(root: string): LinkViolation[] {
+  const retired = RETIRED_ROOT_TREES.map((name) => path.resolve(root, name));
   return findBrokenLinksInFiles(collectSpecMarkdown(root), {
     checkSelfAnchors: true,
+    skipResolved: (abs) =>
+      retired.some((dir) => abs === dir || abs.startsWith(dir + path.sep)),
   });
 }
 
@@ -398,9 +418,9 @@ const GOVERNANCE_SKIP_DIRS = new Set(["worktrees", "node_modules"]);
 /**
  * 루트 `*.md`(비재귀) + `.claude/**.md`.
  *
- * 루트는 `recurse: false` 다 — 재귀하면 `spec/`·`plan/`·`codebase/`·`review/` 가
- * 전부 딸려 들어와 다른 가드들과 스코프가 겹치고, `plan/complete/**` 처럼 **깨진 링크가
- * 정상인** 트리까지 빨아들인다 (`collectLivePlanMarkdown` 의 주석 참조).
+ * 루트는 `recurse: false` 다 — 재귀하면 `spec/`·`codebase/` 가 전부 딸려 들어와
+ * 다른 가드들과 스코프가 겹친다. 깨진 링크가 정상 상태였던 `plan/complete/**` ·
+ * `review/**` 트리도 같은 이유로 제외했었다(NERV 전환 단계 3 에서 둘 다 지웠다).
  */
 export function collectGovernanceMarkdown(root: string): MdFileRef[] {
   const rootLevel = walkTree(root, ["."], {
@@ -429,33 +449,6 @@ export function collectGovernanceMarkdown(root: string): MdFileRef[] {
 export function findBrokenGovernanceLinks(root: string): LinkViolation[] {
   return findBrokenLinksInFiles(collectGovernanceMarkdown(root), {
     checkSelfAnchors: true,
-  });
-}
-
-// plan 수집은 `plan-scan.ts` 소관이다 — 링크 모듈이 plan 트리 규칙까지 갖고 있으면
-// 그 규칙이 두 곳으로 갈린다(이 PR 이 고치고 있는 바로 그 형태).
-export { collectLivePlanMarkdown };
-
-/**
- * Validate relative links in the *living* plans (top-level `plan/in-progress/*.md`).
- *
- * Moving a plan to `plan/complete/` leaves sibling links pointing at the old
- * directory. Fenced regions are skipped by `extractLinks` — a plan's example
- * snippet must be free to name paths that do not exist.
- *
- * Scope is deliberately narrow: `plan/complete/**` is **excluded**, because
- * `plan-lifecycle.md §3` keeps point-in-time records on their old paths, so the
- * broken links there are the documented-normal state and widening would turn it
- * into a mass failure. Grouped subfolders follow the same exemption
- * `plan-frontmatter.test.ts` already applies to its frontmatter checks.
- *
- * `checkSelfAnchors: false` — plans self-link by heading far less than specs do,
- * and their headings are edited constantly; anchor churn would produce noise
- * without protecting the failure this exists for (a moved file).
- */
-export function findBrokenPlanLinks(root: string): LinkViolation[] {
-  return findBrokenLinksInFiles(collectLivePlanMarkdown(root), {
-    checkSelfAnchors: false,
   });
 }
 

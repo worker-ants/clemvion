@@ -4,8 +4,7 @@
 파일 판정의 경화(세션 시각 · author date 시계 · 진행 중 리뷰 · resolution 마커 · 위험도 파싱)는
 대상과 함께 사라졌다. 남는 것:
 
-  - `_porcelain_path`         — rename/copy 파싱. 공유 `git_probe` 로 옮겨 갔고 plan 게이트가 쓴다.
-  - stop-hook throttle        — 브랜치 단위 토큰과 session_id 없을 때의 대체.
+  - `_porcelain_path`         — rename/copy 파싱. 공유 `git_probe` 로 옮겨 갔다.
   - `actions/checkout` 위상   — CI 체크아웃에서 기본 브랜치를 네트워크 없이 찾고, 리뷰 없는
                                 변경을 "변경 없음" 으로 읽지 않는다.
   - 임시 저장소 픽스처 규약   — 모든 테스트의 git 호출이 `-C` 와 ceiling 을 건다.
@@ -21,11 +20,9 @@ import shutil
 import subprocess
 import tempfile
 import unittest
-from unittest import mock
 
 import _harness  # noqa: F401  — side effect: puts .claude/hooks on sys.path
 from _lib import review_guard as rg
-import guard_review_before_stop as stop
 from _shared import git_probe
 
 TESTS_DIR = pathlib.Path(__file__).resolve().parent
@@ -59,44 +56,6 @@ class PorcelainPathTest(unittest.TestCase):
 
     def test_too_short(self):
         self.assertEqual(git_probe._porcelain_path("M"), "")
-
-
-class StopThrottleTest(unittest.TestCase):
-    def test_marker_path_falls_back_when_no_session_id(self):
-        # Missing session_id must still produce a marker (throttle preserved),
-        # not None (which previously disabled the once-per-branch throttle).
-        p = stop._marker_path(None, "claude-foo")
-        self.assertTrue(p.endswith("nosession__claude-foo"))
-
-    def test_marker_path_uses_session_and_token(self):
-        p = stop._marker_path("sess1", "main")
-        self.assertTrue(p.endswith("sess1__main"))
-
-    def test_marker_path_sanitizes_path_traversal(self):
-        # A session_id with `/` (the traversal vector) must not escape the state
-        # dir: the marker stays a single filename directly under it. Remaining
-        # `.` chars are harmless inside a filename component.
-        p = stop._marker_path("../../etc/evil", "main")
-        self.assertNotIn("/", os.path.basename(p))
-        self.assertEqual(os.path.dirname(p), stop._state_dir())
-
-    def test_throttle_token_sanitizes_branch_slashes(self):
-        with mock.patch("subprocess.run") as run:
-            run.return_value = mock.Mock(returncode=0, stdout="claude/harden/x\n")
-            self.assertEqual(stop._throttle_token(), "claude-harden-x")
-
-    def test_throttle_token_detached_head_returns_sha(self):
-        # abbrev-ref returns "HEAD" when detached → fall back to the short sha.
-        def fake_run(args, **kw):
-            if "--abbrev-ref" in args:
-                return mock.Mock(returncode=0, stdout="HEAD\n")
-            return mock.Mock(returncode=0, stdout="deadbee\n")
-        with mock.patch("subprocess.run", side_effect=fake_run):
-            self.assertEqual(stop._throttle_token(), "deadbee")
-
-    def test_throttle_token_no_git_returns_norepo(self):
-        with mock.patch("subprocess.run", side_effect=FileNotFoundError()):
-            self.assertEqual(stop._throttle_token(), "norepo")
 
 
 class ActionsCheckoutTopologyTest(unittest.TestCase):
