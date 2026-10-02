@@ -36,15 +36,17 @@ export interface OpenApiInternalRef {
  * - `spec/` 없이 적은 옛 트리 파일 이름(`15-chat-channel.md` · `../../2-navigation/4-integration.md`)은
  *   번호로 시작하는 모양으로 잡는다.
  * - 옛 요구사항 ID 는 옛 트리 스펙의 앵커 ID 다(`WH-SC-01` · `CCH-ERR-03` · `EIA-NX-06`).
- *   대문자 묶음 둘 이상 뒤에 두세 자리 숫자가 온다(`REQ-` 로 시작하면 위 패턴 몫이다). 가이드 가드의
- *   `CCH-` · `R-` 패턴보다 넓다. `SHA-256` · `ISO-8601` 처럼 대문자 묶음이 하나면 잡지 않는다.
+ *   대문자 묶음 둘 이상 뒤에 두 자리 숫자가 온다(`REQ-` 로 시작하면 위 패턴 몫이다). 옛 트리의 이런 ID
+ *   690개가 모두 두 자리다(2026-10-03 실측). 가이드 가드의 `CCH-` · `R-` 패턴보다 넓다. `SHA-256` ·
+ *   `ISO-8601` 처럼 대문자 묶음이 하나이거나 `HMAC-SHA-256` · `AES-GCM-256` 처럼 숫자가 세 자리면 잡지
+ *   않는다.
  */
 const INTERNAL_REF_PATTERNS: readonly RegExp[] = [
   /(?<![\w.-])spec\/[\w-]/,
   /\b\d+-[a-z][\w-]*\.md\b/,
   /\bCLE-[A-Z][A-Z0-9]*(?:-[A-Z0-9]+)*\b/,
   /\bREQ-[A-Z][A-Z0-9]*(?:-[A-Z0-9]+)*-\d+\b/,
-  /\b(?!REQ-)[A-Z]{2,5}(?:-[A-Z]{2,5})+-\d{2,3}[a-z]?\b/,
+  /\b(?!REQ-)[A-Z]{2,5}(?:-[A-Z]{2,5})+-\d{2}[a-z]?\b/,
   /\bplan\/(?:in-progress|complete)\//,
 ];
 

@@ -21,7 +21,7 @@ const INTERNAL_REF_PATTERNS: readonly RegExp[] = [
   /\b\d+-[a-z][\w-]*\.md\b/,
   /\bCLE-[A-Z][A-Z0-9]*(?:-[A-Z0-9]+)*\b/,
   /\bREQ-[A-Z][A-Z0-9]*(?:-[A-Z0-9]+)*-\d+\b/,
-  /\b(?!REQ-)[A-Z]{2,5}(?:-[A-Z]{2,5})+-\d{2,3}[a-z]?\b/,
+  /\b(?!REQ-)[A-Z]{2,5}(?:-[A-Z]{2,5})+-\d{2}[a-z]?\b/,
   /\bplan\/(?:in-progress|complete)\//,
 ];
 
@@ -83,7 +83,9 @@ describe("배포되는 정적 파일의 내부 참조", () => {
       "14-external-interaction-api.md",
     ]);
     expect(
-      findInternalRefs("respec/ 과 spec 이라는 낱말, OpenAPI spec, README.md, SHA-256, ISO-8601"),
+      findInternalRefs(
+        "respec/ 과 spec 이라는 낱말, OpenAPI spec, README.md, SHA-256, ISO-8601, HMAC-SHA-256",
+      ),
     ).toEqual([]);
   });
 

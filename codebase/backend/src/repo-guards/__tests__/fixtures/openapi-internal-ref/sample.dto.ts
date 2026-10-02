@@ -25,7 +25,7 @@ export class InternalRefFixtureDto {
   /** 옛 요구사항 ID WH-SC-01 을 적었다. */
   withOldReq!: string;
 
-  /** SHA-256 · ISO-8601 · UTF-8 은 요구사항 ID 가 아니다. */
+  /** SHA-256 · ISO-8601 · UTF-8 · HMAC-SHA-256 · AES-GCM-256 은 요구사항 ID 가 아니다. */
   standardsOk!: string;
 
   /* 블록 주석은 JSDoc 이 아니다 — CLE-API-CONV. */
