@@ -60,7 +60,10 @@ ID 가 들어 있었다. 외부 소비자는 열어 볼 수 없는 참조이고,
 - 가드 신설: 백엔드 `openapi-internal-ref` 가 DTO · 컨트롤러 파일의 모든 `/** */` 와 `description` · `summary`
   에서 스펙 경로 · 옛 스펙 파일 이름 · NERV 키 · 요구사항 ID · 옛 요구사항 ID(`WH-SC-01` 등) · 옛 plan 경로를
   막는다. 베이스라인은 0 이다. 프론트엔드 `public-surface-internal-refs` 가 같은
-  패턴으로 배포 SVG 와 SDK README · `package.json` 을 본다.
+  패턴으로 배포 SVG 와 SDK README · `package.json` 을 본다. 두 곳의 패턴 목록이 어긋나지 않게 프론트엔드 테스트가
+  백엔드 가드 소스의 `INTERNAL_REF_PATTERNS` 배열 리터럴을 텍스트로 읽어 같은 순서 · 같은 source 인지 비교한다.
+  백엔드 가드의 대조군에는 템플릿 리터럴 · 괄호로 감싼 연결 문자열 · 데코레이터 인자 · 한 JSDoc 의 복수 형태를
+  더했고, 기대 목록은 순서에 기대지 않고 비교한다.
 - 스펙: NERV 초안 `CLE-API-SWAGGER`(규칙 17 신설)를 함께 고쳤다. 옛 규약은 설명에 기준 문서 링크를 적게 했는데,
   이 변경으로 그 링크를 `//` 주석으로 옮긴다.
 

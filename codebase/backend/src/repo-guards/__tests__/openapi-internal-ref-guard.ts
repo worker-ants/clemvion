@@ -31,6 +31,10 @@ export interface OpenApiInternalRef {
  * 요구사항 ID, 옛 요구사항 ID, 옛 plan 경로다. 키 · 요구사항 ID 모양은 프론트엔드 가이드 가드
  * (`frontend/src/lib/docs/__tests__/no-internal-refs.test.ts`)와 같다.
  *
+ * 프론트엔드 `public-surface-internal-refs.test.ts` 가 이 배열을 같은 순서 · 같은 source 로 복제한다. 그
+ * 테스트가 이 파일을 텍스트로 읽어 비교하므로 배열은 줄마다 정규식 리터럴 하나인 모양을 지키고, 고칠 때는
+ * 두 곳을 함께 고친다.
+ *
  * - 스펙 경로는 앞이 단어 · 경로 문자가 아닐 때만 센다 — `respec/` 같은 낱말을 빼고,
  *   `../spec/` · `/spec/` 은 잡는다.
  * - `spec/` 없이 적은 옛 트리 파일 이름(`15-chat-channel.md` · `../../2-navigation/4-integration.md`)은

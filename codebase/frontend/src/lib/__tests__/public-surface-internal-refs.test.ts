@@ -14,7 +14,9 @@ import path from "node:path";
  * 외부 사람은 저장소 스펙 경로도 NERV 스펙 키도 열어 볼 수 없다. 옛 스펙 트리는 NERV 정본
  * 전환 마지막 단계에서 지워지므로 경로는 곧 죽은 문자열이 된다. 전환 단계 4c(NERV Task
  * `CLE-T-9AM31N`)에서 SVG 9개 · README 5곳 · `package.json` 1곳을 걷어 내고 이 검사를 세웠다. 공개 OpenAPI 문장은
- * 백엔드 가드 `openapi-internal-ref` 가 본다. 패턴은 그 가드와 같다.
+ * 백엔드 가드 `openapi-internal-ref` 가 본다. 패턴은 그 가드와 같고, 아래 동기 테스트가 백엔드 가드 소스의
+ * `INTERNAL_REF_PATTERNS` 배열 리터럴을 텍스트로 읽어 이 목록과 같은 순서 · 같은 source 인지 비교한다. 한쪽만
+ * 고치면 그 테스트가 실패한다.
  */
 const INTERNAL_REF_PATTERNS: readonly RegExp[] = [
   /(?<![\w.-])spec\/[\w-]/,
@@ -27,6 +29,44 @@ const INTERNAL_REF_PATTERNS: readonly RegExp[] = [
 
 // 이 파일은 `codebase/frontend/src/lib/__tests__/` 에 있다.
 const REPO_ROOT = path.resolve(__dirname, "../../../../..");
+
+/** 백엔드 가드 소스. 패턴 복제본의 동기 상대다. */
+const BACKEND_GUARD_SOURCE = path.join(
+  REPO_ROOT,
+  "codebase",
+  "backend",
+  "src",
+  "repo-guards",
+  "__tests__",
+  "openapi-internal-ref-guard.ts",
+);
+
+interface PatternLiteral {
+  readonly source: string;
+  readonly flags: string;
+}
+
+/**
+ * 소스 텍스트의 `const INTERNAL_REF_PATTERNS ... = [ ... ];` 에서 정규식 리터럴을 순서대로 읽는다.
+ * 줄마다 리터럴 하나(`/…/플래그,`)인 모양만 읽는다. `//` 주석 줄과 빈 줄은 건너뛴다. 못 읽는 모양이면
+ * 던진다. 조용히 빈 목록이 되면 동기 검사가 공허해지기 때문이다.
+ */
+function readPatternLiterals(source: string): PatternLiteral[] {
+  const array = /const INTERNAL_REF_PATTERNS\b[^=\n]*=\s*\[\n([\s\S]*?)\n\];/.exec(source);
+  if (!array) throw new Error("INTERNAL_REF_PATTERNS 배열 리터럴을 찾지 못했다");
+  const out: PatternLiteral[] = [];
+  for (const raw of array[1].split("\n")) {
+    const line = raw.trim();
+    if (line === "" || line.startsWith("//")) continue;
+    const literal = /^\/(.+)\/([a-z]*),$/.exec(line);
+    if (!literal) throw new Error(`정규식 리터럴 한 줄이 아니다: ${line}`);
+    // `new RegExp` 를 거쳐 양쪽을 같은 방식으로 정규화한다.
+    const re = new RegExp(literal[1], literal[2]);
+    out.push({ source: re.source, flags: re.flags });
+  }
+  if (out.length === 0) throw new Error("INTERNAL_REF_PATTERNS 배열이 비어 있다");
+  return out;
+}
 
 /** 외부 통합용 SDK 패키지 디렉터리. 새 공개 SDK 를 만들면 여기에 더한다. */
 const PUBLIC_SDK_PACKAGES = ["sdk", "web-chat-sdk"] as const;
@@ -87,6 +127,38 @@ describe("배포되는 정적 파일의 내부 참조", () => {
         "respec/ 과 spec 이라는 낱말, OpenAPI spec, README.md, SHA-256, ISO-8601, HMAC-SHA-256",
       ),
     ).toEqual([]);
+  });
+
+  it("[대조군] 배열 리터럴에서 정규식을 순서대로 읽고 못 읽는 모양은 던진다", () => {
+    const source = [
+      "const OTHER = [/x/];",
+      "const INTERNAL_REF_PATTERNS: readonly RegExp[] = [",
+      "  // 주석 줄은 건너뛴다.",
+      "  /a\\/b/,",
+      "",
+      "  /c+/i,",
+      "];",
+    ].join("\n");
+    expect(readPatternLiterals(source)).toEqual([
+      { source: "a\\/b", flags: "" },
+      { source: "c+", flags: "i" },
+    ]);
+    expect(() => readPatternLiterals("const OTHER = [/x/];")).toThrow("찾지 못했다");
+    expect(() =>
+      readPatternLiterals("const INTERNAL_REF_PATTERNS = [\n  new RegExp('a'),\n];"),
+    ).toThrow("한 줄이 아니다");
+    expect(() => readPatternLiterals("const INTERNAL_REF_PATTERNS = [\n  // 비었다\n];")).toThrow(
+      "비어 있다",
+    );
+  });
+
+  it("패턴 목록이 백엔드 가드의 `INTERNAL_REF_PATTERNS` 와 같은 순서 · 같은 source 다", () => {
+    const backend = readPatternLiterals(fs.readFileSync(BACKEND_GUARD_SOURCE, "utf8"));
+    const own = INTERNAL_REF_PATTERNS.map((re) => ({ source: re.source, flags: re.flags }));
+    expect(
+      own,
+      "프런트엔드 패턴과 백엔드 `openapi-internal-ref-guard.ts` 의 `INTERNAL_REF_PATTERNS` 가 어긋났다. 두 곳을 함께 고친다",
+    ).toEqual(backend);
   });
 
   it("SVG 와 npm README 에 내부 참조가 없다", () => {
