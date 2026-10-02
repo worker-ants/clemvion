@@ -37,10 +37,10 @@ overrides:
   lodash: ^4.18.0
   picomatch: ^4.0.4
   liquidjs: ^10.27.1
-  ip-address: ^10.2.0
+  ip-address: ^10.7.1
   express-rate-limit: ^8.5.1
   protobufjs: ^7.6.5
-  fast-uri: ^3.1.6
+  fast-uri: ^3.1.8
   hono: ^4.13.5
   # socket.io@4.8.3 이 `socket.io-parser: ~4.2.4` 를 요구한다 — 이 저장소의 다른 override 와
   # 달리 `^` 가 아니라 `~` 인 이유다. `^4.2.7` 로 두면 4.3.x 가 나왔을 때 override 가 부모의
@@ -48,10 +48,13 @@ overrides:
   "socket.io-parser": ~4.2.7
   uuid: ^13.0.2
   ws: ^8.21.0
-  "@grpc/grpc-js": ^1.14.4
-  multer: ^2.3.0
+  "@grpc/grpc-js": ^1.14.5
+  multer: ^2.4.0
   form-data: ^4.0.6
-  nodemailer: ^9.1.1
+  # 2026-10-02: 9.x 계열에는 고친 버전이 없다(GHSA-prgh-xp8r-p3m5 · GHSA-v53p-9fqp-m79j ·
+  # GHSA-g57g-f23g-4646 모두 10.0.5~10.0.9 에서 패치). 직접 의존(backend)과 함께 10 으로 올린다.
+  # `@nestjs-modules/mailer@2.3.7` 의 peer 는 `nodemailer: >=8.0.5` 라 범위 안이다.
+  nodemailer: ^10.0.9
   next>postcss: ^8.5.18
   # GHSA-2v37-7h3g-55p8 (high). frontend 이 postcss 를 **직접** 의존하는데 그 경로가
   # lockfile 에서 낮은 nanoid 로 고정돼 있었다 — 같은 트리의 `next>postcss` 경로는 이미
@@ -78,6 +81,9 @@ overrides:
   html-to-text: ^10.0.1
   eslint-plugin-react-hooks: 7.0.1
   "undici@>=7.0.0 <7.29.0": ^7.29.0
+  # GHSA-rfgv-xxqx-mfg5 외 6건(8.x) — channel-web-chat > jsdom@30 > undici. jsdom 선언이
+  # `^8.x` 라 8 계열 안의 패치 버전으로만 올린다(7.x 키와 범위가 겹치지 않게 키를 따로 둔다).
+  "undici@>=8.0.0 <8.10.2": ^8.10.2
   vite: ^8.0.16
   "@babel/core": ^7.29.7
   "@hono/node-server": ^2.0.5
@@ -99,9 +105,15 @@ overrides:
   # GHSA-2883-xcg3-v3hh (high) — 두 메이저 계열이 각각 3.15.2 · 4.3.2 에서 패치됐다.
   "js-yaml@>=4.0.0 <4.3.2": ^4.3.2
   "js-yaml@>=3.0.0 <3.15.2": ^3.15.2
-  "brace-expansion@<2.0.0": ^1.1.16
-  "brace-expansion@>=2.0.0 <3.0.0": ^5.0.9
-  "brace-expansion@>=3.0.0 <5.0.8": ^5.0.8
+  # 2026-10-02: advisory 범위가 넓어졌다(GHSA-6j4f-fj2g-mc7p · GHSA-qhr7-859c-m2p7 ·
+  # GHSA-q2hr-2g5m-vwhr — 1.x 는 1.1.21, 5.x 는 5.0.12 에서 패치). 키 상한도 값과 함께 올린다
+  # (위 js-yaml 주석의 함정 — 5.0.9 가 옛 키 `<5.0.8` 밖이라 override 가 걸리지 않았다).
+  "brace-expansion@<2.0.0": ^1.1.21
+  "brace-expansion@>=2.0.0 <3.0.0": ^5.0.12
+  "brace-expansion@>=3.0.0 <5.0.12": ^5.0.12
+  # GHSA-2gc4-cqfq-p2gv (high) — backend > socket.io@4.8.3 > engine.io. socket.io 의 선언이
+  # `~6.6.0` 이라 `^` 가 아니라 `~` 로 둔다(socket.io-parser 와 같은 이유).
+  "engine.io": ~6.6.10
 
 # pnpm v10 은 lifecycle(build) script 를 기본 차단한다 (pnpm 10 정규 위치 — package.json
 # `pnpm.onlyBuiltDependencies` 에서 이전). 네이티브/바이너리 빌드가 필요한 패키지만 허용.
