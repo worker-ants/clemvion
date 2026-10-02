@@ -88,7 +88,7 @@
     "socket.io": "^4.8.4",
     "typeorm": "^0.3.31",
     "undici": "^6.28.1",
-    "uuid": "^14.0.1",
+    "uuid": "^14.0.2",
     "zod": "^4.6.5"
   },
   "devDependencies": {
