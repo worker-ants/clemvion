@@ -15,10 +15,17 @@ Parsing is deliberately minimal (stdlib only, per .claude/tests/README.md), so
 both parsers assert they actually found something rather than silently returning
 an empty set and passing vacuously — and `test_known_independent_tree_is_detected`
 pins that the classifier still SEES the one tree we know is independent.
+
+A second, smaller invariant lives at the bottom (`DependabotGroupsTest`): the
+workspace-root entry's `groups:` that bundle minor/patch updates into one PR.
+Deleting that block, or letting a group admit `major`, fails nothing else — the
+per-dependency PRs and their sequential `pnpm-lock.yaml` conflicts just quietly
+come back (NERV Task CLE-T-M8RB67).
 """
 
 from __future__ import annotations
 
+import json
 import re
 import subprocess
 import unittest
@@ -335,6 +342,301 @@ class DependabotCoverageTest(unittest.TestCase):
             with self.subTest(member=member):
                 self.assertNotIn(member, legitimate)
 
+
+# --- workspace-root `groups:` ------------------------------------------------
+
+# Group name → the `applies-to` it must carry. PROJECT.md quotes both names, so a
+# rename has to touch that bullet too.
+_EXPECTED_GROUPS = {
+    "npm-minor-patch": "version-updates",
+    "npm-security": "security-updates",
+}
+# `major` stays out of every group: a human decides it, one at a time.
+_GROUP_UPDATE_TYPES = {"minor", "patch"}
+# Reason-pinned deps (PROJECT.md §버전 핀 정책 (b)) reviewed as individual PRs:
+# dompurify · marked = sanitize path, three = 0.x tilde pin. react · react-dom
+# are pinned only for monorepo alignment, so they stay grouped on purpose.
+_INDIVIDUAL_PR_PINS = {"dompurify", "marked", "three"}
+
+_GROUP_LIST_ITEM = re.compile(r"""\s*(?:"([^"]*)"|'([^']*)'|([^,"'\s\]]+))\s*""")
+
+
+def _parse_flow_list(raw: str, where: str) -> list[str]:
+    inner = raw.strip()
+    if not (inner.startswith("[") and inner.endswith("]")):
+        raise ValueError(f"{where}: expected a [..] list, got {raw!r}")
+    inner = inner[1:-1].strip()
+    if not inner:
+        return []
+    items: list[str] = []
+    for part in inner.split(","):
+        m = _GROUP_LIST_ITEM.fullmatch(part)
+        if not m:
+            raise ValueError(f"{where}: unparsable list item {part!r}")
+        items.append(next(g for g in m.groups() if g is not None))
+    return items
+
+
+def _parse_root_npm_groups(text: str) -> dict[str, dict[str, object]]:
+    """`groups:` of the workspace-root npm entry in dependabot.yml TEXT.
+
+    Returns {group: {key: str | list[str]}}; {} when the entry has no `groups:`.
+    Handles the two YAML shapes a human would write here — flow lists
+    (`["a", "b"]`) and block lists (`- a`). Anything else RAISES instead of being
+    skipped: a silently dropped line would read as "key absent" and the test
+    would then blame the config for what is really a parser gap.
+    """
+    root_block = None
+    for block in re.split(r"^\s*-\s*package-ecosystem:", text, flags=re.M)[1:]:
+        eco = re.match(r"""\s*["']?([\w-]+)["']?""", block)
+        d = re.search(r"""^\s*directory:\s*["']?([^"'#\s]*)["']?""", block, re.M)
+        if eco and eco.group(1) == "npm" and d and d.group(1).strip("/") == "":
+            root_block = block
+            break
+    if root_block is None:
+        raise ValueError('no workspace-root npm entry (directory: "/")')
+
+    lines = root_block.splitlines()
+    start = next(
+        (i for i, line in enumerate(lines)
+         if re.fullmatch(r"\s*groups:\s*" + _TRAILING_COMMENT, line)),
+        None,
+    )
+    if start is None:
+        return {}
+    base = len(lines[start]) - len(lines[start].lstrip())
+
+    groups: dict[str, dict[str, object]] = {}
+    group_indent = None
+    current: dict[str, object] | None = None
+    pending_key: str | None = None
+    for line in lines[start + 1:]:
+        stripped = line.strip()
+        if not stripped or stripped.startswith("#"):
+            continue
+        indent = len(line) - len(line.lstrip())
+        if indent <= base:
+            break  # a sibling key (e.g. `ignore:`) ends the block
+        if group_indent is None:
+            group_indent = indent
+        if indent == group_indent:
+            m = re.fullmatch(r"\s*([\w|-]+):\s*" + _TRAILING_COMMENT, line)
+            if not m:
+                raise ValueError(f"unexpected group header: {line!r}")
+            current = groups.setdefault(m.group(1), {})
+            pending_key = None
+            continue
+        if current is None or indent < group_indent:
+            raise ValueError(f"line outside any group: {line!r}")
+        item = re.fullmatch(
+            r"""\s*-\s*(?:"([^"]*)"|'([^']*)'|([^#\s]+))\s*""" + _TRAILING_COMMENT,
+            line,
+        )
+        if item and pending_key is not None:
+            current[pending_key].append(next(g for g in item.groups() if g is not None))
+            continue
+        kv = re.fullmatch(r"\s*([\w-]+):(.*)", line)
+        if not kv:
+            raise ValueError(f"unparsable line in groups: {line!r}")
+        key, raw = kv.group(1), re.sub(r"\s+#.*$", "", kv.group(2)).strip()
+        if not raw:
+            current[key] = []
+            pending_key = key
+        elif raw.startswith("["):
+            current[key] = _parse_flow_list(raw, key)
+            pending_key = None
+        else:
+            current[key] = raw.strip("\"'")
+            pending_key = None
+    return groups
+
+
+def _group_violations(groups: dict[str, dict[str, object]]) -> list[str]:
+    """Every way `groups` departs from the policy; [] means it holds."""
+    if not groups:
+        return ["workspace-root npm entry has no `groups:` — per-dependency PRs "
+                "(and their sequential pnpm-lock.yaml conflicts) are back"]
+    problems: list[str] = []
+    for name, applies_to in _EXPECTED_GROUPS.items():
+        group = groups.get(name)
+        if group is None:
+            problems.append(f"group `{name}` is missing")
+            continue
+        if group.get("applies-to") != applies_to:
+            problems.append(
+                f"`{name}` applies-to is {group.get('applies-to')!r}, "
+                f"expected {applies_to!r}")
+        update_types = group.get("update-types")
+        if not isinstance(update_types, list) or set(update_types) != _GROUP_UPDATE_TYPES:
+            problems.append(
+                f"`{name}` update-types is {update_types!r}; it must be exactly "
+                f"{sorted(_GROUP_UPDATE_TYPES)} — omitting it admits major too")
+        if group.get("patterns") != ["*"]:
+            problems.append(
+                f"`{name}` patterns is {group.get('patterns')!r}; spell out "
+                '["*"] — the default when omitted is undocumented')
+        excluded = group.get("exclude-patterns")
+        if not isinstance(excluded, list) or set(excluded) != _INDIVIDUAL_PR_PINS:
+            problems.append(
+                f"`{name}` exclude-patterns is {excluded!r}, expected "
+                f"{sorted(_INDIVIDUAL_PR_PINS)} (reason-pinned deps reviewed alone)")
+    for name in sorted(set(groups) - set(_EXPECTED_GROUPS)):
+        problems.append(f"unexpected group `{name}` — add it to _EXPECTED_GROUPS "
+                        "and PROJECT.md, or drop it")
+    return problems
+
+
+def _root_npm_groups() -> dict[str, dict[str, object]]:
+    return _parse_root_npm_groups(DEPENDABOT_YAML.read_text(encoding="utf-8"))
+
+
+def _declared_specs(dep: str) -> list[str]:
+    """Version specs `dep` is declared with across tracked workspace manifests."""
+    specs = []
+    for manifest in _tracked_package_jsons():
+        if manifest.startswith(".claude/"):
+            continue
+        data = json.loads((REPO_ROOT / manifest).read_text(encoding="utf-8"))
+        for section in ("dependencies", "devDependencies"):
+            spec = (data.get(section) or {}).get(dep)
+            if spec is not None:
+                specs.append(spec)
+    return specs
+
+
+_POLICY_GROUPS_TEXT = """\
+updates:
+  - package-ecosystem: "npm"
+    directory: "/"
+    groups:
+      npm-minor-patch:
+        applies-to: version-updates
+        patterns: ["*"]
+        exclude-patterns: ["dompurify", "marked", "three"]
+        update-types: ["minor", "patch"]
+      npm-security:
+        applies-to: security-updates
+        patterns: ["*"]
+        exclude-patterns: ["dompurify", "marked", "three"]
+        update-types: ["minor", "patch"]
+    ignore:
+      - dependency-name: "typescript"
+"""
+
+_SECURITY_HEADER = "      npm-security:\n"
+_IGNORE_TAIL = '    ignore:\n      - dependency-name: "typescript"\n'
+
+
+def _edit_security_group(old: str, new: str) -> str:
+    """Apply one edit inside the `npm-security` group only."""
+    head, sep, tail = _POLICY_GROUPS_TEXT.partition(_SECURITY_HEADER)
+    return head + sep + tail.replace(old, new, 1)
+
+
+class DependabotGroupsParserTest(unittest.TestCase):
+    """The parser is hand-rolled; pin that it reads what a human would write."""
+
+    def test_policy_shaped_text_has_no_violations(self):
+        """Anchors the mutants below: each differs from this by one edit."""
+        self.assertEqual(
+            _group_violations(_parse_root_npm_groups(_POLICY_GROUPS_TEXT)), [])
+
+    def test_block_lists_and_comments_parse_like_flow_lists(self):
+        text = _POLICY_GROUPS_TEXT.replace(
+            '        update-types: ["minor", "patch"]\n' + _SECURITY_HEADER,
+            "        # block style\n"
+            "        update-types:\n"
+            '          - "minor"   # comment\n'
+            "          - patch\n" + _SECURITY_HEADER,
+        )
+        self.assertNotEqual(text, _POLICY_GROUPS_TEXT, "fixture edit did not apply")
+        groups = _parse_root_npm_groups(text)
+        self.assertEqual(groups["npm-minor-patch"]["update-types"], ["minor", "patch"])
+        self.assertEqual(_group_violations(groups), [])
+
+    def test_only_the_root_entry_is_read(self):
+        """A `groups:` on another npm entry must not stand in for the root one."""
+        text = (
+            "updates:\n"
+            '  - package-ecosystem: "npm"\n'
+            '    directory: "/.claude/tools/mermaid-lint"\n'
+            "    groups:\n"
+            "      x:\n"
+            '        patterns: ["*"]\n'
+            '  - package-ecosystem: "npm"\n'
+            '    directory: "/"\n'
+            '    rebase-strategy: "auto"\n'
+        )
+        self.assertEqual(_parse_root_npm_groups(text), {})
+
+    def test_unknown_shape_raises_instead_of_vanishing(self):
+        text = _POLICY_GROUPS_TEXT.replace(
+            "        applies-to: version-updates\n",
+            "        applies-to: version-updates\n        {weird}\n",
+            1,
+        )
+        self.assertNotEqual(text, _POLICY_GROUPS_TEXT, "fixture edit did not apply")
+        with self.assertRaises(ValueError):
+            _parse_root_npm_groups(text)
+
+
+class DependabotGroupsTest(unittest.TestCase):
+    """The root entry's grouping policy (PROJECT.md "dependabot 그룹 PR")."""
+
+    def test_repo_groups_follow_policy(self):
+        groups = _root_npm_groups()
+        self.assertEqual(
+            set(groups), set(_EXPECTED_GROUPS),
+            f"parsed groups {sorted(groups)} — parser or config drifted",
+        )
+        self.assertEqual(_group_violations(groups), [])
+
+    def test_each_violation_is_caught(self):
+        """One-edit mutants of the policy text; each must be reported."""
+        mutants = {
+            "groups block deleted":
+                _POLICY_GROUPS_TEXT.split("    groups:\n")[0] + _IGNORE_TAIL,
+            "major admitted": _POLICY_GROUPS_TEXT.replace(
+                'update-types: ["minor", "patch"]',
+                'update-types: ["minor", "patch", "major"]', 1),
+            "update-types omitted": _POLICY_GROUPS_TEXT.replace(
+                '        update-types: ["minor", "patch"]\n' + _SECURITY_HEADER,
+                _SECURITY_HEADER, 1),
+            "security group admits major": _edit_security_group(
+                'update-types: ["minor", "patch"]',
+                'update-types: ["minor", "patch", "major"]'),
+            "security group gone":
+                _POLICY_GROUPS_TEXT.split(_SECURITY_HEADER)[0] + _IGNORE_TAIL,
+            "applies-to swapped": _POLICY_GROUPS_TEXT.replace(
+                "applies-to: security-updates", "applies-to: version-updates"),
+            "patterns omitted": _POLICY_GROUPS_TEXT.replace(
+                '        patterns: ["*"]\n', "", 1),
+            "sanitize pin grouped": _POLICY_GROUPS_TEXT.replace(
+                '["dompurify", "marked", "three"]', '["marked", "three"]', 1),
+            "extra group": _POLICY_GROUPS_TEXT.replace(
+                "    ignore:\n",
+                '      npm-major:\n        patterns: ["*"]\n    ignore:\n'),
+        }
+        for label, text in mutants.items():
+            with self.subTest(mutant=label):
+                self.assertNotEqual(text, _POLICY_GROUPS_TEXT, "mutant did not apply")
+                self.assertTrue(
+                    _group_violations(_parse_root_npm_groups(text)),
+                    f"mutant `{label}` slipped through _group_violations",
+                )
+
+    def test_excluded_pins_are_still_pinned(self):
+        """An exclusion outlives its reason silently once the pin is relaxed to
+        caret — then it only costs a separate PR. Fail so someone drops it."""
+        for dep in sorted(_INDIVIDUAL_PR_PINS):
+            with self.subTest(dep=dep):
+                specs = _declared_specs(dep)
+                self.assertTrue(specs, f"`{dep}` is declared in no workspace manifest")
+                self.assertTrue(
+                    any(not s.startswith("^") for s in specs),
+                    f"`{dep}` is caret everywhere ({specs}); its pin reason is gone, "
+                    "so drop it from exclude-patterns and _INDIVIDUAL_PR_PINS",
+                )
 
 if __name__ == "__main__":
     unittest.main()
