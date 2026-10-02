@@ -61,9 +61,9 @@ context=<자유 markdown — 어떤 변경인지, 어떤 섹션을 추가/갱신
   - in-app 라우트 링크화 / 의도된 코드스팬 예외
   - 외부 URL 의 bare 노출 금지 → markdown link
   - Callout `type` 의 spec 밖 값 금지
-  - frontmatter 의 `spec:` / `code:` 경로 Glob 실존 검증
+  - frontmatter `spec:` 키 / `code:` 경로 stale — `spec:` 은 NERV 스펙 키 목록(예: `CLE-WF-EDITOR`)이다. 키를 찾는 위치(영역 밖 문서, 미러에 넣지 않는 카탈로그 영역 키 포함)와 `code:` · 영어 형제 파일 규칙은 `PROJECT.md` 의 같은 항목을 따른다. 미러에서 키를 찾지 못하면 키를 지우거나 바꾸지 말고 §후속 항목에 적는다
   - 내부 docs 링크 slug 실존 검증
-  - **내부 SoT 본문 노출 금지** — 사용자가 열람할 수 없는 `spec/<area>/...`·`/spec/...` 경로, `plan/in-progress/`·`plan/complete/` 경로, "별 plan `<name>`"·"separate plan" 표현, `CCH-XX-NN`·`R-XX-N` 같은 내부 anchor id, `ERROR_KO`·`WARNING_KO` 등 i18n 매핑 테이블 이름, `backend-labels.ts` 같은 내부 파일명을 본문에 적지 않는다. frontmatter 의 `spec:`/`code:` 필드는 빌드 검증용 metadata 라 별개 — 본문에는 같은 사실을 사용자 가시 표현으로 다시 적는다. SoT: PROJECT.md §자주 누락되는 작성 패턴 + [`spec/CLE-UI/CLE-UI-I18N.md`](../../spec/CLE-UI/CLE-UI-I18N.md) 「규칙」 8(원본 Principle 6-B). 가드: `no-internal-refs.test.ts`
+  - **내부 SoT 본문 노출 금지** — 사용자가 열람할 수 없는 `spec/<area>/...`·`/spec/...` 경로, `plan/in-progress/`·`plan/complete/` 경로, "별 plan `<name>`"·"separate plan" 표현, `CCH-XX-NN`·`R-XX-N` 같은 내부 anchor id, NERV 스펙 키(`CLE-...`)·요구사항 ID(`REQ-...-NNN`), `ERROR_KO`·`WARNING_KO` 등 i18n 매핑 테이블 이름, `backend-labels.ts` 같은 내부 파일명을 본문에 적지 않는다. frontmatter 의 `spec:`/`code:` 필드는 빌드 검증용 metadata 라 별개 — 본문에는 같은 사실을 사용자 가시 표현으로 다시 적는다. SoT: PROJECT.md §자주 누락되는 작성 패턴 + [`spec/CLE-UI/CLE-UI-I18N.md`](../../spec/CLE-UI/CLE-UI-I18N.md) 「규칙」 8(원본 Principle 6-B). 가드: `no-internal-refs.test.ts`
   - **향후 진행 예정 사항 언급 금지** — "v2 (후속)"·"v2 (planned)"·"향후 ~ 예정"·"별 plan 진입 후" 같은 로드맵성 문구를 본문에 적지 않는다. 사용자 가이드는 **현재 동작하는 상태**만 서술한다. 변경이 합쳐지면 그 시점에 같은 PR 에서 본문을 갱신한다 (자동 검출 어려워 본 agent 가 작성 시점에 챙긴다)
   - **GUI 흐름 절 작성 시 `<ImplAnchor>` 동반 의무** — "여기서 시작" 식 클릭 가능한 entry·API 호출·e2e 시나리오를 약속하는 GUI 흐름 절에는 그 약속이 실제 코드에 존재함을 증명하는 `<ImplAnchor>` (ui-entry / component / api-endpoint / e2e-scenario) 를 동반한다. `file` 은 레포 루트 상대경로 실존, `symbol` 은 그 파일 안 grep 매치, api-endpoint 는 `describes` 에 `METHOD /path` 표기. build-time 가드 (`impl-anchor-existence.test.ts` / `integrations-coverage.test.ts` / `triggers-coverage.test.ts`) 가 차단하므로 작성 시점에 챙긴다. SoT: [`spec/CLE-ENG/CLE-ENG-GUIDEEVIDENCE.md`](../../spec/CLE-ENG/CLE-ENG-GUIDEEVIDENCE.md)
 - §SoT 의 페이지 구조 규약 (3층 / 도입 → 상세 → 팁) 준수.
@@ -129,8 +129,8 @@ context=<자유 markdown — 어떤 변경인지, 어떤 섹션을 추가/갱신
 - [x] 내부 docs 링크 slug 실존
 - [x] canonical / sibling 짝 대응
 - [x] 페이지 구조 (도입 → 상세 → 팁) 준수
-- [x] 프론트매터 `spec:` / `code:` 경로 실존 (Glob 확인)
-- [x] 본문에 내부 SoT (`spec/`·`plan/`·`CCH-`/`R-` 내부 식별자·`ERROR_KO` 등 매핑 테이블·`backend-labels.ts`) 노출 없음 (`no-internal-refs.test.ts` 통과)
+- [x] 프론트매터 `spec:` 키·`code:` 경로 실존, 영어 형제 파일에 프론트매터 없음 (`PROJECT.md` 기준. 찾지 못한 키는 §후속 항목)
+- [x] 본문에 내부 SoT (`spec/`·`plan/`·`CCH-`/`R-`/`CLE-`/`REQ-` 내부 식별자·`ERROR_KO` 등 매핑 테이블·`backend-labels.ts`) 노출 없음 (`no-internal-refs.test.ts` 통과)
 - [x] 본문에 "v2 (후속)"·"향후 ~ 예정"·"별 plan ..." 같은 로드맵성 문구 없음 (현재 동작 상태 서술로 통일)
 - [x] GUI 흐름 절에 `<ImplAnchor>` 동반 (entry/component/api-endpoint/e2e symbol 이 코드 실존, `impl-anchor-existence.test.ts` 통과)
 
