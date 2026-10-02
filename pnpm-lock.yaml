@@ -178,8 +178,8 @@ importers:
         specifier: ^10.7.1
         version: 10.7.2
       isolated-vm:
-        specifier: ^6.1.2
-        version: 6.1.2
+        specifier: ^7.0.1
+        version: 7.0.1
       jsonwebtoken:
         specifier: 9.0.3
         version: 9.0.3
@@ -391,7 +391,7 @@ importers:
         version: 9.39.4(jiti@2.7.0)
       eslint-config-next:
         specifier: ^16.3.2
-        version: 16.3.2(eslint@9.39.4(jiti@2.7.0))(typescript@5.9.3)
+        version: 16.3.2(@typescript-eslint/parser@8.68.0(eslint@9.39.4(jiti@2.7.0))(typescript@5.9.3))(eslint@9.39.4(jiti@2.7.0))(typescript@5.9.3)
       jsdom:
         specifier: ^30.0.1
         version: 30.0.1(@noble/hashes@2.2.0)
@@ -611,7 +611,7 @@ importers:
         version: 9.39.4(jiti@2.7.0)
       eslint-config-next:
         specifier: 16.3.2
-        version: 16.3.2(@typescript-eslint/parser@8.68.0(eslint@9.39.4(jiti@2.7.0))(typescript@5.9.3))(eslint@9.39.4(jiti@2.7.0))(typescript@5.9.3)
+        version: 16.3.2(eslint@9.39.4(jiti@2.7.0))(typescript@5.9.3)
       github-slugger:
         specifier: ^2.0.0
         version: 2.0.0
@@ -7238,9 +7238,9 @@ packages:
   isexe@2.0.0:
     resolution: {integrity: sha512-RHxMLp9lnKHGHRng9QFhRCMbYAcVpn69smSGcq3f36xjgVVWThj4qqLbTLlq7Ssj8B+fIQ1EuCEGI2lKsyQeIw==}
 
-  isolated-vm@6.1.2:
-    resolution: {integrity: sha512-GGfsHqtlZiiurZaxB/3kY7LLAXR3sgzDul0fom4cSyBjx6ZbjpTrFWiH3z/nUfLJGJ8PIq9LQmQFiAxu24+I7A==}
-    engines: {node: '>=22.0.0'}
+  isolated-vm@7.0.1:
+    resolution: {integrity: sha512-nBCQ1hXEaYKYJ79wwfhaF44ITOJC30Hw0wPEsFeNsdD3hdeKK7FW1SGMQYBUA+qasvkqdOazI+iBuq0lcbN/aw==}
+    engines: {node: '>=24.0.0'}
 
   istanbul-lib-coverage@3.2.2:
     resolution: {integrity: sha512-O8dpsF+r0WV/8MNRKfnmrtCWhuKjxrq2w+jpzBL5UZKTi2LeVWnWOmWRxFlesJONmc+wLAGvKQZEOanko0LFTg==}
@@ -17860,7 +17860,7 @@ snapshots:
 
   isexe@2.0.0: {}
 
-  isolated-vm@6.1.2:
+  isolated-vm@7.0.1:
     dependencies:
       node-gyp-build: 4.8.4
 
