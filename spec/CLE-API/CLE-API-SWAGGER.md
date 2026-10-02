@@ -9,12 +9,12 @@ basis_superseded: false
 parent: "CLE-API"
 ancestors: ["CLE-VISION", "CLE-API"]
 area: "CLE-API"
-content_hash: "4e43395d38f56b8e1bb36c6cb64aeac736b8fbf159d52de76fdc7b675cd31aa6"
+content_hash: "a27fe118423d0bac263f474a63f8ac1e1f9a5d4de64ec2d44bbec7c4db4823db"
 read_as: "approved_fallback"
 task: "CLE-T-9AM31N"
 source_paths: ["spec/conventions/swagger.md"]
-mirror_sha256: "7a01206fa0071e1e7789cd622d8d22a83cdaa95fb5f7ca37b2ddcaa530e8eb46"
-etag: "sha256-2f3221f19865ca30f44af258bcb20b9402be3b1eb09356cb7dccec0feb4b81bb"
+mirror_sha256: "4564682dbf21f2e4b23a9a0576501f7f081b85141ffcf38b82811c7fb00ff93c"
+etag: "sha256-ae2afa73346a569c060d21974bd91d10d133b41bd9d1ca820d59a0990d7876e9"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/conventions/swagger.md` · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -55,7 +55,7 @@ etag: "sha256-2f3221f19865ca30f44af258bcb20b9402be3b1eb09356cb7dccec0feb4b81bb"
 14. DTO 필드의 JSDoc 은 공개 OpenAPI 로 나간다. 정정 경위나 리뷰 참조 같은 내부 서사는 `//` 주석에 적는다.
 15. 엔드포인트 `summary` 는 10~20자, `description` 은 50~150자로 쓴다(강제). DTO `description` 은 한 줄 요약을 지향한다(강제 아님).
 16. 저장값과 응답값이 다를 수 있는 필드와 정책으로 거부될 수 있는 요청 필드는 길이와 무관하게 그 사실을 설명에 적는다.
-17. DTO · 컨트롤러 파일(`*.dto.ts` · `*.controller.ts`)의 `/** */` 블록 전부와 데코레이터의 `description` · `summary` 문자열에는 저장소 내부 참조를 적지 않는다. 저장소 내부 참조는 스펙 경로, 번호로 시작하는 옛 스펙 파일 이름, NERV 키(`CLE-…`), 요구사항 ID(`REQ-…-NNN`), 옛 요구사항 ID, 옛 plan 경로의 여섯 형태다. 근거는 바로 위 `//` 주석에 키 링크로 적는다([스펙과 구현 근거 규약](../CLE-ENG/CLE-ENG-SPECEVIDENCE.md) 규칙 18 · R-14). 저장소 가드 `openapi-internal-ref` 가 강제한다.
+17. DTO · 컨트롤러 파일(`*.dto.ts` · `*.controller.ts`)의 `/** */` 블록 전부와 데코레이터의 `description` · `summary` 문자열에는 저장소 내부 참조를 적지 않는다. 저장소 내부 참조는 스펙 경로, 번호로 시작하는 옛 스펙 파일 이름, NERV 키(`CLE-…`), 요구사항 ID(`REQ-…-NNN`), 옛 요구사항 ID, 옛 plan 경로의 여섯 형태다. 근거는 바로 위 `//` 주석에 키 링크로 적는다([스펙과 구현 근거 규약](../CLE-ENG/CLE-ENG-SPECEVIDENCE.md) 규칙 18 · R-14). 저장소 가드 `openapi-internal-ref` 가 강제한다. 리뷰 인용은 이 목록에 없고 [리뷰 산출물 인용 규약](../CLE-ENG/CLE-ENG-REVIEWCITE.md) 이 정한다. 가드의 강제 범위와 못 보는 것은 Rationale 「공개 문장의 저장소 내부 참조를 왜 가드로 세는가」 에 적는다.
 
 ## 0. Swagger UI 노출 정책
 
@@ -523,6 +523,7 @@ async create(...) { ... }
 - `codebase/backend/src/repo-guards/__tests__/forbidden-response-codes*.ts` (§5-4 403 설명과 가드 거부 코드 짝. reflection, 대조군은 spec 안의 클래스)
 - `codebase/backend/src/repo-guards/__tests__/request-body-advertised*.ts` (§5-4 요청 본문 스키마. reflection, 대조군은 spec 안의 클래스)
 - `codebase/backend/src/repo-guards/__tests__/openapi-internal-ref-guard.ts` 와 `openapi-internal-ref.spec.ts`, 대조군 `fixtures/openapi-internal-ref/**` (규칙 17)
+- `codebase/frontend/src/lib/__tests__/public-surface-internal-refs.test.ts` (규칙 17 과 같은 패턴으로 배포 SVG 와 외부 SDK README · `package.json` 을 보는 프런트엔드 가드)
 
 ## Rationale
 
@@ -662,13 +663,13 @@ EIA 단발 상태 조회의 `context` 가 그 반례다. `interactionType` 은 �
 
 이 참조는 외부 소비자에게 쓸모가 없다. 옛 스펙 트리는 전환 단계 5 에서 지우므로 경로는 죽은 문자열이 된다. 외부 소비자는 NERV 스펙 키도 열어 볼 수 없다. 그래서 전환 단계 4c(NERV Task `CLE-T-9AM31N`)에서 공개 문장에는 사실만 남겼다. 필요한 근거는 바로 위 `//` 주석의 키 링크로 옮겼다. 같은 변경에서 가드 `openapi-internal-ref` 를 세웠다.
 
-4c 가 걷은 곳은 모두 91곳(50파일)이다. 처음에는 네 형태(스펙 경로 · NERV 키 · 요구사항 ID · 옛 plan 경로)로 세 자리(DTO 필드 JSDoc · 컨트롤러 메서드 JSDoc · `description` · `summary`)를 세어 41곳을 걷었다. 옛 스펙 파일 이름 형태를 더해 2곳을 더 찾았다. 채널을 두 파일 종류의 모든 `/** */` 로 넓히고 옛 요구사항 ID 형태를 더해 48곳을 더 걷었다. 베이스라인은 0 이다.
+4c 가 걷은 곳은 모두 91곳(50파일)이다. 처음에는 네 형태(스펙 경로 · NERV 키 · 요구사항 ID · 옛 plan 경로)로 세 자리(DTO 필드 JSDoc · 컨트롤러 메서드 JSDoc · 데코레이터의 `description` · `summary` 문자열)를 세어 41곳을 걷었다. 옛 스펙 파일 이름 형태를 더해 2곳을 더 찾았다. 채널을 두 파일 종류의 모든 `/** */` 로 넓히고 옛 요구사항 ID 형태를 더해 48곳을 더 걷었다. 베이스라인은 0 이다.
 
 - **두 파일 종류의 `/** */` 를 모두 본다.** `*.dto.ts` · `*.controller.ts` 의 모든 `/** */` 블록(클래스 · 멤버 · 파일 수준 선언)과 두 파일 종류의 `description` · `summary` 문자열 속성을 본다. 파일 종류는 `nest-cli.json` 의 플러그인 suffix 와 같다. 클래스 JSDoc 처럼 플러그인이 싣지 않는 자리도 같은 채널로 센다. [리뷰 산출물 인용 규약](../CLE-ENG/CLE-ENG-REVIEWCITE.md) 이 응답 DTO 파일의 `/** */` 를 한 채널로 보고 클래스 JSDoc 을 `//` 와 같게 보는 안 (A) 를 기각한 것과 같은 이유다. 쓰는 사람이 플러그인 동작을 보고 자리마다 판단하지 않아도 된다. 클래스 설명을 `@ApiSchema({ description })` 로 옮겨 적을 때 참조가 딸려 나가지도 않는다.
-- **찾는 형태는 여섯이다.** 저장소 스펙 경로(`spec/…`), 옛 스펙 파일 이름, NERV 스펙 키(`CLE-…`), 요구사항 ID(`REQ-…-NNN`), 옛 요구사항 ID, 옛 plan 경로(`plan/in-progress/` · `plan/complete/`)다. 옛 스펙 파일 이름은 `spec/` 없이 적은 옛 트리 파일 이름(`15-chat-channel.md` · `../../2-navigation/4-integration.md`)이다. 옛 트리 파일 이름은 번호로 시작하므로 가드는 번호로 시작하는 `.md` 이름(`\b\d+-[a-z][\w-]*\.md\b`)을 잡는다. 번호 없는 `README.md` 같은 이름은 잡지 않는다. 옛 요구사항 ID 는 옛 트리 스펙의 앵커 ID(`WH-SC-01` · `CCH-ERR-03`)다. 대문자 묶음 둘 이상 뒤에 두세 자리 숫자가 오는 모양으로 잡는다. `SHA-256` 처럼 대문자 묶음이 하나면 잡지 않는다. NERV 키 패턴은 NERV Task 키(`CLE-T-…`)도 잡는다.
+- **찾는 형태는 여섯이다.** 저장소 스펙 경로(`spec/…`), 옛 스펙 파일 이름, NERV 스펙 키(`CLE-…`), 요구사항 ID(`REQ-…-NNN`), 옛 요구사항 ID, 옛 plan 경로(`plan/in-progress/` · `plan/complete/`)다. 옛 스펙 파일 이름은 `spec/` 없이 적은 옛 트리 파일 이름(`15-chat-channel.md` · `../../2-navigation/4-integration.md`)이다. 옛 트리 파일 이름은 번호로 시작하므로 가드는 번호로 시작하는 `.md` 이름(`\b\d+-[a-z][\w-]*\.md\b`)을 잡는다. 번호 없는 `README.md` 같은 이름은 잡지 않는다. 옛 요구사항 ID 는 옛 트리 스펙의 앵커 ID(`WH-SC-01` · `CCH-ERR-03`)다. 대문자 묶음 둘 이상 뒤에 두 자리 숫자가 오는 모양으로 잡는다. 옛 트리의 이런 ID 690개가 모두 두 자리라서(2026-10-03 실측) `HMAC-SHA-256` 같은 세 자리 표준 이름은 잡지 않는다. `SHA-256` 처럼 대문자 묶음이 하나인 이름도 잡지 않는다. NERV 키 패턴은 NERV Task 키(`CLE-T-…`)도 잡는다.
 - **`//` 와 `/* */` 주석은 보지 않는다.** 근거를 옮겨 적는 자리라 일부러 비워 둔다.
 - **기존 자리까지 걷었다.** §1-4 · §3 의 비소급 원칙은 내부 서사에 걸린다. 내부 참조는 기계로 판정되고 문구를 지우면 끝난다. 전환 단계 5 뒤에는 죽은 문자열이 된다. 그래서 기존 자리까지 걷었다.
 - **베이스라인은 0 이다.** 공개 문장에서 내부 참조를 빼는 일은 언제나 할 수 있다. 그래서 예외를 둘 자리가 없다.
 - **못 보는 것이 있다.** 상수나 헬퍼로 조립한 설명은 보지 못한다. 가드는 문자열 리터럴과 `+` 연결, 템플릿 리터럴의 고정 부분만 읽는다. 두 파일 종류 밖의 파일(`*.query.ts` 등)과 `example` · `@ApiTags` 같은 다른 키도 보지 않는다. 경로 없는 절 번호 인용(`[Spec EIA §4]`, 상수로 조립한 설명 속 `(spec 통합 §8 · §9.2)` 등)은 모양이 일정하지 않아 잡지 못한다. 그 인용은 남아 있고 정리는 NERV Task `CLE-T-BCS6QZ` 가 맡는다.
-- **리뷰 인용은 다른 가드가 본다.** 응답 DTO JSDoc 의 리뷰 인용은 `dto-jsdoc-citation` 이 본다([리뷰 산출물 인용 규약](../CLE-ENG/CLE-ENG-REVIEWCITE.md)). 컨트롤러 JSDoc 과 `description` · `summary` 의 리뷰 인용은 어느 가드도 보지 않는다(그 규약의 강제 범위).
+- **리뷰 인용은 다른 가드가 본다.** 응답 DTO JSDoc 의 리뷰 인용은 `dto-jsdoc-citation` 이 본다([리뷰 산출물 인용 규약](../CLE-ENG/CLE-ENG-REVIEWCITE.md)). 응답 DTO 파일 밖의 DTO JSDoc(요청 DTO), 컨트롤러 JSDoc, `description` · `summary` 의 리뷰 인용은 어느 가드도 보지 않는다(그 규약의 강제 범위).
 - **프런트엔드 공개 표면도 같은 패턴으로 본다.** `public-surface-internal-refs`(`codebase/frontend/src/lib/__tests__/public-surface-internal-refs.test.ts`)가 배포 SVG 와 외부 SDK(`@workflow/sdk` · `@workflow/web-chat`)의 README · `package.json` 을 같은 패턴으로 본다.
