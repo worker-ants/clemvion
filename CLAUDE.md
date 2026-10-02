@@ -17,13 +17,14 @@
 
 ## 폴더 구조
 
-Monorepo. 애플리케이션 코드는 `codebase/` 하위 (서버 `codebase/backend`, 클라이언트 `codebase/frontend`). 제품 정의·기술 명세의 정본은 **NERV 스펙**(프로젝트 `clemvion`, 키 `CLE-*`)이고, 저장소 `spec/` 은 그 읽기 전용 미러다.
+Monorepo. 애플리케이션 코드는 `codebase/` 하위 (서버 `codebase/backend`, 클라이언트 `codebase/frontend`). 제품 정의·기술 명세의 정본은 **NERV 스펙**(프로젝트 `clemvion`, 키 `CLE-*`)이고, 저장소 `spec/` 은 그 읽기 전용 미러다. 예외로 Cafe24 · MakeShop API 카탈로그는 저장소 `codebase/api-catalogs/` 가 정본이다(아래 「정보 저장 위치」 표).
 
 ```text
 ./
   ├── spec/                # NERV 스펙 미러 spec/<영역 키>/<KEY>.md (읽기 전용) + 옛 트리(동결, 전환 단계 5 에서 삭제)
   ├── .review/             # 리뷰 · 검토 오케스트레이터의 로컬 산출물 (gitignore, 커밋하지 않음)
   ├── codebase/{frontend,backend,packages,channel-web-chat}/  # channel-web-chat: 임베드형 웹채팅 위젯 SPA (Next.js CSR, spec/7-channel-web-chat)
+  ├── codebase/api-catalogs/  # Cafe24 · MakeShop API 카탈로그 정본(생성기 · OpenAPI JSON 포함). NERV `CLE-C24-*` · `CLE-MKS-*` 는 사본
   └── .claude/worktrees/   # 모든 신규 작업의 git worktree
 ```
 
@@ -36,6 +37,7 @@ Monorepo. 애플리케이션 코드는 `codebase/` 하위 (서버 `codebase/back
 | 기술 명세 | NERV 스펙 본문 (미러 `spec/<영역 키>/<KEY>.md`) |
 | 결정의 배경·근거 | 해당 NERV 스펙 끝의 `## Rationale` |
 | 정식 규약 | NERV `convention` 타입 스펙 |
+| 외부 API 카탈로그 (Cafe24 · MakeShop) | 저장소 `codebase/api-catalogs/<vendor>/` 가 정본이다(생성기와 대조 테스트가 직접 읽는다). NERV `CLE-C24-CATALOG` · `CLE-MKS-CATALOG` 와 하위 문서는 사본이고 `spec/` 미러에 넣지 않는다. 사본 갱신 절차는 `codebase/api-catalogs/README.md` |
 | 진행 중 작업 | NERV Task — 클레임(`nerv_task_claim`) 뒤 진행은 `nerv_task_heartbeat` 의 progress, 인계는 `handoff_note` · 릴리스 `state_note` 에 남긴다. 새 작업은 `nerv_task_create` |
 | 완료된 작업 | NERV Task `done` — done 게이트가 증적 · `spec_impact` · Task 에 묶인 code · consistency 라운드를 요구한다 |
 | 리서치·분석 산출물 (작업 아님) | NERV `CLE-RESEARCH` 영역 문서(미러 `spec/CLE-RESEARCH/`). 경쟁 분석·기술 조사 등 "참조되는" 문서이고 요구사항을 정하지 않는다 |
