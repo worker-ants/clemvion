@@ -45,15 +45,18 @@ export function redactStoredErrorForResponse(
  * 트래커는 이 항목을 *"`Execution.error` 와 같은 형태"* 로 등재했으나 실측하면 다르다.
  * `error` 는 마커가 없는 자유 필드지만, `inputData` 는 webhook ingestion 이 민감 헤더를
  * `[REDACTED]` 로 마스킹해 저장한다 ([웹훅 「수신 헤더 마스킹」](CLE-TRIG-WEBHOOK#수신-헤더-마스킹)) —
- * `1-manual-trigger.md`·`5-expression-language.md`·`4-execution-engine.md`·
- * `data-flow/10-triggers.md` 가 그 전제를 공유하는 **문서화된 계약**이다.
+ * [수동 트리거 노드 「웹훅 경로 (port `out`)」](CLE-NODE-MANUAL#웹훅-경로-port-out) ·
+ * [표현식 언어 「`$trigger`: 웹훅 요청 뷰」](CLE-WF-EXPR#trigger-웹훅-요청-뷰) ·
+ * [실행 컨텍스트 「트리거 입력 파라미터 싣기」](CLE-EXEC-CONTEXT#트리거-입력-파라미터-싣기) ·
+ * [트리거 데이터와 흐름 「웹훅 진입」](CLE-TRIG-DATA#웹훅-진입) 가 그 전제를 공유하는 **문서화된 계약**이다.
  *
  * 그래서 이 층은 그 마커를 **덮지 않는다** — `deepRedactSecrets` 의 마커 멱등성이 보장하고
  * `.spec.ts` 캐너리가 고정한다. 덮으면 같은 헤더가 읽는 경로마다 다르게 보인다.
  *
  * ## ingestion-time 마스킹과 경쟁하지 않는다 (방어 계층이 다르다)
  *
- * `12-webhook.md` Rationale 은 "display 시점 마스킹" 을 기각하고 ingestion 시점을 택했다.
+ * [웹훅 「수신 헤더 마스킹을 저장 시점에 하는 이유 (2026-07-07)」](CLE-TRIG-WEBHOOK#수신-헤더-마스킹을-저장-시점에-하는-이유-2026-07-07)
+ * 는 "display 시점 마스킹" 을 기각하고 ingestion 시점을 택했다.
  * 본 함수는 그 결정을 **번복하지 않는다** — 그쪽은 *알려진 헤더 key* 를 저장 전에 지우는
  * 층이고, 이쪽은 *임의 값-패턴*(자유 텍스트에 박힌 `Bearer …`·자격증명 포함 URI)을 응답
  * 직전에 가리는 층이다. key-blacklist 로는 못 잡는 클래스를 덮으므로 두 층은 겹치지 않고

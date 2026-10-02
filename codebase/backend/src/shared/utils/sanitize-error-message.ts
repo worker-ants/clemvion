@@ -151,8 +151,10 @@ export {
  * | `sanitizePayloadForWs` 깊이 상한 | `[REDACTED_DEPTH]` | 같은 위 |
  *
  * `[REDACTED]` 는 **문서화된 계약**이다 — [웹훅 「수신 헤더 마스킹」](CLE-TRIG-WEBHOOK#수신-헤더-마스킹)
- * 이 규정하고 `1-manual-trigger.md`·`5-expression-language.md`·`4-execution-engine.md`·
- * `data-flow/10-triggers.md` 가 그 전제를 공유한다. 재마스킹하면 같은 헤더가 읽는 경로마다
+ * 이 규정하고 [수동 트리거 노드 「웹훅 경로 (port `out`)」](CLE-NODE-MANUAL#웹훅-경로-port-out) ·
+ * [표현식 언어 「`$trigger`: 웹훅 요청 뷰」](CLE-WF-EXPR#trigger-웹훅-요청-뷰) ·
+ * [실행 컨텍스트 「트리거 입력 파라미터 싣기」](CLE-EXEC-CONTEXT#트리거-입력-파라미터-싣기) ·
+ * [트리거 데이터와 흐름 「웹훅 진입」](CLE-TRIG-DATA#웹훅-진입) 가 그 전제를 공유한다. 재마스킹하면 같은 헤더가 읽는 경로마다
  * 다르게 보인다 — 이 저장소가 마스킹 연쇄 작업으로 없애 온 바로 그 병이다.
  *
  * **안전 방향은 한쪽으로만 열린다**: 절대 unmask 하지 않고, 이미 마스킹된 값을 다시 덮지

@@ -182,7 +182,7 @@ export class IntegrationsController {
 
   // 라우트 선언 순서 주의: `services/:type/catalog` 는 정적 prefix 라 동적
   // `@Get(':id')` 보다 앞에 있어야 한다 (NestJS = Express 라우터). 위의
-  // `cafe24/precheck` 와 동일 패턴. SoT: spec/2-navigation/4-integration.md §9.3.
+  // `cafe24/precheck` 와 동일 패턴.
   @Get('services/:type/catalog')
   // 근거:
   //   - [통합 관리 「사용처와 활동 API」](CLE-INT-MANAGE#사용처와-활동-api)
@@ -324,7 +324,7 @@ export class IntegrationsController {
   // 본 controller 는 사용자가 호출하는 통합 관리 API 전용. 3rd-party
   // 가 호출하는 endpoints (Cafe24 install + OAuth callback) 는
   // `ThirdPartyOAuthController` (`/api/3rd-party/...`) 가 담당.
-  // spec/2-navigation/4-integration.md §9.2.
+  // 근거: [통합 관리 「인증·교체·권한」](CLE-INT-MANAGE#인증교체권한)
 
   // ※ 라우트 선언 순서 주의: `cafe24/precheck` 는 동적 경로
   // `@Get(':id')` / `@Get(':id/usages')` / `@Get(':id/activity')` 보다

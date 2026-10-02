@@ -30,6 +30,10 @@ NERV 정본 전환 단계 4c(Task `CLE-T-9AM31N`). 코드 주석의 스펙 링�
 
 - 코드 주석의 스펙 링크 43개(22파일)를 키 링크 `[글](CLE-KEY#앵커)` 로 바꿨다. 옛 문서 하나가 여러 NERV 문서로
   나뉜 링크는 미러 frontmatter `source_paths` 로 후보를 뽑고 절 내용을 읽어 문서와 제목을 골랐다.
+- 이 변경이 손댄 블록 바로 옆의 옛 스펙 경로 평문 인용(`spec/…md §…`, `12-webhook.md` 같은 파일 이름)도 키 링크로
+  바꿨다(`integrations.controller.ts` · `user.entity.ts` · `redact-stored-error.ts` · `sanitize-error-message.ts`).
+  가드는 마크다운 링크만 보므로 저장소 전체의 평문 경로(약 1,500줄)는 그대로 남아 있다. 그 정리는 전환 4g(Task
+  `CLE-T-M7K35H`)의 주석 래칫이 맡는다.
 - 가드 변경: `spec-link-integrity` 가 codebase 소스(범위 2)와 거버넌스 문서(범위 3)의 키 링크를 확인한다. 키는 미러
   파일(`spec/<영역 키>/<KEY>.md`)이 있어야 하고(`KEY`), 앵커는 그 파일의 제목 slug 와 맞아야 한다(`ANCHOR`).
   전에는 범위 2 가 `spec/**.md` 경로 링크만 봤고 키 모양 링크는 아무도 보지 않았다.

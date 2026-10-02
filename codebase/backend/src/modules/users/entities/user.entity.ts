@@ -184,8 +184,9 @@ export class User {
   updatedAt: Date;
 
   /**
-   * `password_hash` 포맷 invariant 강제. spec/5-system/1-auth.md §"비밀번호 저장"
-   * 의 "bcrypt only, nullable for OAuth-only" 규약을 entity-level 에서 enforce.
+   * `password_hash` 포맷 invariant 강제. "bcrypt only, nullable for OAuth-only"
+   * 규약을 entity-level 에서 enforce.
+   * 근거: [가입과 로그인 「이메일·비밀번호 인증 규칙」](CLE-ACCT-SIGNIN#이메일비밀번호-인증-규칙) 의 «비밀번호 저장» 행.
    *
    * null / undefined 는 통과 (OAuth-only 사용자). string 이지만 bcrypt 포맷이
    * 아닌 모든 값은 throw — DB 저장 차단.
