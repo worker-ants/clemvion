@@ -14,7 +14,7 @@ import type { Cafe24OperationMetadata, Cafe24Resource } from './types.js';
  * 36건 드리프트가 그렇게 누락됐다 — plan G-3).
  *
  * 본 가드는 metadata 의 모든 supported operation `(method, path, scope)` 가
- * **field-level 카탈로그**(`spec/conventions/cafe24-api-catalog/<resource>/<entity>.md`,
+ * **field-level 카탈로그**(`codebase/api-catalogs/cafe24/<resource>/<entity>.md`,
  * Cafe24 공식 docs 전체 페이지 HTML 에서 결정적 추출 — `_overview.md §7`) 에
  * 동일하게 존재하는지 검증한다. metadata → docs 단방향: docs 에 우리보다 많은
  * operation 이 있는 것은 정상(미구현)이나, **우리가 docs 에 없는 path/method/scope 를
@@ -45,9 +45,9 @@ function resolveRepoRoot(): string {
 
 const CATALOG_DIR = join(
   resolveRepoRoot(),
-  'spec',
-  'conventions',
-  'cafe24-api-catalog',
+  'codebase',
+  'api-catalogs',
+  'cafe24',
 );
 
 /** path 정규화: `/api/v2/admin/` 접두 제거 + `{param}` → `{}` (param 명 차이 무시). */
@@ -78,7 +78,7 @@ interface DocsOp {
 /**
  * 단일 field-level 카탈로그 markdown 본문에서 operation 을 파싱한다 (순수 함수 — 단위 테스트 가능).
  *
- * ⚠ 파싱 포맷은 `spec/conventions/cafe24-api-catalog/_overview.md §7.2` 규약에 종속된다 —
+ * ⚠ 파싱 포맷은 `codebase/api-catalogs/cafe24/_overview.md §7.2` 규약에 종속된다 —
  * operation heading `### \`METHOD /api/v2/admin/PATH\` — title` + `- **Scope**: \`mall.<read|write>_..\``.
  * 카탈로그 생성기(`_generator.py`)·포맷이 바뀌면 본 정규식도 동시 갱신해야 가드가 무력화되지 않는다.
  */

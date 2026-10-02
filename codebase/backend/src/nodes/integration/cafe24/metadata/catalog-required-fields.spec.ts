@@ -36,9 +36,9 @@ function resolveRepoRoot(): string {
 
 const CATALOG_DIR = join(
   resolveRepoRoot(),
-  'spec',
-  'conventions',
-  'cafe24-api-catalog',
+  'codebase',
+  'api-catalogs',
+  'cafe24',
 );
 
 /**

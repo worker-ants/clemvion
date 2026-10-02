@@ -4,7 +4,7 @@ import type { Cafe24OperationMetadata } from './types.js';
  * Cafe24 `customer` resource metadata.
  *
  * G-1 (field-set 전량 미러, 2026-07-05): field-set 을 공식 docs 카탈로그
- * (`spec/conventions/cafe24-api-catalog/customer/*.md` 의 각 operation
+ * (`codebase/api-catalogs/cafe24/customer/*.md` 의 각 operation
  * `요청 파라미터` 표)와 전량 미러했다. 필드명은 docs Parameter 를 그대로 사용한다 —
  * 핸들러가 field key 를 query/body 파라미터명으로 그대로 전송하므로
  * (`cafe24.handler.ts` buildRequest), docs 명이 아닌 alias 는 Cafe24 가 인식하지 못한다.

@@ -1,4 +1,4 @@
-/** MakeShop Shop API — 상품 (Product) 섹션 (37 operations). SoT: spec/conventions/makeshop-api-catalog/product.md */
+/** MakeShop Shop API — 상품 (Product) 섹션 (37 operations). SoT: codebase/api-catalogs/makeshop/product.md */
 
 import type { MakeshopOperationMetadata } from './types.js';
 

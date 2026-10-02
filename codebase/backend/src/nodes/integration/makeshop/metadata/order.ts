@@ -1,4 +1,4 @@
-/** MakeShop Shop API — 주문 (Order) 섹션 (34 operations). SoT: spec/conventions/makeshop-api-catalog/order.md */
+/** MakeShop Shop API — 주문 (Order) 섹션 (34 operations). SoT: codebase/api-catalogs/makeshop/order.md */
 
 import type { MakeshopOperationMetadata } from './types.js';
 

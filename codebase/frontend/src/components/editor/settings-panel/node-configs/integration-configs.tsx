@@ -267,7 +267,7 @@ export function DatabaseQueryConfig({ config, onChange }: { config: Config; onCh
 // Resource keys mirror Cafe24 Admin API resource names and double as
 // translation keys under `nodeConfigs.integration.cafe24Resources.*`.
 // Backend `Cafe24Resource` enum (`codebase/backend/src/nodes/integration/cafe24/metadata/types.ts`)
-// and the catalog at `spec/conventions/cafe24-api-catalog/` must stay in sync
+// and the catalog at `codebase/api-catalogs/cafe24/` must stay in sync
 // with this list; `catalog-sync.spec.ts` guards the backend side.
 const CAFE24_RESOURCE_KEYS = [
   "store",

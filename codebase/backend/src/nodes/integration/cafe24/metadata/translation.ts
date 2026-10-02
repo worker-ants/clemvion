@@ -4,7 +4,7 @@ import type { Cafe24OperationMetadata } from './types.js';
  * Cafe24 `translation` resource metadata.
  *
  * G-1-remaining (plan `cafe24-backlog-residual.md` §G-1-remaining): field-set 을
- * 공식 docs 카탈로그(`spec/conventions/cafe24-api-catalog/translation/*.md` 의 각
+ * 공식 docs 카탈로그(`codebase/api-catalogs/cafe24/translation/*.md` 의 각
  * operation `요청 파라미터` 표)와 **전량 미러**했다. 필드명은 docs Parameter 를
  * 그대로 사용한다 — 핸들러가 field key 를 query/body 파라미터명으로 그대로 전송하므로
  * (`cafe24.handler.ts` buildRequest), docs 명이 아닌 alias 는 Cafe24 가 인식하지 못한다.
@@ -54,7 +54,7 @@ export const translationOperations: Cafe24OperationMetadata[] = [
   // Translation endpoint path 는 복수 `translations/...` 이 정답.
   // 근거: Cafe24 공식 Admin API Documentation 전체 페이지 HTML 의 실제 표시 URL 이
   // `/api/v2/admin/translations/...` (복수) 로 18/18 일치, 단수는 0건이다
-  // (field-level 카탈로그 spec/conventions/cafe24-api-catalog/translation/*.md = docs SoT).
+  // (field-level 카탈로그 codebase/api-catalogs/cafe24/translation/*.md = docs SoT).
   // 과거 단수 표기는 anchor slug 와 URL 을 혼동한 오기였다 — 정정함
   // (plan G-3a, 사용자 결정 2026-06-03: docs HTML 이 API 최종 상태).
   {

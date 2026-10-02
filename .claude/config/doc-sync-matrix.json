@@ -70,6 +70,19 @@
       "convention_ref": null
     },
     {
+      "id": "api-catalog-change",
+      "change_type": "API 카탈로그 변경",
+      "trigger": { "globs": ["codebase/api-catalogs/**"], "match": "glob" },
+      "targets": [
+        "codebase/backend/src/nodes/integration/{cafe24,makeshop}/metadata/<resource>.ts 의 operation 행",
+        "codebase/frontend/src/lib/i18n/dict/{ko,en}/{cafe24,makeshop}Catalog.ts 의 라벨 키 — ko/en 양쪽",
+        "바뀐 파일의 NERV 사본(CLE-C24-* · CLE-MKS-*) 초안 — 파일 → 키 대응은 codebase/api-catalogs/README.md"
+      ],
+      "verify": "pnpm --filter backend test -- catalog && pnpm --filter frontend test -- catalog-sync",
+      "guard_tests": [],
+      "convention_ref": null
+    },
+    {
       "id": "new-userguide-section-dir",
       "change_type": "유저 가이드 신규 섹션 디렉토리",
       "trigger": { "globs": ["codebase/frontend/src/content/docs/*/"], "match": "glob" },

@@ -41,8 +41,9 @@ temp/
 _test_logs/
 codebase/packages/sdk/package-lock.json
 
-# Cafe24 카탈로그 생성기 응답 JSON 캐시 (재fetch 가능, 미커밋)
-spec/conventions/cafe24-api-catalog/.resp-cache/
+# 카탈로그 생성기 캐시 (재fetch 가능, 미커밋). Cafe24 는 응답 JSON, MakeShop 은 문서 chunk 다.
+codebase/api-catalogs/cafe24/.resp-cache/
+codebase/api-catalogs/makeshop/.chunk-cache/
 # NERV 플러그인 — 캐시·오프라인 큐·Codex 환경 파일
 # 워크트리에는 이 셋이 main checkout 을 가리키는 심볼릭 링크로 걸린다(ensure-worktree.sh).
 # 그래서 `.nerv/` 처럼 끝에 슬래시를 붙이지 않는다. 슬래시 패턴은 디렉터리에만 맞아

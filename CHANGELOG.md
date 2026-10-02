@@ -23,6 +23,27 @@
 > 07 37% · 08 30% · 09(25일까지) 49% 였다(나중 PR 의 백필은 세지 않았다). 여기 없다고 그 변경이 없었던 것은 아니다 —
 > `git log` 가 정본이다.
 
+## Unreleased — 개발 흐름: Cafe24 · MakeShop API 카탈로그를 `codebase/api-catalogs/` 로 옮긴다
+
+NERV 정본 전환 단계 4a(Task `CLE-T-BD48J3`, 결정 D4). 카탈로그는 스펙의 정본이 NERV 로 옮겨 간 뒤에도 동결된
+`spec/conventions/<vendor>-api-catalog/` 에 남아 있었다. 생성기와 OpenAPI JSON 은 NERV 문서에 담을 수 없고, backend ·
+frontend 테스트 6개가 그 표를 직접 파싱한다. 게다가 `backend-checks` · `frontend-checks` 의 경로 판정에 그 경로가 없어서
+카탈로그만 바꾼 PR(생성기 재실행 등)은 카탈로그와 코드를 대조하는 테스트를 한 번도 돌리지 않았다.
+
+- 카탈로그 258파일(생성 md · `_generator.py` 2개 · MakeShop `openapi/*.json` 7개)을 `codebase/api-catalogs/cafe24/` ·
+  `codebase/api-catalogs/makeshop/` 로 옮겼다. 내용은 그대로이고 위치 표기와, 옮기면서 깨지는 링크 25개만 고쳤다.
+  NERV 의 `CLE-C24-*` · `CLE-MKS-*` 272편은 이 디렉터리의 사본이다. 생성기를 다시 돌리면 바뀐 파일의 NERV 사본도 같은
+  작업에서 고친다(파일 → 키 대응은 `codebase/api-catalogs/README.md`, doc-sync 매트릭스 「API 카탈로그 변경」 행).
+- 테스트 6개(backend `catalog-sync` · `catalog-docs-drift` · `catalog-required-fields` · makeshop `catalog-sync`, frontend
+  i18n `cafe24-catalog-sync` · `makeshop-catalog-sync`)가 새 경로를 읽는다. 코드 주석의 옛 경로 인용 33파일도 바꿨다.
+- `backend-checks` · `frontend-checks` 경로 판정에 `codebase/api-catalogs/**` 를 넣었다. 가드:
+  `.claude/tests/test_api_catalog_ci_coverage.py` 가 두 워크플로의 등재와 테스트 6개가 그 디렉터리를 읽는다는 전제를 고정한다.
+- `spec-link-integrity`: 동결된 옛 트리에서 옛 카탈로그 경로로 가는 링크 32개를 건너뛰지 않고 새 자리에서 경로와 앵커를
+  검사한다(`spec-links.ts` 의 `RELOCATED_SPEC_TREES`). 옛 자리에 카탈로그 사본이 다시 생기면 실저장소 테스트가 실패한다.
+  옛 트리와 함께 단계 5(`CLE-T-7M4C4X`)에서 걷는다.
+- MakeShop 생성기 캐시 `.chunk-cache/` 를 `.gitignore` 에 넣었다. 생성기 도움말은 gitignore 대상이라고 적고 있었지만 실제로는
+  빠져 있었다.
+
 ## Unreleased — 개발 흐름: dependabot 의 minor · patch 업데이트를 그룹 PR 로 받는다
 
 NERV Task `CLE-T-M8RB67`. 루트 pnpm 워크스페이스의 dependabot PR 이 의존성마다 따로 와서 모두 같은 `pnpm-lock.yaml` 을

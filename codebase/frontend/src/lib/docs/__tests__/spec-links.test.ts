@@ -205,6 +205,74 @@ describe("findBrokenLinks — 지운 루트 트리를 가리키는 링크", () =
   });
 });
 
+// NERV 정본 전환 단계 4a(Task `CLE-T-BD48J3`, 결정 D4)에서 Cafe24 · MakeShop API 카탈로그를
+// `spec/conventions/<vendor>-api-catalog/` 에서 `codebase/api-catalogs/<vendor>/` 로 옮겼다.
+// 동결된 옛 `spec/<영역>/` 트리는 옛 자리를 가리킨다. 그 링크는 건너뛰지 않고 **새 자리에서**
+// 경로와 앵커를 그대로 검사한다. 지운 루트 트리(위 블록)와 달리 대상이 아직 있기 때문이다.
+describe("findBrokenLinks — 옮긴 카탈로그를 가리키는 링크", () => {
+  let root: string;
+
+  beforeAll(() => {
+    root = fs.mkdtempSync(path.join(os.tmpdir(), "spec-links-relocated-"));
+    fs.mkdirSync(path.join(root, "spec", "conventions"), { recursive: true });
+    fs.mkdirSync(path.join(root, "spec", "4-nodes"), { recursive: true });
+    fs.mkdirSync(path.join(root, "codebase", "api-catalogs", "cafe24"), { recursive: true });
+    fs.mkdirSync(path.join(root, "codebase", "api-catalogs", "makeshop"), { recursive: true });
+    fs.writeFileSync(
+      path.join(root, "codebase", "api-catalogs", "cafe24", "_overview.md"),
+      "# Overview\n\n## 4. 동기 정책\n",
+    );
+    fs.writeFileSync(
+      path.join(root, "codebase", "api-catalogs", "makeshop", "_overview.md"),
+      "# Overview\n",
+    );
+    fs.writeFileSync(
+      path.join(root, "spec", "conventions", "meta.md"),
+      [
+        "# Meta",
+        "",
+        mkLink("moved ok", "./cafe24-api-catalog/_overview.md"), // 새 자리에 있다 → 통과
+        mkLink("moved anchor ok", "./cafe24-api-catalog/_overview.md#4-동기-정책"), // 앵커도 새 자리 기준
+        mkLink("moved folder", "./cafe24-api-catalog/"), // 폴더 자체 → 새 폴더가 있다
+        mkLink("moved makeshop", "./makeshop-api-catalog/_overview.md"),
+        mkLink("moved anchor bad", "./cafe24-api-catalog/_overview.md#nope"), // ANCHOR
+        mkLink("moved missing", "./cafe24-api-catalog/missing.md"), // 새 자리에도 없다 → DEAD
+        mkLink("look-alike", "./cafe24-api-catalogue/_overview.md"), // 접두만 같은 형제 → DEAD
+      ].join("\n"),
+    );
+    fs.writeFileSync(
+      path.join(root, "spec", "4-nodes", "node.md"),
+      mkLink("deeper", "../conventions/makeshop-api-catalog/_overview.md"),
+    );
+  });
+
+  afterAll(() => {
+    fs.rmSync(root, { recursive: true, force: true });
+  });
+
+  it("옛 카탈로그 경로로 해석되는 링크를 새 자리에서 검사한다", () => {
+    expect(fingerprint(findBrokenLinks(root))).toEqual([
+      "ANCHOR ./cafe24-api-catalog/_overview.md#nope",
+      "DEAD ./cafe24-api-catalog/missing.md",
+      "DEAD ./cafe24-api-catalogue/_overview.md",
+    ]);
+  });
+
+  it("거버넌스 문서에는 적용하지 않는다 — 살아 있는 문서는 새 경로를 적어야 한다", () => {
+    fs.writeFileSync(
+      path.join(root, "CLAUDE.md"),
+      mkLink("old catalog", "spec/conventions/cafe24-api-catalog/_overview.md"),
+    );
+    try {
+      expect(fingerprint(findBrokenGovernanceLinks(root))).toEqual([
+        "DEAD spec/conventions/cafe24-api-catalog/_overview.md",
+      ]);
+    } finally {
+      fs.rmSync(path.join(root, "CLAUDE.md"));
+    }
+  });
+});
+
 /**
  * `extractLinks` 의 **사전 필터**가 링크를 놓치지 않는지.
  *
