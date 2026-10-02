@@ -72,6 +72,10 @@ const EXCLUDE_BASENAMES = new Set<string>([
 // `spec/conventions/<name>-api-catalog/<seg>/…md`
 // (a path segment AFTER the catalog dir → nested field file), so a top-level
 // `<name>-api-catalog/<resource>.md` does not match and stays validated.
+// Since NERV cutover stage 4a the catalogs live in `codebase/api-catalogs/` and
+// `api-catalog-index-frontmatter.spec.ts` (backend) checks their index
+// frontmatter, so nothing under `spec/` matches this rule today. It goes with
+// the old tree in stage 5 (`CLE-T-7M4C4X`).
 const CATALOG_FIELD_FILE =
   /^spec\/conventions\/[^/]+-api-catalog\/[^/]+\/.+\.md$/;
 

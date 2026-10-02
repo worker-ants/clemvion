@@ -25,24 +25,32 @@
 
 ## Unreleased — 개발 흐름: Cafe24 · MakeShop API 카탈로그를 `codebase/api-catalogs/` 로 옮긴다
 
-NERV 정본 전환 단계 4a(Task `CLE-T-BD48J3`, 결정 D4). 카탈로그는 스펙의 정본이 NERV 로 옮겨 간 뒤에도 동결된
+NERV 정본 전환 단계 4a(Task `CLE-T-BD48J3`). 카탈로그는 스펙의 정본이 NERV 로 옮겨 간 뒤에도 동결된
 `spec/conventions/<vendor>-api-catalog/` 에 남아 있었다. 생성기와 OpenAPI JSON 은 NERV 문서에 담을 수 없고, backend ·
-frontend 테스트 6개가 그 표를 직접 파싱한다. 게다가 `backend-checks` · `frontend-checks` 의 경로 판정에 그 경로가 없어서
+frontend 테스트가 그 표를 직접 파싱한다. 게다가 `backend-checks` · `frontend-checks` 의 경로 판정에 그 경로가 없어서
 카탈로그만 바꾼 PR(생성기 재실행 등)은 카탈로그와 코드를 대조하는 테스트를 한 번도 돌리지 않았다.
 
 - 카탈로그 258파일(생성 md · `_generator.py` 2개 · MakeShop `openapi/*.json` 7개)을 `codebase/api-catalogs/cafe24/` ·
-  `codebase/api-catalogs/makeshop/` 로 옮겼다. 내용은 그대로이고 위치 표기와, 옮기면서 깨지는 링크 25개만 고쳤다.
-  NERV 의 `CLE-C24-*` · `CLE-MKS-*` 272편은 이 디렉터리의 사본이다. 생성기를 다시 돌리면 바뀐 파일의 NERV 사본도 같은
+  `codebase/api-catalogs/makeshop/` 로 옮겼다(첫 커밋은 순수 이동이다). 카탈로그 데이터는 그대로이고 위치 표기와 옮기면서
+  깨지는 링크 25개를 고쳤다. 두 `_overview.md` 에는 NERV 사본 갱신 절차와 정본 위치의 근거(Rationale)를 더했다.
+  NERV 의 `CLE-C24-*` · `CLE-MKS-*` 272편은 이 디렉터리의 사본이다. 카탈로그를 바꾸면 바뀐 파일의 NERV 사본도 같은
   작업에서 고친다(파일 → 키 대응은 `codebase/api-catalogs/README.md`, doc-sync 매트릭스 「API 카탈로그 변경」 행).
-- 테스트 6개(backend `catalog-sync` · `catalog-docs-drift` · `catalog-required-fields` · makeshop `catalog-sync`, frontend
-  i18n `cafe24-catalog-sync` · `makeshop-catalog-sync`)가 새 경로를 읽는다. 코드 주석의 옛 경로 인용 33파일도 바꿨다.
-- `backend-checks` · `frontend-checks` 경로 판정에 `codebase/api-catalogs/**` 를 넣었다. 가드:
-  `.claude/tests/test_api_catalog_ci_coverage.py` 가 두 워크플로의 등재와 테스트 6개가 그 디렉터리를 읽는다는 전제를 고정한다.
+- 카탈로그를 읽는 테스트(backend `catalog-sync` · `catalog-docs-drift` · `catalog-required-fields` · makeshop `catalog-sync`,
+  frontend i18n `cafe24-catalog-sync` · `makeshop-catalog-sync`)가 새 경로를 읽는다. 코드 주석의 옛 경로 인용도 새 경로로 바꿨다.
+- 가드 대체: 카탈로그 색인 25개(Cafe24 18 · MakeShop 7)의 frontmatter(`id` · `status` · `code:`)는 지금까지 frontend 의
+  `spec-frontmatter` · `spec-code-paths` 가 봤다. 두 가드는 `spec/` 만 훑어서 옮긴 색인을 보지 못한다. 같은 계약을
+  `codebase/backend/src/nodes/integration/api-catalog-index-frontmatter.spec.ts` 가 새 자리에서 본다(`id` 가 파일 이름과 맞는지,
+  `implemented` 면 `code:` 가 있고 경로가 모두 있는지). 뮤턴트 2종(없는 `code:` 경로, 틀린 `id`)을 잡는 것을 확인했다.
+- `backend-checks` · `frontend-checks` · `spec-link-checks` 경로 판정에 `codebase/api-catalogs/**` 를 넣었다. 가드:
+  `.claude/tests/test_api_catalog_ci_coverage.py` 가 세 워크플로의 등재와, 소비처가 주석이 아닌 코드에서 그 디렉터리를 읽는다는
+  전제를 고정한다.
 - `spec-link-integrity`: 동결된 옛 트리에서 옛 카탈로그 경로로 가는 링크 32개를 건너뛰지 않고 새 자리에서 경로와 앵커를
-  검사한다(`spec-links.ts` 의 `RELOCATED_SPEC_TREES`). 옛 자리에 카탈로그 사본이 다시 생기면 실저장소 테스트가 실패한다.
-  옛 트리와 함께 단계 5(`CLE-T-7M4C4X`)에서 걷는다.
+  검사한다(`spec-links.ts` 의 `RELOCATED_SPEC_TREES`). 옛 자리에 카탈로그(`_overview.md`)가 다시 생기면 실저장소 테스트가
+  실패한다. 옛 트리와 함께 단계 5(`CLE-T-7M4C4X`)에서 걷는다.
+- 게이트 비용이 바뀐다: 카탈로그가 `spec/**` 에서 `codebase/**` 로 옮겨 가서 카탈로그만 바꾼 PR 도 e2e 를 돌리고, push 훅 ·
+  CI `review-gate` 가 passed 상태의 NERV 코드 리뷰 라운드를 요구한다.
 - MakeShop 생성기 캐시 `.chunk-cache/` 를 `.gitignore` 에 넣었다. 생성기 도움말은 gitignore 대상이라고 적고 있었지만 실제로는
-  빠져 있었다.
+  빠져 있었다. 옛 자리(`spec/conventions/cafe24-api-catalog/.resp-cache/`)에 캐시가 남은 체크아웃은 그 디렉터리를 지워도 된다.
 
 ## Unreleased — 개발 흐름: dependabot 의 minor · patch 업데이트를 그룹 PR 로 받는다
 

@@ -76,9 +76,9 @@
       "targets": [
         "codebase/backend/src/nodes/integration/{cafe24,makeshop}/metadata/<resource>.ts 의 operation 행",
         "codebase/frontend/src/lib/i18n/dict/{ko,en}/{cafe24,makeshop}Catalog.ts 의 라벨 키 — ko/en 양쪽",
-        "바뀐 파일의 NERV 사본(CLE-C24-* · CLE-MKS-*) 초안 — 파일 → 키 대응은 codebase/api-catalogs/README.md"
+        "바뀐 파일의 NERV 사본(CLE-C24-* · CLE-MKS-*) 초안 — 파일 → 키 대응은 codebase/api-catalogs/README.md (가드는 *.spec.ts 라 guard_tests 에 적지 않는다: catalog-sync · catalog-docs-drift · catalog-required-fields · api-catalog-index-frontmatter · i18n catalog-sync, 그리고 .claude/tests/test_api_catalog_ci_coverage.py)"
       ],
-      "verify": "pnpm --filter backend test -- catalog && pnpm --filter frontend test -- catalog-sync",
+      "verify": "pnpm --filter backend test -- integration/.*catalog && pnpm --filter frontend test -- catalog-sync",
       "guard_tests": [],
       "convention_ref": null
     },

@@ -406,9 +406,16 @@ const RETIRED_ROOT_TREES = ["plan", "review"];
  * Only the spec scope relocates. Governance docs are live and must name the new
  * path (`findBrokenGovernanceLinks` keeps reporting the old one).
  */
-export const RELOCATED_SPEC_TREES: ReadonlyArray<readonly [string, string]> = [
-  ["spec/conventions/cafe24-api-catalog", "codebase/api-catalogs/cafe24"],
-  ["spec/conventions/makeshop-api-catalog", "codebase/api-catalogs/makeshop"],
+export interface RelocatedTree {
+  /** Old place, repo-relative (where the frozen tree still links). */
+  readonly from: string;
+  /** New place, repo-relative (where the link is checked). */
+  readonly to: string;
+}
+
+export const RELOCATED_SPEC_TREES: readonly RelocatedTree[] = [
+  { from: "spec/conventions/cafe24-api-catalog", to: "codebase/api-catalogs/cafe24" },
+  { from: "spec/conventions/makeshop-api-catalog", to: "codebase/api-catalogs/makeshop" },
 ];
 
 function isUnder(abs: string, dir: string): boolean {
@@ -427,14 +434,15 @@ function isUnder(abs: string, dir: string): boolean {
  */
 export function findBrokenLinks(root: string): LinkViolation[] {
   const retired = RETIRED_ROOT_TREES.map((name) => path.resolve(root, name));
-  const relocated = RELOCATED_SPEC_TREES.map(
-    ([from, to]) => [path.resolve(root, from), path.resolve(root, to)] as const,
-  );
+  const relocated = RELOCATED_SPEC_TREES.map(({ from, to }) => ({
+    from: path.resolve(root, from),
+    to: path.resolve(root, to),
+  }));
   return findBrokenLinksInFiles(collectSpecMarkdown(root), {
     checkSelfAnchors: true,
     relocateResolved: (abs) => {
-      const hit = relocated.find(([from]) => isUnder(abs, from));
-      return hit ? hit[1] + abs.slice(hit[0].length) : abs;
+      const hit = relocated.find(({ from }) => isUnder(abs, from));
+      return hit ? hit.to + abs.slice(hit.from.length) : abs;
     },
     skipResolved: (abs) => retired.some((dir) => isUnder(abs, dir)),
   });

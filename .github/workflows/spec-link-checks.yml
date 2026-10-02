@@ -77,6 +77,10 @@ jobs:
         codebase/channel-web-chat/**
         codebase/packages/**
         spec/**
+        # 옮긴 API 카탈로그. 옛 spec 트리에서 옛 카탈로그 경로로 가는 링크를 이 디렉터리에서
+        # 경로 · 앵커까지 검사한다(`spec-links.ts` 의 `RELOCATED_SPEC_TREES`). 단계 5 에서 옛
+        # 트리와 함께 걷는다(`.claude/tests/test_api_catalog_ci_coverage.py`).
+        codebase/api-catalogs/**
         # 거버넌스 문서 (2026-08-27 추가) — 가드 scope 3.
         # `:(glob)` 매직이 없으면 git pathspec 의 `*` 가 `/` 를 넘어 **17,202개**(당시 spec·plan·
         # review 전부)를 잡았다(실측). 루트 레벨 `*.md` 만 잡으려면 이 매직이 필수다.

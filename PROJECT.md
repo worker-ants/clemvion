@@ -12,6 +12,7 @@
 | 클라이언트 | `codebase/frontend/` | Next.js 16, React 19, TypeScript, Tailwind CSS, Radix UI, Zustand, TanStack Query, @xyflow/react |
 | 서버 | `codebase/backend/` | NestJS 11, TypeScript, TypeORM, Socket.io |
 | 공유 패키지 | `codebase/packages/expression-engine/`, `codebase/packages/node-summary/` | TypeScript. `codebase/{frontend,backend}` 가 `workspace:*` (pnpm workspace) 로 참조 |
+| API 카탈로그 | `codebase/api-catalogs/` | Cafe24 · MakeShop endpoint 카탈로그(md · OpenAPI JSON · 생성기). backend · frontend 대조 테스트가 읽는 데이터이고 NERV `CLE-C24-*` · `CLE-MKS-*` 의 정본이다(`codebase/api-catalogs/README.md`) |
 | 인프라 매니페스트 | `k8s/` | Kubernetes deployment, service, ingress |
 | 빌드 helper | `scripts/` | Python 검증 스크립트, setup-githooks.sh |
 
@@ -168,7 +169,7 @@
 | 신규 UI 문자열 (TSX) | `codebase/frontend/src/lib/i18n/dict/{ko,en}/<section>.ts` **양쪽** — 한쪽만 추가 금지 (parity 가드 fail) | `pnpm --filter frontend test -- i18n` |
 | 신규 위젯 chrome 문자열 (`codebase/channel-web-chat/src/**/*.tsx`) | `codebase/channel-web-chat/src/lib/i18n/catalog.ts` 의 `WIDGET_STRINGS` **{ko,en} 양쪽** — 위젯 로컬 catalog 키 경유(운영 콘솔 dict 아님, parity 가드 fail). SoT: `spec/CLE-WEBCHAT/CLE-WEBCHAT-WIDGET.md` 「위젯 고유 문구 다국어」 | `pnpm --filter channel-web-chat test -- i18n` |
 | 통합 신규/제공자 변경 | `codebase/frontend/src/content/docs/06-integrations-and-config/<provider>.{mdx,en.mdx}` + dict 키 | `pnpm --filter frontend test -- i18n docs` |
-| API 카탈로그 변경 (`codebase/api-catalogs/**` — 생성기 재실행 · 행 추가) | (a) `codebase/backend/src/nodes/integration/{cafe24,makeshop}/metadata/<resource>.ts` 의 operation 행<br>(b) `codebase/frontend/src/lib/i18n/dict/{ko,en}/{cafe24,makeshop}Catalog.ts` 의 라벨 키 — ko/en 양쪽<br>(c) 바뀐 파일의 NERV 사본(`CLE-C24-*` · `CLE-MKS-*`) 초안(`/nerv:spec edit <KEY>`). 파일 → 키 대응은 [`codebase/api-catalogs/README.md`](codebase/api-catalogs/README.md) | `pnpm --filter backend test -- catalog` · `pnpm --filter frontend test -- catalog-sync` |
+| API 카탈로그 변경 (`codebase/api-catalogs/**` — 생성기 재실행 · 행 추가) | (a) `codebase/backend/src/nodes/integration/{cafe24,makeshop}/metadata/<resource>.ts` 의 operation 행<br>(b) `codebase/frontend/src/lib/i18n/dict/{ko,en}/{cafe24,makeshop}Catalog.ts` 의 라벨 키 — ko/en 양쪽<br>(c) 바뀐 파일의 NERV 사본(`CLE-C24-*` · `CLE-MKS-*`) 초안(`/nerv:spec edit <KEY>`). 파일 → 키 대응은 [`codebase/api-catalogs/README.md`](codebase/api-catalogs/README.md) | `pnpm --filter backend test -- integration/.*catalog` · `pnpm --filter frontend test -- catalog-sync` |
 | 유저 가이드 신규 섹션 디렉토리 (`codebase/frontend/src/content/docs/<NN>-<name>/`) | `codebase/frontend/src/lib/docs/locale.ts` 의 `SECTION_LABELS_BY_LOCALE` **양쪽 로케일 등록** (KO/EN 모두) | `pnpm --filter frontend test -- locale` |
 | 백엔드 API 추가·변경 | (a) controller·DTO 의 swagger jsdoc<br>(b) API 노출 변경이 사용자 안내에 영향 → 관련 user-guide 페이지 | swagger 단위 테스트 / 빌드 |
 | **신규 BullMQ 큐 추가** (`@Processor` 신설 + `MONITORED_QUEUES` 등록) | (a) `codebase/backend/src/modules/system-status/system-status.constants.ts` 의 `MONITORED_QUEUES` 등록<br>(b) `codebase/backend/test/system-status.e2e-spec.ts` 의 `EXPECTED_QUEUE_NAMES`<br>(c) `spec/CLE-OBS/CLE-OBS-STATUS.md` 「모니터링 대상 큐」 표<br>(d) `spec/CLE-PLAT/CLE-PLAT-ARCH.md` 「핵심 사실」 큐 개수 + `spec/CLE-PLAT/CLE-PLAT-QUEUE.md` 「BullMQ 큐 목록」 | `make e2e-test` (system-status e2e) |
@@ -392,7 +393,9 @@ pnpm --filter frontend test src/lib/docs/__tests__/
 1. `spec/**.md` 본문의 in-repo 링크 + `#anchor` 헤딩 슬러그 (생성형 `*-api-catalog/` 와
    NERV 미러 `spec/README.md` · `spec/CLE-*` 제외. 미러 무결성은 `.claude/tools/nerv-mirror/pull.py --check` 가 본다.
    미러 제외의 근거는 위 SoT 의 R-12 다). 루트 `plan/` · `review/` 로 해석되는 링크는 건너뛴다. 두 트리는
-   NERV 정본 전환 단계 3 에서 지웠고 그 링크가 남은 옛 트리는 단계 5 에서 지운다
+   NERV 정본 전환 단계 3 에서 지웠고 그 링크가 남은 옛 트리는 단계 5 에서 지운다. 옛 카탈로그 자리
+   (`spec/conventions/<vendor>-api-catalog/`)로 해석되는 링크는 새 자리 `codebase/api-catalogs/<vendor>/` 에서
+   경로와 앵커를 검사한다(`spec-links.ts` 의 `RELOCATED_SPEC_TREES`, 단계 4a. 단계 5 에서 옛 트리와 함께 걷는다)
 2. `codebase/{backend,frontend,channel-web-chat,packages}` 의 `.ts`/`.tsx` 주석 중
    `spec/**.md` 를 가리키는 링크
 3. **거버넌스 문서** — 루트 `*.md`(`CLAUDE.md`·`PROJECT.md` 등, 비재귀) + `.claude/**.md`
@@ -487,4 +490,4 @@ npx ts-node codebase/backend/src/scripts/cleanup-invalid-queue-jobs.ts --apply -
 - **표현식 언어**: `{{ ... }}` 템플릿. tokenizer / parser / AST evaluator 는 `codebase/packages/expression-engine` SSOT. 평가 의미는 백엔드·프론트엔드 공유
 - **노드 출력 컨벤션**: `spec/CLE-NODE/CLE-NODE-OUTPUT.md` 의 11 Principle (5필드 invariant: `{config, output, meta?, port?, status?}`, config↔output 직교, meta=메트릭, 에러 컨트랙트 `port:'error'` + `output.error.{code,message,details?}` 등)
 - **인프라 의존**: PostgreSQL (DB) · Redis/BullMQ (캐시·큐) · MinIO (오브젝트 스토리지) · Flyway (DB 마이그레이션) · Socket.io (실시간)
-- **정식 규약**: NERV `convention` 타입 스펙 — `CLE-NODE-OUTPUT`, `CLE-API-SWAGGER`, `CLE-ENG-MIGRATION`, `CLE-IX-THREAD`, `CLE-C24-META` 등. 미러 경로는 `spec/<영역 키>/<KEY>.md` 다(카탈로그 영역 `CLE-C24` · `CLE-MKS` 는 미러에 넣지 않는다. 카탈로그는 codebase 데이터로 옮기고 있어(전환 4a) 그 전까지 표 파일은 옛 `spec/conventions/*-api-catalog/` 에 있다. `CLE-C24-META` 같은 카탈로그 영역 규약은 NERV 에서 읽는다)
+- **정식 규약**: NERV `convention` 타입 스펙 — `CLE-NODE-OUTPUT`, `CLE-API-SWAGGER`, `CLE-ENG-MIGRATION`, `CLE-IX-THREAD`, `CLE-C24-META` 등. 미러 경로는 `spec/<영역 키>/<KEY>.md` 다(카탈로그 영역 `CLE-C24` · `CLE-MKS` 는 미러에 넣지 않는다. 카탈로그는 `codebase/api-catalogs/` 가 정본이다(전환 4a 에서 옮겼다. 파일 → 키 대응은 `codebase/api-catalogs/README.md`). `CLE-C24-META` 같은 카탈로그 영역 규약은 NERV 에서 읽는다)

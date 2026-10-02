@@ -87,7 +87,7 @@ resource 이름은 `Cafe24Resource` enum (`codebase/backend/src/nodes/integratio
 8. **`planned` row ↔ `planned.ts` mirror 양방향 동기**: catalog 의 모든 `status: planned` row 가 `CAFE24_PLANNED_BY_RESOURCE` (`metadata/planned.ts`) 에 매칭돼야 하고 그 역도 동일. (a) catalog→mirror 누락 fail, (b) mirror→catalog 누락 fail, (c) `paginated` 플래그 일치, (d) planned id 가 같은 resource 의 supported id 와 충돌 금지 — 의 4개 `it` 로 검증 (`catalog-sync.spec.ts` `describe('catalog ↔ planned.ts')`). (테스트 헤더 주석은 이를 "규칙7" 로 칭한다 — 본 문서 번호와 1칸 어긋남에 유의.)
 9. **`restricted` 컬럼 ↔ 메타데이터 `restrictedApproval` 동기**: catalog row 의 `restricted` 컬럼이 `scope` 또는 `operation` 이면 그 row 에 대응하는 backend 메타데이터에 `restrictedApproval` 필드가 존재해야 하고, 그 역도 동일. 컬럼 값과 메타데이터 `level` 은 동일 토큰 (`'scope'` ↔ `'scope'`, `'operation'` ↔ `'operation'`). `restrictedApproval.approvalGroup` 필드 (UI 메시지·tooltip 묶음 식별자) 는 catalog 컬럼으로 노출하지 않으므로 본 검증 대상이 아니다 — 정의는 [`cafe24-api-metadata.md §2`](../../../spec/conventions/cafe24-api-metadata.md#2-operation-메타데이터-형식) 참고. **`level='program'` 인 메타데이터 row 는 catalog 화 대상이 아닌 별도 트랙 (Analytics 등) 이므로 본 검증에서 제외**된다 — catalog 에 대응 row 가 없는 것이 정상. SoT 명단의 진위 검증은 [`cafe24-restricted-scopes.md`](../../../spec/conventions/cafe24-restricted-scopes.md) §5 절차에서 별도로 다룬다. **`status: planned` 행은 backend 메타데이터 row 가 아직 없으므로 본 검증 대상에서 제외**된다 — `planned` 행의 `restricted` 컬럼은 구현 예정 메모용이며 `planned → supported` 승격 시 메타데이터와 함께 동기 검증 대상이 된다.
 
-테스트는 카탈로그 MD 의 표를 파싱한다 — MD 표 구문이 깨지면 곧장 fail. 따라서 본 카탈로그는 **사람이 직접 손으로 수정하는 SoT** 이며, 코드 변경 시점에 반드시 카탈로그 동기 갱신을 함께 commit 해야 한다(`spec/conventions/cafe24-api-metadata.md` §5 의 신규 endpoint 추가 절차에 인용).
+테스트는 카탈로그 MD 의 표를 파싱한다 — MD 표 구문이 깨지면 곧장 fail. 따라서 본 카탈로그는 **사람이 직접 손으로 수정하는 SoT** 이며, 코드 변경 시점에 반드시 카탈로그 동기 갱신을 함께 commit 해야 한다([Cafe24 API Metadata 컨벤션 §6](../../../spec/conventions/cafe24-api-metadata.md#6-신규-endpoint-추가-절차) 의 신규 endpoint 추가 절차에 인용).
 
 > **참고 — `constraints` invariant 는 본 catalog-sync 와 별개 파일에서 수행**: backend 메타데이터의 `constraints?` ([Cafe24 API Metadata §2](../../../spec/conventions/cafe24-api-metadata.md#2-operation-메타데이터-형식)) 필드명 부분집합 검증·길이 invariant 는 `metadata.spec.ts` 가 담당한다 — `catalog-sync.spec.ts` 의 검증 대상이 아니다. `constraints` 자체는 backend 메타데이터 row 가 단일 SoT 이며 catalog 컬럼으로 노출하지 않는다 (`restrictedApproval.approvalGroup` 과 동일 패턴).
 
@@ -129,8 +129,9 @@ resource 이름은 `Cafe24Resource` enum (`codebase/backend/src/nodes/integratio
    - 구현 PR 에서 backend 메타데이터 row 1줄 추가 + 카탈로그 row 를 `planned → supported` 로 갱신 + `method`/`path`/`scope`/`paginated` 채움.
 3. `_overview.md` §5 의 coverage matrix 카운트도 함께 갱신.
 4. `pnpm --filter backend test -- catalog-sync` 통과 확인.
+5. 바뀐 파일의 NERV 사본(`CLE-C24-*`)도 같은 작업에서 고친다(파일 → 키 대응은 [`../README.md`](../README.md)).
 
-> `spec/conventions/cafe24-api-metadata.md` §5 의 신규 endpoint 추가 절차도 본 카탈로그 row 갱신을 step 으로 포함한다.
+> [Cafe24 API Metadata 컨벤션 §6](../../../spec/conventions/cafe24-api-metadata.md#6-신규-endpoint-추가-절차) 의 신규 endpoint 추가 절차도 본 카탈로그 row 갱신을 step 으로 포함한다.
 
 ## 7. Field-level 상세 레이어 (`<resource>/<entity>.md`)
 
@@ -141,7 +142,7 @@ resource 이름은 `Cafe24Resource` enum (`codebase/backend/src/nodes/integratio
 - 경로: `codebase/api-catalogs/cafe24/<resource>/<entity_id>.md` (예: `store/activitylogs.md`, `product/products.md`).
 - `<entity_id>` 는 Cafe24 docs 의 sub-resource 식별자 (kebab-case — docs anchor 식별자와 동일 형식, 예: `appstore-orders`). 한 resource 내 unique.
 - frontmatter: `resource`, `entity`, `cafe24_docs` (공식 docs anchor URL), `source` (추출 출처·일자).
-- **spec frontmatter 가드 제외**: 본 field-level 파일은 생성기 산출물(레퍼런스)이라 [`spec-impl-evidence.md §1`](../../../spec/conventions/spec-impl-evidence.md) 의 lifecycle frontmatter(`id`/`status`) 의무에서 **제외**된다 (`<name>-api-catalog/<resource>/**/*.md` — 카탈로그 디렉토리 뒤 세그먼트 1개 이상인 모든 `.md`, 근거 §Rationale R-7). 카탈로그 최상위 `<resource>.md` 인덱스는 정식 spec 으로 계속 검증된다.
+- **frontmatter 검증 범위**: 본 field-level 파일은 생성기 산출물(레퍼런스)이라 frontmatter(`id`/`status`) 검증 대상이 아니다. 카탈로그 최상위 `<resource>.md` 인덱스의 `id` · `status` · `code:` 는 `codebase/backend/src/nodes/integration/api-catalog-index-frontmatter.spec.ts` 가 검증한다. 2026-10-02 `codebase/api-catalogs/` 로 옮기기 전에는 spec frontmatter 가드가 같은 일을 했다(근거 [`spec-impl-evidence.md §1`](../../../spec/conventions/spec-impl-evidence.md) R-7).
 
 ### 7.2 문서 구성
 
@@ -164,7 +165,7 @@ resource 이름은 `Cafe24Resource` enum (`codebase/backend/src/nodes/integratio
 
 본 레이어는 `catalog-sync.spec.ts` 의 검증 대상이 **아니다** (§4 의 동기 규칙은 top-level index 표 ↔ 메타데이터 사이만 강제). Field-level 문서와 backend 메타데이터의 field 단위 정합(`constraints` 등)은 `metadata.spec.ts` 트랙에서 별도로 다루며, 본 레이어는 그 작업의 **docs-side 참조 SoT** 역할이다.
 
-> 본 레이어는 [`plan/in-progress/cafe24-backlog-residual.md`](../../../plan/in-progress/cafe24-backlog-residual.md) 의 `G-1-remaining` (docs field ↔ metadata 갭 보강) 착수를 위한 선행 데이터 확보로 생성됐다.
+> 본 레이어는 전환 단계 3(`aaa40f2a0`)에서 지운 작업 문서 `plan/in-progress/cafe24-backlog-residual.md` 의 `G-1-remaining` (docs field ↔ metadata 갭 보강) 착수를 위한 선행 데이터 확보로 생성됐다.
 
 ## 8. endpoint 제거 절차
 
@@ -175,9 +176,11 @@ resource 이름은 `Cafe24Resource` enum (`codebase/backend/src/nodes/integratio
 3. frontend i18n `cafe24Catalog.ts` (ko/en) 의 대응 라벨 키 삭제.
 4. `_overview.md §5` coverage matrix 카운트 갱신.
 5. `pnpm --filter backend test -- catalog-sync` + `catalog-docs-drift` 통과 확인 (metadata↔index↔docs 3자 정합).
+6. 바뀐 파일의 NERV 사본(`CLE-C24-*`)도 같은 작업에서 고친다([`../README.md`](../README.md)).
 
 > **`deprecated`(§3) 와 outright 제거의 구분**: `status: deprecated` 는 **Cafe24 공식 문서에 한 번 등재됐다가 폐기된** endpoint 의 전환 상태에만 쓴다. 반대로 **docs 에 한 번도 등재된 적 없는 미문서화 seed**(과거 Chrome 식별 기반으로 추가됐으나 공식 docs 에 부재 확정된 row)는 `deprecated` 단계 없이 **outright 제거**가 적합하다 — 사용자에게 노출할 폐기 안내 대상이 아니라 처음부터 비동작(404)이던 항목이기 때문이다.
 
 ## Rationale
 
-- **미문서화 seed 9개 outright 제거 (G-3l, 2026-06-27)**: `customer_get/update`·`coupon_get/delete`·`applications_list`·`webhooks_list`·`mains_update/delete`·`socials_apple_settings_get` 는 Cafe24 공식 docs(Latest 2026-03-01)에 부재한 backwards-compat seed 였다. 2026-06-02 시점에는 production 검증 전이라 `KNOWN_DOCS_ABSENT` allowlist 면제 + JSDoc ⚠ 로 **현행 유지**(plan §G-2)했으나, 2026-06-03 공식 docs 전체 HTML(authoritative) 확보로 **최종 API 부재가 확정**됐고, 해당 ops 가 wire 상 이미 비동작(404)이라 호환 영향이 없음을 근거로 **사용자가 전부 제거를 결정**(2026-06-27). 위 §8 의 outright-제거 경로(미문서화 seed)에 해당하며 `deprecated` 전환은 부적합하다. 결정 이력 SoT 는 [`plan/in-progress/cafe24-backlog-residual.md` §G-3l](../../../plan/in-progress/cafe24-backlog-residual.md). 제거 후 드리프트 가드 `catalog-docs-drift.spec.ts` 의 `KNOWN_DOCS_ABSENT` 는 빈 set 으로 수렴했다.
+- **카탈로그 정본을 저장소 codebase 데이터로 둔다 (2026-10-02, NERV 정본 전환)**: 스펙 문서의 정본은 NERV 로 옮겼지만 이 카탈로그의 정본은 저장소 `codebase/api-catalogs/cafe24/` 에 둔다. 생성기(`_generator.py`)는 NERV 문서에 담을 수 없고, backend · frontend 대조 테스트(`catalog-sync` · `catalog-docs-drift` · `catalog-required-fields` · `cafe24-catalog-sync`)가 이 파일들을 직접 읽기 때문이다. NERV `CLE-C24-CATALOG` 와 그 하위 문서는 사본이다. 사본이 정본과 어긋났는지 확인하는 자동 검사는 없어서, 카탈로그를 바꾸는 작업이 바뀐 파일의 사본도 같이 고친다(§6 · §8). 어긋나면 정본이 이긴다. 검토한 대안은 NERV 를 정본으로 두는 안이었다. 생성기는 어차피 저장소에 남아야 하고, 재생성할 때마다 필드 파일 수백 편을 NERV 에 올렸다가 다시 받아야 해서 택하지 않았다(NERV 정본 전환 계획의 카탈로그 정본 결정). 옮기면서 최상위 인덱스의 frontmatter 검증은 spec 가드에서 `api-catalog-index-frontmatter.spec.ts` 로 넘어갔다.
+- **미문서화 seed 9개 outright 제거 (G-3l, 2026-06-27)**: `customer_get/update`·`coupon_get/delete`·`applications_list`·`webhooks_list`·`mains_update/delete`·`socials_apple_settings_get` 는 Cafe24 공식 docs(Latest 2026-03-01)에 부재한 backwards-compat seed 였다. 2026-06-02 시점에는 production 검증 전이라 `KNOWN_DOCS_ABSENT` allowlist 면제 + JSDoc ⚠ 로 **현행 유지**(plan §G-2)했으나, 2026-06-03 공식 docs 전체 HTML(authoritative) 확보로 **최종 API 부재가 확정**됐고, 해당 ops 가 wire 상 이미 비동작(404)이라 호환 영향이 없음을 근거로 **사용자가 전부 제거를 결정**(2026-06-27). 위 §8 의 outright-제거 경로(미문서화 seed)에 해당하며 `deprecated` 전환은 부적합하다. 결정 이력은 전환 단계 3(`aaa40f2a0`)에서 지운 작업 문서 `plan/in-progress/cafe24-backlog-residual.md` §G-3l 에 있었다(git 이력). 제거 후 드리프트 가드 `catalog-docs-drift.spec.ts` 의 `KNOWN_DOCS_ABSENT` 는 빈 set 으로 수렴했다.

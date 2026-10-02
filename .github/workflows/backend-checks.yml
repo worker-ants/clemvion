@@ -60,9 +60,9 @@ jobs:
       pathspecs: |
         codebase/backend/**
         codebase/packages/**
-        # Cafe24 · MakeShop 카탈로그. backend 의 catalog-sync · drift · required-fields 테스트가
-        # 이 디렉터리를 읽는다. 카탈로그만 바꾼 PR(생성기 재실행 등)도 그 대조를 돌려야 한다
-        # (`.claude/tests/test_api_catalog_ci_coverage.py`).
+        # Cafe24 · MakeShop 카탈로그. backend 의 catalog-sync · drift · required-fields ·
+        # 색인 frontmatter 테스트가 이 디렉터리를 읽는다. 카탈로그만 바꾼 PR(생성기 재실행 등)도
+        # 그 대조를 돌려야 한다(`.claude/tests/test_api_catalog_ci_coverage.py`).
         codebase/api-catalogs/**
         pnpm-lock.yaml
         pnpm-workspace.yaml
