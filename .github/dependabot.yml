@@ -12,10 +12,13 @@ updates:
   # 등록하기 전까지 이 트리의 CVE 는 영구 무신호였다(2026-07-18 undici HIGH +
   # dompurify moderate 를 뒤늦게 발견).
   #
-  # 이 항목은 스케줄 version-update(주간)다 — direct dep 이 없고(transitive 만)
-  # 이 트리는 거의 안 변하므로 비-보안 노이즈는 사실상 없다. 신규 CVE 즉시
+  # 이 항목은 스케줄 version-update(주간)다. direct dep 은 jsdom · mermaid 두 개뿐이고
+  # 나머지는 transitive 다. 이 트리는 거의 안 변하므로 비-보안 노이즈는 사실상 없다. 신규 CVE 즉시
   # 대응은 repo Settings 의 Dependabot **security updates**(스키마 밖, repo 토글)
   # 가 담당하며 여기 등록이 그 대상 트리로 편입시키는 전제다.
+  # 다만 중간 패키지가 취약한 transitive 를 정확한 버전으로 고정하면 security update 는 고치지 못한다.
+  # 2026-10-02 알림 #71 · #72 가 그랬다(chevrotain 11 이 lodash-es 4.17.23 을 고정). 그때는 direct
+  # dep(mermaid)을 그 고정이 없는 버전으로 올려 해소했다.
   - package-ecosystem: "npm"
     directory: "/.claude/tools/mermaid-lint"
     schedule:
