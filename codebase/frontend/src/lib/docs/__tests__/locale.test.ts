@@ -95,7 +95,7 @@ describe("localizedSummary", () => {
  * 사전 차단한다.
  *
  * 정책 위치: developer/SKILL.md DOCUMENTATION 매핑표 (유저 가이드 신규 섹션 행).
- * 추가 절차: spec/2-navigation/13-user-guide.md §5.
+ * 추가 절차: CLE-UI-GUIDE 「섹션 순서와 라벨」.
  */
 describe("SECTION_LABELS_BY_LOCALE coverage", () => {
   const DOCS_DIR = join(__dirname, "..", "..", "..", "content", "docs");

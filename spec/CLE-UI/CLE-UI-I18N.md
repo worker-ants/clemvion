@@ -9,12 +9,12 @@ basis_superseded: false
 parent: "CLE-UI"
 ancestors: ["CLE-VISION", "CLE-UI"]
 area: "CLE-UI"
-content_hash: "3290c3aa469ec1e26d70be09584d2b99d01a379ec897301e607529afc6aaf8d9"
+content_hash: "ec0e61433ec6278053c38e72e0b6da09319d85f232db1120ed73055848e508ae"
 read_as: "approved_fallback"
 task: "CLE-T-BDRZVX"
 source_paths: ["spec/5-system/_product-overview.md", "spec/conventions/i18n-userguide.md"]
-mirror_sha256: "9954419c59e6ac40040c5ff33cd746e06e35ea40353e65bcf8c17859d54f66f2"
-etag: "sha256-15cb87b74683040dd57e2c9d5ab30d995e374dbe8f877f73d4093d8c1e3f391a"
+mirror_sha256: "724834b93e8d94a9a51d546ced7d6a9d8422cc3ec6f97a67c7a79a54f1688a4c"
+etag: "sha256-3955d44a90f480f536c5c1647b051e8281ba9909b56ca7df806049fb5f5f682c"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/conventions/i18n-userguide.md` (전체), `spec/5-system/_product-overview.md` (§6 국제화 및 접근성) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -116,7 +116,7 @@ etag: "sha256-15cb87b74683040dd57e2c9d5ab30d995e374dbe8f877f73d4093d8c1e3f391a"
    - 이 문체 규칙의 대상은 화면 문구와 사용자 가이드다. OpenAPI 설명의 문체는 [OpenAPI 문서화](../CLE-API/CLE-API-SWAGGER.md) 가 정한다.
 
 8. **가이드에 내부 기준 문서를 드러내지 않는다(원본: Principle 6-B).** 사용자 가이드는 사용자가 열어 볼 수 있는 화면만 가리킨다. 다음은 사용자가 열 수 없으므로 본문에 쓰지 않고, 같은 사실을 사용자가 보는 표현으로 다시 쓴다.
-   - `spec/<area>/...`·`/spec/...` 경로와 NERV 스펙 키(`CLE-...`). 프론트매터의 `spec:` 필드(NERV 키 목록)와 MDX 주석은 빌드 검증용이라 화면에 나오지 않으므로 별개다.
+   - `spec/<area>/...`·`/spec/...` 경로와 NERV 스펙 키(`CLE-...`). 프론트매터의 `spec:` 필드(NERV 키 목록)는 빌드 검증용 메타데이터이고 MDX 주석은 렌더에서 빠지므로, 둘 다 화면에 나오지 않아 별개다.
    - `plan/in-progress/...`·`plan/complete/...` 경로
    - "별 plan `<name>`", "별도 plan", "separate plan" 처럼 내부 작업 단위를 가리키는 표현
    - `REQ-XX-NNN`, `CCH-XX-NN`, `R-XX-N` 같은 내부 앵커 ID(요구사항 ID, Rationale ID 등)
@@ -151,6 +151,7 @@ etag: "sha256-15cb87b74683040dd57e2c9d5ab30d995e374dbe8f877f73d4093d8c1e3f391a"
 | 4(`ui.*` 메타 매핑) | `ui-label-parity.test.ts`(P3-B-1). 백엔드 `*.schema.ts` 를 문자열로 읽어 정규식으로 `label`·`hint`·`group`·`itemLabel` 리터럴을 뽑고(`z.toJSONSchema` 런타임 덤프가 아니라 정적 파싱이라 `label: someConst` 같은 동적 표현은 보지 못한다), `LABEL_KO`·`OPTION_LABEL_KO`·`NODE_LABEL_KO`·`HINT_KO`·`GROUP_KO`·`ITEM_LABEL_KO` 에 있는지 본다. [인터랙션 타입 레지스트리](../CLE-IX/CLE-IX-TYPES.md) 와 같은 "갱신 위치 여럿을 함께 바꾼다" 원칙이다 | ratchet. `KNOWN_MISSES` baseline 을 넘으면 빌드 실패 |
 | 5(코드·동적 메시지 매핑) | `backend-labels.test.ts` 의 그래프 경고 규칙 ID 동등성(P3-C-1: `GRAPH_WARNING_RULES_BY_TYPE` 의 모든 규칙이 `GRAPH_WARNING_KO` 에 있는가)과 등록 에러 코드 동등성(P3-C-2: 사용자 노출용으로 등록한 코드, 처음은 `GRAPH_VALIDATION_FAILED`, 이 `ERROR_KO` 에 있는가) | 빌드 실패 |
 | 6(섹션 라벨) | `locale.test.ts` 의 `SECTION_LABELS_BY_LOCALE coverage` | 빌드 실패 |
+| 6(영어 형제 파일은 본문만) | `registry.test.ts` 의 영어 형제 파일 프론트매터 검사 | 빌드 실패 |
 | 7(용어와 문체) | 없음 | 사람 검수 |
 | 8(내부 기준 문서 노출) | `no-internal-refs.test.ts` 의 본문 패턴 가드 | 결정적인 패턴만 빌드 실패. 로드맵 문구는 자동 검출이 어려워 `user-guide-writer` 에이전트와 사람 검수가 맡는다. 나머지는 `documentation-reviewer`(사후)나 사람 검수 |
 | 동반 갱신 2(노드 가이드) | `nodes-coverage.test.ts`(P1-C). 백엔드 노드 디렉터리 집합과 `02-nodes/<cat>.mdx` 본문의 노드 항목 차집합을 본다 | 빌드 실패 |
@@ -202,3 +203,5 @@ etag: "sha256-15cb87b74683040dd57e2c9d5ab30d995e374dbe8f877f73d4093d8c1e3f391a"
 ### 가이드 본문에서 NERV 키와 요구사항 ID 를 막는 이유
 
 스펙이 NERV 로 옮겨 가면서 가이드 작성자가 다루는 내부 식별자가 옛 경로에서 NERV 키(`CLE-...`)와 서버가 발급하는 요구사항 ID(`REQ-...`)로 바뀌었다. 둘 다 사용자가 열어 볼 수 없는 내부 문서를 가리키므로 옛 경로와 같은 이유로 본문에 쓰지 않는다. 옛 가드의 앵커 ID 패턴(`CCH-…`, `R-…`)은 `REQ-SESSION-001` 같은 모양을 잡지 못해서 패턴을 따로 더했다(2026-10-02, NERV 정본 전환 단계 4b).
+
+MDX 주석(`{/* … */}`)은 예전부터 본문 검사 밖에 있었다. 작성자가 문장의 근거 문서를 키로 적어 둘 자리라서 예외를 이 규칙에 함께 적는다. 주석은 렌더에서 빠지므로 사용자에게 보이지 않는다.

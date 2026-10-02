@@ -64,7 +64,8 @@ const FORBIDDEN: ForbiddenPattern[] = [
   },
   {
     name: "NERV spec key (CLE-…)",
-    // `CLE-WF-EDITOR`, `CLE-VISION`, task keys like `CLE-T-BDRZVX`.
+    // `CLE-WF-EDITOR`, `CLE-VISION`, task keys like `CLE-T-BDRZVX`. Same shape as
+    // `SPEC_KEY_RE` in `./spec-keys` — change them together.
     regex: /\bCLE-[A-Z][A-Z0-9]*(?:-[A-Z0-9]+)*\b/g,
     hint: "NERV 스펙 키(`CLE-...`)는 사용자가 열어 볼 수 없는 내부 문서를 가리켜요. 프론트매터 `spec:` 이나 MDX 주석에만 두고, 본문에는 같은 사실을 사용자 가시 표현으로 적어요.",
   },
@@ -141,6 +142,8 @@ describe("forbidden patterns — samples", () => {
     expect(hits(re, "본문에 spec/CLE-UI/CLE-UI-GUIDE.md 를 적으면")).toEqual([
       "spec/CLE-",
     ]);
+    // 앞의 `/` 는 함께 잡고, 낱말 안의 `respec/` 은 건너뛴다(부정 look-behind).
+    expect(hits(re, "경로 /spec/CLE-X 와 respec/CLE-X")).toEqual(["/spec/CLE-"]);
   });
 
   it("프론트매터와 MDX 주석의 키는 본문으로 세지 않아요", () => {

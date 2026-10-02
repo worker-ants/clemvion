@@ -26,6 +26,9 @@ describe("collectMirrorKeys", () => {
     write("CLE-WF/CLE-WF-EDITOR.md");
     write("2-navigation/13-user-guide.md");
     write("conventions/i18n-userguide.md");
+    // 확장자가 다르거나 `.md` 로 끝나는 디렉터리는 키가 아니다.
+    write("CLE-WF/CLE-WF-LIST.txt");
+    write("CLE-DIRLIKE.md/notes.txt");
   });
 
   afterAll(() => {

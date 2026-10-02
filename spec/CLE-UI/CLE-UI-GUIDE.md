@@ -9,12 +9,12 @@ basis_superseded: false
 parent: "CLE-UI"
 ancestors: ["CLE-VISION", "CLE-UI"]
 area: "CLE-UI"
-content_hash: "315cdeace6655f45dc7376e5718787dbc5e4729d2a67e4d2f05a9c169419f6d5"
+content_hash: "abc4657e1c6e357ea57ddcfa0e5ac6da6c55e9373e7bcb028a8573c55dc5a1fe"
 read_as: "approved_fallback"
 task: "CLE-T-BDRZVX"
 source_paths: ["spec/2-navigation/13-user-guide.md", "spec/2-navigation/_product-overview.md"]
-mirror_sha256: "7c3f7f822261893db6b9484ee895ae054a9c588a68d148418ef7b17ad656e588"
-etag: "sha256-e52f1adf0e075c8555ff703fdc785bdf3ea49f19f2c7bdbf9f6d0b3ec87fec0c"
+mirror_sha256: "9fbe615cb193a0beb58ad7e410404e1b6b11fc19dd176c11d67dcf0bf0911ffd"
+etag: "sha256-de1bd9ac48a0655832e010854d4e12d0b094602d170aa16122dd083d80da25ae"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/2-navigation/13-user-guide.md` (전체), `spec/2-navigation/_product-overview.md` (§3.11 User Guide) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -128,7 +128,7 @@ etag: "sha256-e52f1adf0e075c8555ff703fdc785bdf3ea49f19f2c7bdbf9f6d0b3ec87fec0c"
 | `order` | 필수 | number | 섹션 안 정렬 기준 |
 | `summary` | 필수 | string | 사이드바 미리보기와 OG 설명(기본 locale) |
 | `summary_en` | 선택 | string | 영어 요약. 없으면 `summary` 로 폴백한다(`locale.ts` `localizedSummary`) |
-| `spec` | 선택 | string[] | 1차 원천 스펙의 NERV 키(예: `CLE-WF-EDITOR`). 저장소에서는 미러 `spec/<영역 키>/<KEY>.md` 로 읽는다 |
+| `spec` | 선택 | string[] | 1차 원천 스펙의 NERV 키(예: `CLE-WF-EDITOR`). 저장소에서는 미러 `spec/<영역 키>/<KEY>.md`(영역 밖 문서는 `spec/<KEY>.md`)로 읽는다 |
 | `code` | 선택 | string[] | 검증에 쓸 코드 경로(glob 허용) |
 | `draft` | 선택 | boolean | `true` 면 production 빌드에서 뺀다 |
 
@@ -231,5 +231,7 @@ code: ["codebase/backend/src/nodes/ai/**", "codebase/frontend/src/components/edi
 ### 프론트매터 `spec:` 에 NERV 키를 쓰는 이유
 
 스펙의 정본이 NERV 로 옮겨 가면서(2026-10-01) 저장소의 옛 스펙 경로(`spec/<번호>-<영역>/…`)는 동결됐고 정본 전환 마지막 단계에서 지운다. 가이드가 옛 경로를 계속 적으면 그때 모두 끊긴다. NERV 키는 문서가 트리 안에서 자리를 옮겨도 바뀌지 않고, 저장소 미러 파일 이름이 키라서 빌드 테스트가 그대로 확인할 수 있다. 옛 문서 하나가 여러 NERV 문서로 나뉜 경우가 많아서 키는 옛 경로를 기계적으로 옮기지 않고 페이지가 다루는 내용에 맞는 문서를 고른다(2026-10-02, NERV 정본 전환 단계 4b).
+
+### 영어 형제 파일에 프론트매터를 두지 않는 이유
 
 영어 형제 파일은 본문만 둔다. 예전에 프론트매터를 붙인 영어 파일이 몇 개 있었는데 렌더와 검색에 쓰이지 않았고 `spec:`·`code:` 도 검증 밖이라 낡아도 알 수 없었다. 프론트매터를 지우고 빌드 테스트가 다시 생기지 않게 막는다.
