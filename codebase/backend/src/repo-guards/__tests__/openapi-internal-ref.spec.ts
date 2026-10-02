@@ -11,7 +11,7 @@ import {
 
 /**
  * 공개 OpenAPI 문서에 **저장소 내부 참조**(스펙 경로 · 옛 스펙 파일 이름 · NERV 스펙 키 ·
- * 요구사항 ID · 옛 plan 경로)가 실리지 않게 막는다.
+ * 요구사항 ID · 옛 요구사항 ID · 옛 plan 경로)가 실리지 않게 막는다.
  *
  * ## 왜
  *
@@ -20,10 +20,15 @@ import {
  * 싣는다. 데코레이터의 `description` · `summary` 문자열도 그대로 나간다. 외부 소비자는
  * 저장소 경로도 NERV 키도 열어 볼 수 없다. 옛 스펙 트리는 NERV 정본 전환 마지막 단계에서
  * 지우므로 경로는 곧 죽은 문자열이 된다. 그래서 공개 문장에는 사실만 남기고, 근거는 바로 위
- * `//` 주석에 키로 적는다(`//` 는 플러그인이 싣지 않는다).
+ * `//` 주석에 키 링크로 적는다(`//` 는 플러그인이 싣지 않는다).
  *
- * 전환 단계 4c(NERV Task `CLE-T-9AM31N`)에서 43곳(23파일)을 걷어 내고 이 가드를 세웠다.
- * 응답 DTO JSDoc 의 리뷰 인용은 형제 가드 `dto-jsdoc-citation` 이 본다.
+ * 두 파일 종류의 `/** *\/` 는 클래스 JSDoc 처럼 플러그인이 싣지 않는 자리까지 한 채널로 센다.
+ * 쓰는 사람이 플러그인 동작을 보고 자리마다 판단하지 않게 하려는 것이다. 리뷰 인용 규약이 응답
+ * DTO 파일의 `/** *\/` 를 한 채널로 본 것과 같은 이유다.
+ *
+ * 전환 단계 4c(NERV Task `CLE-T-9AM31N`)에서 91곳(50파일)을 걷어 내고 이 가드를 세웠다.
+ * 응답 DTO JSDoc 의 리뷰 인용은 형제 가드 `dto-jsdoc-citation` 이 본다. 경로 없는 절 번호
+ * 인용(`[Spec EIA §4]`)은 모양이 일정하지 않아 보지 않는다(정리는 NERV Task `CLE-T-BCS6QZ`).
  *
  * ## 베이스라인은 0 이다
  *
@@ -48,9 +53,12 @@ describe('공개 OpenAPI 문장의 내부 참조', () => {
     ).map((r) => `${r.owner} ${r.channel} ${r.matches.join(',')}`);
 
     expect(found).toEqual([
+      'INTERNAL_REF_FIXTURE_VALUES jsdoc spec/5',
+      'InternalRefFixtureClassDocDto jsdoc CLE-API-CONV',
       'InternalRefFixtureController.list jsdoc spec/5',
       'InternalRefFixtureDto.withKey jsdoc CLE-API-CONV',
       'InternalRefFixtureDto.withOldFile jsdoc 15-chat-channel.md',
+      'InternalRefFixtureDto.withOldReq jsdoc WH-SC-01',
       'InternalRefFixtureDto.withPlan jsdoc plan/in-progress/',
       'InternalRefFixtureDto.withReq jsdoc REQ-GUIDE-032',
       'InternalRefFixtureDto.withSpecPath jsdoc spec/5',

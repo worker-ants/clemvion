@@ -19,17 +19,17 @@ import { Type, Transform } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional, OmitType } from '@nestjs/swagger';
 import { CHAT_CHANNEL_BLOCKED_FIELD_MESSAGES } from '../chat-channel-rejection-messages.const';
 
+// 근거:
+//   - [채팅 채널 데이터와 흐름 「Trigger.config.chatChannel」](CLE-CHAT-DATA#triggerconfigchatchannel)
+//   - [채팅 채널 어댑터 규약 「ChatChannelConfig」](CLE-CHAT-ADAPTER#chatchannelconfig)
+//   - [채팅 채널 「지원 프로바이더(v1)」](CLE-CHAT-CORE#지원-프로바이더v1)
+//   - [Telegram 어댑터](CLE-CHAT-TELEGRAM)
+//   - [Slack 어댑터](CLE-CHAT-SLACK)
+//   - [Discord 어댑터](CLE-CHAT-DISCORD)
+//   - [시크릿 저장소 「채팅 채널 inbound 서명 자료 초기화」](CLE-INT-SECRET#채팅-채널-inbound-서명-자료-초기화) inboundSigningPlaintext 입력 분기
 /**
  * Trigger.config.chatChannel — webhook 트리거에 외부 chat 플랫폼 어댑터를 부착하는 옵션.
- *
- * SoT:
- *   - spec/5-system/15-chat-channel.md §4.1 (Trigger.config.chatChannel)
- *   - spec/conventions/chat-channel-adapter.md §2.3 (ChatChannelConfig)
- *   - spec/4-nodes/7-trigger/providers/_overview.md §1 (supported providers v1: telegram / slack / discord)
- *   - spec/4-nodes/7-trigger/providers/telegram.md
- *   - spec/4-nodes/7-trigger/providers/slack.md
- *   - spec/4-nodes/7-trigger/providers/discord.md
- *   - spec/conventions/secret-store.md §5.5 (inboundSigningPlaintext 입력 분기)
+ * v1 지원 provider 는 telegram / slack / discord 다.
  *
  * 본 DTO 는 입력 형식만 검증. provider 별 추가 검증 (Telegram bot token 형식, Slack signing
  * secret hex32, Discord ed25519 public key hex64) 과 inboundSigningPlaintext 의 provider별
@@ -124,8 +124,11 @@ function findFirstUnknownPlaceholder(
   return null;
 }
 
+// 근거:
+//   - [채팅 채널 「실행 실패 안내」](CLE-CHAT-CORE#실행-실패-안내-1)
+//   - [채팅 채널 「R-CC-15 실행 실패 안내의 입력과 자리표시자를 허용 목록으로 제한한다」](CLE-CHAT-CORE#r-cc-15-실행-실패-안내의-입력과-자리표시자를-허용-목록으로-제한한다)
 /**
- * Spec Chat Channel R-CC-15 (c) / CCH-ERR-03 — `languageHints[CCH-ERR-* 6 키]` 의 template 안에서
+ * 실행 실패 안내 6 키(`FAILURE_HINT_KEYS`)의 `languageHints` template 안에서
  * 허용되는 placeholder 는 `{statusCode}` 1종. 다른 `{...}` 토큰 발견 시 reject.
  *
  * 기존 키 (`groupChatRefusal`, `executionStarted`, `executionCompleted`, `executionStillRunning`,
@@ -341,11 +344,14 @@ export class ChatChannelConfigDto {
   @IsIn(['ko', 'en'])
   languageLocale?: 'ko' | 'en';
 
+  // 근거:
+  //   - [채팅 채널 데이터와 흐름 「안내 문구 기본값」](CLE-CHAT-DATA#안내-문구-기본값)
+  //   - [채팅 채널 「실행 실패 안내」](CLE-CHAT-CORE#실행-실패-안내-1)
   @ApiPropertyOptional({
     description:
       '봇이 보내는 자체 안내 메시지 i18n (groupChatRefusal / executionStarted / executionCompleted / ' +
-      'CCH-ERR-* 6 키 [executionFailedThirdParty4xx / *5xx / ThirdParty / Timeout / RateLimit / Internal] 등). ' +
-      'CCH-ERR-* 키의 template 안에서 허용되는 placeholder 는 {statusCode} 1종 (CCH-ERR-03). ' +
+      '실행 실패 안내 6 키 [executionFailedThirdParty4xx / *5xx / ThirdParty / Timeout / RateLimit / Internal] 등). ' +
+      '실행 실패 안내 키의 template 안에서 허용되는 placeholder 는 {statusCode} 1종. ' +
       '다른 {...} placeholder 발견 시 400 VALIDATION_ERROR (code=UNKNOWN_PLACEHOLDER). ' +
       '문구는 평문으로 입력한다 — 발송 시 provider 별 escape 는 어댑터가 수행한다 ' +
       '(telegram MarkdownV2 / slack mrkdwn / discord 평문).',
@@ -358,8 +364,12 @@ export class ChatChannelConfigDto {
   languageHints?: Record<string, string>;
 }
 
+// 근거:
+//   - [채팅 채널 「봇 토큰 변경 단일 경로」](CLE-CHAT-CORE#봇-토큰-변경-단일-경로) bot token single-path
+//   - [채팅 채널 「인바운드 서명 자료 변경」](CLE-CHAT-CORE#인바운드-서명-자료-변경) 회전 주체별 분기
+//   - [채팅 채널 「R-CC-21 PATCH 는 비밀을 쓰지 않는다」](CLE-CHAT-CORE#r-cc-21-patch-는-비밀을-쓰지-않는다)
 /**
- * PATCH 전용 `chatChannel` — **사용자가 보낸 비밀을 받지 않는다** (R-CC-21 / D-1).
+ * PATCH 전용 `chatChannel` — **사용자가 보낸 비밀을 받지 않는다**.
  *
  * 생성용 {@link ChatChannelConfigDto} 와 딱 두 필드가 다르다:
  *
@@ -367,10 +377,6 @@ export class ChatChannelConfigDto {
  * |---|---|---|
  * | `botToken` | **필수** (`@IsString`) | **금지** (`@IsEmpty`) — 변경은 rotate 엔드포인트 |
  * | `inboundSigningPlaintext` | slack/discord **필수** (service 분기) | **금지** — 회전은 v1 미정의 |
- *
- * @see spec/5-system/15-chat-channel.md §5.4.1 (bot token single-path)
- * @see spec/5-system/15-chat-channel.md §5.4.1.1 (inboundSigning — 회전 주체별 분기)
- * @see spec/5-system/15-chat-channel.md R-CC-21 (PATCH 는 비밀을 쓰지 않는다)
  */
 // 아래 세 단락은 **내부 서사**라 JSDoc 이 아니라 `//` 에 둔다 — 플러그인이
 // `introspectComments` 로 JSDoc 을 공개 OpenAPI `description` 에 그대로 싣는다

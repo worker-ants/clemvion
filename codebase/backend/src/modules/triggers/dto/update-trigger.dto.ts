@@ -46,22 +46,26 @@ export class UpdateTriggerDto {
   @IsObject()
   config?: Record<string, unknown>;
 
+  // 근거:
+  //   - [웹훅 「비밀성」](CLE-TRIG-WEBHOOK#비밀성) v4 UUID 형식 강제
+  //   - [웹훅 「경로 변경」](CLE-TRIG-WEBHOOK#경로-변경)
+  //   - [트리거 데이터와 흐름 「트리거와 스케줄 동기화」](CLE-TRIG-DATA#트리거와-스케줄-동기화) schedule 타입 변경 거부
   /**
    * Webhook 엔드포인트 경로 (v4 UUID).
    *
    * webhook 트리거에서는 **변경 가능**하다 — 변경 시 기존 URL 로 들어오던 호출은 즉시 404 가
    * 되므로 프론트(`webhook-config-card`)는 confirm 경고 후 PATCH 한다. v4 UUID 형식 강제는
-   * 예측 가능 경로 직접 지정(squatting) 차단용([Spec Webhook WH-SC-01·WH-MG-02]).
+   * 예측 가능 경로 직접 지정(squatting) 차단용이다.
    * 변경을 거부하는 것은 **schedule 타입 트리거에 한해서**다 (스케줄 메타 동기화 보호,
-   * `triggers.service.ts` update() — [Spec 데이터 모델 §2.9.1]).
+   * `triggers.service.ts` update()).
    *
    * `null` 은 400 `VALIDATION_ERROR` 로 거부한다(`IsOptionalNonNull`) — 경로를 유지하려면 키를
    * 생략한다. 종전 `@IsOptional()` 은 null 을 통과시켜 웹훅 수신 경로가 200 과 함께 조용히 지워졌다.
    */
   @ApiPropertyOptional({
     description:
-      'Webhook 트리거 전용. 수신 엔드포인트 경로 — v4 UUID 형식만 허용 ' +
-      '([Spec Webhook WH-SC-01·WH-MG-02]). webhook 트리거는 변경 가능하나 변경 시 기존 URL 은 ' +
+      'Webhook 트리거 전용. 수신 엔드포인트 경로 — v4 UUID 형식만 허용. ' +
+      'webhook 트리거는 변경 가능하나 변경 시 기존 URL 은 ' +
       '404 가 된다. schedule 타입 트리거에 한해 service 가 변경을 거부한다(VALIDATION_ERROR). ' +
       'null 은 400 VALIDATION_ERROR — 경로를 유지하려면 키를 생략한다.',
     format: 'uuid',

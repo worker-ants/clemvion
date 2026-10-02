@@ -27,11 +27,11 @@ import {
 } from './third-party-oauth.constants';
 import { Cafe24InstallRateLimitService } from './cafe24-install-rate-limit.service';
 
+// 근거: [OAuth 연결과 토큰 갱신 「Cafe24 App URL 100자 한도에 맞춰 /api/3rd-party/<provider>/ 경로를 새로 뒀다」](CLE-INT-OAUTH#cafe24-app-url-100자-한도에-맞춰-api3rd-partyprovider-경로를-새로-뒀다)
 /**
  * 3rd-party 가 호출하는 OAuth endpoints (Cafe24 "테스트 실행" install +
  * provider callbacks). 사용자가 호출하는 통합 관리 API
- * (`/api/integrations/...`) 와 분리. spec/2-navigation/4-integration.md
- * §9.2 Rationale "Cafe24 App URL 100자 한도 대응".
+ * (`/api/integrations/...`) 와 분리.
  *
  * install_token 형식·URL 조립 헬퍼는 `third-party-oauth.constants.ts` 의
  * 단일 진실 지점에서 정의 — 토큰 생성(서비스)·검증(본 컨트롤러)·appUrl

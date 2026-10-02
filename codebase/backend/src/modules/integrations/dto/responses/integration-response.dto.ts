@@ -193,9 +193,11 @@ export class ServiceCatalogDto {
   services: ServiceCatalogEntryDto[];
 }
 
+// 근거:
+//   - [통합 관리 「사용처와 활동 API」](CLE-INT-MANAGE#사용처와-활동-api)
+//   - [통합 관리 「활동 탭의 API 라벨은 카탈로그 엔드포인트와 프런트엔드 i18n 으로 그린다」](CLE-INT-MANAGE#활동-탭의-api-라벨은-카탈로그-엔드포인트와-프런트엔드-i18n-으로-그린다)
 /**
- * 통합별 API operation 카탈로그 한 행. SoT:
- * `spec/conventions/cafe24-api-metadata.md §7.5` + 통합 spec §9.3.
+ * 통합별 API operation 카탈로그 한 행.
  * `key` 는 활동 로그 `api_label` 의 join key (cafe24 의 경우
  * `cafe24.<resource>.<operation>`). `labelKey`/`descriptionKey` 는
  * frontend i18n dict 의 lookup key — 백엔드는 i18n 결과를 직접 반환하지
@@ -283,6 +285,7 @@ export class PreviewTestResultDto {
   preview?: McpConnectionPreviewDto;
 }
 
+// 근거: [OAuth 연결과 토큰 갱신 「oauth/begin 요청과 응답」](CLE-INT-OAUTH#oauthbegin-요청과-응답)
 /**
  * OAuth 시작 결과 — 두 가지 분기.
  *
@@ -295,8 +298,7 @@ export class PreviewTestResultDto {
  *
  * Swagger 표현 — 두 분기를 명시적으로 보여주기 위해 controller 가
  * `ApiOkWrappedOneOfResponse([Popup, Cafe24Pending], ...)` 를 사용해
- * `data: oneOf` 스키마로 문서화한다. spec/2-navigation/4-integration.md
- * §9.2.
+ * `data: oneOf` 스키마로 문서화한다.
  */
 export class OAuthBeginPopupResultDto {
   /** OAuth provider 인증 URL. 사용자 브라우저를 이 URL 로 redirect. */
@@ -347,6 +349,10 @@ export class OAuthBeginCafe24PendingResultDto {
 const PRECHECK_IDENTITY_MASKED =
   '— 다만 충돌 대상이 다른 멤버의 개인(personal) 통합이면 conflict=true 여도 생략한다(spec 통합 §8 · §9.2).';
 
+// 근거:
+//   - [통합 관리 「인증·교체·권한」](CLE-INT-MANAGE#인증교체권한) 중복 사전 감지(precheck)
+//   - [통합 관리 「중복 사전 감지로 상점 식별자 입력 단계에서 미리 알린다」](CLE-INT-MANAGE#중복-사전-감지로-상점-식별자-입력-단계에서-미리-알린다)
+//   - [통합 관리 「권한」](CLE-INT-MANAGE#권한) 남의 개인 통합 식별자 생략
 /**
  * Cafe24 mall_id 사전 중복 감지 응답.
  *
@@ -354,11 +360,10 @@ const PRECHECK_IDENTITY_MASKED =
  * 배너를 띄우는 read-only endpoint. 동일 (workspaceId, mall_id) cafe24 row 의
  * 상태를 가장 제한적인 것부터 (`connected > pending_install > error > expired`)
  * 반환. 인증 정보 누설 방지를 위해 (id, name, status) 만 노출 — 자격 증명·
- * 토큰·timestamps 비포함. spec/2-navigation/4-integration.md §9.2 Rationale
- * "precheck endpoint — mall_id 입력 단계 사전 감지 UX".
+ * 토큰·timestamps 비포함.
  *
  * 충돌 대상이 다른 멤버의 개인(personal) 통합이면 `existingIntegrationId` ·
- * `existingName` 을 싣지 않는다 — 충돌 · status 는 그대로 알린다(spec 통합 §8).
+ * `existingName` 을 싣지 않는다 — 충돌 · status 는 그대로 알린다.
  */
 export class Cafe24PrecheckResultDto {
   @ApiProperty({
@@ -447,15 +452,18 @@ export class IntegrationActivityItemDto {
   @ApiPropertyOptional({ format: 'uuid', nullable: true })
   executionId?: string | null;
 
-  /** 호출된 API 의 catalog key. cafe24 = `cafe24.<resource>.<operation>`. INT-US-05. */
+  // 근거: [통합 데이터와 흐름 「호출 API 식별 채우기 규칙」](CLE-INT-DATA#호출-api-식별-채우기-규칙)
+  /** 호출된 API 의 catalog key. cafe24 = `cafe24.<resource>.<operation>`. */
   @ApiPropertyOptional({ nullable: true })
   apiLabel?: string | null;
 
-  /** HTTP method / SQL 동사 / `SEND` 등. INT-US-05 채우기 정책 참조. */
+  // 근거: [통합 데이터와 흐름 「호출 API 식별 채우기 규칙」](CLE-INT-DATA#호출-api-식별-채우기-규칙)
+  /** HTTP method / SQL 동사 / `SEND` 등. 채우는 값은 통합마다 다르다. */
   @ApiPropertyOptional({ nullable: true })
   apiMethod?: string | null;
 
-  /** endpoint path / driver token / SMTP host 등. PII 제거 후 저장. INT-US-05. */
+  // 근거: [통합 데이터와 흐름 「호출 API 식별 채우기 규칙」](CLE-INT-DATA#호출-api-식별-채우기-규칙)
+  /** endpoint path / driver token / SMTP host 등. PII 제거 후 저장. */
   @ApiPropertyOptional({ nullable: true })
   apiPath?: string | null;
 }

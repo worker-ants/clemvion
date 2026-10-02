@@ -305,8 +305,10 @@ developer workflow §4 종료 직전, 5단계로 진행하기 전 자가 점검:
 - `codebase/frontend/src/lib/docs/__tests__/integrations-coverage.test.ts` — `06-integrations-and-config/<provider>.mdx` 의 GUI 흐름 절에 `<ImplAnchor kind="ui-entry">` ≥1 의무
 - `codebase/frontend/src/lib/docs/__tests__/triggers-coverage.test.ts` — `02-nodes/triggers.mdx` 의 provider 별 절에 `<ImplAnchor kind="ui-entry">` ≥1 의무
 - `codebase/frontend/src/lib/docs/__tests__/no-internal-refs.test.ts` — 사용자 가이드 MDX 본문(frontmatter / HTML·MDX 주석 / `<ImplAnchor>` 제거 후)에 내부 SoT (`spec/`·`plan/in-progress|complete/`·`별 plan`/`separate plan`·`CCH-XX-NN`·`R-XX-N`·`CLE-...`·`REQ-...-NNN`·`ERROR_KO` 등 i18n 매핑 테이블·`backend-labels.ts`) 가 노출되지 않는지 검증. SoT invariant: 본 절 §자주 누락되는 작성 패턴 + [`spec/CLE-UI/CLE-UI-I18N.md`](spec/CLE-UI/CLE-UI-I18N.md) 「규칙」 8(원본 Principle 6-B)
-- `codebase/frontend/src/lib/docs/__tests__/spec-link-integrity.test.ts` — in-repo 링크/heading 앵커 실존 검증 (slug = `rehype-slug`=`mdast`+`github-slugger`). 스코프 3가지 — **(1)** `spec/**.md` 본문(NERV 미러 `spec/README.md` · `spec/CLE-*` 제외, 지운 루트 `plan/` · `review/` 로 해석되는 링크는 건너뜀), **(2)** codebase `.ts`/`.tsx` JSDoc 중 `spec/**.md` 타깃, **(3)** 거버넌스 문서(루트 `*.md` 비재귀 + `.claude/**.md`, `worktrees`/`node_modules` 제외, 2026-08-27 추가). SoT: `spec/CLE-ENG/CLE-ENG-SPECEVIDENCE.md` 「빌드 가드 — 스펙 문서 저장소와 plan 무결성」
-- `codebase/frontend/src/lib/docs/__tests__/spec-area-index.test.ts` — 영역 폴더(≥2 sibling)의 index 가 모든 sibling spec 을 링크하는지 검증 (`spec/conventions/` flat reference · NERV 미러 면제). SoT: `spec/CLE-ENG/CLE-ENG-SPECEVIDENCE.md` 「빌드 가드 — 스펙 문서 저장소와 plan 무결성」
+- `codebase/frontend/src/lib/docs/__tests__/spec-link-integrity.test.ts` — in-repo 링크/heading 앵커 실존 검증 (slug = `rehype-slug`=`mdast`+`github-slugger`). 스코프 3가지 — **(1)** `spec/**.md` 본문(NERV 미러 `spec/README.md` · `spec/CLE-*` 제외, 지운 루트 `plan/` · `review/` 로 해석되는 링크는 건너뜀), **(2)** codebase `.ts`/`.tsx` 주석의 키 링크 `[글](CLE-KEY#앵커)`(키 · 앵커를 미러 파일로 확인, `spec/**.md` 경로 링크는 위반), **(3)** 거버넌스 문서(루트 `*.md` 비재귀 + `.claude/**.md`, `worktrees`/`node_modules` 제외, 2026-08-27 추가). SoT: `spec/CLE-ENG/CLE-ENG-SPECEVIDENCE.md` 「빌드 가드 — 스펙 문서 저장소 무결성」
+- `codebase/frontend/src/lib/docs/__tests__/spec-area-index.test.ts` — 영역 폴더(≥2 sibling)의 index 가 모든 sibling spec 을 링크하는지 검증 (`spec/conventions/` flat reference · NERV 미러 면제). SoT: `spec/CLE-ENG/CLE-ENG-SPECEVIDENCE.md` 「빌드 가드 — 스펙 문서 저장소 무결성」
+- `codebase/backend/src/repo-guards/__tests__/openapi-internal-ref.spec.ts` — 공개 OpenAPI 로 나가는 `*.dto.ts` · `*.controller.ts` 의 `/** */` 블록 전부와 데코레이터 `description` · `summary` 문자열에 저장소 내부 참조(`spec/` 경로 · 번호로 시작하는 옛 스펙 파일 이름 · `CLE-...` · `REQ-...-NNN` · `WH-SC-01` 같은 옛 요구사항 ID · `plan/in-progress|complete/`)가 없는지 검증. 베이스라인 0. 근거는 바로 위 `//` 주석에 키 링크로 적는다. SoT: [`spec/CLE-API/CLE-API-SWAGGER.md`](spec/CLE-API/CLE-API-SWAGGER.md) 「규칙」
+- `codebase/frontend/src/lib/__tests__/public-surface-internal-refs.test.ts` — 내려받히는 SVG(`public/**` · `src/app/*.svg`)와 외부 통합용 SDK(`@workflow/sdk` · `@workflow/web-chat`)의 README · `package.json` 에 위와 같은 내부 참조가 없는지 검증
 - `codebase/frontend/src/__tests__/e2e-no-sub-global-timeout.test.ts` — `e2e/**` 스펙의 bare-numeric `timeout: N`(N < `playwright.config.ts` 의 `expect.timeout`) sub-global override 차단(전역값은 config 파싱=SoT 동기). 위 doc-sync 계열과 달리 invariant 홈은 §Frontend e2e 패턴 절의 timeout 항목
 
 이들은 코드 리뷰가 검출하지 못한 누락도 빌드 단계에서 차단한다 (마이그레이션 V번호 가드와 동일 패턴). 위반의 invariant 자체는 [`spec/CLE-UI/CLE-UI-I18N.md`](spec/CLE-UI/CLE-UI-I18N.md) · [`spec/CLE-ENG/CLE-ENG-SPECEVIDENCE.md`](spec/CLE-ENG/CLE-ENG-SPECEVIDENCE.md) · [`spec/CLE-ENG/CLE-ENG-GUIDEEVIDENCE.md`](spec/CLE-ENG/CLE-ENG-GUIDEEVIDENCE.md) 에 정식 등록되어 있어 `convention-compliance-checker` 가 sub-agent 단에서도 점검한다.
@@ -388,7 +390,7 @@ pnpm --filter frontend test src/lib/docs/__tests__/
 
 이 절의 나머지(스코프 3가지)는 그중 `spec-link-integrity` 가드의 검사 범위다.
 
-검사 스코프 3가지 (SoT: [`spec/CLE-ENG/CLE-ENG-SPECEVIDENCE.md`](spec/CLE-ENG/CLE-ENG-SPECEVIDENCE.md) 「빌드 가드 — 스펙 문서 저장소와 plan 무결성」):
+검사 스코프 3가지 (SoT: [`spec/CLE-ENG/CLE-ENG-SPECEVIDENCE.md`](spec/CLE-ENG/CLE-ENG-SPECEVIDENCE.md) 「빌드 가드 — 스펙 문서 저장소 무결성」):
 
 1. `spec/**.md` 본문의 in-repo 링크 + `#anchor` 헤딩 슬러그 (생성형 `*-api-catalog/` 와
    NERV 미러 `spec/README.md` · `spec/CLE-*` 제외. 미러 무결성은 `.claude/tools/nerv-mirror/pull.py --check` 가 본다.
@@ -396,10 +398,15 @@ pnpm --filter frontend test src/lib/docs/__tests__/
    NERV 정본 전환 단계 3 에서 지웠고 그 링크가 남은 옛 트리는 단계 5 에서 지운다. 옛 카탈로그 자리
    (`spec/conventions/<vendor>-api-catalog/`)로 해석되는 링크는 새 자리 `codebase/api-catalogs/<vendor>/` 에서
    경로와 앵커를 검사한다(`spec-links.ts` 의 `RELOCATED_SPEC_TREES`, 단계 4a. 단계 5 에서 옛 트리와 함께 걷는다)
-2. `codebase/{backend,frontend,channel-web-chat,packages}` 의 `.ts`/`.tsx` 주석 중
-   `spec/**.md` 를 가리키는 링크
+2. `codebase/{backend,frontend,channel-web-chat}/src` 와 `codebase/packages` 의 `.ts`/`.tsx` 주석.
+   스펙은 키 링크 `[글](CLE-KEY#앵커)` 로 가리킨다. 키는 미러 파일(`spec/<영역 키>/<KEY>.md`)이
+   있어야 하고(`KEY`), 앵커는 그 파일의 제목 slug 여야 한다(`ANCHOR`). `spec/**.md` 를 경로로
+   링크하면 대상이 있어도 위반이다(`PATH`, 단계 4c). 공개 OpenAPI 로 나가는 DTO · 컨트롤러의
+   `/** */` 와 `description` · `summary` 에는 키도 쓰지 않는다. 바로 위 `//` 주석에 적는다
+   (`openapi-internal-ref` 가드)
 3. **거버넌스 문서** — 루트 `*.md`(`CLAUDE.md`·`PROJECT.md` 등, 비재귀) + `.claude/**.md`
-   (`.claude/worktrees/` 는 저장소 사본이라 제외, `node_modules` 도 제외)
+   (`.claude/worktrees/` 는 저장소 사본이라 제외, `node_modules` 도 제외). 상대 경로 링크와 키 링크를
+   함께 본다
 
 MDX frontmatter `spec:` 키·`code:` 경로 실재는 별도 가드가 본다 —
 `src/lib/docs/__tests__/registry.test.ts`.

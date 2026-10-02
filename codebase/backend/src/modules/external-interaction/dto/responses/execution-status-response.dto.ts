@@ -28,12 +28,15 @@ export class CurrentNodeDto {
   interactionType: 'form' | 'buttons' | 'ai_conversation' | null;
 }
 
+// 근거:
+//   - [EIA 수신 API와 SSE 「단발 상태 조회」](CLE-EIA-INBOUND#단발-상태-조회)
+//   - [노드 출력 규약](CLE-NODE-OUTPUT)
+//   - [OpenAPI 문서화 「nested, enum, union」](CLE-API-SWAGGER#1-4-nested-enum-union)
 /**
- * `context` 두 변형의 공통 봉투. [Spec EIA §5.3].
+ * `context` 두 변형의 공통 봉투.
  *
  * 봉투만 스키마화하고 내부 payload 는 열린 map 으로 남긴다 — 노드 타입별 자유 형식이라
- * 클래스로 고정하면 노드 output 규약(`spec/conventions/node-output.md`)과 SoT 가 이중화된다.
- * [OpenAPI 문서화 「nested, enum, union」](CLE-API-SWAGGER#1-4-nested-enum-union).
+ * 클래스로 고정하면 노드 output 규약과 정의가 이중화된다.
  *
  * `abstract` 이지만 export 한다 — `getStatus` 조립부가 분기 전 공통 필드를 선조립할 때 이 타입으로
  * **명시 annotate** 해야 하기 때문이다. object spread 는 fresh literal 타입을 넓히므로

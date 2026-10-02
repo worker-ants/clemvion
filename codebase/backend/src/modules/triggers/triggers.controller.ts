@@ -263,15 +263,21 @@ export class TriggersController {
     return this.triggersService.revokePerTriggerToken(id, workspaceId, userId);
   }
 
+  // (C-2: ChatChannelController 에서 이전 — chat-channel↔triggers forwardRef 순환 해소.)
+  //
+  // 근거:
+  //   - [채팅 채널 「봇 토큰 재발급 API」](CLE-CHAT-CORE#봇-토큰-재발급-api)
+  //   - [Telegram 어댑터 「보안」](CLE-CHAT-TELEGRAM#보안)
+  //   - [채팅 채널 「R7 동사를 rotate-bot-token 으로 둔다」](CLE-CHAT-CORE#r7-동사를-rotate-bot-token-으로-둔다)
+  //   - [HTTP API 규약 「2.2 명명 규칙」](CLE-API-CONV#22-명명-규칙) RPC 형태 하위 채널 액션
+  //   - [채팅 채널 데이터와 흐름 「봇 토큰 라이프사이클」](CLE-CHAT-DATA#봇-토큰-라이프사이클) grace 만료 뒤 v2 정리
   /**
    * `POST /api/triggers/:id/chat-channel/rotate-bot-token`
    *
-   * Spec [CCH-SE-04 / providers/telegram §6] — Chat Channel bot token 회전.
+   * Chat Channel bot token 회전.
    * 위임: `TriggersService.rotateBotToken()` 가 secret store + adapter 오케스트레이션
    * 6단계 담당. 본 메서드는 input validation 만. 동사 `rotate-bot-token` — EIA
-   * `/notification/rotate-secret` 와 다른 자원이라 별도 동사(api-convention §2.2 RPC sub-action).
-   *
-   * (C-2: ChatChannelController 에서 이전 — chat-channel↔triggers forwardRef 순환 해소.)
+   * `/notification/rotate-secret` 와 다른 자원이라 별도 동사(RPC 형태 하위 채널 액션)를 쓴다.
    */
   @Post(':id/chat-channel/rotate-bot-token')
   @Roles('editor')
@@ -279,7 +285,7 @@ export class TriggersController {
   @ApiOperation({
     summary: 'Chat Channel bot token 회전',
     description:
-      'Spec CCH-SE-04 — 외부 provider bot token 회전. 기존 token 은 24h grace 동안 chat_channel_token_v2 (secret store v2 ref) 로 보관, CCH-SE-04-C cron 이 grace 만료 시 정리.',
+      '외부 provider bot token 회전. 기존 token 은 24h grace 동안 chat_channel_token_v2 (secret store v2 ref) 로 보관하고 grace 가 끝나면 정리 작업(cron)이 지운다.',
   })
   @ApiParam({ name: 'id', description: '트리거 UUID', format: 'uuid' })
   // 본문 스키마는 `@ApiBody` 로만 선언하고 `@Body()` 파라미터는 인라인 타입을 유지한다 — DTO 로 타입하면 전역 파이프가 진입해

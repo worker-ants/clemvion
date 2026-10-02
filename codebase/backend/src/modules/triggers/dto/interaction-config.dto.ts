@@ -9,11 +9,13 @@ import { Type } from 'class-transformer';
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { WebChatAppearanceDto } from './web-chat-appearance.dto';
 
+// 근거:
+//   - [External Interaction API 「인터랙션 토큰」](CLE-EIA#인터랙션-토큰-1)
+//   - [External Interaction API 「실행 단위 토큰을 기본값으로」](CLE-EIA#실행-단위-토큰을-기본값으로)
 /**
  * Interaction token 발급 전략.
  * - `per_execution` (default): execution 종료 시 자동 invalidate 되는 단명 JWT (`iext_*`).
  * - `per_trigger`: trigger 가 만드는 모든 execution 에 적용되는 영구 토큰 (`itk_*`).
- * [Spec EIA §3.3 EIA-AU-02 / §R4].
  */
 export type InteractionTokenStrategy = 'per_execution' | 'per_trigger';
 

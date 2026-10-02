@@ -43,18 +43,20 @@ NERV 정본 전환 단계 4c(Task `CLE-T-9AM31N`). swagger 플러그인은 DTO �
 `description` · `summary` 문자열을 공개 OpenAPI 에 그대로 싣는다. 그 문장에 저장소 스펙 경로 · NERV 키 · 요구사항
 ID 가 들어 있었다. 외부 소비자는 열어 볼 수 없는 참조이고, 옛 트리를 지우면 죽은 경로가 된다.
 
-- 공개 OpenAPI 문장 43곳(23파일)에서 내부 참조를 지우고 근거는 바로 위 `//` 주석에 키 링크로 옮겼다. 같은 파일의
-  경로 없는 절 번호 인용(`EIA §R17` 등) 26곳도 함께 정리했다. 손대지 않은 파일의 절 번호 인용 36곳은 Task
-  `CLE-T-BCS6QZ` 가 맡는다.
+- DTO · 컨트롤러 파일의 `/** */` 와 `description` · `summary` 91곳(50파일)에서 내부 참조를 지우고 근거는 바로 위
+  `//` 주석에 키 링크로 옮겼다. 클래스 JSDoc 처럼 플러그인이 싣지 않는 자리도 같은 채널로 정리했다. 같은 파일의
+  경로 없는 절 번호 인용(`EIA §R17` 등) 일부도 함께 정리했다. 남은 절 번호 인용은 Task `CLE-T-BCS6QZ` 가 맡는다.
 - 배포 파일: 내려받히는 SVG 9개의 주석, 외부 통합용 SDK(`@workflow/sdk` · `@workflow/web-chat`) README 5곳과
   `package.json` 1곳에서 옛 스펙 · plan 경로를 지웠다.
 - 런타임 · 개발 문구: 시크릿 참조 형식 오류 · 비밀번호 해시 형식 오류 · 채팅 채널 언어 힌트의 `migration_guide`,
   프론트엔드 eslint 레이어링 규칙 메시지 3개, PR 템플릿과 마이그레이션 재검사 봇 코멘트가 옛 경로 대신 NERV 키나
   미러 경로를 가리킨다.
-- 가드 신설: 백엔드 `openapi-internal-ref` 가 공개 OpenAPI 의 세 자리에서 스펙 경로 · 옛 스펙 파일 이름 · NERV
-  키 · 요구사항 ID · 옛 plan 경로를 막는다. 베이스라인은 0 이다. 프론트엔드 `public-surface-internal-refs` 가 같은
+- 가드 신설: 백엔드 `openapi-internal-ref` 가 DTO · 컨트롤러 파일의 모든 `/** */` 와 `description` · `summary`
+  에서 스펙 경로 · 옛 스펙 파일 이름 · NERV 키 · 요구사항 ID · 옛 요구사항 ID(`WH-SC-01` 등) · 옛 plan 경로를
+  막는다. 베이스라인은 0 이다. 프론트엔드 `public-surface-internal-refs` 가 같은
   패턴으로 배포 SVG 와 SDK README · `package.json` 을 본다.
-- 스펙: NERV 초안 `CLE-API-SWAGGER`(규칙 14 확장)를 함께 고쳤다.
+- 스펙: NERV 초안 `CLE-API-SWAGGER`(규칙 14 확장)를 함께 고쳤다. 옛 규약은 설명에 기준 문서 링크를 적게 했는데,
+  이 변경으로 그 링크를 `//` 주석으로 옮긴다.
 
 ## Unreleased — 개발 흐름: 사용자 가이드 프론트매터 `spec:` 을 NERV 스펙 키로 바꾸고 키 실재를 검사한다
 

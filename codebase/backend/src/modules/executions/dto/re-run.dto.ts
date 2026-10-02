@@ -1,9 +1,9 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { IsBoolean, IsObject, IsOptional } from 'class-validator';
 
+// 근거: [재실행 「POST /api/executions/:executionId/re-run」](CLE-EXEC-RERUN#post-apiexecutionsexecutionidre-run)
 /**
- * `POST /executions/:id/re-run` 요청 본문
- * (spec/5-system/13-replay-rerun.md §8.1).
+ * `POST /executions/:id/re-run` 요청 본문.
  */
 export class ReRunRequestDto {
   @ApiPropertyOptional({

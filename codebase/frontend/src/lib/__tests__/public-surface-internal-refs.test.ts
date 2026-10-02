@@ -18,10 +18,11 @@ import path from "node:path";
  */
 const INTERNAL_REF_PATTERNS: readonly RegExp[] = [
   /(?<![\w.-])spec\/[\w-]/,
+  /\b\d+-[a-z][\w-]*\.md\b/,
   /\bCLE-[A-Z][A-Z0-9]*(?:-[A-Z0-9]+)*\b/,
   /\bREQ-[A-Z][A-Z0-9]*(?:-[A-Z0-9]+)*-\d+\b/,
+  /\b(?!REQ-)[A-Z]{2,5}(?:-[A-Z]{2,5})+-\d{2,3}[a-z]?\b/,
   /\bplan\/(?:in-progress|complete)\//,
-  /\b\d+-[a-z][\w-]*\.md\b/,
 ];
 
 // 이 파일은 `codebase/frontend/src/lib/__tests__/` 에 있다.
@@ -76,11 +77,14 @@ describe("배포되는 정적 파일의 내부 참조", () => {
     expect(findInternalRefs("<!-- Spec spec/6-brand.md §8.4.1 -->")).toEqual(["spec/6", "6-brand.md"]);
     expect(findInternalRefs("상세: CLE-UI-BRAND")).toEqual(["CLE-UI-BRAND"]);
     expect(findInternalRefs("REQ-GUIDE-032 참고")).toEqual(["REQ-GUIDE-032"]);
+    expect(findInternalRefs("옛 요구사항 WH-SC-01")).toEqual(["WH-SC-01"]);
     expect(findInternalRefs("옛 plan plan/in-progress/x.md")).toEqual(["plan/in-progress/"]);
     expect(findInternalRefs("(../5-system/14-external-interaction-api.md)")).toEqual([
       "14-external-interaction-api.md",
     ]);
-    expect(findInternalRefs("respec/ 과 spec 이라는 낱말, OpenAPI spec, README.md")).toEqual([]);
+    expect(
+      findInternalRefs("respec/ 과 spec 이라는 낱말, OpenAPI spec, README.md, SHA-256, ISO-8601"),
+    ).toEqual([]);
   });
 
   it("SVG 와 npm README 에 내부 참조가 없다", () => {

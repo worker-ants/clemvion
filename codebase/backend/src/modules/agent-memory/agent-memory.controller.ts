@@ -38,12 +38,14 @@ import {
   AgentMemoryItemDto,
 } from './dto/responses/agent-memory-response.dto';
 
+// 근거:
+//   - [에이전트 메모리 「관리 API」](CLE-AI-MEMORY#관리-api)
+//   - [에이전트 메모리 「격리」](CLE-AI-MEMORY#격리)
 /**
- * AI Agent persistent 메모리 관리 (조회·삭제) admin REST surface
- * (spec/5-system/17-agent-memory.md §6, AGM-12/13). 저장·회수·forgetting
- * (§3·§4) 과 별개의 read/delete 경로.
+ * AI Agent persistent 메모리 관리 (조회·삭제) admin REST surface.
+ * 저장·회수·forgetting 과 별개의 read/delete 경로.
  *
- * **격리 의무 (§5, AGM-07)**: 모든 라우트는 `@WorkspaceId()` (인증 미들웨어가
+ * **격리 의무**: 모든 라우트는 `@WorkspaceId()` (인증 미들웨어가
  * 주입하는 워크스페이스 컨텍스트) 에서만 workspaceId 를 얻고 쿼리/바디로 받지
  * 않는다. 서비스 SQL 이 `workspace_id = $ws` 를 강제하므로 cross-workspace
  * 누수·삭제가 구조적으로 차단된다.

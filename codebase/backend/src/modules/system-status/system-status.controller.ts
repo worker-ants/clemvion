@@ -9,10 +9,10 @@ import { ApiOkWrappedResponse } from '../../common/swagger';
 import { SystemStatusService } from './system-status.service';
 import { SystemStatusOverviewDto } from './dto/system-status-response.dto';
 
+// 근거: [시스템 상태 「API」](CLE-OBS-STATUS#api)
 /**
  * 시스템 상태 API — 전체 BullMQ 큐의 집계 카운트·health.
  * 시스템 전역 API 이므로 워크스페이스 스코핑(X-Workspace-Id)을 적용하지 않는다.
- * spec: spec/5-system/16-system-status-api.md
  */
 @ApiTags('System Status')
 @ApiBearerAuth('access-token')
