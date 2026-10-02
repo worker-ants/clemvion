@@ -55,7 +55,7 @@ ID 가 들어 있었다. 외부 소비자는 열어 볼 수 없는 참조이고,
   에서 스펙 경로 · 옛 스펙 파일 이름 · NERV 키 · 요구사항 ID · 옛 요구사항 ID(`WH-SC-01` 등) · 옛 plan 경로를
   막는다. 베이스라인은 0 이다. 프론트엔드 `public-surface-internal-refs` 가 같은
   패턴으로 배포 SVG 와 SDK README · `package.json` 을 본다.
-- 스펙: NERV 초안 `CLE-API-SWAGGER`(규칙 14 확장)를 함께 고쳤다. 옛 규약은 설명에 기준 문서 링크를 적게 했는데,
+- 스펙: NERV 초안 `CLE-API-SWAGGER`(규칙 17 신설)를 함께 고쳤다. 옛 규약은 설명에 기준 문서 링크를 적게 했는데,
   이 변경으로 그 링크를 `//` 주석으로 옮긴다.
 
 ## Unreleased — 개발 흐름: 사용자 가이드 프론트매터 `spec:` 을 NERV 스펙 키로 바꾸고 키 실재를 검사한다
