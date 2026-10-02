@@ -5,7 +5,7 @@ section: "06-integrations-and-config"
 order: 7
 summary: "Slack 봇을 Webhook 트리거의 Chat Channel로 연결해 워크플로우와 실시간 대화 인터랙션을 구현하는 방법을 설명해요."
 summary_en: "Connect a Slack bot as a Chat Channel on a Webhook trigger to enable real-time conversational interactions with your workflow."
-spec: ["spec/4-nodes/7-trigger/providers/slack.md", "spec/5-system/15-chat-channel.md", "spec/conventions/chat-channel-adapter.md"]
+spec: ["CLE-CHAT-SLACK", "CLE-CHAT-CORE", "CLE-CHAT-ADAPTER"]
 code: ["codebase/backend/src/modules/chat-channel/providers/slack/slack.adapter.ts", "codebase/backend/src/modules/chat-channel/providers/slack/slack-update.parser.ts", "codebase/backend/src/modules/chat-channel/providers/slack/slack-message.renderer.ts"]
 ---
 
@@ -14,7 +14,7 @@ Slack 봇을 워크플로우의 대화 인터페이스로 연결하면, 봇에�
 ## 1. Slack 앱 만들기
 
 <Callout type="note">
-{/* 내부 SoT: spec/4-nodes/7-trigger/providers/slack.md Rationale R-S-2 */}
+{/* 내부 SoT: CLE-CHAT-SLACK Rationale R-S-2 */}
 아래 §2 의 Slack 앱 manifest 설정(Event Subscriptions Request URL, Interactivity Request URL)은 clemvion 이 자동화하지 않아요. Slack 의 설계 제약상 외부 서비스가 다른 앱의 manifest 를 직접 수정할 수 없기 때문이에요. §3 에서 트리거를 생성하고 발급된 endpoint URL 을 복사해 직접 입력해요.
 </Callout>
 

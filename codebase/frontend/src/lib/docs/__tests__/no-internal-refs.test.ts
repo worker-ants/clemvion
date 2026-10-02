@@ -5,7 +5,7 @@ import { collectMdxFiles, repoRoot } from "./impl-anchor-parse";
 
 // Guard: user-guide MDX body must not leak internal SoT identifiers.
 // SoT invariants: PROJECT.md §유저 가이드 파일 컨벤션 §자주 누락되는 작성 패턴
-// (internal-SoT leak row) + spec/conventions/i18n-userguide.md Principle 6.
+// (internal-SoT leak row) + CLE-UI-I18N 규칙 8(가이드에 내부 기준 문서를 드러내지 않는다).
 //
 // "Body" excludes: frontmatter, HTML/MDX comments, and <ImplAnchor /> tags —
 // those are not rendered to end users. The remaining text is what readers
@@ -18,6 +18,9 @@ import { collectMdxFiles, repoRoot } from "./impl-anchor-parse";
 //     at internal work units
 //   - Internal identifiers shaped like CCH-XX-NN or R-XX-N (Chat Channel /
 //     Rationale anchor codes the user cannot dereference)
+//   - NERV spec keys (CLE-…) and requirement ids (REQ-…-NNN). The frontmatter
+//     `spec:` list holds NERV keys on purpose; it is stripped with the
+//     frontmatter before this scan.
 //   - Internal i18n mapping table names (ERROR_KO / WARNING_KO / LABEL_KO
 //     / HINT_KO / GROUP_KO / ITEM_LABEL_KO / OPTION_LABEL_KO)
 //   - The backend-labels.ts filename
@@ -36,9 +39,10 @@ const FORBIDDEN: ForbiddenPattern[] = [
   {
     name: "spec/ path leak",
     // Matches `spec/0-overview`, `spec/2-navigation`, `spec/conventions/...`
-    // either bare or as the path portion of a markdown link. The negative
-    // look-behind keeps unrelated tokens like `respec/...` out.
-    regex: /(?<![\w/.])\/?spec\/(?:0-overview|conventions\/|[1-9]\d*-)/g,
+    // and the NERV mirror (`spec/CLE-…`) either bare or as the path portion of
+    // a markdown link. The negative look-behind keeps unrelated tokens like
+    // `respec/...` out.
+    regex: /(?<![\w/.])\/?spec\/(?:0-overview|conventions\/|[1-9]\d*-|CLE-)/g,
     hint: "본문은 사용자가 열람할 수 없는 spec/ 경로를 노출하지 말 것. frontmatter 의 `spec:` 필드는 빌드 검증용 metadata 라 사용자에게 렌더링되지 않으므로 별개. 본문에는 같은 사실을 사용자 가시 표현으로 다시 적어요.",
   },
   {
@@ -57,6 +61,20 @@ const FORBIDDEN: ForbiddenPattern[] = [
     name: "internal anchor id (CCH-XX-NN / R-XX-N)",
     regex: /\b(?:CCH|R)-[A-Z]+-[0-9]+\b/g,
     hint: "내부 식별자(`CCH-...`, `R-...`)는 사용자 가이드 본문에 노출하지 말 것. 사용자에게 의미 있는 동작 설명으로 바꿔요.",
+  },
+  {
+    name: "NERV spec key (CLE-…)",
+    // `CLE-WF-EDITOR`, `CLE-VISION`, task keys like `CLE-T-BDRZVX`. Same shape as
+    // `SPEC_KEY_RE` in `./spec-keys` — change them together.
+    regex: /\bCLE-[A-Z][A-Z0-9]*(?:-[A-Z0-9]+)*\b/g,
+    hint: "NERV 스펙 키(`CLE-...`)는 사용자가 열어 볼 수 없는 내부 문서를 가리켜요. 프론트매터 `spec:` 이나 MDX 주석에만 두고, 본문에는 같은 사실을 사용자 가시 표현으로 적어요.",
+  },
+  {
+    name: "requirement id (REQ-…-NNN)",
+    // `REQ-SESSION-001`, `REQ-GUIDE-032`. The CCH/R pattern above does not
+    // reach these: the R in REQ is followed by a letter, not a hyphen.
+    regex: /\bREQ-[A-Z][A-Z0-9]*(?:-[A-Z0-9]+)*-\d+\b/g,
+    hint: "요구사항 ID(`REQ-...`)는 사용자 가이드 본문에 노출하지 말 것. 사용자에게 의미 있는 동작 설명으로 바꿔요.",
   },
   {
     name: "internal i18n mapping table name",
@@ -84,6 +102,59 @@ function stripNonUserVisible(text: string): string {
   body = body.replace(/<ImplAnchor\b[\s\S]*?\/>/g, "");
   return body;
 }
+
+describe("forbidden patterns — samples", () => {
+  const byName = (name: string): RegExp => {
+    const pat = FORBIDDEN.find((p) => p.name === name);
+    if (!pat) throw new Error(`no pattern ${name}`);
+    return pat.regex;
+  };
+  const hits = (re: RegExp, text: string): string[] =>
+    [...text.matchAll(new RegExp(re.source, re.flags))].map((m) => m[0]);
+
+  it("NERV 스펙 키를 잡고 비슷한 낱말은 건너뛰어요", () => {
+    const re = byName("NERV spec key (CLE-…)");
+    expect(hits(re, "자세한 건 CLE-WF-EDITOR 와 CLE-VISION, CLE-T-BDRZVX")).toEqual([
+      "CLE-WF-EDITOR",
+      "CLE-VISION",
+      "CLE-T-BDRZVX",
+    ]);
+    expect(hits(re, "CYCLE-COUNT cle-wf-editor CLE- ICLE-X")).toEqual([]);
+  });
+
+  it("요구사항 ID 를 잡고 비슷한 낱말은 건너뛰어요", () => {
+    const re = byName("requirement id (REQ-…-NNN)");
+    expect(hits(re, "REQ-SESSION-001 과 REQ-GUIDE-032")).toEqual([
+      "REQ-SESSION-001",
+      "REQ-GUIDE-032",
+    ]);
+    expect(hits(re, "REQUEST-001 REQ-ID PREQ-AB-1")).toEqual([]);
+  });
+
+  it("앵커 ID 패턴은 요구사항 ID 를 잡지 못해요(그래서 따로 둬요)", () => {
+    const re = byName("internal anchor id (CCH-XX-NN / R-XX-N)");
+    expect(hits(re, "REQ-SESSION-001")).toEqual([]);
+  });
+
+  it("미러 경로(spec/CLE-…)도 spec/ 경로로 잡아요", () => {
+    const re = byName("spec/ path leak");
+    // 마크다운 링크 모양으로 쓰면 spec-link-integrity 가 이 파일의 링크로 검사한다.
+    expect(hits(re, "본문에 spec/CLE-UI/CLE-UI-GUIDE.md 를 적으면")).toEqual([
+      "spec/CLE-",
+    ]);
+    // 앞의 `/` 는 함께 잡고, 낱말 안의 `respec/` 은 건너뛴다(부정 look-behind).
+    expect(hits(re, "경로 /spec/CLE-X 와 respec/CLE-X")).toEqual(["/spec/CLE-"]);
+  });
+
+  it("프론트매터와 MDX 주석의 키는 본문으로 세지 않아요", () => {
+    const body = stripNonUserVisible(
+      '---\ntitle: "x"\nspec: ["CLE-WF-EDITOR"]\n---\n\n{/* 내부 SoT: CLE-CHAT-CORE R-CC-13 */}\n본문\n',
+    );
+    for (const pat of FORBIDDEN) {
+      expect(hits(pat.regex, body), pat.name).toEqual([]);
+    }
+  });
+});
 
 describe("user-guide body — no internal SoT leak", () => {
   const root = repoRoot();

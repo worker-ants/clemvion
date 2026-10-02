@@ -16,7 +16,7 @@ export interface LocalizedDocFrontmatter {
 // KO 라벨은 `./registry.ts` 의 `SECTION_LABELS` 와 동일하게 유지한다(검색 인덱스는 이 표,
 // 사이드바는 registry.ts 표를 사용하므로 둘이 어긋나면 두 화면이 다른 라벨을 보여준다).
 // FAQ 가 항상 사이드바 맨 아래에 위치하도록 `99-faq` 프리픽스를 쓴다 — 자세한 규칙은
-// `spec/2-navigation/13-user-guide.md` §5.
+// CLE-UI-GUIDE 「섹션 순서와 라벨」.
 const SECTION_LABELS_BY_LOCALE: Record<Locale, Record<string, string>> = {
   ko: {
     "01-getting-started": "시작하기",

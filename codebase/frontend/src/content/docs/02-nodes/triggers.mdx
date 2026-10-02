@@ -5,7 +5,7 @@ section: "02-nodes"
 order: 2
 summary: "워크플로우의 시작점인 Manual Trigger를 설명하고, 웹훅·스케줄이 같은 파라미터 스키마를 공유하는 이유, 그리고 외부 시스템이 웹훅으로 시작한 실행과 인터랙션을 주고받는 방법을 짚어요."
 summary_en: "Explains the Manual Trigger that starts workflows, why webhooks and schedules share the same parameter schema, and how external systems can interact with executions that webhooks start."
-spec: ["spec/4-nodes/7-trigger/0-common.md", "spec/5-system/12-webhook.md", "spec/5-system/14-external-interaction-api.md", "spec/2-navigation/6-config.md"]
+spec: ["CLE-TRIG-AUTHCFG", "CLE-NODE-TRIG-COMMON", "CLE-TRIG-WEBHOOK", "CLE-EIA-INBOUND", "CLE-EIA-NOTIFY"]
 code: ["codebase/backend/src/nodes/trigger/manual-trigger/manual-trigger.schema.ts", "codebase/frontend/src/app/(main)/w/[slug]/authentication/page.tsx", "codebase/frontend/src/components/triggers/auth-config-select.tsx"]
 ---
 
@@ -411,7 +411,7 @@ curl -X POST https://<your-host>/api/triggers \
 
 <Callout type="warn">
 Discord v1 한계: 일반 DM 자유 텍스트는 수신할 수 없어요. AI 대화 reply 는 슬래시 명령(`/workflow reply <message>`) 또는 응답 메시지의 **Reply** 버튼을 통한 modal 입력으로만 가능해요.
-{/* 내부 SoT: spec/5-system/15-chat-channel.md R-CC-13 + spec/4-nodes/7-trigger/providers/discord.md R-D-3 */}
+{/* 내부 SoT: CLE-CHAT-CORE R-CC-13 + CLE-CHAT-DISCORD R-D-3 */}
 </Callout>
 
 ### 상태 확인

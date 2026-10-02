@@ -9,12 +9,12 @@ basis_superseded: false
 parent: "CLE-UI"
 ancestors: ["CLE-VISION", "CLE-UI"]
 area: "CLE-UI"
-content_hash: "ed9ab5c6b2feee177bc92f62e047d8965d371b47311e4304d1d13070245546e2"
-read_as: "approved"
-task: null
+content_hash: "312c3d7d7dd8a3c26743c0328a3702369af6da3f7991bdebe296e27c62183bdc"
+read_as: "approved_fallback"
+task: "CLE-T-BDRZVX"
 source_paths: ["spec/2-navigation/13-user-guide.md", "spec/2-navigation/_product-overview.md"]
-mirror_sha256: "0a9e8e16b0c1536a692fb4a2df27093dd773dc98e4acb22e2d6f82728739d57d"
-etag: "sha256-19b72c7bfc8cfd28ac4af36f16b70edf9fd835c71e3e269c90f778f5cef94aea"
+mirror_sha256: "b161a02686d4c8be424bf718e5609ae58c159188ea00ab04823b48cd3172c21e"
+etag: "sha256-dceac6be9cbf3540705933b8214383b6ff0936b3af24ee7798a93350e449eb5b"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/2-navigation/13-user-guide.md` (전체), `spec/2-navigation/_product-overview.md` (§3.11 User Guide) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -76,14 +76,14 @@ etag: "sha256-19b72c7bfc8cfd28ac4af36f16b70edf9fd835c71e3e269c90f778f5cef94aea"
 
 ### 표시와 성능
 
-- REQ-GUIDE-028 WHEN 가이드를 그리면 THE SYSTEM SHALL 데스크톱 사이드바와 모바일 drawer 양쪽에 같은 검색(`DocsSearch`)을 보인다. (원본: 13 §10)
+- REQ-GUIDE-028 WHEN 가이드를 그리면 THE SYSTEM SHALL 데스크톱 사이드바와 모바일 상세 드로어 양쪽에 같은 검색(`DocsSearch`)을 보인다. (원본: 13 §10)
 - REQ-GUIDE-029 WHILE 뷰포트 너비가 1024px(lg) 미만인 동안 THE SYSTEM SHALL 본문 위 고정 토글 버튼으로 가이드 사이드바와 검색이 든 상세 드로어를 연다. (원본: 13 §10)
 - REQ-GUIDE-030 WHEN 가이드 페이지를 빌드하면 THE SYSTEM SHALL 서버 컴포넌트에서 MDX 를 정적으로 불러와 HTML 을 미리 만든다. (원본: 13 §11)
 - REQ-GUIDE-031 WHEN 클라이언트 컴포넌트(`'use client'`)를 작성하면 THE SYSTEM SHALL `@/content/**` 를 불러오지 않아 MDX 컴파일러와 `fs` 접근을 서버에만 둔다. (원본: 13 §11)
 
 ### 검증
 
-- REQ-GUIDE-032 WHEN 빌드 테스트를 돌리면 THE SYSTEM SHALL 모든 MDX 프론트매터의 `spec:`·`code:` 경로가 실제로 있는지 확인한다. (원본: 13 §11, §12)
+- REQ-GUIDE-032 WHEN 빌드 테스트를 돌리면 THE SYSTEM SHALL 모든 MDX 프론트매터의 `spec:` 키가 가리키는 스펙의 미러 파일과 `code:` 경로가 실제로 있는지, 영어 형제 파일에 프론트매터가 없는지 확인한다. (원본: 13 §11, §12, 다국어 규칙 6)
 - REQ-GUIDE-033 WHEN 배포 전 품질 점검을 하면 THE SYSTEM SHALL 내부 `/docs/...` 링크가 실제 슬러그를 가리키는지와 `FieldHelp` 딥링크 앵커가 있는지 확인한다. (원본: 13 §12)
 
 ## 정보 구조
@@ -128,8 +128,8 @@ etag: "sha256-19b72c7bfc8cfd28ac4af36f16b70edf9fd835c71e3e269c90f778f5cef94aea"
 | `order` | 필수 | number | 섹션 안 정렬 기준 |
 | `summary` | 필수 | string | 사이드바 미리보기와 OG 설명(기본 locale) |
 | `summary_en` | 선택 | string | 영어 요약. 없으면 `summary` 로 폴백한다(`locale.ts` `localizedSummary`) |
-| `spec` | 선택 | string[] | 1차 원천 스펙 파일 경로 |
-| `code` | 선택 | string[] | 검증에 쓸 코드 경로(glob 허용) |
+| `spec` | 선택 | string[] | 1차 원천 스펙의 NERV 키(예: `CLE-WF-EDITOR`). 저장소에서는 미러 `spec/<영역 키>/<KEY>.md`(영역 밖 문서는 `spec/<KEY>.md`)로 읽는다 |
+| `code` | 선택 | string[] | 검증에 쓸 코드 경로(파일이나 디렉터리. glob 은 쓰지 않는다) |
 | `draft` | 선택 | boolean | `true` 면 production 빌드에서 뺀다 |
 
 예시:
@@ -140,8 +140,8 @@ title: "AI 노드"
 section: "02-nodes"
 order: 6
 summary: "자연어 처리·분류·추출 노드의 사용법을 알아봐요."
-spec: ["spec/4-nodes/3-ai/0-common.md", "spec/5-system/7-llm-client.md"]
-code: ["codebase/backend/src/nodes/ai/**", "codebase/frontend/src/components/editor/settings-panel/auto-form/schema-form.tsx"]
+spec: ["CLE-NODE-AI-COMMON", "CLE-AI-LLM"]
+code: ["codebase/backend/src/nodes/ai", "codebase/frontend/src/components/editor/settings-panel/auto-form/schema-form.tsx"]
 ---
 ```
 
@@ -184,7 +184,7 @@ code: ["codebase/backend/src/nodes/ai/**", "codebase/frontend/src/components/edi
 | --- | --- |
 | 사이드바 메뉴 | 로그인한 모든 사용자에게 보인다(역할 제한 없음) |
 | 비로그인 | 지금은 로그인이 필요하다(`(main)` 그룹이 보호한다). 나중에 공개 경로로 나눌 수 있다 |
-| 검색 | `DocsSearch`. 데스크톱 사이드바와 모바일 drawer 에 같은 컴포넌트를 둔다 |
+| 검색 | `DocsSearch`. 데스크톱 사이드바와 모바일 상세 드로어에 같은 컴포넌트를 둔다 |
 | 모바일 진입 | 1024px(lg) 미만에서 본문 위 고정 토글 버튼을 누르면 왼쪽 상세 드로어(`SlideDrawer`)가 `DocsSidebar` 와 `DocsSearch` 를 같은 컴포넌트로 보인다. 데스크톱 사이드바는 그대로 둔다(`hidden lg:block`). 전역 사이드바와 기준이 다른 이유는 [Rationale](#가이드-사이드바의-반응형-기준이-전역-사이드바와-다른-이유) 에 있다 |
 | 인쇄용 CSS | 없다 |
 
@@ -194,11 +194,11 @@ code: ["codebase/backend/src/nodes/ai/**", "codebase/frontend/src/components/edi
 | --- | --- |
 | 렌더 방식 | 서버 컴포넌트에서 MDX 를 정적으로 불러온다. 빌드 때 HTML 을 미리 만든다 |
 | 클라이언트 번들 누수 방지 | MDX 컴파일러와 `fs` 접근은 서버 전용이다. `'use client'` 파일에서 `@/content/**` 를 불러오지 않는다 |
-| 빌드 검증 | `registry.ts` 단위 테스트가 모든 `spec:`·`code:` 경로가 있는지 확인한다 |
+| 빌드 검증 | `registry.ts` 단위 테스트가 모든 `spec:` 키의 미러 파일(`spec/<영역 키>/<KEY>.md`)과 `code:` 경로가 있는지, 영어 형제 파일에 프론트매터가 없는지 확인한다. 미러는 구현할 때 받은 문서만 담으므로, 미러에 없는 키를 새로 적으면 같은 PR 에서 그 문서를 미러로 받는다. 미러에 넣지 않는 카탈로그 영역(`CLE-C24` · `CLE-MKS`)의 키는 테스트가 따로 둔 목록으로 확인한다 |
 
 배포 전에는 다음을 점검한다.
 
-- 모든 MDX 프론트매터의 `spec:`·`code:` 경로가 있는가
+- 모든 MDX 프론트매터의 `spec:` 키와 `code:` 경로가 있는가
 - 용어 사전의 금지어를 쓰지 않았는가
 - 내부 `/docs/...` 링크가 모두 실제 슬러그인가
 - `FieldHelp` 딥링크 앵커가 있는가
@@ -217,6 +217,8 @@ code: ["codebase/backend/src/nodes/ai/**", "codebase/frontend/src/components/edi
 - `codebase/frontend/src/lib/docs/links.ts`
 - `codebase/frontend/src/lib/i18n/**`
 - `codebase/frontend/src/components/docs/**`
+- `codebase/frontend/src/lib/docs/__tests__/registry.test.ts`
+- `codebase/frontend/src/lib/docs/__tests__/spec-keys.ts`
 
 ## Rationale
 
@@ -227,3 +229,15 @@ code: ["codebase/backend/src/nodes/ai/**", "codebase/frontend/src/components/edi
 ### 섹션 라벨 등록처를 두 곳 모두 적는 이유
 
 코드에는 `registry.ts` 의 `SECTION_LABELS` 와 `locale.ts` 의 `SECTION_LABELS_BY_LOCALE` 두 표가 있고, 새 섹션은 두 곳 모두에 등록해야 한다. 옛 문서는 가이드 명세가 앞의 것만, 다국어 규약이 뒤의 것만 적어서 어느 문서를 따라도 한 곳을 빠뜨렸다. 이 문서와 [다국어와 화면 문구](CLE-UI-I18N.md) 는 두 등록처를 함께 적는다.
+
+### 프론트매터 `spec:` 에 NERV 키를 쓰는 이유
+
+스펙의 정본이 NERV 로 옮겨 가면서(2026-10-01) 저장소의 옛 스펙 경로(`spec/<번호>-<영역>/…`)는 동결됐고 정본 전환 마지막 단계에서 지운다. 가이드가 옛 경로를 계속 적으면 그때 모두 끊긴다. NERV 키는 문서가 트리 안에서 자리를 옮겨도 바뀌지 않고, 저장소 미러 파일 이름이 키라서 빌드 테스트가 그대로 확인할 수 있다. 옛 문서 하나가 여러 NERV 문서로 나뉜 경우가 많아서 키는 옛 경로를 기계적으로 옮기지 않고 페이지가 다루는 내용에 맞는 문서를 고른다(2026-10-02, NERV 정본 전환 단계 4b).
+
+미러에 넣지 않는 카탈로그 영역(`CLE-C24` · `CLE-MKS`)의 키는 파일로 확인할 수 없어서 테스트가 둔 이름 목록으로만 확인한다. 그 키가 NERV 에 실제로 있는지는 빌드가 보지 않는다. 카탈로그 영역을 미러에서 뺀 결정(결정 D4. 미러 제외는 정본 전환 단계 1, 카탈로그를 `codebase/api-catalogs/` 로 옮긴 것은 단계 4a)을 따르면서 생긴 약화다.
+
+같은 단계에서 `code:` 행의 "glob 허용" 도 지웠다. 옛 명세는 glob 을 허용한다고 적었지만 검사는 처음부터 파일 · 디렉터리 실재 확인이라 glob 은 통과한 적이 없다. 명세를 구현에 맞춘 정정이다.
+
+### 영어 형제 파일에 프론트매터를 두지 않는 이유
+
+영어 형제 파일은 본문만 둔다는 규칙은 [다국어와 화면 문구](CLE-UI-I18N.md) 규칙 6 이 정한다. 규칙은 전부터 있었지만 가드가 없어서 프론트매터를 붙인 영어 파일 5편이 남아 있었다. 그 프론트매터는 렌더와 검색에 쓰이지 않았고 `spec:`·`code:` 도 검증 밖이라 낡아도 알 수 없었다. 프론트매터를 지우고 빌드 테스트가 다시 생기지 않게 막는다(2026-10-02, NERV 정본 전환 단계 4b).

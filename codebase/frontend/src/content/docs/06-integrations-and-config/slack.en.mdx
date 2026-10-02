@@ -1,20 +1,9 @@
----
-title: "Slack integration"
-title_en: "Slack integration"
-section: "06-integrations-and-config"
-order: 7
-summary: "Connect a Slack bot as a Chat Channel on a Webhook trigger to enable real-time conversational interactions with your workflow."
-summary_en: "Connect a Slack bot as a Chat Channel on a Webhook trigger to enable real-time conversational interactions with your workflow."
-spec: ["spec/4-nodes/7-trigger/providers/slack.md", "spec/5-system/15-chat-channel.md", "spec/conventions/chat-channel-adapter.md"]
-code: ["codebase/backend/src/modules/chat-channel/providers/slack/slack.adapter.ts", "codebase/backend/src/modules/chat-channel/providers/slack/slack-update.parser.ts", "codebase/backend/src/modules/chat-channel/providers/slack/slack-message.renderer.ts"]
----
-
 Connect a Slack bot as your workflow's conversational interface, and users can start or interact with workflows by DMing the bot or using a slash command.
 
 ## 1. Create a Slack app
 
 <Callout type="note">
-{/* Internal SoT: spec/4-nodes/7-trigger/providers/slack.md Rationale R-S-2 */}
+{/* Internal SoT: CLE-CHAT-SLACK Rationale R-S-2 */}
 The Slack app manifest configuration in §2 (Event Subscriptions Request URL, Interactivity Request URL) is not automated by clemvion. Slack's design constraint prevents external services from editing another app's manifest directly. Create the trigger in §3 to get the endpoint URL, then paste it into the manifest yourself.
 </Callout>
 

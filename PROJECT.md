@@ -259,16 +259,16 @@ developer workflow §4 종료 직전, 5단계로 진행하기 전 자가 점검:
 - **외부 URL 의 bare 노출** — `https://...` 가 백틱·markdown link·autolink 어느 형태도 없이 plain text 로 노출. 반드시 `[서비스명](https://...)` 으로 wrap. 예시 URL(`https://example.com`·`https://api.example.com/...`) 은 코드스팬으로
 - **Callout off-spec type** — `<Callout type="...">` 의 `type` 은 `note|tip|warn` 세 값만. `info` 같은 spec 밖 값은 런타임 fallback 발동 (commit `5d981a23` 회수 패턴). spec: `spec/CLE-UI/CLE-UI-GUIDE.md` 「공용 MDX 컴포넌트」
 - **KO/EN sibling 한쪽만 갱신** — `.mdx` 갱신 시 `.en.mdx` 동시 갱신 default. 한쪽 누락은 사후 보정 패턴. (단 `.en.mdx` 신규 생성 누락은 위반 아님 — `spec/CLE-UI/CLE-UI-I18N.md` 「영어 형제 파일 누락을 위반으로 보지 않는 이유」)
-- **frontmatter `spec:` / `code:` 경로 stale** — `registry.test.ts` 가 hard fail 가드. 작성 시점에 Glob 으로 실존 검증
+- **frontmatter `spec:` 키 / `code:` 경로 stale** — `registry.test.ts` 가 hard fail 가드. `spec:` 은 NERV 스펙 키 목록이라 미러 `spec/<영역 키>/<KEY>.md` 로, `code:` 는 Glob 으로 작성 시점에 실존을 확인한다. 영어 형제 파일(`<slug>.en.mdx`)에는 프론트매터를 두지 않는다. 미러에 넣지 않는 카탈로그 영역(`CLE-C24` · `CLE-MKS`) 키는 미러 파일이 없어서 `spec-keys.ts` 의 `UNMIRRORED_GUIDE_KEYS` 에 이름을 더해야 통과한다
 - **내부 `/docs/<section>/<slug>` 링크 slug 미실존** — 다른 `.mdx` 의 path 와 매치 필요. 로케일 프리픽스 없이 작성 (`mdx-components.tsx` 의 DocsLink 가 주입)
-- **내부 SoT(`spec/`·`plan/`·내부 식별자·매핑 테이블) 본문 노출** — 사용자가 열람할 수 없는 `spec/<area>/...`·`/spec/...` 경로, `plan/in-progress/`·`plan/complete/` 경로, "별 plan `<name>`"·"separate plan" 표현, `CCH-XX-NN`·`R-XX-N` 같은 내부 anchor id, `ERROR_KO`·`WARNING_KO`·`LABEL_KO`·`HINT_KO`·`GROUP_KO`·`ITEM_LABEL_KO`·`OPTION_LABEL_KO` 같은 i18n 매핑 테이블 이름, `backend-labels.ts` 같은 내부 파일명을 본문에 적지 않는다. frontmatter 의 `spec:`/`code:` 필드는 빌드 검증용 metadata 라 렌더링되지 않으므로 별개 — 본문에는 같은 사실을 사용자 가시 표현으로 다시 적는다. (PR #332 회수 패턴, 가드: `no-internal-refs.test.ts`)
+- **내부 SoT(`spec/`·`plan/`·내부 식별자·매핑 테이블) 본문 노출** — 사용자가 열람할 수 없는 `spec/<area>/...`·`/spec/...` 경로, `plan/in-progress/`·`plan/complete/` 경로, "별 plan `<name>`"·"separate plan" 표현, `CCH-XX-NN`·`R-XX-N` 같은 내부 anchor id, NERV 스펙 키(`CLE-...`)·요구사항 ID(`REQ-...-NNN`), `ERROR_KO`·`WARNING_KO`·`LABEL_KO`·`HINT_KO`·`GROUP_KO`·`ITEM_LABEL_KO`·`OPTION_LABEL_KO` 같은 i18n 매핑 테이블 이름, `backend-labels.ts` 같은 내부 파일명을 본문에 적지 않는다. frontmatter 의 `spec:`/`code:` 필드는 빌드 검증용 metadata 라 렌더링되지 않으므로 별개 — 본문에는 같은 사실을 사용자 가시 표현으로 다시 적는다. (PR #332 회수 패턴, 가드: `no-internal-refs.test.ts`)
 - **향후 진행 예정 사항 언급** — "v2 (후속)"·"v2 (planned)"·"향후 ~ 예정"·"별 plan 진입 후" 같은 로드맵성 문구를 사용자 가이드에 적지 않는다. 사용자 가이드는 **현재 동작하는 상태** 만 서술한다. 변경이 합쳐지면 그 시점에 같은 PR 에서 가이드 본문을 갱신한다. (PR #332 회수 패턴, 자동 검출 어려움 — `user-guide-writer` agent 가 작성 시점에 차단)
 
 #### user-guide-writer 자가 검증 체크리스트 (배포 전)
 
 `spec/CLE-UI/CLE-UI-GUIDE.md` 「빌드와 품질 점검」 의 6항목 + 본 절의 자주 누락 패턴을 합한 8항목 자가 점검:
 
-- [ ] 프론트매터의 `spec:` / `code:` 경로가 실제로 존재하는가 (Glob)
+- [ ] 프론트매터의 `spec:` 키(미러 파일)와 `code:` 경로(Glob)가 실제로 존재하는가
 - [ ] `_glossary.md §5` 금지어가 본문에 등장하지 않는가
 - [ ] 내부 `/docs/<section>/<slug>` 링크의 slug 가 실존하는가
 - [ ] in-app 라우트가 코드스팬 대신 링크로 작성됐는가 (의도된 코드스팬 예외 처리됨)
@@ -277,7 +277,7 @@ developer workflow §4 종료 직전, 5단계로 진행하기 전 자가 점검:
 - [ ] KO/EN 변경 set 의 파일 쌍 대응이 맞는가
 - [ ] Callout `type` ∈ `{note, tip, warn}` 인가
 - [ ] **GUI 흐름 절 (예: "1. 좌측 메뉴 → Triggers 클릭")** 에 `<ImplAnchor kind="ui-entry">` 가 동반 작성됐는가? `file`/`symbol` 이 코드에 실존하는가? (SoT: [`spec/CLE-ENG/CLE-ENG-GUIDEEVIDENCE.md`](spec/CLE-ENG/CLE-ENG-GUIDEEVIDENCE.md). 가드: `impl-anchor-existence.test.ts` / `integrations-coverage.test.ts` / `triggers-coverage.test.ts`)
-- [ ] 본문에 내부 SoT (`spec/`·`plan/in-progress|complete/` 경로, `CCH-XX-NN`·`R-XX-N` 같은 내부 식별자, `ERROR_KO`·`backend-labels.ts` 같은 매핑 테이블·파일 이름) 가 노출되지 않는가? (가드: `no-internal-refs.test.ts`)
+- [ ] 본문에 내부 SoT (`spec/`·`plan/in-progress|complete/` 경로, `CCH-XX-NN`·`R-XX-N`·`CLE-...`·`REQ-...` 같은 내부 식별자, `ERROR_KO`·`backend-labels.ts` 같은 매핑 테이블·파일 이름) 가 노출되지 않는가? (가드: `no-internal-refs.test.ts`)
 - [ ] "v2 (후속)"·"향후 ~ 예정"·"별 plan ..." 같은 향후 진행 예정 표현이 본문에 없는가? 현재 동작 상태 서술로 통일됐는가?
 
 ### i18n dict 파일 컨벤션
@@ -296,7 +296,7 @@ developer workflow §4 종료 직전, 5단계로 진행하기 전 자가 점검:
 - `codebase/frontend/src/lib/i18n/__tests__/hardcoded-korean-ratchet.test.ts` — TSX 안 하드코딩 한국어 카운트가 baseline 이상으로 증가하지 않도록 ratchet
 - `codebase/frontend/src/lib/docs/__tests__/locale.test.ts` — 모든 (숨김 아닌) 섹션이 `SECTION_LABELS_BY_LOCALE` 양쪽 로케일 등록 검증
 - `codebase/frontend/src/lib/docs/__tests__/nodes-coverage.test.ts` — backend 의 모든 노드가 `02-nodes/<cat>.mdx` 본문 안에 카드/항목으로 등장하는지 검증
-- `codebase/frontend/src/lib/docs/__tests__/registry.test.ts` — MDX frontmatter 의 `spec:`/`code:` 경로 실존 검증
+- `codebase/frontend/src/lib/docs/__tests__/registry.test.ts` — MDX frontmatter 의 `spec:` 키(NERV 미러 파일, 도우미 `spec-keys.ts`)·`code:` 경로 실존과 영어 형제 파일 프론트매터 부재 검증
 - `codebase/frontend/src/lib/docs/__tests__/spec-frontmatter.test.ts` — `spec/{2,3,4,5}-**.md` + `spec/conventions/**.md` 의 frontmatter 의무 (id/status) 존재 검증. SoT: `spec/CLE-ENG/CLE-ENG-SPECEVIDENCE.md` 「빌드 가드 — frontmatter 근거」
 - `codebase/frontend/src/lib/docs/__tests__/spec-code-paths.test.ts` — `status ∈ {partial, implemented}` spec 의 `code:` 글로브 ≥1 매치 강제
 - `codebase/frontend/src/lib/docs/__tests__/impl-anchor-existence.test.ts` — 모든 `<ImplAnchor>` 의 `file` 실존 + `symbol` grep ≥1 매치. SoT: `spec/CLE-ENG/CLE-ENG-GUIDEEVIDENCE.md` 「빌드 가드 (3건)」
@@ -304,7 +304,7 @@ developer workflow §4 종료 직전, 5단계로 진행하기 전 자가 점검:
 - `codebase/frontend/src/lib/docs/__tests__/guide-sanitized-message-parity.test.ts` — `models{,.en}.mdx` 의 연결 테스트 실패 문장표가 `sanitize-error.util.ts` 의 반환 리터럴 8갈래와 **양방향**(표→SoT · SoT→표) 일치하는지 검증. 부분집합만 보면 행 삭제가 조용히 통과하므로 누락 방향을 함께 본다
 - `codebase/frontend/src/lib/docs/__tests__/integrations-coverage.test.ts` — `06-integrations-and-config/<provider>.mdx` 의 GUI 흐름 절에 `<ImplAnchor kind="ui-entry">` ≥1 의무
 - `codebase/frontend/src/lib/docs/__tests__/triggers-coverage.test.ts` — `02-nodes/triggers.mdx` 의 provider 별 절에 `<ImplAnchor kind="ui-entry">` ≥1 의무
-- `codebase/frontend/src/lib/docs/__tests__/no-internal-refs.test.ts` — 사용자 가이드 MDX 본문(frontmatter / HTML·MDX 주석 / `<ImplAnchor>` 제거 후)에 내부 SoT (`spec/`·`plan/in-progress|complete/`·`별 plan`/`separate plan`·`CCH-XX-NN`·`R-XX-N`·`ERROR_KO` 등 i18n 매핑 테이블·`backend-labels.ts`) 가 노출되지 않는지 검증. SoT invariant: 본 절 §자주 누락되는 작성 패턴 + [`spec/CLE-UI/CLE-UI-I18N.md`](spec/CLE-UI/CLE-UI-I18N.md) 「규칙」 8(원본 Principle 6-B)
+- `codebase/frontend/src/lib/docs/__tests__/no-internal-refs.test.ts` — 사용자 가이드 MDX 본문(frontmatter / HTML·MDX 주석 / `<ImplAnchor>` 제거 후)에 내부 SoT (`spec/`·`plan/in-progress|complete/`·`별 plan`/`separate plan`·`CCH-XX-NN`·`R-XX-N`·`CLE-...`·`REQ-...-NNN`·`ERROR_KO` 등 i18n 매핑 테이블·`backend-labels.ts`) 가 노출되지 않는지 검증. SoT invariant: 본 절 §자주 누락되는 작성 패턴 + [`spec/CLE-UI/CLE-UI-I18N.md`](spec/CLE-UI/CLE-UI-I18N.md) 「규칙」 8(원본 Principle 6-B)
 - `codebase/frontend/src/lib/docs/__tests__/spec-link-integrity.test.ts` — in-repo 링크/heading 앵커 실존 검증 (slug = `rehype-slug`=`mdast`+`github-slugger`). 스코프 3가지 — **(1)** `spec/**.md` 본문(NERV 미러 `spec/README.md` · `spec/CLE-*` 제외, 지운 루트 `plan/` · `review/` 로 해석되는 링크는 건너뜀), **(2)** codebase `.ts`/`.tsx` JSDoc 중 `spec/**.md` 타깃, **(3)** 거버넌스 문서(루트 `*.md` 비재귀 + `.claude/**.md`, `worktrees`/`node_modules` 제외, 2026-08-27 추가). SoT: `spec/CLE-ENG/CLE-ENG-SPECEVIDENCE.md` 「빌드 가드 — 스펙 문서 저장소와 plan 무결성」
 - `codebase/frontend/src/lib/docs/__tests__/spec-area-index.test.ts` — 영역 폴더(≥2 sibling)의 index 가 모든 sibling spec 을 링크하는지 검증 (`spec/conventions/` flat reference · NERV 미러 면제). SoT: `spec/CLE-ENG/CLE-ENG-SPECEVIDENCE.md` 「빌드 가드 — 스펙 문서 저장소와 plan 무결성」
 - `codebase/frontend/src/__tests__/e2e-no-sub-global-timeout.test.ts` — `e2e/**` 스펙의 bare-numeric `timeout: N`(N < `playwright.config.ts` 의 `expect.timeout`) sub-global override 차단(전역값은 config 파싱=SoT 동기). 위 doc-sync 계열과 달리 invariant 홈은 §Frontend e2e 패턴 절의 timeout 항목
@@ -401,7 +401,7 @@ pnpm --filter frontend test src/lib/docs/__tests__/
 3. **거버넌스 문서** — 루트 `*.md`(`CLAUDE.md`·`PROJECT.md` 등, 비재귀) + `.claude/**.md`
    (`.claude/worktrees/` 는 저장소 사본이라 제외, `node_modules` 도 제외)
 
-MDX frontmatter `spec:`/`code:` 경로 실재는 별도 가드가 본다 —
+MDX frontmatter `spec:` 키·`code:` 경로 실재는 별도 가드가 본다 —
 `src/lib/docs/__tests__/registry.test.ts`.
 
 > **2026-08-27 변경**: 종전의 `scripts/check-doc-links.py` 를 **삭제**하고 위 가드로 합쳤다.

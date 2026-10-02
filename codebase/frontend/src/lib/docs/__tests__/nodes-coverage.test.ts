@@ -13,11 +13,11 @@ import { loadDocsIndex, type DocsIndex } from "../registry";
  *
  * 본 가드는 backend 변경이 user-guide 페이지를 stale 시키는 가장 흔한 회귀
  * (PR 가운데 `docs(user-guide): sync MDX with current implementation` 패턴) 를
- * 결정적으로 차단한다. spec/conventions/i18n-userguide.md Principle 4 의 가드.
+ * 결정적으로 차단한다. CLE-UI-I18N 동반 갱신 2(원본 Principle 4)의 가드.
  *
  * 보완 관계:
- * - `registry.test.ts` 의 "real docs frontmatter spec/code paths" 는 MDX 가
- *   가리키는 경로가 실재하는지 (정방향) 검증한다. 본 테스트는 backend 노드가
+ * - `registry.test.ts` 의 "real docs frontmatter spec/code references" 는 MDX 가
+ *   가리키는 스펙 키와 코드 경로가 실재하는지 (정방향) 검증한다. 본 테스트는 backend 노드가
  *   어떤 MDX 든 한 곳에서 참조되는지 (역방향) 검증한다.
  */
 
@@ -120,7 +120,7 @@ describe.runIf(hasBackend && hasDocs)(
         `backend 에 존재하지만 02-nodes/<cat>.mdx 의 code: 어디에서도 참조하지 않는 노드 schema ${missing.length} 건:\n` +
           missing.map((s) => `  - ${s}`).join("\n") +
           "\n→ 해당 카테고리의 codebase/frontend/src/content/docs/02-nodes/<cat>.mdx 본문에 노드 항목을 추가하고 frontmatter 의 code: 배열에도 경로를 등록해주세요. " +
-          "(spec/conventions/i18n-userguide.md Principle 4)",
+          "(CLE-UI-I18N 동반 갱신 2)",
       ).toEqual([]);
     });
 

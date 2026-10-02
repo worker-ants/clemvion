@@ -12,6 +12,12 @@ import {
   stripNumberPrefix,
 } from "../registry";
 import { localizedDocsHref } from "../locale";
+import {
+  UNMIRRORED_GUIDE_KEYS,
+  collectMirrorKeys,
+  specKeyProblem,
+} from "./spec-keys";
+import { walkTree } from "./tree-walk";
 
 const fixturesRoot = path.resolve(__dirname, "fixtures");
 
@@ -236,11 +242,13 @@ describe("buildSearchIndex(locale)", () => {
   });
 });
 
-// spec/2-navigation/13-user-guide.md §11 ("빌드 시 검증") 의 요구사항:
-// "registry.ts 단위 테스트에서 모든 spec:/code: 경로 존재 확인".
-// 작성된 사용자 매뉴얼의 frontmatter 가 실재하는 spec / 코드 파일을 가리키는지
-// CI 시점에 강제해서, 리네임·삭제·오타로 매뉴얼이 dangling 참조가 되는 것을 방지한다.
-describe("real docs frontmatter spec/code paths", () => {
+// CLE-UI-GUIDE REQ-GUIDE-032(빌드 검증): 사용자 가이드 MDX 프론트매터의 `spec:` 키가 가리키는
+// 스펙과 `code:` 경로가 실제로 있는지, 영어 형제 파일에 프론트매터가 없는지 CI 에서 확인한다.
+// 리네임 · 삭제 · 오타로 가이드가 없는 대상을 가리키는 것을 막는다.
+//
+// `spec:` 은 NERV 스펙 키 목록이다(NERV 정본 전환 단계 4b). 키는 저장소 미러 파일
+// 이름으로 확인한다(`./spec-keys`).
+describe("real docs frontmatter spec/code references", () => {
   // __dirname = codebase/frontend/src/lib/docs/__tests__
   // 6 hops back lands at the repo root. commit 33521233 (codebase/ wrapper)
   // added one level that this resolver did not follow.
@@ -250,26 +258,42 @@ describe("real docs frontmatter spec/code paths", () => {
   // 본 worktree 에 실제 content/docs 가 있을 때만 검증. 격리 환경에서 docs 폴더가
   // 부재할 수 있으므로 부재 시는 skip — 표준 개발 환경에서는 항상 수행된다.
   const hasRealDocs = fs.existsSync(realDocsRoot);
+  const mirrorKeys = collectMirrorKeys(path.join(repoRoot, "spec"));
 
   it.runIf(hasRealDocs)(
-    "모든 .mdx frontmatter 의 spec/code 경로가 실재해요",
+    "모든 .mdx frontmatter 의 spec 키와 code 경로가 실재해요",
     () => {
+      // 미러가 비면 모든 키가 "없는 키" 로 떨어진다. 그 전에 원인을 드러낸다. 편 수 하한은
+      // 두지 않는다 — 미러는 부분 스냅샷이다(test_nerv_mirror_pull 의 MirrorPredicateParityTest 와 같은 판단).
+      expect(mirrorKeys.size).toBeGreaterThan(0);
       const index = loadDocsIndex(realDocsRoot, { includeDrafts: true });
       const missing: string[] = [];
       for (const section of index.sections) {
         for (const page of section.pages) {
           const fm = page.frontmatter;
-          const refs = [
-            ...(fm.spec ?? []).map((p) => ({ kind: "spec" as const, raw: p })),
-            ...(fm.code ?? []).map((p) => ({ kind: "code" as const, raw: p })),
-          ];
-          for (const ref of refs) {
+          const where = `${section.key}/${page.slug.slice(-1)[0]}`;
+          // `spec: "CLE-X"` 처럼 목록이 아니면 글자마다 실패가 나와 원인이 흐려진다.
+          for (const [field, value] of [
+            ["spec", fm.spec],
+            ["code", fm.code],
+          ] as const) {
+            if (
+              value !== undefined &&
+              !(Array.isArray(value) && value.every((v) => typeof v === "string"))
+            ) {
+              missing.push(`${where} → ${field}: 문자열 목록이 아니다`);
+            }
+          }
+          for (const key of Array.isArray(fm.spec) ? fm.spec : []) {
+            if (typeof key !== "string") continue;
+            const problem = specKeyProblem(key, mirrorKeys);
+            if (problem) missing.push(`${where} → spec: ${key} (${problem})`);
+          }
+          for (const raw of Array.isArray(fm.code) ? fm.code : []) {
+            if (typeof raw !== "string") continue;
             // 일부 code 경로는 디렉터리이거나 trailing `/` 가 붙어 있다 — 양쪽 모두 허용.
-            const abs = path.resolve(repoRoot, ref.raw);
-            if (!fs.existsSync(abs)) {
-              missing.push(
-                `${section.key}/${page.slug.slice(-1)[0]} → ${ref.kind}: ${ref.raw}`,
-              );
+            if (!fs.existsSync(path.resolve(repoRoot, raw))) {
+              missing.push(`${where} → code: ${raw}`);
             }
           }
         }
@@ -277,4 +301,26 @@ describe("real docs frontmatter spec/code paths", () => {
       expect(missing, missing.join("\n")).toEqual([]);
     },
   );
+
+  // 영어 형제 파일(`<slug>.en.mdx`)은 본문만 둔다. 프론트매터를 붙여도 렌더 · 검색에 쓰이지
+  // 않고 위 검사도 보지 않아서, 그 안의 spec · code 참조는 낡아도 알 수 없다.
+  // `_` 접두 디렉터리도 본다(`collectMdxFiles` 와 달리) — 형제 파일은 어디 있든 같은 규칙이다.
+  it.runIf(hasRealDocs)("영어 형제 파일에는 프론트매터가 없어요", () => {
+    const siblings = walkTree(path.dirname(realDocsRoot), [path.basename(realDocsRoot)], {
+      includeFile: (name) => name.endsWith(".en.mdx"),
+    });
+    // 하나도 못 찾으면 아래 단언이 공허하게 통과한다.
+    expect(siblings.length).toBeGreaterThan(0);
+    // gray-matter 는 BOM 을 벗기고 읽으므로 BOM 뒤의 프론트매터도 프론트매터다.
+    const offenders = siblings
+      .filter((f) => /^﻿?---\r?\n/.test(fs.readFileSync(f.absPath, "utf8")))
+      .map((f) => f.relPath);
+    expect(offenders, offenders.join("\n")).toEqual([]);
+  });
+
+  it.runIf(hasRealDocs)("미러 제외 영역 키 목록은 미러에 없는 키만 담아요", () => {
+    // 그 영역을 미러하기 시작하면 키는 미러 파일로 확인되므로 목록에서 뺀다.
+    const mirrored = [...UNMIRRORED_GUIDE_KEYS].filter((k) => mirrorKeys.has(k));
+    expect(mirrored).toEqual([]);
+  });
 });
