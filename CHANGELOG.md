@@ -36,7 +36,7 @@
 - **axios 1.18 → 1.20 이상(frontend)**: high 7 · moderate 5 건.
 - **undici 6.28.0 → 6.28.1 이상(backend 직접 의존)**: GHSA-rfgv-xxqx-mfg5 외.
 - **override 하한 상향**: `@grpc/grpc-js` · `fast-uri` · `ip-address`(backend 직접 의존도 함께) · `multer` · `nodemailer` ·
-  `brace-expansion`(1.x · 5.x, 스코프 키 상한도 함께). 새 override 둘: `undici@>=8.0.0 <8.10.2`(channel-web-chat > jsdom)와
+  `brace-expansion`(1.x · 5.x, 스코프 키 상한도 함께). 새 override 둘: `undici@>=8.0.0 <8.10.2`(frontend · channel-web-chat > jsdom@30)와
   `engine.io: ~6.6.10`(backend > socket.io). `scripts/check-pnpm-security-config.py` 의 `EXPECTED_OVERRIDES` 도 같이 고쳤다.
 
 ## Unreleased — 하네스: doc-sync 매트릭스 가드가 NERV 미러 경로를 검사한다

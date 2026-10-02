@@ -22,11 +22,14 @@ injectWorkspacePackages: true
 # next>postcss 는 frontend·channel-web-chat 공통.
 #
 # undici 는 두 경로가 서로 다른 메이저를 쓴다: backend 가 **직접 의존**(^6)이고,
-# channel-web-chat > jsdom 이 **전이 의존**(7.x)이다. 그래서 7.x 는 여기 레인지 override 로,
-# 6.x 는 backend 의 선언 자체를 올려 관리한다 — 직접 의존을 override 로 덮으면 매니페스트가
-# 거짓말을 하게 된다. (2026-08-07 이전 서술은 "backend 6.x 불변" 이었는데, 그 6.x 경로가
-# GHSA-v3r7-h72x-cjcm 등에 취약한 6.27.0 으로 해소되고 있어 ^6.28.0 으로 올렸다. 전이 경로를
-# "frontend" 라고 적은 것도 틀렸다 — channel-web-chat 이다.)
+# frontend · channel-web-chat > jsdom@30 이 **전이 의존**(8.x)이다. 그래서 8.x 는 여기 레인지
+# override 로, 6.x 는 backend 의 선언 자체를 올려 관리한다 — 직접 의존을 override 로 덮으면
+# 매니페스트가 거짓말을 하게 된다. (2026-08-07 이전 서술은 "backend 6.x 불변" 이었는데, 그 6.x
+# 경로가 GHSA-v3r7-h72x-cjcm 등에 취약한 6.27.0 으로 해소되고 있어 ^6.28.0 으로 올렸다.)
+#
+# 2026-10-02: jsdom 이 30 으로 오르면서 전이 경로가 7.x 에서 8.x 로 옮겨 갔다. 그래서 아래
+# `undici@>=7.0.0 <7.29.0` 키에 걸리는 lock 항목은 지금 없다. 이 키는 대상 없는 override
+# 정리 때 `EXPECTED_OVERRIDES` 와 함께 걷는다.
 #
 # **각 항목의 CVE 근거는 그 값을 올린 커밋 메시지에 있다.** 종전에는 "audit 커밋(b2bbb49e)
 # 참조" 라고 적혀 있었으나 그 해시는 **저장소 어디에도 없다**(전 브랜치 `git log` 0건).
@@ -81,7 +84,7 @@ overrides:
   html-to-text: ^10.0.1
   eslint-plugin-react-hooks: 7.0.1
   "undici@>=7.0.0 <7.29.0": ^7.29.0
-  # GHSA-rfgv-xxqx-mfg5 외 6건(8.x) — channel-web-chat > jsdom@30 > undici. jsdom 선언이
+  # GHSA-rfgv-xxqx-mfg5 외 6건(8.x) — frontend · channel-web-chat > jsdom@30 > undici. jsdom 선언이
   # `^8.x` 라 8 계열 안의 패치 버전으로만 올린다(7.x 키와 범위가 겹치지 않게 키를 따로 둔다).
   "undici@>=8.0.0 <8.10.2": ^8.10.2
   vite: ^8.0.16
