@@ -378,7 +378,7 @@ export interface EiaAiMessageEvent extends EiaEventBase {
    *      / [EIA 알림 웹훅 「execution.ai_message」](CLE-EIA-NOTIFY#executionai_message).
    *
    * 4종 display-only (`carousel`/`table`/`chart`/`template`) 만 본 필드로 채널 발화 대상.
-   * `render_form` (`type === 'form'`) 은 별 plan `chat-channel-form-native-modal` 추적.
+   * `render_form` (`type === 'form'`) 은 이 필드의 대상이 아니다(채널 네이티브 모달은 따로 다룬다).
    */
   presentations?: PresentationPayload[];
 }

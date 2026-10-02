@@ -52,7 +52,7 @@ ID 가 들어 있었다. 외부 소비자는 열어 볼 수 없는 참조이고,
 - DTO · 컨트롤러 파일의 `/** */` 와 `description` · `summary` 91곳(50파일)에서 내부 참조를 지우고 근거는 바로 위
   `//` 주석에 키 링크로 옮겼다. 클래스 JSDoc 처럼 플러그인이 싣지 않는 자리도 같은 채널로 정리했다. 같은 파일의
   경로 없는 절 번호 인용(`EIA §R17` 등) 일부도 함께 정리했다. 남은 절 번호 인용은 Task `CLE-T-BCS6QZ` 가 맡는다.
-- 배포 파일: 내려받히는 SVG 9개의 주석, 외부 통합용 SDK(`@workflow/sdk` · `@workflow/web-chat`) README 5곳과
+- 배포 파일: 사용자가 내려받는 SVG 9개의 주석, 외부 통합용 SDK(`@workflow/sdk` · `@workflow/web-chat`) README 5곳과
   `package.json` 1곳에서 옛 스펙 · plan 경로를 지웠다.
 - 런타임 · 개발 문구: 시크릿 참조 형식 오류 · 비밀번호 해시 형식 오류 · 채팅 채널 언어 힌트의 `migration_guide`,
   프론트엔드 eslint 레이어링 규칙 메시지 3개, PR 템플릿과 마이그레이션 재검사 봇 코멘트가 옛 경로 대신 NERV 키나

@@ -6,7 +6,7 @@ import path from "node:path";
  * 밖으로 나가는 정적 파일에 저장소 내부 참조가 다시 들어가지 않게 막는다.
  *
  * - 배포되는 SVG(`codebase/frontend/public/**` 와 Next.js 메타데이터 아이콘 `src/app/*.svg`).
- *   주석까지 그대로 내려받힌다.
+ *   사용자가 주석까지 그대로 내려받는다.
  * - 외부 통합용 SDK 의 README 와 `package.json`(`@workflow/sdk` · `@workflow/web-chat`). npm 에
  *   함께 실린다. 나머지 `codebase/packages/*` 는 백엔드 · 프론트엔드가 workspace 로만 쓰는 내부
  *   패키지라 README 가 개발자 문서다. 스펙 참조를 남겨도 된다.
@@ -163,8 +163,10 @@ describe("배포되는 정적 파일의 내부 참조", () => {
 
   it("SVG 와 npm README 에 내부 참조가 없다", () => {
     const files = publicSurfaceFiles();
-    // 대상이 비면 아래 단언이 공허하다. SVG 14개 + SDK 파일 4개(2026-10-03).
-    expect(files.length).toBeGreaterThan(8);
+    // 대상이 비면 아래 단언이 공허하다. SVG 14개 + SDK 파일 4개(2026-10-03). SVG 와 SDK 를
+    // 따로 세어 한쪽 수집이 비어도 드러나게 한다.
+    expect(files.filter((f) => f.endsWith(".svg")).length).toBeGreaterThanOrEqual(10);
+    expect(files.filter((f) => !f.endsWith(".svg"))).toHaveLength(PUBLIC_SDK_PACKAGES.length * 2);
     const found = files.flatMap((f) =>
       findInternalRefs(fs.readFileSync(f, "utf8")).map(
         (m) => `${path.relative(REPO_ROOT, f)}: ${m}`,

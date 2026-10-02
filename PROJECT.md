@@ -308,7 +308,7 @@ developer workflow §4 종료 직전, 5단계로 진행하기 전 자가 점검:
 - `codebase/frontend/src/lib/docs/__tests__/spec-link-integrity.test.ts` — in-repo 링크/heading 앵커 실존 검증 (slug = `rehype-slug`=`mdast`+`github-slugger`). 스코프 3가지 — **(1)** `spec/**.md` 본문(NERV 미러 `spec/README.md` · `spec/CLE-*` 제외, 지운 루트 `plan/` · `review/` 로 해석되는 링크는 건너뜀), **(2)** codebase `.ts`/`.tsx` 주석의 키 링크 `[글](CLE-KEY#앵커)`(키 · 앵커를 미러 파일로 확인, `spec/**.md` 경로 링크는 위반), **(3)** 거버넌스 문서(루트 `*.md` 비재귀 + `.claude/**.md`, `worktrees`/`node_modules` 제외, 2026-08-27 추가). SoT: `spec/CLE-ENG/CLE-ENG-SPECEVIDENCE.md` 「빌드 가드 — 스펙 문서 저장소 무결성」
 - `codebase/frontend/src/lib/docs/__tests__/spec-area-index.test.ts` — 영역 폴더(≥2 sibling)의 index 가 모든 sibling spec 을 링크하는지 검증 (`spec/conventions/` flat reference · NERV 미러 면제). SoT: `spec/CLE-ENG/CLE-ENG-SPECEVIDENCE.md` 「빌드 가드 — 스펙 문서 저장소 무결성」
 - `codebase/backend/src/repo-guards/__tests__/openapi-internal-ref.spec.ts` — 공개 OpenAPI 로 나가는 `*.dto.ts` · `*.controller.ts` 의 `/** */` 블록 전부와 데코레이터 `description` · `summary` 문자열에 저장소 내부 참조(`spec/` 경로 · 번호로 시작하는 옛 스펙 파일 이름 · `CLE-...` · `REQ-...-NNN` · `WH-SC-01` 같은 옛 요구사항 ID · `plan/in-progress|complete/`)가 없는지 검증. 베이스라인 0. 근거는 바로 위 `//` 주석에 키 링크로 적는다. SoT: [`spec/CLE-API/CLE-API-SWAGGER.md`](spec/CLE-API/CLE-API-SWAGGER.md) 「규칙」 17
-- `codebase/frontend/src/lib/__tests__/public-surface-internal-refs.test.ts` — 내려받히는 SVG(`public/**` · `src/app/*.svg`)와 외부 통합용 SDK(`@workflow/sdk` · `@workflow/web-chat`)의 README · `package.json` 에 위와 같은 내부 참조가 없는지 검증
+- `codebase/frontend/src/lib/__tests__/public-surface-internal-refs.test.ts` — 사용자가 내려받는 SVG(`public/**` · `src/app/*.svg`)와 외부 통합용 SDK(`@workflow/sdk` · `@workflow/web-chat`)의 README · `package.json` 에 위와 같은 내부 참조가 없는지 검증
 - `codebase/frontend/src/__tests__/e2e-no-sub-global-timeout.test.ts` — `e2e/**` 스펙의 bare-numeric `timeout: N`(N < `playwright.config.ts` 의 `expect.timeout`) sub-global override 차단(전역값은 config 파싱=SoT 동기). 위 doc-sync 계열과 달리 invariant 홈은 §Frontend e2e 패턴 절의 timeout 항목
 
 이들은 코드 리뷰가 검출하지 못한 누락도 빌드 단계에서 차단한다 (마이그레이션 V번호 가드와 동일 패턴). 위반의 invariant 자체는 [`spec/CLE-UI/CLE-UI-I18N.md`](spec/CLE-UI/CLE-UI-I18N.md) · [`spec/CLE-ENG/CLE-ENG-SPECEVIDENCE.md`](spec/CLE-ENG/CLE-ENG-SPECEVIDENCE.md) · [`spec/CLE-ENG/CLE-ENG-GUIDEEVIDENCE.md`](spec/CLE-ENG/CLE-ENG-GUIDEEVIDENCE.md) 에 정식 등록되어 있어 `convention-compliance-checker` 가 sub-agent 단에서도 점검한다.
@@ -400,8 +400,9 @@ pnpm --filter frontend test src/lib/docs/__tests__/
    경로와 앵커를 검사한다(`spec-links.ts` 의 `RELOCATED_SPEC_TREES`, 단계 4a. 단계 5 에서 옛 트리와 함께 걷는다)
 2. `codebase/{backend,frontend,channel-web-chat}/src` · `codebase/backend/test` · `codebase/frontend/e2e` ·
    `codebase/packages` 의 `.ts`/`.tsx` 주석.
-   스펙은 키 링크 `[글](CLE-KEY#앵커)` 로 가리킨다. 키는 미러 파일(`spec/<영역 키>/<KEY>.md`)이
-   있어야 하고(`KEY`), 앵커는 그 파일의 제목 slug 여야 한다(`ANCHOR`). `spec/**.md` 를 경로로
+   스펙은 키 링크 `[글](CLE-KEY#앵커)` 로 가리킨다(예: `// 근거: [채팅 채널 「실행 실패 안내」](CLE-CHAT-CORE#실행-실패-안내)`).
+   키는 미러 파일(`spec/<영역 키>/<KEY>.md`)이 있어야 하고(`KEY`), 앵커는 그 파일의 제목을
+   github-slugger 로 만든 값이어야 한다(`ANCHOR`. 같은 제목이 또 나오면 `-1` · `-2` 가 붙는다). `spec/**.md` 를 경로로
    링크하면 대상이 있어도 위반이다(`PATH`, 단계 4c). 공개 OpenAPI 로 나가는 DTO · 컨트롤러의
    `/** */` 와 `description` · `summary` 에는 키도 쓰지 않는다. 바로 위 `//` 주석에 적는다
    (`openapi-internal-ref` 가드)

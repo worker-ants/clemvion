@@ -1,7 +1,8 @@
 import path from "node:path";
 import { walkTree } from "./tree-walk";
 
-// 사용자 가이드 프론트매터 `spec:` 의 NERV 스펙 키 검사 도우미.
+// NERV 스펙 키 검사 도우미. 사용자 가이드 프론트매터 `spec:`(`registry.test.ts`)와 코드 주석 ·
+// 거버넌스 문서의 키 링크(`spec-links.ts`, 전환 단계 4c)가 함께 쓴다.
 //
 // `spec:` 은 NERV 스펙 키 목록이다(CLE-UI-GUIDE 「프론트매터」, NERV 정본 전환 단계 4b).
 // 키는 저장소 미러 파일 이름(`spec/<영역 키>/<KEY>.md`, 영역 밖 문서는 `spec/<KEY>.md`)으로

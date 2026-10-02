@@ -210,7 +210,7 @@ export class User {
     throw new Error(
       `Invalid password_hash format: must be bcrypt hash (60 chars, $2[aby]$ prefix). ` +
         `Got type=${observedType}, length=${observedLength}. ` +
-        `SoT: CLE-ACCT-SIGNIN (비밀번호 저장).`,
+        `SoT: CLE-ACCT-SIGNIN 「이메일·비밀번호 인증 규칙」.`,
     );
   }
 }
