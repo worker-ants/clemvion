@@ -9,12 +9,12 @@ basis_superseded: false
 parent: "CLE-UI"
 ancestors: ["CLE-VISION", "CLE-UI"]
 area: "CLE-UI"
-content_hash: "fb2e5c93af8fc656c5b1e0ebe58d4c79c299f900faa038ee79a6d967a594e334"
-read_as: "approved"
-task: null
+content_hash: "3290c3aa469ec1e26d70be09584d2b99d01a379ec897301e607529afc6aaf8d9"
+read_as: "approved_fallback"
+task: "CLE-T-BDRZVX"
 source_paths: ["spec/5-system/_product-overview.md", "spec/conventions/i18n-userguide.md"]
-mirror_sha256: "560e7c2d1747ef1357864a25632dd677aa79e30e4d7c6bae959ae9a032a27519"
-etag: "sha256-02e3191bdad48971f3ba7ed9fe8078f0205275b76a31aa4f231d45ced83ffd71"
+mirror_sha256: "9954419c59e6ac40040c5ff33cd746e06e35ea40353e65bcf8c17859d54f66f2"
+etag: "sha256-15cb87b74683040dd57e2c9d5ab30d995e374dbe8f877f73d4093d8c1e3f391a"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/conventions/i18n-userguide.md` (전체), `spec/5-system/_product-overview.md` (§6 국제화 및 접근성) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -116,10 +116,10 @@ etag: "sha256-02e3191bdad48971f3ba7ed9fe8078f0205275b76a31aa4f231d45ced83ffd71"
    - 이 문체 규칙의 대상은 화면 문구와 사용자 가이드다. OpenAPI 설명의 문체는 [OpenAPI 문서화](../CLE-API/CLE-API-SWAGGER.md) 가 정한다.
 
 8. **가이드에 내부 기준 문서를 드러내지 않는다(원본: Principle 6-B).** 사용자 가이드는 사용자가 열어 볼 수 있는 화면만 가리킨다. 다음은 사용자가 열 수 없으므로 본문에 쓰지 않고, 같은 사실을 사용자가 보는 표현으로 다시 쓴다.
-   - `spec/<area>/...`·`/spec/...` 경로. 프론트매터의 `spec:` 필드는 빌드 검증용 메타데이터로 화면에 나오지 않으므로 별개다.
+   - `spec/<area>/...`·`/spec/...` 경로와 NERV 스펙 키(`CLE-...`). 프론트매터의 `spec:` 필드(NERV 키 목록)와 MDX 주석은 빌드 검증용이라 화면에 나오지 않으므로 별개다.
    - `plan/in-progress/...`·`plan/complete/...` 경로
    - "별 plan `<name>`", "별도 plan", "separate plan" 처럼 내부 작업 단위를 가리키는 표현
-   - `CCH-XX-NN`, `R-XX-N` 같은 내부 앵커 ID(요구사항 ID, Rationale ID 등)
+   - `REQ-XX-NNN`, `CCH-XX-NN`, `R-XX-N` 같은 내부 앵커 ID(요구사항 ID, Rationale ID 등)
    - 매핑 표 이름(`ERROR_KO`, `GRAPH_WARNING_KO`, `WARNING_KO`, `LABEL_KO`, `HINT_KO`, `GROUP_KO`, `ITEM_LABEL_KO`, `OPTION_LABEL_KO`)과 매핑 파일 이름(`backend-labels.ts`)
 
    또 사용자 가이드는 지금 동작하는 상태만 적는다. "v2 (후속)", "v2 (planned)", "향후 ~ 예정", "별 plan 진입 후" 같은 로드맵 문구는 쓰지 않는다. 변경이 들어가면 그 변경 안에서 본문을 고친다. 추후 예정 안내와 내부 기준 문서 참조는 사용자를 헷갈리게 한다.
@@ -198,3 +198,7 @@ etag: "sha256-02e3191bdad48971f3ba7ed9fe8078f0205275b76a31aa4f231d45ced83ffd71"
 2026-07-12 위젯 화면 틀의 영어 다국어화를 시작하면서 "이득이 없다" 는 전제는 폐기됐다. 이제 위젯 화면 틀에도 ko/en 동등성이 필요하다. 그러나 물리적 분리라는 근거는 그대로라, 위젯은 메인 앱 사전으로 들어가지 않고 위젯 로컬 카탈로그와 자체 동등성 테스트를 쓴다. 이 로컬 가드가, 위젯을 보지 않던 기존 가드의 빈자리를 메운다. 문체는 계속 공유한다.
 
 "전역 규약 + 위젯 전용 카탈로그 + 명시한 근거" 구조는 새로 만든 것이 아니다. [대화 스레드](../CLE-IX/CLE-IX-THREAD.md) 가 같은 위젯에 대해 먼저 세운 선례("결정을 뒤집은 것이 아니라 적용 범위를 나눈 것")를 따른다. 위젯 화면 틀에 한정하며, 운영자 콘텐츠와 AI 본문의 현지화는 여전히 목표가 아니다([웹채팅](../CLE-WEBCHAT/CLE-WEBCHAT.md)). `BootConfig.locale` 활성화의 근거는 [웹채팅 SDK](../CLE-WEBCHAT/CLE-WEBCHAT-SDK.md) 가 다룬다.
+
+### 가이드 본문에서 NERV 키와 요구사항 ID 를 막는 이유
+
+스펙이 NERV 로 옮겨 가면서 가이드 작성자가 다루는 내부 식별자가 옛 경로에서 NERV 키(`CLE-...`)와 서버가 발급하는 요구사항 ID(`REQ-...`)로 바뀌었다. 둘 다 사용자가 열어 볼 수 없는 내부 문서를 가리키므로 옛 경로와 같은 이유로 본문에 쓰지 않는다. 옛 가드의 앵커 ID 패턴(`CCH-…`, `R-…`)은 `REQ-SESSION-001` 같은 모양을 잡지 못해서 패턴을 따로 더했다(2026-10-02, NERV 정본 전환 단계 4b).

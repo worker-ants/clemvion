@@ -25,7 +25,7 @@ section: "01-getting-started"   # 필수, 디렉터리 키
 order: 1                        # 필수, 섹션 내 정렬 기준
 summary: "한국어 한 줄 요약"    # 필수
 summary_en: "English summary"   # 선택
-spec: ["spec/..."]              # 선택, 관련 스펙 문서
+spec: ["CLE-..."]               # 선택, 관련 스펙의 NERV 키
 code: ["codebase/backend/..."]           # 선택, 관련 소스 경로
 draft: true                     # 선택, production 노출 차단
 ---

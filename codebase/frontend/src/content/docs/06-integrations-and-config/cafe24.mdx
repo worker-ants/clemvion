@@ -5,7 +5,7 @@ section: "06-integrations-and-config"
 order: 5
 summary: "Cafe24 쇼핑몰을 통합으로 등록하고, 워크플로 cafe24 노드와 AI Agent의 MCP 도구 양쪽에서 같은 인증을 사용해 Admin API 18개 카테고리를 호출하는 방법을 설명해요."
 summary_en: "Register a Cafe24 mall as an integration and call any of its 18 Admin API categories from both the cafe24 workflow node and the AI Agent's MCP tool surface using the same credentials."
-spec: ["spec/4-nodes/4-integration/4-cafe24.md", "spec/conventions/cafe24-api-metadata.md", "spec/2-navigation/4-integration.md", "spec/5-system/11-mcp-client.md"]
+spec: ["CLE-INT-MANAGE", "CLE-INT-OAUTH", "CLE-NODE-CAFE24", "CLE-C24-META", "CLE-INT-MCP"]
 code: ["codebase/backend/src/nodes/integration/cafe24/cafe24-api.client.ts", "codebase/backend/src/nodes/integration/cafe24/cafe24.handler.ts", "codebase/backend/src/nodes/ai/ai-agent/tool-providers/cafe24-mcp-tool-provider.ts", "codebase/backend/src/modules/integrations/integration-oauth.service.ts"]
 ---
 

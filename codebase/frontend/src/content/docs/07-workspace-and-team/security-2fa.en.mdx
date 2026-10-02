@@ -1,17 +1,3 @@
----
-title: "Two-factor authentication (TOTP · Passkey)"
-section: "07-workspace-and-team"
-order: 2
-summary: "TOTP authenticator apps and Passkey · security keys, recovery codes, and the WebAuthn-first login policy explained."
-spec: ["spec/5-system/1-auth.md", "spec/2-navigation/9-user-profile.md", "spec/2-navigation/10-auth-flow.md"]
-code: [
-  "codebase/backend/src/modules/auth/totp.service.ts",
-  "codebase/backend/src/modules/auth/webauthn/webauthn.service.ts",
-  "codebase/frontend/src/app/(main)/w/[slug]/profile/security/page.tsx",
-  "codebase/frontend/src/app/(main)/w/[slug]/profile/security/passkey-card.tsx",
-]
----
-
 You can enable **TOTP** (authenticator apps) and **Passkey · security keys** as two independent second factors from [Profile → Security](/profile/security). Each method has its own pool of 10 recovery codes, and which one is used during sign-in follows a fixed priority.
 
 ## Comparison

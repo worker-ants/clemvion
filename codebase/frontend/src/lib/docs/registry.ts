@@ -14,6 +14,7 @@ export interface DocFrontmatter {
   order: number;
   summary: string;
   summary_en?: string;
+  /** 1차 원천 스펙의 NERV 키(예: `CLE-WF-EDITOR`). 렌더하지 않는 빌드 검증용 메타데이터다. */
   spec?: string[];
   code?: string[];
   draft?: boolean;
@@ -68,7 +69,7 @@ export interface LoadOptions {
 // 검색 인덱스는 `./locale.ts` 의 `SECTION_LABELS_BY_LOCALE` 를 쓰므로, 새 섹션을 추가할 때
 // 양쪽 모두에 등록해야 사이드바/검색 결과가 같은 라벨을 보여준다.
 // FAQ 가 항상 사이드바 맨 아래에 위치하도록 `99-faq` 프리픽스를 쓴다 — 자세한 규칙은
-// `spec/2-navigation/13-user-guide.md` §5.
+// CLE-UI-GUIDE 「섹션 순서와 라벨」.
 const SECTION_LABELS: Record<string, string> = {
   "01-getting-started": "시작하기",
   "02-nodes": "노드 가이드",
