@@ -47,24 +47,38 @@ const FIXTURE_CONTROLLER = path.join(
 
 describe('공개 OpenAPI 문장의 내부 참조', () => {
   it('[대조군] 공개 채널의 내부 참조만 잡고 회피처 · 비공개 자리 · 낱말은 넘긴다', () => {
+    // 가드가 내는 순서(owner 사전순)는 계약이 아니다. 양쪽을 같은 방식으로 정렬해 집합으로 비교한다.
+    // 매치 목록도 정렬해 비교한다. 형태 사이 순서가 아니라 어떤 형태가 잡혔는지를 본다.
     const found = findOpenApiInternalRefs(
       [FIXTURE_DTO, FIXTURE_CONTROLLER],
       FIXTURE_ROOT,
-    ).map((r) => `${r.owner} ${r.channel} ${r.matches.join(',')}`);
+    )
+      .map((r) => `${r.owner} ${r.channel} ${[...r.matches].sort().join(',')}`)
+      .sort();
 
-    expect(found).toEqual([
+    const expected = [
       'INTERNAL_REF_FIXTURE_VALUES jsdoc spec/5',
       'InternalRefFixtureClassDocDto jsdoc CLE-API-CONV',
+      'InternalRefFixtureController.decorated.summary summary CLE-API-CONV',
       'InternalRefFixtureController.list jsdoc spec/5',
+      'InternalRefFixtureDto.withDecoratorDescription.description description CLE-API-CONV',
       'InternalRefFixtureDto.withKey jsdoc CLE-API-CONV',
       'InternalRefFixtureDto.withOldFile jsdoc 15-chat-channel.md',
       'InternalRefFixtureDto.withOldReq jsdoc WH-SC-01',
       'InternalRefFixtureDto.withPlan jsdoc plan/in-progress/',
       'InternalRefFixtureDto.withReq jsdoc REQ-GUIDE-032',
       'InternalRefFixtureDto.withSpecPath jsdoc spec/5',
+      // 한 JSDoc 에 형태 둘 — 첫 형태에서 멈추면 하나만 잡힌다.
+      'InternalRefFixtureDto.withTwoForms jsdoc CLE-API-CONV,spec/5',
       'internalRefFixtureMeta.description description CLE-API-SWAGGER',
       'internalRefFixtureMeta.summary summary spec/5',
-    ]);
+      // 템플릿 리터럴(치환 포함) · 괄호로 묶은 연결 문자열.
+      'internalRefFixtureParenthesized.description description WH-SC-01',
+      'internalRefFixtureTemplateHead.summary summary spec/5',
+      'internalRefFixtureTemplateTail.description description CLE-API-CONV',
+    ].sort();
+
+    expect(found).toEqual(expected);
   });
 
   it('공개 채널 파일은 `*.dto.ts` 와 `*.controller.ts` 다', () => {
