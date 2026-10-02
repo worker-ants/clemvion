@@ -65,7 +65,7 @@
     "cron-parser": "^5.10.1",
     "csv-parse": "^7.0.3",
     "dayjs": "^1.11.23",
-    "dotenv": "^17.4.2",
+    "dotenv": "^18.0.4",
     "express": "^5.2.1",
     "ioredis": "^6.0.0",
     "ip-address": "^10.7.1",
