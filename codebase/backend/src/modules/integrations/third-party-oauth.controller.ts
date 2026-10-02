@@ -45,19 +45,22 @@ export class ThirdPartyOAuthController {
     private readonly installRateLimit: Cafe24InstallRateLimitService,
   ) {}
 
+  // 근거:
+  //   - [OAuth 연결과 토큰 갱신 「설치 엔드포인트 (App URL)」](CLE-INT-OAUTH#설치-엔드포인트-app-url)
+  //   - [Cafe24 노드 「추가 보안 조치」](CLE-NODE-CAFE24#추가-보안-조치)
+  //   - [OAuth 연결과 토큰 갱신 「설치 엔드포인트 rate limit」](CLE-INT-OAUTH#설치-엔드포인트-rate-limit-실패-페널티redis와-ip-throttlepod-별)
+  //   - [OAuth 연결과 토큰 갱신 「설치 토큰 미존재를 404 로 분리한 보안 전제」](CLE-INT-OAUTH#설치-토큰-미존재를-404-로-분리한-보안-전제)
   /**
    * Cafe24 Private 앱 App URL 엔드포인트. Cafe24 Developers 의 "테스트 실행"
    * 이 path 의 install_token 으로 단일 row 조회 → HMAC 1회 검증 후 Cafe24
    * authorize URL 로 redirect.
    *
-   * Rate limit (spec/4-nodes/4-integration/4-cafe24.md §9.8 Rate limiting note):
+   * Rate limit:
    * install_token 이 URL path 에 노출되어 (logs / Referer) 추가 보호가 필요.
    * - Layer 1: `@Throttle({ limit: 30, ttl: 60_000 })` (미인증 IP per-min).
    * - Layer 2: 조회/HMAC 실패한 IP 를 카운트해 임계치 초과 시 `429
    *   CAFE24_INSTALL_RATE_LIMITED` lockout (token oracle enumeration 방어).
    *   성공 install 은 카운트하지 않아 정상 사용자는 무영향.
-   * spec Rationale "install endpoint rate limiting" / "CAFE24_INSTALL_INVALID_TOKEN(404)
-   * 의 보안 전제" 참조.
    */
   @Public()
   @Throttle({ default: { limit: 30, ttl: 60_000 } })
@@ -198,6 +201,9 @@ export class ThirdPartyOAuthController {
     }
   }
 
+  // 근거:
+  //   - [OAuth 연결과 토큰 갱신 「MakeShop」](CLE-INT-OAUTH#makeshop)
+  //   - [MakeShop 노드 「운영 전 확인할 항목」](CLE-NODE-MAKESHOP#운영-전-확인할-항목)
   /**
    * MakeShop ShopStore 설치 진입점 (App URL). MakeShop 마켓에서 앱 설치 시
    * 등록된 App URL 로 `?shop_uid=...&timestamp=...&action_type=install&hmac=...`
@@ -209,9 +215,7 @@ export class ThirdPartyOAuthController {
    * lockout) 보호를 재사용한다 — install_token 이 URL path 에 노출되므로.
    *
    * ⚠ MakeShop install 콜백 contract / HMAC 메시지 구성은 미확정 open question
-   * (spec/4-nodes/4-integration/5-makeshop.md §9.7). 서비스의
-   * `buildMakeshopHmacMessage` 가 단일 조정 지점이다.
-   * spec/2-navigation/4-integration.md §5.9 설치(ShopStore).
+   * 이다. 서비스의 `buildMakeshopHmacMessage` 가 단일 조정 지점이다.
    */
   @Public()
   @Throttle({ default: { limit: 30, ttl: 60_000 } })
@@ -324,11 +328,13 @@ export class ThirdPartyOAuthController {
     }
   }
 
+  // 근거:
+  //   - [OAuth 연결과 토큰 갱신 「OAuth 콜백 엔드포인트」](CLE-INT-OAUTH#oauth-콜백-엔드포인트)
+  //   - [OAuth 연결과 토큰 갱신 「에러 매핑」](CLE-INT-OAUTH#에러-매핑)
   /**
    * Generic OAuth callback for all integration providers. Provider 마다 별도
    * controller 를 만들지 않고 :provider 파라메트릭 단일 핸들러로 유지 (현
    * google/github/cafe24 3종 모두 동일 처리 흐름).
-   * spec/2-navigation/4-integration.md §10.
    *
    * ※ 사용자 소셜 로그인 콜백 (`/api/auth/oauth/:provider/callback`) 과 별개다.
    *
@@ -342,7 +348,7 @@ export class ThirdPartyOAuthController {
     summary: 'OAuth 콜백 처리 (통합 연동)',
     description:
       'OAuth provider 가 리디렉션하는 콜백 엔드포인트입니다. 인증 불필요. 처리 후 결과를 담은 HTML 페이지를 반환하며 `postMessage`로 부모 창에 결과를 전달합니다. 사용자 소셜 로그인 콜백(/api/auth/oauth/:provider/callback) 과 별개입니다.\n\n' +
-      '**postMessage payload 의 에러 코드 어휘 (API H-3 / spec §10.4):**\n' +
+      '**postMessage payload 의 에러 코드 어휘:**\n' +
       '- `OAUTH_PROVIDER_UNKNOWN` — 허용되지 않은 provider\n' +
       '- `OAUTH_DENIED` — 사용자가 authorize 단계에서 거부 (`?error=...`)\n' +
       '- `OAUTH_STATE_MISSING` / `OAUTH_STATE_MISMATCH` / `OAUTH_STATE_EXPIRED` — CSRF state 토큰 검증 실패\n' +

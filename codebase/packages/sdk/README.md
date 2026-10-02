@@ -2,8 +2,6 @@
 
 Clemvion External Interaction API client SDK — webhook 트리거로 워크플로우를 시작하고, 도중에 인터랙션 노드(Form / 버튼 / AI Multi Turn)에 응답하며, terminal 이벤트를 받기 위한 외부 통합용 라이브러리.
 
-상세 spec: `spec/5-system/14-external-interaction-api.md`.
-
 > **v0 alpha (0.1.x)** — 외부 publish 전. SemVer 정책: 0.x 동안 minor 도 breaking change 가능. 1.0 이후부터 strict SemVer.
 
 ## 설치
@@ -169,7 +167,7 @@ interface SseEvent {
 }
 ```
 
-이벤트 종류와 `data` 페이로드 매핑은 `spec/5-system/6-websocket-protocol.md §4.1·§4.4` 와 `spec/5-system/14-external-interaction-api.md §6.2~§6.5` 참조.
+`data` 는 SSE `data:` 줄을 합쳐 `JSON.parse` 한 값이고, 모양은 `event` 마다 다르다. 호출자가 `event` 로 구분한다.
 
 ## 보안
 

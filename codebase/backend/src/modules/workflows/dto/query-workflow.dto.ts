@@ -38,6 +38,9 @@ export class QueryWorkflowDto extends PaginationQueryDto {
   @Transform(({ value }: { value: unknown }) => (value === '' ? null : value))
   folderId?: string | null;
 
+  // 근거:
+  //   - [워크플로우 목록과 폴더 「필터」](CLE-WF-LIST#필터)
+  //   - [워크플로우 목록과 폴더 「워크플로우 API」](CLE-WF-LIST#워크플로우-api)
   /**
    * 소유 기반 필터 (팀 워크스페이스에서만 의미가 있음).
    * - `mine`: `createdBy = 현재 사용자`
@@ -45,7 +48,6 @@ export class QueryWorkflowDto extends PaginationQueryDto {
    * - `all` (default, 또는 미지정): 추가 조건 없음
    *
    * 개인 워크스페이스에서는 서버가 ownership 을 무시한다 (= `all` 처럼 동작).
-   * spec/2-navigation/1-workflow-list.md §2.3, §3
    */
   @ApiPropertyOptional({
     description:

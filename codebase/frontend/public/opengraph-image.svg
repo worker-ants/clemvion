@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" role="img" aria-label="Clemvion">
   <title>Clemvion</title>
-  <!-- OG image 1200×630. Spec spec/6-brand.md §8.4.1 -->
+  <!-- OG image 1200×630. -->
   <defs>
     <linearGradient id="cv-grad" gradientUnits="userSpaceOnUse"
         x1="69.856384" y1="105.44554" x2="30.46669" y2="58.502728">
@@ -27,7 +27,7 @@
     </g>
   </g>
 
-  <!-- Centered full logo (mark + wordmark, no sub-copy per R-15). Scaled 2.4x from 320×80 master. -->
+  <!-- Centered full logo (mark + wordmark, no sub-copy). Scaled 2.4x from 320×80 master. -->
   <g transform="translate(216 200) scale(2.4)">
     <g transform="translate(10 11)">
       <g transform="translate(-19.521806 -52.870713)">

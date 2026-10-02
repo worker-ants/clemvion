@@ -140,7 +140,7 @@ describe("src/lib layering guard (eslint.config.mjs, 실제 config 로드)", () 
     for (const { code, present, absent } of cases) {
       const [first] = layeringErrors(code);
       expect(first?.message).toContain(expectedLabel);
-      expect(first?.message).toContain("spec/conventions/frontend-layering.md");
+      expect(first?.message).toContain("CLE-ENG-FRONTEND");
       for (const phrase of present) expect(first?.message).toContain(phrase);
       for (const phrase of absent) expect(first?.message).not.toContain(phrase);
     }

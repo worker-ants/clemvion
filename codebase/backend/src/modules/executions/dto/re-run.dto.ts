@@ -15,11 +15,11 @@ export class ReRunRequestDto {
   @IsBoolean()
   useOriginalInput?: boolean;
 
+  // 근거: [응답 자격 증명 마스킹 「서버 재제출 거부의 범위」](CLE-API-EGRESS#43-서버-재제출-거부의-범위)
   @ApiPropertyOptional({
     description:
       'useOriginalInput=false 일 때 사용할 입력(Manual Trigger 스키마 호환). ' +
-      '마스킹 마커와 정확히 일치하는 값은 400 `MASKED_VALUE_RESUBMITTED` 로 거부. ' +
-      'SoT: EIA §R17.',
+      '마스킹 마커와 정확히 일치하는 값은 400 `MASKED_VALUE_RESUBMITTED` 로 거부.',
     // 열린 map 은 `type: 'object' + additionalProperties: true` 로 적는다 — 저장소 다수
     // 패턴(40 파일)이고 형제 `execute-workflow.dto.ts` 도 그렇다. 축약형 `type: Object` 도
     // `type: object` 로는 해석되지만 **`additionalProperties` 가 붙지 않아**, 선언된
@@ -32,9 +32,10 @@ export class ReRunRequestDto {
   @IsObject()
   inputOverride?: Record<string, unknown>;
 
+  // 근거: [재실행 「dry-run」](CLE-EXEC-RERUN#dry-run)
   @ApiPropertyOptional({
     description:
-      'dry-run 모드로 실행할지. true 면 HTTP Request/Send Email/Database Query/Cafe24 같은 외부 부수효과 노드는 실제 호출 대신 mock 출력(_dryRun: true)을 반환. 기본 false (spec/5-system/13-replay-rerun.md §7·§8.1)',
+      'dry-run 모드로 실행할지. true 면 HTTP Request/Send Email/Database Query/Cafe24 같은 외부 부수효과 노드는 실제 호출 대신 mock 출력(_dryRun: true)을 반환. 기본 false',
     default: false,
     example: false,
   })

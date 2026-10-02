@@ -1,5 +1,5 @@
 // Unit tests for `WorkflowSelectorWidget` — the auto-form widget for the
-// Sub-Workflow node's `Target Workflow` field ([Spec §2/§7](../../../../../../../../spec/4-nodes/2-flow/1-workflow.md)).
+// Sub-Workflow node's `Target Workflow` field ([워크플로우 호출 노드 「설정 화면」](CLE-NODE-SUBWF#설정-화면)).
 //
 // Verifies it: lists workspace workflows, excludes the currently-edited one,
 // co-writes workflowId + workflowName on pick (via `onChangeFields`), and

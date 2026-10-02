@@ -21,8 +21,9 @@ import { Public } from '../../common/decorators';
 export class HealthController {
   constructor(private readonly healthService: HealthService) {}
 
+  // 근거: [로깅과 헬스 체크 「/api/health 응답」](CLE-OBS-LOGGING#apihealth-응답)
   /**
-   * Readiness probe (spec/data-flow/9-observability.md §1.1).
+   * Readiness probe.
    *
    * DB·Redis 의존성을 점검해 정상이면 200, 하나라도 비정상이면 503 을 반환한다.
    * 503 일 때도 응답 body(`{ status, version, uptime, checks }`)는 그대로 유지된다
@@ -55,8 +56,9 @@ export class HealthController {
     return result;
   }
 
+  // 근거: [로깅과 헬스 체크 「/api/health/live」](CLE-OBS-LOGGING#apihealthlive)
   /**
-   * Liveness probe (spec/data-flow/9-observability.md §1.1).
+   * Liveness probe.
    *
    * 의존성(DB/Redis)을 점검하지 않고 프로세스 생존만 확인해 항상 200 을 반환한다.
    * liveness 가 외부 의존성을 검사하면 DB 장애 시 전 replica 가 동시 재시작되는

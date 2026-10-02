@@ -23,6 +23,39 @@
 > 07 37% · 08 30% · 09(25일까지) 49% 였다(나중 PR 의 백필은 세지 않았다). 여기 없다고 그 변경이 없었던 것은 아니다 —
 > `git log` 가 정본이다.
 
+## Unreleased — 개발 흐름: 코드 주석이 스펙을 NERV 키 링크로 가리키고, 링크 가드가 키와 앵커를 미러에서 확인한다
+
+NERV 정본 전환 단계 4c(Task `CLE-T-9AM31N`). 코드 주석의 스펙 링크는 `../../../spec/5-system/…md#…` 같은 상대
+경로였다. `../` 깊이를 손으로 세야 했고, 옛 스펙 트리는 단계 5 에서 지우므로 그때 모두 끊긴다.
+
+- 코드 주석의 스펙 링크 43개(22파일)를 키 링크 `[글](CLE-KEY#앵커)` 로 바꿨다. 옛 문서 하나가 여러 NERV 문서로
+  나뉜 링크는 미러 frontmatter `source_paths` 로 후보를 뽑고 절 내용을 읽어 문서와 제목을 골랐다.
+- 가드 변경: `spec-link-integrity` 가 codebase 소스(범위 2)와 거버넌스 문서(범위 3)의 키 링크를 확인한다. 키는 미러
+  파일(`spec/<영역 키>/<KEY>.md`)이 있어야 하고(`KEY`), 앵커는 그 파일의 제목 slug 와 맞아야 한다(`ANCHOR`).
+  전에는 범위 2 가 `spec/**.md` 경로 링크만 봤고 키 모양 링크는 아무도 보지 않았다.
+- 가드 조임: 범위 2 에서 `spec/**.md` 를 경로로 링크하면 대상 파일이 있어도 실패한다(`PATH`). 새 경로 링크가
+  옛 트리로 다시 들어오는 것을 막는다.
+- 스펙: NERV 초안 `CLE-ENG-SPECEVIDENCE`(범위 2 · 3 의 키 링크 규칙, R-14)를 함께 고쳤다.
+
+## Unreleased — 제품 동작: 공개 OpenAPI 문장과 배포 파일에서 저장소 내부 참조를 걷어 낸다
+
+NERV 정본 전환 단계 4c(Task `CLE-T-9AM31N`). swagger 플러그인은 DTO 속성 · 컨트롤러 메서드의 JSDoc 과
+`description` · `summary` 문자열을 공개 OpenAPI 에 그대로 싣는다. 그 문장에 저장소 스펙 경로 · NERV 키 · 요구사항
+ID 가 들어 있었다. 외부 소비자는 열어 볼 수 없는 참조이고, 옛 트리를 지우면 죽은 경로가 된다.
+
+- 공개 OpenAPI 문장 43곳(23파일)에서 내부 참조를 지우고 근거는 바로 위 `//` 주석에 키 링크로 옮겼다. 같은 파일의
+  경로 없는 절 번호 인용(`EIA §R17` 등) 26곳도 함께 정리했다. 손대지 않은 파일의 절 번호 인용 36곳은 Task
+  `CLE-T-BCS6QZ` 가 맡는다.
+- 배포 파일: 내려받히는 SVG 9개의 주석, 외부 통합용 SDK(`@workflow/sdk` · `@workflow/web-chat`) README 5곳과
+  `package.json` 1곳에서 옛 스펙 · plan 경로를 지웠다.
+- 런타임 · 개발 문구: 시크릿 참조 형식 오류 · 비밀번호 해시 형식 오류 · 채팅 채널 언어 힌트의 `migration_guide`,
+  프론트엔드 eslint 레이어링 규칙 메시지 3개, PR 템플릿과 마이그레이션 재검사 봇 코멘트가 옛 경로 대신 NERV 키나
+  미러 경로를 가리킨다.
+- 가드 신설: 백엔드 `openapi-internal-ref` 가 공개 OpenAPI 의 세 자리에서 스펙 경로 · 옛 스펙 파일 이름 · NERV
+  키 · 요구사항 ID · 옛 plan 경로를 막는다. 베이스라인은 0 이다. 프론트엔드 `public-surface-internal-refs` 가 같은
+  패턴으로 배포 SVG 와 SDK README · `package.json` 을 본다.
+- 스펙: NERV 초안 `CLE-API-SWAGGER`(규칙 14 확장)를 함께 고쳤다.
+
 ## Unreleased — 개발 흐름: 사용자 가이드 프론트매터 `spec:` 을 NERV 스펙 키로 바꾸고 키 실재를 검사한다
 
 NERV 정본 전환 단계 4b(Task `CLE-T-BDRZVX`). 가이드 MDX 46편의 `spec:` 은 동결된 옛 스펙 경로(`spec/<번호>-<영역>/…`)

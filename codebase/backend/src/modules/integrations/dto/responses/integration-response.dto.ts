@@ -31,9 +31,10 @@ export class IntegrationDto {
   @ApiProperty({ enum: ['personal', 'organization'], example: 'personal' })
   scope: string;
 
+  // 근거: [통합 상태와 만료 알림 「상태 전이」](CLE-INT-STATUS#상태-전이)
   /**
    * 상태. `pending_install` 은 Cafe24 Private 앱의 OAuth 미완료 상태이며
-   * 노드·AI Agent 에서 사용 불가 ([Spec §6](../../2-navigation/4-integration.md#6-상태-전이)).
+   * 노드·AI Agent 에서 사용 불가.
    */
   @ApiProperty({
     enum: ['connected', 'expired', 'error', 'pending_install'],
@@ -102,6 +103,9 @@ export class IntegrationDto {
   @ApiProperty({ format: 'date-time' })
   updatedAt: string;
 
+  // 근거:
+  //   - [통합 관리 「목록과 CRUD」](CLE-INT-MANAGE#목록과-crud)
+  //   - [통합 상태와 만료 알림 「자동 갱신 통합을 주의 필요에서 뺀다」](CLE-INT-STATUS#자동-갱신-통합을-주의-필요에서-뺀다)
   /**
    * 자동 갱신 가능 통합 식별자 (derived 가상 필드, DB 컬럼 아님).
    * `ServiceDefinition.supportsTokenAutoRefresh` (service registry)
@@ -109,8 +113,6 @@ export class IntegrationDto {
    * github (Refresh ✗) 포함 그 외는 false.
    * UI 의 attention/expiring 술어 제외, 상세 페이지 헤더의 "Auto-renews"
    * 보조 라벨, Reauthorize hover 안내 분기 신호로 사용된다.
-   * spec/2-navigation/4-integration.md §9.1 + Rationale "자동 갱신 통합을
-   * attention 술어에서 제외 (2026-05-17)".
    */
   @ApiProperty({ type: 'boolean', example: true })
   autoRefresh: boolean;
@@ -130,12 +132,12 @@ export class IntegrationDto {
   // (첫 판은 키 생략형으로 적었다가 e2e 계약 대조가 `appUrl [null] 키 생략형인데 null 이
   //  왔다` 로 잡았다 — 검증자가 제 선언을 반증한 자리다.)
 
+  // 근거: [통합 관리 「목록과 CRUD」](CLE-INT-MANAGE#목록과-crud)
   /**
    * 설치용 App URL — `${APP_URL}/api/3rd-party/<provider>/install/:installToken`.
    *
    * **Cafe24 Private** (`app_type='private'`) 과 **MakeShop ShopStore 설치 통합** 두
-   * 갈래가 채운다. 그 외 통합과 `install_token` 이 없는 행은 `null`
-   * (`spec/2-navigation/4-integration.md §9.1`).
+   * 갈래가 채운다. 그 외 통합과 `install_token` 이 없는 행은 `null`.
    */
   @ApiProperty({ nullable: true, type: String, example: null })
   appUrl: string | null;

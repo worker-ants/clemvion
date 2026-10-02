@@ -30,13 +30,21 @@ export const UNMIRRORED_GUIDE_KEYS: ReadonlySet<string> = new Set([
   "CLE-MKS-META",
 ]);
 
-/** `specRoot` 아래 미러 파일(`CLE-*.md`)의 키 집합. 폴더가 없으면 빈 집합이다. */
-export function collectMirrorKeys(specRoot: string): Set<string> {
+/**
+ * `specRoot` 아래 미러 파일(`CLE-*.md`)의 키 → 절대 경로. 폴더가 없으면 빈 맵이다.
+ * 키 링크(`[글](CLE-KEY#앵커)`)의 앵커를 그 파일의 제목으로 확인할 때 쓴다(`spec-links.ts`).
+ */
+export function mirrorKeyPaths(specRoot: string): Map<string, string> {
   const files = walkTree(path.dirname(specRoot), [path.basename(specRoot)], {
     includeFile: (name) =>
       name.endsWith(".md") && SPEC_KEY_RE.test(name.slice(0, -".md".length)),
   });
-  return new Set(files.map((f) => path.basename(f.relPath, ".md")));
+  return new Map(files.map((f) => [path.basename(f.relPath, ".md"), f.absPath]));
+}
+
+/** `specRoot` 아래 미러 파일(`CLE-*.md`)의 키 집합. 폴더가 없으면 빈 집합이다. */
+export function collectMirrorKeys(specRoot: string): Set<string> {
+  return new Set(mirrorKeyPaths(specRoot).keys());
 }
 
 /** 키가 미러에 넣지 않는 영역(`UNMIRRORED_AREAS`)의 것인지. 영역 접두는 하이픈 경계로 맞춘다. */

@@ -14,7 +14,8 @@ export class NotificationDto {
   @ApiProperty({ format: 'uuid' })
   userId: string;
 
-  /** 알림 타입 (snake_case enum — data-model §2.19) */
+  // 근거: [알림 「Notification」](CLE-OBS-NOTIFY#notification)
+  /** 알림 타입 (snake_case enum) */
   @ApiProperty({ example: 'execution_failed' })
   type: string;
 
@@ -26,8 +27,9 @@ export class NotificationDto {
   @ApiProperty()
   message: string;
 
+  // 근거: [알림 「딥링크」](CLE-OBS-NOTIFY#딥링크)
   /**
-   * 관련 리소스 타입 — 팝오버 딥링크 계약(`_layout.md §3.1`)의 라우팅 키.
+   * 관련 리소스 타입 — 팝오버 딥링크 계약의 라우팅 키.
    * 알림 유형에 따라 `workflow` (실행/스케줄/Background 실패 — `/workflows/<resourceId>`),
    * `integration` (통합 관련 — `/integrations/<resourceId>`),
    * `workspace_invitation` (팀 초대) 등이 들어간다. 클라이언트는 unknown 값을 dead link 로 처리한다.
@@ -57,11 +59,11 @@ export class NotificationDto {
   @ApiPropertyOptional({ format: 'date-time', nullable: true })
   emailSentAt?: string | null;
 
+  // 근거: [알림 「읽음과 닫기」](CLE-OBS-NOTIFY#읽음과-닫기)
   /**
    * dismiss 시각 (soft delete) — `null` 이면 visible, 채워지면 사용자가 닫은 상태.
    * 목록·미읽음 카운트는 `dismissed_at IS NULL` 만 반환하므로 본 응답에 나타나는
-   * row 의 값은 일반적으로 `null` 이다. 자세한 라이프사이클은
-   * spec/data-flow/8-notifications.md §4 참조.
+   * row 의 값은 일반적으로 `null` 이다.
    */
   @ApiPropertyOptional({ format: 'date-time', nullable: true })
   dismissedAt?: string | null;

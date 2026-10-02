@@ -25,6 +25,7 @@ export class AuditLogDto {
   @ApiPropertyOptional({ type: () => AuditLogUserDto, nullable: true })
   user?: AuditLogUserDto | null;
 
+  // 근거: [감사 로그 「감사 액션 카탈로그」](CLE-OBS-AUDIT#감사-액션-카탈로그)
   @ApiProperty({
     description:
       '감사 액션 식별자 (`<resource>.<verb>`). 구현된 값의 **단일 진실은 ' +
@@ -33,7 +34,6 @@ export class AuditLogDto {
       '시점에 이미 낡아 있었고, 2026-08-01 `workflow.*`/`trigger.*`/`schedule.*`/' +
       '`model_config.*` 13개 추가로 다시 어긋났다). 리소스군은 integration · auth_config · ' +
       'workspace · member · execution · user · workflow · trigger · schedule · model_config. ' +
-      '(spec/5-system/1-auth.md §4.1) ' +
       'DB 는 자유 문자열 컬럼이므로 위 union 밖의 레거시 값(예: `re_run_initiated`)이 ' +
       '과거 row 에 존재할 수 있다 — 클라이언트는 enum 으로 단정하지 말 것.',
     example: 'integration.updated',

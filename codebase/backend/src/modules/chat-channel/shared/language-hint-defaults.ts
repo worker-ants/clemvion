@@ -104,7 +104,7 @@ export function resolveLanguageHint(
           'languageHints.executionFailed 단일 키는 더 이상 사용되지 않습니다. ' +
           'CCH-ERR-* 6 키(executionFailedThirdParty4xx/5xx/ThirdParty/Timeout/RateLimit/Internal)로 마이그레이션하세요.',
         migration_guide:
-          'spec/5-system/15-chat-channel.md §4.1.1 / user-guide 실행 실패 안내 메시지 가이드 참조',
+          'CLE-CHAT-CORE 「실행 실패 안내」 / user-guide 실행 실패 안내 메시지 가이드 참조',
       }),
     );
   }

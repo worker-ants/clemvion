@@ -150,7 +150,7 @@ export {
  * | `sanitizePayloadForWs` (WS 키-이름) | `[REDACTED]` | fanout 분기 직전 — emit 값-마스킹과 겹친다 |
  * | `sanitizePayloadForWs` 깊이 상한 | `[REDACTED_DEPTH]` | 같은 위 |
  *
- * `[REDACTED]` 는 **문서화된 계약**이다 — [12-webhook §5.3](../../../../../spec/5-system/12-webhook.md)
+ * `[REDACTED]` 는 **문서화된 계약**이다 — [웹훅 「수신 헤더 마스킹」](CLE-TRIG-WEBHOOK#수신-헤더-마스킹)
  * 이 규정하고 `1-manual-trigger.md`·`5-expression-language.md`·`4-execution-engine.md`·
  * `data-flow/10-triggers.md` 가 그 전제를 공유한다. 재마스킹하면 같은 헤더가 읽는 경로마다
  * 다르게 보인다 — 이 저장소가 마스킹 연쇄 작업으로 없애 온 바로 그 병이다.

@@ -46,27 +46,30 @@ export class BackgroundRunNodeExecutionDto {
   @ApiProperty({ description: '실행 소요 시간 (ms)', nullable: true })
   durationMs: number | null;
 
+  // 근거: [응답 자격 증명 마스킹 「inputData 는 두 수준 모두 가린다」](CLE-API-EGRESS#41-inputdata-는-두-수준-모두-가린다-2026-08-20)
   @ApiProperty({
     description:
-      '입력 데이터 (JSON). 자격증명으로 판별된 값은 마스킹되어 반환된다(DB 원문과 다를 수 있음). `Execution.inputData` 도 2026-08-20 부터 같은 규칙이다 — 두 레벨이 갈리지 않는다. SoT: EIA §R17',
+      '입력 데이터 (JSON). 자격증명으로 판별된 값은 마스킹되어 반환된다(DB 원문과 다를 수 있음). `Execution.inputData` 도 2026-08-20 부터 같은 규칙이다 — 두 레벨이 갈리지 않는다.',
     type: 'object',
     additionalProperties: true,
     nullable: true,
   })
   inputData: Record<string, unknown> | null;
 
+  // 근거: [응답 자격 증명 마스킹 「내부 읽기 경로」](CLE-API-EGRESS#35-내부-읽기-경로-2026-08-16)
   @ApiProperty({
     description:
-      '출력 데이터 (JSON, NodeHandlerOutput shape). 자격증명으로 판별된 값은 마스킹되어 반환된다(DB 원문과 다를 수 있음) — 형제 필드 `error` 와 같은 정책. ingestion 이 남긴 `[REDACTED]` 마커는 보존된다. SoT: EIA §R17 (spec/5-system/14-external-interaction-api.md)',
+      '출력 데이터 (JSON, NodeHandlerOutput shape). 자격증명으로 판별된 값은 마스킹되어 반환된다(DB 원문과 다를 수 있음) — 형제 필드 `error` 와 같은 정책. ingestion 이 남긴 `[REDACTED]` 마커는 보존된다.',
     type: 'object',
     additionalProperties: true,
     nullable: true,
   })
   outputData: Record<string, unknown> | null;
 
+  // 근거: [응답 자격 증명 마스킹 「내부 읽기 경로」](CLE-API-EGRESS#35-내부-읽기-경로-2026-08-16)
   @ApiProperty({
     description:
-      '에러 정보. 자격증명으로 판별된 값은 마스킹되어 반환된다(DB 원문과 다를 수 있음) — 실행 상세의 `nodeExecutions[].error` 와 같은 관문. SoT: EIA §R17 "내부 읽기 경로" (spec/5-system/14-external-interaction-api.md)',
+      '에러 정보. 자격증명으로 판별된 값은 마스킹되어 반환된다(DB 원문과 다를 수 있음) — 실행 상세의 `nodeExecutions[].error` 와 같은 관문.',
     type: 'object',
     additionalProperties: true,
     nullable: true,

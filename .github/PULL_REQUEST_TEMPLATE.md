@@ -14,7 +14,7 @@
 - [ ] rebase 후 push → `migration-check` 가 latest commit 기준 green
 - [ ] `migration-recheck-on-main` 알림 코멘트가 게시되어 있으면 위 절차 재수행
 
-상세 규약: [`spec/conventions/migrations.md`](../blob/main/spec/conventions/migrations.md) §6.2 / §6.3.
+상세 규약: [DB 마이그레이션 규약 「충돌 검출과 머지 race 안전망」](../blob/main/spec/CLE-ENG/CLE-ENG-MIGRATION.md#충돌-검출과-머지-race-안전망) (NERV `CLE-ENG-MIGRATION`).
 
 ## CLA (기여자 라이선스 동의)
 

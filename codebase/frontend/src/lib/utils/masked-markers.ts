@@ -31,7 +31,7 @@ import {
  * ## 왜 필요한가 — 마스킹된 값이 **되돌아와 실제 입력이 된다**
  *
  * `Execution.inputData` 와 `formConfig` 는 응답·emit 시점에 자격증명 값-패턴이 마스킹된다
- * ([EIA §R17](../../../../../spec/5-system/14-external-interaction-api.md)). 그런데 이
+ * ([응답 자격 증명 마스킹 「다시 쓰이는 값과 재제출 거부」](CLE-API-EGRESS#4-다시-쓰이는-값과-재제출-거부)). 그런데 이
  * 값들은 **표시 전용이 아니라 재제출된다** — 폼이 `defaultValue` 로 프리필되고, Re-run 모달이
  * `inputOverride` 로 되보내고, 에디터 히스토리 로드가 JSON 을 그대로 재실행한다.
  *

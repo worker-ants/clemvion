@@ -45,9 +45,10 @@ export class InteractionConfigDto {
   @IsIn(['per_execution', 'per_trigger'])
   tokenStrategy?: InteractionTokenStrategy;
 
+  // 근거: [웹채팅 운영 콘솔 「외형 빌더」](CLE-WEBCHAT-CONSOLE#외형-빌더)
   /**
    * 웹채팅 운영 콘솔이 저장하는 위젯 외형/콘텐츠 설정(서버 영속화). 위젯 런타임/토큰 발급과
-   * 무관한 표시용 메타다. SoT: spec/7-channel-web-chat/5-admin-console.md §4.
+   * 무관한 표시용 메타다.
    */
   @ApiPropertyOptional({ type: () => WebChatAppearanceDto })
   @IsOptional()

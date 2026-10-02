@@ -2,14 +2,14 @@
 #
 # 여러 PR 이 병렬로 진행될 때 같은 V번호 점유 / main 의 max(V) 보다 작거나
 # 같은 번호 / gap / .conf 페어 불일치를 PR 단계에서 fail-fast 로 검출한다.
-# 정책 본문은 `spec/conventions/migrations.md`.
+# 정책 본문은 NERV 스펙 CLE-ENG-MIGRATION(DB 마이그레이션 규약).
 #
 # merge race (CI 통과 후 다른 PR 이 먼저 머지되어 base max 가 추월되는 경우)
 # 는 본 워크플로 단독으로는 막을 수 없다. 본 repo 는 무료 플랜의 private
 # 저장소여서 branch protection 의 "Require branches to be up to date" 옵션이
-# 동작하지 않으므로, §6.2 의 작성자 책임 규약 + §6.3 의
+# 동작하지 않으므로, 작성자의 머지 직전 rebase 규약과
 # migration-recheck-on-main 사후 안전망으로 보완한다. 정책 본문은
-# spec/conventions/migrations.md §6.2 / §6.3 / §7 대안 4.
+# CLE-ENG-MIGRATION 「충돌 검출과 머지 race 안전망」 · Rationale 「기각한 대안 4」.
 
 name: migration-check
 

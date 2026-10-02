@@ -25,29 +25,33 @@ import {
 //      `spec/CLE-*` · `spec/README.md` — NERV owns those, `pull.py --check` guards
 //      their integrity).
 //   2. Codebase `.ts`/`.tsx` sources under `codebase/{backend,frontend,
-//      channel-web-chat,packages}` — but only for links that target a
-//      `spec/**.md` file (JSDoc spec cross-refs, whose hand-counted `../`
-//      depth drifts silently).
+//      channel-web-chat,packages}` — spec cross-refs only. They are key links
+//      (`[글](CLE-KEY#앵커)`): the key must have a mirror file (KEY) and the
+//      anchor must be a heading in it (ANCHOR). A relative `spec/**.md` path link
+//      is PATH — hand-counted `../` depths drifted silently and the old tree goes
+//      in stage 5. NERV cutover stage 4c (`CLE-T-9AM31N`) converted them.
 //   3. Governance docs — root-level `*.md` (`CLAUDE.md`, `PROJECT.md`, …) and
 //      `.claude/**.md`. Added 2026-08-27; four links were already broken the
 //      first time it ran, one of them an anchor that never existed. Replaces
-//      `scripts/check-doc-links.py`, which no CI or hook ever invoked.
+//      `scripts/check-doc-links.py`, which no CI or hook ever invoked. Relative
+//      links are checked by path; key links are checked against the mirror too.
 // Scope (1) applies no target filter, with one exemption: links that resolve
 // into the repo-root `plan/` or `review/` trees are skipped. NERV cutover stage 3
 // (NERV Task `CLE-T-FN2JWK`) removed both trees, and the frozen old spec tree that
 // still links into them is deleted in stage 5 (`CLE-T-7M4C4X`). Links that resolve
 // into a relocated tree (`RELOCATED_SPEC_TREES` — the API catalogs moved to
 // `codebase/api-catalogs/` in stage 4a, `CLE-T-BD48J3`) are checked at the new place.
-// Scope (2) filters to `spec/**.md` targets. Scope (3) has no exemption —
-// governance docs are live.
-// SoT: spec/conventions/spec-impl-evidence.md §4.2.
+// Scope (2) looks only at key links and `spec/**.md` path links. Scope (3) has no
+// exemption — governance docs are live.
+// SoT: CLE-ENG-SPECEVIDENCE 「빌드 가드 — 스펙 문서 저장소 무결성」 (R-14 for key links).
 
 function fmt(violations: LinkViolation[]): string {
-  const dead = violations.filter((v) => v.kind === "DEAD");
-  const anchor = violations.filter((v) => v.kind === "ANCHOR");
+  const count = (kind: LinkViolation["kind"]): number =>
+    violations.filter((v) => v.kind === kind).length;
   const lines = [
     `${violations.length} broken in-repo spec link(s): ` +
-      `${dead.length} dead path, ${anchor.length} broken anchor.`,
+      `${count("DEAD")} dead path, ${count("ANCHOR")} broken anchor, ` +
+      `${count("KEY")} unknown key, ${count("PATH")} path link in code (use a key link).`,
   ];
   for (const v of violations) {
     lines.push(`  [${v.kind}] ${v.source}:${v.line} -> ${v.target}`);

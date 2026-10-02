@@ -16,8 +16,8 @@ import { EIA_EXECUTION_STATUS_VALUES } from './execution-status.literal';
  * (`EIA_EXECUTION_STATUS_VALUES`)를 쓴다 — 두 DTO 의 enum 배열이 갈라지지 않도록
  * (그리고 엔티티 상태 집합과도 어긋나지 않도록) 값을 직접 검증한다.
  *
- * 계약 SoT: [Swagger 규약 §1-4](../../../../../../../spec/conventions/swagger.md) ·
- * [EIA §5.1 / §5.4](../../../../../../../spec/5-system/14-external-interaction-api.md)
+ * 계약 SoT: [OpenAPI 문서화 「nested, enum, union」](CLE-API-SWAGGER#1-4-nested-enum-union) ·
+ * [EIA 수신 API와 SSE 「공통 규칙」](CLE-EIA-INBOUND#공통-규칙)
  */
 @Controller('stub')
 class StubController {

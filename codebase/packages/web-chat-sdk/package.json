@@ -1,6 +1,6 @@
 {
   "name": "@workflow/web-chat",
-  "//name": "scope 확정 — eia-sdk-publish.md §결정 #3 (@workflow/* 로 통일, @workflow/sdk 와 일관). spec/7-channel-web-chat/2-sdk §npm scope.",
+  "//name": "scope 는 @workflow/* 이다. @workflow/sdk 와 같은 scope 를 쓴다.",
   "version": "0.1.0",
   "description": "임베드형 웹채팅 위젯 SDK — CDN 스니펫 로더 + npm. host↔iframe(wc:*) bridge + 공개 JS API. EIA 호출은 @workflow/sdk 재사용.",
   "main": "dist/index.js",

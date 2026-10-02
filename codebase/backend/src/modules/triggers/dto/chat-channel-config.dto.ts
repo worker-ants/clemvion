@@ -40,11 +40,14 @@ export const CHAT_CHANNEL_PROVIDERS = ['telegram', 'slack', 'discord'] as const;
 export type ChatChannelProvider = (typeof CHAT_CHANNEL_PROVIDERS)[number];
 
 export class ChatChannelUiMappingDto {
+  // 근거:
+  //   - [채팅 채널 어댑터 규약 「ChatChannelConfig」](CLE-CHAT-ADAPTER#chatchannelconfig)
+  //   - [채팅 채널 어댑터 규약 「네이티브 모달 경로」](CLE-CHAT-ADAPTER#네이티브-모달-경로)
+  //   - [채팅 채널 어댑터 규약 「R-CCA-8」](CLE-CHAT-ADAPTER#r-cca-8-네이티브-폼-모달-예외-필드-5개-이하-모달-하나)
   @ApiPropertyOptional({
     description:
       'Form 노드의 채널 입력 표면. auto=지원 provider+전 필드 modal 수용+fields≤5 면 native modal, ' +
-      '아니면 다단계. native_modal=modal 우선 (미충족 시 다단계 fallback). multi_step=강제 다단계 opt-out. ' +
-      'SoT spec/conventions/chat-channel-adapter.md §2.3 / §4.1 / R-CCA-8.',
+      '아니면 다단계. native_modal=modal 우선 (미충족 시 다단계 fallback). multi_step=강제 다단계 opt-out.',
     enum: ['multi_step', 'native_modal', 'auto'],
     default: 'auto',
   })
@@ -52,14 +55,14 @@ export class ChatChannelUiMappingDto {
   @IsIn(['multi_step', 'native_modal', 'auto'])
   formMode?: 'multi_step' | 'native_modal' | 'auto';
 
+  // 근거: [채팅 채널 어댑터 규약 「ChatChannelConfig」](CLE-CHAT-ADAPTER#chatchannelconfig)
   @ApiPropertyOptional({
     description:
       '시각형 노드 (Carousel/Chart/Table) 의 채널 표현 방식. ' +
       'text=텍스트 전용 (carousel imageUrl 무시), ' +
       'photo=v2 SSR PNG (v1 단계에서는 fallback to text + warning 로그), ' +
       'auto=노드별 자동 (chart/table→text, carousel imageUrl 있으면 sendPhoto). ' +
-      'legacy "text_only" 입력은 read-time 에 "text" 로 normalize. ' +
-      '상세 spec/conventions/chat-channel-adapter.md §2.3.',
+      'legacy "text_only" 입력은 read-time 에 "text" 로 normalize.',
     enum: ['text', 'photo', 'auto'],
     default: 'auto',
   })
@@ -162,10 +165,9 @@ export class ChatChannelBotIdentityDto {
 }
 
 export class ChatChannelConfigDto {
+  // 근거: [채팅 채널 「지원 프로바이더(v1)」](CLE-CHAT-CORE#지원-프로바이더v1)
   @ApiProperty({
-    description:
-      '어댑터 식별자. v1 supported: telegram / slack / discord ' +
-      '(spec/4-nodes/7-trigger/providers/_overview.md §1 단일 진실).',
+    description: '어댑터 식별자. v1 supported: telegram / slack / discord.',
     enum: CHAT_CHANNEL_PROVIDERS,
     example: 'telegram',
   })
@@ -173,12 +175,12 @@ export class ChatChannelConfigDto {
   @IsIn(CHAT_CHANNEL_PROVIDERS)
   provider: ChatChannelProvider;
 
+  // 근거: [시크릿 저장소 「규칙」](CLE-INT-SECRET#규칙)
   @ApiProperty({
     description:
       'Active bot token (provider 발급). telegram = BotFather 발급 `\\d+:[A-Za-z0-9_-]+` / ' +
       'slack = OAuth Install 시 발급 `xoxb-...` / discord = Developer Portal Bot 탭 발급. ' +
-      '입력 전용 — 서버가 secret store 에 저장 후 응답에는 포함하지 않음 ' +
-      '(spec/conventions/secret-store.md §4 SS-SE-01).',
+      '입력 전용 — 서버가 secret store 에 저장 후 응답에는 포함하지 않음.',
     minLength: 1,
     maxLength: 256,
     example: '123456789:AAFakeTokenForExample',
@@ -194,8 +196,9 @@ export class ChatChannelConfigDto {
   @MaxLength(256)
   botToken: string;
 
+  // 근거: [채팅 채널 「봇 토큰 변경 단일 경로」](CLE-CHAT-CORE#봇-토큰-변경-단일-경로)
   /**
-   * 외부 입력 금지 — [Spec Chat Channel §5.4.1 single-path](../../../../../../spec/5-system/15-chat-channel.md#541-bot-token-변경-single-path-정책).
+   * 외부 입력 금지.
    * 토큰 변경은 항상 `POST /api/triggers/:id/chat-channel/rotate-bot-token` 로만 가능.
    * PATCH body 또는 POST body 에 본 필드가 포함되면 400 VALIDATION_ERROR
    * (`details.field='chatChannel.botTokenRef'` — 비어있지 않은 값일 때. `null`/`''` 는
@@ -206,7 +209,7 @@ export class ChatChannelConfigDto {
     description:
       '(내부 식별자 — 외부 입력 금지) Secret store reference. ' +
       '응답에서 strip 되며 hasBotToken derived 필드로 존재 여부만 노출. ' +
-      'Spec Chat Channel §5.4.1 single-path 정책.',
+      '토큰 변경은 POST /api/triggers/:id/chat-channel/rotate-bot-token 한 경로로만 한다.',
     maxLength: 256,
     readOnly: true,
   })
@@ -251,12 +254,19 @@ export class ChatChannelConfigDto {
   })
   inboundSigning?: string;
 
+  // 근거:
+  //   - [시크릿 저장소 「채팅 채널 inbound 서명 자료 초기화」](CLE-INT-SECRET#채팅-채널-inbound-서명-자료-초기화) provider-issued plaintext 흐름
+  //   - [시크릿 저장소 「규칙」](CLE-INT-SECRET#규칙) 평문은 config 에 남기지 않는다
+  //   - [채팅 채널 어댑터 규약 「ChatChannelConfig」](CLE-CHAT-ADAPTER#chatchannelconfig) inboundSigningRef 단일 슬롯
+  //   - [채팅 채널 데이터와 흐름 「Trigger.config.chatChannel」](CLE-CHAT-DATA#triggerconfigchatchannel) chatChannel 스키마
+  //   - [Slack 어댑터 「R-S-1」](CLE-CHAT-SLACK#r-s-1-inboundsigningref-단일-슬롯을-함께-쓴다)
+  //   - [Discord 어댑터 「보안」](CLE-CHAT-DISCORD#보안)
   /**
    * Provider-issued inbound webhook 인증 자료의 plaintext 입력 — Slack signing secret /
    * Discord ed25519 application public key. 사용자가 외부 portal 에서 발급된 값을 그대로 입력.
    *
    * 입력 후 service 가 `SecretResolver.rotate(inboundSigningRef, ws, plaintext)` (UPSERT) 로 옮긴 뒤
-   * trigger.config 에는 절대 흘러가지 않음 (SS-SE-01) — `inboundSigningRef` 만 보관.
+   * trigger.config 에는 절대 흘러가지 않음 — `inboundSigningRef` 만 보관.
    *
    * provider 별 분기:
    *   - telegram → 본 필드 입력 시 400 (server-issued 만, randomBytes 자동 발급).
@@ -266,11 +276,6 @@ export class ChatChannelConfigDto {
    * 형식 검증은 service 단에서 수행 (provider 정보가 있어야 분기 가능). DTO 는 String 타입과
    * 길이 상한만 검증.
    *
-   * @see spec/conventions/secret-store.md §5.5 (b) provider-issued plaintext 흐름
-   * @see spec/conventions/chat-channel-adapter.md §2.3 (inboundSigningRef 단일 슬롯 단일 진실)
-   * @see spec/5-system/15-chat-channel.md §4.1 (chatChannel 스키마)
-   * @see spec/4-nodes/7-trigger/providers/slack.md §6 R-S-1
-   * @see spec/4-nodes/7-trigger/providers/discord.md §6
    * @see `@workflow/chat-channel-validation` — backend / frontend 가 공유하는 정규식 SoT (lowercase hex)
    */
   @ApiPropertyOptional({
@@ -278,8 +283,7 @@ export class ChatChannelConfigDto {
       'Provider-issued inbound webhook 인증 자료 plaintext. ' +
       'slack = signing secret lowercase hex 32 / discord = ed25519 public key lowercase hex 64. ' +
       'telegram = 본 필드 미사용 (server-issued, randomBytes 자동 발급). ' +
-      '응답에서 strip — config 에는 inboundSigningRef 만 보관 ' +
-      '(spec/conventions/secret-store.md §4 SS-SE-01). ' +
+      '응답에서 strip — config 에는 inboundSigningRef 만 보관. ' +
       'minLength 는 Slack 최소 (32). Discord (64) 와 형식 (lowercase hex) 는 ' +
       'chat-channel-input-rules 의 provider 별 분기 검증.',
     minLength: 32,
@@ -324,10 +328,12 @@ export class ChatChannelConfigDto {
   @Max(600)
   rateLimitPerMinute?: number;
 
+  // 근거:
+  //   - [채팅 채널 데이터와 흐름 「Trigger.config.chatChannel」](CLE-CHAT-DATA#triggerconfigchatchannel)
+  //   - [채팅 채널 데이터와 흐름 「안내 문구 기본값」](CLE-CHAT-DATA#안내-문구-기본값)
   @ApiPropertyOptional({
     description:
-      "languageHints 미설정 키의 default 문구 locale. 'ko' (default) | 'en'. " +
-      'spec/5-system/15-chat-channel.md §4.1 / §4.1.1.',
+      "languageHints 미설정 키의 default 문구 locale. 'ko' (default) | 'en'.",
     enum: ['ko', 'en'],
     default: 'ko',
   })
@@ -386,11 +392,14 @@ export class ChatChannelUpdateConfigDto extends OmitType(ChatChannelConfigDto, [
   'botToken',
   'inboundSigningPlaintext',
 ] as const) {
+  // 근거:
+  //   - [채팅 채널 「봇 토큰 변경 단일 경로」](CLE-CHAT-CORE#봇-토큰-변경-단일-경로)
+  //   - [채팅 채널 「R-CC-21」](CLE-CHAT-CORE#r-cc-21-patch-는-비밀을-쓰지-않는다)
   @ApiPropertyOptional({
     description:
       '(PATCH 금지) Bot token 변경은 POST /api/triggers/:id/chat-channel/rotate-bot-token 만 사용한다. ' +
       'PATCH body 에 실리면 400 VALIDATION_ERROR — 24h grace 백업·전용 audit action·' +
-      'chatChannelRotatedAt 갱신을 건너뛰기 때문이다 (Spec Chat Channel §5.4.1 / R-CC-21).',
+      'chatChannelRotatedAt 갱신을 건너뛰기 때문이다.',
     writeOnly: true,
   })
   @IsOptional()
@@ -399,11 +408,12 @@ export class ChatChannelUpdateConfigDto extends OmitType(ChatChannelConfigDto, [
   })
   botToken?: string;
 
+  // 근거: [채팅 채널 「인바운드 서명 자료 변경」](CLE-CHAT-CORE#인바운드-서명-자료-변경)
   @ApiPropertyOptional({
     description:
       '(PATCH 금지) provider-issued inbound signing 회전은 v1 미정의다. PATCH body 에 실리면 ' +
-      '400 VALIDATION_ERROR — 필요하면 트리거를 삭제·재생성한다 ' +
-      '(Spec Chat Channel §5.4.1.1). telegram 의 server-issued 값은 본 필드와 무관하게 ' +
+      '400 VALIDATION_ERROR — 필요하면 트리거를 삭제·재생성한다. ' +
+      'telegram 의 server-issued 값은 본 필드와 무관하게 ' +
       'setupChannel() 이 자동 재발급한다.',
     writeOnly: true,
   })

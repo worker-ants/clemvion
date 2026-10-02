@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 180 180" role="img" aria-label="Clemvion">
   <title>Clemvion</title>
-  <!-- Apple touch icon 180×180. Spec spec/6-brand.md §8.4.1. iOS auto-rounds corners — no rx needed. -->
+  <!-- Apple touch icon 180×180. iOS auto-rounds corners — no rx needed. -->
   <defs>
     <linearGradient id="cv-grad" gradientUnits="userSpaceOnUse"
         x1="69.856384" y1="105.44554" x2="30.46669" y2="58.502728">

@@ -184,10 +184,13 @@ export class IntegrationsController {
   // `@Get(':id')` 보다 앞에 있어야 한다 (NestJS = Express 라우터). 위의
   // `cafe24/precheck` 와 동일 패턴. SoT: spec/2-navigation/4-integration.md §9.3.
   @Get('services/:type/catalog')
+  // 근거:
+  //   - [통합 관리 「사용처와 활동 API」](CLE-INT-MANAGE#사용처와-활동-api)
+  //   - [통합 관리 「활동 탭의 API 라벨은 카탈로그 엔드포인트와 프런트엔드 i18n 으로 그린다」](CLE-INT-MANAGE#활동-탭의-api-라벨은-카탈로그-엔드포인트와-프런트엔드-i18n-으로-그린다)
   @ApiOperation({
     summary: '통합별 API operation 카탈로그',
     description:
-      '특정 서비스 타입이 노출하는 API operation 목록을 반환합니다. 통합 상세 §4.6 Recent activity 탭에서 활동 로그 `apiLabel` (catalog key) 을 사람 친화 라벨로 변환할 때 frontend 가 i18n dict 와 결합해 사용합니다. `cafe24` · `makeshop` 은 operations 목록을 채워 반환하고 그 외 서비스 타입은 빈 배열을 반환합니다. spec/2-navigation/4-integration.md §9.3 + spec/conventions/cafe24-api-metadata.md §7.5 · spec/conventions/makeshop-api-metadata.md §2.',
+      '특정 서비스 타입이 노출하는 API operation 목록을 반환합니다. 통합 상세 Recent activity 탭에서 활동 로그 `apiLabel` (catalog key) 을 사람 친화 라벨로 변환할 때 frontend 가 i18n dict 와 결합해 사용합니다. `cafe24` · `makeshop` 은 operations 목록을 채워 반환하고 그 외 서비스 타입은 빈 배열을 반환합니다.',
   })
   @ApiParam({
     name: 'type',
@@ -203,13 +206,13 @@ export class IntegrationsController {
     return this.integrationsService.getServiceCatalog(type);
   }
 
+  // 근거: [통합 관리 「연결 테스트」](CLE-INT-MANAGE#연결-테스트)
   /**
    * Connection test with unsaved credentials.
    *
    * Credentials are schema-validated against the static SERVICE_REGISTRY first;
    * services with a transport tester (mcp · email · database · http) then make a
-   * real outbound connection — the rest stop at the structural check
-   * (spec/2-navigation/4-integration.md §9.2 `preview-test` row). Throttled
+   * real outbound connection — the rest stop at the structural check. Throttled
    * because it would otherwise let a user drive repeated outbound probes.
    */
   @Throttle({ default: { limit: 20, ttl: 60_000 } })
@@ -256,9 +259,12 @@ export class IntegrationsController {
   @ApiNotFoundResponse({
     description: `reauthorize · request_scopes 모드의 integrationId — ${NOT_FOUND_INTEGRATION}`,
   })
+  // 근거:
+  //   - [통합 관리 「에러 코드」](CLE-INT-MANAGE#에러-코드)
+  //   - [OAuth 연결과 토큰 갱신 「CAFE24_PRIVATE_APP_ALREADY_CONNECTED 이름을 유지한다」](CLE-INT-OAUTH#cafe24_private_app_already_connected-이름을-유지한다)
   @ApiConflictResponse({
     description:
-      'CAFE24_PRIVATE_APP_ALREADY_CONNECTED — 동일 (workspaceId, mall_id) 의 connected cafe24 통합이 이미 존재 (app_type 무관 — public/private 둘 다). 에러 코드 이름의 `PRIVATE` 토큰은 historical artifact 이며 spec §9.2 가 "app_type 무관" 으로 의미를 정의한다. 클라이언트는 코드 이름이 아닌 명시된 의미 (mall_id 기준 중복) 로 분기해야 한다. 기존 통합을 사용하거나 삭제 후 재등록. spec/2-navigation/4-integration.md §9.2 + §9.4.',
+      'CAFE24_PRIVATE_APP_ALREADY_CONNECTED — 동일 (workspaceId, mall_id) 의 connected cafe24 통합이 이미 존재 (app_type 무관 — public/private 둘 다). 에러 코드 이름의 `PRIVATE` 토큰은 historical artifact 이며 의미는 "app_type 무관" 이다. 클라이언트는 코드 이름이 아닌 명시된 의미 (mall_id 기준 중복) 로 분기해야 한다. 기존 통합을 사용하거나 삭제 후 재등록.',
   })
   async oauthBegin(
     @WorkspaceId() workspaceId: string,
@@ -328,10 +334,13 @@ export class IntegrationsController {
   // 향후 리팩토링 시 본 주석을 보존할 것.
   @Throttle({ default: { limit: 60, ttl: 60_000 } })
   @Get('cafe24/precheck')
+  // 근거:
+  //   - [통합 관리 「인증·교체·권한」](CLE-INT-MANAGE#인증교체권한)
+  //   - [통합 관리 「중복 사전 감지로 상점 식별자 입력 단계에서 미리 알린다」](CLE-INT-MANAGE#중복-사전-감지로-상점-식별자-입력-단계에서-미리-알린다)
   @ApiOperation({
     summary: 'Cafe24 mall_id 중복 사전 감지',
     description:
-      "현재 워크스페이스에 같은 mall_id 의 cafe24 통합이 이미 있는지 사전 확인합니다. 프론트엔드가 mall_id 입력 단계에서 debounce 호출해 inline 경고 배너를 띄우는 용도. 자격 증명·토큰은 포함되지 않으며, 가장 제한적인 상태 (connected > pending_install > error > expired) 만 반환합니다. 분당 60회 제한. spec/2-navigation/4-integration.md §9.2 Rationale 'precheck endpoint' 참조.",
+      '현재 워크스페이스에 같은 mall_id 의 cafe24 통합이 이미 있는지 사전 확인합니다. 프론트엔드가 mall_id 입력 단계에서 debounce 호출해 inline 경고 배너를 띄우는 용도. 자격 증명·토큰은 포함되지 않으며, 가장 제한적인 상태 (connected > pending_install > error > expired) 만 반환합니다. 분당 60회 제한.',
   })
   @ApiOkWrappedResponse(Cafe24PrecheckResultDto, {
     description:
@@ -358,10 +367,11 @@ export class IntegrationsController {
   // 라우트 선언 순서 주의: `:id` 동적 경로보다 앞 (cafe24/precheck 와 동일 사유).
   @Throttle({ default: { limit: 60, ttl: 60_000 } })
   @Get('makeshop/precheck')
+  // 근거: [통합 관리 「인증·교체·권한」](CLE-INT-MANAGE#인증교체권한)
   @ApiOperation({
     summary: 'MakeShop shop_uid 중복 사전 감지',
     description:
-      '현재 워크스페이스에 같은 shop_uid 의 makeshop 통합이 이미 있는지 사전 확인합니다. cafe24/precheck 의 makeshop 대응. 자격 증명·토큰 미포함, 가장 제한적인 상태 (connected > pending_install > error > expired) 만 반환. 분당 60회 제한. spec/2-navigation/4-integration.md §5.9.',
+      '현재 워크스페이스에 같은 shop_uid 의 makeshop 통합이 이미 있는지 사전 확인합니다. cafe24/precheck 의 makeshop 대응. 자격 증명·토큰 미포함, 가장 제한적인 상태 (connected > pending_install > error > expired) 만 반환. 분당 60회 제한.',
   })
   @ApiOkWrappedResponse(Cafe24PrecheckResultDto, {
     description:

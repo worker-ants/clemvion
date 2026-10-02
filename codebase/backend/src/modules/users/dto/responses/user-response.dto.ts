@@ -21,10 +21,10 @@ export class UserProfileDto {
   @ApiProperty({ enum: USER_THEMES, example: 'light' })
   theme: string;
 
+  // 근거: [가입과 로그인 「이메일 변경」](CLE-ACCT-SIGNIN#이메일-변경)
   @ApiPropertyOptional({
     nullable: true,
-    description:
-      '진행 중인 이메일 변경의 확인 대기 신규 이메일. 없으면 null (spec/5-system/1-auth.md §1.1.B).',
+    description: '진행 중인 이메일 변경의 확인 대기 신규 이메일. 없으면 null.',
   })
   pendingEmail?: string | null;
 }

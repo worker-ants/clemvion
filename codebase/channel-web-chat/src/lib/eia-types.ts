@@ -30,8 +30,8 @@ export type ExternalInteractionType = "form" | "buttons" | "ai_conversation";
  *
  * wire(WS §4.4.5 / EIA §5.3 getStatus)의 `conversationThread.turns[i].source` 는 백엔드
  * `ConversationTurnSource` 5값(`presentation_user`/`ai_user`/`ai_assistant`/`ai_tool`/`system`,
- * [conversation-thread §1.1](../../../../spec/conventions/conversation-thread.md))이다. 위젯은 이를
- * 말풍선 role 로 축약해 렌더한다(매핑 SoT: `conversation.roleOf` + [1-widget-app §2](../../../../spec/7-channel-web-chat/1-widget-app.md)).
+ * [대화 스레드 「항목 출처」](CLE-IX-THREAD#항목-출처))이다. 위젯은 이를
+ * 말풍선 role 로 축약해 렌더한다(매핑 SoT: `conversation.roleOf` + [웹채팅 위젯 「패널」](CLE-WEBCHAT-WIDGET#패널)).
  * `live`/`injected` 는 emit `messages[].source`(§4.4.6) 및 위젯 로컬 라이브 dispatch 의 2값 마커로,
  * 하위 호환·테스트 fixture 를 위해 union 에 함께 유지한다.
  */
@@ -128,7 +128,7 @@ export interface ExecutionMessageEvent {
 /**
  * REST `getStatus` 의 `context` 두 변형이 공유하는 봉투 필드.
  *
- * backend `WaitingContextBaseDto`([EIA §5.3](../../../../spec/5-system/14-external-interaction-api.md))
+ * backend `WaitingContextBaseDto`([EIA 수신 API와 SSE 「단발 상태 조회」](CLE-EIA-INBOUND#단발-상태-조회))
  * 를 미러한다. `context` 는 SSE `waiting_for_input` wire 와 **동일 형식**이라 위젯이 같은
  * `parseWaitingForInput` 을 재사용한다 — 즉 `WaitingContext` 는 `WaitingForInputEvent` 에 assignable 하다.
  */
@@ -137,7 +137,7 @@ interface WaitingContextBase {
   waitingNodeId: string;
   /**
    * 대화 히스토리 durable 스냅샷. **present-when-available** — 값이 있을 때만 키가 present 하고,
-   * 부재 시 키 자체가 생략된다(`| null` 아님, [api-convention §5.4](../../../../spec/5-system/2-api-convention.md)).
+   * 부재 시 키 자체가 생략된다(`| null` 아님, [HTTP API 규약 「부재 표현: null 과 키 생략」](CLE-API-CONV#55-부재-표현-null-과-키-생략)).
    */
   conversationThread?: ConversationThread;
 }
@@ -160,8 +160,8 @@ export interface NodeOutputContext extends WaitingContextBase {
  * 분기는 discriminator 가 아니라 **키 존재**(`'buttonConfig' in context`)로 한다 — `interactionType`
  * 은 sound 판별자가 아니다(`buttons` 가 buttonConfig 복원에 실패하면 `NodeOutputContext` 로
  * fallthrough 한다). backend `ExecutionStatusDto.context`(`ButtonsContextDto | NodeOutputContextDto`)
- * 미러. [EIA §5.3](../../../../spec/5-system/14-external-interaction-api.md) ·
- * [Swagger 규약 §1-4](../../../../spec/conventions/swagger.md).
+ * 미러. [EIA 수신 API와 SSE 「단발 상태 조회」](CLE-EIA-INBOUND#단발-상태-조회) ·
+ * [OpenAPI 문서화 「nested, enum, union」](CLE-API-SWAGGER#1-4-nested-enum-union).
  */
 export type WaitingContext = ButtonsContext | NodeOutputContext;
 

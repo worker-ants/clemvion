@@ -7,7 +7,7 @@ import { deepRedactSecrets } from './sanitize-error-message';
  * DB `Execution.error`/`NodeExecution.error` **컬럼 값**을 응답으로 내보내기 직전에
  * 자격증명 값-패턴 마스킹한다. **형태는 보존한다** — 값만 바꾼다.
  *
- * SoT: [EIA §R17](../../../../../spec/5-system/14-external-interaction-api.md) "내부 읽기 경로" 불릿.
+ * SoT: [응답 자격 증명 마스킹 「내부 읽기 경로」](CLE-API-EGRESS#35-내부-읽기-경로-2026-08-16) "내부 읽기 경로" 불릿.
  *
  * - **`ExecutionError` 예외 클래스와 무관하다**(`execution-engine/workflow-errors.ts`).
  *   그쪽은 제어흐름, 이쪽은 데이터(JSONB 컬럼 값)다 — 이름을 겹치지 않게 고른 이유다.
@@ -38,13 +38,13 @@ export function redactStoredErrorForResponse(
  * DB `inputData`/`outputData` **컬럼 값**의 응답 egress 마스킹 — 자매
  * {@link redactStoredErrorForResponse} 와 **같은 프리미티브·같은 원칙**이고 대상 컬럼만 다르다.
  *
- * SoT: [EIA §R17](../../../../../spec/5-system/14-external-interaction-api.md) "내부 읽기 경로" 불릿.
+ * SoT: [응답 자격 증명 마스킹 「내부 읽기 경로」](CLE-API-EGRESS#35-내부-읽기-경로-2026-08-16) "내부 읽기 경로" 불릿.
  *
  * ## 왜 별건인가 — `error` 와 달리 **앞선 마스킹 층이 있다**
  *
  * 트래커는 이 항목을 *"`Execution.error` 와 같은 형태"* 로 등재했으나 실측하면 다르다.
  * `error` 는 마커가 없는 자유 필드지만, `inputData` 는 webhook ingestion 이 민감 헤더를
- * `[REDACTED]` 로 마스킹해 저장한다 ([12-webhook §5.3](../../../../../spec/5-system/12-webhook.md)) —
+ * `[REDACTED]` 로 마스킹해 저장한다 ([웹훅 「수신 헤더 마스킹」](CLE-TRIG-WEBHOOK#수신-헤더-마스킹)) —
  * `1-manual-trigger.md`·`5-expression-language.md`·`4-execution-engine.md`·
  * `data-flow/10-triggers.md` 가 그 전제를 공유하는 **문서화된 계약**이다.
  *
