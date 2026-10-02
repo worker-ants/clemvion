@@ -9,12 +9,12 @@ basis_superseded: false
 parent: "CLE-UI"
 ancestors: ["CLE-VISION", "CLE-UI"]
 area: "CLE-UI"
-content_hash: "960cd44b1d6f03acc5e4794484b7299931964fe618b4bcbb3313aa7b4d803869"
+content_hash: "cdebae41708b4b1c8534b7ac118717cec63665933f8262dd3a066b58ed1ae391"
 read_as: "approved_fallback"
 task: "CLE-T-BDRZVX"
 source_paths: ["spec/5-system/_product-overview.md", "spec/conventions/i18n-userguide.md"]
-mirror_sha256: "e8d3aee39f0a39483df5f854ecb06eff613e0b05353adabe54af2ae3a4c9c900"
-etag: "sha256-a2e4cbe108fb54321a6b512d9c4d6f363e8495bee0ecbb4f45d1bc53f0885c11"
+mirror_sha256: "0bc7850d803942b00d1db65b70192a4dc2e234f712849e73a2365c61bf790bcb"
+etag: "sha256-d43f1a401fd157ea4243582a5a6e89271549b62b68258932b7ad78640c23ae09"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/conventions/i18n-userguide.md` (전체), `spec/5-system/_product-overview.md` (§6 국제화 및 접근성) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -27,14 +27,14 @@ etag: "sha256-a2e4cbe108fb54321a6b512d9c4d6f363e8495bee0ecbb4f45d1bc53f0885c11"
 - [규칙](#규칙): 제품이 늘 지켜야 하는 불변 조건이다. 어떤 문자열이 어디를 거쳐 화면에 나가는지, 두 언어의 키가 어떻게 맞아야 하는지, 가이드를 어떤 문체로 쓰는지를 정한다.
 - [동반 갱신 규율](#동반-갱신-규율): 개발 과정에서 지키는 규칙이다. 코드를 바꿀 때 무엇을 같은 변경 안에서 함께 고쳐야 하는지를 정한다. 어느 파일을 만지고 어떤 명령으로 확인하는지의 목록은 저장소 운영 문서(`PROJECT.md` 의 "변경 유형 → 갱신 위치 매핑")가 갖는다.
 
-관련 요구사항은 [비기능 요구사항](../CLE-PLAT/CLE-PLAT-NFR.md) 의 REQ-NFR-037(원본 NF-I18N-01, 한국어·영어 기본 다국어 구조)과 REQ-NFR-038(원본 NF-I18N-02, 날짜·시간·숫자의 로케일별 형식)이다. 접근성 요구(REQ-NFR-039~041, 원본 NF-A11Y-*)도 그 문서에 있다. 가이드의 구조·라우트·빌드 검증은 [사용자 가이드](CLE-UI-GUIDE.md), 가이드가 약속한 화면의 코드 근거는 [사용자 가이드 근거 규약](../CLE-ENG/CLE-ENG-GUIDEEVIDENCE.md) 이 정한다.
+관련 요구사항은 [비기능 요구사항](../CLE-PLAT/CLE-PLAT-NFR.md) 의 REQ-NFR-037(원본 NF-I18N-01, 한국어·영어 기본 다국어 구조)과 REQ-NFR-038(원본 NF-I18N-02, 날짜·시간·숫자의 로케일별 형식)이다. REQ-NFR-038 의 표기 형식은 이 문서가 정하지 않는다. 접근성 요구(REQ-NFR-039~041, 원본 NF-A11Y-*)도 그 문서에 있다. 가이드의 구조·라우트·빌드 검증은 [사용자 가이드](CLE-UI-GUIDE.md), 가이드가 약속한 화면의 코드 근거는 [사용자 가이드 근거 규약](../CLE-ENG/CLE-ENG-GUIDEEVIDENCE.md) 이 정한다.
 
 ## 적용 범위
 
 | 코드 영역 | 적용 |
 | --- | --- |
 | `codebase/frontend/**` | 전면 적용. 메인 앱 화면·운영 콘솔·사용자 가이드(`/docs`)가 화면 문구 사전 경유(규칙 1·2)를 따른다 |
-| `codebase/backend/**` | 사용자에게 보이는 문자열의 영문 원문을 내보내는 곳이다(`warningCode`, 노드 `label`·`hint` 등). 한국어 매핑은 프론트엔드 `backend-labels.ts` 가 맡는다(규칙 3~5). 백엔드는 영문만 내보내고 매핑 파일은 프론트엔드에 있다 |
+| `codebase/backend/**` | 사용자에게 보이는 문자열의 영문 원문을 내보내는 곳이다(정적 경고 `warningRules[].message`, 그래프 경고 메시지, 노드 `label`·`hint` 등). 한국어 매핑은 프론트엔드 `backend-labels.ts` 가 맡는다(규칙 3~5). 백엔드는 영문만 내보내고 매핑 파일은 프론트엔드에 있다 |
 | `codebase/packages/**` | 지금은 화면 문자열(TSX)이 없다. 화면 문자열이 생기면 이 범위를 다시 본다 |
 | `codebase/channel-web-chat/**` (웹채팅 위젯 SPA) | 일부만 적용. 아래 참조 |
 
@@ -75,7 +75,7 @@ etag: "sha256-a2e4cbe108fb54321a6b512d9c4d6f363e8495bee0ecbb4f45d1bc53f0885c11"
 
 3. **백엔드 문자열은 영문을 원문으로 두고 프론트엔드가 한국어로 매핑한다(원본: Principle 3).** 백엔드(`codebase/backend/`)가 사용자에게 보이는 응답으로 내보내는 `warningRules[].message` 와 노드 스키마 `label`·`description` 은 영문 원문으로 둔다. 한국어는 프론트엔드 `codebase/frontend/src/lib/i18n/backend-labels.ts` 의 매핑 표(`WARNING_KO`, `NODE_LABEL_KO`, `NODE_DESCRIPTION_KO`)에 등록한다. 이것은 영문 문자열 전체를 키로 쓰는 정적 매핑이다. 정적 문자열 키로 나타낼 수 없는 코드 기반·동적 메시지는 규칙 5 가 다룬다.
    - 금지: 백엔드 응답에 한국어를 직접 넣는 것. 지역화할 수 없게 된다.
-   - 금지: 백엔드만 새 `warningCode` 를 내보내고 프론트엔드 매핑을 빠뜨리는 것.
+   - 금지: 백엔드만 새 경고 문구(`warningRules[].message`)나 라벨을 내보내고 프론트엔드 매핑을 빠뜨리는 것.
    - 매핑이 없으면 `pickKo` 같은 폴백으로 영문이 그대로 보인다. 이것은 의도한 안전장치이지만 매핑 누락은 규칙 위반이다.
 
 4. **백엔드 zod `ui.*` 메타도 매핑한다(원본: Principle 3-B).** 백엔드 `*ConfigSchema` 가 `z.toJSONSchema` 로 내보내는 `ui.*` 메타는 그 자체가 사용자에게 보이는 영문이다. AI 에이전트 노드의 `Presentation Tools` 그룹, `Description override`, `Defaults overlay` 라벨이 번역되지 않던 회귀를 막으려고 다음 다섯 키에도 같은 매핑 의무를 둔다.
@@ -116,11 +116,11 @@ etag: "sha256-a2e4cbe108fb54321a6b512d9c4d6f363e8495bee0ecbb4f45d1bc53f0885c11"
    - 이 문체 규칙의 대상은 화면 문구와 사용자 가이드다. OpenAPI 설명의 문체는 [OpenAPI 문서화](../CLE-API/CLE-API-SWAGGER.md) 가 정한다.
 
 8. **가이드에 내부 기준 문서를 드러내지 않는다(원본: Principle 6-B).** 사용자 가이드는 사용자가 열어 볼 수 있는 화면만 가리킨다. 다음은 사용자가 열 수 없으므로 본문에 쓰지 않고, 같은 사실을 사용자가 보는 표현으로 다시 쓴다.
-   - `spec/<area>/...`·`/spec/...` 경로와 NERV 스펙 키(`CLE-...`). 프론트매터의 `spec:` 필드(NERV 키 목록)는 빌드 검증용 메타데이터이고, 렌더되지 않는 부분(MDX · HTML 주석, `<ImplAnchor>`)도 화면에 나오지 않으므로 별개다. `spec:` 키가 미러에 실제로 있는지는 [사용자 가이드](CLE-UI-GUIDE.md) 의 빌드 검증이 본다.
+   - `spec/<area>/...`·`/spec/...` 경로와 NERV 스펙 키(`CLE-...`). 프론트매터의 `spec:` 필드(NERV 키 목록)는 빌드 검증용 메타데이터이고, 렌더되지 않는 부분(MDX · HTML 주석, `<ImplAnchor>`)도 화면에 나오지 않으므로 별개다. `spec:` 키가 실제로 있는지는 [사용자 가이드](CLE-UI-GUIDE.md) 의 빌드 검증이 본다(미러에 넣지 않는 카탈로그 영역 키는 이름 목록으로만 확인한다).
    - `plan/in-progress/...`·`plan/complete/...` 경로
    - "별 plan `<name>`", "별도 plan", "separate plan" 처럼 내부 작업 단위를 가리키는 표현
    - `REQ-XX-NNN`, `CCH-XX-NN`, `R-XX-N` 같은 내부 앵커 ID(요구사항 ID, Rationale ID 등)
-   - 매핑 표 이름(`ERROR_KO`, `GRAPH_WARNING_KO`, `WARNING_KO`, `LABEL_KO`, `HINT_KO`, `GROUP_KO`, `ITEM_LABEL_KO`, `OPTION_LABEL_KO`)과 매핑 파일 이름(`backend-labels.ts`)
+   - 매핑 표 이름(예: `ERROR_KO`, `GRAPH_WARNING_KO`, `WARNING_KO`, `LABEL_KO`, `HINT_KO`, `GROUP_KO`, `ITEM_LABEL_KO`, `OPTION_LABEL_KO`. 자동 검출은 이 목록만 본다)과 매핑 파일 이름(`backend-labels.ts`)
 
    또 사용자 가이드는 지금 동작하는 상태만 적는다. "v2 (후속)", "v2 (planned)", "향후 ~ 예정", "별 plan 진입 후" 같은 로드맵 문구는 쓰지 않는다. 변경이 들어가면 그 변경 안에서 본문을 고친다. 추후 예정 안내와 내부 기준 문서 참조는 사용자를 헷갈리게 한다.
 
@@ -133,6 +133,8 @@ etag: "sha256-a2e4cbe108fb54321a6b512d9c4d6f363e8495bee0ecbb4f45d1bc53f0885c11"
 2. **새 노드를 더하면 가이드를 함께 고친다(원본: Principle 4).** `codebase/backend/src/nodes/<cat>/<name>/` 에 새 노드 핸들러를 더하면 같은 변경 안에서 다음을 고친다.
    1. `codebase/frontend/src/content/docs/02-nodes/<cat>.mdx`: 카테고리 페이지에 노드 항목을 더한다.
    2. `codebase/frontend/src/content/docs/02-nodes/<cat>.en.mdx`: 영어 형제 파일. 없으면 한국어로 폴백하지만, 정식으로 더할 때는 함께 쓴다.
+
+   `<cat>` 은 백엔드 디렉터리 이름과 가이드 파일 이름이 다를 수 있다(백엔드 `trigger` · `integration`, 가이드 `triggers.mdx` · `integrations.mdx`).
    3. `dict/{ko,en}/<section>.ts`: 노드 이름·필드 이름·placeholder·도움말 문구.
    4. `backend-labels.ts`: 노드 스키마의 `z.meta({ ui: { label, hint, placeholder, ... } })` 영문 라벨이 늘어난 만큼 한국어 매핑을 보강한다.
 
@@ -200,7 +202,7 @@ etag: "sha256-a2e4cbe108fb54321a6b512d9c4d6f363e8495bee0ecbb4f45d1bc53f0885c11"
 
 2026-07-12 위젯 화면 틀의 영어 다국어화를 시작하면서 "이득이 없다" 는 전제는 폐기됐다. 이제 위젯 화면 틀에도 ko/en 동등성이 필요하다. 그러나 물리적 분리라는 근거는 그대로라, 위젯은 메인 앱 사전으로 들어가지 않고 위젯 로컬 카탈로그와 자체 동등성 테스트를 쓴다. 이 로컬 가드가, 위젯을 보지 않던 기존 가드의 빈자리를 메운다. 문체는 계속 공유한다.
 
-"전역 규약 + 위젯 전용 카탈로그 + 명시한 근거" 구조는 새로 만든 것이 아니다. [대화 미리보기](../CLE-EXEC/CLE-EXEC-PREVIEW.md) 가 같은 위젯에 먼저 세운 선례("결정을 뒤집은 것이 아니라 적용 범위를 나눈 것")를 따른다. 위젯 화면 틀에 한정하며, 운영자 콘텐츠와 AI 본문의 현지화는 여전히 목표가 아니다([웹채팅](../CLE-WEBCHAT/CLE-WEBCHAT.md)). `BootConfig.locale` 활성화의 근거는 [웹채팅 SDK](../CLE-WEBCHAT/CLE-WEBCHAT-SDK.md) 가 다룬다.
+"전역 규약 + 위젯 전용 카탈로그 + 명시한 근거" 구조는 범위를 나누는 방식으로 보면 새로 만든 것이 아니다. [대화 미리보기](../CLE-EXEC/CLE-EXEC-PREVIEW.md) 가 같은 위젯의 렌더링 결정에서 먼저 적용 범위를 나눈 선례("결정을 뒤집은 것이 아니라 적용 범위를 나눈 것")와 같은 방식이다. 위젯 화면 틀에 한정하며, 운영자 콘텐츠와 AI 본문의 현지화는 여전히 목표가 아니다([웹채팅](../CLE-WEBCHAT/CLE-WEBCHAT.md)). `BootConfig.locale` 활성화의 근거는 [웹채팅 SDK](../CLE-WEBCHAT/CLE-WEBCHAT-SDK.md) 가 다룬다.
 
 ### 가이드 본문에서 NERV 키와 요구사항 ID 를 막는 이유
 

@@ -9,12 +9,12 @@ basis_superseded: false
 parent: "CLE-UI"
 ancestors: ["CLE-VISION", "CLE-UI"]
 area: "CLE-UI"
-content_hash: "e8640abfceebab54907c2fbca67ae665844fa9b874da8162b9ac3e5defb7ece9"
+content_hash: "312c3d7d7dd8a3c26743c0328a3702369af6da3f7991bdebe296e27c62183bdc"
 read_as: "approved_fallback"
 task: "CLE-T-BDRZVX"
 source_paths: ["spec/2-navigation/13-user-guide.md", "spec/2-navigation/_product-overview.md"]
-mirror_sha256: "d8094b93ab6d578191be82372b88c5813661d96a7894a35665d2994e6d8adefe"
-etag: "sha256-e2aaa9ee2af0c32b7daaa1fbc10d09bc5ca549b681140521c63cf89f47ebd688"
+mirror_sha256: "b161a02686d4c8be424bf718e5609ae58c159188ea00ab04823b48cd3172c21e"
+etag: "sha256-dceac6be9cbf3540705933b8214383b6ff0936b3af24ee7798a93350e449eb5b"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/2-navigation/13-user-guide.md` (전체), `spec/2-navigation/_product-overview.md` (§3.11 User Guide) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -83,7 +83,7 @@ etag: "sha256-e2aaa9ee2af0c32b7daaa1fbc10d09bc5ca549b681140521c63cf89f47ebd688"
 
 ### 검증
 
-- REQ-GUIDE-032 WHEN 빌드 테스트를 돌리면 THE SYSTEM SHALL 모든 MDX 프론트매터의 `spec:` 키가 가리키는 스펙의 미러 파일과 `code:` 경로가 실제로 있는지, 영어 형제 파일에 프론트매터가 없는지 확인한다. (원본: 13 §11, §12)
+- REQ-GUIDE-032 WHEN 빌드 테스트를 돌리면 THE SYSTEM SHALL 모든 MDX 프론트매터의 `spec:` 키가 가리키는 스펙의 미러 파일과 `code:` 경로가 실제로 있는지, 영어 형제 파일에 프론트매터가 없는지 확인한다. (원본: 13 §11, §12, 다국어 규칙 6)
 - REQ-GUIDE-033 WHEN 배포 전 품질 점검을 하면 THE SYSTEM SHALL 내부 `/docs/...` 링크가 실제 슬러그를 가리키는지와 `FieldHelp` 딥링크 앵커가 있는지 확인한다. (원본: 13 §12)
 
 ## 정보 구조
@@ -217,6 +217,8 @@ code: ["codebase/backend/src/nodes/ai", "codebase/frontend/src/components/editor
 - `codebase/frontend/src/lib/docs/links.ts`
 - `codebase/frontend/src/lib/i18n/**`
 - `codebase/frontend/src/components/docs/**`
+- `codebase/frontend/src/lib/docs/__tests__/registry.test.ts`
+- `codebase/frontend/src/lib/docs/__tests__/spec-keys.ts`
 
 ## Rationale
 
@@ -232,7 +234,9 @@ code: ["codebase/backend/src/nodes/ai", "codebase/frontend/src/components/editor
 
 스펙의 정본이 NERV 로 옮겨 가면서(2026-10-01) 저장소의 옛 스펙 경로(`spec/<번호>-<영역>/…`)는 동결됐고 정본 전환 마지막 단계에서 지운다. 가이드가 옛 경로를 계속 적으면 그때 모두 끊긴다. NERV 키는 문서가 트리 안에서 자리를 옮겨도 바뀌지 않고, 저장소 미러 파일 이름이 키라서 빌드 테스트가 그대로 확인할 수 있다. 옛 문서 하나가 여러 NERV 문서로 나뉜 경우가 많아서 키는 옛 경로를 기계적으로 옮기지 않고 페이지가 다루는 내용에 맞는 문서를 고른다(2026-10-02, NERV 정본 전환 단계 4b).
 
-미러에 넣지 않는 카탈로그 영역(`CLE-C24` · `CLE-MKS`)의 키는 파일로 확인할 수 없어서 테스트가 둔 이름 목록으로만 확인한다. 그 키가 NERV 에 실제로 있는지는 빌드가 보지 않는다. 카탈로그를 미러에서 뺀 결정(정본 전환 단계 4a)을 따르면서 생긴 약화다.
+미러에 넣지 않는 카탈로그 영역(`CLE-C24` · `CLE-MKS`)의 키는 파일로 확인할 수 없어서 테스트가 둔 이름 목록으로만 확인한다. 그 키가 NERV 에 실제로 있는지는 빌드가 보지 않는다. 카탈로그 영역을 미러에서 뺀 결정(결정 D4. 미러 제외는 정본 전환 단계 1, 카탈로그를 `codebase/api-catalogs/` 로 옮긴 것은 단계 4a)을 따르면서 생긴 약화다.
+
+같은 단계에서 `code:` 행의 "glob 허용" 도 지웠다. 옛 명세는 glob 을 허용한다고 적었지만 검사는 처음부터 파일 · 디렉터리 실재 확인이라 glob 은 통과한 적이 없다. 명세를 구현에 맞춘 정정이다.
 
 ### 영어 형제 파일에 프론트매터를 두지 않는 이유
 
