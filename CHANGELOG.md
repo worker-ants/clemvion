@@ -23,6 +23,22 @@
 > 07 37% · 08 30% · 09(25일까지) 49% 였다(나중 PR 의 백필은 세지 않았다). 여기 없다고 그 변경이 없었던 것은 아니다 —
 > `git log` 가 정본이다.
 
+## Unreleased — 의존성: 2026-10-02 보안 공지에 맞춰 하한을 올리고 nodemailer 를 10 으로 올린다
+
+`pnpm audit` 이 critical 1 · high 19 · moderate 22 건을 보고해 의존성을 건드리는 모든 PR 의 `deps-security-checks` 가
+빨갛게 됐다(Task `CLE-T-N4PK2K`). 고친 뒤 moderate 이상은 0 건이다.
+
+- **nodemailer 9 → 10(backend, 메이저)**: 9.x 에는 고친 버전이 없다(GHSA-prgh-xp8r-p3m5 · GHSA-v53p-9fqp-m79j ·
+  GHSA-g57g-f23g-4646). 10 은 Node 20 이상을 요구하고(운영 24) 자체 타입을 낸다. 그래서 `@types/nodemailer` 를 뺐다.
+  `@nestjs-modules/mailer` 2.3.7 은 `defaults` 를 전송 옵션 타입으로 선언하지만 실제로는 메시지 기본값으로 넘긴다.
+  nodemailer 10 타입에서는 그 선언이 `from` 을 받지 않아 `mail.module.ts` 에서 값은 `MailDefaults` 로 검사하고 넘길 때만 단언한다.
+- **Next.js 16.3.5 → 16.3.6 이상(frontend · channel-web-chat)**: critical GHSA-vcvr-r3jv-pc5j.
+- **axios 1.18 → 1.20 이상(frontend)**: high 7 · moderate 5 건.
+- **undici 6.28.0 → 6.28.1 이상(backend 직접 의존)**: GHSA-rfgv-xxqx-mfg5 외.
+- **override 하한 상향**: `@grpc/grpc-js` · `fast-uri` · `ip-address`(backend 직접 의존도 함께) · `multer` · `nodemailer` ·
+  `brace-expansion`(1.x · 5.x, 스코프 키 상한도 함께). 새 override 둘: `undici@>=8.0.0 <8.10.2`(frontend · channel-web-chat > jsdom@30)와
+  `engine.io: ~6.6.10`(backend > socket.io). `scripts/check-pnpm-security-config.py` 의 `EXPECTED_OVERRIDES` 도 같이 고쳤다.
+
 ## Unreleased — 하네스: doc-sync 매트릭스 가드가 NERV 미러 경로를 검사한다
 
 `PROJECT.md` 의 갱신 위치 매핑 · 유저 가이드 SoT 표 · 자동 가드 목록과 `.claude/config/doc-sync-matrix.json` 이
