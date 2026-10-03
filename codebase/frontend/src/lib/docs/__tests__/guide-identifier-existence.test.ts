@@ -331,8 +331,8 @@ describe("유저 가이드 식별자 실재성 가드", () => {
     it("카탈로그는 NERV `CLE-API-ERRCODES` 의 미러를 읽는다", () => {
       // 경로 상수가 다른 미러 문서를 가리켜도 백틱 코드는 50개를 넘길 수 있다. 그래서
       // 규모 대신 미러 frontmatter 의 `id` 로 대상 문서를 고정한다.
-      // 옵션 객체 `{}` 는 gray-matter 의 내용 캐시를 우회한다(`matterNoCache` 와 같은 이유).
-      // 그 헬퍼는 단계 5 에 걷힐 옛 트리 가드 모듈(`spec-frontmatter-parse.ts`)에 있어 가져오지 않는다.
+      // 옵션 객체 `{}` 는 gray-matter 의 내용 캐시를 우회한다. 옵션 없이 부르면 내용을 키로
+      // 캐시하고, 파싱이 던진 내용도 다음 호출에서 빈 `data` 로 돌려준다.
       const { data } = matter(readErrorCodeCatalogMirror(root), {});
       expect(data.id).toBe("CLE-API-ERRCODES");
     });

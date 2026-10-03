@@ -482,8 +482,7 @@ class PerCheckerBudgetTest(unittest.TestCase):
             {
                 "context": _SYNTHETIC_CONTEXT, "window": 100_000,
                 "checkers": ["cross_spec", "rationale_continuity",
-                             "convention_compliance", "plan_coherence",
-                             "naming_collision"],
+                             "convention_compliance", "naming_collision"],
             },
         )
         for checker, size in sizes.items():

@@ -77,9 +77,8 @@ jobs:
         codebase/channel-web-chat/**
         codebase/packages/**
         spec/**
-        # 옮긴 API 카탈로그. 옛 spec 트리에서 옛 카탈로그 경로로 가는 링크를 이 디렉터리에서
-        # 경로 · 앵커까지 검사한다(`spec-links.ts` 의 `RELOCATED_SPEC_TREES`). 단계 5 에서 옛
-        # 트리와 함께 걷는다(`.claude/tests/test_api_catalog_ci_coverage.py`).
+        # API 카탈로그. `codebase/` 전체를 훑는 가드(옛 경로 래칫 · 키 실재 · 리뷰 인용 형식)가
+        # 이 디렉터리의 파일도 읽는다(`.claude/tests/test_api_catalog_ci_coverage.py`).
         codebase/api-catalogs/**
         # 거버넌스 문서 (2026-08-27 추가) — 가드 scope 3.
         # `:(glob)` 매직이 없으면 git pathspec 의 `*` 가 `/` 를 넘어 **17,202개**(당시 spec·plan·
@@ -131,8 +130,8 @@ jobs:
   # 못하는 셸 · 손 편집은 여기서 `pull.py --check` 로 잡는다. 무엇을 잡고 무엇을 못 잡는지는
   # `pull.py` 모듈 docstring 의 "보장 범위" 가 정본이다(여기에 다시 적지 않는다). 지문은 같은
   # 파일 안의 값이라 실수를 잡는 장치이지 변조 방지가 아니다(PR 이 넣은 `pull.py` 로 돈다).
-  # 네트워크와 토큰 없이 돌고 표준 라이브러리만 쓴다. 위 docs 가드는 미러를 대상에서 뺀다
-  # (`inNervMirror`).
+  # 네트워크와 토큰 없이 돌고 표준 라이브러리만 쓴다. 위 docs 가드는 미러 본문의 링크를 검사하지
+  # 않는다. 미러의 링크는 `pull.py` 가 고쳐 쓰고 `--check` 가 이동한 문서를 가리키는 링크를 잡는다.
   spec-mirror-integrity:
     needs: changes
     if: ${{ !cancelled() }}

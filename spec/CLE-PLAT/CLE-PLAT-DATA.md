@@ -3,18 +3,18 @@ id: "CLE-PLAT-DATA"
 title: "데이터 모델 개요"
 type: "design"
 version: 1
-status: "draft"
+status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-PLAT"
 ancestors: ["CLE-VISION", "CLE-PLAT"]
 area: "CLE-PLAT"
-content_hash: "beee9232cf73f381eb2053306ddba519075db43fc989057770f7c570987eb7e9"
-read_as: "approved"
-task: null
+content_hash: "5eccd3a0703a9a719b68d79d8ff93bb53123e5126a7f972ea02941f9a23d4542"
+read_as: "approved_fallback"
+task: "CLE-T-7M4C4X"
 source_paths: ["spec/1-data-model.md", "spec/data-flow/0-overview.md", "spec/data-flow/12-workspace.md"]
-mirror_sha256: "aa1c30fcfb0614d1a820b5dbbf28c18777b6c860215d4f2326c31cae5139fddd"
-etag: "sha256-526238a93475bb88442cce602890f13bda81e35745c84bd3557d7076d22ac813"
+mirror_sha256: "78c2d62e7945c99102506e586dda7433c7ff11dad117438c0335d6c2e4757aa3"
+etag: "sha256-defd4737b9223ad845c51e4570e05caf1a09ec310b2bcf15e22554670bf8ac64"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/1-data-model.md` (§1 엔티티 관계 개요, §1.1 참조의 소속, §2 FK 표기, §3 인덱스 전략, Rationale «`code:` 에 전용 e2e 가드 셋» · «§2 FK 삭제 동작 · 빠진 컬럼» · «쓸 인덱스가 없는 FK 서른하나의 처분»), `spec/data-flow/0-overview.md` (§3.3, §5 벡터 인덱스), `spec/data-flow/12-workspace.md` (Rationale «본문 참조 id 도 저장 전에 소속을 본다») · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -102,7 +102,7 @@ erDiagram
 
 ### 지식 저장소·AI
 
-지식 저장소(Knowledge Base, `KnowledgeBase`)는 문서와 청크를 갖고, Graph RAG 모드면 그래프 엔티티와 관계를 더 갖는다. 모델 설정(`ModelConfig`)은 지식 저장소·어시스턴트 세션·LLM 사용량 기록이 가리킨다.
+지식 저장소(Knowledge Base, `KnowledgeBase`)는 문서와 청크를 갖고, Graph RAG 모드면 Entity 와 Relation 을 더 갖는다. 모델 설정(`ModelConfig`)은 지식 저장소·어시스턴트 세션·LLM 사용량 기록이 가리킨다.
 
 ```mermaid
 erDiagram
@@ -110,14 +110,14 @@ erDiagram
   KnowledgeBase ||--o{ Document : "문서"
   Document ||--o{ DocumentChunk : "청크"
   KnowledgeBase ||--o{ DocumentChunk : "청크(비정규화)"
-  KnowledgeBase ||--o{ GraphEntity : "그래프 엔티티"
-  KnowledgeBase ||--o{ GraphRelation : "그래프 관계"
+  KnowledgeBase ||--o{ GraphEntity : "Entity"
+  KnowledgeBase ||--o{ GraphRelation : "Relation"
   GraphEntity ||--o{ GraphRelation : "head"
   GraphEntity ||--o{ GraphRelation : "tail"
   DocumentChunk |o--o{ GraphEntity : "마지막 등장 청크"
   DocumentChunk |o--o{ GraphRelation : "근거 청크"
   DocumentChunk ||--o{ GraphChunkEntity : "등장"
-  GraphEntity ||--o{ GraphChunkEntity : "등장 엔티티"
+  GraphEntity ||--o{ GraphChunkEntity : "등장 Entity"
   Workspace ||--o{ ModelConfig : "모델 설정"
   ModelConfig |o--o{ KnowledgeBase : "임베딩·추출·리랭커 모델"
   Workspace ||--o{ LlmUsageLog : "LLM 사용량"
@@ -160,9 +160,9 @@ erDiagram
 | KnowledgeBase | 지식 저장소. 모델 설정 참조 넷의 소속은 [참조의 소속](#참조의-소속) | [지식 저장소 데이터와 흐름](../CLE-KB/CLE-KB-DATA.md) |
 | Document | 지식 저장소에 올린 문서 | [지식 저장소 데이터와 흐름](../CLE-KB/CLE-KB-DATA.md) |
 | DocumentChunk | 문서 청크와 임베딩 | [지식 저장소 데이터와 흐름](../CLE-KB/CLE-KB-DATA.md) |
-| Entity (`GraphEntity`) | Graph RAG 엔티티 | [지식 저장소 데이터와 흐름](../CLE-KB/CLE-KB-DATA.md) |
-| Relation (`GraphRelation`) | Graph RAG 엔티티 사이 관계 | [지식 저장소 데이터와 흐름](../CLE-KB/CLE-KB-DATA.md) |
-| ChunkEntity (`GraphChunkEntity`) | 청크와 엔티티의 등장 관계 | [지식 저장소 데이터와 흐름](../CLE-KB/CLE-KB-DATA.md) |
+| Entity (`GraphEntity`) | Graph RAG Entity | [지식 저장소 데이터와 흐름](../CLE-KB/CLE-KB-DATA.md) |
+| Relation (`GraphRelation`) | Graph RAG Entity 사이 Relation | [지식 저장소 데이터와 흐름](../CLE-KB/CLE-KB-DATA.md) |
+| ChunkEntity (`GraphChunkEntity`) | 청크-Entity 매핑 | [지식 저장소 데이터와 흐름](../CLE-KB/CLE-KB-DATA.md) |
 | Execution | 워크플로우 실행 1회 | [실행 데이터와 흐름](../CLE-EXEC/CLE-EXEC-DATA.md) |
 | ExecutionNodeLog | 한 실행의 노드 진행 순서 | [실행 데이터와 흐름](../CLE-EXEC/CLE-EXEC-DATA.md) |
 | WorkflowTestDataset | 에디터 테스트 입력 데이터셋 | [실행 데이터와 흐름](../CLE-EXEC/CLE-EXEC-DATA.md) |
@@ -181,12 +181,13 @@ erDiagram
 
 ## 공통 컬럼 규칙
 
-1. **기본 키**: 엔티티는 대개 `id`(UUID)를 PK 로 둔다. 예외는 다섯이다.
+1. **기본 키**: 엔티티는 대개 `id`(UUID)를 PK 로 둔다. 예외는 여섯이다.
    - ExecutionNodeLog: `id` 가 BIGSERIAL 이다. PostgreSQL sequence 가 부여한 순서가 곧 노드 실행 순서이고, 다중 인스턴스에서도 안전하다.
    - ExecutionToken: JWT `jti`(TEXT)가 PK 다.
    - SecretStore: `ref`(TEXT, `secret://<scope>/<resourceId>/<name>`)가 PK 다.
    - WebhookEndpointReservation: `endpoint_path` 가 PK 다. 예약하는 대상이 곧 경로라 별도 id 가 할 일이 없다.
    - ChunkEntity: `(chunk_id, entity_id)` 복합 PK 다.
+   - 통합 OAuth 미리보기 토큰(`integration_oauth_preview`): `preview_token`(VARCHAR(64), `'tmp_'` + hex 32자)이 PK 다([통합 데이터와 흐름](../CLE-INT/CLE-INT-DATA.md)).
 2. **시각 컬럼**: 생성 시각 `created_at` 과 수정 시각 `updated_at` 을 둔다. `updated_at` 은 DB 트리거 `update_updated_at_column`(V001)이 갱신한다.
 3. **nullable 표기**: 컬럼 타입 뒤의 `?`(예: `String?`, `UUID?`)는 NULL 을 허용한다는 뜻이다.
 4. **FK 표기**: FK 컬럼은 `FK → 부모 (삭제 동작)` 으로 적는다. 모든 FK 행에 삭제 동작을 적는다. 동작 목록은 [FK 삭제 동작](#fk-삭제-동작) 에 있다.
@@ -227,8 +228,8 @@ erDiagram
 
 | 부모 | CASCADE | SET NULL | NO ACTION |
 | --- | --- | --- | --- |
-| User | Workspace.`owner_id` · WorkspaceMember.`user_id` · WorkflowTestDataset.`owner_id` · RefreshToken.`user_id` · LoginHistory.`user_id` · AssistantSession.`user_id` · WebAuthnCredential.`user_id` | AlertRule.`created_by` | Workflow.`created_by` · Integration.`created_by` · Execution.`executed_by` · WorkflowVersion.`created_by` · AuditLog.`user_id` · Notification.`user_id` |
-| Workspace | WorkspaceMember · Workflow · Folder · Trigger · Schedule · Integration · KnowledgeBase · WorkflowTestDataset · ModelConfig · AuthConfig · AuditLog · Notification · AssistantSession · AgentMemory · LlmUsageLog · AlertRule (모두 `workspace_id`) | WebhookEndpointReservation.`workspace_id` | — |
+| User | Workspace.`owner_id` · WorkspaceMember.`user_id` · WorkflowTestDataset.`owner_id` · RefreshToken.`user_id` · LoginHistory.`user_id` · AssistantSession.`user_id` · WebAuthnCredential.`user_id` | AlertRule.`created_by` · WorkspaceInvitation.`invited_by` · WorkspaceInvitation.`accepted_by` | Workflow.`created_by` · Integration.`created_by` · Execution.`executed_by` · WorkflowVersion.`created_by` · AuditLog.`user_id` · Notification.`user_id` |
+| Workspace | WorkspaceMember · Workflow · Folder · Trigger · Schedule · Integration · KnowledgeBase · WorkflowTestDataset · ModelConfig · AuthConfig · AuditLog · Notification · AssistantSession · AgentMemory · LlmUsageLog · AlertRule · WorkspaceInvitation (모두 `workspace_id`) | WebhookEndpointReservation.`workspace_id` | — |
 | Folder | Folder.`parent_id` | Workflow.`folder_id` | — |
 | Workflow | Node · Edge · Trigger · WorkflowVersion · Execution · WorkflowTestDataset · AssistantSession · IntegrationUsageLog · AlertRule (모두 `workflow_id`) | LlmUsageLog.`workflow_id` | — |
 | Node | Edge.`source_node_id` · Edge.`target_node_id` · NodeExecution.`node_id` | Node.`container_id` · Node.`tool_owner_id` | — |
@@ -248,7 +249,7 @@ erDiagram
 
 - **NO ACTION 여섯은 모두 사용자를 가리킨다.** 앱에는 사용자를 지우는 경로가 없다. "탈퇴" 는 워크스페이스 멤버십(`workspace_member` 행) 삭제다. 참조 행이 있는 사용자의 삭제는 지금 스키마가 거부한다. 사용자 삭제를 더하는 변경은 사용자를 가리키는 FK 전체의 처분부터 다시 정해야 한다.
 - **시크릿 저장소의 `workspace_id` 에는 FK 가 없다.** 이 컬럼을 조건으로 지우는 경로는 없고, 정리는 트리거 단위 접두 삭제로 한다([트리거 관리](../CLE-TRIG/CLE-TRIG-MANAGE.md)).
-- **워크스페이스 초대(`workspace_invitation`)** 는 워크스페이스 삭제 트랜잭션이 멤버와 함께 명시적으로 지운다([계정과 워크스페이스 데이터 흐름](../CLE-ACCT/CLE-ACCT-DATA.md)).
+- **워크스페이스 초대(`workspace_invitation`)** 는 코드 엔티티에 관계가 선언되지 않아 워크스페이스 삭제 트랜잭션이 멤버와 함께 명시적으로 지운다. DB 에는 `workspace_id` FK(CASCADE, V017)도 있다([계정과 워크스페이스 데이터 흐름](../CLE-ACCT/CLE-ACCT-DATA.md)).
 - 통합 OAuth 일시 행 두 테이블의 FK 는 [통합 데이터와 흐름](../CLE-INT/CLE-INT-DATA.md) 이 정한다. 위 표의 `integration_oauth_state`·`integration_expiry_dispatch` 행은 그 문서의 매핑 표에서 옮겼다.
 
 ## 인덱스 전략
@@ -365,7 +366,7 @@ IVFFlat 인덱스는 두 테이블 모두 쓰지 않는다. 인덱스 정의 상
 | KnowledgeBase | `(workspace_id)` | 워크스페이스별 지식 저장소 목록·선택 상자·어시스턴트 도구 `list_knowledge_bases`. FK `ON DELETE CASCADE` 도 쓴다. CONCURRENTLY, V128 |
 | Entity | `(last_seen_chunk_id)` WHERE `last_seen_chunk_id IS NOT NULL` | FK `ON DELETE SET NULL`. 청크가 지워질 때마다(재임베딩, 문서 삭제, 지식 저장소 삭제) 찾는다. 다른 인덱스는 모두 `knowledge_base_id` 가 선두라 쓰이지 않는다. CONCURRENTLY, V117 |
 | Relation | `(evidence_chunk_id)` WHERE `evidence_chunk_id IS NOT NULL` | 위와 같다. CONCURRENTLY, V118 |
-| Relation | `(head_entity_id)` | FK `ON DELETE CASCADE`. 엔티티가 지워질 때마다(엔티티 삭제, 지식 저장소 삭제) 찾는다. `(knowledge_base_id, head_entity_id)` 는 PostgreSQL 18 skip scan 으로 쓰이지만 비용이 지식 저장소 수에 비례한다. CONCURRENTLY, V119 |
+| Relation | `(head_entity_id)` | FK `ON DELETE CASCADE`. Entity 가 지워질 때마다(Entity 삭제, 지식 저장소 삭제) 찾는다. `(knowledge_base_id, head_entity_id)` 는 PostgreSQL 18 skip scan 으로 쓰이지만 비용이 지식 저장소 수에 비례한다. CONCURRENTLY, V119 |
 | Relation | `(tail_entity_id)` | 위와 같다(tail). CONCURRENTLY, V120 |
 
 지식 저장소 삭제 연쇄 인덱스의 근거는 [지식 저장소 데이터와 흐름](../CLE-KB/CLE-KB-DATA.md) 에 있다.
@@ -428,16 +429,18 @@ IVFFlat 인덱스는 두 테이블 모두 쓰지 않는다. 인덱스 정의 상
 - **실행 시점 격리와는 다른 층이다**: 서브 워크플로우 호출의 `WORKFLOW_FORBIDDEN_WORKSPACE`([워크플로우 호출 노드](../CLE-NODE-FLOW/CLE-NODE-SUBWF.md))는 **실행 중** 노드 설정이 가리키는 워크플로우를 막는다. 이 규칙은 **저장 시점**의 요청 본문을 본다.
 - **남긴 것**: 트리거 `config` JSONB 안의 비밀 참조(`secret://…`, id 가 아닌 문자열)는 이 결정 밖이다. 이미 저장된 교차 행에 대한 실행 시점 방어선과 운영 데이터 점검도 이 결정 밖이다. 둘 다 후속 작업으로 추적한다.
 
-근거·실측: `plan/complete/cross-workspace-refs.md`, e2e `codebase/backend/test/cross-workspace-references.e2e-spec.ts`(고치기 전 코드에서 거부를 기대한 18케이스가 모두 실패했다).
+근거·실측: 옛 plan `cross-workspace-refs.md`(git 이력), e2e `codebase/backend/test/cross-workspace-references.e2e-spec.ts`(고치기 전 코드에서 거부를 기대한 18케이스가 모두 실패했다).
 
 ### 전용 e2e 가드를 구현 위치에 나열한 이유 (2026-09-19)
 
-이 문서의 사실을 기계적으로 지키는 e2e 셋을 구현 위치에 넣었다(사용자 결정). `deletion-cascade-indexes` 는 FK 인덱스를, `trigger-endpoint-path-dedupe` 는 웹훅 경로 중복 정리(V131)를, `entity-schema-declarations` 는 엔티티 선언과 DB 를 지킨다. 인덱스와 제약은 선언에서 DB 한 방향으로, 컬럼 정의는 양방향으로 본다. 이 파일을 고치는 변경도 이 문서와의 대조를 거친다. 가드를 약하게 고치는 변경이 코드 리뷰만 거치고 지나가지 않게 하려는 것이다.
+이 문서의 사실을 기계적으로 지키는 e2e 를 구현 위치에 넣었다(사용자 결정). `deletion-cascade-indexes` 는 FK 인덱스를, `trigger-endpoint-path-dedupe` 는 웹훅 경로 중복 정리(V131)를, `entity-schema-declarations` 는 엔티티 선언과 DB 를 지킨다. 인덱스와 제약은 선언에서 DB 한 방향으로, 컬럼 정의는 양방향으로 본다. `webhook-endpoint-reservation` 은 웹훅 경로 예약(V133 백필과 DB 트리거)을 지킨다([트리거 데이터와 흐름](../CLE-TRIG/CLE-TRIG-DATA.md) «지우거나 바꾼 웹훅 경로를 영구 예약하는 결정»). 구현 위치에 넣은 목적은 이 파일을 고치는 변경도 이 문서와 대조하는 것이다. 가드를 약하게 고치는 변경이 코드 리뷰만 거치고 지나가지 않게 하려는 것이다.
 
-- **넣지 않은 것**: 자기 기능의 인덱스나 컬럼을 곁들여 확인하는 기능 e2e(`background-monitoring`, `notifications-dismiss`, `terminal-duration-sql`, `webhook-trigger`). 넣으면 이 문서가 무관한 기능 변경의 관문이 된다. 당시 백엔드 e2e 58개 가운데 어떤 스펙의 구현 위치에 걸린 것은 7개라, 기능 e2e 를 넣지 않는 쪽이 이 저장소의 정상이다.
-- **glob 이 아니라 나열한 이유**: 이 셋은 이름으로 묶을 공통 접두가 없고, 새 전용 가드는 드물게 생긴다. 그 가드를 만드는 변경이 여기에 더한다.
+2026-10-03 에 대조 경로를 고쳐 적었다. 처음에는 push 리뷰 가드가 이 대조를 강제했다(구현 위치에 걸린 파일을 고치면 구현 완료 검토를 요구했다). 그 가드는 NERV 정본 전환 단계 2(NERV Task `CLE-T-4ABTG7`)에서 없어졌다. 지금은 일관성 검토의 `--impl-done` 을 돌리면 구현 위치가 바뀐 파일을 덮는 문서가 검토 대상에 든다(NERV Task `CLE-T-VP5KDJ`). 이 실행을 강제하는 것은 없다. NERV done 게이트는 Task 에 묶인 consistency 라운드가 있고 통과했는지만 보고 그 라운드가 이 문서를 대상으로 했는지는 보지 않는다.
 
-근거: `plan/complete/spec-draft-code-guards-and-change-summary.md`.
+- **넣지 않은 것**: 자기 기능의 인덱스나 컬럼을 곁들여 확인하는 기능 e2e(`background-monitoring`, `notifications-dismiss`, `terminal-duration-sql`, `webhook-trigger`). 넣으면 그 기능 e2e 를 고친 모든 작업의 구현 완료 검토가 이 문서를 대상으로 끌어들여, 이 문서가 무관한 기능 변경의 관문이 된다. 당시 백엔드 e2e 58개 가운데 어떤 스펙의 구현 위치에 걸린 것은 7개라, 기능 e2e 를 넣지 않는 쪽이 이 저장소의 정상이다.
+- **glob 이 아니라 나열한 이유**: 이 넷은 이름으로 묶을 공통 접두가 없고, 새 전용 가드는 드물게 생긴다. 그 가드를 만드는 변경이 여기에 더한다.
+
+근거: 옛 plan `spec-draft-code-guards-and-change-summary.md`(git 이력).
 
 ### 모든 FK 행에 삭제 동작을 적는 이유 (2026-09-19)
 
@@ -449,7 +452,7 @@ IVFFlat 인덱스는 두 테이블 모두 쓰지 않는다. 인덱스 정의 상
 
 NO ACTION 여섯이 모두 사용자를 가리킨다는 사실은 아래 절이 적은 사용자 참조 FK 의 처분과 같다.
 
-근거·실측: `plan/complete/spec-draft-data-model-fk-actions.md`.
+근거·실측: 옛 plan `spec-draft-data-model-fk-actions.md`(git 이력).
 
 ### 쓸 인덱스가 없는 FK 서른하나의 처분 (2026-09-18)
 
@@ -495,7 +498,7 @@ NO ACTION 여섯이 모두 사용자를 가리킨다는 사실은 아래 절이 
 
 28개 밖에서 같은 모양으로 찾은 웹훅 트리거 조회(`endpoint_path` 로만 찾는데 인덱스는 `(workspace_id, endpoint_path)`)는 유일성 범위 결정이 걸려 따로 다뤘다. 같은 날 전역 유일로 정했다. 다시 보니 성능보다 워크스페이스를 넘는 가로채기가 먼저였다([트리거 데이터와 흐름](../CLE-TRIG/CLE-TRIG-DATA.md)).
 
-근거·실측: `plan/complete/spec-draft-fk-remaining-dispositions.md`, 구현은 V121~V130.
+근거·실측: 옛 plan `spec-draft-fk-remaining-dispositions.md`(git 이력), 구현은 V121~V130.
 
 ### 엔티티 정의를 소유 문서로 나눈 이유
 

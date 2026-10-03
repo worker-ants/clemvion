@@ -4,7 +4,8 @@ Why this exists — NERV cutover stage 4a (Task `CLE-T-BD48J3`, decision D4,
 2026-10-02). The Cafe24 · MakeShop API catalogs moved from
 `spec/conventions/<vendor>-api-catalog/` to `codebase/api-catalogs/<vendor>/`.
 Backend sync / drift / index-frontmatter tests, frontend i18n sync tests and the
-spec link guard read them. While the catalogs lived under `spec/`, neither
+docs guards that sweep all of `codebase/` (the legacy-path ratchet, key mentions,
+review-citation form) read them. While the catalogs lived under `spec/`, neither
 `backend-checks` nor `frontend-checks` listed that path, so a catalog-only PR (a
 generator re-run, a hand-added row) never ran the tests that compare the catalog
 with the code. The move is the moment to close that gap, and nothing else would
@@ -49,9 +50,11 @@ CONSUMERS: dict[str, tuple[str, ...]] = {
         "codebase/frontend/src/lib/i18n/__tests__/cafe24-catalog-sync.spec.ts",
         "codebase/frontend/src/lib/i18n/__tests__/makeshop-catalog-sync.spec.ts",
     ),
-    # 옛 spec 트리에서 옛 카탈로그 경로로 가는 링크를 새 자리에서 검사한다(`RELOCATED_SPEC_TREES`).
+    # `codebase/` 전체를 훑는 docs 가드(옛 경로 래칫 · 키 실재 · 리뷰 인용 형식)가 카탈로그 파일도
+    # 읽는다. 래칫은 카탈로그 파일에 생성기를 고치라는 안내를 따로 내서 코드에 그 경로를 적는다.
+    # 옛 트리 링크를 새 자리에서 검사하던 `spec-links.ts` 의 재배치는 전환 단계 5 에서 걷었다.
     "spec-link-checks.yml": (
-        "codebase/frontend/src/lib/docs/__tests__/spec-links.ts",
+        "codebase/frontend/src/lib/docs/__tests__/legacy-path-ratchet.test.ts",
     ),
 }
 

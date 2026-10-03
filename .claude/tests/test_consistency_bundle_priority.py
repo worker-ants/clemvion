@@ -54,7 +54,7 @@ _PREAMBLE = _harness.orchestrator_preamble(
                    "## Rationale\\n\\n### 결정 하나\\n\\n근거 ONE\\n"
 
         def mini_mirror(tmp):
-            '''main 에 미러 · 옛 트리 · 코드를 커밋하고 `work` 브랜치로 옮긴 임시 저장소.'''
+            '''main 에 미러 · 미러가 아닌 `spec/` 파일(옛 트리 모양) · 코드를 커밋하고 `work` 브랜치로 옮긴 임시 저장소.'''
             root = os.path.join(tmp, "repo")
             _harness.make_temp_git_repo(root)
             w = _harness.write_mirror_doc
@@ -601,20 +601,9 @@ class SpliceHelperTest(unittest.TestCase):
         self.assertIn("DIFF", out)
 
 
-class MirrorPredicateTest(unittest.TestCase):
-    def test_is_nerv_mirror(self):
-        out = run_in_orchestrator(
-            """
-            cases = ["spec/README.md", "spec/CLE-VISION.md", "spec/CLE-ACCT/CLE-ACCT.md",
-                     "spec/0-overview.md", "spec/5-system/1-auth.md",
-                     "spec/conventions/README.md", "spec/5-system/CLE-x.md"]
-            emit([orch.is_nerv_mirror(ROOT + "/" + c, ROOT + "/spec") for c in cases])
-            """
-        )
-        self.assertEqual(out, [True, True, True, False, False, False, False])
-
+class RealMirrorTest(unittest.TestCase):
     def test_the_real_mirror_is_found(self):
-        """미러가 비면 위 단언이 모두 공허해진다 — 이 체크아웃의 미러를 실제로 읽는다."""
+        """합성 미러로 본 단언은 실제 미러를 읽지 못하면 공허해진다. 이 체크아웃의 미러를 실제로 읽는다."""
         keys = run_in_orchestrator(
             "emit(sorted(orch.mirror_key(p) for p in orch.collect_mirror_files(ROOT + '/spec')))")
         self.assertIn("CLE-ENG-SPECEVIDENCE", keys)

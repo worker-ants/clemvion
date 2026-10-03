@@ -213,27 +213,28 @@ class DowngradedCriticalsTest(unittest.TestCase):
 
     def test_flags_the_real_downgrade_shape(self):
         """Modelled on `review/consistency/2026/06/04/00_00_14`, which downgraded
-        two convention_compliance criticals and one plan_coherence critical."""
+        two convention_compliance criticals and one plan_coherence critical. That
+        checker is gone (NERV cutover stage 5), so naming_collision stands in."""
         d = self._session("NO", {
             "convention_compliance.md": "- **[CRITICAL]** 필드 불일치\n"
                                         "- **[CRITICAL]** turnCount 기술 상충\n",
-            "plan_coherence.md": "### [CRITICAL] worktree 동시 편집\n",
+            "naming_collision.md": "### [CRITICAL] 식별자 중복\n",
             "cross_spec.md": "발견 없음\n",
         })
         self.assertEqual(BI.downgraded_criticals(d),
-                         {"convention_compliance.md": 2, "plan_coherence.md": 1})
+                         {"convention_compliance.md": 2, "naming_collision.md": 1})
         note = BI.contradiction_note(d)
         self.assertIn("§planner 인계", note)
         # The `§planner 인계` string is template-constant, so asserting only that
         # leaves the whole `parts` construction — `.md` stripping, sorting, the
         # `name=count` join — unpinned. These name what the reader must see.
         self.assertIn("convention_compliance=2", note)
-        self.assertIn("plan_coherence=1", note)
+        self.assertIn("naming_collision=1", note)
         # The checker names lose their `.md`; a bare `.md` check would be wrong
         # here because the note cites `consistency-summary.md` on purpose.
         self.assertNotIn("convention_compliance.md", note)
         self.assertLess(note.index("convention_compliance"),
-                        note.index("plan_coherence"), "sorted() order")
+                        note.index("naming_collision"), "sorted() order")
 
     def test_silent_when_the_summary_blocks(self):
         """BLOCK: YES with criticals is the rule working, not a violation."""

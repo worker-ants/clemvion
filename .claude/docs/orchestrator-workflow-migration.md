@@ -224,7 +224,7 @@ analysis found five compounding pressures, all pushing the same way:
   - [`guard_review_before_push.py`](../hooks/guard_review_before_push.py) —
     PreToolUse(Bash): blocks `git push` when code is unreviewed/unresolved
     (hard gate for "PR 로 미룸").
-  - [`guard_review_before_stop.py`](../hooks/guard_review_before_stop.py) —
+  - `guard_review_before_stop.py` (deleted in NERV cutover stage 5) —
     Stop: nudges once per (session, HEAD) when code is unreviewed (soft gate for
     "다음 턴으로 미룸"; never loops — `stop_hook_active` + dedup marker).
   - Unit-tested in [`.claude/tests/test_review_guard.py`](../tests/test_review_guard.py).
@@ -242,9 +242,9 @@ analysis found five compounding pressures, all pushing the same way:
     describe the review gate as it was.
   - **NERV cutover stage 3 (2026-10-01, NERV Task `CLE-T-FN2JWK`)** removed the
     plan nudge with `plan/` and unwired the `Stop` hook from `settings.json`.
-    `guard_review_before_stop.py` stays as an empty stub so sessions started before
-    that merge (which still carry the old wiring) are not blocked at turn-end; stage 5
-    (`CLE-T-7M4C4X`) deletes it.
+    `guard_review_before_stop.py` stayed as an empty stub so sessions started before
+    that merge (which still carried the old wiring) were not blocked at turn-end.
+    Stage 5 (`CLE-T-7M4C4X`) deleted the stub.
 - **Standing opt-in (remedies 1–2).** CLAUDE.md §외부 LLM 호출 정책 now records
   that post-impl auto review/fix is a **standing sanctioned obligation**, exempt
   from the Workflow "inferred scale" guard; auto-triggers may use the fallback

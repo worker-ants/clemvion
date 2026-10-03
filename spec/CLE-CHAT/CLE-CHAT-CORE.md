@@ -3,18 +3,18 @@ id: "CLE-CHAT-CORE"
 title: "채팅 채널"
 type: "feature"
 version: 1
-status: "draft"
+status: "approved"
 requirements: ["REQ-CHAT-001", "REQ-CHAT-002", "REQ-CHAT-003", "REQ-CHAT-004", "REQ-CHAT-005", "REQ-CHAT-006", "REQ-CHAT-007", "REQ-CHAT-008", "REQ-CHAT-009", "REQ-CHAT-010", "REQ-CHAT-011", "REQ-CHAT-012", "REQ-CHAT-013", "REQ-CHAT-014", "REQ-CHAT-015", "REQ-CHAT-016", "REQ-CHAT-017", "REQ-CHAT-018", "REQ-CHAT-019", "REQ-CHAT-020", "REQ-CHAT-021", "REQ-CHAT-022", "REQ-CHAT-023", "REQ-CHAT-024", "REQ-CHAT-025", "REQ-CHAT-026", "REQ-CHAT-027", "REQ-CHAT-028", "REQ-CHAT-029", "REQ-CHAT-030", "REQ-CHAT-031", "REQ-CHAT-032", "REQ-CHAT-033", "REQ-CHAT-034", "REQ-CHAT-035", "REQ-CHAT-036", "REQ-CHAT-037", "REQ-CHAT-038", "REQ-CHAT-039", "REQ-CHAT-040", "REQ-CHAT-041", "REQ-CHAT-042", "REQ-CHAT-043", "REQ-CHAT-044", "REQ-CHAT-045", "REQ-CHAT-046", "REQ-CHAT-047", "REQ-CHAT-048", "REQ-CHAT-049", "REQ-CHAT-050", "REQ-CHAT-051", "REQ-CHAT-052", "REQ-CHAT-053", "REQ-CHAT-054", "REQ-CHAT-055", "REQ-CHAT-056", "REQ-CHAT-057", "REQ-CHAT-058"]
 basis_superseded: false
 parent: "CLE-CHAT"
 ancestors: ["CLE-VISION", "CLE-IX", "CLE-CHAT"]
 area: "CLE-CHAT"
-content_hash: "453ca0ea4980467fe1f745c90fbc91a739b9d666bf205598e50d8a15fe273c08"
-read_as: "approved"
-task: null
+content_hash: "705e507075c6790abe258e08d4a6da7d6749db90cdcb8d876af7b369f72e0be8"
+read_as: "approved_fallback"
+task: "CLE-T-7M4C4X"
 source_paths: ["spec/4-nodes/7-trigger/providers/_overview.md", "spec/5-system/15-chat-channel.md"]
-mirror_sha256: "5286c51c9871adaa80626c1d10abbb0ea6a61fc6081b8a88331e3edc63e3a102"
-etag: "sha256-e029c99ac435c77ee3655caf000052c636cc9a5fc1ee851e91bc82588c35d739"
+mirror_sha256: "e965117dee809d97a9086886bb28179dac3a6d1c0191f2597fbddae1cfc6f40b"
+etag: "sha256-b9d933e9376c104b9a2dcca2deb4d24d02a5ae842d56aaab92dbc08727b1b335"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/5-system/15-chat-channel.md` (Overview, §3 처리 흐름, §5–§8, Rationale), `spec/4-nodes/7-trigger/providers/_overview.md` · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -332,7 +332,7 @@ v2 결정 후보는 Slack·Discord 의 프로바이더 발급 서명 자료에�
 | 비활성 트리거 | `202 Accepted` | `{ executionId: 'ignored' }` | `HooksService.handle` 의 채팅 채널 분기가 비활성 검사보다 먼저 돌고, `handleChatChannelWebhook` 이 서명 검증(`chatChannelInboundAuthenticator.verify`)을 먼저 한 뒤 비활성이면 조용히 건너뛴다. 서명이 틀리면 401(WH-EP-07 채팅 채널 예외, R-CC-12 (d)) |
 | 트리거 없음(잘못된 `endpointPath`) | `404 Not Found` | 표준 에러 응답 봉투 | 일반 경로와 같다(WH-RS-02). 2xx 로 답하면 낡은 웹훅이 계속 남는다 |
 | 웹훅 인증 실패(Telegram `X-Telegram-Bot-Api-Secret-Token`, Slack `X-Slack-Signature`, Discord `X-Signature-Ed25519` 누락·불일치) | `401 Unauthorized` | 표준 에러 응답 봉투 | WH-SC-04 와 같다. 비활성 트리거도 인증한다 |
-| 어댑터 내부 에러(`sendMessage` 실패 등) | `202 Accepted` | 실패 단계에 따라 `{ executionId: 'ignored' }` 나 `{ executionId }` | 백그라운드 처리, `chat_channel_health='degraded'`. 외부 API 호출 실패 영역이고 실행 실패 안내는 [실행 실패 안내](#실행-실패-안내) 를 본다 |
+| 어댑터 내부 에러(`sendMessage` 실패 등) | `202 Accepted` | 실패 단계에 따라 `{ executionId: 'ignored' }` 나 `{ executionId }` | 백그라운드 처리, `chat_channel_health='degraded'`. 외부 API 호출 실패 영역이고 실행 실패 안내는 [실행 실패 안내](#실행-실패-안내-1) 를 본다 |
 | Slack URL Verification(`type: "url_verification"`) | `200 OK` | `{ challenge: <받은 값> }` JSON | 프로바이더별 예외. Slack 이 challenge 를 응답에서 꺼내야 한다([Slack 어댑터](CLE-CHAT-SLACK.md)) |
 | Slack Interactivity ack(`payload.type ∈ {block_actions, view_submission, ...}`) | `200 OK` | 빈 body 나 `{ response_action }` | 프로바이더별 예외. Slack 의 3초 ack 시한이고 `202` 를 인정하지 않는다 |
 | Discord PING(`type: 1`) | `200 OK` | `{ type: 1 }` JSON | 프로바이더별 예외. Interactions endpoint 등록 때 1회, 그 뒤 주기적으로 온다([Discord 어댑터](CLE-CHAT-DISCORD.md)) |
@@ -424,7 +424,7 @@ v2 결정 후보는 Slack·Discord 의 프로바이더 발급 서명 자료에�
 - `codebase/backend/src/modules/triggers/trigger-callback-url*.ts`: 웹훅 콜백 URL 조립 순수 함수
 - `codebase/backend/src/modules/triggers/triggers.service.ts`(재발급·정리 오케스트레이션), `triggers.controller.ts`(`rotateBotToken` 엔드포인트), `dto/create-trigger.dto.ts`
 - `codebase/backend/src/modules/hooks/hooks.service.ts`, `hooks.controller.ts`: `config.chatChannel` 분기
-- `codebase/backend/test/chat-channel-slack.e2e-spec.ts`, `chat-channel-discord.e2e-spec.ts`, `chat-channel-trigger-create.e2e-spec.ts`
+- `codebase/backend/test/chat-channel-slack.e2e-spec.ts`, `codebase/backend/test/chat-channel-discord.e2e-spec.ts`, `codebase/backend/test/chat-channel-trigger-create.e2e-spec.ts`
 - `codebase/frontend/src/app/(main)/w/[slug]/triggers/page.tsx`, `codebase/frontend/src/components/triggers/trigger-detail-drawer.tsx`, `codebase/frontend/src/lib/i18n/dict/{ko,en}/triggers.ts`
 
 `chat-channel/` 모듈은 `external-interaction/` 모듈과 같은 facade 계층이고 둘 다 엔진 밖이다. 후속 계획(미구현): Discord Gateway, Slack Socket Mode, 시각형 SSR PNG.
@@ -564,7 +564,7 @@ R9 는 한도 초과용 큐를 기각하지 않았고 두 경우를 나눴을 �
 
 ### R-CC-22 triggers 모듈 안의 구현 경로를 glob 으로 적는다
 
-`#1317`·`#1319`·`#1320` 이 새 파일을 만들었는데 세 번 모두 구현 위치 목록에서 빠졌고, 빠진 파일이 8개까지 늘었다. 목록에 없으면 리뷰 가드가 그 파일 변경에 구현 완료 검토를 요구하지 않는다. 늘어날 예정인 집합은 나열이 아니라 술어로 잡는다. 통째 glob(`modules/triggers/**`)은 무관한 파일 17개를 끌어들였고, 좁은 glob 셋은 의도한 파일을 정확히 덮었다(2026-09-11 10개, 2026-09-12 `dto/**` 로 넓힌 뒤 11개, 차집합 0). 이는 [스펙과 구현 근거 규약](../CLE-ENG/CLE-ENG-SPECEVIDENCE.md) 이 glob 을 허용하되 "넓은 트리 glob 으로 가드만 통과시키지 않는다" 고 한 한계의 집행이다. 남는 위험은 없어진 파일을 가리키던 glob 이 다른 파일에 맞는 것이고 보완은 정기 커버리지 점검이다.
+`#1317`·`#1319`·`#1320` 이 새 파일을 만들었는데 세 번 모두 구현 위치 목록에서 빠졌고, 빠진 파일이 8개까지 늘었다. 목록에 없으면 그 파일을 고친 변경이 이 문서와 대조되지 않는다. 이 결정을 내린 2026-09-11 에는 push 리뷰 가드가 목록에 걸린 파일의 변경에 구현 완료 검토를 요구했다. 2026-10-03 에 근거를 고쳐 적었다. 그 가드는 NERV 정본 전환 단계 2(NERV Task `CLE-T-4ABTG7`)에서 없어졌다. 지금은 일관성 검토의 `--impl-done` 을 돌리면 `## 구현 위치` 가 바뀐 파일을 덮는 문서가 검토 대상에 든다(NERV Task `CLE-T-VP5KDJ`). 이 실행을 강제하는 것은 없다. NERV done 게이트는 Task 에 묶인 consistency 라운드가 있고 통과했는지만 보고 그 라운드가 이 문서를 대상으로 했는지는 보지 않는다. 대조가 강제에서 절차로 약해졌어도 목록에서 빠진 파일이 대조에서 빠진다는 점은 같아서 결정을 유지한다. 늘어날 예정인 집합은 나열이 아니라 술어로 잡는다. 통째 glob(`modules/triggers/**`)은 무관한 파일 17개를 끌어들였고, 좁은 glob 셋은 의도한 파일을 정확히 덮었다(2026-09-11 10개, 2026-09-12 `dto/**` 로 넓힌 뒤 11개, 차집합 0). [스펙과 구현 근거 규약](../CLE-ENG/CLE-ENG-SPECEVIDENCE.md) 규칙 6 은 glob 을 허용하되 넓은 트리 glob 은 아무것도 가리키지 않는 것과 같다고 본다. 이 결정은 그 취지를 따른다. 남는 위험은 없어진 파일을 가리키던 glob 이 다른 파일에 맞는 것이고 보완은 정기 커버리지 점검이다.
 
 ### R-CC-23 setupChannel 실패는 전송 방식이 아니라 원인으로 분류한다
 

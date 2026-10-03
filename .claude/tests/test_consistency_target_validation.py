@@ -18,6 +18,7 @@ We drive the real CLI via subprocess (matching test_orchestrator_state).
 from __future__ import annotations
 
 import os
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -32,10 +33,10 @@ ORCH = (
 )
 
 
-def _run(*args: str, env: dict | None = None) -> subprocess.CompletedProcess:
+def _run(*args: str, env: dict | None = None, cwd: Path = REPO_ROOT) -> subprocess.CompletedProcess:
     return subprocess.run(
         [sys.executable, str(ORCH), *args],
-        cwd=str(REPO_ROOT),
+        cwd=str(cwd),
         env=env,
         capture_output=True,
         text=True,
@@ -66,20 +67,36 @@ class TargetValidationTest(unittest.TestCase):
 
     def test_directory_passed_to_a_file_mode_is_rejected(self):
         # --spec wants a file; handing it a real directory must not pass.
-        r = _run("--spec", "spec/2-navigation/")
+        r = _run("--spec", "spec/CLE-ENG/")
         self.assertEqual(r.returncode, 2, r.stdout)
         self.assertIn("파일", r.stderr)
 
-    def test_the_frozen_old_tree_is_rejected_as_a_scope(self):
-        """옛 트리는 동결됐고 대조 코퍼스가 미러라서 대상으로 받지 않는다(전환 4e).
+    def test_old_tree_shaped_paths_under_spec_are_rejected_as_a_scope(self):
+        """`spec/` 에는 미러만 있다. 옛 트리 모양의 폴더 · 파일과 `spec/` 자체는 대상으로 받지 않는다.
 
-        옛 트리를 대상으로 미러와 대조하면 같은 내용의 다른 판끼리 부딪쳐 충돌을 지어낸다.
+        옛 트리는 전환 단계 5(NERV Task `CLE-T-7M4C4X`)에서 지웠다. 그래서 이 저장소에는 그런 경로가
+        없다. 누가 다시 만들어도 막히는지 임시 저장소에 옛 트리 모양을 만들어 본다.
         """
-        for scope in ("spec/2-navigation/", "spec/2-navigation/_layout.md", "spec/conventions/"):
+        tmp = Path(tempfile.mkdtemp(prefix="consistency-scope-"))
+        self.addCleanup(shutil.rmtree, tmp, ignore_errors=True)
+        for rel, body in {
+            "spec/CLE-ENG/CLE-ENG.md": "---\ntype: area\n---\n# 영역\n",
+            "spec/2-navigation/_layout.md": "# 옛 레이아웃\n",
+            "spec/conventions/old-conv.md": "# 옛 규약\n",
+        }.items():
+            (tmp / rel).parent.mkdir(parents=True, exist_ok=True)
+            (tmp / rel).write_text(body, encoding="utf-8")
+        cases = {
+            "spec/2-navigation/": "미러 문서가 없는 폴더다",
+            "spec/2-navigation/_layout.md": "미러 문서가 아니다",
+            "spec/conventions/": "미러 문서가 없는 폴더다",
+            "spec/": "NERV 스펙 미러가 아니다",
+        }
+        for scope, reason in cases.items():
             with self.subTest(scope=scope):
-                r = _run("--impl-prep", scope)
+                r = _run("--impl-prep", scope, cwd=tmp)
                 self.assertEqual(r.returncode, 2, r.stdout)
-                self.assertIn("동결", r.stderr)
+                self.assertIn(reason, r.stderr)
 
     def test_scope_inputs_that_name_no_mirror_document_are_rejected(self):
         """빈 항목 · 미러 안내 · 저장소의 다른 곳 · 없는 미러 파일은 모두 종료 코드 2 와 이유를 낸다."""
@@ -95,12 +112,10 @@ class TargetValidationTest(unittest.TestCase):
                 self.assertEqual(r.returncode, 2, r.stdout)
                 self.assertIn(reason, r.stderr)
 
-    def test_a_path_outside_spec_is_not_told_about_the_frozen_tree(self):
-        """옛 트리 안내는 spec/ 아래 경로에만 맞다. 저장소의 다른 곳에는 미러만 받는다고 알린다."""
+    def test_a_path_outside_spec_is_told_to_use_the_mirror(self):
         r = _run("--impl-prep", "codebase/")
         self.assertEqual(r.returncode, 2, r.stdout)
-        self.assertNotIn("동결", r.stderr)
-        self.assertIn("미러", r.stderr)
+        self.assertIn("미러 영역 폴더", r.stderr)
 
     def test_an_unknown_key_is_rejected_with_the_pull_hint(self):
         r = _run("--impl-done", "CLE-NO-SUCH-KEY")

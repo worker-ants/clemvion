@@ -4,7 +4,7 @@
     "id": "stable slug",
     "change_type": "human label; its core phrase must also appear in the PROJECT.md table",
     "trigger": "{ globs: [...], match: 'glob' | 'semantic' } — semantic rows have no clean glob and need reviewer judgment",
-    "targets": "human-readable required co-update locations (may contain <placeholders>/{ko,en} braces). A spec/<area key>/<KEY>.md target is the read-only NERV mirror: update the spec through a NERV draft (/nerv:spec edit <KEY>); implementation PRs commit the mirror pulled with pull.py --task. Spec paths here must be existing mirror files (test_doc_sync_matrix.py). The spec-major-change trigger still names the frozen old tree until cutover step 5",
+    "targets": "human-readable required co-update locations (may contain <placeholders>/{ko,en} braces). A spec/<area key>/<KEY>.md target is the read-only NERV mirror: update the spec through a NERV draft (/nerv:spec edit <KEY>); implementation PRs commit the mirror pulled with pull.py --task. Spec paths here must be existing mirror files (test_doc_sync_matrix.py).",
     "verify": "verification command string (literal), or null if manual/none",
     "guard_tests": "specific *.test.ts files this row's guard relies on (subset, existence-checked)",
     "convention_ref": "NERV mirror path spec/<area key>/<KEY>.md of the SoT spec, or null"
@@ -238,14 +238,15 @@
     {
       "id": "spec-major-change",
       "change_type": "spec 신규/대규모 변경",
-      "trigger": { "globs": ["spec/2-*/**", "spec/3-*/**", "spec/4-*/**", "spec/5-*/**", "spec/conventions/**"], "match": "glob" },
+      "trigger": { "globs": ["spec/CLE-*.md", "spec/CLE-*/**"], "match": "glob" },
       "targets": [
-        "frontmatter code: / status: 정합 갱신",
-        "status: implemented 이면 code: 글로브 ≥1 매치 보장",
+        "구현이 있는 스펙은 ## 구현 위치 에 구현 경로를 적는다",
+        "그 경로가 실재한다(글로브는 파일 하나 이상)",
+        "코드가 그 경로를 옮기거나 지우면 같은 PR 에서 NERV 초안을 고쳐 승인받고 pull.py --task 로 받는다",
         "미구현 surface 는 후속 NERV Task 로 올린다(nerv_task_create)"
       ],
-      "verify": "cd codebase/frontend && npm test -- spec-frontmatter spec-code-paths",
-      "guard_tests": ["spec-frontmatter.test.ts", "spec-code-paths.test.ts"],
+      "verify": "cd codebase/frontend && npm test -- spec-impl-locations",
+      "guard_tests": ["spec-impl-locations.test.ts"],
       "convention_ref": "spec/CLE-ENG/CLE-ENG-SPECEVIDENCE.md"
     },
     {

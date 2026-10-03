@@ -1,10 +1,13 @@
 // Shared helpers for the spec-link-integrity guard.
 //
-// Validates in-repo markdown links in `spec/**` narrative docs, codebase
-// sources and governance docs:
+// Validates in-repo markdown links in codebase sources and governance docs:
 //   - the relative path target exists, or a key link (`[text](CLE-KEY#anchor)`)
 //     names a NERV spec key that has a mirror file, and
 //   - any `#anchor` fragment resolves to a real heading slug in the target.
+//
+// The old `spec/**` narrative-doc scope (scope 1) went with the old spec tree in
+// NERV cutover stage 5 (NERV Task `CLE-T-7M4C4X`). `spec/` now holds only the NERV
+// mirror: NERV reads its body links as references, `pull.py --check` guards it.
 //
 // The heading-slug algorithm mirrors github-slugger (the renderer used by the
 // in-app docs viewer): lowercase, drop punctuation but KEEP CJK + underscores,
@@ -97,7 +100,7 @@ const FENCE_RE = /^(\s*)(```|~~~)/;
  * 것이 그것이다.
  *
  * 실측(codebase 소스 2077개): `"]("` 35개(1.7%) → 통과 **247개(11.9%)**. 정확한 조건도
- * 88%를 걸러낸다. spec 은 134개 전부 통과한다(원래 링크 문서다).
+ * 88%를 걸러낸다. 마크다운 문서(거버넌스)는 원래 링크 문서라 대부분 통과한다.
  *
  * 절대 개수는 트리가 커지면 따라 움직인다 — **비율**이 요점이고, 첫 판이 1~2건 어긋난 것도
  * 파일을 더 추가하기 전 중간 상태에서 쟀기 때문이다(ai-review documentation).
@@ -242,35 +245,6 @@ export function isExternal(target: string): boolean {
 // — 전수 grep 결과 외부 소비처 0건이고 유일한 사용처가 이 파일 안 한 곳이었다(리뷰 실측).
 // 근거가 반증된 별칭은 남길 이유가 없다.
 
-// Generated API reference catalogs (cafe24-api-catalog, makeshop-api-catalog, …)
-// are not narrative specs; their cross-links are machine-generated and out of
-// scope for the link-integrity guard. Since NERV cutover stage 4a the catalogs
-// live in `codebase/api-catalogs/` (see `RELOCATED_SPEC_TREES`), so nothing
-// under `spec/` matches today; the rule goes with the old tree in stage 5.
-function inGeneratedCatalog(relPath: string): boolean {
-  return relPath.includes("-api-catalog/");
-}
-
-// NERV 스펙 미러(`spec/CLE-*` · `spec/<영역 키>/**` · `spec/README.md`). NERV 가 정본이고
-// `.claude/tools/nerv-mirror/pull.py` 가 쓰는 사본이라 이 가드들(옛 `spec/<영역>/` 트리의
-// 링크 · 영역 목차 규칙)의 대상이 아니다. 미러 무결성은 `pull.py --check`
-// (CI `spec-mirror-integrity`)가 본다. 옛 트리는 NERV 전환 단계 5(Task `CLE-T-7M4C4X`)에서
-// 지운다. 같은 판정이 `pull.py` 와 consistency 오케스트레이터에도 있고, 세 곳이 같은 파일을
-// 고르는지 `.claude/tests/test_nerv_mirror_pull.py` 의 `MirrorPredicateParityTest` 가 본다.
-const NERV_MIRROR = /^spec\/(?:README\.md|CLE-[A-Z0-9-]+\.md|CLE-[A-Z0-9-]+\/)/;
-
-export function inNervMirror(relPath: string): boolean {
-  return NERV_MIRROR.test(relPath);
-}
-
-/** All narrative markdown under `spec/` (excludes generated catalogs and the NERV mirror). */
-export function collectSpecMarkdown(root: string): MdFileRef[] {
-  return walkTree(root, ["spec"], {
-    includeFile: (name, relPath) =>
-      name.endsWith(".md") && !inGeneratedCatalog(relPath) && !inNervMirror(relPath),
-  });
-}
-
 /**
  * - `DEAD`: 상대 경로 링크의 대상 파일이 없다.
  * - `ANCHOR`: `#앵커` 가 대상 마크다운의 제목 slug 에 없다(키 링크면 미러 문서의 제목).
@@ -306,18 +280,6 @@ interface LinkScanOptions {
    */
   targetFilter?: (pathPart: string) => boolean;
   /**
-   * Skip a path-target link whose **resolved** absolute path matches. Unlike
-   * `targetFilter` this sees where the link lands, so a same-named folder
-   * elsewhere (`spec/x/plan/`) is not mistaken for the repo-root one.
-   */
-  skipResolved?: (absPath: string) => boolean;
-  /**
-   * Map a link's **resolved** absolute path to the place it is checked at.
-   * Applied before `skipResolved` and the existence/anchor checks, so a link
-   * into a moved tree is verified at the new place, not skipped.
-   */
-  relocateResolved?: (absPath: string) => string;
-  /**
    * 미러 키 → 미러 파일 절대 경로. 주면 키 링크(`KEY_LINK_RE`)를 이 맵으로 확인한다
    * (없는 키는 `KEY`, 없는 앵커는 `ANCHOR`). 안 주면 키 링크도 상대 경로로 해석된다.
    */
@@ -333,7 +295,8 @@ interface LinkScanOptions {
  * Shared DEAD/ANCHOR scan over a set of files. A link is broken when its
  * relative path target does not exist (DEAD) or its `#anchor` does not resolve
  * to a heading slug in the target markdown file (ANCHOR). The two public entry
- * points below differ only in the file set and the two `options` knobs.
+ * points below (governance docs · codebase sources) differ only in the file set
+ * and the `options` knobs.
  */
 function findBrokenLinksInFiles(
   files: MdFileRef[],
@@ -393,9 +356,7 @@ function findBrokenLinksInFiles(
         continue;
       }
 
-      const linked = path.resolve(path.dirname(f.absPath), pathPart);
-      const resolved = options.relocateResolved?.(linked) ?? linked;
-      if (options.skipResolved?.(resolved)) continue;
+      const resolved = path.resolve(path.dirname(f.absPath), pathPart);
       if (!fs.existsSync(resolved)) {
         violations.push({
           kind: "DEAD",
@@ -423,70 +384,6 @@ function findBrokenLinksInFiles(
     (a, b) => a.source.localeCompare(b.source) || a.line - b.line,
   );
   return violations;
-}
-
-/**
- * Repo-root trees removed in NERV cutover stage 3 (NERV Task `CLE-T-FN2JWK`):
- * work tracking moved to NERV Tasks, review results to NERV review records.
- * The frozen old `spec/<area>/` tree still links into them and is not edited;
- * it goes in stage 5 (`CLE-T-7M4C4X`), and this exemption with it.
- *
- * Only the spec scope gets the exemption. Governance docs are live and must
- * drop such links instead (`findBrokenGovernanceLinks` keeps reporting them).
- */
-const RETIRED_ROOT_TREES = ["plan", "review"];
-
-/**
- * Trees moved out of `spec/`, as `[old place, new place]` relative to the repo
- * root. NERV cutover stage 4a (NERV Task `CLE-T-BD48J3`, decision D4) made the
- * Cafe24 · MakeShop API catalogs codebase data. The frozen old `spec/<area>/`
- * tree still links to the old place and is not edited, so those links are
- * checked at the new place — path and anchor alike. This goes with the old tree
- * in stage 5 (`CLE-T-7M4C4X`).
- *
- * Only the spec scope relocates. Governance docs are live and must name the new
- * path (`findBrokenGovernanceLinks` keeps reporting the old one).
- */
-export interface RelocatedTree {
-  /** Old place, repo-relative (where the frozen tree still links). */
-  readonly from: string;
-  /** New place, repo-relative (where the link is checked). */
-  readonly to: string;
-}
-
-export const RELOCATED_SPEC_TREES: readonly RelocatedTree[] = [
-  { from: "spec/conventions/cafe24-api-catalog", to: "codebase/api-catalogs/cafe24" },
-  { from: "spec/conventions/makeshop-api-catalog", to: "codebase/api-catalogs/makeshop" },
-];
-
-function isUnder(abs: string, dir: string): boolean {
-  return abs === dir || abs.startsWith(dir + path.sep);
-}
-
-/**
- * Validate every in-repo markdown link in `spec/**`. Returns the list of
- * broken links (empty = healthy). A link is broken when its relative path
- * target does not exist (DEAD) or its `#anchor` does not resolve to a heading
- * in the target markdown file (ANCHOR). Same-file `#anchor` links are checked
- * against the file's own headings. Links that resolve into `RETIRED_ROOT_TREES`
- * (the root `plan/` and `review/`, or the folder itself) are skipped. Links
- * that resolve into a `RELOCATED_SPEC_TREES` old place are checked at its new
- * place.
- */
-export function findBrokenLinks(root: string): LinkViolation[] {
-  const retired = RETIRED_ROOT_TREES.map((name) => path.resolve(root, name));
-  const relocated = RELOCATED_SPEC_TREES.map(({ from, to }) => ({
-    from: path.resolve(root, from),
-    to: path.resolve(root, to),
-  }));
-  return findBrokenLinksInFiles(collectSpecMarkdown(root), {
-    checkSelfAnchors: true,
-    relocateResolved: (abs) => {
-      const hit = relocated.find(({ from }) => isUnder(abs, from));
-      return hit ? hit.to + abs.slice(hit.from.length) : abs;
-    },
-    skipResolved: (abs) => retired.some((dir) => isUnder(abs, dir)),
-  });
 }
 
 // ---------------------------------------------------------------------------
@@ -546,8 +443,8 @@ export function findBrokenGovernanceLinks(root: string): LinkViolation[] {
 // (`[글](CLE-KEY#앵커)`, the same notation NERV bodies use). The key is checked
 // against the mirror file name and the anchor against that file's headings.
 // A relative path link to a `spec/**.md` file is reported as PATH whether or not
-// it resolves: hand-counted `../` depths drifted silently, the old spec tree is
-// deleted in NERV cutover stage 5 (`CLE-T-7M4C4X`), and a mirror path changes
+// it resolves: hand-counted `../` depths drifted silently, the old spec tree
+// went in NERV cutover stage 5 (`CLE-T-7M4C4X`), and a mirror path changes
 // when a doc moves to another area. NERV cutover stage 4c (`CLE-T-9AM31N`)
 // converted the 43 path links to key links. Non-spec relative links are out of
 // scope — this guard only catches spec-link rot.

@@ -11,7 +11,8 @@ exit 0 → 허용, exit 2 → 차단(stderr 가 이유), 그 밖 → 런타임 �
 
 NERV 정본 전환 단계 1(NERV Task `CLE-T-VA4YA1`)부터 스펙의 정본은 NERV 다. 저장소 `spec/`
 의 미러는 `.claude/tools/nerv-mirror/pull.py` 만 쓴다(도구 호출이 아니라 파일을 직접 쓰므로
-이 훅에 걸리지 않는다). 옛 `spec/<영역>/` 트리도 이 시점부터 동결된다.
+이 훅에 걸리지 않는다). 옛 `spec/<영역>/` 트리는 이 시점부터 동결됐고 단계 5 에서 지웠다(원문은
+git 이력).
 
 전환 단계는 NERV Task `[전환 N]` 이 정의한다: 0 연동 설정(`CLE-T-0EZEYF`) · 1 spec 미러
 (`CLE-T-VA4YA1`) · 2 리뷰 전환(`CLE-T-4ABTG7`) · 3 plan · review 제거(`CLE-T-FN2JWK`) ·
@@ -35,7 +36,7 @@ NERV 정본 전환 단계 1(NERV Task `CLE-T-VA4YA1`)부터 스펙의 정본은 
 
 셸 편집(`sed -i`, 리다이렉트)은 이 훅이 보지 못한다. 그 편집을 CI `spec-mirror-integrity`
 (`pull.py --check`)가 어디까지 잡는지는 `pull.py` docstring 의 "보장 범위" 가 정본이다. 미러
-파일 삭제와 옛 `spec/<영역>/` 트리의 셸 편집은 어느 층도 잡지 않는다.
+파일 삭제는 어느 층도 잡지 않는다.
 
 일회성 우회: `BYPASS_NERV_OWNED_PATHS=1`.
 """

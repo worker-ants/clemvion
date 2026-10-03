@@ -15,7 +15,8 @@
   렌더 오류는 쓰기 전에 멈춤, 트리 순환, 모드에 안 맞는 옵션 거절, CLI 오류는 한 줄
   (`test_cli_reports_errors_in_one_line`).
 - `CheckTest`: 본문 · frontmatter · 본문 속 `mirror_sha256:` 줄 손편집, 파일 이동, 지문 없는 미러
-  파일 추가, 미러 자리의 링크 · 다른 파일(하위 폴더 · 점 이름 `.md` · 키가 아닌 폴더 포함), 읽을 수
+  파일 추가, 미러 자리의 링크 · 다른 파일(하위 폴더 · 점 이름 `.md` · 키가 아닌 폴더 포함), `spec/`
+  바로 아래의 미러가 아닌 파일 · 폴더(되살린 옛 트리, README 와 `.md` 가 아닌 점 파일은 제외), 읽을 수
   없는 파일과 이상한 frontmatter 값은 예외가 아니라 문제 줄(`test_odd_frontmatter_values_are_reported_not_raised`),
   빈 미러, CLI 종료 코드, 출력의 제어 문자 이스케이프. `test_limitation_*` 은 문서에 적은 한계(삭제 ·
   지문까지 맞춘 위조는 못 잡는다)를 고정한다. 한계를 없애는 변경은 이 테스트를 함께 바꾼다.
@@ -31,9 +32,9 @@
   쿼리 · 조각 · 잘못된 주소 거부), 프로젝트 이름.
 - `CiWiringTest`: CI 잡이 `--check` 를 부르고, 잡이 받는 경로(sparse checkout)만으로 `--check` 가
   돌고, 커밋된 미러가 그 검사를 통과한다.
-- `MirrorPredicateParityTest`: 미러 판정 세 곳(이 도구 · 오케스트레이터 · `spec-links.ts`)이
-  실제 `spec/` 과 합성 경계 이름에서 맞는다. 세 파일 중 어느 것만 고쳐도 harness CI 가 돈다
-  (`test_the_three_files_trigger_the_harness_workflow`).
+- `OrchestratorMirrorParityTest`: consistency 오케스트레이터가 이 도구와 같은 키 문법으로 같은 미러
+  파일을 고르고 같은 `type` 을 읽는다. 두 파일 중 어느 것만 고쳐도 harness CI 가 돈다
+  (`test_both_files_trigger_the_harness_workflow`).
 """
 
 from __future__ import annotations
@@ -131,10 +132,17 @@ class _Fixture(unittest.TestCase):
         self.addCleanup(shutil.rmtree, tmp, ignore_errors=True)
         self.root = Path(os.path.realpath(tmp))
         self.spec = self.root / "spec"
-        (self.spec / "5-system").mkdir(parents=True)
-        (self.spec / "5-system" / "1-auth.md").write_text("옛 트리\n", encoding="utf-8")
+        self.spec.mkdir(parents=True)
         self.zip = self.root / "export.zip"
         self.zip.write_bytes(make_zip())
+
+    def old_tree(self) -> Path:
+        """미러 밖 `spec/` 파일(옛 트리 모양). 옛 트리는 전환 단계 5 에서 지웠고 `--check` 는 이런
+        파일을 알린다. 그래서 공통 fixture 에 두지 않고 그 자리를 보는 테스트만 만든다."""
+        folder = self.spec / "5-system"
+        folder.mkdir()
+        (folder / "1-auth.md").write_text("옛 트리\n", encoding="utf-8")
+        return folder
 
     def pull_all(self, *extra):
         # `run` 은 `PullError` 를 그대로 올린다(`main` 은 한 줄로 바꾸고 1 을 돌려준다).
@@ -211,6 +219,7 @@ class AllModeTest(_Fixture):
         self.assertFalse((self.spec / "CLE-IX").exists())
 
     def test_old_tree_and_other_files_are_untouched(self):
+        self.old_tree()
         self.pull_all()
         self.assertEqual(self.read("5-system/1-auth.md"), "옛 트리\n")
 
@@ -314,7 +323,7 @@ class InputValidationTest(_Fixture):
 
     def test_never_writes_through_a_folder_symlink_inside_spec(self):
         # `spec/` 안을 가리키는 폴더 링크(예: 옛 트리)도 따라가 쓰지 않는다.
-        (self.spec / "CLE-ACCT").symlink_to(self.spec / "5-system", target_is_directory=True)
+        (self.spec / "CLE-ACCT").symlink_to(self.old_tree(), target_is_directory=True)
         with self.assertRaises(pull.PullError):
             self.pull_all()
         self.assertEqual(sorted(p.name for p in (self.spec / "5-system").iterdir()), ["1-auth.md"])
@@ -332,7 +341,7 @@ class InputValidationTest(_Fixture):
             pull.write_if_changed(self.spec, PurePosixPath("CLE-X.md"), "안\n")
         self.assertEqual(outside.read_text(encoding="utf-8"), "밖\n")
         # 경로 중간의 폴더 링크는 `O_NOFOLLOW`(마지막 조각만 본다)가 막지 못한다. 쓰는 함수가 직접 본다.
-        (self.spec / "CLE-D").symlink_to(self.spec / "5-system", target_is_directory=True)
+        (self.spec / "CLE-D").symlink_to(self.old_tree(), target_is_directory=True)
         with self.assertRaises(pull.PullError):
             pull.write_if_changed(self.spec, PurePosixPath("CLE-D/CLE-D.md"), "안\n")
         self.assertEqual(sorted(p.name for p in (self.spec / "5-system").iterdir()), ["1-auth.md"])
@@ -490,6 +499,22 @@ class CheckTest(_Fixture):
                           "CLE-ACCT/sub", "CLE-lower", "CLE-lower.md"])
         # 미러 이름인 폴더는 미러 파일로 세지 않는다(읽기 오류로 한 번 더 알리지 않는다).
         self.assertEqual(len([p for p in problems if p.startswith("CLE-ACCT/CLE-DIR.md:")]), 1, problems)
+
+    def test_files_outside_the_mirror_place_are_caught(self):
+        """`spec/` 에는 미러와 README 만 둔다. 옛 트리를 셸로 되살리면 `--check` 가 알린다."""
+        self.pull_all()
+        self.old_tree()
+        (self.spec / "0-overview.md").write_text("옛 개요\n", encoding="utf-8")
+        (self.spec / "notes.txt").write_text("메모\n", encoding="utf-8")
+        (self.spec / ".hidden.md").write_text("메모\n", encoding="utf-8")
+        (self.spec / ".DS_Store").write_bytes(b"")  # `.md` 가 아닌 점 파일은 보지 않는다
+        (self.spec / "other-link").symlink_to(self.root / "export.zip")
+        problems = pull.check(self.spec)
+        stray = sorted(p.split(":")[0] for p in problems if "미러가 아닌" in p)
+        self.assertEqual(stray, [".hidden.md", "0-overview.md", "5-system", "notes.txt", "other-link"])
+        # README 는 이 도구가 쓰는 안내라 알리지 않는다(fixture 가 pull 로 썼다).
+        self.assertTrue((self.spec / "README.md").is_file())
+        self.assertFalse(any(p.startswith("README.md") for p in problems), problems)
 
     def test_symlink_in_the_mirror_place_is_caught(self):
         self.pull_all()
@@ -999,75 +1024,19 @@ class CiWiringTest(unittest.TestCase):
         self.assertEqual(pull.check(_harness.REPO_ROOT / "spec"), [])
 
 
-class MirrorPredicateParityTest(unittest.TestCase):
-    """「미러 경로」 판정이 세 곳(이 도구 · consistency 오케스트레이터 · frontend 가드)에 있다.
+class OrchestratorMirrorParityTest(unittest.TestCase):
+    """consistency 오케스트레이터가 이 도구의 미러를 그대로 읽는지 본다(키 문법 · 미러 파일 · `type`).
 
-    실제 `spec/` 을 훑어 세 판정이 같은 집합을 고르는지 본다. 키 형식이 바뀌면 각 스위트가
-    초록인 채 갈라지는 것을 막는다. frontend 정규식은 `spec-links.ts` 의 `NERV_MIRROR` 리터럴을
-    읽어 쓴다. 세 파일 모두 `harness-checks.yml` 의 경로 목록에 있어 어느 하나만 고쳐도 이 테스트가
-    돈다. 오케스트레이터는 서브프로세스에서 부른다. 같은 프로세스에서 읽으면 그 모듈의 `_lib` 가
-    먼저 적재된 `.claude/hooks/_lib` 와 부딪혀 전체 실행에서만 ImportError 가 난다(2026-10-01 실측).
+    전환 단계 5(NERV Task `CLE-T-7M4C4X`)까지는 「미러 경로」 판정이 세 곳(이 도구 · 오케스트레이터 ·
+    frontend `spec-links.ts`)에 있어 옛 트리와 미러를 가르는 판정의 동치도 여기서 봤다. 옛 트리를
+    지우며 그 제외 판정(`is_nerv_mirror` · `inNervMirror`)과 동치 테스트를 걷었다. 남은 대조는 도구와
+    오케스트레이터 사이의 것이다. 오케스트레이터는 서브프로세스에서 부른다. 같은 프로세스에서 읽으면
+    그 모듈의 `_lib` 가 먼저 적재된 `.claude/hooks/_lib` 와 부딪혀 전체 실행에서만 ImportError 가
+    난다(2026-10-01 실측).
     """
 
     ROOT = _harness.REPO_ROOT
-    TS = ROOT / "codebase" / "frontend" / "src" / "lib" / "docs" / "__tests__" / "spec-links.ts"
     ORCH = ROOT / ".claude" / "skills" / "consistency-checker" / "scripts" / "consistency_orchestrator.py"
-
-    def ts_regex(self):
-        literal = re.search(r"const NERV_MIRROR = /(.+)/;", self.TS.read_text(encoding="utf-8"))
-        self.assertIsNotNone(literal, "spec-links.ts 에서 NERV_MIRROR 를 찾지 못했다")
-        return re.compile(literal.group(1).replace("\\/", "/"))
-
-    def by_orchestrator(self, root, rels):
-        return set(_harness.run_in_orchestrator(
-            _harness.orchestrator_preamble(self.ORCH, imports="os"),
-            """
-            spec = os.path.join(ARG["root"], "spec")
-            emit([r for r in ARG["rels"] if orch.is_nerv_mirror(os.path.join(ARG["root"], r), spec)])
-            """,
-            {"root": str(root), "rels": rels},
-        ))
-
-    def test_three_predicates_agree_on_the_real_tree(self):
-        spec = self.ROOT / "spec"
-        rels = sorted(p.relative_to(self.ROOT).as_posix() for p in spec.rglob("*.md"))
-        tool = {p.relative_to(self.ROOT).as_posix() for p in pull.mirror_files(spec)}
-        # 공허하지 않으려면 두 배치(영역 폴더 · 영역 밖)가 모두 있어야 한다. 미러는 부분 스냅샷이라
-        # 편 수로는 하한을 정하지 않는다.
-        self.assertTrue(any(r.count("/") == 2 for r in tool), "영역 폴더의 미러가 없다 — 이 대조는 공허하다")
-        self.assertTrue(any(r.count("/") == 1 for r in tool), "영역 밖 미러가 없다 — 이 대조는 공허하다")
-        tool.add("spec/README.md")
-        self.assertEqual(self.by_orchestrator(self.ROOT, rels), tool)
-        self.assertEqual({r for r in rels if self.ts_regex().match(r)}, tool)
-
-    def test_loose_predicates_leave_nothing_unchecked_on_boundary_names(self):
-        # 오케스트레이터와 TS 는 접두로 느슨하게(`CLE-…/` 아래 전부), 이 도구는 파일 단위로 엄격하게
-        # 판정한다. 지킬 성질: 느슨한 쪽이 옛 트리 검사에서 빼는 경로는 이 도구의 미러 파일이거나
-        # `--check` 가 문제로 알린다. 옛 트리 이름은 어느 쪽도 미러로 보지 않는다. 합성 이름이라
-        # 실제 `spec/` 의 옛 트리가 지워져도(단계 5) 이 대조는 남는다.
-        mirror_like = ["spec/CLE-A.md", "spec/CLE-A/CLE-A.md", "spec/CLE-A/CLE-A-B.md",
-                       "spec/CLE-A/notes.md", "spec/CLE-A/.hidden.md", "spec/CLE-A/sub/CLE-Z.md",
-                       "spec/CLE-A/cle-x.md", "spec/CLE-A-.md", "spec/CLE--A.md", "spec/CLE-B-/x.md"]
-        old_tree = ["spec/0-overview.md", "spec/5-system/1-auth.md", "spec/conventions/x.md",
-                    "spec/cle-x.md", "spec/CLE-lower.md", "spec/data-flow/CLE-X.md"]
-        tmp = Path(tempfile.mkdtemp())
-        self.addCleanup(shutil.rmtree, tmp, ignore_errors=True)
-        for rel in mirror_like + old_tree:
-            (tmp / rel).parent.mkdir(parents=True, exist_ok=True)
-            (tmp / rel).write_text("x\n", encoding="utf-8")
-        rels = mirror_like + old_tree
-        tool = {p.relative_to(tmp).as_posix() for p in pull.mirror_files(tmp / "spec")}
-        reported = {"spec/" + p.split(":")[0] for p in pull.check(tmp / "spec")}
-        by_orch = self.by_orchestrator(tmp, rels)
-        by_ts = {r for r in rels if self.ts_regex().match(r)}
-        self.assertEqual(by_orch, by_ts)
-        self.assertEqual(tool, {"spec/CLE-A.md", "spec/CLE-A/CLE-A.md", "spec/CLE-A/CLE-A-B.md"})
-        self.assertLessEqual(tool, by_orch)
-        for rel in sorted(by_orch - tool):
-            with self.subTest(rel=rel):
-                self.assertTrue(any(rel == r or rel.startswith(r + "/") for r in reported),
-                                f"{rel} 는 옛 트리 검사에서 빠지는데 --check 도 보지 않는다")
-        self.assertEqual(by_orch & set(old_tree), set())
 
     def test_the_orchestrator_key_grammar_is_the_tool_grammar(self):
         """오케스트레이터는 미러 파일 이름과 본문 언급을 키 문법으로 가린다. 문법이 이 도구와 같아야 한다."""
@@ -1124,16 +1093,16 @@ class MirrorPredicateParityTest(unittest.TestCase):
         )
         self.assertEqual(got, expected)
 
-    def test_the_three_files_trigger_the_harness_workflow(self):
+    def test_both_files_trigger_the_harness_workflow(self):
         # 경로 목록을 런타임과 같은 규칙으로 읽고(주석 줄 제외) 파일마다 걸리는 항목이 있는지 본다.
         # 단어로 쪼개 찾으면 주석에 적힌 경로도 통과한다.
         text = (self.ROOT / ".github" / "workflows" / "harness-checks.yml").read_text(encoding="utf-8")
         specs = parse_pathspecs_block(text)
-        for path in (self.TS, PULL_SRC, self.ORCH):
+        for path in (PULL_SRC, self.ORCH):
             rel = path.relative_to(self.ROOT).as_posix()
             with self.subTest(rel=rel):
                 self.assertTrue(any(filter_covers_file(f, rel) for f in specs),
-                                f"{rel} 만 고친 PR 에서 이 동치 테스트가 돌지 않는다")
+                                f"{rel} 만 고친 PR 에서 이 대조 테스트가 돌지 않는다")
 
 
 if __name__ == "__main__":

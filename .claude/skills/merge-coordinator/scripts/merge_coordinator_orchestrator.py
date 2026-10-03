@@ -209,7 +209,7 @@ def categorise_paths(paths, repo_root=None):
     Fixed groups: ``spec``, ``.claude``, ``other``.
     Code areas come from ``.claude.project.json`` ``code_areas`` (default:
     ``["codebase"]``). Each path is matched against:
-      1. ``spec/`` → ``spec`` (the NERV spec mirror; the frozen old tree goes in cutover stage 5)
+      1. ``spec/`` → ``spec`` (the NERV spec mirror)
       2. ``.claude/`` → ``.claude``
       3. ``<area>/`` for each entry of ``code_areas`` → that area
       4. Otherwise → ``other``

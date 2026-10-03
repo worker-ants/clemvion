@@ -177,15 +177,15 @@ fi
 # 3. Garbage-collect stale guard state markers. These accumulate one file per
 #    (session, branch) and are never read once their session/branch is gone, so
 #    prune anything older than 30 days to keep the dirs from growing unbounded.
-#    `review_stop_nudged` stays listed after its Stop hook retired (NERV cutover
-#    stage 3) so the markers it left behind still age out.
 for state_dir in \
-    "$main_root/.claude/state/review_stop_nudged" \
     "$main_root/.claude/state/main_worktree_bash_warned"; do
     if [ -d "$state_dir" ]; then
         find "$state_dir" -type f -mtime +30 -delete 2>/dev/null || true
     fi
 done
+# The retired Stop hook (unwired in NERV cutover stage 3, file deleted in stage 5)
+# left `review_stop_nudged` markers that nothing reads any more.
+rm -rf "$main_root/.claude/state/review_stop_nudged" 2>/dev/null || true
 
 # 4. Reap worktrees / local branches whose PR has merged (local-only, fail-safe,
 #    self-throttled to once per few hours). Never blocks the session — the

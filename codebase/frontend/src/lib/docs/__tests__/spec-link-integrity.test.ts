@@ -2,16 +2,13 @@ import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { repoRoot } from "./spec-frontmatter-parse";
+import { repoRoot } from "./impl-anchor-parse";
+import { mirrorKeyPaths } from "./spec-keys";
 import {
   collectCodebaseSources,
   collectGovernanceMarkdown,
-  collectSpecMarkdown,
   findBrokenGovernanceLinks,
-  findBrokenLinks,
   findBrokenSpecLinksInSources,
-  inNervMirror,
-  RELOCATED_SPEC_TREES,
   slugify,
   type LinkViolation,
 } from "./spec-links";
@@ -19,11 +16,11 @@ import {
 // Guard: in-repo markdown links must resolve.
 //   - DEAD: the relative `[..](path)` target file does not exist.
 //   - ANCHOR: the `#fragment` does not match any heading slug in the target.
-// Two scopes:
-//   1. All `spec/**.md` narrative docs (EXCEPT generated `*-api-catalog/` — none left
-//      under `spec/` since stage 4a, the rule goes in stage 5 — and the NERV mirror
-//      `spec/CLE-*` · `spec/README.md` — NERV owns those, `pull.py --check` guards
-//      their integrity).
+// Scopes (numbers kept as CLE-ENG-SPECEVIDENCE cites them):
+//   1. (gone) `spec/**.md` narrative docs. It went with the old spec tree in NERV
+//      cutover stage 5 (NERV Task `CLE-T-7M4C4X`). `spec/` holds only the NERV
+//      mirror now: NERV reads its body links as references and `pull.py --check`
+//      guards its integrity.
 //   2. Codebase `.ts`/`.tsx` sources under `codebase/{backend,frontend,
 //      channel-web-chat,packages}` (`backend/test` · `frontend/e2e` included
 //      besides `src`) — spec cross-refs only. They are key links
@@ -36,12 +33,6 @@ import {
 //      first time it ran, one of them an anchor that never existed. Replaces
 //      `scripts/check-doc-links.py`, which no CI or hook ever invoked. Relative
 //      links are checked by path; key links are checked against the mirror too.
-// Scope (1) applies no target filter, with one exemption: links that resolve
-// into the repo-root `plan/` or `review/` trees are skipped. NERV cutover stage 3
-// (NERV Task `CLE-T-FN2JWK`) removed both trees, and the frozen old spec tree that
-// still links into them is deleted in stage 5 (`CLE-T-7M4C4X`). Links that resolve
-// into a relocated tree (`RELOCATED_SPEC_TREES` — the API catalogs moved to
-// `codebase/api-catalogs/` in stage 4a, `CLE-T-BD48J3`) are checked at the new place.
 // Scope (2) looks only at key links and `spec/**.md` path links. Scope (3) has no
 // exemption — governance docs are live.
 // SoT: CLE-ENG-SPECEVIDENCE 「빌드 가드 — 스펙 문서 저장소 무결성」 (R-14 for key links).
@@ -64,66 +55,18 @@ function fmt(violations: LinkViolation[]): string {
 // **0 이 아닌** 하한을 둔다 — 이름 없는 리터럴이면 왜 이 값인지 다음 사람이 모른다.
 const MIN_CLAUDE_DOCS = 20;
 
+// 2026-10-03 미러 181편. 키 링크(범위 2 · 3)는 미러 파일로 확인하므로 미러가 비면 모든 키가
+// `KEY` 위반이 되어 드러나지만, 하한을 따로 두어 실패 이유를 바로 보이게 한다.
+const MIN_MIRROR_DOCS = 90;
+
 describe("spec-link-integrity guard", () => {
   const root = repoRoot();
 
-  it("resolves a real repo root and scans a non-trivial spec set", () => {
-    // Guard against repoRoot() misresolving → empty scan → vacuous pass.
+  it("resolves a real repo root with a non-trivial NERV mirror (key links resolve against it)", () => {
+    // Guard against repoRoot() misresolving → empty mirror → every key link KEY.
     expect(fs.existsSync(path.join(root, "spec")), `repoRoot missing spec/: ${root}`).toBe(true);
-    const files = collectSpecMarkdown(root);
-    expect(files.length).toBeGreaterThan(100);
-    expect(files.some((f) => f.relPath === "spec/0-overview.md")).toBe(true);
+    expect(mirrorKeyPaths(path.join(root, "spec")).size).toBeGreaterThan(MIN_MIRROR_DOCS);
   });
-
-  // 단계 4a 에서 카탈로그를 codebase 데이터로 옮겼다. 옛 자리로 가는 링크를 새 자리에서
-  // 검사하려면 두 자리가 실제로 그렇게 있어야 한다. 옛 자리에 사본이 다시 생기면 링크가
-  // 어느 쪽을 보는지 흐려지고, 새 자리가 비면 그 링크가 모두 DEAD 로 바뀐다.
-  // 옛 자리는 디렉터리가 아니라 `_overview.md` 로 본다. 옛 `.gitignore` 가 그 안의
-  // 생성기 캐시를 무시했으므로 로컬 체크아웃에는 빈 디렉터리 · 캐시가 남을 수 있다.
-  it("relocated API catalogs exist only at their new place", () => {
-    expect(RELOCATED_SPEC_TREES.length).toBeGreaterThan(0);
-    for (const { from, to } of RELOCATED_SPEC_TREES) {
-      expect(
-        fs.existsSync(path.join(root, from, "_overview.md")),
-        `${from}/_overview.md must stay removed (a leftover generator cache dir is fine)`,
-      ).toBe(false);
-      expect(fs.existsSync(path.join(root, to, "_overview.md")), `${to}/_overview.md`).toBe(true);
-    }
-  });
-
-  it("excludes the NERV spec mirror from scope", () => {
-    const files = collectSpecMarkdown(root);
-    // 제외가 공허하지 않도록 미러가 실제로 있어야 한다. 특정 키에 묶지 않는다.
-    const mirrorTop = fs
-      .readdirSync(path.join(root, "spec"))
-      .filter((name) => inNervMirror(`spec/${name}`) && name.endsWith(".md"));
-    expect(
-      mirrorTop.filter((name) => name !== "README.md").length,
-      "expected at least one NERV mirror doc (spec/CLE-*.md) so the exclusion is meaningful",
-    ).toBeGreaterThan(0);
-    expect(files.filter((f) => /^spec\/(README\.md|CLE-)/.test(f.relPath))).toEqual([]);
-    // 옛 트리는 그대로 대상이다.
-    expect(files.some((f) => f.relPath === "spec/5-system/1-auth.md")).toBe(true);
-  });
-
-  it("inNervMirror matches only mirror paths", () => {
-    for (const p of ["spec/README.md", "spec/CLE-VISION.md", "spec/CLE-ACCT/CLE-ACCT-SESSION.md",
-      "spec/CLE-NODE-AI/CLE-NODE-AI.md"]) {
-      expect(inNervMirror(p), p).toBe(true);
-    }
-    for (const p of ["spec/0-overview.md", "spec/5-system/1-auth.md",
-      "spec/conventions/README.md", "spec/5-system/CLE-x.md", "plan/CLE-VISION.md"]) {
-      expect(inNervMirror(p), p).toBe(false);
-    }
-  });
-
-  // Scans the whole in-repo spec set synchronously. It completes in ~2-3s
-  // standalone but can exceed the 5s default under parallel-suite CPU
-  // contention (flaky timeout, not a real failure) — give it real headroom.
-  it("has no broken in-repo links or heading anchors", () => {
-    const violations = findBrokenLinks(root);
-    expect(violations, fmt(violations)).toEqual([]);
-  }, 30_000);
 
   it("scans a non-trivial codebase source set (guard against vacuous pass)", () => {
     const sources = collectCodebaseSources(root);

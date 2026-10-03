@@ -9,9 +9,9 @@ Modes:
                        `--diff-base <ref>` 로 override.
 
 <scope> 는 NERV 스펙 미러를 가리킨다(NERV 정본 전환 4e). 쉼표로 여럿을 준다. 항목은 NERV 키
-(`CLE-ENG-SPECEVIDENCE`), 미러 영역 폴더(`spec/CLE-ENG/`), 미러 파일 중 하나다. 동결된 옛 트리
-(`spec/<번호>-<영역>/` · `spec/conventions/`)는 받지 않는다. 대조 코퍼스도 미러다. 구현할 때
-`pull.py --task` 로 받은 스펙이 미러에 있으므로 미러가 그 작업의 기준 버전이다.
+(`CLE-ENG-SPECEVIDENCE`), 미러 영역 폴더(`spec/CLE-ENG/`), 미러 파일 중 하나다. 미러 밖 경로와
+`spec/` 자체는 받지 않는다. 대조 코퍼스도 미러다. 구현할 때 `pull.py --task` 로 받은 스펙이 미러에
+있으므로 미러가 그 작업의 기준 버전이다.
 
   --focus <keys>       랭킹에서 앞세울 NERV 키(쉼표). 보통 클레임 scope 의 spec_ids.
   --diff-path <path>   `--impl-done` 구현 diff 의 경로(여럿이면 반복). 기본은 `code_areas`.
@@ -24,7 +24,7 @@ Modes:
 
 The orchestrator no longer calls a model. It collects context, writes
 per-checker prompt bodies plus a retry-state file, and prints the session
-directory path on stdout. The main Claude session then invokes 5 checker
+directory path on stdout. The main Claude session then invokes the checker
 sub-agents via the `Agent` tool and decides BLOCK based on the
 `consistency-summary` sub-agent's SUMMARY.md output. See
 `.claude/skills/consistency-checker/SKILL.md` for the full procedure.
@@ -209,19 +209,6 @@ def _natural_key(path):
             for tok in re.split(r"(\d+)", path)]
 
 
-# NERV 스펙 미러(`spec/CLE-*.md` · `spec/CLE-*/**` · `spec/README.md`, NERV 전환 단계 1).
-# 전환 4e(NERV Task `CLE-T-VP5KDJ`)부터 검토 대상과 대조 코퍼스는 이 미러다. 동결된 옛 트리는
-# 단계 5 에서 지우므로 대상으로도 코퍼스로도 쓰지 않는다. 같은 판정이 `pull.py` 와 frontend
-# `spec-links.ts` 에도 있고, 세 곳이 같은 파일을 고르는지 `.claude/tests/test_nerv_mirror_pull.py` 의
-# `MirrorPredicateParityTest` 가 본다.
-_NERV_MIRROR_REL = re.compile(r"^(?:README\.md|CLE-[A-Z0-9-]+\.md|CLE-[A-Z0-9-]+/)")
-
-
-def is_nerv_mirror(path, spec_dir):
-    rel = os.path.relpath(os.path.abspath(path), os.path.abspath(spec_dir)).replace(os.sep, "/")
-    return bool(_NERV_MIRROR_REL.match(rel))
-
-
 def collect_markdown_files(root_dir, exclude_paths=None):
     if exclude_paths is None:
         exclude_paths = set()
@@ -268,8 +255,8 @@ def mirror_key(path):
 def _is_mirror_document(path, spec_dir):
     """`spec/<키>.md` 이거나 `spec/<키 폴더>/<키>.md` 인 파일. `pull.mirror_files` 와 같은 판정이다.
 
-    `is_nerv_mirror` 는 미러 폴더 아래 전부를 미러 자리로 보는 느슨한 판정이라(옛 트리 검사에서 빼는
-    용도) 하위 폴더 · 키가 아닌 이름까지 고른다. 대상 · 코퍼스는 도구가 쓴 파일만 읽는다."""
+    대상 · 코퍼스는 도구가 쓴 파일만 읽는다. 미러 폴더 아래의 하위 폴더나 키가 아닌 이름은 고르지
+    않는다(`test_nerv_mirror_pull.py` 의 `OrchestratorMirrorParityTest`)."""
     if os.path.islink(path):
         return False
     parts = os.path.relpath(path, spec_dir).replace(os.sep, "/").split("/")
@@ -844,9 +831,9 @@ def _require_file(value, flag):
 def resolve_scope(value, flag, spec_dir, by_key, root):
     """`--impl-prep` · `--impl-done` 의 SCOPE → 미러 문서 절대 경로(자연 순서, 중복 없음).
 
-    항목은 쉼표로 나눈다. NERV 키, 미러 영역 폴더, 미러 파일 중 하나다. 옛 트리는 동결됐고(전환 단계
-    5 에서 지운다) 대조 코퍼스가 미러라서 받지 않는다. 옛 트리를 대상으로 미러와 대조하면 같은 내용의
-    다른 판끼리 부딪친다.
+    항목은 쉼표로 나눈다. NERV 키, 미러 영역 폴더, 미러 파일 중 하나다. `spec/` 에는 미러만 있다
+    (전환 단계 5 에서 옛 트리를 지웠다). `spec/` 자체는 받지 않는다. 미러 전체를 한 번에 대상으로
+    삼으면 예산이 대상만으로 넘친다.
     """
     items = [x.strip() for x in (value or "").split(",") if x.strip()]
     if not items:
@@ -865,18 +852,10 @@ def resolve_scope(value, flag, spec_dir, by_key, root):
         path = os.path.abspath(item if os.path.isabs(item) else os.path.join(root, item))
         if not os.path.exists(path):
             _usage_exit(flag, value, f"실존하는 경로도 NERV 키도 아니다 — {item}", _prose_hint(item))
-        # `is_nerv_mirror` 는 폴더를 `CLE-…/` 모양으로 알아본다. `abspath` 가 끝 `/` 를 걷으므로 폴더면
-        # 다시 붙인다(파일 하나를 폴더 안에 넣어 판정하면 빈 폴더를 놓친다).
         rel_item = os.path.relpath(path, spec_dir).replace(os.sep, "/")
-        if os.path.isdir(path):
-            rel_item += "/"
-        if not _NERV_MIRROR_REL.match(rel_item) or rel_item.startswith("../"):
-            # 옛 트리 안내는 spec/ 아래 경로에만 맞다. 저장소의 다른 곳이면 미러만 받는다고 알린다.
-            hint = ("\n  → 옛 트리(spec/<번호>-<영역>/ · spec/conventions/)는 동결됐다. 미러 경로"
-                    "\n     (spec/CLE-…/) 나 NERV 키를 준다."
-                    if not rel_item.startswith("../") else
-                    "\n  → scope 는 NERV 스펙 미러(spec/CLE-…/ · 미러 파일)나 NERV 키만 받는다.")
-            _usage_exit(flag, value, f"NERV 스펙 미러가 아니다 — {item}", hint)
+        if rel_item == "." or rel_item == ".." or rel_item.startswith("../"):
+            _usage_exit(flag, value, f"NERV 스펙 미러가 아니다 — {item}",
+                        "\n  → scope 는 미러 영역 폴더(spec/CLE-…/) · 미러 파일 · NERV 키로 준다.")
         if os.path.isdir(path):
             found = [p for p in collect_markdown_files(path) if p in mirror_set]
             if not found:
@@ -1242,7 +1221,7 @@ def _checker_corpus(checker_name, subs):
 
     `_corpus_keys` is the one place that knows which keys a checker reads:
     naming_collision joins two sub-corpora, a checker without a `context_key`
-    (the disabled plan_coherence) reads none."""
+    reads none."""
     return "\n\n".join(subs.get(k, "") for k in _corpus_keys(checker_name))
 
 

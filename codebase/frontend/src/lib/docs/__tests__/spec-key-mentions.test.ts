@@ -49,6 +49,11 @@ const FIXTURE_KEYS: Readonly<Record<string, readonly string[]>> = {
     "CLE-OK",
     "CLE-OK-DOC",
   ],
+  "codebase/frontend/src/lib/docs/__tests__/spec-impl-locations.test.ts": [
+    "CLE-AREA",
+    "CLE-AREA-DOC",
+    "CLE-TOP",
+  ],
   // 키 링크 표기 `[글](CLE-KEY#앵커)` 를 설명하는 자리표시자.
   "codebase/frontend/src/lib/docs/__tests__/spec-keys.ts": ["CLE-KEY"],
   "codebase/frontend/src/lib/docs/__tests__/spec-links.ts": ["CLE-KEY"],

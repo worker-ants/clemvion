@@ -19,12 +19,9 @@ exact failure mode this guard exists for. Two classes split the work:
 Only file existence is checked. A 「section title」 quoted after a mirror path
 is not (NERV titles change on the web; see PROJECT.md 「매트릭스 참조 무결성 가드」).
 
-TRANSITIONAL (NERV cutover step 5, Task CLE-T-7M4C4X): until the frozen old
-tree is deleted, `SPEC_PATH_RE` still matches old-tree paths so a cited one is
-caught. `OLD_TREE_ALLOWED` pinned the old-tree files PROJECT.md named where it
-described what an old-tree guard read; the last one (`spec/0-overview.md`, read
-by `spec-status-lifecycle`) left with that guard in step 3 (CLE-T-FN2JWK), so the
-set is empty. Step 5 drops `_LEGACY`.
+`SPEC_PATH_RE` matches any `spec/...md` path, not only mirror-shaped ones, so a
+path into a folder that is not the mirror (the old tree deleted in NERV cutover
+step 5, Task CLE-T-7M4C4X) fails instead of slipping past a mirror-only regex.
 
 Scope note: this is a harness self-test that deliberately reaches into product
 paths (`codebase/`, `spec/`) because the matrix is precisely a harness↔product
@@ -34,6 +31,7 @@ binding. harness-checks runs it on PROJECT.md · `.claude/**` edits, not on
 
 from __future__ import annotations
 
+import fnmatch
 import json
 import re
 import sys
@@ -53,15 +51,14 @@ TEST_FILE_RE = re.compile(r"[A-Za-z0-9_-]+\.test\.ts")
 # cited key is then held to `KEY_RE` by `test_cited_mirror_keys_match_pull_key_grammar`,
 # so the two cannot drift apart silently.
 _MIRROR = r"CLE-[A-Z0-9-]+(?:/CLE-[A-Z0-9-]+)?"
-# Frozen old tree. TRANSITIONAL — remove with the old tree (CLE-T-7M4C4X).
-_LEGACY = r"conventions/[A-Za-z0-9_./-]+|[0-9][A-Za-z0-9_./-]+"
 MIRROR_PATH_RE = re.compile(rf"spec/{_MIRROR}\.md")
-SPEC_PATH_RE = re.compile(rf"spec/(?:{_LEGACY}|{_MIRROR})\.md")
-# Old-tree files PROJECT.md may still name, each where it describes what a
-# guard reads. Empty since step 3 (CLE-T-FN2JWK) removed `spec-status-lifecycle`,
-# the last guard that read one (`spec/0-overview.md`). Anything cited must point
-# at the mirror.
-OLD_TREE_ALLOWED: frozenset[str] = frozenset()
+# Any `spec/...md` path. The lookbehind keeps `e2e-spec/x.md` and `a/spec/x.md`
+# out; the first character after `spec/` excludes the prose placeholder
+# `spec/...md`.
+SPEC_PATH_RE = re.compile(r"(?<![\w./-])spec/[A-Za-z0-9_][A-Za-z0-9_./-]*\.md")
+# Non-mirror `spec/` files PROJECT.md may name. `spec/README.md` is the mirror's
+# guide page, written by `pull.py` next to the mirror documents.
+NON_MIRROR_ALLOWED: frozenset[str] = frozenset({"spec/README.md"})
 
 
 def _project_text() -> str:
@@ -129,10 +126,10 @@ class DocSyncMatrixReferencesTest(unittest.TestCase):
         """PROJECT.md points at spec documents through the NERV mirror.
 
         Two things this pins that the existence check above cannot:
-          - the mirror branch of SPEC_PATH_RE is live (without a mirror match the
-            existence check would pass vacuously on old-tree paths alone);
-          - old-tree paths do not creep back: every non-mirror match must be in
-            OLD_TREE_ALLOWED."""
+          - mirror paths are cited at all, and SPEC_PATH_RE sees them (the two
+            regexes are separate, so they could drift apart);
+          - nothing else under `spec/` is cited: every non-mirror match must be
+            in NON_MIRROR_ALLOWED."""
         text = _project_text()
         cited = set(SPEC_PATH_RE.findall(text))
         mirror = set(MIRROR_PATH_RE.findall(text))
@@ -143,14 +140,14 @@ class DocSyncMatrixReferencesTest(unittest.TestCase):
         )
         self.assertLessEqual(
             mirror, cited,
-            f"SPEC_PATH_RE misses mirror paths (regex branches diverged): "
+            f"SPEC_PATH_RE misses mirror paths (the two regexes diverged): "
             f"{sorted(mirror - cited)}",
         )
-        old_tree = cited - mirror
+        other = cited - mirror
         self.assertLessEqual(
-            old_tree, OLD_TREE_ALLOWED,
-            f"PROJECT.md cites frozen old-tree spec paths: "
-            f"{sorted(old_tree - OLD_TREE_ALLOWED)}. Point at the NERV mirror "
+            other, NON_MIRROR_ALLOWED,
+            f"PROJECT.md cites spec paths outside the NERV mirror: "
+            f"{sorted(other - NON_MIRROR_ALLOWED)}. Point at the NERV mirror "
             f"(spec/<area key>/<KEY>.md) instead.",
         )
 
@@ -300,6 +297,38 @@ class MatrixJsonSsotTest(unittest.TestCase):
                     bad.setdefault(row["id"], []).append(g)
         self.assertFalse(
             bad, f"doc-sync-matrix.json trigger globs with non-existent base path: {bad}"
+        )
+
+    def test_json_trigger_globs_match_a_file(self):
+        """Every trigger glob matches at least one file on disk.
+
+        The base-path check above stops at the first wildcard segment, so
+        `spec/2-*/**` stayed green on the base `spec` after the old tree it
+        named was deleted (NERV cutover step 5). A trailing `/` names a
+        directory, so it matches the files under one. `fnmatch`'s `*` crosses
+        `/`, which is how the matrix's `**.mdx` is meant to read."""
+        meta = set("*?[")
+        bad = {}
+        for row in _load_matrix()["rows"]:
+            for g in row["trigger"]["globs"]:
+                pattern = g + "*" if g.endswith("/") else g
+                base = []
+                for seg in g.split("/"):
+                    if not seg or not meta.isdisjoint(seg):
+                        break
+                    base.append(seg)
+                start = REPO_ROOT.joinpath(*base)
+                if start.is_file():
+                    found = fnmatch.fnmatchcase("/".join(base), pattern)
+                else:
+                    found = any(
+                        fnmatch.fnmatchcase(p.relative_to(REPO_ROOT).as_posix(), pattern)
+                        for p in start.rglob("*") if p.is_file()
+                    )
+                if not found:
+                    bad.setdefault(row["id"], []).append(g)
+        self.assertFalse(
+            bad, f"doc-sync-matrix.json trigger globs that match no file: {bad}"
         )
 
 

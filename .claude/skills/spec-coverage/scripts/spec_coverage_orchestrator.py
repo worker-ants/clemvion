@@ -25,19 +25,19 @@ from pathlib import Path
 
 VALID_MODES = ("forward", "reverse", "both")
 
-# 적용 대상의 정본(`CLE-ENG-SPECEVIDENCE` 「적용 대상」)과 그 목록. 목록은 정본의 포함 목록과 같아야
-# 한다 — `.claude/tests/test_spec_coverage_prompt.py` 가 미러 본문과 대조한다. 옛 템플릿은 옛 경로
-# `spec/conventions/spec-impl-evidence.md §1` 을 인용했고 `spec/7-channel-web-chat/**.md` 가 빠져
-# 있었다(전환 4d 리뷰).
+# 적용 대상의 정본(`CLE-ENG-SPECEVIDENCE` 「적용 대상」)과 그 목록. 포함 목록과 제외 항목은 정본과
+# 같아야 한다. `.claude/tests/test_spec_coverage_prompt.py` 가 미러 본문과 대조한다. 감사 대상은 NERV
+# 미러 가운데 `## 구현 위치` 절이 있는 문서다(전환 단계 5 에서 옛 트리를 지우며 옮겼다).
 SOT_DOC = "spec/CLE-ENG/CLE-ENG-SPECEVIDENCE.md"
 INCLUDE_GLOBS = (
-    "spec/2-navigation/**.md",
-    "spec/3-workflow-editor/**.md",
-    "spec/4-nodes/**.md",
-    "spec/5-system/**.md",
-    "spec/7-channel-web-chat/**.md",
-    "spec/conventions/**.md",
+    "spec/<KEY>.md",
+    "spec/<영역 키>/<KEY>.md",
 )
+IMPL_SECTION = "## 구현 위치"
+# 미러 안내 파일. 스펙 문서가 아니다.
+EXCLUDE_PATHS = ("spec/README.md",)
+# 미러에 넣지 않는 카탈로그 영역. `.claude/tools/nerv-mirror/pull.py` 의 `EXCLUDED_AREAS` 와 같다.
+EXCLUDED_AREAS = ("CLE-C24", "CLE-MKS")
 
 
 def repo_root() -> Path:
@@ -86,12 +86,14 @@ the heuristics for the selected MODE per your agent prompt
 
 Per {sot} 「적용 대상」 (NERV `CLE-ENG-SPECEVIDENCE`):
 - INCLUDE: {include}
-- EXCLUDE: basename `0-overview.md` · `1-data-model.md` · `6-brand.md`, `spec/**/_*.md`
+- SECTION: only documents whose body has the exact H2 `{section}`
+- EXCLUDE: {exclude}
+- EXCLUDED AREAS: {areas} (catalog areas, not mirrored)
 
-These are the frozen old-tree specs that still carry frontmatter `code:`. The
-NERV mirror (`spec/CLE-*`) writes implementation locations in a `## 구현 위치`
-section instead; moving this audit onto the mirror happens when the old tree is
-deleted (NERV cutover stage 5).
+Implementation locations are the repository paths written as code spans in that
+section (starting with `codebase/` · `.claude/` · `.github/` · `scripts/`), the
+same reading as the build guard `spec-impl-locations`. Mirror documents carry no
+frontmatter `code:`.
 
 ## Output
 
@@ -118,6 +120,9 @@ def main() -> int:
     prompt_text = PROMPT_TEMPLATE.format(
         sot=f"`{SOT_DOC}`",
         include=", ".join(f"`{g}`" for g in INCLUDE_GLOBS),
+        section=IMPL_SECTION,
+        exclude=", ".join(f"`{x}`" for x in EXCLUDE_PATHS),
+        areas=", ".join(f"`{a}`" for a in EXCLUDED_AREAS),
         direction_mode=args.mode,
         confidence_floor=env["SPEC_COVERAGE_CONFIDENCE_FLOOR"],
         max_findings=env["SPEC_COVERAGE_MAX_FINDINGS"],
