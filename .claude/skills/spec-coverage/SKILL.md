@@ -104,9 +104,9 @@ NLP 휴리스틱 기반이라 false-positive 빈도 높음. CI 차단 시 false-
 
 ### R-3. 산출 위치 = `review/spec-coverage/` 하위 (PR #287 결정 번복. 단계 2 에서 `.review/` 로 이동)
 
-PR #287 의 초기 결정은 `review/consistency/coverage/` 였음 — `consistency-check` 5 checker 결과와 같은 일관성 검토 계열로 묶기 위함. 운영 후 두 가지 문제 발견:
+PR #287 의 초기 결정은 `review/consistency/coverage/` 였음 — `consistency-check` (당시 5 checker) 결과와 같은 일관성 검토 계열로 묶기 위함. 운영 후 두 가지 문제 발견:
 1. 시각적 식별성 저하 — `review/consistency/` 아래 `coverage/` 가 묻혀 사용자가 산출물 위치를 즉시 인지하기 어려움
-2. 본 audit 의 산출 흐름 (단일 sub-agent, NLP 휴리스틱 기반 보고형) 은 `consistency-check` (5 checker 병렬, Critical 차단형) 와 운영 모델이 다름 — 동일 경로 그룹화의 의미가 약함
+2. 본 audit 의 산출 흐름 (단일 sub-agent, NLP 휴리스틱 기반 보고형) 은 `consistency-check` (당시 5 checker 병렬, Critical 차단형) 와 운영 모델이 다름 — 동일 경로 그룹화의 의미가 약함
 
 번복 후 결정: `review/spec-coverage/<YYYY>/<MM>/<DD>/<hh>_<mm>_<ss>/`. 슬래시 command 이름 `/spec-coverage` 와 1:1 매칭되어 사용자가 산출물 위치를 추론하기 쉬움. `review/code/`, `review/consistency/`, `review/merge/` 와 어깨를 나란히 하는 1-depth 최상위 경로.
 

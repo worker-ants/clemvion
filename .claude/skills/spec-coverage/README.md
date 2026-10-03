@@ -1,12 +1,14 @@
 # spec-coverage — quick start
 
 Standing audit that finds gaps between what a spec **promises in prose** (UI /
-API / e2e surfaces) and what the frontmatter `code:` globs actually point at.
+API / e2e surfaces) and what its `## 구현 위치` section actually points at.
+Targets are the NERV mirror docs (`spec/<KEY>.md`, `spec/<영역 키>/<KEY>.md`)
+that have that section; the catalog areas are not mirrored.
 Full procedure: [`SKILL.md`](SKILL.md). This README is the operator's one-pager.
 
 ## When to run it
 
-- Periodic grooming of `spec/**` — not per-PR. It walks **current `main`** in
+- Periodic grooming of the spec mirror — not per-PR. It walks **current `main`** in
   full, not a diff.
 - After a batch of spec/impl work, to surface surfaces that were promised but
   never wired up (the generalization of the "Telegram chat-channel UI silently
@@ -17,7 +19,7 @@ Full procedure: [`SKILL.md`](SKILL.md). This README is the operator's one-pager.
 - As a CI gate. It is **report-only** by design — NLP heuristics carry real
   false-positive rates, so it never blocks a merge. (Rationale: SKILL.md §R-1.)
 - To validate a draft / PR diff. That's [`/consistency-check`](../consistency-checker/SKILL.md)
-  (PR-diff, 5 parallel checkers, Critical-blocking) — a different operating
+  (PR-diff, 4 parallel checkers, Critical-blocking) — a different operating
   model. spec-coverage is a single sub-agent doing a full-corpus sweep.
 
 ## Run
@@ -35,8 +37,8 @@ findings classified **high / medium / low** confidence.
 
 The three heuristics (SKILL.md §검출 heuristic) trade precision for recall:
 
-- **high** — UI keyword in prose + no `codebase/frontend/` path in `code:`. Most
-  trustworthy.
+- **high** — UI keyword in prose + no `codebase/frontend/` path in `## 구현 위치`.
+  Most trustworthy.
 - **medium** — `POST/GET /api/...` spec'd + no matching backend route. Regex
   matching can miss aliased routes.
 - **low** — free-text e2e scenario + no e2e spec file. Highest false-positive
@@ -48,6 +50,7 @@ file them as NERV Tasks (`nerv_task_create`). Tune noise with
 
 ## SoT
 
-Evidence model (frontmatter `status`/`code:`/`pending_plans:`):
+Evidence model (`## 구현 위치` in each mirror doc, rules 19 · 20):
 [`spec/CLE-ENG/CLE-ENG-SPECEVIDENCE.md`](../../../spec/CLE-ENG/CLE-ENG-SPECEVIDENCE.md).
-This audit covers the prose surfaces that the frontmatter guards can't.
+The build guard `spec-impl-locations` checks that those paths exist. This audit
+covers the prose surfaces that the guard can't.
