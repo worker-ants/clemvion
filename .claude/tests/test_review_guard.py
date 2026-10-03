@@ -252,9 +252,12 @@ class ForcedRolesBeyondTheSixTest(_RepoCase):
 
     def test_the_gate_uses_the_reviewer_rules_the_orchestrator_uses(self):
         """게이트가 불러오는 파일이 코드 리뷰 오케스트레이터가 쓰는 그 모듈이다(복사본이 아니다)."""
+        import ast  # noqa: PLC0415
+
         orch = (_harness.CLAUDE_DIR / "skills" / "code-review-agents" / "scripts"
                 / "code_review_orchestrator.py").read_text(encoding="utf-8")
-        self.assertIn("from lib.router_safety import compute_forced_agents", orch)
+        imported = {n.module for n in ast.walk(ast.parse(orch)) if isinstance(n, ast.ImportFrom)}
+        self.assertIn("lib.router_safety", imported)
         self.assertEqual(Path(rg._ROUTER_SAFETY).resolve(),
                          (_harness.CLAUDE_DIR / "skills" / "code-review-agents" / "lib"
                           / "router_safety.py").resolve())

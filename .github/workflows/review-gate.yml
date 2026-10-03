@@ -85,7 +85,8 @@ jobs:
       # 어떤 문법으로 환경을 읽든 CI 에만 있는 변수(`GITHUB_*` · `CI` · `RUNNER_*`)를 볼 수 없다.
       # 그래서 "CI 에서만 다른 판정" 은 환경 변수로는 만들 수 없다. 넘기는 PATH · HOME 의 값이
       # 로컬과 다르다는 사실까지 지우지는 못한다. LD_LIBRARY_PATH 는 setup-python 이 준 python 이
-      # 공유 라이브러리를 찾는 데 쓴다.
+      # 공유 라이브러리를 찾는 데 쓴다. NERV_PROJECT 는 넘기지 않으므로 게이트는 기본값 `clemvion` 을
+      # 쓴다(`pull.load_env`). 다른 프로젝트를 볼 일이 생기면 여기에 함께 넘긴다.
       - name: Review coverage backstop
         env:
           NERV_SERVER: ${{ vars.NERV_SERVER }}

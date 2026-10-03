@@ -9,7 +9,7 @@
 #   1. sanity         — main 의 V번호 dup/gap/단조성/.conf 페어 전수검사.
 #                       위반 시 워크플로 fail 로 Actions 탭에 빨간불.
 #   2. nudge-open-prs — 열린 PR 중 codebase/backend/migrations/ 를 건드린 PR 에
-#                       "rebase + CI 재실행 필요" 코멘트 자동 게시.
+#                       최신화(merge)와 CI 재실행을 안내하는 코멘트 자동 게시.
 #
 # 정책 본문은 NERV 스펙 CLE-ENG-MIGRATION 「충돌 검출과 머지 race 안전망」 · Rationale 「기각한 대안 4」.
 
@@ -49,10 +49,10 @@ jobs:
         run: python3 scripts/check-migration-versions.py --base HEAD~1
 
   nudge-open-prs:
-    # main 에 migration 이 머지되면 열려있는 migration PR 들에 "rebase + 재CI"
-    # 알림 코멘트를 자동 게시. 머지를 막진 못하지만, 작성자가 race 가능성을
-    # 즉시 인지하도록 돕는다. 자동 rebase 는 시도하지 않는다 (충돌·예측불가
-    # 영향 회피).
+    # main 에 migration 이 머지되면 열려있는 migration PR 들에 최신화(merge)와
+    # CI 재실행을 안내하는 코멘트를 자동 게시. 머지를 막진 못하지만, 작성자가
+    # race 가능성을 즉시 인지하도록 돕는다. 자동 최신화는 시도하지 않는다
+    # (충돌·예측불가 영향 회피).
     runs-on: ubuntu-latest
     timeout-minutes: 5
     env:

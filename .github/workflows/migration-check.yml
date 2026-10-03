@@ -7,7 +7,7 @@
 # merge race (CI 통과 후 다른 PR 이 먼저 머지되어 base max 가 추월되는 경우)
 # 는 본 워크플로 단독으로는 막을 수 없다. 본 repo 는 무료 플랜의 private
 # 저장소여서 branch protection 의 "Require branches to be up to date" 옵션이
-# 동작하지 않으므로, 작성자의 머지 직전 rebase 규약과
+# 동작하지 않으므로, 작성자의 머지 직전 최신화 규약(리뷰를 낸 PR 은 merge)과
 # migration-recheck-on-main 사후 안전망으로 보완한다. 정책 본문은
 # CLE-ENG-MIGRATION 「충돌 검출과 머지 race 안전망」 · Rationale 「기각한 대안 4」.
 

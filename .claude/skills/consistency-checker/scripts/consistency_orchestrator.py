@@ -1190,19 +1190,12 @@ def budget_substitutions(context, max_context_size, checker_name):
 
 
 def _checker_corpus(checker_name, subs):
-    """Return the supplementary corpus a given checker consumes."""
-    if checker_name == "naming_collision":
-        # naming_collision combines two sub-corpora (the plan corpus left in NERV
-        # cutover stage 3; work in progress is a NERV Task, not a file).
-        return "\n\n".join([
-            subs.get("related_specs", ""),
-            subs.get("conventions", ""),
-        ])
-    info = CHECKER_INSTRUCTIONS.get(checker_name, {})
-    key = info.get("context_key")
-    if not key:
-        return ""
-    return subs.get(key, "")
+    """Return the supplementary corpus a given checker consumes.
+
+    `_corpus_keys` is the one place that knows which keys a checker reads:
+    naming_collision joins two sub-corpora, a checker without a `context_key`
+    (the disabled plan_coherence) reads none."""
+    return "\n\n".join(subs.get(k, "") for k in _corpus_keys(checker_name))
 
 
 def build_checker_prompt_body(checker_name, subs):

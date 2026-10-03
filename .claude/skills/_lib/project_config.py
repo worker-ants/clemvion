@@ -58,9 +58,9 @@ path. A project file that still sets it is ignored.
 
 Removed in NERV cutover stage 3 (NERV Task ``CLE-T-FN2JWK``):
 ``corpora.plan_in_progress`` / ``corpora.plan_complete`` left with ``plan/``
-(work tracking is NERV Tasks). A project that still sets
-``plan_in_progress`` keeps the consistency orchestrator's plan bundle; without
-it the bundle renders empty. ``outputs`` had no reader — the orchestrators
+(work tracking is NERV Tasks). Since cutover 4e the consistency orchestrator
+has no plan bundle, so a project file that still sets ``plan_in_progress`` is
+ignored. ``outputs`` had no reader — the orchestrators
 take their output roots from ``REVIEW_OUTPUT_DIR`` / ``CONSISTENCY_OUTPUT_DIR``
 defaults (``.review/<kind>``), which ``test_review_gate_ci.py``
 (``ReviewArtifactsStayLocalTest``) pins.
