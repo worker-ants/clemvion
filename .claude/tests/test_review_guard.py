@@ -52,11 +52,11 @@ class FakeClient:
 
 
 def code_item(state="passed", head=None, *, findings=(), round_no=1, reasons=(),
-              missing=(), total=None, kind="code"):
+              missing=(), total=None, kind="code", reported=()):
     item = {
         "kind": kind, "state": state, "round_no": round_no, "head_sha": head,
         "reasons": list(reasons), "open": {"critical": 0, "warning": 0, "info": 0},
-        "roles": {"required": [], "reported": [], "missing": list(missing)},
+        "roles": {"required": [], "reported": list(reported), "missing": list(missing)},
         "findings": list(findings),
     }
     if total is not None:
@@ -101,6 +101,77 @@ class _RepoCase(unittest.TestCase):
 
     def evaluate(self, client, **kw):
         return rg.evaluate_review(str(self.repo), client=client, **kw)
+
+
+class ForcedRolesBeyondTheSixTest(_RepoCase):
+    """(2b) 라운드가 본 파일이 강제하는 리뷰어 중 NERV 6역할 밖의 것이 라운드에 있어야 한다.
+
+    NERV 정책 `review_roles.code` 는 변경 종류에 따라 붙는 역할(documentation · dependency ·
+    database · api_contract)을 표현하지 못해 6역할만 센다(전환 단계 2). 이 검사가 그 축소를 닫는다
+    (전환 4e). 판정의 입력은 merge-base..라운드 head 의 파일이다 — 라운드 뒤 커밋은 그 라운드가 본
+    파일이 아니다.
+    """
+
+    def test_a_round_that_reviewed_a_doc_without_the_documentation_role_blocks(self):
+        head = self.commit("CHANGELOG.md", "- 바뀐 것\n")
+        d = self.evaluate(FakeClient(code_item("passed", head)))
+        self.assertTrue(d.blocked)
+        self.assertIn("강제 리뷰어 리포트가 없다: documentation", d.reason)
+
+    def test_the_reported_role_satisfies_it(self):
+        head = self.commit("CHANGELOG.md", "- 바뀐 것\n")
+        d = self.evaluate(FakeClient(code_item("passed", head, reported=["documentation"])))
+        self.assertFalse(d.blocked, d.reason)
+
+    def test_every_missing_role_is_named(self):
+        self.commit("codebase/backend/package.json", "{}\n")
+        head = self.commit("codebase/backend/migrations/V1__init.sql", "select 1;\n")
+        d = self.evaluate(FakeClient(code_item("passed", head)))
+        self.assertTrue(d.blocked)
+        for role in ("database", "dependency", "documentation"):
+            with self.subTest(role=role):
+                self.assertIn(role, d.reason)
+
+    def test_a_reviewer_the_project_disabled_is_not_required(self):
+        self.commit(".claude.project.json",
+                    json.dumps({"agents": {"reviewers": {"documentation": False}}}))
+        head = self.commit("CHANGELOG.md", "- 바뀐 것\n")
+        d = self.evaluate(FakeClient(code_item("passed", head)))
+        self.assertFalse(d.blocked, d.reason)
+
+    def test_files_after_the_round_head_do_not_count(self):
+        """라운드 뒤 문서 커밋은 그 라운드가 본 파일이 아니다(codebase 밖이라 설명도 필요 없다)."""
+        self.commit("CHANGELOG.md", "- 라운드 뒤\n")
+        d = self.evaluate(FakeClient(code_item("passed", self.c1)))
+        self.assertFalse(d.blocked, d.reason)
+
+    def test_the_six_roles_are_left_to_the_server(self):
+        """6역할은 서버가 `missing_roles` 로 판정한다. 여기서 다시 세면 대역의 빈 `reported` 가 막는다."""
+        d = self.evaluate(FakeClient(code_item("passed", self.c1)))
+        self.assertFalse(d.blocked, d.reason)
+
+    def test_a_response_without_roles_passes_with_a_note(self):
+        head = self.commit("CHANGELOG.md", "- 바뀐 것\n")
+        item = code_item("passed", head)
+        del item["roles"]
+        d = self.evaluate(FakeClient(item))
+        self.assertFalse(d.blocked, d.reason)
+        self.assertTrue(any("roles.reported" in n for n in d.notes), d.notes)
+
+    def test_an_unloadable_rule_module_is_a_configuration_error(self):
+        head = self.commit("CHANGELOG.md", "- 바뀐 것\n")
+        with mock.patch.object(rg, "_ROUTER_SAFETY", str(self.tmp / "missing.py")):
+            with self.assertRaises(rg.GateMisconfigured):
+                self.evaluate(FakeClient(code_item("passed", head)))
+
+    def test_the_gate_uses_the_reviewer_rules_the_orchestrator_uses(self):
+        """게이트가 불러오는 파일이 코드 리뷰 오케스트레이터가 쓰는 그 모듈이다(복사본이 아니다)."""
+        orch = (_harness.CLAUDE_DIR / "skills" / "code-review-agents" / "scripts"
+                / "code_review_orchestrator.py").read_text(encoding="utf-8")
+        self.assertIn("from lib.router_safety import compute_forced_agents", orch)
+        self.assertEqual(Path(rg._ROUTER_SAFETY).resolve(),
+                         (_harness.CLAUDE_DIR / "skills" / "code-review-agents" / "lib"
+                          / "router_safety.py").resolve())
 
 
 class DecisionTableTest(_RepoCase):

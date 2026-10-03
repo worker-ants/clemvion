@@ -18,6 +18,12 @@ NERV 정본 전환 단계 2(NERV Task `CLE-T-4ABTG7`)부터 리뷰 결과의 정
      열린 critical · warning 은 서버가 `pending` 으로 판정한다.
   2. 라운드 `head_sha` 가 이 체크아웃에 있고 HEAD 의 조상이어야 한다. rebase · amend 로 라운드
      head 가 사라졌으면 새 HEAD 로 리뷰를 다시 제출해야 한다.
+  2b. 라운드가 본 파일(merge-base..라운드 head)이 `router_safety` 규칙으로 강제하는 리뷰어 중 NERV 필수
+     6역할 밖의 것(documentation · dependency · database · api_contract)이 라운드의 역할 리포트(N1
+     `roles.reported`)에 있어야 한다. NERV 정책 `review_roles.code` 는 변경 종류에 따라 붙는 역할을
+     표현하지 못해 6역할만 센다(전환 단계 2). 옛 게이트는 디스크의 리포트로 강제 목록 전체를 봤다.
+     전환 4e 에서 그 축소를 이 검사로 닫았다. `.claude.project.json` 에서 끈 리뷰어는 요구하지 않는다.
+     응답에 `roles.reported` 가 없으면 막지 않고 참고로 알린다.
   3. code 라운드에서 `fixed` 로 처분된 발견의 `commit_sha` 는 HEAD 에서 닿는 커밋이어야 한다. NERV 는
      발견을 프로젝트 전체에서 지문으로 합친다. 그래서 다른 브랜치에서 고친 같은 지적도 이 라운드에
      `fixed` 로 보인다. 그 수정이 이 브랜치에 없으면 막는다. consistency 라운드의 그런 처분은 막지 않고
@@ -76,6 +82,10 @@ N1_KINDS = ("code", "consistency")
 # 처럼 나열해도 된다). NERV 발견 ID 는 UUIDv7 이라 앞 8자는 같은 분 안에서 겹친다(실측 2026-10-01: 한
 # 제출의 발견 13건이 모두 `01a0f648-`). 그래서 전체 ID 만 인용으로 본다.
 _FINDING_WORD = re.compile(r"\bfindings?\b", re.IGNORECASE)
+# 강제 리뷰어 규칙의 정본. 표준 라이브러리만 쓰는 모듈이라 경로로 불러온다(`_lib` 이름이 훅 패키지와
+# 겹치므로 `sys.path` 로 들이지 않는다).
+_ROUTER_SAFETY = os.path.join(_CLAUDE_DIR, "skills", "code-review-agents", "lib", "router_safety.py")
+_PROJECT_CONFIG = ".claude.project.json"
 _FULL_ID = re.compile(r"\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b", re.IGNORECASE)
 
 
@@ -289,6 +299,53 @@ def _short(sha: str) -> str:
     return sha[:12]
 
 
+# -- 강제 리뷰어 ----------------------------------------------------------------------
+
+def _load_router_safety():
+    """`router_safety.py` 를 경로로 불러온다. 못 불러오면 고칠 때까지 계속 실패하므로 설정 문제다."""
+    import importlib.util  # noqa: PLC0415 — 이 함수만 쓴다
+
+    try:
+        spec = importlib.util.spec_from_file_location("_review_guard_router_safety", _ROUTER_SAFETY)
+        if spec is None or spec.loader is None:
+            raise ImportError("spec 을 만들지 못했다")
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+    except Exception as exc:  # noqa: BLE001 — 문법 오류 · 파일 없음 모두 같은 처리
+        raise GateMisconfigured(f"강제 리뷰어 규칙(router_safety)을 불러오지 못했다 — {type(exc).__name__}: {exc}") from exc
+    return module
+
+
+def _enabled(repo_root: str, names) -> list[str]:
+    """`.claude.project.json` 의 `agents.reviewers.<이름>: false` 로 끈 리뷰어를 뺀다.
+
+    판정 규칙은 `skills/_lib/project_config.is_agent_enabled` 와 같다(명시적 `false` 만 끈다). 그 모듈은
+    `_lib` 이름이 훅 패키지와 겹쳐 들일 수 없어 같은 규칙을 여기 둔다. 파일이 없거나 깨졌으면 모두 켠다."""
+    try:
+        with open(os.path.join(repo_root, _PROJECT_CONFIG), encoding="utf-8") as f:
+            cfg = json.load(f)
+    except (OSError, ValueError):
+        cfg = {}
+    agents = cfg.get("agents") if isinstance(cfg, dict) else None
+    reviewers = agents.get("reviewers") if isinstance(agents, dict) else None
+    if not isinstance(reviewers, dict):
+        reviewers = {}
+    return [n for n in names if reviewers.get(n, True) is not False]
+
+
+def _missing_forced_roles(item: dict, fork: str, round_head: str, repo_root: str, cwd: str) -> list[str] | None:
+    """라운드가 본 파일이 강제하는데 라운드에 리포트가 없는 리뷰어(6역할 밖). 응답에 역할 정보가 없으면 None."""
+    roles = item.get("roles")
+    reported = roles.get("reported") if isinstance(roles, dict) else None
+    if not isinstance(reported, list):
+        return None
+    files = _git_lines(["diff", "--name-only", f"{fork}..{round_head}"], cwd)
+    rs = _load_router_safety()
+    forced = rs.conditional_forced_agents(files, _enabled(repo_root, rs.RULE_REVIEWERS))
+    have = {str(r) for r in reported}
+    return [r for r in forced if r not in have]
+
+
 def _one_line(text: str, limit: int = 60) -> str:
     """서버가 준 문자열을 메시지에 넣기 전에 줄바꿈 · 제어 문자를 접고 자른다."""
     return " ".join(str(text).split())[:limit]
@@ -381,6 +438,19 @@ def evaluate_review(
     notes: tuple[str, ...] = ()
     if isinstance(total, int) and total > got:
         notes = (f"참고: N1 응답이 발견 {total}건 중 {got}건만 담았다. 빠진 발견의 처분 커밋은 보지 못했다.",)
+
+    # (2b) 라운드가 본 파일이 강제하는 리뷰어(6역할 밖)의 리포트가 라운드에 있는가.
+    missing_roles = _missing_forced_roles(item, fork[0], round_head, repo_root, cwd)
+    if missing_roles is None:
+        notes += ("참고: N1 응답에 roles.reported 가 없어 강제 리뷰어(6역할 밖)를 보지 못했다.",)
+    elif missing_roles:
+        return ReviewDecision(
+            True,
+            f"kind=code 라운드 {round_no} 에 강제 리뷰어 리포트가 없다: {', '.join(missing_roles)}. 라운드가 본 "
+            "파일이 router_safety 규칙으로 이 리뷰어를 강제한다(문서 · 패키지 매니페스트 · 마이그레이션 · OpenAPI 등). "
+            "그 리뷰어를 돌려 같은 head 로 `nerv_review_submit`(reviewer.role) 한다.",
+            notes,
+        )
 
     # (3) code 라운드의 처분 커밋이 이 브랜치에 있는가.
     code_fixes = _fixed_findings(item)

@@ -38,6 +38,9 @@ on:
       - '.claude/_shared/**'
       # 게이트가 NERV 를 읽는 클라이언트(`Nerv`)가 여기 있다.
       - '.claude/tools/nerv-mirror/pull.py'
+      # 강제 리뷰어 규칙과 리뷰어 토글. 게이트의 판정 2b 가 읽는다(전환 4e).
+      - '.claude/skills/code-review-agents/lib/router_safety.py'
+      - '.claude.project.json'
       - 'scripts/check-review-gate.py'
       - '.github/workflows/review-gate.yml'
 
@@ -77,6 +80,12 @@ jobs:
         run: git fetch --no-tags origin "$BASE_REF"
 
       # 표준 라이브러리 + curl 만 쓴다 (harness 규약) — 설치 단계 없음.
+      #
+      # `env -i` 로 빈 환경에서 시작해 아래 변수만 넘긴다(전환 4e). 게이트와 그것이 위임하는 코드는
+      # 어떤 문법으로 환경을 읽든 CI 에만 있는 변수(`GITHUB_*` · `CI` · `RUNNER_*`)를 볼 수 없다.
+      # 그래서 "CI 에서만 다른 판정" 은 환경 변수로는 만들 수 없다. 넘기는 PATH · HOME 의 값이
+      # 로컬과 다르다는 사실까지 지우지는 못한다. LD_LIBRARY_PATH 는 setup-python 이 준 python 이
+      # 공유 라이브러리를 찾는 데 쓴다.
       - name: Review coverage backstop
         env:
           NERV_SERVER: ${{ vars.NERV_SERVER }}
@@ -84,4 +93,4 @@ jobs:
           HEAD_REF: ${{ github.head_ref }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
           BASE_REF: ${{ github.base_ref }}
-        run: python3 scripts/check-review-gate.py --enforce --branch "$HEAD_REF" --head "$HEAD_SHA" --base "origin/$BASE_REF"
+        run: env -i LANG=C.UTF-8 PATH="$PATH" HOME="$HOME" LD_LIBRARY_PATH="$LD_LIBRARY_PATH" NERV_SERVER="$NERV_SERVER" NERV_TOKEN="$NERV_TOKEN" python3 scripts/check-review-gate.py --enforce --branch "$HEAD_REF" --head "$HEAD_SHA" --base "origin/$BASE_REF"

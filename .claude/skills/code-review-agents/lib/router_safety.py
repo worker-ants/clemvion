@@ -40,7 +40,6 @@ Policy matrix (this module is the SSOT for the table below)
 |   NOTICE/AUTHORS/CHANGELOG/README/...)   |                                                                      |                              |
 | Migration / *.sql / prisma schema        | database                                                             | _RULES → _DB_PATTERNS        |
 | OpenAPI / Swagger spec                   | api_contract                                                         | _RULES → _API_SPEC_PATTERNS  |
-| `spec/**/*.md`                           | requirement (+ documentation via doc rule above)                     | _RULES → _SPEC_MD_PATTERNS   |
 | Dockerfile / docker-compose*.{yml,yaml}  | dependency + security                                                | _RULES → _DOCKER_PATTERNS    |
 | .dockerignore                            | security                                                             | _RULES → _DOCKERIGNORE_PATTERNS |
 | .env / .env.* / *.env / *.env.example    | security                                                             | _RULES → _ENV_PATTERNS       |
@@ -53,6 +52,14 @@ NERV done gate wants a passed code round for every Task — harness-only and doc
 Tasks included. A change made only of JSON, YAML or Markdown would otherwise leave the
 round `missing_roles`: the branch unpushable, or the Task impossible to close. An
 explicit `REVIEW_AGENTS` selection still wins (rules drop unavailable reviewers).
+
+The `spec/**/*.md` → requirement rule left in NERV cutover 4e. The first row
+already forces `requirement` for every changed file, so the rule added nothing,
+and it was the only rule that read `.claude.project.json` (`corpora.spec` ·
+`corpora.conventions`). Without it this module imports nothing from the harness
+and the push gate can load it by path to check the round's roles
+(`.claude/hooks/_lib/review_guard.py`). A spec mirror file still forces
+`documentation` through the doc rule.
 
 Source-code extensions counted by `_SOURCE_FORCED_REVIEWERS`:
   ts tsx js jsx mjs cjs · py pyi · java kt kts scala groovy ·
@@ -80,19 +87,11 @@ from __future__ import annotations
 
 import fnmatch
 import os
-import sys
 from typing import Iterable
 
-# Reach the harness-wide _lib so router_safety can read project_config too
-# (forced rules that depend on corpus paths — e.g. spec/ glob — must respect
-# the project's `.claude.project.json`).
-_THIS_DIR = os.path.dirname(os.path.abspath(__file__))
-_SKILL_DIR = os.path.dirname(_THIS_DIR)
-_SKILLS_DIR = os.path.dirname(_SKILL_DIR)
-if _SKILLS_DIR not in sys.path:
-    sys.path.insert(0, _SKILLS_DIR)
-
-from _lib import project_config  # noqa: E402
+# Standard library only, on purpose: the push gate loads this file by path
+# (`review_guard._load_router_safety`) from a process whose `_lib` is the hooks
+# package, so a harness import here would break the gate, not just this module.
 
 
 # Reviewers that must always run when any file changes — source files by rule 2,
@@ -194,23 +193,6 @@ _API_SPEC_PATTERNS = [
     "**/openapi*.json", "**/swagger*.json",
 ]
 
-def _build_spec_md_patterns(spec_dir: str, conventions_dir: str) -> list[str]:
-    """Compose the glob patterns for the spec rule from corpora paths."""
-    return [
-        f"{spec_dir}/**/*.md",
-        f"{conventions_dir}/*.md",
-        f"{spec_dir}/**/_product-overview.md",
-    ]
-
-
-# Default patterns — used by ``_RULES`` at module load. ``compute_forced_agents``
-# substitutes these with config-driven patterns when a non-default ``repo_root``
-# is passed (or when ``.claude.project.json`` overrides ``corpora.spec`` /
-# ``corpora.conventions``).
-_DEFAULT_SPEC_DIR = project_config.DEFAULTS["corpora"]["spec"]
-_DEFAULT_CONVENTIONS_DIR = project_config.DEFAULTS["corpora"]["conventions"]
-_SPEC_MD_PATTERNS = _build_spec_md_patterns(_DEFAULT_SPEC_DIR, _DEFAULT_CONVENTIONS_DIR)
-
 # Docker build/runtime — image tag, package install, USER, port, secret
 # COPY, privileged/host-network options. Both `dependency` (image/tag/
 # package install) and `security` (root user, port exposure, secret
@@ -265,9 +247,6 @@ _RULES: list[tuple[tuple[str, ...], list[str], str]] = [
 
     (("api_contract",), _API_SPEC_PATTERNS,
      "OpenAPI/Swagger 정의 변경"),
-
-    (("requirement",), _SPEC_MD_PATTERNS,
-     "spec 본문 변경 — documentation 외에도 요구사항 일관성 검증 필요"),
 
     (("dependency", "security"), _DOCKER_PATTERNS,
      "Dockerfile / docker-compose 변경 — base image·package install (dependency) + USER·secret·port·privileged (security)"),
@@ -337,7 +316,6 @@ def source_files(file_paths: Iterable[str]) -> list[str]:
 def compute_forced_agents(
     file_paths: Iterable[str],
     available_agents: Iterable[str],
-    repo_root: str | None = None,
 ) -> tuple[list[str], dict[str, list[str]]]:
     """Return (forced_agents_sorted, reasons_by_agent).
 
@@ -346,10 +324,9 @@ def compute_forced_agents(
       can actually invoke (usually ALL_AGENTS, but `REVIEW_AGENTS=...` may
       narrow this). Rules that target an unavailable reviewer are dropped
       silently — the user's explicit selection wins.
-    - `repo_root`: project root used to load ``.claude.project.json``. When
-      omitted, defaults to ``os.getcwd()``. Non-default ``corpora.spec`` /
-      ``corpora.conventions`` rebuild the spec-md rule's patterns; all other
-      rules are repo-agnostic.
+
+    No rule reads the project config (the corpus-dependent spec rule left in
+    NERV cutover 4e), so the result depends on these two arguments only.
 
     Three rule kinds are folded together:
       1. Path-pattern rules in `_RULES` (e.g. lockfile → dependency).
@@ -366,23 +343,9 @@ def compute_forced_agents(
     available = set(available_agents)
     forced: dict[str, list[str]] = {}
 
-    # Resolve spec rule patterns from project config when the corpora paths
-    # differ from defaults. Common case (default config) reuses _RULES as-is.
-    cfg = project_config.load(repo_root or os.getcwd())
-    cfg_spec = cfg["corpora"]["spec"]
-    cfg_conv = cfg["corpora"]["conventions"]
-    if (cfg_spec, cfg_conv) == (_DEFAULT_SPEC_DIR, _DEFAULT_CONVENTIONS_DIR):
-        rules = _RULES
-    else:
-        configured_spec_patterns = _build_spec_md_patterns(cfg_spec, cfg_conv)
-        rules = [
-            (reviewers, configured_spec_patterns if patterns is _SPEC_MD_PATTERNS else patterns, why)
-            for reviewers, patterns, why in _RULES
-        ]
-
     # Rule kind 1 — path patterns. A single rule can name multiple
     # reviewers; each available reviewer in the tuple receives the note.
-    for reviewers, patterns, why in rules:
+    for reviewers, patterns, why in _RULES:
         matched_files: list[str] = []
         for pattern in patterns:
             for p in paths:
@@ -424,3 +387,31 @@ def compute_forced_agents(
                 forced.setdefault(reviewer, []).append(note)
 
     return sorted(forced.keys()), forced
+
+
+#: Every reviewer some rule can force — the universe `conditional_forced_agents`
+#: draws from. Derived from the rules so a reviewer added to a rule is covered here
+#: without a second list to keep in step.
+RULE_REVIEWERS: tuple[str, ...] = tuple(sorted(
+    {r for reviewers, _patterns, _why in _RULES for r in reviewers}
+    | set(_SOURCE_FORCED_REVIEWERS)
+))
+
+#: The six roles NERV's `review_roles.code` policy requires in every code round.
+#: The server already holds a round at `missing_roles` without them.
+NERV_REQUIRED_REVIEWERS: tuple[str, ...] = _SOURCE_FORCED_REVIEWERS
+
+
+def conditional_forced_agents(
+    file_paths: Iterable[str],
+    available_agents: Iterable[str],
+) -> list[str]:
+    """The forced reviewers beyond the six NERV roles — the ones a change *kind* adds.
+
+    NERV's policy cannot express "documentation when a doc changed, dependency
+    when a manifest changed", so it requires only the six (NERV cutover stage 2).
+    The push gate reads this to check the rest against the round's reported roles
+    (`review_guard.evaluate_review`), closing the gap stage 2 left open.
+    """
+    forced, _ = compute_forced_agents(file_paths, available_agents)
+    return [r for r in forced if r not in NERV_REQUIRED_REVIEWERS]
