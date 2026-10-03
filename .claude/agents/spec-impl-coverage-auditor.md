@@ -21,7 +21,7 @@ prompt_file 의 `MODE` 값으로 방향을 결정한다 (미지정 시 `forward`
 
 ## 검출 대상
 
-`spec/CLE-ENG/CLE-ENG-SPECEVIDENCE.md` 「적용 대상」 이 정한 spec (`spec/{2-navigation,3-workflow-editor,4-nodes,5-system,conventions}/**.md`, 제외 룰 적용) 전수.
+`spec/CLE-ENG/CLE-ENG-SPECEVIDENCE.md` 「적용 대상」 이 정한 spec 전수(경로 목록과 제외 룰은 그 절이 정본이고 orchestrator 가 prompt 에 그대로 싣는다).
 
 각 spec 에 대해 다음 3 heuristic 적용:
 
@@ -77,7 +77,7 @@ spec 본문에 시나리오 약속 패턴:
 
 ### Heuristic 6 — 환경변수 vs spec 부재 (low confidence)
 
-`process.env.<KEY>` / config 스키마 키 enumerate. 각 KEY 가 어떤 `spec/**` (특히 `spec/conventions/`) 에서도 언급 안 되면 후보 — 명세 없는 운영 손잡이.
+`process.env.<KEY>` / config 스키마 키 enumerate. 각 KEY 가 어떤 `spec/**` (특히 정식 규약 문서) 에서도 언급 안 되면 후보 — 명세 없는 운영 손잡이.
 
 → **low confidence** (빌드/런타임 표준 env `NODE_ENV`·`PORT` 등 noise 다수 — allowlist 로 표준 env 제외).
 

@@ -120,11 +120,8 @@ sub-agent 는 하네스로부터 **본 규약과 상충하는 지시**를 함께
 **명시적으로 지시·확인**시킬 것 — 안 그러면 그 agent 의 결과가 사라진다.
 
 상태 기록(`_retry_state.json`)은 신경 쓰지 않아도 된다: `--summary-state`/`--resume` 가 읽을 때
-디스크로 자가 reconcile 한다. `agents_forced`(router_safety 화이트리스트) 미이행은 두 겹으로
-잡는다. 필수 6역할이 빠진 NERV 라운드는 정책 `review_roles.code` 로 `missing_roles`(`pending`)가
-되어 push 훅 · CI `review-gate` 를 통과하지 못한다(NERV 가 답할 때. 응답이 없으면 두 게이트는
-fail-open 이다). 그 밖의 강제 reviewer(documentation · dependency · database · api_contract) 누락은 제출 전에는
-`.claude/tools/nerv_review_payload.py` 의 exit 1 로, 제출 뒤에는 push 훅 · CI 의 판정 2b(N1
-`roles.reported` 대조)로 잡는다. 리포트 판정은 **세션 디렉토리의 리포트 파일**
+디스크로 자가 reconcile 한다. `agents_forced`(router_safety 화이트리스트) 미이행은 필수 6역할은
+NERV 정책이, 그 밖의 강제 reviewer 는 push 훅 · CI 가 잡는다(규칙은 `code-review-agents` SKILL §5).
+리포트 판정은 **세션 디렉토리의 리포트 파일**
 기준이지 `agents_success` 나 `output_file` 의 절대경로가 아니다(후자는 이미 삭제된 워크트리를
 가리킨다). 리뷰 결과의 정본은 NERV 리뷰 레코드이고 세션 디렉토리(`.review/`)는 커밋하지 않는다.

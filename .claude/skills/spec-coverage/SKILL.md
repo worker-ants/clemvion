@@ -1,6 +1,6 @@
 ---
 name: spec-coverage
-description: spec/ 본문이 약속한 surface (UI / API / e2e 시나리오) 와 frontmatter `code:` 가 가리키는 구현 코드 사이의 정적 갭을 standing audit 으로 검출하는 slash command. 사용자가 "/spec-coverage", "spec 커버리지", "spec-impl 갭 검사" 등을 호출하거나, harness 의 주기적 grooming 시점에 수동으로 실행합니다. `consistency-check` 와 달리 PR diff / draft 기반이 아니라 **현재 main 상태 전수 분석** — NLP 휴리스틱 기반이라 CI 차단 아닌 보고형. 로컬 산출물은 `.review/spec-coverage/<YYYY>/<MM>/<DD>/<hh>_<mm>_<ss>/SUMMARY.md`(커밋하지 않음). NERV `kind=spec_coverage` 제출 절차는 전환 4e 에서 정한다.
+description: spec/ 본문이 약속한 surface (UI / API / e2e 시나리오) 와 frontmatter `code:` 가 가리키는 구현 코드 사이의 정적 갭을 standing audit 으로 검출하는 slash command. 사용자가 "/spec-coverage", "spec 커버리지", "spec-impl 갭 검사" 등을 호출하거나, harness 의 주기적 grooming 시점에 수동으로 실행합니다. `consistency-check` 와 달리 PR diff / draft 기반이 아니라 **현재 main 상태 전수 분석** — NLP 휴리스틱 기반이라 CI 차단 아닌 보고형. 로컬 산출물은 `.review/spec-coverage/<YYYY>/<MM>/<DD>/<hh>_<mm>_<ss>/SUMMARY.md`(커밋하지 않음). 결과는 NERV `kind=spec_coverage` 로 낸다(info 라 라운드를 막지 않는다).
 model: opus
 ---
 
@@ -49,10 +49,13 @@ Agent(subagent_type="spec-impl-coverage-auditor",
 ```
 
 sub-agent 가 `spec/**.md` walk + 3개 heuristic 적용 후 SUMMARY.md 작성.
+하네스가 sub-agent 의 `SUMMARY.md` Write 를 막으면 감사기는 보고서 전문을 반환한다([`subagent-call-contract.md §7`](../../docs/subagent-call-contract.md)). 그때는 main 이 반환 전문을 `<session_dir>/SUMMARY.md` 에 그대로 Write 한다. 제출 도구는 이 파일을 읽는다.
 
-### 3. 결과 사용자 보고
+### 3. 결과 보고와 NERV 제출
 
-SUMMARY.md 상단 30라인 Read → 후보 갯수 (high/medium/low) 요약 → 사용자에게 보고. 사용자가 picking 한 후보는 NERV Task 로 올린다.
+1. SUMMARY.md 상단 30라인 Read → 후보 갯수 (high/medium/low) 요약 → 사용자에게 보고한다.
+2. `python3 .claude/tools/nerv_review_payload.py <session_dir>` 로 제출 묶음을 만들고 `nerv_review_submit` 으로 낸다(인자 · 키는 `code-review-agents` SKILL §4 「merge · spec_coverage 세션」). `warnings[]` 가 있으면 내지 않고 감사기 출력 형식부터 확인한다.
+3. 같은 세션 안에서 후보를 모두 처분한다. 사용자가 picking 한 후보는 NERV Task 로 올리고 그 Task 를 근거로 `wont_fix`, 나머지는 `dismissed` 로 닫는다. 열린 채 두면 이후 모든 제출 응답에 `carried_over` 로 따라붙는다.
 
 ## 검출 heuristic
 

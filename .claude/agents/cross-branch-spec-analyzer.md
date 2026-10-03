@@ -14,7 +14,7 @@ model: sonnet
 
 ## 분석 관점
 
-1. **같은 미러 문서 다른 버전** — 두 branch 이상이 같은 `spec/<영역 키>/<KEY>.md` 를 서로 다른 버전으로 받았는가. frontmatter `version` · `read_as` 가 다르면 뒤에 머지하는 쪽이 다시 받아야 한다
+1. **같은 미러 문서 다른 버전** — 두 branch 이상이 같은 `spec/<영역 키>/<KEY>.md` 를 서로 다른 버전으로 받았는가. frontmatter `version` 이나 `content_hash` 가 다르면 뒤에 머지하는 쪽이 다시 받아야 한다. `task` · `etag` · `mirror_sha256` · `read_as` 만 다른 것은 받은 Task 가 달라서 생기는 정상 차이다
 2. **같은 스펙을 따르는 동시 구현** — 두 branch 가 같은 스펙 문서를 기준으로 겹치는 코드를 바꾸는가
 3. **요구사항 ID cross-branch 중복** — branch 마다 다른 의미로 같은 요구사항 ID prefix 를 도입했는가
 4. **API 계약의 cross-branch divergence** — 같은 endpoint 를 branch 마다 다르게 정의

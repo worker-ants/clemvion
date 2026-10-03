@@ -42,4 +42,4 @@ Route → Review → Summary 는 `Workflow` tool 이 결정적으로 처리한�
 ### Reviewer 선별 제어
 - `/ai-review` — router 자동 선별 (`--route=auto`)
 - `/ai-review --route=all` — router skip, 전수 실행 (보안 감사·릴리스 직전 등)
-- `REVIEW_AGENTS=security,performance /ai-review` — 사용자 명시 → router skip
+- `REVIEW_AGENTS=security,performance /ai-review` — 사용자 명시 → router skip. 로컬 점검용이다. NERV 에 낼 라운드는 필수 6역할과 변경 종류에 따라 붙는 강제 리뷰어를 넣어야 push 게이트를 지난다(`code-review-agents` SKILL §5)
