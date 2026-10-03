@@ -5,7 +5,7 @@
   "author": "",
   "private": true,
   "license": "UNLICENSED",
-  "//pin": "exact pin 사유 (PROJECT.md §버전 핀 정책): jsonwebtoken = @nestjs/jwt 가 exact 로 의존하는 버전과 맞춰 한 벌로 둔다(EIA 실행 토큰 서명과 로그인 JWT 가 같은 구현을 쓴다).",
+  "//pin": "비-caret 핀 사유 (PROJECT.md §버전 핀 정책): jsonwebtoken = @nestjs/jwt 가 exact 로 의존하는 버전과 맞춰 한 벌로 둔다(EIA 실행 토큰 서명과 로그인 JWT 가 같은 구현을 쓴다).",
   "scripts": {
     "build": "nest build",
     "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
