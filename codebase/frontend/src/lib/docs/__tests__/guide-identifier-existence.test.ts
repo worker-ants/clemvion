@@ -38,7 +38,8 @@ const NON_EMITTED_VOCABULARY_CAP = 5;
  *
  * 가족·위치의 근거는 NERV `CLE-ENG-GUIDEEVIDENCE` 인데 **이 가드는 아직 그 문서의
  * 「빌드 가드」 표에 없다**(「빌드 가드 (3건)」 절의 표 아래 문단과 「미결 사항」 에만 나온다.
- * 등재는 NERV Task `CLE-T-R2Q21Q` 항목 19). 자매 `impl-anchor-existence.test.ts` 와
+ * 소유 문서는 미정이다. GUIDEEVIDENCE · ERRCODES 「미결 사항」, NERV Task `CLE-T-R2Q21Q`
+ * 항목 19). 자매 `impl-anchor-existence.test.ts` 와
  * **방향이 같고(가이드 → 코드) 표면이 다르다**.
  */
 const root = repoRoot();
@@ -50,6 +51,11 @@ const root = repoRoot();
  * 옛 스펙 트리의 `spec/5-system/3-error-handling.md` §1 을 읽었다. 그 트리는 동결됐고
  * 전환 단계 5 에서 지운다. 미러는 손으로 고치지 않는다. 구현하는 PR 이
  * `pull.py --task <CLE-T-…>` 로 받는다(이 경로로 옮긴 PR 은 NERV Task `CLE-T-RXMB2X`).
+ *
+ * 형제 가드 `redis-fail-open-catalog` 는 NERV 표기에 묶이지 않으려고 스펙 대조를 걷었다. 이
+ * 가드가 미러를 읽어도 되는 것은 카탈로그를 요구 조건이 아니라 탈출구로만 쓰기 때문이다.
+ * 미러가 낡으면 탈출구가 좁아질 뿐 거짓 GREEN 은 생기지 않는다. 절 제목 결합은 의도한
+ * fail-closed 다. 제목이 바뀌면 조용히 빈 카탈로그가 되는 대신 멈춘다.
  */
 const ERROR_CODE_CATALOG = "spec/CLE-API/CLE-API-ERRCODES.md";
 
@@ -325,6 +331,8 @@ describe("유저 가이드 식별자 실재성 가드", () => {
     it("카탈로그는 NERV `CLE-API-ERRCODES` 의 미러를 읽는다", () => {
       // 경로 상수가 다른 미러 문서를 가리켜도 백틱 코드는 50개를 넘길 수 있다. 그래서
       // 규모 대신 미러 frontmatter 의 `id` 로 대상 문서를 고정한다.
+      // 옵션 객체 `{}` 는 gray-matter 의 내용 캐시를 우회한다(`matterNoCache` 와 같은 이유).
+      // 그 헬퍼는 단계 5 에 걷힐 옛 트리 가드 모듈(`spec-frontmatter-parse.ts`)에 있어 가져오지 않는다.
       const { data } = matter(readErrorCodeCatalogMirror(root), {});
       expect(data.id).toBe("CLE-API-ERRCODES");
     });

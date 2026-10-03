@@ -5,7 +5,8 @@
 //      「6. 카탈로그」. 가드는 미러 spec/CLE-API/CLE-API-ERRCODES.md 를 읽는다)
 // 가드 «가족» 규약은 NERV `CLE-ENG-GUIDEEVIDENCE` 인데 **이 가드는 아직 그 문서의
 // 「빌드 가드」 표에 없다**(「빌드 가드 (3건)」 절의 표 아래 문단과 「미결 사항」 에만 나온다). `#1330` 이
-// 가족을 만든 시점부터 그랬고 등재는 NERV Task `CLE-T-R2Q21Q` 에 있다 — 그래서 «SoT» 로
+// 가족을 만든 시점부터 그랬고 소유 문서는 아직 미정이다(GUIDEEVIDENCE · ERRCODES 「미결 사항」,
+// NERV Task `CLE-T-R2Q21Q` 항목 19) — 그래서 «SoT» 로
 // 단정하지 않고 여기 적는다 (`--impl-done` `review/consistency/2026/09/13/21_41_25`
 // convention_compliance WARNING#3: 인용이 착지하지 않는다).
 //
@@ -372,7 +373,7 @@ export const GUIDE_NON_EMITTED_VOCABULARY: readonly {
   {
     token: "CONTAINER_MISSING_EMIT",
     where: "execution-engine.service.ts:7121·7125 — 템플릿 리터럴 메시지 접두",
-    why: "구조화된 `error.code` 로 나가지 않는다. 가이드가 '…로 실행 실패해요' 라고 적어 코드처럼 읽혔고 이 배치에서 '메시지 앞에 붙어요' 로 정정했다. 전용 코드 발행은 동작 변경이라 별 배치(트래커 등재분).",
+    why: "구조화된 `error.code` 로 나가지 않는다. 가이드가 '…로 실행 실패해요' 라고 적어 코드처럼 읽혔고 이 배치에서 '메시지 앞에 붙어요' 로 정정했다. 전용 코드 발행은 동작 변경이라 별 배치(옛 트래커 항목. 카탈로그 등재와 함께 NERV Task `CLE-T-DM3AXQ` 항목 5 에서 정한다).",
   },
   {
     token: "CONTAINER_MULTIPLE_EMIT",
@@ -388,7 +389,7 @@ export const GUIDE_NON_EMITTED_VOCABULARY: readonly {
  * 외의 글자가 있으므로 **여기 안 걸린다** — 그 갈림이 이 함수의 존재 이유다.
  *
  * **이 집합을 «발행» 의 증거로 쓰지 않는다.** `CLE-API-ERRCODES` 「6.5」 가 명시하듯
- * *"`execution-failure-classifier.ts` 의 목록)에도 같은 이름이 나오지만 그것은 소비자·분류기
+ * *"… `execution-failure-classifier.ts` 의 목록)에도 같은 이름이 나오지만 그것은 소비자·분류기
  * 쪽 어휘이지 엔진 발행 경로의 앵커가 아니다"* — 실제로 `MAX_ITERATIONS_EXCEEDED` 는
  * 메시지 접두로만 발행되는데 그 분류기가 인용해서 여기 들어온다.
  *
@@ -417,7 +418,9 @@ export function collectMessagePrefixes(
  * spec 에러 코드 **카탈로그**가 백틱으로 등재한 코드 전수.
  *
  * 호출부는 NERV `CLE-API-ERRCODES` 미러의 「6. 카탈로그」 절만 넘긴다. 미러 전체를 넘기면
- * 은퇴 코드 · 규칙 예시도 탈출구가 된다(2026-10-03 실측: 전체 189종, 절 170종).
+ * 은퇴 코드 · 규칙 예시도 탈출구가 된다(2026-10-03 실측: 전체 189종, 절 170종). 절 안 산문이
+ * 은퇴 코드를 백틱으로 가리키면 그 토큰은 여전히 걸린다(현재 `INVALID_PASSWORD` 1종. 감사
+ * 사유값으로 소스에 실재해 접두 전용 술어에 걸리지 않으므로 판정은 같다).
  *
  * **카탈로그는 «요구 조건» 이 아니라 «탈출구» 다.** 요구 조건으로 쓰면 거짓 RED 가
  * 25건 났다(2026-09-13 실측, 옛 트리 카탈로그 기준) — 인용된 에러 코드 78종 중 28종이
