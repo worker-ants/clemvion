@@ -23,6 +23,15 @@
 > 07 37% · 08 30% · 09(25일까지) 49% 였다(나중 PR 의 백필은 세지 않았다). 여기 없다고 그 변경이 없었던 것은 아니다 —
 > `git log` 가 정본이다.
 
+## Unreleased — 개발 흐름: 의존성 핀의 사유를 하네스 테스트가 확인한다
+
+`PROJECT.md` §버전 핀 정책 (b) · (c)는 caret 이 아닌 선언에 `"//pin"` 사유를 적고, 사유가 없으면 caret 으로 완화하라고 정한다. 이 규칙을 보는 검사는 없었다. 2026-10-02 전수 조사에서 사유 없는 exact 핀 3개와 dependabot 이 이미 올린 버전을 적은 사유 주석 3곳(frontend 의 `three ~0.184.0` · `19.2.4`, channel-web-chat 의 `19.2.4`)이 나왔다(NERV Task `CLE-T-BZ0AK9`).
+
+- 새 가드 `.claude/tests/test_package_pin_reasons.py`: 루트와 `pnpm-workspace.yaml` 이 가리키는 패키지 매니페스트에서 caret 이 아닌 선언마다 `"//pin"` 에 그 이름이 있는지, `"//pin"` 에 버전 숫자가 없는지 본다. 버전 숫자를 막는 이유는 dependabot 이 선언만 올리고 주석은 두기 때문이다.
+- `jsonwebtoken`(backend) · `@radix-ui/react-focus-scope`(frontend): 상위 패키지(`@nestjs/jwt` · `@radix-ui/react-dialog`)가 exact 로 의존하는 버전과 맞춰 한 벌로 둔다는 사유를 적고 핀을 유지했다. 두 상위 패키지 모두 내부 의존을 exact 로 고정한다(npm 레지스트리 실측).
+- `eslint-config-next`(frontend devDependency): 스캐폴드 기본값 말고는 사유가 없어 caret 으로 완화했다. channel-web-chat 은 이미 caret 이다.
+- 판별력: 고치기 전 매니페스트에서 가드가 6건(사유 없는 핀 3, 버전 숫자 3)을 잡고 고친 뒤 0건이다.
+
 ## Unreleased — 개발 흐름: 옛 스펙 트리를 지우고 스펙의 구현 위치를 `## 구현 위치` 로 검사한다
 
 NERV 정본 전환 단계 5(Task `CLE-T-7M4C4X`). 저장소의 옛 스펙 트리 파일 138개(`spec/0-overview.md` · `1-data-model.md` ·
