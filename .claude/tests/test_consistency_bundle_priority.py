@@ -295,6 +295,11 @@ class CollectContextOnTheMirrorTest(unittest.TestCase):
             "spec/CLE-ENG/CLE-ENG-OTHER.md", "spec/CLE-ENG/CLE-ENG-RULE.md"])
         self.assertEqual(ctx["conventions"], [], "convention docs in the target leave the corpus")
 
+    def test_one_document_named_three_ways_is_bundled_once(self):
+        """키 · 그 키가 든 폴더 · 그 파일을 함께 줘도 대상에는 한 번만 실린다."""
+        ctx = self._ctx(impl_prep="CLE-ENG-RULE, spec/CLE-ENG/, spec/CLE-ENG/CLE-ENG-RULE.md")
+        self.assertEqual(ctx["target_doc"], ["spec/CLE-ENG/CLE-ENG-OTHER.md", "spec/CLE-ENG/CLE-ENG-RULE.md"])
+
     def test_a_spec_draft_replaces_its_own_mirror_version_but_keeps_its_rationale(self):
         ctx = self._ctx(
             setup="""
