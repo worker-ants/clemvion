@@ -47,7 +47,7 @@ main Claude
 | `merge-conflict-analyzer` | `prompt_file`+`output_file` | text-level conflict 예측 |
 | `semantic-conflict-analyzer` | `prompt_file`+`output_file` | signature/behavior/invariant 충돌 |
 | `integration-order-planner` | `prompt_file`+`output_file` | base + 통합 순서 결정 |
-| `cross-branch-spec-analyzer` | `prompt_file`+`output_file` | branch 간 spec/plan 충돌 |
+| `cross-branch-spec-analyzer` | `prompt_file`+`output_file` | branch 간 스펙 미러(`spec/CLE-*`) 버전 · API · Rationale · 규약 충돌 |
 | `integration-risk-summary` | `session_dir` only | 4 analyzer 결과 통합 + BLOCK 결정 |
 | `merge-conflict-resolver` | `prompt_file`+`output_file` | 단일 conflict patch 제안 (apply 안 함) |
 
