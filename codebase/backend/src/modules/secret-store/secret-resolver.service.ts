@@ -64,7 +64,7 @@ export class SecretResolverService implements OnModuleInit {
       // `nest build` 가 통과한다(2026-08-09 lint 정리에서 실측 확인).
       const refStr: string = ref;
       throw new Error(
-        `SecretResolverService: invalid ref format — spec/conventions/secret-store.md §1 형식 위반 (input length=${refStr.length}, starts_with=${JSON.stringify(refStr.slice(0, 8))}).`,
+        `SecretResolverService: invalid ref format — CLE-INT-SECRET 「규칙」 형식 위반 (input length=${refStr.length}, starts_with=${JSON.stringify(refStr.slice(0, 8))}).`,
       );
     }
   }

@@ -66,6 +66,7 @@ export class UpdateWorkflowDto {
   @Transform(({ value }: { value: unknown }) => (value === '' ? null : value))
   folderId?: string | null;
 
+  // 근거: [큐 워커와 동시 실행 제한 「동시 실행 제한」](CLE-EXEC-WORKER#동시-실행-제한)
   /**
    * 워크플로우 실행 설정 (검증 대상 키만 허용 — 현재 `maxConcurrentExecutions`).
    * 미지 키는 전역 pipe(whitelist+forbidNonWhitelisted)가 400 으로 거부한다.
@@ -73,7 +74,7 @@ export class UpdateWorkflowDto {
   @ApiPropertyOptional({
     type: () => WorkflowSettingsDto,
     description:
-      '워크플로우 실행 설정. 현재 maxConcurrentExecutions(동시 실행 상한, §8)만 지원 — 미지 키는 거부(400).',
+      '워크플로우 실행 설정. 현재 maxConcurrentExecutions(동시 실행 상한)만 지원 — 미지 키는 거부(400).',
   })
   @IsOptional()
   @IsObject()

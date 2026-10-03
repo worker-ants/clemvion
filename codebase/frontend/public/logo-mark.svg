@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96" role="img" aria-label="Clemvion">
   <title>Clemvion</title>
-  <!-- 96px icon mark master. Transparent background (R-16). Spec spec/6-brand.md §8.4.1 -->
+  <!-- 96px icon mark master. Transparent background. -->
   <defs>
     <linearGradient id="cv-grad" gradientUnits="userSpaceOnUse"
         x1="69.856384" y1="105.44554" x2="30.46669" y2="58.502728">

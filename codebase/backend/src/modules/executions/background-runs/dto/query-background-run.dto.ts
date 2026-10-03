@@ -2,11 +2,12 @@ import { IsOptional, IsInt, IsString, Min, Max } from 'class-validator';
 import { Type } from 'class-transformer';
 import { ApiPropertyOptional } from '@nestjs/swagger';
 
+// 근거: [Background 노드 「페이지네이션」](CLE-NODE-BACKGROUND#페이지네이션)
 /**
  * Background 본문 모니터링 API 의 cursor 페이지네이션 쿼리.
  *
  * cursor 는 opaque base64 token — 서버 내부 구조에 의존하지 말고 응답의
- * `nextCursor` 값을 그대로 다음 요청에 전달한다 (spec/4-nodes/1-logic/12-background.md §8.3).
+ * `nextCursor` 값을 그대로 다음 요청에 전달한다.
  */
 export class QueryBackgroundRunDto {
   @ApiPropertyOptional({

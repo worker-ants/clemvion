@@ -348,7 +348,7 @@ export interface EiaWaitingForInputEvent extends EiaEventBase {
     id: string;
     type: string;
     /**
-     * SoT: [spec/conventions/interaction-type-registry.md §1 `WaitingInteractionType`](../../../../../spec/conventions/interaction-type-registry.md#1-waitinginteractiontype).
+     * SoT: [인터랙션 타입 레지스트리 「대기 표면」](CLE-IX-TYPES#대기-표면).
      * 4종 — `ai_form_render` 는 ai-agent 의 render_form blocking 진입 (sub-state of ai_conversation).
      * chat channel 안에서는 `ai_conversation` 과 동일 경로로 처리 (renderer 의 switch fallthrough).
      */
@@ -373,12 +373,12 @@ export interface EiaAiMessageEvent extends EiaEventBase {
   // 도달하지 않으므로 본 입력 계약에서 제외한다 (WS §4.4 strip-only 결정).
   /**
    * AI Agent `render_*` 표현 도구 호출 turn 에서만 동봉.
-   * SoT: [spec/conventions/chat-channel-adapter.md §1.2](../../../../../spec/conventions/chat-channel-adapter.md#12-eiaevent-입력)
-   *      / [spec/4-nodes/3-ai/1-ai-agent.md §7.10](../../../../../spec/4-nodes/3-ai/1-ai-agent.md#710-presentation-payload-render_-운반)
-   *      / [spec/5-system/14-external-interaction-api.md §6.5](../../../../../spec/5-system/14-external-interaction-api.md#65-페이로드--executioncancelled--executionai_message).
+   * SoT: [채팅 채널 어댑터 규약 「EiaEvent」](CLE-CHAT-ADAPTER#eiaevent)
+   *      / [AI 에이전트 노드 출력과 디버그 「표시물 페이로드 운반」](CLE-NODE-AGENT-OUTPUT#표시물-페이로드-운반)
+   *      / [EIA 알림 웹훅 「execution.ai_message」](CLE-EIA-NOTIFY#executionai_message).
    *
    * 4종 display-only (`carousel`/`table`/`chart`/`template`) 만 본 필드로 채널 발화 대상.
-   * `render_form` (`type === 'form'`) 은 별 plan `chat-channel-form-native-modal` 추적.
+   * `render_form` (`type === 'form'`) 은 이 필드의 대상이 아니다(채널 네이티브 모달은 따로 다룬다).
    */
   presentations?: PresentationPayload[];
 }
@@ -443,9 +443,9 @@ export interface EiaCancelledEvent extends EiaEventBase {
  * 외 추가로 chat-channel adapter 가 구독하는 이벤트. 외부 SDK 미노출.
  *
  * SoT:
- *   - [spec/conventions/chat-channel-adapter.md §1.3](../../../../../spec/conventions/chat-channel-adapter.md#13-chatchannelinternalevent-입력)
- *   - [spec/5-system/15-chat-channel.md §3.1 CCH-AD-07](../../../../../spec/5-system/15-chat-channel.md#31-어댑터-라이프사이클)
- *   - [spec/conventions/chat-channel-adapter.md §R-CCA-7](../../../../../spec/conventions/chat-channel-adapter.md#r-cca-7-rendernode-시그니처-union-확장--chat-channel-internal-이벤트-수용)
+ *   - [채팅 채널 어댑터 규약 「ChatChannelInternalEvent」](CLE-CHAT-ADAPTER#chatchannelinternalevent)
+ *   - [채팅 채널 「어댑터 라이프사이클」](CLE-CHAT-CORE#어댑터-라이프사이클)
+ *   - [채팅 채널 어댑터 규약 「R-CCA-7」](CLE-CHAT-ADAPTER#r-cca-7-rendernode-시그니처를-union-으로-넓혀-내부-이벤트를-받는다)
  *
  * 구독 소스: R8 의 in-process fan-out 채널 (`WebsocketService.executionEvents$` Subject)
  * — chat-channel `Dispatcher` 가 presentation 노드 한정 sub-filter 로 attach.
@@ -574,7 +574,7 @@ export interface ChatChannelAdapter {
    * EIA outbound 이벤트 + chat-channel-internal 이벤트 → 외부 채널 메시지 변환.
    * 입력 union: `EiaEvent` (EIA §6 5종) | `ChatChannelInternalEvent` (chat-channel-internal).
    * 어댑터 구현체는 `event.type` discriminated union 분기로 처리.
-   * SoT: [spec/conventions/chat-channel-adapter.md §R-CCA-7](../../../../../spec/conventions/chat-channel-adapter.md#r-cca-7-rendernode-시그니처-union-확장--chat-channel-internal-이벤트-수용).
+   * SoT: [채팅 채널 어댑터 규약 「R-CCA-7」](CLE-CHAT-ADAPTER#r-cca-7-rendernode-시그니처를-union-으로-넓혀-내부-이벤트를-받는다).
    */
   renderNode(
     event: EiaEvent | ChatChannelInternalEvent,

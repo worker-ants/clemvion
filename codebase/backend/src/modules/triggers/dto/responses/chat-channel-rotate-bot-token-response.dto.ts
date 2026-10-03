@@ -62,11 +62,11 @@ export class ChatChannelRotateBotIdentityDto {
   publicKey?: string;
 }
 
+// 근거: [채팅 채널 「봇 토큰 재발급 API」](CLE-CHAT-CORE#봇-토큰-재발급-api)
 /**
  * `POST /api/triggers/:id/chat-channel/rotate-bot-token` 200 응답 본문.
  *
- * SoT: [spec/5-system/15-chat-channel.md §5.4] 성공 응답 — `TransformInterceptor` 가
- * `{ data }` 로 감싼다.
+ * 성공 응답 — `TransformInterceptor` 가 `{ data }` 로 감싼다.
  */
 export class ChatChannelRotateBotTokenDto {
   /** 회전 시각 (ISO8601) */

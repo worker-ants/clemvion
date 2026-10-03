@@ -43,12 +43,13 @@ export class CreateAuthConfigDto {
   @IsIn(AUTH_CONFIG_TYPES)
   type: AuthConfigType;
 
+  // 근거: [트리거 데이터와 흐름 「config JSONB 스키마」](CLE-TRIG-DATA#config-jsonb-스키마)
   /**
    * 인증 상세 설정. type에 따라 필수 필드가 달라지며 key/token 값은 생성 시 미지정 시 자동 발급됩니다.
    */
   @ApiPropertyOptional({
     description:
-      '인증 상세 설정 (spec/1-data-model.md §2.17.1). api_key: { key 자동발급, headerName?="X-API-Key" }. bearer_token: { token 자동발급 }. basic_auth: { username, password } 사용자 입력 필수. hmac: { secret 자동발급, header?="X-Hub-Signature-256", algorithm?="sha256"|"sha512" }.',
+      '인증 상세 설정. api_key: { key 자동발급, headerName?="X-API-Key" }. bearer_token: { token 자동발급 }. basic_auth: { username, password } 사용자 입력 필수. hmac: { secret 자동발급, header?="X-Hub-Signature-256", algorithm?="sha256"|"sha512" }.',
     type: 'object',
     additionalProperties: true,
     example: { headerName: 'X-API-Key' },

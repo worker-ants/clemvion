@@ -7,7 +7,7 @@ import { deepRedactSecrets } from './sanitize-error-message';
  * DB `Execution.error`/`NodeExecution.error` **컬럼 값**을 응답으로 내보내기 직전에
  * 자격증명 값-패턴 마스킹한다. **형태는 보존한다** — 값만 바꾼다.
  *
- * SoT: [EIA §R17](../../../../../spec/5-system/14-external-interaction-api.md) "내부 읽기 경로" 불릿.
+ * SoT: [응답 자격 증명 마스킹 「내부 읽기 경로」](CLE-API-EGRESS#35-내부-읽기-경로-2026-08-16) "내부 읽기 경로" 불릿.
  *
  * - **`ExecutionError` 예외 클래스와 무관하다**(`execution-engine/workflow-errors.ts`).
  *   그쪽은 제어흐름, 이쪽은 데이터(JSONB 컬럼 값)다 — 이름을 겹치지 않게 고른 이유다.
@@ -38,22 +38,25 @@ export function redactStoredErrorForResponse(
  * DB `inputData`/`outputData` **컬럼 값**의 응답 egress 마스킹 — 자매
  * {@link redactStoredErrorForResponse} 와 **같은 프리미티브·같은 원칙**이고 대상 컬럼만 다르다.
  *
- * SoT: [EIA §R17](../../../../../spec/5-system/14-external-interaction-api.md) "내부 읽기 경로" 불릿.
+ * SoT: [응답 자격 증명 마스킹 「내부 읽기 경로」](CLE-API-EGRESS#35-내부-읽기-경로-2026-08-16) "내부 읽기 경로" 불릿.
  *
  * ## 왜 별건인가 — `error` 와 달리 **앞선 마스킹 층이 있다**
  *
  * 트래커는 이 항목을 *"`Execution.error` 와 같은 형태"* 로 등재했으나 실측하면 다르다.
  * `error` 는 마커가 없는 자유 필드지만, `inputData` 는 webhook ingestion 이 민감 헤더를
- * `[REDACTED]` 로 마스킹해 저장한다 ([12-webhook §5.3](../../../../../spec/5-system/12-webhook.md)) —
- * `1-manual-trigger.md`·`5-expression-language.md`·`4-execution-engine.md`·
- * `data-flow/10-triggers.md` 가 그 전제를 공유하는 **문서화된 계약**이다.
+ * `[REDACTED]` 로 마스킹해 저장한다 ([웹훅 「수신 헤더 마스킹」](CLE-TRIG-WEBHOOK#수신-헤더-마스킹)) —
+ * [수동 트리거 노드 「웹훅 경로 (port `out`)」](CLE-NODE-MANUAL#웹훅-경로-port-out) ·
+ * [표현식 언어 「`$trigger`: 웹훅 요청 뷰」](CLE-WF-EXPR#trigger-웹훅-요청-뷰) ·
+ * [실행 컨텍스트 「트리거 입력 파라미터 싣기」](CLE-EXEC-CONTEXT#트리거-입력-파라미터-싣기) ·
+ * [트리거 데이터와 흐름 「웹훅 진입」](CLE-TRIG-DATA#웹훅-진입) 가 그 전제를 공유하는 **문서화된 계약**이다.
  *
  * 그래서 이 층은 그 마커를 **덮지 않는다** — `deepRedactSecrets` 의 마커 멱등성이 보장하고
  * `.spec.ts` 캐너리가 고정한다. 덮으면 같은 헤더가 읽는 경로마다 다르게 보인다.
  *
  * ## ingestion-time 마스킹과 경쟁하지 않는다 (방어 계층이 다르다)
  *
- * `12-webhook.md` Rationale 은 "display 시점 마스킹" 을 기각하고 ingestion 시점을 택했다.
+ * [웹훅 「수신 헤더 마스킹을 저장 시점에 하는 이유 (2026-07-07)」](CLE-TRIG-WEBHOOK#수신-헤더-마스킹을-저장-시점에-하는-이유-2026-07-07)
+ * 는 "display 시점 마스킹" 을 기각하고 ingestion 시점을 택했다.
  * 본 함수는 그 결정을 **번복하지 않는다** — 그쪽은 *알려진 헤더 key* 를 저장 전에 지우는
  * 층이고, 이쪽은 *임의 값-패턴*(자유 텍스트에 박힌 `Bearer …`·자격증명 포함 URI)을 응답
  * 직전에 가리는 층이다. key-blacklist 로는 못 잡는 클래스를 덮으므로 두 층은 겹치지 않고

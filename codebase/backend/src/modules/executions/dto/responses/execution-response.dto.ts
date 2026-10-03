@@ -19,9 +19,9 @@ export class ExecutionDto {
   @ApiPropertyOptional({ format: 'uuid', nullable: true })
   triggerId?: string | null;
 
+  // 근거: [실행 내역 「실행 출처 분류」](CLE-EXEC-HISTORY#실행-출처-분류)
   /**
    * 실행 출처 분류 — 우선순위: subworkflow > manual > schedule > webhook > unknown.
-   * 자세한 판정 규칙은 spec/2-navigation/14-execution-history.md 의 "Trigger 출처 분류" 표 참조.
    */
   @ApiProperty({ enum: EXECUTION_TRIGGER_SOURCES, example: 'manual' })
   triggerSource: ExecutionTriggerSource;
@@ -46,13 +46,13 @@ export class ExecutionDto {
   @ApiPropertyOptional({ nullable: true, example: 1820 })
   durationMs?: number | null;
 
+  // 근거: [응답 자격 증명 마스킹 「inputData 는 두 수준 모두 가린다」](CLE-API-EGRESS#41-inputdata-는-두-수준-모두-가린다-2026-08-20)
   /**
    * 입력 데이터 — 트리거가 워크플로우에 주입한 input (manual parameters / webhook body / schedule context).
    *
    * 자격증명으로 판별된 값은 마스킹되어 반환된다(2026-08-20~, DB 원문과 다를 수 있음) —
    * 형제 `outputData`/`error`, 자매 `nodeExecutions[].inputData` 와 같은 정책이고, webhook
    * ingestion 이 남긴 `[REDACTED]` 마커는 보존된다. 근거 정본: `toResponseExecution`.
-   * SoT: EIA §R17 (`spec/5-system/14-external-interaction-api.md`).
    */
   @ApiPropertyOptional({
     type: 'object',
@@ -61,12 +61,13 @@ export class ExecutionDto {
   })
   inputData?: Record<string, unknown> | null;
 
+  // 근거: [응답 자격 증명 마스킹 「내부 읽기 경로」](CLE-API-EGRESS#35-내부-읽기-경로-2026-08-16)
   /**
    * 출력 데이터 — 워크플로우 최종 결과. 노드별 envelope 는 nodeExecutions[i].outputData 참조.
    *
    * **자격증명으로 판별된 값은 마스킹되어 반환된다** (`error` 와 동일 정책, 2026-08-16) —
    * `Bearer …`·자격증명 포함 URI 등이 `***` 로 치환되므로 **DB 원문과 다를 수 있다**.
-   * ingestion 이 이미 남긴 `[REDACTED]` 마커는 **보존**된다. SoT: EIA §R17, 구현
+   * ingestion 이 이미 남긴 `[REDACTED]` 마커는 **보존**된다. 구현은
    * `shared/utils/redact-stored-error.ts` 의 `redactStoredDataForResponse`.
    */
   @ApiPropertyOptional({
@@ -76,14 +77,13 @@ export class ExecutionDto {
   })
   outputData?: Record<string, unknown> | null;
 
+  // 근거: [응답 자격 증명 마스킹 「내부 읽기 경로」](CLE-API-EGRESS#35-내부-읽기-경로-2026-08-16)
   /**
    * 에러 객체.
    *
    * **자격증명으로 판별된 값은 마스킹되어 반환된다** — `Bearer …`·자격증명 포함 URI 등이
    * `***` 로 치환되므로 **DB 원문과 다를 수 있다**. `code`·`nodeId` 는 값 공간이 닫혀 있어
-   * 원문 그대로다. SoT: EIA §R17 "내부 읽기 경로" 불릿
-   * (`spec/5-system/14-external-interaction-api.md`), 구현
-   * `shared/utils/redact-stored-error.ts`.
+   * 원문 그대로다. 구현은 `shared/utils/redact-stored-error.ts`.
    */
   @ApiPropertyOptional({
     type: 'object',
@@ -108,7 +108,8 @@ export class ExecutionDto {
   @ApiProperty({ type: [String], example: [] })
   executionPath: string[];
 
-  /** 직계 부모 실행 UUID — Re-run 으로 생성된 실행만 세팅, 일반 실행은 null (spec §9.1) */
+  // 근거: [재실행 「체인 컬럼」](CLE-EXEC-RERUN#체인-컬럼)
+  /** 직계 부모 실행 UUID — Re-run 으로 생성된 실행만 세팅, 일반 실행은 null */
   @ApiPropertyOptional({ format: 'uuid', nullable: true })
   reRunOf?: string | null;
 
@@ -116,11 +117,13 @@ export class ExecutionDto {
   @ApiPropertyOptional({ format: 'uuid', nullable: true })
   chainId?: string | null;
 
-  /** dry-run 모드로 생성된 실행 여부 (외부 부수효과 노드가 mock 출력, spec §7) */
+  // 근거: [재실행 「dry-run」](CLE-EXEC-RERUN#dry-run)
+  /** dry-run 모드로 생성된 실행 여부 (외부 부수효과 노드가 mock 출력) */
   @ApiProperty({ example: false })
   dryRun: boolean;
 
-  /** 노드 실행 총 건수 (실행 목록 Nodes 열, spec/2-navigation/14-execution-history.md §2.4) */
+  // 근거: [실행 내역 「테이블」](CLE-EXEC-HISTORY#테이블)
+  /** 노드 실행 총 건수 (실행 목록 Nodes 열) */
   @ApiProperty({ example: 0 })
   totalNodeCount: number;
 
@@ -163,12 +166,12 @@ export class NodeExecutionSummaryDto {
   @ApiPropertyOptional({ nullable: true })
   durationMs?: number | null;
 
+  // 근거: [응답 자격 증명 마스킹 「inputData 는 두 수준 모두 가린다」](CLE-API-EGRESS#41-inputdata-는-두-수준-모두-가린다-2026-08-20)
   /**
    * 노드 입력 데이터.
    *
    * 자격증명으로 판별된 값은 마스킹되어 반환된다(DB 원문과 다를 수 있음) — 상위
    * `ExecutionDto.inputData` 와 같은 정책이라 두 레벨이 갈리지 않는다.
-   * SoT: EIA §R17 (`spec/5-system/14-external-interaction-api.md`).
    */
   @ApiPropertyOptional({
     type: 'object',
@@ -177,9 +180,12 @@ export class NodeExecutionSummaryDto {
   })
   inputData?: Record<string, unknown> | null;
 
+  // 근거:
+  //   - [노드 출력 규약 「Principle 7. 설정 에코 원칙」](CLE-NODE-OUTPUT#principle-7-설정-에코-원칙)
+  //   - [응답 자격 증명 마스킹 「내부 읽기 경로」](CLE-API-EGRESS#35-내부-읽기-경로-2026-08-16)
   /**
    * 노드 실행 출력 — `NodeHandlerOutput` envelope 직렬화.
-   * - `config`: 노드 정의의 **원본 template** (CONVENTIONS Principle 7 — `{{ ... }}` 보존된 raw)
+   * - `config`: 노드 정의의 **원본 template** (`{{ ... }}` 를 보존한 raw)
    * - `output`: expression 평가가 끝난 결과값 (subject / body / requestBody 등 실제 동작 입력)
    * - `meta`: 부수 정보 (durationMs, statusCode 등)
    * - `port`: 어느 출력 포트로 라우팅됐는지 (`out` / `error` / `success` 등)
@@ -188,7 +194,7 @@ export class NodeExecutionSummaryDto {
    * 본 라이브 릴리즈 이전 실행 row 는 `config` 가 evaluated 형태로 남아있을 수 있다 (백필 X, historical record).
    *
    * **자격증명으로 판별된 값은 마스킹되어 반환된다** (2026-08-16) — 형제 필드 `error` 와
-   * 같은 정책이다. SoT: EIA §R17.
+   * 같은 정책이다.
    */
   @ApiPropertyOptional({
     type: 'object',
@@ -197,12 +203,13 @@ export class NodeExecutionSummaryDto {
   })
   outputData?: Record<string, unknown> | null;
 
+  // 근거: [응답 자격 증명 마스킹 「내부 읽기 경로」](CLE-API-EGRESS#35-내부-읽기-경로-2026-08-16)
   /**
    * 에러.
    *
    * **자격증명으로 판별된 값은 마스킹되어 반환된다** (DB 원문과 다를 수 있다) — 상위
-   * `Execution.error` 와 **같은 관문**을 지난다. 데이터 모델 §2.14 가 둘을 원본/복사
-   * 관계로 규정하므로 한쪽만 가리면 방어가 우회된다. SoT: EIA §R17.
+   * `Execution.error` 와 **같은 관문**을 지난다. 둘은 원본/복사 관계라 한쪽만 가리면
+   * 방어가 우회된다.
    */
   @ApiPropertyOptional({
     type: 'object',

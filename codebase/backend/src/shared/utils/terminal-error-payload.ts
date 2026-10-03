@@ -25,7 +25,7 @@ import { deepRedactSecrets } from './sanitize-error-message';
  * - `failRetryExecution` → `{ message }`
  *
  * 그런데 §6.4 는 **명시적 `null`** 을 요구한다(형제 필드 `nodeId` 와 표현을 통일하기 위해
- * [API 규약 §5.4](../../../../../spec/5-system/2-api-convention.md) 아래 근거와 함께 택일된 결정).
+ * [HTTP API 규약 「부재 표현: null 과 키 생략」](CLE-API-CONV#55-부재-표현-null-과-키-생략) 아래 근거와 함께 택일된 결정).
  * 그 변환을 emit 지점마다 손으로 하면 **한 곳씩 빠진다** — 이 저장소의 반복 형태이고,
  * 직전 PR(#1169)이 `llmCalls` strip 을 세 출구에서 하나씩 발견한 것과 같은 클래스다.
  * 그래서 네 emit 지점이 전부 이 함수를 부른다.

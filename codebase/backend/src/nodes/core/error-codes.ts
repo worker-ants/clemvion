@@ -161,7 +161,7 @@ export const EngineErrorCode = {
    * 활성 세그먼트 워커의 terminal 실패 → Execution `failed`. 이름의 "HEARTBEAT" 는
    * 별도 heartbeat 채널을 암시하지만 그런 채널은 없다 — 2026-07-04 부터 의미가
    * "BullMQ stalled-job 재배달 소진" 으로 재정의됐고 **코드명은 유지**(rename = breaking).
-   * SoT: [`spec/conventions/error-codes.md` §3](../../../../../spec/conventions/error-codes.md).
+   * SoT: [에러 코드 규약과 카탈로그 「예외 등록 코드」](CLE-API-ERRCODES#3-예외-등록-코드).
    */
   WORKER_HEARTBEAT_TIMEOUT: 'WORKER_HEARTBEAT_TIMEOUT',
   /**

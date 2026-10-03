@@ -268,10 +268,11 @@ export class ExecutionsController {
   // Rate limit — 사용자당 분당 10회 (spec §12). UserThrottlerGuard 가 user.sub
   // 로 키를 만들어 사용자 단위로 카운트한다 (429 TOO_MANY_REQUESTS).
   @Throttle({ default: { ttl: 60_000, limit: 10 } })
+  // 근거: [재실행 「POST /api/executions/:executionId/re-run」](CLE-EXEC-RERUN#post-apiexecutionsexecutionidre-run)
   @ApiOperation({
     summary: '실행 재실행 (Re-run)',
     description:
-      '원본 실행을 기반으로 새 Execution 을 시작합니다 (현재 시점 워크플로 정의 사용). 입력은 원본 그대로 또는 inputOverride 로 대체 가능. spec/5-system/13-replay-rerun.md §8.1.',
+      '원본 실행을 기반으로 새 Execution 을 시작합니다 (현재 시점 워크플로 정의 사용). 입력은 원본 그대로 또는 inputOverride 로 대체 가능.',
   })
   @ApiParam({ name: 'id', description: '원본 실행 UUID', format: 'uuid' })
   @ApiCreatedWrappedResponse(ExecutionDetailDto, {
@@ -303,10 +304,11 @@ export class ExecutionsController {
   }
 
   @Get(':id/chain')
+  // 근거: [재실행 「GET /api/executions/:executionId/chain」](CLE-EXEC-RERUN#get-apiexecutionsexecutionidchain)
   @ApiOperation({
     summary: '실행 chain 조회',
     description:
-      '같은 re-run chain 의 모든 실행을 started_at ASC 로 반환합니다 (chain badge / View chain). spec §8.2.',
+      '같은 re-run chain 의 모든 실행을 started_at ASC 로 반환합니다 (chain badge / View chain).',
   })
   @ApiParam({ name: 'id', description: '실행 UUID', format: 'uuid' })
   @ApiOkWrappedArrayResponse(ExecutionDto, {

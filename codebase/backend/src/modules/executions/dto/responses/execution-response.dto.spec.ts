@@ -26,8 +26,8 @@ import { findOptionalNullableResponseFields } from '../../../../repo-guards/__te
  * `execution-status-response.dto.spec.ts` 패턴으로 신설한다"* 고 적어 둔 자리이고,
  * `ExecutionDto` 배선이 그 2단계 착수분이다 (`review/consistency/2026/09/05/15_31_43` W2).
  *
- * 계약 SoT: [API 규약 §5.4](../../../../../../../spec/5-system/2-api-convention.md) ·
- * [Swagger 규약](../../../../../../../spec/conventions/swagger.md)
+ * 계약 SoT: [HTTP API 규약 「부재 표현: null 과 키 생략」](CLE-API-CONV#55-부재-표현-null-과-키-생략) ·
+ * [OpenAPI 문서화](CLE-API-SWAGGER)
  */
 @Controller('stub')
 class StubController {

@@ -119,7 +119,7 @@ const TRIGGER_RESPONSE_STRIP_COLUMNS = [
  * `config.interaction` 에서 제거할 키.
  *
  * `triggerToken`(`itk_*`)은 **영구 평문**으로 JSONB 에 보관되는 per-trigger bearer 토큰이고,
- * [`secret-store.md §1.1`](../../../../../spec/conventions/secret-store.md) 이 응답 노출을
+ * [시크릿 저장소 「규칙」](CLE-INT-SECRET#규칙) 이 응답 노출을
  * **명시적으로 금지**한 세 필드 중 하나다. 나머지 둘(`notification_secret_v2` ·
  * `chat_channel_token_v2`)은 이 PR 이 닫았는데 **이것만 남아 있었다**
  * (`review/consistency/2026/09/05/22_25_00` Critical 1).

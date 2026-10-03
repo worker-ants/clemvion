@@ -64,12 +64,13 @@ export class CreateTriggerDto {
   @IsObject()
   config?: Record<string, unknown>;
 
+  // 근거: [웹훅 「비밀성」](CLE-TRIG-WEBHOOK#비밀성)
   /** Webhook 트리거의 엔드포인트 경로 (v4 UUID) */
   @ApiPropertyOptional({
     description:
       'Webhook 트리거 전용. 수신 엔드포인트 경로 — v4 UUID 형식만 허용한다. ' +
       '라우팅 키가 워크스페이스 무관 전역(`/api/hooks/:endpointPath`)이라 추측 불가한 ' +
-      'UUID 가 사실상 비밀 키 역할을 한다([Spec Webhook WH-SC-01·WH-MG-02]). ' +
+      'UUID 가 사실상 비밀 키 역할을 한다. ' +
       '클라이언트가 `crypto.randomUUID()` 로 발급하며 서버가 형식을 강제한다.',
     format: 'uuid',
     example: '550e8400-e29b-41d4-a716-446655440000',
@@ -110,9 +111,9 @@ export class CreateTriggerDto {
   @Type(() => InteractionConfigDto)
   interaction?: InteractionConfigDto;
 
+  // 근거: [채팅 채널 데이터와 흐름 「Trigger.config.chatChannel」](CLE-CHAT-DATA#triggerconfigchatchannel)
   /**
    * Chat Channel 어댑터 설정. webhook 트리거에 외부 chat 플랫폼 (텔레그램 등) 을 부착.
-   * [Spec Chat Channel §4.1 / 15-chat-channel.md].
    * 본 필드 미존재 시 일반 webhook 트리거 (기존 동작).
    */
   @ApiPropertyOptional({ type: () => ChatChannelConfigDto })

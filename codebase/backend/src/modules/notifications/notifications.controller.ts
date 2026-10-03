@@ -173,10 +173,11 @@ export class NotificationsController {
 
   @Post(':id/dismiss')
   @HttpCode(HttpStatus.OK)
+  // 근거: [알림 「닫기 엔드포인트」](CLE-OBS-NOTIFY#닫기-엔드포인트)
   @ApiOperation({
     summary: '알림 닫기 (soft delete)',
     description:
-      '지정한 알림 단건을 visible 목록에서 숨깁니다 (`dismissed_at=now()`). row 는 보존되며, 이미 닫힌 알림에 다시 호출하면 기존 시각을 멱등하게 반환합니다. 자세한 라이프사이클은 spec/data-flow/8-notifications.md §4 참조.',
+      '지정한 알림 단건을 visible 목록에서 숨깁니다 (`dismissed_at=now()`). row 는 보존되며, 이미 닫힌 알림에 다시 호출하면 기존 시각을 멱등하게 반환합니다.',
   })
   @ApiParam({ name: 'id', description: '알림 UUID', format: 'uuid' })
   @ApiOkWrappedResponse(DismissNotificationResponseDto, {

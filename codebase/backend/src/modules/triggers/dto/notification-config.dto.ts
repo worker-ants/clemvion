@@ -13,9 +13,9 @@ import { Type } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { checkSsrfSafeUrl } from '../../../common/utils/ssrf-safe-url.util';
 
+// 근거: [EIA 알림 웹훅 「구독 이벤트」](CLE-EIA-NOTIFY#구독-이벤트)
 /**
  * Outbound notification webhook 의 구독 가능한 이벤트 type.
- * [Spec EIA §3.1 EIA-NX-02].
  *
  * `websocket/websocket-events.types.ts` 의 `InAppNotificationEventType`(WS 인앱 알림 벨
  * 전용, `notification.new` 단일 값)과는 **무관** — 그쪽은 인앱 알림, 이쪽은 outbound
@@ -31,9 +31,12 @@ export const NOTIFICATION_EVENT_TYPES = [
 
 export type NotificationEventType = (typeof NOTIFICATION_EVENT_TYPES)[number];
 
+// 근거:
+//   - [EIA 알림 웹훅 「헤더와 서명」](CLE-EIA-NOTIFY#헤더와-서명)
+//   - [EIA 알림 웹훅 「서명 알고리즘 표기를 인바운드와 나눈다」](CLE-EIA-NOTIFY#서명-알고리즘-표기를-인바운드와-나눈다)
 /**
  * Outbound notification 의 HMAC 서명 설정.
- * [Spec EIA §3.1 EIA-NX-03 / §R12] — 외부 표면에서는 `hmac-` prefix 명시.
+ * 외부 표면에서는 `hmac-` prefix 를 명시한다.
  */
 export class NotificationSigningDto {
   /** HMAC 알고리즘. 화이트리스트 (`hmac-sha256` / `hmac-sha512`) 만 허용. */
@@ -47,9 +50,9 @@ export class NotificationSigningDto {
   algorithm?: 'hmac-sha256' | 'hmac-sha512';
 }
 
+// 근거: [EIA 알림 웹훅 「재시도와 실패 처리」](CLE-EIA-NOTIFY#재시도와-실패-처리)
 /**
  * Outbound notification 의 재시도 정책.
- * [Spec EIA §3.1 EIA-NX-06].
  */
 export class NotificationRetryDto {
   /** 재시도 최대 횟수 (default 5, max 10). */

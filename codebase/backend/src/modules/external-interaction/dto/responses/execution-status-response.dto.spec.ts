@@ -21,9 +21,9 @@ import { EIA_EXECUTION_STATUS_VALUES } from './execution-status.literal';
  * 실제 OpenAPI 문서를 생성해 검증한다 — 데코레이터 메타데이터만 읽으면 `@ApiExtraModels`
  * 누락으로 `$ref` 가 dangling 되는 경우를 놓친다 (variant 가 `components.schemas` 에 등재되지 않음).
  *
- * 계약 SoT: [Swagger 규약 §1-4](../../../../../../../spec/conventions/swagger.md) ·
- * [API 규약 §5.4](../../../../../../../spec/5-system/2-api-convention.md) ·
- * [EIA §5.3](../../../../../../../spec/5-system/14-external-interaction-api.md)
+ * 계약 SoT: [OpenAPI 문서화 「nested, enum, union」](CLE-API-SWAGGER#1-4-nested-enum-union) ·
+ * [HTTP API 규약 「부재 표현: null 과 키 생략」](CLE-API-CONV#55-부재-표현-null-과-키-생략) ·
+ * [EIA 수신 API와 SSE 「단발 상태 조회」](CLE-EIA-INBOUND#단발-상태-조회)
  */
 @Controller('stub')
 class StubController {

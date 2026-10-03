@@ -7,10 +7,13 @@ export class AccessTokenDto {
   accessToken: string;
 }
 
+// 근거:
+//   - [가입과 로그인 「2단계 인증 방식 선택」](CLE-ACCT-SIGNIN#2단계-인증-방식-선택)
+//   - [가입과 로그인 「로그인에서 TOTP 로 자동 전환하지 않는다」](CLE-ACCT-SIGNIN#로그인에서-totp-로-자동-전환하지-않는다)
 /**
  * 2FA challenge 필요 응답.
  *
- * spec/5-system/1-auth.md §1.4.2 — WebAuthn 우선, TOTP fallback 자동 금지.
+ * WebAuthn 을 우선하고 TOTP 로 자동 전환(fallback)하지 않는다.
  *
  *   methods ⊇ ['webauthn']  → 사용자에게 WebAuthn 화면만 노출
  *   methods === ['totp']    → 사용자에게 TOTP 입력 화면 노출

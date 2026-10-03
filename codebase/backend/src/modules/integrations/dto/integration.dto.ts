@@ -426,12 +426,15 @@ export class Cafe24PrecheckQueryDto {
   mallId!: string;
 }
 
+// 근거:
+//   - [서비스별 인증 방식과 자격 증명 「MakeShop」](CLE-INT-AUTH#makeshop)
+//   - [통합 관리 「인증·교체·권한」](CLE-INT-MANAGE#인증교체권한) 중복 사전 감지(precheck)
 /**
  * MakeShop shop_uid 사전 중복 감지 query — Cafe24PrecheckQueryDto 의 makeshop
  * 대응. `shop_uid` 가 base URL path segment (`/api/v1/{shop_uid}/`) 에 주입되므로
  * SSRF 방어로 charset 을 제한한다. 정규식은 makeshop.handler.ts 의
  * `SHOP_UID_PATTERN` / third-party-oauth.constants 의
- * `MAKESHOP_SHOP_UID_PATTERN` 과 동일. spec/2-navigation/4-integration.md §5.9.
+ * `MAKESHOP_SHOP_UID_PATTERN` 과 동일.
  */
 export class MakeshopPrecheckQueryDto {
   @ApiProperty({

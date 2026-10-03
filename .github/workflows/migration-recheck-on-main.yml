@@ -11,7 +11,7 @@
 #   2. nudge-open-prs — 열린 PR 중 codebase/backend/migrations/ 를 건드린 PR 에
 #                       "rebase + CI 재실행 필요" 코멘트 자동 게시.
 #
-# 정책 본문은 spec/conventions/migrations.md §6.2 / §6.3 / §7 대안 4.
+# 정책 본문은 NERV 스펙 CLE-ENG-MIGRATION 「충돌 검출과 머지 race 안전망」 · Rationale 「기각한 대안 4」.
 
 name: migration-recheck-on-main
 
@@ -79,5 +79,5 @@ jobs:
 
           for n in "${prs[@]}"; do
             echo "Nudging PR #${n}"
-            gh pr comment "$n" --repo "$repo" --body "⚠️ \`main\` 에 새 migration 이 머지되었습니다 (\`${short_sha}\`). 본 PR 의 V번호 충돌·gap 을 보장하려면 **머지 전 \`git rebase origin/main\` 후 \`migration-check\` 재실행**이 필요합니다. 자세한 규약은 [\`spec/conventions/migrations.md\` §6.2 / §6.3](../blob/main/spec/conventions/migrations.md) 참고."
+            gh pr comment "$n" --repo "$repo" --body "⚠️ \`main\` 에 새 migration 이 머지되었습니다 (\`${short_sha}\`). 본 PR 의 V번호 충돌·gap 을 보장하려면 **머지 전 \`git rebase origin/main\` 후 \`migration-check\` 재실행**이 필요합니다. 자세한 규약은 [DB 마이그레이션 규약 「충돌 검출과 머지 race 안전망」](../blob/main/spec/CLE-ENG/CLE-ENG-MIGRATION.md#충돌-검출과-머지-race-안전망) 참고."
           done

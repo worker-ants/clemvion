@@ -1,13 +1,16 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { IsInt, IsOptional, Min } from 'class-validator';
 
+// 근거:
+//   - [워크플로우 데이터와 저장 흐름 「Workflow」](CLE-WF-DATA#workflow) `Workflow.settings` 의 알려진 키
+//   - [큐 워커와 동시 실행 제한 「동시 실행 제한」](CLE-EXEC-WORKER#동시-실행-제한)
 /**
  * 워크플로우 실행 설정(`Workflow.settings` JSONB)의 write 검증 DTO.
  *
  * 전역 `CustomValidationPipe` 가 `whitelist + forbidNonWhitelisted` 이므로 여기 선언되지
  * 않은 키는 400 으로 거부된다 — workspace 의 `UpdateWorkspaceSettingsDto` 와 동일한 strict
- * 정책이며, `spec/1-data-model.md §2.4` 가 이미 `Workflow.settings` 를 `maxConcurrentExecutions`
- * 로 스코프한다(§8 admission gate). 신규 설정 키는 여기 필드를 추가해 확장한다.
+ * 정책이며, `Workflow.settings` 의 알려진 키는 `maxConcurrentExecutions`(동시 실행 상한)
+ * 하나다. 신규 설정 키는 여기 필드를 추가해 확장한다.
  */
 export class WorkflowSettingsDto {
   /**

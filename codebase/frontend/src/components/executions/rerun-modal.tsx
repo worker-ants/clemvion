@@ -104,7 +104,7 @@ const ERROR_CODE_TO_KEY: Record<
 /**
  * 마스킹 마커가 실린 파라미터를 프리필에서 걷어낸다.
  *
- * `Execution.inputData` 는 egress 마스킹된다([EIA §R17](../../../../../spec/5-system/14-external-interaction-api.md)).
+ * `Execution.inputData` 는 egress 마스킹된다([응답 자격 증명 마스킹 「소비 쪽 마커 가드」](CLE-API-EGRESS#42-소비-쪽-마커-가드)).
  * 이 모달은 그 값을 **프리필해 `inputOverride` 로 되보내고**, "원본 입력 그대로 사용" 토글의
  * 기본값이 OFF 라 사용자가 손대지 않아도 제출된다 — 그대로 두면 리터럴 `'***'` 가 새 실행의
  * 실제 입력이 된다.

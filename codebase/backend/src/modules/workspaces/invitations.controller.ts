@@ -13,12 +13,13 @@ import { ApiOkWrappedResponse } from '../../common/swagger';
 import { WorkspaceInvitationsService } from './workspace-invitations.service';
 import { InvitationMetaDto } from './dto/responses/workspace-response.dto';
 
+// 근거:
+//   - [워크스페이스와 멤버 「초대 가입 화면」](CLE-ACCT-WS#초대-가입-화면)
+//   - [워크스페이스와 멤버 「초대」](CLE-ACCT-WS#초대)
 /**
  * 회원가입 페이지가 초대 토큰을 워크스페이스 메타데이터로 풀어낼 수 있게
  * 해주는 공개 엔드포인트 (이메일 prefill + readOnly 처리용). 토큰 자체가
  * 자격 증명 역할을 하므로 인증은 일부러 두지 않는다.
- *
- * spec/2-navigation/10-auth-flow.md §2.6, spec/5-system/1-auth.md §1.5
  */
 @ApiTags('Invitations')
 @Controller('invitations')

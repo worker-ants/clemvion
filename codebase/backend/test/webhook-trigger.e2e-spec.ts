@@ -193,7 +193,7 @@ describe('Webhook trigger (e2e)', () => {
     expect(JSON.stringify(res.body)).not.toContain('워크스페이스');
   };
 
-  it('B4. 같은 워크스페이스에 같은 endpointPath → 409 RESOURCE_CONFLICT + details.code (§1.10)', async () => {
+  it('B4. 같은 워크스페이스에 같은 endpointPath → 409 RESOURCE_CONFLICT + details.code', async () => {
     // **단위 테스트가 mock 하는 드라이버 에러 형태가 실제와 같은지는 e2e 만 확인한다.**
     // `triggers.service.spec.ts` 는 `QueryFailedError` 를 손으로 만들어 `rethrowEndpointPathConflict`
     // 를 태우는데, 실 DB 가 그 형태(제약 이름·SQLSTATE)를 정말 돌려주는지는 mock 이 원리적으로
@@ -201,8 +201,8 @@ describe('Webhook trigger (e2e)', () => {
     // `endpoint_path` UNIQUE(V132 부터 전역)가 걸리고, 다른 워크스페이스(B5 · B7 · B8)는 BEFORE 예약
     // 트리거(V133)가 먼저 `webhook_endpoint_reservation_owner` 로 막는다.
     //
-    // 계약 SoT: [에러 처리 §1.10](spec/5-system/3-error-handling.md) — 봉투 `code` 는 상태
-    // 기본값 `RESOURCE_CONFLICT` 를 유지하고 세부 사유는 `details` 에 싣는다(객체 형태).
+    // 계약 SoT: [에러 코드 규약과 카탈로그 「트리거 endpointPath 충돌」](CLE-API-ERRCODES#613-트리거-endpointpath-충돌-도메인-문서-참조)
+    // — 봉투 `code` 는 상태 기본값 `RESOURCE_CONFLICT` 를 유지하고 세부 사유는 `details` 에 싣는다(객체 형태).
     const path = crypto.randomUUID();
     await createWebhookTrigger(uniqueName('hook-b4'), path);
 

@@ -7,10 +7,9 @@ import {
   MinLength,
 } from 'class-validator';
 
+// 근거: [가입과 로그인 「Passkey 등록·인증 흐름」](CLE-ACCT-SIGNIN#passkey-등록인증-흐름)
 /**
  * WebAuthn 등록 verify 요청.
- *
- * spec/5-system/1-auth.md §1.4.4 등록 흐름.
  */
 export class WebAuthnRegisterVerifyDto {
   @ApiProperty({

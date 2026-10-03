@@ -28,12 +28,15 @@ export class CurrentNodeDto {
   interactionType: 'form' | 'buttons' | 'ai_conversation' | null;
 }
 
+// 근거:
+//   - [EIA 수신 API와 SSE 「단발 상태 조회」](CLE-EIA-INBOUND#단발-상태-조회)
+//   - [노드 출력 규약](CLE-NODE-OUTPUT)
+//   - [OpenAPI 문서화 「nested, enum, union」](CLE-API-SWAGGER#1-4-nested-enum-union)
 /**
- * `context` 두 변형의 공통 봉투. [Spec EIA §5.3].
+ * `context` 두 변형의 공통 봉투.
  *
  * 봉투만 스키마화하고 내부 payload 는 열린 map 으로 남긴다 — 노드 타입별 자유 형식이라
- * 클래스로 고정하면 노드 output 규약(`spec/conventions/node-output.md`)과 SoT 가 이중화된다.
- * [Swagger 규약 §1-4](../../../../../../../spec/conventions/swagger.md).
+ * 클래스로 고정하면 노드 output 규약과 정의가 이중화된다.
  *
  * `abstract` 이지만 export 한다 — `getStatus` 조립부가 분기 전 공통 필드를 선조립할 때 이 타입으로
  * **명시 annotate** 해야 하기 때문이다. object spread 는 fresh literal 타입을 넓히므로
@@ -50,17 +53,17 @@ export abstract class WaitingContextBaseDto {
   @ApiProperty({ format: 'uuid' })
   waitingNodeId: string;
 
+  // 근거:
+  //   - [대화 스레드 「대화 스레드」](CLE-IX-THREAD#대화-스레드) 형태의 기준
+  //   - [HTTP API 규약 「부재 표현: null 과 키 생략」](CLE-API-CONV#55-부재-표현-null-과-키-생략)
   /**
-   * 대화 히스토리 durable 스냅샷. 형태 SoT 는
-   * [conversation-thread §1.3](../../../../../../../spec/conventions/conversation-thread.md).
+   * 대화 히스토리 durable 스냅샷.
    *
    * **부재 시 키 자체를 생략**한다(present-when-available) — 형제 `result`/`error` 의 `null` 관례와 다르며,
    * SSE `waiting_for_input` wire 와 형식을 일치시키기 위함이다. 따라서 `| null` 을 쓰지 않는다.
-   * [API 규약 §5.4](../../../../../../../spec/5-system/2-api-convention.md).
    */
   @ApiPropertyOptional({
-    description:
-      '대화 히스토리 스냅샷. 값이 없으면 키를 생략한다 (null 아님 — API 규약 §5.4).',
+    description: '대화 히스토리 스냅샷. 값이 없으면 키를 생략한다 (null 아님).',
     type: 'object',
     additionalProperties: true,
   })
@@ -113,16 +116,18 @@ export class ExecutionStatusDto {
   @ApiProperty({ enum: EIA_EXECUTION_STATUS_VALUES })
   status: ExecutionStatusLiteral;
 
+  // 근거:
+  //   - [EIA 수신 API와 SSE 「단발 상태 조회」](CLE-EIA-INBOUND#단발-상태-조회)
+  //   - [HTTP API 규약 「부재 표현: null 과 키 생략」](CLE-API-CONV#55-부재-표현-null-과-키-생략)
   /**
    * 종결(`completed`/`failed`/`cancelled`) 실행의 밀리초 소요 시간. 종결 전에는 `null`
-   * (키 present — API 규약 §5.4). 종결 이벤트 payload 의 같은 이름 필드와 **같은 값**이다.
+   * (키 present). 종결 이벤트 payload 의 같은 이름 필드와 **같은 값**이다.
    *
-   * ⚠️ 취소·타임아웃 종결 경로에서는 실행 시간이 아니라 **대기 경과 시간**이다
-   * (EIA §6.5 캐비엇).
+   * ⚠️ 취소·타임아웃 종결 경로에서는 실행 시간이 아니라 **대기 경과 시간**이다.
    */
   @ApiProperty({
     description:
-      '종결 실행의 소요 시간(ms). 종결 전에는 null. 취소·타임아웃 경로에서는 대기 경과 시간이다 (EIA §6.5).',
+      '종결 실행의 소요 시간(ms). 종결 전에는 null. 취소·타임아웃 경로에서는 대기 경과 시간이다.',
     type: 'integer',
     example: 4242,
     nullable: true,
@@ -137,12 +142,12 @@ export class ExecutionStatusDto {
   })
   currentNode: CurrentNodeDto | null;
 
+  // 근거: [OpenAPI 문서화 「nested, enum, union」](CLE-API-SWAGGER#1-4-nested-enum-union)
   /**
    * waiting_for_input 상태의 인터랙션 표면. 그 외에는 `null`.
    *
    * 판별자 없는 `oneOf` — `discriminator` 를 선언하면 SDK 생성기가 `buttons` 를 항상
    * `ButtonsContextDto` 로 narrowing 해 fallthrough 케이스에서 런타임 `undefined` 접근이 된다.
-   * [Swagger 규약 §1-4](../../../../../../../spec/conventions/swagger.md).
    */
   @ApiProperty({
     description:
@@ -155,7 +160,8 @@ export class ExecutionStatusDto {
   })
   context: ButtonsContextDto | NodeOutputContextDto | null;
 
-  /** completed 가 아니면 `null` (키 present — API 규약 §5.4). */
+  // 근거: [HTTP API 규약 「부재 표현: null 과 키 생략」](CLE-API-CONV#55-부재-표현-null-과-키-생략)
+  /** completed 가 아니면 `null` (키 present). */
   @ApiProperty({
     description: 'completed 시점의 최종 결과 envelope.',
     type: 'object',
@@ -164,7 +170,8 @@ export class ExecutionStatusDto {
   })
   result: Record<string, unknown> | null;
 
-  /** failed 가 아니면 `null` (키 present — API 규약 §5.4). */
+  // 근거: [HTTP API 규약 「부재 표현: null 과 키 생략」](CLE-API-CONV#55-부재-표현-null-과-키-생략)
+  /** failed 가 아니면 `null` (키 present). */
   @ApiProperty({
     description: 'failed 시점의 에러 envelope.',
     type: 'object',
@@ -173,9 +180,10 @@ export class ExecutionStatusDto {
   })
   error: Record<string, unknown> | null;
 
+  // 근거: [EIA 수신 API와 SSE 「단발 상태 조회」](CLE-EIA-INBOUND#단발-상태-조회)
   /**
    * REST 단발 응답에서는 항상 `0` placeholder — in-memory SSE seq 카운터에 접근하지 않는다.
-   * 클라이언트는 SSE `Last-Event-Id` 로 실제 seq 를 보정한다 (EIA §5.3).
+   * 클라이언트는 SSE `Last-Event-Id` 로 실제 seq 를 보정한다.
    */
   @ApiProperty({
     description:

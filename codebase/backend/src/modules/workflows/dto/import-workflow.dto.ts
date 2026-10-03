@@ -158,16 +158,19 @@ export class ImportWorkflowDto {
   @IsString({ each: true })
   tags?: string[];
 
+  // 근거:
+  //   - [워크플로우 목록과 폴더 「내보내기·가져오기 JSON 형식」](CLE-WF-LIST#내보내기가져오기-json-형식)
+  //   - [큐 워커와 동시 실행 제한 「동시 실행 제한」](CLE-EXEC-WORKER#동시-실행-제한)
   /**
    * 워크플로우 실행 설정 (검증 대상 키만 허용 — 현재 `maxConcurrentExecutions`).
    * 미지 키는 전역 pipe(whitelist+forbidNonWhitelisted)가 400 으로 거부한다.
    * `UpdateWorkflowDto.settings`(patch)와 동일 strict DTO — 같은 `Workflow.settings`
-   * jsonb 의 import·patch 검증 대칭(§8, spec/2-navigation/1-workflow-list.md §3.2).
+   * jsonb 의 import·patch 검증 대칭.
    */
   @ApiPropertyOptional({
     type: () => WorkflowSettingsDto,
     description:
-      '워크플로우 실행 설정. 현재 maxConcurrentExecutions(동시 실행 상한, §8)만 지원 — 미지 키는 거부(400).',
+      '워크플로우 실행 설정. 현재 maxConcurrentExecutions(동시 실행 상한)만 지원 — 미지 키는 거부(400).',
   })
   @IsOptional()
   @IsObject()

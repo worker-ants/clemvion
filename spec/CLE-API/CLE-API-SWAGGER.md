@@ -9,12 +9,12 @@ basis_superseded: false
 parent: "CLE-API"
 ancestors: ["CLE-VISION", "CLE-API"]
 area: "CLE-API"
-content_hash: "6c8ec28296107cdde35d3ed8f692459c9e1669271166b6cae33b886f3aa31e32"
-read_as: "approved"
-task: null
+content_hash: "a27fe118423d0bac263f474a63f8ac1e1f9a5d4de64ec2d44bbec7c4db4823db"
+read_as: "approved_fallback"
+task: "CLE-T-9AM31N"
 source_paths: ["spec/conventions/swagger.md"]
-mirror_sha256: "69ad991e4cb9d50172899b40a531a7ed4d8bde94edb19e75705aa658107a00c4"
-etag: "sha256-946b9f690939b53ea44aa38a579c4e4988c2cf2d09a4894734cf768209802a24"
+mirror_sha256: "4564682dbf21f2e4b23a9a0576501f7f081b85141ffcf38b82811c7fb00ff93c"
+etag: "sha256-ae2afa73346a569c060d21974bd91d10d133b41bd9d1ca820d59a0990d7876e9"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/conventions/swagger.md` · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -55,6 +55,7 @@ etag: "sha256-946b9f690939b53ea44aa38a579c4e4988c2cf2d09a4894734cf768209802a24"
 14. DTO 필드의 JSDoc 은 공개 OpenAPI 로 나간다. 정정 경위나 리뷰 참조 같은 내부 서사는 `//` 주석에 적는다.
 15. 엔드포인트 `summary` 는 10~20자, `description` 은 50~150자로 쓴다(강제). DTO `description` 은 한 줄 요약을 지향한다(강제 아님).
 16. 저장값과 응답값이 다를 수 있는 필드와 정책으로 거부될 수 있는 요청 필드는 길이와 무관하게 그 사실을 설명에 적는다.
+17. DTO · 컨트롤러 파일(`*.dto.ts` · `*.controller.ts`)의 `/** */` 블록 전부와 데코레이터의 `description` · `summary` 문자열에는 저장소 내부 참조를 적지 않는다. 저장소 내부 참조는 스펙 경로, 번호로 시작하는 옛 스펙 파일 이름, NERV 키(`CLE-…`), 요구사항 ID(`REQ-…-NNN`), 옛 요구사항 ID, 옛 plan 경로의 여섯 형태다. 근거는 바로 위 `//` 주석에 키 링크로 적는다([스펙과 구현 근거 규약](../CLE-ENG/CLE-ENG-SPECEVIDENCE.md) 규칙 18 · R-14). 저장소 가드 `openapi-internal-ref` 가 강제한다. 리뷰 인용은 이 목록에 없고 [리뷰 산출물 인용 규약](../CLE-ENG/CLE-ENG-REVIEWCITE.md) 이 정한다. 가드의 강제 범위와 못 보는 것은 Rationale 「공개 문장의 저장소 내부 참조를 왜 가드로 세는가」 에 적는다.
 
 ## 0. Swagger UI 노출 정책
 
@@ -358,16 +359,18 @@ Swagger 응답 스키마에도 이 구조를 반영한다. 간단한 텍스트 �
 
 DTO `description` 은 "한 줄로 읽히는가" 가 기준이지 글자 수가 아니다. 필드의 제약·부수 효과를 담느라 길어지는 것은 위반이 아니다. 아래 보안·정책 캐비엇은 애초에 길이 논의 밖이다. 근거는 Rationale "DTO 길이는 왜 강제가 아닌가".
 
-**JSDoc 은 공개 OpenAPI 로 나간다. 내부 서사를 담지 않는다** (2026-09-05 규약화).
+**JSDoc 은 공개 OpenAPI 로 나간다. 내부 서사를 담지 않는다** (2026-09-05 규약화, 2026-10-03 저장소 내부 참조 금지 추가, 규칙 17).
 
-플러그인이 `introspectComments` 로 **프로퍼티** JSDoc 을 `description` 에 그대로 싣는다(§개요). 즉 DTO 필드의 `/** ... */` 는 API 소비자가 읽는 문장이다. 클래스 JSDoc 은 플러그인이 싣지 않지만 같은 분리를 따른다. 응답 DTO 파일의 `/** */` 는 한 채널로 다룬다([리뷰 산출물 인용 규약](../CLE-ENG/CLE-ENG-REVIEWCITE.md)). 정정 경위, 리뷰 참조, "왜 이렇게 바꿨는지" 같은 내부 서사는 JSDoc 이 아니라 그 위의 `//` 주석에 적는다. `//` 는 플러그인이 읽지 않는다.
+플러그인이 `introspectComments` 로 **프로퍼티** JSDoc 을 `description` 에 그대로 싣는다(§개요). 즉 DTO 필드의 `/** ... */` 는 API 소비자가 읽는 문장이다. 컨트롤러 메서드 JSDoc 은 operation 설명으로 실리고 데코레이터의 `description` · `summary` 문자열도 그대로 나간다. 클래스 JSDoc 은 플러그인이 싣지 않지만 같은 분리를 따른다. 응답 DTO 파일의 `/** */` 는 한 채널로 다룬다([리뷰 산출물 인용 규약](../CLE-ENG/CLE-ENG-REVIEWCITE.md)). 정정 경위, 리뷰 참조, "왜 이렇게 바꿨는지" 같은 내부 서사는 JSDoc 이 아니라 그 위의 `//` 주석에 적는다. `//` 는 플러그인이 읽지 않는다.
+
+저장소 내부 참조(규칙 17 의 여섯 형태)는 DTO · 컨트롤러 파일의 `/** */` 블록 전부와 `description` · `summary` 에 적지 않는다. 클래스 JSDoc 도 같은 채널이라 내부 참조를 적지 않는다. 플러그인이 싣지 않는 자리라도 마찬가지다.
 
 | 무엇 | 어디 |
 | --- | --- |
 | 소비자가 이 필드를 쓰려면 알아야 하는 것 | JSDoc `/** */` |
-| 왜 이 값이 이 타입인지의 경위, 리뷰·PR 참조 | 바로 위 `//` 주석 |
+| 왜 이 값이 이 타입인지의 경위, 리뷰·PR 참조, 스펙 근거 | 바로 위 `//` 주석. 스펙은 키 링크로 가리킨다([스펙과 구현 근거 규약 규칙 18 · R-14](../CLE-ENG/CLE-ENG-SPECEVIDENCE.md)) |
 
-`alert-rule-response.dto.ts` 의 `threshold` 가 이 분리를 적용한 예다. 기존 DTO 는 소급 정리 대상이 아니다(§1-4 와 같은 원칙). 그 자리를 다음에 건드릴 때 함께 맞춘다.
+`alert-rule-response.dto.ts` 의 `threshold` 가 이 분리를 적용한 예다. 내부 서사는 기존 DTO 를 소급해 정리하지 않는다(§1-4 와 같은 원칙). 그 자리를 다음에 건드릴 때 함께 맞춘다. 가드가 세는 여섯 형태는 전환 단계 4c 에서 기존 자리까지 걷어 베이스라인이 0 이다(규칙 17). 경로 없는 절 번호 인용은 남아 있다(`CLE-T-BCS6QZ`).
 
 **반드시 적는다: 보안·정책 캐비엇** (2026-08-17 규약화, 2026-08-22 요청 필드까지 확장, 2026-08-23 "예외" 에서 "적극 지시" 로 재정의).
 
@@ -378,7 +381,7 @@ DTO `description` 은 "한 줄로 읽히는가" 가 기준이지 글자 수가 �
 | **응답** 값이 저장된 값과 다를 수 있는 필드(응답 마스킹 대상 등) | "왜 DB 와 값이 다른가" |
 | **요청** 값이 정책으로 거부될 수 있는 필드(예약어, 재제출 금지 값 등) | "왜 이 값을 보내면 400 인가" |
 
-다만 상세 근거는 문서 본문에 두고 설명에는 1~2문장 요약과 기준 문서 링크를 적는다. 응답 마스킹과 재제출 거부의 기준은 [응답 자격 증명 마스킹](CLE-API-EGRESS.md) 이다. 근거는 Rationale "보안·정책 캐비엇: 왜 길이를 이유로 줄이지 않는가, 그리고 왜 양방향인가".
+다만 상세 근거는 문서 본문에 두고 설명에는 1~2문장 요약만 적는다. 기준 문서는 설명이 아니라 바로 위 `//` 주석에 키 링크로 적는다(규칙 17). 응답 마스킹과 재제출 거부의 기준은 [응답 자격 증명 마스킹](CLE-API-EGRESS.md) 이다. 근거는 Rationale "보안·정책 캐비엇: 왜 길이를 이유로 줄이지 않는가, 그리고 왜 양방향인가".
 
 ## 4. 엔드포인트별 작업 순서
 
@@ -519,6 +522,8 @@ async create(...) { ... }
 - `codebase/backend/src/repo-guards/__tests__/http-status-advertised*.ts` 와 `fixtures/http-status-advertised/**` (§2-4 광고한 성공 코드와 실제 성공 코드 짝)
 - `codebase/backend/src/repo-guards/__tests__/forbidden-response-codes*.ts` (§5-4 403 설명과 가드 거부 코드 짝. reflection, 대조군은 spec 안의 클래스)
 - `codebase/backend/src/repo-guards/__tests__/request-body-advertised*.ts` (§5-4 요청 본문 스키마. reflection, 대조군은 spec 안의 클래스)
+- `codebase/backend/src/repo-guards/__tests__/openapi-internal-ref-guard.ts` 와 `openapi-internal-ref.spec.ts`, 대조군 `fixtures/openapi-internal-ref/**` (규칙 17)
+- `codebase/frontend/src/lib/__tests__/public-surface-internal-refs.test.ts` (규칙 17 과 같은 패턴으로 배포 SVG 와 외부 SDK README · `package.json` 을 보는 프런트엔드 가드)
 
 ## Rationale
 
@@ -560,7 +565,7 @@ EIA 단발 상태 조회의 `context` 가 그 반례다. `interactionType` 은 �
 
 `nodeOutput` 과 `buttonConfig.buttons` 는 노드 타입별 자유 payload(`formConfig`, `conversationConfig`, 임의 키)라 §1-4 의 **진짜 열린 map** 이다. 클래스로 고정하면 노드 타입이 늘 때마다 DTO 가 따라 늘고 여러 노드 문서가 참조하는 [노드 출력 규약](../CLE-NODE/CLE-NODE-OUTPUT.md) 과 기준이 이중화된다. 봉투(`interactionType`, `waitingNodeId`, `conversationThread`, 변형 키)만 닫고 안쪽은 열어 두는 것이 두 규약의 책임 경계와 맞는다.
 
-같은 이유로 `ConversationThreadDto` 도 만들지 않는다. [대화 스레드](../CLE-IX/CLE-IX-THREAD.md) 의 자료구조 절이 스레드 형태(`turns[]`, `source`, `totalChars`, `nextSeq`)의 기준이고 Swagger DTO 로 다시 선언하면 두 문서가 갈린다. 봉투에서는 열린 객체로 두고 description 이 대화 스레드 문서를 가리킨다.
+같은 이유로 `ConversationThreadDto` 도 만들지 않는다. [대화 스레드](../CLE-IX/CLE-IX-THREAD.md) 의 자료구조 절이 스레드 형태(`turns[]`, `source`, `totalChars`, `nextSeq`)의 기준이고 Swagger DTO 로 다시 선언하면 두 문서가 갈린다. 봉투에서는 열린 객체로 두고 바로 위 `//` 주석이 대화 스레드 문서를 키 링크로 가리킨다(규칙 17).
 
 ### DTO 길이는 왜 강제가 아닌가 (§3)
 
@@ -651,3 +656,20 @@ EIA 단발 상태 조회의 `context` 가 그 반례다. `interactionType` 은 �
 - **`schema: {}` 와 열린 map 은 다르다.** 본문이 객체라는 것조차 보장되지 않으면(웹훅은 JSON 배열이나 원시값도 온다) `@ApiBody({ schema: {} })` 로 "임의 값" 을 적는다. 객체는 보장되고 키만 열려 있으면 §1-4 의 `additionalProperties: true` 다.
 - **reflection 으로 센다.** 판정 축은 파이프가 받는 바로 그 값이어야 한다. 파이프는 `design:paramtypes` 가 `Object`·`String`·`Number`·`Boolean`·`Array` 면 건너뛰고 그 자리는 플러그인도 스키마를 만들지 못한다. 가드는 파이프가 export 하는 그 목록을 그대로 쓴다. 소스(AST)로는 `interface` 나 타입 별칭 참조가 런타임에 `Object` 가 되는 것을 클래스 참조와 구별할 수 없다.
 - **못 보는 것.** `@ApiBody` 가 **맞는** DTO 를 가리키는지는 라우트별 캐너리(`*-body.spec.ts`)가 본다. 이 가드는 광고가 **있는지**만 센다. 클래스 파라미터의 DTO 가 실제 본문과 맞는지도 이 가드 밖이다(요청 쪽 검증은 파이프가 한다).
+
+### 공개 문장의 저장소 내부 참조를 왜 가드로 세는가 (규칙 17, 2026-10-03)
+
+2026-09-05 규약화(규칙 14)는 내부 서사만 `//` 주석으로 보냈다. 저장소 내부 참조는 금지하지 않았다. 오히려 §3 보안·정책 캐비엇은 설명에 1~2문장 요약과 기준 문서 링크를 적으라고 했다. EIA `context` 의 `ConversationThreadDto` 문단도 description 이 대화 스레드 문서를 가리킨다고 적었다. 2026-10-03 에 이 두 지시를 뒤집었다. 기준 문서 링크는 바로 위 `//` 주석으로 옮겼고 공개 문장에서는 저장소 내부 참조를 금지했다(규칙 17).
+
+이 참조는 외부 소비자에게 쓸모가 없다. 옛 스펙 트리는 전환 단계 5 에서 지우므로 경로는 죽은 문자열이 된다. 외부 소비자는 NERV 스펙 키도 열어 볼 수 없다. 그래서 전환 단계 4c(NERV Task `CLE-T-9AM31N`)에서 공개 문장에는 사실만 남겼다. 필요한 근거는 바로 위 `//` 주석의 키 링크로 옮겼다. 같은 변경에서 가드 `openapi-internal-ref` 를 세웠다.
+
+4c 가 걷은 곳은 모두 91곳(50파일)이다. 처음에는 네 형태(스펙 경로 · NERV 키 · 요구사항 ID · 옛 plan 경로)로 세 자리(DTO 필드 JSDoc · 컨트롤러 메서드 JSDoc · 데코레이터의 `description` · `summary` 문자열)를 세어 41곳을 걷었다. 옛 스펙 파일 이름 형태를 더해 2곳을 더 찾았다. 채널을 두 파일 종류의 모든 `/** */` 로 넓히고 옛 요구사항 ID 형태를 더해 48곳을 더 걷었다. 베이스라인은 0 이다.
+
+- **두 파일 종류의 `/** */` 를 모두 본다.** `*.dto.ts` · `*.controller.ts` 의 모든 `/** */` 블록(클래스 · 멤버 · 파일 수준 선언)과 두 파일 종류의 `description` · `summary` 문자열 속성을 본다. 파일 종류는 `nest-cli.json` 의 플러그인 suffix 와 같다. 클래스 JSDoc 처럼 플러그인이 싣지 않는 자리도 같은 채널로 센다. [리뷰 산출물 인용 규약](../CLE-ENG/CLE-ENG-REVIEWCITE.md) 이 응답 DTO 파일의 `/** */` 를 한 채널로 보고 클래스 JSDoc 을 `//` 와 같게 보는 안 (A) 를 기각한 것과 같은 이유다. 쓰는 사람이 플러그인 동작을 보고 자리마다 판단하지 않아도 된다. 클래스 설명을 `@ApiSchema({ description })` 로 옮겨 적을 때 참조가 딸려 나가지도 않는다.
+- **찾는 형태는 여섯이다.** 저장소 스펙 경로(`spec/…`), 옛 스펙 파일 이름, NERV 스펙 키(`CLE-…`), 요구사항 ID(`REQ-…-NNN`), 옛 요구사항 ID, 옛 plan 경로(`plan/in-progress/` · `plan/complete/`)다. 옛 스펙 파일 이름은 `spec/` 없이 적은 옛 트리 파일 이름(`15-chat-channel.md` · `../../2-navigation/4-integration.md`)이다. 옛 트리 파일 이름은 번호로 시작하므로 가드는 번호로 시작하는 `.md` 이름(`\b\d+-[a-z][\w-]*\.md\b`)을 잡는다. 번호 없는 `README.md` 같은 이름은 잡지 않는다. 옛 요구사항 ID 는 옛 트리 스펙의 앵커 ID(`WH-SC-01` · `CCH-ERR-03`)다. 대문자 묶음 둘 이상 뒤에 두 자리 숫자가 오는 모양으로 잡는다. 옛 트리의 이런 ID 690개가 모두 두 자리라서(2026-10-03 실측) `HMAC-SHA-256` 같은 세 자리 표준 이름은 잡지 않는다. `SHA-256` 처럼 대문자 묶음이 하나인 이름도 잡지 않는다. NERV 키 패턴은 NERV Task 키(`CLE-T-…`)도 잡는다.
+- **`//` 와 `/* */` 주석은 보지 않는다.** 근거를 옮겨 적는 자리라 일부러 비워 둔다.
+- **기존 자리까지 걷었다.** §1-4 · §3 의 비소급 원칙은 내부 서사에 걸린다. 내부 참조는 기계로 판정되고 문구를 지우면 끝난다. 전환 단계 5 뒤에는 죽은 문자열이 된다. 그래서 기존 자리까지 걷었다.
+- **베이스라인은 0 이다.** 공개 문장에서 내부 참조를 빼는 일은 언제나 할 수 있다. 그래서 예외를 둘 자리가 없다.
+- **못 보는 것이 있다.** 상수나 헬퍼로 조립한 설명은 보지 못한다. 가드는 문자열 리터럴과 `+` 연결, 템플릿 리터럴의 고정 부분만 읽는다. 두 파일 종류 밖의 파일(`*.query.ts` 등)과 `example` · `@ApiTags` 같은 다른 키도 보지 않는다. 경로 없는 절 번호 인용(`[Spec EIA §4]`, 상수로 조립한 설명 속 `(spec 통합 §8 · §9.2)` 등)은 모양이 일정하지 않아 잡지 못한다. 그 인용은 남아 있고 정리는 NERV Task `CLE-T-BCS6QZ` 가 맡는다.
+- **리뷰 인용은 다른 가드가 본다.** 응답 DTO JSDoc 의 리뷰 인용은 `dto-jsdoc-citation` 이 본다([리뷰 산출물 인용 규약](../CLE-ENG/CLE-ENG-REVIEWCITE.md)). 응답 DTO 파일 밖의 DTO JSDoc(요청 DTO), 컨트롤러 JSDoc, `description` · `summary` 의 리뷰 인용은 어느 가드도 보지 않는다(그 규약의 강제 범위).
+- **프런트엔드 공개 표면도 같은 패턴으로 본다.** `public-surface-internal-refs`(`codebase/frontend/src/lib/__tests__/public-surface-internal-refs.test.ts`)가 배포 SVG 와 외부 SDK(`@workflow/sdk` · `@workflow/web-chat`)의 README · `package.json` 을 같은 패턴으로 본다.

@@ -1,7 +1,9 @@
 // Shared helpers for the spec-link-integrity guard.
 //
-// Validates in-repo markdown links in `spec/**` narrative docs:
-//   - the relative path target exists, and
+// Validates in-repo markdown links in `spec/**` narrative docs, codebase
+// sources and governance docs:
+//   - the relative path target exists, or a key link (`[text](CLE-KEY#anchor)`)
+//     names a NERV spec key that has a mirror file, and
 //   - any `#anchor` fragment resolves to a real heading slug in the target.
 //
 // The heading-slug algorithm mirrors github-slugger (the renderer used by the
@@ -9,12 +11,13 @@
 // spaces → single hyphens (no run-collapse), duplicate headings get `-1`/`-2`.
 // This port was cross-validated against 1200+ known-good in-repo anchor links.
 //
-// SoT for spec evidence conventions: spec/conventions/spec-impl-evidence.md.
+// SoT for spec evidence conventions: CLE-ENG-SPECEVIDENCE.
 
 import fs from "node:fs";
 import path from "node:path";
 
 import { walkTree, type MdFileRef } from "./tree-walk";
+import { mirrorKeyPaths, SPEC_KEY_RE } from "./spec-keys";
 import { fromMarkdown } from "mdast-util-from-markdown";
 import { toString as mdToString } from "mdast-util-to-string";
 import GithubSlugger from "github-slugger";
@@ -268,7 +271,20 @@ export function collectSpecMarkdown(root: string): MdFileRef[] {
   });
 }
 
-export type LinkViolationKind = "DEAD" | "ANCHOR";
+/**
+ * - `DEAD`: 상대 경로 링크의 대상 파일이 없다.
+ * - `ANCHOR`: `#앵커` 가 대상 마크다운의 제목 slug 에 없다(키 링크면 미러 문서의 제목).
+ * - `KEY`: 키 링크(`[글](CLE-KEY#앵커)`)의 키가 미러에 없다.
+ * - `PATH`: 코드 소스가 `spec/**.md` 를 경로로 링크했다. 코드는 키 링크로 적는다.
+ */
+export type LinkViolationKind = "DEAD" | "ANCHOR" | "KEY" | "PATH";
+
+/**
+ * 키 링크의 대상 — NERV 스펙 키와 선택적 `#앵커`. 키 모양은 `SPEC_KEY_RE` 를 그대로 쓴다.
+ * NERV 본문의 링크 표기(`[글](CLE-KEY)`)와 같아서 코드 주석에서도 그대로 쓴다. 미러 경로와
+ * 달리 문서가 다른 영역으로 옮겨도 바뀌지 않는다.
+ */
+const KEY_LINK_RE = new RegExp(`^(${SPEC_KEY_RE.source.slice(1, -1)})(?:#(.*))?$`);
 
 export interface LinkViolation {
   kind: LinkViolationKind;
@@ -301,6 +317,16 @@ interface LinkScanOptions {
    * into a moved tree is verified at the new place, not skipped.
    */
   relocateResolved?: (absPath: string) => string;
+  /**
+   * 미러 키 → 미러 파일 절대 경로. 주면 키 링크(`KEY_LINK_RE`)를 이 맵으로 확인한다
+   * (없는 키는 `KEY`, 없는 앵커는 `ANCHOR`). 안 주면 키 링크도 상대 경로로 해석된다.
+   */
+  keyLinks?: ReadonlyMap<string, string>;
+  /**
+   * `targetFilter` 를 통과한 경로 링크를 해석하지 않고 `PATH` 로 보고한다. 코드 소스가
+   * 스펙을 경로로 가리키지 못하게 막을 때 쓴다(키 링크만 허용).
+   */
+  forbidPathTargets?: boolean;
 }
 
 /**
@@ -346,11 +372,26 @@ function findBrokenLinksInFiles(
 
       if (isExternal(target)) continue;
 
+      const keyMatch = options.keyLinks ? KEY_LINK_RE.exec(target) : null;
+      if (keyMatch && options.keyLinks) {
+        const mirrorFile = options.keyLinks.get(keyMatch[1]);
+        if (!mirrorFile) {
+          violations.push({ kind: "KEY", source: f.relPath, line: link.line, target });
+        } else if (keyMatch[2] && !slugsFor(mirrorFile).has(decodeAnchor(keyMatch[2]))) {
+          violations.push({ kind: "ANCHOR", source: f.relPath, line: link.line, target });
+        }
+        continue;
+      }
+
       const hashIdx = target.indexOf("#");
       const pathPart = hashIdx === -1 ? target : target.slice(0, hashIdx);
       const anchor = hashIdx === -1 ? null : target.slice(hashIdx + 1);
       if (pathPart === "") continue;
       if (options.targetFilter && !options.targetFilter(pathPart)) continue;
+      if (options.forbidPathTargets) {
+        violations.push({ kind: "PATH", source: f.relPath, line: link.line, target });
+        continue;
+      }
 
       const linked = path.resolve(path.dirname(f.absPath), pathPart);
       const resolved = options.relocateResolved?.(linked) ?? linked;
@@ -494,24 +535,31 @@ export function collectGovernanceMarkdown(root: string): MdFileRef[] {
 export function findBrokenGovernanceLinks(root: string): LinkViolation[] {
   return findBrokenLinksInFiles(collectGovernanceMarkdown(root), {
     checkSelfAnchors: true,
+    keyLinks: mirrorKeyPaths(path.join(root, "spec")),
   });
 }
 
 // ---------------------------------------------------------------------------
 // Codebase-source spec links.
 //
-// `.ts`/`.tsx` sources (JSDoc, comments) frequently link to spec docs with a
-// relative path (`[..](../../../../spec/....md)`). Those depths are hand-counted
-// and drift silently — the `spec/**`-only guard above never sees them, so an
-// off-by-N `../` resolves to a nonexistent `codebase/spec/...` unnoticed. This
-// pair mirrors the same DEAD/ANCHOR checks over the code tree, scoped to links
-// that actually target a `spec/**.md` file (non-spec relative links are out of
-// scope — this guard only catches spec-link rot).
+// `.ts`/`.tsx` sources (JSDoc, comments) link to specs with a key link
+// (`[글](CLE-KEY#앵커)`, the same notation NERV bodies use). The key is checked
+// against the mirror file name and the anchor against that file's headings.
+// A relative path link to a `spec/**.md` file is reported as PATH whether or not
+// it resolves: hand-counted `../` depths drifted silently, the old spec tree is
+// deleted in NERV cutover stage 5 (`CLE-T-7M4C4X`), and a mirror path changes
+// when a doc moves to another area. NERV cutover stage 4c (`CLE-T-9AM31N`)
+// converted the 43 path links to key links. Non-spec relative links are out of
+// scope — this guard only catches spec-link rot.
 // ---------------------------------------------------------------------------
 
+// `backend/test`(e2e 스펙)와 `frontend/e2e`(Playwright)도 소스다. 두 곳은 `src` 밖이라 처음엔
+// 빠져 있었고 `backend/test` 에 옛 경로 링크가 하나 남은 채 통과했다.
 const CODEBASE_SOURCE_ROOTS = [
   "codebase/backend/src",
+  "codebase/backend/test",
   "codebase/frontend/src",
+  "codebase/frontend/e2e",
   "codebase/channel-web-chat/src",
   "codebase/packages",
 ];
@@ -528,16 +576,18 @@ export function collectCodebaseSources(root: string): MdFileRef[] {
 }
 
 /**
- * Validate every `spec/**.md`-targeting relative link in codebase `.ts`/`.tsx`
- * sources. DEAD = the resolved path does not exist (off-by-N `../`). ANCHOR =
- * the `#fragment` does not resolve to a heading in the target spec. Links that
- * don't target a spec markdown file — and same-file `#anchor` links, since code
- * has no headings — are ignored.
+ * Validate spec links in codebase `.ts`/`.tsx` sources. KEY = a key link's key
+ * has no mirror file. ANCHOR = its `#fragment` does not resolve to a heading in
+ * that mirror file. PATH = a relative link targets a `spec/**.md` file (write a
+ * key link instead). Other links — and same-file `#anchor` links, since code has
+ * no headings — are ignored.
  */
 export function findBrokenSpecLinksInSources(root: string): LinkViolation[] {
   return findBrokenLinksInFiles(collectCodebaseSources(root), {
     checkSelfAnchors: false,
+    keyLinks: mirrorKeyPaths(path.join(root, "spec")),
     targetFilter: (pathPart) => SPEC_MD_TARGET_RE.test(pathPart),
+    forbidPathTargets: true,
   });
 }
 

@@ -1,7 +1,8 @@
 import path from "node:path";
 import { walkTree } from "./tree-walk";
 
-// 사용자 가이드 프론트매터 `spec:` 의 NERV 스펙 키 검사 도우미.
+// NERV 스펙 키 검사 도우미. 사용자 가이드 프론트매터 `spec:`(`registry.test.ts`)와 코드 주석 ·
+// 거버넌스 문서의 키 링크(`spec-links.ts`, 전환 단계 4c)가 함께 쓴다.
 //
 // `spec:` 은 NERV 스펙 키 목록이다(CLE-UI-GUIDE 「프론트매터」, NERV 정본 전환 단계 4b).
 // 키는 저장소 미러 파일 이름(`spec/<영역 키>/<KEY>.md`, 영역 밖 문서는 `spec/<KEY>.md`)으로
@@ -30,13 +31,21 @@ export const UNMIRRORED_GUIDE_KEYS: ReadonlySet<string> = new Set([
   "CLE-MKS-META",
 ]);
 
-/** `specRoot` 아래 미러 파일(`CLE-*.md`)의 키 집합. 폴더가 없으면 빈 집합이다. */
-export function collectMirrorKeys(specRoot: string): Set<string> {
+/**
+ * `specRoot` 아래 미러 파일(`CLE-*.md`)의 키 → 절대 경로. 폴더가 없으면 빈 맵이다.
+ * 키 링크(`[글](CLE-KEY#앵커)`)의 앵커를 그 파일의 제목으로 확인할 때 쓴다(`spec-links.ts`).
+ */
+export function mirrorKeyPaths(specRoot: string): Map<string, string> {
   const files = walkTree(path.dirname(specRoot), [path.basename(specRoot)], {
     includeFile: (name) =>
       name.endsWith(".md") && SPEC_KEY_RE.test(name.slice(0, -".md".length)),
   });
-  return new Set(files.map((f) => path.basename(f.relPath, ".md")));
+  return new Map(files.map((f) => [path.basename(f.relPath, ".md"), f.absPath]));
+}
+
+/** `specRoot` 아래 미러 파일(`CLE-*.md`)의 키 집합. 폴더가 없으면 빈 집합이다. */
+export function collectMirrorKeys(specRoot: string): Set<string> {
+  return new Set(mirrorKeyPaths(specRoot).keys());
 }
 
 /** 키가 미러에 넣지 않는 영역(`UNMIRRORED_AREAS`)의 것인지. 영역 접두는 하이픈 경계로 맞춘다. */

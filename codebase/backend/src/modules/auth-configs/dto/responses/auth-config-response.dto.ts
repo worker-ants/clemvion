@@ -17,9 +17,10 @@ export class AuthConfigDto {
   })
   type: string;
 
+  // 근거: [외부 호출 인증 설정 「마스킹 규칙」](CLE-TRIG-AUTHCFG#마스킹-규칙)
   /**
    * 타입별 세부 설정. secret 류 필드(key/token/secret/password)는 `***<last4>` 로
-   * 마스킹된다 (spec/1-data-model.md §2.17.2). 평문은 create/regenerate/reveal 응답에서만.
+   * 마스킹된다. 평문은 create/regenerate/reveal 응답에서만.
    */
   @ApiProperty({ type: 'object', additionalProperties: true })
   config: Record<string, unknown>;
@@ -81,14 +82,16 @@ export class AuthConfigUsageCallDto {
   @ApiProperty({ format: 'date-time' })
   startedAt: string;
 
+  // 근거: [외부 호출 인증 설정 「사용 내역」](CLE-TRIG-AUTHCFG#사용-내역)
   /**
-   * webhook 호출의 소스 IP (§A.3). 캡처되지 않은 호출(비-HTTP 트리거·배포 이전 row)은 null.
+   * webhook 호출의 소스 IP. 캡처되지 않은 호출(비-HTTP 트리거·배포 이전 row)은 null.
    */
   @ApiProperty({ type: String, nullable: true, example: '203.0.113.7' })
   sourceIp: string | null;
 
+  // 근거: [외부 호출 인증 설정 「사용 내역」](CLE-TRIG-AUTHCFG#사용-내역)
   /**
-   * 응답 코드 (§A.3, WH-MG-05). webhook 은 실제 HTTP 코드('202'). 비-HTTP 트리거는
+   * 응답 코드. webhook 은 실제 HTTP 코드('202'). 비-HTTP 트리거는
    * 저장된 HTTP 코드가 없어 워크플로 status enum 으로 폴백 표시된다(예: 'completed').
    * 항상 non-null — HTTP 트리거는 실제 코드, 비-HTTP 트리거는 status enum 폴백.
    */
@@ -112,10 +115,10 @@ export class AuthConfigUsageDto {
   @ApiProperty({ type: AuthConfigUsagePeriodCountsDto })
   periodCounts: AuthConfigUsagePeriodCountsDto;
 
+  // 근거: [외부 호출 인증 설정 「사용 내역」](CLE-TRIG-AUTHCFG#사용-내역)
   @ApiProperty({
     type: [AuthConfigUsageCallDto],
-    description:
-      'Up to 20 most recent executions, ordered by startedAt DESC (§A.3).',
+    description: 'Up to 20 most recent executions, ordered by startedAt DESC.',
   })
   recentCalls: AuthConfigUsageCallDto[];
 }

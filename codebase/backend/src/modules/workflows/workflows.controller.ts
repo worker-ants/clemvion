@@ -123,10 +123,11 @@ export class WorkflowsController {
 
   @Get(':id/graph-warnings')
   @Roles('viewer')
+  // 근거: [그래프 경고 규칙](CLE-WF-WARN)
   @ApiOperation({
     summary: '워크플로우 graph-level warnings 평가',
     description:
-      'NodeComponentMetadata 의 graphWarningRules (cross-node) 를 워크플로우 nodes/edges 전체에 대해 평가해 위반 목록을 반환합니다. severity `error` 가 하나라도 있으면 frontend canvas 가 저장 버튼을 disable 하고, `warning` 은 노란 배지로 표시합니다. parallel-p2 결정 D + E + I (2026-05-30) — SoT: spec/conventions/cross-node-warning-rules.md.',
+      'NodeComponentMetadata 의 graphWarningRules (cross-node) 를 워크플로우 nodes/edges 전체에 대해 평가해 위반 목록을 반환합니다. severity `error` 가 하나라도 있으면 frontend canvas 가 저장 버튼을 disable 하고, `warning` 은 노란 배지로 표시합니다.',
   })
   @ApiParam({ name: 'id', description: '워크플로우 UUID', format: 'uuid' })
   @ApiResponse({
@@ -357,10 +358,11 @@ export class WorkflowsController {
   @Post(':id/nodes/:nodeId/execute')
   @HttpCode(HttpStatus.ACCEPTED)
   @Roles('editor')
+  // 근거: [에디터 실행과 디버깅 「단일 노드 실행」](CLE-EXEC-RUN#단일-노드-실행)
   @ApiOperation({
-    summary: '단일 노드 실행 (§1.3)',
+    summary: '단일 노드 실행',
     description:
-      '대상 노드 1개만 실행 큐에 등록한다(downstream 미진행 — §1.2 Run-from-Selected 와 구분). 입력은 previousExecutionId 의 상류 노드 출력을 자동 주입하며 미지정 시 body.input(수동 입력)으로 대체한다. 결과는 GET /api/executions/:id 로 조회한다.',
+      '대상 노드 1개만 실행 큐에 등록한다(downstream 미진행 — Run-from-Selected 와 구분). 입력은 previousExecutionId 의 상류 노드 출력을 자동 주입하며 미지정 시 body.input(수동 입력)으로 대체한다. 결과는 GET /api/executions/:id 로 조회한다.',
   })
   @ApiParam({ name: 'id', description: '워크플로우 UUID', format: 'uuid' })
   @ApiParam({ name: 'nodeId', description: '대상 노드 UUID', format: 'uuid' })

@@ -14,11 +14,13 @@ export class WorkflowVersionCreatorDto {
   email: string;
 }
 
+// 근거:
+//   - [버전 기록 「버전 목록」](CLE-WF-VERSION#버전-목록)
+//   - [버전 기록 「버전 상세」](CLE-WF-VERSION#버전-상세)
 /**
  * 목록(`GET /workflows/:wfId/versions`) 응답 항목 — 메타데이터 + 작성자만.
- * `snapshot` 은 의도적으로 제외 (목록 over-fetch 방지, m-3). 상세는
+ * `snapshot` 은 의도적으로 제외 (목록 over-fetch 방지). 상세는
  * {@link WorkflowVersionDto} 가 snapshot 을 포함한다.
- * spec/3-workflow-editor/5-version-history.md §7.1(목록) / §7.2(상세).
  */
 export class WorkflowVersionListItemDto {
   /** 버전 UUID */

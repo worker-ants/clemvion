@@ -65,8 +65,15 @@ describe("findBrokenLinksInFiles core (via public entry points)", () => {
     );
     fs.writeFileSync(path.join(root, "spec", "real.md"), "# Good Anchor\n");
 
+    // NERV 미러 — 키 링크(`CLE-…`)가 가리키는 자리. 영역 폴더 안에 둔다.
+    fs.mkdirSync(path.join(root, "spec", "CLE-OK"), { recursive: true });
+    fs.writeFileSync(
+      path.join(root, "spec", "CLE-OK", "CLE-OK-DOC.md"),
+      "# Good Anchor\n",
+    );
+
     // codebase source tree — scanned by findBrokenSpecLinksInSources
-    // (checkSelfAnchors: false + spec-md targetFilter).
+    // (checkSelfAnchors: false + spec-md targetFilter + key links).
     const srcDir = path.join(root, "codebase", "backend", "src");
     fs.mkdirSync(srcDir, { recursive: true });
     fs.writeFileSync(
@@ -74,9 +81,26 @@ describe("findBrokenLinksInFiles core (via public entry points)", () => {
       [
         "// " + mkLink("ignored self", "#anywhere"), // self-anchor → ignored (code has no headings)
         "// " + mkLink("ignored nonspec", "../helper.ts"), // non-spec target → ignored
-        "// " + mkLink("dead spec", "../../../spec/missing.md"), // DEAD
-        "// " + mkLink("bad anchor", "../../../spec/real.md#no-such"), // ANCHOR
-        "// " + mkLink("ok spec", "../../../spec/real.md#good-anchor"), // valid
+        // spec/**.md 경로 링크는 실재 여부와 무관하게 PATH 다 — 코드는 키 링크로 적는다.
+        "// " + mkLink("dead spec", "../../../spec/missing.md"),
+        "// " + mkLink("ok spec", "../../../spec/real.md#good-anchor"),
+        "// " + mkLink("ok key", "CLE-OK-DOC#good-anchor"), // valid
+        "// " + mkLink("ok key no anchor", "CLE-OK-DOC"), // valid
+        "// " + mkLink("missing key", "CLE-NO-SUCH"), // KEY
+        "// " + mkLink("bad key anchor", "CLE-OK-DOC#no-such"), // ANCHOR
+      ].join("\n"),
+    );
+
+    // 거버넌스 문서 — 경로 링크는 그대로 보고, 키 링크도 미러로 확인한다.
+    fs.writeFileSync(
+      path.join(root, "GOV.md"),
+      [
+        "# Gov",
+        "",
+        mkLink("ok rel", "./spec/real.md#good-anchor"), // valid path link
+        mkLink("ok key", "CLE-OK-DOC#good-anchor"), // valid
+        mkLink("missing key", "CLE-NO-SUCH#x"), // KEY
+        mkLink("bad key anchor", "CLE-OK-DOC#nope"), // ANCHOR
       ].join("\n"),
     );
   });
@@ -116,12 +140,22 @@ describe("findBrokenLinksInFiles core (via public entry points)", () => {
     expect(byTarget.get("./real.md#no-such-anchor")).toBe(7);
   });
 
-  it("findBrokenSpecLinksInSources reports DEAD + broken spec anchor only", () => {
-    // Same-file anchor and the non-spec ../helper.ts link are both ignored;
-    // the two spec-targeting breaks are caught.
+  it("findBrokenSpecLinksInSources: 경로 링크는 PATH, 키 링크는 미러로 확인한다", () => {
+    // Same-file anchor and the non-spec ../helper.ts link are both ignored.
+    // 경로 링크는 실재하든 아니든 PATH 다(살아 있는 경로라도 키로 바꿔야 한다).
+    // 키 링크는 키 실재(KEY)와 미러 문서의 제목(ANCHOR)을 본다.
     expect(fingerprint(findBrokenSpecLinksInSources(root))).toEqual([
-      "ANCHOR ../../../spec/real.md#no-such",
-      "DEAD ../../../spec/missing.md",
+      "ANCHOR CLE-OK-DOC#no-such",
+      "KEY CLE-NO-SUCH",
+      "PATH ../../../spec/missing.md",
+      "PATH ../../../spec/real.md#good-anchor",
+    ]);
+  });
+
+  it("findBrokenGovernanceLinks: 경로 링크와 함께 키 링크도 미러로 확인한다", () => {
+    expect(fingerprint(findBrokenGovernanceLinks(root))).toEqual([
+      "ANCHOR CLE-OK-DOC#nope",
+      "KEY CLE-NO-SUCH#x",
     ]);
   });
 

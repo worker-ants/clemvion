@@ -108,7 +108,7 @@ export type ChatChannelInput =
  * `chatChannel` 입력 검증이 **어느 진입점**에서 왔는가.
  *
  * 두 경로의 요구가 정반대라 하나의 검증 함수로 묶을 수 없다
- * ([R-CC-21 「구현 시」](../../../../../spec/5-system/15-chat-channel.md)):
+ * ([채팅 채널 「R-CC-21」](CLE-CHAT-CORE#r-cc-21-patch-는-비밀을-쓰지-않는다)):
  *   - `create` — slack/discord 는 `inboundSigningPlaintext` 가 **필수**
  *   - `update` — 그 필드도 `botToken` 도 **금지**
  *
