@@ -1,12 +1,13 @@
 // 유저 가이드가 이름으로 적은 **식별자가 실재하는가** 를 판정하는 순수 스캐너.
 // 테스트는 `guide-identifier-existence.test.ts`.
 //
-// SoT: spec/conventions/error-codes.md (코드 명명·안정성·은퇴 이력) ·
-//      spec/5-system/3-error-handling.md §1 (카탈로그)
-// 가드 «가족» 규약은 spec/conventions/user-guide-evidence.md 인데 **이 가드는 아직 그
-// 문서 §2 표에 없다**(실측: `grep -c guide-identifier` → 0). `#1330` 이 가족을 만든
-// 시점부터 그랬고 등재는 planner 몫으로 트래커에 있다 — 그래서 «SoT» 로 단정하지 않고
-// 여기 적는다 (`--impl-done` `review/consistency/2026/09/13/21_41_25`
+// SoT: NERV `CLE-API-ERRCODES` (코드 명명·안정성·은퇴 이력 ·
+//      「6. 카탈로그」. 가드는 미러 spec/CLE-API/CLE-API-ERRCODES.md 를 읽는다)
+// 가드 «가족» 규약은 NERV `CLE-ENG-GUIDEEVIDENCE` 인데 **이 가드는 아직 그 문서의
+// 「빌드 가드」 표에 없다**(「빌드 가드 (3건)」 절의 표 아래 문단과 「미결 사항」 에만 나온다). `#1330` 이
+// 가족을 만든 시점부터 그랬고 소유 문서는 아직 미정이다(GUIDEEVIDENCE · ERRCODES 「미결 사항」,
+// NERV Task `CLE-T-R2Q21Q` 항목 19) — 그래서 «SoT» 로
+// 단정하지 않고 여기 적는다 (`--impl-done` `review/consistency/2026/09/13/21_41_25`
 // convention_compliance WARNING#3: 인용이 착지하지 않는다).
 //
 // > **라운드 7 의 그 교체가 두 가지를 한꺼번에 틀렸다 (라운드 8 정정).** 옛 표기는 두
@@ -88,7 +89,7 @@
 // > **그 예고를 닫은 것이 이 배치인데, 문장은 여덟 라운드 동안 한 글자도 안 바뀌었다**
 // > (`/ai-review` `review/code/2026/09/13/22_06_10` documentation CRITICAL).
 // > 닫은 방식은 **AST 가 아니다.** 술어 *"방출 위치를 AST 로 특정"* 은 실측이 **두 번**
-// > 반증했다 — `3-error-handling.md §1.4` 가 *"나머지는 앵커 없는 맨 문자열"* 이라
+// > 반증했다 — `CLE-API-ERRCODES` 「6.5」 가 *"나머지 7종은 앵커 없는 맨 문자열"* 이라
 // > 적고 있어 AST 로 특정할 앵커 자체가 없고, 분류기 목록이 같은 이름을 인용해
 // > `MAX_ITERATIONS_EXCEEDED` 류가 통과한다(트래커
 // > `spec-draft-nullable-notation-followups.md` 의
@@ -372,7 +373,7 @@ export const GUIDE_NON_EMITTED_VOCABULARY: readonly {
   {
     token: "CONTAINER_MISSING_EMIT",
     where: "execution-engine.service.ts:7121·7125 — 템플릿 리터럴 메시지 접두",
-    why: "구조화된 `error.code` 로 나가지 않는다. 가이드가 '…로 실행 실패해요' 라고 적어 코드처럼 읽혔고 이 배치에서 '메시지 앞에 붙어요' 로 정정했다. 전용 코드 발행은 동작 변경이라 별 배치(트래커 등재분).",
+    why: "구조화된 `error.code` 로 나가지 않는다. 가이드가 '…로 실행 실패해요' 라고 적어 코드처럼 읽혔고 이 배치에서 '메시지 앞에 붙어요' 로 정정했다. 전용 코드 발행은 동작 변경이라 별 배치(옛 트래커 항목. 카탈로그 등재와 함께 NERV Task `CLE-T-DM3AXQ` 항목 5 에서 정한다).",
   },
   {
     token: "CONTAINER_MULTIPLE_EMIT",
@@ -387,8 +388,8 @@ export const GUIDE_NON_EMITTED_VOCABULARY: readonly {
  * `'X'` · `"X"` · `` `X` `` 세 형태를 받는다. 메시지 접두(`'X: …'`)는 따옴표 안에 토큰
  * 외의 글자가 있으므로 **여기 안 걸린다** — 그 갈림이 이 함수의 존재 이유다.
  *
- * **이 집합을 «발행» 의 증거로 쓰지 않는다.** `3-error-handling.md §1.4` 가 명시하듯
- * *"`execution-failure-classifier.ts` 의 목록에 같은 이름이 나오지만 그것은 소비자·분류기
+ * **이 집합을 «발행» 의 증거로 쓰지 않는다.** `CLE-API-ERRCODES` 「6.5」 가 명시하듯
+ * *"… `execution-failure-classifier.ts` 의 목록)에도 같은 이름이 나오지만 그것은 소비자·분류기
  * 쪽 어휘이지 엔진 발행 경로의 앵커가 아니다"* — 실제로 `MAX_ITERATIONS_EXCEEDED` 는
  * 메시지 접두로만 발행되는데 그 분류기가 인용해서 여기 들어온다.
  *
@@ -416,10 +417,16 @@ export function collectMessagePrefixes(
 /**
  * spec 에러 코드 **카탈로그**가 백틱으로 등재한 코드 전수.
  *
- * **카탈로그는 «요구 조건» 이 아니라 «탈출구» 다.** 요구 조건으로 쓰면 오늘 거짓 RED 가
- * 25건 난다 — 인용된 에러 코드 78종 중 28종이 미등재이고 그중 25종이 **진짜 발행되는**
- * 통합 코드다(`CAFE24_*`·`MAKESHOP_*`·`INTEGRATION_*`). 그 미등재는 planner 트래커에
- * 등재된 별건이고, 가드가 **남의 미완결을 신고하게** 두지 않는다.
+ * 호출부는 NERV `CLE-API-ERRCODES` 미러의 「6. 카탈로그」 절만 넘긴다. 미러 전체를 넘기면
+ * 은퇴 코드 · 규칙 예시도 탈출구가 된다(2026-10-03 실측: 전체 189종, 절 170종). 절 안 산문이
+ * 은퇴 코드를 백틱으로 가리키면 그 토큰은 여전히 걸린다(현재 `INVALID_PASSWORD` 1종. 감사
+ * 사유값으로 소스에 실재해 접두 전용 술어에 걸리지 않으므로 판정은 같다).
+ *
+ * **카탈로그는 «요구 조건» 이 아니라 «탈출구» 다.** 요구 조건으로 쓰면 거짓 RED 가
+ * 25건 났다(2026-09-13 실측, 옛 트리 카탈로그 기준) — 인용된 에러 코드 78종 중 28종이
+ * 미등재이고 그중 25종이 **진짜 발행되는** 통합 코드다(`CAFE24_*`·`MAKESHOP_*`·
+ * `INTEGRATION_*`). 그 미등재는 별건이고(NERV Task `CLE-T-DM3AXQ` 항목 4), 가드가
+ * **남의 미완결을 신고하게** 두지 않는다.
  *
  * 탈출구로 쓰면 그 25종은 애초에 접두 전용이 아니라 술어에 안 걸리므로 무해하다.
  *
@@ -440,12 +447,12 @@ export function collectMessagePrefixes(
  * 전수로도 셌다 — 인용된 «접두 전용» 3종 중 카탈로그 등재 **0종**, 인용과 무관하게
  * 소스 전체의 접두 전용 11종 중에도 **0종**. **탈출구 교집합은 공집합이다.**
  *
- * ## 그래도 남기는 이유 — 트래커 항목이 이것을 발화시킨다
+ * ## 그래도 남기는 이유 — 열린 Task 가 이것을 발화시킨다
  *
- * `spec-draft-nullable-notation-followups.md` 의 planner 항목이 *"`CONTAINER_*` 를
- * §1.4 에 backfill"* 을 처분안으로 담고 있고, **그 처분이 집행되는 순간 이 탈출구가
- * 발화해 아래 등록 2종이 자동으로 불필요해진다.** 지금 지우면 그 처분안의 서술이
- * 거짓이 된다.
+ * NERV Task `CLE-T-DM3AXQ` 항목 5 가 *"`CONTAINER_*` 를 `CLE-API-ERRCODES` 「6.5」 에
+ * 등재"* 할지 정한다(옛 planner 트래커의 처분안을 옮겼다). **등재되는 순간 이 탈출구가
+ * 발화해 아래 등록 2종이 자동으로 불필요해진다.** 지금 지우면 그 항목의 서술이 거짓이
+ * 된다.
  *
  * 같은 형태의 선례가 이 파일에 이미 있다 — `collectEnvDeclarations` 도 *"오늘 판정을
  * 지탱하지 않지만 내일의 오탐을 막는다"* 로 남아 있다. **차이는 그 사실을 적었느냐다.**
@@ -551,7 +558,7 @@ export function scanIdentifierCitations(mdx: string): IdentifierCitation[] {
 /**
  * 소스에 등장하는 UPPER_SNAKE 토큰 전수 — 실재 판정의 기준집합 절반.
  *
- * **`ErrorCode` enum 만 읽지 않는다.** `3-error-handling.md §1.4` 가 명시하듯 이 저장소의
+ * **`ErrorCode` enum 만 읽지 않는다.** `CLE-API-ERRCODES` 「6.5」 가 명시하듯 이 저장소의
  * 코드 앵커는 셋으로 갈리고(`ErrorCode` const · `EngineErrorCode` const · 에러 클래스의
  * `readonly code`) **상당수는 앵커 없는 맨 문자열**이다. enum 만 기준으로 삼으면 실재하는
  * 코드를 가이드가 적었는데 RED 가 뜬다 — 가드가 자기 사각지대를 결함으로 신고하는 형태다.

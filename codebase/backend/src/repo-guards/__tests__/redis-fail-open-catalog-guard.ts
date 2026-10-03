@@ -1,4 +1,4 @@
-// `clemvion.redis.fail_open` 의 `component` 라벨 — 코드·spec·실배선 3자 정합 가드의 순수 로직.
+// `clemvion.redis.fail_open` 의 `component` 라벨 — 코드 유니온·실배선 정합 가드의 순수 로직.
 //
 // 소비처는 형제 파일 `redis-fail-open-catalog.spec.ts`. 배경·근거는 그 파일 헤더에 있다.
 // 파서 순수 로직과 소비 spec 을 분리하는 규약은 형제 가드 `masked-reject-callers-guard.ts` 와
@@ -12,9 +12,6 @@ import { collectTsFiles } from '../../common/__test-utils__/source-scan';
 /** 유니온 타입이 선언된 파일 (저장소 루트 기준). */
 export const UNION_SOURCE =
   'codebase/backend/src/modules/metrics/business-metrics.service.ts';
-
-/** `component` 라벨 카탈로그가 적힌 spec (저장소 루트 기준). */
-export const CATALOG_SPEC = 'spec/5-system/_product-overview.md';
 
 /** 유니온 타입 이름. 오탈자가 조용히 "0건" 을 만들지 않도록 상수로 둔다. */
 export const UNION_TYPE_NAME = 'RedisFailOpenComponent';
@@ -58,35 +55,43 @@ export function readUnionMembers(repoRoot: string): string[] {
 }
 
 /**
- * spec 카탈로그 행의 `component` 괄호 목록을 읽는다.
+ * 유니온 값 중 프로덕션 호출부가 없는 것을 낸다. 해석하지 못한 호출부(`component: null`)는
+ * 어떤 값도 배선한 것으로 치지 않는다.
  *
- * 대상 행은 `| \`clemvion.redis.fail_open\` | Counter | \`component\` (a/b), ... |` 형태이고,
- * 여기서 `(a/b)` 를 뽑는다. 행을 못 찾으면 **빈 배열이 아니라 throw** 한다 — 못 찾은 것과
- * "비어 있다" 를 같은 값으로 돌려주면 spec 이 통째로 사라져도 가드가 조용히 통과한다.
+ * 판정을 순수 함수로 둔 것은 합성 입력 대조군으로 고정하기 위해서다. 실제 코퍼스에는
+ * 미배선 값이 없어서 그 분기가 관측되지 않는다.
  */
-export function readCatalogComponents(repoRoot: string): string[] {
-  const abs = path.join(repoRoot, CATALOG_SPEC);
-  const text = fs.readFileSync(abs, 'utf8');
-  const row = text
-    .split('\n')
-    .find((l) => l.includes('`clemvion.redis.fail_open`') && l.includes('|'));
-  if (!row) {
-    throw new Error(
-      `${CATALOG_SPEC} 에서 \`clemvion.redis.fail_open\` 카탈로그 행을 찾지 못했다 — ` +
-        '행이 사라졌거나 표기가 바뀌었다. 가드를 먼저 고쳐라.',
-    );
-  }
-  const m = /`component`\s*\(([^)]*)\)/.exec(row);
-  if (!m) {
-    throw new Error(
-      `카탈로그 행에서 \`component\` (…) 목록을 파싱하지 못했다: ${row.trim()}`,
-    );
-  }
-  return m[1]
-    .split('/')
-    .map((s) => s.trim())
-    .filter(Boolean)
-    .sort();
+export function findUnwiredMembers(
+  unionMembers: readonly string[],
+  wired: readonly { component: string | null }[],
+): string[] {
+  const wiredSet = new Set(wired.map((w) => w.component));
+  return unionMembers.filter((m) => !wiredSet.has(m));
+}
+
+/**
+ * 파일 하나의 문자열 리터럴 전수 — 따옴표 문자열과 템플릿의 고정 조각.
+ *
+ * 가드가 어떤 경로도 읽지 않는다는 주장을 정적으로 확인할 때 쓴다. 경로는 문자열로만
+ * 만들 수 있고 주석은 리터럴이 아니므로, 이력으로 적은 옛 경로는 걸리지 않는다.
+ */
+export function stringLiteralsOf(fileName: string, text: string): string[] {
+  const sf = ts.createSourceFile(fileName, text, ts.ScriptTarget.Latest, true);
+  const out: string[] = [];
+  const visit = (node: ts.Node): void => {
+    if (
+      ts.isStringLiteral(node) ||
+      ts.isNoSubstitutionTemplateLiteral(node) ||
+      ts.isTemplateHead(node) ||
+      ts.isTemplateMiddle(node) ||
+      ts.isTemplateTail(node)
+    ) {
+      out.push(node.text);
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(sf);
+  return out;
 }
 
 /** `src/` 하위 `.ts` 전수 (spec·dist 제외). */
