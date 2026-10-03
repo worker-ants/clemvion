@@ -36,7 +36,7 @@ NERV 정본 전환 단계 4e(Task `CLE-T-VP5KDJ`). consistency 오케스트레�
   부르는 키 → 나머지. 옛 plan 이름 신호와 `--plan` 모드, plan 묶음은 걷었다.
 - `--impl-done` 은 미러 문서의 `## 구현 위치` 가 브랜치가 바꾼 파일을 덮으면 그 문서를 대상에 더하고 census 에
   이유를 적는다. 항목의 `{a,b}` 는 갈래마다, `/**/` 는 폴더 0개도 보고, 대괄호는 글자 그대로 읽는다(Next.js
-  `[slug]` 폴더). 전환 단계 2 에서 옛 push 게이트의 spec-linked 검사(`code:` 에 걸린 파일을 고치면 구현 완료 검토)가
+  `[slug]` 폴더). 같은 줄에서 앞 경로에 이어 적은 파일 이름(`` `a/b/s.ts`, `c.ts` ``)은 그 경로의 폴더 기준으로 읽는다. 전환 단계 2 에서 옛 push 게이트의 spec-linked 검사(`code:` 에 걸린 파일을 고치면 구현 완료 검토)가
   없어졌다. 이제 `--impl-done` 을 돌리면 그 대조가 다시 일어난다. 강제는 아니다. NERV done 게이트는 consistency
   라운드가 있고 통과했는지만 본다. `--diff-path` 로 구현 diff 경로를 바꿀 수 있고(하네스 작업은 `.claude`), API
   카탈로그 필드 문서(`codebase/api-catalogs/*/*/**/*.md`)는 diff 에서 빼고 실제로 뺀 수만 적는다. 생성기 입력

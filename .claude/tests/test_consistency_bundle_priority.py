@@ -202,7 +202,28 @@ class ImplLocationTest(unittest.TestCase):
                 emit(orch.impl_location_patterns(text, d))
             """
         )
-        self.assertEqual(got, ["codebase/a/**", "scripts/check.py", ".github/workflows/w.yml"])
+        # `x.ts` 는 같은 줄 앞 경로의 폴더 기준으로 읽힌다(이어 적은 이름). `recoverStuck` 은 점이 없어 빠진다.
+        self.assertEqual(got, ["codebase/a/**", "codebase/a/x.ts", "scripts/check.py", ".github/workflows/w.yml"])
+
+    def test_a_file_name_continuing_a_path_on_the_same_line_is_read_in_its_folder(self):
+        """미러는 `` `a/b/s.ts`(…), `c.ts`, `dto/d.ts` `` 처럼 앞 경로에 이어 파일 이름만 적는다.
+
+        이어 적은 이름은 같은 줄의 마지막 전체 경로가 든 폴더 기준으로 읽는다(이름끼리는 잇지 않는다). 점이 없는 식별자는 경로가 아니고,
+        이어 읽기는 줄을 넘지 않는다(CLE-CHAT-CORE 의 `triggers.controller.ts` · `hooks.controller.ts`)."""
+        got = run_in_orchestrator(
+            """
+            import tempfile
+            with tempfile.TemporaryDirectory() as d:
+                os.makedirs(os.path.join(d, "codebase"))
+                text = ("## 구현 위치\\n\\n"
+                        "- `codebase/m/t/s.ts`(조율), `t.controller.ts`(`rotate`), `dto/c.dto.ts`, `u.ts`\\n"
+                        "- `codebase/m/h/**`: 모듈(`h.registry.ts`), `rotateBotToken`\\n"
+                        "- `orphan.ts` 는 앞 경로가 없다\\n")
+                emit(orch.impl_location_patterns(text, d))
+            """
+        )
+        self.assertEqual(got, ["codebase/m/t/s.ts", "codebase/m/t/t.controller.ts", "codebase/m/t/dto/c.dto.ts",
+                               "codebase/m/t/u.ts", "codebase/m/h/**", "codebase/m/h/h.registry.ts"])
 
     def test_a_document_without_the_section_has_no_patterns(self):
         self.assertEqual(run_in_orchestrator(

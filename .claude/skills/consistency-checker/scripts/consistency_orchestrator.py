@@ -34,6 +34,7 @@ import argparse
 import fnmatch
 import json
 import os
+import posixpath
 import re
 import subprocess
 import sys
@@ -337,12 +338,26 @@ _LINE_SUFFIX_RE = re.compile(r":\d+(?:[-~]\d+)?$")
 _GLOB_CHARS = frozenset("*?")  # 대괄호는 글자 그대로다(`_glob_matches`)
 
 
+def _base_dir(path_token):
+    """이어 적은 파일 이름을 읽을 폴더. `a/b/**` · `a/b/` 는 `a/b`, `a/b/c.ts` · `a/b/*.ts` 는 `a/b`."""
+    if path_token.endswith("/**"):
+        return path_token[:-3]
+    if path_token.endswith("/"):
+        return path_token[:-1]
+    return posixpath.dirname(path_token)
+
+
 def impl_location_patterns(text, root, spec_rel="spec"):
     """`## 구현 위치` 절이 백틱으로 적은 저장소 경로 · glob.
 
-    첫 경로 조각이 저장소 최상위 폴더(`codebase` · `scripts` · `.github` · `.claude` …)인 것만 센다.
+    첫 경로 조각이 저장소 최상위 폴더(`codebase` · `scripts` · `.github` · `.claude` …)인 것을 센다.
     함수 이름 · 식별자(`recoverStuckExecutions`)와 스펙 미러 자신은 경로가 아니다. 줄 번호 접미
     (`a.ts:12`)는 걷는다.
+
+    미러는 같은 줄에서 앞 경로에 이어 파일 이름만 적곤 한다(`` `a/b/s.ts`, `c.ts`, `dto/d.ts` ``). 마지막
+    조각에 점이 있는 이름은 같은 줄의 마지막 전체 경로가 든 폴더 기준으로 읽는다. 이어 읽기는 줄을 넘지 않는다.
+    설명 속 식별자(`config.chatChannel`)도 경로로 읽힐 수 있는데, 넓은 쪽 오류는 맞는 파일이 없거나
+    문서를 하나 더 싣는 비용이라 받아들인다.
     """
     m = _IMPL_HEADING_RE.search(text or "")
     if not m:
@@ -351,15 +366,21 @@ def impl_location_patterns(text, root, spec_rel="spec"):
     end = _SECTION_END_RE.search(rest)
     section = rest[: end.start()] if end else rest
     out = []
-    for token in _BACKTICK_RE.findall(section):
-        token = _LINE_SUFFIX_RE.sub("", token.strip())
-        token = token[2:] if token.startswith("./") else token
-        if not token or " " in token or "/" not in token:
-            continue
-        first = token.split("/", 1)[0]
-        if not first or first == spec_rel or not os.path.isdir(os.path.join(root, first)):
-            continue
-        out.append(token)
+    for line in section.splitlines():
+        previous = None
+        for token in _BACKTICK_RE.findall(line):
+            token = _LINE_SUFFIX_RE.sub("", token.strip())
+            token = token[2:] if token.startswith("./") else token
+            if not token or " " in token:
+                continue
+            first = token.split("/", 1)[0]
+            if "/" in token and first and first != spec_rel and os.path.isdir(os.path.join(root, first)):
+                out.append(token)
+                previous = token
+            elif previous is not None and "." in token.rsplit("/", 1)[-1] and not token.startswith(("/", "../")):
+                # 기준은 줄의 마지막 전체 경로다. 이어 적은 이름끼리는 잇지 않는다
+                # (`a/s.ts`, `dto/c.ts`, `u.ts` 의 `u.ts` 는 `a/u.ts`).
+                out.append(posixpath.join(_base_dir(previous), token))
     return out
 
 
