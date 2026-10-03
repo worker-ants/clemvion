@@ -35,7 +35,8 @@ import {
  * ## 무엇을 세는가
  *
  * `dto/responses/**` 파일의 **클래스·프로퍼티 JSDoc** 안에 있는 리뷰 인용
- * (`review-citations.md §2` 의 세 형태 — 전체 경로 · 날짜+시각 · bare 시각).
+ * (NERV `CLE-ENG-REVIEWCITE` 「인용 형식」 의 옛 산출물 세 형태 — 전체 경로 · 날짜+시각 ·
+ * bare 시각 — 와 NERV 발견 인용 `finding <ID>`. 발견 인용은 전환 단계 4g 에서 더했다).
  * `//` 주석은 **보지 않는다** — 그것이 규약이 처방하는 회피처다.
  *
  * ## 베이스라인은 0 이다 (2026-09-27)
@@ -71,13 +72,14 @@ describe('응답 DTO JSDoc 리뷰 인용 래칫', () => {
     const hits = findDtoJsDocCitations([CITATION_FIXTURE], SRC_ROOT);
     const owners = hits.map((h) => h.owner).sort();
 
-    // 양성 — 클래스 JSDoc · 필드 JSDoc · bare 시각 · 날짜+시각.
+    // 양성 — 클래스 JSDoc · 필드 JSDoc · bare 시각 · 날짜+시각 · NERV 발견 인용.
     expect(owners).toEqual([
       'ViolationBareTimeNoBacktickDto.id',
       'ViolationClassCitationDto',
       'ViolationFieldCitationDto.avatarUrl',
       'ViolationFieldCitationDto.email',
       'ViolationFieldCitationDto.name',
+      'ViolationNervFindingDto.id',
     ]);
 
     // 음성 — 인용 없음 · `//` 주석(클래스/필드 양쪽).
@@ -95,16 +97,18 @@ describe('응답 DTO JSDoc 리뷰 인용 래칫', () => {
    *
    * 그래서 목록 비교로 끝내지 않고, **어떤 텍스트가 매치됐는지**를 형태별로 문다.
    */
-  it('세 인용 형태가 각각 최소 한 번씩 관측된다', () => {
+  it('네 인용 형태가 각각 최소 한 번씩 관측된다', () => {
     const cited = findDtoJsDocCitations([CITATION_FIXTURE], SRC_ROOT).flatMap(
       (h) => h.citations,
     );
 
-    // 전체 경로 · bare 시각 · 날짜+시각.
+    // 전체 경로 · bare 시각 · 날짜+시각 · NERV 발견 인용.
     expect(cited.some((c) => c.startsWith('review/'))).toBe(true);
     // bare 축은 백틱을 요구하지 않으므로 매치 텍스트에도 백틱이 없다.
     expect(cited.some((c) => /^\d{2}_\d{2}_\d{2}$/.test(c))).toBe(true);
     expect(cited.some((c) => /^\d{4}-\d{2}-\d{2}\s/.test(c))).toBe(true);
+    // 전체 ID 를 통째로 잡아 실패 메시지가 지울 대상을 그대로 보여 준다.
+    expect(cited).toContain('finding 00000000-0000-7000-8000-000000000000');
   });
 
   it('[전제] fixture 스캔이 비어 있지 않다 — 0건이면 위 단언이 조용히 통과한다', () => {

@@ -32,7 +32,8 @@ COPY codebase/backend/migrations/V*.conf /flyway/sql/
 # 있어, 이미지 빌드 자체를 실패시켜 운영 도달을 막는다. 동일 검사가
 # codebase/backend/src/migrations.spec.ts 와 scripts/check-migration-versions.py 에도
 # 있으나, 그 두 단계가 우회된 빌드 (긴급 hotfix·로컬 직접 빌드 등) 에 대한
-# 최후 방어선. 정책 본문: spec/conventions/migrations.md §6
+# 최후 방어선. 정책 본문: NERV CLE-ENG-MIGRATION 「빌드 시점 가드」
+# (미러 spec/CLE-ENG/CLE-ENG-MIGRATION.md)
 COPY codebase/backend/migrations/check-duplicate-versions.sh /usr/local/bin/check-duplicate-versions.sh
 RUN chmod +x /usr/local/bin/check-duplicate-versions.sh \
  && /usr/local/bin/check-duplicate-versions.sh /flyway/sql

@@ -57,6 +57,14 @@ export class ViolationBareTimeNoBacktickDto {
   id: string;
 }
 
+// 위반 6 — **NERV 발견 인용**(`CLE-ENG-REVIEWCITE` 규칙 9 형식). 형식이 맞아도 응답 DTO 의
+// `/** */` 에는 쓰지 않는다(규칙 6). 전환 단계 2 뒤의 리뷰는 이 형식만 남기므로 옛 경로 세
+// 형태만 세면 새 인용이 통째로 빠진다(NERV Task `CLE-T-M7K35H` 에서 더했다).
+export class ViolationNervFindingDto {
+  /** 근거: finding 00000000-0000-7000-8000-000000000000 */
+  id: string;
+}
+
 /** 정상 — 인용이 아예 없다. */
 export class CompliantPlainDto {
   /** 워크플로우 이름. */

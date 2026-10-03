@@ -9,7 +9,8 @@
 #   - codebase/backend/src/migrations.spec.ts (유닛테스트, 매 빌드/CI)
 #   - scripts/check-migration-versions.py (PR CI 가드)
 #
-# 정책: spec/conventions/migrations.md §6
+# 정책: NERV CLE-ENG-MIGRATION 「충돌 검출과 머지 race 안전망」 · 「빌드 시점 가드」
+#       (미러 spec/CLE-ENG/CLE-ENG-MIGRATION.md)
 #
 # 사용:
 #   check-duplicate-versions.sh [<SQL_DIR>]
@@ -46,6 +47,6 @@ for v in $dup; do
   done
 done
 echo "" >&2
-echo "Policy: spec/conventions/migrations.md §6 (V번호 단조성·중복 방지)." >&2
+echo "Policy: CLE-ENG-MIGRATION (spec/CLE-ENG/CLE-ENG-MIGRATION.md), V번호 단조성·중복 방지." >&2
 echo "Add a new migration with a unique V<N+1> prefix instead." >&2
 exit 1
