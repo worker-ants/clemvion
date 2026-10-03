@@ -1069,6 +1069,61 @@ class MirrorPredicateParityTest(unittest.TestCase):
                                 f"{rel} 는 옛 트리 검사에서 빠지는데 --check 도 보지 않는다")
         self.assertEqual(by_orch & set(old_tree), set())
 
+    def test_the_orchestrator_key_grammar_is_the_tool_grammar(self):
+        """오케스트레이터는 미러 파일 이름과 본문 언급을 키 문법으로 가린다. 문법이 이 도구와 같아야 한다."""
+        got = _harness.run_in_orchestrator(
+            _harness.orchestrator_preamble(self.ORCH),
+            "emit([orch._MIRROR_KEY_RE.pattern, orch._KEY_MENTION_RE.pattern])",
+        )
+        self.assertEqual(got[0], pull.KEY_RE.pattern)
+        self.assertIn(pull.KEY_RE.pattern, got[1])
+
+    def test_the_orchestrator_collects_the_tool_mirror_files(self):
+        """대상 · 코퍼스로 읽는 미러 문서가 이 도구의 미러 파일과 같다(하위 폴더 · 경계 이름 포함)."""
+        names = ["spec/CLE-A.md", "spec/CLE-A/CLE-A.md", "spec/CLE-A/CLE-A-B.md", "spec/CLE-A/CLE-A--C.md",
+                 "spec/CLE-A/notes.md", "spec/CLE-A/.hidden.md", "spec/CLE-A/sub/CLE-Z.md",
+                 "spec/CLE-A/cle-x.md", "spec/CLE-A-.md", "spec/CLE--A.md", "spec/CLE-B-/x.md",
+                 "spec/README.md", "spec/0-overview.md", "spec/conventions/CLE-X.md"]
+        tmp = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, tmp, ignore_errors=True)
+        for rel in names:
+            (tmp / rel).parent.mkdir(parents=True, exist_ok=True)
+            (tmp / rel).write_text("x\n", encoding="utf-8")
+        # 미러 이름의 심볼릭 링크는 도구가 쓰지 않는다(`--check` 가 알린다). 읽지도 않는다.
+        (tmp / "outside.md").write_text("x\n", encoding="utf-8")
+        (tmp / "spec" / "CLE-L.md").symlink_to(tmp / "outside.md")
+        for root in (tmp, self.ROOT):
+            with self.subTest(root=str(root)):
+                tool = {p.relative_to(root).as_posix() for p in pull.mirror_files(root / "spec")}
+                self.assertTrue(tool, "미러 파일이 없다 — 이 대조는 공허하다")
+                got = _harness.run_in_orchestrator(
+                    _harness.orchestrator_preamble(self.ORCH, imports="os"),
+                    """
+                    spec = os.path.join(ARG, "spec")
+                    emit([os.path.relpath(p, ARG) for p in orch.collect_mirror_files(spec)])
+                    """,
+                    str(root),
+                )
+                self.assertEqual(set(got), tool)
+
+    def test_the_orchestrator_reads_the_type_the_tool_wrote(self):
+        """정식 규약 코퍼스는 frontmatter `type` 으로 가른다. 실제 미러에서 도구의 파서와 같은 값을 읽는다.
+
+        fixture 작성기는 오케스트레이터 정규식이 읽는 모양으로 쓰므로 그 테스트만으로는 순환 검증이다."""
+        spec = self.ROOT / "spec"
+        files = pull.mirror_files(spec)
+        expected = {}
+        for p in files:
+            lines, _ = pull.split_frontmatter(p.read_text(encoding="utf-8"))
+            expected[p.relative_to(self.ROOT).as_posix()] = pull.fm_value(lines, "type") or ""
+        self.assertIn("convention", expected.values(), "convention 문서가 없다 — 이 대조는 공허하다")
+        got = _harness.run_in_orchestrator(
+            _harness.orchestrator_preamble(self.ORCH, imports="os"),
+            "emit({os.path.relpath(p, ARG['root']): orch.mirror_doc_type(p) for p in ARG['paths']})",
+            {"root": str(self.ROOT), "paths": [str(p) for p in files]},
+        )
+        self.assertEqual(got, expected)
+
     def test_the_three_files_trigger_the_harness_workflow(self):
         # 경로 목록을 런타임과 같은 규칙으로 읽고(주석 줄 제외) 파일마다 걸리는 항목이 있는지 본다.
         # 단어로 쪼개 찾으면 주석에 적힌 경로도 통과한다.

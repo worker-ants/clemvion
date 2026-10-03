@@ -242,13 +242,13 @@ def collect_markdown_files(root_dir, exclude_paths=None):
     return files
 
 
-# NERV 키. `pull.py` 의 `KEY_RE` 와 같은 문법이다(`fullmatch` 로만 쓴다). 미러 파일 이름이 곧 키다.
-_MIRROR_KEY_RE = re.compile(r"CLE-[A-Z0-9]+(?:-[A-Z0-9]+)*(?:--[A-Z0-9]+(?:-[A-Z0-9]+)*)*")
+# NERV 키 문법. `pull.py` 의 `KEY_RE` 와 같다. 두 정규식을 이 한 문자열에서 만들고, 문법이 도구와 같은지는
+# `test_nerv_mirror_pull.py` 의 `MirrorPredicateParityTest` 가 본다. 미러 파일 이름이 곧 키다.
+_KEY_BODY = r"CLE-[A-Z0-9]+(?:-[A-Z0-9]+)*(?:--[A-Z0-9]+(?:-[A-Z0-9]+)*)*"
+_MIRROR_KEY_RE = re.compile(_KEY_BODY)  # `fullmatch` 로만 쓴다
 # 본문이 키를 부르는 자리. 더 긴 키의 앞부분(`CLE-ENG` ⊂ `CLE-ENG-MIGRATION`)과 미러 폴더 이름
 # (`../CLE-ENG/…` 의 `CLE-ENG`)은 그 키의 언급이 아니다.
-_KEY_MENTION_RE = re.compile(
-    r"(?<![A-Za-z0-9-])(CLE-[A-Z0-9]+(?:-[A-Z0-9]+)*(?:--[A-Z0-9]+(?:-[A-Z0-9]+)*)*)(?![A-Za-z0-9/-])"
-)
+_KEY_MENTION_RE = re.compile(rf"(?<![A-Za-z0-9-])({_KEY_BODY})(?![A-Za-z0-9/-])")
 
 # 대조 코퍼스에서 빼는 미러 영역. 리서치 문서는 요구사항을 정하지 않는다(`CLAUDE.md` 「정보 저장 위치」).
 _NON_SPEC_AREAS = ("CLE-RESEARCH",)
@@ -262,21 +262,40 @@ def mirror_key(path):
     return os.path.splitext(os.path.basename(path))[0]
 
 
+def _is_mirror_document(path, spec_dir):
+    """`spec/<키>.md` 이거나 `spec/<키 폴더>/<키>.md` 인 파일. `pull.mirror_files` 와 같은 판정이다.
+
+    `is_nerv_mirror` 는 미러 폴더 아래 전부를 미러 자리로 보는 느슨한 판정이라(옛 트리 검사에서 빼는
+    용도) 하위 폴더 · 키가 아닌 이름까지 고른다. 대상 · 코퍼스는 도구가 쓴 파일만 읽는다."""
+    if os.path.islink(path):
+        return False
+    parts = os.path.relpath(path, spec_dir).replace(os.sep, "/").split("/")
+    if not _MIRROR_KEY_RE.fullmatch(mirror_key(path)):
+        return False
+    return len(parts) == 1 or (len(parts) == 2 and bool(_MIRROR_KEY_RE.fullmatch(parts[0])))
+
+
 def collect_mirror_files(spec_dir):
     """미러 문서를 자연 순서로. 미러 안내 `README.md` 는 문서가 아니라서 뺀다."""
-    return [
-        p for p in collect_markdown_files(spec_dir)
-        if is_nerv_mirror(p, spec_dir) and _MIRROR_KEY_RE.fullmatch(mirror_key(p))
-    ]
+    return [p for p in collect_markdown_files(spec_dir) if _is_mirror_document(p, spec_dir)]
+
+
+_FM_OPEN = "---\n"
+_FM_CLOSE = "\n---\n"
+
+
+def _split_frontmatter(text):
+    """(frontmatter, 본문). 여는 줄이나 닫는 줄이 없으면 frontmatter 는 "" 이고 본문은 전체다."""
+    if text.startswith(_FM_OPEN):
+        end = text.find(_FM_CLOSE, len(_FM_OPEN))
+        if end >= 0:
+            return text[len(_FM_OPEN):end], text[end + len(_FM_CLOSE):]
+    return "", text
 
 
 def mirror_doc_type(path):
     """미러 frontmatter 의 `type`(vision · area · feature · design · convention …). 못 읽으면 ""."""
-    text = read_text_file(path)
-    if not text.startswith("---\n"):
-        return ""
-    end = text.find("\n---\n", 4)
-    m = _FM_TYPE_RE.search(text[4:end] if end >= 0 else "")
+    m = _FM_TYPE_RE.search(_split_frontmatter(read_text_file(path))[0])
     return m.group(1) if m else ""
 
 
@@ -296,11 +315,7 @@ def body_of(text):
     frontmatter 의 `parent` · `ancestors` · `area` 는 모든 문서가 영역 문서와 비전을 부르는 것처럼
     만든다. 그 신호는 문서마다 같아서 순서를 가르지 못한다.
     """
-    if text.startswith("---\n"):
-        end = text.find("\n---\n", 4)
-        if end >= 0:
-            return text[end + 5:]
-    return text
+    return _split_frontmatter(text)[1]
 
 
 # --- `## 구현 위치` ---------------------------------------------------------------------
