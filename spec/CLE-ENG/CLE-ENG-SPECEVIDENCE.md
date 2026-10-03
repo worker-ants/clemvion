@@ -2,25 +2,25 @@
 id: "CLE-ENG-SPECEVIDENCE"
 title: "스펙과 구현 근거 규약"
 type: "convention"
-version: 2
+version: 5
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-ENG"
 ancestors: ["CLE-VISION", "CLE-ENG"]
 area: "CLE-ENG"
-content_hash: "6ead0cae2a4914e0959700befe4df069d01a5b37045ef46c0709249cff27118e"
+content_hash: "04e0ae5dd813fe8af37c4484e8efc5937ee024cbc22a5b2f80f0cffa60a7ca25"
 read_as: "approved_fallback"
-task: "CLE-T-9AM31N"
+task: "CLE-T-M7K35H"
 source_paths: ["spec/conventions/spec-impl-evidence.md"]
-mirror_sha256: "d72650785fddc950abea2395c7fa3de4954350f431fc4deec2b39ab372dba3d5"
-etag: "sha256-b239218995d8cd93dd237004f7a325938319962103ab159a91dc40962dc17897"
+mirror_sha256: "24f76ce902723001a67079bf0c0c8bea5a53e4fbbd89799eafa2968c972e4646"
+etag: "sha256-ad410bcedd9ac718d9f737d80691159f0bce149aa5dd658e707957373b86b842"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/conventions/spec-impl-evidence.md` · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
 ## 개요
 
-스펙 문서가 약속한 표면(surface)과 실제 구현 코드 사이의 정적 근거(evidence)를 스펙 파일 frontmatter 에 적고 빌드에서 검증하는 규약이다. 텔레그램 채팅 채널 UI 가 스펙에 약속된 채 오래 구현되지 않았던 사례처럼 "스펙 약속과 구현 부재" 사이의 갭을 빌드 가드로 막는다.
+스펙 문서가 약속한 표면(surface)과 실제 구현 코드 사이의 정적 근거(evidence)를 스펙 파일 frontmatter 에 적고 빌드에서 검증하는 규약이다. Telegram 채팅 채널 UI 가 스펙에 약속된 채 오래 구현되지 않았던 사례처럼 "스펙 약속과 구현 부재" 사이의 갭을 빌드 가드로 막는다.
 
 이 규약 전의 검사는 모두 변경을 계기로 돌았다.
 
@@ -29,7 +29,7 @@ etag: "sha256-b239218995d8cd93dd237004f7a325938319962103ab159a91dc40962dc17897"
 - `user-guide-sync-reviewer`: 코드에서 가이드로 가는 한 방향만 본다.
 - `nodes-coverage`·`hydration-coverage` 같은 빌드 가드: 등록부 열거만 본다.
 
-그래서 "스펙이 약속한 표면이 **지금** 구현돼 있는가" 는 어떤 검사도 묻지 않았다. 이 규약은 스펙 파일 frontmatter 에 스펙 상태(spec status, `status`)·`code:` 를 의무로 두고 [frontmatter 근거 가드 2건](#빌드-가드--frontmatter-근거-2건)으로 정합성을 강제한다. 스펙 문서 저장소(링크·영역 index·도구 태그 잔재)의 무결성을 지키는 [별도 가드 가족](#빌드-가드--스펙-문서-저장소-무결성)도 이 문서가 정한다. 처음에는 `pending_plans:` 와 plan 무결성 가드도 이 규약에 있었다. 전환 단계 3 에서 `plan/` 과 함께 걷었다(Rationale R-13).
+그래서 "스펙이 약속한 표면이 **지금** 구현돼 있는가" 는 어떤 검사도 묻지 않았다. 이 규약은 스펙 파일 frontmatter 에 옛 스펙 상태(`status`)·`code:` 를 의무로 두고 [frontmatter 근거 가드 2건](#빌드-가드--frontmatter-근거-2건)으로 정합성을 강제한다. 스펙 문서 저장소(링크·영역 index·도구 태그 잔재)와 코드 주석 · 텍스트 속 스펙 언급(옛 경로 · 키)의 무결성을 지키는 [별도 가드 가족](#빌드-가드--스펙-문서-저장소-무결성)도 이 문서가 정한다. 처음에는 `pending_plans:` 와 plan 무결성 가드도 이 규약에 있었다. 전환 단계 3 에서 `plan/` 과 함께 걷었다(Rationale R-13).
 
 이 규약의 규칙은 스펙이 저장소 `spec/**.md` 파일이라는 전제 위에 있다. 작업 추적은 전환 단계 3 부터 `plan/**` 파일이 아니라 NERV Task 다. 스펙을 NERV 로 옮기면서 전제가 바뀌는 부분은 [NERV 이전 영향](#nerv-이전-영향) 에 모았다.
 
@@ -44,7 +44,7 @@ etag: "sha256-b239218995d8cd93dd237004f7a325938319962103ab159a91dc40962dc17897"
 1. [적용 대상](#적용-대상) 스펙 파일에는 frontmatter 가 있어야 한다. `id`·`status` 는 늘 의무이고 `code:` 는 상태에 따라 의무다.
 2. 적용 대상 목록을 바꿀 때는 이 문서의 목록과 `spec-frontmatter-parse.ts` 의 `INCLUDE_PREFIXES` 를 함께 고친다.
 3. `id` 는 kebab-case 이고 파일 basename(확장자 제외) 기반을 권장한다. 같은 basename 이 영역을 달리해 겹치면 나중에 온 문서가 영역 접두를 붙여 피한다.
-4. `status` 는 `backlog`·`spec-only`·`partial`·`implemented`·`archived` 다섯 값 중 하나이고 [라이프사이클](#스펙-상태-라이프사이클)을 따른다.
+4. `status` 는 `backlog`·`spec-only`·`partial`·`implemented`·`archived` 다섯 값 중 하나이고 [라이프사이클](#옛-스펙-상태-라이프사이클)을 따른다.
 5. `status` 가 `partial` 이나 `implemented` 면 `code:` 글로브가 파일 1개 이상에 매치해야 한다.
 6. `code:` 경로는 저장소 루트 기준 상대 경로이고 글로브를 허용한다. 넓은 트리 글롭으로 가드만 통과시키지 않는다. 그것은 아무것도 가리키지 않는 것과 같다.
 7. 강제하는 코드가 없는 순수 문서형 규약은 `code:` 에 **그 규약을 실제로 지키는 예시 파일**을 적는다. 한 문서 안에서도 축마다 강제 여부가 갈릴 수 있으므로 이 판단은 축 단위로 한다. 그런 문서의 `code:` 에는 준수 예시와 시행 코드를 섞어 담아도 되고 범주를 인라인 YAML 주석으로 갈라도 된다(선례: [리뷰 산출물 인용 규약](CLE-ENG-REVIEWCITE.md)).
@@ -58,6 +58,7 @@ etag: "sha256-b239218995d8cd93dd237004f7a325938319962103ab159a91dc40962dc17897"
 15. (걷음) 완료 plan 의 `spec_impact` 선언(Gate C). NERV Task 의 `done` 전이가 같은 선언을 요구한다(R-13).
 16. (걷음) Gate C cutoff 값을 세 곳에 같게 둔다는 규칙. Gate C 와 함께 걷었다.
 17. (걷음) 스펙이 `plan/**` 을 링크하면 plan 을 옮길 때 링크를 고친다는 규칙. `plan/` 이 없어졌다. 링크 무결성 가드는 저장소 루트 `plan/` · `review/` 로 해석되는 링크를 건너뛴다(아래 대상 범위 1).
+18. 코드 주석이 스펙을 가리킬 때는 키 링크 `[글](<키>#앵커)` 를 쓴다. 미러에 없는 키는 같은 PR 에서 미러로 받는다. 미러하지 않는 카탈로그 영역(`CLE-C24` · `CLE-MKS`)은 키 링크로 쓸 수 없다. 코드 주석은 카탈로그를 `codebase/api-catalogs/<vendor>/` 경로나 링크 없는 언급으로 가리킨다. 공개 OpenAPI 채널(`*.dto.ts` · `*.controller.ts` 의 `/** */` 블록과 데코레이터 `description` · `summary`)에는 링크 없는 키도 포함해 키를 쓰지 않는다. 근거는 바로 위 `//` 주석에 키 링크로 쓴다([OpenAPI 문서화](../CLE-API/CLE-API-SWAGGER.md) 규칙 17, 백엔드 가드 `openapi-internal-ref`, R-14). 링크로 감싸지 않은 언급은 키와 절 제목으로 쓴다(예: `CLE-API-ERRCODES` 「워크플로우 실행: 엔진 수준」). NERV 제목에 번호가 붙어 있어도 번호를 빼고 제목 글자만 쓴다(예시의 실제 제목은 `6.5 워크플로우 실행: 엔진 수준`). 옛 § 번호는 옮기지 않는다. 그 키도 미러에 있어야 한다. 미러하지 않는 카탈로그 영역의 키는 가드가 확인하지 않고 통과시킨다(R-15).
 
 ## 적용 대상
 
@@ -79,7 +80,7 @@ etag: "sha256-b239218995d8cd93dd237004f7a325938319962103ab159a91dc40962dc17897"
 | basename `0-overview.md` | 전체·영역 진입 문서. 루트 `spec/0-overview.md` 와 `spec/<영역>/0-overview.md`(예: `spec/4-nodes/0-overview.md`) 모두 해당. `EXCLUDE_BASENAMES` 에 등재 |
 | basename `1-data-model.md` · `6-brand.md` | 단순 개요 성격. `EXCLUDE_BASENAMES` 에 등재 |
 | `spec/_*.md` 와 `spec/<영역>/_*.md` | 밑줄 접두. leaf 가 아닌 layout·index 성격(예: `_layout.md`, `_product-overview.md`, `_overview.md`) |
-| `spec/conventions/<name>-api-catalog/<resource>/**/*.md` | 카탈로그 디렉터리 뒤에 경로 세그먼트가 **하나 이상** 있는 모든 `.md`(`<resource>/` 한 단계든 더 깊은 중첩이든). API 레퍼런스 카탈로그의 필드 단위 파일이다. 생성기 산출물이고 frontmatter 가 `resource`/`entity`/`cafe24_docs`/`source` 인 비추적 레퍼런스다. 카탈로그 최상위 `<name>-api-catalog/<resource>.md` 인덱스(세그먼트 0개)는 `id`/`status` 가 있는 정식 스펙이라 **검증을 유지**한다(Rationale R-7) |
+| `spec/conventions/<name>-api-catalog/<resource>/**/*.md` | 카탈로그 디렉터리 뒤에 경로 세그먼트가 **하나 이상** 있는 모든 `.md`(`<resource>/` 한 단계든 더 깊은 중첩이든). API 카탈로그의 필드 단위 파일이다. 생성기 산출물이고 frontmatter 가 `resource`/`entity`/`cafe24_docs`/`source` 인 비추적 레퍼런스다. 카탈로그 최상위 `<name>-api-catalog/<resource>.md` 인덱스(세그먼트 0개)는 `id`/`status` 가 있는 정식 스펙이라 **검증을 유지**한다(Rationale R-7) |
 
 ## frontmatter 스키마
 
@@ -101,12 +102,12 @@ user_guide:                                # 선택. 가이드 페이지 cross-l
 | 필드 | 타입 | 의무 | 의미 |
 | --- | --- | --- | --- |
 | `id` | string (kebab-case) | ✓ | 스펙 식별자. 파일 basename(확장자 제외) 기반 권장. 같은 basename 이 영역을 달리해 겹치면 나중에 온 문서가 영역 접두로 피한다. 예: `spec/5-system/17-agent-memory.md` 가 `agent-memory` 를 쓰므로 `spec/2-navigation/16-agent-memory.md` 는 `nav-agent-memory` 다. basename 과 달라 보여도 의도한 패턴이다 |
-| `status` | enum (5 값) | ✓ | [라이프사이클](#스펙-상태-라이프사이클) 참조 |
+| `status` | enum (5 값) | ✓ | [라이프사이클](#옛-스펙-상태-라이프사이클) 참조 |
 | `code` | string[] (글로브 허용) | 상태에 따라 다름 | 이 스펙이 약속한 표면의 구현 경로. 저장소 루트 기준 상대 경로. 강제하는 코드가 없는 순수 문서형 규약은 준수 예시 파일을 적는다(규칙 7). 목록 안에 빈 줄과 `#` 주석을 넣어도 모든 항목이 읽힌다. 프론트엔드 YAML 파서의 동작이고 고정하는 테스트는 없다(Rationale «`code:` 목록에 주석을 허용한 경위») |
 | `pending_plans` | string[] (경로) | (걷음) | 전환 단계 3 에서 걷었다. 옛 트리 파일에 남은 값은 읽는 가드가 없다(R-13) |
 | `user_guide` | string[] (경로) | 선택 | 이 스펙의 가이드 페이지 cross-link. 로케일 쌍을 모두 적는다(규칙 14). **빌드 가드가 없다**. 선언용 cross-link 라 경로 오기는 빌드에서 걸리지 않는다(Rationale R-10) |
 
-`code:` 의 준수 예시 선례인 [리뷰 산출물 인용 규약](CLE-ENG-REVIEWCITE.md) 은 축마다 강제 여부가 다르다. 날짜 없는 시각 인용 금지 축에는 강제하는 가드가 없다. 응답 DTO JSDoc 축은 `dto-jsdoc-citation-guard.ts` 가 2026-09-06 부터 강제한다. 같은 절의 컨트롤러 JSDoc 축은 강제하지 않는다.
+`code:` 의 준수 예시 선례인 [리뷰 산출물 인용 규약](CLE-ENG-REVIEWCITE.md) 은 축마다 강제 여부가 다르다. 날짜 없는 시각 인용 금지 축에는 강제하는 가드가 없다. 응답 DTO JSDoc 축은 `dto-jsdoc-citation-guard.ts` 가 2026-09-06 부터 강제한다. 같은 절의 컨트롤러 JSDoc 축은 강제하지 않는다. [리뷰 산출물 인용 규약](CLE-ENG-REVIEWCITE.md) 규칙 9 · 10 축(줄인 발견 ID 금지 · 로컬 `.review/**` 경로 금지)은 `review-citation-form.test.ts` 가 2026-10-03 부터 `codebase/**` 에서 강제한다.
 
 ### 뜻이 다른 같은 이름
 
@@ -114,7 +115,7 @@ user_guide:                                # 선택. 가이드 페이지 cross-l
 - **`status:` 키(엔티티 컬럼)**: [데이터 모델 개요](../CLE-PLAT/CLE-PLAT-DATA.md) 의 엔티티 `status` 컬럼(Integration·Execution 등)과 층이 다르다. 스펙 frontmatter 가드는 엔티티 컬럼을 건드리지 않는다.
 - **`archived`**: [Cafe24 API 카탈로그](CLE-C24-CATALOG) 의 `deprecated`(Cafe24 endpoint 폐기 상태)와 뜻이 다르다. 이 규약의 `archived` 는 스펙 문서 자체의 폐기다(Rationale R-4).
 
-## 스펙 상태 라이프사이클
+## 옛 스펙 상태 라이프사이클
 
 | 값 | 뜻 | `code:` 검증 | 비고 |
 | --- | --- | --- | --- |
@@ -150,7 +151,7 @@ stateDiagram-v2
 
 ## 빌드 가드 — frontmatter 근거 (2건)
 
-아래 단위 테스트 2개가 이 규약의 정합성을 강제한다. 실패하면 빌드가 막힌다. 모두 `codebase/frontend/src/lib/docs/__tests__/` 에 있다. 링크·index·도구 태그 가드는 [별도 가족](#빌드-가드--스펙-문서-저장소-무결성)이다(Rationale R-9). `spec-status-lifecycle.test.ts` · `spec-pending-plan-existence.test.ts` 는 전환 단계 3 에서 걷었다(R-13).
+아래 단위 테스트 2개가 이 규약의 정합성을 강제한다. 실패하면 빌드가 막힌다. 모두 `codebase/frontend/src/lib/docs/__tests__/` 에 있다. 링크·index·도구 태그·스펙 언급 가드는 [별도 가족](#빌드-가드--스펙-문서-저장소-무결성)이다(Rationale R-9). `spec-status-lifecycle.test.ts` · `spec-pending-plan-existence.test.ts` 는 전환 단계 3 에서 걷었다(R-13).
 
 | 가드 | 검증 |
 | --- | --- |
@@ -165,21 +166,33 @@ stateDiagram-v2
 
 ## 빌드 가드 — 스펙 문서 저장소 무결성
 
-frontmatter 근거 가드와 **다른 가족**이다. 스펙 문서 저장소(링크·영역 index·도구 태그 잔재)를 지키는 빌드 차단 3건과 권고 1건이다. 이 절이 규약의 기준이고 도입 경위와 로드맵은 옛 plan `knowledge-base-quality-improvements.md`(git 이력)에 있다. 빌드 가드 3건의 구현 파일은 [구현 위치](#구현-위치)에 있다(Rationale R-9). plan frontmatter 가드(`plan-frontmatter.test.ts`)와 Gate C(`spec-plan-completion.test.ts`)는 전환 단계 3 에서 `plan/` 과 함께 걷었다(R-13).
+frontmatter 근거 가드와 **다른 가족**이다. 스펙 문서 저장소(링크·영역 index·도구 태그 잔재)와 코드 주석 · 텍스트 속 스펙 언급(옛 경로 · 키)을 지키는 빌드 차단 5건과 권고 1건이다. 이 절이 규약의 기준이고 도입 경위와 로드맵은 옛 plan `knowledge-base-quality-improvements.md`(git 이력)에 있다. 빌드 가드 5건의 구현 파일은 [구현 위치](#구현-위치)에 있다(Rationale R-9). plan frontmatter 가드(`plan-frontmatter.test.ts`)와 Gate C(`spec-plan-completion.test.ts`)는 전환 단계 3 에서 `plan/` 과 함께 걷었다(R-13).
 
 | 가드 | 대상 / 검증 | 예외 / 비고 |
 | --- | --- | --- |
-| `spec-link-integrity.test.ts` (빌드 차단) | 저장소 경로를 대상으로 하는 마크다운 링크의 타깃이 있는지, `#anchor` 가 헤딩 slug 와 맞는지 본다. slug 는 실제 렌더러(`rehype-slug` = `mdast` + `github-slugger`) 파이프라인과 같게 만든다. 대상 범위는 아래 세 가지다 | 생성형 `*-api-catalog/` 트리와 NERV 미러(`spec/README.md` · `spec/CLE-*`)는 뺀다(Rationale R-12). 범위 1 은 저장소 루트 `plan/` · `review/` 로 해석되는 링크를 건너뛴다(R-13). 범위별 세부는 표 아래 |
+| `spec-link-integrity.test.ts` (빌드 차단) | 마크다운 링크가 가리키는 대상이 있는지, `#anchor` 가 대상 문서의 헤딩 slug 와 맞는지 본다. 대상은 저장소 상대 경로이거나 NERV 스펙 키(키 링크)다. 키 링크는 범위 2 · 3 에서 저장소 미러 파일로 확인한다. slug 는 실제 렌더러(`rehype-slug` = `mdast` + `github-slugger`) 파이프라인과 같게 만든다. 대상 범위는 아래 세 가지다 | 생성형 `*-api-catalog/` 트리와 NERV 미러(`spec/README.md` · `spec/CLE-*`)는 검사할 파일에서 뺀다(생성형 카탈로그 제외는 R-7, 미러 제외는 R-12). 옛 카탈로그 자리로 해석되는 링크는 옮긴 자리에서 확인한다(범위 1). 범위 1 은 저장소 루트 `plan/` · `review/` 로 해석되는 링크를 건너뛴다(R-13). 범위 2 는 `spec/**.md` 를 가리키는 경로 링크를 대상이 있어도 위반으로 본다(R-14). 범위별 세부는 표 아래 |
 | `spec-area-index.test.ts` (빌드 차단) | 영역 폴더(형제 문서 2개 이상)마다 index 문서가 있고 모든 형제 스펙이 index 에서 링크된다 | `spec/conventions/`(평면 레퍼런스라 index 없음)와 카탈로그 · NERV 미러는 면제(Rationale R-12) |
 | `stray-tool-tags.test.ts` (빌드 차단) | `spec/**` 마크다운(NERV 미러 포함)에 작성 도구가 문서를 감싸던 XML 유사 태그(content · invoke 래퍼의 닫는 태그 등)가 남았는지 본다. 원인 제거가 아니라 재발 감지다 | 코드펜스 안도 예외로 두지 않는다. `plan/**` 도 보던 루트였는데 전환 단계 3 에서 `plan/` 과 함께 뺐다 |
+| `legacy-path-ratchet.test.ts` (빌드 차단) | codebase 텍스트 파일에서 옛 스펙 트리 경로와 전환 단계 3 에서 지운 `plan/` 경로(`plan/in-progress/` · `plan/complete/` · `plan/research/`)를 적은 줄을 파일별로 세어 기준값 파일(`legacy-path-ratchet.baseline.json`)과 견준다. 옛 스펙 트리 경로는 옛 트리의 최상위 이름(`spec/<번호>-<영역>/` · `spec/conventions/` · `spec/data-flow/` · 루트 `spec/<번호>-<이름>.md`)으로 시작하는 경로다. 확장자 없는 인용 · 영역 이름만 적은 언급 · 글로브도 센다. NERV 미러 경로(`spec/CLE-*` · `spec/README.md`)는 세지 않는다. 늘어도 줄어도 실패한다. 줄였으면 기준값을 다시 쓴다(R-15) | 적용된 마이그레이션(`V*.sql` · `V*.conf`)은 [DB 마이그레이션 규약](CLE-ENG-MIGRATION.md) 규칙 9 때문에 고치지 않으므로 그 언급은 기준값에 영구히 남는다. 카탈로그 생성기 산출물은 생성기를 고친다. 가드 자신의 파일은 세지 않는다 |
+| `spec-key-mentions.test.ts` (빌드 차단) | codebase 텍스트 파일이 링크 안팎에 적은 스펙 키(`CLE-…`)가 미러에 있는지 본다. 키 링크의 키도 같은 판정이라 함께 본다. 키 뒤에 적은 절 제목(「…」)은 확인하지 않는다. 키 모양은 `spec-keys.ts` 의 `SPEC_KEY_RE` 를 쓴다 | NERV Task 키(`CLE-T-` + 6자)는 보지 않는다. `CLE-T` 는 Task 키 접두라 스펙 영역 키로 쓰지 않는다. 미러하지 않는 카탈로그 영역(`CLE-C24` · `CLE-MKS`)의 키는 확인하지 않고 통과시킨다(R-15). 다른 docs 가드의 대조군이 일부러 쓰는 가짜 키는 파일별 허용 목록에 둔다 |
 | **Gate D** (권고. 빌드를 막지 않음) | `/spec-coverage --mode reverse`(orchestrator `--mode` 인자로 구현됨). 스펙이 가리키지 않는 controller route·이벤트·환경변수를 찾는다(구현에서 스펙으로 가는 역커버리지) | NLP 휴리스틱이라 보고만 하고 CI 를 막지 않는다 |
 
 `spec-link-integrity.test.ts` 의 대상 범위:
 
-1. **`spec/**.md` 본문.** 이 범위에는 타깃 필터가 없다. 다만 저장소 루트 `plan/` · `review/` 로 해석되는 링크는 건너뛴다. 두 트리는 전환 단계 3 에서 지웠고, 그 링크가 남은 동결된 옛 트리는 단계 5 에서 지운다(R-13). 판정은 해석한 경로로 하므로 루트가 아닌 같은 이름 폴더(`spec/<영역>/plan/`)는 그대로 검사한다. NERV 미러(`spec/README.md` · `spec/CLE-*`)는 이 범위에서 뺀다(Rationale R-12).
-2. **codebase 소스의 JSDoc·주석.** `codebase/{backend,frontend,channel-web-chat,packages}` 의 `.ts`/`.tsx` 를 본다. 이 범위만 `spec/**.md` 를 가리키는 링크로 거른다(스펙이 아닌 상대 링크는 뺀다). 빌드 출력(`dist`/`.next`/`build`/`node_modules`)도 뺀다.
-3. **거버넌스 문서.** 루트 `*.md`(`CLAUDE.md`·`PROJECT.md` 등, 재귀하지 않음)와 `.claude/**.md` 를 본다. `.claude/worktrees/` 는 저장소 사본이라 빼고 `node_modules` 도 뺀다. 이 범위에는 `plan/` · `review/` 면제가 없다. 살아 있는 문서라 그 링크를 고친다.
+1. **`spec/**.md` 본문.** 이 범위에는 타깃 필터가 없다. 다만 저장소 루트 `plan/` · `review/` 로 해석되는 링크는 건너뛴다. 두 트리는 전환 단계 3 에서 지웠고, 그 링크가 남은 동결된 옛 트리는 단계 5 에서 지운다(R-13). 판정은 해석한 경로로 하므로 루트가 아닌 같은 이름 폴더(`spec/<영역>/plan/`)는 그대로 검사한다. NERV 미러(`spec/README.md` · `spec/CLE-*`)는 이 범위에서 뺀다(Rationale R-12). 옛 API 카탈로그 경로(`spec/conventions/cafe24-api-catalog/` · `spec/conventions/makeshop-api-catalog/`)로 해석되는 링크는 전환 단계 4a(NERV Task `CLE-T-BD48J3`)에서 옮긴 `codebase/api-catalogs/cafe24/` · `codebase/api-catalogs/makeshop/` 에서 경로와 앵커를 확인한다(`spec-links.ts` 의 `RELOCATED_SPEC_TREES`). 위 표의 생성형 `*-api-catalog/` 제외는 그 트리 안의 파일을 검사하지 않는다는 뜻이고 카탈로그로 가는 링크는 이 제외와 상관없이 검사한다. 카탈로그를 옮긴 뒤로 `spec/` 아래에는 이 제외에 걸리는 파일이 없다. 옮긴 자리 확인은 범위 1 에만 있고 거버넌스 문서(범위 3)는 새 경로를 적는다. 이 확인과 제외는 옛 트리와 함께 단계 5 에서 정리한다.
+2. **codebase 소스의 JSDoc·주석.** `codebase/{backend,frontend,channel-web-chat}/src` · `codebase/backend/test` · `codebase/frontend/e2e` 와 `codebase/packages` 의 `.ts`/`.tsx` 를 본다. 빌드 출력(`dist`/`.next`/`build`)과 `node_modules` 는 뺀다. 이 범위에서는 스펙을 키 링크 `[글](<키>#앵커)` 로 가리킨다(규칙 18). `<키>` 자리에는 NERV 스펙 키(`CLE-…`)를 쓴다. 키 모양은 `spec-keys.ts` 의 `SPEC_KEY_RE` 를 따른다. `pull.py` 의 `KEY_RE` 보다 좁아서 이 모양이 아닌 링크는 키 링크로 보지 않는다. NERV 본문의 링크 표기와 같다(R-14).
+   - 키는 저장소 미러 파일 이름으로 확인한다. 미러 파일은 `spec/<영역 키>/<KEY>.md` 이고 영역 밖 문서는 `spec/<KEY>.md` 다. 미러에 없는 키는 `KEY` 위반이다.
+   - 앵커는 그 미러 파일의 제목 slug 로 확인한다. 없는 앵커는 `ANCHOR` 위반이다.
+   - `spec/**.md` 를 상대 경로로 링크하면 대상 파일이 있어도 `PATH` 위반이다.
+   - 그 밖의 링크는 보지 않는다. 코드 소스에는 제목이 없으므로 같은 파일 안의 `#앵커` 도 보지 않는다.
+   - 공개 OpenAPI 채널은 예외다. `*.dto.ts` · `*.controller.ts` 의 `/** */` 블록(클래스 · 멤버 · 파일 수준 선언)과 데코레이터 `description` · `summary` 문자열에는 링크 없는 키도 포함해 키를 쓰지 않는다. 그 자리의 근거는 바로 위 `//` 주석에 키 링크로 적는다. 기준은 [OpenAPI 문서화](../CLE-API/CLE-API-SWAGGER.md) 규칙 17 이다. 이 가드는 키 링크의 대상이 있는지만 보고 공개 채널에 키가 들어갔는지는 백엔드 가드 `openapi-internal-ref` 가 본다.
+   - 미러는 구현할 때 받은 문서만 담는 부분 스냅샷이다. 미러에 없는 키를 새로 링크하려면 같은 PR 에서 그 문서를 미러로 받는다. 미러에 넣지 않는 API 카탈로그 영역(`CLE-C24` · `CLE-MKS`)의 키는 미러로 받을 수 없어서 키 링크로 쓰면 `KEY` 위반이다. 코드 주석은 카탈로그를 `codebase/api-catalogs/<vendor>/` 경로나 링크 없는 언급으로 가리킨다. 이 경로 링크는 가드가 보지 않는다. 사용자 가이드 프론트매터 `spec:` 도 키를 미러 파일로 확인하지만 카탈로그 영역의 스펙 키를 허용하는 목록이 있다는 점이 다르다(R-14, [사용자 가이드](../CLE-UI/CLE-UI-GUIDE.md)).
+   - 링크가 아닌 언급은 보지 않는다. 옛 스펙 트리 경로 문자열은 `legacy-path-ratchet` 이, 링크로 감싸지 않은 키는 `spec-key-mentions` 가 본다(R-15).
+3. **거버넌스 문서.** 루트 `*.md`(`CLAUDE.md`·`PROJECT.md` 등, 재귀하지 않음)와 `.claude/**.md` 를 본다. `.claude/worktrees/` 는 저장소 사본이라 빼고 `node_modules` 도 뺀다. 상대 경로 링크는 대상 파일과 제목으로 확인한다. 키 링크는 범위 2 와 같은 방법으로 미러에서 확인한다. 이 범위에는 `plan/` · `review/` 면제가 없다. 살아 있는 문서라 그 링크를 고친다.
 
+위반은 네 종류다. `DEAD` 는 상대 경로 링크의 대상 파일이 없다는 뜻이다. `ANCHOR` 는 `#앵커` 가 대상 문서의 제목에 없다는 뜻이다. `KEY` 는 키 링크의 키가 미러에 없다는 뜻이다. `PATH` 는 범위 2 에서 스펙을 경로로 링크했다는 뜻이다.
+
+링크가 아닌 언급을 보는 두 가드(`legacy-path-ratchet.test.ts` · `spec-key-mentions.test.ts`)는 `codebase-mentions.ts` 의 공용 순회로 파일을 읽는다. 읽는 파일은 `codebase/**` 의 텍스트 파일이다. 확장자(`.ts` · `.tsx` · `.js` · `.mjs` · `.cjs` · `.py` · `.sh` · `.md` · `.mdx` · `.sql` · `.json` · `.yml` · `.yaml` · `.css` · `.svg` · `.html` · `.txt` · `.toml` · `.example` · `.conf`)로 고르고 `Dockerfile` 도 읽는다. 빌드 · 테스트 산출물 디렉터리(`node_modules` · `dist` · `build` · `coverage` · `out` · `test-results` · `playwright-report`)와 점으로 시작하는 디렉터리는 건너뛴다. 판정을 시험하는 합성 입력을 담은 가드 자신의 파일 5개는 세지 않는다. [리뷰 산출물 인용 규약](CLE-ENG-REVIEWCITE.md) 규칙 9 · 10 을 보는 `review-citation-form.test.ts` 도 같은 순회를 쓴다. 확장자 목록 · 제외 디렉터리 · 가드 자신의 파일 목록(`GUARD_SELF_FILES`)을 바꾸면 세 가드의 범위가 함께 바뀐다. 이 목록의 기준은 이 문서다. [리뷰 산출물 인용 규약](CLE-ENG-REVIEWCITE.md) 도 같은 목록을 적는다. 목록을 고칠 때는 두 문서를 함께 고친다.
 
 ## 사용 예시
 
@@ -235,18 +248,18 @@ user_guide:                                # 선택 필드. 로케일 쌍을 모
 | --- | --- | --- |
 | 적용 대상(경로 포함 목록·basename 제외) | 스펙을 저장소 경로와 파일 이름으로 식별한다 | NERV 문서는 키(`CLE-…`)·종류(`vision`·`area`·`feature`·`design`·`convention` 등)·트리의 부모로 식별한다. 경로와 basename 이 없다 |
 | frontmatter `id` | basename 기반 kebab-case | NERV 문서 키가 식별자다. NERV 로 옮긴 문서 본문에는 frontmatter 가 없다 |
-| 스펙 상태 `status`(5 값) | 구현 단계를 뜻한다 | NERV 문서 상태(`doc_status`: `draft`·`in_review`·`approved`)는 문서 승인 단계다. 이번 이전에서 구현 단계는 본문 머리 줄의 "구현 상태"(구현됨·부분 구현·미구현 세 값)로 옮겼고 `feature` 문서의 요구사항 줄에는 `(미구현)`·`(부분 구현)` 표시를 붙였다. `backlog` 와 `spec-only` 의 구분, `archived` 에 해당하는 값은 머리 줄에 없다 |
+| 옛 스펙 상태 `status`(5 값) | 구현 단계를 뜻한다 | NERV 문서 상태(`doc_status`: `draft`·`in_review`·`approved`)는 문서 승인 단계다. 이번 이전에서 구현 단계는 본문 머리 줄의 "구현 상태"(구현됨·부분 구현·미구현 세 값)로 옮겼고 `feature` 문서의 요구사항 줄에는 `(미구현)`·`(부분 구현)` 표시를 붙였다. `backlog` 와 `spec-only` 의 구분, `archived` 에 해당하는 값은 머리 줄에 없다 |
 | `code:` 와 `spec-code-paths` 가드 | frontmatter 글로브가 파일에 매치하는지 빌드가 검사한다 | 이번 이전에서 `code:` 는 본문의 `## 구현 위치` 절(텍스트)로 옮겼다. NERV 에서 구현 작업은 스펙 버전에서 나온 Task 가 맡고 Task 를 완료(`done`)하려면 증적(`evidence`)이 있어야 한다. 증적 종류는 `code_path`·`test`·`pr`·`commit`·`review`·`user_guide` 여섯이다. done 전이는 그 Task 에 묶인 `code`·`consistency` 리뷰 라운드가 판정을 통과했는지도 본다(프로젝트 정책 `done_gate.review_coverage`) |
-| spec-linked 변경의 구현 완료 검토 | `code:` 글로브에 걸린 파일을 고친 브랜치는 `--impl-done` 검토가 있어야 push 됐다(리뷰 게이트의 spec 정합 검사) | 전환 단계 2 에서 그 검사가 없어졌다. 대신 NERV done 게이트가 Task 에 묶인 consistency 라운드를 요구한다. 보장의 단위가 파일에서 Task 로 바뀌어, `## 구현 위치` 에 적힌 파일을 고친 변경이 그 문서와 대조된다는 파일 단위 보장은 없다. 이 보장에 기댄 Rationale(`CLE-CHAT-CORE` R-CC-22, `CLE-PLAT-DATA` «전용 e2e 가드를 구현 위치에 나열한 이유»)의 정리는 전환 4e(NERV Task `CLE-T-VP5KDJ`)가 맡는다 |
+| spec-linked 변경의 구현 완료 검토 | `code:` 글로브에 걸린 파일을 고친 브랜치는 `--impl-done` 검토가 있어야 push 됐다(리뷰 게이트의 spec 정합 검사) | 전환 단계 2 에서 그 검사가 없어졌다. 대신 NERV done 게이트가 Task 에 묶인 consistency 라운드를 요구한다. 그 게이트는 라운드가 있고 통과했는지만 보고 라운드가 어떤 문서를 대상으로 했는지는 보지 않는다. 그래서 `## 구현 위치` 에 적힌 파일을 고친 변경이 그 문서와 대조된다는 강제된 보장은 없다. 일관성 검토의 `--impl-done` 을 돌리면 `## 구현 위치` 가 바뀐 파일을 덮는 문서가 검토 대상에 든다(2026-10-03, NERV Task `CLE-T-VP5KDJ`). 이 대조에 기댄 Rationale([채팅 채널](../CLE-CHAT/CLE-CHAT-CORE.md) R-CC-22, [데이터 모델 개요](../CLE-PLAT/CLE-PLAT-DATA.md) «전용 e2e 가드를 구현 위치에 나열한 이유»)도 같은 강도로 적는다(두 Rationale 은 2026-10-03 승인본에서 「`--impl-done` 을 돌릴 때 대조 대상에 든다」는 서술로 이미 고쳤다. NERV Task `CLE-T-VP5KDJ`) |
 | `pending_plans:` 와 plan 실존 가드 | 미구현 표면을 plan 파일 경로로 가리켰다 | NERV 는 구현 작업을 Task 로 추적한다. Task 는 기준 스펙 버전(`spec_key`·`version_no`)을 가진다. 전환 단계 3 에서 `plan/` 과 그 가드(`spec-pending-plan-existence`)를 지웠다 |
 | `user_guide:` | 가드 없는 선언용 cross-link | NERV Task 증적 종류에 `user_guide` 가 있다 |
 | Gate C `spec_impact` | 완료 plan frontmatter 에 선언했다 | NERV Task 의 `done` 전이가 `spec_impact` 선언을 요구한다. 값은 바꾼 스펙 목록(`{changed: [...]}`)이나 `{none: true}` 이고 비어 있으면 게이트가 막는다. 전환 단계 3 에서 `plan/` 과 그 가드(`spec-plan-completion`)를 지웠다 |
 | `backlog` 가드 | `id` 가 저장소 `spec/0-overview.md` 본문에 나오는지 봤다 | 0-overview 의 내용은 NERV 에서 [Clemvion 제품 개요](../CLE-VISION.md) 와 여러 영역 문서로 나뉘었다. 전환 단계 3 에서 이 가드(`spec-status-lifecycle`)를 지웠다 |
 | 링크 무결성 가드 범위 1 | 스펙 본문의 저장소 상대 경로 링크와 헤딩 slug 를 대조한다 | NERV 는 본문에서 문서 키(`CLE-…`)를 대상으로 하는 마크다운 링크만 읽어 references 관계를 만든다. 없는 문서를 가리킨 링크는 저장 응답의 `relations.unknown` 으로 알린다. 앵커(`#…`)는 관계 판정에서 무시한다 |
-| 링크 무결성 가드 범위 2 | 코드 주석이 저장소 `spec/**.md` 파일을 가리킨다 | 가리킬 스펙이 저장소 파일에서 NERV 문서로 바뀌면 이 범위가 검사할 타깃의 전제가 바뀐다 |
+| 링크 무결성 가드 범위 2 | 코드 주석이 저장소 `spec/**.md` 파일을 상대 경로로 가리켰다 | 전환 단계 4c(NERV Task `CLE-T-9AM31N`)에서 키 링크(`[글](<키>#앵커)`)로 바꿨다. 키와 앵커는 저장소 미러 파일로 확인하고 `spec/**.md` 경로 링크는 위반으로 본다(R-14) |
 | 영역 index 가드 | 영역 폴더마다 index 문서가 형제 문서를 링크한다 | NERV 는 `area` 종류 문서와 트리의 부모 관계로 영역을 묶는다. 이번 이전에서 `area` 문서는 자식 문서 목록을 `## 문서` 절에 둔다 |
 | 저장소 미러와 링크 · 영역 index 가드 | 저장소 `spec/` 에는 옛 트리만 있다 | 전환 단계 1 부터 NERV 미러(`spec/<영역 키>/<KEY>.md` · `spec/README.md`)가 옛 트리 옆에 있다. 두 가드는 미러를 대상에서 빼고(`spec-links.ts` 의 `inNervMirror`), 미러 무결성은 `.claude/tools/nerv-mirror/pull.py --check`(CI `spec-mirror-integrity`)가 본다(Rationale R-12) |
-| Gate D spec-coverage | 산출물을 로컬 `.review/spec-coverage/**` 에 두고 커밋하지 않는다(전환 단계 2 전에는 `review/spec-coverage/**` 에 커밋했다) | NERV 리뷰 레코드의 종류(`kind`)에 `spec_coverage` 가 있다. 그 제출 절차는 전환 4e(NERV Task `CLE-T-VP5KDJ`)에서 정한다. NERV 리뷰는 저장소에 파일로 커밋하지 않는다([리뷰 산출물 인용 규약](CLE-ENG-REVIEWCITE.md)) |
+| Gate D spec-coverage | 산출물을 로컬 `.review/spec-coverage/**` 에 두고 커밋하지 않는다(전환 단계 2 전에는 `review/spec-coverage/**` 에 커밋했다) | NERV 리뷰 레코드의 종류(`kind`)에 `spec_coverage` 가 있다. 감사기 SUMMARY 의 후보 하나가 info 발견 하나가 되어 역할 `spec_coverage` 로 제출되므로 라운드를 막지 않는다(2026-10-03, NERV Task `CLE-T-VP5KDJ`). 제출 절차는 저장소 `.claude/skills/spec-coverage/SKILL.md` 가 정한다. NERV 리뷰는 저장소에 파일로 커밋하지 않는다([리뷰 산출물 인용 규약](CLE-ENG-REVIEWCITE.md)) |
 | 스펙 편집 경로 | 사람이 저장소 `spec/` 파일을 직접 고친다 | NERV 플러그인의 스펙 스킬은 저장소 `spec/**` 를 NERV 가 내보낸 읽기 전용 미러로 보고 직접 편집을 금지한다. 스펙 변경은 초안 저장·사전 검토(`nerv_spec_check`: cross-spec·rationale-continuity·convention-compliance·requirement-shape·task-coherence 5개 검사기)·사람 승인 경로로 한다 |
 
 ## 구현 위치
@@ -258,11 +271,17 @@ user_guide:                                # 선택 필드. 로케일 쌍을 모
 - `codebase/frontend/src/lib/docs/__tests__/spec-link-integrity.test.ts`
 - `codebase/frontend/src/lib/docs/__tests__/spec-area-index.test.ts`
 - `codebase/frontend/src/lib/docs/__tests__/stray-tool-tags.test.ts`
-- `codebase/frontend/src/lib/docs/__tests__/spec-links.ts` (`inNervMirror` · `RETIRED_ROOT_TREES`)
+- `codebase/frontend/src/lib/docs/__tests__/spec-links.ts` (`inNervMirror` · `RETIRED_ROOT_TREES` · `RELOCATED_SPEC_TREES`)
 - `codebase/frontend/src/lib/docs/__tests__/spec-links.test.ts`
-- `codebase/frontend/src/lib/docs/__tests__/tree-walk.ts`
+- `codebase/frontend/src/lib/docs/__tests__/spec-keys.ts` (`mirrorKeyPaths` · `SPEC_KEY_RE`. 키 링크의 키를 미러 파일로 잇는다)
+- `codebase/frontend/src/lib/docs/__tests__/spec-keys.test.ts`
+- `codebase/frontend/src/lib/docs/__tests__/codebase-mentions.ts` (링크가 아닌 언급을 세는 공용 순회. `legacy-path-ratchet` · `spec-key-mentions` 와 [리뷰 산출물 인용 규약](CLE-ENG-REVIEWCITE.md) 규칙 9 · 10 을 보는 `review-citation-form` 이 함께 쓴다. 고칠 때 세 가드의 영향을 본다. R-15)
+- `codebase/frontend/src/lib/docs/__tests__/legacy-path-ratchet.test.ts` · `legacy-path-ratchet.baseline.json`
+- `codebase/frontend/src/lib/docs/__tests__/spec-key-mentions.test.ts`
+- `codebase/frontend/src/lib/docs/__tests__/tree-walk.ts` (디렉터리 순회기. `codebase-mentions.ts` · `spec-keys.ts` 도 이 순회기를 쓴다)
 - `codebase/frontend/src/lib/docs/__tests__/tree-walk.test.ts`
 - `.claude/tools/nerv-mirror/pull.py` (`--check`, CI `spec-mirror-integrity`)
+- `codebase/backend/src/repo-guards/__tests__/openapi-internal-ref-guard.ts` · `openapi-internal-ref.spec.ts` 와 대조군 `fixtures/openapi-internal-ref/**` (교차 참조. 범위 2 의 공개 OpenAPI 예외를 지키는 백엔드 가드다. 기준은 [OpenAPI 문서화](../CLE-API/CLE-API-SWAGGER.md) 규칙 17)
 
 ## Rationale
 
@@ -284,7 +303,7 @@ TTL 과 `backlog` 등재 가드는 전환 단계 3 에서 걷었다(R-13).
 
 0-overview §6.3 로드맵 항목(마켓플레이스, 고급 권한 모델 등)은 결정 뒤 스펙을 썼지만 구현 plan 은 분기나 해 단위 뒤에 나오는 것이 자연스럽다. 이런 문서를 `spec-only`(90일 카운터)와 떼어 카운터 압박에서 보호한다([Clemvion 제품 개요](../CLE-VISION.md)).
 
-가드: `backlog` 의 `id` 가 `0-overview.md` 본문 텍스트에 `includes` 로 매칭돼야 한다. 현재 구현은 §6.3 절에 한정하지 않고 문서 전체 텍스트를 검사한다. 로드맵 항목에 올리는 것을 권장한다. §6.3 절 단위로 좁히려면 가드를 고쳐야 한다.
+가드: `backlog` 의 `id` 가 `0-overview.md` 본문 텍스트에 `includes` 로 매칭돼야 한다. 걷기 전 구현은 §6.3 절에 한정하지 않고 문서 전체 텍스트를 검사했다. 로드맵 항목에 올리는 것을 권장한다. §6.3 절 단위로 좁히려면 가드를 고쳐야 한다. 이 가드는 전환 단계 3 에서 걷었다(R-13).
 
 ### R-4. `archived` 라는 이름 (Cafe24 `deprecated` 와 구분)
 
@@ -297,7 +316,7 @@ TTL 과 `backlog` 등재 가드는 전환 단계 3 에서 걷었다(R-13).
 
 기존 plan 라이프사이클은 plan 이 스펙을 가리키는 한 방향이었다(plan frontmatter `worktree`, plan 본문이 스펙 참조). 이 규약은 거꾸로 스펙이 자기를 책임지는 plan 을 가리키게 한다(`pending_plans:`).
 
-근거: 텔레그램 채팅 채널 사례에서 스펙이 plan 을 가리키지 않아 "어떤 plan 도 책임지지 않는 빈 약속" 으로 오래 빠져 있었다. 거꾸로 가는 링크가 있었으면 plan 추적이 자연스럽게 찾아냈을 것이다. `spec-pending-plan-existence.test.ts` 가 스펙에서 plan 으로 가는 링크의 유효성을 강제했다. 전환 단계 3 에서 `pending_plans:` 와 이 가드를 걷었다. 같은 빈 약속은 이제 NERV Task 가 막는다(R-13).
+근거: Telegram 채팅 채널 사례에서 스펙이 plan 을 가리키지 않아 "어떤 plan 도 책임지지 않는 빈 약속" 으로 오래 빠져 있었다. 거꾸로 가는 링크가 있었으면 plan 추적이 자연스럽게 찾아냈을 것이다. `spec-pending-plan-existence.test.ts` 가 스펙에서 plan 으로 가는 링크의 유효성을 강제했다. 전환 단계 3 에서 `pending_plans:` 와 이 가드를 걷었다. 같은 빈 약속은 이제 NERV Task 가 막는다(R-13).
 
 ### R-6. `code:` 의 뜻 (스펙 frontmatter 와 가이드 MDX)
 
@@ -306,13 +325,17 @@ TTL 과 `backlog` 등재 가드는 전환 단계 3 에서 걷었다(R-13).
 - 가이드 MDX `code:` → `registry.test.ts`. 가이드가 **설명하는** 코드(참조용)
 - 스펙 `.md` `code:` → `spec-code-paths.test.ts`. 스펙이 **약속한** 구현 표면(책임용)
 
-같은 키를 검증하지만 대상 문서(`*.mdx`, `*.md`)가 다르고 검증 강도도 다르다. 가이드는 stale 을 허용하고 스펙은 `implemented`/`partial` 일 때 매치가 의무다. 같은 이름이지만 다른 불변식이라 합치지 않는다.
+같은 키를 검증하지만 대상 문서(`*.mdx`, `*.md`)가 다르고 검증 강도도 다르다. 가이드 `code:` 는 항목마다 실재해야 하고(글로브 불가) 스펙 `code:` 는 `implemented`·`partial` 일 때 글로브가 1개 이상 매치하면 된다. 같은 이름이지만 다른 불변식이라 합치지 않는다.
 
-### R-7. API 레퍼런스 카탈로그의 필드 파일을 뺀다 (`<name>-api-catalog/<resource>/**`)
+(2026-10-03 정정: 승인본 v2 는 "가이드는 stale 을 허용하고 스펙은 `implemented`/`partial` 일 때 매치가 의무다" 라고 적었다.)
+
+### R-7. API 카탈로그의 필드 파일을 뺀다 (`<name>-api-catalog/<resource>/**`)
 
 `spec/conventions/cafe24-api-catalog/<resource>/<entity>.md` 같은 필드 단위 카탈로그는 외부 API 문서를 기계로 뽑은 **생성기 산출물**(카탈로그 개요의 `_generator.py`)이다. frontmatter 는 `resource`/`entity`/`cafe24_docs`/`source` 다. 제품 표면의 구현 라이프사이클(`backlog`→`implemented`)을 추적하는 정식 스펙이 아니다. 그래서 `id`/`status` 를 주는 것은 (a) 추적할 구현 라이프사이클이 없어 뜻이 맞지 않고 (b) 생성기가 다시 만들 때마다 수백 개 파일에 의미 없는 메타를 찍어야 해 유지보수 부담이다.
 
 반면 카탈로그 최상위 `<resource>.md` 인덱스(`application.md` 등 18개)는 해당 리소스군의 메타데이터 구현(`code:`)을 약속하는 정식 스펙이라 `id` 와 `status: implemented` 가 있고 검증을 유지한다. 그래서 제외는 카탈로그 디렉터리 뒤에 경로 세그먼트가 하나 더 있는 중첩 경로(`<name>-api-catalog/<resource>/…`)로 한정한다. `_*.md`(밑줄 접두, leaf 아님) 제외와는 논리가 다르다(생성물과 layout·index). 그래서 따로 항목을 둔다. 가드 구현은 `spec-frontmatter-parse.ts` 의 `CATALOG_FIELD_FILE` 정규식이 제외 목록과 맞춘다.
+
+카탈로그는 전환 단계 4a(NERV Task `CLE-T-BD48J3`)에서 저장소 `codebase/api-catalogs/` 로 옮겼다. 그래서 지금 `spec/` 아래에는 이 제외에 걸리는 파일이 없다.
 
 ### R-8. Gate C — plan 완료 시점에 `spec_impact` 선언을 의무로 둔다
 
@@ -328,8 +351,9 @@ TTL 과 `backlog` 등재 가드는 전환 단계 3 에서 걷었다(R-13).
 
 링크 무결성·영역 index·plan frontmatter·plan 완료(Gate C) 가드는 frontmatter 근거 가드(스펙이 약속한 표면의 구현 근거)와 **검증 대상이 다르다**. 스펙·plan 문서 자체의 구조와 연결의 무결성을 본다. 그래서 한 표에 섞지 않고 별도 가족으로 둔다.
 
-- **이 문서를 기준으로 삼은 이유와 기각한 대안**: (a) 새 규약 문서로 떼기. 가드 4건에 새 스펙 파일은 과하고 frontmatter 근거와 가까운 영역이라 한 문서에 두는 편이 응집적이다. (b) `plan-lifecycle.md` 에 합치기. plan frontmatter 만 plan 영역이고 링크·영역 index 는 스펙 영역이라 맞지 않는다. 그래서 이 문서에 묶되 `plan-frontmatter` 가드의 **규약** 기준만 `plan-lifecycle.md` §4 에 맡겼다(필드 정의가 거기 있다).
+- **이 문서를 기준으로 삼은 이유와 기각한 대안**: (a) 새 규약 문서로 떼기. 가드 4건에 새 스펙 파일은 과하고 frontmatter 근거와 가까운 영역이라 한 문서에 두는 편이 응집적이다. (b) `plan-lifecycle.md` 에 합치기. plan frontmatter 만 plan 영역이고 링크·영역 index 는 스펙 영역이라 맞지 않는다. 그래서 이 문서에 묶되 `plan-frontmatter` 가드의 **규약** 기준만 `plan-lifecycle.md`(git 이력) §4 에 맡겼다(필드 정의가 거기 있었다).
 - **전환 단계 3 뒤**: plan frontmatter · Gate C 가드를 걷어 이 가족에는 스펙 문서 저장소 가드만 남았다(R-13).
+- **전환 단계 4g 뒤**: 코드 쪽에서는 링크만 보던 이 가족이 링크가 아닌 언급(옛 경로 · 키)까지 본다(R-14 · R-15). 언급 가드를 이 문서에 둔 것은 규칙 18 의 키 링크 규약이 이 문서 소관이고 R-14 가 코드 주석 범위를 이미 이 문서에 두었기 때문이다.
 - **Gate D 를 권고로 둔 이유**: NLP 휴리스틱의 거짓 양성 부담을 빌드 차단으로 지우면 마찰이 가치를 넘는다(spec-coverage R-1 과 같은 판단). 보고형으로 둔다.
 
 ### R-10. `user_guide:` 에는 빌드 가드를 두지 않는다 (선언용 cross-link)
@@ -354,7 +378,7 @@ TTL 과 `backlog` 등재 가드는 전환 단계 3 에서 걷었다(R-13).
 
 NERV 정본 전환 단계 1 에서 저장소 `spec/` 에 NERV 미러 169편(영역 문서와 그 아래는 `spec/<영역 키>/<KEY>.md`, 영역 밖 문서는 `spec/<KEY>.md`)과 `spec/README.md` 가 옛 트리 옆에 들어왔다. 미러를 두 가드에 그대로 태우자 49건이 빨간불이 됐다(영역 폴더마다 index 문서 없음, 링크 무결성). 미러가 옛 트리 규칙을 따르게 만드는 안은 기각했다.
 
-- 카탈로그 영역은 미러하지 않아서 카탈로그 키를 가리키는 링크 125개가 풀리지 않는다.
+- 카탈로그 영역은 미러하지 않아서 카탈로그 영역의 스펙 키(`CLE-C24-…` · `CLE-MKS-…`)를 가리키는 링크 125개가 풀리지 않는다.
 - 앵커 1,372개(다른 문서 530 · 같은 문서 842)가 옛 가드의 slug 규칙과 맞는지 보장할 수 없다. NERV 는 앵커를 관계 판정에서 무시한다.
 - 영역 index 규칙은 폴더마다 목차 파일을 요구한다. 미러는 구현 PR 이 조금씩 갱신하는 스냅샷이라 폴더 목차가 병렬 PR 의 충돌 지점이 된다.
 
@@ -369,13 +393,66 @@ NERV 정본 전환 단계 3(NERV Task `CLE-T-FN2JWK`)에서 저장소 `plan/` �
 - `spec-plan-completion.test.ts`(Gate C, 규칙 15 · 16): 완료 plan 의 `spec_impact` 선언을 봤다. NERV Task 의 `done` 전이가 같은 선언을 요구한다.
 - `plan-frontmatter.test.ts`: plan frontmatter 와 살아 있는 plan 의 링크를 봤다. 대상이 없어졌다.
 
-대체 없이 끈 가드는 없다. 앞의 셋은 NERV Task 의 추적과 done 게이트가 대신하고, 마지막 하나는 대상이 사라졌다. 다만 `spec-status-lifecycle` 의 두 갈래는 plan 경로를 읽지 않았다. `spec-only` TTL(규칙 9)과 `backlog` 등재(규칙 10)는 옛 트리 frontmatter 의 `status` 와 `spec/0-overview.md` 를 읽었다. 이 둘은 NERV 에서 문서 머리 줄의 "구현 상태" 와 영역 문서로 바뀐 전제라 같은 PR 에서 함께 걷었다. 이 시점 옛 트리의 `spec-only` 는 문서 예시뿐이고 `backlog` 는 1건이다.
+검사마다 이어받는 곳이 다르다.
+
+- `spec_impact` 선언(Gate C)은 NERV Task 의 `done` 게이트가 같은 선언을 요구한다.
+- `plan-frontmatter` 는 대상이 사라졌다.
+- `pending_plans:` 의 실존과 의무(규칙 8)는 남은 표면을 NERV Task 로 추적하는 절차로 옮겼다. 이 절차를 기계가 강제하지는 않는다(아래 「약해지는 곳」).
+- `partial` 승격(규칙 11)은 보는 가드 없이 [전이 규칙](#전이-규칙)을 따른다.
+- `spec-only` TTL(규칙 9)과 `backlog` 등재(규칙 10)는 대신하는 장치 없이 걷었다. 이 두 갈래는 plan 경로를 읽지 않고 옛 트리 frontmatter 의 `status` 와 `spec/0-overview.md` 를 읽었다. NERV 에서 문서 머리 줄의 "구현 상태" 와 영역 문서로 바뀐 전제라 같은 PR 에서 함께 걷었다. 이 시점 옛 트리의 `spec-only` 는 문서 예시뿐이고 `backlog` 는 1건이다.
+
+(2026-10-03 정정: 승인본 v2 는 "대체 없이 끈 가드는 없다" 고 적었다.)
 
 약해지는 곳도 있다. "`partial` 인데 남은 표면을 맡은 작업이 없음"(R-5 가 막던 빈 약속)은 이제 기계가 잡지 못한다. 남은 표면은 구현 PR 이 NERV Task 를 만드는 절차(developer SKILL 의 partial-implementation 분리)와 리뷰가 지킨다.
 
 옛 트리 파일에 남은 `pending_plans:` 값은 이제 읽는 가드가 없고 대상 plan 도 없다. 단계 5 에서 옛 트리를 지울 때까지 그 값이 dangling 인 상태를 허용한다. 이 문서의 Rationale 이 가리키는 옛 plan 문서(R-8 · R-9 · R-11)는 단계 3 삭제 커밋 직전 이력에서 `git show <삭제 커밋>^:<경로>` 로 읽는다.
 
 링크 무결성 가드 범위 1 이 루트 `plan/` · `review/` 로 해석되는 링크를 건너뛰는 것도 같은 이유다(규칙 17). 동결된 옛 트리를 고치지 않고 단계 5 에서 지울 때까지 둔다. 해석한 경로로 판정해 루트가 아닌 같은 이름 폴더는 그대로 검사한다. 거버넌스 문서에는 이 면제를 두지 않았다. 살아 있는 문서라 링크를 고칠 수 있다.
+
+### R-14. 코드 주석은 스펙을 키 링크로 가리킨다 (2026-10-03)
+
+NERV 정본 전환 단계 4c(NERV Task `CLE-T-9AM31N`)에서 링크 무결성 가드 범위 2 를 바꿨다. 그 전에는 코드 주석이 `spec/**.md` 를 상대 경로로 링크했고 가드는 그 대상 파일과 앵커를 확인했다. 지금은 코드 주석이 키 링크 `[글](<키>#앵커)` 로 스펙을 가리킨다(규칙 18). 경로 링크는 대상이 있어도 위반이다.
+
+경로 링크를 그만 쓴 이유는 셋이다.
+
+- 상대 경로의 `../` 깊이를 코드 파일 위치마다 손으로 세야 했고 파일을 옮길 때마다 고쳐야 했다. 틀리면 `DEAD` 로 빌드가 깨졌다.
+- 옛 트리는 전환 단계 5(NERV Task `CLE-T-7M4C4X`)에서 지운다. 옛 트리를 가리키는 경로 링크는 그때 모두 끊긴다.
+- 미러 파일을 경로로 가리켜도 `../` 깊이는 손으로 세야 한다. 문서가 다른 영역으로 옮기면 미러 경로도 바뀐다. 키는 바뀌지 않는다.
+
+키 링크는 NERV 본문의 링크 표기와 같다. 그래서 스펙 본문과 코드 주석이 같은 표기로 문서를 가리킨다.
+
+키와 앵커는 미러 파일로 확인한다. NERV 는 앵커를 관계 판정에서 무시하므로(R-12) 코드 주석의 앵커가 맞는지는 저장소에서 확인해야 한다. 저장소에서 키와 앵커를 확인할 수 있는 파일은 미러뿐이다. 그래서 키 링크의 대상은 미러에 있어야 한다. 미러는 구현할 때 받은 문서만 담는 부분 스냅샷이므로 미러에 없는 키를 새로 링크하려면 같은 PR 에서 그 문서를 미러로 받는다. 미러 안의 링크는 대상이 미러에 없어도 넘긴다(R-12). 그 링크는 NERV 가 저장할 때 대상을 확인하기 때문이다. 코드 주석은 NERV 를 거치지 않으므로 이 가드가 확인한다.
+
+앵커의 확인 대상은 미러 스냅샷의 제목을 github-slugger 로 바꾼 slug 다. NERV 화면의 앵커와 같다는 보장은 없다(R-12). 미러를 새로 받는 PR 에서 제목이 바뀌어 코드 주석의 앵커가 `ANCHOR` 로 깨지면 그 PR 에서 함께 고친다. 병렬 PR 사이의 앵커 어긋남(한쪽이 미러 제목을 바꾸고 다른 쪽이 옛 앵커를 넣음)은 main CI 가 잡고 나중에 머지한 쪽이 고친다.
+
+키를 미러 파일로 확인한다는 점은 사용자 가이드 프론트매터 `spec:` 의 키 확인(전환 단계 4b, [사용자 가이드](../CLE-UI/CLE-UI-GUIDE.md))과 같다. 다른 점도 있다. 가이드 `spec:` 는 미러하지 않는 카탈로그 영역의 키(`CLE-C24-META` · `CLE-MKS-META`)를 이름 목록 `UNMIRRORED_GUIDE_KEYS` 로 허용한다. 코드 주석의 키 링크에는 그런 허용 목록이 없다. 그래서 카탈로그 영역의 스펙 키를 키 링크로 쓰면 `KEY` 위반이다.
+
+공개 OpenAPI 채널은 예외다. `*.dto.ts` · `*.controller.ts` 의 `/** */` 블록(클래스 · 멤버 · 파일 수준 선언)과 데코레이터 `description` · `summary` 문자열은 공개 OpenAPI 채널로 본다. 외부 소비자는 키를 열어 볼 수 없으므로 그 자리에는 링크 없는 키도 포함해 키를 쓰지 않는다. 근거는 바로 위 `//` 주석에 키 링크로 적는다([OpenAPI 문서화](../CLE-API/CLE-API-SWAGGER.md) 규칙 17). 두 파일 종류의 `/** */` 는 [리뷰 산출물 인용 규약](CLE-ENG-REVIEWCITE.md) 이 응답 DTO 파일의 `/** */` 를 한 채널로 다룬 것과 같은 이유로 넓혔다. 리뷰 인용 쪽 강제 가드의 경계는 응답 DTO 파일로 남아 있다. 링크 가드는 키 링크의 대상이 있는지만 보고 공개 채널에 키가 들어갔는지는 백엔드 가드 `openapi-internal-ref` 가 본다.
+
+단계 4c 에서 경로 링크 43개(22파일)를 키 링크로 바꿨다. 그중 하나는 가드 자신의 설명에 든 예시다. 옛 문서 하나가 여러 NERV 문서로 나뉜 경우가 있었다. 이때는 미러 frontmatter 의 `source_paths` 로 후보 문서를 뽑았다. 그다음 옛 절의 내용을 읽고 새 문서와 제목을 골랐다. 경로만으로는 그 절이 어느 문서로 갔는지 정할 수 없기 때문이다. 바꾼 앵커는 모두 미러 제목과 대조했다.
+
+거버넌스 문서(범위 3)는 상대 경로 링크를 이전처럼 대상 파일과 제목으로 확인한다. 키 링크가 있으면 범위 2 와 같은 방법으로 미러에서 확인한다. 범위 1(옛 스펙 트리 본문)은 바꾸지 않았다. 미러는 여전히 범위 1 에서 빠진다(R-12).
+
+이 가드는 마크다운 링크만 본다. 링크가 아닌 언급은 R-15 의 두 가드가 본다.
+
+### R-15. codebase 의 옛 경로는 래칫으로 막고 고칠 때 바꾼다 (2026-10-03)
+
+NERV 정본 전환 단계 4g(NERV Task `CLE-T-M7K35H`)에서 링크가 아닌 언급을 보는 가드 두 개를 더했다. 옛 스펙 트리는 전환 단계 5 에서 지운다. 그 트리를 경로로 적은 줄은 그때 모두 대상을 잃는다.
+
+한꺼번에 키로 바꾸는 안은 전환 계획에서 기각했다(NERV Task `CLE-T-M7K35H`). 계획은 옛 경로 언급이 늘지 않게만 막기로 정했다. 계획을 세운 2026-09-28 에 codebase 의 옛 경로 언급은 1,990줄 · 860개 파일이었다. `.md` 로 끝나는 경로만 센 값이다. 그 절반쯤은 여러 NERV 문서로 갈라진 옛 파일을 § 번호와 함께 가리킨다. 대부분의 NERV 제목에는 번호가 없다. 번호가 있어도 옛 § 번호와 1:1 로 대응하지 않는다. 그래서 기계로 옮길 수 없다. 860개 파일을 한 번에 고치면 리뷰할 범위도 지나치게 커진다. 전환 단계 4c 에서는 공개 표면과 경로 링크 43개만 바꿨다(R-14). 나머지는 늘지 않게만 막는다. 파일을 고칠 때 그 파일의 언급을 바꾼다.
+
+- **옛 경로 래칫** `legacy-path-ratchet`: 래칫(ratchet)은 여기서 파일별 기준값보다 늘거나 줄면 실패하는 판정을 말한다. 이 가드는 옛 스펙 트리 경로를 적은 줄과 지운 `plan/` 경로를 적은 줄을 파일별로 세어 기준값과 견준다. 줄었는데 기준값을 그대로 두면 줄어든 만큼 새 언급이 늘어도 실패하지 않는다. 그래서 줄어도 실패로 본다. 백엔드 · 프론트엔드 타입체크 래칫(`scripts/_typecheck_ratchet.py`)과 같은 판정이다. 형제 래칫 `hardcoded-korean-ratchet` 은 판정이 다르다. 그 래칫은 기준값보다 줄면 통과하고 낡은 기준값에는 경고만 낸다.
+- **세는 경로**: 옛 스펙 트리 경로는 옛 트리의 최상위 이름(`spec/<번호>-<영역>/` · `spec/conventions/` · `spec/data-flow/` · 루트 `spec/<번호>-<이름>.md`)으로 시작하는 경로다. 확장자는 요구하지 않는다. `.md` 를 뺀 인용(`spec/5-system/13-replay-rerun §7.2`), 줄 끝에서 끊긴 경로, 영역 이름만 적은 언급(`spec/7-channel-web-chat`), 글로브도 단계 5 뒤에는 가리킬 대상이 없기 때문이다. NERV 미러 경로(`spec/CLE-*` · `spec/README.md`)는 이 이름에 들지 않는다. `spec/` 없이 파일 이름만 적은 언급(`review-citations.md §3`)은 세지 않는다. 지운 `plan/` 경로는 `plan/in-progress/` · `plan/complete/` · `plan/research/` 로 시작하는 경로다.
+- **`plan/` 경로도 세는 이유**: `plan/` 은 전환 단계 3 에서 지운 트리라 옛 스펙 경로와 같은 문제가 있다. 남은 작업은 NERV Task 키(`CLE-T-…`)로 가리킨다. 끝난 일은 PR 번호나 커밋으로 가리킨다. 리뷰 지적을 가리키던 줄은 [리뷰 산출물 인용 규약](CLE-ENG-REVIEWCITE.md) 을 따른다. 옛 커밋 산출물 `review/<종류>/<날짜>/<시각>` 인용은 그 규약의 규칙 1 이 유지하는 인용이라 래칫 밖이다.
+- **기준값**: 들일 때 기준값은 옛 스펙 경로 1,729줄 · 722개 파일과 `plan/` 경로 116줄 · 93개 파일이다(2026-10-03). 확장자 없는 인용까지 센 값이다. 계획의 1,990줄보다 적은 것은 그 뒤 전환 단계 4c 가 경로 링크 43개를 키 링크로 바꾸는 등으로 언급이 줄었기 때문이다.
+- **적용된 마이그레이션**: `V*.sql` · `V*.conf` 의 언급은 고치지 않는다. [DB 마이그레이션 규약](CLE-ENG-MIGRATION.md) 규칙 9(append-only)가 수정을 막는다. 그래서 그 언급(옛 스펙 경로 76개 파일 · 122줄, `plan/` 경로 33개 파일 · 33줄)은 기준값에 영구히 남는다. 옛 트리를 지운 뒤에도 기준값이 0 이 되지 않는다. 가드가 아무것도 세지 않고 통과하는 일을 막는 하한(vacuity floor)은 이 영구 잔존분에 건다. 줄어드는 전체 합계에 걸면 언급을 줄이는 정상 작업이 쌓였을 때 거짓으로 실패하기 때문이다. 카탈로그 생성기 산출물은 그 파일 대신 생성기를 고친다.
+- **기준값 갱신**: 줄였으면 `LEGACY_PATH_RATCHET_UPDATE=1` 로 기준값을 다시 쓴다. 이 모드는 줄어든 값만 쓴다. 늘어난 파일이 있으면 쓰지 않고 실패한다. 파일을 옮기거나 나눠 언급이 다른 파일로 넘어간 경우에만 `LEGACY_PATH_RATCHET_UPDATE=grow` 로 늘어난 값까지 쓴다. 그때는 PR 본문에 이유를 적는다. CI 에서는 갱신을 거부한다.
+- **병렬 PR**: 기준값 파일은 파일마다 한 항목이라 두 PR 이 같은 파일의 언급을 함께 바꿀 때만 충돌한다. 그때는 나중에 머지한 쪽이 기준값을 다시 쓴다. R-14 의 앵커 어긋남과 같은 처리다.
+- **단계 5 뒤**: 옛 트리를 지운 뒤에도 이 가드는 유지한다. 옛 경로가 새로 생기는 것을 막기 때문이다.
+- **키 언급 가드** `spec-key-mentions`: 링크로 감싸지 않은 키도 미러에 있어야 한다. 옛 경로를 키로 바꾸는 일이 늘수록 이 언급이 는다. 오탈자 키는 아무 데도 닿지 않는 인용이 된다. 키를 뽑을 때 링크 안팎을 가르지 않는다. 키 링크의 키도 같은 판정이라 해가 없다. 키 뒤에 적은 절 제목(「…」)은 확인하지 않는다. 키 링크의 앵커는 링크 무결성 가드 범위 2 가 본다.
+- **카탈로그 영역 키**: 미러하지 않는 카탈로그 영역(`CLE-C24` · `CLE-MKS`)의 키는 미러로 확인할 수 없어서 영역 단위로 통과시킨다. 같은 키를 키 링크로 쓰면 `KEY` 위반이다. 키 링크는 앵커까지 미러로 확인하는 표기라 대상이 미러에 있어야 한다(R-14). 링크 없는 언급은 키만 본다. 사용자 가이드 프론트매터 `spec:` 는 같은 영역의 키를 이름 목록(`UNMIRRORED_GUIDE_KEYS`)으로 허용한다. 코드 주석에서는 이름 목록을 두지 않았다. 카탈로그 영역의 스펙 키를 적을 때마다 목록을 고쳐야 하기 때문이다. 그 대가로 카탈로그 영역 키의 오탈자는 잡지 못한다.
+- **공용 순회**: 세 가드가 `codebase-mentions.ts` 의 같은 순회를 쓴다. 이 문서의 두 가드와 [리뷰 산출물 인용 규약](CLE-ENG-REVIEWCITE.md) 규칙 9 · 10 을 보는 `review-citation-form` 이다. 순회를 고칠 때는 세 가드의 영향을 함께 본다.
+- 키 모양은 `spec-keys.ts` 의 `SPEC_KEY_RE` 한 곳에서 가져온다. 같은 모양의 정규식 복사본이 다른 가드에도 있으니 모양을 바꿀 때 함께 고친다.
 
 ### `code:` 목록에 주석을 허용한 경위 (2026-09-06)
 

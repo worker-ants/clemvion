@@ -16,7 +16,7 @@ import { join } from 'node:path';
  * .conf 의 prefix mismatch / version 중복) 시 즉시 fail.
  *
  * 빌드 시점에는 `codebase/backend/migrations/check-duplicate-versions.sh` 가 동일한
- * 정규화 규칙으로 한 번 더 차단한다 — 정책: `spec/conventions/migrations.md` §6.
+ * 정규화 규칙으로 한 번 더 차단한다 — 정책: NERV `CLE-ENG-MIGRATION` 「충돌 검출과 머지 race 안전망」.
  */
 
 const MIGRATIONS_DIR = join(__dirname, '..', 'migrations');

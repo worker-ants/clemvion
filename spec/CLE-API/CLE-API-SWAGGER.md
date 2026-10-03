@@ -2,19 +2,19 @@
 id: "CLE-API-SWAGGER"
 title: "OpenAPI 문서화"
 type: "convention"
-version: 1
-status: "draft"
+version: 2
+status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-API"
 ancestors: ["CLE-VISION", "CLE-API"]
 area: "CLE-API"
-content_hash: "a27fe118423d0bac263f474a63f8ac1e1f9a5d4de64ec2d44bbec7c4db4823db"
+content_hash: "6bd0bda7d458b4931c2d9ab70e52e13b92fb7812b8537b35a2582cc153a7f164"
 read_as: "approved_fallback"
-task: "CLE-T-9AM31N"
+task: "CLE-T-M7K35H"
 source_paths: ["spec/conventions/swagger.md"]
-mirror_sha256: "4564682dbf21f2e4b23a9a0576501f7f081b85141ffcf38b82811c7fb00ff93c"
-etag: "sha256-ae2afa73346a569c060d21974bd91d10d133b41bd9d1ca820d59a0990d7876e9"
+mirror_sha256: "910b1872e532faba95de765bb38a6ead94d40cfd17a46067e13bf560a44d420a"
+etag: "sha256-4bc19674c6a1031c597c292fea10f7d0461cd528878647c96a88dd3961b498fa"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/conventions/swagger.md` · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -524,6 +524,8 @@ async create(...) { ... }
 - `codebase/backend/src/repo-guards/__tests__/request-body-advertised*.ts` (§5-4 요청 본문 스키마. reflection, 대조군은 spec 안의 클래스)
 - `codebase/backend/src/repo-guards/__tests__/openapi-internal-ref-guard.ts` 와 `openapi-internal-ref.spec.ts`, 대조군 `fixtures/openapi-internal-ref/**` (규칙 17)
 - `codebase/frontend/src/lib/__tests__/public-surface-internal-refs.test.ts` (규칙 17 과 같은 패턴으로 배포 SVG 와 외부 SDK README · `package.json` 을 보는 프런트엔드 가드)
+- `codebase/backend/src/repo-guards/__tests__/dto-jsdoc-citation*.ts` (교차 참조. 응답 DTO JSDoc 의 리뷰 인용을 보는 가드다. 기준은 [리뷰 산출물 인용 규약](../CLE-ENG/CLE-ENG-REVIEWCITE.md) 이다)
+- `codebase/frontend/src/lib/docs/__tests__/review-citation-form.test.ts` 와 `codebase-mentions.ts` (교차 참조. [리뷰 산출물 인용 규약](../CLE-ENG/CLE-ENG-REVIEWCITE.md) 규칙 9 · 10 을 보는 가드다. 기준은 그 규약이다)
 
 ## Rationale
 
@@ -671,5 +673,5 @@ EIA 단발 상태 조회의 `context` 가 그 반례다. `interactionType` 은 �
 - **기존 자리까지 걷었다.** §1-4 · §3 의 비소급 원칙은 내부 서사에 걸린다. 내부 참조는 기계로 판정되고 문구를 지우면 끝난다. 전환 단계 5 뒤에는 죽은 문자열이 된다. 그래서 기존 자리까지 걷었다.
 - **베이스라인은 0 이다.** 공개 문장에서 내부 참조를 빼는 일은 언제나 할 수 있다. 그래서 예외를 둘 자리가 없다.
 - **못 보는 것이 있다.** 상수나 헬퍼로 조립한 설명은 보지 못한다. 가드는 문자열 리터럴과 `+` 연결, 템플릿 리터럴의 고정 부분만 읽는다. 두 파일 종류 밖의 파일(`*.query.ts` 등)과 `example` · `@ApiTags` 같은 다른 키도 보지 않는다. 경로 없는 절 번호 인용(`[Spec EIA §4]`, 상수로 조립한 설명 속 `(spec 통합 §8 · §9.2)` 등)은 모양이 일정하지 않아 잡지 못한다. 그 인용은 남아 있고 정리는 NERV Task `CLE-T-BCS6QZ` 가 맡는다.
-- **리뷰 인용은 다른 가드가 본다.** 응답 DTO JSDoc 의 리뷰 인용은 `dto-jsdoc-citation` 이 본다([리뷰 산출물 인용 규약](../CLE-ENG/CLE-ENG-REVIEWCITE.md)). 응답 DTO 파일 밖의 DTO JSDoc(요청 DTO), 컨트롤러 JSDoc, `description` · `summary` 의 리뷰 인용은 어느 가드도 보지 않는다(그 규약의 강제 범위).
+- **리뷰 인용은 다른 가드가 본다.** 응답 DTO JSDoc 의 리뷰 인용은 `dto-jsdoc-citation` 이 본다([리뷰 산출물 인용 규약](../CLE-ENG/CLE-ENG-REVIEWCITE.md)). 그 규약 규칙 9 · 10 이 금지한 두 형태(`finding` 바로 뒤 소문자 16진 8자로 줄인 발견 ID, `.review/` 아래 code · consistency · merge · spec-coverage 경로)는 `review-citation-form` 이 `codebase/**` 의 텍스트 파일에서 본다(전환 단계 4g, 2026-10-03). 요청 DTO · 컨트롤러 JSDoc 과 `description` · `summary` 문자열도 그 범위에 든다. 그 가드가 읽는 파일, 잡는 형태, 잡지 못하는 형태는 그 규약의 [강제 범위](../CLE-ENG/CLE-ENG-REVIEWCITE.md#강제-범위) 에 있다. 규칙 17 의 「리뷰 인용은 이 목록에 없고」 는 발견 ID 와 옛 리뷰 경로처럼 Task 키가 아닌 리뷰 인용을 뜻한다. NERV Task 키(`CLE-T-…`)는 NERV 키 모양이라 규칙 17 의 여섯 형태에 든다. 그래서 Task 키 인용은 이 문서의 가드 `openapi-internal-ref` 가 NERV 키 형태로 잡는다. 그 밖의 리뷰 인용 형식(옛 리뷰 경로, 날짜 없는 시각, 전체 발견 ID)은 응답 DTO 파일 밖에서는 어느 가드도 보지 않는다(그 규약의 강제 범위).
 - **프런트엔드 공개 표면도 같은 패턴으로 본다.** `public-surface-internal-refs`(`codebase/frontend/src/lib/__tests__/public-surface-internal-refs.test.ts`)가 배포 SVG 와 외부 SDK(`@workflow/sdk` · `@workflow/web-chat`)의 README · `package.json` 을 같은 패턴으로 본다.
