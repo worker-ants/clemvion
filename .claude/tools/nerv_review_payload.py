@@ -66,7 +66,11 @@ _SPEC_DRIFT_RE = re.compile(r"\[?SPEC[-_ ]DRIFT\]?", re.I)
 SPEC_COVERAGE_ROLE = "spec_coverage"
 _COVERAGE_TIER_RE = re.compile(r"^##\s+후보\s*[—–-]\s*(high|medium|low)\s+confidence\b", re.I)
 _COVERAGE_ITEM_RE = re.compile(r"^###\s+\d+\.\s+(.*\S)\s*$")
-_COVERAGE_FIELD_RE = re.compile(r"^\s*[-*]\s+\*\*(신호|부재|권고)\*\*\s*[:：]\s*(.*)$")
+# 후보의 필드. 앞 둘은 본문, 마지막은 제안이 된다.
+_COVERAGE_FIELDS = ("신호", "부재", "권고")
+_COVERAGE_FIELD_RE = re.compile(r"^\s*[-*]\s+\*\*(" + "|".join(_COVERAGE_FIELDS) + r")\*\*\s*[:：]\s*(.*)$")
+# 요약의 후보 수(`- 후보 high: 3`). 읽은 후보 수와 맞춰 본다.
+_COVERAGE_COUNT_RE = re.compile(r"^\s*[-*]?\s*후보\s+(high|medium|low)\s*[:：]\s*(\d+)", re.I)
 _COVERAGE_DIRECTION_RE = re.compile(r"\[(forward|reverse)\]", re.I)
 # 세션 디렉터리 이름 → kind. 오케스트레이터가 `.review/<이름>/<Y>/<m>/<d>/<H_M_S>` 에 쓴다.
 _DIR_KIND = {"code": "code", "consistency": "consistency", "merge": "merge",
@@ -213,6 +217,47 @@ def parse_report(text: str, role: str) -> tuple[dict, list[str]]:
     return submission, warnings
 
 
+def _coverage_finding(candidate: dict) -> dict:
+    """후보 하나(제목 · 신뢰도 · 필드)를 info 발견 하나로 바꾼다."""
+    fields = candidate["fields"]
+    signal, absence, advice = _COVERAGE_FIELDS
+    body = "\n".join(f"{name}: {' '.join(fields[name]).strip()}" for name in (signal, absence) if fields.get(name))
+    title = candidate["title"]
+    out = {"severity": "info", "title": _cap(re.sub(r"\s+", " ", title), MAX_TITLE),
+           "body": _cap(body or title, MAX_BODY), "category": SPEC_COVERAGE_ROLE,
+           "tags": [SPEC_COVERAGE_ROLE, f"confidence:{candidate['tier']}"]}
+    direction = _COVERAGE_DIRECTION_RE.search(title)
+    if direction:
+        out["tags"].append(direction.group(1).lower())
+    if fields.get(advice):
+        out["suggestion"] = _cap(" ".join(fields[advice]).strip(), MAX_SUGGESTION)
+    path, line = _location(title)
+    if path:
+        out["file"] = path
+    if line:
+        out["line"] = line
+    return out
+
+
+def coverage_count_warnings(text: str, findings: list[dict]) -> list[str]:
+    """요약이 센 후보 수보다 적게 읽었으면 경고한다. 형식이 어긋나면 후보가 조용히 0건이 된다."""
+    claimed: dict[str, int] = {}
+    for ln in _section(text.splitlines(), "요약"):
+        m = _COVERAGE_COUNT_RE.match(ln)
+        if m:
+            claimed[m.group(1).lower()] = int(m.group(2))
+    read: dict[str, int] = {}
+    for f in findings:
+        tier = next((t.split(":", 1)[1] for t in f["tags"] if t.startswith("confidence:")), "")
+        read[tier] = read.get(tier, 0) + 1
+    if not claimed:
+        if not findings:
+            return ["SUMMARY.md: 후보를 하나도 읽지 못했고 요약에 후보 수도 없다 — 감사기 출력 형식을 확인한다"]
+        return []
+    return [f"SUMMARY.md: 요약은 {tier} 후보 {n}건인데 {read.get(tier, 0)}건만 읽었다 — 후보 형식을 확인한다"
+            for tier, n in claimed.items() if read.get(tier, 0) < n]
+
+
 def parse_coverage_summary(text: str) -> dict:
     """spec-coverage 감사기 SUMMARY → 역할 `spec_coverage` 의 제출 묶음. 후보 하나가 info 발견 하나다."""
     lines = text.splitlines()
@@ -221,40 +266,22 @@ def parse_coverage_summary(text: str) -> dict:
     current: dict | None = None
     field: str | None = None
 
-    def close():
-        if current is None:
-            return
-        fields = current["fields"]
-        body = "\n".join(f"{name}: {' '.join(fields[name]).strip()}" for name in ("신호", "부재") if fields.get(name))
-        title = current["title"]
-        out = {"severity": "info", "title": _cap(re.sub(r"\s+", " ", title), MAX_TITLE),
-               "body": _cap(body or title, MAX_BODY), "category": SPEC_COVERAGE_ROLE,
-               "tags": ["spec_coverage", f"confidence:{current['tier']}"]}
-        direction = _COVERAGE_DIRECTION_RE.search(title)
-        if direction:
-            out["tags"].append(direction.group(1).lower())
-        if fields.get("권고"):
-            out["suggestion"] = _cap(" ".join(fields["권고"]).strip(), MAX_SUGGESTION)
-        path, line = _location(title)
-        if path:
-            out["file"] = path
-        if line:
-            out["line"] = line
-        findings.append(out)
-
     for ln in lines:
         m = _COVERAGE_TIER_RE.match(ln)
         if m:
-            close()
+            if current is not None:
+                findings.append(_coverage_finding(current))
             current, field, tier = None, None, m.group(1).lower()
             continue
         if ln.startswith("## "):
-            close()
+            if current is not None:
+                findings.append(_coverage_finding(current))
             current, field, tier = None, None, None
             continue
         m = _COVERAGE_ITEM_RE.match(ln)
         if m and tier:
-            close()
+            if current is not None:
+                findings.append(_coverage_finding(current))
             current, field = {"title": m.group(1), "tier": tier, "fields": {}}, None
             continue
         if current is None:
@@ -265,7 +292,8 @@ def parse_coverage_summary(text: str) -> dict:
             current["fields"].setdefault(field, []).append(m.group(2))
         elif field and ln.strip():
             current["fields"][field].append(ln.strip())
-    close()
+    if current is not None:
+        findings.append(_coverage_finding(current))
 
     submission: dict = {"reviewer": {"role": SPEC_COVERAGE_ROLE}, "findings": findings}
     summary = " ".join(x.strip().lstrip("-* ").strip() for x in _section(lines, "요약") if x.strip())
@@ -303,6 +331,30 @@ def _roles(session_dir: str, state) -> dict[str, str] | None:
     return roles or None
 
 
+def _result(kind: str, session_dir: str, *, submissions=(), missing=(), errors=(), warnings=(),
+            changeset=None) -> dict:
+    """`build` 가 돌려주는 모양. 모든 kind 가 이 한 곳에서 만든다."""
+    out: dict = {"kind": kind, "session_dir": os.path.abspath(session_dir)}
+    if changeset:
+        out["changeset"] = list(changeset)
+    out.update({"submissions": list(submissions), "missing_forced": list(missing),
+                "errors": list(errors), "warnings": list(warnings)})
+    return out
+
+
+def _build_spec_coverage(session_dir: str, kind: str) -> dict:
+    """spec_coverage 세션: 감사기가 쓴 SUMMARY.md 하나가 역할 하나다."""
+    try:
+        with open(os.path.join(session_dir, "SUMMARY.md"), encoding="utf-8", errors="replace") as f:
+            text = f.read()
+    except OSError:
+        return _result(kind, session_dir,
+                       errors=["SUMMARY.md 가 없다 — 감사기 결과를 main 이 기록했는지 확인한다"])
+    submission = parse_coverage_summary(text)
+    return _result(kind, session_dir, submissions=[submission],
+                   warnings=coverage_count_warnings(text, submission["findings"]))
+
+
 def build(session_dir: str, kind: str | None = None) -> dict:
     if not os.path.isdir(session_dir):
         raise SystemExit(f"nerv_review_payload: 세션 디렉터리가 없다 — {session_dir}")
@@ -310,17 +362,7 @@ def build(session_dir: str, kind: str | None = None) -> dict:
     if kind not in KINDS:
         raise SystemExit("nerv_review_payload: kind 를 정하지 못했다 — --kind 로 준다")
     if kind == "spec_coverage":
-        summary_path = os.path.join(session_dir, "SUMMARY.md")
-        out: dict = {"kind": kind, "session_dir": os.path.abspath(session_dir), "submissions": [],
-                     "missing_forced": [], "errors": [], "warnings": []}
-        try:
-            with open(summary_path, encoding="utf-8", errors="replace") as f:
-                text = f.read()
-        except OSError:
-            out["errors"].append("SUMMARY.md 가 없다 — 감사기 결과를 main 이 기록했는지 확인한다")
-            return out
-        out["submissions"] = [parse_coverage_summary(text)]
-        return out
+        return _build_spec_coverage(session_dir, kind)
     names = sorted(
         n for n in os.listdir(session_dir)
         if n.endswith(".md") and n not in _NOT_REPORTS and not n.startswith("_")
@@ -379,16 +421,15 @@ def build(session_dir: str, kind: str | None = None) -> dict:
         note = block_integrity.contradiction_note(session_dir)
         if note:
             warnings.append(f"SUMMARY.md: {note}")
-    out: dict = {"kind": kind, "session_dir": os.path.abspath(session_dir)}
+    changeset = None
     meta = _load_json(os.path.join(session_dir, "meta.json"))
     files = meta.get("files") if isinstance(meta, dict) else None
     if isinstance(files, list) and files:
         paths = [f.get("file_path") if isinstance(f, dict) else f for f in files]
         if all(isinstance(x, str) and x for x in paths):
-            out["changeset"] = paths
-    out.update({"submissions": submissions, "missing_forced": missing,
-                "errors": errors, "warnings": warnings})
-    return out
+            changeset = paths
+    return _result(kind, session_dir, submissions=submissions, missing=missing, errors=errors,
+                   warnings=warnings, changeset=changeset)
 
 
 def main(argv: list[str] | None = None) -> int:

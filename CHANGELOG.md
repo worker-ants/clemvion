@@ -64,7 +64,7 @@ NERV 정본 전환 단계 4e.
 
 - `nerv_review_payload.py` 가 merge 세션(analyzer 리포트마다)과 spec_coverage 세션(감사기 `SUMMARY.md` 후보마다
   info 발견, 태그 `confidence:<신뢰도>`)의 제출 묶음을 만든다. 전에는 두 kind 를 거절했다. spec_coverage 는 보고형이라
-  info 로만 내서 라운드를 막지 않는다.
+  info 로만 내서 라운드를 막지 않는다. 요약이 센 후보보다 적게 읽으면(감사기 출력 형식이 바뀐 경우) 경고한다.
 - `/spec-coverage` 감사기 프롬프트가 적용 대상의 정본을 미러 `CLE-ENG-SPECEVIDENCE` 로 인용하고, 정본에 있던
   `spec/7-channel-web-chat/**.md` 를 대상에 넣었다.
 

@@ -340,6 +340,67 @@ class BuildTest(unittest.TestCase):
         self.assertIn("reverse", medium["tags"])
         self.assertNotIn("suggestion", medium)
 
+    def _coverage_session(self, text):
+        d = self.tmp / ".review" / "spec-coverage" / "2026" / "10" / "01" / "12_00_00"
+        d.mkdir(parents=True, exist_ok=True)
+        (d / "SUMMARY.md").write_text(text, encoding="utf-8")
+        return tool.build(str(d))
+
+    def test_the_auditor_definition_example_parses(self):
+        """파서는 감사기 정의(`spec-impl-coverage-auditor.md` §출력 형식)의 예시를 읽어야 한다.
+
+        손으로 쓴 fixture 만 쓰면 정의의 형식이 바뀌어도 초록이고, 실제 SUMMARY 는 "후보 0건" 으로 조용히
+        통과한다."""
+        agent = (_harness.CLAUDE_DIR / "agents" / "spec-impl-coverage-auditor.md").read_text(encoding="utf-8")
+        section = agent.split("## 출력 형식", 1)[1]
+        example = re.search(r"```markdown\n(.*?)\n```", section, re.S)
+        self.assertIsNotNone(example, "감사기 정의에서 출력 형식 예시를 찾지 못했다")
+        sub = tool.parse_coverage_summary(example.group(1))
+        self.assertTrue(sub["findings"], "정의의 예시에서 후보를 하나도 읽지 못했다")
+        first = sub["findings"][0]
+        self.assertIn("confidence:high", first["tags"])
+        self.assertIn("신호:", first["body"])
+        self.assertIn("부재:", first["body"])
+        self.assertTrue(first.get("suggestion"))
+        self.assertIn("후보 high", sub.get("summary", ""))
+
+    def test_candidates_the_summary_counts_but_the_parser_misses_are_warned(self):
+        """요약이 센 후보보다 적게 읽었으면 형식이 어긋난 것이다. 조용히 0건으로 내지 않는다."""
+        text = textwrap.dedent("""\
+            ## 요약
+
+            - 후보 high: 2
+
+            ## 후보 — high confidence
+
+            1. `spec/CLE-A.md` — 번호 목록으로 쓴 후보
+            2. `spec/CLE-B.md` — 번호 목록으로 쓴 후보
+            """)
+        out = self._coverage_session(text)
+        self.assertEqual(out["submissions"][0]["findings"], [])
+        self.assertTrue(any("high" in w and "2" in w for w in out["warnings"]), out["warnings"])
+
+    def test_no_candidates_and_no_counts_is_warned(self):
+        out = self._coverage_session("## 요약\n\n- 모드: forward\n")
+        self.assertTrue(any("후보를 하나도" in w for w in out["warnings"]), out["warnings"])
+
+    def test_a_clean_audit_is_not_warned(self):
+        out = self._coverage_session("## 요약\n\n- 후보 high: 0\n- 후보 medium: 0\n- 후보 low: 0\n")
+        self.assertEqual(out["warnings"], [])
+        self.assertEqual(out["submissions"][0]["findings"], [])
+
+    def test_a_low_candidate_without_a_signal_keeps_its_absence(self):
+        text = textwrap.dedent("""\
+            ## 후보 — low confidence
+
+            ### 1. `spec/CLE-X.md` — H3 시나리오
+            - **부재**: e2e 가 없다
+            """)
+        [f] = self._coverage_session(text)["submissions"][0]["findings"]
+        self.assertIn("confidence:low", f["tags"])
+        self.assertEqual(f["body"], "부재: e2e 가 없다")
+        self.assertNotIn("suggestion", f)
+
     def test_a_spec_coverage_session_without_its_summary_fails(self):
         d = self.tmp / ".review" / "spec-coverage" / "2026" / "10" / "01" / "12_00_00"
         d.mkdir(parents=True)
