@@ -334,7 +334,7 @@ _IMPL_HEADING_RE = re.compile(r"^## 구현 위치[ \t]*$", re.MULTILINE)
 _SECTION_END_RE = re.compile(r"^#{1,2}\s", re.MULTILINE)
 _BACKTICK_RE = re.compile(r"`([^`\n]+)`")
 _LINE_SUFFIX_RE = re.compile(r":\d+(?:[-~]\d+)?$")
-_GLOB_CHARS = frozenset("*?[")
+_GLOB_CHARS = frozenset("*?")  # 대괄호는 글자 그대로다(`_glob_matches`)
 
 
 def impl_location_patterns(text, root, spec_rel="spec"):
@@ -363,21 +363,47 @@ def impl_location_patterns(text, root, spec_rel="spec"):
     return out
 
 
+_BRACE_RE = re.compile(r"\{([^{}]*,[^{}]*)\}")
+
+
+def _expand_braces(pattern):
+    """`a/{ko,en}/b` → `a/ko/b`, `a/en/b`. 중첩 없는 중괄호만 펼친다(구현 위치 표기가 쓰는 범위)."""
+    m = _BRACE_RE.search(pattern)
+    if not m:
+        return [pattern]
+    head, tail = pattern[: m.start()], pattern[m.end():]
+    return [x for alt in m.group(1).split(",") for x in _expand_braces(head + alt + tail)]
+
+
+def _glob_matches(pattern, rel):
+    """`*` · `?` glob. 대괄호는 글자 그대로다(Next.js 동적 경로 `[slug]` 가 실제 폴더 이름이다).
+    `/**/` 는 폴더 0개도 받는다(`dto/**/x.ts` 는 `dto/x.ts` 도 덮는다)."""
+    escaped = pattern.replace("[", "\0").replace("]", "[]]").replace("\0", "[[]")
+    candidates = {escaped, escaped.replace("/**/", "/")}
+    return any(fnmatch.fnmatchcase(rel, c) for c in candidates)
+
+
 def impl_pattern_matches(pattern, rel):
     """구현 위치 항목 하나가 저장소 상대 경로 `rel` 을 덮는가.
 
+    - `{a,b}`: 갈래마다 따로 본다.
     - `dir/` · `dir/**`: 그 아래 전부
-    - glob(`*` `?` `[`): `fnmatch`. `*` 가 `/` 도 넘으므로 실제보다 넓게 맞는다. 넓은 쪽 오류는 문서를
-      하나 더 싣는 비용이고, 좁은 쪽 오류는 대조를 빠뜨린다.
+    - glob(`*` `?`): `fnmatch`. `*` 가 `/` 도 넘으므로 실제보다 넓게 맞는다. 넓은 쪽 오류는 문서를
+      하나 더 싣는 비용이고, 좁은 쪽 오류는 대조를 빠뜨린다. 대괄호는 글자 그대로다.
     - 그 밖: 같은 파일이거나 그 폴더 아래
     """
-    if pattern.endswith("/"):
-        return rel.startswith(pattern)
-    if pattern.endswith("/**"):
-        return rel.startswith(pattern[:-2])
-    if _GLOB_CHARS & set(pattern):
-        return fnmatch.fnmatchcase(rel, pattern)
-    return rel == pattern or rel.startswith(pattern + "/")
+    for alt in _expand_braces(pattern):
+        if alt.endswith("/"):
+            hit = rel.startswith(alt)
+        elif alt.endswith("/**"):
+            hit = rel.startswith(alt[:-2])
+        elif _GLOB_CHARS & set(alt):
+            hit = _glob_matches(alt, rel)
+        else:
+            hit = rel == alt or rel.startswith(alt + "/")
+        if hit:
+            return True
+    return False
 
 
 def docs_covering_changes(files, changed_rels, root, spec_rel="spec"):

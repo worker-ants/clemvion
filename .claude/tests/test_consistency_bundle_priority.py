@@ -218,6 +218,18 @@ class ImplLocationTest(unittest.TestCase):
             ("codebase/a/x.ts", "codebase/a/x.ts", True),
             ("codebase/a", "codebase/a/x.ts", True),
             ("codebase/a", "codebase/ab/x.ts", False),
+            # Next.js 동적 경로 — 대괄호는 글자 그대로다(문자 집합이 아니다).
+            ("codebase/w/[slug]/p.tsx", "codebase/w/[slug]/p.tsx", True),
+            ("codebase/w/[slug]/p.tsx", "codebase/w/s/p.tsx", False),
+            ("codebase/w/[slug]/*.tsx", "codebase/w/[slug]/p.tsx", True),
+            # 중괄호 갈래
+            ("codebase/d/{ko,en}/t.ts", "codebase/d/en/t.ts", True),
+            ("codebase/d/{ko,en}/t.ts", "codebase/d/fr/t.ts", False),
+            ("codebase/d/{ko,en}/*.ts", "codebase/d/ko/t.ts", True),
+            # `/**/` 는 폴더 0개도 받는다
+            ("codebase/dto/**/c-*.dto.ts", "codebase/dto/c-x.dto.ts", True),
+            ("codebase/dto/**/c-*.dto.ts", "codebase/dto/responses/c-y.dto.ts", True),
+            ("codebase/dto/**/c-*.dto.ts", "codebase/dto/other.dto.ts", False),
         ]
         got = run_in_orchestrator(
             "emit([orch.impl_pattern_matches(p, r) for p, r, _ in ARG])", cases)
