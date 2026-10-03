@@ -1,12 +1,12 @@
 // 유저 가이드가 이름으로 적은 **식별자가 실재하는가** 를 판정하는 순수 스캐너.
 // 테스트는 `guide-identifier-existence.test.ts`.
 //
-// SoT: spec/conventions/error-codes.md (코드 명명·안정성·은퇴 이력) ·
-//      spec/5-system/3-error-handling.md §1 (카탈로그)
-// 가드 «가족» 규약은 spec/conventions/user-guide-evidence.md 인데 **이 가드는 아직 그
-// 문서 §2 표에 없다**(실측: `grep -c guide-identifier` → 0). `#1330` 이 가족을 만든
-// 시점부터 그랬고 등재는 planner 몫으로 트래커에 있다 — 그래서 «SoT» 로 단정하지 않고
-// 여기 적는다 (`--impl-done` `review/consistency/2026/09/13/21_41_25`
+// SoT: NERV `CLE-API-ERRCODES` (코드 명명·안정성·은퇴 이력 ·
+//      「6. 카탈로그」. 가드는 미러 spec/CLE-API/CLE-API-ERRCODES.md 를 읽는다)
+// 가드 «가족» 규약은 NERV `CLE-ENG-GUIDEEVIDENCE` 인데 **이 가드는 아직 그 문서의
+// 「빌드 가드」 표에 없다**(「다른 가드와의 관계」 · 「미결 사항」 에만 나온다). `#1330` 이
+// 가족을 만든 시점부터 그랬고 등재는 NERV Task `CLE-T-R2Q21Q` 에 있다 — 그래서 «SoT» 로
+// 단정하지 않고 여기 적는다 (`--impl-done` `review/consistency/2026/09/13/21_41_25`
 // convention_compliance WARNING#3: 인용이 착지하지 않는다).
 //
 // > **라운드 7 의 그 교체가 두 가지를 한꺼번에 틀렸다 (라운드 8 정정).** 옛 표기는 두
@@ -88,7 +88,7 @@
 // > **그 예고를 닫은 것이 이 배치인데, 문장은 여덟 라운드 동안 한 글자도 안 바뀌었다**
 // > (`/ai-review` `review/code/2026/09/13/22_06_10` documentation CRITICAL).
 // > 닫은 방식은 **AST 가 아니다.** 술어 *"방출 위치를 AST 로 특정"* 은 실측이 **두 번**
-// > 반증했다 — `3-error-handling.md §1.4` 가 *"나머지는 앵커 없는 맨 문자열"* 이라
+// > 반증했다 — `CLE-API-ERRCODES` 「6.5」 가 *"나머지는 앵커 없는 맨 문자열"* 이라
 // > 적고 있어 AST 로 특정할 앵커 자체가 없고, 분류기 목록이 같은 이름을 인용해
 // > `MAX_ITERATIONS_EXCEEDED` 류가 통과한다(트래커
 // > `spec-draft-nullable-notation-followups.md` 의
@@ -387,7 +387,7 @@ export const GUIDE_NON_EMITTED_VOCABULARY: readonly {
  * `'X'` · `"X"` · `` `X` `` 세 형태를 받는다. 메시지 접두(`'X: …'`)는 따옴표 안에 토큰
  * 외의 글자가 있으므로 **여기 안 걸린다** — 그 갈림이 이 함수의 존재 이유다.
  *
- * **이 집합을 «발행» 의 증거로 쓰지 않는다.** `3-error-handling.md §1.4` 가 명시하듯
+ * **이 집합을 «발행» 의 증거로 쓰지 않는다.** `CLE-API-ERRCODES` 「6.5」 가 명시하듯
  * *"`execution-failure-classifier.ts` 의 목록에 같은 이름이 나오지만 그것은 소비자·분류기
  * 쪽 어휘이지 엔진 발행 경로의 앵커가 아니다"* — 실제로 `MAX_ITERATIONS_EXCEEDED` 는
  * 메시지 접두로만 발행되는데 그 분류기가 인용해서 여기 들어온다.
@@ -416,8 +416,9 @@ export function collectMessagePrefixes(
 /**
  * spec 에러 코드 **카탈로그**가 백틱으로 등재한 코드 전수.
  *
- * **카탈로그는 «요구 조건» 이 아니라 «탈출구» 다.** 요구 조건으로 쓰면 오늘 거짓 RED 가
- * 25건 난다 — 인용된 에러 코드 78종 중 28종이 미등재이고 그중 25종이 **진짜 발행되는**
+ * **카탈로그는 «요구 조건» 이 아니라 «탈출구» 다.** 요구 조건으로 쓰면 거짓 RED 가
+ * 25건 났다(2026-09-13 실측, 옛 트리 카탈로그 기준. 지금은 NERV `CLE-API-ERRCODES` 미러를
+ * 읽는다) — 인용된 에러 코드 78종 중 28종이 미등재이고 그중 25종이 **진짜 발행되는**
  * 통합 코드다(`CAFE24_*`·`MAKESHOP_*`·`INTEGRATION_*`). 그 미등재는 planner 트래커에
  * 등재된 별건이고, 가드가 **남의 미완결을 신고하게** 두지 않는다.
  *
@@ -551,7 +552,7 @@ export function scanIdentifierCitations(mdx: string): IdentifierCitation[] {
 /**
  * 소스에 등장하는 UPPER_SNAKE 토큰 전수 — 실재 판정의 기준집합 절반.
  *
- * **`ErrorCode` enum 만 읽지 않는다.** `3-error-handling.md §1.4` 가 명시하듯 이 저장소의
+ * **`ErrorCode` enum 만 읽지 않는다.** `CLE-API-ERRCODES` 「6.5」 가 명시하듯 이 저장소의
  * 코드 앵커는 셋으로 갈리고(`ErrorCode` const · `EngineErrorCode` const · 에러 클래스의
  * `readonly code`) **상당수는 앵커 없는 맨 문자열**이다. enum 만 기준으로 삼으면 실재하는
  * 코드를 가이드가 적었는데 RED 가 뜬다 — 가드가 자기 사각지대를 결함으로 신고하는 형태다.

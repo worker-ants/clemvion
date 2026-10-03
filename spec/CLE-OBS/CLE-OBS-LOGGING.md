@@ -10,11 +10,11 @@ parent: "CLE-OBS"
 ancestors: ["CLE-VISION", "CLE-OBS"]
 area: "CLE-OBS"
 content_hash: "ab655b623e6590e48e6565a76a165f23336415bdf5640799b5d11a0f6507227b"
-read_as: "approved"
-task: null
+read_as: "approved_fallback"
+task: "CLE-T-RXMB2X"
 source_paths: ["spec/5-system/3-error-handling.md", "spec/5-system/_product-overview.md", "spec/data-flow/9-observability.md"]
-mirror_sha256: "5144ad5216a426292cb5ad40d93d23b751391020f3f27e8eb414f953430002c8"
-etag: "sha256-ffe0cb6404d6130c9262e9eeb729392924d356398a7c41b7c7628b017a1b8acf"
+mirror_sha256: "e7b95cc44d4b062b860c3c96816fa8ee68dd61d1a2a0db16ebc0ec2fd657d73a"
+etag: "sha256-a7314fe52cae71c19e36bd4d2c3c737a5ca10bfcfba3afe1b3c62dd7fbd0529a"
 ---
 > 구현 상태: 부분 구현 · 원문: `spec/5-system/3-error-handling.md` (§6 로깅 정책, §7 헬스 체크, Rationale 의 `Error.cause` 항목), `spec/data-flow/9-observability.md`, `spec/5-system/_product-overview.md` (§5 관측성) · 용어: [용어 사전](../CLE-GLOSSARY.md)
 

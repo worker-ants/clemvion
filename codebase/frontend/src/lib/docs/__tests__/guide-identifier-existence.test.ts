@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 
 import { walkTree } from "./tree-walk";
@@ -34,11 +35,40 @@ const NON_EMITTED_VOCABULARY_CAP = 5;
  * 대상이다. 후자는 `#1328` 이 손으로 고친 뒤 4개월간 아무도 몰랐던 클래스이고,
  * `#1330` 의 문맥-게이팅 축은 **그것을 못 잡았다**(스캐너 상단의 실측표).
  *
- * 가족·위치의 근거는 `spec/conventions/user-guide-evidence.md` 인데 **이 가드는 아직
- * 그 문서 §2 표에 없다**(등재는 planner 트래커 항목). 자매
- * `impl-anchor-existence.test.ts` 와 **방향이 같고(가이드 → 코드) 표면이 다르다**.
+ * 가족·위치의 근거는 NERV `CLE-ENG-GUIDEEVIDENCE` 인데 **이 가드는 아직 그 문서의
+ * 「빌드 가드」 표에 없다**(「다른 가드와의 관계」 · 「미결 사항」 에만 나온다. 등재는 NERV Task
+ * `CLE-T-R2Q21Q`). 자매 `impl-anchor-existence.test.ts` 와 **방향이 같고(가이드 → 코드)
+ * 표면이 다르다**.
  */
 const root = repoRoot();
+
+/**
+ * 발행 축의 탈출구로 쓰는 에러 코드 카탈로그 — NERV `CLE-API-ERRCODES` 의 저장소 미러
+ * (저장소 루트 기준).
+ *
+ * 옛 스펙 트리의 `spec/5-system/3-error-handling.md` §1 을 읽었다. 그 트리는 동결됐고
+ * 전환 단계 5 에서 지운다. 미러는 구현하는 PR 이 `pull.py --task` 로 받는 사본이라
+ * 바꾸지 않는다(NERV Task `CLE-T-RXMB2X`).
+ */
+const ERROR_CODE_CATALOG = "spec/CLE-API/CLE-API-ERRCODES.md";
+
+/**
+ * 카탈로그 미러를 읽는다. 파일이 없으면 **빈 문자열이 아니라 throw** 한다.
+ *
+ * 빈 카탈로그는 탈출구만 닫으므로 베이스라인은 그대로 통과한다. 그래서 미러가 사라진
+ * 사실이 조용히 묻힌다. 종전 판은 `readFileSync` 를 맨손으로 불러 수집 단계에서
+ * ENOENT 로 스위트 전체가 죽었다. 이제는 어느 파일을 어떻게 받는지 알려 준다.
+ */
+function readErrorCodeCatalog(repo: string): string {
+  const abs = path.join(repo, ERROR_CODE_CATALOG);
+  if (!fs.existsSync(abs)) {
+    throw new Error(
+      `에러 코드 카탈로그 미러 ${ERROR_CODE_CATALOG} 가 없다. NERV CLE-API-ERRCODES 의 ` +
+        "미러다. python3 .claude/tools/nerv-mirror/pull.py 로 받는다.",
+    );
+  }
+  return fs.readFileSync(abs, "utf8");
+}
 
 /**
  * **«소스» 의 정의는 이 파일 안에서 하나여야 한다.**
@@ -173,12 +203,7 @@ describe("유저 가이드 식별자 실재성 가드", () => {
   // "따옴표가 토큰만 감쌌나 / 접두로만 붙나" 를 본다. 같은 `sourceTexts` 를 재사용한다.
   const quotedLiterals = collectQuotedLiterals(sourceTexts);
   const messagePrefixes = collectMessagePrefixes(sourceTexts);
-  const catalogCodes = collectCatalogCodes([
-    fs.readFileSync(
-      path.join(root, "spec/5-system/3-error-handling.md"),
-      "utf8",
-    ),
-  ]);
+  const catalogCodes = collectCatalogCodes([readErrorCodeCatalog(root)]);
   const registeredNonEmitted = new Set(
     GUIDE_NON_EMITTED_VOCABULARY.map((e) => e.token),
   );
@@ -267,6 +292,24 @@ describe("유저 가이드 식별자 실재성 가드", () => {
       expect(quotedLiterals.size).toBeGreaterThan(200); // 실측 다수
       expect(messagePrefixes.size).toBeGreaterThan(3);
       expect(catalogCodes.size).toBeGreaterThan(50); // 실측 카탈로그 규모
+    });
+
+    it("카탈로그는 NERV `CLE-API-ERRCODES` 의 미러를 읽는다", () => {
+      // 경로 상수가 다른 미러 문서를 가리켜도 백틱 코드는 50개를 넘길 수 있다. 그래서
+      // 규모 대신 미러 frontmatter 의 `id` 로 대상 문서를 고정한다.
+      const head = readErrorCodeCatalog(root).split("\n---\n", 1)[0];
+      expect(head).toMatch(/^id: "CLE-API-ERRCODES"$/m);
+    });
+
+    it("카탈로그 미러가 없으면 빈 카탈로그가 아니라 throw 한다", () => {
+      // 빈 카탈로그는 탈출구만 닫아 베이스라인이 그대로 통과한다. 미러가 사라진 사실이
+      // 묻히지 않게 어느 파일을 어떻게 받는지 알리며 멈춰야 한다.
+      const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "guide-ident-catalog-"));
+      try {
+        expect(() => readErrorCodeCatalog(tmp)).toThrow(/CLE-API-ERRCODES/);
+      } finally {
+        fs.rmSync(tmp, { recursive: true, force: true });
+      }
     });
 
     it("등록된 3종이 **실제로 접두 전용**이다 (죽은 등록 방지)", () => {
