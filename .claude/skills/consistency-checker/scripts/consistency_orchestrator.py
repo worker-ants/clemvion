@@ -233,7 +233,7 @@ def collect_markdown_files(root_dir, exclude_paths=None):
 
 
 # NERV 키 문법. `pull.py` 의 `KEY_RE` 와 같다. 두 정규식을 이 한 문자열에서 만들고, 문법이 도구와 같은지는
-# `test_nerv_mirror_pull.py` 의 `MirrorPredicateParityTest` 가 본다. 미러 파일 이름이 곧 키다.
+# `test_nerv_mirror_pull.py` 의 `OrchestratorMirrorParityTest` 가 본다. 미러 파일 이름이 곧 키다.
 _KEY_BODY = r"CLE-[A-Z0-9]+(?:-[A-Z0-9]+)*(?:--[A-Z0-9]+(?:-[A-Z0-9]+)*)*"
 _MIRROR_KEY_RE = re.compile(_KEY_BODY)  # `fullmatch` 로만 쓴다
 # 본문이 키를 부르는 자리. 더 긴 키의 앞부분(`CLE-ENG` ⊂ `CLE-ENG-MIGRATION`)과 미러 폴더 이름

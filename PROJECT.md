@@ -225,7 +225,7 @@ developer workflow §4 종료 직전, 5단계로 진행하기 전 자가 점검:
 - [ ] 표의 "검증 명령" 을 실제로 실행했는가? (i18n parity / locale / backend-labels / docs registry)
 - [ ] 사용자 가시면 (UI 라벨·에러 메시지·노드 카드·가이드 본문) 이 코드 변경의 의미를 정확히 반영하는가? 단순 동기화가 아닌 *의미 갱신*
 - [ ] 본 turn 안에서 spec 자체에 변경이 필요한 것을 발견했으면 NERV 스펙 초안(`/nerv:spec edit`)을 쓰거나 리뷰 발견(`area=spec`)으로 올린다. 승인은 사람이 한다(CLAUDE.md §Skill 체계). 저장소 `spec/` 미러는 손으로 고치지 않는다
-- [ ] **partial-implementation 분리** — 본 PR 이 구현하는 spec 섹션의 *나머지 surface* 가 있다면 (Phase 분리, 후속 UI, 미구현 enum 값) 후속 NERV Task 를 만들었는가(`nerv_task_create`)? 스펙 본문의 구현 상태 표시를 바꿔야 하면 NERV 초안으로 고쳤는가? (SoT: `spec/CLE-ENG/CLE-ENG-SPECEVIDENCE.md`)
+- [ ] **partial-implementation 분리** — 본 PR 이 구현하는 spec 섹션의 *나머지 surface* 가 있다면 (Phase 분리, 후속 UI, 미구현 enum 값) 후속 NERV Task 를 만들었는가(`nerv_task_create`)? 스펙 본문의 구현 상태 표시를 바꿔야 하면 NERV 초안으로 고쳤는가? (절차: developer SKILL §4 「partial-implementation 분리」. 구현 경로는 같은 초안의 `## 구현 위치` 에 적는다. `spec/CLE-ENG/CLE-ENG-SPECEVIDENCE.md` 「규칙」)
 
 > 한 항목이라도 미충족이면 §5 (테스트 선작성) 로 진행하지 말고 §4 안에서 마무리. `fix(i18n):` · `fix(docs):` commit 빈도가 워크플로 건강 지표 — 본 PR/turn 안에서 0건이 default.
 

@@ -264,7 +264,7 @@ describe("real docs frontmatter spec/code references", () => {
     "모든 .mdx frontmatter 의 spec 키와 code 경로가 실재해요",
     () => {
       // 미러가 비면 모든 키가 "없는 키" 로 떨어진다. 그 전에 원인을 드러낸다. 편 수 하한은
-      // 두지 않는다 — 미러는 부분 스냅샷이다(test_nerv_mirror_pull 의 MirrorPredicateParityTest 와 같은 판단).
+      // 두지 않는다 — 미러는 부분 스냅샷이다.
       expect(mirrorKeys.size).toBeGreaterThan(0);
       const index = loadDocsIndex(realDocsRoot, { includeDrafts: true });
       const missing: string[] = [];
