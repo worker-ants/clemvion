@@ -32,8 +32,9 @@ export class ViolationFieldCitationDto {
   email: string;
 
   /**
-   * 위반 4 — **날짜+시각** 형태. `review-citations.md §2` 가 "허용" 으로 분류한 형태지만
-   * §3 은 **DTO JSDoc 자체를 대상에서 뺀다** — 형태가 허용이어도 이 자리에 있으면 안 된다.
+   * 위반 4 — **날짜+시각** 형태. `CLE-ENG-REVIEWCITE` 「인용 형식」 이 "허용" 으로 분류한
+   * 형태지만 규칙 6 은 **응답 DTO JSDoc 자체를 대상에서 뺀다** — 형태가 허용이어도 이 자리에
+   * 있으면 안 된다.
    *
    * 이 케이스가 없을 때 해당 정규식을 통째로 지워도 스위트가 초록이었다
    * (`review/code/2026/09/06/12_53_28` W1 — 리뷰어가 직접 뮤테이션). 가드가 스스로
@@ -59,9 +60,17 @@ export class ViolationBareTimeNoBacktickDto {
 
 // 위반 6 — **NERV 발견 인용**(`CLE-ENG-REVIEWCITE` 규칙 9 형식). 형식이 맞아도 응답 DTO 의
 // `/** */` 에는 쓰지 않는다(규칙 6). 전환 단계 2 뒤의 리뷰는 이 형식만 남기므로 옛 경로 세
-// 형태만 세면 새 인용이 통째로 빠진다(NERV Task `CLE-T-M7K35H` 에서 더했다).
+// 형태만 세면 새 인용이 통째로 빠진다.
 export class ViolationNervFindingDto {
   /** 근거: finding 00000000-0000-7000-8000-000000000000 */
+  id: string;
+}
+
+// 위반 7 — **줄인 NERV 발견 ID**(앞 8자). 규칙 9 가 금지하는 형태지만 응답 DTO 에서는 형태와
+// 무관하게 인용을 막는다. 이 케이스가 없으면 UUID 꼬리를 선택이 아니라 필수로 바꾼 정규식도
+// 스위트를 통과한다. 프런트 docs 가드 `review-citation-form` 은 이 파일을 대조군으로 허용한다.
+export class ViolationNervShortFindingDto {
+  /** 근거: finding 01a10005 */
   id: string;
 }
 
@@ -69,6 +78,15 @@ export class ViolationNervFindingDto {
 export class CompliantPlainDto {
   /** 워크플로우 이름. */
   name: string;
+}
+
+/**
+ * 정상 — `finding` 이라는 낱말과 16진 숫자열이 있지만 발견 ID 가 아니다. 8자에서 끊기지 않는
+ * 숫자열(9자 · 10자)을 잡으면 끝 경계(`\b`)가 빠진 것이다.
+ */
+export class CompliantFindingWordDto {
+  /** 검색 결과 코드. 예: finding 01a100059, finding 0123456789. */
+  code: string;
 }
 
 /**

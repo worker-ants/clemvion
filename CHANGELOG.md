@@ -28,14 +28,19 @@
 NERV 정본 전환 단계 4g(Task `CLE-T-M7K35H`, 결정 D12). 코드 주석의 옛 스펙 경로는 한꺼번에 바꾸지 않고 파일을 고칠 때
 바꾼다. 그 사이 새로 늘지 않게 막는다.
 
-- `legacy-path-ratchet`: `codebase/**` 텍스트 파일의 옛 스펙 트리 경로(1,620줄 · 677개 파일)와 지운 `plan/` 경로(116줄)를
-  파일별 기준값과 견준다. 늘어도 줄어도 실패한다. 줄였으면 `LEGACY_PATH_RATCHET_UPDATE=1` 로 기준값을 다시 쓴다.
+- `legacy-path-ratchet`: `codebase/**` 텍스트 파일이 옛 스펙 트리를 가리킨 줄(1,729줄 · 722개 파일)과 지운 `plan/` 경로를
+  적은 줄(116줄 · 93개 파일)을 파일별 기준값과 견준다. 늘어도 줄어도 실패한다. 옛 트리의 최상위 이름으로 세서 `.md` 를
+  뺀 인용(`spec/5-system/13-replay-rerun §7.2`)과 영역 이름만 적은 언급도 센다. `spec/` 없이 파일 이름만 적은 언급과
+  확장자 목록 밖의 파일은 세지 않는다. 줄였으면 `LEGACY_PATH_RATCHET_UPDATE=1` 로 기준값을 다시 쓴다. 늘어난 파일이
+  있으면 쓰지 않고, 파일을 옮겨 언급이 넘어간 경우만 `=grow` 로 쓴다. CI 에서는 갱신을 거부한다.
 - `spec-key-mentions`: 링크로 감싸지 않은 스펙 키(`CLE-…`)가 미러에 있는지 본다. Task 키와 미러하지 않는 카탈로그 영역
   키는 보지 않는다.
 - `review-citation-form`: 리뷰 인용 규약 규칙 9 · 10 이 금지한 줄인 발견 ID 와 `.review/**` 경로가 0 인지 본다.
-- 응답 DTO JSDoc 인용 가드(`dto-jsdoc-citation`)가 NERV 발견 인용(`finding <ID>`)도 센다.
-- 4e 가 넘긴 마이그레이션 정책 인용 다섯 곳(`check-duplicate-versions.sh` · 마이그레이션 `Dockerfile` · `README.md` ·
-  `migrations.spec.ts`)과 README 의 V058 예시를 NERV 키와 절 제목으로 바꿨다. 옛 § 번호는 옮기지 않았다.
+- 응답 DTO JSDoc 인용 가드(`dto-jsdoc-citation`)가 NERV 발견 인용(`finding <ID>`)도 센다. 대조군에 전체 ID · 줄인 ID
+  위반과 발견 ID 가 아닌 9 · 10자리 16진 준수를 두었다.
+- 4e 가 넘긴 마이그레이션 정책 인용 다섯 곳(네 파일. `check-duplicate-versions.sh` 의 주석과 출력 · 마이그레이션
+  `Dockerfile` · `README.md` · `migrations.spec.ts`)과 README 의 V058 예시를 NERV 키와 절 제목으로 바꿨다. 옛 § 번호는
+  옮기지 않았다.
 
 ## Unreleased — 개발 흐름: 스펙을 읽던 가드 두 개가 옛 스펙 트리를 떠난다
 

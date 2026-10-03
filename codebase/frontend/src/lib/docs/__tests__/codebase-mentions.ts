@@ -17,7 +17,13 @@ import { SPEC_KEY_RE, isUnmirroredArea } from "./spec-keys";
 // 맡는다. 기준은 `CLE-ENG-SPECEVIDENCE` 「빌드 가드 — 스펙 문서 저장소 무결성」 이다.
 
 /** 훑는 루트(저장소 루트 기준). */
-export const MENTION_ROOTS: readonly string[] = ["codebase"];
+const MENTION_ROOTS: readonly string[] = ["codebase"];
+
+/**
+ * 훑는 파일 수의 하한(vacuity floor). 순회 설정이 망가져 거의 아무것도 읽지 않으면 이 모듈을 쓰는
+ * 가드가 모두 조용히 통과한다. 2026-10-03 실측은 2,984개다.
+ */
+export const MIN_SWEPT_FILES = 2000;
 
 /**
  * 건너뛰는 디렉터리. 빌드 · 테스트 산출물과 의존성이다. 점으로 시작하는 디렉터리(`.next` 등)도
@@ -35,7 +41,11 @@ const SKIP_DIRS: ReadonlySet<string> = new Set([
 
 /**
  * 읽는 텍스트 파일. 확장자로 고른다. 이진 파일을 문자열로 읽어 우연히 맞는 일을 막고,
- * 마이그레이션 SQL · 셸 · Dockerfile 처럼 주석이 사람에게 읽히는 파일은 넣는다.
+ * 마이그레이션 SQL · 셸 · Dockerfile 처럼 주석이 사람에게 읽히는 파일은 넣는다. `.example` 은
+ * 환경 변수 예시(`.env.example`), `.conf` 는 마이그레이션 설정(`V*.conf`)이다.
+ *
+ * 목록에 없는 확장자는 세지 않는다. 2026-10-03 실측으로 codebase 의 옛 경로 언급은 모두 이
+ * 목록의 파일에 있었다. 새 종류의 텍스트 파일에 언급이 생기면 목록에 더한다.
  */
 const TEXT_EXTENSIONS: ReadonlySet<string> = new Set([
   ".ts",
@@ -56,6 +66,8 @@ const TEXT_EXTENSIONS: ReadonlySet<string> = new Set([
   ".html",
   ".txt",
   ".toml",
+  ".example",
+  ".conf",
 ]);
 const TEXT_BASENAMES: ReadonlySet<string> = new Set(["Dockerfile"]);
 
@@ -87,13 +99,19 @@ export function collectMentionFiles(root: string): MdFileRef[] {
 }
 
 /**
- * 옛 스펙 트리의 `.md` 경로. NERV 미러(`spec/CLE-…`, `spec/README.md`)는 세지 않는다.
+ * 옛 스펙 트리를 가리키는 경로. 옛 트리의 최상위 이름(`spec/<번호>-<영역>/`, 루트 문서
+ * `spec/<번호>-<이름>.md`, `spec/conventions/`, `spec/data-flow/`)으로 시작하면 센다. NERV 미러
+ * (`spec/CLE-…`, `spec/README.md`)는 이 이름에 들지 않는다.
+ *
+ * 확장자를 요구하지 않는다. `spec/5-system/13-replay-rerun §7.2` 처럼 `.md` 를 뺀 인용, 줄 끝에서
+ * 끊긴 경로(`spec/conventions/` 다음 줄에 이어짐), 영역 이름만 적은 언급(`spec/7-channel-web-chat`),
+ * 글로브(`spec/4-nodes/**`)도 옛 트리를 가리켜 단계 5 에서 함께 갈 곳을 잃는다.
  *
  * 앞에 경로 문자(`\w` · `.` · `-`)가 붙으면 다른 낱말의 일부다(`e2e-spec/…`). `/` 는 허용한다.
- * 상대 경로(`../../spec/…md`)도 같은 옛 트리를 가리키기 때문이다. 글로브(`spec/4-nodes/**.md`)는
- * `*` 에서 끊겨 세지 않는다. 문서 하나가 아니라 범위를 말하는 표기다.
+ * 상대 경로(`../../spec/…`)도 같은 옛 트리를 가리키기 때문이다. `spec/` 없이 파일 이름만 적은
+ * 언급(`review-citations.md §3`)은 세지 않는다.
  */
-export const OLD_SPEC_PATH = /(?<![\w.-])spec\/(?!CLE-|README\.md)[\w./-]*?\.md\b/;
+export const OLD_SPEC_PATH = /(?<![\w.-])spec\/(?:\d+-[\w-]+|conventions|data-flow)(?![\w-])/;
 
 /** 전환 단계 3 에서 지운 `plan/` 트리의 경로. */
 export const REMOVED_PLAN_PATH = /(?<![\w.-])plan\/(?:in-progress|complete|research)\//;
@@ -108,12 +126,28 @@ export const LOCAL_REVIEW_PATH = /(?<![\w-])\.review\/(?:code|consistency|merge|
 /**
  * `finding` 바로 뒤의 줄인 발견 ID(`CLE-ENG-REVIEWCITE` 규칙 9 가 금지). NERV 발견 ID 는
  * UUIDv7 이라 앞 8자가 같은 분에 생긴 발견끼리 겹친다. 전체 ID 는 8자 뒤에 `-` 가 이어지므로
- * 걸리지 않는다. `finding <ID> · <ID>` 나열의 둘째 이후 ID 는 보지 않는다.
+ * 걸리지 않는다.
+ *
+ * 잡는 것은 소문자 16진 정확히 8자뿐이다. 앞 두 그룹(`finding 01a10005-3522`)처럼 다르게 줄인
+ * 형태, `finding <ID> · <ID>` 나열의 둘째 이후 ID, 줄 바꿈으로 `finding` 과 갈린 ID 는 보지 않는다.
+ * 백엔드 응답 DTO 가드(`dto-jsdoc-citation-guard.ts`)의 같은 형태는 끝을 `\b` 로 막아 앞 두 그룹
+ * 형태의 첫 8자도 잡는다. 그 가드는 응답 DTO JSDoc 의 모든 인용을 막으므로 넓게 잡는다.
  */
 export const SHORT_FINDING_ID = /\bfinding\s+[0-9a-f]{8}(?![0-9a-f-])/;
 
+/**
+ * 줄마다 `pattern.test` 를 부르므로 전역(`g`) · sticky(`y`) 정규식은 `lastIndex` 가 줄 사이에
+ * 남아 결과가 틀어진다. 그런 정규식은 받지 않는다.
+ */
+function assertLinePattern(pattern: RegExp): void {
+  if (pattern.global || pattern.sticky) {
+    throw new Error(`줄 단위 판정에는 g · y 플래그 없는 정규식만 쓴다: ${pattern}`);
+  }
+}
+
 /** 줄 단위로 `pattern` 에 맞는 줄 수. 한 줄에 여러 번 나와도 1 이다. */
 export function countMatchingLines(text: string, pattern: RegExp): number {
+  assertLinePattern(pattern);
   let n = 0;
   for (const line of text.split("\n")) if (pattern.test(line)) n += 1;
   return n;
@@ -137,6 +171,7 @@ export function findMatchingLines(
   files: readonly MdFileRef[],
   pattern: RegExp,
 ): string[] {
+  assertLinePattern(pattern);
   const out: string[] = [];
   for (const f of files) {
     const lines = fs.readFileSync(f.absPath, "utf8").split("\n");
@@ -191,10 +226,19 @@ export function sortedRecord(
  * 글로브(`CLE-*`)는 걸리지 않는다. 경로 안의 키(`spec/CLE-API/CLE-API-ERRCODES.md`)는 영역 키와
  * 문서 키 둘로 센다.
  */
-const KEY_MENTION = new RegExp(
-  `(?<![A-Za-z0-9-])${SPEC_KEY_RE.source.slice(1, -1)}(?![A-Za-z0-9-])`,
-  "g",
-);
+const KEY_MENTION = new RegExp(`(?<![A-Za-z0-9-])${unanchored(SPEC_KEY_RE)}(?![A-Za-z0-9-])`, "g");
+
+/**
+ * `^…$` 로 감싼 정규식의 본문. `SPEC_KEY_RE` 의 앵커를 떼어 문장 안에서 찾는 데 쓴다. 앵커 모양이
+ * 바뀌면 첫 글자와 끝 글자를 조용히 잘라 먹으므로 모양부터 확인한다.
+ */
+function unanchored(re: RegExp): string {
+  const src = re.source;
+  if (!src.startsWith("^") || !src.endsWith("$") || src.endsWith("\\$")) {
+    throw new Error(`^…$ 로 감싼 정규식이 아니다: ${re}`);
+  }
+  return src.slice(1, -1);
+}
 
 /** NERV Task 키(`CLE-T-` + 6자). 스펙 키가 아니라 건너뛴다. */
 const TASK_KEY = /^CLE-T-[A-Z0-9]{6}$/;

@@ -15,15 +15,19 @@ import {
  * 4g, NERV Task `CLE-T-M7K35H`).
  *
  * 키 링크(`[글](CLE-KEY#앵커)`)는 `spec-link-integrity` 범위 2 가 미러로 확인한다. 이 가드는
- * 링크로 감싸지 않은 언급(주석의 "NERV `CLE-API-ERRCODES` 「6.5」" 같은 표기)을 같은 기준으로
- * 확인한다. 옛 경로를 키로 바꾸는 일이 늘수록 이 언급이 늘어난다. 오탈자 키는 아무 데도 닿지
- * 않는 인용이 된다.
+ * 링크로 감싸지 않은 언급(주석의 "NERV `CLE-API-ERRCODES` 「워크플로우 실행: 엔진 수준」" 같은
+ * 표기)을 같은 기준으로 확인한다. 옛 경로를 키로 바꾸는 일이 늘수록 이 언급이 늘어난다. 오탈자
+ * 키는 아무 데도 닿지 않는 인용이 된다. 키를 뽑을 때 링크 안팎을 가르지 않으므로 키 링크의 키도
+ * 함께 센다(같은 판정이라 해가 없다).
  *
  * - 미러는 구현할 때 받은 문서만 담는 부분 스냅샷이다. 미러에 없는 키를 새로 적으려면 같은
  *   PR 에서 그 문서를 미러로 받는다(`CLE-ENG-SPECEVIDENCE` 규칙 18 과 같다).
- * - NERV Task 키(`CLE-T-` + 6자)는 스펙 키가 아니라 보지 않는다.
+ * - NERV Task 키(`CLE-T-` + 6자)는 스펙 키가 아니라 보지 않는다. `CLE-T` 는 Task 키 접두로 쓰이므로
+ *   그 이름의 스펙 영역이 생기면 이 예외를 다시 본다.
  * - 미러하지 않는 카탈로그 영역(`CLE-C24` · `CLE-MKS`)의 키는 확인할 수 없어 통과시킨다.
  *   이 영역 키의 오탈자는 잡지 못한다.
+ * - 키만 본다. 키 뒤에 적은 절 제목(「…」)이 그 문서에 있는지는 보지 않는다. 키 링크의 앵커는
+ *   `spec-link-integrity` 범위 2 가 본다.
  */
 const root = repoRoot();
 
@@ -101,7 +105,7 @@ describe("링크 없는 스펙 키 언급", () => {
 describe("스펙 키 언급 판정 (합성 입력)", () => {
   it("키를 뽑고 Task 키와 자리표시자는 건너뛴다", () => {
     const text = [
-      "근거: NERV `CLE-API-ERRCODES` 「6.5」, Task CLE-T-RXMB2X",
+      "근거: NERV `CLE-API-ERRCODES` 「워크플로우 실행: 엔진 수준」, Task CLE-T-RXMB2X",
       "[글](CLE-OBS-LOGGING#로그-형식) · spec/CLE-ENG/CLE-ENG-MIGRATION.md",
       "자리표시자 `CLE-T-…` · `CLE-ENG-…` · 글로브 CLE-* · 소문자 cle-api",
     ].join("\n");

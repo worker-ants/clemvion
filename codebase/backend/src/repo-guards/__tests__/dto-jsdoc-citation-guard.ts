@@ -41,10 +41,15 @@ export interface JsDocCitation {
  * 금지하는 형태라고 해서 이 가드가 안 봐도 되는 것은 아니다. 오히려 JSDoc 에 남을 확률이
  * 그쪽이 높다.
  *
- * NERV 발견 인용은 전환 단계 4g(NERV Task `CLE-T-M7K35H`)에서 더했다. 전환 단계 2 뒤의 리뷰는
- * 이 형식만 남기므로 옛 세 형태만 세면 새 인용이 통째로 빠진다. 줄인 ID(`finding <앞 8자>`)도
- * 함께 잡는다. 로컬 산출물 경로(`.review/**`, 규칙 10)는 첫 패턴에 앞 경계가 없어 여기서도
- * 걸리지만, codebase 전체에서 0 을 요구하는 것은 프런트 docs 가드 `review-citation-form` 이다.
+ * 전환 단계 2 뒤의 리뷰는 NERV 발견 인용만 남기므로 옛 세 형태만 세면 새 인용이 통째로 빠진다.
+ * 줄인 ID(`finding <앞 8자>`)도 함께 잡는다. 끝을 `\b` 로 막아 앞 두 그룹으로 줄인 형태
+ * (`finding 01a10005-3522`)의 첫 8자도 잡는다. 프런트 docs 가드 `review-citation-form` 의 같은
+ * 형태는 정확히 8자만 잡는다. 이 가드는 응답 DTO JSDoc 의 모든 인용을 막으므로 넓게 잡는다.
+ *
+ * 로컬 산출물 경로(`.review/**`) 가운데 code · consistency · merge 산출물의 날짜 · 시각 경로는 첫
+ * 패턴에 앞 경계가 없어 여기서도 걸린다. spec-coverage 산출물 경로는 걸리지 않는다. codebase
+ * 전체에서 로컬 산출물 경로를 0 으로 막는 것은 `review-citation-form` 이다(`CLE-ENG-REVIEWCITE`
+ * 규칙 10).
  */
 const CITATION_PATTERNS: readonly RegExp[] = [
   /review\/(?:code|consistency|merge)\/\d{4}\/\d{2}\/\d{2}\/\d{2}_\d{2}_\d{2}/,
@@ -89,7 +94,7 @@ function jsDocText(node: ts.Node): string {
  *
  * 클래스 선언과 프로퍼티 선언 둘 다 본다. 프로퍼티 JSDoc 은 swagger CLI 플러그인이 필드
  * `description` 으로 싣는다. 클래스 JSDoc 은 지금 플러그인이 싣지 않지만 규약이 같은 규칙을 둔다
- * — 응답 DTO 파일의 `/** *\/` 를 공개 문서 채널 하나로 다룬다(`review-citations.md §3`).
+ * — 응답 DTO 파일의 `/** *\/` 를 공개 문서 채널 하나로 다룬다(`CLE-ENG-REVIEWCITE` 규칙 6).
  */
 export function findDtoJsDocCitations(
   files: readonly string[],
