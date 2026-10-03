@@ -398,8 +398,19 @@ RULE_REVIEWERS: tuple[str, ...] = tuple(sorted(
 ))
 
 #: The six roles NERV's `review_roles.code` policy requires in every code round.
-#: The server already holds a round at `missing_roles` without them.
-NERV_REQUIRED_REVIEWERS: tuple[str, ...] = _SOURCE_FORCED_REVIEWERS
+#: The server already holds a round at `missing_roles` without them. Its source of
+#: truth is the NERV policy, not `_SOURCE_FORCED_REVIEWERS`: the two mean different
+#: things and are equal today only by decision. `ConditionalForcedAgentsTest` pins
+#: the equality, and `nerv_review_payload.NERV_REQUIRED_ROLES` is checked against
+#: this literal.
+NERV_REQUIRED_REVIEWERS: tuple[str, ...] = (
+    "security",
+    "requirement",
+    "scope",
+    "side_effect",
+    "maintainability",
+    "testing",
+)
 
 
 def conditional_forced_agents(

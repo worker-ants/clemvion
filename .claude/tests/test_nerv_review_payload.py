@@ -225,13 +225,16 @@ class BuildTest(unittest.TestCase):
         self.assertTrue(any("scope.md" in e and "HIGH" in e for e in json.loads(r.stdout)["errors"]))
 
     def test_the_required_roles_match_the_router_constant(self):
-        """같은 6역할을 router(`_SOURCE_FORCED_REVIEWERS`)와 이 도구가 따로 든다. 둘이 갈리면 안 된다.
+        """같은 6역할을 router(`NERV_REQUIRED_REVIEWERS`)와 이 도구가 따로 든다. 둘이 갈리면 안 된다.
         router 모듈은 `_lib` 이름 충돌 때문에 불러오지 않고 소스에서 상수를 읽는다."""
         src = (_harness.CLAUDE_DIR / "skills" / "code-review-agents" / "lib" / "router_safety.py").read_text(
             encoding="utf-8")
         tree = ast.parse(src)
-        value = next(ast.literal_eval(n.value) for n in tree.body if isinstance(n, ast.Assign)
-                     and any(getattr(t, "id", None) == "_SOURCE_FORCED_REVIEWERS" for t in n.targets))
+        def targets(n):
+            return n.targets if isinstance(n, ast.Assign) else [n.target] if isinstance(n, ast.AnnAssign) else []
+
+        value = next(ast.literal_eval(n.value) for n in tree.body
+                     if any(getattr(t, "id", None) == "NERV_REQUIRED_REVIEWERS" for t in targets(n)))
         self.assertEqual(set(value), set(tool.NERV_REQUIRED_ROLES))
 
     def test_missing_nerv_roles_are_warned_in_a_code_session(self):

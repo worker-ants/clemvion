@@ -476,6 +476,55 @@ class SourceFileClassifierTest(unittest.TestCase):
         self.assertIn("security", got["forced"])
 
 
+class ConditionalForcedAgentsTest(unittest.TestCase):
+    """`conditional_forced_agents` · `RULE_REVIEWERS` · `NERV_REQUIRED_REVIEWERS` — push 게이트 판정 2b 의 입력.
+
+    게이트(`review_guard`)는 이 셋으로 6역할 밖 강제 리뷰어를 센다. 게이트 테스트는 그중 일부 규칙만
+    밟으므로 규칙별 결과와 상수 사이의 관계를 여기서 고정한다."""
+
+    SKILL_DIR = SourceFileClassifierTest.SKILL_DIR
+    SKILLS_DIR = SourceFileClassifierTest.SKILLS_DIR
+    _eval = SourceFileClassifierTest._eval
+
+    SIX = ["maintainability", "requirement", "scope", "security", "side_effect", "testing"]
+    ALL = SIX + ["documentation", "dependency", "database", "api_contract"]
+
+    def _conditional(self, paths):
+        return self._eval(f"print(json.dumps(rs.conditional_forced_agents({paths!r}, {self.ALL!r})))")
+
+    def test_each_rule_kind_forces_its_reviewer(self):
+        cases = {
+            "spec/CLE-ENG/CLE-ENG-MIGRATION.md": ["documentation"],
+            "codebase/backend/openapi.json": ["api_contract"],
+            "codebase/backend/migrations/V1__init.sql": ["database"],
+            "codebase/backend/package.json": ["dependency", "documentation"],
+            "codebase/backend/src/a.ts": [],
+        }
+        for path, want in cases.items():
+            with self.subTest(path=path):
+                self.assertEqual(sorted(self._conditional([path])), sorted(want))
+
+    def test_the_six_are_never_conditional(self):
+        got = self._conditional(["codebase/backend/Dockerfile", ".env.example", "CHANGELOG.md"])
+        self.assertTrue(got, "규칙에 걸린 파일인데 강제 리뷰어가 없다 — 이 대조는 공허하다")
+        self.assertEqual(set(got) & set(self.SIX), set())
+
+    def test_rule_reviewers_cover_every_rule(self):
+        got = self._eval(
+            "print(json.dumps([sorted({r for rv, _p, _w in rs._RULES for r in rv}), list(rs.RULE_REVIEWERS)]))"
+        )
+        self.assertLessEqual(set(got[0]), set(got[1]))
+
+    def test_the_nerv_roles_are_the_source_forced_roles(self):
+        """NERV 정책의 6역할(`NERV_REQUIRED_REVIEWERS`)과 소스 변경이 강제하는 리뷰어는 지금 같다.
+
+        둘은 뜻이 달라 따로 둔다. 한쪽만 바뀌면 게이트가 소스 규칙의 리뷰어를 6역할로 잘못 보거나 그
+        반대가 된다. 바꿀 때는 NERV `review_roles.code` 와 함께 바꾸고 이 테스트를 고친다."""
+        got = self._eval("print(json.dumps([list(rs.NERV_REQUIRED_REVIEWERS), list(rs._SOURCE_FORCED_REVIEWERS)]))")
+        self.assertEqual(sorted(got[0]), sorted(got[1]))
+        self.assertEqual(sorted(got[0]), sorted(self.SIX))
+
+
 class EveryChangeForcesTheNervRolesTest(unittest.TestCase):
     """바뀐 파일이 하나라도 있으면 확장자 · 위치와 무관하게 필수 6역할을 강제한다.
 
