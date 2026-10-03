@@ -11,7 +11,7 @@ code:
 
 base URL: `https://{mall_id}.cafe24api.com/api/v2/admin/`
 
-> **별도 승인 필요** — 본 resource 의 `mall.read_notification` / `mall.write_notification` scope 는 카페24 본사가 별도 승인한 클라이언트만 사용할 수 있다 (명단 SoT: [`cafe24-restricted-scopes.md §1`](CLE-C24-SCOPES#1-scope-단위-별도-승인-resource-전체-영향)). 모든 row 의 `restricted` 컬럼 = `scope`, 대응 backend 메타데이터 `restrictedApproval.level='scope'`, `approvalGroup='notification'`.
+> **별도 승인 필요** — 본 resource 의 `mall.read_notification` / `mall.write_notification` scope 는 카페24 본사가 별도 승인한 클라이언트만 사용할 수 있다 (명단 SoT: [Cafe24 별도 승인 scope 「Scope 단위 별도 승인 (resource 전체 영향)」](CLE-C24-SCOPES#1-scope-단위-별도-승인-resource-전체-영향)). 모든 row 의 `restricted` 컬럼 = `scope`, 대응 backend 메타데이터 `restrictedApproval.level='scope'`, `approvalGroup='notification'`.
 
 ## 표
 
@@ -32,7 +32,7 @@ base URL: `https://{mall_id}.cafe24api.com/api/v2/admin/`
 
 ## Rationale
 
-설계 근거 (컬럼 정의·동기 정책·status enum) 는 [`_overview.md`](./_overview.md) 의 §2·§4·§7. 별도 승인 라벨링의 의사결정 배경은 [`cafe24-restricted-scopes.md ## Rationale`](CLE-C24-SCOPES#rationale).
+설계 근거 (컬럼 정의·동기 정책·status enum) 는 [`_overview.md`](./_overview.md) 의 §2·§4·§7. 별도 승인 라벨링의 의사결정 배경은 [Cafe24 별도 승인 scope 「Rationale」](CLE-C24-SCOPES#rationale).
 
 ## Field-level 상세 카탈로그
 

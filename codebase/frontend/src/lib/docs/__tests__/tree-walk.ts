@@ -13,9 +13,10 @@
 //
 // ## 무엇을 안 모았나
 //
-// `spec-frontmatter-parse.ts` 의 glob 존재 프로브는 **수집기가 아니다** — 첫 매치에
+// `impl-locations.ts` 의 glob 존재 프로브(`globMatchesAny`)는 **수집기가 아니다** — 첫 매치에
 // `return true` 로 빠져나오고 `readdirSync` 실패를 삼킨다. 전량 수집 후 판정으로 바꾸면
-// 조기 종료가 사라져 성격이 달라지므로 그대로 둔다.
+// 조기 종료가 사라져 성격이 달라지므로 그대로 둔다. (같은 프로브가 옛 `spec-frontmatter-parse.ts`
+// 에 있었고 NERV 전환 단계 5 에서 그 파일과 함께 옮겼다.)
 //
 // ## 통합이 집합을 바꾸지 않는다는 증거
 //

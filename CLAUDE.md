@@ -23,7 +23,7 @@ Monorepo. 애플리케이션 코드는 `codebase/` 하위 (서버 `codebase/back
 ./
   ├── spec/                # NERV 스펙 미러 spec/<영역 키>/<KEY>.md (읽기 전용)
   ├── .review/             # 리뷰 · 검토 오케스트레이터의 로컬 산출물 (gitignore, 커밋하지 않음)
-  ├── codebase/{frontend,backend,packages,channel-web-chat}/  # channel-web-chat: 임베드형 웹채팅 위젯 SPA (Next.js CSR, spec/7-channel-web-chat)
+  ├── codebase/{frontend,backend,packages,channel-web-chat}/  # channel-web-chat: 임베드형 웹채팅 위젯 SPA (Next.js CSR, NERV 영역 CLE-WEBCHAT)
   ├── codebase/api-catalogs/  # Cafe24 · MakeShop API 카탈로그 정본(생성기 · OpenAPI JSON 포함). NERV `CLE-C24-*` · `CLE-MKS-*` 는 사본
   └── .claude/worktrees/   # 모든 신규 작업의 git worktree
 ```

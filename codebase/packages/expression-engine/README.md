@@ -2,7 +2,7 @@
 
 워크플로우 표현식 언어(`{{ ... }}`) 의 tokenizer / parser / AST evaluator. 백엔드와 프론트엔드가 같은 평가 의미를 공유하기 위한 SSOT 패키지다.
 
-스펙: [`spec/5-system/5-expression-language.md`](../../../spec/5-system/5-expression-language.md)
+스펙: NERV `CLE-WF-EXPR`([표현식 언어](../../../spec/CLE-WF/CLE-WF-EXPR.md), 저장소 미러)
 
 ## 빌드
 

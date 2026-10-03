@@ -4,7 +4,7 @@
 
 본 디렉토리(`codebase/api-catalogs/makeshop/`)는 메이크샵 신형 Shop API(`/api/v1/{shopId}/…`, OAuth2 `bearerAuth`)의 **모든 endpoint** 를 섹션 단위로 enumerate 한 단일 진실(SoT)이다. 메이크샵 통합(AI agent MCP + workflow 노드) 구현에 **앞선 사전 준비 레퍼런스**로, cafe24-api-catalog 패턴을 따른다.
 
-> **sync 승격 (Phase 0 완료)**: cafe24 catalog 와 동일하게, 본 makeshop catalog 는 backend 메타데이터(`codebase/backend/src/nodes/integration/makeshop/metadata/`)와 `catalog-sync.spec.ts` 양방향 test 로 보호된다. 섹션별 표에 `status`/`scope`/`paginated` 컬럼이 추가됐다 (§7). cafe24 와 달리 `restricted` 컬럼은 없다 — makeshop 은 별도 승인 티어가 없다 ([MakeShop 노드 §9.5](CLE-NODE-MAKESHOP#별도-승인-미도입)).
+> **sync 승격 (Phase 0 완료)**: cafe24 catalog 와 동일하게, 본 makeshop catalog 는 backend 메타데이터(`codebase/backend/src/nodes/integration/makeshop/metadata/`)와 `catalog-sync.spec.ts` 양방향 test 로 보호된다. 섹션별 표에 `status`/`scope`/`paginated` 컬럼이 추가됐다 (§7). cafe24 와 달리 `restricted` 컬럼은 없다 — makeshop 은 별도 승인 티어가 없다 ([MakeShop 노드 Rationale 「별도 승인 미도입」](CLE-NODE-MAKESHOP#별도-승인-미도입)).
 
 ## 1. 추출 출처·재현 (provenance)
 
@@ -79,7 +79,7 @@ REST 표의 `status` 컬럼이 가지는 값. cafe24 카탈로그([cafe24-api-ca
 4. `pnpm --filter backend test -- catalog-sync` · `pnpm --filter frontend test -- makeshop-catalog-sync` 통과 확인.
 5. 바뀐 파일의 NERV 사본(`CLE-MKS-*`)도 같은 작업에서 고친다([`../README.md`](../README.md)).
 
-> 카탈로그 row 갱신과 backend 메타데이터 row 추가는 **같은 PR** 에 묶는다 (cafe24 catalog([`_overview.md §6`](../cafe24/_overview.md#6-신규-endpoint-등재-절차))와 동일 체계). [`spec/conventions/makeshop-api-metadata.md §6`](CLE-MKS-META#6-신규-endpoint-등재-절차) 의 신규 endpoint 추가 절차도 본 카탈로그 row 갱신을 step 으로 포함한다.
+> 카탈로그 row 갱신과 backend 메타데이터 row 추가는 **같은 PR** 에 묶는다 (cafe24 catalog([`_overview.md §6`](../cafe24/_overview.md#6-신규-endpoint-등재-절차))와 동일 체계). [MakeShop operation 메타데이터 「신규 endpoint 등재 절차」](CLE-MKS-META#6-신규-endpoint-등재-절차) 의 신규 endpoint 추가 절차도 본 카탈로그 row 갱신을 step 으로 포함한다.
 
 ## 7. 추가 컬럼 (sync 승격 — Phase 0 에서 추가 완료)
 
@@ -91,7 +91,7 @@ Phase 0 에서 섹션별 카탈로그(`<section>.md`)에 아래 컬럼을 추가
 | `scope` | `read` / `write` | `<x-scope>.read` / `.write` 의 가운데 토큰 (메타데이터 `scopeType` 과 일치) |
 | `paginated` | `✓` 또는 빈칸 | 메타데이터 `paginated: boolean` 과 일치 |
 
-> **restricted 컬럼 없음**: cafe24 와 달리 makeshop 은 per-scope/operation 별도 승인 티어가 없다 ([MakeShop 노드 §9.5](CLE-NODE-MAKESHOP#별도-승인-미도입)) → `restricted` 컬럼·`restrictedApproval` 메타데이터 미도입. Phase 0 에서 `MakeshopOperationMetadata` 는 cafe24 형식에서 `restrictedApproval` 을 제거한 형태 ([makeshop-api-metadata §2](CLE-MKS-META#2-operation-메타데이터-형식)).
+> **restricted 컬럼 없음**: cafe24 와 달리 makeshop 은 per-scope/operation 별도 승인 티어가 없다 ([MakeShop 노드 Rationale 「별도 승인 미도입」](CLE-NODE-MAKESHOP#별도-승인-미도입)) → `restricted` 컬럼·`restrictedApproval` 메타데이터 미도입. Phase 0 에서 `MakeshopOperationMetadata` 는 cafe24 형식에서 `restrictedApproval` 을 제거한 형태 ([MakeShop operation 메타데이터 「Operation 메타데이터 형식」](CLE-MKS-META#2-operation-메타데이터-형식)).
 
 ## Rationale
 

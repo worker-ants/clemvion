@@ -48,8 +48,8 @@ const root = repoRoot();
  * 발행 축의 탈출구로 쓰는 에러 코드 카탈로그 — NERV `CLE-API-ERRCODES` 의 저장소 미러
  * (저장소 루트 기준). 이 문서의 「6. 카탈로그」 절만 탈출구로 쓴다(`catalogSection`).
  *
- * 옛 스펙 트리의 `spec/5-system/3-error-handling.md` §1 을 읽었다. 그 트리는 동결됐고
- * 전환 단계 5 에서 지운다. 미러는 손으로 고치지 않는다. 구현하는 PR 이
+ * 옛 스펙 트리의 `spec/5-system/3-error-handling.md` §1 을 읽었다. 그 트리는 전환 단계 5 에서
+ * 지웠다. 미러는 손으로 고치지 않는다. 구현하는 PR 이
  * `pull.py --task <CLE-T-…>` 로 받는다(이 경로로 옮긴 PR 은 NERV Task `CLE-T-RXMB2X`).
  *
  * 형제 가드 `redis-fail-open-catalog` 는 NERV 표기에 묶이지 않으려고 스펙 대조를 걷었다. 이

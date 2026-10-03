@@ -26,7 +26,7 @@ import {
 //      besides `src`) — spec cross-refs only. They are key links
 //      (`[글](CLE-KEY#앵커)`): the key must have a mirror file (KEY) and the
 //      anchor must be a heading in it (ANCHOR). A relative `spec/**.md` path link
-//      is PATH — hand-counted `../` depths drifted silently and the old tree goes
+//      is PATH — hand-counted `../` depths drifted silently and the old tree went
 //      in stage 5. NERV cutover stage 4c (`CLE-T-9AM31N`) converted them.
 //   3. Governance docs — root-level `*.md` (`CLAUDE.md`, `PROJECT.md`, …) and
 //      `.claude/**.md`. Added 2026-08-27; four links were already broken the
@@ -56,7 +56,10 @@ function fmt(violations: LinkViolation[]): string {
 const MIN_CLAUDE_DOCS = 20;
 
 // 2026-10-03 미러 181편. 키 링크(범위 2 · 3)는 미러 파일로 확인하므로 미러가 비면 모든 키가
-// `KEY` 위반이 되어 드러나지만, 하한을 따로 두어 실패 이유를 바로 보이게 한다.
+// `KEY` 위반이 되어 드러나지만, 하한을 따로 두어 실패 이유를 바로 보이게 한다. 하한은 미러 크기에
+// 묶인다. NERV 에서 문서가 크게 줄거나 `pull.py --all --allow-mass-prune` 으로 미러를 줄이면 여기가
+// 먼저 빨개지므로 그때 실측의 절반으로 다시 잡는다(`registry.test.ts` 가 하한을 두지 않는 이유와의
+// 차이는 그 파일 주석).
 const MIN_MIRROR_DOCS = 90;
 
 describe("spec-link-integrity guard", () => {

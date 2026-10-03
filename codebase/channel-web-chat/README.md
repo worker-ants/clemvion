@@ -3,7 +3,7 @@
 iframe 내부에서 렌더되는 채팅 UI. **Next.js CSR 전용**(`output: 'export'`) — Node 서버 런타임 없이 정적 번들(`out/`)로
 빌드해 CDN 호스팅 + iframe 임베드한다.
 
-- Spec(SoT): [`spec/7-channel-web-chat/`](../../spec/7-channel-web-chat/) — 위젯 SPA 는 [`1-widget-app.md`](../../spec/7-channel-web-chat/1-widget-app.md).
+- Spec(SoT): NERV 영역 `CLE-WEBCHAT`([웹채팅](../../spec/CLE-WEBCHAT/CLE-WEBCHAT.md), 저장소 미러 `spec/CLE-WEBCHAT/`) — 위젯 SPA 는 [웹채팅 위젯](../../spec/CLE-WEBCHAT/CLE-WEBCHAT-WIDGET.md).
 - SDK(loader/bridge): [`codebase/packages/web-chat-sdk`](../packages/web-chat-sdk/). EIA 호출은 [`@workflow/sdk`](../packages/sdk/) 재사용.
 
 ## CSR-only 원칙
@@ -51,7 +51,7 @@ path(UUID)** 를 trigger 칸에 붙여넣어야 한다(backend 트리거 화면�
 > 자동 제거하지만 origin 으로 입력하는 것을 권장.
 >
 > **스트림 응답(SSE) CORS — 중요**: 첫 메시지(`POST /api/hooks/*`)는 무제한 CORS 라 통과하지만, **AI 응답
-> 스트림(`/api/external/*`)은 워크스페이스 allowlist CORS** 를 탄다([4-security §2](../../spec/7-channel-web-chat/4-security.md)).
+> 스트림(`/api/external/*`)은 워크스페이스 allowlist CORS** 를 탄다([웹채팅 보안 「CORS」](../../spec/CLE-WEBCHAT/CLE-WEBCHAT-SECURITY.md#cors)).
 > 데모 origin(`http://localhost:3013`)이 backend 허용 목록에 없으면 **메시지는 전송되나 응답이 오지 않는다**.
 > 로컬 해결: backend `.env` 에 `WEB_CHAT_WIDGET_ORIGINS=http://localhost:3013` 추가(또는 워크스페이스
 > `interactionAllowedOrigins` 에 등록) 후 backend 재시작. (SSE 차단 시 위젯이 console 에 경고를 남긴다.)

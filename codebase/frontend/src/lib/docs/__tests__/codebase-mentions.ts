@@ -105,7 +105,7 @@ export function collectMentionFiles(root: string): MdFileRef[] {
  *
  * 확장자를 요구하지 않는다. `spec/5-system/13-replay-rerun §7.2` 처럼 `.md` 를 뺀 인용, 줄 끝에서
  * 끊긴 경로(`spec/conventions/` 다음 줄에 이어짐), 영역 이름만 적은 언급(`spec/7-channel-web-chat`),
- * 글로브(`spec/4-nodes/**`)도 옛 트리를 가리켜 단계 5 에서 함께 갈 곳을 잃는다.
+ * 글로브(`spec/4-nodes/**`)도 옛 트리를 가리켜 단계 5 에서 함께 갈 곳을 잃었다.
  *
  * 앞에 경로 문자(`\w` · `.` · `-`)가 붙으면 다른 낱말의 일부다(`e2e-spec/…`). `/` 는 허용한다.
  * 상대 경로(`../../spec/…`)도 같은 옛 트리를 가리키기 때문이다. `spec/` 없이 파일 이름만 적은

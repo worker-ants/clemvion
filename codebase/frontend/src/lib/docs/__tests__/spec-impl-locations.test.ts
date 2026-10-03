@@ -32,6 +32,7 @@ function fmt(missing: MissingImplLocation[]): string {
 
 // 2026-10-03 실측: 미러 181편 중 136편에 절이 있고 저장소 경로 961개. 하한은 절반 언저리로 둔다.
 // 대상이 0 이면 아래 위반 0 단언이 공허하게 초록이 된다(옛 `spec-code-paths` 가 그렇게 꺼질 뻔했다).
+// 하한은 미러 크기에 묶인다. 미러를 크게 줄이는 pull 이 이 하한에 걸리면 실측의 절반으로 다시 잡는다.
 const MIN_DOCS = 60;
 const MIN_PATHS = 400;
 
