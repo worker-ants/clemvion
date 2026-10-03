@@ -458,6 +458,13 @@ python3 scripts/check-review-gate.py
   설정부터 만든다. 없으면 `codebase/**` PR 이 모두 이 잡에서 실패한다.
 - 실패 모드: 설정 문제는 CI 에서 실패, 일시 장애(시간 초과 · 5xx · 429)는 통과(fail-open)와 경고다.
   로컬 훅은 설정이 없거나 NERV 가 응답하지 않으면 통과시키고 배너로 센다.
+- 강제 리뷰어(전환 4e): 라운드가 본 파일이 `router_safety` 규칙으로 강제하는 리뷰어 중 NERV 필수 6역할 밖의
+  것(documentation · dependency · database · api_contract)이 라운드의 역할 리포트에 없으면 막는다.
+  라운드가 본 파일은 라운드 head 와 base 의 merge-base 부터 라운드 head 까지다. 리뷰 뒤 main 을 merge 해도
+  main 쪽 파일은 세지 않는다. `.claude.project.json` 에서 끈 리뷰어는 요구하지 않는다. `REVIEW_AGENTS` 로
+  좁힌 라운드는 막힌다. 그 리뷰어를 돌려 같은 head 로 제출하면 풀린다.
+- CI `review-gate` 는 게이트를 `env -i` 로 띄우고 `PATH` · `HOME` · `LD_LIBRARY_PATH` · NERV 접속 정보만
+  넘긴다(`.github/workflows/review-gate.yml`). 게이트가 CI 에서만 다르게 판정할 환경 변수가 없다.
 - 의식적 우회: `BYPASS_REVIEW_GUARD=1`(로컬 push 훅만).
 
 ### Playwright flaky surfacing

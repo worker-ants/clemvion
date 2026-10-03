@@ -45,9 +45,11 @@ NERV 정본 전환 단계 4e(Task `CLE-T-VP5KDJ`). consistency 오케스트레�
 NERV 정본 전환 단계 4e. 단계 2 에서 게이트가 NERV 판정으로 바뀌며 강제 리뷰어 검사가 NERV 정책의 6역할로 줄었다.
 documentation · dependency · database · api_contract 처럼 변경 종류에 따라 붙는 역할은 빠져도 막히지 않았다.
 
-- 가드 조임: push 훅과 CI `review-gate` 가 라운드가 본 파일(merge-base..라운드 head)에서 `router_safety` 규칙이
-  강제하는 6역할 밖 리뷰어를 계산해 N1 `roles.reported` 에 없으면 막는다. `.claude.project.json` 에서 끈 리뷰어는
-  요구하지 않는다. 응답에 역할 정보가 없으면 막지 않고 알린다.
+- 가드 조임: push 훅과 CI `review-gate` 가 라운드가 본 파일에서 `router_safety` 규칙이 강제하는 6역할 밖 리뷰어를
+  계산해 N1 `roles.reported` 에 없으면 막는다. 라운드가 본 파일은 라운드 head 와 base 의 merge-base 부터 라운드
+  head 까지다. 리뷰 뒤 main 을 merge 해도 main 쪽 파일은 세지 않는다. `.claude.project.json` 에서 끈 리뷰어는
+  요구하지 않는다. 응답에 역할 정보가 없으면 막지 않고 알린다. 규칙 모듈을 불러오거나 쓰지 못하면 설정 문제로
+  보고 CI `--enforce` 에서 실패한다.
 - `router_safety` 의 `spec/**/*.md` → requirement 규칙을 걷었다. 첫 규칙이 모든 변경에 requirement 를 이미
   강제하고, 이 규칙만 코퍼스 경로 설정을 읽었다. 이제 표준 라이브러리만 써서 게이트가 경로로 불러온다.
 - CI `review-gate` 는 게이트를 `env -i` 로 띄우고 PATH · HOME · LD_LIBRARY_PATH · NERV 접속 정보만 넘긴다. 게이트가

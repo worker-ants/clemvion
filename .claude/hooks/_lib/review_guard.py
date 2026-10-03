@@ -18,12 +18,16 @@ NERV 정본 전환 단계 2(NERV Task `CLE-T-4ABTG7`)부터 리뷰 결과의 정
      열린 critical · warning 은 서버가 `pending` 으로 판정한다.
   2. 라운드 `head_sha` 가 이 체크아웃에 있고 HEAD 의 조상이어야 한다. rebase · amend 로 라운드
      head 가 사라졌으면 새 HEAD 로 리뷰를 다시 제출해야 한다.
-  2b. 라운드가 본 파일(merge-base..라운드 head)이 `router_safety` 규칙으로 강제하는 리뷰어 중 NERV 필수
-     6역할 밖의 것(documentation · dependency · database · api_contract)이 라운드의 역할 리포트(N1
+  2b. 라운드가 본 파일이 `router_safety` 규칙으로 강제하는 리뷰어 중 NERV 필수 6역할 밖의 것
+     (documentation · dependency · database · api_contract)이 라운드의 역할 리포트(N1
      `roles.reported`)에 있어야 한다. NERV 정책 `review_roles.code` 는 변경 종류에 따라 붙는 역할을
      표현하지 못해 6역할만 센다(전환 단계 2). 옛 게이트는 디스크의 리포트로 강제 목록 전체를 봤다.
-     전환 4e 에서 그 축소를 이 검사로 닫았다. `.claude.project.json` 에서 끈 리뷰어는 요구하지 않는다.
-     응답에 `roles.reported` 가 없으면 막지 않고 참고로 알린다.
+     전환 4e 에서 그 축소를 이 검사로 닫았다. 라운드가 본 파일은 브랜치 diff 로 다시 계산한다(라운드
+     head 와 base 의 merge-base..라운드 head). NERV 는 라운드의 changeset 을 돌려주지 않는다. 리뷰 뒤
+     base 를 merge 해도 base 쪽 파일은 세지 않는다. `.claude.project.json` 에서 끈 리뷰어는 요구하지
+     않는다. 그 파일과 규칙 모듈은 판정하는 체크아웃의 것을 읽는다(CI 에서는 PR head 의 트리다).
+     세션 환경 변수 `REVIEW_AGENTS` 는 보지 않는다. 응답에 `roles.reported` 가 없으면 막지 않고
+     참고로 알린다.
   3. code 라운드에서 `fixed` 로 처분된 발견의 `commit_sha` 는 HEAD 에서 닿는 커밋이어야 한다. NERV 는
      발견을 프로젝트 전체에서 지문으로 합친다. 그래서 다른 브랜치에서 고친 같은 지적도 이 라운드에
      `fixed` 로 보인다. 그 수정이 이 브랜치에 없으면 막는다. consistency 라운드의 그런 처분은 막지 않고
@@ -43,7 +47,7 @@ NERV 정본 전환 단계 2(NERV Task `CLE-T-4ABTG7`)부터 리뷰 결과의 정
 
 판정하지 못하면(`GateUnavailable`) 호출자가 fail-open 하고 그 사실을 센다(push 훅의 배너와
 연속 횟수, CI 의 경고). 그중 설정 문제(`GateMisconfigured` — 토큰 · 서버 주소 없음, 401 · 403 ·
-404)는 일시 장애와 구분한다. CI 는 설정 문제를 `--enforce` 에서 실패로 본다. 비밀이 빠진 백스톱은
+404, 강제 리뷰어 규칙 `router_safety.py` 를 불러오거나 쓰지 못함)는 일시 장애와 구분한다. CI 는 설정 문제를 `--enforce` 에서 실패로 본다. 비밀이 빠진 백스톱은
 초록인 채로 영원히 꺼져 있기 때문이다.
 
 NERV 쓰기는 이 모듈이 하지 않는다. 리뷰 제출과 처분은 main 세션의 MCP 호출로만 한다(`CLAUDE.md`).
@@ -57,6 +61,7 @@ import json
 import os
 import re
 import sys
+from collections.abc import Iterable
 from dataclasses import dataclass
 
 THIS_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -78,14 +83,14 @@ CODE_PREFIX = "codebase/"
 N1_PATH = "/api/v1/projects/{project}/gates/reviews/check"
 # N1 에 함께 묻는 kind. code 는 판정, consistency 는 라운드 이후 커밋의 설명에만 쓴다.
 N1_KINDS = ("code", "consistency")
+# 강제 리뷰어 규칙의 정본(판정 2b). 표준 라이브러리만 쓰는 모듈이라 경로로 불러온다(`_lib` 이름이 훅
+# 패키지와 겹치므로 `sys.path` 로 들이지 않는다).
+_ROUTER_SAFETY = os.path.join(_CLAUDE_DIR, "skills", "code-review-agents", "lib", "router_safety.py")
+_PROJECT_CONFIG = ".claude.project.json"
 # 커밋 메시지의 발견 인용. `finding` 뒤 같은 문단에 나오는 전체 ID 를 모두 센다(`finding <ID> · <ID>`
 # 처럼 나열해도 된다). NERV 발견 ID 는 UUIDv7 이라 앞 8자는 같은 분 안에서 겹친다(실측 2026-10-01: 한
 # 제출의 발견 13건이 모두 `01a0f648-`). 그래서 전체 ID 만 인용으로 본다.
 _FINDING_WORD = re.compile(r"\bfindings?\b", re.IGNORECASE)
-# 강제 리뷰어 규칙의 정본. 표준 라이브러리만 쓰는 모듈이라 경로로 불러온다(`_lib` 이름이 훅 패키지와
-# 겹치므로 `sys.path` 로 들이지 않는다).
-_ROUTER_SAFETY = os.path.join(_CLAUDE_DIR, "skills", "code-review-agents", "lib", "router_safety.py")
-_PROJECT_CONFIG = ".claude.project.json"
 _FULL_ID = re.compile(r"\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b", re.IGNORECASE)
 
 
@@ -114,7 +119,7 @@ class GateUnavailable(Exception):
 
 
 class GateMisconfigured(GateUnavailable):
-    """설정 문제라 고칠 때까지 계속 판정하지 못한다(토큰 · 서버 주소 없음, 401 · 403 · 404)."""
+    """설정 문제라 고칠 때까지 계속 판정하지 못한다(토큰 · 서버 주소 없음, 401 · 403 · 404, 강제 리뷰어 규칙)."""
 
 
 @dataclass(frozen=True)
@@ -316,11 +321,14 @@ def _load_router_safety():
     return module
 
 
-def _enabled(repo_root: str, names) -> list[str]:
-    """`.claude.project.json` 의 `agents.reviewers.<이름>: false` 로 끈 리뷰어를 뺀다.
+def _enabled_reviewers(repo_root: str, names: Iterable[str]) -> list[str]:
+    """`names` 중 `.claude.project.json` 의 `agents.reviewers.<이름>: false` 로 끄지 않은 리뷰어.
 
     판정 규칙은 `skills/_lib/project_config.is_agent_enabled` 와 같다(명시적 `false` 만 끈다). 그 모듈은
-    `_lib` 이름이 훅 패키지와 겹쳐 들일 수 없어 같은 규칙을 여기 둔다. 파일이 없거나 깨졌으면 모두 켠다."""
+    `_lib` 이름이 훅 패키지와 겹쳐 들일 수 없어 같은 규칙을 여기 둔다. 두 판정이 같은지는
+    `test_review_guard.py` 의 `test_the_toggle_rule_matches_project_config` 가 고정한다. 파일이 없거나
+    깨졌으면 모두 켠다. 세션 환경 변수 `REVIEW_AGENTS` 는 보지 않는다. 그 값으로 리뷰어를 좁힌
+    라운드는 이 검사에 막힌다."""
     try:
         with open(os.path.join(repo_root, _PROJECT_CONFIG), encoding="utf-8") as f:
             cfg = json.load(f)
@@ -333,15 +341,29 @@ def _enabled(repo_root: str, names) -> list[str]:
     return [n for n in names if reviewers.get(n, True) is not False]
 
 
-def _missing_forced_roles(item: dict, fork: str, round_head: str, repo_root: str, cwd: str) -> list[str] | None:
-    """라운드가 본 파일이 강제하는데 라운드에 리포트가 없는 리뷰어(6역할 밖). 응답에 역할 정보가 없으면 None."""
+def _missing_forced_roles(item: dict, base: str, round_head: str, repo_root: str, cwd: str) -> list[str] | None:
+    """라운드가 본 파일이 강제하는데 라운드에 리포트가 없는 리뷰어(6역할 밖).
+
+    돌려주는 값은 셋이다. `None` 은 응답에 역할 정보가 없어 판정하지 못했다는 뜻이고, 빈 목록은 빠진
+    리뷰어가 없다는 뜻이고, 나머지는 빠진 리뷰어 이름이다.
+
+    라운드가 본 파일은 라운드 head 와 `base` 의 merge-base 에서 라운드 head 까지다. HEAD 기준
+    merge-base 를 쓰면 리뷰 뒤 base 를 merge 했을 때 그 merge-base 가 base 의 새 커밋으로 올라가고,
+    두 점 diff 가 base 에서 들어온 파일까지 라운드 파일로 센다(merge 최신화가 막힌다)."""
     roles = item.get("roles")
     reported = roles.get("reported") if isinstance(roles, dict) else None
     if not isinstance(reported, list):
         return None
-    files = _git_lines(["diff", "--name-only", f"{fork}..{round_head}"], cwd)
+    round_fork = _git_lines(["merge-base", round_head, base], cwd)
+    if not round_fork:
+        raise GateUnavailable(f"라운드 head 와 `{base}` 의 merge-base 가 없다")
+    files = _git_lines(["diff", "--name-only", f"{round_fork[0]}..{round_head}"], cwd)
     rs = _load_router_safety()
-    forced = rs.conditional_forced_agents(files, _enabled(repo_root, rs.RULE_REVIEWERS))
+    try:
+        forced = list(rs.conditional_forced_agents(files, _enabled_reviewers(repo_root, rs.RULE_REVIEWERS)))
+    except Exception as exc:  # noqa: BLE001 — 이름이 없거나 호출이 실패해도 설정 문제로 올린다
+        # 다른 예외로 새면 CI 가 일시 장애로 보고 통과시키고, (3) · (4) 검사까지 건너뛴다.
+        raise GateMisconfigured(f"강제 리뷰어 규칙(router_safety)을 쓰지 못했다 — {type(exc).__name__}: {exc}") from exc
     have = {str(r) for r in reported}
     return [r for r in forced if r not in have]
 
@@ -440,7 +462,7 @@ def evaluate_review(
         notes = (f"참고: N1 응답이 발견 {total}건 중 {got}건만 담았다. 빠진 발견의 처분 커밋은 보지 못했다.",)
 
     # (2b) 라운드가 본 파일이 강제하는 리뷰어(6역할 밖)의 리포트가 라운드에 있는가.
-    missing_roles = _missing_forced_roles(item, fork[0], round_head, repo_root, cwd)
+    missing_roles = _missing_forced_roles(item, base, round_head, repo_root, cwd)
     if missing_roles is None:
         notes += ("참고: N1 응답에 roles.reported 가 없어 강제 리뷰어(6역할 밖)를 보지 못했다.",)
     elif missing_roles:

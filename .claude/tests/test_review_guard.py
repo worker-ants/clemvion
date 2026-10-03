@@ -145,6 +145,33 @@ class ForcedRolesBeyondTheSixTest(_RepoCase):
         d = self.evaluate(FakeClient(code_item("passed", self.c1)))
         self.assertFalse(d.blocked, d.reason)
 
+    def test_base_files_merged_in_after_the_round_do_not_count(self):
+        """리뷰 뒤 `git merge origin/main` 으로 최신화해도 main 쪽 파일은 라운드가 본 파일이 아니다.
+
+        범위를 HEAD 기준 merge-base 로 잡으면 그 merge-base 가 main 의 새 커밋으로 올라가고, 두 점
+        diff 가 main 에서 들어온 문서를 라운드 파일로 센다. 그러면 `CLE-ENG-MIGRATION` 과 PR 템플릿이
+        안내하는 merge 최신화가 막힌다. 라운드 head 기준 merge-base 로 잡아야 한다."""
+        self.git("checkout", "-q", "main")
+        self.commit("CHANGELOG.md", "- main 의 문서\n")
+        self.commit("codebase/backend/package.json", "{}\n")
+        self.git("update-ref", "refs/remotes/origin/main", "HEAD")
+        self.git("checkout", "-q", "feature")
+        self.git("merge", "-q", "--no-edit", "main")
+        d = self.evaluate(FakeClient(code_item("passed", self.c1)))
+        self.assertFalse(d.blocked, d.reason)
+
+    def test_the_branch_own_files_still_count_after_merging_the_base(self):
+        """merge 최신화 뒤에도 라운드 전에 이 브랜치가 바꾼 문서는 그대로 센다(위 테스트의 반대쪽)."""
+        head = self.commit("CHANGELOG.md", "- 이 브랜치의 문서\n")
+        self.git("checkout", "-q", "main")
+        self.commit("docs/main-only.md", "m\n")
+        self.git("update-ref", "refs/remotes/origin/main", "HEAD")
+        self.git("checkout", "-q", "feature")
+        self.git("merge", "-q", "--no-edit", "main")
+        d = self.evaluate(FakeClient(code_item("passed", head)))
+        self.assertTrue(d.blocked)
+        self.assertIn("강제 리뷰어 리포트가 없다: documentation", d.reason)
+
     def test_the_six_roles_are_left_to_the_server(self):
         """6역할은 서버가 `missing_roles` 로 판정한다. 여기서 다시 세면 대역의 빈 `reported` 가 막는다."""
         d = self.evaluate(FakeClient(code_item("passed", self.c1)))
@@ -163,6 +190,65 @@ class ForcedRolesBeyondTheSixTest(_RepoCase):
         with mock.patch.object(rg, "_ROUTER_SAFETY", str(self.tmp / "missing.py")):
             with self.assertRaises(rg.GateMisconfigured):
                 self.evaluate(FakeClient(code_item("passed", head)))
+
+    def test_a_rule_module_that_breaks_after_loading_is_a_configuration_error(self):
+        """불러오기는 됐는데 이름이 없거나 호출이 실패해도 설정 문제다.
+
+        다른 예외로 새면 CI `check-review-gate.py` 가 일시 장애로 보고 통과시킨다. 2b 는 (3) · (4)
+        보다 앞이라 그 뒤 검사까지 모두 건너뛴다."""
+        head = self.commit("CHANGELOG.md", "- 바뀐 것\n")
+        stubs = {
+            "이름 없음": "X = 1\n",
+            "호출 실패": ("RULE_REVIEWERS = ('documentation',)\n"
+                      "def conditional_forced_agents(files, available):\n"
+                      "    raise ValueError('boom')\n"),
+        }
+        for label, body in stubs.items():
+            with self.subTest(label):
+                stub = self.tmp / f"stub_{len(label)}_{abs(hash(label))}.py"
+                stub.write_text(body, encoding="utf-8")
+                with mock.patch.object(rg, "_ROUTER_SAFETY", str(stub)):
+                    with self.assertRaises(rg.GateMisconfigured):
+                        self.evaluate(FakeClient(code_item("passed", head)))
+
+    def test_the_toggle_rule_matches_project_config(self):
+        """`_enabled_reviewers` 는 `project_config.is_agent_enabled` 의 사본이다. 두 판정이 같아야 한다.
+
+        `_lib` 이름이 훅 패키지와 겹쳐 같은 프로세스에서 둘을 함께 들이지 못한다. 그래서 project_config
+        쪽은 하위 프로세스로 돌린다."""
+        import subprocess  # noqa: PLC0415
+        import sys  # noqa: PLC0415
+
+        names = ["documentation", "dependency", "database", "api_contract"]
+        shapes = {
+            "없음": None,
+            "깨진 JSON": "{",
+            "루트가 리스트": "[]",
+            "agents 가 null": json.dumps({"agents": None}),
+            "reviewers 가 리스트": json.dumps({"agents": {"reviewers": []}}),
+            "명시 false": json.dumps({"agents": {"reviewers": {"documentation": False}}}),
+            "문자열 false": json.dumps({"agents": {"reviewers": {"documentation": "false"}}}),
+            "0": json.dumps({"agents": {"reviewers": {"database": 0}}}),
+            "null": json.dumps({"agents": {"reviewers": {"dependency": None}}}),
+            "true": json.dumps({"agents": {"reviewers": {"api_contract": True}}}),
+        }
+        probe = (
+            "import json, sys\n"
+            f"sys.path.insert(0, {str(_harness.CLAUDE_DIR / 'skills')!r})\n"
+            "from _lib import project_config as pc\n"
+            "root, names = sys.argv[1], json.loads(sys.argv[2])\n"
+            "cfg = pc.load(root)\n"
+            "print(json.dumps([n for n in names if pc.is_agent_enabled(cfg, 'reviewers', n)]))\n"
+        )
+        for label, body in shapes.items():
+            with self.subTest(label):
+                root = self.tmp / f"cfg_{abs(hash(label))}"
+                root.mkdir()
+                if body is not None:
+                    (root / ".claude.project.json").write_text(body, encoding="utf-8")
+                out = subprocess.run([sys.executable, "-c", probe, str(root), json.dumps(names)],
+                                     capture_output=True, text=True, check=True).stdout
+                self.assertEqual(rg._enabled_reviewers(str(root), names), json.loads(out))
 
     def test_the_gate_uses_the_reviewer_rules_the_orchestrator_uses(self):
         """게이트가 불러오는 파일이 코드 리뷰 오케스트레이터가 쓰는 그 모듈이다(복사본이 아니다)."""
