@@ -24,7 +24,7 @@ model: sonnet
 | `merge-conflict-analyzer` | text-level git conflict 예측 + 자동 해결 난이도 평가 |
 | `semantic-conflict-analyzer` | signature·behavior·invariant cross-impact |
 | `integration-order-planner` | 의존성 그래프 + topological 통합 순서 + base 결정 |
-| `cross-branch-spec-analyzer` | branch 간 spec/plan 영역 cross-conflict |
+| `cross-branch-spec-analyzer` | branch 간 스펙 미러(`spec/CLE-*`) 버전 · API · Rationale · 규약 충돌 |
 | `integration-risk-summary` | 4 analyzer 통합 + BLOCK 결정 |
 | `merge-conflict-resolver` | conflict 한 건당 patch 제안 (자동 적용 X) |
 
@@ -125,7 +125,7 @@ SUMMARY 의 통합 plan 표 + Critical/Warning 을 사용자에게 1-2문단 요
 | --- | --- | --- |
 | `MERGE_BRANCHES` | (cli 인자) | 통합 대상 쉼표 구분 |
 | `MERGE_BASE_HINT` | (orchestrator 결정) | base branch 힌트 |
-| `MERGE_OUTPUT_DIR` | `./.review/merge` | 세션 디렉토리 부모 (gitignore, 커밋하지 않는다. NERV `kind=merge` 제출은 전환 4e) |
+| `MERGE_OUTPUT_DIR` | `./.review/merge` | 세션 디렉토리 부모 (gitignore, 커밋하지 않는다. analyzer 마다 NERV `kind=merge` 로 낸다) |
 | `AI_REVIEW_LOOP` | `0` | loop_mode |
 | `RETRY_WAKE_DEFAULT_SEC` | `1800` | wake delay |
 

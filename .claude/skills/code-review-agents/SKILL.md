@@ -129,6 +129,11 @@ python3 .claude/tools/nerv_review_payload.py <session_dir>   # 역할별 제출 
    이 브랜치의 열린 발견이 `<session_dir>/_nerv_findings.json` 에 적힌다. 파일 형식은 그 도구의 docstring 이 정본이다. 발견은 전체 ID 로 가리킨다. NERV 발견 ID 는 UUIDv7 이라 앞 8자는 같은 분에 생긴 발견끼리 겹친다.
 6. 발견은 모두 처분한다(`nerv_finding_resolve`). critical · warning 은 §6 `resolution-applier` 가 처분을 정하고, INFO 는 applier 가 남긴 것(`left_to_main`)을 main 이 정한다. INFO 까지 처분하는 이유가 있다. 열린 발견은 이후 모든 제출 응답에 `carried_over` 로 따라붙는다(이 전환 Task 에서 387건). critical 을 `dismissed`/`wont_fix` 로 낮추는 처분은 사람 승인이 필요하다. 처분은 발견 단위다. NERV 는 같은 지적을 지문으로 합치므로 처분이 같은 발견을 담은 다른 브랜치의 라운드에도 보인다. 다른 브랜치에서 온 발견을 이 브랜치 커밋으로 `fixed` 처분하지 않는다. 반대로 push 게이트가 "처분 커밋이 이 브랜치에 없다" 로 막으면 이 브랜치에서 고친 커밋으로 그 발견을 다시 처분한다. 이미 `fixed` 인 발견도 다시 처분할 수 있다(실측 2026-10-01: 같은 발견에 새 처분이 쌓인다).
 
+**merge · spec_coverage 세션.** 같은 도구가 `.review/merge/…` · `.review/spec-coverage/…` 세션도 제출 묶음으로 바꾼다(kind 는 세션 경로에서 읽는다). 인자는 위 2 와 같고 다른 점만 적는다.
+
+- **merge**(`/merge-coordinate`): analyzer 리포트 하나가 역할 하나다(`merge_conflict_analyzer` · `semantic_conflict_analyzer` · `integration_order_planner` · `cross_branch_spec_analyzer`). `branch` 는 통합 브랜치(`integrate-*`), `head_sha` 는 통합한 커밋이다. 키의 `<mode>` 는 `coordinate` 다. 통합을 맡은 NERV Task 가 있으면 `task_id` 를 붙인다.
+- **spec_coverage**(`/spec-coverage`): 감사기 `SUMMARY.md` 하나가 역할 `spec_coverage` 하나이고 후보 하나가 info 발견 하나다(태그 `confidence:<신뢰도>` · 방향). info 라 라운드를 막지 않는다. 키의 `<mode>` 는 `audit` 다. 도구가 요약의 후보 수보다 적게 읽으면 `warnings[]` 로 알린다. 그때는 감사기 출력 형식을 확인하고 내지 않는다. 처분은 사람이 후보를 본 뒤에 한다. NERV Task 로 올린 후보는 그 Task 를 근거로 `wont_fix`, 오탐은 `dismissed` 로 닫는다. 열린 채 두면 이후 제출 응답에 `carried_over` 로 따라붙는다.
+
 **라운드 뒤 커밋.** push 게이트는 라운드 head 이후의 `codebase/**` 커밋을 두 경우에 새 라운드 없이 통과시킨다. code · consistency 라운드에서 `fixed` 로 처분된 발견의 `commit_sha` 이거나, 커밋 메시지가 그런 발견을 `finding <발견 전체 ID>` 로 인용하는 경우다(e2e 실패 뒤 후속 수정). 한 커밋이 발견 여럿을 고치면 `finding <ID> · <ID>` 처럼 `finding` 이 든 한 문단에 전체 ID 를 나열한다. 빈 줄로 나뉜 다른 문단의 ID 는 인용으로 세지 않는다. merge 커밋은 충돌을 손으로 푼 `codebase/**` 변경이 있으면 센다. **fix 커밋은 다시 리뷰되지 않는다.** `fixed` 처분과 인용은 main 의 자기 신고이고 게이트는 커밋이 처분에 묶였는지만 본다. 리뷰 뒤 변경이 처분한 발견의 범위를 넘으면 새 라운드를 낸다. 판정 규칙의 정본은 `.claude/hooks/_lib/review_guard.py` docstring 이다.
 
 **게이트가 판정하지 못할 때(fail-open).** push 훅은 NERV 가 응답하지 않거나 로컬에 `NERV_SERVER` · `NERV_TOKEN` 이 없으면 통과시키고 배너로 센다. CI `review-gate` 는 토큰 · 주소 설정 문제(없음, 401 · 403 · 404)만 실패로 보고, 장애(시간 초과 · 5xx · 429)는 통과시킨다. 그래서 두 게이트는 NERV 가 답할 때만 막는다. NERV 가 내려가 있어도 리뷰 결과를 저장소 파일로 커밋하지 않는다. NERV 가 돌아오면 그때 제출한다.
@@ -147,11 +152,14 @@ Workflow 불가 환경에서는 orchestrator 의 `--summary-state` / `--apply-ro
 >   라운드를 `missing_roles`(`pending`)로 두고, push 훅과 CI `review-gate` 가 그 라운드를 통과시키지
 >   않는다(NERV 가 답할 때. §4 fail-open). 판정은 **제출된 역할 리포트** 기준이라 `agents_success`
 >   를 꾸며도 통과하지 못한다.
-> - **그 밖의 강제 reviewer 는 도구만 알린다.** `documentation` · `dependency` · `database` ·
->   `api_contract` 가 빠지면 `nerv_review_payload.py` 가 exit 1 로 알릴 뿐 push · CI 는 이들을 보지
->   않는다. exit 1 을 무시하고 제출하지 않는다. (전환 단계 2 전에는 `review_guard` 가 디스크의
->   리포트 파일로 forced 전체를 봤다. NERV `review_roles` 는 변경 종류에 따라 달라지는 조건부 역할을
->   표현하지 않아서 정책에는 늘 강제되는 6역할만 둔다. 이 축소를 다시 닫는 일은 전환 4e Task 가 맡는다.)
+> - **그 밖의 강제 reviewer 는 push 게이트가 센다.** `documentation` · `dependency` · `database` ·
+>   `api_contract` 는 NERV 정책 `review_roles` 가 표현하지 못하는 조건부 역할이라 서버는 보지 않는다.
+>   대신 push 훅과 CI `review-gate` 가 라운드가 본 파일(라운드 head 와 base 의 merge-base 이후)을
+>   `router_safety` 규칙에 넣어 강제 목록을 구하고, N1 `roles.reported` 에 없으면 막는다(판정 2b, 전환 4e.
+>   NERV 가 답할 때만). `.claude.project.json` 에서 끈 리뷰어는 요구하지 않는다. `REVIEW_AGENTS` 로 좁힌
+>   라운드는 막힌다. 제출 전에는 `nerv_review_payload.py` 의 exit 1 이 같은 누락을 알린다. 무시하고
+>   제출하지 않는다. 판정 규칙의 정본은 `.claude/hooks/_lib/review_guard.py` docstring 과 `PROJECT.md`
+>   §NERV 리뷰 게이트다.
 > - 미리 확인하려면(제출하기 전에):
 >   ```bash
 >   python3 .claude/skills/code-review-agents/scripts/code_review_orchestrator.py \

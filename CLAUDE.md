@@ -43,8 +43,8 @@ Monorepo. 애플리케이션 코드는 `codebase/` 하위 (서버 `codebase/back
 | 리서치·분석 산출물 (작업 아님) | NERV `CLE-RESEARCH` 영역 문서(미러 `spec/CLE-RESEARCH/`). 경쟁 분석·기술 조사 등 "참조되는" 문서이고 요구사항을 정하지 않는다 |
 | 코드 리뷰 결과 | NERV 리뷰 레코드 `kind=code` — 역할마다 `nerv_review_submit`, 발견 처분은 `nerv_finding_resolve`. 로컬 산출물 `.review/code/<YYYY>/<MM>/<DD>/<hh>_<mm>_<ss>/` 는 커밋하지 않는다 |
 | 일관성 검토 결과 | NERV 리뷰 레코드 `kind=consistency`(checker 마다 제출). 로컬 `.review/consistency/<…>/` |
-| 통합 검토 결과 | 로컬 `.review/merge/<…>/`(커밋하지 않는다). NERV `kind=merge` 제출 절차는 전환 4e(NERV Task `CLE-T-VP5KDJ`)에서 정한다. 그때까지는 결과를 사용자에게 보고하고 조치할 항목은 호출한 main 세션이 NERV Task 로 올린다 |
-| Spec-impl coverage standing audit 결과 | 로컬 `.review/spec-coverage/<…>/`(커밋하지 않는다). NERV `kind=spec_coverage` 제출 절차는 전환 4e 에서 정한다. 그때까지 조치할 후보는 호출한 main 세션이 NERV Task 로 올린다 (slash `/spec-coverage` 산출. 근거 모델: [`spec/CLE-ENG/CLE-ENG-SPECEVIDENCE.md`](spec/CLE-ENG/CLE-ENG-SPECEVIDENCE.md), 절차: [`spec-coverage` SKILL](.claude/skills/spec-coverage/SKILL.md)) |
+| 통합 검토 결과 | NERV 리뷰 레코드 `kind=merge` — analyzer 마다 `nerv_review_submit`. 로컬 `.review/merge/<…>/` 는 커밋하지 않는다. 절차는 `code-review-agents` SKILL §4 「merge · spec_coverage 세션」 |
+| Spec-impl coverage standing audit 결과 | 로컬 `.review/spec-coverage/<…>/`(커밋하지 않는다). NERV `kind=spec_coverage` 로 내고(후보마다 info 발견, 라운드를 막지 않는다) 조치할 후보는 호출한 main 세션이 NERV Task 로 올린다. 절차는 `code-review-agents` SKILL §4 「merge · spec_coverage 세션」 (slash `/spec-coverage` 산출. 근거 모델: [`spec/CLE-ENG/CLE-ENG-SPECEVIDENCE.md`](spec/CLE-ENG/CLE-ENG-SPECEVIDENCE.md), 절차: [`spec-coverage` SKILL](.claude/skills/spec-coverage/SKILL.md)) |
 
 > **리뷰 결과는 저장소 파일이 아니다**(NERV 정본 전환 단계 2, 2026-10-01). 옛 `review/` 는 단계 3 에서 지웠다(원문은 git 이력).
 > 오케스트레이터는 `.review/` 에 쓰고, `.claude/tools/nerv_review_payload.py` 가 그 역할 리포트를 제출 묶음으로 바꾼다.
@@ -75,7 +75,7 @@ Workflow 의 generic 단계 정의: [`developer/SKILL.md`](.claude/skills/develo
 | 개발자 | [`developer`](.claude/skills/developer/SKILL.md) | `codebase/**`, **harness 실행물** (`.claude/hooks/**`·`.claude/tools/**`·`.claude/tests/**`), `spec/` 미러(`pull.py` 로만), NERV 스펙 초안, NERV 리뷰 제출 · 발견 처분, NERV Task 생성 · 갱신 |
 | 일관성 검토자 | [`consistency-checker`](.claude/skills/consistency-checker/SKILL.md) (`/consistency-check`) | `.review/consistency/**`(로컬) → NERV `kind=consistency` |
 | 코드 리뷰어 | [`code-review-agents`](.claude/skills/code-review-agents/SKILL.md) (`/ai-review`) | `.review/code/**`(로컬) → NERV `kind=code` |
-| 통합 조율자 | [`merge-coordinator`](.claude/skills/merge-coordinator/SKILL.md) (`/merge-coordinate`) | `.review/merge/**`(로컬. NERV 제출은 전환 4e), `.claude/worktrees/integrate-*/**` |
+| 통합 조율자 | [`merge-coordinator`](.claude/skills/merge-coordinator/SKILL.md) (`/merge-coordinate`) | `.review/merge/**`(로컬) → NERV `kind=merge`, `.claude/worktrees/integrate-*/**` |
 
 - **NERV 쓰기는 main 세션의 MCP 호출로만 한다** — 리뷰 제출 · 발견 처분 · Task 갱신 모두. 예외는 스펙 초안 서브에이전트(`nerv:nerv-spec-writer`)의 초안 쓰기 하나다. 훅 · CI · 스크립트는 REST 로 읽기만 한다. 리뷰 서브에이전트(`resolution-applier` 등)는 처분 목록을 돌려주고 main 이 기록한다(결정 D9). 이 서브에이전트들에는 NERV MCP 도구가 없다. 다만 Bash 로 NERV REST 에 닿을 수 있고 세션 환경에 `NERV_TOKEN` 이 있다. 그 경로는 각 정의의 "네트워크 · 토큰 금지" 규칙으로만 막는다. 토큰 값은 커밋하지도 출력하지도 않는다.
 
@@ -87,7 +87,7 @@ Workflow 의 generic 단계 정의: [`developer/SKILL.md`](.claude/skills/develo
 - **push 게이트는 `codebase/**` 만 본다** — push 훅과 CI `review-gate` 는 `codebase/**` 를 바꾼 브랜치에 passed 상태의 NERV `kind=code` 라운드를 요구한다(판정 규칙: `.claude/hooks/_lib/review_guard.py`). harness-only 변경은 push 가 막히지 않으므로 **검증은 `python3 -m pytest .claude/tests -q` 가 대신한다** (선례 `051c7e7c1` 이 그 명령으로 검증했다). 다만 NERV Task 의 done 게이트(`done_gate.review_coverage: ["code","consistency"]`)는 변경 영역과 무관하게 **그 Task 에 묶인** code · consistency 라운드가 N1 판정 `passed` 이기를 요구한다. 그래서 harness Task 도 리뷰를 돌려 `task_id` 를 붙여 제출한다. router 는 바뀐 파일이 있으면 늘 필수 6역할을 돌리므로 harness Task 의 라운드도 역할이 빠지지 않는다. 이 비대칭을 적지 않으면 "harness 도 push 게이트가 본다" 는 보장을 문서가 구현보다 넓게 말하게 된다.
 - **push 게이트는 NERV 가 답할 때만 막는다(fail-open)** — NERV 가 응답하지 않거나 로컬에 `NERV_SERVER` · `NERV_TOKEN` 이 없으면 push 훅은 통과시키고 배너로 센다. CI `review-gate` 는 토큰 · 주소 설정 문제만 실패로 보고 장애는 통과시킨다. 리뷰 뒤 fix 커밋은 다시 리뷰되지 않는다(처분은 자기 신고다). 설정 · 판정 규칙: `PROJECT.md` §NERV 리뷰 게이트, `code-review-agents` SKILL §4.
 
-**보조 도구**: [`spec-coverage`](.claude/skills/spec-coverage/SKILL.md) (`/spec-coverage`) — spec 본문 약속 vs 구현 갭 standing audit (NLP 휴리스틱). 수동 호출만, CI 차단 아님. 결과는 로컬 `.review/spec-coverage/**` 에 남는다(NERV `kind=spec_coverage` 제출은 전환 4e). 근거 모델은 [`spec/CLE-ENG/CLE-ENG-SPECEVIDENCE.md`](spec/CLE-ENG/CLE-ENG-SPECEVIDENCE.md) 이다.
+**보조 도구**: [`spec-coverage`](.claude/skills/spec-coverage/SKILL.md) (`/spec-coverage`) — spec 본문 약속 vs 구현 갭 standing audit (NLP 휴리스틱). 수동 호출만, CI 차단 아님. 결과는 로컬 `.review/spec-coverage/**` 에 남고 NERV `kind=spec_coverage` 로 낸다(info 라 라운드를 막지 않는다). 근거 모델은 [`spec/CLE-ENG/CLE-ENG-SPECEVIDENCE.md`](spec/CLE-ENG/CLE-ENG-SPECEVIDENCE.md) 이다.
 
 ## 외부 LLM 호출 정책
 

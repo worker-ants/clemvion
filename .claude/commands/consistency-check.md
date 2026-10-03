@@ -22,15 +22,17 @@ checker(정의 5개, 이 저장소는 `plan_coherence` 를 꺼서 4개가 돈다
 ## 모드 (택일 필수)
 
 - `--spec <path>` — 스펙 초안 검토. NERV 초안을 저장한 뒤 검토 요청 **전에** 호출한다(`nerv_spec_check` 와 함께). `<path>` 는 초안 본문 파일이다.
-- `--plan <path>` — plan draft 검토. 전환 단계 3 에서 `plan/` 이 없어져 쓸 일이 없다(모드 제거는 4e).
-- `--impl-prep <scope>` — 구현 착수 **직전** 검토. scope 는 spec 영역 경로 (예: `spec/2-navigation/`).
-- `--impl-done <scope>` — 구현 완료 **후** 사후 검증. 결과를 checker 마다 `kind=consistency` 로 제출한다(developer 의 의무 단계).
+- `--impl-prep <scope>` — 구현 착수 **직전** 검토. scope 는 NERV 키 · 미러 영역 폴더 · 미러 파일이고 쉼표로 여럿을 준다(예: `CLE-ENG-SPECEVIDENCE,spec/CLE-API/`). 동결된 옛 트리는 받지 않는다.
+- `--impl-done <scope>` — 구현 완료 **후** 사후 검증. scope 형식은 위와 같다. 미러 문서의 `## 구현 위치` 가 바꾼 파일을 덮으면 그 문서가 대상에 더해진다. 결과를 checker 마다 `kind=consistency` 로 제출한다(developer 의 의무 단계).
+
+함께 쓰는 옵션: `--focus <keys>`(랭킹에서 앞세울 NERV 키), `--diff-path <path>`(`--impl-done` 의 구현 diff 경로, 하네스 작업은 `.claude`), `--diff-base <ref>`. `--plan` 모드는 4e 에서 걷었다.
 
 ## 사용 예시
 
 - `/consistency-check --spec <scratchpad>/CLE-ENG-FOO.md` — `nerv_spec_get(basis=latest)` 로 받은 초안 본문 파일
-- `/consistency-check --impl-prep spec/<area>/`
-- `/loop /consistency-check --impl-done spec/<area>/` — 사용량 한도 자동 재시도
+- `/consistency-check --impl-prep CLE-CHAT-CORE --focus CLE-CHAT-CORE` — 클레임 scope 의 키
+- `/consistency-check --impl-done spec/CLE-ENG/ --diff-path .claude` — 하네스 작업
+- `/loop /consistency-check --impl-done <키 · 미러 폴더>` — 사용량 한도 자동 재시도
 
 ## 산출물
 
