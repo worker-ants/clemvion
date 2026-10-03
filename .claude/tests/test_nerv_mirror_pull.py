@@ -140,7 +140,7 @@ class _Fixture(unittest.TestCase):
         """미러 밖 `spec/` 파일(옛 트리 모양). 옛 트리는 전환 단계 5 에서 지웠고 `--check` 는 이런
         파일을 알린다. 그래서 공통 fixture 에 두지 않고 그 자리를 보는 테스트만 만든다."""
         folder = self.spec / "5-system"
-        folder.mkdir()
+        folder.mkdir(exist_ok=True)
         (folder / "1-auth.md").write_text("옛 트리\n", encoding="utf-8")
         return folder
 
@@ -515,6 +515,21 @@ class CheckTest(_Fixture):
         # README 는 이 도구가 쓰는 안내라 알리지 않는다(fixture 가 pull 로 썼다).
         self.assertTrue((self.spec / "README.md").is_file())
         self.assertFalse(any(p.startswith("README.md") for p in problems), problems)
+
+    def test_dot_folders_are_caught_and_each_link_is_reported_once(self):
+        """점 폴더도 미러가 아닌 것이다. 미러 자리의 링크는 링크 문제 한 줄로만 알린다."""
+        self.pull_all()
+        hidden = self.spec / ".old-tree"
+        hidden.mkdir()
+        (hidden / "1-auth.md").write_text("옛 트리\n", encoding="utf-8")
+        (self.spec / "CLE-ACCT" / ".cache").mkdir()
+        (self.spec / "CLE-LINKDIR").symlink_to(self.spec / "CLE-ACCT", target_is_directory=True)
+        (self.spec / ".dot-link").symlink_to(self.root / "export.zip")
+        problems = pull.check(self.spec)
+        stray = sorted(p.split(":")[0] for p in problems if "미러가 아닌" in p)
+        self.assertEqual(stray, [".dot-link", ".old-tree", "CLE-ACCT/.cache"])
+        self.assertEqual([p for p in problems if p.startswith("CLE-LINKDIR")],
+                         ["CLE-LINKDIR: 심볼릭 링크다 — 미러는 링크를 두지 않는다"])
 
     def test_symlink_in_the_mirror_place_is_caught(self):
         self.pull_all()

@@ -38,7 +38,8 @@ NERV 정본 전환 단계 5(Task `CLE-T-7M4C4X`). 저장소의 옛 스펙 트리
   (`spec-area-index`), 옛 트리 본문 링크(`spec-link-integrity` 범위 1)와 그 범위의 예외(지운 `plan/` · `review/` 링크
   건너뛰기, 옮긴 카탈로그 재배치, 미러 제외). 범위 2 · 3 은 그대로다.
 - `pull.py --check`(CI `spec-mirror-integrity`): 미러 자리만 보던 「미러가 아닌 파일」 검사를 `spec/` 전체로 넓혔다.
-  셸로 옛 트리를 되살리면 이제 잡힌다. README 와 `.md` 가 아닌 점 파일은 뺀다.
+  셸로 옛 트리를 되살리면 이제 잡힌다(점 폴더 안이어도). README 와 `.md` 가 아닌 점 파일은 뺀다. 미러 자리의
+  링크는 링크 문제 한 줄로만 알린다.
 - 미러 제외 판정 정리: consistency 오케스트레이터의 `is_nerv_mirror` 와 `spec-links.ts` 의 `inNervMirror` 를 걷었다.
   둘을 대조하던 동치 테스트도 걷었다. 오케스트레이터의 scope 는 미러 영역 폴더 · 미러 파일 · NERV 키만 받고 `spec/`
   자체와 미러 밖 경로는 거절한다.

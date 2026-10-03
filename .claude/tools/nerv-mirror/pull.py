@@ -42,8 +42,8 @@ NERV 정본 전환 단계 1(NERV Task `CLE-T-VA4YA1`). 스펙의 정본은 NERV 
 보장 범위(`--check`) — 이 문단이 정본이다. 다른 문서는 여기를 가리킨다.
 - 잡는다: 미러 파일의 손편집(본문 · frontmatter), 파일 이동, 지문 없는 미러 이름 파일의 추가,
   옮겨진 문서의 옛 자리를 가리키는 링크, 미러 자리(`spec/CLE-*` · 미러 폴더 안)의 심볼릭 링크,
-  `spec/` 안의 미러가 아닌 파일 · 폴더(옛 트리를 다시 만든 경우 포함. `.md` 가 아닌 점 파일은
-  뺀다), 읽을 수 없는 미러 파일, 미러 0편.
+  `spec/` 안의 미러가 아닌 파일 · 폴더(옛 트리를 다시 만든 경우와 점 폴더 포함. `.md` 가 아닌 점
+  파일은 뺀다), 읽을 수 없는 미러 파일, 미러 0편.
 - 잡지 않는다: 미러 파일의 삭제(미러는 부분 스냅샷이다), 지문까지 다시 계산한 위조(지문은 같은
   파일 안의 값이라 **무의식적 편집 탐지**이지 변조 방지가 아니다. CI 도 PR 이 넣은 이 도구로
   돈다), `spec/README.md` 의 손편집.
@@ -284,11 +284,15 @@ def mirror_links(spec_root: Path) -> list[Path]:
     return sorted(links)
 
 
-def _is_stray_in_folder(q: Path) -> bool:
+def _is_stray(q: Path, links: set[Path]) -> bool:
+    """`spec/` 바로 아래 또는 미러 폴더 안의 항목 하나가 미러가 아닌가.
+
+    `links`(`mirror_links`)에 든 링크는 링크 문제로 이미 알리므로 여기서 다시 세지 않는다.
+    """
     if q.is_symlink():
-        return not _is_mirror_name(q)  # 미러 이름 링크는 mirror_links 가 알린다
-    if q.name.startswith(".") and q.suffix != ".md":
-        return False  # `.DS_Store` 같은 점 파일. `.x.md` 는 옛 가드가 빼는 자리라 알린다
+        return q not in links
+    if q.name.startswith(".") and q.suffix != ".md" and q.is_file():
+        return False  # `.DS_Store` 같은 점 파일. `.x.md` 는 미러가 쓰는 확장자라 알리고 점 폴더도 알린다
     return not (q.is_file() and _is_mirror_name(q))
 
 
@@ -298,15 +302,16 @@ def stray_entries(spec_root: Path) -> list[Path]:
     `spec/` 에는 미러와 이 도구가 쓰는 README 만 둔다. 다른 파일은 미러처럼 보이지만 이 도구도,
     미러 키로 문서를 고르는 가드 · 검토 코퍼스도 읽지 않는다. 옛 스펙 트리는 전환 단계 5 에서
     지웠다. 그 전에는 옛 트리가 `spec/` 바로 아래에 있어서 미러 자리(`spec/CLE-*` 와 미러 폴더 안)만
-    봤다.
+    봤다. 점 폴더도 알린다(그 안에 옛 트리를 되살려도 통과하던 자리다).
     """
+    links = set(mirror_links(spec_root))
     out = []
     for p in sorted(spec_root.iterdir()):
         if p.name == README and p.is_file() and not p.is_symlink():
             continue
         if _is_mirror_dir(p):
-            out.extend(q for q in sorted(p.iterdir()) if _is_stray_in_folder(q))
-        elif _is_stray_in_folder(p):
+            out.extend(q for q in sorted(p.iterdir()) if _is_stray(q, links))
+        elif _is_stray(p, links):
             out.append(p)
     return out
 
@@ -604,7 +609,8 @@ def check(spec_root: Path) -> list[str]:
     problems = [f"{_rel(spec_root, p)}: 심볼릭 링크다 — 미러는 링크를 두지 않는다"
                 for p in mirror_links(spec_root)]
     problems += [f"{_rel(spec_root, p)}: spec/ 에 미러가 아닌 것이 있다 — "
-                 "spec/ 에는 pull.py 가 쓴 `CLE-*.md` 와 README 만 둔다" for p in stray_entries(spec_root)]
+                 "spec/ 에는 pull.py 가 쓴 `CLE-*.md` 와 README 만 둔다(옛 트리를 지운 뒤 로컬에 남은 "
+                 "추적 안 되는 폴더라면 지운다)" for p in stray_entries(spec_root)]
     problems += stale_links(spec_root, files)
     for path in files:
         rel = _rel(spec_root, path)
