@@ -850,11 +850,12 @@ def resolve_scope(value, flag, spec_dir, by_key, root):
         if os.path.isdir(path):
             rel_item += "/"
         if not _NERV_MIRROR_REL.match(rel_item) or rel_item.startswith("../"):
-            _usage_exit(
-                flag, value, f"NERV 스펙 미러가 아니다 — {item}",
-                "\n  → 옛 트리(spec/<번호>-<영역>/ · spec/conventions/)는 동결됐다. 미러 경로"
-                "\n     (spec/CLE-…/) 나 NERV 키를 준다.",
-            )
+            # 옛 트리 안내는 spec/ 아래 경로에만 맞다. 저장소의 다른 곳이면 미러만 받는다고 알린다.
+            hint = ("\n  → 옛 트리(spec/<번호>-<영역>/ · spec/conventions/)는 동결됐다. 미러 경로"
+                    "\n     (spec/CLE-…/) 나 NERV 키를 준다."
+                    if not rel_item.startswith("../") else
+                    "\n  → scope 는 NERV 스펙 미러(spec/CLE-…/ · 미러 파일)나 NERV 키만 받는다.")
+            _usage_exit(flag, value, f"NERV 스펙 미러가 아니다 — {item}", hint)
         if os.path.isdir(path):
             found = [p for p in collect_markdown_files(path) if p in mirror_set]
             if not found:

@@ -81,6 +81,27 @@ class TargetValidationTest(unittest.TestCase):
                 self.assertEqual(r.returncode, 2, r.stdout)
                 self.assertIn("동결", r.stderr)
 
+    def test_scope_inputs_that_name_no_mirror_document_are_rejected(self):
+        """빈 항목 · 미러 안내 · 저장소의 다른 곳 · 없는 미러 파일은 모두 종료 코드 2 와 이유를 낸다."""
+        cases = {
+            ",": "비어 있다",
+            "spec/README.md": "미러 문서가 아니다",
+            "codebase/": "NERV 스펙 미러가 아니다",
+            "spec/CLE-ENG/no-such.md": "실존하는 경로도 NERV 키도 아니다",
+        }
+        for scope, reason in cases.items():
+            with self.subTest(scope=scope):
+                r = _run("--impl-prep", scope)
+                self.assertEqual(r.returncode, 2, r.stdout)
+                self.assertIn(reason, r.stderr)
+
+    def test_a_path_outside_spec_is_not_told_about_the_frozen_tree(self):
+        """옛 트리 안내는 spec/ 아래 경로에만 맞다. 저장소의 다른 곳에는 미러만 받는다고 알린다."""
+        r = _run("--impl-prep", "codebase/")
+        self.assertEqual(r.returncode, 2, r.stdout)
+        self.assertNotIn("동결", r.stderr)
+        self.assertIn("미러", r.stderr)
+
     def test_an_unknown_key_is_rejected_with_the_pull_hint(self):
         r = _run("--impl-done", "CLE-NO-SUCH-KEY")
         self.assertEqual(r.returncode, 2, r.stdout)
