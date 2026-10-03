@@ -7,7 +7,7 @@ NERV 정본 전환 단계 2(NERV Task `CLE-T-4ABTG7`)부터 리뷰 결과는 저
 제출은 main 세션이 역할마다 `nerv_review_submit` 을 불러 한다(결정 D7 역할별 제출 · D9 NERV 쓰기는
 main 만). 이 도구는 네트워크를 쓰지 않고 모델도 부르지 않는다.
 
-    python3 .claude/tools/nerv_review_payload.py <session_dir> [--kind code|consistency]
+    python3 .claude/tools/nerv_review_payload.py <session_dir> [--kind code|consistency|merge|spec_coverage]
 
 출력(JSON):
     {"kind": "code", "session_dir": "...", "changeset": ["a/b.ts", ...],
@@ -29,7 +29,15 @@ main 이 붙이는 것: `branch` · `base_sha` · `head_sha`(리뷰한 커밋) �
   - kind=code 인데 상태 파일이 없거나 역할 목록이 없다. 강제 역할 누락을 확인하지 못한다.
   - 낼 묶음이 하나도 없다.
   - 어느 역할의 위험도가 HIGH 인데 critical · warning 발견을 하나도 읽지 못했다.
-  - merge · spec_coverage 세션이다. 두 kind 의 제출 절차는 NERV Task `CLE-T-VP5KDJ`(전환 4e)에서 정한다.
+  - kind=spec_coverage 인데 `SUMMARY.md` 가 없다.
+
+kind 마다 리포트가 다르다(전환 4e 에서 merge · spec_coverage 를 더했다).
+  - code · consistency · merge: 역할(리뷰어 · checker · analyzer)마다 `<role>.md`. merge 의 통합
+    보고서 `SUMMARY.md` 는 analyzer 리포트를 합친 것이라 내지 않는다.
+  - spec_coverage: 감사기(`spec-impl-coverage-auditor`) 하나가 `SUMMARY.md` 를 쓴다. 후보마다 발견
+    하나를 역할 `spec_coverage` 로 낸다. **심각도는 모두 info 다** — 이 감사는 NLP 휴리스틱의 후보이고
+    빌드를 막지 않는 보고형이다(`CLE-ENG-SPECEVIDENCE` R-9). 신뢰도는 태그 `confidence:<high|medium|low>`
+    로 싣는다. info 라서 라운드를 막지 않는다. main 은 후보를 Task 로 올리거나 처분한다.
 리포트 형식은 리뷰어 · checker 정의(`.claude/agents/*.md` §출력 형식)가 정본이다:
 `- **[CRITICAL|WARNING|INFO]** 제목` 아래 `위치:` · `상세:` · `제안:` 하위 항목, `### 요약`, `### 위험도`.
 `- **[SEV] 제목**` 처럼 굵게가 제목까지 감싼 줄도 발견으로 읽는다. 그 밖에 심각도 표지가 있는 줄은
@@ -49,13 +57,17 @@ if _CLAUDE_DIR not in sys.path:
     sys.path.insert(0, _CLAUDE_DIR)
 from _shared import block_integrity, report_paths  # noqa: E402
 
-KINDS = ("code", "consistency")
+KINDS = ("code", "consistency", "merge", "spec_coverage")
 # NERV 정책 `review_roles.code` 의 필수 역할. router 가 늘 강제하지만 `REVIEW_AGENTS` 로 좁히면 빠질 수
 # 있어 kind=code 에서 빠지면 경고한다(라운드가 `missing_roles` 로 남는다).
 NERV_REQUIRED_ROLES = ("security", "requirement", "scope", "side_effect", "maintainability", "testing")
 _SPEC_DRIFT_RE = re.compile(r"\[?SPEC[-_ ]DRIFT\]?", re.I)
-# 세션 경로로 알아보지만 제출 절차가 아직 없는 kind(NERV Task `CLE-T-VP5KDJ` 전환 4e).
-DEFERRED_KINDS = ("merge", "spec_coverage")
+# spec-coverage 감사기 SUMMARY 의 모양(`.claude/agents/spec-impl-coverage-auditor.md` §출력 형식).
+SPEC_COVERAGE_ROLE = "spec_coverage"
+_COVERAGE_TIER_RE = re.compile(r"^##\s+후보\s*[—–-]\s*(high|medium|low)\s+confidence\b", re.I)
+_COVERAGE_ITEM_RE = re.compile(r"^###\s+\d+\.\s+(.*\S)\s*$")
+_COVERAGE_FIELD_RE = re.compile(r"^\s*[-*]\s+\*\*(신호|부재|권고)\*\*\s*[:：]\s*(.*)$")
+_COVERAGE_DIRECTION_RE = re.compile(r"\[(forward|reverse)\]", re.I)
 # 세션 디렉터리 이름 → kind. 오케스트레이터가 `.review/<이름>/<Y>/<m>/<d>/<H_M_S>` 에 쓴다.
 _DIR_KIND = {"code": "code", "consistency": "consistency", "merge": "merge",
              "spec-coverage": "spec_coverage"}
@@ -201,6 +213,67 @@ def parse_report(text: str, role: str) -> tuple[dict, list[str]]:
     return submission, warnings
 
 
+def parse_coverage_summary(text: str) -> dict:
+    """spec-coverage 감사기 SUMMARY → 역할 `spec_coverage` 의 제출 묶음. 후보 하나가 info 발견 하나다."""
+    lines = text.splitlines()
+    findings: list[dict] = []
+    tier: str | None = None
+    current: dict | None = None
+    field: str | None = None
+
+    def close():
+        if current is None:
+            return
+        fields = current["fields"]
+        body = "\n".join(f"{name}: {' '.join(fields[name]).strip()}" for name in ("신호", "부재") if fields.get(name))
+        title = current["title"]
+        out = {"severity": "info", "title": _cap(re.sub(r"\s+", " ", title), MAX_TITLE),
+               "body": _cap(body or title, MAX_BODY), "category": SPEC_COVERAGE_ROLE,
+               "tags": ["spec_coverage", f"confidence:{current['tier']}"]}
+        direction = _COVERAGE_DIRECTION_RE.search(title)
+        if direction:
+            out["tags"].append(direction.group(1).lower())
+        if fields.get("권고"):
+            out["suggestion"] = _cap(" ".join(fields["권고"]).strip(), MAX_SUGGESTION)
+        path, line = _location(title)
+        if path:
+            out["file"] = path
+        if line:
+            out["line"] = line
+        findings.append(out)
+
+    for ln in lines:
+        m = _COVERAGE_TIER_RE.match(ln)
+        if m:
+            close()
+            current, field, tier = None, None, m.group(1).lower()
+            continue
+        if ln.startswith("## "):
+            close()
+            current, field, tier = None, None, None
+            continue
+        m = _COVERAGE_ITEM_RE.match(ln)
+        if m and tier:
+            close()
+            current, field = {"title": m.group(1), "tier": tier, "fields": {}}, None
+            continue
+        if current is None:
+            continue
+        m = _COVERAGE_FIELD_RE.match(ln)
+        if m:
+            field = m.group(1)
+            current["fields"].setdefault(field, []).append(m.group(2))
+        elif field and ln.strip():
+            current["fields"][field].append(ln.strip())
+    close()
+
+    submission: dict = {"reviewer": {"role": SPEC_COVERAGE_ROLE}, "findings": findings}
+    summary = " ".join(x.strip().lstrip("-* ").strip() for x in _section(lines, "요약") if x.strip())
+    if summary:
+        submission["summary"] = _cap(summary, MAX_SUMMARY)
+    return submission
+
+
 def kind_of(session_dir: str) -> str | None:
     parts = os.path.normpath(os.path.abspath(session_dir)).split(os.sep)
     # 시각 경로(<Y>/<m>/<d>/<H_M_S>) 바로 위가 kind 디렉터리다.
@@ -234,13 +307,20 @@ def build(session_dir: str, kind: str | None = None) -> dict:
     if not os.path.isdir(session_dir):
         raise SystemExit(f"nerv_review_payload: 세션 디렉터리가 없다 — {session_dir}")
     kind = kind or kind_of(session_dir)
-    if kind in DEFERRED_KINDS:
-        return {"kind": kind, "session_dir": os.path.abspath(session_dir), "submissions": [],
-                "missing_forced": [], "warnings": [],
-                "errors": [f"kind={kind} 의 NERV 제출 절차는 전환 4e(NERV Task CLE-T-VP5KDJ)에서 정한다 — "
-                           "이 도구는 아직 묶음을 만들지 않는다"]}
     if kind not in KINDS:
         raise SystemExit("nerv_review_payload: kind 를 정하지 못했다 — --kind 로 준다")
+    if kind == "spec_coverage":
+        summary_path = os.path.join(session_dir, "SUMMARY.md")
+        out: dict = {"kind": kind, "session_dir": os.path.abspath(session_dir), "submissions": [],
+                     "missing_forced": [], "errors": [], "warnings": []}
+        try:
+            with open(summary_path, encoding="utf-8", errors="replace") as f:
+                text = f.read()
+        except OSError:
+            out["errors"].append("SUMMARY.md 가 없다 — 감사기 결과를 main 이 기록했는지 확인한다")
+            return out
+        out["submissions"] = [parse_coverage_summary(text)]
+        return out
     names = sorted(
         n for n in os.listdir(session_dir)
         if n.endswith(".md") and n not in _NOT_REPORTS and not n.startswith("_")

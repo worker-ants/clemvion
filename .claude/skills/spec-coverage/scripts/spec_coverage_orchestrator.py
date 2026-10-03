@@ -25,6 +25,20 @@ from pathlib import Path
 
 VALID_MODES = ("forward", "reverse", "both")
 
+# 적용 대상의 정본(`CLE-ENG-SPECEVIDENCE` 「적용 대상」)과 그 목록. 목록은 정본의 포함 목록과 같아야
+# 한다 — `.claude/tests/test_spec_coverage_prompt.py` 가 미러 본문과 대조한다. 옛 템플릿은 옛 경로
+# `spec/conventions/spec-impl-evidence.md §1` 을 인용했고 `spec/7-channel-web-chat/**.md` 가 빠져
+# 있었다(전환 4d 리뷰).
+SOT_DOC = "spec/CLE-ENG/CLE-ENG-SPECEVIDENCE.md"
+INCLUDE_GLOBS = (
+    "spec/2-navigation/**.md",
+    "spec/3-workflow-editor/**.md",
+    "spec/4-nodes/**.md",
+    "spec/5-system/**.md",
+    "spec/7-channel-web-chat/**.md",
+    "spec/conventions/**.md",
+)
+
 
 def repo_root() -> Path:
     p = Path(__file__).resolve()
@@ -52,7 +66,7 @@ def env_summary() -> dict:
 PROMPT_TEMPLATE = """# spec-impl-coverage-auditor invocation
 
 You are running for the `/spec-coverage` slash command. Walk every applicable
-spec (per `spec/conventions/spec-impl-evidence.md §1` — see below) and apply
+spec (per {sot} 「적용 대상」 — see below) and apply
 the heuristics for the selected MODE per your agent prompt
 (`.claude/agents/spec-impl-coverage-auditor.md` §모드).
 
@@ -70,9 +84,14 @@ the heuristics for the selected MODE per your agent prompt
 
 ## Applicable specs
 
-Per `spec/conventions/spec-impl-evidence.md §1`:
-- INCLUDE: `spec/2-navigation/**.md`, `spec/3-workflow-editor/**.md`, `spec/4-nodes/**.md`, `spec/5-system/**.md`, `spec/conventions/**.md`
-- EXCLUDE: `spec/0-overview.md`, `spec/1-data-model.md`, `spec/6-brand.md`, `spec/**/_*.md`
+Per {sot} 「적용 대상」 (NERV `CLE-ENG-SPECEVIDENCE`):
+- INCLUDE: {include}
+- EXCLUDE: basename `0-overview.md` · `1-data-model.md` · `6-brand.md`, `spec/**/_*.md`
+
+These are the frozen old-tree specs that still carry frontmatter `code:`. The
+NERV mirror (`spec/CLE-*`) writes implementation locations in a `## 구현 위치`
+section instead; moving this audit onto the mirror happens when the old tree is
+deleted (NERV cutover stage 5).
 
 ## Output
 
@@ -97,6 +116,8 @@ def main() -> int:
 
     env = env_summary()
     prompt_text = PROMPT_TEMPLATE.format(
+        sot=f"`{SOT_DOC}`",
+        include=", ".join(f"`{g}`" for g in INCLUDE_GLOBS),
         direction_mode=args.mode,
         confidence_floor=env["SPEC_COVERAGE_CONFIDENCE_FLOOR"],
         max_findings=env["SPEC_COVERAGE_MAX_FINDINGS"],
