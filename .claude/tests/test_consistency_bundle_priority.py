@@ -298,10 +298,12 @@ class CollectContextOnTheMirrorTest(unittest.TestCase):
 class ImplDoneCoveringDocumentsTest(unittest.TestCase):
     """`--impl-done` adds the documents whose `## 구현 위치` covers a changed file.
 
-    This is the file-level guarantee the old push gate gave (`code:` globs →
-    `--impl-done` required) and NERV cutover stage 2 retired: a change to a file a
-    document names as its implementation is checked against that document, through
-    the consistency round the NERV done gate requires for every Task.
+    The old push gate required `--impl-done` when a branch touched a file a spec's
+    `code:` globs named; NERV cutover stage 2 retired that check. This restores the
+    comparison **when `--impl-done` runs**: a changed file a document names as its
+    implementation brings that document into the target. Nothing enforces the run —
+    the NERV done gate only checks that a consistency round exists and passed, not
+    which documents it covered.
     """
 
     def _done(self, rel, body="export const x = 2;\n", scope="CLE-AAA-TWO", **kw):
@@ -348,6 +350,52 @@ class ImplDoneCoveringDocumentsTest(unittest.TestCase):
         self.assertIn("api-catalogs/cafe24/order.md", out["text"])
         self.assertNotIn("api-catalogs/cafe24/order/list.md", out["text"].split("```diff")[-1])
         self.assertIn("API 카탈로그 필드 파일 1개", out["text"])
+
+    def test_a_covered_document_already_in_the_scope_is_not_called_added(self):
+        """사용자가 준 scope 문서는 대조로 «더한» 문서가 아니다. census 가 이유를 거꾸로 적으면 안 된다."""
+        out = self._done("codebase/a/x.ts", scope="CLE-AAA-ONE")
+        self.assertIn("spec/CLE-AAA/CLE-AAA-ONE.md", out["heads"])
+        self.assertNotIn("구현 위치 대조로 더한 문서", out["text"])
+
+    def test_the_catalog_count_is_what_the_diff_left_out(self):
+        """diff 경로 밖의 카탈로그 변경은 diff 에서 «뺀» 것이 아니다. 실제로 뺀 파일만 센다."""
+        out = self._done([["codebase/api-catalogs/cafe24/order/list.md", "필드 2\n"],
+                          ["scripts/s.py", "x = 1\n"]], diff_paths=["scripts"])
+        self.assertNotIn("API 카탈로그 필드 파일", out["text"])
+
+    def test_catalog_source_data_stays_in_the_diff(self):
+        """제외는 생성된 필드 문서(`.md`)뿐이다. OpenAPI 원본 JSON 은 데이터라 diff 에 남고 세지 않는다."""
+        out = self._done([["codebase/api-catalogs/makeshop/openapi/shop.openapi.json", "{}\n"]])
+        self.assertIn("api-catalogs/makeshop/openapi/shop.openapi.json", out["text"].split("```diff")[-1])
+        self.assertNotIn("API 카탈로그 필드 파일", out["text"])
+
+    def test_the_exclude_glob_and_the_counting_regex_pick_the_same_files(self):
+        """diff 의 제외(git 글롭)와 census 의 수(정규식)가 같은 파일을 가리켜야 한다."""
+        rels = ["codebase/api-catalogs/cafe24/order/list.md", "codebase/api-catalogs/cafe24/order/deep/x.md",
+                "codebase/api-catalogs/cafe24/order.md", "codebase/api-catalogs/makeshop/openapi/a.openapi.json",
+                "codebase/api-catalogs/README.md", "codebase/a/x.ts"]
+        got = run_in_orchestrator(
+            """
+            import tempfile
+            with tempfile.TemporaryDirectory() as tmp:
+                root = mini_mirror(tmp)
+                for rel in ARG:
+                    path = os.path.join(root, rel)
+                    os.makedirs(os.path.dirname(path), exist_ok=True)
+                    with open(path, "w", encoding="utf-8") as fh:
+                        fh.write("changed\\n")
+                _harness.git_in(root, "add", "-A")
+                _harness.git_in(root, "commit", "-qm", "work")
+                diff = orch._collect_code_diff("origin/main", root, ["codebase"])
+                emit({"in_diff": [r for r in ARG if f" b/{r}" in diff],
+                      "by_regex": [r for r in ARG if orch.is_catalog_field_file(r)],
+                      "counted": orch._catalog_files_left_out("origin/main", root, ["codebase"])})
+            """,
+            rels,
+        )
+        self.assertEqual(sorted(set(rels) - set(got["in_diff"])), sorted(got["by_regex"]))
+        self.assertEqual(got["counted"], len(got["by_regex"]))
+        self.assertEqual(len(got["by_regex"]), 2, got)
 
     def test_diff_paths_override_the_code_areas(self):
         out = self._done([["codebase/a/x.ts", "export const x = 3;\n"], ["scripts/s.py", "x = 1\n"]],

@@ -18,7 +18,9 @@ Modes:
                        하네스만 바꾼 작업은 `--diff-path .claude` 처럼 준다.
 
 `--impl-done` 은 미러 문서의 `## 구현 위치` 가 이 브랜치가 바꾼 파일을 덮으면 그 문서를 대상에
-더한다. 파일 단위 보장(옛 push 게이트의 spec-linked 검사)을 대신한다.
+더한다. 옛 push 게이트의 spec-linked 검사가 하던 대조를 `--impl-done` 을 돌릴 때 되살린다. 강제는
+아니다. NERV done 게이트는 consistency 라운드가 있고 통과했는지만 보고 어떤 문서를 대상으로 했는지는
+보지 않는다.
 
 The orchestrator no longer calls a model. It collects context, writes
 per-checker prompt bodies plus a retry-state file, and prints the session
@@ -320,12 +322,13 @@ def body_of(text):
 
 # --- `## 구현 위치` ---------------------------------------------------------------------
 #
-# NERV 로 옮긴 스펙은 옛 frontmatter `code:` 대신 본문 `## 구현 위치` 절에 구현 파일을 적는다(미러 182편
-# 중 136편, 2026-10-03 실측: 항목 946개 중 942개가 백틱 경로로 시작한다). 옛 push 게이트는 `code:` 에
-# 걸린 파일을 고친 브랜치에 `--impl-done` 을 요구했다. 전환 단계 2 에서 그 검사가 걷히며 보장의 단위가
-# 파일에서 Task 로 바뀌었다(`CLE-ENG-SPECEVIDENCE` «NERV 이전 영향»). `--impl-done` 이 바뀐 파일을
-# 덮는 문서를 대상에 넣어 "구현 위치에 적힌 파일을 고치면 그 문서와 대조된다" 를 다시 세운다. NERV
-# done 게이트가 Task 마다 consistency 라운드를 요구하므로 그 라운드가 이 대조를 담는다.
+# NERV 로 옮긴 스펙은 옛 frontmatter `code:` 대신 본문 `## 구현 위치` 절에 구현 파일을 적는다. 2026-10-03
+# 실측(`pull.mirror_files` 기준 미러 문서 181편): 136편에 이 절이 있고, 절 안 불릿 946개 중 931개가 백틱
+# 경로로 시작한다. 옛 push 게이트는 `code:` 에 걸린 파일을 고친 브랜치에 `--impl-done` 을 요구했다.
+# 전환 단계 2 에서 그 검사가 걷히며 보장의 단위가 파일에서 Task 로 바뀌었다(`CLE-ENG-SPECEVIDENCE`
+# «NERV 이전 영향»). `--impl-done` 을 돌리면 바뀐 파일을 덮는 문서가 대상에 들어가 그 문서와 대조된다.
+# 이 실행을 강제하는 것은 없다. NERV done 게이트는 Task 에 묶인 consistency 라운드가 있고 통과했는지만
+# 보고 그 라운드가 어떤 문서를 대상으로 했는지는 보지 않는다.
 
 _IMPL_HEADING_RE = re.compile(r"^## 구현 위치[ \t]*$", re.MULTILINE)
 _SECTION_END_RE = re.compile(r"^#{1,2}\s", re.MULTILINE)
@@ -505,12 +508,13 @@ def format_file_bundle(file_paths, root, label):
     return "".join(parts)
 
 
-# API 카탈로그의 필드 파일(`codebase/api-catalogs/<vendor>/<resource>/**`, 전환 4a 에서 옮겼다).
+# API 카탈로그의 필드 문서(`codebase/api-catalogs/<vendor>/<resource>/**/*.md`, 전환 4a 에서 옮겼다).
 # 생성기가 만드는 참조 덤프라 정식 스펙이 아니다(`CLE-ENG-SPECEVIDENCE` R-7). 최상위 색인
-# `<vendor>/<resource>.md` 는 남긴다. 카탈로그를 다시 생성한 PR 은 필드 파일 수백 개를 바꾸므로 구현
-# diff 에 실으면 그 예산을 다 쓴다. diff 에서 빼고 수만 census 에 적는다.
-CATALOG_FIELD_GLOB = "codebase/api-catalogs/*/*/**"
-_CATALOG_FIELD_RE = re.compile(r"^codebase/api-catalogs/[^/]+/[^/]+/")
+# `<vendor>/<resource>.md` 와 생성기 입력 데이터(MakeShop `openapi/*.openapi.json`)는 남긴다. 카탈로그를
+# 다시 생성한 PR 은 필드 문서 수백 개를 바꾸므로 구현 diff 에 실으면 그 예산을 다 쓴다. diff 에서 빼고
+# 실제로 뺀 수만 census 에 적는다.
+CATALOG_FIELD_GLOB = "codebase/api-catalogs/*/*/**/*.md"
+_CATALOG_FIELD_RE = re.compile(r"^codebase/api-catalogs/[^/]+/[^/]+/(?:.*/)?[^/]*\.md$")
 
 
 def is_catalog_field_file(rel):
@@ -548,6 +552,26 @@ def _collect_code_diff(diff_base, root, paths=None):
         diff_base, root, pathspecs,
         on_error=lambda reason: debug_log(f"git diff for --impl-done failed: {reason}"),
     )
+
+
+def _catalog_files_left_out(diff_base, root, paths=None):
+    """`_collect_code_diff` 가 같은 경로에서 뺀 카탈로그 필드 문서 수. git 이 실패하면 0.
+
+    census 의 수는 diff 에서 실제로 뺀 파일이어야 한다. 저장소 전체 변경에서 세면 diff 경로 밖이나
+    커밋하지 않은 카탈로그 변경까지 "뺐다" 고 적는다."""
+    if not paths:
+        paths = project_config.load(root).get("code_areas") or []
+    try:
+        rc, out, _err = _git_probe._run_git_raw(
+            ["diff", "--no-renames", "--name-only", f"{diff_base}...HEAD", "--", *paths],
+            root, timeout=30.0,
+        )
+    except Exception as exc:  # noqa: BLE001 — census 보조 수치라 실패해도 0 으로 둔다
+        debug_log(f"catalog count for --impl-done failed: {type(exc).__name__}: {exc}")
+        return 0
+    if rc != 0:
+        return 0
+    return sum(1 for line in out.split("\n") if line and is_catalog_field_file(line))
 
 
 def _head_basis_notice(root, diff_base):
@@ -591,6 +615,8 @@ def _head_basis_notice(root, diff_base):
 #: head 구역은 절단 대상이 아니므로(그게 census 의 존재 이유다) 여기서 스스로 유계화해야
 #: 한다 — 대형 scope 에서 수백 줄이 본문 예산을 잠식하는 것을 막는다.
 _SCOPE_HITS_DISPLAY_LIMIT = 20
+# 구현 위치 대조로 더한 문서마다 census 에 보이는 덮인 파일 수. 나머지는 수로만 적는다.
+_COVERING_FILES_SHOWN = 3
 
 
 def _count_diff_files(diff_text):
@@ -640,7 +666,8 @@ def _scope_delta_census(root, scope_rels, changed_rels, diff_text, *,
     `covering` lists the documents `--impl-done` added because their
     `## 구현 위치` covers a changed file, with the files that matched. A
     checker that does not know why a document is in its target reads it as the
-    task's own scope.
+    task's own scope. Documents the caller already put in the scope are not
+    listed: they were not added, and saying so would invert the reason.
     """
     scope = set(scope_rels)
     scope_hits = sorted(r for r in changed_rels if r in scope)
@@ -665,8 +692,8 @@ def _scope_delta_census(root, scope_rels, changed_rels, diff_text, *,
         rows = []
         for rel in sorted(covering):
             files = covering[rel]
-            more = f" 외 {len(files) - 3}개" if len(files) > 3 else ""
-            rows.append(f"`{rel}` ← {', '.join(f'`{f}`' for f in files[:3])}{more}")
+            more = f" 외 {len(files) - _COVERING_FILES_SHOWN}개" if len(files) > _COVERING_FILES_SHOWN else ""
+            rows.append(f"`{rel}` ← {', '.join(f'`{f}`' for f in files[:_COVERING_FILES_SHOWN])}{more}")
         covering_line = (
             f"- **구현 위치 대조로 더한 문서: {len(covering)}개** — 각 문서의 `## 구현 위치` 가 이 "
             "브랜치가 바꾼 파일을 덮는다. 그 파일의 변경이 문서와 맞는지 본다.\n"
@@ -852,6 +879,7 @@ def collect_context(args, root):
 
     target_files = []      # mirror docs that ARE the target (impl modes)
     covering = {}          # --impl-done: doc → changed files its `## 구현 위치` covers
+    added = {}             # --impl-done: the covering docs that were not already in the scope
     target_text = ""
     rationale_extra = []   # --spec: the current mirror version of the draft's key
 
@@ -875,7 +903,8 @@ def collect_context(args, root):
         target_files = resolve_scope(target_path_rel, flag, spec_dir, by_key, root)
         if args.impl_done:
             covering = docs_covering_changes(mirror, rank_changed, root, spec_rel)
-            target_files += [p for p in sorted(covering, key=_natural_key) if p not in target_files]
+            added = {p: files for p, files in covering.items() if p not in target_files}
+            target_files += sorted(added, key=_natural_key)
         target_text = "\n".join(body_of(read_text_file(p)) for p in target_files)
 
     else:
@@ -935,7 +964,7 @@ def collect_context(args, root):
                 on_topic += 1
             else:
                 break
-        catalog_skipped = sum(1 for r in rank_changed if is_catalog_field_file(r))
+        catalog_skipped = _catalog_files_left_out(diff_base, root, diff_paths)
         # HEAD-basis notice and census go FIRST: `truncate_file_bundle` never
         # drops the head section, so the checker always reads the current-code
         # SoT and the measured delta before anything else.
@@ -943,7 +972,7 @@ def collect_context(args, root):
             _head_basis_notice(root, diff_base)
             + _scope_delta_census(
                 root, [rel(p) for p in target_files], rank_changed, diff_text,
-                covering={rel(p): files for p, files in covering.items()},
+                covering={rel(p): files for p, files in added.items()},
                 catalog_skipped=catalog_skipped,
             )
             + _splice_chunk(bundle, diff_section, on_topic)
