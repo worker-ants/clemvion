@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import re
 import sys
 from pathlib import Path
 from types import ModuleType
@@ -189,6 +190,22 @@ def write_mirror_doc(root: Path | str, key: str, *, area: str | None = None,
         encoding="utf-8",
     )
     return path
+
+
+IMPL_LOCATIONS_TS = (REPO_ROOT / "codebase" / "frontend" / "src" / "lib" / "docs" / "__tests__"
+                     / "impl-locations.ts")
+
+
+def impl_location_roots() -> list[str]:
+    """docs 가드 `spec-impl-locations` 가 구현 위치로 읽는 경로 루트(`IMPL_LOCATION_ROOTS`).
+
+    가드 소스에서 읽는다. 루트 목록을 옮겨 적은 곳(감사기 프롬프트 · CI 트리거)이 이 값과 대조한다.
+    """
+    text = IMPL_LOCATIONS_TS.read_text(encoding="utf-8")
+    block = re.search(r"IMPL_LOCATION_ROOTS: readonly string\[\] = \[(.*?)\];", text, re.DOTALL)
+    if block is None:
+        raise AssertionError(f"{IMPL_LOCATIONS_TS.name}: IMPL_LOCATION_ROOTS 선언을 읽지 못했다")
+    return re.findall(r'"([^"]+)"', block.group(1))
 
 
 TESTS_DIR = Path(__file__).resolve().parent
