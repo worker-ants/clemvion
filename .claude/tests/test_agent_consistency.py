@@ -150,6 +150,14 @@ class ProjectJsonToggleTest(unittest.TestCase):
         enabled = pc.filter_enabled_agents(cfg, "checkers", all_checkers)
         self.assertEqual(sorted(enabled), all_checkers)
 
+    def test_every_checker_names_its_corpus(self):
+        """`plan_coherence` was the only checker without a `context_key`. With it
+        gone the orchestrator treats the key as required, so a new checker that
+        omits it fails here instead of silently reading no corpus."""
+        missing = sorted(name for name, spec in ROLE.CHECKER_INSTRUCTIONS.items()
+                         if not spec.get("context_key"))
+        self.assertEqual(missing, [])
+
 
 class ReadmeToggleColumnTest(unittest.TestCase):
     """README reviewer table's toggle column == REVIEWER_INSTRUCTIONS keys."""

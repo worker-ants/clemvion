@@ -146,6 +146,20 @@ class TargetValidationTest(unittest.TestCase):
         self.assertIn("spec/CLE-ENG/CLE-ENG-SPECEVIDENCE.md", prompt)
         self.assertIn("spec/CLE-API/CLE-API-SWAGGER.md", prompt)
 
+    def test_an_unknown_checker_name_in_the_env_is_refused(self):
+        # `plan_coherence` left the registry in NERV cutover stage 5. A shell that still
+        # names it used to get a fallback prompt and a call to a sub-agent whose
+        # definition is gone, so the failure surfaced only at the Agent call.
+        with tempfile.TemporaryDirectory() as tmp:
+            draft = Path(tmp) / "spec-draft-probe.md"
+            draft.write_text("# probe\n", encoding="utf-8")
+            env = dict(os.environ, CONSISTENCY_OUTPUT_DIR=str(Path(tmp) / "sessions"),
+                       CONSISTENCY_AGENTS="cross_spec,plan_coherence")
+            r = _run("--spec", str(draft), env=env)
+            self.assertEqual(r.returncode, 2, r.stdout)
+            self.assertIn("plan_coherence", r.stderr)
+            self.assertFalse((Path(tmp) / "sessions").exists(), "no session for a refused run")
+
     def test_valid_target_still_prepares_a_session(self):
         # Guard against the validation rejecting legitimate input (the whole CLI is
         # useless if this regresses).

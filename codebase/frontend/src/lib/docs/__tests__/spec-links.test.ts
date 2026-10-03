@@ -38,7 +38,7 @@ function fingerprint(v: { kind: string; target: string }[]): string[] {
 }
 
 /** 한 원본 파일의 위반만. 같은 픽스처의 다른 문서가 섞이지 않게 한다. */
-function from(source: string, v: LinkViolation[]): LinkViolation[] {
+function violationsFrom(source: string, v: LinkViolation[]): LinkViolation[] {
   return v.filter((x) => x.source === source);
 }
 
@@ -124,7 +124,7 @@ describe("findBrokenLinksInFiles core (via public entry points)", () => {
 
   it("checkSelfAnchors: true reports DEAD + broken self-anchor, passes valid links", () => {
     // #heading-one and real.md#good-anchor resolve; #nope and ./missing.md do not.
-    expect(fingerprint(from("DOC.md", findBrokenGovernanceLinks(root)))).toEqual([
+    expect(fingerprint(violationsFrom("DOC.md", findBrokenGovernanceLinks(root)))).toEqual([
       "ANCHOR #nope",
       "ANCHOR ./real.md#no-such-anchor",
       "DEAD ./missing.md",
@@ -136,7 +136,7 @@ describe("findBrokenLinksInFiles core (via public entry points)", () => {
   // 옳게 세도 공개 진입점이 그것을 떨구면 사용자는 위치 없는 위반만 본다. (`15_55_00` W1)
   it("통합 경로가 line 을 그대로 전달한다 — 멀티라인 ANCHOR 는 **시작** 줄", () => {
     const byTarget = new Map(
-      from("DOC.md", findBrokenGovernanceLinks(root)).map((v) => [v.target, v.line]),
+      violationsFrom("DOC.md", findBrokenGovernanceLinks(root)).map((v) => [v.target, v.line]),
     );
 
     // [전제] 세 위반이 다 잡혔다 — 아니면 아래 단언이 vacuous 하다.
@@ -165,7 +165,7 @@ describe("findBrokenLinksInFiles core (via public entry points)", () => {
   });
 
   it("findBrokenGovernanceLinks: 경로 링크와 함께 키 링크도 미러로 확인한다", () => {
-    expect(fingerprint(from("GOV.md", findBrokenGovernanceLinks(root)))).toEqual([
+    expect(fingerprint(violationsFrom("GOV.md", findBrokenGovernanceLinks(root)))).toEqual([
       "ANCHOR CLE-OK-DOC#nope",
       "KEY CLE-NO-SUCH#x",
     ]);

@@ -84,6 +84,14 @@ def load_config():
     agents_env = os.environ.get("CONSISTENCY_AGENTS", "").strip()
     if agents_env:
         agents = [a.strip() for a in agents_env.split(",") if a.strip()]
+        # A name outside the registry (e.g. `plan_coherence`, removed in NERV cutover
+        # stage 5) would otherwise reach the Agent call for a sub-agent that no longer
+        # exists. Refuse it here, before a session is written.
+        unknown = [a for a in agents if a not in ALL_CHECKERS]
+        if unknown:
+            print(f"CONSISTENCY_AGENTS 에 등록되지 않은 checker 가 있다: {', '.join(unknown)} "
+                  f"(등록된 checker: {', '.join(ALL_CHECKERS)})", file=sys.stderr)
+            sys.exit(2)
     else:
         # Apply project_config opt-out for checkers (symmetric with
         # code_review_orchestrator's reviewer toggle). Missing key /
@@ -853,7 +861,7 @@ def resolve_scope(value, flag, spec_dir, by_key, root):
         if not os.path.exists(path):
             _usage_exit(flag, value, f"실존하는 경로도 NERV 키도 아니다 — {item}", _prose_hint(item))
         rel_item = os.path.relpath(path, spec_dir).replace(os.sep, "/")
-        if rel_item == "." or rel_item == ".." or rel_item.startswith("../"):
+        if rel_item in (".", "..") or rel_item.startswith("../"):
             _usage_exit(flag, value, f"NERV 스펙 미러가 아니다 — {item}",
                         "\n  → scope 는 미러 영역 폴더(spec/CLE-…/) · 미러 파일 · NERV 키로 준다.")
         if os.path.isdir(path):
@@ -1186,8 +1194,7 @@ def _corpus_keys(checker_name):
     """Which context keys end up in this checker's prompt."""
     if checker_name == "naming_collision":
         return ("related_specs", "conventions")
-    key = CHECKER_INSTRUCTIONS.get(checker_name, {}).get("context_key")
-    return (key,) if key else ()
+    return (CHECKER_INSTRUCTIONS[checker_name]["context_key"],)
 
 
 def budget_substitutions(context, max_context_size, checker_name):
@@ -1209,10 +1216,9 @@ def budget_substitutions(context, max_context_size, checker_name):
         context.get("target_doc", ""),
         int(max_context_size * CHECKER_BUDGET_RATIO["target_doc"]),
     )
-    if keys:
-        share = int(max_context_size * CHECKER_BUDGET_RATIO["corpus"] / len(keys))
-        for key in keys:
-            out[key] = truncate_file_bundle(context.get(key, ""), share)
+    share = int(max_context_size * CHECKER_BUDGET_RATIO["corpus"] / len(keys))
+    for key in keys:
+        out[key] = truncate_file_bundle(context.get(key, ""), share)
     return out
 
 
@@ -1220,8 +1226,8 @@ def _checker_corpus(checker_name, subs):
     """Return the supplementary corpus a given checker consumes.
 
     `_corpus_keys` is the one place that knows which keys a checker reads:
-    naming_collision joins two sub-corpora, a checker without a `context_key`
-    reads none."""
+    naming_collision joins two sub-corpora, every other checker reads its
+    `context_key`."""
     return "\n\n".join(subs.get(k, "") for k in _corpus_keys(checker_name))
 
 

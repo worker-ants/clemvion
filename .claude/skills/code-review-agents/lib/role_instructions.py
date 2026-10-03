@@ -20,8 +20,9 @@ The reviewer / checker dicts below carry, per role:
         permitting that outcome only when this flag is set.
   - (checker only) `context_label` / `context_key`
         Which subs key feeds the role's supplementary corpus (related_specs,
-        rationale_excerpts, conventions, or combined). `None` means the checker
-        has no corpus.
+        rationale_excerpts, conventions, or combined). Required: the last checker
+        without a corpus, `plan_coherence`, left in NERV cutover stage 5
+        (`test_agent_consistency.py` pins it).
 """
 
 

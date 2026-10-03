@@ -11,14 +11,14 @@ separate sessions, twice with no checker covering the target at all, so `BLOCK: 
 meant "never looked". Ordering is the part the harness can guarantee.
 
 Since 4e the target and both corpora are the NERV spec mirror (`spec/CLE-*`), the
-frozen old tree is out, and the ranking signals are the branch's own changes, the
+old tree is out (deleted in cutover stage 5), and the ranking signals are the branch's own changes, the
 claim's keys (`--focus`), the documents whose `## 구현 위치` covers a changed file
 (`--impl-done`) and the keys the target mentions. The plan-name signals left with
 `plan/` (cutover stage 3).
 
 Most cases run on a small mirror built in a temp git repo (`mini_mirror`), not on
 this checkout's `spec/`: the real mirror changes with every pull, and the old tree
-these tests used to read is deleted in cutover stage 5.
+these tests used to read was deleted in cutover stage 5.
 
 Fresh-interpreter convention as in `test_consistency_context_budget`: importing
 the orchestrator in-process collides on the name `_lib`.

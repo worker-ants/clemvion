@@ -239,6 +239,12 @@ class TempRepoFixturesGoThroughTheSharedHelperTest(unittest.TestCase):
             "워크플로 `run:` 이 이름으로 부르는 파일이 **이 저장소에 실재하는지** 걸러 낸 뒤 "
             "그 워크플로의 pathspecs 와 대조한다 — 임시 저장소에는 그 워크플로도 그 스크립트도 "
             "없으므로 '등재가 빠졌다' 를 물을 대상 자체가 없다",
+        "test_doc_sync_matrix.py":
+            "doc-sync 매트릭스의 트리거 글로브가 이 저장소의 추적 파일에 맞는지 본다 — 로컬에만 있는 "
+            "추적 안 되는 파일로 초록이 되지 않게 `git ls-files` 를 쓴다",
+        "test_spec_link_checks_scope.py":
+            "구현 위치 루트 아래 이 저장소의 추적 파일이 모두 docs 가드 워크플로의 pathspecs 에 드는지 "
+            "본다 — 임시 저장소에는 그 파일들이 없다",
     }
 
     def _git_calls(self, tree):

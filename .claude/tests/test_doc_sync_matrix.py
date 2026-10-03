@@ -34,6 +34,7 @@ from __future__ import annotations
 import fnmatch
 import json
 import re
+import subprocess
 import sys
 import unittest
 
@@ -59,6 +60,48 @@ SPEC_PATH_RE = re.compile(r"(?<![\w./-])spec/[A-Za-z0-9_][A-Za-z0-9_./-]*\.md")
 # Non-mirror `spec/` files PROJECT.md may name. `spec/README.md` is the mirror's
 # guide page, written by `pull.py` next to the mirror documents.
 NON_MIRROR_ALLOWED: frozenset[str] = frozenset({"spec/README.md"})
+
+
+# Wildcards and placeholders. A path segment holding one ends the literal base.
+_GLOB_META = frozenset("*?[{}<>")
+
+
+def _literal_base(glob: str) -> list[str]:
+    """Leading path segments of `glob` with no wildcard or placeholder."""
+    base = []
+    for seg in glob.split("/"):
+        if not seg or not _GLOB_META.isdisjoint(seg):
+            break
+        base.append(seg)
+    return base
+
+
+def _expand_braces(glob: str) -> list[str]:
+    m = re.search(r"\{([^{}]*)\}", glob)
+    if not m:
+        return [glob]
+    head, tail = glob[:m.start()], glob[m.end():]
+    return [x for alt in m.group(1).split(",") for x in _expand_braces(head + alt + tail)]
+
+
+def _glob_matches_a_file(glob: str, files: list[str]) -> bool:
+    """Does every brace alternative of `glob` match one of `files` (repo-relative)?
+
+    A trailing `/` names a directory, so it matches the files under one.
+    `fnmatch`'s `*` crosses `/`, which is how the matrix's `**.mdx` is meant to read.
+    """
+    for alt in _expand_braces(glob):
+        pattern = alt + "*" if alt.endswith("/") else alt
+        prefix = "/".join(_literal_base(alt))
+        if not any(fnmatch.fnmatchcase(f, pattern) for f in files if f.startswith(prefix)):
+            return False
+    return True
+
+
+def _tracked_files() -> list[str]:
+    out = subprocess.run(["git", "ls-files"], cwd=REPO_ROOT, check=True,
+                         capture_output=True, text=True).stdout
+    return out.splitlines()
 
 
 def _project_text() -> str:
@@ -237,9 +280,10 @@ class MatrixJsonSsotTest(unittest.TestCase):
     def test_json_convention_refs_point_to_nerv_mirror(self):
         """A convention_ref names the rule's SoT, and the SoT is the NERV spec.
 
-        The old `spec/<n>-<area>/` · `spec/conventions/` tree is frozen (cutover
-        step 1) and only removed in step 5, so a ref into it would still pass
-        the existence check above while pointing at a document nobody updates."""
+        The old `spec/<n>-<area>/` · `spec/conventions/` tree was deleted in
+        cutover step 5, so the existence check above now catches a ref into it.
+        This check says more: a ref must be a mirror path, because any other
+        `spec/` file, even one re-created by hand, is not a NERV document."""
         rows = _load_matrix()["rows"]
         self.assertTrue(
             any(row["convention_ref"] for row in rows),
@@ -260,7 +304,7 @@ class MatrixJsonSsotTest(unittest.TestCase):
         """Spec paths inside `targets` strings resolve, through the mirror.
 
         user-guide-sync-reviewer reads the JSON before the prose table, and the
-        two are bound only by row count — so a target naming a moved or frozen
+        two are bound only by row count — so a target naming a moved or deleted
         document would otherwise go unnoticed."""
         bad = {}
         seen = 0
@@ -281,16 +325,10 @@ class MatrixJsonSsotTest(unittest.TestCase):
         """The leading wildcard-free path segments of every trigger glob must
         name a real directory. Catches a typo'd or relocated trigger path
         (e.g. `src/auth/**` when auth actually lives at `src/modules/auth/`)."""
-        meta = set("*?{}<>")
         bad = {}
         for row in _load_matrix()["rows"]:
             for g in row["trigger"]["globs"]:
-                concrete = []
-                for seg in g.split("/"):
-                    if seg and meta.isdisjoint(seg):
-                        concrete.append(seg)
-                    else:
-                        break  # first segment with a wildcard/placeholder
+                concrete = _literal_base(g)
                 if not concrete:
                     continue
                 if not REPO_ROOT.joinpath(*concrete).exists():
@@ -300,36 +338,49 @@ class MatrixJsonSsotTest(unittest.TestCase):
         )
 
     def test_json_trigger_globs_match_a_file(self):
-        """Every trigger glob matches at least one file on disk.
+        """Every trigger glob matches at least one tracked file.
 
         The base-path check above stops at the first wildcard segment, so
         `spec/2-*/**` stayed green on the base `spec` after the old tree it
-        named was deleted (NERV cutover step 5). A trailing `/` names a
-        directory, so it matches the files under one. `fnmatch`'s `*` crosses
-        `/`, which is how the matrix's `**.mdx` is meant to read."""
-        meta = set("*?[")
+        named was deleted (NERV cutover step 5). The file list is `git ls-files`,
+        so a local untracked file (`node_modules`, a generated cache) cannot
+        make this green on one machine only. The matching rules are pinned by
+        `GlobMatchHelperTest` below."""
+        files = _tracked_files()
         bad = {}
         for row in _load_matrix()["rows"]:
             for g in row["trigger"]["globs"]:
-                pattern = g + "*" if g.endswith("/") else g
-                base = []
-                for seg in g.split("/"):
-                    if not seg or not meta.isdisjoint(seg):
-                        break
-                    base.append(seg)
-                start = REPO_ROOT.joinpath(*base)
-                if start.is_file():
-                    found = fnmatch.fnmatchcase("/".join(base), pattern)
-                else:
-                    found = any(
-                        fnmatch.fnmatchcase(p.relative_to(REPO_ROOT).as_posix(), pattern)
-                        for p in start.rglob("*") if p.is_file()
-                    )
-                if not found:
+                if not _glob_matches_a_file(g, files):
                     bad.setdefault(row["id"], []).append(g)
         self.assertFalse(
             bad, f"doc-sync-matrix.json trigger globs that match no file: {bad}"
         )
+
+
+class GlobMatchHelperTest(unittest.TestCase):
+    """`_glob_matches_a_file` on a synthetic file list: one positive and one
+    negative per rule, so a helper that always answers True turns this red."""
+
+    FILES = ["spec/CLE-A/CLE-A-X.md", "codebase/x/a.mdx", "codebase/x/deep/b.mdx", "PROJECT.md"]
+
+    def test_wildcards(self):
+        self.assertTrue(_glob_matches_a_file("spec/CLE-*/**", self.FILES))
+        self.assertFalse(_glob_matches_a_file("spec/2-*/**", self.FILES))
+        # fnmatch's `*` crosses `/` — the matrix's `**.mdx` relies on it.
+        self.assertTrue(_glob_matches_a_file("codebase/x/**.mdx", self.FILES))
+        self.assertFalse(_glob_matches_a_file("codebase/y/**.mdx", self.FILES))
+
+    def test_trailing_slash_names_a_directory(self):
+        self.assertTrue(_glob_matches_a_file("codebase/x/", self.FILES))
+        self.assertFalse(_glob_matches_a_file("codebase/y/", self.FILES))
+
+    def test_plain_path(self):
+        self.assertTrue(_glob_matches_a_file("PROJECT.md", self.FILES))
+        self.assertFalse(_glob_matches_a_file("CLAUDE.md", self.FILES))
+
+    def test_every_brace_alternative_must_match(self):
+        self.assertTrue(_glob_matches_a_file("codebase/x/{a,deep/b}.mdx", self.FILES))
+        self.assertFalse(_glob_matches_a_file("codebase/x/{a,c}.mdx", self.FILES))
 
 
 if __name__ == "__main__":
