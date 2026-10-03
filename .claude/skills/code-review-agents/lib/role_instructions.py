@@ -322,7 +322,7 @@ ANALYZER_INSTRUCTIONS = {
     "cross_branch_spec_analyzer": {
         "ko_title": "Branch 간 스펙 충돌",
         "perspective": "통합 대상 branch 들이 NERV 스펙 미러(`spec/CLE-*`)를 어떻게 바꿨는지 비교해 cross-branch 충돌을 검출한다. 구현 PR 은 클레임한 스펙을 작업 기준 버전으로 받아 코드와 함께 커밋하므로(결정 D3) 미러 diff 가 그 branch 가 따른 스펙 버전이다. 기존 cross-spec-checker 는 단일 draft vs 기존 spec 이고, 본 analyzer 는 multi-branch 간 충돌이 대상.",
-        "checklist": """1. **같은 미러 문서 다른 버전** — 두 branch 이상이 같은 `spec/<영역 키>/<KEY>.md` 를 서로 다른 버전으로 받았는가. frontmatter `version` · `read_as` 가 다르면 뒤에 머지하는 쪽이 다시 받아야 한다
+        "checklist": """1. **같은 미러 문서 다른 버전** — 두 branch 이상이 같은 `spec/<영역 키>/<KEY>.md` 를 서로 다른 버전으로 받았는가. frontmatter `version` 이나 `content_hash` 가 다르면 뒤에 머지하는 쪽이 다시 받아야 한다. `task` · `etag` · `mirror_sha256` · `read_as` 만 다른 것은 받은 Task 가 달라서 생기는 정상 차이다
 2. **같은 스펙을 따르는 동시 구현** — 두 branch 가 같은 스펙 문서를 기준으로 겹치는 코드를 바꾸는가
 3. **요구사항 ID cross-branch 중복** — branch 마다 다른 의미로 같은 요구사항 ID prefix 를 도입했는가
 4. **API 계약의 cross-branch divergence** — 같은 endpoint 를 branch 마다 다르게 정의

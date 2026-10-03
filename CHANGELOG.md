@@ -42,6 +42,8 @@ NERV 정본 전환 단계 4e(Task `CLE-T-VP5KDJ`). consistency 오케스트레�
   카탈로그 필드 문서(`codebase/api-catalogs/*/*/**/*.md`)는 diff 에서 빼고 실제로 뺀 수만 적는다. 생성기 입력
   데이터(MakeShop `openapi/*.openapi.json`)는 diff 에 남는다.
 - `.claude.project.json` 의 `corpora.conventions` 는 읽는 곳이 없어 걷었다.
+- merge-coordinator 의 `cross_branch_spec_analyzer` 는 브랜치마다 받은 스펙 미러의 충돌을 본다. 같은 문서의
+  `version` 이나 `content_hash` 가 다르면 다시 받으라고 하고, `task` · `etag` · `read_as` 만 다른 것은 정상으로 본다.
 
 ## Unreleased — 개발 흐름: push 게이트가 6역할 밖 강제 리뷰어를 다시 보고, CI 게이트는 빈 환경에서 돈다
 
