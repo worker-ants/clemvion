@@ -93,6 +93,19 @@ class SpecCoveragePromptTest(unittest.TestCase):
 
         self.assertEqual(tuple(orch.EXCLUDED_AREAS), tuple(load_pull().EXCLUDED_AREAS))
 
+    def test_the_path_roots_are_the_build_guard_roots(self):
+        # 프롬프트는 "빌드 가드와 같은 읽기" 라고 적는다. 가드의 루트 목록과 갈라지면 감사기가
+        # 다른 경로를 구현 위치로 읽는다.
+        guard = (_harness.REPO_ROOT / "codebase" / "frontend" / "src" / "lib" / "docs"
+                 / "__tests__" / "impl-locations.ts").read_text(encoding="utf-8")
+        block = re.search(r"IMPL_LOCATION_ROOTS: readonly string\[\] = \[(.*?)\];", guard, re.DOTALL)
+        self.assertIsNotNone(block, "가드에서 IMPL_LOCATION_ROOTS 를 읽지 못했다. 선언 모양을 확인한다")
+        guard_roots = re.findall(r'"([^"]+)"', block.group(1))
+        self.assertGreaterEqual(len(guard_roots), 4)
+        self.assertEqual(tuple(orch.IMPL_ROOTS), tuple(guard_roots))
+        line = next(ln for ln in self.prompt.splitlines() if ln.startswith("section (starting with"))
+        self.assertEqual(re.findall(r"`([^`]+)`", line), guard_roots)
+
     def test_the_direction_reaches_the_prompt(self):
         self.assertIn("MODE=both", self.prompt)
 

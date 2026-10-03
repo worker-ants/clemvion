@@ -29,11 +29,13 @@ VALID_MODES = ("forward", "reverse", "both")
 # 같아야 한다. `.claude/tests/test_spec_coverage_prompt.py` 가 미러 본문과 대조한다. 감사 대상은 NERV
 # 미러 가운데 `## 구현 위치` 절이 있는 문서다(전환 단계 5 에서 옛 트리를 지우며 옮겼다).
 SOT_DOC = "spec/CLE-ENG/CLE-ENG-SPECEVIDENCE.md"
-INCLUDE_GLOBS = (
+INCLUDE_PATTERNS = (
     "spec/<KEY>.md",
     "spec/<영역 키>/<KEY>.md",
 )
 IMPL_SECTION = "## 구현 위치"
+# 구현 위치로 읽는 코드 스팬의 루트. 빌드 가드(`impl-locations.ts` 의 `IMPL_LOCATION_ROOTS`)와 같다.
+IMPL_ROOTS = ("codebase/", ".claude/", ".github/", "scripts/")
 # 미러 안내 파일. 스펙 문서가 아니다.
 EXCLUDE_PATHS = ("spec/README.md",)
 # 미러에 넣지 않는 카탈로그 영역. `.claude/tools/nerv-mirror/pull.py` 의 `EXCLUDED_AREAS` 와 같다.
@@ -91,7 +93,7 @@ Per {sot} 「적용 대상」 (NERV `CLE-ENG-SPECEVIDENCE`):
 - EXCLUDED AREAS: {areas} (catalog areas, not mirrored)
 
 Implementation locations are the repository paths written as code spans in that
-section (starting with `codebase/` · `.claude/` · `.github/` · `scripts/`), the
+section (starting with {roots}), the
 same reading as the build guard `spec-impl-locations`. Mirror documents carry no
 frontmatter `code:`.
 
@@ -119,10 +121,11 @@ def main() -> int:
     env = env_summary()
     prompt_text = PROMPT_TEMPLATE.format(
         sot=f"`{SOT_DOC}`",
-        include=", ".join(f"`{g}`" for g in INCLUDE_GLOBS),
+        include=", ".join(f"`{g}`" for g in INCLUDE_PATTERNS),
         section=IMPL_SECTION,
         exclude=", ".join(f"`{x}`" for x in EXCLUDE_PATHS),
         areas=", ".join(f"`{a}`" for a in EXCLUDED_AREAS),
+        roots=" · ".join(f"`{r}`" for r in IMPL_ROOTS),
         direction_mode=args.mode,
         confidence_floor=env["SPEC_COVERAGE_CONFIDENCE_FLOOR"],
         max_findings=env["SPEC_COVERAGE_MAX_FINDINGS"],

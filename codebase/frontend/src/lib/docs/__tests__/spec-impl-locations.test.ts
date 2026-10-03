@@ -87,6 +87,17 @@ describe("extractImplLocationSection", () => {
     const text = ["```md", "## 구현 위치", "- `codebase/x.ts`", "```"].join("\n");
     expect(extractImplLocationSection(text)).toBeNull();
   });
+
+  it("closes a fence only with the same marker, at least as long", () => {
+    // 종류 · 길이를 가리지 않고 토글하면 안쪽 줄에서 펜스가 닫혀 뒤의 진짜 절을 놓친다.
+    for (const fence of [
+      ["```", "~~~", "```"],
+      ["````", "```", "````"],
+    ]) {
+      const text = [...fence, "## 구현 위치", "- `codebase/a.ts`"].join("\n");
+      expect(extractImplLocationSection(text)?.body, fence.join(" ")).toContain("codebase/a.ts");
+    }
+  });
 });
 
 describe("implLocationCandidates", () => {
@@ -104,6 +115,22 @@ describe("implLocationCandidates", () => {
       ["scripts/check-migration-versions.py", 11],
       [".github/workflows/migration-check.yml", 12],
       [".claude/tools/nerv-mirror/pull.py", 13],
+    ]);
+  });
+
+  it("skips code spans inside a code fence in the section (rule 20)", () => {
+    const body = [
+      "- `codebase/a.ts`",
+      "```md",
+      "- `codebase/in-fence.ts`",
+      "~~~",
+      "- `codebase/still-in-fence.ts`",
+      "```",
+      "- `codebase/b.ts`",
+    ].join("\n");
+    expect(implLocationCandidates(body, 1).map((c) => [c.path, c.line])).toEqual([
+      ["codebase/a.ts", 1],
+      ["codebase/b.ts", 7],
     ]);
   });
 });
@@ -128,6 +155,8 @@ describe("resolvesInRepo", () => {
     touch("codebase/migrations/V117__entity_index.sql");
     touch("codebase/migrations/V117__entity_index.conf");
     touch("codebase/migrations/V1170__other.sql");
+    touch("codebase/g/xb.ts");
+    touch("codebase/h/b.ts");
   });
 
   afterAll(() => fs.rmSync(root, { recursive: true, force: true }));
@@ -143,6 +172,19 @@ describe("resolvesInRepo", () => {
     expect(resolvesInRepo(root, "codebase/a/*.ts")).toBe(true);
     expect(resolvesInRepo(root, "codebase/a/**/*.tsx")).toBe(false);
     expect(resolvesInRepo(root, "codebase/none/**")).toBe(false);
+  });
+
+  it("`**/` spans zero or more whole folders, never part of a name", () => {
+    expect(resolvesInRepo(root, "codebase/h/**/b.ts")).toBe(true);
+    expect(resolvesInRepo(root, "codebase/a/**/deep.ts")).toBe(true);
+    // `**/` 를 `.*` 로 옮기면 `codebase/g/xb.ts` 에 맞아 거짓 통과한다.
+    expect(resolvesInRepo(root, "codebase/g/**/b.ts")).toBe(false);
+  });
+
+  it("a `..` segment never resolves, even when the target exists", () => {
+    expect(resolvesInRepo(root, "codebase/../codebase/a/file.ts")).toBe(false);
+    expect(resolvesInRepo(root, "codebase/a/../a/file.ts")).toBe(false);
+    expect(resolvesInRepo(root, "codebase/../codebase/a/**")).toBe(false);
   });
 
   it("square brackets are literal (Next.js dynamic segments), not a character class", () => {
