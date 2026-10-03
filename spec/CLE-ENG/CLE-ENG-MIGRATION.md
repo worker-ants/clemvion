@@ -3,18 +3,18 @@ id: "CLE-ENG-MIGRATION"
 title: "DB 마이그레이션 규약"
 type: "convention"
 version: 1
-status: "draft"
+status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-ENG"
 ancestors: ["CLE-VISION", "CLE-ENG"]
 area: "CLE-ENG"
-content_hash: "0571b4a4731a19cd858a95b54558119ecf2035b3bc890cfb2e67e9b3e4d982c4"
-read_as: "approved"
-task: null
+content_hash: "6503104b6fb8b9c09b867ea2feaa5e04de84fe35865aa12895871ed794cfd721"
+read_as: "approved_fallback"
+task: "CLE-T-VP5KDJ"
 source_paths: ["spec/0-overview.md", "spec/conventions/migrations.md"]
-mirror_sha256: "ae8a1da671821be8eae1451077d17994a3bc2253e00d2cf84e54fa50a6b35637"
-etag: "sha256-b50b04c604a24aebb3dea2f3dd0a1ab31390373c90b6634fe337ddfc749eb907"
+mirror_sha256: "a588e14c02311867fadab3439ff638ad80ec96755898ab00689c72a63f37a9d9"
+etag: "sha256-081cc69822d608eccd052a55f73c44a48c3c6fe6c5613c2231925c959f82a9cd"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/conventions/migrations.md`, `spec/0-overview.md` (§2.8 DB 마이그레이션, Rationale «DB 마이그레이션 도구로 Flyway 채택») · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -66,7 +66,7 @@ PostgreSQL 스키마를 바꾸는 마이그레이션(migration, `V<N>__*.sql`)�
 13. `CREATE INDEX CONCURRENTLY` 를 쓰는 파일은 교체든 신규 추가든 `CREATE` 앞에 invalid 잔재 정리(`DROP INDEX CONCURRENTLY IF EXISTS <새 인덱스 이름>`)를 둔다(`codebase/backend/migrations/README.md` §5).
 14. 새 마이그레이션은 [추가 절차](#새-마이그레이션-추가-절차)를 따른다.
 15. PR 을 연 뒤에는 되도록 빨리 리뷰·머지해 다른 PR 과 V번호를 함께 차지하는 기간을 짧게 한다.
-16. 머지 직전 확인은 작성자 책임이다([머지 직전 rebase](#머지-직전-rebase)).
+16. 머지 직전 확인은 작성자 책임이다([머지 직전 최신화](#머지-직전-최신화)).
 17. Python 가드와 빌드 시점 가드는 같은 V번호 정규화 규칙(`V0*([0-9]+)__`)을 쓴다. 정책이 바뀌면 두 가드를 함께 고친다.
 
 ## 규칙 보충
@@ -96,7 +96,7 @@ Flyway 는 부팅할 때 적용된 마이그레이션마다 SQL 내용의 checks
 
 ## 새 마이그레이션 추가 절차
 
-1. `git fetch origin main && git rebase origin/main` 으로 base 를 최신으로 맞춘다.
+1. `git fetch origin main` 뒤 `git rebase origin/main` 이나 `git merge origin/main` 으로 base 를 최신으로 맞춘다.
 2. `ls codebase/backend/migrations | tail -2` 로 현재 max V 를 확인한다.
 3. `V<max+1>__<descriptor>.sql` 을 쓴다. 필요하면 같은 base name 의 `.conf` 를 함께 둔다(`codebase/backend/migrations/README.md` §4·§5).
 4. 로컬에서 `python3 scripts/check-migration-versions.py --base origin/main` 으로 V번호 가드를 통과시킨다.
@@ -110,7 +110,7 @@ V번호 충돌과 머지 race 는 여러 단계로 막는다. 한 단계를 우�
 ```mermaid
 flowchart LR
   U["단위 테스트<br/>migrations.spec.ts"] --> P["PR CI<br/>migration-check"]
-  P --> R["머지 직전 rebase<br/>작성자 확인"]
+  P --> R["머지 직전 최신화<br/>작성자 확인"]
   R --> M["머지 뒤 재검사<br/>migration-recheck-on-main"]
   M --> B["이미지 빌드 시점<br/>check-duplicate-versions.sh"]
 ```
@@ -126,30 +126,40 @@ flowchart LR
 | 연속성 | 번호를 건너뜀(예: V041 없이 V042) | `[migration-guard] FAIL: V042 leaves a gap (expected V041 after base max V040)` |
 | `.conf` 짝 | `.conf` 의 base name 이 `.sql` 과 다름 | `[migration-guard] FAIL: V041 .conf base name does not match its .sql` |
 
-위반하면 워크플로우가 exit 1 로 끝나 PR 머지가 막힌다. 작성자가 rebase 해 V번호를 다시 정하면 바로 다시 검증된다. 로컬에서 같은 검사를 돌리려면 다음을 실행한다.
+위반하면 워크플로우가 exit 1 로 끝나 PR 머지가 막힌다. 작성자가 base 를 최신으로 맞춰 V번호를 다시 정하면 바로 다시 검증된다. 로컬에서 같은 검사를 돌리려면 다음을 실행한다.
 
 ```bash
 python3 scripts/check-migration-versions.py --base origin/main
 ```
 
-### 머지 직전 rebase
+### 머지 직전 최신화
 
 PR CI 가 통과한 바로 뒤에 다른 PR 이 먼저 머지되면 main 의 max(V) 가 앞질러질 수 있다(merge race). 저장소 설정으로 "머지 전 브랜치 최신화" 를 강제할 수 없어(Rationale «운영 규약으로 race 를 막는 이유» 참조) 아래 운영 규약으로 대신한다.
 
 작성자는 머지 직전에 다음을 확인한다.
 
-1. `git fetch origin main && git rebase origin/main` 으로 base 를 최신으로 맞춘다.
+1. `git fetch origin main && git merge origin/main` 으로 base 를 최신으로 맞춘다. 코드 리뷰를 내기 전이면 `git rebase origin/main` 도 된다. 리뷰를 낸 뒤에 rebase 하면 리뷰를 다시 내야 한다([리뷰 게이트와의 관계](#리뷰-게이트와의-관계)).
 2. push 한 뒤 PR 의 최신 커밋에서 `migration-check` 가 통과했는지 확인한다.
 3. 이 PR 에 `migration-recheck-on-main` 알림 코멘트가 달려 있으면 무조건 1·2 를 다시 한다.
 
-이 규약은 `.github/PULL_REQUEST_TEMPLATE.md` 의 Migration checklist 와 짝을 이룬다. 작성자는 체크박스로 스스로 확인한다.
+이 규약은 `.github/PULL_REQUEST_TEMPLATE.md` 의 Migration checklist 와 짝을 이룬다. 작성자는 체크박스로 스스로 확인한다. 다만 템플릿 체크박스, `migration-recheck-on-main` 알림 코멘트, `scripts/check-migration-versions.py` 의 안내 문구는 아직 rebase 만 안내하고 옛 저장소 문서 경로(`spec/conventions/migrations.md`)를 가리킨다. 리뷰를 낸 PR 에는 이 절이 우선한다. 문구를 맞추는 일은 NERV Task `CLE-T-VP5KDJ`(전환 4e)가 맡는다.
+
+#### 리뷰 게이트와의 관계
+
+마이그레이션 파일은 `codebase/**` 아래라 push 훅과 CI `review-gate` 가 NERV 코드 리뷰 라운드를 요구한다(전환 단계 2 부터). 게이트는 리뷰 라운드의 head 커밋이 지금 HEAD 의 조상이어야 통과시킨다.
+
+- `git merge origin/main` 은 라운드 head 를 조상으로 남긴다. 기준 브랜치에서 온 커밋과 충돌 없이 끝난 merge 커밋은 게이트가 리뷰 뒤 변경으로 세지 않는다. 그래서 리뷰를 낸 PR 은 merge 로 최신화한다.
+- `git rebase origin/main` 은 커밋을 다시 써서 라운드 head 가 조상이 아니게 된다. 필수 6역할을 포함한 코드 리뷰를 지금 HEAD 로 다시 내야 한다.
+- merge 충돌을 손으로 풀었거나 V번호를 바꾸려고 파일을 고친 커밋은 리뷰 뒤 변경이다. 리뷰 발견을 고친 커밋으로 처분했거나 새 라운드를 내야 게이트가 통과시킨다.
+
+판정 규칙의 정본은 저장소 `.claude/hooks/_lib/review_guard.py` docstring 이다.
 
 ### 머지 뒤 안전망 (`migration-recheck-on-main`)
 
 `codebase/backend/migrations/**` 가 main 에 push 되면(마이그레이션 PR 이 머지된 직후) CI 워크플로우(GitHub Actions) `.github/workflows/migration-recheck-on-main.yml` 이 두 가지를 자동으로 한다.
 
 - **머지 뒤 점검**: main 에서 `python3 scripts/check-migration-versions.py --base HEAD~1` 를 실행한다. 중복·gap·단조성·`.conf` 짝 위반이 main 에 실제로 들어왔으면 워크플로우가 실패해 Actions 탭에 빨간불이 켜진다. Slack·이메일 알림이 연동돼 있으면 자동으로 알린다.
-- **자동 알림 코멘트**: 열린 PR 중 변경 목록에 `codebase/backend/migrations/**` 파일이 있는 PR 에 "rebase + CI 재실행 필요" 코멘트를 자동으로 단다. 작성자가 race 가능성을 바로 알고 머지 직전 rebase 규약을 따르게 한다.
+- **자동 알림 코멘트**: 열린 PR 중 변경 목록에 `codebase/backend/migrations/**` 파일이 있는 PR 에 "rebase + CI 재실행 필요" 코멘트를 자동으로 단다. 작성자가 race 가능성을 바로 알고 머지 직전 최신화 규약을 따르게 한다. 코멘트 문구는 `git rebase origin/main` 을 안내한다. 리뷰를 낸 PR 은 [리뷰 게이트와의 관계](#리뷰-게이트와의-관계) 대로 merge 로 맞춘다.
 
 두 작업 모두 머지 자체를 막지는 못한다. 지금 환경에서 가능한 최대 강도는 즉시 드러내고 알리는 것이다. 유료 플랜으로 바꾸면 branch protection 을 머지 직전 규약 자리로 올리고 이 안전망은 백업으로 둘 수 있다(Rationale «기각한 대안 4»).
 
@@ -211,7 +221,13 @@ codebase/backend/migrations/check-duplicate-versions.sh codebase/backend/migrati
 
 ### 운영 규약으로 race 를 막는 이유
 
-이 결정을 내릴 때 저장소는 GitHub 무료 플랜의 private 저장소였다. 이 환경에서는 branch protection 의 "Require branches to be up to date before merging" 옵션을 쓸 수 없다. 그래서 머지 직전 rebase(작성자 책임)와 `migration-recheck-on-main`(머지 뒤 안전망)으로 race 를 대신 막는다. 자세한 제약은 아래 «기각한 대안 4» 에 있다.
+이 결정을 내릴 때 저장소는 GitHub 무료 플랜의 private 저장소였다. 이 환경에서는 branch protection 의 "Require branches to be up to date before merging" 옵션을 쓸 수 없다. 그래서 머지 직전 최신화(작성자 책임)와 `migration-recheck-on-main`(머지 뒤 안전망)으로 race 를 대신 막는다. 자세한 제약은 아래 «기각한 대안 4» 에 있다.
+
+### 최신화에 merge 를 허용한 이유 (2026-10-01)
+
+처음 규약은 머지 직전 최신화를 `git rebase origin/main` 하나로 적었다. 그때 리뷰 게이트는 커밋된 리뷰 산출물의 시각과 코드 커밋의 author 시각을 견줬다. rebase 는 author 시각을 그대로 두므로 게이트는 일부러 rebase 에 영향받지 않게 설계돼 있었다. 전환 단계 2 의 NERV 판정은 그렇지 않다. rebase 는 커밋을 다시 써서 리뷰 라운드의 `head_sha` 를 HEAD 의 조상에서 빼고, `fixed` 처분에 적힌 `commit_sha` 도 브랜치에서 닿지 않게 만든다. 그래서 리뷰를 낸 PR 이 rebase 하면 전체 재리뷰가 필요하다. merge 는 두 해시를 그대로 둔다. 단계 2 의 일관성 검토(finding 01a0f6c1-82ed-755d-b6ae-6c3af354438a)가 이 충돌을 찾았다.
+
+race 를 막는 데 필요한 것은 base 를 최신으로 맞추는 일이고 그 방법이 rebase 일 필요는 없다. 그래서 merge 를 허용했다. 게이트가 rebase 를 받아 주게 하는 안은 «기각한 대안 5» 에 있다.
 
 ### 기각한 대안 1: 타임스탬프 접두 (`V<YYYYMMDDHHMMSS>__...`)
 
@@ -251,3 +267,10 @@ race 를 막는 정공법이지만 GitHub 무료 플랜 private 저장소에는 
 2. `migration-check / guard` 를 required status check 로 등록한다.
 3. 머지 직전 작성자 책임 규약을 자동 차단으로 흡수한다.
 4. `migration-recheck-on-main` 은 백업으로 둔다. race 가 나중에라도 main 에 들어왔을 때 드러내는 역할은 branch protection 이 대신하지 못한다.
+
+### 기각한 대안 5: 게이트가 rebase 전후 커밋을 patch-id 로 짝짓기
+
+단계 2 의 일관성 검토(finding 01a0f6c1-82ed-755d-b6ae-6c3af354438a)가 함께 낸 안이다. 게이트가 rebase 전후 커밋을 patch-id 로 짝지어 같은 변경이면 리뷰 라운드와 처분을 이어 준다. 택하지 않았다.
+
+- rebase 가 충돌을 풀면 patch-id 가 달라져 짝을 찾지 못한다. 결국 재리뷰가 필요하다.
+- 게이트가 "같은 변경" 을 판정하는 범위가 넓어진다. merge 로 최신화하면 이 판정이 필요 없다.

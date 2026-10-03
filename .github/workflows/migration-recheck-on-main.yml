@@ -79,5 +79,5 @@ jobs:
 
           for n in "${prs[@]}"; do
             echo "Nudging PR #${n}"
-            gh pr comment "$n" --repo "$repo" --body "⚠️ \`main\` 에 새 migration 이 머지되었습니다 (\`${short_sha}\`). 본 PR 의 V번호 충돌·gap 을 보장하려면 **머지 전 \`git rebase origin/main\` 후 \`migration-check\` 재실행**이 필요합니다. 자세한 규약은 [DB 마이그레이션 규약 「충돌 검출과 머지 race 안전망」](../blob/main/spec/CLE-ENG/CLE-ENG-MIGRATION.md#충돌-검출과-머지-race-안전망) 참고."
+            gh pr comment "$n" --repo "$repo" --body "⚠️ \`main\` 에 새 migration 이 머지되었습니다 (\`${short_sha}\`). 본 PR 의 V번호 충돌·gap 을 보장하려면 **머지 전 \`git merge origin/main\` 으로 최신화한 뒤 \`migration-check\` 재실행**이 필요합니다(코드 리뷰를 내기 전이면 \`git rebase origin/main\` 도 됩니다. 리뷰를 낸 뒤 rebase 하면 리뷰를 다시 내야 합니다). 자세한 규약은 [DB 마이그레이션 규약 「충돌 검출과 머지 race 안전망」](../blob/main/spec/CLE-ENG/CLE-ENG-MIGRATION.md#충돌-검출과-머지-race-안전망) 참고."
           done

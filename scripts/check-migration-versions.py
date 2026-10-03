@@ -4,7 +4,7 @@ Flyway 마이그레이션 V번호 충돌·단조성 검출 스크립트.
 
 여러 PR 이 병렬로 진행될 때 같은 V번호를 동시에 점유하거나, main 의 max(V)
 보다 작거나 같은 V번호를 들고 들어오는 케이스를 PR CI 단계에서 fail-fast 로
-잡아낸다. (`spec/conventions/migrations.md` 참고)
+잡아낸다. (규약: `spec/CLE-ENG/CLE-ENG-MIGRATION.md`, NERV `CLE-ENG-MIGRATION`)
 
 검사 항목:
   1. **중복** — 같은 V번호의 `.sql` 이 둘 이상이면 fail.
@@ -152,7 +152,8 @@ def check(root: Path, base_ref: str) -> list[str]:
                 failures.append(
                     f"[migration-guard] FAIL: V{v:03d} is not greater than base ({base_actual_ref}) max V{base_max:03d}\n"
                     f"{files_str}\n"
-                    f"    rebase onto {base_ref} and rename to V{base_max + 1:03d} or above"
+                    f"    merge {base_ref} (or rebase, before the code review is submitted) "
+                    f"and rename to V{base_max + 1:03d} or above"
                 )
                 continue
             if v != expected:
@@ -218,7 +219,7 @@ def main() -> int:
             print(msg)
         print(
             f"\n[migration-guard] {len(failures)} violation(s) found. "
-            "See spec/conventions/migrations.md for the policy.",
+            "See spec/CLE-ENG/CLE-ENG-MIGRATION.md (NERV CLE-ENG-MIGRATION) for the policy.",
             file=sys.stderr,
         )
         return 1
