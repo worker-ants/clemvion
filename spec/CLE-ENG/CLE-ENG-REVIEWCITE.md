@@ -2,19 +2,19 @@
 id: "CLE-ENG-REVIEWCITE"
 title: "리뷰 산출물 인용 규약"
 type: "convention"
-version: 2
+version: 3
 status: "approved"
 requirements: []
 basis_superseded: false
 parent: "CLE-ENG"
 ancestors: ["CLE-VISION", "CLE-ENG"]
 area: "CLE-ENG"
-content_hash: "07c7d72b4d0e0c12d60a8b54dc467b20a200ad89740d7e440dd6eb222c6a0100"
+content_hash: "b4e48803badcab0c5120a1fa8ead581b6ea96b9aaf26e7edda6e8e4d92b2f0f9"
 read_as: "approved_fallback"
 task: "CLE-T-M7K35H"
 source_paths: ["spec/conventions/review-citations.md"]
-mirror_sha256: "63626961e2c2d37297f56cc35764820f2a050a8d224ee950f8cf7c1c7fe21c50"
-etag: "sha256-fabbcad241a50695f7753ffbd72441b5bc52c02db7bdab1d7abf0e95ffff7b9f"
+mirror_sha256: "77f19e7f43f6d118e3565448c8f85e1da62b6fb8d66b5493a960d36f18ccbaab"
+etag: "sha256-895a20db50c5837a66829ee665c22d1f31b2c3d8e9a102ff9cf3228be84c4d3d"
 ---
 > 구현 상태: 구현됨 · 원문: `spec/conventions/review-citations.md` · 용어: [용어 사전](../CLE-GLOSSARY.md)
 
@@ -22,9 +22,9 @@ etag: "sha256-fabbcad241a50695f7753ffbd72441b5bc52c02db7bdab1d7abf0e95ffff7b9f"
 
 이 저장소의 코드·테스트 주석은 "왜 이 자리가 이렇게 생겼는지" 를 리뷰 산출물로 가리킨다. 이 규약은 그 관례를 문서로 정하고 리뷰 산출물 인용(review citation)의 **형식**을 정한다.
 
-전환 단계 2(NERV Task `CLE-T-4ABTG7`) 전까지 리뷰 산출물은 리뷰 세션마다 `review/<종류>/<YYYY>/<MM>/<DD>/<hh>_<mm>_<ss>/` 디렉터리로 저장소에 커밋됐다. 이 옛 산출물은 동결돼 있고 전환 단계 3 에서 작업 트리에서 지운다. git 이력에는 남는다. 단계 2 부터 리뷰 결과는 NERV 리뷰 레코드(라운드·발견·처분)이고 리뷰 오케스트레이터의 로컬 산출물 `.review/**` 는 커밋하지 않는다. 저장 위치는 저장소 `CLAUDE.md` 의 "정보 저장 위치" 표가 정한다.
+전환 단계 2(NERV Task `CLE-T-4ABTG7`) 전까지 리뷰 산출물은 리뷰 세션마다 `review/<종류>/<YYYY>/<MM>/<DD>/<hh>_<mm>_<ss>/` 디렉터리로 저장소에 커밋됐다. 이 옛 산출물은 전환 단계 3 에서 작업 트리에서 지웠다. git 이력에는 남는다. 단계 2 부터 리뷰 결과는 NERV 리뷰 레코드(라운드·발견·처분)이고 리뷰 오케스트레이터의 로컬 산출물 `.review/**` 는 커밋하지 않는다. 저장 위치는 저장소 `CLAUDE.md` 의 "정보 저장 위치" 표가 정한다.
 
-이 문서는 두 가지 인용을 정한다. 옛 산출물 경로 인용(규칙 1~4·8)과 NERV 발견 인용(규칙 9~10)이다. 통합 검토(`kind=merge`)와 spec-coverage 감사(`kind=spec_coverage`) 결과는 전환 4e 전까지 NERV 레코드가 아니라서 인용할 발견이 없다. 그 결과로 올린 NERV Task 키를 인용한다. 리뷰가 NERV 레코드로 바뀌며 달라진 전제는 [NERV 이전 영향](#nerv-이전-영향) 에 모았다.
+이 문서는 두 가지 인용을 정한다. 옛 산출물 경로 인용(규칙 1~4·8)과 NERV 발견 인용(규칙 9~10)이다. 통합 검토(`kind=merge`)와 spec-coverage 감사(`kind=spec_coverage`) 결과도 전환 단계 4e(NERV Task `CLE-T-VP5KDJ`)부터 NERV 발견을 낸다. 그 전의 결과를 가리키는 방법은 규칙 9 에 있다. 리뷰가 NERV 레코드로 바뀌며 달라진 전제는 [NERV 이전 영향](#nerv-이전-영향) 에 모았다.
 
 범위 밖:
 
@@ -37,12 +37,14 @@ etag: "sha256-fabbcad241a50695f7753ffbd72441b5bc52c02db7bdab1d7abf0e95ffff7b9f"
 2. 옛 산출물 인용에는 **날짜를 넣는다**. 날짜 없는 시각(`hh_mm_ss`)만 쓰지 않는다. NERV 발견 인용은 규칙 9 를 따른다.
 3. 옛 산출물의 권장 형식은 전체 경로(`review/code/2026/09/04/23_02_51`)다. 날짜 + 시각(`2026-09-04 23_02_51`)도 허용한다.
 4. 지적 번호를 함께 적으면 더 좁혀진다. 예: `review/code/2026/09/04/23_02_51 W1`.
-5. 규칙 2~4 와 9~10 은 `codebase/**` 의 코드·테스트 주석, `scripts/**`·`.github/**`, `spec/**` 문서에 적용한다([적용 범위](#적용-범위)).
-6. DTO 필드·컨트롤러의 `/** */` JSDoc 과 응답 DTO 클래스의 `/** */` JSDoc 에는 리뷰 인용을 **쓰지 않는다**. 바로 위 `//` 주석에 적고 그 `//` 주석은 규칙 2~4 나 9 를 따른다. NERV 발견 인용도 같다.
+5. 규칙 2~4 와 9~10 은 `codebase/**` 의 코드·테스트 주석, `scripts/**`·`.github/**`, NERV 스펙 문서에 적용한다([적용 범위](#적용-범위)).
+6. DTO 필드·컨트롤러의 `/** */` JSDoc 과 응답 DTO 클래스의 `/** */` JSDoc 에는 리뷰 인용을 **쓰지 않는다**. 바로 위 `//` 주석에 적고 그 `//` 주석은 규칙 2~4 나 9 를 따른다. NERV 발견 인용과 Task 키(`CLE-T-…`) 인용도 같다. DTO · 컨트롤러 파일의 `/** */` 와 데코레이터 문자열에 든 NERV 키 형태(Task 키 포함)는 [OpenAPI 문서화](../CLE-API/CLE-API-SWAGGER.md) 규칙 17 이 정하고 백엔드 가드 `openapi-internal-ref` 가 막는다.
 7. `plan/**` 문서와 `review/**` 산출물은 이 규약의 대상이 아니다. 둘 다 전환 단계 3 에서 저장소에서 지웠다(원문은 git 이력).
 8. 기존 날짜 없는 인용은 한꺼번에 바꾸지 않는다. 그 자리를 다음에 건드릴 때 함께 맞춘다.
-9. 전환 단계 2 이후의 리뷰는 NERV 발견의 **전체 ID** 로 인용한다. 형식은 `finding <발견 전체 ID>` 다(예: `finding 00000000-0000-7000-8000-000000000000`). 앞 8자처럼 줄인 ID 는 쓰지 않는다. 발견 여럿은 `finding <ID> · <ID>` 로 나열한다. ID 만으로는 NERV 에 접근하지 않고 풀 수 없으니 지적의 요지를 한 줄 함께 적기를 권한다.
+9. 전환 단계 2 이후의 리뷰는 NERV 리뷰 발견(finding)의 **전체 ID** 로 인용한다. 형식은 `finding <발견 전체 ID>` 다(예: `finding 00000000-0000-7000-8000-000000000000`). 앞 8자처럼 줄인 ID 는 쓰지 않는다. 발견 여럿은 `finding <ID> · <ID>` 로 나열한다. ID 만으로는 NERV 에 접근하지 않고 풀 수 없으니 지적의 요지를 한 줄 함께 적기를 권한다. 전환 단계 4e 전의 통합 검토(`kind=merge`)와 spec-coverage 감사(`kind=spec_coverage`) 결과에는 발견이 없다. 그 결과를 가리킬 때는 그 결과로 올린 NERV Task 키(`CLE-T-…`)를 쓴다.
 10. 리뷰 오케스트레이터의 로컬 산출물 경로(`.review/**`)는 인용하지 않는다. 커밋되지 않아 다른 체크아웃에는 없다.
+
+규칙 9 · 10 공통: NERV 스펙 문서에서는 두 규칙이 금지한 형태를 반례로 보이는 코드 스팬과 `.review/**` 가 어디인지 설명하는 서술은 인용이 아니다. 이 문서가 담은 반례와 설명이 그 예다. `codebase/**` 에서는 가드가 줄 단위로 세어 이 면제를 두지 않는다. 반례도 쓰지 않는다. 가드 자신의 파일은 순회에서 빠지고 금지 형태를 일부러 담은 다른 가드의 대조군만 파일별 허용 목록으로 뺀다.
 
 ## 인용 형식
 
@@ -52,6 +54,7 @@ etag: "sha256-fabbcad241a50695f7753ffbd72441b5bc52c02db7bdab1d7abf0e95ffff7b9f"
 | 날짜 + 시각 | `2026-09-04 23_02_51` | 허용 |
 | 날짜 없는 시각 | `23_02_51` | **금지**. 날짜가 없으면 어느 리뷰 세션인지 풀 수 없다 |
 | NERV 발견 전체 ID | `finding 00000000-0000-7000-8000-000000000000` | 전환 단계 2 이후 리뷰의 **권장**(규칙 9) |
+| NERV Task 키 | `CLE-T-…` | 전환 단계 4e 전의 통합 검토 · spec-coverage 감사 결과를 가리킬 때만 쓴다(규칙 9) |
 | 줄인 발견 ID | `finding 00000000` | **금지**. 같은 분에 생긴 발견끼리 앞부분이 겹친다 |
 | 로컬 산출물 경로 | `.review/code/2026/10/01/15_33_20` | **금지**(규칙 10). 커밋되지 않는 경로다 |
 
@@ -67,7 +70,7 @@ etag: "sha256-fabbcad241a50695f7753ffbd72441b5bc52c02db7bdab1d7abf0e95ffff7b9f"
 | `scripts/**` · `.github/**` | **적용** | 같은 이유다. 저장소 가드와 CI 정의도 맥락 없이 읽힌다 |
 | DTO 필드 · 컨트롤러의 `/** */` JSDoc | **대상 아님**(쓰지 않음) | 그 JSDoc 은 공개 OpenAPI `description` 으로 나간다. DTO 필드는 swagger CLI 플러그인이 프로퍼티별 `description` 으로 싣는다. 리뷰 인용은 API 소비자가 읽을 문장이 아니므로 처음부터 거기에 쓰지 않는다. [OpenAPI 문서화](../CLE-API/CLE-API-SWAGGER.md) 가 정한 대로 바로 위 `//` 주석에 적는다 |
 | 응답 DTO 클래스의 `/** */` JSDoc | **대상 아님**(쓰지 않음) | 필드와 똑같이 쓰지 않는다. 지금 플러그인은 클래스 JSDoc 을 스키마에 싣지 않는다(프로퍼티 메타데이터만 만든다). 그래도 응답 DTO 파일의 `/** */` 를 **공개 문서 채널 하나**로 다룬다. 피하는 자리도 같다. 바로 위 `//` 주석이다(Rationale «응답 DTO 클래스 JSDoc») |
-| `spec/**` 문서 | **적용** | `codebase/**` 와 같은 논리다. 살아 있는 문서라 오래 읽힌다. 기존 날짜 없는 인용이 이미 많다. 규칙 8 이 이것을 다룬다 |
+| NERV 스펙 문서(저장소 `spec/**` 는 그 미러) | **적용** | `codebase/**` 와 같은 논리다. 살아 있는 문서라 오래 읽힌다. 기존 날짜 없는 인용이 이미 많다. 규칙 8 이 이것을 다룬다 |
 | `plan/**` 문서 | 대상 아님(전환 단계 3 에서 지웠다) | 인용하던 라운드와 **같은 세션**에서 쓰였고 문서 자체가 그 맥락을 담았다. 작업 추적은 이제 NERV Task 다 |
 | `review/**` 산출물 | 대상 아님(전환 단계 3 에서 지웠다) | 시점 기록이었다. 나중에 고치는 대상이 아니었고 지금은 git 이력으로만 되짚는다 |
 
@@ -78,12 +81,26 @@ etag: "sha256-fabbcad241a50695f7753ffbd72441b5bc52c02db7bdab1d7abf0e95ffff7b9f"
 | 규칙 | 강제 여부 | 근거 |
 | --- | --- | --- |
 | 규칙 2(날짜 없는 시각 금지), `codebase/**` 전반 | **아니오** | 가드 없음 |
-| 규칙 6, **응답 DTO** JSDoc(필드·클래스)의 옛 경로 형태 인용 | **예** | `codebase/backend/src/repo-guards/__tests__/dto-jsdoc-citation-guard.ts` 가 AST 로 센다 |
-| 규칙 6, **응답 DTO** JSDoc 의 NERV 발견 인용(`finding <ID>`) | **아니오** | 위 가드의 세 정규식은 옛 경로 형태만 찾는다 |
-| 규칙 6, **컨트롤러** JSDoc | **아니오** | 위 가드는 `isResponseDtoFile()` 로 `dto/responses/**` 만 훑는다. 컨트롤러는 사람이 본다 |
-| 규칙 9(발견 전체 ID)·규칙 10(`.review/**` 금지) | **아니오** | 가드 없음. 응답 DTO JSDoc 의 `.review/code/…` 는 위 가드의 전체 경로 정규식에 앞 경계가 없어 함께 걸리지만 `finding <ID>` 는 세 형태 어디에도 해당하지 않는다 |
+| 규칙 6, **응답 DTO** JSDoc(필드·클래스)의 옛 경로 형태 인용 | **예** | 응답 DTO 가드 `dto-jsdoc-citation`(`codebase/backend/src/repo-guards/__tests__/dto-jsdoc-citation-guard.ts`)이 AST 로 센다 |
+| 규칙 6, **응답 DTO** JSDoc 의 NERV 발견 인용(`finding <ID>`) | **예** | `dto-jsdoc-citation` 이 넷째 패턴 `\bfinding\s+[0-9a-f]{8}(?:-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})?\b` 로 센다(전환 단계 4g, 2026-10-03). 전체 ID 와 앞 8자로 줄인 ID 를 모두 잡는다. 끝을 `\b` 로 막아 앞 두 그룹으로 줄인 형태(`finding 01a10005-3522`)의 첫 8자도 잡는다 |
+| 규칙 6, **컨트롤러** JSDoc | **아니오** | 규칙 6 의 금지 전체를 세는 가드는 없다. `dto-jsdoc-citation` 은 `isResponseDtoFile()` 로 `dto/responses/**` 만 훑는다. 줄인 ID 와 `.review/**` 두 형태는 `review-citation-form` 이 센다. Task 키는 `openapi-internal-ref` 가 NERV 키 형태로 센다([OpenAPI 문서화](../CLE-API/CLE-API-SWAGGER.md) 규칙 17) |
+| 규칙 6, **요청 DTO** 필드 JSDoc | **아니오** | 규칙 6 의 금지 전체를 세는 가드는 없다. `dto-jsdoc-citation` 은 `dto/responses/**` 만 본다. 줄인 ID 와 `.review/**` 두 형태는 `review-citation-form` 이 센다. Task 키는 `openapi-internal-ref` 가 NERV 키 형태로 센다([OpenAPI 문서화](../CLE-API/CLE-API-SWAGGER.md) 규칙 17) |
+| 규칙 9(줄인 발견 ID 금지)·규칙 10(`.review/**` 금지), `codebase/**` | **예** | `review-citation-form`(`codebase/frontend/src/lib/docs/__tests__/review-citation-form.test.ts`)이 `codebase/**` 텍스트 파일에서 두 형태가 0 인지 본다(전환 단계 4g). 읽는 파일과 잡는 형태는 아래 목록에 적는다 |
+| 규칙 9 · 10, `scripts/**` · `.github/**` · NERV 스펙 문서 | **아니오** | 가드 없음(Rationale «시행 가드를 넓힌 경위») |
 
-현재 구현의 가드가 찾는 인용 형태는 세 가지다. 전체 경로(`review/{code,consistency,merge}/YYYY/MM/DD/hh_mm_ss`), 날짜 + 시각, 날짜 없는 시각이다. 날짜 없는 시각은 규칙이 금지하는 형태지만 JSDoc 에 남을 확률이 오히려 높아 가드가 함께 센다.
+`review-citation-form` 이 보는 범위는 다음과 같다. 순회와 정규식은 `codebase-mentions.ts` 에 있다. 읽는 파일과 빼는 것은 `legacy-path-ratchet` · `spec-key-mentions` 와 함께 쓰는 공용 순회의 범위다. 그 목록의 기준은 [스펙과 구현 근거 규약](CLE-ENG-SPECEVIDENCE.md#빌드-가드--스펙-문서-저장소-무결성) 「빌드 가드 — 스펙 문서 저장소 무결성」의 공용 순회 문단이다. 목록을 고칠 때는 두 문서를 함께 고친다.
+
+- 읽는 파일: `codebase/**` 아래 확장자가 `.ts` · `.tsx` · `.js` · `.mjs` · `.cjs` · `.py` · `.sh` · `.md` · `.mdx` · `.sql` · `.json` · `.yml` · `.yaml` · `.css` · `.svg` · `.html` · `.txt` · `.toml` · `.example` · `.conf` 인 파일과 `Dockerfile` 이다. 목록에 없는 확장자는 읽지 않는다.
+- 빼는 것: `node_modules` · `dist` · `build` · `coverage` · `out` · `test-results` · `playwright-report` 디렉터리와 점으로 시작하는 디렉터리를 건너뛴다. 이 순회를 쓰는 가드 자신의 파일 5개도 뺀다. 판정을 시험하는 합성 입력을 담은 파일과 같은 순회를 쓰는 `legacy-path-ratchet` 가드의 기준값 파일이다.
+- 규칙 9: `finding` 바로 뒤 소문자 16진 정확히 8자만 잡는다. 그 뒤에 16진 문자나 `-` 가 오면 잡지 않는다. 잡지 않는 것은 앞 두 그룹으로 줄인 형태(`finding 01a10005-3522`), 7자 · 9자, 대문자 16진, `finding <ID> · <ID>` 의 둘째 이후 ID, 줄 바꿈으로 `finding` 과 갈린 ID 다.
+- 규칙 10: `.review/` 아래 `code` · `consistency` · `merge` · `spec-coverage` 네 디렉터리의 경로만 잡는다. `.review/` 아래 다른 이름은 잡지 않는다.
+- 허용 목록: 줄 단위 정규식이라 인용과 반례 · 설명을 가르지 않는다. 금지 형태를 일부러 담은 다른 가드의 대조군(`dto-jsdoc-citation` 의 fixture `jsdoc-citation.fixture.ts`)은 파일별 허용 목록에 둔다. 가드는 목록이 낡지 않았는지(파일이 있고 그 형태를 여전히 담는지)도 확인한다.
+
+두 가드의 줄인 ID 기준은 다르다. `dto-jsdoc-citation` 은 끝을 `\b` 로 막아 앞 두 그룹으로 줄인 형태의 첫 8자도 잡는다. 응답 DTO JSDoc 에는 어떤 인용도 쓰지 않으므로 넓게 잡는다. `review-citation-form` 은 전체 ID 를 통과시켜야 하므로 8자 뒤에 `-` 가 오면 잡지 않는다. 그래서 앞 두 그룹 형태는 이 가드에서 빠진다.
+
+현재 구현의 응답 DTO 가드가 찾는 인용 형태는 네 가지다. 전체 경로(`review/{code,consistency,merge}/YYYY/MM/DD/hh_mm_ss`), 날짜 + 시각, 날짜 없는 시각, NERV 발견 인용(`finding <ID>`)이다. 날짜 없는 시각은 규칙이 금지하는 형태지만 JSDoc 에 남을 확률이 오히려 높아 가드가 함께 센다. 첫 패턴은 앞 경계가 없어 `.review/` 아래 code · consistency · merge 의 날짜 · 시각 경로도 잡는다. spec-coverage 경로는 잡지 않는다. 이 겹침은 우연이고 보장이 아니다. 규칙 10 을 지키는 가드는 `review-citation-form` 이다.
+
+규칙 6 의 금지는 데코레이터의 `description` · `summary` 문자열에 미치지 않는다. 그 자리의 저장소 내부 참조(스펙 경로 · NERV 키 · Task 키 등)는 [OpenAPI 문서화](../CLE-API/CLE-API-SWAGGER.md) 규칙 17 이 정한다. 규칙 9 · 10 이 금지한 두 형태는 그 자리를 포함해 `review-citation-form` 이 codebase 전체에서 본다.
 
 ## 기존 인용
 
@@ -93,13 +110,13 @@ etag: "sha256-fabbcad241a50695f7753ffbd72441b5bc52c02db7bdab1d7abf0e95ffff7b9f"
 
 규칙 1~4·8 은 리뷰 산출물이 저장소 `review/**` 에 파일로 커밋되고 세션 디렉터리 경로와 git 이력으로 인용이 풀린다는 전제 위에 있다. 전환 단계 2 부터 리뷰는 NERV 레코드이고 아래 전제가 바뀌었다. 새 리뷰의 인용 형식은 규칙 9~10 이 정한다.
 
-| 규칙 | 단계 2 전의 전제 | 단계 2 에서 바뀐 점 |
+| 규칙 | 단계 2 전의 전제 | 이후 바뀐 점 |
 | --- | --- | --- |
 | 규칙 1(인용 유지)과 그 근거 | `review/**` 가 커밋되고 정리돼도 git 이력으로 되짚을 수 있다 | NERV 리뷰는 `nerv_review_submit` 으로 레코드를 제출한다. NERV 리뷰 규약은 리뷰 산출물을 저장소에 파일로 커밋하는 것을 금지한다. 서버가 내려가 있어도 파일로 대신하지 않는다. 새 리뷰는 `review/**` 경로를 만들지 않는다 |
 | 규칙 2~4(인용 형식) | 인용 대상이 리뷰 세션 디렉터리(`review/<종류>/<날짜>/<시각>`)와 그 안의 지적 번호(W1 등)다 | NERV 리뷰 발견(finding)은 레코드로 남는다. 같은 지적은 fingerprint 로 한 발견에 합쳐지고 같은 changeset·커밋으로 다시 제출하면 같은 라운드로 합쳐진다. 발견에는 스펙 버전(`spec_version_id`)·요구사항(`requirement_id`)·위치(`file`·`line`·`symbol`)가 붙는다. 코드 주석에서는 발견 전체 ID 로 가리킨다(규칙 9) |
 | 적용 범위의 `review/**` 행 | 시점 기록 파일이 저장소에 쌓인다 | 새 리뷰 산출물 파일이 생기지 않는다. 전환 단계 3 에서 `review/` 를 지웠다 |
-| 적용 범위의 `spec/**` 행 | 스펙 본문이 저장소 `spec/**` 에 있다 | 스펙 본문이 NERV 문서로 옮겨졌다(전환 단계 1). NERV 플러그인의 스펙 스킬은 저장소 `spec/**` 를 NERV 가 내보낸 읽기 전용 미러로 본다 |
-| 시행 가드(`dto-jsdoc-citation-guard.ts`) | 세 정규식이 리뷰 세션 디렉터리 이름 형태를 찾는다 | NERV 발견 ID 는 세 형태 어디에도 해당하지 않는다. 가드를 발견 ID 로 넓힐지는 정하지 않았다(강제 범위 표) |
+| 적용 범위의 스펙 문서 행 | 스펙 본문이 저장소 `spec/**` 에 있다 | 스펙 본문이 NERV 문서로 옮겨졌다(전환 단계 1). NERV 플러그인의 스펙 스킬은 저장소 `spec/**` 를 NERV 가 내보낸 읽기 전용 미러로 본다 |
+| 시행 가드(`dto-jsdoc-citation-guard.ts`) | 세 정규식이 리뷰 세션 디렉터리 이름 형태를 찾는다 | 전환 단계 4g 에서 NERV 발견 인용(`finding <ID>`)을 네 번째 형태로 더했다(강제 범위 표) |
 | Rationale «PR 번호로 전환하지 않은 이유» | 세션 경로가 git 이력으로 풀리고 라운드별 지적까지 가리킨다 | 새 리뷰에는 세션 경로가 없다. 기존 인용은 저장소 이력의 경로를 그대로 가리킨다 |
 | `code:` 의 준수 예시 | 이 규약을 지키는 파일을 스펙 frontmatter `code:` 에 적는다 | 이번 이전에서 `code:` 는 본문의 `## 구현 위치` 절로 옮겼다([스펙과 구현 근거 규약](CLE-ENG-SPECEVIDENCE.md)) |
 
@@ -110,13 +127,18 @@ etag: "sha256-fabbcad241a50695f7753ffbd72441b5bc52c02db7bdab1d7abf0e95ffff7b9f"
 - `codebase/backend/src/common/guards/roles.guard.spec.ts`
 - `codebase/frontend/src/components/llm-config/sanitize-loader-error.ts`
 
-시행 코드(규칙 6 의 **응답 DTO** 축에서 옛 경로 형태 인용을 AST 로 강제한다. NERV 발견 인용과 컨트롤러 축은 강제하지 않는다):
+시행 코드 — 규칙 6(응답 DTO). 응답 DTO JSDoc 의 옛 경로 형태와 NERV 발견 인용을 AST 로 강제한다. 컨트롤러 축과 요청 DTO 축은 강제하지 않는다.
 
 - `codebase/backend/src/repo-guards/__tests__/dto-jsdoc-citation*.ts`
 
-대조군(위 시행 코드가 잡아야 하는 위반 형태의 실례):
+대조군(위 응답 DTO 시행 코드가 잡아야 하는 위반 형태와 잡지 않아야 하는 준수 형태의 실례):
 
 - `codebase/backend/src/repo-guards/__tests__/fixtures/dto/responses/jsdoc-citation*.ts`
+
+시행 코드 — 규칙 9 · 10(`review-citation-form`). `codebase/**` 텍스트 파일에서 줄인 발견 ID 와 `.review/` 아래 네 종류 디렉터리 경로가 0 인지 본다. 대조군은 테스트 안의 합성 입력과 허용 목록 낡음 검사다.
+
+- `codebase/frontend/src/lib/docs/__tests__/review-citation-form.test.ts`
+- `codebase/frontend/src/lib/docs/__tests__/codebase-mentions.ts` (공용 순회와 두 형태의 정규식)
 
 ## Rationale
 
@@ -153,14 +175,17 @@ etag: "sha256-fabbcad241a50695f7753ffbd72441b5bc52c02db7bdab1d7abf0e95ffff7b9f"
 
 [스펙과 구현 근거 규약](CLE-ENG-SPECEVIDENCE.md) 은 `code:` 를 "이 스펙이 약속한 표면의 구현 경로" 로 정의한다. 이 규약은 처음에 강제하는 코드가 없었다. 주석 형태를 강제하는 가드가 없었기 때문이다. 그래서 `code:` 에 **이 규약이 처방하는 형태를 실제로 쓰는 파일**을 적었다. backend·frontend 에서 하나씩 골랐다. 이 예외는 [스펙과 구현 근거 규약](CLE-ENG-SPECEVIDENCE.md) 의 `code:` 필드 정의에 함께 적었다. 한쪽만 다시 해석하면 기준 문서가 그 사실을 모른다.
 
-2026-09-06 부터는 한 축의 절반이 강제된다. `dto-jsdoc-citation-guard.ts` 가 "응답 DTO 의 `/** */` JSDoc 에 리뷰 인용을 쓰지 않는다" 를 AST 로 센다. 같은 위반이 세 번 났고 세 번 다 사람이 읽고 잡은 것이 계기다(`review/code/2026/09/06/12_28_02` W2). 그래서 `code:` 는 이제 두 종류를 담는다.
+2026-09-06 부터는 한 축의 절반이 강제된다. `dto-jsdoc-citation-guard.ts` 가 "응답 DTO 의 `/** */` JSDoc 에 리뷰 인용을 쓰지 않는다" 를 AST 로 센다. 같은 위반이 세 번 났고 세 번 다 사람이 읽고 잡은 것이 계기다(`review/code/2026/09/06/12_28_02` W2). 그래서 `code:` 는 준수 예시 말고 시행 코드도 담게 됐다. 지금 구현 위치가 담는 범주는 다음과 같다.
 
 | 항목 | 범주 |
 | --- | --- |
 | `roles.guard.spec.ts` · `sanitize-loader-error.ts` | 준수 예시 |
 | `dto-jsdoc-citation*.ts` | **시행 코드**. 응답 DTO 행을 강제한다 |
+| `fixtures/dto/responses/jsdoc-citation*.ts` | 대조군. 위 시행 코드가 잡아야 할 위반과 잡지 않아야 할 준수 형태 |
+| `review-citation-form.test.ts` | **시행 코드**. 규칙 9 · 10 의 `codebase/**` 행을 강제한다(2026-10-03) |
+| `codebase-mentions.ts` | 공용 모듈. 세 가드가 함께 쓰는 순회와 정규식 |
 
-frontmatter 에도 같은 구분을 인라인 YAML 주석으로 적었다(`review/consistency/2026/09/06/13_18_59` INFO#2 의 제안). 그 주석이 처음에는 `review_guard` 파서의 결함 때문에 항목을 떨어뜨렸다(그 파서는 전환 단계 2 에서 리뷰 게이트와 함께 없어졌다). 파서를 고친 경위는 [스펙과 구현 근거 규약](CLE-ENG-SPECEVIDENCE.md) Rationale «`code:` 목록에 주석을 허용한 경위» 에 있다.
+frontmatter 에도 같은 구분을 인라인 YAML 주석으로 적었다(`review/consistency/2026/09/06/13_18_59` INFO#2 의 제안). 그 주석이 처음에는 `review_guard` 파서의 결함 때문에 항목을 떨어뜨렸다(그 파서는 전환 단계 2 에서 spec-linked 변경에 `--impl-done` 을 요구하던 게이트와 함께 없어졌다). 파서를 고친 경위는 [스펙과 구현 근거 규약](CLE-ENG-SPECEVIDENCE.md) Rationale «`code:` 목록에 주석을 허용한 경위» 에 있다.
 
 기각한 대안: `codebase/backend/src/**` 처럼 넓은 트리를 적기. 가드는 통과하지만 이 저장소의 다른 규약 문서가 `code:` 를 좁고 구체적인 파일로 적는 관행과 어긋난다. 무엇보다 아무것도 가리키지 않는 것과 같다.
 
@@ -219,4 +244,27 @@ NERV 발견 전체 ID 를 택했다.
 - **`plan/` 경로**: 같은 항목이 적었듯 plan 은 완료하면 `in-progress/` 에서 `complete/` 로 옮겨져 끊긴다. 전환 단계 3 에서는 `plan/` 자체가 지워진다.
 - **PR 번호**: 위 «PR 번호로 전환하지 않은 이유» 와 같다. 라운드별 지적을 가리키지 못한다.
 
-시행 가드를 발견 ID 형태로 넓히는 일은 이번에 정하지 않았다. 결정은 NERV Task `CLE-T-M7K35H`(전환 4g)가 맡는다. 그때까지 응답 DTO JSDoc 의 `.review/code/…` 가 옛 경로 정규식에 걸리는 것은 의도한 계약이 아니다. 응답 DTO JSDoc 에 인용을 쓰지 않는 규칙 6 은 형식과 무관하게 그대로다.
+전환 단계 4e 전의 통합 검토(`kind=merge`) · spec-coverage 감사(`kind=spec_coverage`) 결과는 Task 키로 가리킨다(규칙 9). 그 결과에는 발견이 없고 그 결과로 올린 NERV Task 가 유일한 NERV 레코드이기 때문이다. Task 키에도 발견 ID 와 같은 접근 한계가 있다. NERV 서버와 읽기 권한이 있어야 풀린다. 리뷰 인용을 보는 두 가드(`dto-jsdoc-citation` · `review-citation-form`)는 이 형태를 보지 않는다.
+
+### 시행 가드를 넓힌 경위 (2026-10-03, 전환 단계 4g)
+
+시행 가드는 전환 단계 4g(NERV Task `CLE-T-M7K35H`)에서 두 갈래로 넓혔다.
+
+- 응답 DTO JSDoc 가드(`dto-jsdoc-citation`)에 `finding <ID>` 형태를 더했다. 규칙 6 의 경계(응답 DTO 파일의 `/** */`)는 그대로다. 대조군 fixture 에 전체 ID 위반 · 줄인 ID 위반과 9자리 · 10자리 16진 준수 예를 뒀다. UUID 꼬리를 필수로 바꾼 정규식과 끝 경계를 지운 정규식은 이 대조군에서 실패한다.
+- 규칙 9 · 10 이 금지한 두 형태(줄인 발견 ID, `.review/**` 경로)는 codebase 텍스트 파일 전체에서 0 을 요구하는 별도 가드(`review-citation-form`)로 막았다. 두 형태는 자리와 무관하게 금지라서 응답 DTO JSDoc 만 보는 가드로는 덮을 수 없다. 2026-10-03 실측으로 둘 다 0건이라(가드 자신의 파일과 허용 목록의 대조군 제외) 기준값을 두지 않았다.
+
+같은 실측은 아래 명령으로 다시 잴 수 있다. 앞 정규식은 규칙 9 의 형태, 뒤 정규식은 규칙 10 의 형태를 ERE 로 옮긴 것이다. 가드 자신의 파일과 대조군은 금지 형태를 일부러 담고 있어 제외 pathspec 으로 뺀다.
+
+```sh
+git grep -nE '(^|[^[:alnum:]_])finding[[:space:]]+[0-9a-f]{8}([^0-9a-f-]|$)|(^|[^[:alnum:]_-])\.review/(code|consistency|merge|spec-coverage)/' \
+  -- codebase scripts .github \
+  ':!codebase/frontend/src/lib/docs/__tests__/review-citation-form.test.ts' \
+  ':!codebase/frontend/src/lib/docs/__tests__/codebase-mentions.ts' \
+  ':!codebase/backend/src/repo-guards/__tests__/fixtures/dto/responses/jsdoc-citation.fixture.ts'
+```
+
+`review-citation-form` 은 `codebase/**` 만 본다. `scripts/**` · `.github/**` 의 파일 확장자(`.yml` · `.py` · `.json` · `.sh` · `.md`)는 모두 확장자 목록 안에 있다. 순회 함수는 루트로 준 점 디렉터리(`.github`)도 훑는다. 건너뛰기는 하위 디렉터리에만 걸린다. 그래도 범위를 넓히지 않은 것은 2026-10-03 실측으로 두 트리 모두 0건이기 때문이다. 금지 형태가 생기면 그때 `MENTION_ROOTS` 를 넓힌다. `MENTION_ROOTS` 는 세 가드가 함께 쓰므로 넓히면 `legacy-path-ratchet` · `spec-key-mentions` 의 범위도 함께 넓어진다.
+
+`spec/**` 은 NERV 스펙의 읽기 전용 미러라 저장소에서 고칠 수 없다. 그래서 저장소 가드를 두지 않고 본문은 NERV 에서 검토한다.
+
+응답 DTO JSDoc 의 `.review/` 아래 code · consistency · merge 날짜 · 시각 경로는 `dto-jsdoc-citation` 의 첫 패턴에도 걸린다. 이 겹침은 우연이고 보장이 아니다. 규칙 10 을 지키는 가드는 `review-citation-form` 이다. 응답 DTO JSDoc 에 인용을 쓰지 않는 규칙 6 은 형식과 무관하게 그대로다.
