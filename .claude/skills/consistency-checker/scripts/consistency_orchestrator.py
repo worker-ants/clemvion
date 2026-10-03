@@ -2,12 +2,23 @@
 """Consistency Checker Orchestrator — prepare-only mode.
 
 Modes:
-  --spec <path>        spec draft 검토
-  --plan <path>        plan draft 검토
-  --impl-prep <scope>  구현 착수 전 검토 (scope = spec/<area>/ 경로)
-  --impl-done <scope>  구현 완료 후 검토 — spec 영역 + 코드 diff(vs --diff-base) 를
-                       함께 묶어 5 checker 가 사후 검증. 기본 diff-base = origin/main.
+  --spec <path>        스펙 초안 검토 (NERV 초안 본문을 둔 파일)
+  --impl-prep <scope>  구현 착수 전 검토
+  --impl-done <scope>  구현 완료 후 검토 — 대상 스펙 + 코드 diff(vs --diff-base) 를
+                       함께 묶어 checker 가 사후 검증. 기본 diff-base = origin/main.
                        `--diff-base <ref>` 로 override.
+
+<scope> 는 NERV 스펙 미러를 가리킨다(NERV 정본 전환 4e). 쉼표로 여럿을 준다. 항목은 NERV 키
+(`CLE-ENG-SPECEVIDENCE`), 미러 영역 폴더(`spec/CLE-ENG/`), 미러 파일 중 하나다. 동결된 옛 트리
+(`spec/<번호>-<영역>/` · `spec/conventions/`)는 받지 않는다. 대조 코퍼스도 미러다. 구현할 때
+`pull.py --task` 로 받은 스펙이 미러에 있으므로 미러가 그 작업의 기준 버전이다.
+
+  --focus <keys>       랭킹에서 앞세울 NERV 키(쉼표). 보통 클레임 scope 의 spec_ids.
+  --diff-path <path>   `--impl-done` 구현 diff 의 경로(여럿이면 반복). 기본은 `code_areas`.
+                       하네스만 바꾼 작업은 `--diff-path .claude` 처럼 준다.
+
+`--impl-done` 은 미러 문서의 `## 구현 위치` 가 이 브랜치가 바꾼 파일을 덮으면 그 문서를 대상에
+더한다. 파일 단위 보장(옛 push 게이트의 spec-linked 검사)을 대신한다.
 
 The orchestrator no longer calls a model. It collects context, writes
 per-checker prompt bodies plus a retry-state file, and prints the session
@@ -18,6 +29,7 @@ sub-agents via the `Agent` tool and decides BLOCK based on the
 """
 
 import argparse
+import fnmatch
 import json
 import os
 import re
@@ -131,10 +143,10 @@ _READ_CACHE: dict[str, str] = {}
 def read_text_file(path):
     """파일을 읽되 **한 실행 안에서는 한 번만** 읽는다 (백로그 §7).
 
-    `collect_context` 는 plan 코퍼스를 설정한 경우 그 디렉터리 전체를 랭킹 신호용으로 한 번 읽고,
-    곧이어 `format_file_bundle` 이 같은 디렉터리를 처음부터 다시 읽는다 — 세션당 2배 I/O.
-    실측 규모는 30개 430,929 bytes(≈3.5ms)라 오늘 아프지는 않지만, 호출부를 고쳐 없애는
-    것보다 읽기 자체를 기억하는 편이 **다른 이중 읽기까지 함께** 닫는다(호출부는 6곳이다).
+    `collect_context` 는 미러 문서를 종류(`mirror_doc_type`) · 구현 위치 · 키 언급을 보려고 한 번
+    읽고, 곧이어 `format_file_bundle` 이 같은 파일을 다시 읽는다. 처음 이 캐시를 둔 이유는 옛 plan
+    코퍼스의 같은 이중 읽기였다(30개 430,929 bytes, ≈3.5ms). 호출부를 고쳐 없애는 것보다 읽기
+    자체를 기억하는 편이 **다른 이중 읽기까지 함께** 닫는다.
 
     캐시가 안전한 이유: 이 orchestrator 는 세션을 준비하고 끝나는 **단명 CLI** 다. 한 실행
     안에서 같은 경로의 내용이 바뀌면 그건 입력이 도중에 바뀐 것이고, 그때 두 번째 읽기가
@@ -195,10 +207,10 @@ def _natural_key(path):
 
 
 # NERV 스펙 미러(`spec/CLE-*.md` · `spec/CLE-*/**` · `spec/README.md`, NERV 전환 단계 1).
-# 옛 트리 코퍼스(related_specs · conventions)에 섞지 않는다 — 두 벌이 같은 내용을 다른 모양으로
-# 담아 예산을 두 번 쓰고 우선순위를 흐린다. 코퍼스를 미러로 옮기는 일은 단계 4e(NERV Task
-# `CLE-T-VP5KDJ`)다. 같은 판정이 `pull.py` 와 frontend `spec-links.ts` 에도 있고, 세 곳이 같은
-# 파일을 고르는지 `.claude/tests/test_nerv_mirror_pull.py` 의 `MirrorPredicateParityTest` 가 본다.
+# 전환 4e(NERV Task `CLE-T-VP5KDJ`)부터 검토 대상과 대조 코퍼스는 이 미러다. 동결된 옛 트리는
+# 단계 5 에서 지우므로 대상으로도 코퍼스로도 쓰지 않는다. 같은 판정이 `pull.py` 와 frontend
+# `spec-links.ts` 에도 있고, 세 곳이 같은 파일을 고르는지 `.claude/tests/test_nerv_mirror_pull.py` 의
+# `MirrorPredicateParityTest` 가 본다.
 _NERV_MIRROR_REL = re.compile(r"^(?:README\.md|CLE-[A-Z0-9-]+\.md|CLE-[A-Z0-9-]+/)")
 
 
@@ -213,7 +225,6 @@ def collect_markdown_files(root_dir, exclude_paths=None):
     else:
         exclude_paths = {os.path.abspath(p) for p in exclude_paths}
 
-    # `None` 은 "코퍼스를 설정하지 않았다" 다(plan 코퍼스, 단계 3 부터 선택 항목).
     if not root_dir or not os.path.isdir(root_dir):
         return []
 
@@ -231,32 +242,151 @@ def collect_markdown_files(root_dir, exclude_paths=None):
     return files
 
 
-# Auto-generated per-resource reference dumps (`spec/conventions/
-# <name>-api-catalog/<resource>/**`). `spec-impl-evidence.md` R-7 says these are
-# not 정식 spec, yet alphabetically they land near the front of the conventions
-# bundle and used to consume the whole budget before any document the target
-# actually cites. Matched on the path shape so a relocated or newly added
-# catalog inherits the demotion without a code change.
+# NERV 키. `pull.py` 의 `KEY_RE` 와 같은 문법이다(`fullmatch` 로만 쓴다). 미러 파일 이름이 곧 키다.
+_MIRROR_KEY_RE = re.compile(r"CLE-[A-Z0-9]+(?:-[A-Z0-9]+)*(?:--[A-Z0-9]+(?:-[A-Z0-9]+)*)*")
+# 본문이 키를 부르는 자리. 더 긴 키의 앞부분(`CLE-ENG` ⊂ `CLE-ENG-MIGRATION`)과 미러 폴더 이름
+# (`../CLE-ENG/…` 의 `CLE-ENG`)은 그 키의 언급이 아니다.
+_KEY_MENTION_RE = re.compile(
+    r"(?<![A-Za-z0-9-])(CLE-[A-Z0-9]+(?:-[A-Z0-9]+)*(?:--[A-Z0-9]+(?:-[A-Z0-9]+)*)*)(?![A-Za-z0-9/-])"
+)
+
+# 대조 코퍼스에서 빼는 미러 영역. 리서치 문서는 요구사항을 정하지 않는다(`CLAUDE.md` 「정보 저장 위치」).
+_NON_SPEC_AREAS = ("CLE-RESEARCH",)
+
+# 미러 frontmatter 의 문서 종류. NERV 는 값을 JSON 인용 표기로 준다(`pull.py` docstring).
+_FM_TYPE_RE = re.compile(r'^type:\s*"([^"\n]*)"\s*$', re.MULTILINE)
+CONVENTION_TYPE = "convention"
+
+
+def mirror_key(path):
+    return os.path.splitext(os.path.basename(path))[0]
+
+
+def collect_mirror_files(spec_dir):
+    """미러 문서를 자연 순서로. 미러 안내 `README.md` 는 문서가 아니라서 뺀다."""
+    return [
+        p for p in collect_markdown_files(spec_dir)
+        if is_nerv_mirror(p, spec_dir) and _MIRROR_KEY_RE.fullmatch(mirror_key(p))
+    ]
+
+
+def mirror_doc_type(path):
+    """미러 frontmatter 의 `type`(vision · area · feature · design · convention …). 못 읽으면 ""."""
+    text = read_text_file(path)
+    if not text.startswith("---\n"):
+        return ""
+    end = text.find("\n---\n", 4)
+    m = _FM_TYPE_RE.search(text[4:end] if end >= 0 else "")
+    return m.group(1) if m else ""
+
+
+def _mirror_area(path, spec_dir):
+    rel = os.path.relpath(path, spec_dir).replace(os.sep, "/")
+    return rel.split("/", 1)[0] if "/" in rel else ""
+
+
+def mentioned_keys(text, keys):
+    """`text` 가 부르는 미러 키 중 `keys` 에 있는 것."""
+    return {k for k in _KEY_MENTION_RE.findall(text or "") if k in keys}
+
+
+def body_of(text):
+    """미러 frontmatter 를 걷은 본문. 키 언급은 본문에서만 센다.
+
+    frontmatter 의 `parent` · `ancestors` · `area` 는 모든 문서가 영역 문서와 비전을 부르는 것처럼
+    만든다. 그 신호는 문서마다 같아서 순서를 가르지 못한다.
+    """
+    if text.startswith("---\n"):
+        end = text.find("\n---\n", 4)
+        if end >= 0:
+            return text[end + 5:]
+    return text
+
+
+# --- `## 구현 위치` ---------------------------------------------------------------------
 #
-# The trailing `[^/]+/` is load-bearing: R-7 draws the line at "one or more path
-# segments after the catalog directory", and says the top-level
-# `<name>-api-catalog/<resource>.md` index files are 정식 spec that stay in
-# scope. Measured here: 222 nested files demoted, 27 top-level indexes not.
-# Without it this demoted those 27 too — the exact opposite of what R-7 asks.
-_CATALOG_BULK_RE = re.compile(r"(^|/)[^/]*-api-catalog/[^/]+/")
+# NERV 로 옮긴 스펙은 옛 frontmatter `code:` 대신 본문 `## 구현 위치` 절에 구현 파일을 적는다(미러 182편
+# 중 136편, 2026-10-03 실측: 항목 946개 중 942개가 백틱 경로로 시작한다). 옛 push 게이트는 `code:` 에
+# 걸린 파일을 고친 브랜치에 `--impl-done` 을 요구했다. 전환 단계 2 에서 그 검사가 걷히며 보장의 단위가
+# 파일에서 Task 로 바뀌었다(`CLE-ENG-SPECEVIDENCE` «NERV 이전 영향»). `--impl-done` 이 바뀐 파일을
+# 덮는 문서를 대상에 넣어 "구현 위치에 적힌 파일을 고치면 그 문서와 대조된다" 를 다시 세운다. NERV
+# done 게이트가 Task 마다 consistency 라운드를 요구하므로 그 라운드가 이 대조를 담는다.
+
+_IMPL_HEADING_RE = re.compile(r"^## 구현 위치[ \t]*$", re.MULTILINE)
+_SECTION_END_RE = re.compile(r"^#{1,2}\s", re.MULTILINE)
+_BACKTICK_RE = re.compile(r"`([^`\n]+)`")
+_LINE_SUFFIX_RE = re.compile(r":\d+(?:[-~]\d+)?$")
+_GLOB_CHARS = frozenset("*?[")
 
 
-def _is_catalog_bulk(rel):
-    return bool(_CATALOG_BULK_RE.search(rel))
+def impl_location_patterns(text, root, spec_rel="spec"):
+    """`## 구현 위치` 절이 백틱으로 적은 저장소 경로 · glob.
+
+    첫 경로 조각이 저장소 최상위 폴더(`codebase` · `scripts` · `.github` · `.claude` …)인 것만 센다.
+    함수 이름 · 식별자(`recoverStuckExecutions`)와 스펙 미러 자신은 경로가 아니다. 줄 번호 접미
+    (`a.ts:12`)는 걷는다.
+    """
+    m = _IMPL_HEADING_RE.search(text or "")
+    if not m:
+        return []
+    rest = text[m.end():]
+    end = _SECTION_END_RE.search(rest)
+    section = rest[: end.start()] if end else rest
+    out = []
+    for token in _BACKTICK_RE.findall(section):
+        token = _LINE_SUFFIX_RE.sub("", token.strip())
+        token = token[2:] if token.startswith("./") else token
+        if not token or " " in token or "/" not in token:
+            continue
+        first = token.split("/", 1)[0]
+        if not first or first == spec_rel or not os.path.isdir(os.path.join(root, first)):
+            continue
+        out.append(token)
+    return out
+
+
+def impl_pattern_matches(pattern, rel):
+    """구현 위치 항목 하나가 저장소 상대 경로 `rel` 을 덮는가.
+
+    - `dir/` · `dir/**`: 그 아래 전부
+    - glob(`*` `?` `[`): `fnmatch`. `*` 가 `/` 도 넘으므로 실제보다 넓게 맞는다. 넓은 쪽 오류는 문서를
+      하나 더 싣는 비용이고, 좁은 쪽 오류는 대조를 빠뜨린다.
+    - 그 밖: 같은 파일이거나 그 폴더 아래
+    """
+    if pattern.endswith("/"):
+        return rel.startswith(pattern)
+    if pattern.endswith("/**"):
+        return rel.startswith(pattern[:-2])
+    if _GLOB_CHARS & set(pattern):
+        return fnmatch.fnmatchcase(rel, pattern)
+    return rel == pattern or rel.startswith(pattern + "/")
+
+
+def docs_covering_changes(files, changed_rels, root, spec_rel="spec"):
+    """`## 구현 위치` 가 `changed_rels` 중 하나라도 덮는 문서 → `{경로: [덮인 파일, …]}`.
+
+    스펙 미러 자신의 변경은 구현 변경이 아니라서 보지 않는다.
+    """
+    prefix = spec_rel.rstrip("/") + "/"
+    code_changed = sorted(r for r in changed_rels if not r.startswith(prefix))
+    if not code_changed:
+        return {}
+    hits = {}
+    for path in files:
+        patterns = impl_location_patterns(read_text_file(path), root, spec_rel)
+        if not patterns:
+            continue
+        matched = [r for r in code_changed if any(impl_pattern_matches(p, r) for p in patterns)]
+        if matched:
+            hits[path] = matched
+    return hits
 
 
 def _branch_changed_rels(diff_base, root):
     """Repo-relative paths this branch touched, as a set. Empty on any failure.
 
-    Whole-repo on purpose: `collect_context` calls this ONCE and narrows it per
-    bundle with a prefix filter, so a `subpath` parameter would only re-spawn
-    git per bundle. (It had one; after the call sites moved to `_prioritized`
-    nothing passed it.)
+    Whole-repo on purpose: `collect_context` calls this ONCE and every bundle
+    reads the same set.
 
     The git call itself now lives in `_shared/git_probe.branch_diff_files`,
     shared verbatim with `code_review_orchestrator.get_git_branch_diff_files`.
@@ -275,15 +405,13 @@ def _edited_rels(diff_base, root):
     """Files this task touched — committed on the branch OR still uncommitted.
 
     Ranking needs both, and the committed half alone is blind exactly when it
-    matters: this project runs the consistency check BEFORE the write lands
-    (planner `--spec` 직전, developer `--impl-prep` 착수 직전), so the documents
-    under review are uncommitted by construction. Measured 2026-08-10 on
-    `spec/5-system/`: an uncommitted edit ranked 8th of 18, inside that
-    directory's drop zone — the reported "the bundle drops the document being
-    reviewed" symptom.
+    matters: `--impl-prep` runs before the work lands, so what it is about is
+    often uncommitted. Measured 2026-08-10: an uncommitted edit ranked 8th of 18
+    inside a directory's drop zone — the reported "the bundle drops the document
+    being reviewed" symptom.
 
     The union is deliberate rather than a replacement: a branch that already
-    committed its spec edits keeps its tier-0 signal after `git commit`, which a
+    committed its edits keeps its tier-0 signal after `git commit`, which a
     working-tree-only probe would lose.
     """
     return _branch_changed_rels(diff_base, root) | set(
@@ -294,104 +422,43 @@ def _edited_rels(diff_base, root):
     )
 
 
-# A filename mention has to END and BEGIN where the filename does. Bare `in`
-# matched `store.md` inside `secret-store.md`, which promoted a 30,559-char
-# catalog page into the on-topic tier and pushed the 31,525-char code diff out
-# of the `--impl-done` budget — the checkers then judged "spec vs implementation"
-# with no implementation (measured 2026-08-11, `review/consistency/…/17_42_52`).
-#
-# `.` is asymmetric on purpose, and the asymmetry is NOT "leading only":
-#   - LEADING: a bare `.` is rejected, so `v2.store.md` does not answer for
-#     `store.md`.
-#   - TRAILING: a bare `.` is ALLOWED (`… store.md.` is ordinary prose), but
-#     `.` followed by another filename character is not — otherwise
-#     `store.md.bak` answers for `store.md`, which is the same defect this
-#     function was just fixed for (`requirement` review, 18_45_23).
-_NAME_START = r"(?<![A-Za-z0-9_.\-])"
-_NAME_END = r"(?![A-Za-z0-9_\-]|\.[A-Za-z0-9])"
-
-
-def _named_in(rel, plan_text):
-    """Does `plan_text` name this file — by path or by basename?
-
-    `spec_impact:` frontmatter entries are full repo paths and body references
-    are usually links, so both forms have to count; the frontmatter needs no
-    separate parser because the caller passes the plan's WHOLE text.
-
-    The match is **boundary-anchored**: a plan that merely mentions a
-    LONGER name must not promote the shorter one. Both forms are checked,
-    because `rel` is suffix-vulnerable the same way (`a/store.md` sits inside
-    `b/a/store.md`) even though that shape is rarer than the basename one.
-    """
-    if not plan_text:
-        return False
-    for needle in (rel, os.path.basename(rel)):
-        # `in` first: it is the cheap reject for the overwhelmingly common
-        # "not mentioned at all" case, and the regex only runs on survivors.
-        if needle in plan_text and re.search(
-            _NAME_START + re.escape(needle) + _NAME_END, plan_text
-        ):
-            return True
-    return False
-
-
 def prioritize_bundle_files(
-    file_paths, root, *, changed_rels=(), plan_text="", branch_plan_text=""
+    file_paths, root, *, changed_rels=(), focus_rels=(), mentioned_rels=()
 ):
     """Order a bundle so the documents this task is actually about survive truncation.
 
-    `truncate_file_bundle` drops whole files from the TAIL, and
-    `collect_markdown_files` hands it natural order now, but ordering by name
-    alone still says nothing about relevance. That combination
-    is why `spec/5-system/4-execution-engine.md` — the work target — kept losing
-    its budget to `1-auth.md` / `10-graph-rag.md` / `11-mcp-client.md`, eight
-    times across separate sessions. Twice the checkers had no coverage of the
-    target at all, so `BLOCK: NO` meant "never looked", not "looks fine".
+    `truncate_file_bundle` drops whole files from the TAIL, so order decides
+    which files a checker never sees. Ordering by name alone is how the work
+    target lost its budget to alphabetically earlier files, eight times across
+    separate sessions — twice the checkers had no coverage of the target at all,
+    so `BLOCK: NO` meant "never looked", not "looks fine".
 
     Tiers (stable, natural order inside each — see `_natural_key`):
-      0. changed by this branch — the strongest available "this is the subject"
-         signal, and it outranks the catalog demotion below
-      1. named by a plan THIS BRANCH touched — its `spec_impact` frontmatter and
-         its body both count, and this is the tier that carries `--impl-prep`,
-         where the spec is typically NOT yet edited so tier 0 is empty
-      2. named by any other in-progress plan
+      0. changed by this branch — a pulled spec is the work's own basis
+      1. named by the task — `--focus` keys (the claim's scope) and, for
+         `--impl-done`, documents whose `## 구현 위치` covers a changed file
+      2. mentioned by the target documents (a key in their text)
       3. everything else
-      4. catalog bulk — explicitly not 정식 spec; last. Outranked by tier 0 only:
-         a plan that merely mentions one catalog page must not pull the whole
-         generated dump forward, but a branch that actually edits one is about it.
 
-    Tier 1 exists because "named by ANY in-progress plan" stopped discriminating:
-    measured 2026-08-09 with 63 in-progress plans (755,385 chars concatenated),
-    it tagged **14 of 18** files in `spec/5-system/` — the very scope this
-    function was built for. Narrowed to the plans this branch touched, the same
-    scope tags 5, and they are this branch's actual targets. A signal that fires
-    on 77% of a directory is not a signal.
+    The plan-name tiers this replaced read `plan/in-progress/**`, which left the
+    repository in NERV cutover stage 3. Tier 1 is their successor: the task's
+    own statement of what it targets, now the claim's `spec_ids`.
 
     Reordering only. Nothing is dropped here; what does not fit is still dropped
     by `truncate_file_bundle`, which names the omissions.
     """
-    changed = set(changed_rels)
+    changed, focus, mentioned = set(changed_rels), set(focus_rels), set(mentioned_rels)
 
     def tier(path):
         rel = os.path.relpath(path, root) if root else path
-        # Branch-changed wins over the catalog demotion: a PR that edits a
-        # catalog page IS about that page, and demoting it would reproduce this
-        # function's own bug class for exactly those PRs. The demotion only
-        # outranks the weaker plan-mention signals, where a passing reference
-        # must not drag ~230 generated files forward.
         if rel in changed:
             return 0
-        if _is_catalog_bulk(rel):
-            return 4
-        if _named_in(rel, branch_plan_text):
+        if rel in focus:
             return 1
-        if _named_in(rel, plan_text):
+        if rel in mentioned:
             return 2
         return 3
 
-    # `sorted` is stable and the input already arrives in natural order, so the
-    # secondary key is implicit — but spell it out rather than rely on the
-    # caller having sorted it the same way.
     return sorted(file_paths, key=lambda p: (tier(p), _natural_key(p)))
 
 
@@ -423,12 +490,25 @@ def format_file_bundle(file_paths, root, label):
     return "".join(parts)
 
 
-def _collect_code_diff(diff_base, root):
-    """Return ``git diff <diff_base>...HEAD`` for the project's code areas.
+# API 카탈로그의 필드 파일(`codebase/api-catalogs/<vendor>/<resource>/**`, 전환 4a 에서 옮겼다).
+# 생성기가 만드는 참조 덤프라 정식 스펙이 아니다(`CLE-ENG-SPECEVIDENCE` R-7). 최상위 색인
+# `<vendor>/<resource>.md` 는 남긴다. 카탈로그를 다시 생성한 PR 은 필드 파일 수백 개를 바꾸므로 구현
+# diff 에 실으면 그 예산을 다 쓴다. diff 에서 빼고 수만 census 에 적는다.
+CATALOG_FIELD_GLOB = "codebase/api-catalogs/*/*/**"
+_CATALOG_FIELD_RE = re.compile(r"^codebase/api-catalogs/[^/]+/[^/]+/")
 
-    Used by ``--impl-done`` to bundle the implementation diff alongside
-    the spec area files so checkers can compare both sides. Empty
-    string on any failure (missing base ref, no diff, git error).
+
+def is_catalog_field_file(rel):
+    return bool(_CATALOG_FIELD_RE.match(rel))
+
+
+def _collect_code_diff(diff_base, root, paths=None):
+    """Return ``git diff <diff_base>...HEAD`` for the given paths (default: code areas).
+
+    Used by ``--impl-done`` to bundle the implementation diff alongside the
+    target specs so checkers can compare both sides. Empty string on any
+    failure (missing base ref, no diff, git error). Catalog field files are
+    left out (`CATALOG_FIELD_GLOB`).
 
     THREE-DOT on purpose (harness-consistency-bundler-budget §H residual): ``A...B``
     diffs against ``merge-base(A, B)``, so when ``diff_base`` (e.g. a freshly
@@ -438,8 +518,10 @@ def _collect_code_diff(diff_base, root):
     checker read code the branch never touched as "removed". Do not switch to
     two-dot.
     """
-    cfg = project_config.load(root)
-    code_areas = cfg.get("code_areas") or []
+    if not paths:
+        cfg = project_config.load(root)
+        paths = cfg.get("code_areas") or []
+    pathspecs = list(paths) + [f":(exclude,glob){CATALOG_FIELD_GLOB}"]
     # Through `_shared/git_probe`, not a private `subprocess.run`. The private
     # copy decoded with plain `text=True`, so an undecodable byte anywhere in
     # the diff body raised `UnicodeDecodeError` — a `ValueError`, which the old
@@ -448,7 +530,7 @@ def _collect_code_diff(diff_base, root):
     # carried `errors="surrogateescape"` for exactly that; this call site was
     # the sibling that never got it.
     return _git_probe.diff_text(
-        diff_base, root, code_areas,
+        diff_base, root, pathspecs,
         on_error=lambda reason: debug_log(f"git diff for --impl-done failed: {reason}"),
     )
 
@@ -490,9 +572,9 @@ def _head_basis_notice(root, diff_base):
     )
 
 
-#: `_scope_delta_census` 가 나열하는 scope-hit 경로의 상한. 넘으면 "… 외 N건" 으로 접는다.
+#: `_scope_delta_census` 가 나열하는 경로 목록의 상한. 넘으면 "… 외 N건" 으로 접는다.
 #: head 구역은 절단 대상이 아니므로(그게 census 의 존재 이유다) 여기서 스스로 유계화해야
-#: 한다 — 대형 scope(`spec/5-system/` 등)에서 수백 줄이 본문 예산을 잠식하는 것을 막는다.
+#: 한다 — 대형 scope 에서 수백 줄이 본문 예산을 잠식하는 것을 막는다.
 _SCOPE_HITS_DISPLAY_LIMIT = 20
 
 
@@ -509,16 +591,25 @@ def _count_diff_files(diff_text):
     )
 
 
-def _scope_delta_census(root, target_path_rel, changed_rels, diff_text):
+def _folded(items):
+    """`- \`x\`` 줄들. `_SCOPE_HITS_DISPLAY_LIMIT` 를 넘으면 정확한 나머지 수로 접는다."""
+    shown = "".join(f"    - {x}\n" for x in items[:_SCOPE_HITS_DISPLAY_LIMIT])
+    if len(items) > _SCOPE_HITS_DISPLAY_LIMIT:
+        shown += f"    - … 외 {len(items) - _SCOPE_HITS_DISPLAY_LIMIT}건\n"
+    return shown
+
+
+def _scope_delta_census(root, scope_rels, changed_rels, diff_text, *,
+                        covering=None, catalog_skipped=0):
     """``--impl-done`` head census: what delta EXISTS, measured before budgeting.
 
-    Root cause this guards against (`harness-consistency-summary-downgrade-rule.md`,
-    re-observed 2026-08-06 across three sessions): the implementation diff is a
-    named chunk in the BODY, so `truncate_file_bundle` can drop its content while
-    the label survives. Measured then: 15 prompts (5 checkers x 3 sessions) with
-    ` ```diff ` fences = 0 and the 28 changed files appearing 0 times — five
-    checkers judged "spec vs implementation" having seen no implementation, and
-    one misdiagnosed the surviving label as an unsubstituted placeholder.
+    Root cause this guards against (re-observed 2026-08-06 across three
+    sessions): the implementation diff is a named chunk in the BODY, so
+    `truncate_file_bundle` can drop its content while the label survives.
+    Measured then: 15 prompts (5 checkers x 3 sessions) with ` ```diff ` fences
+    = 0 and the 28 changed files appearing 0 times — five checkers judged "spec
+    vs implementation" having seen no implementation, and one misdiagnosed the
+    surviving label as an unsubstituted placeholder.
 
     A census in the body would be dropped by the same cut. This block is
     concatenated into the HEAD section, which `truncate_file_bundle` never
@@ -526,38 +617,45 @@ def _scope_delta_census(root, target_path_rel, changed_rels, diff_text):
     cut"** apart from **"there is no diff"** — two states that look identical
     from inside a truncated prompt and lead to opposite conclusions.
 
-    It also states the scope-side delta. A branch that legitimately changes code
-    only (spec delta 0 under `scope`) has been read as *"the review premise is
-    void"* and reported CRITICAL — see the sibling entry in
-    `update-returning-tuple-shape.md`, where the same input produced YES/NO in
-    four rounds. Naming the number, with its meaning, removes the inference.
+    It also states the target-side delta. A branch that legitimately changes
+    code only (spec delta 0) has been read as *"the review premise is void"* and
+    reported CRITICAL, with the same input producing YES/NO in four rounds.
+    Naming the number, with its meaning, removes the inference.
+
+    `covering` lists the documents `--impl-done` added because their
+    `## 구현 위치` covers a changed file, with the files that matched. A
+    checker that does not know why a document is in its target reads it as the
+    task's own scope.
     """
-    scope_rel = target_path_rel.rstrip("/")
-    prefix = scope_rel + "/"
-    scope_hits = sorted(
-        r for r in changed_rels if r == scope_rel or r.startswith(prefix)
-    )
+    scope = set(scope_rels)
+    scope_hits = sorted(r for r in changed_rels if r in scope)
     diff_files = _count_diff_files(diff_text)
     diff_lines = diff_text.count("\n") if diff_text.strip() else 0
 
     if scope_hits:
-        shown = "".join(
-            f"    - `{r}`\n" for r in scope_hits[:_SCOPE_HITS_DISPLAY_LIMIT]
-        )
-        more = (
-            f"    - … 외 {len(scope_hits) - _SCOPE_HITS_DISPLAY_LIMIT}건\n"
-            if len(scope_hits) > _SCOPE_HITS_DISPLAY_LIMIT
-            else ""
-        )
         scope_line = (
-            f"- **scope(`{scope_rel}`) 델타: {len(scope_hits)}개 파일**\n{shown}{more}"
+            f"- **대상 스펙 델타: {len(scope_hits)}개 파일** — 이 브랜치가 받은(pull) 스펙이다\n"
+            + _folded([f"`{r}`" for r in scope_hits])
         )
     else:
         scope_line = (
-            f"- **scope(`{scope_rel}`) 델타: 0개 파일** — 이 브랜치는 그 spec 영역을 "
-            "바꾸지 않았다. **이것은 정상이며 검토 전제가 무효라는 뜻이 아니다** "
-            "(코드 전용 PR 이면 spec 델타 0이 당연하다). 델타 0 자체를 근거로 "
+            "- **대상 스펙 델타: 0개 파일** — 이 브랜치는 대상 스펙의 미러를 바꾸지 않았다. "
+            "**이것은 정상이며 검토 전제가 무효라는 뜻이 아니다** "
+            "(코드 전용 PR 이면 스펙 델타 0이 당연하다). 델타 0 자체를 근거로 "
             "CRITICAL 을 내지 말 것.\n"
+        )
+
+    covering_line = ""
+    if covering:
+        rows = []
+        for rel in sorted(covering):
+            files = covering[rel]
+            more = f" 외 {len(files) - 3}개" if len(files) > 3 else ""
+            rows.append(f"`{rel}` ← {', '.join(f'`{f}`' for f in files[:3])}{more}")
+        covering_line = (
+            f"- **구현 위치 대조로 더한 문서: {len(covering)}개** — 각 문서의 `## 구현 위치` 가 이 "
+            "브랜치가 바꾼 파일을 덮는다. 그 파일의 변경이 문서와 맞는지 본다.\n"
+            + _folded(rows)
         )
 
     if diff_files:
@@ -570,13 +668,19 @@ def _scope_delta_census(root, target_path_rel, changed_rels, diff_text):
         )
     else:
         diff_line = (
-            "- **구현 diff: 0개 파일** — code_areas 에 변경이 없거나 git diff 가 실패했다"
-            "(base ref fetch 여부 확인). spec 전용 PR 이면 정상이다.\n"
+            "- **구현 diff: 0개 파일** — diff 경로에 변경이 없거나 git diff 가 실패했다"
+            "(base ref fetch 여부 확인). 스펙 전용 PR 이면 정상이다.\n"
+        )
+    if catalog_skipped:
+        diff_line += (
+            f"  - API 카탈로그 필드 파일 {catalog_skipped}개의 변경은 diff 에서 뺐다"
+            f"(`{CATALOG_FIELD_GLOB}`, 생성된 참조 덤프). 필요하면 워킹트리에서 직접 읽는다.\n"
         )
 
     return (
         "### 이 검토가 실제로 다루는 델타 (예산 절단 전 실측)\n\n"
         + scope_line
+        + covering_line
         + diff_line
         + "\n"
     )
@@ -609,169 +713,192 @@ def extract_rationale_sections(file_paths, root):
     return "### Rationale 발췌\n" + "".join(blocks)
 
 
+def _usage_exit(flag, value, problem, hint=""):
+    """대상 인자 오류. 세션을 만들기 전에 exit 2 로 멈춘다.
+
+    모든 대상 인자는 checker 프롬프트의 `## Target 문서 / 경로:` 에 그대로 들어간다. 경로가 아닌 값이
+    통과하면 번들이 `(없음)` 이 되고 checker 가 그 빈 입력을 CRITICAL 로 보고한다 — 실제 충돌 0건의
+    BLOCK: YES 다(2026-07-17 실측, 5 checker fan-out 한 번을 쓰고 나서야 드러났다).
+    """
+    sys.stderr.write(
+        f"Error: {flag} 의 인자 — {problem}{hint}\n"
+        f"  받은 값: {value!r}\n"
+        f"\n사용법:\n"
+        f"  --spec <파일>                  예) --spec <scratchpad>/CLE-XXX-FOO.md (NERV 초안 본문)\n"
+        f"  --impl-prep <scope>            예) --impl-prep CLE-ENG-SPECEVIDENCE,CLE-API-SWAGGER\n"
+        f"  --impl-done <scope>            예) --impl-done spec/CLE-ENG/\n"
+        f"  scope 항목: NERV 키 · 미러 영역 폴더(spec/CLE-…/) · 미러 파일. 쉼표로 여럿.\n"
+    )
+    sys.exit(2)
+
+
+def _prose_hint(value):
+    # 저장소 경로와 NERV 키에는 공백이 없다. 공백이 있으면 거의 언제나 설명문이 들어온 것이다.
+    if " " in value.strip() or "\n" in value:
+        return (
+            "\n  → 설명문을 넣은 것 같습니다. 이 인자는 **경로 · 키만** 받습니다.\n"
+            "     작업 배경·수정 계획은 NERV Task 에 적습니다(nerv_task_update ·\n"
+            "     heartbeat progress). 이 인자에는 검토할 경로 · 키만 줍니다."
+        )
+    return ""
+
+
+def _require_file(value, flag):
+    path = os.path.abspath(value)
+    if os.path.isfile(path):
+        return path
+    if os.path.isdir(path):
+        _usage_exit(flag, value, "파일이 아니라 디렉토리다.")
+    _usage_exit(flag, value, "실존하는 파일 경로가 아니다.", _prose_hint(value))
+
+
+def resolve_scope(value, flag, spec_dir, by_key, root):
+    """`--impl-prep` · `--impl-done` 의 SCOPE → 미러 문서 절대 경로(자연 순서, 중복 없음).
+
+    항목은 쉼표로 나눈다. NERV 키, 미러 영역 폴더, 미러 파일 중 하나다. 옛 트리는 동결됐고(전환 단계
+    5 에서 지운다) 대조 코퍼스가 미러라서 받지 않는다. 옛 트리를 대상으로 미러와 대조하면 같은 내용의
+    다른 판끼리 부딪친다.
+    """
+    items = [x.strip() for x in (value or "").split(",") if x.strip()]
+    if not items:
+        _usage_exit(flag, value, "비어 있다.")
+    mirror_set = set(by_key.values())
+    out = []
+    for item in items:
+        if _MIRROR_KEY_RE.fullmatch(item):
+            path = by_key.get(item)
+            if path is None:
+                _usage_exit(flag, value, f"미러에 없는 키다 — {item}",
+                            "\n  → `pull.py --task <Task> --spec <키>` 로 받았는지 확인한다.")
+            out.append(path)
+            continue
+        # 상대 경로는 저장소 루트 기준이다(CLI 에서는 루트가 곧 작업 디렉터리다).
+        path = os.path.abspath(item if os.path.isabs(item) else os.path.join(root, item))
+        if not os.path.exists(path):
+            _usage_exit(flag, value, f"실존하는 경로도 NERV 키도 아니다 — {item}", _prose_hint(item))
+        # `is_nerv_mirror` 는 폴더를 `CLE-…/` 모양으로 알아본다. `abspath` 가 끝 `/` 를 걷으므로 폴더면
+        # 다시 붙인다(파일 하나를 폴더 안에 넣어 판정하면 빈 폴더를 놓친다).
+        rel_item = os.path.relpath(path, spec_dir).replace(os.sep, "/")
+        if os.path.isdir(path):
+            rel_item += "/"
+        if not _NERV_MIRROR_REL.match(rel_item) or rel_item.startswith("../"):
+            _usage_exit(
+                flag, value, f"NERV 스펙 미러가 아니다 — {item}",
+                "\n  → 옛 트리(spec/<번호>-<영역>/ · spec/conventions/)는 동결됐다. 미러 경로"
+                "\n     (spec/CLE-…/) 나 NERV 키를 준다.",
+            )
+        if os.path.isdir(path):
+            found = [p for p in collect_markdown_files(path) if p in mirror_set]
+            if not found:
+                _usage_exit(flag, value, f"미러 문서가 없는 폴더다 — {item}")
+            out.extend(found)
+        elif path in mirror_set:
+            out.append(path)
+        else:
+            _usage_exit(flag, value, f"미러 문서가 아니다 — {item}")
+    seen, ordered = set(), []
+    for p in out:
+        if p not in seen:
+            seen.add(p)
+            ordered.append(p)
+    return sorted(ordered, key=_natural_key)
+
+
+def resolve_focus(value, by_key):
+    """`--focus` 키 목록 → 미러 파일. 미러에 없는 키는 오류다(오타가 랭킹을 조용히 바꾸지 않게)."""
+    items = [x.strip() for x in (value or "").split(",") if x.strip()]
+    out = []
+    for key in items:
+        if key not in by_key:
+            _usage_exit("--focus", value, f"미러에 없는 NERV 키다 — {key}")
+        out.append(by_key[key])
+    return out
+
+
 def collect_context(args, root):
     cfg = project_config.load(root)
-    corpora = cfg["corpora"]
-    spec_dir = os.path.join(root, corpora["spec"])
-    conventions_dir = os.path.join(root, corpora["conventions"])
-    # The plan corpus is optional since NERV cutover stage 3 (`plan/` left; work
-    # tracking is NERV Tasks). Absent → no plan files, empty plan-name ranking
-    # signals, and an empty `plan_in_progress` bundle (`plan_coherence` is off in
-    # `.claude.project.json`). Removing the dormant machinery is NERV Task
-    # `CLE-T-VP5KDJ` (cutover 4e, the corpus redesign).
-    _plan_rel = corpora.get("plan_in_progress")
-    plan_dir = os.path.join(root, _plan_rel) if _plan_rel else None
-
-    excluded = set()
-    target_path_rel = ""
-    target_doc = ""
-    mode_label = ""
+    spec_rel = cfg["corpora"]["spec"].rstrip("/")
+    spec_dir = os.path.join(root, spec_rel)
 
     # One diff base for the whole function — `--impl-done` reads it again below
     # for its diff section, and two variables computing the same expression is
     # how they drift apart later.
     diff_base = args.diff_base or "origin/main"
 
-    # Ranking inputs for `prioritize_bundle_files`, resolved once.
-    # `_rank_changed` is the WHOLE-repo change set; the per-scope subsets the
-    # mode branches want are prefix filters of it, so one git call serves all
-    # three bundles instead of one per bundle.
-    # Plans are read WITHOUT `excluded` (still empty here anyway) because
-    # ranking wants every in-progress plan, not just the ones that survive into
-    # the plan bundle.
-    _rank_changed = _edited_rels(diff_base, root)
-    _rank_plan_files = collect_markdown_files(plan_dir)
-    _rank_plan_text = "\n".join(read_text_file(p) for p in _rank_plan_files)
-    # The plans THIS BRANCH touched are the task's own plans, and their
-    # `spec_impact:` frontmatter is the most direct statement of what the work
-    # targets. Concatenating all 63 in-progress plans buried that signal — see
-    # `prioritize_bundle_files`. Empty when the branch touched no plan, which
-    # just collapses tier 1 into today's behaviour.
-    _rank_branch_plan_text = "\n".join(
-        read_text_file(p)
-        for p in _rank_plan_files
-        if os.path.relpath(p, root) in _rank_changed
-    )
+    mirror = collect_mirror_files(spec_dir)
+    by_key = {mirror_key(p): p for p in mirror}
+    focus_files = resolve_focus(getattr(args, "focus", None), by_key)
 
-    def _prioritized(files, scope_abs=None):
-        """Rank a bundle, narrowing the change set to `scope_abs` when given."""
-        changed = _rank_changed
-        if scope_abs:
-            prefix = os.path.relpath(scope_abs, root).rstrip("/") + "/"
-            changed = {r for r in _rank_changed if r.startswith(prefix)}
-        return prioritize_bundle_files(
-            files,
-            root,
-            changed_rels=changed,
-            plan_text=_rank_plan_text,
-            branch_plan_text=_rank_branch_plan_text,
-        )
+    # The WHOLE-repo change set, resolved once. Every bundle ranks against it.
+    rank_changed = _edited_rels(diff_base, root)
 
-    def _n_on_topic(files, scope_abs):
-        """How many leading files are tier 0/1 — the on-topic prefix.
+    def rel(path):
+        return os.path.relpath(path, root)
 
-        `--impl-done` splices the code diff in right after them, so the count has
-        to agree with `_prioritized`'s own tiering rather than re-deriving it.
-        """
-        prefix = os.path.relpath(scope_abs, root).rstrip("/") + "/"
-        changed = {r for r in _rank_changed if r.startswith(prefix)}
-        # `files` arrives already ranked, so this walks a PREFIX.
-        #
-        # This used to claim a catalog page "cannot reach the prefix unless the
-        # branch edited it". **That was false** — on 2026-08-11
-        # `cafe24-api-catalog/store.md` reached tier 1 without being edited,
-        # because `_named_in` matched its basename inside `secret-store.md` in a
-        # branch plan. The claim was untestable-by-construction, which is why
-        # "mutating the check away left every test green" read as unreachable
-        # defence rather than as a missing test. The boundary fix in `_named_in`
-        # closes that route; the tier-4 demotion is a second line, not the only one.
-        n = 0
-        for path in files:
-            rel = os.path.relpath(path, root)
-            if rel in changed or _named_in(rel, _rank_branch_plan_text):
-                n += 1
-            else:
-                break
-        return n
-
-    def _require_target(value, flag, want_dir):
-        """Fail fast when a mode argument is not the path it must be.
-
-        Every mode arg is interpolated verbatim into each checker prompt's
-        `## Target 문서 / 경로:` field. Without this check a non-path (e.g. a task
-        description pasted into the scope slot) sails through: `collect_markdown_files`
-        just returns [] for a missing dir, the bundle renders `(없음)`, and all five
-        checkers then report the corrupted payload as a CRITICAL — a BLOCK: YES with
-        zero real conflicts. Measured 2026-07-17; the run cost a full 5-checker fan-out
-        before the mistake surfaced. Cheap to catch here, expensive to catch there.
-        """
-        path = os.path.abspath(value)
-        ok = os.path.isdir(path) if want_dir else os.path.isfile(path)
-        if ok:
-            return path
-        kind = "디렉토리" if want_dir else "파일"
-        hint = ""
-        if os.path.exists(path):
-            hint = f"\n  → 경로는 존재하지만 {kind} 가 아닙니다."
-        elif " " in value.strip() or "\n" in value:
-            # Repo paths have no spaces; a space almost always means prose landed here.
-            hint = (
-                "\n  → 설명문을 넣은 것 같습니다. 이 인자는 **경로만** 받습니다.\n"
-                "     작업 배경·수정 계획은 NERV Task 에 적습니다(nerv_task_update ·\n"
-                "     heartbeat progress). 이 인자에는 검토할 경로만 줍니다."
-            )
-        sys.stderr.write(
-            f"Error: {flag} 의 인자가 실존하는 {kind} 경로가 아닙니다.{hint}\n"
-            f"  받은 값: {value!r}\n"
-            f"  해석된 경로: {path}\n"
-            f"\n사용법: {flag} <{kind} 경로>\n"
-            f"  예) --spec <scratchpad>/CLE-ENG-FOO.md   (NERV 초안 본문을 둔 파일)\n"
-            f"      --impl-prep spec/2-navigation/\n"
-            f"      --impl-done spec/2-navigation/\n"
-        )
-        sys.exit(2)
+    target_files = []      # mirror docs that ARE the target (impl modes)
+    covering = {}          # --impl-done: doc → changed files its `## 구현 위치` covers
+    target_text = ""
+    rationale_extra = []   # --spec: the current mirror version of the draft's key
 
     if args.spec:
         target_path_rel = args.spec
-        target_abs = _require_target(args.spec, "--spec", want_dir=False)
-        excluded.add(target_abs)
+        target_abs = _require_file(args.spec, "--spec")
+        target_text = body_of(read_text_file(target_abs))
         target_doc = _neutralize_sentinel(read_text_file(target_abs))
-        mode_label = "spec draft 검토 (--spec)"
+        mode_label = "스펙 초안 검토 (--spec)"
+        # A draft named after its key replaces that key's mirror version. Comparing
+        # the draft with its own previous text reads every edit as a conflict, so
+        # the old version leaves the corpora — but its Rationale stays, because a
+        # draft that drops a past decision is exactly what rationale continuity is for.
+        same_key = by_key.get(mirror_key(target_abs))
+        if same_key:
+            rationale_extra = [same_key]
 
-    elif args.plan:
-        target_path_rel = args.plan
-        target_abs = _require_target(args.plan, "--plan", want_dir=False)
-        excluded.add(target_abs)
-        target_doc = _neutralize_sentinel(read_text_file(target_abs))
-        mode_label = "plan draft 검토 (--plan)"
+    elif args.impl_prep or args.impl_done:
+        flag = "--impl-prep" if args.impl_prep else "--impl-done"
+        target_path_rel = args.impl_prep or args.impl_done
+        target_files = resolve_scope(target_path_rel, flag, spec_dir, by_key, root)
+        if args.impl_done:
+            covering = docs_covering_changes(mirror, rank_changed, root, spec_rel)
+            target_files += [p for p in sorted(covering, key=_natural_key) if p not in target_files]
+        target_text = "\n".join(body_of(read_text_file(p)) for p in target_files)
 
-    elif args.impl_prep:
-        target_path_rel = args.impl_prep
-        target_abs = _require_target(args.impl_prep, "--impl-prep", want_dir=True)
-        scope_files = collect_markdown_files(target_abs)
-        excluded.update(scope_files)
-        # --impl-prep runs before the spec is edited, so tier 0 is usually empty
-        # and the plan-name signal is what keeps the real target in budget.
-        scope_files = _prioritized(scope_files, target_abs)
-        target_doc = format_file_bundle(scope_files, root, f"구현 대상 영역: `{target_path_rel}`")
+    else:
+        raise ValueError(
+            "Mode 가 지정되지 않았습니다: --spec / --impl-prep / --impl-done 중 하나가 필요합니다."
+        )
+
+    target_set = set(target_files) | (set(rationale_extra) if args.spec else set())
+    focus_rels = {rel(p) for p in focus_files} | {rel(p) for p in covering}
+    mentioned_rels = {
+        rel(by_key[k]) for k in mentioned_keys(target_text, by_key)
+        if by_key[k] not in target_set
+    }
+
+    def ranked(files):
+        return prioritize_bundle_files(
+            files, root, changed_rels=rank_changed, focus_rels=focus_rels,
+            mentioned_rels=mentioned_rels,
+        )
+
+    if target_files:
+        target_files = ranked(target_files)
+        bundle = format_file_bundle(target_files, root, f"검토 대상 스펙: `{target_path_rel}`")
+
+    if args.impl_prep:
+        target_doc = bundle
         mode_label = f"구현 착수 전 검토 (--impl-prep, scope={target_path_rel})"
 
     elif args.impl_done:
-        target_path_rel = args.impl_done
-        target_abs = _require_target(args.impl_done, "--impl-done", want_dir=True)
-        scope_files = collect_markdown_files(target_abs)
-        excluded.update(scope_files)
-        scope_files = _prioritized(scope_files, target_abs)
-        spec_bundle = format_file_bundle(
-            scope_files, root, f"구현 대상 spec 영역: `{target_path_rel}`"
-        )
-        diff_text = _collect_code_diff(diff_base, root)
+        diff_paths = getattr(args, "diff_paths", None) or None
+        diff_text = _collect_code_diff(diff_base, root, diff_paths)
         # The diff gets a boundary and a name of its own. Without them it rode on
         # the last spec file's chunk, so a budget cut took the whole tail — diff
         # included — and the omission notice named only the spec file. A checker
         # then judged "spec vs implementation" with no implementation in front of
         # it and no way to notice. Named, it is dropped like any other entry.
-        diff_label = f"<git diff {diff_base}...HEAD -- code_areas>"
+        shown_paths = " ".join(diff_paths or cfg.get("code_areas") or [])
+        diff_label = f"<git diff {diff_base}...HEAD -- {shown_paths}>"
         if diff_text.strip():
             diff_section = (
                 f"{_BUNDLE_FILE_SENTINEL}#### `{diff_label}`\n\n"
@@ -782,76 +909,50 @@ def collect_context(args, root):
                 f"{_BUNDLE_FILE_SENTINEL}#### `{diff_label}`\n\n"
                 "(변경 없음 또는 git diff 실패 — base ref 가 fetch 되어 있는지 확인)\n"
             )
-        # HEAD-basis notice goes FIRST so it survives target_doc truncation —
-        # `truncate_file_bundle` drops whole chunks from the tail, and the notice
-        # sits in the head section that is never a drop candidate — and the
-        # checker reads the current-code SoT before anything else.
-        #
-        # The diff goes after the ON-TOPIC spec files and BEFORE the rest of the
-        # folder dump. Appended at the end it was the last chunk and therefore
-        # the FIRST one dropped: measured 2026-08-09 on `spec/5-system/`, whose
-        # dump is 1,215,279 B, the diff was omitted at every budget tried
-        # (262,144 default and 650,000), so five checkers judged "spec vs
-        # implementation" having seen no implementation. Ahead of the dump it
-        # only loses to the files the branch itself is editing.
+        # The diff goes after the ON-TOPIC documents (tier 0/1) and BEFORE the
+        # rest. Appended at the end it was the last chunk and therefore the FIRST
+        # one dropped: measured 2026-08-09 on a 1,215,279 B folder dump, the diff
+        # was omitted at every budget tried, so five checkers judged "spec vs
+        # implementation" having seen no implementation.
+        on_topic = 0
+        for path in target_files:
+            if rel(path) in rank_changed or rel(path) in focus_rels:
+                on_topic += 1
+            else:
+                break
+        catalog_skipped = sum(1 for r in rank_changed if is_catalog_field_file(r))
+        # HEAD-basis notice and census go FIRST: `truncate_file_bundle` never
+        # drops the head section, so the checker always reads the current-code
+        # SoT and the measured delta before anything else.
         target_doc = (
             _head_basis_notice(root, diff_base)
-            + _scope_delta_census(root, target_path_rel, _rank_changed, diff_text)
-            + _splice_chunk(
-                spec_bundle, diff_section, _n_on_topic(scope_files, target_abs)
+            + _scope_delta_census(
+                root, [rel(p) for p in target_files], rank_changed, diff_text,
+                covering={rel(p): files for p, files in covering.items()},
+                catalog_skipped=catalog_skipped,
             )
+            + _splice_chunk(bundle, diff_section, on_topic)
         )
         mode_label = (
             f"구현 완료 후 검토 (--impl-done, scope={target_path_rel}, "
             f"diff-base={diff_base})"
         )
 
-    else:
-        raise ValueError(
-            "Mode 가 지정되지 않았습니다: --spec / --plan / --impl-prep / --impl-done 중 하나가 필요합니다."
-        )
-
-    all_spec_files = [p for p in collect_markdown_files(spec_dir, exclude_paths=excluded)
-                      if not is_nerv_mirror(p, spec_dir)]
-    # Conventions may live under spec_dir (default) or be relocated by
-    # .claude.project.json — handle both. When relocated, collect the
-    # conventions corpus separately so the convention-compliance checker
-    # still sees its source files.
-    if conventions_dir == spec_dir or conventions_dir.startswith(spec_dir + os.sep):
-        convention_files = [p for p in all_spec_files if conventions_dir in p]
-        other_spec_files = [p for p in all_spec_files if conventions_dir not in p]
-    else:
-        convention_files = collect_markdown_files(conventions_dir, exclude_paths=excluded)
-        other_spec_files = all_spec_files
-    plan_files = collect_markdown_files(plan_dir, exclude_paths=excluded)
-
-    # Same treatment for the two big supporting bundles. For `conventions` this
-    # is the fix for the observed case where ~230 auto-generated catalog files
-    # pushed every convention the target actually cites (error-codes / node-output
-    # / swagger / secret-store / migrations / execution-context) out of budget.
-    other_spec_files = _prioritized(other_spec_files)
-    convention_files = _prioritized(convention_files)
-    # `plan_in_progress` needs this most, not least: it is `plan_coherence`'s ONLY
-    # corpus. Measured on this repo while `plan/` existed (before NERV cutover
-    # stage 3) it was ~10x its own budget share, so the alphabetical tail-drop
-    # was not an edge case there — it was the normal case,
-    # and the 4th recurrence recorded in the ticket was exactly this bundle with
-    # this checker. It was left out by oversight; nothing documents an exclusion.
-    plan_files = _prioritized(plan_files)
-
-    related_specs = format_file_bundle(other_spec_files, root, "관련 spec 본문")
-    conventions = format_file_bundle(convention_files, root, "spec/conventions 정식 규약")
-    plan_in_progress = format_file_bundle(plan_files, root, "plan/in-progress 진행 중 문서")
-    rationale_excerpts = extract_rationale_sections(other_spec_files, root)
+    corpus = [
+        p for p in mirror
+        if p not in target_set and _mirror_area(p, spec_dir) not in _NON_SPEC_AREAS
+    ]
+    convention_files = ranked([p for p in corpus if mirror_doc_type(p) == CONVENTION_TYPE])
+    other_spec_files = ranked([p for p in corpus if mirror_doc_type(p) != CONVENTION_TYPE])
 
     return {
         "mode": mode_label,
         "target_path": target_path_rel,
         "target_doc": target_doc,
-        "related_specs": related_specs,
-        "rationale_excerpts": rationale_excerpts,
-        "conventions": conventions,
-        "plan_in_progress": plan_in_progress,
+        "related_specs": format_file_bundle(other_spec_files, root, "관련 스펙 본문 (NERV 미러)"),
+        "rationale_excerpts": extract_rationale_sections(rationale_extra + other_spec_files, root),
+        "conventions": format_file_bundle(
+            convention_files, root, "정식 규약 (NERV 미러, type=convention)"),
     }
 
 
@@ -933,7 +1034,7 @@ def truncate_file_bundle(text, budget):
 
     A budget of 0 or negative means unlimited, matching
     `session.truncate_to_budget`, which this replaces for bundles. Text with no
-    file markers (a single `--spec`/`--plan` document, or `--impl-done`'s diff
+    file markers (a single `--spec` document, or `--impl-done`'s diff
     section) falls back to that function.
     """
     if budget <= 0 or len(text) <= budget:
@@ -1013,7 +1114,7 @@ def truncate_file_bundle(text, budget):
 def _corpus_keys(checker_name):
     """Which context keys end up in this checker's prompt."""
     if checker_name == "naming_collision":
-        return ("related_specs", "plan_in_progress", "conventions")
+        return ("related_specs", "conventions")
     key = CHECKER_INSTRUCTIONS.get(checker_name, {}).get("context_key")
     return (key,) if key else ()
 
@@ -1047,10 +1148,10 @@ def budget_substitutions(context, max_context_size, checker_name):
 def _checker_corpus(checker_name, subs):
     """Return the supplementary corpus a given checker consumes."""
     if checker_name == "naming_collision":
-        # naming_collision combines three sub-corpora.
+        # naming_collision combines two sub-corpora (the plan corpus left in NERV
+        # cutover stage 3; work in progress is a NERV Task, not a file).
         return "\n\n".join([
             subs.get("related_specs", ""),
-            subs.get("plan_in_progress", ""),
             subs.get("conventions", ""),
         ])
     info = CHECKER_INSTRUCTIONS.get(checker_name, {})
@@ -1120,7 +1221,7 @@ def _preserve_spec_draft(session_dir, context):
 
     **차단하지 않는다.** 이 저장소는 push 가드를 정밀화했다가 3라운드 회귀 끝에 철회한
     이력이 있다(`#970`) — "유한한 문제를 무한한 문제와 바꾸지 말 것". 여기서 고르는 것은
-    *증거 보존*이고, draft 를 `plan/complete/` 로 옮기는 관례 자체는 사람이 지킨다.
+    *증거 보존*이다. 지금 초안의 정본은 NERV 버전이고 이 사본은 로컬 세션의 증거로만 남는다.
 
     Returns: 남긴 파일의 세션 상대 경로, 또는 `--spec` 이 아니거나 읽지 못하면 `None`.
     """
@@ -1218,13 +1319,21 @@ def main():
     mode = parser.add_mutually_exclusive_group(required=False)
     mode.add_argument("--spec", type=str, metavar="PATH",
                       help="spec draft body file (NERV draft body saved to a scratchpad file)")
-    mode.add_argument("--plan", type=str, metavar="PATH",
-                      help="plan draft path")
     mode.add_argument("--impl-prep", type=str, dest="impl_prep", metavar="SCOPE",
-                      help="pre-implementation check scope (spec/<area>/ path)")
+                      help="pre-implementation check scope: NERV keys, mirror area folders "
+                           "(spec/CLE-…/) or mirror files, comma-separated")
     mode.add_argument("--impl-done", type=str, dest="impl_done", metavar="SCOPE",
-                      help="post-implementation check scope (spec/<area>/ path). "
-                           "Bundles spec area + code diff (vs --diff-base, default origin/main).")
+                      help="post-implementation check scope (same forms as --impl-prep). "
+                           "Bundles the target specs, every mirror doc whose `## 구현 위치` "
+                           "covers a changed file, and the code diff (vs --diff-base, default "
+                           "origin/main).")
+    parser.add_argument("--focus", type=str, metavar="KEYS",
+                        help="NERV keys to rank first in every bundle (comma-separated) — "
+                             "usually the claim's scope spec_ids")
+    parser.add_argument("--diff-path", type=str, dest="diff_paths", action="append",
+                        metavar="PATH",
+                        help="path for the --impl-done code diff (repeatable). Default: the "
+                             "project's code_areas. A harness-only task passes .claude.")
     parser.add_argument("--diff-base", type=str, dest="diff_base", metavar="REF",
                         default=None,
                         help="git ref to diff against (default: origin/main). Used by --impl-done "
@@ -1290,9 +1399,9 @@ def main():
         _apply_status_update(args.update, args.agent, args.status, args.reset_hint)
         sys.exit(0)
 
-    if not (args.spec or args.plan or args.impl_prep or args.impl_done):
+    if not (args.spec or args.impl_prep or args.impl_done):
         parser.error(
-            "--spec / --plan / --impl-prep / --impl-done 중 하나가 필요합니다 "
+            "--spec / --impl-prep / --impl-done 중 하나가 필요합니다 "
             "(또는 --resume <SESSION_DIR>)."
         )
 

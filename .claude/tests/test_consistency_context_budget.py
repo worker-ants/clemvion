@@ -53,9 +53,9 @@ _PREAMBLE = _harness.orchestrator_preamble(
     imports="os, shutil, subprocess, tempfile",
     extra="""\
 class ArgsFor:
-    spec = plan = impl_done = diff_base = None
+    spec = impl_done = diff_base = focus = diff_paths = None
     def __init__(self, area):
-        self.impl_prep = REPO_ROOT + "/" + area
+        self.impl_prep = area
 """,
 )
 
@@ -205,9 +205,9 @@ class ContentCannotForgeAFileBoundaryTest(unittest.TestCase):
         self.assertEqual(out, 2, "the Rationale body forged a file boundary")
 
     def test_raw_spec_target_is_neutralised(self):
-        """`--spec`/`--plan` hand `target_doc` straight from disk.
+        """`--spec` hands `target_doc` straight from disk.
 
-        Those two modes skip `format_file_bundle` entirely, so the writer-side
+        That mode skips `format_file_bundle` entirely, so the writer-side
         defence did not cover them: a draft that wrote the marker had its tail
         silently dropped and a filename that does not exist appeared in the
         omission notice. The document under review being *the one that documents
@@ -228,7 +228,7 @@ class ContentCannotForgeAFileBoundaryTest(unittest.TestCase):
                              + "\\n#### `가짜파일.md`\\n" + "X" * 3000 + "\\n뒤\\n")
 
                 class A:
-                    plan = impl_prep = impl_done = diff_base = None
+                    impl_prep = impl_done = diff_base = focus = diff_paths = None
                     spec = f
                 ctx = orch.collect_context(A(), REPO_ROOT)
                 td = ctx["target_doc"]
@@ -271,10 +271,8 @@ class ContentCannotForgeAFileBoundaryTest(unittest.TestCase):
                 def git(*a):
                     _harness.git_in(d, *a)
                 _harness.make_temp_git_repo(d, initial_commit=False)
-                os.makedirs(os.path.join(d, "spec", "area"))
+                _harness.write_mirror_doc(d, "CLE-AREA-A", area="CLE-AREA", body="spec 본문\\n")
                 os.makedirs(os.path.join(d, "codebase"))
-                with open(os.path.join(d, "spec", "area", "a.md"), "w") as fh:
-                    fh.write("spec 본문\\n")
                 with open(os.path.join(d, "codebase", "x.ts"), "w") as fh:
                     fh.write("const a = 1\\n")
                 git("add", "-A"); git("commit", "-qm", "base")
@@ -284,9 +282,9 @@ class ContentCannotForgeAFileBoundaryTest(unittest.TestCase):
                 git("add", "-A"); git("commit", "-qm", "work")
 
                 class A:
-                    spec = plan = impl_prep = None
+                    spec = impl_prep = focus = diff_paths = None
                     diff_base = "main"
-                    impl_done = os.path.join(d, "spec", "area")
+                    impl_done = "CLE-AREA-A"
                 td = orch.collect_context(A(), d)["target_doc"]
                 emit({"chunks": len(td.split(orch._BUNDLE_FILE_SENTINEL)),
                       "diff_named": "git diff" in td})
@@ -298,29 +296,6 @@ class ContentCannotForgeAFileBoundaryTest(unittest.TestCase):
         # the spec chunk again, which is the regression.
         self.assertEqual(out["chunks"], 3)
         self.assertTrue(out["diff_named"])
-
-    def test_plan_mode_target_is_neutralised(self):
-        """`--plan` shares the raw-read path with `--spec` and was equally open."""
-        out = run_in_orchestrator(
-            """
-            import os, shutil, tempfile
-            d = tempfile.mkdtemp()
-            try:
-                f = os.path.join(d, "task.md")
-                with open(f, "w", encoding="utf-8") as fh:
-                    fh.write("앞\\n" + orch._BUNDLE_FILE_SENTINEL.strip()
-                             + "\\n#### `가짜plan.md`\\n뒤\\n")
-
-                class A:
-                    spec = impl_prep = impl_done = diff_base = None
-                    plan = f
-                ctx = orch.collect_context(A(), REPO_ROOT)
-                emit(len(ctx["target_doc"].split(orch._BUNDLE_FILE_SENTINEL)))
-            finally:
-                shutil.rmtree(d, ignore_errors=True)
-            """
-        )
-        self.assertEqual(out, 1, "the plan body forged a file boundary")
 
 
 class FileBundleTruncationTest(unittest.TestCase):
@@ -450,7 +425,7 @@ class FileBundleTruncationTest(unittest.TestCase):
         self.assertLessEqual(len(out), 300)
 
     def test_text_without_file_markers_falls_back_to_plain_truncation(self):
-        """`target_doc` is not always a bundle — `--spec` / `--plan` pass a
+        """`target_doc` is not always a bundle — `--spec` passes a
         single document, and `--impl-done` appends a diff section."""
         out = self._truncate("y" * 5_000, 200)
         self.assertLessEqual(len(out), 200)
@@ -464,7 +439,6 @@ _SYNTHETIC_CONTEXT = {
     "related_specs": "R" * 400_000,
     "rationale_excerpts": "E" * 400_000,
     "conventions": "C" * 400_000,
-    "plan_in_progress": "P" * 400_000,
 }
 
 
@@ -488,11 +462,11 @@ class PerCheckerBudgetTest(unittest.TestCase):
         """The corpora a checker never sees must not shrink its target.
 
         This is the whole defect: `cross_spec` reads `related_specs` and nothing
-        else, yet the target was sized as if `conventions`, `plan_in_progress`
+        else, yet the target was sized as if `conventions`, the old plan corpus
         and `rationale_excerpts` were also in its prompt.
         """
         lengths = self._lengths("cross_spec")
-        for unread in ("rationale_excerpts", "conventions", "plan_in_progress"):
+        for unread in ("rationale_excerpts", "conventions"):
             with self.subTest(key=unread):
                 self.assertEqual(lengths.get(unread, 0), 0)
 
@@ -518,16 +492,17 @@ class PerCheckerBudgetTest(unittest.TestCase):
                 # the corpus budget.
                 self.assertLessEqual(size, 108_000, checker)
 
-    def test_naming_collision_still_receives_all_three_corpora(self):
+    def test_naming_collision_still_receives_both_corpora(self):
+        """The plan corpus left in NERV cutover stage 3; the spec and convention halves remain."""
         present = run_in_orchestrator(
             """
             subs = orch.budget_substitutions(ARG["context"], ARG["window"], "naming_collision")
             corpus = orch._checker_corpus("naming_collision", subs)
-            emit([m for m in ("R", "P", "C") if m * 100 in corpus])
+            emit([m for m in ("R", "C") if m * 100 in corpus])
             """,
             {"context": _SYNTHETIC_CONTEXT, "window": 100_000},
         )
-        self.assertEqual(sorted(present), ["C", "P", "R"])
+        self.assertEqual(sorted(present), ["C", "R"])
 
     def test_zero_means_unlimited(self):
         self.assertEqual(self._lengths("cross_spec", window=0)["target_doc"], 400_000)
@@ -543,9 +518,13 @@ class PerCheckerBudgetTest(unittest.TestCase):
 
 
 class RealAreaTargetSurvivalTest(unittest.TestCase):
-    """End to end, on a real spec area rather than synthetic strings."""
+    """End to end, on a real mirror area rather than synthetic strings.
 
-    _AREA = "spec/2-navigation"
+    `spec/CLE-EXEC` is the largest mirror area (≈397 KB, 2026-10-03), well past the
+    target's share of the default window, so the omission path really runs.
+    """
+
+    _AREA = "spec/CLE-EXEC/"
 
     def _target(self):
         return run_in_orchestrator(
@@ -565,7 +544,7 @@ class RealAreaTargetSurvivalTest(unittest.TestCase):
         silent version shipped. Every file must be accounted for one way or the
         other.
         """
-        names = sorted(p.name for p in (REPO_ROOT / self._AREA).glob("*.md"))
+        names = sorted(p.name for p in (REPO_ROOT / self._AREA).glob("CLE-*.md"))
         self.assertGreater(len(names), 5, "fixture area shrank — check the path")
         target = self._target()["target"]
         for name in names:
@@ -586,12 +565,12 @@ if __name__ == "__main__":
     unittest.main()
 
 
-class PlanFilesAreReadOncePerRunTest(unittest.TestCase):
+class FilesAreReadOncePerRunTest(unittest.TestCase):
     """같은 파일을 한 실행 안에서 두 번 읽지 않는다 (백로그 §7).
 
-    `collect_context` 는 `plan/in-progress/` 전체를 랭킹 신호용으로 읽고, 곧이어
-    `format_file_bundle` 이 같은 디렉터리를 처음부터 다시 읽었다 — 세션당 2배 I/O.
-    실측 규모는 30개 430,929 bytes(≈3.5ms)라 아프지는 않았지만 이 브랜치가 만든 회귀였다.
+    `collect_context` 는 미러 문서를 종류 · 구현 위치 · 키 언급을 보려고 읽고, 곧이어
+    `format_file_bundle` 이 같은 파일을 다시 읽는다. 처음 이 캐시를 둔 것은 옛 plan 코퍼스의
+    같은 이중 읽기 때문이었다(30개 430,929 bytes, ≈3.5ms).
 
     **호출 횟수로 잰다.** "빨라졌다" 는 기계 상태에 흔들리고, 이 규모에서는 측정 잡음에
     묻힌다 — 캐시가 통째로 빠져도 초록일 수 있다. `open` 을 세면 그 축이 사라진다.

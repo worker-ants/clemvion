@@ -73,11 +73,11 @@ class ImplDoneHeadBasisTest(unittest.TestCase):
             "  'BILLING_SYNC_QUEUE',\n"
             "];\n",
         )
-        _write(
-            self.repo / "spec" / "5-system" / "status.md",
-            "# System Status\n\n## Overview\n\nMonitored queues.\n\n"
-            "## 본문\n\n| Queue | 설명 |\n| --- | --- |\n"
-            "| WORKSPACE_PROVISIONING_QUEUE | provisioning |\n",
+        _harness.write_mirror_doc(
+            self.repo, "CLE-SYS-STATUS", area="CLE-SYS",
+            body="## 개요\n\nMonitored queues.\n\n"
+                 "## 본문\n\n| Queue | 설명 |\n| --- | --- |\n"
+                 "| WORKSPACE_PROVISIONING_QUEUE | provisioning |\n",
         )
         _git(self.repo, "add", "-A")
         _git(self.repo, "commit", "-q", "-m", "baseline")
@@ -92,12 +92,12 @@ class ImplDoneHeadBasisTest(unittest.TestCase):
             f"  '{NEW_ID}',\n"
             "];\n",
         )
-        _write(
-            self.repo / "spec" / "5-system" / "status.md",
-            "# System Status\n\n## Overview\n\nMonitored queues.\n\n"
-            "## 본문\n\n| Queue | 설명 |\n| --- | --- |\n"
-            "| WORKSPACE_PROVISIONING_QUEUE | provisioning |\n"
-            f"| {NEW_ID} | invitation pruner |\n",
+        _harness.write_mirror_doc(
+            self.repo, "CLE-SYS-STATUS", area="CLE-SYS",
+            body="## 개요\n\nMonitored queues.\n\n"
+                 "## 본문\n\n| Queue | 설명 |\n| --- | --- |\n"
+                 "| WORKSPACE_PROVISIONING_QUEUE | provisioning |\n"
+                 f"| {NEW_ID} | invitation pruner |\n",
         )
         _git(self.repo, "add", "-A")
         _git(self.repo, "commit", "-q", "-m", "add pruner queue (code+spec)")
@@ -108,7 +108,7 @@ class ImplDoneHeadBasisTest(unittest.TestCase):
     def _prepare(self) -> Path:
         r = subprocess.run(
             [sys.executable, str(ORCH),
-             "--impl-done", "spec/5-system", "--diff-base", self.base],
+             "--impl-done", "CLE-SYS-STATUS", "--diff-base", self.base],
             cwd=str(self.repo), capture_output=True, text=True,
         )
         self.assertEqual(r.returncode, 0, f"stderr:\n{r.stderr}")
@@ -148,7 +148,7 @@ class ImplDoneHeadBasisTest(unittest.TestCase):
         """No regression: other modes must NOT carry the impl-done code notice."""
         # --impl-prep over the same spec scope: pre-implementation, no code diff.
         r = subprocess.run(
-            [sys.executable, str(ORCH), "--impl-prep", "spec/5-system"],
+            [sys.executable, str(ORCH), "--impl-prep", "spec/CLE-SYS/"],
             cwd=str(self.repo), capture_output=True, text=True,
         )
         self.assertEqual(r.returncode, 0, f"stderr:\n{r.stderr}")

@@ -20,7 +20,9 @@ The reviewer / checker dicts below carry, per role:
         permitting that outcome only when this flag is set.
   - (checker only) `context_label` / `context_key`
         Which subs key feeds the role's supplementary corpus (related_specs,
-        rationale_excerpts, conventions, plan_in_progress, or combined).
+        rationale_excerpts, conventions, or combined). `None` means the checker
+        has no corpus — `plan_coherence`, whose only corpus `plan/in-progress/**`
+        left in NERV cutover stage 3.
 """
 
 
@@ -75,7 +77,7 @@ REVIEWER_INSTRUCTIONS = {
 6. **데이터 유효성**: 입력 데이터의 유효성 검증
 7. **비즈니스 로직**: 비즈니스 규칙이 코드에 정확히 반영됐는지
 8. **반환값**: 모든 경로에서 적절한 값을 반환하는지
-9. **관련 spec 본문 일치 여부 (spec fidelity)**: 변경 영역이 `spec/` 의 어떤 문서로 정의돼 있는지 Read/Grep 으로 식별 후, spec 본문(Overview 가 아니라 요구사항 ID·행위 명세·시퀀스·필드 정의) 과 코드 구현이 line-level 로 일치하는지 점검 — 함수 시그니처·필드명·에러 코드·기본값·검증 규칙·상태 전이가 spec 과 다르면 CRITICAL. 관련 spec 문서 자체를 찾을 수 없으면 INFO (spec 누락). spec 자체에 결함이 의심되면 발견사항으로 명시 (수정은 `project-planner` 위임 — 본 reviewer 는 spec 직접 수정 금지).""",
+9. **관련 spec 본문 일치 여부 (spec fidelity)**: 변경 파일을 정의하는 스펙을 NERV 스펙 미러(`spec/CLE-*`)에서 찾는다 — 본문 `## 구현 위치` 절이 그 파일을 적은 문서가 1순위이고, 이 PR 이 함께 받은(pull) 미러 파일이 그 작업의 기준 버전이다. 동결된 옛 트리(`spec/<번호>-<영역>/`)는 근거로 쓰지 않는다. 스펙 본문(Overview 가 아니라 요구사항 ID·행위 명세·시퀀스·필드 정의) 과 코드 구현이 line-level 로 일치하는지 점검 — 함수 시그니처·필드명·에러 코드·기본값·검증 규칙·상태 전이가 spec 과 다르면 CRITICAL. 관련 스펙 문서 자체를 찾을 수 없으면 INFO (spec 누락). 스펙 자체에 결함이 의심되면 발견사항으로 명시 (수정은 NERV 스펙 초안 — 본 reviewer 는 미러를 고치지 않는다).""",
         "scope_optional": False,
     },
     "scope": {
@@ -215,14 +217,14 @@ REVIEWER_INSTRUCTIONS = {
 CHECKER_INSTRUCTIONS = {
     "cross_spec": {
         "ko_title": "Cross-Spec 일관성",
-        "perspective": "target 문서(draft)가 기존 `spec/**` 의 다른 영역과 충돌하는지 분석한다.",
+        "perspective": "target 문서가 NERV 스펙 미러(`spec/CLE-*`)의 다른 문서와 충돌하는지 분석한다.",
         "checklist": """1. **데이터 모델 충돌** — target 이 정의하는 엔티티·필드가 다른 영역의 동일 엔티티 정의와 모순되는가
 2. **API 계약 충돌** — endpoint·HTTP method·request/response shape 이 다른 spec 의 정의와 어긋나는가
 3. **요구사항 ID 충돌** — target 이 새로 부여하는 요구사항 ID 가 다른 영역에서 다른 의미로 이미 사용 중인가
 4. **상태 전이 충돌** — 같은 도메인 엔티티의 상태 머신이 영역마다 다르게 기술되어 있는가
 5. **권한·RBAC 모델 충돌** — 새 권한 구조가 기존 RBAC 규칙과 어긋나는가
 6. **계층 책임 충돌** — 코드베이스 영역(예: 서버/클라이언트, 도메인 모듈) 간 책임 분할이 기존 결정과 일치하는가""",
-        "context_label": "관련 spec 본문 (다른 영역 포함)",
+        "context_label": "관련 스펙 본문 (NERV 미러, 다른 영역 포함)",
         "context_key": "related_specs",
     },
     "rationale_continuity": {
@@ -237,23 +239,27 @@ CHECKER_INSTRUCTIONS = {
     },
     "convention_compliance": {
         "ko_title": "정식 규약 준수",
-        "perspective": "target 문서가 정식 규약(`spec/conventions/**`) 을 따르고 있는지 분석한다.",
+        "perspective": "target 문서가 정식 규약(NERV 미러의 `type: convention` 문서)을 따르고 있는지 분석한다.",
         "checklist": """1. **명명 규약** — 파일·식별자·API endpoint 명명이 conventions 규칙과 일치하는가
-2. **출력 포맷 규약** — API 응답·이벤트 페이로드·에러 코드 등 출력 형식이 `spec/conventions/` 의 정식 규약을 따르는가
+2. **출력 포맷 규약** — API 응답·이벤트 페이로드·에러 코드 등 출력 형식이 정식 규약(convention 문서)을 따르는가
 3. **문서 구조 규약** — Overview / 본문 / Rationale 3섹션 권장. 새 스펙은 NERV 키 규칙(`CLE-<영역>-<슬러그>`, project-planner SKILL `## 트리 규칙`)을 따른다. 미러 경로 `spec/<영역 키>/<KEY>.md` 는 `pull.py` 가 정하고, 동결된 옛 트리(`N-name.md`·`_product-overview.md`·`0-` prefix)에는 새 파일이 생기지 않는다
 4. **API 문서 규약** — API 문서 도구(OpenAPI/Swagger 등)의 데코레이터·DTO 명명 패턴 준수
 5. **금지 항목** — conventions 에서 명시적으로 금지한 패턴을 답습하고 있지 않은가""",
-        "context_label": "정식 규약 모음 (spec/conventions/)",
+        "context_label": "정식 규약 모음 (NERV 미러, type=convention)",
         "context_key": "conventions",
     },
+    # 등록은 남긴다(로컬 5-checker 구성, 결정 D10). 유일한 코퍼스 `plan/in-progress/**` 가 NERV 정본
+    # 전환 단계 3 에서 없어져 `.claude.project.json` 에서 꺼 두었고, 코퍼스도 없다(`context_key` None).
+    # 진행 중 작업은 NERV Task 이고 checker 에는 NERV 도구가 없다. 다시 켜려면 Task 목록을 코퍼스로
+    # 넘기는 경로부터 만든다.
     "plan_coherence": {
         "ko_title": "Plan 정합성",
-        "perspective": "`plan/in-progress/**` 의 진행 중 작업·미해결 결정과 target 문서가 정합한지 분석한다.",
-        "checklist": """1. **미해결 결정과의 충돌** — target 이 plan 에서 "결정 필요" 로 남겨둔 항목과 충돌하는 결정을 일방적으로 내리고 있지 않은가
-2. **선행 plan 미해소** — target 이 가정하는 사전 조건이 plan 에서 아직 해결되지 않았는가
-3. **후속 항목 누락** — target 변경이 다른 plan 의 후속 항목을 무효화하거나 새로 만들어야 하는데 반영되지 않았는가""",
-        "context_label": "진행 중 plan 문서 모음 (plan/in-progress/)",
-        "context_key": "plan_in_progress",
+        "perspective": "진행 중 작업의 미해결 결정과 target 문서가 정합한지 분석한다. 이 저장소에서는 꺼져 있고 보조 코퍼스가 없다(진행 중 작업은 NERV Task).",
+        "checklist": """1. **미해결 결정과의 충돌** — target 이 진행 중 작업에서 "결정 필요" 로 남겨둔 항목과 충돌하는 결정을 일방적으로 내리고 있지 않은가
+2. **선행 작업 미해소** — target 이 가정하는 사전 조건이 아직 해결되지 않았는가
+3. **후속 항목 누락** — target 변경이 다른 작업의 후속 항목을 무효화하거나 새로 만들어야 하는데 반영되지 않았는가""",
+        "context_label": "보조 코퍼스 없음 (진행 중 작업은 NERV Task)",
+        "context_key": None,
     },
     "naming_collision": {
         "ko_title": "신규 식별자 충돌",
@@ -264,8 +270,8 @@ CHECKER_INSTRUCTIONS = {
 4. **이벤트/메시지명 충돌** — webhook·queue·sse 이벤트 이름 충돌
 5. **환경변수·설정키 충돌** — 새 ENV var, config key 가 기존 사용처와 겹치는가
 6. **파일 경로 충돌** — 새 스펙 키가 NERV 키 규칙(`CLE-<영역>-<슬러그>`)을 깨거나 기존 키 · 파일과 겹치는가. 미러 경로 `spec/<영역 키>/<KEY>.md` 는 키에서 정해진다""",
-        "context_label": "검색 대상 코퍼스 (spec/, plan/in-progress/, conventions/)",
-        # `naming_collision` consumes three sub-corpora; the orchestrator
+        "context_label": "검색 대상 코퍼스 (NERV 미러의 스펙 본문 · 정식 규약)",
+        # `naming_collision` consumes two sub-corpora; the orchestrator
         # concatenates them when it sees this sentinel value.
         "context_key": "__combined_naming_corpus__",
     },
@@ -314,16 +320,16 @@ ANALYZER_INSTRUCTIONS = {
 8. **불가 통합 식별** — 통합이 위험해 추천 안 하는 branch (사용자 직접 해결 필요)""",
     },
     "cross_branch_spec_analyzer": {
-        "ko_title": "Branch 간 spec/plan 충돌",
-        "perspective": "통합 대상 branch 들이 spec/, plan/in-progress/ 영역을 어떻게 변경했는지 비교해 cross-branch 충돌을 검출한다. 기존 cross-spec-checker 는 단일 draft vs 기존 spec 이고, 본 analyzer 는 multi-draft 간 충돌이 대상.",
-        "checklist": """1. **같은 spec 파일 다른 변경** — 두 branch 이상이 동일 `spec/<영역>/*.md` 를 서로 다른 방향으로 수정
-2. **같은 plan 영역 동시 진행** — frontmatter 의 `worktree` 가 다른 두 plan 이 동일 spec 파일을 손대고 있는지
+        "ko_title": "Branch 간 스펙 충돌",
+        "perspective": "통합 대상 branch 들이 NERV 스펙 미러(`spec/CLE-*`)를 어떻게 바꿨는지 비교해 cross-branch 충돌을 검출한다. 구현 PR 은 클레임한 스펙을 작업 기준 버전으로 받아 코드와 함께 커밋하므로(결정 D3) 미러 diff 가 그 branch 가 따른 스펙 버전이다. 기존 cross-spec-checker 는 단일 draft vs 기존 spec 이고, 본 analyzer 는 multi-branch 간 충돌이 대상.",
+        "checklist": """1. **같은 미러 문서 다른 버전** — 두 branch 이상이 같은 `spec/<영역 키>/<KEY>.md` 를 서로 다른 버전으로 받았는가. frontmatter `version` · `read_as` 가 다르면 뒤에 머지하는 쪽이 다시 받아야 한다
+2. **같은 스펙을 따르는 동시 구현** — 두 branch 가 같은 스펙 문서를 기준으로 겹치는 코드를 바꾸는가
 3. **요구사항 ID cross-branch 중복** — branch 마다 다른 의미로 같은 요구사항 ID prefix 를 도입했는가
 4. **API 계약의 cross-branch divergence** — 같은 endpoint 를 branch 마다 다르게 정의
 5. **Rationale 충돌** — 한 branch 가 추가한 Rationale 결정을 다른 branch 가 무시·번복하고 있는지
 6. **convention 위반의 cross-branch 누적** — 한 branch 의 convention 변경이 다른 branch 의 코드와 어긋남
-7. **plan/in-progress 의 중복 worktree** — `plan_coherence` 의 multi-draft 버전: 같은 영역을 두 plan 이 동시에 점유
-8. **통합 후 plan/spec 의 최종 상태 예측** — 단순 머지로 정합 가능한지, 별도 합의가 필요한지""",
+7. **미러 손편집 흔적** — 미러 파일이 `pull.py` 가 아닌 손으로 바뀌었는가(frontmatter `mirror_sha256` 불일치는 CI `spec-mirror-integrity` 가 잡는다)
+8. **통합 후 스펙 미러의 최종 상태 예측** — 단순 머지로 정합 가능한지, 다시 받아야 하는지""",
     },
     "integration_risk_summary": {
         "ko_title": "통합 위험 통합 보고서",

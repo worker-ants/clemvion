@@ -45,7 +45,7 @@ def _run(*args: str, env: dict | None = None) -> subprocess.CompletedProcess:
 class TargetValidationTest(unittest.TestCase):
     def test_prose_in_scope_slot_is_rejected_with_a_pointed_hint(self):
         # The exact 2026-07-17 mistake.
-        r = _run("--impl-prep", "spec/2-navigation — 사용자 가이드 링크 무한 중첩 fix")
+        r = _run("--impl-prep", "spec/CLE-UI — 사용자 가이드 링크 무한 중첩 fix")
         self.assertEqual(r.returncode, 2, r.stdout)
         self.assertIn("--impl-prep", r.stderr)
         # A caller who did this needs to know *where* the context belongs, not just
@@ -70,11 +70,45 @@ class TargetValidationTest(unittest.TestCase):
         self.assertEqual(r.returncode, 2, r.stdout)
         self.assertIn("파일", r.stderr)
 
-    def test_file_passed_to_a_dir_mode_is_rejected(self):
-        # --impl-prep wants a directory; a real file must not pass.
-        r = _run("--impl-prep", "spec/2-navigation/_layout.md")
+    def test_the_frozen_old_tree_is_rejected_as_a_scope(self):
+        """옛 트리는 동결됐고 대조 코퍼스가 미러라서 대상으로 받지 않는다(전환 4e).
+
+        옛 트리를 대상으로 미러와 대조하면 같은 내용의 다른 판끼리 부딪쳐 충돌을 지어낸다.
+        """
+        for scope in ("spec/2-navigation/", "spec/2-navigation/_layout.md", "spec/conventions/"):
+            with self.subTest(scope=scope):
+                r = _run("--impl-prep", scope)
+                self.assertEqual(r.returncode, 2, r.stdout)
+                self.assertIn("동결", r.stderr)
+
+    def test_an_unknown_key_is_rejected_with_the_pull_hint(self):
+        r = _run("--impl-done", "CLE-NO-SUCH-KEY")
         self.assertEqual(r.returncode, 2, r.stdout)
-        self.assertIn("디렉토리", r.stderr)
+        self.assertIn("미러에 없는 키", r.stderr)
+        self.assertIn("pull.py", r.stderr)
+
+    def test_an_unknown_focus_key_is_rejected(self):
+        r = _run("--impl-prep", "CLE-ENG-SPECEVIDENCE", "--focus", "CLE-NO-SUCH-KEY")
+        self.assertEqual(r.returncode, 2, r.stdout)
+        self.assertIn("--focus", r.stderr)
+
+    def test_the_plan_mode_is_gone(self):
+        """`plan/` 은 전환 단계 3 에서 없어졌고 `--plan` 모드는 4e 에서 걷었다."""
+        r = _run("--plan", "x.md")
+        self.assertEqual(r.returncode, 2, r.stdout)
+        self.assertIn("--plan", r.stderr)
+
+    def test_a_key_scope_prepares_a_session(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            out = Path(tmp) / "sessions"
+            r = _run("--impl-prep", "CLE-ENG-SPECEVIDENCE,spec/CLE-API/",
+                     "--focus", "CLE-ENG-SPECEVIDENCE",
+                     env=dict(os.environ, CONSISTENCY_OUTPUT_DIR=str(out)))
+            self.assertEqual(r.returncode, 0, r.stderr)
+            session = Path(r.stdout.strip().splitlines()[-1])
+            prompt = (session / "_prompts" / "cross_spec.md").read_text(encoding="utf-8")
+        self.assertIn("spec/CLE-ENG/CLE-ENG-SPECEVIDENCE.md", prompt)
+        self.assertIn("spec/CLE-API/CLE-API-SWAGGER.md", prompt)
 
     def test_valid_target_still_prepares_a_session(self):
         # Guard against the validation rejecting legitimate input (the whole CLI is

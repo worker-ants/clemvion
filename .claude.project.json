@@ -1,8 +1,7 @@
 {
   "_schema": ".claude.project.json — see .claude/skills/_lib/project_config.py for the loader and default values. Every key is optional; missing keys fall back to harness defaults.",
   "corpora": {
-    "spec":             "spec",
-    "conventions":      "spec/conventions"
+    "spec":             "spec"
   },
   "code_areas": ["codebase"],
   "_agents_doc": "agents.{reviewers,checkers,writers} 는 ALL_AGENTS / ALL_CHECKERS / ALL_WRITERS 의 부분 토글. 아래 enumerate 된 키는 전체 목록이며 값은 현재 enabled 상태 (전부 true = 디폴트). 비활성하려면 해당 키를 false 로. 키 자체를 지워도 디폴트(true) 라 동일. 일회성 override: REVIEW_AGENTS / CONSISTENCY_AGENTS env (project_config 보다 우선). 각 reviewer/checker 의 관점: .claude/skills/code-review-agents/README.md §Reviewer sub-agent (14) · .claude/skills/consistency-checker/SKILL.md §5개 Checker. writers 는 호출자(예: developer skill §4 DOCUMENTATION) 가 위임 직전 is_agent_enabled 로 게이팅. checkers.plan_coherence 는 false 다: 그 checker 의 유일한 코퍼스 plan/in-progress 가 NERV 정본 전환 단계 3 에서 없어졌다(작업 추적은 NERV Task).",

@@ -28,7 +28,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from _harness import REPO_ROOT, make_temp_git_repo
+from _harness import REPO_ROOT, make_temp_git_repo, write_mirror_doc
 
 ORCH = (
     REPO_ROOT / ".claude" / "skills" / "consistency-checker" / "scripts"
@@ -40,17 +40,12 @@ ORCH = (
 # 준다. 어느 쪽이든 **상대경로**로 준다 — orchestrator 는 target 을 cwd 상대로 읽는다(`repo_root()` 가
 # `os.getcwd()`). 그 cwd 는 테스트마다 새 임시 저장소다: 이 체크아웃에 두던 시절에는 같은
 # 워크트리의 병렬 실행이 서로의 draft 를 지워 `--spec` 이 실패했다(실측 2026-09-25).
-DRAFT_REL = "plan/in-progress/spec-draft-__snapshot_selftest__.md"
+# NERV 초안 본문을 둔 파일(실제로는 scratchpad). 이름을 키로 지으면 오케스트레이터가 그 키의
+# 미러 판을 코퍼스에서 뺀다 — 여기서는 미러가 없어 영향이 없다.
+DRAFT_REL = "drafts/CLE-TEST-SNAPSHOT.md"
 DRAFT_BODY = (
-    "---\n"
-    "title: snapshot self-test draft\n"
-    "worktree: selftest\n"
-    "started: 2026-08-30\n"
-    "owner: project-planner\n"
-    "spec_impact:\n"
-    "  - spec/conventions/raw-query-results.md\n"
-    "---\n\n"
-    "# 본문\n\n"
+    "## 개요\n\n"
+    "스냅숏 자체 검사 초안.\n\n"
     "이 줄이 세션 사본에도 **그대로** 있어야 한다.\n"
 )
 
@@ -110,12 +105,13 @@ class SpecDraftSnapshotTest(unittest.TestCase):
         self.assertTrue((session / meta["target_snapshot"]).exists())
 
     def test_non_spec_modes_do_not_snapshot(self):
-        """`--plan` 은 draft 가 아니라 진행 중 plan 을 본다 — 사본을 만들 이유가 없다.
+        """`--impl-prep` 의 대상은 미러 문서다(저장소에 커밋된다) — 사본을 만들 이유가 없다.
 
         음성 케이스를 고정하지 않으면 "모든 모드가 target 을 복사한다" 로 넓어져도
-        아무 테스트가 RED 를 내지 않는다.
+        아무 테스트가 RED 를 내지 않는다. (옛 음성 케이스 `--plan` 은 전환 4e 에서 모드와 함께 걷었다.)
         """
-        proc = _run(self.repo, "--plan", DRAFT_REL)
+        write_mirror_doc(self.repo, "CLE-TEST-DOC", area="CLE-TEST")
+        proc = _run(self.repo, "--impl-prep", "CLE-TEST-DOC")
         self.assertEqual(proc.returncode, 0, proc.stderr)
         session = _session_dir(proc, self.repo)
 
