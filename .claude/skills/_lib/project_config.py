@@ -9,8 +9,7 @@ Schema (every key optional; missing keys fall back to DEFAULTS below):
 
     {
       "corpora": {
-        "spec":              "spec",
-        "conventions":       "spec/conventions"
+        "spec":              "spec"
       },
       "code_areas": ["codebase"],
       "agents": {
@@ -51,11 +50,17 @@ The corpora/code_areas keys reflect the harness's required folder
 conventions. The values can be relocated, but the *concepts* (spec corpus,
 code areas) are part of the harness contract — see CLAUDE.md "폴더 구조".
 
+Removed in NERV cutover 4e (NERV Task ``CLE-T-VP5KDJ``): ``corpora.conventions``.
+The consistency orchestrator now takes its corpora from the NERV spec mirror under
+``corpora.spec`` and tells conventions apart by the mirror frontmatter ``type``
+(``convention``), and ``router_safety`` dropped the only rule that read the
+path. A project file that still sets it is ignored.
+
 Removed in NERV cutover stage 3 (NERV Task ``CLE-T-FN2JWK``):
 ``corpora.plan_in_progress`` / ``corpora.plan_complete`` left with ``plan/``
-(work tracking is NERV Tasks). A project that still sets
-``plan_in_progress`` keeps the consistency orchestrator's plan bundle; without
-it the bundle renders empty. ``outputs`` had no reader — the orchestrators
+(work tracking is NERV Tasks). Since cutover 4e the consistency orchestrator
+has no plan bundle, so a project file that still sets ``plan_in_progress`` is
+ignored. ``outputs`` had no reader — the orchestrators
 take their output roots from ``REVIEW_OUTPUT_DIR`` / ``CONSISTENCY_OUTPUT_DIR``
 defaults (``.review/<kind>``), which ``test_review_gate_ci.py``
 (``ReviewArtifactsStayLocalTest``) pins.
@@ -73,7 +78,6 @@ CONFIG_FILENAME = ".claude.project.json"
 DEFAULTS: dict[str, Any] = {
     "corpora": {
         "spec":             "spec",
-        "conventions":      "spec/conventions",
     },
     "code_areas": ["codebase"],
     "agents": {

@@ -1,22 +1,24 @@
-"""Which files survive the context budget — ordering, not just truncation.
+"""Which files survive the context budget — ordering, targets and corpora on the NERV mirror.
 
 `test_consistency_context_budget` pinned the *visibility* half of this problem:
 truncation cuts on file boundaries and names what it dropped. This file pins the
-half that decides **which** files get dropped.
+half that decides **which** files get dropped, and since NERV cutover 4e (NERV Task
+`CLE-T-VP5KDJ`) also what the target and the corpora ARE.
 
-`collect_markdown_files` used to return plain lexicographic order (its
-tie-break is natural sort now — see `_natural_key`) and
-`truncate_file_bundle` drops from the tail, so for `spec/5-system/` the budget
-went to `1-auth.md` / `10-graph-rag.md` / `11-mcp-client.md` while
-`4-execution-engine.md` — the file every one of those sessions was actually
-about — fell off the end. That happened **eight times** across separate
-sessions (`plan/in-progress/harness-consistency-summary-downgrade-rule.md`).
-Twice it mattered: on 2026-07-28 three of five checkers had no coverage of the
-target at all, so their `BLOCK: NO` meant "never looked", not "looks fine".
+`truncate_file_bundle` drops from the tail, so ordering by name alone let the work
+target lose its budget to alphabetically earlier files — **eight times** across
+separate sessions, twice with no checker covering the target at all, so `BLOCK: NO`
+meant "never looked". Ordering is the part the harness can guarantee.
 
-Checkers sometimes rescue themselves by reading the file directly, but that is
-per-checker and unreliable — in the 7th recurrence exactly one of five did.
-Ordering is the part the harness can guarantee.
+Since 4e the target and both corpora are the NERV spec mirror (`spec/CLE-*`), the
+frozen old tree is out, and the ranking signals are the branch's own changes, the
+claim's keys (`--focus`), the documents whose `## 구현 위치` covers a changed file
+(`--impl-done`) and the keys the target mentions. The plan-name signals left with
+`plan/` (cutover stage 3).
+
+Most cases run on a small mirror built in a temp git repo (`mini_mirror`), not on
+this checkout's `spec/`: the real mirror changes with every pull, and the old tree
+these tests used to read is deleted in cutover stage 5.
 
 Fresh-interpreter convention as in `test_consistency_context_budget`: importing
 the orchestrator in-process collides on the name `_lib`.
@@ -24,10 +26,6 @@ the orchestrator in-process collides on the name `_lib`.
 
 from __future__ import annotations
 
-import json
-import os
-import subprocess
-import sys
 import tempfile
 import textwrap
 import unittest
@@ -44,14 +42,60 @@ ORCH = (
 _PREAMBLE = _harness.orchestrator_preamble(
     ORCH,
     imports="os",
-    # 파일을 바꾸는 프로브의 루트 — `spec/5-system` 을 커밋한 임시 저장소. 이 체크아웃에
-    # 쓰면 병렬 실행이 서로의 프로브를 되살린다(`TheDocumentBeingEditedIsNeverOmittedTest`
-    # docstring). 다섯 스니펫이 같은 사본을 쓰므로 여기 한 곳에 둔다.
     extra=textwrap.dedent(
         """
-        def five_system_copy(tmp):
-            return str(_harness.make_temp_repo_copy(
-                os.path.join(tmp, "repo"), "spec/5-system"))
+        class Args:
+            spec = impl_prep = impl_done = diff_base = focus = diff_paths = None
+            def __init__(self, **kw):
+                for k, v in kw.items():
+                    setattr(self, k, v)
+
+        IMPL_ONE = "## 구현 위치\\n\\n- `codebase/a/**` (A 모듈)\\n- `recoverStuck` 같은 식별자\\n\\n" \\
+                   "## Rationale\\n\\n### 결정 하나\\n\\n근거 ONE\\n"
+
+        def mini_mirror(tmp):
+            '''main 에 미러 · 옛 트리 · 코드를 커밋하고 `work` 브랜치로 옮긴 임시 저장소.'''
+            root = os.path.join(tmp, "repo")
+            _harness.make_temp_git_repo(root)
+            w = _harness.write_mirror_doc
+            w(root, "CLE-AAA", area="CLE-AAA", type_="area")
+            w(root, "CLE-AAA-ONE", area="CLE-AAA", body=IMPL_ONE)
+            w(root, "CLE-AAA-TWO", area="CLE-AAA",
+              body="[규칙](../CLE-ENG/CLE-ENG-RULE.md) 과 CLE-BBB-X 를 부른다. 폴더 ../CLE-BBB/ 는 언급이 아니다.\\n")
+            w(root, "CLE-AAA-2", area="CLE-AAA")
+            w(root, "CLE-AAA-10", area="CLE-AAA")
+            w(root, "CLE-BBB-X", area="CLE-BBB")
+            w(root, "CLE-BBB-Y", area="CLE-BBB")
+            w(root, "CLE-ENG-RULE", area="CLE-ENG", type_="convention")
+            w(root, "CLE-ENG-OTHER", area="CLE-ENG", type_="convention")
+            w(root, "CLE-RESEARCH-R", area="CLE-RESEARCH")
+            w(root, "CLE-VISION", type_="vision")
+            files = {
+                "spec/README.md": "미러 안내\\n",
+                "spec/5-system/old.md": "옛 트리\\n",
+                "spec/conventions/old-conv.md": "옛 규약\\n",
+                "codebase/a/x.ts": "export const x = 1;\\n",
+                "codebase/b/y.ts": "export const y = 1;\\n",
+                "codebase/api-catalogs/cafe24/order.md": "색인\\n",
+                "codebase/api-catalogs/cafe24/order/list.md": "필드\\n",
+            }
+            for rel, body in files.items():
+                path = os.path.join(root, rel)
+                os.makedirs(os.path.dirname(path), exist_ok=True)
+                with open(path, "w", encoding="utf-8") as fh:
+                    fh.write(body)
+            _harness.git_in(root, "add", "-A")
+            _harness.git_in(root, "commit", "-qm", "base")
+            _harness.git_in(root, "update-ref", "refs/remotes/origin/main", "HEAD")
+            _harness.git_in(root, "checkout", "-qb", "work")
+            return root
+
+        def heads(bundle):
+            import re
+            return re.findall(r"^#### `([^`]+)`", bundle, re.M)
+
+        def mirror_copy(tmp):
+            return str(_harness.make_temp_repo_copy(os.path.join(tmp, "repo"), "spec/CLE-ENG"))
         """
     ),
 )
@@ -61,287 +105,342 @@ def run_in_orchestrator(snippet: str, arg=None):
     return _harness.run_in_orchestrator(_PREAMBLE, snippet, arg)
 
 
-def _prioritize(rels, *, changed=(), plan_text=""):
+def _prioritize(rels, *, changed=(), focus=(), mentioned=()):
     """Return `prioritize_bundle_files` output as repo-relative paths."""
     return run_in_orchestrator(
         """
-        import os
-        rels, changed, plan_text = ARG["rels"], ARG["changed"], ARG["plan_text"]
-        paths = [os.path.join(ROOT, r) for r in rels]
+        paths = [os.path.join(ROOT, r) for r in ARG["rels"]]
         out = orch.prioritize_bundle_files(
-            paths, ROOT, changed_rels=changed, plan_text=plan_text)
+            paths, ROOT, changed_rels=ARG["changed"], focus_rels=ARG["focus"],
+            mentioned_rels=ARG["mentioned"])
         emit([os.path.relpath(p, ROOT) for p in out])
         """,
-        {"rels": list(rels), "changed": list(changed), "plan_text": plan_text},
+        {"rels": list(rels), "changed": list(changed), "focus": list(focus),
+         "mentioned": list(mentioned)},
     )
 
 
-# The real `spec/5-system/` head, in the alphabetical order that caused the bug.
-_FIVE_SYSTEM = [
-    "spec/5-system/1-auth.md",
-    "spec/5-system/10-graph-rag.md",
-    "spec/5-system/11-mcp-client.md",
-    "spec/5-system/4-execution-engine.md",
+_AREA = [
+    "spec/CLE-X/CLE-X-1.md",
+    "spec/CLE-X/CLE-X-10.md",
+    "spec/CLE-X/CLE-X-2.md",
+    "spec/CLE-X/CLE-X-3.md",
 ]
 
 
-# The plan corpus is optional since NERV cutover stage 3 (`plan/` left). Tests that
-# exercise the dormant plan machinery write this as a copy's `.claude.project.json`.
-# One constant so the controls cannot drift apart. The machinery and these tests go
-# in cutover 4e (NERV Task `CLE-T-VP5KDJ`).
-PLAN_CORPUS_CONFIG = '{"corpora": {"plan_in_progress": "plan/in-progress"}}'
-
-
 class PrioritizeBundleFilesTest(unittest.TestCase):
-    def test_branch_changed_file_leads(self):
-        """The 8-times-observed case, with the signal `--impl-done` has."""
-        out = _prioritize(_FIVE_SYSTEM,
-                          changed=["spec/5-system/4-execution-engine.md"])
-        self.assertEqual(out[0], "spec/5-system/4-execution-engine.md")
+    def test_tiers_are_changed_then_focus_then_mentioned_then_rest(self):
+        out = _prioritize(_AREA, changed=["spec/CLE-X/CLE-X-3.md"],
+                          focus=["spec/CLE-X/CLE-X-10.md"], mentioned=["spec/CLE-X/CLE-X-2.md"])
+        self.assertEqual(out, ["spec/CLE-X/CLE-X-3.md", "spec/CLE-X/CLE-X-10.md",
+                               "spec/CLE-X/CLE-X-2.md", "spec/CLE-X/CLE-X-1.md"])
 
-    def test_plan_named_file_leads_when_nothing_changed_yet(self):
-        """`--impl-prep` runs before the spec is edited — tier 0 is empty there,
-        so the plan-name signal is the only thing keeping the target in budget."""
-        out = _prioritize(
-            _FIVE_SYSTEM,
-            plan_text="작업 대상: spec/5-system/4-execution-engine.md 의 retry 재진입",
-        )
-        self.assertEqual(out[0], "spec/5-system/4-execution-engine.md")
-
-    def test_basename_mention_is_enough(self):
-        out = _prioritize(_FIVE_SYSTEM,
-                          plan_text="`4-execution-engine.md` 를 고친다")
-        self.assertEqual(out[0], "spec/5-system/4-execution-engine.md")
-
-    # ---- mention matching is BOUNDARY-anchored -------------------------------
-    #
-    # Observed 2026-08-11 (`review/consistency/2026/08/11/17_42_52`): a branch
-    # plan listed `conventions/secret-store.md` as an EXAMPLE, and bare `in`
-    # matched the basename `store.md` inside it. That promoted the unrelated
-    # 30,559-char `cafe24-api-catalog/store.md` into tier 1, and together with
-    # the legitimately-named file it pushed the 31,525-char code diff out of the
-    # `--impl-done` budget — five checkers judged "spec vs implementation" with
-    # no implementation in front of them.
-
-    _SUBSTRING_TRAP = [
-        "spec/conventions/cafe24-api-catalog/store.md",
-        "spec/conventions/secret-store.md",
-        "spec/conventions/error-codes.md",
-    ]
-
-    def test_longer_name_does_not_promote_the_shorter_one(self):
-        """`secret-store.md` must not drag `store.md` up with it.
-
-        `out[0]` is the whole assertion: with bare `in` BOTH files land in the
-        named tier, and inside a tier the order is natural — `cafe24-…` sorts
-        before `secret-…`, so the catalog page LEADS. Anchored, only the named
-        file is promoted and the catalog page falls back to the default tier.
-
-        It still sits at index 1 there, because `cafe24-api-catalog/store.md` is
-        a top-level index page (`_CATALOG_BULK_RE` demotes `…-api-catalog/<res>/**`,
-        not the index) and `c` < `e`. Position is not the property under test —
-        **tier** is, and index 0 is where the two tiers are distinguishable.
-        """
-        out = _prioritize(
-            self._SUBSTRING_TRAP,
-            plan_text="`conventions/secret-store.md` 의 LIKE 메타문자 정규식",
-        )
-        self.assertEqual(
-            out,
-            [
-                "spec/conventions/secret-store.md",
-                "spec/conventions/cafe24-api-catalog/store.md",
-                "spec/conventions/error-codes.md",
-            ],
-        )
-
-    def test_the_named_file_is_still_promoted(self):
-        """The boundary must not cost the real signal — same corpus, and the
-        catalog page IS the one named this time."""
-        out = _prioritize(
-            self._SUBSTRING_TRAP,
-            plan_text="`cafe24-api-catalog/store.md` 를 고친다",
-        )
-        self.assertEqual(out[0], "spec/conventions/cafe24-api-catalog/store.md")
-
-    def test_mention_forms_that_must_still_count(self):
-        """Every shape a plan actually uses to name a file.
-
-        Each is checked on its own so one surviving form cannot mask the rest —
-        a single combined `plan_text` would pass while three of four regressed.
-        """
-        rels = ["spec/5-system/4-execution-engine.md", "spec/5-system/1-auth.md"]
-        for label, text in (
-            ("frontmatter", "spec_impact:\n  - spec/5-system/4-execution-engine.md\n"),
-            ("markdown link", "근거는 [엔진](../5-system/4-execution-engine.md) 참조"),
-            ("backticked basename", "`4-execution-engine.md` 를 고친다"),
-            ("bare, sentence-final", "대상은 4-execution-engine.md."),
-        ):
-            with self.subTest(label):
-                out = _prioritize(rels, plan_text=text)
-                self.assertEqual(out[0], "spec/5-system/4-execution-engine.md")
-
-    def test_extension_suffix_does_not_count(self):
-        """`x.md` must not match `x.mdx` — the trailing boundary."""
-        out = _prioritize(
-            ["spec/conventions/node-output.md", "spec/conventions/error-codes.md"],
-            plan_text="가이드는 node-output.mdx 로 옮겼다",
-        )
-        self.assertNotEqual(out[0], "spec/conventions/node-output.md")
-
-    # Each boundary CHARACTER gets its own case. Reviewed 2026-08-11: deleting
-    # `.` or `_` from `_NAME_START` left all twelve tests green, i.e. only `-`
-    # was pinned — and only because the bug that prompted the fix happened to
-    # use `secret-store.md`. A character class nobody tests is a class nobody
-    # can safely edit.
-    _PREFIXED = ["spec/conventions/store.md", "spec/conventions/error-codes.md"]
-
-    def test_dot_before_the_name_does_not_count(self):
-        """`v2.store.md` must not answer for `store.md` (leading `.`)."""
-        out = _prioritize(self._PREFIXED, plan_text="`v2.store.md` 를 고친다")
-        self.assertNotEqual(out[0], "spec/conventions/store.md")
-
-    def test_underscore_before_the_name_does_not_count(self):
-        """`my_store.md` must not answer for `store.md` (leading `_`)."""
-        out = _prioritize(self._PREFIXED, plan_text="`my_store.md` 를 고친다")
-        self.assertNotEqual(out[0], "spec/conventions/store.md")
-
-    def test_hyphen_before_the_name_does_not_count(self):
-        """The reported bug's own shape, pinned on purpose rather than left to
-        ride along inside the larger `_SUBSTRING_TRAP` case."""
-        out = _prioritize(self._PREFIXED, plan_text="`secret-store.md` 를 고친다")
-        self.assertNotEqual(out[0], "spec/conventions/store.md")
-
-    def test_second_extension_does_not_count(self):
-        """`store.md.bak` must not answer for `store.md`.
-
-        The trailing class allows a bare `.` so sentence-final prose still
-        counts (`… store.md.`), so the rule has to reject `.` only when a
-        filename character follows it.
-        """
-        out = _prioritize(self._PREFIXED, plan_text="백업은 store.md.bak 에 있다")
-        self.assertNotEqual(out[0], "spec/conventions/store.md")
-
-    def test_sentence_final_dot_still_counts(self):
-        """The canary for the case above — tightening must not eat this."""
-        out = _prioritize(self._PREFIXED, plan_text="대상은 store.md.")
-        self.assertEqual(out[0], "spec/conventions/store.md")
-
-    def test_digit_before_the_name_does_not_count(self):
-        """`11-auth.md` must not answer for `1-auth.md`.
-
-        The most repo-realistic shape of all of them: `spec/5-system/` names
-        files `1-auth.md` / `10-graph-rag.md` / `11-mcp-client.md`, so a
-        numeric prefix IS a substring of its longer sibling. Per-character
-        mutation found this one — deleting `0-9` from `_NAME_START` left every
-        other test green.
-
-        The corpus puts a naturally-first sibling ahead of the victim on
-        purpose: `1-auth.md` leads its own directory by natural order, so
-        `out[0] != 1-auth.md` would be vacuous without one. (Caught by
-        re-running the mutation matrix — the BASELINE failed, which is what a
-        test that asserts sort order instead of tier looks like.)
-        """
-        corpus = ["spec/5-system/0-overview.md", "spec/5-system/1-auth.md"]
-        self.assertEqual(
-            _prioritize(corpus, plan_text="`11-auth.md` 로 옮겼다")[0],
-            "spec/5-system/0-overview.md",
-            "a longer numeric sibling promoted the shorter name",
-        )
-        # …and the same corpus DOES promote it when the name is really there.
-        self.assertEqual(
-            _prioritize(corpus, plan_text="`1-auth.md` 로 옮겼다")[0],
-            "spec/5-system/1-auth.md",
-        )
-
-    def test_catalog_bulk_sinks_below_everything(self):
-        """~230 auto-generated catalog files used to lead the conventions bundle
-        and push out every convention the target actually cites."""
-        rels = [
-            "spec/conventions/cafe24-api-catalog/product/fields.md",
-            "spec/conventions/cafe24-api-catalog/order/fields.md",
-            "spec/conventions/error-codes.md",
-            "spec/conventions/node-output.md",
-        ]
-        out = _prioritize(rels)
-        self.assertEqual(out[-2:], [
-            "spec/conventions/cafe24-api-catalog/order/fields.md",
-            "spec/conventions/cafe24-api-catalog/product/fields.md",
-        ])
-        self.assertEqual(out[0], "spec/conventions/error-codes.md")
-
-    def test_catalog_demotion_beats_a_plan_mention(self):
-        """A plan naming one catalog page must not drag the whole dump forward."""
-        out = _prioritize(
-            ["spec/conventions/cafe24-api-catalog/product/fields.md",
-             "spec/conventions/error-codes.md"],
-            plan_text="cafe24-api-catalog/product/fields.md 참고",
-        )
-        self.assertEqual(out[0], "spec/conventions/error-codes.md")
-
-    def test_branch_change_beats_catalog_demotion(self):
-        """A PR that edits a catalog page IS about that page.
-
-        Demoting it would reproduce this function's own bug class for exactly
-        those PRs — the changed file falls off the tail and the checkers judge
-        it without ever seeing it. Tier 0 therefore outranks the demotion, while
-        the weaker plan-mention signal (above) does not.
-        """
-        out = _prioritize(
-            ["spec/conventions/cafe24-api-catalog/product/fields.md",
-             "spec/conventions/error-codes.md"],
-            changed=["spec/conventions/cafe24-api-catalog/product/fields.md"],
-        )
-        self.assertEqual(out[0],
-                         "spec/conventions/cafe24-api-catalog/product/fields.md")
-
-    def test_catalog_top_level_index_is_not_demoted(self):
-        """R-7 keeps the catalog's top-level index files as 정식 spec.
-
-        `spec-impl-evidence.md` R-7 excludes only paths with **one or more**
-        segments after the catalog directory; the `<resource>.md` indexes carry
-        `id`/`status` and stay in scope. The first version of the regex matched
-        the catalog directory alone and demoted those too — measured 27 index
-        files wrongly pushed behind everything, the opposite of what R-7 asks.
-        """
-        out = _prioritize([
-            "spec/conventions/cafe24-api-catalog/product/fields.md",  # nested
-            "spec/conventions/cafe24-api-catalog/product.md",         # index
-            "spec/conventions/error-codes.md",
-        ])
-        self.assertEqual(out[-1],
-                         "spec/conventions/cafe24-api-catalog/product/fields.md")
-        self.assertIn("spec/conventions/cafe24-api-catalog/product.md", out[:2])
-
-    def test_reordering_never_drops_or_invents(self):
-        """This function reorders only — dropping is `truncate_file_bundle`'s job,
-        and only it emits the omission notice checkers rely on."""
-        out = _prioritize(_FIVE_SYSTEM,
-                          changed=["spec/5-system/4-execution-engine.md"],
-                          plan_text="10-graph-rag.md")
-        self.assertCountEqual(out, _FIVE_SYSTEM)
+    def test_a_changed_file_outranks_its_own_focus_and_mention(self):
+        both = "spec/CLE-X/CLE-X-2.md"
+        out = _prioritize(_AREA, changed=[both], focus=["spec/CLE-X/CLE-X-10.md", both],
+                          mentioned=[both])
+        self.assertEqual(out[:2], [both, "spec/CLE-X/CLE-X-10.md"])
 
     def test_ties_use_natural_order_not_lexicographic(self):
-        """Within a tier, `4-` comes before `10-`.
+        out = _prioritize(_AREA)
+        self.assertEqual(out, ["spec/CLE-X/CLE-X-1.md", "spec/CLE-X/CLE-X-2.md",
+                               "spec/CLE-X/CLE-X-3.md", "spec/CLE-X/CLE-X-10.md"])
 
-        This is the residual half of the 8-times-recurring bug: tiers 0/1 rescue
-        a target the branch touched or a plan names, but a session where the
-        target is neither still filled the budget front-to-back in
-        lexicographic order — `"1" < "10" < "11" < "2" < "4"` — and dropped from
-        the tail. Measured on `spec/5-system/` (18 files):
-        `4-execution-engine.md` sat at position 12 and now sits at 4.
+    def test_reordering_never_drops_or_invents(self):
+        out = _prioritize(_AREA, changed=["spec/CLE-X/CLE-X-10.md"], focus=["nope.md"])
+        self.assertCountEqual(out, _AREA)
 
-        The earlier version of this test pinned the lexicographic order as
-        intended behaviour, which is why the plan still listed natural sort as
-        open while a test asserted the opposite.
-        """
-        out = _prioritize(_FIVE_SYSTEM)
-        self.assertEqual(out, [
-            "spec/5-system/1-auth.md",
-            "spec/5-system/4-execution-engine.md",
-            "spec/5-system/10-graph-rag.md",
-            "spec/5-system/11-mcp-client.md",
-        ])
+
+class KeyMentionTest(unittest.TestCase):
+    """A key mention must start and end where the key does.
+
+    `CLE-ENG` is a prefix of `CLE-ENG-MIGRATION`, and a mirror link
+    `../CLE-ENG/CLE-ENG-RULE.md` carries the area folder name. Neither is a
+    mention of the area document — counting them would promote area documents
+    into tier 2 for every link into their area.
+    """
+
+    def _mentions(self, text, keys):
+        return set(run_in_orchestrator(
+            "emit(sorted(orch.mentioned_keys(ARG[0], set(ARG[1]))))", [text, keys]))
+
+    def test_a_longer_key_is_not_a_mention_of_its_prefix(self):
+        self.assertEqual(self._mentions("CLE-ENG-MIGRATION 을 본다", ["CLE-ENG", "CLE-ENG-MIGRATION"]),
+                         {"CLE-ENG-MIGRATION"})
+
+    def test_a_mirror_link_names_the_document_not_its_folder(self):
+        self.assertEqual(self._mentions("[x](../CLE-ENG/CLE-ENG-RULE.md#a)", ["CLE-ENG", "CLE-ENG-RULE"]),
+                         {"CLE-ENG-RULE"})
+
+    def test_key_link_and_prose_forms_count(self):
+        self.assertEqual(self._mentions("[a](CLE-VISION#개요), (CLE-ACCT). CLE-OBS 끝",
+                                        ["CLE-VISION", "CLE-ACCT", "CLE-OBS"]),
+                         {"CLE-VISION", "CLE-ACCT", "CLE-OBS"})
+
+    def test_keys_outside_the_mirror_are_ignored(self):
+        self.assertEqual(self._mentions("CLE-C24-CATALOG 와 CLE-ENG", ["CLE-ENG"]), {"CLE-ENG"})
+
+
+class ImplLocationTest(unittest.TestCase):
+    """`## 구현 위치` — what a document says implements it, and what that covers."""
+
+    def test_the_section_yields_repository_paths_only(self):
+        got = run_in_orchestrator(
+            """
+            import tempfile
+            with tempfile.TemporaryDirectory() as d:
+                for top in ("codebase", "scripts", ".github"):
+                    os.makedirs(os.path.join(d, top))
+                text = ("## 개요\\n\\n- `codebase/not/this.ts` 는 다른 절이다\\n\\n"
+                        "## 구현 위치\\n\\n"
+                        "- `codebase/a/**` (`recoverStuck`, `x.ts`)\\n"
+                        "- `scripts/check.py:12`, `./.github/workflows/w.yml`\\n"
+                        "- `spec/CLE-X/CLE-X-1.md` 는 스펙 자신이다\\n"
+                        "- `nowhere/y.ts` 는 최상위 폴더가 없다\\n"
+                        "- `codebase/with space.ts`\\n\\n"
+                        "## Rationale\\n\\n- `codebase/later.ts`\\n")
+                emit(orch.impl_location_patterns(text, d))
+            """
+        )
+        # `x.ts` 는 같은 줄 앞 경로의 폴더 기준으로 읽힌다(이어 적은 이름). `recoverStuck` 은 점이 없어 빠진다.
+        self.assertEqual(got, ["codebase/a/**", "codebase/a/x.ts", "scripts/check.py", ".github/workflows/w.yml"])
+
+    def test_a_file_name_continuing_a_path_on_the_same_line_is_read_in_its_folder(self):
+        """미러는 `` `a/b/s.ts`(…), `c.ts`, `dto/d.ts` `` 처럼 앞 경로에 이어 파일 이름만 적는다.
+
+        이어 적은 이름은 같은 줄의 마지막 전체 경로가 든 폴더 기준으로 읽는다(이름끼리는 잇지 않는다). 점이 없는 식별자는 경로가 아니고,
+        이어 읽기는 줄을 넘지 않는다(CLE-CHAT-CORE 의 `triggers.controller.ts` · `hooks.controller.ts`)."""
+        got = run_in_orchestrator(
+            """
+            import tempfile
+            with tempfile.TemporaryDirectory() as d:
+                os.makedirs(os.path.join(d, "codebase"))
+                text = ("## 구현 위치\\n\\n"
+                        "- `codebase/m/t/s.ts`(조율), `t.controller.ts`(`rotate`), `dto/c.dto.ts`, `u.ts`\\n"
+                        "- `codebase/m/h/**`: 모듈(`h.registry.ts`), `rotateBotToken`\\n"
+                        "- `orphan.ts` 는 앞 경로가 없다\\n")
+                emit(orch.impl_location_patterns(text, d))
+            """
+        )
+        self.assertEqual(got, ["codebase/m/t/s.ts", "codebase/m/t/t.controller.ts", "codebase/m/t/dto/c.dto.ts",
+                               "codebase/m/t/u.ts", "codebase/m/h/**", "codebase/m/h/h.registry.ts"])
+
+    def test_a_document_without_the_section_has_no_patterns(self):
+        self.assertEqual(run_in_orchestrator(
+            "emit(orch.impl_location_patterns('## 개요\\n\\n- `codebase/a.ts`\\n', ROOT))"), [])
+
+    def test_pattern_matching(self):
+        cases = [
+            ("codebase/a/", "codebase/a/x.ts", True),
+            ("codebase/a/**", "codebase/a/deep/x.ts", True),
+            ("codebase/a/**", "codebase/ab/x.ts", False),
+            ("codebase/a/*.dto.ts", "codebase/a/b.dto.ts", True),
+            ("codebase/a/*.dto.ts", "codebase/a/b.ts", False),
+            ("codebase/a/x.ts", "codebase/a/x.ts", True),
+            ("codebase/a", "codebase/a/x.ts", True),
+            ("codebase/a", "codebase/ab/x.ts", False),
+            # Next.js 동적 경로 — 대괄호는 글자 그대로다(문자 집합이 아니다).
+            ("codebase/w/[slug]/p.tsx", "codebase/w/[slug]/p.tsx", True),
+            ("codebase/w/[slug]/p.tsx", "codebase/w/s/p.tsx", False),
+            ("codebase/w/[slug]/*.tsx", "codebase/w/[slug]/p.tsx", True),
+            # 중괄호 갈래
+            ("codebase/d/{ko,en}/t.ts", "codebase/d/en/t.ts", True),
+            ("codebase/d/{ko,en}/t.ts", "codebase/d/fr/t.ts", False),
+            ("codebase/d/{ko,en}/*.ts", "codebase/d/ko/t.ts", True),
+            # `/**/` 는 폴더 0개도 받는다
+            ("codebase/dto/**/c-*.dto.ts", "codebase/dto/c-x.dto.ts", True),
+            ("codebase/dto/**/c-*.dto.ts", "codebase/dto/responses/c-y.dto.ts", True),
+            ("codebase/dto/**/c-*.dto.ts", "codebase/dto/other.dto.ts", False),
+        ]
+        got = run_in_orchestrator(
+            "emit([orch.impl_pattern_matches(p, r) for p, r, _ in ARG])", cases)
+        self.assertEqual(got, [want for _, _, want in cases])
+
+
+class CollectContextOnTheMirrorTest(unittest.TestCase):
+    """`collect_context` builds the target and both corpora from the mirror, ranked."""
+
+    def _ctx(self, setup="", **kw):
+        return run_in_orchestrator(
+            """
+            import tempfile
+            with tempfile.TemporaryDirectory() as tmp:
+                root = mini_mirror(tmp)
+                exec(ARG["setup"])
+                args = Args(**ARG["kw"])
+                if args.spec:
+                    args.spec = os.path.join(tmp, args.spec)
+                ctx = orch.collect_context(args, root)
+                emit({k: (heads(v) if k != "mode" and k != "target_path" else v)
+                      for k, v in ctx.items()} | {"raw": ctx})
+            """,
+            {"setup": textwrap.dedent(setup), "kw": kw},
+        )
+
+    def test_the_corpora_are_the_mirror_split_by_type(self):
+        ctx = self._ctx(impl_prep="CLE-AAA-TWO")
+        self.assertEqual(ctx["target_doc"], ["spec/CLE-AAA/CLE-AAA-TWO.md"])
+        self.assertEqual(sorted(ctx["conventions"]),
+                         ["spec/CLE-ENG/CLE-ENG-OTHER.md", "spec/CLE-ENG/CLE-ENG-RULE.md"])
+        related = ctx["related_specs"]
+        self.assertIn("spec/CLE-VISION.md", related)
+        self.assertNotIn("spec/CLE-AAA/CLE-AAA-TWO.md", related, "the target is not its own corpus")
+        self.assertNotIn("spec/CLE-ENG/CLE-ENG-RULE.md", related, "conventions are their own corpus")
+        for absent in ("spec/CLE-RESEARCH/CLE-RESEARCH-R.md", "spec/README.md",
+                       "spec/5-system/old.md", "spec/conventions/old-conv.md"):
+            with self.subTest(absent=absent):
+                self.assertNotIn(absent, related + ctx["conventions"])
+
+    def test_focus_then_mentions_lead_the_corpora(self):
+        ctx = self._ctx(impl_prep="CLE-AAA-TWO", focus="CLE-BBB-Y")
+        self.assertEqual(ctx["related_specs"][:2], ["spec/CLE-BBB/CLE-BBB-Y.md", "spec/CLE-BBB/CLE-BBB-X.md"])
+        self.assertEqual(ctx["conventions"][0], "spec/CLE-ENG/CLE-ENG-RULE.md")
+        # The folder name in `../CLE-BBB/` is not a mention: no area document jumps the queue.
+        self.assertNotIn("spec/CLE-AAA/CLE-AAA.md", ctx["related_specs"][:2])
+
+    def test_an_uncommitted_edit_reaches_the_top_tier(self):
+        """검토 대상이 아직 커밋되지 않았다는 이유로 예산에서 탈락하면 안 된다(2026-08-10 실측)."""
+        ctx = self._ctx(
+            setup="""
+                with open(os.path.join(root, "spec/CLE-BBB/CLE-BBB-Y.md"), "a", encoding="utf-8") as fh:
+                    fh.write("\\n미커밋\\n")
+            """,
+            impl_prep="CLE-AAA-TWO", focus="CLE-AAA-10",
+        )
+        self.assertEqual(ctx["related_specs"][0], "spec/CLE-BBB/CLE-BBB-Y.md")
+
+    def test_a_scope_of_several_forms_is_one_target(self):
+        ctx = self._ctx(impl_prep="CLE-BBB-X, spec/CLE-ENG/ ,spec/CLE-AAA/CLE-AAA-ONE.md")
+        self.assertEqual(sorted(ctx["target_doc"]), [
+            "spec/CLE-AAA/CLE-AAA-ONE.md", "spec/CLE-BBB/CLE-BBB-X.md",
+            "spec/CLE-ENG/CLE-ENG-OTHER.md", "spec/CLE-ENG/CLE-ENG-RULE.md"])
+        self.assertEqual(ctx["conventions"], [], "convention docs in the target leave the corpus")
+
+    def test_one_document_named_three_ways_is_bundled_once(self):
+        """키 · 그 키가 든 폴더 · 그 파일을 함께 줘도 대상에는 한 번만 실린다."""
+        ctx = self._ctx(impl_prep="CLE-ENG-RULE, spec/CLE-ENG/, spec/CLE-ENG/CLE-ENG-RULE.md")
+        self.assertEqual(ctx["target_doc"], ["spec/CLE-ENG/CLE-ENG-OTHER.md", "spec/CLE-ENG/CLE-ENG-RULE.md"])
+
+    def test_a_spec_draft_replaces_its_own_mirror_version_but_keeps_its_rationale(self):
+        ctx = self._ctx(
+            setup="""
+                with open(os.path.join(tmp, "CLE-AAA-ONE.md"), "w", encoding="utf-8") as fh:
+                    fh.write("새 초안\\n")
+            """,
+            spec="CLE-AAA-ONE.md",
+        )
+        self.assertNotIn("spec/CLE-AAA/CLE-AAA-ONE.md", ctx["related_specs"])
+        self.assertIn("근거 ONE", ctx["raw"]["rationale_excerpts"])
+
+
+class ImplDoneCoveringDocumentsTest(unittest.TestCase):
+    """`--impl-done` adds the documents whose `## 구현 위치` covers a changed file.
+
+    The old push gate required `--impl-done` when a branch touched a file a spec's
+    `code:` globs named; NERV cutover stage 2 retired that check. This restores the
+    comparison **when `--impl-done` runs**: a changed file a document names as its
+    implementation brings that document into the target. Nothing enforces the run —
+    the NERV done gate only checks that a consistency round exists and passed, not
+    which documents it covered.
+    """
+
+    def _done(self, rel, body="export const x = 2;\n", scope="CLE-AAA-TWO", **kw):
+        return run_in_orchestrator(
+            """
+            import tempfile
+            with tempfile.TemporaryDirectory() as tmp:
+                root = mini_mirror(tmp)
+                for rel, body in ARG["files"]:
+                    path = os.path.join(root, rel)
+                    os.makedirs(os.path.dirname(path), exist_ok=True)
+                    with open(path, "w", encoding="utf-8") as fh:
+                        fh.write(body)
+                _harness.git_in(root, "add", "-A")
+                _harness.git_in(root, "commit", "-qm", "work")
+                args = Args(impl_done=ARG["scope"], diff_base="origin/main", **ARG["kw"])
+                td = orch.collect_context(args, root)["target_doc"]
+                emit({"heads": heads(td), "text": td})
+            """,
+            {"files": [[rel, body]] if isinstance(rel, str) else rel, "scope": scope, "kw": kw},
+        )
+
+    def test_the_covering_document_joins_the_target_and_the_census_says_why(self):
+        out = self._done("codebase/a/x.ts")
+        self.assertIn("spec/CLE-AAA/CLE-AAA-ONE.md", out["heads"])
+        self.assertIn("구현 위치 대조로 더한 문서: 1개", out["text"])
+        self.assertIn("`spec/CLE-AAA/CLE-AAA-ONE.md` ← `codebase/a/x.ts`", out["text"])
+
+    def test_a_change_outside_every_section_adds_nothing(self):
+        out = self._done("codebase/b/y.ts")
+        self.assertNotIn("spec/CLE-AAA/CLE-AAA-ONE.md", out["heads"])
+        self.assertNotIn("구현 위치 대조", out["text"])
+
+    def test_the_diff_sits_right_after_the_on_topic_documents(self):
+        """맨 뒤면 가장 먼저 잘리고(2026-08-09 실측), 맨 앞이면 대상 문서보다 먼저 예산을 쓴다."""
+        out = self._done("codebase/a/x.ts")
+        diff = next(h for h in out["heads"] if h.startswith("<git diff"))
+        order = [h for h in out["heads"] if h.startswith(("spec/", "<git diff"))]
+        self.assertEqual(order, ["spec/CLE-AAA/CLE-AAA-ONE.md", diff, "spec/CLE-AAA/CLE-AAA-TWO.md"])
+
+    def test_catalog_field_files_leave_the_diff_and_are_counted(self):
+        out = self._done([["codebase/api-catalogs/cafe24/order.md", "색인 2\n"],
+                          ["codebase/api-catalogs/cafe24/order/list.md", "필드 2\n"]])
+        self.assertIn("api-catalogs/cafe24/order.md", out["text"])
+        self.assertNotIn("api-catalogs/cafe24/order/list.md", out["text"].split("```diff")[-1])
+        self.assertIn("API 카탈로그 필드 파일 1개", out["text"])
+
+    def test_a_covered_document_already_in_the_scope_is_not_called_added(self):
+        """사용자가 준 scope 문서는 대조로 «더한» 문서가 아니다. census 가 이유를 거꾸로 적으면 안 된다."""
+        out = self._done("codebase/a/x.ts", scope="CLE-AAA-ONE")
+        self.assertIn("spec/CLE-AAA/CLE-AAA-ONE.md", out["heads"])
+        self.assertNotIn("구현 위치 대조로 더한 문서", out["text"])
+
+    def test_the_catalog_count_is_what_the_diff_left_out(self):
+        """diff 경로 밖의 카탈로그 변경은 diff 에서 «뺀» 것이 아니다. 실제로 뺀 파일만 센다."""
+        out = self._done([["codebase/api-catalogs/cafe24/order/list.md", "필드 2\n"],
+                          ["scripts/s.py", "x = 1\n"]], diff_paths=["scripts"])
+        self.assertNotIn("API 카탈로그 필드 파일", out["text"])
+
+    def test_catalog_source_data_stays_in_the_diff(self):
+        """제외는 생성된 필드 문서(`.md`)뿐이다. OpenAPI 원본 JSON 은 데이터라 diff 에 남고 세지 않는다."""
+        out = self._done([["codebase/api-catalogs/makeshop/openapi/shop.openapi.json", "{}\n"]])
+        self.assertIn("api-catalogs/makeshop/openapi/shop.openapi.json", out["text"].split("```diff")[-1])
+        self.assertNotIn("API 카탈로그 필드 파일", out["text"])
+
+    def test_the_exclude_glob_and_the_counting_regex_pick_the_same_files(self):
+        """diff 의 제외(git 글롭)와 census 의 수(정규식)가 같은 파일을 가리켜야 한다."""
+        rels = ["codebase/api-catalogs/cafe24/order/list.md", "codebase/api-catalogs/cafe24/order/deep/x.md",
+                "codebase/api-catalogs/cafe24/order.md", "codebase/api-catalogs/makeshop/openapi/a.openapi.json",
+                "codebase/api-catalogs/README.md", "codebase/a/x.ts"]
+        got = run_in_orchestrator(
+            """
+            import tempfile
+            with tempfile.TemporaryDirectory() as tmp:
+                root = mini_mirror(tmp)
+                for rel in ARG:
+                    path = os.path.join(root, rel)
+                    os.makedirs(os.path.dirname(path), exist_ok=True)
+                    with open(path, "w", encoding="utf-8") as fh:
+                        fh.write("changed\\n")
+                _harness.git_in(root, "add", "-A")
+                _harness.git_in(root, "commit", "-qm", "work")
+                diff = orch._collect_code_diff("origin/main", root, ["codebase"])
+                emit({"in_diff": [r for r in ARG if f" b/{r}" in diff],
+                      "by_regex": [r for r in ARG if orch.is_catalog_field_file(r)],
+                      "counted": orch._catalog_files_left_out("origin/main", root, ["codebase"])})
+            """,
+            rels,
+        )
+        self.assertEqual(sorted(set(rels) - set(got["in_diff"])), sorted(got["by_regex"]))
+        self.assertEqual(got["counted"], len(got["by_regex"]))
+        self.assertEqual(len(got["by_regex"]), 2, got)
+
+    def test_diff_paths_override_the_code_areas(self):
+        out = self._done([["codebase/a/x.ts", "export const x = 3;\n"], ["scripts/s.py", "x = 1\n"]],
+                         diff_paths=["scripts"])
+        diff = out["text"].split("```diff")[-1]
+        self.assertIn("scripts/s.py", diff)
+        self.assertNotIn("codebase/a/x.ts", diff)
 
 
 class CollectMarkdownFilesOrderTest(unittest.TestCase):
@@ -349,24 +448,21 @@ class CollectMarkdownFilesOrderTest(unittest.TestCase):
 
     Downstream `prioritize_bundle_files` re-sorts, so this function's own order
     is invisible from every other test here: mutation showed reverting it to
-    `files.sort()` left the suite GREEN. Callers that do NOT prioritize (and any
-    future one) still get the order this asserts, so it is a contract, not an
-    implementation detail — and an untested one is indistinguishable from dead
-    code, which is how it would get "cleaned up" later.
+    `files.sort()` left the suite GREEN. Callers that do NOT prioritize still get
+    the order this asserts, so it is a contract, not an implementation detail.
     """
 
     def test_returns_natural_order(self):
         order = run_in_orchestrator(
             """
-            import os
-            fs = orch.collect_markdown_files(os.path.join(ROOT, "spec/5-system"))
-            emit([os.path.basename(f) for f in fs[:5]])
+            import tempfile
+            with tempfile.TemporaryDirectory() as d:
+                for name in ("10-b.md", "2-a.md", "1-z.md", "11-c.md"):
+                    open(os.path.join(d, name), "w").close()
+                emit([os.path.basename(f) for f in orch.collect_markdown_files(d)])
             """
         )
-        self.assertEqual(order[:5], [
-            "1-auth.md", "2-api-convention.md", "3-error-handling.md",
-            "4-execution-engine.md", "5-expression-language.md",
-        ])
+        self.assertEqual(order, ["1-z.md", "2-a.md", "10-b.md", "11-c.md"])
 
 
 class PriorityThenTruncationTest(unittest.TestCase):
@@ -375,56 +471,36 @@ class PriorityThenTruncationTest(unittest.TestCase):
     def test_changed_target_survives_a_budget_that_fits_one_file(self):
         kept = run_in_orchestrator(
             """
-            import os
-            rels = ARG["rels"]
-            paths = [os.path.join(ROOT, r) for r in rels]
-            ordered = orch.prioritize_bundle_files(
-                paths, ROOT, changed_rels=ARG["changed"])
-            ordered_rels = [os.path.relpath(p, ROOT) for p in ordered]
-
-            parts = ["### 구현 대상 spec 영역\\n"]
-            for rel in ordered_rels:
-                parts.append(orch._BUNDLE_FILE_SENTINEL + "#### `" + rel
+            paths = [os.path.join(ROOT, r) for r in ARG["rels"]]
+            ordered = orch.prioritize_bundle_files(paths, ROOT, changed_rels=ARG["changed"])
+            parts = ["### 대상\\n"]
+            for p in ordered:
+                parts.append(orch._BUNDLE_FILE_SENTINEL + "#### `" + os.path.relpath(p, ROOT)
                              + "`\\n```\\n" + ("x" * 400) + "\\n```\\n")
-            text = "".join(parts)
-
-            out = orch.truncate_file_bundle(text, 700)
-            emit({"text": out, "order": ordered_rels})
+            emit({"text": orch.truncate_file_bundle("".join(parts), 700),
+                  "heading": orch.OMITTED_FILES_HEADING})
             """,
-            {"rels": _FIVE_SYSTEM,
-             "changed": ["spec/5-system/4-execution-engine.md"]},
+            {"rels": _AREA, "changed": ["spec/CLE-X/CLE-X-3.md"]},
         )
-        # The one file that fits is the branch's actual subject...
-        self.assertIn("spec/5-system/4-execution-engine.md", kept["text"])
-        # ...and the alphabetical head that used to win is gone from the body,
-        # named in the omission notice instead.
-        self.assertIn(orch_omitted_heading(), kept["text"])
-        body = kept["text"].split(orch_omitted_heading())[0]
-        self.assertNotIn("spec/5-system/1-auth.md", body)
-
-
-def orch_omitted_heading():
-    return run_in_orchestrator("emit(orch.OMITTED_FILES_HEADING)")
+        self.assertIn("spec/CLE-X/CLE-X-3.md", kept["text"])
+        self.assertIn(kept["heading"], kept["text"])
+        body = kept["text"].split(kept["heading"])[0]
+        self.assertNotIn("spec/CLE-X/CLE-X-1.md", body)
 
 
 class BranchChangedRelsAgainstRealGitTest(unittest.TestCase):
     """`_branch_changed_rels` is the ONLY source of tier 0 — test it on real git.
 
-    Everything else here replaces `prioritize_bundle_files` with a lambda, so the
-    function that decides "did this branch change the file" was never asserted:
-    a mutant returning `set()` would leave tier 0 permanently empty — silently
-    reverting the main fix — and every other test would stay GREEN.
+    A mutant returning `set()` would leave tier 0 permanently empty — silently
+    reverting the main fix — and a lambda-replaced ranker would stay GREEN.
     """
 
     def _repo(self):
         import os
         import shutil
-        import tempfile
         d = tempfile.mkdtemp()
         self.addCleanup(shutil.rmtree, d, ignore_errors=True)
 
-        # 공용 헬퍼 — `git -C` + ceiling + 임시경로 단언. 2026-08-06 공유 `.git/config`
-        # 오염 사고의 방어이고, 사고 당시 이 파일이 미경화 5곳 중 하나였다.
         def git(*args):
             return _harness.git_in(d, *args)
 
@@ -440,9 +516,7 @@ class BranchChangedRelsAgainstRealGitTest(unittest.TestCase):
 
     def _changed(self, root, base):
         return set(run_in_orchestrator(
-            """
-            emit(sorted(orch._branch_changed_rels(ARG["base"], ARG["root"])))
-            """,
+            "emit(sorted(orch._branch_changed_rels(ARG['base'], ARG['root'])))",
             {"base": base, "root": root},
         ))
 
@@ -455,8 +529,7 @@ class BranchChangedRelsAgainstRealGitTest(unittest.TestCase):
             f.write("new\n")
         git("add", "-A")
         git("commit", "-qm", "work")
-        self.assertEqual(self._changed(d, "main"),
-                         {"spec/added.md", "spec/kept.md"})
+        self.assertEqual(self._changed(d, "main"), {"spec/added.md", "spec/kept.md"})
 
     def test_rename_reports_both_sides(self):
         """`--no-renames` is deliberate: a renamed spec is two paths the bundle
@@ -464,428 +537,25 @@ class BranchChangedRelsAgainstRealGitTest(unittest.TestCase):
         d, git = self._repo()
         git("mv", "spec/renamed-from.md", "spec/renamed-to.md")
         git("commit", "-qm", "rename")
-        self.assertEqual(self._changed(d, "main"),
-                         {"spec/renamed-from.md", "spec/renamed-to.md"})
+        self.assertEqual(self._changed(d, "main"), {"spec/renamed-from.md", "spec/renamed-to.md"})
 
     def test_unknown_base_yields_empty_not_an_exception(self):
         d, _ = self._repo()
         self.assertEqual(self._changed(d, "no-such-ref"), set())
 
 
-class CollectContextUsesPriorityTest(unittest.TestCase):
-    """`collect_context` must USE the ranker's result — for BOTH gate modes.
-
-    Every test above exercises `prioritize_bundle_files` directly, so removing
-    the call sites leaves them all GREEN while the bug is fully back.
-
-    Asserting the ranker was *called* is not enough either: a pass-through
-    mutant (`scope_files = prioritize_bundle_files(...) and scope_files`) keeps
-    the call and discards the return, and a call-count spy stays GREEN. Both
-    mutants survived that version of this test. So the spy imposes a sentinel
-    order (reverse-alphabetical) and we assert the bundle actually comes out in
-    it — the effect, not the call.
-    """
-
-    @staticmethod
-    def _order(mode, key):
-        return run_in_orchestrator(
-            """
-            import re
-            orch.prioritize_bundle_files = (
-                lambda file_paths, root, **kw: sorted(file_paths, reverse=True))
-
-            class Args:
-                spec = plan = impl_prep = impl_done = diff_base = None
-            args = Args()
-            setattr(args, ARG["mode"], ROOT + "/spec/5-system")
-
-            ctx = orch.collect_context(args, ROOT)
-            # Strip the fenced file bodies first: spec documents contain their
-            # own `#### \x60...\x60` headings, and matching those pulled content
-            # tokens (`integration_expired`) into what should be a list of
-            # bundle entries. The bundle wraps every file in a fence, so what
-            # survives the strip is exactly its own headers.
-            text = re.sub(r"```.*?```", "", ctx[ARG["key"]], flags=re.S)
-            emit(re.findall(r"^#### `([^`]+)`", text, re.M))
-            """,
-            {"mode": mode, "key": key},
-        )
-
-    def _assert_sentinel_order(self, mode, key):
-        order = self._order(mode, key)
-        # `--impl-done` splices the code diff between the on-topic files and the
-        # rest of the folder dump, so it is deliberately NOT in the ranker's
-        # alphabetical order. Its placement is pinned by `TheDiffOutranksTheFolderDumpTest`;
-        # here it is dropped so the spec files' ordering stays testable.
-        order = [e for e in order if not e.startswith("<git diff")]
-        self.assertGreater(len(order), 1, f"{key} bundle did not render")
-        self.assertEqual(order, sorted(order, reverse=True),
-                         f"collect_context ignored the ranker's ordering for {key}")
-        # Guard against the assertion passing because the natural order already
-        # happens to be reverse-alphabetical.
-        self.assertNotEqual(order, sorted(order))
-
-    def test_impl_prep_uses_the_ranked_order(self):
-        self._assert_sentinel_order("impl_prep", "target_doc")
-
-    def test_impl_done_uses_the_ranked_order(self):
-        self._assert_sentinel_order("impl_done", "target_doc")
-
-    # The scope bundle is not the only ranked one. A reviewer predicted these
-    # two call sites were unlocked; mutating both to discard the ranker's return
-    # left the suite GREEN, so the prediction was right — these pin them.
-    def test_related_specs_uses_the_ranked_order(self):
-        self._assert_sentinel_order("impl_done", "related_specs")
-
-    def test_conventions_uses_the_ranked_order(self):
-        self._assert_sentinel_order("impl_done", "conventions")
-
-    @staticmethod
-    def _plan_bundle_with_leftover(config, names=("leftover.md",), sentinel=False):
-        """`plan_in_progress` bundle entries for a copy holding leftover plans.
-
-        `config` is written as the copy's `.claude.project.json`, or nothing is
-        written when it is None (the harness DEFAULTS apply). `sentinel` installs
-        the reverse-alphabetical ranker `_order` uses."""
-        return run_in_orchestrator(
-            """
-            import os, re, tempfile
-            if ARG["sentinel"]:
-                orch.prioritize_bundle_files = (
-                    lambda file_paths, root, **kw: sorted(file_paths, reverse=True))
-            with tempfile.TemporaryDirectory() as tmp:
-                root = five_system_copy(tmp)
-                if ARG["config"] is not None:
-                    with open(os.path.join(root, ".claude.project.json"), "w",
-                              encoding="utf-8") as fh:
-                        fh.write(ARG["config"])
-                os.makedirs(os.path.join(root, "plan/in-progress"))
-                for name in ARG["names"]:
-                    with open(os.path.join(root, "plan/in-progress", name), "w",
-                              encoding="utf-8") as fh:
-                        fh.write("# 지우기 전 체크아웃에 남은 plan\\n")
-
-                class Args:
-                    spec = plan = impl_prep = diff_base = None
-                    impl_done = None
-                args = Args()
-                args.impl_done = os.path.join(root, "spec/5-system")
-                ctx = orch.collect_context(args, root)
-                text = re.sub(r"```.*?```", "", ctx["plan_in_progress"], flags=re.S)
-                emit(re.findall(r"^#### `([^`]+)`", text, re.M))
-            """,
-            {"config": config, "names": list(names), "sentinel": sentinel},
-        )
-
-    def test_plan_in_progress_renders_empty_without_a_plan_corpus(self):
-        """`plan_coherence`'s ONLY corpus left with `plan/` in NERV cutover stage 3.
-
-        The bundle used to be ranked like the others (it was ~10x its budget
-        share on this repo). The harness DEFAULTS no longer name a plan corpus,
-        so a `plan/in-progress/` left behind in some checkout must not be read
-        back in; `plan_coherence` is also switched off in `.claude.project.json`.
-        The control proves the fixture would render: with the corpus configured
-        the same leftover file shows up. The dormant machinery goes in cutover
-        4e (NERV Task `CLE-T-VP5KDJ`).
-        """
-        self.assertEqual(self._plan_bundle_with_leftover(None), [],
-                         "기본 설정이 남은 plan/in-progress 를 다시 읽었다")
-        self.assertEqual(
-            self._plan_bundle_with_leftover(PLAN_CORPUS_CONFIG),
-            ["plan/in-progress/leftover.md"],
-            "대조군: plan 코퍼스를 설정해도 번들이 안 나온다 — 위 단언이 공허하다",
-        )
-
-    def test_plan_in_progress_uses_the_ranked_order_with_a_plan_corpus(self):
-        """With the corpus configured the bundle is still ranked like the others.
-        This was `test_plan_in_progress_uses_the_ranked_order` until `plan/` left
-        this repo; without it, dropping `_prioritized(plan_files)` survived."""
-        order = self._plan_bundle_with_leftover(
-            PLAN_CORPUS_CONFIG, names=("a.md", "b.md", "c.md"), sentinel=True)
-        self.assertEqual(order, ["plan/in-progress/c.md", "plan/in-progress/b.md",
-                                 "plan/in-progress/a.md"],
-                         "collect_context ignored the ranker's ordering for plan_in_progress")
-
-
-class ThisBranchsPlanOutranksEveryOtherPlanTest(unittest.TestCase):
-    """"어느 in-progress plan 이든 언급하면 tier 1" 은 신호이길 그만뒀다.
-
-    실측 2026-08-09: in-progress plan 63개를 이어 붙이면 755,385자가 되고, 그 텍스트는
-    `spec/5-system/` 18개 중 **14개**를 tier 1로 태그한다 — 이 함수가 애초에 구하려던
-    바로 그 스코프다. 이 브랜치가 건드린 plan 으로 좁히면 같은 스코프가 5개가 되고,
-    그 5개가 실제 작업 대상이다. 디렉터리의 77% 에서 켜지는 건 신호가 아니다.
-
-    `spec_impact:` frontmatter 가 이 tier 로 들어오는 경로다 — plan 전문을 넘기므로
-    별도 파서가 필요 없다.
-    """
-
-    def test_a_branch_plan_mention_outranks_any_other_plan_mention(self):
-        order = run_in_orchestrator(
-            """
-            import os
-            files = [ROOT + "/spec/5-system/a.md", ROOT + "/spec/5-system/b.md"]
-            out = orch.prioritize_bundle_files(
-                files, ROOT,
-                changed_rels=(),
-                plan_text="a.md 와 b.md 를 모두 언급하는 다른 plan",
-                branch_plan_text="이 브랜치의 plan 은 b.md 만 언급한다",
-            )
-            emit([os.path.basename(p) for p in out])
-            """
-        )
-        # 자연순서는 a, b 다 — b 가 앞서면 브랜치-plan tier 가 실제로 작동한 것이다.
-        self.assertEqual(order, ["b.md", "a.md"])
-
-    def test_a_branch_plan_mention_still_loses_to_the_catalog_demotion(self):
-        """언급 하나가 자동생성 덤프 ~230개를 앞으로 끌고 오면 안 된다 — 그 성질은
-        tier 를 하나 더 끼워 넣어도 유지돼야 한다(브랜치가 **직접 고친** 경우만 예외).
-
-        경로가 **중첩**인 것이 중요하다: R-7 은 `<name>-api-catalog/<resource>.md`
-        최상위 인덱스를 정식 spec 으로 남기므로 강등 대상이 아니다(실측 222 강등 /
-        27 유지). 처음 쓴 픽스처가 최상위였고, 그래서 틀린 건 코드가 아니라 픽스처였다.
-        """
-        order = run_in_orchestrator(
-            """
-            import os
-            cat = ROOT + "/spec/conventions/cafe24-api-catalog/order/x.md"
-            plain = ROOT + "/spec/conventions/zzz.md"
-            out = orch.prioritize_bundle_files(
-                [cat, plain], ROOT,
-                changed_rels=(),
-                plan_text="",
-                branch_plan_text="이 브랜치 plan 이 x.md 를 언급한다",
-            )
-            emit([os.path.basename(p) for p in out])
-            """
-        )
-        self.assertEqual(order, ["zzz.md", "x.md"])
-
-    def test_collect_context_passes_no_plan_signal_without_a_plan_corpus(self):
-        """호출부 계약. 전환 단계 3 뒤 기본 설정에는 plan 코퍼스가 없다. 그때 랭킹은 plan
-        언급 신호를 받지 않아야 한다(옛 경로를 읽어 엉뚱한 파일을 올리지 않는다). plan 코퍼스를
-        둔 설정에서 "이 브랜치의 plan 만" 좁히는 호출부 계약은 아래
-        `test_collect_context_ranks_with_this_branchs_plans_only` 가 본다."""
-        sizes = run_in_orchestrator(
-            """
-            seen = {}
-            real = orch.prioritize_bundle_files
-            def spy(file_paths, root, **kw):
-                seen.setdefault("plan", kw.get("plan_text", ""))
-                seen.setdefault("branch", kw.get("branch_plan_text", ""))
-                return real(file_paths, root, **kw)
-            orch.prioritize_bundle_files = spy
-
-            class Args:
-                spec = plan = impl_prep = diff_base = None
-                impl_done = None
-            args = Args()
-            args.impl_done = ROOT + "/spec/5-system"
-            orch.collect_context(args, ROOT)
-            emit({"plan": len(seen["plan"]), "branch": len(seen["branch"])})
-            """
-        )
-        self.assertEqual(sizes, {"plan": 0, "branch": 0},
-                         "plan 코퍼스가 없는데 plan 언급 신호가 랭킹에 들어갔다")
-
-    def test_collect_context_ranks_with_this_branchs_plans_only(self):
-        """호출부 계약(plan 코퍼스를 둔 설정). 헬퍼가 두 텍스트를 구분해도 호출부가 같은 값을
-        두 번 넘기면 결함은 그대로다 — 그 뮤턴트가 실제로 살아남았다. 이 저장소의 `plan/` 은
-        전환 단계 3 에서 없어져 사본에 코퍼스 설정과 plan 둘을 둔다."""
-        sizes = run_in_orchestrator(
-            """
-            import os, tempfile
-            seen = {}
-            real = orch.prioritize_bundle_files
-            def spy(file_paths, root, **kw):
-                seen.setdefault("plan", kw.get("plan_text", ""))
-                seen.setdefault("branch", kw.get("branch_plan_text", ""))
-                return real(file_paths, root, **kw)
-            orch.prioritize_bundle_files = spy
-            # 이 브랜치가 건드린 plan 은 mine.md 하나다.
-            orch._edited_rels = lambda base, root: {"plan/in-progress/mine.md"}
-            with tempfile.TemporaryDirectory() as tmp:
-                root = five_system_copy(tmp)
-                with open(os.path.join(root, ".claude.project.json"), "w",
-                          encoding="utf-8") as fh:
-                    fh.write(ARG["config"])
-                os.makedirs(os.path.join(root, "plan/in-progress"))
-                for name, body in (("mine.md", "이 브랜치의 plan\\n"),
-                                   ("other.md", "다른 브랜치의 plan\\n" * 20)):
-                    with open(os.path.join(root, "plan/in-progress", name), "w",
-                              encoding="utf-8") as fh:
-                        fh.write(body)
-
-                class Args:
-                    spec = plan = impl_prep = diff_base = None
-                    impl_done = None
-                args = Args()
-                args.impl_done = os.path.join(root, "spec/5-system")
-                orch.collect_context(args, root)
-            emit({"plan": len(seen["plan"]), "branch": len(seen["branch"])})
-            """,
-            {"config": PLAN_CORPUS_CONFIG},
-        )
-        self.assertGreater(sizes["branch"], 0, "브랜치 plan 이 비었다 — 아래 단언이 공허하다")
-        self.assertLess(
-            sizes["branch"], sizes["plan"],
-            "branch_plan_text 가 전체 plan 과 같다 — 좁히는 효과가 없다",
-        )
-
-
-class TheDocumentBeingEditedIsNeverOmittedTest(unittest.TestCase):
-    """검토 대상이 **아직 커밋되지 않았다**는 이유로 예산에서 탈락하면 안 된다.
-
-    이 프로젝트는 쓰기가 **착지하기 전에** 일관성 검사를 돌리도록 요구한다
-    (`CLAUDE.md`: planner 는 `spec/` 쓰기 직전 `--spec`, developer 는 착수 직전
-    `--impl-prep`). 그러니 검토 대상은 **구조적으로 미커밋**이고, 커밋된 diff 만 보는
-    신호는 하필 그 순간 눈이 먼다.
-
-    실측 2026-08-10 (`spec/5-system/` 18개): 미커밋 편집은 브랜치 diff 에 아예 없고
-    번들 8위 — 그 디렉터리의 드롭 구간이다. 편집 중인 문서 자신이 "예산 초과로 생략된
-    파일" 목록에 실려 checker 가 그걸 못 본 채 판정한, 보고된 그 증상이다.
-
-    **프로브는 이 체크아웃이 아니라 `spec/5-system` 의 임시 사본에서 한다**
-    (`_harness.make_temp_repo_copy`). 예전엔 실제 spec 에 미커밋 편집을 넣고 `cp` 로
-    원복했는데, 같은 워크트리에서 하네스가 병렬로 돌면 한쪽의 원복이 다른 쪽 프로브를
-    백업해 되살려 실제 spec 에 프로브 줄이 남았다(실측 2026-09-25 — pytest 4개 동시
-    실행 6라운드 중 5라운드). 편집 대상 파일은 예시일 뿐 그 내용은 재지 않는다.
-    """
-
-    @staticmethod
-    def _rank_of_an_uncommitted_edit():
-        return run_in_orchestrator(
-            """
-            import os, tempfile
-            rel = "spec/5-system/7-llm-client.md"
-            with tempfile.TemporaryDirectory() as tmp:
-                root = five_system_copy(tmp)
-                with open(os.path.join(root, rel), "a", encoding="utf-8") as fh:
-                    fh.write("\\n<!-- uncommitted probe -->\\n")
-                edited = orch._edited_rels("origin/main", root)
-                files = orch.collect_markdown_files(os.path.join(root, "spec/5-system"))
-                ordered = orch.prioritize_bundle_files(
-                    files, root, changed_rels=edited, plan_text="",
-                    branch_plan_text="")
-                names = [os.path.relpath(f, root) for f in ordered]
-                emit({"tier0": rel in edited, "rank": names.index(rel),
-                      "tier0_size": sum(1 for n in names if n in edited),
-                      "total": len(names), "root": root})
-            """
-        )
-
-    def test_an_uncommitted_edit_reaches_the_top_tier(self):
-        got = self._rank_of_an_uncommitted_edit()
-        self.assertTrue(got["tier0"], "미커밋 편집이 변경 집합에 없다")
-        # 사본은 `origin/main == HEAD` 라 변경 집합이 프로브 하나다. 실제 브랜치에서 잴
-        # 때는 그 브랜치가 커밋한 다른 spec 도 tier 0 이라 `rank < tier0_size` 로 쟀지만
-        # (실측 2026-08-11 — `1-auth.md` 를 커밋한 브랜치에서 `rank == 0` 이 정상 코드를
-        # RED 로 만들었다), 사본에서는 1위를 직접 본다. 크기를 먼저 고정해 그 가정이
-        # 깨지면 이유를 대며 실패하게 한다.
-        self.assertEqual(got["tier0_size"], 1, "사본의 변경 집합이 프로브 하나가 아니다")
-        self.assertEqual(
-            got["rank"], 0,
-            f"편집 중인 문서가 {got['rank']}위다 — 예산이 모자라면 먼저 버려진다",
-        )
-
-    def test_collect_context_puts_the_edited_document_first(self):
-        """호출부 계약. `_edited_rels` 가 옳아도 `collect_context` 가 옛 함수를 계속
-        부르면 결함은 그대로다 — 그 뮤턴트가 실제로 살아남았다."""
-        first = run_in_orchestrator(
-            """
-            import os, re, tempfile
-            rel = "spec/5-system/7-llm-client.md"
-            with tempfile.TemporaryDirectory() as tmp:
-                root = five_system_copy(tmp)
-                with open(os.path.join(root, rel), "a", encoding="utf-8") as fh:
-                    fh.write("\\n<!-- uncommitted probe -->\\n")
-
-                class Args:
-                    spec = plan = impl_prep = diff_base = None
-                    impl_done = None
-                args = Args()
-                args.impl_done = os.path.join(root, "spec/5-system")
-                doc = orch.collect_context(args, root)["target_doc"]
-                text = re.sub(r"```.*?```", "", doc, flags=re.S)
-                headers = re.findall(r"^#### `([^`]+)`", text, re.M)
-                edited = orch._edited_rels("origin/main", root)
-                emit({"rank": headers.index(rel) if rel in headers else -1,
-                      "tier0_size": sum(1 for h in headers if h in edited)})
-            """
-        )
-        # 위 테스트와 같이 사본의 변경 집합은 프로브 하나라 1위를 직접 본다.
-        self.assertGreaterEqual(first["rank"], 0, "편집 중인 문서가 번들에 아예 없다")
-        self.assertEqual(first["tier0_size"], 1, "사본의 변경 집합이 프로브 하나가 아니다")
-        self.assertEqual(
-            first["rank"], 0,
-            f"편집 중인 문서가 {first['rank']}위다 "
-            "— `collect_context` 가 옛 함수를 계속 부르면 이 값이 커진다",
-        )
-
-    def test_an_untracked_file_is_named_individually(self):
-        """새 영역을 만드는 planner 는 **새 디렉터리에 새 파일**을 쓴다.
-
-        `git status --porcelain` 은 기본값에서 그런 디렉터리를 `dir/` 한 줄로 뭉치는데,
-        디렉터리 경로는 어떤 파일 경로와도 일치하지 않아 tier 0 이 조용히 빈다.
-        `-uall` 이 그걸 막는다.
-        """
-        listed = run_in_orchestrator(
-            """
-            import os, tempfile
-            with tempfile.TemporaryDirectory() as tmp:
-                root = five_system_copy(tmp)
-                newdir = os.path.join(root, "spec/5-system/__probe_area__")
-                os.makedirs(newdir)
-                with open(os.path.join(newdir, "draft.md"), "w", encoding="utf-8") as fh:
-                    fh.write("# 초안\\n")
-                emit(orch._edited_rels("origin/main", root).__contains__(
-                    "spec/5-system/__probe_area__/draft.md"))
-            """
-        )
-        self.assertTrue(listed, "새 디렉터리의 untracked 파일이 개별로 잡히지 않는다")
-
-    def test_the_probe_runs_outside_this_checkout(self):
-        """프로브는 이 체크아웃을 건드리지 않는다.
-
-        이 자리는 원래 "원복이 실제로 되는가" 를 쟀다 — 실제 spec 을 편집하던 시절에는
-        원복이 안 되면 다음 실행부터 '이미 편집됨' 이라 vacuous 해졌다. 이제 매 실행이 새
-        사본이라 그 전제가 없고, 재야 할 것은 **사본에서 도는가** 다. 프로브를 실제 트리로
-        되돌리는 편집은 원복이 완벽해도 병렬 실행에서 잔여를 남긴다(클래스 docstring).
-        """
-        got = self._rank_of_an_uncommitted_edit()
-        root = os.path.realpath(got["root"])
-        checkout = os.path.realpath(REPO_ROOT)
-        self.assertFalse(
-            root == checkout or root.startswith(checkout + os.sep),
-            f"프로브가 이 체크아웃 안에서 돌았다: {root}",
-        )
-        left = run_in_orchestrator(
-            """
-            import os
-            with open(os.path.join(ROOT, "spec/5-system/7-llm-client.md"),
-                      encoding="utf-8") as fh:
-                emit("uncommitted probe" in fh.read())
-            """
-        )
-        self.assertFalse(left, "프로브가 편집을 남겼다")
-
-
 class TheRepoCopyFixtureTest(unittest.TestCase):
-    """위 프로브들이 기대는 `_harness.make_temp_repo_copy` 의 계약.
-
-    프로브는 사본의 **미커밋** 변경만 쓴다. 그래서 `origin/main` 을 HEAD 에 두는 줄을
-    지워도 전부 초록이었다 — 커밋 절반(`origin/main...HEAD`)이 git 실패로 빈 집합이 되고
-    합집합은 그대로라서다(뮤턴트 생존, 2026-09-25). 그 줄이 지키는 것을 여기서 직접 잰다:
-    갓 만든 사본의 변경 집합은 비어 있고, 사본에서 **커밋한** 변경은 브랜치 diff 로 보인다.
-    커밋 절반을 재려는 다음 테스트가 조용히 실패 경로를 타지 않게.
-    """
+    """`_harness.make_temp_repo_copy` 의 계약 — 갓 만든 사본의 변경 집합은 비어 있고, 사본에서
+    **커밋한** 변경은 브랜치 diff 로 보인다. `origin/main` 을 HEAD 에 두는 줄을 지워도 미커밋 프로브는
+    초록이었다(뮤턴트 생존, 2026-09-25). 그 줄이 지키는 것을 여기서 직접 잰다."""
 
     def test_a_commit_in_the_copy_is_in_the_branch_diff(self):
         got = run_in_orchestrator(
             """
-            import os, tempfile
-            rel = "spec/5-system/7-llm-client.md"
+            import tempfile
+            rel = "spec/CLE-ENG/CLE-ENG-MIGRATION.md"
             with tempfile.TemporaryDirectory() as tmp:
-                root = five_system_copy(tmp)
+                root = mirror_copy(tmp)
                 before = sorted(orch._edited_rels("origin/main", root))
                 with open(os.path.join(root, rel), "a", encoding="utf-8") as fh:
                     fh.write("\\n<!-- committed probe -->\\n")
@@ -895,14 +565,9 @@ class TheRepoCopyFixtureTest(unittest.TestCase):
             """
         )
         self.assertEqual(got["before"], [], "갓 만든 사본의 변경 집합이 비어 있지 않다")
-        self.assertEqual(
-            got["branch"], ["spec/5-system/7-llm-client.md"],
-            "사본에서 커밋한 변경이 브랜치 diff 에 없다 — origin/main 이 사본의 커밋을 가리키지 않는다",
-        )
+        self.assertEqual(got["branch"], ["spec/CLE-ENG/CLE-ENG-MIGRATION.md"])
 
     def test_no_subtrees_is_an_empty_copy_not_an_error(self):
-        """`subtrees` 없이 부르면 커밋할 것이 없어 `git commit` 이 실패했다(리뷰
-        `10_27_27` W1 이 실측 재현). 빈 커밋으로 받아 «ref 만 있는 임시 저장소» 가 된다."""
         with tempfile.TemporaryDirectory() as tmp:
             repo = _harness.make_temp_repo_copy(Path(tmp) / "repo")
             head = _harness.git_in(repo, "rev-parse", "HEAD").stdout.strip()
@@ -912,144 +577,18 @@ class TheRepoCopyFixtureTest(unittest.TestCase):
         self.assertEqual(tracked, [".gitkeep"])
 
 
-class TheDiffOutranksTheFolderDumpTest(unittest.TestCase):
-    """`--impl-done` 의 코드 diff 가 folder dump 뒤에 붙으면 **가장 먼저** 잘린다.
-
-    실측(2026-08-09, `spec/5-system/` dump 1,215,279 B): 기본 예산 262,144 에서도
-    상향한 650,000 에서도 diff 는 매번 통째로 생략됐고, checker 5명이 구현을 한 줄도
-    못 본 채 "spec vs 구현" 을 판정했다. 마지막 청크라는 위치 자체가 원인이다.
-    """
-
-    def test_the_diff_is_not_the_last_chunk(self):
-        """호출부 계약. 헬퍼가 옳아도 호출부가 안 쓰면 결함은 그대로다."""
-        order = CollectContextUsesPriorityTest._order("impl_done", "target_doc")
-        diffs = [i for i, e in enumerate(order) if e.startswith("<git diff")]
-        self.assertEqual(len(diffs), 1, f"diff 청크가 1개가 아니다: {order}")
-        self.assertLess(
-            diffs[0], len(order) - 1,
-            "diff 가 여전히 마지막 청크다 — 예산 절단이 가장 먼저 가져간다",
-        )
-
-    def test_the_diff_sits_right_after_the_on_topic_files(self):
-        """맨 뒤가 아니면 그만인 게 아니다 — 맨 앞도 틀렸다.
-
-        이 브랜치가 실제로 고치는 spec 은 diff 보다 앞서야 한다. 그 파일들이야말로
-        "구현이 spec 을 따랐나" 를 diff 와 **대조할 대상**이라, 둘 중 하나만 남으면
-        판정이 성립하지 않는다.
-
-        변경 집합을 실제 브랜치에서 읽으면 main 에 머지된 뒤 0건이 되어 단언이 조용히
-        무의미해지므로, 여기서는 고정한다.
-
-        아래 테스트와 달리 사본(`five_system_copy`)을 쓰지 않는다 — 스텁만으로 재고
-        파일을 하나도 쓰지 않아 이 체크아웃을 읽기만 한다.
-        """
-        order = run_in_orchestrator(
-            """
-            import re
-            # **`_edited_rels` 를 스텁한다 — `_branch_changed_rels` 가 아니다.**
-            # 랭킹(`_rank_changed`)이 부르는 것은 전자이고, 후자는 그 안에서 쓰이는
-            # 절반이다. 후자만 덮으면 스텁이 헛돌아 **실제 브랜치 변경 집합**이 쓰이고,
-            # 이 단언은 "이 워크트리가 지금 무엇을 편집 중인가" 에 좌우된다 — 대조
-            # 실험으로 확인했다(2026-08-11): 무관한 plan 하나에 더미 문단을 넣는
-            # 것만으로 이 테스트와 아래 tier 1 테스트가 함께 RED 가 됐다. 그 plan 이
-            # 지목한 spec 이 tier 1 로 올라왔기 때문이고, 재려던 성질이 아니다.
-            orch._edited_rels = lambda base, root: {
-                "spec/5-system/9-rag-search.md"}
-
-            class Args:
-                spec = plan = impl_prep = diff_base = None
-                impl_done = None
-            args = Args()
-            args.impl_done = ROOT + "/spec/5-system"
-            ctx = orch.collect_context(args, ROOT)
-            text = re.sub(r"```.*?```", "", ctx["target_doc"], flags=re.S)
-            emit(re.findall(r"^#### `([^`]+)`", text, re.M))
-            """
-        )
-        self.assertEqual(
-            order[0], "spec/5-system/9-rag-search.md",
-            "이 브랜치가 고친 파일이 맨 앞이 아니다",
-        )
-        self.assertTrue(
-            order[1].startswith("<git diff"),
-            f"diff 가 대상 파일 바로 뒤가 아니다: {order[:3]}",
-        )
-
-    def test_a_branch_plan_named_file_also_counts_as_on_topic(self):
-        """`_n_on_topic` 은 tier 0(변경)뿐 아니라 **tier 1(브랜치-plan 언급)** 까지
-        센다. 그 분기가 없으면 `--impl-prep` 에서 diff 가 맨 앞으로 올라간다 —
-        착수 전이라 spec 이 아직 안 고쳐져 tier 0 이 비는 그 상황이 정확히 tier 1 이
-        담당하는 경우다.
-
-        변경 집합은 비우고 브랜치-plan 텍스트만 준다. 그러면 on-topic 은 오직 tier 1
-        경로로만 생길 수 있어 분기가 갈린다.
-        """
-        order = run_in_orchestrator(
-            """
-            import re
-            orch._edited_rels = lambda base, root: set()
-            real_read = orch.read_text_file
-            def fake_read(path):
-                # 브랜치가 건드린 plan 인 척하는 텍스트. `_rank_branch_plan_text` 는
-                # `_rank_changed` 로 걸러지므로, 그 필터를 통과시키기 위해 plan 파일
-                # 하나를 변경 집합에 넣는다.
-                return real_read(path)
-            orch.read_text_file = fake_read
-            orch._edited_rels = lambda base, root: {
-                "plan/in-progress/__probe_plan__.md"}
-
-            import os, tempfile
-            # plan 은 `spec/5-system` 사본 옆에 둔다 — 이 체크아웃의 `plan/in-progress/`
-            # 에 두면 병렬 실행이 서로의 파일을 지운다(`TheDocumentBeingEditedIsNeverOmittedTest`
-            # docstring).
-            with tempfile.TemporaryDirectory() as tmp:
-                root = five_system_copy(tmp)
-                # 전환 단계 3 뒤 기본 설정에는 plan 코퍼스가 없다. 이 분기(tier 1)는 plan
-                # 코퍼스를 설정한 프로젝트에서만 살아 있으므로 사본에 그 설정을 둔다.
-                with open(os.path.join(root, ".claude.project.json"), "w",
-                          encoding="utf-8") as fh:
-                    fh.write(ARG["config"])
-                plan_path = os.path.join(root, "plan/in-progress/__probe_plan__.md")
-                os.makedirs(os.path.dirname(plan_path))
-                with open(plan_path, "w", encoding="utf-8") as fh:
-                    fh.write("---\\nworktree: (unstarted)\\nstarted: 2026-08-10\\n"
-                             "owner: developer\\n---\\n\\n"
-                             "대상: spec/5-system/9-rag-search.md\\n")
-
-                class Args:
-                    spec = plan = impl_prep = diff_base = None
-                    impl_done = None
-                args = Args()
-                args.impl_done = os.path.join(root, "spec/5-system")
-                ctx = orch.collect_context(args, root)
-                text = re.sub(r"```.*?```", "", ctx["target_doc"], flags=re.S)
-                emit(re.findall(r"^#### `([^`]+)`", text, re.M))
-            """,
-            {"config": PLAN_CORPUS_CONFIG},
-        )
-        self.assertEqual(
-            order[0], "spec/5-system/9-rag-search.md",
-            "브랜치-plan 이 이름으로 지목한 파일이 맨 앞이 아니다",
-        )
-        self.assertTrue(
-            order[1].startswith("<git diff"),
-            f"diff 가 on-topic 파일 뒤가 아니다 — tier 1 분기가 안 세어졌다: {order[:3]}",
-        )
-
+class SpliceHelperTest(unittest.TestCase):
     def test_splice_lands_on_a_chunk_boundary(self):
         """헬퍼 계약. 경계를 벗어나면 한 파일의 본문이 둘로 갈린다."""
         placed = run_in_orchestrator(
             """
+            import re
             S = orch._BUNDLE_FILE_SENTINEL
             bundle = "### 라벨\\n" + "".join(
                 f"{S}#### `f{i}.md`\\n```\\nbody{i}\\n```\\n" for i in range(4))
             chunk = f"{S}#### `<diff>`\\n\\n```diff\\n+x\\n```\\n"
-            import re
-            out = []
-            for n in ARG:
-                spliced = orch._splice_chunk(bundle, chunk, n)
-                out.append(re.findall(r"^#### `([^`]+)`", spliced, re.M))
-            emit(out)
+            emit([re.findall(r"^#### `([^`]+)`", orch._splice_chunk(bundle, chunk, n), re.M)
+                  for n in ARG])
             """,
             [0, 2, 4],
         )
@@ -1058,42 +597,11 @@ class TheDiffOutranksTheFolderDumpTest(unittest.TestCase):
         self.assertEqual(placed[2], ["f0.md", "f1.md", "f2.md", "f3.md", "<diff>"])
 
     def test_an_empty_bundle_still_carries_the_diff(self):
-        """빈 스코프(`(없음)`)에는 sentinel 이 없다. 거기서 diff 를 잃으면
-        "구현을 못 봤다" 가 조용히 재현된다."""
-        out = run_in_orchestrator(
-            "emit(orch._splice_chunk('### 라벨\\n(없음)\\n', 'DIFF', 3))"
-        )
+        out = run_in_orchestrator("emit(orch._splice_chunk('### 라벨\\n(없음)\\n', 'DIFF', 3))")
         self.assertIn("DIFF", out)
 
 
-class NervMirrorStaysOutOfTheOldCorpusTest(unittest.TestCase):
-    """NERV 전환 단계 1 의 미러(`spec/CLE-*` · `spec/README.md`)는 옛 코퍼스에 섞지 않는다.
-
-    섞으면 같은 내용이 두 모양으로 들어가 예산을 두 번 쓰고 우선순위가 흐려진다. 실측
-    (2026-09-29): 미러 169편을 넣자 `related_specs` 번들 순서 단언이 깨졌다. 코퍼스를
-    미러로 옮기는 일은 단계 4e(NERV Task `CLE-T-VP5KDJ`)다.
-    """
-
-    def test_no_mirror_file_in_related_specs_or_conventions(self):
-        # 미러가 트리에 없으면 "미러 헤더 0개" 는 제외 로직과 무관하게 참이다.
-        mirror = sorted((REPO_ROOT / "spec").glob("CLE-*.md"))
-        self.assertTrue(mirror, "spec/CLE-*.md 가 없다 — 제외 검사가 공허해진다")
-        heads = run_in_orchestrator(
-            """
-            import re
-            class Args:
-                spec = plan = impl_prep = impl_done = diff_base = None
-            args = Args()
-            args.impl_done = ROOT + "/spec/5-system"
-            ctx = orch.collect_context(args, ROOT)
-            text = ctx["related_specs"] + ctx["conventions"]
-            emit(sorted(set(re.findall(r"^#### `(spec/[^`]+)`", text, re.M))))
-            """,
-            None,
-        )
-        self.assertTrue(heads, "bundle rendered no file headers — the check would be vacuous")
-        self.assertEqual([h for h in heads if h.startswith(("spec/CLE-", "spec/README.md"))], [])
-
+class MirrorPredicateTest(unittest.TestCase):
     def test_is_nerv_mirror(self):
         out = run_in_orchestrator(
             """
@@ -1101,10 +609,17 @@ class NervMirrorStaysOutOfTheOldCorpusTest(unittest.TestCase):
                      "spec/0-overview.md", "spec/5-system/1-auth.md",
                      "spec/conventions/README.md", "spec/5-system/CLE-x.md"]
             emit([orch.is_nerv_mirror(ROOT + "/" + c, ROOT + "/spec") for c in cases])
-            """,
-            None,
+            """
         )
         self.assertEqual(out, [True, True, True, False, False, False, False])
+
+    def test_the_real_mirror_is_found(self):
+        """미러가 비면 위 단언이 모두 공허해진다 — 이 체크아웃의 미러를 실제로 읽는다."""
+        keys = run_in_orchestrator(
+            "emit(sorted(orch.mirror_key(p) for p in orch.collect_mirror_files(ROOT + '/spec')))")
+        self.assertIn("CLE-ENG-SPECEVIDENCE", keys)
+        self.assertNotIn("README", keys)
+        self.assertGreater(len(keys), 100)
 
 
 if __name__ == "__main__":

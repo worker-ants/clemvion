@@ -206,19 +206,21 @@ def branch_touched_files(base, head):
 def categorise_paths(paths, repo_root=None):
     """Group paths by top-level area.
 
-    Fixed groups: ``spec``, ``plan``, ``.claude``, ``other``.
+    Fixed groups: ``spec``, ``.claude``, ``other``.
     Code areas come from ``.claude.project.json`` ``code_areas`` (default:
     ``["codebase"]``). Each path is matched against:
-      1. ``spec/`` → ``spec``
-      2. ``plan/`` → ``plan``
-      3. ``.claude/`` → ``.claude``
-      4. ``<area>/`` for each entry of ``code_areas`` → that area
-      5. Otherwise → ``other``
+      1. ``spec/`` → ``spec`` (the NERV spec mirror; the frozen old tree goes in cutover stage 5)
+      2. ``.claude/`` → ``.claude``
+      3. ``<area>/`` for each entry of ``code_areas`` → that area
+      4. Otherwise → ``other``
+
+    The ``plan`` group left with ``plan/`` (NERV cutover stage 3, removed here in
+    4e). Work in progress is a NERV Task; a stray ``plan/`` path falls into ``other``.
     """
     cfg = project_config.load(repo_root or os.getcwd())
     code_areas = cfg.get("code_areas") or ["codebase"]
 
-    groups = {"spec": [], "plan": []}
+    groups = {"spec": []}
     for area in code_areas:
         groups[area] = []
     groups[".claude"] = []
@@ -227,9 +229,6 @@ def categorise_paths(paths, repo_root=None):
     for p in paths:
         if p.startswith("spec/"):
             groups["spec"].append(p)
-            continue
-        if p.startswith("plan/"):
-            groups["plan"].append(p)
             continue
         if p.startswith(".claude/"):
             groups[".claude"].append(p)
@@ -317,28 +316,23 @@ def file_intersection_section(branches_info, base):
     return "\n".join(lines) + "\n"
 
 
-def spec_plan_overlap_section(branches_info, base):
-    """For cross_branch_spec_analyzer: spec/plan-level overlap."""
+def spec_overlap_section(branches_info, base):
+    """For cross_branch_spec_analyzer: which branches changed which spec mirror files.
+
+    A branch carries the spec it implemented — the claimed spec pulled at its task
+    basis version (decision D3) — so two branches on one mirror file may hold two
+    versions of it. The plan section left with ``plan/`` (cutover stage 3).
+    """
     spec_by = {}
-    plan_by = {}
     for b in branches_info:
         for f in branch_touched_files(base, b["name"]):
             if f.startswith("spec/"):
                 spec_by.setdefault(f, []).append(b["name"])
-            elif f.startswith("plan/"):
-                plan_by.setdefault(f, []).append(b["name"])
-    lines = ["\n## spec/ 영역 변경\n"]
+    lines = ["\n## spec/ 미러 변경\n"]
     if not spec_by:
         lines.append("\n(없음)\n")
     else:
         for f, bs in sorted(spec_by.items()):
-            marker = " ⚠️ overlap" if len(bs) >= 2 else ""
-            lines.append(f"- `{f}` ← {', '.join('`'+b+'`' for b in bs)}{marker}")
-    lines.append("\n## plan/ 영역 변경\n")
-    if not plan_by:
-        lines.append("\n(없음)\n")
-    else:
-        for f, bs in sorted(plan_by.items()):
             marker = " ⚠️ overlap" if len(bs) >= 2 else ""
             lines.append(f"- `{f}` ← {', '.join('`'+b+'`' for b in bs)}{marker}")
     return "\n".join(lines) + "\n"
@@ -362,7 +356,7 @@ def order_hint_section(branches_info, base):
 ANALYZER_EXTRA_SECTION = {
     "merge_conflict_analyzer": file_intersection_section,
     "semantic_conflict_analyzer": file_intersection_section,
-    "cross_branch_spec_analyzer": spec_plan_overlap_section,
+    "cross_branch_spec_analyzer": spec_overlap_section,
     "integration_order_planner": order_hint_section,
 }
 

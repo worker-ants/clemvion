@@ -23,6 +23,64 @@
 > 07 37% · 08 30% · 09(25일까지) 49% 였다(나중 PR 의 백필은 세지 않았다). 여기 없다고 그 변경이 없었던 것은 아니다 —
 > `git log` 가 정본이다.
 
+## Unreleased — 개발 흐름: 일관성 검토가 NERV 스펙 미러를 대상 · 코퍼스로 읽고 구현 위치로 대조 문서를 고른다
+
+NERV 정본 전환 단계 4e(Task `CLE-T-VP5KDJ`). consistency 오케스트레이터는 동결된 옛 스펙 트리를 대상과 대조
+코퍼스로 읽었고, 미러(`spec/CLE-*`)는 일부러 뺐다. 옛 트리는 단계 5 에서 지운다.
+
+- `--impl-prep` · `--impl-done` 의 대상(scope)은 NERV 키 · 미러 영역 폴더 · 미러 파일이다(쉼표로 여럿). 옛 트리
+  경로는 거절한다. 대조 코퍼스도 미러다. 정식 규약은 미러 frontmatter `type: convention` 문서이고, 리서치 영역
+  (`CLE-RESEARCH`)과 미러 안내 `spec/README.md` 는 뺀다. `--spec` 초안 파일 이름이 키면 그 키의 미러 판은 코퍼스에서
+  빠지고 Rationale 은 남는다.
+- 번들 순서: 브랜치가 바꾼 문서 → `--focus` 키(클레임 scope) · 구현 위치가 바뀐 파일을 덮는 문서 → 대상 본문이
+  부르는 키 → 나머지. 옛 plan 이름 신호와 `--plan` 모드, plan 묶음은 걷었다.
+- `--impl-done` 은 미러 문서의 `## 구현 위치` 가 브랜치가 바꾼 파일을 덮으면 그 문서를 대상에 더하고 census 에
+  이유를 적는다. 항목의 `{a,b}` 는 갈래마다, `/**/` 는 폴더 0개도 보고, 대괄호는 글자 그대로 읽는다(Next.js
+  `[slug]` 폴더). 같은 줄에서 앞 경로에 이어 적은 파일 이름(`` `a/b/s.ts`, `c.ts` ``)은 그 경로의 폴더 기준으로 읽는다. 전환 단계 2 에서 옛 push 게이트의 spec-linked 검사(`code:` 에 걸린 파일을 고치면 구현 완료 검토)가
+  없어졌다. 이제 `--impl-done` 을 돌리면 그 대조가 다시 일어난다. 강제는 아니다. NERV done 게이트는 consistency
+  라운드가 있고 통과했는지만 본다. `--diff-path` 로 구현 diff 경로를 바꿀 수 있고(하네스 작업은 `.claude`), API
+  카탈로그 필드 문서(`codebase/api-catalogs/*/*/**/*.md`)는 diff 에서 빼고 실제로 뺀 수만 적는다. 생성기 입력
+  데이터(MakeShop `openapi/*.openapi.json`)는 diff 에 남는다.
+- `.claude.project.json` 의 `corpora.conventions` 는 읽는 곳이 없어 걷었다.
+- merge-coordinator 의 `cross_branch_spec_analyzer` 는 브랜치마다 받은 스펙 미러의 충돌을 본다. 같은 문서의
+  `version` 이나 `content_hash` 가 다르면 다시 받으라고 하고, `task` · `etag` · `read_as` 만 다른 것은 정상으로 본다.
+
+## Unreleased — 개발 흐름: push 게이트가 6역할 밖 강제 리뷰어를 다시 보고, CI 게이트는 빈 환경에서 돈다
+
+NERV 정본 전환 단계 4e. 단계 2 에서 게이트가 NERV 판정으로 바뀌며 강제 리뷰어 검사가 NERV 정책의 6역할로 줄었다.
+documentation · dependency · database · api_contract 처럼 변경 종류에 따라 붙는 역할은 빠져도 막히지 않았다.
+
+- 가드 조임: push 훅과 CI `review-gate` 가 라운드가 본 파일에서 `router_safety` 규칙이 강제하는 6역할 밖 리뷰어를
+  계산해 N1 `roles.reported` 에 없으면 막는다. 라운드가 본 파일은 라운드 head 와 base 의 merge-base 부터 라운드
+  head 까지다. 리뷰 뒤 main 을 merge 해도 main 쪽 파일은 세지 않는다. `.claude.project.json` 에서 끈 리뷰어는
+  요구하지 않는다. 응답에 역할 정보가 없으면 막지 않고 알린다. 규칙 모듈을 불러오거나 쓰지 못하면 설정 문제로
+  보고 CI `--enforce` 에서 실패한다.
+- `router_safety` 의 `spec/**/*.md` → requirement 규칙을 걷었다. 첫 규칙이 모든 변경에 requirement 를 이미
+  강제하고, 이 규칙만 코퍼스 경로 설정을 읽었다. 이제 표준 라이브러리만 써서 게이트가 경로로 불러온다.
+- CI `review-gate` 는 게이트를 `env -i` 로 띄우고 PATH · HOME · LD_LIBRARY_PATH · NERV 접속 정보만 넘긴다. 게이트가
+  어떤 문법으로 환경을 읽든 CI 에만 있는 변수가 없다. 정적 스캔이 `os.__dict__["environ"]` · `dict(os.environ)` 형태를
+  놓친다는 옛 리뷰 발견 두 건을 이 격리로 닫았다.
+
+## Unreleased — 개발 흐름: merge · spec_coverage 결과를 NERV 에 낸다
+
+NERV 정본 전환 단계 4e.
+
+- `nerv_review_payload.py` 가 merge 세션(analyzer 리포트마다)과 spec_coverage 세션(감사기 `SUMMARY.md` 후보마다
+  info 발견, 태그 `confidence:<신뢰도>`)의 제출 묶음을 만든다. 전에는 두 kind 를 거절했다. spec_coverage 는 보고형이라
+  info 로만 내서 라운드를 막지 않는다. 요약이 센 후보보다 적게 읽으면(감사기 출력 형식이 바뀐 경우) 경고한다.
+- `/spec-coverage` 감사기 프롬프트가 적용 대상의 정본을 미러 `CLE-ENG-SPECEVIDENCE` 로 인용하고, 정본에 있던
+  `spec/7-channel-web-chat/**.md` 를 대상에 넣었다.
+
+## Unreleased — 개발 흐름: 마이그레이션 버전 가드와 알림이 merge 최신화를 안내한다
+
+NERV 정본 전환 단계 4e. 가드 출력과 알림이 rebase 만 안내했고 옛 규약 경로 `spec/conventions/migrations.md` 를
+가리켰다. 리뷰를 낸 PR 이 rebase 하면 NERV 라운드 head 가 조상이 아니게 돼 재리뷰가 필요하다(`CLE-ENG-MIGRATION`
+「리뷰 게이트와의 관계」).
+
+- PR 템플릿 Migration checklist, `migration-recheck-on-main` 알림 코멘트, `check-migration-versions.py` 안내가
+  `git merge origin/main` 최신화를 안내한다(코드 리뷰를 내기 전이면 rebase 도 된다). 스크립트가 가리키는 규약
+  경로는 미러 `spec/CLE-ENG/CLE-ENG-MIGRATION.md` 다.
+
 ## Unreleased — 개발 흐름: 코드 주석이 스펙을 NERV 키 링크로 가리키고, 링크 가드가 키와 앵커를 미러에서 확인한다
 
 NERV 정본 전환 단계 4c(Task `CLE-T-9AM31N`). 코드 주석의 스펙 링크는 `../../../spec/5-system/…md#…` 같은 상대

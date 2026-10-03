@@ -3,7 +3,8 @@
 // loop → summary agent) to the native Workflow tool.
 //
 // What stays in Python: `consistency_orchestrator.py --prepare` still gathers the
-// spec/plan/convention corpus and writes per-checker `_prompts/<checker>.md` +
+// NERV spec-mirror corpora (related specs + conventions) and writes per-checker
+// `_prompts/<checker>.md` +
 // `_retry_state.json` (a model-free manifest). This workflow only replaces the
 // fan-out + status bookkeeping + convergence that main Claude used to do by hand.
 //

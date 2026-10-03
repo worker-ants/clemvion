@@ -9,7 +9,7 @@
 #   1. sanity         — main 의 V번호 dup/gap/단조성/.conf 페어 전수검사.
 #                       위반 시 워크플로 fail 로 Actions 탭에 빨간불.
 #   2. nudge-open-prs — 열린 PR 중 codebase/backend/migrations/ 를 건드린 PR 에
-#                       "rebase + CI 재실행 필요" 코멘트 자동 게시.
+#                       최신화(merge)와 CI 재실행을 안내하는 코멘트 자동 게시.
 #
 # 정책 본문은 NERV 스펙 CLE-ENG-MIGRATION 「충돌 검출과 머지 race 안전망」 · Rationale 「기각한 대안 4」.
 
@@ -49,10 +49,10 @@ jobs:
         run: python3 scripts/check-migration-versions.py --base HEAD~1
 
   nudge-open-prs:
-    # main 에 migration 이 머지되면 열려있는 migration PR 들에 "rebase + 재CI"
-    # 알림 코멘트를 자동 게시. 머지를 막진 못하지만, 작성자가 race 가능성을
-    # 즉시 인지하도록 돕는다. 자동 rebase 는 시도하지 않는다 (충돌·예측불가
-    # 영향 회피).
+    # main 에 migration 이 머지되면 열려있는 migration PR 들에 최신화(merge)와
+    # CI 재실행을 안내하는 코멘트를 자동 게시. 머지를 막진 못하지만, 작성자가
+    # race 가능성을 즉시 인지하도록 돕는다. 자동 최신화는 시도하지 않는다
+    # (충돌·예측불가 영향 회피).
     runs-on: ubuntu-latest
     timeout-minutes: 5
     env:
@@ -79,5 +79,5 @@ jobs:
 
           for n in "${prs[@]}"; do
             echo "Nudging PR #${n}"
-            gh pr comment "$n" --repo "$repo" --body "⚠️ \`main\` 에 새 migration 이 머지되었습니다 (\`${short_sha}\`). 본 PR 의 V번호 충돌·gap 을 보장하려면 **머지 전 \`git rebase origin/main\` 후 \`migration-check\` 재실행**이 필요합니다. 자세한 규약은 [DB 마이그레이션 규약 「충돌 검출과 머지 race 안전망」](../blob/main/spec/CLE-ENG/CLE-ENG-MIGRATION.md#충돌-검출과-머지-race-안전망) 참고."
+            gh pr comment "$n" --repo "$repo" --body "⚠️ \`main\` 에 새 migration 이 머지되었습니다 (\`${short_sha}\`). 본 PR 의 V번호 충돌·gap 을 보장하려면 **머지 전 \`git merge origin/main\` 으로 최신화한 뒤 \`migration-check\` 재실행**이 필요합니다(코드 리뷰를 내기 전이면 \`git rebase origin/main\` 도 됩니다. 리뷰를 낸 뒤 rebase 하면 리뷰를 다시 내야 합니다). 자세한 규약은 [DB 마이그레이션 규약 「충돌 검출과 머지 race 안전망」](../blob/main/spec/CLE-ENG/CLE-ENG-MIGRATION.md#충돌-검출과-머지-race-안전망) 참고."
           done

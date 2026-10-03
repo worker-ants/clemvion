@@ -31,6 +31,7 @@ from __future__ import annotations
 
 import ast
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -40,6 +41,7 @@ import unittest
 import _harness  # noqa: F401  — side effect: harness path setup
 
 SCRIPT = _harness.REPO_ROOT / "scripts" / "check-review-gate.py"
+GATE_RULES = _harness.CLAUDE_DIR / "skills" / "code-review-agents" / "lib" / "router_safety.py"
 
 # 부모 환경에서 넘어오면 안 되는 이름. 개발자 셸에는 실제 NERV 토큰이 있다 — 테스트가 그대로
 # 물려받으면 실서버에 요청이 나간다.
@@ -59,6 +61,10 @@ def _copy_gate(root):
     shutil.copytree(str(_harness.CLAUDE_DIR / "_shared"), os.path.join(root, ".claude", "_shared"))
     shutil.copytree(str(_harness.CLAUDE_DIR / "tools" / "nerv-mirror"),
                     os.path.join(root, ".claude", "tools", "nerv-mirror"))
+    # 강제 리뷰어 규칙(전환 4e 의 판정 2b). 게이트가 경로로 불러온다.
+    rules = os.path.join(root, ".claude", "skills", "code-review-agents", "lib")
+    os.makedirs(rules, exist_ok=True)
+    shutil.copy2(str(GATE_RULES), os.path.join(rules, "router_safety.py"))
 
 
 class ReviewGateCliTest(unittest.TestCase):
@@ -444,6 +450,9 @@ class OneJudgeTest(unittest.TestCase):
         # `REVIEW_GATE_SKIP` 조건부 override, actor 화이트리스트로 `blocked=False` 강제.
         # 전부 **비-Call 접근**(Subscript/Compare/IfExp)이라 호출 허용 목록을 그대로 통과했다.
         # 이 스크립트가 환경을 읽을 정당한 이유는 없다 — 입력은 argparse 가 전부다.
+        # 이 검사는 속성 이름과 `from os import` 만 본다. `os.__dict__["environ"]` 처럼 문자열 키로
+        # 닿는 형태는 못 잡는다(옛 리뷰 발견). CI 에서는 워크플로가 이 스크립트를 `env -i` 로 띄우므로
+        # 그 형태로 읽어도 CI 전용 변수가 없다(`GATE_ENV_PASS`).
         _ENV_NAMES = ("environ", "getenv", "argv", "putenv", "environb")
         for node in ast.walk(tree):
             # `os.environ` 형태
@@ -466,7 +475,14 @@ class OneJudgeTest(unittest.TestCase):
                       "review_guard.evaluate_review 를 가져오지 않는다")
 
 
-GATE_RUN = ('python3 scripts/check-review-gate.py --enforce --branch "$HEAD_REF" '
+# 게이트 프로세스는 `env -i` 로 빈 환경에서 시작하고 아래 변수만 받는다(전환 4e). 그래서 게이트와
+# 그것이 위임하는 코드는 어떤 문법으로 환경을 읽든 CI 에만 있는 변수(`GITHUB_*` · `CI` · `RUNNER_*`)를
+# 볼 수 없다. 정적 스캔(`TheGateItselfDoesNotBranchOnCiEnvTest`)은 문법을 열거하므로
+# `os.__dict__["environ"]` · `dict(os.environ)` 같은 형태를 놓쳤다(옛 리뷰 발견 두 건).
+GATE_ENV_PASS = ("PATH", "HOME", "LD_LIBRARY_PATH", "NERV_SERVER", "NERV_TOKEN")
+GATE_RUN = ('env -i LANG=C.UTF-8 '
+            + " ".join(f'{name}="${name}"' for name in GATE_ENV_PASS)
+            + ' python3 scripts/check-review-gate.py --enforce --branch "$HEAD_REF" '
             '--head "$HEAD_SHA" --base "origin/$BASE_REF"')
 
 
@@ -506,6 +522,8 @@ class WorkflowWiringTest(unittest.TestCase):
                     ".claude/hooks/_lib/**",
                     ".claude/_shared/**",
                     ".claude/tools/nerv-mirror/pull.py",
+                    ".claude/skills/code-review-agents/lib/router_safety.py",
+                    ".claude.project.json",
                     "scripts/check-review-gate.py",
                     ".github/workflows/review-gate.yml",
                 ]
@@ -568,9 +586,14 @@ class WorkflowWiringTest(unittest.TestCase):
         """
         job = self.EXPECTED["jobs"]["gate"]
         steps = job["steps"]
-        gate = [st for st in steps if st.get("run", "").startswith("python3 ")]
+        gate = [st for st in steps if "scripts/check-review-gate.py" in st.get("run", "")]
         self.assertEqual(len(gate), 1, "게이트를 부르는 step 이 정확히 하나가 아니다")
         self.assertEqual(gate[0]["run"], GATE_RUN)
+        # 빈 환경에서 시작하고, 넘기는 변수에 CI 를 알아볼 이름이 없다.
+        self.assertTrue(gate[0]["run"].startswith("env -i "), "게이트가 CI 환경을 그대로 받는다")
+        passed = set(re.findall(r'\b([A-Z_]+)="\$', gate[0]["run"].split(" python3 ")[0]))
+        self.assertEqual(passed, set(GATE_ENV_PASS))
+        self.assertFalse({n for n in passed if n.startswith(("GITHUB", "RUNNER", "CI"))})
         # 판정 근거가 NERV 라운드다. 토큰이 secret 에서 오고 PR head 를 판정해야 한다.
         self.assertEqual(gate[0]["env"]["NERV_TOKEN"], "${{ secrets.NERV_CI_TOKEN }}")
         self.assertIn("--head", gate[0]["run"])
@@ -708,6 +731,13 @@ class TheGateItselfDoesNotBranchOnCiEnvTest(unittest.TestCase):
     (`NERV_SERVER` · `NERV_TOKEN` · `NERV_PROJECT`, 단계 2 부터). 로컬은 settings 의 env, CI 는
     워크플로 secret 이 같은 이름으로 채우므로 "CI 에서만 다른 값" 이 아니다. 새 환경 접근이
     생기면 여기서 마주치고, 등재하는 순간이 "이게 CI 에서만 다르게 굴게 만드는가" 를 판단할 자리다.
+
+    **이 스캔이 보는 범위**: 상수 키로 읽는 세 형태(`os.environ.get("X")` · `os.environ["X"]` ·
+    `os.getenv("X")`)뿐이다. `os.__dict__["environ"]` · `dict(os.environ)` · 동적으로 조립한 키는
+    못 잡는다(옛 리뷰 발견 두 건). 그 형태를 열거로 쫓지 않는다. CI 쪽은 워크플로가 게이트를
+    `env -i` 로 띄워 CI 전용 변수가 프로세스에 아예 없게 한다(`GATE_ENV_PASS`,
+    `WorkflowWiringTest`). 행위로는 `TheRealGateIgnoresTheEnvironmentTest` 가 같은 저장소를 두
+    환경에서 판정시켜 비교한다.
     """
 
     # (파일, 읽는 환경변수) — 이 목록 밖의 접근은 실패한다.
@@ -732,6 +762,8 @@ class TheGateItselfDoesNotBranchOnCiEnvTest(unittest.TestCase):
         targets = [_harness.HOOKS_DIR / "_lib" / n for n in self._SCANNED_LIB]
         targets += sorted((_harness.CLAUDE_DIR / "_shared").glob("*.py"))
         targets.append(_harness.CLAUDE_DIR / "tools" / "nerv-mirror" / "pull.py")
+        # 판정 2b 의 강제 리뷰어 규칙. 게이트가 경로로 불러와 판정에 쓴다(전환 4e).
+        targets.append(GATE_RULES)
         for path in targets:
             name = path.name
             if not path.exists() or name == "__init__.py":

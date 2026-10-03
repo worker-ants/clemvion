@@ -72,13 +72,14 @@
 | 문서 파일 (`*.md`, `*.txt`, `*.rst`, `*.adoc`, `LICENSE`, `NOTICE`, `AUTHORS`, `CHANGELOG`, `README` 등) | documentation | |
 | `**/migrations/*`, `*.sql`, `**/prisma/schema*` | database | 마이그레이션·스키마 안전성 |
 | `**/openapi*.{yml,yaml,json}`, `**/swagger*.{yml,yaml,json}` | api_contract | API 계약 변경 |
-| `spec/**/*.md` | requirement (+ documentation via doc rule) | spec 본문은 요구사항 일관성 검증 필요 |
 | `Dockerfile`, `Dockerfile.*`, `docker-compose*.{yml,yaml}` | dependency + security | base image·package install (dependency) + USER·secret·port·privileged (security) |
 | `.dockerignore` | security | 잘못된 제외 시 `.env`/`.git`/secret 이 build context 에 포함될 위험 |
 | `.env`, `.env.*`, `*.env`, `*.env.example` | security | secret / connection string / API key 누설 |
 | **위 어디에도 안 잡힘** | (첫 행의 6역할만) | 다른 규칙이 더하는 reviewer 는 없다 |
 
 소스 코드 확장자: `ts tsx js jsx mjs cjs · py pyi · java kt kts scala groovy · go rs · c cc cpp cxx h hh hpp hxx · swift m mm · rb php lua · cs fs vb · ex exs erl hrl ml mli clj cljs · dart · sh bash zsh`
+
+옛 `spec/**/*.md` → requirement 행은 NERV 정본 전환 4e 에서 걷었다. 첫 행이 모든 변경 파일에 requirement 를 이미 강제하고, 이 행만 `.claude.project.json` 의 코퍼스 경로를 읽었다. 스펙 미러 파일은 문서 규칙으로 documentation 을 강제한다.
 
 > **SSOT**: 본 표는 `lib/router_safety.py` 의 module docstring 을 미러링한다. 정책 변경 시 두 곳을 같이 갱신하라 — 그 파일의 `_RULES` / 패턴 상수가 진실의 기준이다. 표 stale 발견 시 `lib/router_safety.py` 가 정답.
 

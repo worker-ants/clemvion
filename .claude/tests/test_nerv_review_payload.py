@@ -23,6 +23,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import textwrap
 import unittest
 from pathlib import Path
 
@@ -224,13 +225,16 @@ class BuildTest(unittest.TestCase):
         self.assertTrue(any("scope.md" in e and "HIGH" in e for e in json.loads(r.stdout)["errors"]))
 
     def test_the_required_roles_match_the_router_constant(self):
-        """같은 6역할을 router(`_SOURCE_FORCED_REVIEWERS`)와 이 도구가 따로 든다. 둘이 갈리면 안 된다.
+        """같은 6역할을 router(`NERV_REQUIRED_REVIEWERS`)와 이 도구가 따로 든다. 둘이 갈리면 안 된다.
         router 모듈은 `_lib` 이름 충돌 때문에 불러오지 않고 소스에서 상수를 읽는다."""
         src = (_harness.CLAUDE_DIR / "skills" / "code-review-agents" / "lib" / "router_safety.py").read_text(
             encoding="utf-8")
         tree = ast.parse(src)
-        value = next(ast.literal_eval(n.value) for n in tree.body if isinstance(n, ast.Assign)
-                     and any(getattr(t, "id", None) == "_SOURCE_FORCED_REVIEWERS" for t in n.targets))
+        def targets(n):
+            return n.targets if isinstance(n, ast.Assign) else [n.target] if isinstance(n, ast.AnnAssign) else []
+
+        value = next(ast.literal_eval(n.value) for n in tree.body
+                     if any(getattr(t, "id", None) == "NERV_REQUIRED_REVIEWERS" for t in targets(n)))
         self.assertEqual(set(value), set(tool.NERV_REQUIRED_ROLES))
 
     def test_missing_nerv_roles_are_warned_in_a_code_session(self):
@@ -263,19 +267,146 @@ class BuildTest(unittest.TestCase):
         self.assertEqual(out["errors"], [])
         self.assertTrue(out["warnings"])
 
-    def test_deferred_kinds_are_refused(self):
-        """merge · spec_coverage 의 제출 절차는 전환 4e 에서 정한다. 그 전에는 묶음을 만들지 않는다."""
-        for name in ("merge", "spec-coverage"):
-            with self.subTest(name=name):
-                d = self.tmp / ".review" / name / "2026" / "10" / "01" / "12_00_00"
-                d.mkdir(parents=True)
-                (d / "merge_conflict_analyzer.md").write_text(REPORT, encoding="utf-8")
-                r = subprocess.run([sys.executable, str(TOOL_PATH), str(d)], capture_output=True, text=True,
-                                   timeout=60)
-                self.assertEqual(r.returncode, 1, r.stdout)
-                out = json.loads(r.stdout)
-                self.assertEqual(out["submissions"], [])
-                self.assertTrue(any("전환 4e" in e for e in out["errors"]), out["errors"])
+    def test_a_merge_session_submits_each_analyzer(self):
+        """merge 세션은 analyzer 마다 `<role>.md` 를 남긴다. 리뷰어와 같은 형식이라 같은 파서로 읽는다(전환 4e)."""
+        d = self.tmp / ".review" / "merge" / "2026" / "10" / "01" / "12_00_00"
+        d.mkdir(parents=True)
+        roles = ("merge_conflict_analyzer", "semantic_conflict_analyzer")
+        state = {"subagent_invocations": [
+            {"name": r, "output_file": str(d / f"{r}.md")} for r in roles]}
+        (d / "_retry_state.json").write_text(json.dumps(state), encoding="utf-8")
+        for r in roles:
+            (d / f"{r}.md").write_text(REPORT, encoding="utf-8")
+        (d / "SUMMARY.md").write_text("# 통합 보고서\n**BLOCK: NO**\n", encoding="utf-8")
+        out = tool.build(str(d))
+        self.assertEqual(out["kind"], "merge")
+        self.assertEqual(out["errors"], [])
+        self.assertEqual(sorted(s["reviewer"]["role"] for s in out["submissions"]), sorted(roles))
+        self.assertTrue(all(s["findings"] for s in out["submissions"]))
+
+    COVERAGE = textwrap.dedent("""\
+        # Spec Coverage Audit — 2026-10-03T00:00:00Z
+
+        ## 요약
+
+        - 모드: both
+        - 후보 high: 1
+
+        ## 후보 — high confidence
+
+        ### 1. `spec/CLE-WF/CLE-WF-EDITOR.md` — [forward] H1 UI 키워드
+        - **신호**: 본문 line 12 의 UI 키워드 `패널`
+          이어지는 줄
+        - **부재**: 구현 위치에 frontend 경로가 없다
+        - **권고**: frontend 구현 Task 를 만든다
+
+        ## 후보 — medium confidence
+
+        ### 1. `spec/CLE-API/CLE-API-CONV.md:40` — [reverse] H4 route
+        - **신호**: controller route `/x`
+
+        ## 후보 — low confidence
+
+        (없음)
+
+        ## False-positive 검토 가이드
+
+        ### 1. 이 줄은 후보가 아니다
+        - **신호**: 가이드 절의 예시
+        """)
+
+    def test_a_spec_coverage_summary_becomes_info_findings(self):
+        """감사기는 SUMMARY.md 하나를 쓴다. 후보 하나가 info 발견 하나다 — 보고형이라 라운드를 막지 않는다."""
+        d = self.tmp / ".review" / "spec-coverage" / "2026" / "10" / "01" / "12_00_00"
+        d.mkdir(parents=True)
+        (d / "SUMMARY.md").write_text(self.COVERAGE, encoding="utf-8")
+        out = tool.build(str(d))
+        self.assertEqual(out["errors"], [])
+        [sub] = out["submissions"]
+        self.assertEqual(sub["reviewer"]["role"], "spec_coverage")
+        self.assertIn("모드: both", sub["summary"])
+        found = sub["findings"]
+        self.assertEqual(len(found), 2, found)  # 가이드 절의 `### 1.` 은 후보가 아니다
+        self.assertEqual({f["severity"] for f in found}, {"info"})
+        high, medium = found
+        self.assertEqual(high["file"], "spec/CLE-WF/CLE-WF-EDITOR.md")
+        self.assertIn("confidence:high", high["tags"])
+        self.assertIn("forward", high["tags"])
+        self.assertIn("이어지는 줄", high["body"])
+        self.assertIn("부재: 구현 위치에", high["body"])
+        self.assertEqual(high["suggestion"], "frontend 구현 Task 를 만든다")
+        self.assertEqual((medium["file"], medium["line"]), ("spec/CLE-API/CLE-API-CONV.md", 40))
+        self.assertIn("confidence:medium", medium["tags"])
+        self.assertIn("reverse", medium["tags"])
+        self.assertNotIn("suggestion", medium)
+
+    def _coverage_session(self, text):
+        d = self.tmp / ".review" / "spec-coverage" / "2026" / "10" / "01" / "12_00_00"
+        d.mkdir(parents=True, exist_ok=True)
+        (d / "SUMMARY.md").write_text(text, encoding="utf-8")
+        return tool.build(str(d))
+
+    def test_the_auditor_definition_example_parses(self):
+        """파서는 감사기 정의(`spec-impl-coverage-auditor.md` §출력 형식)의 예시를 읽어야 한다.
+
+        손으로 쓴 fixture 만 쓰면 정의의 형식이 바뀌어도 초록이고, 실제 SUMMARY 는 "후보 0건" 으로 조용히
+        통과한다."""
+        agent = (_harness.CLAUDE_DIR / "agents" / "spec-impl-coverage-auditor.md").read_text(encoding="utf-8")
+        section = agent.split("## 출력 형식", 1)[1]
+        example = re.search(r"```markdown\n(.*?)\n```", section, re.S)
+        self.assertIsNotNone(example, "감사기 정의에서 출력 형식 예시를 찾지 못했다")
+        sub = tool.parse_coverage_summary(example.group(1))
+        self.assertTrue(sub["findings"], "정의의 예시에서 후보를 하나도 읽지 못했다")
+        first = sub["findings"][0]
+        self.assertIn("confidence:high", first["tags"])
+        self.assertIn("신호:", first["body"])
+        self.assertIn("부재:", first["body"])
+        self.assertTrue(first.get("suggestion"))
+        self.assertIn("후보 high", sub.get("summary", ""))
+
+    def test_candidates_the_summary_counts_but_the_parser_misses_are_warned(self):
+        """요약이 센 후보보다 적게 읽었으면 형식이 어긋난 것이다. 조용히 0건으로 내지 않는다."""
+        text = textwrap.dedent("""\
+            ## 요약
+
+            - 후보 high: 2
+
+            ## 후보 — high confidence
+
+            1. `spec/CLE-A.md` — 번호 목록으로 쓴 후보
+            2. `spec/CLE-B.md` — 번호 목록으로 쓴 후보
+            """)
+        out = self._coverage_session(text)
+        self.assertEqual(out["submissions"][0]["findings"], [])
+        self.assertTrue(any("high" in w and "2" in w for w in out["warnings"]), out["warnings"])
+
+    def test_no_candidates_and_no_counts_is_warned(self):
+        out = self._coverage_session("## 요약\n\n- 모드: forward\n")
+        self.assertTrue(any("후보를 하나도" in w for w in out["warnings"]), out["warnings"])
+
+    def test_a_clean_audit_is_not_warned(self):
+        out = self._coverage_session("## 요약\n\n- 후보 high: 0\n- 후보 medium: 0\n- 후보 low: 0\n")
+        self.assertEqual(out["warnings"], [])
+        self.assertEqual(out["submissions"][0]["findings"], [])
+
+    def test_a_low_candidate_without_a_signal_keeps_its_absence(self):
+        text = textwrap.dedent("""\
+            ## 후보 — low confidence
+
+            ### 1. `spec/CLE-X.md` — H3 시나리오
+            - **부재**: e2e 가 없다
+            """)
+        [f] = self._coverage_session(text)["submissions"][0]["findings"]
+        self.assertIn("confidence:low", f["tags"])
+        self.assertEqual(f["body"], "부재: e2e 가 없다")
+        self.assertNotIn("suggestion", f)
+
+    def test_a_spec_coverage_session_without_its_summary_fails(self):
+        d = self.tmp / ".review" / "spec-coverage" / "2026" / "10" / "01" / "12_00_00"
+        d.mkdir(parents=True)
+        r = subprocess.run([sys.executable, str(TOOL_PATH), str(d)], capture_output=True, text=True, timeout=60)
+        self.assertEqual(r.returncode, 1, r.stdout)
+        self.assertTrue(any("SUMMARY.md" in e for e in json.loads(r.stdout)["errors"]))
 
     def test_nothing_to_submit_fails(self):
         d = self.tmp / ".review" / "consistency" / "2026" / "10" / "01" / "12_00_00"
@@ -302,7 +433,7 @@ class BuildTest(unittest.TestCase):
 
     def test_kind_comes_from_the_path_or_the_flag(self):
         for name, kind in (("consistency", "consistency"), ("merge", "merge"),
-                           ("spec-coverage", "spec_coverage")):  # 뒤의 둘은 거절되지만 kind 는 알아본다
+                           ("spec-coverage", "spec_coverage")):
             with self.subTest(name=name):
                 d = self.tmp / ".review" / name / "2026" / "10" / "01" / "12_00_00"
                 d.mkdir(parents=True)

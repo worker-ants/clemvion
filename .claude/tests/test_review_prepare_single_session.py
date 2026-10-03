@@ -176,22 +176,21 @@ class ForcedSetShrinksWithTheChangesetTest(unittest.TestCase):
     def _forced(self, paths):
         """Resolve the forced set in the orchestrator's own interpreter.
 
-        Importing `lib.router_safety` in-process is exactly the `_lib` collision
-        this module's docstring warns about — `router_safety` does
-        `from _lib import project_config`, and the hook suites have already put
-        `.claude/hooks/_lib` on `sys.path` by the time `discover` reaches us. It
-        passes standalone and errors under `discover`. (Measured: the first draft
-        of this class did precisely that.) The orchestrator already imports the
-        symbol, so go through the fresh interpreter like every other test here.
+        Importing `lib.router_safety` in-process used to be exactly the `_lib`
+        collision this module's docstring warns about — `router_safety` did
+        `from _lib import project_config` until NERV cutover 4e, and the hook
+        suites have already put `.claude/hooks/_lib` on `sys.path` by the time
+        `discover` reaches us. It passed standalone and errored under `discover`.
+        (Measured: the first draft of this class did precisely that.) The
+        orchestrator still imports `_lib`, and it is the caller whose forced set
+        matters, so go through its fresh interpreter like every other test here.
         """
         out = run_in_orchestrator(
             """
-            agents, _ = orch.compute_forced_agents(
-                ARG["paths"], orch.ALL_AGENTS, ARG["root"]
-            )
+            agents, _ = orch.compute_forced_agents(ARG["paths"], orch.ALL_AGENTS)
             emit(sorted(agents))
             """,
-            {"paths": paths, "root": str(REPO_ROOT)},
+            {"paths": paths},
         )
         return set(out)
 

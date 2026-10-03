@@ -79,13 +79,15 @@ class CountDiffFiles(unittest.TestCase):
 class ScopeDeltaCensus(unittest.TestCase):
     SNIPPET = (
         "emit(orch._scope_delta_census("
-        "ARG['root'], ARG['scope'], set(ARG['changed']), ARG['diff']))"
+        "ARG['root'], ARG['scope'], set(ARG['changed']), ARG['diff'], "
+        "covering=ARG['covering'], catalog_skipped=ARG['catalog']))"
     )
+    TARGET = ["spec/CLE-X/CLE-X-A.md", "spec/CLE-X/CLE-X-B.md"]
 
-    def _census(self, *, scope="spec/5-system", changed=(), diff=""):
+    def _census(self, *, scope=None, changed=(), diff="", covering=None, catalog=0):
         return run(self.SNIPPET, {
-            "root": "/tmp/wt", "scope": scope,
-            "changed": list(changed), "diff": diff,
+            "root": "/tmp/wt", "scope": list(scope if scope is not None else self.TARGET),
+            "changed": list(changed), "diff": diff, "covering": covering, "catalog": catalog,
         })
 
     # Assertions name the SUBJECT, never a bare count. A first cut asserted
@@ -93,27 +95,22 @@ class ScopeDeltaCensus(unittest.TestCase):
     # string was matching the *diff* line, which also reads "0개 파일". The
     # sibling-leak mutant survived until the subject was spelled out.
     def _scope_says(self, out, n):
-        return f"scope(`spec/5-system`) 델타: {n}개 파일" in out
+        return f"대상 스펙 델타: {n}개 파일" in out
 
     def test_scope_hits_are_listed_by_path(self):
         out = self._census(changed=[
-            "spec/5-system/6-websocket-protocol.md",
-            "codebase/backend/src/a.ts",          # outside scope — must not count
+            "spec/CLE-X/CLE-X-A.md",
+            "codebase/backend/src/a.ts",          # not a target document — must not count
         ])
-        self.assertIn("spec/5-system/6-websocket-protocol.md", out)
+        self.assertIn("spec/CLE-X/CLE-X-A.md", out)
         self.assertTrue(self._scope_says(out, 1), out)
         self.assertNotIn("codebase/backend/src/a.ts", out)
 
-    def test_trailing_slash_scope_matches_the_same_files(self):
-        with_slash = self._census(
-            scope="spec/5-system/", changed=["spec/5-system/x.md"])
-        self.assertTrue(self._scope_says(with_slash, 1), with_slash)
-
-    def test_prefix_does_not_leak_to_sibling_directory(self):
-        """`spec/5-system` must not swallow `spec/5-system-extra/`."""
-        out = self._census(changed=["spec/5-system-extra/x.md"])
+    def test_a_document_outside_the_target_list_does_not_count(self):
+        """대상은 문서 목록이다. 이름이 닮은 옆 문서(`CLE-X-AB`)는 대상이 아니다."""
+        out = self._census(changed=["spec/CLE-X/CLE-X-AB.md", "spec/CLE-Y/CLE-Y-A.md"])
         self.assertTrue(self._scope_says(out, 0), out)
-        self.assertNotIn("spec/5-system-extra/x.md", out)
+        self.assertNotIn("CLE-X-AB", out)
 
     def test_zero_scope_delta_says_it_is_not_a_void_premise(self):
         """The exact inference four rounds of a real review got wrong."""
@@ -132,26 +129,42 @@ class ScopeDeltaCensus(unittest.TestCase):
         self.assertIn("구현 diff: 0개 파일", out)
         self.assertNotIn("예산에 잘렸다", out)
 
-    # The list folds at `_SCOPE_HITS_DISPLAY_LIMIT`. Every other fixture here is
-    # 0–1 paths, so the fold was reachable in production (`spec/5-system/` alone
-    # can change dozens of files) and unreachable in this suite.
+    def test_covering_documents_are_named_with_the_files_they_cover(self):
+        out = self._census(covering={
+            "spec/CLE-X/CLE-X-B.md": ["codebase/a/1.ts", "codebase/a/2.ts", "codebase/a/3.ts",
+                                      "codebase/a/4.ts"],
+        })
+        self.assertIn("구현 위치 대조로 더한 문서: 1개", out)
+        self.assertIn("`spec/CLE-X/CLE-X-B.md` ← `codebase/a/1.ts`", out)
+        self.assertIn("외 1개", out)
+        self.assertNotIn("codebase/a/4.ts", out)
+
+    def test_no_covering_documents_says_nothing_about_them(self):
+        self.assertNotIn("구현 위치 대조", self._census())
+
+    def test_skipped_catalog_field_files_are_counted(self):
+        out = self._census(diff=ONE_FILE_DIFF, catalog=3)
+        self.assertIn("API 카탈로그 필드 파일 3개", out)
+        self.assertNotIn("API 카탈로그", self._census(diff=ONE_FILE_DIFF))
+
+    # The list folds at `_SCOPE_HITS_DISPLAY_LIMIT`. A big target (a whole mirror
+    # area) can change dozens of documents, so the fold must be reachable here.
     def test_under_the_limit_lists_every_path_and_does_not_fold(self):
-        n = 20
-        out = self._census(changed=[f"spec/5-system/f{i:02d}.md" for i in range(n)])
-        self.assertTrue(self._scope_says(out, n), out)
+        files = [f"spec/CLE-X/CLE-X-F{i:02d}.md" for i in range(20)]
+        out = self._census(scope=files, changed=files)
+        self.assertTrue(self._scope_says(out, 20), out)
         self.assertNotIn("외", out.split("구현 diff")[0])
-        self.assertIn("spec/5-system/f19.md", out)
+        self.assertIn("spec/CLE-X/CLE-X-F19.md", out)
 
     def test_over_the_limit_folds_with_the_exact_remainder(self):
-        n = 25
-        out = self._census(changed=[f"spec/5-system/f{i:02d}.md" for i in range(n)])
+        files = [f"spec/CLE-X/CLE-X-F{i:02d}.md" for i in range(25)]
+        out = self._census(scope=files, changed=files)
         # The COUNT stays honest even though the LIST is folded — a reader must
-        # not conclude the scope changed only 20 files.
-        self.assertTrue(self._scope_says(out, n), out)
+        # not conclude the target changed only 20 documents.
+        self.assertTrue(self._scope_says(out, 25), out)
         self.assertIn("… 외 5건", out)
-        # Sorted, so the first 20 are f00–f19 and f20+ are the folded ones.
-        self.assertIn("spec/5-system/f19.md", out)
-        self.assertNotIn("spec/5-system/f20.md", out)
+        self.assertIn("spec/CLE-X/CLE-X-F19.md", out)
+        self.assertNotIn("spec/CLE-X/CLE-X-F20.md", out)
 
 
 class CensusIsWiredIntoImplDone(unittest.TestCase):
@@ -183,8 +196,8 @@ class CensusSurvivesTruncation(unittest.TestCase):
     def test_head_census_survives_a_budget_that_drops_every_body_chunk(self):
         out = run("""
 census = orch._scope_delta_census(
-    '/tmp/wt', 'spec/5-system',
-    {'spec/5-system/6-websocket-protocol.md'},
+    '/tmp/wt', ['spec/CLE-X/CLE-X-WS.md'],
+    {'spec/CLE-X/CLE-X-WS.md'},
     ARG,
 )
 body = orch.format_file_bundle.__doc__ or ''
@@ -194,7 +207,7 @@ huge = ''.join(
 )
 cut = orch.truncate_file_bundle(census + huge, len(census) + 500)
 emit({
-    'census_survived': '예산에 잘렸다' in cut and '6-websocket-protocol.md' in cut,
+    'census_survived': '예산에 잘렸다' in cut and 'CLE-X-WS.md' in cut,
     'body_was_cut': cut.count('x' * 4000) < 20,
 })
 """, ONE_FILE_DIFF)

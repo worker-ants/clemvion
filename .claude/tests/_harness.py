@@ -18,6 +18,7 @@ would collide. So:
 from __future__ import annotations
 
 import importlib.util
+import json
 import sys
 from pathlib import Path
 from types import ModuleType
@@ -169,6 +170,25 @@ def make_temp_repo_copy(path: Path | str, *subtrees: str) -> Path:
     git_in(repo, "commit", "-q", "--allow-empty", "-m", "copy of this checkout")
     git_in(repo, "update-ref", "refs/remotes/origin/main", "HEAD")
     return repo
+
+
+def write_mirror_doc(root: Path | str, key: str, *, area: str | None = None,
+                     type_: str = "feature", body: str = "본문\n") -> Path:
+    """NERV 스펙 미러 문서 하나를 ``root/spec/<area>/<key>.md`` 에 쓴다(영역 밖이면 ``spec/<key>.md``).
+
+    consistency 오케스트레이터가 읽는 것만 담는다: 키가 곧 파일 이름이고, frontmatter `type` 이
+    정식 규약(`convention`)과 나머지를 가른다. 실제 미러의 나머지 줄(`mirror_sha256` · `etag` …)은
+    오케스트레이터가 보지 않는다. 문자열 안의 코드에서도 쓰도록 경로 문자열도 받는다.
+    """
+    folder = Path(root) / "spec" / (area or "")
+    folder.mkdir(parents=True, exist_ok=True)
+    path = folder / f"{key}.md"
+    path.write_text(
+        f'---\nid: "{key}"\ntitle: "{key} 제목"\ntype: "{type_}"\nversion: 1\n'
+        f'status: "approved"\narea: {json.dumps(area)}\n---\n{body}',
+        encoding="utf-8",
+    )
+    return path
 
 
 TESTS_DIR = Path(__file__).resolve().parent
