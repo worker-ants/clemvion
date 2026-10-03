@@ -17,14 +17,13 @@ model: opus
 - **출력은 markdown + NERV 레코드**: 로컬 `.review/consistency/<YYYY>/<MM>/<DD>/<hh>_<mm>_<ss>/SUMMARY.md`(gitignore, 커밋하지 않음)가 단일 결과 진입점이고, checker 리포트는 checker 마다 NERV `kind=consistency` 로 제출한다(전환 단계 2).
 - **재진입성**: 스펙 자동 수정 안 함, 산출물 디렉토리만 누적.
 
-## 5개 Checker
+## Checker 4개
 
 | sub-agent | 검출 대상 |
 | --- | --- |
 | `cross-spec-checker` | 다른 영역 spec 의 데이터 모델·API·요구사항 ID 충돌 |
 | `rationale-continuity-checker` | 과거 Rationale 의 기각 결정 재도입 |
 | `convention-compliance-checker` | 정식 규약(미러 frontmatter `type: "convention"` 문서) 위반 |
-| `plan-coherence-checker` | `plan/in-progress/**` 미해결 결정·선행 plan 미해소·후속 항목 누락. **이 저장소에서는 꺼져 있다**(`.claude.project.json` 의 `agents.checkers.plan_coherence: false`). 유일한 코퍼스 `plan/` 이 전환 단계 3 에서 없어졌고, 4e(NERV Task `CLE-T-VP5KDJ`)에서 오케스트레이터가 이 checker 에 넘기던 코퍼스도 걷었다. 등록만 남아 있고 정의를 걷을지는 전환 단계 5(NERV Task `CLE-T-7M4C4X`)에서 정한다 |
 | `naming-collision-checker` | 신규 식별자 기존 사용처 중복 |
 
 summary: `consistency-summary` 가 통합 + `BLOCK: YES/NO` 표기.
@@ -58,21 +57,19 @@ python3 .claude/skills/consistency-checker/scripts/consistency_orchestrator.py -
   > **차단 가드가 아니다.** 옛 흐름에서는 draft 를 `plan/complete/` 로 옮겨 남겼다(보존된 69개 중 66개).
   > 전환 단계 3 에서 `plan/` 이 없어졌고 지금 초안의 정본은 NERV 버전이다. 이 사본은 로컬 세션의
   > 증거로만 남는다.
-- `--impl-prep <scope>` — 구현 착수 직전. scope 는 NERV 키(`CLE-ENG-SPECEVIDENCE`) · 미러 영역 폴더(`spec/CLE-ENG/`) · 미러 파일 중 하나이고 쉼표로 여럿을 준다. 동결된 옛 트리(`spec/<번호>-<영역>/` · `spec/conventions/`)는 받지 않는다(종료 코드 2). 보통 클레임 scope 의 `spec_ids` 를 준다. 키가 로컬 미러에 없으면 종료 코드 2 로 멈추므로 먼저 `pull.py --task <Task 키>` 로 받는다.
-- `--impl-done <scope>` — **구현 완료 후 사후 검증**. scope 형식은 `--impl-prep` 와 같다. target_doc 에 대상 미러 문서 + `git diff <diff-base>...HEAD -- <code_areas>` 가 함께 묶여, 5 checker 가 "spec 본문 vs 실 구현 diff" 정합성을 사후 분석. `--diff-base <ref>` 로 base 변경 (default: `origin/main`). **이 base 는 전 모드 공통으로 번들 우선순위 산정에도 쓰인다** — 이 브랜치가 변경한 파일이 컨텍스트 예산의 앞자리를 받는다. **developer REVIEW WORKFLOW 의 의무 단계** — 결과를 checker 마다 `kind=consistency` 로 NERV 에 제출하고(`task_id` 포함) 발견을 처분한다. NERV Task done 게이트(`done_gate.review_coverage`)가 그 Task 의 consistency 라운드를 요구한다. (전환 단계 2 전에는 `review_guard.py` 의 SPEC-CONSISTENCY 게이트가 spec 연결 코드 변경의 push 를 이 산출물의 세션 시각으로 막았다. 그 게이트는 걷혔다.) target_doc 맨 앞에는 **HEAD 워킹트리 절대경로 + "CWD 상대 Read/Grep 은 diff-base(변경 전) 라 신뢰 금지" 가드**가 박힌다 — checker sub-agent 의 CWD 가 default-branch 체크아웃이라 신규 추가 코드를 "미구현" 으로 오탐하던 #738 버그 차단 (코드 확인은 절대경로 / `git -C <root>` 로).
+- `--impl-prep <scope>` — 구현 착수 직전. scope 는 NERV 키(`CLE-ENG-SPECEVIDENCE`) · 미러 영역 폴더(`spec/CLE-ENG/`) · 미러 파일 중 하나이고 쉼표로 여럿을 준다. 미러 밖 경로와 `spec/` 자체는 받지 않는다(종료 코드 2). 보통 클레임 scope 의 `spec_ids` 를 준다. 키가 로컬 미러에 없으면 종료 코드 2 로 멈추므로 먼저 `pull.py --task <Task 키>` 로 받는다.
+- `--impl-done <scope>` — **구현 완료 후 사후 검증**. scope 형식은 `--impl-prep` 와 같다. target_doc 에 대상 미러 문서 + `git diff <diff-base>...HEAD -- <code_areas>` 가 함께 묶여, checker 들이 "spec 본문 vs 실 구현 diff" 정합성을 사후 분석. `--diff-base <ref>` 로 base 변경 (default: `origin/main`). **이 base 는 전 모드 공통으로 번들 우선순위 산정에도 쓰인다** — 이 브랜치가 변경한 파일이 컨텍스트 예산의 앞자리를 받는다. **developer REVIEW WORKFLOW 의 의무 단계** — 결과를 checker 마다 `kind=consistency` 로 NERV 에 제출하고(`task_id` 포함) 발견을 처분한다. NERV Task done 게이트(`done_gate.review_coverage`)가 그 Task 의 consistency 라운드를 요구한다. target_doc 맨 앞에는 **HEAD 워킹트리 절대경로 + "CWD 상대 Read/Grep 은 diff-base(변경 전) 라 신뢰 금지" 가드**가 박힌다 — checker sub-agent 의 CWD 가 default-branch 체크아웃이라 신규 추가 코드를 "미구현" 으로 오탐하던 #738 버그 차단 (코드 확인은 절대경로 / `git -C <root>` 로).
   - **구현 위치 대조**: 미러 문서의 `## 구현 위치` 가 이 브랜치가 바꾼 파일을 덮으면 그 문서를 대상에 더하고 census 에 이유를 적는다. 옛 push 게이트의 spec-linked 검사(구현 파일을 고치면 구현 완료 검토 요구)가 하던 대조를 `--impl-done` 을 돌릴 때 되살린 것이다. 강제는 아니다. done 게이트는 consistency 라운드가 있고 통과했는지만 보고 어떤 문서를 대상으로 했는지는 보지 않는다.
   - `--diff-path <path>` 로 구현 diff 경로를 바꾼다(여럿이면 반복, 기본 `code_areas`). 하네스만 바꾼 작업은 `--diff-path .claude` 처럼 준다. 생성된 API 카탈로그 필드 문서(`codebase/api-catalogs/*/*/**/*.md`)는 diff 에서 빼고 뺀 수만 적는다.
 - `--focus <keys>` — scope 가 영역 폴더처럼 넓을 때 그 안에서 컨텍스트 예산의 앞자리를 줄 NERV 키(쉼표). 보통 클레임 scope 의 `spec_ids`. 모든 모드에서 쓴다. scope 가 키 하나면 쓸 필요가 없다.
 
-`--plan` 모드는 없다(`plan/` 은 전환 단계 3 에서 없어졌다).
-
-> **NERV 미러와 대조 코퍼스 (전환 4e 부터)**: 대상과 대조 코퍼스 모두 미러(`pull.py` 가 쓴 `spec/<키>.md` · `spec/<영역 키>/<키>.md`)다. 정식 규약 코퍼스(`conventions`)는 frontmatter `type: "convention"` 문서, 관련 스펙 코퍼스(`related_specs`)는 그 밖의 미러 문서다. 리서치 영역(`CLE-RESEARCH`)과 미러 안내 `spec/README.md` 는 뺀다. `--spec` 초안 파일 이름이 키면 그 키의 미러 판은 코퍼스에서 빠지고 Rationale 은 남는다. 번들 순서는 브랜치가 바꾼 문서 → `--focus` 키 · 구현 위치가 바뀐 파일을 덮는 문서 → 대상 본문이 부르는 키 → 나머지다. 미러는 구현할 때 `pull.py --task` 로 받은 버전이라 NERV 의 최신 초안 · Rationale 과의 연속성은 `nerv_spec_check` 가 함께 본다.
+> **대상과 대조 코퍼스**: 대상과 대조 코퍼스 모두 미러(`pull.py` 가 쓴 `spec/<키>.md` · `spec/<영역 키>/<키>.md`)다. 정식 규약 코퍼스(`conventions`)는 frontmatter `type: "convention"` 문서, 관련 스펙 코퍼스(`related_specs`)는 그 밖의 미러 문서다. 리서치 영역(`CLE-RESEARCH`)과 미러 안내 `spec/README.md` 는 뺀다. `--spec` 초안 파일 이름이 키면 그 키의 미러 판은 코퍼스에서 빠지고 Rationale 은 남는다. 번들 순서는 브랜치가 바꾼 문서 → `--focus` 키 · 구현 위치가 바뀐 파일을 덮는 문서 → 대상 본문이 부르는 키 → 나머지다. 미러는 구현할 때 `pull.py --task` 로 받은 버전이라 NERV 의 최신 초안 · Rationale 과의 연속성은 `nerv_spec_check` 가 함께 본다.
 
 stdout 마지막 줄 = 세션 디렉토리.
 
 ### Checker 프로젝트별 토글
 
-`.claude.project.json` 의 `agents.checkers.<name>: false` 로 특정 checker 비활성. 디폴트는 전부 활성화 (키 누락·`true` ⇒ enabled, 명시 `false` ⇒ disabled). 이 저장소는 `plan_coherence` 를 꺼서 4개가 돈다. 일회성 override 는 `CONSISTENCY_AGENTS` env (project_config 보다 우선). 5 checker key: `cross_spec` · `rationale_continuity` · `convention_compliance` · `plan_coherence` · `naming_collision`.
+`.claude.project.json` 의 `agents.checkers.<name>: false` 로 특정 checker 비활성. 디폴트는 전부 활성화 (키 누락·`true` ⇒ enabled, 명시 `false` ⇒ disabled). 이 저장소는 4개를 모두 켠다. 일회성 override 는 `CONSISTENCY_AGENTS` env (project_config 보다 우선). checker key: `cross_spec` · `rationale_continuity` · `convention_compliance` · `naming_collision`.
 
 ### 2. Workflow 실행 (기본 경로)
 
@@ -173,7 +170,7 @@ Workflow 가 불가한 환경에서는 orchestrator 의 `--summary-state` / `--u
 
 | 환경변수 | 기본값 | 설명 |
 | --- | --- | --- |
-| `CONSISTENCY_AGENTS` | `.claude.project.json` 이 켠 checker(이 저장소는 `plan_coherence` 를 뺀 4개) | 실행할 checker 쉼표 구분 |
+| `CONSISTENCY_AGENTS` | `.claude.project.json` 이 켠 checker(이 저장소는 4개 전부) | 실행할 checker 쉼표 구분 |
 | `CONSISTENCY_OUTPUT_DIR` | `./.review/consistency` | 결과 디렉토리 (gitignore, 커밋하지 않는다) |
 | `CONSISTENCY_MAX_CONTEXT_SIZE` | `262144` | checker 1명분 prompt body 상한 |
 | `AI_REVIEW_LOOP` | `0` | `1` → loop_mode=true |
